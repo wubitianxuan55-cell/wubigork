@@ -47,6 +47,15 @@
 
 ## 版本状态
 
+- **最新发布：v4.45.0（2026-09-02）「百炼全量下线：引擎 + 配置 + UI + 微信改图链」**：
+  git tag `v4.45.0`；基线 v4.44.0；绑定面 557 零变更。**用户拍板「把百炼删除干净」**：
+  引擎（image_dashscope 退出注册表）/配置（DashScopeAPIKey 字段+迁移+initImageBackend
+  分支全删，SetImageBackend 第 5 参彻底移除）/UI（引擎枚举去 dashscope，ResultStage 新增
+  「改图」动作用 ComfyUI/Herdsman 走 img2img）/微信改图链（v4.9 起：ActionEditImage 意图
+  解析、execEditImage+seam、入站图缓存 wx_image_cache、wx_agent edit_image 工具 7→6、
+  editImageFromCard）全量退役。基建：gen_bindings 空白参数名合成占位名。详见
+  releases/v4.45.0.md。
+
 - **最新发布：v4.44.0（2026-09-02）「绘梦专项三刀：百炼模型残留修复 · 引擎
   枚举单源化 · 模板画幅落地」**：git tag `v4.44.0`；基线 v4.43.0；绑定面 557
   零变更。绘梦板块专项摸底后收三条互不相交线（无并行子代理，主代理直改 +

@@ -3,6 +3,7 @@ import { Button, Typography } from 'antd'
 import {
   PictureOutlined, ExpandOutlined, DownloadOutlined, SyncOutlined,
   DeleteOutlined, ReloadOutlined, AppstoreOutlined, VideoCameraOutlined,
+  EditOutlined,
 } from '@ant-design/icons'
 import { C } from '../../utils/theme'
 import { mediaIsVideo } from './media'
@@ -20,6 +21,8 @@ interface Props {
   onDelete?: (index: number) => void
   onRetry?: () => void
   onOpenTemplatePicker?: () => void
+  /** 把该张结果作为参考图发起图生图（不传则不渲染「改图」动作） */
+  onEditImage?: (index: number) => void
 }
 
 const getAspect = (size: string) => {
@@ -29,7 +32,7 @@ const getAspect = (size: string) => {
 }
 
 export const ResultStage: React.FC<Props> = ({
-  results, generating, error, mode = 'txt2img', initImage, onPreview, onDownload, onReuse, onDelete, onRetry, onOpenTemplatePicker,
+  results, generating, error, mode = 'txt2img', initImage, onPreview, onDownload, onReuse, onDelete, onRetry, onOpenTemplatePicker, onEditImage,
 }) => {
   const emptyTitle = mode === 't2v' ? '输入描述，生成你的第一支 AI 视频'
     : mode === 'img2img' ? '上传参考图，开始重绘'
@@ -185,6 +188,9 @@ export const ResultStage: React.FC<Props> = ({
             <Action icon={<ExpandOutlined />} label="预览" onClick={(e) => { e.stopPropagation(); onPreview(0) }} />
             <Action icon={<DownloadOutlined />} label="下载" onClick={(e) => { e.stopPropagation(); onDownload(0) }} />
             <Action icon={<SyncOutlined />} label="复用" onClick={(e) => { e.stopPropagation(); onReuse(0) }} />
+            {onEditImage && !mediaIsVideo(r.image) && (
+              <Action icon={<EditOutlined />} label="改图" onClick={(e) => { e.stopPropagation(); onEditImage(0) }} />
+            )}
             {onDelete && (
               <Action icon={<DeleteOutlined />} label="删除" onClick={(e) => { e.stopPropagation(); onDelete(0) }} />
             )}
@@ -249,6 +255,9 @@ export const ResultStage: React.FC<Props> = ({
             <Action icon={<ExpandOutlined />} label="预览" onClick={(e) => { e.stopPropagation(); onPreview(i) }} />
             <Action icon={<DownloadOutlined />} label="下载" onClick={(e) => { e.stopPropagation(); onDownload(i) }} />
             <Action icon={<SyncOutlined />} label="复用" onClick={(e) => { e.stopPropagation(); onReuse(i) }} />
+            {onEditImage && !mediaIsVideo(r.image) && (
+              <Action icon={<EditOutlined />} label="改图" onClick={(e) => { e.stopPropagation(); onEditImage(i) }} />
+            )}
             {onDelete && (
               <Action icon={<DeleteOutlined />} label="删除" onClick={(e) => { e.stopPropagation(); onDelete(i) }} />
             )}

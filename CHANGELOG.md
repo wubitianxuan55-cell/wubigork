@@ -1,3 +1,17 @@
+## v4.45.0 · 百炼全量下线：引擎 + 配置 + UI + 微信改图链（2026-09-02）
+> 用户拍板「把百炼删除干净」——v4.40.0 对话式改图的百炼(DashScope)链路全量
+> 退役，img2img 保留 ComfyUI / Herdsman 本地后端。**绑定面 557 零变更**。
+> 详见 releases/v4.45.0.md。
+- **引擎与配置**：image_dashscope.go 退出注册表；DashScopeAPIKey 字段/迁移/
+  initImageBackend 分支全删；SetImageBackend 第 5 参彻底移除（4 参，方法名不动）。
+- **imagegen UI**：引擎枚举去 dashscope（meta 单源）+ 门禁文案更新；ResultStage
+  新增「改图」动作（结果图作参考图发起 img2img）；回归锁断言 dashscope 不在枚举。
+- **微信改图链全删**（v4.9 起）：ActionEditImage 意图解析/exec/seam/入站图旁路
+  缓存（wx_image_cache 整文件）/wx_agent edit_image 工具（7→6）/
+  editImageFromCard；copyFileBounded 迁 wx_file_handler.go。
+- **基建**：gen_bindings 空白参数名合成占位名（`f(_)` 编译错误根因）。
+- 验证：go 全量绿（110 包）、tsc/tsc -b/eslint 0、vitest 1312/1312、drift PASS（557）。
+
 ## v4.44.0 · 绘梦专项三刀：百炼模型残留修复 · 引擎枚举单源化 · 模板画幅落地（2026-09-02）
 > 绘梦板块专项摸底后收三条互不相交线，全为真实缺陷与体验收口，绑定面
 > **557 零变更**、零新增绑定。详见 releases/v4.44.0.md。

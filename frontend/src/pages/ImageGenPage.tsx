@@ -119,6 +119,28 @@ const ImageGenPage: React.FC = () => {
     if (r.size) setSize(r.size)
   }, [results, setPrompt, setNegative, setSeed, setSize])
 
+  // ── 「以此图改图」：把结果图作为参考图发起图生图（刀B，收 v4.40 欠账） ──
+  const handleEditImage = useCallback(async (i: number) => {
+    const r = results[i]
+    if (!r) return
+    const href = await resolveResultImage(r)
+    if (!href) {
+      message.warning('图片数据不可用（本地文件缺失且无内存数据），请重新生成')
+      return
+    }
+    // 引擎门禁：图生图仅 ComfyUI / Herdsman 支持；其它引擎（xAI / Ollama /
+    // GLM）先把参考图就位，切到支持引擎后即可改。
+    const supportsImg2Img = ['comfyui', 'herdsman'].includes(backend)
+    setMode('img2img')
+    setInitImage(href)
+    setPrompt('')
+    if (!supportsImg2Img) {
+      message.warning('当前引擎不支持图生图，已为你切到图生图模式并填入参考图——请切换到 ComfyUI / Herdsman 引擎后继续')
+    } else {
+      message.success('已把该图设为参考图，输入修改描述后点击生成')
+    }
+  }, [results, backend, resolveResultImage, setMode, setInitImage, setPrompt])
+
   const handleDeleteResult = useCallback((i: number) => {
     const r = results[i]
     if (!r) return
@@ -145,10 +167,10 @@ const ImageGenPage: React.FC = () => {
 
   // ── 引擎启停派生 ──
   const isLocalEngine = isLocalBackend(backend)
-  // needsComfy = 当前模式需要特定后端能力（提示性；dashscope 支持 img2img、
-  // glm 无 img2img/t2v 能力且已由 ControlPanel/queue 专属门禁兜底，不在此重复）
+  // needsComfy = 当前模式需要特定后端能力（提示性；glm 无 img2img/t2v 能力
+  // 且已由 ControlPanel/queue 专属门禁兜底，不在此重复）
   const needsComfy = (mode === 't2v' && backend !== 'comfyui')
-    || (mode === 'img2img' && backend !== 'comfyui' && backend !== 'herdsman' && backend !== 'dashscope' && backend !== 'glm')
+    || (mode === 'img2img' && backend !== 'comfyui' && backend !== 'herdsman' && backend !== 'glm')
 
   const engineStatusText = engineStarting
     ? '引擎启动中...'
@@ -254,6 +276,7 @@ const ImageGenPage: React.FC = () => {
             onPreview={handlePreviewResult}
             onDownload={handleDownloadResult}
             onReuse={handleReuseResult}
+            onEditImage={handleEditImage}
             onDelete={handleDeleteResult}
             onRetry={handleGenerate}
             onOpenTemplatePicker={() => setTemplatePickerOpen(true)}

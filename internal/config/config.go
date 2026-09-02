@@ -109,10 +109,6 @@ const (
 	KeyGLMAPIKey         = "glm_api_key"
 	KeyOpencodeGoAPIKey  = "opencode_go_api_key"
 	KeyOpencodeZenAPIKey = "opencode_zen_api_key"
-	// 阿里云百炼 DashScope API Key（对话式改图后端）：存储口径 = 同 GLM 等
-	// 密钥类配置——config 层只存取字符串（secure.EncryptString 密文）、
-	// 不做加解密，明文↔密文转换由 app 层 secure 负责。
-	KeyDashScopeAPIKey = "dashscope_api_key"
 	// 自定义引擎 Key 库（A 刀自定义引擎）：值为 JSON map[string]string
 	// （engineID → secure.EncryptString 密文）。config 层只存取字符串/JSON、
 	// 不做加解密（明文↔密文由 app 层 secure 负责，先例 realtime_api_key）。
@@ -179,7 +175,6 @@ type configFile struct {
 	GLMAPIKey           string            `json:"glm_api_key,omitempty"`            // GLM (智谱) API Key
 	OpenCodeGoAPIKey    string            `json:"opencode_go_api_key,omitempty"`    // OpenCode Go API Key
 	OpenCodeZenAPIKey   string            `json:"opencode_zen_api_key,omitempty"`   // OpenCode Zen API Key
-	DashScopeAPIKey     string            `json:"dashscope_api_key,omitempty"`      // 阿里云百炼 API Key（secure 密文，app 层加解密）
 	CustomEngineKeys    map[string]string `json:"custom_engine_keys,omitempty"`     // 自定义引擎 Key 库（engineID → 密文）
 	ActiveASREngine     string            `json:"active_asr_engine,omitempty"`      // 语音识别激活引擎
 	ActiveASRModel      string            `json:"active_asr_model,omitempty"`       // 语音识别激活模型
@@ -316,12 +311,6 @@ type Config struct {
 
 	// OpenCode Zen API Key（按量付费，opencode.ai/auth 获取）
 	OpenCodeZenAPIKey string
-
-	// 阿里云百炼 DashScope API Key（对话式改图后端）。存储口径同 GLM 等
-	// 密钥类配置：本结构持有 secure.EncryptString 密文（config 层只存取、
-	// 不加减密）；app 层 initImageBackend 经 secure.DecryptString 解出内存
-	// 明文再注入图片后端。
-	DashScopeAPIKey string
 
 	// 自定义引擎 Key 库（A 刀自定义引擎）：engineID → secure.EncryptString
 	// 密文。app 层启动时解密为明文后注入 modelengine.Manager（明文只存内存）。
@@ -940,9 +929,6 @@ func Load() *Config {
 			if cf.OpenCodeZenAPIKey != "" {
 				cfg.OpenCodeZenAPIKey = cf.OpenCodeZenAPIKey
 			}
-			if cf.DashScopeAPIKey != "" {
-				cfg.DashScopeAPIKey = cf.DashScopeAPIKey
-			}
 			if len(cf.CustomEngineKeys) > 0 {
 				cfg.CustomEngineKeys = cf.CustomEngineKeys
 			}
@@ -1344,7 +1330,6 @@ var saveSetters = map[string]func(cf *configFile, value string) error{
 	KeyGLMAPIKey:         func(cf *configFile, v string) error { cf.GLMAPIKey = v; return nil },
 	KeyOpencodeGoAPIKey:  func(cf *configFile, v string) error { cf.OpenCodeGoAPIKey = v; return nil },
 	KeyOpencodeZenAPIKey: func(cf *configFile, v string) error { cf.OpenCodeZenAPIKey = v; return nil },
-	KeyDashScopeAPIKey:   func(cf *configFile, v string) error { cf.DashScopeAPIKey = v; return nil },
 	KeyCustomEngineKeys: func(cf *configFile, v string) error {
 		// 值为 JSON map[string]string（engineID → secure 密文）；空串 = 清空。
 		if v == "" {

@@ -8,7 +8,7 @@ package app
 // 「重新整理后发给我」类的嘴上幻觉：要执行动作必须调工具，拿真实结果说话。
 //
 // 复用口径：工具参数 JSON → 构造 intent.Intent{Action,Target,Text} → 直接调
-// execNavigate / execGenerateImage / execEditImage / execStatus / execReminder /
+// execNavigate / execGenerateImage / execStatus / execReminder /
 // execReadScreen / execSendLatestFile。exec 层签名零改动；CardPath 产物交回
 // 调用侧（whisper_state.go 回调）经既有 SendFileCard 链回推。
 //
@@ -54,11 +54,10 @@ const (
 	wxAgentToolCap = "tools"
 )
 
-// ─── 工具 schema 表（7 个能力）──────────────────────────────
+// ─── 工具 schema 表（6 个能力）──────────────────────────────
 //
 // name 英文 snake_case（OpenAI 工具名规范），description 中文。参数即 exec
-// 适配所需的全部信息；edit_image 语义固定为「用户最近发来的图片」（wxEditCache
-// 按 assistantID 取用，无需传图参数）。
+// 适配所需的全部信息。
 
 var wxAgentTools = []ai.ChatToolSchema{
 	{
@@ -86,20 +85,6 @@ var wxAgentTools = []ai.ChatToolSchema{
 					"prompt": {"type": "string", "description": "画面描述，保留用户原话的关键要素"}
 				},
 				"required": ["prompt"]
-			}`),
-		},
-	},
-	{
-		Type: "function",
-		Function: ai.ChatToolFunctionSpec{
-			Name:        "edit_image",
-			Description: "编辑用户最近通过微信发来的那张图片（对话式改图，无需用户再传图）。用户说「把那张图改成…/加点…」且指代刚发来的图时调用；若最近没有收到过图片会执行失败。",
-			Parameters: json.RawMessage(`{
-				"type": "object",
-				"properties": {
-					"instruction": {"type": "string", "description": "编辑指令，如「调成黑白」「加上一顶帽子」"}
-				},
-				"required": ["instruction"]
 			}`),
 		},
 	},
@@ -342,24 +327,6 @@ func (a *App) wxAgentExecTool(assistantID string, call ai.ChatToolCall, userMsg 
 			return reply + "\n已生成产物：" + card, card
 		}
 		return reply, ""
-	case "edit_image":
-		if assistantID == "" {
-			return "当前没有微信助手上下文，无法定位你最近发来的图片。", ""
-		}
-		instr := arg("instruction")
-		if instr == "" {
-			return missing("instruction")
-		}
-		// execEditImage 从 it.Target 取编辑指令、内部按 assistantID 读
-		// wxEditCache 入站图缓存——与 routeIntent 路径逐字节同款（v4.9 口径）。
-		reply, ok, card := a.execEditImage(wxAgentIntentEditImage(instr, userMsg), assistantID)
-		if !ok {
-			return "改图未执行：没有找到你最近通过微信发来的图片，请先发一张图片再试。", ""
-		}
-		if card != "" {
-			return reply + "\n已生成产物：" + card, card
-		}
-		return reply, ""
 	case "create_reminder":
 		task, when := arg("task_text"), arg("when_raw")
 		if task == "" && when == "" {
@@ -408,11 +375,6 @@ func wxAgentIntentNavigate(board, text string) *intent.Intent {
 // wxAgentIntentGenerateImage 生图：Target=画面描述（execGenerateImage 消费口径）。
 func wxAgentIntentGenerateImage(prompt, text string) *intent.Intent {
 	return &intent.Intent{Action: intent.ActionGenerateImage, Target: prompt, Text: text}
-}
-
-// wxAgentIntentEditImage 改图：Target=编辑指令（execEditImage 从 it.Target 取指令）。
-func wxAgentIntentEditImage(instruction, text string) *intent.Intent {
-	return &intent.Intent{Action: intent.ActionEditImage, Target: instruction, Text: text}
 }
 
 // wxAgentIntentReminder 提醒：execReminder 只消费 it.Text（parseReminderWhen

@@ -20,7 +20,6 @@ import (
 
 	"github.com/gaea/gaea/internal/ai"
 	"github.com/gaea/gaea/internal/config"
-	"github.com/gaea/gaea/internal/gaea/secure"
 	"github.com/gaea/gaea/internal/netclient"
 )
 
@@ -314,8 +313,8 @@ func (a *mediaState) GenerateMedia(paramsJSON string) (map[string]interface{}, e
 	if mode == "t2v" && a.cfg.ImageBackend != "comfyui" {
 		return map[string]interface{}{"error": "文生视频目前仅支持 ComfyUI 本地后端，请先在左侧切换引擎"}, nil
 	}
-	if mode == "img2img" && a.cfg.ImageBackend != "comfyui" && a.cfg.ImageBackend != "herdsman" && a.cfg.ImageBackend != "dashscope" {
-		return map[string]interface{}{"error": "图生图目前支持 ComfyUI / Herdsman / 百炼(DashScope) 后端，请先在左侧切换引擎"}, nil
+	if mode == "img2img" && a.cfg.ImageBackend != "comfyui" && a.cfg.ImageBackend != "herdsman" {
+		return map[string]interface{}{"error": "图生图目前支持 ComfyUI / Herdsman 本地后端，请先在左侧切换引擎"}, nil
 	}
 	if mode == "img2img" && strings.TrimSpace(p.InitImage) == "" {
 		return map[string]interface{}{"error": "图生图需要先上传参考图"}, nil
@@ -374,9 +373,8 @@ func (a *mediaState) GenerateMedia(paramsJSON string) (map[string]interface{}, e
 			imgReq.ProgressCallback = a.updateComfyTaskProgress
 		}
 		// xAI / Ollama 后端不接受 size 参数（xAI 返回 400）；herdsman 文档明确支持
-		// size；GLM 官方 schema 同样接受 size（glm-image 默认 1280x1280）；
-		// dashscope 改图默认不传 size（输出宽高比随输入图，保持原图比例）
-		if a.cfg.ImageBackend != "comfyui" && a.cfg.ImageBackend != "herdsman" && a.cfg.ImageBackend != "glm" && a.cfg.ImageBackend != "dashscope" {
+		// size；GLM 官方 schema 同样接受 size（glm-image 默认 1280x1280）
+		if a.cfg.ImageBackend != "comfyui" && a.cfg.ImageBackend != "herdsman" && a.cfg.ImageBackend != "glm" {
 			imgReq.Size = ""
 		}
 		start := time.Now()
@@ -427,65 +425,6 @@ func (a *mediaState) GenerateMedia(paramsJSON string) (map[string]interface{}, e
 		return map[string]interface{}{"error": msg}, nil
 	}
 	return map[string]interface{}{"results": results, "mode": mode}, nil
-}
-
-// editImageFromCard 对话式改图（包内消费：intent_router execEditImage）。
-// initImage 为参考图 data URL，prompt 为编辑指令；走当前图片后端 img2img
-// 生成一张结果图，落盘（与 GenerateMedia 同口径：ImageSaveDir 优先，未配置
-// 落当前小说 images/ 目录）后返回本地文件路径作为 cardPath；错误原样返回。
-// 不导出=不进绑定面（仅供微信/意图链内部使用）。
-func (a *mediaState) editImageFromCard(initImage, prompt string) (cardPath string, err error) {
-	if a.client == nil {
-		return "", fmt.Errorf("AI 客户端未初始化，请先登录")
-	}
-	// 仅 img2img 能力后端可走改图（其余引擎诚实报错，不静默降级为文生图）
-	switch a.cfg.ImageBackend {
-	case "comfyui", "herdsman", "dashscope":
-	default:
-		return "", fmt.Errorf("当前生图引擎不支持改图")
-	}
-	if strings.TrimSpace(initImage) == "" {
-		return "", fmt.Errorf("改图需要先上传参考图")
-	}
-	if strings.TrimSpace(prompt) == "" {
-		return "", fmt.Errorf("请输入编辑指令")
-	}
-	ctx := a.ctx
-	if ctx == nil {
-		ctx = context.Background() // 非 Wails 上下文（测试等）兜底，同 GetComfyUILoras
-	}
-	resp, err := a.client.GenerateImage(ctx, &ai.ImageGenerationRequest{
-		Model:     a.cfg.ImageModel, // 空则后端回默认模型（如百炼 qwen-image-edit-plus）
-		Prompt:    prompt,
-		N:         1,
-		Mode:      "img2img",
-		InitImage: initImage,
-		// Size 不传：改图输出宽高比随参考图，保持原图比例
-	})
-	if err != nil {
-		return "", err
-	}
-	if len(resp.Data) == 0 {
-		return "", fmt.Errorf("改图失败：API 返回空结果")
-	}
-	imageData := resp.Data[0].URL
-	if imageData == "" {
-		imageData = resp.Data[0].B64JSON
-	}
-	if imageData == "" {
-		return "", fmt.Errorf("改图失败：结果为空")
-	}
-	// 落盘口径与 GenerateMedia 一致：ImageSaveDir 优先，未配置落小说 images/
-	var filePath string
-	if a.cfg.ImageSaveDir != "" {
-		filePath = a.saveMediaToDisk(imageData, prompt, a.cfg.ImageSaveDir)
-	} else {
-		filePath = a.saveMediaToNovelImages(imageData, prompt)
-	}
-	if filePath == "" {
-		return "", fmt.Errorf("改图结果保存失败，请检查图片存放目录权限")
-	}
-	return filePath, nil
 }
 
 // saveMediaToDisk 按 data URL 的 MIME 推断扩展名，保存图片/视频到指定目录
@@ -599,17 +538,6 @@ func isGLMImageModel(model string) bool {
 	return strings.HasPrefix(l, "cogview") || strings.HasPrefix(l, "glm-image")
 }
 
-// isDashScopeEditModel 是否百炼改图官方模型（qwen-image-edit 系；
-// qwen-image-2.0 系列 txt2img 后端尚未放行，仍按编辑系归位）。
-func isDashScopeEditModel(model string) bool {
-	l := strings.ToLower(strings.TrimSpace(model))
-	return strings.HasPrefix(l, "qwen-image-edit")
-}
-
-// dashScopeDefaultModel 百炼改图缺省模型名（镜像 ai.DashScopeDefaultImageModel，
-// 供 config 缺省判断使用，避免 app 包内散落字符串字面量）。
-const dashScopeDefaultModel = ai.DashScopeDefaultImageModel
-
 func (a *mediaState) GetImageBackendInfo() map[string]string {
 	imageModel := a.cfg.ImageModel
 	switch {
@@ -621,11 +549,6 @@ func (a *mediaState) GetImageBackendInfo() map[string]string {
 		if !isGLMImageModel(imageModel) {
 			imageModel = ai.GLMDefaultImageModel
 		}
-	case a.cfg.ImageBackend == "dashscope" && !isDashScopeEditModel(imageModel):
-		// 镜像 GLM：空模型或上一后端残留（grok-imagine-* / krea2 等）都归位
-		// 百炼改图默认编辑模型，避免把残留模型名带进百炼请求（官方会报
-		// model 不存在）。用户手填 qwen-image-edit / -plus / -max 原样保留。
-		imageModel = dashScopeDefaultModel
 	case imageModel == "":
 		imageModel = "grok-imagine-image-quality"
 	}
@@ -669,10 +592,7 @@ func (a *App) SetPortraitConfig(backend, model string) error {
 }
 
 // SetImageBackend 切换图片生成后端（供设置页调用）。
-// dashscopeKey 为百炼 API Key 明文（前端传入）：经 secure 加密后存
-// cfg.DashScopeAPIKey 并落盘（存储口径同 GLM 等 Key 类配置）；传空时保留
-// 已存 Key（切换其他后端不丢百炼 Key）。
-func (a *mediaState) SetImageBackend(backend string, comfyUIURL string, imageModel string, imageSaveDir string, dashscopeKey string) error {
+func (a *mediaState) SetImageBackend(backend string, comfyUIURL string, imageModel string, imageSaveDir string) error {
 	if a.client == nil {
 		return fmt.Errorf("AI 客户端未初始化")
 	}
@@ -731,54 +651,13 @@ func (a *mediaState) SetImageBackend(backend string, comfyUIURL string, imageMod
 			a.cfg.ImageModel = imageModel
 		}
 		a.client.SetImageBackend(ai.NewGLMImageBackend(eng.BaseURL, key), "glm")
-	case "dashscope":
-		key := strings.TrimSpace(dashscopeKey)
-		if key == "" {
-			// 未传新 Key：回退已存的百炼 Key（密文解密），避免误切换报「未配置」
-			stored, decErr := secure.DecryptString(a.cfg.DashScopeAPIKey)
-			if decErr != nil {
-				return fmt.Errorf("百炼 API Key 解密失败: %w", decErr)
-			}
-			key = strings.TrimSpace(stored)
-		}
-		if key == "" {
-			return fmt.Errorf("百炼 API Key 未配置，请先在百炼控制台（dashscope.aliyuncs.com）获取并填入")
-		}
-		enc, err := secure.EncryptString(key)
-		if err != nil {
-			return fmt.Errorf("百炼 API Key 加密失败: %w", err)
-		}
-		a.cfg.DashScopeAPIKey = enc
-		a.cfg.ImageBackend = "dashscope"
-		// 模型归位：imageModel 为空（前端引擎列表无 dashscope，拿不到官方模型名）
-		// 或残留上一后端模型（grok-imagine-* / krea2 等）时，一律归位百炼默认
-		// 编辑模型——残留名会被百炼 API 拒绝（model 不存在），归位保证可生成。
-		if isDashScopeEditModel(imageModel) {
-			a.cfg.ImageModel = imageModel
-		} else {
-			a.cfg.ImageModel = dashScopeDefaultModel
-		}
-		ib, err := ai.NewImageBackend(ai.ImageBackendKindDashScope, ai.ImageBackendConfig{
-			BaseURL: ai.DashScopeBaseURL,
-			APIKey:  key,
-		})
-		if err != nil {
-			return err
-		}
-		a.client.SetImageBackend(ib, "dashscope")
 	default:
-		return fmt.Errorf("不支持的后端: %s（支持 xai / comfyui / herdsman / ollama / glm / dashscope）", backend)
+		return fmt.Errorf("不支持的后端: %s（支持 xai / comfyui / herdsman / ollama / glm）", backend)
 	}
 
 	// 持久化绘梦配置，避免应用重启后回退到默认后端/模型/保存目录
 	if err := config.Save(config.KeyImageBackend, backend); err != nil {
 		slog.Warn("保存图片后端失败", "error", err)
-	}
-	// 百炼 Key：cfg 内为 secure 密文（存储口径同 GLM Key），传了新 Key 才落盘
-	if dashscopeKey != "" {
-		if err := config.Save(config.KeyDashScopeAPIKey, a.cfg.DashScopeAPIKey); err != nil {
-			slog.Warn("保存百炼 Key 失败", "error", err)
-		}
 	}
 	if comfyUIURL != "" {
 		if err := config.Save(config.KeyComfyUIURL, comfyUIURL); err != nil {
@@ -807,11 +686,6 @@ func (a *mediaState) GetImageBackendConfig() map[string]interface{} {
 	currentModel := a.cfg.ImageModel
 	if currentModel == "" {
 		currentModel = "grok-imagine-image-quality"
-	}
-	// dashscope 后端：空/残留模型归位百炼默认编辑模型（同 GetImageBackendInfo
-	// 口径），避免把 grok-imagine-* / krea2 带进百炼请求。
-	if backend == "dashscope" && !isDashScopeEditModel(currentModel) {
-		currentModel = dashScopeDefaultModel
 	}
 
 	// 根据后端类型构建可用模型列表

@@ -297,20 +297,34 @@ func collectMethods(dir string) ([]method, error) {
 			m := method{Name: fd.Name.Name, Receiver: ident.Name}
 			// 参数
 			var params, args []string
+			usedNames := map[string]bool{}
+			slot := 0
 			for _, p := range fd.Type.Params.List {
 				typeStr := exprString(p.Type)
-				if len(p.Names) == 0 {
-					params = append(params, "_ "+typeStr)
-					args = append(args, "_")
-					continue
+				_, variadic := p.Type.(*ast.Ellipsis)
+				names := p.Names
+				if len(names) == 0 {
+					names = []*ast.Ident{{Name: "_"}}
 				}
-				for _, nm := range p.Names {
-					params = append(params, nm.Name+" "+typeStr)
-					arg := nm.Name
+				for _, nm := range names {
+					slot++
+					name := nm.Name
+					// 空白标识符/撞名参数不能做转发实参（`f(_)` 编译错误）——
+					// 合成占位名（handler 侧 `_ string` 第 5 参先例）。
+					if name == "_" || usedNames[name] {
+						base := fmt.Sprintf("_p%d", slot)
+						for usedNames[base] {
+							base += "x"
+						}
+						name = base
+					}
+					usedNames[name] = true
+					params = append(params, name+" "+typeStr)
+					arg := name
 					// 变参（...T）调用侧必须以 `name...` 透传，否则生成门面
 					// 把 []T 当单个 T 传（编译错误）——S1.2 GaeaUnifiedSearch
 					// 的可变 scope 参数依赖此规则。
-					if _, variadic := p.Type.(*ast.Ellipsis); variadic {
+					if variadic {
 						arg += "..."
 					}
 					args = append(args, arg)

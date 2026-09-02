@@ -34,9 +34,9 @@ export async function getImageBackendInfo(): Promise<BackendInfo> {
   return info as unknown as BackendInfo
 }
 
-/** 设置图片后端（dashscopeKey 为百炼改图 API Key，仅 backend==='dashscope' 时有意义；空串 = 保持已保存 Key） */
-export async function setImageBackend(backend: string, url: string, model: string, saveDir: string, dashscopeKey = ''): Promise<void> {
-  await App.SetImageBackend(backend, url, model, saveDir, dashscopeKey)
+/** 设置图片后端 */
+export async function setImageBackend(backend: string, url: string, model: string, saveDir: string): Promise<void> {
+  await App.SetImageBackend(backend, url, model, saveDir)
 }
 
 /** 获取 TTS 配置 */

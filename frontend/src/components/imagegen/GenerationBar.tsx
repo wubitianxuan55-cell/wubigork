@@ -35,10 +35,9 @@ export const GenerationBar: React.FC<Props> = ({
   const est = estimateImageTime(backend, model, count, mode, frames, fps)
 
   // 模式 × 引擎能力门禁（单源）：needsComfy 来自页面级「缺引擎」提示，
-  // backendSupportsMode 兜住引擎固有模式约束（百炼仅改图 / GLM 仅文生图），
+  // backendSupportsMode 兜住引擎固有模式约束（GLM 仅文生图），
   // 两者任一不满足即禁用生成，避免残留态点击后被后端拒收。
-  const modeBlocked = !backendSupportsMode(backend, mode)
-    || (needsComfy && !(mode === 'img2img' && backend === 'dashscope'))
+  const modeBlocked = !backendSupportsMode(backend, mode) || needsComfy
 
   let hint: string
   if (generating) {
@@ -103,11 +102,9 @@ export const GenerationBar: React.FC<Props> = ({
             <span style={{ fontSize: 11, color: 'var(--md-sys-color-warning)' }}>
               {backend === 'glm'
                 ? 'GLM 仅支持文生图，请切换到文生图模式或更换引擎'
-                : backend === 'dashscope'
-                  ? '百炼仅支持改图，请切换到图生图模式或更换引擎'
-                  : mode === 't2v'
-                    ? '文生视频需切换至 ComfyUI'
-                    : '图生图需切换至 ComfyUI / Herdsman / 百炼改图'}
+                : mode === 't2v'
+                  ? '文生视频需切换至 ComfyUI'
+                  : '图生图需切换至 ComfyUI / Herdsman'}
             </span>
           )}
         </div>
@@ -131,11 +128,9 @@ export const GenerationBar: React.FC<Props> = ({
             title={modeBlocked
               ? backend === 'glm'
                 ? 'GLM 仅支持文生图，请切换到文生图模式或更换引擎'
-                : backend === 'dashscope'
-                  ? '百炼仅支持改图，请切换到图生图模式或更换引擎'
-                  : mode === 't2v'
-                    ? '文生视频需切换至 ComfyUI 本地后端'
-                    : '图生图需切换至 ComfyUI / Herdsman / 百炼改图 后端'
+                : mode === 't2v'
+                  ? '文生视频需切换至 ComfyUI 本地后端'
+                  : '图生图需切换至 ComfyUI / Herdsman 后端'
               : undefined}
           >
             {generating ? <LoadingOutlined /> : <ThunderboltOutlined />}

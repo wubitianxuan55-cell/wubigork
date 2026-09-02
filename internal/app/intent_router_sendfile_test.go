@@ -2,7 +2,7 @@ package app
 
 // intent_router_sendfile_test.go — 产物推送执行层（v4.41 微信文件收发刀）：
 // 登记表命中取最新、登记表落空回退 exports 双目录、双落空诚实报错、dry-run
-// 预览。会话枚举/exports 根均经可替换 seam（wxEditImageInvoker 先例）注入，
+// 预览。会话枚举/exports 根均经可替换 seam（测试注入）注入，
 // 不依赖真实工作区。
 
 import (

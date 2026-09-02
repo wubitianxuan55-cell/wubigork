@@ -48,22 +48,22 @@ describe('GenerationBar 生成进度显示', () => {
   })
 })
 
-describe('GenerationBar 百炼改图（dashscope）门禁', () => {
-  it('img2img + dashscope：即使 needsComfy=true 也不禁用生成按钮（百炼支持改图）', () => {
-    const { container } = render(
-      <GenerationBar {...baseProps} mode="img2img" backend="dashscope" generating={false} needsComfy={true} />,
-    )
-    const btn = container.querySelector('.ig-gen-button') as HTMLButtonElement
-    expect(btn.disabled).toBe(false)
-    expect(screen.queryByText('图生图需切换至 ComfyUI / Herdsman / 百炼改图')).toBeNull()
-  })
-
+describe('GenerationBar 模式门禁', () => {
   it('img2img + xai + needsComfy：仍禁用生成按钮并提示切换引擎', () => {
     const { container } = render(
       <GenerationBar {...baseProps} mode="img2img" backend="xai" generating={false} needsComfy={true} />,
     )
     const btn = container.querySelector('.ig-gen-button') as HTMLButtonElement
     expect(btn.disabled).toBe(true)
-    expect(screen.getByText('图生图需切换至 ComfyUI / Herdsman / 百炼改图')).toBeTruthy()
+    expect(screen.getByText('图生图需切换至 ComfyUI / Herdsman')).toBeTruthy()
+  })
+
+  it('glm + img2img 残留态：禁用并提示 GLM 仅支持文生图', () => {
+    const { container } = render(
+      <GenerationBar {...baseProps} mode="img2img" backend="glm" generating={false} needsComfy={false} />,
+    )
+    const btn = container.querySelector('.ig-gen-button') as HTMLButtonElement
+    expect(btn.disabled).toBe(true)
+    expect(screen.getByText('GLM 仅支持文生图，请切换到文生图模式或更换引擎')).toBeTruthy()
   })
 })

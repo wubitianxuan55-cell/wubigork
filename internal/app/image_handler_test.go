@@ -354,29 +354,6 @@ func TestGetImageBackendInfo_Defaults(t *testing.T) {
 		}
 	})
 
-	t.Run("dashscope 空模型归位百炼默认编辑模型", func(t *testing.T) {
-		ms := &mediaState{core: &core{cfg: &config.Config{ImageBackend: "dashscope"}}}
-		if got := ms.GetImageBackendInfo()["image_model"]; got != ai.DashScopeDefaultImageModel {
-			t.Fatalf("image_model = %q, want %s（dashscope 不应回退 grok 默认）", got, ai.DashScopeDefaultImageModel)
-		}
-	})
-
-	t.Run("dashscope 残留 xAI/ComfyUI 模型归位百炼默认编辑模型", func(t *testing.T) {
-		for _, stale := range []string{"grok-imagine-image-quality", "krea2"} {
-			ms := &mediaState{core: &core{cfg: &config.Config{ImageBackend: "dashscope", ImageModel: stale}}}
-			if got := ms.GetImageBackendInfo()["image_model"]; got != ai.DashScopeDefaultImageModel {
-				t.Fatalf("ImageModel=%q → image_model = %q, want %s（残留模型不应带到百炼）", stale, got, ai.DashScopeDefaultImageModel)
-			}
-		}
-	})
-
-	t.Run("dashscope 手填编辑模型保留", func(t *testing.T) {
-		ms := &mediaState{core: &core{cfg: &config.Config{ImageBackend: "dashscope", ImageModel: "qwen-image-edit-max"}}}
-		if got := ms.GetImageBackendInfo()["image_model"]; got != "qwen-image-edit-max" {
-			t.Fatalf("image_model = %q, want qwen-image-edit-max（手填官方模型应保留）", got)
-		}
-	})
-
 	t.Run("空保存目录回退默认路径", func(t *testing.T) {
 		ms := &mediaState{core: &core{cfg: &config.Config{ImageBackend: "xai"}}}
 		want := filepath.Join(`C:\Users\test`, "Pictures", "gaea")
@@ -406,7 +383,7 @@ func TestSetImageBackend_GLM(t *testing.T) {
 		mgr := modelengine.NewManager("", "")
 		mgr.SaveEngine(modelengine.EngineConfig{ID: "glm", Enabled: false})
 		ms.engineMgr = mgr
-		err := ms.SetImageBackend("glm", "", "cogview-4-250304", "", "")
+		err := ms.SetImageBackend("glm", "", "cogview-4-250304", "")
 		if err == nil || !strings.Contains(err.Error(), "未启用") {
 			t.Fatalf("应报引擎未启用, got %v", err)
 		}
@@ -415,7 +392,7 @@ func TestSetImageBackend_GLM(t *testing.T) {
 	t.Run("无 Key 时拒绝", func(t *testing.T) {
 		ms := newMS()
 		ms.engineMgr.UpdateGLMKey("")
-		err := ms.SetImageBackend("glm", "", "cogview-4-250304", "", "")
+		err := ms.SetImageBackend("glm", "", "cogview-4-250304", "")
 		if err == nil || !strings.Contains(err.Error(), "Key 未配置") {
 			t.Fatalf("应报 Key 未配置, got %v", err)
 		}
@@ -423,7 +400,7 @@ func TestSetImageBackend_GLM(t *testing.T) {
 
 	t.Run("就绪时绑定并持久化", func(t *testing.T) {
 		ms := newMS()
-		if err := ms.SetImageBackend("glm", "", "cogview-4-250304", "", ""); err != nil {
+		if err := ms.SetImageBackend("glm", "", "cogview-4-250304", ""); err != nil {
 			t.Fatalf("SetImageBackend: %v", err)
 		}
 		if ms.cfg.ImageBackend != "glm" || ms.cfg.ImageModel != "cogview-4-250304" {
@@ -433,7 +410,7 @@ func TestSetImageBackend_GLM(t *testing.T) {
 
 	t.Run("未知后端报错列出 glm", func(t *testing.T) {
 		ms := newMS()
-		err := ms.SetImageBackend("deepseek", "", "", "", "")
+		err := ms.SetImageBackend("deepseek", "", "", "")
 		if err == nil || !strings.Contains(err.Error(), "glm") {
 			t.Fatalf("错误提示应列出 glm, got %v", err)
 		}

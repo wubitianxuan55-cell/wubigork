@@ -172,15 +172,6 @@ func (w *whisperState) startAssistantWx(ast assistant.Assistant) {
 	if w.app != nil {
 		srv.MediaRecognizer = weixin.OCRMediaRecognizer(w.app.visionOCRText)
 	}
-	// v4.9 对话式改图：入站图片旁路缓存——识别链路解密落盘后把文件复制一份
-	// 进 wx_edit_cache 自持缓存（TTL 10 分钟，同助手只留最新一张），改图意图
-	// 执行层（execEditImage）按 ast.ID 取用。缓存失败只记日志，不影响识别与
-	// 聊天主流程；现有 MediaRecognizer 注入与回调链顺序不变。
-	srv.OnInboundImage = func(fromUser, localPath string) {
-		if _, err := wxEditImageCache(w.whisperDataRoot).Set(ast.ID, localPath); err != nil {
-			slog.Warn("[assistant] 入站图片改图缓存失败", "assistant", ast.ID, "err", err)
-		}
-	}
 	// v4.41 微信文件收发：入站文件下载成功后回调（契约 weixin.InboundFileHandler，
 	// 下载/解密由通道线实装）——复制自持进 wx_files + 内容提取一行注入，模型由此
 	// 直接「看见」文件内容作答（nil/panic/空串由 clawbot 回退占位行）。wx_files
@@ -221,8 +212,5 @@ func (w *whisperState) stopAssistantWx(id string) {
 	w.weixinMu.Unlock()
 	if ok {
 		srv.Stop()
-		// v4.9：助手停用即清它的改图缓存（自持副本文件一并删除）；删除助手的
-		// 全量清理走 wxEditImageCache(...).PurgeAll()。
-		wxEditImageCache(w.whisperDataRoot).Delete(id)
 	}
 }

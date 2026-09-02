@@ -56,7 +56,6 @@ const BACKEND_ICONS: Record<string, React.ReactNode> = {
   herdsman: <RocketOutlined />,
   ollama: <KeyOutlined />,
   glm: <CloudOutlined />,
-  dashscope: <CloudOutlined />,
 }
 
 const labelStyle: React.CSSProperties = {
@@ -145,14 +144,13 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
   const fileRef = React.useRef<HTMLInputElement>(null)
   const isLocal = isLocalBackend(backend)
   // 引擎固有模式约束（非能力缺口，是引擎只支持某模式）：
-  // 百炼改图仅 img2img（改图）；GLM 官方图像端点仅 txt2img（无图生图参数）。
-  // 残留态（切引擎后未切模式）时给出专属警告；这类引擎不参与 needsComfy
-  // 「缺引擎」提示（否则两条警告叠加，语义重复）。
-  const dashscopeOffMode = backend === 'dashscope' && mode !== 'img2img'
+  // GLM 官方图像端点仅 txt2img（无图生图参数）。残留态（切引擎后未切模式）
+  // 时给出专属警告；这类引擎不参与 needsComfy「缺引擎」提示（否则两条警告
+  // 叠加，语义重复）。
   const glmOffMode = backend === 'glm' && mode !== 'txt2img'
-  // 图生图门禁白名单：comfyui / herdsman / dashscope（glm/xai/ollama 无图生图参数）
+  // 图生图门禁白名单：comfyui / herdsman（glm/xai/ollama 无图生图参数）
   const needsComfy = (mode === 't2v' && backend !== 'comfyui' && backend !== 'glm')
-    || (mode === 'img2img' && backend !== 'comfyui' && backend !== 'herdsman' && backend !== 'dashscope' && backend !== 'glm')
+    || (mode === 'img2img' && backend !== 'comfyui' && backend !== 'herdsman' && backend !== 'glm')
 
   const readFile = (file?: File | null) => {
     if (!file) return
@@ -161,14 +159,12 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
     reader.readAsDataURL(file)
   }
 
-  /** 引擎选项是否应在当前模式下禁用（img2imgOnly / txt2imgOnly） */
+  /** 引擎选项是否应在当前模式下禁用（txt2imgOnly） */
   const optionDisabledInMode = (o: BackendOptionMeta): boolean =>
-    (o.img2imgOnly === true && mode !== 'img2img')
-    || (o.txt2imgOnly === true && mode !== 'txt2img')
+    o.txt2imgOnly === true && mode !== 'txt2img'
 
-  /** 禁用选项的悬停说明（按引擎约束类型） */
-  const onlyHint = (o: BackendOptionMeta): string =>
-    o.txt2imgOnly === true ? 'GLM 仅支持文生图' : '百炼仅支持改图'
+  /** 禁用选项的悬停说明 */
+  const onlyHint = (): string => 'GLM 仅支持文生图'
 
   return (
     <div className="ig-control-panel" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -288,9 +284,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
               <div style={{ fontSize: 10.5, color: C('color-text-secondary'), lineHeight: 1.5 }}>
                 {backend === 'herdsman'
                   ? 'Herdsman 图生图直接按参考图重绘，不支持重绘幅度调节'
-                  : backend === 'dashscope'
-                    ? '百炼改图按参考图重绘，不支持重绘幅度调节'
-                    : '图生图需使用 ComfyUI / Herdsman / 百炼改图 后端'}
+                  : '图生图需使用 ComfyUI / Herdsman 后端'}
               </div>
             )}
           </>
@@ -307,18 +301,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
             color: 'var(--md-sys-color-warning)',
           }}>
             <VideoCameraOutlined style={{ marginRight: 5 }} />
-            {mode === 't2v' ? '文生视频需使用 ComfyUI 本地后端' : '图生图需使用 ComfyUI / Herdsman / 百炼改图 后端'}，请切换引擎
-          </div>
-        )}
-        {dashscopeOffMode && (
-          <div style={{
-            padding: '9px 11px', borderRadius: 10, fontSize: 11.5, lineHeight: 1.6,
-            border: '1px solid color-mix(in srgb, var(--md-sys-color-warning) 35%, transparent)',
-            background: 'color-mix(in srgb, var(--md-sys-color-warning) 8%, transparent)',
-            color: 'var(--md-sys-color-warning)',
-          }}>
-            <PictureOutlined style={{ marginRight: 5 }} />
-            百炼仅支持改图，请切换到图生图模式或更换引擎
+            {mode === 't2v' ? '文生视频需使用 ComfyUI 本地后端' : '图生图需使用 ComfyUI / Herdsman 后端'}，请切换引擎
           </div>
         )}
         {glmOffMode && (
@@ -339,10 +322,10 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
             value={backend}
             onChange={onSwitchBackend}
             options={BACKEND_OPTIONS.map((o) => {
-              // 引擎固有模式约束：img2imgOnly（百炼改图）/ txt2imgOnly（GLM）
-              // 在当前不支持的模式下禁用该选项，悬停提示原因
+              // 引擎固有模式约束：txt2imgOnly（GLM）——在不支持的
+              // 模式下禁用该选项，悬停提示原因
               const disabled = optionDisabledInMode(o)
-              const hint = onlyHint(o)
+              const hint = onlyHint()
               return {
                 value: o.value,
                 disabled,
@@ -402,13 +385,8 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
             />
           ) : (
             <Input size="small" value={model} onChange={(e) => onModelChange(e.target.value)}
-              placeholder={backend === 'dashscope' ? '模型名，如 qwen-image-edit-plus（留空后端兜底）' : '输入模型名称'}
+              placeholder="输入模型名称"
               style={{ ...inputStyle, height: 32 }} />
-          )}
-          {backend === 'dashscope' && (
-            <div style={{ marginTop: 6, fontSize: 11, color: C('color-text-secondary'), lineHeight: 1.6 }}>
-              百炼改图默认模型 qwen-image-edit-plus（留空由后端兜底），可选 qwen-image-edit / qwen-image-edit-plus / qwen-image-edit-max
-            </div>
           )}
           {model === 'diagram' && (
             <div style={{ marginTop: 6, fontSize: 11, color: C('color-text-secondary'), lineHeight: 1.6 }}>

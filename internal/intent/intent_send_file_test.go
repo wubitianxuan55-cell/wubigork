@@ -55,7 +55,6 @@ func TestParse_SendLatestFile_Misses(t *testing.T) {
 		{"询问句", "最新的报告写得怎么样"},   // 无发送动词
 		{"打开文件", "把文件打开"},       // 无发送动词
 		{"发红包", "给我发个红包"},       // 红包不是产物名词
-		{"改图指代", "把这张图的背景换成海边"}, // 改图域，不越界
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

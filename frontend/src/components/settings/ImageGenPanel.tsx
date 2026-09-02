@@ -4,11 +4,17 @@ import { PictureOutlined, SaveOutlined, ThunderboltOutlined } from '@ant-design/
 import { getImageBackendInfo, setImageBackend } from '../../api/settings'
 import { getEngines } from '../../api/engines'
 import SettingsSection from './SettingsSection'
+import { BACKEND_OPTIONS, isLocalBackend } from '../imagegen/meta'
 
-const BUILTIN_BACKENDS = [
-  { value: 'xai', label: 'xAI 云端 (grok-imagine)' },
-  { value: 'comfyui', label: 'ComfyUI 本地' },
-]
+// 固定后端（非引擎型，恒可选）：xai / comfyui——标签与绘梦页同源（meta.ts）。
+// herdsman/ollama/glm 等为引擎型，由下方「已启用引擎」列表按启用状态呈现。
+const FIXED_BACKEND_VALUES = ['xai', 'comfyui']
+const BUILTIN_BACKENDS = BACKEND_OPTIONS
+  .filter((o) => FIXED_BACKEND_VALUES.includes(o.value))
+  .map((o) => ({
+    value: o.value,
+    label: `${o.label}（${isLocalBackend(o.value) ? '本地' : '云端'}）`,
+  }))
 
 /** ImageGenPanel — 绘梦（AI 图像）后端设置 */
 const ImageGenPanel: React.FC = () => {
@@ -16,9 +22,6 @@ const ImageGenPanel: React.FC = () => {
   const [model, setModel] = useState('')
   const [comfyURL, setComfyURL] = useState('')
   const [saveDir, setSaveDir] = useState('')
-  // 百炼 API Key 只写不读：getImageBackendInfo 不回传 Key（后端只保存不回显），
-  // 留空提交 = 保持已保存 Key 不覆盖（由 Go 侧空串语义保证）。
-  const [dashscopeKey, setDashscopeKey] = useState('')
   const [engineOptions, setEngineOptions] = useState<{ value: string; label: string }[]>([])
   const [saving, setSaving] = useState(false)
 
@@ -28,8 +31,12 @@ const ImageGenPanel: React.FC = () => {
       if (info?.backend) setBackend(info.backend)
       if (info?.model) setModel(info.model)
       const es = await getEngines()
-      // 引擎本地/云端属性决定标签（此前一律标「本地引擎」，云端引擎被误标）
-      setEngineOptions((es || []).filter((e) => e.enabled).map((e) => ({ value: e.id, label: `${e.name} (${e.is_local ? '本地引擎' : '云端'})` })))
+      // 引擎本地/云端属性决定标签（此前一律标「本地引擎」，云端引擎被误标）；
+      // 固定后端（xai/comfyui）已在 BUILTIN_BACKENDS 呈现，引擎列表过滤掉以免
+      // 下拉重复（xai 也是引擎 id）。
+      setEngineOptions((es || [])
+        .filter((e) => e.enabled && !FIXED_BACKEND_VALUES.includes(e.id))
+        .map((e) => ({ value: e.id, label: `${e.name} (${e.is_local ? '本地引擎' : '云端'})` })))
     } catch { /* 未初始化静默 */ }
   }, [])
 
@@ -43,8 +50,6 @@ const ImageGenPanel: React.FC = () => {
         backend === 'comfyui' ? comfyURL : '',
         model,
         saveDir,
-        // 第 5 参：dashscopeKey，仅百炼后端有意义；非百炼后端传空串
-        backend === 'dashscope' ? dashscopeKey : '',
       )
       message.success('绘梦后端已更新')
     } catch (err: unknown) { message.error(err instanceof Error ? err.message : '保存失败') }
@@ -82,19 +87,6 @@ const ImageGenPanel: React.FC = () => {
               placeholder="ComfyUI 地址（例如 http://127.0.0.1:8188）"
               value={comfyURL}
               onChange={(e) => setComfyURL(e.target.value)}
-              style={{
-                background: 'var(--md-sys-color-surface-container)',
-                border: '1px solid var(--md-sys-color-outline-variant)',
-                color: 'var(--md-sys-color-text)',
-              }}
-            />
-          )}
-          {backend === 'dashscope' && (
-            <Input.Password
-              placeholder="阿里云百炼 API Key，sk- 开头（留空保持不变）"
-              value={dashscopeKey}
-              onChange={(e) => setDashscopeKey(e.target.value)}
-              autoComplete="new-password"
               style={{
                 background: 'var(--md-sys-color-surface-container)',
                 border: '1px solid var(--md-sys-color-outline-variant)',

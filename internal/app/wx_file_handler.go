@@ -28,6 +28,7 @@ import (
 	"errors"
 	"fmt"
 	"hash/fnv"
+	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -273,4 +274,32 @@ func formatWxFileSize(n int64) string {
 	default:
 		return fmt.Sprintf("%d B", n)
 	}
+}
+
+// copyFileBounded 有界复制：Stat 预检之外复制期间也限流（源文件被增长/置换
+// 同样逃不掉），超限即停并删除半成品。
+func copyFileBounded(src, dst string, max int64) (err error) {
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+	out, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		out.Close()
+		if err != nil {
+			os.Remove(dst) // 半成品不留盘
+		}
+	}()
+	n, err := io.Copy(out, io.LimitReader(in, max+1))
+	if err != nil {
+		return err
+	}
+	if n > max {
+		return fmt.Errorf("文件复制时超过上限 %d 字节", max)
+	}
+	return out.Close()
 }

@@ -244,13 +244,20 @@ export interface AppAPI {
     comfyui_path?: string
     comfyui_python_path?: string
   }
-  SetImageBackend(backend: string, comfyUIURL: string, imageModel: string): Promise<void>
+  SetImageBackend(backend: string, comfyUIURL: string, imageModel: string, imageSaveDir: string): Promise<void>
 
   // ── 分析/审稿 ──
   AnalyzeChapter(chapterNum: number): Promise<unknown>
   GetForeshadows(): unknown
   ReviewBook(): Promise<unknown>
   GetBookData(): unknown
+
+  // ── 伏笔登记（闭环：登记→埋设→回收）──
+  // 全量写回 foreshadows.json，手工登记/状态流转/描述编辑/删除的统一入口。
+  // itemsJSON 为 ForeshadowItemData[] 的 JSON 字符串（对齐 Go types.Foreshadow）；
+  // 后端校验 Status ∈ planted/hinted/revealed，空 ID 兜底 manual_ 前缀；
+  // AI Analyze 侧按 ID 合并，manual_ 手工条目不会被冲掉。
+  SaveForeshadows(itemsJSON: string): Promise<void>
 
   // ── 统计 ──
   GetStats(): StatsData
@@ -268,7 +275,8 @@ export interface AppAPI {
   SaveTTSConfig(modelPath: string, serverPath: string, port: number, backend: string, speed: number): Promise<void>
 
   // ── 导出 ──
-  ExportAll(): Promise<Record<string, string>>
+  // onlyMainline: 传 true 仅导出主线章节（跳过分支）；不传/false = 含分支（默认，历史行为）。
+  ExportAll(...onlyMainline: boolean[]): Promise<Record<string, string>>
 
   // ── 知识图谱 ──
   BuildBacklinkIndex(): Promise<unknown>
@@ -277,6 +285,10 @@ export interface AppAPI {
   BuildContextBudget(systemPrompt: string, currentScene: string, previousScene: string, characterInfo: string, memoryInfo: string, modelCapacity: number): Promise<unknown>
   CheckConsistency(): Promise<unknown>
   GetEntityRelations(): Promise<unknown>
+
+  // ── 一致性深检 ──
+  /** AI 逐章提取状态卡 + 本地跨章比对，合并规则层结果（载荷见 ConsistencyDeepResult） */
+  CheckConsistencyDeep(maxChapters: number): Promise<unknown>
 
   // ── 可视化 ──
   ExtractTimeline(): Promise<unknown>
@@ -289,6 +301,11 @@ export interface AppAPI {
 
   // ── 小说全文搜索（对齐 NovelB.NovelSearch）──
   NovelSearch(query: string): Promise<NovelSearchHitData[]>
+
+  // ── AI 伴读 ──
+  // historyJSON：问书历史 [{"q":"...","a":"..."}] 数组 JSON（元素见 NovelReadingAskTurn）；
+  // 空串 = 单轮（兼容旧签名），解析失败后端忽略历史；summary 忽略历史。
+  NovelReadingAsk(kind: string, title: string, chapterText: string, selection: string, question: string, historyJSON: string): Promise<string>
 
   // ── 脑暴 ──
   BrainstormIdeas(genre: string): Promise<BrainstormIdea[]>
@@ -305,6 +322,12 @@ export interface AppAPI {
 
   // ── 模型（legacy 兼容路由，S2-3 后归属 ModelB 门面）──
   GetActiveModel(): Promise<string>
+}
+
+/** AI 伴读问书历史一轮（historyJSON 数组元素，对齐 internal/app readingTurn） */
+export interface NovelReadingAskTurn {
+  q: string // 用户问题
+  a: string // 助手回答
 }
 
 /** Herdsman LAN 暴露检测结果（对齐 internal/herdsman.LanExposure） */

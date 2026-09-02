@@ -37,7 +37,7 @@ func (b *ImageB) SetActiveASRModel(engineID string, modelID string) error { retu
 func (b *ImageB) SetActiveTTSModel(engineID string, modelID string) error { return b.a.SetActiveTTSModel(engineID, modelID) }
 func (b *ImageB) SetCharacterPortrait(charID string, imageData string) error { return b.a.SetCharacterPortrait(charID, imageData) }
 func (b *ImageB) SetChatVoiceModel(engineID string, modelID string) error { return b.a.SetChatVoiceModel(engineID, modelID) }
-func (b *ImageB) SetImageBackend(backend string, comfyUIURL string, imageModel string, imageSaveDir string, dashscopeKey string) error { return b.a.SetImageBackend(backend, comfyUIURL, imageModel, imageSaveDir, dashscopeKey) }
+func (b *ImageB) SetImageBackend(backend string, comfyUIURL string, imageModel string, imageSaveDir string) error { return b.a.SetImageBackend(backend, comfyUIURL, imageModel, imageSaveDir) }
 func (b *ImageB) SetPortraitConfig(backend string, model string) error { return b.a.SetPortraitConfig(backend, model) }
 func (b *ImageB) StartComfyUI() error { return b.a.StartComfyUI() }
 func (b *ImageB) StartLocalTTSService(engineID string) map[string]interface{} { return b.a.StartLocalTTSService(engineID) }
