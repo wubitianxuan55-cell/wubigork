@@ -47,6 +47,16 @@
 
 ## 版本状态
 
+- **最新发布：v4.38.0（2026-09-02）「目录通用化 · DeepSeek/xAI/Zen 官方元数据入册」**：
+  git tag `v4.38.0`；基线 v4.37.1；绑定面 **557 零变更**。用户指出 v4.36.0 目录只覆盖
+  GLM——通用化：model_catalog.json v1（deepseek 3/xai 7/opencode-zen 15 条目，官方页
+  多页互证）+ estimatePrice 目录优先层扩展（deepseek-v4-flash 估算 3.0→12.672 CNY 修正、
+  grok-4.5/4.6 129.6→57.6、zen 8 模型新增计价；claude/gpt/gemini/kimi 旧条目回归锁逐位
+  一致）+ fetchModels 动态列表 enrich（id 归一化匹配只填空不覆盖，徽标自动点亮前端零改动）。
+  **拍板**：opencode-go 订阅制无按量售价不入目录（防误导），引擎级「订阅制」徽标留欠账。
+  内置表过时暴露：deepseek-chat/reasoner 官方 2026-07-24 停用、grok-4/3 系已下架。
+  详见 releases/v4.38.0.md。
+
 - **最新发布：v4.37.1（2026-09-02）「模型中心四刀：自定义引擎/目录 v2/巡检转移/D 收口」**：
   同日四刀（模型中心专项调研 docs/market-research-2026-09-02.md → 用户拍板 ABCD）。
   **v4.35.0 自定义引擎**（552→555）：EngineCustom OpenAI 兼容任意服务商（添加/更新/删除），
