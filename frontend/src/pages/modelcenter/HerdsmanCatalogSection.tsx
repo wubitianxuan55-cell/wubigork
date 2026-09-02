@@ -184,7 +184,7 @@ export function HerdsmanCatalogSection() {
           </Button>
           <Popconfirm
             title={`卸载 ${m.display_name || m.name}？`}
-            description="将删除已下载的模型文件"
+            description={m.file_size ? `将删除已下载的模型文件，释放 ${fmtSize(m.file_size)}` : '将删除已下载的模型文件'}
             okText="卸载"
             okButtonProps={{ danger: true }}
             cancelText="取消"
