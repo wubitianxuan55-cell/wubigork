@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"strings"
 
 	"github.com/gaea/gaea/internal/assistant"
 	"github.com/gaea/gaea/internal/channels/weixin"
@@ -85,12 +86,54 @@ func (w *whisperState) startAssistantWx(ast assistant.Assistant) {
 		if reply, handled := w.tryWxReminder(userMsg, ast.ID); handled {
 			return reply, nil
 		}
-		// v4.6.1 指令中枢 S4.5：微信消息接统一路由——提醒特例之外，navigate /
-		// generate_image / edit_image（v4.9 对话式改图，带助手上下文取入站图
-		// 缓存）/ status / reminder（语音同款能力面）全部命中即执行，回复经
-		// 同一回推通道；未命中才走原轻语聊天。产物文件卡片（CardPath）经
-		// SendFileCard 回推。
+		// v4.42 微信智能体（LLM 工具调用派发，主路径）：模型自己决定调哪个
+		// 板块能力（navigate/生图/改图/提醒/发文件/状态/读屏），本地执行后结果
+		// 回微信——「重新整理后发给我」类幻觉从根上消灭（模型有工具可调，不
+		// 再嘴上假装）。能力门不满足（模型目录无 tools 能力位/离线模式）或
+		// agent 执行出错才降级到下方关键词意图路由（快路径语义保留）；产物
+		// 文件卡片经同一 SendFileCard 链回推（末张 caption 带最终回复，回空串
+		// 防重复推送的既有口径不变）。
 		if w.app != nil {
+			if wxAgentAvailable(w.app) {
+				reply, cards, agentErr := w.runWxAgentTurn(ast.ID, ast.PersonalityID, ast.Name, userMsg)
+				if agentErr == nil {
+					if len(cards) > 0 {
+						if reply == "" {
+							reply = "（已生成产物）"
+						}
+						var failed []string
+						for i, card := range cards {
+							caption := ""
+							if i == len(cards)-1 {
+								caption = reply
+							}
+							// SendFileCard 内部完成 CDN 上传 + 卡片推送（任何失败
+							// 内部降级文本卡片）；仅当连降级都失败才记入 failed。
+							if sendErr := srv.SendFileCard(card, caption); sendErr != nil {
+								failed = append(failed, card)
+							}
+						}
+						if len(failed) == len(cards) {
+							// 全部失败：整体降级文本（路径交外层 Push 兜底）
+							return reply + "（产物：" + strings.Join(failed, "；") + "）", nil
+						}
+						if len(failed) > 0 {
+							return "（以下产物回推失败，请到桌面端查看：" + strings.Join(failed, "；") + "）", nil
+						}
+						return "", nil // 卡片全部送出（末张 caption 已带回复）
+					}
+					if reply == "" {
+						reply = "（思考中…）"
+					}
+					return reply, nil
+				}
+				// agent 出错：落到下方 routeIntent 兜底（再未命中走轻语聊天）
+			}
+			// v4.6.1 指令中枢 S4.5（v4.42 起降级为兜底）：微信消息接统一路由
+			// ——提醒特例之外，navigate / generate_image / edit_image（v4.9
+			// 对话式改图，带助手上下文取入站图缓存）/ status / reminder（语音
+			// 同款能力面）全部命中即执行，回复经同一回推通道；未命中才走原
+			// 轻语聊天。产物文件卡片（CardPath）经 SendFileCard 回推。
 			if res := w.app.routeIntentWithResultForAssistant(userMsg, ast.ID); res.Handled {
 				if res.CardPath != "" {
 					// v4.8.3 真协议图片卡片：SendFileCard 内部完成 getuploadurl
