@@ -1,9 +1,26 @@
 # 任务进度
 
-> 最后更新: 2026-09-02（v4.34.0「子代理气泡恢复」：恢复会话不再丢失子代理答复——绑定面
-> 552 零变更）
+> 最后更新: 2026-09-02（模型中心四刀 v4.35.0→v4.37.1：自定义引擎 / GLM 目录 v2+远程
+> 热更新 / 健康巡检+故障转移 v0 / D 收口——绑定面 552→557）
 
 ## 当前状态
+
+- **最新发布：v4.37.1（2026-09-02）「模型中心四刀」（调研 docs/market-research-2026-09-02.md
+  → 用户拍板 ABCD → 同日 v4.35.0/v4.36.0/v4.37.0/v4.37.1 四刀四 tag，绑定面 552→555→557）**：
+  ①v4.35.0 自定义引擎（EngineCustom OpenAI 兼容任意服务商，Key 存 config 加密 map
+  custom_engine_keys，BaseURL 校验防 Key 粘错框，聊天路径 custom 分支真可聊天）；
+  ②v4.36.0 GLM 目录 v2（glm_catalog.json 44 条目带上下文/价格/免费档/能力/coding 积分系数，
+  远程热更新 v0=glm_catalog_url 默认禁用仅影响展示估算，estimatePrice 目录优先单源化估算
+  零回归，glm_alias 核对一致，前端能力/价格徽标+积分估算）；③v4.37.0 健康巡检+故障转移 v0
+  （10 分钟周期探已启用非本地引擎、Error 永不含 Key；engine_failover_enabled 默认关，
+  网络类/408/429/5xx 才转移、候选默认模型重试一次、流式仅首字节前；前端开关卡+双事件订阅）；
+  ④v4.37.1 D 收口（卸载确认带释放大小；磁盘展示//health 经核实已存在剔除=伪欠账再验证）。
+  **教训入册**：gen_bindings explicitOverrides 是显式门面归属清单，新增绑定方法必须先登记
+  再跑生成器（否则被前缀规则误归，C 刀实测手写委托被覆盖进 OfficeB）；build.bat 同链
+  git commit 中文乱码用 -F UTF-8 文件 amend。**验证**：Go 全量 test exit 0、tsc -b/eslint 0、
+  vitest 1243/1243、drift PASS（557）。**欠账**：A2/B2、降噪折叠、palette 个性化、task 卡
+  空 ref、-race、model-failover 文案 engineLabel 化、dev mock 补 failover、自定义引擎用户
+  价目（目录 v3 候选）。详见 releases/v4.35.0.md~v4.37.1.md。
 
 - **最新发布：v4.34.0（2026-09-02）「子代理气泡恢复 · 恢复会话不再丢失子代理答复」**：
   git tag v4.34.0；基线 v4.33.0；绑定面 **552 零变更**（HistoryMessage 字段级，

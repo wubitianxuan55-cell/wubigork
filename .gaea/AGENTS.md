@@ -47,6 +47,26 @@
 
 ## 版本状态
 
+- **最新发布：v4.37.1（2026-09-02）「模型中心四刀：自定义引擎/目录 v2/巡检转移/D 收口」**：
+  同日四刀（模型中心专项调研 docs/market-research-2026-09-02.md → 用户拍板 ABCD）。
+  **v4.35.0 自定义引擎**（552→555）：EngineCustom OpenAI 兼容任意服务商（添加/更新/删除），
+  Key 存 config 加密 map custom_engine_keys，BaseURL 校验防 Key 粘错框（v4.9.1 防线延伸），
+  聊天路径 custom 分支真可聊天。**v4.36.0 GLM 目录 v2**（555 零变更）：glm_catalog.json
+  44 条目 schema v2（上下文/价格/免费档/能力 caps/coding 积分系数，官方查不到的绝对价
+  不编数沿用内置 z.ai USD 估算口径）+ 远程热更新 v0（glm_catalog_url 默认禁用，仅影响
+  展示与估算不碰路由）+ estimatePrice 目录优先单源化（估算值零回归锁）+ 前端能力/价格徽标。
+  **v4.37.0 健康巡检+故障转移 v0**（555→557）：10 分钟周期探已启用非本地引擎（Error 永不含
+  Key）+ engine_failover_enabled 开关（默认关，网络类/5xx 才转移、用候选默认模型重试一次、
+  流式仅首字节前）+ 前端开关卡/双事件订阅。**v4.37.1 D 收口**（557 零变更）：卸载确认带
+  释放大小；磁盘展示与 /health 透出经核实已存在剔除（伪欠账再验证）。**教训**：
+  ①gen_bindings 的 explicitOverrides 是显式门面归属清单——新增绑定方法必须先登记再跑
+  生成器，否则被前缀规则误归（C 刀实测：手写 ModelB 委托被生成器覆盖进 OfficeB）；
+  ②build.bat 同链 git commit 中文可能乱码，用 -F UTF-8 文件 amend。**验证**（累计）：
+  Go 全量 test exit 0、tsc -b/eslint 0、vitest 1243/1243、drift PASS（557）。
+  **欠账**：A2 帧流/接管、B2 pptx 真编辑、降噪折叠、palette 个性化、task 卡空 ref、-race、
+  model-failover 文案 engineLabel 化、dev mock 补 failover 开关、自定义引擎用户价目（目录 v3）。
+  详见 releases/v4.35.0.md ~ v4.37.1.md。
+
 - **最新发布：v4.34.0（2026-09-02）「子代理气泡恢复 · 恢复会话不再丢失子代理答复」**：
   git tag `v4.34.0`；基线 v4.33.0；绑定面 **552 零变更**。收 v4.26 沿旧欠账。**根因**：
   恢复链投影 session.ProjectMessages 无 subagent_message case 整条忽略；**模型面投影
