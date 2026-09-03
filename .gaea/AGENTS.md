@@ -5,7 +5,19 @@
 
 ## 版本状态（顶部速览）
 
-- **最新发布：v4.60.0（2026-09-03）「better-sidebar pane 化三刀 · 文件打开
+- **最新发布：v4.61.0（2026-09-04）「子代理会话闭环 · Word 目录侧栏」**——
+  四个未发版快照（eb84c82c Word 目录 / 5c52a5b8 子代理 tab 对齐 / 1f70e06d
+  transcript 真机接线 + 本地模型工具同 UI / aa57784c 子代理入口收敛两级）
+  合并发布。绑定面 **559 零变更**；vitest **211 文件/1535 用例**、tsc
+  -b/eslint 0、drift PASS；Go 逐包全量绿（test-all.ps1）。核心事实：①惰性
+  SubagentStore 接线 task/run_skill（真机 transcript 首次落盘 + ~1s 快照
+  实时化，顺带修复 run_in_background 不落盘）；②本地模型工具（vision /
+  summarize_file，ModelBacked 标记）以 mt_ 变相子代理进入同一左栏行/任务
+  区块/会话 tab；③子代理入口收敛两级 task+run_skill（移除三办公顶层包装与
+  explore/research/review/security_review 分类残留）；④Word 预览目录侧栏
+  （docxOutline 解析/定位/章节修改模板）。产物 gaea-v4.61.0.exe SHA256 +
+  冒烟通过，详见 releases/v4.61.0.md。
+- **此前：v4.60.0（2026-09-03）「better-sidebar pane 化三刀 · 文件打开
   统一开 tab」**——三个未发版快照（d856353e 右栏 pane 化 / cf1bf35 左栏
   子代理会话入口 / 4a0cae7a+6ca03e4d 文件打开统一开 pane 文件 tab）合并发布，
   并把并发子代理固化进「执行纪律」（d6246f99）。绑定面 **559 零变更**；

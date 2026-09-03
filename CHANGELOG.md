@@ -1,3 +1,22 @@
+## v4.61.0 · 子代理会话闭环 · Word 目录侧栏（2026-09-04）
+> 四个未发版快照（eb84c82c/5c52a5b8/1f70e06d/aa57784c）合并发布，主线
+> 「子代理从壳到芯对齐 Codex 口径」。**绑定面 559 零变更**。详见
+> releases/v4.61.0.md。
+- **A · Word 预览目录侧栏**：docxOutline 纯解析（outlineLvl/标题样式/
+  basedOn 链，TOC 与页眉页脚排除）→ 工具栏「目录」侧栏 → 点击定位高亮 +
+  铅笔按钮生成「修改《章节》」composer 模板。
+- **B · 子代理 tab 对齐主代理**：SubagentThread 正文 MemoMarkdown 化；
+  ChatTabs 会话 tab 状态点 + 完整 title（任务｜状态·模型），App 5s 轮询同步。
+- **C · transcript 真机接线 + 本地模型工具同 UI**：惰性 SubagentStore 接线
+  task/run_skill 全部真实落盘 + ~1s 快照实时化（顺带修复后台子代理从不落盘）；
+  ModelBacked 标记（vision/summarize_file）→ 主执行器开 mt_ 变相子代理记录，
+  同一左栏行/任务区块/会话 tab 展示；读端 kind/tool/title 扩展 + 事件驱动补拉。
+- **D · 子代理入口收敛两级**：移除三办公顶层包装工具与 explore/research/
+  review/security_review 分类残留；入口 = task + run_skill（技能/模板前缀
+  与 per-skill 模型保留），系统提示同步收敛。
+- 验证：Go 逐包全量绿（test-all.ps1）；vitest 211/1535；tsc -b/eslint 0；
+  drift PASS（559）；构建产物冒烟通过。
+
 ## v4.60.0 · better-sidebar pane 化三刀 · 文件打开统一开 tab（2026-09-03）
 > 三个未发版快照（d856353e/cf1bf35/4a0cae7a/6ca03e4d）合并发布 + 并发子代理
 > 习惯固化。**绑定面 559 零变更**。详见 releases/v4.60.0.md。

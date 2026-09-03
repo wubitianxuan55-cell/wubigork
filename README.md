@@ -89,6 +89,7 @@ gaea/
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| **v4.61.0** | 2026-09-04 | 子代理会话闭环（绑定面 559 零变更）：Word 预览目录侧栏（docxOutline 解析/定位/章节修改模板）；子代理 tab 对齐主代理（Markdown 正文+状态点）；子代理 transcript 真机接线（惰性 SubagentStore + ~1s 快照实时化，后台子代理落盘修复）；本地模型工具同 UI（ModelBacked 标记 vision/summarize_file → mt_ 变相子代理记录，同一行/tab 展示）；子代理入口收敛 task + run_skill 两级（移除三办公包装与 explore 等分类残留）；vitest 211/1535、drift PASS（559）、冒烟通过 |
 | **v4.60.0** | 2026-09-03 | better-sidebar pane 化三刀合并发布（绑定面 559 零变更）：右栏工作台 pane 化（欢迎卡→视图/文件/浏览器/任务 tab、点子代理独立会话 tab、旧两级组件删除）；左栏子代理会话入口（父会话展开→子代理子行→独立 tab）；文件打开统一开 pane 文件 tab（产物/正文交互卡/变更行与资源管理器同 tab 条，可并存去重）；并发子代理固化为默认执行纪律；vitest 210/1525、drift PASS（559）、冒烟通过 |
 | **v4.59.0** | 2026-09-03 | 继续三线并行（绑定面 559 零变更）：A i18n——设置五面板+SettingsSection 入三语字典 +192 键/语言（682→874，设置中心九面板全量 i18n）；B 小说——搜索命中「落为划线」一键永久标注（区间→摘录口径适配，保留原文大小写）+ReadingPrefsPanel 拆分净减 47 行 +13 用例；C 模型中心——自定义引擎用户价目 v1（EngineConfig 指针三态字段+折算最高优先层+零值语义回归锁，559 不变，models 重生成）；收口抓潜伏雷——ChatPanel 直调 wailsjsCompat 浏览器同步抛致设置聊天分组白屏，try 兜底修复；vitest 204/1457 |
 | **v4.58.0** | 2026-09-03 | 继续三线并行收欠账（绑定面 559 零变更）：A 小说——同章搜索重定位缺陷根因实锤+最小修复（searchLocateSeq 入 effect 依赖，回归测试反向验证）+ChapterPage 拆分第三批净减 67 行 +41 用例；B dev mock——补 GaeaBenchmark 五方法（中性空态/诚实失败）+GetModelMonitor+契约 7 用例；C i18n——设置三面板文案入三语字典 34 键/语言（zh 保真，648→682 键）；收口——GetModelMonitor 三消费点迁 getModelMonitor 三态回退（wailsjsCompat 直读绕过 bridge mock 的欠账真身）+mock 补 GetEngines；?mock=1 走查零横幅；vitest 202/1442 |
