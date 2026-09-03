@@ -64,10 +64,6 @@ var subagentMetaTools = []string{
 	"task",
 	"run_skill",
 	"install_skill",
-	"explore",
-	"research",
-	"review",
-	"security_review",
 }
 
 // SubagentMetaTools returns the tool names that spawned agents should not inherit

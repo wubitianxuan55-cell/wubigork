@@ -142,112 +142,6 @@ func parsePipelineArgs(raw string) map[string]string {
 	return params
 }
 
-// --- dedicated subagent wrappers (explore / research / review / security_review) ---
-
-type subagentSkillTool struct {
-	toolName    string
-	skillName   string
-	description string
-	taskDesc    string
-	store       *Store
-	runner      SubagentRunner
-}
-
-func (t *subagentSkillTool) Name() string { return t.toolName }
-
-// ReadOnly is true: format-convert/chart-builder/doc-assemble are read-only at
-// the parent gate. The sub-agent itself inherits plan mode from the parent, so
-// any writer tool calls within the sub-agent are blocked at the sub-agent's own
-// executeOne gate. Making these available in plan mode enables research-heavy
-// workflows without affecting the prefix cache (ReadOnly is a runtime property,
-// not part of the API schema).
-func (*subagentSkillTool) ReadOnly() bool        { return true }
-func (t *subagentSkillTool) Description() string { return t.description }
-
-func (t *subagentSkillTool) CompactDescription() string {
-	switch t.toolName {
-	case "explore":
-		return "Isolated subagent for read-only codebase investigation. Returns one distilled answer with file:line citations."
-	case "research":
-		return "Isolated subagent combining web_search + web_fetch + code reading. Returns synthesis with code and web citations."
-	case "review":
-		return "Isolated subagent reviewing current branch diff — correctness, security, missing tests per file:line."
-	default:
-		return "Isolated subagent for security review of current branch diff — injection, authz, secrets, crypto, severity-tagged."
-	}
-}
-
-func (t *subagentSkillTool) CompactSchema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"task":{"type":"string","description":` +
-		strconv.Quote(t.taskDesc) + `}},"required":["task"]}`)
-}
-
-func (t *subagentSkillTool) Schema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"task":{"type":"string","description":` +
-		strconv.Quote(t.taskDesc) + `}},"required":["task"]}`)
-}
-
-func (t *subagentSkillTool) Execute(ctx context.Context, args json.RawMessage) (string, error) {
-	var p struct {
-		Task string `json:"task"`
-	}
-	if err := json.Unmarshal(args, &p); err != nil {
-		return "", fmt.Errorf("invalid args: %w", err)
-	}
-	task := strings.TrimSpace(p.Task)
-	if task == "" {
-		return "", fmt.Errorf("%s requires a non-empty 'task' argument — describe the concrete question", t.toolName)
-	}
-	sk, ok := t.store.Read(t.skillName)
-	if !ok {
-		return "", fmt.Errorf("%s: built-in skill %q is not registered", t.toolName, t.skillName)
-	}
-	// A user file overriding the built-in name with runAs:inline would lose
-	// isolation if dispatched here — bounce to run_skill where inline is defined.
-	if sk.RunAs != RunSubagent {
-		return "", fmt.Errorf("%s: skill %q is overridden as inline; invoke it via run_skill instead", t.toolName, t.skillName)
-	}
-	if t.runner == nil {
-		return "", fmt.Errorf("%s: no subagent runner is configured in this session", t.toolName)
-	}
-	return t.runner(ctx, sk, task)
-}
-
-// BuiltinSubagentTools returns top-level wrapper tools for the built-in subagent
-// skills, named after the verb so the model picks them naturally (affordance >
-// prompt rules). Each is skipped when its underlying skill isn't present (e.g. a
-// user disabled it), so the tool set never advertises a phantom skill.
-func BuiltinSubagentTools(store *Store, runner SubagentRunner) []tool.Tool {
-	specs := []struct {
-		toolName, skillName, description, taskDesc string
-	}{
-		{"format-convert", "format-convert",
-			"格式转换子代理：将 docx/xlsx/pdf 转换为可编辑 Markdown，统一不同来源的文档。",
-			"具体的格式转换任务。子代理没有你的上下文——说明源文件路径、目标格式（Markdown/文本）和输出要求。"},
-		{"chart-builder", "chart-builder",
-			"图表生成子代理：从数据生成统计图表（柱状图/折线图/饼图/散点图），适用于报告数据可视化。",
-			"具体的图表生成任务。子代理没有你的上下文——说明数据来源或文件路径、图表类型、标题和输出要求。"},
-		{"doc-assemble", "doc-assemble",
-			"文档拼装子代理：将多份 Markdown 文档片段合并为完整报告，含封面、目录、正文、附录。",
-			"具体的文档拼装任务。子代理没有你的上下文——说明素材文件清单、报告结构和输出要求。"},
-	}
-	var out []tool.Tool
-	for _, s := range specs {
-		if _, ok := store.Read(s.skillName); !ok {
-			continue
-		}
-		out = append(out, &subagentSkillTool{
-			toolName:    s.toolName,
-			skillName:   s.skillName,
-			description: s.description,
-			taskDesc:    s.taskDesc,
-			store:       store,
-			runner:      runner,
-		})
-	}
-	return out
-}
-
 // --- install_skill ---
 
 type installSkillTool struct {
@@ -260,9 +154,9 @@ func NewInstallSkillTool(store *Store, onInstalled InstalledHook) tool.Tool {
 	return &installSkillTool{store: store, onInstalled: onInstalled}
 }
 
-func (*installSkillTool) Name() string        { return "install_skill" }
-func (*installSkillTool) ReadOnly() bool      { return false }
-func (*installSkillTool) PersistWrite() bool  { return true }
+func (*installSkillTool) Name() string       { return "install_skill" }
+func (*installSkillTool) ReadOnly() bool     { return false }
+func (*installSkillTool) PersistWrite() bool { return true }
 
 func (t *installSkillTool) Description() string {
 	scope := "'global' (only option — no project workspace) writes to ~/.gaea/skills/."

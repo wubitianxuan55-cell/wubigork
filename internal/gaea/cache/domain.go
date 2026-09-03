@@ -50,8 +50,10 @@ var metaTools = []string{
 	"remember", "forget", "memory_search",
 }
 
+// subagentTools 是任务分类给主代理增配的子代理入口（v4.61 收敛为两级）：
+// explore/research/review/security_review 已不是独立工具（无注册点），
+// 同名 runAs=subagent 技能经 run_skill 或 slash_command 调用即可。
 var subagentTools = []string{
-	"explore", "research", "review", "security_review",
 	"run_skill", "install_skill", "task",
 }
 

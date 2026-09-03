@@ -21,33 +21,33 @@ import (
 
 // Config is Tianxuan's runtime configuration.
 type Config struct {
-	DefaultModel string            `toml:"default_model"`
-	Language     string            `toml:"language"`  // ui/model language tag (e.g. "zh"); empty = auto-detect from $LANG / $TIANXUAN_LANG
-	Workspace    string            `toml:"workspace"` // 办公工作空间目录（空 = 进程启动目录）
-	Agent        AgentConfig       `toml:"agent"`
-	Session      SessionConfig     `toml:"session"` // 3.0 Step 1: 会话持久化格式（事件日志回退开关）
+	DefaultModel string        `toml:"default_model"`
+	Language     string        `toml:"language"`  // ui/model language tag (e.g. "zh"); empty = auto-detect from $LANG / $TIANXUAN_LANG
+	Workspace    string        `toml:"workspace"` // 办公工作空间目录（空 = 进程启动目录）
+	Agent        AgentConfig   `toml:"agent"`
+	Session      SessionConfig `toml:"session"` // 3.0 Step 1: 会话持久化格式（事件日志回退开关）
 	// Space 是双空间分区开关（S2）：[space] mode = "on"|"off"，默认 on。
-	Space      SpaceConfig       `toml:"space"`
+	Space SpaceConfig `toml:"space"`
 	// SpaceProfiles 是按空间装配 profile（S1.3-A/S1.5-A）：[space_profiles.<space>]。
 	// 缺省（段缺失/空 map）= 零值 = 现状逐字节回退；space.mode=off 时整体不读。
 	SpaceProfiles map[string]SpaceProfile `toml:"space_profiles"`
-	Providers    []ProviderEntry   `toml:"providers"`
-	Tools        ToolsConfig       `toml:"tools"`
-	Permissions  PermissionsConfig `toml:"permissions"`
-	Sandbox      SandboxConfig     `toml:"sandbox"`
-	Plugins      []PluginEntry     `toml:"plugins"`
-	Skills       SkillsConfig      `toml:"skills"`
-	Search       SearchConfig      `toml:"search"`
-	Network      NetworkConfig     `toml:"network"`
-	Memory       MemoryConfig      `toml:"memory"`
+	Providers     []ProviderEntry         `toml:"providers"`
+	Tools         ToolsConfig             `toml:"tools"`
+	Permissions   PermissionsConfig       `toml:"permissions"`
+	Sandbox       SandboxConfig           `toml:"sandbox"`
+	Plugins       []PluginEntry           `toml:"plugins"`
+	Skills        SkillsConfig            `toml:"skills"`
+	Search        SearchConfig            `toml:"search"`
+	Network       NetworkConfig           `toml:"network"`
+	Memory        MemoryConfig            `toml:"memory"`
 	// Tasks 是通用任务调度器配置（S1.4 按空间分账；v4.5.1a 红线补课把内核
 	// 接线进生产）：[tasks] 段。缺省（零值）= 应用层启用空间分账默认值
 	// （work/play 各 1 条并发跑道 + 价格抓取优先于文件索引）。
 	Tasks TasksConfig `toml:"tasks"`
 	// 3.0 Step 3d Provider Seam：embed/rerank/vision/markdown_converter 后端选择。
 	// 零值 = 全默认（本地 herdsman 兼容端点 + 各自默认模型），切换后端只改配置。
-	Retrieval        RetrievalConfig        `toml:"retrieval"`
-	Vision           VisionConfig           `toml:"vision"`
+	Retrieval         RetrievalConfig         `toml:"retrieval"`
+	Vision            VisionConfig            `toml:"vision"`
 	MarkdownConverter MarkdownConverterConfig `toml:"markdown_converter"`
 }
 
@@ -137,7 +137,7 @@ type SpacePermissionsConfig struct {
 	// 空数组 = 清空（play 不弹审批卡）；未写 = 按空间缺省（play 空集 / work 默认集）。
 	HardAsk []string `toml:"hard_ask"`
 	// ApprovalTimeoutSecs 是审批等待超时（0 = 回退 agent.approval_timeout_secs）。
-	ApprovalTimeoutSecs int `toml:"approval_timeout_secs"`
+	ApprovalTimeoutSecs int      `toml:"approval_timeout_secs"`
 	Allow               []string `toml:"allow"`
 	Ask                 []string `toml:"ask"`
 	Deny                []string `toml:"deny"`
@@ -562,18 +562,18 @@ func (a AgentConfig) SubagentEffortVal() string {
 // token budget; the harness compacts older history as a turn's prompt approaches
 // it (see agent compaction). 0 disables compaction for the instance.
 type ProviderEntry struct {
-	Name          string            `toml:"name"`
-	Kind          string            `toml:"kind"`
-	BaseURL       string            `toml:"base_url"`
-	Model         string            `toml:"model"`   // a single model (back-compat)
-	Models        []string          `toml:"models"`  // a vendor's model list (one base_url/key, many models)
-	Default       string            `toml:"default"` // default model when Models is set (else Models[0])
-	APIKeyEnv     string            `toml:"api_key_env"`
-	BalanceURL    string            `toml:"balance_url"` // optional; a provider-specific wallet-balance endpoint (DeepSeek: https://api.deepseek.com/user/balance). Empty = no balance readout.
+	Name       string   `toml:"name"`
+	Kind       string   `toml:"kind"`
+	BaseURL    string   `toml:"base_url"`
+	Model      string   `toml:"model"`   // a single model (back-compat)
+	Models     []string `toml:"models"`  // a vendor's model list (one base_url/key, many models)
+	Default    string   `toml:"default"` // default model when Models is set (else Models[0])
+	APIKeyEnv  string   `toml:"api_key_env"`
+	BalanceURL string   `toml:"balance_url"` // optional; a provider-specific wallet-balance endpoint (DeepSeek: https://api.deepseek.com/user/balance). Empty = no balance readout.
 	// BalanceKind 是余额查询后端的注册 kind（billing 包按 kind 注册形状；
 	// 3.0 Step 3d #8 + Wave 4 收官：从 ProviderEntry 贯通到 controller，不再
 	// 硬编码 deepseek）。空 = 历史默认 "deepseek" 形状。未知 kind fail-closed。
-	BalanceKind string `toml:"balance_kind"`
+	BalanceKind   string            `toml:"balance_kind"`
 	ContextWindow int               `toml:"context_window"`
 	Price         *provider.Pricing `toml:"price"`
 	// Prices holds per-model pricing when a single provider exposes multiple
@@ -712,7 +712,7 @@ const DefaultSystemPrompt = `你是 gaea（盖亚）——用户的通用办公 
 - 长文档/表格/PDF 的创建与编辑交给已安装的 docx / xlsx / pdf 技能（run_skill 调用），agent 不自造文档格式
 - 不同来源的文档统一用 format_convert 转为可编辑 Markdown 后再处理；表格数据也可用 bash + python（openpyxl/pandas）提取
 - 图表用 chart_gen 生成（bar/line/pie/scatter）
-- 报告先列结构大纲，再逐步填充；多份文档拼装用 doc-assemble 子代理
+- 报告先列结构大纲，再逐步填充；多份文档拼装用 run_skill 调 doc-assemble 技能
 - 需要最新资料时用 web_search / web_fetch 检索并注明来源
 
 **本地工具：**
@@ -726,11 +726,13 @@ const DefaultSystemPrompt = `你是 gaea（盖亚）——用户的通用办公 
 以上工具均在本地/免费运行，不消耗主模型 token。是否使用、何时使用，由你自行判断。
 
 **子代理：**
-task 工具可派发隔离子代理。以下场景优先使用子代理：
-- 需把 docx/xlsx/pdf 转成 Markdown：用 format-convert 子代理
-- 需从数据生成统计图表：用 chart-builder 子代理
-- 需把多份文档拼装成完整报告：用 doc-assemble 子代理
-子代理在独立上下文中运行——其工具调用不会撑大你的上下文。犹豫时直接派发。内置子代理技能（format-convert/chart-builder/doc-assemble）见下方 Skills 索引，用 run_skill 按名称调用或直接用 task。
+子代理入口只有两级：task（派发临时自包含任务）与 run_skill（按名调用技能）。
+以下场景优先派发子代理：
+- 需把 docx/xlsx/pdf 转成 Markdown：run_skill 调 format-convert 技能
+- 需从数据生成统计图表：run_skill 调 chart-builder 技能
+- 需把多份文档拼装成完整报告：run_skill 调 doc-assemble 技能
+子代理在独立上下文中运行——它看不到你的对话，任务消息必须自包含；其工具调用
+不会撑大你的上下文。犹豫时直接派发。内置子代理技能见下方 Skills 索引。
 
 **记忆：**
 用 remember/forget 跨会话持久化事实：

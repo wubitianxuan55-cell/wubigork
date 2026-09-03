@@ -74,7 +74,6 @@ export function createMockState(): MakeMockState {
     { name: "figma", transport: "http", status: "failed", tools: 0, prompts: 0, resources: 0, error: "connect: 401 unauthorized" },
   ];
   const capSkills: SkillView[] = [
-    { name: "research", description: "Research a question with web search and analysis", scope: "builtin", runAs: "subagent" },
     { name: "format-convert", description: "Convert docx/xlsx/pdf to editable Markdown", scope: "builtin", runAs: "subagent" },
     { name: "chart-builder", description: "Generate statistics charts from data", scope: "builtin", runAs: "subagent" },
     { name: "doc-assemble", description: "Assemble multiple documents into a complete report", scope: "builtin", runAs: "subagent" },

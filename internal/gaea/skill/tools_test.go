@@ -87,33 +87,6 @@ func TestCleanSkillName(t *testing.T) {
 	}
 }
 
-func TestBuiltinSubagentToolsRunner(t *testing.T) {
-	var ran string
-	runner := func(_ context.Context, sk Skill, task string) (string, error) {
-		ran = sk.Name + ":" + task
-		return "ok", nil
-	}
-	tools := BuiltinSubagentTools(New(Options{HomeDir: t.TempDir()}), runner)
-	var docWriter interface {
-		Name() string
-		Execute(context.Context, json.RawMessage) (string, error)
-	}
-	for _, tl := range tools {
-		if tl.Name() == "format-convert" {
-			docWriter = tl
-		}
-	}
-	if docWriter == nil {
-		t.Fatal("format-convert wrapper tool not built")
-	}
-	if _, err := docWriter.Execute(context.Background(), json.RawMessage(`{"task":"convert a document"}`)); err != nil {
-		t.Fatalf("execute: %v", err)
-	}
-	if ran != "format-convert:convert a document" {
-		t.Errorf("runner not invoked correctly: %q", ran)
-	}
-}
-
 func TestInstallSkill(t *testing.T) {
 	home := t.TempDir()
 	st := New(Options{HomeDir: home, DisableBuiltins: true})

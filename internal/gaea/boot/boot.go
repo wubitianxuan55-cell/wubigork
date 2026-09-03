@@ -310,12 +310,15 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 	// PermissionRequester，工具返回非交互降级结果，不阻塞自治。
 	reg.Add(agent.NewRequestPermissionTool())
 
-	// Skill tools: run_skill / install_skill plus the dedicated subagent wrappers
-	// (explore / research / review / security_review). A subagent skill reuses the
-	// sub-agent machinery via this runner — an isolated loop with the skill body
-	// as system prompt, a tool set scoped to the skill's allowed-tools (minus the
-	// task/skill meta-tools, to bar recursion), and an optional per-skill model.
-	// Its tool activity nests under the invoking call, like `task`.
+	// Skill tools: run_skill / install_skill are the ONLY skill entry points —
+	// 子代理入口收敛为 task + run_skill 两级（v4.61 用户拍板，对标 Codex 的
+	// 「父代理发一条任务消息」）。此前为 format-convert/chart-builder/
+	// doc-assemble 注册的顶层包装工具已删除；它们仍是 runAs=subagent 技能，
+	// 经 run_skill（或 slash_command）按名调用。explore/research/review/
+	// security_review 同样不作为独立工具面：仅保留 spawn 模板前缀（同类
+	// run_skill 技能共享 L4 前缀缓存）与每技能模型覆盖。run_skill 子代理
+	// 复用同一 runner —— 隔离循环 + 技能正文 + 按技能白名单的工具集（减去
+	// task/skill 元工具防递归）+ 可选 per-skill 模型；工具活动嵌套在调用下。
 	skillRunner := func(sctx context.Context, sk skill.Skill, task string) (string, error) {
 		// S3 双空间：技能子代理与 task 子代理同规则继承父会话空间。正常链路
 		// sctx 已由 agent.Run 注入空间（run_skill 工具的调用 ctx 原样透传，
@@ -366,9 +369,6 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 	// V5.30: 注册内置子代理模板，同类子代理共享 L4 前缀缓存
 	for _, st := range cache.BuiltinSpawnTemplates() {
 		cache.RegisterSpawnTemplate(st)
-	}
-	for _, t := range skill.BuiltinSubagentTools(skillStore, skillRunner) {
-		reg.Add(t)
 	}
 	// 大文件分块摘要工具：需要注入会话 provider，故在 boot 处注册
 	// （对标千问 500 页超长文 / WPS 整本书 / 豆包分段摘要）。
@@ -809,9 +809,6 @@ func applyCompactToolset(reg *tool.Registry) {
 
 	// Background job management: merge kill_shell + wait into bash/bgjobs
 	reg.HideUnlessOnly([]string{"kill_shell", "wait"}, []string{"bash", "bash_output"})
-
-	// Specialized sub-agents: merge into task with kind parameter
-	reg.HideUnlessOnly([]string{"explore", "research", "review", "security_review"}, []string{"task"})
 
 	// Notebook editing: rarely used, hide unless explicitly enabled
 	reg.HideUnlessOnly([]string{"notebook_edit"}, []string{"edit_file", "write_file"})

@@ -34,9 +34,6 @@ const TOOL_DESC: Record<string, string> = {
   slash_command: "按名称调用项目斜杠命令与技能",
   format_convert: "文档格式转换(docx/xlsx/pptx/pdf→Markdown,含OCR回退)",
   chart_gen: "matplotlib图表生成(bar/line/pie/scatter)",
-  "format-convert": "子代理——格式转换(统一为可编辑Markdown)",
-  "chart-builder": "子代理——图表生成(数据可视化)",
-  "doc-assemble": "子代理——文档拼装(多份素材→完整报告)",
   docx: "Word 文档技能——创建/读取/编辑 .docx(模板、目录、修订、排版)",
   xlsx: "Excel 表格技能——创建/处理 .xlsx/.csv(公式、格式、清洗、图表)",
   pdf: "PDF 文档技能——读取/合并/拆分/水印/表单/OCR",
@@ -61,7 +58,7 @@ const SECTIONS: Section[] = [
   { title: "技能", items: ["read_skill", "run_skill", "install_skill", "slash_command"] },
   { title: "文档技能", items: ["docx", "xlsx", "pdf", "pptx"] },
   { title: "本地专业模型", items: ["vision", "ocr", "semantic_search", "translate_text"] },
-  { title: "通用办公", items: ["format_convert", "chart_gen", "routine_llm", "format-convert", "chart-builder", "doc-assemble"] },
+  { title: "通用办公", items: ["format_convert", "chart_gen", "routine_llm"] },
 ]
 
 function ToolCard({ name, count }: { name: string; count: number }) {

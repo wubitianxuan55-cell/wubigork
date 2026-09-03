@@ -198,8 +198,10 @@ func partitionToolCalls(r *tool.Registry, calls []provider.ToolCall) []toolCallB
 // Prefix ! marks global conflict keys (always serial).
 func getConflictKey(call provider.ToolCall) string {
 	switch call.Name {
-	case "task", "explore", "research", "review", "security_review",
-		"run_skill", "install_skill":
+	// 子代理入口收敛（v4.61）：只保留 task / run_skill / install_skill——
+	// 其余分类名（explore/research/review/security_review）不是工具，无需
+	// 参与批次冲突归类（同名技能经 run_skill 单一调用，已命中 !spawn）。
+	case "task", "run_skill", "install_skill":
 		return "!spawn"
 	case "complete_step", "todo_write":
 		return "!ledger"

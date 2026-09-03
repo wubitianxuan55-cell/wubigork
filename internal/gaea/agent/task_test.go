@@ -78,7 +78,9 @@ func TestTaskToolReturnsSubAgentFinalAnswer(t *testing.T) {
 
 // TestTaskToolFiltersTools verifies the whitelist behaviour: when the caller
 // names a subset of tools, the sub-agent's registry contains exactly that set
-// with subagent/skill meta-tools stripped to prevent recursive delegation.
+// with subagent/skill meta-tools (task / run_skill / install_skill) stripped
+// to prevent recursive delegation. 入口收敛后 research/explore 等不再是元
+// 工具——普通同名工具（或插件工具）允许被子代理继承。
 func TestTaskToolFiltersTools(t *testing.T) {
 	sub := &mockProvider{name: "sub", chunks: []provider.Chunk{
 		{Type: provider.ChunkText, Text: "ok"},
@@ -99,21 +101,22 @@ func TestTaskToolFiltersTools(t *testing.T) {
 	}
 	// V6.0: 子代理 API 请求发送过滤后工具（排除 meta-tools），
 	// 参数白名单 [read_file, task, write_file, run_skill, research]
-	// 过滤 meta-tools 后 → [read_file, write_file]
+	// 过滤 meta-tools（task/run_skill）后 → [read_file, write_file, research]
 	got := map[string]bool{}
 	for _, s := range sub.lastReq.Tools {
 		got[s.Name] = true
 	}
-	if !got["read_file"] || !got["write_file"] {
-		t.Errorf("V6.0: API request tools = %v, want [read_file, write_file]", got)
+	if !got["read_file"] || !got["write_file"] || !got["research"] {
+		t.Errorf("V6.0: API request tools = %v, want [read_file, write_file, research]", got)
 	}
-	if got["task"] || got["run_skill"] || got["research"] {
+	if got["task"] || got["run_skill"] {
 		t.Errorf("V6.0: meta-tools should be excluded, got %v", got)
 	}
 }
 
 // TestTaskToolDefaultsToParentToolsWithoutMetaTools covers the no-whitelist
-// path: the sub-agent inherits parent tools except subagent/skill meta-tools.
+// path: the sub-agent inherits parent tools except subagent/skill meta-tools
+// (task / run_skill / install_skill) and persistent-write tools.
 func TestTaskToolDefaultsToParentToolsWithoutMetaTools(t *testing.T) {
 	sub := &mockProvider{name: "sub", chunks: []provider.Chunk{
 		{Type: provider.ChunkText, Text: "ok"},
@@ -125,29 +128,26 @@ func TestTaskToolDefaultsToParentToolsWithoutMetaTools(t *testing.T) {
 	task := NewTaskTool(sub, nil, parentReg, 20, 0, 0.0, "", "sys", nil)
 	parentReg.Add(task)
 	parentReg.Add(fakeTool{name: "run_skill", readOnly: false})
-	parentReg.Add(fakeTool{name: "explore", readOnly: false})
 	parentReg.Add(fakeTool{name: "research", readOnly: false})
-	parentReg.Add(fakeTool{name: "review", readOnly: false})
-	parentReg.Add(fakeTool{name: "security_review", readOnly: false})
 	parentReg.Add(fakeTool{name: "remember", readOnly: false, persistWrite: true})
 
 	if _, err := task.Execute(context.Background(), []byte(`{"prompt":"x"}`)); err != nil {
 		t.Fatalf("Execute: %v", err)
 	}
 	// 子代理默认继承父工具但排除 meta-tools 与持久化写入工具。
-	// 父工具: [read_file, grep, task, run_skill, explore, research, review, security_review, remember]
-	// 排除 meta-tools + 持久化写入后 → [read_file, grep]
+	// 父工具: [read_file, grep, task, run_skill, research, remember]
+	// 排除 meta-tools（task/run_skill）+ 持久化写入后 → [read_file, grep, research]
 	got := map[string]bool{}
 	for _, s := range sub.lastReq.Tools {
 		got[s.Name] = true
 	}
-	if !got["read_file"] || !got["grep"] {
-		t.Errorf("default sub-agent API request tools = %v, want [read_file, grep]", got)
+	if !got["read_file"] || !got["grep"] || !got["research"] {
+		t.Errorf("default sub-agent API request tools = %v, want [read_file, grep, research]", got)
 	}
 	if got["remember"] {
 		t.Errorf("persistent-write tool remember should be stripped from sub-agent, got %v", got)
 	}
-	if got["task"] || got["run_skill"] || got["explore"] || got["research"] || got["review"] || got["security_review"] {
+	if got["task"] || got["run_skill"] {
 		t.Errorf("V6.0: meta-tools should be excluded, got %v", got)
 	}
 }
@@ -325,7 +325,6 @@ func TestNonPersistWritersNotMarked(t *testing.T) {
 		}
 	}
 }
-
 
 // testSink is a simple event sink for tests.
 type testSink struct {

@@ -87,13 +87,13 @@ interface SkillChip {
 }
 
 const OFFICE_SKILLS: SkillChip[] = [
-  { label: "format-convert", subKey: "welcome.skillConvert", prompt: "用 format-convert 把文档转换为可编辑 Markdown。" },
-  { label: "chart-builder", subKey: "welcome.skillChart", prompt: "用 chart-builder 从数据生成统计图表。" },
-  { label: "doc-assemble", subKey: "welcome.skillAssemble", prompt: "用 doc-assemble 把多份素材拼装成完整报告。" },
-  { label: "docx", subKey: "welcome.skillDocx", prompt: "用 docx 技能创建或编辑 Word 文档。" },
-  { label: "xlsx", subKey: "welcome.skillXlsx", prompt: "用 xlsx 技能创建或处理表格文件。" },
-  { label: "pdf", subKey: "welcome.skillPdf", prompt: "用 pdf 技能读取、合并或创建 PDF 文档。" },
-  { label: "pptx", subKey: "welcome.skillPptx", prompt: "用 pptx 技能把内容做成 PowerPoint 演示文稿。" },
+  { label: "format-convert", subKey: "welcome.skillConvert", prompt: "用 run_skill 调用 format-convert 技能，把文档转换为可编辑 Markdown。" },
+  { label: "chart-builder", subKey: "welcome.skillChart", prompt: "用 run_skill 调用 chart-builder 技能，从数据生成统计图表。" },
+  { label: "doc-assemble", subKey: "welcome.skillAssemble", prompt: "用 run_skill 调用 doc-assemble 技能，把多份素材拼装成完整报告。" },
+  { label: "docx", subKey: "welcome.skillDocx", prompt: "用 run_skill 调用 docx 技能创建或编辑 Word 文档。" },
+  { label: "xlsx", subKey: "welcome.skillXlsx", prompt: "用 run_skill 调用 xlsx 技能创建或处理表格文件。" },
+  { label: "pdf", subKey: "welcome.skillPdf", prompt: "用 run_skill 调用 pdf 技能读取、合并或创建 PDF 文档。" },
+  { label: "pptx", subKey: "welcome.skillPptx", prompt: "用 run_skill 调用 pptx 技能把内容做成 PowerPoint 演示文稿。" },
 ];
 
 // 内置任务模板兜底：后端命令库为空或加载失败时（首启/离线），欢迎页仍有常用办公任务可一键发起。

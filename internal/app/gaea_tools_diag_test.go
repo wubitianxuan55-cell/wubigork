@@ -29,9 +29,6 @@ func TestGaeaDynamicToolSchemasValid(t *testing.T) {
 	reg.Add(command.NewSlashCommandTool([]command.SlashEntry{{Name: "test", Description: "d", Render: func([]string) string { return "" }}}))
 	reg.Add(skill.NewRunSkillTool(skStore, nil))
 	reg.Add(skill.NewInstallSkillTool(skStore, nil))
-	for _, st := range skill.BuiltinSubagentTools(skStore, nil) {
-		reg.Add(st)
-	}
 	reg.Add(memory.NewPromoteSessionFactsTool())
 
 	bad := 0
