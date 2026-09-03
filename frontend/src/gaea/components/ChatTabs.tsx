@@ -10,6 +10,10 @@ export type ChatTabId = "chat" | "trajectory" | "context" | "overview";
 export interface ChatSessionTab {
   id: string;
   label: string;
+  /** 会话状态（子代理运行态；有值时 tab 前显示实时状态点，与主代理运行态同口径） */
+  status?: "running" | "completed" | "failed";
+  /** 悬停详情（任务/状态/模型等完整信息；缺省回退 id） */
+  detail?: string;
 }
 
 const TABS: { id: ChatTabId; label: string; icon: typeof MessageSquare }[] = [
@@ -66,8 +70,23 @@ export function ChatTabs({ active, onChange, extraTabs, onCloseExtra }: {
                 onChange(s.id);
               }
             }}
-            title={s.id}
+            title={s.detail || s.id}
           >
+            {s.status && (
+              <span
+                data-testid={`chat-tab-status-${s.id}`}
+                className="inline-block h-1.5 w-1.5 rounded-full shrink-0"
+                style={{
+                  background:
+                    s.status === "running"
+                      ? "var(--gaea-glow)"
+                      : s.status === "failed"
+                        ? "var(--md-sys-color-destructive)"
+                        : "var(--md-sys-color-success)",
+                }}
+                aria-hidden
+              />
+            )}
             <MessageSquare size={13} />
             <span className="max-w-[140px] truncate">{s.label}</span>
             {onCloseExtra && (

@@ -95,4 +95,34 @@ describe("SubagentThread 子代理对话全面板（v4.27）", () => {
     await act(async () => { await Promise.resolve(); });
     expect(mocks.SubagentTranscript).toHaveBeenCalledTimes(3);
   });
+
+  it("assistant 正文按主对话同款 Markdown 渲染（加粗/列表/代码块）", async () => {
+    mocks.SubagentTranscript.mockResolvedValue({
+      ...transcript,
+      messages: [
+        ...transcript.messages,
+        {
+          role: "assistant",
+          content:
+            "**重点结论**：方案可行。\n\n- 要点一：本地保真\n- 要点二：零绑定面\n\n```ts\nconst ok = true\n```",
+        },
+      ],
+    });
+    render(
+      wrap(
+        <SubagentThread
+          sessionPath="s1.jsonl"
+          target="sa_2_b2b2b2b2"
+          task="任务"
+          status="completed"
+          onBack={() => {}}
+        />,
+      ),
+    );
+    // 加粗文字与列表项由 react-markdown 结构化成独立元素（非整段纯文本）
+    expect(await screen.findByText("重点结论", { selector: "strong" })).toBeTruthy();
+    expect(screen.getByText("要点一：本地保真")).toBeTruthy();
+    expect(screen.getByText("要点二：零绑定面")).toBeTruthy();
+    expect(screen.getByText("const ok = true")).toBeTruthy();
+  });
 });

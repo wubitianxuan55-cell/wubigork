@@ -36,6 +36,7 @@ import { CommandPalette, type PaletteItem } from "./components/CommandPalette";
 import { useStatsPersistence } from "./components/StatsPanel";
 import { OverviewPanel } from "./components/OverviewPanel";
 import { useRunningBadge } from "./hooks/useRunningBadge";
+import { usePollingGate } from "../hooks/usePollingGate";
 import { Skeleton } from "./components/Skeleton";
 import { UpdateBanner } from "./components/UpdateBanner";
 import { SelectionToComposer } from "./components/SelectionToComposer";
@@ -195,6 +196,46 @@ export default function App() {
     },
     [subagentTabs],
   );
+  // 独立子代理 tab 实时状态同步（与左栏子代理子行同数据源同 5s 口径）：
+  // 打开后运行/完成/失败与模型随 GaeaSubagentRuns 刷新——tab 状态点与
+  // SubagentThread 头部的状态徽标不再停留在点击瞬间的快照。
+  const pollGate = usePollingGate();
+  useEffect(() => {
+    if (subagentTabs.length === 0 || !currentSessionPath) return;
+    let live = true;
+    const sync = () => {
+      if (!pollGate) return;
+      void app
+        .SubagentRuns(currentSessionPath)
+        .then((v) => {
+          if (!live) return;
+          const runs = v?.runs ?? [];
+          if (runs.length === 0) return;
+          setSubagentTabs((prev) => {
+            let changed = false;
+            const next = prev.map((tab) => {
+              const run = runs.find((r) => r.ref === tab.ref);
+              if (!run) return tab;
+              const model = run.model ?? tab.model;
+              const task = run.task || tab.task;
+              if (run.status === tab.status && model === tab.model && task === tab.task) {
+                return tab;
+              }
+              changed = true;
+              return { ...tab, status: run.status, model, task };
+            });
+            return changed ? next : prev;
+          });
+        })
+        .catch(() => {});
+    };
+    sync();
+    const timer = window.setInterval(sync, 5000);
+    return () => {
+      live = false;
+      window.clearInterval(timer);
+    };
+  }, [subagentTabs.length, currentSessionPath, pollGate]);
   const handleChatTabSelect = useCallback((id: string) => {
     if (id === "chat" || id === "trajectory" || id === "context" || id === "overview") {
       setSubagentTabId(null);
@@ -1158,10 +1199,23 @@ export default function App() {
           <ChatTabs
             active={subagentTabId ?? chatTab}
             onChange={handleChatTabSelect}
-            extraTabs={subagentTabs.map((x) => ({
-              id: x.id,
-              label: x.task && x.task.length > 14 ? `${x.task.slice(0, 14)}…` : (x.task || x.ref),
-            }))}
+            extraTabs={subagentTabs.map((x) => {
+              const statusText =
+                x.status === "running"
+                  ? t("subagent.statusRunning")
+                  : x.status === "failed"
+                    ? t("subagent.statusFailed")
+                    : t("subagent.statusDone");
+              return {
+                id: x.id,
+                label:
+                  x.task && x.task.length > 14
+                    ? `${x.task.slice(0, 14)}…`
+                    : (x.task || x.ref),
+                status: x.status,
+                detail: `${x.task || x.ref} ｜ ${statusText}${x.model ? ` · ${x.model}` : ""}`,
+              };
+            })}
             onCloseExtra={closeSubagentTab}
           />
           <main className="main">

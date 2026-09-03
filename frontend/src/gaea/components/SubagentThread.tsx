@@ -3,6 +3,7 @@ import { Brain, ChevronRight, Loader2, Rollback } from "../icons";
 import { app } from "../lib/bridge";
 import { useT, type Translator } from "../lib/i18n";
 import type { SubagentTranscriptMessage, SubagentTranscriptView } from "../lib/types";
+import { MemoMarkdown } from "./MemoMarkdown";
 import { usePollingGate } from "../../hooks/usePollingGate";
 import { useLiveReload } from "../hooks/useLiveReload";
 
@@ -12,8 +13,9 @@ import { useLiveReload } from "../hooks/useLiveReload";
 // 此前子代理 transcript 只能经 AgentTree 内嵌窄小卡（10px 字号、max-h-64）
 // 手动点「查看完整 transcript」读取一次；本组件把对话提到面板级：
 //  - 头部：返回分工 + 任务标题 + 状态徽标 + 模型 + 消息数 + 手动刷新；
-//  - 消息流：Codex 式渲染（system 弱化单行 / user 右对齐 / assistant 正文+
-//    可折叠思考 / tool 调用与结果小卡），运行中自动跟随底部；
+//  - 消息流：Codex 式渲染（system 弱化单行 / user 右对齐 / assistant 正文
+//    Markdown 渲染同主对话 + 可折叠思考 / tool 调用与结果小卡），运行中
+//    自动跟随底部；
 //  - 实时：running 时每 3s 轮询（页面不可见门控空转）+ 事件驱动刷新
 //    （turn_done 立即、运行中事件节流，useLiveReload 同看板语义）。
 
@@ -118,8 +120,8 @@ function MessageRow({ m, live }: { m: SubagentTranscriptMessage; live: boolean }
             </div>
           ))}
           {m.content && (
-            <div className="whitespace-pre-wrap break-words text-[12.5px] leading-relaxed" style={{ color: "var(--md-sys-color-text)" }}>
-              {m.content}
+            <div className="text-[12.5px] leading-relaxed" style={{ color: "var(--md-sys-color-text)" }}>
+              <MemoMarkdown text={m.content} streaming={false} />
             </div>
           )}
         </div>
