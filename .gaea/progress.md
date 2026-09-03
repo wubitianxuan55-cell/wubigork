@@ -15,7 +15,9 @@
   未跑。版本未 bump（仍 4.59.0）。
 - 详见 docs/better-sidebar-port-2026-09-03-worktree.md（快照二）与
   docs/snapshots/2026-09-03-better-sidebar-port/。
-- 下一步建议：完整发版 v4.60.0（Go 全量 → 版本四处 → release note → 提交/tag）。
+- 下一步建议：**默认并发子代理执行已固化为习惯**（.gaea/AGENTS.md「执行纪律」，
+  无需再点名）；有具体范围后再走完整发版 v4.60.0（Go 全量 → 版本四处 →
+  release note → 提交/tag）。
 
 ## 当前状态
 
