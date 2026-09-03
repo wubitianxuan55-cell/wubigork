@@ -56,8 +56,9 @@ const iconBtn =
   "flex items-center justify-center w-6 h-6 rounded-md border-0 bg-transparent text-(color:--md-sys-color-text-secondary) cursor-pointer hover:text-(color:--md-sys-color-text) hover:bg-(color:--md-sys-color-surface-container-high) transition-colors";
 
 // DeliverablesPanel — 右侧「会话产物」视图（Codex 式工作区收尾）：
-// 展示本次会话交付的全部文件（去重、最新在前），点击预览，悬停提供
-// 外部打开 / 定位 / 复制路径 / 沉淀成本库；预览内编辑过的文件显示「已更新」徽标。
+// 展示本次会话交付的全部文件（去重、最新在前），点击行经注入回调打开
+// （pane 语义下 = 右栏文件 tab，与资源管理器同 tab 条），悬停提供外部打开 /
+// 定位 / 复制路径 / 沉淀成本库；预览内编辑过的文件显示「已更新」徽标。
 // v4.28 B1 版本时间线：vN 次数徽标可点，展开该文件的逐版本列表（预览/恢复，
 // 数据为挂载时自拉的 JournalList(200)，见 VersionTimeline）。
 // v4.31 A1 单版本入口：versions≤1 但有 journal 快照的产物同样渲染「版本」入口

@@ -85,16 +85,14 @@ export interface WorkspaceTabRegistration {
 // 渲染接线（面板组件本体零改动；v4.53 起产物/变更、任务/分工经 MergedPanel
 // 上下分区直接合并为一个面板——同屏全可见，无二级标签，零额外点击）。
 const RENDERERS: Record<WorkspaceTabId, (ctx: WorkspacePanelContext) => ReactNode> = {
+  // 行内「打开文件」统一走 pane 文件 tab（better-sidebar：多个文件 tab 并存，
+  // 同路径去重激活）。资源管理器与产物视图共用同一入口。
   files: (ctx) =>
     createElement(ExplorerView, {
       cwd: ctx.cwd,
       refreshKey: ctx.refreshKey,
       revealRequest: ctx.revealRequest,
-      openFileTab: (rel) => {
-        if (!rel) return;
-        const name = rel.split(/[\\/]/).pop() || rel;
-        usePaneTabsStore.getState().openFile(rel, name);
-      },
+      openFileTab: openPaneFileTab,
       openMainPreview: ctx.onOpenFile,
     }),
   deliverables: (ctx) =>
@@ -102,7 +100,7 @@ const RENDERERS: Record<WorkspaceTabId, (ctx: WorkspacePanelContext) => ReactNod
       primary: createElement(DeliverablesPanel, {
         items: ctx.sessionDeliverables,
         sessionPath: ctx.currentSessionPath,
-        onOpenFile: ctx.onOpenFile,
+        onOpenFile: openPaneFileTab,
         onLocateSource: ctx.onLocateSource,
         onRevealInTree: ctx.onRevealInTree,
         freshPaths: ctx.freshDeliverablePaths,
@@ -123,6 +121,13 @@ const RENDERERS: Record<WorkspaceTabId, (ctx: WorkspacePanelContext) => ReactNod
   // browser_* 工具记录），不依赖 ctx —— 被动观察面与工作区/会话路径解耦。
   browser: () => createElement(BrowserPanel),
 };
+
+/** 打开 pane 文件 tab（行内打开的统一入口）：路径去重、追加到工作台 tab 条。 */
+function openPaneFileTab(rel: string): void {
+  if (!rel) return;
+  const name = rel.split(/[\\/]/).pop() || rel;
+  usePaneTabsStore.getState().openFile(rel, name);
+}
 
 /** 单一数据源：内置面板注册表（v4.28 起含浏览器观察窗，顺序即展示序）。
  *  stats 已迁主区「概览」tab（v4.23 A4）；materials/cost 标签已删除（v4.27）。 */

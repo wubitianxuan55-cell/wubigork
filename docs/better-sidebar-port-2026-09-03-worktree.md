@@ -1,8 +1,25 @@
 # 工作树快照记录：办公右栏 dsh-better-sidebar pane 化移植（2026-09-03，未发版）
 
 > 状态：已完成一版可运行的 pane 移植，前端全量门禁绿；**未 bump 版本、未发布**。
-> 续会话：已再完成「左栏子代理会话入口」（快照二，见下）；仍未 bump/发布。
+> 续会话：已再完成「左栏子代理会话入口」（快照二）与「产物行开 pane 文件
+> tab」（快照三，见下）；仍未 bump/发布。
 > 提交即快照，供下个会话继续。
+
+## 〇〇、快照三：产物行打开语义统一（2026-09-03 续会话）
+
+用户确认「点击产物也开成 pane 文件 tab」：产物视图内的产物行/权威登记行从
+「收起工作台开大预览」改为 **在右栏 tab 条新增/激活文件 tab**（与资源管理器
+同一套 tab，可多个并存、同路径去重）。
+
+- 改动：`lib/sidebarRegistry.ts` 新增 `openPaneFileTab` 统一入口，产物视图
+  `DeliverablesPanel.onOpenFile` 改挂它（files 视图 openFileTab 同步复用）；
+  `DeliverablesPanel.tsx` 头部注释同步。
+- 边界（保持不变）：正文尾部交付卡、变更面板「打开预览」仍走大预览通道；
+  左栏不参与。
+- 验证：sidebarRegistry +1 用例（点产物行 → pane file tab 且不回落大预览
+  回调）；vitest 全量 **210 文件 / 1524 用例**、tsc/eslint 0、drift 559 OK；
+  `?mock=1` 实拍：点产物行 → 工作台保持打开，tab 条 = 产物视图 + 新文件 tab
+  （docs/snapshots/2026-09-03-better-sidebar-port/deliverable-click-file-tab.png）。
 
 ## 〇、快照二：左栏子代理会话入口（2026-09-03 续会话）
 
@@ -76,5 +93,6 @@ EditorTabs(.tsx/.test)、lib/editorTabs(.ts/.test)
 
 - ~~左栏子代理会话入口（用户已选 2）~~：**已完成（快照二）**——复用
   `GaeaSubagentRuns` 保持绑定面 559，Sidebar 虚拟列表子行 + mock 实拍验收。
+- ~~产物行打开语义~~：**已完成（快照三）**——产物行开 pane 文件 tab。
 - 之后可考虑：完整发版（v4.60.0 流程：Go 全量 → 版本四处 → release note →
   提交/tag）。
