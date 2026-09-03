@@ -9,13 +9,21 @@
  * ③ 删除需 Popconfirm 确认（文案提示会同时移除功能绑定能力），确认后才调用
  *    handleRemoveCustomEngine；
  * ④ custom 引擎卡地址框可见（复用 handleSaveURL 保存流程）+「自定义」徽标；
- * ⑤ 内置云端引擎地址框仍不可见、Key 输入不受影响（回归锁）。
+ * ⑤ 内置云端引擎地址框仍不可见、Key 输入不受影响（回归锁）；
+ * ⑥ 价目 v1（自定义引擎用户价目）：编辑表单预填现价，保存经 SaveEngine 通道
+ *    往返 user_price_in/out（留空=0=清除=不计价）；负数由 InputNumber min=0
+ *    失焦钳制防线挡下（负价无法入库）。
  */
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { ModelCenterContext, type ModelCenterContextValue } from './context'
 import { EngineSection } from './EngineSection'
-import type { EngineConfig } from '../../api/engines'
+import { saveEngine, type EngineConfig } from '../../api/engines'
+
+// 价目 v1：价目保存走既有 SaveEngine 通道（不经 context handler），mock 掉
+// api 层以便断言保存载荷（数字=设置、0=清除）。
+vi.mock('../../api/engines', () => ({ saveEngine: vi.fn() }))
+const mSaveEngine = vi.mocked(saveEngine)
 
 const ENGINES: EngineConfig[] = [
   {
@@ -25,10 +33,13 @@ const ENGINES: EngineConfig[] = [
   {
     id: 'custom-123', name: '硅基流动', type: 'custom',
     base_url: 'https://api.siliconflow.cn/v1', enabled: true, default_model: '', models: [],
+    user_price_in: 2, user_price_out: 8, // 价目 v1：预填现价用（¥/百万 tokens）
   },
 ]
 
 function renderSection() {
+  mSaveEngine.mockClear()
+  mSaveEngine.mockResolvedValue(undefined)
   const handleAddCustomEngine = vi.fn().mockResolvedValue(true)
   const handleUpdateCustomEngine = vi.fn().mockResolvedValue(true)
   const handleRemoveCustomEngine = vi.fn().mockResolvedValue(undefined)
@@ -65,7 +76,7 @@ function renderSection() {
       <EngineSection />
     </ModelCenterContext.Provider>,
   )
-  return { handleAddCustomEngine, handleUpdateCustomEngine, handleRemoveCustomEngine }
+  return { handleAddCustomEngine, handleUpdateCustomEngine, handleRemoveCustomEngine, saveEngine: mSaveEngine }
 }
 
 /** 打开「添加自定义引擎」行内表单，返回表单控件与作用域化的保存按钮 */
@@ -156,5 +167,50 @@ describe('EngineSection · 自定义引擎', () => {
     fireEvent.click(within(form).getByRole('button', { name: /^保\s*存$/ })) // Key 留空
 
     await waitFor(() => expect(handleUpdateCustomEngine).toHaveBeenCalledWith('custom-123', '硅基流动 Pro', 'https://api.siliconflow.cn/v1', ''))
+  })
+
+  it('⑥ 价目 v1 往返：预填现价 → 改输入价/清空输出价保存 → saveEngine 收到 user_price_in/out（0=清除）', async () => {
+    const { saveEngine } = renderSection()
+    const customCard = screen.getByText('硅基流动').closest('.mc-engine-card') as HTMLElement
+
+    fireEvent.click(within(customCard).getByRole('button', { name: /^编\s*辑$/ }))
+    const inInput = screen.getByLabelText('输入价（每百万 tokens，CNY）') as HTMLInputElement
+    const outInput = screen.getByLabelText('输出价（每百万 tokens，CNY）') as HTMLInputElement
+    // 预填引擎现价（ENGINES.user_price_in/out）；InputNumber 按 step=0.1 精度
+    // 显示（2 → '2.0'），断言按数值比较不锁显示格式
+    expect(Number(inInput.value)).toBe(2)
+    expect(Number(outInput.value)).toBe(8)
+
+    fireEvent.change(inInput, { target: { value: '3' } })
+    fireEvent.change(outInput, { target: { value: '' } }) // 清空 = 清除 = 不计价
+    // 表单作用域以纯文本 Input（名称框）为锚——InputNumber 外层有 antd 包裹 div，
+    // closest('div') 会落在其内部容器上拿不到保存按钮
+    const form = (screen.getByLabelText('编辑引擎名称') as HTMLInputElement).closest('div') as HTMLElement
+    fireEvent.click(within(form).getByRole('button', { name: /^保\s*存$/ }))
+
+    await waitFor(() =>
+      expect(saveEngine).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'custom-123', user_price_in: 3, user_price_out: 0 }),
+      ),
+    )
+  })
+
+  it('⑥b 价目 v1 负数防线：InputNumber min=0 失焦钳到 0（=清除），负价无法入库', async () => {
+    const { saveEngine } = renderSection()
+    const customCard = screen.getByText('硅基流动').closest('.mc-engine-card') as HTMLElement
+
+    fireEvent.click(within(customCard).getByRole('button', { name: /^编\s*辑$/ }))
+    const inInput = screen.getByLabelText('输入价（每百万 tokens，CNY）') as HTMLInputElement
+    fireEvent.change(inInput, { target: { value: '-1' } }) // antd 范围外输入态：onChange 不触发
+    fireEvent.blur(inInput) // 失焦钳到 min=0 → onChange(0)（0=清除=不计价）
+    await waitFor(() => expect(Number(inInput.value)).toBe(0))
+    const form = (screen.getByLabelText('编辑引擎名称') as HTMLInputElement).closest('div') as HTMLElement
+    fireEvent.click(within(form).getByRole('button', { name: /^保\s*存$/ }))
+
+    await waitFor(() =>
+      expect(saveEngine).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'custom-123', user_price_in: 0, user_price_out: 8 }),
+      ),
+    )
   })
 })

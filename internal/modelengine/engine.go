@@ -105,6 +105,15 @@ type EngineConfig struct {
 	DefaultModel string       `json:"default_model"`
 	Models       []ModelInfo  `json:"models,omitempty"`
 	Status       EngineStatus `json:"status,omitempty"` // 最近连接状态缓存（刷新/测试后更新，随状态文件持久化）
+	// ── 价目 v1：用户自填价目（UI 仅对自定义引擎暴露，字段本身引擎通用）──
+	// 引擎级统一价：每百万 tokens 输入/输出单价，币种固定 CNY（TotalCost
+	// 统一人民币口径）。指针三态：nil=未设置/不修改（SaveEngine 部分更新
+	// 语义，地址框/启停等局部保存不会误清除；omitempty 零新增字节，旧
+	// engines.json 兼容）；指向 <=0/NaN/Inf 视为清除。消费点：SyncUserPrices
+	// 重建注册表 → stats.estimatePrice 最高优先层（用户价 > 目录/内置表）；
+	// ollama/herdsman 本地引擎恒不计价，不消费用户价。见 user_price.go。
+	UserPriceIn  *float64 `json:"user_price_in,omitempty"`  // 输入单价（¥/百万 tokens）
+	UserPriceOut *float64 `json:"user_price_out,omitempty"` // 输出单价（¥/百万 tokens）
 }
 
 // EngineStatus 引擎连接状态
@@ -460,6 +469,8 @@ func (m *Manager) RemoveCustomEngine(engineID string) error {
 	// 健康巡检连续失败计数一并清理（C 刀 v0）
 	delete(m.probeFails, engineID)
 	m.mu.Unlock()
+	// 价目 v1：删除引擎后同步清除注册表旧条目（防止已删引擎继续按旧价计费）
+	m.SyncUserPrices()
 	m.saveState()
 	slog.Info("自定义引擎已删除", "engine", engineID)
 	return nil
@@ -613,8 +624,14 @@ func (m *Manager) SaveEngine(cfg EngineConfig) error {
 	}
 	// Enabled 由前端控制
 	existing.Enabled = cfg.Enabled
+	// 价目 v1：指针三态合并（nil=不修改；数字=设置，<=0/NaN/Inf=清除），
+	// 见 user_price.go mergeUserPrice。
+	existing.UserPriceIn = mergeUserPrice(existing.UserPriceIn, cfg.UserPriceIn)
+	existing.UserPriceOut = mergeUserPrice(existing.UserPriceOut, cfg.UserPriceOut)
 	m.mu.Unlock()
 
+	// 价目可能变化：重建用户价目注册表（费用折算 estimatePrice 消费）
+	m.SyncUserPrices()
 	m.saveState()
 	return nil
 }
@@ -1046,6 +1063,9 @@ func (m *Manager) LoadState(path string) error {
 					Label:   st.Label,
 					BaseURL: st.BaseURL,
 					Enabled: st.Enabled,
+					// 价目 v1：随引擎配置持久化，重启恢复（清洗归一，脏值归 nil）
+					UserPriceIn:  sanitizeUserPricePtr(st.UserPriceIn),
+					UserPriceOut: sanitizeUserPricePtr(st.UserPriceOut),
 				}
 				m.engines[id] = eng
 				m.order = append(m.order, id)
@@ -1069,7 +1089,18 @@ func (m *Manager) LoadState(path string) error {
 		if st.Status.LastChecked != "" {
 			eng.Status = st.Status
 		}
+		// 价目 v1：状态文件随引擎配置持久化，重启恢复（含内置引擎手改文件的
+		// 场景；nil 已由清洗归一，脏值不采纳）。
+		if st.UserPriceIn != nil {
+			eng.UserPriceIn = sanitizeUserPricePtr(st.UserPriceIn)
+		}
+		if st.UserPriceOut != nil {
+			eng.UserPriceOut = sanitizeUserPricePtr(st.UserPriceOut)
+		}
 	}
+	// 价目 v1：加载完成后全量重建用户价目注册表（持写锁内直接快照替换，
+	// 避免解锁后再 Sync 的锁重入；见 user_price.go 锁序说明）。
+	replaceUserPriceTable(m.snapshotUserPrices())
 	return nil
 }
 

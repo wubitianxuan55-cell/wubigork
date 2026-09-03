@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react'
 import { Button, Space, Switch, Tag, Typography, message } from 'antd'
 import { ReloadOutlined, SafetyCertificateOutlined, LockOutlined, BugOutlined } from '@ant-design/icons'
 import SettingsSection from './SettingsSection'
+import { useT } from '../../gaea/lib/i18n'
 import type { AppFacade } from '../../types/wails'
 
 /**
@@ -24,6 +25,7 @@ interface LanExposure {
 
 export const SecurityPanel: React.FC = () => {
   const go = window.go?.app?.App as AppFacade
+  const t = useT()
   const [sensitiveLocal, setSensitiveLocal] = useState<boolean>(true)
   const [sensitiveLoading, setSensitiveLoading] = useState(true)
   const [officeLocal, setOfficeLocal] = useState<boolean>(true)
@@ -61,10 +63,10 @@ export const SecurityPanel: React.FC = () => {
     setSensitiveLocal(v)
     try {
       await go?.SetSensitiveLocal?.(v)
-      message.success(v ? '敏感域 AI 已改为本地优先（数据不出本机）' : '敏感域 AI 已改为常规路由（可回云端）')
+      message.success(v ? t('settings.security.sensitiveOn') : t('settings.security.sensitiveOff'))
     } catch (err: unknown) {
       setSensitiveLocal(prev)
-      message.error(err instanceof Error ? err.message : '保存失败')
+      message.error(err instanceof Error ? err.message : t('settings.saveFailed'))
     }
   }
 
@@ -73,10 +75,10 @@ export const SecurityPanel: React.FC = () => {
     setOfficeLocal(v)
     try {
       await go?.SetOfficeLocal?.(v)
-      message.success(v ? '办公板块 AI 已改为本地优先（数据不出本机、省 token）' : '办公板块 AI 已改为常规路由（可回云端）')
+      message.success(v ? t('settings.security.officeOn') : t('settings.security.officeOff'))
     } catch (err: unknown) {
       setOfficeLocal(prev)
-      message.error(err instanceof Error ? err.message : '保存失败')
+      message.error(err instanceof Error ? err.message : t('settings.saveFailed'))
     }
   }
 
@@ -85,10 +87,10 @@ export const SecurityPanel: React.FC = () => {
     setOfflineMode(v)
     try {
       await go?.SetOfflineMode?.(v)
-      message.success(v ? '全局离线模式已开启：所有 AI 只走本地引擎' : '全局离线模式已关闭：可回云端')
+      message.success(v ? t('settings.security.offlineOnToast') : t('settings.security.offlineOffToast'))
     } catch (err: unknown) {
       setOfflineMode(prev)
-      message.error(err instanceof Error ? err.message : '保存失败')
+      message.error(err instanceof Error ? err.message : t('settings.saveFailed'))
     }
   }
 
@@ -110,8 +112,8 @@ export const SecurityPanel: React.FC = () => {
     <>
       <SettingsSection
         icon={<LockOutlined />}
-        title="敏感域本地化"
-        desc="成本/报价等商务敏感数据的 AI 处理默认路由本地 Herdsman（数据不出本机）；关闭后可按常规路由回云端。"
+        title={t('settings.security.sensitiveTitle')}
+        desc={t('settings.security.sensitiveDesc')}
         instant
       >
         <Space size={12}>
@@ -121,18 +123,18 @@ export const SecurityPanel: React.FC = () => {
             onChange={handleToggleSensitive}
           />
           <Typography.Text style={{ fontSize: 13, color: 'var(--md-sys-color-text)' }}>
-            {sensitiveLocal ? '本地优先（推荐）' : '常规路由'}
+            {sensitiveLocal ? t('settings.security.localPreferred') : t('settings.security.normalRoute')}
           </Typography.Text>
         </Space>
         <div style={{ fontSize: 11, color: 'var(--md-sys-color-text-secondary)', marginTop: 6, opacity: 0.8 }}>
-          当前生效范围：报价单/测算表 AI 归一化解析（成本库导入）。Herdsman 引擎停用或不可用时自动回退常规路由。
+          {t('settings.security.sensitiveScope')}
         </div>
       </SettingsSection>
 
       <SettingsSection
         icon={<LockOutlined />}
-        title="办公本地优先"
-        desc="办公板块的功能级 AI 调用（Word/Excel 编辑、资料摘要、知识导入、记忆整理）默认路由本地 Herdsman：数据不出本机、不烧 token；关闭后按常规路由可回云端。"
+        title={t('settings.security.officeTitle')}
+        desc={t('settings.security.officeDesc')}
         instant
       >
         <Space size={12}>
@@ -142,18 +144,18 @@ export const SecurityPanel: React.FC = () => {
             onChange={handleToggleOffice}
           />
           <Typography.Text style={{ fontSize: 13, color: 'var(--md-sys-color-text)' }}>
-            {officeLocal ? '本地优先（推荐）' : '常规路由'}
+            {officeLocal ? t('settings.security.localPreferred') : t('settings.security.normalRoute')}
           </Typography.Text>
         </Space>
         <div style={{ fontSize: 11, color: 'var(--md-sys-color-text-secondary)', marginTop: 6, opacity: 0.8 }}>
-          聊天主 agent（统筹规划）不受此开关影响，仍按模型中心绑定走。Herdsman 引擎停用或不可用时自动回退常规路由。
+          {t('settings.security.officeScope')}
         </div>
       </SettingsSection>
 
       <SettingsSection
         icon={<LockOutlined />}
-        title="全局离线模式"
-        desc="数据不出本机的总闸：开启后所有 AI 路由只允许本地引擎（Herdsman/Ollama/CosyVoice），云端引擎（Grok/DeepSeek/OpenCode）一律跳过；无本地可用时按「模型不可用」如实降级。"
+        title={t('settings.security.offlineTitle')}
+        desc={t('settings.security.offlineDesc')}
         instant
       >
         <Space size={12}>
@@ -163,29 +165,29 @@ export const SecurityPanel: React.FC = () => {
             onChange={handleToggleOffline}
           />
           <Typography.Text style={{ fontSize: 13, color: 'var(--md-sys-color-text)' }}>
-            {offlineMode ? '仅本地（离线）' : '关闭（默认）'}
+            {offlineMode ? t('settings.security.offlineOn') : t('settings.security.offlineOff')}
           </Typography.Text>
         </Space>
         <div style={{ fontSize: 11, color: 'var(--md-sys-color-text-secondary)', marginTop: 6, opacity: 0.8 }}>
-          与「敏感域/办公本地优先」叠加生效：那两个开关只约束各自功能域，本开关约束全部 AI 调用（含意图 LLM 兜底）。
+          {t('settings.security.offlineNote')}
         </div>
       </SettingsSection>
 
       <SettingsSection
         icon={<SafetyCertificateOutlined />}
-        title="Herdsman 局域网暴露"
-        desc="检测 herdsman config.yaml 的 api.lan_accessible。暴露时局域网内任意设备可调用本机大模型，建议关闭。"
+        title={t('settings.security.lanTitle')}
+        desc={t('settings.security.lanDesc')}
       >
         <Space size={8} wrap>
           {exposure?.exposed ? (
-            <Tag color="error">⚠ 已暴露（端口 {exposure.port}）</Tag>
+            <Tag color="error">{t('settings.security.lanExposed', { port: exposure.port })}</Tag>
           ) : exposure ? (
-            <Tag color="success">✓ 未暴露</Tag>
+            <Tag color="success">{t('settings.security.lanSafe')}</Tag>
           ) : (
-            <Tag>未检测到 herdsman 配置</Tag>
+            <Tag>{t('settings.security.lanNoConfig')}</Tag>
           )}
           <Button size="small" icon={<ReloadOutlined spin={checking} />} loading={checking} onClick={() => void check()}>
-            重新检测
+            {t('settings.security.recheck')}
           </Button>
         </Space>
         {exposure?.exposed && (
@@ -195,7 +197,7 @@ export const SecurityPanel: React.FC = () => {
             border: '1px solid var(--md-sys-color-outline-variant)',
             fontSize: 12, lineHeight: 1.7, color: 'var(--md-sys-color-text)',
           }}>
-            {exposure.guidance || `请检查 ${exposure.config_path} 的 api 段 lan_accessible 配置。`}
+            {exposure.guidance || t('settings.security.lanGuidance', { path: exposure.config_path })}
           </div>
         )}
         {exposure?.config_missing && (
@@ -207,11 +209,11 @@ export const SecurityPanel: React.FC = () => {
 
       <SettingsSection
         icon={<BugOutlined />}
-        title="WebView2 远程调试"
-        desc="默认关闭（安全收敛 S2-2）。需要排查渲染问题时，以 GAEA_WEBVIEW_DEBUG=1 环境变量启动 gaea，远程调试端口 127.0.0.1:9333 才会开启。"
+        title={t('settings.security.debugTitle')}
+        desc={t('settings.security.debugDesc')}
       >
         <Typography.Text style={{ fontSize: 12, color: 'var(--md-sys-color-text-secondary)' }}>
-          状态：默认关闭。调试用开关，勿在生产环境常开。
+          {t('settings.security.debugNote')}
         </Typography.Text>
       </SettingsSection>
     </>

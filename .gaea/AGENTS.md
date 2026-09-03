@@ -5,7 +5,19 @@
 
 ## 版本状态（顶部速览）
 
-- **最新：v4.58.0（2026-09-03）继续：三线并行收欠账 · 同章搜索重定位缺陷
+- **最新：v4.59.0（2026-09-03）继续：i18n 二批 · 搜索落划线 · 自定义引擎
+  用户价目**——三线并行子代理+主代理收口。A 线：设置五面板+SettingsSection
+  入三语字典 +192 键/语言（682→874，**设置中心九面板全量 i18n**），zh 保真。
+  B 线：搜索命中「落为划线」（searchHitAnnotation 纯函数适配命中区间→摘录
+  口径、保留原文大小写；addHighlight 加 target 可选参）+ReadingPrefsPanel
+  拆分净减 47 行，+13 用例。C 线：自定义引擎用户价目 v1——EngineConfig 加
+  user_price_in/out **指针三态**（nil=不动/正数=设置/<=0=清除），折算插最高
+  优先层，零值语义=现状（回归锁）；engines.json 状态文件持久化（非
+  config.toml）；**559 不变**，models 已重生成。收口抓潜伏雷：**ChatPanel
+  GetVoicePipelineConfig 直调 wailsjsCompat 在浏览器同步抛（`?.` 只防导出
+  缺失不防执行）→ 设置聊天分组白屏**，try 兜底修复+全设置图审计有守卫。
+  vitest 204/1457；?mock=1 九个设置分组零错误。详见 `releases/v4.59.0.md`。
+- **此前：v4.58.0（2026-09-03）继续：三线并行收欠账 · 同章搜索重定位缺陷
   修复**——novel/dev mock/i18n 三线并行子代理+主代理收口。A 线：同章搜索
   重定位缺陷根因实锤（定位 effect 依赖缺命中序号）+最小修复 searchLocateSeq
   （回归测试反向验证）；ChapterPage 拆分第三批 1352→1285（readingAnnotation/

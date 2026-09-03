@@ -3,6 +3,7 @@ import { Button, Input, InputNumber, Select, Space, Switch, Typography, message 
 import { SaveOutlined, ReloadOutlined, FileTextOutlined } from '@ant-design/icons'
 import { gaeaSettings } from '../../api/settings'
 import SettingsSection from './SettingsSection'
+import { useT } from '../../gaea/lib/i18n'
 import * as App from '../../../src/wailsjsCompat'
 import { app as gaeaApp } from '../../gaea/lib/bridge'
 import type { app as AppModels } from '../../../wailsjs/go/models'
@@ -35,6 +36,7 @@ const emptyDraft: DraftView = {
 
 /** OfficePanel — 办公引擎完整设置（模型 / Agent 参数 / 权限 / 沙箱，持久化到 ~/.config/gaea/config.toml） */
 const OfficePanel: React.FC = () => {
+  const t = useT()
   const [view, setView] = useState<Record<string, unknown>>({})
   const [draft, setDraft] = useState<DraftView>(emptyDraft)
   const [loading, setLoading] = useState(true)
@@ -47,14 +49,14 @@ const OfficePanel: React.FC = () => {
 
   const runLint = async () => {
     const rel = lintPath.trim()
-    if (!rel) { message.warning('请输入文档路径（工作区相对，如 docs/通知.md）'); return }
+    if (!rel) { message.warning(t('settings.office.lintRequired')); return }
     setLinting(true)
     try {
       const r = await gaeaApp.DocumentLint(rel)
       setLintReport(r)
       message[r.passed ? 'success' : 'warning'](r.summary)
     } catch (e) {
-      message.error(`体检失败：${e instanceof Error ? e.message : String(e)}`)
+      message.error(t('settings.office.lintFailed', { msg: e instanceof Error ? e.message : String(e) }))
     } finally {
       setLinting(false)
     }
@@ -119,9 +121,9 @@ const OfficePanel: React.FC = () => {
           allowWrite: ((view.sandbox as { allowWrite?: string[] } | undefined)?.allowWrite) || [],
         },
       } as AppModels.SettingsView)
-      message.success('办公设置已保存并生效')
+      message.success(t('settings.office.saved'))
     } catch (err: unknown) {
-      message.error(err instanceof Error ? err.message : '保存失败')
+      message.error(err instanceof Error ? err.message : t('settings.saveFailed'))
     } finally {
       setSaving(false)
     }
@@ -133,9 +135,9 @@ const OfficePanel: React.FC = () => {
     setReloading(true)
     try {
       const res = await App.GaeaReload()
-      message.success(`引擎已热加载：${res.tools} 个工具 · ${res.skills} 个技能`)
+      message.success(t('caps.reloaded', { tools: res.tools, skills: res.skills }))
     } catch (err: unknown) {
-      message.error(err instanceof Error ? err.message : '热加载失败')
+      message.error(err instanceof Error ? err.message : t('settings.office.reloadFailed'))
     } finally {
       setReloading(false)
     }
@@ -154,58 +156,58 @@ const OfficePanel: React.FC = () => {
   return (
     <>
       <SettingsSection
-        title={<>办公引擎设置</>}
-        desc="完整设置（模型 / Agent 参数 / 权限 / 沙箱），持久化到 ~/.config/gaea/config.toml。"
+        title={t('settings.office.title')}
+        desc={t('settings.office.desc')}
         instant
       >
         {/* 模型区 */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '0 16px' }}>
-          {field('默认模型', (
+          {field(t('settings.office.defaultModel'), (
             <Select
-              placeholder="选择默认模型" value={draft.defaultModel || undefined}
+              placeholder={t('settings.office.defaultModelPh')} value={draft.defaultModel || undefined}
               onChange={(v) => setDraft({ ...draft, defaultModel: v })}
               options={modelOptions} style={selectStyle} size="small"
               showSearch optionFilterProp="label"
             />
           ))}
-          {field('最大步骤', (
+          {field(t('settings.office.maxSteps'), (
             <InputNumber size="small" min={0} max={100} value={draft.maxSteps}
               onChange={(v) => setDraft({ ...draft, maxSteps: v || 0 })} style={selectStyle} />
-          ), '0 = 不限制')}
-          {field('Subagent 模型', (
-            <Input size="small" placeholder="如 xai / grok-4.20" value={draft.subagentModel}
+          ), t('settings.office.unlimited0'))}
+          {field(t('settings.office.subModel'), (
+            <Input size="small" placeholder={t('settings.office.subModelPh')} value={draft.subagentModel}
               onChange={(e) => setDraft({ ...draft, subagentModel: e.target.value })} />
           ))}
         </div>
       </SettingsSection>
 
       <SettingsSection
-        title={<>Agent 参数</>}
-        desc="对话温度与推理强度（DeepSeek：high / max；空 = 提供方默认）。"
+        title={t('settings.office.agentTitle')}
+        desc={t('settings.office.agentDesc')}
       >
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '0 16px' }}>
-          {field('温度', (
+          {field(t('settings.office.temp'), (
             <InputNumber size="small" min={0} max={2} step={0.05} value={draft.temperature}
               onChange={(v) => setDraft({ ...draft, temperature: v || 0 })} style={selectStyle} />
           ))}
-          {field('Subagent 温度', (
+          {field(t('settings.office.subTemp'), (
             <InputNumber size="small" min={0} max={2} step={0.05} value={draft.subagentTemperature}
               onChange={(v) => setDraft({ ...draft, subagentTemperature: v || 0 })} style={selectStyle} />
           ))}
-          {field('推理强度', (
-            <Select size="small" allowClear placeholder="提供方默认"
+          {field(t('settings.office.effort'), (
+            <Select size="small" allowClear placeholder={t('settings.office.effortPh')}
               value={draft.effort || undefined}
               onChange={(v) => setDraft({ ...draft, effort: v || '' })}
               options={[{ value: 'high', label: 'high' }, { value: 'max', label: 'max' }]} style={selectStyle} />
           ))}
-          {field('Subagent 推理强度', (
-            <Select size="small" allowClear placeholder="同主推理强度"
+          {field(t('settings.office.subEffort'), (
+            <Select size="small" allowClear placeholder={t('settings.office.subEffortPh')}
               value={draft.subagentEffort || undefined}
               onChange={(v) => setDraft({ ...draft, subagentEffort: v || '' })}
               options={[{ value: 'high', label: 'high' }, { value: 'max', label: 'max' }]} style={selectStyle} />
           ))}
         </div>
-        {field('系统提示词（SystemPrompt）', (
+        {field(t('settings.office.systemPrompt'), (
           <Input.TextArea rows={3} value={draft.systemPrompt}
             onChange={(e) => setDraft({ ...draft, systemPrompt: e.target.value })}
             style={{ background: 'var(--md-sys-color-surface-container)', border: '1px solid var(--md-sys-color-outline-variant)' }} />
@@ -213,76 +215,76 @@ const OfficePanel: React.FC = () => {
       </SettingsSection>
 
       <SettingsSection
-        title={<>权限</>}
-        desc="工具调用权限模式与规则（逗号分隔）。模式：ask = 每次询问 / allow = 直接允许 / deny = 直接拒绝。"
+        title={t('settings.office.permTitle')}
+        desc={t('settings.office.permDesc')}
       >
-        {field('权限模式', (
+        {field(t('settings.office.permMode'), (
           <Select size="small" value={draft.permMode}
             onChange={(v) => setDraft({ ...draft, permMode: v })}
             options={[
-              { value: 'ask', label: 'ask（询问）' },
-              { value: 'allow', label: 'allow（允许）' },
-              { value: 'deny', label: 'deny（拒绝）' },
+              { value: 'ask', label: t('settings.office.modeAsk') },
+              { value: 'allow', label: t('settings.office.modeAllow') },
+              { value: 'deny', label: t('settings.office.modeDeny') },
             ]} style={selectStyle} />
         ))}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '0 16px' }}>
-          {field('允许规则', <Input size="small" value={draft.permAllow} onChange={(e) => setDraft({ ...draft, permAllow: e.target.value })} placeholder="如 run_skill, file_write" />)}
-          {field('询问规则', <Input size="small" value={draft.permAsk} onChange={(e) => setDraft({ ...draft, permAsk: e.target.value })} placeholder="如 bash" />)}
-          {field('拒绝规则', <Input size="small" value={draft.permDeny} onChange={(e) => setDraft({ ...draft, permDeny: e.target.value })} placeholder="如 network" />)}
+          {field(t('settings.office.ruleAllow'), <Input size="small" value={draft.permAllow} onChange={(e) => setDraft({ ...draft, permAllow: e.target.value })} placeholder={t('settings.office.ruleAllowPh')} />)}
+          {field(t('settings.office.ruleAsk'), <Input size="small" value={draft.permAsk} onChange={(e) => setDraft({ ...draft, permAsk: e.target.value })} placeholder={t('settings.office.ruleAskPh')} />)}
+          {field(t('settings.office.ruleDeny'), <Input size="small" value={draft.permDeny} onChange={(e) => setDraft({ ...draft, permDeny: e.target.value })} placeholder={t('settings.office.ruleDenyPh')} />)}
         </div>
       </SettingsSection>
 
       <SettingsSection
-        title={<>沙箱</>}
-        desc="工具执行的 OS 边界（Bash 隔离模式、网络访问、工作目录）。"
+        title={t('settings.office.sandboxTitle')}
+        desc={t('settings.office.sandboxDesc')}
       >
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '0 16px' }}>
-          {field('Bash 模式', (
+          {field(t('settings.office.bashMode'), (
             <Select size="small" value={draft.sandboxBash}
               onChange={(v) => setDraft({ ...draft, sandboxBash: v })}
               options={[
-                { value: 'enforce', label: 'enforce（隔离）' },
-                { value: 'off', label: 'off（不隔离）' },
+                { value: 'enforce', label: t('settings.office.sandboxEnforce') },
+                { value: 'off', label: t('settings.office.sandboxOff') },
               ]} style={selectStyle} />
           ))}
-          {field('网络访问', (
+          {field(t('settings.office.network'), (
             <Space size={8}>
               <Switch checked={draft.sandboxNetwork} onChange={(v) => setDraft({ ...draft, sandboxNetwork: v })} />
               <Typography.Text style={{ fontSize: 12, color: 'var(--md-sys-color-text-secondary)' }}>
-                {draft.sandboxNetwork ? '允许出网' : '禁止出网'}
+                {draft.sandboxNetwork ? t('settings.office.netOn') : t('settings.office.netOff')}
               </Typography.Text>
             </Space>
           ))}
         </div>
-        {field('工作目录（WorkspaceRoot）', (
+        {field(t('settings.office.workspaceRoot'), (
           <Input size="small" value={draft.workspaceRoot}
             onChange={(e) => setDraft({ ...draft, workspaceRoot: e.target.value })}
-            placeholder="文件写入根目录" />
+            placeholder={t('settings.office.workspaceRootPh')} />
         ))}
       </SettingsSection>
 
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 4 }}>
         <Button icon={<ReloadOutlined />} loading={reloading} onClick={handleReload}>
-          从磁盘热加载
+          {t('settings.office.reload')}
         </Button>
         <Button type="primary" icon={<SaveOutlined />} loading={saving} onClick={handleSave}
           style={{ background: 'var(--md-sys-color-primary)', borderColor: 'var(--md-sys-color-primary)', borderRadius: 'var(--md-sys-radius-md)' }}>
-          保存并生效
+          {t('settings.office.save')}
         </Button>
       </div>
 
       {/* v4.1c → v4.6.1 中文规范体检（规范包机制化：红头要素 + 造价工程表式） */}
-      <SettingsSection title="规范体检">
+      <SettingsSection title={t('settings.office.lintTitle')}>
         <div style={{ display: 'flex', gap: 8 }}>
           <Input
-            placeholder="文档路径（md/txt/docx，工作区相对）"
+            placeholder={t('settings.office.lintPh')}
             value={lintPath}
             onChange={(e) => setLintPath(e.target.value)}
             onPressEnter={() => void runLint()}
             style={{ flex: 1 }}
           />
           <Button icon={<FileTextOutlined />} loading={linting} onClick={() => void runLint()}>
-            规范体检
+            {t('settings.office.lintRun')}
           </Button>
         </div>
         {lintReport && (
@@ -307,7 +309,7 @@ const OfficePanel: React.FC = () => {
                       {it.spec}
                     </span>
                   )}
-                  {it.element}：{it.found ? '符合' : <span style={{ color: 'var(--md-sys-color-destructive)' }}>{it.note}</span>}
+                  {it.element}：{it.found ? t('settings.office.lintOk') : <span style={{ color: 'var(--md-sys-color-destructive)' }}>{it.note}</span>}
                 </li>
               ))}
             </ul>
@@ -315,7 +317,7 @@ const OfficePanel: React.FC = () => {
         )}
       </SettingsSection>
 
-      {loading && <Typography.Text style={{ color: 'var(--md-sys-color-text-secondary)', fontSize: 12 }}>加载中…</Typography.Text>}
+      {loading && <Typography.Text style={{ color: 'var(--md-sys-color-text-secondary)', fontSize: 12 }}>{t('common.loading')}</Typography.Text>}
     </>
   )
 }

@@ -4,12 +4,14 @@ import { ApiOutlined, ArrowRightOutlined, RobotOutlined, MoneyCollectOutlined } 
 import { getActiveModel, getConfig, saveConfig } from '../../api/settings'
 import { getUsdCnyRate, setUsdCnyRate } from '../../api/engines'
 import SettingsSection from './SettingsSection'
+import { useT } from '../../gaea/lib/i18n'
 
 // 默认美元→人民币汇率（与后端 internal/config usd_cny_rate 默认值一致）
 const DEFAULT_USD_CNY = 7.2
 
 /** ModelPanel — 全局模型设置：当前模型 + 推理强度 + 费用汇率（引擎管理在「模型中心」） */
 const ModelPanel: React.FC = () => {
+  const t = useT()
   const [activeModel, setActiveModel] = useState('')
   const [effort, setEffort] = useState('')
   const [rate, setRate] = useState<number | null>(null)
@@ -33,9 +35,9 @@ const ModelPanel: React.FC = () => {
     setEffort(v)
     try {
       await saveConfig('reasoning_effort', v)
-      message.success('推理强度已更新')
+      message.success(t('settings.model.effortSaved'))
     } catch (err: unknown) {
-      message.error(err instanceof Error ? err.message : '保存失败')
+      message.error(err instanceof Error ? err.message : t('settings.saveFailed'))
     }
   }
 
@@ -43,15 +45,15 @@ const ModelPanel: React.FC = () => {
   const handleSaveRate = async () => {
     const v = Number(rate)
     if (!Number.isFinite(v) || v <= 0) {
-      message.error('汇率必须是大于 0 的数字')
+      message.error(t('settings.model.rateInvalid'))
       return
     }
     try {
       await setUsdCnyRate(v)
       setRate(v)
-      message.success('美元→人民币汇率已保存，费用折算即时生效')
+      message.success(t('settings.model.rateSaved'))
     } catch (err: unknown) {
-      message.error(err instanceof Error ? err.message : '汇率保存失败')
+      message.error(err instanceof Error ? err.message : t('settings.model.rateSaveFailed'))
     }
   }
 
@@ -63,8 +65,8 @@ const ModelPanel: React.FC = () => {
     <>
       <SettingsSection
         icon={<ApiOutlined />}
-        title="当前模型"
-        desc="全局 AI 助手实际使用的推理引擎与模型；引擎启停、密钥与功能绑定请在「模型中心」管理。"
+        title={t('settings.model.currentTitle')}
+        desc={t('settings.model.currentDesc')}
       >
         <div style={{
           display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
@@ -74,48 +76,48 @@ const ModelPanel: React.FC = () => {
         }}>
           <span className="live-dot" />
           <Typography.Text strong style={{ fontSize: 15, color: 'var(--md-sys-color-text)' }}>
-            {activeModel || '未配置'}
+            {activeModel || t('settings.model.notConfigured')}
           </Typography.Text>
           <span style={{ flex: 1 }} />
-          <Button size="small" icon={<ArrowRightOutlined />} onClick={goModelCenter}>前往模型中心</Button>
+          <Button size="small" icon={<ArrowRightOutlined />} onClick={goModelCenter}>{t('settings.model.goModelCenter')}</Button>
         </div>
       </SettingsSection>
 
       <SettingsSection
         icon={<span style={{ fontSize: 15 }}><RobotOutlined /></span>}
-        title="推理强度"
-        desc="控制 AI 回答的思考深度：低 = 快速响应，高 = 更深入的分析；留空 = 提供方默认。"
+        title={t('settings.model.effortTitle')}
+        desc={t('settings.model.effortDesc')}
         instant
       >
         <Select
           value={effort || undefined}
-          placeholder="选择推理强度"
+          placeholder={t('settings.model.effortPlaceholder')}
           onChange={handleEffort}
           style={{ width: 220 }}
           allowClear
           options={[
-            { value: 'low', label: '低 — 快速响应' },
-            { value: 'medium', label: '中 — 均衡' },
-            { value: 'high', label: '高 — 深度思考' },
+            { value: 'low', label: t('settings.model.effortLow') },
+            { value: 'medium', label: t('settings.model.effortMedium') },
+            { value: 'high', label: t('settings.model.effortHigh') },
           ]}
         />
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12 }}>
           <Tag style={{ margin: 0, fontSize: 11 }}>deepseek</Tag>
           <Typography.Text style={{ fontSize: 11, color: 'var(--md-sys-color-text-secondary)' }}>
-            推理强度对支持该参数的引擎生效（如 DeepSeek：high / max）
+            {t('settings.model.effortNote')}
           </Typography.Text>
         </div>
       </SettingsSection>
 
       <SettingsSection
         icon={<span style={{ fontSize: 15 }}><MoneyCollectOutlined /></span>}
-        title="美元→人民币汇率"
-        desc="模型调用费用按此汇率折算为人民币展示（模型中心「调用统计」同步生效）；仅接受大于 0 的数值。"
+        title={t('settings.model.rateTitle')}
+        desc={t('settings.model.rateDesc')}
         instant
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
           <InputNumber
-            aria-label="美元人民币汇率"
+            aria-label={t('settings.model.rateAria')}
             min={0.01}
             step={0.1}
             precision={2}
@@ -124,12 +126,12 @@ const ModelPanel: React.FC = () => {
             placeholder="7.2"
             style={{ width: 160 }}
           />
-          <Button type="primary" size="small" onClick={handleSaveRate}>保存汇率</Button>
+          <Button type="primary" size="small" onClick={handleSaveRate}>{t('settings.model.rateSave')}</Button>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12 }}>
           <Tag style={{ margin: 0, fontSize: 11 }}>USD → CNY</Tag>
           <Typography.Text style={{ fontSize: 11, color: 'var(--md-sys-color-text-secondary)' }}>
-            汇率仅接受大于 0 的数值；保存失败会提示具体原因
+            {t('settings.model.rateNote')}
           </Typography.Text>
         </div>
       </SettingsSection>

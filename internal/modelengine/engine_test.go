@@ -23,7 +23,7 @@ func TestNewManager_Presets(t *testing.T) {
 	want := map[string]EngineType{
 		"xai": EngineXAI, "ollama": EngineOllama,
 		"herdsman": EngineHerdsman, "deepseek": EngineDeepseek,
-		"glm": EngineGLM,
+		"glm":         EngineGLM,
 		"opencode-go": EngineOpencodeGo, "opencode-zen": EngineOpencodeZen,
 	}
 	if _, ok := m.GetEngine("cosyvoice"); !ok {
@@ -648,15 +648,15 @@ func TestClassifyModelKind_AllKinds(t *testing.T) {
 // 与 ClassifyModelKind 的引擎无关分支同源。
 func TestClassifyModelByName_EngineIndependent(t *testing.T) {
 	cases := map[string]string{
-		"whisper-base":        "stt",
-		"sherpa-onnx-zh":      "stt",
-		"qwen3-tts":           "tts",
-		"paddleocr":           "ocr",
-		"bge-reranker-v2-m3":  "rerank",
-		"bge-m3":              "embedding",
-		"z-image-turbo":       "image",
-		"grok-4.20":           "llm",
-		"deepseek-v4-flash":   "llm",
+		"whisper-base":       "stt",
+		"sherpa-onnx-zh":     "stt",
+		"qwen3-tts":          "tts",
+		"paddleocr":          "ocr",
+		"bge-reranker-v2-m3": "rerank",
+		"bge-m3":             "embedding",
+		"z-image-turbo":      "image",
+		"grok-4.20":          "llm",
+		"deepseek-v4-flash":  "llm",
 	}
 	for model, want := range cases {
 		if got := ClassifyModelByName(model); got != want {

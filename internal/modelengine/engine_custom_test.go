@@ -355,7 +355,7 @@ func TestTestConnection_CustomEngine401(t *testing.T) {
 }
 
 // TestClassifyModelKind_Custom custom 引擎复用通用关键词判型、默认 llm
-//（刻意不加类型分支——行为锚定，防止未来重构把 custom 当特型）。
+// （刻意不加类型分支——行为锚定，防止未来重构把 custom 当特型）。
 func TestClassifyModelKind_Custom(t *testing.T) {
 	cases := map[string]string{
 		"deepseek-v4-pro":   "llm", // 默认 llm

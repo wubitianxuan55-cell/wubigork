@@ -3,8 +3,10 @@
 // 重型子组件（TTS/编辑器/导出/配图）替换为桩，zustand store 用真实实例 + setState 注入。
 // 只锁：组件可渲染、章节 Tab 出现、阅读模式正文渲染，全程不抛错——不追求深覆盖。
 // 另锁搜索定位接线（第三批）：阅读模式内点命中可定位、同章再点仍能重新定位（回归修复）。
+// 第四批补锁：搜索命中「落为划线」→ 划线 state/持久化/正文回渲染，标题命中按钮禁用。
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { message } from 'antd'
 
 // 屏蔽 Wails 绑定：jsdom 中没有 window.go，章节读写全部给确定性返回。
 vi.mock('../../src/wailsjsCompat', () => ({
@@ -126,5 +128,83 @@ describe('ChapterPage 冒烟', () => {
       expect(spans.length).toBe(1)
       expect(paras()[1].contains(spans[0])).toBe(true)
     })
+  })
+})
+
+describe('搜索命中「落为划线」', () => {
+  const project = 'C:/demo-proj'
+  const annKey = `gaea.novel.readingAnnotations.${project}`
+  const bodyHit = {
+    node_id: 'ch-1',
+    title: '第一回 风雪夜归人',
+    chapter_num: 1,
+    snippet: '夜色沉沉，',
+    title_hit: false,
+    match_index: 1,
+    paragraph_index: 0,
+    char_offset: 4,
+    match_len: 1,
+    total_hits: 1,
+    chapter_count: 1,
+  }
+
+  // 挂载到「阅读模式 + 搜索浮层已出命中列表」状态（非 projectPath 下 writeAnnotations 不落盘，
+  // 故本组用例注入真实项目路径以断言持久化）
+  const mountReadingWithSearch = async (hits: unknown) => {
+    vi.mocked(NovelSearch).mockResolvedValue(hits as Awaited<ReturnType<typeof NovelSearch>>)
+    useAppStore.setState({ projectPath: project })
+    useOutlineStore.setState({ outlines: [leaf] })
+    render(<ChapterPage />)
+    window.dispatchEvent(new CustomEvent('novel:open-chapter', { detail: { node: leaf } }))
+    await screen.findByTestId('chapter-editor-stub')
+    fireEvent.click(screen.getByRole('button', { name: '进入阅读模式' }))
+    await screen.findByText('夜色沉沉，雨落在窗台上。')
+    fireEvent.click(screen.getByRole('button', { name: '全文搜索' }))
+    fireEvent.change(screen.getByPlaceholderText('搜索全书（标题 + 正文）'), { target: { value: '，' } })
+    // 汇总提示出现即命中列表就绪（标题命中行无「· 第N段」后缀，不能按行文本等）
+    await screen.findByText('共 1 处 · 1 章')
+  }
+
+  beforeEach(() => { localStorage.removeItem(annKey) })
+  afterEach(() => { localStorage.removeItem(annKey) })
+
+  it('点「落为划线」：message 反馈、持久化写命中章节 + 命中原文、正文即时回渲染 mark、不触发定位跳转', async () => {
+    const msgSpy = vi.spyOn(message, 'success')
+    await mountReadingWithSearch([bodyHit])
+
+    fireEvent.click(screen.getByRole('button', { name: '落为划线' }))
+    expect(msgSpy).toHaveBeenCalledTimes(1)
+
+    // 持久化走 writeAnnotations 既有管线：归属命中章节，摘录为命中原文（落库后可回渲染）
+    const stored = JSON.parse(localStorage.getItem(annKey) || '[]') as Array<Record<string, unknown>>
+    expect(stored).toHaveLength(1)
+    expect(stored[0]).toMatchObject({ nodeId: 'ch-1', text: '，', color: 'yellow' })
+
+    // 划线 state：既有回渲染 effect 立即把当前章命中处包成 mark；列表计数 +1
+    await waitFor(() => expect(document.querySelector('mark.novel-reading-mark')?.textContent).toBe('，'))
+    fireEvent.click(screen.getByRole('button', { name: '划线 / 想法' }))
+    expect(await screen.findByText('本章划线 / 想法（1）')).toBeTruthy()
+
+    // 行内按钮不冒泡触发行点击（openSearchHit）：搜索浮层仍开、无 2.6s 临时 search-hit 高亮
+    expect(screen.getByPlaceholderText('搜索全书（标题 + 正文）')).toBeTruthy()
+    expect(document.querySelector('span.novel-reading-search-hit')).toBeNull()
+    msgSpy.mockRestore()
+  })
+
+  it('标题命中（paragraph_index = -1）：「落为划线」禁用，点击不产生划线', async () => {
+    const msgSpy = vi.spyOn(message, 'success')
+    await mountReadingWithSearch([{
+      ...bodyHit,
+      snippet: '风雪夜归人',
+      title_hit: true,
+      paragraph_index: -1,
+      char_offset: -1,
+    }])
+    const btn = screen.getByRole('button', { name: '落为划线' })
+    expect((btn as HTMLButtonElement).disabled).toBe(true)
+    fireEvent.click(btn)
+    expect(msgSpy).not.toHaveBeenCalled()
+    expect(localStorage.getItem(annKey)).toBeNull()
+    msgSpy.mockRestore()
   })
 })

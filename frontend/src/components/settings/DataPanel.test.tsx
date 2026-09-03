@@ -14,6 +14,10 @@ const mocks = vi.hoisted(() => ({
 vi.mock('../../../src/wailsjsCompat', () => mocks)
 
 import DataPanel from './DataPanel'
+import { LocaleProvider } from '../../gaea/lib/i18n'
+
+// S2.2b i18n：SettingsSection 徽章经 useT 读字典，测试需包 LocaleProvider（zh 为默认语言）
+const wrap = (node: React.ReactNode) => <LocaleProvider>{node}</LocaleProvider>
 
 const baseInfo = {
   data_root: 'C:\\Users\\u\\AppData\\Roaming\\gaea',
@@ -31,10 +35,12 @@ describe('DataPanel 数据备份/恢复', () => {
     vi.clearAllMocks()
     mocks.GaeaDataBackupInfo.mockResolvedValue(baseInfo)
     mocks.GaeaDataBackupRestoreResult.mockResolvedValue({ has_result: false })
+    // 断言为中文文案：固定 zh 语言（jsdom 默认 en-US）
+    Object.defineProperty(navigator, 'language', { value: 'zh-CN', configurable: true })
   })
 
   it('渲染数据根与条目清单', async () => {
-    render(<DataPanel />)
+    render(wrap(<DataPanel />))
     expect(await screen.findByText(/数据根：/)).toBeTruthy()
     expect(screen.getAllByText(/Hephaestus.db/).length).toBeGreaterThan(0)
     expect(screen.getAllByText(/whisper_data/).length).toBeGreaterThan(0)
@@ -46,7 +52,7 @@ describe('DataPanel 数据备份/恢复', () => {
   it('点击一键备份：选目录 → 创建 → 成功提示', async () => {
     mocks.GaeaPickDirectory.mockResolvedValue('D:\\backups')
     mocks.GaeaDataBackupCreate.mockResolvedValue({ zip_path: 'D:\\backups\\gaea-backup-2.20.0-20260814.zip', total_bytes: 3072 })
-    render(<DataPanel />)
+    render(wrap(<DataPanel />))
     fireEvent.click(await screen.findByRole('button', { name: /一键备份/ }))
     await waitFor(() => {
       expect(mocks.GaeaDataBackupCreate).toHaveBeenCalledWith('D:\\backups')
@@ -57,7 +63,7 @@ describe('DataPanel 数据备份/恢复', () => {
   it('从备份恢复：选 zip → 校验 → 提示重启', async () => {
     mocks.GaeaPickFiles.mockResolvedValue([{ path: 'D:\\bk\\a.zip', name: 'a.zip', size: 1000 }])
     mocks.GaeaDataBackupRestore.mockResolvedValue({ restart_required: true, zip_name: 'a.zip', backup_version: '2.20.0' })
-    render(<DataPanel />)
+    render(wrap(<DataPanel />))
     // Popconfirm 二次确认：先点「从备份恢复」打开确认，再点「选择备份文件」确认
     fireEvent.click(await screen.findByRole('button', { name: /从备份恢复/ }))
     fireEvent.click(await screen.findByRole('button', { name: /选择备份文件/ }))
@@ -69,7 +75,7 @@ describe('DataPanel 数据备份/恢复', () => {
 
   it('有待应用恢复时显示告警与取消按钮', async () => {
     mocks.GaeaDataBackupInfo.mockResolvedValue({ ...baseInfo, pending: true, pending_zip: 'a.zip', pending_at: '2026-08-14 08:00:00' })
-    render(<DataPanel />)
+    render(wrap(<DataPanel />))
     expect(await screen.findByText(/有待应用的恢复/)).toBeTruthy()
     expect(screen.getByRole('button', { name: /取消恢复/ })).toBeTruthy()
   })

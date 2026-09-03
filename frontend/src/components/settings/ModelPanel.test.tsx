@@ -20,6 +20,7 @@ vi.mock('../../api/engines', () => ({
 import ModelPanel from './ModelPanel'
 import { getActiveModel, getConfig } from '../../api/settings'
 import { getUsdCnyRate, setUsdCnyRate } from '../../api/engines'
+import { LocaleProvider } from '../../gaea/lib/i18n'
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -27,11 +28,16 @@ beforeEach(() => {
   vi.mocked(getConfig).mockResolvedValue({})
   vi.mocked(getUsdCnyRate).mockResolvedValue(7.2)
   vi.mocked(setUsdCnyRate).mockResolvedValue(undefined)
+  // 面板文案经 useT 读字典（zh 为默认语言），断言为中文文案：固定 zh 语言
+  Object.defineProperty(navigator, 'language', { value: 'zh-CN', configurable: true })
 })
+
+// S2.2b i18n：面板组件经 useT 读字典，测试需包 LocaleProvider
+const wrap = (node: React.ReactNode) => <LocaleProvider>{node}</LocaleProvider>
 
 describe('ModelPanel 汇率输入（T6-6.2）', () => {
   it('加载时回填汇率，保存调用 setUsdCnyRate 且传正值', async () => {
-    render(<ModelPanel />)
+    render(wrap(<ModelPanel />))
     // 等加载回填完成（precision=2 显示 7.20），避免异步回填覆盖后续输入
     const input = await screen.findByDisplayValue('7.20')
     fireEvent.change(input, { target: { value: '8' } })
@@ -42,7 +48,7 @@ describe('ModelPanel 汇率输入（T6-6.2）', () => {
   })
 
   it('空值/非正数不调用 setUsdCnyRate（校验拦截并提示，不静默）', async () => {
-    render(<ModelPanel />)
+    render(wrap(<ModelPanel />))
     const input = await screen.findByDisplayValue('7.20')
     // antd InputNumber 对输入中的越界值会钳制，这里用清空（→ null）触发校验拦截
     fireEvent.change(input, { target: { value: '' } })

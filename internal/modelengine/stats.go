@@ -198,6 +198,10 @@ func normalizeModelID(raw string) string {
 }
 
 // estimatePrice 返回模型定价；本地引擎与未知模型返回空定价。
+// 价目 v1：自定义引擎用户价目最高优先（userEnginePrice 注册表，Manager 随
+// 引擎配置加载/保存重建——用户对中转站实际计费的声明，理应压过按模型名的
+// 目录/内置前缀猜测；本地引擎 ollama/herdsman 恒不计价，不消费用户价，
+// 见 user_price.go）。
 // GLM 引擎先查 GLM 目录（normalizeModelID 归一后精确匹配→最长前缀匹配；
 // 条目 free=true→{0,0,"CNY"}；带价→用目录价含 unit 判断；目录无价→回退
 // 内置表，现状不变——glm-asr-2512/glm-4.7 等内置条目价格由此保持）。
@@ -209,6 +213,9 @@ func estimatePrice(engineID, model string) modelPrice {
 	switch engineID {
 	case "ollama", "herdsman":
 		return modelPrice{}
+	}
+	if p, ok := userEnginePrice(engineID); ok {
+		return p
 	}
 	n := normalizeModelID(model)
 	if engineID == string(EngineGLM) {

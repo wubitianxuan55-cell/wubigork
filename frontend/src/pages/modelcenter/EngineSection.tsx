@@ -1,9 +1,10 @@
 import { useState, type CSSProperties } from 'react'
-import { Button, Input, message, Popconfirm, Segmented, Space, Switch } from 'antd'
+import { Button, Input, InputNumber, message, Popconfirm, Segmented, Space, Switch } from 'antd'
 import { PlusOutlined, SettingOutlined } from '@ant-design/icons'
 import { SectionHead, StatusChip } from './ui'
 import { engineColor, engineIcon, engineLabel, filterEnginesByEnabled, glmEndpointFamily, isCustomEngine, isValidBaseURL, kindOf } from './utils'
 import type { EngineConfig } from '../../api/engines'
+import { saveEngine } from '../../api/engines'
 import { useModelCenter } from './context'
 
 export function EngineSection() {
@@ -35,6 +36,13 @@ export function EngineSection() {
   const [editURL, setEditURL] = useState('')
   const [editKey, setEditKey] = useState('')
   const [editBusy, setEditBusy] = useState(false)
+  // ── 价目 v1（自定义引擎用户价目）：引擎级统一价，每百万 tokens，CNY ──
+  // null = 输入框留空 = 清除（后端语义 0=未填=不计价）。经 SaveEngine 指针
+  // 三态落库：数字=设置、0=清除；本会话已保存值优先于 context 引擎列表
+  // （saveEngine 成功后 engines 不刷新，避免重开表单显示旧值）。
+  const [editPriceIn, setEditPriceIn] = useState<number | null>(null)
+  const [editPriceOut, setEditPriceOut] = useState<number | null>(null)
+  const [savedPrices, setSavedPrices] = useState<Record<string, { in: number | null; out: number | null }>>({})
 
   const visibleEngines = filterEnginesByEnabled(engines, showEnabledOnly)
   const bulk = (enabled: boolean) => {
@@ -69,6 +77,10 @@ export function EngineSection() {
     setEditName(engine.name)
     setEditURL(engine.base_url || '')
     setEditKey('')
+    // 价目预填：本会话已保存值优先（context 引擎列表在 saveEngine 后未刷新）
+    const saved = savedPrices[engine.id]
+    setEditPriceIn(saved ? saved.in : engine.user_price_in ?? null)
+    setEditPriceOut(saved ? saved.out : engine.user_price_out ?? null)
   }
 
   const submitEditCustom = async () => {
@@ -77,11 +89,32 @@ export function EngineSection() {
     const url = editURL.trim()
     const invalid = customFormError(name, url)
     if (invalid) { message.warning(invalid); return }
+    if (editPriceIn !== null && (!Number.isFinite(editPriceIn) || editPriceIn < 0)) {
+      message.warning('输入价必须是不小于 0 的数字')
+      return
+    }
+    if (editPriceOut !== null && (!Number.isFinite(editPriceOut) || editPriceOut < 0)) {
+      message.warning('输出价必须是不小于 0 的数字')
+      return
+    }
     setEditBusy(true)
     try {
       // Key 留空 = 不修改（后端 UpdateCustomEngine 契约）
-      if (await handleUpdateCustomEngine(editingCustomId, name, url, editKey.trim())) closeEditCustom()
-    } finally { setEditBusy(false) }
+      if (!(await handleUpdateCustomEngine(editingCustomId, name, url, editKey.trim()))) return
+      // 价目 v1：经既有 SaveEngine 通道落库（数字=设置、留空=0=清除；
+      // 费用折算优先消费用户价目，留空维持现状不计价）
+      await saveEngine({
+        id: editingCustomId,
+        user_price_in: editPriceIn ?? 0,
+        user_price_out: editPriceOut ?? 0,
+      } as EngineConfig)
+      setSavedPrices(prev => ({ ...prev, [editingCustomId]: { in: editPriceIn, out: editPriceOut } }))
+      closeEditCustom()
+    } catch {
+      message.error('价目保存失败，请重试')
+    } finally {
+      setEditBusy(false)
+    }
   }
 
   const keyFields: {
@@ -364,6 +397,33 @@ export function EngineSection() {
                   value={editKey}
                   onChange={e => setEditKey(e.target.value)}
                 />
+                {/* 价目 v1：引擎级统一价（每百万 tokens，CNY）。留空 = 清除 =
+                    不计价（费用统计维持现状）；仅影响费用估算，不影响调用。 */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                  <InputNumber
+                    size="small"
+                    style={{ width: '100%' }}
+                    min={0}
+                    step={0.1}
+                    aria-label="输入价（每百万 tokens，CNY）"
+                    placeholder="输入价（每百万 tokens，CNY）"
+                    value={editPriceIn}
+                    onChange={v => setEditPriceIn(typeof v === 'number' && Number.isFinite(v) ? v : null)}
+                  />
+                  <InputNumber
+                    size="small"
+                    style={{ width: '100%' }}
+                    min={0}
+                    step={0.1}
+                    aria-label="输出价（每百万 tokens，CNY）"
+                    placeholder="输出价（每百万 tokens，CNY）"
+                    value={editPriceOut}
+                    onChange={v => setEditPriceOut(typeof v === 'number' && Number.isFinite(v) ? v : null)}
+                  />
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--mc-muted)' }}>
+                  价目为引擎级统一价（¥/百万 tokens），留空 = 不计价；填了价目的引擎，用量统计的费用估算将按此价折算
+                </div>
                 <Space>
                   <Button size="small" type="primary" loading={editBusy} onClick={submitEditCustom}>保存</Button>
                   <Button size="small" onClick={closeEditCustom}>取消</Button>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useMemo, useState } from 'react'
 import {
   CheckOutlined, DesktopOutlined, MoonOutlined, BgColorsOutlined,
   SunOutlined, ThunderboltOutlined, FontSizeOutlined, DashboardOutlined, CompressOutlined,
@@ -6,11 +6,31 @@ import {
 } from '@ant-design/icons'
 import { Button, InputNumber, Select } from 'antd'
 import { useAppStore, THEME_PRESETS, FONT_OPTIONS, type DisplayMode, type ThemePreset, type Density, type MotionPref } from '../../stores/appStore'
-import { useI18n, type LangPref } from '../../gaea/lib/i18n'
+import { useI18n, useT, type LangPref } from '../../gaea/lib/i18n'
+import type { DictKey } from '../../gaea/locales/en'
 import SettingsSection from './SettingsSection'
 
-// 主题选项：单一数据源 THEME_PRESETS（appStore，3.0 Wave 2 消除与 MainLayout/appStore 色板表三处重复）
-const themeOptions: { key: ThemePreset; label: string; desc: string; color: string }[] = THEME_PRESETS
+// 主题选项：数据单一来源 THEME_PRESETS（appStore）；label/desc 经 i18n 组件内派生（原为模块级直用）。
+// THEME_LABEL_KEYS 与 appStore 的 ThemePreset 联合类型锁定：新增主题时 tsc 会强制补键。
+const THEME_LABEL_KEYS: Record<ThemePreset, { label: DictKey; desc: DictKey }> = {
+  nightJade: { label: 'settings.appear.themeNightJadeLabel', desc: 'settings.appear.themeNightJadeDesc' },
+  nightViolet: { label: 'settings.appear.themeNightVioletLabel', desc: 'settings.appear.themeNightVioletDesc' },
+  nightRose: { label: 'settings.appear.themeNightRoseLabel', desc: 'settings.appear.themeNightRoseDesc' },
+  nightAmber: { label: 'settings.appear.themeNightAmberLabel', desc: 'settings.appear.themeNightAmberDesc' },
+  nightMoss: { label: 'settings.appear.themeNightMossLabel', desc: 'settings.appear.themeNightMossDesc' },
+  nightSlate: { label: 'settings.appear.themeNightSlateLabel', desc: 'settings.appear.themeNightSlateDesc' },
+}
+
+interface ThemeOption { key: ThemePreset; label: string; desc: string; color: string }
+
+/** 主题选项（label/desc 已本地化）；t 变更时重算（hover 预览与主题卡共用） */
+function useThemeOptions(): ThemeOption[] {
+  const t = useT()
+  return useMemo(
+    () => THEME_PRESETS.map((p) => ({ key: p.key, color: p.color, label: t(THEME_LABEL_KEYS[p.key].label), desc: t(THEME_LABEL_KEYS[p.key].desc) })),
+    [t],
+  )
+}
 
 /** 通用「选择卡片」：多选一，选中发光对勾（外观设置各维度复用） */
 function ChoiceCards<T extends string>({ options, value, onChange }: {
@@ -66,7 +86,7 @@ function ChoiceCards<T extends string>({ options, value, onChange }: {
 
 /** 主题预览卡：上部氛围色渐变条 + 下部名称/说明，选中态发光边框 + 对勾角标 */
 function ThemeCard({ t, active, onClick, onHover }: {
-  t: typeof themeOptions[number]
+  t: ThemeOption
   active: boolean
   onClick: () => void
   onHover: (hovering: boolean) => void
@@ -134,8 +154,9 @@ function ThemeCard({ t, active, onClick, onHover }: {
 }
 
 /** AppearancePreview — 主题 + 模式实时微缩预览（hover 主题卡时预览该主题，离开恢复当前） */
-function AppearancePreview({ t, previewing }: { t: typeof themeOptions[number]; previewing: boolean }) {
+function AppearancePreview({ t, previewing }: { t: ThemeOption; previewing: boolean }) {
   const { darkMode } = useAppStore()
+  const tr = useT()
   return (
     <div style={{
       borderRadius: 16, overflow: 'hidden',
@@ -157,7 +178,7 @@ function AppearancePreview({ t, previewing }: { t: typeof themeOptions[number]; 
             background: 'var(--gaea-glow)', boxShadow: '0 0 8px var(--gaea-glow)',
           }} />
           <span style={{ fontSize: 13, fontWeight: 600, color: darkMode ? '#e2e8f0' : '#0f172a' }}> {/* hex-exempt 主题预览固定明暗样张 */}
-            {t.label} · {darkMode ? '暗色' : '亮色'}
+            {t.label} · {darkMode ? tr('settings.appear.dark') : tr('settings.appear.light')}
           </span>
           <span style={{
             marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 3,
@@ -166,7 +187,7 @@ function AppearancePreview({ t, previewing }: { t: typeof themeOptions[number]; 
             border: '1px solid color-mix(in srgb, var(--md-sys-color-success) 30%, transparent)',
             background: 'color-mix(in srgb, var(--md-sys-color-success) 10%, transparent)',
             fontWeight: 500,
-          }}>{previewing ? '预览中' : (<><ThunderboltOutlined aria-hidden="true" />即时生效</>)}</span>
+          }}>{previewing ? tr('settings.appear.previewing') : (<><ThunderboltOutlined aria-hidden="true" />{tr('settings.instantBadge')}</>)}</span>
         </div>
         {/* 玻璃卡片模拟 */}
         <div style={{
@@ -181,10 +202,10 @@ function AppearancePreview({ t, previewing }: { t: typeof themeOptions[number]; 
               background: `radial-gradient(circle at 35% 30%, ${t.color}, color-mix(in srgb, ${t.color} 45%, #000))`,
               boxShadow: `0 0 10px ${t.color}`,
             }} />
-            <span style={{ fontSize: 12, fontWeight: 600, color: darkMode ? '#e2e8f0' : '#0f172a' }}>深空星云界面</span> {/* hex-exempt 主题预览固定明暗样张 */}
+            <span style={{ fontSize: 12, fontWeight: 600, color: darkMode ? '#e2e8f0' : '#0f172a' }}>{tr('settings.appear.previewCardTitle')}</span> {/* hex-exempt 主题预览固定明暗样张 */}
           </div>
           <div style={{ fontSize: 11, color: darkMode ? '#94a3b8' : '#64748b', lineHeight: 1.7 }}> {/* hex-exempt 主题预览固定明暗样张 */}
-            玻璃质感容器 · 霓虹光效标题条 · 主题氛围色 {t.color}
+            {tr('settings.appear.previewCardDesc', { color: t.color })}
           </div>
         </div>
       </div>
@@ -194,20 +215,22 @@ function AppearancePreview({ t, previewing }: { t: typeof themeOptions[number]; 
 
 /** AppearancePanel — 外观设置：主题色系（hover 预览）+ 实时预览 */
 const AppearancePanel: React.FC = () => {
+  const t = useT()
   const { baseTheme, setTheme } = useAppStore()
   const [hovered, setHovered] = useState<ThemePreset | null>(null)
+  const themeOptions = useThemeOptions()
 
   const previewT = themeOptions.find((x) => x.key === (hovered ?? baseTheme)) ?? themeOptions[0]
 
   return (
     <>
-      <SettingsSection icon={<span style={{ fontSize: 15 }}><EyeOutlined /></span>} title="外观实时预览" desc="当前主题与显示模式的组合效果；鼠标悬停下方主题卡可即时预览，点击才生效。" noMargin>
+      <SettingsSection icon={<span style={{ fontSize: 15 }}><EyeOutlined /></span>} title={t('settings.appear.livePreviewTitle')} desc={t('settings.appear.livePreviewDesc')} noMargin>
         <AppearancePreview t={previewT} previewing={!!hovered} />
       </SettingsSection>
       <SettingsSection
         icon={<span style={{ fontSize: 15 }}><BgColorsOutlined /></span>}
-        title="主题色系"
-        desc="选择全局氛围色 —— 深空星云背景、霓虹光效与玻璃质感将随主题联动。"
+        title={t('settings.appear.themeTitle')}
+        desc={t('settings.appear.themeDesc')}
       >
         <div style={{
           display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))', gap: 10,
@@ -227,27 +250,37 @@ const AppearancePanel: React.FC = () => {
 
 /** DarkModePanel — 显示模式三卡：暗色 / 亮色 / 跟随系统 */
 export const DarkModePanel: React.FC = () => {
+  const t = useT()
   const { mode, systemDark, setMode } = useAppStore()
   return (
-    <SettingsSection icon={<span style={{ fontSize: 15 }}><SwapOutlined /></span>} title="显示模式" desc="暗色为深空星云沉浸体验，亮色为柔和晨光风格，跟随系统将随操作系统明暗自动切换。">
+    <SettingsSection icon={<span style={{ fontSize: 15 }}><SwapOutlined /></span>} title={t('settings.appear.displayTitle')} desc={t('settings.appear.displayDesc')}>
       <ChoiceCards<DisplayMode>
         value={mode}
         onChange={setMode}
         options={[
-          { key: 'dark',   label: '暗色模式', desc: '深空星云沉浸体验', icon: <MoonOutlined /> },
-          { key: 'light',  label: '亮色模式', desc: '柔和晨光风格', icon: <SunOutlined /> },
-          { key: 'system', label: '跟随系统', desc: `自动跟随系统明暗（当前${systemDark ? '暗色' : '亮色'}）`, icon: <DesktopOutlined /> },
+          { key: 'dark',   label: t('settings.appear.modeDark'), desc: t('settings.appear.modeDarkDesc'), icon: <MoonOutlined /> },
+          { key: 'light',  label: t('settings.appear.modeLight'), desc: t('settings.appear.modeLightDesc'), icon: <SunOutlined /> },
+          { key: 'system', label: t('settings.appear.modeSystem'), desc: t('settings.appear.modeSystemDesc', { state: systemDark ? t('settings.appear.dark') : t('settings.appear.light') }), icon: <DesktopOutlined /> },
         ]}
       />
     </SettingsSection>
   )
 }
 
-/** FontPanel — 字体设置：界面字体 + 字号 */
+/** FontPanel — 字体设置：界面字体 + 字号（FONT_OPTIONS 标签经 i18n 派生，数据仍在 appStore） */
+const FONT_LABEL_KEYS: Record<string, DictKey> = {
+  system: 'settings.appear.fontSystem',
+  yahei: 'settings.appear.fontYahei',
+  noto: 'settings.appear.fontNoto',
+  songti: 'settings.appear.fontSongti',
+  mono: 'settings.appear.fontMono',
+}
+
 export const FontPanel: React.FC = () => {
+  const t = useT()
   const { fontFamily, fontSize, setFontFamily, setFontSize } = useAppStore()
   return (
-    <SettingsSection icon={<span style={{ fontSize: 15 }}><FontSizeOutlined /></span>} title="字体设置" desc="界面字体与全局字号，即时生效。">
+    <SettingsSection icon={<span style={{ fontSize: 15 }}><FontSizeOutlined /></span>} title={t('settings.appear.fontTitle')} desc={t('settings.appear.fontDesc')}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <span style={{
@@ -257,15 +290,15 @@ export const FontPanel: React.FC = () => {
             background: 'var(--md-sys-color-surface-variant)',
           }}><FontSizeOutlined /></span>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--md-sys-color-text)' }}>界面字体</div>
-            <div style={{ fontSize: 10.5, color: 'var(--md-sys-color-text-secondary)' }}>界面与正文使用的字体族</div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--md-sys-color-text)' }}>{t('settings.appear.fontFamily')}</div>
+            <div style={{ fontSize: 10.5, color: 'var(--md-sys-color-text-secondary)' }}>{t('settings.appear.fontFamilyDesc')}</div>
           </div>
           <Select
             size="small"
             value={fontFamily}
             style={{ width: 180 }}
             onChange={setFontFamily}
-            options={FONT_OPTIONS.map((o) => ({ value: o.key, label: o.label }))}
+            options={FONT_OPTIONS.map((o) => ({ value: o.key, label: FONT_LABEL_KEYS[o.key] ? t(FONT_LABEL_KEYS[o.key]) : o.label }))}
             popupMatchSelectWidth={false}
           />
         </div>
@@ -277,10 +310,10 @@ export const FontPanel: React.FC = () => {
             background: 'var(--md-sys-color-surface-variant)',
           }}>A</span>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--md-sys-color-text)' }}>全局字号</div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--md-sys-color-text)' }}>{t('settings.appear.fontSize')}</div>
             <div style={{ fontSize: 10.5, color: 'var(--md-sys-color-text-secondary)' }}>
-              当前 {fontSize}px · 预览：
-              <span style={{ fontSize, color: 'var(--gaea-glow)' }}> 字小乾坤大</span>
+              {t('settings.appear.fontSizeNow', { n: fontSize })}
+              <span style={{ fontSize, color: 'var(--gaea-glow)' }}>{t('settings.appear.fontSizeSample')}</span>
             </div>
           </div>
           <InputNumber
@@ -298,15 +331,16 @@ export const FontPanel: React.FC = () => {
 
 /** DensityPanel — 界面密度：标准 / 紧凑 */
 export const DensityPanel: React.FC = () => {
+  const t = useT()
   const { density, setDensity } = useAppStore()
   return (
-    <SettingsSection icon={<span style={{ fontSize: 15 }}><DashboardOutlined /></span>} title="界面密度" desc="控件与区块的紧凑程度。">
+    <SettingsSection icon={<span style={{ fontSize: 15 }}><DashboardOutlined /></span>} title={t('settings.appear.densityTitle')} desc={t('settings.appear.densityDesc')}>
       <ChoiceCards<Density>
         value={density}
         onChange={setDensity}
         options={[
-          { key: 'standard', label: '标准', desc: '宽松留白，舒适阅读', icon: <DashboardOutlined /> },
-          { key: 'compact',  label: '紧凑', desc: '信息密集，一屏更多', icon: <CompressOutlined /> },
+          { key: 'standard', label: t('settings.appear.densityStandard'), desc: t('settings.appear.densityStandardDesc'), icon: <DashboardOutlined /> },
+          { key: 'compact',  label: t('settings.appear.densityCompact'), desc: t('settings.appear.densityCompactDesc'), icon: <CompressOutlined /> },
         ]}
       />
     </SettingsSection>
@@ -315,15 +349,16 @@ export const DensityPanel: React.FC = () => {
 
 /** MotionPanel — 动效强度：完整 / 减弱（可访问性） */
 export const MotionPanel: React.FC = () => {
+  const t = useT()
   const { motion, setMotion } = useAppStore()
   return (
-    <SettingsSection icon={<span style={{ fontSize: 15 }}><ThunderboltOutlined /></span>} title="动效强度" desc="减弱动态可减少界面动画与过渡，降低视觉负担（对齐系统「减弱动态」）。">
+    <SettingsSection icon={<span style={{ fontSize: 15 }}><ThunderboltOutlined /></span>} title={t('settings.appear.motionTitle')} desc={t('settings.appear.motionDesc')}>
       <ChoiceCards<MotionPref>
         value={motion}
         onChange={setMotion}
         options={[
-          { key: 'full',    label: '完整动效', desc: '玻璃光效与过渡动画', icon: <ThunderboltOutlined /> },
-          { key: 'reduced', label: '减弱动态', desc: '关闭动画，更简洁专注', icon: <MoonOutlined /> },
+          { key: 'full',    label: t('settings.appear.motionFull'), desc: t('settings.appear.motionFullDesc'), icon: <ThunderboltOutlined /> },
+          { key: 'reduced', label: t('settings.appear.motionReduced'), desc: t('settings.appear.motionReducedDesc'), icon: <MoonOutlined /> },
         ]}
       />
     </SettingsSection>
@@ -332,9 +367,10 @@ export const MotionPanel: React.FC = () => {
 
 /** AccentPanel — 强调色自定义：跟随主题 / 自定义取色 */
 export const AccentPanel: React.FC = () => {
+  const t = useT()
   const { accentColor, setAccentColor } = useAppStore()
   return (
-    <SettingsSection icon={<span style={{ fontSize: 15 }}><AimOutlined /></span>} title="强调色" desc="自定义霓虹光效与主色调；留空则跟随所选主题色系。">
+    <SettingsSection icon={<span style={{ fontSize: 15 }}><AimOutlined /></span>} title={t('settings.appear.accentTitle')} desc={t('settings.appear.accentDesc')}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
         <span style={{
           width: 30, height: 30, borderRadius: 9, flexShrink: 0,
@@ -344,10 +380,10 @@ export const AccentPanel: React.FC = () => {
         }}><BgColorsOutlined /></span>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--md-sys-color-text)' }}>
-            {accentColor ? `自定义 · ${accentColor}` : '跟随主题'}
+            {accentColor ? t('settings.appear.accentCustom', { color: accentColor }) : t('settings.appear.accentFollow')}
           </div>
           <div style={{ fontSize: 10.5, color: 'var(--md-sys-color-text-secondary)' }}>
-            影响霓虹光效、主按钮与选中态
+            {t('settings.appear.accentHint')}
           </div>
         </div>
         <label style={{
@@ -366,7 +402,7 @@ export const AccentPanel: React.FC = () => {
           />
         </label>
         {accentColor && (
-          <Button size="small" onClick={() => setAccentColor('')} style={{ flexShrink: 0 }}>跟随主题</Button>
+          <Button size="small" onClick={() => setAccentColor('')} style={{ flexShrink: 0 }}>{t('settings.appear.accentFollow')}</Button>
         )}
       </div>
     </SettingsSection>
@@ -375,28 +411,33 @@ export const AccentPanel: React.FC = () => {
 
 /** LanguagePanel — 界面语言：跟随系统 / 简体中文 / 繁體中文 / English
  *  i18n 三语字典与 setPref 早已就绪，此处是首个切换入口；偏好存 localStorage（gaea-lang），
- *  即时生效、整树重渲染。各板块面板文案仍以中文为主，故如实注明覆盖范围。 */
-const LOCALE_LABELS: Record<Exclude<LangPref, ''>, string> = { zh: '简体中文', 'zh-TW': '繁體中文', en: 'English' }
-
+ *  即时生效、整树重渲染。设置中心各板块面板已接入 i18n，此处保留覆盖范围说明。 */
 export const LanguagePanel: React.FC = () => {
+  const t = useT()
   const { pref, setPref, locale } = useI18n()
+  // 语言自身名（autonym）不随界面语言翻译：始终以该语言的书写系统呈现
+  const localeLabels: Record<Exclude<LangPref, ''>, string> = {
+    zh: t('settings.appear.langZh'),
+    'zh-TW': t('settings.appear.langZhTW'),
+    en: t('settings.appear.langEn'),
+  }
   return (
     <SettingsSection
       icon={<span style={{ fontSize: 15 }}><GlobalOutlined /></span>}
-      title="界面语言"
-      desc={`桌面壳层文案语言，即时生效（当前检测：${LOCALE_LABELS[locale]}）；各板块面板暂以中文为主。`}
+      title={t('settings.appear.langTitle')}
+      desc={t('settings.appear.langDesc', { label: localeLabels[locale] })}
       instant
     >
       <Select
         value={pref === '' ? 'auto' : pref}
         onChange={(v) => setPref(v === 'auto' ? '' : (v as Exclude<LangPref, ''>))}
         style={{ width: 260 }}
-        aria-label="界面语言"
+        aria-label={t('settings.appear.langTitle')}
         options={[
-          { value: 'auto', label: `跟随系统（当前 ${LOCALE_LABELS[locale]}）` },
-          { value: 'zh', label: '简体中文' },
-          { value: 'zh-TW', label: '繁體中文' },
-          { value: 'en', label: 'English' },
+          { value: 'auto', label: t('settings.appear.langAuto', { label: localeLabels[locale] }) },
+          { value: 'zh', label: localeLabels.zh },
+          { value: 'zh-TW', label: localeLabels['zh-TW'] },
+          { value: 'en', label: localeLabels.en },
         ]}
       />
     </SettingsSection>

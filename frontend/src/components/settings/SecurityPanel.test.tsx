@@ -27,6 +27,7 @@ const setGo = (stub: GoStub) => {
 }
 
 import SecurityPanel from './SecurityPanel'
+import { LocaleProvider } from '../../gaea/lib/i18n'
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -36,12 +37,17 @@ beforeEach(() => {
   herdsmanSecurityCheck.mockResolvedValue(undefined)
   setOfflineMode.mockResolvedValue(undefined)
   setGo({ GetOfflineMode: getOfflineMode, SetOfflineMode: setOfflineMode, GetOfficeLocal: getOfficeLocal, GetSensitiveLocal: getSensitiveLocal, HerdsmanSecurityCheck: herdsmanSecurityCheck })
+  // 面板文案经 useT 读字典（zh 为默认语言），断言为中文文案：固定 zh 语言
+  Object.defineProperty(navigator, 'language', { value: 'zh-CN', configurable: true })
 })
+
+// S2.2b i18n：面板组件经 useT 读字典，测试需包 LocaleProvider
+const wrap = (node: React.ReactNode) => <LocaleProvider>{node}</LocaleProvider>
 
 describe('SecurityPanel 全局离线模式（v4.8.1）', () => {
   it('加载回填后端开关状态', async () => {
     getOfflineMode.mockResolvedValue(true)
-    render(<SecurityPanel />)
+    render(wrap(<SecurityPanel />))
     await waitFor(() => {
       expect(getOfflineMode).toHaveBeenCalled()
     })
@@ -50,7 +56,7 @@ describe('SecurityPanel 全局离线模式（v4.8.1）', () => {
   })
 
   it('切换开关调用 SetOfflineMode 且传新值', async () => {
-    render(<SecurityPanel />)
+    render(wrap(<SecurityPanel />))
     // 等待初始加载完成（默认 false → 文案「关闭（默认）」）
     await screen.findByText('关闭（默认）')
     // 面板里第四个 Switch 是离线模式（前三个：敏感域/办公/离线——离线是第 3 个）
@@ -63,7 +69,7 @@ describe('SecurityPanel 全局离线模式（v4.8.1）', () => {
 
   it('保存失败回滚旧值并提示（不静默）', async () => {
     setOfflineMode.mockRejectedValue(new Error('写盘失败'))
-    render(<SecurityPanel />)
+    render(wrap(<SecurityPanel />))
     await screen.findByText('关闭（默认）')
     const switches = document.querySelectorAll('button[role="switch"]')
     fireEvent.click(switches[2])

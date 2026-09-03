@@ -41,6 +41,14 @@ export interface EngineConfig {
   default_model: string
   models: ModelInfo[]
   status?: EngineStatus
+  // ── 价目 v1（自定义引擎用户价目）：引擎级统一价，每百万 tokens，币种 CNY ──
+  // 读取侧 undefined = 未设置（后端 *float64 nil + omitempty）；保存侧经
+  // SaveEngine 传数字 = 设置（0 = 清除 = 不计价），缺省（undefined/null）=
+  // 不修改——地址框/启停等局部保存不会误清除价目（Go 侧指针三态合并）。
+  // 费用折算优先消费用户价目（stats.estimatePrice 最高优先层），无价目时
+  // 行为与现状完全一致（0 = 未填 = 不计价）。
+  user_price_in?: number | null // 输入单价（¥/百万 tokens）
+  user_price_out?: number | null // 输出单价（¥/百万 tokens）
 }
 export interface EngineStatus {
   id: string

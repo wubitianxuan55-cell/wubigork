@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react'
 import {
-  Button, message, Modal, Tabs, Tooltip, Popover, Segmented, Slider, Input,
+  Button, message, Modal, Tabs, Tooltip, Popover, Input,
 } from 'antd'
 import type { TabsProps } from 'antd'
 import {
@@ -21,9 +21,8 @@ import { useOutlineStore } from '../stores/outlineStore'
 import { countTextChars } from '../utils/text'
 import { readReadingProgress, writeReadingProgress } from '../utils/readingProgress'
 import {
-  clampFontSize, clampBrightness, clampAutoScrollSpeed,
   readReadingSettings, writeReadingSettings, READING_COLUMN_WIDTH,
-  type ReadingColumn, type ReadingSettings, type ReadingTheme,
+  type ReadingSettings,
 } from '../utils/readingSettings'
 import {
   readBookmarks, writeBookmarks,
@@ -48,6 +47,7 @@ import {
   applyTextHighlight as highlightFirstMatch,
 } from './chapter/readingHighlight'
 import { renderAnnotationHighlights } from './chapter/readingAnnotation'
+import { searchHitAnchor } from './chapter/searchHitAnnotation'
 import {
   toggleBookmarkInList, removeBookmarkInList,
 } from './chapter/readingBookmark'
@@ -55,6 +55,7 @@ import {
   readSavedScrollTop, saveScrollTop, scrollPct,
 } from './chapter/readingScrollMemory'
 import { createTabData, needsCloseConfirm } from './chapter/chapterTabData'
+import ReadingPrefsPanel from './chapter/ReadingPrefsPanel'
 import ExportPanel from '../components/novel/ExportPanel'
 import { ChapterIllustration } from './chapter/ChapterIllustration'
 import type { OutlineNode, ChapterTabData } from '../types'
@@ -313,13 +314,6 @@ const ChapterPage: React.FC = () => {
       return next
     })
   }
-  const changeReadFont = (delta: number) => {
-    setReadPrefs((prev) => {
-      const next = { ...prev, fontSize: clampFontSize(prev.fontSize + delta) }
-      writeReadingSettings(next)
-      return next
-    })
-  }
 
   // ── 阅读滚动：进度条 + 章节位置记忆 ──
   const handleReadScroll = () => {
@@ -430,19 +424,26 @@ const ChapterPage: React.FC = () => {
     writeAnnotations(projectPath, list)
   }
 
-  const addHighlight = (color: AnnotationColor, withNote: boolean, textOverride?: string) => {
+  // target：归属覆盖。划词路径省略 → 归当前阅读章节；搜索命中「落为划线」传命中所在章节，
+  // 该章未打开时标注先落库，待其进入阅读模式由既有回渲染 effect 呈现。
+  const addHighlight = (
+    color: AnnotationColor,
+    withNote: boolean,
+    textOverride?: string,
+    target?: { nodeId: string; title?: string },
+  ): boolean => {
     let text = textOverride ?? ''
     if (!text) {
       const selInfo = readSelectionInRoot(readingScrollRef.current)
-      if (!selInfo) return
+      if (!selInfo) return false
       text = selInfo.text.trim()
       window.getSelection()?.removeAllRanges()
     }
-    if (!text || text.length > 200) return
+    if (!text || text.length > 200) return false
     const ann: ReadingAnnotation = {
       id: `ann_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-      nodeId: readNodeId,
-      title: activeTab?.node.title || '未命名章节',
+      nodeId: target?.nodeId ?? readNodeId,
+      title: target?.title ?? (activeTab?.node.title || '未命名章节'),
       color,
       text,
       note: '',
@@ -451,6 +452,7 @@ const ChapterPage: React.FC = () => {
     persistAnnotations([...annotations, ann])
     setSelToolbar(null)
     if (withNote) { setNoteTarget(ann); setNoteDraft('') }
+    return true
   }
 
   const openAnnotation = (ann: ReadingAnnotation) => {
@@ -638,6 +640,18 @@ const ChapterPage: React.FC = () => {
     setSearchLocateSeq((v) => v + 1)
     handleSelectNode(node)
     setReadMode(true)
+  }
+
+  // 搜索命中「落为划线」：命中是区间口径（段落索引 + 段内 rune 偏移），划线是摘录文本
+  // 口径（段落内回定位），经 searchHitAnchor 适配为 addHighlight 入参后走既有持久化与
+  // 回渲染管线（持久化与回渲染路径零新增）；成功后 message 反馈。
+  const addSearchHitHighlight = (hit: NovelSearchHitData) => {
+    const anchor = searchHitAnchor(hit, searchQuery)
+    if (!anchor) return
+    if (addHighlight('yellow', false, anchor.text, anchor)) {
+      const excerpt = anchor.text.length > 12 ? `${anchor.text.slice(0, 12)}…` : anchor.text
+      message.success(`已落为划线「${excerpt}」`)
+    }
   }
 
   // 打开目标章节后等待正文渲染，再按段落索引定位该处命中并短暂高亮；
@@ -859,9 +873,25 @@ const ChapterPage: React.FC = () => {
                                     onClick={() => openSearchHit(h)}
                                     onKeyDown={(e) => { if (e.key === 'Enter') openSearchHit(h) }}
                                   >
-                                    <span className="novel-read-search-hit-title">
-                                      {h.title}{h.paragraph_index >= 0 ? ` · 第${h.paragraph_index + 1}段` : ''}
-                                    </span>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                      <span className="novel-read-search-hit-title" style={{ flex: 1, minWidth: 0 }}>
+                                        {h.title}{h.paragraph_index >= 0 ? ` · 第${h.paragraph_index + 1}段` : ''}
+                                      </span>
+                                      <Tooltip title={h.paragraph_index >= 0 ? '把该命中文本写为永久划线标注' : '标题命中无法落为正文划线'}>
+                                        <Button
+                                          size="small"
+                                          type="text"
+                                          icon={<HighlightOutlined />}
+                                          disabled={h.paragraph_index < 0}
+                                          aria-label="落为划线"
+                                          onClick={(e) => { e.stopPropagation(); addSearchHitHighlight(h) }}
+                                          // 键盘 Enter 落划线时不冒泡触发行自身的定位跳转
+                                          onKeyDown={(e) => e.stopPropagation()}
+                                        >
+                                          落为划线
+                                        </Button>
+                                      </Tooltip>
+                                    </div>
                                     <span className="novel-read-search-hit-snippet">
                                       {splitSnippet(h.snippet, searchQuery.trim()).map((seg, i) => (
                                         seg.match
@@ -884,84 +914,7 @@ const ChapterPage: React.FC = () => {
                     <Popover
                       trigger="click"
                       placement="bottomRight"
-                      content={(
-                        <div className="novel-read-prefs">
-                          <div className="novel-read-prefs-row">
-                            <span className="novel-read-prefs-label">字号</span>
-                            <Button size="small" onClick={() => changeReadFont(-1)} disabled={readPrefs.fontSize <= 14} aria-label="减小字号">A−</Button>
-                            <span className="novel-read-prefs-val">{readPrefs.fontSize}</span>
-                            <Button size="small" onClick={() => changeReadFont(1)} disabled={readPrefs.fontSize >= 24} aria-label="增大字号">A+</Button>
-                          </div>
-                          <div className="novel-read-prefs-row">
-                            <span className="novel-read-prefs-label">行距</span>
-                            <Segmented
-                              size="small"
-                              value={String(readPrefs.lineHeight)}
-                              options={[
-                                { label: '紧凑', value: '1.8' },
-                                { label: '标准', value: '2' },
-                                { label: '宽松', value: '2.3' },
-                              ]}
-                              onChange={(v) => patchReadPrefs({ lineHeight: Number(v) as ReadingSettings['lineHeight'] })}
-                            />
-                          </div>
-                          <div className="novel-read-prefs-row">
-                            <span className="novel-read-prefs-label">版宽</span>
-                            <Segmented
-                              size="small"
-                              value={readPrefs.column}
-                              options={[
-                                { label: '窄', value: 'narrow' },
-                                { label: '标准', value: 'standard' },
-                                { label: '铺满', value: 'wide' },
-                              ]}
-                              onChange={(v) => patchReadPrefs({ column: v as ReadingColumn })}
-                            />
-                          </div>
-                          <div className="novel-read-prefs-row">
-                            <span className="novel-read-prefs-label">主题</span>
-                            <Segmented
-                              size="small"
-                              value={readPrefs.theme}
-                              options={[
-                                { label: '跟随', value: 'auto' },
-                                { label: '米黄', value: 'sepia' },
-                                { label: '护眼绿', value: 'green' },
-                                { label: '夜间', value: 'dark' },
-                              ]}
-                              onChange={(v) => patchReadPrefs({ theme: v as ReadingTheme })}
-                            />
-                          </div>
-                          <div className="novel-read-prefs-row">
-                            <span className="novel-read-prefs-label">亮度</span>
-                            <Slider
-                              min={70}
-                              max={120}
-                              step={5}
-                              value={readPrefs.brightness}
-                              onChange={(v) => patchReadPrefs({ brightness: clampBrightness(Number(v)) })}
-                              style={{ flex: 1, margin: '0 6px' }}
-                              tooltip={{ formatter: (v?: number) => `${v}%` }}
-                            />
-                            <span className="novel-read-prefs-val">{readPrefs.brightness}%</span>
-                          </div>
-                          <div className="novel-read-prefs-row">
-                            <span className="novel-read-prefs-label">滚屏</span>
-                            <Segmented
-                              size="small"
-                              value={String(readPrefs.autoScrollSpeed)}
-                              options={[
-                                { label: '慢', value: '1' },
-                                { label: '2', value: '2' },
-                                { label: '3', value: '3' },
-                                { label: '4', value: '4' },
-                                { label: '快', value: '5' },
-                              ]}
-                              onChange={(v) => patchReadPrefs({ autoScrollSpeed: clampAutoScrollSpeed(Number(v)) })}
-                            />
-                          </div>
-                        </div>
-                      )}
+                      content={<ReadingPrefsPanel prefs={readPrefs} onChange={patchReadPrefs} />}
                     >
                       <Tooltip title="排版 / 主题 / 亮度 / 滚屏">
                         <Button size="small" type="text" icon={<FontSizeOutlined />} aria-label="阅读排版" />

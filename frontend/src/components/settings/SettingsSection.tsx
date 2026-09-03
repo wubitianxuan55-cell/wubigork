@@ -1,11 +1,14 @@
 import React from 'react'
 import { Typography } from 'antd'
 import { ThunderboltOutlined } from '@ant-design/icons'
+import { useT } from '../../gaea/lib/i18n'
 
 /** SettingsSection — 设置中心信息层卡片（v3-card 实底：霓虹标题条 + 分组卡片）
  * instant 标记设置项是否即时生效（统一视觉徽章，避免各面板文案风格不一）。
  * icon 为面板级图标（左侧 symbolic 小图标，低调点缀）。 */
-const SettingsSection: React.FC<{ title: React.ReactNode; desc?: string; instant?: boolean; icon?: React.ReactNode; children: React.ReactNode; noMargin?: boolean }> = ({ title, desc, instant, icon, children, noMargin }) => (
+const SettingsSection: React.FC<{ title: React.ReactNode; desc?: string; instant?: boolean; icon?: React.ReactNode; children: React.ReactNode; noMargin?: boolean }> = ({ title, desc, instant, icon, children, noMargin }) => {
+  const t = useT()
+  return (
   <div
     className="v3-card"
     style={{
@@ -46,7 +49,7 @@ const SettingsSection: React.FC<{ title: React.ReactNode; desc?: string; instant
           fontWeight: 500, whiteSpace: 'nowrap',
         }}>
           <ThunderboltOutlined aria-hidden="true" style={{ fontSize: 10 }} />
-          <span>即时生效</span>
+          <span>{t('settings.instantBadge')}</span>
         </span>
       )}
     </div>
@@ -60,6 +63,7 @@ const SettingsSection: React.FC<{ title: React.ReactNode; desc?: string; instant
     )}
     {children}
   </div>
-)
+  )
+}
 
 export default SettingsSection
