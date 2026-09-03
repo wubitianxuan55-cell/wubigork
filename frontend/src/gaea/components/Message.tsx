@@ -7,7 +7,8 @@ import { useCompact } from "../hooks/useCompact";
 import { useGSAPCollapse } from "../lib/useGSAPCollapse";
 import { displayReasoningText } from "../lib/reasoningDisplay";
 import { useNow } from "../lib/useNow";
-import { usePreviewStore, useTurnStartAt } from "../lib/store";
+import { useTurnStartAt } from "../lib/store";
+import { openPaneFileOrPreview } from "../lib/paneFileOpen";
 import type { Item } from "../lib/store";
 import { DeliverableCards } from "./DeliverableCards";
 
@@ -21,7 +22,6 @@ type AssistantItem = Extract<Item, { kind: "assistant" }> & { subagentRef?: stri
 function InlineAttachment({ path }: { path: string }) {
   const [dataUrl, setDataUrl] = useState<string | null>(null);
   const [isImage, setIsImage] = useState(false);
-  const openFilePreview = usePreviewStore((s) => s.openFilePreview);
   const t = useT();
   useEffect(() => {
     let live = true;
@@ -38,7 +38,7 @@ function InlineAttachment({ path }: { path: string }) {
     return (
       <button
         type="button"
-        onClick={() => openFilePreview(path)}
+        onClick={() => openPaneFileOrPreview(path)}
         title={t("msg.clickPreview", { path })}
         className="block p-0 border-0 bg-transparent cursor-pointer rounded-lg my-1"
       >
@@ -48,7 +48,7 @@ function InlineAttachment({ path }: { path: string }) {
   }
   if (isImage) {
     return (
-      <button type="button" onClick={() => openFilePreview(path)} className="text-accent/60 text-[12px] italic cursor-pointer hover:text-accent">
+      <button type="button" onClick={() => openPaneFileOrPreview(path)} className="text-accent/60 text-[12px] italic cursor-pointer hover:text-accent">
         [{fileName}]
       </button>
     );
@@ -56,7 +56,7 @@ function InlineAttachment({ path }: { path: string }) {
   return (
     <button
       type="button"
-      onClick={() => openFilePreview(path)}
+      onClick={() => openPaneFileOrPreview(path)}
       title={t("msg.clickPreview", { path })}
       className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-bg-soft border border-border-soft text-fg-dim text-[11px] font-mono mx-0.5 cursor-pointer hover:border-accent/40 hover:text-fg transition-colors"
     >

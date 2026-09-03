@@ -11,7 +11,7 @@ import { app, openExternal } from "../lib/bridge";
 import { isLocalFilePath } from "../lib/fileLinks";
 import { remarkFileLinks } from "../lib/remarkFileLinks";
 import { remarkMemCitations } from "../lib/remarkMemCitations";
-import { usePreviewStore } from "../lib/store";
+import { openPaneFileOrPreview } from "../lib/paneFileOpen";
 import { useToast } from "./Toast";
 import { FileChip } from "./FileChip";
 import { MemCitationChip } from "./MemCitationChip";
@@ -94,7 +94,7 @@ const MermaidBlock = memo(function MermaidBlock({ code, autoExport = true }: { c
   const [view, setView] = useState<"chart" | "code" | "html">("chart");
   const [zoom, setZoom] = useState(1);
   const htmlDocRef = useRef<string | null>(null);
-  const openFilePreview = usePreviewStore((s) => s.openFilePreview);
+  const openFilePreview = openPaneFileOrPreview;
   const toast = useToast();
 
   const setZoomClamped = (next: number) => setZoom(Math.min(4, Math.max(0.5, Math.round(next * 100) / 100)));
@@ -468,7 +468,7 @@ function normalizeMath(s: string): string {
 
 export const Markdown = memo(function Markdown({ text, autoExportMermaid = true }: { text: string; autoExportMermaid?: boolean }) {
   if (hasMathContent(text)) ensureKatexCss();
-  const openFilePreview = usePreviewStore((s) => s.openFilePreview);
+  const openFilePreview = openPaneFileOrPreview;
   return (
     <div className="md text-[14px] leading-relaxed">
       <ReactMarkdown

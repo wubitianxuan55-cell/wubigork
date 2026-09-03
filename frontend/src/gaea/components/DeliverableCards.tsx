@@ -11,7 +11,8 @@ import {
   mergeDeliverableCards,
   useTurnDeliverables,
 } from "../lib/deliverablesTurn";
-import { usePreviewStore, useUpdatedFilesStore } from "../lib/store";
+import { useUpdatedFilesStore } from "../lib/store";
+import { openPaneFileOrPreview } from "../lib/paneFileOpen";
 import { useT } from "../lib/i18n";
 import { useToast } from "./Toast";
 import { FileThumb } from "./FileThumb";
@@ -37,7 +38,6 @@ const iconBtn =
 // 灰色淡化 + 「未生成」徽标（缺失态探测失败按存在处理，宁漏勿误）。
 // 安静、低边框，突出文件名。
 export const DeliverableCards = memo(function DeliverableCards({ text, turnNo, mergeRegistry = true }: { text: string; turnNo?: number; mergeRegistry?: boolean }) {
-  const openFilePreview = usePreviewStore((s) => s.openFilePreview);
   const updatedAt = useUpdatedFilesStore((s) => s.updatedAt);
   const toast = useToast();
   const t = useT();
@@ -104,7 +104,7 @@ export const DeliverableCards = memo(function DeliverableCards({ text, turnNo, m
               </span>
               <button
                 type="button"
-                onClick={() => openFilePreview(path)}
+                onClick={() => openPaneFileOrPreview(path)}
                 title={t("msg.clickPreview", { path })}
                 className="min-w-0 flex-1 text-left cursor-pointer rounded-md px-1 py-0.5 -mx-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(color:--gaea-glow)/40"
               >

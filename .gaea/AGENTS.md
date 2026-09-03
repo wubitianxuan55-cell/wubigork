@@ -11,12 +11,14 @@
   **左栏子代理会话入口完成**——Sidebar 会话行可展开出子代理子行（状态点/任务
   摘要/状态·模型·时间，loading/空态/失败重试行内态），点击子行复用独立子代理
   会话 tab；复用 GaeaSubagentRuns（**绑定面 559 不变**）；当前会话运行中 5s
-  刷新；mock 子代理按父会话归属；三语 +7 键。快照三（本工作树，未提交）：
-  **产物行开 pane 文件 tab**（sidebarRegistry 统一 openPaneFileTab，产物/权威登记行 → 同 tab 条
-  文件 tab；正文交付卡与变更「打开预览」仍大预览）。前端 vitest 210 文件/
-  **1524** 用例绿，tsc/eslint 0，drift OK；Go 零改动（未跑）。实拍与记录：
+  刷新；mock 子代理按父会话归属；三语 +7 键。快照三（4a0cae7a 起，本提交
+  续）：**文件打开统一开 pane 文件 tab**——sidebarRegistry 统一 openPaneFileTab
+  （产物/权威登记/变更行）+ lib/paneFileOpen 模块级注入 openPaneFileOrPreview
+  （正文交付卡/行内附件/FileLinkText/Markdown/MemoMarkdown，App 注册、未注册
+  回落大预览）。前端 vitest 210 文件/**1525** 用例绿，tsc/eslint 0，drift OK；
+  Go 零改动（未跑）。实拍与记录：
   docs/snapshots/2026-09-03-better-sidebar-port/ 与
-  docs/better-sidebar-port-2026-09-03-worktree.md（快照二）。下一步建议：
+  docs/better-sidebar-port-2026-09-03-worktree.md（快照二/三）。下一步建议：
   完整发版 v4.60.0（快照三在记录中亦有归档）。
 - **最新：v4.59.0（2026-09-03）继续：i18n 二批 · 搜索落划线 · 自定义引擎
   用户价目**——三线并行子代理+主代理收口。A 线：设置五面板+SettingsSection

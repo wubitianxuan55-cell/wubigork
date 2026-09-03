@@ -1,7 +1,7 @@
 import { memo, useMemo } from "react";
 import type { ReactNode } from "react";
 import { findFileMentions } from "../lib/fileLinks";
-import { usePreviewStore } from "../lib/store";
+import { openPaneFileOrPreview } from "../lib/paneFileOpen";
 import { FileChip } from "./FileChip";
 
 // FileLinkText 把纯文本中的本地文件引用渲染为可点击预览 chip，
@@ -16,8 +16,7 @@ export const FileLinkText = memo(function FileLinkText({
   onOpen?: (path: string) => void;
   compact?: boolean;
 }) {
-  const openFilePreview = usePreviewStore((s) => s.openFilePreview);
-  const open = onOpen ?? openFilePreview;
+  const open = onOpen ?? openPaneFileOrPreview;
   const mentions = useMemo(() => findFileMentions(text), [text]);
 
   if (mentions.length === 0) return <>{text}</>;

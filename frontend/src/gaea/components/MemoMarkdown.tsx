@@ -1,7 +1,7 @@
 import { memo, useRef, useState, useEffect, useMemo } from "react";
 import { Markdown } from "./Markdown";
 import { escapeHtml, htmlFileLinks } from "../lib/fileLinks";
-import { usePreviewStore } from "../lib/store";
+import { openPaneFileOrPreview } from "../lib/paneFileOpen";
 
 interface MemoMarkdownProps {
   text: string;
@@ -105,7 +105,7 @@ function useProgressiveMarkdown(text: string): { stable: string; pending: string
  * 未完成尾部用简单样式。流式结束后全量 Markdown 渲染。
  */
 export const MemoMarkdown = memo(function MemoMarkdown({ text, streaming }: MemoMarkdownProps) {
-  const openFilePreview = usePreviewStore((s) => s.openFilePreview);
+  const openFilePreview = openPaneFileOrPreview;
   // RAF 节流：每帧最多更新一次
   const [visible, setVisible] = useState(text);
   const rafRef = useRef(0);

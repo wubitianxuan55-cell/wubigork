@@ -7,19 +7,26 @@
 
 ## 〇〇、快照三：产物行打开语义统一（2026-09-03 续会话）
 
-用户确认「点击产物也开成 pane 文件 tab」：产物视图内的产物行/权威登记行从
-「收起工作台开大预览」改为 **在右栏 tab 条新增/激活文件 tab**（与资源管理器
-同一套 tab，可多个并存、同路径去重）。
+用户确认「文件打开统一开成 pane 文件 tab」：产物视图内产物行/权威登记行 +
+正文交互卡 + 变更面板，全部从「收起工作台开大预览」改为 **在右栏 tab 条
+新增/激活文件 tab**（与资源管理器同一套 tab，可多个并存、同路径去重）。
 
-- 改动：`lib/sidebarRegistry.ts` 新增 `openPaneFileTab` 统一入口，产物视图
-  `DeliverablesPanel.onOpenFile` 改挂它（files 视图 openFileTab 同步复用）；
-  `DeliverablesPanel.tsx` 头部注释同步。
-- 边界（保持不变）：正文尾部交付卡、变更面板「打开预览」仍走大预览通道；
-  左栏不参与。
-- 验证：sidebarRegistry +1 用例（点产物行 → pane file tab 且不回落大预览
-  回调）；vitest 全量 **210 文件 / 1524 用例**、tsc/eslint 0、drift 559 OK；
-  `?mock=1` 实拍：点产物行 → 工作台保持打开，tab 条 = 产物视图 + 新文件 tab
-  （docs/snapshots/2026-09-03-better-sidebar-port/deliverable-click-file-tab.png）。
+- 改动（第一步，4a0cae7a）：`lib/sidebarRegistry.ts` 新增 `openPaneFileTab`
+  统一入口，产物视图 `DeliverablesPanel.onOpenFile` 改挂它（files 视图
+  openFileTab 同步复用）。
+- 改动（第二步，本提交）：新增 `lib/paneFileOpen.ts` 模块级注入
+  `openPaneFileOrPreview`（App 注册 openPaneFile，未注册回落大预览，沿用
+  setTaskCardActivityProvider 模式）——正文交付卡 DeliverableCards、行内附件
+  Message/InlineAttachment、FileLinkText 文件 chip、Markdown/MemoMarkdown
+  文件链接统一走它；sidebarRegistry 里变更面板 onOpenFile 也改挂
+  `openPaneFileTab`（展开区「打开文件预览」同语义）。
+- 边界：左栏不参与；无 App 注册的页面/单测自动回落旧预览通道，零行为回归。
+- 验证：sidebarRegistry +2 用例（产物行/变更行 → pane file tab 且不回落大
+  预览回调）；vitest 全量 **210 文件 / 1525 用例**、tsc/eslint 0、drift
+  559 OK；`?mock=1` 实拍：正文卡点开 → 右栏 1 文件 tab；变更行 → 产物视图 +
+  新文件 tab（docs/snapshots/2026-09-03-better-sidebar-port/ 下
+  deliverable-click-file-tab.png / body-file-click-opens-tab.png /
+  changes-open-file-tab.png）。
 
 ## 〇、快照二：左栏子代理会话入口（2026-09-03 续会话）
 

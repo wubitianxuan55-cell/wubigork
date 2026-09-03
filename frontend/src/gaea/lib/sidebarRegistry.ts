@@ -108,7 +108,7 @@ const RENDERERS: Record<WorkspaceTabId, (ctx: WorkspacePanelContext) => ReactNod
       secondary: createElement(ChangesPanel, {
         changes: ctx.sessionChanges,
         cwd: ctx.cwd,
-        onOpenFile: ctx.onOpenFile,
+        onOpenFile: openPaneFileTab,
       }),
     }),
   tasks: (ctx) =>

@@ -98,4 +98,31 @@ describe("sidebarRegistry 产物行打开接线（better-sidebar pane 文件 tab
     expect(active).toBe("file:docs/竞品调研报告.md");
     expect(onOpenFile).not.toHaveBeenCalled();
   });
+
+  it("变更行「打开文件预览」→ 同样开 pane 文件 tab", async () => {
+    localStorage.setItem("gaea-lang", "zh");
+    resetPaneTabsForTest();
+    const onOpenFile = vi.fn();
+    const deliverCtx: WorkspacePanelContext = {
+      ...ctx,
+      onOpenFile,
+      cwd: "/mock",
+      sessionChanges: [{ path: "/mock/docs/成本测算.xlsx", count: 1, lastTouched: 5 }],
+    };
+    render(
+      <LocaleProvider>
+        <ToastProvider>
+          {getWorkspaceRegistration("deliverables").render(deliverCtx)}
+        </ToastProvider>
+      </LocaleProvider>,
+    );
+
+    fireEvent.click(screen.getByLabelText(/展开 .*成本测算\.xlsx 的改动 diff/));
+    fireEvent.click(screen.getByTitle("打开文件预览"));
+
+    const { tabs, active } = usePaneTabsStore.getState();
+    expect(tabs.some((t) => t.kind === "file" && t.path === "/mock/docs/成本测算.xlsx")).toBe(true);
+    expect(active).toBe("file:/mock/docs/成本测算.xlsx");
+    expect(onOpenFile).not.toHaveBeenCalled();
+  });
 });

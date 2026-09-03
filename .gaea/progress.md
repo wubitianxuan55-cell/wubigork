@@ -10,9 +10,11 @@
   化右栏（视图/文件/浏览器/任务 + 点子代理独立会话 tab）；快照二 = **左栏
   子代理会话入口已完成**——父会话行展开 → 子代理子行，点击复用独立子代理
   会话 tab；复用 GaeaSubagentRuns，绑定面 **559 不变**；mock 子代理按父会话
-  归属；三语 +7 键。快照三 = **产物行开 pane 文件 tab**（产物/权威登记行 →
-  与资源管理器同 tab 条的新文件 tab；正文卡与变更「打开预览」仍大预览）。
-- 前端全量 vitest 210/210（**1524 用例**）、tsc/eslint 0；drift OK；Go 未改
+  归属；三语 +7 键。快照三 = **文件打开统一开 pane 文件 tab**：产物/权威
+  登记行（sidebarRegistry.openPaneFileTab）+ 正文交互卡（paneFileOpen 注入：
+  交付卡/行内附件/FileLinkText/Markdown/MemoMarkdown，未注册回落大预览）+
+  变更「打开文件预览」。
+- 前端全量 vitest 210/210（**1525 用例**）、tsc/eslint 0；drift OK；Go 未改
   未跑。版本未 bump（仍 4.59.0）。
 - 详见 docs/better-sidebar-port-2026-09-03-worktree.md（快照二）与
   docs/snapshots/2026-09-03-better-sidebar-port/。

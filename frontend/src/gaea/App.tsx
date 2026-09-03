@@ -67,6 +67,7 @@ import { recordRecentFile } from "./lib/recentFiles";
 import { useUpdatedFilesStore } from "./lib/store";
 import { buildSessionChanges, extractDeliverablePaths, WRITE_TOOL_NAMES, type SessionChange } from "./lib/changes";
 import { usePaneTabsStore } from "./lib/paneTabs";
+import { setPaneFileOpenHandler } from "./lib/paneFileOpen";
 import { parseSidebarOpenResult } from "./lib/sidebarOpen";
 import { setEventSyncFetcher } from "./lib/eventSync";
 import { shouldAutoOpenBrowser } from "./lib/browserPrefs";
@@ -351,6 +352,13 @@ export default function App() {
     const name = rel.split(/[\\/]/).pop() || rel;
     usePaneTabsStore.getState().openFile(rel, name);
   }, [closeFilePreview]);
+
+  // 正文交付卡 / 行内附件 / 工具输出文件引用 → 统一开 pane 文件 tab
+  // （组件深处无法下钻回调，经模块级注入；未注册页面回落大预览）。
+  useEffect(() => {
+    setPaneFileOpenHandler(openPaneFile);
+    return () => setPaneFileOpenHandler(null);
+  }, [openPaneFile]);
 
   // 预览头部“文件”按钮 → 回到资源管理器视图 tab
   const backToFiles = useCallback(() => {
