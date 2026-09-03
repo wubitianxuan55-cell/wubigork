@@ -3,6 +3,7 @@ import { Collapse, Tag, Typography } from 'antd'
 import { GlobalOutlined, FolderOutlined, FileTextOutlined } from '@ant-design/icons'
 import { getConfig } from '../../api/settings'
 import SettingsSection from './SettingsSection'
+import { useT } from '../../gaea/lib/i18n'
 import * as App from '../../../src/wailsjsCompat'
 
 interface ReleaseInfo {
@@ -15,6 +16,7 @@ interface ReleaseInfo {
 
 /** AboutPanel — 关于：版本信息 + 系统信息（配置路径）+ 可折叠更新日志 */
 const AboutPanel: React.FC = () => {
+  const t = useT()
   const [config, setConfig] = useState<Record<string, string>>({})
   const [appInfo, setAppInfo] = useState<{ name: string; version: string; tagline: string; releases: ReleaseInfo[] } | null>(null)
 
@@ -29,8 +31,8 @@ const AboutPanel: React.FC = () => {
     <>
       <SettingsSection
         icon={<span style={{ fontSize: 15 }}><GlobalOutlined /></span>}
-        title="关于 gaea"
-        desc="gaea（盖亚）——你的通用办公与日常 AI 伙伴：可靠、清晰、有温度。"
+        title={t('settings.about.title')}
+        desc={t('settings.about.desc')}
       >
         <div style={{
           display: 'flex', alignItems: 'center', gap: 14,
@@ -44,14 +46,14 @@ const AboutPanel: React.FC = () => {
             background: 'color-mix(in srgb, var(--gaea-glow) 16%, var(--md-sys-color-surface-container-high))',
             border: '1px solid color-mix(in srgb, var(--gaea-glow) 30%, transparent)',
             fontSize: 18, fontWeight: 700, color: 'var(--gaea-glow)',
-          }}>盖</div>
+          }}>{t('settings.about.logoGlyph')}</div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
               <Typography.Text strong style={{ color: 'var(--md-sys-color-text)', fontSize: 15 }}>gaea</Typography.Text>
               <Tag style={{ margin: 0, borderRadius: 8 }}>v{appInfo?.version || '—'}</Tag>
             </div>
             <Typography.Text style={{ color: 'var(--md-sys-color-text-secondary)', fontSize: 12, display: 'block', marginTop: 2 }}>
-              {appInfo?.tagline || '多功能 AI 助手'}
+              {appInfo?.tagline || t('settings.about.taglineFallback')}
             </Typography.Text>
           </div>
         </div>
@@ -59,13 +61,13 @@ const AboutPanel: React.FC = () => {
 
       <SettingsSection
         icon={<span style={{ fontSize: 15 }}><FolderOutlined /></span>}
-        title="存储路径"
-        desc="凭证与图片的本地存储位置；引擎 / API 地址等运行态信息见「模型」分组与模型中心。"
+        title={t('settings.about.storageTitle')}
+        desc={t('settings.about.storageDesc')}
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
           {[
-            { label: 'Token 存储', value: config.tokenPath || '-' },
-            { label: '图片保存目录', value: config.image_save_dir || '未配置' },
+            { label: t('settings.about.tokenPath'), value: config.tokenPath || '-' },
+            { label: t('settings.about.imageDir'), value: config.image_save_dir || t('settings.about.notConfigured') },
           ].map((row) => (
             <div key={row.label} style={{
               display: 'flex', alignItems: 'baseline', gap: 12,
@@ -84,14 +86,14 @@ const AboutPanel: React.FC = () => {
 
       <SettingsSection
         icon={<span style={{ fontSize: 15 }}><FileTextOutlined /></span>}
-        title="更新日志"
-        desc="最近版本的主要变化。"
+        title={t('settings.about.changelogTitle')}
+        desc={t('settings.about.changelogDesc')}
       >
         <Collapse
           ghost
           items={[{
             key: 'changelog',
-            label: `展开查看更新记录（最新 v${appInfo?.version || '—'}）`,
+            label: t('settings.about.changelogLabel', { version: appInfo?.version || '—' }),
             children: appInfo?.releases?.length ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                 {appInfo.releases.map((r) => (
@@ -117,7 +119,7 @@ const AboutPanel: React.FC = () => {
                 ))}
               </div>
             ) : (
-              <Typography.Text style={{ color: 'var(--md-sys-color-text-secondary)', fontSize: 12 }}>暂无更新记录</Typography.Text>
+              <Typography.Text style={{ color: 'var(--md-sys-color-text-secondary)', fontSize: 12 }}>{t('settings.about.changelogEmpty')}</Typography.Text>
             ),
           }]}
         />

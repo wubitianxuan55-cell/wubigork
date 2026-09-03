@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   ASK_MAX_ANSWER_RUNES, ASK_MAX_HISTORY_TURNS,
-  buildAskHistory, deriveAskTurns, trimAskTurns, truncateRunes,
+  buildAskHistory, deriveAskTurns, rollbackLastUserMessage, trimAskTurns, truncateRunes,
   type ReadingAskMessage,
 } from './readingAskSession'
 
@@ -74,5 +74,25 @@ describe('buildAskHistory', () => {
   })
   it('空会话 → 空数组（单轮）', () => {
     expect(buildAskHistory([])).toEqual([])
+  })
+})
+
+describe('rollbackLastUserMessage', () => {
+  it('尾部未成对的 user 消息被摘掉（请求失败回滚）', () => {
+    const messages = [msg('user', 'q1'), msg('assistant', 'a1'), msg('user', 'q2')]
+    expect(rollbackLastUserMessage(messages)).toEqual([msg('user', 'q1'), msg('assistant', 'a1')])
+  })
+
+  it('无尾部 user 消息时原样返回（不误删 assistant 回答）', () => {
+    const messages = [msg('user', 'q1'), msg('assistant', 'a1')]
+    expect(rollbackLastUserMessage(messages)).toEqual(messages)
+  })
+
+  it('空会话回滚仍为空，且入参不被修改', () => {
+    const empty: ReadingAskMessage[] = []
+    expect(rollbackLastUserMessage(empty)).toEqual([])
+    const messages = [msg('user', 'q1')]
+    rollbackLastUserMessage(messages)
+    expect(messages).toEqual([msg('user', 'q1')])
   })
 })

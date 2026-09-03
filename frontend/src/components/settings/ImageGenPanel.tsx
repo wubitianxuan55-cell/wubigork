@@ -5,25 +5,32 @@ import { getImageBackendInfo, setImageBackend } from '../../api/settings'
 import { getEngines } from '../../api/engines'
 import SettingsSection from './SettingsSection'
 import { BACKEND_OPTIONS, isLocalBackend } from '../imagegen/meta'
+import { useT } from '../../gaea/lib/i18n'
 
 // 固定后端（非引擎型，恒可选）：xai / comfyui——标签与绘梦页同源（meta.ts）。
 // herdsman/ollama/glm 等为引擎型，由下方「已启用引擎」列表按启用状态呈现。
 const FIXED_BACKEND_VALUES = ['xai', 'comfyui']
-const BUILTIN_BACKENDS = BACKEND_OPTIONS
-  .filter((o) => FIXED_BACKEND_VALUES.includes(o.value))
-  .map((o) => ({
-    value: o.value,
-    label: `${o.label}（${isLocalBackend(o.value) ? '本地' : '云端'}）`,
-  }))
 
 /** ImageGenPanel — 绘梦（AI 图像）后端设置 */
 const ImageGenPanel: React.FC = () => {
+  const t = useT()
   const [backend, setBackend] = useState('')
   const [model, setModel] = useState('')
   const [comfyURL, setComfyURL] = useState('')
   const [saveDir, setSaveDir] = useState('')
   const [engineOptions, setEngineOptions] = useState<{ value: string; label: string }[]>([])
   const [saving, setSaving] = useState(false)
+
+  // 固定后端标签带「本地/云端」字尾，需经 i18n —— 在组件内派生（原为模块级 BUILTIN_BACKENDS）
+  const builtinBackends = BACKEND_OPTIONS
+    .filter((o) => FIXED_BACKEND_VALUES.includes(o.value))
+    .map((o) => ({
+      value: o.value,
+      label: t('settings.imgen.builtinLabel', {
+        name: o.label,
+        kind: isLocalBackend(o.value) ? t('settings.imgen.kindLocal') : t('settings.imgen.kindCloud'),
+      }),
+    }))
 
   const load = useCallback(async () => {
     try {
@@ -35,13 +42,19 @@ const ImageGenPanel: React.FC = () => {
       if (info?.image_save_dir) setSaveDir(info.image_save_dir)
       const es = await getEngines()
       // 引擎本地/云端属性决定标签（此前一律标「本地引擎」，云端引擎被误标）；
-      // 固定后端（xai/comfyui）已在 BUILTIN_BACKENDS 呈现，引擎列表过滤掉以免
+      // 固定后端（xai/comfyui）已在 builtinBackends 呈现，引擎列表过滤掉以免
       // 下拉重复（xai 也是引擎 id）。
       setEngineOptions((es || [])
         .filter((e) => e.enabled && !FIXED_BACKEND_VALUES.includes(e.id))
-        .map((e) => ({ value: e.id, label: `${e.name} (${e.is_local ? '本地引擎' : '云端'})` })))
+        .map((e) => ({
+          value: e.id,
+          label: t('settings.imgen.engineLabel', {
+            name: e.name,
+            kind: e.is_local ? t('settings.imgen.kindLocalEngine') : t('settings.imgen.kindCloud'),
+          }),
+        })))
     } catch { /* 未初始化静默 */ }
-  }, [])
+  }, [t])
 
   useEffect(() => { load() }, [load])
 
@@ -54,29 +67,29 @@ const ImageGenPanel: React.FC = () => {
         model,
         saveDir,
       )
-      message.success('绘梦后端已更新')
-    } catch (err: unknown) { message.error(err instanceof Error ? err.message : '保存失败') }
+      message.success(t('settings.imgen.saved'))
+    } catch (err: unknown) { message.error(err instanceof Error ? err.message : t('settings.saveFailed')) }
     finally { setSaving(false) }
   }
 
   return (
     <>
       <SettingsSection
-        title={<>后端配置</>}
-        desc="选择图像生成后端：云端 xAI 或本地 ComfyUI / 已启用的模型引擎；当前生效值已回填到下方。"
+        title={t('settings.imgen.backendTitle')}
+        desc={t('settings.imgen.backendDesc')}
         instant
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           <Select
             value={backend || undefined}
-            placeholder="选择图片后端"
+            placeholder={t('settings.imgen.backendPlaceholder')}
             onChange={setBackend}
             style={{ width: '100%' }}
-            options={[...BUILTIN_BACKENDS, ...engineOptions]}
+            options={[...builtinBackends, ...engineOptions]}
           />
           {backend === 'comfyui' && (
             <Input
-              placeholder="ComfyUI 地址（例如 http://127.0.0.1:8188）"
+              placeholder={t('settings.imgen.comfyURLPlaceholder')}
               value={comfyURL}
               onChange={(e) => setComfyURL(e.target.value)}
               style={{
@@ -87,7 +100,7 @@ const ImageGenPanel: React.FC = () => {
             />
           )}
           <Input
-            placeholder="图片保存目录（留空 = 不自动存盘）"
+            placeholder={t('settings.imgen.saveDirPlaceholder')}
             value={saveDir}
             onChange={(e) => setSaveDir(e.target.value)}
             style={{
@@ -104,13 +117,13 @@ const ImageGenPanel: React.FC = () => {
                 boxShadow: '0 0 16px color-mix(in srgb, var(--gaea-glow) 30%, transparent)',
                 borderRadius: 'var(--md-sys-radius-md)',
               }}
-            >保存绘梦配置</Button>
+            >{t('settings.imgen.save')}</Button>
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12 }}>
           <ThunderboltOutlined style={{ color: 'var(--gaea-glow)' }} />
           <Typography.Text style={{ color: 'var(--md-sys-color-text-secondary)', fontSize: 11 }}>
-            工作流细节与参数请前往「绘梦」模块调整
+            {t('settings.imgen.goImagegen')}
           </Typography.Text>
         </div>
       </SettingsSection>

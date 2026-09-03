@@ -34,37 +34,34 @@ import {
   type ReadingAnnotation, type AnnotationColor,
 } from '../utils/readingAnnotations'
 import { askReadingAssistant } from '../components/novel/api/readingAssistant'
-import { buildAskHistory, type ReadingAskMessage } from './chapter/readingAskSession'
+import {
+  buildAskHistory, rollbackLastUserMessage, type ReadingAskMessage,
+} from './chapter/readingAskSession'
 import {
   searchNovelAll, splitSnippet, summarizeSearch,
   type NovelSearchHitData,
 } from './chapter/novelSearchUtils'
 import {
-  paraOf, clearReadingHighlight, highlightSearchHitAt, textAtScrollTop,
+  clearReadingHighlight, highlightSearchHitAt, readSelectionInRoot, textAtScrollTop,
   // applyTextHighlight 主体已抽为模块级纯 DOM 工具（恒定身份），别名导入；
   // 组件内保留同名薄包装绑定滚动根与 readMode，流式调用入口不变。
   applyTextHighlight as highlightFirstMatch,
 } from './chapter/readingHighlight'
+import { renderAnnotationHighlights } from './chapter/readingAnnotation'
+import {
+  toggleBookmarkInList, removeBookmarkInList,
+} from './chapter/readingBookmark'
+import {
+  readSavedScrollTop, saveScrollTop, scrollPct,
+} from './chapter/readingScrollMemory'
+import { createTabData, needsCloseConfirm } from './chapter/chapterTabData'
 import ExportPanel from '../components/novel/ExportPanel'
 import { ChapterIllustration } from './chapter/ChapterIllustration'
 import type { OutlineNode, ChapterTabData } from '../types'
 import { C } from '../utils/theme'
 
-const READ_SCROLL_PREFIX = 'gaea.novel.reading.scroll.'
-
 function errText(err: unknown, fallback: string): string {
   return (err instanceof Error && err.message) || fallback
-}
-
-/** 创建空的 ChapterTabData */
-function createTabData(node: OutlineNode): ChapterTabData {
-  return {
-    node, chapterNum: node.order_index || 0,
-    scenes: [''], summary: '', keyEvents: [],
-    emotionTone: '', saved: false, generating: false,
-    streamSpeed: 0, messages: [], targetWords: 3000,
-    skillName: '', retryStatus: null,
-  }
 }
 
 const ChapterPage: React.FC = () => {
@@ -103,6 +100,9 @@ const ChapterPage: React.FC = () => {
   const [exportOpen, setExportOpen] = useState(false)
   const [illusOpen, setIllusOpen] = useState(false)
   const pendingSearch = useRef<{ nodeId: string; query: string; paragraphIndex: number; charOffset: number } | null>(null)
+  // 每次点击搜索命中自增：同章内重复点命中时 readMode/readNodeId 均不变，
+  // 定位 effect 若只依赖二者则不会重跑、pendingSearch 永不被消费（回归缺陷修复）。
+  const [searchLocateSeq, setSearchLocateSeq] = useState(0)
   const readingScrollRef = useRef<HTMLDivElement | null>(null)
   const readScrollTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const autoScrollRef = useRef<number | null>(null)
@@ -247,7 +247,7 @@ const ChapterPage: React.FC = () => {
 
   const requestCloseTab = (key: string) => {
     const target = tabs.find((t) => t.node.id === key)
-    if (target && !target.saved && target.scenes.some((s) => s.trim())) {
+    if (target && needsCloseConfirm(target)) {
       Modal.confirm({
         title: '章节尚未保存',
         content: `确定关闭「${target.node.title || key}」吗？未保存的修改会丢失。`,
@@ -326,20 +326,18 @@ const ChapterPage: React.FC = () => {
     const el = readingScrollRef.current
     if (!el || !activeTab) return
     setSelToolbar(null)
-    const max = el.scrollHeight - el.clientHeight
-    setReadProgress(max > 0 ? Math.min(100, Math.round((el.scrollTop / max) * 100)) : 0)
+    setReadProgress(scrollPct(el))
     if (readScrollTimer.current) clearTimeout(readScrollTimer.current)
     readScrollTimer.current = setTimeout(() => {
-      try { localStorage.setItem(READ_SCROLL_PREFIX + activeTab.node.id, String(el.scrollTop)) } catch { /* ignore */ }
+      saveScrollTop(activeTab.node.id, el.scrollTop)
     }, 250)
   }
   useEffect(() => {
     if (!readMode || !readNodeId) return
     const el = readingScrollRef.current
-    let saved = 0
-    try { saved = Number(localStorage.getItem(READ_SCROLL_PREFIX + readNodeId) || 0) } catch { /* ignore */ }
     // 切换章节时先回到顶部，再恢复该章保存的位置
     if (el) el.scrollTop = 0
+    const saved = readSavedScrollTop(readNodeId)
     const raf = requestAnimationFrame(() => {
       if (el && saved > 0) el.scrollTop = saved
     })
@@ -348,9 +346,7 @@ const ChapterPage: React.FC = () => {
     setSummaryError(null)
     return () => {
       cancelAnimationFrame(raf)
-      if (el && el.scrollTop > 0) {
-        try { localStorage.setItem(READ_SCROLL_PREFIX + readNodeId, String(el.scrollTop)) } catch { /* ignore */ }
-      }
+      if (el && el.scrollTop > 0) saveScrollTop(readNodeId, el.scrollTop)
       if (readScrollTimer.current) { clearTimeout(readScrollTimer.current); readScrollTimer.current = null }
     }
   }, [readMode, readNodeId])
@@ -370,25 +366,14 @@ const ChapterPage: React.FC = () => {
     const el = readingScrollRef.current
     if (!el || !activeTab) return
     const scrollTop = Math.max(0, Math.round(el.scrollTop))
-    const hit = bookmarks.find((b) => b.nodeId === activeTab.node.id && Math.abs(b.scrollTop - scrollTop) < 48)
-    let next: ReadingBookmark[]
-    if (hit) {
-      next = bookmarks.filter((b) => b !== hit)
-    } else {
-      const max = el.scrollHeight - el.clientHeight
-      next = [
-        ...bookmarks,
-        {
-          nodeId: activeTab.node.id,
-          title: activeTab.node.title || '未命名章节',
-          scrollTop,
-          pct: max > 0 ? Math.round((scrollTop / max) * 100) : 0,
-          text: textAtScrollTop(el, scrollTop),
-          createdAt: Date.now(),
-        },
-      ].sort((a, b) => a.scrollTop - b.scrollTop)
-    }
-    persistBookmarks(next)
+    persistBookmarks(toggleBookmarkInList(bookmarks, {
+      nodeId: activeTab.node.id,
+      title: activeTab.node.title || '未命名章节',
+      scrollTop,
+      pct: scrollPct(el),
+      text: textAtScrollTop(el, scrollTop),
+      createdAt: Date.now(),
+    }))
   }
 
   const jumpBookmark = (b: ReadingBookmark) => {
@@ -399,7 +384,7 @@ const ChapterPage: React.FC = () => {
   }
 
   const removeBookmark = (b: ReadingBookmark) => {
-    persistBookmarks(bookmarks.filter((x) => x.nodeId !== b.nodeId || x.scrollTop !== b.scrollTop))
+    persistBookmarks(removeBookmarkInList(bookmarks, b))
   }
 
   // ── 自动滚屏：40ms 步进，滚轮手动干预即暂停 ──
@@ -446,17 +431,12 @@ const ChapterPage: React.FC = () => {
   }
 
   const addHighlight = (color: AnnotationColor, withNote: boolean, textOverride?: string) => {
-    const root = readingScrollRef.current
-    if (!root) return
     let text = textOverride ?? ''
     if (!text) {
-      const sel = window.getSelection()
-      if (!sel || sel.isCollapsed) return
-      const range = sel.getRangeAt(0)
-      if (!root.contains(range.commonAncestorContainer)) return
-      if (paraOf(range.startContainer) !== paraOf(range.endContainer)) return
-      text = sel.toString().replace(/\s+/g, ' ').trim()
-      sel.removeAllRanges()
+      const selInfo = readSelectionInRoot(readingScrollRef.current)
+      if (!selInfo) return
+      text = selInfo.text.trim()
+      window.getSelection()?.removeAllRanges()
     }
     if (!text || text.length > 200) return
     const ann: ReadingAnnotation = {
@@ -498,19 +478,12 @@ const ChapterPage: React.FC = () => {
     mark?.scrollIntoView({ block: 'center', behavior: 'smooth' })
   }
 
-  // 选中文本 → 浮动工具条（仅限阅读列内、单段落内选择）
+  // 选中文本 → 浮动工具条（仅限阅读列内、单段落内选择；校验与划线共用 readSelectionInRoot）
   const handleReadingMouseUp = () => {
-    const sel = window.getSelection()
-    const root = readingScrollRef.current
-    if (!sel || sel.isCollapsed || !root) { setSelToolbar(null); return }
-    const range = sel.getRangeAt(0)
-    if (!root.contains(range.commonAncestorContainer)) { setSelToolbar(null); return }
-    if (paraOf(range.startContainer) !== paraOf(range.endContainer)) { setSelToolbar(null); return }
-    const text = sel.toString().trim()
-    if (!text) { setSelToolbar(null); return }
-    setSelText(text.replace(/\s+/g, ' '))
-    const rect = range.getBoundingClientRect()
-    setSelToolbar({ x: rect.left + rect.width / 2, y: rect.top })
+    const selInfo = readSelectionInRoot(readingScrollRef.current)
+    if (!selInfo) { setSelToolbar(null); return }
+    setSelText(selInfo.text)
+    setSelToolbar({ x: selInfo.rect.left + selInfo.rect.width / 2, y: selInfo.rect.top })
   }
 
   // ── AI 伴读：章节摘要 + 划线提问 ──
@@ -566,7 +539,7 @@ const ChapterPage: React.FC = () => {
       setAskMessages((m) => [...m, { role: 'assistant', content: answer }])
     } catch (err) {
       // 失败回滚本轮提问（半截问答不混入后续历史），问题放回输入框便于重试
-      setAskMessages((m) => (m.length > 0 && m[m.length - 1].role === 'user' ? m.slice(0, -1) : m))
+      setAskMessages(rollbackLastUserMessage)
       setAskQuestion(q)
       setAskError(errText(err, '提问失败'))
     } finally {
@@ -587,60 +560,17 @@ const ChapterPage: React.FC = () => {
     if (el) el.scrollTop = el.scrollHeight
   }, [askMessages, askLoading, askTarget])
 
-  // 高亮回渲染：清除旧 mark 后按摘录文本在段落内重新定位（内容变更时自然失效）
+  // 划线回渲染：清除旧 mark 后按摘录文本在段落内重新定位（内容变更时自然失效）。
+  // 主体已抽为 chapter/readingAnnotation 模块级 DOM 工具（readingHighlight 同款搬移法）：
+  // 组件内只保留接线——按当前章节过滤划线，滚动根与 openAnnotation 经参数传入。
   useEffect(() => {
     const root = readingScrollRef.current
     if (!root) return
-    root.querySelectorAll<HTMLElement>('mark[data-ann-id]').forEach((m) => {
-      const parent = m.parentNode
-      if (!parent) return
-      parent.replaceChild(document.createTextNode(m.textContent ?? ''), m)
-    })
-    root.normalize()
-    const current = annotations.filter((a) => a.nodeId === readNodeId)
-    if (current.length === 0) return
-    const paras = Array.from(root.querySelectorAll<HTMLElement>('.novel-reading-p'))
-    for (const p of paras) {
-      const text = p.textContent ?? ''
-      if (!text) continue
-      const matches: { start: number; end: number; ann: ReadingAnnotation }[] = []
-      const occupied = new Set<number>()
-      for (const ann of [...current].sort((a, b) => b.text.length - a.text.length)) {
-        if (!ann.text) continue
-        let idx = text.indexOf(ann.text)
-        while (idx !== -1) {
-          const end = idx + ann.text.length
-          let conflict = false
-          for (let k = idx; k < end; k++) {
-            if (occupied.has(k)) { conflict = true; break }
-          }
-          if (!conflict) {
-            matches.push({ start: idx, end, ann })
-            for (let k = idx; k < end; k++) occupied.add(k)
-            break
-          }
-          idx = text.indexOf(ann.text, idx + 1)
-        }
-      }
-      if (matches.length === 0) continue
-      matches.sort((a, b) => b.start - a.start)
-      for (const m of matches) {
-        const node = p.firstChild
-        if (!node || node.nodeType !== Node.TEXT_NODE) continue
-        try {
-          const range = document.createRange()
-          range.setStart(node, m.start)
-          range.setEnd(node, m.end)
-          const mark = document.createElement('mark')
-          mark.className = 'novel-reading-mark'
-          mark.dataset.annId = m.ann.id
-          mark.dataset.annColor = m.ann.color
-          mark.addEventListener('click', () => openAnnotation(m.ann))
-          mark.appendChild(range.extractContents())
-          range.insertNode(mark)
-        } catch { /* ignore */ }
-      }
-    }
+    renderAnnotationHighlights(
+      root,
+      annotations.filter((a) => a.nodeId === readNodeId),
+      openAnnotation,
+    )
   }, [readMode, readNodeId, annotations])
 
   // ── 朗读/搜索定位高亮：按文本在段落 DOM 中回定位 ──
@@ -705,6 +635,7 @@ const ChapterPage: React.FC = () => {
       charOffset: hit.char_offset,
     }
     setSearchOpen(false)
+    setSearchLocateSeq((v) => v + 1)
     handleSelectNode(node)
     setReadMode(true)
   }
@@ -734,8 +665,9 @@ const ChapterPage: React.FC = () => {
     }, 120)
     return () => window.clearInterval(timer)
     // highlightSearchHitAt/clearReadingHighlight 为模块级常量身份（exhaustive-deps 豁免），
-    // effect 实际触发时机仍只由 readMode/readNodeId 变化决定。
-  }, [readMode, readNodeId])
+    // effect 实际触发时机由 readMode/readNodeId 变化 + searchLocateSeq 自增共同决定：
+    // 仅靠前者时，同章内（阅读模式已开、章节未换）再次点命中不重跑、无法重新定位。
+  }, [readMode, readNodeId, searchLocateSeq])
 
   const tabItems: TabsProps['items'] = tabs.map((t) => ({
     key: t.node.id, label: t.node.title,

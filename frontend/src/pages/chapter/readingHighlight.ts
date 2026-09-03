@@ -7,6 +7,7 @@
  * - applyTextHighlight：从根元素顺序找首个含目标文本的段落并整体包亮（TTS 逐句跟随 /
  *   搜索定位兜底共用），仅 readMode 为真且根已挂载时生效；
  * - paraOf：向上找节点所属的 .novel-reading-p 阅读段落（划线/选区限制用）；
+ * - readSelectionInRoot：读取滚动根内、单段落内的划词选区（浮动工具条与划线共用判定）；
  * - textAtScrollTop：按滚动位置取容差内最后到达段落的摘录文本（书签预览用）。
  * 这些函数仅做 DOM 读/写或纯计算，无组件状态依赖；原先经闭包读组件内的
  * readingScrollRef / readMode，抽离后把滚动根等作为显式参数传入，调用点行为保持一致。
@@ -128,6 +129,28 @@ export function paraOf(node: Node): HTMLElement | null {
   let el: HTMLElement | null = node instanceof HTMLElement ? node : node.parentElement
   while (el && !el.classList.contains('novel-reading-p')) el = el.parentElement
   return el
+}
+
+/** 划词选区校验通过后的读取结果：折叠空白后的文本 + 选区几何（浮动工具条定位用） */
+export interface ReadingSelection {
+  text: string
+  rect: DOMRect
+}
+
+/**
+ * 读取当前划词选区：仅接受滚动根内、单段落（paraOf 归属一致）内的非空选择；
+ * 不满足时返回 null 且不改动选区。划词浮动工具条与「划线/想法」共用同一份判定，
+ * 保证工具条出现的选区必然能划线（原先两处各写一份相同判定，现收敛于此）。
+ */
+export function readSelectionInRoot(root: HTMLElement | null): ReadingSelection | null {
+  const sel = window.getSelection()
+  if (!sel || sel.isCollapsed || !root) return null
+  const range = sel.getRangeAt(0)
+  if (!root.contains(range.commonAncestorContainer)) return null
+  if (paraOf(range.startContainer) !== paraOf(range.endContainer)) return null
+  const raw = sel.toString()
+  if (!raw.trim()) return null
+  return { text: raw.replace(/\s+/g, ' '), rect: range.getBoundingClientRect() }
 }
 
 /**

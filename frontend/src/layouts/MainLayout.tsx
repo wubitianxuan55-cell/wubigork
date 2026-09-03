@@ -10,7 +10,7 @@ import SecurityBanner from '../components/SecurityBanner'
 import { ErrorBoundary } from '../components/ErrorBoundary'
 import { useAppStore, THEME_PRESETS, THEME_PRESET_COLORS, THEME_PRESET_LABELS, type StatsData, type ProjectInfo } from '../stores/appStore'
 import ModuleLauncher, { type LauncherTarget } from '../components/ModuleLauncher'
-import * as App from '../../src/wailsjsCompat'
+import { getModelMonitor } from '../api/engines'
 // 3.0「星枢 Constellation OS」壳层革命：顶栏横向菜单 → 左侧指挥轨道 + 顶部轨道条 + 底部遥测轨道。
 // 板块数据源依旧 manifest 驱动（后端 GetBoardManifests + home 壳层合并，失败回退静态 canonicalBoards）。
 import {
@@ -186,7 +186,7 @@ const TelemetryRail: React.FC<{ stats: StatsData | null; info: ProjectInfo | nul
     const load = async () => {
       if (!visible) return
       try {
-        const m = (await App.GetModelMonitor()) as ModelMonitor
+        const m = (await getModelMonitor()) as ModelMonitor
         if (!alive) return
         setMonitor(m)
         checkOverload(m)

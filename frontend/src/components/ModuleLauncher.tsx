@@ -31,6 +31,7 @@ import { useAppStore } from '../stores/appStore'
 import { usePollingGate } from '../hooks/usePollingGate'
 import { useT, type Translator } from '../gaea/lib/i18n'
 import * as App from '../../src/wailsjsCompat'
+import { getModelMonitor } from '../api/engines'
 import MorningBriefCard from '../gaea/components/MorningBriefCard'
 import './module-launcher.css'
 
@@ -309,7 +310,7 @@ const ModuleLauncher: React.FC<ModuleLauncherProps> = ({ onNavigate, activeModel
     const load = async () => {
       if (!pollable) return
       try {
-        const m = (await App.GetModelMonitor()) as ModelMonitor
+        const m = (await getModelMonitor()) as ModelMonitor
         if (alive) setMonitor(m)
       } catch (_) { /* 后端未就绪时静默 */ }
     }

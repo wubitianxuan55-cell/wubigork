@@ -4,9 +4,11 @@ import { FileMarkdownOutlined, FolderOpenOutlined, SaveOutlined } from '@ant-des
 import { useAppStore } from '../../stores/appStore'
 import SkillModal from '../SkillModal'
 import SettingsSection from './SettingsSection'
+import { useT } from '../../gaea/lib/i18n'
 
 /** WorkspacePanel — 小说：小说存储目录 + 写作风格 Skill 管理 */
 const WorkspacePanel: React.FC = () => {
+  const t = useT()
   const { novelsDir, setNovelsDir } = useAppStore()
   const [wsDir, setWsDir] = useState(novelsDir)
   const [wsSaving, setWsSaving] = useState(false)
@@ -16,20 +18,20 @@ const WorkspacePanel: React.FC = () => {
 
   const handleSaveWorkspace = async () => {
     const dir = wsDir.trim()
-    if (!dir) { message.warning('请输入工作空间路径'); return }
+    if (!dir) { message.warning(t('settings.novelWs.dirRequired')); return }
     setWsSaving(true)
     try {
       await setNovelsDir(dir)
-      message.success('工作空间已更新')
-    } catch (err: unknown) { message.error(err instanceof Error ? err.message : '保存失败') }
+      message.success(t('settings.novelWs.saved'))
+    } catch (err: unknown) { message.error(err instanceof Error ? err.message : t('settings.saveFailed')) }
     finally { setWsSaving(false) }
   }
 
   return (
     <>
       <SettingsSection
-        title={<>小说存储目录</>}
-        desc="所有小说项目的书架根目录。修改后书架将刷新到新路径，当前打开的项目会自动关闭；角色剧照（AI 生成）自动存到各项目的 portraits/ 子目录，跟随此目录，无需单独配置。"
+        title={t('settings.novelWs.dirTitle')}
+        desc={t('settings.novelWs.dirDesc')}
       >
         <Space.Compact style={{ width: '100%' }}>
           <Input
@@ -50,13 +52,13 @@ const WorkspacePanel: React.FC = () => {
               boxShadow: '0 0 16px color-mix(in srgb, var(--gaea-glow) 30%, transparent)',
               borderRadius: 'var(--md-sys-radius-md)',
             }}
-          >保存</Button>
+          >{t('common.save')}</Button>
         </Space.Compact>
       </SettingsSection>
 
       <SettingsSection
-        title={<>写作风格 (Skill)</>}
-        desc="Skill 是写作风格指导文件，AI 写作时会注入到 prompt 中影响文风。"
+        title={t('settings.novelWs.styleTitle')}
+        desc={t('settings.novelWs.styleDesc')}
       >
         <Button
           icon={<FileMarkdownOutlined />} onClick={() => setSkillOpen(true)}
@@ -67,7 +69,7 @@ const WorkspacePanel: React.FC = () => {
             borderRadius: 'var(--md-sys-radius-md)',
             boxShadow: '0 0 12px color-mix(in srgb, var(--gaea-glow) 15%, transparent)',
           }}
-        >管理 Skill</Button>
+        >{t('settings.novelWs.manageSkills')}</Button>
       </SettingsSection>
 
       <SkillModal open={skillOpen} onClose={() => setSkillOpen(false)} />

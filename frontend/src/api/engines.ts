@@ -344,6 +344,15 @@ export async function getEngines(): Promise<EngineConfig[]> {
   return result as EngineConfig[]
 }
 
+/** 本地资源占用遥测（模型中心资源条 / 右舷内核状态 / 首页矩阵共用）。
+ *  必须经 App()（window.go.app.App 兼容代理 + bridgeApp mock 兜底）——
+ *  wailsjsCompat 直调 window.go.app.ModelB 会绕过 bridge mock，
+ *  ?mock=1 浏览器走查报「资源加载失败」（v4.55 同族教训）。 */
+export async function getModelMonitor(): Promise<unknown> {
+  const result = await App().GetModelMonitor()
+  return result
+}
+
 /** 保存引擎配置 */
 export async function saveEngine(cfg: EngineConfig): Promise<void> {
   await App().SaveEngine(cfg)

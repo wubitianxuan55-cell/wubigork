@@ -58,3 +58,13 @@ export function trimAskTurns(turns: ReadingAskTurn[]): ReadingAskTurn[] {
 export function buildAskHistory(messages: ReadingAskMessage[]): ReadingAskTurn[] {
   return trimAskTurns(deriveAskTurns(messages))
 }
+
+/**
+ * 请求失败回滚：摘掉尾部未成对的 user 消息（半截问答不混入后续历史），
+ * 其余消息原样保留；无尾部 user 消息时原数组返回。
+ */
+export function rollbackLastUserMessage(messages: ReadingAskMessage[]): ReadingAskMessage[] {
+  return messages.length > 0 && messages[messages.length - 1].role === 'user'
+    ? messages.slice(0, -1)
+    : messages
+}

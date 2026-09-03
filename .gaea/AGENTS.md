@@ -5,7 +5,20 @@
 
 ## 版本状态（顶部速览）
 
-- **最新：v4.57.0（2026-09-03）设置中心化繁为简：删四补一 · 界面语言入口**——
+- **最新：v4.58.0（2026-09-03）继续：三线并行收欠账 · 同章搜索重定位缺陷
+  修复**——novel/dev mock/i18n 三线并行子代理+主代理收口。A 线：同章搜索
+  重定位缺陷根因实锤（定位 effect 依赖缺命中序号）+最小修复 searchLocateSeq
+  （回归测试反向验证）；ChapterPage 拆分第三批 1352→1285（readingAnnotation/
+  readingBookmark/readingScrollMemory/chapterTabData 四新文件两扩充）+41 用例。
+  B 线：mock 补 GaeaBenchmark 五方法（查询类中性空态/动作类诚实失败）+
+  GetModelMonitor，契约 7 用例。C 线：设置三面板文案入三语字典 34 键/语言
+  （zh 逐字保真，648→682）。收口：**GetModelMonitor 三消费点（ResourceMonitor/
+  MainLayout/ModuleLauncher）从 wailsjsCompat 直读迁 getModelMonitor() 三态
+  回退——直读 window.go.app.ModelB 绕过 bridge mock 是「wailsjsCompat 生成物
+  消费族」欠账真身**；mock 补 GetEngines 空态（走查新抓）。?mock=1 零横幅；
+  vitest 202/1442。**销账：GaeaBenchmark 未 mock、ResourceMonitor 资源加载
+  失败、同章搜索不重定位**。详见 `releases/v4.58.0.md`。
+- **此前：v4.57.0（2026-09-03）设置中心化繁为简：删四补一 · 界面语言入口**——
   用户点名刀。删四（全部 grep 核真伪、零功能损失）：绘梦「当前绘梦后端」纯
   展示卡（与下拉信息完全重复）；小说「角色剧照」零交互说明卡（一行并入存储
   目录 desc）；关于「系统信息」收成「存储路径」（引擎/API/推理强度三行与模型

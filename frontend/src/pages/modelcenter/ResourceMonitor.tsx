@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Button, Tooltip } from 'antd'
 import { DashboardOutlined, ReloadOutlined } from '@ant-design/icons'
-import * as App from '../../../src/wailsjsCompat'
+import { getModelMonitor } from '../../api/engines'
 import { StatusChip } from './ui'
 import {
   computeResourceSnapshot,
@@ -23,7 +23,7 @@ export function ResourceMonitor() {
 
   const load = useCallback(async () => {
     try {
-      const m: ResourceMonitorData = await App.GetModelMonitor()
+      const m = await getModelMonitor() as ResourceMonitorData
       setSnap(computeResourceSnapshot(m))
       setError(null)
       setLastUpdated(new Date().toLocaleTimeString())

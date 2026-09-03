@@ -6,8 +6,8 @@ const { getMonitorMock } = vi.hoisted(() => ({
   getMonitorMock: vi.fn(),
 }))
 
-vi.mock('../../../src/wailsjsCompat', () => ({
-  GetModelMonitor: getMonitorMock,
+vi.mock('../../api/engines', () => ({
+  getModelMonitor: getMonitorMock,
 }))
 
 const SNAPSHOT = {

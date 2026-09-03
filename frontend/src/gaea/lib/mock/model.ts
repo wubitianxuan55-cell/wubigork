@@ -60,17 +60,89 @@ type LegacyHerdsmanMethods = {
     trend: unknown[];
     per_model: unknown[];
   }>;
+  // 引擎列表（模型中心引擎管理段 useEngineState / 设置·绘梦面板 getEngines）：
+  // 同属 legacy 绑定面；空列表走引擎管理既有空态，不再报
+  // 「GetEngines is not a function」横幅。
+  GetEngines(): Promise<unknown[]>;
 };
 
 /** Herdsman 生命周期操作结果（对齐 Go HerdsmanOpResult：ok/status/message）。 */
 type HerdsmanOpResultMock = { ok: boolean; status: string; message: string };
+
+// 受控测评五名 + 资源遥测（B 线欠账，v4.56 走查）：BenchmarkSection 经
+// api/engines.ts（getBenchmarkList 等）调用 GaeaBenchmark*；ResourceMonitor /
+// MainLayout / ModuleLauncher 调用 GetModelMonitor。六名与上方 Herdsman 族同为
+// legacy 绑定面（bridge.ts LegacySurfaceNames 显式排除，AppBindings 不消费），
+// 故同样局部重述返回形状、不牵动 AppBindings 双向类型锁。形状对齐
+// api/engines.ts 的 BenchmarkRunSummary/BenchmarkRunDetail/StreamProbeResult 与
+// pages/modelcenter/resource.ts 的 ResourceMonitorData（api/pages 层 import 会成
+// api↔gaea 环）；字段漂移由 mock-contract-benchmark 契约测试兜底。
+type LegacyBenchmarkMethods = {
+  GaeaBenchmarkList(): Promise<unknown[]>;
+  // Go 契约为 (string, error)：失败呈现 rejected promise（消费方 catch 弹错），
+  // 无 ok:false 形状可用。
+  GaeaBenchmarkStart(req: unknown): Promise<string>;
+  GaeaBenchmarkDetail(id: string): Promise<BenchmarkRunDetailMock>;
+  GaeaBenchmarkExport(id: string, dir: string): Promise<string>;
+  GaeaBenchmarkStreamProbe(model: string): Promise<StreamProbeResultMock>;
+  GetModelMonitor(): Promise<ResourceMonitorDataMock>;
+};
+
+/** 测评运行明细（对齐 api/engines.ts BenchmarkRunDetail 消费方解构字段）。 */
+type BenchmarkRunDetailMock = {
+  id: string;
+  created_at: string;
+  finished_at?: string;
+  status: string;
+  config: Record<string, unknown>;
+  summary: {
+    total_cases: number;
+    succeeded: number;
+    failed: number;
+    canceled: number;
+    avg_duration_ms: number;
+    avg_ttft_ms: number;
+    avg_tps: number;
+  };
+  cases: unknown[];
+};
+
+/** 流式探针结果（对齐 api/engines.ts StreamProbeResult：ok/error 键驱动红标）。 */
+type StreamProbeResultMock = {
+  model: string;
+  ok: boolean;
+  ttft_ms: number;
+  chunks: number;
+  tokens: number;
+  duration_ms: number;
+  max_gap_ms: number;
+  avg_gap_ms: number;
+  completed: boolean;
+  interrupted: boolean;
+  error?: string;
+};
+
+/** 资源遥测（对齐 pages/modelcenter/resource.ts ResourceMonitorData 三键）。 */
+type ResourceMonitorDataMock = {
+  engines?: unknown[];
+  stats?: {
+    cpu?: number;
+    memTotal?: number;
+    memUsed?: number;
+    gpuName?: string;
+    gpuUsage?: number;
+    vramUsed?: number;
+    vramTotal?: number;
+  };
+  comfyRunning?: boolean;
+};
 
 type ModelMethods = Pick<
   AppBindings,
   | "Models" | "SetModel"
   | "KeepWarmGet" | "KeepWarmSet" | "PreloadPlanGet" | "PreloadPlanSet"
   | "ModelSwitchEstimate" | "Balance"
-> & LegacyModelMethods & LegacyHerdsmanMethods;
+> & LegacyModelMethods & LegacyHerdsmanMethods & LegacyBenchmarkMethods;
 
 export function buildModel(s: MakeMockState): ModelMethods {
   return {
@@ -180,6 +252,83 @@ export function buildModel(s: MakeMockState): ModelMethods {
         trend: [],
         per_model: [],
       };
+    },
+    // 引擎列表空态（v4.57 走查抓到的既有缺口）：引擎管理段空表，
+    // 不再报「GetEngines is not a function」横幅。
+    async GetEngines() {
+      return [];
+    },
+
+    // ── 受控测评五名 + 资源遥测（B 线欠账，v4.56 走查）──────────
+    // 查询类（List/Detail）中性空态：空列表/零计数、绝不 throw——BenchmarkSection
+    // load() 的 Promise.all 里 list 一旦 rejected 会 message.warning「无法连接
+    // Herdsman 测评接口」，空列表则走既有「暂无测评记录」EmptyState。
+    async GaeaBenchmarkList() {
+      return [];
+    },
+    async GaeaBenchmarkDetail(id: string): Promise<BenchmarkRunDetailMock> {
+      return {
+        id,
+        created_at: "",
+        finished_at: "",
+        // mock 无运行记录；非 succeeded/running/pending/failed 的字串让消费方
+        // statusTone 落 neutral 灰标，不误报成功/失败。
+        status: "not_found",
+        config: {
+          model_names: [],
+          variants: [],
+          context_sizes: [],
+          cache_reuse_mode: "",
+          warmup_count: 0,
+          repeat_count: 0,
+          concurrency: 0,
+          request: {
+            user_prompt: "",
+            temperature: 0,
+            top_p: 0,
+            top_k: 0,
+            repeat_penalty: 0,
+            max_tokens: 0,
+            stream: false,
+            timeout_seconds: 0,
+          },
+        },
+        summary: { total_cases: 0, succeeded: 0, failed: 0, canceled: 0, avg_duration_ms: 0, avg_ttft_ms: 0, avg_tps: 0 },
+        cases: [],
+      };
+    },
+    // 动作类诚实失败：Go 契约为 (string, error)，Wails 失败即 rejected promise
+    //（经 bridge invoke 归一为 BridgeError，message 保留原文），消费方 catch 后
+    // message.error「发起测评失败/导出失败」——与 Herdsman ok:false 同「不假
+    // 成功」原则（假成功会让走查误以为测评已发起）。
+    async GaeaBenchmarkStart(_req: unknown): Promise<string> {
+      throw new Error("浏览器开发环境无 Herdsman 测评后端，无法发起受控测评（mock）");
+    },
+    async GaeaBenchmarkExport(_id: string, _dir: string): Promise<string> {
+      throw new Error("浏览器开发环境无 Herdsman 测评后端，报告不可导出（mock）");
+    },
+    // 流式探针不 throw：StreamProbeResult 自带 ok/error 键，消费方 probeBadge 对
+    // !ok 渲染「✗ {error}」红标——诚实失败形状跟随 Go 契约（与 Start/Export 的
+    // rejected promise 语义等价，只是形状不同）。
+    async GaeaBenchmarkStreamProbe(model: string): Promise<StreamProbeResultMock> {
+      return {
+        model,
+        ok: false,
+        ttft_ms: 0,
+        chunks: 0,
+        tokens: 0,
+        duration_ms: 0,
+        max_gap_ms: 0,
+        avg_gap_ms: 0,
+        completed: false,
+        interrupted: false,
+        error: "浏览器开发环境无本地模型后端，流式探针不可用（mock）",
+      };
+    },
+    // 资源遥测中性空态：无本地引擎 / 无占用读数 / ComfyUI 未运行——ResourceMonitor
+    // 呈现「无本地引擎」chip + 0% 条，不编造真实 CPU/显存数值。
+    async GetModelMonitor(): Promise<ResourceMonitorDataMock> {
+      return { engines: [], stats: {}, comfyRunning: false };
     },
   };
 }

@@ -1,3 +1,22 @@
+## v4.58.0 · 继续：三线并行收欠账 · 同章搜索重定位缺陷修复（2026-09-03）
+> 欠账池三线并行子代理（novel/dev mock/i18n 域，所有权互斥）+ 主代理收口。
+> **绑定面 559 零变更**。详见 releases/v4.58.0.md。
+- **A 线·小说**：同章搜索重定位缺陷根因实锤（定位 effect 依赖 `[readMode,
+  readNodeId]` 缺命中序号，同章命中三依赖全不变 effect 不重跑）——最小修复
+  `searchLocateSeq` 入依赖，回归测试反向验证；拆分第三批 1352→1285 净减
+  67 行（readingAnnotation/readingBookmark/readingScrollMemory/chapterTabData
+  四新文件+两扩充），+41 用例。
+- **B 线·dev mock**：补 GaeaBenchmark 五方法（查询类中性空态/动作类诚实
+  失败）+ GetModelMonitor，契约 7 用例。
+- **C 线·i18n**：设置三面板（绘梦/小说/关于）文案入三语字典 34 键/语言，
+  zh 逐字保真（SettingsPage.test 不改全绿即验证），键总量 648→682。
+- **收口**：GetModelMonitor 三消费点（ResourceMonitor/MainLayout/Module-
+  Launcher）从 wailsjsCompat 直读迁 `getModelMonitor()` 三态回退（直读绕过
+  bridge mock——欠账真身）；mock 补 GetEngines 空态（走查新抓缺口）。
+  ?mock=1 走查零横幅：资源块 0% 空态/引擎管理空表/「暂无测评记录」。
+- 验证：go 全绿、tsc/tsc -b 0、eslint 0/0、vitest 202/1442（+5 文件 +49
+  用例）、drift PASS（559）。
+
 ## v4.57.0 · 设置中心化繁为简：删四补一 · 界面语言入口（2026-09-03）
 > 用户点名刀：删除不要的（全部 grep 核实零交互/重复/零消费，零功能损失），
 > 增加需要的。**绑定面 559 零变更**。详见 releases/v4.57.0.md。

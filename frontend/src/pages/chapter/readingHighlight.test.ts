@@ -2,12 +2,13 @@
 // 用 jsdom 造 .novel-reading-p 段落结构，锁 textNodesOf 收集行为、
 // highlightSearchHitAt 命中/未命中返回值与高亮 DOM 副作用、clearReadingHighlight 清理，
 // 以及自 ChapterPage 第二批搬入的 applyTextHighlight（全文首个命中）、paraOf（段落归属）、
-// textAtScrollTop（书签摘录，offsetTop 用 defineProperty 打桩——jsdom 恒为 0）。
+// textAtScrollTop（书签摘录，offsetTop 用 defineProperty 打桩——jsdom 恒为 0）、
+// 第三批搬入的 readSelectionInRoot（划词选区校验，getSelection 打桩）。
 // scrollIntoView 由 src/test/setup.ts 的全局 polyfill 兜底（jsdom 未实现）。
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   applyTextHighlight, clearReadingHighlight, highlightSearchHitAt, paraOf,
-  textAtScrollTop, textNodesOf,
+  readSelectionInRoot, textAtScrollTop, textNodesOf,
 } from './readingHighlight'
 
 /** 造一个滚动根，每段包成 .novel-reading-p（模拟阅读列 DOM），返回根与段落列表 */
@@ -26,6 +27,7 @@ function setOffsetTop(el: HTMLElement, value: number) {
 
 afterEach(() => {
   document.body.innerHTML = ''
+  vi.restoreAllMocks()
 })
 
 describe('textNodesOf', () => {
@@ -231,5 +233,66 @@ describe('textAtScrollTop', () => {
     const root = document.createElement('div')
     document.body.appendChild(root)
     expect(textAtScrollTop(root, 100)).toBe('')
+  })
+})
+
+describe('readSelectionInRoot', () => {
+  /** 打桩 window.getSelection（jsdom 选区能力有限，直接给最小消费面对象） */
+  function stubSelection(range: Range | null, text: string, collapsed = false) {
+    vi.spyOn(window, 'getSelection').mockReturnValue({
+      isCollapsed: collapsed,
+      getRangeAt: () => range,
+      toString: () => text,
+    } as unknown as Selection)
+  }
+
+  it('根内单段落选择：返回折叠空白后的文本与选区几何', () => {
+    const { root, els } = buildRoot('他推门而入，灯还亮着。')
+    const range = document.createRange()
+    // jsdom 的 Range 未实现 getBoundingClientRect（浏览器原生有），测试侧补桩
+    ;(range as Range & { getBoundingClientRect?: () => DOMRect }).getBoundingClientRect =
+      () => ({ top: 12, left: 34, width: 5, height: 6 } as DOMRect)
+    range.setStart(els[0].firstChild!, 0)
+    range.setEnd(els[0].firstChild!, 9)
+    stubSelection(range, '他推门而入，   灯还亮着')
+    const sel = readSelectionInRoot(root)
+    expect(sel).not.toBeNull()
+    expect(sel!.text).toBe('他推门而入， 灯还亮着')
+    expect(sel!.rect.top).toBe(12)
+  })
+
+  it('折叠选区 / 纯空白选择 / root 为 null：均返回 null', () => {
+    const { root, els } = buildRoot('夜色沉沉。')
+    const range = document.createRange()
+    range.setStart(els[0].firstChild!, 0)
+    range.setEnd(els[0].firstChild!, 2)
+    stubSelection(range, '夜色', true)
+    expect(readSelectionInRoot(root)).toBeNull()
+    stubSelection(range, '   ')
+    expect(readSelectionInRoot(root)).toBeNull()
+    stubSelection(range, '夜色')
+    expect(readSelectionInRoot(null)).toBeNull()
+  })
+
+  it('跨段落选择：paraOf 归属不一致 → null（划线只在单段落内）', () => {
+    const { root, els } = buildRoot('第一段落。', '第二段落。')
+    const range = document.createRange()
+    range.setStart(els[0].firstChild!, 0)
+    range.setEnd(els[1].firstChild!, 2)
+    stubSelection(range, '第一段落。第二')
+    expect(readSelectionInRoot(root)).toBeNull()
+  })
+
+  it('选区落在滚动根之外：null', () => {
+    const { root, els } = buildRoot('根内段落。')
+    const outside = document.createElement('div')
+    outside.innerHTML = '<p>根外的文字。</p>'
+    document.body.appendChild(outside)
+    const range = document.createRange()
+    range.setStart(outside.querySelector('p')!.firstChild!, 0)
+    range.setEnd(outside.querySelector('p')!.firstChild!, 2)
+    stubSelection(range, '根外')
+    expect(readSelectionInRoot(root)).toBeNull()
+    expect(readSelectionInRoot(els[0])).toBeNull()
   })
 })
