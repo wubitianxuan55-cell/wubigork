@@ -4,7 +4,9 @@
  * 设计概念（遵循 ui-ux-pro-max AI-Native UI 范式 + design-system/gaea 星枢令牌）：
  *   · 左舷主工作台：紧凑 Hero（公告 pill + 标题 + 副标题）+ 中央命令条
  *     （AI 内核 orb / 打字 / 语音 / 发送 / ⌘K）+ 能力矩阵 Bento——
- *     办公为 4×2 旗舰大卡，其余板块 + 编程（独立窗口徽标）+ 设置全部瓦片化；
+ *     办公为 4×2 旗舰大卡，其余板块瓦片化；编程为 span 4×1 宽瓦片
+ *     （横向门廊条形态 + 独立窗口徽标）+ 设置瓦片收尾：
+ *     6 列 8+16+4+2=30 单位 = 5 行整除，末行无空位（v4.52 收整）；
  *     v3 的快捷 chips 与门廊条是同目标二级入口，收敛进 Bento 一级面（零功能删除）；
  *   · 右舷状态栏：内核遥测（模型 / 引擎 / CPU·内存·GPU 三表）+ 写作进度环
  *     + 最近会话 + 记忆脉搏 + 做梦晨报（work 空间）——v3 的状态细条与
@@ -180,14 +182,22 @@ const ChatBubble: React.FC<{ role: 'user' | 'assistant'; text: string }> = ({ ro
   )
 }
 
-/** Bento 瓦片（能力矩阵普通卡：图标 + 名称 + 描述 + 悬浮箭头 + 可选徽标） */
+/**
+ * Bento 瓦片（能力矩阵普通卡：图标 + 名称 + 描述 + 悬浮箭头 + 可选徽标）。
+ * wide=true 时渲染为宽瓦片（span 4×1，ml-bento--wide）：图标 + 名称/描述 +
+ * 徽标 + 箭头横向一行排开（v3 门廊条形态回归，v4.52 收整末行空位）；
+ * 窄档由 CSS（媒体查询内 grid-template-areas 降级）还原纵向两行形态，
+ * DOM 结构不变，role/tabIndex/键盘逻辑两态共用。
+ */
 const BentoCard: React.FC<{
   m: LauncherModule
   idx: number
   onOpen: () => void
   badge?: React.ReactNode
   ariaLabel?: string
-}> = ({ m, idx, onOpen, badge, ariaLabel }) => {
+  /** 宽瓦片（span 4×1 横向门廊条形态）；缺省 = 普通 span 2 纵向瓦片 */
+  wide?: boolean
+}> = ({ m, idx, onOpen, badge, ariaLabel, wide }) => {
   const Icon = resolveBoardIcon(m.icon)
   const t = useT()
   return (
@@ -195,7 +205,7 @@ const BentoCard: React.FC<{
       role="button"
       tabIndex={0}
       aria-label={ariaLabel ?? t('shell.launcher.enterModule', { name: m.name })}
-      className={`ml-bento v3-card is-interactive v3-rise`}
+      className={`ml-bento v3-card is-interactive v3-rise${wide ? ' ml-bento--wide' : ''}`}
       style={{ animationDelay: `${140 + idx * 40}ms` } as React.CSSProperties}
       onClick={onOpen}
       onKeyDown={(e) => {
@@ -206,13 +216,27 @@ const BentoCard: React.FC<{
       }}
     >
       <span className="ml-card-aurora" aria-hidden="true" />
-      <div className="ml-bento-top">
-        <div className="ml-bento-icon">{Icon ? <Icon /> : null}</div>
-        {badge}
-        <ArrowRightOutlined className="ml-bento-arrow" />
-      </div>
-      <div className="ml-bento-name">{m.name}</div>
-      <div className="ml-bento-desc">{m.desc}</div>
+      {wide ? (
+        <>
+          <div className="ml-bento-icon">{Icon ? <Icon /> : null}</div>
+          <div className="ml-bento-wide-body">
+            <div className="ml-bento-name">{m.name}</div>
+            <div className="ml-bento-desc">{m.desc}</div>
+          </div>
+          {badge}
+          <ArrowRightOutlined className="ml-bento-arrow" />
+        </>
+      ) : (
+        <>
+          <div className="ml-bento-top">
+            <div className="ml-bento-icon">{Icon ? <Icon /> : null}</div>
+            {badge}
+            <ArrowRightOutlined className="ml-bento-arrow" />
+          </div>
+          <div className="ml-bento-name">{m.name}</div>
+          <div className="ml-bento-desc">{m.desc}</div>
+        </>
+      )}
     </div>
   )
 }
@@ -264,7 +288,8 @@ const FeaturedCard: React.FC<{
 const ModuleLauncher: React.FC<ModuleLauncherProps> = ({ onNavigate, activeModel, space }) => {
   // ── 板块清单 ──
   const activeBoards = useSyncExternalStore(subscribeBoards, getActiveBoards)
-  // 全量启动器模块（manifest 驱动）；gaea 为旗舰大卡，code/settings 以瓦片编入矩阵尾部
+  // 全量启动器模块（manifest 驱动）；gaea 为旗舰大卡，code 以 span 4×1 宽瓦片、
+  // settings 以瓦片编入矩阵尾部（6 列末行 编程4 + 设置2 恰好填满，v4.52 收整）
   const allModules = deriveLauncherModules(activeBoards, LAUNCHER_DESC)
   const featuredModule = allModules.find((m) => m.key === 'gaea')
   const bentoModules = allModules.filter((m) => m.key !== 'gaea' && m.key !== 'code' && m.key !== 'settings')
@@ -477,7 +502,7 @@ const ModuleLauncher: React.FC<ModuleLauncherProps> = ({ onNavigate, activeModel
             </div>
           </section>
 
-          {/* ═══ 能力矩阵（Bento：办公旗舰 4×2 + 板块/编程/设置瓦片）═══ */}
+          {/* ═══ 能力矩阵（Bento：办公旗舰 4×2 + 板块瓦片 + 编程宽瓦片 + 设置）═══ */}
           <section className="ml-cap" aria-label={t('home.capTitle')}>
             <div className="ml-cap-head v3-rise v3-rise-3">
               <span className="ml-cap-title">{t('home.capTitle')}</span>
@@ -495,6 +520,7 @@ const ModuleLauncher: React.FC<ModuleLauncherProps> = ({ onNavigate, activeModel
                   key={codeModule.key}
                   m={codeModule}
                   idx={bentoModules.length}
+                  wide
                   badge={<span className="ml-bento-badge">{t('shell.rail.independentWindow')}</span>}
                   ariaLabel={t('shell.launcher.progEntry', { name: codeModule.name })}
                   onOpen={() => onNavigate(codeModule.key)}

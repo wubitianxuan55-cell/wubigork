@@ -139,7 +139,7 @@ const ImageGenPage: React.FC = () => {
     } else {
       message.success('已把该图设为参考图，输入修改描述后点击生成')
     }
-  }, [results, backend, resolveResultImage, setMode, setInitImage, setPrompt])
+  }, [results, backend, setMode, setInitImage, setPrompt])
 
   const handleDeleteResult = useCallback((i: number) => {
     const r = results[i]

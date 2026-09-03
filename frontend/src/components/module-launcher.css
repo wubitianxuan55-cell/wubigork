@@ -1,5 +1,6 @@
-/* 首页 ·「星枢港 · 双舷驾驶舱」（v4 重构）
-   左舷 = 紧凑 Hero + 命令条 + 能力矩阵 Bento（板块/编程/设置全瓦片化）；
+/* 首页 ·「星枢港 · 双舷驾驶舱」（v4 重构；v4.52 能力矩阵末行收整）
+   左舷 = 紧凑 Hero + 命令条 + 能力矩阵 Bento（板块瓦片化 + 编程 span 4×1
+   宽瓦片 + 设置瓦片：6 列 8+16+4+2=30 单位 = 5 行整除，末行无空位）；
    右舷 = 内核遥测 + 写作进度环 + 最近会话 + 记忆脉搏 +（work）晨报。
    令牌纪律：零硬编码色值，全部走 --md-sys-* / --gaea-* / --color-* / --v3-*；
    动效只用 transform/opacity，reduced-motion / gaea-raf-degraded 全降级。 */
@@ -353,7 +354,8 @@
 }
 
 /* ════════════════════════════════════════════════════════════════
-   能力矩阵（Bento：办公旗舰 4×2 + 板块/编程/设置瓦片）
+   能力矩阵（Bento：办公旗舰 4×2 + 板块瓦片 + 编程宽瓦片 4×1 + 设置瓦片）
+   6 列单位数：旗舰 8 + 板块×8 16 + 编程 4 + 设置 2 = 30 = 5 行整除。
    ════════════════════════════════════════════════════════════════ */
 .ml-cap {
   display: flex;
@@ -469,6 +471,31 @@
   flex-shrink: 0;
   margin-left: auto;
 }
+
+/* ── 宽瓦片（编程 · span 4 × 1 行，v4.52 收整能力矩阵末行空位）──
+   横向门廊条形态：图标 + 名称/描述 + 独立窗口徽标 + 悬浮箭头一行排开。
+   桌面档（>1180，6 列）单位数核算：旗舰 4×2=8 + 板块瓦片 2×8=16 + 编程 4
+   + 设置 2 = 30 = 5 行整除，末行（编程 4 + 设置 2）恰好填满无空位。
+   窄档降级（grid areas 还原纵向两行，DOM 不变）见下方媒体查询：
+   ≤1180（4 列）span 2 → 4+16+2+2=24=6 行整除；≤640（2 列）span 1 → 12=6 行。 */
+.ml-bento.ml-bento--wide {
+  grid-column: span 4;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  grid-template-areas: 'icon body badge arrow';
+  align-items: center;
+  gap: 8px 14px;
+}
+.ml-bento--wide .ml-bento-icon { grid-area: icon; }
+.ml-bento--wide .ml-bento-wide-body {
+  grid-area: body;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.ml-bento--wide .ml-bento-badge { grid-area: badge; }
+.ml-bento--wide .ml-bento-arrow { grid-area: arrow; }
 
 /* ── 旗舰大卡（办公 · span 4 × 2 行，能力矩阵锚点）── */
 /* 注意：.ml-bento.ml-bento--featured 双类提升特异性（0,2,0），
@@ -880,6 +907,16 @@
     min-height: 160px;
     padding-left: 78px;
   }
+  /* 编程宽瓦片降级：span 回 2（4 列档核算 4+16+2+2=24=6 行整除，无空位；
+     若保持 span 4 则 26 不整除，末行设置右侧会留 2 格空位），
+     形态同步还原纵向两行（图标/徽标/箭头行 + 名称/描述行），与兄弟瓦片一致 */
+  .ml-bento.ml-bento--wide {
+    grid-column: span 2;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      'icon badge arrow'
+      'body body body';
+  }
 }
 
 @media (max-width: 900px) {
@@ -895,6 +932,9 @@
   .ml-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .ml-bento { grid-column: span 1; min-height: 112px; }
   .ml-bento.ml-bento--featured { grid-column: span 2; min-height: 136px; }
+  /* 宽瓦片再降为单瓦片跨度（2 列档核算 2+8+1+1=12=6 行整除，无空位）；
+     grid areas 沿用 ≤1180 两行纵向形态（单列宽度放不下横排一行） */
+  .ml-bento.ml-bento--wide { grid-column: span 1; }
   .ml-featured-name { font-size: 17px; }
   .ml-featured-desc { display: none; }
   .ml-side { grid-template-columns: 1fr; }
@@ -902,6 +942,8 @@
 }
 
 @media (max-width: 480px) {
+  /* 单列档：旗舰/宽瓦片同回 span 1（11 卡纵排恒整除）；
+     宽瓦片 grid areas 沿用 ≤1180 两行纵向形态 */
   .ml-grid { grid-template-columns: 1fr; }
   .ml-bento.ml-bento--featured,
   .ml-bento { grid-column: span 1; }

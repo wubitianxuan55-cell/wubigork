@@ -207,7 +207,7 @@ export function TaskCenter() {
             <CheckCircle size={20} aria-hidden style={{ color: "var(--md-sys-color-success)", opacity: 0.7 }} />
             <span>暂无任务</span>
             <span className="text-[10px]" style={{ color: "var(--md-sys-color-text-secondary)" }}>
-              价格抓取、语义索引等长任务会出现在这里
+              文档转换、批量处理等后台长任务会出现在这里
             </span>
           </div>
         )}

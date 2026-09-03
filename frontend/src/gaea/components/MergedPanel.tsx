@@ -22,7 +22,7 @@ export function MergedPanel({
   return (
     <div className="flex flex-col h-full min-h-0">
       <div className="flex-1 min-h-0">{primary}</div>
-      <div className="shrink-0 min-h-[88px] max-h-[45%] border-t border-border-soft/60 overflow-y-auto">
+      <div className="shrink-0 min-h-[88px] max-h-[45%] border-t border-border-soft overflow-y-auto">
         {secondary}
       </div>
     </div>

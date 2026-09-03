@@ -39,7 +39,6 @@ interface ConsistencyPanelProps {
 const ConsistencyPanel: React.FC<ConsistencyPanelProps> = ({ disabled }) => {
   const [report, setReport] = useState<ConsistencyCheckReport | null>(null)
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
   const [deepResult, setDeepResult] = useState<ConsistencyDeepResult | null>(null)
   const [deepLoading, setDeepLoading] = useState(false)
   const [deepError, setDeepError] = useState('')
@@ -51,18 +50,16 @@ const ConsistencyPanel: React.FC<ConsistencyPanelProps> = ({ disabled }) => {
     if (disabled) {
       setReport(null)
       setLoading(false)
-      setError('')
       return
     }
     setLoading(true)
-    setError('')
     try {
       const res = await App.CheckConsistency()
       if (token !== loadToken.current) return
       setReport(normalizeReport(res))
-    } catch (err: unknown) {
-      if (token !== loadToken.current) return
-      setError(err instanceof Error ? err.message : '一致性检查失败')
+    } catch {
+      // 沿用既有行为：规则层检查失败不展示错误（原 error 状态从未接入任何渲染通道，
+      // 属死状态已移除），面板保持上次报告结果，仅由 deepError 展示 AI 深检失败。
     } finally {
       if (token === loadToken.current) setLoading(false)
     }

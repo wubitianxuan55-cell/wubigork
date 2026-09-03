@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react'
+import React, { useCallback, useState, useEffect, useRef, useMemo } from 'react'
 import {
   Button, message, Modal, Tabs, Tooltip, Popover, Segmented, Slider, Input,
 } from 'antd'
@@ -654,7 +654,9 @@ const ChapterPage: React.FC = () => {
   }, [readMode, readNodeId, annotations])
 
   // ── 朗读/搜索定位高亮：按文本在段落 DOM 中回定位 ──
-  const clearReadingHighlight = (className: string) => {
+  // 三个辅助函数均用 useCallback 稳定身份（仅读 ref / 纯 DOM 操作，无响应式依赖），
+  // 以便作为下方定位 effect 的合法依赖而不导致每帧重跑。
+  const clearReadingHighlight = useCallback((className: string) => {
     const root = readingScrollRef.current
     if (!root) return
     root.querySelectorAll<HTMLElement>(`.${className}`).forEach((el) => {
@@ -664,9 +666,9 @@ const ChapterPage: React.FC = () => {
       parent.removeChild(el)
       parent.normalize()
     })
-  }
+  }, [])
 
-  const textNodesOf = (el: HTMLElement): { node: Text; start: number; end: number }[] => {
+  const textNodesOf = useCallback((el: HTMLElement): { node: Text; start: number; end: number }[] => {
     const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT)
     const out: { node: Text; start: number; end: number }[] = []
     let pos = 0
@@ -678,7 +680,7 @@ const ChapterPage: React.FC = () => {
       n = walker.nextNode()
     }
     return out
-  }
+  }, [])
 
   const applyTextHighlight = (rawText: string, className: string): boolean => {
     const root = readingScrollRef.current
@@ -715,7 +717,8 @@ const ChapterPage: React.FC = () => {
 
   // 搜索命中定位（全文搜索升级）：按后端段落索引 + 段内偏移把该处命中词包进高亮 span，
   // 与 applyTextHighlight（全文首个命中）不同 —— 这里只作用于指定段落内的指定那一处。
-  const highlightSearchHitAt = (paras: HTMLElement[], paraIdx: number, query: string, charOffset: number): boolean => {
+  // 闭包引用 clearReadingHighlight/textNodesOf（均已 useCallback 稳定）与模块级 locateParagraphMatch。
+  const highlightSearchHitAt = useCallback((paras: HTMLElement[], paraIdx: number, query: string, charOffset: number): boolean => {
     const p = paras[paraIdx]
     if (!p || !query) return false
     const start = locateParagraphMatch(p.textContent || '', query, charOffset)
@@ -737,7 +740,7 @@ const ChapterPage: React.FC = () => {
       span.scrollIntoView({ block: 'center', behavior: 'smooth' })
       return true
     } catch { return false }
-  }
+  }, [clearReadingHighlight, textNodesOf])
 
   const handleTtsSentence = (sentence: string) => {
     applyTextHighlight(sentence, 'novel-reading-current')
@@ -817,7 +820,9 @@ const ChapterPage: React.FC = () => {
       if (flashed) window.setTimeout(() => clearReadingHighlight('novel-reading-search-hit'), 2600)
     }, 120)
     return () => window.clearInterval(timer)
-  }, [readMode, readNodeId])
+    // highlightSearchHitAt/clearReadingHighlight 均已 useCallback 稳定，加入依赖仅为满足
+    // exhaustive-deps，effect 实际触发时机仍只由 readMode/readNodeId 变化决定。
+  }, [readMode, readNodeId, highlightSearchHitAt, clearReadingHighlight])
 
   const tabItems: TabsProps['items'] = tabs.map((t) => ({
     key: t.node.id, label: t.node.title,
