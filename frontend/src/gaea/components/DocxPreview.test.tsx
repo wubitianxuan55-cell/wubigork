@@ -134,3 +134,70 @@ describe("DocxPreview B3 次级「引用到对话」入口", () => {
     expect(text).toContain("> 引用我");
   });
 });
+
+describe("DocxPreview Word 目录（大纲导航）", () => {
+  async function headingDocxDataUrl(): Promise<string> {
+    const WXML = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"';
+    const zip = new JSZip();
+    zip.file(
+      "word/document.xml",
+      `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document ${WXML}><w:body>` +
+        `<w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:r><w:t>第一章 项目概述</w:t></w:r></w:p>` +
+        `<w:p><w:r><w:t>正文内容</w:t></w:r></w:p>` +
+        `<w:p><w:pPr><w:pStyle w:val="Heading2"/></w:pPr><w:r><w:t>1.1 目标</w:t></w:r></w:p>` +
+        `</w:body></w:document>`,
+    );
+    zip.file(
+      "word/styles.xml",
+      `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:styles ${WXML}>` +
+        `<w:style w:type="paragraph" w:styleId="Heading1"><w:name w:val="heading 1"/></w:style>` +
+        `<w:style w:type="paragraph" w:styleId="Heading2"><w:name w:val="heading 2"/></w:style>` +
+        `</w:styles>`,
+    );
+    const bytes = await zip.generateAsync({ type: "uint8array" });
+    return bytesToDocxDataUrl(bytes);
+  }
+
+  it("打开目录 → 标题条目可见 → 点击定位到对应标题段落（高亮）", async () => {
+    // 假 renderAsync：把标题版式段落写入渲染容器（与 docx-preview 产物同构：
+    // 样式类 docx_heading1/2 由 styleName 派生）。
+    renderAsyncMock.mockImplementation(async () => {
+      const body = document.querySelector<HTMLElement>(".docx-preview-body");
+      if (body) {
+        body.innerHTML =
+          '<p class="docx_heading1">第一章 项目概述</p><p>正文内容</p><p class="docx_heading2">1.1 目标</p>';
+      }
+    });
+    const dataUrl = await headingDocxDataUrl();
+    render(<DocxPreview dataUrl={dataUrl} fileName="报告.docx" relPath="报告.docx" />);
+
+    fireEvent.click(await screen.findByTestId("docx-outline-toggle"));
+    await waitFor(() => expect(screen.getByTestId("docx-outline-item-0")).toBeTruthy());
+    // 目录条目 + 版式正文各出现一次（正文是渲染容器里的真实标题段落）
+    expect(screen.getAllByText("第一章 项目概述").length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByText("1.1 目标").length).toBeGreaterThanOrEqual(2);
+
+    fireEvent.click(screen.getByTestId("docx-outline-item-1"));
+    const headingEl = document.querySelector(".docx_heading2");
+    expect(headingEl?.classList.contains("docx-outline-flash")).toBe(true);
+    // 点击后仍停留在版式预览，AI 编辑流程不受影响
+    expect(screen.queryByText("AI 编辑选中内容")).toBeNull();
+  });
+
+  it("目录条目的「定位章节修改」把模板插入 composer（不自动发送）", async () => {
+    renderAsyncMock.mockImplementation(async () => {
+      const body = document.querySelector<HTMLElement>(".docx-preview-body");
+      if (body) {
+        body.innerHTML = '<p class="docx_heading1">第一章 项目概述</p>';
+      }
+    });
+    const dataUrl = await headingDocxDataUrl();
+    render(<DocxPreview dataUrl={dataUrl} fileName="立项报告.docx" relPath="立项报告.docx" />);
+
+    fireEvent.click(await screen.findByTestId("docx-outline-toggle"));
+    const editBtn = await screen.findByTestId("docx-outline-edit-0");
+    fireEvent.click(editBtn);
+    const pending = useComposerInsertStore.getState().pendingText ?? "";
+    expect(pending).toContain("请修改 立项报告.docx 中「第一章 项目概述」这一节：");
+  });
+});
