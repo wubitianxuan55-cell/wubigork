@@ -1,6 +1,6 @@
 # 任务进度
 
-> 最后更新: 2026-09-04（子代理 transcript 真机接线 + 本地模型工具同 UI 在途快照；子代理 tab 对齐主代理在途快照；Word 目录侧栏在途快照；better-sidebar pane 化三刀 v4.60.0；i18n二批+落划线+自定义引擎价目 v4.59.0；三线收欠账+搜索重定位修复 v4.58.0；设置中心删四补一 v4.57.0；拆分二批+Herdsman mock+task卡关联 v4.56.0；补测起步+mock补面+label化 v4.55.0；三线收欠账 v4.54.0；办公四点降噪 v4.53.0；首页双舷驾驶舱 v4.52.0；壳层左缘+深链绑定 v4.51.0；造价数据库化繁为简 v4.50.0；青鸟生命周期补全 v4.49.0；青鸟更名+人格选择器 v4.48.0；微信助手星枢化 v4.47.0；小说第二轮 v4.46.0；百炼全量下线 v4.45.0；绘梦专项
+> 最后更新: 2026-09-04（子代理入口收敛两级 + transcript 真机接线/本地模型工具同 UI 在途快照；子代理 tab 对齐主代理在途快照；Word 目录侧栏在途快照；better-sidebar pane 化三刀 v4.60.0；i18n二批+落划线+自定义引擎价目 v4.59.0；三线收欠账+搜索重定位修复 v4.58.0；设置中心删四补一 v4.57.0；拆分二批+Herdsman mock+task卡关联 v4.56.0；补测起步+mock补面+label化 v4.55.0；三线收欠账 v4.54.0；办公四点降噪 v4.53.0；首页双舷驾驶舱 v4.52.0；壳层左缘+深链绑定 v4.51.0；造价数据库化繁为简 v4.50.0；青鸟生命周期补全 v4.49.0；青鸟更名+人格选择器 v4.48.0；微信助手星枢化 v4.47.0；小说第二轮 v4.46.0；百炼全量下线 v4.45.0；绘梦专项
 > v4.44.0 三刀；小说板块 v4.43.0 四刀；微信助手
 > 三刀 v4.39.0-v4.42.0——绑定面 557 零变更）
 
@@ -83,6 +83,25 @@
 - 遗留（如实）：运行中仍是「消息/工具边界级分段刷新」，逐 token 真流式
   需要独立 SubagentDelta 事件通道 + streaming 渲染（P1）；技能子代理
   transcript 首条 user 仍含技能正文（Title 已独立，展示不受影响）。
+
+## 在途快照：子代理入口收敛 task + run_skill 两级（aa57784c，未发版）
+
+- 用户问「子代理是否分类过多且限制能力？Codex/zcode 简单、靠父代理任务消息
+  」→ 核对属实后拍板收敛。真注册的「分类工具」只有 format-convert /
+  chart-builder / doc-assemble 三个顶层包装；explore/research/review/
+  security_review 只是分类/模板残留（无注册点）。
+- **移除**：boot 对 skill.BuiltinSubagentTools 的注册（类型+工厂+相关测试
+  一并删除）；explore/research/review/security_review 从 subagentMetaTools /
+  批次冲突表 / 任务分类增配清单移除；compact 隐藏四分类的死代码删除。
+- **保留为模板/技能**：三办公技能仍在内置 Skills 索引，经 run_skill 或
+  slash_command 按名调用；explore 等四模板前缀仍供同名 runAs=subagent 技能
+  共享 L4 前缀缓存（缓存层，不构成用户可见入口）；per-skill 模型覆盖保留。
+- **提示面收敛**：系统提示「子代理入口只有两级：task + run_skill，任务消息
+  必须自包含」；技能子代理默认仍继承父工具全集（剔除 task/run_skill 防递归
+  + persist-write 护栏不变）；前端能力矩阵去掉三包装工具卡、欢迎页 chips 改
+  run_skill 措辞、mock 去掉 research 幽灵技能。
+- 验证：Go skill/boot/cache/agent/config 与 internal/app 全量绿；vitest 全量
+  211 文件/1535 用例；tsc -b/eslint 0；绑定面 559 零变更。
 
 ## 当前状态
 
