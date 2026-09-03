@@ -2,10 +2,11 @@ import React, { useState } from 'react'
 import {
   CheckOutlined, DesktopOutlined, MoonOutlined, BgColorsOutlined,
   SunOutlined, ThunderboltOutlined, FontSizeOutlined, DashboardOutlined, CompressOutlined,
-  EyeOutlined, SwapOutlined, AimOutlined,
+  EyeOutlined, SwapOutlined, AimOutlined, GlobalOutlined,
 } from '@ant-design/icons'
 import { Button, InputNumber, Select } from 'antd'
 import { useAppStore, THEME_PRESETS, FONT_OPTIONS, type DisplayMode, type ThemePreset, type Density, type MotionPref } from '../../stores/appStore'
+import { useI18n, type LangPref } from '../../gaea/lib/i18n'
 import SettingsSection from './SettingsSection'
 
 // 主题选项：单一数据源 THEME_PRESETS（appStore，3.0 Wave 2 消除与 MainLayout/appStore 色板表三处重复）
@@ -368,6 +369,36 @@ export const AccentPanel: React.FC = () => {
           <Button size="small" onClick={() => setAccentColor('')} style={{ flexShrink: 0 }}>跟随主题</Button>
         )}
       </div>
+    </SettingsSection>
+  )
+}
+
+/** LanguagePanel — 界面语言：跟随系统 / 简体中文 / 繁體中文 / English
+ *  i18n 三语字典与 setPref 早已就绪，此处是首个切换入口；偏好存 localStorage（gaea-lang），
+ *  即时生效、整树重渲染。各板块面板文案仍以中文为主，故如实注明覆盖范围。 */
+const LOCALE_LABELS: Record<Exclude<LangPref, ''>, string> = { zh: '简体中文', 'zh-TW': '繁體中文', en: 'English' }
+
+export const LanguagePanel: React.FC = () => {
+  const { pref, setPref, locale } = useI18n()
+  return (
+    <SettingsSection
+      icon={<span style={{ fontSize: 15 }}><GlobalOutlined /></span>}
+      title="界面语言"
+      desc={`桌面壳层文案语言，即时生效（当前检测：${LOCALE_LABELS[locale]}）；各板块面板暂以中文为主。`}
+      instant
+    >
+      <Select
+        value={pref === '' ? 'auto' : pref}
+        onChange={(v) => setPref(v === 'auto' ? '' : (v as Exclude<LangPref, ''>))}
+        style={{ width: 260 }}
+        aria-label="界面语言"
+        options={[
+          { value: 'auto', label: `跟随系统（当前 ${LOCALE_LABELS[locale]}）` },
+          { value: 'zh', label: '简体中文' },
+          { value: 'zh-TW', label: '繁體中文' },
+          { value: 'en', label: 'English' },
+        ]}
+      />
     </SettingsSection>
   )
 }

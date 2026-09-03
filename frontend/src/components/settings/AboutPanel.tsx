@@ -59,15 +59,12 @@ const AboutPanel: React.FC = () => {
 
       <SettingsSection
         icon={<span style={{ fontSize: 15 }}><FolderOutlined /></span>}
-        title="系统信息"
-        desc="当前引擎、API 与凭证存储路径。"
+        title="存储路径"
+        desc="凭证与图片的本地存储位置；引擎 / API 地址等运行态信息见「模型」分组与模型中心。"
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
           {[
-            { label: '引擎', value: config.model || '-' },
-            { label: 'API 地址', value: config.baseURL || '-' },
             { label: 'Token 存储', value: config.tokenPath || '-' },
-            { label: '推理强度', value: config.reasoning_effort || '-' },
             { label: '图片保存目录', value: config.image_save_dir || '未配置' },
           ].map((row) => (
             <div key={row.label} style={{

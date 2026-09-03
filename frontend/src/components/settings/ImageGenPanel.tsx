@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react'
-import { Button, Input, Select, Tag, Typography, message } from 'antd'
-import { PictureOutlined, SaveOutlined, ThunderboltOutlined } from '@ant-design/icons'
+import { Button, Input, Select, Typography, message } from 'antd'
+import { SaveOutlined, ThunderboltOutlined } from '@ant-design/icons'
 import { getImageBackendInfo, setImageBackend } from '../../api/settings'
 import { getEngines } from '../../api/engines'
 import SettingsSection from './SettingsSection'
@@ -30,6 +30,9 @@ const ImageGenPanel: React.FC = () => {
       const info = await getImageBackendInfo()
       if (info?.backend) setBackend(info.backend)
       if (info?.model) setModel(info.model)
+      // 已存地址/目录一并回填：否则 comfyui 后端下直接保存会把 URL 清空
+      if (info?.comfyui_url) setComfyURL(info.comfyui_url)
+      if (info?.image_save_dir) setSaveDir(info.image_save_dir)
       const es = await getEngines()
       // 引擎本地/云端属性决定标签（此前一律标「本地引擎」，云端引擎被误标）；
       // 固定后端（xai/comfyui）已在 BUILTIN_BACKENDS 呈现，引擎列表过滤掉以免
@@ -59,20 +62,9 @@ const ImageGenPanel: React.FC = () => {
   return (
     <>
       <SettingsSection
-        title={<>当前绘梦后端</>}
-        desc="AI 图像生成所使用的引擎与模型。"
-        instant
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <PictureOutlined style={{ fontSize: 18, color: 'var(--gaea-glow)', filter: 'drop-shadow(0 0 6px var(--gaea-glow))' }} />
-          <Tag style={{ fontSize: 12, margin: 0 }} color="blue">{backend || '-'}</Tag>
-          <Typography.Text style={{ fontSize: 13, color: 'var(--md-sys-color-text)' }}>{model || '未配置模型'}</Typography.Text>
-        </div>
-      </SettingsSection>
-
-      <SettingsSection
         title={<>后端配置</>}
-        desc="选择图像生成后端：云端 xAI 或本地 ComfyUI / 已启用的模型引擎。"
+        desc="选择图像生成后端：云端 xAI 或本地 ComfyUI / 已启用的模型引擎；当前生效值已回填到下方。"
+        instant
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           <Select

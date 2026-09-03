@@ -89,6 +89,7 @@ gaea/
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| **v4.57.0** | 2026-09-03 | 设置中心化繁为简（绑定面 559 零变更）：删四——绘梦纯展示卡（与下拉重复）、小说角色剧照零交互卡（并入存储目录 desc）、关于「系统信息」收成「存储路径」（去与模型分组重复三行）、api/settings.ts 七个零消费死导出；增一——通用分组「界面语言」切换（跟随系统/简体/繁體/English，i18n setPref 首个入口，即时生效）；修一坑——ImageGenPanel 补 comfyui_url/image_save_dir 回填防已存配置被清空；vitest 197/1393 |
 | **v4.56.0** | 2026-09-03 | 继续完善三线并行（绑定面 559 零变更）：ChapterPage 拆分第二批搬移（累计净减 ~111 行 +14 用例）；dev mock 补 Herdsman 七方法（引擎管理错误横幅消除，契约 5 用例）；并行 task 卡 provider 升级 (ref,args)+matchRunningRun 唯一命中关联（+13 用例，宁缺勿错）；收口补 GetModelCallStats 空聚合（统计横幅消除） |
 | **v4.55.0** | 2026-09-03 | 继续完善三线并行（绑定面 559 零变更）：ChapterPage 拆分补测第一步（阅读高亮三函数抽 chapter/readingHighlight.ts + 首个测试文件 15 用例）；dev mock 补 Get/SetEngineFailover + engines.ts 浏览器回退（调度三开关 mock 下全点亮）；failover toast 文案 engineLabel 化（三级回退）；右舷虚线交叠 DOM 核实证伪销账 |
 | **v4.54.0** | 2026-09-03 | 继续完善三线并行收欠账（绑定面 559 零变更）：办公面板任务中心空态文案纠偏+产物/变更分隔线加深；首页矩阵「编程」升格 span 4×1 宽瓦片收末行空位（四响应档整除核算入蓝图）；eslint 三 warning 清零（全量首次 0/0，ChapterPage 链式 useCallback 稳定化）；judge 视觉验收 2/2 pass |

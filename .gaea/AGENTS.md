@@ -5,7 +5,20 @@
 
 ## 版本状态（顶部速览）
 
-- **最新：v4.56.0（2026-09-03）继续完善：拆分第二步 · mock 补 Herdsman 族 ·
+- **最新：v4.57.0（2026-09-03）设置中心化繁为简：删四补一 · 界面语言入口**——
+  用户点名刀。删四（全部 grep 核真伪、零功能损失）：绘梦「当前绘梦后端」纯
+  展示卡（与下拉信息完全重复）；小说「角色剧照」零交互说明卡（一行并入存储
+  目录 desc）；关于「系统信息」收成「存储路径」（引擎/API/推理强度三行与模型
+  分组及模型中心重复）；api/settings.ts 七个零消费死导出（TTS 五兄弟+
+  migrateProjectToV4+voiceHealth）。增一：通用分组「界面语言」切换（跟随系统/
+  简体/繁體/English）——i18n 三语字典与 setPref 早已就绪、全应用无入口的实锤
+  缺口；即时生效整树重渲染，desc 如实注明「各板块面板暂以中文为主」。修一坑：
+  ImageGenPanel 补 comfyui_url/image_save_dir 回填（此前 comfyui 后端直接保存
+  会清空已存 URL）。559 零变更；vitest 197/1393。**IAB 走查注记：antd 下拉
+  鼠标点击不开、键盘 ArrowDown 可开（自动化环境怪癖非产品缺陷）；选项经
+  React onClick 派发验证双向切换（导航整树切换+localStorage 三方核对）**。
+  详见 `releases/v4.57.0.md`。
+- **此前：v4.56.0（2026-09-03）继续完善：拆分第二步 · mock 补 Herdsman 族 ·
   并行 task 卡关联**——三线并行子代理：A ChapterPage 拆分第二批
   （applyTextHighlight/paraOf/textAtScrollTop 搬 chapter/readingHighlight.ts，
   累计净减 ~111 行；ref 包装保留=可简化≠应简化）；B mock 补 Herdsman 七方法

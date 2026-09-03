@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
-import { Button, Input, message, Space, Typography } from 'antd'
-import { FileMarkdownOutlined, FolderOpenOutlined, PictureOutlined, SaveOutlined } from '@ant-design/icons'
+import { Button, Input, message, Space } from 'antd'
+import { FileMarkdownOutlined, FolderOpenOutlined, SaveOutlined } from '@ant-design/icons'
 import { useAppStore } from '../../stores/appStore'
 import SkillModal from '../SkillModal'
 import SettingsSection from './SettingsSection'
@@ -29,7 +29,7 @@ const WorkspacePanel: React.FC = () => {
     <>
       <SettingsSection
         title={<>小说存储目录</>}
-        desc="所有小说项目的书架根目录。修改后书架将刷新到新路径，当前打开的项目会自动关闭。"
+        desc="所有小说项目的书架根目录。修改后书架将刷新到新路径，当前打开的项目会自动关闭；角色剧照（AI 生成）自动存到各项目的 portraits/ 子目录，跟随此目录，无需单独配置。"
       >
         <Space.Compact style={{ width: '100%' }}>
           <Input
@@ -53,25 +53,6 @@ const WorkspacePanel: React.FC = () => {
           >保存</Button>
         </Space.Compact>
       </SettingsSection>
-
-      {/* 角色剧照：跟随项目存储，无需配置 */}
-      <SettingsSection
-        title={<>角色剧照</>}
-        desc="角色剧照（AI 生成）自动保存到各小说项目的 portraits/ 子目录，跟随小说目录，无需单独配置。"
-      >
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', borderRadius: 10,
-          background: 'var(--md-sys-color-surface-container)', border: '1px solid var(--md-sys-color-outline-variant)',
-        }}>
-          <PictureOutlined style={{ color: 'var(--md-sys-color-primary)' }} />
-          <Typography.Text style={{ color: 'var(--md-sys-color-text-secondary)', fontSize: 12 }}>
-            生成位置：{wsDir || 'C:\\AI\\xiaoshuo'}\{'{项目名}'}\portraits\
-          </Typography.Text>
-        </div>
-      </SettingsSection>
-
-
-      
 
       <SettingsSection
         title={<>写作风格 (Skill)</>}

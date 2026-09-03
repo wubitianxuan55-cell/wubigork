@@ -3,7 +3,6 @@
  * 封装所有后端设置调用，消除 (window as any) 和 @ts-ignore
  */
 
-import type { TTSConfig, TTSStatus } from '../types'
 import * as App from '../../src/wailsjsCompat'
 
 export interface BackendInfo {
@@ -39,51 +38,10 @@ export async function setImageBackend(backend: string, url: string, model: strin
   await App.SetImageBackend(backend, url, model, saveDir)
 }
 
-/** 获取 TTS 配置 */
-export async function getTTSConfig(): Promise<TTSConfig> {
-  const cfg = await App.GetTTSConfig()
-  return cfg as unknown as TTSConfig
-}
-
-/** 获取 TTS 状态 */
-export async function getTTSStatus(): Promise<TTSStatus> {
-  const status = await App.GetTTSStatus()
-  return status as unknown as TTSStatus
-}
-
-/** 保存 TTS 配置 */
-export async function saveTTSConfig(
-  modelPath: string, serverPath: string, port: number, backend: string, speed: number,
-): Promise<void> {
-  await App.SaveTTSConfig(modelPath, serverPath, port, backend, speed)
-}
-
-/** 启动 TTS 服务 */
-export async function startTTSServer(modelPath: string, port: number, backend: string): Promise<void> {
-  await App.StartTTSServer(modelPath, port, backend)
-}
-
-/** 停止 TTS 服务 */
-export async function stopTTSServer(): Promise<void> {
-  await App.StopTTSServer()
-}
-
-
-/** 迁移项目到 v4 */
-export async function migrateProjectToV4(): Promise<void> {
-  await App.MigrateProjectToV4()
-}
-
-/** 获取当前激活的 AI 模型名 */
+/** 获取图片后端信息 */
 export async function getActiveModel(): Promise<string> {
   const m = await App.GetActiveModel()
   return (m as string) || ''
-}
-
-/** 获取语音服务健康状态 */
-export async function voiceHealth(): Promise<Record<string, unknown>> {
-  const h = await App.VoiceHealth?.()
-  return h || { asrReady: false, ttsReady: false }
 }
 
 /** 获取语音设置 */

@@ -25,7 +25,7 @@ beforeEach(() => {
 })
 
 describe('SettingsPage 按功能板块组织', () => {
-  it('渲染七个功能分组导航', () => {
+  it('渲染九个功能分组导航', () => {
     render(wrap(<SettingsPage />))
     for (const label of ['通用', '聊天', '小说', '绘梦', '办公', '模型', '安全', '数据', '关于']) {
       expect(screen.getByRole('button', { name: new RegExp(label) })).toBeTruthy()
@@ -37,6 +37,12 @@ describe('SettingsPage 按功能板块组织', () => {
     expect(screen.getByText('外观实时预览')).toBeTruthy()
   })
 
+  it('通用分组含界面语言切换', () => {
+    render(wrap(<SettingsPage />))
+    expect(screen.getByText('界面语言')).toBeTruthy()
+    expect(screen.getAllByText(/跟随系统（当前 简体中文）/).length).toBeGreaterThan(0)
+  })
+
   it('搜索可过滤分组并自动切换到匹配项', async () => {
     render(wrap(<SettingsPage />))
     fireEvent.change(screen.getByPlaceholderText(/搜索设置项/), { target: { value: '推理强度' } })
@@ -45,10 +51,10 @@ describe('SettingsPage 按功能板块组织', () => {
     expect(await screen.findByText('当前模型')).toBeTruthy()
   })
 
-  it('点击关于分组展示系统信息与更新日志', async () => {
+  it('点击关于分组展示存储路径与更新日志', async () => {
     render(wrap(<SettingsPage />))
     fireEvent.click(screen.getByRole('button', { name: /关于/ }))
-    expect(await screen.findByText('系统信息')).toBeTruthy()
+    expect(await screen.findByText('存储路径')).toBeTruthy()
     expect(screen.getByText('更新日志')).toBeTruthy()
   })
 })
