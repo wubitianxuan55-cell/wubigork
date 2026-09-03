@@ -51,8 +51,10 @@ function TaskLiveRow({ item }: { item: ToolItem }) {
   // 恢复历史会话时 running 一律还原为 stopped，不会进入本行）。
   const startRef = useRef(Date.now());
   const ref = useMemo(() => resolveTaskRef(item.args, item.output), [item.args, item.output]);
-  // 1s tick 内取值：App 层轮询更新 provider 数据后最迟 1s 上屏
-  const activity = getTaskCardActivity(ref);
+  // 1s tick 内取值：App 层轮询更新 provider 数据后最迟 1s 上屏。
+  // args 原样透传：派发初期 ref 为空串时，App 侧 provider 可用 args 里的
+  // 任务描述文本与并行各 run.task 做唯一命中匹配（taskActivity 契约）。
+  const activity = getTaskCardActivity(ref, item.args);
   // 未注入活动数据源（null）：按现状渲染（v4.26 之前没有这一行）
   if (!hasTaskCardActivityProvider()) return null;
   const elapsed = formatElapsed(Math.max(0, now - Math.floor(startRef.current / 1000)));

@@ -69,7 +69,7 @@ import { openEditorTab } from "./lib/editorTabs";
 import { parseSidebarOpenResult } from "./lib/sidebarOpen";
 import { setEventSyncFetcher } from "./lib/eventSync";
 import { shouldAutoOpenBrowser } from "./lib/browserPrefs";
-import { setTaskCardActivityProvider } from "./lib/taskActivity";
+import { matchRunningRun, setTaskCardActivityProvider } from "./lib/taskActivity";
 import { classifyComposerCommand } from "./lib/command";
 import { rankPaletteItems } from "./lib/paletteRank";
 import {
@@ -865,11 +865,14 @@ export default function App() {
     return () => setEventSyncFetcher(null);
   }, []);
   // ② 子代理 task 卡 live 预览——运行期间 5s 轮询 GaeaSubagentRuns 喂
-  //    taskActivity 注入点；派发期 args 不带 ref（ref 只在 tool_result 出现），
-  //    空 ref 回退「唯一 running 分工」（taskActivity 头注释契约）。
+  //    taskActivity 注入点；派发期 args 不带 ref（ref 只在 tool_result 出现）。
+  //    空 ref 回退：单个 running 直接绑定（原逻辑不变）；并行多个 running 时
+  //    用 ToolCard 透传的 args 任务描述文本与各 run.task 做唯一命中匹配——
+  //    0 或 ≥2 命中都返回 undefined（宁缺勿错，绝不把别的子代理动态安到
+  //    错误卡片上）（taskActivity 头注释契约）。
   const subRunsCacheRef = useRef<SubagentRunView[]>([]);
   useEffect(() => {
-    setTaskCardActivityProvider((ref) => {
+    setTaskCardActivityProvider((ref, args) => {
       const runs = subRunsCacheRef.current;
       const pick = (r: SubagentRunView) =>
         r ? { lastText: r.lastText, lastTool: r.lastTool, state: r.status } : undefined;
@@ -878,7 +881,12 @@ export default function App() {
         return hit ? pick(hit) : undefined;
       }
       const runningRuns = runs.filter((r) => r.status === "running");
-      return runningRuns.length === 1 ? pick(runningRuns[0]) : undefined;
+      if (runningRuns.length !== 1) {
+        // 并行多子代理同时 running：文本唯一命中才绑定，其余情形维持现状（undefined）
+        const m = matchRunningRun(args, runningRuns);
+        return m ? pick(m) : undefined;
+      }
+      return pick(runningRuns[0]);
     });
     return () => setTaskCardActivityProvider(null);
   }, []);

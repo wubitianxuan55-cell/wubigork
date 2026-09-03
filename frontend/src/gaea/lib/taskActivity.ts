@@ -8,7 +8,7 @@
 // How：渲染层与数据层解耦——本模块只持有一个 provider 槽位。主代理在 App
 // 层把 AgentNetwork/SubagentRuns 轮询数据接进来：
 //
-//   setTaskCardActivityProvider((ref) => {
+//   setTaskCardActivityProvider((ref, args) => {
 //     const run = runsView.runs.find(r => r.ref === ref);
 //     return run ? { lastText: run.lastText, lastTool: run.lastTool, state: run.status } : undefined;
 //   });
@@ -16,8 +16,13 @@
 // 契约：
 //  - fn 入参 ref：task 卡能解析到的子代理引用（sa_...；来自 args.continue_from
 //    或 tool_result 的 "Subagent reference: sa_..." 行）。派发初期解析不到时
-//    传空串 ""——provider 可自行回退（如返回当前唯一 running 分工的动态），
-//    返回 undefined 则卡片按现状渲染，绝不因此报错。
+//    传空串 ""——provider 可自行回退：单个 running 分工直接回退；并行多个
+//    running 时用第二参 args 的任务描述文本经 matchRunningRun 做唯一命中
+//    匹配（0 或 ≥2 命中必须放弃，宁缺勿错）。返回 undefined 则卡片按现状
+//    渲染，绝不因此报错。
+//  - fn 入参 args（可选）：task 工具卡原始 args（JSON 字符串原样透传，形状
+//    不做保证）。仅空 ref 回退匹配时消费；旧 provider 只声明 ref 一参即可，
+//    多余实参被忽略，向后兼容。
 //  - setTaskCardActivityProvider(null)：卸载注入（App 卸载/会话切换时调用），
 //    卡片回退到默认渲染。
 //  - 卡片侧以 1s tick（useNow）轮询取值，provider 内部数据更新后最迟 1s 上屏。
@@ -32,8 +37,16 @@ export interface TaskCardActivity {
   state?: string;
 }
 
-/** provider 签名：按子代理 ref 查活动动态；查不到返回 undefined。 */
-export type TaskCardActivityProvider = (ref: string) => TaskCardActivity | undefined;
+/**
+ * provider 签名：按子代理 ref 查活动动态；查不到返回 undefined。
+ * 第二参 args（可选）为 task 卡原始 args，仅空 ref 回退匹配时消费——
+ * 旧 provider 只声明 `(ref) => …` 即可：少参函数可赋给多参函数类型，
+ * 运行期多余实参也被忽略，签名升级向后兼容。
+ */
+export type TaskCardActivityProvider = (
+  ref: string,
+  args?: unknown,
+) => TaskCardActivity | undefined;
 
 let provider: TaskCardActivityProvider | null = null;
 
@@ -42,11 +55,11 @@ export function setTaskCardActivityProvider(fn: TaskCardActivityProvider | null)
   provider = typeof fn === "function" ? fn : null;
 }
 
-/** 卡片侧取数：未注入或 provider 抛错时返回 undefined（渲染不炸）。 */
-export function getTaskCardActivity(ref: string): TaskCardActivity | undefined {
+/** 卡片侧取数：未注入或 provider 抛错时返回 undefined（渲染不炸）。args 原样透传。 */
+export function getTaskCardActivity(ref: string, args?: unknown): TaskCardActivity | undefined {
   if (!provider) return undefined;
   try {
-    return provider(ref);
+    return provider(ref, args);
   } catch {
     return undefined;
   }
@@ -90,4 +103,67 @@ export function taskResultSummary(output?: string, error?: string): string {
     return t.length > 80 ? `${t.slice(0, 80)}…` : t;
   }
   return "";
+}
+
+// ── matchRunningRun：空 ref 并行多 running 时的文本匹配（宁缺勿错）──────
+// Why：task 派发初期 args 不带 ref、output 未回，task 卡拿不到子代理引用；
+// 单个 running 可整卡回退，但并行多子代理同时 running 时无法靠数量判定——
+// 只能用 args 里的任务描述文本与各 run.task 做归一化匹配，唯一命中才绑定。
+// 结构化最小接口：不 import types.ts，App 侧 SubagentRunView 天然满足；
+// 泛型 T 保住入参数组元素的具体类型，调用方拿回的仍是 SubagentRunView。
+export interface SubagentRunLike {
+  ref?: string;
+  status?: string;
+  /** 任务摘要（transcript 首条 user 消息）；空/缺失的 run 跳过不参与匹配。 */
+  task?: string;
+}
+
+// taskDescOf 从 task 工具卡的 args 里取任务描述文本（description 优先，
+// prompt 回退——与 lib/tools.ts subjectOf 对 task 的取法同源）。args 可能是
+// 原始 JSON 字符串（ToolCard item.args 原样透传）或已解析对象；任何形状
+// 异常都返回空串（匹配自然放弃，不炸）。
+function taskDescOf(args: unknown): string {
+  let a: unknown = args;
+  if (typeof a === "string") {
+    try {
+      a = JSON.parse(a);
+    } catch {
+      return "";
+    }
+  }
+  if (!a || typeof a !== "object") return "";
+  const o = a as Record<string, unknown>;
+  for (const key of ["description", "prompt"]) {
+    const v = o[key];
+    if (typeof v === "string" && v.trim()) return v.trim();
+  }
+  return "";
+}
+
+/**
+ * matchRunningRun：args 任务描述 ↔ run.task 归一化（trim）双向包含匹配。
+ * Why 只有 trim：派发双方都以中文任务描述为主，大小写折叠收益极小反而
+ * 扩大误配面；「前缀命中」是「包含命中」的子集，统一用双向 contains 判定。
+ * 命中语义：desc 包含 run.task 或 run.task 包含 desc 任一成立（覆盖模型
+ * 短摘要 vs transcript 长首条消息两个方向）。
+ * 返回：恰好一个 running run 命中 → 该 run；0 或 ≥2 命中、args 无描述
+ * 文本 → null（宁缺勿错：绝不把别的子代理动态安到错误卡片上）。
+ */
+export function matchRunningRun<T extends SubagentRunLike>(
+  args: unknown,
+  runs: readonly T[],
+): T | null {
+  const desc = taskDescOf(args);
+  if (!desc) return null;
+  let hit: T | null = null;
+  for (const r of runs) {
+    if (r.status !== "running") continue;
+    const t = typeof r.task === "string" ? r.task.trim() : "";
+    if (!t) continue;
+    if (t.includes(desc) || desc.includes(t)) {
+      if (hit) return null; // 第二个命中即歧义：立即放弃
+      hit = r;
+    }
+  }
+  return hit;
 }

@@ -1,3 +1,18 @@
+## v4.56.0 · 继续完善：拆分第二步 · mock 补 Herdsman 族 · 并行 task 卡关联（2026-09-03）
+> 欠账池三线并行子代理（task 卡空 ref 欠账先 grep 核实为真）。**绑定面 559
+> 零变更**。详见 releases/v4.56.0.md。
+- **A 线**：ChapterPage 拆分第二步——applyTextHighlight/paraOf/textAtScrollTop
+  搬 chapter/readingHighlight.ts（累计净减 ~111 行），ref 包装保留论证
+  「可简化≠应简化」（3.6s 定时器窗口旧闭包误高亮）；+14 用例。
+- **B 线**：mock 补 Herdsman 七方法（中性空态 + 生命周期诚实 ok:false），
+  引擎管理「模型目录不可用/运行中不可用」横幅消除；契约 5 用例。
+- **C 线**：task 卡 provider 升级 `(ref, args?)`，matchRunningRun 纯函数——
+  并行多 running 时 args↔run.task 唯一命中才绑定，0/≥2 命中宁缺勿错；
+  +13 用例，签名向后兼容。
+- **收口**：主代理补 mock GetModelCallStats 空聚合（统计段横幅消除）。
+- 验证：go 全绿、tsc -b 0、eslint 0/0、vitest 197/1392、drift PASS（559）、
+  ?mock=1 走查无报错横幅。
+
 ## v4.55.0 · 继续完善：拆分补测起步 · mock 补面 · failover 文案 label 化（2026-09-03）
 > 欠账池三线并行子代理 + 一条欠账 DOM 核实销账。**绑定面 559 零变更**。
 > 详见 releases/v4.55.0.md。

@@ -5,7 +5,17 @@
 
 ## 版本状态（顶部速览）
 
-- **最新：v4.55.0（2026-09-03）继续完善：拆分补测起步 · mock 补面 · failover
+- **最新：v4.56.0（2026-09-03）继续完善：拆分第二步 · mock 补 Herdsman 族 ·
+  并行 task 卡关联**——三线并行子代理：A ChapterPage 拆分第二批
+  （applyTextHighlight/paraOf/textAtScrollTop 搬 chapter/readingHighlight.ts，
+  累计净减 ~111 行；ref 包装保留=可简化≠应简化）；B mock 补 Herdsman 七方法
+  （中性空态+生命周期诚实 ok:false，引擎管理横幅消除）；C task 卡 provider
+  升级 (ref,args)+matchRunningRun 唯一命中关联（宁缺勿错）。收口：主代理补
+  GetModelCallStats 空聚合（统计横幅消除）。559 零变更；vitest 197/1392。
+  **新欠账：wailsjsCompat 生成物消费族浏览器 mock 缺口（ResourceMonitor 等，
+  建议独立刀）；GaeaBenchmark* 五方法未 mock；同章重复点搜索命中不重定位
+  （疑似既有缺陷）**。详见 `releases/v4.56.0.md`。
+- **此前：v4.55.0（2026-09-03）继续完善：拆分补测起步 · mock 补面 · failover
   文案 label 化**——三线并行子代理：A ChapterPage 首次拥有测试（阅读高亮三
   函数搬 chapter/readingHighlight.ts 净-49 行 + 15 用例）；B dev mock 补
   Get/SetEngineFailover（state+契约 4 用例；收口补 engines.ts App() 浏览器

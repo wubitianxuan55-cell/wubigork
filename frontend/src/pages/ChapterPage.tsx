@@ -40,7 +40,10 @@ import {
   type NovelSearchHitData,
 } from './chapter/novelSearchUtils'
 import {
-  textNodesOf, clearReadingHighlight, highlightSearchHitAt,
+  paraOf, clearReadingHighlight, highlightSearchHitAt, textAtScrollTop,
+  // applyTextHighlight 主体已抽为模块级纯 DOM 工具（恒定身份），别名导入；
+  // 组件内保留同名薄包装绑定滚动根与 readMode，流式调用入口不变。
+  applyTextHighlight as highlightFirstMatch,
 } from './chapter/readingHighlight'
 import ExportPanel from '../components/novel/ExportPanel'
 import { ChapterIllustration } from './chapter/ChapterIllustration'
@@ -363,16 +366,6 @@ const ChapterPage: React.FC = () => {
     writeBookmarks(projectPath, list)
   }
 
-  const textAtScrollTop = (el: HTMLDivElement, scrollTop: number): string => {
-    const paras = el.querySelectorAll<HTMLElement>('.novel-reading-p')
-    let best: HTMLElement | null = null
-    for (const p of Array.from(paras)) {
-      if (p.offsetTop <= scrollTop + 48) best = p
-      else break
-    }
-    return (best?.textContent || '').trim().slice(0, 48)
-  }
-
   const toggleBookmark = () => {
     const el = readingScrollRef.current
     if (!el || !activeTab) return
@@ -450,12 +443,6 @@ const ChapterPage: React.FC = () => {
   const persistAnnotations = (list: ReadingAnnotation[]) => {
     setAnnotations(list)
     writeAnnotations(projectPath, list)
-  }
-
-  const paraOf = (node: Node): HTMLElement | null => {
-    let el: HTMLElement | null = node instanceof HTMLElement ? node : node.parentElement
-    while (el && !el.classList.contains('novel-reading-p')) el = el.parentElement
-    return el
   }
 
   const addHighlight = (color: AnnotationColor, withNote: boolean, textOverride?: string) => {
@@ -657,39 +644,14 @@ const ChapterPage: React.FC = () => {
   }, [readMode, readNodeId, annotations])
 
   // ── 朗读/搜索定位高亮：按文本在段落 DOM 中回定位 ──
-  // textNodesOf/clearReadingHighlight/highlightSearchHitAt 已抽为
-  // chapter/readingHighlight 模块级纯 DOM 工具（滚动根经参数传入，无组件状态依赖）；
-  // 模块导入身份天然恒定，无需再 useCallback 包装即可安全用于下方定位 effect 的依赖。
-  const applyTextHighlight = (rawText: string, className: string): boolean => {
-    const root = readingScrollRef.current
-    if (!root || !readMode) return false
-    const target = rawText.trim()
-    if (!target) return false
-    clearReadingHighlight(root, className)
-    const paras = Array.from(root.querySelectorAll<HTMLElement>('.novel-reading-p'))
-    for (const p of paras) {
-      const full = p.textContent ?? ''
-      const idx = full.indexOf(target)
-      if (idx === -1) continue
-      const nodes = textNodesOf(p)
-      const endAt = idx + target.length
-      const startHolder = nodes.find((t) => idx < t.end)
-      const endHolder = nodes.find((t) => endAt <= t.end)
-      if (!startHolder || !endHolder) break
-      try {
-        const range = document.createRange()
-        range.setStart(startHolder.node, Math.max(0, idx - startHolder.start))
-        range.setEnd(endHolder.node, endAt - endHolder.start)
-        const span = document.createElement('span')
-        span.className = className
-        span.appendChild(range.extractContents())
-        range.insertNode(span)
-        span.scrollIntoView({ block: 'center', behavior: 'smooth' })
-        return true
-      } catch { /* ignore */ }
-    }
-    return false
-  }
+  // 高亮主体（textNodesOf/clearReadingHighlight/highlightSearchHitAt/applyTextHighlight）
+  // 均已抽为 chapter/readingHighlight 模块级纯 DOM 工具（滚动根与 readMode 经参数传入，
+  // 无组件状态依赖），模块导入身份天然恒定。此处薄包装沿用原闭包的读取时机——调用时
+  // 才取滚动根 ref 与最新 readMode；并继续走 ref 供流式调用（TTS 逐句 / 搜索定位 effect）
+  // 持恒定入口：若在 effect 里直接传捕获值，readMode 变化后的重渲染与 effect 清理之间存在
+  // 定时器已触发但旧闭包仍存活的微小窗口，ref 每渲染同步可彻底消除该差异。
+  const applyTextHighlight = (rawText: string, className: string): boolean =>
+    highlightFirstMatch(readingScrollRef.current, readMode, rawText, className)
   const applyTextHighlightRef = useRef(applyTextHighlight)
   applyTextHighlightRef.current = applyTextHighlight
 

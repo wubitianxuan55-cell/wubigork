@@ -1,9 +1,14 @@
-// readingHighlight.test.ts — 阅读页「朗读/搜索定位高亮」纯 DOM 工具测试。
+// readingHighlight.test.ts — 阅读页「朗读/搜索定位高亮 + 划线」纯 DOM 工具测试。
 // 用 jsdom 造 .novel-reading-p 段落结构，锁 textNodesOf 收集行为、
-// highlightSearchHitAt 命中/未命中返回值与高亮 DOM 副作用、clearReadingHighlight 清理。
+// highlightSearchHitAt 命中/未命中返回值与高亮 DOM 副作用、clearReadingHighlight 清理，
+// 以及自 ChapterPage 第二批搬入的 applyTextHighlight（全文首个命中）、paraOf（段落归属）、
+// textAtScrollTop（书签摘录，offsetTop 用 defineProperty 打桩——jsdom 恒为 0）。
 // scrollIntoView 由 src/test/setup.ts 的全局 polyfill 兜底（jsdom 未实现）。
 import { afterEach, describe, expect, it } from 'vitest'
-import { clearReadingHighlight, highlightSearchHitAt, textNodesOf } from './readingHighlight'
+import {
+  applyTextHighlight, clearReadingHighlight, highlightSearchHitAt, paraOf,
+  textAtScrollTop, textNodesOf,
+} from './readingHighlight'
 
 /** 造一个滚动根，每段包成 .novel-reading-p（模拟阅读列 DOM），返回根与段落列表 */
 function buildRoot(...paras: string[]): { root: HTMLElement; els: HTMLElement[] } {
@@ -12,6 +17,11 @@ function buildRoot(...paras: string[]): { root: HTMLElement; els: HTMLElement[] 
   document.body.appendChild(root)
   const els = Array.from(root.querySelectorAll<HTMLElement>('.novel-reading-p'))
   return { root, els }
+}
+
+/** jsdom 未实现 offsetTop（恒 0），用实例属性打桩模拟各段真实纵向位置 */
+function setOffsetTop(el: HTMLElement, value: number) {
+  Object.defineProperty(el, 'offsetTop', { value, configurable: true })
 }
 
 afterEach(() => {
@@ -120,5 +130,106 @@ describe('clearReadingHighlight', () => {
 
   it('root 为 null 时安全返回（滚动根未挂载场景）', () => {
     expect(() => clearReadingHighlight(null, 'novel-reading-search-hit')).not.toThrow()
+  })
+})
+
+describe('applyTextHighlight', () => {
+  it('命中：返回 true，首个含目标文本的段落被包进指定 class 的 span', () => {
+    const { root, els } = buildRoot('夜色沉沉，雨落在窗台上。', '他推门而入，灯还亮着。')
+    expect(applyTextHighlight(root, true, '夜色沉沉', 'novel-reading-current')).toBe(true)
+    const span = root.querySelector('span.novel-reading-current')
+    expect(span).not.toBeNull()
+    expect(span!.textContent).toBe('夜色沉沉')
+    expect(els[0].contains(span!)).toBe(true)
+    // 高亮后段落全文无损
+    expect(els[0].textContent).toBe('夜色沉沉，雨落在窗台上。')
+  })
+
+  it('两段都含目标文本时只高亮第一处（全文首个命中语义）', () => {
+    const { root, els } = buildRoot('灯火将熄。', '他望着灯火出神。')
+    expect(applyTextHighlight(root, true, '灯火', 'novel-reading-current')).toBe(true)
+    const spans = root.querySelectorAll('span.novel-reading-current')
+    expect(spans.length).toBe(1)
+    expect(els[0].contains(spans[0])).toBe(true)
+    expect(els[1].contains(spans[0])).toBe(false)
+  })
+
+  it('readMode 为 false 或 root 为 null：直接返回 false 且不动 DOM', () => {
+    const { root } = buildRoot('夜色沉沉。')
+    expect(applyTextHighlight(root, false, '夜色', 'novel-reading-current')).toBe(false)
+    expect(applyTextHighlight(null, true, '夜色', 'novel-reading-current')).toBe(false)
+    expect(root.querySelector('span.novel-reading-current')).toBeNull()
+  })
+
+  it('空白文本与未命中：返回 false 且不产生高亮 DOM', () => {
+    const { root } = buildRoot('夜色沉沉。')
+    expect(applyTextHighlight(root, true, '   ', 'novel-reading-current')).toBe(false)
+    expect(applyTextHighlight(root, true, '不存在的词', 'novel-reading-current')).toBe(false)
+    expect(root.querySelector('span.novel-reading-current')).toBeNull()
+  })
+
+  it('重复调用：先清同类旧高亮再标新位置，全 root 只剩一处且文本无损', () => {
+    const { root, els } = buildRoot('夜色沉沉，雨落在窗台上。', '他推门而入，灯还亮着。')
+    expect(applyTextHighlight(root, true, '夜色沉沉', 'novel-reading-current')).toBe(true)
+    expect(applyTextHighlight(root, true, '灯还亮着', 'novel-reading-current')).toBe(true)
+    const spans = root.querySelectorAll('span.novel-reading-current')
+    expect(spans.length).toBe(1)
+    expect(spans[0].textContent).toBe('灯还亮着')
+    expect(els[0].textContent).toBe('夜色沉沉，雨落在窗台上。')
+    expect(els[1].textContent).toBe('他推门而入，灯还亮着。')
+  })
+
+  it('命中片段跨内联元素边界时仍整体包进一个 span', () => {
+    const { root } = buildRoot('他推门而入，<em>灯</em>还亮着。')
+    expect(applyTextHighlight(root, true, '，灯还亮', 'novel-reading-current')).toBe(true)
+    const span = root.querySelector('span.novel-reading-current')!
+    expect(span.textContent).toBe('，灯还亮')
+  })
+})
+
+describe('paraOf', () => {
+  it('文本节点向上找到所属阅读段落', () => {
+    const { els } = buildRoot('夜色沉沉。')
+    expect(paraOf(els[0].firstChild!)).toBe(els[0])
+  })
+
+  it('段落内的内联元素子节点也归属该段落', () => {
+    const { els } = buildRoot('他推门而入，<em>灯</em>还亮着。')
+    expect(paraOf(els[0].querySelector('em')!)).toBe(els[0])
+  })
+
+  it('不在阅读段落内（如滚动根自身）返回 null', () => {
+    const { root } = buildRoot('夜色沉沉。')
+    expect(paraOf(root)).toBeNull()
+  })
+})
+
+describe('textAtScrollTop', () => {
+  it('取滚动位置 +48px 容差内最后到达段落的文本', () => {
+    const { root, els } = buildRoot('第一段落的开头文字。', '第二段落的开头文字。', '第三段落的开头文字。')
+    setOffsetTop(els[0], 0)
+    setOffsetTop(els[1], 200)
+    setOffsetTop(els[2], 400)
+    // scrollTop=260：第三段 400 > 308 未到达，第二段 200 <= 308 命中
+    expect(textAtScrollTop(root, 260)).toBe('第二段落的开头文字。')
+  })
+
+  it('滚动位置落在段落间隙时沿用上一个已到达段落', () => {
+    const { root, els } = buildRoot('第一段落。', '第二段落。')
+    setOffsetTop(els[0], 0)
+    setOffsetTop(els[1], 300)
+    // scrollTop=200：第二段 300 > 248 未到达 → 仍取第一段
+    expect(textAtScrollTop(root, 200)).toBe('第一段落。')
+  })
+
+  it('摘录去首尾空白并截断到 48 字', () => {
+    const { root } = buildRoot(`  ${'夜'.repeat(60)}  `)
+    expect(textAtScrollTop(root, 0)).toBe('夜'.repeat(48))
+  })
+
+  it('无任何阅读段落时返回空串', () => {
+    const root = document.createElement('div')
+    document.body.appendChild(root)
+    expect(textAtScrollTop(root, 100)).toBe('')
   })
 })

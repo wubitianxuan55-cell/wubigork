@@ -72,4 +72,20 @@ describe('ChapterPage 冒烟', () => {
     // 场景按空行切成两段阅读段落
     expect(document.querySelectorAll('.novel-reading-p').length).toBe(2)
   })
+
+  it('阅读模式添加书签：列表出现摘录（textAtScrollTop → 书签预览接线）', async () => {
+    useOutlineStore.setState({ outlines: [leaf] })
+    render(<ChapterPage />)
+    window.dispatchEvent(new CustomEvent('novel:open-chapter', { detail: { node: leaf } }))
+    await screen.findByTestId('chapter-editor-stub')
+    fireEvent.click(screen.getByRole('button', { name: '进入阅读模式' }))
+    await screen.findByText('夜色沉沉，雨落在窗台上。')
+    // 打开书签 Popover → 在当前位置添加
+    fireEvent.click(screen.getByRole('button', { name: '书签' }))
+    fireEvent.click(await screen.findByRole('button', { name: '在当前位置添加书签' }))
+    expect(await screen.findByText('本章书签（1）')).toBeTruthy()
+    // jsdom 中 offsetTop 恒 0：所有段落都在 48px 容差内 → 摘录取最后一段
+    const list = await screen.findByText('本章书签（1）')
+    expect(list.closest('.novel-read-bookmarks')!.textContent).toContain('他推门而入，灯还亮着。')
+  })
 })
