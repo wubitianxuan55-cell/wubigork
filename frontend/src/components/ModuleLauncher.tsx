@@ -1,13 +1,14 @@
 /**
- * ModuleLauncher — 首页「AI 多功能平台 · 星枢指挥所」（3.0 重构 v3）
+ * ModuleLauncher — 首页「星枢港 · 双舷驾驶舱」（v4 重构）
  *
- * 设计概念（遵循 ui-ux-pro-max / design-taste-frontend，匹配当代 AI 平台首页范式）：
- *   · Hero 中轴：公告 pill + 巨幅标题 + 副标题 + 中央命令条（打字/语音/发送/⌘K）
- *     + 快捷建议 chips —— 对标 Poe / Perplexity / DeepSeek 的「一句话直达」范式；
- *   · AI 状态细条：活跃模型 / 引擎 / 资源 / 写作进度（真实遥测，4 列）；
- *   · 能力矩阵（Bento）：manifest 驱动，办公（gaea）为 4×2 旗舰大卡锚定全场，
- *     其余板块 2 列等宽瓦片，aurora 水印 + hover 辉光 + 箭头滑入；
- *   · 门廊：编程（独立窗口）+ 设置；底部信息条：最近会话 / 记忆脉搏 / 系统状态。
+ * 设计概念（遵循 ui-ux-pro-max AI-Native UI 范式 + design-system/gaea 星枢令牌）：
+ *   · 左舷主工作台：紧凑 Hero（公告 pill + 标题 + 副标题）+ 中央命令条
+ *     （AI 内核 orb / 打字 / 语音 / 发送 / ⌘K）+ 能力矩阵 Bento——
+ *     办公为 4×2 旗舰大卡，其余板块 + 编程（独立窗口徽标）+ 设置全部瓦片化；
+ *     v3 的快捷 chips 与门廊条是同目标二级入口，收敛进 Bento 一级面（零功能删除）；
+ *   · 右舷状态栏：内核遥测（模型 / 引擎 / CPU·内存·GPU 三表）+ 写作进度环
+ *     + 最近会话 + 记忆脉搏 + 做梦晨报（work 空间）——v3 的状态细条与
+ *     底部信息条合并至此，一屏尽收；
  *   · 动效：v3-rise 分阶入场 + hover 位移 ≤2px（compositor-only），
  *     reduced-motion / ui-reduced-motion / gaea-raf-degraded 全降级。
  * 令牌纪律：零硬编码色值，全部走 --md-sys-* / --gaea-* / --color-* / --v3-*。
@@ -15,9 +16,8 @@
 import React, { useState, useCallback, useEffect, useSyncExternalStore } from 'react'
 import {
   ArrowRightOutlined, AudioOutlined, SendOutlined,
-  StopOutlined, RobotOutlined, UserOutlined, ThunderboltOutlined, DashboardOutlined,
+  StopOutlined, RobotOutlined, UserOutlined, ThunderboltOutlined,
   FileTextOutlined, ClockCircleOutlined, HeartOutlined, ApiOutlined,
-  ReadOutlined, PictureOutlined, MessageOutlined, CodeOutlined, SettingOutlined,
 } from '@ant-design/icons'
 // 板块清单：活动清单（静态 fallback / 后端合并）订阅驱动；图标由 manifest 图标注册表解析（3.0 §5.2）
 import { getActiveBoards, subscribeBoards, resolveBoardIcon } from '../boards/manifests'
@@ -45,7 +45,7 @@ interface ModuleLauncherProps {
   onNavigate: (target: LauncherTarget) => void
   /** 当前激活的 AI 模型名（顶栏已加装，传入提升真实感） */
   activeModel?: string
-  /** S2.1 壳层空间（保留 API 兼容；新首页为全局能力矩阵，不再分区高亮） */
+  /** S2.1 壳层空间（晨报仅 work 空间渲染） */
   space: ShellSpace
 }
 
@@ -108,23 +108,61 @@ function fmtRel(ms: number, t: Translator): string {
   return new Date(ms).toLocaleDateString()
 }
 
-/** 单条 AI 状态（透明无边框信息行：图标 + 标签/数值/副文 + 渐次入场 v3-rise） */
-const StatCard: React.FC<{
+/** 侧舷面板壳（玻璃容器：标题行 + 内容槽；信息层实底，不叠玻璃） */
+const SidePanel: React.FC<{
+  icon: React.ReactNode
+  title: string
+  children: React.ReactNode
+}> = ({ icon, title, children }) => (
+  <section className="ml-panel v3-panel" aria-label={title}>
+    <div className="ml-panel-head">
+      <span className="ml-panel-icon" aria-hidden="true">{icon}</span>
+      <span className="ml-panel-title">{title}</span>
+    </div>
+    {children}
+  </section>
+)
+
+/** 内核遥测单行（图标 + 标签/数值/副文） */
+const KernelRow: React.FC<{
   icon: React.ReactNode
   label: string
   value: React.ReactNode
   sub?: React.ReactNode
-  rise: string
-}> = ({ icon, label, value, sub, rise }) => (
-  <div className={`ml-stat v3-rise ${rise}`}>
-    <span className="ml-stat-icon" aria-hidden="true">{icon}</span>
-    <div className="ml-stat-body">
-      <div className="ml-stat-label">{label}</div>
-      <div className="ml-stat-value">{value}</div>
-      {sub && <div className="ml-stat-sub">{sub}</div>}
+}> = ({ icon, label, value, sub }) => (
+  <div className="ml-krow">
+    <span className="ml-krow-icon" aria-hidden="true">{icon}</span>
+    <div className="ml-krow-body">
+      <div className="ml-krow-label">{label}</div>
+      <div className="ml-krow-value">{value}</div>
+      {sub && <div className="ml-krow-sub">{sub}</div>}
     </div>
   </div>
 )
+
+/** 资源三表单行（标签 + 细轨 + 数值；≥85% 转 warning 色，色/值双传达） */
+const Meter: React.FC<{ label: string; pct: number | null }> = ({ label, pct }) => {
+  const hot = pct != null && pct >= 85
+  return (
+    <div className="ml-meter">
+      <span className="ml-meter-label">{label}</span>
+      <span
+        className="ml-meter-track"
+        role="meter"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={pct ?? undefined}
+        aria-label={`${label} ${pct != null ? `${pct}%` : '--'}`}
+      >
+        <span
+          className={`ml-meter-fill${hot ? ' is-hot' : ''}`}
+          style={{ width: `${Math.max(0, Math.min(100, pct ?? 0))}%` }}
+        />
+      </span>
+      <span className="ml-meter-val">{pct != null ? `${pct}%` : '--'}</span>
+    </div>
+  )
+}
 
 /** 语音/对话气泡 */
 const ChatBubble: React.FC<{ role: 'user' | 'assistant'; text: string }> = ({ role, text }) => {
@@ -142,19 +180,21 @@ const ChatBubble: React.FC<{ role: 'user' | 'assistant'; text: string }> = ({ ro
   )
 }
 
-/** Bento 瓦片（能力矩阵普通卡：图标 + 名称 + 描述 + 悬浮箭头） */
+/** Bento 瓦片（能力矩阵普通卡：图标 + 名称 + 描述 + 悬浮箭头 + 可选徽标） */
 const BentoCard: React.FC<{
   m: LauncherModule
   idx: number
   onOpen: () => void
-}> = ({ m, idx, onOpen }) => {
+  badge?: React.ReactNode
+  ariaLabel?: string
+}> = ({ m, idx, onOpen, badge, ariaLabel }) => {
   const Icon = resolveBoardIcon(m.icon)
   const t = useT()
   return (
     <div
       role="button"
       tabIndex={0}
-      aria-label={t('shell.launcher.enterModule', { name: m.name })}
+      aria-label={ariaLabel ?? t('shell.launcher.enterModule', { name: m.name })}
       className={`ml-bento v3-card is-interactive v3-rise`}
       style={{ animationDelay: `${140 + idx * 40}ms` } as React.CSSProperties}
       onClick={onOpen}
@@ -168,6 +208,7 @@ const BentoCard: React.FC<{
       <span className="ml-card-aurora" aria-hidden="true" />
       <div className="ml-bento-top">
         <div className="ml-bento-icon">{Icon ? <Icon /> : null}</div>
+        {badge}
         <ArrowRightOutlined className="ml-bento-arrow" />
       </div>
       <div className="ml-bento-name">{m.name}</div>
@@ -214,21 +255,21 @@ const FeaturedCard: React.FC<{
 }
 
 /**
- * ModuleLauncher — 首页「AI 多功能平台 · 星枢指挥所」。
- * 布局：Hero 中轴（pill / 标题 / 副标题 / 命令条 / 状态 / chips）
- * ｜ AI 状态细条（4 列真实遥测）
- * ｜ 能力矩阵 Bento（办公旗舰 4×2 + 板块瓦片）
- * ｜ 门廊（编程独立窗口 + 设置）+ 底部信息条（会话 / 记忆 / 系统）。
+ * ModuleLauncher — 首页「星枢港 · 双舷驾驶舱」。
+ * 布局：左舷 = 紧凑 Hero（pill / 标题 / 副标题 / 命令条 / 语音状态）
+ *       + 能力矩阵 Bento（办公旗舰 4×2 + 板块/编程/设置瓦片）；
+ *       右舷 = 内核遥测 + 写作进度环 + 最近会话 + 记忆脉搏 +（work）晨报。
  * 中庭输入：打字 → VoiceChatText；语音 → 本页直启麦克风；共用同一对话流。
  */
 const ModuleLauncher: React.FC<ModuleLauncherProps> = ({ onNavigate, activeModel, space }) => {
   // ── 板块清单 ──
   const activeBoards = useSyncExternalStore(subscribeBoards, getActiveBoards)
-  // 全量启动器模块（manifest 驱动）；gaea 为旗舰大卡，code/settings 入门廊
+  // 全量启动器模块（manifest 驱动）；gaea 为旗舰大卡，code/settings 以瓦片编入矩阵尾部
   const allModules = deriveLauncherModules(activeBoards, LAUNCHER_DESC)
   const featuredModule = allModules.find((m) => m.key === 'gaea')
   const bentoModules = allModules.filter((m) => m.key !== 'gaea' && m.key !== 'code' && m.key !== 'settings')
   const codeModule = allModules.find((m) => m.key === 'code')
+  const settingsModule = allModules.find((m) => m.key === 'settings')
   const t = useT()
 
   // ── 项目统计 ──
@@ -332,12 +373,12 @@ const ModuleLauncher: React.FC<ModuleLauncherProps> = ({ onNavigate, activeModel
 
   const hasChat = !!userText || !!aiReply
 
-  // ── 状态卡数据 ──
+  // ── 内核遥测数据 ──
   const ms = monitor?.stats
-  const memPct = ms?.memTotal ? Math.round((ms.memUsed || 0) / ms.memTotal * 100) : 0
-  const vramPct = ms?.vramTotal ? Math.round((ms.vramUsed || 0) / ms.vramTotal * 100) : 0
-  const cpuVal = ms && ms.cpu != null && ms.cpu >= 0 ? ms.cpu : null
-  const gpuVal = (ms?.gpuUsage ?? 0) > 0 ? (ms?.gpuUsage ?? 0) : vramPct
+  const memPct = ms?.memTotal ? Math.round((ms.memUsed || 0) / ms.memTotal * 100) : null
+  const vramPct = ms?.vramTotal ? Math.round((ms.vramUsed || 0) / ms.vramTotal * 100) : null
+  const cpuPct = ms && ms.cpu != null && ms.cpu >= 0 ? Math.round(ms.cpu) : null
+  const gpuPct = (ms?.gpuUsage ?? 0) > 0 ? Math.round(ms?.gpuUsage ?? 0) : vramPct
   const engines = monitor?.engines || []
   const engineCount = engines.length
   const localCount = engines.filter((e) => e.isLocal).length
@@ -352,245 +393,213 @@ const ModuleLauncher: React.FC<ModuleLauncherProps> = ({ onNavigate, activeModel
     : 0
   const memoryUpdated = memoryHub?.latestUpdated ? Date.parse(memoryHub.latestUpdated) : 0
 
-  // ── 快捷建议 chips（直达核心能力）──
-  const suggestChips: Array<{ key: string; label: string; icon: React.ReactNode }> = [
-    { key: 'novel', label: t('home.suggestNovel'), icon: <ReadOutlined /> },
-    { key: 'imagegen', label: t('home.suggestImage'), icon: <PictureOutlined /> },
-    { key: 'chat', label: t('home.suggestChat'), icon: <MessageOutlined /> },
-    { key: 'code', label: t('home.suggestCode'), icon: <CodeOutlined /> },
-  ]
-
   return (
     <div className="ml">
-      <div className="ml-shell">
-        {/* ── Hero 中轴：公告 + 标题 + 命令条 + 状态 + chips ── */}
-        <section className="ml-hero" aria-label={t('shell.launcher.heroAria')}>
-          <div className="ml-pill v3-rise v3-rise-1">
-            <span className="ml-pill-dot" aria-hidden="true" />
-            <span>{t('home.pill')}</span>
-            <ArrowRightOutlined className="ml-pill-arrow" aria-hidden="true" />
-          </div>
-          <h1 className="ml-title v3-rise v3-rise-2">{t('home.title')}</h1>
-          <p className="ml-sub v3-rise v3-rise-3">{t('home.sub')}</p>
-
-          {/* 对话气泡流（有对话时浮于命令条上方） */}
-          {hasChat && (
-            <div className="ml-hero-chat" aria-live="polite">
-              {userText && <ChatBubble role="user" text={userText} />}
-              {aiReply && <ChatBubble role="assistant" text={aiReply} />}
+      <div className="ml-dock">
+        {/* ═══ 左舷：Hero 中轴 + 能力矩阵 ═══ */}
+        <div className="ml-main">
+          <section className="ml-hero" aria-label={t('shell.launcher.heroAria')}>
+            <div className="ml-hero-head v3-rise v3-rise-1">
+              <div className="ml-pill">
+                <span className="ml-pill-dot" aria-hidden="true" />
+                <span>{t('home.pill')}</span>
+                <ArrowRightOutlined className="ml-pill-arrow" aria-hidden="true" />
+              </div>
+              <h1 className="ml-title">{t('home.title')}</h1>
+              <p className="ml-sub">{t('home.sub')}</p>
             </div>
-          )}
 
-          {/* 中央命令条：AI 内核 orb + 打字 + 语音 + 发送 + ⌘K */}
-          <div className={`ml-command v3-rise v3-rise-4 ${voiceTone}`}>
-            <span className="ml-command-orb" aria-hidden="true">
-              <span className="ml-command-orb-core" />
-              <span className="ml-command-orb-ring" />
-            </span>
-            <Input
-              value={typedText}
-              onChange={(e) => setTypedText(e.target.value)}
-              onPressEnter={() => sendTyped()}
-              placeholder={t('home.placeholder')}
-              aria-label={t('home.placeholder')}
-              variant="borderless"
-              className="ml-command-input"
-              disabled={voice.active}
-            />
-            {voice.active ? (
-              <button
-                type="button"
-                className="ml-voice-btn is-active"
-                onClick={toggleVoice}
-                aria-label={t('shell.launcher.voiceAriaEnd')}
-              >
-                <StopOutlined /> <span className="ml-voice-btn-label">{t('shell.launcher.voiceEnd')}</span>
-              </button>
-            ) : (
-              <button
-                type="button"
-                className="ml-voice-btn"
-                onClick={toggleVoice}
-                aria-label={t('shell.launcher.voiceAriaStart')}
-              >
-                <AudioOutlined /> <span className="ml-voice-btn-label">{t('shell.launcher.voiceStart')}</span>
-              </button>
+            {/* 对话气泡流（有对话时浮于命令条上方） */}
+            {hasChat && (
+              <div className="ml-hero-chat" aria-live="polite">
+                {userText && <ChatBubble role="user" text={userText} />}
+                {aiReply && <ChatBubble role="assistant" text={aiReply} />}
+              </div>
             )}
-            <button
-              type="button"
-              className="ml-command-send"
-              onClick={sendTyped}
-              disabled={!typedText.trim() || voice.active}
-              aria-label={t('shell.launcher.courtyardSend')}
-            >
-              <SendOutlined />
-            </button>
-            <kbd className="ml-cmdk" title={t('home.cmdk')} aria-label={t('home.cmdk')}>⌘K</kbd>
-          </div>
 
-          {/* AI 状态行（语音态 + 错误） */}
-          <div className="ml-voice-status v3-rise v3-rise-4" aria-label={t('home.voiceStatusAria', { state: voiceStateLabel })}>
-            <span className={`ml-voice-status-dot${voiceTone ? ` ${voiceTone}` : ''}`} aria-hidden="true" />
-            <span className="ml-voice-status-label">{voiceStateLabel}</span>
-            {voice.error && <span className="ml-voice-err" role="alert">{voice.error}</span>}
-            {voice.active && voice.aiSpeaking && (
-              <button className="ml-interrupt-btn" onClick={interrupt} type="button">
-                <StopOutlined /> {t('shell.launcher.voiceInterrupt')}
-              </button>
-            )}
-          </div>
-
-          {/* 快捷建议 chips */}
-          <div className="ml-chips v3-rise v3-rise-4">
-            {suggestChips.map((c) => (
-              <button
-                key={c.key}
-                type="button"
-                className="ml-chip"
-                aria-label={c.label}
-                onClick={() => onNavigate(c.key)}
-              >
-                <span className="ml-chip-icon" aria-hidden="true">{c.icon}</span>
-                {c.label}
-              </button>
-            ))}
-          </div>
-        </section>
-
-        {/* ── AI 状态细条（真实遥测/统计，4 列）── */}
-        <div className="ml-stats">
-          <StatCard
-            rise="v3-rise-1"
-            icon={<RobotOutlined />}
-            label={t('shell.launcher.statModel')}
-            value={activeModel || t('shell.launcher.statModelNone')}
-            sub={t('shell.launcher.statModelSub')}
-          />
-          <StatCard
-            rise="v3-rise-2"
-            icon={<ThunderboltOutlined />}
-            label={t('shell.launcher.statEngines')}
-            value={engineCount > 0 ? `${engineCount}` : '—'}
-            sub={engineCount > 0
-              ? t('shell.launcher.statEnginesSub', { local: localCount, cloud: engineCount - localCount })
-              : t('shell.launcher.statNoEngines')}
-          />
-          <StatCard
-            rise="v3-rise-3"
-            icon={<DashboardOutlined />}
-            label={t('shell.launcher.statResource')}
-            value={ms ? t('shell.launcher.statResourceValue', { cpu: cpuVal != null ? cpuVal + '%' : '--' }) : '—'}
-            sub={ms ? t('shell.launcher.statResourceSub', { mem: memPct, gpu: gpuVal }) : t('shell.launcher.statIdle')}
-          />
-          <StatCard
-            rise="v3-rise-4"
-            icon={<FileTextOutlined />}
-            label={t('shell.launcher.statWriting')}
-            value={stats ? `${progressPercent}%` : '—'}
-            sub={stats
-              ? t('shell.launcher.statWritingSub', { chapters: stats.chapterCount, words: fmtWords(stats.totalWords, t) })
-              : (projectOpen ? t('shell.launcher.statLoading') : t('shell.launcher.statNoProject'))}
-          />
-        </div>
-
-        {/* ── 能力矩阵（Bento：办公旗舰 4×2 + 板块瓦片）── */}
-        <section className="ml-cap" aria-label={t('home.capTitle')}>
-          <div className="ml-cap-head v3-rise v3-rise-1">
-            <span className="ml-cap-title">{t('home.capTitle')}</span>
-            <span className="ml-cap-sub">{t('home.capSub')}</span>
-          </div>
-          <div className="ml-grid">
-            {featuredModule && (
-              <FeaturedCard m={featuredModule} onOpen={() => onNavigate(featuredModule.key)} />
-            )}
-            {bentoModules.map((m, i) => (
-              <BentoCard key={m.key} m={m} idx={i} onOpen={() => onNavigate(m.key)} />
-            ))}
-            {bentoModules.length === 0 && !featuredModule && (
-              <div className="ml-col-empty v3-rise">{t('shell.launcher.noModules')}</div>
-            )}
-          </div>
-        </section>
-
-        {/* ── 门廊：编程（独立窗口）+ 设置 ── */}
-        <div className="ml-utilities v3-panel v3-rise">
-          {codeModule ? (
-            <button
-              type="button"
-              className="ml-util-entry"
-              aria-label={t('shell.launcher.progEntry', { name: codeModule.name })}
-              onClick={() => onNavigate(codeModule.key)}
-            >
-              <span className="ml-util-icon"><CodeOutlined /></span>
-              <span className="ml-util-body">
-                <span className="ml-util-name">{codeModule.name}</span>
-                <span className="ml-util-desc">{codeModule.desc}</span>
+            {/* 中央命令条：AI 内核 orb + 打字 + 语音 + 发送 + ⌘K */}
+            <div className={`ml-command v3-rise v3-rise-2 ${voiceTone}`}>
+              <span className="ml-command-orb" aria-hidden="true">
+                <span className="ml-command-orb-core" />
+                <span className="ml-command-orb-ring" />
               </span>
-              <span className="ml-util-badge">{t('shell.rail.independentWindow')}</span>
-              <ArrowRightOutlined className="ml-util-arrow" />
-            </button>
-          ) : null}
-          <button
-            type="button"
-            className="ml-util-entry ml-util-entry--settings"
-            aria-label={t('shell.launcher.openSettings')}
-            onClick={() => onNavigate('settings')}
-          >
-            <span className="ml-util-icon"><SettingOutlined /></span>
-            <span className="ml-util-body">
-              <span className="ml-util-name">{t('shell.launcher.settings')}</span>
-              <span className="ml-util-desc">{t('shell.launcher.settingsDesc')}</span>
-            </span>
-            <ArrowRightOutlined className="ml-util-arrow" />
-          </button>
+              <Input
+                value={typedText}
+                onChange={(e) => setTypedText(e.target.value)}
+                onPressEnter={() => sendTyped()}
+                placeholder={t('home.placeholder')}
+                aria-label={t('home.placeholder')}
+                variant="borderless"
+                className="ml-command-input"
+                disabled={voice.active}
+              />
+              {voice.active ? (
+                <button
+                  type="button"
+                  className="ml-voice-btn is-active"
+                  onClick={toggleVoice}
+                  aria-label={t('shell.launcher.voiceAriaEnd')}
+                >
+                  <StopOutlined /> <span className="ml-voice-btn-label">{t('shell.launcher.voiceEnd')}</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="ml-voice-btn"
+                  onClick={toggleVoice}
+                  aria-label={t('shell.launcher.voiceAriaStart')}
+                >
+                  <AudioOutlined /> <span className="ml-voice-btn-label">{t('shell.launcher.voiceStart')}</span>
+                </button>
+              )}
+              <button
+                type="button"
+                className="ml-command-send"
+                onClick={sendTyped}
+                disabled={!typedText.trim() || voice.active}
+                aria-label={t('shell.launcher.courtyardSend')}
+              >
+                <SendOutlined />
+              </button>
+              <kbd className="ml-cmdk" title={t('home.cmdk')} aria-label={t('home.cmdk')}>⌘K</kbd>
+            </div>
+
+            {/* AI 状态行（语音态 + 错误） */}
+            <div className="ml-voice-status v3-rise v3-rise-2" aria-label={t('home.voiceStatusAria', { state: voiceStateLabel })}>
+              <span className={`ml-voice-status-dot${voiceTone ? ` ${voiceTone}` : ''}`} aria-hidden="true" />
+              <span className="ml-voice-status-label">{voiceStateLabel}</span>
+              {voice.error && <span className="ml-voice-err" role="alert">{voice.error}</span>}
+              {voice.active && voice.aiSpeaking && (
+                <button className="ml-interrupt-btn" onClick={interrupt} type="button">
+                  <StopOutlined /> {t('shell.launcher.voiceInterrupt')}
+                </button>
+              )}
+            </div>
+          </section>
+
+          {/* ═══ 能力矩阵（Bento：办公旗舰 4×2 + 板块/编程/设置瓦片）═══ */}
+          <section className="ml-cap" aria-label={t('home.capTitle')}>
+            <div className="ml-cap-head v3-rise v3-rise-3">
+              <span className="ml-cap-title">{t('home.capTitle')}</span>
+              <span className="ml-cap-sub">{t('home.capSub')}</span>
+            </div>
+            <div className="ml-grid">
+              {featuredModule && (
+                <FeaturedCard m={featuredModule} onOpen={() => onNavigate(featuredModule.key)} />
+              )}
+              {bentoModules.map((m, i) => (
+                <BentoCard key={m.key} m={m} idx={i} onOpen={() => onNavigate(m.key)} />
+              ))}
+              {codeModule && (
+                <BentoCard
+                  key={codeModule.key}
+                  m={codeModule}
+                  idx={bentoModules.length}
+                  badge={<span className="ml-bento-badge">{t('shell.rail.independentWindow')}</span>}
+                  ariaLabel={t('shell.launcher.progEntry', { name: codeModule.name })}
+                  onOpen={() => onNavigate(codeModule.key)}
+                />
+              )}
+              {settingsModule && (
+                <BentoCard
+                  key={settingsModule.key}
+                  m={settingsModule}
+                  idx={bentoModules.length + 1}
+                  onOpen={() => onNavigate(settingsModule.key)}
+                />
+              )}
+              {bentoModules.length === 0 && !featuredModule && !codeModule && !settingsModule && (
+                <div className="ml-col-empty v3-rise">{t('shell.launcher.noModules')}</div>
+              )}
+            </div>
+          </section>
         </div>
 
-        {/* ── 底部：信息条（最近会话 / 记忆脉搏 / 系统状态）── */}
-        <div className="ml-info v3-panel v3-rise">
-          <section className="ml-info-seg" aria-label={t('shell.launcher.sessions')}>
-            <div className="ml-info-head"><ClockCircleOutlined aria-hidden="true" />{t('shell.launcher.sessions')}</div>
+        {/* ═══ 右舷：状态侧栏（内核遥测 / 写作进度 / 会话 / 记忆 / 晨报）═══ */}
+        <aside className="ml-side v3-rise v3-rise-3" aria-label={t('home.sideAria')}>
+          <SidePanel icon={<ApiOutlined />} title={t('home.kernel')}>
+            <div className="ml-panel-body">
+              <KernelRow
+                icon={<RobotOutlined />}
+                label={t('shell.launcher.statModel')}
+                value={<span className="ml-krow-strong">{activeModel || t('shell.launcher.statModelNone')}</span>}
+                sub={t('shell.launcher.statModelSub')}
+              />
+              <KernelRow
+                icon={<ThunderboltOutlined />}
+                label={t('shell.launcher.statEngines')}
+                value={<span className="ml-krow-strong">{engineCount > 0 ? `${engineCount}` : '—'}</span>}
+                sub={engineCount > 0
+                  ? t('shell.launcher.statEnginesSub', { local: localCount, cloud: engineCount - localCount })
+                  : t('shell.launcher.statNoEngines')}
+              />
+              {ms ? (
+                <div className="ml-meters">
+                  <Meter label="CPU" pct={cpuPct} />
+                  <Meter label="MEM" pct={memPct} />
+                  <Meter label="GPU" pct={gpuPct} />
+                  {monitor?.comfyRunning && (
+                    <div className="ml-comfy">
+                      <span className="ml-comfy-dot" aria-hidden="true" />
+                      <span>{t('home.comfyRunning')}</span>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="ml-panel-empty">{t('shell.launcher.statIdle')}</div>
+              )}
+            </div>
+          </SidePanel>
+
+          <SidePanel icon={<FileTextOutlined />} title={t('shell.launcher.statWriting')}>
+            <div className="ml-progress">
+              <div
+                className="ml-ring"
+                aria-hidden="true"
+                style={{ background: `conic-gradient(var(--gaea-glow) ${progressPercent}%, var(--color-border) 0)` }}
+              >
+                <div className="ml-ring-hole">
+                  <span className="ml-ring-num">{stats ? `${progressPercent}%` : '—'}</span>
+                </div>
+              </div>
+              <div className="ml-progress-body">
+                {stats
+                  ? t('shell.launcher.statWritingSub', { chapters: stats.chapterCount, words: fmtWords(stats.totalWords, t) })
+                  : (projectOpen ? t('shell.launcher.statLoading') : t('shell.launcher.statNoProject'))}
+              </div>
+            </div>
+          </SidePanel>
+
+          <SidePanel icon={<ClockCircleOutlined />} title={t('shell.launcher.sessions')}>
             {sessions.length > 0 ? (
-              <ul className="ml-info-list">
+              <ul className="ml-sess">
                 {sessions.map((s, i) => (
-                  <li key={s.modTime ?? i} className="ml-info-item">
-                    <span className="ml-info-name">{s.title || s.preview || t('shell.launcher.unnamed')}</span>
-                    <span className="ml-info-meta">{t('shell.launcher.sessionTurns', { turns: s.turns ?? 0, time: fmtRel(s.modTime || 0, t) })}</span>
+                  <li key={s.modTime ?? i} className="ml-sess-item">
+                    <span className="ml-sess-name">{s.title || s.preview || t('shell.launcher.unnamed')}</span>
+                    <span className="ml-sess-meta">{t('shell.launcher.sessionTurns', { turns: s.turns ?? 0, time: fmtRel(s.modTime || 0, t) })}</span>
                   </li>
                 ))}
               </ul>
             ) : (
-              <div className="ml-info-empty">{t('shell.launcher.noSessions')}</div>
+              <div className="ml-panel-empty">{t('shell.launcher.noSessions')}</div>
             )}
-          </section>
-          <section className="ml-info-seg" aria-label={t('shell.launcher.memoryPulse')}>
-            <div className="ml-info-head"><HeartOutlined aria-hidden="true" />{t('shell.launcher.memoryPulse')}</div>
+          </SidePanel>
+
+          <SidePanel icon={<HeartOutlined />} title={t('shell.launcher.memoryPulse')}>
             {memoryHub ? (
-              <div className="ml-info-body">
-                <span className="ml-info-strong">{t('shell.launcher.memoryCount', { count: memoryTotal })}</span>
-                <span className="ml-info-meta">{t('shell.launcher.memoryUpdated', { time: fmtRel(memoryUpdated, t) })}</span>
+              <div className="ml-memory">
+                <span className="ml-krow-strong">{t('shell.launcher.memoryCount', { count: memoryTotal })}</span>
+                <span className="ml-sess-meta">{t('shell.launcher.memoryUpdated', { time: fmtRel(memoryUpdated, t) })}</span>
               </div>
             ) : (
-              <div className="ml-info-empty">{t('shell.launcher.memoryIdle')}</div>
+              <div className="ml-panel-empty">{t('shell.launcher.memoryIdle')}</div>
             )}
-          </section>
+          </SidePanel>
+
           {/* 做梦 2.0 晨报（纯本地主动预取）：仅 work 空间渲染——play 不渲染
               = 双空间红线（晨报只读 work 空间记忆，见 MorningBriefCard）。 */}
           {space === 'work' && <MorningBriefCard />}
-          <section className="ml-info-seg" aria-label={t('shell.launcher.sysStatus')}>
-            <div className="ml-info-head"><ApiOutlined aria-hidden="true" />{t('shell.launcher.sysStatus')}</div>
-            {monitor ? (
-              <div className="ml-info-body">
-                <span className="ml-info-strong">{t('shell.launcher.sysEngines', { count: engineCount, cpu: cpuVal != null ? cpuVal + '%' : '--' })}</span>
-                <span className="ml-info-meta">
-                  {t('shell.launcher.sysMeta', { mem: memPct, gpu: gpuVal })}
-                  {monitor.comfyRunning ? t('shell.launcher.sysComfy') : ''}
-                </span>
-              </div>
-            ) : (
-              <div className="ml-info-empty">{t('shell.launcher.statIdle')}</div>
-            )}
-          </section>
-        </div>
+        </aside>
       </div>
     </div>
   )
