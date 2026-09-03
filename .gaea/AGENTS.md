@@ -5,22 +5,14 @@
 
 ## 版本状态（顶部速览）
 
-- **进行中工作树快照（2026-09-03，未发版，三刀）**：办公按 dsh-better-sidebar
-  语义 pane 化移植。快照一（d856353e）：右栏欢迎卡 → 视图/文件/浏览器/任务
-  tab + 点子代理开独立会话 tab，旧两级组件删除。快照二（cf1bf35）：
-  **左栏子代理会话入口完成**——Sidebar 会话行可展开出子代理子行（状态点/任务
-  摘要/状态·模型·时间，loading/空态/失败重试行内态），点击子行复用独立子代理
-  会话 tab；复用 GaeaSubagentRuns（**绑定面 559 不变**）；当前会话运行中 5s
-  刷新；mock 子代理按父会话归属；三语 +7 键。快照三（4a0cae7a 起，本提交
-  续）：**文件打开统一开 pane 文件 tab**——sidebarRegistry 统一 openPaneFileTab
-  （产物/权威登记/变更行）+ lib/paneFileOpen 模块级注入 openPaneFileOrPreview
-  （正文交付卡/行内附件/FileLinkText/Markdown/MemoMarkdown，App 注册、未注册
-  回落大预览）。前端 vitest 210 文件/**1525** 用例绿，tsc/eslint 0，drift OK；
-  Go 零改动（未跑）。实拍与记录：
-  docs/snapshots/2026-09-03-better-sidebar-port/ 与
-  docs/better-sidebar-port-2026-09-03-worktree.md（快照二/三）。下一步建议：
-  完整发版 v4.60.0（快照三在记录中亦有归档）。
-- **最新：v4.59.0（2026-09-03）继续：i18n 二批 · 搜索落划线 · 自定义引擎
+- **最新发布：v4.60.0（2026-09-03）「better-sidebar pane 化三刀 · 文件打开
+  统一开 tab」**——三个未发版快照（d856353e 右栏 pane 化 / cf1bf35 左栏
+  子代理会话入口 / 4a0cae7a+6ca03e4d 文件打开统一开 pane 文件 tab）合并发布，
+  并把并发子代理固化进「执行纪律」（d6246f99）。绑定面 **559 零变更**；
+  Go 全量 **121/121 包**、vitest **210 文件/1525 用例**、tsc -b/eslint 0、
+  drift PASS；产物 gaea-v4.60.0.exe SHA256 + 冒烟 /api/health 200 通过，
+  详见 releases/v4.60.0.md。
+- **此前：v4.59.0（2026-09-03）继续：i18n 二批 · 搜索落划线 · 自定义引擎
   用户价目**——三线并行子代理+主代理收口。A 线：设置五面板+SettingsSection
   入三语字典 +192 键/语言（682→874，**设置中心九面板全量 i18n**），zh 保真。
   B 线：搜索命中「落为划线」（searchHitAnnotation 纯函数适配命中区间→摘录

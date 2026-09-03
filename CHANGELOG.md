@@ -1,3 +1,21 @@
+## v4.60.0 · better-sidebar pane 化三刀 · 文件打开统一开 tab（2026-09-03）
+> 三个未发版快照（d856353e/cf1bf35/4a0cae7a/6ca03e4d）合并发布 + 并发子代理
+> 习惯固化。**绑定面 559 零变更**。详见 releases/v4.60.0.md。
+- **右栏 pane 工作台（better-sidebar 同构）**：欢迎卡 → 视图 tab → 文件 tab
+  单 tab 条、按会话持久化；产物/任务/浏览器补齐视图 tab（浏览器=地址栏+沙箱
+  iframe）；任务页重做紧凑「子代理拓扑+后台任务」单页；点子代理 → 主区独立
+  会话 tab；删除旧 WorkspaceTabs/WorkspacePanel/EditorTabs。
+- **左栏子代理会话入口**：Sidebar 父会话行展开 → 子代理子行（状态点/任务
+  摘要/状态·模型·时间，loading/空态/失败重试），点击复用独立子代理会话 tab；
+  复用 GaeaSubagentRuns，当前会话运行中 5s 刷新。
+- **文件打开统一开 pane 文件 tab**：产物/权威登记行、正文交付卡/行内附件/
+  Markdown 文件引用、变更「打开文件预览」全部改为右栏文件 tab（可并存、
+  去重激活；sidebarRegistry.openPaneFileTab + paneFileOpen 注入，未注册回落
+  大预览）。
+- **习惯固化**：并发子代理固化为默认执行纪律（AGENTS.md「执行纪律」）。
+- 验证：go 全量测试绿、tsc -b 0、eslint 0/0、vitest 210/1525、drift PASS
+  （559）、构建产物冒烟通过。
+
 ## v4.59.0 · 继续：i18n 二批 · 搜索落划线 · 自定义引擎用户价目（2026-09-03）
 > 欠账池三线并行子代理（i18n/小说/模型中心域）+ 主代理收口。**绑定面 559
 > 零变更**。详见 releases/v4.59.0.md。
