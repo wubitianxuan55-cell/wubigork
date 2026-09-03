@@ -1,6 +1,6 @@
 # 任务进度
 
-> 最后更新: 2026-09-03（子代理 tab 对齐主代理在途快照；Word 目录侧栏在途快照；better-sidebar pane 化三刀 v4.60.0；i18n二批+落划线+自定义引擎价目 v4.59.0；三线收欠账+搜索重定位修复 v4.58.0；设置中心删四补一 v4.57.0；拆分二批+Herdsman mock+task卡关联 v4.56.0；补测起步+mock补面+label化 v4.55.0；三线收欠账 v4.54.0；办公四点降噪 v4.53.0；首页双舷驾驶舱 v4.52.0；壳层左缘+深链绑定 v4.51.0；造价数据库化繁为简 v4.50.0；青鸟生命周期补全 v4.49.0；青鸟更名+人格选择器 v4.48.0；微信助手星枢化 v4.47.0；小说第二轮 v4.46.0；百炼全量下线 v4.45.0；绘梦专项
+> 最后更新: 2026-09-04（子代理 transcript 真机接线 + 本地模型工具同 UI 在途快照；子代理 tab 对齐主代理在途快照；Word 目录侧栏在途快照；better-sidebar pane 化三刀 v4.60.0；i18n二批+落划线+自定义引擎价目 v4.59.0；三线收欠账+搜索重定位修复 v4.58.0；设置中心删四补一 v4.57.0；拆分二批+Herdsman mock+task卡关联 v4.56.0；补测起步+mock补面+label化 v4.55.0；三线收欠账 v4.54.0；办公四点降噪 v4.53.0；首页双舷驾驶舱 v4.52.0；壳层左缘+深链绑定 v4.51.0；造价数据库化繁为简 v4.50.0；青鸟生命周期补全 v4.49.0；青鸟更名+人格选择器 v4.48.0；微信助手星枢化 v4.47.0；小说第二轮 v4.46.0；百炼全量下线 v4.45.0；绘梦专项
 > v4.44.0 三刀；小说板块 v4.43.0 四刀；微信助手
 > 三刀 v4.39.0-v4.42.0——绑定面 557 零变更）
 
@@ -53,6 +53,36 @@
   冻结在点击快照——子代理跑完/失败后 tab 状态点与面板同步变色。
 - 验证：vitest 净 +2 → **211 文件/1535 用例全绿**；tsc -b/eslint 0；
   绑定面 559 零变更。
+
+## 在途快照：子代理 transcript 真机接线 + 本地模型工具同 UI（1f70e06d，未发版）
+
+- 用户以市场对照为反馈「开始」P0：真机数据源 + 运行中可看；并追加口径
+  「调用本地模型的工具（vision/summarize_file）也是变相子代理，用同一 UI」。
+- **真机接线**：boot 惰性 SubagentStore（目录随 ctrl.SessionPath 解析，
+  与 EventLogSink 同晚绑定时序）→ taskTool.WithTranscripts 生产启用 +
+  skillRunner 派生（run_skill/explore/research/review/security_review）经新
+  RunPersistedSubAgent 同等待遇（meta.Title=任务本体，UI 标题不以技能正文
+  开头）；task 工具每次尝试 MarkRunning + TrackProgress（~1s 原子快照写盘，
+  stop 先 final flush 再终态写，终态 CreatedAt/Title/Kind 守恒——顺带修旧
+  后台 run_in_background 子代理从不落盘缺陷，job 闭包内 finalize）。
+- **本地模型工具 mt_**：tool 新增 ModelBackedTool 标记（vision、
+  summarize_file 一行声明）；boot 收集集合注入主执行器
+  SetModelToolRecorder；AgentRunner 在 pre-exec 起点开 mt_ 记录（参数齐后
+  更新标题）、ToolResult 收尾（成败如实）、回合 defer 兜底失败（流中断/
+  抑制不残留 running）。子代理 runner 不装配——其内部工具活动已在 sa_
+  transcript，不重复制造噪音。
+- **读端/UI**：SubagentRunView/Transcript 加 kind/tool（旧数据 subagent
+  降级）与 meta.Title 优先任务摘要；valid ref 扩 mt_（防穿越同口径）；
+  左栏会话展开子行、任务页「本地模型工具」区块、ChatTabs detail、三语字典
+  新增 label/section 两键；SubagentThread 运行中订阅 tool_dispatch/
+  tool_result 事件 800ms 节流补拉（工具边界即时，3s 轮询兜底）。
+- 验证：Go 相关包全绿（agent/boot/tool/largefile/app；整树 go test 仅
+  control 单测跨包并发干扰复跑单包通过，与本刀无关）；vitest 全量
+  **211 文件/1535 用例**、tsc -b/eslint 0、check-bindings-drift 559 PASS；
+  新增 store 生命周期/惰性目录/进度 flush + app 绑定 mt_ 用例。
+- 遗留（如实）：运行中仍是「消息/工具边界级分段刷新」，逐 token 真流式
+  需要独立 SubagentDelta 事件通道 + streaming 渲染（P1）；技能子代理
+  transcript 首条 user 仍含技能正文（Title 已独立，展示不受影响）。
 
 ## 当前状态
 
