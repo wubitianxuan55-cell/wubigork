@@ -1,5 +1,5 @@
 import type { Dispatch, KeyboardEvent, PointerEvent as ReactPointerEvent, SetStateAction } from "react";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { List, type RowComponentProps } from "react-window";
 import { Modal } from "antd";
 import {
@@ -13,11 +13,12 @@ import { useT } from "../lib/i18n";
 import { sessionTitle } from "../lib/session";
 import { relativeTime } from "../lib/time";
 import { filterProjectGroups } from "../lib/projectGroups";
-import type { FactBaseView, JobView, ProjectGroup, SessionMeta } from "../lib/types";
+import type { FactBaseView, JobView, ProjectGroup, SessionMeta, SubagentRunView } from "../lib/types";
 import { app } from "../lib/bridge";
 import { useToast } from "./Toast";
 import { useDebouncedValue } from "../hooks/useDebouncedValue";
 import SpaceChip from "./SpaceChip";
+import type { SubagentThreadStatus } from "./SubagentThread";
 
 export interface SidebarProps {
   collapsed: boolean;
@@ -38,6 +39,13 @@ export interface SidebarProps {
   onPinSession: (path: string, pinned: boolean) => void;
   onDeleteSession: (path: string) => void;
   onRenameSession: (path: string, title: string) => void;
+  onOpenSubagentThread: (p: {
+    sessionPath: string;
+    ref: string;
+    task?: string;
+    model?: string;
+    status: SubagentThreadStatus;
+  }) => void;
   onOpenHistory: () => void;
   onOpenMemory: () => void;
   onOpenCaps: () => void;
@@ -69,9 +77,23 @@ type SessionRowItem =
   | { key: string; kind: "group"; g: ProjectGroup; open: boolean }
   | { key: string; kind: "empty"; g: ProjectGroup }
   | { key: string; kind: "session"; s: SessionMeta; g: ProjectGroup }
+  | { key: string; kind: "subagent"; s: SessionMeta; g: ProjectGroup; r: SubagentRunView }
+  | { key: string; kind: "subagentNote"; s: SessionMeta; g: ProjectGroup; note: "loading" | "empty" | "error" }
   | { key: string; kind: "showMore"; g: ProjectGroup; hidden: number }
   | { key: string; kind: "archHeader"; g: ProjectGroup; open: boolean }
   | { key: string; kind: "archived"; s: SessionMeta; g: ProjectGroup };
+
+type SubagentChildrenState = {
+  status: "loading" | "ready" | "error";
+  runs: SubagentRunView[];
+};
+
+/** SubagentRunView.status → 独立子代理会话 tab 的 SubagentThread 状态口径。 */
+function subagentThreadStatus(r: SubagentRunView): SubagentThreadStatus {
+  if (r.status === "running") return "running";
+  if (r.status === "failed") return "failed";
+  return "completed";
+}
 
 interface SessionRowUI {
   running: boolean;
@@ -93,6 +115,17 @@ interface SessionRowUI {
   onPinSession: (path: string, pinned: boolean) => void;
   onDeleteSession: (path: string) => void;
   onRenameSession: (path: string, title: string) => void;
+  onOpenSubagentThread: (p: {
+    sessionPath: string;
+    ref: string;
+    task?: string;
+    model?: string;
+    status: SubagentThreadStatus;
+  }) => void;
+  subagentOpen: Record<string, boolean>;
+  subagents: Record<string, SubagentChildrenState>;
+  toggleSubagents: (path: string) => void;
+  reloadSubagents: (path: string) => void;
 }
 
 /**
@@ -180,13 +213,28 @@ function SessionRow({ index, style, ariaAttributes, rows, ui }: RowComponentProp
   if (row.kind === "session") {
     const s = row.s;
     const projectPath = row.g.path;
+    const openSubagents = !!ui.subagentOpen[s.path];
     return (
       <div style={style} {...ariaAttributes}>
         <div
-          className={`group flex items-start gap-1 rounded-md py-[6px] pl-2 pr-1.5 mb-[1px] transition-colors duration-150 hover:bg-sidebar-hover ${
+          className={`group flex items-start gap-0.5 rounded-md py-[6px] pl-1 pr-1.5 mb-[1px] transition-colors duration-150 hover:bg-sidebar-hover ${
             s.current ? "sidebar-session-active" : ""
           }`}
         >
+          <button
+            className="flex w-5 h-5 shrink-0 items-center justify-center self-start mt-[5px] rounded-md bg-transparent border-0 text-fg-faint/55 cursor-pointer hover:text-fg hover:bg-bg-soft transition-colors"
+            onClick={(e) => { e.stopPropagation(); ui.toggleSubagents(s.path); }}
+            title={openSubagents ? t("sidebar.subagentsCollapse") : t("sidebar.subagentsExpand")}
+            aria-expanded={openSubagents}
+            data-sidebar-subagent-toggle={s.path}
+            type="button"
+          >
+            <ChevronDown
+              size={11}
+              className="transition-transform duration-[var(--dur-fast)]"
+              style={{ transform: openSubagents ? "rotate(180deg)" : "none" }}
+            />
+          </button>
           <button
             className="flex items-start gap-2 flex-1 min-w-0 bg-transparent border-0 text-inherit cursor-pointer py-0.5 text-left disabled:cursor-default"
             onClick={() => void ui.onResumeSessionInProject(s.path, projectPath)}
@@ -293,6 +341,88 @@ function SessionRow({ index, style, ariaAttributes, rows, ui }: RowComponentProp
     );
   }
 
+  if (row.kind === "subagentNote") {
+    const s = row.s;
+    const loading = row.note === "loading";
+    const error = row.note === "error";
+    return (
+      <div style={style} {...ariaAttributes}>
+        <div
+          className={`flex items-center gap-1.5 rounded-md py-[6px] pl-9 pr-2 text-[11px] leading-snug ${
+            error ? "text-err/85 cursor-pointer hover:text-err" : "text-fg-faint/80"
+          }`}
+          onClick={error ? () => ui.reloadSubagents(s.path) : undefined}
+          role={error ? "button" : undefined}
+          data-sidebar-subagent-note={`${s.path}:${row.note}`}
+        >
+          {loading && <Loader2 size={11} className="shrink-0 animate-spin text-accent" />}
+          <span className="min-w-0 truncate">
+            {loading
+              ? t("sidebar.subagentsLoading")
+              : error
+                ? t("sidebar.subagentsError")
+                : t("sidebar.subagentsEmpty")}
+          </span>
+        </div>
+      </div>
+    );
+  }
+
+  if (row.kind === "subagent") {
+    const s = row.s;
+    const r = row.r;
+    const statusLabel =
+      r.status === "running"
+        ? t("subagent.statusRunning")
+        : r.status === "failed"
+          ? t("subagent.statusFailed")
+          : t("subagent.statusDone");
+    const updated = new Date(r.updatedAt).getTime();
+    const timeText = Number.isFinite(updated) ? relativeTime(updated) : "";
+    return (
+      <div style={style} {...ariaAttributes}>
+        <div className="group flex items-start gap-1 rounded-md py-[5px] pl-9 pr-2 mb-[1px] transition-colors duration-150 hover:bg-sidebar-hover">
+          <button
+            className="flex items-start gap-2 flex-1 min-w-0 bg-transparent border-0 text-left cursor-pointer py-0.5"
+            onClick={() =>
+              ui.onOpenSubagentThread({
+                sessionPath: s.path,
+                ref: r.ref,
+                task: r.task || r.lastText || undefined,
+                model: r.model,
+                status: subagentThreadStatus(r),
+              })
+            }
+            title={t("sidebar.subagentsOpen")}
+            data-sidebar-subagent-row={`${s.path}:${r.ref}`}
+            type="button"
+          >
+            <span
+              className={`mt-[5px] h-1.5 w-1.5 rounded-full shrink-0 ${
+                r.status === "running"
+                  ? "bg-accent animate-pulse"
+                  : r.status === "failed"
+                    ? "bg-err"
+                    : "bg-ok"
+              }`}
+            />
+            <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+              <span className="overflow-hidden text-ellipsis whitespace-nowrap text-[12px] leading-[1.35] text-fg-dim">
+                {r.task || t("sidebar.subagentsUntitled")}
+              </span>
+              <span className="overflow-hidden text-ellipsis whitespace-nowrap text-[10.5px] leading-snug text-fg-faint/70">
+                <span className={r.status === "running" ? "text-accent" : ""}>{statusLabel}</span>
+                {" · "}
+                {r.model ? `${r.model} · ` : ""}
+                {timeText}
+              </span>
+            </span>
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   // archived
   const s = row.s;
   return (
@@ -373,6 +503,7 @@ export function Sidebar({
   onPinSession,
   onDeleteSession,
   onRenameSession,
+  onOpenSubagentThread,
   onOpenHistory,
   onOpenMemory,
   onOpenCaps,
@@ -406,6 +537,42 @@ export function Sidebar({
   const [revealed, setRevealed] = useState<Record<string, boolean>>({});
   // 各项目「已归档」分组默认折叠
   const [archivedOpen, setArchivedOpen] = useState<Record<string, boolean>>({});
+  // 父会话行展开状态（better-sidebar 子代理入口：会话 → 子代理子行）
+  const [subagentOpen, setSubagentOpen] = useState<Record<string, boolean>>({});
+  // 按父会话缓存 GaeaSubagentRuns 结果（首次展开时懒加载，关闭再开不重复请求）
+  const [subagents, setSubagents] = useState<Record<string, SubagentChildrenState>>({});
+
+  const loadSubagents = useCallback((path: string) => {
+    setSubagents((prev) => ({ ...prev, [path]: { status: "loading", runs: [] } }));
+    void app
+      .SubagentRuns(path)
+      .then((v) =>
+        setSubagents((prev) => ({ ...prev, [path]: { status: "ready", runs: v.runs ?? [] } })),
+      )
+      .catch(() =>
+        setSubagents((prev) => ({ ...prev, [path]: { status: "error", runs: [] } })),
+      );
+  }, []);
+
+  const toggleSubagents = useCallback(
+    (path: string) => {
+      const next = !subagentOpen[path];
+      setSubagentOpen((prev) => ({ ...prev, [path]: next }));
+      if (!next) return;
+      const st = subagents[path];
+      if (st?.status === "ready" || st?.status === "loading") return;
+      loadSubagents(path);
+    },
+    [subagentOpen, subagents, loadSubagents],
+  );
+
+  const reloadSubagents = useCallback(
+    (path: string) => {
+      setSubagentOpen((prev) => ({ ...prev, [path]: true }));
+      loadSubagents(path);
+    },
+    [loadSubagents],
+  );
 
   useEffect(() => { setLocalQuery(searchQuery); }, [searchQuery]);
   useEffect(() => {
@@ -441,6 +608,32 @@ export function Sidebar({
     return undefined;
   }, [projectGroups]);
 
+  // 当前会话展开子代理时，运行期间每 5s 刷新一次状态/活动行（与右栏分工面板
+  // 同一数据源）；子代理只会从当前会话派发，历史会话子行按展开时快照展示。
+  useEffect(() => {
+    if (!running) return;
+    const path = currentSession?.path;
+    if (!path || !subagentOpen[path]) return;
+    let live = true;
+    const pull = () => {
+      void app
+        .SubagentRuns(path)
+        .then((v) => {
+          if (!live) return;
+          setSubagents((prev) => {
+            const cur = prev[path];
+            return cur?.status === "ready"
+              ? { ...prev, [path]: { status: "ready", runs: v.runs ?? [] } }
+              : prev;
+          });
+        })
+        .catch(() => {});
+    };
+    pull();
+    const timer = setInterval(pull, 5000);
+    return () => { live = false; clearInterval(timer); };
+  }, [running, currentSession?.path, subagentOpen]);
+
   const searching = debouncedQuery.trim().length > 0;
   const filteredGroups = useMemo(
     () => filterProjectGroups(projectGroups, debouncedQuery),
@@ -459,7 +652,23 @@ export function Sidebar({
       if (visible.length === 0) {
         out.push({ key: `empty:${g.path}`, kind: "empty", g });
       } else {
-        for (const s of visible) out.push({ key: `s:${s.path}`, kind: "session", s, g });
+        for (const s of visible) {
+          out.push({ key: `s:${s.path}`, kind: "session", s, g });
+          if (subagentOpen[s.path]) {
+            const st = subagents[s.path];
+            if (!st || st.status === "loading") {
+              out.push({ key: `sn:${s.path}:loading`, kind: "subagentNote", s, g, note: "loading" });
+            } else if (st.status === "error") {
+              out.push({ key: `sn:${s.path}:error`, kind: "subagentNote", s, g, note: "error" });
+            } else if (st.runs.length === 0) {
+              out.push({ key: `sn:${s.path}:empty`, kind: "subagentNote", s, g, note: "empty" });
+            } else {
+              for (const r of st.runs) {
+                out.push({ key: `sa:${s.path}:${r.ref}`, kind: "subagent", s, g, r });
+              }
+            }
+          }
+        }
         if (sessions.length > visible.length) {
           out.push({ key: `more:${g.path}`, kind: "showMore", g, hidden: sessions.length - visible.length });
         }
@@ -472,7 +681,7 @@ export function Sidebar({
       }
     }
     return out;
-  }, [filteredGroups, searching, projectsOpen, revealed, archivedOpen]);
+  }, [filteredGroups, searching, projectsOpen, revealed, archivedOpen, subagentOpen, subagents]);
 
   // 会话列表容器高度：真实浏览器由 ResizeObserver 测量，jsdom 无布局时走兜底高度
   const sessionListRef = useRef<HTMLDivElement | null>(null);
@@ -512,6 +721,11 @@ export function Sidebar({
     onPinSession,
     onDeleteSession,
     onRenameSession,
+    onOpenSubagentThread,
+    subagentOpen,
+    subagents,
+    toggleSubagents,
+    reloadSubagents,
   };
 
   return (

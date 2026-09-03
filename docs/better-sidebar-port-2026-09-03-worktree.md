@@ -1,7 +1,37 @@
 # 工作树快照记录：办公右栏 dsh-better-sidebar pane 化移植（2026-09-03，未发版）
 
 > 状态：已完成一版可运行的 pane 移植，前端全量门禁绿；**未 bump 版本、未发布**。
+> 续会话：已再完成「左栏子代理会话入口」（快照二，见下）；仍未 bump/发布。
 > 提交即快照，供下个会话继续。
+
+## 〇、快照二：左栏子代理会话入口（2026-09-03 续会话）
+
+上一会话遗留的「下一刀」已完成（复用现有 `GaeaSubagentRuns`，绑定面保持
+**559 不变**，不新增后端接口）：
+
+1. **父会话行可展开**：Sidebar 虚拟滚动行模型加 `subagent` / `subagentNote`
+   两种子行——会话行左侧新增展开钮（aria-expanded + data 锚点），首次展开
+   懒加载该会话子代理，关闭再开走缓存；loading/空态/失败重试均有行内态。
+2. **子代理子行**：层级缩进 + 状态点（运行脉冲/完成/失败）+ 任务摘要 +
+   「状态 · 模型 · 相对时间」次行；点击子行 → 既有「独立子代理会话 tab」
+   （`openSubagentThread`，不替换主会话）。
+3. **当前会话运行中 5s 刷新**：与右栏分工面板同数据源同口径；历史会话子行
+   按展开时快照展示。
+4. **mock 按父会话归属**：c.jsonl（当前）保原两跑；a.jsonl / d.jsonl /
+   annual-r1 各有演示子代理；其余会话空态——左栏各会话子代理不再串味。
+5. **i18n**：三语各 +7 键（展开/收起/打开/空态/加载/失败/无题兜底）。
+
+涉及文件：`components/Sidebar.tsx`（+行模型/懒加载/渲染）、
+`components/Sidebar.test.tsx`（+2 用例）、`App.tsx`（透传 openSubagentThread）、
+`lib/mock/office.ts`（SubagentRuns 按会话归属）。
+
+验证：
+- vitest 全量 **210 文件 / 1523 用例**通过（+2）；`tsc -b`、eslint 全量 0；
+- 绑定面 drift：`bindingNames.ts` 与 Go 一致（559）；
+- `?mock=1` 实拍：展开当前会话 → 2 个子代理子行 → 点子行 → 主区顶栏出现
+  独立子代理会话 tab（标签=任务摘要），见
+  docs/snapshots/2026-09-03-better-sidebar-port/sidebar-subagents-expanded.png
+  与 .../sidebar-subagent-tab-open.png。
 
 ## 一、本快照完成内容
 
@@ -44,11 +74,7 @@ EditorTabs(.tsx/.test)、lib/editorTabs(.ts/.test)
 
 ## 四、下一步（下个会话）
 
-- **左栏子代理会话入口（用户已选 2）**：
-  1. 后端：新增 `GaeaSubagentSessions(parentSessionPath)`（或把 SessionMeta
-     扩展为会话树）暴露 `<会话目录>/subagents/*`；
-  2. 前端：Sidebar 虚拟滚动行模型加「子行」（父会话展开 → 子代理行），
-     点击走已完成的独立子代理会话 tab；
-  3. Go drift（绑定面）+ vitest + mock 实拍验收。
+- ~~左栏子代理会话入口（用户已选 2）~~：**已完成（快照二）**——复用
+  `GaeaSubagentRuns` 保持绑定面 559，Sidebar 虚拟列表子行 + mock 实拍验收。
 - 之后可考虑：完整发版（v4.60.0 流程：Go 全量 → 版本四处 → release note →
   提交/tag）。

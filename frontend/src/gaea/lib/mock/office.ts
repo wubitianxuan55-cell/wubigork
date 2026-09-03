@@ -305,36 +305,122 @@ export function buildOffice(_s: MakeMockState): OfficeMethods {
         bytes: paths.length * 128,
       };
     },
-    async SubagentRuns(_sessionPath: string) {
+    async SubagentRuns(sessionPath: string) {
+      // 左栏「子代理会话入口」按父会话归属展示：不同会话返回各自的子代理，
+      // 与任务面板（只轮询当前 c.jsonl）共用同一契约，避免历史会话行串味。
+      const now = Date.now();
+      const ago = (ms: number) => new Date(now - ms).toISOString();
+      if (sessionPath === "/mock/sessions/a.jsonl") {
+        return {
+          available: true,
+          total: 2,
+          running: 0,
+          runs: [
+            {
+              ref: "sa_20260903_100000_0000000011_a1a1a1a1",
+              status: "completed" as const,
+              model: "deepseek-v4-flash",
+              task: "核对季度报表财务口径与附注勾稽",
+              answer: "口径一致，补充了研发费用归集说明。",
+              lastText: "口径一致，补充了研发费用归集说明。",
+              lastTool: "edit_file: 季度报表说明.md",
+              toolCalls: 4,
+              createdAt: ago(2 * 3_600_000),
+              updatedAt: ago(3_500_000),
+            },
+            {
+              ref: "sa_20260903_090000_0000000012_b3b3b3b3",
+              status: "completed" as const,
+              model: "deepseek-v4-pro",
+              task: "起草季度经营快报的图表数据摘要",
+              answer: "已生成四张核心指标的简明摘要。",
+              lastText: "已生成四张核心指标的简明摘要。",
+              lastTool: "web_search: 季度经营快报 2026",
+              toolCalls: 2,
+              createdAt: ago(5 * 3_600_000),
+              updatedAt: ago(4 * 3_600_000),
+            },
+          ],
+        };
+      }
+      if (sessionPath.includes("/annual/r1.jsonl")) {
+        return {
+          available: true,
+          total: 1,
+          running: 0,
+          runs: [
+            {
+              ref: "sa_20260903_080000_0000000013_c4c4c4c4",
+              status: "completed" as const,
+              model: "deepseek-v4-flash",
+              task: "复核年度经营数据与去年同期的口径差异",
+              answer: "两处口径差异已标注，建议按统一基准重算。",
+              lastText: "两处口径差异已标注，建议按统一基准重算。",
+              lastTool: "xlsx_read: 年度经营数据.xlsx",
+              toolCalls: 5,
+              createdAt: ago(8 * 3_600_000),
+              updatedAt: ago(7 * 3_600_000),
+            },
+          ],
+        };
+      }
+      if (sessionPath === "/mock/sessions/d.jsonl") {
+        return {
+          available: true,
+          total: 1,
+          running: 0,
+          runs: [
+            {
+              ref: "sa_20260902_180000_0000000014_d5d5d5d5",
+              status: "failed" as const,
+              model: "deepseek-v4-flash",
+              task: "梳理 dsh 插件宿主与 uiConversation 的启动依赖",
+              answer: "",
+              lastTool: "bash: pnpm web boot",
+              toolCalls: 3,
+              createdAt: ago(20 * 3_600_000),
+              updatedAt: ago(19 * 3_600_000),
+            },
+          ],
+        };
+      }
+      if (sessionPath === "" || sessionPath.includes("c.jsonl") || sessionPath.includes("cur.jsonl")) {
+        return {
+          available: true,
+          total: 2,
+          running: 1,
+          runs: [
+            {
+              ref: "sa_20260817_110000_0000000002_b2b2b2b2",
+              status: "running",
+              task: "调研竞品表格 Agent 能力并总结可蒸馏点",
+              lastText: "正在比对三家竞品的表格选中→图表链路…",
+              lastTool: "web_fetch: https://example.com/table-agent",
+              toolCalls: 1,
+              createdAt: "2026-08-17T11:00:00+08:00",
+              updatedAt: "2026-08-17T11:01:00+08:00",
+            },
+            {
+              ref: "sa_20260817_100000_0000000001_a1a1a1a1",
+              status: "completed",
+              model: "deepseek-v4-flash",
+              toolScope: ["web_search", "web_fetch"],
+              task: "收集 2026 年办公 Agent 竞品更新信息",
+              answer: "千问办公公测、WorkSwarm 蜂群智能体、QClaw V2 多 Agent。",
+              lastText: "千问办公公测、WorkSwarm 蜂群智能体、QClaw V2 多 Agent。",
+              lastTool: "web_search: 办公 Agent 竞品 2026",
+              toolCalls: 3,
+              createdAt: "2026-08-17T10:00:00+08:00",
+              updatedAt: "2026-08-17T10:30:00+08:00",
+            },
+          ],
+        };
+      }
       return {
-        available: true,
-        total: 2,
-        running: 1,
-        runs: [
-          {
-            ref: "sa_20260817_110000_0000000002_b2b2b2b2",
-            status: "running",
-            task: "调研竞品表格 Agent 能力并总结可蒸馏点",
-            lastText: "正在比对三家竞品的表格选中→图表链路…",
-            lastTool: "web_fetch: https://example.com/table-agent",
-            toolCalls: 1,
-            createdAt: "2026-08-17T11:00:00+08:00",
-            updatedAt: "2026-08-17T11:01:00+08:00",
-          },
-          {
-            ref: "sa_20260817_100000_0000000001_a1a1a1a1",
-            status: "completed",
-            model: "deepseek-v4-flash",
-            toolScope: ["web_search", "web_fetch"],
-            task: "收集 2026 年办公 Agent 竞品更新信息",
-            answer: "千问办公公测、WorkSwarm 蜂群智能体、QClaw V2 多 Agent。",
-            lastText: "千问办公公测、WorkSwarm 蜂群智能体、QClaw V2 多 Agent。",
-            lastTool: "web_search: 办公 Agent 竞品 2026",
-            toolCalls: 3,
-            createdAt: "2026-08-17T10:00:00+08:00",
-            updatedAt: "2026-08-17T10:30:00+08:00",
-          },
-        ],
+        available: false,
+        total: 0,
+        running: 0,
+        runs: [],
       };
     },
     async SubagentTranscript(_sessionPath: string, ref: string) {

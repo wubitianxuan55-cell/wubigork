@@ -6,12 +6,16 @@
 
 ## 工作树快照（2026-09-03 未发版 · 下会话续）
 
-- **办公右栏 DSH-better-sidebar pane 化移植（WIP）**：详见
-  docs/better-sidebar-port-2026-09-03-worktree.md 与
+- **办公右栏 DSH-better-sidebar pane 化移植（WIP，两刀）**：快照一 = pane
+  化右栏（视图/文件/浏览器/任务 + 点子代理独立会话 tab）；快照二 = **左栏
+  子代理会话入口已完成**——父会话行展开 → 子代理子行（状态点/任务摘要/状态·
+  模型·时间），点击复用独立子代理会话 tab；复用 GaeaSubagentRuns，绑定面
+  **559 不变**；mock 子代理按父会话归属；三语 +7 键。
+- 前端全量 vitest 210/210（**1523 用例**）、tsc/eslint 0；drift OK；Go 未改
+  未跑。版本未 bump（仍 4.59.0）。
+- 详见 docs/better-sidebar-port-2026-09-03-worktree.md（快照二）与
   docs/snapshots/2026-09-03-better-sidebar-port/。
-- 前端全量 vitest 210/210（1521 用例）、tsc/eslint 0；Go 未改未跑。
-- 未提交前备注：绑定面未变；版本未 bump（仍 4.59.0）。
-- 下一刀：左栏子代理会话入口（后端暴露子代理会话 + Sidebar 虚拟列表子行）。
+- 下一步建议：完整发版 v4.60.0（Go 全量 → 版本四处 → release note → 提交/tag）。
 
 ## 当前状态
 

@@ -1077,6 +1077,7 @@ export default function App() {
           onSearchChange={setSidebarQuery}
           onDeleteSession={onDeleteSession}
           onRenameSession={handleRenameSession}
+          onOpenSubagentThread={openSubagentThread}
           onOpenHistory={openHistory}
           onOpenMemory={openMemory}
           onOpenCaps={() => setCapsOpen(true)}

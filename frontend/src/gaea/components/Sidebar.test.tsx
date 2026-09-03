@@ -34,6 +34,7 @@ function renderSidebar(groups: ProjectGroup[] = [group]) {
     onPinSession: vi.fn(),
     onDeleteSession: vi.fn(),
     onRenameSession: vi.fn(),
+    onOpenSubagentThread: vi.fn(),
     onOpenHistory: vi.fn(),
     onOpenMemory: vi.fn(),
     onOpenCaps: vi.fn(),
@@ -63,6 +64,7 @@ function renderSidebar(groups: ProjectGroup[] = [group]) {
           onPinSession={callbacks.onPinSession}
           onDeleteSession={callbacks.onDeleteSession}
           onRenameSession={callbacks.onRenameSession}
+          onOpenSubagentThread={callbacks.onOpenSubagentThread}
           onOpenHistory={callbacks.onOpenHistory}
           onOpenMemory={callbacks.onOpenMemory}
           onOpenCaps={callbacks.onOpenCaps}
@@ -123,6 +125,64 @@ describe("Sidebar 项目分组与会话操作", () => {
     // 正常会话不出现徽标（全页只有一处）
     expect(screen.getAllByText("未完成")).toHaveLength(1);
   });
+
+  it("会话行展开后渲染子代理子行，点击子行打开独立子代理会话", async () => {
+    const subGroup: ProjectGroup = {
+      path: "/mock",
+      name: "mock",
+      current: true,
+      modTime: 10,
+      sessions: [
+        { path: "/mock/sessions/c.jsonl", preview: "当前预览", title: "当前标题", turns: 2, modTime: 10, current: true, pinned: false },
+        { path: "/mock/sessions/b.jsonl", preview: "其他预览", title: "其他标题", turns: 1, modTime: 5, current: false, pinned: false },
+      ],
+      archived: [],
+    };
+    const c = renderSidebar([subGroup]);
+
+    // 展开当前会话（c.jsonl，mock 有 running + completed 两个子代理）
+    const toggle = document.querySelector('[data-sidebar-subagent-toggle="/mock/sessions/c.jsonl"]') as HTMLElement;
+    expect(toggle).toBeTruthy();
+    fireEvent.click(toggle);
+    const task = await screen.findByText("调研竞品表格 Agent 能力并总结可蒸馏点");
+    expect(task).toBeTruthy();
+
+    // 点击子行 → 复用既有「独立子代理会话 tab」入口（不替换主会话）
+    const row = document.querySelector('[data-sidebar-subagent-row="/mock/sessions/c.jsonl:sa_20260817_110000_0000000002_b2b2b2b2"]') as HTMLElement;
+    expect(row).toBeTruthy();
+    fireEvent.click(row);
+    expect(c.onOpenSubagentThread).toHaveBeenCalledWith({
+      sessionPath: "/mock/sessions/c.jsonl",
+      ref: "sa_20260817_110000_0000000002_b2b2b2b2",
+      task: "调研竞品表格 Agent 能力并总结可蒸馏点",
+      model: undefined,
+      status: "running",
+    });
+  });
+
+  it("无子代理的会话展开后显示空态并可收起", async () => {
+    const subGroup: ProjectGroup = {
+      path: "/mock",
+      name: "mock",
+      current: true,
+      modTime: 10,
+      sessions: [
+        { path: "/mock/sessions/c.jsonl", preview: "当前预览", title: "当前标题", turns: 2, modTime: 10, current: true, pinned: false },
+        { path: "/mock/sessions/b.jsonl", preview: "其他预览", title: "其他标题", turns: 1, modTime: 5, current: false, pinned: false },
+      ],
+      archived: [],
+    };
+    renderSidebar([subGroup]);
+
+    const toggle = document.querySelector('[data-sidebar-subagent-toggle="/mock/sessions/b.jsonl"]') as HTMLElement;
+    fireEvent.click(toggle);
+    expect(await screen.findByText("该会话暂无子代理")).toBeTruthy();
+
+    // 再次点击收起：空态行消失
+    fireEvent.click(toggle);
+    expect(screen.queryByText("该会话暂无子代理")).toBeNull();
+  });
+
   it("虚拟化：1000 条会话只渲染可见窗口（<50 行），滚动后窗口移动", () => {
     const sessions: SessionMeta[] = Array.from({ length: 1000 }, (_, i) => ({
       path: `/ws/s${i}.jsonl`,
