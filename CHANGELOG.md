@@ -1,3 +1,18 @@
+## v4.55.0 · 继续完善：拆分补测起步 · mock 补面 · failover 文案 label 化（2026-09-03）
+> 欠账池三线并行子代理 + 一条欠账 DOM 核实销账。**绑定面 559 零变更**。
+> 详见 releases/v4.55.0.md。
+- **销账**：右舷「虚线交叠」DOM 核实证伪（无 dashed 元素、文字无交叠）。
+- **A 线**：ChapterPage 首次拥有测试——阅读搜索高亮三函数搬入
+  chapter/readingHighlight.ts（净 -49 行，行为零变更）+ 15 用例（12 纯函数
+  + 3 冒烟）；拆分第二步留待后续。
+- **B 线**：dev mock 补 Get/SetEngineFailover（state+契约 4 用例）；收口补
+  engines.ts App() 浏览器回退（?? bridgeApp，未实现方法照旧抛错走 catch）。
+  走查：mock 下调度三开关全点亮，CUA 真实点击三方同步切换。
+- **C 线**：failover toast 接入统一 engineLabel 解析（三级回退语义不变），
+  新建 failover 测试锁 4 用例。
+- 验证：go 全绿、tsc -b 0、eslint 0/0、vitest 196/1361（+4 文件 +24 用例）、
+  drift PASS（559）。
+
 ## v4.54.0 · 继续完善：三线并行收欠账（2026-09-03）
 > 欠账池互不相交三线并行子代理（文件所有权互斥）。全部存量清偿，无新功能。
 > **绑定面 559 零变更**。详见 releases/v4.54.0.md。

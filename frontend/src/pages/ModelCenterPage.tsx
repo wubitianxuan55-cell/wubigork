@@ -25,7 +25,7 @@ import { useStatsState } from './modelcenter/hooks/useStatsState'
 import { useImageState } from './modelcenter/hooks/useImageState'
 import { useVoiceState } from './modelcenter/hooks/useVoiceState'
 import { useBindState } from './modelcenter/hooks/useBindState'
-import { FEATURES, type Category } from './modelcenter/utils'
+import { engineLabel, FEATURES, type Category } from './modelcenter/utils'
 import './modelcenter/modelcenter.css'
 
 /** 订阅 runtime 事件并返回退订函数（原生 runtime 返回退订；HTTP polyfill 返回 void，安全兜底） */
@@ -78,8 +78,10 @@ const ModelCenterPage: React.FC = () => {
     }
   }, [loadFeatureCfgSync, refreshRoutesSync])
 
-  // 同步：其他页面切换活跃模型/语音模型后，本面板即时刷新
-  const { loadAll: loadAllSync } = engine
+  // 同步：其他页面切换活跃模型/语音模型后，本面板即时刷新。
+  // enginesLive 一并解出：failover 提示要把 to_engine id 映射为显示名，
+  // 必须读到最新列表（沿用本文件「解构 + 入依赖」的闭包新鲜度模式）。
+  const { loadAll: loadAllSync, engines: enginesLive } = engine
   const { loadVoiceCfg: loadVoiceCfgSync } = voice
   useEffect(() => {
     const reload = () => { loadAllSync(); refreshRoutesSync() }
@@ -99,12 +101,22 @@ const ModelCenterPage: React.FC = () => {
   // 引擎列表（engineStatuses 随 engines.json 里的 status 刷新）；发生调用失败
   // 转移 → info 级提示（非错误样式，不打断）。payload 契约：
   // engine-health-changed {id, connected}；model-failover {from_engine, to_engine, model}。
+  // enginesLive 入依赖：effect 重订阅换取 onFailover 闭包里的列表始终最新
+  // （与文件内其他同步事件的既有模式一致；重订阅成本可忽略）。
   useEffect(() => {
     const onHealth = () => { loadAllSync() }
     const onFailover = (data: unknown) => {
       const p = (data ?? {}) as { to_engine?: unknown }
       const to = typeof p.to_engine === 'string' ? p.to_engine : ''
-      message.info(to ? `调用失败，已切换到 ${to} 重试` : '调用失败，已自动切换引擎重试')
+      if (!to) {
+        message.info('调用失败，已自动切换引擎重试')
+        return
+      }
+      // to_engine 是引擎 id（Go failoverTarget 返回候选引擎 ID），对用户不友好；
+      // 查最新引擎列表换显示名（engineLabel：后端 label → 内置映射 → id 兜底）。
+      // 列表缺失/流式竞态查不到时按 id 原样提示，三级回退语义不变。
+      const hit = enginesLive.find(e => e.id === to)
+      message.info(`调用失败，已切换到 ${hit ? engineLabel(hit) : to} 重试`)
     }
     const unsub1 = runtimeOn('engine-health-changed', onHealth)
     const unsub2 = runtimeOn('model-failover', onFailover)
@@ -112,7 +124,7 @@ const ModelCenterPage: React.FC = () => {
       try { unsub1?.() } catch (_) {}
       try { unsub2?.() } catch (_) {}
     }
-  }, [loadAllSync])
+  }, [loadAllSync, enginesLive])
 
   const ctx: ModelCenterContextValue = {
     category, setCategory,

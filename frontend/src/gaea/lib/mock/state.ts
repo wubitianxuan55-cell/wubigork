@@ -1,7 +1,7 @@
 // mock/state.ts — makeMockApp 每次调用创建的一次性本地状态（T6-10.1 拆分）。
 // 原 makeMockApp 内部的 let/const 状态全部迁入 createMockState；域方法通过
-// MakeMockState 读写。仅 capServers/keepWarm/preloadPlan 会被整体重绑
-// （经 setter），其余均为引用内原地变更（splice/push/set/属性赋值），
+// MakeMockState 读写。仅 capServers/keepWarm/preloadPlan/engineFailover 会被
+// 整体重绑（经 setter），其余均为引用内原地变更（splice/push/set/属性赋值），
 // 解构后仍实时可见，行为与原闭包一致。
 
 import type {
@@ -28,10 +28,14 @@ export interface MakeMockState {
   keepWarm: boolean;
   preloadPlan: boolean;
   morningPreload: boolean;
+  // 故障转移开关（模型中心「调度」段，C 刀）：布尔为原始值必须经 setter
+  // 重绑（与 keepWarm 同因）；默认 false 对齐后端「默认关」契约。
+  engineFailover: boolean;
   setCapServers(v: ServerView[]): void;
   setKeepWarm(v: boolean): void;
   setPreloadPlan(v: boolean): void;
   setMorningPreload(v: boolean): void;
+  setEngineFailover(v: boolean): void;
 }
 
 // mockSwitchWorkspace：切换工作区并置顶（原 makeMockApp 内部函数）。
@@ -155,6 +159,8 @@ export function createMockState(): MakeMockState {
     keepWarm: true,
     preloadPlan: true,
     morningPreload: true,
+    // 故障转移默认关（Go 侧默认 false；Get/SetEngineFailover 见 mock/model.ts）。
+    engineFailover: false,
     setCapServers(v) {
       s.capServers = v;
     },
@@ -166,6 +172,9 @@ export function createMockState(): MakeMockState {
     },
     setMorningPreload(v) {
       s.morningPreload = v;
+    },
+    setEngineFailover(v) {
+      s.engineFailover = v;
     },
   };
   return s;

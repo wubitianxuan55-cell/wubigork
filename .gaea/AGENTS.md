@@ -5,7 +5,14 @@
 
 ## 版本状态（顶部速览）
 
-- **最新：v4.54.0（2026-09-03）继续完善：三线并行收欠账**——欠账池互不相交
+- **最新：v4.55.0（2026-09-03）继续完善：拆分补测起步 · mock 补面 · failover
+  文案 label 化**——三线并行子代理：A ChapterPage 首次拥有测试（阅读高亮三
+  函数搬 chapter/readingHighlight.ts 净-49 行 + 15 用例）；B dev mock 补
+  Get/SetEngineFailover（state+契约 4 用例；收口补 engines.ts App() 浏览器
+  回退 ?? bridgeApp——mock 下调度三开关全点亮，CUA 三方核对）；C failover
+  toast 接入统一 engineLabel（三级回退不变，4 用例）。销账：右舷虚线交叠
+  DOM 核实证伪。559 零变更；vitest 196/1361。详见 `releases/v4.55.0.md`。
+- **此前：v4.54.0（2026-09-03）继续完善：三线并行收欠账**——欠账池互不相交
   三线并行子代理：A 办公面板（任务中心空态文案去造价语境+MergedPanel 分隔线
   加深）；B 首页矩阵（「编程」升格 span 4×1 宽瓦片收 v4.52 末行空位，30 单位
   5 行整除，四响应档核算表入 home.md，宽窄档纯 CSS 降级）；C eslint 三

@@ -88,4 +88,19 @@ describe('SchedulingSection · 故障转移开关卡（C 刀）', () => {
     const sw = failoverCard().querySelector('button[role="switch"]')
     expect(sw?.hasAttribute('disabled')).toBe(true)
   })
+
+  // B 线欠账「dev mock 补 Get/SetEngineFailover」：mock 可读布尔后开关不再
+  // 恒「未知」禁用——false（默认关）同样渲染为可切换的「已关闭」卡。
+  it('mock 返回 false 时开关可用：「已关闭」芯片 + switch 未禁用未勾选', async () => {
+    mocks.getEngineFailover.mockResolvedValue(false)
+    render(<SchedulingSection />)
+    const sw = await waitFor(() => {
+      const s = failoverCard().querySelector('button[role="switch"]')
+      expect(s).toBeTruthy()
+      return s as HTMLElement
+    })
+    expect(failoverCard().querySelector('.mc-chip')?.textContent).toContain('已关闭')
+    expect(sw.hasAttribute('disabled')).toBe(false)
+    expect(sw.getAttribute('aria-checked')).toBe('false')
+  })
 })

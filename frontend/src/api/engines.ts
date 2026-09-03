@@ -329,8 +329,14 @@ export interface BenchmarkRunDetail {
 // ── API 函数 ─────────────────────────────────────────────────
 
 import type { AppFacade } from '../types/wails'
+// 纯浏览器 dev mock（?mock=1）下 window.go 刻意为空（mock-scenarios 锁定断言，
+// 不得往 window.go 挂对象，否则 realApp 劫持 app 代理使 mock 兜底失效）；
+// 此处回退 bridge 的 app 代理（realApp 优先、shell 外落 mock），让 mock 绑定面
+// 已实现的调度方法（Get/SetEngineFailover）在浏览器走查可用；mock 未实现的方法
+// 与原先一样抛 TypeError，走各调用方既有的 catch 降级路径，行为不变。
+import { app as bridgeApp } from '../gaea/lib/bridge'
 
-const App = (): AppFacade => window.go?.app?.App as AppFacade
+const App = (): AppFacade => (window.go?.app?.App ?? bridgeApp) as unknown as AppFacade
 
 /** 获取所有引擎配置 */
 export async function getEngines(): Promise<EngineConfig[]> {

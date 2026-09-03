@@ -1,4 +1,4 @@
-import React, { useCallback, useState, useEffect, useRef, useMemo } from 'react'
+import React, { useState, useEffect, useRef, useMemo } from 'react'
 import {
   Button, message, Modal, Tabs, Tooltip, Popover, Segmented, Slider, Input,
 } from 'antd'
@@ -36,9 +36,12 @@ import {
 import { askReadingAssistant } from '../components/novel/api/readingAssistant'
 import { buildAskHistory, type ReadingAskMessage } from './chapter/readingAskSession'
 import {
-  searchNovelAll, splitSnippet, summarizeSearch, locateParagraphMatch,
+  searchNovelAll, splitSnippet, summarizeSearch,
   type NovelSearchHitData,
 } from './chapter/novelSearchUtils'
+import {
+  textNodesOf, clearReadingHighlight, highlightSearchHitAt,
+} from './chapter/readingHighlight'
 import ExportPanel from '../components/novel/ExportPanel'
 import { ChapterIllustration } from './chapter/ChapterIllustration'
 import type { OutlineNode, ChapterTabData } from '../types'
@@ -654,40 +657,15 @@ const ChapterPage: React.FC = () => {
   }, [readMode, readNodeId, annotations])
 
   // ── 朗读/搜索定位高亮：按文本在段落 DOM 中回定位 ──
-  // 三个辅助函数均用 useCallback 稳定身份（仅读 ref / 纯 DOM 操作，无响应式依赖），
-  // 以便作为下方定位 effect 的合法依赖而不导致每帧重跑。
-  const clearReadingHighlight = useCallback((className: string) => {
-    const root = readingScrollRef.current
-    if (!root) return
-    root.querySelectorAll<HTMLElement>(`.${className}`).forEach((el) => {
-      const parent = el.parentNode
-      if (!parent) return
-      while (el.firstChild) parent.insertBefore(el.firstChild, el)
-      parent.removeChild(el)
-      parent.normalize()
-    })
-  }, [])
-
-  const textNodesOf = useCallback((el: HTMLElement): { node: Text; start: number; end: number }[] => {
-    const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT)
-    const out: { node: Text; start: number; end: number }[] = []
-    let pos = 0
-    let n: Node | null = walker.nextNode()
-    while (n) {
-      const len = (n.textContent || '').length
-      if (len > 0) out.push({ node: n as Text, start: pos, end: pos + len })
-      pos += len
-      n = walker.nextNode()
-    }
-    return out
-  }, [])
-
+  // textNodesOf/clearReadingHighlight/highlightSearchHitAt 已抽为
+  // chapter/readingHighlight 模块级纯 DOM 工具（滚动根经参数传入，无组件状态依赖）；
+  // 模块导入身份天然恒定，无需再 useCallback 包装即可安全用于下方定位 effect 的依赖。
   const applyTextHighlight = (rawText: string, className: string): boolean => {
     const root = readingScrollRef.current
     if (!root || !readMode) return false
     const target = rawText.trim()
     if (!target) return false
-    clearReadingHighlight(className)
+    clearReadingHighlight(root, className)
     const paras = Array.from(root.querySelectorAll<HTMLElement>('.novel-reading-p'))
     for (const p of paras) {
       const full = p.textContent ?? ''
@@ -715,38 +693,11 @@ const ChapterPage: React.FC = () => {
   const applyTextHighlightRef = useRef(applyTextHighlight)
   applyTextHighlightRef.current = applyTextHighlight
 
-  // 搜索命中定位（全文搜索升级）：按后端段落索引 + 段内偏移把该处命中词包进高亮 span，
-  // 与 applyTextHighlight（全文首个命中）不同 —— 这里只作用于指定段落内的指定那一处。
-  // 闭包引用 clearReadingHighlight/textNodesOf（均已 useCallback 稳定）与模块级 locateParagraphMatch。
-  const highlightSearchHitAt = useCallback((paras: HTMLElement[], paraIdx: number, query: string, charOffset: number): boolean => {
-    const p = paras[paraIdx]
-    if (!p || !query) return false
-    const start = locateParagraphMatch(p.textContent || '', query, charOffset)
-    if (start < 0) return false
-    const endAt = start + query.length
-    const nodes = textNodesOf(p)
-    const startHolder = nodes.find((t) => start < t.end)
-    const endHolder = nodes.find((t) => endAt <= t.end)
-    if (!startHolder || !endHolder) return false
-    try {
-      clearReadingHighlight('novel-reading-search-hit')
-      const range = document.createRange()
-      range.setStart(startHolder.node, Math.max(0, start - startHolder.start))
-      range.setEnd(endHolder.node, endAt - endHolder.start)
-      const span = document.createElement('span')
-      span.className = 'novel-reading-search-hit'
-      span.appendChild(range.extractContents())
-      range.insertNode(span)
-      span.scrollIntoView({ block: 'center', behavior: 'smooth' })
-      return true
-    } catch { return false }
-  }, [clearReadingHighlight, textNodesOf])
-
   const handleTtsSentence = (sentence: string) => {
     applyTextHighlight(sentence, 'novel-reading-current')
   }
   const handleTtsClear = () => {
-    clearReadingHighlight('novel-reading-current')
+    clearReadingHighlight(readingScrollRef.current, 'novel-reading-current')
   }
 
   // ── 全文搜索（防抖 300ms；回车立即搜索；点击结果打开章节并按段落定位） ──
@@ -814,15 +765,15 @@ const ChapterPage: React.FC = () => {
       if (!found || !root) return
       const paras = Array.from(root.querySelectorAll<HTMLElement>('.novel-reading-p'))
       const flashed = (target.paragraphIndex >= 0
-        && highlightSearchHitAt(paras, target.paragraphIndex, target.query, target.charOffset))
+        && highlightSearchHitAt(root, paras, target.paragraphIndex, target.query, target.charOffset))
         || applyTextHighlightRef.current(target.query, 'novel-reading-search-hit')
-      // 短暂高亮：2.6s 后自动清除
-      if (flashed) window.setTimeout(() => clearReadingHighlight('novel-reading-search-hit'), 2600)
+      // 短暂高亮：2.6s 后自动清除（触发时再读 ref，章节已切换则清在新根上，与原闭包一致）
+      if (flashed) window.setTimeout(() => clearReadingHighlight(readingScrollRef.current, 'novel-reading-search-hit'), 2600)
     }, 120)
     return () => window.clearInterval(timer)
-    // highlightSearchHitAt/clearReadingHighlight 均已 useCallback 稳定，加入依赖仅为满足
-    // exhaustive-deps，effect 实际触发时机仍只由 readMode/readNodeId 变化决定。
-  }, [readMode, readNodeId, highlightSearchHitAt, clearReadingHighlight])
+    // highlightSearchHitAt/clearReadingHighlight 为模块级常量身份（exhaustive-deps 豁免），
+    // effect 实际触发时机仍只由 readMode/readNodeId 变化决定。
+  }, [readMode, readNodeId])
 
   const tabItems: TabsProps['items'] = tabs.map((t) => ({
     key: t.node.id, label: t.node.title,

@@ -1,17 +1,27 @@
 // mock/model.ts — 模型中心域（T6-10.1 拆分自 lib/mock.ts，方法体零改动；
 // Models/ModelSwitchEstimate 契约对齐 Go，T6-10.4）。
-// 注意 keepWarm/preloadPlan 会被整体重绑，必须经 s.keepWarm / s.preloadPlan
-// 读写（setter 经 state.setKeepWarm/setPreloadPlan 重绑），不能解构快照。
+// 注意 keepWarm/preloadPlan/engineFailover 会被整体重绑，必须经 s.keepWarm /
+// s.preloadPlan / s.engineFailover 读写（setter 经 state.setKeepWarm 等
+// 重绑），不能解构快照。
 import type { AppBindings } from "../bridge";
 import type { ModelSwitchEstimate } from "../types";
 import type { MakeMockState } from "./state";
+
+// GetEngineFailover/SetEngineFailover 是 legacy 绑定面（挂在后端 ModelB 门面，
+// Go 同名，经 window.go.app.App 兼容代理按方法名路由），按 bridge.ts 的
+// LegacySurfaceNames 约定不进 AppBindings——这里用局部方法类型补足，避免牵动
+// AppBindings 双向类型锁（bindingNames 已含两名，drift 校验零变更）。
+type LegacyModelMethods = {
+  GetEngineFailover(): Promise<boolean>;
+  SetEngineFailover(enabled: boolean): Promise<void>;
+};
 
 type ModelMethods = Pick<
   AppBindings,
   | "Models" | "SetModel"
   | "KeepWarmGet" | "KeepWarmSet" | "PreloadPlanGet" | "PreloadPlanSet"
   | "ModelSwitchEstimate" | "Balance"
->;
+> & LegacyModelMethods;
 
 export function buildModel(s: MakeMockState): ModelMethods {
   return {
@@ -39,6 +49,15 @@ export function buildModel(s: MakeMockState): ModelMethods {
     },
     async PreloadPlanSet(enabled: boolean) {
       s.setPreloadPlan(enabled);
+    },
+    // 故障转移开关（C 刀）：Get 读 / Set 写回 mock state（默认 false，会话内
+    // 一致）。与 KeepWarmGet/Set 同构；真实后端持久化与失败换引擎重试在
+    // ModelB 门面（并行线），mock 只需锁「可读布尔 + 写回一致」契约。
+    async GetEngineFailover() {
+      return s.engineFailover;
+    },
+    async SetEngineFailover(enabled: boolean) {
+      s.setEngineFailover(enabled);
     },
     async ModelSwitchEstimate(engineID: string): Promise<ModelSwitchEstimate> {
       // 契约对齐 Go GaeaModelSwitchEstimate（internal/app/gaea_schedule.go）：
