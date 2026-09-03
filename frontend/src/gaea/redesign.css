@@ -111,19 +111,6 @@ aside[aria-label="gaea navigation"] .sidebar-session-scroll {
   filter: brightness(1.12);
 }
 
-/* FeatureModelBar 原为带阴影/虚线边框的浮卡，在侧栏内收敛为安静一行 */
-aside[aria-label="gaea navigation"] .side-model-wrap > div {
-  width: 100% !important;
-  border-radius: 10px !important;
-  padding: 8px 10px !important;
-  background: color-mix(in srgb, var(--bg-soft) 55%, transparent) !important;
-  border: 1px solid var(--border-soft) !important;
-  box-shadow: none !important;
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
-  gap: 4px !important;
-}
-
 /* ── 顶栏：玻璃条 + 底部 1px 高光线 ── */
 .chat-pane > header {
   background: color-mix(in srgb, var(--gaea-glass-bg, var(--md-sys-color-surface-container)) 92%, var(--bg)) !important;

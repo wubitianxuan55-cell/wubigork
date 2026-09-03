@@ -5,10 +5,6 @@ import { ToastProvider } from "./Toast";
 import { Sidebar } from "./Sidebar";
 import type { ProjectGroup, SessionMeta } from "../lib/types";
 
-vi.mock("../../components/FeatureModelBar", () => ({
-  default: () => <div data-testid="feature-model" />,
-}));
-
 const group: ProjectGroup = {
   path: "/ws",
   name: "ws",

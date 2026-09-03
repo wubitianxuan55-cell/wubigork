@@ -19,7 +19,6 @@ import { ApprovalModal } from "./components/ApprovalModal";
 import { AskCard } from "./components/AskCard";
 import { ToolbarButton } from "./components/ToolbarButton";
 import { ExportMenu, type ExportFormat } from "./components/ExportMenu";
-import { ContextBar } from "./components/ContextBar";
 import { ModelSwitcher } from "./components/ModelSwitcher";
 const MemoryPanel = lazy(() => import("./components/MemoryPanel").then(m => ({ default: m.MemoryPanel })));
 const HistoryPanel = lazy(() => import("./components/HistoryPanel").then(m => ({ default: m.HistoryPanel })));
@@ -228,12 +227,12 @@ export default function App() {
       currentSessionKey,
     );
   }, [rightTab, enabledOverrides, currentSessionKey]);
-  // C6 运行域活动角标：活跃任务数（queued/running）；任务/分工面板激活时视为已读不显示。
+  // C6 运行域活动角标：活跃任务数（queued/running）；任务面板激活时视为已读
+  // 不显示。v4.53 分工并入任务：运行计数角标挂在「任务」单键上，任务面板
+  // （含分工段）激活即视为已读。
   const runningTasks = useRunningBadge();
-  // v4.27 扁平化后无「运行」组：任务/分工两个面板共享运行计数角标，
-  // 激活其中任意一个即视为已读不显示。
-  const runningDomainActive = rightTab === "tasks" || rightTab === "subagents";
-  const runningBadge = runningDomainActive ? undefined : { tasks: runningTasks, subagents: runningTasks };
+  const runningDomainActive = rightTab === "tasks";
+  const runningBadge = runningDomainActive ? undefined : { tasks: runningTasks };
   const [compactMode, setCompactMode] = useState(() => readWorkbenchValue("gaea.compactMode") === "1");
   const [scrollToTurn, setScrollToTurn] = useState<((turn: number) => void) | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -793,14 +792,15 @@ export default function App() {
     scrollToTurn?.(turn);
   }, [scrollToTurn]);
   // v4.24 A1 新子代理自动展开：分工面板检测到新子代理出现（且用户偏好开启）
-  // 时回调——亮出右栏并切到「分工」tab（对标 better-sidebar 任务页自动展开
-  // 侧栏）；tab 被用户停用时尊重停用态不强行弹出。
+  // 时回调——亮出右栏并切到「任务」面板（v4.53 分工并入任务同屏展示；
+  // 对标 better-sidebar 任务页自动展开侧栏）；面板被用户停用时尊重停用态
+  // 不强行弹出。
   const handleSubagentStarted = useCallback(() => {
-    if (!enabledRecord.subagents) return;
+    if (!enabledRecord.tasks) return;
     closeFilePreview();
     setWorkspacePanel(true);
-    setRightTab("subagents");
-  }, [enabledRecord.subagents, closeFilePreview]);
+    setRightTab("tasks");
+  }, [enabledRecord.tasks, closeFilePreview]);
 
   // v4.25 A3 reveal：产物面板「树中定位」→ 亮文件 tab，文件树展开父链+滚动+闪烁。
   // nonce 单调递增，同一文件重复定位也能再触发一次。
@@ -1052,19 +1052,6 @@ export default function App() {
             <div className="flex items-center gap-2 min-w-0">
               <ModelSwitcher label={state.meta?.label ?? t("status.connecting")} onPick={switchModel} />
             </div>
-            {/* 顶栏上下文用量 — 单模型 */}
-            {state.context.window > 0 && (
-              <div className="flex flex-row gap-2 min-w-[260px] max-w-[360px] flex-1">
-                <div className="flex-1 min-w-0">
-                  <ContextBar
-                    label={t("topbar.context")}
-                    used={state.context.used}
-                    window={state.context.window}
-                    color="bg-cyan-500/60"
-                  />
-                </div>
-              </div>
-            )}
             <div className="flex items-center gap-2 px-3">
               {cwd && (<button className="toolbar-btn no-drag" onClick={() => void switchFolder()} disabled={state.running}><FolderGit2 size={13} /><span>{cwdName}</span><ChevronDown size={11} /></button>)}
             </div>

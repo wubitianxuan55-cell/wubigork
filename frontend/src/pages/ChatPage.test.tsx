@@ -81,7 +81,6 @@ vi.mock('../components/VoiceChatOrb', () => ({ default: () => <div data-testid="
 vi.mock('../components/CompanionAvatar', () => ({ CompanionAvatar: () => <div data-testid="companion-avatar" /> }))
 vi.mock('../components/ParticleFlow', () => ({ ParticleFlow: () => null }))
 vi.mock('../components/SoundWaveOverlay', () => ({ SoundWaveOverlay: () => null }))
-vi.mock('../components/FeatureModelBar', () => ({ default: () => null }))
 vi.mock('../components/PersonaPicker', () => ({ default: () => null }))
 vi.mock('../components/VoiceSettingsPanel', () => ({ default: () => null }))
 

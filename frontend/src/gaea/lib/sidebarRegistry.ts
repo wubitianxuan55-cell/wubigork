@@ -20,6 +20,7 @@ import { ChangesPanel } from "../components/ChangesPanel";
 import { TaskCenter } from "../components/TaskCenter";
 import { SubagentsPanel } from "../components/SubagentsPanel";
 import { BrowserPanel } from "../components/BrowserPanel";
+import { MergedPanel } from "../components/MergedPanel";
 import type { SessionChange } from "./changes";
 import type { Icon } from "../icons";
 import { WORKSPACE_TABS, type WorkspaceTabId } from "./workspaceTabs";
@@ -73,7 +74,8 @@ export interface WorkspaceTabRegistration {
   readonly render: (ctx: WorkspacePanelContext) => ReactNode;
 }
 
-// 渲染接线（与 App.tsx 旧渲染分支逐一对应，行为不变；面板组件本体零改动）。
+// 渲染接线（面板组件本体零改动；v4.53 起产物/变更、任务/分工经 MergedPanel
+// 上下分区直接合并为一个面板——同屏全可见，无二级标签，零额外点击）。
 const RENDERERS: Record<WorkspaceTabId, (ctx: WorkspacePanelContext) => ReactNode> = {
   files: (ctx) =>
     createElement(WorkspacePanel, {
@@ -87,25 +89,28 @@ const RENDERERS: Record<WorkspaceTabId, (ctx: WorkspacePanelContext) => ReactNod
       onAutoWiden: ctx.onAutoWidenPanel,
     }),
   deliverables: (ctx) =>
-    createElement(DeliverablesPanel, {
-      items: ctx.sessionDeliverables,
-      sessionPath: ctx.currentSessionPath,
-      onOpenFile: ctx.onOpenFile,
-      onLocateSource: ctx.onLocateSource,
-      onRevealInTree: ctx.onRevealInTree,
-      freshPaths: ctx.freshDeliverablePaths,
+    createElement(MergedPanel, {
+      primary: createElement(DeliverablesPanel, {
+        items: ctx.sessionDeliverables,
+        sessionPath: ctx.currentSessionPath,
+        onOpenFile: ctx.onOpenFile,
+        onLocateSource: ctx.onLocateSource,
+        onRevealInTree: ctx.onRevealInTree,
+        freshPaths: ctx.freshDeliverablePaths,
+      }),
+      secondary: createElement(ChangesPanel, {
+        changes: ctx.sessionChanges,
+        cwd: ctx.cwd,
+        onOpenFile: ctx.onOpenFile,
+      }),
     }),
-  changes: (ctx) =>
-    createElement(ChangesPanel, {
-      changes: ctx.sessionChanges,
-      cwd: ctx.cwd,
-      onOpenFile: ctx.onOpenFile,
-    }),
-  tasks: () => createElement(TaskCenter),
-  subagents: (ctx) =>
-    createElement(SubagentsPanel, {
-      sessionPath: ctx.currentSessionPath,
-      onSubagentStarted: ctx.onSubagentStarted,
+  tasks: (ctx) =>
+    createElement(MergedPanel, {
+      primary: createElement(TaskCenter),
+      secondary: createElement(SubagentsPanel, {
+        sessionPath: ctx.currentSessionPath,
+        onSubagentStarted: ctx.onSubagentStarted,
+      }),
     }),
   // v4.28 A2 浏览器观察窗：数据自取（GaeaBrowserObserve + Trajectory 过滤
   // browser_* 工具记录），不依赖 ctx —— 被动观察面与工作区/会话路径解耦。

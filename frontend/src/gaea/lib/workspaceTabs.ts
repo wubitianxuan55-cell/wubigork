@@ -9,7 +9,9 @@
 // v3.0.8 曾把子面板按「文件域 / 成果域 / 运行域」归入主 Tab + 第二级小 Tab
 // 两级体系；v4.27 用户拍板扁平化：删除「资料」「成本库」两个面板，取消
 // 第二级标签，剩余面板全部平铺为一级 Tab（文件 / 产物 / 变更 / 任务 / 分工）；
-// v4.28 A2 追加「浏览器」观察窗 tab（截图步进流 + 操作时间线）。
+// v4.28 A2 追加「浏览器」观察窗 tab（截图步进流 + 操作时间线）；
+// v4.53 用户拍板化繁为简：产物与变更、任务与分工**直接合并为一个面板**
+// （MergedPanel 上下分区同屏全可见，不是二级标签），6→4。
 //
 // How to apply: 新增面板 → 在本文件 WORKSPACE_TABS 追加一项（id/label/icon/
 // keywords/defaultEnabled），再在 lib/sidebarRegistry.ts 的 RENDERERS 补渲染接线；
@@ -17,15 +19,18 @@
 // 与既有行为对齐）。
 
 import type { Icon } from "../icons";
-import { ClipboardList, Diff, FileText, FolderTree, Globe, Users } from "../icons";
+import { ClipboardList, FileText, FolderTree, Globe } from "../icons";
 import { readWorkbenchValue, writeWorkbenchValue } from "./workbenchStorage";
 import { loadOptionalLayoutSize, saveLayoutSize } from "./layoutPreferences";
 
 /** 子面板（具体功能页）的稳定 id —— App.tsx 的 rightTab 状态直接消费。
  *  v4.23 起不含 stats（统计迁主区「概览」）；v4.27 起不含 materials/cost
- *  （资料/成本库标签删除）；v4.28 增 browser（浏览器观察窗）。旧存储值经
- *  isWorkspaceTabId 收敛回默认「文件」。 */
-export const WORKSPACE_TAB_IDS = ["files", "deliverables", "changes", "tasks", "subagents", "browser"] as const;
+ *  （资料/成本库标签删除）；v4.28 增 browser（浏览器观察窗）；
+ *  v4.53 用户拍板化繁为简：产物与变更、任务与分工**直接合并为一个面板**
+ *  （MergedPanel 上下分区同屏全可见，不是二级标签），6→4。
+ *  旧存储值经 normalizeWorkspaceTabId 别名收敛（changes→deliverables、
+ *  subagents→tasks），非法值回默认「文件」。 */
+export const WORKSPACE_TAB_IDS = ["files", "deliverables", "tasks", "browser"] as const;
 export type WorkspaceTabId = (typeof WORKSPACE_TAB_IDS)[number];
 
 export interface WorkspaceTabDef {
@@ -40,18 +45,32 @@ export interface WorkspaceTabDef {
   defaultEnabled?: boolean;
 }
 
-/** 单一数据源：右侧面板全部一级 Tab 的声明（v4.27 扁平化，无二级标签）。
- *  defaultEnabled 全 true：v4.23 行为基线（面板全可见），用户经设置卡片停用后覆盖。 */
+/** 单一数据源：右侧面板全部一级 Tab 的声明（v4.53 合并后 4 Tab）。
+ *  产物面板 = 会话产物 + 文件变更上下分区；任务面板 = 任务中心 + 分工。
+ *  defaultEnabled 全 true：v4.23 行为基线（面板全可见），用户经设置卡片停用
+ *  后覆盖。 */
 export const WORKSPACE_TABS: WorkspaceTabDef[] = [
   { id: "files", label: "文件", icon: FolderTree, keywords: ["files", "文件", "工作区", "树"], defaultEnabled: true },
-  { id: "deliverables", label: "产物", icon: FileText, keywords: ["deliverables", "产物", "交付", "成果"], defaultEnabled: true },
-  { id: "changes", label: "变更", icon: Diff, keywords: ["changes", "变更", "修改", "diff"], defaultEnabled: true },
-  { id: "tasks", label: "任务", icon: ClipboardList, keywords: ["tasks", "任务", "进度", "调度"], defaultEnabled: true },
-  { id: "subagents", label: "分工", icon: Users, keywords: ["subagent", "子代理", "分工", "团队", "并发"], defaultEnabled: true },
+  { id: "deliverables", label: "产物", icon: FileText, keywords: ["deliverables", "产物", "交付", "成果", "变更", "diff", "修改"], defaultEnabled: true },
+  { id: "tasks", label: "任务", icon: ClipboardList, keywords: ["tasks", "任务", "进度", "调度", "分工", "子代理", "团队", "并发"], defaultEnabled: true },
   // v4.28 A2 浏览器观察窗：受控 Edge 的截图步进流 + 操作时间线（被动观察，
   // 不拉起浏览器；「新 browser_* 工具自动弹出」由 App 经 browserPrefs 接线）。
   { id: "browser", label: "浏览器", icon: Globe, keywords: ["browser", "浏览器", "观察", "网页"], defaultEnabled: true },
 ];
+
+// v4.53 合并后的旧 id 别名：历史持久化值（裸 tab id / 记录 / 启用集）读入时
+// 一律先过这张表收敛到合并后的宿主 Tab（学 sanitize 精神：旧值可读、不报废）。
+export const LEGACY_TAB_ALIASES: Readonly<Record<string, WorkspaceTabId>> = {
+  changes: "deliverables",
+  subagents: "tasks",
+};
+
+/** 字符串 → WorkspaceTabId：先查旧 id 别名（合并前持久化值），再查现行 id。 */
+export function normalizeWorkspaceTabId(value: string): WorkspaceTabId | null {
+  const aliased = LEGACY_TAB_ALIASES[value];
+  if (aliased) return aliased;
+  return isWorkspaceTabId(value) ? value : null;
+}
 
 /** 默认激活面板（启动即文件面板）。 */
 export const DEFAULT_WORKSPACE_TAB: WorkspaceTabId = "files";
@@ -138,12 +157,15 @@ export type WorkspaceEnabledMap = Partial<Record<WorkspaceTabId, boolean>>;
 /** 启用集全局键（无会话后缀——学 better-sidebar 全局宽度键的命名位置）。 */
 const RIGHT_ENABLED_KEY = "gaea.rightPanel.v1:tabsEnabled";
 
-/** 启用集净化：只保留合法 id 的布尔值（学 booleanMapOf：坏值逐项丢弃不崩）。 */
+/** 启用集净化：只保留合法 id 的布尔值（旧 id 先过别名表；坏值逐项丢弃不崩）。 */
 export function sanitizeEnabledTabs(value: unknown): WorkspaceEnabledMap {
   if (value === null || typeof value !== "object" || Array.isArray(value)) return {};
   const out: WorkspaceEnabledMap = {};
   for (const [id, flag] of Object.entries(value as Record<string, unknown>)) {
-    if (typeof flag === "boolean" && isWorkspaceTabId(id)) out[id] = flag;
+    if (typeof flag === "boolean") {
+      const tabId = normalizeWorkspaceTabId(id);
+      if (tabId) out[tabId] = flag;
+    }
   }
   return out;
 }
@@ -210,16 +232,15 @@ const EMPTY_PERSISTED_STATE: WorkspacePanelPersistedState = {
 /** 逐字段净化一条持久化记录（学 sanitizeState：坏字段回默认，不整体报废）。 */
 function sanitizePersistedState(parsed: unknown): WorkspacePanelPersistedState {
   if (parsed === null || typeof parsed !== "object") {
-    // 旧形状：裸 tab id 字符串
-    if (typeof parsed === "string" && isWorkspaceTabId(parsed)) {
-      return { ...EMPTY_PERSISTED_STATE, tab: parsed };
-    }
-    return { ...EMPTY_PERSISTED_STATE };
+    // 旧形状：裸 tab id 字符串（changes/subagents 别名收敛到合并宿主）
+    const bare = typeof parsed === "string" ? normalizeWorkspaceTabId(parsed) : null;
+    return bare ? { ...EMPTY_PERSISTED_STATE, tab: bare } : { ...EMPTY_PERSISTED_STATE };
   }
   const rec = parsed as Record<string, unknown>;
   return {
     v: 1,
-    tab: typeof rec.tab === "string" && isWorkspaceTabId(rec.tab) ? rec.tab : DEFAULT_WORKSPACE_TAB,
+    // 旧裸 id / 旧记录的 changes/subagents 经别名表收敛到合并宿主 Tab
+    tab: (typeof rec.tab === "string" ? normalizeWorkspaceTabId(rec.tab) : null) ?? DEFAULT_WORKSPACE_TAB,
     enabled: rec.enabled === null || rec.enabled === undefined ? null : sanitizeEnabledTabs(rec.enabled),
     width:
       typeof rec.width === "number" && Number.isFinite(rec.width) && rec.width > 0

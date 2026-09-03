@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
   DEFAULT_WORKSPACE_TAB, WORKSPACE_TABS, WORKSPACE_TAB_IDS, isWorkspaceTabId,
+  normalizeWorkspaceTabId,
   loadPersistedRightTab, savePersistedRightTab,
   WORKSPACE_MIN_WIDTH, WORKSPACE_MAX_WIDTH, WORKSPACE_DEFAULT_WIDTH,
   clampWorkspaceWidth, loadWorkspaceWidth, saveWorkspaceWidth,
@@ -24,26 +25,41 @@ function cleanupStorage(): void {
   }
 }
 
-describe("workspaceTabs 清单完整性（v4.27 扁平化：文件/产物/变更/任务/分工）", () => {
-  it("扁平清单与 id 常量一一对应且无重复", () => {
+describe("workspaceTabs 清单完整性（v4.53 合并：文件/产物/任务/浏览器）", () => {
+  it("清单与 id 常量一一对应且无重复", () => {
     expect(WORKSPACE_TABS).toHaveLength(WORKSPACE_TAB_IDS.length);
     const ids = WORKSPACE_TABS.map((t) => t.id);
     expect(new Set(ids).size).toBe(ids.length);
     expect(ids.sort()).toEqual([...WORKSPACE_TAB_IDS].sort());
   });
 
-  it("清单为一级平铺、含 v4.28 浏览器观察窗、不含已删除的资料/成本库", () => {
-    expect(WORKSPACE_TABS.map((t) => t.id)).toEqual(["files", "deliverables", "changes", "tasks", "subagents", "browser"]);
+  it("清单为 4 Tab（v4.53 产物与变更/任务与分工合并），不含已删除面板", () => {
+    expect(WORKSPACE_TABS.map((t) => t.id)).toEqual(["files", "deliverables", "tasks", "browser"]);
     expect(WORKSPACE_TABS.some((t) => (t.id as string) === "materials")).toBe(false);
     expect(WORKSPACE_TABS.some((t) => (t.id as string) === "cost")).toBe(false);
     expect(isWorkspaceTabId("materials")).toBe(false); // 旧存储值收敛回默认
     expect(isWorkspaceTabId("cost")).toBe(false);
+    expect(isWorkspaceTabId("changes")).toBe(false); // v4.53 合并宿主=产物
+    expect(isWorkspaceTabId("subagents")).toBe(false); // v4.53 合并宿主=任务
+    // 产物 Tab 段内含变更、任务 Tab 段内含分工：keywords 保留检索词
+    const deliverables = WORKSPACE_TABS.find((t) => t.id === "deliverables");
+    expect(deliverables!.keywords).toContain("变更");
+    const tasks = WORKSPACE_TABS.find((t) => t.id === "tasks");
+    expect(tasks!.keywords).toContain("分工");
     // v4.28 A2：浏览器观察窗清单项契约（id/label/keywords/defaultEnabled）
     const browser = WORKSPACE_TABS.find((t) => t.id === "browser");
     expect(browser).toBeTruthy();
     expect(browser!.label).toBe("浏览器");
     expect(browser!.keywords).toEqual(["browser", "浏览器", "观察", "网页"]);
     expect(browser!.defaultEnabled).toBe(true);
+  });
+
+  it("v4.53 旧 id 别名：changes→deliverables、subagents→tasks，非法值回 null", () => {
+    expect(normalizeWorkspaceTabId("changes")).toBe("deliverables");
+    expect(normalizeWorkspaceTabId("subagents")).toBe("tasks");
+    expect(normalizeWorkspaceTabId("files")).toBe("files");
+    expect(normalizeWorkspaceTabId("nope")).toBeNull();
+    expect(normalizeWorkspaceTabId("")).toBeNull();
   });
 
   it("每项都有非空 label/icon/keywords", () => {
@@ -68,12 +84,14 @@ describe("workspaceTabs 清单完整性（v4.27 扁平化：文件/产物/变更
     expect(WORKSPACE_TABS.some((t) => t.id === DEFAULT_WORKSPACE_TAB)).toBe(true);
   });
 
-  it("isWorkspaceTabId 守卫正确", () => {
+  it("isWorkspaceTabId 守卫正确（旧 id 不再是现行 tab）", () => {
     for (const id of WORKSPACE_TAB_IDS) {
       expect(isWorkspaceTabId(id)).toBe(true);
     }
     expect(isWorkspaceTabId("unknown")).toBe(false);
     expect(isWorkspaceTabId("")).toBe(false);
+    expect(isWorkspaceTabId("changes")).toBe(false);
+    expect(isWorkspaceTabId("subagents")).toBe(false);
   });
 
 });
@@ -97,8 +115,8 @@ describe("workspaceTabs 会话隔离（蒸馏 dsh-better-sidebar 布局持久化
   it("保存后读取恢复上次选择", () => {
     savePersistedRightTab("deliverables");
     expect(loadPersistedRightTab()).toBe("deliverables");
-    savePersistedRightTab("subagents");
-    expect(loadPersistedRightTab()).toBe("subagents");
+    savePersistedRightTab("browser");
+    expect(loadPersistedRightTab()).toBe("browser");
   });
 
   it("存储值损坏/非法时收敛回默认，不抛错", () => {
@@ -110,9 +128,9 @@ describe("workspaceTabs 会话隔离（蒸馏 dsh-better-sidebar 布局持久化
 
   it("C3 按会话读写互不影响（各会话记忆自己的面板）", () => {
     savePersistedRightTab("deliverables", "s1");
-    savePersistedRightTab("subagents", "s2");
+    savePersistedRightTab("tasks", "s2");
     expect(loadPersistedRightTab("s1")).toBe("deliverables");
-    expect(loadPersistedRightTab("s2")).toBe("subagents");
+    expect(loadPersistedRightTab("s2")).toBe("tasks");
     expect(loadPersistedRightTab()).toBe(DEFAULT_WORKSPACE_TAB); // 全局未写 → 默认
   });
 
@@ -121,20 +139,27 @@ describe("workspaceTabs 会话隔离（蒸馏 dsh-better-sidebar 布局持久化
     expect(loadPersistedRightTab("s1")).toBe(DEFAULT_WORKSPACE_TAB);
   });
 
+  it("v4.53 旧裸 id 别名：changes/subagents 读档收敛到合并宿主", () => {
+    try { localStorage.setItem("gaea.workspace.rightTab", "changes"); } catch { /* ignore */ }
+    expect(loadPersistedRightTab()).toBe("deliverables");
+    try { localStorage.setItem("gaea.rightPanel.v1:s2", "subagents"); } catch { /* ignore */ }
+    expect(loadPersistedRightTab("s2")).toBe("tasks");
+  });
+
   it("C3 无会话 key 时写全局 key（向后兼容旧行为）", () => {
-    savePersistedRightTab("changes");
-    expect(loadPersistedRightTab(undefined)).toBe("changes");
+    savePersistedRightTab("deliverables");
+    expect(loadPersistedRightTab(undefined)).toBe("deliverables");
     expect(loadPersistedRightTab("other")).toBe(DEFAULT_WORKSPACE_TAB);
   });
 
-  it("S2.2 旧 key 只读迁移：旧全局/会话值仍被读取，新写入走空间分键", () => {
+  it("S2.2 旧 key 只读迁移：旧全局/会话值仍被读取（含 v4.53 别名），新写入走空间分键", () => {
     try { localStorage.setItem("gaea.workspace.rightTab", "deliverables"); } catch { /* ignore */ }
     expect(loadPersistedRightTab()).toBe("deliverables");
     try { localStorage.setItem("gaea.rightPanel.v1:s1", "changes"); } catch { /* ignore */ }
-    expect(loadPersistedRightTab("s1")).toBe("changes");
-    savePersistedRightTab("subagents", "s1");
-    expect(localStorage.getItem("gaea.work.rightPanel.v1:s1")).toBe("subagents");
-    expect(loadPersistedRightTab("s1")).toBe("subagents"); // 分键优先于旧值
+    expect(loadPersistedRightTab("s1")).toBe("deliverables"); // 旧 id 别名收敛
+    savePersistedRightTab("tasks", "s1");
+    expect(localStorage.getItem("gaea.work.rightPanel.v1:s1")).toBe("tasks");
+    expect(loadPersistedRightTab("s1")).toBe("tasks"); // 分键优先于旧值
   });
 });
 
@@ -183,14 +208,15 @@ describe("workspaceTabs 声明式设置启用集（全局键，学 booleanMapOf 
   });
 
   it("保存后读取往返（工作台空间分键）", () => {
-    const map: WorkspaceEnabledMap = { changes: false, files: true };
+    const map: WorkspaceEnabledMap = { deliverables: false, files: true };
     saveEnabledTabs(map);
     expect(localStorage.getItem("gaea.work.rightPanel.v1:tabsEnabled")).toBe(JSON.stringify(map));
     expect(loadEnabledTabs()).toEqual(map);
   });
 
-  it("sanitize 丢弃非法 id 与非布尔值（学 sanitizeState：坏值逐项丢弃不崩）", () => {
-    expect(sanitizeEnabledTabs({ changes: false, nope: true, files: "yes", cost: 1 })).toEqual({ changes: false });
+  it("sanitize 丢弃非法 id 与非布尔值；旧 id 别名收敛（学 sanitizeState：坏值逐项丢弃不崩）", () => {
+    expect(sanitizeEnabledTabs({ changes: false, nope: true, files: "yes", cost: 1 })).toEqual({ deliverables: false });
+    expect(sanitizeEnabledTabs({ subagents: false })).toEqual({ tasks: false });
     expect(sanitizeEnabledTabs(null)).toEqual({});
     expect(sanitizeEnabledTabs(["files"])).toEqual({});
     expect(sanitizeEnabledTabs("x")).toEqual({});
@@ -199,8 +225,8 @@ describe("workspaceTabs 声明式设置启用集（全局键，学 booleanMapOf 
   });
 
   it("resolveEnabledTabs 合并默认与覆盖；全禁时兜底回默认集", () => {
-    expect(resolveEnabledTabs({ changes: false }).changes).toBe(false);
-    expect(resolveEnabledTabs({ changes: false }).files).toBe(true);
+    expect(resolveEnabledTabs({ deliverables: false }).deliverables).toBe(false);
+    expect(resolveEnabledTabs({ deliverables: false }).files).toBe(true);
     const allOff: WorkspaceEnabledMap = {};
     for (const id of WORKSPACE_TAB_IDS) allOff[id] = false;
     const rescued = resolveEnabledTabs(allOff);
@@ -211,7 +237,7 @@ describe("workspaceTabs 声明式设置启用集（全局键，学 booleanMapOf 
     const allOn = resolveEnabledTabs({});
     expect(firstEnabledTab(allOn)).toBe("files");
     expect(firstEnabledTab({ ...allOn, files: false })).toBe("deliverables");
-    expect(firstEnabledTab({ ...allOn, files: false, deliverables: false })).toBe("changes");
+    expect(firstEnabledTab({ ...allOn, files: false, deliverables: false })).toBe("tasks");
     expect(firstEnabledTab(resolveEnabledTabs({}))).toBe("files");
   });
 });
@@ -220,10 +246,24 @@ describe("workspaceTabs 会话记录 v2（激活 tab + 启用集快照 + 宽度�
   afterEach(cleanupStorage);
 
   it("v2 记录往返：tab/enabled/width 均恢复，宽度落盘前钳制", () => {
-    savePersistedRightPanelState({ v: 1, tab: "changes", enabled: { changes: false }, width: 99999 }, "s1");
+    savePersistedRightPanelState({ v: 1, tab: "deliverables", enabled: { tasks: false }, width: 99999 }, "s1");
     const loaded = loadPersistedRightPanelState("s1");
-    expect(loaded).toEqual({ v: 1, tab: "changes", enabled: { changes: false }, width: 1600 });
-    expect(loadPersistedRightTab("s1")).toBe("changes");
+    expect(loaded).toEqual({ v: 1, tab: "deliverables", enabled: { tasks: false }, width: 1600 });
+    expect(loadPersistedRightTab("s1")).toBe("deliverables");
+  });
+
+  it("v4.53 旧记录的 tab/enabled 旧 id 别名收敛到合并宿主", () => {
+    try {
+      localStorage.setItem(
+        "gaea.rightPanel.v1:s1",
+        JSON.stringify({ v: 1, tab: "changes", enabled: { changes: false, subagents: true }, width: 400 }),
+      );
+    } catch { /* ignore */ }
+    const loaded = loadPersistedRightPanelState("s1");
+    expect(loaded.tab).toBe("deliverables");
+    expect(loaded.enabled).toEqual({ deliverables: false, tasks: true });
+    expect(loaded.width).toBe(400);
+    expect(loadPersistedRightTab("s1")).toBe("deliverables");
   });
 
   it("v4.22 会话记录的 tab:\"stats\"（已迁主区概览）宽容收敛回默认「文件」", () => {

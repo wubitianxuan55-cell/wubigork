@@ -17,7 +17,6 @@ import type { FactBaseView, JobView, ProjectGroup, SessionMeta } from "../lib/ty
 import { app } from "../lib/bridge";
 import { useToast } from "./Toast";
 import { useDebouncedValue } from "../hooks/useDebouncedValue";
-import FeatureModelBar from "../../components/FeatureModelBar";
 import SpaceChip from "./SpaceChip";
 
 export interface SidebarProps {
@@ -815,15 +814,6 @@ export function Sidebar({
                 )}
               </div>
             )}
-          </section>
-        )}
-
-        {/* 绑定模型（左下角，折叠时隐藏） */}
-        {!collapsed && (
-          <section className="shrink-0 px-1 pt-1.5 pb-2 border-t border-border-soft">
-            <div className="side-model-wrap">
-              <FeatureModelBar feature="gaea" label="办公" />
-            </div>
           </section>
         )}
 
