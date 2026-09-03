@@ -6,6 +6,12 @@ import { BarChart3, Gauge, ListTree, MessageSquare } from "../icons";
 // [概览] 会话统计看板（v4.23 自右栏「分析组·统计」迁入，OverviewPanel 承载）。
 export type ChatTabId = "chat" | "trajectory" | "context" | "overview";
 
+/** 动态会话 tab（子代理独立会话，better-sidebar openSubagent 语义）。 */
+export interface ChatSessionTab {
+  id: string;
+  label: string;
+}
+
 const TABS: { id: ChatTabId; label: string; icon: typeof MessageSquare }[] = [
   { id: "chat", label: "对话", icon: MessageSquare },
   { id: "trajectory", label: "轨迹", icon: ListTree },
@@ -13,9 +19,13 @@ const TABS: { id: ChatTabId; label: string; icon: typeof MessageSquare }[] = [
   { id: "overview", label: "概览", icon: Gauge },
 ];
 
-export function ChatTabs({ active, onChange }: {
-  active: ChatTabId;
-  onChange: (tab: ChatTabId) => void;
+export function ChatTabs({ active, onChange, extraTabs, onCloseExtra }: {
+  active: string;
+  onChange: (id: string) => void;
+  /** 独立会话 tab（如子代理会话），渲染在四视图之后。 */
+  extraTabs?: ChatSessionTab[];
+  /** 关闭动态会话 tab。 */
+  onCloseExtra?: (id: string) => void;
 }) {
   return (
     <div className="flex items-center gap-1 px-12 pt-2 pb-0 border-b border-border-soft bg-bg/80 select-none">
@@ -35,6 +45,48 @@ export function ChatTabs({ active, onChange }: {
             {t.label}
             {selected && <span className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-accent" />}
           </button>
+        );
+      })}
+      {(extraTabs ?? []).map((s) => {
+        const selected = s.id === active;
+        return (
+          <div
+            key={s.id}
+            role="tab"
+            aria-selected={selected}
+            tabIndex={0}
+            data-chat-session-tab={s.id}
+            className={`relative flex items-center gap-1.5 px-3 py-1.5 text-[12px] rounded-t-md border-0 cursor-pointer transition-colors ${
+              selected ? "text-accent" : "text-fg-dim hover:text-fg"
+            }`}
+            onClick={() => onChange(s.id)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onChange(s.id);
+              }
+            }}
+            title={s.id}
+          >
+            <MessageSquare size={13} />
+            <span className="max-w-[140px] truncate">{s.label}</span>
+            {onCloseExtra && (
+              <button
+                type="button"
+                aria-label={`关闭 ${s.label}`}
+                className="flex items-center justify-center w-4 h-4 rounded text-fg-faint hover:text-fg hover:bg-bg-soft"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onCloseExtra(s.id);
+                }}
+              >
+                <svg width="8" height="8" viewBox="0 0 10 10" aria-hidden>
+                  <path d="M1 1l8 8M9 1L1 9" stroke="currentColor" strokeWidth="1.4" />
+                </svg>
+              </button>
+            )}
+            {selected && <span className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-accent" />}
+          </div>
         );
       })}
     </div>

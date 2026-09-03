@@ -7,7 +7,11 @@ import { Transcript } from "./Transcript";
 import { initialState, useStore } from "../lib/store";
 import type { Item } from "../lib/store";
 
-const wrap = (node: React.ReactNode) => <LocaleProvider>{node}</LocaleProvider>;
+const wrap = (node: React.ReactNode) => {
+  // DeliverableCards 走 i18n（t("deliver.title")）；钉住 zh 让断言用中文文案
+  localStorage.setItem("gaea-lang", "zh");
+  return <LocaleProvider>{node}</LocaleProvider>;
+};
 
 const text = "方案已完成，交付文件：C:\\AI\\bangong\\黄甲\\开工筹备计划（修订）.docx";
 const items: Item[] = [

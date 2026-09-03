@@ -43,13 +43,13 @@ export function ModelSwitcher({
         onPick(name);
         return;
       }
-      const waitText = est.waitSeconds > 0 ? `预计等待 ${est.waitSeconds} 秒` : "需要一些时间";
+      const waitText = est.waitSeconds > 0 ? t("model.waitSeconds", { n: est.waitSeconds }) : t("model.takeTime");
       const ok = await new Promise<boolean>((resolve) => {
         Modal.confirm({
-          title: "切换本地模型",
-          content: `${name} 未在运行（${est.note || "需冷启动"}）。\n${waitText}，确定继续切换吗？`,
-          okText: "继续切换",
-          cancelText: "取消",
+          title: t("model.switchTitle"),
+          content: t("model.switchAsk", { name, note: est.note || t("model.needColdStart"), wait: waitText }),
+          okText: t("model.switchOk"),
+          cancelText: t("common.cancel"),
           onOk: () => resolve(true),
           onCancel: () => resolve(false),
         });

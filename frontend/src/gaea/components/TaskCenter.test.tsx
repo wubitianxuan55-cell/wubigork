@@ -2,6 +2,7 @@ import { describe, expect, it, vi, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { TaskCenter } from "./TaskCenter";
 import { ToastProvider } from "./Toast";
+import { LocaleProvider } from "../lib/i18n";
 import type { TaskOutputView, TaskView } from "../lib/types";
 
 const tasks = vi.hoisted(() => ({
@@ -31,7 +32,15 @@ vi.mock("../lib/bridge", () => ({
 // C9：事件回调句柄（onTaskEvent 注册时捕获），测试用它模拟 gaea-task 推送。
 let taskEventCb: ((t: TaskView) => void) | null = null;
 
-const wrap = (node: React.ReactNode) => <ToastProvider>{node}</ToastProvider>;
+// TaskCenter 走 useT：钉住 zh 让「进行中/输出 · …」等中文断言继续成立
+const wrap = (node: React.ReactNode) => {
+  localStorage.setItem("gaea-lang", "zh");
+  return (
+    <LocaleProvider>
+      <ToastProvider>{node}</ToastProvider>
+    </LocaleProvider>
+  );
+};
 
 function makeTask(over: Partial<TaskView>): TaskView {
   return {

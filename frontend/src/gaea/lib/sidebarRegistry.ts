@@ -14,13 +14,13 @@
 
 import { createElement } from "react";
 import type { ReactNode } from "react";
-import { WorkspacePanel } from "../components/WorkspacePanel";
 import { DeliverablesPanel, type SessionDeliverable } from "../components/DeliverablesPanel";
 import { ChangesPanel } from "../components/ChangesPanel";
-import { TaskCenter } from "../components/TaskCenter";
-import { SubagentsPanel } from "../components/SubagentsPanel";
 import { BrowserPanel } from "../components/BrowserPanel";
 import { MergedPanel } from "../components/MergedPanel";
+import { ExplorerView } from "../components/ExplorerView";
+import { usePaneTabsStore } from "./paneTabs";
+import { TasksWorkbench } from "../components/TasksWorkbench";
 import type { SessionChange } from "./changes";
 import type { Icon } from "../icons";
 import { WORKSPACE_TABS, type WorkspaceTabId } from "./workspaceTabs";
@@ -58,6 +58,14 @@ export interface WorkspacePanelContext {
   revealRequest?: { rel: string; nonce: number } | null;
   /** 打开第一个文件时自动加宽右栏到舒适阅读宽度（v4.27 Codex 式）。 */
   onAutoWidenPanel?: () => void;
+  /** 子代理节点点击 → 主区打开该子代理转录（better-sidebar openSubagent 语义）。 */
+  openSubagentThread?: (p: {
+    sessionPath: string;
+    ref: string;
+    task?: string;
+    model?: string;
+    status: "running" | "completed" | "failed";
+  }) => void;
 }
 
 export interface WorkspaceTabRegistration {
@@ -78,15 +86,16 @@ export interface WorkspaceTabRegistration {
 // 上下分区直接合并为一个面板——同屏全可见，无二级标签，零额外点击）。
 const RENDERERS: Record<WorkspaceTabId, (ctx: WorkspacePanelContext) => ReactNode> = {
   files: (ctx) =>
-    createElement(WorkspacePanel, {
+    createElement(ExplorerView, {
       cwd: ctx.cwd,
-      selectedFile: ctx.selectedFile,
       refreshKey: ctx.refreshKey,
-      onSelectFile: ctx.onOpenFile,
-      onRefresh: ctx.onRefreshPanel,
-      onClose: ctx.onClosePanel,
       revealRequest: ctx.revealRequest,
-      onAutoWiden: ctx.onAutoWidenPanel,
+      openFileTab: (rel) => {
+        if (!rel) return;
+        const name = rel.split(/[\\/]/).pop() || rel;
+        usePaneTabsStore.getState().openFile(rel, name);
+      },
+      openMainPreview: ctx.onOpenFile,
     }),
   deliverables: (ctx) =>
     createElement(MergedPanel, {
@@ -105,12 +114,10 @@ const RENDERERS: Record<WorkspaceTabId, (ctx: WorkspacePanelContext) => ReactNod
       }),
     }),
   tasks: (ctx) =>
-    createElement(MergedPanel, {
-      primary: createElement(TaskCenter),
-      secondary: createElement(SubagentsPanel, {
-        sessionPath: ctx.currentSessionPath,
-        onSubagentStarted: ctx.onSubagentStarted,
-      }),
+    createElement(TasksWorkbench, {
+      sessionPath: ctx.currentSessionPath,
+      onSubagentStarted: ctx.onSubagentStarted,
+      onOpenSubagent: ctx.openSubagentThread,
     }),
   // v4.28 A2 浏览器观察窗：数据自取（GaeaBrowserObserve + Trajectory 过滤
   // browser_* 工具记录），不依赖 ctx —— 被动观察面与工作区/会话路径解耦。

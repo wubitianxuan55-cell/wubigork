@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from "react";
 import { CheckCircle, Clock, Inbox, Loader, RefreshCw, X, XCircle } from "../icons";
 import { workApp, onTaskEvent } from "../lib/bridge";
+import { useT, type Translator } from "../lib/i18n";
+import type { DictKey } from "../locales/en";
 import type { TaskOutputView, TaskStatus, TaskView } from "../lib/types";
 import { isWorkSpaceTask } from "../lib/taskSpace";
 import { useToast } from "./Toast";
@@ -15,31 +17,33 @@ import { usePollingGate } from "../../hooks/usePollingGate";
 // outputTail 整尾回放，2s 轮询降级为兜底（对齐 Codex「事件为主、轮询兜底」）。
 // v3「星枢」面板语言：v3-panel-head 细条头部；状态徽标 = 语义色 + 图标 + 文字三重传达。
 
-const KIND_LABEL: Record<string, string> = {
-  price_fetch: "价格抓取",
-  price_fetch_all: "批量价格抓取",
-  file_index: "语义索引",
+// 任务类型展示名：未知 kind 回退原始值（后端新增类型无需等前端发版）。
+const KIND_LABEL: Record<string, DictKey> = {
+  price_fetch: "tasks.kind.priceFetch",
+  price_fetch_all: "tasks.kind.priceFetchAll",
+  file_index: "tasks.kind.fileIndex",
 };
 
-function kindLabel(kind: string): string {
-  return KIND_LABEL[kind] ?? kind;
+function kindLabel(kind: string, t: Translator): string {
+  const key = KIND_LABEL[kind];
+  return key ? t(key) : kind;
 }
 
 // 状态 → { 图标, 语义色, 文字 }（不只靠颜色传达）
-function statusMeta(status: TaskStatus): { icon: ReactElement; color: string; text: string } {
+function statusMeta(status: TaskStatus, t: Translator): { icon: ReactElement; color: string; text: string } {
   switch (status) {
     case "queued":
-      return { icon: <Clock size={10} aria-hidden />, color: "var(--md-sys-color-text-secondary)", text: "排队中" };
+      return { icon: <Clock size={10} aria-hidden />, color: "var(--md-sys-color-text-secondary)", text: t("tasks.statusQueued") };
     case "running":
-      return { icon: <Loader size={10} aria-hidden />, color: "var(--gaea-glow)", text: "进行中" };
+      return { icon: <Loader size={10} aria-hidden />, color: "var(--gaea-glow)", text: t("tasks.statusRunning") };
     case "stopping":
-      return { icon: <Loader size={10} className="animate-spin" aria-hidden />, color: "var(--md-sys-color-warning)", text: "停止中" };
+      return { icon: <Loader size={10} className="animate-spin" aria-hidden />, color: "var(--md-sys-color-warning)", text: t("tasks.statusStopping") };
     case "succeeded":
-      return { icon: <CheckCircle size={10} aria-hidden />, color: "var(--md-sys-color-success)", text: "已完成" };
+      return { icon: <CheckCircle size={10} aria-hidden />, color: "var(--md-sys-color-success)", text: t("tasks.statusSucceeded") };
     case "failed":
-      return { icon: <XCircle size={10} aria-hidden />, color: "var(--md-sys-color-destructive)", text: "失败" };
+      return { icon: <XCircle size={10} aria-hidden />, color: "var(--md-sys-color-destructive)", text: t("tasks.statusFailed") };
     case "cancelled":
-      return { icon: <Clock size={10} aria-hidden />, color: "var(--md-sys-color-text-secondary)", text: "已取消" };
+      return { icon: <Clock size={10} aria-hidden />, color: "var(--md-sys-color-text-secondary)", text: t("tasks.statusCancelled") };
   }
 }
 
@@ -50,6 +54,7 @@ function fmtTime(ms: number): string {
 }
 
 export function TaskCenter() {
+  const t = useT();
   const [tasks, setTasks] = useState<TaskView[]>([]);
   const [loading, setLoading] = useState(true);
   const toast = useToast();
@@ -130,24 +135,24 @@ export function TaskCenter() {
     async (id: string) => {
       try {
         await workApp.TaskCancel(id);
-        toast.show("已请求取消任务", "info");
+        toast.show(t("tasks.cancelRequested"), "info");
       } catch (e) {
-        toast.show(`取消失败：${String(e)}`, "warn");
+        toast.show(t("tasks.cancelFail", { msg: String(e) }), "warn");
       }
     },
-    [toast],
+    [toast, t],
   );
 
   const retry = useCallback(
     async (id: string) => {
       try {
         await workApp.TaskRetry(id);
-        toast.show("任务已重新排队", "info");
+        toast.show(t("tasks.requeued"), "info");
       } catch (e) {
-        toast.show(`重试失败：${String(e)}`, "warn");
+        toast.show(t("tasks.retryFail", { msg: String(e) }), "warn");
       }
     },
-    [toast],
+    [toast, t],
   );
 
   const { active, history } = useMemo(() => {
@@ -166,7 +171,7 @@ export function TaskCenter() {
     return (
       <div className="flex items-center justify-center h-full gap-2 text-xs" style={{ color: "var(--md-sys-color-text-secondary)" }}>
         <Loader size={14} className="animate-spin" aria-hidden />
-        加载任务中…
+        {t("tasks.loading")}
       </div>
     );
   }
@@ -176,7 +181,7 @@ export function TaskCenter() {
       {/* v3 细条头部：标题 + 进行中计数 + 刷新 */}
       <div className="v3-panel-head">
         <Inbox size={13} aria-hidden style={{ color: "var(--gaea-glow)" }} />
-        <span className="v3-panel-title">任务中心</span>
+        <span className="v3-panel-title">{t("tasks.title")}</span>
         {activeCount > 0 && (
           <span
             className="px-1.5 py-px rounded-full text-[10px]"
@@ -186,15 +191,15 @@ export function TaskCenter() {
               border: "1px solid color-mix(in srgb, var(--gaea-glow) 26%, transparent)",
             }}
           >
-            {activeCount} 个进行中
+            {t("tasks.activeCount", { n: activeCount })}
           </span>
         )}
         <span className="v3-panel-spacer" />
         <button
           className="p-1 rounded-md bg-transparent cursor-pointer transition-colors hover:bg-(color:--md-sys-color-surface-container-high)"
           style={{ color: "var(--md-sys-color-text-secondary)" }}
-          title="刷新"
-          aria-label="刷新任务列表"
+          title={t("tasks.refreshTitle")}
+          aria-label={t("tasks.refreshAria")}
           onClick={load}
         >
           <RefreshCw size={12} aria-hidden />
@@ -205,9 +210,9 @@ export function TaskCenter() {
         {tasks.length === 0 && (
           <div className="flex flex-col items-center justify-center h-40 gap-2" style={{ color: "var(--md-sys-color-text-secondary)" }}>
             <CheckCircle size={20} aria-hidden style={{ color: "var(--md-sys-color-success)", opacity: 0.7 }} />
-            <span>暂无任务</span>
+            <span>{t("tasks.empty")}</span>
             <span className="text-[10px]" style={{ color: "var(--md-sys-color-text-secondary)" }}>
-              文档转换、批量处理等后台长任务会出现在这里
+              {t("tasks.emptyHint")}
             </span>
           </div>
         )}
@@ -223,7 +228,7 @@ export function TaskCenter() {
         {history.length > 0 && (
           <>
             <div className="pt-2 text-[10px] uppercase tracking-wider" style={{ color: "var(--md-sys-color-text-secondary)" }}>
-              历史
+              {t("tasks.history")}
             </div>
             <div className="space-y-1">
               {history.map((t) => (
@@ -242,14 +247,14 @@ export function TaskCenter() {
         >
           <div className="flex items-center gap-2 px-3 py-1.5">
             <span className="text-[10.5px] font-medium truncate" style={{ color: "var(--md-sys-color-text)" }}>
-              输出 · {selectedTask.label}
+              {t("tasks.outputHeader", { label: selectedTask.label })}
             </span>
             <span className="text-[9.5px] shrink-0 font-mono" style={{ color: "var(--md-sys-color-text-secondary)" }}>
-              {kindLabel(selectedTask.kind)}
+              {kindLabel(selectedTask.kind, t)}
             </span>
             {selectedActive && (
               <span className="text-[9.5px] shrink-0 animate-pulse" style={{ color: "var(--gaea-glow)" }}>
-                ● 运行中
+                {t("tasks.runningDot")}
               </span>
             )}
             <span className="v3-panel-spacer" />
@@ -258,8 +263,8 @@ export function TaskCenter() {
               className="p-0.5 rounded cursor-pointer hover:bg-(color:--md-sys-color-surface-container-high) transition-colors"
               style={{ color: "var(--md-sys-color-text-secondary)" }}
               onClick={() => setSelectedId(null)}
-              title="关闭输出"
-              aria-label="关闭输出"
+              title={t("tasks.closeOutput")}
+              aria-label={t("tasks.closeOutput")}
             >
               <X size={11} aria-hidden />
             </button>
@@ -269,11 +274,11 @@ export function TaskCenter() {
             className="m-0 px-3 pb-2 text-[10px] leading-relaxed whitespace-pre-wrap break-words overflow-y-auto font-mono"
             style={{ color: "var(--md-sys-color-text-secondary)", maxHeight: 128 }}
           >
-            {output.tail || "（暂无输出）"}
+            {output.tail || t("tasks.noOutput")}
           </pre>
           {output.truncated && (
             <div className="px-3 pb-1.5 text-[9.5px]" style={{ color: "var(--md-sys-color-warning)" }}>
-              输出过长已截断（仅保留最近 200 行 / 64KB）
+              {t("tasks.outputTruncated")}
             </div>
           )}
         </div>
@@ -295,7 +300,8 @@ function TaskRow({
   onCancel: (id: string) => void;
   onRetry: (id: string) => void;
 }) {
-  const meta = statusMeta(task.status);
+  const t = useT();
+  const meta = statusMeta(task.status, t);
   const running = task.status === "running" || task.status === "queued" || task.status === "stopping";
   const cancelable = task.status === "running" || task.status === "queued" || task.status === "stopping";
   return (
@@ -307,14 +313,14 @@ function TaskRow({
         boxShadow: "inset 0 1px 0 color-mix(in srgb, var(--md-sys-color-text) 6%, transparent)",
       }}
       onClick={() => onSelect(task.id)}
-      title={task.status === "running" || task.status === "stopping" ? "点击查看实时输出" : "点击查看输出"}
+      title={task.status === "running" || task.status === "stopping" ? t("tasks.viewLiveTitle") : t("tasks.viewOutputTitle")}
     >
       <div className="flex items-center gap-2">
         <span className="text-[11px] font-medium truncate" style={{ color: "var(--md-sys-color-text)" }}>
           {task.label}
         </span>
         <span className="text-[10px] shrink-0" style={{ color: "var(--md-sys-color-text-secondary)" }}>
-          {kindLabel(task.kind)}
+          {kindLabel(task.kind, t)}
         </span>
         {/* 状态徽标：语义色 + 图标 + 文字三重传达 */}
         <span
@@ -367,10 +373,10 @@ function TaskRow({
         {task.status === "running" && <Clock size={10} aria-hidden />}
         <span>
           {task.status === "running"
-            ? `开始于 ${fmtTime(task.startedAt)}`
+            ? t("tasks.startedAt", { time: fmtTime(task.startedAt) })
             : `${fmtTime(task.createdAt)} → ${fmtTime(task.finishedAt)}`}
         </span>
-        {task.retryCount > 0 && <span style={{ color: "var(--md-sys-color-warning)" }}>已重试 {task.retryCount} 次</span>}
+        {task.retryCount > 0 && <span style={{ color: "var(--md-sys-color-warning)" }}>{t("tasks.retried", { n: task.retryCount })}</span>}
         <span className="ml-auto flex items-center gap-1">
           {cancelable && (
             <button
@@ -385,7 +391,7 @@ function TaskRow({
                 onCancel(task.id);
               }}
             >
-              {task.status === "stopping" ? "停止中…" : "取消"}
+              {task.status === "stopping" ? t("tasks.stoppingBtn") : t("tasks.cancelBtn")}
             </button>
           )}
           {(task.status === "failed" || task.status === "cancelled") && (
@@ -401,7 +407,7 @@ function TaskRow({
                 onRetry(task.id);
               }}
             >
-              重试
+              {t("tasks.retryBtn")}
             </button>
           )}
         </span>

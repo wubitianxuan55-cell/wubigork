@@ -7,14 +7,30 @@
 // 倒序）、预览回调（openFilePreview(baselinePath)：基线快照位于工作区内，
 // Preview 的 resolvePreviewPath IsAbs 分支可直读）、恢复回调（父级负责
 // RollbackRecord(id) + toast + 刷新时间线）全部经 props 注入，本组件不直接
-// 触碰 bridge。每行 = 时间/工具/轮次/状态徽标 + 预览/恢复两个操作；恢复语义
+// 触碰 bridge。每行 = 时间/工具/轮次/状态徽标 + 对比/预览/恢复三个操作；恢复语义
 // 对齐调研结论（docs/research-2026-09-01/version-timeline-diff.md §4）：
 // 不做二次确认弹窗（预览即护栏），顶部常驻说明「恢复会把该文件写回所选版本，
 // 当前内容成为新版本」；恢复进行中禁用全部恢复按钮，避免并发写盘竞态。
-import { useCallback, useState } from "react";
-import { Clock, Eye, Loader2, Rollback } from "../icons";
+//
+// v4.28 A1「与当前对比」：每行新增对比动作，点击在该行下方展开内联对比区——
+// 语义固定为「该基线快照 vs 当前工作区文件」（不做多版本两两对比，后续刀），
+// 数据层经 lib/versionCompare.compareVersionWithCurrent(baselinePath, target)
+// 取数（本组件唯一触碰 bridge 的口子，仅在展开时发起）。渲染：diffstat 芯片
+// （+N −N 绿/红）+ 行级红绿 diff（复用 --add/--del diff 令牌，等宽字体，
+// max-h-80 有界滚动）；超过 MAX_DIFF_ROWS 行折叠 + 展开全部开关；unsupported /
+// contentMissing / 无差异分别走 vcompare.* 字典降级提示。竞态防护：cmpSeq 单调
+// 递增，只有最新一次请求的返回可写回状态（连点不同版本行，旧结果丢弃）；再点
+// 同一行（或点面板「收起对比」）折叠并取消挂载对比内容。
+import { useCallback, useRef, useState } from "react";
+import { Clock, Diff, Eye, Loader2, Rollback } from "../icons";
+import { useT } from "../lib/i18n";
 import type { JournalChangeRecord } from "../lib/types";
 import { versionStatusText, versionTimeText } from "../lib/versionTimeline";
+import {
+  clampDiffRows,
+  compareVersionWithCurrent,
+  type VersionCompareResult,
+} from "../lib/versionCompare";
 
 export interface VersionTimelineProps {
   /** 目标文件（工作区相对路径）——标题与 data-path 定位用，不做数据过滤。 */
@@ -46,9 +62,183 @@ function statusColor(status: string): string {
 const iconBtn =
   "flex items-center justify-center w-6 h-6 rounded-md border-0 bg-transparent text-(color:--md-sys-color-text-secondary) cursor-pointer hover:text-(color:--md-sys-color-text) hover:bg-(color:--md-sys-color-surface-container-high) transition-colors";
 
+// 单次 diff 最大渲染行数：超过折叠为前 N 行 + 「展开全部」开关（复用既有字典）。
+const MAX_DIFF_ROWS = 200;
+
+// Codex 式 diffstat 芯片：+N（绿）−N（红），无差异时不渲染。
+function DiffStatChip({ add, del }: { add: number; del: number }) {
+  if (add === 0 && del === 0) return null;
+  return (
+    <span
+      data-testid="vcompare-stat"
+      className="inline-flex shrink-0 items-center gap-1 rounded border px-1 py-px font-mono text-[9.5px] leading-none tabular-nums"
+      style={{
+        borderColor: "color-mix(in srgb, var(--md-sys-color-outline-variant) 60%, transparent)",
+        background: "color-mix(in srgb, var(--md-sys-color-surface-container-high) 40%, transparent)",
+      }}
+    >
+      <span style={{ color: "var(--md-sys-color-success)" }}>+{add}</span>
+      <span style={{ color: "var(--md-sys-color-destructive)" }}>−{del}</span>
+    </span>
+  );
+}
+
+// 内联对比区：该基线快照 vs 当前工作区文件的行级红绿 diff。
+// result === null 表示取数进行中（spinner）；文本结果按 增删行/无差异/内容缺失
+// 分态渲染，行配色复用 styles.css 的 --add/--del diff 令牌（与 ChangesDiff 同源）。
+function VersionComparePanel({
+  label,
+  result,
+  showAll,
+  onToggleAll,
+  onHide,
+}: {
+  label: string;
+  result: VersionCompareResult | null;
+  showAll: boolean;
+  onToggleAll: () => void;
+  onHide: () => void;
+}) {
+  const t = useT();
+  const clamped =
+    result?.kind === "text"
+      ? clampDiffRows(result.rows, showAll ? Number.MAX_SAFE_INTEGER : MAX_DIFF_ROWS)
+      : null;
+  const shown = clamped?.shown ?? [];
+  // 仅当全量行数超上限时出现折叠开关（展开后切换为「收起」）。
+  const overLimit = result?.kind === "text" && result.rows.length > MAX_DIFF_ROWS;
+  return (
+    <div
+      data-testid="vcompare-panel"
+      className="mb-0.5 mt-1 flex flex-col gap-1 rounded-md border px-1.5 py-1"
+      style={{
+        borderColor: "color-mix(in srgb, var(--md-sys-color-outline-variant) 60%, transparent)",
+        background: "color-mix(in srgb, var(--md-sys-color-surface-container-low) 50%, transparent)",
+      }}
+    >
+      {/* 标题行：对比标题 + diffstat 芯片 + 收起对比 */}
+      <div className="flex items-center gap-1.5">
+        <Diff size={11} aria-hidden style={{ color: "var(--gaea-glow)" }} />
+        <span className="shrink-0 text-[9.5px] font-medium" style={{ color: "var(--md-sys-color-text)" }}>
+          {t("vcompare.title", { label })}
+        </span>
+        {result?.kind === "text" && <DiffStatChip add={result.add} del={result.del} />}
+        <span className="min-w-0 flex-1" />
+        <button
+          type="button"
+          data-testid="vcompare-hide"
+          className="shrink-0 cursor-pointer rounded border-0 bg-transparent px-1 py-px text-[9.5px] text-(color:--md-sys-color-text-secondary) hover:text-(color:--md-sys-color-text)"
+          onClick={onHide}
+        >
+          {t("vcompare.hide")}
+        </button>
+      </div>
+      {result === null ? (
+        <div data-testid="vcompare-loading" className="flex items-center gap-1.5 py-1 text-[10px]">
+          <Loader2 size={11} className="animate-spin" />
+        </div>
+      ) : result.kind === "unsupported" ? (
+        <div
+          data-testid="vcompare-unsupported"
+          className="text-[10px] leading-relaxed"
+          style={{ color: "var(--md-sys-color-text-secondary)" }}
+        >
+          {t("vcompare.unsupported")}
+        </div>
+      ) : (
+        <div className="flex flex-col gap-1">
+          {/* 基线/当前任一侧内容不可用：顶部提示（结果仍展示，宁漏勿误口径） */}
+          {result.contentMissing && (
+            <div
+              data-testid="vcompare-content-missing"
+              className="text-[9.5px] leading-relaxed"
+              style={{ color: "var(--md-sys-color-warning)" }}
+            >
+              {t("vcompare.contentMissing")}
+            </div>
+          )}
+          {result.add === 0 && result.del === 0 ? (
+            <div
+              data-testid="vcompare-empty"
+              className="py-0.5 text-[10px] leading-relaxed"
+              style={{ color: "var(--md-sys-color-text-secondary)" }}
+            >
+              {t("vcompare.empty")}
+            </div>
+          ) : (
+            <div
+              data-testid="vcompare-diff"
+              className="max-h-80 overflow-auto rounded-md border font-mono text-[10px] leading-[1.6]"
+              style={{ borderColor: "color-mix(in srgb, var(--md-sys-color-outline-variant) 60%, transparent)" }}
+            >
+              {shown.map((r, i) => (
+                <div
+                  key={i}
+                  className="flex whitespace-pre-wrap break-all"
+                  style={{
+                    background:
+                      r.type === "add" ? "var(--add-bg)" : r.type === "del" ? "var(--del-bg)" : "transparent",
+                  }}
+                >
+                  <span
+                    className="w-4 shrink-0 select-none text-center opacity-70"
+                    style={{
+                      color:
+                        r.type === "add" ? "var(--add-fg)" : r.type === "del" ? "var(--del-fg)" : "inherit",
+                    }}
+                  >
+                    {r.type === "add" ? "+" : r.type === "del" ? "-" : " "}
+                  </span>
+                  <span
+                    className="min-w-0 flex-1 pr-2"
+                    style={{
+                      color:
+                        r.type === "add"
+                          ? "var(--add-fg)"
+                          : r.type === "del"
+                            ? "var(--del-fg)"
+                            : "var(--md-sys-color-text-secondary)",
+                    }}
+                  >
+                    {r.text === "" ? " " : r.text}
+                  </span>
+                </div>
+              ))}
+              {overLimit && (
+                <button
+                  type="button"
+                  data-testid="vcompare-expand"
+                  className="w-full cursor-pointer border-0 bg-transparent px-2 py-1 text-left font-sans text-[10px] text-(color:--md-sys-color-text-secondary) hover:text-(color:--md-sys-color-text) hover:bg-(color:--md-sys-color-surface-container-high)"
+                  onClick={onToggleAll}
+                >
+                  {showAll ? t("common.collapse") : t("tool.expandAllLines", { n: result.rows.length })}
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function VersionTimeline({ path, records, onPreview, onRestore }: VersionTimelineProps) {
+  const t = useT();
   // 恢复进行中的卡 id：期间禁用所有「恢复」按钮（避免并发写盘），本行转圈。
   const [restoringId, setRestoringId] = useState<string | null>(null);
+  // 对比区状态：展开行的 id + 该行取数结果（result=null 表示请求进行中）。
+  // 同一时刻至多展开一行：切换行即替换，收起即置 null（对比内容随之取消挂载）。
+  const [cmp, setCmp] = useState<{
+    id: string;
+    baseline: string;
+    target: string;
+    result: VersionCompareResult | null;
+  } | null>(null);
+  // 长 diff 折叠开关（展开全部）；切行/收起时复位。
+  const [showAllRows, setShowAllRows] = useState(false);
+  // 竞态防护：请求序号单调递增，只有最新一次请求的返回可写回状态——
+  // 连续点击不同版本行时，旧请求的慢返回会被序号淘汰，不覆盖新状态。
+  const cmpSeq = useRef(0);
 
   const handleRestore = useCallback((r: JournalChangeRecord) => {
     if (restoringId) return;
@@ -57,6 +247,31 @@ export function VersionTimeline({ path, records, onPreview, onRestore }: Version
       setRestoringId((cur) => (cur === r.id ? null : cur));
     });
   }, [onRestore, restoringId]);
+
+  // 对比开关：再点同一行 = 收起（不重新取数）；展开新行 = 置 loading 并发起
+  // compareVersionWithCurrent(baselinePath, target)——语义固定「基线快照 vs 当前」。
+  const handleCompare = useCallback(
+    (r: JournalChangeRecord) => {
+      const baseline = r.baselinePath ?? "";
+      const opening = cmp?.id !== r.id;
+      setShowAllRows(false);
+      setCmp(opening ? { id: r.id, baseline, target: r.target, result: null } : null);
+      cmpSeq.current++; // 收起时也推进序号，令在途旧结果失效
+      if (!opening) return;
+      const seq = cmpSeq.current;
+      void compareVersionWithCurrent(baseline, r.target).then((res) => {
+        if (cmpSeq.current !== seq) return; // 已有更新的一次请求/收起，丢弃
+        setCmp((c) => (c && c.id === r.id ? { ...c, result: res } : c));
+      });
+    },
+    [cmp],
+  );
+
+  const collapseCompare = useCallback(() => {
+    cmpSeq.current++;
+    setCmp(null);
+    setShowAllRows(false);
+  }, []);
 
   return (
     <div
@@ -105,55 +320,78 @@ export function VersionTimeline({ path, records, onPreview, onRestore }: Version
         <ol className="flex flex-col gap-0.5">
           {records.map((r) => {
             const restoring = restoringId === r.id;
+            const cmpOpen = cmp?.id === r.id;
             return (
               <li
                 key={r.id}
                 data-testid="version-timeline-row"
-                className="flex items-center gap-1.5 rounded-md px-1 py-0.5 hover:bg-(color:--md-sys-color-surface-container-high)"
+                className="flex flex-col rounded-md px-1 py-0.5"
                 title={r.afterSummary || r.beforeSummary}
               >
-                <span className="shrink-0 font-mono text-[9px] tabular-nums">{versionTimeText(r)}</span>
-                <span
-                  className="shrink-0 rounded px-1 py-px font-mono text-[9px]"
-                  style={{
-                    color: "var(--md-sys-color-primary)",
-                    background: "color-mix(in srgb, var(--md-sys-color-primary) 12%, transparent)",
-                  }}
-                  title={`写入工具 ${r.tool}`}
-                >
-                  {r.tool}
-                </span>
-                <span className="shrink-0 text-[9px]">{r.turn > 0 ? `第 ${r.turn} 轮` : "轮外"}</span>
-                <span
-                  className="shrink-0 rounded px-1 py-px text-[9px]"
-                  style={{
-                    color: statusColor(r.status),
-                    background: "color-mix(in srgb, currentColor 10%, transparent)",
-                  }}
-                >
-                  {versionStatusText(r.status)}
-                </span>
-                <span className="min-w-0 flex-1" />
-                <button
-                  type="button"
-                  className={iconBtn}
-                  onClick={() => onPreview(r.baselinePath ?? "")}
-                  disabled={!r.baselinePath}
-                  title="预览该版本快照"
-                  aria-label={`预览 ${versionTimeText(r)} ${r.tool} 版本快照`}
-                >
-                  <Eye size={11} />
-                </button>
-                <button
-                  type="button"
-                  className={iconBtn}
-                  onClick={() => handleRestore(r)}
-                  disabled={restoringId !== null}
-                  title={`恢复到 ${versionTimeText(r)} 版本：将回滚到该时间版本`}
-                  aria-label={`恢复到 ${versionTimeText(r)} ${r.tool} 版本`}
-                >
-                  {restoring ? <Loader2 size={11} className="animate-spin" /> : <Rollback size={11} />}
-                </button>
+                <div className="flex items-center gap-1.5 hover:bg-(color:--md-sys-color-surface-container-high)">
+                  <span className="shrink-0 font-mono text-[9px] tabular-nums">{versionTimeText(r)}</span>
+                  <span
+                    className="shrink-0 rounded px-1 py-px font-mono text-[9px]"
+                    style={{
+                      color: "var(--md-sys-color-primary)",
+                      background: "color-mix(in srgb, var(--md-sys-color-primary) 12%, transparent)",
+                    }}
+                    title={`写入工具 ${r.tool}`}
+                  >
+                    {r.tool}
+                  </span>
+                  <span className="shrink-0 text-[9px]">{r.turn > 0 ? `第 ${r.turn} 轮` : "轮外"}</span>
+                  <span
+                    className="shrink-0 rounded px-1 py-px text-[9px]"
+                    style={{
+                      color: statusColor(r.status),
+                      background: "color-mix(in srgb, currentColor 10%, transparent)",
+                    }}
+                  >
+                    {versionStatusText(r.status)}
+                  </span>
+                  <span className="min-w-0 flex-1" />
+                  <button
+                    type="button"
+                    className={iconBtn}
+                    onClick={() => handleCompare(r)}
+                    disabled={!r.baselinePath}
+                    title={cmpOpen ? t("vcompare.hide") : t("vcompare.action")}
+                    aria-label={`${t("vcompare.action")} ${versionTimeText(r)} ${r.tool}`}
+                  >
+                    <Diff size={11} />
+                  </button>
+                  <button
+                    type="button"
+                    className={iconBtn}
+                    onClick={() => onPreview(r.baselinePath ?? "")}
+                    disabled={!r.baselinePath}
+                    title="预览该版本快照"
+                    aria-label={`预览 ${versionTimeText(r)} ${r.tool} 版本快照`}
+                  >
+                    <Eye size={11} />
+                  </button>
+                  <button
+                    type="button"
+                    className={iconBtn}
+                    onClick={() => handleRestore(r)}
+                    disabled={restoringId !== null}
+                    title={`恢复到 ${versionTimeText(r)} 版本：将回滚到该时间版本`}
+                    aria-label={`恢复到 ${versionTimeText(r)} ${r.tool} 版本`}
+                  >
+                    {restoring ? <Loader2 size={11} className="animate-spin" /> : <Rollback size={11} />}
+                  </button>
+                </div>
+                {/* 内联对比区：仅展开行挂载（收起即取消挂载，不留 DOM） */}
+                {cmpOpen && cmp && (
+                  <VersionComparePanel
+                    label={versionTimeText(r)}
+                    result={cmp.result}
+                    showAll={showAllRows}
+                    onToggleAll={() => setShowAllRows((v) => !v)}
+                    onHide={collapseCompare}
+                  />
+                )}
               </li>
             );
           })}

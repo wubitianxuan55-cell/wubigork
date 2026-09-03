@@ -7,7 +7,11 @@ import { AssistantMessage } from "./Message";
 import { LocaleProvider } from "../lib/i18n";
 import type { Item } from "../lib/store";
 
-const wrap = (node: React.ReactNode) => <LocaleProvider>{node}</LocaleProvider>;
+const wrap = (node: React.ReactNode) => {
+  // Message 走 useT；钉住 zh 让徽标断言用中文文案
+  localStorage.setItem("gaea-lang", "zh");
+  return <LocaleProvider>{node}</LocaleProvider>;
+};
 
 type AssistantItem = Extract<Item, { kind: "assistant" }>;
 
@@ -34,10 +38,10 @@ describe("AssistantMessage subagentRef 徽标", () => {
     Object.assign(navigator, { clipboard: { writeText } });
     const view = render(wrap(<AssistantMessage item={assistant({ text: "可复制的内容" })} />));
 
-    fireEvent.click(view.getByRole("button", { name: /copy/i }));
+    fireEvent.click(view.getByRole("button", { name: /copy|复制/i }));
 
     expect(writeText).toHaveBeenCalledWith("可复制的内容");
-    expect(await view.findByText("Copied")).toBeTruthy();
+    expect(await view.findByText(/copied|已复制/i)).toBeTruthy();
   });
 
   it("流式中不渲染复制/沉淀操作（正文未定型）", () => {

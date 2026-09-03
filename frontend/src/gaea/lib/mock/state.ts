@@ -83,9 +83,11 @@ export function createMockState(): MakeMockState {
   // interrupted=true 表示上次运行中断未完成（T5-4）；d.jsonl 刻意标记中断，供浏览器
   // 联调「未完成」徽标与恢复摘要注入。
   const sessions: SessionMeta[] = freshMock ? [] : [
-    { path: "/mock/sessions/a.jsonl", preview: "compile quarterly report", turns: 12, modTime: t0 - 3_600_000, current: true, interrupted: false },
+    // current 挂在 c.jsonl：a.jsonl 的季度报告演示回放要能通过「切走再切回」
+    // 触发 ResumeSession 到达（点击当前会话不会重新 resume，见 T5-4 语义）。
+    { path: "/mock/sessions/a.jsonl", preview: "compile quarterly report", turns: 12, modTime: t0 - 3_600_000, current: false, interrupted: false },
     { path: "/mock/sessions/b.jsonl", preview: "convert docx to markdown", turns: 5, modTime: t0 - 6 * 3_600_000, current: false, pinned: true, interrupted: false },
-    { path: "/mock/sessions/c.jsonl", preview: "build chart from data", turns: 8, modTime: t0 - day - 3_600_000, current: false, interrupted: false },
+    { path: "/mock/sessions/c.jsonl", preview: "build chart from data", turns: 8, modTime: t0 - day - 3_600_000, current: true, interrupted: false },
     { path: "/mock/sessions/d.jsonl", preview: "explain the plugin host design", turns: 3, modTime: t0 - 4 * day, current: false, interrupted: true },
   ];
   // 已归档会话（可恢复；浏览器 mock 内存态）

@@ -1,5 +1,5 @@
 import { Fragment, memo, useCallback, useEffect, useMemo, useState } from "react";
-import { Archive, ClipboardList, Coins, Copy, ExternalLink, FileText, FolderTree, ListTree, Loader2, MessageSquare, Paperclip, Rollback, Shield, Sparkles, Table } from "../icons";
+import { AlertCircle, Archive, CheckCircle, ClipboardList, Coins, Copy, ExternalLink, FileText, FolderTree, ListTree, Loader2, MessageSquare, Paperclip, RefreshCw, Rollback, Shield, Sparkles, Table } from "../icons";
 import { app } from "../lib/bridge";
 import type { DeliverableRegistryView, JournalChangeRecord, VerdictView, VerifyDiffRow } from "../lib/types";
 import {
@@ -8,6 +8,14 @@ import {
   versionLabel,
 } from "../lib/versionTimeline";
 import { loadDeliverableAutoOpen, saveDeliverableAutoOpen } from "../lib/deliverablePrefs";
+import {
+  acceptanceOf,
+  acceptanceSummary,
+  loadAcceptanceMap,
+  saveAcceptanceMap,
+  setAcceptance,
+} from "../lib/deliverableStatus";
+import type { DeliverableAcceptance, DeliverableStatusMap } from "../lib/deliverableStatus";
 import {
   buildCellIndex,
   buildVerifyDiff,
@@ -18,6 +26,7 @@ import {
   parseOps,
 } from "../lib/verifyDiff";
 import { useComposerInsertStore, usePreviewStore, useUpdatedFilesStore } from "../lib/store";
+import { useT } from "../lib/i18n";
 import { FRONTEND_EVENTS, emitFrontendEvent } from "../../events";
 import { useToast } from "./Toast";
 import { FileThumb } from "./FileThumb";
@@ -58,6 +67,12 @@ const iconBtn =
 // App（shouldAutoOpenDeliverables），面板只负责偏好读写。单版本徽标 title 细化
 // 为带快照数（收 v4.31 欠账「静态文案」）。
 // v3「星枢」面板语言：v3-panel-head 细条头部 + 低边框 hover 高亮行。
+// A1 交付验收闭环：每行验收徽标（绿「已验收」/警示「要求修改」；open 为缺省态
+// 不显示徽标，视觉最安静）+ 悬停标记操作（标记已验收/要求修改/重新查看）；
+// 头部「已验收 n/m」汇总。数据层 lib/deliverableStatus.ts，持久化键
+// gaea.deliverableAcceptance.v1（面板级 map，同会话所有行共享）；versionAt 取
+// 该路径登记表 updatedAt，登记表前进时 acceptanceOf 自动重置回待查看
+// （新版本不看旧结论）。
 export const DeliverablesPanel = memo(function DeliverablesPanel({
   items,
   sessionPath,
@@ -82,6 +97,7 @@ export const DeliverablesPanel = memo(function DeliverablesPanel({
   const openFilePreview = usePreviewStore((s) => s.openFilePreview);
   const updatedAt = useUpdatedFilesStore((s) => s.updatedAt);
   const toast = useToast();
+  const t = useT();
 
   // ── v4.32 线B「自动弹出」偏好（默认关 opt-in）：新产物出现时 App 自动切到
   // 本面板；开关 UI 在头部胶囊，持久化键 gaea.deliverableAutoOpen。新产物检测
@@ -113,8 +129,70 @@ export const DeliverablesPanel = memo(function DeliverablesPanel({
       .catch(() => { if (!cancelled) setRegistry(null); });
     return () => { cancelled = true };
   }, [sessionPath]);
-  const registryEntries = registry?.available ? registry.entries : [];
+  // A1 验收版 useMemo 化：稳定引用供下方 registryUpdatedAt 索引依赖
+  // （原为每次渲染新数组，行为不变）。
+  const registryEntries = useMemo(
+    () => (registry?.available ? registry.entries : []),
+    [registry],
+  );
   const registryTotal = registry?.total ?? 0;
+
+  // ── A1 交付验收闭环：会话键复用面板拉登记表的 sessionPath prop；prop 缺省
+  // （未保存草稿 / 旧入口）时与 lib/deliverablesTurn.ts 同式回退
+  // ListSessions().find(current)?.path；两者都拿不到则整节功能收起（验收必须
+  // 挂会话，避免同相对路径跨会话串状态）。
+  const [accSessionPath, setAccSessionPath] = useState<string | undefined>(sessionPath);
+  useEffect(() => {
+    if (sessionPath) {
+      setAccSessionPath(sessionPath);
+      return;
+    }
+    let cancelled = false;
+    void app
+      .ListSessions()
+      .then((sessions) => { if (!cancelled) setAccSessionPath(sessions?.find((s) => s.current)?.path); })
+      .catch(() => { if (!cancelled) setAccSessionPath(undefined); });
+    return () => { cancelled = true };
+  }, [sessionPath]);
+
+  // 验收 map：面板级一份（同会话所有行共享），初始化从 localStorage 读入，
+  // 标记即写（setAcceptance + saveAcceptanceMap，薄 IO 壳异常静默）。
+  const [acceptMap, setAcceptMap] = useState<DeliverableStatusMap>(() => loadAcceptanceMap());
+
+  // 路径 → 登记表 updatedAt（unix 秒）：既是标记时的 versionAt（「标记时所见
+  // 版本」），也是读状态时的 currentUpdatedAt（登记表前进 → acceptanceOf 自动
+  // 重置回 open，新版本不看旧结论）；登记表没有的路径兜底 0。归一口径与
+  // statusKeyOf 一致（反斜杠→/、小写）。
+  const registryUpdatedAt = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const e of registryEntries) m.set(e.path.replace(/\\/g, "/").toLowerCase(), e.updatedAt);
+    return m;
+  }, [registryEntries]);
+  const updatedAtOf = useCallback(
+    (path: string): number => registryUpdatedAt.get(path.replace(/\\/g, "/").toLowerCase()) ?? 0,
+    [registryUpdatedAt],
+  );
+
+  const applyAcceptance = useCallback(
+    (path: string, status: DeliverableAcceptance) => {
+      if (!accSessionPath) return;
+      const sp = accSessionPath;
+      setAcceptMap((prev) => {
+        // 先算 next 再落盘（autoOpen 胶囊同款），StrictMode 双调同值覆写无害
+        const next = setAcceptance(prev, sp, path, status, Date.now(), updatedAtOf(path));
+        saveAcceptanceMap(next);
+        return next;
+      });
+    },
+    [accSessionPath, updatedAtOf],
+  );
+
+  // 头部汇总：已验收 n / 总数 m（轻量文案 accept.statusConfirmed + 计数，
+  // title 走 accept.title）；无会话键或无产物时不渲染。
+  const acceptSummary = useMemo(() => {
+    if (!accSessionPath || items.length === 0) return null;
+    return acceptanceSummary(acceptMap, accSessionPath, items.map((d) => d.path), updatedAtOf);
+  }, [acceptMap, accSessionPath, items, updatedAtOf]);
   // v4.6 失败回 Plan：逐证据卡内联展示复核结论（不再只弹 toast 一闪而过）
   const [verdicts, setVerdicts] = useState<Record<string, VerdictView>>({});
 
@@ -122,20 +200,21 @@ export const DeliverablesPanel = memo(function DeliverablesPanel({
   const copyPath = useCallback(async (path: string) => {
     try {
       await navigator.clipboard.writeText(path);
-      toast.show("已复制文件路径", "info");
+      toast.show(t("deliver.copyPathDone"), "info");
     } catch {
-      toast.show("复制失败：剪贴板不可用", "warn");
+      toast.show(t("deliver.copyFail"), "warn");
     }
-  }, [toast]);
+  }, [t, toast]);
 
   // 沉淀到成本库：把测算/表格产物一键转为 cost_save 指令进入输入框，
   // agent 读取文件后将单价明细写回成本库（来源标注该文件，同名覆盖）。
   const depositToCost = useCallback((path: string) => {
     const name = baseName(path);
+    // 发给 LLM 的指令文本（非 UI 文案），不进字典
     const prompt = `请读取 [${name}](${path})，用 cost_save 把其中的单价明细沉淀到成本库：逐行提取科目/单位/单价/规格，来源标注该文件；同名条目覆盖更新，完成后汇报新增/更新条数。`;
     useComposerInsertStore.getState().requestText(prompt);
-    toast.show(`已把沉淀指令插入输入框，可编辑后发送`, "info");
-  }, [toast]);
+    toast.show(t("deliverPanel.depositDone"), "info");
+  }, [t, toast]);
 
   // 最新在前
   const list = [...items].reverse();
@@ -145,11 +224,11 @@ export const DeliverablesPanel = memo(function DeliverablesPanel({
     const paths = list.map((d) => d.path);
     try {
       await navigator.clipboard.writeText(paths.join("\n"));
-      toast.show(`已复制 ${paths.length} 个文件路径`, "info");
+      toast.show(t("deliverPanel.copyAllDone", { n: paths.length }), "info");
     } catch {
-      toast.show("复制失败：剪贴板不可用", "warn");
+      toast.show(t("deliver.copyFail"), "warn");
     }
-  }, [list, toast]);
+  }, [list, t, toast]);
 
   // ── v4.28 B1 文件版本时间线：挂载时自拉一次 GaeaJournalList(200)（证据链与
   // 回滚同源的自动快照），按 target 聚合成「路径 → 版本记录」索引；失败静默
@@ -178,12 +257,12 @@ export const DeliverablesPanel = memo(function DeliverablesPanel({
   const restoreVersion = useCallback(async (r: JournalChangeRecord) => {
     try {
       await app.RollbackRecord(r.id);
-      toast.show(`已恢复 ${r.target} 到 ${versionLabel(r)} 版本；当前内容成为新版本`, "info");
+      toast.show(t("deliverPanel.restoreDone", { path: r.target, label: versionLabel(r) }), "info");
       void loadJournal();
     } catch (e) {
-      toast.show(`恢复失败：${e instanceof Error ? e.message : String(e)}`, "warn");
+      toast.show(t("deliverPanel.restoreFail", { msg: e instanceof Error ? e.message : String(e) }), "warn");
     }
-  }, [loadJournal, toast]);
+  }, [loadJournal, t, toast]);
 
   // ── v4.1 证据链：最近证据卡（「证据」入口，复用产物面板挂载点）──
   const [evidenceOpen, setEvidenceOpen] = useState(false);
@@ -202,10 +281,10 @@ export const DeliverablesPanel = memo(function DeliverablesPanel({
     if (!at) return "—";
     const diff = Date.now() - at;
     const min = Math.floor(diff / 60000);
-    if (min < 1) return "刚刚";
-    if (min < 60) return `${min} 分钟前`;
+    if (min < 1) return t("deliverPanel.justNow");
+    if (min < 60) return t("deliverPanel.minAgo", { n: min });
     const h = Math.floor(min / 60);
-    if (h < 24) return `${h} 小时前`;
+    if (h < 24) return t("deliverPanel.hourAgo", { n: h });
     return new Date(at).toLocaleString();
   };
 
@@ -260,27 +339,27 @@ export const DeliverablesPanel = memo(function DeliverablesPanel({
     try {
       const v = await app.VerifyRecord(r.id);
       setVerdicts((prev) => ({ ...prev, [r.id]: v }));
-      const label = v.status === "verified" ? "复核通过" : v.status === "warned" ? "复核警告" : "复核未通过";
-      toast.show(`${label}：${v.note ?? ""}（A:${v.channelA ?? "n/a"} / B:${v.channelB ?? "n/a"}）`, v.status === "failed" ? "warn" : "info");
+      const label = v.status === "verified" ? t("deliverPanel.verifyPass") : v.status === "warned" ? t("deliverPanel.verifyWarn") : t("deliverPanel.verifyFail");
+      toast.show(t("deliverPanel.verifyToast", { label, note: v.note ?? "", a: v.channelA ?? "n/a", b: v.channelB ?? "n/a" }), v.status === "failed" ? "warn" : "info");
     } catch (e) {
-      toast.show(`复核失败：${e instanceof Error ? e.message : String(e)}`, "warn");
+      toast.show(t("deliverPanel.verifyFailToast", { msg: e instanceof Error ? e.message : String(e) }), "warn");
     }
-  }, [toast]);
+  }, [t, toast]);
 
   // v4.6 失败回 Plan：xlsx_apply 复核未通过 → 一键回到办公板块重新规划
   const replanFailed = useCallback((r: JournalChangeRecord) => {
     emitFrontendEvent(FRONTEND_EVENTS.NAVIGATE, { page: "office" });
-    toast.show(`已打开办公面板——可对 ${r.target} 重新规划后再应用`, "info");
-  }, [toast]);
+    toast.show(t("deliverPanel.replanToast", { path: r.target }), "info");
+  }, [t, toast]);
 
   const rollbackRecord = useCallback(async (r: JournalChangeRecord) => {
     try {
       await app.RollbackRecord(r.id);
-      toast.show(`已回滚 ${r.target}（基线快照恢复）`, "info");
+      toast.show(t("deliverPanel.rollbackDone", { path: r.target }), "info");
     } catch (e) {
-      toast.show(`回滚失败：${e instanceof Error ? e.message : String(e)}`, "warn");
+      toast.show(t("deliverPanel.rollbackFail", { msg: e instanceof Error ? e.message : String(e) }), "warn");
     }
-  }, [toast]);
+  }, [t, toast]);
 
   // 打包下载：把本次会话全部交付文件打成一个 zip（对标 Kimi 工作空间 /
   // WorkBuddy 会话产物打包），完成后在文件管理器中定位 zip。
@@ -290,21 +369,21 @@ export const DeliverablesPanel = memo(function DeliverablesPanel({
     setZipping(true);
     try {
       const r = await app.ZipDeliverables(list.map((d) => d.path));
-      toast.show(`已打包 ${r.entries} 个文件（${(r.bytes / 1024).toFixed(1)} KB）`, "info");
+      toast.show(t("deliverPanel.zipDone", { n: r.entries, kb: (r.bytes / 1024).toFixed(1) }), "info");
       void app.RevealWorkspacePath(r.path).catch(() => {});
     } catch (e) {
-      toast.show(`打包失败：${e instanceof Error ? e.message : String(e)}`, "warn");
+      toast.show(t("deliverPanel.zipFail", { msg: e instanceof Error ? e.message : String(e) }), "warn");
     } finally {
       setZipping(false);
     }
-  }, [zipping, list, toast]);
+  }, [zipping, list, t, toast]);
 
   return (
     <div className="flex flex-col h-full min-h-0 text-xs" style={{ color: "var(--md-sys-color-text-secondary)" }}>
       {/* v3 细条头部：标题 + 计数徽标 + 复制全部 */}
       <div className="v3-panel-head">
         <FileText size={13} aria-hidden style={{ color: "var(--gaea-glow)" }} />
-        <span className="v3-panel-title">会话产物</span>
+        <span className="v3-panel-title">{t("deliverPanel.title")}</span>
         {items.length > 0 && (
           <span
             className="rounded-full px-1.5 py-px text-[10px] font-mono"
@@ -317,6 +396,18 @@ export const DeliverablesPanel = memo(function DeliverablesPanel({
             {items.length}
           </span>
         )}
+        {/* A1 验收汇总：轻量「已验收 n/m」（accept.statusConfirmed + 计数，
+            title=accept.title）；无会话键 / 无产物时不渲染，不与计数徽标挤位。 */}
+        {acceptSummary && (
+          <span
+            data-testid="deliverable-acceptance-summary"
+            className="shrink-0 text-[10px] font-mono tabular-nums"
+            title={t("accept.title")}
+            style={{ color: acceptSummary.confirmed > 0 ? "var(--md-sys-color-success)" : "var(--md-sys-color-text-secondary)" }}
+          >
+            {t("accept.statusConfirmed")} {acceptSummary.confirmed}/{acceptSummary.total}
+          </span>
+        )}
         <span className="v3-panel-spacer" />
         {/* v4.32 线B：自动弹出胶囊（默认关 opt-in；形状/交互对齐 BrowserPanel
             头部同款）——开=亮色点关、关=灰态点开；触发接线在 App，面板只管偏好。 */}
@@ -326,8 +417,8 @@ export const DeliverablesPanel = memo(function DeliverablesPanel({
           className="inline-flex shrink-0 cursor-pointer items-center gap-1 rounded-full px-1.5 py-px text-[10px] leading-none transition-colors"
           aria-pressed={autoOpen}
           title={autoOpen
-            ? "自动弹出已开：新产物出现时自动切到本面板（点击关闭）"
-            : "自动弹出已关：新产物出现时不切换面板，仅列表内「新」徽标提示（点击开启）"}
+            ? t("deliverPanel.autoOpenOn")
+            : t("deliverPanel.autoOpenOff")}
           onClick={toggleAutoOpen}
           style={autoOpen
             ? {
@@ -346,7 +437,7 @@ export const DeliverablesPanel = memo(function DeliverablesPanel({
             style={{ background: autoOpen ? "var(--gaea-glow)" : "var(--md-sys-color-outline-variant)" }}
             aria-hidden
           />
-          自动弹出 {autoOpen ? "开" : "关"}
+          {t("deliverPanel.autoOpenLabel", { state: autoOpen ? t("deliverPanel.on") : t("deliverPanel.off") })}
         </button>
         {items.length > 0 && (
           <>
@@ -355,8 +446,8 @@ export const DeliverablesPanel = memo(function DeliverablesPanel({
               className={iconBtn}
               onClick={() => void zipDeliverables()}
               disabled={zipping}
-              title="打包下载：把本次会话全部交付文件打成一个 zip"
-              aria-label="打包下载全部交付文件"
+              title={t("deliverPanel.zipTitle")}
+              aria-label={t("deliverPanel.zipAria")}
             >
               {zipping ? <Loader2 size={12} className="animate-spin" /> : <Archive size={12} />}
             </button>
@@ -364,8 +455,8 @@ export const DeliverablesPanel = memo(function DeliverablesPanel({
               type="button"
               className={iconBtn}
               onClick={() => void copyAllPaths()}
-              title="复制全部文件路径"
-              aria-label="复制全部文件路径"
+              title={t("deliverPanel.copyAllPaths")}
+              aria-label={t("deliverPanel.copyAllPaths")}
             >
               <ClipboardList size={12} />
             </button>
@@ -380,9 +471,9 @@ export const DeliverablesPanel = memo(function DeliverablesPanel({
         >
           <Paperclip size={24} aria-hidden className="opacity-40" />
           <span className="text-[11px] leading-relaxed">
-            本轮会话暂无交付文件
+            {t("deliverPanel.empty")}
             <br />
-            生成/保存文件后会出现在这里
+            {t("deliverPanel.emptyHint")}
           </span>
         </div>
       ) : (
@@ -405,10 +496,15 @@ export const DeliverablesPanel = memo(function DeliverablesPanel({
             // 原静态文案。
             const snapshotCount = groupedVersions.get(normPath)?.length;
             const badgeTitle = rev
-              ? `会话内更新了 ${rev} 次（产物版本时间线）`
+              ? t("deliverPanel.badgeUpdated", { n: rev })
               : snapshotCount
-                ? `有 ${snapshotCount} 个历史快照，可预览/恢复`
-                : "有版本历史（可预览/恢复）";
+                ? t("deliverPanel.badgeSnapshots", { n: snapshotCount })
+                : t("deliverPanel.badgeHistory");
+            // A1 验收态：无会话键（功能收起）按 open 处理；读时传登记表最新
+            // updatedAt → 登记表前进（新版本落盘）自动重置回 open。
+            const accept = accSessionPath
+              ? acceptanceOf(acceptMap, accSessionPath, path, updatedAtOf(path))
+              : "open";
             const timelineOpen = timelinePath === normPath;
             return (
               <Fragment key={path}>
@@ -430,7 +526,7 @@ export const DeliverablesPanel = memo(function DeliverablesPanel({
                   <button
                     type="button"
                     onClick={() => open(path)}
-                    title={`点击预览 ${path}`}
+                    title={t("msg.clickPreview", { path })}
                     className="min-w-0 flex-1 text-left cursor-pointer"
                   >
                     <span className="flex items-center gap-1">
@@ -447,7 +543,7 @@ export const DeliverablesPanel = memo(function DeliverablesPanel({
                           }}
                         >
                           <Sparkles size={8} aria-hidden />
-                          新
+                          {t("deliverPanel.fresh")}
                         </span>
                       )}
                       {updated && (
@@ -460,7 +556,39 @@ export const DeliverablesPanel = memo(function DeliverablesPanel({
                           }}
                         >
                           <FileText size={8} aria-hidden />
-                          已更新
+                          {t("deliver.updated")}
+                        </span>
+                      )}
+                      {/* A1 验收徽标：仅显示已验收（绿）/要求修改（警示）两态；
+                          open 是缺省态不显示徽标（多数行初始即 open，弱化徽标
+                          反成噪声），悬停操作位承载标记入口。样式沿「新」「已
+                          更新」同族胶囊（9px rounded-full + color-mix 底/边）。 */}
+                      {accept === "confirmed" && (
+                        <span
+                          data-testid="deliverable-accept-badge"
+                          className="shrink-0 inline-flex items-center gap-0.5 rounded-full px-1 py-px text-[9px] leading-none"
+                          style={{
+                            color: "var(--md-sys-color-success)",
+                            background: "color-mix(in srgb, var(--md-sys-color-success) 12%, transparent)",
+                            border: "1px solid color-mix(in srgb, var(--md-sys-color-success) 32%, transparent)",
+                          }}
+                        >
+                          <CheckCircle size={8} aria-hidden />
+                          {t("accept.statusConfirmed")}
+                        </span>
+                      )}
+                      {accept === "redo" && (
+                        <span
+                          data-testid="deliverable-accept-badge"
+                          className="shrink-0 inline-flex items-center gap-0.5 rounded-full px-1 py-px text-[9px] leading-none"
+                          style={{
+                            color: "var(--md-sys-color-warning)",
+                            background: "color-mix(in srgb, var(--md-sys-color-warning) 12%, transparent)",
+                            border: "1px solid color-mix(in srgb, var(--md-sys-color-warning) 32%, transparent)",
+                          }}
+                        >
+                          <AlertCircle size={8} aria-hidden />
+                          {t("accept.statusRedo")}
                         </span>
                       )}
                     </span>
@@ -481,7 +609,7 @@ export const DeliverablesPanel = memo(function DeliverablesPanel({
                       onClick={() => setTimelinePath((cur) => (cur === normPath ? null : normPath))}
                       aria-expanded={timelineOpen}
                       title={badgeTitle}
-                      aria-label={`查看 ${baseName(path)} 的版本时间线`}
+                      aria-label={t("deliverPanel.timelineAria", { name: baseName(path) })}
                       className="shrink-0 inline-flex cursor-pointer items-center gap-0.5 rounded-full px-1.5 py-px text-[9px] leading-none font-mono transition-colors"
                       style={{
                         color: "var(--md-sys-color-primary)",
@@ -492,7 +620,7 @@ export const DeliverablesPanel = memo(function DeliverablesPanel({
                       }}
                     >
                       <Rollback size={8} aria-hidden />
-                      {rev ? `v${rev}` : "版本"}
+                      {rev ? `v${rev}` : t("deliverPanel.versionsBadge")}
                     </button>
                   )}
                   <div className="shrink-0 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
@@ -501,8 +629,8 @@ export const DeliverablesPanel = memo(function DeliverablesPanel({
                       type="button"
                       className={iconBtn}
                       onClick={() => onLocateSource(turn)}
-                      title="跳转到生成它的消息"
-                      aria-label="跳转到生成它的消息"
+                      title={t("deliverPanel.locateMessage")}
+                      aria-label={t("deliverPanel.locateMessage")}
                     >
                       <MessageSquare size={12} />
                     </button>
@@ -512,8 +640,8 @@ export const DeliverablesPanel = memo(function DeliverablesPanel({
                       type="button"
                       className={iconBtn}
                       onClick={() => onRevealInTree(path)}
-                      title="树中定位：在文件树中展开并高亮该文件"
-                      aria-label="树中定位"
+                      title={t("deliverPanel.revealTreeTitle")}
+                      aria-label={t("deliverPanel.revealTree")}
                     >
                       <ListTree size={12} />
                     </button>
@@ -522,8 +650,8 @@ export const DeliverablesPanel = memo(function DeliverablesPanel({
                     type="button"
                     className={iconBtn}
                     onClick={() => void copyPath(path)}
-                    title="复制文件路径"
-                    aria-label="复制文件路径"
+                    title={t("deliver.copyPath")}
+                    aria-label={t("deliver.copyPath")}
                   >
                     <Copy size={12} />
                   </button>
@@ -531,8 +659,8 @@ export const DeliverablesPanel = memo(function DeliverablesPanel({
                     type="button"
                     className={iconBtn}
                     onClick={() => void app.OpenWorkspacePath(path).catch(() => {})}
-                    title="在外部程序中打开"
-                    aria-label="在外部程序中打开"
+                    title={t("deliver.openExternal")}
+                    aria-label={t("deliver.openExternal")}
                   >
                     <ExternalLink size={12} />
                   </button>
@@ -540,8 +668,8 @@ export const DeliverablesPanel = memo(function DeliverablesPanel({
                     type="button"
                     className={iconBtn}
                     onClick={() => void app.RevealWorkspacePath(path).catch(() => {})}
-                    title="在文件管理器中定位"
-                    aria-label="在文件管理器中定位"
+                    title={t("deliver.reveal")}
+                    aria-label={t("deliver.reveal")}
                   >
                     <FolderTree size={12} />
                   </button>
@@ -550,13 +678,51 @@ export const DeliverablesPanel = memo(function DeliverablesPanel({
                       type="button"
                       className={iconBtn}
                       onClick={() => depositToCost(path)}
-                      title="沉淀到成本库：把单价明细用 cost_save 写回成本库"
-                      aria-label="沉淀到成本库"
+                      title={t("deliverPanel.depositTitle")}
+                      aria-label={t("deliverPanel.deposit")}
                       style={{ color: "var(--md-sys-color-warning)" }}
                     >
                       <Coins size={12} />
                     </button>
                   )}
+                  {/* A1 验收操作（与行内 icon 按钮同排）：open 行出「标记已验收/
+                      要求修改」；已标记行换「重新查看」恢复 open（记录删除，
+                      操作位复原）——两段式操作位，避免已定态行排三按钮。 */}
+                  {accSessionPath && (accept === "open" ? (
+                    <>
+                      <button
+                        type="button"
+                        className={iconBtn}
+                        data-testid="deliverable-accept-confirm"
+                        onClick={() => applyAcceptance(path, "confirmed")}
+                        title={t("accept.confirmAction")}
+                        aria-label={t("accept.confirmAction")}
+                      >
+                        <CheckCircle size={12} />
+                      </button>
+                      <button
+                        type="button"
+                        className={iconBtn}
+                        data-testid="deliverable-accept-redo"
+                        onClick={() => applyAcceptance(path, "redo")}
+                        title={t("accept.redoAction")}
+                        aria-label={t("accept.redoAction")}
+                      >
+                        <AlertCircle size={12} />
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      type="button"
+                      className={iconBtn}
+                      data-testid="deliverable-accept-reopen"
+                      onClick={() => applyAcceptance(path, "open")}
+                      title={t("accept.reopenAction")}
+                      aria-label={t("accept.reopenAction")}
+                    >
+                      <RefreshCw size={12} />
+                    </button>
+                  ))}
                 </div>
               </div>
               {/* v4.28 B1 内联版本时间线：徽标点开后在该产物行下方展开。
@@ -589,14 +755,14 @@ export const DeliverablesPanel = memo(function DeliverablesPanel({
             aria-expanded={registryOpen}
           >
             <Table size={13} aria-hidden style={{ color: "var(--md-sys-color-warning)" }} />
-            <span className="font-medium" style={{ color: "var(--md-sys-color-text)" }}>权威产物登记</span>
+            <span className="font-medium" style={{ color: "var(--md-sys-color-text)" }}>{t("deliverPanel.registryTitle")}</span>
             <span className="truncate text-[10px]" style={{ color: "var(--md-sys-color-text-secondary)" }}>
               {registryTotal > registryEntries.length
-                ? `${registryEntries.length}/${registryTotal} 条（最近 ${registryEntries.length} 条）`
-                : `${registryTotal} 条落盘登记`}
+                ? t("deliverPanel.registryCountPartial", { shown: registryEntries.length, total: registryTotal })
+                : t("deliverPanel.registryCount", { n: registryTotal })}
             </span>
             <span className="v3-panel-spacer" />
-            <span className="text-[10px]" style={{ color: "var(--md-sys-color-text-secondary)" }}>{registryOpen ? "收起" : "展开"}</span>
+            <span className="text-[10px]" style={{ color: "var(--md-sys-color-text-secondary)" }}>{registryOpen ? t("common.collapse") : t("common.expand")}</span>
           </button>
           {registryOpen && (
             <div className="max-h-44 overflow-y-auto px-2 pb-2 flex flex-col gap-1">
@@ -609,20 +775,20 @@ export const DeliverablesPanel = memo(function DeliverablesPanel({
                   <span className="shrink-0 font-mono text-[9px] px-1 py-px rounded" style={{
                     color: "var(--md-sys-color-warning)",
                     background: "color-mix(in srgb, var(--md-sys-color-warning) 12%, transparent)",
-                  }} title={`落盘工具 ${e.tool}`}>
+                  }} title={t("deliverPanel.toolBadgeTitle", { tool: e.tool })}>
                     {e.tool}
                   </span>
                   <button
                     type="button"
                     className="min-w-0 flex-1 text-left cursor-pointer truncate font-mono text-[10px]"
                     style={{ color: "var(--md-sys-color-text)" }}
-                    title={`点击预览 ${e.path}`}
+                    title={t("msg.clickPreview", { path: e.path })}
                     onClick={() => open(e.path)}
                   >
                     {e.path}
                   </button>
                   <span className="shrink-0 text-[9px]" style={{ color: "var(--md-sys-color-text-secondary)" }}>
-                    {e.turn > 0 ? `第 ${e.turn} 轮` : "轮外"}
+                    {e.turn > 0 ? t("deliverPanel.turnN", { n: e.turn }) : t("deliverPanel.turnOut")}
                   </span>
                   {e.touches > 1 && (
                     <span className="shrink-0 text-[9px] font-mono" style={{ color: "var(--md-sys-color-text-secondary)" }}>
@@ -648,18 +814,18 @@ export const DeliverablesPanel = memo(function DeliverablesPanel({
           aria-expanded={evidenceOpen}
         >
           <Shield size={13} aria-hidden style={{ color: "var(--md-sys-color-primary)" }} />
-          <span className="font-medium" style={{ color: "var(--md-sys-color-text)" }}>证据链</span>
+          <span className="font-medium" style={{ color: "var(--md-sys-color-text)" }}>{t("deliverPanel.evidenceTitle")}</span>
           <span className="truncate text-[10px]" style={{ color: "var(--md-sys-color-text-secondary)" }}>
-            {evidence ? `${evidence.length} 条变更证据卡` : "最近变更审计"}
+            {evidence ? t("deliverPanel.evidenceCount", { n: evidence.length }) : t("deliverPanel.evidenceIdle")}
           </span>
           <span className="v3-panel-spacer" />
-          <span className="text-[10px]" style={{ color: "var(--md-sys-color-text-secondary)" }}>{evidenceOpen ? "收起" : "展开"}</span>
+          <span className="text-[10px]" style={{ color: "var(--md-sys-color-text-secondary)" }}>{evidenceOpen ? t("common.collapse") : t("common.expand")}</span>
         </button>
         {evidenceOpen && (
           <div className="max-h-44 overflow-y-auto px-2 pb-2 flex flex-col gap-1">
             {evidence && evidence.length === 0 ? (
               <div className="px-2 py-2 text-[10px] text-center" style={{ color: "var(--md-sys-color-text-secondary)" }}>
-                暂无证据卡——AI 改文件后这里会记录变更原文摘要
+                {t("deliverPanel.evidenceEmpty")}
               </div>
             ) : (
               (evidence ?? []).map((r) => {
@@ -678,7 +844,7 @@ export const DeliverablesPanel = memo(function DeliverablesPanel({
                     role="button"
                     tabIndex={0}
                     aria-expanded={expanded}
-                    aria-label={expanded ? `收起 ${r.tool} ${r.target} 证据详情` : `展开 ${r.tool} ${r.target} 证据详情`}
+                    aria-label={expanded ? t("deliverPanel.collapseDetail", { tool: r.tool, target: r.target }) : t("deliverPanel.expandDetail", { tool: r.tool, target: r.target })}
                     onClick={() => toggleExpand(r)}
                     onKeyDown={(e) => {
                       if (e.key === "Enter" || e.key === " ") {
@@ -687,7 +853,7 @@ export const DeliverablesPanel = memo(function DeliverablesPanel({
                       }
                     }}
                     className="flex items-center gap-2 cursor-pointer outline-none focus-visible:ring-1 focus-visible:ring-(color:--md-sys-color-primary)"
-                    title={hasOps ? "点击展开「声明↔实况」diff 与操作回放" : "点击展开证据详情"}
+                    title={hasOps ? t("deliverPanel.cardDiffTip") : t("deliverPanel.cardTip")}
                   >
                     <span className="shrink-0 font-mono text-[9px] px-1 py-px rounded" style={{
                       color: "var(--md-sys-color-primary)",
@@ -702,9 +868,9 @@ export const DeliverablesPanel = memo(function DeliverablesPanel({
                           color: "var(--md-sys-color-warning)",
                           background: "color-mix(in srgb, var(--md-sys-color-warning) 12%, transparent)",
                         }}
-                        title="该卡携带 AI 原始操作集，可复核明细"
+                        title={t("deliverPanel.opsBadgeTip")}
                       >
-                        可复核明细
+                        {t("deliverPanel.opsBadge")}
                       </span>
                     )}
                     <span className="min-w-0 flex-1 truncate text-[10px] font-mono" style={{ color: "var(--md-sys-color-text)" }} title={r.target}>
@@ -718,8 +884,8 @@ export const DeliverablesPanel = memo(function DeliverablesPanel({
                         type="button"
                         className={iconBtn}
                         onClick={(e) => { e.stopPropagation(); void verifyRecord(r); }}
-                        title="双通道复核（结构/引用完整性 + 视觉健全性）"
-                        aria-label="复核该证据卡"
+                        title={t("deliverPanel.verifyBtnTitle")}
+                        aria-label={t("deliverPanel.verifyBtnAria")}
                       >
                         <Shield size={11} />
                       </button>
@@ -728,8 +894,8 @@ export const DeliverablesPanel = memo(function DeliverablesPanel({
                         className={iconBtn + (canRollback ? "" : " disabled:opacity-40 disabled:cursor-not-allowed")}
                         disabled={!canRollback}
                         onClick={(e) => { e.stopPropagation(); void rollbackRecord(r); }}
-                        title={canRollback ? "用基线快照回滚（目标被手工修改时拒绝）" : "无基线快照，无法回滚"}
-                        aria-label={canRollback ? "回滚该证据卡" : "无基线快照，无法回滚"}
+                        title={canRollback ? t("deliverPanel.rollbackTitle") : t("deliverPanel.rollbackDisabled")}
+                        aria-label={canRollback ? t("deliverPanel.rollbackAria") : t("deliverPanel.rollbackDisabled")}
                       >
                         <Rollback size={11} />
                       </button>
@@ -746,13 +912,13 @@ export const DeliverablesPanel = memo(function DeliverablesPanel({
                           {claimable && diffState === "loading" && (
                             <div className="flex items-center gap-1 text-[9px]" style={{ color: "var(--md-sys-color-text-secondary)" }}>
                               <Loader2 size={9} className="animate-spin" />
-                              正在读取实况预览…
+                              {t("deliverPanel.diffLoading")}
                             </div>
                           )}
                           {claimable && diffState === "ok" && diffRows && diffRows.length > 0 && (
                             <div className="flex flex-col gap-0.5">
                               <span className="text-[9px] font-medium" style={{ color: "var(--md-sys-color-text-secondary)" }}>
-                                声明 ↔ 实况（前端近似比对）
+                                {t("deliverPanel.diffTitle")}
                               </span>
                               <div className="rounded-md border border-(color:--md-sys-color-outline-variant) overflow-hidden">
                                 <table className="w-full text-[9px] font-mono border-collapse">
@@ -763,14 +929,14 @@ export const DeliverablesPanel = memo(function DeliverablesPanel({
                                           {row.sheet}!{row.cell}
                                         </td>
                                         <td className="px-1.5 py-0.5 line-through max-w-[120px] truncate align-top" style={{ color: "var(--md-sys-color-text-secondary)" }} title={row.claimed}>
-                                          {row.claimed || "（空）"}
+                                          {row.claimed || t("deliverPanel.emptyCell")}
                                         </td>
                                         <td className="px-0.5 py-0.5 align-top" style={{ color: "var(--md-sys-color-primary)" }}>→</td>
                                         <td className="px-1.5 py-0.5 max-w-[160px] truncate align-top" style={{ color: row.ok === "mismatch" ? "var(--md-sys-color-destructive)" : "var(--md-sys-color-text)" }} title={row.actual}>
-                                          {row.actual || "（空）"}
+                                          {row.actual || t("deliverPanel.emptyCell")}
                                         </td>
                                         <td className="px-1.5 py-0.5 align-top whitespace-nowrap" style={{ color: row.ok === "match" ? "var(--md-sys-color-success)" : row.ok === "mismatch" ? "var(--md-sys-color-destructive)" : "var(--md-sys-color-text-secondary)" }}>
-                                          {row.ok === "match" ? "✓" : row.ok === "mismatch" ? "✗" : "跳过"}
+                                          {row.ok === "match" ? "✓" : row.ok === "mismatch" ? "✗" : t("deliverPanel.skipped")}
                                         </td>
                                       </tr>
                                     ))}
@@ -778,24 +944,24 @@ export const DeliverablesPanel = memo(function DeliverablesPanel({
                                 </table>
                               </div>
                               <span className="text-[9px]" style={{ color: "var(--md-sys-color-text-secondary)" }}>
-                                前端近似比对，权威结论以复核为准
+                                {t("deliverPanel.diffNote")}
                               </span>
                             </div>
                           )}
                           {claimable && diffState === "none" && (
                             <div className="text-[9px]" style={{ color: "var(--md-sys-color-text-secondary)" }}>
-                              预览不可用，仅声明回放
+                              {t("deliverPanel.diffUnavailable")}
                             </div>
                           )}
                           {claimable && diffState === "ok" && diffRows && diffRows.length === 0 && (
                             <div className="text-[9px]" style={{ color: "var(--md-sys-color-text-secondary)" }}>
-                              无可比对单元格（声明不含单格写入）
+                              {t("deliverPanel.diffNoCells")}
                             </div>
                           )}
                           {/* 第 2 层：操作回放时间线（fill_range/transform 等批量 op 折叠为单行 + 计数徽标） */}
                           <div className="flex flex-col gap-0.5">
                             <span className="text-[9px] font-medium" style={{ color: "var(--md-sys-color-text-secondary)" }}>
-                              操作回放
+                              {t("deliverPanel.replayTitle")}
                             </span>
                             <ol className="flex flex-col gap-0.5">
                               {ops.map((op, i) => {
@@ -831,7 +997,7 @@ export const DeliverablesPanel = memo(function DeliverablesPanel({
                         </>
                       ) : (
                         <div className="text-[9px] font-mono leading-relaxed" style={{ color: "var(--md-sys-color-text-secondary)" }}>
-                          {r.beforeSummary || "（无变更摘要）"}
+                          {r.beforeSummary || t("deliverPanel.noSummary")}
                         </div>
                       )}
                     </div>
@@ -852,7 +1018,7 @@ export const DeliverablesPanel = memo(function DeliverablesPanel({
                               : "var(--md-sys-color-destructive)",
                           background: "color-mix(in srgb, currentColor 10%, transparent)",
                         }}>
-                          {v.status === "verified" ? "复核通过" : v.status === "warned" ? "复核警告" : "复核未通过"}
+                          {v.status === "verified" ? t("deliverPanel.verifyPass") : v.status === "warned" ? t("deliverPanel.verifyWarn") : t("deliverPanel.verifyFail")}
                         </span>
                         <span className="min-w-0 flex-1 text-[9px]" style={{ color: "var(--md-sys-color-text-secondary)" }}>
                           {v.note ?? `${v.channelA ?? ""} / ${v.channelB ?? ""}`}
@@ -862,8 +1028,8 @@ export const DeliverablesPanel = memo(function DeliverablesPanel({
                             type="button"
                             className={iconBtn}
                             onClick={() => replanFailed(r)}
-                            title="回办公面板重新规划后再应用（失败回 Plan）"
-                            aria-label="重新规划"
+                            title={t("deliverPanel.replanTitle")}
+                            aria-label={t("deliverPanel.replan")}
                           >
                             <ClipboardList size={11} />
                           </button>
@@ -872,15 +1038,15 @@ export const DeliverablesPanel = memo(function DeliverablesPanel({
                       {typeof v.channelBRatio === "number" && (
                         <div className="flex flex-wrap items-center gap-1.5 pl-1">
                           <span className="text-[9px] font-mono" style={{ color: "var(--md-sys-color-text-secondary)" }}>
-                            视觉复核：像素差异率 {(v.channelBRatio * 100).toFixed(1)}% · {v.channelBPages ?? 0} 页
+                            {t("deliverPanel.visualVerify", { ratio: (v.channelBRatio * 100).toFixed(1), pages: v.channelBPages ?? 0 })}
                           </span>
                           {v.channelBArtifacts && (
                             <button
                               type="button"
                               className={iconBtn}
                               onClick={() => void app.OpenWorkspacePath(v.channelBArtifacts as string).catch(() => {})}
-                              title="查看复核产物（before/after PDF + 逐页 PNG）"
-                              aria-label="查看复核产物"
+                              title={t("deliverPanel.artifactsTitle")}
+                              aria-label={t("deliverPanel.artifacts")}
                             >
                               <FolderTree size={11} />
                             </button>

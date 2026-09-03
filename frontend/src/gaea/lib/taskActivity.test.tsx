@@ -19,7 +19,11 @@ afterEach(() => {
   setTaskCardActivityProvider(null);
 });
 
-const wrap = (node: React.ReactNode) => <LocaleProvider>{node}</LocaleProvider>;
+const wrap = (node: React.ReactNode) => {
+  // ToolCard 文案走 useT；钉住 zh 让断言用中文文案
+  localStorage.setItem("gaea-lang", "zh");
+  return <LocaleProvider>{node}</LocaleProvider>;
+};
 
 const taskTool = (patch: Partial<ToolItem> = {}): ToolItem =>
   ({ kind: "tool", id: "t1", name: "task", args: JSON.stringify({ description: "梳理配置项", prompt: "把配置梳理成表" }), readOnly: false, status: "running", ...patch }) as ToolItem;

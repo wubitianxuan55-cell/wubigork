@@ -24,8 +24,8 @@ var compactDesc = map[string]string{
 	"memory_search":      "搜索记忆(关键词,kind过滤,BM25排序)",
 	"read_skill":         "读取指定技能(skill)的完整内容",
 	"format_convert":     "文档格式转换(docx/xlsx/pdf→Markdown，含OCR扫描件回退)",
-	"chart_gen":          "matplotlib图表生成(bar/line/pie/scatter)",
-	"diagram_gen":        "框架图/流程图生成(matplotlib,中文清晰,替代文生图画文字)",
+	"chart_gen":          "matplotlib统计图表(bar/line/pie/scatter/hbar/area/donut;series多系列→grouped_bar/stacked_bar)",
+	"diagram_gen":        "框架图/流程图生成(matplotlib,中文清晰,替代文生图画文字;flow按edges拓扑分层,支持分支/汇合,环报参数错,layout=vertical|horizontal)",
 	"knowledge_search":   "搜索工程知识库(关键词,分类+标签过滤)",
 	"knowledge_add":      "向知识库添加条目(标题+分类+正文)",
 	"cost_search":        "搜索成本库(关键词/分类/状态,返回单价表)",
@@ -86,9 +86,9 @@ var compactSchema = map[string]json.RawMessage{
 	"format_convert": json.RawMessage(
 		`{"type":"object","properties":{"path":{"type":"string"},"output":{"type":"string"},"pages":{"type":"string"}},"required":["path"]}`),
 	"chart_gen": json.RawMessage(
-		`{"type":"object","properties":{"labels":{"type":"array","items":{"type":"string"}},"values":{"type":"array","items":{"type":"number"}},"chart_type":{"type":"string"},"title":{"type":"string"},"output":{"type":"string"}},"required":["labels","values"]}`),
+		`{"type":"object","properties":{"labels":{"type":"array","items":{"type":"string"}},"values":{"type":"array","items":{"type":"number"}},"series":{"type":"array","items":{"type":"object","properties":{"name":{"type":"string"},"values":{"type":"array","items":{"type":"number"}}},"required":["values"]}},"chart_type":{"type":"string","enum":["bar","line","pie","scatter","hbar","area","donut","grouped_bar","stacked_bar"]},"title":{"type":"string"},"output":{"type":"string"}},"required":["labels"]}`),
 	"diagram_gen": json.RawMessage(
-		`{"type":"object","properties":{"title":{"type":"string"},"kind":{"type":"string","enum":["framework","flow"]},"nodes":{"type":"array","items":{"type":"object","properties":{"id":{"type":"string"},"label":{"type":"string"},"level":{"type":"integer"},"group":{"type":"string"}},"required":["id","label"]}},"edges":{"type":"array","items":{"type":"object","properties":{"from":{"type":"string"},"to":{"type":"string"},"label":{"type":"string"}},"required":["from","to"]}},"output":{"type":"string"}},"required":["nodes"]}`),
+		`{"type":"object","properties":{"title":{"type":"string"},"kind":{"type":"string","enum":["framework","flow"]},"layout":{"type":"string","enum":["vertical","horizontal"]},"nodes":{"type":"array","items":{"type":"object","properties":{"id":{"type":"string"},"label":{"type":"string"},"level":{"type":"integer"},"group":{"type":"string"}},"required":["id","label"]}},"edges":{"type":"array","items":{"type":"object","properties":{"from":{"type":"string"},"to":{"type":"string"},"label":{"type":"string"}},"required":["from","to"]}},"output":{"type":"string"}},"required":["nodes"]}`),
 	"knowledge_search": json.RawMessage(
 		`{"type":"object","properties":{"query":{"type":"string"},"category":{"type":"string"},"tag":{"type":"string"}}}`),
 	"knowledge_add": json.RawMessage(

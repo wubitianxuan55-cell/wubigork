@@ -20,6 +20,8 @@ const group: ProjectGroup = {
 };
 
 function renderSidebar(groups: ProjectGroup[] = [group]) {
+  // Sidebar 走 useT：钉住 zh 让既有中文文案断言（当前/置顶/已归档/未完成…）继续成立
+  localStorage.setItem("gaea-lang", "zh");
   const callbacks = {
     toggleSidebar: vi.fn(),
     onClearFactBase: vi.fn(),
@@ -83,7 +85,8 @@ describe("Sidebar 项目分组与会话操作", () => {
     renderSidebar();
     expect(screen.getByText("ws")).toBeTruthy();
     expect(screen.getByText("当前标题")).toBeTruthy();
-    expect(screen.getByText("当前")).toBeTruthy();
+    // 「当前」出现两处：项目分组徽标 + 当前会话时间列（history.current），zh 钉住后均命中
+    expect(screen.getAllByText("当前").length).toBeGreaterThanOrEqual(2);
   });
 
   it("点击置顶按钮触发 onPinSession", () => {

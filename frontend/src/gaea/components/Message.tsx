@@ -22,6 +22,7 @@ function InlineAttachment({ path }: { path: string }) {
   const [dataUrl, setDataUrl] = useState<string | null>(null);
   const [isImage, setIsImage] = useState(false);
   const openFilePreview = usePreviewStore((s) => s.openFilePreview);
+  const t = useT();
   useEffect(() => {
     let live = true;
     if (/\.(png|jpg|jpeg|gif|webp|bmp|svg)$/i.test(path)) {
@@ -38,7 +39,7 @@ function InlineAttachment({ path }: { path: string }) {
       <button
         type="button"
         onClick={() => openFilePreview(path)}
-        title={`点击预览 ${path}`}
+        title={t("msg.clickPreview", { path })}
         className="block p-0 border-0 bg-transparent cursor-pointer rounded-lg my-1"
       >
         <img src={dataUrl} alt={fileName} className="max-w-[240px] max-h-[180px] rounded-lg border border-border-soft object-cover hover:opacity-85 transition-opacity" loading="lazy" />
@@ -56,7 +57,7 @@ function InlineAttachment({ path }: { path: string }) {
     <button
       type="button"
       onClick={() => openFilePreview(path)}
-      title={`点击预览 ${path}`}
+      title={t("msg.clickPreview", { path })}
       className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-bg-soft border border-border-soft text-fg-dim text-[11px] font-mono mx-0.5 cursor-pointer hover:border-accent/40 hover:text-fg transition-colors"
     >
       <FileText size={11} className="text-accent shrink-0" />
@@ -124,9 +125,9 @@ export const UserMessage = memo(function UserMessage({
                 type="button"
                 className="block mt-1 px-0 py-0.5 border-0 bg-transparent text-fg-faint/60 text-[10.5px] cursor-pointer hover:text-fg transition-colors"
                 onClick={() => setMsgOpen((v) => !v)}
-                title={msgOpen ? "收起长消息" : "展开完整内容"}
+                title={msgOpen ? t("msg.collapseLongTitle") : t("msg.expandLongTitle")}
               >
-                {msgOpen ? "收起" : "展开全文"}
+                {msgOpen ? t("msg.collapseLong") : t("msg.expandLong")}
                 <ChevronDown size={10} className={`inline-block ml-0.5 -mt-px transition-transform duration-200 ${msgOpen ? "rotate-180" : ""}`} aria-hidden />
               </button>
             )}
@@ -139,7 +140,7 @@ export const UserMessage = memo(function UserMessage({
                 title={t("rewind.label")}
               >
                 <Rollback size={10} className="inline-block -mt-px mr-0.5" aria-hidden />
-                回退
+                {t("msg.rewindText")}
               </button>
               {open && (
                 <div className="absolute bottom-full right-0 mb-1 z-30 min-w-[140px] py-1 bg-bg-elev-2 border border-border rounded-lg" style={{boxShadow: "var(--ds-shadow-dropdown)"}}>
@@ -166,10 +167,17 @@ export const UserMessage = memo(function UserMessage({
 export const AssistantMessage = memo(function AssistantMessage({
   item,
   onCapture,
+  turnNo,
+  deliverTail,
 }: {
   item: AssistantItem;
   onCollapse?: () => void;
   onCapture?: (solution: string) => void;
+  /** 本条消息所属轮次（Transcript 的 0-based 用户消息序号）；轮外缺省。
+   *  原样下传 DeliverableCards 做登记表「本轮」条目匹配。 */
+  turnNo?: number;
+  /** 轮尾段才合并登记-only 交付卡（同轮去重）；缺省 true 保持独立渲染语义。 */
+  deliverTail?: boolean;
 }) {
   const t = useT();
   const compact = useCompact();
@@ -213,11 +221,11 @@ export const AssistantMessage = memo(function AssistantMessage({
             <div className="mb-1">
               <span
                 data-testid="subagent-badge"
-                title={`子代理答复 · ${subagentRef}`}
+                title={t("msg.subagentBadgeTitle", { ref: subagentRef })}
                 className="inline-flex items-center gap-1 rounded-full border border-accent/25 bg-accent/10 px-1.5 py-px text-[10px] font-medium text-accent align-middle"
               >
                 <Bot size={10} className="shrink-0" aria-hidden />
-                子代理
+                {t("msg.subagentBadge")}
               </span>
             </div>
           )}
@@ -266,8 +274,8 @@ export const AssistantMessage = memo(function AssistantMessage({
               )}
             </div>
           )}
-          {/* 交付物附件卡片：正文中的文件引用渲染成可点击预览卡片 */}
-          {item.text && <DeliverableCards text={item.text} />}
+          {/* 交付物附件卡片：正文中的文件引用 + 权威登记表本轮条目，渲染成可点击预览卡片 */}
+          {item.text && <DeliverableCards text={item.text} turnNo={turnNo} mergeRegistry={deliverTail} />}
 
           {/* 消息操作：复制正文（常驻，Codex 式）+ 沉淀为技能（成功对话可复用） */}
           {item.text && !streaming && (
@@ -290,10 +298,10 @@ export const AssistantMessage = memo(function AssistantMessage({
                   type="button"
                   className="inline-flex items-center gap-1 px-1.5 py-0.5 border-0 rounded bg-transparent text-fg-faint/50 text-[10.5px] cursor-pointer hover:text-accent hover:bg-bg-soft hover:text-fg transition-colors"
                   onClick={() => onCapture(item.text)}
-                  title="把这次任务与回答保存为可复用技能（/技能名 调用）"
+                  title={t("msg.captureSkillTitle")}
                 >
                   <Wand2 size={11} />
-                  沉淀为技能
+                  {t("msg.captureSkill")}
                 </button>
               )}
             </div>

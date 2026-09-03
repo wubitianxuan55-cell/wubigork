@@ -4,7 +4,7 @@ import type { AppBindings } from "../bridge";
 import type { app as AppModels, chat } from "../../../../wailsjs/go/models";
 import { delay, emit, mockScenario } from "./shared";
 import type { MakeMockState } from "./state";
-import type { QuestionAnswer } from "../types";
+import type { HistoryMessage, QuestionAnswer } from "../types";
 
 type ChatMethods = Pick<
   AppBindings,
@@ -119,6 +119,38 @@ async function runCompactionTurn(input: string, cancelledRef: { v: boolean }) {
   emit({ kind: "turn_done" });
 }
 
+// 季度报告会话（/mock/sessions/a.jsonl，preview「compile quarterly report」）
+// 恢复回放：一段真实感办公任务——查素材 → docx 转 Markdown → 查知识库规范
+// → 生成对比图 → 架构图 → multi_edit 改报告 → 收尾。五个办公工具卡的输出
+// 格式与 lib/tools.ts summarize/subjectOf 的解析口径逐字对齐（信封 JSON
+// 字符串、全角括号「（31409 字节，类型: …）」、message 内换行为 JSON \n、
+// knowledge_search 两个「### 」行首小节、diagram_gen 裸 JSON 非信封），
+// 供浏览器端工具卡渲染联调；契约由 mock-session-replay.test.ts 锁定。
+function quarterlyReportReplay(): HistoryMessage[] {
+  return [
+    { role: "user", content: "把本季度的经营数据汇总一下，整理出季度报告，并配一张分项成本对比图。" },
+    { role: "assistant", content: "好的。我先确认工作区素材，再把 docx 底稿转成 Markdown 汇总进报告。" },
+    { role: "tool", content: "", toolId: "mock-call-1", toolName: "ls", toolArgs: '{"path":"."}' },
+    { role: "tool_result", toolId: "mock-call-1", toolName: "ls", content: "方案.md\n成本测算.md\n表格.xlsx\n素材.docx" },
+    { role: "assistant", content: "素材已确认：季度数据在 表格.xlsx，文字底稿在 素材.docx。先把 docx 转成可编辑的 Markdown。" },
+    { role: "tool", content: "", toolId: "mock-call-2", toolName: "format_convert", toolArgs: '{"path":"素材.docx","target":"markdown"}' },
+    { role: "tool_result", toolId: "mock-call-2", toolName: "format_convert", content: '{"ok":true,"success":true,"code":0,"message":"已转换并保存为 out/季度报告.md（3210 字符）"}' },
+    { role: "assistant", content: "底稿已转成 out/季度报告.md。动笔画图前，先查一下知识库里的图表与报告规范。" },
+    { role: "tool", content: "", toolId: "mock-call-3", toolName: "knowledge_search", toolArgs: '{"query":"季度报告 图表规范"}' },
+    { role: "tool_result", toolId: "mock-call-3", toolName: "knowledge_search", content: '{"ok":true,"success":true,"code":0,"message":"命中 2 条「季度报告图表」相关规范：\\n### 季度图表配色规范\\n对比图统一使用分组柱状图，主系列取品牌蓝、对比系列取中性灰，数值标签保留一位小数。\\n### 报告结构与图表标注规范\\n图表插入对应章节小节之后，标题置于图下方并按「图 N」编号。"}' },
+    { role: "assistant", content: "按规范：对比图用分组柱状图、标题置图下并编号。现在基于汇总数据生成分项单价对比图。" },
+    { role: "tool", content: "", toolId: "mock-call-4", toolName: "chart_gen", toolArgs: '{"title":"分项单价对比","labels":["人力","物料","物流"],"chart_type":"grouped_bar","series":[{"name":"本季度","data":[120,86,64]},{"name":"上季度","data":[108,92,70]}]}' },
+    { role: "tool_result", toolId: "mock-call-4", toolName: "chart_gen", content: '{"ok":true,"success":true,"code":0,"message":"✅ 图表已生成: charts/cost.png（31409 字节，类型: grouped_bar）\\n标题: 分项单价对比\\n系列: 2 · 类别: 3"}' },
+    { role: "assistant", content: "对比图 charts/cost.png 已生成。报告还需要一张处理链路架构图，一并补上。" },
+    { role: "tool", content: "", toolId: "mock-call-5", toolName: "diagram_gen", toolArgs: '{"title":"季度报告处理链路","nodes":["数据汇总","格式转换","图表生成","报告成稿"],"edges":[["数据汇总","格式转换"],["格式转换","图表生成"],["图表生成","报告成稿"]]}' },
+    { role: "tool_result", toolId: "mock-call-5", toolName: "diagram_gen", content: '{"ok":true,"output":"diagrams/架构.png","size_bytes":40960}' },
+    { role: "assistant", content: "架构图已生成。最后把数据结论与两张图写回报告正文，共三处修改。" },
+    { role: "tool", content: "", toolId: "mock-call-6", toolName: "multi_edit", toolArgs: '{"path":"out/季度报告.md","edits":[{"old_string":"## 一、总体经营情况\\n（待补充）","new_string":"## 一、总体经营情况\\n本季度营收环比增长 12%，三项费用率下降 1.8 个百分点。"},{"old_string":"（图表待插入）","new_string":"![分项单价对比](charts/cost.png)\\n图 1 分项单价对比（本季度 vs 上季度）"},{"old_string":"> 状态：初稿","new_string":"> 状态：定稿"}]}' },
+    { role: "tool_result", toolId: "mock-call-6", toolName: "multi_edit", content: "已更新 out/季度报告.md（3 处修改）" },
+    { role: "assistant", content: "季度报告已整理完成：正文三处更新，charts/cost.png 与 diagrams/架构.png 两张配图均已就位。如需导出 PDF 或调整图表配色，随时告诉我。" },
+  ];
+}
+
 export function buildChat(s: MakeMockState): ChatMethods {
   const { runningMock, sessions, archivedMock, projectGroupsMock } = s;
   const cancelledRef = { v: false }; // 供异步场景读取最新值
@@ -222,13 +254,19 @@ export function buildChat(s: MakeMockState): ChatMethods {
       const s = sessions.find((x) => x.path === path);
       const wasInterrupted = !!s?.interrupted;
       if (s) s.interrupted = false;
-      const msgs = [
-        { role: "user", content: `(mock) resumed ${path}` },
-        { role: "assistant", content: "让我看看之前改到哪里了。" },
-        { role: "tool", content: "", toolId: "mock-call-1", toolName: "edit_file", toolArgs: '{"path":"方案.md","edits":[]}' },
-        { role: "tool_result", toolId: "mock-call-1", toolName: "edit_file", content: "已更新 方案.md" },
-        { role: "assistant", content: "方案已按上次进度继续完善。" },
-      ];
+      // 与真实内核一致：resume 把目标会话置为当前（侧栏「当前」徽标跟随）。
+      sessions.forEach((x) => { x.current = x.path === path; });
+      // 季度报告会话（a.jsonl）：真实感办公任务回放，覆盖五类办公工具卡样例
+      // （quarterlyReportReplay 注释里有格式对齐说明）；其余路径保持原序列。
+      const msgs: HistoryMessage[] = path === "/mock/sessions/a.jsonl"
+        ? quarterlyReportReplay()
+        : [
+          { role: "user", content: `(mock) resumed ${path}` },
+          { role: "assistant", content: "让我看看之前改到哪里了。" },
+          { role: "tool", content: "", toolId: "mock-call-1", toolName: "edit_file", toolArgs: '{"path":"方案.md","edits":[]}' },
+          { role: "tool_result", toolId: "mock-call-1", toolName: "edit_file", content: "已更新 方案.md" },
+          { role: "assistant", content: "方案已按上次进度继续完善。" },
+        ];
       if (wasInterrupted) {
         msgs.unshift({ role: "assistant", content: "⚠️ 上次会话中断未完成，已从中断点继续（mock 摘要）。" });
       }

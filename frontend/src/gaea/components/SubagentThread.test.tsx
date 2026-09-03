@@ -4,6 +4,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, fireEvent, act } from "@testing-library/react";
 import { SubagentThread } from "./SubagentThread";
+import { LocaleProvider } from "../lib/i18n";
 import type { SubagentTranscriptView } from "../lib/types";
 
 const transcript: SubagentTranscriptView = {
@@ -26,7 +27,11 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("../lib/bridge", () => ({ app: mocks, onEvent: mocks.onEvent }));
 
-const wrap = (node: React.ReactNode) => node;
+// SubagentThread 走 useT：钉住 zh 让「进行中/N 条/思考」等中文断言继续成立
+const wrap = (node: React.ReactNode) => {
+  localStorage.setItem("gaea-lang", "zh");
+  return <LocaleProvider>{node}</LocaleProvider>;
+};
 
 beforeEach(() => {
   vi.clearAllMocks();

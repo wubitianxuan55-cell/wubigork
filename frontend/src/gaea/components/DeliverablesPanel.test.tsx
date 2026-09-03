@@ -1,13 +1,22 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import type { ReactElement } from "react";
 import { DeliverablesPanel } from "./DeliverablesPanel";
 import { ToastProvider } from "./Toast";
+import { LocaleProvider } from "../lib/i18n";
 import { useComposerInsertStore, usePreviewStore, useUpdatedFilesStore } from "../lib/store";
+
+// DeliverablesPanel 走 useT；钉住 zh 让既有中文文案断言继续成立（默认 zh，
+// i18n 抽查用例可显式传 "en" 验证英文键值）
+const renderT = (ui: ReactElement, lang: "zh" | "en" | "zh-TW" = "zh") => {
+  localStorage.setItem("gaea-lang", lang);
+  return render(<LocaleProvider>{ui}</LocaleProvider>);
+};
 
 describe("DeliverablesPanel 会话产物面板", () => {
   it("展示会话交付文件，点击打开预览", () => {
     usePreviewStore.setState({ previewFile: null });
-    render(
+    renderT(
       <DeliverablesPanel
         items={[
           { path: "exports/成本测算.xlsx", sourceId: "a1" },
@@ -23,13 +32,13 @@ describe("DeliverablesPanel 会话产物面板", () => {
   });
 
   it("无交付文件时显示空状态", () => {
-    render(<DeliverablesPanel items={[]} onOpenFile={() => {}} />);
+    renderT(<DeliverablesPanel items={[]} onOpenFile={() => {}} />);
     expect(screen.getByText(/暂无交付文件/)).toBeTruthy();
   });
 
   it("编辑过的文件显示「已更新」徽标", () => {
     useUpdatedFilesStore.setState({ updatedAt: { "exports/成本测算.xlsx": Date.now() } });
-    render(
+    renderT(
       <DeliverablesPanel
         items={[{ path: "exports/成本测算.xlsx", sourceId: "a1" }]}
         onOpenFile={() => {}}
@@ -40,7 +49,7 @@ describe("DeliverablesPanel 会话产物面板", () => {
   });
 
   it("v4.30 新产物显示「新」徽标（freshPaths 命中行，其余行不显示）", () => {
-    render(
+    renderT(
       <DeliverablesPanel
         items={[
           { path: "exports/成本测算.xlsx", sourceId: "a1" },
@@ -62,7 +71,7 @@ describe("DeliverablesPanel 会话产物面板", () => {
   });
 
   it("v4.30 freshPaths 缺省/空时不显示「新」徽标", () => {
-    render(
+    renderT(
       <DeliverablesPanel
         items={[{ path: "exports/成本测算.xlsx", sourceId: "a1" }]}
         onOpenFile={() => {}}
@@ -73,7 +82,7 @@ describe("DeliverablesPanel 会话产物面板", () => {
 
   it("点击「跳转到生成它的消息」回调对应轮次", () => {
     const calls: number[] = [];
-    render(
+    renderT(
       <DeliverablesPanel
         items={[{ path: "exports/成本测算.xlsx", sourceId: "a1", turn: 2 }]}
         onOpenFile={() => {}}
@@ -86,7 +95,7 @@ describe("DeliverablesPanel 会话产物面板", () => {
 
   it("表格产物提供「沉淀到成本库」操作，指令进入输入框通道", () => {
     useComposerInsertStore.setState({ pendingText: null });
-    render(
+    renderT(
       <DeliverablesPanel
         items={[{ path: "exports/成本测算.xlsx", sourceId: "a1" }]}
         onOpenFile={() => {}}
@@ -100,7 +109,7 @@ describe("DeliverablesPanel 会话产物面板", () => {
   });
 
   it("非表格产物不显示「沉淀到成本库」操作", () => {
-    render(
+    renderT(
       <DeliverablesPanel
         items={[{ path: ".gaea/exports/方案.docx", sourceId: "a2" }]}
         onOpenFile={() => {}}
@@ -112,7 +121,7 @@ describe("DeliverablesPanel 会话产物面板", () => {
   // ── v4.25 A3 树中定位：产物行「树中定位」小按钮（→ 文件 tab 树中闪烁）──
   it("onRevealInTree 直传：点击「树中定位」回调产物相对路径", () => {
     const onRevealInTree = vi.fn();
-    render(
+    renderT(
       <DeliverablesPanel
         items={[{ path: "exports/成本测算.xlsx", sourceId: "a1" }]}
         onOpenFile={() => {}}
@@ -125,7 +134,7 @@ describe("DeliverablesPanel 会话产物面板", () => {
   });
 
   it("未传 onRevealInTree：不渲染「树中定位」按钮（向后兼容）", () => {
-    render(
+    renderT(
       <DeliverablesPanel
         items={[{ path: "exports/成本测算.xlsx", sourceId: "a1" }]}
         onOpenFile={() => {}}
@@ -135,7 +144,7 @@ describe("DeliverablesPanel 会话产物面板", () => {
   });
 
   it("图片产物渲染缩略图，非图片保留类型图标", async () => {
-    const { container } = render(
+    const { container } = renderT(
       <DeliverablesPanel
         items={[
           { path: "exports/趋势.png", sourceId: "a1" },
@@ -154,7 +163,7 @@ describe("DeliverablesPanel 会话产物面板", () => {
   it("一键复制全部文件路径（最新在前）", async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.assign(navigator, { clipboard: { writeText } });
-    render(
+    renderT(
       <DeliverablesPanel
         items={[
           { path: "exports/成本测算.xlsx", sourceId: "a1" },
@@ -170,7 +179,7 @@ describe("DeliverablesPanel 会话产物面板", () => {
   });
 
   it("会话内多次出现的文件显示版本徽标（P1-2 产物版本时间线）", () => {
-    render(
+    renderT(
       <DeliverablesPanel
         items={[
           { path: "exports/周报.docx", sourceId: "a1", versions: 3 },
@@ -186,7 +195,7 @@ describe("DeliverablesPanel 会话产物面板", () => {
   });
 
   it("一键打包下载全部交付文件（P0-1，对标 Kimi/WorkBuddy 会话产物打包）", async () => {
-    const first = render(
+    const first = renderT(
       <ToastProvider>
         <DeliverablesPanel
           items={[
@@ -205,7 +214,7 @@ describe("DeliverablesPanel 会话产物面板", () => {
     first.unmount();
 
     // 无产物时不显示打包按钮
-    render(
+    renderT(
       <ToastProvider>
         <DeliverablesPanel items={[]} onOpenFile={() => {}} />
       </ToastProvider>,
@@ -220,7 +229,7 @@ describe("DeliverablesPanel 会话产物面板", () => {
 // 另两条无 baselinePath，被 groupVersionsByPath 过滤。
 describe("DeliverablesPanel 版本时间线（v4.28 B1）", () => {
   const renderWithTimelineItem = (onOpenFile: (p: string) => void = () => {}) =>
-    render(
+    renderT(
       <ToastProvider>
         <DeliverablesPanel
           items={[{ path: "docs/成本测算.xlsx", sourceId: "a1", versions: 2 }]}
@@ -266,7 +275,7 @@ describe("DeliverablesPanel 版本时间线（v4.28 B1）", () => {
   });
 
   it("无基线快照的产物：时间线展示空态，不渲染预览/恢复按钮", async () => {
-    render(
+    renderT(
       <ToastProvider>
         <DeliverablesPanel
           items={[{ path: "exports/别的.docx", sourceId: "a9", versions: 2 }]}
@@ -289,7 +298,7 @@ describe("DeliverablesPanel 版本时间线（v4.28 B1）", () => {
 // 「有 1 个历史快照，可预览/恢复」），原静态文案仅作 n 取不到时的回落。
 describe("DeliverablesPanel 单版本时间线入口（v4.31 A1）", () => {
   it("versions=1 且 journal 有快照：渲染「版本」入口，点击展开时间线，预览/恢复可用", async () => {
-    render(
+    renderT(
       <ToastProvider>
         <DeliverablesPanel
           items={[{ path: "docs/成本测算.xlsx", sourceId: "a1", versions: 1 }]}
@@ -311,7 +320,7 @@ describe("DeliverablesPanel 单版本时间线入口（v4.31 A1）", () => {
   });
 
   it("versions 省略（undefined）且 journal 有快照：同样渲染单版本入口并展开", async () => {
-    render(
+    renderT(
       <ToastProvider>
         <DeliverablesPanel
           items={[{ path: "docs/成本测算.xlsx", sourceId: "a1" }]}
@@ -326,7 +335,7 @@ describe("DeliverablesPanel 单版本时间线入口（v4.31 A1）", () => {
   });
 
   it("无快照（journal 无该路径）：不渲染时间线入口（有快照的行正常渲染）", async () => {
-    render(
+    renderT(
       <ToastProvider>
         <DeliverablesPanel
           items={[
@@ -351,7 +360,7 @@ describe("DeliverablesPanel 单版本时间线入口（v4.31 A1）", () => {
 // mock GaeaJournalList(200) 中 docs/成本测算.xlsx 仅 ev_1003 有基线快照 → n=1。
 describe("DeliverablesPanel 单版本徽标 title 带快照数（v4.32）", () => {
   it("title 细化为「有 1 个历史快照，可预览/恢复」（含具体快照数）", async () => {
-    render(
+    renderT(
       <ToastProvider>
         <DeliverablesPanel
           items={[{ path: "docs/成本测算.xlsx", sourceId: "a1", versions: 1 }]}
@@ -377,7 +386,7 @@ describe("DeliverablesPanel 自动弹出胶囊（v4.32 线B）", () => {
   });
 
   const renderPanel = () =>
-    render(
+    renderT(
       <DeliverablesPanel
         items={[{ path: "exports/成本测算.xlsx", sourceId: "a1" }]}
         onOpenFile={() => {}}
@@ -421,7 +430,7 @@ describe("DeliverablesPanel 自动弹出胶囊（v4.32 线B）", () => {
 // 实况预览来自 mock Preview 的 MOCK_XLSX_BODY（预算!B2=120.50、B4 公式 SUM(B2:B3)）。
 describe("DeliverablesPanel 证据链三步展开（v4.8）", () => {
   const openEvidence = async () => {
-    render(
+    renderT(
       <ToastProvider>
         <DeliverablesPanel items={[{ path: "docs/成本测算.xlsx", sourceId: "a1" }]} onOpenFile={() => {}} />
       </ToastProvider>,
@@ -529,7 +538,7 @@ describe("DeliverablesPanel 证据链三步展开（v4.8）", () => {
 // （write_file / format_convert / diagram_gen，含启发式漏登的 svg/xlsx）。
 describe("DeliverablesPanel 权威产物登记表（v4.24 C1）", () => {
   it("有 sessionPath：渲染登记表入口，展开展示工具徽标/路径/轮次", async () => {
-    render(
+    renderT(
       <ToastProvider>
         <DeliverablesPanel items={[]} sessionPath="s1.jsonl" onOpenFile={() => {}} />
       </ToastProvider>,
@@ -547,13 +556,14 @@ describe("DeliverablesPanel 权威产物登记表（v4.24 C1）", () => {
     expect(screen.getByText("write_file")).toBeTruthy();
     expect(screen.getByText("format_convert")).toBeTruthy();
     expect(screen.getByText("diagram_gen")).toBeTruthy();
-    expect(screen.getByText("第 2 轮")).toBeTruthy();
+    // mock 登记条目轮次为 1/3/4（office.ts 演示会话唯一轮对齐 turn:1）
+    expect(screen.getByText("第 1 轮")).toBeTruthy();
     expect(screen.getByText("第 4 轮")).toBeTruthy();
   });
 
   it("登记条目点击 → 打开对应文件预览", async () => {
     usePreviewStore.setState({ previewFile: null });
-    render(
+    renderT(
       <ToastProvider>
         <DeliverablesPanel items={[]} sessionPath="s1.jsonl" onOpenFile={(p) => usePreviewStore.setState({ previewFile: p })} />
       </ToastProvider>,
@@ -564,7 +574,147 @@ describe("DeliverablesPanel 权威产物登记表（v4.24 C1）", () => {
   });
 
   it("无 sessionPath：不拉取登记表、不渲染入口（向后兼容）", () => {
-    render(<DeliverablesPanel items={[]} onOpenFile={() => {}} />);
+    renderT(<DeliverablesPanel items={[]} onOpenFile={() => {}} />);
     expect(screen.queryByText("权威产物登记")).toBeNull();
+  });
+});
+
+// ── 三语字典接线抽查：面板文案走 deliverPanel.* 键（zh 钉住 / en 抽查）──
+describe("DeliverablesPanel i18n（deliverPanel.* 键）", () => {
+  it("zh：面板标题与空态文案来自字典", () => {
+    renderT(<DeliverablesPanel items={[]} onOpenFile={() => {}} />);
+    expect(screen.getByText("会话产物")).toBeTruthy();
+    // 空态 span 含 <br/> 分隔的两段文本 → 用正则匹配
+    expect(screen.getByText(/本轮会话暂无交付文件/)).toBeTruthy();
+    expect(screen.getByText(/生成\/保存文件后会出现在这里/)).toBeTruthy();
+  });
+
+  it("en：切到 en 后标题/空态/证据链入口走英文键值（结束还原 zh）", () => {
+    renderT(<DeliverablesPanel items={[]} onOpenFile={() => {}} />, "en");
+    expect(screen.getByText("Session deliverables")).toBeTruthy();
+    expect(screen.getByText(/No deliverables in this session yet/)).toBeTruthy();
+    expect(screen.getByText("Evidence chain")).toBeTruthy();
+    localStorage.setItem("gaea-lang", "zh"); // 还原，避免影响其他用例
+  });
+});
+
+// ── A1 交付验收闭环：产物行验收徽标 + 悬停标记操作 + 头部「已验收 n/m」汇总 ──
+// 数据层 lib/deliverableStatus.ts（键 gaea.deliverableAcceptance.v1）。徽标只显
+// 示已验收/要求修改两态（open 为缺省态不显示，视觉最安静）；「重新查看」恢复
+// open（记录删除，操作位复原为标记已验收/要求修改）。
+describe("DeliverablesPanel 验收状态（A1 交付验收闭环）", () => {
+  const KEY = "gaea.deliverableAcceptance.v1";
+
+  beforeEach(() => {
+    try { localStorage.removeItem(KEY); } catch { /* ignore */ }
+  });
+  afterEach(() => {
+    try { localStorage.removeItem(KEY); } catch { /* ignore */ }
+  });
+
+  const renderAcceptPanel = () =>
+    renderT(
+      <DeliverablesPanel
+        items={[
+          { path: "exports/成本测算.xlsx", sourceId: "a1" },
+          { path: ".gaea/exports/方案.docx", sourceId: "a2" },
+        ]}
+        sessionPath="acc-sess.jsonl"
+        onOpenFile={() => {}}
+      />,
+    );
+
+  // 行作用域取按钮：产物行 .group 容器内按 title 定位（多行同款按钮互不干扰）
+  const rowBtn = (rowText: string, title: string) => {
+    const row = screen.getByText(rowText).closest(".group");
+    expect(row).not.toBeNull();
+    return row!.querySelector(`button[title="${title}"]`);
+  };
+
+  const savedMap = () =>
+    JSON.parse(localStorage.getItem(KEY) ?? "{}") as Record<
+      string,
+      { status: string; at: number; versionAt: number }
+    >;
+
+  it("缺省 open：行内无徽标，悬停操作为「标记已验收」「要求修改」，头部汇总 0/2", () => {
+    renderAcceptPanel();
+    expect(screen.queryByText("已验收")).toBeNull(); // 行内徽标无（汇总文案为「已验收 0/2」，全文不精确等于「已验收」）
+    expect(screen.queryByText("要求修改")).toBeNull();
+    expect(screen.getByText("已验收 0/2")).toBeTruthy();
+    expect(rowBtn("成本测算.xlsx", "标记已验收")).toBeTruthy();
+    expect(rowBtn("成本测算.xlsx", "要求修改")).toBeTruthy();
+  });
+
+  it("标记已验收：徽标出现 + localStorage 写入 confirmed 记录 + 汇总计数前进 + 操作位换「重新查看」", () => {
+    renderAcceptPanel();
+    fireEvent.click(rowBtn("成本测算.xlsx", "标记已验收") as HTMLElement);
+    // 徽标（精确文本「已验收」，区别于汇总「已验收 1/2」）
+    expect(screen.getByText("已验收")).toBeTruthy();
+    expect(screen.getByText("已验收 1/2")).toBeTruthy();
+    // localStorage：statusKeyOf 归一化键 → confirmed 记录；未登记路径 versionAt 兜底 0
+    const rec = savedMap()["acc-sess.jsonl::exports/成本测算.xlsx"];
+    expect(rec?.status).toBe("confirmed");
+    expect(rec?.versionAt).toBe(0);
+    expect(rec?.at).toBeGreaterThan(0);
+    // 已标记行操作位换「重新查看」
+    expect(rowBtn("成本测算.xlsx", "重新查看")).toBeTruthy();
+    expect(rowBtn("成本测算.xlsx", "标记已验收")).toBeNull();
+  });
+
+  it("要求修改：徽标变「要求修改」且 localStorage 记 redo；汇总只数已验收", () => {
+    renderAcceptPanel();
+    fireEvent.click(rowBtn("方案.docx", "要求修改") as HTMLElement);
+    expect(screen.getByText("要求修改")).toBeTruthy();
+    expect(savedMap()["acc-sess.jsonl::.gaea/exports/方案.docx"].status).toBe("redo");
+    expect(screen.getByText("已验收 0/2")).toBeTruthy();
+  });
+
+  it("重新查看：恢复 open（徽标消失、记录删除、操作位复原）", () => {
+    renderAcceptPanel();
+    fireEvent.click(rowBtn("成本测算.xlsx", "标记已验收") as HTMLElement);
+    expect(screen.getByText("已验收")).toBeTruthy();
+    fireEvent.click(rowBtn("成本测算.xlsx", "重新查看") as HTMLElement);
+    expect(screen.queryByText("已验收")).toBeNull(); // open 不显示徽标
+    expect(savedMap()["acc-sess.jsonl::exports/成本测算.xlsx"]).toBeUndefined();
+    expect(rowBtn("成本测算.xlsx", "标记已验收")).toBeTruthy();
+    expect(rowBtn("成本测算.xlsx", "要求修改")).toBeTruthy();
+    expect(screen.getByText("已验收 0/2")).toBeTruthy();
+  });
+
+  it("持久化：重挂载后徽标保持（面板级 loadAcceptanceMap 初始化）", () => {
+    const first = renderAcceptPanel();
+    fireEvent.click(rowBtn("成本测算.xlsx", "标记已验收") as HTMLElement);
+    first.unmount();
+    renderAcceptPanel();
+    expect(screen.getByText("已验收")).toBeTruthy();
+    expect(screen.getByText("已验收 1/2")).toBeTruthy();
+  });
+
+  it("versionAt 取登记表条目 updatedAt（标记时所见版本）；重挂载后登记表未前进仍保持已验收", async () => {
+    const first = renderT(
+      <DeliverablesPanel
+        items={[{ path: "docs/架构图.svg", sourceId: "a1" }]}
+        sessionPath="s1.jsonl"
+        onOpenFile={() => {}}
+      />,
+    );
+    // 等 mock DeliverableRegistry 就绪（登记表入口出现）再标记，确保 versionAt 取到登记表 updatedAt
+    await screen.findByText("权威产物登记");
+    fireEvent.click(rowBtn("架构图.svg", "标记已验收") as HTMLElement);
+    expect(screen.getByText("已验收")).toBeTruthy();
+    expect(savedMap()["s1.jsonl::docs/架构图.svg"].versionAt).toBe(1754439600); // mock 登记表 updatedAt
+    first.unmount();
+    // 登记表 updatedAt 未前进（=versionAt）→ 不触发新版本重置，徽标保持
+    renderT(
+      <DeliverablesPanel
+        items={[{ path: "docs/架构图.svg", sourceId: "a1" }]}
+        sessionPath="s1.jsonl"
+        onOpenFile={() => {}}
+      />,
+    );
+    await screen.findByText("权威产物登记");
+    expect(screen.getByText("已验收")).toBeTruthy();
+    expect(screen.getByText("已验收 1/1")).toBeTruthy();
   });
 });

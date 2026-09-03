@@ -24,10 +24,11 @@ const MemoryPanel = lazy(() => import("./components/MemoryPanel").then(m => ({ d
 const HistoryPanel = lazy(() => import("./components/HistoryPanel").then(m => ({ default: m.HistoryPanel })));
 const CapabilitiesPanel = lazy(() => import("./components/CapabilitiesPanel").then(m => ({ default: m.CapabilitiesPanel })));
 const KnowledgePanel = lazy(() => import("./components/KnowledgePanel").then(m => ({ default: m.KnowledgePanel })));
-import { WorkspaceTabs } from "./components/WorkspaceTabs";
+import { WorkspacePane } from "./components/WorkspacePane";
 import { ChatTabs, type ChatTabId } from "./components/ChatTabs";
 import { ContextView } from "./components/ContextView";
 import { TrajectoryView } from "./components/TrajectoryView";
+import { SubagentThread, type SubagentThreadStatus } from "./components/SubagentThread";
 import { FilePreview } from "./components/FilePreview";
 import { PreviewNavBar } from "./components/PreviewNavBar";
 import type { SessionDeliverable } from "./components/DeliverablesPanel";
@@ -65,7 +66,7 @@ import { DELIVERABLE_EXT_RE, deliverableMentions } from "./lib/fileLinks";
 import { recordRecentFile } from "./lib/recentFiles";
 import { useUpdatedFilesStore } from "./lib/store";
 import { buildSessionChanges, extractDeliverablePaths, WRITE_TOOL_NAMES, type SessionChange } from "./lib/changes";
-import { openEditorTab } from "./lib/editorTabs";
+import { usePaneTabsStore } from "./lib/paneTabs";
 import { parseSidebarOpenResult } from "./lib/sidebarOpen";
 import { setEventSyncFetcher } from "./lib/eventSync";
 import { shouldAutoOpenBrowser } from "./lib/browserPrefs";
@@ -73,12 +74,12 @@ import { matchRunningRun, setTaskCardActivityProvider } from "./lib/taskActivity
 import { classifyComposerCommand } from "./lib/command";
 import { rankPaletteItems } from "./lib/paletteRank";
 import {
-  WORKSPACE_MIN_WIDTH, clampWorkspaceWidth, firstEnabledTab, loadEnabledTabs, loadPersistedRightTab,
-  loadPersistedRightPanelState, loadWorkspaceWidth, resolveEnabledTabs, saveEnabledTabs,
+  WORKSPACE_MIN_WIDTH, clampWorkspaceWidth,
+  loadPersistedRightPanelState, loadWorkspaceWidth,
   savePersistedRightPanelState, saveWorkspaceWidth,
-  type WorkspaceEnabledMap, type WorkspaceTabId,
+  type WorkspaceTabId,
 } from "./lib/workspaceTabs";
-import { SIDEBAR_REGISTRY, getWorkspaceRegistration, type WorkspacePanelContext } from "./lib/sidebarRegistry";
+import { SIDEBAR_REGISTRY, type WorkspacePanelContext } from "./lib/sidebarRegistry";
 import { loadTemplates, FALLBACK_TEMPLATES } from "./components/Welcome";
 import type { TaskTemplate } from "./lib/types";
 
@@ -148,39 +149,69 @@ export default function App() {
       ? currentSessionPath.replace(/[\\/:*?"<>|]/g, "_")
       : cwdNow ? `unsaved_${cwdNow.replace(/[\\/:*?"<>|]/g, "_")}` : "unsaved";
   }, [currentSessionPath, state.meta?.cwd]);
+  // pane tabs 按会话持久化：会话切换时读档/复位（better-sidebar 会话隔离语义）
+  useEffect(() => {
+    usePaneTabsStore.getState().setSessionKey(currentSessionKey);
+  }, [currentSessionKey]);
+  // 独立子代理会话 tabs（better-sidebar openSubagent 语义）：点击任务页里的
+  // 子代理节点 → 主对话区上方新增一个独立会话 tab（可关闭、可并行切换），
+  // 不替换主会话、也不在右栏开轨迹式全面板。
+  const [subagentTabs, setSubagentTabs] = useState<
+    Array<{
+      id: string;
+      sessionPath: string;
+      ref: string;
+      task?: string;
+      model?: string;
+      status: SubagentThreadStatus;
+    }>
+  >([]);
+  const [subagentTabId, setSubagentTabId] = useState<string | null>(null);
+  useEffect(() => {
+    setSubagentTabs([]);
+    setSubagentTabId(null);
+  }, [currentSessionKey]);
+  const openSubagentThread = useCallback(
+    (p: {
+      sessionPath: string;
+      ref: string;
+      task?: string;
+      model?: string;
+      status: SubagentThreadStatus;
+    }) => {
+      const id = `sub:${p.ref}`;
+      setSubagentTabs((prev) => (prev.some((x) => x.id === id) ? prev : [...prev, { ...p, id }]));
+      setSubagentTabId(id);
+      setChatTab("chat");
+    },
+    [],
+  );
+  const closeSubagentTab = useCallback(
+    (id: string) => {
+      const next = subagentTabs.filter((x) => x.id !== id);
+      setSubagentTabs(next);
+      setSubagentTabId((cur) => (cur === id ? (next[next.length - 1]?.id ?? null) : cur));
+    },
+    [subagentTabs],
+  );
+  const handleChatTabSelect = useCallback((id: string) => {
+    if (id === "chat" || id === "trajectory" || id === "context" || id === "overview") {
+      setSubagentTabId(null);
+      setChatTab(id);
+    } else {
+      setSubagentTabId(id);
+      setChatTab("chat");
+    }
+  }, []);
   // 会话隔离（蒸馏 dsh-better-sidebar）：右侧面板子 Tab 按会话记忆（C3）——
   // 切会话/新建/恢复时恢复该会话上次选中的子面板；显式切换（如点文件回
   // 「文件」面板）照常覆盖当前会话记忆。无会话路径（未保存草稿）回退全局 key。
   // v4.23 会话记录扩为 { tab, enabled, width }（v1 裸 id 旧值宽容兼容）：启用集
   // /宽度的权威在各自全局键（布局偏好跨会话跟随），会话记录仅随存快照。
   const [initialPanelState] = useState(() => loadPersistedRightPanelState(currentSessionKey));
-  const [rightTab, setRightTab] = useState<WorkspaceTabId>(initialPanelState.tab);
-  // currentSessionKey 变化（会话切换）时：从新会话 key 恢复面板 Tab；
-  // 切换本身不覆盖新会话已存的记忆（仅当新会话无记录时回退默认）。
-  const prevSessionKey = useRef(currentSessionKey);
-  useEffect(() => {
-    if (prevSessionKey.current === currentSessionKey) return;
-    prevSessionKey.current = currentSessionKey;
-    setRightTab(loadPersistedRightTab(currentSessionKey));
-  }, [currentSessionKey]);
-  // ── v4.23 声明式设置（蒸馏 better-sidebar「侧边卡片」每 tab 独立开关）──
-  // 启用覆盖集走全局键：最后一次切换胜出、跨会话即时跟随（对齐宽度键语义）。
-  const [enabledOverrides, setEnabledOverrides] = useState<WorkspaceEnabledMap>(() => loadEnabledTabs());
-  const enabledRecord = useMemo(() => resolveEnabledTabs(enabledOverrides), [enabledOverrides]);
-  const enabledSet = useMemo(
-    () => new Set((Object.keys(enabledRecord) as WorkspaceTabId[]).filter((id) => enabledRecord[id])),
-    [enabledRecord],
-  );
-  useEffect(() => { saveEnabledTabs(enabledOverrides); }, [enabledOverrides]);
-  const toggleTabEnabled = useCallback((id: WorkspaceTabId, next: boolean) => {
-    setEnabledOverrides((prev) => ({ ...prev, [id]: next }));
-  }, []);
-  // 激活 tab 被停用时收敛到第一个启用面板（学 sanitizeState 失效激活指针修正）
-  useEffect(() => {
-    if (!enabledRecord[rightTab]) setRightTab(firstEnabledTab(enabledRecord));
-  }, [enabledRecord, rightTab]);
-  // 渲染用激活 tab：收敛 effect 生效前的一帧也稳定（不闪现停用面板）
-  const activeWorkspaceTab = enabledRecord[rightTab] ? rightTab : firstEnabledTab(enabledRecord);
+  // 当前激活的 pane 视图（由 WorkspacePane 经 onActiveViewChange 回写；
+  // 欢迎卡片态 = null）。pane 打开的文件 tab 归入 files 视图语义。
+  const [rightTab, setRightTab] = useState<WorkspaceTabId | null>(null);
   const {
     sidebarCollapsed, sidebarWidth, sidebarResizing, effectiveSidebarWidth,
     toggleSidebar, setExpandedSidebarWidth, startSidebarResize,
@@ -223,10 +254,10 @@ export default function App() {
   // 会话记录持久化：激活 tab / 启用集变化时随存宽度快照（学 better-sidebar 每次持久化同步全局宽度）
   useEffect(() => {
     savePersistedRightPanelState(
-      { v: 1, tab: rightTab, enabled: enabledOverrides, width: workspaceWidthRef.current },
+      { v: 1, tab: rightTab ?? "files", enabled: null, width: workspaceWidthRef.current },
       currentSessionKey,
     );
-  }, [rightTab, enabledOverrides, currentSessionKey]);
+  }, [rightTab, currentSessionKey]);
   // C6 运行域活动角标：活跃任务数（queued/running）；任务面板激活时视为已读
   // 不显示。v4.53 分工并入任务：运行计数角标挂在「任务」单键上，任务面板
   // （含分工段）激活即视为已读。
@@ -306,12 +337,26 @@ export default function App() {
     });
   }, []);
 
-  // 预览头部“文件”按钮 → 回到文件树
+  // ── pane 视图/文件打开辅助（对标 better-sidebar：卡片/事件只开 tab）──
+  const openPaneView = useCallback((viewId: WorkspaceTabId) => {
+    closeFilePreview();
+    setWorkspacePanel(true);
+    const reg = SIDEBAR_REGISTRY.find((r) => r.id === viewId);
+    usePaneTabsStore.getState().openView(viewId, reg?.label ?? viewId);
+  }, [closeFilePreview]);
+  const openPaneFile = useCallback((rel: string) => {
+    if (!rel) return;
+    closeFilePreview();
+    setWorkspacePanel(true);
+    const name = rel.split(/[\\/]/).pop() || rel;
+    usePaneTabsStore.getState().openFile(rel, name);
+  }, [closeFilePreview]);
+
+  // 预览头部“文件”按钮 → 回到资源管理器视图 tab
   const backToFiles = useCallback(() => {
     closeFilePreview();
-    setRightTab("files");
-    setWorkspacePanel(true);
-  }, [closeFilePreview]);
+    openPaneView("files");
+  }, [closeFilePreview, openPaneView]);
 
   // 面板开关：预览打开时先收起预览再展开树
   const toggleWorkspacePanel = useCallback(() => {
@@ -747,17 +792,14 @@ export default function App() {
     }
     if (added.length > 0) {
       setFreshDeliverablePaths((prev) => [...prev, ...added]);
-      // v4.32 产物自动弹出（收 v4.30 欠账「自动弹 tab 暂不做可加偏好」）：
-      // 偏好开（gaea.deliverableAutoOpen，默认关，开关在 DeliverablesPanel
-      // 头部胶囊）且产物 tab 未停用 → 亮右栏切「产物」tab，语义对齐
-      // browserAutoOpen（tab 停用时尊重停用态不强行弹出；激活即清零角标，
-      // 自动弹出 = 已查看）。不动 FilePreview——产物 tab 与主区预览不冲突。
-      if (shouldAutoOpenDeliverables() && rightTab !== "deliverables" && enabledRecord.deliverables) {
-        setRightTab("deliverables");
-        setWorkspacePanel(true);
+      // v4.32 产物自动弹出：偏好开 → 亮右栏并开「产物」视图 tab（pane 语义；
+      // 激活即清零角标，自动弹出 = 已查看）。不动 FilePreview——产物 tab 与
+      // 主区预览不冲突。
+      if (shouldAutoOpenDeliverables() && rightTab !== "deliverables") {
+        openPaneView("deliverables");
       }
     }
-  }, [sessionDeliverables, rightTab, enabledRecord]);
+  }, [sessionDeliverables, rightTab, openPaneView]);
   // 激活产物 tab = 已查看 → 清零角标与「新」徽标
   useEffect(() => {
     if (rightTab === "deliverables") setFreshDeliverablePaths([]);
@@ -793,30 +835,24 @@ export default function App() {
   }, [scrollToTurn]);
   // v4.24 A1 新子代理自动展开：分工面板检测到新子代理出现（且用户偏好开启）
   // 时回调——亮出右栏并切到「任务」面板（v4.53 分工并入任务同屏展示；
-  // 对标 better-sidebar 任务页自动展开侧栏）；面板被用户停用时尊重停用态
-  // 不强行弹出。
+  // 对标 better-sidebar 任务页自动展开侧栏）。pane 语义：开任务视图 tab。
   const handleSubagentStarted = useCallback(() => {
-    if (!enabledRecord.tasks) return;
-    closeFilePreview();
-    setWorkspacePanel(true);
-    setRightTab("tasks");
-  }, [enabledRecord.tasks, closeFilePreview]);
+    openPaneView("tasks");
+  }, [openPaneView]);
 
   // v4.25 A3 reveal：产物面板「树中定位」→ 亮文件 tab，文件树展开父链+滚动+闪烁。
   // nonce 单调递增，同一文件重复定位也能再触发一次。
   const revealNonceRef = useRef(0);
   const [revealRequest, setRevealRequest] = useState<{ rel: string; nonce: number } | null>(null);
   const handleRevealInTree = useCallback((rel: string) => {
-    closeFilePreview();
-    setRightTab("files");
-    setWorkspacePanel(true);
+    openPaneView("files");
     revealNonceRef.current += 1;
     setRevealRequest({ rel, nonce: revealNonceRef.current });
-  }, [closeFilePreview]);
+  }, [openPaneView]);
 
   // v4.25 模型主动打开（对标 better-sidebar sidebar_open）：模型把关键产物/目录
-  // 推到右栏文件工作台。按工具事件 id 去重；file → 编辑器 tab（lib/editorTabs
-  // 外部 store 程序化入口），directory → 文件树树中定位（v4.28 起接 reveal：
+  // 推到右栏文件工作台。按工具事件 id 去重；file → pane 文件 tab，
+  // directory → 文件树树中定位（v4.28 起接 reveal：
   // 展开父链 + 滚动 + 目录行闪烁，FileTree 目录行已带 data-path 锚点）。
   const sidebarOpenSeenRef = useRef<Set<string>>(new Set());
   useEffect(() => {
@@ -827,20 +863,17 @@ export default function App() {
       const parsed = parseSidebarOpenResult(it.name, it.args, it.output);
       if (!parsed) continue;
       sidebarOpenSeenRef.current.add(it.id);
-      if (parsed.kind === "file") openEditorTab(parsed.pathRel);
+      if (parsed.kind === "file") openPaneFile(parsed.pathRel);
       else if (parsed.kind === "directory") handleRevealInTree(parsed.pathRel);
       requested = true;
     }
     if (requested) {
-      closeFilePreview();
-      setRightTab("files");
-      setWorkspacePanel(true);
+      openPaneView("files");
     }
-  }, [state.items, closeFilePreview, handleRevealInTree]);
+  }, [state.items, openPaneView, openPaneFile, handleRevealInTree]);
 
-  // v4.28 A2 浏览器观察窗自动弹出：会话轨迹出现新 browser_* 工具时，偏好开
-  // （gaea.browserAutoOpen）且「浏览器」tab 未停用 → 亮右栏切「浏览器」tab
-  //（对标 handleSubagentStarted 语义：tab 被停用时尊重停用态不强行弹出）。
+  // v4.28 A2 浏览器观察窗自动弹出：会话轨迹出现新 browser_* 工具且偏好开
+  // （gaea.browserAutoOpen）→ 亮右栏开「浏览器」视图 tab。
   const browserSeenRef = useRef<Set<string>>(new Set());
   useEffect(() => {
     let requested = false;
@@ -850,12 +883,10 @@ export default function App() {
       browserSeenRef.current.add(it.id);
       requested = true;
     }
-    if (requested && shouldAutoOpenBrowser() && enabledRecord.browser) {
-      closeFilePreview();
-      setRightTab("browser");
-      setWorkspacePanel(true);
+    if (requested && shouldAutoOpenBrowser()) {
+      openPaneView("browser");
     }
-  }, [state.items, enabledRecord.browser, closeFilePreview]);
+  }, [state.items, openPaneView]);
 
   // v4.26 对话流式重造接线：
   // ① 事件序号防线 fetcher——Wails 事件流吞件（seq 跳号）时经后端从磁盘日志
@@ -922,12 +953,16 @@ export default function App() {
       onRevealInTree: handleRevealInTree,
       revealRequest,
       onAutoWidenPanel: handleAutoWidenWorkspace,
+      openSubagentThread: (p) => {
+        openSubagentThread(p);
+      },
     }),
     [
       state.meta?.cwd, previewFile, workspaceRefreshKey, currentSessionPath,
       sessionDeliverables, sessionChanges, freshDeliverablePaths,
       openFilePreview, refreshWorkspacePanel, locateDeliverableSource,
       handleSubagentStarted, handleRevealInTree, revealRequest, handleAutoWidenWorkspace,
+      openSubagentThread,
     ],
   );
 
@@ -947,12 +982,10 @@ export default function App() {
       { id: "cmd-knowledge", group: t("palette.group.commands") ?? "命令", title: t("topbar.knowledge") ?? "知识库", icon: <BookOpen size={15} />, compact: true, keywords: ["knowledge", "知识库"], run: () => void openKnowledge() },
       { id: "cmd-overview", group: t("palette.group.commands") ?? "命令", title: "概览面板", icon: <Gauge size={15} />, compact: true, keywords: ["overview", "概览", "统计", "token", "成本", "用量"], run: () => setChatTab("overview") },
     ];
-    // 右侧面板命令项：由 sidebarRegistry 注册表派生（v4.23 注册制）。声明式
-    // 设置停用的面板不进命令面板（学 better-sidebar prefs 门控「+」菜单）；
-    // tasks 不在命令面板（与原行为一致）
+    // 右侧面板命令项：由 sidebarRegistry 注册表派生；pane 语义下命令 = 开视图
+    // tab（tasks 不在命令面板，与原行为一致；欢迎卡里可点）。
     for (const reg of SIDEBAR_REGISTRY) {
       if (reg.id === "tasks") continue;
-      if (!enabledRecord[reg.id]) continue;
       const Icon = reg.icon;
       cmds.push({
         id: `cmd-${reg.id}`,
@@ -961,7 +994,7 @@ export default function App() {
         icon: <Icon size={15} />,
         compact: true,
         keywords: reg.keywords,
-        run: () => { closeFilePreview(); setWorkspacePanel(true); setRightTab(reg.id); },
+        run: () => { openPaneView(reg.id); },
       });
     }
     const sessionItems: PaletteItem[] = sidebarSessions.slice(0, 10).map((s) => ({
@@ -990,9 +1023,9 @@ export default function App() {
     // tab 对应命令置顶，其余保持稳定原序（纯函数，见 lib/paletteRank）。
     return rankPaletteItems(
       [...cmds, ...templateItems, ...sessionItems],
-      { chatTab, rightTab },
+      { chatTab, rightTab: rightTab ?? "files" },
     );
-  }, [t, sidebarSessions, openMemory, openHistory, openKnowledge, onResumeSession, setWorkspacePanel, closeFilePreview, setRightTab, enabledRecord, templates, send, newSessionAndReset, chatTab, rightTab]);
+  }, [t, sidebarSessions, openMemory, openHistory, openKnowledge, onResumeSession, openPaneView, closeFilePreview, templates, send, newSessionAndReset, chatTab, rightTab]);
 
   const layoutStyle = useMemo(
     () =>
@@ -1006,6 +1039,7 @@ export default function App() {
       }) as CSSProperties,
     [sidebarWidth, previewWidth, effectiveWorkspaceWidth, previewMaximized, previewMaxWidth],
   );
+  const activeSubagent = subagentTabs.find((t) => t.id === subagentTabId) ?? null;
 
   return (
     <>
@@ -1112,33 +1146,55 @@ export default function App() {
 
           <UpdateBanner />
           <NewSessionToast done={newSessionDone} />
-          <ChatTabs active={chatTab} onChange={setChatTab} />
+          <ChatTabs
+            active={subagentTabId ?? chatTab}
+            onChange={handleChatTabSelect}
+            extraTabs={subagentTabs.map((x) => ({
+              id: x.id,
+              label: x.task && x.task.length > 14 ? `${x.task.slice(0, 14)}…` : (x.task || x.ref),
+            }))}
+            onCloseExtra={closeSubagentTab}
+          />
           <main className="main">
             <CompactContext.Provider value={compactMode}>
             {(state.meta?.ready === false && !state.meta?.startupErr) || switchingModel ? (
               <Skeleton />
             ) : (
               <>
-                {chatTab === "chat" && (
-                  <>
-                    <Transcript onPrompt={send} running={state.running} onRewind={rewind} onScrollToTurnReady={setScrollToTurn} cwd={state.meta?.cwd} cwdName={cwdName} sessions={recentSessions} onResumeSession={resumeRecentSession} meta={state.meta} />
-                    {state.items.length > 1 && <JumpBar items={state.items} scrollToTurn={scrollToTurn ?? undefined} />}
-                  </>
-                )}
-                {chatTab === "trajectory" && <TrajectoryView running={state.running} />}
-                {chatTab === "context" && <ContextView running={state.running} sessionPath={currentSessionPath ?? undefined} />}
-                {chatTab === "overview" && (
-                  <OverviewPanel
-                    data={statsPersistence.data}
-                    clearData={statsPersistence.clearData}
-                    sessionStats={state.sessionStats}
-                    perTurnExecutorUsage={state.perTurnExecutorUsage}
-                    perTurnSubUsage={state.perTurnSubUsage}
-                    turnSteps={state.turnSteps}
-                    subagentModel={state.meta?.subagentLabel}
-                    toolCounts={toolCounts}
-                    skillCounts={skillCounts}
+                {activeSubagent ? (
+                  <SubagentThread
+                    key={activeSubagent.id}
+                    sessionPath={activeSubagent.sessionPath}
+                    target={activeSubagent.ref}
+                    task={activeSubagent.task}
+                    status={activeSubagent.status}
+                    model={activeSubagent.model}
+                    onBack={() => closeSubagentTab(activeSubagent.id)}
                   />
+                ) : (
+                  <>
+                    {chatTab === "chat" && (
+                      <>
+                        <Transcript onPrompt={send} running={state.running} onRewind={rewind} onScrollToTurnReady={setScrollToTurn} cwd={state.meta?.cwd} cwdName={cwdName} sessions={recentSessions} onResumeSession={resumeRecentSession} meta={state.meta} />
+                        {state.items.length > 1 && <JumpBar items={state.items} scrollToTurn={scrollToTurn ?? undefined} />}
+                      </>
+                    )}
+                    {chatTab === "trajectory" && <TrajectoryView running={state.running} />}
+                    {chatTab === "context" && <ContextView running={state.running} sessionPath={currentSessionPath ?? undefined} />}
+                    {chatTab === "overview" && (
+                      <OverviewPanel
+                        data={statsPersistence.data}
+                        clearData={statsPersistence.clearData}
+                        sessionStats={state.sessionStats}
+                        perTurnExecutorUsage={state.perTurnExecutorUsage}
+                        perTurnSubUsage={state.perTurnSubUsage}
+                        turnSteps={state.turnSteps}
+                        subagentModel={state.meta?.subagentLabel}
+                        toolCounts={toolCounts}
+                        skillCounts={skillCounts}
+                      />
+                    )}
+                  </>
                 )}
               </>
             )}
@@ -1209,19 +1265,15 @@ export default function App() {
 
         {workspacePanelOpen && (
         <div className="workspace-pane flex flex-col min-w-0 overflow-hidden border-l border-border-soft bg-bg transition-all duration-200">
-          {/* v4.23 工作台外壳：Tab 条（含声明式设置齿轮）+ 注册表驱动面板渲染 +
-              左缘宽度拖拽手柄（学 dsh-better-sidebar 工作台外壳） */}
-          <WorkspaceTabs
-            active={activeWorkspaceTab}
-            onChange={setRightTab}
+          {/* pane 工作台：空态欢迎卡 → 点卡片开视图 tab；资源管理器内点文件
+              新增文件 tab（对标 better-sidebar；内容分发在 WorkspacePane 内） */}
+          <WorkspacePane
+            context={panelContext}
             badges={tabBadges}
-            enabledTabs={enabledSet}
-            onToggleTab={toggleTabEnabled}
+            onActiveViewChange={(viewId) => {
+              if (viewId !== rightTab) setRightTab(viewId);
+            }}
           />
-          {/* 注册表驱动：激活面板经 sidebarRegistry 渲染（每次只挂载激活面板，与旧行为一致） */}
-          <div className="flex-1 min-h-0 overflow-y-auto">
-            {getWorkspaceRegistration(activeWorkspaceTab).render(panelContext)}
-          </div>
           {/* 宽度拖拽手柄：复用 preview-resizer 悬停/激活样式，absolute 贴左缘 */}
           <div
             className={`preview-resizer ${workspaceResizing ? "is-active" : ""}`}

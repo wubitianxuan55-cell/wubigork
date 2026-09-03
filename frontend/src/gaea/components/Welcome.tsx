@@ -7,89 +7,93 @@ import { useEffect, useState } from "react";
 import logoSvg from "../assets/logo.svg";
 import logoLightSvg from "../assets/logo-light.svg";
 import { app } from "../lib/bridge";
-import { useT } from "../lib/i18n";
+import { useT, type Translator } from "../lib/i18n";
 import { useCompact } from "../hooks/useCompact";
 import { sessionTitle } from "../lib/session";
+import type { DictKey } from "../locales/en";
 import type { Meta, SessionMeta, TaskTemplate } from "../lib/types";
 
-function formatTimeAgo(ms: number): string {
+// 相对时间（zh 原硬编码文案逐字收编）：translator 由渲染层传入，语言切换即时生效。
+function formatTimeAgo(ms: number, t: Translator): string {
   const diff = Date.now() - ms;
   const min = Math.floor(diff / 60000);
-  if (min < 1) return "刚刚";
-  if (min < 60) return `${min}分钟前`;
+  if (min < 1) return t("welcome.justNow");
+  if (min < 60) return t("welcome.minAgo", { n: min });
   const hrs = Math.floor(min / 60);
-  if (hrs < 24) return `${hrs}小时前`;
+  if (hrs < 24) return t("welcome.hourAgo", { n: hrs });
   return new Date(ms).toLocaleDateString([], { month: "short", day: "numeric" });
 }
 
 // ── 通用办公能力卡片 ──────────────────────────────────────────────
+// name/desc 为用户可读 UI 文案 → 走字典；prompt 发给 LLM，保持原文不做 i18n。
 interface OfficeCapability {
   icon: React.ReactNode;
-  name: string;
-  desc: string;
+  nameKey: DictKey;
+  descKey: DictKey;
   prompt: string;
 }
 
 const OFFICE_CAPABILITIES: OfficeCapability[] = [
   {
     icon: <FileText size={17} />,
-    name: "文档撰写",
-    desc: "报告、方案、公文，Word 与 Markdown 一键成稿",
+    nameKey: "welcome.capWrite",
+    descKey: "welcome.capWriteDesc",
     prompt: "帮我写一份项目总结报告，包含背景、进展、问题和下一步计划，输出为 Markdown。",
   },
   {
     icon: <Table size={17} />,
-    name: "表格处理",
-    desc: "xlsx / csv 数据整理、公式计算与分类汇总",
+    nameKey: "welcome.capSheet",
+    descKey: "welcome.capSheetDesc",
     prompt: "帮我整理表格数据（xlsx/csv），做分类汇总并说明口径。",
   },
   {
     icon: <RefreshCw size={17} />,
-    name: "格式转换",
-    desc: "docx / xlsx / pdf 与 Markdown 互转，保留结构",
+    nameKey: "welcome.capConvert",
+    descKey: "welcome.capConvertDesc",
     prompt: "把这份 docx/xlsx/pdf 文档转换成 Markdown，保留标题层级和表格。",
   },
   {
     icon: <BarChart3 size={17} />,
-    name: "图表生成",
-    desc: "柱状、折线、饼图、散点图，数据可视化",
+    nameKey: "welcome.capChart",
+    descKey: "welcome.capChartDesc",
     prompt: "根据这份数据生成图表（柱状图/折线图），输出 PNG 图片。",
   },
   {
     icon: <ScrollText size={17} />,
-    name: "报告拼装",
-    desc: "多份素材合并为完整报告，含封面、目录、附录",
+    nameKey: "welcome.capReport",
+    descKey: "welcome.capReportDesc",
     prompt: "把这几份文档素材拼装成一份完整的报告，包含封面、目录、正文和附录。",
   },
   {
     icon: <FilePpt size={17} />,
-    name: "演示文稿",
-    desc: "PPT 大纲与成稿，汇报材料一键生成",
+    nameKey: "welcome.capDeck",
+    descKey: "welcome.capDeckDesc",
     prompt: "根据这份内容生成一份 PPT 演示文稿（.pptx），先列大纲再成稿。",
   },
   {
     icon: <Brain size={17} />,
-    name: "知识沉淀",
-    desc: "规范、结论存入知识库，跨会话复用",
+    nameKey: "welcome.capKnowledge",
+    descKey: "welcome.capKnowledgeDesc",
     prompt: "把这段内容加入知识库（分类、标签），方便以后检索复用。",
   },
 ];
 
 // ── 内置技能 chips ────────────────────────────────────────────────
+// label 为技能名（ASCII 字面量），sub 为用户可读说明 → 走字典；prompt 发给 LLM。
 interface SkillChip {
   label: string;
-  sub: string;
+  subKey: DictKey;
   prompt: string;
 }
 
 const OFFICE_SKILLS: SkillChip[] = [
-  { label: "format-convert", sub: "格式转换", prompt: "用 format-convert 把文档转换为可编辑 Markdown。" },
-  { label: "chart-builder", sub: "图表生成", prompt: "用 chart-builder 从数据生成统计图表。" },
-  { label: "doc-assemble", sub: "文档拼装", prompt: "用 doc-assemble 把多份素材拼装成完整报告。" },
-  { label: "docx", sub: "Word 文档", prompt: "用 docx 技能创建或编辑 Word 文档。" },
-  { label: "xlsx", sub: "表格", prompt: "用 xlsx 技能创建或处理表格文件。" },
-  { label: "pdf", sub: "PDF 文档", prompt: "用 pdf 技能读取、合并或创建 PDF 文档。" },
-  { label: "pptx", sub: "演示文稿", prompt: "用 pptx 技能把内容做成 PowerPoint 演示文稿。" },
+  { label: "format-convert", subKey: "welcome.skillConvert", prompt: "用 format-convert 把文档转换为可编辑 Markdown。" },
+  { label: "chart-builder", subKey: "welcome.skillChart", prompt: "用 chart-builder 从数据生成统计图表。" },
+  { label: "doc-assemble", subKey: "welcome.skillAssemble", prompt: "用 doc-assemble 把多份素材拼装成完整报告。" },
+  { label: "docx", subKey: "welcome.skillDocx", prompt: "用 docx 技能创建或编辑 Word 文档。" },
+  { label: "xlsx", subKey: "welcome.skillXlsx", prompt: "用 xlsx 技能创建或处理表格文件。" },
+  { label: "pdf", subKey: "welcome.skillPdf", prompt: "用 pdf 技能读取、合并或创建 PDF 文档。" },
+  { label: "pptx", subKey: "welcome.skillPptx", prompt: "用 pptx 技能把内容做成 PowerPoint 演示文稿。" },
 ];
 
 // 内置任务模板兜底：后端命令库为空或加载失败时（首启/离线），欢迎页仍有常用办公任务可一键发起。
@@ -221,7 +225,7 @@ export function Welcome({
           className={`text-fg font-semibold leading-tight ${compact ? "text-[24px]" : "text-[30px]"}`}
           style={{ fontFamily: "var(--ds-font-display)", letterSpacing: "-0.02em" }}
         >
-          今天想和 gaea 一起做什么？
+          {t("welcome.heading")}
         </h1>
         <p className={`text-fg-dim mt-2.5 ${compact ? "text-[12.5px]" : "text-[13.5px]"}`}>
           {t("welcome.tagline")}
@@ -233,14 +237,14 @@ export function Welcome({
         <div className={`flex items-center justify-between mb-3 ${compact ? "text-[10px]" : "text-[11px]"}`}>
           <span className="font-semibold text-fg-faint uppercase tracking-wider flex items-center gap-1.5">
             <BookOpen size={12} />
-            核心能力
+            {t("welcome.coreCaps")}
           </span>
-          <span className="text-fg-faint/60">点击卡片快速发起</span>
+          <span className="text-fg-faint/60">{t("welcome.clickToStart")}</span>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
           {OFFICE_CAPABILITIES.map((cap) => (
             <button
-              key={cap.name}
+              key={cap.nameKey}
               onClick={() => onPrompt(cap.prompt)}
               className="group relative flex flex-col items-start text-left font-[inherit] bg-bg-elev border border-border-soft rounded-xl p-3.5 cursor-pointer transition-all duration-200 hover:border-accent/30 hover:bg-bg-elev hover:-translate-y-0.5 hover:shadow-[var(--ds-shadow-card)] overflow-hidden"
               title={cap.prompt}
@@ -250,11 +254,11 @@ export function Welcome({
                 <span className="w-8 h-8 rounded-lg bg-accent/10 border border-accent/15 text-accent flex items-center justify-center shrink-0 group-hover:bg-accent/15 transition-colors">
                   {cap.icon}
                 </span>
-                <span className={`font-semibold text-fg ${compact ? "text-[12.5px]" : "text-[13.5px]"}`}>{cap.name}</span>
+                <span className={`font-semibold text-fg ${compact ? "text-[12.5px]" : "text-[13.5px]"}`}>{t(cap.nameKey)}</span>
                 <ArrowUpRight size={12} className="ml-auto rotate-45 text-fg-faint/0 group-hover:text-accent transition-all group-hover:translate-x-0 group-hover:translate-y-0 -translate-x-0.5 translate-y-0.5" />
               </div>
               <p className={`text-fg-dim leading-relaxed line-clamp-2 ${compact ? "text-[11px]" : "text-[12px]"}`}>
-                {cap.desc}
+                {t(cap.descKey)}
               </p>
             </button>
           ))}
@@ -266,8 +270,8 @@ export function Welcome({
         <div className="welcome-rise welcome-rise-3 w-full mt-6">
           <div className={`font-semibold text-fg-faint uppercase tracking-wider mb-2.5 flex items-center gap-1.5 ${compact ? "text-[10px]" : "text-[11px]"}`}>
             <Sparkles size={12} />
-            任务模板
-            <span className="text-fg-faint/60 normal-case tracking-normal font-normal">/weekly-report、/cost-estimate 等斜杠命令同样可用</span>
+            {t("welcome.templates")}
+            <span className="text-fg-faint/60 normal-case tracking-normal font-normal">{t("welcome.templatesHint")}</span>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
             {templates.map((tm) => (
@@ -292,7 +296,7 @@ export function Welcome({
       <div className="welcome-rise welcome-rise-3 w-full mt-6">
         <div className={`font-semibold text-fg-faint uppercase tracking-wider mb-2.5 flex items-center gap-1.5 ${compact ? "text-[10px]" : "text-[11px]"}`}>
           <Wand2 size={12} />
-          内置技能
+          {t("welcome.skills")}
         </div>
         <div className="flex flex-wrap gap-2">
           {OFFICE_SKILLS.map((skill) => (
@@ -303,7 +307,7 @@ export function Welcome({
               title={skill.prompt}
             >
               <span className="text-accent">{skill.label}</span>
-              <span className="text-fg-faint/70 text-[10.5px]">· {skill.sub}</span>
+              <span className="text-fg-faint/70 text-[10.5px]">· {t(skill.subKey)}</span>
             </button>
           ))}
         </div>
@@ -311,7 +315,7 @@ export function Welcome({
 
       {/* 自由提问提示 */}
       <div className={`welcome-rise welcome-rise-3 w-full mt-6 px-3 py-2.5 rounded-lg bg-bg-soft border border-border-soft text-fg-faint text-center ${compact ? "text-[11px]" : "text-[12px]"}`}>
-        或直接输入你的办公需求，开始对话
+        {t("welcome.freeInput")}
       </div>
 
       {/* 最近会话 */}
@@ -319,7 +323,7 @@ export function Welcome({
         <div className="w-full mt-6 pt-5 border-t border-border-soft mb-10">
           <div className={`font-semibold text-fg-faint uppercase tracking-wider mb-3 flex items-center gap-1.5 ${compact ? "text-[10px]" : "text-[11px]"}`}>
             <Clock size={12} />
-            最近会话
+            {t("welcome.recent")}
           </div>
           <div className="flex flex-col gap-2">
             {recentSessions.map((s) => (
@@ -331,8 +335,8 @@ export function Welcome({
                 <span className="w-7 h-7 rounded-md bg-accent/10 border border-accent/15 text-accent flex items-center justify-center shrink-0">
                   <MessageSquare size={compact ? 12 : 13} />
                 </span>
-                <span className="flex-1 truncate font-medium">{sessionTitle(s, "未命名会话")}</span>
-                <span className={`text-fg-faint shrink-0 ${compact ? "text-[10px]" : "text-[11px]"}`}>{formatTimeAgo(s.modTime)}</span>
+                <span className="flex-1 truncate font-medium">{sessionTitle(s, t("welcome.untitledSession"))}</span>
+                <span className={`text-fg-faint shrink-0 ${compact ? "text-[10px]" : "text-[11px]"}`}>{formatTimeAgo(s.modTime, t)}</span>
                 <ArrowUpRight size={11} className="rotate-45 text-fg-faint/0 group-hover:text-accent transition-colors shrink-0" />
               </button>
             ))}

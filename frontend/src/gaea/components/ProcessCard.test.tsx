@@ -7,7 +7,11 @@ import type { Item } from "../lib/store";
 
 const noSubcalls = new Map<string, never>();
 
-const wrap = (node: React.ReactNode) => <LocaleProvider>{node}</LocaleProvider>;
+const wrap = (node: React.ReactNode) => {
+  // ProcessCard 标签走 t()；显式钉住 zh，断言用中文文案（不依赖其他文件的 localStorage 残留）
+  localStorage.setItem("gaea-lang", "zh");
+  return <LocaleProvider>{node}</LocaleProvider>;
+};
 
 describe("ProcessCard 小过程卡 / 展开态初始状态", () => {
   it("分段小过程卡（small）默认折叠；非 small（交替段展开态）默认展开", () => {
@@ -15,7 +19,8 @@ describe("ProcessCard 小过程卡 / 展开态初始状态", () => {
       { kind: "assistant", id: "a1", text: "", reasoning: "先分析需求", streaming: false },
     ];
     const smallView = render(
-      <ProcessCard items={items} toolCount={0} thoughtCount={1} small subcallsByParent={noSubcalls} />,
+      wrap(
+<ProcessCard items={items} toolCount={0} thoughtCount={1} small subcallsByParent={noSubcalls} />),
     );
     // 运行中的分段小过程卡：默认折叠
     const smallHeader = smallView.container.querySelectorAll("button[aria-expanded]")[0];
@@ -24,7 +29,8 @@ describe("ProcessCard 小过程卡 / 展开态初始状态", () => {
 
     // 非 small（交替段展开态）：默认展开
     const bigView = render(
-      <ProcessCard items={items} toolCount={0} thoughtCount={1} small={false} subcallsByParent={noSubcalls} />,
+      wrap(
+<ProcessCard items={items} toolCount={0} thoughtCount={1} small={false} subcallsByParent={noSubcalls} />),
     );
     const bigHeader = bigView.container.querySelectorAll("button[aria-expanded]")[0];
     expect(bigHeader?.getAttribute("aria-expanded")).toBe("true");

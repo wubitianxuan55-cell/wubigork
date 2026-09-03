@@ -5,6 +5,16 @@
 
 ## 版本状态（顶部速览）
 
+- **进行中工作树快照（2026-09-03，未发版）**：办公右栏按 dsh-better-sidebar
+  语义做 pane 化移植（wip，未 bump 版本）。完成：欢迎卡 → 视图 tab → 文件 tab
+  单 tab 条；产物/任务/浏览器视图 tab；浏览器=地址栏+沙箱 iframe；任务页重做
+  为紧凑「子代理拓扑+后台任务」连续单页；点子代理 → 主区顶栏开独立子代理会话
+  tab；旧 WorkspaceTabs/WorkspacePanel/EditorTabs/lib-editorTabs 已删除。
+  前端全量 vitest 210 文件/1521 用例绿，tsc/eslint 0；Go 侧零改动（未跑）。
+  实拍与记录：docs/snapshots/2026-09-03-better-sidebar-port/ 与
+  docs/better-sidebar-port-2026-09-03-worktree.md。
+  下一步（下个会话）：左栏子代理会话入口——后端暴露子代理会话（GaeaSubagentSessions
+  或 SessionMeta 会话树）+ Sidebar 虚拟列表子行，详见该记录 §下一步。
 - **最新：v4.59.0（2026-09-03）继续：i18n 二批 · 搜索落划线 · 自定义引擎
   用户价目**——三线并行子代理+主代理收口。A 线：设置五面板+SettingsSection
   入三语字典 +192 键/语言（682→874，**设置中心九面板全量 i18n**），zh 保真。

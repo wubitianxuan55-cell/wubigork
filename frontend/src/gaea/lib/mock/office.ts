@@ -366,9 +366,11 @@ export function buildOffice(_s: MakeMockState): OfficeMethods {
         total: 3,
         entries: [
           {
+            // turn:1 = 演示会话唯一轮（浏览器走查：工具写出但正文未提及路径，
+            // 验证消息尾部交付卡与权威登记表的合并渲染 + 未生成缺失态）。
             path: "docs/竞品调研报告.md",
             tool: "write_file",
-            turn: 2,
+            turn: 1,
             updatedAt: 1754438400,
             touches: 2,
           },

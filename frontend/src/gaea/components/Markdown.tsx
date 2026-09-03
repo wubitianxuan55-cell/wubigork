@@ -227,14 +227,14 @@ const MermaidBlock = memo(function MermaidBlock({ code, autoExport = true }: { c
 
   if (error) {
     return (
-      <div className="my-3 rounded-md border border-warning/30 bg-warning/5 overflow-hidden">
+      <div className="my-3 rounded-lg border border-warning/30 bg-warning/5 overflow-hidden">
         <div className="px-3 py-1.5 border-b border-warning/20 text-[11px] text-warning">Mermaid 渲染失败，显示源码</div>
         <pre className="px-3 py-2.5 font-mono text-[12.5px] leading-[1.55] overflow-auto whitespace-pre text-fg">{code}</pre>
       </div>
     );
   }
   return (
-    <div className="my-3 rounded-md border border-border-soft overflow-hidden">
+    <div className="my-3 rounded-lg border border-border-soft overflow-hidden">
       <div className="flex items-center gap-1 px-2.5 py-1 bg-bg-soft/80 border-b border-border-soft/50 text-[10px] select-none">
         <span className="text-fg-faint/60 font-mono font-medium uppercase tracking-wider mr-1.5">Mermaid</span>
         {/* 图表 / 代码切换 */}
@@ -356,7 +356,7 @@ function CodeBlockHeader({ language, text }: { language?: string; text: string }
     setTimeout(() => setCopied(false), 1500);
   }, [text]);
   return (
-    <div className="flex items-center justify-between px-3 py-1 bg-bg-soft/80 border-b border-border-soft/50 rounded-t-md text-[10px] select-none">
+    <div className="flex items-center justify-between px-3 py-1 bg-bg-soft/80 border-b border-border-soft/50 rounded-t-lg text-[10px] select-none">
       <span className="text-fg-faint/60 font-mono font-medium uppercase tracking-wider">
         {language || "text"}
       </span>
@@ -387,7 +387,7 @@ function buildComponents(onOpenFile: (rel: string) => void, autoExportMermaid = 
       }
       if (isBlock) {
         return (
-          <div className="my-3 rounded-md border border-border-soft overflow-hidden">
+          <div className="my-3 rounded-lg border border-border-soft overflow-hidden">
             <CodeBlockHeader language={lang} text={text} />
             <pre className="px-3 py-2.5 font-mono text-[12.5px] leading-[1.55] overflow-auto whitespace-pre text-fg"><code>{text}</code></pre>
           </div>
@@ -421,7 +421,7 @@ function buildComponents(onOpenFile: (rel: string) => void, autoExportMermaid = 
       );
     },
     table: ({ children }) => (
-      <div className="my-3 overflow-x-auto rounded-md border border-border-soft">
+      <div className="my-3 overflow-x-auto rounded-lg border border-border-soft">
         <table className="min-w-full text-[13px]">{children}</table>
       </div>
     ),

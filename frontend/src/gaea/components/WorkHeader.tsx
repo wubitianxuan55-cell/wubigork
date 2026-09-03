@@ -5,6 +5,7 @@ import { useItems, useStore, useTurnStartAt } from "../lib/store";
 import type { Item } from "../lib/store";
 import { useNow } from "../lib/useNow";
 import { formatElapsed } from "../lib/time";
+import { useT } from "../lib/i18n";
 
 // WorkHeader — 工作态头部行（v4.26「对话流式重造 · 对齐 Codex」）。
 //
@@ -63,6 +64,7 @@ export function WorkHeader() {
   const turnStartAt = useTurnStartAt();
   const items = useItems();
   const now = useNow();
+  const t = useT();
 
   // 完成态冻结：running true→false 的那次渲染里同步把耗时/步数拍进 ref
   // （turnStartAt 会被下一轮覆盖、items 完成后稳定，但「完成时刻」只能当场
@@ -106,12 +108,12 @@ export function WorkHeader() {
         <CheckCircle size={12} className="shrink-0 text-ok" />
       )}
       <span className={`shrink-0 font-medium ${running ? "text-accent" : "text-fg-dim"}`}>
-        {running ? (phaseText || "思考中…") : "已完成"}
+        {running ? (phaseText || t("work.thinking")) : t("work.done")}
       </span>
       <span className="min-w-0 truncate text-fg-faint/80 tabular-nums">
-        · 用时 {formatElapsed(elapsed)}
+        · {t("work.elapsed", { t: formatElapsed(elapsed) })}
       </span>
-      <span className="shrink-0 text-fg-faint/80 tabular-nums">· {steps} 步</span>
+      <span className="shrink-0 text-fg-faint/80 tabular-nums">· {t("work.steps", { n: steps })}</span>
     </div>
   );
 }

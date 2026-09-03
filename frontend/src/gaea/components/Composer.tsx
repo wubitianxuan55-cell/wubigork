@@ -356,9 +356,9 @@ export function Composer({
   // ── 项目感知 placeholder ──
   const placeholderText = useMemo(() => {
     if (disabled) return t("common.loading");
-    if (running && queueLen > 0) return `排队中 (${queueLen})…`;
-    if (running) return "任务执行中… Enter 插话调整 · Shift+Enter 纠正";
-    if (cwd && workspaceName) return `在 ${workspaceName}/ 中提问…`;
+    if (running && queueLen > 0) return t("composer.queuePending", { n: queueLen });
+    if (running) return t("composer.runningHint");
+    if (cwd && workspaceName) return t("composer.askIn", { name: workspaceName });
     return t("composer.placeholder");
   }, [disabled, running, queueLen, cwd, workspaceName, t]);
 

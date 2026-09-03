@@ -1,6 +1,14 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { ReactElement } from "react";
+import { LocaleProvider } from "../lib/i18n";
 import type { ContextTimeline } from "../lib/types";
+
+// ContextView 走 useT：钉住 zh 让既有中文文案断言继续成立
+const renderT = (ui: ReactElement) => {
+  localStorage.setItem("gaea-lang", "zh");
+  return render(<LocaleProvider>{ui}</LocaleProvider>);
+};
 
 const contextViewMock = vi.fn();
 const agentNetworkMock = vi.fn();
@@ -56,7 +64,7 @@ describe("ContextView 上下文看板", () => {
 
   it("渲染统计卡与六分类组成", async () => {
     const { ContextView } = await import("./ContextView");
-    render(<ContextView running={false} />);
+    renderT(<ContextView running={false} />);
     expect(await screen.findByText("工具调用")).toBeTruthy();
     expect(screen.getByText("279")).toBeTruthy();
     expect(screen.getByText("99.57%")).toBeTruthy();
@@ -66,7 +74,7 @@ describe("ContextView 上下文看板", () => {
 
   it("总览头部：水位百分比、缓存/费用徽标与刷新按钮", async () => {
     const { ContextView } = await import("./ContextView");
-    render(<ContextView running={false} />);
+    renderT(<ContextView running={false} />);
     expect(await screen.findByText("上下文")).toBeTruthy();
     // 头部与「当前上下文」卡都显示水位 → getAllByText
     expect(screen.getAllByText(/241\.8k \/ 1\.0M · 24%/).length).toBeGreaterThanOrEqual(2);
@@ -82,7 +90,7 @@ describe("ContextView 上下文看板", () => {
       current: { system: 20000, tools: 20000, user: 5000, inject: 20000, assistant: 20000, tool: 10000 },
     });
     const { ContextView } = await import("./ContextView");
-    render(<ContextView running={false} />);
+    renderT(<ContextView running={false} />);
     expect(await screen.findByText(/上下文接近上限，建议压缩或新建会话/)).toBeTruthy();
     expect(screen.getByText(/已接近上下文上限/)).toBeTruthy();
   });
@@ -96,14 +104,14 @@ describe("ContextView 上下文看板", () => {
       requests: [], events: [], nodes: [], archive: [], files: [],
     });
     const { ContextView } = await import("./ContextView");
-    render(<ContextView running={false} />);
+    renderT(<ContextView running={false} />);
     expect(await screen.findByText("暂无上下文数据")).toBeTruthy();
     expect(screen.getByText(/0 \/ 0 · 0%/)).toBeTruthy();
   });
 
   it("渲染趋势图、步骤详情与事件流", async () => {
     const { ContextView } = await import("./ContextView");
-    render(<ContextView running={false} />);
+    renderT(<ContextView running={false} />);
     expect(await screen.findByText("上下文趋势")).toBeTruthy();
     expect(await screen.findByText(/点击趋势图中的柱查看该请求的输入、回复与上下文构成/)).toBeTruthy();
     expect(await screen.findByText(/指令注入 · \.gaea/)).toBeTruthy();
@@ -114,7 +122,7 @@ describe("ContextView 上下文看板", () => {
   it("点击柱后展示步骤详情", async () => {
     const { ContextView } = await import("./ContextView");
     // 图表首根柱：趋势 SVG 里的第一个 rect（jsdom 下 SVG title 不可被 byTitle 命中）
-    const { container } = render(<ContextView running={false} />);
+    const { container } = renderT(<ContextView running={false} />);
     await screen.findByText("上下文趋势");
     const rect = container.querySelector("svg rect");
     if (!rect) throw new Error("trend bar rect not found");
@@ -126,7 +134,7 @@ describe("ContextView 上下文看板", () => {
 
   it("悬停柱显示该步六分类构成详情条", async () => {
     const { ContextView } = await import("./ContextView");
-    const { container } = render(<ContextView running={false} />);
+    const { container } = renderT(<ContextView running={false} />);
     await screen.findByText("上下文趋势");
     const rect = container.querySelector("svg rect");
     if (!rect) throw new Error("trend bar rect not found");
@@ -139,7 +147,7 @@ describe("ContextView 上下文看板", () => {
 
   it("渲染文件活动时间线（读/写徽标 + 路径 + 次数）", async () => {
     const { ContextView } = await import("./ContextView");
-    render(<ContextView running={false} />);
+    renderT(<ContextView running={false} />);
     expect(await screen.findByText("文件活动")).toBeTruthy();
     expect(screen.getByText("2 次文件接触")).toBeTruthy();
     expect(screen.getByText("internal/gaea/config/config.go")).toBeTruthy();
@@ -155,7 +163,7 @@ describe("ContextView 上下文看板", () => {
   it("文件活动行点击 → 在右侧打开该文件预览", async () => {
     const { ContextView } = await import("./ContextView");
     const { usePreviewStore } = await import("../lib/store");
-    render(<ContextView running={false} />);
+    renderT(<ContextView running={false} />);
     await screen.findByText("文件活动");
     fireEvent.click(screen.getByText("internal/gaea/config/config.go"));
     expect(usePreviewStore.getState().previewFile).toBe("internal/gaea/config/config.go");
@@ -163,7 +171,7 @@ describe("ContextView 上下文看板", () => {
 
   it("增量模式：点击「增量」展示净增减图例", async () => {
     const { ContextView } = await import("./ContextView");
-    render(<ContextView running={false} />);
+    renderT(<ContextView running={false} />);
     await screen.findByText("上下文趋势");
     fireEvent.click(screen.getByText("增量"));
     expect(await screen.findByText(/净增/)).toBeTruthy();
@@ -172,7 +180,7 @@ describe("ContextView 上下文看板", () => {
 
   it("渲染上下文浏览器（活跃节点 + 展开）", async () => {
     const { ContextView } = await import("./ContextView");
-    render(<ContextView running={false} />);
+    renderT(<ContextView running={false} />);
     expect(await screen.findByText("上下文浏览器")).toBeTruthy();
     expect(screen.getByText(/活跃 2/)).toBeTruthy();
     expect(screen.getByText(/你是 gaea/)).toBeTruthy();
@@ -186,7 +194,7 @@ describe("ContextView 上下文看板", () => {
 
   it("上下文浏览器归档页展示被压缩节点", async () => {
     const { ContextView } = await import("./ContextView");
-    render(<ContextView running={false} />);
+    renderT(<ContextView running={false} />);
     fireEvent.click(await screen.findByText(/归档 1/));
     expect(screen.getByText(/旧的一轮用户输入内容/)).toBeTruthy();
     expect(screen.getAllByText("已压缩").length).toBeGreaterThan(0);
@@ -197,7 +205,7 @@ describe("ContextView 上下文看板", () => {
   it("加载失败显示错误", async () => {
     contextViewMock.mockRejectedValue(new Error("boom"));
     const { ContextView } = await import("./ContextView");
-    render(<ContextView running={false} />);
+    renderT(<ContextView running={false} />);
     expect(await screen.findByText(/上下文视图加载失败/)).toBeTruthy();
   });
 });

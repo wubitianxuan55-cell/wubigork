@@ -1,7 +1,15 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen, fireEvent, act } from "@testing-library/react";
+import type { ReactElement } from "react";
 import { AgentTree } from "./AgentTree";
+import { LocaleProvider } from "../lib/i18n";
 import type { AgentNetwork, AgentNode, SubagentRunsView } from "../lib/types";
+
+// AgentTree 走 useT：钉住 zh 让「主 agent/展开 …/正在：…」等中文断言继续成立
+const renderT = (ui: ReactElement) => {
+  localStorage.setItem("gaea-lang", "zh");
+  return render(<LocaleProvider>{ui}</LocaleProvider>);
+};
 
 // ── v4.24 A1「子代理树实时拓扑」测试 ────────────────────────────
 // AgentTree 直接以 props 驱动（无轮询/事件依赖）：钉住嵌套子树渲染与
@@ -59,7 +67,7 @@ const runs: SubagentRunsView = {
 
 describe("AgentTree 子代理树实时拓扑（v4.24 A1）", () => {
   it("嵌套渲染：主 agent + 一级子代理恒可见，孙节点默认收起", () => {
-    render(<AgentTree network={network} runs={runs.runs} onOpenThread={() => {}} />);
+    renderT(<AgentTree network={network} runs={runs.runs} onOpenThread={() => {}} />);
     expect(screen.getByText("主 agent")).toBeTruthy();
     expect(screen.getByText("收集竞品信息")).toBeTruthy();
     expect(screen.getByText("调研表格 Agent")).toBeTruthy();
@@ -67,7 +75,7 @@ describe("AgentTree 子代理树实时拓扑（v4.24 A1）", () => {
   });
 
   it("展开/收起嵌套子树：孙节点随父节点开关显隐", () => {
-    render(<AgentTree network={network} runs={runs.runs} onOpenThread={() => {}} />);
+    renderT(<AgentTree network={network} runs={runs.runs} onOpenThread={() => {}} />);
     fireEvent.click(screen.getByLabelText("展开 调研表格 Agent"));
     expect(screen.getByText("子任务：对比表格交互")).toBeTruthy();
     fireEvent.click(screen.getByLabelText("收起 调研表格 Agent"));
@@ -75,7 +83,7 @@ describe("AgentTree 子代理树实时拓扑（v4.24 A1）", () => {
   });
 
   it("新节点出现自动展开其父链（本轮挂载后的新节点）", async () => {
-    const { rerender } = render(<AgentTree network={network} runs={runs.runs} onOpenThread={() => {}} />);
+    const { rerender } = renderT(<AgentTree network={network} runs={runs.runs} onOpenThread={() => {}} />);
     expect(screen.queryByText("子任务：对比表格交互")).toBeNull();
     // 挂载后出现新孙节点：父链（调研表格 Agent）应自动展开，孙节点可见
     const v2: AgentNetwork = {
@@ -94,14 +102,14 @@ describe("AgentTree 子代理树实时拓扑（v4.24 A1）", () => {
         ],
       },
     };
-    rerender(<AgentTree network={v2} runs={runs.runs} onOpenThread={() => {}} />);
+    rerender(<LocaleProvider><AgentTree network={v2} runs={runs.runs} onOpenThread={() => {}} /></LocaleProvider>);
     await act(async () => { await Promise.resolve(); });
     expect(screen.getByText("新出现的孙任务")).toBeTruthy();
     expect(screen.getByText("子任务：对比表格交互")).toBeTruthy();
   });
 
   it("运行节点富化：匹配分工 meta 显示实时预览与模型徽标；无匹配降级纯统计", () => {
-    render(<AgentTree network={network} runs={runs.runs} onOpenThread={() => {}} />);
+    renderT(<AgentTree network={network} runs={runs.runs} onOpenThread={() => {}} />);
     // ref 直等匹配命中：运行节点行内嵌「正在…」实时预览
     expect(screen.getByText(/正在：正在比对三家竞品的表格选中→图表链路/)).toBeTruthy();
     expect(screen.getByText(/web_fetch: https:\/\/example\.com\/table-agent/)).toBeTruthy();
@@ -110,7 +118,7 @@ describe("AgentTree 子代理树实时拓扑（v4.24 A1）", () => {
   });
 
   it("运行节点显示实时已用耗时（1s tick 驱动）", () => {
-    render(<AgentTree network={network} runs={runs.runs} onOpenThread={() => {}} />);
+    renderT(<AgentTree network={network} runs={runs.runs} onOpenThread={() => {}} />);
     // running 节点（root + 运行中子树）有 firstTs → 「已用 …」文案存在
     // （不锁具体数值，避免真实时间漂移；多节点命中用 getAllByText）
     expect(screen.getAllByText(/已用 /).length).toBeGreaterThan(0);
@@ -118,7 +126,7 @@ describe("AgentTree 子代理树实时拓扑（v4.24 A1）", () => {
 
   it("子代理节点点击 → onOpenThread(node, run)（v4.27 打开全面板对话）", () => {
     const onOpenThread = vi.fn();
-    render(<AgentTree network={network} runs={runs.runs} onOpenThread={onOpenThread} />);
+    renderT(<AgentTree network={network} runs={runs.runs} onOpenThread={onOpenThread} />);
     fireEvent.click(screen.getByText("调研表格 Agent"));
     expect(onOpenThread).toHaveBeenCalledTimes(1);
     const [node, run] = onOpenThread.mock.calls[0] as [AgentNode, SubagentRunsView["runs"][number] | null];
@@ -129,7 +137,7 @@ describe("AgentTree 子代理树实时拓扑（v4.24 A1）", () => {
 
   it("主 agent 根节点点击不触发 onOpenThread（无独立 transcript）", () => {
     const onOpenThread = vi.fn();
-    render(<AgentTree network={network} runs={runs.runs} onOpenThread={onOpenThread} />);
+    renderT(<AgentTree network={network} runs={runs.runs} onOpenThread={onOpenThread} />);
     fireEvent.click(screen.getByText("主 agent"));
     expect(onOpenThread).not.toHaveBeenCalled();
   });

@@ -4,6 +4,7 @@
 import { describe, expect, it, beforeEach } from "vitest";
 import { act, render } from "@testing-library/react";
 import { WorkHeader, countTurnSteps, latestTurnPhaseText } from "./WorkHeader";
+import { LocaleProvider } from "../lib/i18n";
 import { useStore } from "../lib/store";
 import type { ControllerState, Item } from "../lib/store";
 import { formatElapsed } from "../lib/time";
@@ -19,7 +20,11 @@ const tool = (id: string, status: "running" | "done"): Item =>
 
 beforeEach(() => {
   setStore({ running: false, turnStartAt: 0, items: [] });
+  // WorkHeader 走 useT；钉住 zh 让断言用中文文案
+  localStorage.setItem("gaea-lang", "zh");
 });
+
+const mount = (node: React.ReactElement) => render(<LocaleProvider>{node}</LocaleProvider>);
 
 function headerOf(container: HTMLElement): HTMLElement | null {
   return container.querySelector<HTMLElement>('[data-testid="work-header"]');
@@ -28,7 +33,7 @@ function headerOf(container: HTMLElement): HTMLElement | null {
 describe("WorkHeader 工作态头部行", () => {
   it("零 items 也渲染（turn_started 后无任何 item 的死寂窗口有反馈）", () => {
     setStore({ running: true, turnStartAt: Date.now() - 5_000, items: [] });
-    const view = render(<WorkHeader />);
+    const view = mount(<WorkHeader />);
     const header = headerOf(view.container);
     expect(header).not.toBeNull();
     expect(header?.getAttribute("data-state")).toBe("running");
@@ -46,7 +51,7 @@ describe("WorkHeader 工作态头部行", () => {
       turnStartAt: Date.now() - 10_000,
       items: [user("u1", "跑个任务"), phase("p1", "正在启动引擎"), phase("p2", "正在重试 (2/3)")],
     });
-    const view = render(<WorkHeader />);
+    const view = mount(<WorkHeader />);
     const header = headerOf(view.container);
     expect(header?.textContent).toContain("正在重试 (2/3)");
     expect(header?.textContent).not.toContain("正在启动引擎");
@@ -60,7 +65,7 @@ describe("WorkHeader 工作态头部行", () => {
       turnStartAt: Date.now() - 3_000,
       items: [user("u1", "第一问"), phase("p1", "上一轮正在重试"), user("u2", "第二问")],
     });
-    const view = render(<WorkHeader />);
+    const view = mount(<WorkHeader />);
     expect(headerOf(view.container)?.textContent).toContain("思考中…");
     expect(headerOf(view.container)?.textContent).not.toContain("上一轮正在重试");
   });
@@ -71,7 +76,7 @@ describe("WorkHeader 工作态头部行", () => {
       turnStartAt: Date.now() - 83_000,
       items: [user("u1", "干个活"), tool("t1", "done"), phase("p1", "思考中")],
     });
-    const view = render(<WorkHeader />);
+    const view = mount(<WorkHeader />);
     expect(headerOf(view.container)?.getAttribute("data-state")).toBe("running");
 
     // turn_done：running → false（同一次 store 更新已带终态 items）
@@ -92,7 +97,7 @@ describe("WorkHeader 工作态头部行", () => {
       turnStartAt: 0,
       items: [user("u1", "历史问题"), { kind: "assistant", id: "a1", text: "历史回答", reasoning: "", streaming: false }],
     });
-    const view = render(<WorkHeader />);
+    const view = mount(<WorkHeader />);
     expect(headerOf(view.container)).toBeNull();
   });
 });

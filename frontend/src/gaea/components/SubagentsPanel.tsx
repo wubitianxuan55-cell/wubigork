@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Bot, Loader2, Users } from "../icons";
 import { app } from "../lib/bridge";
+import { useT } from "../lib/i18n";
 import type { AgentNetwork, AgentNode, SubagentRunView, SubagentRunsView } from "../lib/types";
 import { usePollingGate } from "../../hooks/usePollingGate";
 import { useLiveReload } from "../hooks/useLiveReload";
@@ -40,6 +41,7 @@ function feedName(run: SubagentRunView): string {
 }
 
 function ActivityFeed({ runs }: { runs: SubagentRunView[] }) {
+  const t = useT();
   // 合并单列：只收 running 的最新动态行，updatedAt 倒序，上限 20 条；
   // 空（无运行中子代理）整体收起，不占面板空间。
   const items = useMemo(
@@ -56,7 +58,7 @@ function ActivityFeed({ runs }: { runs: SubagentRunView[] }) {
     <div className="flex flex-col gap-1" data-testid="agent-feed">
       <div className="flex items-center gap-1.5 px-0.5 text-[10px] font-medium" style={{ color: "var(--gaea-glow)" }}>
         <span className="inline-block h-1.5 w-1.5 rounded-full animate-pulse" style={{ background: "var(--gaea-glow)" }} aria-hidden />
-        实时动态
+        {t("subagent.feedTitle")}
         <span className="font-mono" style={{ color: "var(--md-sys-color-text-secondary)" }}>{items.length}</span>
       </div>
       {items.map((r) => (
@@ -72,7 +74,7 @@ function ActivityFeed({ runs }: { runs: SubagentRunView[] }) {
           <span className="truncate" title={r.lastText ?? r.lastTool ?? r.task} style={{ color: "var(--md-sys-color-text)" }}>
             <span className="mr-1 inline-block h-1 w-1 rounded-full align-middle animate-pulse" style={{ background: "var(--gaea-glow)" }} aria-hidden />
             <span className="font-medium">{feedName(r)}</span>
-            {r.lastText ? ` 正在：${r.lastText}` : " 正在执行工具"}
+            {r.lastText ? t("subagent.feedDoing", { text: r.lastText }) : t("subagent.feedTooling")}
           </span>
           {r.lastTool && (
             <span className="truncate pl-3 font-mono" title={r.lastTool} style={{ color: "var(--md-sys-color-text-secondary)" }}>
@@ -90,6 +92,7 @@ export function SubagentsPanel({ sessionPath, onSubagentStarted }: {
   /** 检测到新子代理 ref 出现（且「自动展开」偏好为开）时回调；App 据此亮出分工面板。 */
   onSubagentStarted?: () => void;
 }) {
+  const t = useT();
   const [net, setNet] = useState<AgentNetwork | null>(null);
   const [runsView, setRunsView] = useState<SubagentRunsView | null>(null);
   const [loading, setLoading] = useState(true);
@@ -214,7 +217,7 @@ export function SubagentsPanel({ sessionPath, onSubagentStarted }: {
       {/* v3 细条头部：标题 + 计数徽标 + 自动展开胶囊开关 + 刷新 */}
       <div className="v3-panel-head">
         <Users size={13} aria-hidden style={{ color: "var(--gaea-glow)" }} />
-        <span className="v3-panel-title">分工</span>
+        <span className="v3-panel-title">{t("subagent.title")}</span>
         {hasRuns && (
           <span
             className="rounded-full px-1.5 py-px text-[10px] font-mono"
@@ -236,7 +239,7 @@ export function SubagentsPanel({ sessionPath, onSubagentStarted }: {
               border: "1px solid color-mix(in srgb, var(--md-sys-color-warning) 32%, transparent)",
             }}
           >
-            {runningCount} 运行中
+            {t("subagent.runningCount", { n: runningCount })}
           </span>
         )}
         <span className="v3-panel-spacer" />
@@ -246,8 +249,8 @@ export function SubagentsPanel({ sessionPath, onSubagentStarted }: {
           className="inline-flex shrink-0 cursor-pointer items-center gap-1 rounded-full px-1.5 py-px text-[10px] leading-none transition-colors"
           aria-pressed={autoOpen}
           title={autoOpen
-            ? "新子代理自动展开已开：派发新子代理时联动亮出分工面板（点击关闭）"
-            : "新子代理自动展开已关：新子代理只更新数据不联动（点击开启）"}
+            ? t("subagent.autoOpenOnTitle")
+            : t("subagent.autoOpenOffTitle")}
           onClick={toggleAutoOpen}
           style={autoOpen
             ? {
@@ -266,9 +269,9 @@ export function SubagentsPanel({ sessionPath, onSubagentStarted }: {
             style={{ background: autoOpen ? "var(--gaea-glow)" : "var(--md-sys-color-outline-variant)" }}
             aria-hidden
           />
-          自动展开 {autoOpen ? "开" : "关"}
+          {t("subagent.autoOpen", { state: autoOpen ? t("subagent.on") : t("subagent.off") })}
         </button>
-        <button type="button" className={iconBtn} onClick={() => void load()} title="刷新分工列表" aria-label="刷新分工列表">
+        <button type="button" className={iconBtn} onClick={() => void load()} title={t("subagent.refreshTitle")} aria-label={t("subagent.refreshTitle")}>
           <Loader2 size={12} className={loading ? "animate-spin" : ""} />
         </button>
       </div>
@@ -276,17 +279,17 @@ export function SubagentsPanel({ sessionPath, onSubagentStarted }: {
       {loading && !hasContent ? (
         <div className="flex items-center justify-center flex-1 gap-2 text-[11px]">
           <Loader2 size={14} className="animate-spin" />
-          读取子代理分工…
+          {t("subagent.loading")}
         </div>
       ) : !hasContent ? (
         <div className="flex flex-col items-center justify-center flex-1 gap-2 px-6 text-center">
           <Bot size={24} aria-hidden className="opacity-40" />
           <span className="text-[11px] leading-relaxed">
             {runsView?.available === false || !sessionPath
-              ? "本会话尚未派发子代理"
-              : "暂无子代理分工记录"}
+              ? t("subagent.emptyNone")
+              : t("subagent.emptyNoRecord")}
             <br />
-            Agent 用 task 工具派发子任务后会出现在这里
+            {t("subagent.emptyHint")}
           </span>
         </div>
       ) : (

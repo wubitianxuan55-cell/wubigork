@@ -123,7 +123,7 @@ function SessionRow({ index, style, ariaAttributes, rows, ui }: RowComponentProp
             {row.g.name}
           </span>
           {row.g.current && (
-            <span className="shrink-0 text-accent text-[10px] font-medium">当前</span>
+            <span className="shrink-0 text-accent text-[10px] font-medium">{t("sidebar.currentBadge")}</span>
           )}
           <span className="shrink-0 text-fg-faint/55 font-mono text-[10px]">{row.g.sessions.length}</span>
         </button>
@@ -135,7 +135,7 @@ function SessionRow({ index, style, ariaAttributes, rows, ui }: RowComponentProp
     return (
       <div style={style} {...ariaAttributes}>
         <div className="py-2 px-2 text-fg-faint text-[11px] leading-snug">
-          {row.g.archived.length === 0 ? (row.g.current ? "还没有会话，点击上方「新建会话」开始" : "该项目暂无会话") : "没有活动会话"}
+          {row.g.archived.length === 0 ? (row.g.current ? t("sidebar.emptyCurrent") : t("sidebar.emptyProject")) : t("sidebar.noActive")}
         </div>
       </div>
     );
@@ -149,7 +149,7 @@ function SessionRow({ index, style, ariaAttributes, rows, ui }: RowComponentProp
           onClick={() => ui.setRevealed((prev) => ({ ...prev, [row.g.path]: true }))}
           type="button"
         >
-          显示更多（{row.hidden}）
+          {t("sidebar.showMore", { n: row.hidden })}
         </button>
       </div>
     );
@@ -161,7 +161,7 @@ function SessionRow({ index, style, ariaAttributes, rows, ui }: RowComponentProp
         <button
           className="flex items-center gap-1.5 w-full h-7 pl-1 pr-1 rounded-md bg-transparent border-0 cursor-pointer text-fg-faint transition-colors duration-[var(--dur-fast)] hover:bg-sidebar-hover hover:text-fg no-drag"
           onClick={() => ui.setArchivedOpen((prev) => ({ ...prev, [row.g.path]: !prev[row.g.path] }))}
-          title="已归档会话（可恢复）"
+          title={t("sidebar.archivedTitle")}
         >
           <span
             className="shrink-0 text-fg-faint/60 transition-transform duration-[var(--dur-fast)]"
@@ -170,7 +170,7 @@ function SessionRow({ index, style, ariaAttributes, rows, ui }: RowComponentProp
             <ChevronDown size={11} />
           </span>
           <Inbox size={12} className="shrink-0" />
-          <span className="text-[11.5px]">已归档</span>
+          <span className="text-[11.5px]">{t("sidebar.archived")}</span>
           <span className="ml-auto font-mono text-[10px] text-fg-faint/55">{row.g.archived.length}</span>
         </button>
       </div>
@@ -224,20 +224,20 @@ function SessionRow({ index, style, ariaAttributes, rows, ui }: RowComponentProp
                         ui.setRenameTarget(s.path);
                         ui.setRenameDraft(sessionTitle(s, ""));
                       }}
-                      title="双击重命名"
+                      title={t("sidebar.renameHint")}
                     >
                       {sessionTitle(s, t("history.emptySession"))}
                     </span>
                     {isInterruptedSession(s) && (
                       <span
                         className="shrink-0 self-center rounded-full bg-warning/15 px-1.5 py-px text-[10px] leading-[1.5] font-medium text-warning"
-                        title="上次运行中断，恢复后会自动带上进度摘要"
+                        title={t("sidebar.interruptedTitle")}
                       >
-                        未完成
+                        {t("sidebar.interrupted")}
                       </span>
                     )}
                     {s.pinned && (
-                      <Pin size={10} className="shrink-0 text-accent/80" aria-label="已置顶" />
+                      <Pin size={10} className="shrink-0 text-accent/80" aria-label={t("sidebar.pinnedAria")} />
                     )}
                     <span className="shrink-0 ml-auto text-fg-faint/70 font-mono text-[10px] tabular-nums">
                       {s.current ? t("history.current") : relativeTime(s.modTime)}
@@ -256,31 +256,31 @@ function SessionRow({ index, style, ariaAttributes, rows, ui }: RowComponentProp
             ui.deleteConfirm === s.path ? (
               <span className="flex items-center gap-1 shrink-0 mt-1">
                 <button className="bg-transparent border-0 text-[10px] text-err cursor-pointer px-1 py-0.5 rounded hover:bg-err/10" onClick={e => { e.stopPropagation(); void ui.onDeleteSession(s.path); ui.setDeleteConfirm(null); }}>
-                  确认
+                  {t("common.confirm")}
                 </button>
                 <button className="bg-transparent border-0 text-[10px] text-fg-faint cursor-pointer px-1 py-0.5 rounded hover:bg-bg-soft" onClick={e => { e.stopPropagation(); ui.setDeleteConfirm(null); }}>
-                  取消
+                  {t("common.cancel")}
                 </button>
               </span>
             ) : (
               <span className="hidden group-hover:flex items-center gap-0.5 shrink-0 mt-0.5">
                 <button
                   className="flex items-center justify-center w-5 h-5 rounded-md bg-transparent border-0 text-fg-faint cursor-pointer hover:text-accent hover:bg-bg-soft transition-colors"
-                  title={s.pinned ? "取消置顶" : "置顶"}
+                  title={s.pinned ? t("sidebar.unpin") : t("sidebar.pin")}
                   onClick={e => { e.stopPropagation(); ui.onPinSession(s.path, !s.pinned); }}
                 >
                   <Pin size={12} className={s.pinned ? "text-accent" : ""} />
                 </button>
                 <button
                   className="flex items-center justify-center w-5 h-5 rounded-md bg-transparent border-0 text-fg-faint cursor-pointer hover:text-fg hover:bg-bg-soft transition-colors"
-                  title="归档（可恢复）"
+                  title={t("sidebar.archiveTitle")}
                   onClick={e => { e.stopPropagation(); ui.onArchiveSession(s.path); }}
                 >
                   <Inbox size={12} />
                 </button>
                 <button
                   className="flex items-center justify-center w-5 h-5 rounded-md bg-transparent border-0 text-fg-faint text-[13px] cursor-pointer hover:text-err hover:bg-bg-soft transition-colors"
-                  title="删除"
+                  title={t("common.delete")}
                   onClick={e => { e.stopPropagation(); ui.setDeleteConfirm(s.path); }}
                 >
                   <X size={12} />
@@ -303,16 +303,16 @@ function SessionRow({ index, style, ariaAttributes, rows, ui }: RowComponentProp
         <button
           className="flex items-center gap-2 flex-1 min-w-0 bg-transparent border-0 text-left cursor-pointer"
           onClick={() => ui.onRestoreSession(s.path, row.g.path)}
-          title="恢复并继续该会话"
+          title={t("sidebar.restoreRunTitle")}
         >
           <MessageSquare size={12} className="shrink-0 text-fg-faint/50" />
           <span className="flex-1 min-w-0 truncate text-[12px] text-fg-faint">{sessionTitle(s, t("history.emptySession"))}</span>
           {isInterruptedSession(s) && (
             <span
               className="shrink-0 rounded-full bg-warning/15 px-1.5 py-px text-[10px] leading-[1.5] font-medium text-warning"
-              title="上次运行中断，恢复后会自动带上进度摘要"
+              title={t("sidebar.interruptedTitle")}
             >
-              未完成
+              {t("sidebar.interrupted")}
             </span>
           )}
           <span className="shrink-0 text-fg-faint/50 font-mono text-[10px]">{relativeTime(s.modTime)}</span>
@@ -323,27 +323,27 @@ function SessionRow({ index, style, ariaAttributes, rows, ui }: RowComponentProp
               className="bg-transparent border-0 text-[10px] text-err cursor-pointer px-1 py-0.5 rounded hover:bg-err/10"
               onClick={e => { e.stopPropagation(); void ui.onDeleteSession(s.path); ui.setDeleteConfirm(null); }}
             >
-              确认
+              {t("common.confirm")}
             </button>
             <button
               className="bg-transparent border-0 text-[10px] text-fg-faint cursor-pointer px-1 py-0.5 rounded hover:bg-bg-soft"
               onClick={e => { e.stopPropagation(); ui.setDeleteConfirm(null); }}
             >
-              取消
+              {t("common.cancel")}
             </button>
           </span>
         ) : (
           <span className="hidden group-hover:flex items-center gap-0.5 shrink-0">
             <button
               className="flex items-center justify-center w-5 h-5 rounded-md bg-transparent border-0 text-fg-faint cursor-pointer hover:text-accent hover:bg-bg-soft transition-colors"
-              title="恢复"
+              title={t("sidebar.restoreTitle")}
               onClick={() => ui.onRestoreSession(s.path, row.g.path)}
             >
               <Rollback size={12} />
             </button>
             <button
               className="flex items-center justify-center w-5 h-5 rounded-md bg-transparent border-0 text-fg-faint text-[13px] cursor-pointer hover:text-err hover:bg-bg-soft transition-colors"
-              title="永久删除"
+              title={t("sidebar.deleteForever")}
               onClick={e => { e.stopPropagation(); ui.setDeleteConfirm(s.path); }}
             >
               <X size={12} />
@@ -623,7 +623,7 @@ export function Sidebar({
             {/* 项目头（KUN 风小节标签） */}
             <div className="flex items-center gap-2 px-1.5 pb-1.5">
               <span className="flex-1 min-w-0 text-fg-faint text-[11px] font-medium tracking-[0.02em]">
-                项目
+                {t("sidebar.projects")}
               </span>
               <button
                 className="shrink-0 border-0 rounded-md bg-transparent text-fg-faint/70 text-[11px] px-1.5 py-0.5 cursor-pointer transition-colors duration-[var(--dur-fast)] hover:text-fg hover:bg-sidebar-hover disabled:opacity-50 disabled:cursor-default"
@@ -639,11 +639,11 @@ export function Sidebar({
             <div className="min-h-0 flex-1 flex flex-col overflow-hidden" ref={sessionListRef}>
               {projectGroups.length === 0 ? (
                 <div className="py-3 px-2.5 text-fg-faint text-xs">
-                  还没有最近会话
-                  <div className="mt-1 text-[11px] leading-snug opacity-80">打开一个项目开始办公，会话会按项目自动归类</div>
+                  {t("sidebar.noRecentLong")}
+                  <div className="mt-1 text-[11px] leading-snug opacity-80">{t("sidebar.noRecentHint")}</div>
                 </div>
               ) : filteredGroups.length === 0 ? (
-                <div className="py-3 px-2.5 text-fg-faint text-xs">无匹配</div>
+                <div className="py-3 px-2.5 text-fg-faint text-xs">{t("sidebar.noMatch")}</div>
               ) : (
                 <List
                   className="sidebar-session-scroll"
@@ -700,10 +700,10 @@ export function Sidebar({
             <button
               className="flex items-center gap-2 w-full h-8 px-2 rounded-lg bg-transparent border-0 cursor-pointer transition-colors duration-[var(--dur-fast)] hover:bg-sidebar-hover no-drag"
               onClick={toggleFactOpen}
-              title={factOpen ? "收起事实底座" : "展开事实底座"}
+              title={factOpen ? t("sidebar.factCollapse") : t("sidebar.factExpand")}
             >
               <FileText size={13} className={`shrink-0 ${factBase.count > 0 ? "text-accent" : "text-fg-faint"}`} />
-              <span className="text-[12px] font-medium text-fg-dim">事实底座</span>
+              <span className="text-[12px] font-medium text-fg-dim">{t("sidebar.factBase")}</span>
               {factBase.count > 0 && (
                 <span className="text-fg-faint/60 font-mono text-[10px]">{factBase.count}</span>
               )}
@@ -716,7 +716,7 @@ export function Sidebar({
               <div className="pt-0.5">
                 {factBase.count === 0 ? (
                   <div className="px-2.5 pb-1 text-fg-faint text-[11px] leading-snug">
-                    交付类任务会自动沉淀事实，docx/pptx/xlsx 基于同一底座生成
+                    {t("sidebar.factEmpty")}
                   </div>
                 ) : (
                   <>
@@ -730,7 +730,7 @@ export function Sidebar({
                           <span className="block truncate text-fg-dim text-[12px] leading-snug">{f.key}</span>
                           <span className="block truncate text-fg-faint text-[11px] leading-snug">{f.value}</span>
                           {f.source ? (
-                            <span className="block truncate text-fg-faint/60 text-[10px] font-mono">来源：{f.source}</span>
+                            <span className="block truncate text-fg-faint/60 text-[10px] font-mono">{t("sidebar.factSource", { source: f.source })}</span>
                           ) : null}
                         </div>
                       ))}
@@ -741,16 +741,17 @@ export function Sidebar({
                           className="h-6 rounded-md text-[11px] text-fg-dim bg-bg-soft/60 border border-border-soft outline-none cursor-pointer"
                           value={exportTemplate}
                           onChange={(e) => setExportTemplate(e.target.value as "通用" | "公文" | "报告" | "合同")}
-                          title="选择交付模板（公文/报告/合同/通用）"
+                          title={t("sidebar.templateTitle")}
                         >
-                          <option value="报告">报告</option>
-                          <option value="公文">公文</option>
-                          <option value="合同">合同</option>
-                          <option value="通用">通用</option>
+                          {/* option value 为后端模板契约值（保持中文枚举），仅展示文案走字典 */}
+                          <option value="报告">{t("sidebar.tplReport")}</option>
+                          <option value="公文">{t("sidebar.tplOfficial")}</option>
+                          <option value="合同">{t("sidebar.tplContract")}</option>
+                          <option value="通用">{t("sidebar.tplGeneric")}</option>
                         </select>
                         <button
                           className="flex-1 h-6 rounded-md text-[11px] text-accent bg-accent/10 border border-accent/25 cursor-pointer transition-[background,color] hover:bg-accent/20"
-                          title="把当前事实底座一键导出为所选模板的 Word 报告（docx/pptx/xlsx 同管线，一稿多用）"
+                          title={t("sidebar.exportReportTitle")}
                           onClick={() => {
                             void app.ExportDeliverable({
                               markdown: factBase.markdown,
@@ -761,52 +762,52 @@ export function Sidebar({
                               toc: exportTemplate === "报告",
                             })
                               .then((r) => {
-                                toast.show(`已导出 ${r.name}`, "info");
+                                toast.show(t("toast.exported", { name: r.name }), "info");
                                 void app.RevealWorkspacePath(r.path).catch(() => {});
                               })
-                              .catch((e) => toast.show(e?.message || "导出失败", "warn"));
+                              .catch((e) => toast.show(e?.message || t("sidebar.exportFail"), "warn"));
                           }}
                         >
-                          导出报告
+                          {t("sidebar.exportReport")}
                         </button>
                       </div>
                       <button
                         className="h-6 rounded-md text-[11px] text-accent bg-accent/10 border border-accent/25 cursor-pointer transition-[background,color] hover:bg-accent/20"
-                        title="把当前会话事实写入长期记忆，后续对话自动加载"
+                        title={t("sidebar.promoteTitle")}
                         onClick={() => {
                           void onPromoteFactBase().then((n) => {
-                            toast.show(n > 0 ? `已沉淀 ${n} 条事实到长期记忆` : "暂无事实可沉淀", "info");
+                            toast.show(n > 0 ? t("sidebar.promoteDone", { n }) : t("sidebar.promoteNone"), "info");
                           });
                         }}
                       >
-                        沉淀为长期记忆
+                        {t("sidebar.promote")}
                       </button>
                       <div className="flex items-center gap-2">
                         <button
                           className="flex-1 h-6 rounded-md text-[11px] text-fg-dim bg-bg-soft/60 border border-border-soft cursor-pointer transition-[background,color] hover:text-fg hover:bg-sidebar-hover"
                           onClick={() => {
                             void navigator.clipboard?.writeText(factBase.markdown).then(
-                              () => toast.show("事实底座 Markdown 已复制", "info"),
+                              () => toast.show(t("sidebar.copyMdDone"), "info"),
                               () => {},
                             );
                           }}
                         >
-                          复制 Markdown
+                          {t("sidebar.copyMd")}
                         </button>
                         <button
                           className="flex-1 h-6 rounded-md text-[11px] text-fg-faint bg-transparent border border-border-soft cursor-pointer transition-[background,color] hover:text-warning hover:border-warning/50"
                           onClick={() => {
                             Modal.confirm({
-                              title: "清空事实底座",
-                              content: "确定清空当前会话的事实底座？",
-                              okText: "清空",
+                              title: t("sidebar.clearTitle"),
+                              content: t("sidebar.clearAsk"),
+                              okText: t("sidebar.clearOk"),
                               okButtonProps: { danger: true },
-                              cancelText: "取消",
+                              cancelText: t("common.cancel"),
                               onOk: () => onClearFactBase(),
                             });
                           }}
                         >
-                          清空
+                          {t("sidebar.clear")}
                         </button>
                       </div>
                     </div>

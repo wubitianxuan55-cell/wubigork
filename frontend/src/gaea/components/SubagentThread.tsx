@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Brain, ChevronRight, Loader2, Rollback } from "../icons";
 import { app } from "../lib/bridge";
+import { useT, type Translator } from "../lib/i18n";
 import type { SubagentTranscriptMessage, SubagentTranscriptView } from "../lib/types";
 import { usePollingGate } from "../../hooks/usePollingGate";
 import { useLiveReload } from "../hooks/useLiveReload";
@@ -20,25 +21,25 @@ export type SubagentThreadStatus = "running" | "completed" | "failed";
 
 const THREAD_POLL_MS = 3000;
 
-function statusMeta(status: SubagentThreadStatus): { label: string; color: string; bg: string; border: string } {
+function statusMeta(status: SubagentThreadStatus, t: Translator): { label: string; color: string; bg: string; border: string } {
   switch (status) {
     case "running":
       return {
-        label: "进行中",
+        label: t("subagent.statusRunning"),
         color: "var(--gaea-glow)",
         bg: "color-mix(in srgb, var(--gaea-glow) 10%, transparent)",
         border: "1px solid color-mix(in srgb, var(--gaea-glow) 30%, transparent)",
       };
     case "failed":
       return {
-        label: "失败",
+        label: t("subagent.statusFailed"),
         color: "var(--md-sys-color-destructive)",
         bg: "color-mix(in srgb, var(--md-sys-color-destructive) 10%, transparent)",
         border: "1px solid color-mix(in srgb, var(--md-sys-color-destructive) 30%, transparent)",
       };
     default:
       return {
-        label: "已完成",
+        label: t("subagent.statusDone"),
         color: "var(--md-sys-color-success)",
         bg: "color-mix(in srgb, var(--md-sys-color-success) 10%, transparent)",
         border: "1px solid color-mix(in srgb, var(--md-sys-color-success) 30%, transparent)",
@@ -49,6 +50,7 @@ function statusMeta(status: SubagentThreadStatus): { label: string; color: strin
 // 思考块：默认折叠，运行中的最后一段思考带呼吸点（与主对话 AssistantMessage
 // 同一语言；内容太长时滚动）。
 function ReasoningBlock({ text, live }: { text: string; live: boolean }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   return (
     <div className="mb-1">
@@ -65,7 +67,7 @@ function ReasoningBlock({ text, live }: { text: string; live: boolean }) {
           aria-hidden
         />
         <Brain size={11} className="shrink-0" aria-hidden />
-        <span className="font-medium">思考</span>
+        <span className="font-medium">{t("reasoning.label")}</span>
         <ChevronRight size={11} className={`shrink-0 transition-transform duration-200 ${open ? "rotate-90" : ""}`} aria-hidden />
       </button>
       {open && (
@@ -163,6 +165,7 @@ export function SubagentThread({
   model?: string;
   onBack: () => void;
 }) {
+  const t = useT();
   const [transcript, setTranscript] = useState<SubagentTranscriptView | null>(null);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
@@ -211,7 +214,7 @@ export function SubagentThread({
     if (running || nearBottomRef.current) el.scrollTop = el.scrollHeight;
   }, [transcript?.messages.length, running, transcript]);
 
-  const meta = statusMeta(status);
+  const meta = statusMeta(status, t);
   const messages = transcript?.messages ?? [];
   const lastIdx = messages.length - 1;
 
@@ -224,10 +227,10 @@ export function SubagentThread({
           className="flex shrink-0 cursor-pointer items-center gap-1 rounded-md border-0 bg-transparent px-1.5 py-0.5 text-[11px] transition-colors hover:bg-(color:--md-sys-color-surface-container-high)"
           style={{ color: "var(--md-sys-color-text-secondary)" }}
           onClick={onBack}
-          title="返回分工列表"
+          title={t("subagent.backTitle")}
         >
           <Rollback size={12} aria-hidden />
-          分工
+          {t("subagent.title")}
         </button>
         <span className="v3-panel-title min-w-0 truncate" style={{ color: "var(--md-sys-color-text)" }}>{task || target}</span>
         <span
@@ -245,7 +248,7 @@ export function SubagentThread({
         <span className="v3-panel-spacer" />
         {!loading && transcript && (
           <span className="shrink-0 font-mono text-[9.5px] tabular-nums" style={{ color: "var(--md-sys-color-text-secondary)" }}>
-            {messages.length} 条
+            {t("subagent.msgCount", { n: messages.length })}
           </span>
         )}
         <button
@@ -253,8 +256,8 @@ export function SubagentThread({
           className="flex h-6 w-6 items-center justify-center rounded-md border-0 bg-transparent cursor-pointer transition-colors hover:bg-(color:--md-sys-color-surface-container-high)"
           style={{ color: "var(--md-sys-color-text-secondary)" }}
           onClick={() => void load()}
-          title="刷新对话"
-          aria-label="刷新对话"
+          title={t("subagent.refreshThread")}
+          aria-label={t("subagent.refreshThread")}
         >
           <Loader2 size={12} className={loading ? "animate-spin" : ""} />
         </button>
@@ -265,23 +268,23 @@ export function SubagentThread({
         {loading && messages.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center gap-2 text-[11px]" style={{ color: "var(--md-sys-color-text-secondary)" }}>
             <Loader2 size={14} className="animate-spin" />
-            读取子代理对话…
+            {t("subagent.loadingThread")}
           </div>
         ) : failed ? (
           <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center text-[11px]" style={{ color: "var(--md-sys-color-text-secondary)" }}>
-            <span>读取子代理对话失败</span>
+            <span>{t("subagent.loadFail")}</span>
             <button
               type="button"
               className="cursor-pointer rounded-md border-0 px-2 py-1 text-[11px]"
               style={{ background: "var(--md-sys-color-surface-container-high)", color: "var(--gaea-glow)" }}
               onClick={() => void load()}
             >
-              重试
+              {t("subagent.retry")}
             </button>
           </div>
         ) : messages.length === 0 ? (
           <div className="flex h-full items-center justify-center text-[11px]" style={{ color: "var(--md-sys-color-text-secondary)" }}>
-            暂无消息
+            {t("subagent.noMessages")}
           </div>
         ) : (
           <div className="flex flex-col gap-1.5">
@@ -299,7 +302,7 @@ export function SubagentThread({
           style={{ borderTop: "var(--v3-split)", color: "var(--md-sys-color-text-secondary)" }}
         >
           <Loader2 size={10} className="animate-spin" style={{ color: "var(--gaea-glow)" }} />
-          实时刷新中…
+          {t("subagent.liveRefreshing")}
         </div>
       )}
     </div>

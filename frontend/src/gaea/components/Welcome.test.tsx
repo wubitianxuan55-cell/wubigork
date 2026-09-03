@@ -5,6 +5,8 @@ import { LocaleProvider } from "../lib/i18n";
 import { Welcome, FALLBACK_TEMPLATES, resolveTemplates, loadTemplates, resetTemplatesCacheForTest } from "./Welcome";
 
 function wrap(ui: ReactElement) {
+  // Welcome 走 useT：钉住 zh 让「核心能力」等中文断言继续成立
+  localStorage.setItem("gaea-lang", "zh");
   return <LocaleProvider>{ui}</LocaleProvider>;
 }
 

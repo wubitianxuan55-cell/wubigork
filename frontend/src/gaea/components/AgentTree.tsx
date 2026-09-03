@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { ChevronDown, ChevronRight } from "../icons";
+import { useT, type Translator } from "../lib/i18n";
 import type { AgentNetwork, AgentNode, SubagentRunView } from "../lib/types";
 import { fmtTokens } from "../lib/stats";
 
@@ -57,43 +58,43 @@ function statusColor(status: AgentNode["status"]): string {
   }
 }
 
-function statusText(status: AgentNode["status"]): string {
+function statusText(status: AgentNode["status"], t: Translator): string {
   switch (status) {
     case "running":
-      return "进行中";
+      return t("subagent.statusRunning");
     case "error":
-      return "出错";
+      return t("subagent.statusError");
     default:
-      return "已完成";
+      return t("subagent.statusDone");
   }
 }
 
 // 耗时格式化（与 SubagentsPanel.fmtDuration 同语义：秒/分/小时三档）。
-function fmtDur(ms: number): string {
+function fmtDur(ms: number, t: Translator): string {
   if (!Number.isFinite(ms) || ms <= 0) return "";
   const s = Math.max(1, Math.round(ms / 1000));
-  if (s < 60) return `${s} 秒`;
+  if (s < 60) return t("subagent.durSec", { n: s });
   const m = Math.floor(s / 60);
-  if (m < 60) return `${m} 分`;
-  return `${Math.floor(m / 60)} 小时`;
+  if (m < 60) return t("subagent.durMin", { n: m });
+  return t("subagent.durHour", { n: Math.floor(m / 60) });
 }
 
 // 节点耗时：优先节点 firstTs/lastTs（后端权威），缺省回落匹配 run 的
 // createdAt/updatedAt（ISO 串前端可算）。running 显示实时已用时（live=true
 // 走 1s tick），已完成/出错显示总耗时。
-function nodeDuration(node: AgentNode, run: SubagentRunView | null, nowMs: number): { label: string; live: boolean } {
+function nodeDuration(node: AgentNode, run: SubagentRunView | null, nowMs: number, t: Translator): { label: string; live: boolean } {
   const nodeStart = node.firstTs !== undefined ? node.firstTs * 1000 : NaN;
   const runStart = run ? Date.parse(run.createdAt) : NaN;
   const start = Number.isFinite(nodeStart) ? nodeStart : runStart;
   if (node.status === "running") {
     if (!Number.isFinite(start)) return { label: "", live: false };
-    return { label: `已用 ${fmtDur(nowMs - start)}`, live: true };
+    return { label: t("subagent.elapsed", { dur: fmtDur(nowMs - start, t) }), live: true };
   }
   const nodeEnd = node.lastTs !== undefined ? node.lastTs * 1000 : NaN;
   const runEnd = run ? Date.parse(run.updatedAt) : NaN;
   const end = Number.isFinite(nodeEnd) ? nodeEnd : runEnd;
   if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) return { label: "", live: false };
-  return { label: fmtDur(end - start), live: false };
+  return { label: fmtDur(end - start, t), live: false };
 }
 
 const iconBtn =
@@ -106,6 +107,7 @@ export function AgentTree({ network, runs, onOpenThread }: {
   /** 子代理节点点击 → 面板层切换「子代理对话」全面板视图（v4.27 Codex 式）。 */
   onOpenThread: (node: AgentNode, run: SubagentRunView | null) => void;
 }) {
+  const t = useT();
   const root = network.root;
 
   // 展平一次供逻辑用（匹配表/新节点检测/hasRunning），渲染走递归保结构。
@@ -164,8 +166,8 @@ export function AgentTree({ network, runs, onOpenThread }: {
   const renderNode = (f: FlatNode): ReactNode => {
     const node = f.node;
     const run = runByNodeId.get(node.id) ?? null;
-    const dur = nodeDuration(node, run, now);
-    const title = node.kind === "root" ? "主 agent" : node.task || node.name;
+    const dur = nodeDuration(node, run, now, t);
+    const title = node.kind === "root" ? t("subagent.rootTitle") : node.task || node.name;
     const childEntries = node.children ?? [];
     const hasChildren = childEntries.length > 0;
     const isExpanded = expanded.has(node.id);
@@ -192,7 +194,7 @@ export function AgentTree({ network, runs, onOpenThread }: {
               type="button"
               className={iconBtn}
               data-testid="agent-node-toggle"
-              aria-label={`${isExpanded ? "收起" : "展开"} ${title}`}
+              aria-label={`${isExpanded ? t("common.collapse") : t("common.expand")} ${title}`}
               aria-expanded={isExpanded}
               onClick={() => toggleNode(node.id)}
             >
@@ -206,14 +208,14 @@ export function AgentTree({ network, runs, onOpenThread }: {
             data-testid="agent-node-row"
             onClick={() => canOpenThread && onOpenThread(node, run)}
             className={`flex min-w-0 flex-1 items-center gap-1.5 border-0 bg-transparent p-0 text-left ${canOpenThread ? "cursor-pointer" : "cursor-default"}`}
-            title={canOpenThread ? `${statusText(node.status)} · ${title}（点击打开子代理对话）` : `${statusText(node.status)} · ${title}`}
+            title={canOpenThread ? `${statusText(node.status, t)} · ${title}${t("subagent.threadHint")}` : `${statusText(node.status, t)} · ${title}`}
           >
             <span className={dotCls} aria-hidden style={{ background: statusColor(node.status) }} />
             <span className="min-w-0 flex-1 truncate text-[11.5px] font-medium" style={{ color: "var(--md-sys-color-text)" }}>
               {title}
             </span>
             {node.errors > 0 && (
-              <span className="shrink-0 text-[9.5px]" style={{ color: "var(--md-sys-color-destructive)" }}>错 {node.errors}</span>
+              <span className="shrink-0 text-[9.5px]" style={{ color: "var(--md-sys-color-destructive)" }}>{t("subagent.errCount", { n: node.errors })}</span>
             )}
             <span className="shrink-0 font-mono text-[9.5px]" style={{ color: "var(--md-sys-color-text-secondary)" }}>
               ⚙{node.toolCalls}
@@ -251,7 +253,7 @@ export function AgentTree({ network, runs, onOpenThread }: {
             {run.lastText && (
               <span className="truncate" title={run.lastText} style={{ color: "var(--md-sys-color-text)" }}>
                 <span className="mr-1 inline-block h-1 w-1 rounded-full align-middle animate-pulse" style={{ background: "var(--gaea-glow)" }} aria-hidden />
-                正在：{run.lastText}
+                {t("subagent.doing", { text: run.lastText })}
               </span>
             )}
             {run.lastTool && (

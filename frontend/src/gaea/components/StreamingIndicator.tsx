@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from "react";
+import { t } from "../lib/i18n";
+import type { DictKey } from "../locales/en";
 
 // StreamingIndicator — 对话窗最底兜底的连接状态条（v4.26 重定）。
 //
@@ -15,10 +17,10 @@ type Stage = "idle" | "connecting" | "waiting";
 
 const WAIT_THRESHOLD_MS = 5_000;
 
-const stageConfig: Record<Stage, { label: string; dotClass: string; glowClass: string; textClass: string; barClass: string }> = {
-  idle:       { label: "",              dotClass: "",                        glowClass: "",                       textClass: "",        barClass: "" },
-  connecting: { label: "连接中…",       dotClass: "bg-info",                 glowClass: "shadow-[0_0_6px_color-mix(in_srgb,var(--info)_60%,transparent)]", textClass: "text-info", barClass: "bg-info w-[45%]" },
-  waiting:    { label: "仍在等待事件…", dotClass: "bg-warning animate-pulse", glowClass: "shadow-[0_0_6px_color-mix(in_srgb,var(--warn)_60%,transparent)]", textClass: "text-warning", barClass: "bg-warning/70 w-[30%]" },
+const stageConfig: Record<Stage, { labelKey?: DictKey; dotClass: string; glowClass: string; textClass: string; barClass: string }> = {
+  idle:       { labelKey: undefined,           dotClass: "",                        glowClass: "",                       textClass: "",        barClass: "" },
+  connecting: { labelKey: "stream.connecting", dotClass: "bg-info",                 glowClass: "shadow-[0_0_6px_color-mix(in_srgb,var(--info)_60%,transparent)]", textClass: "text-info", barClass: "bg-info w-[45%]" },
+  waiting:    { labelKey: "stream.waiting",    dotClass: "bg-warning animate-pulse", glowClass: "shadow-[0_0_6px_color-mix(in_srgb,var(--warn)_60%,transparent)]", textClass: "text-warning", barClass: "bg-warning/70 w-[30%]" },
 };
 
 export function StreamingIndicator({
@@ -56,10 +58,10 @@ export function StreamingIndicator({
       </div>
 
       <span className={`w-2 h-2 rounded-full shrink-0 ${cfg.dotClass} ${cfg.glowClass}`} />
-      <span className={`text-[12px] font-medium ${cfg.textClass}`}>{cfg.label}</span>
+      <span className={`text-[12px] font-medium ${cfg.textClass}`}>{cfg.labelKey ? t(cfg.labelKey) : ""}</span>
 
       {stage === "waiting" && (
-        <span className="text-fg-faint text-[11px] ml-auto truncate">可切轨迹面板查看</span>
+        <span className="text-fg-faint text-[11px] ml-auto truncate">{t("stream.trajectoryHint")}</span>
       )}
     </div>
   );

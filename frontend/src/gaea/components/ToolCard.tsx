@@ -46,6 +46,7 @@ function StatusGlyph({ status, recoverable }: { status: ToolItem["status"]; reco
 // getTaskCardActivity 取动态；未注入 provider（null=按现状渲染契约）→ 整行
 // 不渲染；查不到动态 → 只显示已用时与提示，绝不报错。1s tick（useNow）内刷新。
 function TaskLiveRow({ item }: { item: ToolItem }) {
+  const t = useT();
   const now = useNow();
   // 起跑时刻：Item 契约无时间戳，以挂载时刻近似计时（运行中卡片常驻挂载；
   // 恢复历史会话时 running 一律还原为 stopped，不会进入本行）。
@@ -77,7 +78,7 @@ function TaskLiveRow({ item }: { item: ToolItem }) {
       <span className="ml-auto shrink-0 tabular-nums">{elapsed}</span>
       <span className="inline-flex shrink-0 items-center gap-1">
         <Users size={11} className="shrink-0" />
-        查看分工
+        {t("tool.viewAssignments")}
       </span>
     </div>
   );
@@ -165,7 +166,7 @@ export const ToolCard = memo(function ToolCard({ item, subcalls }: { item: ToolI
         {stat && (stat.add > 0 || stat.del > 0) ? (
           <span
             className="shrink-0 ml-1 inline-flex items-center gap-1 rounded px-1 py-px font-mono text-[10.5px] leading-none bg-bg-soft border border-border-soft text-fg-dim tabular-nums"
-            title="行级增减"
+            title={t("tool.diffStatTitle")}
           >
             <span className="text-ok">+{stat.add}</span>
             <span className="text-err">−{stat.del}</span>
@@ -208,7 +209,7 @@ export const ToolCard = memo(function ToolCard({ item, subcalls }: { item: ToolI
           )}
           {hasOutput && (
             <div className={`${innerPx} ${innerPb}`}>
-              <div className="text-[9px] text-fg-faint/60 uppercase tracking-wider mb-0.5 select-none">输出 · {outputLines}L</div>
+              <div className="text-[9px] text-fg-faint/60 uppercase tracking-wider mb-0.5 select-none">{t("tool.outputHeader", { n: outputLines })}</div>
               <pre className="px-3 py-2 font-mono text-[12px] leading-[1.5] overflow-auto whitespace-pre bg-bg-soft border border-border-soft rounded text-fg-dim"><code><FileLinkText text={showFullOutput ? bounded.full : bounded.preview} compact /></code></pre>
               {bounded.collapsed && (
                 <button
@@ -216,7 +217,7 @@ export const ToolCard = memo(function ToolCard({ item, subcalls }: { item: ToolI
                   className="mt-1 px-2 py-0.5 border border-border-soft rounded bg-bg-soft text-fg-dim text-[11px] cursor-pointer hover:bg-bg-soft hover:text-fg transition-colors"
                   onClick={() => setShowFullOutput((v) => !v)}
                 >
-                  {showFullOutput ? "收起输出" : `展开全部 ${bounded.hiddenLines} 行`}
+                  {showFullOutput ? t("tool.collapseOutput") : t("tool.expandAllLines", { n: bounded.hiddenLines })}
                 </button>
               )}
               {item.truncated && (

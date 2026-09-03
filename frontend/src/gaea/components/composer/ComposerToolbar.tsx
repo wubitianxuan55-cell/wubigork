@@ -1,6 +1,7 @@
 // Composer 拆分产物：底部工具栏（工作区/导入/截图/权限级别/思考深度/快捷键提示，行为零变化，T6-10.1）
 import { Camera, ChevronDown, FolderGit2, Gauge, Loader, Paperclip, Zap } from "../../icons";
 import { useT } from "../../lib/i18n";
+import type { DictKey } from "../../locales/en";
 
 export interface ComposerToolbarProps {
   cwd?: string
@@ -19,13 +20,15 @@ export interface ComposerToolbarProps {
   onSetThinkLevel?: (level: "fast" | "normal" | "deep") => void
 }
 
-const PERM_LABELS: Record<string, string> = { ask: "询问", auto: "自动", yolo: "YOLO" }
-const PERM_DESCS: Record<string, string> = { ask: "写入前需确认（默认）", auto: "写入无需确认，deny 规则仍生效", yolo: "跳过所有确认提示" }
-const THINK_LABELS: Record<string, string> = { fast: "快速", normal: "标准", deep: "深度" }
-const THINK_DESCS: Record<string, string> = {
-  fast: "思考温度 0.1 — 快而直接，适合简单任务",
-  normal: "思考温度 0.3 — 平衡质量与速度（默认）",
-  deep: "思考温度 0.7 — 更发散，适合复杂方案",
+// 徽标/悬浮文案走三语字典（zh 原硬编码文案逐字收编）：键映射在模块层，
+// 取值在渲染层（useT 后查表），语言切换即时生效。yolo 徽标为字面 YOLO 不需要键。
+const PERM_LABELS: Record<string, DictKey> = { ask: "composer.permAsk", auto: "composer.permAuto" }
+const PERM_DESCS: Record<string, DictKey> = { ask: "composer.permAskDesc", auto: "composer.permAutoDesc", yolo: "composer.permYoloDesc" }
+const THINK_LABELS: Record<string, DictKey> = { fast: "composer.thinkFast", normal: "composer.thinkNormal", deep: "composer.thinkDeep" }
+const THINK_DESCS: Record<string, DictKey> = {
+  fast: "composer.thinkFastDesc",
+  normal: "composer.thinkNormalDesc",
+  deep: "composer.thinkDeepDesc",
 }
 
 export function ComposerToolbar({
@@ -66,7 +69,7 @@ export function ComposerToolbar({
         className={`inline-flex items-center justify-center w-[28px] h-[28px] border-0 rounded-md bg-transparent text-fg-dim cursor-pointer transition-[color,background] duration-[var(--dur-fast)] hover:text-fg hover:bg-bg-soft disabled:cursor-default disabled:opacity-40 shrink-0 ${captureBusy ? "pointer-events-none opacity-40" : ""}`}
         onClick={onScreenshot}
         disabled={running || captureBusy}
-        title={running ? t("common.busyHint") : "截图：捕获屏幕并裁剪附加"}
+        title={running ? t("common.busyHint") : t("composer.screenshot")}
       >
         {captureBusy ? <Loader size={14} className="animate-spin" /> : <Camera size={14} />}
       </button>
@@ -83,12 +86,12 @@ export function ComposerToolbar({
                   : "text-fg-dim border-border-soft hover:text-fg hover:bg-bg-soft hover:border-fg-faint"
               }`}
               onClick={() => { if (permLevel !== level && onSetPermLevel) onSetPermLevel(level) }}
-              title={PERM_DESCS[level]}
+              title={t(PERM_DESCS[level])}
             >
               {level === "yolo" ? (
                 <><Zap size={11} className="shrink-0" /><span>YOLO</span></>
               ) : (
-                PERM_LABELS[level]
+                t(PERM_LABELS[level])
               )}
             </button>
           )
@@ -96,7 +99,7 @@ export function ComposerToolbar({
       </div>
 
       {/* 思考深度选择器：快速 / 标准 / 深度（映射到 SetAgentParams 温度） */}
-      <div className="flex gap-[3px]" aria-label="思考深度">
+      <div className="flex gap-[3px]" aria-label={t("composer.thinkLabel")}>
         {(["fast", "normal", "deep"] as const).map((level) => (
           <button key={level} type="button"
             className={`flex items-center gap-1 px-2 py-1 border rounded-md bg-transparent text-xs cursor-pointer transition-[color,background,border,transform] duration-[var(--dur-fast)] active:scale-[0.97] ${
@@ -105,20 +108,20 @@ export function ComposerToolbar({
                 : "text-fg-faint border-transparent hover:text-fg hover:bg-bg-soft"
             }`}
             onClick={() => { if (thinkLevel !== level && onSetThinkLevel) void onSetThinkLevel(level) }}
-            title={THINK_DESCS[level]}
+            title={t(THINK_DESCS[level])}
             aria-pressed={thinkLevel === level}
           >
             <Gauge size={11} className="shrink-0" />
-            <span>{THINK_LABELS[level]}</span>
+            <span>{t(THINK_LABELS[level])}</span>
           </button>
         ))}
       </div>
 
       {/* 快捷提示 */}
       <span className="ml-auto text-fg-faint/40 text-[10px] select-none hidden sm:inline-flex items-center gap-1.5">
-        <span>/ 命令</span>
-        <span>@ 文件</span>
-        {running && <span className="text-warn/60">Shift+Enter 纠正</span>}
+        <span>{t("composer.hintSlash")}</span>
+        <span>{t("composer.hintAt")}</span>
+        {running && <span className="text-warn/60">{t("composer.hintCorrect")}</span>}
       </span>
     </div>
   )

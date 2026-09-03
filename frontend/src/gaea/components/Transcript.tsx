@@ -180,6 +180,8 @@ function renderOutsideItems(
   outsideItems: Item[],
   ctx: {
     turnNo?: number;
+    /** 轮尾段才合并登记-only 交付卡（同轮去重）。 */
+    turnTail?: boolean;
     openTurn: number | null;
     onToggleTurn: (tn: number) => void;
     onRewindTurn: (turn: number, scope: string) => void;
@@ -228,6 +230,8 @@ function renderOutsideItems(
           <div key={it.id} data-entrance={it.id}>
             <AssistantMessage
               item={it}
+              turnNo={ctx.turnNo}
+              deliverTail={ctx.turnTail}
               onCollapse={ctx.onCollapse}
               onCapture={ctx.captureForId(it.id)}
             />
@@ -273,13 +277,15 @@ function renderOutsideItems(
 // 重建消息树造成的滚动/渲染卡顿。onToggle/onCapture/onRewind 等回调全部
 // 由 Transcript 用 useCallback 稳定化后传入，memo 才能生效。
 export const TurnBlock = memo(function TurnBlock({
-  seg, running, isLast, turnNo, openTurn, onToggleTurn, onRewindTurn, onCollapse,
+  seg, running, isLast, turnNo, turnTail, openTurn, onToggleTurn, onRewindTurn, onCollapse,
   dismissedErrors, onDismissError, captureForId, turnElsRef, workHeader,
 }: {
   seg: Segment;
   running: boolean;
   isLast: boolean;
   turnNo?: number;
+  /** 本段是否为所属轮的最后一段（登记-only 交付卡只挂轮尾）。 */
+  turnTail?: boolean;
   openTurn: number | null;
   onToggleTurn: (tn: number) => void;
   onRewindTurn: (turn: number, scope: string) => void;
@@ -306,10 +312,10 @@ export const TurnBlock = memo(function TurnBlock({
   const outside = useMemo(
     () =>
       renderOutsideItems(seg.outsideItems, {
-        turnNo, openTurn, onToggleTurn, onRewindTurn, onCollapse,
+        turnNo, turnTail, openTurn, onToggleTurn, onRewindTurn, onCollapse,
         dismissedErrors, onDismissError, captureForId, subcalls, setTurnEl,
       }),
-    [seg.outsideItems, turnNo, openTurn, onToggleTurn, onRewindTurn, onCollapse, dismissedErrors, onDismissError, captureForId, subcalls, setTurnEl],
+    [seg.outsideItems, turnNo, turnTail, openTurn, onToggleTurn, onRewindTurn, onCollapse, dismissedErrors, onDismissError, captureForId, subcalls, setTurnEl],
   );
   return (
     <>
@@ -336,6 +342,7 @@ function InlineReasoning({ item }: { item: AssistantItem }) {
   // 思考卡默认折叠：只看到标题，点开才看推理内容。
   const [open, setOpen] = useState(false);
   const bodyRef = useRef<HTMLDivElement>(null);
+  const t = useT();
   useGSAPCollapse(bodyRef, open);
   const running = item.streaming && !item.text;
   const reasoning = displayReasoningText(item.reasoning ?? "", {
@@ -354,7 +361,7 @@ function InlineReasoning({ item }: { item: AssistantItem }) {
       >
         <Brain size={12} className="reasoning__icon" />
         {running && <span aria-hidden className="w-1 h-1 rounded-full bg-accent animate-pulse shadow-[0_0_6px_var(--accent)] shrink-0" />}
-        <span className="reasoning__label">思考</span>
+        <span className="reasoning__label">{t("reasoning.label")}</span>
         <ChevronRight size={12} className={`reasoning__chevron${open ? " reasoning__chevron--open" : ""}`} />
       </button>
       <div ref={bodyRef} style={{ overflow: "hidden" }}>
@@ -370,6 +377,7 @@ function InlineReasoning({ item }: { item: AssistantItem }) {
 // ── 过程卡状态四态（推导纯函数在 lib/processStatus.ts：
 //    状态不只靠颜色——色 + 图标 + 文字三重传达，12 主题下可区分）──
 import { deriveProcessStatus, PROCESS_STATUS_META } from "../lib/processStatus";
+import { turnTailSegs } from "../lib/deliverablesTurn";
 
 const STATUS_ICONS = { alert: AlertCircle, ban: Ban, check: CheckCircle } as const;
 
@@ -425,12 +433,12 @@ export const ProcessCard = memo(function ProcessCard({
     : "";
 
   const labelParts: string[] = [];
-  if (elapsedStr) labelParts.push(`已工作 ${elapsedStr}`);
-  if (toolCount > 0) labelParts.push(`${toolCount} 个工具`);
-  if (thoughtCount > 0) labelParts.push(`${thoughtCount} 段思考`);
+  if (elapsedStr) labelParts.push(t("process.worked", { t: elapsedStr }));
+  if (toolCount > 0) labelParts.push(t(toolCount === 1 ? "process.toolOne" : "process.toolOther", { n: toolCount }));
+  if (thoughtCount > 0) labelParts.push(t(thoughtCount === 1 ? "process.thoughtOne" : "process.thoughtOther", { n: thoughtCount }));
   const label = labelParts.length > 0
     ? labelParts.join(" · ")
-    : (running ? "处理中…" : "过程");
+    : (running ? t("process.working") : t("process.title"));
 
   // 状态四态：色 + 图标 + 文字（头部徽标传达）
   const status = deriveProcessStatus(items, running);
@@ -505,7 +513,7 @@ export const ProcessCard = memo(function ProcessCard({
         {statusMeta && (
           <span className={`inline-flex items-center gap-1 shrink-0 rounded-full border px-1.5 py-px text-[10px] font-medium ${statusMeta.cls}`}>
             {StatusIcon && <StatusIcon size={10} className="shrink-0" />}
-            <span>{statusMeta.label}</span>
+            <span>{t(statusMeta.labelKey)}</span>
           </span>
         )}
         <span className="ml-auto text-fg-faint/50 text-[10px] font-mono tabular-nums shrink-0">{elapsedStr}</span>
@@ -678,13 +686,19 @@ export function Transcript({
     return () => document.removeEventListener("mousedown", onDown);
   }, [openTurn]);
 
-  // 每段对应的用户轮次号（data-turn / 回退弹窗 open 判定用）
+  // 每段对应的用户轮次号（data-turn / 回退弹窗 open 判定 / 助手消息登记卡
+  // 的本轮匹配用）。用户消息段：turnNo = 已见用户数（本段用户即第 n 轮，
+  // 0-based）。无用户的后续段（同一轮的交替段，alternatingSegments 会把
+  // 工具/正文拆成多段）：继承本轮 turnNo（= 已见用户数 − 1），否则助手
+  // 卡片拿不到轮次。首条用户消息之前的段（n=0）保持 undefined（轮外，
+  // 对应后端 Turn=0 的「轮外」口径，不参与轮次匹配）。
   const turnNos = useMemo(() => {
     const map = new Map<number, number>();
     let n = 0;
     segments.forEach((seg, i) => {
       const users = seg.outsideItems.filter((it) => it.kind === "user");
       if (users.length > 0) map.set(i, n);
+      else if (n > 0) map.set(i, n - 1);
       n += users.length;
     });
     return map;
@@ -700,6 +714,10 @@ export function Transcript({
     });
     return last;
   }, [segments]);
+
+  // 每轮「最后一段」集合：登记-only 交付卡只挂轮尾段（同轮去重，见
+  // deliverablesTurn.turnTailSegs）。
+  const turnTails = useMemo(() => turnTailSegs(turnNos), [turnNos]);
 
   // T7-4：onToggle/onRewind/onDismiss 全部 useCallback 稳定化，UserMessage/
   // ErrorCard 的 memo 才不会被每次渲染的新函数击穿。
@@ -776,6 +794,7 @@ export function Transcript({
                 running={running}
                 isLast={isLast}
                 turnNo={turnNos.get(segIdx)}
+                turnTail={turnTails.has(segIdx)}
                 openTurn={openTurn}
                 onToggleTurn={toggleTurn}
                 onRewindTurn={handleRewindTurn}
@@ -796,7 +815,7 @@ export function Transcript({
           className="absolute left-1/2 bottom-8 z-20 flex items-center justify-center w-9 h-9 rounded-full border border-accent/25 bg-bg-elev/85 backdrop-blur-md text-fg-dim cursor-pointer hover:text-accent hover:border-accent/40 hover:bg-bg-elev-2 active:scale-95 transition-all shadow-[var(--v3-glow-faint)]"
           style={{ transform: "translateX(-50%)" }}
           onClick={scrollDown}
-          aria-label="回到底部"
+          aria-label={t("scroll.bottom")}
         >
           <ArrowDown size={15} />
         </button>

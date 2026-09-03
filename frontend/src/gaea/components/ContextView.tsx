@@ -2,11 +2,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Loader2 } from "../icons";
 import { app } from "../lib/bridge";
+import { useT } from "../lib/i18n";
 import { AgentNetworkCard } from "./AgentNetworkCard";
 import { usePreviewStore } from "../lib/store";
 import type {
   ContextCategory, ContextEvent, ContextRequestRecord, ContextStats, ContextSurfaceNode, ContextTimeline, FileActivity,
 } from "../lib/types";
+import type { DictKey } from "../locales/en";
 import { fmtTokens } from "../lib/stats";
 import { useLiveReload } from "../hooks/useLiveReload";
 
@@ -20,13 +22,13 @@ export const CAT_COLORS: Record<keyof ContextCategory, string> = {
   tool: "#06b6d4", // hex-exempt 上下文六分类语义色
 };
 
-const CATS: { key: keyof ContextCategory; label: string }[] = [
-  { key: "system", label: "系统提示词" },
-  { key: "tools", label: "工具定义" },
-  { key: "user", label: "用户消息" },
-  { key: "inject", label: "注入内容" },
-  { key: "assistant", label: "助手消息" },
-  { key: "tool", label: "工具结果" },
+const CATS: { key: keyof ContextCategory; labelKey: DictKey }[] = [
+  { key: "system", labelKey: "contextview.catSystem" },
+  { key: "tools", labelKey: "contextview.catTools" },
+  { key: "user", labelKey: "contextview.catUser" },
+  { key: "inject", labelKey: "contextview.catInject" },
+  { key: "assistant", labelKey: "contextview.catAssistant" },
+  { key: "tool", labelKey: "contextview.catTool" },
 ];
 
 function catTotal(c: ContextCategory): number {
@@ -42,16 +44,17 @@ const EMPTY: ContextTimeline = {
 
 // ─── 上下文统计卡 ───────────────────────────────────────────
 function StatsBoard({ stats }: { stats: ContextStats }) {
+  const t = useT();
   const items: [string, string][] = [
-    ["轮次", String(stats.turns)],
-    ["步数", String(stats.steps)],
-    ["注入", String(stats.injects)],
-    ["压缩", String(stats.compacts)],
-    ["剪枝", String(stats.prunes)],
-    ["工具调用", String(stats.toolCalls)],
-    ["图片", String(stats.images)],
-    ["缓存命中", stats.cacheHitPercent != null ? `${stats.cacheHitPercent.toFixed(2)}%` : "—"],
-    ["预估费用", stats.costEstimate != null ? `¥${stats.costEstimate.toFixed(2)}` : "—"],
+    [t("contextview.statTurns"), String(stats.turns)],
+    [t("contextview.statSteps"), String(stats.steps)],
+    [t("contextview.statInjects"), String(stats.injects)],
+    [t("contextview.statCompacts"), String(stats.compacts)],
+    [t("contextview.statPrunes"), String(stats.prunes)],
+    [t("contextview.statToolCalls"), String(stats.toolCalls)],
+    [t("contextview.statImages"), String(stats.images)],
+    [t("contextview.statCacheHit"), stats.cacheHitPercent != null ? `${stats.cacheHitPercent.toFixed(2)}%` : "—"],
+    [t("contextview.statCost"), stats.costEstimate != null ? `¥${stats.costEstimate.toFixed(2)}` : "—"],
   ];
   return (
     <div className="grid grid-cols-3 gap-px overflow-hidden rounded-lg border border-border-soft bg-border-soft/60">
@@ -81,30 +84,31 @@ function ContextOverviewHeader({
   loading: boolean;
   onRefresh: () => void;
 }) {
+  const t = useT();
   const pct = window > 0 ? Math.min(100, Math.round((used / window) * 100)) : 0;
   const levelCls = pct >= 90 ? "bg-err" : pct >= 70 ? "bg-warning" : "bg-accent";
   const levelText = pct >= 90 ? "text-err" : pct >= 70 ? "text-warning" : "text-fg-dim";
   return (
     <div className="rounded-lg border border-border-soft bg-bg p-3">
       <div className="flex items-center gap-2">
-        <span className="text-[11px] font-medium text-fg">上下文</span>
+        <span className="text-[11px] font-medium text-fg">{t("contextview.title")}</span>
         {running && (
-          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-accent animate-pulse" title="运行中实时刷新" aria-hidden />
+          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-accent animate-pulse" title={t("contextview.liveRefreshTitle")} aria-hidden />
         )}
         <span className="flex-1" />
         <span className="shrink-0 text-[10px] tabular-nums text-fg-faint">
-          缓存 {stats.cacheHitPercent != null ? `${stats.cacheHitPercent.toFixed(2)}%` : "—"}
+          {t("contextview.cache", { pct: stats.cacheHitPercent != null ? `${stats.cacheHitPercent.toFixed(2)}%` : "—" })}
         </span>
         <span className="shrink-0 text-[10px] tabular-nums text-fg-faint">
-          费用 {stats.costEstimate != null ? `¥${stats.costEstimate.toFixed(2)}` : "—"}
+          {t("contextview.cost", { cost: stats.costEstimate != null ? `¥${stats.costEstimate.toFixed(2)}` : "—" })}
         </span>
         <button
           type="button"
           className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent transition-colors hover:bg-(color:--md-sys-color-surface-container-high)"
           style={{ color: "var(--md-sys-color-text-secondary)" }}
           onClick={onRefresh}
-          title="刷新上下文"
-          aria-label="刷新上下文"
+          title={t("contextview.refreshTitle")}
+          aria-label={t("contextview.refreshTitle")}
         >
           <Loader2 size={12} className={loading ? "animate-spin" : ""} />
         </button>
@@ -119,7 +123,7 @@ function ContextOverviewHeader({
       </div>
       {pct >= 70 && (
         <div className={`mt-1 text-[9.5px] ${pct >= 90 ? "text-err" : "text-warning"}`}>
-          {pct >= 90 ? "上下文接近上限，建议压缩或新建会话" : "上下文占用较高，注意后续注入空间"}
+          {pct >= 90 ? t("contextview.almostFull") : t("contextview.highUsage")}
         </div>
       )}
     </div>
@@ -128,13 +132,14 @@ function ContextOverviewHeader({
 
 // ─── 当前上下文组成（六分类分段条 + 图例） ─────────────────────
 function CurrentComposition({ current, window }: { current: ContextCategory; window: number }) {
+  const t = useT();
   const total = catTotal(current);
   const pct = window > 0 ? Math.round((total / window) * 100) : 0;
   const warnCls = pct >= 90 ? "text-err" : pct >= 70 ? "text-warning" : "";
   return (
     <div className="rounded-lg border border-border-soft bg-bg p-3">
       <div className="flex items-baseline justify-between">
-        <div className="text-[11px] font-medium text-fg">当前上下文</div>
+        <div className="text-[11px] font-medium text-fg">{t("contextview.currentTitle")}</div>
         <div className={`text-[10px] tabular-nums font-mono ${warnCls || "text-fg-dim"}`}>
           {fmtTokens(total)} / {fmtTokens(window)} · {pct}%
         </div>
@@ -152,7 +157,7 @@ function CurrentComposition({ current, window }: { current: ContextCategory; win
           return (
             <div key={c.key} className="flex items-center gap-1.5 text-[10px] text-fg-dim">
               <span className="h-2 w-2 shrink-0 rounded-sm" style={{ background: CAT_COLORS[c.key] }} />
-              <span className="truncate">{c.label}</span>
+              <span className="truncate">{t(c.labelKey)}</span>
               <span className="ml-auto tabular-nums font-mono text-fg-faint">
                 ≈{fmtTokens(current[c.key])} ({share}%)
               </span>
@@ -162,7 +167,7 @@ function CurrentComposition({ current, window }: { current: ContextCategory; win
       </div>
       {pct >= 70 && (
         <div className={`mt-1.5 text-[9.5px] ${pct >= 90 ? "text-err" : "text-warning"}`}>
-          {pct >= 90 ? "已接近上下文上限 —— 压缩/剪枝后此处会回落" : "占用较高 —— 注意剩余注入空间"}
+          {pct >= 90 ? t("contextview.almostFullHint") : t("contextview.highUsageHint")}
         </div>
       )}
     </div>
@@ -175,6 +180,7 @@ function ContextTrendChart({ requests, events, onPick }: {
   events: ContextEvent[];
   onPick: (r: ContextRequestRecord) => void;
 }) {
+  const t = useT();
   const [granularity, setGranularity] = useState<"step" | "turn">("step");
   const [mode, setMode] = useState<"total" | "delta">("total");
   const [selected, setSelected] = useState<number | null>(null);
@@ -224,29 +230,29 @@ function ContextTrendChart({ requests, events, onPick }: {
   return (
     <div className="rounded-lg border border-border-soft bg-bg p-3">
       <div className="flex items-center justify-between">
-        <div className="text-[11px] font-medium text-fg">上下文趋势</div>
+        <div className="text-[11px] font-medium text-fg">{t("contextview.trendTitle")}</div>
         <div className="flex items-center gap-1 text-[10px]">
           {(["step", "turn"] as const).map((g) => (
             <button
               key={g}
               className={`px-1.5 py-0.5 rounded border-0 cursor-pointer ${granularity === g ? "bg-accent/15 text-accent" : "text-fg-dim hover:text-fg"}`}
               onClick={() => setGranularity(g)}
-            >{g === "step" ? "步数" : "轮次"}</button>
+            >{g === "step" ? t("contextview.granStep") : t("contextview.granTurn")}</button>
           ))}
           <span className="mx-0.5 h-3 w-px bg-border-soft" />
           {(["total", "delta"] as const).map((m) => (
             <button
               key={m}
-              title={m === "delta" ? "每步相对上一步的上下文净变化（绿=净增 · 红=净减）" : undefined}
+              title={m === "delta" ? t("contextview.deltaTip") : undefined}
               className={`px-1.5 py-0.5 rounded border-0 cursor-pointer ${mode === m ? "bg-accent/15 text-accent" : "text-fg-dim hover:text-fg"}`}
               onClick={() => setMode(m)}
-            >{m === "total" ? "全局" : "增量"}</button>
+            >{m === "total" ? t("contextview.modeTotal") : t("contextview.modeDelta")}</button>
           ))}
         </div>
       </div>
       <div className="mt-1 text-[9px] text-fg-faint">
-        ✂ 表示压缩/剪枝 · 点击柱查看该步构成
-        {mode === "delta" && <span className="ml-2"><span className="text-[#22c55e]">■</span> 净增 <span className="ml-1 text-[#ef4444]">■</span> 净减</span>}
+        {t("contextview.trendLegend")}
+        {mode === "delta" && <span className="ml-2"><span className="text-[#22c55e]">■</span> {t("contextview.netIncrease")} <span className="ml-1 text-[#ef4444]">■</span> {t("contextview.netDecrease")}</span>}
       </div>
       {hovered !== null && bars[hovered] && (
         <div
@@ -254,16 +260,16 @@ function ContextTrendChart({ requests, events, onPick }: {
           className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 rounded-md px-2 py-1 text-[9.5px]"
           style={{ background: "var(--md-sys-color-surface-container-high)" }}
         >
-          <span className="font-mono text-fg-dim">第{bars[hovered].turn}轮·第{bars[hovered].step}步</span>
+          <span className="font-mono text-fg-dim">{t("contextview.turnStep", { turn: bars[hovered].turn, step: bars[hovered].step })}</span>
           {CATS.map((c) =>
             bars[hovered].category[c.key] > 0 ? (
               <span key={c.key} className="inline-flex items-center gap-1 text-fg-faint">
                 <span className="h-1.5 w-1.5 shrink-0 rounded-sm" style={{ background: CAT_COLORS[c.key] }} />
-                {c.label} {fmtTokens(bars[hovered].category[c.key])}
+                {t(c.labelKey)} {fmtTokens(bars[hovered].category[c.key])}
               </span>
             ) : null,
           )}
-          <span className="ml-auto font-mono text-fg-dim">合计 {fmtTokens(catTotal(bars[hovered].category))}</span>
+          <span className="ml-auto font-mono text-fg-dim">{t("contextview.total", { tokens: fmtTokens(catTotal(bars[hovered].category)) })}</span>
         </div>
       )}
       <div className="overflow-x-auto">
@@ -292,7 +298,7 @@ function ContextTrendChart({ requests, events, onPick }: {
                   opacity={selected === i ? 1 : 0.85}
                 >
                   <rect x={x} y={y} width={bw} height={Math.max(h, 1)} rx={1.5} fill={d >= 0 ? "#22c55e" : "#ef4444"}> {/* hex-exempt 增量图语义色（绿=净增/红=净减，可视化调色板） */}
-                    <title>{`第${b.turn}轮·第${b.step}步 Δ${d >= 0 ? "+" : ""}${fmtTokens(d)}`}</title>
+                    <title>{t("contextview.deltaTitle", { turn: b.turn, step: b.step, delta: `${d >= 0 ? "+" : ""}${fmtTokens(d)}` })}</title>
                   </rect>
                 </g>
               );
@@ -315,7 +321,7 @@ function ContextTrendChart({ requests, events, onPick }: {
                   acc += h;
                   return (
                     <rect key={c.key} x={x} y={y} width={bw} height={Math.max(h, 1)} fill={CAT_COLORS[c.key]}>
-                      <title>{`第${b.turn}轮·第${b.step}步 ${c.label} ${fmtTokens(v)} · 合计 ${fmtTokens(total)}`}</title>
+                      <title>{t("contextview.catBarTitle", { turn: b.turn, step: b.step, cat: t(c.labelKey), tokens: fmtTokens(v), total: fmtTokens(total) })}</title>
                     </rect>
                   );
                 })}
@@ -333,10 +339,11 @@ function ContextTrendChart({ requests, events, onPick }: {
 
 // ─── 步骤详情卡 ─────────────────────────────────────────────
 function StepDetail({ record, window }: { record: ContextRequestRecord | null; window: number }) {
+  const t = useT();
   if (!record) {
     return (
       <div className="rounded-lg border border-border-soft bg-bg p-3 text-[10px] text-fg-faint">
-        点击趋势图中的柱查看该请求的输入、回复与上下文构成。
+        {t("contextview.pickHint")}
       </div>
     );
   }
@@ -348,27 +355,27 @@ function StepDetail({ record, window }: { record: ContextRequestRecord | null; w
   return (
     <div className="rounded-lg border border-border-soft bg-bg p-3">
       <div className="flex items-center justify-between">
-        <div className="text-[11px] font-medium text-fg">第{record.turn}轮·第{record.step}步</div>
+        <div className="text-[11px] font-medium text-fg">{t("contextview.turnStep", { turn: record.turn, step: record.step })}</div>
         <div className="text-[9px] text-fg-faint tabular-nums font-mono">{new Date(record.ts * 1000).toLocaleTimeString()}</div>
       </div>
       <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-fg-dim tabular-nums font-mono">
         {record.estimated
-          ? <span className="text-warning/90">估算构成（无用量记录）</span>
-          : record.promptTokens ? <span>实际 prompt {fmtTokens(record.promptTokens)}</span> : null}
-        {record.outputTokens ? <span>输出 {record.outputTokens}</span> : null}
-        {cachePct != null ? <span>缓存 {cachePct.toFixed(2)}%</span> : null}
-        <span>合计 ≈{fmtTokens(total)}</span>
-        {windowPct != null && <span>占窗口 {windowPct}%</span>}
+          ? <span className="text-warning/90">{t("contextview.estimated")}</span>
+          : record.promptTokens ? <span>{t("contextview.actualPrompt", { tokens: fmtTokens(record.promptTokens) })}</span> : null}
+        {record.outputTokens ? <span>{t("contextview.outputTokens", { n: record.outputTokens })}</span> : null}
+        {cachePct != null ? <span>{t("contextview.cachePct", { pct: cachePct.toFixed(2) })}</span> : null}
+        <span>{t("contextview.totalApprox", { tokens: fmtTokens(total) })}</span>
+        {windowPct != null && <span>{t("contextview.windowPct", { pct: windowPct })}</span>}
       </div>
       {record.briefUser && (
         <div className="mt-1.5 flex gap-1.5 text-[10px]">
-          <span className="shrink-0 text-fg-faint">输入</span>
+          <span className="shrink-0 text-fg-faint">{t("contextview.inputLabel")}</span>
           <span className="truncate font-mono text-fg-dim">{record.briefUser}</span>
         </div>
       )}
       {record.briefResp && (
         <div className="flex gap-1.5 text-[10px]">
-          <span className="shrink-0 text-fg-faint">回复</span>
+          <span className="shrink-0 text-fg-faint">{t("contextview.respLabel")}</span>
           <span className="truncate font-mono text-fg-dim">{record.briefResp}</span>
         </div>
       )}
@@ -385,35 +392,36 @@ function StepDetail({ record, window }: { record: ContextRequestRecord | null; w
 
 // ─── 上下文事件流 ───────────────────────────────────────────
 const EVENT_KINDS = ["all", "inject", "compact", "prune", "switch", "mode"] as const;
-const EVENT_LABEL: Record<string, string> = { inject: "注入", compact: "压缩", prune: "剪枝", switch: "切换", mode: "模式" };
+const EVENT_LABEL: Record<string, DictKey> = { inject: "contextview.evInject", compact: "contextview.evCompact", prune: "contextview.evPrune", switch: "contextview.evSwitch", mode: "contextview.evMode" };
 
 function EventsList({ events }: { events: ContextEvent[] }) {
+  const t = useT();
   const [filter, setFilter] = useState<(typeof EVENT_KINDS)[number]>("all");
   const shown = filter === "all" ? events : events.filter((e) => e.kind === filter);
   return (
     <div className="rounded-lg border border-border-soft bg-bg p-3">
       <div className="flex items-center justify-between">
-        <div className="text-[11px] font-medium text-fg">上下文事件</div>
+        <div className="text-[11px] font-medium text-fg">{t("contextview.eventsTitle")}</div>
         <div className="flex items-center gap-1 text-[10px]">
           {EVENT_KINDS.map((k) => (
             <button
               key={k}
               className={`px-1.5 py-0.5 rounded border-0 cursor-pointer ${filter === k ? "bg-accent/15 text-accent" : "text-fg-dim hover:text-fg"}`}
               onClick={() => setFilter(k)}
-            >{k === "all" ? "全部" : EVENT_LABEL[k]}</button>
+            >{k === "all" ? t("contextview.all") : t(EVENT_LABEL[k])}</button>
           ))}
         </div>
       </div>
       <div className="mt-1.5 max-h-44 overflow-y-auto">
-        {shown.length === 0 && <div className="text-[10px] text-fg-faint py-2">暂无上下文事件</div>}
+        {shown.length === 0 && <div className="text-[10px] text-fg-faint py-2">{t("contextview.noEvents")}</div>}
         {shown.slice(-30).reverse().map((e) => (
           <div key={`${e.kind}-${e.seq}`} className="flex items-center gap-1.5 py-0.5 text-[10px] border-b border-border-soft/40 last:border-0">
             <span className={`shrink-0 px-1 rounded text-[9px] ${e.kind === "compact" ? "bg-warning/15 text-warning" : e.kind === "prune" ? "bg-err/15 text-err" : "bg-accent/10 text-accent"}`}>
-              {e.delta != null && e.delta < 0 ? "" : "+"}{EVENT_LABEL[e.kind] ?? e.kind}
+              {e.delta != null && e.delta < 0 ? "" : "+"}{EVENT_LABEL[e.kind] ? t(EVENT_LABEL[e.kind]) : e.kind}
             </span>
             <span className="truncate text-fg-dim">{e.source || "—"}</span>
             <span className="ml-auto shrink-0 text-fg-faint tabular-nums font-mono">
-              第{e.turn}轮·第{e.step}步
+              {t("contextview.turnStep", { turn: e.turn, step: e.step })}
               {e.delta != null && e.delta !== 0
                 ? ` ${e.delta > 0 ? "+" : "-"}${fmtTokens(Math.abs(e.delta))}`
                 : ""}
@@ -426,28 +434,29 @@ function EventsList({ events }: { events: ContextEvent[] }) {
 }
 
 // ─── 文件活动（工具读写工作区文件的时间线） ─────────────────────
-const FILE_ACTION_META: Record<FileActivity["action"], { label: string; cls: string }> = {
-  read: { label: "读", cls: "bg-cyan-500/15 text-cyan-400" },
-  write: { label: "写", cls: "bg-amber-500/15 text-amber-400" },
-  move: { label: "移", cls: "bg-purple-500/15 text-purple-400" },
-  dir: { label: "目录", cls: "bg-slate-500/15 text-slate-400" },
+const FILE_ACTION_META: Record<FileActivity["action"], { labelKey: DictKey; cls: string }> = {
+  read: { labelKey: "contextview.actRead", cls: "bg-cyan-500/15 text-cyan-400" },
+  write: { labelKey: "contextview.actWrite", cls: "bg-amber-500/15 text-amber-400" },
+  move: { labelKey: "contextview.actMove", cls: "bg-purple-500/15 text-purple-400" },
+  dir: { labelKey: "contextview.actDir", cls: "bg-slate-500/15 text-slate-400" },
 };
 
 function FileActivityCard({ files }: { files: FileActivity[] }) {
+  const t = useT();
   const openFilePreview = usePreviewStore((s) => s.openFilePreview);
   const shown = files.slice(-40).reverse();
   return (
     <div className="rounded-lg border border-border-soft bg-bg p-3">
       <div className="flex items-center justify-between">
-        <div className="text-[11px] font-medium text-fg">文件活动</div>
-        <div className="text-[9px] text-fg-faint tabular-nums">{files.length} 次文件接触</div>
+        <div className="text-[11px] font-medium text-fg">{t("contextview.filesTitle")}</div>
+        <div className="text-[9px] text-fg-faint tabular-nums">{t("contextview.fileTouches", { n: files.length })}</div>
       </div>
       <div className="mt-1.5 max-h-44 overflow-y-auto">
         {shown.length === 0 && (
-          <div className="py-2 text-[10px] text-fg-faint">暂无文件活动 —— 工具读写工作区文件后会出现在这里</div>
+          <div className="py-2 text-[10px] text-fg-faint">{t("contextview.noFiles")}</div>
         )}
         {shown.map((f) => {
-          const meta = FILE_ACTION_META[f.action] ?? { label: f.action, cls: "bg-bg-soft text-fg-dim" };
+          const meta = FILE_ACTION_META[f.action] ?? { labelKey: "contextview.actRead" as DictKey, cls: "bg-bg-soft text-fg-dim" };
           const clickable = f.action !== "dir";
           return (
             <button
@@ -455,12 +464,12 @@ function FileActivityCard({ files }: { files: FileActivity[] }) {
               type="button"
               disabled={!clickable}
               onClick={() => clickable && openFilePreview(f.path)}
-              title={clickable ? `在右侧预览 ${f.path}` : undefined}
+              title={clickable ? t("contextview.previewTitle", { path: f.path }) : undefined}
               className={`flex w-full items-center gap-1.5 border-b border-border-soft/40 py-0.5 text-left text-[10px] last:border-0 ${
                 clickable ? "cursor-pointer transition-colors hover:bg-bg-soft/70" : "cursor-default"
               }`}
             >
-              <span className={`shrink-0 rounded px-1 text-[9px] ${meta.cls}`}>{meta.label}</span>
+              <span className={`shrink-0 rounded px-1 text-[9px] ${meta.cls}`}>{t(meta.labelKey)}</span>
               <span className="shrink-0 font-mono text-fg-faint">{f.tool}</span>
               <span className="truncate font-mono text-fg-dim" title={f.path}>{f.path}</span>
               <span className="ml-auto shrink-0 tabular-nums font-mono text-fg-faint">{new Date(f.ts * 1000).toLocaleTimeString()}</span>
@@ -473,18 +482,19 @@ function FileActivityCard({ files }: { files: FileActivity[] }) {
 }
 
 // ─── 上下文浏览器（模型可见 surface 节点 + 归档） ───────────────
-const CAT_BROWSE_LABELS: Record<ContextSurfaceNode["cat"], string> = {
-  system: "系统",
-  tools: "工具",
-  user: "用户",
-  inject: "注入",
-  assistant: "助手",
-  tool: "工具结果",
+const CAT_BROWSE_LABELS: Record<ContextSurfaceNode["cat"], DictKey> = {
+  system: "contextview.browseSystem",
+  tools: "contextview.browseTools",
+  user: "contextview.browseUser",
+  inject: "contextview.browseInject",
+  assistant: "contextview.browseAssistant",
+  tool: "contextview.browseTool",
 };
 const BROWSE_CATS = ["all", "system", "tools", "user", "inject", "assistant", "tool"] as const;
 
 function NodeRow({ node, open, onToggle }: { node: ContextSurfaceNode; open: boolean; onToggle: () => void }) {
-  const text = node.text || "(无预览 —— 全文在事件日志 request_header 中)";
+  const t = useT();
+  const text = node.text || t("contextview.noPreview");
   const truncated = text.length > 56;
   const shown = open || !truncated ? text : `${text.slice(0, 56)}…`;
   return (
@@ -492,14 +502,14 @@ function NodeRow({ node, open, onToggle }: { node: ContextSurfaceNode; open: boo
       <span className="mt-0.5 h-2 w-2 shrink-0 rounded-sm" style={{ background: CAT_COLORS[node.cat] }} />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5 text-fg-faint">
-          <span className="font-medium" style={{ color: CAT_COLORS[node.cat] }}>{CAT_BROWSE_LABELS[node.cat]}</span>
+          <span className="font-medium" style={{ color: CAT_COLORS[node.cat] }}>{t(CAT_BROWSE_LABELS[node.cat])}</span>
           <span className="tabular-nums font-mono">≈{fmtTokens(node.tokens)}</span>
-          {node.gone != null && <span className="text-warning">已压缩</span>}
+          {node.gone != null && <span className="text-warning">{t("contextview.compacted")}</span>}
           {truncated && (
             <button
               className="ml-auto cursor-pointer border-0 bg-transparent text-accent hover:underline"
               onClick={onToggle}
-            >{open ? "收起" : "展开"}</button>
+            >{open ? t("common.collapse") : t("common.expand")}</button>
           )}
         </div>
         <div className="mt-0.5 whitespace-pre-wrap break-all font-mono text-fg-dim">{shown}</div>
@@ -509,6 +519,7 @@ function NodeRow({ node, open, onToggle }: { node: ContextSurfaceNode; open: boo
 }
 
 function ContextBrowserCard({ nodes, archive }: { nodes: ContextSurfaceNode[]; archive: ContextSurfaceNode[] }) {
+  const t = useT();
   const [tab, setTab] = useState<"active" | "archive">("active");
   const [cat, setCat] = useState<"all" | ContextSurfaceNode["cat"]>("all");
   const [openSeq, setOpenSeq] = useState<number | null>(null);
@@ -517,14 +528,14 @@ function ContextBrowserCard({ nodes, archive }: { nodes: ContextSurfaceNode[]; a
   return (
     <div className="rounded-lg border border-border-soft bg-bg p-3">
       <div className="flex items-center justify-between">
-        <div className="text-[11px] font-medium text-fg">上下文浏览器</div>
+        <div className="text-[11px] font-medium text-fg">{t("contextview.browserTitle")}</div>
         <div className="flex items-center gap-1 text-[10px]">
-          {(["active", "archive"] as const).map((t) => (
+          {(["active", "archive"] as const).map((tb) => (
             <button
-              key={t}
-              className={`cursor-pointer rounded border-0 px-1.5 py-0.5 ${tab === t ? "bg-accent/15 text-accent" : "text-fg-dim hover:text-fg"}`}
-              onClick={() => setTab(t)}
-            >{t === "active" ? `活跃 ${nodes.length}` : `归档 ${archive.length}`}</button>
+              key={tb}
+              className={`cursor-pointer rounded border-0 px-1.5 py-0.5 ${tab === tb ? "bg-accent/15 text-accent" : "text-fg-dim hover:text-fg"}`}
+              onClick={() => setTab(tb)}
+            >{tb === "active" ? t("contextview.tabActive", { n: nodes.length }) : t("contextview.tabArchive", { n: archive.length })}</button>
           ))}
         </div>
       </div>
@@ -534,17 +545,17 @@ function ContextBrowserCard({ nodes, archive }: { nodes: ContextSurfaceNode[]; a
             key={c}
             className={`cursor-pointer rounded border-0 px-1.5 py-0.5 ${cat === c ? "bg-accent/15 text-accent" : "text-fg-dim hover:text-fg"}`}
             onClick={() => setCat(c)}
-          >{c === "all" ? "全部" : CAT_BROWSE_LABELS[c]}</button>
+          >{c === "all" ? t("contextview.all") : t(CAT_BROWSE_LABELS[c])}</button>
         ))}
       </div>
       <div className="mt-1.5 max-h-52 overflow-y-auto">
-        {shown.length === 0 && <div className="py-2 text-[10px] text-fg-faint">没有该分类的上下文节点</div>}
+        {shown.length === 0 && <div className="py-2 text-[10px] text-fg-faint">{t("contextview.noCatNodes")}</div>}
         {shown.slice(-60).map((n) => (
           <NodeRow key={n.seq} node={n} open={openSeq === n.seq} onToggle={() => setOpenSeq(openSeq === n.seq ? null : n.seq)} />
         ))}
       </div>
       <div className="mt-1 text-[9px] text-fg-faint">
-        节点 = 模型可见的上下文元素 · 系统/工具在构成变化时记录 · 归档 = 被压缩移出的内容
+        {t("contextview.browserLegend")}
       </div>
     </div>
   );
@@ -552,6 +563,7 @@ function ContextBrowserCard({ nodes, archive }: { nodes: ContextSurfaceNode[]; a
 
 // ─── 容器：拉取 + 布局 ──────────────────────────────────────
 export function ContextView({ running, sessionPath }: { running: boolean; sessionPath?: string }) {
+  const t = useT();
   const [timeline, setTimeline] = useState<ContextTimeline>(EMPTY);
   const [picked, setPicked] = useState<ContextRequestRecord | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -595,7 +607,7 @@ export function ContextView({ running, sessionPath }: { running: boolean; sessio
     <div className="flex h-full flex-col gap-2 overflow-y-auto p-3">
       {error && (
         <div className="rounded-lg border border-err/30 bg-del-bg px-3 py-2 text-[11px] text-err">
-          上下文视图加载失败：{error}
+          {t("contextview.loadFail", { msg: error })}
         </div>
       )}
       {!error && (
@@ -610,9 +622,9 @@ export function ContextView({ running, sessionPath }: { running: boolean; sessio
       )}
       {!error && isEmpty && (
         <div className="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border-soft bg-bg px-6 py-10 text-center">
-          <span className="text-[12px] font-medium text-fg">暂无上下文数据</span>
+          <span className="text-[12px] font-medium text-fg">{t("contextview.empty")}</span>
           <span className="max-w-[46ch] text-[10.5px] leading-relaxed text-fg-faint">
-            运行任务后，上下文构成、趋势、注入/压缩事件与文件活动会实时显示在这里。
+            {t("contextview.emptyHint")}
           </span>
         </div>
       )}

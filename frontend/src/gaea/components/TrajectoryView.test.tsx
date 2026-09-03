@@ -1,6 +1,14 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { ReactElement } from "react";
+import { LocaleProvider } from "../lib/i18n";
 import type { Trajectory } from "../lib/types";
+
+// TrajectoryView 走 useT：钉住 zh 让「第N轮/收起全部/轨迹概览」等中文断言继续成立
+const renderT = (ui: ReactElement) => {
+  localStorage.setItem("gaea-lang", "zh");
+  return render(<LocaleProvider>{ui}</LocaleProvider>);
+};
 
 const trajectoryMock = vi.fn();
 
@@ -56,7 +64,7 @@ describe("TrajectoryView 轨迹事件账本", () => {
 
   it("渲染统计 chips、轮次与记录行", async () => {
     const { TrajectoryView } = await import("./TrajectoryView");
-    render(<TrajectoryView running={false} />);
+    renderT(<TrajectoryView running={false} />);
     expect(await screen.findByText(/Turns 1/, undefined, LOAD)).toBeTruthy();
     expect(screen.getByText(/Calls 2/)).toBeTruthy();
     expect(screen.getByText(/Duration/)).toBeTruthy();
@@ -68,7 +76,7 @@ describe("TrajectoryView 轨迹事件账本", () => {
 
   it("展开工具记录显示参数/结果/错误", async () => {
     const { TrajectoryView } = await import("./TrajectoryView");
-    render(<TrajectoryView running={false} />);
+    renderT(<TrajectoryView running={false} />);
     // 第一个 TOOL 行的按钮：文本含 pwsh
     const btn = await screen.findByRole("button", { name: /pwsh/ }, LOAD);
     fireEvent.click(btn);
@@ -79,7 +87,7 @@ describe("TrajectoryView 轨迹事件账本", () => {
 
   it("渲染 ask 与 Between-turns 压缩记录", async () => {
     const { TrajectoryView } = await import("./TrajectoryView");
-    render(<TrajectoryView running={false} />);
+    renderT(<TrajectoryView running={false} />);
     expect(await screen.findByText(/如何协调并行改动？/, undefined, LOAD)).toBeTruthy();
     expect(screen.getByText(/Between turns/)).toBeTruthy();
     expect(screen.getByText(/轮间压缩/)).toBeTruthy();
@@ -87,7 +95,7 @@ describe("TrajectoryView 轨迹事件账本", () => {
 
   it("搜索过滤记录", async () => {
     const { TrajectoryView } = await import("./TrajectoryView");
-    render(<TrajectoryView running={false} />);
+    renderT(<TrajectoryView running={false} />);
     const input = await screen.findByPlaceholderText("搜索", undefined, LOAD);
     fireEvent.change(input, { target: { value: "git status" } });
     expect(screen.getByText(/pwsh/)).toBeTruthy();
@@ -97,13 +105,13 @@ describe("TrajectoryView 轨迹事件账本", () => {
   it("空态提示", async () => {
     trajectoryMock.mockResolvedValue({ ok: true, turns: [] });
     const { TrajectoryView } = await import("./TrajectoryView");
-    render(<TrajectoryView running={false} />);
+    renderT(<TrajectoryView running={false} />);
     expect(await screen.findByText(/暂无轨迹记录/, undefined, LOAD)).toBeTruthy();
   });
 
   it("轨迹概览：渲染投影柱与轮数", async () => {
     const { TrajectoryView } = await import("./TrajectoryView");
-    render(<TrajectoryView running={false} />);
+    renderT(<TrajectoryView running={false} />);
     expect(await screen.findByText("轨迹概览", undefined, LOAD)).toBeTruthy();
     expect(screen.getByText(/1 轮 · 点击柱跳转/)).toBeTruthy();
     expect(screen.getByText(/柱高 = 记录密度/)).toBeTruthy();
@@ -111,7 +119,7 @@ describe("TrajectoryView 轨迹事件账本", () => {
 
   it("收起全部 / 展开全部控制轮次区段", async () => {
     const { TrajectoryView } = await import("./TrajectoryView");
-    render(<TrajectoryView running={false} />);
+    renderT(<TrajectoryView running={false} />);
     await screen.findByText(/Turns 1/, undefined, LOAD);
     expect(screen.getByText("ASSISTANT")).toBeTruthy();
     fireEvent.click(screen.getByText("收起全部"));
@@ -136,7 +144,7 @@ describe("TrajectoryView 轨迹事件账本", () => {
     }));
     trajectoryMock.mockResolvedValue({ ok: true, turns: bigTurns });
     const { TrajectoryView } = await import("./TrajectoryView");
-    const { container } = render(<TrajectoryView running={false} />);
+    const { container } = renderT(<TrajectoryView running={false} />);
     expect(await screen.findByText(/第1轮第1条/, undefined, LOAD)).toBeTruthy();
     // 虚拟化：306 行只渲染可见窗口（±overscan），DOM 行数远小于全量
     const listEl = container.querySelector('[role="list"]');
@@ -185,7 +193,7 @@ describe("TrajectoryView 子代理答复记录", () => {
 
   it("折叠行渲染「子代理」徽标 + 答复摘要 + ref，默认不展开详情", async () => {
     const { TrajectoryView } = await import("./TrajectoryView");
-    render(<TrajectoryView running={false} />);
+    renderT(<TrajectoryView running={false} />);
     // 两条 subagent 记录各一个徽标
     expect((await screen.findAllByText("子代理", undefined, LOAD)).length).toBe(2);
     expect(screen.getByText(/调研完成：配置集中在 internal\/gaea\/config，共 3 处入口。 · subagent:run-7f3a/)).toBeTruthy();
@@ -197,7 +205,7 @@ describe("TrajectoryView 子代理答复记录", () => {
 
   it("点击展开显示完整答复 + ref/parentId", async () => {
     const { TrajectoryView } = await import("./TrajectoryView");
-    render(<TrajectoryView running={false} />);
+    renderT(<TrajectoryView running={false} />);
     fireEvent.click(await screen.findByRole("button", { name: /调研完成/ }, LOAD));
     // 详情区元信息 + 全文 pre（与折叠摘要行各一份，共 2 处命中）
     expect(await screen.findByText("ref: subagent:run-7f3a", undefined, LOAD)).toBeTruthy();
@@ -207,7 +215,7 @@ describe("TrajectoryView 子代理答复记录", () => {
 
   it("无 ref/parentId（临时子代理）容错：展开只显示全文不炸", async () => {
     const { TrajectoryView } = await import("./TrajectoryView");
-    render(<TrajectoryView running={false} />);
+    renderT(<TrajectoryView running={false} />);
     fireEvent.click(await screen.findByRole("button", { name: /第二轮检查完毕/ }, LOAD));
     // 无 ref/parentId：详情区不渲染元信息行，全文与摘要同文（2 处命中）
     await screen.findAllByText(/第二轮检查完毕：无遗漏文件。/, undefined, LOAD);
@@ -218,7 +226,7 @@ describe("TrajectoryView 子代理答复记录", () => {
 
   it("搜索命中子代理答复文本", async () => {
     const { TrajectoryView } = await import("./TrajectoryView");
-    render(<TrajectoryView running={false} />);
+    renderT(<TrajectoryView running={false} />);
     const input = await screen.findByPlaceholderText("搜索", undefined, LOAD);
     fireEvent.change(input, { target: { value: "共 3 处入口" } });
     expect(await screen.findByText(/调研完成/, undefined, LOAD)).toBeTruthy();
@@ -248,7 +256,7 @@ describe("TrajectoryView 轮次头耗时", () => {
       ],
     } as Trajectory);
     const { TrajectoryView } = await import("./TrajectoryView");
-    render(<TrajectoryView running={false} />);
+    renderT(<TrajectoryView running={false} />);
     expect(await screen.findByText(/用时 30s/, undefined, LOAD)).toBeTruthy();
   });
 
@@ -266,7 +274,7 @@ describe("TrajectoryView 轮次头耗时", () => {
       ],
     } as Trajectory);
     const { TrajectoryView } = await import("./TrajectoryView");
-    render(<TrajectoryView running={false} />);
+    renderT(<TrajectoryView running={false} />);
     expect(await screen.findByText(/用时 1m40s/, undefined, LOAD)).toBeTruthy();
   });
 
@@ -286,7 +294,7 @@ describe("TrajectoryView 轮次头耗时", () => {
       ],
     } as Trajectory);
     const { TrajectoryView } = await import("./TrajectoryView");
-    render(<TrajectoryView running={false} />);
+    renderT(<TrajectoryView running={false} />);
     await screen.findByText("第1轮", undefined, LOAD);
     expect(screen.getByText("第2轮")).toBeTruthy();
     expect(screen.queryByText(/用时/)).toBeNull();

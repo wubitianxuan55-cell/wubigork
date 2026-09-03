@@ -389,7 +389,7 @@ body {
   position: relative;
 }
 
-/* ── markdown prose ──────────────────────────────────────────────────────── */
+/* ── markdown prose ── Codex 式排版：留白从容、层级克制、表格只留横线 ────── */
 .md > :first-child {
   margin-top: 0;
 }
@@ -397,24 +397,24 @@ body {
   margin-bottom: 0;
 }
 .md p {
-  margin: 0 0 8px;
+  margin: 0 0 10px;
 }
 .md h1,
 .md h2,
 .md h3,
 .md h4 {
-  margin: 14px 0 6px;
-  line-height: 1.3;
+  margin: 20px 0 8px;
+  line-height: 1.35;
   font-weight: 600;
 }
 .md h1 {
-  font-size: 1.4em;
+  font-size: 1.45em;
 }
 .md h2 {
-  font-size: 1.22em;
+  font-size: 1.28em;
 }
 .md h3 {
-  font-size: 1.08em;
+  font-size: 1.12em;
 }
 .md h4 {
   font-size: 1em;
@@ -422,14 +422,25 @@ body {
 }
 .md ul,
 .md ol {
-  margin: 0 0 8px;
-  padding-left: 22px;
+  margin: 0 0 10px;
+  padding-left: 24px;
 }
 .md li {
-  margin: 3px 0;
+  margin: 4px 0;
 }
 .md li::marker {
   color: var(--fg-faint);
+}
+.md li > p {
+  margin: 0 0 4px;
+}
+.md li > ul,
+.md li > ol {
+  margin: 4px 0 2px;
+}
+.md input[type="checkbox"] {
+  accent-color: var(--accent);
+  margin: 2px 6px 0 0;
 }
 .md a {
   color: var(--accent);
@@ -438,18 +449,25 @@ body {
 .md a:hover {
   text-decoration: underline;
 }
+.md img {
+  max-width: 100%;
+  border-radius: 8px;
+}
 .md blockquote {
-  margin: 0 0 8px;
-  padding: 4px 14px;
+  margin: 0 0 10px;
+  padding: 6px 14px;
   border-left: 3px solid var(--accent);
   background: color-mix(in srgb, var(--accent) 6%, transparent);
-  border-radius: 0 4px 4px 0;
+  border-radius: 0 6px 6px 0;
   color: var(--fg-dim);
+}
+.md blockquote > :last-child {
+  margin-bottom: 0;
 }
 .md hr {
   border: none;
   border-top: 1px solid var(--border);
-  margin: 18px 0;
+  margin: 20px 0;
 }
 .md-code {
   font-family: var(--mono);
@@ -459,27 +477,27 @@ body {
   border-radius: 5px;
   padding: 1px 5px;
 }
+/* 表格外框/横向滚动由 Markdown.tsx 的包裹层负责，这里只管表格内部：
+   Codex 式极简——去掉全网格与斑马纹，只留表头底色 + 行分隔横线。 */
 .md table {
   border-collapse: collapse;
-  margin: 0 0 8px;
+  margin: 0;
+  width: 100%;
   font-size: 13px;
-  display: block;
-  overflow-x: auto;
-  border-radius: 6px;
-  border: 1px solid var(--border);
 }
 .md th,
 .md td {
-  border: 1px solid var(--border);
-  padding: 5px 10px;
+  border-bottom: 1px solid var(--border);
+  padding: 6px 10px;
   text-align: left;
+  vertical-align: top;
 }
 .md th {
   background: var(--bg-soft);
   font-weight: 600;
 }
-.md tr:nth-child(even) td {
-  background: color-mix(in srgb, var(--bg-soft) 50%, var(--bg));
+.md tr:last-child td {
+  border-bottom: none;
 }
 
 /* ── notices / phase ─────────────────────────────────────────────────────── */
@@ -1505,7 +1523,13 @@ body::after {
 }
 
 /* ══ 通用办公重设计：清爽化覆写 ══
-   对话区随窗口自适应铺满面板（--maxw 仅约束输入框），统一消息圆角、增强留白。 */
+   对话列加宽（对齐 Codex）：正文与输入框共用 --maxw（min(1000px, 100%)）同一
+   中轴，宽屏下消息行长短于输入框的错位感消除。仅办公板块生效——.v3-reading
+   的 74ch 窄栏保留给对话/小说板块。 */
+.gaea-app-layout .v3-reading {
+  max-width: var(--maxw);
+}
+
 .msg--user .msg__body {
   border-radius: 16px 16px 4px 16px;
   padding: 8px 14px;

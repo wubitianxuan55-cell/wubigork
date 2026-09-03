@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { app } from "../lib/bridge";
+import { useT } from "../lib/i18n";
 import type { AgentNetwork, AgentNode, SubagentRunsView, SubagentRunView, SubagentTranscriptView } from "../lib/types";
 import { fmtTokens } from "../lib/stats";
 import { useLiveReload } from "../hooks/useLiveReload";
@@ -32,6 +33,7 @@ function AgentCircle({ node, pct, x, y, hue, onHover, onLeave, onSelect }: {
   onLeave: () => void;
   onSelect: (n: AgentNode) => void;
 }) {
+  const t = useT();
   const statusColor = nodeStatusColor(node.status);
   return (
     <g
@@ -63,7 +65,7 @@ function AgentCircle({ node, pct, x, y, hue, onHover, onLeave, onSelect }: {
         className={node.status === "running" ? "animate-pulse" : ""}
       />
       <text textAnchor="middle" dominantBaseline="central" fontSize={9} fontWeight={600} fill="var(--fg)">
-        {node.kind === "root" ? "主" : String(node.toolCalls)}
+        {node.kind === "root" ? t("subagent.rootGlyph") : String(node.toolCalls)}
       </text>
     </g>
   );
@@ -71,6 +73,7 @@ function AgentCircle({ node, pct, x, y, hue, onHover, onLeave, onSelect }: {
 
 // ─── Agent 网络卡 ──────────────────────────────────────────
 export function AgentNetworkCard({ running, sessionPath }: { running: boolean; sessionPath?: string }) {
+  const t = useT();
   const [net, setNet] = useState<AgentNetwork>(EMPTY);
   const [hovered, setHovered] = useState<AgentNode | null>(null);
   const [detail, setDetail] = useState<AgentNode | null>(null);
@@ -151,10 +154,10 @@ export function AgentNetworkCard({ running, sessionPath }: { running: boolean; s
   return (
     <div className="rounded-lg border border-border-soft bg-bg p-3">
       <div className="flex items-center justify-between">
-        <div className="text-[11px] font-medium text-fg">Agent 网络</div>
-        <div className="text-[9px] text-fg-faint">{children.length} 个子代理 · 环 = 上下文 token 占比</div>
+        <div className="text-[11px] font-medium text-fg">{t("subagent.netTitle")}</div>
+        <div className="text-[9px] text-fg-faint">{t("subagent.netSubtitle", { n: children.length })}</div>
       </div>
-      {error && <div className="mt-1 text-[10px] text-err">加载失败：{error}</div>}
+      {error && <div className="mt-1 text-[10px] text-err">{t("subagent.netLoadFail", { msg: error })}</div>}
       <svg viewBox={`0 0 ${W} 170`} className="mt-1 w-full h-auto">
         {/* 边：root → 子代理（每个一级子树一个色相） */}
         {children.map((c, i) => {
@@ -203,18 +206,18 @@ export function AgentNetworkCard({ running, sessionPath }: { running: boolean; s
       <div className="mt-1 min-h-[38px] rounded-md border border-border-soft/60 bg-bg-soft/40 px-2 py-1.5 text-[10px]">
         {hovered ? (
           <div className="flex flex-wrap gap-x-3 gap-y-0.5">
-            <span className="font-medium text-fg">{hovered.kind === "root" ? "主 agent" : (hovered.task || hovered.name)}</span>
+            <span className="font-medium text-fg">{hovered.kind === "root" ? t("subagent.rootTitle") : (hovered.task || hovered.name)}</span>
             <span className={hovered.status === "running" ? "text-green-500" : hovered.status === "error" ? "text-err" : "text-fg-dim"}>
-              {hovered.status === "running" ? "运行中" : hovered.status === "error" ? "出错" : "已完成"}
+              {hovered.status === "running" ? t("subagent.statusActive") : hovered.status === "error" ? t("subagent.statusError") : t("subagent.statusDone")}
             </span>
-            {hovered.model && <span className="text-fg-dim">模型 {hovered.model}</span>}
-            <span className="text-fg-dim tabular-nums">工具 {hovered.toolCalls}</span>
-            {hovered.errors > 0 && <span className="text-err tabular-nums">错误 {hovered.errors}</span>}
+            {hovered.model && <span className="text-fg-dim">{t("subagent.modelLabel", { model: hovered.model })}</span>}
+            <span className="text-fg-dim tabular-nums">{t("subagent.toolCount", { n: hovered.toolCalls })}</span>
+            {hovered.errors > 0 && <span className="text-err tabular-nums">{t("subagent.errCountLong", { n: hovered.errors })}</span>}
             <span className="text-fg-dim tabular-nums font-mono">≈{fmtTokens(hovered.tokens)}</span>
             {hovered.lastTs ? <span className="text-fg-faint tabular-nums font-mono">{new Date(hovered.lastTs * 1000).toLocaleTimeString()}</span> : null}
           </div>
         ) : (
-          <div className="text-fg-faint">悬停查看节点详情 · 点击节点固定子代理详情</div>
+          <div className="text-fg-faint">{t("subagent.hoverHint")}</div>
         )}
       </div>
 
@@ -222,20 +225,20 @@ export function AgentNetworkCard({ running, sessionPath }: { running: boolean; s
       {detail && (
         <div className="mt-1 rounded-md border border-border-soft/60 bg-bg-soft/40 p-2 text-[10px]">
           <div className="flex items-center justify-between">
-            <span className="font-medium text-fg">{detail.kind === "root" ? "主 agent" : (detail.task || detail.name)}</span>
+            <span className="font-medium text-fg">{detail.kind === "root" ? t("subagent.rootTitle") : (detail.task || detail.name)}</span>
             <button
               className="cursor-pointer border-0 bg-transparent text-fg-faint hover:text-fg"
               onClick={() => { setDetail(null); setRunDetail(null); }}
-            >关闭</button>
+            >{t("subagent.close")}</button>
           </div>
           {runDetail ? (
             <>
               <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-fg-dim">
                 <span className={runDetail.status === "running" ? "text-green-500" : runDetail.status === "failed" ? "text-err" : "text-fg-dim"}>
-                  {runDetail.status === "running" ? "运行中" : runDetail.status === "failed" ? "失败" : "已完成"}
+                  {runDetail.status === "running" ? t("subagent.statusActive") : runDetail.status === "failed" ? t("subagent.statusFailed") : t("subagent.statusDone")}
                 </span>
-                {runDetail.model && <span>模型 {runDetail.model}</span>}
-                <span className="tabular-nums">工具调用 {runDetail.toolCalls}</span>
+                {runDetail.model && <span>{t("subagent.modelLabel", { model: runDetail.model })}</span>}
+                <span className="tabular-nums">{t("subagent.toolCalls", { n: runDetail.toolCalls })}</span>
                 <span className="text-fg-faint tabular-nums">{new Date(runDetail.updatedAt).toLocaleString()}</span>
               </div>
               {runDetail.lastText && <div className="mt-1 text-fg-dim">{runDetail.lastText}</div>}
@@ -245,15 +248,15 @@ export function AgentNetworkCard({ running, sessionPath }: { running: boolean; s
                 <button
                   className="mt-1.5 cursor-pointer rounded border border-border-soft bg-bg px-2 py-1 text-[10px] text-accent hover:bg-bg-soft"
                   onClick={() => viewTranscript(runDetail.ref)}
-                >{transcriptOpen && transcript?.ref === runDetail.ref ? "收起完整 transcript" : "查看完整 transcript"}</button>
+                >{transcriptOpen && transcript?.ref === runDetail.ref ? t("subagent.collapseTranscript") : t("subagent.viewTranscript")}</button>
               )}
             </>
           ) : (
             <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-fg-dim">
-              <span>状态 {detail.status}</span>
-              {detail.model && <span>模型 {detail.model}</span>}
-              <span className="tabular-nums">工具 {detail.toolCalls}</span>
-              {detail.errors > 0 && <span className="text-err tabular-nums">错误 {detail.errors}</span>}
+              <span>{t("subagent.stLabel", { status: detail.status })}</span>
+              {detail.model && <span>{t("subagent.modelLabel", { model: detail.model })}</span>}
+              <span className="tabular-nums">{t("subagent.toolCount", { n: detail.toolCalls })}</span>
+              {detail.errors > 0 && <span className="text-err tabular-nums">{t("subagent.errCountLong", { n: detail.errors })}</span>}
               <span className="tabular-nums font-mono">≈{fmtTokens(detail.tokens)}</span>
             </div>
           )}
@@ -268,15 +271,15 @@ export function AgentNetworkCard({ running, sessionPath }: { running: boolean; s
             <span className="flex items-center gap-1.5">
               <input
                 className="w-32 rounded border border-border-soft bg-bg-soft/40 px-1.5 py-0.5 text-[9px] text-fg outline-none placeholder:text-fg-faint"
-                placeholder="搜索消息"
+                placeholder={t("subagent.searchMsg")}
                 value={transcriptQuery}
                 onChange={(e) => setTranscriptQuery(e.target.value)}
               />
-              <span className="text-[9px] text-fg-faint tabular-nums">{shownTranscriptMsgs.length}/{transcript.messages.length} 条</span>
+              <span className="text-[9px] text-fg-faint tabular-nums">{t("subagent.msgFilterCount", { shown: shownTranscriptMsgs.length, total: transcript.messages.length })}</span>
             </span>
           </div>
           <div ref={transcriptListRef} className="max-h-64 space-y-1 overflow-y-auto">
-            {shownTranscriptMsgs.length === 0 && <div className="py-2 text-[10px] text-fg-faint">没有匹配的消息</div>}
+            {shownTranscriptMsgs.length === 0 && <div className="py-2 text-[10px] text-fg-faint">{t("subagent.noMatchMsg")}</div>}
             {shownTranscriptMsgs.map(({ m, idx }, i) => (
               <div
                 key={idx}

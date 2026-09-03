@@ -1,7 +1,15 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, act, waitFor, within } from "@testing-library/react";
+import type { ReactElement } from "react";
 import { SubagentsPanel } from "./SubagentsPanel";
+import { LocaleProvider } from "../lib/i18n";
 import type { AgentNetwork, SubagentRunsView, SubagentTranscriptView } from "../lib/types";
+
+// 面板/树/对话组件走 useT：钉住 zh 让既有中文文案断言继续成立
+const renderT = (ui: ReactElement) => {
+  localStorage.setItem("gaea-lang", "zh");
+  return render(<LocaleProvider>{ui}</LocaleProvider>);
+};
 
 // ── v4.24 A1「分工面板工作台化」测试 ─────────────────────────────
 // 三段式结构（合并活动流 + 树形实时拓扑 + 自动展开偏好）在 SubagentsPanel
@@ -146,7 +154,7 @@ beforeEach(() => {
 
 describe("SubagentsPanel 子代理工作台（v4.24 A1 三段式）", () => {
   it("树形实时拓扑：主 agent + 子代理全量渲染，计数徽标显示总数与运行中", async () => {
-    render(<SubagentsPanel sessionPath="s1.jsonl" />);
+    renderT(<SubagentsPanel sessionPath="s1.jsonl" />);
     expect(await screen.findByText("主 agent")).toBeTruthy();
     expect(screen.getByText("收集 2026 年办公 Agent 竞品更新信息")).toBeTruthy();
     expect(screen.getByText("调研竞品表格 Agent 能力并总结可蒸馏点")).toBeTruthy();
@@ -158,7 +166,7 @@ describe("SubagentsPanel 子代理工作台（v4.24 A1 三段式）", () => {
   });
 
   it("合并活动流：运行中动态单列 feed（最新在前，空态收起）", async () => {
-    render(<SubagentsPanel sessionPath="s1.jsonl" />);
+    renderT(<SubagentsPanel sessionPath="s1.jsonl" />);
     await screen.findByText("主 agent");
     // 活动流在 feed 容器内（运行预览同时在树内行出现 → 限定容器避免多命中）
     const feed = screen.getByTestId("agent-feed");
@@ -168,7 +176,7 @@ describe("SubagentsPanel 子代理工作台（v4.24 A1 三段式）", () => {
   });
 
   it("嵌套子树默认收起，点击展开/收起孙节点", async () => {
-    render(<SubagentsPanel sessionPath="s1.jsonl" />);
+    renderT(<SubagentsPanel sessionPath="s1.jsonl" />);
     await screen.findByText("主 agent");
     // 孙节点（depth 2）初始不可见
     expect(screen.queryByText("子任务：对比三家竞品表格交互")).toBeNull();
@@ -181,7 +189,7 @@ describe("SubagentsPanel 子代理工作台（v4.24 A1 三段式）", () => {
   });
 
   it("下钻链（v4.27）：节点点击 → 右侧全面板子代理对话（实时视图），返回回分工树", async () => {
-    render(<SubagentsPanel sessionPath="s1.jsonl" />);
+    renderT(<SubagentsPanel sessionPath="s1.jsonl" />);
     await screen.findByText("主 agent");
     // 点击运行中的子代理行 → 切换为全面板对话视图（替代旧的内嵌窄卡）
     fireEvent.click(screen.getByText("调研竞品表格 Agent 能力并总结可蒸馏点"));
@@ -201,7 +209,7 @@ describe("SubagentsPanel 子代理工作台（v4.24 A1 三段式）", () => {
   });
 
   it("自动展开偏好开关：切换持久化到 localStorage", async () => {
-    render(<SubagentsPanel sessionPath="s1.jsonl" />);
+    renderT(<SubagentsPanel sessionPath="s1.jsonl" />);
     await screen.findByText("主 agent");
     const toggle = screen.getByTestId("subagent-auto-open-toggle");
     expect(toggle.textContent).toContain("自动展开 开");
@@ -212,29 +220,29 @@ describe("SubagentsPanel 子代理工作台（v4.24 A1 三段式）", () => {
 
   it("新子代理出现（跨会话路径触发）→ onSubagentStarted 回调", async () => {
     const onStarted = vi.fn();
-    const { rerender } = render(<SubagentsPanel sessionPath="s1.jsonl" onSubagentStarted={onStarted} />);
+    const { rerender } = renderT(<SubagentsPanel sessionPath="s1.jsonl" onSubagentStarted={onStarted} />);
     await screen.findByText("主 agent");
     // 切到会话 B：mock 返回带新 ref 的分工列表 → 检测到新子代理（面板只负责
     // 检测 + 回调，亮出面板由 App 接线决定——此处只钉回调触发）。
     mocks.SubagentRuns.mockResolvedValue(runsB);
-    rerender(<SubagentsPanel sessionPath="s2.jsonl" onSubagentStarted={onStarted} />);
+    rerender(<LocaleProvider><SubagentsPanel sessionPath="s2.jsonl" onSubagentStarted={onStarted} /></LocaleProvider>);
     await waitFor(() => expect(onStarted).toHaveBeenCalledTimes(1));
   });
 
   it("偏好关闭：新子代理出现只更新数据，不触发 onSubagentStarted", async () => {
     window.localStorage.setItem("gaea.subagentAutoOpen", "0");
     const onStarted = vi.fn();
-    const { rerender } = render(<SubagentsPanel sessionPath="s1.jsonl" onSubagentStarted={onStarted} />);
+    const { rerender } = renderT(<SubagentsPanel sessionPath="s1.jsonl" onSubagentStarted={onStarted} />);
     await screen.findByText("主 agent");
     mocks.SubagentRuns.mockResolvedValue(runsB);
-    rerender(<SubagentsPanel sessionPath="s2.jsonl" onSubagentStarted={onStarted} />);
+    rerender(<LocaleProvider><SubagentsPanel sessionPath="s2.jsonl" onSubagentStarted={onStarted} /></LocaleProvider>);
     await act(async () => { await Promise.resolve(); });
     expect(onStarted).not.toHaveBeenCalled();
     window.localStorage.removeItem("gaea.subagentAutoOpen");
   });
 
   it("无 sessionPath 显示空状态（不请求）", async () => {
-    render(<SubagentsPanel />);
+    renderT(<SubagentsPanel />);
     expect(await screen.findByText(/尚未派发子代理/)).toBeTruthy();
     expect(mocks.AgentNetwork).not.toHaveBeenCalled();
   });

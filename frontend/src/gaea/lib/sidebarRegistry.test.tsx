@@ -3,6 +3,7 @@
 import { describe, expect, it } from "vitest";
 import { Fragment } from "react";
 import { render } from "@testing-library/react";
+import { LocaleProvider } from "./i18n";
 import { SIDEBAR_REGISTRY, getWorkspaceRegistration, type WorkspacePanelContext } from "./sidebarRegistry";
 import { WORKSPACE_TABS, WORKSPACE_TAB_IDS } from "./workspaceTabs";
 
@@ -57,8 +58,10 @@ describe("sidebarRegistry 注册表完整性（蒸馏 dsh-better-sidebar registe
 
 describe("sidebarRegistry 渲染接线（右栏经注册表渲染，面板组件本体零改动）", () => {
   it("每个注册项的 render 均可挂载产出内容", () => {
+    // 面板组件接了 useT（i18n 批），裸渲染会抛——包 Provider 并钉 zh
+    localStorage.setItem("gaea-lang", "zh");
     const { container } = render(
-      <>{SIDEBAR_REGISTRY.map((entry) => <Fragment key={entry.id}>{entry.render(ctx)}</Fragment>)}</>,
+      <LocaleProvider><>{SIDEBAR_REGISTRY.map((entry) => <Fragment key={entry.id}>{entry.render(ctx)}</Fragment>)}</></LocaleProvider>,
     );
     expect(container.children.length).toBe(SIDEBAR_REGISTRY.length);
   });

@@ -1,6 +1,14 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { ReactElement } from "react";
+import { LocaleProvider } from "../lib/i18n";
 import type { AgentNetwork } from "../lib/types";
+
+// AgentNetworkCard 走 useT：钉住 zh 让「Agent 网络/主 agent/查看完整 transcript」等中文断言继续成立
+const renderT = (ui: ReactElement) => {
+  localStorage.setItem("gaea-lang", "zh");
+  return render(<LocaleProvider>{ui}</LocaleProvider>);
+};
 
 const agentNetworkMock = vi.fn();
 const subagentRunsMock = vi.fn();
@@ -89,7 +97,7 @@ describe("AgentNetworkCard Agent 网络", () => {
 
   it("渲染标题、子代理标签与统计", async () => {
     const { AgentNetworkCard } = await import("./AgentNetworkCard");
-    render(<AgentNetworkCard running={false} />);
+    renderT(<AgentNetworkCard running={false} />);
     expect(await screen.findByText("Agent 网络")).toBeTruthy();
     expect(screen.getByText(/2 个子代理/)).toBeTruthy();
     expect(screen.getByText(/调研模块A的现状/)).toBeTruthy();
@@ -98,7 +106,7 @@ describe("AgentNetworkCard Agent 网络", () => {
 
   it("悬停节点显示详情", async () => {
     const { AgentNetworkCard } = await import("./AgentNetworkCard");
-    render(<AgentNetworkCard running={false} />);
+    renderT(<AgentNetworkCard running={false} />);
     // 悬停根节点（文字「主」）
     const rootNode = await screen.findByText("主");
     fireEvent.mouseOver(rootNode);
@@ -114,14 +122,14 @@ describe("AgentNetworkCard Agent 网络", () => {
       root: { id: "root", name: "主 agent", kind: "root", status: "completed", toolCalls: 0, errors: 0, tokens: 0, children: [] },
     });
     const { AgentNetworkCard } = await import("./AgentNetworkCard");
-    render(<AgentNetworkCard running={false} />);
+    renderT(<AgentNetworkCard running={false} />);
     expect(await screen.findByText(/0 个子代理/)).toBeTruthy();
     expect(screen.getByText(/悬停查看节点详情/)).toBeTruthy();
   });
 
   it("点击子代理节点固定分工详情（任务/回答/活动行）", async () => {
     const { AgentNetworkCard } = await import("./AgentNetworkCard");
-    render(<AgentNetworkCard running={false} sessionPath="s1.jsonl" />);
+    renderT(<AgentNetworkCard running={false} sessionPath="s1.jsonl" />);
     await screen.findByText("Agent 网络");
     // 子代理 A 的中心数字 = 工具调用数 4（circle 内 text）
     fireEvent.click(screen.getByText("4"));
@@ -134,7 +142,7 @@ describe("AgentNetworkCard Agent 网络", () => {
 
   it("查看完整 transcript（消息流渲染 + 收起）", async () => {
     const { AgentNetworkCard } = await import("./AgentNetworkCard");
-    render(<AgentNetworkCard running={false} sessionPath="s1.jsonl" />);
+    renderT(<AgentNetworkCard running={false} sessionPath="s1.jsonl" />);
     await screen.findByText("Agent 网络");
     fireEvent.click(screen.getByText("4"));
     fireEvent.click(await screen.findByText("查看完整 transcript"));
@@ -150,7 +158,7 @@ describe("AgentNetworkCard Agent 网络", () => {
 
   it("transcript 搜索过滤消息", async () => {
     const { AgentNetworkCard } = await import("./AgentNetworkCard");
-    render(<AgentNetworkCard running={false} sessionPath="s1.jsonl" />);
+    renderT(<AgentNetworkCard running={false} sessionPath="s1.jsonl" />);
     await screen.findByText("Agent 网络");
     fireEvent.click(screen.getByText("4"));
     fireEvent.click(await screen.findByText("查看完整 transcript"));

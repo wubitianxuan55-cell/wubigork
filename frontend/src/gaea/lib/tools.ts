@@ -54,6 +54,22 @@ export function subjectOf(name: string, args: string): string {
     case "remember":
       return str(a, "name") || str(a, "description");
       return ""; // dedicated card, not a subject line
+    // ── 办公工具：行首主体（路径/标题/查询词）────────────────────────
+    case "chart_gen":
+    case "diagram_gen":
+      return str(a, "title");
+    case "knowledge_search":
+    case "memory_search":
+      return str(a, "query");
+    case "knowledge_add":
+      return str(a, "title");
+    case "read_skill":
+      return str(a, "name");
+    case "move_file": {
+      const from = str(a, "source") || str(a, "path");
+      const to = str(a, "destination");
+      return to ? `${from} → ${to}` : from;
+    }
     default:
       return str(a, "path") || str(a, "file_path");
   }
@@ -229,6 +245,49 @@ export function summarize(name: string, args: string, output?: string, error?: s
     }
     case "bash":
       return output.trim() === "" ? t("tool.noOutput") : countOf(lineCount(output), "tool.lineOne", "tool.lineOther");
+    // ── 办公工具：完成态一行结果摘要（此前这些卡除文件名外全空白）──────
+    case "format_convert": {
+      const text = extractOutputFromEnvelope(output);
+      const saved = text.match(/已转换并保存为\s+(\S+?)（(\d+) 字符）/);
+      if (saved) {
+        return `${saved[1]} · ${countOf(Number(saved[2]), "tool.charOne", "tool.charOther")}`;
+      }
+      const head = text.match(/^# 文档转换:\s*(.+)$/m);
+      return head ? head[1].trim() : "";
+    }
+    case "chart_gen": {
+      const text = extractOutputFromEnvelope(output);
+      const type = text.match(/类型:\s*(\w+)/)?.[1];
+      if (!type) return "";
+      const n = Number(text.match(/数据点:\s*(\d+)/)?.[1] ?? text.match(/类别:\s*(\d+)/)?.[1] ?? 0);
+      return n > 0 ? `${type} · ${countOf(n, "tool.pointOne", "tool.pointOther")}` : type;
+    }
+    case "diagram_gen": {
+      // diagram_gen 返回裸 JSON（非 ToolEnvelope）
+      try {
+        const r = JSON.parse(output) as { ok?: boolean; output?: string };
+        if (r.ok && r.output) return r.output;
+      } catch {}
+      return "";
+    }
+    case "knowledge_add": {
+      const text = extractOutputFromEnvelope(output);
+      return text.includes("已保存知识条目") ? t("tool.kbSaved") : "";
+    }
+    case "knowledge_search": {
+      const text = extractOutputFromEnvelope(output);
+      const n = (text.match(/^### /gm) || []).length;
+      return n > 0 ? countOf(n, "tool.hitOne", "tool.hitOther") : "";
+    }
+    case "memory_search": {
+      // memory_search 直接返回纯文本编号列表（非信封）
+      const numbered = (output.match(/^\d+\. /gm) || []).length;
+      const more = output.match(/\.\.\. and (\d+) more/);
+      const total = numbered + (more ? Number(more[1]) : 0);
+      return total > 0 ? countOf(total, "tool.hitOne", "tool.hitOther") : "";
+    }
+    case "read_skill":
+      return countOf(lineCount(output), "tool.lineOne", "tool.lineOther");
     default:
       return "";
   }
