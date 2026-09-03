@@ -134,6 +134,62 @@ func TestGaeaSubagentRuns_NoSubagents(t *testing.T) {
 	}
 }
 
+// TestGaeaSubagentRuns_ModelTool：mt_（本地模型工具）记录与 sa_ 同列表可见，
+// kind=model_tool + tool 名 + meta.Title 优先作任务摘要；GaeaSubagentTranscript
+// 也接受 mt_ ref（完整输入输出可回看）。
+func TestGaeaSubagentRuns_ModelTool(t *testing.T) {
+	sessionPath, sessionDir := writeSubagentFixture(t)
+	subDir := filepath.Join(sessionDir, "subagents")
+	ref := "mt_20260903_120000_0000000001_c3c3c3c3"
+	meta := map[string]interface{}{
+		"ref": ref, "status": "completed", "kind": "model_tool", "tool": "vision",
+		"title":     "vision · 识别图片 C:\\x.png",
+		"createdAt": time.Now().Add(-time.Minute).UTC().Format(time.RFC3339Nano),
+		"updatedAt": time.Now().Add(-time.Second).UTC().Format(time.RFC3339Nano),
+	}
+	writeJSON(t, filepath.Join(subDir, ref+".meta.json"), meta)
+	writeMessages(t, filepath.Join(subDir, ref+".jsonl"), []provider.Message{
+		{Role: provider.RoleUser, Content: "vision · 识别图片 C:\\x.png"},
+		{Role: provider.RoleAssistant, Content: "图中标题：2026 年 9 月产值表；表格 3 行。"},
+	})
+
+	a := &App{core: &core{}}
+	v := a.GaeaSubagentRuns(sessionPath)
+	var mt *SubagentRunView
+	for i := range v.Runs {
+		if v.Runs[i].Ref == ref {
+			mt = &v.Runs[i]
+			break
+		}
+	}
+	if mt == nil {
+		t.Fatalf("mt_ 记录未出现在 runs：%+v", v.Runs)
+	}
+	if mt.Kind != "model_tool" || mt.Tool != "vision" {
+		t.Fatalf("kind/tool 异常：kind=%q tool=%q", mt.Kind, mt.Tool)
+	}
+	if !strings.Contains(mt.Task, "识别图片") || !strings.Contains(mt.Answer, "产值表") {
+		t.Fatalf("task/answer 异常：%q / %q", mt.Task, mt.Answer)
+	}
+
+	tv, err := a.GaeaSubagentTranscript(sessionPath, ref)
+	if err != nil {
+		t.Fatalf("GaeaSubagentTranscript(mt_): %v", err)
+	}
+	if len(tv.Messages) != 2 || tv.Messages[0].Role != "user" || tv.Messages[1].Role != "assistant" {
+		t.Fatalf("transcript 结构异常：%+v", tv.Messages)
+	}
+	if !strings.Contains(tv.Task, "识别图片") {
+		t.Fatalf("transcript task 未取 meta.Title：%q", tv.Task)
+	}
+	// 旧 sa_ meta 无 kind → 读端补 subagent（不回归）
+	for _, r := range v.Runs {
+		if strings.HasPrefix(r.Ref, "sa_") && r.Kind != "subagent" {
+			t.Fatalf("旧 sa_ 记录 kind 应为 subagent，实际 %q", r.Kind)
+		}
+	}
+}
+
 func TestGaeaSubagentRuns_Validation(t *testing.T) {
 	a := &App{core: &core{}}
 	// 空路径 / 非法路径（sessionDirForPath 拒绝）

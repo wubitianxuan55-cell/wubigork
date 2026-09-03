@@ -89,6 +89,16 @@ export function TasksWorkbench({
   useLiveReload(running, load);
 
   const runs = useMemo(() => runsView?.runs ?? [], [runsView]);
+  // 本地模型工具（vision/summarize_file 等）：与子代理同构的 mt_ 运行不在
+  // AgentNetwork 树里（树只含派生子代理），这里以扁平区块展示同一数据源。
+  const modelToolRuns = useMemo(
+    () =>
+      runs
+        .filter((r) => r.kind === "model_tool")
+        .slice()
+        .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt)),
+    [runs],
+  );
   const hasContent =
     (net !== null && (net.root.children?.length ?? 0) > 0) || runs.length > 0;
   const runningCount = runsView?.running || runs.filter((r) => r.status === "running").length;
@@ -165,6 +175,69 @@ export function TasksWorkbench({
             <AgentTree network={net} runs={runs} onOpenThread={openThread} />
           </div>
         ) : null}
+
+        {/* ①b 本地模型工具：单轮模型调用 = 变相子代理，同 UI 行 + 可开对话 tab */}
+        {modelToolRuns.length > 0 && (
+          <>
+            <div
+              className="px-2 pt-2 pb-0.5 flex items-center gap-1.5 text-[10px] uppercase tracking-wider"
+              style={{ color: "var(--md-sys-color-text-secondary)" }}
+            >
+              <Bot size={10} aria-hidden />
+              {t("subagent.modelToolSection")}
+              <span className="rounded-full px-1 font-mono" style={{ background: "var(--md-sys-color-surface-container-high)" }}>
+                {modelToolRuns.length}
+              </span>
+            </div>
+            <div className="flex flex-col gap-px px-1">
+              {modelToolRuns.map((r) => {
+                const statusLabel =
+                  r.status === "running"
+                    ? t("subagent.statusRunning")
+                    : r.status === "failed"
+                      ? t("subagent.statusFailed")
+                      : t("subagent.statusDone");
+                return (
+                  <button
+                    key={r.ref}
+                    type="button"
+                    data-model-tool-row={`${sessionPath}:${r.ref}`}
+                    className="flex w-full items-start gap-1.5 rounded-md px-1.5 py-1 text-left bg-transparent border-0 cursor-pointer transition-colors hover:bg-(color:--md-sys-color-surface-container-high)"
+                    onClick={() =>
+                      sessionPath &&
+                      onOpenSubagent?.({
+                        sessionPath,
+                        ref: r.ref,
+                        task: r.task || r.tool || r.ref,
+                        status: r.status === "running" ? "running" : r.status === "failed" ? "failed" : "completed",
+                      })
+                    }
+                  >
+                    <span
+                      className={`mt-[5px] h-1.5 w-1.5 shrink-0 rounded-full ${
+                        r.status === "running"
+                          ? "bg-accent animate-pulse"
+                          : r.status === "failed"
+                            ? "bg-err"
+                            : "bg-ok"
+                      }`}
+                    />
+                    <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                      <span className="truncate text-[11.5px] leading-snug" style={{ color: "var(--md-sys-color-text)" }}>
+                        {r.task || r.tool || r.ref}
+                      </span>
+                      <span className="truncate text-[10px] leading-snug" style={{ color: "var(--md-sys-color-text-secondary)" }}>
+                        {statusLabel}
+                        {" · "}
+                        {t("subagent.modelToolLabel")}
+                      </span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        )}
 
         {/* ② 后台任务（同页滚动；TaskCenter 自带输出 dock/取消/重试） */}
         <div className="mt-1 border-t border-border-soft" style={{ paddingTop: 2 }}>

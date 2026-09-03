@@ -1288,6 +1288,8 @@ export const zh: Record<DictKey, string> = {
   "subagent.searchMsg": "搜索消息",
   "subagent.msgFilterCount": "{shown}/{total} 条",
   "subagent.noMatchMsg": "没有匹配的消息",
+  "subagent.modelToolLabel": "本地模型",
+  "subagent.modelToolSection": "本地模型工具",
 
   // ── v4.57 i18n 收尾：ContextView ──
   "contextview.catSystem": "系统提示词",

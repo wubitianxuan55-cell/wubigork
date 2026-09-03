@@ -41,6 +41,10 @@ func (a *AgentRunner) runDirect(ctx context.Context, input string) (*TurnResult,
 		a.changes.SetBaselineDir(filepath.Join(filepath.Dir(a.journalDir), "rollback"))
 	}
 	defer a.flushJournal()
+	// 本地模型工具运行记录（变相子代理）回合级兜底：任何异常返回路径
+	// （流中断/审批取消/工具批被抑制）都会让 open 的 mt_ 记录停在 running，
+	// 这里统一收尾为 failed——正常路径由 ToolResult 先删掉 map 条目。
+	defer a.cleanupModelToolRunsOnTurnEnd("回合中断：本地模型工具调用未完成")
 	a.sink.Emit(event.Event{Kind: event.TurnStarted})
 	// wrap user input with transient language preference blocks
 	// (Design adopted from DeepSeek-Reasonix-V1.12)

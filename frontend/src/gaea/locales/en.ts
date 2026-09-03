@@ -1287,6 +1287,8 @@ export const en = {
   "subagent.searchMsg": "Search messages",
   "subagent.msgFilterCount": "{shown}/{total} msgs",
   "subagent.noMatchMsg": "No matching messages",
+  "subagent.modelToolLabel": "Local model",
+  "subagent.modelToolSection": "Local model tools",
 
   // ── v4.57 i18n 收尾：ContextView ──
   "contextview.catSystem": "System prompt",

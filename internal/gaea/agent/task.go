@@ -31,6 +31,20 @@ const (
 	taskResultTagClose = "</task-result>"
 )
 
+// taskTitle 从子代理任务 prompt 提炼 UI 标题（首行、≤160 字符）。transcript
+// 首条 user 消息是完整 prompt（含换行/上下文），标题只取首行避免侧栏刷屏。
+func taskTitle(prompt string) string {
+	prompt = strings.TrimSpace(prompt)
+	if i := strings.IndexByte(prompt, '\n'); i >= 0 {
+		prompt = strings.TrimSpace(prompt[:i])
+	}
+	r := []rune(prompt)
+	if len(r) <= 160 {
+		return prompt
+	}
+	return string(r[:159]) + "…"
+}
+
 // wrapTaskResult wraps a sub-agent's final answer in structured XML tags so the
 // parent model can reliably identify and parse it.
 func wrapTaskResult(text string) string {
@@ -246,7 +260,10 @@ func (t *TaskTool) Execute(ctx context.Context, args json.RawMessage) (string, e
 			// S3 双空间：jobCtx 由 jobs.Manager 的 root（context.Background 派生）
 			// 新建，不继承父调用 ctx 的 value——空间会在此丢失。显式补注父空间，
 			// 后台子代理与前台一样继承（缺省 work）。
-			return t.runSubSession(WithSpace(jobCtx, SpaceFromContext(ctx)), p.Prompt, subReg, nested, run, maxSteps, p.OutputSchema)
+			result, runErr := t.runSubSession(WithSpace(jobCtx, SpaceFromContext(ctx)), p.Prompt, subReg, nested, run, maxSteps, p.OutputSchema)
+			// 后台任务必须在此收尾 transcript（父 Execute 已返回，等不到回合末
+			// finalizeRun 代跑；此前 store 模式下后台子代理从不落盘）。
+			return t.finalizeRun(result, runErr, run)
 		})
 		return fmt.Sprintf("Started background task %q (%s). It runs across turns; collect its final answer with wait (or wait will return it once done), and you'll be notified when it finishes.", job.ID, label), nil
 	}
@@ -340,6 +357,20 @@ func (t *TaskTool) runSubSession(ctx context.Context, prompt string, subReg *too
 		if t.subagentCtxWin > 0 {
 			subCtxWin = t.subagentCtxWin
 		}
+	}
+
+	// v4.61：真机 transcript 实时化——每次子代理尝试开始时把 meta 置
+	// running（Title 供 UI），并启动 1s 快照写盘；defer stop 先做最终 flush
+	// 再退出，随后调用方的 SaveCompleted/SaveFailed 终态写不会被旧 running
+	// 快照覆盖。无 store / 临时 run（Ref 空）时零开销 no-op。
+	var stopProgress func()
+	if run != nil && run.Ref != "" && t.transcripts != nil {
+		if strings.TrimSpace(run.Title) == "" {
+			run.Title = taskTitle(prompt)
+		}
+		_ = t.transcripts.MarkRunning(run)
+		stopProgress = t.transcripts.TrackProgress(run, 0)
+		defer stopProgress()
 	}
 
 	var subUsage provider.Usage

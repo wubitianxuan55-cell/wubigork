@@ -39,9 +39,20 @@ func (a *AgentRunner) executeBatch(ctx context.Context, calls []provider.ToolCal
 
 	for i, c := range calls {
 		if suppressed[i] {
+			// v4.61 变相子代理显示：被参数风暴熔断抑制的模型工具调用也要收尾
+			// （pre-exec 可能已开 mt_ 记录），否则记录永久停在 running。
+			if c.ID != "" && a.isModelBacked(c.Name) {
+				a.finishModelTool(c.ID, "", nil, "suppressed by param storm breaker")
+			}
 			continue // 跳过 ToolDispatch 事件
 		}
 		t, ok := a.tools.Get(c.Name)
+		// v4.61：模型工具记录在 pre-exec 起点已开（参数完整）；这里兜底非
+		// readOnly 的 ModelBacked 工具 + 用完整参数刷新标题。
+		if ok && tool.IsModelBacked(t) && c.ID != "" {
+			a.startModelToolRun(ctx, c.ID, c.Name, c.Arguments)
+			a.updateModelToolLabel(c.ID, c.Name, c.Arguments)
+		}
 		a.sink.Emit(event.Event{Kind: event.ToolDispatch, Tool: event.Tool{
 			ID:       c.ID,
 			Name:     c.Name,
@@ -107,6 +118,16 @@ func (a *AgentRunner) executeBatch(ctx context.Context, calls []provider.ToolCal
 			ReadOnly:    ok && t.ReadOnly(),
 			Truncated:   o.truncated,
 		}})
+		// v4.61：工具结果到达 → 关闭 mt_ 记录（成功/失败如实标记）。
+		if c.ID != "" && a.isModelBacked(c.Name) {
+			var toolErr error
+			if strings.TrimSpace(o.errMsg) != "" {
+				toolErr = fmt.Errorf("%s", o.errMsg)
+			} else if hasToolErrorPrefix(o.output) {
+				toolErr = fmt.Errorf("%s", firstLine(o.output))
+			}
+			a.finishModelTool(c.ID, o.output, toolErr, "")
+		}
 		if o.truncated && o.truncMsg != "" {
 			a.sink.Emit(event.Event{Kind: event.Notice, Level: event.LevelInfo, Text: o.truncMsg})
 		}
@@ -116,6 +137,18 @@ func (a *AgentRunner) executeBatch(ctx context.Context, calls []provider.ToolCal
 	a.postBatchCoherenceCheck(calls, results)
 	a.applyStormBreaker(calls, outcomes, results)
 	return results
+}
+
+// hasToolErrorPrefix mirrors runDirect's tool-error detection used for turn
+// results so model-tool records fail (not complete) on recoverable/non-
+// recoverable errors alike.
+func hasToolErrorPrefix(s string) bool {
+	for _, p := range []string{"error:", "blocked:", "precheck blocked:", "suppressed:", "tool panic:"} {
+		if strings.HasPrefix(strings.TrimSpace(s), p) {
+			return true
+		}
+	}
+	return false
 }
 
 type toolCallBatch struct {

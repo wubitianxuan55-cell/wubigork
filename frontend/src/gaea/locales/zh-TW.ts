@@ -1292,6 +1292,8 @@ export const zhTW: Record<DictKey, string> = {
   "subagent.searchMsg": "搜尋訊息",
   "subagent.msgFilterCount": "{shown}/{total} 則",
   "subagent.noMatchMsg": "沒有符合的訊息",
+  "subagent.modelToolLabel": "本地模型",
+  "subagent.modelToolSection": "本地模型工具",
 
   // ── v4.57 i18n 收尾：ContextView ──
   "contextview.catSystem": "系統提示詞",

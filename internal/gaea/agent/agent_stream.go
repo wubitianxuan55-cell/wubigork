@@ -88,6 +88,12 @@ func (a *AgentRunner) stream(ctx context.Context, turn int) (string, string, str
 			// and calls with empty IDs (lookup key collision).
 			if tc := chunk.ToolCall; tc != nil && tc.ID != "" && a.toolReadOnly(tc.Name) &&
 				tc.Name != "complete_step" && tc.Name != "todo_write" {
+				// v4.61 变相子代理显示：ModelBacked 工具（vision/summarize_file）
+				// 在真正执行前开 mt_ 记录——这是 UI 能展示「正在运行」的唯一
+				// 起点（此后结果事件才到达，纯 batch 起点会几乎立即完成）。
+				if a.isModelBacked(tc.Name) {
+					a.startModelToolRun(ctx, tc.ID, tc.Name, tc.Arguments)
+				}
 				a.preWG.Add(1)
 				go func(call provider.ToolCall) {
 					defer func() {

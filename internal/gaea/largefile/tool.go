@@ -43,6 +43,10 @@ func (t *summarizeFile) Schema() json.RawMessage {
 
 func (t *summarizeFile) ReadOnly() bool { return true }
 
+// ModelBacked 声明该工具内部调用会话模型做分块摘要——桌面端把一次调用当作
+// 「变相子代理」打开 mt_ 运行记录（与子代理同一会话 UI）。
+func (t *summarizeFile) ModelBacked() bool { return true }
+
 func (t *summarizeFile) CompactDescription() string {
 	return "大文件分块摘要：docx/xls/pdf/txt/md 等过大文件 → 分块摘要后合并（免整读）"
 }
@@ -53,9 +57,9 @@ func (t *summarizeFile) CompactSchema() json.RawMessage {
 
 func (t *summarizeFile) Execute(ctx context.Context, args json.RawMessage) (string, error) {
 	var p struct {
-		Path  string `json:"path"`
+		Path  string   `json:"path"`
 		Paths []string `json:"paths,omitempty"`
-		Focus string `json:"focus,omitempty"`
+		Focus string   `json:"focus,omitempty"`
 	}
 	if err := json.Unmarshal(args, &p); err != nil {
 		return "", fmt.Errorf("参数无效: %w", err)

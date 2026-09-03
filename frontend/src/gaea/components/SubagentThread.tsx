@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Brain, ChevronRight, Loader2, Rollback } from "../icons";
-import { app } from "../lib/bridge";
+import { app, onEvent } from "../lib/bridge";
 import { useT, type Translator } from "../lib/i18n";
 import type { SubagentTranscriptMessage, SubagentTranscriptView } from "../lib/types";
 import { MemoMarkdown } from "./MemoMarkdown";
@@ -201,6 +201,22 @@ export function SubagentThread({
     return () => window.clearInterval(timer);
   }, [running, gate, load]);
   useLiveReload(running, load);
+  // 事件驱动刷新：子代理的工具活动（nested tool_dispatch/tool_result）会经
+  // subSinkFor 转发到主事件流；运行时收到即补拉 transcript（transcript 由
+  // 后端 ~1s 快照写盘），把「最多等 3s 轮询」收敛到工具边界即时更新。节流
+  // 800ms 防事件风暴，turn_done 由 useLiveReload 兜底。
+  const lastEventReloadRef = useRef(0);
+  useEffect(() => {
+    if (!running) return;
+    const off = onEvent((e: { kind: string }) => {
+      if (e.kind !== "tool_dispatch" && e.kind !== "tool_result") return;
+      const now = Date.now();
+      if (now - lastEventReloadRef.current < 800) return;
+      lastEventReloadRef.current = now;
+      load();
+    });
+    return off;
+  }, [running, load]);
 
   // 运行中强制跟随底部；完成/空闲时保留用户滚动位置（near-bottom 才跟）。
   const scrollRef = useRef<HTMLDivElement>(null);

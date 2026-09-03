@@ -152,6 +152,22 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 	}
 	jm := jobs.NewManager(sink)
 
+	// v4.61 子代理/本地模型工具 transcript 落盘：目录随控制器当前会话惰性解析
+	// （与 eventLogSink 的 SetPathSource 同一时序问题——会话路径在控制构建完成
+	// 后才可知）。闭包在真正写盘（回合内派发子代理/执行模型工具）时才执行，
+	// ctrlSessionPath 彼时必已赋值。
+	var ctrlSessionPath func() string
+	subagentStore := agent.NewLazySubagentStore(func() string {
+		if ctrlSessionPath == nil {
+			return ""
+		}
+		sp := ctrlSessionPath()
+		if sp == "" {
+			return ""
+		}
+		return filepath.Join(filepath.Dir(filepath.Clean(sp)), "subagents")
+	})
+
 	execProv, err := NewProvider(entry)
 	if cfg.Agent.Effort != "" {
 		entry.Effort = cfg.Agent.Effort
@@ -267,6 +283,9 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 		}
 	}
 	reg.Add(taskTool)
+	// v4.61：真实引擎接线——task 工具派发的子代理从现在起真正落盘 transcript
+	// （此前 WithTranscripts 只有测试调用，真机子代理 tab 无数据可显示）。
+	taskTool.WithTranscripts(subagentStore)
 
 	// The `remember` tool lets the model persist durable facts to the project's
 	// auto-memory store; `forget` prunes ones that turn out wrong. The saved index
@@ -325,7 +344,10 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 		childCompiler := compiler.Fork()
 		sysPrompt := childCompiler.SystemPrompt()
 
-		return agent.RunSubAgent(sctx, prov, subReg, sysPrompt, sk.Body+"\n\n"+task, agent.Options{
+		// v4.61：技能子代理与 task 子代理同等待遇——真实引擎落盘 transcript
+		// （sa_ meta/jsonl），title 用任务本体而非 sk.Body+task 拼合串，UI 标题
+		// 不以技能正文开头。
+		return agent.RunPersistedSubAgent(sctx, prov, subReg, sysPrompt, sk.Body+"\n\n"+task, task, agent.Options{
 			MaxSteps:      steps,
 			Temperature:   cfg.Agent.Temperature,
 			Pricing:       price,
@@ -337,7 +359,7 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 			TemplatePrefix: lookupSubagentTemplatePrefix(sk.Name),
 			// V10.36: 对齐父代理工具集以保证缓存命中
 			ActiveSchemas: reg.Schemas(),
-		}, agent.NestedSink(sctx, event.Discard), nil)
+		}, agent.NestedSink(sctx, event.Discard), subagentStore, nil)
 	}
 	reg.Add(skill.NewRunSkillTool(skillStore, skillRunner))
 	reg.Add(skill.NewInstallSkillTool(skillStore, nil))
@@ -435,6 +457,18 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 		}
 	}
 
+	// v4.61：主执行器装配「本地模型工具 → 变相子代理」运行记录器——把注册表
+	// 中声明 ModelBacked 的工具名集合交给执行器，调用时落 mt_ 记录（与子代理
+	// 同一会话 UI）。MCP 热插工具不在此集合（目前无本地模型 MCP 工具；未来
+	// 需要时在 AddMCPServer 装配点补同名接线）。
+	modelBackedNames := map[string]bool{}
+	for _, name := range reg.Names() {
+		if t, ok := reg.Get(name); ok && tool.IsModelBacked(t) {
+			modelBackedNames[name] = true
+		}
+	}
+	executor.SetModelToolRecorder(modelBackedNames, subagentStore)
+
 	// V10.32: use provider name as label so users can distinguish models from
 	// different providers (e.g. "flash" vs "pro") even when they share the same
 	// underlying model name (e.g. both "deepseek-chat").
@@ -521,6 +555,9 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 		WorkspaceRoot: cwd,
 	}
 	ctrl := control.New(ctrlOpts)
+	// v4.61：惰性 subagents store 的会话路径源（写盘发生在回合内，此时必已
+	// 有会话路径；与 eventLogSink 的 SetPathSource 同一晚绑定时序）。
+	ctrlSessionPath = ctrl.SessionPath
 	// 事件日志 sink 的会话路径只有控制构建完成后才可知（首次对话自动创建 /
 	// Resume 注入），故在此注入路径解析器；事件发射发生在 Build 返回之后，
 	// 闭包读取的是实时 SessionPath。S2：空间来源同风格懒解析——实时读取

@@ -33,6 +33,10 @@ func (visionTool) Schema() json.RawMessage {
 
 func (visionTool) ReadOnly() bool { return true }
 
+// ModelBacked 声明该工具调用本地视觉模型——桌面端把一次调用当作
+// 「变相子代理」打开 mt_ 运行记录（与子代理同一会话 UI）。
+func (visionTool) ModelBacked() bool { return true }
+
 func (visionTool) CompactDescription() string     { return compactDesc["vision"] }
 func (visionTool) CompactSchema() json.RawMessage { return compactSchema["vision"] }
 

@@ -165,6 +165,8 @@ export default function App() {
       ref: string;
       task?: string;
       model?: string;
+      kind?: "subagent" | "model_tool";
+      tool?: string;
       status: SubagentThreadStatus;
     }>
   >([]);
@@ -182,7 +184,11 @@ export default function App() {
       status: SubagentThreadStatus;
     }) => {
       const id = `sub:${p.ref}`;
-      setSubagentTabs((prev) => (prev.some((x) => x.id === id) ? prev : [...prev, { ...p, id }]));
+      setSubagentTabs((prev) => (
+        prev.some((x) => x.id === id)
+          ? prev
+          : [...prev, { ...p, id, kind: p.ref.startsWith("mt_") ? "model_tool" as const : undefined }]
+      ));
       setSubagentTabId(id);
       setChatTab("chat");
     },
@@ -218,11 +224,14 @@ export default function App() {
               if (!run) return tab;
               const model = run.model ?? tab.model;
               const task = run.task || tab.task;
-              if (run.status === tab.status && model === tab.model && task === tab.task) {
+              const kind = run.kind ?? tab.kind;
+              const tool = run.tool ?? tab.tool;
+              if (run.status === tab.status && model === tab.model && task === tab.task &&
+                  kind === tab.kind && tool === tab.tool) {
                 return tab;
               }
               changed = true;
-              return { ...tab, status: run.status, model, task };
+              return { ...tab, status: run.status, model, task, kind, tool };
             });
             return changed ? next : prev;
           });
@@ -1213,7 +1222,13 @@ export default function App() {
                     ? `${x.task.slice(0, 14)}…`
                     : (x.task || x.ref),
                 status: x.status,
-                detail: `${x.task || x.ref} ｜ ${statusText}${x.model ? ` · ${x.model}` : ""}`,
+                detail: `${x.task || x.ref} ｜ ${statusText}${
+                  x.kind === "model_tool" && !x.model
+                    ? ` · ${t("subagent.modelToolLabel")}`
+                    : x.model
+                      ? ` · ${x.model}`
+                      : ""
+                }`,
               };
             })}
             onCloseExtra={closeSubagentTab}

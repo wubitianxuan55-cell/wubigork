@@ -16,13 +16,19 @@ import (
 // SubagentRunView 是「多智能体分工」面板的单条子代理视图（P2，对标
 // WorkSwarm 蜂群 / QClaw V2 多 Agent：让用户看到「谁在干什么」）。
 type SubagentRunView struct {
-	Ref       string    `json:"ref"`        // sa_YYYYMMDD_HHMMSS_... 稳定引用
-	Status    string    `json:"status"`     // running | completed | failed
+	Ref    string `json:"ref"`    // sa_YYYYMMDD_HHMMSS_... 稳定引用
+	Status string `json:"status"` // running | completed | failed
+	// Kind 区分两类运行：subagent（task/run_skill 派生的真子代理）与
+	// model_tool（vision/summarize_file 等本地模型工具的单轮调用）。旧数据
+	// 缺省补 subagent。
+	Kind string `json:"kind"`
+	// Tool 仅 model_tool 填写：触发记录的工具名（vision / summarize_file …）。
+	Tool      string    `json:"tool,omitempty"`
 	Model     string    `json:"model,omitempty"`
 	ToolScope []string  `json:"toolScope,omitempty"`
-	Task      string    `json:"task"`       // transcript 首条 user 消息（任务摘要）
-	Answer    string    `json:"answer"`     // 最后一条 assistant 回答（截断摘要）
-	ToolCalls int       `json:"toolCalls"`  // transcript 中工具调用次数
+	Task      string    `json:"task"`               // transcript 首条 user 消息（任务摘要）
+	Answer    string    `json:"answer"`             // 最后一条 assistant 回答（截断摘要）
+	ToolCalls int       `json:"toolCalls"`          // transcript 中工具调用次数
 	LastText  string    `json:"lastText,omitempty"` // C2 活动行：最后一段 assistant 文本（运行中实时更新）
 	LastTool  string    `json:"lastTool,omitempty"` // C2 活动行：最后一次工具调用摘要（name + 结果头）
 	CreatedAt time.Time `json:"createdAt"`
@@ -41,8 +47,9 @@ type SubagentRunsView struct {
 // 返回分工列表（按创建时间倒序）。路径经 sessionDirForPath 校验（防穿越）；
 // 无 subagents 目录返回 Available=false（前端显示空状态，不报错）。
 // 数据源 = agent.SubagentStore 落盘的两件套：
-//   <sessionDir>/subagents/sa_*.meta.json（状态/模型/工具范围/时间）
-//   <sessionDir>/subagents/sa_*.jsonl    （transcript：任务 = 首条 user 消息）
+//
+//	<sessionDir>/subagents/sa_*.meta.json（状态/模型/工具范围/时间）
+//	<sessionDir>/subagents/sa_*.jsonl    （transcript：任务 = 首条 user 消息）
 func (a *App) GaeaSubagentRuns(sessionPath string) SubagentRunsView {
 	if sessionPath == "" || sessionDirForPath(sessionPath) == "" {
 		return SubagentRunsView{}
@@ -57,12 +64,15 @@ func (a *App) GaeaSubagentRuns(sessionPath string) SubagentRunsView {
 	}
 
 	type metaSide struct {
-		Ref       string         `json:"ref"`
-		CreatedAt time.Time      `json:"createdAt"`
-		UpdatedAt time.Time      `json:"updatedAt"`
-		Status    string         `json:"status"`
-		ToolScope []string       `json:"toolScope,omitempty"`
-		Model     string         `json:"model,omitempty"`
+		Ref       string    `json:"ref"`
+		CreatedAt time.Time `json:"createdAt"`
+		UpdatedAt time.Time `json:"updatedAt"`
+		Status    string    `json:"status"`
+		Kind      string    `json:"kind,omitempty"`
+		Title     string    `json:"title,omitempty"`
+		Tool      string    `json:"tool,omitempty"`
+		ToolScope []string  `json:"toolScope,omitempty"`
+		Model     string    `json:"model,omitempty"`
 	}
 	runs := []SubagentRunView{}
 	for _, e := range entries {
@@ -81,6 +91,8 @@ func (a *App) GaeaSubagentRuns(sessionPath string) SubagentRunsView {
 		v := SubagentRunView{
 			Ref:       ref,
 			Status:    m.Status,
+			Kind:      runKind(m.Kind, ref),
+			Tool:      m.Tool,
 			Model:     m.Model,
 			ToolScope: m.ToolScope,
 			CreatedAt: m.CreatedAt,
@@ -88,7 +100,7 @@ func (a *App) GaeaSubagentRuns(sessionPath string) SubagentRunsView {
 		}
 		// transcript：任务摘要（首条 user 消息）+ 最后回答 + 工具调用计数 + 活动行
 		task, answer, toolCalls, lastText, lastTool := summarizeSubagentTranscript(filepath.Join(dir, ref+".jsonl"))
-		v.Task = task
+		v.Task = firstNonEmpty(m.Title, task)
 		v.Answer = answer
 		v.ToolCalls = toolCalls
 		v.LastText = lastText
@@ -109,6 +121,26 @@ func (a *App) GaeaSubagentRuns(sessionPath string) SubagentRunsView {
 		Total:     len(runs),
 		Running:   running,
 	}
+}
+
+// runKind 归一记录家族：meta 显式 Kind 优先，旧数据按 ref 前缀补缺省
+// （sa_ → subagent；mt_ → model_tool；未知 → subagent）。
+func runKind(kind, ref string) string {
+	if kind != "" {
+		return kind
+	}
+	if strings.HasPrefix(ref, "mt_") {
+		return "model_tool"
+	}
+	return "subagent"
+}
+
+// firstNonEmpty 返回第一个非空串（meta.Title 优先于 transcript 推导任务）。
+func firstNonEmpty(a, b string) string {
+	if strings.TrimSpace(a) != "" {
+		return a
+	}
+	return b
 }
 
 // summarizeSubagentTranscript 从子代理 transcript JSONL 提取：
@@ -157,12 +189,12 @@ func summarizeSubagentTranscript(path string) (task, answer string, toolCalls in
 
 // SubagentTranscriptMessage 是子代理 transcript 中的一条消息（查看器渲染用）。
 type SubagentTranscriptMessage struct {
-	Role       string               `json:"role"` // system | user | assistant | tool
-	Name       string               `json:"name,omitempty"`
-	Content    string               `json:"content,omitempty"`
-	Reasoning  string               `json:"reasoning,omitempty"`
-	ToolCalls  []provider.ToolCall  `json:"toolCalls,omitempty"`
-	ToolCallID string               `json:"toolCallId,omitempty"`
+	Role       string              `json:"role"` // system | user | assistant | tool
+	Name       string              `json:"name,omitempty"`
+	Content    string              `json:"content,omitempty"`
+	Reasoning  string              `json:"reasoning,omitempty"`
+	ToolCalls  []provider.ToolCall `json:"toolCalls,omitempty"`
+	ToolCallID string              `json:"toolCallId,omitempty"`
 }
 
 // SubagentTranscriptView 是子代理完整 transcript 视图（Agent 网络节点 →
@@ -182,6 +214,16 @@ func (a *App) GaeaSubagentTranscript(sessionPath, ref string) (SubagentTranscrip
 		return SubagentTranscriptView{}, errors.New("invalid subagent transcript reference")
 	}
 	dir := filepath.Join(filepath.Dir(filepath.Clean(sessionPath)), "subagents")
+	// meta.Title 优先作任务标题（skill/model_tool 记录的 transcript 首条
+	// user 消息可能是技能正文/工具参数，不适合做 UI 标题）。
+	var metaTitle string
+	if b, err := os.ReadFile(filepath.Join(dir, ref+".meta.json")); err == nil {
+		var m struct {
+			Title string `json:"title"`
+		}
+		_ = json.Unmarshal(b, &m)
+		metaTitle = m.Title
+	}
 	f, err := os.Open(filepath.Join(dir, ref+".jsonl"))
 	if err != nil {
 		return SubagentTranscriptView{}, err
@@ -198,7 +240,7 @@ func (a *App) GaeaSubagentTranscript(sessionPath, ref string) (SubagentTranscrip
 			return SubagentTranscriptView{}, err
 		}
 		if view.Task == "" && m.Role == provider.RoleUser && strings.TrimSpace(m.Content) != "" {
-			view.Task = truncateRunes(strings.TrimSpace(m.Content), 120)
+			view.Task = firstNonEmpty(metaTitle, truncateRunes(strings.TrimSpace(m.Content), 120))
 		}
 		view.Messages = append(view.Messages, SubagentTranscriptMessage{
 			Role:       string(m.Role),
@@ -212,10 +254,12 @@ func (a *App) GaeaSubagentTranscript(sessionPath, ref string) (SubagentTranscrip
 	return view, nil
 }
 
-// validSubagentRef 校验子代理引用：sa_ 前缀 + 仅字母数字/下划线/连字符/点，
+// validSubagentRef 校验运行引用：sa_（子代理）或 mt_（本地模型工具）前缀 +
+// 仅字母数字/下划线/连字符/点，
 // 且长度受限（防路径穿越与超长注入）。
 func validSubagentRef(ref string) bool {
-	if len(ref) == 0 || len(ref) > 80 || !strings.HasPrefix(ref, "sa_") {
+	if len(ref) == 0 || len(ref) > 80 ||
+		(!strings.HasPrefix(ref, "sa_") && !strings.HasPrefix(ref, "mt_")) {
 		return false
 	}
 	for _, r := range ref {

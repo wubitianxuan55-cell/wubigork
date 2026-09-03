@@ -80,6 +80,23 @@ func IsPersistWrite(t Tool) bool {
 	return ok && pw.PersistWrite()
 }
 
+// ModelBackedTool is an optional capability a Tool may implement to declare
+// that executing it invokes a local model (vision / summarize_file …). Such a
+// tool call is effectively a one-round "sub-agent in disguise": the main thread
+// opens a model-tool run record (mt_) that the desktop UI renders in the same
+// session rows/tabs as a spawned sub-agent. The set is derived from this
+// marker (see IsModelBacked), so registering a new model-backed tool is a
+// one-line declaration; no call-site whitelists need updating.
+type ModelBackedTool interface {
+	ModelBacked() bool
+}
+
+// IsModelBacked reports whether t is marked as invoking a local model.
+func IsModelBacked(t Tool) bool {
+	mb, ok := t.(ModelBackedTool)
+	return ok && mb.ModelBacked()
+}
+
 // SpaceTaggedTool is an optional capability a Tool may implement to declare the
 // space it belongs to (S1.3-B 双空间装配): "work"（办公/编辑/检索域）或
 // "play"（生图/轻语/小说/角色域）。未实现该接口的工具按名字查 builtin 分类表

@@ -229,6 +229,16 @@ type AgentRunner struct {
 	// it to event.Discard.
 	sink event.Sink
 
+	// Model-tool run recording（v4.61 变相子代理显示）：主执行器装配后，
+	// vision/summarize_file 等 ModelBacked 工具调用在 session 的 subagents
+	// 目录落 mt_ 记录，供左栏/任务页以与子代理一致的行 + tab 展示。仅父
+	// 执行器装配（boot）；子代理 runner 保持 nil——其内部工具活动已落入
+	// 自身 sa_ transcript。mtRuns 以工具调用 ID 关联进行中的 mt_ ref。
+	modelBacked map[string]bool
+	mtStore     *SubagentStore
+	mtRuns      map[string]string
+	mtMu        sync.Mutex
+
 	// lastUsage caches the most recent per-turn telemetry the provider reported so
 	// the CLI can expose a context gauge without re-scraping the usage line. The
 	// run loop writes it while a frontend's status line reads it, so it is atomic.
@@ -516,6 +526,24 @@ func (a *AgentRunner) SetSink(s event.Sink) { a.sink = s }
 func (a *AgentRunner) SetArchive(ar *archive.Store, sessionID string) {
 	a.archive = ar
 	a.sessionID = sessionID
+}
+
+// SetModelToolRecorder 装配本地模型工具运行记录器（仅主执行器调用）。
+// names 是注册表中标记 ModelBacked 的工具名集合；store 是惰性 subagents
+// store（目录随当前会话解析）。nil 任一参数 = 关闭记录（子代理 runner
+// 缺省态，保持零开销）。必须在 Run() 前调用一次。
+func (a *AgentRunner) SetModelToolRecorder(names map[string]bool, store *SubagentStore) {
+	a.mtMu.Lock()
+	defer a.mtMu.Unlock()
+	if len(names) == 0 || store == nil {
+		a.modelBacked = nil
+		a.mtStore = nil
+		a.mtRuns = nil
+		return
+	}
+	a.modelBacked = names
+	a.mtStore = store
+	a.mtRuns = make(map[string]string, 8)
 }
 
 // SetPreEditHook installs the pre-edit snapshot hook (see onPreEdit). The

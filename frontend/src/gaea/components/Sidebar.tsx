@@ -413,7 +413,11 @@ function SessionRow({ index, style, ariaAttributes, rows, ui }: RowComponentProp
               <span className="overflow-hidden text-ellipsis whitespace-nowrap text-[10.5px] leading-snug text-fg-faint/70">
                 <span className={r.status === "running" ? "text-accent" : ""}>{statusLabel}</span>
                 {" · "}
-                {r.model ? `${r.model} · ` : ""}
+                {r.kind === "model_tool"
+                  ? `${t("subagent.modelToolLabel")} · `
+                  : r.model
+                    ? `${r.model} · `
+                    : ""}
                 {timeText}
               </span>
             </span>
