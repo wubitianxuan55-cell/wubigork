@@ -9,7 +9,7 @@ import (
 
 // AppVersion 应用版本（与 wails.json productVersion / versioninfo.rc 三处对齐；
 // 由 scripts/sync-version.ps1 统一维护，勿手工修改）
-const AppVersion = "4.50.0"
+const AppVersion = "4.51.0"
 
 // GetAppInfo 返回应用信息与最近更新日志（供设置中心「更新信息」展示）
 func (a *core) GetAppInfo() map[string]interface{} {

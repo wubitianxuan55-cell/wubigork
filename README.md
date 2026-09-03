@@ -89,6 +89,7 @@ gaea/
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| **v4.51.0** | 2026-09-03 | 壳层左缘修复（main 区预留收起态 rail 48px，全板块首字符裁切修复）+ 创建青鸟助手深链直通绑定（sessionStorage 焦点 + NAVIGATE crossSpace 跨空间，落青鸟选中并直开扫码；修复 S2.1 同空间守卫静默丢弃缺口）（绑定面 559 零变更，judge 视觉验收 overall pass） |
 | **v4.50.0** | 2026-09-03 | 造价数据库化繁为简（绑定面 559 零变更）：导航 8→6（价格源+价格仓库+询价库归并为「价格数据」，知识图谱降为概览镜头）、询价库从成本条目隐藏 icon 视图升格一等子页、概览快捷入口 7→4、CostLibraryView 拆 inquiry 模式与 compact/onInsert 死管线、删不可达 memoryhub/CostLibrary、dev mock 补询价/五算九方法（judge 视觉验收 overall pass） |
 | **v4.49.0** | 2026-09-02 | 青鸟助手生命周期补全（绑定面 559 零变更）：①编辑已有助手（改名/换人格，PersonaPickerPanel 新增/编辑共用，自定义人格原值保留）；②角色库 custom 角色卡一键创建未绑定助手；③EnsureAssistants 镜像守卫——custom 角色绝不被镜像覆写（真隐患修复） |
 | **v4.48.0** | 2026-09-02 | 青鸟：微信助手板块更名 + 新增助手人格选择器（绑定面 559 零变更）：双栏选择器（轻语预设+角色库可聊天角色、搜索过滤、详情预览）、角色立绘回显、18+ 人格过滤；CharacterList/WhisperGetPersonalities 转正 AppBindings（judge 视觉验收 5/5） |

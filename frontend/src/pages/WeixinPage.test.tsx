@@ -5,7 +5,8 @@
 // ④删除 Popconfirm → WhisperAssistantDelete ⑤新增微信助手表单 → 本地暂存 →
 // 扫码流确认后 Save ⑥离线提醒视图（列表渲染 + 全局开关 + 删除）⑦使用指南
 // ⑧会话过期警示 ⑨人格选择器分组/详情/立绘 ⑩编辑助手（预填 + 改名换人格 →
-// Save 合并 viewOf 携带新名字/人格与原 token）。
+// Save 合并 viewOf 携带新名字/人格与原 token）⑪-⑭ 深链聚焦（v4.51：角色库
+// 「创建青鸟助手」→ 跳青鸟自动选中 + 未绑定直进扫码 + 降级分支）。
 
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
@@ -30,6 +31,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('../gaea/lib/bridge', () => ({ app: mocks }))
 
 import WeixinPage from './WeixinPage'
+import { WX_FOCUS_KEY } from './wxFocus'
 
 // 负载 flake 治理（同 ProgrammingPage.test 先例）：RTL 默认 1s 超时在全量套件
 // 高负载下不够，显式放宽到 5s（仍有上界，不会掩盖真回归）。
@@ -72,6 +74,7 @@ async function selectChannel(name: string) {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  sessionStorage.clear()
   mocks.WhisperWeixinStatus.mockResolvedValue(STATUS_ROWS)
   mocks.WhisperAssistantList.mockResolvedValue(LIST_ROWS)
   mocks.WhisperAssistantSave.mockResolvedValue(undefined)
@@ -311,5 +314,45 @@ describe('青鸟工作台 · 提醒与指南', () => {
     expect(await screen.findByText('该助手微信会话已过期', undefined, LOAD)).toBeTruthy()
     // 轨道状态字同步为会话过期
     expect(document.querySelector('.wx-rail .wx-rail-status')?.textContent).toContain('会话过期')
+  })
+})
+
+describe('青鸟工作台 · 深链聚焦（角色库创建 → 跳青鸟直进扫码）', () => {
+  it('⑪ 焦点指向未绑定助手：挂载后自动选中该通道并直接打开其扫码绑定流', async () => {
+    // 角色库「创建青鸟助手」落库形态：wxToken 空 = 未绑定（小雨即此形态）
+    sessionStorage.setItem(WX_FOCUS_KEY, 'wx_muse')
+    await renderPage()
+    // 焦点消费：主区落在小雨通道（而非默认首条 gaea）
+    expect(await screen.findByText('人格 muse', undefined, LOAD)).toBeTruthy()
+    // 未绑定 → 复用既有扫码流：动态标题指向小雨 + 二维码已拉取
+    await screen.findByText('扫码绑定 · 小雨', undefined, LOAD)
+    expect(mocks.WhisperWeixinGetQR).toHaveBeenCalled()
+    // 读后即清，不留陈旧焦点
+    expect(sessionStorage.getItem(WX_FOCUS_KEY)).toBeNull()
+  })
+
+  it('⑫ 焦点指向已绑定助手：仅选中该通道，不开扫码流（降级）', async () => {
+    sessionStorage.setItem(WX_FOCUS_KEY, 'wx_fix') // 阿修：已绑定
+    await renderPage()
+    expect(await screen.findByText('人格 fixer', undefined, LOAD)).toBeTruthy()
+    expect(screen.queryByText('扫码绑定 · 阿修')).toBeNull()
+    expect(mocks.WhisperWeixinGetQR).not.toHaveBeenCalled()
+  })
+
+  it('⑬ 无焦点挂载：行为零回归——默认选中首条 gaea，不拉二维码', async () => {
+    await renderPage()
+    expect(await screen.findByText('人格 gaea', undefined, LOAD)).toBeTruthy()
+    expect(mocks.WhisperWeixinGetQR).not.toHaveBeenCalled()
+    expect(sessionStorage.getItem(WX_FOCUS_KEY)).toBeNull()
+  })
+
+  it('⑭ 焦点 id 不在列表：补拉一次后放弃焦点，保持默认选中（降级）', async () => {
+    sessionStorage.setItem(WX_FOCUS_KEY, 'wx_ghost')
+    await renderPage()
+    // 默认选中首条 gaea（焦点 miss 不改选中）；miss 后同步补拉一次再放弃
+    //（补拉在 renderPage 的 act 轮次内已发生，故 List 调用 ≥ 首拉+补拉）
+    expect(await screen.findByText('人格 gaea', undefined, LOAD)).toBeTruthy()
+    expect(mocks.WhisperAssistantList.mock.calls.length).toBeGreaterThanOrEqual(2)
+    expect(mocks.WhisperWeixinGetQR).not.toHaveBeenCalled()
   })
 })

@@ -1,7 +1,10 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import * as antd from 'antd'
 import { CharacterCard } from './CharacterCard'
 import type { LibraryCharacter } from '../../api/characterlib'
+import { FRONTEND_EVENTS } from '../../events'
+import { WX_FOCUS_KEY } from '../../pages/wxFocus'
 
 vi.mock('../../../src/wailsjsCompat', () => ({
   WhisperAssistantSave: vi.fn(),
@@ -151,6 +154,33 @@ describe('CharacterCard', () => {
     })
     // 创建成功后触发列表刷新回调
     expect(onAssistantCreated).toHaveBeenCalledTimes(1)
+  })
+
+  it('创建成功 → 深链跳青鸟：写焦点（sessionStorage）+ 派发 NAVIGATE(page=weixin)，提示前往绑定', async () => {
+    sessionStorage.removeItem(WX_FOCUS_KEY)
+    const navListener = vi.fn()
+    window.addEventListener(FRONTEND_EVENTS.NAVIGATE, navListener)
+    // 提示文案用 spy 断言：toast 走 antd 全局 portal，跨测试共享 DOM（RTL
+    // cleanup 不清），顺序执行时直接查文本会受上一条残留 toast 干扰
+    const messageSpy = vi.spyOn(antd.message, 'success')
+    try {
+      render(<CharacterCard character={makeCharacter()} index={0} {...baseProps} />)
+      fireEvent.click(screen.getByTitle('创建青鸟助手'))
+      fireEvent.click(await screen.findByRole('button', { name: /^创\s*建$/ }))
+      await waitFor(() => {
+        // 焦点 = 本次创建的助手 id（先落焦点再导航，青鸟页读后即清）
+        const saved = mockedSave.mock.calls[mockedSave.mock.calls.length - 1][0] as { id: string }
+        expect(saved.id).toMatch(/^wx_/)
+        expect(sessionStorage.getItem(WX_FOCUS_KEY)).toBe(saved.id)
+        expect(navListener).toHaveBeenCalledWith(expect.objectContaining({ detail: { page: 'weixin', crossSpace: true } }))
+      })
+      // 提示文案指向青鸟绑定（不再让用户自己找路）
+      expect(messageSpy).toHaveBeenCalledWith('已创建，正在前往青鸟绑定…')
+    } finally {
+      messageSpy.mockRestore()
+      window.removeEventListener(FRONTEND_EVENTS.NAVIGATE, navListener)
+      sessionStorage.removeItem(WX_FOCUS_KEY)
+    }
   })
 
   it('assistant / builtin 卡不渲染「创建青鸟助手」动作', () => {

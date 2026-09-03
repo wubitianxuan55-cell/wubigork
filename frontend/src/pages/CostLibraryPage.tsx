@@ -394,9 +394,11 @@ export function CostLibraryPage() {
                                 {e.categoryPath || e.category || "未分类"}
                               </span>
                             </span>
-                            <span className="shrink-0 w-16">
-                              <CompositionBar labor={e.laborFee ?? 0} material={e.materialFee ?? 0} machine={e.machineFee ?? 0} className="!h-1" />
-                            </span>
+                            {e.laborFee || e.materialFee || e.machineFee ? (
+                              <span className="shrink-0 w-16">
+                                <CompositionBar labor={e.laborFee ?? 0} material={e.materialFee ?? 0} machine={e.machineFee ?? 0} className="!h-1" />
+                              </span>
+                            ) : null}
                             <span className="shrink-0 text-[11.5px] tabular-nums text-fg font-medium">
                               {priceText(e.price)}
                               {e.unit ? <span className="text-fg-faint font-normal">/{e.unit}</span> : ""}

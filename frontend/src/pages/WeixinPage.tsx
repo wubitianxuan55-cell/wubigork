@@ -13,13 +13,16 @@ import type {
   WeixinAssistantStatusRow, WeixinAssistantView, WeixinReminderConfigView, WeixinReminderView,
 } from '../gaea/lib/types'
 import { isPageVisible } from '../lib/pollingGate'
+import { FRONTEND_EVENTS } from '../events'
+import { takeWxFocusAssistant } from './wxFocus'
 import './weixin-page.css'
 
 /**
  * WeixinPage — 青鸟（微信助手）「通讯枢纽」工作台（v4.47 星枢化重构；
  * v4.48 板块更名「青鸟」+ 新增流人格选择器打通角色库；
  * v4.49 通道详情「编辑」助手：改名/换人格，选择器抽成 PersonaPickerPanel
- * 供新增/编辑两流复用）。
+ * 供新增/编辑两流复用；v4.51 深链聚焦：角色库「创建青鸟助手」成功后跳转
+ * 本页，自动选中该助手并直进扫码绑定，见 wxFocus.ts）。
  *
  * 布局（Constellation OS 三分区语言）：顶部玻璃细条（板块名 + 通道遥测 meta +
  * 刷新）/ 左通道轨道（每助手一条 rail item：头像 + 名字 + 状态字 + 状态点，
@@ -260,8 +263,9 @@ const WeixinPage: React.FC = () => {
     }
   }, [qrOpen, qrToken, qrPhase, verifyCode])
 
-  // 逐助手扫码绑定：target 为要绑定的助手（新增助手此时才落库）
-  const startBinding = async (target?: WeixinAssistantView) => {
+  // 逐助手扫码绑定：target 为要绑定的助手（新增助手此时才落库）。useCallback：
+  // 深链聚焦 effect 依赖其身份（依赖均为 setState/模块量，天然稳定）
+  const startBinding = useCallback(async (target?: WeixinAssistantView) => {
     setQrTarget(target ?? null)
     setQrOpen(true)
     setQrPhase('waiting')
@@ -276,7 +280,53 @@ const WeixinPage: React.FC = () => {
       setQrPhase('error')
       message.error(`获取二维码失败：${e instanceof Error ? e.message : String(e)}`)
     }
-  }
+  }, [])
+
+  // ── v4.51 深链聚焦：角色库「创建青鸟助手」成功 → NAVIGATE 跳青鸟 → 自动
+  // 选中新助手并直进扫码绑定。本页可能尚未挂载（lazy 首载，事件先于订阅——
+  // 焦点经 sessionStorage 传递，见 wxFocus.ts），也可能 keepAlive 已挂载
+  // （壳层只切 display 不重挂载）——两条路都要接得住：挂载时读一次 +
+  // 常驻监听 NAVIGATE(page=weixin) 再读一次；takeWxFocusAssistant 读后即清，
+  // 两路天然互斥不重复消费。（放在 loadAssistants/startBinding 定义之后：
+  // effect deps 数组在渲染期求值，不能前引未初始化的 const）
+  const [pendingFocus, setPendingFocus] = useState<string | null>(null)
+  const focusReloadRef = useRef(false)
+  useEffect(() => {
+    const id = takeWxFocusAssistant()
+    if (id) setPendingFocus(id)
+    const onNavigate = (e: Event) => {
+      if (((e as CustomEvent).detail as { page?: string } | undefined)?.page !== 'weixin') return
+      const fid = takeWxFocusAssistant()
+      if (fid) setPendingFocus(fid)
+    }
+    window.addEventListener(FRONTEND_EVENTS.NAVIGATE, onNavigate)
+    return () => window.removeEventListener(FRONTEND_EVENTS.NAVIGATE, onNavigate)
+  }, [])
+  // rows 落定后消费焦点：命中 → 选中该通道，未绑定 → 复用 startBinding 直接
+  // 打开其扫码绑定流；已绑定只选中。keepAlive 场景 rows 可能还是创建前的旧
+  // 列表（新助手要等下个轮询）——先补拉一次再判；补拉后仍无（助手已不存在）
+  // → 放弃焦点保持既有选中（优雅降级）。本 effect 声明在上方选中回退 effect
+  // 之后：同一次提交内后跑，覆盖回退选中的首条。
+  useEffect(() => {
+    if (!pendingFocus) return
+    const hit = rows.find((r) => r.id === pendingFocus)
+    if (hit) {
+      setPendingFocus(null)
+      focusReloadRef.current = false
+      setView('channel')
+      setSelectedId(hit.id)
+      if (!rowStatus(hit).hasToken) startBinding(viewOf(hit))
+      return
+    }
+    if (rows.length === 0) return // 首拉未归，继续等
+    if (!focusReloadRef.current) {
+      focusReloadRef.current = true
+      loadAssistants() // 旧列表未含焦点助手 → 补拉一次
+      return
+    }
+    setPendingFocus(null) // 补拉后仍无 → 放弃
+    focusReloadRef.current = false
+  }, [pendingFocus, rows, loadAssistants, startBinding])
 
   // confirmed → 保存扫码结果到目标助手（新增助手此时才落库；后端自动重拉通道）
   const confirmBinding = async () => {

@@ -9,6 +9,8 @@ import TisorRadar from '../TisorRadar'
 import type { LibraryCharacter } from '../../api/characterlib'
 import * as App from '../../../src/wailsjsCompat'
 import { assistant } from '../../../wailsjs/go/models'
+import { FRONTEND_EVENTS, emitFrontendEvent } from '../../events'
+import { setWxFocusAssistant } from '../../pages/wxFocus'
 import { C } from '../../utils/theme'
 import { PortraitImg } from './PortraitImg'
 import './character-card.css'
@@ -72,17 +74,24 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
     inProject ? '已加入' : '',
   ].filter(Boolean).join(' · ')
 
-  /** custom 角色 → 一键创建以其为人格的青鸟（微信）助手（wxToken 留空 = 未绑定，之后扫码绑定） */
+  /** custom 角色 → 一键创建以其为人格的青鸟（微信）助手（wxToken 留空 = 未绑定）。
+   * v4.51 深链：成功后先落焦点（WeixinPage lazy 挂载，事件先于订阅，须走
+   * sessionStorage）→ 再派发 NAVIGATE 跳青鸟 → 那边自动选中并直进扫码绑定。 */
   const handleCreateAssistant = async () => {
+    const id = `wx_${Date.now().toString(36)}`
     try {
       await App.WhisperAssistantSave(new assistant.Assistant({
-        id: `wx_${Date.now().toString(36)}`,
+        id,
         name: c.name,
         personalityId: c.id,
         enabled: true,
         portraitUrl: c.portraitUrl || '',
       }))
-      message.success('青鸟助手已创建（未绑定微信），到青鸟板块扫码绑定即可使用')
+      setWxFocusAssistant(id)
+      // crossSpace：角色库在乐园（play）、青鸟在工位（work）——不带标记会被
+      // 壳层 S2.1 同空间守卫丢弃；显式跨空间走 navigateBoard 换空间路径。
+      emitFrontendEvent(FRONTEND_EVENTS.NAVIGATE, { page: 'weixin', crossSpace: true })
+      message.success('已创建，正在前往青鸟绑定…')
       onAssistantCreated?.(c)
     } catch (err) {
       message.error(`创建青鸟助手失败：${err instanceof Error ? err.message : String(err)}`)

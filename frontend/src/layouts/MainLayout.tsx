@@ -567,6 +567,23 @@ const MainLayout: React.FC = () => {
     return unsub
   }, [navigateBoard])
 
+  // v4.51 显式跨空间深链（角色库[乐园]→青鸟[工位]）：与上方同空间 NAVIGATE
+  // 分开订阅，且置于 navigateBoard 定义之后（deps 数组渲染期求值，前引会
+  // TDZ）。detail.crossSpace=true = 用户显式发起的跨空间意图（点「创建青鸟
+  // 助手」就是要去工位），走 navigateBoard 的换空间路径（saveShellPage +
+  // setSpace）；不带标记维持同空间 NAVIGATE 的 S2.1 语义不变。
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail
+      if (detail?.page && detail.crossSpace === true
+        && getActiveNavigateWhitelist().includes(detail.page as Page)) {
+        navigateBoard(detail.page as Page)
+      }
+    }
+    window.addEventListener(FRONTEND_EVENTS.NAVIGATE, handler)
+    return () => window.removeEventListener(FRONTEND_EVENTS.NAVIGATE, handler)
+  }, [navigateBoard])
+
   return (
     <Layout style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: 'transparent' }}>
       {/* ── 未来感背景层（星云 + 网格 + 星点，fixed 且不拦截事件）── */}
@@ -589,8 +606,11 @@ const MainLayout: React.FC = () => {
           />
         </div>
 
-        {/* ═══ 右侧列：轨道条 + 内容 + 遥测轨道 ═══ */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+        {/* ═══ 右侧列：轨道条 + 内容 + 遥测轨道 ═══
+            v4.51.0：预留 rail 收起宽度（--v3-rail-w）——rail-dock 是 fixed 浮层
+            不占 flex 布局，不预留则滑出展开时盖住各板块最左列首字符；
+            悬停展开态仍按浮层覆盖内容（z-index 不动，不推挤布局）。 */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, paddingLeft: 'var(--v3-rail-w)', transition: 'padding-left 280ms cubic-bezier(0.2, 0, 0, 1)' }}>
           {/* 顶部轨道条 */}
           <header className="v3-strip">
             {/* 一键返回首页（非首页时显示） */}
