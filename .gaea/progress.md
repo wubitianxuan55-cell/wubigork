@@ -1,6 +1,6 @@
 # 任务进度
 
-> 最后更新: 2026-09-03（better-sidebar pane 化三刀 v4.60.0；i18n二批+落划线+自定义引擎价目 v4.59.0；三线收欠账+搜索重定位修复 v4.58.0；设置中心删四补一 v4.57.0；拆分二批+Herdsman mock+task卡关联 v4.56.0；补测起步+mock补面+label化 v4.55.0；三线收欠账 v4.54.0；办公四点降噪 v4.53.0；首页双舷驾驶舱 v4.52.0；壳层左缘+深链绑定 v4.51.0；造价数据库化繁为简 v4.50.0；青鸟生命周期补全 v4.49.0；青鸟更名+人格选择器 v4.48.0；微信助手星枢化 v4.47.0；小说第二轮 v4.46.0；百炼全量下线 v4.45.0；绘梦专项
+> 最后更新: 2026-09-03（Word 目录侧栏在途快照；better-sidebar pane 化三刀 v4.60.0；i18n二批+落划线+自定义引擎价目 v4.59.0；三线收欠账+搜索重定位修复 v4.58.0；设置中心删四补一 v4.57.0；拆分二批+Herdsman mock+task卡关联 v4.56.0；补测起步+mock补面+label化 v4.55.0；三线收欠账 v4.54.0；办公四点降噪 v4.53.0；首页双舷驾驶舱 v4.52.0；壳层左缘+深链绑定 v4.51.0；造价数据库化繁为简 v4.50.0；青鸟生命周期补全 v4.49.0；青鸟更名+人格选择器 v4.48.0；微信助手星枢化 v4.47.0；小说第二轮 v4.46.0；百炼全量下线 v4.45.0；绘梦专项
 > v4.44.0 三刀；小说板块 v4.43.0 四刀；微信助手
 > 三刀 v4.39.0-v4.42.0——绑定面 557 零变更）
 
@@ -19,6 +19,26 @@
   /api/health 200 通过；SHA256 见 releases/SHA256SUMS-v4.60.0.txt。
 - 记录：releases/v4.60.0.md + docs/better-sidebar-port-2026-09-03-worktree.md
   + docs/snapshots/2026-09-03-better-sidebar-port/。
+
+## 在途快照：Word 预览目录侧栏（eb84c82c，未发版）
+
+- 用户确认「已实现单独 WPS 打开」后点名下一步：强化 Word 打开后的编辑/预览
+  能力，例如可打开 Word 目录。本刀落在 gaea 内置 Word 版式预览
+  （DocxPreview，文件 pane tab/大预览共用）——纯前端、**绑定面 559 零变更**。
+- **docxOutline.ts 纯解析**（docxOutline.test.ts 6 用例）：解 word/document.xml
+  + styles.xml，标题判定优先级 = 段落 outlineLvl（9=正文显式排除）→ 样式
+  outlineLvl / heading(标题) 样式名/id / basedOn 链继承；TOC1 与页眉页脚不计
+  标题，防「目录页/页眉同名」抢锚点。
+- **DocxOutline.tsx 目录侧栏**：工具栏「目录」按钮开合；标题按级缩进、计数；
+  点条目 scrollIntoView + 短暂高亮锚点段落（jsdom 无 scrollIntoView 也安全）；
+  条目右侧 Pencil = 插入「请修改 <文件名> 中『<节>』一节：」composer 模板
+  （与 PptxOutline 修改指令/引用到对话同通道，不自动发送）。
+- 布局改造：DocxPreview 根 flex 化，渲染容器与目录侧栏同行；渲染期间容器
+  隐藏（docx-preview 纯 DOM 构建无布局依赖），加载/降级状态块让位；
+  renderAsync 完成后解析+锚点链接，失败只降级目录不伤版式。
+- 验证：vitest 新增 8 用例（docxOutline 6 + DocxPreview 目录集成 2，净
+  +8 → 1533）；tsc -b / eslint 0；全量 210 文件 1532/1533 过（1 个
+  ProgrammingPage「重新检查」既有 flaky 单跑通过，与本刀无关）。
 
 ## 当前状态
 
