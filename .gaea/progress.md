@@ -1,6 +1,7 @@
 # 任务进度
 
-> 最后更新: 2026-09-04（v4.66.0「子代理会话提升：保存为新会话 ·
+> 最后更新: 2026-09-04（v4.67.0「上下文标签页重设计：驾驶舱三区布局」；
+> v4.66.0「子代理会话提升：保存为新会话 ·
 > TasksWorkbench 轮询收敛」，绑定面 560→561；v4.65.1「追问失败感知 ·
 > 任务退出码 · AgentNetwork 轮询收敛」；v4.65.0「三线并行收欠账：追问失败重试 · 工作台
 > 偏好设置卡 · 子代理轮询收敛」；v4.64.3「任务管理树呼吸感优化」；
@@ -39,6 +40,19 @@
 - ~~autoOpenJobs 进设置中心~~ 已完成（v4.65.0 线B；该键经 grep 不存在，
   实际由 gaea.tasks.autoOpenSubagent 承担——过期条目销账）。
 - ~~releases/README.md 索引治理~~ 已完成（v4.65.0 线D）。
+
+## 最新发布：v4.67.0（2026-09-04）「上下文标签页重设计：驾驶舱三区布局」
+
+- 用户点名技能刀（ui-ux-pro-max --design-system --density 8 --motion 3）：
+  设计蓝图落盘 design-system/gaea/pages/context.md（继承星枢 Master 令牌）。
+- ContextView 单列 8 卡 → 三区：①ContextHeader 融合原统计卡/水位头/当前
+  构成（9 chips+六分类分段条+图例+水位+告警）②左过程轴（趋势→StepDetail
+  就地联动→事件流）③右 inspector 三 tab（浏览器/文件活动/Agent；
+  localStorage gaea.context.inspectorTab 偏好；<1100px 回落单列）。
+- 功能零删减（八块信息只重组）；测试结构同步 4 处（水位 1 处显示/tab
+  先切后断言），13/13 全绿；judge 走查 ?mock=1 双宽截图 pass 无 must_fix。
+- 门禁：tsc -b/eslint 0、vitest 221/1647、app+contextview 包全绿、
+  drift 561、冒烟 200。详见 releases/v4.67.0.md。
 
 ## 最新发布：v4.66.0（2026-09-04）「子代理会话提升 · TasksWorkbench 轮询收敛」
 

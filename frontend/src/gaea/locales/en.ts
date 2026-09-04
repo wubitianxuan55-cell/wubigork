@@ -1392,6 +1392,10 @@ export const en = {
   "contextview.noCatNodes": "No context nodes in this category",
   "contextview.browserLegend": "node = a model-visible context element · system/tools are logged when the composition changes · archive = content moved out by compaction",
   "contextview.loadFail": "Failed to load the context view: {msg}",
+  "contextview.inspectorAria": "Context inspector panels",
+  "contextview.tabBrowser": "Browser",
+  "contextview.tabFiles": "File activity",
+  "contextview.tabAgent": "Agent",
   "contextview.empty": "No context data yet",
   "contextview.emptyHint": "After a task runs, context composition, trend, inject/compact events and file activity appear here in real time.",
 

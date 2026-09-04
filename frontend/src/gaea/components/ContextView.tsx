@@ -42,9 +42,30 @@ const EMPTY: ContextTimeline = {
   requests: [], events: [], nodes: [], archive: [], files: [],
 };
 
-// ─── 上下文统计卡 ───────────────────────────────────────────
-function StatsBoard({ stats }: { stats: ContextStats }) {
+// ─── 顶部总览条（v4.67 驾驶舱化：融合原 统计卡/水位头/当前构成 三卡） ──
+// 行1 标题+运行中呼吸+统计 chips（9 项全保留）+刷新；行2 六分类分段堆叠条
+// +水位；行3 分类图例+缓存/成本。数字一律等宽字体（dense dashboard）。
+function ContextHeader({
+  used,
+  window: win,
+  current,
+  stats,
+  running,
+  loading,
+  onRefresh,
+}: {
+  used: number;
+  window: number;
+  current: ContextCategory;
+  stats: ContextStats;
+  running: boolean;
+  loading: boolean;
+  onRefresh: () => void;
+}) {
   const t = useT();
+  const total = used;
+  const pct = win > 0 ? Math.min(100, Math.round((total / win) * 100)) : 0;
+  const levelText = pct >= 90 ? "text-err" : pct >= 70 ? "text-warning" : "text-fg-dim";
   const items: [string, string][] = [
     [t("contextview.statTurns"), String(stats.turns)],
     [t("contextview.statSteps"), String(stats.steps)],
@@ -57,50 +78,23 @@ function StatsBoard({ stats }: { stats: ContextStats }) {
     [t("contextview.statCost"), stats.costEstimate != null ? `¥${stats.costEstimate.toFixed(2)}` : "—"],
   ];
   return (
-    <div className="grid grid-cols-3 gap-px overflow-hidden rounded-lg border border-border-soft bg-border-soft/60">
-      {items.map(([k, v]) => (
-        <div key={k} className="bg-bg px-2.5 py-1.5">
-          <div className="text-[9px] text-fg-faint">{k}</div>
-          <div className="text-[12px] font-medium text-fg tabular-nums">{v}</div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-// ─── 上下文总览头部：水位（分色）+ 缓存/费用 + 刷新 ─────────────
-function ContextOverviewHeader({
-  used,
-  window,
-  stats,
-  running,
-  loading,
-  onRefresh,
-}: {
-  used: number;
-  window: number;
-  stats: ContextStats;
-  running: boolean;
-  loading: boolean;
-  onRefresh: () => void;
-}) {
-  const t = useT();
-  const pct = window > 0 ? Math.min(100, Math.round((used / window) * 100)) : 0;
-  const levelCls = pct >= 90 ? "bg-err" : pct >= 70 ? "bg-warning" : "bg-accent";
-  const levelText = pct >= 90 ? "text-err" : pct >= 70 ? "text-warning" : "text-fg-dim";
-  return (
-    <div className="rounded-lg border border-border-soft bg-bg p-3">
-      <div className="flex items-center gap-2">
+    <div className="shrink-0 rounded-lg border border-border-soft bg-bg p-3">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
         <span className="text-[11px] font-medium text-fg">{t("contextview.title")}</span>
         {running && (
           <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-accent animate-pulse" title={t("contextview.liveRefreshTitle")} aria-hidden />
         )}
-        <span className="flex-1" />
-        <span className="shrink-0 text-[10px] tabular-nums text-fg-faint">
-          {t("contextview.cache", { pct: stats.cacheHitPercent != null ? `${stats.cacheHitPercent.toFixed(2)}%` : "—" })}
-        </span>
-        <span className="shrink-0 text-[10px] tabular-nums text-fg-faint">
-          {t("contextview.cost", { cost: stats.costEstimate != null ? `¥${stats.costEstimate.toFixed(2)}` : "—" })}
+        <span className="flex min-w-0 flex-1 flex-wrap items-center gap-1">
+          {items.map(([label, value]) => (
+            <span
+              key={label}
+              className="inline-flex items-baseline gap-1 rounded-full px-2 py-px text-[9.5px] tabular-nums"
+              style={{ background: "var(--md-sys-color-surface-container-high)" }}
+            >
+              <span className="text-fg-faint">{label}</span>
+              <span className="font-mono text-fg">{value}</span>
+            </span>
+          ))}
         </span>
         <button
           type="button"
@@ -113,61 +107,42 @@ function ContextOverviewHeader({
           <Loader2 size={12} className={loading ? "animate-spin" : ""} />
         </button>
       </div>
-      <div className="mt-2 flex items-center gap-2">
-        <div className="h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-bg-soft">
-          <div className={`h-full rounded-full transition-[width] duration-500 ${levelCls}`} style={{ width: `${pct}%` }} />
+      <div className="mt-2.5 flex items-center gap-2">
+        <div className="flex h-3 min-w-0 flex-1 overflow-hidden rounded-full bg-bg-soft" role="img" aria-label={t("contextview.currentTitle")}>
+          {CATS.map((c) => {
+            const w = total > 0 ? (current[c.key] / total) * 100 : 0;
+            if (w <= 0) return null;
+            return <div key={c.key} style={{ width: `${w}%`, background: CAT_COLORS[c.key] }} />;
+          })}
         </div>
         <span className={`shrink-0 font-mono text-[10px] tabular-nums ${levelText}`}>
-          {fmtTokens(used)} / {fmtTokens(window)} · {pct}%
+          {fmtTokens(total)} / {fmtTokens(win)} · {pct}%
+        </span>
+      </div>
+      <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-0.5">
+        {CATS.map((c) => {
+          const share = total > 0 ? Math.round((current[c.key] / total) * 100) : 0;
+          return (
+            <span key={c.key} className="inline-flex items-center gap-1 text-[10px] text-fg-dim">
+              <span className="h-2 w-2 shrink-0 rounded-sm" style={{ background: CAT_COLORS[c.key] }} />
+              {t(c.labelKey)}
+              <span className="tabular-nums font-mono text-fg-faint">
+                ≈{fmtTokens(current[c.key])} ({share}%)
+              </span>
+            </span>
+          );
+        })}
+        <span className="min-[1100px]:flex-1" />
+        <span className="shrink-0 text-[10px] tabular-nums text-fg-faint">
+          {t("contextview.cache", { pct: stats.cacheHitPercent != null ? `${stats.cacheHitPercent.toFixed(2)}%` : "—" })}
+          {" · "}
+          {t("contextview.cost", { cost: stats.costEstimate != null ? `¥${stats.costEstimate.toFixed(2)}` : "—" })}
         </span>
       </div>
       {pct >= 70 && (
         <div className={`mt-1 text-[9.5px] ${pct >= 90 ? "text-err" : "text-warning"}`}>
           {pct >= 90 ? t("contextview.almostFull") : t("contextview.highUsage")}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── 当前上下文组成（六分类分段条 + 图例） ─────────────────────
-function CurrentComposition({ current, window }: { current: ContextCategory; window: number }) {
-  const t = useT();
-  const total = catTotal(current);
-  const pct = window > 0 ? Math.round((total / window) * 100) : 0;
-  const warnCls = pct >= 90 ? "text-err" : pct >= 70 ? "text-warning" : "";
-  return (
-    <div className="rounded-lg border border-border-soft bg-bg p-3">
-      <div className="flex items-baseline justify-between">
-        <div className="text-[11px] font-medium text-fg">{t("contextview.currentTitle")}</div>
-        <div className={`text-[10px] tabular-nums font-mono ${warnCls || "text-fg-dim"}`}>
-          {fmtTokens(total)} / {fmtTokens(window)} · {pct}%
-        </div>
-      </div>
-      <div className="mt-2 flex h-3 w-full overflow-hidden rounded-full bg-bg-soft">
-        {CATS.map((c) => {
-          const w = total > 0 ? (current[c.key] / total) * 100 : 0;
-          if (w <= 0) return null;
-          return <div key={c.key} style={{ width: `${w}%`, background: CAT_COLORS[c.key] }} />;
-        })}
-      </div>
-      <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-0.5">
-        {CATS.map((c) => {
-          const share = total > 0 ? Math.round((current[c.key] / total) * 100) : 0;
-          return (
-            <div key={c.key} className="flex items-center gap-1.5 text-[10px] text-fg-dim">
-              <span className="h-2 w-2 shrink-0 rounded-sm" style={{ background: CAT_COLORS[c.key] }} />
-              <span className="truncate">{t(c.labelKey)}</span>
-              <span className="ml-auto tabular-nums font-mono text-fg-faint">
-                ≈{fmtTokens(current[c.key])} ({share}%)
-              </span>
-            </div>
-          );
-        })}
-      </div>
-      {pct >= 70 && (
-        <div className={`mt-1.5 text-[9.5px] ${pct >= 90 ? "text-err" : "text-warning"}`}>
-          {pct >= 90 ? t("contextview.almostFullHint") : t("contextview.highUsageHint")}
+          <span className="ml-2 opacity-80">{pct >= 90 ? t("contextview.almostFullHint") : t("contextview.highUsageHint")}</span>
         </div>
       )}
     </div>
@@ -603,17 +578,20 @@ export function ContextView({ running, sessionPath }: { running: boolean; sessio
     timeline.nodes.length === 0 &&
     timeline.files.length === 0;
 
+  const [inspectorTab, setInspectorTab] = useInspectorTab();
+
   return (
-    <div className="flex h-full flex-col gap-2 overflow-y-auto p-3">
+    <div className="flex h-full min-h-0 flex-col gap-3 p-3">
       {error && (
-        <div className="rounded-lg border border-err/30 bg-del-bg px-3 py-2 text-[11px] text-err">
+        <div className="shrink-0 rounded-lg border border-err/30 bg-del-bg px-3 py-2 text-[11px] text-err">
           {t("contextview.loadFail", { msg: error })}
         </div>
       )}
       {!error && (
-        <ContextOverviewHeader
+        <ContextHeader
           used={catTotal(timeline.current)}
           window={timeline.window}
+          current={timeline.current}
           stats={timeline.stats}
           running={running}
           loading={loading}
@@ -629,17 +607,67 @@ export function ContextView({ running, sessionPath }: { running: boolean; sessio
         </div>
       )}
       {!error && !isEmpty && (
-        <>
-      <StatsBoard stats={timeline.stats} />
-      <CurrentComposition current={timeline.current} window={timeline.window} />
-      <ContextTrendChart requests={timeline.requests} events={timeline.events} onPick={setPicked} />
-      <StepDetail record={picked} window={timeline.window} />
-      <EventsList events={timeline.events} />
-      <FileActivityCard files={timeline.files} />
-      <ContextBrowserCard nodes={timeline.nodes} archive={timeline.archive} />
-      <AgentNetworkCard running={running} sessionPath={sessionPath} />
-        </>
+        <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto min-[1100px]:flex-row min-[1100px]:overflow-hidden">
+          {/* 左主栏：过程轴（趋势 → 选中步骤详情就地联动 → 事件流） */}
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 min-[1100px]:overflow-y-auto">
+            <ContextTrendChart requests={timeline.requests} events={timeline.events} onPick={setPicked} />
+            <StepDetail record={picked} window={timeline.window} />
+            <EventsList events={timeline.events} />
+          </div>
+          {/* 右辅栏 inspector：浏览器 / 文件活动 / Agent 网络（渐进披露） */}
+          <div className="flex shrink-0 flex-col gap-2 min-[1100px]:w-80">
+            <div className="flex shrink-0 items-center gap-1" role="tablist" aria-label={t("contextview.inspectorAria")}>
+              {([
+                ["browser", t("contextview.tabBrowser")],
+                ["files", t("contextview.tabFiles")],
+                ["agent", t("contextview.tabAgent")],
+              ] as const).map(([key, label]) => (
+                <button
+                  key={key}
+                  type="button"
+                  role="tab"
+                  aria-selected={inspectorTab === key}
+                  onClick={() => setInspectorTab(key)}
+                  className={`cursor-pointer rounded-full border-0 px-2.5 py-1 text-[10.5px] transition-colors ${
+                    inspectorTab === key ? "font-medium text-fg" : "bg-transparent text-fg-dim hover:text-fg"
+                  }`}
+                  style={inspectorTab === key ? { background: "var(--md-sys-color-surface-container-high)" } : undefined}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <div className="flex min-h-0 flex-1 flex-col min-[1100px]:overflow-y-auto">
+              {inspectorTab === "browser" && <ContextBrowserCard nodes={timeline.nodes} archive={timeline.archive} />}
+              {inspectorTab === "files" && <FileActivityCard files={timeline.files} />}
+              {inspectorTab === "agent" && <AgentNetworkCard running={running} sessionPath={sessionPath} />}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
+}
+
+// inspector tab 偏好（localStorage gaea.context.inspectorTab；坏值回落 browser）。
+type InspectorTab = "browser" | "files" | "agent";
+const INSPECTOR_TABS: InspectorTab[] = ["browser", "files", "agent"];
+function useInspectorTab(): [InspectorTab, (t: InspectorTab) => void] {
+  const [tab, setTab] = useState<InspectorTab>(() => {
+    try {
+      const raw = localStorage.getItem("gaea.context.inspectorTab");
+      return (INSPECTOR_TABS as string[]).includes(raw ?? "") ? (raw as InspectorTab) : "browser";
+    } catch {
+      return "browser";
+    }
+  });
+  const set = useCallback((next: InspectorTab) => {
+    setTab(next);
+    try {
+      localStorage.setItem("gaea.context.inspectorTab", next);
+    } catch {
+      /* 隐私模式等写入失败静默 */
+    }
+  }, []);
+  return [tab, set];
 }

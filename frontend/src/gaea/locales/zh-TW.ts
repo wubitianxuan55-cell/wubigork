@@ -1397,6 +1397,10 @@ export const zhTW: Record<DictKey, string> = {
   "contextview.noCatNodes": "沒有該分類的上下文節點",
   "contextview.browserLegend": "節點 = 模型可見的上下文元素 · 系統/工具在構成變化時記錄 · 封存 = 被壓縮移出的內容",
   "contextview.loadFail": "上下文視圖載入失敗：{msg}",
+  "contextview.inspectorAria": "上下文明細面板",
+  "contextview.tabBrowser": "瀏覽器",
+  "contextview.tabFiles": "檔案活動",
+  "contextview.tabAgent": "Agent",
   "contextview.empty": "暫無上下文資料",
   "contextview.emptyHint": "執行任務後，上下文構成、趨勢、注入/壓縮事件與檔案活動會即時顯示在這裡。",
 

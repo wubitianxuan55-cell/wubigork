@@ -76,8 +76,8 @@ describe("ContextView 上下文看板", () => {
     const { ContextView } = await import("./ContextView");
     renderT(<ContextView running={false} />);
     expect(await screen.findByText("上下文")).toBeTruthy();
-    // 头部与「当前上下文」卡都显示水位 → getAllByText
-    expect(screen.getAllByText(/241\.8k \/ 1\.0M · 24%/).length).toBeGreaterThanOrEqual(2);
+    // v4.67 驾驶舱化：水位头部与当前构成融合为一处显示
+    expect(screen.getAllByText(/241\.8k \/ 1\.0M · 24%/).length).toBe(1);
     expect(screen.getByText(/缓存 99\.57%/)).toBeTruthy();
     expect(screen.getByText(/费用 ¥3\.83/)).toBeTruthy();
     expect(screen.getByLabelText("刷新上下文")).toBeTruthy();
@@ -148,7 +148,9 @@ describe("ContextView 上下文看板", () => {
   it("渲染文件活动时间线（读/写徽标 + 路径 + 次数）", async () => {
     const { ContextView } = await import("./ContextView");
     renderT(<ContextView running={false} />);
-    expect(await screen.findByText("文件活动")).toBeTruthy();
+    fireEvent.click(await screen.findByRole("tab", { name: "文件活动" }));
+    // tab 标签与卡标题同文 → findAllByText
+    expect((await screen.findAllByText("文件活动")).length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("2 次文件接触")).toBeTruthy();
     expect(screen.getByText("internal/gaea/config/config.go")).toBeTruthy();
     expect(screen.getByText("docs/结论.md")).toBeTruthy();
@@ -164,7 +166,8 @@ describe("ContextView 上下文看板", () => {
     const { ContextView } = await import("./ContextView");
     const { usePreviewStore } = await import("../lib/store");
     renderT(<ContextView running={false} />);
-    await screen.findByText("文件活动");
+    fireEvent.click(await screen.findByRole("tab", { name: "文件活动" }));
+    await screen.findAllByText("文件活动");
     fireEvent.click(screen.getByText("internal/gaea/config/config.go"));
     expect(usePreviewStore.getState().previewFile).toBe("internal/gaea/config/config.go");
   });
@@ -181,6 +184,7 @@ describe("ContextView 上下文看板", () => {
   it("渲染上下文浏览器（活跃节点 + 展开）", async () => {
     const { ContextView } = await import("./ContextView");
     renderT(<ContextView running={false} />);
+    fireEvent.click(await screen.findByRole("tab", { name: "浏览器" }));
     expect(await screen.findByText("上下文浏览器")).toBeTruthy();
     expect(screen.getByText(/活跃 2/)).toBeTruthy();
     expect(screen.getByText(/你是 gaea/)).toBeTruthy();
@@ -195,6 +199,7 @@ describe("ContextView 上下文看板", () => {
   it("上下文浏览器归档页展示被压缩节点", async () => {
     const { ContextView } = await import("./ContextView");
     renderT(<ContextView running={false} />);
+    fireEvent.click(await screen.findByRole("tab", { name: "浏览器" }));
     fireEvent.click(await screen.findByText(/归档 1/));
     expect(screen.getByText(/旧的一轮用户输入内容/)).toBeTruthy();
     expect(screen.getAllByText("已压缩").length).toBeGreaterThan(0);

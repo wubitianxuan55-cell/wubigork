@@ -89,6 +89,7 @@ gaea/
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| **v4.67.0** | 2026-09-04 | 上下文标签页重设计（绑定面 561 零变更，ui-ux-pro-max 技能刀）：单列 8 卡 → 驾驶舱三区（顶部总览条+左过程轴+右 inspector 三 tab），功能零删减；judge 视觉验收 pass；vitest 221/1647、冒烟 200 |
 | **v4.66.0** | 2026-09-04 | 子代理会话提升（绑定面 560→561 +GaeaPromoteSubagent）：transcript 忠实投影为独立新顶层会话（投影往返双校验/诚实降级/原运行不动）+ SubagentThread「保存为新会话」入口；TasksWorkbench 双源轮询迁 store（四消费点全收敛、失败不再吞错）；Go 全量 exit 0、vitest 221/1647、drift PASS（561）、冒烟 200 |
 | **v4.65.1** | 2026-09-04 | 三线并行（绑定面 560 零变更）：任务 ExitCode 退出码透出（强杀欠账过期销账）；追问后台失败写 run meta 前端感知 + 修 v4.64.0 RunFollowUp 终态回写真回归；新 agentNetworkStore 收敛 net 轮询 + runsLoadFail 三语键；Go 全量 exit 0、vitest 220/1636、drift PASS（560）、冒烟 200 |
 | **v4.65.0** | 2026-09-04 | 三线并行收欠账（绑定面 560 零变更）：追问失败内联错误条+失败气泡保留原文+一键重试/撤销；「办公工作台偏好」设置卡（四个自动展开偏好进设置中心，新 lib/tasksPrefs）；SubagentsPanel/Sidebar 迁共享 subagentRunsStore（3 路重复轮询收敛为 1 路，store 增 loading/error/reload 向后兼容）；releases/README 索引治理；vitest 219/1624、drift PASS（560）、冒烟 200、实机走查 PASS |

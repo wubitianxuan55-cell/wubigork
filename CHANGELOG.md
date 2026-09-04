@@ -1,3 +1,12 @@
+## v4.67.0 · 上下文标签页重设计：驾驶舱三区布局（2026-09-04）
+> 用户点名「使用技能重新设计上下文标签页」（ui-ux-pro-max）。**绑定面 561
+> 零变更**。详见 releases/v4.67.0.md 与 design-system/gaea/pages/context.md。
+- 单列 8 卡堆叠 → 驾驶舱三区：顶部总览条（统计 chips+六分类分段条+图例+
+  水位，融合原三卡）/ 左过程轴（趋势→详情就地联动→事件流）/ 右 inspector
+  三 tab（浏览器/文件活动/Agent，<1100px 回落单列）；功能零删减；
+- judge 视觉验收两图 pass 无 must_fix；tsc -b/eslint 0、vitest 221/1647、
+  冒烟 200。
+
 ## v4.66.0 · 子代理会话提升：保存为新会话 · TasksWorkbench 轮询收敛（2026-09-04）
 > dsh Side Chat promote 语义补完。**绑定面 560→561（+GaeaPromoteSubagent）**。
 > 详见 releases/v4.66.0.md。
