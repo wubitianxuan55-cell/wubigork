@@ -1290,7 +1290,21 @@ export default function App() {
                       </>
                     )}
                     {chatTab === "trajectory" && <TrajectoryView running={state.running} />}
-                    {chatTab === "context" && <ContextView running={state.running} sessionPath={currentSessionPath ?? undefined} />}
+                    {chatTab === "context" && (
+                      <ContextView
+                        running={state.running}
+                        sessionPath={currentSessionPath ?? undefined}
+                        sessionName={
+                          currentSessionPath
+                            ? sessionTitle(
+                                (sidebarSessions.find((s) => s.path === currentSessionPath) ?? { path: currentSessionPath, title: "", preview: "" }) as SessionMeta,
+                                currentSessionPath.split(/[\\/]/).pop() ?? "",
+                              )
+                            : undefined
+                        }
+                        model={state.meta?.label ?? undefined}
+                      />
+                    )}
                     {chatTab === "overview" && (
                       <OverviewPanel
                         data={statsPersistence.data}

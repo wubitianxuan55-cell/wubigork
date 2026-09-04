@@ -1,16 +1,18 @@
 /* eslint-disable react-refresh/only-export-components -- 子组件与容器同文件（Phase A 收敛，避免过早拆文件） */
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Loader2 } from "../icons";
 import { app } from "../lib/bridge";
 import { useT } from "../lib/i18n";
-import { AgentNetworkCard } from "./AgentNetworkCard";
-import { usePreviewStore } from "../lib/store";
 import type {
-  ContextCategory, ContextEvent, ContextRequestRecord, ContextStats, ContextSurfaceNode, ContextTimeline, FileActivity,
+  ContextCategory, ContextEvent, ContextRequestRecord, ContextTimeline,
 } from "../lib/types";
 import type { DictKey } from "../locales/en";
 import { fmtTokens } from "../lib/stats";
 import { useLiveReload } from "../hooks/useLiveReload";
+import { subscribeAgentNetwork, reloadAgentNetwork } from "../lib/agentNetworkStore";
+import { StatsCard, TokenCard, TimingCard, SessionInfoCard, SummaryBar } from "./context/cards";
+import { ContextBrowserTree, FileActivityTree } from "./context/inspector";
+import { AgentRadial } from "./context/AgentRadial";
+import type { AgentNetwork } from "../lib/types";
 
 // 六分类语义色（效果图对齐：系统蓝/工具橙/用户绿/注入紫/助手深蓝/工具青）。
 export const CAT_COLORS: Record<keyof ContextCategory, string> = {
@@ -42,84 +44,57 @@ const EMPTY: ContextTimeline = {
   requests: [], events: [], nodes: [], archive: [], files: [],
 };
 
-// ─── 顶部总览条（v4.67 驾驶舱化：融合原 统计卡/水位头/当前构成 三卡） ──
-// 行1 标题+运行中呼吸+统计 chips（9 项全保留）+刷新；行2 六分类分段堆叠条
-// +水位；行3 分类图例+缓存/成本。数字一律等宽字体（dense dashboard）。
-function ContextHeader({
+// ─── 当前上下文宽卡（对齐 dsh CurrentComposition：大数字+分段条含空闲+图例） ──
+function CurrentContextCard({
   used,
   window: win,
   current,
-  stats,
-  running,
-  loading,
-  onRefresh,
 }: {
   used: number;
   window: number;
   current: ContextCategory;
-  stats: ContextStats;
-  running: boolean;
-  loading: boolean;
-  onRefresh: () => void;
 }) {
   const t = useT();
   const total = used;
   const pct = win > 0 ? Math.min(100, Math.round((total / win) * 100)) : 0;
-  const levelText = pct >= 90 ? "text-err" : pct >= 70 ? "text-warning" : "text-fg-dim";
-  const items: [string, string][] = [
-    [t("contextview.statTurns"), String(stats.turns)],
-    [t("contextview.statSteps"), String(stats.steps)],
-    [t("contextview.statInjects"), String(stats.injects)],
-    [t("contextview.statCompacts"), String(stats.compacts)],
-    [t("contextview.statPrunes"), String(stats.prunes)],
-    [t("contextview.statToolCalls"), String(stats.toolCalls)],
-    [t("contextview.statImages"), String(stats.images)],
-    [t("contextview.statCacheHit"), stats.cacheHitPercent != null ? `${stats.cacheHitPercent.toFixed(2)}%` : "—"],
-    [t("contextview.statCost"), stats.costEstimate != null ? `¥${stats.costEstimate.toFixed(2)}` : "—"],
-  ];
+  const idle = Math.max(0, win - total);
+  const toolPct = total > 0 ? Math.round((current.tool / total) * 100) : 0;
   return (
-    <div className="shrink-0 rounded-lg border border-border-soft bg-bg p-3">
-      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-        <span className="text-[11px] font-medium text-fg">{t("contextview.title")}</span>
-        {running && (
-          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-accent animate-pulse" title={t("contextview.liveRefreshTitle")} aria-hidden />
+    <div className="rounded-lg border border-border-soft bg-bg p-3">
+      <div className="flex items-center justify-between">
+        <div className="text-[11px] font-medium text-fg">{t("contextview.currentTitle")}</div>
+        {current.tool > 0 && (
+          <div className="text-[9.5px] tabular-nums text-fg-faint">
+            {t("contextview.toolResultShare", { tokens: fmtTokens(current.tool), pct: toolPct })}
+          </div>
         )}
-        <span className="flex min-w-0 flex-1 flex-wrap items-center gap-1">
-          {items.map(([label, value]) => (
-            <span
-              key={label}
-              className="inline-flex items-baseline gap-1 rounded-full px-2 py-px text-[9.5px] tabular-nums"
-              style={{ background: "var(--md-sys-color-surface-container-high)" }}
-            >
-              <span className="text-fg-faint">{label}</span>
-              <span className="font-mono text-fg">{value}</span>
-            </span>
-          ))}
-        </span>
-        <button
-          type="button"
-          className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent transition-colors hover:bg-(color:--md-sys-color-surface-container-high)"
-          style={{ color: "var(--md-sys-color-text-secondary)" }}
-          onClick={onRefresh}
-          title={t("contextview.refreshTitle")}
-          aria-label={t("contextview.refreshTitle")}
-        >
-          <Loader2 size={12} className={loading ? "animate-spin" : ""} />
-        </button>
       </div>
-      <div className="mt-2.5 flex items-center gap-2">
-        <div className="flex h-3 min-w-0 flex-1 overflow-hidden rounded-full bg-bg-soft" role="img" aria-label={t("contextview.currentTitle")}>
-          {CATS.map((c) => {
-            const w = total > 0 ? (current[c.key] / total) * 100 : 0;
-            if (w <= 0) return null;
-            return <div key={c.key} style={{ width: `${w}%`, background: CAT_COLORS[c.key] }} />;
-          })}
-        </div>
-        <span className={`shrink-0 font-mono text-[10px] tabular-nums ${levelText}`}>
-          {fmtTokens(total)} / {fmtTokens(win)} · {pct}%
+      <div className="mt-1.5 flex items-baseline gap-1.5">
+        <span className="font-mono text-[20px] font-semibold leading-none text-fg">{fmtTokens(total)}</span>
+        <span className="text-[10.5px] text-fg-faint">/ {fmtTokens(win)} tokens</span>
+        <span className="ml-auto flex items-baseline gap-1">
+          <b className="font-mono text-[20px] font-semibold leading-none text-fg">{pct}%</b>
+          <span className="text-[10px] text-fg-faint">{t("contextview.pctUsed")}</span>
         </span>
       </div>
-      <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-0.5">
+      <div className="mt-2 flex h-3 w-full overflow-hidden rounded-full bg-bg-soft" role="img" aria-label={t("contextview.currentTitle")}>
+        {CATS.map((c) => {
+          const w = total > 0 ? (current[c.key] / total) * 100 : 0;
+          if (w <= 0) return null;
+          return <div key={c.key} style={{ width: `${w}%`, background: CAT_COLORS[c.key] }} />;
+        })}
+        {idle > 0 && pct < 100 && (
+          <div
+            className="h-full"
+            style={{
+              width: `${(idle / win) * 100}%`,
+              background: "color-mix(in srgb, var(--md-sys-color-text-secondary) 14%, transparent)",
+            }}
+            title={t("contextview.idleWindow")}
+          />
+        )}
+      </div>
+      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-0.5">
         {CATS.map((c) => {
           const share = total > 0 ? Math.round((current[c.key] / total) * 100) : 0;
           return (
@@ -132,15 +107,16 @@ function ContextHeader({
             </span>
           );
         })}
-        <span className="min-[1100px]:flex-1" />
-        <span className="shrink-0 text-[10px] tabular-nums text-fg-faint">
-          {t("contextview.cache", { pct: stats.cacheHitPercent != null ? `${stats.cacheHitPercent.toFixed(2)}%` : "—" })}
-          {" · "}
-          {t("contextview.cost", { cost: stats.costEstimate != null ? `¥${stats.costEstimate.toFixed(2)}` : "—" })}
+        <span className="inline-flex items-center gap-1 text-[10px] text-fg-dim">
+          <span
+            className="h-2 w-2 shrink-0 rounded-sm"
+            style={{ background: "color-mix(in srgb, var(--md-sys-color-text-secondary) 14%, transparent)" }}
+          />
+          {t("contextview.idleWindow")}
         </span>
       </div>
       {pct >= 70 && (
-        <div className={`mt-1 text-[9.5px] ${pct >= 90 ? "text-err" : "text-warning"}`}>
+        <div className={`mt-1.5 text-[9.5px] ${pct >= 90 ? "text-err" : "text-warning"}`}>
           {pct >= 90 ? t("contextview.almostFull") : t("contextview.highUsage")}
           <span className="ml-2 opacity-80">{pct >= 90 ? t("contextview.almostFullHint") : t("contextview.highUsageHint")}</span>
         </div>
@@ -408,144 +384,38 @@ function EventsList({ events }: { events: ContextEvent[] }) {
   );
 }
 
-// ─── 文件活动（工具读写工作区文件的时间线） ─────────────────────
-const FILE_ACTION_META: Record<FileActivity["action"], { labelKey: DictKey; cls: string }> = {
-  read: { labelKey: "contextview.actRead", cls: "bg-cyan-500/15 text-cyan-400" },
-  write: { labelKey: "contextview.actWrite", cls: "bg-amber-500/15 text-amber-400" },
-  move: { labelKey: "contextview.actMove", cls: "bg-purple-500/15 text-purple-400" },
-  dir: { labelKey: "contextview.actDir", cls: "bg-slate-500/15 text-slate-400" },
-};
-
-function FileActivityCard({ files }: { files: FileActivity[] }) {
-  const t = useT();
-  const openFilePreview = usePreviewStore((s) => s.openFilePreview);
-  const shown = files.slice(-40).reverse();
-  return (
-    <div className="rounded-lg border border-border-soft bg-bg p-3">
-      <div className="flex items-center justify-between">
-        <div className="text-[11px] font-medium text-fg">{t("contextview.filesTitle")}</div>
-        <div className="text-[9px] text-fg-faint tabular-nums">{t("contextview.fileTouches", { n: files.length })}</div>
-      </div>
-      <div className="mt-1.5 max-h-44 overflow-y-auto">
-        {shown.length === 0 && (
-          <div className="py-2 text-[10px] text-fg-faint">{t("contextview.noFiles")}</div>
-        )}
-        {shown.map((f) => {
-          const meta = FILE_ACTION_META[f.action] ?? { labelKey: "contextview.actRead" as DictKey, cls: "bg-bg-soft text-fg-dim" };
-          const clickable = f.action !== "dir";
-          return (
-            <button
-              key={`${f.tool}-${f.seq}`}
-              type="button"
-              disabled={!clickable}
-              onClick={() => clickable && openFilePreview(f.path)}
-              title={clickable ? t("contextview.previewTitle", { path: f.path }) : undefined}
-              className={`flex w-full items-center gap-1.5 border-b border-border-soft/40 py-0.5 text-left text-[10px] last:border-0 ${
-                clickable ? "cursor-pointer transition-colors hover:bg-bg-soft/70" : "cursor-default"
-              }`}
-            >
-              <span className={`shrink-0 rounded px-1 text-[9px] ${meta.cls}`}>{t(meta.labelKey)}</span>
-              <span className="shrink-0 font-mono text-fg-faint">{f.tool}</span>
-              <span className="truncate font-mono text-fg-dim" title={f.path}>{f.path}</span>
-              <span className="ml-auto shrink-0 tabular-nums font-mono text-fg-faint">{new Date(f.ts * 1000).toLocaleTimeString()}</span>
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-// ─── 上下文浏览器（模型可见 surface 节点 + 归档） ───────────────
-const CAT_BROWSE_LABELS: Record<ContextSurfaceNode["cat"], DictKey> = {
-  system: "contextview.browseSystem",
-  tools: "contextview.browseTools",
-  user: "contextview.browseUser",
-  inject: "contextview.browseInject",
-  assistant: "contextview.browseAssistant",
-  tool: "contextview.browseTool",
-};
-const BROWSE_CATS = ["all", "system", "tools", "user", "inject", "assistant", "tool"] as const;
-
-function NodeRow({ node, open, onToggle }: { node: ContextSurfaceNode; open: boolean; onToggle: () => void }) {
-  const t = useT();
-  const text = node.text || t("contextview.noPreview");
-  const truncated = text.length > 56;
-  const shown = open || !truncated ? text : `${text.slice(0, 56)}…`;
-  return (
-    <div className="flex items-start gap-1.5 border-b border-border-soft/40 py-1 text-[10px] last:border-0">
-      <span className="mt-0.5 h-2 w-2 shrink-0 rounded-sm" style={{ background: CAT_COLORS[node.cat] }} />
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-1.5 text-fg-faint">
-          <span className="font-medium" style={{ color: CAT_COLORS[node.cat] }}>{t(CAT_BROWSE_LABELS[node.cat])}</span>
-          <span className="tabular-nums font-mono">≈{fmtTokens(node.tokens)}</span>
-          {node.gone != null && <span className="text-warning">{t("contextview.compacted")}</span>}
-          {truncated && (
-            <button
-              className="ml-auto cursor-pointer border-0 bg-transparent text-accent hover:underline"
-              onClick={onToggle}
-            >{open ? t("common.collapse") : t("common.expand")}</button>
-          )}
-        </div>
-        <div className="mt-0.5 whitespace-pre-wrap break-all font-mono text-fg-dim">{shown}</div>
-      </div>
-    </div>
-  );
-}
-
-function ContextBrowserCard({ nodes, archive }: { nodes: ContextSurfaceNode[]; archive: ContextSurfaceNode[] }) {
-  const t = useT();
-  const [tab, setTab] = useState<"active" | "archive">("active");
-  const [cat, setCat] = useState<"all" | ContextSurfaceNode["cat"]>("all");
-  const [openSeq, setOpenSeq] = useState<number | null>(null);
-  const list = tab === "active" ? nodes : archive;
-  const shown = cat === "all" ? list : list.filter((n) => n.cat === cat);
-  return (
-    <div className="rounded-lg border border-border-soft bg-bg p-3">
-      <div className="flex items-center justify-between">
-        <div className="text-[11px] font-medium text-fg">{t("contextview.browserTitle")}</div>
-        <div className="flex items-center gap-1 text-[10px]">
-          {(["active", "archive"] as const).map((tb) => (
-            <button
-              key={tb}
-              className={`cursor-pointer rounded border-0 px-1.5 py-0.5 ${tab === tb ? "bg-accent/15 text-accent" : "text-fg-dim hover:text-fg"}`}
-              onClick={() => setTab(tb)}
-            >{tb === "active" ? t("contextview.tabActive", { n: nodes.length }) : t("contextview.tabArchive", { n: archive.length })}</button>
-          ))}
-        </div>
-      </div>
-      <div className="mt-1 flex flex-wrap items-center gap-1 text-[10px]">
-        {BROWSE_CATS.map((c) => (
-          <button
-            key={c}
-            className={`cursor-pointer rounded border-0 px-1.5 py-0.5 ${cat === c ? "bg-accent/15 text-accent" : "text-fg-dim hover:text-fg"}`}
-            onClick={() => setCat(c)}
-          >{c === "all" ? t("contextview.all") : t(CAT_BROWSE_LABELS[c])}</button>
-        ))}
-      </div>
-      <div className="mt-1.5 max-h-52 overflow-y-auto">
-        {shown.length === 0 && <div className="py-2 text-[10px] text-fg-faint">{t("contextview.noCatNodes")}</div>}
-        {shown.slice(-60).map((n) => (
-          <NodeRow key={n.seq} node={n} open={openSeq === n.seq} onToggle={() => setOpenSeq(openSeq === n.seq ? null : n.seq)} />
-        ))}
-      </div>
-      <div className="mt-1 text-[9px] text-fg-faint">
-        {t("contextview.browserLegend")}
-      </div>
-    </div>
-  );
-}
-
 // ─── 容器：拉取 + 布局 ──────────────────────────────────────
-export function ContextView({ running, sessionPath }: { running: boolean; sessionPath?: string }) {
+export function ContextView({
+  running,
+  sessionPath,
+  sessionName: sessionNameProp,
+  model,
+}: {
+  running: boolean;
+  sessionPath?: string;
+  /** 当前会话标题（App 由 sidebarSessions+sessionTitle 解析）；缺省回落文件名 */
+  sessionName?: string;
+  /** 顶栏当前模型 label（state.meta.label） */
+  model?: string;
+}) {
   const t = useT();
   const [timeline, setTimeline] = useState<ContextTimeline>(EMPTY);
   const [picked, setPicked] = useState<ContextRequestRecord | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+
+  const [net, setNet] = useState<AgentNetwork | null>(null);
+  // Agent 网络：订阅共享 store；running 时 useLiveReload 驱动的 load() 顺带 reload。
+  useEffect(() => subscribeAgentNetwork((n) => setNet(n)), []);
+  const sessionName = useMemo(() => {
+    if (sessionNameProp) return sessionNameProp;
+    if (!sessionPath) return "—";
+    const base = sessionPath.split(/[\\/]/).pop() ?? sessionPath;
+    return base.replace(/\.jsonl$/, "");
+  }, [sessionNameProp, sessionPath]);
+  const space = (sessionPath ?? "").includes("/play/") ? t("contextview.spacePlay") : t("contextview.spaceWork");
 
   const load = useCallback(() => {
-    setLoading(true);
+    void reloadAgentNetwork();
     app.ContextView()
       // 老后端可能把空切片序列化成 null，按数组消费前统一归一化
       .then((tl) => {
@@ -560,7 +430,7 @@ export function ContextView({ running, sessionPath }: { running: boolean; sessio
         setError(null);
       })
       .catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)))
-      .finally(() => setLoading(false));
+      .finally(() => {});
   }, []);
 
   useEffect(() => {
@@ -578,96 +448,65 @@ export function ContextView({ running, sessionPath }: { running: boolean; sessio
     timeline.nodes.length === 0 &&
     timeline.files.length === 0;
 
-  const [inspectorTab, setInspectorTab] = useInspectorTab();
-
   return (
-    <div className="flex h-full min-h-0 flex-col gap-3 p-3">
+    <div className="flex h-full min-h-0 flex-col gap-3 overflow-y-auto p-3">
       {error && (
         <div className="shrink-0 rounded-lg border border-err/30 bg-del-bg px-3 py-2 text-[11px] text-err">
           {t("contextview.loadFail", { msg: error })}
         </div>
       )}
-      {!error && (
-        <ContextHeader
-          used={catTotal(timeline.current)}
-          window={timeline.window}
-          current={timeline.current}
-          stats={timeline.stats}
-          running={running}
-          loading={loading}
-          onRefresh={() => void load()}
-        />
-      )}
       {!error && isEmpty && (
-        <div className="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border-soft bg-bg px-6 py-10 text-center">
-          <span className="text-[12px] font-medium text-fg">{t("contextview.empty")}</span>
-          <span className="max-w-[46ch] text-[10.5px] leading-relaxed text-fg-faint">
-            {t("contextview.emptyHint")}
-          </span>
-        </div>
+        <>
+          <CurrentContextCard used={catTotal(timeline.current)} window={timeline.window} current={timeline.current} />
+          <div className="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border-soft bg-bg px-6 py-10 text-center">
+            <span className="text-[12px] font-medium text-fg">{t("contextview.empty")}</span>
+            <span className="max-w-[46ch] text-[10.5px] leading-relaxed text-fg-faint">
+              {t("contextview.emptyHint")}
+            </span>
+          </div>
+        </>
       )}
       {!error && !isEmpty && (
-        <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto min-[1100px]:flex-row min-[1100px]:overflow-hidden">
-          {/* 左主栏：过程轴（趋势 → 选中步骤详情就地联动 → 事件流） */}
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 min-[1100px]:overflow-y-auto">
-            <ContextTrendChart requests={timeline.requests} events={timeline.events} onPick={setPicked} />
-            <StepDetail record={picked} window={timeline.window} />
+        <>
+          {/* 行1：四仪表卡（dsh lc-head 同构） */}
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 min-[1400px]:grid-cols-4">
+            <StatsCard stats={timeline.stats} />
+            <TokenCard requests={timeline.requests} />
+            <TimingCard timing={timeline.timing} />
+            <SessionInfoCard
+              sessionName={sessionName}
+              space={space}
+              model={model || t("contextview.estimateModel")}
+              window={timeline.window}
+              requests={timeline.requests.length}
+            />
+          </div>
+          {/* 行2：当前上下文 + 上下文浏览器 */}
+          <div className="grid grid-cols-1 gap-3 min-[1100px]:grid-cols-[3fr_2fr]">
+            <CurrentContextCard used={catTotal(timeline.current)} window={timeline.window} current={timeline.current} />
+            <ContextBrowserTree nodes={timeline.nodes} archive={timeline.archive} />
+          </div>
+          {/* 行3：趋势（点柱 → 行4 详情就地联动） */}
+          <ContextTrendChart requests={timeline.requests} events={timeline.events} onPick={setPicked} />
+          <StepDetail record={picked} window={timeline.window} />
+          {/* 行5：事件流 + 文件活动 */}
+          <div className="grid grid-cols-1 gap-3 min-[1100px]:grid-cols-2">
             <EventsList events={timeline.events} />
+            <FileActivityTree files={timeline.files} />
           </div>
-          {/* 右辅栏 inspector：浏览器 / 文件活动 / Agent 网络（渐进披露） */}
-          <div className="flex shrink-0 flex-col gap-2 min-[1100px]:w-80">
-            <div className="flex shrink-0 items-center gap-1" role="tablist" aria-label={t("contextview.inspectorAria")}>
-              {([
-                ["browser", t("contextview.tabBrowser")],
-                ["files", t("contextview.tabFiles")],
-                ["agent", t("contextview.tabAgent")],
-              ] as const).map(([key, label]) => (
-                <button
-                  key={key}
-                  type="button"
-                  role="tab"
-                  aria-selected={inspectorTab === key}
-                  onClick={() => setInspectorTab(key)}
-                  className={`cursor-pointer rounded-full border-0 px-2.5 py-1 text-[10.5px] transition-colors ${
-                    inspectorTab === key ? "font-medium text-fg" : "bg-transparent text-fg-dim hover:text-fg"
-                  }`}
-                  style={inspectorTab === key ? { background: "var(--md-sys-color-surface-container-high)" } : undefined}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-            <div className="flex min-h-0 flex-1 flex-col min-[1100px]:overflow-y-auto">
-              {inspectorTab === "browser" && <ContextBrowserCard nodes={timeline.nodes} archive={timeline.archive} />}
-              {inspectorTab === "files" && <FileActivityCard files={timeline.files} />}
-              {inspectorTab === "agent" && <AgentNetworkCard running={running} sessionPath={sessionPath} />}
-            </div>
-          </div>
-        </div>
+          {/* 行6：Agent 网络径向图 */}
+          {net && <AgentRadial network={net} running={running} sessionPath={sessionPath} />}
+          {/* 底部会话汇总条 + 估算口径 */}
+          <SummaryBar
+            sessionName={sessionName}
+            used={catTotal(timeline.current)}
+            window={timeline.window}
+            requests={timeline.requests}
+            costEstimate={timeline.stats.costEstimate}
+          />
+          <div className="text-[9.5px] leading-relaxed text-fg-faint">{t("contextview.estimateNote")}</div>
+        </>
       )}
     </div>
   );
-}
-
-// inspector tab 偏好（localStorage gaea.context.inspectorTab；坏值回落 browser）。
-type InspectorTab = "browser" | "files" | "agent";
-const INSPECTOR_TABS: InspectorTab[] = ["browser", "files", "agent"];
-function useInspectorTab(): [InspectorTab, (t: InspectorTab) => void] {
-  const [tab, setTab] = useState<InspectorTab>(() => {
-    try {
-      const raw = localStorage.getItem("gaea.context.inspectorTab");
-      return (INSPECTOR_TABS as string[]).includes(raw ?? "") ? (raw as InspectorTab) : "browser";
-    } catch {
-      return "browser";
-    }
-  });
-  const set = useCallback((next: InspectorTab) => {
-    setTab(next);
-    try {
-      localStorage.setItem("gaea.context.inspectorTab", next);
-    } catch {
-      /* 隐私模式等写入失败静默 */
-    }
-  }, []);
-  return [tab, set];
 }

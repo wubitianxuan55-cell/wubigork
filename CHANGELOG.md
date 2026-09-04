@@ -1,3 +1,14 @@
+## v4.68.0 · 上下文页对齐 dsh-context：网格仪表 + 耗时折叠 + 径向 Agent 图（2026-09-04）
+> 用户展示 dsh-context v0.41.3 并点名对齐（先读其源码）。**绑定面 561 零
+> 变更**（struct 字段级）。详见 releases/v4.68.0.md。
+- Go：FoldTimeline 单趟折叠 ContextTiming（wall/ttft/gen/tools 时长+每工具
+  排行，诚实近似+全零省略）；
+- UI：v4.67 双栏 tab → dsh 全宽网格仪表（四仪表卡/当前上下文宽卡含空闲段/
+  浏览器分类折叠组/文件活动聚合树/Agent 径向树/底部汇总条+口径页脚），
+  i18n 三语 +47 键，功能零删减；
+- judge 三图 pass 零 must_fix；Go 全量（定向包）、tsc -b/eslint 0、
+  vitest 224/1681、冒烟 200。
+
 ## v4.67.0 · 上下文标签页重设计：驾驶舱三区布局（2026-09-04）
 > 用户点名「使用技能重新设计上下文标签页」（ui-ux-pro-max）。**绑定面 561
 > 零变更**。详见 releases/v4.67.0.md 与 design-system/gaea/pages/context.md。

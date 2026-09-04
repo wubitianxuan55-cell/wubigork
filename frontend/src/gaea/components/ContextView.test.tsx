@@ -11,12 +11,24 @@ const renderT = (ui: ReactElement) => {
 };
 
 const contextViewMock = vi.fn();
-const agentNetworkMock = vi.fn();
+const subscribeAgentNetworkMock = vi.fn((cb: (n: unknown) => void) => {
+  cb({
+    ok: true,
+    window: 1_000_000,
+    root: { id: "root", name: "主 agent", kind: "root", status: "completed", toolCalls: 0, errors: 0, tokens: 0, children: [] },
+  });
+  return () => {};
+});
+const reloadAgentNetworkMock = vi.fn();
 
 vi.mock("../lib/bridge", () => ({
-  app: { ContextView: contextViewMock, AgentNetwork: agentNetworkMock },
+  app: { ContextView: contextViewMock },
   openExternal: vi.fn(),
   onEvent: vi.fn(() => () => {}),
+}));
+vi.mock("../lib/agentNetworkStore", () => ({
+  subscribeAgentNetwork: (cb: (n: unknown) => void) => subscribeAgentNetworkMock(cb),
+  reloadAgentNetwork: () => reloadAgentNetworkMock(),
 }));
 
 const TIMELINE: ContextTimeline = {
@@ -50,40 +62,37 @@ const TIMELINE: ContextTimeline = {
   ],
 };
 
-describe("ContextView 上下文看板", () => {
+describe("ContextView 上下文仪表（v4.68 dsh 网格）", () => {
   beforeEach(() => {
     contextViewMock.mockReset();
     contextViewMock.mockResolvedValue(TIMELINE);
-    agentNetworkMock.mockReset();
-    agentNetworkMock.mockResolvedValue({
-      ok: true,
-      window: 1_000_000,
-      root: { id: "root", name: "主 agent", kind: "root", status: "completed", toolCalls: 0, errors: 0, tokens: 0, children: [] },
-    });
+    subscribeAgentNetworkMock.mockClear();
+    reloadAgentNetworkMock.mockClear();
   });
 
-  it("渲染统计卡与六分类组成", async () => {
+  it("渲染四仪表卡：统计格 / Token 环形 / 耗时卡 / 会话信息", async () => {
     const { ContextView } = await import("./ContextView");
     renderT(<ContextView running={false} />);
     expect(await screen.findByText("工具调用")).toBeTruthy();
     expect(screen.getByText("279")).toBeTruthy();
-    expect(screen.getByText("99.57%")).toBeTruthy();
-    expect(screen.getByText("系统提示词")).toBeTruthy();
-    expect(screen.getAllByText("工具结果").length).toBeGreaterThan(0);
+    expect(screen.getByText("99.9%")).toBeTruthy(); // TokenCard 环心缓存命中（requests 汇总 350200/350600）
+    expect(screen.getByText("缓存输入")).toBeTruthy();
+    expect(screen.getByText("未缓存输入")).toBeTruthy();
+    expect(screen.getByText("耗时统计")).toBeTruthy();
+    expect(screen.getByText("模型等待")).toBeTruthy();
+    expect(screen.getByText("会话信息")).toBeTruthy();
   });
 
-  it("总览头部：水位百分比、缓存/费用徽标与刷新按钮", async () => {
+  it("当前上下文宽卡：水位、缓存/费用与六分类图例", async () => {
     const { ContextView } = await import("./ContextView");
     renderT(<ContextView running={false} />);
-    expect(await screen.findByText("上下文")).toBeTruthy();
-    // v4.67 驾驶舱化：水位头部与当前构成融合为一处显示
+    expect(await screen.findByText("当前上下文")).toBeTruthy();
+    // v4.68：水位只在当前上下文宽卡显示一处
     expect(screen.getAllByText(/241\.8k \/ 1\.0M · 24%/).length).toBe(1);
-    expect(screen.getByText(/缓存 99\.57%/)).toBeTruthy();
-    expect(screen.getByText(/费用 ¥3\.83/)).toBeTruthy();
-    expect(screen.getByLabelText("刷新上下文")).toBeTruthy();
+    // 缓存/费用信息已分别由 TokenCard / StatsCard 承载（dsh 同构）
   });
 
-  it("接近上限时水位与当前构成提示警示（≥90%）", async () => {
+  it("接近上限时水位警示（≥90%）", async () => {
     contextViewMock.mockResolvedValue({
       ...TIMELINE,
       window: 100_000,
@@ -95,7 +104,7 @@ describe("ContextView 上下文看板", () => {
     expect(screen.getByText(/已接近上下文上限/)).toBeTruthy();
   });
 
-  it("空数据：显示空态引导，头部仍展示 0 水位", async () => {
+  it("空数据：空态引导 + 头部仍展示 0 水位", async () => {
     contextViewMock.mockResolvedValue({
       ok: true,
       window: 0,
@@ -106,7 +115,7 @@ describe("ContextView 上下文看板", () => {
     const { ContextView } = await import("./ContextView");
     renderT(<ContextView running={false} />);
     expect(await screen.findByText("暂无上下文数据")).toBeTruthy();
-    expect(screen.getByText(/0 \/ 0 · 0%/)).toBeTruthy();
+    expect(screen.getByText(/\/ 0 tokens/)).toBeTruthy();
   });
 
   it("渲染趋势图、步骤详情与事件流", async () => {
@@ -121,7 +130,6 @@ describe("ContextView 上下文看板", () => {
 
   it("点击柱后展示步骤详情", async () => {
     const { ContextView } = await import("./ContextView");
-    // 图表首根柱：趋势 SVG 里的第一个 rect（jsdom 下 SVG title 不可被 byTitle 命中）
     const { container } = renderT(<ContextView running={false} />);
     await screen.findByText("上下文趋势");
     const rect = container.querySelector("svg rect");
@@ -145,31 +153,43 @@ describe("ContextView 上下文看板", () => {
     expect(detail.textContent).toContain("系统提示词 2.1k");
   });
 
-  it("渲染文件活动时间线（读/写徽标 + 路径 + 次数）", async () => {
+  it("上下文浏览器：分类折叠组（项数）+ 展开节点 + 归档组", async () => {
     const { ContextView } = await import("./ContextView");
     renderT(<ContextView running={false} />);
-    fireEvent.click(await screen.findByRole("tab", { name: "文件活动" }));
-    // tab 标签与卡标题同文 → findAllByText
-    expect((await screen.findAllByText("文件活动")).length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByText("2 次文件接触")).toBeTruthy();
-    expect(screen.getByText("internal/gaea/config/config.go")).toBeTruthy();
-    expect(screen.getByText("docs/结论.md")).toBeTruthy();
-    expect(screen.getAllByText("read_file").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("write_file").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("读").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("写").length).toBeGreaterThan(0);
-    // 文件活动已接入 → 页脚不再声称「后续阶段」
-    expect(screen.queryByText(/文件活动将在后续阶段接入/)).toBeNull();
+    expect(await screen.findByText("上下文浏览器")).toBeTruthy();
+    // 分类折叠行（button）与总览图例（span）同文 → 用 role 收紧定位
+    fireEvent.click(screen.getByRole("button", { name: /系统提示词/ }));
+    expect(await screen.findByText(/你是 gaea/)).toBeTruthy();
+    // 工具结果分类：长文本展开/收起
+    fireEvent.click(screen.getByRole("button", { name: /工具结果/ }));
+    fireEvent.click(screen.getByText("展开"));
+    expect(screen.getByText("收起")).toBeTruthy();
+    expect(screen.getByText(/全文预览在这里展示/)).toBeTruthy();
+    fireEvent.click(screen.getByText("收起"));
+    expect(screen.queryByText("收起")).toBeNull();
+    // 归档折叠组
+    fireEvent.click(screen.getByText(/归档 1/));
+    expect(screen.getByText(/旧的一轮用户输入内容/)).toBeTruthy();
+    expect(screen.getAllByText("已压缩").length).toBeGreaterThan(0);
   });
 
-  it("文件活动行点击 → 在右侧打开该文件预览", async () => {
+  it("文件活动：按文件聚合 + 读写徽标 + 点击预览", async () => {
     const { ContextView } = await import("./ContextView");
     const { usePreviewStore } = await import("../lib/store");
     renderT(<ContextView running={false} />);
-    fireEvent.click(await screen.findByRole("tab", { name: "文件活动" }));
-    await screen.findAllByText("文件活动");
+    expect(await screen.findByText("文件活动")).toBeTruthy();
+    expect(screen.getByText("2 个文件")).toBeTruthy();
+    expect(screen.getByText("internal/gaea/config/config.go")).toBeTruthy();
     fireEvent.click(screen.getByText("internal/gaea/config/config.go"));
     expect(usePreviewStore.getState().previewFile).toBe("internal/gaea/config/config.go");
+  });
+
+  it("Agent 网络：径向图渲染 + 订阅共享 store", async () => {
+    const { ContextView } = await import("./ContextView");
+    renderT(<ContextView running={false} />);
+    expect(await screen.findByText("Agent 网络")).toBeTruthy();
+    expect(screen.getByText(/1 个 Agent/)).toBeTruthy();
+    expect(subscribeAgentNetworkMock).toHaveBeenCalled();
   });
 
   it("增量模式：点击「增量」展示净增减图例", async () => {
@@ -181,30 +201,12 @@ describe("ContextView 上下文看板", () => {
     expect(screen.getByText(/净减/)).toBeTruthy();
   });
 
-  it("渲染上下文浏览器（活跃节点 + 展开）", async () => {
+  it("底部会话汇总条与估算口径页脚", async () => {
     const { ContextView } = await import("./ContextView");
     renderT(<ContextView running={false} />);
-    fireEvent.click(await screen.findByRole("tab", { name: "浏览器" }));
-    expect(await screen.findByText("上下文浏览器")).toBeTruthy();
-    expect(screen.getByText(/活跃 2/)).toBeTruthy();
-    expect(screen.getByText(/你是 gaea/)).toBeTruthy();
-    // tool 节点文本超长 → 展开按钮出现，点击后展示全文并变为「收起」
-    fireEvent.click(screen.getByText("展开"));
-    expect(screen.getByText("收起")).toBeTruthy();
-    expect(screen.getByText(/全文预览在这里展示/)).toBeTruthy();
-    fireEvent.click(screen.getByText("收起"));
-    expect(screen.queryByText("收起")).toBeNull();
-  });
-
-  it("上下文浏览器归档页展示被压缩节点", async () => {
-    const { ContextView } = await import("./ContextView");
-    renderT(<ContextView running={false} />);
-    fireEvent.click(await screen.findByRole("tab", { name: "浏览器" }));
-    fireEvent.click(await screen.findByText(/归档 1/));
-    expect(screen.getByText(/旧的一轮用户输入内容/)).toBeTruthy();
-    expect(screen.getAllByText("已压缩").length).toBeGreaterThan(0);
-    // 页脚占位已移除
-    expect(screen.queryByText(/上下文浏览器将在后续阶段接入/)).toBeNull();
+    expect(await screen.findByText(/1 次请求/)).toBeTruthy();
+    expect(screen.getByText(/累计费用/)).toBeTruthy();
+    expect(screen.getByText(/估算口径/)).toBeTruthy();
   });
 
   it("加载失败显示错误", async () => {

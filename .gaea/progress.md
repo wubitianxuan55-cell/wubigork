@@ -1,6 +1,7 @@
 # 任务进度
 
-> 最后更新: 2026-09-04（v4.67.0「上下文标签页重设计：驾驶舱三区布局」；
+> 最后更新: 2026-09-04（v4.68.0「上下文页对齐 dsh-context：网格仪表+耗时
+> 折叠+径向 Agent 图」；v4.67.0「上下文标签页重设计：驾驶舱三区布局」；
 > v4.66.0「子代理会话提升：保存为新会话 ·
 > TasksWorkbench 轮询收敛」，绑定面 560→561；v4.65.1「追问失败感知 ·
 > 任务退出码 · AgentNetwork 轮询收敛」；v4.65.0「三线并行收欠账：追问失败重试 · 工作台
@@ -40,6 +41,22 @@
 - ~~autoOpenJobs 进设置中心~~ 已完成（v4.65.0 线B；该键经 grep 不存在，
   实际由 gaea.tasks.autoOpenSubagent 承担——过期条目销账）。
 - ~~releases/README.md 索引治理~~ 已完成（v4.65.0 线D）。
+
+## 最新发布：v4.68.0（2026-09-04）「上下文页对齐 dsh-context」
+
+- 用户展示 dsh-context v0.41.3（本地 ~/.dsh/profiles/web/node_modules/
+  dsh-context，client.js 6760 行已读）并点名对齐。四线并行 + 主代理收口：
+  线A Go FoldTimeline 单趟折叠 ContextTiming（wall/ttft/gen/toolsMs/tools
+  排行数组；秒粒度近似如实注记；全零省略）；线B 四仪表卡（context/cards：
+  统计 8 格/Token 环形/耗时环形/会话信息）+ 当前上下文宽卡（空闲段）+
+  底部汇总条；线C 上下文浏览器分类折叠组（项数/搜索/归档/分页）+ 文件
+  活动聚合树（三排序）；线D Agent 径向树（SVG，agentNetworkStore 接线）。
+- 布局 v4.67 双栏 tab → dsh 全宽网格仪表（用户意图照 dsh）；i18n 三语
+  +47 键；功能零删减。
+- 门禁：Go 定向包全绿、tsc -b/eslint 0、vitest 224/1681、drift PASS（561）、
+  冒烟 200；judge 三图 pass 零 must_fix。
+- 欠账：浏览器「对比上一步变动」下拉（需 per-request 快照）；真实供应商
+  用量卡。详见 releases/v4.68.0.md。
 
 ## 最新发布：v4.67.0（2026-09-04）「上下文标签页重设计：驾驶舱三区布局」
 

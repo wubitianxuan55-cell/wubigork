@@ -266,6 +266,30 @@ export interface ContextTimeline {
   nodes: ContextSurfaceNode[];
   archive: ContextSurfaceNode[];
   files: FileActivity[];
+  timing?: ContextTiming;
+}
+
+// 耗时统计条目：单个工具名的调用次数与执行时长合计（timing.tools 排行项）。
+export interface ContextToolTiming {
+  name: string;
+  calls: number;
+  ms: number;
+}
+
+// 耗时统计（对齐 dsh-context TimingTotals 的诚实近似版）：
+// wallMs=各轮次活跃时长合计；ttftMs=模型等待（步骤起点→首 token）；
+// genMs=生成（首 token→assistant 消息收尾）；calls=模型调用次数；
+// toolsMs/toolCalls=工具执行时长合计/配对数（并行重复计，与 dsh 同口径）；
+// tools=每工具名 {calls, ms} 排行，按 ms 降序截断 20（数组承载排行序）。
+// 日志时间戳为秒级：所有 ms 为秒粒度近似；日志无法支撑的指标整体省略。
+export interface ContextTiming {
+  wallMs?: number;
+  ttftMs?: number;
+  genMs?: number;
+  calls?: number;
+  toolsMs?: number;
+  toolCalls?: number;
+  tools?: ContextToolTiming[];
 }
 
 // ─── 轨迹视图（对齐 DSH ui-trajectory 事件账本）────────────────
