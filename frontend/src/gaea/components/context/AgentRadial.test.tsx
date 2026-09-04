@@ -70,7 +70,10 @@ describe("AgentRadial Agent 网络径向树", () => {
     expect(container.textContent).toContain("2 个运行中");
     expect(container.textContent).toContain("≈665k");
     // 连线数 = 子节点数，线色按兄弟序号（category 色板）
-    expect(container.querySelectorAll("path")).toHaveLength(2);
+    // v4.71：卡头新增图标章（antd 内联 SVG path），连线断言收窄到网络图画布
+    const netSvg = container.querySelector('[data-testid="agent-radial-svg"]');
+    if (!netSvg) throw new Error("agent radial svg not found");
+    expect(netSvg.querySelectorAll("path")).toHaveLength(2);
   });
 
   it("占比弧计算：中心 = root.tokens/窗口，子环 = 子 tokens/root tokens（stroke-dasharray 断言）", () => {

@@ -396,7 +396,11 @@ function TaskRow({
                 onCancel(task.id);
               }}
             >
-              {task.status === "stopping" ? t("tasks.stoppingBtn") : t("tasks.cancelBtn")}
+              {task.status === "running"
+                ? t("tasks.forceStopBtn")
+                : task.status === "stopping"
+                  ? t("tasks.stoppingBtn")
+                  : t("tasks.cancelBtn")}
             </button>
           )}
           {(task.status === "failed" || task.status === "cancelled") && (

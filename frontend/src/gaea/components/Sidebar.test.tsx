@@ -36,7 +36,6 @@ function renderSidebar(groups: ProjectGroup[] = [group]) {
     onRenameSession: vi.fn(),
     onOpenSubagentThread: vi.fn(),
     onOpenHistory: vi.fn(),
-    onOpenMemory: vi.fn(),
     onOpenCaps: vi.fn(),
     onOpenKnowledge: vi.fn(),
     startResize: vi.fn(),
@@ -66,7 +65,6 @@ function renderSidebar(groups: ProjectGroup[] = [group]) {
           onRenameSession={callbacks.onRenameSession}
           onOpenSubagentThread={callbacks.onOpenSubagentThread}
           onOpenHistory={callbacks.onOpenHistory}
-          onOpenMemory={callbacks.onOpenMemory}
           onOpenCaps={callbacks.onOpenCaps}
           onOpenKnowledge={callbacks.onOpenKnowledge}
           startResize={callbacks.startResize}
@@ -83,6 +81,12 @@ function renderSidebar(groups: ProjectGroup[] = [group]) {
 }
 
 describe("Sidebar 项目分组与会话操作", () => {
+  it("v4.73：左侧不再渲染「记忆」入口（已迁主区记忆 tab）", () => {
+    renderSidebar();
+    expect(screen.queryByTitle("记忆")).toBeNull();
+    expect(screen.getByTitle("知识库")).toBeTruthy();
+  });
+
   it("渲染项目名称、当前会话与当前标记", () => {
     renderSidebar();
     expect(screen.getByText("ws")).toBeTruthy();

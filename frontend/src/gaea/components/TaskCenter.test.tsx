@@ -82,6 +82,16 @@ describe("TaskCenter 任务中心（C1 实时输出 + 结束态细分）", () =>
     expect(screen.getByText("2 个进行中")).toBeTruthy(); // running+stopping 计入活跃
   });
 
+  it("v4.77：运行中任务提供「强制终止」，排队任务保留「取消」", async () => {
+    tasks.list = [
+      makeTask({ id: "f1", label: "抓取进程", status: "running" }),
+      makeTask({ id: "q1", label: "排队任务", status: "queued", progress: 0 }),
+    ];
+    render(wrap(<TaskCenter />));
+    expect(await screen.findByText("强制终止")).toBeTruthy();
+    expect(screen.getByText("取消")).toBeTruthy();
+  });
+
   it("点击任务行 → 输出 dock 回放实时输出，可关闭", async () => {
     tasks.list = [makeTask({ id: "t1", label: "抓取四川造价信息网", status: "running" })];
     tasks.output = {

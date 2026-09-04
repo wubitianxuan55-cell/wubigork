@@ -7,7 +7,6 @@ import { rankPaletteItems } from "./paletteRank";
 const ITEMS = [
   { id: "cmd-new", title: "新建会话" },
   { id: "cmd-memory", title: "记忆" },
-  { id: "cmd-overview", title: "概览面板" },
   { id: "cmd-files", title: "文件面板" },
   { id: "cmd-deliverables", title: "产物面板" },
   { id: "tpl-1", title: "模板" },
@@ -25,24 +24,15 @@ describe("rankPaletteItems 按当前视图重排", () => {
     // 其余项保持原相对顺序（稳定排序）
     const rest = out.slice(1).map((i) => i.id);
     expect(rest).toEqual([
-      "cmd-new", "cmd-memory", "cmd-overview", "cmd-files",
+      "cmd-new", "cmd-memory", "cmd-files",
       "tpl-1", "sess-1",
     ]);
   });
 
-  it("chatTab=overview → cmd-overview 置顶", () => {
-    const out = rankPaletteItems(ITEMS, { chatTab: "overview" });
-    expect(out[0].id).toBe("cmd-overview");
-    expect(out.slice(1).map((i) => i.id)).toEqual([
-      "cmd-new", "cmd-memory", "cmd-files", "cmd-deliverables",
-      "tpl-1", "sess-1",
-    ]);
-  });
-
-  it("右栏匹配优先于 chatTab 匹配（rightTab=files 时 cmd-files 置顶）", () => {
-    const out = rankPaletteItems(ITEMS, { chatTab: "overview", rightTab: "files" });
+  it("右栏激活文件面板 → cmd-files 置顶", () => {
+    const out = rankPaletteItems(ITEMS, { chatTab: "chat", rightTab: "files" });
     expect(out[0].id).toBe("cmd-files");
-    expect(out[1].id).toBe("cmd-overview");
+    expect(out[1].id).toBe("cmd-new");
   });
 
   it("任务模板与会话项不受视图影响，排在命令后保持原序", () => {

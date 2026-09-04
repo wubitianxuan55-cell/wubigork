@@ -1,10 +1,11 @@
-import { BarChart3, Gauge, ListTree, MessageSquare } from "../icons";
+import { BarChart3, Brain, ListTree, MessageSquare } from "../icons";
 
 // 对话窗口上方的视图标签（dsh-context 移植，v4.17-v4.20 已完整接通）：
 // [对话] 现有 Transcript；[轨迹] 事件账本（概览/搜索/折叠/增量渲染）；
-// [上下文] 上下文构成看板（趋势/事件/文件活动/浏览器/Agent 网络）；
-// [概览] 会话统计看板（v4.23 自右栏「分析组·统计」迁入，OverviewPanel 承载）。
-export type ChatTabId = "chat" | "trajectory" | "context" | "overview";
+// [上下文] 上下文构成看板（趋势/事件/文件活动/浏览器/Agent 网络）。
+// v4.72：删除「概览」tab（统计信息已由上下文页 Token/费用/会话信息卡承载）。
+// v4.73：左侧「记忆」入口迁入主区 tab（对话/轨迹/上下文/记忆）。
+export type ChatTabId = "chat" | "trajectory" | "context" | "memory";
 
 /** 动态会话 tab（子代理独立会话，better-sidebar openSubagent 语义）。 */
 export interface ChatSessionTab {
@@ -20,7 +21,7 @@ const TABS: { id: ChatTabId; label: string; icon: typeof MessageSquare }[] = [
   { id: "chat", label: "对话", icon: MessageSquare },
   { id: "trajectory", label: "轨迹", icon: ListTree },
   { id: "context", label: "上下文", icon: BarChart3 },
-  { id: "overview", label: "概览", icon: Gauge },
+  { id: "memory", label: "记忆", icon: Brain },
 ];
 
 export function ChatTabs({ active, onChange, extraTabs, onCloseExtra }: {
@@ -43,7 +44,7 @@ export function ChatTabs({ active, onChange, extraTabs, onCloseExtra }: {
               selected ? "text-accent" : "text-fg-dim hover:text-fg"
             }`}
             onClick={() => onChange(t.id)}
-            title={t.id === "trajectory" ? "工具调用/步骤时间线" : t.id === "overview" ? "Token/成本/命中率统计" : undefined}
+            title={t.id === "trajectory" ? "工具调用/步骤时间线" : undefined}
           >
             <Icon size={13} />
             {t.label}

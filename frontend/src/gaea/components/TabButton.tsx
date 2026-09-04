@@ -8,17 +8,19 @@ export const TabButton = memo(function TabButton(p: {
 }) {
   return (
     <button
-      className={`flex-1 px-4 py-2.5 text-[12.5px] font-medium border-0 bg-transparent cursor-pointer transition-colors border-b-2 ${
+      className={`flex items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-[12.5px] font-medium border-0 cursor-pointer transition-colors ${
         p.active
-          ? "text-accent border-accent"
-          : "text-fg-faint border-transparent hover:text-fg-dim hover:border-fg-faint/30"
+          ? "bg-accent/15 text-accent"
+          : "text-fg-faint hover:bg-bg-soft/60 hover:text-fg-dim"
       }`}
       onClick={p.onClick}
       type="button"
     >
       {p.children}
       {p.badge > 0 && (
-        <span className="ml-1.5 text-[10px] text-fg-faint">({p.badge})</span>
+        <span className={`rounded-full px-1.5 py-px text-[10px] tabular-nums ${p.active ? "bg-accent/15 text-accent" : "bg-bg-soft text-fg-faint"}`}>
+          {p.badge}
+        </span>
       )}
     </button>
   );

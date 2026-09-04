@@ -3,7 +3,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { List, type RowComponentProps } from "react-window";
 import { Modal } from "antd";
 import {
-  Plus, Brain, Blocks, BookOpen, MessageSquare, Search,
+  Plus, Blocks, BookOpen, MessageSquare, Search,
   PanelLeftClose, PanelLeftOpen, Loader2, FileText, ChevronDown, FolderGit2,
   Pin, Inbox, Rollback, X,
 } from "../icons";
@@ -48,7 +48,6 @@ export interface SidebarProps {
     status: SubagentThreadStatus;
   }) => void;
   onOpenHistory: () => void;
-  onOpenMemory: () => void;
   onOpenCaps: () => void;
   onOpenKnowledge: () => void;
   startResize: (e: ReactPointerEvent<HTMLButtonElement>) => void;
@@ -510,7 +509,6 @@ export function Sidebar({
   onRenameSession,
   onOpenSubagentThread,
   onOpenHistory,
-  onOpenMemory,
   onOpenCaps,
   onOpenKnowledge,
   resizeWithKeyboard,
@@ -783,14 +781,6 @@ export function Sidebar({
           <div className="flex flex-col gap-0.5 mb-2">
             <button
               className="flex items-center gap-2.5 min-h-9 w-full px-3 rounded-full border border-transparent text-fg-dim text-[13px] no-drag cursor-pointer transition-[color,background] duration-[var(--dur-fast)] hover:bg-sidebar-hover hover:text-fg active:scale-[0.985]"
-              onClick={() => void onOpenMemory()}
-              title={t("topbar.memory")}
-            >
-              <Brain size={15} className="shrink-0 text-fg-faint" />
-              <span className="flex-1 min-w-0 truncate text-left">{t("topbar.memory")}</span>
-            </button>
-            <button
-              className="flex items-center gap-2.5 min-h-9 w-full px-3 rounded-full border border-transparent text-fg-dim text-[13px] no-drag cursor-pointer transition-[color,background] duration-[var(--dur-fast)] hover:bg-sidebar-hover hover:text-fg active:scale-[0.985]"
               onClick={() => void onOpenKnowledge()}
               title={t("topbar.knowledge")}
             >
@@ -1037,13 +1027,6 @@ export function Sidebar({
         {/* 折叠态底部导航图标 */}
         {collapsed && (
         <nav className="flex flex-col gap-1 items-center w-full mt-auto !pt-2.5 !pb-3">
-          <button
-            className="flex items-center justify-center w-8 h-8 rounded-lg text-fg-dim no-drag cursor-pointer transition-[color,background] duration-[var(--dur-fast)] hover:text-fg hover:bg-sidebar-hover active:scale-[0.98]"
-            onClick={() => void onOpenMemory()}
-            title={t("topbar.memory")}
-          >
-            <Brain size={15} />
-          </button>
           <button
             className="flex items-center justify-center w-8 h-8 rounded-lg text-fg-dim no-drag cursor-pointer transition-[color,background] duration-[var(--dur-fast)] hover:text-fg hover:bg-sidebar-hover active:scale-[0.98]"
             onClick={() => void onOpenKnowledge()}

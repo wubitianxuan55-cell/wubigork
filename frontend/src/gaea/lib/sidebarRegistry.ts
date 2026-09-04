@@ -130,7 +130,8 @@ function openPaneFileTab(rel: string): void {
 }
 
 /** 单一数据源：内置面板注册表（v4.28 起含浏览器观察窗，顺序即展示序）。
- *  stats 已迁主区「概览」tab（v4.23 A4）；materials/cost 标签已删除（v4.27）。 */
+ *  stats 曾迁主区「概览」tab（v4.23 A4），v4.72 随 tab 删除（统计入上下文页）；
+ *  materials/cost 标签已删除（v4.27）。 */
 export const SIDEBAR_REGISTRY: readonly WorkspaceTabRegistration[] = WORKSPACE_TABS.map(
   (tab, order): WorkspaceTabRegistration => ({
     id: tab.id,

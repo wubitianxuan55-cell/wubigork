@@ -3,6 +3,8 @@ import type { AgentNetwork, AgentNode } from "../../lib/types";
 import { fmtTokens } from "../../lib/stats";
 import { DOMAIN_COLORS, DOMAIN_KEYS } from "../../lib/domainColors";
 import { useT } from "../../lib/i18n";
+import "./context-view.css";
+import { Users } from "../../icons";
 
 // AgentRadial — 「Agent 网络」径向树卡（对齐 dsh-context 的 Agent network 卡）。
 // 替换 AgentNetworkCard 在上下文页 inspector 的角色（旧组件本体不动）：
@@ -197,10 +199,15 @@ export function AgentRadial({
     .join("\n");
 
   return (
-    <div className="rounded-lg border border-border-soft bg-bg p-3" data-testid="agent-radial">
+    <div className="ctx-card p-3" data-testid="agent-radial">
       <div className="flex items-center justify-between gap-2">
-        <div className="text-[11px] font-medium text-fg">{t("contextview.radialTitle")}</div>
-        <div className="text-[9px] text-fg-faint tabular-nums">
+        <div className="flex min-w-0 items-center gap-1.5">
+          <span className="ctx-head-ic" aria-hidden>
+            <Users size={12} />
+          </span>
+          <span className="truncate text-[12.5px] font-semibold text-fg">{t("contextview.radialTitle")}</span>
+        </div>
+        <div className="shrink-0 text-[9px] text-fg-faint tabular-nums">
           {t("contextview.radialAgents", { n: stats.total })} · {t("contextview.radialRunning", { n: stats.running })} · {t("contextview.radialTotal", { tokens: fmtTokens(stats.tokens) })}
         </div>
       </div>

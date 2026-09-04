@@ -62,7 +62,7 @@ const TIMELINE: ContextTimeline = {
   ],
 };
 
-describe("ContextView 上下文仪表（v4.68 dsh 网格）", () => {
+describe("ContextView 上下文页卡片墙（v4.71 卡片化）", () => {
   beforeEach(() => {
     contextViewMock.mockReset();
     contextViewMock.mockResolvedValue(TIMELINE);
@@ -70,10 +70,13 @@ describe("ContextView 上下文仪表（v4.68 dsh 网格）", () => {
     reloadAgentNetworkMock.mockClear();
   });
 
-  it("渲染四仪表卡：统计格 / Token 环形 / 耗时卡 / 会话信息", async () => {
+  it("8 个统计项各自成小卡；Token 环形 / 耗时卡 / 会话信息为三张大卡", async () => {
     const { ContextView } = await import("./ContextView");
-    renderT(<ContextView running={false} />);
+    const { container } = renderT(<ContextView running={false} />);
     expect(await screen.findByText("工具调用")).toBeTruthy();
+    // v4.71：统计不再合成 1 张大卡——每个统计项是独立 tile（8 个）
+    expect(container.querySelectorAll('[data-testid^="stat-tile-"]')).toHaveLength(8);
+    expect(container.querySelector('[data-testid="stat-tile-turns"]')?.classList.contains("ctx-tile")).toBe(true);
     expect(screen.getByText("279")).toBeTruthy();
     expect(screen.getByText("99.89%")).toBeTruthy(); // TokenCard 环心缓存命中（requests 汇总 350200/350600，v4.69 两位小数）
     expect(screen.getByText("缓存输入")).toBeTruthy();

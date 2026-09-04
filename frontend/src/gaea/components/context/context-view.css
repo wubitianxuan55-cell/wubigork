@@ -1,0 +1,134 @@
+/* context-view.css — 上下文页卡片语言（v4.71 卡片化）
+ *
+ * 规划（自研，不逐像素复刻外部插件）：
+ *  - 页面底色 = surface（最低层）；每个独立信息单元抬高一整级 surface：
+ *      · ctx-tile  = 统计小卡（8 个统计项各自成卡）
+ *      · ctx-card  = 区块大卡（Token/耗时/会话/趋势/事件/文件/Agent）
+ *      · ctx-row   = 列表内 cardlet 行（事件/文件/浏览器节点）
+ *  - 统一：圆角 10-12px、1px border、顶部 1px 内高光、卡间隙 8-10px；
+ *  - 纪律：零硬编码色值，全部走 M3 令牌（--color-* / --md-sys-* 双链回退）。
+ */
+
+.ctx-tile {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1px;
+  min-width: 0;
+  padding: 7px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--color-border, var(--md-sys-color-outline-variant));
+  background: var(--color-surface-container, var(--md-sys-color-surface-container));
+  box-shadow: inset 0 1px 0
+    color-mix(in srgb, var(--color-text, var(--md-sys-color-on-surface)) 5%, transparent);
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+.ctx-tile:hover {
+  border-color: color-mix(
+    in srgb,
+    var(--color-primary, var(--md-sys-color-primary)) 34%,
+    var(--color-border, var(--md-sys-color-outline-variant))
+  );
+  box-shadow: 0 0 0 1px
+      color-mix(in srgb, var(--color-primary, var(--md-sys-color-primary)) 10%, transparent),
+    inset 0 1px 0
+      color-mix(in srgb, var(--color-text, var(--md-sys-color-on-surface)) 5%, transparent);
+}
+
+.ctx-card {
+  position: relative;
+  border-radius: 12px;
+  border: 1px solid var(--color-border, var(--md-sys-color-outline-variant));
+  background: var(--color-surface-container, var(--md-sys-color-surface-container));
+  box-shadow: inset 0 1px 0
+      color-mix(in srgb, var(--color-text, var(--md-sys-color-on-surface)) 5%, transparent),
+    0 1px 2px color-mix(in srgb, var(--color-text, var(--md-sys-color-on-surface)) 2%, transparent);
+}
+
+/* 顶部 1px 渐变高光线（Luminous Glass 语法的实底卡版本） */
+.ctx-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 12px;
+  right: 12px;
+  height: 1px;
+  border-radius: 12px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--color-text, var(--md-sys-color-on-surface)) 9%, transparent) 22%,
+    transparent 78%
+  );
+  pointer-events: none;
+}
+
+/* 当前上下文 hero 卡：左上轻微主色氛围，不动数据对比度 */
+.ctx-hero {
+  background: linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--color-primary, var(--md-sys-color-primary)) 5%, transparent) 0%,
+      transparent 130px
+    ),
+    var(--color-surface-container, var(--md-sys-color-surface-container));
+}
+
+/* 卡头图标章：24px 圆角方块 + 12px 线性图标（antd 图标体系） */
+.ctx-head-ic {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  border-radius: 7px;
+  color: var(--color-primary, var(--md-sys-color-primary));
+  background: color-mix(
+    in srgb,
+    var(--color-primary, var(--md-sys-color-primary)) 12%,
+    transparent
+  );
+}
+
+/* 列表行 cardlet：独立小卡，替代细分隔线 */
+.ctx-row {
+  border-radius: 9px;
+  padding: 3px 7px;
+  background: color-mix(
+    in srgb,
+    var(--color-surface-container-high, var(--md-sys-color-surface-container-high)) 26%,
+    transparent
+  );
+  transition: background-color 150ms ease;
+}
+.ctx-row:hover {
+  background: color-mix(
+    in srgb,
+    var(--color-surface-container-high, var(--md-sys-color-surface-container-high)) 58%,
+    transparent
+  );
+}
+.ctx-row:disabled,
+.ctx-row[aria-disabled="true"] {
+  cursor: default;
+}
+.ctx-row:disabled:hover,
+.ctx-row[aria-disabled="true"]:hover {
+  background: color-mix(
+    in srgb,
+    var(--color-surface-container-high, var(--md-sys-color-surface-container-high)) 26%,
+    transparent
+  );
+}
+
+/* 底部汇总条：扁长卡 */
+.ctx-summary {
+  padding: 8px 12px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ctx-tile,
+  .ctx-row {
+    transition: none;
+  }
+}

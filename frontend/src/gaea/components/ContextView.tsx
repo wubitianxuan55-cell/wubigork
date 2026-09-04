@@ -12,6 +12,8 @@ import { subscribeAgentNetwork, reloadAgentNetwork } from "../lib/agentNetworkSt
 import { StatsCard, TokenCard, TimingCard, SessionInfoCard, SummaryBar } from "./context/cards";
 import { ContextBrowserTree, FileActivityTree } from "./context/inspector";
 import { AgentRadial } from "./context/AgentRadial";
+import "./context/context-view.css";
+import { BarChart3, LineChart, List } from "../icons";
 import type { AgentNetwork } from "../lib/types";
 
 // 六分类语义色（效果图对齐：系统蓝/工具橙/用户绿/注入紫/助手深蓝/工具青）。
@@ -68,9 +70,14 @@ function CurrentContextCard({
   const idle = Math.max(0, win - total);
   const toolPct = total > 0 ? Math.round((current.tool / total) * 100) : 0;
   return (
-    <div className="rounded-lg border border-border-soft bg-bg p-3">
+    <div className="ctx-card ctx-hero p-3">
       <div className="flex items-center justify-between">
-        <div className="text-[12.5px] font-semibold text-fg">{t("contextview.currentTitle")}</div>
+        <div className="flex items-center gap-1.5">
+          <span className="ctx-head-ic" aria-hidden>
+            <BarChart3 size={12} />
+          </span>
+          <span className="text-[12.5px] font-semibold text-fg">{t("contextview.currentTitle")}</span>
+        </div>
         {current.tool > 0 && (
           <div className="text-[10.5px] tabular-nums text-fg-faint">
             {t("contextview.toolResultShare", { tokens: fmtTokens(current.tool), pct: toolPct })}
@@ -216,9 +223,14 @@ function ContextTrendChart({ requests, events, onPick, detail }: {
   };
 
   return (
-    <div className="rounded-lg border border-border-soft bg-bg p-3">
+    <div className="ctx-card p-3">
       <div className="flex items-center justify-between">
-        <div className="text-[12.5px] font-semibold text-fg">{t("contextview.trendTitle")}</div>
+        <div className="flex items-center gap-1.5">
+          <span className="ctx-head-ic" aria-hidden>
+            <LineChart size={12} />
+          </span>
+          <span className="text-[12.5px] font-semibold text-fg">{t("contextview.trendTitle")}</span>
+        </div>
         <div className="flex items-center gap-1 text-[11px]">
           {(["step", "turn"] as const).map((g) => (
             <button
@@ -394,9 +406,14 @@ function EventsList({ events }: { events: ContextEvent[] }) {
     });
   };
   return (
-    <div className="rounded-lg border border-border-soft bg-bg p-3">
+    <div className="ctx-card p-3">
       <div className="flex items-center justify-between">
-        <div className="text-[12.5px] font-semibold text-fg">{t("contextview.eventsTitle")}</div>
+        <div className="flex items-center gap-1.5">
+          <span className="ctx-head-ic" aria-hidden>
+            <List size={12} />
+          </span>
+          <span className="text-[12.5px] font-semibold text-fg">{t("contextview.eventsTitle")}</span>
+        </div>
         <div className="flex items-center gap-1 text-[11px]">
           {EVENT_KINDS.map((k) => {
             const on = kinds.includes(k);
@@ -413,10 +430,10 @@ function EventsList({ events }: { events: ContextEvent[] }) {
           })}
         </div>
       </div>
-      <div className="mt-1.5 max-h-44 overflow-y-auto">
+      <div className="mt-1.5 flex max-h-44 flex-col gap-1 overflow-y-auto pr-0.5">
         {shown.length === 0 && <div className="text-[11px] text-fg-faint py-2">{t("contextview.noEvents")}</div>}
         {shown.slice(-30).reverse().map((e) => (
-          <div key={`${e.kind}-${e.seq}`} className="flex items-center gap-1.5 py-0.5 text-[11.5px] border-b border-border-soft/40 last:border-0">
+          <div key={`${e.kind}-${e.seq}`} className="ctx-row flex items-center gap-1.5 text-[11.5px]">
             <span className={`shrink-0 px-1 rounded text-[10px] ${e.kind === "compact" ? "bg-warning/15 text-warning" : e.kind === "prune" ? "bg-err/15 text-err" : "bg-accent/10 text-accent"}`}>
               {e.delta != null && e.delta < 0 ? "" : "+"}{t(EVENT_LABEL[e.kind])}
             </span>
@@ -529,9 +546,10 @@ export function ContextView({
       )}
       {!error && !isEmpty && (
         <>
-          {/* 行1：四仪表卡（dsh lc-head 同构） */}
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 min-[1400px]:grid-cols-4">
-            <StatsCard stats={timeline.stats} />
+          {/* 行1：8 个统计小卡（v4.71 卡片化——每项独立成卡，不做 1 张大卡） */}
+          <StatsCard stats={timeline.stats} />
+          {/* 行2：三大仪表卡 */}
+          <div className="grid grid-cols-1 gap-3 min-[1100px]:grid-cols-3">
             <TokenCard requests={timeline.requests} />
             <TimingCard timing={timeline.timing} />
             <SessionInfoCard
@@ -542,12 +560,12 @@ export function ContextView({
               requests={timeline.requests.length}
             />
           </div>
-          {/* 行2：当前上下文 + 上下文浏览器 */}
+          {/* 行3：当前上下文 + 上下文浏览器 */}
           <div className="grid grid-cols-1 gap-3 min-[1100px]:grid-cols-[3fr_2fr]">
             <CurrentContextCard used={catTotal(timeline.current)} window={timeline.window} current={timeline.current} />
             <ContextBrowserTree nodes={timeline.nodes} archive={timeline.archive} />
           </div>
-          {/* 行3：趋势卡（master-detail 单元——请求详情内联卡内，点柱/悬停联动） */}
+          {/* 行4：趋势卡（master-detail 单元——请求详情内联卡内，点柱/悬停联动） */}
           <ContextTrendChart
             requests={timeline.requests}
             events={timeline.events}

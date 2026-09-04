@@ -82,6 +82,15 @@ describe("AgentTree 子代理树实时拓扑（v4.24 A1）", () => {
     expect(screen.queryByText("子任务：对比表格交互")).toBeNull();
   });
 
+  it("点击父卡片标题同样可折叠/展开（v4.76 点卡片即折叠）", () => {
+    renderT(<AgentTree network={network} runs={runs.runs} onOpenThread={() => {}} />);
+    expect(screen.queryByText("子任务：对比表格交互")).toBeNull();
+    fireEvent.click(screen.getByText("调研表格 Agent"));
+    expect(screen.getByText("子任务：对比表格交互")).toBeTruthy();
+    fireEvent.click(screen.getByText("调研表格 Agent"));
+    expect(screen.queryByText("子任务：对比表格交互")).toBeNull();
+  });
+
   it("新节点出现自动展开其父链（本轮挂载后的新节点）", async () => {
     const { rerender } = renderT(<AgentTree network={network} runs={runs.runs} onOpenThread={() => {}} />);
     expect(screen.queryByText("子任务：对比表格交互")).toBeNull();
@@ -127,7 +136,8 @@ describe("AgentTree 子代理树实时拓扑（v4.24 A1）", () => {
   it("子代理节点点击 → onOpenThread(node, run)（v4.27 打开全面板对话）", () => {
     const onOpenThread = vi.fn();
     renderT(<AgentTree network={network} runs={runs.runs} onOpenThread={onOpenThread} />);
-    fireEvent.click(screen.getByText("调研表格 Agent"));
+    // v4.76：点卡片标题改为折叠/展开；打开对话走独立按钮（aria-label）
+    fireEvent.click(screen.getByLabelText("打开对话 调研表格 Agent"));
     expect(onOpenThread).toHaveBeenCalledTimes(1);
     const [node, run] = onOpenThread.mock.calls[0] as [AgentNode, SubagentRunsView["runs"][number] | null];
     expect(node.id).toBe("sa_2_b2b2b2b2");

@@ -24,7 +24,7 @@ import { readWorkbenchValue, writeWorkbenchValue } from "./workbenchStorage";
 import { loadOptionalLayoutSize, saveLayoutSize } from "./layoutPreferences";
 
 /** 子面板（具体功能页）的稳定 id —— App.tsx 的 rightTab 状态直接消费。
- *  v4.23 起不含 stats（统计迁主区「概览」）；v4.27 起不含 materials/cost
+ *  v4.23 起不含 stats（曾迁主区「概览」，v4.72 随 tab 删除）；v4.27 起不含 materials/cost
  *  （资料/成本库标签删除）；v4.28 增 browser（浏览器观察窗）；
  *  v4.53 用户拍板化繁为简：产物与变更、任务与分工**直接合并为一个面板**
  *  （MergedPanel 上下分区同屏全可见，不是二级标签），6→4。

@@ -77,7 +77,7 @@ export function FactCard(p: {
 
   return (
     <div
-      className={`mem-card border rounded-lg overflow-hidden transition-[border-color,box-shadow] duration-120 ${
+      className={`mem-card border bg-bg-soft/40 rounded-lg overflow-hidden transition-[border-color,box-shadow] duration-120 ${
         highlight
           ? "border-accent shadow-[0_0_0_2px_var(--accent-soft)]"
           : "border-border-soft hover:border-fg-faint/60"

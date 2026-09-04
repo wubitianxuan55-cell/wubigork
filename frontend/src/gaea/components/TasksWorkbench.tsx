@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Bot, ClipboardList, Loader2, Users } from "../icons";
+import { Bot, ChevronDown, ClipboardList, Loader2, Users } from "../icons";
 import type { AgentNetwork, AgentNode, SubagentRunView } from "../lib/types";
 import { useLiveReload } from "../hooks/useLiveReload";
 import {
@@ -57,6 +57,8 @@ export function TasksWorkbench({
   const autoOpen = loadSubagentAutoOpen();
   const autoOpenRef = useRef(autoOpen);
   autoOpenRef.current = autoOpen;
+  // v4.76：整棵「子代理」区块可折叠（分组头点击切换），默认展开
+  const [subagentsOpen, setSubagentsOpen] = useState(true);
   const onStartedRef = useRef(onSubagentStarted);
   onStartedRef.current = onSubagentStarted;
   // 已见过的子代理 ref 集合：null = 尚未建立基线（首次成功拉取只记基线不触发）
@@ -224,11 +226,29 @@ export function TasksWorkbench({
             </button>
           </div>
         )}
-        {/* ① 子代理拓扑（better-sidebar：整树挂主 agent，running 实时预览） */}
-        <div className="px-2 pt-2 pb-1 flex items-center gap-1.5 text-[10px] uppercase tracking-wider" style={{ color: "var(--md-sys-color-text-secondary)" }}>
+        {/* ① 子代理区块（v4.76：分组头点击 = 整棵折叠/展开） */}
+        <button
+          type="button"
+          data-testid="subagent-section-toggle"
+          aria-expanded={subagentsOpen}
+          className="flex w-full items-center gap-1.5 px-2 pt-2 pb-1 text-left text-[10px] uppercase tracking-wider cursor-pointer border-0 bg-transparent transition-colors hover:bg-(color:--md-sys-color-surface-container-high)"
+          style={{ color: "var(--md-sys-color-text-secondary)" }}
+          onClick={() => setSubagentsOpen((v) => !v)}
+          title={subagentsOpen ? "收起子代理区块" : "展开子代理区块"}
+        >
+          <ChevronDown
+            size={10}
+            aria-hidden
+            className="transition-transform duration-150"
+            style={{ transform: subagentsOpen ? "rotate(0deg)" : "rotate(-90deg)" }}
+          />
           <Users size={10} aria-hidden />
           子代理
-        </div>
+          <span className="ml-auto normal-case font-mono" style={{ color: "var(--md-sys-color-text-secondary)" }}>
+            {runningCount > 0 ? `${runningCount} 运行中` : hasContent ? "全部完成" : ""}
+          </span>
+        </button>
+        {subagentsOpen && (<>
         {loading && !hasContent ? (
           <div className="flex items-center gap-2 px-4 py-6 text-[11px]" style={{ color: "var(--md-sys-color-text-secondary)" }}>
             <Loader2 size={13} className="animate-spin" />
@@ -270,6 +290,7 @@ export function TasksWorkbench({
             <AgentTree network={net} runs={runs} onOpenThread={openThread} />
           </div>
         ) : null}
+        </>)}
 
         {/* ①b 本地模型工具：单轮模型调用 = 变相子代理，同 UI 行 + 可开对话 tab */}
         {modelToolRuns.length > 0 && (

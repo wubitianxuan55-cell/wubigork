@@ -1,4 +1,5 @@
-import { Plus, RefreshCw, Search, X } from "../icons";
+import { Plus, RefreshCw, Search, X, Brain } from "../icons";
+import "./context/context-view.css";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { MemorySuggestion, MemorySuggestionsView, MemoryView, SkillSuggestion } from "../lib/types";
 import { app } from "../lib/bridge";
@@ -14,7 +15,6 @@ import { ArchivesSection } from "./ArchivesSection";
 
 export function MemoryPanel(p: {
   view: MemoryView | null;
-  onClose: () => void;
   onRemember: (scope: string, note: string) => Promise<void> | void;
   onForget: (name: string) => Promise<void> | void;
   onSaveDoc: (path: string, body: string) => Promise<void> | void;
@@ -25,7 +25,7 @@ export function MemoryPanel(p: {
   onAcceptMergeSuggestion: (keep: string, archive: string) => Promise<void> | void;
   onRefreshSuggestions: () => Promise<MemorySuggestionsView | null>;
 }) {
-  const { view, onClose, onRemember, onForget, onSaveDoc, onSaveFact, onChangeType, onAcceptMemorySuggestion, onAcceptSkillSuggestion, onAcceptMergeSuggestion, onRefreshSuggestions } = p;
+  const { view, onRemember, onForget, onSaveDoc, onSaveFact, onChangeType, onAcceptMemorySuggestion, onAcceptSkillSuggestion, onAcceptMergeSuggestion, onRefreshSuggestions } = p;
   const t = useT();
   const [note, setNote] = useState("");
   const [scope, setScope] = useState("");
@@ -226,19 +226,23 @@ export function MemoryPanel(p: {
   }, []);
 
   return (
-    <div className="drawer-backdrop" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="drawer drawer--wide" onClick={(e) => e.stopPropagation()}>
-        {/* ═══ 标题栏 ═══ */}
-        <div className="drawer__head">
-          <div>
-            <div className="drawer__title">{t("memory.title")}</div>
+    <div className="flex h-full min-h-0 flex-col gap-3 overflow-y-auto p-3" data-testid="memory-view">
+      {/* ═══ 头部卡：标题 + 记忆/晨报开关 ═══ */}
+      <section className="ctx-card flex flex-wrap items-center justify-between gap-3 p-3">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <span className="ctx-head-ic" aria-hidden>
+            <Brain size={15} />
+          </span>
+          <div className="min-w-0">
+            <div className="truncate text-[15px] font-semibold leading-tight text-fg">{t("memory.title")}</div>
             {view && (
-              <div className="drawer__summary">
+              <div className="mt-0.5 text-[11px] text-fg-faint">
                 {t("memory.summary", { facts: facts.length, docs: docs.length })}
               </div>
             )}
           </div>
-          <div className="flex items-center gap-2">
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
               onClick={toggleMemory}
@@ -269,14 +273,29 @@ export function MemoryPanel(p: {
               />
               晨报预载 {morningPreload ? "开" : "关"}
             </button>
-            <button className="drawer__close" onClick={onClose} aria-label={t("common.close")}>
-              <X size={18} />
-            </button>
-          </div>
         </div>
+      </section>
 
-        {/* ═══ 快速添加区 ═══ */}
-        <div className="shrink-0 mx-4 mt-3 p-3 border border-border-soft rounded-xl bg-bg-elev/40">
+      {/* ═══ 三枚统计小卡：事实 / 文档 / 建议 一眼可读 ═══ */}
+      <div className="grid grid-cols-3 gap-2">
+        <div className="ctx-tile" data-testid="memory-kpi-facts">
+          <span className="truncate text-[10px] font-medium leading-none text-fg-faint">{t("memory.facts")}</span>
+          <span className="mt-0.5 truncate font-mono text-[16px] font-semibold leading-tight tabular-nums text-fg">{facts.length}</span>
+        </div>
+        <div className="ctx-tile" data-testid="memory-kpi-docs">
+          <span className="truncate text-[10px] font-medium leading-none text-fg-faint">{t("memory.docs")}</span>
+          <span className="mt-0.5 truncate font-mono text-[16px] font-semibold leading-tight tabular-nums text-fg">{docs.length}</span>
+        </div>
+        <div className="ctx-tile" data-testid="memory-kpi-suggestions">
+          <span className="truncate text-[10px] font-medium leading-none text-fg-faint">{t("memory.suggestions")}</span>
+          <span className="mt-0.5 truncate font-mono text-[16px] font-semibold leading-tight tabular-nums text-fg">
+            {suggestions ? suggestions.memories.length + suggestions.skills.length + (suggestions.merges?.length ?? 0) : 0}
+          </span>
+        </div>
+      </div>
+
+      {/* ═══ 快速添加卡 ═══ */}
+      <section className="ctx-card p-3">
           <div className="text-fg-faint text-[10px] font-semibold uppercase tracking-wider mb-2">
             {t("memory.quickAdd")}
           </div>
@@ -322,10 +341,11 @@ export function MemoryPanel(p: {
               </span>
             </div>
           )}
-        </div>
+      </section>
 
-        {/* ═══ 标签栏 ═══ */}
-        <div className="shrink-0 mx-4 mt-3 flex border-b border-border-soft">
+      {/* ═══ 视图大卡：分段 + 搜索 + 内容同卡 ═══ */}
+      <section className="ctx-card flex flex-col gap-2 p-2.5">
+        <div className="flex items-center gap-1">
           <TabButton active={tab === "facts"} onClick={() => setTab("facts")} badge={facts.length}>
             {t("memory.facts")}
           </TabButton>
@@ -343,8 +363,8 @@ export function MemoryPanel(p: {
 
         {/* ═══ 搜索与筛选（仅事实标签） ═══ */}
         {tab === "facts" && facts.length > 0 && (
-          <div className="shrink-0 mx-4 mt-2 space-y-2">
-            <div className="flex items-center gap-1.5 px-3 h-8 border border-border rounded-lg bg-bg text-fg-faint focus-within:border-accent transition-colors">
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center gap-1.5 px-3 h-7 rounded-md border border-border-soft bg-bg-soft/60 text-fg-faint focus-within:border-accent focus-within:bg-bg-soft transition-colors">
               <Search size={14} />
               <input
                 ref={searchRef}
@@ -373,8 +393,8 @@ export function MemoryPanel(p: {
           </div>
         )}
 
-        {/* ═══ 内容区 ═══ */}
-        <div className="flex-1 min-h-0 overflow-auto px-4 py-3">
+        {/* ═══ 内容区（外层滚动收敛到记忆页根容器） ═══ */}
+        <div className="flex flex-col gap-2">
           {/* ── 事实标签 ── */}
           {tab === "facts" && (
             <>
@@ -418,9 +438,9 @@ export function MemoryPanel(p: {
 
               {/* ── 归档区 ── */}
               {archives.length > 0 && (
-                <div className="mt-4 pt-3 border-t border-border-soft/50">
+                <section className="ctx-card p-3">
                   <ArchivesSection archives={archives} />
-                </div>
+                </section>
               )}
             </>
           )}
@@ -555,7 +575,7 @@ export function MemoryPanel(p: {
             </div>
           )}
         </div>
-      </div>
+      </section>
     </div>
   );
 }

@@ -2,33 +2,33 @@ import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { ChatTabs } from "./ChatTabs";
 
-describe("ChatTabs 对话标签栏（v4.23 新增「概览」tab）", () => {
-  it("渲染 4 个 tab：对话/轨迹/上下文/概览，顺序一致", () => {
+describe("ChatTabs 对话标签栏（v4.73 记忆 tab 迁入主区）", () => {
+  it("渲染 4 个 tab：对话/轨迹/上下文/记忆，顺序一致", () => {
     render(<ChatTabs active="chat" onChange={() => {}} />);
     const labels = Array.from(document.querySelectorAll("button")).map((b) => b.textContent);
-    expect(labels).toEqual(["对话", "轨迹", "上下文", "概览"]);
+    expect(labels).toEqual(["对话", "轨迹", "上下文", "记忆"]);
   });
 
-  it("点击「概览」触发 onChange 并携带 overview", () => {
+  it("点击「记忆」触发 onChange 并携带 memory", () => {
     const onChange = vi.fn();
     render(<ChatTabs active="chat" onChange={onChange} />);
-    fireEvent.click(screen.getByText("概览").closest("button") as HTMLElement);
+    fireEvent.click(screen.getByText("记忆").closest("button") as HTMLElement);
     expect(onChange).toHaveBeenCalledTimes(1);
-    expect(onChange).toHaveBeenCalledWith("overview");
+    expect(onChange).toHaveBeenCalledWith("memory");
   });
 
-  it("active=overview 时概览高亮、其余 tab 不高亮", () => {
-    render(<ChatTabs active="overview" onChange={() => {}} />);
-    const overviewBtn = screen.getByText("概览").closest("button") as HTMLElement;
+  it("active=memory 时记忆高亮、其余 tab 不高亮", () => {
+    render(<ChatTabs active="memory" onChange={() => {}} />);
+    const memoryBtn = screen.getByText("记忆").closest("button") as HTMLElement;
     const chatBtn = screen.getByText("对话").closest("button") as HTMLElement;
-    expect(overviewBtn.className).toContain("text-accent");
+    expect(memoryBtn.className).toContain("text-accent");
     expect(chatBtn.className).not.toContain("text-accent");
   });
 
-  it("概览 tab 带统计提示 tooltip（与轨迹 tab 的 title 同风格）", () => {
+  it("轨迹 tab 保留 tooltip（工具调用/步骤时间线）", () => {
     render(<ChatTabs active="chat" onChange={() => {}} />);
-    const overviewBtn = screen.getByText("概览").closest("button") as HTMLElement;
-    expect(overviewBtn.getAttribute("title")).toBe("Token/成本/命中率统计");
+    const trajectoryBtn = screen.getByText("轨迹").closest("button") as HTMLElement;
+    expect(trajectoryBtn.getAttribute("title")).toBe("工具调用/步骤时间线");
   });
 
   it("子代理会话 tab：状态点随运行态着色、title 显示完整详情（同主代理口径）", () => {

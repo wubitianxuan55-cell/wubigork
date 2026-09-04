@@ -28,7 +28,6 @@ async function renderPanel() {
       <ToastProvider>
         <MemoryPanel
           view={null as unknown as MemoryView}
-          onClose={() => {}}
           onRemember={noop}
           onForget={noop}
           onSaveDoc={noop}
@@ -44,7 +43,7 @@ async function renderPanel() {
   );
 }
 
-describe("MemoryPanel 记忆面板", () => {
+describe("MemoryPanel 记忆主区视图（v4.73）", () => {
   beforeEach(() => {
     mocks.morningPreload.mockReset();
     mocks.setMorningPreload.mockReset();
@@ -54,6 +53,11 @@ describe("MemoryPanel 记忆面板", () => {
 
   it("晨报预载开关：读取初始状态 + 点击切换并持久化", async () => {
     await renderPanel();
+    expect(screen.getByTestId("memory-view")).toBeTruthy();
+    // v4.74：总览三枚统计小卡（事实/文档/建议）
+    expect(screen.getByTestId("memory-kpi-facts")).toBeTruthy();
+    expect(screen.getByTestId("memory-kpi-docs")).toBeTruthy();
+    expect(screen.getByTestId("memory-kpi-suggestions")).toBeTruthy();
     expect(await screen.findByText("晨报预载 开")).toBeTruthy();
     fireEvent.click(screen.getByText("晨报预载 开"));
     expect(await screen.findByText("晨报预载 关")).toBeTruthy();

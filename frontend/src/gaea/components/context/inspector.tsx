@@ -9,6 +9,8 @@
 import { useMemo, useState } from "react";
 // 六分类语义色：ContextView.tsx 已导出 CAT_COLORS，直接复用避免两处调色板漂移。
 import { CAT_COLORS } from "../ContextView";
+import "./context-view.css";
+import { FolderTree, Layers } from "../../icons";
 import { useT } from "../../lib/i18n";
 import { FileTypeIcon } from "../../lib/fileIcon";
 import { fmtTokens } from "../../lib/stats";
@@ -48,7 +50,7 @@ function NodeRow({ node, open, onToggle }: { node: ContextSurfaceNode; open: boo
   const truncated = text.length > 56;
   const shown = open || !truncated ? text : `${text.slice(0, 56)}…`;
   return (
-    <div className="flex items-start gap-1.5 border-b border-border-soft/40 py-1 text-[10px] last:border-0">
+    <div className="ctx-row flex items-start gap-1.5 px-2 py-1.5 text-[10px]">
       <span className="mt-0.5 h-2 w-2 shrink-0 rounded-sm" style={{ background: CAT_COLORS[node.cat] }} />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5 text-fg-faint">
@@ -125,10 +127,15 @@ export function ContextBrowserTree({ nodes, archive }: { nodes: ContextSurfaceNo
   const isEmpty = nodes.length === 0 && archive.length === 0;
 
   return (
-    <div className="rounded-lg border border-border-soft bg-bg p-3">
-      <div className="flex items-center justify-between">
-        <div className="text-[11px] font-medium text-fg">{t("contextview.browserTitle")}</div>
-        <div className="text-[9px] tabular-nums text-fg-faint">
+    <div className="ctx-card p-3">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-1.5">
+          <span className="ctx-head-ic" aria-hidden>
+            <Layers size={12} />
+          </span>
+          <span className="truncate text-[12.5px] font-semibold text-fg">{t("contextview.browserTitle")}</span>
+        </div>
+        <div className="shrink-0 text-[9px] tabular-nums text-fg-faint">
           {t("contextview.tabActive", { n: nodes.length })} · ≈{fmtTokens(totalTokens)}
         </div>
       </div>
@@ -143,7 +150,7 @@ export function ContextBrowserTree({ nodes, archive }: { nodes: ContextSurfaceNo
       {isEmpty ? (
         <div className="py-2 text-[10px] text-fg-faint">{t("contextview.noNodes")}</div>
       ) : (
-        <div className="mt-1.5 max-h-72 overflow-y-auto">
+        <div className="mt-1.5 flex max-h-72 flex-col gap-1 overflow-y-auto pr-0.5">
           {groups.map((g) => {
             const isOpen = expanded.has(g.key);
             const paged = !showAll.has(g.key) && g.count > PAGE_THRESHOLD;
@@ -155,7 +162,7 @@ export function ContextBrowserTree({ nodes, archive }: { nodes: ContextSurfaceNo
                   type="button"
                   aria-expanded={isOpen}
                   onClick={() => toggleGroup(g.key)}
-                  className="flex w-full cursor-pointer items-center gap-1.5 rounded-md border-0 bg-transparent px-0.5 py-1 text-left text-[10.5px] transition-colors hover:bg-bg-soft/70"
+                  className="ctx-row flex w-full cursor-pointer items-center gap-1.5 border-0 px-1.5 py-1.5 text-left text-[10.5px]"
                 >
                   <span className="h-2 w-2 shrink-0 rounded-sm" style={{ background: CAT_COLORS[g.key] }} aria-hidden />
                   <span className="font-medium text-fg-dim">{t(g.labelKey)}</span>
@@ -170,7 +177,7 @@ export function ContextBrowserTree({ nodes, archive }: { nodes: ContextSurfaceNo
                   </span>
                 </button>
                 {isOpen && (
-                  <div className="ml-3.5 border-l border-border-soft/60 pl-2">
+                  <div className="ml-3.5 mt-0.5 flex flex-col gap-1 border-l border-border-soft/60 pl-2">
                     {g.count === 0 && <div className="py-1 text-[10px] text-fg-faint">{t("contextview.noCatNodes")}</div>}
                     {listed.map((n) => (
                       <NodeRow key={n.seq} node={n} open={openText.has(n.seq)} onToggle={() => toggleText(n.seq)} />
@@ -199,7 +206,7 @@ export function ContextBrowserTree({ nodes, archive }: { nodes: ContextSurfaceNo
                   type="button"
                   aria-expanded={isOpen}
                   onClick={() => toggleGroup(ARCHIVE_KEY)}
-                  className="flex w-full cursor-pointer items-center gap-1.5 rounded-md border-0 bg-transparent px-0.5 py-1 text-left text-[10.5px] transition-colors hover:bg-bg-soft/70"
+                  className="ctx-row flex w-full cursor-pointer items-center gap-1.5 border-0 px-1.5 py-1.5 text-left text-[10.5px]"
                 >
                   <span
                     className="h-2 w-2 shrink-0 rounded-sm"
@@ -216,7 +223,7 @@ export function ContextBrowserTree({ nodes, archive }: { nodes: ContextSurfaceNo
                   <span className="ml-auto shrink-0 font-mono text-[9.5px] tabular-nums text-fg-faint">≈{fmtTokens(archiveTokens)}</span>
                 </button>
                 {isOpen && (
-                  <div className="ml-3.5 border-l border-border-soft/60 pl-2">
+                  <div className="ml-3.5 mt-0.5 flex flex-col gap-1 border-l border-border-soft/60 pl-2">
                     {archiveShown.length === 0 && <div className="py-1 text-[10px] text-fg-faint">{t("contextview.noCatNodes")}</div>}
                     {listed.map((n) => (
                       <NodeRow key={n.seq} node={n} open={openText.has(n.seq)} onToggle={() => toggleText(n.seq)} />
@@ -349,9 +356,12 @@ export function FileActivityTree({ files, onOpenFile }: { files: FileActivity[];
   ];
 
   return (
-    <div className="rounded-lg border border-border-soft bg-bg p-3">
-      <div className="flex items-center justify-between">
-        <div className="text-[11px] font-medium text-fg">{t("contextview.filesTitle")}</div>
+    <div className="ctx-card p-3">
+      <div className="flex items-center gap-1.5">
+        <span className="ctx-head-ic" aria-hidden>
+          <FolderTree size={12} />
+        </span>
+        <span className="text-[12.5px] font-semibold text-fg">{t("contextview.filesTitle")}</span>
       </div>
       <div className="mt-1 flex flex-wrap items-center gap-1 text-[10px]">
         {chips.map((c) => (
@@ -393,7 +403,7 @@ export function FileActivityTree({ files, onOpenFile }: { files: FileActivity[];
           ))}
         </span>
       </div>
-      <div className="mt-1 max-h-64 overflow-y-auto">
+      <div className="mt-1 flex max-h-64 flex-col gap-1 overflow-y-auto pr-0.5">
         {files.length === 0 && <div className="py-2 text-[10px] text-fg-faint">{t("contextview.noFiles")}</div>}
         {files.length > 0 && rows.length === 0 && (
           <div className="py-2 text-[10px] text-fg-faint">{t("contextview.filesNoMatch")}</div>
@@ -409,8 +419,8 @@ export function FileActivityTree({ files, onOpenFile }: { files: FileActivity[];
               disabled={!clickable}
               onClick={() => clickable && open(a.path)}
               title={clickable ? t("contextview.previewTitle", { path: a.path }) : undefined}
-              className={`flex w-full items-center gap-1.5 border-b border-border-soft/40 py-1 text-left text-[10px] last:border-0 ${
-                clickable ? "cursor-pointer transition-colors hover:bg-bg-soft/70" : "cursor-default"
+              className={`ctx-row flex w-full items-center gap-1.5 px-2 py-1.5 text-left text-[10px] ${
+                clickable ? "cursor-pointer" : "cursor-default"
               }`}
             >
               <FileTypeIcon name={a.path} size={12} />

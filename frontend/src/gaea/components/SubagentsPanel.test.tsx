@@ -192,8 +192,8 @@ describe("SubagentsPanel 子代理工作台（v4.24 A1 三段式）", () => {
   it("下钻链（v4.27）：节点点击 → 右侧全面板子代理对话（实时视图），返回回分工树", async () => {
     renderT(<SubagentsPanel sessionPath="s1.jsonl" />);
     await screen.findByText("主 agent");
-    // 点击运行中的子代理行 → 切换为全面板对话视图（替代旧的内嵌窄卡）
-    fireEvent.click(screen.getByText("调研竞品表格 Agent 能力并总结可蒸馏点"));
+    // v4.76：点卡片标题改为折叠/展开；下钻对话走卡片上的独立按钮
+    fireEvent.click(screen.getByLabelText("打开对话 调研竞品表格 Agent 能力并总结可蒸馏点"));
     const thread = await screen.findByTestId("agent-thread");
     expect(thread).toBeTruthy();
     // 头部：任务标题 + 实时状态（运行中）+ 返回按钮

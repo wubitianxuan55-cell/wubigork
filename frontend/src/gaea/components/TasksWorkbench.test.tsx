@@ -159,7 +159,23 @@ describe("TasksWorkbench 任务视图（双源入共享 store）", () => {
     expect(screen.getByText("本地模型工具")).toBeTruthy();
     expect(document.querySelector('[data-model-tool-row="s1.jsonl:mt_9_deadbeef"]')).toBeTruthy();
     // 计数徽标：meta.running=1
-    expect(screen.getByText("1 运行中")).toBeTruthy();
+    // 分组头与面板头都可能显示运行计数 → 多命中用 getAllBy
+    expect(screen.getAllByText("1 运行中").length).toBeGreaterThan(0);
+  });
+
+  it("v4.76：点击「子代理」分组头可整体折叠/展开整棵子代理树", () => {
+    renderT(<TasksWorkbench sessionPath="s1.jsonl" />);
+    emitNet(netA, netReadyM);
+    emitRuns(runsA, metaReady(1));
+    const toggle = screen.getByTestId("subagent-section-toggle");
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    expect(screen.getByText("主 agent")).toBeTruthy();
+    fireEvent.click(toggle);
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    expect(screen.queryByText("主 agent")).toBeNull();
+    expect(screen.queryByText("收集 2026 年办公 Agent 竞品更新信息")).toBeNull();
+    fireEvent.click(toggle);
+    expect(screen.getByText("主 agent")).toBeTruthy();
   });
 
   it("加载态：首拉在途显示「读取子代理分工…」+ 刷新钮旋转，ready 后消失", () => {

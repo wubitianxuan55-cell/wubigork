@@ -3,13 +3,13 @@ import type { CSSProperties } from "react";
 import { Layout } from "antd";
 import {
   BookOpen, Check, SquarePen, Brain, ChevronDown, FolderGit2, FileText,
-  Gauge, PanelRightOpen, PanelRightClose, MessageSquare, Trash2, X, Aim, List, Square,
+  PanelRightOpen, PanelRightClose, MessageSquare, Trash2, X, Aim, List, Square,
 } from "./icons";
 import { Sidebar } from "./components/Sidebar";
 import { useT } from "./lib/i18n";
 import { sessionTitle, sessionTime } from "./lib/session";
 import { useController, usePreviewStore } from "./lib/store";
-import { app } from "./lib/bridge";
+import { app, onTaskEvent } from "./lib/bridge";
 import { Transcript } from "./components/Transcript";
 import { JumpBar } from "./components/JumpBar";
 import { useToast } from "./components/Toast";
@@ -33,8 +33,6 @@ import { FilePreview } from "./components/FilePreview";
 import { PreviewNavBar } from "./components/PreviewNavBar";
 import type { SessionDeliverable } from "./components/DeliverablesPanel";
 import { CommandPalette, type PaletteItem } from "./components/CommandPalette";
-import { useStatsPersistence } from "./components/StatsPanel";
-import { OverviewPanel } from "./components/OverviewPanel";
 import { useRunningBadge } from "./hooks/useRunningBadge";
 import { Skeleton } from "./components/Skeleton";
 import { UpdateBanner } from "./components/UpdateBanner";
@@ -42,7 +40,7 @@ import { SelectionToComposer } from "./components/SelectionToComposer";
 import { NewSessionToast, JobDoneNotifier, RunStatus } from "./components/AppStatus";
 
 import { downloadMarkdown, exportAsMarkdown } from "./lib/export";
-import type { MemorySuggestion, MemorySuggestionsView, SessionMeta, SkillSuggestion, SubagentRunView } from "./lib/types";
+import type { MemorySuggestion, MemorySuggestionsView, MemoryView, SessionMeta, SkillSuggestion, SubagentRunView } from "./lib/types";
 import { useTodoExtractor } from "./hooks/useTodoExtractor";
 import { useModeManager } from "./hooks/useModeManager";
 import { useSessionManager } from "./hooks/useSessionManager";
@@ -93,7 +91,7 @@ export default function App() {
   const [chatTab, setChatTab] = useState<ChatTabId>(() => {
     try {
       const saved = readWorkbenchValue("gaea.chatTab");
-      return saved === "trajectory" || saved === "context" || saved === "overview" ? saved : "chat";
+      return saved === "trajectory" || saved === "context" || saved === "memory" ? saved : "chat";
     } catch { return "chat"; }
   });
   useEffect(() => {
@@ -133,10 +131,11 @@ export default function App() {
   } = useController();
   const t = useT();
   const { permLevel, setPermLevel, thinkLevel, handleThinkLevelChange, switchingModel, switchModel } = useModeManager(ctrlSetPermLevel, setModel);
-  const { memView, setMemView, histView, setHistView, capsOpen, setCapsOpen, knowledgeOpen, setKnowledgeOpen, closeTopmost } = useDrawers();
+  const { histView, setHistView, capsOpen, setCapsOpen, knowledgeOpen, setKnowledgeOpen, closeTopmost } = useDrawers();
+  // v4.73：记忆由抽屉迁入主区 tab——视图快照在 App 层维护，动作写盘后统一刷新。
+  const [memView, setMemView] = useState<MemoryView | null>(null);
   const { sidebarSessions, sidebarQuery, setSidebarQuery, newSessionDone, refreshSessions, startNewSession, handleResumeSession, handleDeleteSession, handleRenameSession, projectGroups } = useSessionManager(newSession, listSessions, listProjectSessions, resumeSession, deleteSession, renameSession, (msg) => toast.show(msg, "warn"));
-  const newSessionAndReset = useCallback(async () => { setStatsReset(n => n + 1); await startNewSession(); }, [startNewSession]);
-  const [statsReset, setStatsReset] = useState(0);
+  const newSessionAndReset = useCallback(async () => { await startNewSession(); }, [startNewSession]);
   // 当前会话标识：直接使用 Go 后端生成的 .jsonl 文件路径作为 key。
   // 每个会话文件对应唯一的 localStorage key：新会话自然空数据开始，
   // 恢复/重启同一会话则统计数据持续累加，会话之间互不干扰。
@@ -238,7 +237,7 @@ export default function App() {
     });
   }, [subagentRuns]);
   const handleChatTabSelect = useCallback((id: string) => {
-    if (id === "chat" || id === "trajectory" || id === "context" || id === "overview") {
+    if (id === "chat" || id === "trajectory" || id === "context" || id === "memory") {
       setSubagentTabId(null);
       setChatTab(id);
     } else {
@@ -525,24 +524,27 @@ export default function App() {
 
   const { todoItem, todos, showTodos, setDismissedTodo } = useTodoExtractor(state.items);
 
-  // Memory drawer: opening fetches a fresh snapshot; writes re-fetch so the
-  // panel reflects what landed on disk.
+  // 记忆视图：打开（主区 tab / 命令 / /memory）时取新鲜快照；
+  // 写操作成功后 re-fetch，标签页即时反映落盘结果。
   const openMemory = useCallback(async () => {
     setMemView(await fetchMemory());
   }, [fetchMemory, setMemView]);
 
-  const closeMemory = useCallback(() => setMemView(null), [setMemView]);
+  // 主区 tab 激活「记忆」即拉取新鲜快照（后续写操作自行刷新）。
+  useEffect(() => {
+    if (chatTab === "memory") void openMemory();
+  }, [chatTab, openMemory]);
 
   const openKnowledge = useCallback(() => setKnowledgeOpen(true), [setKnowledgeOpen]);
   const closeKnowledge = useCallback(() => setKnowledgeOpen(false), [setKnowledgeOpen]);
 
   // handleSend intercepts the slash commands that need a desktop-native action
   // before they reach the backend: "/model <ref>" rebuilds on that model,
-  // "/memory" opens the memory drawer, and "/context" switches to the context
-  // dashboard tab. Everything else — skills (/init, …), custom commands, bare
-  // /model and the other read-only management verbs (/skill, /hooks, /mcp) —
-  // goes straight to Submit, which the controller resolves (a turn, or a
-  // listing Notice).
+  // "/memory" switches to the memory tab, and "/context" switches to the
+  // context dashboard tab. Everything else — skills (/init, …), custom
+  // commands, bare /model and the other read-only management verbs
+  // (/skill, /hooks, /mcp) — goes straight to Submit, which the controller
+  // resolves (a turn, or a listing Notice).
   const cwd = state.meta?.cwd;
   const cwdName = cwd ? cwd.split(/[/\\]/).filter(Boolean).pop() || cwd : "";
 
@@ -554,7 +556,7 @@ export default function App() {
         return;
       }
       if (command.type === "memory") {
-        void openMemory();
+        setChatTab("memory");
         return;
       }
       if (command.type === "context") {
@@ -563,7 +565,7 @@ export default function App() {
       }
       send(displayText.trim(), submitText.trim());
     },
-    [switchModel, openMemory, send, setChatTab],
+    [switchModel, send, setChatTab],
   );
 
   // History drawer: opening fetches the saved-session list; picking one resumes it
@@ -861,6 +863,27 @@ export default function App() {
   // 视图（已在任务视图则只记角标语义，不打扰）。去抖的 Why 与 dsh #314 同源：
   // 派发帧与标题/状态帧分帧到达，立即判定会误触发/漏触发，等快照稳定后重评。
   // 偏好走 localStorage（默认开）；会话切换的首个快照只建立基线不触发。
+  // v4.77 窄屏不强制展开：桌面宽度 < 1240 时 workspace-pane 被 CSS 隐藏，
+  // 自动激活不切右栏（用户可手动打开，设置开关仍可整体关闭）。
+  const openTasksAuto = useCallback(() => {
+    try {
+      if (localStorage.getItem("gaea.tasks.autoOpenSubagent") === "0") return;
+    } catch { /* 私有模式：按默认开处理 */ }
+    if (window.innerWidth < 1240) return;
+    if (rightTab !== "tasks") openPaneView("tasks");
+  }, [rightTab, openPaneView]);
+
+  // 新后台任务（queued/running/stopping 事件）→ 自动激活任务页（宽屏；可关）
+  const seenTaskIdsRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    return onTaskEvent((t) => {
+      if (t.status !== "queued" && t.status !== "running" && t.status !== "stopping") return;
+      if (seenTaskIdsRef.current.has(t.id)) return;
+      seenTaskIdsRef.current.add(t.id);
+      openTasksAuto();
+    }, "work");
+  }, [openTasksAuto]);
+
   const seenSubagentRefsRef = useRef<{ path: string; initialized: boolean; refs: Set<string> }>({
     path: "", initialized: false, refs: new Set(),
   });
@@ -885,12 +908,9 @@ export default function App() {
       const still = detectNewRunRefs(seen.refs, subagentRunsRef.current);
       if (still.length === 0) return;
       for (const ref of still) seen.refs.add(ref);
-      try {
-        if (localStorage.getItem("gaea.tasks.autoOpenSubagent") === "0") return;
-      } catch { /* 私有模式：按默认开处理 */ }
-      if (rightTab !== "tasks") openPaneView("tasks");
+      openTasksAuto();
     }, 500);
-  }, [subagentRuns, currentSessionPath, rightTab, openPaneView]);
+  }, [subagentRuns, currentSessionPath, openTasksAuto]);
 
   const tabBadges = runningBadge
     ? { ...runningBadge, ...(freshDeliverableCount > 0 ? { deliverables: freshDeliverableCount } : {}) }
@@ -910,8 +930,6 @@ export default function App() {
     void fetchSessionStats(currentSessionPath);
   }, [currentSessionPath, fetchSessionStats]);
 
-  const statsPersistence = useStatsPersistence(currentSessionKey, statsReset, state.turnSteps, state.perTurnUsage);
-
   // ── v4.23 注册表渲染上下文：右栏面板公共依赖一次性组装 ──
   // （学 better-sidebar 框架/内容解耦：面板 props 与旧渲染分支逐一对应，行为不变）
   const refreshWorkspacePanel = useCallback(() => setWorkspaceRefreshKey((k) => k + 1), []);
@@ -923,8 +941,8 @@ export default function App() {
   // 时回调——亮出右栏并切到「任务」面板（v4.53 分工并入任务同屏展示；
   // 对标 better-sidebar 任务页自动展开侧栏）。pane 语义：开任务视图 tab。
   const handleSubagentStarted = useCallback(() => {
-    openPaneView("tasks");
-  }, [openPaneView]);
+    openTasksAuto();
+  }, [openTasksAuto]);
 
   // v4.25 A3 reveal：产物面板「树中定位」→ 亮文件 tab，文件树展开父链+滚动+闪烁。
   // nonce 单调递增，同一文件重复定位也能再触发一次。
@@ -1067,10 +1085,9 @@ export default function App() {
   const paletteItems = useMemo<PaletteItem[]>(() => {
     const cmds: PaletteItem[] = [
       { id: "cmd-new", group: t("palette.group.commands") ?? "命令", title: t("topbar.newSession") ?? "新建会话", icon: <SquarePen size={15} />, compact: true, keywords: ["new", "新建"], run: () => void newSessionAndReset() },
-      { id: "cmd-memory", group: t("palette.group.commands") ?? "命令", title: t("topbar.memory") ?? "记忆", icon: <Brain size={15} />, compact: true, keywords: ["memory", "记忆"], run: () => void openMemory() },
+      { id: "cmd-memory", group: t("palette.group.commands") ?? "命令", title: t("topbar.memory") ?? "记忆", icon: <Brain size={15} />, compact: true, keywords: ["memory", "记忆"], run: () => { setChatTab("memory"); void openMemory(); } },
       { id: "cmd-history", group: t("palette.group.commands") ?? "命令", title: t("topbar.history") ?? "历史", icon: <MessageSquare size={15} />, compact: true, keywords: ["history", "历史"], run: () => void openHistory() },
       { id: "cmd-knowledge", group: t("palette.group.commands") ?? "命令", title: t("topbar.knowledge") ?? "知识库", icon: <BookOpen size={15} />, compact: true, keywords: ["knowledge", "知识库"], run: () => void openKnowledge() },
-      { id: "cmd-overview", group: t("palette.group.commands") ?? "命令", title: "概览面板", icon: <Gauge size={15} />, compact: true, keywords: ["overview", "概览", "统计", "token", "成本", "用量"], run: () => setChatTab("overview") },
     ];
     // 右侧面板命令项：由 sidebarRegistry 注册表派生；pane 语义下命令 = 开视图
     // tab（tasks 不在命令面板，与原行为一致；欢迎卡里可点）。
@@ -1169,7 +1186,6 @@ export default function App() {
           onRenameSession={handleRenameSession}
           onOpenSubagentThread={openSubagentThread}
           onOpenHistory={openHistory}
-          onOpenMemory={openMemory}
           onOpenCaps={() => setCapsOpen(true)}
           onOpenKnowledge={openKnowledge}
           startResize={startSidebarResize}
@@ -1305,17 +1321,18 @@ export default function App() {
                         model={state.meta?.label ?? undefined}
                       />
                     )}
-                    {chatTab === "overview" && (
-                      <OverviewPanel
-                        data={statsPersistence.data}
-                        clearData={statsPersistence.clearData}
-                        sessionStats={state.sessionStats}
-                        perTurnExecutorUsage={state.perTurnExecutorUsage}
-                        perTurnSubUsage={state.perTurnSubUsage}
-                        turnSteps={state.turnSteps}
-                        subagentModel={state.meta?.subagentLabel}
-                        toolCounts={toolCounts}
-                        skillCounts={skillCounts}
+                    {chatTab === "memory" && (
+                      <MemoryPanel
+                        view={memView}
+                        onRemember={onRemember}
+                        onForget={onForget}
+                        onSaveDoc={onSaveDoc}
+                        onSaveFact={onSaveFact}
+                        onChangeType={changeFactType}
+                        onAcceptMemorySuggestion={onAcceptMemorySuggestion}
+                        onAcceptSkillSuggestion={onAcceptSkillSuggestion}
+                        onAcceptMergeSuggestion={onAcceptMergeSuggestion}
+                        onRefreshSuggestions={onRefreshSuggestions}
                       />
                     )}
                   </>
@@ -1428,24 +1445,6 @@ export default function App() {
           onDismiss={() => answerQuestion(state.ask!.id, [])}
         />
       )}
-      <Suspense fallback={null}>
-        {memView !== null && (
-          <MemoryPanel
-            view={memView}
-            onClose={closeMemory}
-            onRemember={onRemember}
-            onForget={onForget}
-            onSaveDoc={onSaveDoc}
-            onSaveFact={onSaveFact}
-            onChangeType={changeFactType}
-            onAcceptMemorySuggestion={onAcceptMemorySuggestion}
-            onAcceptSkillSuggestion={onAcceptSkillSuggestion}
-            onAcceptMergeSuggestion={onAcceptMergeSuggestion}
-            onRefreshSuggestions={onRefreshSuggestions}
-          />
-        )}
-      </Suspense>
-
       <Suspense fallback={null}>
         {histView !== null && (
           <HistoryPanel

@@ -1,5 +1,7 @@
 /* eslint-disable react-refresh/only-export-components -- 纯展示卡与格式化助手同文件（对齐 ContextView 收敛模式） */
 import { useT } from "../../lib/i18n";
+import "./context-view.css";
+import { Clock, Coins, MessageSquare, type Icon } from "../../icons";
 // cards.tsx — dsh-context 头部仪表卡移植（对齐 dsh-context 插件 StatsCard/TokenCard/
 // TimingCard/SessionInfoCard/SummaryBar 信息架构，套用 gaea 星枢皮肤）。
 //
@@ -66,26 +68,25 @@ function fmtPct(part: number, whole: number): string {
 
 // ─── 卡片外壳与公共小件 ─────────────────────────────────────────
 
-function CardHead({ title, sub }: { title: string; sub?: string }) {
-  // v4.70（对齐 dsh 仪表头）：标题左置（12.5px w600）、副注右置（10.5px）同行的单行卡头。
+function CardHead({ title, sub, icon }: { title: string; sub?: string; icon?: Icon }) {
+  // v4.71（卡片化）：标题前带 22px 图标章；标题左置（12.5px w600）、
+  // 副注右置（10.5px）同行的单行卡头。
+  const HeadIcon = icon;
   return (
-    <div className="flex items-baseline justify-between gap-2">
-      <div className="min-w-0 truncate text-[12.5px] font-semibold text-fg">{title}</div>
+    <div className="flex items-center justify-between gap-2">
+      <div className="flex min-w-0 items-center gap-1.5">
+        {HeadIcon && (
+          <span className="ctx-head-ic" aria-hidden>
+            <HeadIcon size={12} />
+          </span>
+        )}
+        <span className="min-w-0 truncate text-[12.5px] font-semibold text-fg">{title}</span>
+      </div>
       {sub && (
-        <div className="min-w-0 shrink-0 truncate text-right text-[10.5px] leading-none text-fg-faint" title={sub}>
+        <div className="max-w-[44%] shrink-0 truncate text-right text-[10.5px] leading-none text-fg-faint" title={sub}>
           {sub}
         </div>
       )}
-    </div>
-  );
-}
-
-/** label 上小字 + value 下大字（等宽）的统计格（v4.70 value 15/17px，对齐 dsh 数值层级） */
-function StatCell({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
-  return (
-    <div className="min-w-0">
-      <div className="truncate text-[10.5px] font-medium text-fg-faint">{label}</div>
-      <div className={`truncate font-mono tabular-nums text-fg ${strong ? "text-[17px]" : "text-[15px]"}`}>{value}</div>
     </div>
   );
 }
@@ -147,27 +148,36 @@ function Donut({
   );
 }
 
-// ─── 1. StatsCard 上下文统计（8 格：4 列 × 2 行） ─────────────────
+// ─── 1. StatsCard 上下文统计（v4.71：8 个独立小卡，不再合成 1 张大卡） ──
 export function StatsCard({ stats }: { stats: ContextStats }) {
   const t = useT();
-  const cells: [string, string][] = [
-    [t("contextview.statTurns"), String(stats.turns)],
-    [t("contextview.statSteps"), String(stats.steps)],
-    [t("contextview.statToolCalls"), String(stats.toolCalls)],
-    [t("contextview.statImages"), String(stats.images)],
-    [t("contextview.statCost"), stats.costEstimate != null ? `¥${stats.costEstimate.toFixed(2)}` : "—"],
-    [t("contextview.statInjects"), String(stats.injects)],
-    [t("contextview.statCompacts"), String(stats.compacts)],
-    [t("contextview.statPrunes"), String(stats.prunes)],
+  const cells: { key: string; label: string; value: string }[] = [
+    { key: "turns", label: t("contextview.statTurns"), value: String(stats.turns) },
+    { key: "steps", label: t("contextview.statSteps"), value: String(stats.steps) },
+    { key: "toolCalls", label: t("contextview.statToolCalls"), value: String(stats.toolCalls) },
+    { key: "images", label: t("contextview.statImages"), value: String(stats.images) },
+    {
+      key: "cost",
+      label: t("contextview.statCost"),
+      value: stats.costEstimate != null ? `¥${stats.costEstimate.toFixed(2)}` : "—",
+    },
+    { key: "injects", label: t("contextview.statInjects"), value: String(stats.injects) },
+    { key: "compacts", label: t("contextview.statCompacts"), value: String(stats.compacts) },
+    { key: "prunes", label: t("contextview.statPrunes"), value: String(stats.prunes) },
   ];
   return (
-    <div className="rounded-lg border border-border-soft bg-bg p-3">
-      <CardHead title={t("contextview.statsTitle")} sub={t("contextview.statsHint")} />
-      <div className="mt-2 grid grid-cols-4 gap-x-3 gap-y-2">
-        {cells.map(([label, value]) => (
-          <StatCell key={label} label={label} value={value} />
-        ))}
-      </div>
+    <div
+      data-testid="stats-kpi-grid"
+      className="grid grid-cols-2 gap-2.5 min-[1100px]:grid-cols-4 min-[1500px]:grid-cols-8"
+    >
+      {cells.map((c) => (
+        <div key={c.key} className="ctx-tile" data-testid={`stat-tile-${c.key}`}>
+          <span className="truncate text-[10px] font-medium leading-none text-fg-faint">{c.label}</span>
+          <span className="mt-0.5 truncate font-mono text-[15px] font-semibold leading-tight tabular-nums text-fg">
+            {c.value}
+          </span>
+        </div>
+      ))}
     </div>
   );
 }
@@ -185,8 +195,8 @@ export function TokenCard({ requests }: { requests: ContextRequestRecord[] }) {
     { label: t("contextview.tokensOutput"), value: out, color: COLORS.output },
   ];
   return (
-    <div className="rounded-lg border border-border-soft bg-bg p-3">
-      <CardHead title={t("contextview.tokensTitle")} sub={t("contextview.tokensHint")} />
+    <div className="ctx-card p-3">
+      <CardHead title={t("contextview.tokensTitle")} sub={t("contextview.tokensHint")} icon={Coins} />
       <div className="mt-2 flex items-center gap-4">
         <Donut
           segments={rows.map((r) => ({ value: r.value, color: r.color }))}
@@ -259,8 +269,8 @@ export function TimingCard({ timing }: { timing?: ContextTiming }) {
     .sort((a, b) => b.ms - a.ms || b.calls - a.calls) // 后端已按 ms 降序，此处防御性保序
     .slice(0, 3);
   return (
-    <div className="rounded-lg border border-border-soft bg-bg p-3">
-      <CardHead title={t("contextview.timingTitle")} sub={t("contextview.timingHint")} />
+    <div className="ctx-card p-3">
+      <CardHead title={t("contextview.timingTitle")} sub={t("contextview.timingHint")} icon={Clock} />
       <div className="mt-2 flex items-center gap-4">
         <Donut
           segments={rows.map((r) => ({ value: r.ms ?? 0, color: r.color }))}
@@ -323,8 +333,8 @@ export function SessionInfoCard({
     [t("contextview.sessionRequests"), String(requests)],
   ];
   return (
-    <div className="rounded-lg border border-border-soft bg-bg p-3">
-      <CardHead title="会话信息" />
+    <div className="ctx-card p-3">
+      <CardHead title="会话信息" icon={MessageSquare} />
       <div className="mt-2 space-y-1">
         {rows.map(([k, v]) => (
           <div key={k} className="flex items-baseline justify-between gap-2 text-[11.5px]">
@@ -354,7 +364,7 @@ export function SummaryBar({
   const t = useT();
   const pct = win > 0 ? Math.min(100, Math.round((used / win) * 100)) : 0;
   return (
-    <div className="shrink-0 rounded-lg border border-border-soft bg-bg px-3 py-2">
+    <div className="ctx-card ctx-summary shrink-0">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <span className="shrink-0 rounded-full bg-accent/15 px-2 py-px text-[10px] font-medium text-accent">
           {sessionName}
