@@ -5,7 +5,14 @@
 
 ## 版本状态（顶部速览）
 
-- **最新发布：v4.64.0（2026-09-04）「Side Chat 式追问」**——用户点名对标
+- **最新发布：v4.64.1（2026-09-04）「修复：mt_ 信封双层嵌套转义墙」**——
+  用户实机截图复检：mt_ 输出信封存在**双层嵌套**（外层 data.result 里装着
+  工具自身 message 信封），v4.62.2 只拆一层仍留转义墙；且历史转录已落盘
+  无法自愈。修复：写端 unwrapModelToolOutput 递归拆包（4 层上限）+ 读端
+  unwrapEnvelopeText 显示侧同语义拆包（SubagentThread 渲染 mt_ 内容前
+  调用，旧数据即刻可读）。绑定面 **560 零变更**；vitest 217/1605、
+  tsc/eslint 0、drift PASS、冒烟通过。详见 releases/v4.64.1.md。
+- **此前：v4.64.0（2026-09-04）「Side Chat 式追问」**——用户点名对标
   dsh。子代理会话 tab（sa_）底部追问输入框：TaskTool.RunFollowUp 复用
   continue_from 管道（PrepareContinue 校验/MarkRunning+TrackProgress 快照/
   SaveCompleted/Failed）带完整工作记忆继续运行；FollowUpSink 只放行文本

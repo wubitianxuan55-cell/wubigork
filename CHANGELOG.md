@@ -1,3 +1,10 @@
+## v4.64.1 · 修复：mt_ 信封双层嵌套转义墙（2026-09-04）
+> 热修复：mt_ 输出信封双层嵌套，v4.62.2 只拆一层仍留转义墙；历史转录已
+> 落盘无法自愈。**绑定面 560 零变更**。详见 releases/v4.64.1.md。
+- 写端 unwrapModelToolOutput 改递归拆包（4 层上限）；读端
+  unwrapEnvelopeText 显示侧同语义拆包救历史数据；双侧回归测试。
+  vitest 217/1605、drift PASS（560）、冒烟通过。
+
 ## v4.64.0 · Side Chat 式追问：子代理会话 tab 内可持续提问（2026-09-04）
 > 用户点名补上 dsh 的 Side Chat 式追问。**绑定面 559→560**
 > （+GaeaSubagentFollowUp）。详见 releases/v4.64.0.md。

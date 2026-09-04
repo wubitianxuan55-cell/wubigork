@@ -89,6 +89,7 @@ gaea/
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| **v4.64.1** | 2026-09-04 | 修复：mt_ 信封双层嵌套转义墙（绑定面 560 零变更）：写端 unwrapModelToolOutput 递归拆包（data.result/message/output 逐层）+ 读端 unwrapEnvelopeText 显示侧拆包救历史转录；双侧回归测试；vitest 217/1605、drift PASS（560）、冒烟通过 |
 | **v4.64.0** | 2026-09-04 | Side Chat 式追问（绑定面 559→560 +GaeaSubagentFollowUp）：子代理会话 tab 内可持续提问——复用 continue_from 管道带完整工作记忆继续运行；乐观上屏+专用通道流式+快照轮询；守卫双侧对齐（running/mt_/主回合运行中拒绝）；vitest 217/1603、drift PASS（560）、冒烟通过 |
 | **v4.63.4** | 2026-09-04 | mt_/长文本输出 Codex 式有界渲染（绑定面 559 零变更）：mt_ 标签页/超 4000 字 assistant 内容默认限高滚动+「展开全部（N 字）/收起」+字数标注，流式行保持跟随；i18n 三语 +3 键；vitest 217/1602、drift PASS（559）、冒烟通过 |
 | **v4.63.3** | 2026-09-04 | 对标 dsh（绑定面 559 零变更）：GaeaSubagentRuns 共享单轮询聚合（每会话单定时器/单在途/不可见门控，App 两处独立轮询并入）+ 新子代理 0→N 自动切右栏任务视图（500ms 去抖重臂+偏好开关默认开）；vitest 217/1601、drift PASS（559）、冒烟通过 |
