@@ -243,11 +243,11 @@ func (t *TaskTool) Execute(ctx context.Context, args json.RawMessage) (string, e
 			// No jobs manager in this context (e.g. headless sub-agent).
 			// Fall back to foreground execution — sub-agents are short-lived
 			// and don't persist across turns.
-			result, err := t.runSubSession(ctx, p.Prompt, subReg, subSink(ctx), run, maxSteps, p.OutputSchema)
+			result, err := t.runSubSession(ctx, p.Prompt, subReg, subSink(ctx, run), run, maxSteps, p.OutputSchema)
 			return t.finalizeRun(result, err, run)
 		}
 		parentID, parent, _, _ := CallContext(ctx)
-		nested := subSinkFor(parentID, parent)
+		nested := subSinkFor(parentID, parent, func() string { return subagentRunRef(run) })
 		label := p.Description
 		if label == "" {
 			label = "task"
@@ -264,7 +264,7 @@ func (t *TaskTool) Execute(ctx context.Context, args json.RawMessage) (string, e
 		return fmt.Sprintf("Started background task %q (%s). It runs across turns; collect its final answer with wait (or wait will return it once done), and you'll be notified when it finishes.", job.ID, label), nil
 	}
 
-	result, err := t.runSubSession(ctx, p.Prompt, subReg, subSink(ctx), run, maxSteps, p.OutputSchema)
+	result, err := t.runSubSession(ctx, p.Prompt, subReg, subSink(ctx, run), run, maxSteps, p.OutputSchema)
 	return t.finalizeRun(result, err, run)
 }
 
@@ -448,7 +448,7 @@ func (t *TaskTool) runSubWithRetrySession(ctx context.Context, prompt string, cf
 		subSession = run.Session
 	}
 	for attempt := 0; attempt <= maxRetries; attempt++ {
-		result, err := t.runSubSession(ctx, currentPrompt, subReg, subSink(ctx), run, maxSteps, outputSchema)
+		result, err := t.runSubSession(ctx, currentPrompt, subReg, subSink(ctx, run), run, maxSteps, outputSchema)
 		if err != nil {
 			return result, err
 		}
@@ -632,23 +632,41 @@ func NestedSink(ctx context.Context, fallback event.Sink) event.Sink {
 	if !ok || parent == nil {
 		return fallback
 	}
-	return subSinkFor(parentID, parent)
+	return subSinkFor(parentID, parent, nil)
 }
 
-func subSink(ctx context.Context) event.Sink {
+func subSink(ctx context.Context, run *SubagentRun) event.Sink {
 	parentID, parent, _, ok := CallContext(ctx)
 	if !ok || parent == nil {
 		return event.Discard
 	}
-	return subSinkFor(parentID, parent)
+	return subSinkFor(parentID, parent, func() string { return subagentRunRef(run) })
 }
 
-func subSinkFor(parentID string, parent event.Sink) event.Sink {
+// subSinkFor 把子代理事件选择性透传父 sink。refSrc 返回当前子代理 transcript
+// 引用（"sa_..."）；非空时内层 Text 增量被转标为 SubagentText 透传（P1 逐
+// token 流式，SubagentThread 会话 tab 实时渲染），为空（临时子代理/测试）
+// 维持既有行为——Text 一律丢弃，避免过程噪音进入主聊天。
+func subSinkFor(parentID string, parent event.Sink, refSrc func() string) event.Sink {
 	if parent == nil {
 		return event.Discard
 	}
 	return event.FuncSink(func(e event.Event) {
 		switch e.Kind {
+		case event.Text:
+			ref := ""
+			if refSrc != nil {
+				ref = refSrc()
+			}
+			if ref == "" {
+				return // 无消费方（无会话 tab），维持有意丢弃
+			}
+			parent.Emit(event.Event{Kind: event.SubagentText, Text: e.Text, SubagentRef: ref, ParentToolID: parentID})
+		case event.SubagentText:
+			// 技能子代理路径（RunPersistedSubAgent 在 sink 外层转标 ref）：
+			// 这里补打父 task 调用 ID 后透传。
+			e.ParentToolID = parentID
+			parent.Emit(e)
 		case event.ToolDispatch, event.ToolResult:
 			e.Tool.ParentID = parentID
 			e.Tool.ID = parentID + "/" + e.Tool.ID
@@ -660,7 +678,7 @@ func subSinkFor(parentID string, parent event.Sink) event.Sink {
 		case event.SubagentMessage:
 			// v4.26：子代理完成回投透传父 sink，打点父 task 调用 ID——前端
 			// 据此把答复文本挂到对应 task 卡片下（与子工具嵌套同键位）。
-			// 其余 kind（Text/Reasoning/Turn* 等）维持有意丢弃，避免子代理
+			// 其余 kind（Reasoning/Turn* 等）维持有意丢弃，避免子代理
 			// 过程噪音进入主聊天。
 			e.ParentToolID = parentID
 			parent.Emit(e)

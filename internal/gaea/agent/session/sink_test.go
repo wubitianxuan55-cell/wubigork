@@ -92,3 +92,37 @@ func TestEventLogSinkPathSwitch(t *testing.T) {
 		t.Fatalf("a=%d b=%d, want 1 each", len(entriesA), len(entriesB))
 	}
 }
+
+// v4.62 P1 逐 token 流式：SubagentText wire-only——透传 inner 供前端实时渲染，
+// 但有意不落主会话日志（增量全文由 SubagentMessage 收尾 + 子代理自身
+// transcript 承载，逐块落主日志只会膨胀体积、污染恢复/派生重放）。
+func TestEventLogSinkSkipsSubagentText(t *testing.T) {
+	dir := t.TempDir()
+	sessionPath := filepath.Join(dir, "s.jsonl")
+	logPath := LogPathFor(sessionPath)
+
+	var got []event.Event
+	sink := NewEventLogSink(dir, event.FuncSink(func(e event.Event) { got = append(got, e) }))
+	sink.SetPathSource(func() string { return sessionPath })
+
+	sink.Emit(event.Event{Kind: event.SubagentText, Text: "增量一", SubagentRef: "sa_1"})
+	sink.Emit(event.Event{Kind: event.Text, Text: "主代理文本照常落盘"})
+	sink.Emit(event.Event{Kind: event.SubagentText, Text: "增量二", SubagentRef: "sa_1"})
+	sink.Close()
+
+	// 前端 sink 收到全部事件（含 SubagentText）
+	if len(got) != 3 {
+		t.Fatalf("inner events = %d, want 3", len(got))
+	}
+	// 日志只落非 SubagentText 事件
+	entries, err := ReadLog(logPath)
+	if err != nil {
+		t.Fatalf("ReadLog: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("log entries = %d, want 1（SubagentText 不落盘）", len(entries))
+	}
+	if entries[0].Kind != "text" {
+		t.Errorf("entry kind = %s, want text", entries[0].Kind)
+	}
+}

@@ -125,4 +125,42 @@ describe("SubagentThread 子代理对话全面板（v4.27）", () => {
     expect(screen.getByText("要点二：零绑定面")).toBeTruthy();
     expect(screen.getByText("const ok = true")).toBeTruthy();
   });
+
+  // v4.62 P1 逐 token 流式：subagent_text 增量按 ref 路由到本会话 tab，以
+  // 实时行渲染在消息流尾部；权威快照追上后缓冲让位（reconcile）。
+  it("运行中 subagent_text 增量实时渲染，快照接管后缓冲清空", async () => {
+    render(wrap(<SubagentThread sessionPath="s1.jsonl" target="sa_2_b2b2b2b2" task="任务" status="running" onBack={() => {}} />));
+    await screen.findByText("开始检索公开信息。");
+
+    // 收集全部 onEvent 订阅回调（工具刷新 + 流式），事件广播给每一个
+    type SubEventCb = (e: { kind?: string; text?: string; subagentRef?: string }) => void;
+    const cbs = (mocks.onEvent.mock.calls as unknown as SubEventCb[][]).map((c) => c[0]);
+    expect(cbs.length).toBeGreaterThanOrEqual(2);
+
+    // 他人会话的增量不入缓冲
+    act(() => {
+      cbs.forEach((cb) => cb({ kind: "subagent_text", text: "别家增量", subagentRef: "sa_other" }));
+    });
+    // 本会话增量逐块追加
+    act(() => {
+      cbs.forEach((cb) => cb({ kind: "subagent_text", text: "正在比对三家竞品", subagentRef: "sa_2_b2b2b2b2" }));
+      cbs.forEach((cb) => cb({ kind: "subagent_text", text: "的表格链路…", subagentRef: "sa_2_b2b2b2b2" }));
+    });
+    expect(screen.getByTestId("agent-thread-streaming")).toBeTruthy();
+    expect(screen.getByTestId("agent-thread-streaming").textContent).toContain("正在比对三家竞品的表格链路…");
+    expect(screen.getByTestId("agent-thread-streaming").textContent).not.toContain("别家增量");
+
+    // 快照追上（尾条 assistant 已含缓冲开头）→ 缓冲清空，权威渲染接管
+    //（正文经 MemoMarkdown 拆元素，改以消息计数与缓冲行消失断言）
+    mocks.SubagentTranscript.mockResolvedValue({
+      ...transcript,
+      messages: [
+        ...transcript.messages,
+        { role: "assistant", content: "正在比对三家竞品的表格链路…对比结论如下。" },
+      ],
+    });
+    fireEvent.click(screen.getByRole("button", { name: "刷新对话" }));
+    await screen.findByText("7 条");
+    expect(screen.queryByTestId("agent-thread-streaming")).toBeNull();
+  });
 });

@@ -81,6 +81,15 @@ const (
 	// transcript 引用（"sa_..."，临时子代理为空）；ParentToolID=父 task 调用 ID
 	// （由 subSinkFor 打点），前端据此把答复挂到对应 task 卡片下。
 	SubagentMessage
+	// SubagentText 是持久化子代理运行中的助手文本增量（v4.62 P1 逐 token
+	// 流式，对标 Codex live view）：subSinkFor 把内层 Text 增量转标为该 Kind
+	// 透传父 sink，让 SubagentThread 会话 tab 在子代理运行中实时看到「正在
+	// 打出的字」，而不是等 ~1s 快照/3s 轮询。Text=增量块；SubagentRef="sa_..."
+	// （前端据此路由到对应会话 tab；为空=临时子代理无消费方，直接丢弃）；
+	// ParentToolID=父 task 调用 ID。**wire-only**：EventLogSink 有意不把该
+	// Kind 落主会话日志——增量全文已由 SubagentMessage 收尾 + 子代理自身
+	// transcript 落盘承载，逐块落主日志只会膨胀体积、污染重放。
+	SubagentText
 )
 
 // Level classifies a Notice so sinks can style or filter it.

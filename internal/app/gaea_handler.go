@@ -679,6 +679,20 @@ func gaeaEventMap(e event.Event) map[string]interface{} {
 		if e.ParentToolID != "" {
 			m["parentId"] = e.ParentToolID
 		}
+	case event.SubagentText:
+		// v4.62 P1 逐 token 流式：持久化子代理运行中的助手文本增量。前端
+		// SubagentThread 按 subagentRef 路由到对应会话 tab 实时追加渲染；
+		// 主聊天 reducer 对未知 kind 整条丢弃，不会误入主对话。wire-only
+		// （EventLogSink 不落盘，见 session/sink.go），断流由前端既有
+		// transcript 快照/轮询兜底补齐。
+		m["kind"] = "subagent_text"
+		m["text"] = e.Text
+		if e.SubagentRef != "" {
+			m["subagentRef"] = e.SubagentRef
+		}
+		if e.ParentToolID != "" {
+			m["parentId"] = e.ParentToolID
+		}
 	case event.Steer:
 		// 运行中插话：agent 已把该消息作为当前回合 guidance 消费，
 		// 前端以轻量 notice 回显（不渲染成独立用户气泡）。
@@ -698,6 +712,7 @@ func gaeaKindName(k event.Kind) string {
 		event.TurnDone: "turn_done", event.CompactionStarted: "compaction_started",
 		event.CompactionDone: "compaction_done", event.Steer: "notice",
 		event.SubagentMessage: "subagent_message",
+		event.SubagentText:    "subagent_text",
 	}
 	if n, ok := names[k]; ok {
 		return n

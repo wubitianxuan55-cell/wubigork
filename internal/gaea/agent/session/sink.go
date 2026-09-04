@@ -61,6 +61,16 @@ func (s *EventLogSink) spaceFor(path string) string {
 // Emit 先写日志再转发前端。并发由调用方（event.Sync 包装）串行保证，
 // 本实现自身也持锁以防御直接并发调用。
 func (s *EventLogSink) Emit(e event.Event) {
+	// SubagentText（子代理流式增量）wire-only：有意不落主会话日志——增量
+	// 全文由 SubagentMessage 收尾 + 子代理自身 transcript 落盘承载，逐块落
+	// 主日志只会膨胀体积、污染恢复/派生重放。只转发 inner（前端实时渲染），
+	// 且不经锁（无落盘状态可变更）。
+	if e.Kind == event.SubagentText {
+		if s.inner != nil {
+			s.inner.Emit(e)
+		}
+		return
+	}
 	s.mu.Lock()
 	path := ""
 	if s.pathSrc != nil {

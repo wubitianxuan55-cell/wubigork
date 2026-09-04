@@ -23,7 +23,7 @@ func (c *collectorSink) Emit(e event.Event) { c.events = append(c.events, e) }
 // 并打点父 task 调用 ID；其余非工具/用量事件维持丢弃（防子代理过程噪音刷屏）。
 func TestSubSinkForwardsSubagentMessage(t *testing.T) {
 	parent := &collectorSink{}
-	s := subSinkFor("call-9", parent)
+	s := subSinkFor("call-9", parent, nil)
 
 	s.Emit(event.Event{Kind: event.SubagentMessage, Text: "子代理最终答复", SubagentRef: "sa_1"})
 	s.Emit(event.Event{Kind: event.Text, Text: "中途文本不应透传"})

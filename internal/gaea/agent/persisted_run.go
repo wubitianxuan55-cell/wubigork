@@ -42,6 +42,14 @@ func RunPersistedSubAgent(
 	stop := store.TrackProgress(run, 0)
 	defer stop()
 
+	// P1 逐 token 流式：run（含 ref）在本函数内创建，而 sink（NestedSink 的
+	// subSinkFor 包裹）来自调用方、拿不到 ref——这里在 sink 外层把内层 Text
+	// 增量转标 SubagentText（打 ref），subSinkFor 见该 Kind 只补父调用 ID 透传。
+	// 与 task 路径（subSinkFor 的 refSrc 直接闭包 run）殊途同归。
+	if run.Ref != "" {
+		sink = refTextSink(run.Ref, sink)
+	}
+
 	result, err := RunSubAgentWithSession(ctx, prov, reg, run.Session, prompt, opts, sink, subUsage)
 	if err != nil {
 		_ = store.SaveFailed(run)
@@ -51,4 +59,16 @@ func RunPersistedSubAgent(
 		return "", fmt.Errorf("save subagent transcript: %w", err)
 	}
 	return result, nil
+}
+
+// refTextSink 把子代理 LLM 文本增量转标 SubagentText（打 ref）后转发 inner——
+// 技能子代理（run_skill 派生）路径的 ref 注入点。其余事件原样透传。
+func refTextSink(ref string, inner event.Sink) event.Sink {
+	return event.FuncSink(func(e event.Event) {
+		if e.Kind == event.Text {
+			e.Kind = event.SubagentText
+			e.SubagentRef = ref
+		}
+		inner.Emit(e)
+	})
 }
