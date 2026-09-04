@@ -1,6 +1,7 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { Button, Space, Tag, Input, Typography, message } from 'antd'
-import { PlusOutlined, DeleteOutlined, EditOutlined, ColumnWidthOutlined, RedoOutlined } from '@ant-design/icons'
+import { PlusOutlined, DeleteOutlined, EditOutlined, ColumnWidthOutlined, RedoOutlined, ThunderboltOutlined } from '@ant-design/icons'
+import * as App from '../../wailsjsCompat'
 import type { ChapterTabData } from '../../types'
 import GhostText from './editor/GhostText'
 import CommandBar from './editor/CommandBar'
@@ -15,6 +16,50 @@ interface ChapterEditorProps {
   ghostEnabled: boolean
 }
 
+// 逐场景 AI 生成：GetChapterScenes/GenerateScene 尚未进 wailsjsCompat 类型，
+// 用桥接对象宣称签名（no-explicit-any 门禁，用 as unknown as {...}）。
+const sceneBridge = App as unknown as {
+  GetChapterScenes: (chapterNum: number) => Promise<unknown>
+  GenerateScene: (chapterNum: number, sceneId: string, plotReq: string, minWords: number) => Promise<unknown>
+}
+
+/** 窄化场景未知负载 → 取其 id（非对象/缺 id → undefined）。 */
+function sceneIdOf(scene: unknown): string | undefined {
+  if (typeof scene === 'object' && scene !== null) {
+    const id = (scene as Record<string, unknown>).id
+    return typeof id === 'string' ? id : undefined
+  }
+  return undefined
+}
+
+/** 窄化 GenerateScene 返回负载 → 生成后的正文 content。 */
+function sceneContentOf(value: unknown): string | undefined {
+  if (typeof value === 'object' && value !== null) {
+    const c = (value as Record<string, unknown>).content
+    return typeof c === 'string' && c.length > 0 ? c : undefined
+  }
+  return undefined
+}
+
+/** 窄化 GenerateScene 返回负载 → aiTaste 分 / deSlop 简讯（供按钮下展示）。 */
+function sceneMetaOf(value: unknown): { aiTaste?: number; beforeScore?: number; afterScore?: number; changes?: number } {
+  if (typeof value === 'object' && value !== null) {
+    const rec = value as Record<string, unknown>
+    const aiTaste = typeof rec.aiTaste === 'number' ? rec.aiTaste : undefined
+    let beforeScore: number | undefined
+    let afterScore: number | undefined
+    let changes: number | undefined
+    if (typeof rec.deSlop === 'object' && rec.deSlop !== null) {
+      const d = rec.deSlop as Record<string, unknown>
+      beforeScore = typeof d.beforeScore === 'number' ? d.beforeScore : undefined
+      afterScore = typeof d.afterScore === 'number' ? d.afterScore : undefined
+      changes = Array.isArray(d.changes) ? d.changes.length : undefined
+    }
+    return { aiTaste, beforeScore, afterScore, changes }
+  }
+  return {}
+}
+
 /**
  * ChapterEditor — 章节场景多文本框编辑区
  * 包含场景新增/删除、右键菜单 AI 操作、Cmd+K 命令面板、GhostText
@@ -24,6 +69,10 @@ const ChapterEditor: React.FC<ChapterEditorProps> = ({ tab, onUpdate, sceneTexta
   const [cmdKVisible, setCmdKVisible] = useState(false)
   const [cmdKText, setCmdKText] = useState('')
   const lastSelectedText = React.useRef('')
+  // 逐场景 AI 生成：sceneIds 与 tab.scenes 按索引对齐（无 id 的场景按钮禁用）
+  const [sceneIds, setSceneIds] = useState<string[]>([])
+  const [scenePlots, setScenePlots] = useState<string[]>([])
+  const [sceneGen, setSceneGen] = useState<Record<number, { loading: boolean; aiTaste?: number; beforeScore?: number; afterScore?: number; changes?: number }>>({})
 
   // 全局点击关闭右键菜单
   React.useEffect(() => {
@@ -31,6 +80,23 @@ const ChapterEditor: React.FC<ChapterEditorProps> = ({ tab, onUpdate, sceneTexta
     document.addEventListener('click', close)
     return () => document.removeEventListener('click', close)
   }, [])
+
+  // 切换章节：复位 AI 状态并按索引拉取该章场景 id（GetChapterScenes）。
+  useEffect(() => {
+    setSceneIds([])
+    setScenePlots([])
+    setSceneGen({})
+    let alive = true
+    if (tab.chapterNum >= 1) {
+      sceneBridge.GetChapterScenes(tab.chapterNum)
+        .then((value) => {
+          if (!alive) return
+          setSceneIds(Array.isArray(value) ? value.map((s) => sceneIdOf(s) || '') : [])
+        })
+        .catch(() => { if (alive) setSceneIds([]) })
+    }
+    return () => { alive = false }
+  }, [tab.node.id, tab.chapterNum])
 
   const addScene = () => {
     onUpdate('scenes', [...tab.scenes, ''])
@@ -46,6 +112,41 @@ const ChapterEditor: React.FC<ChapterEditorProps> = ({ tab, onUpdate, sceneTexta
     s[i] = val
     onUpdate('scenes', s)
     onUpdate('saved', false)
+  }
+
+  const setScenePlot = (i: number, val: string) => {
+    setScenePlots((prev) => {
+      const next = [...prev]
+      while (next.length <= i) next.push('')
+      next[i] = val
+      return next
+    })
+  }
+
+  // 逐场景 AI 生成：用索引对齐的 sceneId 调 GenerateScene，写回 content 并展示 aiTaste/deSlop。
+  const handleAiGenerate = async (i: number) => {
+    const sceneId = sceneIds[i]
+    if (!sceneId) { message.warning('该场景无绑定 ID，无法生成'); return }
+    if (sceneGen[i]?.loading) return
+    const plot = scenePlots[i] ?? ''
+    const minWords = tab.targetWords || 800
+    setSceneGen((prev) => ({ ...prev, [i]: { loading: true } }))
+    try {
+      const value = await sceneBridge.GenerateScene(tab.chapterNum, sceneId, plot, minWords)
+      const content = sceneContentOf(value)
+      if (content) {
+        const s = [...tab.scenes]
+        s[i] = content
+        onUpdate('scenes', s)
+        onUpdate('saved', false)
+      }
+      const meta = sceneMetaOf(value)
+      setSceneGen((prev) => ({ ...prev, [i]: { loading: false, aiTaste: meta.aiTaste, beforeScore: meta.beforeScore, afterScore: meta.afterScore, changes: meta.changes } }))
+      message.success(`场景 ${i + 1} 已生成`)
+    } catch (err: unknown) {
+      setSceneGen((prev) => ({ ...prev, [i]: { loading: false } }))
+      message.error(err instanceof Error ? err.message : '场景生成失败')
+    }
   }
 
   const onSceneContextMenu = (e: React.MouseEvent<HTMLTextAreaElement>) => {
@@ -94,46 +195,80 @@ const ChapterEditor: React.FC<ChapterEditorProps> = ({ tab, onUpdate, sceneTexta
           </div>
         ) : (
           <div>
-            {tab.scenes.map((scene: string, i: number) => (
-              <div key={i} style={{ marginBottom: 16 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                  <Tag style={{ fontSize: 10 }}>场景 {i + 1}</Tag>
-                  <Space size={2}>
-                    <Button type="text" size="small" icon={<PlusOutlined />} style={{ color: C('color-text-secondary'), fontSize: 10, padding: '0 4px' }} onClick={addScene} />
-                    <Button type="text" size="small" danger icon={<DeleteOutlined />} style={{ fontSize: 10, padding: '0 4px' }} onClick={() => removeScene(i)} disabled={tab.scenes.length <= 1} />
-                  </Space>
+            {tab.scenes.map((scene: string, i: number) => {
+              const g = sceneGen[i]
+              const aiHint = g?.loading
+                ? '正在生成…'
+                : g?.beforeScore != null && g?.afterScore != null
+                  ? `AI 味 ${g.aiTaste ?? '−'} → 去味后 ${g.afterScore}（改 ${g.changes ?? 0} 处）`
+                  : g?.aiTaste != null
+                    ? `AI 味检测 ${g.aiTaste} 分`
+                    : ''
+              return (
+                <div key={i} style={{ marginBottom: 16 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                    <Tag style={{ fontSize: 10 }}>场景 {i + 1}</Tag>
+                    <Space size={2}>
+                      <Button type="text" size="small" icon={<PlusOutlined />} style={{ color: C('color-text-secondary'), fontSize: 10, padding: '0 4px' }} onClick={addScene} />
+                      <Button type="text" size="small" danger icon={<DeleteOutlined />} style={{ fontSize: 10, padding: '0 4px' }} onClick={() => removeScene(i)} disabled={tab.scenes.length <= 1} />
+                    </Space>
+                  </div>
+                  {/* 逐场景 AI 生成：剧情要点（可选） + 生成按钮 + aiTaste/deSlop 简讯 */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 4 }}>
+                    <Input
+                      size="small"
+                      placeholder="剧情要点（可选）"
+                      value={scenePlots[i] ?? ''}
+                      onChange={(e) => setScenePlot(i, e.target.value)}
+                      style={{ width: 200 }}
+                    />
+                    <Button
+                      size="small"
+                      icon={<ThunderboltOutlined />}
+                      loading={!!g?.loading}
+                      disabled={!sceneIds[i]}
+                      onClick={() => void handleAiGenerate(i)}
+                    >
+                      AI 生成
+                    </Button>
+                    {aiHint && (
+                      <span style={{ fontSize: 10, color: (g?.beforeScore ?? g?.aiTaste ?? 0) >= 60 ? 'var(--color-warning)' : 'var(--color-text-secondary)' }}>
+                        {aiHint}
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ position: 'relative' }}>
+                    <Input.TextArea
+                      value={scene}
+                      onChange={(e) => updateScene(i, e.target.value)}
+                      onContextMenu={onSceneContextMenu}
+                      className="writing-textarea"
+                      autoSize={{ minRows: 4, maxRows: 20 }}
+                      ref={(el: React.ComponentRef<typeof Input.TextArea> | null) => {
+                        const ta = el?.resizableTextArea?.textArea
+                        if (ta) sceneTextareaRefs.current.set(i, ta)
+                      }}
+                      onKeyDown={(e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+                        if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+                          e.preventDefault()
+                          const ta = e.target as HTMLTextAreaElement
+                          const selected = ta.value.slice(ta.selectionStart, ta.selectionEnd)
+                          if (selected) { setCmdKText(selected); setCmdKVisible(true) }
+                        }
+                      }}
+                    />
+                    <GhostText
+                      enabled={ghostEnabled}
+                      getCursorContext={() => {
+                        const ta = sceneTextareaRefs.current.get(i)
+                        if (!ta) return null
+                        return { textBeforeCursor: ta.value.slice(0, ta.selectionStart), textareaElement: ta }
+                      }}
+                    />
+                  </div>
                 </div>
-                <div style={{ position: 'relative' }}>
-                  <Input.TextArea
-                    value={scene}
-                    onChange={(e) => updateScene(i, e.target.value)}
-                    onContextMenu={onSceneContextMenu}
-                    className="writing-textarea"
-                    autoSize={{ minRows: 4, maxRows: 20 }}
-                    ref={(el: React.ComponentRef<typeof Input.TextArea> | null) => {
-                      const ta = el?.resizableTextArea?.textArea
-                      if (ta) sceneTextareaRefs.current.set(i, ta)
-                    }}
-                    onKeyDown={(e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-                      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-                        e.preventDefault()
-                        const ta = e.target as HTMLTextAreaElement
-                        const selected = ta.value.slice(ta.selectionStart, ta.selectionEnd)
-                        if (selected) { setCmdKText(selected); setCmdKVisible(true) }
-                      }
-                    }}
-                  />
-                  <GhostText
-                    enabled={ghostEnabled}
-                    getCursorContext={() => {
-                      const ta = sceneTextareaRefs.current.get(i)
-                      if (!ta) return null
-                      return { textBeforeCursor: ta.value.slice(0, ta.selectionStart), textareaElement: ta }
-                    }}
-                  />
-                </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         )}
       </div>

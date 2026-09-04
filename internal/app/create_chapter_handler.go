@@ -10,6 +10,8 @@ import (
 
 	"github.com/gaea/gaea/internal/ai"
 	"github.com/gaea/gaea/internal/characterlib"
+	"github.com/gaea/gaea/internal/novelcontext"
+	"github.com/gaea/gaea/internal/novelstyle"
 	"github.com/gaea/gaea/internal/project"
 	"github.com/gaea/gaea/internal/types"
 	"github.com/gaea/gaea/internal/util"
@@ -101,7 +103,17 @@ func (a *writingState) CreateChapter(setting, prevSummary, plotReq string, chapt
 		return nil, fmt.Errorf("创建章节节点失败")
 	}
 
-	// 6. 按章节互斥（T6-7.2）：同一章节（同一 NNN.md 目标文件）并发生成直接拒绝，
+	// 6. 场景圣经注入（novelcontext，POV 感知）：把本场景/本章的世界状态 +
+	//    按 POV 裁剪的知识视图 + 未回收伏笔 + 时间锚点 + 文风，编译成一段紧凑
+	//    场景圣经注入生成 prompt，替代「扁平截断前文摘要」的失忆问题。
+	//    任何编译失败都静默跳过——绝不因增强失败中断生成主链路。
+	if bible, err := novelcontext.BuildSceneBibleFromChapter(pm, targetNum); err == nil && bible != nil {
+		if r := bible.Render(ctxSceneBibleBudget); r != "" {
+			userPrompt += "\n\n" + r
+		}
+	}
+
+	// 7. 按章节互斥（T6-7.2）：同一章节（同一 NNN.md 目标文件）并发生成直接拒绝，
 	//    不同章节可并行。登记时创建请求级 context，供前端 CancelCreateChapter 取消，
 	//    取消经该 context 传播到 ChatStream 与流读取循环。
 	genKey := chapterGenKey(targetNum, branch)
@@ -113,7 +125,7 @@ func (a *writingState) CreateChapter(setting, prevSummary, plotReq string, chapt
 	// 启动流式生成 + 字数守卫（续写模式）
 	go func() {
 		defer a.unregisterChapterGen(genKey, genCancel)
-		a.streamCreateChapter(genCtx, pm, of, setting, prevSummary, plotReq, chapterNum, branchFromNodeID, systemPrompt, userPrompt, minWords, maxContinues, temperature, targetNum, nodeID, branch)
+		a.streamCreateChapter(genCtx, pm, of, setting, prevSummary, plotReq, chapterNum, branchFromNodeID, systemPrompt, userPrompt, minWords, maxContinues, temperature, targetNum, nodeID, branch, skillName == "story-deslop")
 	}()
 
 	return map[string]interface{}{
@@ -234,7 +246,7 @@ func (a *writingState) saveCancelledPartial(pm *project.Manager, fullText, bodyT
 // streamCreateChapter 在后台 goroutine 中流式生成章节，字数不足时续写。
 // ctx 为请求级 context（T6-7.2）：由 CreateChapter 绑定入口创建，前端调用
 // CancelCreateChapter 时取消；取消传播到 ChatStream 与流读取循环。
-func (a *writingState) streamCreateChapter(ctx context.Context, pm *project.Manager, of *types.OutlineFile, setting, prevSummary, plotReq string, chapterNum int, branchFromNodeID, systemPrompt, userPrompt string, minWords, maxContinues int, temperature float64, targetNum int, nodeID string, branch string) {
+func (a *writingState) streamCreateChapter(ctx context.Context, pm *project.Manager, of *types.OutlineFile, setting, prevSummary, plotReq string, chapterNum int, branchFromNodeID, systemPrompt, userPrompt string, minWords, maxContinues int, temperature float64, targetNum int, nodeID string, branch string, deSlop bool) {
 	defer func() {
 		if r := recover(); r != nil {
 			slog.Error("CreateChapter stream panic", "panic", r)
@@ -377,6 +389,21 @@ func (a *writingState) streamCreateChapter(ctx context.Context, pm *project.Mana
 
 	// 提取正文和摘要
 	content := strings.TrimSpace(bodyText) // 纯正文（含续写内容）
+
+	// 去 AI 味后处理（story-deslop 确定性引擎）：仅替换 AI 高频词 + 归一标点，
+	// 不改变情节/人物/篇幅；分数未改善则不落盘。成功时用去味文本覆盖 content，
+	// 并把报告带进 done 的 aiTaste，供作者知悉改了多少。
+	var deSlopReport *novelstyle.RewriteReport
+	if deSlop {
+		if rx, rep, err := novelstyle.DeSlopRewrite(content, nil); err == nil && rep != nil && rep.AfterScore < rep.BeforeScore {
+			if rx != "" {
+				content = rx
+				deSlopReport = rep
+				slog.Info("章节去 AI 味已完成", "chapter", targetNum, "before", rep.BeforeScore, "after", rep.AfterScore, "changes", len(rep.Changes))
+			}
+		}
+	}
+
 	summary := ""
 	if idx := strings.Index(fullText, "---CHAPTER_SUMMARY---"); idx >= 0 {
 		summary = strings.TrimSpace(fullText[idx+len("---CHAPTER_SUMMARY---"):])
@@ -434,6 +461,19 @@ func (a *writingState) streamCreateChapter(ctx context.Context, pm *project.Mana
 		"length":  len([]rune(content)),
 	})
 
+	// 生成完成：用 novelstyle 确定性引擎给本章打 AI 味分（0-100，越高越 AI 味），
+	// 随 done 事件回传给前端，作者立即看到；失败不阻断 done（仅附空结果）。
+	aiTaste := map[string]any{}
+	if taste, terr := novelstyle.ScoreTextNoRef(content); terr == nil && taste != nil {
+		aiTaste = map[string]any{"score": taste.Score, "issues": taste.Issues}
+	}
+	if deSlopReport != nil {
+		aiTaste["deSlop"] = deSlopReport
+	}
+	if len(aiTaste) == 0 {
+		aiTaste = nil
+	}
+
 	a.emit("create-chapter-stream", map[string]interface{}{
 		"type":       "done",
 		"content":    content,
@@ -442,6 +482,7 @@ func (a *writingState) streamCreateChapter(ctx context.Context, pm *project.Mana
 		"summary":    summary,
 		"nodeId":     nodeID,
 		"total":      len([]rune(content)),
+		"aiTaste":    aiTaste,
 	})
 
 	// 异步提取章节角色（不阻塞 done 事件）
@@ -525,6 +566,7 @@ const (
 	ctxForeshadowLineLen  = 100  // 单条伏笔描述截断
 	ctxForeshadowMaxItems = 15   // 最多注入的伏笔条数
 	ctxWorldviewDimLen    = 150  // 世界观单维度截断
+	ctxSceneBibleBudget   = 2200 // 场景圣经（POV 感知上下文）注入上限（rune）
 )
 
 // 角色摘要字段预算。性格截断由原 20 rune 放宽到 60，另补身份/目标/关系要点。

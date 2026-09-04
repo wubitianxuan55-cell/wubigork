@@ -1615,7 +1615,16 @@ type LegacySurfaceNames =
   | "WhisperTaskPlanResume"
   | "WhisperTaskPlanStatus"
   | "WhisperUpdateFact"
-  | "WhisperWebSearch";
+  | "WhisperWebSearch"
+  // ── v4.7x 小说革命：场景级生成 + 叙事状态结算（wailsjsCompat 直调，未经 AppBindings）──
+  | "CreateScene"
+  | "GenerateScene"
+  | "BuildNovelStatePatch"
+  | "GetNovelState"
+  | "SettleNovelState"
+  | "DeSlopChapterAiTaste"
+  | "RewriteChapterAiTaste"
+  | "RunChapterGate";
 
 /** 显式排除 = mock-only + legacy 绑定面。 */
 type ExcludeNames = MockOnlyNames | LegacySurfaceNames;

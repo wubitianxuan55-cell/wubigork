@@ -1,3 +1,92 @@
+## v4.77.0 · 小说板块革命：场景制生成 + 确定性去 AI 味闭环（2026）
+> 用户点名「彻底、革命性、解决长文写作和 AI 味」。先做竞品调研（商业 Sudowrite/NovelCrafter/
+> NovelAI + 中文 马良写作 硬数据「20万字后设定矛盾率 83%→23%」+ 社区 anti-ai-checklist/anti-ai-polish），
+> 再并行子代理建三大新包（novelstyle / novelcontext / narrative），接入生成管线。详见
+> `docs/gaea-novel-revolution-2026.md`（逐文件审计 + 可动刀架构 + 落地状态）。**绑定面 561→566**。
+- **三大新后端包**（全离线可测）：
+  - `internal/novelstyle`：确定性文风指纹（函数词 z 向量 + Burrows Delta + 句/段长 + 1000字TTR+n-gram）+ `ScoreText`(0-100 + rune span 定位, 9 条规则) + `DeSlopRewrite`(AI 黑名单词→平实替换 + 标点归一, 只改命中词、不碰剧情)；11 测试全绿。
+  - `internal/novelcontext`：场景圣经编译器 `CompileSceneBible/BuildSceneBibleFromChapter/Render`，按 `SceneMeta.POVCharID` 做视角掩码（公开可见/秘密进 HiddenFacts）+ 子图检索 + 未回收伏笔 + 时间锚点 + 文风；4 测试全绿。
+  - `internal/narrative`：确定性叙事状态机 + append-only 状态补丁账本；`ApplyPatch`(纯函数) + `ValidateStatePatch` + `AuthorizeAndSettle`（`approved=false` 不入账本）+ 可回放；5 测试全绿。
+- **接入生成管线**（`internal/app/create_chapter_handler.go`）：`CreateChapter` 注入 POV 场景圣经；`done` 事件携带 `novelstyle` AI 味分；`story-deslop` 启用时生成即确定性去味（分数+改动入 `deSlop`）。
+- **前端反馈**（`CreatePage.tsx`/`chapterStreamTypes.ts`）：生成完成展示 AI 味分 + 命中问题；vitest 14/14 + `tsc -b` 0。
+- **场景级生成 + 叙事状态结算绑定**（绑定面 566→**568**）：新增 `CreateScene`/`GenerateScene`（POV 感知逐场景生成落 v4 scenes/）+ `GetNovelState`/`BuildNovelStatePatch`/`SettleNovelState`（narrative 审批制结算）+ `DeSlopChapterAiTaste`（手动一键去味）+ `RewriteChapterAiTaste`（**LLM 受限重写**：只改打分命中句，复测分数下降才落盘，安全闸）；`bindingNames.ts` 重生成 + bridge `LegacySurfaceNames` 同步；drift PASS（568）。
+- **前端**：AI 味分+去味结果展示、叙事状态账本+审批 Modal、「一键去味」「**高级去味**」按钮；vitest 14/14 + `tsc -b` 0 + eslint 0。
+- 验证：`go build ./...` 0、`go test`（app + 3 新包）绿、`go vet`/`gofmt` 干净、前端 `vitest`/`tsc -b` 0、绑定 drift PASS。
+
+## v4.77.0 · 任务页自动激活补全：后台任务也自动开 · 宽窄屏差异化 · 强制终止（2026-09-04）
+> 用户验收规格：实时拓扑/批量实时预览（已有）、后台任务退出码/实时输出/强制
+> 终止、新子代理/新任务自动激活任务页（宽屏展开、窄屏不强制、可关）。
+> **绑定面 561 零变更**（纯前端）。详见 releases/v4.77.0.md。
+- 新增后台任务事件监听：新 queued/running/stopping 任务自动激活「任务」视图；
+- 自动激活统一收敛到 openTasksAuto：宽屏（≥1240px）才展开右栏，窄屏不强制，
+  沿用设置中心 gaea.tasks.autoOpenSubagent 开关（可关，默认开）；
+- TaskCenter 运行中任务按钮明确为「强制终止」（queued 仍为取消、stopping 停止中）；
+- 子代理树实时拓扑 / 批量实时预览 / 退出码 / 实时输出 dock 审计确认已在；
+- vitest 223/1681（净增 1：强制终止按钮用例）、tsc/eslint 0、冒烟 200。
+
+## v4.76.0 · 任务面板修正：整棵子代理可折叠 · 圆角收小 · 树形线（2026-09-04）
+> 用户三点反馈：圆角太大要改小、增加树形线、点击要能整体折叠「子代理」区块
+> （不是单卡）。**绑定面 561 零变更**（纯前端）。详见 releases/v4.76.0.md。
+- 右侧「子代理」分组头改为可点击折叠开关（整棵 AgentTree 显隐，默认展开）；
+- AgentTree 卡圆角 rounded-lg(16px 主题解析) → 显式 rounded-[8px]；
+- 子树前加左侧树形线（text-secondary 45%），层级一眼可读；
+- 单卡仍可折叠（有子树时点卡片标题 = 展开/收起），打开子代理对话收敛为
+  卡片上的独立按钮；新增 i18n subagent.openThread 三语；
+- vitest 223/1680（净增 2：区块折叠 + 单卡标题折叠用例）、tsc/eslint 0、冒烟 200。
+
+## v4.75.0 · 右侧任务面板卡片化：子代理独立卡 · 运行状态胶囊（2026-09-04）
+> 用户点名「右侧任务面板现在像文件树，参考图里每个子代理有标题/卡片/运行
+> 状态」。ds-vision 读参考图 + redesign 审计后重构 AgentTree。
+> **绑定面 561 零变更**（纯前端）。详见 releases/v4.75.0.md。
+- 子代理节点从单行树行升级为独立圆角卡片（surface-container-high + 语义描边）：
+  标题 + 状态胶囊（进行中/已完成/失败）+ 模型/工具数/耗时/token 指标行；
+- 运行中卡片：glow 描边 + 实时动作预览（正在…/⚙ lastTool）；已完成卡片：
+  展示分工回答摘要；主 agent 根卡主色底；卡片间距 1.5→2（gap-2）；
+- AgentTree 既有交互不变（展开/收起、点卡打开子代理对话）；测试等价改写；
+- 视觉模型验收 92/100（卡片独立成型）；vitest 223/1678、tsc/eslint 0、冒烟 200。
+
+## v4.74.0 · 记忆界面技能重设计：hero + 统计小卡 + 视图大卡（2026-09-04）
+> 用户点名「使用技能重新设计记忆界面」。依 redesign-existing-projects 审计
+> （多个同尺寸卡片堆叠缺层级）与 ui-ux-pro-max 检索（hero/统计/主内容层级）
+> 重构。**绑定面 561 零变更**（纯前端）。详见 releases/v4.74.0.md。
+- 记忆页收敛为 4 段递进结构：头部 hero 卡（标题+摘要+开关）→ 三枚统计小卡
+  （事实/文档/建议）→ 快速添加卡 → 单张「视图大卡」（分段+搜索+筛选+内容）；
+- TabButton 改紧凑胶囊（去掉 flex-1 拉伸），与搜索/内容同卡承载；
+- 事实搜索框改内嵌卡片底；fact-card 补卡片底色；视觉模型验收 9/10；
+- vitest 223/1678、tsc/eslint 0、冒烟 200。
+
+## v4.73.0 · 记忆迁入主区标签页：左侧入口移除 · 记忆界面卡片化（2026-09-04）
+> 用户点名：删左侧面板「记忆」入口，在「上下文」旁新增「记忆」tab，并整体
+> 重设计记忆界面。**绑定面 561 零变更**（纯前端，Go 零改动）。
+> 详见 releases/v4.73.0.md。
+- 记忆由抽屉迁入主区 ChatTabs（对话/轨迹/上下文/**记忆**）；左侧记忆按钮
+  （展开态 + 折叠态）删除，Ctrl+K「记忆面板」与 `/memory` 命令改为切主区 tab；
+- MemoryPanel 改主区卡片墙：头部卡（标题+摘要+记忆/晨报开关）、快速添加卡、
+  事实/文档/建议分段控件（TabButton 改胶囊分段）、事实条目独立小卡；
+- 抽屉路由收敛（useDrawers 不再管理记忆）；历史 localStorage 记忆视图记忆
+  行为不依赖抽屉；vitest 223/1678、tsc/eslint 0、冒烟 200。
+
+## v4.72.0 · 删除主区「概览」标签页（2026-09-04）
+> 用户点名删除；概览承载的 Token/费用/命中率统计已由上下文页的 Token 统计 /
+> 预估费用 / 会话信息卡承载，入口移除不产生信息缺口。**绑定面 561 零变更**
+> （纯前端，Go 零改动）。详见 releases/v4.72.0.md。
+- ChatTabs 由 4 tab 收敛为 3 tab（对话/轨迹/上下文）；删除 OverviewPanel
+  容器组件与命令面板「概览面板」条目；历史 localStorage 选中 overview 自动
+  回落「对话」；底层 StatsPanel 统计模块暂留未接线（彻底清理另行处理）；
+- tsc -b/eslint 0、vitest 223/1677、冒烟 200。
+
+## v4.71.0 · 上下文页卡片化：8 统计小卡 · 行卡化（2026-09-04）
+> 用户点名「上下文统计是 8 个小卡片，不是 1 张大卡」；对照参考图后不逐像素
+> 复刻外部插件，按自研规划落地（redesign-existing-projects + ui-ux-pro-max +
+> ds-vision 读图）。**绑定面 561 零变更**（纯前端，Go 零改动）。
+> 详见 releases/v4.71.0.md。
+- 8 个统计项各自成独立小卡（`.ctx-tile`，2→4→8 列响应式），删除「1 张大卡 8 格」；
+- Token/耗时/会话信息三大仪表卡带图标章卡头；事件/文件活动/浏览器节点行
+  全部改独立圆角卡行（`.ctx-row`），细分隔线移除；
+- 卡片表面抬升 surface-container + 顶部内高光，零硬编码色值；三语死键
+  contextview.statsTitle/statsHint 删除；
+- tsc -b/eslint 0、vitest 224/1683、冒烟 200。
+
 ## v4.70.0 · 上下文页视觉重设计：数字层级 · 构成强调 · 仪表化（2026-09-04）
 > v4.69 交互精修静态不可见（承认），本轮改为肉眼可见的视觉重设计，逐项对齐
 > dsh-context styles.css 实测数值。**绑定面 561 零变更**（纯前端，Go 零改动）。

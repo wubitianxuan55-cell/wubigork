@@ -28,6 +28,26 @@ export interface CreateChapterChunkEvent {
   total?: number
 }
 
+/** 生成完成时 novelstyle 输出的 AI 味检测结果（0-100，越高越 AI 味）。 */
+export interface AiTasteIssue {
+  start: number
+  end: number
+  reason: string
+  severity: string
+  suggestion?: string
+}
+export interface AiTasteResult {
+  score: number
+  issues: AiTasteIssue[]
+  /** story-deslop 确定性定点重写结果（仅当生成时启用且有改善时存在）。 */
+  deSlop?: {
+    beforeScore?: number
+    afterScore?: number
+    changes?: unknown[]
+    punctFixed?: number
+  }
+}
+
 export interface CreateChapterDoneEvent {
   type: 'done'
   chapterNum?: number
@@ -36,6 +56,7 @@ export interface CreateChapterDoneEvent {
   summary?: string
   nodeId?: string
   total?: number
+  aiTaste?: AiTasteResult
 }
 
 export interface CreateChapterErrorEvent {
@@ -73,6 +94,34 @@ function str(value: unknown): string | undefined {
   return typeof value === 'string' ? value : undefined
 }
 
+/** 校验 novelstyle 返回的 AI 味结果；畸形/缺 score 时返回 undefined（不阻断 done）。 */
+function parseAiTaste(value: unknown): AiTasteResult | undefined {
+  if (!isRecord(value)) return undefined
+  const score = num(value.score)
+  if (score === undefined) return undefined
+  const issues = Array.isArray(value.issues) ? value.issues.filter(isRecord) : []
+  let deSlop: AiTasteResult['deSlop'] | undefined
+  if (isRecord(value.deSlop)) {
+    deSlop = {
+      beforeScore: num(value.deSlop.beforeScore),
+      afterScore: num(value.deSlop.afterScore),
+      punctFixed: num(value.deSlop.punctFixed),
+      changes: Array.isArray(value.deSlop.changes) ? value.deSlop.changes : [],
+    }
+  }
+  return {
+    score,
+    issues: issues.map((i) => ({
+      start: num(i.start) ?? 0,
+      end: num(i.end) ?? 0,
+      reason: str(i.reason) ?? '',
+      severity: str(i.severity) ?? 'info',
+      suggestion: str(i.suggestion),
+    })),
+    deSlop,
+  }
+}
+
 /** 把任意事件负载解析为受校验的判别联合事件；非流事件/畸形负载返回 null。 */
 export function parseCreateChapterEvent(payload: unknown): CreateChapterStreamEvent | null {
   if (!isRecord(payload)) return null
@@ -104,6 +153,7 @@ export function parseCreateChapterEvent(payload: unknown): CreateChapterStreamEv
         summary: str(payload.summary),
         nodeId: str(payload.nodeId),
         total: num(payload.total),
+        aiTaste: parseAiTaste(payload.aiTaste),
       }
     case 'error':
       return { type, error: str(payload.error) }
