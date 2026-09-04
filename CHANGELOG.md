@@ -1,3 +1,9 @@
+## v4.87.0 · 统一 diff 渲染升级：改蓝配对 · 行内字符高亮 · 上下文折叠（2026-09-05）
+> 双源蒸馏规划阶段二 2c；**绑定面 578 零变更**（纯前端刀）。详见 releases/v4.87.0.md。
+- **diffRender.ts 新**（纯函数展示模型）：①改蓝配对——相邻删块+增块按行两两配对（min(删,增) 对），配对行蓝底替代红/绿并带 data-pair 标记，余量保持红/绿，交错输入先规范化为先删后增；②行内字符高亮——配对行做字符级 LCS（240 字上限防撑爆），变化片段独立着色、未变片段正常；③上下文折叠——连续 ctx 超过 keep×2（3×2）行时收起中段为「已折叠 N 行（点击展开）」占位，fold 项携带被收起行、展开后就地渲染。语法着色留阶段三 CodeMirror（边界成文）。
+- **ChangesDiff 升级**：配对 → 折叠 → 渲染管线接入；三个数据源（变更面板 LCS、Git 面板 unified diff、后续归入的 docx/xlsx 对比）共用同一查看器。既有行为兼容：独立增删行红绿令牌不变、300 行截断与 content/none 降级语义不变。
+- 测试：diffRender +8（配对/余量/纯增删/交错规范化/字符分段/超长退化/折叠阈值/透传）+ ChangesDiff +2（data-pair 蓝染替代红绿断言更新、折叠占位点击展开）；vitest 226/1741、Go 全量 0 FAIL、tsc -b/eslint 0、drift PASS（578）、?mock=1 走查通过（折叠占位/展开后行渲染/配对标记三断言；截图通道沿例故障如实记录）。
+
 ## v4.86.0 · Git 面板最小集：status/diff/stage/commit/history（2026-09-05）
 > 双源蒸馏规划阶段二 2b；决策门 D3 采纳推荐默认（单仓库、无 push/pull/fetch，v4.78 采纳 D1 推荐默认同款先例）；**绑定面 571→578**（+GaeaGitStatus/GaeaGitDiff/GaeaGitStage/GaeaGitUnstage/GaeaGitDiscard/GaeaGitCommit/GaeaGitLog，默认落 office 门面）。详见 releases/v4.86.0.md。
 - **Go**（gaea_git.go 新）：执行 git CLI（exec 列表无 shell 注入面，仓库锚定 gaeaCwd）；status=porcelain v1（分支/ahead/behind/X|Y 两列展开为 staged/untracked/deleted/modified/renamed）；diff=unified 文本（--no-color，staged 走 --cached）；commit 只提交暂存区（不代 add），空说明拒绝，返回短 hash；discard=checkout --（破坏性，前端两击确认）；log=NUL 分隔 pretty format；非仓库/git 缺失诚实错误。

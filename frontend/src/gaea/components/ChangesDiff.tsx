@@ -1,4 +1,6 @@
+import { useState } from "react";
 import type { ChangeDiff } from "../lib/planDiff";
+import { charSegments, foldContext, pairModifications, type DiffPresentRow } from "../lib/diffRender";
 
 // ChangesDiff —「变更」tab 的行级红绿 diff 渲染（v4.25 变更 tab diff 化）。
 //
@@ -8,47 +10,128 @@ import type { ChangeDiff } from "../lib/planDiff";
 //
 // How: 复用 lib/diff.ts 的 DiffRow（ctx|add|del），配色走 styles.css 的
 // --add/--del diff 令牌；行数超上限折叠并标注截断，避免大 diff 撑爆面板。
+//
+// v4.87「2c 统一 diff 渲染升级」：改蓝配对（相邻删块+增块按行配对成
+// 「改动」对，蓝底替代红/绿）+ 行内字符高亮（配对行内变化片段加删除/
+// 新增强调）+ 上下文折叠（连续 ctx 行中段收起可展开）。三个数据源
+// （变更面板 LCS、Git 面板 unified diff、后续归入的 docx/xlsx 对比）
+// 共用本查看器。语法着色留阶段三（CodeMirror）。
 
 // 单 hunk 最大渲染行数：超出截断（LCS 全量行可能上万）。
 const MAX_ROWS = 300;
 // content 预览最大字符数（超出截断并标注）。
 const MAX_CONTENT_CHARS = 4000;
 
-function DiffRows({ rows }: { rows: ChangeDiff["hunks"][number]["rows"] }) {
-  const shown = rows.slice(0, MAX_ROWS);
+// 配对行内片段着色：changed 片段加删除/新增强调，未变片段正常。
+function Segments({ segs, side }: { segs: { text: string; changed: boolean }[]; side: "old" | "new" }) {
   return (
-    <div className="font-mono text-[10.5px] leading-[1.6] rounded-md overflow-hidden border border-border-soft">
-      {shown.map((r, i) => (
-        <div
-          key={i}
-          className="flex whitespace-pre-wrap break-all"
-          style={{
-            background: r.type === "add" ? "var(--add-bg)" : r.type === "del" ? "var(--del-bg)" : "transparent",
-          }}
-        >
+    <>
+      {segs.map((s, i) =>
+        s.changed ? (
           <span
-            className="w-4 shrink-0 text-center select-none opacity-70"
-            style={{ color: r.type === "add" ? "var(--add-fg)" : r.type === "del" ? "var(--del-fg)" : "inherit" }}
-          >
-            {r.type === "add" ? "+" : r.type === "del" ? "-" : " "}
-          </span>
-          <span
-            className="flex-1 min-w-0 pr-2"
+            key={i}
             style={{
-              color: r.type === "add" ? "var(--add-fg)" : r.type === "del" ? "var(--del-fg)" : "var(--md-sys-color-text-secondary)",
+              background: side === "old" ? "var(--del-bg)" : "var(--add-bg)",
+              color: side === "old" ? "var(--del-fg)" : "var(--add-fg)",
+              borderRadius: 2,
             }}
           >
-            {r.text === "" ? " " : r.text}
+            {s.text}
           </span>
-        </div>
-      ))}
-      {rows.length > MAX_ROWS && (
+        ) : (
+          <span key={i}>{s.text}</span>
+        ),
+      )}
+    </>
+  );
+}
+
+// 单 hunk 展示行（含配对蓝染与折叠占位）。
+function PresentRows({ present }: { present: DiffPresentRow[] }) {
+  // 折叠块展开集合（展开后原行就地显示，不再收起；行键=序列下标）。
+  const [unfolded, setUnfolded] = useState<Set<number>>(() => new Set());
+
+  const shownAll = present.slice(0, MAX_ROWS);
+  return (
+    <div className="font-mono text-[10.5px] leading-[1.6] rounded-md overflow-hidden border border-border-soft">
+      {shownAll.map((p, i) => {
+        if (p.kind === "fold") {
+          if (!unfolded.has(i)) {
+            return (
+              <button
+                key={i}
+                type="button"
+                data-testid="diff-fold-toggle"
+                className="w-full cursor-pointer border-0 bg-bg-soft/60 px-2 py-1 text-center text-[10px] text-fg-faint hover:text-fg"
+                onClick={() => setUnfolded((cur) => new Set(cur).add(i))}
+              >
+                ⋯ 已折叠 {p.count} 行未改动上下文（点击展开）
+              </button>
+            );
+          }
+          // 展开态：原上下文行就地渲染。
+          return p.rows.map((r, k) => (
+            <div key={`${i}-${k}`} className="flex whitespace-pre-wrap break-all" style={{ background: "transparent" }}>
+              <span className="w-4 shrink-0 text-center select-none opacity-70"> </span>
+              <span className="flex-1 min-w-0 pr-2" style={{ color: "var(--md-sys-color-text-secondary)" }}>
+                {r.text === "" ? " " : r.text}
+              </span>
+            </div>
+          ));
+        }
+        const r = p.row;
+        const paired = p.pairOld !== undefined && p.pairNew !== undefined;
+        // 配对成功（old/new 两行都在）→ 改蓝；未配对的独立增删保持红/绿。
+        const bg = paired
+          ? "color-mix(in srgb, var(--gaea-glow) 10%, transparent)"
+          : r.type === "add"
+            ? "var(--add-bg)"
+            : r.type === "del"
+              ? "var(--del-bg)"
+              : "transparent";
+        const fg = paired
+          ? "var(--md-sys-color-text)"
+          : r.type === "add"
+            ? "var(--add-fg)"
+            : r.type === "del"
+              ? "var(--del-fg)"
+              : "var(--md-sys-color-text-secondary)";
+        return (
+          <div
+            key={i}
+            data-pair={paired ? (r.type === "del" ? "old" : "new") : undefined}
+            className="flex whitespace-pre-wrap break-all"
+            style={{ background: bg }}
+          >
+            <span
+              className="w-4 shrink-0 text-center select-none opacity-70"
+              style={{ color: r.type === "add" ? "var(--add-fg)" : r.type === "del" ? "var(--del-fg)" : "inherit" }}
+            >
+              {r.type === "add" ? "+" : r.type === "del" ? "-" : " "}
+            </span>
+            <span className="flex-1 min-w-0 pr-2" style={{ color: fg }}>
+              {paired && r.type === "del"
+                ? <Segments segs={charSegments(p.pairOld!, p.pairNew!).oldSegs} side="old" />
+                : paired && r.type === "add"
+                  ? <Segments segs={charSegments(p.pairOld!, p.pairNew!).newSegs} side="new" />
+                  : r.text === "" ? " " : r.text}
+            </span>
+          </div>
+        );
+      })}
+      {present.length > MAX_ROWS && (
         <div className="px-2 py-1 text-[10px] text-fg-faint bg-bg-soft/60">
-          已截断：共 {rows.length} 行，仅展示前 {MAX_ROWS} 行（可在预览中查看完整文件）
+          已截断：共 {present.length} 行，仅展示前 {MAX_ROWS} 行（可在预览中查看完整文件）
         </div>
       )}
     </div>
   );
+}
+
+function DiffRows({ rows }: { rows: ChangeDiff["hunks"][number]["rows"] }) {
+  // 2c：配对 → 上下文折叠。
+  const present = foldContext(pairModifications(rows));
+  return <PresentRows present={present} />;
 }
 
 export function ChangesDiff({ diff }: { diff: ChangeDiff }) {

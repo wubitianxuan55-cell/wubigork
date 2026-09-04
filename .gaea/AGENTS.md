@@ -6,10 +6,11 @@
 ## 版本状态（顶部速览）
 
 - **下会话待办（2026-09-05 收档，详见 progress.md「下会话续做」）**：
-  **蒸馏规划阶段一、二.5 与二 2a/2b 全部收口**（v4.78~v4.86），下一刀
-  候选：2c 统一 diff 渲染升级、2.5e /context 弹层（可与「剩余上下文 %
-  常驻徽标」合并）、阶段三（均拍板）；中期候选（成本费率 hover/终止
-  级联/失败子代理可恢复）见 docs/market-research-2026-09-05.md。本会话另落 GitHub 市场调研三路
+  **蒸馏规划阶段一、二.5 与二 2a/2b/2c 全部收口**（v4.78~v4.87），剩余
+  候选均为拍板项：2.5e /context 弹层（可与「剩余上下文 % 常驻徽标」
+  合并）、阶段三 3a CodeMirror（可带语法着色）/3b Mermaid strict/3c 人工
+  沙箱浏览器；中期候选（成本费率 hover/终止级联/失败子代理可恢复）见
+  docs/market-research-2026-09-05.md；docx/xlsx 对比迁移 ChangesDiff 另刀。本会话另落 GitHub 市场调研三路
   （docs/research-2026-09-05/）+ 合成版 market-research-2026-09-05.md +
   长期规划回填（蒸馏规划 §7/§3.4 + gaea-nextgen-roadmap）。
   **长期蒸馏规划待拍板**（D1-D6 决策门 + 阶段起点）——双源规划文档
@@ -18,7 +19,12 @@
   （浏览器对比上一步/工具来源 chip/图片卡/文件活动行增量）；TaskCenter
   推送式实时输出流（现轮询 tail，独立刀）；老账（run_skill AllowedTools
   真机观察、pptx 真编辑、Verifier 逐页缩略图、队列非唯一命中交互式确认）。
-- **最新发布：v4.86.0（2026-09-05）「Git 面板最小集」**——2b 刀，D3 采纳
+- **最新发布：v4.87.0（2026-09-05）「统一 diff 渲染升级」**——2c 刀，
+  阶段二收口；绑定面 578 零变更：改蓝配对+行内字符高亮+上下文折叠
+  （diffRender 纯函数），ChangesDiff 统一查看器承接变更面板/Git 面板。
+  vitest 226/1741、Go 全量 0 FAIL、drift PASS（578）、?mock=1 DOM 走查
+  通过。详见 releases/v4.87.0.md。
+- **此前：v4.86.0（2026-09-05）「Git 面板最小集」**——2b 刀，D3 采纳
   推荐默认；绑定面 571→578（+GaeaGit*7）：Git 一级 Tab + 三分组状态/
   行内 diff/暂存/丢弃两击确认/提交门禁/历史懒加载；Go 侧 git CLI 仓库
   锚定工作区。vitest 225/1723、Go 全量 0 FAIL、drift PASS（578）、

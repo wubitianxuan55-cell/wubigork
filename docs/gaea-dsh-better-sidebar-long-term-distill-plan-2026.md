@@ -194,8 +194,13 @@ pane 工作台/文件 tab（v4.25）、任务+分工同屏（v4.53）、子代�
   （声明式清单派生）——三分组状态、unified diff 复用 ChangesDiff（2c 的
   改蓝配对/字符高亮/语法着色仍留）、暂存/取消暂存/丢弃两击确认、提交仅
   暂存区不代 add、历史懒加载；无 push/pull/fetch，worktree/子仓库另案；
-- 2c 统一 diff 渲染升级：改蓝配对 + 行内字符高亮 + 语法着色 + 上下文折叠
-  （docx/xlsx 现有 diff 归入同一查看器，不破坏既有编辑面）。
+- ~~2c 统一 diff 渲染升级~~ **已完成（v4.87.0）**：diffRender 纯函数展示
+  模型——改蓝配对（相邻删块+增块按行两两配对，蓝底替代红/绿，data-pair
+  标记）+ 行内字符高亮（配对行字符级 LCS，变化片段独立着色，240 字上限）
+  + 上下文折叠（ctx 中段收起可展开，fold 项携带被收起行）；ChangesDiff
+  统一查看器承接 变更面板 LCS + Git 面板 unified diff 两数据源；**语法
+  着色留阶段三 CodeMirror**（依赖高亮器）；docx/xlsx 对比迁移随
+  VersionTimeline 另刀。
 
 ### 阶段二.5：上下文深水区（dsh-context 源，2-3 版）
 - ~~2.5a 浏览器「对比上一步」~~ **已完成（v4.79.0）**：Go fold 请求组装点
@@ -276,6 +281,7 @@ pane 工作台/文件 tab（v4.25）、任务+分工同屏（v4.53）、子代�
 | v4.84 | HTML 沙箱预览（sandbox+CSP iframe）+ classifyExternalLink 外链分流 | html viewer + 外链协议分流 | 1c 收口，阶段一全部完成 |
 | v4.85 | 变更面板三态折叠（写入/编辑/读取）+ 类型筛选 chips | 统一文件变动（读写状态分层） | 2a 收口；读取白名单对齐 fileActionByTool |
 | v4.86 | Git 面板最小集（status/diff/stage/unstage/discard/commit/log + 一级 Tab） | git tab（地址栏/暂存/提交/历史） | 2b 收口；D3 采纳推荐默认；2c 渲染升级另刀 |
+| v4.87 | diff 渲染升级（改蓝配对/字符高亮/上下文折叠） | 统一 diff 查看器渲染 | 2c 收口（语法着色随 3a）；阶段二全部完成 |
 
 ## 8. 成功标准（长期）
 

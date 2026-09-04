@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import { ChangesDiff } from "./ChangesDiff";
 import { diffLines } from "../lib/diff";
 import type { ChangeDiff } from "../lib/planDiff";
@@ -17,9 +17,10 @@ describe("ChangesDiff 变更行 diff 渲染", () => {
     expect(rows[0].textContent).toContain("-旧标题");
     expect(rows[1].textContent).toContain("+新标题");
     expect(rows[2].textContent).toContain(" 共有");
-    // 红绿底色走 diff 令牌
-    expect((rows[0] as HTMLElement).style.background).toContain("--del-bg");
-    expect((rows[1] as HTMLElement).style.background).toContain("--add-bg");
+    // 2c 改蓝配对：del/add 成对 → 蓝底（glow 混色）替代红/绿，且带 data-pair 标记
+    expect((rows[0] as HTMLElement).getAttribute("data-pair")).toBe("old");
+    expect((rows[1] as HTMLElement).getAttribute("data-pair")).toBe("new");
+    expect((rows[0] as HTMLElement).style.background).toContain("color-mix");
   });
 
   it("kind=content：诚实降级为写入内容预览 + 降级原因，不出现红绿行", () => {
@@ -48,5 +49,46 @@ describe("ChangesDiff 变更行 diff 渲染", () => {
     );
     render(<ChangesDiff diff={{ kind: "diff", hunks: [{ rows }] }} />);
     expect(screen.getByText(/已截断：共 700 行/)).toBeTruthy();
+  });
+});
+
+describe("ChangesDiff 2c 渲染升级：改蓝配对 + 上下文折叠", () => {
+  const withPairAndFold: ChangeDiff = {
+    kind: "diff",
+    hunks: [
+      {
+        label: "demo.txt",
+        rows: [
+          { type: "ctx", text: "第一行" },
+          ...Array.from({ length: 10 }, (_, i) => ({ type: "ctx" as const, text: `上下文${i}` })),
+          { type: "del", text: "旧标题" },
+          { type: "add", text: "新标题" },
+        ],
+      },
+    ],
+  };
+
+  it("配对行带 data-pair 标记（改蓝），未配对上下文行无标记", () => {
+    const longCtx: ChangeDiff = {
+      kind: "diff",
+      hunks: [{ label: "t", rows: [{ type: "del", text: "旧标题" }, { type: "add", text: "新标题" }] }],
+    };
+    const { container } = render(<ChangesDiff diff={longCtx} />);
+    expect(container.querySelector("[data-pair='old']")).toBeTruthy();
+    expect(container.querySelector("[data-pair='new']")).toBeTruthy();
+    expect(container.querySelector("[data-pair]")).toBeTruthy();
+    // 配对行内做字符分段（多个 span）
+    expect(container.querySelector("[data-pair='old']")!.querySelectorAll("span").length).toBeGreaterThan(0);
+  });
+
+  it("长上下文折叠：折叠占位可点击展开原行", () => {
+    const { container } = render(<ChangesDiff diff={withPairAndFold} />);
+    const toggles = container.querySelectorAll("[data-testid='diff-fold-toggle']");
+    expect(toggles.length).toBe(1);
+    expect(toggles[0]!.textContent).toContain("已折叠 5 行"); // 11 ctx - 3*2
+    expect(screen.queryByText("上下文4")).toBeNull();
+    fireEvent.click(toggles[0]!);
+    expect(screen.getByText("上下文4")).toBeTruthy();
+    expect(container.querySelectorAll("[data-testid='diff-fold-toggle']").length).toBe(0);
   });
 });
