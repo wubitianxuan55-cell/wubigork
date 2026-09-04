@@ -14,6 +14,23 @@
 > v4.44.0 三刀；小说板块 v4.43.0 四刀；微信助手
 > 三刀 v4.39.0-v4.42.0——绑定面 557 零变更）
 
+## 下会话续做（待办清单，2026-09-04 收档）
+
+- **实机验收（v4.62.2～v4.64.1 六版连发，均未实机回归）**：①主对话实时
+  过程显示（EventsOff 连坐修复）②三路子代理并行（本地模型推理服务端仍
+  排队，工具段重叠；云端全并行）③task/run_skill 卡单击直开会话 tab
+  ④子代理 tab 与主对话同款渲染（AssistantMessage/ToolCard）⑤mt_ 有界
+  渲染+递归拆包（含历史转录）⑥Side Chat 式追问（输入框/乐观上屏/守卫）。
+- **dsh 剩余借鉴（按价值）**：后台任务实时输出流+退出码+强杀；追问会话
+  「保存为新会话」提升（GaeaFork 入口已有）；追问失败原因 tab 内联展示+
+  重试按钮；autoOpenJobs/自动展开偏好进设置中心 UI（当前 localStorage
+  gaea.tasks.autoOpenSubagent 默认开）。
+- **store 迁移**：SubagentsPanel / Sidebar 子行迁共享 subagentRunsStore
+  （自有加载/错误/重试态需一并设计）。
+- **老账**：run_skill AllowedTools 真机观察；releases/README.md 索引治理；
+  pptx 真编辑；Verifier 通道 B 逐页缩略图；子代理队列非唯一命中交互式
+  确认。
+
 ## 最新发布：v4.64.1（2026-09-04）「修复：mt_ 信封双层嵌套转义墙」
 
 - 用户实机截图复检发现 mt_ 输出仍是信封转义墙：信封**双层嵌套**（外层
