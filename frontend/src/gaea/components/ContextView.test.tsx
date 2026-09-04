@@ -144,6 +144,64 @@ describe("ContextView 上下文页卡片墙（v4.71 卡片化）", () => {
     expect(screen.getByText(/占窗口 4%/)).toBeTruthy();
   });
 
+  it("v4.79 对比上一步：请求详情逐类 signed delta 徽标 + 跨压缩近似标注", async () => {
+    const withDelta: ContextTimeline = {
+      ...TIMELINE,
+      requests: [
+        {
+          ...TIMELINE.requests[0],
+          delta: {
+            items: 3,
+            tokens: 1500,
+            approx: true,
+            byCat: [
+              { cat: "user", items: 1, tokens: 800 },
+              { cat: "assistant", items: 1, tokens: 500 },
+              { cat: "tool", items: 1, tokens: 200 },
+            ],
+          },
+        },
+      ],
+    };
+    contextViewMock.mockResolvedValue(withDelta);
+    const { ContextView } = await import("./ContextView");
+    renderT(<ContextView running={false} />);
+    // v4.69 默认选中最新请求 → delta 条随详情内联展示
+    const strip = await screen.findByTestId("ctx-delta-strip");
+    expect(strip).toBeTruthy();
+    expect(strip.textContent).toContain("较上一步");
+    // 合计 +1.5k（绿）+ 跨压缩近似标注
+    expect(strip.textContent).toContain("+1.5k");
+    expect(strip.textContent).toContain("跨压缩，近似");
+    // 逐类徽标：短名 + signed 项数/tokens（作用域限 delta 条，防构成卡图例同名干扰）
+    expect(strip.textContent).toContain("用户");
+    expect(strip.textContent).toContain("+1·+800");
+    expect(strip.textContent).toContain("助手");
+    expect(strip.textContent).toContain("工具结果");
+  });
+
+  it("v4.79 对比上一步：首个请求显示基线说明，无变化显示相同", async () => {
+    const firstOnly: ContextTimeline = {
+      ...TIMELINE,
+      requests: [
+        { ...TIMELINE.requests[0], delta: { items: 5, tokens: 2100, first: true, byCat: [{ cat: "system", items: 1, tokens: 2100 }] } },
+      ],
+    };
+    contextViewMock.mockResolvedValue(firstOnly);
+    const { ContextView } = await import("./ContextView");
+    renderT(<ContextView running={false} />);
+    expect(await screen.findByTestId("ctx-delta-strip")).toBeTruthy();
+    expect(screen.getByText("首个请求（对比基线=空）")).toBeTruthy();
+
+    const noChange: ContextTimeline = {
+      ...TIMELINE,
+      requests: [{ ...TIMELINE.requests[0], delta: { items: 0, tokens: 0 } }],
+    };
+    contextViewMock.mockResolvedValue(noChange);
+    renderT(<ContextView running={false} />);
+    expect(await screen.findByText("与上一步相同")).toBeTruthy();
+  });
+
   it("事件筛选：dsh 多选语义（全亮 → 单类 → 再点恢复全选）", async () => {
     const { ContextView } = await import("./ContextView");
     renderT(<ContextView running={false} />);

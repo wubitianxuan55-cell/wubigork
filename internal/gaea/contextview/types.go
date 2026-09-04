@@ -51,6 +51,32 @@ type RequestRecord struct {
 	// Estimated 标记该请求在回合结束时未见 usage 事件，按当前估算分类关闭
 	// （旧日志/无 usage 提供方；诚实标注「估算」，不伪造用量数字）。
 	Estimated bool `json:"estimated,omitempty"`
+
+	// Delta 是「对比上一步」（dsh-context 同名能力的 Go 折叠版）：该请求相对
+	// 上一次请求的模型可见 surface 净变化；首个请求 First=true（基线=空）。
+	// 快照点与 Category 同拍（request_header 组装时；旧日志退化在 usage 关闭
+	// 时），保证 delta 与分类构成永远自洽。
+	Delta *RequestDelta `json:"delta,omitempty"`
+}
+
+// CatDelta 是单个分类在「对比上一步」中的净变化（有变化才进 ByCat）。
+type CatDelta struct {
+	Cat    string `json:"cat"`
+	Items  int64  `json:"items,omitempty"`
+	Tokens int64  `json:"tokens"`
+}
+
+// RequestDelta 是请求间 surface 差分。Signed：+=新增/膨胀，−=移除/瘦身。
+// 口径：system/tools 取最新 request_header 的整体估算（节点只在变化时入列，
+// 旧头不回收，逐条聚合会重计历史头）；user/inject/assistant/tool 取活节点
+// 逐条聚合。两次快照之间发生过压缩（compact）时 Approx=true——差分基线被
+// 结构性改写，前端标注「近似」（对齐 dsh 压缩后步骤的诚实标注）。
+type RequestDelta struct {
+	Items  int64      `json:"items"`            // 净项数变化（+N/−N 条）
+	Tokens int64      `json:"tokens"`           // 净 token 变化
+	ByCat  []CatDelta `json:"byCat,omitempty"`  // 有变化的分类，按 |tokens| 降序（并列按名称稳定排序）
+	Approx bool       `json:"approx,omitempty"` // 跨压缩：基线结构性变化，近似
+	First  bool       `json:"first,omitempty"`  // 首个请求：基线=空，差值即全量构成
 }
 
 // ContextEvent 是一次上下文变化（注入/压缩/剪枝/切换/模式）。

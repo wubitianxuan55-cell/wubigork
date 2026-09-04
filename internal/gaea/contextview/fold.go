@@ -97,6 +97,10 @@ type folding struct {
 	nodes   []SurfaceNode
 	archive []SurfaceNode
 
+	// ─── 对比上一步（per-request surface 快照）状态：与上面各字段同趟维护 ───
+	prevSurface *surfaceSnapshot // 上一次请求快照点（nil=尚无基线，首个请求 First）
+	compactMark int64            // 最近一次压缩事件 seq（快照间变化=Approx 近似）
+
 	requests []RequestRecord
 	events   []ContextEvent
 	stats    Stats
@@ -243,6 +247,8 @@ func (f *folding) applyHeader(e session.LogEntry) {
 	if rec.BriefResp == "" {
 		rec.BriefResp = f.lastAssistant
 	}
+	// 对比上一步：快照点与 Category 同拍（header 组装时），delta 与分类构成自洽。
+	f.attachRequestDelta(&rec)
 	f.pending = &rec
 }
 
@@ -466,6 +472,10 @@ func (f *folding) applyUsage(e session.LogEntry) {
 		if rec.BriefResp == "" {
 			rec.BriefResp = f.lastAssistant
 		}
+		// 旧日志无 request_header 的退化路径：快照点退到 usage 关闭时（该步
+		// 输出已入 surface，与 header 路径口径有差——诚实近似，delta 同拍
+		// Category，仍自洽）。
+		f.attachRequestDelta(rec)
 	} else {
 		rec.Step = f.step
 		rec.Ts = e.Ts
@@ -544,6 +554,9 @@ func (f *folding) applyCompaction(e session.LogEntry) {
 		Step:  f.step,
 		Ts:    e.Ts,
 	})
+	// 对比上一步：压缩改写差分基线（被压节点移入归档），其后首个请求的
+	// delta 标 Approx 近似。
+	f.compactMark = e.Seq
 }
 
 // ─── 耗时折叠（对齐 dsh-context TimingTotals 的诚实近似版） ──────────
@@ -723,6 +736,87 @@ func (f *folding) current() Category {
 		Assistant: f.assistantTok,
 		Tool:      f.toolTok,
 	}
+}
+
+// ─── 对比上一步（per-request surface 快照与差分） ───────────────────
+
+// surfaceSnapshot 是一次请求快照点的活节点聚合（项数/token 按六分类）。
+type surfaceSnapshot struct {
+	items       map[string]int64
+	tokens      map[string]int64
+	compactMark int64
+}
+
+// catDeltaOrder 是差分遍历的分类顺序（稳定，不依赖 map 迭代序）。
+var catDeltaOrder = [...]string{catSystem, catTools, catUser, catInject, catAssistant, catTool}
+
+// snapshotSurface 聚合当前模型可见 surface。system/tools 走最新 header 的
+// 整体估算——节点只在变化时入列且旧头不回收，逐条聚合会重计历史头；
+// user/inject/assistant/tool 活节点逐条聚合（离开 surface 的节点已被移入
+// 归档，不在此列）。
+func (f *folding) snapshotSurface() *surfaceSnapshot {
+	s := &surfaceSnapshot{
+		items:       map[string]int64{},
+		tokens:      map[string]int64{},
+		compactMark: f.compactMark,
+	}
+	if f.systemTok > 0 {
+		s.items[catSystem] = 1
+		s.tokens[catSystem] = f.systemTok
+	}
+	if f.toolsTok > 0 {
+		s.items[catTools] = 1
+		s.tokens[catTools] = f.toolsTok
+	}
+	for _, n := range f.nodes {
+		if n.Cat == catSystem || n.Cat == catTools {
+			continue
+		}
+		s.items[n.Cat]++
+		s.tokens[n.Cat] += n.Tokens
+	}
+	return s
+}
+
+// attachRequestDelta 计算该请求相对上一次请求的 surface 净变化（Signed：
+// +=新增/膨胀，−=移除/瘦身），挂到 rec.Delta，并把当前 surface 记为新基线。
+// prev=nil（首个请求）时 First=true，差值即全量构成；两次快照间发生过压缩
+// 时 Approx=true（基线被结构性改写，诚实标注近似）。ByCat 只含有变化的
+// 分类，按 |tokens| 降序（并列按名称稳定排序，与 Tools 排行同纪律）。
+func (f *folding) attachRequestDelta(rec *RequestRecord) {
+	cur := f.snapshotSurface()
+	prev := f.prevSurface
+	d := &RequestDelta{First: prev == nil, Approx: prev != nil && prev.compactMark != cur.compactMark}
+	empty := surfaceSnapshot{items: map[string]int64{}, tokens: map[string]int64{}}
+	base := prev
+	if base == nil {
+		base = &empty
+	}
+	for _, c := range catDeltaOrder {
+		di := cur.items[c] - base.items[c]
+		dt := cur.tokens[c] - base.tokens[c]
+		if di == 0 && dt == 0 {
+			continue
+		}
+		d.Items += di
+		d.Tokens += dt
+		d.ByCat = append(d.ByCat, CatDelta{Cat: c, Items: di, Tokens: dt})
+	}
+	sort.SliceStable(d.ByCat, func(i, j int) bool {
+		ai, aj := d.ByCat[i].Tokens, d.ByCat[j].Tokens
+		if ai < 0 {
+			ai = -ai
+		}
+		if aj < 0 {
+			aj = -aj
+		}
+		if ai != aj {
+			return ai > aj
+		}
+		return d.ByCat[i].Cat < d.ByCat[j].Cat
+	})
+	f.prevSurface = cur
+	rec.Delta = d
 }
 
 // splitInjected 把带 "Referenced context:" 前缀的 user 消息拆为 inject 与 user。

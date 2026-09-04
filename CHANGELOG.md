@@ -1,3 +1,9 @@
+## v4.79.0 · 上下文对比上一步：逐类 signed delta · 跨压缩近似标注（2026-09-04）
+> 双源蒸馏规划阶段二.5 2.5a（收 v4.68 起三版连记 P1 欠账）；**绑定面 570 零变更**（delta 搭 GaeaContextView 既有返回结构）。详见 releases/v4.79.0.md。
+- **Go fold**：request_header 组装时聚合活节点 surface 快照（与 Category 同拍自洽；system/tools 取最新 header 整体估算，其余逐条聚合）→ `RequestDelta{Items,Tokens,ByCat,Approx,First}`：ByCat 按降幅稳定排序、跨压缩 Approx=true、首请求 First=true（基线=空）。
+- **前端**：趋势卡请求详情新增「较上一步」delta 条（合计 signed tokens + 逐类徽标 `+N项·±Nk` + `≈ 跨压缩，近似`）；i18n 三语 +5 键；dev mock 补 delta 样例。边界：历史步仅聚合级 delta，不做 dsh 式逐步节点回放（wire 载荷 + Go 权威折中，蓝图成文）。
+- 测试：fold +3（-count=2 绿）+ 组件 +2；门禁：tsc -b/eslint 0、vitest 223/1685、drift PASS（570）、?mock=1 实机走查通过（截图存 artifacts）。
+
 ## v4.78.0 · 任务强制终止收口：进程树击杀 · 两击确认（2026-09-04）
 > 双源蒸馏规划（docs/gaea-dsh-better-sidebar-long-term-distill-plan-2026.md）
 > 阶段一 1a 刀；决策门 D1 采纳推荐默认（只做任务输出+强杀，交互终端不进队列）。

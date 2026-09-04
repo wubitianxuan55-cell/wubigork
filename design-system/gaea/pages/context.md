@@ -69,3 +69,19 @@ transform，禁大面积位移动画）。
 - 红线：八块信息一条不删，只重组；六分类语义色 hex 豁免沿用 CAT_COLORS
   单源（cards/inspector 本地重声明与 ContextView 同值，改动需三处同步）。
 - 响应式：<1100px 双列回落单列；<1400px 四仪表卡回 2 列。
+
+## 对比上一步（v4.79 起）
+
+- **落点**：趋势卡内联请求详情（StepDetail）新增「较上一步」delta 条，
+  data-testid=`ctx-delta-strip`。
+- **内容**：合计 signed tokens（绿 +增 / 红 −减，与趋势「增量」模式同款
+  语义色）；逐类徽标 = 分类色点 + 浏览器短名（browse* 键）+ `+N项·±Nk`
+  （有变化才出现，按 |tokens| 降序）；跨压缩标 `≈ 跨压缩，近似`（title
+  说明口径）；首个请求显示「首个请求（对比基线=空）」；零变化显示
+  「与上一步相同」。
+- **数据口径**：Go fold 在 request_header 组装时聚合活节点 surface（与
+  Category 同拍，delta 与构成自洽）；system/tools 取最新 header 整体估算
+  （历史头不回收，逐条会重计）；user/inject/assistant/tool 逐条聚合；
+  快照间发生 compact → Approx=true。
+- **红线**：浏览器节点列表仍只展示当前 surface（历史步仅聚合级 delta，
+  不做逐步节点回放——线载重量与 Go 权威折中，dsh 逐步回放不照搬）。

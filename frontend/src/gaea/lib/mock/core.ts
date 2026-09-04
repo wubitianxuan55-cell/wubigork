@@ -56,6 +56,15 @@ export function buildCore(s: MakeMockState): CoreMethods {
             briefUser: "grep C:\\AI\\wubigrok\\internal\\gaea\\config",
             briefResp: "read C:\\AI\\wubigrok\\internal\\gaea\\config\\config.go",
             promptTokens: 350600, outputTokens: 93, cacheHitTokens: 350200, cacheMissTokens: 400,
+            // v4.79 对比上一步：请求详情 delta 条走查样例（跨压缩近似 + 逐类增量）
+            delta: {
+              items: 3, tokens: 1500, approx: true,
+              byCat: [
+                { cat: "user", items: 1, tokens: 800 },
+                { cat: "assistant", items: 1, tokens: 500 },
+                { cat: "tool", items: 1, tokens: 200 },
+              ],
+            },
           },
         ],
         events: [

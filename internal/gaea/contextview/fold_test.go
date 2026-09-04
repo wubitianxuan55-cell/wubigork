@@ -354,3 +354,139 @@ func TestPruneEvent(t *testing.T) {
 		t.Fatalf("prune event missing: %+v", tl.Events)
 	}
 }
+
+// ─── 对比上一步（RequestDelta） ───────────────────────────────────
+
+// TestFoldRequestDeltaFirst：首个请求 First=true，差值=全量构成（基线=空）。
+func TestFoldRequestDeltaFirst(t *testing.T) {
+	sys := strings.Repeat("s", 120)
+	entries := []session.LogEntry{
+		entry(1, "turn_started", map[string]any{}),
+		entry(2, "request_header", headerPayload(sys, "read_file")),
+		entry(3, "user_message", map[string]any{"content": "请帮我看看这个文件"}),
+		entry(4, "usage", map[string]any{"promptTokens": 300, "completionTokens": 10, "turn": 1}),
+	}
+	tl := FoldTimeline(entries, 0, 0)
+	if len(tl.Requests) != 1 {
+		t.Fatalf("requests = %d, want 1", len(tl.Requests))
+	}
+	d := tl.Requests[0].Delta
+	if d == nil {
+		t.Fatal("首请求应有 delta")
+	}
+	if !d.First {
+		t.Fatal("首请求应标记 First")
+	}
+	if d.Approx {
+		t.Fatal("未跨压缩不应标记 Approx")
+	}
+	if d.Items <= 0 || d.Tokens <= 0 {
+		t.Fatalf("首请求差值应为全量构成: %+v", d)
+	}
+	// ByCat 按 |tokens| 降序
+	for i := 1; i < len(d.ByCat); i++ {
+		ai, aj := abs64(d.ByCat[i-1].Tokens), abs64(d.ByCat[i].Tokens)
+		if ai < aj || (ai == aj && d.ByCat[i-1].Cat > d.ByCat[i].Cat) {
+			t.Fatalf("ByCat 排序错误: %+v", d.ByCat)
+		}
+	}
+}
+
+// TestFoldRequestDeltaSecond：第二个请求相对第一个的净变化——新增的 user/
+// assistant/tool 内容记正增量，system/tools 未变不出现在 ByCat。
+// 顺序按 live 日志（user 落盘先于本回合 header）。
+func TestFoldRequestDeltaSecond(t *testing.T) {
+	sys := strings.Repeat("s", 120)
+	entries := []session.LogEntry{
+		entry(1, "turn_started", map[string]any{}),
+		entry(2, "user_message", map[string]any{"content": "第一问"}),
+		entry(3, "request_header", headerPayload(sys, "read_file")),
+		entry(4, "usage", map[string]any{"promptTokens": 200, "completionTokens": 10, "turn": 1}),
+		entry(5, "assistant_message", map[string]any{"text": "回答内容足够长以产生估算 tokens"}),
+		entry(6, "tool_dispatch", map[string]any{"id": "t1", "name": "ls", "args": `{}`, "partial": false}),
+		entry(7, "tool_result", map[string]any{"id": "t1", "name": "ls", "output": "file-a.go file-b.go"}),
+		entry(8, "user_message", map[string]any{"content": "第二问再详细一点"}),
+		entry(9, "request_header", headerPayload(sys, "read_file")),
+		entry(10, "usage", map[string]any{"promptTokens": 400, "completionTokens": 10, "turn": 2}),
+	}
+	tl := FoldTimeline(entries, 0, 0)
+	if len(tl.Requests) != 2 {
+		t.Fatalf("requests = %d, want 2", len(tl.Requests))
+	}
+	d := tl.Requests[1].Delta
+	if d == nil || d.First {
+		t.Fatalf("第二请求 delta 错误: %+v", d)
+	}
+	if d.Approx {
+		t.Fatal("未跨压缩不应标记 Approx")
+	}
+	byCat := map[string]CatDelta{}
+	for _, c := range d.ByCat {
+		byCat[c.Cat] = c
+	}
+	// system/tools 两请求间未变，不应进 ByCat
+	if _, ok := byCat[catSystem]; ok {
+		t.Fatalf("system 未变不应进 ByCat: %+v", d.ByCat)
+	}
+	if _, ok := byCat[catTools]; ok {
+		t.Fatalf("tools 未变不应进 ByCat: %+v", d.ByCat)
+	}
+	// 上一响应的 assistant 消息 + 工具结果 + 新 user 输入都是正增量
+	if c := byCat[catAssistant]; c.Tokens <= 0 || c.Items != 1 {
+		t.Fatalf("assistant 增量错误: %+v", c)
+	}
+	if c := byCat[catTool]; c.Tokens <= 0 || c.Items != 1 {
+		t.Fatalf("tool 增量错误: %+v", c)
+	}
+	if c := byCat[catUser]; c.Tokens <= 0 || c.Items != 1 {
+		t.Fatalf("user 增量错误: %+v", c)
+	}
+	if d.Tokens <= 0 || d.Items != 3 {
+		t.Fatalf("合计增量错误: %+v", d)
+	}
+}
+
+// TestFoldRequestDeltaApprox：两请求之间发生压缩 → 其后首个请求 delta 标
+// Approx，且被压分类的 tokens 记负增量（基线含被压内容；新输入比旧短时净
+// tokens 为负、项数净 0）。顺序按 live 日志（user 落盘先于本回合 header）。
+func TestFoldRequestDeltaApprox(t *testing.T) {
+	sys := strings.Repeat("s", 120)
+	longAsk := strings.Repeat("这是一段很长很长的用户提问，会被压缩掉。", 6)
+	entries := []session.LogEntry{
+		entry(1, "turn_started", map[string]any{}),
+		entry(2, "user_message", map[string]any{"content": longAsk}),
+		entry(3, "request_header", headerPayload(sys, "read_file")),
+		entry(4, "usage", map[string]any{"promptTokens": 500, "completionTokens": 10, "turn": 1}),
+		entry(5, "compaction_done", map[string]any{"trigger": "ratio", "summary": "摘要", "messages": 3}),
+		entry(6, "user_message", map[string]any{"content": "新问题"}),
+		entry(7, "request_header", headerPayload(sys, "read_file")),
+		entry(8, "usage", map[string]any{"promptTokens": 260, "completionTokens": 10, "turn": 2}),
+	}
+	tl := FoldTimeline(entries, 0, 0)
+	if tl.Stats.Compacts != 1 {
+		t.Fatalf("compacts = %d, want 1", tl.Stats.Compacts)
+	}
+	d := tl.Requests[1].Delta
+	if d == nil {
+		t.Fatal("应有 delta")
+	}
+	if !d.Approx {
+		t.Fatal("跨压缩请求应标记 Approx")
+	}
+	byCat := map[string]CatDelta{}
+	for _, c := range d.ByCat {
+		byCat[c.Cat] = c
+	}
+	// 旧 user 被压走：净变化 = 新 user − 旧 user，tokens 为负、项数净 0
+	c := byCat[catUser]
+	if c.Tokens >= 0 || c.Items != 0 {
+		t.Fatalf("跨压缩 user 净变化错误（应为净负 tokens、项数 0）: %+v", c)
+	}
+}
+
+func abs64(v int64) int64 {
+	if v < 0 {
+		return -v
+	}
+	return v
+}

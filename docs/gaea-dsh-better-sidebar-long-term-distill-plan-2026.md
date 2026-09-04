@@ -185,8 +185,11 @@ pane 工作台/文件 tab（v4.25）、任务+分工同屏（v4.53）、子代�
   （docx/xlsx 现有 diff 归入同一查看器，不破坏既有编辑面）。
 
 ### 阶段二.5：上下文深水区（dsh-context 源，2-3 版）
-- 2.5a 浏览器「对比上一步」：Go 侧 per-request surface 快照/归档重建 +
-  前端 signed delta 徽标与「近似」标注（收 v4.70 欠账）；
+- ~~2.5a 浏览器「对比上一步」~~ **已完成（v4.79.0）**：Go fold 请求组装点
+  surface 快照（与 Category 同拍；system/tools 最新 header 整体估算防历史
+  头重计）→ RequestDelta 逐类 signed delta + 跨压缩 Approx + 首请求 First；
+  趋势卡请求详情 delta 条。**边界**：历史步仅聚合级 delta，dsh 式逐步节点
+  回放有意不做（wire 载荷 + Go 权威折中，蓝图成文）；
 - 2.5b 工具结果与图片深读：整段调用展开（OK/error、Raw/Markdown）、图片
   缩略卡 + 图片 token 估算；来源 chip 与排序/搜索；
 - 2.5c File Activity 行级 ±增量、搜索命中行、操作日志展开跳转浏览器；
@@ -236,6 +239,7 @@ pane 工作台/文件 tab（v4.25）、任务+分工同屏（v4.53）、子代�
 | v4.72-v4.76 | 概览删除、记忆/上下文主区化、任务面板卡片化与整树折叠 | 任务页形态 | 参考图蒸馏 |
 | v4.77 | 任务自动激活补全、强制终止、窄屏策略 | 任务页自动激活 | — |
 | v4.78 | 任务进程树强杀（OnForceKill/Kill）+ 强制终止两击确认 | 任务页终止两击确认（2026-08-12 设计文档） | D1 采纳推荐默认；阶段一 1a 收口 |
+| v4.79 | 上下文对比上一步（RequestDelta 聚合级 signed delta + 近似标注） | Context Browser 对比上一轮变动 | 节点级逐步回放有意不做（蓝图成文）；阶段二.5 2.5a 收口 |
 
 ## 8. 成功标准（长期）
 

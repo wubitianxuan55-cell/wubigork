@@ -35,6 +35,17 @@ const CATS: { key: keyof ContextCategory; labelKey: DictKey }[] = [
   { key: "tool", labelKey: "contextview.catTool" },
 ];
 
+// v4.79 delta 徽标的分类短名（与浏览器组行短名同款键；surface 节点 cat 与
+// 六分类 key 同字面量）。
+const CAT_BROWSE_SHORT: Record<string, DictKey> = {
+  system: "contextview.browseSystem",
+  tools: "contextview.browseTools",
+  user: "contextview.browseUser",
+  inject: "contextview.browseInject",
+  assistant: "contextview.browseAssistant",
+  tool: "contextview.browseTool",
+};
+
 function catTotal(c: ContextCategory): number {
   return c.system + c.tools + c.user + c.inject + c.assistant + c.tool;
 }
@@ -363,6 +374,39 @@ function StepDetail({ record, window }: { record: ContextRequestRecord | null; w
         <span>{t("contextview.totalApprox", { tokens: fmtTokens(total) })}</span>
         {windowPct != null && <span>{t("contextview.windowPct", { pct: windowPct })}</span>}
       </div>
+      {/* v4.79 对比上一步（dsh 同名能力）：逐类 signed delta 徽标；跨压缩标
+          「近似」（差分基线被结构性改写）；首个请求基线=空。语义色与趋势
+          delta 模式同款（#22c55e 净增 / #ef4444 净减，hex-exempt 可视化调色板）。 */}
+      {record.delta && (
+        <div data-testid="ctx-delta-strip" className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[10.5px]">
+          <span className="shrink-0 text-fg-faint">{t("contextview.vsPrev")}</span>
+          {record.delta.first ? (
+            <span className="text-fg-dim">{t("contextview.deltaFirst")}</span>
+          ) : record.delta.items === 0 && record.delta.tokens === 0 ? (
+            <span className="text-fg-dim">{t("contextview.deltaNoChange")}</span>
+          ) : (
+            <>
+              <span className="font-mono font-medium tabular-nums" style={{ color: record.delta.tokens >= 0 ? "#22c55e" : "#ef4444" }}> {/* hex-exempt 增量语义色（与趋势 delta 模式同款：绿=净增/红=净减） */}
+                {record.delta.tokens >= 0 ? "+" : "-"}{fmtTokens(Math.abs(record.delta.tokens))}
+              </span>
+              {record.delta.approx && (
+                <span className="text-warning" title={t("contextview.deltaApproxTip")}>≈ {t("contextview.deltaApprox")}</span>
+              )}
+              {(record.delta.byCat ?? []).map((c) => (
+                <span key={c.cat} className="inline-flex items-center gap-1 text-fg-dim">
+                  <span className="h-1.5 w-1.5 shrink-0 rounded-sm" style={{ background: CAT_COLORS[c.cat] }} />
+                  {t(CAT_BROWSE_SHORT[c.cat] ?? (c.cat as DictKey))}
+                  <span className="font-mono tabular-nums">
+                    {c.items ? `${c.items > 0 ? "+" : "-"}${Math.abs(c.items)}` : ""}
+                    {c.items && c.tokens ? "·" : ""}
+                    {c.tokens ? `${c.tokens > 0 ? "+" : "-"}${fmtTokens(Math.abs(c.tokens))}` : ""}
+                  </span>
+                </span>
+              ))}
+            </>
+          )}
+        </div>
+      )}
       {record.briefUser && (
         <div className="mt-1.5 flex gap-1.5 text-[11.5px]">
           <span className="shrink-0 text-fg-faint">{t("contextview.inputLabel")}</span>

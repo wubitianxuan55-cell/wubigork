@@ -212,6 +212,23 @@ export interface ContextStats {
   costEstimate?: number;
 }
 
+// ContextCatDelta 是「对比上一步」中单个分类的净变化（有变化才出现在 byCat）。
+export interface ContextCatDelta {
+  cat: ContextSurfaceNode["cat"];
+  items?: number;
+  tokens: number;
+}
+
+// ContextRequestDelta 是请求间模型可见 surface 差分（v4.79）：+=新增/膨胀、
+// −=移除/瘦身；first=首个请求（基线=空）；approx=跨压缩（基线结构性改写，近似）。
+export interface ContextRequestDelta {
+  items: number;
+  tokens: number;
+  byCat?: ContextCatDelta[];
+  approx?: boolean;
+  first?: boolean;
+}
+
 export interface ContextRequestRecord {
   seq: number;
   ts: number;
@@ -226,6 +243,7 @@ export interface ContextRequestRecord {
   cacheHitTokens?: number;
   cacheMissTokens?: number;
   estimated?: boolean; // 回合末未见 usage，按估算分类关闭（旧日志/无用量提供方）
+  delta?: ContextRequestDelta; // 较上一步净变化（首个请求 first=true）
 }
 
 export interface ContextEvent {
