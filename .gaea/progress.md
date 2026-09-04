@@ -1,7 +1,8 @@
 # 任务进度
 
-> 最后更新: 2026-09-05（v4.91.0「CodeMirror 语法高亮编辑器」，578 零
-> 变更，阶段三 3a 收口；v4.90.0「终止级联」，578 零变更；v4.89.0
+> 最后更新: 2026-09-05（v4.92.0「Mermaid strict 安全线成文 + MemoMarkdown
+> 消毒层」，578 零变更，阶段三 3b 收口；v4.91.0「CodeMirror 语法高亮
+> 编辑器」，578 零变更；v4.89.0
 > 「成本费率 hover」，578 零变更；
 > v4.88.0「/context 居中弹层 + 常驻剩余上下文% 徽标」，578 零变更；v4.87.0「统一 diff 渲染升级」，578 零变更，
 > 阶段二收口；v4.86.0「Git 面板
@@ -27,10 +28,22 @@
   多开；中期候选见 docs/market-research-2026-09-05.md（成本费率 hover、
   终止级联、失败子代理可恢复）；docx/xlsx 对比迁移 ChangesDiff 另刀；
   Agent Network 会话跳转（GaeaContextView 按会话参数化前置）。成本费率
-  hover（v4.89）、终止级联（v4.90）、CodeMirror 编辑器（v4.91）已落地。
+  hover（v4.89）、终止级联（v4.90）、CodeMirror 编辑器（v4.91）、Mermaid
+  strict 安全线成文+MemoMarkdown 消毒层（v4.92）已落地。
 - **dsh 剩余借鉴**：2.5e /context 弹层与 Agent Network 会话跳转（拍板）。
 - **老账**：run_skill AllowedTools 真机观察；pptx 真编辑；Verifier 通道 B
   逐页缩略图；子代理队列非唯一命中交互式确认。
+
+## 最新发布：v4.92.0（2026-09-05）「Mermaid strict 安全线成文 + MemoMarkdown 消毒层」
+
+- 双源蒸馏规划阶段三 3b。绑定面 578 零变更（纯前端刀）。
+- 新增 sanitize.ts（DOMPurify）：MemoMarkdown 流式尾部接 sanitizeHtml
+  （兜底转义回归）；**Mermaid SVG 外层再消毒经实验证伪后有意不做**——
+  strict 上游已内置消毒，外层 svg profile 剥 foreignObject 文字（决策
+  成文 lib/sanitize.ts 头注）。sanitize.test +3；mock README 补 mermaid
+  样例；?mock=1 走查 labels 完整、无脚本注入。
+- 门禁：Go 全量 0 FAIL、tsc -b/eslint 0、vitest 229/1753、drift PASS（578）。
+- 详见 releases/v4.92.0.md。
 
 ## 最新发布：v4.91.0（2026-09-05）「CodeMirror 语法高亮编辑器」
 

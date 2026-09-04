@@ -1,6 +1,7 @@
 import { memo, useRef, useState, useEffect, useMemo } from "react";
 import { Markdown } from "./Markdown";
 import { escapeHtml, htmlFileLinks } from "../lib/fileLinks";
+import { sanitizeHtml } from "../lib/sanitize";
 import { openPaneFileOrPreview } from "../lib/paneFileOpen";
 
 interface MemoMarkdownProps {
@@ -142,7 +143,7 @@ export const MemoMarkdown = memo(function MemoMarkdown({ text, streaming }: Memo
       {pending && (
         <div
           className="!font-sans whitespace-pre-wrap !bg-transparent !p-0 !m-0 !text-[inherit] !border-0 leading-relaxed text-[14px]"
-          dangerouslySetInnerHTML={{ __html: renderPending(pending) }}
+          dangerouslySetInnerHTML={{ __html: sanitizeHtml(renderPending(pending)) }}
           onClick={(e) => {
             const btn = (e.target as HTMLElement).closest?.("button[data-file-preview]");
             if (btn instanceof HTMLElement) {

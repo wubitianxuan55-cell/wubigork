@@ -145,6 +145,8 @@ const MermaidBlock = memo(function MermaidBlock({ code, autoExport = true }: { c
       .then(({ svg }) => {
         if (cancelled || !ref.current) return;
         htmlDocRef.current = standaloneHtmlFromSvg(svg);
+        // 注：SVG 不做外层 DOMPurify 再消毒——mermaid strict 已内置消毒，
+        // svg profile 的外层 pass 会剥离 foreignObject 文字（3b 实验（成文））。
         ref.current.innerHTML = svg;
         const svgEl = ref.current.querySelector("svg");
         if (svgEl) {

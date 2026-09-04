@@ -1,3 +1,9 @@
+## v4.92.0 · Mermaid strict 安全线成文 + MemoMarkdown 消毒层（2026-09-05）
+> 双源蒸馏规划阶段三 3b；**绑定面 578 零变更**（纯前端刀）。详见 releases/v4.92.0.md。
+- **结论先行**：mermaid SVG **不追加**外层 DOMPurify 再消毒——mermaid v11 在 securityLevel:"strict"（本项目显式配置）下已内置 DOMPurify 消毒输出；实测（vite 页面配置矩阵 + ?mock=1 三轮走查）外层 pass 的 svg profile 必然剥离 foreignObject 内 html 标签（节点文字全失），ADD_TAGS 补救无效（svg 命名空间校验拒绝）。功能性破坏 > 边际防御收益，strict 上游为正解，决策过程成文于 lib/sanitize.ts 头注。
+- **落地**：新增 sanitize.ts（DOMPurify）+ MemoMarkdown 流式尾部 renderPending 输出接 sanitizeHtml 消毒（各分支已逐段转义，此层兜底未来回归）；sanitize.test +3（文件 chip data-file-preview 保留/转义输出惰性断言/事件属性剥离兜底）；mermaid 走查样例入 mock README.md（flowchart 渲染、labels「输入/处理/输出」完整、无 script 注入）。
+- 门禁：Go 全量 0 FAIL、tsc -b/eslint 0、vitest 229/1753、drift PASS（578）、?mock=1 走查通过（mermaid svg+labels+无脚本三断言；截图通道沿例故障如实记录）。
+
 ## v4.91.0 · CodeMirror 语法高亮编辑器（2026-09-05）
 > 双源蒸馏规划阶段三 3a（拍板项——经用户「继续」指令按列序推进，采纳懒加载方案）；**绑定面 578 零变更**（纯前端刀）。详见 releases/v4.91.0.md。
 - **依赖**：新增 codemirror@6 元包 + lang-markdown/javascript/python/json/css/html（MIT，均按需进懒加载 chunk；不引主题包——中性透明底 + defaultHighlightStyle，明暗主题均可读，无主题检测 seam）。
