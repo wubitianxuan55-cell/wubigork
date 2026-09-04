@@ -2,6 +2,7 @@ package app
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"strings"
 
@@ -28,6 +29,25 @@ func (a *App) GaeaContextView() (contextview.ContextTimeline, error) {
 	}
 	_, window := c.ContextSnapshot()
 	return contextview.FoldTimeline(entries, int64(window), 0), nil
+}
+
+// GaeaContextNodeDetail 懒加载浏览器节点的「完整调用」详情（v4.80）：按 seq
+// 回读当前会话日志（tool_result 配对 dispatch 取参数；user/assistant 取全文），
+// 不随节点列表整包下发。仅当前会话有效（与 GaeaContextView 同源）。
+func (a *App) GaeaContextNodeDetail(seq int64) (contextview.NodeDetail, error) {
+	c := gaeaCtrl()
+	if c == nil {
+		return contextview.NodeDetail{}, fmt.Errorf("会话未就绪")
+	}
+	entries, err := session.ReadEntriesFor(c.SessionPath())
+	if err != nil {
+		return contextview.NodeDetail{}, err
+	}
+	d, ok := contextview.NodeDetailFor(entries, seq)
+	if !ok {
+		return contextview.NodeDetail{}, fmt.Errorf("未找到 seq=%d 的可展开节点", seq)
+	}
+	return d, nil
 }
 
 // GaeaTrajectory 返回当前会话的轨迹时间线（dsh 轨迹标签的 Go 移植）：

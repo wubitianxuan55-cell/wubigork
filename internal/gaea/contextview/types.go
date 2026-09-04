@@ -97,7 +97,37 @@ type SurfaceNode struct {
 	Tokens int64  `json:"tokens"`
 	Text   string `json:"text,omitempty"` // 截断预览
 	Gone   *int64 `json:"gone,omitempty"` // 被压缩/剪枝取代的事件 seq
+
+	// Tool 是产生该结果的工具名（cat=tool 专有；浏览器「来源」chip）。
+	Tool string `json:"tool,omitempty"`
+	// Err 标记该工具结果为错误返回（浏览器行 error 语义点，诚实传达）。
+	Err bool `json:"err,omitempty"`
 }
+
+// NodeDetail 是浏览器节点「完整调用」详情（v4.80 懒加载：前端按 seq 经
+// GaeaContextNodeDetail 回读当前会话日志，不随列表整包下发）。
+type NodeDetail struct {
+	Seq  int64  `json:"seq"`
+	Kind string `json:"kind"` // tool_result | user_message | assistant_message
+	Ts   int64  `json:"ts,omitempty"`
+
+	// tool_result 专有：工具名 + 从配对 tool_dispatch 回读的参数 + 完整输出。
+	Tool   string `json:"tool,omitempty"`
+	Args   string `json:"args,omitempty"`
+	Output string `json:"output,omitempty"`
+	Err    string `json:"err,omitempty"`
+	// Truncated 是日志写入端即已截断（详情无法恢复全文，诚实继承标记）。
+	Truncated bool `json:"truncated,omitempty"`
+
+	// user_message / assistant_message 专有：完整正文。
+	Text string `json:"text,omitempty"`
+
+	Lines   int  `json:"lines,omitempty"`   // 正文行数（Output/Text）
+	Clamped bool `json:"clamped,omitempty"` // 详情超返回上限被截断（诚实标注）
+}
+
+// MaxDetailBytes 是单节点详情的返回上限（懒加载单点，防超大输出拖垮桥）。
+const MaxDetailBytes = 1 << 20 // 1MB
 
 // FileActivity 是一次工具调用对工作区文件的接触（「文件活动」时间线的最小
 // 单位：读/写/移动/列目录）。Path 取工具参数里的路径键，纯函数确定性提取；

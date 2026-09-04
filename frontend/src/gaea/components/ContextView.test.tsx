@@ -11,6 +11,7 @@ const renderT = (ui: ReactElement) => {
 };
 
 const contextViewMock = vi.fn();
+const contextNodeDetailMock = vi.fn();
 const subscribeAgentNetworkMock = vi.fn((cb: (n: unknown) => void) => {
   cb({
     ok: true,
@@ -22,7 +23,7 @@ const subscribeAgentNetworkMock = vi.fn((cb: (n: unknown) => void) => {
 const reloadAgentNetworkMock = vi.fn();
 
 vi.mock("../lib/bridge", () => ({
-  app: { ContextView: contextViewMock },
+  app: { ContextView: contextViewMock, ContextNodeDetail: contextNodeDetailMock },
   openExternal: vi.fn(),
   onEvent: vi.fn(() => () => {}),
 }));
@@ -66,6 +67,16 @@ describe("ContextView 上下文页卡片墙（v4.71 卡片化）", () => {
   beforeEach(() => {
     contextViewMock.mockReset();
     contextViewMock.mockResolvedValue(TIMELINE);
+    contextNodeDetailMock.mockReset();
+    contextNodeDetailMock.mockResolvedValue({
+      seq: 4,
+      kind: "tool_result",
+      ts: 1750000004,
+      tool: "read_file",
+      args: '{"path":"internal/gaea/config/config.go"}',
+      output: "```go\npackage main\nfunc Load() error {\n\treturn loadFromDisk()\n}\n```\n",
+      lines: 5,
+    });
     subscribeAgentNetworkMock.mockClear();
     reloadAgentNetworkMock.mockClear();
   });
@@ -264,6 +275,57 @@ describe("ContextView 上下文页卡片墙（v4.71 卡片化）", () => {
     fireEvent.click(screen.getByText(/归档 1/));
     expect(screen.getByText(/旧的一轮用户输入内容/)).toBeTruthy();
     expect(screen.getAllByText("已压缩").length).toBeGreaterThan(0);
+  });
+
+  it("v4.80 深读：工具行来源 chip/error 点 + 完整调用懒加载（Raw/渲染切换）", async () => {
+    const withTools: ContextTimeline = {
+      ...TIMELINE,
+      nodes: [
+        { seq: 1, cat: "system", tokens: 2100, text: "你是 gaea……" },
+        { seq: 4, cat: "tool", tokens: 800, tool: "read_file", text: "package main 输出预览…" },
+        { seq: 5, cat: "tool", tokens: 120, tool: "bash", err: true, text: "[error] denied by policy" },
+      ],
+      archive: [],
+    };
+    contextViewMock.mockResolvedValue(withTools);
+    const { ContextView } = await import("./ContextView");
+    renderT(<ContextView running={false} />);
+    expect(await screen.findByText("上下文浏览器")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /工具结果/ }));
+    // 来源 chip（工具名）与 error 语义点
+    expect(await screen.findByText("read_file")).toBeTruthy();
+    expect(screen.getByText("bash")).toBeTruthy();
+    expect(screen.getByText("✗ error")).toBeTruthy();
+    // 完整调用懒加载：点开 seq=4 行 → 详情面板（mock 返回样例）
+    const detailBtns = screen.getAllByTestId("ctx-node-detail-btn");
+    fireEvent.click(detailBtns[0]);
+    const panel = await screen.findByTestId("ctx-node-detail");
+    expect(panel.textContent).toContain("OK");
+    expect(panel.textContent).toContain("5 行");
+    expect(panel.textContent).toContain("loadFromDisk");
+    // Raw → 渲染切换（Markdown 渲染出代码块）
+    fireEvent.click(screen.getByText("渲染"));
+    expect(panel.querySelector("pre, code")).toBeTruthy();
+  });
+
+  it("v4.80 分类内排序：大小序把大节点排前", async () => {
+    const sortedNodes: ContextTimeline = {
+      ...TIMELINE,
+      nodes: [
+        { seq: 1, cat: "tool", tokens: 100, tool: "small", text: "小" },
+        { seq: 2, cat: "tool", tokens: 9000, tool: "big", text: "大" },
+      ],
+      archive: [],
+    };
+    contextViewMock.mockResolvedValue(sortedNodes);
+    const { ContextView } = await import("./ContextView");
+    renderT(<ContextView running={false} />);
+    expect(await screen.findByText("上下文浏览器")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /工具结果/ }));
+    const list = screen.getByRole("button", { name: /工具结果/ }).parentElement!;
+    expect(list.textContent?.indexOf("small")).toBeLessThan(list.textContent?.indexOf("big") ?? -1); // 默认时间序
+    fireEvent.click(screen.getByText("大小序"));
+    expect(list.textContent?.indexOf("big")).toBeLessThan(list.textContent?.indexOf("small") ?? -1);
   });
 
   it("文件活动：按文件聚合 + 读写徽标 + 点击预览", async () => {

@@ -272,6 +272,24 @@ export interface ContextSurfaceNode {
   tokens: number;
   text?: string;
   gone?: number;
+  tool?: string; // 产生该结果的工具名（cat=tool 专有，来源 chip）
+  err?: boolean; // 工具结果为错误返回（error 语义点）
+}
+
+// ContextNodeDetailView 是浏览器节点「完整调用」详情（v4.80 懒加载：
+// GaeaContextNodeDetail 按 seq 回读当前会话日志）。
+export interface ContextNodeDetailView {
+  seq: number;
+  kind: "tool_result" | "user_message" | "assistant_message";
+  ts?: number;
+  tool?: string;
+  args?: string;
+  output?: string;
+  err?: string;
+  truncated?: boolean; // 日志写入端即已截断
+  text?: string;
+  lines?: number;
+  clamped?: boolean; // 详情超返回上限被截断
 }
 
 export interface ContextTimeline {

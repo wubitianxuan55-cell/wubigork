@@ -11,7 +11,7 @@ type CoreMethods = Pick<
   AppBindings,
   | "ListWorkspaces" | "PickWorkspace" | "SwitchWorkspace"
   | "GaeaSpaceList" | "GaeaSpaceActive" | "GaeaSpaceActivate"
-  | "ContextUsage" | "ContextView" | "Trajectory" | "AgentNetwork" | "TCCAReport" | "Jobs"
+  | "ContextUsage" | "ContextView" | "ContextNodeDetail" | "Trajectory" | "AgentNetwork" | "TCCAReport" | "Jobs"
   | "Meta" | "Commands" | "Capabilities"
   | "AddMCPServer" | "RemoveMCPServer" | "RetryMCPServer" | "SetMCPServerEnabled"
   | "SlashArgs"
@@ -85,6 +85,32 @@ export function buildCore(s: MakeMockState): CoreMethods {
           { seq: 12, ts: 1750000012, turn: 1, step: 3, tool: "write_file", action: "write", path: "docs/调研结论.md" },
         ],
       };
+    },
+    async ContextNodeDetail(seq: number) {
+      // mock：按 seq 返回样例详情（真实实现 = 按 seq 回读当前会话日志）。
+      // 与上方 ContextView 场景的节点对齐：seq 4 = tool 节点（read_file）。
+      if (seq === 4) {
+        return {
+          seq,
+          kind: "tool_result" as const,
+          ts: 1750000004,
+          tool: "read_file",
+          args: '{"path":"internal/gaea/config/config.go"}',
+          output:
+            "package main\n\n// config.go — gaea 配置装载\n// （mock 样例正文：完整调用输出，Raw/渲染切换走查用）\nfunc Load() (*Config, error) {\n\treturn loadFromDisk()\n}\n",
+          lines: 7,
+        };
+      }
+      if (seq === 3) {
+        return {
+          seq,
+          kind: "user_message" as const,
+          ts: 1750000003,
+          text: "Referenced context: …（mock 样例正文）",
+          lines: 1,
+        };
+      }
+      throw new Error("mock: 未找到 seq=" + seq + " 的可展开节点");
     },
     async Trajectory() {
       // 浏览器开发 mock：固定一份与后端折叠形态一致的轨迹快照。

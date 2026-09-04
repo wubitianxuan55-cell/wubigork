@@ -45,6 +45,7 @@ import type {
   ZipDeliverableResult,
   SubagentRunsView,
   TaskOutputView,
+  ContextNodeDetailView,
   SkillSuggestion,
   TaskTemplate,
   Meta,
@@ -617,6 +618,9 @@ export interface AppBindings {
   TaskKill(id: string): Promise<void>;
   TaskRetry(id: string): Promise<void>;
   TaskOutput(id: string): Promise<TaskOutputView>;
+  // v4.80 上下文浏览器：懒加载节点「完整调用」详情（按 seq 回读当前会话日志；
+  // tool_result 配对 dispatch 取参数，user/assistant 取全文）。
+  ContextNodeDetail(seq: number): Promise<ContextNodeDetailView>;
   // v4.1 证据链：Journal 最近证据卡（跨会话聚合，时间倒序；前端「证据」入口）。
   GaeaJournalList(limit: number): Promise<JournalChangeRecord[]>;
   // v4.1b：双通道复核一张证据卡（A 结构/引用完整性 + B 视觉健全性）。
@@ -957,6 +961,7 @@ const gaeaToGaea = {
   TaskKill: "GaeaTaskKill",
   TaskRetry: "GaeaTaskRetry",
   TaskOutput: "GaeaTaskOutput",
+  ContextNodeDetail: "GaeaContextNodeDetail",
   GaeaJournalList: "GaeaJournalList",
   VerifyRecord: "GaeaVerifyRecord",
   RollbackRecord: "GaeaRollbackRecord",

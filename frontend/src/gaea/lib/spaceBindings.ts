@@ -300,6 +300,7 @@ export const GAEA_METHOD_FACETS = {
   TaskKill: "work",
   TaskRetry: "work",
   TaskOutput: "work",
+  ContextNodeDetail: "work",
   // v4.1 证据链：Journal 读取属工位（前端「证据」入口，DeliverablesPanel）。
   GaeaJournalList: "work",
   VerifyRecord: "work",

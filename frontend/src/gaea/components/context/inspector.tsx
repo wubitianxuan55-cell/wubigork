@@ -9,6 +9,8 @@
 import { useMemo, useState } from "react";
 // 六分类语义色：ContextView.tsx 已导出 CAT_COLORS，直接复用避免两处调色板漂移。
 import { CAT_COLORS } from "../ContextView";
+import { MemoMarkdown } from "../MemoMarkdown";
+import { app } from "../../lib/bridge";
 import "./context-view.css";
 import { FolderTree, Layers } from "../../icons";
 import { useT } from "../../lib/i18n";
@@ -16,7 +18,7 @@ import { FileTypeIcon } from "../../lib/fileIcon";
 import { fmtTokens } from "../../lib/stats";
 import { usePreviewStore } from "../../lib/store";
 import type { DictKey } from "../../locales/en";
-import type { ContextSurfaceNode, FileActivity } from "../../lib/types";
+import type { ContextNodeDetailView, ContextSurfaceNode, FileActivity } from "../../lib/types";
 
 // 分类折叠组定义（来源：ContextView.tsx 的 CATS / CAT_BROWSE_LABELS，未导出故本地
 // 重声明；i18n 键复用 contextview.cat*（组行全名）与 contextview.browse*（节点行短名））。
@@ -34,7 +36,9 @@ const PAGE_THRESHOLD = 200;
 const PAGE_SIZE = 100;
 const ARCHIVE_KEY = "archive"; // 折叠态 key（与分类 key 不冲突的哨兵值）
 
-// 节点行（搬运自 ContextView.tsx NodeRow：>56 字符可展开全文，归档节点带「已压缩」徽标）。
+// 节点详情懒加载状态机：undefined=未加载、loading、ok（缓存）、error。
+type NodeDetailState = { s: "loading" } | { s: "ok"; d: ContextNodeDetailView } | { s: "error" };
+
 const ROW_LABELS: Record<ContextSurfaceNode["cat"], DictKey> = {
   system: "contextview.browseSystem",
   tools: "contextview.browseTools",
@@ -44,18 +48,55 @@ const ROW_LABELS: Record<ContextSurfaceNode["cat"], DictKey> = {
   tool: "contextview.browseTool",
 };
 
-function NodeRow({ node, open, onToggle }: { node: ContextSurfaceNode; open: boolean; onToggle: () => void }) {
+// 节点行（搬运自 ContextView.tsx NodeRow：>56 字符可展开全文，归档节点带「已压缩」徽标）。
+// v4.80 深读：tool 行加「来源」chip（工具名）与 error 语义点；tool/user/assistant
+// 行可懒加载「完整调用」详情（GaeaContextNodeDetail 按 seq 回读当前会话日志），
+// 详情面板带 OK/error 状态、行数、截断提示与 原文/渲染 切换（默认原文）。
+const DETAILABLE = new Set<ContextSurfaceNode["cat"]>(["tool", "user", "assistant"]);
+
+function NodeRow({
+  node,
+  open,
+  onToggle,
+  detailState,
+  detailOpen,
+  onToggleDetail,
+}: {
+  node: ContextSurfaceNode;
+  open: boolean;
+  onToggle: () => void;
+  detailState?: NodeDetailState;
+  detailOpen: boolean;
+  onToggleDetail: () => void;
+}) {
   const t = useT();
+  const [rendered, setRendered] = useState(false);
   const text = node.text || t("contextview.noPreview");
   const truncated = text.length > 56;
   const shown = open || !truncated ? text : `${text.slice(0, 56)}…`;
+  const detailable = DETAILABLE.has(node.cat);
+  const d = detailState?.s === "ok" ? detailState.d : null;
+  const body = d ? (d.kind === "tool_result" ? d.output ?? "" : d.text ?? "") : "";
   return (
     <div className="ctx-row flex items-start gap-1.5 px-2 py-1.5 text-[10px]">
       <span className="mt-0.5 h-2 w-2 shrink-0 rounded-sm" style={{ background: CAT_COLORS[node.cat] }} />
       <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-1.5 text-fg-faint">
+        <div className="flex flex-wrap items-center gap-1.5 text-fg-faint">
           <span className="font-medium" style={{ color: CAT_COLORS[node.cat] }}>{t(ROW_LABELS[node.cat])}</span>
           <span className="tabular-nums font-mono">≈{fmtTokens(node.tokens)}</span>
+          {/* v4.80 来源 chip（工具名）+ error 语义点（dsh 工具行 OK/error 同款语义） */}
+          {node.cat === "tool" && node.tool && (
+            <span
+              className="max-w-[9rem] truncate rounded px-1 font-mono"
+              style={{ background: "var(--md-sys-color-surface-container-high)", color: "var(--md-sys-color-text-secondary)" }}
+              title={node.tool}
+            >
+              {node.tool}
+            </span>
+          )}
+          {node.cat === "tool" && node.err && (
+            <span className="font-medium" style={{ color: "var(--md-sys-color-destructive)" }}>✗ error</span>
+          )}
           {node.gone != null && <span className="text-warning">{t("contextview.compacted")}</span>}
           {truncated && (
             <button
@@ -63,14 +104,65 @@ function NodeRow({ node, open, onToggle }: { node: ContextSurfaceNode; open: boo
               onClick={onToggle}
             >{open ? t("common.collapse") : t("common.expand")}</button>
           )}
+          {detailable && (
+            <button
+              data-testid="ctx-node-detail-btn"
+              className={`cursor-pointer border-0 bg-transparent hover:underline ${truncated ? "" : "ml-auto"} ${detailOpen ? "text-fg-dim" : "text-accent"}`}
+              onClick={onToggleDetail}
+            >{detailOpen ? t("contextview.detailCollapse") : t("contextview.detailBtn")}</button>
+          )}
         </div>
         <div className="mt-0.5 whitespace-pre-wrap break-all font-mono text-fg-dim">{shown}</div>
+        {detailOpen && detailState?.s === "loading" && (
+          <div className="mt-1 text-[10px] text-fg-faint">{t("contextview.detailLoading")}</div>
+        )}
+        {detailOpen && detailState?.s === "error" && (
+          <div className="mt-1 text-[10px]" style={{ color: "var(--md-sys-color-destructive)" }}>{t("contextview.detailFail")}</div>
+        )}
+        {detailOpen && d && (
+          <div data-testid="ctx-node-detail" className="mt-1 rounded-md border border-border-soft bg-bg-soft p-1.5">
+            <div className="flex flex-wrap items-center gap-1.5 text-[9.5px] text-fg-faint">
+              {d.kind === "tool_result" && (
+                <>
+                  <span
+                    className="rounded px-1 font-mono"
+                    style={{ background: "var(--md-sys-color-surface-container-high)", color: "var(--md-sys-color-text-secondary)" }}
+                  >
+                    {d.tool || node.tool || "tool"}
+                  </span>
+                  <span className="font-medium" style={{ color: d.err ? "var(--md-sys-color-destructive)" : "var(--md-sys-color-success)" }}>
+                    {d.err ? "error" : "OK"}
+                  </span>
+                </>
+              )}
+              {d.lines != null && <span className="font-mono tabular-nums">{t("contextview.detailLines", { n: d.lines })}</span>}
+              {(d.clamped || d.truncated) && <span className="text-warning">{t("contextview.detailClamped")}</span>}
+              <span className="ml-auto flex items-center gap-1">
+                {([false, true] as const).map((md) => (
+                  <button
+                    key={String(md)}
+                    className={`cursor-pointer rounded border-0 px-1 py-px ${rendered === md ? "bg-accent/15 text-accent" : "bg-transparent text-fg-faint hover:text-fg"}`}
+                    onClick={() => setRendered(md)}
+                  >{md ? t("contextview.detailRendered") : t("contextview.detailRaw")}</button>
+                ))}
+              </span>
+            </div>
+            {d.kind === "tool_result" && d.args && (
+              <div className="mt-1 break-all font-mono text-[9.5px] text-fg-faint" title={d.args}>→ {d.args}</div>
+            )}
+            <div className="mt-1 max-h-[26rem] overflow-y-auto whitespace-pre-wrap break-all font-mono text-[10px] text-fg-dim">
+              {rendered ? <MemoMarkdown text={body} streaming={false} /> : body || t("contextview.noPreview")}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
 // ─── 上下文浏览器（分类折叠组 + 行内搜索 + 归档折叠组） ──────────
+// v4.80 深读：分类内排序（时间序/大小序，dsh size/name 同款）+ 节点完整
+// 调用懒加载（GaeaContextNodeDetail，按 seq 缓存）。
 export function ContextBrowserTree({ nodes, archive }: { nodes: ContextSurfaceNode[]; archive: ContextSurfaceNode[] }) {
   const t = useT();
   const [query, setQuery] = useState("");
@@ -78,8 +170,30 @@ export function ContextBrowserTree({ nodes, archive }: { nodes: ContextSurfaceNo
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   const [openText, setOpenText] = useState<Set<number>>(() => new Set());
   const [showAll, setShowAll] = useState<Set<string>>(() => new Set());
+  const [sort, setSort] = useState<"time" | "size">("time");
+  const [details, setDetails] = useState<Map<number, NodeDetailState>>(() => new Map());
+  const [openDetails, setOpenDetails] = useState<Set<number>>(() => new Set());
 
   const q = query.trim().toLowerCase();
+  const sorter = useMemo(
+    () => (sort === "size" ? (a: ContextSurfaceNode, b: ContextSurfaceNode) => b.tokens - a.tokens || a.seq - b.seq : (a: ContextSurfaceNode, b: ContextSurfaceNode) => a.seq - b.seq),
+    [sort],
+  );
+
+  const toggleDetail = (seq: number) => {
+    setOpenDetails((cur) => {
+      const next = new Set(cur);
+      if (next.has(seq)) next.delete(seq);
+      else next.add(seq);
+      return next;
+    });
+    if (!details.has(seq)) {
+      setDetails((cur) => new Map(cur).set(seq, { s: "loading" }));
+      app.ContextNodeDetail(seq)
+        .then((d) => setDetails((cur) => new Map(cur).set(seq, { s: "ok", d })))
+        .catch(() => setDetails((cur) => new Map(cur).set(seq, { s: "error" })));
+    }
+  };
 
   // 组行右侧 ≈tokens 用未过滤的分类合计（占比分母=活跃节点总 tokens，数值稳定）；
   // 「N 项」徽标随搜索过滤（反映展开后实际列出的行数）。
@@ -87,16 +201,17 @@ export function ContextBrowserTree({ nodes, archive }: { nodes: ContextSurfaceNo
     () =>
       GROUPS.map((g) => {
         const all = nodes.filter((n) => n.cat === g.key);
-        const filtered = q === "" ? all : all.filter((n) => (n.text ?? "").toLowerCase().includes(q));
+        const hit = q === "" ? all : all.filter((n) => (n.text ?? "").toLowerCase().includes(q));
+        const filtered = [...hit].sort(sorter); // v4.80 分类内排序（时间序/大小序）
         const tokens = all.reduce((s, n) => s + n.tokens, 0);
         return { ...g, all: all.length, count: filtered.length, tokens, nodes: filtered };
       }),
-    [nodes, q],
+    [nodes, q, sorter],
   );
-  const archiveShown = useMemo(
-    () => (q === "" ? archive : archive.filter((n) => (n.text ?? "").toLowerCase().includes(q))),
-    [archive, q],
-  );
+  const archiveShown = useMemo(() => {
+    const hit = q === "" ? archive : archive.filter((n) => (n.text ?? "").toLowerCase().includes(q));
+    return [...hit].sort(sorter);
+  }, [archive, q, sorter]);
   const archiveTokens = useMemo(() => archive.reduce((s, n) => s + n.tokens, 0), [archive]);
   const totalTokens = useMemo(() => nodes.reduce((s, n) => s + n.tokens, 0), [nodes]);
 
@@ -147,6 +262,17 @@ export function ContextBrowserTree({ nodes, archive }: { nodes: ContextSurfaceNo
         aria-label={t("contextview.browserSearch")}
         className="mt-1.5 h-6 w-full rounded-md border border-border-soft bg-bg-soft px-2 text-[10px] text-fg placeholder:text-fg-faint focus:border-accent focus:outline-none"
       />
+      {/* v4.80 分类内排序（dsh size/name 同款；只影响展开后的行序，不改组行聚合） */}
+      <div className="mt-1 flex items-center gap-1 text-[9.5px]">
+        {([["time", "contextview.sortTime"], ["size", "contextview.sortSize"]] as const).map(([k, key]) => (
+          <button
+            key={k}
+            aria-pressed={sort === k}
+            className={`cursor-pointer rounded border-0 px-1.5 py-0.5 ${sort === k ? "bg-accent/15 text-accent" : "bg-transparent text-fg-faint hover:text-fg"}`}
+            onClick={() => setSort(k)}
+          >{t(key)}</button>
+        ))}
+      </div>
       {isEmpty ? (
         <div className="py-2 text-[10px] text-fg-faint">{t("contextview.noNodes")}</div>
       ) : (
@@ -180,7 +306,15 @@ export function ContextBrowserTree({ nodes, archive }: { nodes: ContextSurfaceNo
                   <div className="ml-3.5 mt-0.5 flex flex-col gap-1 border-l border-border-soft/60 pl-2">
                     {g.count === 0 && <div className="py-1 text-[10px] text-fg-faint">{t("contextview.noCatNodes")}</div>}
                     {listed.map((n) => (
-                      <NodeRow key={n.seq} node={n} open={openText.has(n.seq)} onToggle={() => toggleText(n.seq)} />
+                      <NodeRow
+                        key={n.seq}
+                        node={n}
+                        open={openText.has(n.seq)}
+                        onToggle={() => toggleText(n.seq)}
+                        detailState={details.get(n.seq)}
+                        detailOpen={openDetails.has(n.seq)}
+                        onToggleDetail={() => toggleDetail(n.seq)}
+                      />
                     ))}
                     {paged && (
                       <button
@@ -226,7 +360,15 @@ export function ContextBrowserTree({ nodes, archive }: { nodes: ContextSurfaceNo
                   <div className="ml-3.5 mt-0.5 flex flex-col gap-1 border-l border-border-soft/60 pl-2">
                     {archiveShown.length === 0 && <div className="py-1 text-[10px] text-fg-faint">{t("contextview.noCatNodes")}</div>}
                     {listed.map((n) => (
-                      <NodeRow key={n.seq} node={n} open={openText.has(n.seq)} onToggle={() => toggleText(n.seq)} />
+                      <NodeRow
+                        key={n.seq}
+                        node={n}
+                        open={openText.has(n.seq)}
+                        onToggle={() => toggleText(n.seq)}
+                        detailState={details.get(n.seq)}
+                        detailOpen={openDetails.has(n.seq)}
+                        onToggleDetail={() => toggleDetail(n.seq)}
+                      />
                     ))}
                     {paged && (
                       <button

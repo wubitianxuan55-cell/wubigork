@@ -1,3 +1,9 @@
+## v4.80.0 · 上下文工具结果深读：完整调用懒加载 · 来源 chip · 分类内排序（2026-09-04）
+> 双源蒸馏规划阶段二.5 2.5b 前半；**绑定面 570→571**（+GaeaContextNodeDetail）。详见 releases/v4.80.0.md。
+- **Go**：SurfaceNode 增 Tool/Err（fold 零成本透出）；detail.go `NodeDetailFor` 纯函数读端——tool_result 全文+同 id dispatch 参数回读（live/legacy 双 kind）、user/assistant 全文、1MB 截断标 Clamped（UTF-8 安全）；App.GaeaContextNodeDetail 懒加载绑定。
+- **前端**：浏览器 tool 行来源 chip + ✗error 语义点；「完整调用」面板（OK/error 徽标、行数、截断双来源提示、参数行、26rem 有界滚动、原文/渲染切换默认原文）；分类内 时间序/大小序 chips；i18n 三语 +10 键。
+- 测试：detail.go +3（-count=2）+ 组件 +2；门禁：Go 全量 0 FAIL、tsc/eslint 0、vitest 223/1687、drift PASS（571）、?mock=1 走查通过（截图存 artifacts）。图片缩略卡留 2.5b 后半。
+
 ## v4.79.0 · 上下文对比上一步：逐类 signed delta · 跨压缩近似标注（2026-09-04）
 > 双源蒸馏规划阶段二.5 2.5a（收 v4.68 起三版连记 P1 欠账）；**绑定面 570 零变更**（delta 搭 GaeaContextView 既有返回结构）。详见 releases/v4.79.0.md。
 - **Go fold**：request_header 组装时聚合活节点 surface 快照（与 Category 同拍自洽；system/tools 取最新 header 整体估算，其余逐条聚合）→ `RequestDelta{Items,Tokens,ByCat,Approx,First}`：ByCat 按降幅稳定排序、跨压缩 Approx=true、首请求 First=true（基线=空）。

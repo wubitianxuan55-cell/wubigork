@@ -89,6 +89,7 @@ gaea/
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| **v4.80.0** | 2026-09-04 | 上下文工具结果深读（绑定面 570→571，+GaeaContextNodeDetail）：节点按 seq 懒加载完整调用（tool_result 全文+参数回读/user/assistant 全文、1MB 截断诚实标注）、原文/渲染切换、来源 chip+✗error 点、分类内时间序/大小序；vitest 223/1687、Go 全量 0 FAIL、drift PASS（571）、?mock=1 走查通过 |
 | **v4.79.0** | 2026-09-04 | 上下文对比上一步（绑定面 570 零变更）：Go fold 请求组装点 surface 快照 + RequestDelta 逐类 signed delta（跨压缩近似标注/首请求基线=空）；趋势卡请求详情 delta 条；vitest 223/1685、tsc/eslint 0、drift PASS（570）、?mock=1 走查通过 |
 | **v4.78.0** | 2026-09-04 | 任务强制终止收口（绑定面 569→570，+GaeaTaskKill）：Go 侧 Progress.OnForceKill 进程树击杀钩子 + Manager.Kill（queued 原子取消/running 先杀进程再传播取消/无钩子诚实降级）；前端「强制终止」两击确认（首击 3s 确认态防误杀，queued/stopping 保持单击）；窄屏自动激活策略审计通过零改码；vitest 223/1683、tsc/eslint 0、drift PASS（570） |
 | **v4.77.0** | 2026-09-04 | 任务页自动激活补全（绑定面 561 零变更，纯前端）：新后台任务（queued/running/stopping）自动激活「任务」视图；自动激活宽屏≥1240px 才展开、窄屏不强制、沿用设置开关可关；运行中任务按钮改「强制终止」（排队=取消）；子代理实时拓扑/批量预览/退出码/实时输出 dock 已在；vitest 223/1681、tsc/eslint 0、冒烟 200 |

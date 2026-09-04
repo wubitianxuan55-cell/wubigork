@@ -104,6 +104,7 @@ export const bindingNames = [
 	"GaeaCheckpoints",
 	"GaeaCommands",
 	"GaeaContext",
+	"GaeaContextNodeDetail",
 	"GaeaContextView",
 	"GaeaConvertToPdf",
 	"GaeaCostAttribution",

@@ -321,7 +321,7 @@ func (f *folding) applyToolResult(e session.LogEntry) {
 	tok := estimateTokens(text)
 	f.toolTok += tok
 	f.stats.ToolCalls++
-	f.nodes = append(f.nodes, SurfaceNode{Seq: e.Seq, Cat: catTool, Tokens: tok, Text: briefOf(text, maxNodePreview)})
+	f.nodes = append(f.nodes, SurfaceNode{Seq: e.Seq, Cat: catTool, Tokens: tok, Text: briefOf(text, maxNodePreview), Tool: p.Name, Err: p.Err != ""})
 	if p.Truncated {
 		f.stats.Prunes++
 		f.events = append(f.events, ContextEvent{
