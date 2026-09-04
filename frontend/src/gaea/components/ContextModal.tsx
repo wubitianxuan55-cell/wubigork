@@ -46,13 +46,17 @@ export function ContextPill({ used, window: win, onClick }: {
   );
 }
 
-export function ContextModal({ open, onClose, running, sessionPath, sessionName, model }: {
+export function ContextModal({ open, onClose, running, sessionPath, sessionName, model, fetchTimeline, title }: {
   open: boolean;
   onClose: () => void;
   running: boolean;
   sessionPath?: string;
   sessionName?: string;
   model?: string;
+  /** 2.5e 后半：子代理上下文的自定义数据源（GaeaSubagentContextView）。 */
+  fetchTimeline?: () => Promise<import("../lib/types").ContextTimeline>;
+  /** 弹层标题（缺省「当前上下文」；子代理态显示 ref）。 */
+  title?: string;
 }) {
   return (
     <Modal
@@ -61,12 +65,18 @@ export function ContextModal({ open, onClose, running, sessionPath, sessionName,
       footer={null}
       width={1080}
       centered
-      title="当前上下文"
+      title={title ?? "当前上下文"}
       destroyOnHidden
     >
       {open && (
         <div className="max-h-[68vh] overflow-y-auto" data-testid="ctx-modal-body">
-          <ContextView running={running} sessionPath={sessionPath} sessionName={sessionName} model={model} />
+          <ContextView
+            running={running}
+            sessionPath={sessionPath}
+            sessionName={sessionName}
+            model={model}
+            fetchTimeline={fetchTimeline}
+          />
         </div>
       )}
     </Modal>

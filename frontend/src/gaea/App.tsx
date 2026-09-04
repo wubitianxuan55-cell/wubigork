@@ -89,8 +89,9 @@ const CHAT_MIN_WIDTH = 400;
 
 export default function App() {
   const toast = useToast();
-  // 2.5e /context 居中弹层（dsh 同名能力）。
+  // 2.5e /context 居中弹层（dsh 同名能力）。ctxModalRef 非空 = 查看该子代理。
   const [ctxModalOpen, setCtxModalOpen] = useState(false);
+  const [ctxModalRef, setCtxModalRef] = useState<string | null>(null);
   const [chatTab, setChatTab] = useState<ChatTabId>(() => {
     try {
       const saved = readWorkbenchValue("gaea.chatTab");
@@ -564,6 +565,7 @@ export default function App() {
       }
       if (command.type === "context") {
         // 2.5e：/context 打开居中弹层（不离开对话）；主区上下文 tab 保留手动切换。
+        setCtxModalRef(null);
         setCtxModalOpen(true);
         return;
       }
@@ -1314,6 +1316,10 @@ export default function App() {
                       <ContextView
                         running={state.running}
                         sessionPath={currentSessionPath ?? undefined}
+                        onViewSubagentContext={(ref) => {
+                          setCtxModalRef(ref);
+                          setCtxModalOpen(true);
+                        }}
                         sessionName={
                           currentSessionPath
                             ? sessionTitle(
@@ -1359,7 +1365,10 @@ export default function App() {
               <ContextPill
                 used={state.context.used}
                 window={state.context.window}
-                onClick={() => setCtxModalOpen(true)}
+                onClick={() => {
+                  setCtxModalRef(null);
+                  setCtxModalOpen(true);
+                }}
               />
             </div>
             <RunStatus
@@ -1490,7 +1499,16 @@ export default function App() {
       {/* 2.5e /context 居中弹层：不离开对话查看当前上下文构成 */}
       <ContextModal
         open={ctxModalOpen}
-        onClose={() => setCtxModalOpen(false)}
+        onClose={() => {
+          setCtxModalOpen(false);
+          setCtxModalRef(null);
+        }}
+        fetchTimeline={
+          ctxModalRef && currentSessionPath
+            ? () => app.GaeaSubagentContextView(currentSessionPath, ctxModalRef)
+            : undefined
+        }
+        title={ctxModalRef ? `子代理上下文 · ${ctxModalRef}` : undefined}
         running={state.running}
         sessionPath={currentSessionPath ?? undefined}
         sessionName={

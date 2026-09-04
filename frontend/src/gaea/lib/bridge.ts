@@ -633,6 +633,8 @@ export interface AppBindings {
   GaeaGitDiscard(path: string): Promise<void>;
   GaeaGitCommit(message: string): Promise<string>;
   GaeaGitLog(limit: number): Promise<GitCommitInfoView[]>;
+  // 2.5e 后半：指定子代理会话的上下文构成快照（Agent 网络节点跳转）。
+  GaeaSubagentContextView(sessionPath: string, ref: string): Promise<ContextTimeline>;
   // v4.1b：双通道复核一张证据卡（A 结构/引用完整性 + B 视觉健全性）。
   VerifyRecord(id: string): Promise<VerdictView>;
   // v4.1b：基线快照回滚（目标被手工修改时拒绝，零覆盖）。
@@ -980,6 +982,7 @@ const gaeaToGaea = {
   GaeaGitDiscard: "GaeaGitDiscard",
   GaeaGitCommit: "GaeaGitCommit",
   GaeaGitLog: "GaeaGitLog",
+  GaeaSubagentContextView: "GaeaSubagentContextView",
   VerifyRecord: "GaeaVerifyRecord",
   RollbackRecord: "GaeaRollbackRecord",
   DocumentLint: "GaeaDocumentLint",

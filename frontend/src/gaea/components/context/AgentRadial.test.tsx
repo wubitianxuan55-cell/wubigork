@@ -187,3 +187,36 @@ describe("AgentRadial Agent 网络径向树", () => {
     expect(Math.min(...ys)).toBeGreaterThan(175);
   });
 });
+
+describe("AgentRadial 2.5e 后半：查看上下文入口", () => {
+  const saNode = {
+    ok: true,
+    window: 100,
+    root: {
+      id: "root",
+      name: "主 agent",
+      kind: "root" as const,
+      status: "completed" as const,
+      toolCalls: 0,
+      errors: 0,
+      tokens: 0,
+      children: [
+        { id: "sa_2_b2b2b2b2", name: "task", kind: "subagent" as const, status: "completed" as const, toolCalls: 3, errors: 0, tokens: 1200 },
+      ],
+    },
+  };
+
+  it("sa_ 节点 + onViewContext 在场 → 渲染「查看上下文」并回调 ref", async () => {
+    const onViewContext = vi.fn();
+    renderP(<AgentRadial network={saNode} running={false} sessionPath="s1.jsonl" onViewContext={onViewContext} />);
+    const btn = await screen.findByTestId("agent-view-context-sa_2_b2b2b2b2");
+    fireEvent.click(btn);
+    expect(onViewContext).toHaveBeenCalledWith("sa_2_b2b2b2b2");
+  });
+
+  it("无回调时不渲染入口", async () => {
+    renderP(<AgentRadial network={saNode} running={false} sessionPath="s1.jsonl" />);
+    await screen.findByTestId("agent-radial-node");
+    expect(screen.queryByTestId("agent-view-context-sa_2_b2b2b2b2")).toBeNull();
+  });
+});

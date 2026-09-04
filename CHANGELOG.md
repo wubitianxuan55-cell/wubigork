@@ -1,3 +1,9 @@
+## v4.94.0 · Agent 网络会话跳转：子代理上下文按会话查看（2026-09-05）
+> 双源蒸馏规划阶段二.5 2.5e 后半收口；**绑定面 578→579**（+GaeaSubagentContextView）。详见 releases/v4.94.0.md。
+- **Go**：GaeaSubagentContextView(sessionPath, ref)——校验 sa_ ref → 定位 <会话目录>/subagents/<ref>.jsonl → ReadLogRepaired 读入 → contextview.FoldTimeline 折叠（与主上下文同一管线）；ref 非法/缺失诚实报错或空快照。
+- **前端**：ContextView 增 fetchTimeline 可选数据源（缺省仍走当前会话）+ onViewSubagentContext 回调透传 AgentRadial；AgentRadial sa_ 节点渲染「查看上下文」可点入口（回调在场才渲染）；ContextModal 增 fetchTimeline/title 透传；App 接线——主上下文页径向图节点「查看上下文」→ 打开该子代理的上下文弹层（标题带 ref）。
+- 测试：Go +1（合法 ref 折叠/缺失空快照/非法 ref 报错，-count=2 绿）+ AgentRadial +2（入口渲染与回调/无回调不渲染）；vitest 231/1758、Go 全量 0 FAIL、tsc -b/eslint 0、drift PASS（579）。
+
 ## v4.93.0 · 失败子代理恢复入口 + diff 行内语法着色（2026-09-05）
 > 双小刀合并版（每版 1-2 刀惯例）；**绑定面 578 零变更**。详见 releases/v4.93.0.md。
 - **刀A 失败恢复入口**（调研回填 opencode「失败≠终点」）：SubagentThread 失败态新增恢复提示条（status=failed 时显示「输入新指令可基于已有上下文续跑」）——RunFollowUp 本就支持 failed ref 续跑（v4.64 管道），此前入口不可发现；completed/running 不显示。i18n 三语 +1 键。

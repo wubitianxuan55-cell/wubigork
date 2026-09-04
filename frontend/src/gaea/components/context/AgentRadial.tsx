@@ -147,6 +147,7 @@ export function AgentRadial({
   running,
   sessionPath,
   onOpenSubagent,
+  onViewContext,
 }: {
   network: AgentNetwork;
   running: boolean;
@@ -158,6 +159,8 @@ export function AgentRadial({
     model?: string;
     status: "running" | "completed" | "failed";
   }) => void;
+  /** 2.5e 后半：sa_ 节点「查看上下文」入口（打开该子代理的上下文弹层）。 */
+  onViewContext?: (ref: string) => void;
 }) {
   const t = useT();
   const root = network.root;
@@ -281,6 +284,7 @@ export function AgentRadial({
         {laidOut.map((c) => {
           const hasRef = c.node.id.startsWith("sa_");
           const clickable = hasRef && !!sessionPath && !!onOpenSubagent;
+          const canViewContext = hasRef && !!onViewContext;
           const title = [
             c.node.task || c.node.name,
             `状态：${statusLabel(c.node.status, t)}`,
@@ -308,6 +312,22 @@ export function AgentRadial({
             >
               <title>{title}</title>
               <circle cx={c.x} cy={c.y} r={CHILD_R + 3} fill="var(--bg-soft)" stroke="var(--border-soft)" strokeWidth={1} />
+              {canViewContext && (
+                <text
+                  x={c.x}
+                  y={c.y + CHILD_R + 12}
+                  textAnchor="middle"
+                  fontSize={9}
+                  data-testid={`agent-view-context-${c.node.id}`}
+                  className="cursor-pointer fill-accent hover:underline"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onViewContext(c.node.id);
+                  }}
+                >
+                  查看上下文
+                </text>
+              )}
               {/* 占比环：子 tokens / 主 agent tokens */}
               <circle
                 data-testid="agent-radial-node-ring"

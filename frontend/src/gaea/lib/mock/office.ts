@@ -572,6 +572,7 @@ export function buildOffice(_s: MakeMockState): OfficeMethods {
         files: [
           { path: "docs/调研结论.md", x: "M", y: " ", staged: true, modified: true },
           { path: "internal/gaea/config/config.go", x: " ", y: "M", modified: true },
+          { path: "web/app.ts", x: " ", y: "M", modified: true },
           { path: "reports/季度报告.html", x: "?", y: "?", untracked: true },
         ],
       };

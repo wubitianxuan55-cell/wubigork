@@ -89,6 +89,7 @@ gaea/
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| **v4.94.0** | 2026-09-05 | Agent 网络会话跳转（绑定面 578→579，+GaeaSubagentContextView）：径向图 sa_ 节点「查看上下文」入口 → 居中弹层展示该子代理上下文（同一 FoldTimeline 管线，transcript 直读）；ContextView fetcher 数据源抽象；vitest 231/1758、Go 全量 0 FAIL、drift PASS（579）、2.5e 全部收口 |
 | **v4.93.0** | 2026-09-05 | 失败子代理恢复入口 + diff 行内语法着色（绑定面 578 零变更，双小刀）：SubagentThread 失败态恢复提示条（RunFollowUp 支持续跑，入口可发现化）；diffHighlight 按路径 Lezer parser 单行 token 切分（ts/js/py/json/css/html/md，tok-* 色板），ChangesDiff 接线配对行字符高亮优先；vitest 231/1756、Go 全量 0 FAIL、drift PASS（578）、?mock=1 DOM 走查通过 |
 | **v4.92.0** | 2026-09-05 | Mermaid strict 安全线成文 + MemoMarkdown 消毒层（绑定面 578 零变更）：sanitizeHtml 接入流式尾部（兜底转义回归）；实验证伪 SVG 外层再消毒（svg profile 剥 foreignObject 文字，strict 上游为正解）决策成文；mermaid 渲染走查 labels 完整无脚本注入；vitest 229/1753、Go 全量 0 FAIL、drift PASS（578）、?mock=1 DOM 走查通过 |
 | **v4.91.0** | 2026-09-05 | CodeMirror 语法高亮编辑器（绑定面 578 零变更）：codemirror@6 + 六语言包懒加载 chunk，按扩展名选语言（md/js·ts/py/json/css/html），行号/撤销/选区；FilePreview 编辑态双层回落（Suspense fallback + ErrorBoundary→textarea）编辑能力永不丢失；vitest 228/1750、Go 全量 0 FAIL、drift PASS（578）、?mock=1 DOM 走查通过 |

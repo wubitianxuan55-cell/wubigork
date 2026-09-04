@@ -1,7 +1,7 @@
 # 任务进度
 
-> 最后更新: 2026-09-05（v4.93.0「失败子代理恢复入口 + diff 行内语法
-> 着色」，578 零变更；v4.92.0「Mermaid strict 安全线成文 + MemoMarkdown
+> 最后更新: 2026-09-05（v4.94.0「Agent 网络会话跳转」，578→579；
+> v4.93.0「失败子代理恢复入口 + diff 行内语法着色」，578 零变更；v4.92.0「Mermaid strict 安全线成文 + MemoMarkdown
 > 消毒层」，578 零变更，阶段三 3b 收口；v4.91.0「CodeMirror 语法高亮
 > 编辑器」，578 零变更；v4.89.0
 > 「成本费率 hover」，578 零变更；
@@ -26,14 +26,26 @@
 - **蒸馏规划滚动中**：阶段一、二.5（含 2.5e 弹层+徽标）、阶段二
   2a/2b/2c **全部收口**（v4.78~v4.88）。**剩余候选均为拍板项**：阶段三
   3a CodeMirror（可带语法着色）/3b Mermaid strict/3c 人工沙箱浏览器
-  多开；中期候选见 docs/market-research-2026-09-05.md（成本费率 hover、
-  终止级联、失败子代理可恢复）；docx/xlsx 对比迁移 ChangesDiff 另刀；
-  Agent Network 会话跳转（GaeaContextView 按会话参数化前置）。成本费率
+  多开；中期候选见 docs/market-research-2026-09-05.md（成本费率 hover 已落地 v4.89、
+  终止级联已落地 v4.90、失败子代理可恢复入口已落地 v4.93）；docx/xlsx 对比迁移 ChangesDiff 另刀；
+  Agent Network 会话跳转已落地（v4.94：GaeaSubagentContextView + 径向图入口）。成本费率
   hover（v4.89）、终止级联（v4.90）、CodeMirror 编辑器（v4.91）、Mermaid
   strict 安全线（v4.92）、失败恢复入口+diff 语法着色（v4.93）已落地。
-- **dsh 剩余借鉴**：2.5e /context 弹层与 Agent Network 会话跳转（拍板）。
+- **dsh 剩余借鉴**：2.5e /context 弹层与 Agent Network 会话跳转均已落地（v4.88/v4.94）。
 - **老账**：run_skill AllowedTools 真机观察；pptx 真编辑；Verifier 通道 B
   逐页缩略图；子代理队列非唯一命中交互式确认。
+
+## 最新发布：v4.94.0（2026-09-05）「Agent 网络会话跳转：子代理上下文按会话查看」
+
+- 双源蒸馏规划阶段二.5 2.5e 后半，**2.5e 全部收口**。绑定面 578→579。
+- Go：GaeaSubagentContextView(sessionPath, ref)——子代理 transcript 直读
+  （ReadLogRepaired）+ 同一 FoldTimeline 管线；ref 非法/缺失诚实处理。
+- 前端：ContextView fetchTimeline 数据源抽象 + onViewSubagentContext
+  回调；AgentRadial sa_ 节点「查看上下文」入口；ContextModal
+  fetcher/title 透传；App 接线（径向图 → 子代理上下文弹层）。
+- 门禁：Go 全量 0 FAIL、tsc -b/eslint 0、vitest 231/1758、drift PASS（579）、
+  Go 绑定测试（合法/缺失/非法三态）-count=2 绿。
+- 详见 releases/v4.94.0.md。
 
 ## 最新发布：v4.93.0（2026-09-05）「失败子代理恢复入口 + diff 行内语法着色」（双小刀合并）
 

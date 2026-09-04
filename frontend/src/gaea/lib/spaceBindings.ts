@@ -311,6 +311,7 @@ export const GAEA_METHOD_FACETS = {
   GaeaGitDiscard: "work",
   GaeaGitCommit: "work",
   GaeaGitLog: "work",
+  GaeaSubagentContextView: "work",
   VerifyRecord: "work",
   RollbackRecord: "work",
   DocumentLint: "work",

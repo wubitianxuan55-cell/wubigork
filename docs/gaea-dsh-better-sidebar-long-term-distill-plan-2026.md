@@ -232,8 +232,10 @@ pane 工作台/文件 tab（v4.25）、任务+分工同屏（v4.53）、子代�
 - ~~2.5e `/context` 弹层~~ **已完成（v4.88.0，与调研回填「codex 式常驻
   剩余上下文徽标」合并为一刀）**：ContextPill 常驻徽标（迷你进度条三档
   配色，点击开弹层）+ ContextModal 居中弹层（复用 ContextView，打开挂载
-  关闭卸载）；/context 命令改道弹层，主区 tab 保留。**剩余半项**：Agent
-  Network 会话跳转需 GaeaContextView 按会话参数化，随中期候选另刀；
+  关闭卸载）；/context 命令改道弹层，主区 tab 保留。**后半已完成（v4.94.0）**：
+  GaeaSubagentContextView（子代理 transcript 直读+同一折叠管线）+
+  AgentRadial sa_ 节点「查看上下文」入口 + ContextModal fetcher/title
+  透传；
 
 ### 阶段三（拍板后）：预览与浏览增强
 - ~~3a CodeMirror 语法高亮编辑器~~ **已完成（v4.91.0）**：codemirror@6 +
@@ -298,6 +300,7 @@ pane 工作台/文件 tab（v4.25）、任务+分工同屏（v4.53）、子代�
 | v4.91 | CodeMirror 语法高亮编辑器（懒加载 + 语言映射 + 双层回落） | 代码编辑器（语法高亮+懒加载） | 3a 收口；2c 遗留语法着色能力就位 |
 | v4.92 | MemoMarkdown 消毒层 + Mermaid strict 决策成文 | （安全线对齐，非蒸馏能力） | 3b 收口；外层 SVG 再消毒实验证伪成文 |
 | v4.93 | 失败子代理恢复入口提示 + diff 行内语法着色（Lezer tok-*） | 失败可恢复呈现 + 统一 diff 语法着色 | 调研回填（opencode）+ 2c 遗留收口 |
+| v4.94 | Agent 网络会话跳转（GaeaSubagentContextView + sa_ 节点入口） | Agent Network 点击进对应 Context | 2.5e 后半收口；阶段二.5 全部完成 |
 | v4.88 | /context 居中弹层 + 常驻剩余上下文% 徽标 | /context 弹层 + 常驻 context 计数 | 2.5e 收口（Agent Network 跳转半项留后续） |
 
 ## 8. 成功标准（长期）

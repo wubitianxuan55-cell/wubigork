@@ -6,21 +6,18 @@
 ## 版本状态（顶部速览）
 
 - **下会话待办（2026-09-05 收档，详见 progress.md「下会话续做」）**：
-  **蒸馏规划阶段一、二.5、二 2a/2b/2c、阶段三 3a/3b 全部收口 + 中期候选
-  成本费率 hover、终止级联、失败恢复入口、diff 语法着色落地**
-  （v4.78~v4.93 十一刀），剩余拍板项：阶段三 3c 人工沙箱浏览器；中期
-  候选剩微信文件收发（抓包前置）；docx/xlsx 对比迁移 ChangesDiff、
-  Agent Network 会话跳转另刀，清单见
-  docs/market-research-2026-09-05.md 与老账。建议先做一轮真机整体验收
-  （本批次改动量大）。本会话另落 GitHub 市场调研三路
-  （docs/research-2026-09-05/）+ 合成版 market-research-2026-09-05.md +
-  长期规划回填（蒸馏规划 §7/§3.4 + gaea-nextgen-roadmap）。
-  **长期蒸馏规划待拍板**（D1-D6 决策门 + 阶段起点）——双源规划文档
-  `docs/gaea-dsh-better-sidebar-long-term-distill-plan-2026.md`（源 A
-  better-sidebar v0.18.0、源 B dsh-context v0.41.3）；Context 深水区
-  （浏览器对比上一步/工具来源 chip/图片卡/文件活动行增量）；TaskCenter
-  推送式实时输出流（现轮询 tail，独立刀）；老账（run_skill AllowedTools
-  真机观察、pptx 真编辑、Verifier 逐页缩略图、队列非唯一命中交互式确认）。
+  **蒸馏规划阶段一、二.5（含 Agent 网络跳转）、二 2a/2b/2c、阶段三
+  3a/3b 全部收口 + 中期候选成本费率 hover、终止级联、失败恢复入口、
+  diff 语法着色落地**（v4.78~v4.94 十二刀），剩余拍板项：阶段三 3c 人工
+  沙箱浏览器；中期候选剩微信文件收发（抓包前置）；docx/xlsx 对比迁移
+  ChangesDiff、README 级内嵌 HTML 另刀。真机验收部分完成后被锁屏阻塞，
+  待解锁复核三项（弹层关闭/Git 面板真机操作/CodeMirror 真机编辑态）+
+  v4.94 径向图跳转。
+- **最新发布：v4.94.0（2026-09-05）「Agent 网络会话跳转」**——2.5e 后半
+  收口；绑定面 578→579（+GaeaSubagentContextView）：子代理 transcript
+  直读+同一折叠管线；AgentRadial sa_ 节点「查看上下文」→ 弹层（标题带
+  ref）。vitest 231/1758、Go 全量 0 FAIL、drift PASS（579）。详见
+  releases/v4.94.0.md。
 - **最新发布：v4.93.0（2026-09-05）「失败子代理恢复入口 + diff 行内
   语法着色」（双小刀）**——绑定面 578 零变更：SubagentThread 失败态
   恢复提示条（续跑入口可发现化）；diffHighlight 按路径 Lezer 语法着色

@@ -540,6 +540,8 @@ export function ContextView({
   sessionPath,
   sessionName: sessionNameProp,
   model,
+  fetchTimeline,
+  onViewSubagentContext,
 }: {
   running: boolean;
   sessionPath?: string;
@@ -547,6 +549,10 @@ export function ContextView({
   sessionName?: string;
   /** 顶栏当前模型 label（state.meta.label） */
   model?: string;
+  /** 2.5e 后半：自定义数据源（如子代理会话的 GaeaSubagentContextView）；缺省当前会话。 */
+  fetchTimeline?: () => Promise<ContextTimeline>;
+  /** Agent 网络子代理节点「查看上下文」回调（sa_ 节点；提供才渲染入口）。 */
+  onViewSubagentContext?: (ref: string) => void;
 }) {
   const t = useT();
   const [timeline, setTimeline] = useState<ContextTimeline>(EMPTY);
@@ -574,7 +580,10 @@ export function ContextView({
 
   const load = useCallback(() => {
     void reloadAgentNetwork();
-    app.ContextView()
+    const p = fetchTimeline
+      ? fetchTimeline()
+      : app.ContextView();
+    p
       // 老后端可能把空切片序列化成 null，按数组消费前统一归一化
       .then((tl) => {
         setTimeline({
@@ -589,7 +598,7 @@ export function ContextView({
       })
       .catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)))
       .finally(() => {});
-  }, []);
+  }, [fetchTimeline]);
 
   useEffect(() => {
     load();
@@ -669,7 +678,14 @@ export function ContextView({
             <FileActivityTree files={timeline.files} />
           </div>
           {/* 行6：Agent 网络径向图 */}
-          {net && <AgentRadial network={net} running={running} sessionPath={sessionPath} />}
+          {net && (
+            <AgentRadial
+              network={net}
+              running={running}
+              sessionPath={sessionPath}
+              onViewContext={onViewSubagentContext}
+            />
+          )}
           {/* 底部会话汇总条 + 估算口径 */}
           <SummaryBar
             sessionName={sessionName}

@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	gaeaAgent "github.com/gaea/gaea/internal/gaea/agent"
 	"github.com/gaea/gaea/internal/gaea/agent/session"
 	"github.com/gaea/gaea/internal/gaea/contextview"
 	"github.com/gaea/gaea/internal/gaea/trajectory"
@@ -195,4 +196,29 @@ func enrichAgentNetwork(net *trajectory.AgentNetwork, runs SubagentRunsView) {
 			LastTs:    r.UpdatedAt.Unix(),
 		})
 	}
+}
+
+// GaeaSubagentContextView 返回指定子代理（sa_ ref）会话的上下文构成快照
+// （2.5e 后半：Agent 网络节点 → 子代理上下文跳转）。与 GaeaContextView
+// 同一折叠管线，仅数据源换成子代理 transcript；ref 非法/transcript 缺失
+// 诚实报错。
+func (a *App) GaeaSubagentContextView(sessionPath, ref string) (contextview.ContextTimeline, error) {
+	if !gaeaAgent.ValidRunRef(ref) {
+		return contextview.ContextTimeline{}, fmt.Errorf("非法的子代理引用 %q", ref)
+	}
+	dir := sessionDirForPath(sessionPath)
+	if dir == "" {
+		return contextview.ContextTimeline{}, fmt.Errorf("会话路径无法定位目录")
+	}
+	transcript := filepath.Join(dir, "subagents", ref+".jsonl")
+	// 子代理 transcript 是独立 jsonl（无 legacy 投影语义），直接读修复管道。
+	entries, err := session.ReadLogRepaired(transcript)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return contextview.EmptyTimeline(), nil
+		}
+		return contextview.ContextTimeline{}, err
+	}
+	tl := contextview.FoldTimeline(entries, 0, 0)
+	return tl, nil
 }
