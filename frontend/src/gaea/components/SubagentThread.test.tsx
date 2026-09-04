@@ -190,4 +190,24 @@ describe("SubagentThread 子代理对话全面板（v4.27）", () => {
     // 专用通道订阅确实已建立
     expect(mocks.onSubagentText).toHaveBeenCalled();
   });
+
+  // v4.63 mt_/长文本有界输出（Codex 式）：mt_ 标签页的文档级输出默认限高
+  // 滚动，「展开全部/收起」切换 + 字数标注；不再全量铺开成一面墙。
+  it("mt_ 标签页长输出有界渲染：默认限高，展开后可收起", async () => {
+    const long = ["段落", "段落"].join("\n\n").repeat(300);
+    mocks.SubagentTranscript.mockResolvedValue({
+      ref: "mt_9",
+      task: "摘要文档",
+      messages: [
+        { role: "user", content: "summarize_file · 摘要 文档.docx" },
+        { role: "assistant", content: long },
+      ],
+    });
+    render(wrap(<SubagentThread sessionPath="s1.jsonl" target="mt_9" task="摘要文档" status="completed" onBack={() => {}} />));
+    await screen.findByText("摘要文档");
+    expect(screen.getByTestId("agent-thread-bounded")).toBeTruthy();
+    expect(screen.getByTestId("agent-thread-bounded-toggle").textContent).toContain("展开全部");
+    fireEvent.click(screen.getByTestId("agent-thread-bounded-toggle"));
+    expect(screen.getByTestId("agent-thread-bounded-toggle").textContent).toContain("收起");
+  });
 });

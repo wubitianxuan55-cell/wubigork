@@ -64,6 +64,46 @@ function statusMeta(status: SubagentThreadStatus, t: Translator): { label: strin
 // 折叠输出），正文与思考走主对话 AssistantMessage（Markdown/思考折叠/
 // 复制同款）。未配对的孤儿 tool 行降级为独立卡（name+输出，诚实展示）。
 
+// ── mt_/长文本有界输出（v4.63 Codex 式）──────────────────────────
+// 本地模型工具（summarize_file/vision）的输出是文档级长文本，快照渲染
+// 全量铺开是一堵墙。默认限高内部滚动（Markdown 照常渲染），底部给
+// 「展开全部/收起」与字数标注；流式实时行不做有界（跟随滚动语义）。
+const OUTPUT_BOUND_CHARS = 4000;
+const OUTPUT_BOUND_MAX_H = "26rem";
+
+function BoundedAssistantMessage({ item, chars }: {
+  item: { kind: "assistant"; id: string; text: string; reasoning: string; streaming: boolean };
+  chars: number;
+}) {
+  const t = useT();
+  const [full, setFull] = useState(false);
+  return (
+    <div data-testid="agent-thread-bounded" className="rounded-md border" style={{ borderColor: "var(--md-sys-color-outline-variant)" }}>
+      <div
+        className="px-2.5 py-2 overflow-y-auto"
+        style={full ? undefined : { maxHeight: OUTPUT_BOUND_MAX_H }}
+      >
+        <AssistantMessage item={item} deliverTail={false} />
+      </div>
+      <div className="flex items-center gap-2 px-2.5 py-1 border-t" style={{ borderColor: "var(--md-sys-color-outline-variant)" }}>
+        <span className="font-mono text-[9.5px] tabular-nums" style={{ color: "var(--md-sys-color-text-secondary)" }}>
+          {t("subagent.outputChars", { n: chars })}
+        </span>
+        <span className="min-w-0 flex-1" />
+        <button
+          type="button"
+          data-testid="agent-thread-bounded-toggle"
+          className="cursor-pointer rounded border-0 bg-transparent px-1.5 py-0.5 text-[10px] transition-colors hover:bg-(color:--md-sys-color-surface-container-high)"
+          style={{ color: "var(--gaea-glow)" }}
+          onClick={() => setFull((v) => !v)}
+        >
+          {full ? t("subagent.outputCollapse") : t("subagent.outputExpand", { n: chars })}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function SubagentThread({
   sessionPath,
   target,
@@ -196,6 +236,7 @@ export function SubagentThread({
   const messages = transcript?.messages ?? [];
   // Codex 式渲染项：tool 调用/结果按 toolCallId 配对成 ToolCard，正文/思考
   // 走主对话 AssistantMessage（同款 Markdown/思考折叠/复制）。
+  const isMtTab = target.startsWith("mt_");
   const renderItems = buildRenderItems(messages, running);
 
   return (
@@ -270,10 +311,15 @@ export function SubagentThread({
           <div className="flex flex-col gap-1.5">
             {renderItems.map((it, idx) => {
               if (it.type === "assistant") {
+                const asItem = { kind: "assistant" as const, id: it.id, text: it.text, reasoning: it.reasoning ?? "", streaming: it.live };
+                // Codex 式有界：mt_ 标签页（文档级输出）或超长文本默认限高滚动
+                if (!it.live && (isMtTab || it.text.length > OUTPUT_BOUND_CHARS)) {
+                  return <BoundedAssistantMessage key={it.id} item={asItem} chars={it.text.length} />;
+                }
                 return (
                   <AssistantMessage
                     key={it.id}
-                    item={{ kind: "assistant", id: it.id, text: it.text, reasoning: it.reasoning ?? "", streaming: it.live }}
+                    item={asItem}
                     deliverTail={false}
                   />
                 );
