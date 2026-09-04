@@ -1,6 +1,7 @@
 # 任务进度
 
-> 最后更新: 2026-09-04（v4.64.3「任务管理树呼吸感优化」；
+> 最后更新: 2026-09-04（v4.65.0「三线并行收欠账：追问失败重试 · 工作台
+> 偏好设置卡 · 子代理轮询收敛」；v4.64.3「任务管理树呼吸感优化」；
 > v4.64.2「修复：任务管理树丢失零工具子代理」；
 > **v4.62.2～v4.64.1 六版实机验收完成，六项全 PASS**（见 v4.64.2 发布说明
 > 验收表）；v4.64.1「修复：mt_ 信封双层嵌套转义墙」；
@@ -17,21 +18,36 @@
 > v4.44.0 三刀；小说板块 v4.43.0 四刀；微信助手
 > 三刀 v4.39.0-v4.42.0——绑定面 557 零变更）
 
-## 下会话续做（待办清单，2026-09-04 收档）
+## 下会话续做（待办清单，2026-09-04 更新）
 
-- ~~实机验收（v4.62.2～v4.64.1 六版）~~ **已完成（2026-09-04，六项全
-  PASS）**：①主对话实时过程显示 ②三路并行（同毫秒批磁盘铁证）③task 卡
-  单击开会话 tab ④子代理 tab 同款渲染 ⑤mt_ 历史转录拆包+有界 ⑥追问全链。
-  验收中抓到并修复 1 缺陷=零工具子代理不进任务管理树（v4.64.2）。
-- **dsh 剩余借鉴（按价值）**：后台任务实时输出流+退出码+强杀；追问会话
-  「保存为新会话」提升（GaeaFork 入口已有）；追问失败原因 tab 内联展示+
-  重试按钮；autoOpenJobs/自动展开偏好进设置中心 UI（当前 localStorage
-  gaea.tasks.autoOpenSubagent 默认开）。
-- **store 迁移**：SubagentsPanel / Sidebar 子行迁共享 subagentRunsStore
-  （自有加载/错误/重试态需一并设计）。
-- **老账**：run_skill AllowedTools 真机观察；releases/README.md 索引治理；
-  pptx 真编辑；Verifier 通道 B 逐页缩略图；子代理队列非唯一命中交互式
-  确认。
+- **dsh 剩余借鉴（按价值）**：后台任务实时输出流+退出码+强杀（需绑定面
+  变更，独立刀）；追问会话「保存为新会话」提升（GaeaFork 入口已有）；
+  **后台 runner 追问失败前端无感知**（v4.65.0 线A 发现：后台失败仅
+  slog.Warn，需事件或轮询侧车，涉及后端）。
+- **store 迁移**：~~SubagentsPanel / Sidebar~~ 已完成（v4.65.0 线C）；
+  剩 SubagentsPanel 的 GaeaAgentNetwork 树轮询仍自管（store 只管 runs）；
+  `subagent.runsLoadFail` 专属 i18n 键（现复用相邻键）。
+- **老账**：run_skill AllowedTools 真机观察；pptx 真编辑；Verifier 通道 B
+  逐页缩略图；子代理队列非唯一命中交互式确认。
+- ~~autoOpenJobs 进设置中心~~ 已完成（v4.65.0 线B；该键经 grep 不存在，
+  实际由 gaea.tasks.autoOpenSubagent 承担——过期条目销账）。
+- ~~releases/README.md 索引治理~~ 已完成（v4.65.0 线D）。
+
+## 最新发布：v4.65.0（2026-09-04）「三线并行收欠账」
+
+- 线A 追问失败诚实化（SubagentThread）：tab 内联错误条+失败气泡保留原文
+  +一键重试/撤销；快照接管守卫修正（失败态不误清、不空转轮询）。+3 用例。
+- 线B 「办公工作台偏好」设置卡（设置中心 → 办公置顶）：四个自动展开偏好
+  开关+说明+即时生效标注；新 lib/tasksPrefs.ts；澄清 autoOpenJobs 键不存在
+  （过期欠账销账）。+9 用例。
+- 线C SubagentsPanel/Sidebar 迁共享 subagentRunsStore：同屏 3 路重复轮询
+  收敛为 1 路；store 每路径建册+loading/ready/error 状态机+reload+失败保留
+  旧快照自愈（向后兼容，App 零改动）；失败态不再静默白板。+7 用例。
+- 线D releases/README.md 重写为归档索引（原为主 README 错位副本；历史文件
+  零删除）。
+- 收口：tsc -b/eslint 0（抓 1 处测试类型收窄修复）；vitest 219/1624；
+  drift PASS（560）；冒烟 200；实机走查（设置新卡+任务面板）PASS。
+  详见 releases/v4.65.0.md。
 
 ## 最新发布：v4.64.3（2026-09-04）「任务管理树呼吸感优化」
 

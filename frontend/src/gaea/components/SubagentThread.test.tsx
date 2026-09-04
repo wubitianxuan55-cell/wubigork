@@ -231,3 +231,94 @@ describe("SubagentThread 子代理对话全面板（v4.27）", () => {
     expect(screen.queryByTestId("agent-follow-up-input")).toBeNull();
   });
 });
+
+// v4.64.x 追问失败诚实化：派发被守卫拒绝时错误条内联展示原因，乐观气泡
+// 标失败态保留原文本并内联「重试/撤销」；重试复用 followUpBusy 守卫；
+// 失败态气泡不被无关快照增长误清（清掉会让重试入口凭空消失）。
+describe("SubagentThread 追问失败内联展示与重试（v4.64.x）", () => {
+  it("追问派发失败：错误条内联展示原因，气泡标失败态并保留原文", async () => {
+    mocks.SubagentFollowUp.mockRejectedValueOnce(new Error("主对话回合正在运行，请等回合结束再追问"));
+    render(wrap(<SubagentThread sessionPath="s1.jsonl" target="sa_2_b2b2b2b2" task="任务" status="completed" onBack={() => {}} />));
+    await screen.findByText("开始检索公开信息。");
+    fireEvent.change(screen.getByTestId("agent-follow-up-input"), { target: { value: "再补充一下第二点" } });
+    fireEvent.click(screen.getByTestId("agent-follow-up-send"));
+
+    // 错误条内联展示失败原因（追问失败：{msg}）
+    const errBar = await screen.findByTestId("agent-follow-up-error");
+    expect(errBar.textContent).toContain("追问失败");
+    expect(errBar.textContent).toContain("主对话回合正在运行，请等回合结束再追问");
+
+    // 乐观气泡转失败态：文本保留（不丢用户输入），不再是无失败标注的等待态
+    const bubble = screen.getByTestId("agent-follow-up-pending");
+    expect(bubble.getAttribute("data-failed")).toBe("true");
+    expect(bubble.textContent).toContain("再补充一下第二点");
+    // 重试入口可见
+    expect(screen.getByTestId("agent-follow-up-retry").textContent).toBe("重试");
+  });
+
+  it("失败气泡一键重试：重发同一文本、in-flight 期间 busy 守卫拦截重复派发，成功后快照接管清气泡", async () => {
+    let resolveRetry!: (v: string) => void;
+    mocks.SubagentFollowUp
+      .mockRejectedValueOnce(new Error("该子代理已有追问正在运行"))
+      .mockImplementationOnce(() => new Promise<string>((res) => { resolveRetry = res; }));
+    render(wrap(<SubagentThread sessionPath="s1.jsonl" target="sa_2_b2b2b2b2" task="任务" status="completed" onBack={() => {}} />));
+    await screen.findByText("开始检索公开信息。");
+    fireEvent.change(screen.getByTestId("agent-follow-up-input"), { target: { value: "再补充一下第二点" } });
+    fireEvent.click(screen.getByTestId("agent-follow-up-send"));
+    await screen.findByTestId("agent-follow-up-error");
+
+    // 快照将在重试成功后带回真实内容（6 条 → 8 条）
+    mocks.SubagentTranscript.mockResolvedValue({
+      ...transcript,
+      messages: [
+        ...transcript.messages,
+        { role: "user", content: "再补充一下第二点" },
+        { role: "assistant", content: "第二点的补充如下…" },
+      ],
+    });
+    fireEvent.click(screen.getByTestId("agent-follow-up-retry"));
+
+    // 重发同一文本；重试点击即进入 busy：失败行退场、气泡回到等待态（非假象）
+    expect(mocks.SubagentFollowUp).toHaveBeenCalledTimes(2);
+    expect(mocks.SubagentFollowUp).toHaveBeenLastCalledWith("s1.jsonl", "sa_2_b2b2b2b2", "再补充一下第二点");
+    expect(screen.queryByTestId("agent-follow-up-retry")).toBeNull();
+    expect(screen.getByTestId("agent-follow-up-pending").getAttribute("data-failed")).toBeNull();
+
+    // busy 守卫（与发送共用同一闸）：in-flight 期间再次派发被拦下，不重复调用
+    fireEvent.change(screen.getByTestId("agent-follow-up-input"), { target: { value: "in-flight 抢跑" } });
+    fireEvent.click(screen.getByTestId("agent-follow-up-send"));
+    expect(mocks.SubagentFollowUp).toHaveBeenCalledTimes(2);
+    // 乐观气泡不被抢跑文本覆盖，仍是重试中的那条
+    expect(screen.getByTestId("agent-follow-up-pending").textContent).toContain("再补充一下第二点");
+
+    resolveRetry("follow-up started");
+    // 真实内容落盘 → 乐观气泡与错误条一并退场
+    await screen.findByText("8 条");
+    expect(screen.queryByTestId("agent-follow-up-pending")).toBeNull();
+    expect(screen.queryByTestId("agent-follow-up-error")).toBeNull();
+  });
+
+  it("失败态气泡不被无关快照增长误清；撤销同时清掉气泡与错误条", async () => {
+    mocks.SubagentFollowUp.mockRejectedValueOnce(new Error("子代理追问未接线（引擎尚未构建完成）"));
+    render(wrap(<SubagentThread sessionPath="s1.jsonl" target="sa_2_b2b2b2b2" task="任务" status="completed" onBack={() => {}} />));
+    await screen.findByText("开始检索公开信息。");
+    fireEvent.change(screen.getByTestId("agent-follow-up-input"), { target: { value: "帮忙核对数据" } });
+    fireEvent.click(screen.getByTestId("agent-follow-up-send"));
+    await screen.findByTestId("agent-follow-up-error");
+
+    // 无关快照增长（其他来源的新消息）不清失败气泡 —— 重试入口不能凭空消失
+    mocks.SubagentTranscript.mockResolvedValue({
+      ...transcript,
+      messages: [...transcript.messages, { role: "assistant", content: "别处落盘的新内容" }],
+    });
+    fireEvent.click(screen.getByRole("button", { name: "刷新对话" }));
+    await screen.findByText("7 条");
+    expect(screen.getByTestId("agent-follow-up-pending").getAttribute("data-failed")).toBe("true");
+    expect(screen.getByTestId("agent-follow-up-pending").textContent).toContain("帮忙核对数据");
+
+    // 撤销：气泡与错误条一并清掉
+    fireEvent.click(screen.getByTestId("agent-follow-up-dismiss"));
+    expect(screen.queryByTestId("agent-follow-up-pending")).toBeNull();
+    expect(screen.queryByTestId("agent-follow-up-error")).toBeNull();
+  });
+});

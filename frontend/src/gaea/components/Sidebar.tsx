@@ -15,6 +15,7 @@ import { relativeTime } from "../lib/time";
 import { filterProjectGroups } from "../lib/projectGroups";
 import type { FactBaseView, JobView, ProjectGroup, SessionMeta, SubagentRunView } from "../lib/types";
 import { app } from "../lib/bridge";
+import { reloadSubagentRuns, subscribeSubagentRuns } from "../lib/subagentRunsStore";
 import { useToast } from "./Toast";
 import { useDebouncedValue } from "../hooks/useDebouncedValue";
 import SpaceChip from "./SpaceChip";
@@ -543,40 +544,63 @@ export function Sidebar({
   const [archivedOpen, setArchivedOpen] = useState<Record<string, boolean>>({});
   // 父会话行展开状态（better-sidebar 子代理入口：会话 → 子代理子行）
   const [subagentOpen, setSubagentOpen] = useState<Record<string, boolean>>({});
-  // 按父会话缓存 GaeaSubagentRuns 结果（首次展开时懒加载，关闭再开不重复请求）
+  // 各展开行的 GaeaSubagentRuns 快照（v4.64 迁共享单轮询 store：本组件不再
+  // 自管懒加载缓存与 running 门控轮询定时器——展开即订阅、收起即注销，
+  // loading/ready/error 状态由 store 随快照广播，失败行点击即 store 重拉）。
   const [subagents, setSubagents] = useState<Record<string, SubagentChildrenState>>({});
-
-  const loadSubagents = useCallback((path: string) => {
-    setSubagents((prev) => ({ ...prev, [path]: { status: "loading", runs: [] } }));
-    void app
-      .SubagentRuns(path)
-      .then((v) =>
-        setSubagents((prev) => ({ ...prev, [path]: { status: "ready", runs: v.runs ?? [] } })),
-      )
-      .catch(() =>
-        setSubagents((prev) => ({ ...prev, [path]: { status: "error", runs: [] } })),
-      );
-  }, []);
 
   const toggleSubagents = useCallback(
     (path: string) => {
-      const next = !subagentOpen[path];
-      setSubagentOpen((prev) => ({ ...prev, [path]: next }));
-      if (!next) return;
-      const st = subagents[path];
-      if (st?.status === "ready" || st?.status === "loading") return;
-      loadSubagents(path);
+      setSubagentOpen((prev) => ({ ...prev, [path]: !prev[path] }));
     },
-    [subagentOpen, subagents, loadSubagents],
+    [],
   );
 
   const reloadSubagents = useCallback(
     (path: string) => {
       setSubagentOpen((prev) => ({ ...prev, [path]: true }));
-      loadSubagents(path);
+      reloadSubagentRuns(path); // 未订阅（行未展开）时为 no-op，展开订阅即拉已覆盖
     },
-    [loadSubagents],
+    [],
   );
+
+  // 展开行的 store 订阅管理：按 subagentOpen diff 出新增/收起路径，稳定订阅
+  // 不因无关行开合而重建。live:false（快照订阅）——历史会话行只在展开/重试时
+  // 拉取、不驱动 5s tick；当前会话行的实时刷新由 App/分工面板的 live 订阅
+  // 共享同一路径轮询器提供，请求零重复。
+  const subsRef = useRef<Map<string, () => void>>(new Map());
+  useEffect(() => {
+    const want = new Set<string>();
+    for (const [path, open] of Object.entries(subagentOpen)) {
+      if (open) want.add(path);
+    }
+    for (const [path, off] of subsRef.current) {
+      if (!want.has(path)) {
+        off();
+        subsRef.current.delete(path);
+      }
+    }
+    for (const path of want) {
+      if (subsRef.current.has(path)) continue;
+      subsRef.current.set(
+        path,
+        subscribeSubagentRuns(
+          path,
+          (runs, meta) => {
+            setSubagents((prev) => ({ ...prev, [path]: { status: meta.status, runs } }));
+          },
+          { live: false },
+        ),
+      );
+    }
+  }, [subagentOpen]);
+  useEffect(() => {
+    const subs = subsRef.current;
+    return () => {
+      for (const off of subs.values()) off();
+      subs.clear();
+    };
+  }, []);
 
   useEffect(() => { setLocalQuery(searchQuery); }, [searchQuery]);
   useEffect(() => {
@@ -611,32 +635,6 @@ export function Sidebar({
     }
     return undefined;
   }, [projectGroups]);
-
-  // 当前会话展开子代理时，运行期间每 5s 刷新一次状态/活动行（与右栏分工面板
-  // 同一数据源）；子代理只会从当前会话派发，历史会话子行按展开时快照展示。
-  useEffect(() => {
-    if (!running) return;
-    const path = currentSession?.path;
-    if (!path || !subagentOpen[path]) return;
-    let live = true;
-    const pull = () => {
-      void app
-        .SubagentRuns(path)
-        .then((v) => {
-          if (!live) return;
-          setSubagents((prev) => {
-            const cur = prev[path];
-            return cur?.status === "ready"
-              ? { ...prev, [path]: { status: "ready", runs: v.runs ?? [] } }
-              : prev;
-          });
-        })
-        .catch(() => {});
-    };
-    pull();
-    const timer = setInterval(pull, 5000);
-    return () => { live = false; clearInterval(timer); };
-  }, [running, currentSession?.path, subagentOpen]);
 
   const searching = debouncedQuery.trim().length > 0;
   const filteredGroups = useMemo(

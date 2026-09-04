@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowUp, Loader2, Rollback } from "../icons";
+import { ArrowUp, Loader2, Rollback, X } from "../icons";
 import { app, onEvent, onSubagentText } from "../lib/bridge";
 import { useT, type Translator } from "../lib/i18n";
 import type { SubagentTranscriptView } from "../lib/types";
@@ -239,20 +239,25 @@ export function SubagentThread({
   // 用户在子代理会话 tab 里对已完结的运行追加提问：乐观上屏本地用户气泡，
   // 派发后台运行（绑定即刻返回），transcript 快照轮询带回真实内容后清掉
   // 乐观态。mt_ 运行是单次工具调用，不提供追问。
+  // v4.64.x 失败诚实化：派发被守卫拒绝（主回合运行中/未接线/重复追问）时
+  // 乐观气泡不悄悄蒸发，改标失败态并保留原文本——气泡内联「重试」（复用
+  // followUpBusy 守卫重发同一文本）与「撤销」；错误条内联展示失败原因。
   const [followUpText, setFollowUpText] = useState("");
   const [followUpBusy, setFollowUpBusy] = useState(false);
   const [followUpErr, setFollowUpErr] = useState("");
   const [followUpPending, setFollowUpPending] = useState("");
+  const [followUpPendingFailed, setFollowUpPendingFailed] = useState(false);
   const followUpBaseRef = useRef(0);
   useEffect(() => {
-    // 权威快照长过派发时基线 → 真实内容已落盘，清乐观气泡
-    if (followUpPending && messages.length > followUpBaseRef.current) setFollowUpPending("");
-  }, [messages.length, followUpPending]);
-  const sendFollowUp = useCallback(() => {
-    const text = followUpText.trim();
-    if (!text || followUpBusy || isMtTab) return;
+    // 权威快照长过派发时基线 → 真实内容已落盘，清乐观气泡。
+    // 失败态气泡例外：该次派发不会有内容落盘，快照增长与本条无关，
+    // 清掉会让重试入口凭空消失（诚实保留到用户重试或撤销）。
+    if (followUpPending && !followUpPendingFailed && messages.length > followUpBaseRef.current) setFollowUpPending("");
+  }, [messages.length, followUpPending, followUpPendingFailed]);
+  const dispatchFollowUp = useCallback((text: string) => {
     followUpBaseRef.current = messages.length;
     setFollowUpPending(text);
+    setFollowUpPendingFailed(false);
     setFollowUpText("");
     setFollowUpBusy(true);
     setFollowUpErr("");
@@ -261,12 +266,31 @@ export function SubagentThread({
       .then(() => load())
       .catch((e) => {
         setFollowUpErr(e instanceof Error ? e.message : String(e));
-        setFollowUpPending("");
+        // 诚实处理：气泡转失败态保留文本供一键重试，不留永久「等待中」假象
+        setFollowUpPendingFailed(true);
       })
       .finally(() => setFollowUpBusy(false));
-  }, [followUpText, followUpBusy, isMtTab, messages.length, sessionPath, target, load]);
-  // 追问运行期间保持 3s 轮询拉取新增内容（status prop 可能尚未翻转）
-  const followUpActive = followUpBusy || !!followUpPending;
+  }, [messages.length, sessionPath, target, load]);
+  const sendFollowUp = useCallback(() => {
+    const text = followUpText.trim();
+    if (!text || followUpBusy || isMtTab) return;
+    dispatchFollowUp(text);
+  }, [followUpText, followUpBusy, isMtTab, dispatchFollowUp]);
+  // 失败气泡一键重试：重发同一文本（守卫与 sendFollowUp 相同的 busy 闸）
+  const retryFollowUp = useCallback(() => {
+    const text = followUpPending.trim();
+    if (!text || followUpBusy || isMtTab) return;
+    dispatchFollowUp(text);
+  }, [followUpPending, followUpBusy, isMtTab, dispatchFollowUp]);
+  // 撤销失败气泡：放弃这条追问，连同错误条一并清掉
+  const dismissFollowUp = useCallback(() => {
+    setFollowUpPending("");
+    setFollowUpPendingFailed(false);
+    setFollowUpErr("");
+  }, []);
+  // 追问运行期间保持 3s 轮询拉取新增内容（status prop 可能尚未翻转）。
+  // 失败态气泡不算运行中——该次派发没有后台运行，轮询是空转。
+  const followUpActive = followUpBusy || (!!followUpPending && !followUpPendingFailed);
   useEffect(() => {
     if (!running && !followUpActive) return;
     const timer = window.setInterval(() => { if (gate) load(); }, THREAD_POLL_MS);
@@ -391,15 +415,55 @@ export function SubagentThread({
                 </div>
               );
             })}
-            {/* Side Chat 追问的乐观用户气泡：快照带回真实内容后清除 */}
+            {/* Side Chat 追问的乐观用户气泡：快照带回真实内容后清除；
+                失败态保留文本并内联「重试/撤销」，不留永久等待假象 */}
             {followUpPending && (
               <div className="flex justify-end">
                 <div
                   data-testid="agent-follow-up-pending"
-                  className="max-w-[88%] whitespace-pre-wrap break-words rounded-lg px-2.5 py-1.5 text-[12.5px] leading-relaxed opacity-70"
-                  style={{ background: "color-mix(in srgb, var(--md-sys-color-surface-container-high) 70%, transparent)", color: "var(--md-sys-color-text)" }}
+                  data-failed={followUpPendingFailed || undefined}
+                  className={
+                    "max-w-[88%] whitespace-pre-wrap break-words rounded-lg px-2.5 py-1.5 text-[12.5px] leading-relaxed " +
+                    (followUpPendingFailed ? "" : "opacity-70")
+                  }
+                  style={
+                    followUpPendingFailed
+                      ? {
+                          background: "color-mix(in srgb, var(--md-sys-color-destructive) 8%, transparent)",
+                          color: "var(--md-sys-color-text)",
+                          border: "1px solid color-mix(in srgb, var(--md-sys-color-destructive) 30%, transparent)",
+                        }
+                      : { background: "color-mix(in srgb, var(--md-sys-color-surface-container-high) 70%, transparent)", color: "var(--md-sys-color-text)" }
+                  }
                 >
                   {followUpPending}
+                  {followUpPendingFailed && (
+                    <div className="mt-1 flex items-center gap-1.5 text-[10.5px]">
+                      <span style={{ color: "var(--md-sys-color-destructive)" }}>{t("subagent.followUpFailLabel")}</span>
+                      <span className="min-w-0 flex-1" />
+                      <button
+                        type="button"
+                        data-testid="agent-follow-up-retry"
+                        className="cursor-pointer rounded border-0 bg-transparent px-1 py-0.5 text-[10.5px] disabled:cursor-not-allowed disabled:opacity-40"
+                        style={{ color: "var(--gaea-glow)" }}
+                        disabled={followUpBusy}
+                        onClick={retryFollowUp}
+                      >
+                        {t("subagent.retry")}
+                      </button>
+                      <button
+                        type="button"
+                        data-testid="agent-follow-up-dismiss"
+                        aria-label={t("subagent.close")}
+                        title={t("subagent.close")}
+                        className="flex h-4 w-4 shrink-0 cursor-pointer items-center justify-center rounded border-0 bg-transparent p-0 transition-colors hover:bg-(color:--md-sys-color-surface-container-high)"
+                        style={{ color: "var(--md-sys-color-text-secondary)" }}
+                        onClick={dismissFollowUp}
+                      >
+                        <X size={10} aria-hidden />
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -423,8 +487,16 @@ export function SubagentThread({
       {!isMtTab && (
         <div className="shrink-0 px-2.5 pb-2" data-testid="agent-follow-up">
           {followUpErr && (
-            <div className="mb-1 text-[10.5px]" style={{ color: "var(--md-sys-color-destructive)" }}>
-              {followUpErr}
+            <div
+              data-testid="agent-follow-up-error"
+              className="mb-1 break-words rounded-md px-2 py-1 text-[10.5px]"
+              style={{
+                color: "var(--md-sys-color-destructive)",
+                background: "color-mix(in srgb, var(--md-sys-color-destructive) 8%, transparent)",
+                border: "1px solid color-mix(in srgb, var(--md-sys-color-destructive) 30%, transparent)",
+              }}
+            >
+              {t("subagent.followUpFail", { msg: followUpErr })}
             </div>
           )}
           <div className="flex items-center gap-1.5">
