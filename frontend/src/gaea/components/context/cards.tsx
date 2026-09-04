@@ -67,12 +67,12 @@ function fmtPct(part: number, whole: number): string {
 // ─── 卡片外壳与公共小件 ─────────────────────────────────────────
 
 function CardHead({ title, sub }: { title: string; sub?: string }) {
-  // v4.69（对齐 dsh 仪表头）：标题左置、副注右置同行的单行卡头，数据密度优先。
+  // v4.70（对齐 dsh 仪表头）：标题左置（12.5px w600）、副注右置（10.5px）同行的单行卡头。
   return (
     <div className="flex items-baseline justify-between gap-2">
-      <div className="min-w-0 truncate text-[11px] font-medium text-fg">{title}</div>
+      <div className="min-w-0 truncate text-[12.5px] font-semibold text-fg">{title}</div>
       {sub && (
-        <div className="min-w-0 shrink-0 truncate text-right text-[9.5px] leading-none text-fg-faint" title={sub}>
+        <div className="min-w-0 shrink-0 truncate text-right text-[10.5px] leading-none text-fg-faint" title={sub}>
           {sub}
         </div>
       )}
@@ -80,12 +80,12 @@ function CardHead({ title, sub }: { title: string; sub?: string }) {
   );
 }
 
-/** label 上小字 + value 下大字（等宽）的统计格 */
+/** label 上小字 + value 下大字（等宽）的统计格（v4.70 value 15/17px，对齐 dsh 数值层级） */
 function StatCell({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
   return (
     <div className="min-w-0">
-      <div className="truncate text-[9.5px] text-fg-faint">{label}</div>
-      <div className={`truncate font-mono tabular-nums text-fg ${strong ? "text-[14px]" : "text-[13px]"}`}>{value}</div>
+      <div className="truncate text-[10.5px] font-medium text-fg-faint">{label}</div>
+      <div className={`truncate font-mono tabular-nums text-fg ${strong ? "text-[17px]" : "text-[15px]"}`}>{value}</div>
     </div>
   );
 }
@@ -99,8 +99,8 @@ function Donut({
   segments,
   center,
   centerSub,
-  size = 84,
-  stroke = 9,
+  size = 92,
+  stroke = 10,
 }: {
   segments: { value: number; color: string }[];
   center: string;
@@ -140,8 +140,8 @@ function Donut({
           })}
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="font-mono text-[14px] tabular-nums leading-none text-fg">{center}</span>
-        <span className="mt-0.5 text-[8.5px] leading-none text-fg-faint">{centerSub}</span>
+        <span className="font-mono text-[16px] font-semibold tabular-nums leading-none text-fg">{center}</span>
+        <span className="mt-0.5 text-[9.5px] leading-none text-fg-faint">{centerSub}</span>
       </div>
     </div>
   );
@@ -195,7 +195,7 @@ export function TokenCard({ requests }: { requests: ContextRequestRecord[] }) {
         />
         <div className="min-w-0 flex-1 space-y-1.5">
           {rows.map((r) => (
-            <div key={r.label} className="flex items-center gap-1.5 text-[10px]">
+            <div key={r.label} className="flex items-center gap-1.5 text-[11.5px]">
               <Dot color={r.color} />
               <span className="shrink-0 text-fg-dim">{r.label}</span>
               <span className="ml-auto min-w-0 truncate text-right font-mono tabular-nums text-fg">
@@ -269,7 +269,7 @@ export function TimingCard({ timing }: { timing?: ContextTiming }) {
         />
         <div className="min-w-0 flex-1 space-y-1.5">
           {rows.map((r) => (
-            <div key={r.label} className="flex items-center gap-1.5 text-[10px]">
+            <div key={r.label} className="flex items-center gap-1.5 text-[11.5px]">
               <Dot color={r.color} />
               <span className="shrink-0 text-fg-dim">{r.label}</span>
               <span className="ml-auto min-w-0 truncate text-right font-mono tabular-nums text-fg">
@@ -288,7 +288,7 @@ export function TimingCard({ timing }: { timing?: ContextTiming }) {
       {topTools.length > 0 && (
         <div className="mt-2 border-t border-border-soft pt-1.5" data-testid="timing-tools">
           {topTools.map((t) => (
-            <div key={t.name} className="flex items-center gap-1.5 text-[9.5px]">
+            <div key={t.name} className="flex items-center gap-1.5 text-[10.5px]">
               <span className="min-w-0 truncate text-fg-faint">{t.name}</span>
               <span className="ml-auto shrink-0 font-mono tabular-nums text-fg-dim">{t.calls} 次</span>
               <span className="w-14 shrink-0 text-right font-mono tabular-nums text-fg-faint">{fmtDuration(t.ms)}</span>
@@ -327,7 +327,7 @@ export function SessionInfoCard({
       <CardHead title="会话信息" />
       <div className="mt-2 space-y-1">
         {rows.map(([k, v]) => (
-          <div key={k} className="flex items-baseline justify-between gap-2 text-[10px]">
+          <div key={k} className="flex items-baseline justify-between gap-2 text-[11.5px]">
             <span className="shrink-0 text-fg-faint">{k}</span>
             <span className="min-w-0 truncate text-right font-mono tabular-nums text-fg" title={v}>{v}</span>
           </div>

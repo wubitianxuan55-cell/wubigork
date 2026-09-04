@@ -70,22 +70,22 @@ function CurrentContextCard({
   return (
     <div className="rounded-lg border border-border-soft bg-bg p-3">
       <div className="flex items-center justify-between">
-        <div className="text-[11px] font-medium text-fg">{t("contextview.currentTitle")}</div>
+        <div className="text-[12.5px] font-semibold text-fg">{t("contextview.currentTitle")}</div>
         {current.tool > 0 && (
-          <div className="text-[9.5px] tabular-nums text-fg-faint">
+          <div className="text-[10.5px] tabular-nums text-fg-faint">
             {t("contextview.toolResultShare", { tokens: fmtTokens(current.tool), pct: toolPct })}
           </div>
         )}
       </div>
       <div className="mt-1.5 flex items-baseline gap-1.5">
-        <span className="font-mono text-[20px] font-semibold leading-none text-fg">{fmtTokens(total)}</span>
-        <span className="text-[10.5px] text-fg-faint">/ {fmtTokens(win)} tokens</span>
+        <span className="font-mono text-[26px] font-bold leading-none tracking-tight text-fg">{fmtTokens(total)}</span>
+        <span className="text-[12px] text-fg-faint">/ {fmtTokens(win)} tokens</span>
         <span className="ml-auto flex items-baseline gap-1">
-          <b className="font-mono text-[20px] font-semibold leading-none text-fg">{pct}%</b>
-          <span className="text-[10px] text-fg-faint">{t("contextview.pctUsed")}</span>
+          <b className="font-mono text-[26px] font-bold leading-none text-fg">{pct}%</b>
+          <span className="text-[11px] text-fg-faint">{t("contextview.pctUsed")}</span>
         </span>
       </div>
-      <div className="mt-2 flex h-3 w-full overflow-hidden rounded-full bg-bg-soft" role="img" aria-label={t("contextview.currentTitle")}>
+      <div className="mt-2 flex h-4 w-full overflow-hidden rounded-md bg-bg-soft" role="img" aria-label={t("contextview.currentTitle")}>
         {CATS.map((c) => {
           const w = total > 0 ? (current[c.key] / total) * 100 : 0;
           if (w <= 0) return null;
@@ -120,7 +120,7 @@ function CurrentContextCard({
               key={c.key}
               data-testid={`comp-chip-${c.key}`}
               data-cat={c.key}
-              className={`inline-flex cursor-default items-center gap-1 text-[10px] text-fg-dim transition-opacity duration-150 ${chipDim(c.key)} ${
+              className={`inline-flex cursor-default items-center gap-1 text-[11.5px] text-fg-dim transition-opacity duration-150 ${chipDim(c.key)} ${
                 activeCat === c.key ? "rounded bg-accent/10 px-1" : ""
               }`}
               onMouseEnter={() => setActiveCat(c.key)}
@@ -136,7 +136,7 @@ function CurrentContextCard({
         })}
         <span
           data-testid="comp-chip-idle"
-          className={`inline-flex cursor-default items-center gap-1 text-[10px] text-fg-dim transition-opacity duration-150 ${chipDim("idle")} ${
+          className={`inline-flex cursor-default items-center gap-1 text-[11.5px] text-fg-dim transition-opacity duration-150 ${chipDim("idle")} ${
             activeCat === "idle" ? "rounded bg-accent/10 px-1" : ""
           }`}
           onMouseEnter={() => setActiveCat("idle")}
@@ -218,8 +218,8 @@ function ContextTrendChart({ requests, events, onPick, detail }: {
   return (
     <div className="rounded-lg border border-border-soft bg-bg p-3">
       <div className="flex items-center justify-between">
-        <div className="text-[11px] font-medium text-fg">{t("contextview.trendTitle")}</div>
-        <div className="flex items-center gap-1 text-[10px]">
+        <div className="text-[12.5px] font-semibold text-fg">{t("contextview.trendTitle")}</div>
+        <div className="flex items-center gap-1 text-[11px]">
           {(["step", "turn"] as const).map((g) => (
             <button
               key={g}
@@ -238,14 +238,14 @@ function ContextTrendChart({ requests, events, onPick, detail }: {
           ))}
         </div>
       </div>
-      <div className="mt-1 text-[9px] text-fg-faint">
+      <div className="mt-1 text-[10px] text-fg-faint">
         {t("contextview.trendLegend")}
         {mode === "delta" && <span className="ml-2"><span className="text-[#22c55e]">■</span> {t("contextview.netIncrease")} <span className="ml-1 text-[#ef4444]">■</span> {t("contextview.netDecrease")}</span>}
       </div>
       {hovered !== null && bars[hovered] && (
         <div
           data-testid="trend-hover-detail"
-          className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 rounded-md px-2 py-1 text-[9.5px]"
+          className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 rounded-md px-2 py-1 text-[10.5px]"
           style={{ background: "var(--md-sys-color-surface-container-high)" }}
         >
           <span className="font-mono text-fg-dim">{t("contextview.turnStep", { turn: bars[hovered].turn, step: bars[hovered].step })}</span>
@@ -339,10 +339,10 @@ function StepDetail({ record, window }: { record: ContextRequestRecord | null; w
   return (
     <div className="mt-2 border-t border-border-soft/70 pt-2">
       <div className="flex items-center justify-between">
-        <div className="text-[11px] font-medium text-fg">{t("contextview.turnStep", { turn: record.turn, step: record.step })}</div>
-        <div className="text-[9px] text-fg-faint tabular-nums font-mono">{new Date(record.ts * 1000).toLocaleTimeString()}</div>
+        <div className="text-[12.5px] font-semibold text-fg">{t("contextview.turnStep", { turn: record.turn, step: record.step })}</div>
+        <div className="text-[10px] text-fg-faint tabular-nums font-mono">{new Date(record.ts * 1000).toLocaleTimeString()}</div>
       </div>
-      <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-fg-dim tabular-nums font-mono">
+      <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[11.5px] text-fg-dim tabular-nums font-mono">
         {record.estimated
           ? <span className="text-warning/90">{t("contextview.estimated")}</span>
           : record.promptTokens ? <span>{t("contextview.actualPrompt", { tokens: fmtTokens(record.promptTokens) })}</span> : null}
@@ -352,13 +352,13 @@ function StepDetail({ record, window }: { record: ContextRequestRecord | null; w
         {windowPct != null && <span>{t("contextview.windowPct", { pct: windowPct })}</span>}
       </div>
       {record.briefUser && (
-        <div className="mt-1.5 flex gap-1.5 text-[10px]">
+        <div className="mt-1.5 flex gap-1.5 text-[11.5px]">
           <span className="shrink-0 text-fg-faint">{t("contextview.inputLabel")}</span>
           <span className="truncate font-mono text-fg-dim">{record.briefUser}</span>
         </div>
       )}
       {record.briefResp && (
-        <div className="flex gap-1.5 text-[10px]">
+        <div className="flex gap-1.5 text-[11.5px]">
           <span className="shrink-0 text-fg-faint">{t("contextview.respLabel")}</span>
           <span className="truncate font-mono text-fg-dim">{record.briefResp}</span>
         </div>
@@ -396,15 +396,15 @@ function EventsList({ events }: { events: ContextEvent[] }) {
   return (
     <div className="rounded-lg border border-border-soft bg-bg p-3">
       <div className="flex items-center justify-between">
-        <div className="text-[11px] font-medium text-fg">{t("contextview.eventsTitle")}</div>
-        <div className="flex items-center gap-1 text-[10px]">
+        <div className="text-[12.5px] font-semibold text-fg">{t("contextview.eventsTitle")}</div>
+        <div className="flex items-center gap-1 text-[11px]">
           {EVENT_KINDS.map((k) => {
             const on = kinds.includes(k);
             return (
               <button
                 key={k}
                 aria-pressed={on}
-                className={`rounded border-0 px-1.5 py-0.5 cursor-pointer transition-colors duration-150 ${
+                className={`rounded-md border-0 px-2 py-1 cursor-pointer transition-colors duration-150 ${
                   on ? "bg-accent/15 text-accent" : "text-fg-faint hover:text-fg"
                 }`}
                 onClick={() => toggle(k)}
@@ -414,10 +414,10 @@ function EventsList({ events }: { events: ContextEvent[] }) {
         </div>
       </div>
       <div className="mt-1.5 max-h-44 overflow-y-auto">
-        {shown.length === 0 && <div className="text-[10px] text-fg-faint py-2">{t("contextview.noEvents")}</div>}
+        {shown.length === 0 && <div className="text-[11px] text-fg-faint py-2">{t("contextview.noEvents")}</div>}
         {shown.slice(-30).reverse().map((e) => (
-          <div key={`${e.kind}-${e.seq}`} className="flex items-center gap-1.5 py-0.5 text-[10px] border-b border-border-soft/40 last:border-0">
-            <span className={`shrink-0 px-1 rounded text-[9px] ${e.kind === "compact" ? "bg-warning/15 text-warning" : e.kind === "prune" ? "bg-err/15 text-err" : "bg-accent/10 text-accent"}`}>
+          <div key={`${e.kind}-${e.seq}`} className="flex items-center gap-1.5 py-0.5 text-[11.5px] border-b border-border-soft/40 last:border-0">
+            <span className={`shrink-0 px-1 rounded text-[10px] ${e.kind === "compact" ? "bg-warning/15 text-warning" : e.kind === "prune" ? "bg-err/15 text-err" : "bg-accent/10 text-accent"}`}>
               {e.delta != null && e.delta < 0 ? "" : "+"}{t(EVENT_LABEL[e.kind])}
             </span>
             <span className="truncate text-fg-dim">{e.source || "—"}</span>
