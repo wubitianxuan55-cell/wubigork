@@ -235,7 +235,7 @@ export function GitPanel({ onOpenFile }: { onOpenFile?: (path: string) => void }
                 读取 diff…
               </div>
             ) : (
-              <ChangesDiff diff={buildGitDiff(diffText ?? "")} />
+              <ChangesDiff diff={buildGitDiff(diffText ?? "")} path={expandedPath ?? undefined} />
             )}
             {onOpenFile && (
               <button

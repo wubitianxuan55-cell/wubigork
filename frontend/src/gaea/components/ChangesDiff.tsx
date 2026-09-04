@@ -1,6 +1,8 @@
 import { useState } from "react";
 import type { ChangeDiff } from "../lib/planDiff";
 import { charSegments, foldContext, pairModifications, type DiffPresentRow } from "../lib/diffRender";
+import { highlightLine } from "../lib/diffHighlight";
+import "./changesdiff-tok.css";
 
 // ChangesDiff —「变更」tab 的行级红绿 diff 渲染（v4.25 变更 tab diff 化）。
 //
@@ -47,7 +49,7 @@ function Segments({ segs, side }: { segs: { text: string; changed: boolean }[]; 
 }
 
 // 单 hunk 展示行（含配对蓝染与折叠占位）。
-function PresentRows({ present }: { present: DiffPresentRow[] }) {
+function PresentRows({ present, path }: { present: DiffPresentRow[]; path?: string }) {
   // 折叠块展开集合（展开后原行就地显示，不再收起；行键=序列下标）。
   const [unfolded, setUnfolded] = useState<Set<number>>(() => new Set());
 
@@ -114,7 +116,13 @@ function PresentRows({ present }: { present: DiffPresentRow[] }) {
                 ? <Segments segs={charSegments(p.pairOld!, p.pairNew!).oldSegs} side="old" />
                 : paired && r.type === "add"
                   ? <Segments segs={charSegments(p.pairOld!, p.pairNew!).newSegs} side="new" />
-                  : r.text === "" ? " " : r.text}
+                  : path
+                    ? highlightLine(r.text, path).map((seg, k) =>
+                        seg.cls
+                          ? <span key={k} className={seg.cls}>{seg.text || " "}</span>
+                          : <span key={k}>{seg.text === "" ? " " : seg.text}</span>,
+                      )
+                    : r.text === "" ? " " : r.text}
             </span>
           </div>
         );
@@ -128,20 +136,20 @@ function PresentRows({ present }: { present: DiffPresentRow[] }) {
   );
 }
 
-function DiffRows({ rows }: { rows: ChangeDiff["hunks"][number]["rows"] }) {
+function DiffRows({ rows, path }: { rows: ChangeDiff["hunks"][number]["rows"]; path?: string }) {
   // 2c：配对 → 上下文折叠。
   const present = foldContext(pairModifications(rows));
-  return <PresentRows present={present} />;
+  return <PresentRows present={present} path={path} />;
 }
 
-export function ChangesDiff({ diff }: { diff: ChangeDiff }) {
+export function ChangesDiff({ diff, path }: { diff: ChangeDiff; path?: string }) {
   if (diff.kind === "diff") {
     return (
       <div className="flex flex-col gap-1.5">
         {diff.hunks.map((h, i) => (
           <div key={i} data-testid="changes-diff-hunk">
             {h.label && <div className="mb-0.5 text-[10px] text-fg-faint">{h.label}</div>}
-            <DiffRows rows={h.rows} />
+            <DiffRows rows={h.rows} path={path} />
           </div>
         ))}
       </div>

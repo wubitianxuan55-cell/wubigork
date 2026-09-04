@@ -1,6 +1,7 @@
 # 任务进度
 
-> 最后更新: 2026-09-05（v4.92.0「Mermaid strict 安全线成文 + MemoMarkdown
+> 最后更新: 2026-09-05（v4.93.0「失败子代理恢复入口 + diff 行内语法
+> 着色」，578 零变更；v4.92.0「Mermaid strict 安全线成文 + MemoMarkdown
 > 消毒层」，578 零变更，阶段三 3b 收口；v4.91.0「CodeMirror 语法高亮
 > 编辑器」，578 零变更；v4.89.0
 > 「成本费率 hover」，578 零变更；
@@ -29,10 +30,21 @@
   终止级联、失败子代理可恢复）；docx/xlsx 对比迁移 ChangesDiff 另刀；
   Agent Network 会话跳转（GaeaContextView 按会话参数化前置）。成本费率
   hover（v4.89）、终止级联（v4.90）、CodeMirror 编辑器（v4.91）、Mermaid
-  strict 安全线成文+MemoMarkdown 消毒层（v4.92）已落地。
+  strict 安全线（v4.92）、失败恢复入口+diff 语法着色（v4.93）已落地。
 - **dsh 剩余借鉴**：2.5e /context 弹层与 Agent Network 会话跳转（拍板）。
 - **老账**：run_skill AllowedTools 真机观察；pptx 真编辑；Verifier 通道 B
   逐页缩略图；子代理队列非唯一命中交互式确认。
+
+## 最新发布：v4.93.0（2026-09-05）「失败子代理恢复入口 + diff 行内语法着色」（双小刀合并）
+
+- 刀A（调研回填 opencode「失败≠终点」）：SubagentThread 失败态恢复提示条
+  ——RunFollowUp 本支持 failed ref 续跑，入口可发现化。
+- 刀B（2c 遗留）：diffHighlight.ts 按路径 Lezer parser 单行 token 切分
+  （tok-* 色板，600 字上限防退化），ChangesDiff 接线（配对行字符高亮
+  优先），ChangesPanel/GitPanel 传路径。
+- 门禁：Go 全量 0 FAIL、tsc -b/eslint 0、vitest 231/1756、drift PASS（578）、
+  ?mock=1 DOM 走查通过（ts diff 12 个 tok 片段；截图通道沿例故障）。
+- 详见 releases/v4.93.0.md。
 
 ## 最新发布：v4.92.0（2026-09-05）「Mermaid strict 安全线成文 + MemoMarkdown 消毒层」
 

@@ -331,7 +331,7 @@ export function ChangesPanel({
                       )}
                     </div>
                     {call.applied ? (
-                      <ChangesDiff diff={call.diff} />
+                      <ChangesDiff diff={call.diff} path={c.path} />
                     ) : (
                       <div className="text-[10.5px] text-fg-faint">调用未成功落盘，无内容变化。</div>
                     )}

@@ -1392,6 +1392,7 @@ export const zhTW: Record<DictKey, string> = {
   "contextview.imgEstTip": "官方 patch 口徑 ⌈w÷28⌉×⌈h÷28⌉（先檔位縮放再封頂）；高解析度檔 ≈{high} tok",
   "contextview.imgMissing": "檔案不存在",
   "contextview.costNoRate": "供應商未上報費率（用量無定價欄位），費用未估算",
+  "subagent.recoverHint": "本次執行已失敗。在下方輸入新指令，可基於該子代理已有的上下文續跑（無需從頭再來）。",
   "contextview.costRateIn": "未快取輸入",
   "contextview.costRateOut": "輸出",
   "contextview.costRateCache": "快取命中",

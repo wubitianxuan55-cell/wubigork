@@ -400,3 +400,18 @@ describe("SubagentThread 追问后台失败经 meta 带回（v4.66）", () => {
     expect(screen.getByTestId("agent-follow-up-retry")).toBeTruthy();
   });
 });
+
+describe("SubagentThread 失败恢复入口（v4.93）", () => {
+  it("status=failed 显示续跑提示条；completed/running 不显示", async () => {
+    render(wrap(<SubagentThread sessionPath="s1.jsonl" target="sa_2_b2b2b2b2" task="任务" status="failed" onBack={() => {}} />));
+    const hint = await screen.findByTestId("agent-recover-hint");
+    expect(hint.textContent).toContain("续跑");
+    expect(hint.textContent).toContain("失败");
+  });
+
+  it("status=completed 无恢复提示", async () => {
+    render(wrap(<SubagentThread sessionPath="s1.jsonl" target="sa_2_b2b2b2b2" task="任务" status="completed" onBack={() => {}} />));
+    await screen.findByText("任务");
+    expect(screen.queryByTestId("agent-recover-hint")).toBeNull();
+  });
+});

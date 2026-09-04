@@ -536,6 +536,21 @@ export function SubagentThread({
           调用没有可追问的线程。运行中禁用（后端同样拒绝 running 续跑）。 */}
       {!isMtTab && (
         <div className="shrink-0 px-2.5 pb-2" data-testid="agent-follow-up">
+          {/* 失败可恢复（2b 调研回填，opencode 语义）：失败≠终点——输入新
+              指令即可基于已有上下文续跑（RunFollowUp 支持failed ref）。
+              此前入口不可发现，失败用户无从知晓还能续跑。 */}
+          {status === "failed" && !running && (
+            <div
+              data-testid="agent-recover-hint"
+              className="mb-1 flex items-center gap-1.5 rounded-md px-2 py-1 text-[10.5px]"
+              style={{
+                background: "color-mix(in srgb, var(--md-sys-color-destructive) 8%, transparent)",
+                color: "var(--md-sys-color-destructive)",
+              }}
+            >
+              {t("subagent.recoverHint")}
+            </div>
+          )}
           {followUpErr && (
             <div
               data-testid="agent-follow-up-error"

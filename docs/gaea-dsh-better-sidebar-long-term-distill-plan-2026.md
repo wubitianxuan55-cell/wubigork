@@ -297,6 +297,7 @@ pane 工作台/文件 tab（v4.25）、任务+分工同屏（v4.53）、子代�
 | v4.89 | 成本费率 hover（fold Rate 快照 + 三档明细） | 成本 hover 展示 per-1M 费率 | 调研回填中期候选第一项（langfuse/ccusage 口径） |
 | v4.91 | CodeMirror 语法高亮编辑器（懒加载 + 语言映射 + 双层回落） | 代码编辑器（语法高亮+懒加载） | 3a 收口；2c 遗留语法着色能力就位 |
 | v4.92 | MemoMarkdown 消毒层 + Mermaid strict 决策成文 | （安全线对齐，非蒸馏能力） | 3b 收口；外层 SVG 再消毒实验证伪成文 |
+| v4.93 | 失败子代理恢复入口提示 + diff 行内语法着色（Lezer tok-*） | 失败可恢复呈现 + 统一 diff 语法着色 | 调研回填（opencode）+ 2c 遗留收口 |
 | v4.88 | /context 居中弹层 + 常驻剩余上下文% 徽标 | /context 弹层 + 常驻 context 计数 | 2.5e 收口（Agent Network 跳转半项留后续） |
 
 ## 8. 成功标准（长期）

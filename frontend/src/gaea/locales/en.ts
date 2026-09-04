@@ -1387,6 +1387,7 @@ export const en = {
   "contextview.imgEstTip": "Official patch scheme ⌈w÷28⌉×⌈h÷28⌉ (tier-scaled then capped); high-res tier ≈{high} tok",
   "contextview.imgMissing": "File missing",
   "contextview.costNoRate": "Provider reported no rates (usage lacks pricing fields); cost not estimated",
+  "subagent.recoverHint": "This run failed. Type a new instruction below to resume from the subagent's existing context (no restart needed).",
   "contextview.costRateIn": "Uncached input",
   "contextview.costRateOut": "Output",
   "contextview.costRateCache": "Cache hit",

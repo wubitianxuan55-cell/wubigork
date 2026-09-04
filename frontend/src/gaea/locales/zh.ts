@@ -1388,6 +1388,7 @@ export const zh: Record<DictKey, string> = {
   "contextview.imgEstTip": "官方 patch 口径 ⌈w÷28⌉×⌈h÷28⌉（先档位缩放再封顶）；高分辨率档 ≈{high} tok",
   "contextview.imgMissing": "文件不存在",
   "contextview.costNoRate": "供应商未上报费率（用量无定价字段），费用未估算",
+  "subagent.recoverHint": "本次运行已失败。在下方输入新指令，可基于该子代理已有的上下文续跑（无需从头再来）。",
   "contextview.costRateIn": "未缓存输入",
   "contextview.costRateOut": "输出",
   "contextview.costRateCache": "缓存命中",

@@ -1,3 +1,9 @@
+## v4.93.0 · 失败子代理恢复入口 + diff 行内语法着色（2026-09-05）
+> 双小刀合并版（每版 1-2 刀惯例）；**绑定面 578 零变更**。详见 releases/v4.93.0.md。
+- **刀A 失败恢复入口**（调研回填 opencode「失败≠终点」）：SubagentThread 失败态新增恢复提示条（status=failed 时显示「输入新指令可基于已有上下文续跑」）——RunFollowUp 本就支持 failed ref 续跑（v4.64 管道），此前入口不可发现；completed/running 不显示。i18n 三语 +1 键。
+- **刀B diff 行内语法着色**（2c 遗留项，CodeMirror 依赖 3a 就位）：diffHighlight.ts——按路径选 Lezer parser（ts/js/jsx/tsx/py/json/css/html/md；模块级缓存），highlightLine 单行 token 切分输出 tok-* 类片段（600 字上限防退化，未知语言整行原样），配色 changesdiff-tok.css（语法语义色板 hex-exempt）；ChangesDiff 增可选 path prop，ChangesPanel/GitPanel 接线；配对行维持字符级高亮（语义优先），非配对行与 ctx 行走语法着色。
+- 测试：diffHighlight +5（ts 关键字/数字片段、py 注释、未知语言原样、超长防退化、parser 缓存）+ SubagentThread +2（failed 提示条/completed 不显示）；vitest 231/1756、Go 全量 0 FAIL、tsc -b/eslint 0、drift PASS（578）、?mock=1 走查通过（Git 面板 ts diff 12 个 tok 片段 DOM 断言；截图通道沿例故障如实记录）。
+
 ## v4.92.0 · Mermaid strict 安全线成文 + MemoMarkdown 消毒层（2026-09-05）
 > 双源蒸馏规划阶段三 3b；**绑定面 578 零变更**（纯前端刀）。详见 releases/v4.92.0.md。
 - **结论先行**：mermaid SVG **不追加**外层 DOMPurify 再消毒——mermaid v11 在 securityLevel:"strict"（本项目显式配置）下已内置 DOMPurify 消毒输出；实测（vite 页面配置矩阵 + ?mock=1 三轮走查）外层 pass 的 svg profile 必然剥离 foreignObject 内 html 标签（节点文字全失），ADD_TAGS 补救无效（svg 命名空间校验拒绝）。功能性破坏 > 边际防御收益，strict 上游为正解，决策过程成文于 lib/sanitize.ts 头注。
