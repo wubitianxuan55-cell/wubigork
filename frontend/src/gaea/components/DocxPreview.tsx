@@ -3,20 +3,38 @@ import { renderAsync } from "docx-preview";
 import {
   AlertCircle,
   Check,
+  ClipboardList,
   FileText,
   ListTree,
   Loader2,
   MessageSquare,
+  RefreshCw,
   Sparkles,
+  Trash2,
   Wand2,
   X,
+  Zap,
 } from "../icons";
 import { app } from "../lib/bridge";
 import { useComposerInsertStore, useUpdatedFilesStore } from "../lib/store";
 import { useToast } from "./Toast";
+import { t } from "../lib/i18n";
+import type { DictKey } from "../locales/en";
 import { extractDocxParagraphs } from "../lib/docxText";
 import { extractDocxOutline, linkDocxOutlineAnchors } from "../lib/docxOutline";
 import type { DocxOutlineItem } from "../lib/docxOutline";
+import {
+  FAIL_EMPTY_REPLACEMENT,
+  SKIP_NOT_LOCATED,
+  addToQueue,
+  queueStats,
+  removeFromQueue,
+  runQueue,
+  runnableItems,
+  updateQueueItem,
+  type DocxQueueItem,
+  type QueueRunSummary,
+} from "../lib/docxAnnotationQueue";
 import { DocxOutline } from "./DocxOutline";
 
 const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
@@ -46,6 +64,19 @@ const PRESETS = [
  * 走既有 composer 插入通道 requestText，不抢占 AI 编辑流程）。
  * 渲染失败降级：docx-preview 抛异常时不再落死错误页，尽力提取正文段落文本
  * （docxText.ts，复用包内 jszip），降级为带提示条的纯文本视图。
+ *
+ * 修改队列（A2）：框选工具栏另设「加入队列」——把多处框选摘录与各自指令
+ * 攒成一个批量修改队列（摘录+指令去重合并），随后「执行全部」串行逐条走
+ * 既有 OfficeEditText → DocxApplyEdit → DocxAcceptChanges(accept=true) 通道
+ * 写回；每条执行前对最新文档全文重新定位摘录，定位不到诚实 skipped（绝不
+ * 错位替换），单条失败继续下一条，结束给成功/失败/跳过汇总，失败可单独
+ * 重试。修订制兜底不变：写回即修订，用户仍可在 Word 里整体拒绝。
+ *
+ * i18n 说明：新文案统一走 docxQueue.* 键。这里用 lib/i18n 的非响应式 t()
+ * 而非 useT()——本组件会被 FilePreview/FilePreviewModal 在未包
+ * LocaleProvider 的场景挂载（其既有测试如此），useI18n 在无 Provider 时
+ * 抛错；应用内 LocaleProvider 始终包裹全树且切语言时整树重渲染，非响应式
+ * t() 的取词结果与 useT() 一致。
  */
 export function DocxPreview({
   dataUrl,
@@ -87,6 +118,21 @@ export function DocxPreview({
   const [outlineOpen, setOutlineOpen] = useState(false);
   const outlineAnchorsRef = useRef<(HTMLElement | null)[]>([]);
 
+  // 修改队列（A2）：摘录+指令攒批 → 串行批量执行。状态与编排逻辑在
+  // docxAnnotationQueue.ts（纯函数），这里只做装配与 React 状态同步。
+  const [queue, setQueue] = useState<DocxQueueItem[]>([]);
+  const [queueOpen, setQueueOpen] = useState(false);
+  const [queueRunning, setQueueRunning] = useState(false);
+  /** 本轮执行的条目 id 快照：进度 n/m 的口径只对本轮，不含历史轮次 */
+  const [queueRunIds, setQueueRunIds] = useState<string[]>([]);
+  const [queueSummary, setQueueSummary] = useState<QueueRunSummary | null>(null);
+  // 最新文档 dataUrl 镜像：批量执行中每条写回后 readText 要立即读到最新
+  // 内容，不等 React 提交（setDocDataUrl 的渲染时机与异步编排不同步）。
+  const latestDocRef = useRef(docDataUrl);
+  useEffect(() => {
+    latestDocRef.current = docDataUrl;
+  }, [docDataUrl]);
+
   useEffect(() => {
     setDocDataUrl(dataUrl);
     setSelected(null);
@@ -100,6 +146,13 @@ export function DocxPreview({
     setOutlineItems([]);
     setOutlineError("");
     setOutlineOpen(false);
+    // 换文件（外部传入的 dataUrl 变化）→ 队列作废：摘录归属旧文档，留着
+    // 只会产生整列 skipped。
+    setQueue([]);
+    setQueueOpen(false);
+    setQueueRunning(false);
+    setQueueRunIds([]);
+    setQueueSummary(null);
   }, [dataUrl]);
 
   useEffect(() => {
@@ -322,6 +375,90 @@ export function DocxPreview({
     [fileName, toast],
   );
 
+  // ── 修改队列（A2）─────────────────────────────────────────────
+  // 入队：预设动作或自定义指令填好后，把当前框选摘录与指令攒进队列。
+  // 去重（同摘录同指令）由 docxAnnotationQueue.addToQueue 收口。
+  const addSelectionToQueue = useCallback(() => {
+    if (!selected || !instruction.trim()) return;
+    const result = addToQueue(queue, selected, instruction);
+    setQueue(result.queue);
+    setQueueSummary(null); // 队列有变化，上一轮汇总视为过期
+    if (result.merged) {
+      toast.show(t("docxQueue.mergedToast", { n: queueStats(result.queue).pending }), "info");
+    } else {
+      toast.show(t("docxQueue.addedToast", { n: queueStats(result.queue).pending }), "info");
+      setQueueOpen(true); // 入队即展开面板，攒批进度可见
+    }
+    closeToolbar();
+  }, [selected, instruction, queue, toast, closeToolbar]);
+
+  // 执行（全部或单条重试）：串行走 docxAnnotationQueue.runQueue 纯编排，
+  // 每条「再定位 → OfficeEditText 生成 → DocxApplyEdit 写回 → 自动接受」。
+  const runQueueItems = useCallback(
+    async (items: readonly DocxQueueItem[]) => {
+      // 与单条框选即改互斥：两边都会写同一份文档，并行会互相打乱摘录定位。
+      if (queueRunning || generating || applying) return;
+      const plan = runnableItems(items);
+      if (plan.length === 0) {
+        toast.show(t("docxQueue.noneRunnable"), "info");
+        return;
+      }
+      setQueueRunning(true);
+      setQueueRunIds(plan.map((q) => q.id));
+      setQueueSummary(null);
+      try {
+        const summary = await runQueue(items, {
+          generate: async (excerpt, instr) => {
+            const r = await app.OfficeEditText(excerpt, instr);
+            return r?.edited ?? "";
+          },
+          apply: async (excerpt, replacement) => {
+            const applied = await app.DocxApplyEdit(relPath, excerpt, replacement);
+            let dataUrl = applied.dataUrl;
+            // 修订制兜底下的批量连续性：写回即修订；逐条自动接受，避免
+            // 待定修订堆叠干扰下一条的摘录定位。接受失败不回滚——修订仍
+            // 在文档里，可按顶部「接受/拒绝修订」入口手动处理。
+            try {
+              dataUrl = (await app.DocxAcceptChanges(relPath, true)).dataUrl;
+            } catch {
+              /* 保留修订，由用户在 Word 中决定 */
+            }
+            latestDocRef.current = dataUrl; // readText 立即可见，不等渲染提交
+            setDocDataUrl(dataUrl);
+            markUpdated(relPath);
+          },
+          readText: async () => (await extractDocxParagraphs(latestDocRef.current)).join("\n"),
+          onUpdate: (id, patch) => setQueue((prev) => updateQueueItem(prev, id, patch)),
+        });
+        setQueueSummary(summary);
+        toast.show(
+          t("docxQueue.runDoneToast", {
+            done: summary.done,
+            failed: summary.failed,
+            skipped: summary.skipped,
+          }),
+          summary.failed + summary.skipped > 0 ? "warn" : "info",
+        );
+      } finally {
+        setQueueRunning(false);
+        setQueueRunIds([]);
+      }
+    },
+    [queueRunning, generating, applying, relPath, markUpdated, toast],
+  );
+
+  const retryQueueItem = useCallback(
+    (id: string) => {
+      const item = queue.find((q) => q.id === id);
+      if (!item) return;
+      void runQueueItems([item]);
+    },
+    [queue, runQueueItems],
+  );
+
+  // 队列派生量：待执行徽标数、本轮进度 n/m（只统计本轮快照，不含历史轮次）。
+  const queueStatsNow = queueStats(queue);
+
   return (
     <div
       ref={rootRef}
@@ -400,6 +537,21 @@ export function DocxPreview({
                 <span className="opacity-70">{outlineItems.length}</span>
               )}
             </button>
+            <button
+              data-testid="docx-queue-toggle"
+              className={
+                "inline-flex items-center gap-1 px-2 py-0.5 rounded-md border text-[10px] cursor-pointer disabled:opacity-50 transition-colors " +
+                (queueOpen
+                  ? "border-accent/30 bg-accent/10 text-accent hover:bg-accent/20"
+                  : "border-border-soft bg-transparent text-fg-dim hover:bg-bg-soft hover:text-fg")
+              }
+              onClick={() => setQueueOpen((o) => !o)}
+              title={t("docxQueue.toggleTitle")}
+            >
+              <ClipboardList size={10} />
+              {t("docxQueue.toggle")}
+              {queueStatsNow.pending > 0 && <span className="opacity-70">{queueStatsNow.pending}</span>}
+            </button>
             {hasRevisions && !selected && (
               <>
               <button
@@ -446,6 +598,26 @@ export function DocxPreview({
             onNavigate={scrollToOutlineItem}
             onInsertModify={insertOutlineModify}
             onClose={() => setOutlineOpen(false)}
+          />
+        )}
+        {status === "done" && queueOpen && (
+          <DocxQueuePanel
+            items={queue}
+            running={queueRunning}
+            busy={generating || applying}
+            runIds={queueRunIds}
+            summary={queueSummary}
+            onRunAll={() => void runQueueItems(queue)}
+            onRetry={retryQueueItem}
+            onRemove={(id) => {
+              setQueue((prev) => removeFromQueue(prev, id));
+              setQueueSummary(null);
+            }}
+            onClear={() => {
+              setQueue([]);
+              setQueueSummary(null);
+            }}
+            onClose={() => setQueueOpen(false)}
           />
         )}
       </div>
@@ -505,11 +677,23 @@ export function DocxPreview({
                   />
                   <button
                     className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-accent text-bg text-[12px] font-medium cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90 transition-opacity"
-                    disabled={!instruction.trim() || generating}
+                    disabled={!instruction.trim() || generating || queueRunning}
                     onClick={runGenerate}
                   >
                     {generating ? <Loader2 size={12} className="animate-spin" /> : <Wand2 size={12} />}
                     生成
+                  </button>
+                  {/* 修改队列：攒批入口（与单条「生成→应用」并存，零功能删除）。
+                      预设动作与自定义指令都通过 instruction 状态成为条目指令。 */}
+                  <button
+                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-border-soft bg-transparent text-[12px] text-fg-dim cursor-pointer hover:bg-accent/10 hover:text-accent hover:border-accent/30 transition-colors shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled={!instruction.trim() || queueRunning}
+                    onClick={addSelectionToQueue}
+                    title={t("docxQueue.addTitle")}
+                    data-testid="docx-queue-add"
+                  >
+                    <ClipboardList size={12} aria-hidden />
+                    {t("docxQueue.add")}
                   </button>
                   {/* B3 次级入口：引用到对话（与 AI 编辑同选区，互不抢占） */}
                   <button
@@ -580,7 +764,7 @@ export function DocxPreview({
                 <button
                   className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-accent text-bg text-[12px] font-medium cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed hover:opacity-90 transition-opacity"
                   onClick={applyProposal}
-                  disabled={applying}
+                  disabled={applying || queueRunning}
                 >
                   {applying ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
                   应用修订
@@ -616,5 +800,209 @@ export function DocxPreview({
         }
       `}</style>
     </div>
+  );
+}
+
+// 队列条目状态 → 文案键（docxQueue.* 命名空间，三字典齐备）。
+const QUEUE_STATUS_KEYS: Record<DocxQueueItem["status"], DictKey> = {
+  pending: "docxQueue.statusPending",
+  running: "docxQueue.statusRunning",
+  done: "docxQueue.statusDone",
+  failed: "docxQueue.statusFailed",
+  skipped: "docxQueue.statusSkipped",
+};
+
+// 条目错误文案：哨兵值 → 本地化文案；其余为原始错误消息直出（诚实展示）。
+function queueErrorText(item: DocxQueueItem): string {
+  if (!item.error) return "";
+  if (item.error === SKIP_NOT_LOCATED) return t("docxQueue.errNotLocated");
+  if (item.error === FAIL_EMPTY_REPLACEMENT) return t("docxQueue.errEmptyReplacement");
+  return item.error;
+}
+
+const QUEUE_STATUS_CLS: Record<DocxQueueItem["status"], string> = {
+  pending: "border-border-soft text-fg-faint",
+  running: "border-accent/30 bg-accent/10 text-accent",
+  done: "border-accent/25 text-accent/90",
+  failed: "border-err/30 bg-err/10 text-err",
+  skipped: "border-amber-500/30 bg-amber-500/10 text-amber-500",
+};
+
+/**
+ * DocxQueuePanel — Word 预览右侧的「修改队列」侧栏（与目录侧栏 DocxOutline
+ * 同排、同交互档次）：条目列表（摘录缩略 + 指令 + 状态徽标 + 错误/歧义说明），
+ * 单条移除/重试，底部「执行全部」「清空」与执行进度（n/m）、结束汇总。
+ * 执行语义的口径在 DocxPreview 的 runQueue 装配里（纯逻辑见
+ * docxAnnotationQueue.ts），面板只读状态 + 回调，不做任何直呼桥接。
+ */
+function DocxQueuePanel({
+  items,
+  running,
+  busy,
+  runIds,
+  summary,
+  onRunAll,
+  onRetry,
+  onRemove,
+  onClear,
+  onClose,
+}: {
+  items: DocxQueueItem[];
+  running: boolean;
+  /** 单条框选即改进行中（生成/应用），批量执行互斥让位 */
+  busy: boolean;
+  runIds: string[];
+  summary: QueueRunSummary | null;
+  onRunAll: () => void;
+  onRetry: (id: string) => void;
+  onRemove: (id: string) => void;
+  onClear: () => void;
+  onClose: () => void;
+}) {
+  const stats = queueStats(items);
+  const runnable = runnableItems(items).length;
+  const finished = runIds.filter((id) => {
+    const it = items.find((q) => q.id === id);
+    return !!it && (it.status === "done" || it.status === "failed" || it.status === "skipped");
+  }).length;
+  return (
+    <aside
+      data-testid="docx-queue"
+      className="w-72 shrink-0 border-l border-border-soft flex flex-col min-h-0 bg-bg-elev-2/60"
+    >
+      <div className="flex items-center gap-1.5 px-3 py-2 border-b border-border-soft text-fg-dim text-[11px] shrink-0">
+        <ClipboardList size={12} className="text-accent shrink-0" />
+        <span className="font-medium">{t("docxQueue.panelTitle")}</span>
+        <span className="text-fg-faint ml-auto">
+          {t("docxQueue.count", { n: stats.total })}
+          {stats.pending > 0 && ` · ${t("docxQueue.pendingCount", { n: stats.pending })}`}
+        </span>
+        <button
+          type="button"
+          className="flex items-center justify-center w-5 h-5 border-0 bg-transparent text-fg-faint cursor-pointer hover:text-fg rounded"
+          onClick={onClose}
+          title={t("docxQueue.close")}
+          aria-label={t("docxQueue.close")}
+        >
+          <X size={11} />
+        </button>
+      </div>
+      {items.length === 0 ? (
+        <div className="px-3 py-2.5 text-fg-faint text-[11px] leading-relaxed">
+          {t("docxQueue.empty")}
+        </div>
+      ) : (
+        <ul className="flex-1 min-h-0 overflow-auto px-1.5 py-1.5 flex flex-col gap-px">
+          {items.map((item, i) => {
+            const retryable = (item.status === "failed" || item.status === "skipped") && !running;
+            return (
+              <li
+                key={item.id}
+                data-testid={`docx-queue-item-${i}`}
+                className="group rounded-md px-1.5 py-1.5 hover:bg-bg-soft/70"
+              >
+                <div className="flex items-start gap-1 min-w-0">
+                  <div className="min-w-0 flex-1">
+                    <div
+                      className="text-[11.5px] text-fg leading-snug break-all line-clamp-2"
+                      title={item.excerpt}
+                    >
+                      {item.excerpt.length > 64 ? `${item.excerpt.slice(0, 64)}…` : item.excerpt}
+                    </div>
+                    <div
+                      className="text-[10.5px] text-fg-faint leading-snug break-all line-clamp-2 mt-px"
+                      title={item.instruction}
+                    >
+                      <Wand2 size={9} className="inline-block align-[-1px] mr-0.5 shrink-0" />
+                      {item.instruction}
+                    </div>
+                  </div>
+                  <span
+                    data-testid={`docx-queue-status-${i}`}
+                    className={
+                      "inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full border text-[9.5px] whitespace-nowrap shrink-0 " +
+                      QUEUE_STATUS_CLS[item.status]
+                    }
+                  >
+                    {item.status === "running" && <Loader2 size={9} className="animate-spin" />}
+                    {t(QUEUE_STATUS_KEYS[item.status])}
+                  </span>
+                  <button
+                    type="button"
+                    className="inline-flex items-center justify-center w-5 h-5 rounded border border-transparent bg-transparent text-fg-faint cursor-pointer opacity-0 group-hover:opacity-100 hover:text-err hover:border-err/30 hover:bg-err/10 transition-opacity shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
+                    data-testid={`docx-queue-remove-${i}`}
+                    onClick={() => onRemove(item.id)}
+                    disabled={running}
+                    title={t("docxQueue.remove")}
+                    aria-label={t("docxQueue.remove")}
+                  >
+                    <Trash2 size={9} />
+                  </button>
+                  {retryable && (
+                    <button
+                      type="button"
+                      className="inline-flex items-center justify-center w-5 h-5 rounded border border-transparent bg-transparent text-fg-faint cursor-pointer hover:text-accent hover:border-accent/30 hover:bg-accent/10 transition-colors shrink-0"
+                      data-testid={`docx-queue-retry-${i}`}
+                      onClick={() => onRetry(item.id)}
+                      title={t("docxQueue.retry")}
+                      aria-label={t("docxQueue.retry")}
+                    >
+                      <RefreshCw size={9} />
+                    </button>
+                  )}
+                </div>
+                {queueErrorText(item) && (
+                  <div className="mt-1 text-[10.5px] text-err leading-relaxed break-all">
+                    {queueErrorText(item)}
+                  </div>
+                )}
+                {item.ambiguous && (
+                  <div className="mt-1 text-[10.5px] text-amber-500 leading-relaxed">
+                    {t("docxQueue.ambiguous")}
+                  </div>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      <div className="flex items-center gap-2 px-3 py-2 border-t border-border-soft shrink-0">
+        <div className="flex-1 min-w-0 text-[10.5px] leading-snug">
+          {running ? (
+            <span data-testid="docx-queue-progress" className="text-accent inline-flex items-center gap-1">
+              <Loader2 size={10} className="animate-spin" />
+              {t("docxQueue.progress", { done: finished, total: runIds.length })}
+            </span>
+          ) : summary ? (
+            <span data-testid="docx-queue-summary" className="text-fg-dim">
+              {t("docxQueue.summary", {
+                done: summary.done,
+                failed: summary.failed,
+                skipped: summary.skipped,
+              })}
+            </span>
+          ) : null}
+        </div>
+        <button
+          type="button"
+          className="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-border-soft bg-transparent text-fg-faint text-[10.5px] cursor-pointer hover:bg-bg-soft hover:text-fg disabled:opacity-40 disabled:cursor-not-allowed transition-colors shrink-0"
+          onClick={onClear}
+          disabled={running || items.length === 0}
+        >
+          {t("docxQueue.clear")}
+        </button>
+        <button
+          type="button"
+          data-testid="docx-queue-run"
+          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-accent text-bg text-[10.5px] font-medium cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90 transition-opacity shrink-0"
+          onClick={onRunAll}
+          disabled={running || busy || runnable === 0}
+          title={busy ? t("docxQueue.busyTitle") : undefined}
+        >
+          {running ? <Loader2 size={10} className="animate-spin" /> : <Zap size={10} />}
+          {t("docxQueue.runAll")}
+        </button>
+      </div>
+    </aside>
   );
 }

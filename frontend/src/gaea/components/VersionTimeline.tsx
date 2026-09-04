@@ -21,6 +21,11 @@
 // contentMissing / 无差异分别走 vcompare.* 字典降级提示。竞态防护：cmpSeq 单调
 // 递增，只有最新一次请求的返回可写回状态（连点不同版本行，旧结果丢弃）；再点
 // 同一行（或点面板「收起对比」）折叠并取消挂载对比内容。
+//
+// A2 结构化对比（v4.28 记账，本轮收掉）：.docx → 段级红绿 diff（附段落序号
+// 列，数据层 docxTextDiff）；.xlsx → sheet 级 + 单元格级差异表（xlsxCellDiff，
+// 数据层已截断则如实展示「已折叠」提示，不提供展开）。text/docx 行走同一
+// 渲染块，xlsx 有独立对比体 XlsxCompareBody。
 import { useCallback, useRef, useState } from "react";
 import { Clock, Diff, Eye, Loader2, Rollback } from "../icons";
 import { useT } from "../lib/i18n";
@@ -30,7 +35,9 @@ import {
   clampDiffRows,
   compareVersionWithCurrent,
   type VersionCompareResult,
+  type VersionXlsxDiff,
 } from "../lib/versionCompare";
+import type { DocxRow } from "../lib/docxTextDiff";
 
 export interface VersionTimelineProps {
   /** 目标文件（工作区相对路径）——标题与 data-path 定位用，不做数据过滤。 */
@@ -83,9 +90,89 @@ function DiffStatChip({ add, del }: { add: number; del: number }) {
   );
 }
 
+// xlsx 对比体（A2 结构化对比）：sheet 级 + 单元格级差异。变更列表在数据层
+// 已按 MAX_XLSX_SHEET_CELLS 截断（计数不失真），这里如实展示「已折叠」提示，
+// 不做展开全部（数据已截，展开无从恢复——与 text/docx 的 UI 层折叠不同）。
+function XlsxCompareBody({ result }: { result: VersionXlsxDiff }) {
+  const t = useT();
+  if (result.sheets.length === 0) {
+    return (
+      <div data-testid="vcompare-empty" className="py-0.5 text-[10px] leading-relaxed" style={{ color: "var(--md-sys-color-text-secondary)" }}>
+        {t("vcompare.empty")}
+      </div>
+    );
+  }
+  return (
+    <div className="flex flex-col gap-1">
+      {result.contentMissing && (
+        <div data-testid="vcompare-content-missing" className="text-[9.5px] leading-relaxed" style={{ color: "var(--md-sys-color-warning)" }}>
+          {t("vcompare.contentMissing")}
+        </div>
+      )}
+      {result.sheets.map((s, i) => (
+        <div key={`${s.name}-${i}`} data-testid={`vcompare-sheet-${i}`} className="rounded-md border" style={{ borderColor: "color-mix(in srgb, var(--md-sys-color-outline-variant) 60%, transparent)" }}>
+          <div className="flex items-center gap-1.5 px-1.5 py-1 text-[9.5px]" style={{ background: "color-mix(in srgb, var(--md-sys-color-surface-container-high) 40%, transparent)" }}>
+            <span className="font-mono font-medium" style={{ color: "var(--md-sys-color-text)" }}>{s.name}</span>
+            {s.state === "add" && (
+              <span data-testid={`vcompare-sheet-state-${i}`} className="rounded px-1 py-px" style={{ color: "var(--md-sys-color-success)", background: "var(--add-bg)" }}>
+                {t("vcompare.sheetAdd")}
+              </span>
+            )}
+            {s.state === "del" && (
+              <span data-testid={`vcompare-sheet-state-${i}`} className="rounded px-1 py-px" style={{ color: "var(--md-sys-color-destructive)", background: "var(--del-bg)" }}>
+                {t("vcompare.sheetDel")}
+              </span>
+            )}
+            {s.state === "changed" && (
+              <span data-testid={`vcompare-sheet-state-${i}`} className="rounded px-1 py-px tabular-nums" style={{ color: "var(--md-sys-color-on-surface-variant, var(--md-sys-color-text-secondary))", background: "color-mix(in srgb, var(--md-sys-color-surface-container-high) 60%, transparent)" }}>
+                {t("vcompare.sheetChanged", { n: s.total })}
+              </span>
+            )}
+            <span className="min-w-0 flex-1" />
+            {s.truncated && (
+              <span className="text-[9px]" style={{ color: "var(--md-sys-color-warning)" }}>
+                {t("vcompare.cellTruncated", { n: s.cells.length })}
+              </span>
+            )}
+          </div>
+          {s.state === "changed" && s.cells.length > 0 && (
+            <div className="max-h-60 overflow-auto font-mono text-[10px] leading-[1.6]">
+              <div className="flex gap-1 px-1.5 py-px text-[9px]" style={{ color: "var(--md-sys-color-text-secondary)" }}>
+                <span className="w-9 shrink-0">{t("vcompare.cellRef")}</span>
+                <span className="min-w-0 flex-1">{t("vcompare.cellOld")}</span>
+                <span className="min-w-0 flex-1">{t("vcompare.cellNew")}</span>
+              </div>
+              {s.cells.map((c, j) => (
+                <div
+                  key={`${c.ref}-${j}`}
+                  className="flex gap-1 whitespace-pre-wrap break-all px-1.5"
+                  style={{
+                    background:
+                      c.kind === "add" ? "var(--add-bg)" : c.kind === "del" ? "var(--del-bg)" : "transparent",
+                  }}
+                >
+                  <span className="w-9 shrink-0 tabular-nums" style={{ color: "var(--md-sys-color-text-secondary)" }}>{c.ref}</span>
+                  <span className="min-w-0 flex-1" style={{ color: c.kind === "del" ? "var(--del-fg)" : "var(--md-sys-color-text-secondary)" }}>
+                    {c.old === "" ? " " : c.old}
+                  </span>
+                  <span className="min-w-0 flex-1" style={{ color: c.kind === "add" ? "var(--add-fg)" : c.kind === "change" ? "var(--md-sys-color-warning)" : "var(--md-sys-color-text-secondary)" }}>
+                    {c.new === "" ? " " : c.new}
+                    {c.formula ? <span className="ml-1 opacity-70" title={c.formula}>fx</span> : null}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // 内联对比区：该基线快照 vs 当前工作区文件的行级红绿 diff。
-// result === null 表示取数进行中（spinner）；文本结果按 增删行/无差异/内容缺失
-// 分态渲染，行配色复用 styles.css 的 --add/--del diff 令牌（与 ChangesDiff 同源）。
+// result === null 表示取数进行中（spinner）；text/docx 按行渲染（docx 附段落
+// 序号列），xlsx 走结构化对比体，行配色复用 styles.css 的 --add/--del diff
+// 令牌（与 ChangesDiff 同源）。
 function VersionComparePanel({
   label,
   result,
@@ -100,13 +187,15 @@ function VersionComparePanel({
   onHide: () => void;
 }) {
   const t = useT();
-  const clamped =
-    result?.kind === "text"
-      ? clampDiffRows(result.rows, showAll ? Number.MAX_SAFE_INTEGER : MAX_DIFF_ROWS)
-      : null;
+  const rowResult =
+    result?.kind === "text" ? result.rows : result?.kind === "docx" ? result.rows : null;
+  const isDocx = result?.kind === "docx";
+  const clamped = rowResult
+    ? clampDiffRows(rowResult, showAll ? Number.MAX_SAFE_INTEGER : MAX_DIFF_ROWS)
+    : null;
   const shown = clamped?.shown ?? [];
   // 仅当全量行数超上限时出现折叠开关（展开后切换为「收起」）。
-  const overLimit = result?.kind === "text" && result.rows.length > MAX_DIFF_ROWS;
+  const overLimit = rowResult !== null && rowResult.length > MAX_DIFF_ROWS;
   return (
     <div
       data-testid="vcompare-panel"
@@ -122,7 +211,9 @@ function VersionComparePanel({
         <span className="shrink-0 text-[9.5px] font-medium" style={{ color: "var(--md-sys-color-text)" }}>
           {t("vcompare.title", { label })}
         </span>
-        {result?.kind === "text" && <DiffStatChip add={result.add} del={result.del} />}
+        {(result?.kind === "text" || result?.kind === "docx" || result?.kind === "xlsx") && (
+          <DiffStatChip add={result.add} del={result.del} />
+        )}
         <span className="min-w-0 flex-1" />
         <button
           type="button"
@@ -145,6 +236,8 @@ function VersionComparePanel({
         >
           {t("vcompare.unsupported")}
         </div>
+      ) : result.kind === "xlsx" ? (
+        <XlsxCompareBody result={result} />
       ) : (
         <div className="flex flex-col gap-1">
           {/* 基线/当前任一侧内容不可用：顶部提示（结果仍展示，宁漏勿误口径） */}
@@ -171,7 +264,10 @@ function VersionComparePanel({
               className="max-h-80 overflow-auto rounded-md border font-mono text-[10px] leading-[1.6]"
               style={{ borderColor: "color-mix(in srgb, var(--md-sys-color-outline-variant) 60%, transparent)" }}
             >
-              {shown.map((r, i) => (
+              {shown.map((r, i) => {
+                // docx 行附段落序号列（DocxRow.index，1 起）；text 行无序号。
+                const para = isDocx ? (r as DocxRow).index : null;
+                return (
                 <div
                   key={i}
                   className="flex whitespace-pre-wrap break-all"
@@ -189,6 +285,14 @@ function VersionComparePanel({
                   >
                     {r.type === "add" ? "+" : r.type === "del" ? "-" : " "}
                   </span>
+                  {para !== null && (
+                    <span
+                      className="w-7 shrink-0 select-none text-right opacity-60"
+                      style={{ color: "var(--md-sys-color-text-secondary)" }}
+                    >
+                      {para}
+                    </span>
+                  )}
                   <span
                     className="min-w-0 flex-1 pr-2"
                     style={{
@@ -203,7 +307,8 @@ function VersionComparePanel({
                     {r.text === "" ? " " : r.text}
                   </span>
                 </div>
-              ))}
+                );
+              })}
               {overLimit && (
                 <button
                   type="button"
@@ -211,7 +316,7 @@ function VersionComparePanel({
                   className="w-full cursor-pointer border-0 bg-transparent px-2 py-1 text-left font-sans text-[10px] text-(color:--md-sys-color-text-secondary) hover:text-(color:--md-sys-color-text) hover:bg-(color:--md-sys-color-surface-container-high)"
                   onClick={onToggleAll}
                 >
-                  {showAll ? t("common.collapse") : t("tool.expandAllLines", { n: result.rows.length })}
+                  {showAll ? t("common.collapse") : t("tool.expandAllLines", { n: rowResult!.length })}
                 </button>
               )}
             </div>

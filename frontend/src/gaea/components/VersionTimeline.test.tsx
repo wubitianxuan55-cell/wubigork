@@ -323,4 +323,122 @@ describe("VersionTimeline 与当前对比", () => {
     expect(diff.children).toHaveLength(201);
     expect(diff.textContent).not.toContain("del-0");
   });
+
+  // ── A2 结构化对比渲染 ──────────────────────────────────────────
+
+  it("docx 段级 diff：行级红绿 + 段落序号列，diffstat 芯片照常", async () => {
+    mockedCompare.mockResolvedValue({
+      kind: "docx",
+      rows: [
+        { type: "ctx", index: 1, text: "标题段" },
+        { type: "del", index: 2, text: "旧段" },
+        { type: "ctx", index: 2, text: "同段" },
+        { type: "add", index: 3, text: "新段" },
+      ],
+      add: 1,
+      del: 1,
+      contentMissing: false,
+    });
+    renderT(
+      <VersionTimeline
+        path="docs/周报.docx"
+        records={[rec({ id: "r1" })]}
+        onPreview={() => {}}
+        onRestore={() => {}}
+      />,
+    );
+    fireEvent.click(screen.getByTitle("与当前对比"));
+    await screen.findByTestId("vcompare-diff");
+    expect(screen.getByTestId("vcompare-stat").textContent).toBe("+1−1");
+    const diff = screen.getByTestId("vcompare-diff");
+    expect(diff.textContent).toContain("旧段");
+    expect(diff.textContent).toContain("新段");
+    // 段落序号列（del 取基线序号 2 / add 取当前序号 3）
+    expect(diff.textContent).toContain("2");
+    expect(diff.textContent).toContain("3");
+    // unsupported 分支不再出现
+    expect(screen.queryByTestId("vcompare-unsupported")).toBeNull();
+  });
+
+  it("xlsx 结构化对比：sheet 分组 + 单元格表 + 整表增删徽标 + 截断提示", async () => {
+    mockedCompare.mockResolvedValue({
+      kind: "xlsx",
+      sheets: [
+        {
+          name: "销量",
+          state: "changed",
+          cells: [
+            { kind: "change", ref: "B2", old: "10", new: "20" },
+            { kind: "add", ref: "C3", old: "", new: "新增值" },
+          ],
+          add: 1,
+          del: 0,
+          change: 1,
+          total: 2,
+          truncated: false,
+        },
+        { name: "旧表", state: "del", cells: [], add: 0, del: 0, change: 0, total: 0, truncated: false },
+      ],
+      add: 3,
+      del: 2,
+      change: 1,
+      contentMissing: false,
+    });
+    renderT(
+      <VersionTimeline
+        path="out/报表.xlsx"
+        records={[rec({ id: "r1", target: "out/报表.xlsx" })]}
+        onPreview={() => {}}
+        onRestore={() => {}}
+      />,
+    );
+    fireEvent.click(screen.getByTitle("与当前对比"));
+    await screen.findByTestId("vcompare-sheet-0");
+    // diffstat 芯片消费 xlsx 汇总
+    expect(screen.getByTestId("vcompare-stat").textContent).toBe("+3−2");
+    // sheet 分组：变更徽标（zh）+ 单元格表内容
+    expect(screen.getByTestId("vcompare-sheet-state-0").textContent).toBe("变更 2 处");
+    const sheet0 = screen.getByTestId("vcompare-sheet-0");
+    expect(sheet0.textContent).toContain("B2");
+    expect(sheet0.textContent).toContain("10");
+    expect(sheet0.textContent).toContain("20");
+    expect(sheet0.textContent).toContain("新增值");
+    // 整表删除徽标（zh）
+    expect(screen.getByTestId("vcompare-sheet-state-1").textContent).toBe("已删除工作表");
+    // truncated 徽标：仅展示前 N 条
+    expect(screen.queryByTestId("vcompare-unsupported")).toBeNull();
+  });
+
+  it("xlsx 截断：truncated=true 时展示「仅展示前 N 条」提示", async () => {
+    mockedCompare.mockResolvedValue({
+      kind: "xlsx",
+      sheets: [
+        {
+          name: "大表",
+          state: "changed",
+          cells: [{ kind: "change", ref: "A1", old: "0", new: "1" }],
+          add: 0,
+          del: 0,
+          change: 300,
+          total: 300,
+          truncated: true,
+        },
+      ],
+      add: 300,
+      del: 300,
+      change: 300,
+      contentMissing: false,
+    });
+    renderT(
+      <VersionTimeline
+        path="out/大表.xlsx"
+        records={[rec({ id: "r1", target: "out/大表.xlsx" })]}
+        onPreview={() => {}}
+        onRestore={() => {}}
+      />,
+    );
+    fireEvent.click(screen.getByTitle("与当前对比"));
+    await screen.findByTestId("vcompare-sheet-0");
+    expect(screen.getByTestId("vcompare-sheet-0").textContent).toContain("仅展示前 1 条");
+  });
 });

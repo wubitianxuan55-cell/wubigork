@@ -4,6 +4,20 @@ import JSZip from "jszip";
 import { DocxPreview } from "./DocxPreview";
 import { extractDocxParagraphs, bytesToDocxDataUrl } from "../lib/docxText";
 import { useComposerInsertStore } from "../lib/store";
+import { LocaleProvider } from "../lib/i18n";
+
+// 修改队列（A2）用例需要桥接通道：app 是 get-only Proxy（spy 不可写），
+// 按仓库惯例整模块替换（store 的 onEvent/onReady 一并供给）。
+const appMocks = vi.hoisted(() => ({
+  OfficeEditText: vi.fn(),
+  DocxApplyEdit: vi.fn(),
+  DocxAcceptChanges: vi.fn(),
+}));
+vi.mock("../lib/bridge", () => ({
+  app: appMocks,
+  onEvent: () => () => {},
+  onReady: () => () => {},
+}));
 
 // docx-preview 渲染行为由用例控制：降级用例让 renderAsync 抛错，
 // 正常用例替换为 no-op（jsdom 下完整版式渲染不可行也不必要）。
@@ -199,5 +213,123 @@ describe("DocxPreview Word 目录（大纲导航）", () => {
     fireEvent.click(editBtn);
     const pending = useComposerInsertStore.getState().pendingText ?? "";
     expect(pending).toContain("请修改 立项报告.docx 中「第一章 项目概述」这一节：");
+  });
+});
+
+// ── 修改队列（A2）────────────────────────────────────────────────
+// 走查受限口径的测试面补充：jsdom 下框选由 stub 供给、指令是受控 input
+// （fireEvent.change 可写），批量执行链路（再定位→生成→写回→自动接受）可
+// 全程确定性驱动——这是实机 ?mock=1 走查做不到的（真实 docx 与 AI 通道缺席）。
+describe("DocxPreview 修改队列（A2 批量回流）", () => {
+  const wrapZh = (node: React.ReactNode) => {
+    localStorage.setItem("gaea-lang", "zh");
+    return <LocaleProvider>{node}</LocaleProvider>;
+  };
+
+  afterEach(() => {
+    localStorage.removeItem("gaea-lang");
+    appMocks.OfficeEditText.mockClear();
+    appMocks.DocxApplyEdit.mockClear();
+    appMocks.DocxAcceptChanges.mockClear();
+  });
+
+  async function queueTwoItemsAndRun() {
+    // 文档两段正文；写回 mock 真实重建 docx（readText 再定位依赖它）
+    let paras = ["第一段原始内容", "第二段原始内容"];
+    const docxOf = async () => bytesToDocxDataUrl(await (async () => {
+      const zip = new JSZip();
+      const body = paras
+        .map((t) => `<w:p><w:r><w:t>${t}</w:t></w:r></w:p>`)
+        .join("");
+      zip.file(
+        "word/document.xml",
+        `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>${body}</w:body></w:document>`,
+      );
+      return zip.generateAsync({ type: "uint8array" });
+    })());
+    const initial = await docxOf();
+
+    appMocks.OfficeEditText.mockImplementation(async (excerpt: string) => ({
+      edited: `${excerpt}（已改写）`,
+    }));
+    appMocks.DocxApplyEdit.mockImplementation(async (_rel: string, excerpt: string, replacement: string) => {
+      paras = paras.map((p) => (p === excerpt ? replacement : p));
+      return { dataUrl: await docxOf() };
+    });
+    appMocks.DocxAcceptChanges.mockImplementation(async () => ({ dataUrl: await docxOf() }));
+
+    render(wrapZh(<DocxPreview dataUrl={initial} fileName="报告.docx" relPath="报告.docx" />));
+    await screen.findByText(/版式保真预览/);
+
+    // 两处框选 → 指令 → 入队
+    const add = async (excerpt: string, instruction: string) => {
+      stubSelectionInRoot(excerpt);
+      fireEvent.mouseUp(document.querySelector(".docx-preview-root")!);
+      await screen.findByText("AI 编辑选中内容");
+      fireEvent.change(screen.getByPlaceholderText(/输入指令/), { target: { value: instruction } });
+      fireEvent.click(screen.getByTestId("docx-queue-add"));
+      await waitFor(() => expect(screen.queryByText("AI 编辑选中内容")).toBeNull());
+    };
+    await add("第一段原始内容", "润色这段文字");
+    await add("第二段原始内容", "精简这段文字");
+    expect(screen.getByTestId("docx-queue")).toBeTruthy();
+    expect(screen.getByTestId("docx-queue-item-0").textContent).toContain("第一段原始内容");
+    expect(screen.getByTestId("docx-queue-item-1").textContent).toContain("第二段原始内容");
+
+    fireEvent.click(screen.getByTestId("docx-queue-run"));
+    await screen.findByTestId("docx-queue-summary");
+  }
+
+  it("入队两处修改 → 执行全部逐条走 生成→写回→接受 通道，汇总成功 2", async () => {
+    await queueTwoItemsAndRun();
+    expect(appMocks.OfficeEditText).toHaveBeenCalledTimes(2);
+    expect(appMocks.DocxApplyEdit).toHaveBeenCalledTimes(2);
+    expect(appMocks.DocxAcceptChanges).toHaveBeenCalledTimes(2);
+    // 汇总与条目状态（zh 锁定：成功 2 · 失败 0 · 跳过 0）
+    expect(screen.getByTestId("docx-queue-summary").textContent).toContain("成功 2");
+    expect(screen.getByTestId("docx-queue-status-0").textContent).toContain("已完成");
+    expect(screen.getByTestId("docx-queue-status-1").textContent).toContain("已完成");
+  });
+
+  it("摘录在文档中定位不到 → 该条 skipped、通道不调用，其余条目照常执行", async () => {
+    let paras = ["第一段原始内容"];
+    const docxOf = async () => {
+      const zip = new JSZip();
+      const body = paras.map((t) => `<w:p><w:r><w:t>${t}</w:t></w:r></w:p>`).join("");
+      zip.file(
+        "word/document.xml",
+        `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>${body}</w:body></w:document>`,
+      );
+      return bytesToDocxDataUrl(await zip.generateAsync({ type: "uint8array" }));
+    };
+    appMocks.OfficeEditText.mockResolvedValue({ edited: "替换文" });
+    appMocks.DocxApplyEdit.mockImplementation(async (_rel: string, excerpt: string, replacement: string) => {
+      paras = paras.map((p) => (p === excerpt ? replacement : p));
+      return { dataUrl: await docxOf() };
+    });
+    appMocks.DocxAcceptChanges.mockImplementation(async () => ({ dataUrl: await docxOf() }));
+
+    render(wrapZh(<DocxPreview dataUrl={await docxOf()} fileName="报告.docx" relPath="报告.docx" />));
+    await screen.findByText(/版式保真预览/);
+
+    // 先入一条可定位的，再入一条文档里不存在的摘录
+    const add = async (excerpt: string, instruction: string) => {
+      stubSelectionInRoot(excerpt);
+      fireEvent.mouseUp(document.querySelector(".docx-preview-root")!);
+      await screen.findByText("AI 编辑选中内容");
+      fireEvent.change(screen.getByPlaceholderText(/输入指令/), { target: { value: instruction } });
+      fireEvent.click(screen.getByTestId("docx-queue-add"));
+      await waitFor(() => expect(screen.queryByText("AI 编辑选中内容")).toBeNull());
+    };
+    await add("第一段原始内容", "润色");
+    await add("文档里根本不存在的摘录", "改写");
+    fireEvent.click(screen.getByTestId("docx-queue-run"));
+    await screen.findByTestId("docx-queue-summary");
+
+    // 可定位条目成功；幽灵摘录 skipped 且绝不错位替换（生成通道只调 1 次）
+    expect(appMocks.OfficeEditText).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId("docx-queue-status-0").textContent).toContain("已完成");
+    expect(screen.getByTestId("docx-queue-status-1").textContent).toContain("已跳过");
+    expect(screen.getByTestId("docx-queue-summary").textContent).toContain("跳过 1");
   });
 });
