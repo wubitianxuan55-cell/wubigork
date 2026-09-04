@@ -4,7 +4,11 @@ package agent
 // summarize_file）的 ToolResult.Output 是 JSON 信封串，原样落 transcript 会
 // 渲染出「字面 \n」转义墙（实机报告：本地模型工具输出一团乱）。
 
-import "testing"
+import (
+	"fmt"
+	"strconv"
+	"testing"
+)
 
 func TestUnwrapModelToolOutput(t *testing.T) {
 	// 标准信封：取 data.result 正文（真实换行保留）
@@ -31,5 +35,15 @@ func TestUnwrapModelToolOutput(t *testing.T) {
 	// result 为空白视同缺失，原样返回
 	if got := unwrapModelToolOutput(`{"data":{"result":"   "}}`); got != `{"data":{"result":"   "}}` {
 		t.Fatalf("空白 result 应原样返回：%q", got)
+	}
+
+	// v4.64.1 双层嵌套：外层 data.result 里又装着工具自身信封（message 字段）
+	// ——实机转义墙的真身。递归拆到纯文本为止。注意内层的 \n 是字面两字符
+	//（外层 JSON 编码转义），拆包后应还原为真实换行。
+	nested := "{\n  \"data\": { \"result\": \"{\\\"message\\\": \\\"第一段\\n\\n第二段\\\"}\" } }\n"
+	// 手工构造：外层为 JSON 文本，内层 result 值是转义后的 JSON 字符串。
+	nested = fmt.Sprintf(`{"data":{"result":%s}}`, strconv.Quote(`{"message":"第一段\n\n第二段"}`))
+	if got := unwrapModelToolOutput(nested); got != "第一段\n\n第二段" {
+		t.Fatalf("双层信封拆包失败：%q", got)
 	}
 }

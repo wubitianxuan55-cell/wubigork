@@ -89,22 +89,49 @@ func (a *AgentRunner) finishModelTool(id string, output string, toolErr error, n
 // 报告为「输出没有渲染、一团乱」。这里识别标准信封并只取 data.result 正文；
 // 非信封形态（自由文本/已拆包/解析失败）原样返回，绝不猜。
 func unwrapModelToolOutput(output string) string {
-	trimmed := strings.TrimSpace(output)
-	if !strings.HasPrefix(trimmed, "{") {
-		return output
+	// v4.64.1 改递归拆包：实测信封存在双层嵌套——外层执行器信封的
+	// data.result 里又装着工具自身的 {"ok":...,"message":"正文"} 信封，
+	// 只拆一层仍会留下 JSON 转义墙。每轮从 data.result / data.message /
+	// data.output / message / result / output 取第一个非空字符串字段作为
+	// 新内容，直到不再是 JSON 或取不出新内容（上限 4 层）；非信封形态
+	// 原样返回，绝不猜。
+	cur := strings.TrimSpace(output)
+	for i := 0; i < 4 && strings.HasPrefix(cur, "{"); i++ {
+		var envelope struct {
+			Data struct {
+				Result  string `json:"result"`
+				Message string `json:"message"`
+				Output  string `json:"output"`
+			} `json:"data"`
+			Message string `json:"message"`
+			Result  string `json:"result"`
+			Output  string `json:"output"`
+		}
+		if json.Unmarshal([]byte(cur), &envelope) != nil {
+			break
+		}
+		next := strings.TrimSpace(envelope.Data.Result)
+		if next == "" {
+			next = strings.TrimSpace(envelope.Data.Message)
+		}
+		if next == "" {
+			next = strings.TrimSpace(envelope.Data.Output)
+		}
+		if next == "" {
+			next = strings.TrimSpace(envelope.Message)
+		}
+		if next == "" {
+			next = strings.TrimSpace(envelope.Result)
+		}
+		if next == "" {
+			next = strings.TrimSpace(envelope.Output)
+		}
+		if next == "" {
+			break
+		}
+		cur = next
 	}
-	var envelope struct {
-		Data struct {
-			Result string `json:"result"`
-		} `json:"data"`
-	}
-	if err := json.Unmarshal([]byte(trimmed), &envelope); err != nil {
-		return output
-	}
-	if strings.TrimSpace(envelope.Data.Result) == "" {
-		return output
-	}
-	return envelope.Data.Result
+	return cur
 }
 
 // cleanupModelToolRunsOnTurnEnd fails any model-tool record that never saw a

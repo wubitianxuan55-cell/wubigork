@@ -1,6 +1,6 @@
 // subagentRender.test.ts — 子代理 transcript → Codex 式渲染项映射测试。
 import { describe, expect, it } from "vitest";
-import { buildRenderItems, toolStatus } from "./subagentRender";
+import { buildRenderItems, toolStatus, unwrapEnvelopeText } from "./subagentRender";
 import type { SubagentTranscriptMessage } from "./types";
 
 describe("buildRenderItems 映射", () => {
@@ -65,5 +65,19 @@ describe("buildRenderItems 映射", () => {
     const items = buildRenderItems(msgs, true);
     expect(toolStatus(items[0] as never, true)).toBe("running");
     expect(toolStatus(items[0] as never, false)).toBe("done");
+  });
+});
+
+// unwrapEnvelopeText 显示侧拆包（v4.64.1）：救回写端修复前落盘的信封串。
+describe("unwrapEnvelopeText 显示侧拆包", () => {
+  it("双层信封递归拆到纯文本（字面转义换行还原为真实换行）", () => {
+    const inner = '{"message": "第一段\\n\\n第二段"}';
+    const outer = JSON.stringify({ ok: true, data: { result: inner } });
+    expect(unwrapEnvelopeText(outer)).toBe("第一段\n\n第二段");
+  });
+
+  it("自由文本 / 破损 JSON 原样返回", () => {
+    expect(unwrapEnvelopeText("普通正文")).toBe("普通正文");
+    expect(unwrapEnvelopeText("{not-json")).toBe("{not-json");
   });
 });

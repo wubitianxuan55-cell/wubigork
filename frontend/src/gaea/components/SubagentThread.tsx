@@ -3,7 +3,7 @@ import { ArrowUp, Loader2, Rollback } from "../icons";
 import { app, onEvent, onSubagentText } from "../lib/bridge";
 import { useT, type Translator } from "../lib/i18n";
 import type { SubagentTranscriptView } from "../lib/types";
-import { buildRenderItems, toolStatus } from "../lib/subagentRender";
+import { buildRenderItems, toolStatus, unwrapEnvelopeText } from "../lib/subagentRender";
 import { AssistantMessage } from "./Message";
 import { ToolCard } from "./ToolCard";
 import type { Item } from "../lib/store";
@@ -345,10 +345,13 @@ export function SubagentThread({
           <div className="flex flex-col gap-1.5">
             {renderItems.map((it, idx) => {
               if (it.type === "assistant") {
-                const asItem = { kind: "assistant" as const, id: it.id, text: it.text, reasoning: it.reasoning ?? "", streaming: it.live };
+                // mt_ 历史转录里可能存着 JSON 信封串（写端修复前的旧数据）：
+                // 渲染前同语义递归拆包，救回被转义墙埋掉的正文。
+                const text = isMtTab ? unwrapEnvelopeText(it.text) : it.text;
+                const asItem = { kind: "assistant" as const, id: it.id, text, reasoning: it.reasoning ?? "", streaming: it.live };
                 // Codex 式有界：mt_ 标签页（文档级输出）或超长文本默认限高滚动
                 if (!it.live && (isMtTab || it.text.length > OUTPUT_BOUND_CHARS)) {
-                  return <BoundedAssistantMessage key={it.id} item={asItem} chars={it.text.length} />;
+                  return <BoundedAssistantMessage key={it.id} item={asItem} chars={text.length} />;
                 }
                 return (
                   <AssistantMessage

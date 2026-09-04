@@ -69,3 +69,29 @@ export function toolStatus(
 ): "running" | "done" {
   return item.pending && running ? "running" : "done";
 }
+
+// unwrapEnvelopeText —— 显示侧信封拆包（v4.64.1，与 Go 侧
+// agent.unwrapModelToolOutput 同语义递归）。
+//
+// Why: v4.62.2 之前落盘的 mt_ transcript 已把 JSON 信封串（含字面转义换行
+// 墙）存进磁盘，写端修复救不了历史数据——渲染前在这里同样递归拆包：每轮
+// 从 data.result / data.message / data.output / message / result / output
+// 取第一个非空字符串字段，直到不再是 JSON 或取不出新内容（上限 4 层）。
+export function unwrapEnvelopeText(text: string): string {
+  let cur = text.trim();
+  for (let i = 0; i < 4 && cur.startsWith("{"); i++) {
+    let next: unknown;
+    try {
+      const o = JSON.parse(cur) as Record<string, unknown>;
+      const data = (o.data ?? {}) as Record<string, unknown>;
+      next = [data.result, data.message, data.output, o.message, o.result, o.output].find(
+        (v) => typeof v === "string" && (v as string).trim() !== "",
+      );
+    } catch {
+      break;
+    }
+    if (typeof next !== "string") break;
+    cur = next.trim();
+  }
+  return cur;
+}
