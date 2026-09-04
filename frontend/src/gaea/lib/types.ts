@@ -264,6 +264,9 @@ export interface FileActivity {
   tool: string;
   action: "read" | "write" | "move" | "dir";
   path: string;
+  added?: number; // v4.81 行级增量：写类工具从参数确定性提取（+行）
+  removed?: number; // −行（edit/multi_edit/edit_lines 被替换区间）
+  hits?: number; // grep 命中行数近似（写入端截断时为下界）
 }
 
 export interface ContextSurfaceNode {

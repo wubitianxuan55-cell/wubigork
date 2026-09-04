@@ -1359,6 +1359,8 @@ export const en = {
   "contextview.deltaTitle": "Turn {turn} · Step {step} Δ{delta}",
   "contextview.catBarTitle": "Turn {turn} · Step {step} {cat} {tokens} · total {total}",
   "contextview.estimated": "Estimated composition (no usage record)",
+  "contextview.filesOps": "{n} ops",
+  "contextview.filesHits": "hits",
   "contextview.detailBtn": "Full call",
   "contextview.detailCollapse": "Hide details",
   "contextview.detailRaw": "Raw",

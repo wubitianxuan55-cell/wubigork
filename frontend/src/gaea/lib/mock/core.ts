@@ -81,8 +81,8 @@ export function buildCore(s: MakeMockState): CoreMethods {
         archive: [],
         files: [
           { seq: 5, ts: 1750000005, turn: 1, step: 1, tool: "read_file", action: "read", path: "internal/gaea/config/config.go" },
-          { seq: 9, ts: 1750000009, turn: 1, step: 2, tool: "grep", action: "read", path: "internal/gaea/config" },
-          { seq: 12, ts: 1750000012, turn: 1, step: 3, tool: "write_file", action: "write", path: "docs/调研结论.md" },
+          { seq: 9, ts: 1750000009, turn: 1, step: 2, tool: "grep", action: "read", path: "internal/gaea/config", hits: 4 },
+          { seq: 12, ts: 1750000012, turn: 1, step: 3, tool: "write_file", action: "write", path: "docs/调研结论.md", added: 42 },
         ],
       };
     },
@@ -108,6 +108,18 @@ export function buildCore(s: MakeMockState): CoreMethods {
           ts: 1750000003,
           text: "Referenced context: …（mock 样例正文）",
           lines: 1,
+        };
+      }
+      if (seq === 12) {
+        // 文件活动操作行跳转样例（与 ContextView 场景 files 数组的 write_file 对齐）
+        return {
+          seq,
+          kind: "tool_result" as const,
+          ts: 1750000012,
+          tool: "write_file",
+          args: '{"path":"docs/调研结论.md"}',
+          output: "# 调研结论\n\n（mock 样例正文：完整写入内容，Raw/渲染切换走查用）\n",
+          lines: 3,
         };
       }
       throw new Error("mock: 未找到 seq=" + seq + " 的可展开节点");

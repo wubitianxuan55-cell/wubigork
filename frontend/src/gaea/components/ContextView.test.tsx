@@ -328,6 +328,44 @@ describe("ContextView 上下文页卡片墙（v4.71 卡片化）", () => {
     expect(list.textContent?.indexOf("big")).toBeLessThan(list.textContent?.indexOf("small") ?? -1);
   });
 
+  it("v4.81 文件活动行级增量：±徽标 + 操作日志展开 + 详情跳转", async () => {
+    const withFileDelta: ContextTimeline = {
+      ...TIMELINE,
+      files: [
+        { seq: 21, ts: 1750000021, turn: 1, step: 1, tool: "write_file", action: "write", path: "docs/结论.md", added: 12 },
+        { seq: 22, ts: 1750000022, turn: 1, step: 2, tool: "edit_file", action: "write", path: "docs/结论.md", added: 3, removed: 5 },
+        { seq: 23, ts: 1750000023, turn: 1, step: 3, tool: "grep", action: "read", path: "internal", hits: 7 },
+      ],
+    };
+    contextViewMock.mockResolvedValue(withFileDelta);
+    // 详情 mock 按 seq 回带（校验跳转落到对应操作）
+    contextNodeDetailMock.mockImplementation(async (seq: number) => ({
+      seq,
+      kind: "tool_result" as const,
+      ts: 1750000000 + seq,
+      tool: "grep",
+      args: '{"path":"internal"}',
+      output: "hit1\nhit2",
+      lines: 2,
+    }));
+    const { ContextView } = await import("./ContextView");
+    renderT(<ContextView running={false} />);
+    expect(await screen.findByText("上下文浏览器")).toBeTruthy();
+    // 文件行聚合 ±徽标（两次写合并：+15 = 12+3，−5）
+    expect(screen.getByText(/docs\/结论\.md/)).toBeTruthy();
+    expect(screen.getByText("+15")).toBeTruthy();
+    expect(screen.getByText("−5")).toBeTruthy();
+    // 展开操作日志：逐次操作行（含该次 ±12/−0）+ 详情懒加载（seq=23 grep → mock 详情）
+    fireEvent.click(screen.getAllByTestId("file-ops-toggle")[0]);
+    const opBtns = await screen.findAllByTestId("file-op-detail-btn");
+    expect(opBtns.length).toBe(2);
+    expect(screen.getByText("+12")).toBeTruthy();
+    fireEvent.click(opBtns[0]);
+    const panel = await screen.findByTestId("ctx-node-detail");
+    expect(panel.textContent).toContain("grep");
+    expect(contextNodeDetailMock).toHaveBeenCalledWith(21); // 跳转落到对应操作 seq
+  });
+
   it("文件活动：按文件聚合 + 读写徽标 + 点击预览", async () => {
     const { ContextView } = await import("./ContextView");
     const { usePreviewStore } = await import("../lib/store");

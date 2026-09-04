@@ -1,3 +1,9 @@
+## v4.81.0 · 文件活动行级增量：±徽标 · 操作日志展开 · 详情跳转（2026-09-05）
+> 双源蒸馏规划阶段二.5 2.5c；**绑定面 571 零变更**（详情跳转复用 v4.80 GaeaContextNodeDetail）。详见 releases/v4.81.0.md。
+- **Go**：FileActivity 增 Added/Removed/Hits；fileDeltaFromArgs 从写类工具参数确定性提取 ±行（write_file/edit_file/multi_edit/edit_lines 四形状，取不到诚实留零）；recordFile 增 dispatchID 回填 grep 命中数（LRU 重建时映射作废）。
+- **前端**：文件行 ±徽标（聚合合计）；「N 次操作」展开逐次操作行；操作行「完整调用」懒加载跳转（NodeDetailPanel 自 v4.80 抽出共享 + useNodeDetails hook）；i18n 三语 +2 键。**勘误**：规划 1b「右键菜单/@悬浮引用」经 grep 核实早已落地（v4.25-4.31），过期条目订正、1b 销账。
+- 测试：fold +1（-count=2）+ 组件 +1；门禁：Go 全量除 1 个既有 TempDir flaky（复验绿）、tsc/eslint 0、vitest 223/1688、drift PASS（571）、?mock=1 走查通过（截图存 artifacts）。
+
 ## v4.80.0 · 上下文工具结果深读：完整调用懒加载 · 来源 chip · 分类内排序（2026-09-04）
 > 双源蒸馏规划阶段二.5 2.5b 前半；**绑定面 570→571**（+GaeaContextNodeDetail）。详见 releases/v4.80.0.md。
 - **Go**：SurfaceNode 增 Tool/Err（fold 零成本透出）；detail.go `NodeDetailFor` 纯函数读端——tool_result 全文+同 id dispatch 参数回读（live/legacy 双 kind）、user/assistant 全文、1MB 截断标 Clamped（UTF-8 安全）；App.GaeaContextNodeDetail 懒加载绑定。

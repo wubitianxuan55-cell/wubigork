@@ -140,6 +140,15 @@ type FileActivity struct {
 	Tool   string `json:"tool"`
 	Action string `json:"action"` // read | write | move | dir
 	Path   string `json:"path"`
+
+	// v4.81 行级增量（dsh ±added/−removed 同款语义）：写类工具从参数确定性
+	// 提取（write_file content=+行；edit_file old/new_string=−/+行；
+	// multi_edit 逐条求和；edit_lines new_content=+行、被替换区间=−行）。
+	// 取不到诚实留零，不猜。同行合并刷新时以最新一次调用为准。
+	Added   int64 `json:"added,omitempty"`
+	Removed int64 `json:"removed,omitempty"`
+	// Hits 是 grep 结果的命中行数近似（结果行数；写入端截断时为下界）。
+	Hits int64 `json:"hits,omitempty"`
 }
 
 // ContextTiming 是会话级耗时统计（对齐 dsh-context TimelineState.timing 的

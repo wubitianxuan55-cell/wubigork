@@ -113,6 +113,9 @@ type folding struct {
 	lastToolCall   string
 	files          []FileActivity
 	fileIdx        map[string]int // 同工具+动作+路径+轮次+步骤 → files 下标（合并去重）
+	// fileByDispatch 是 dispatch id → files 下标（v4.81 结果阶段回填命中行数；
+	// LRU 淘汰重建时一并作废）。
+	fileByDispatch map[string]int
 	cacheHit       int64
 	cacheMiss      int64
 	cost           float64
@@ -305,7 +308,7 @@ func (f *folding) applyToolDispatch(e session.LogEntry) {
 		return
 	}
 	f.lastToolCall = briefOf(p.Name+" "+p.Args, maxBrief)
-	f.recordFile(e.Seq, e.Ts, p.Name, p.Args, "", false)
+	f.recordFile(e.Seq, e.Ts, p.Name, p.Args, "", false, p.ID)
 }
 
 // applyToolResult 处理工具结果节点；截断记一次 prune 事件。
@@ -335,7 +338,7 @@ func (f *folding) applyToolResult(e session.LogEntry) {
 	}
 	// 参数里没有路径、但结果携带文件路径的工具（screen_capture 等）在结果
 	// 阶段补记；已从参数记过的工具跳过（避免重复行）。
-	f.recordFile(e.Seq, e.Ts, p.Name, "", p.Output, true)
+	f.recordFile(e.Seq, e.Ts, p.Name, "", p.Output, true, p.ID)
 }
 
 // maxFiles 是文件活动时间线保留条数（浏览视图上限，超出丢最旧）。
@@ -345,7 +348,7 @@ const maxFiles = 200
 // （read/write/move/dir 白名单工具），参数无路径时允许从结果输出提取
 // （resultOK=true，仅白名单工具）。同一工具+动作+路径在同一轮同一步骤内
 // 重复调用合并为一条（刷新时间戳），避免刷屏。
-func (f *folding) recordFile(seq, ts int64, tool, args, output string, resultOK bool) {
+func (f *folding) recordFile(seq, ts int64, tool, args, output string, resultOK bool, dispatchID string) {
 	action, ok := fileActionByTool[tool]
 	if !ok {
 		return
@@ -355,11 +358,27 @@ func (f *folding) recordFile(seq, ts int64, tool, args, output string, resultOK 
 		path = extractPathFromOutput(tool, output)
 	}
 	if path == "" {
+		// 无路径但行已在册（grep 等「参数带路径、结果无路径」的工具）：结果
+		// 阶段按 dispatch id 回填结果侧信息（命中行数）。
+		if dispatchID != "" && resultOK {
+			if i, ok := f.fileByDispatch[dispatchID]; ok && tool == "grep" {
+				f.files[i].Hits = int64(countLines(output)) // 写入端截断时为命中行数下界（诚实近似）
+			}
+		}
 		return
 	}
 	rec := FileActivity{Seq: seq, Ts: ts, Turn: f.turn, Step: f.step, Tool: tool, Action: action, Path: briefOf(path, maxFilePreview)}
+	if action == "write" {
+		rec.Added, rec.Removed = fileDeltaFromArgs(tool, args)
+	}
+	if tool == "grep" && resultOK {
+		rec.Hits = int64(countLines(output))
+	}
 	if i, ok := f.fileIdx[fileActivityKey(rec)]; ok {
 		f.files[i] = rec // 同一步骤同路径重复调用：合并刷新
+		if dispatchID != "" {
+			f.fileByDispatch[dispatchID] = i
+		}
 		return
 	}
 	if f.fileIdx == nil {
@@ -367,9 +386,16 @@ func (f *folding) recordFile(seq, ts int64, tool, args, output string, resultOK 
 	}
 	f.files = append(f.files, rec)
 	f.fileIdx[fileActivityKey(rec)] = len(f.files) - 1
+	if dispatchID != "" {
+		if f.fileByDispatch == nil {
+			f.fileByDispatch = map[string]int{}
+		}
+		f.fileByDispatch[dispatchID] = len(f.files) - 1
+	}
 	if len(f.files) > maxFiles {
 		f.files = append([]FileActivity(nil), f.files[len(f.files)-maxFiles:]...)
 		f.fileIdx = map[string]int{}
+		f.fileByDispatch = map[string]int{} // 下标已整体重排，旧映射作废
 		for i, x := range f.files {
 			f.fileIdx[fileActivityKey(x)] = i
 		}
@@ -379,6 +405,54 @@ func (f *folding) recordFile(seq, ts int64, tool, args, output string, resultOK 
 // fileActivityKey 生成文件活动的去重键（同轮同步骤同工具同路径合并）。
 func fileActivityKey(f FileActivity) string {
 	return fmt.Sprintf("%s|%s|%s|%d|%d", f.Tool, f.Action, f.Path, f.Turn, f.Step)
+}
+
+// fileDeltaFromArgs 从写类工具参数确定性提取行级增量（v4.81，dsh
+// ±added/−removed 同款语义；诚实口径——非 JSON/缺键/类型不符一律零值不猜）：
+//   - write_file {content} → +行
+//   - edit_file {old_string, new_string} → +new 行 / −old 行
+//   - multi_edit {edits: [{old_string, new_string}...]} → 逐条求和
+//   - edit_lines {new_content, start_line, end_line} → +new 行 / −(end−start+1) 行
+func fileDeltaFromArgs(tool, args string) (added, removed int64) {
+	if args == "" {
+		return 0, 0
+	}
+	var m map[string]any
+	if err := json.Unmarshal([]byte(args), &m); err != nil {
+		return 0, 0
+	}
+	str := func(key string) string {
+		s, _ := m[key].(string)
+		return s
+	}
+	switch tool {
+	case "write_file":
+		return int64(countLines(str("content"))), 0
+	case "edit_file":
+		return int64(countLines(str("new_string"))), int64(countLines(str("old_string")))
+	case "multi_edit":
+		edits, _ := m["edits"].([]any)
+		for _, it := range edits {
+			em, _ := it.(map[string]any)
+			if em == nil {
+				continue
+			}
+			o, _ := em["old_string"].(string)
+			nw, _ := em["new_string"].(string)
+			added += int64(countLines(nw))
+			removed += int64(countLines(o))
+		}
+		return added, removed
+	case "edit_lines":
+		added = int64(countLines(str("new_content")))
+		sf, _ := m["start_line"].(float64)
+		ef, _ := m["end_line"].(float64)
+		if sf > 0 && ef >= sf {
+			removed = int64(ef) - int64(sf) + 1
+		}
+		return added, removed
+	}
+	return 0, 0
 }
 
 // fileActionByTool 是「工具 → 文件活动动作」白名单。动作语义：read=读取/

@@ -1360,6 +1360,8 @@ export const zh: Record<DictKey, string> = {
   "contextview.deltaTitle": "第{turn}轮·第{step}步 Δ{delta}",
   "contextview.catBarTitle": "第{turn}轮·第{step}步 {cat} {tokens} · 合计 {total}",
   "contextview.estimated": "估算构成（无用量记录）",
+  "contextview.filesOps": "{n} 次操作",
+  "contextview.filesHits": "命中",
   "contextview.detailBtn": "完整调用",
   "contextview.detailCollapse": "收起详情",
   "contextview.detailRaw": "原文",

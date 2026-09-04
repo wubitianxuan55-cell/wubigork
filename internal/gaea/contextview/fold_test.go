@@ -490,3 +490,47 @@ func abs64(v int64) int64 {
 	}
 	return v
 }
+
+// ─── 文件活动行级增量（v4.81，dsh ±added/−removed 同款） ──────────
+
+// TestFoldFileDelta：四写类工具从参数确定性提取 ±行；grep 结果行数为命中
+// 近似；非写类/取不到参数诚实留零。
+func TestFoldFileDelta(t *testing.T) {
+	entries := []session.LogEntry{
+		entry(1, "tool_dispatch", map[string]any{"id": "w", "name": "write_file", "args": `{"path":"a.go","content":"l1\nl2\nl3"}`, "partial": false}),
+		entry(2, "tool_result", map[string]any{"id": "w", "name": "write_file", "output": "ok"}),
+		entry(3, "tool_dispatch", map[string]any{"id": "e", "name": "edit_file", "args": `{"path":"b.go","old_string":"x\ny","new_string":"z"}`, "partial": false}),
+		entry(4, "tool_result", map[string]any{"id": "e", "name": "edit_file", "output": "ok"}),
+		entry(5, "tool_dispatch", map[string]any{"id": "m", "name": "multi_edit", "args": `{"path":"c.go","edits":[{"old_string":"a","new_string":"p\nq"},{"old_string":"r\ns\nt","new_string":"u"}]}`, "partial": false}),
+		entry(6, "tool_result", map[string]any{"id": "m", "name": "multi_edit", "output": "ok"}),
+		entry(7, "tool_dispatch", map[string]any{"id": "l", "name": "edit_lines", "args": `{"path":"d.go","start_line":5,"end_line":6,"new_content":"p\nq\nr"}`, "partial": false}),
+		entry(8, "tool_result", map[string]any{"id": "l", "name": "edit_lines", "output": "ok"}),
+		entry(9, "tool_dispatch", map[string]any{"id": "g", "name": "grep", "args": `{"path":"internal","pattern":"x"}`, "partial": false}),
+		entry(10, "tool_result", map[string]any{"id": "g", "name": "grep", "output": "hit1\nhit2\nhit3\nhit4"}),
+		entry(11, "tool_dispatch", map[string]any{"id": "r", "name": "read_file", "args": `{"path":"e.go"}`, "partial": false}),
+		entry(12, "tool_result", map[string]any{"id": "r", "name": "read_file", "output": "正文"}),
+	}
+	tl := FoldTimeline(entries, 0, 0)
+	byPath := map[string]FileActivity{}
+	for _, f := range tl.Files {
+		byPath[f.Path] = f
+	}
+	if f := byPath["a.go"]; f.Added != 3 || f.Removed != 0 {
+		t.Fatalf("write_file 增量错误: %+v", f)
+	}
+	if f := byPath["b.go"]; f.Added != 1 || f.Removed != 2 {
+		t.Fatalf("edit_file 增量错误: %+v", f)
+	}
+	if f := byPath["c.go"]; f.Added != 3 || f.Removed != 4 {
+		t.Fatalf("multi_edit 增量错误: %+v", f)
+	}
+	if f := byPath["d.go"]; f.Added != 3 || f.Removed != 2 {
+		t.Fatalf("edit_lines 增量错误: %+v", f)
+	}
+	if f := byPath["internal"]; f.Hits != 4 {
+		t.Fatalf("grep 命中行错误: %+v", f)
+	}
+	if f := byPath["e.go"]; f.Added != 0 || f.Removed != 0 || f.Hits != 0 {
+		t.Fatalf("read_file 不应有增量/命中: %+v", f)
+	}
+}
