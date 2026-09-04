@@ -1,3 +1,10 @@
+## v4.63.1 · 主对话子代理卡片整卡可点（2026-09-04）
+> 用户点名：单击子代理卡片直接打开会话 tab。**绑定面 559 零变更**。详见
+> releases/v4.63.1.md。
+- task / run_skill 卡解析出 ref 整卡可点；空 ref 回退唯一 running 命中
+  （宁缺勿错）；tab 预填+5s 轮询自校正；活动行同入口。i18n 三语 +1 键。
+  vitest 216/1597、drift PASS（559）、冒烟通过。
+
 ## v4.63.0 · 子代理会话 tab 输出对齐主对话 Codex 式渲染（2026-09-04）
 > 用户点名。**绑定面 559 零变更**。详见 releases/v4.63.0.md。
 - assistant 正文/思考走主对话 AssistantMessage、工具走主对话 ToolCard

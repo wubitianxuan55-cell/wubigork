@@ -5,7 +5,14 @@
 
 ## 版本状态（顶部速览）
 
-- **最新发布：v4.63.0（2026-09-04）「子代理会话 tab 输出对齐主对话 Codex
+- **最新发布：v4.63.1（2026-09-04）「主对话子代理卡片整卡可点」**——用户
+  点名：单击 task/run_skill 卡直接打开对应子代理会话 tab。taskActivity 新增
+  打开会话注入点（App 注册跳转）；ref 解析（args.continue_from / 结果
+  "Subagent reference:" 行）+ 空 ref 唯一 running 命中回退（宁缺勿错）；
+  tab 预填+5s 轮询自校正；活动行同入口。i18n 三语 +1 键。绑定面 **559 零
+  变更**；vitest 216/1597、tsc/eslint 0、drift PASS、冒烟通过。详见
+  releases/v4.63.1.md。
+- **此前：v4.63.0（2026-09-04）「子代理会话 tab 输出对齐主对话 Codex
   式渲染」**——用户点名。assistant 正文/思考走主对话 AssistantMessage、
   工具按 toolCallId 配对走主对话 ToolCard（映射层 lib/subagentRender.ts：
   孤儿降级/乱序配对/运行中 running），流式实时行同款。绑定面 **559 零
