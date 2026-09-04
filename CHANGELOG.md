@@ -1,3 +1,9 @@
+## v4.88.0 · /context 居中弹层 + 常驻「剩余上下文%」徽标（2026-09-05）
+> 双源蒸馏规划阶段二.5 2.5e（与 2026-09-05 调研回填「codex 式常驻上下文徽标」合并为一刀）；**绑定面 578 零变更**（纯前端刀）。详见 releases/v4.88.0.md。
+- **ContextPill 常驻徽标**：Composer 上方右侧常驻「剩余 N%」胶囊（codex 式 context left 语义）——数据来自会话 store 的 ContextUsage（加载/回合末/usage 事件自动刷新），迷你进度条三档配色（≥90% err / ≥75% warning / 常规），title 带占用与总窗口；win≤0 不渲染。点击打开居中弹层。
+- **ContextModal 居中弹层**：dsh「/context 弹层」同款语义——不离开对话查看当前上下文构成；内容复用 ContextView（与主区上下文 tab 同一组件，打开挂载拉最新快照、关闭即卸载 destroyOnHidden），centered 1080px。斜杠命令 /context 从「切主区上下文 tab」改道打开弹层；主区 tab 手动切换路径保留。Agent Network 会话跳转留后续（需 Go 侧按会话参数化）。
+- 测试：ContextModal/Pill +5（百分比与 title/点击回调/警示色与 win=0 不渲染/弹层挂载与关闭回调/关闭卸载）；vitest 227/1743、Go 全量 0 FAIL、tsc -b/eslint 0、drift PASS（578）、?mock=1 走查通过（徽标渲染、点击开弹层、/context 两段 Enter 全链路；截图通道沿例故障如实记录）。
+
 ## v4.87.0 · 统一 diff 渲染升级：改蓝配对 · 行内字符高亮 · 上下文折叠（2026-09-05）
 > 双源蒸馏规划阶段二 2c；**绑定面 578 零变更**（纯前端刀）。详见 releases/v4.87.0.md。
 - **diffRender.ts 新**（纯函数展示模型）：①改蓝配对——相邻删块+增块按行两两配对（min(删,增) 对），配对行蓝底替代红/绿并带 data-pair 标记，余量保持红/绿，交错输入先规范化为先删后增；②行内字符高亮——配对行做字符级 LCS（240 字上限防撑爆），变化片段独立着色、未变片段正常；③上下文折叠——连续 ctx 超过 keep×2（3×2）行时收起中段为「已折叠 N 行（点击展开）」占位，fold 项携带被收起行、展开后就地渲染。语法着色留阶段三 CodeMirror（边界成文）。

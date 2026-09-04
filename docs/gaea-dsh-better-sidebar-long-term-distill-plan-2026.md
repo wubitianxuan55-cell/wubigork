@@ -229,7 +229,11 @@ pane 工作台/文件 tab（v4.25）、任务+分工同屏（v4.53）、子代�
   活动排序初值读 gaea.context.prefs 变更写回；设置中心办公分组「上下文页
   偏好」卡（选项复用 contextview.* 键）。**边界**：hover 联动预览不做
   （hover 驱动展开会反复抖动，点击是明确意图）；2.5e 仍待拍板；
-- 2.5e `/context` 弹层与 Agent Network 会话跳转（拍板后）。
+- ~~2.5e `/context` 弹层~~ **已完成（v4.88.0，与调研回填「codex 式常驻
+  剩余上下文徽标」合并为一刀）**：ContextPill 常驻徽标（迷你进度条三档
+  配色，点击开弹层）+ ContextModal 居中弹层（复用 ContextView，打开挂载
+  关闭卸载）；/context 命令改道弹层，主区 tab 保留。**剩余半项**：Agent
+  Network 会话跳转需 GaeaContextView 按会话参数化，随中期候选另刀；
 
 ### 阶段三（拍板后）：预览与浏览增强
 - 3a CodeMirror 语法高亮编辑器（懒加载，md/代码共用）；
@@ -282,6 +286,7 @@ pane 工作台/文件 tab（v4.25）、任务+分工同屏（v4.53）、子代�
 | v4.85 | 变更面板三态折叠（写入/编辑/读取）+ 类型筛选 chips | 统一文件变动（读写状态分层） | 2a 收口；读取白名单对齐 fileActionByTool |
 | v4.86 | Git 面板最小集（status/diff/stage/unstage/discard/commit/log + 一级 Tab） | git tab（地址栏/暂存/提交/历史） | 2b 收口；D3 采纳推荐默认；2c 渲染升级另刀 |
 | v4.87 | diff 渲染升级（改蓝配对/字符高亮/上下文折叠） | 统一 diff 查看器渲染 | 2c 收口（语法着色随 3a）；阶段二全部完成 |
+| v4.88 | /context 居中弹层 + 常驻剩余上下文% 徽标 | /context 弹层 + 常驻 context 计数 | 2.5e 收口（Agent Network 跳转半项留后续） |
 
 ## 8. 成功标准（长期）
 

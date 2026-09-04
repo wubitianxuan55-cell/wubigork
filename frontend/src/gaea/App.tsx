@@ -27,6 +27,7 @@ const KnowledgePanel = lazy(() => import("./components/KnowledgePanel").then(m =
 import { WorkspacePane } from "./components/WorkspacePane";
 import { ChatTabs, type ChatTabId } from "./components/ChatTabs";
 import { ContextView } from "./components/ContextView";
+import { ContextModal, ContextPill } from "./components/ContextModal";
 import { TrajectoryView } from "./components/TrajectoryView";
 import { SubagentThread, type SubagentThreadStatus } from "./components/SubagentThread";
 import { FilePreview } from "./components/FilePreview";
@@ -88,6 +89,8 @@ const CHAT_MIN_WIDTH = 400;
 
 export default function App() {
   const toast = useToast();
+  // 2.5e /context 居中弹层（dsh 同名能力）。
+  const [ctxModalOpen, setCtxModalOpen] = useState(false);
   const [chatTab, setChatTab] = useState<ChatTabId>(() => {
     try {
       const saved = readWorkbenchValue("gaea.chatTab");
@@ -560,7 +563,8 @@ export default function App() {
         return;
       }
       if (command.type === "context") {
-        setChatTab("context");
+        // 2.5e：/context 打开居中弹层（不离开对话）；主区上下文 tab 保留手动切换。
+        setCtxModalOpen(true);
         return;
       }
       send(displayText.trim(), submitText.trim());
@@ -1314,7 +1318,7 @@ export default function App() {
                           currentSessionPath
                             ? sessionTitle(
                                 (sidebarSessions.find((s) => s.path === currentSessionPath) ?? { path: currentSessionPath, title: "", preview: "" }) as SessionMeta,
-                                currentSessionPath.split(/[\\/]/).pop() ?? "",
+                                currentSessionPath.split(/[/]/).pop() ?? "",
                               )
                             : undefined
                         }
@@ -1350,6 +1354,14 @@ export default function App() {
                 onDismiss={() => { if (todoItem) setDismissedTodo(todoItem.id); }}
               />
             )}
+            {/* 2.5e 常驻「剩余上下文%」徽标（codex 式；点击打开居中弹层） */}
+            <div className="flex justify-end px-4">
+              <ContextPill
+                used={state.context.used}
+                window={state.context.window}
+                onClick={() => setCtxModalOpen(true)}
+              />
+            </div>
             <RunStatus
               running={state.running}
               turnStartAt={state.turnStartAt}
@@ -1474,6 +1486,23 @@ export default function App() {
 
       {/* C4 选区转对话：办公板内选中正文 → 浮动「转为提问」→ 引用插入输入框（v3.1.1） */}
       <SelectionToComposer />
+
+      {/* 2.5e /context 居中弹层：不离开对话查看当前上下文构成 */}
+      <ContextModal
+        open={ctxModalOpen}
+        onClose={() => setCtxModalOpen(false)}
+        running={state.running}
+        sessionPath={currentSessionPath ?? undefined}
+        sessionName={
+          currentSessionPath
+            ? sessionTitle(
+                (sidebarSessions.find((s) => s.path === currentSessionPath) ?? { path: currentSessionPath, title: "", preview: "" }) as SessionMeta,
+                currentSessionPath.split(/[/]/).pop() ?? "",
+              )
+            : undefined
+        }
+        model={state.meta?.label ?? undefined}
+      />
 
     </>
   );
