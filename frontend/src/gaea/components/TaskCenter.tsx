@@ -365,6 +365,9 @@ function TaskRow({
           }}
         >
           {task.error || task.message}
+          {/* 退出码透出（进程类任务真实记录；纯函数任务无退出码语义不渲染）：
+              失败时随错误行常显——最直观；语言中性 "exit N" 格式（工程数值） */}
+          {task.status === "failed" && task.exitCode !== undefined && <span className="ml-1 font-mono">· exit {task.exitCode}</span>}
         </div>
       )}
 
@@ -377,6 +380,8 @@ function TaskRow({
             : `${fmtTime(task.createdAt)} → ${fmtTime(task.finishedAt)}`}
         </span>
         {task.retryCount > 0 && <span style={{ color: "var(--md-sys-color-warning)" }}>{t("tasks.retried", { n: task.retryCount })}</span>}
+        {/* 非失败终态的退出码放悬停次行（失败已在错误行常显，避免重复） */}
+        {task.exitCode !== undefined && task.status !== "failed" && <span className="font-mono">exit {task.exitCode}</span>}
         <span className="ml-auto flex items-center gap-1">
           {cancelable && (
             <button

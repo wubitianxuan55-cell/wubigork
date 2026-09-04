@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Bot, Loader2, Users } from "../icons";
-import { app } from "../lib/bridge";
 import { useT } from "../lib/i18n";
 import type { AgentNetwork, AgentNode, SubagentRunView } from "../lib/types";
-import { usePollingGate } from "../../hooks/usePollingGate";
 import { useLiveReload } from "../hooks/useLiveReload";
+import {
+  reloadAgentNetwork,
+  subscribeAgentNetwork,
+  type AgentNetworkMeta,
+} from "../lib/agentNetworkStore";
 import {
   reloadSubagentRuns,
   subscribeSubagentRuns,
@@ -24,17 +27,18 @@ import { SubagentThread, type SubagentThreadStatus } from "./SubagentThread";
 //  ③新子代理自动展开（可关，默认开）：检测到新子代理 ref 出现时调用
 //    props.onSubagentStarted 回调——面板只负责检测 + 回调，是否切换 tab/
 //    亮出面板由 App 接线决定（偏好键 gaea.subagentAutoOpen 持久化）。
-// 数据源两个（v4.64 起分轨）：
+// 数据源两个（v4.64/v4.65 起全部入共享 store，本组件零自管定时器）：
 //  - GaeaSubagentRuns(sessionPath)：分工 meta + lastText/lastTool 实时预览
-//    ——迁 subagentRunsStore 共享单轮询（与 App 会话 tab 同源去重，本组件
-//    不再自管定时器），快照 + loading/ready/error 状态随订阅广播，失败给
-//    重试入口（reloadSubagentRuns），不再静默白板；
-//  - GaeaAgentNetwork()：树拓扑（节点/嵌套子树/token 富化）——store 只管
-//    runs，本组件保留自己的 5s 轮询（不可见门控）。
+//    ——subagentRunsStore 共享单轮询（按路径建册，与 App 会话 tab 同源去重），
+//    快照 + loading/ready/error 状态随订阅广播，失败给重试入口
+//    （reloadSubagentRuns），不再静默白板；
+//  - GaeaAgentNetwork()：树拓扑（节点/嵌套子树/token 富化）——v4.65 起迁
+//    agentNetworkStore 共享单轮询（绑定无参 → 全局单例轮询器，会话切换显式
+//    reload 补即时性），失败保留旧树 + 重试入口，随 tick 自愈。
 // 两源按「ref 直等 → 任务摘要前缀双向」匹配（与后端 enrichAgentNetwork 同口径）。
-// 刷新节奏：runs 随 store tick（不可见门控）；树 5s 轮询 + useLiveReload
-// （turn_done 立即、运行中随事件节流；running 由数据派生：树根 running 或
-// 存在运行中分工）。
+// 刷新节奏：双源随各自 store tick（不可见门由 store tick 自带）；useLiveReload
+// （turn_done 立即、运行中随事件节流）改调双 store reload；running 由数据
+// 派生：树根 running 或存在运行中分工。
 
 // 活动流上限：超过后只保留最新 20 条（Devin feed 同款截断）。
 const FEED_LIMIT = 20;
@@ -104,8 +108,9 @@ export function SubagentsPanel({ sessionPath, onSubagentStarted }: {
 }) {
   const t = useT();
   const [net, setNet] = useState<AgentNetwork | null>(null);
-  const [netLoading, setNetLoading] = useState(true);
-  const [netError, setNetError] = useState<string | null>(null);
+  // v4.65：net 迁共享单轮询 store——快照 + 状态（loading/ready/error）随订阅
+  // 广播；本组件不再自管 GaeaAgentNetwork 定时器。meta 为 null 且有会话 = 首拉在途。
+  const [netMeta, setNetMeta] = useState<AgentNetworkMeta | null>(null);
   // v4.64：runs 迁共享单轮询 store——快照 + 状态（loading/ready/error）随订阅
   // 广播；本组件不再自管 GaeaSubagentRuns 定时器。meta 为 null 且有会话 = 首拉在途。
   const [runs, setRuns] = useState<SubagentRunView[]>([]);
@@ -125,9 +130,8 @@ export function SubagentsPanel({ sessionPath, onSubagentStarted }: {
   onStartedRef.current = onSubagentStarted;
   // 已见过的子代理 ref 集合：null = 尚未建立基线（首次成功拉取只记基线不触发）
   const knownRefsRef = useRef<Set<string> | null>(null);
-  // v4.5.2：树拓扑轮询接入系统级后台轮询门控（页面不可见时空转零成本）；
-  // runs 的不可见门控由 store tick 自带（同语义）。
-  const gate = usePollingGate();
+  // 双源的不可见门控均由各自 store tick 自带（document.hidden 跳过，与
+  // usePollingGate 同语义），本组件不再自管门控。
 
   // 新子代理检测：本轮 refs 相对基线新出现的子代理视为「新」；偏好开启时回调
   // （回调无参，一次轮询出现多个新子代理合并为一次通知）。
@@ -156,41 +160,37 @@ export function SubagentsPanel({ sessionPath, onSubagentStarted }: {
     });
   }, [sessionPath, detectNewSubagents]);
 
-  // 树拓扑（GaeaAgentNetwork）：store 只收敛 runs，树仍由本组件拉取。
-  // 单源失败置 error 态给重试入口，不再静默降级成「无树」。
-  const loadNet = useCallback(() => {
+  // 树拓扑（GaeaAgentNetwork）：v4.65 起订阅 agentNetworkStore 共享单轮询
+  // （绑定无参 → 全局单例轮询器，不按路径建册；理由见 store 头注）。失败置
+  // error 态给重试入口，快照保留旧树，不再静默降级成「无树」。无 sessionPath
+  // 不订阅（保持「空状态不请求」口径）。
+  useEffect(() => {
     if (!sessionPath) {
       setNet(null);
-      setNetLoading(false);
+      setNetMeta(null);
       return;
     }
-    setNetLoading(true);
-    void app
-      .AgentNetwork()
-      .then((n) => {
-        setNet(n);
-        setNetError(null);
-      })
-      .catch((e) => {
-        setNetError(String(e?.message ?? e ?? "error"));
-      })
-      .finally(() => setNetLoading(false));
+    return subscribeAgentNetwork((nextNet, meta) => {
+      setNet(nextNet);
+      setNetMeta(meta);
+    });
   }, [sessionPath]);
 
-  // 会话切换重新拉取树；5s 轮询（不可见门控）+ 事件流刷新（turn_done 立即）。
+  // 会话切换立即重拉树：单例轮询器不随路径重建（无参绑定），显式 reload 补
+  // 即时性；与订阅重建触发的重拉在途合并，至多一次请求。runs 按路径建册天然
+  // 重建，无需此处接线。
+  const prevPathRef = useRef<string | undefined>(undefined);
   useEffect(() => {
-    const tick = () => { if (gate) loadNet() };
-    tick();
-    if (!sessionPath) return;
-    const timer = window.setInterval(tick, 5000);
-    return () => window.clearInterval(timer);
-  }, [loadNet, sessionPath, gate]);
+    const prev = prevPathRef.current;
+    prevPathRef.current = sessionPath;
+    if (sessionPath && prev && prev !== sessionPath) reloadAgentNetwork();
+  }, [sessionPath]);
 
-  // 手动刷新 / 事件流刷新：树直拉 + runs 走 store 显式重拉（在途合并为一次）。
+  // 手动刷新 / 事件流刷新：双 store 显式重拉（各自在途合并为一次）。
   const refresh = useCallback(() => {
-    loadNet();
+    reloadAgentNetwork();
     if (sessionPath) reloadSubagentRuns(sessionPath);
-  }, [loadNet, sessionPath]);
+  }, [sessionPath]);
 
   // running 由数据派生：树根在跑或存在运行中分工 → 随事件节流刷新。
   const running = net?.root.status === "running" || (runsMeta?.running ?? 0) > 0;
@@ -204,13 +204,15 @@ export function SubagentsPanel({ sessionPath, onSubagentStarted }: {
   }, []);
 
   const runsLoading = !!sessionPath && (runsMeta?.status ?? "loading") === "loading";
+  const netLoading = !!sessionPath && (netMeta?.status ?? "loading") === "loading";
   const loading = netLoading || runsLoading;
   const runsError = runsMeta?.status === "error";
-  const loadError = runsError || netError !== null;
+  const netError = netMeta?.status === "error";
+  const loadError = runsError || netError;
   const retryError = useCallback(() => {
     if (runsError) reloadSubagentRuns(sessionPath ?? "");
-    else loadNet();
-  }, [runsError, sessionPath, loadNet]);
+    else reloadAgentNetwork();
+  }, [runsError, sessionPath]);
   const runningRuns = useMemo(() => runs.filter((r) => r.status === "running"), [runs]);
   const runningCount = runsMeta?.running || runningRuns.length;
   const hasRuns = runs.length > 0;
@@ -330,7 +332,7 @@ export function SubagentsPanel({ sessionPath, onSubagentStarted }: {
           {loadError ? (
             <>
               <span className="text-[11px] leading-relaxed" style={{ color: "var(--md-sys-color-error)" }}>
-                {runsError ? t("sidebar.subagentsError") : t("subagent.netLoadFail", { msg: netError ?? "" })}
+                {t("subagent.runsLoadFail")}
               </span>
               <button
                 type="button"
@@ -369,7 +371,7 @@ export function SubagentsPanel({ sessionPath, onSubagentStarted }: {
               }}
             >
               <span className="min-w-0 flex-1 truncate">
-                {runsError ? t("sidebar.subagentsError") : t("subagent.netLoadFail", { msg: netError ?? "" })}
+                {t("subagent.runsLoadFail")}
               </span>
               <button
                 type="button"

@@ -1295,6 +1295,7 @@ export const zh: Record<DictKey, string> = {
   "subagent.netTitle": "Agent 网络",
   "subagent.netSubtitle": "{n} 个子代理 · 环 = 上下文 token 占比",
   "subagent.netLoadFail": "加载失败：{msg}",
+  "subagent.runsLoadFail": "子代理列表加载失败，点击重试",
   "subagent.rootGlyph": "主",
   "subagent.modelLabel": "模型 {model}",
   "subagent.toolCount": "工具 {n}",

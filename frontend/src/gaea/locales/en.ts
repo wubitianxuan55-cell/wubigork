@@ -1294,6 +1294,7 @@ export const en = {
   "subagent.netTitle": "Agent network",
   "subagent.netSubtitle": "{n} subagents · ring = context token share",
   "subagent.netLoadFail": "Load failed: {msg}",
+  "subagent.runsLoadFail": "Failed to load the subagent list — click to retry",
   "subagent.rootGlyph": "M",
   "subagent.modelLabel": "model {model}",
   "subagent.toolCount": "tools {n}",

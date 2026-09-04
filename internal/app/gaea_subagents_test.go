@@ -201,6 +201,67 @@ func TestGaeaSubagentRuns_Validation(t *testing.T) {
 	}
 }
 
+// TestGaeaSubagentRuns_FollowUpError（v4.66）：meta 侧车的最近追问失败摘要
+// followUpError 透传到 SubagentRunView 与 SubagentTranscriptView——会话 tab
+// 的追问轮询凭后者把乐观气泡转失败态；omitempty：无失败时不带该键。
+func TestGaeaSubagentRuns_FollowUpError(t *testing.T) {
+	sessionPath, sessionDir := writeSubagentFixture(t)
+	subDir := filepath.Join(sessionDir, "subagents")
+	ref := "sa_20260901_090000_0000000003_c4c4c4c4"
+	writeJSON(t, filepath.Join(subDir, ref+".meta.json"), map[string]interface{}{
+		"ref": ref, "status": "completed", "title": "可追问的运行",
+		"followUpError": "provider 掉线：context deadline exceeded",
+		"createdAt":     time.Now().Add(-time.Minute).UTC().Format(time.RFC3339Nano),
+		"updatedAt":     time.Now().UTC().Format(time.RFC3339Nano),
+	})
+	writeMessages(t, filepath.Join(subDir, ref+".jsonl"), []provider.Message{
+		{Role: provider.RoleUser, Content: "可追问的运行"},
+		{Role: provider.RoleAssistant, Content: "第一问的回答。"},
+	})
+
+	a := &App{core: &core{}}
+	v := a.GaeaSubagentRuns(sessionPath)
+	var withErr *SubagentRunView
+	for i := range v.Runs {
+		if v.Runs[i].Ref == ref {
+			withErr = &v.Runs[i]
+			break
+		}
+	}
+	if withErr == nil {
+		t.Fatalf("ref %s 未出现在 runs：%+v", ref, v.Runs)
+	}
+	if withErr.FollowUpError == "" || !strings.Contains(withErr.FollowUpError, "provider 掉线") {
+		t.Fatalf("FollowUpError = %q, want 失败摘要透传", withErr.FollowUpError)
+	}
+	// 无失败的运行（fixture 里的 refA）：字段为空。
+	for _, r := range v.Runs {
+		if r.Ref != ref && r.FollowUpError != "" {
+			t.Fatalf("无失败记录 FollowUpError 应为空：%s %q", r.Ref, r.FollowUpError)
+		}
+	}
+
+	// transcript 视图（tab 轮询数据源）同样透传；无失败 meta 不带 JSON 键。
+	tv, err := a.GaeaSubagentTranscript(sessionPath, ref)
+	if err != nil {
+		t.Fatalf("GaeaSubagentTranscript: %v", err)
+	}
+	if !strings.Contains(tv.FollowUpError, "provider 掉线") {
+		t.Fatalf("transcript FollowUpError = %q, want 透传", tv.FollowUpError)
+	}
+	tvNoErr, err := a.GaeaSubagentTranscript(sessionPath, "sa_20260817_100000_0000000001_a1a1a1a1")
+	if err != nil {
+		t.Fatalf("GaeaSubagentTranscript(refA): %v", err)
+	}
+	b, err := json.Marshal(tvNoErr)
+	if err != nil {
+		t.Fatalf("marshal transcript view: %v", err)
+	}
+	if strings.Contains(string(b), "followUpError") {
+		t.Fatal("无失败时 followUpError 应被 omitempty 省略")
+	}
+}
+
 func TestTruncateRunes(t *testing.T) {
 	if got := truncateRunes("短文本", 10); got != "短文本" {
 		t.Fatalf("短文本不应截断：%q", got)

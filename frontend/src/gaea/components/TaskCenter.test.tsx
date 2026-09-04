@@ -145,4 +145,26 @@ describe("TaskCenter 任务中心（C1 实时输出 + 结束态细分）", () =>
     fireEvent.click(screen.getByText("索引"));
     expect(await screen.findByText(/输出过长已截断/)).toBeTruthy();
   });
+
+  it("退出码透出：失败随错误行常显，其他终态次行展示；0 不被吞，纯函数任务诚实留空", async () => {
+    tasks.list = [
+      makeTask({ id: "f1", label: "失败进程", status: "failed", error: "进程退出非零", exitCode: 2 }),
+      makeTask({ id: "s1", label: "成功进程", status: "succeeded", progress: 100, exitCode: 0 }),
+      makeTask({ id: "c1", label: "取消进程", status: "cancelled", exitCode: -1 }),
+      makeTask({ id: "p1", label: "纯函数任务", status: "failed", error: "解析失败" }),
+    ];
+    render(wrap(<TaskCenter />));
+    expect(await screen.findByText("失败进程")).toBeTruthy();
+
+    // 失败 + 退出码：错误行常显（最直观）
+    expect(screen.getByText(/· exit 2/)).toBeTruthy();
+    // succeeded + exit 0：真实的成功退出码不被 omitempty 语义吞掉
+    expect(screen.getByText("exit 0")).toBeTruthy();
+    // cancelled 带被杀进程的退出码：次行如实透出
+    expect(screen.getByText("exit -1")).toBeTruthy();
+    // 全部退出码渲染恰好 3 处：纯函数任务（无退出码语义）诚实留空
+    expect(screen.getAllByText(/exit -?\d+/)).toHaveLength(3);
+    // 纯函数失败任务只显示错误文本，无退出码
+    expect(screen.getByText("解析失败")).toBeTruthy();
+  });
 });

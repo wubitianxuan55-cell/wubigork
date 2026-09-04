@@ -143,6 +143,9 @@ export function SubagentThread({
         setTranscript(v);
         transcriptRef.current = v;
         setFailed(false);
+        // v4.66：meta 侧车的最近追问失败摘要随快照带出（等待态气泡在场时
+        // 由下方 effect 转失败态；无等待气泡时仅存镜像，不骚扰输入框）。
+        setFollowUpRemoteErr(v.followUpError ?? "");
         // 流式缓冲 ↔ 权威快照接管：快照尾条已含缓冲开头（快照追上流），
         // 或快照长过了缓冲基线（新消息已落盘）→ 清缓冲，交给权威渲染。
         setStreamBuf((prev) => {
@@ -212,6 +215,7 @@ export function SubagentThread({
   useEffect(() => {
     setStreamBuf("");
     transcriptRef.current = null;
+    setFollowUpRemoteErr(""); // 失败摘要是 per-ref 的，切换即作废
   }, [target]);
 
   // 运行中强制跟随底部；完成/空闲时保留用户滚动位置（near-bottom 才跟）。
@@ -242,22 +246,39 @@ export function SubagentThread({
   // v4.64.x 失败诚实化：派发被守卫拒绝（主回合运行中/未接线/重复追问）时
   // 乐观气泡不悄悄蒸发，改标失败态并保留原文本——气泡内联「重试」（复用
   // followUpBusy 守卫重发同一文本）与「撤销」；错误条内联展示失败原因。
+  // v4.66 后台失败可感知：受理成功但后台 goroutine 真正失败时，失败原因经
+  // meta（followUpError）随快照轮询带回，等待态气泡同样转失败态——不再永久
+  // 「等待中」。
   const [followUpText, setFollowUpText] = useState("");
   const [followUpBusy, setFollowUpBusy] = useState(false);
   const [followUpErr, setFollowUpErr] = useState("");
   const [followUpPending, setFollowUpPending] = useState("");
   const [followUpPendingFailed, setFollowUpPendingFailed] = useState(false);
+  // v4.66 后台失败可感知：绑定受理只代表「已开跑」，后台 goroutine 里真正
+  // 失败时后端把原因摘要写回 meta（followUpError），随 transcript 快照带出。
+  // 本地镜像最新一次读到的摘要：等待态气泡在场且非空 → 气泡转失败态。
+  const [followUpRemoteErr, setFollowUpRemoteErr] = useState("");
   const followUpBaseRef = useRef(0);
   useEffect(() => {
+    // 失败优先判定：meta 带回最近一次追问的失败摘要 → 等待态气泡转失败态
+    //（复用 v4.64.x 失败态机制：错误条文案 = 该原因，保留重试/撤销）。该
+    // 判定先于「快照增长 = 成功」——失败前可能已落了部分内容，单看消息数
+    // 会把失败误判成成功。
+    if (followUpPending && !followUpPendingFailed && followUpRemoteErr) {
+      setFollowUpPendingFailed(true);
+      setFollowUpErr(followUpRemoteErr);
+      return;
+    }
     // 权威快照长过派发时基线 → 真实内容已落盘，清乐观气泡。
     // 失败态气泡例外：该次派发不会有内容落盘，快照增长与本条无关，
     // 清掉会让重试入口凭空消失（诚实保留到用户重试或撤销）。
     if (followUpPending && !followUpPendingFailed && messages.length > followUpBaseRef.current) setFollowUpPending("");
-  }, [messages.length, followUpPending, followUpPendingFailed]);
+  }, [messages.length, followUpPending, followUpPendingFailed, followUpRemoteErr]);
   const dispatchFollowUp = useCallback((text: string) => {
     followUpBaseRef.current = messages.length;
     setFollowUpPending(text);
     setFollowUpPendingFailed(false);
+    setFollowUpRemoteErr(""); // 新一次派发与上一枪的失败摘要一刀两断（后端受理时也同步清盘）
     setFollowUpText("");
     setFollowUpBusy(true);
     setFollowUpErr("");

@@ -69,6 +69,12 @@ type Task struct {
 	// Get/List 查询与进度事件返回时为空（omitempty），载荷有界（环形缓冲上限）。
 	OutputTail      string `json:"outputTail,omitempty"`
 	OutputTruncated bool   `json:"outputTruncated,omitempty"`
+
+	// ExitCode 是进程类任务的真实退出码（事件视图字段，不落库，Get/List 时从
+	// 内存登记合入）：handler 经 Progress.ExitCode 上报（如 os/exec 进程结束后
+	// cmd.ProcessState.ExitCode()）。指针语义区分「未上报」（nil，JSON 缺省）
+	// 与「退出码 0」（真实成功）；纯函数任务无退出码语义，诚实留空不造假数字。
+	ExitCode *int `json:"exitCode,omitempty"`
 }
 
 // Progress 是 handler 的进度报告器：Report 更新进度（持久化 + 节流事件），
@@ -107,6 +113,18 @@ func (p *Progress) Output(line string) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.manager.appendOutput(p.id, line)
+}
+
+// ExitCode 记录进程类任务的真实退出码（进程退出后调用，如
+// cmd.ProcessState.ExitCode()）：内存登记、Get/List/终态事件合入视图，
+// 重复调用以最后一次为准。纯函数任务无退出码语义，不调用即诚实留空。
+func (p *Progress) ExitCode(code int) {
+	if p == nil || p.manager == nil {
+		return
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.manager.recordExitCode(p.id, code)
 }
 
 // Handler 执行一个任务。ctx 在用户取消 / Manager.Close 时 Done；错误返回后
@@ -150,6 +168,12 @@ type Manager struct {
 	// 防止 Output→Report 紧邻调用时进度更新被输出事件挤掉节流窗口。
 	lastOutputEmit map[string]time.Time
 	outputs        map[string]*taskOutput // 任务实时输出环形缓冲（C1）
+	// exitCodes 登记进程类任务上报的真实退出码（exitMu 保护）：键=任务 ID，
+	// 条目极小（key+int，无 LRU 必要），Retry/重入队时清理。独立于 m.mu 的原因：
+	// Get 会在持有 m.mu 的路径（clearStaleCancel）中被调用并合入退出码，若复用
+	// m.mu 会自锁（Go 互斥锁不可重入）；锁序恒为 m.mu → exitMu，绝不反向。
+	exitCodes map[string]int
+	exitMu    sync.Mutex
 	// outSeq 是输出缓冲的 LRU 写入时钟（m.mu 保护，单调递增）：appendOutput
 	// 每次写入刷新对应 taskOutput.lastWrite，缓冲表超限时淘汰 lastWrite 最旧者。
 	outSeq int64
@@ -270,6 +294,46 @@ func (m *Manager) Output(id string) (string, bool) {
 	return strings.Join(o.lines, "\n"), o.trunc
 }
 
+// recordExitCode 登记任务的真实退出码（exitMu 保护；惰性初始化兼容零值 Manager）。
+func (m *Manager) recordExitCode(id string, code int) {
+	if m == nil {
+		return
+	}
+	m.exitMu.Lock()
+	defer m.exitMu.Unlock()
+	if m.exitCodes == nil {
+		m.exitCodes = map[string]int{}
+	}
+	m.exitCodes[id] = code
+}
+
+// attachExitCode 把内存登记的退出码合入任务视图（Get/List 的统一收口，终态
+// 事件经 markTerminal→Get 自动携带）：未登记（纯函数任务/未上报）保持 nil，
+// JSON omitempty 缺省——诚实留空。
+func (m *Manager) attachExitCode(t *Task) {
+	if m == nil || t == nil {
+		return
+	}
+	m.exitMu.Lock()
+	code, ok := m.exitCodes[t.ID]
+	m.exitMu.Unlock()
+	if ok {
+		c := code
+		t.ExitCode = &c
+	}
+}
+
+// clearExitCode 丢弃任务已登记的退出码（Retry/重入队时调用）：旧一次尝试的
+// 退出码随重跑失效，不串味到新一轮执行。
+func (m *Manager) clearExitCode(id string) {
+	if m == nil {
+		return
+	}
+	m.exitMu.Lock()
+	delete(m.exitCodes, id)
+	m.exitMu.Unlock()
+}
+
 // New 创建调度器（未启动；调用 Start 后开始执行）。
 func New(db *sql.DB, emit func(Task), opts Options) *Manager {
 	if db == nil {
@@ -305,6 +369,7 @@ func New(db *sql.DB, emit func(Task), opts Options) *Manager {
 		lastEmit:       map[string]time.Time{},
 		lastOutputEmit: map[string]time.Time{},
 		outputs:        map[string]*taskOutput{},
+		exitCodes:      map[string]int{},
 		opts:           opts,
 		sem:            make(chan struct{}, opts.MaxConcurrent),
 		spaceRunning:   map[string]int{},
@@ -427,7 +492,11 @@ func (m *Manager) Get(id string) (*Task, error) {
 	if err == sql.ErrNoRows {
 		return nil, fmt.Errorf("任务不存在: %s", id)
 	}
-	return t, err
+	if err != nil {
+		return nil, err
+	}
+	m.attachExitCode(t)
+	return t, nil
 }
 
 // List 返回最近 limit 条任务（新→旧，跨空间全量；等价 ListInSpace(limit, "")）。
@@ -463,6 +532,7 @@ func (m *Manager) ListInSpace(limit int, space string) ([]*Task, error) {
 		if err != nil {
 			return nil, err
 		}
+		m.attachExitCode(t)
 		out = append(out, t)
 	}
 	return out, rows.Err()
@@ -567,6 +637,7 @@ func (m *Manager) Retry(id string) error {
 	if n, _ := res.RowsAffected(); n == 0 {
 		return fmt.Errorf("只有失败/已取消的任务可以重试")
 	}
+	m.clearExitCode(id) // 旧尝试的退出码不串味到重跑
 	t, err := m.Get(id)
 	if err != nil {
 		return err
@@ -982,6 +1053,7 @@ func (m *Manager) markTerminal(id string, status Status, message, errText string
 }
 
 func (m *Manager) requeue(id, message string) error {
+	m.clearExitCode(id) // 中断重排：旧尝试的退出码不串味到续跑
 	if _, err := m.db.Exec(`UPDATE tasks SET status=?, message=?, started_at=0, finished_at=0 WHERE id=?`,
 		string(StatusQueued), message, id); err != nil {
 		return err
@@ -996,6 +1068,7 @@ func (m *Manager) requeue(id, message string) error {
 
 // requeueWithBackoff 自动重试：retry_count+1 后按指数退避重新入队。
 func (m *Manager) requeueWithBackoff(id string, retry int, cause error) error {
+	m.clearExitCode(id) // 失败重排：旧尝试的退出码不串味到重试轮
 	delay := m.opts.BackoffBase * time.Duration(1<<min(retry, 5))
 	if delay > 60*time.Second {
 		delay = 60 * time.Second

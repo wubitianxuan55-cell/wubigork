@@ -594,6 +594,9 @@ export interface SubagentRunView {
   toolCalls: number;
   lastText?: string; // C2 活动行：最后一段 assistant 文本（运行中实时更新）
   lastTool?: string; // C2 活动行：最后一次工具调用摘要（name + 结果头）
+  // 最近一次追问的后台失败原因摘要（v4.66，meta 透传）：非空 = 该运行最近
+  // 一次追问失败；空/缺省 = 无失败。
+  followUpError?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -617,6 +620,9 @@ export interface SubagentTranscriptMessage {
 export interface SubagentTranscriptView {
   ref: string;
   task?: string;
+  // 最近一次追问的后台失败原因摘要（v4.66，meta 透传，omitempty）：会话 tab
+  // 的追问轮询凭它把乐观气泡转失败态（错误条文案 = 该原因）。
+  followUpError?: string;
   messages: SubagentTranscriptMessage[];
 }
 
@@ -1550,6 +1556,10 @@ export interface TaskView {
   // （有界环形缓冲），输出 dock 事件即推（轮询兜底）；列表/查询响应中缺省。
   outputTail?: string;
   outputTruncated?: boolean;
+  // 进程类任务的真实退出码（后端 Task.ExitCode `json:"exitCode,omitempty"`，
+  // 事件视图字段不落库，Get/List 合入）：handler 经 Progress.ExitCode 上报；
+  // 纯函数任务无退出码语义，诚实缺省。undefined ≠ 0：0 是真实的成功退出码。
+  exitCode?: number;
 }
 
 // ── v4.1 证据链（docs/gaea-v41-evidence-chain-design.md §3）────────────────

@@ -1085,3 +1085,133 @@ func TestOutputEvictionLRU(t *testing.T) {
 		t.Fatalf("最新写入的 more-2 尾部回放应完好，实际 %q", tail)
 	}
 }
+
+// TestExitCodeRecordedOnTerminal：进程类 handler 上报真实退出码 → Get/终态
+// 事件合入（同一收口），非零退出码如实透出、不参与重试判定之外的语义改写。
+func TestExitCodeRecordedOnTerminal(t *testing.T) {
+	db := openTestDB(t)
+	col := &eventCollector{}
+	// MaxRetries=0：失败直接终态，聚焦退出码本身
+	m := New(db, col.add, Options{BackoffBase: 10 * time.Millisecond, MaxRetries: 0})
+	m.Register(KindPriceFetch, func(ctx context.Context, tk *Task, p *Progress) error {
+		p.Output("子进程退出")
+		p.ExitCode(3)
+		return errors.New("进程退出非零")
+	})
+	if _, err := m.Start(); err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	defer m.Close()
+
+	tk, _ := m.Submit(KindPriceFetch, "跑进程", nil)
+	done := waitTerminal(t, m, tk.ID, 3*time.Second)
+	if done.Status != string(StatusFailed) {
+		t.Fatalf("期望 failed，实际 %s", done.Status)
+	}
+	if done.ExitCode == nil || *done.ExitCode != 3 {
+		t.Fatalf("期望退出码 3，实际 %v", done.ExitCode)
+	}
+	// 终态事件与 Get 同源：事件视图同样携带退出码
+	last, ok := col.last()
+	if !ok || last.ExitCode == nil || *last.ExitCode != 3 {
+		t.Fatalf("终态事件应携带退出码 3，实际 %+v", last)
+	}
+	// JSON 透出键名（前端 TaskView 契约）
+	b, _ := json.Marshal(done)
+	if !strings.Contains(string(b), `"exitCode":3`) {
+		t.Fatalf("JSON 应含 exitCode:3，实际 %s", b)
+	}
+}
+
+// TestExitCodeZeroPreserved：退出码 0 是真实的成功事实——指针 + omitempty
+// 语义必须保住 0（区别于「未上报」的缺省），不被吞成无退出码。
+func TestExitCodeZeroPreserved(t *testing.T) {
+	db := openTestDB(t)
+	m := New(db, nil, Options{BackoffBase: 10 * time.Millisecond})
+	m.Register(KindPriceFetch, func(ctx context.Context, tk *Task, p *Progress) error {
+		p.ExitCode(0)
+		return nil
+	})
+	if _, err := m.Start(); err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	defer m.Close()
+
+	tk, _ := m.Submit(KindPriceFetch, "跑进程", nil)
+	done := waitTerminal(t, m, tk.ID, 3*time.Second)
+	if done.Status != string(StatusSucceeded) || done.ExitCode == nil || *done.ExitCode != 0 {
+		t.Fatalf("期望 succeeded + 退出码 0，实际 %s/%v", done.Status, done.ExitCode)
+	}
+	b, _ := json.Marshal(done)
+	if !strings.Contains(string(b), `"exitCode":0`) {
+		t.Fatalf("JSON 应含 exitCode:0（0 不被 omitempty 吞掉），实际 %s", b)
+	}
+}
+
+// TestExitCodeAbsentForPureFunc：纯函数任务无退出码语义——不上报即诚实留空
+// （视图 nil、JSON 无 exitCode 键），绝不造假数字。
+func TestExitCodeAbsentForPureFunc(t *testing.T) {
+	db := openTestDB(t)
+	m := New(db, nil, Options{BackoffBase: 10 * time.Millisecond, MaxRetries: 0})
+	m.Register(KindPriceFetch, func(ctx context.Context, tk *Task, p *Progress) error {
+		return errors.New("纯函数失败")
+	})
+	if _, err := m.Start(); err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	defer m.Close()
+
+	tk, _ := m.Submit(KindPriceFetch, "纯函数任务", nil)
+	done := waitTerminal(t, m, tk.ID, 3*time.Second)
+	if done.ExitCode != nil {
+		t.Fatalf("纯函数任务不应有退出码，实际 %v", *done.ExitCode)
+	}
+	b, _ := json.Marshal(done)
+	if strings.Contains(string(b), "exitCode") {
+		t.Fatalf("未上报时 JSON 不应含 exitCode 键，实际 %s", b)
+	}
+	// List 同一收口
+	list, err := m.List(10)
+	if err != nil || len(list) != 1 {
+		t.Fatalf("list: %v (%d)", err, len(list))
+	}
+	if list[0].ExitCode != nil {
+		t.Fatal("List 视图同样应诚实留空")
+	}
+}
+
+// TestExitCodeClearedOnRetry：失败上报退出码 2 → 手动 Retry 重跑（未再上报）
+// → 终态退出码回归 nil，旧一次尝试的退出码不串味到新一轮执行。
+func TestExitCodeClearedOnRetry(t *testing.T) {
+	db := openTestDB(t)
+	m := New(db, nil, Options{BackoffBase: 10 * time.Millisecond, MaxRetries: 0})
+	firstRun := true
+	m.Register(KindPriceFetch, func(ctx context.Context, tk *Task, p *Progress) error {
+		if firstRun {
+			firstRun = false
+			p.ExitCode(2)
+			return errors.New("进程退出非零")
+		}
+		return nil // 重跑成功且不上报
+	})
+	if _, err := m.Start(); err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	defer m.Close()
+
+	tk, _ := m.Submit(KindPriceFetch, "跑进程", nil)
+	done := waitTerminal(t, m, tk.ID, 3*time.Second)
+	if done.ExitCode == nil || *done.ExitCode != 2 {
+		t.Fatalf("首次失败应携带退出码 2，实际 %v", done.ExitCode)
+	}
+	if err := m.Retry(tk.ID); err != nil {
+		t.Fatalf("retry: %v", err)
+	}
+	done = waitTerminal(t, m, tk.ID, 3*time.Second)
+	if done.Status != string(StatusSucceeded) {
+		t.Fatalf("重跑期望 succeeded，实际 %s", done.Status)
+	}
+	if done.ExitCode != nil {
+		t.Fatalf("重跑后旧退出码应清空，实际 %v", *done.ExitCode)
+	}
+}

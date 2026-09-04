@@ -11,6 +11,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"path/filepath"
 	"sync"
 
 	gaeaAgent "github.com/gaea/gaea/internal/gaea/agent"
@@ -38,6 +39,17 @@ func (a *App) GaeaSubagentFollowUp(sessionPath, ref, prompt string) (string, err
 		return "", fmt.Errorf("该子代理已有追问正在运行")
 	}
 	defer followUpClaims.Delete(claimKey)
+
+	// 受理即同步清掉上一次追问的失败摘要（v4.66）：清盘发生在返回「已受理」
+	// 之前——前端派发后的首轮轮询不会把上一枪的 followUpError 误记到这一次
+	// 头上（若留到后台 goroutine 里清，存在先返回后清的竞态窗）。临时 store
+	// 实例与 boot 的惰性 store 解析同一目录（<会话目录>/subagents）；此刻同
+	// ref 无并发 meta 写（claims 单飞 + PrepareContinue 拒 running），读改写
+	// 安全。best-effort：无会话目录/meta 时跳过，RunFollowUp 开跑清兜底。
+	if dir := sessionDirForPath(sessionPath); dir != "" && gaeaAgent.ValidRunRef(ref) {
+		store := gaeaAgent.NewSubagentStore(filepath.Join(dir, "subagents"))
+		_ = store.RecordFollowUpError(ref, "")
+	}
 
 	ctx := gaeaAgent.WithSpace(context.Background(), gaeaSessionSpace())
 	go func() {

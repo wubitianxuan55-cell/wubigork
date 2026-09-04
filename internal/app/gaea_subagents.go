@@ -23,16 +23,19 @@ type SubagentRunView struct {
 	// 缺省补 subagent。
 	Kind string `json:"kind"`
 	// Tool 仅 model_tool 填写：触发记录的工具名（vision / summarize_file …）。
-	Tool      string    `json:"tool,omitempty"`
-	Model     string    `json:"model,omitempty"`
-	ToolScope []string  `json:"toolScope,omitempty"`
-	Task      string    `json:"task"`               // transcript 首条 user 消息（任务摘要）
-	Answer    string    `json:"answer"`             // 最后一条 assistant 回答（截断摘要）
-	ToolCalls int       `json:"toolCalls"`          // transcript 中工具调用次数
-	LastText  string    `json:"lastText,omitempty"` // C2 活动行：最后一段 assistant 文本（运行中实时更新）
-	LastTool  string    `json:"lastTool,omitempty"` // C2 活动行：最后一次工具调用摘要（name + 结果头）
-	CreatedAt time.Time `json:"createdAt"`
-	UpdatedAt time.Time `json:"updatedAt"`
+	Tool      string   `json:"tool,omitempty"`
+	Model     string   `json:"model,omitempty"`
+	ToolScope []string `json:"toolScope,omitempty"`
+	Task      string   `json:"task"`               // transcript 首条 user 消息（任务摘要）
+	Answer    string   `json:"answer"`             // 最后一条 assistant 回答（截断摘要）
+	ToolCalls int      `json:"toolCalls"`          // transcript 中工具调用次数
+	LastText  string   `json:"lastText,omitempty"` // C2 活动行：最后一段 assistant 文本（运行中实时更新）
+	LastTool  string   `json:"lastTool,omitempty"` // C2 活动行：最后一次工具调用摘要（name + 结果头）
+	// FollowUpError 是最近一次追问的后台失败原因摘要（v4.66，meta 透传）：
+	// 非空 = 该运行最近一次追问失败，会话 tab 轮询据此把乐观气泡转失败态。
+	FollowUpError string    `json:"followUpError,omitempty"`
+	CreatedAt     time.Time `json:"createdAt"`
+	UpdatedAt     time.Time `json:"updatedAt"`
 }
 
 // SubagentRunsView 是当前会话的子代理分工总览。
@@ -73,6 +76,8 @@ func (a *App) GaeaSubagentRuns(sessionPath string) SubagentRunsView {
 		Tool      string    `json:"tool,omitempty"`
 		ToolScope []string  `json:"toolScope,omitempty"`
 		Model     string    `json:"model,omitempty"`
+		// FollowUpError：最近一次追问后台失败摘要（v4.66），空 = 无失败。
+		FollowUpError string `json:"followUpError,omitempty"`
 	}
 	runs := []SubagentRunView{}
 	for _, e := range entries {
@@ -89,14 +94,15 @@ func (a *App) GaeaSubagentRuns(sessionPath string) SubagentRunsView {
 			continue
 		}
 		v := SubagentRunView{
-			Ref:       ref,
-			Status:    m.Status,
-			Kind:      runKind(m.Kind, ref),
-			Tool:      m.Tool,
-			Model:     m.Model,
-			ToolScope: m.ToolScope,
-			CreatedAt: m.CreatedAt,
-			UpdatedAt: m.UpdatedAt,
+			Ref:           ref,
+			Status:        m.Status,
+			Kind:          runKind(m.Kind, ref),
+			Tool:          m.Tool,
+			Model:         m.Model,
+			ToolScope:     m.ToolScope,
+			FollowUpError: m.FollowUpError,
+			CreatedAt:     m.CreatedAt,
+			UpdatedAt:     m.UpdatedAt,
 		}
 		// transcript：任务摘要（首条 user 消息）+ 最后回答 + 工具调用计数 + 活动行
 		task, answer, toolCalls, lastText, lastTool := summarizeSubagentTranscript(filepath.Join(dir, ref+".jsonl"))
@@ -198,11 +204,15 @@ type SubagentTranscriptMessage struct {
 }
 
 // SubagentTranscriptView 是子代理完整 transcript 视图（Agent 网络节点 →
-// 「查看完整 transcript」的数据源）。
+// 「查看完整 transcript」的数据源；也是会话 tab 追问轮询的通道——meta 侧车的
+// 最近追问失败摘要随快照带出，前端凭它把乐观气泡转失败态，v4.66）。
 type SubagentTranscriptView struct {
-	Ref      string                      `json:"ref"`
-	Task     string                      `json:"task"`
-	Messages []SubagentTranscriptMessage `json:"messages"`
+	Ref  string `json:"ref"`
+	Task string `json:"task"`
+	// FollowUpError 透传 meta 的最近一次追问后台失败原因摘要（omitempty，
+	// 空 = 无失败）。
+	FollowUpError string                      `json:"followUpError,omitempty"`
+	Messages      []SubagentTranscriptMessage `json:"messages"`
 }
 
 // GaeaSubagentTranscript 读取当前会话派发的某个子代理的完整 transcript
@@ -215,14 +225,17 @@ func (a *App) GaeaSubagentTranscript(sessionPath, ref string) (SubagentTranscrip
 	}
 	dir := filepath.Join(filepath.Dir(filepath.Clean(sessionPath)), "subagents")
 	// meta.Title 优先作任务标题（skill/model_tool 记录的 transcript 首条
-	// user 消息可能是技能正文/工具参数，不适合做 UI 标题）。
-	var metaTitle string
+	// user 消息可能是技能正文/工具参数，不适合做 UI 标题）；FollowUpError
+	// 随 meta 侧车透传（追问失败可感知，v4.66）。
+	var metaTitle, metaFollowUpErr string
 	if b, err := os.ReadFile(filepath.Join(dir, ref+".meta.json")); err == nil {
 		var m struct {
-			Title string `json:"title"`
+			Title         string `json:"title"`
+			FollowUpError string `json:"followUpError"`
 		}
 		_ = json.Unmarshal(b, &m)
 		metaTitle = m.Title
+		metaFollowUpErr = m.FollowUpError
 	}
 	f, err := os.Open(filepath.Join(dir, ref+".jsonl"))
 	if err != nil {
@@ -230,7 +243,7 @@ func (a *App) GaeaSubagentTranscript(sessionPath, ref string) (SubagentTranscrip
 	}
 	defer f.Close()
 	dec := json.NewDecoder(f)
-	view := SubagentTranscriptView{Ref: ref, Messages: []SubagentTranscriptMessage{}}
+	view := SubagentTranscriptView{Ref: ref, FollowUpError: metaFollowUpErr, Messages: []SubagentTranscriptMessage{}}
 	for {
 		var m provider.Message
 		if err := dec.Decode(&m); err != nil {

@@ -1,6 +1,7 @@
 # 任务进度
 
-> 最后更新: 2026-09-04（v4.65.0「三线并行收欠账：追问失败重试 · 工作台
+> 最后更新: 2026-09-04（v4.65.1「追问失败感知 · 任务退出码 · AgentNetwork
+> 轮询收敛」；v4.65.0「三线并行收欠账：追问失败重试 · 工作台
 > 偏好设置卡 · 子代理轮询收敛」；v4.64.3「任务管理树呼吸感优化」；
 > v4.64.2「修复：任务管理树丢失零工具子代理」；
 > **v4.62.2～v4.64.1 六版实机验收完成，六项全 PASS**（见 v4.64.2 发布说明
@@ -20,18 +21,36 @@
 
 ## 下会话续做（待办清单，2026-09-04 更新）
 
-- **dsh 剩余借鉴（按价值）**：后台任务实时输出流+退出码+强杀（需绑定面
-  变更，独立刀）；追问会话「保存为新会话」提升（GaeaFork 入口已有）；
-  **后台 runner 追问失败前端无感知**（v4.65.0 线A 发现：后台失败仅
-  slog.Warn，需事件或轮询侧车，涉及后端）。
-- **store 迁移**：~~SubagentsPanel / Sidebar~~ 已完成（v4.65.0 线C）；
-  剩 SubagentsPanel 的 GaeaAgentNetwork 树轮询仍自管（store 只管 runs）；
-  `subagent.runsLoadFail` 专属 i18n 键（现复用相邻键）。
+- **dsh 剩余借鉴（按价值）**：~~任务退出码+强杀~~ 已完成/销账（v4.65.1
+  线A：ExitCode 落地；Cancel 为协作取消且 3 类任务均纯函数 handler，
+  强杀条目过期）；后台任务**推送式实时输出流**（现轮询 tail，独立刀）；
+  追问会话「保存为新会话」提升（GaeaFork 为主会话回合分叉，子代理会话
+  提升需新绑定 GaeaPromoteSubagent，走绑定面流程）。
+- ~~后台 runner 追问失败前端无感知~~ 已完成（v4.65.1 线B：meta
+  FollowUpError 经轮询带出）；**顺手修 v4.64.0 真回归**（RunFollowUp
+  defer stop() 晚于终态写致 meta 永久卡 running）。
+- **store 迁移**：~~SubagentsPanel/Sidebar~~（v4.65.0）、~~net 轮询~~
+  （v4.65.1 agentNetworkStore）已完成；剩 **TasksWorkbench 双源自管轮询**
+  （net+runs 都未走 store，且静默吞错无失败态——两 store 的下一个消费点）。
+- **老账**：run_skill AllowedTools 真机观察；pptx 真编辑；Verifier 通道 B
+  逐页缩略图；子代理队列非唯一命中交互式确认。
 - **老账**：run_skill AllowedTools 真机观察；pptx 真编辑；Verifier 通道 B
   逐页缩略图；子代理队列非唯一命中交互式确认。
 - ~~autoOpenJobs 进设置中心~~ 已完成（v4.65.0 线B；该键经 grep 不存在，
   实际由 gaea.tasks.autoOpenSubagent 承担——过期条目销账）。
 - ~~releases/README.md 索引治理~~ 已完成（v4.65.0 线D）。
+
+## 最新发布：v4.65.1（2026-09-04）「追问失败感知 · 任务退出码 · 轮询收敛」
+
+- 线A 任务 ExitCode（指针语义+Retry 清旧码+独立锁防自锁），TaskCenter
+  失败行常显 exit N；强杀欠账过期销账（协作取消已足够）。+6 用例。
+- 线B meta.FollowUpError 经 SubagentRunView/TranscriptView 带出（omitempty），
+  SubagentThread 失败判定先于快照增长；**修 v4.64.0 真回归**（defer stop()
+  时序致 meta 永久卡 running）+ 回归钉。+9 用例。
+- 线C agentNetworkStore（单例轮询器 9 用例）+ SubagentsPanel net 迁入 +
+  runsLoadFail 三语键。TasksWorkbench 双源轮询收档为下一消费点。
+- 门禁：Go 全量 exit 0、tsc -b/eslint 0、vitest 220/1636、drift PASS（560）、
+  冒烟 200。详见 releases/v4.65.1.md。
 
 ## 最新发布：v4.65.0（2026-09-04）「三线并行收欠账」
 

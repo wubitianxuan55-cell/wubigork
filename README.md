@@ -89,6 +89,7 @@ gaea/
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| **v4.65.1** | 2026-09-04 | 三线并行（绑定面 560 零变更）：任务 ExitCode 退出码透出（强杀欠账过期销账）；追问后台失败写 run meta 前端感知 + 修 v4.64.0 RunFollowUp 终态回写真回归；新 agentNetworkStore 收敛 net 轮询 + runsLoadFail 三语键；Go 全量 exit 0、vitest 220/1636、drift PASS（560）、冒烟 200 |
 | **v4.65.0** | 2026-09-04 | 三线并行收欠账（绑定面 560 零变更）：追问失败内联错误条+失败气泡保留原文+一键重试/撤销；「办公工作台偏好」设置卡（四个自动展开偏好进设置中心，新 lib/tasksPrefs）；SubagentsPanel/Sidebar 迁共享 subagentRunsStore（3 路重复轮询收敛为 1 路，store 增 loading/error/reload 向后兼容）；releases/README 索引治理；vitest 219/1624、drift PASS（560）、冒烟 200、实机走查 PASS |
 | **v4.64.3** | 2026-09-04 | 任务管理树呼吸感优化（绑定面 560 零变更，纯前端）：AgentTree 行高/间距/字号/状态点/层级缩进放宽 + 本地模型工具区块同步；信息零删减；vitest 217/1605、冒烟通过、实机走查 PASS |
 | **v4.64.2** | 2026-09-04 | 修复：任务管理树丢失零工具子代理（绑定面 560 零变更）：FoldAgentNetwork 以「拥有子工具记录」定义节点致纯调研子代理（零工具调用）整批不可见；enrichAgentNetwork 对未被承载的 run 补挂合成节点（id=sa_ ref）；+3 回归；同日 v4.62.2～v4.64.1 六版实机验收六项全 PASS；Go 全量 0 FAIL、vitest 217/1605、drift PASS（560）、冒烟通过 |

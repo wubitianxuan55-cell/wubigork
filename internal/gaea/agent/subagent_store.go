@@ -71,6 +71,12 @@ type SubagentMeta struct {
 	// 前瞻」）：work/play。旧 meta 无此字段 = 零值，读端按 work 降级
 	// （spaces.SpaceOr）——与事件日志 space 字段同一兼容语义。
 	Space string `json:"space,omitempty"`
+	// FollowUpError 是最近一次用户追问（v4.64 Side Chat）后台执行失败的
+	// 原因摘要（v4.66）：绑定受理只代表「已开跑」，后台 goroutine 里 runner
+	// 真正失败时仅 slog.Warn，前端无从感知——失败摘要写回 meta，经
+	// transcript 快照/轮询链路带出。空 = 最近一次追问无失败（每次追问开跑
+	// 即清旧值，失败态只属于最近一次）。旧 meta 无此字段按无失败降级。
+	FollowUpError string `json:"followUpError,omitempty"`
 }
 
 // SubagentRun holds a prepared sub-agent transcript ready to execute.
@@ -716,6 +722,39 @@ func (s *SubagentStore) CleanupStaleRunning() (int, error) {
 		}
 	}
 	return count, nil
+}
+
+// ── Follow-up failure（v4.66 追问失败写回 meta）────────────────────
+
+// followUpErrorMaxRunes bounds the stored failure summary（UI 错误条单条展示，
+// 更长的包装链/堆栈对用户无意义）。
+const followUpErrorMaxRunes = 300
+
+// RecordFollowUpError 把一次用户追问（TaskTool.RunFollowUp）的失败原因摘要
+// 写进 ref 的 meta sidecar；summary 为空 = 清除（每次追问开跑时调用，保证
+// 失败态只属于最近一次追问）。写入走 baseMeta 读改写，CreatedAt/Title/Kind
+// 等既有字段守恒。
+// 必须在该 run 没有并发 meta 写时调用（runner 已返回：stop 先于终态写 +
+// 绑定层同 ref 单飞）——本次写即该 meta 的最后一次，前端轮询必能读到。
+// meta 不存在（ref 无记录/损坏）时报错且不落新文件，避免为不存在的运行
+// 造出空状态幽灵记录；调用方 best-effort 忽略。
+func (s *SubagentStore) RecordFollowUpError(ref, summary string) error {
+	if !validRefWithPrefix(ref, refPrefix) {
+		return fmt.Errorf("invalid subagent reference %q", ref)
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	meta, err := s.loadMeta(ref)
+	if err != nil {
+		return err
+	}
+	summary = strings.TrimSpace(summary)
+	if r := []rune(summary); len(r) > followUpErrorMaxRunes {
+		// 按 rune 截断（中文按字符计），超长摘要保留头部。
+		summary = string(r[:followUpErrorMaxRunes-1]) + "…"
+	}
+	meta.FollowUpError = summary
+	return s.saveMetaUnlocked(meta)
 }
 
 // ── Result formatting ────────────────────────────────────────────────

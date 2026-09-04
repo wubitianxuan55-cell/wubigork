@@ -1,3 +1,17 @@
+## v4.65.1 · 三线并行：追问失败感知 · 任务退出码 · AgentNetwork 轮询收敛（2026-09-04）
+> 三并行子代理分线 + 主代理收口。**绑定面 560 零变更**（struct 字段级）。
+> 详见 releases/v4.65.1.md。
+- 线A 任务退出码：Task 加 ExitCode（指针区分未上报/0），TaskCenter 失败行
+  常显 `· exit N`；**「强杀」欠账过期销账**（3 类任务均为纯函数 handler，
+  协作取消已足够）；取消竞态用例 ×3 复跑无回归；
+- 线B 追问后台失败前端感知：meta 加 FollowUpError 经轮询带出，失败气泡
+  显示真实原因（失败判定先于快照增长）；**顺手修 v4.64.0 真回归**——
+  RunFollowUp 的 defer stop() 晚于终态写致 meta 永久卡 running；
+- 线C 新 lib/agentNetworkStore.ts 收敛 SubagentsPanel 的 net 轮询（模式
+  对齐 runs store）；失败文案统一 subagent.runsLoadFail 三语新键；
+  TasksWorkbench 双源轮询为下一消费点（已收档）。
+- Go 全量 exit 0；tsc -b/eslint 0；vitest 220/1636；drift PASS（560）；冒烟 200。
+
 ## v4.65.0 · 三线并行收欠账：追问失败重试 · 工作台偏好设置卡 · 子代理轮询收敛（2026-09-04）
 > 三并行子代理分线 + 主代理收口。**绑定面 560 零变更**。详见
 > releases/v4.65.0.md。

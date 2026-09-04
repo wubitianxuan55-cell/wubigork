@@ -353,7 +353,21 @@ func FollowUpSink(ref string, onText func(text string)) event.Sink {
 // MarkRunning + TrackProgress 维持 ~1s 快照，收尾 SaveCompleted/SaveFailed）。
 // 结果不回投 SubagentMessage——追问的产出留在子代理会话 tab 内（Side Chat
 // 语义：线程对主对话不可见），完成态由 meta 承载、前端轮询自校正。
+// v4.66 失败可感知：后台失败原因摘要写回 meta（RecordFollowUpError），前端
+// 凭轮询把乐观气泡转失败态，不再永久「等待中」；开跑即清旧值，失败态只属
+// 于最近一次追问。
 func (t *TaskTool) RunFollowUp(ctx context.Context, ref, prompt string, sink event.Sink) error {
+	err := t.runFollowUp(ctx, ref, prompt, sink)
+	if err != nil && t.transcripts != nil {
+		// best-effort 写回失败摘要。此刻 runner 已返回（stop 先于终态写、
+		// 绑定层同 ref 单飞），不再有并发 meta 写，本次写即该 meta 的最后一
+		// 次——前端追问轮询必能读到，无需额外事件通道。
+		_ = t.transcripts.RecordFollowUpError(ref, err.Error())
+	}
+	return err
+}
+
+func (t *TaskTool) runFollowUp(ctx context.Context, ref, prompt string, sink event.Sink) error {
 	prompt = strings.TrimSpace(prompt)
 	if prompt == "" {
 		return fmt.Errorf("prompt is required")
@@ -369,8 +383,15 @@ func (t *TaskTool) RunFollowUp(ctx context.Context, ref, prompt string, sink eve
 	if err := t.transcripts.MarkRunning(run); err != nil {
 		return fmt.Errorf("mark subagent running: %w", err)
 	}
+	// 开跑即清上一次追问的失败摘要：重试时前端不会把上一枪的失败误记到
+	// 这一次头上（绑定层在受理时也同步清过一次，这里是管道自洽的兜底）。
+	_ = t.transcripts.RecordFollowUpError(run.Ref, "")
 	stop := t.transcripts.TrackProgress(run, 0)
-	defer stop()
+	// stop 必须先于终态写（TrackProgress 契约）：其最终 flush 会把 Status
+	// 写回 running，defer 到 SaveCompleted/SaveFailed 之后执行会把终态覆盖
+	// 成 running（v4.64.0 回归）——追问后 meta 卡 running，再追问被
+	// PrepareContinue 拒绝，tab 状态点也永远转不回完成态。
+	stop()
 
 	subReg := t.buildSubReg(nil)
 	maxSteps := t.maxSteps / 2

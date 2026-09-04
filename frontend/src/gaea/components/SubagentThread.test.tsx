@@ -322,3 +322,81 @@ describe("SubagentThread 追问失败内联展示与重试（v4.64.x）", () => 
     expect(screen.queryByTestId("agent-follow-up-error")).toBeNull();
   });
 });
+
+// v4.66 追问后台失败可感知：受理成功但后台 runner 真正失败时，失败原因经
+// meta（followUpError）随 transcript 快照轮询带回——等待态气泡转失败态
+//（错误条文案 = 该原因，保留重试/撤销），不再永久「等待中」。失败判定优先
+// 于「快照增长 = 成功」：失败前已落盘的部分内容不得把失败误判成成功。
+describe("SubagentThread 追问后台失败经 meta 带回（v4.66）", () => {
+  it("轮询快照带 followUpError：气泡转失败态并展示原因；重试成功后一并退场", async () => {
+    mocks.SubagentFollowUp.mockResolvedValue("follow-up started");
+    render(wrap(<SubagentThread sessionPath="s1.jsonl" target="sa_2_b2b2b2b2" task="任务" status="completed" onBack={() => {}} />));
+    await screen.findByText("开始检索公开信息。");
+    fireEvent.change(screen.getByTestId("agent-follow-up-input"), { target: { value: "再补充一下第二点" } });
+    fireEvent.click(screen.getByTestId("agent-follow-up-send"));
+    await screen.findByTestId("agent-follow-up-pending");
+    await act(async () => { await Promise.resolve(); }); // 派发后首轮 load 落定
+
+    // 后台失败：meta 写回 followUpError，消息数未变（该次无内容落盘）
+    mocks.SubagentTranscript.mockResolvedValue({
+      ...transcript,
+      followUpError: "provider 掉线：context deadline exceeded",
+    });
+    fireEvent.click(screen.getByRole("button", { name: "刷新对话" }));
+
+    const errBar = await screen.findByTestId("agent-follow-up-error");
+    expect(errBar.textContent).toContain("追问失败");
+    expect(errBar.textContent).toContain("provider 掉线");
+    const bubble = screen.getByTestId("agent-follow-up-pending");
+    expect(bubble.getAttribute("data-failed")).toBe("true");
+    expect(bubble.textContent).toContain("再补充一下第二点");
+    expect(screen.getByTestId("agent-follow-up-retry")).toBeTruthy();
+    expect(screen.getByTestId("agent-follow-up-dismiss")).toBeTruthy();
+
+    // 重试成功：新一轮派发清旧摘要，快照带回真实内容 → 气泡与错误条退场
+    mocks.SubagentTranscript.mockResolvedValue({
+      ...transcript,
+      messages: [
+        ...transcript.messages,
+        { role: "user", content: "再补充一下第二点" },
+        { role: "assistant", content: "第二点补充如下…" },
+      ],
+    });
+    fireEvent.click(screen.getByTestId("agent-follow-up-retry"));
+    expect(mocks.SubagentFollowUp).toHaveBeenCalledTimes(2);
+    expect(mocks.SubagentFollowUp).toHaveBeenLastCalledWith("s1.jsonl", "sa_2_b2b2b2b2", "再补充一下第二点");
+    await screen.findByText("8 条");
+    expect(screen.queryByTestId("agent-follow-up-pending")).toBeNull();
+    expect(screen.queryByTestId("agent-follow-up-error")).toBeNull();
+  });
+
+  it("失败判定优先于快照增长：失败前已落部分内容不被误判成功", async () => {
+    mocks.SubagentFollowUp.mockResolvedValue("follow-up started");
+    render(wrap(<SubagentThread sessionPath="s1.jsonl" target="sa_2_b2b2b2b2" task="任务" status="completed" onBack={() => {}} />));
+    await screen.findByText("开始检索公开信息。");
+    fireEvent.change(screen.getByTestId("agent-follow-up-input"), { target: { value: "帮忙核对数据" } });
+    fireEvent.click(screen.getByTestId("agent-follow-up-send"));
+    await screen.findByTestId("agent-follow-up-pending");
+    await act(async () => { await Promise.resolve(); });
+
+    // 同一份快照：既带了失败摘要、又比基线多了部分内容 → 必须按失败处理
+    //（气泡保留失败态 + 重试入口），不能按「内容已落盘」清成成功。
+    mocks.SubagentTranscript.mockResolvedValue({
+      ...transcript,
+      followUpError: "生成中断：上下文超限",
+      messages: [
+        ...transcript.messages,
+        { role: "user", content: "帮忙核对数据" },
+        { role: "assistant", content: "部分输出…" },
+      ],
+    });
+    fireEvent.click(screen.getByRole("button", { name: "刷新对话" }));
+
+    const errBar = await screen.findByTestId("agent-follow-up-error");
+    expect(errBar.textContent).toContain("生成中断");
+    const bubble = screen.getByTestId("agent-follow-up-pending");
+    expect(bubble.getAttribute("data-failed")).toBe("true");
+    expect(bubble.textContent).toContain("帮忙核对数据");
+    expect(screen.getByTestId("agent-follow-up-retry")).toBeTruthy();
+  });
+});

@@ -6,9 +6,11 @@ package app
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -261,6 +263,37 @@ func TestGaeaTaskListCancelRetry(t *testing.T) {
 	done2, _ := a.officeState.tasks.Wait(context.Background(), tk.ID, 5*time.Second)
 	if done2.Status != "failed" {
 		t.Fatalf("重试后应再次失败，实际 %s", done2.Status)
+	}
+}
+
+// TestGaeaTaskExitCodeSurfacesThroughList：进程类任务上报的真实退出码经绑定
+// 面透出（字段级变更，GaeaTaskList 方法签名不变）；未上报的纯函数任务诚实
+// 留空（nil，JSON omitempty 缺省）。
+func TestGaeaTaskExitCodeSurfacesThroughList(t *testing.T) {
+	a := newTestTaskApp(t)
+	startTasks(t, a)
+	a.officeState.tasks.Register(tasks.KindPriceFetch, func(ctx context.Context, tk *tasks.Task, p *tasks.Progress) error {
+		p.ExitCode(7)
+		return errors.New("进程退出非零")
+	})
+	tk, err := a.officeState.tasks.Submit(tasks.KindPriceFetch, "进程任务", nil)
+	if err != nil {
+		t.Fatalf("submit: %v", err)
+	}
+	if _, err := a.officeState.tasks.Wait(context.Background(), tk.ID, 5*time.Second); err != nil {
+		t.Fatalf("wait: %v", err)
+	}
+	l := a.GaeaTaskList()
+	if len(l) != 1 || l[0].ID != tk.ID {
+		t.Fatalf("List 异常: %+v", l)
+	}
+	if l[0].ExitCode == nil || *l[0].ExitCode != 7 {
+		t.Fatalf("GaeaTaskList 应透出退出码 7，实际 %v", l[0].ExitCode)
+	}
+	// gaea-task 事件同源：JSON 视图携带 exitCode 键（emitTaskEvent 序列化路径）
+	b, err := json.Marshal(l[0])
+	if err != nil || !strings.Contains(string(b), `"exitCode":7`) {
+		t.Fatalf("事件 JSON 应含 exitCode:7，实际 %s (err=%v)", b, err)
 	}
 }
 
