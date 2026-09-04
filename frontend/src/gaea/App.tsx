@@ -36,7 +36,6 @@ import { CommandPalette, type PaletteItem } from "./components/CommandPalette";
 import { useStatsPersistence } from "./components/StatsPanel";
 import { OverviewPanel } from "./components/OverviewPanel";
 import { useRunningBadge } from "./hooks/useRunningBadge";
-import { usePollingGate } from "../hooks/usePollingGate";
 import { Skeleton } from "./components/Skeleton";
 import { UpdateBanner } from "./components/UpdateBanner";
 import { SelectionToComposer } from "./components/SelectionToComposer";
@@ -73,6 +72,7 @@ import { parseSidebarOpenResult } from "./lib/sidebarOpen";
 import { setEventSyncFetcher } from "./lib/eventSync";
 import { shouldAutoOpenBrowser } from "./lib/browserPrefs";
 import { matchRunningRun, setTaskCardActivityProvider, setTaskCardOpenHandler, setTaskCardOpenTarget } from "./lib/taskActivity";
+import { detectNewRunRefs, subscribeSubagentRuns } from "./lib/subagentRunsStore";
 import { classifyComposerCommand } from "./lib/command";
 import { rankPaletteItems } from "./lib/paletteRank";
 import {
@@ -158,6 +158,7 @@ export default function App() {
   // 独立子代理会话 tabs（better-sidebar openSubagent 语义）：点击任务页里的
   // 子代理节点 → 主对话区上方新增一个独立会话 tab（可关闭、可并行切换），
   // 不替换主会话、也不在右栏开轨迹式全面板。
+  const subRunsCacheRef = useRef<SubagentRunView[]>([]);
   const [subagentTabs, setSubagentTabs] = useState<
     Array<{
       id: string;
@@ -202,49 +203,40 @@ export default function App() {
     },
     [subagentTabs],
   );
-  // 独立子代理 tab 实时状态同步（与左栏子代理子行同数据源同 5s 口径）：
-  // 打开后运行/完成/失败与模型随 GaeaSubagentRuns 刷新——tab 状态点与
-  // SubagentThread 头部的状态徽标不再停留在点击瞬间的快照。
-  const pollGate = usePollingGate();
+  // 独立子代理 tab 实时状态同步（v4.63 换共享单轮询 store）：打开后运行/
+  // 完成/失败与模型随 GaeaSubagentRuns 刷新——tab 状态点与 SubagentThread
+  // 头部的状态徽标不再停留在点击瞬间的快照。轮询本身由 subagentRunsStore
+  // 收敛为每会话单定时器（与 task 卡活动/任务树同源），App 只做派生合并。
+  const [subagentRuns, setSubagentRuns] = useState<SubagentRunView[]>([]);
   useEffect(() => {
-    if (subagentTabs.length === 0 || !currentSessionPath) return;
-    let live = true;
-    const sync = () => {
-      if (!pollGate) return;
-      void app
-        .SubagentRuns(currentSessionPath)
-        .then((v) => {
-          if (!live) return;
-          const runs = v?.runs ?? [];
-          if (runs.length === 0) return;
-          setSubagentTabs((prev) => {
-            let changed = false;
-            const next = prev.map((tab) => {
-              const run = runs.find((r) => r.ref === tab.ref);
-              if (!run) return tab;
-              const model = run.model ?? tab.model;
-              const task = run.task || tab.task;
-              const kind = run.kind ?? tab.kind;
-              const tool = run.tool ?? tab.tool;
-              if (run.status === tab.status && model === tab.model && task === tab.task &&
-                  kind === tab.kind && tool === tab.tool) {
-                return tab;
-              }
-              changed = true;
-              return { ...tab, status: run.status, model, task, kind, tool };
-            });
-            return changed ? next : prev;
-          });
-        })
-        .catch(() => {});
-    };
-    sync();
-    const timer = window.setInterval(sync, 5000);
-    return () => {
-      live = false;
-      window.clearInterval(timer);
-    };
-  }, [subagentTabs.length, currentSessionPath, pollGate]);
+    if (!currentSessionPath) {
+      setSubagentRuns([]);
+      return;
+    }
+    return subscribeSubagentRuns(currentSessionPath, setSubagentRuns);
+  }, [currentSessionPath]);
+  useEffect(() => {
+    subRunsCacheRef.current = subagentRuns;
+    setSubagentTabs((prev) => {
+      if (prev.length === 0 || subagentRuns.length === 0) return prev;
+      let changed = false;
+      const next = prev.map((tab) => {
+        const run = subagentRuns.find((r) => r.ref === tab.ref);
+        if (!run) return tab;
+        const model = run.model ?? tab.model;
+        const task = run.task || tab.task;
+        const kind = run.kind ?? tab.kind;
+        const tool = run.tool ?? tab.tool;
+        if (run.status === tab.status && model === tab.model && task === tab.task &&
+            kind === tab.kind && tool === tab.tool) {
+          return tab;
+        }
+        changed = true;
+        return { ...tab, status: run.status, model, task, kind, tool };
+      });
+      return changed ? next : prev;
+    });
+  }, [subagentRuns]);
   const handleChatTabSelect = useCallback((id: string) => {
     if (id === "chat" || id === "trajectory" || id === "context" || id === "overview") {
       setSubagentTabId(null);
@@ -864,6 +856,42 @@ export default function App() {
   }, [rightTab]);
   // v4.30 产物自动置前：未查看的新产物数角标（激活产物 tab 即清零，见上方 effect）
   const freshDeliverableCount = rightTab === "deliverables" ? 0 : freshDeliverablePaths.length;
+  // v4.63 自动展开（对标 dsh better-sidebar 的 0→N 触发 + 500ms 去抖重臂 +
+  // 偏好开关）：当前会话出现新子代理/本地模型工具运行 → 自动切右栏「任务」
+  // 视图（已在任务视图则只记角标语义，不打扰）。去抖的 Why 与 dsh #314 同源：
+  // 派发帧与标题/状态帧分帧到达，立即判定会误触发/漏触发，等快照稳定后重评。
+  // 偏好走 localStorage（默认开）；会话切换的首个快照只建立基线不触发。
+  const seenSubagentRefsRef = useRef<{ path: string; initialized: boolean; refs: Set<string> }>({
+    path: "", initialized: false, refs: new Set(),
+  });
+  const autoOpenTasksTimerRef = useRef(0);
+  const subagentRunsRef = useRef<SubagentRunView[]>([]);
+  useEffect(() => { subagentRunsRef.current = subagentRuns; }, [subagentRuns]);
+  useEffect(() => {
+    const path = currentSessionPath ?? "";
+    const seen = seenSubagentRefsRef.current;
+    if (seen.path !== path) {
+      // 会话切换：以当前快照建立基线，绝不把历史子代理当「新」触发
+      seen.path = path;
+      seen.initialized = true;
+      seen.refs = new Set(subagentRunsRef.current.map((r) => r.ref));
+      window.clearTimeout(autoOpenTasksTimerRef.current);
+      return;
+    }
+    const fresh = detectNewRunRefs(seen.refs, subagentRunsRef.current);
+    if (fresh.length === 0) return;
+    window.clearTimeout(autoOpenTasksTimerRef.current);
+    autoOpenTasksTimerRef.current = window.setTimeout(() => {
+      const still = detectNewRunRefs(seen.refs, subagentRunsRef.current);
+      if (still.length === 0) return;
+      for (const ref of still) seen.refs.add(ref);
+      try {
+        if (localStorage.getItem("gaea.tasks.autoOpenSubagent") === "0") return;
+      } catch { /* 私有模式：按默认开处理 */ }
+      if (rightTab !== "tasks") openPaneView("tasks");
+    }, 500);
+  }, [subagentRuns, currentSessionPath, rightTab, openPaneView]);
+
   const tabBadges = runningBadge
     ? { ...runningBadge, ...(freshDeliverableCount > 0 ? { deliverables: freshDeliverableCount } : {}) }
     : freshDeliverableCount > 0 ? { deliverables: freshDeliverableCount } : undefined;
@@ -959,7 +987,7 @@ export default function App() {
   //    用 ToolCard 透传的 args 任务描述文本与各 run.task 做唯一命中匹配——
   //    0 或 ≥2 命中都返回 undefined（宁缺勿错，绝不把别的子代理动态安到
   //    错误卡片上）（taskActivity 头注释契约）。
-  const subRunsCacheRef = useRef<SubagentRunView[]>([]);
+
   useEffect(() => {
     setTaskCardActivityProvider((ref, args) => {
       const runs = subRunsCacheRef.current;
@@ -995,22 +1023,9 @@ export default function App() {
       setTaskCardOpenTarget(null);
       setTaskCardOpenHandler(null);
     };
-  }, []);
-  useEffect(() => {
-    if (!state.running || !currentSessionPath) {
-      subRunsCacheRef.current = [];
-      return;
-    }
-    let live = true;
-    const pull = () => {
-      void app.SubagentRuns(currentSessionPath)
-        .then((v) => { if (live) subRunsCacheRef.current = v.runs ?? []; })
-        .catch(() => {});
-    };
-    pull();
-    const timer = setInterval(pull, 5000);
-    return () => { live = false; clearInterval(timer); };
-  }, [state.running, currentSessionPath]);
+  }, [currentSessionPath, openSubagentThread]);
+  // v4.63：task 卡 live 活动的数据源并入共享单轮询（上方 subagentRuns 订阅
+  // 已把快照写进 subRunsCacheRef），此处不再各自轮询。
   const panelContext = useMemo<WorkspacePanelContext>(
     () => ({
       cwd: state.meta?.cwd,
