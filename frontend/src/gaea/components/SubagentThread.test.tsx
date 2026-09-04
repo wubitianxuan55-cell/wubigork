@@ -57,14 +57,17 @@ describe("SubagentThread 子代理对话全面板（v4.27）", () => {
     expect(screen.getByText("开始检索公开信息。")).toBeTruthy();
     // 工具调用行与 tool 结果消息都可能含 web_fetch → 用 getAllByText
     expect(screen.getAllByText(/web_fetch/).length).toBeGreaterThan(0);
-    expect(screen.getByText(/三家竞品表格交互结论/)).toBeTruthy();
+    expect(screen.getAllByText(/三家竞品表格交互结论/).length).toBeGreaterThan(0);
     // 头部：状态徽标 + 消息计数 + 刷新按钮
     expect(screen.getByText("进行中")).toBeTruthy();
     expect(screen.getByText("6 条")).toBeTruthy();
-    // 思考块默认折叠，点开显示推理
-    expect(screen.queryByText("先检索竞品资料")).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: /思考/ }));
-    expect(screen.getByText("先检索竞品资料")).toBeTruthy();
+    // 思考块默认折叠（AssistantMessage 思考体常驻 DOM、CSS 折叠呈现，
+    // 以 aria-expanded 断言状态；v4.63 与主对话同款渲染器）
+    const thinkBtns = screen.getAllByRole("button", { name: /思考/ });
+    expect(thinkBtns.length).toBeGreaterThanOrEqual(1);
+    expect(thinkBtns.every((b) => b.getAttribute("aria-expanded") === "false")).toBe(true);
+    fireEvent.click(thinkBtns[0]);
+    expect(thinkBtns[0].getAttribute("aria-expanded")).toBe("true");
   });
 
   it("头部返回按钮触发 onBack", async () => {

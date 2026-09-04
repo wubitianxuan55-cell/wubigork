@@ -1,9 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Brain, ChevronRight, Loader2, Rollback } from "../icons";
+import { Loader2, Rollback } from "../icons";
 import { app, onEvent, onSubagentText } from "../lib/bridge";
 import { useT, type Translator } from "../lib/i18n";
-import type { SubagentTranscriptMessage, SubagentTranscriptView } from "../lib/types";
-import { MemoMarkdown } from "./MemoMarkdown";
+import type { SubagentTranscriptView } from "../lib/types";
+import { buildRenderItems, toolStatus } from "../lib/subagentRender";
+import { AssistantMessage } from "./Message";
+import { ToolCard } from "./ToolCard";
+import type { Item } from "../lib/store";
+
+type ToolItem = Extract<Item, { kind: "tool" }>;
 import { usePollingGate } from "../../hooks/usePollingGate";
 import { useLiveReload } from "../hooks/useLiveReload";
 
@@ -13,9 +18,10 @@ import { useLiveReload } from "../hooks/useLiveReload";
 // 此前子代理 transcript 只能经 AgentTree 内嵌窄小卡（10px 字号、max-h-64）
 // 手动点「查看完整 transcript」读取一次；本组件把对话提到面板级：
 //  - 头部：返回分工 + 任务标题 + 状态徽标 + 模型 + 消息数 + 手动刷新；
-//  - 消息流：Codex 式渲染（system 弱化单行 / user 右对齐 / assistant 正文
-//    Markdown 渲染同主对话 + 可折叠思考 / tool 调用与结果小卡），运行中
-//    自动跟随底部；
+//  - 消息流：v4.63 起与主对话完全同款——assistant 正文/思考走
+//    AssistantMessage（Markdown/折叠/复制/交付卡同源），tool 调用与结果
+//    按 toolCallId 配对成主对话 ToolCard（可读摘要/状态/折叠输出），
+//    system 弱化单行 / user 右对齐；运行中自动跟随底部；
 //  - 实时：running 时每 3s 轮询（页面不可见门控空转）+ 事件驱动刷新
 //    （turn_done 立即、运行中事件节流，useLiveReload 同看板语义）；
 //    v4.62 P1：运行中子代理的助手文本增量经 subagent_text 事件流式实时
@@ -51,108 +57,12 @@ function statusMeta(status: SubagentThreadStatus, t: Translator): { label: strin
   }
 }
 
-// 思考块：默认折叠，运行中的最后一段思考带呼吸点（与主对话 AssistantMessage
-// 同一语言；内容太长时滚动）。
-function ReasoningBlock({ text, live }: { text: string; live: boolean }) {
-  const t = useT();
-  const [open, setOpen] = useState(false);
-  return (
-    <div className="mb-1">
-      <button
-        type="button"
-        className="flex items-center gap-1.5 rounded-md px-2 py-0.5 text-[10.5px] transition-colors hover:bg-bg-soft"
-        style={{ color: "var(--md-sys-color-text-secondary)" }}
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-      >
-        <span
-          className="inline-block h-1 w-1 shrink-0 rounded-full"
-          style={{ background: live ? "var(--gaea-glow)" : "transparent" }}
-          aria-hidden
-        />
-        <Brain size={11} className="shrink-0" aria-hidden />
-        <span className="font-medium">{t("reasoning.label")}</span>
-        <ChevronRight size={11} className={`shrink-0 transition-transform duration-200 ${open ? "rotate-90" : ""}`} aria-hidden />
-      </button>
-      {open && (
-        <pre
-          className="ml-2 mt-0.5 max-h-44 overflow-auto whitespace-pre-wrap break-words border-l-2 px-2 py-1 font-mono text-[10.5px] leading-relaxed"
-          style={{ borderColor: "color-mix(in srgb, var(--gaea-glow) 25%, transparent)", color: "var(--md-sys-color-text-secondary)" }}
-        >
-          {text}
-        </pre>
-      )}
-    </div>
-  );
-}
-
-function MessageRow({ m, live }: { m: SubagentTranscriptMessage; live: boolean }) {
-  switch (m.role) {
-    case "system":
-      return (
-        <div className="px-2 py-0.5 text-center text-[10px]" style={{ color: "var(--md-sys-color-text-secondary)" }}>
-          {m.content}
-        </div>
-      );
-    case "user":
-      return (
-        <div className="flex justify-end">
-          <div
-            className="max-w-[88%] whitespace-pre-wrap break-words rounded-lg px-2.5 py-1.5 text-[12.5px] leading-relaxed"
-            style={{ background: "color-mix(in srgb, var(--md-sys-color-surface-container-high) 70%, transparent)", color: "var(--md-sys-color-text)" }}
-          >
-            {m.content}
-          </div>
-        </div>
-      );
-    case "assistant":
-      return (
-        <div className="max-w-[94%]">
-          {m.reasoning && <ReasoningBlock text={m.reasoning} live={live} />}
-          {m.toolCalls?.map((tc) => (
-            <div
-              key={tc.id}
-              className="mb-0.5 flex items-start gap-1.5 rounded-md px-2 py-1 font-mono text-[11px]"
-              style={{ background: "color-mix(in srgb, var(--gaea-glow) 6%, transparent)", color: "var(--md-sys-color-text-secondary)" }}
-            >
-              <span aria-hidden>⚙</span>
-              <span className="min-w-0 break-all">
-                <span style={{ color: "var(--md-sys-color-text)" }}>{tc.name}</span> {tc.arguments}
-              </span>
-            </div>
-          ))}
-          {m.content && (
-            <div className="text-[12.5px] leading-relaxed" style={{ color: "var(--md-sys-color-text)" }}>
-              <MemoMarkdown text={m.content} streaming={false} />
-            </div>
-          )}
-        </div>
-      );
-    case "tool":
-      return (
-        <div
-          className="flex items-start gap-1.5 rounded-md border px-2 py-1.5 text-[11px]"
-          style={{ borderColor: "var(--md-sys-color-outline-variant)", background: "color-mix(in srgb, var(--md-sys-color-surface-container-high) 40%, transparent)" }}
-        >
-          <span aria-hidden className="shrink-0" style={{ color: "var(--md-sys-color-text-secondary)" }}>↳</span>
-          <div className="min-w-0 flex-1">
-            <div className="truncate font-mono" style={{ color: "var(--md-sys-color-text-secondary)" }}>
-              {m.name}
-              {m.toolCallId && <span className="ml-1 text-[9.5px]" style={{ color: "var(--md-sys-color-text-secondary)" }}>· {m.toolCallId}</span>}
-            </div>
-            {m.content && (
-              <pre
-                className="mt-0.5 max-h-40 overflow-auto whitespace-pre-wrap break-words font-mono text-[10.5px] leading-relaxed"
-                style={{ color: "var(--md-sys-color-text-secondary)" }}
-              >
-                {m.content}
-              </pre>
-            )}
-          </div>
-        </div>
-      );
-  }
-}
+// ── Codex 式渲染（v4.63）：与主对话同一套组件 ────────────────────
+//
+// transcript 消息 → 渲染项：assistant 的 toolCalls 与后续 tool 结果按
+// toolCallId 配对成完整 ToolItem（主对话 ToolCard 同款：可读摘要/状态/
+// 折叠输出），正文与思考走主对话 AssistantMessage（Markdown/思考折叠/
+// 复制同款）。未配对的孤儿 tool 行降级为独立卡（name+输出，诚实展示）。
 
 export function SubagentThread({
   sessionPath,
@@ -284,7 +194,9 @@ export function SubagentThread({
 
   const meta = statusMeta(status, t);
   const messages = transcript?.messages ?? [];
-  const lastIdx = messages.length - 1;
+  // Codex 式渲染项：tool 调用/结果按 toolCallId 配对成 ToolCard，正文/思考
+  // 走主对话 AssistantMessage（同款 Markdown/思考折叠/复制）。
+  const renderItems = buildRenderItems(messages, running);
 
   return (
     <div className="flex flex-col h-full min-h-0 text-xs" data-testid="agent-thread" style={{ color: "var(--md-sys-color-text-secondary)" }}>
@@ -356,16 +268,55 @@ export function SubagentThread({
           </div>
         ) : (
           <div className="flex flex-col gap-1.5">
-            {messages.map((m, idx) => (
-              <MessageRow key={idx} m={m} live={running && idx === lastIdx} />
-            ))}
-            {/* P1 流式实时行：运行中「正在打出的字」；快照追上后由 reconcile
-                清缓冲交给权威渲染（配合 streaming 光标与主对话同语言）。 */}
-            {running && streamBuf !== "" && (
-              <div className="max-w-[94%]" data-testid="agent-thread-streaming">
-                <div className="text-[12.5px] leading-relaxed" style={{ color: "var(--md-sys-color-text)" }}>
-                  <MemoMarkdown text={streamBuf} streaming={true} />
+            {renderItems.map((it, idx) => {
+              if (it.type === "assistant") {
+                return (
+                  <AssistantMessage
+                    key={it.id}
+                    item={{ kind: "assistant", id: it.id, text: it.text, reasoning: it.reasoning ?? "", streaming: it.live }}
+                    deliverTail={false}
+                  />
+                );
+              }
+              if (it.type === "tool") {
+                const item: ToolItem = {
+                  kind: "tool",
+                  id: it.id,
+                  name: it.name,
+                  args: it.args,
+                  readOnly: false,
+                  status: toolStatus(it, running),
+                  output: it.output,
+                };
+                return <ToolCard key={`${it.id}-${idx}`} item={item} />;
+              }
+              if (it.type === "system") {
+                return (
+                  <div key={`s-${idx}`} className="px-2 py-0.5 text-center text-[10px]" style={{ color: "var(--md-sys-color-text-secondary)" }}>
+                    {it.text}
+                  </div>
+                );
+              }
+              return (
+                <div key={`u-${idx}`} className="flex justify-end">
+                  <div
+                    className="max-w-[88%] whitespace-pre-wrap break-words rounded-lg px-2.5 py-1.5 text-[12.5px] leading-relaxed"
+                    style={{ background: "color-mix(in srgb, var(--md-sys-color-surface-container-high) 70%, transparent)", color: "var(--md-sys-color-text)" }}
+                  >
+                    {it.text}
+                  </div>
                 </div>
+              );
+            })}
+            {/* P1 流式实时行：运行中「正在打出的字」，主对话 AssistantMessage
+                同款渲染（流式光标/思考自动展开）；快照追上后由 reconcile 清
+                缓冲交给权威渲染。 */}
+            {running && streamBuf !== "" && (
+              <div data-testid="agent-thread-streaming">
+                <AssistantMessage
+                  item={{ kind: "assistant", id: "live", text: streamBuf, reasoning: "", streaming: true }}
+                  deliverTail={false}
+                />
               </div>
             )}
           </div>

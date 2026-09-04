@@ -202,7 +202,8 @@ describe("SubagentsPanel 子代理工作台（v4.24 A1 三段式）", () => {
     expect(screen.getByText("进行中")).toBeTruthy();
     // 消息流渲染：user / assistant 正文 / tool 结果
     expect(screen.getByText(/开始检索公开信息/)).toBeTruthy();
-    expect(screen.getByText(/三家竞品表格交互结论/)).toBeTruthy();
+    // ToolCard 折叠摘要与展开全文并存 → 多元素匹配
+  expect(screen.getAllByText(/三家竞品表格交互结论/).length).toBeGreaterThan(0);
     // 返回 → 分工树恢复
     fireEvent.click(screen.getByRole("button", { name: /分工/ }));
     await waitFor(() => expect(screen.queryByTestId("agent-thread")).toBeNull());
