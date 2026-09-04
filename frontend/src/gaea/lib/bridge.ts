@@ -289,6 +289,9 @@ export interface AppBindings {
   // Side Chat 式追问（v4.64）：对已完结的 sa_ 运行追加用户提问，后台运行
   // 即刻返回；文本增量走 gaea-subagent-text 专用通道，完成态经轮询自校正。
   SubagentFollowUp(sessionPath: string, ref: string, prompt: string): Promise<string>;
+  // PromoteSubagent 把子代理会话提升为独立顶层会话（dsh Side Chat promote 语义，
+  // v4.66.0）：忠实投影 transcript 为新会话日志，返回新 sessionPath；不动原运行。
+  PromoteSubagent(sessionPath: string, ref: string): Promise<string>;
   // SubagentTranscript 读取某个子代理的完整 transcript（Agent 网络节点查看用）。
   SubagentTranscript(sessionPath: string, ref: string): Promise<SubagentTranscriptView>;
   // DeliverableRegistry 读取会话的权威产物登记表（v4.24 C1）：后端从事件日志
@@ -838,6 +841,7 @@ const gaeaToGaea = {
   ReadFile: "GaeaReadFile",
   Preview: "GaeaPreview",
   PptxOutline: "GaeaPptxOutline",
+  PromoteSubagent: "GaeaPromoteSubagent",
   GaeaBrowserObserve: "GaeaBrowserObserve",
   OfficeEditText: "GaeaOfficeEditText",
   DocxApplyEdit: "GaeaDocxApplyEdit",

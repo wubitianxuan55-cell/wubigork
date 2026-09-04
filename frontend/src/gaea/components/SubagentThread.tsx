@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowUp, Loader2, Rollback, X } from "../icons";
+import { ArrowUp, Loader2, Rollback, Save, X } from "../icons";
 import { app, onEvent, onSubagentText } from "../lib/bridge";
 import { useT, type Translator } from "../lib/i18n";
+import { useToast } from "./Toast";
 import type { SubagentTranscriptView } from "../lib/types";
 import { buildRenderItems, toolStatus, unwrapEnvelopeText } from "../lib/subagentRender";
 import { AssistantMessage } from "./Message";
@@ -238,6 +239,20 @@ export function SubagentThread({
   // 走主对话 AssistantMessage（同款 Markdown/思考折叠/复制）。
   const isMtTab = target.startsWith("mt_");
   const renderItems = buildRenderItems(messages, running);
+  const toast = useToast();
+
+  // ── 保存为新会话（v4.66，dsh Side Chat promote 语义）──────────
+  // 把该子代理运行忠实投影为一个独立顶层会话（可从会话列表打开/继续），
+  // 原运行不动；running/mt_ 不提供（后端同守卫，双保险）。
+  const [promoteBusy, setPromoteBusy] = useState(false);
+  const promote = useCallback(() => {
+    if (!sessionPath || isMtTab || running || promoteBusy) return;
+    setPromoteBusy(true);
+    app.PromoteSubagent(sessionPath, target)
+      .then(() => toast.show(t("subagent.promoteOk"), "info"))
+      .catch((e) => toast.show(t("subagent.promoteFail", { msg: String(e) }), "warn"))
+      .finally(() => setPromoteBusy(false));
+  }, [sessionPath, isMtTab, running, promoteBusy, target, toast, t]);
 
   // ── Side Chat 式追问（v4.64）─────────────────────────────────
   // 用户在子代理会话 tab 里对已完结的运行追加提问：乐观上屏本地用户气泡，
@@ -350,6 +365,20 @@ export function SubagentThread({
           <span className="shrink-0 font-mono text-[9.5px] tabular-nums" style={{ color: "var(--md-sys-color-text-secondary)" }}>
             {t("subagent.msgCount", { n: messages.length })}
           </span>
+        )}
+        {!isMtTab && (
+          <button
+            type="button"
+            data-testid="subagent-promote"
+            className="flex shrink-0 cursor-pointer items-center gap-1 rounded-md border-0 bg-transparent px-1.5 py-0.5 text-[11px] transition-colors hover:bg-(color:--md-sys-color-surface-container-high) disabled:cursor-default disabled:opacity-50"
+            style={{ color: "var(--md-sys-color-text-secondary)" }}
+            onClick={promote}
+            disabled={promoteBusy || running}
+            title={t("subagent.promoteSave")}
+          >
+            {promoteBusy ? <Loader2 size={12} className="animate-spin" aria-hidden /> : <Save size={12} aria-hidden />}
+            {t("subagent.promoteSave")}
+          </button>
         )}
         <button
           type="button"

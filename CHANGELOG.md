@@ -1,3 +1,15 @@
+## v4.66.0 · 子代理会话提升：保存为新会话 · TasksWorkbench 轮询收敛（2026-09-04）
+> dsh Side Chat promote 语义补完。**绑定面 560→561（+GaeaPromoteSubagent）**。
+> 详见 releases/v4.66.0.md。
+- 后端忠实投影子代理 transcript 为独立新顶层会话（写前写后投影往返双
+  校验，不等价不落盘；原运行逐字节不动；每次提升新副本）；诚实降级
+  （system 提示不随迁/孤立工具记录丢弃）；ref 仅 sa_、running 拒绝；
+- SubagentThread 头部「保存为新会话」按钮（busy/running 守卫 + 三语 +3 键）；
+- TasksWorkbench net+runs 双源轮询迁两 store（四消费点全部共享单轮询），
+  失败态不再静默吞错；+11 FE 用例。
+- Go 全量 exit 0、tsc -b/eslint 0、vitest 221/1647、drift PASS（561）、
+  冒烟 200。
+
 ## v4.65.1 · 三线并行：追问失败感知 · 任务退出码 · AgentNetwork 轮询收敛（2026-09-04）
 > 三并行子代理分线 + 主代理收口。**绑定面 560 零变更**（struct 字段级）。
 > 详见 releases/v4.65.1.md。

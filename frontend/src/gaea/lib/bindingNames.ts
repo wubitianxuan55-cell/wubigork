@@ -228,6 +228,7 @@ export const bindingNames = [
   "GaeaPinnedMaterials",
   "GaeaPptxOutline",
   "GaeaPreview",
+  "GaeaPromoteSubagent",
   "GaeaPriceFetch",
   "GaeaPriceFetchAll",
   "GaeaPriceFetchApply",

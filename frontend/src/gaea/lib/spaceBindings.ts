@@ -168,6 +168,7 @@ export const GAEA_METHOD_FACETS = {
   ReadFile: "work",
   Preview: "work",
   PptxOutline: "work",
+  PromoteSubagent: "work",
   GaeaBrowserObserve: "work",
   OfficeEditText: "work",
   DocxApplyEdit: "work",

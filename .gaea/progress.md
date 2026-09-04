@@ -1,7 +1,8 @@
 # 任务进度
 
-> 最后更新: 2026-09-04（v4.65.1「追问失败感知 · 任务退出码 · AgentNetwork
-> 轮询收敛」；v4.65.0「三线并行收欠账：追问失败重试 · 工作台
+> 最后更新: 2026-09-04（v4.66.0「子代理会话提升：保存为新会话 ·
+> TasksWorkbench 轮询收敛」，绑定面 560→561；v4.65.1「追问失败感知 ·
+> 任务退出码 · AgentNetwork 轮询收敛」；v4.65.0「三线并行收欠账：追问失败重试 · 工作台
 > 偏好设置卡 · 子代理轮询收敛」；v4.64.3「任务管理树呼吸感优化」；
 > v4.64.2「修复：任务管理树丢失零工具子代理」；
 > **v4.62.2～v4.64.1 六版实机验收完成，六项全 PASS**（见 v4.64.2 发布说明
@@ -21,17 +22,16 @@
 
 ## 下会话续做（待办清单，2026-09-04 更新）
 
-- **dsh 剩余借鉴（按价值）**：~~任务退出码+强杀~~ 已完成/销账（v4.65.1
-  线A：ExitCode 落地；Cancel 为协作取消且 3 类任务均纯函数 handler，
-  强杀条目过期）；后台任务**推送式实时输出流**（现轮询 tail，独立刀）；
-  追问会话「保存为新会话」提升（GaeaFork 为主会话回合分叉，子代理会话
-  提升需新绑定 GaeaPromoteSubagent，走绑定面流程）。
+- **dsh 剩余借鉴（按价值）**：~~任务退出码+强杀~~ 已完成/销账（v4.65.1）；
+  ~~追问会话「保存为新会话」~~ 已完成（v4.66.0 GaeaPromoteSubagent：
+  忠实投影+往返双校验，SubagentThread 头部入口）；后台任务**推送式实时
+  输出流**（现轮询 tail，独立刀）。
 - ~~后台 runner 追问失败前端无感知~~ 已完成（v4.65.1 线B：meta
   FollowUpError 经轮询带出）；**顺手修 v4.64.0 真回归**（RunFollowUp
   defer stop() 晚于终态写致 meta 永久卡 running）。
 - **store 迁移**：~~SubagentsPanel/Sidebar~~（v4.65.0）、~~net 轮询~~
-  （v4.65.1 agentNetworkStore）已完成；剩 **TasksWorkbench 双源自管轮询**
-  （net+runs 都未走 store，且静默吞错无失败态——两 store 的下一个消费点）。
+  （v4.65.1）、~~TasksWorkbench 双源~~（v4.66.0）全部完成——子代理数据
+  四消费点共享单轮询；剩 TaskCenter 自管轮询（GaeaTaskList 另一数据源）。
 - **老账**：run_skill AllowedTools 真机观察；pptx 真编辑；Verifier 通道 B
   逐页缩略图；子代理队列非唯一命中交互式确认。
 - **老账**：run_skill AllowedTools 真机观察；pptx 真编辑；Verifier 通道 B
@@ -39,6 +39,18 @@
 - ~~autoOpenJobs 进设置中心~~ 已完成（v4.65.0 线B；该键经 grep 不存在，
   实际由 gaea.tasks.autoOpenSubagent 承担——过期条目销账）。
 - ~~releases/README.md 索引治理~~ 已完成（v4.65.0 线D）。
+
+## 最新发布：v4.66.0（2026-09-04）「子代理会话提升 · TasksWorkbench 轮询收敛」
+
+- GaeaPromoteSubagent（+1 绑定，560→561）：transcript 忠实投影为独立新
+  顶层会话——写前写后投影往返双校验（不等价不落盘）、诚实降级（system
+  提示不随迁/孤立工具记录丢弃）、ref 仅 sa_ / running 拒绝 / 原运行逐字
+  节不动、每次提升新副本。SubagentThread 头部「保存为新会话」按钮 +
+  三语 +3 键。+8 Go 用例。
+- TasksWorkbench net+runs 迁两 store：四消费点全部共享单轮询；失败横幅
+  +重试不再吞错；新测试文件 11 用例。
+- 门禁：Go 全量 exit 0、tsc -b/eslint 0、vitest 221/1647、drift PASS（561）、
+  冒烟 200。详见 releases/v4.66.0.md。
 
 ## 最新发布：v4.65.1（2026-09-04）「追问失败感知 · 任务退出码 · 轮询收敛」
 

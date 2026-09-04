@@ -94,6 +94,7 @@ func (b *OfficeB) GaeaPinSession(path string, pinned bool) error { return b.a.Ga
 func (b *OfficeB) GaeaPinnedMaterials() []FileSearchHit { return b.a.GaeaPinnedMaterials() }
 func (b *OfficeB) GaeaPptxOutline(rel string) PptxOutlineView { return b.a.GaeaPptxOutline(rel) }
 func (b *OfficeB) GaeaPreview(rel string) PreviewResult { return b.a.GaeaPreview(rel) }
+func (b *OfficeB) GaeaPromoteSubagent(sessionPath string, ref string) (string, error) { return b.a.GaeaPromoteSubagent(sessionPath, ref) }
 func (b *OfficeB) GaeaReadFile(rel string) FilePreview { return b.a.GaeaReadFile(rel) }
 func (b *OfficeB) GaeaRecognizeImage(imagePath string, prompt string) (string, error) { return b.a.GaeaRecognizeImage(imagePath, prompt) }
 func (b *OfficeB) GaeaReload() (GaeaReloadResult, error) { return b.a.GaeaReload() }
