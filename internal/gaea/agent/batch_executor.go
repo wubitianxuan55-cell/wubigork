@@ -201,8 +201,21 @@ func getConflictKey(call provider.ToolCall) string {
 	// 子代理入口收敛（v4.61）：只保留 task / run_skill / install_skill——
 	// 其余分类名（explore/research/review/security_review）不是工具，无需
 	// 参与批次冲突归类（同名技能经 run_skill 单一调用，已命中 !spawn）。
-	case "task", "run_skill", "install_skill":
+	case "install_skill":
+		// 写技能目录，保持全局串行。
 		return "!spawn"
+	case "task", "run_skill":
+		// v4.63 并行子代理：每次调用是独立运行（独立 Session、独立 sa_/mt_
+		// transcript、事件经 syncSink 串行落盘、用量经 usageMu 合并记账），
+		// 相互无共享可变状态——用「每调用唯一键」让同一回合的 N 路派生全部
+		// 落进同一并行批（注意空键语义是「独立串行批」，不能用来表达可并行；
+		// ID 缺失时退化为共享键 "spawn:"，按冲突串行，宁慢勿错）。本地模型
+		// 场景 LLM 推理在模型服务端仍可能排队，但工具执行段（检索/读文件等）
+		// 真实重叠，收益如实。
+		if call.ID == "" {
+			return "spawn:"
+		}
+		return "spawn:" + call.ID
 	case "complete_step", "todo_write":
 		return "!ledger"
 	case "edit_file", "write_file", "multi_edit", "edit_lines", "delete_range", "delete_symbol":

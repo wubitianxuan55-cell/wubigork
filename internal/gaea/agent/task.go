@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"sync"
 	"context"
 	"encoding/json"
 	"errors"
@@ -121,6 +122,7 @@ type TaskTool struct {
 	runtimePrompt    string                // V5.25: L2 runtime context for sub-agents
 	templatePrefix   string                // V5.30: 子代理模板前缀，同类子代理共享缓存
 	accumulatedUsage *provider.Usage       // V5.30: 子代理累计 token 用量
+	usageMu          sync.Mutex            // v4.63: 并行 task 调用时合并记账的互斥锁
 	activeSchemas    []provider.ToolSchema // V5.30: 父代理过滤工具集，子代理继承以共享缓存
 	subagentProv     provider.LLMProvider  // V10.22: optional subagent model provider (nil → use prov)
 	subagentPricing  *provider.Pricing
@@ -309,6 +311,27 @@ func (t *TaskTool) SetTemplatePrefix(prefix string)                { t.templateP
 func (t *TaskTool) SetActiveSchemas(schemas []provider.ToolSchema) { t.activeSchemas = schemas }
 func (t *TaskTool) SubUsage() *provider.Usage                      { return t.accumulatedUsage }
 
+// mergeSubUsage 并行安全地把一次子代理运行的用量并入累计值（v4.63）。
+// 此前是整值覆写（最后一次运行赢）——串行派发时无感，多路并行会把其他
+// 路的用量整段丢掉，且指针写本身是数据竞争。会话级累计字段（SessionCache*）
+// 属 provider 侧逐会话口径，不在此合并。
+func (t *TaskTool) mergeSubUsage(u *provider.Usage) {
+	t.usageMu.Lock()
+	defer t.usageMu.Unlock()
+	if t.accumulatedUsage == nil {
+		cp := *u
+		t.accumulatedUsage = &cp
+		return
+	}
+	a := t.accumulatedUsage
+	a.PromptTokens += u.PromptTokens
+	a.CompletionTokens += u.CompletionTokens
+	a.TotalTokens += u.TotalTokens
+	a.CacheHitTokens += u.CacheHitTokens
+	a.CacheMissTokens += u.CacheMissTokens
+	a.ReasoningTokens += u.ReasoningTokens
+}
+
 // SetSubagentProvider installs an optional provider for sub-agents. When nil the
 // sub-agent falls back to the parent's execution provider (prov).
 func (t *TaskTool) SetSubagentProvider(p provider.LLMProvider, pricing *provider.Pricing, ctxWin int) {
@@ -414,13 +437,11 @@ func (t *TaskTool) runSubSession(ctx context.Context, prompt string, subReg *too
 		if json.Unmarshal([]byte(result), &parsed) != nil {
 			result = "[output_schema: sub-agent returned non-JSON; parent should retry]" + "\n" + result
 		}
-		u := subUsage
-		t.accumulatedUsage = &u
+		t.mergeSubUsage(&subUsage)
 		return result, nil
 	}
 	if err == nil {
-		u := subUsage
-		t.accumulatedUsage = &u
+		t.mergeSubUsage(&subUsage)
 		// V10.12: wrap successful sub-agent results in structured XML tags
 		// so the parent can reliably identify the result. Borrowed from opencode.
 		return wrapTaskResult(result), nil
