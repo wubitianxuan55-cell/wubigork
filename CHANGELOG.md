@@ -1,3 +1,12 @@
+## v4.62.1 · 修复：子代理流式打断对话窗过程可见性（2026-09-04）
+> 热修复 v4.62.0 线 A 回归。**绑定面 559 零变更**。详见 releases/v4.62.1.md。
+- **根因**：SubagentText 挂 gaea-event 消费 seq 但 wire-only 不落账本，破坏
+  v4.26「seq↔日志 1:1、丢件可 resync 补拉」前提——密集流丢一件即不可愈合
+  缺口，前端反复整体重建对话视图，过程可见性被打断。
+- **修复**：SubagentText 分道专用通道 gaea-subagent-text（无 seq）；死映射
+  移除；forwarder 不变量成文；bridge 新增 onSubagentText；回归测试钉死
+  seq 无断号。vitest 214/1587、drift PASS（559）、冒烟通过。
+
 ## v4.62.0 · 办公板块：子代理逐 token 流式 · 交付验收闭环 A2（2026-09-04）
 > 欠账池三线（两刀快照）。**绑定面 559 零变更**。详见 releases/v4.62.0.md。
 - **子代理逐 token 流式（P1 销账）**：新增 SubagentText 事件（wire-only，

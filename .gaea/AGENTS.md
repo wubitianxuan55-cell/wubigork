@@ -5,7 +5,16 @@
 
 ## 版本状态（顶部速览）
 
-- **最新发布：v4.62.0（2026-09-04）「办公板块：子代理逐 token 流式 · 交付
+- **最新发布：v4.62.1（2026-09-04）「修复：子代理流式打断对话窗过程可见性」**
+  ——热修复 v4.62.0 线 A 回归（用户报告「对话窗又看不见过程」）。根因：
+  SubagentText 挂 gaea-event 消费 wire seq 但 wire-only 不落账本，破坏
+  v4.26「seq↔日志 1:1、丢件可 resync 补拉」前提，密集流丢一件即不可愈合
+  缺口→反复 resync 整体重建对话视图。修复：SubagentText 分道专用通道
+  gaea-subagent-text（无 seq），forwarder 不变量成文（凡上 gaea-event 必须
+  已入账本），bridge 新增 onSubagentText，回归测试钉死 seq 无断号。
+  绑定面 **559 零变更**；vitest 214/1587、tsc/eslint 0、drift PASS、冒烟
+  通过。详见 releases/v4.62.1.md。
+- **此前：v4.62.0（2026-09-04）「办公板块：子代理逐 token 流式 · 交付
   验收闭环 A2」**——两刀快照发布（线 A 流式 / 线 B+C 合并）。绑定面
   **559 零变更**；go vet/test 全量绿、tsc -b/eslint 0、vitest **214 文件/
   1586 用例**、drift PASS。核心事实：①`SubagentText` 事件 **wire-only**
