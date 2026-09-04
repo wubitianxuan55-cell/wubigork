@@ -5,7 +5,17 @@
 
 ## 版本状态（顶部速览）
 
-- **最新发布：v4.63.4（2026-09-04）「mt_/长文本输出 Codex 式有界渲染」**
+- **最新发布：v4.64.0（2026-09-04）「Side Chat 式追问」**——用户点名对标
+  dsh。子代理会话 tab（sa_）底部追问输入框：TaskTool.RunFollowUp 复用
+  continue_from 管道（PrepareContinue 校验/MarkRunning+TrackProgress 快照/
+  SaveCompleted/Failed）带完整工作记忆继续运行；FollowUpSink 只放行文本
+  增量（gaea-subagent-text 专用通道），产出留在子代理会话内不进主账本；
+  App 绑定后台 goroutine 即刻返回 + 同 ref 并发去重 + 主回合运行中拒绝；
+  FE 乐观用户气泡+快照轮询清除+追问期保持 3s 轮询。绑定面 **559→560**
+  （新绑定流程：gen_bindings 重生成 + bindingNames/spaceBindings/bridge
+  手工同步 + 分类锁 266→267）。vitest 217/1603、tsc/eslint 0、冒烟通过。
+  详见 releases/v4.64.0.md。
+- **此前：v4.63.4（2026-09-04）「mt_/长文本输出 Codex 式有界渲染」**
   ——用户点名。BoundedAssistantMessage：mt_ 标签页/超 4000 字 assistant
   内容默认限高 26rem 内部滚动（Markdown 照常），「展开全部（N 字）/收起」
   +字数标注；流式实时行保持跟随。i18n 三语 +3 键。绑定面 **559 零变更**；

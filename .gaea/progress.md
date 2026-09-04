@@ -1,6 +1,7 @@
 # 任务进度
 
-> 最后更新: 2026-09-04（v4.63.4「mt_/长文本输出 Codex 式有界渲染」；
+> 最后更新: 2026-09-04（v4.64.0「Side Chat 式追问」；
+> v4.63.4「mt_/长文本输出 Codex 式有界渲染」；
 > v4.63.3「对标 dsh：单轮询聚合+自动切任务视图」；
 > v4.63.2「并行子代理：批量派发不再串行排队」；
 > v4.63.1「主对话子代理卡片整卡可点」；
@@ -11,6 +12,17 @@
 > v4.61.0 发布「子代理会话闭环 · Word 目录侧栏」；子代理入口收敛两级 + transcript 真机接线/本地模型工具同 UI 在途快照；子代理 tab 对齐主代理在途快照；Word 目录侧栏在途快照；better-sidebar pane 化三刀 v4.60.0；i18n二批+落划线+自定义引擎价目 v4.59.0；三线收欠账+搜索重定位修复 v4.58.0；设置中心删四补一 v4.57.0；拆分二批+Herdsman mock+task卡关联 v4.56.0；补测起步+mock补面+label化 v4.55.0；三线收欠账 v4.54.0；办公四点降噪 v4.53.0；首页双舷驾驶舱 v4.52.0；壳层左缘+深链绑定 v4.51.0；造价数据库化繁为简 v4.50.0；青鸟生命周期补全 v4.49.0；青鸟更名+人格选择器 v4.48.0；微信助手星枢化 v4.47.0；小说第二轮 v4.46.0；百炼全量下线 v4.45.0；绘梦专项
 > v4.44.0 三刀；小说板块 v4.43.0 四刀；微信助手
 > 三刀 v4.39.0-v4.42.0——绑定面 557 零变更）
+
+## 最新发布：v4.64.0（2026-09-04）「Side Chat 式追问：子代理会话 tab 内可持续提问」
+
+- 用户点名对标 dsh Side Chat。TaskTool.RunFollowUp（continue_from 管道：
+  PrepareContinue 校验 running/mt_/空间 + MarkRunning/TrackProgress 快照 +
+  SaveCompleted/Failed）+ FollowUpSink（只放行文本增量走专用通道，产出
+  留在子代理会话内）+ boot Options 接线（EmitSubagentText/OnFollowUpReady）
+  + App 绑定 GaeaSubagentFollowUp（后台 goroutine 即刻返回/同 ref 去重/
+  主回合运行中拒绝）+ FE 追问输入框（乐观气泡/追问期轮询/mt_ 隐藏）。
+  **绑定面 559→560**。vitest 217/1603、drift PASS（560）、冒烟 200。
+  详见 releases/v4.64.0.md。
 
 ## 最新发布：v4.63.4（2026-09-04）「mt_/长文本输出 Codex 式有界渲染」
 
