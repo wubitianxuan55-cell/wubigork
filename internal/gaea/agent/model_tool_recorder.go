@@ -78,7 +78,33 @@ func (a *AgentRunner) finishModelTool(id string, output string, toolErr error, n
 	if toolErr == nil && strings.TrimSpace(note) != "" {
 		toolErr = fmt.Errorf("%s", note)
 	}
-	_ = a.mtStore.FinishModelTool(ref, output, toolErr)
+	_ = a.mtStore.FinishModelTool(ref, unwrapModelToolOutput(output), toolErr)
+}
+
+// unwrapModelToolOutput 把工具结果信封拆包出正文（v4.62.2）。
+//
+// Why: 本地模型工具（vision / summarize_file）的 ToolResult.Output 是 JSON
+// 信封串（{"ok":true,...,"data":{"result":"正文"}}）。原样落 transcript 会让
+// 会话 tab 渲染出一整面「字面 \n」的转义墙（信封编码吃掉真实换行），实机
+// 报告为「输出没有渲染、一团乱」。这里识别标准信封并只取 data.result 正文；
+// 非信封形态（自由文本/已拆包/解析失败）原样返回，绝不猜。
+func unwrapModelToolOutput(output string) string {
+	trimmed := strings.TrimSpace(output)
+	if !strings.HasPrefix(trimmed, "{") {
+		return output
+	}
+	var envelope struct {
+		Data struct {
+			Result string `json:"result"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal([]byte(trimmed), &envelope); err != nil {
+		return output
+	}
+	if strings.TrimSpace(envelope.Data.Result) == "" {
+		return output
+	}
+	return envelope.Data.Result
 }
 
 // cleanupModelToolRunsOnTurnEnd fails any model-tool record that never saw a

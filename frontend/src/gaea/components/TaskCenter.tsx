@@ -70,7 +70,7 @@ export function TaskCenter() {
 
   const load = useCallback(() => {
     workApp
-      .TaskList()
+      .TaskList([])
       .then((list) => setTasks((list ?? []).filter(isWorkSpaceTask)))
       .catch(() => setTasks([]))
       .finally(() => setLoading(false));

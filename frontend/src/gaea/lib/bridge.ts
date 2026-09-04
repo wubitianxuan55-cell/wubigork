@@ -605,7 +605,7 @@ export interface AppBindings {
   // TaskList 返回最近任务（新→旧）；TaskCancel 取消（running 中断/queued 取消）；
   // TaskRetry 重试失败/已取消的任务；TaskOutput 读取任务实时输出尾部（C1）。
   // 任务实时进度经 onTaskEvent 推送。
-  TaskList(): Promise<TaskView[]>;
+  TaskList(space?: string[]): Promise<TaskView[]>;
   TaskCancel(id: string): Promise<void>;
   TaskRetry(id: string): Promise<void>;
   TaskOutput(id: string): Promise<TaskOutputView>;
@@ -656,10 +656,12 @@ export interface AppBindings {
 // gaeaW 在此不重复声明，避免覆盖 gaea 的 runtime（EventsOff）类型。
 
 // onEvent subscribes to the agent's typed event stream; returns an unsubscribe.
+// 清理函数只摘除本监听者（v4.62.2）：此前用 EventsOff(channel) 全清——
+// SubagentThread 卸载时把主对话 store 的订阅连带炸掉，对话标签页实时输出
+// 全灭（轮询类面板正常），见 lib/wailsEvents.ts 的事故注记。
 export function onEvent(cb: (e: WireEvent) => void): () => void {
   if (realApp() && typeof window !== "undefined" && window.runtime) {
-    window.runtime.EventsOn(EVENT_CHANNEL, (payload) => cb(payload as WireEvent));
-    return () => window.runtime?.EventsOff?.(EVENT_CHANNEL);
+    return subscribeWailsEvent(window.runtime, EVENT_CHANNEL, (payload) => cb(payload as WireEvent));
   }
   return mockSubscribe(cb);
 }
@@ -684,8 +686,11 @@ const SUBAGENT_TEXT_CHANNEL = "gaea-subagent-text";
 // onSubagentText subscribes to the subagent streaming-delta channel.
 export function onSubagentText(cb: (e: SubagentTextEvent) => void): () => void {
   if (realApp() && typeof window !== "undefined" && window.runtime) {
-    window.runtime.EventsOn(SUBAGENT_TEXT_CHANNEL, (payload) => cb(payload as SubagentTextEvent));
-    return () => window.runtime?.EventsOff?.(SUBAGENT_TEXT_CHANNEL);
+    return subscribeWailsEvent(
+      window.runtime,
+      SUBAGENT_TEXT_CHANNEL,
+      (payload) => cb(payload as SubagentTextEvent),
+    );
   }
   return mockSubscribe(cb as unknown as (e: WireEvent) => void);
 }
@@ -1281,6 +1286,7 @@ import {
 // （小说/聊天/语音/绘图/角色库/旧 store 等），后者全部列入 LegacySurfaceNames。
 // 修复提示：Go 方法新增/改名/删除 → 先重新生成 bindingNames.ts，再按报错调整。
 import { bindingNames } from "./bindingNames";
+import { subscribeWailsEvent } from "./wailsEvents";
 
 /** 泛型工具：T 必须是 never（空联合），否则编译错误。 */
 type AssertNever<T extends never> = T;

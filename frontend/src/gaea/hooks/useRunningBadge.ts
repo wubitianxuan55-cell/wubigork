@@ -39,7 +39,7 @@ export function useRunningBadge(): number {
       recalc();
     }, "work");
     workApp
-      .TaskList()
+      .TaskList([])
       .then((list) => {
         if (cancelled) return;
         for (const t of list ?? []) {
