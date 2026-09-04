@@ -47,9 +47,9 @@ func TestFoldEmpty(t *testing.T) {
 // 为 JSON null，前端 .length / for-of 按数组消费会整页崩（ErrorBoundary 接管）。
 func TestFoldEmptySlicesMarshalAsArrays(t *testing.T) {
 	cases := map[string]ContextTimeline{
-		"fold":       FoldTimeline(nil, 1_000_000, 0),
-		"binding":    EmptyTimeline(),
-		"retention":  FoldTimeline(nil, 0, 200),
+		"fold":      FoldTimeline(nil, 1_000_000, 0),
+		"binding":   EmptyTimeline(),
+		"retention": FoldTimeline(nil, 0, 200),
 	}
 	for name, tl := range cases {
 		b, err := json.Marshal(tl)
@@ -161,6 +161,14 @@ func TestFoldSingleRequest(t *testing.T) {
 	if r.BriefResp != "read_file {\"path\":\"a.go\"}" {
 		t.Fatalf("briefResp = %q, want read_file with args", r.BriefResp)
 	}
+	// 2.5d 跳转锚点：user 锚=用户消息事件（含注入拆分时的 user 半边）；resp
+	// 锚=工具结果节点（结果到达后覆盖派发/assistant 锚）。
+	if r.BriefUserSeq != 3 {
+		t.Fatalf("briefUserSeq = %d, want 3", r.BriefUserSeq)
+	}
+	if r.BriefRespSeq != 6 {
+		t.Fatalf("briefRespSeq = %d, want 6（工具结果节点）", r.BriefRespSeq)
+	}
 	if tl.Current.System == 0 || tl.Current.Tools == 0 {
 		t.Fatalf("system/tools should be estimated from header: %+v", tl.Current)
 	}
@@ -185,6 +193,59 @@ func TestFoldSingleRequest(t *testing.T) {
 		if !cats[want] {
 			t.Fatalf("missing node category %q in %+v", want, cats)
 		}
+	}
+}
+
+func TestFoldBriefJumpAnchorsFallback(t *testing.T) {
+	// 2.5d 锚点退化口径：
+	//  1. 无工具交换 → resp 锚退化到 assistant 消息节点；
+	//  2. header 先于任何消息 → 锚点为 0（前端不渲染跳转）；
+	//  3. estimated 关闭路径同样带锚点。
+	sys := strings.Repeat("s", 200)
+	entries := []session.LogEntry{
+		entry(1, "turn_started", map[string]any{}),
+		entry(2, "request_header", headerPayload(sys, "read_file")),
+		entry(3, "user_message", map[string]any{"content": "这是一段足够长的用户输入内容"}),
+		entry(4, "assistant_message", map[string]any{"text": "直接回答，不调用工具的回答内容"}),
+		entry(5, "usage", map[string]any{"promptTokens": 100, "turn": 1}),
+	}
+	tl := FoldTimeline(entries, 1_000_000, 0)
+	if len(tl.Requests) != 1 {
+		t.Fatalf("requests = %d, want 1", len(tl.Requests))
+	}
+	r := tl.Requests[0]
+	if r.BriefUserSeq != 3 {
+		t.Fatalf("briefUserSeq = %d, want 3", r.BriefUserSeq)
+	}
+	if r.BriefRespSeq != 4 {
+		t.Fatalf("briefRespSeq = %d, want 4（无工具时退化 assistant 节点）", r.BriefRespSeq)
+	}
+
+	empty := FoldTimeline([]session.LogEntry{
+		entry(1, "request_header", headerPayload(sys)),
+		entry(2, "turn_done", map[string]any{}),
+	}, 1_000_000, 0)
+	// 全程无任何用户/助手/工具节点 → 锚点 0（前端不渲染跳转，诚实缺失）。
+	if len(empty.Requests) != 1 {
+		t.Fatalf("empty requests = %d, want 1（turn_done 估算关闭）", len(empty.Requests))
+	}
+	if r0 := empty.Requests[0]; r0.BriefUserSeq != 0 || r0.BriefRespSeq != 0 {
+		t.Fatalf("无消息时锚点应为 0，got user=%d resp=%d", r0.BriefUserSeq, r0.BriefRespSeq)
+	}
+
+	est := FoldTimeline([]session.LogEntry{
+		entry(1, "turn_started", map[string]any{}),
+		entry(2, "request_header", headerPayload(sys)),
+		entry(3, "user_message", map[string]any{"content": "旧日志无 usage 的提问内容"}),
+		entry(4, "tool_result", map[string]any{"id": "t1", "name": "read_file", "output": "body"}),
+		entry(5, "turn_done", map[string]any{}),
+	}, 1_000_000, 0)
+	re := est.Requests[0]
+	if !re.Estimated {
+		t.Fatal("estimated 应为 true")
+	}
+	if re.BriefUserSeq != 3 || re.BriefRespSeq != 4 {
+		t.Fatalf("estimated 关闭路径锚点错误：user=%d resp=%d", re.BriefUserSeq, re.BriefRespSeq)
 	}
 }
 

@@ -1,3 +1,9 @@
+## v4.82.0 · 上下文趋势跳转浏览器：brief 行锚点 · 偏好持久化 · 设置中心默认（2026-09-05）
+> 双源蒸馏规划阶段二.5 2.5d；**绑定面 571 零变更**（锚点搭 GaeaContextView 既有返回结构）。详见 releases/v4.82.0.md。
+- **Go**：fold 跟踪 brief 文本来源事件 seq（user=消息节点；工具交换结果到达时锚到结果节点、未到退化 assistant 消息节点），RequestRecord 透出 briefUserSeq/briefRespSeq；header/usage 关闭/turn_done 估算关闭三处同拍刷新。
+- **前端**：趋势卡步骤详情「输入/回复」brief 行带锚点时整行可点 → 上下文浏览器对应组自动展开（含分页全量）+ 滚动进视图 + 高亮 3s；锚点无节点诚实不跳、旧数据无锚点保持纯文本；趋势粒度/模式、浏览器分类内排序、文件活动排序初值改读 localStorage 偏好（gaea.context.prefs）变更写回；设置中心办公分组新增「上下文页偏好」卡（选项文案复用 contextview.* 既有键）；i18n 三语 +11 键。
+- 测试：fold +1（-count=2 绿）+ contextPrefs 5 用例 + 组件 +5；门禁：Go 全量 0 FAIL、tsc/tsc -b/eslint 0、vitest 224/1698、drift PASS（571）、?mock=1 走查通过（DOM 断言：跳转展开/高亮/aria-expanded、四项偏好落盘+刷新回读、设置卡渲染；IAB 截图管道本会话故障，实拍缺席如实记录）。
+
 ## v4.81.0 · 文件活动行级增量：±徽标 · 操作日志展开 · 详情跳转（2026-09-05）
 > 双源蒸馏规划阶段二.5 2.5c；**绑定面 571 零变更**（详情跳转复用 v4.80 GaeaContextNodeDetail）。详见 releases/v4.81.0.md。
 - **Go**：FileActivity 增 Added/Removed/Hits；fileDeltaFromArgs 从写类工具参数确定性提取 ±行（write_file/edit_file/multi_edit/edit_lines 四形状，取不到诚实留零）；recordFile 增 dispatchID 回填 grep 命中数（LRU 重建时映射作废）。

@@ -36,18 +36,23 @@ type Stats struct {
 
 // RequestRecord 是日志中的一次模型请求（一根趋势柱）。
 type RequestRecord struct {
-	Seq            int64    `json:"seq"`
-	Ts             int64    `json:"ts"`
-	Turn           int      `json:"turn"`
-	Step           int      `json:"step"`
-	Category       Category `json:"category"`
-	BriefUser      string   `json:"briefUser,omitempty"`
-	BriefIn        []string `json:"briefIn,omitempty"`
-	BriefResp      string   `json:"briefResp,omitempty"`
-	PromptTokens   int64    `json:"promptTokens,omitempty"`
-	OutputTokens   int64    `json:"outputTokens,omitempty"`
-	CacheHitTokens int64    `json:"cacheHitTokens,omitempty"`
-	CacheMissTokens int64   `json:"cacheMissTokens,omitempty"`
+	Seq       int64    `json:"seq"`
+	Ts        int64    `json:"ts"`
+	Turn      int      `json:"turn"`
+	Step      int      `json:"step"`
+	Category  Category `json:"category"`
+	BriefUser string   `json:"briefUser,omitempty"`
+	BriefIn   []string `json:"briefIn,omitempty"`
+	BriefResp string   `json:"briefResp,omitempty"`
+	// BriefUserSeq / BriefRespSeq 是 brief 行在浏览器里的跳转锚点（对应
+	// SurfaceNode.Seq；2.5d 趋势→浏览器联动）。0=无锚点（brief 来自无节点
+	// 的事件或尚无同类消息），前端不渲染跳转。
+	BriefUserSeq    int64 `json:"briefUserSeq,omitempty"`
+	BriefRespSeq    int64 `json:"briefRespSeq,omitempty"`
+	PromptTokens    int64 `json:"promptTokens,omitempty"`
+	OutputTokens    int64 `json:"outputTokens,omitempty"`
+	CacheHitTokens  int64 `json:"cacheHitTokens,omitempty"`
+	CacheMissTokens int64 `json:"cacheMissTokens,omitempty"`
 	// Estimated 标记该请求在回合结束时未见 usage 事件，按当前估算分类关闭
 	// （旧日志/无 usage 提供方；诚实标注「估算」，不伪造用量数字）。
 	Estimated bool `json:"estimated,omitempty"`

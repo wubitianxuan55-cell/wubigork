@@ -55,6 +55,9 @@ export function buildCore(s: MakeMockState): CoreMethods {
             category: { system: 2100, tools: 10400, user: 20, inject: 21000, assistant: 1200, tool: 8000 },
             briefUser: "grep C:\\AI\\wubigrok\\internal\\gaea\\config",
             briefResp: "read C:\\AI\\wubigrok\\internal\\gaea\\config\\config.go",
+            // 2.5d 跳转锚点走查样例：指向下方新增的 user(seq 5)/assistant(seq 6) 节点
+            briefUserSeq: 5,
+            briefRespSeq: 6,
             promptTokens: 350600, outputTokens: 93, cacheHitTokens: 350200, cacheMissTokens: 400,
             // v4.79 对比上一步：请求详情 delta 条走查样例（跨压缩近似 + 逐类增量）
             delta: {
@@ -77,6 +80,8 @@ export function buildCore(s: MakeMockState): CoreMethods {
           { seq: 2, cat: "tools", tokens: 10400 },
           { seq: 3, cat: "inject", tokens: 21000, text: "Referenced context: …" },
           { seq: 4, cat: "tool", tokens: 8000, text: "package main …" },
+          { seq: 5, cat: "user", tokens: 20, text: "帮我梳理 config 装载链路（mock 跳转锚点样例）" },
+          { seq: 6, cat: "assistant", tokens: 1200, text: "好的，config 装载从 Load() 入口…（mock 跳转锚点样例）" },
         ],
         archive: [],
         files: [
@@ -107,6 +112,26 @@ export function buildCore(s: MakeMockState): CoreMethods {
           kind: "user_message" as const,
           ts: 1750000003,
           text: "Referenced context: …（mock 样例正文）",
+          lines: 1,
+        };
+      }
+      if (seq === 5) {
+        // 2.5d 趋势 brief「输入」行跳转样例（user 节点）
+        return {
+          seq,
+          kind: "user_message" as const,
+          ts: 1750000005,
+          text: "帮我梳理 config 装载链路（mock 样例正文：完整用户消息）",
+          lines: 1,
+        };
+      }
+      if (seq === 6) {
+        // 2.5d 趋势 brief「回复」行跳转样例（assistant 节点）
+        return {
+          seq,
+          kind: "assistant_message" as const,
+          ts: 1750000006,
+          text: "好的，config 装载从 Load() 入口开始…（mock 样例正文：完整助手消息）",
           lines: 1,
         };
       }

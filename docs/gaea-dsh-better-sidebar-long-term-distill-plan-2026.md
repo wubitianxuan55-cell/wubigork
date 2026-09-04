@@ -145,10 +145,10 @@ pane 工作台/文件 tab（v4.25）、任务+分工同屏（v4.53）、子代�
 | 工具来源 chip / 排序 / 分类内搜索 | 无（节点仅文本+token） | P2 |
 | 工具结果展开整段调用 + Raw/Markdown + 图片缩略卡 | 无 | P2 |
 | File Activity ±行增量 / 搜索命中行 / 操作日志展开跳转 | 无（仅读写次数/时间） | P2 |
-| Trend step brief 点击跳转 / hover 联动浏览器 / 实际用量 | 部分（悬停构成详情有；跳转与联动缺） | P2 |
+| Trend step brief 点击跳转 / hover 联动浏览器 / 实际用量 | 跳转已有（v4.82 brief 锚点）；hover 联动有意不做；实际用量部分 | ✅（hover 边界成文） |
 | Agent Network 点击进入对应会话 Context | 部分（AgentRadial 可开子代理对话 tab） | P3 |
 | `/context` 居中弹层 | 斜杠命令切主区 tab（等价但不同交互） | P3（拍板） |
-| 设置中心持久化默认（粒度/模式/排序） | 卡内瞬时 toggle | P3 |
+| 设置中心持久化默认（粒度/模式/排序） | 已落地（v4.82 gaea.context.prefs + 设置卡） | ✅ |
 | 成本费率 hover | 无 | P4 |
 
 ## 4. 蒸馏节奏（建议循环）
@@ -200,8 +200,14 @@ pane 工作台/文件 tab（v4.25）、任务+分工同屏（v4.53）、子代�
   操作行详情懒加载跳转（复用 v4.80 面板）。**1b 勘误**：右键菜单/@悬浮
   引用早已落地（v4.25-4.31），1b 销账（拖放入工作区树价值稀薄不做的
   理由见 release note）；
-- 2.5d Trend step brief 跳转与 hover 联动、设置中心默认（粒度/模式/排序，
-  拍板后）；
+- ~~2.5d Trend step brief 跳转与 hover 联动、设置中心默认（粒度/模式/排序）~~
+  **已完成（v4.82.0）**：Go fold 透出 briefUserSeq/briefRespSeq（user/
+  assistant=消息节点，工具交换结果到达锚结果节点、未到退化 assistant 消息
+  节点，三处同拍）；前端 brief 行跳转按钮→浏览器组展开（含分页全量）+滚动+
+  高亮 3s（归档同款、锚点无节点诚实不跳）；趋势粒度/模式、浏览器排序、文件
+  活动排序初值读 gaea.context.prefs 变更写回；设置中心办公分组「上下文页
+  偏好」卡（选项复用 contextview.* 键）。**边界**：hover 联动预览不做
+  （hover 驱动展开会反复抖动，点击是明确意图）；2.5e 仍待拍板；
 - 2.5e `/context` 弹层与 Agent Network 会话跳转（拍板后）。
 
 ### 阶段三（拍板后）：预览与浏览增强
@@ -249,6 +255,7 @@ pane 工作台/文件 tab（v4.25）、任务+分工同屏（v4.53）、子代�
 | v4.79 | 上下文对比上一步（RequestDelta 聚合级 signed delta + 近似标注） | Context Browser 对比上一轮变动 | 节点级逐步回放有意不做（蓝图成文）；阶段二.5 2.5a 收口 |
 | v4.80 | 工具结果深读（懒加载完整调用 + 原文/渲染 + 来源 chip + 排序） | Context Browser 工具行展开/来源/排序 | 懒加载单点回读代 dsh 全量回放；2.5b 前半收口 |
 | v4.81 | 文件活动 ±行增量/命中数/操作日志展开跳转 | File Activity ±added/−removed + 操作日志 | 2.5c 收口；1b 勘误销账（前两项 v4.25-4.31 已落地） |
+| v4.82 | Trend brief 跳转锚点 + 粒度/模式/排序偏好持久化 + 设置中心默认卡 | step brief 跳转 Context Browser + 设置持久化默认 | 2.5d 收口；hover 联动边界成文（有意不做） |
 
 ## 8. 成功标准（长期）
 

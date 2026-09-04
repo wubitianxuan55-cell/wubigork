@@ -1,5 +1,5 @@
 /* eslint-disable react-refresh/only-export-components -- 子组件与容器同文件（Phase A 收敛，避免过早拆文件） */
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { app } from "../lib/bridge";
 import { useT } from "../lib/i18n";
 import type {
@@ -7,6 +7,7 @@ import type {
 } from "../lib/types";
 import type { DictKey } from "../locales/en";
 import { fmtTokens } from "../lib/stats";
+import { loadContextPrefs, saveContextPref, type CtxTrendGranularity, type CtxTrendMode } from "../lib/contextPrefs";
 import { useLiveReload } from "../hooks/useLiveReload";
 import { subscribeAgentNetwork, reloadAgentNetwork } from "../lib/agentNetworkStore";
 import { StatsCard, TokenCard, TimingCard, SessionInfoCard, SummaryBar } from "./context/cards";
@@ -187,12 +188,22 @@ function ContextTrendChart({ requests, events, onPick, detail }: {
   detail?: ReactNode;
 }) {
   const t = useT();
-  const [granularity, setGranularity] = useState<"step" | "turn">("step");
-  const [mode, setMode] = useState<"total" | "delta">("total");
+  // 2.5d：粒度/模式初值读设置中心偏好（卡内 toggle 交互不变，变更写回）。
+  const [granularity, setGranularity] = useState<CtxTrendGranularity>(() => loadContextPrefs().trendGranularity);
+  const [mode, setMode] = useState<CtxTrendMode>(() => loadContextPrefs().trendMode);
   const [selected, setSelected] = useState<number | null>(null);
   // v4.27 悬停构成详情：hover 柱时在图上展示该步六分类分解（原生 SVG title
   // 之外再给一个随时可见的 HTML 详情条，比浏览器默认 tooltip 更丰富）。
   const [hovered, setHovered] = useState<number | null>(null);
+
+  const pickGranularity = (g: CtxTrendGranularity) => {
+    setGranularity(g);
+    saveContextPref("trendGranularity", g);
+  };
+  const pickMode = (m: CtxTrendMode) => {
+    setMode(m);
+    saveContextPref("trendMode", m);
+  };
 
   const bars = useMemo(() => {
     if (granularity === "step") return requests;
@@ -247,7 +258,7 @@ function ContextTrendChart({ requests, events, onPick, detail }: {
             <button
               key={g}
               className={`px-1.5 py-0.5 rounded border-0 cursor-pointer ${granularity === g ? "bg-accent/15 text-accent" : "text-fg-dim hover:text-fg"}`}
-              onClick={() => setGranularity(g)}
+              onClick={() => pickGranularity(g)}
             >{g === "step" ? t("contextview.granStep") : t("contextview.granTurn")}</button>
           ))}
           <span className="mx-0.5 h-3 w-px bg-border-soft" />
@@ -256,7 +267,7 @@ function ContextTrendChart({ requests, events, onPick, detail }: {
               key={m}
               title={m === "delta" ? t("contextview.deltaTip") : undefined}
               className={`px-1.5 py-0.5 rounded border-0 cursor-pointer ${mode === m ? "bg-accent/15 text-accent" : "text-fg-dim hover:text-fg"}`}
-              onClick={() => setMode(m)}
+              onClick={() => pickMode(m)}
             >{m === "total" ? t("contextview.modeTotal") : t("contextview.modeDelta")}</button>
           ))}
         </div>
@@ -350,7 +361,17 @@ function ContextTrendChart({ requests, events, onPick, detail }: {
 }
 
 // ─── 选中步骤详情（v4.69 起内联进趋势卡：无独立外框，顶部分隔线区隔） ──
-function StepDetail({ record, window }: { record: ContextRequestRecord | null; window: number }) {
+// 2.5d：brief 行带 Go 折叠给出的跳转锚点（briefUserSeq/briefRespSeq）时整行
+// 可点 → 跳到上下文浏览器对应节点（组自动展开+滚动+高亮）；无锚点保持纯文本。
+function StepDetail({
+  record,
+  window,
+  onJump,
+}: {
+  record: ContextRequestRecord | null;
+  window: number;
+  onJump?: (seq: number) => void;
+}) {
   const t = useT();
   // 容器已默认选中最新请求，null 只存在于快照过渡瞬间 → 不渲染，避免空态闪烁。
   if (!record) return null;
@@ -410,13 +431,31 @@ function StepDetail({ record, window }: { record: ContextRequestRecord | null; w
       {record.briefUser && (
         <div className="mt-1.5 flex gap-1.5 text-[11.5px]">
           <span className="shrink-0 text-fg-faint">{t("contextview.inputLabel")}</span>
-          <span className="truncate font-mono text-fg-dim">{record.briefUser}</span>
+          {record.briefUserSeq ? (
+            <button
+              data-testid="ctx-brief-user"
+              title={t("contextview.briefJumpTip")}
+              className="min-w-0 cursor-pointer truncate border-0 bg-transparent p-0 text-left font-mono text-fg-dim hover:text-accent hover:underline"
+              onClick={() => onJump?.(record.briefUserSeq!)}
+            >{record.briefUser}</button>
+          ) : (
+            <span className="truncate font-mono text-fg-dim">{record.briefUser}</span>
+          )}
         </div>
       )}
       {record.briefResp && (
         <div className="flex gap-1.5 text-[11.5px]">
           <span className="shrink-0 text-fg-faint">{t("contextview.respLabel")}</span>
-          <span className="truncate font-mono text-fg-dim">{record.briefResp}</span>
+          {record.briefRespSeq ? (
+            <button
+              data-testid="ctx-brief-resp"
+              title={t("contextview.briefJumpTip")}
+              className="min-w-0 cursor-pointer truncate border-0 bg-transparent p-0 text-left font-mono text-fg-dim hover:text-accent hover:underline"
+              onClick={() => onJump?.(record.briefRespSeq!)}
+            >{record.briefResp}</button>
+          ) : (
+            <span className="truncate font-mono text-fg-dim">{record.briefResp}</span>
+          )}
         </div>
       )}
       <div className="mt-2 flex h-2 w-full overflow-hidden rounded-full bg-bg-soft">
@@ -513,6 +552,14 @@ export function ContextView({
   const [timeline, setTimeline] = useState<ContextTimeline>(EMPTY);
   const [picked, setPicked] = useState<ContextRequestRecord | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // 2.5d 趋势→浏览器联动：StepDetail brief 行点击的目标节点。tick 让同一
+  // 节点重复点击也能重新触发滚动/高亮。
+  const [focusNode, setFocusNode] = useState<{ seq: number; tick: number } | null>(null);
+  const focusTick = useRef(0);
+  const jumpToNode = useCallback((seq: number) => {
+    focusTick.current += 1;
+    setFocusNode({ seq, tick: focusTick.current });
+  }, []);
 
   const [net, setNet] = useState<AgentNetwork | null>(null);
   // Agent 网络：订阅共享 store；running 时 useLiveReload 驱动的 load() 顺带 reload。
@@ -607,14 +654,14 @@ export function ContextView({
           {/* 行3：当前上下文 + 上下文浏览器 */}
           <div className="grid grid-cols-1 gap-3 min-[1100px]:grid-cols-[3fr_2fr]">
             <CurrentContextCard used={catTotal(timeline.current)} window={timeline.window} current={timeline.current} />
-            <ContextBrowserTree nodes={timeline.nodes} archive={timeline.archive} />
+            <ContextBrowserTree nodes={timeline.nodes} archive={timeline.archive} focus={focusNode} />
           </div>
           {/* 行4：趋势卡（master-detail 单元——请求详情内联卡内，点柱/悬停联动） */}
           <ContextTrendChart
             requests={timeline.requests}
             events={timeline.events}
             onPick={setPicked}
-            detail={picked ? <StepDetail record={picked} window={timeline.window} /> : null}
+            detail={picked ? <StepDetail record={picked} window={timeline.window} onJump={jumpToNode} /> : null}
           />
           {/* 行5：事件流 + 文件活动 */}
           <div className="grid grid-cols-1 gap-3 min-[1100px]:grid-cols-2">

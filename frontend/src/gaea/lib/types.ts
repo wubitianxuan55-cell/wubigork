@@ -238,6 +238,10 @@ export interface ContextRequestRecord {
   briefUser?: string;
   briefIn?: string[];
   briefResp?: string;
+  // brief 行在浏览器里的跳转锚点（对应 SurfaceNode.seq；2.5d 趋势→浏览器联动）。
+  // 0/缺省=无锚点，不渲染跳转。
+  briefUserSeq?: number;
+  briefRespSeq?: number;
   promptTokens?: number;
   outputTokens?: number;
   cacheHitTokens?: number;

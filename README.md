@@ -89,6 +89,7 @@ gaea/
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| **v4.82.0** | 2026-09-05 | 上下文趋势跳转浏览器（绑定面 571 零变更）：Go fold 透出 briefUserSeq/briefRespSeq 锚点（工具交换锚结果节点），趋势卡「输入/回复」brief 行点击→浏览器组展开+滚动+高亮 3s；粒度/模式/排序偏好持久化（gaea.context.prefs）+ 设置中心「上下文页偏好」卡；vitest 224/1698、Go 全量 0 FAIL、drift PASS（571）、?mock=1 DOM 走查通过（截图通道故障如实记录） |
 | **v4.81.0** | 2026-09-05 | 文件活动行级增量（绑定面 571 零变更）：fold 从写类工具参数确定性提取 ±行（四工具形状）+ grep 命中近似；文件行 ±徽标、「N 次操作」展开逐次操作行、「完整调用」懒加载跳转（详情面板共享）；vitest 223/1688、Go 全量除既有 flaky（复验绿）、drift PASS（571）、?mock=1 走查通过；规划 1b 过期条目勘误销账 |
 | **v4.80.0** | 2026-09-04 | 上下文工具结果深读（绑定面 570→571，+GaeaContextNodeDetail）：节点按 seq 懒加载完整调用（tool_result 全文+参数回读/user/assistant 全文、1MB 截断诚实标注）、原文/渲染切换、来源 chip+✗error 点、分类内时间序/大小序；vitest 223/1687、Go 全量 0 FAIL、drift PASS（571）、?mock=1 走查通过 |
 | **v4.79.0** | 2026-09-04 | 上下文对比上一步（绑定面 570 零变更）：Go fold 请求组装点 surface 快照 + RequestDelta 逐类 signed delta（跨压缩近似标注/首请求基线=空）；趋势卡请求详情 delta 条；vitest 223/1685、tsc/eslint 0、drift PASS（570）、?mock=1 走查通过 |

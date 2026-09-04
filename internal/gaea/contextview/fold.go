@@ -107,12 +107,19 @@ type folding struct {
 
 	pending *RequestRecord // request_header 已开、usage 未到的请求
 
-	lastUser       string
-	lastIn         []string
-	lastAssistant  string
-	lastToolCall   string
-	files          []FileActivity
-	fileIdx        map[string]int // 同工具+动作+路径+轮次+步骤 → files 下标（合并去重）
+	lastUser      string
+	lastIn        []string
+	lastAssistant string
+	lastToolCall  string
+	// brief 跳转锚点（2.5d）：brief 文本来源事件的 seq（对应 SurfaceNode）。
+	// user/assistant 取消息事件自身（节点同 seq）；tool 交换在结果到达时锚到
+	// 结果节点（结果行带来源 chip+全文，比派发事件更有跳转价值），结果未到前
+	// 保持 assistant 锚（调用文本在 assistant 消息里）。0=暂无锚点。
+	lastUserSeq      int64
+	lastAssistantSeq int64
+	lastToolCallSeq  int64
+	files            []FileActivity
+	fileIdx          map[string]int // 同工具+动作+路径+轮次+步骤 → files 下标（合并去重）
 	// fileByDispatch 是 dispatch id → files 下标（v4.81 结果阶段回填命中行数；
 	// LRU 淘汰重建时一并作废）。
 	fileByDispatch map[string]int
@@ -195,6 +202,11 @@ func (f *folding) closePending(e session.LogEntry) {
 	// 「该请求发生时模型可见上下文」的最诚实近似）。
 	rec.Category = f.current()
 	rec.Ts = e.Ts
+	rec.BriefUserSeq = f.lastUserSeq
+	rec.BriefRespSeq = f.lastToolCallSeq
+	if rec.BriefRespSeq == 0 {
+		rec.BriefRespSeq = f.lastAssistantSeq
+	}
 	if rec.BriefResp == "" {
 		rec.BriefResp = f.lastToolCall
 	}
@@ -246,6 +258,13 @@ func (f *folding) applyHeader(e session.LogEntry) {
 		BriefUser: f.lastUser,
 		BriefIn:   append([]string(nil), f.lastIn...),
 		BriefResp: f.lastToolCall,
+		// 跳转锚点与 brief 文本同源同拍：user 锚最后一条用户消息节点，resp 锚
+		// 优先工具结果节点、退化 assistant 消息节点（0=前端不渲染跳转）。
+		BriefUserSeq: f.lastUserSeq,
+		BriefRespSeq: f.lastToolCallSeq,
+	}
+	if rec.BriefRespSeq == 0 {
+		rec.BriefRespSeq = f.lastAssistantSeq
 	}
 	if rec.BriefResp == "" {
 		rec.BriefResp = f.lastAssistant
@@ -266,6 +285,7 @@ func (f *folding) applyUser(e session.LogEntry) {
 		tok := estimateTokens(user)
 		f.userTok += tok
 		f.lastUser = briefOf(user, maxBrief)
+		f.lastUserSeq = e.Seq
 		f.nodes = append(f.nodes, SurfaceNode{Seq: e.Seq, Cat: catUser, Tokens: tok, Text: briefOf(user, maxNodePreview)})
 	}
 	if inject != "" {
@@ -290,9 +310,11 @@ func (f *folding) applyAssistant(e session.LogEntry) {
 	tok := estimateTokens(p.Text)
 	f.assistantTok += tok
 	f.lastAssistant = briefOf(p.Text, maxBrief)
+	f.lastAssistantSeq = e.Seq
 	for _, tc := range p.ToolCalls {
 		if tc.Name != "" {
 			f.lastToolCall = briefOf(tc.Name+" "+tc.Args, maxBrief)
+			f.lastToolCallSeq = e.Seq
 		}
 	}
 	f.nodes = append(f.nodes, SurfaceNode{Seq: e.Seq, Cat: catAssistant, Tokens: tok, Text: briefOf(p.Text, maxNodePreview)})
@@ -325,6 +347,9 @@ func (f *folding) applyToolResult(e session.LogEntry) {
 	f.toolTok += tok
 	f.stats.ToolCalls++
 	f.nodes = append(f.nodes, SurfaceNode{Seq: e.Seq, Cat: catTool, Tokens: tok, Text: briefOf(text, maxNodePreview), Tool: p.Name, Err: p.Err != ""})
+	// 结果到达：最近一次工具交换的 brief 锚点改到结果节点（来源 chip+全文，
+	// 跳转价值高于派发事件——派发事件本身没有浏览器节点）。
+	f.lastToolCallSeq = e.Seq
 	if p.Truncated {
 		f.stats.Prunes++
 		f.events = append(f.events, ContextEvent{
@@ -534,17 +559,22 @@ func (f *folding) applyUsage(e session.LogEntry) {
 	rec := f.pending
 	if rec == nil {
 		rec = &RequestRecord{
-			Seq:       e.Seq,
-			Ts:        e.Ts,
-			Turn:      f.turn,
-			Step:      f.step,
-			Category:  f.current(),
-			BriefUser: f.lastUser,
-			BriefIn:   append([]string(nil), f.lastIn...),
-			BriefResp: f.lastToolCall,
+			Seq:          e.Seq,
+			Ts:           e.Ts,
+			Turn:         f.turn,
+			Step:         f.step,
+			Category:     f.current(),
+			BriefUser:    f.lastUser,
+			BriefIn:      append([]string(nil), f.lastIn...),
+			BriefResp:    f.lastToolCall,
+			BriefUserSeq: f.lastUserSeq,
+			BriefRespSeq: f.lastToolCallSeq,
 		}
 		if rec.BriefResp == "" {
 			rec.BriefResp = f.lastAssistant
+		}
+		if rec.BriefRespSeq == 0 {
+			rec.BriefRespSeq = f.lastAssistantSeq
 		}
 		// 旧日志无 request_header 的退化路径：快照点退到 usage 关闭时（该步
 		// 输出已入 surface，与 header 路径口径有差——诚实近似，delta 同拍
@@ -554,12 +584,17 @@ func (f *folding) applyUsage(e session.LogEntry) {
 		rec.Step = f.step
 		rec.Ts = e.Ts
 		// header 在用户消息/工具调用之前发出：关闭时刷新 brief，让
-		// 「输入→回复」反映该请求实际看到的最近内容。
+		// 「输入→回复」反映该请求实际看到的最近内容。锚点同拍刷新。
 		rec.BriefUser = f.lastUser
 		rec.BriefIn = append([]string(nil), f.lastIn...)
 		rec.BriefResp = f.lastToolCall
+		rec.BriefUserSeq = f.lastUserSeq
+		rec.BriefRespSeq = f.lastToolCallSeq
 		if rec.BriefResp == "" {
 			rec.BriefResp = f.lastAssistant
+		}
+		if rec.BriefRespSeq == 0 {
+			rec.BriefRespSeq = f.lastAssistantSeq
 		}
 	}
 	rec.PromptTokens = p.PromptTokens

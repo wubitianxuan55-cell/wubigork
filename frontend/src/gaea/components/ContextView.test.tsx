@@ -409,3 +409,92 @@ describe("ContextView 上下文页卡片墙（v4.71 卡片化）", () => {
     expect(await screen.findByText(/上下文视图加载失败/)).toBeTruthy();
   });
 });
+
+describe("ContextView 2.5d：趋势 brief 跳转浏览器 + 偏好持久化", () => {
+  const PREF_KEY = "gaea.context.prefs";
+  const ANCHORED: ContextTimeline = {
+    ...TIMELINE,
+    requests: [
+      {
+        ...TIMELINE.requests[0],
+        briefUser: "帮我梳理 config 装载链路",
+        briefUserSeq: 91,
+        briefResp: "read_file {\"path\":\"config.go\"}",
+        briefRespSeq: 4,
+      },
+    ],
+    nodes: [
+      { seq: 4, cat: "tool", tokens: 8000, text: "package main 工具输出内容样例" },
+      { seq: 91, cat: "user", tokens: 20, text: "帮我梳理 config 装载链路" },
+    ],
+    archive: [],
+  };
+
+  beforeEach(() => {
+    localStorage.removeItem(PREF_KEY);
+    contextViewMock.mockReset();
+    contextViewMock.mockResolvedValue(ANCHORED);
+    contextNodeDetailMock.mockReset();
+    contextNodeDetailMock.mockResolvedValue({ seq: 4, kind: "tool_result", ts: 1750000004, tool: "read_file", output: "body", lines: 1 });
+    // jsdom 未实现 scrollIntoView（2.5d 跳转滚动）
+    Element.prototype.scrollIntoView = vi.fn();
+  });
+
+  it("brief 行带锚点时渲染为跳转按钮；点击展开对应组并高亮目标节点", async () => {
+    const { ContextView } = await import("./ContextView");
+    renderT(<ContextView running={false} />);
+    const userBtn = await screen.findByTestId("ctx-brief-user");
+    fireEvent.click(userBtn);
+    // user 组展开且目标节点带高亮 outline
+    const node = await screen.findByTestId("ctx-browser-node-91");
+    expect(node.className).toContain("outline");
+    // 组行 aria-expanded=true
+    const groupBtn = screen.getByRole("button", { name: /用户/ });
+    expect(groupBtn.getAttribute("aria-expanded")).toBe("true");
+    // 再点「回复」行：锚到 tool 节点
+    fireEvent.click(screen.getByTestId("ctx-brief-resp"));
+    const toolNode = await screen.findByTestId("ctx-browser-node-4");
+    expect(toolNode.className).toContain("outline");
+  });
+
+  it("锚点无对应节点时诚实不跳（不渲染按钮或点击无副作用）", async () => {
+    contextViewMock.mockResolvedValue({
+      ...ANCHORED,
+      requests: [{ ...ANCHORED.requests[0], briefUserSeq: 999 }],
+    });
+    const { ContextView } = await import("./ContextView");
+    renderT(<ContextView running={false} />);
+    const btn = await screen.findByTestId("ctx-brief-user");
+    fireEvent.click(btn);
+    // 目标组未展开：浏览器内没有任何带高亮的节点
+    expect(document.querySelector("[data-node-seq='999']")).toBeNull();
+  });
+
+  it("无锚点的 brief 行保持纯文本（旧数据兼容）", async () => {
+    contextViewMock.mockResolvedValue(TIMELINE);
+    const { ContextView } = await import("./ContextView");
+    renderT(<ContextView running={false} />);
+    await screen.findByText("grep internal/gaea/config");
+    expect(screen.queryByTestId("ctx-brief-user")).toBeNull();
+  });
+
+  it("趋势粒度/模式切换写入偏好存储", async () => {
+    const { ContextView } = await import("./ContextView");
+    renderT(<ContextView running={false} />);
+    await screen.findByTestId("ctx-brief-user");
+    fireEvent.click(screen.getByRole("button", { name: "轮次" }));
+    fireEvent.click(screen.getByRole("button", { name: "增量" }));
+    const prefs = JSON.parse(localStorage.getItem(PREF_KEY) || "{}");
+    expect(prefs.trendGranularity).toBe("turn");
+    expect(prefs.trendMode).toBe("delta");
+  });
+
+  it("浏览器分类内排序切换写入偏好存储", async () => {
+    const { ContextView } = await import("./ContextView");
+    renderT(<ContextView running={false} />);
+    await screen.findByTestId("ctx-brief-user");
+    fireEvent.click(screen.getByRole("button", { name: "大小序" }));
+    const prefs = JSON.parse(localStorage.getItem(PREF_KEY) || "{}");
+    expect(prefs.browserSort).toBe("size");
+  });
+});

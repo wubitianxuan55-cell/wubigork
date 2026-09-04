@@ -6,7 +6,7 @@
 //   末尾「归档 N」折叠组（行带「已压缩」徽标）。默认全部收起。
 // - FileActivityTree：过滤 chips（全部/读取/写入/搜索/图片）+ 路径过滤 + 汇总行
 //   + 排序三胶囊（按次数/按最新/按路径）+ 按文件聚合树行（点击打开预览）。
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 // 六分类语义色：ContextView.tsx 已导出 CAT_COLORS，直接复用避免两处调色板漂移。
 import { CAT_COLORS } from "../ContextView";
 import { MemoMarkdown } from "../MemoMarkdown";
@@ -16,6 +16,7 @@ import { FolderTree, Layers } from "../../icons";
 import { useT } from "../../lib/i18n";
 import { FileTypeIcon } from "../../lib/fileIcon";
 import { fmtTokens } from "../../lib/stats";
+import { loadContextPrefs, saveContextPref, type CtxBrowserSort, type CtxFileSort } from "../../lib/contextPrefs";
 import { usePreviewStore } from "../../lib/store";
 import type { DictKey } from "../../locales/en";
 import type { ContextNodeDetailView, ContextSurfaceNode, FileActivity } from "../../lib/types";
@@ -127,6 +128,7 @@ function NodeRow({
   detailState,
   detailOpen,
   onToggleDetail,
+  focused,
 }: {
   node: ContextSurfaceNode;
   open: boolean;
@@ -134,6 +136,7 @@ function NodeRow({
   detailState?: NodeDetailState;
   detailOpen: boolean;
   onToggleDetail: () => void;
+  focused?: boolean;
 }) {
   const t = useT();
   const text = node.text || t("contextview.noPreview");
@@ -142,7 +145,13 @@ function NodeRow({
   const detailable = DETAILABLE.has(node.cat);
   const d = detailState?.s === "ok" ? detailState.d : null;
   return (
-    <div className="ctx-row flex items-start gap-1.5 px-2 py-1.5 text-[10px]">
+    <div
+      data-node-seq={node.seq}
+      data-testid={`ctx-browser-node-${node.seq}`}
+      className={`ctx-row flex items-start gap-1.5 px-2 py-1.5 text-[10px] ${
+        focused ? "rounded-md bg-accent/10 outline outline-1 -outline-offset-1 outline-accent/50" : ""
+      }`}
+    >
       <span className="mt-0.5 h-2 w-2 shrink-0 rounded-sm" style={{ background: CAT_COLORS[node.cat] }} />
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-1.5 text-fg-faint">
@@ -192,15 +201,55 @@ function NodeRow({
 // ─── 上下文浏览器（分类折叠组 + 行内搜索 + 归档折叠组） ──────────
 // v4.80 深读：分类内排序（时间序/大小序，dsh size/name 同款）+ 节点完整
 // 调用懒加载（GaeaContextNodeDetail，按 seq 缓存）。
-export function ContextBrowserTree({ nodes, archive }: { nodes: ContextSurfaceNode[]; archive: ContextSurfaceNode[] }) {
+// 2.5d：排序初值读设置中心偏好、变更写回；focus 跳转——趋势卡 brief 行
+// 点击后展开目标组（含分页全量）、滚动进视图并高亮 3s；锚点无对应节点时
+// 诚实不跳。
+export function ContextBrowserTree({
+  nodes,
+  archive,
+  focus,
+}: {
+  nodes: ContextSurfaceNode[];
+  archive: ContextSurfaceNode[];
+  focus?: { seq: number; tick: number } | null;
+}) {
   const t = useT();
   const [query, setQuery] = useState("");
   // 默认折叠态：六分类与归档全部收起（dsh 同款）。
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   const [openText, setOpenText] = useState<Set<number>>(() => new Set());
   const [showAll, setShowAll] = useState<Set<string>>(() => new Set());
-  const [sort, setSort] = useState<"time" | "size">("time");
+  const [sort, setSort] = useState<CtxBrowserSort>(() => loadContextPrefs().browserSort);
   const { details, open: openDetails, toggle: toggleDetail } = useNodeDetails();
+  // focus 跳转状态：handledFocus 去重（同一 tick 只处理一次）；focusedSeq
+  // 高亮当前目标节点，3s 后自动清除。
+  const listRef = useRef<HTMLDivElement | null>(null);
+  const [focusedSeq, setFocusedSeq] = useState<number | null>(null);
+  const handledFocus = useRef(0);
+
+  const pickSort = (k: CtxBrowserSort) => {
+    setSort(k);
+    saveContextPref("browserSort", k);
+  };
+
+  useEffect(() => {
+    if (!focus || focus.tick === handledFocus.current) return;
+    handledFocus.current = focus.tick;
+    const inArchive = archive.some((n) => n.seq === focus.seq);
+    const node = inArchive
+      ? archive.find((n) => n.seq === focus.seq)
+      : nodes.find((n) => n.seq === focus.seq);
+    if (!node) return; // 锚点 0 / 节点已不在当前 surface → 诚实不跳
+    const groupKey = inArchive ? ARCHIVE_KEY : node.cat;
+    setExpanded((cur) => new Set(cur).add(groupKey));
+    setShowAll((cur) => new Set(cur).add(groupKey)); // 目标可能在分页后半段
+    setFocusedSeq(focus.seq);
+    requestAnimationFrame(() => {
+      listRef.current?.querySelector(`[data-node-seq="${focus.seq}"]`)?.scrollIntoView({ block: "nearest" });
+    });
+    const timer = window.setTimeout(() => setFocusedSeq(null), 3000);
+    return () => window.clearTimeout(timer);
+  }, [focus, nodes, archive]);
 
   const q = query.trim().toLowerCase();
   const sorter = useMemo(
@@ -282,14 +331,14 @@ export function ContextBrowserTree({ nodes, archive }: { nodes: ContextSurfaceNo
             key={k}
             aria-pressed={sort === k}
             className={`cursor-pointer rounded border-0 px-1.5 py-0.5 ${sort === k ? "bg-accent/15 text-accent" : "bg-transparent text-fg-faint hover:text-fg"}`}
-            onClick={() => setSort(k)}
+            onClick={() => pickSort(k)}
           >{t(key)}</button>
         ))}
       </div>
       {isEmpty ? (
         <div className="py-2 text-[10px] text-fg-faint">{t("contextview.noNodes")}</div>
       ) : (
-        <div className="mt-1.5 flex max-h-72 flex-col gap-1 overflow-y-auto pr-0.5">
+        <div ref={listRef} className="mt-1.5 flex max-h-72 flex-col gap-1 overflow-y-auto pr-0.5">
           {groups.map((g) => {
             const isOpen = expanded.has(g.key);
             const paged = !showAll.has(g.key) && g.count > PAGE_THRESHOLD;
@@ -327,6 +376,7 @@ export function ContextBrowserTree({ nodes, archive }: { nodes: ContextSurfaceNo
                         detailState={details.get(n.seq)}
                         detailOpen={openDetails.has(n.seq)}
                         onToggleDetail={() => toggleDetail(n.seq)}
+                        focused={focusedSeq === n.seq}
                       />
                     ))}
                     {paged && (
@@ -381,6 +431,7 @@ export function ContextBrowserTree({ nodes, archive }: { nodes: ContextSurfaceNo
                         detailState={details.get(n.seq)}
                         detailOpen={openDetails.has(n.seq)}
                         onToggleDetail={() => toggleDetail(n.seq)}
+                        focused={focusedSeq === n.seq}
                       />
                     ))}
                     {paged && (
@@ -486,10 +537,16 @@ export function FileActivityTree({ files, onOpenFile }: { files: FileActivity[];
   const open = onOpenFile ?? openPreview;
   const [chip, setChip] = useState<FileChip>("all");
   const [query, setQuery] = useState("");
-  const [sort, setSort] = useState<FileSort>("count");
+  // 2.5d：排序初值读设置中心偏好、变更写回（与浏览器分类内排序同模式）。
+  const [sort, setSort] = useState<CtxFileSort>(() => loadContextPrefs().fileSort);
   const { details, open: openDetails, toggle: toggleDetail } = useNodeDetails();
   // v4.81 操作日志展开（dsh「展开完整操作日志」同款）：按路径展开逐次操作行。
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(() => new Set());
+
+  const pickSort = (k: CtxFileSort) => {
+    setSort(k);
+    saveContextPref("fileSort", k);
+  };
 
   const q = query.trim().toLowerCase();
 
@@ -573,7 +630,7 @@ export function FileActivityTree({ files, onOpenFile }: { files: FileActivity[];
               type="button"
               aria-pressed={sort === p.key}
               className={`cursor-pointer rounded border-0 px-1.5 py-0.5 ${sort === p.key ? "bg-accent/15 text-accent" : "text-fg-dim hover:text-fg"}`}
-              onClick={() => setSort(p.key)}
+              onClick={() => pickSort(p.key)}
             >
               {t(p.labelKey)}
             </button>
