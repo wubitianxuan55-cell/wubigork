@@ -23,9 +23,14 @@ const transcript: SubagentTranscriptView = {
 const mocks = vi.hoisted(() => ({
   SubagentTranscript: vi.fn(),
   onEvent: vi.fn(() => () => {}),
+  onSubagentText: vi.fn(() => () => {}),
 }));
 
-vi.mock("../lib/bridge", () => ({ app: mocks, onEvent: mocks.onEvent }));
+vi.mock("../lib/bridge", () => ({
+  app: mocks,
+  onEvent: mocks.onEvent,
+  onSubagentText: mocks.onSubagentText,
+}));
 
 // SubagentThread 走 useT：钉住 zh 让「进行中/N 条/思考」等中文断言继续成立
 const wrap = (node: React.ReactNode) => {
@@ -126,16 +131,17 @@ describe("SubagentThread 子代理对话全面板（v4.27）", () => {
     expect(screen.getByText("const ok = true")).toBeTruthy();
   });
 
-  // v4.62 P1 逐 token 流式：subagent_text 增量按 ref 路由到本会话 tab，以
-  // 实时行渲染在消息流尾部；权威快照追上后缓冲让位（reconcile）。
+  // v4.62 P1 逐 token 流式（v4.62.1 分道）：增量经专用通道 onSubagentText
+  // 按 ref 路由到本会话 tab，以实时行渲染在消息流尾部；权威快照追上后缓冲
+  // 让位（reconcile）。
   it("运行中 subagent_text 增量实时渲染，快照接管后缓冲清空", async () => {
     render(wrap(<SubagentThread sessionPath="s1.jsonl" target="sa_2_b2b2b2b2" task="任务" status="running" onBack={() => {}} />));
     await screen.findByText("开始检索公开信息。");
 
-    // 收集全部 onEvent 订阅回调（工具刷新 + 流式），事件广播给每一个
+    // 收集专用通道订阅回调（流式），事件广播给每一个
     type SubEventCb = (e: { kind?: string; text?: string; subagentRef?: string }) => void;
-    const cbs = (mocks.onEvent.mock.calls as unknown as SubEventCb[][]).map((c) => c[0]);
-    expect(cbs.length).toBeGreaterThanOrEqual(2);
+    const cbs = (mocks.onSubagentText.mock.calls as unknown as SubEventCb[][]).map((c) => c[0]);
+    expect(cbs.length).toBeGreaterThanOrEqual(1);
 
     // 他人会话的增量不入缓冲
     act(() => {
@@ -162,5 +168,23 @@ describe("SubagentThread 子代理对话全面板（v4.27）", () => {
     fireEvent.click(screen.getByRole("button", { name: "刷新对话" }));
     await screen.findByText("7 条");
     expect(screen.queryByTestId("agent-thread-streaming")).toBeNull();
+  });
+
+  // v4.62.1 回归钉子：流式增量绝不上 gaea-event（seq↔账本 1:1，上去了会
+  // 制造不可愈合缺口触发反复 resync 打断对话窗）——SubagentThread 不得从
+  // onEvent 订阅流式。
+  it("流式订阅走专用通道：onEvent 只收工具事件，不承担 subagent_text", async () => {
+    render(wrap(<SubagentThread sessionPath="s1.jsonl" target="sa_2_b2b2b2b2" task="任务" status="running" onBack={() => {}} />));
+    await screen.findByText("开始检索公开信息。");
+
+    // gaea-event 通道（onEvent）收到 subagent_text 时，组件不得进入流式渲染
+    type SubEventCb = (e: { kind?: string; text?: string; subagentRef?: string }) => void;
+    const eventCbs = (mocks.onEvent.mock.calls as unknown as SubEventCb[][]).map((c) => c[0]);
+    act(() => {
+      eventCbs.forEach((cb) => cb({ kind: "subagent_text", text: "不该被流式消费", subagentRef: "sa_2_b2b2b2b2" }));
+    });
+    expect(screen.queryByTestId("agent-thread-streaming")).toBeNull();
+    // 专用通道订阅确实已建立
+    expect(mocks.onSubagentText).toHaveBeenCalled();
   });
 });

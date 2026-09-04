@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Brain, ChevronRight, Loader2, Rollback } from "../icons";
-import { app, onEvent } from "../lib/bridge";
+import { app, onEvent, onSubagentText } from "../lib/bridge";
 import { useT, type Translator } from "../lib/i18n";
 import type { SubagentTranscriptMessage, SubagentTranscriptView } from "../lib/types";
 import { MemoMarkdown } from "./MemoMarkdown";
@@ -243,13 +243,15 @@ export function SubagentThread({
     return off;
   }, [running, load]);
 
-  // P1 流式：订阅 subagent_text 增量，按 subagentRef 路由到本会话 tab。
-  // 后端只对持久化子代理（sa_ ref）发增量；空 ref 的事件无消费方。缓冲从
-  // 空变非空时记录消息数基线（reconcile 用）。挂载期常开订阅——非 running
-  // 时不渲染缓冲行，完成态的尾部增量由 load 收尾接管。
+  // P1 流式（v4.62.1 分道）：订阅专用通道 gaea-subagent-text（无 seq、有损
+  // 无妨），按 subagentRef 路由到本会话 tab。增量绝不走 gaea-event——那条
+  // 通道的 seq 与账本 1:1（v4.26 缺口防线），装饰性流上去会制造不可愈合缺
+  // 口、触发反复 resync 打断对话窗（v4.62.0 回归）。缓冲从空变非空时记录
+  // 消息数基线（reconcile 用）。挂载期常开订阅——非 running 时不渲染缓冲行，
+  // 完成态的尾部增量由 load 收尾接管。
   useEffect(() => {
-    return onEvent((e: { kind?: string; text?: string; subagentRef?: string }) => {
-      if (e.kind !== "subagent_text" || !e.text || e.subagentRef !== target) return;
+    return onSubagentText((e) => {
+      if (!e.text || e.subagentRef !== target) return;
       setStreamBuf((prev) => {
         if (!prev) {
           const msgs = transcriptRef.current?.messages ?? [];

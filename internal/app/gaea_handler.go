@@ -515,6 +515,11 @@ const gaeaPhaseThrottleWindow = 200 * time.Millisecond
 //  2. phase 节流：同一阶段（同文案）200ms 内不重发（只影响 wire；磁盘日志
 //     保留全量，轨迹/恢复不受影响）；
 //  3. 事件转译见 gaeaEventMap（Retrying/compaction → phase）。
+//
+// 不变量（v4.62.1 钉死）：凡经本层上 gaea-event 的事件必须是「已入账本」
+// 的事件——seq 与磁盘日志 1:1 对应，缺口才可经 GaeaResyncEvents 补拉。
+// wire-only 类事件（SubagentText）一律走专用通道（emitGaeaEvent 分道），
+// 严禁进本层消费 seq。
 type gaeaEventForwarder struct {
 	seq atomic.Int64
 	mu  sync.Mutex
@@ -557,9 +562,42 @@ func (f *gaeaEventForwarder) payload(e event.Event) map[string]interface{} {
 // emitGaeaEvent 把一条 gaea 事件经转发层发到前端（seq 打点 + phase 节流）。
 // 事件此时已过 EventLogSink（「模型可见必入日志」在上游完成），本层不再落盘。
 func (a *App) emitGaeaEvent(e event.Event) {
+	// 子代理流式增量走专用通道（v4.62.1 回归修复）：gaea-event 的契约是
+	// 「每条 payload 带会话内单调 seq，且与磁盘日志 1:1 对应，丢件可经
+	// GaeaResyncEvents 从账本补拉」（v4.26 防线）。SubagentText 是装饰性
+	// 实时流（wire-only、有意不落盘），走 gaea-event 会消费 seq 却永远无法
+	// 补拉——transport 密集流丢一件即产生不可愈合缺口，防线反复整体重建
+	// 对话视图（v4.62.0 回归：子代理运行中对话窗过程可见性被打断）。专用
+	// 通道无 seq、有损无妨，由 SubagentThread 的快照 reconcile 兜底。
+	if m := gaeaSubagentTextPayload(e); m != nil {
+		a.emit(gaeaSubagentTextChannel, m)
+		return
+	}
 	if m := ga.wire.payload(e); m != nil {
 		a.emit("gaea-event", m)
 	}
+}
+
+// gaeaSubagentTextChannel 是子代理流式增量的专用 wails 事件名（见
+// emitGaeaEvent 的分道说明）。
+const gaeaSubagentTextChannel = "gaea-subagent-text"
+
+// gaeaSubagentTextPayload 把子代理流式增量映射为专用通道 payload；非该类
+// 事件返回 nil（走 gaea-event 主通道）。独立成纯函数钉死路由回归：
+// SubagentText 不得进入 gaea-event 的 seq 序列（gaeaSubagentTextPayload 命中
+// 即 return，wire.payload 永远见不到它）。
+func gaeaSubagentTextPayload(e event.Event) map[string]interface{} {
+	if e.Kind != event.SubagentText {
+		return nil
+	}
+	m := map[string]interface{}{"kind": "subagent_text", "text": e.Text}
+	if e.SubagentRef != "" {
+		m["subagentRef"] = e.SubagentRef
+	}
+	if e.ParentToolID != "" {
+		m["parentId"] = e.ParentToolID
+	}
+	return m
 }
 
 // gaeaEventMap 把 gaea 事件流转换为 gaeaW WireEvent 兼容格式（前端 store 直接消费）。
@@ -679,20 +717,6 @@ func gaeaEventMap(e event.Event) map[string]interface{} {
 		if e.ParentToolID != "" {
 			m["parentId"] = e.ParentToolID
 		}
-	case event.SubagentText:
-		// v4.62 P1 逐 token 流式：持久化子代理运行中的助手文本增量。前端
-		// SubagentThread 按 subagentRef 路由到对应会话 tab 实时追加渲染；
-		// 主聊天 reducer 对未知 kind 整条丢弃，不会误入主对话。wire-only
-		// （EventLogSink 不落盘，见 session/sink.go），断流由前端既有
-		// transcript 快照/轮询兜底补齐。
-		m["kind"] = "subagent_text"
-		m["text"] = e.Text
-		if e.SubagentRef != "" {
-			m["subagentRef"] = e.SubagentRef
-		}
-		if e.ParentToolID != "" {
-			m["parentId"] = e.ParentToolID
-		}
 	case event.Steer:
 		// 运行中插话：agent 已把该消息作为当前回合 guidance 消费，
 		// 前端以轻量 notice 回显（不渲染成独立用户气泡）。
@@ -712,7 +736,6 @@ func gaeaKindName(k event.Kind) string {
 		event.TurnDone: "turn_done", event.CompactionStarted: "compaction_started",
 		event.CompactionDone: "compaction_done", event.Steer: "notice",
 		event.SubagentMessage: "subagent_message",
-		event.SubagentText:    "subagent_text",
 	}
 	if n, ok := names[k]; ok {
 		return n

@@ -140,9 +140,10 @@ const mocks = vi.hoisted(() => ({
   SubagentRuns: vi.fn(),
   SubagentTranscript: vi.fn(),
   onEvent: vi.fn(() => () => {}),
+  onSubagentText: vi.fn(() => () => {}),
 }));
 
-vi.mock("../lib/bridge", () => ({ app: mocks, onEvent: mocks.onEvent }));
+vi.mock("../lib/bridge", () => ({ app: mocks, onEvent: mocks.onEvent, onSubagentText: mocks.onSubagentText }));
 
 beforeEach(() => {
   vi.clearAllMocks();

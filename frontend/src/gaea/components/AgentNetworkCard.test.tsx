@@ -18,6 +18,7 @@ vi.mock("../lib/bridge", () => ({
   app: { AgentNetwork: agentNetworkMock, SubagentRuns: subagentRunsMock, SubagentTranscript: subagentTranscriptMock },
   openExternal: vi.fn(),
   onEvent: vi.fn(() => () => {}),
+  onSubagentText: vi.fn(() => () => {}),
 }));
 
 const NETWORK: AgentNetwork = {

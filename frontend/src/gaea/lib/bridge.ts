@@ -667,6 +667,29 @@ export function onEvent(cb: (e: WireEvent) => void): () => void {
 // Must match desktop/app.go's eventChannel constant.
 const EVENT_CHANNEL = "gaea-event";
 
+/** 子代理流式增量事件（专用通道 payload，v4.62.1 与 gaea-event 分道）。 */
+export interface SubagentTextEvent {
+  kind: "subagent_text";
+  text: string;
+  subagentRef?: string;
+  parentId?: string;
+}
+
+// 子代理流式增量走专用 wails 通道（无 seq）：gaea-event 的契约是「seq 与磁盘
+// 账本 1:1，丢件可 resync 补拉」（v4.26 防线）；本通道是有损无妨的装饰性实时
+// 流，绝不可上 gaea-event 消费 seq（v4.62.0 曾因此把对话窗过程可见性打断）。
+// mock 场景复用 mockSubscribe：mock 可用 kind=subagent_text 的事件演示流式。
+const SUBAGENT_TEXT_CHANNEL = "gaea-subagent-text";
+
+// onSubagentText subscribes to the subagent streaming-delta channel.
+export function onSubagentText(cb: (e: SubagentTextEvent) => void): () => void {
+  if (realApp() && typeof window !== "undefined" && window.runtime) {
+    window.runtime.EventsOn(SUBAGENT_TEXT_CHANNEL, (payload) => cb(payload as SubagentTextEvent));
+    return () => window.runtime?.EventsOff?.(SUBAGENT_TEXT_CHANNEL);
+  }
+  return mockSubscribe(cb as unknown as (e: WireEvent) => void);
+}
+
 // Resolve the Wails binding at CALL time, not module-load time: in dev the Wails
 // runtime can inject window.go AFTER this module first evaluates, so snapshotting
 // once would pin the browser mock for the whole session (and show fake data — the
