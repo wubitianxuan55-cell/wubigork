@@ -71,24 +71,61 @@ func (a *App) GaeaAgentNetwork() (trajectory.AgentNetwork, error) {
 	return net, nil
 }
 
+// runMatchesNode 判定一个已落盘 run 是否已被树上的节点承载：
+// ref 直等（合成节点 id=sa_ ref），或任务摘要前缀双向（与前端
+// AgentTree.matchRunForNode / 后端富化同口径）。
+func runMatchesNode(r SubagentRunView, node trajectory.AgentNode) bool {
+	if r.Ref != "" && r.Ref == node.ID {
+		return true
+	}
+	return node.Task != "" && r.Task != "" &&
+		(strings.HasPrefix(r.Task, node.Task) || strings.HasPrefix(node.Task, r.Task))
+}
+
 // enrichAgentNetwork 把 subagents/ meta 合并进 Agent 网络子代理节点：
 // 按任务摘要匹配（子代理 transcript 首条 user 消息 ≈ task 调用的 prompt 预览）。
+// 树来自事件日志折叠，「零工具调用」的子代理（纯调研/禁用工具）在日志里
+// 没有子记录、FoldAgentNetwork 不为其建节点——这里对没有任何节点承载的
+// run 补挂合成节点（id=sa_ ref），保证任何已落盘运行都在树上可见。
 func enrichAgentNetwork(net *trajectory.AgentNetwork, runs SubagentRunsView) {
 	if !runs.Available || len(runs.Runs) == 0 {
 		return
 	}
+	matched := make([]bool, len(runs.Runs))
 	for i := range net.Root.Children {
 		node := &net.Root.Children[i]
-		for _, r := range runs.Runs {
-			if node.Task != "" && r.Task != "" &&
-				(strings.HasPrefix(r.Task, node.Task) || strings.HasPrefix(node.Task, r.Task)) {
+		for j, r := range runs.Runs {
+			if runMatchesNode(r, *node) {
 				node.Status = r.Status
 				node.Model = r.Model
 				if node.Task == "" {
 					node.Task = r.Task
 				}
+				matched[j] = true
 				break
 			}
 		}
+	}
+	for j, r := range runs.Runs {
+		if matched[j] || r.Kind == "model_tool" {
+			continue
+		}
+		status := r.Status
+		if status == "failed" {
+			status = "error"
+		} else if status != "running" {
+			status = "completed"
+		}
+		net.Root.Children = append(net.Root.Children, trajectory.AgentNode{
+			ID:        r.Ref,
+			Name:      r.Task,
+			Kind:      "subagent",
+			Status:    status,
+			Model:     r.Model,
+			Task:      r.Task,
+			ToolCalls: r.ToolCalls,
+			FirstTs:   r.CreatedAt.Unix(),
+			LastTs:    r.UpdatedAt.Unix(),
+		})
 	}
 }
