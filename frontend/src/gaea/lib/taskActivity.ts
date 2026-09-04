@@ -167,3 +167,51 @@ export function matchRunningRun<T extends SubagentRunLike>(
   }
   return hit;
 }
+
+// ── 打开子代理会话 tab 的注入点（v4.63，用户点名）────────────────────
+// task / run_skill 卡解析出可点的子代理 ref 时整卡可点，点击经此回调交给
+// App 打开对应会话 tab（与右栏任务树/左栏子行同款跳转）。渲染层与跳转层
+// 依旧解耦：本模块只持槽位，App 注册实现。
+//
+// 契约：
+//  - openTarget(ref, args) → 可点的子代理 ref（空串 = 不可点）。App 侧：
+//    args/output 已解析到的 ref 直接放行；空 ref 回退「唯一 running 命中」
+//    （matchRunningRun，宁缺勿错——历史完成卡无 ref 则不可点，如实）。
+//  - openHandler(ref)：执行跳转（App.openSubagentTab，status/task/model
+//    由 App 从 runs 缓存预填；tab 打开后既有 5s 轮询会自校正）。
+//  - 两个槽位置 null 即卸载注入，卡片回退默认渲染（点击=展开折叠区）。
+
+let openTargetResolver: ((ref: string, args?: unknown) => string) | null = null;
+let openHandler: ((ref: string) => void) | null = null;
+
+export function setTaskCardOpenTarget(fn: ((ref: string, args?: unknown) => string) | null): void {
+  openTargetResolver = fn;
+}
+
+export function setTaskCardOpenHandler(fn: ((ref: string) => void) | null): void {
+  openHandler = fn;
+}
+
+/** 卡片可点的目标 ref；空串 = 不可点（无注入/无命中）。 */
+export function getTaskCardOpenTarget(ref: string, args?: unknown): string {
+  if (openTargetResolver) {
+    try {
+      return openTargetResolver(ref, args) || "";
+    } catch {
+      // resolver 异常按不可点处理，绝不阻断卡片渲染
+      return "";
+    }
+  }
+  return ref; // 无注入：args/output 解析到的 ref 直接可用（旧行为兼容）
+}
+
+/** 执行跳转；返回是否已派发（false = 无注入/空 ref，调用方维持现状）。 */
+export function openTaskCardSession(ref: string): boolean {
+  if (!openHandler || !ref) return false;
+  try {
+    openHandler(ref);
+    return true;
+  } catch {
+    return false;
+  }
+}

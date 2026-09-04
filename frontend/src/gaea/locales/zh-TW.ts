@@ -1111,6 +1111,7 @@ export const zhTW: Record<DictKey, string> = {
 
   // ── v4.57 i18n 收尾：ToolCard ──
   "tool.viewAssignments": "查看分工",
+  "tool.openSessionHint": "點擊開啟子代理會話",
   "tool.diffStatTitle": "行級增減",
   "tool.outputHeader": "輸出 · {n}L",
   "tool.collapseOutput": "收起輸出",

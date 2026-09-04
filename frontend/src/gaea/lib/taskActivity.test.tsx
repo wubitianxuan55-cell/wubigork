@@ -82,7 +82,7 @@ describe("ToolCard task 卡 live 行", () => {
     expect(view.container.querySelector('[data-testid="task-live"]')).toBeNull();
   });
 
-  it("注入后运行中显示活动预览 / 已用时 / 查看分工", () => {
+  it("注入后运行中显示活动预览 / 已用时 / 打开会话提示", () => {
     setTaskCardActivityProvider((ref) =>
       ref === "sa_9"
         ? { lastText: "正在核对 config.json 的键位", lastTool: "read_file config.json", state: "running" }
@@ -93,7 +93,7 @@ describe("ToolCard task 卡 live 行", () => {
     expect(live).not.toBeNull();
     expect(live?.textContent).toContain("正在核对 config.json 的键位");
     expect(live?.textContent).toContain("read_file config.json");
-    expect(live?.textContent).toContain("查看分工");
+    expect(live?.textContent).toContain("点击打开子代理会话");
     expect(live?.textContent).toMatch(/\d+s/);
   });
 

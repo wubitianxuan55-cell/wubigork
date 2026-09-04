@@ -72,7 +72,7 @@ import { setPaneFileOpenHandler } from "./lib/paneFileOpen";
 import { parseSidebarOpenResult } from "./lib/sidebarOpen";
 import { setEventSyncFetcher } from "./lib/eventSync";
 import { shouldAutoOpenBrowser } from "./lib/browserPrefs";
-import { matchRunningRun, setTaskCardActivityProvider } from "./lib/taskActivity";
+import { matchRunningRun, setTaskCardActivityProvider, setTaskCardOpenHandler, setTaskCardOpenTarget } from "./lib/taskActivity";
 import { classifyComposerCommand } from "./lib/command";
 import { rankPaletteItems } from "./lib/paletteRank";
 import {
@@ -977,7 +977,24 @@ export default function App() {
       }
       return pick(runningRuns[0]);
     });
-    return () => setTaskCardActivityProvider(null);
+    // v4.63：task/run_skill 卡整卡可点 → 打开对应子代理会话 tab（与右栏
+    // 任务树同款跳转）。目标解析：args/output 已带 ref 直接放行；空 ref 回退
+    // 「唯一 running 命中」（宁缺勿错，历史完成卡无 ref 不可点，如实）。
+    // tab 的 task/status/model 由 runs 缓存预填，打开后 5s 轮询自校正。
+    setTaskCardOpenTarget((ref, args) => {
+      if (ref) return ref;
+      const running = subRunsCacheRef.current.filter((r) => r.status === "running");
+      return matchRunningRun(args, running)?.ref ?? "";
+    });
+    setTaskCardOpenHandler((ref) => {
+      const hit = subRunsCacheRef.current.find((r) => r.ref === ref);
+      openSubagentThread({ sessionPath: currentSessionPath ?? "", ref, task: hit?.task, status: hit?.status ?? "running", model: hit?.model });
+    });
+    return () => {
+      setTaskCardActivityProvider(null);
+      setTaskCardOpenTarget(null);
+      setTaskCardOpenHandler(null);
+    };
   }, []);
   useEffect(() => {
     if (!state.running || !currentSessionPath) {

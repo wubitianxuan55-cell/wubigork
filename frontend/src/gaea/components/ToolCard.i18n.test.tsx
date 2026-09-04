@@ -4,7 +4,7 @@ import { describe, expect, it, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 import { ToolCard } from "./ToolCard";
 import { LocaleProvider } from "../lib/i18n";
-import { setTaskCardActivityProvider } from "../lib/taskActivity";
+import { setTaskCardActivityProvider, setTaskCardOpenHandler, setTaskCardOpenTarget } from "../lib/taskActivity";
 import type { Item } from "../lib/store";
 
 const renderT = (ui: React.ReactNode) => {
@@ -43,7 +43,7 @@ describe("ToolCard i18n 冒烟", () => {
     expect(screen.getByText("收起输出")).toBeTruthy();
   });
 
-  it("task 卡运行中显示「查看分工」活动行（zh）", () => {
+  it("task 卡运行中显示「点击打开子代理会话」活动行（zh）", () => {
     setTaskCardActivityProvider(() => ({ lastText: "正在收集资料", state: "running" }));
     const taskItem: Item = {
       kind: "tool",
@@ -55,6 +55,55 @@ describe("ToolCard i18n 冒烟", () => {
     };
     renderT(<ToolCard item={taskItem} />);
     expect(screen.getByTestId("task-live")).toBeTruthy();
-    expect(screen.getByText("查看分工")).toBeTruthy();
+    expect(screen.getByText("点击打开子代理会话")).toBeTruthy();
+  });
+});
+
+// ── v4.63 子代理卡片整卡可点：task 卡点击派发「打开会话」跳转 ──
+describe("ToolCard 子代理卡片点击跳转（v4.63）", () => {
+  afterEach(() => {
+    cleanup();
+    setTaskCardOpenHandler(null);
+    setTaskCardOpenTarget(null);
+    setTaskCardActivityProvider(null);
+  });
+
+  const taskCard: Item = {
+    kind: "tool",
+    id: "task-1",
+    name: "task",
+    args: "{}",
+    readOnly: false,
+    status: "done",
+    output: "调研完成。\nSubagent reference: sa_abc123",
+  };
+
+  it("解析到 ref：点击整卡派发跳转（不再走展开折叠）", () => {
+    const opened: string[] = [];
+    setTaskCardOpenHandler((ref) => opened.push(ref));
+    setTaskCardOpenTarget((ref) => ref);
+    renderT(<ToolCard item={taskCard} />);
+    fireEvent.click(screen.getByText("task"));
+    expect(opened).toEqual(["sa_abc123"]);
+  });
+
+  it("无注入（解析不到 ref）：点击不跳转，维持展开折叠现状", () => {
+    renderT(<ToolCard item={taskCard} />);
+    fireEvent.click(screen.getByText("task"));
+    // 展开行为：输出区可见（默认折叠，点击后展开）
+    expect(screen.getByText(/输出 · /)).toBeTruthy();
+  });
+
+  it("空 ref 回退：唯一 running 命中时由 App 解析器给出目标 ref", () => {
+    const opened: string[] = [];
+    setTaskCardOpenHandler((ref) => opened.push(ref));
+    setTaskCardOpenTarget((ref, args) => (ref === "" && String(args).includes("土壤修复") ? "sa_running9" : ""));
+    renderT(
+      <ToolCard
+        item={{ ...taskCard, output: "", args: "{\"description\":\"土壤修复技术调研\"}", status: "running" }}
+      />,
+    );
+    fireEvent.click(screen.getByText("task"));
+    expect(opened).toEqual(["sa_running9"]);
   });
 });

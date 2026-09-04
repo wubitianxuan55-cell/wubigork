@@ -14,7 +14,7 @@ import { useT } from "../lib/i18n";
 import { useCompact } from "../hooks/useCompact";
 import { useGSAPCollapse } from "../lib/useGSAPCollapse";
 import { boundedOutput, diffStatFor, diffsFor, subjectOf, summarize } from "../lib/tools";
-import { getTaskCardActivity, hasTaskCardActivityProvider, resolveTaskRef, taskResultSummary } from "../lib/taskActivity";
+import { getTaskCardActivity, getTaskCardOpenTarget, hasTaskCardActivityProvider, openTaskCardSession, resolveTaskRef, taskResultSummary } from "../lib/taskActivity";
 import { formatElapsed } from "../lib/time";
 import { useNow } from "../lib/useNow";
 import type { Item } from "../lib/store";
@@ -56,6 +56,8 @@ function TaskLiveRow({ item }: { item: ToolItem }) {
   // args 原样透传：派发初期 ref 为空串时，App 侧 provider 可用 args 里的
   // 任务描述文本与并行各 run.task 做唯一命中匹配（taskActivity 契约）。
   const activity = getTaskCardActivity(ref, item.args);
+  // v4.63：运行中活动行本身也是「打开会话」入口（与整卡点击同语义）。
+  const openRef = ref || getTaskCardOpenTarget("", item.args);
   // 未注入活动数据源（null）：按现状渲染（v4.26 之前没有这一行）
   if (!hasTaskCardActivityProvider()) return null;
   const elapsed = formatElapsed(Math.max(0, now - Math.floor(startRef.current / 1000)));
@@ -63,7 +65,9 @@ function TaskLiveRow({ item }: { item: ToolItem }) {
   return (
     <div
       data-testid="task-live"
-      className="flex items-center gap-1.5 px-2 pb-1 pl-7 text-[11px] text-fg-faint select-none"
+      className={`flex items-center gap-1.5 px-2 pb-1 pl-7 text-[11px] text-fg-faint select-none ${openRef ? "cursor-pointer hover:text-fg-dim" : ""}`}
+      title={openRef ? t("tool.openSessionHint") : undefined}
+      onClick={openRef ? () => { openTaskCardSession(openRef); } : undefined}
     >
       {activity?.lastText && (
         <span className="min-w-0 truncate text-fg-dim/80" title={activity.lastText}>
@@ -78,7 +82,7 @@ function TaskLiveRow({ item }: { item: ToolItem }) {
       <span className="ml-auto shrink-0 tabular-nums">{elapsed}</span>
       <span className="inline-flex shrink-0 items-center gap-1">
         <Users size={11} className="shrink-0" />
-        {t("tool.viewAssignments")}
+        {t("tool.openSessionHint")}
       </span>
     </div>
   );
@@ -124,6 +128,15 @@ export const ToolCard = memo(function ToolCard({ item, subcalls }: { item: ToolI
 
   const outputLines = item.output ? item.output.split("\n").length : 0;
 
+  // v4.63 子代理卡片整卡可点：task / run_skill 卡解析出可跳转的子代理 ref
+  // 时，点击头部行直接打开对应会话 tab（与右栏任务树同款跳转），不再只是
+  // 折叠展开。空目标 = 不可点（诚实维持现状）。
+  const isSubagentCard = item.name === "task" || item.name === "run_skill";
+  const openTarget = isSubagentCard
+    ? getTaskCardOpenTarget(resolveTaskRef(item.args, item.output), item.args)
+    : "";
+  const clickable = isSubagentCard && !!openTarget;
+
   const rowPy = compact ? "py-0" : "py-0.5";
   const rowPx = compact ? "px-1" : "px-2";
   const chevronSize = compact ? 11 : 12;
@@ -143,7 +156,14 @@ export const ToolCard = memo(function ToolCard({ item, subcalls }: { item: ToolI
         className={`flex items-center gap-1.5 ${rowPx} ${rowPy} select-none ${
           expandable ? "cursor-pointer hover:bg-bg-soft" : ""
         } ${quiet ? "text-fg-faint/60" : "text-fg-dim"}`}
-        onClick={expandable ? () => setOpen((v) => !v) : undefined}
+        onClick={
+          clickable
+            ? () => { openTaskCardSession(openTarget); }
+            : expandable
+              ? () => setOpen((v) => !v)
+              : undefined
+        }
+        title={clickable ? t("tool.openSessionHint") : undefined}
       >
         {expandable ? (
           <ChevronRight

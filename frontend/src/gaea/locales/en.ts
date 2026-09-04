@@ -1106,6 +1106,7 @@ export const en = {
 
   // ── v4.57 i18n 收尾：ToolCard ──
   "tool.viewAssignments": "View assignments",
+  "tool.openSessionHint": "Click to open the subagent session",
   "tool.diffStatTitle": "Line-level additions/deletions",
   "tool.outputHeader": "Output · {n}L",
   "tool.collapseOutput": "Collapse output",
