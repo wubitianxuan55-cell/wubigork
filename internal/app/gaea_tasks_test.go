@@ -449,3 +449,39 @@ func TestTaskSubmissionsTargetWorkSpace(t *testing.T) {
 		t.Fatalf("提交点 kind 覆盖不全: %v", kinds)
 	}
 }
+
+// TestGaeaTaskKillForceTerminates：GaeaTaskKill 强杀运行中任务（queued 直接
+// 取消、已结束报错）——透传 Manager.Kill 语义，强杀钩子由 tasks 包用例以
+// 真实子进程覆盖，此处验证绑定面语义与终态判定。
+func TestGaeaTaskKillForceTerminates(t *testing.T) {
+	a := newTestTaskApp(t)
+	startTasks(t, a)
+	started := make(chan struct{})
+	a.officeState.tasks.Register(tasks.KindPriceFetch, func(ctx context.Context, tk *tasks.Task, p *tasks.Progress) error {
+		close(started)
+		<-ctx.Done()
+		return ctx.Err()
+	})
+	tk, err := a.officeState.tasks.Submit(tasks.KindPriceFetch, "测试强杀", nil)
+	if err != nil {
+		t.Fatalf("submit: %v", err)
+	}
+	select {
+	case <-started:
+	case <-time.After(2 * time.Second):
+		t.Fatal("任务未开始")
+	}
+	if err := a.GaeaTaskKill(tk.ID); err != nil {
+		t.Fatalf("kill: %v", err)
+	}
+	done, err := a.officeState.tasks.Wait(context.Background(), tk.ID, 5*time.Second)
+	if err != nil {
+		t.Fatalf("wait: %v", err)
+	}
+	if done.Status != "cancelled" {
+		t.Fatalf("期望 cancelled，实际 %s", done.Status)
+	}
+	if err := a.GaeaTaskKill(tk.ID); err == nil {
+		t.Fatal("强杀已结束任务应报错")
+	}
+}

@@ -29,7 +29,7 @@ type OfficeMethods = Pick<
   | "CaptureScreen" | "RecognizeImage" | "OCRText"
   | "HerdsmanDigitalLife" | "HerdsmanOperations"
   | "PickFiles" | "PickDirectory"
-  | "TaskList" | "TaskCancel" | "TaskRetry" | "TaskOutput"
+  | "TaskList" | "TaskCancel" | "TaskKill" | "TaskRetry" | "TaskOutput"
   | "GaeaJournalList" | "VerifyRecord" | "RollbackRecord"
 >;
 
@@ -553,6 +553,16 @@ export function buildOffice(_s: MakeMockState): OfficeMethods {
       const t = taskMock.find((x) => x.id === id);
       if (t && (t.status === "queued" || t.status === "running")) {
         t.status = "cancelled";
+        t.finishedAt = Date.now();
+        mockTaskListeners.forEach((l) => l(t));
+      }
+    },
+    async TaskKill(id: string) {
+      // mock：强杀 = 立即终态（真实实现 = 协作取消 + 进程树击杀钩子）。
+      const t = taskMock.find((x) => x.id === id);
+      if (t && (t.status === "queued" || t.status === "running" || t.status === "stopping")) {
+        t.status = "cancelled";
+        t.message = "已强制终止";
         t.finishedAt = Date.now();
         mockTaskListeners.forEach((l) => l(t));
       }

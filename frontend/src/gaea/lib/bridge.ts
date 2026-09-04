@@ -609,10 +609,12 @@ export interface AppBindings {
   PickFiles(): Promise<FilePickResult[]>;
   // ── 阶段 5 T5-1 任务中心 ──
   // TaskList 返回最近任务（新→旧）；TaskCancel 取消（running 中断/queued 取消）；
-  // TaskRetry 重试失败/已取消的任务；TaskOutput 读取任务实时输出尾部（C1）。
-  // 任务实时进度经 onTaskEvent 推送。
+  // TaskKill 强制终止（v4.78：协作取消 + 击杀任务自有 OS 进程树；纯函数任务
+  // 等价 TaskCancel）；TaskRetry 重试失败/已取消的任务；TaskOutput 读取任务
+  // 实时输出尾部（C1）。任务实时进度经 onTaskEvent 推送。
   TaskList(space?: string[]): Promise<TaskView[]>;
   TaskCancel(id: string): Promise<void>;
+  TaskKill(id: string): Promise<void>;
   TaskRetry(id: string): Promise<void>;
   TaskOutput(id: string): Promise<TaskOutputView>;
   // v4.1 证据链：Journal 最近证据卡（跨会话聚合，时间倒序；前端「证据」入口）。
@@ -952,6 +954,7 @@ const gaeaToGaea = {
   TaskList: "GaeaTaskList",
   SubagentFollowUp: "GaeaSubagentFollowUp",
   TaskCancel: "GaeaTaskCancel",
+  TaskKill: "GaeaTaskKill",
   TaskRetry: "GaeaTaskRetry",
   TaskOutput: "GaeaTaskOutput",
   GaeaJournalList: "GaeaJournalList",

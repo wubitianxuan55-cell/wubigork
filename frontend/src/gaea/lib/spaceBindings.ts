@@ -297,6 +297,7 @@ export const GAEA_METHOD_FACETS = {
   PickFiles: "work",
   TaskList: "work",
   TaskCancel: "work",
+  TaskKill: "work",
   TaskRetry: "work",
   TaskOutput: "work",
   // v4.1 证据链：Journal 读取属工位（前端「证据」入口，DeliverablesPanel）。

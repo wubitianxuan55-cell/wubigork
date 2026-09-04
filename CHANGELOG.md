@@ -1,3 +1,12 @@
+## v4.78.0 · 任务强制终止收口：进程树击杀 · 两击确认（2026-09-04）
+> 双源蒸馏规划（docs/gaea-dsh-better-sidebar-long-term-distill-plan-2026.md）
+> 阶段一 1a 刀；决策门 D1 采纳推荐默认（只做任务输出+强杀，交互终端不进队列）。
+> **绑定面 569→570**（+GaeaTaskKill）。详见 releases/v4.78.0.md。
+- **Go 进程级强杀**：`tasks.Progress.OnForceKill(fn)` 进程类任务登记强杀钩子（典型=闭包 proc.KillTree/KillTracked），尝试结束三处同拍统一清理；`tasks.Manager.Kill(id)`：queued 原子取消（message=已强制终止）／running 锁内快照 cancel+钩子并记 cancelReq（与 Cancel 同纪律），锁外先杀进程树再传播 ctx 取消，幂等，无钩子诚实降级等价 Cancel。
+- **前端两击确认**（对齐源任务设计文档防误杀）：TaskCenter running「强制终止」首击进入 3s 确认态（红描边+「再击确认终止」），再击才调 GaeaTaskKill；queued/stopping 保持单击；bridge/spaceBindings/mock/i18n 三语 +3 键。
+- **窄屏自动激活策略审计**（1a 第三项）：CSS 1239px 隐藏断点与 openTasksAuto <1240 判定一致，零改码审计通过。
+- 测试：tasks_kill_test 4 用例（真实子进程强杀 -count=2 绿）+ app 透传 +1 + TaskCenter 两击确认 2 用例；门禁：go vet 0、go test 全量除 1 个既有 TempDir 清理 flaky（单跑复验绿）、tsc -b/eslint 0、vitest 223/1683、drift PASS（570）。**绑定面计数勘误**：v4.67~v4.77 所记 561 为过期口径（小说并行会话未提交绑定所致），本刀起以 drift 实际输出为准。
+
 ## v4.77.0 · 小说板块革命：场景制生成 + 确定性去 AI 味闭环（2026）
 > 用户点名「彻底、革命性、解决长文写作和 AI 味」。先做竞品调研（商业 Sudowrite/NovelCrafter/
 > NovelAI + 中文 马良写作 硬数据「20万字后设定矛盾率 83%→23%」+ 社区 anti-ai-checklist/anti-ai-polish），

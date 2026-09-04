@@ -1224,6 +1224,8 @@ export const zh: Record<DictKey, string> = {
   "tasks.statusFailed": "失败",
   "tasks.statusCancelled": "已取消",
   "tasks.cancelRequested": "已请求取消任务",
+  "tasks.killRequested": "已请求强制终止",
+  "tasks.killFail": "强制终止失败：{msg}",
   "tasks.cancelFail": "取消失败：{msg}",
   "tasks.requeued": "任务已重新排队",
   "tasks.retryFail": "重试失败：{msg}",
@@ -1246,6 +1248,7 @@ export const zh: Record<DictKey, string> = {
   "tasks.retried": "已重试 {n} 次",
   "tasks.stoppingBtn": "停止中…",
   "tasks.forceStopBtn": "强制终止",
+  "tasks.forceStopConfirm": "再击确认终止",
   "tasks.cancelBtn": "取消",
   "tasks.retryBtn": "重试",
 

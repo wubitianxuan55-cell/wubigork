@@ -1223,6 +1223,8 @@ export const en = {
   "tasks.statusFailed": "Failed",
   "tasks.statusCancelled": "Cancelled",
   "tasks.cancelRequested": "Cancellation requested",
+  "tasks.killRequested": "Force stop requested",
+  "tasks.killFail": "Force stop failed: {msg}",
   "tasks.cancelFail": "Cancel failed: {msg}",
   "tasks.requeued": "Task re-queued",
   "tasks.retryFail": "Retry failed: {msg}",
@@ -1245,6 +1247,7 @@ export const en = {
   "tasks.retried": "Retried {n} times",
   "tasks.stoppingBtn": "Stopping…",
   "tasks.forceStopBtn": "Force stop",
+  "tasks.forceStopConfirm": "Click again to confirm",
   "tasks.cancelBtn": "Cancel",
   "tasks.retryBtn": "Retry",
 

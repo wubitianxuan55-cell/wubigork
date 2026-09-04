@@ -144,6 +144,17 @@ func (a *App) GaeaTaskCancel(id string) error {
 	return m.Cancel(id)
 }
 
+// GaeaTaskKill 强制终止一个任务：协作取消之外执行 handler 经
+// Progress.OnForceKill 登记的强杀钩子（击杀任务自有 OS 进程树）；纯函数
+// 任务等价 GaeaTaskCancel（诚实降级）。
+func (a *App) GaeaTaskKill(id string) error {
+	m := a.taskMgr()
+	if m == nil || !m.Available() {
+		return fmt.Errorf("任务调度器未启动")
+	}
+	return m.Kill(id)
+}
+
 // GaeaTaskRetry 重试一个失败/已取消的任务。
 func (a *App) GaeaTaskRetry(id string) error {
 	m := a.taskMgr()

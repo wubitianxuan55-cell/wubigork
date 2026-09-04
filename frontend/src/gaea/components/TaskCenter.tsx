@@ -143,6 +143,20 @@ export function TaskCenter() {
     [toast, t],
   );
 
+  // v4.78 强制终止：协作取消 + 击杀任务自有 OS 进程树（Go 侧 Progress
+  // OnForceKill 钩子）；纯函数任务后端等价取消。
+  const kill = useCallback(
+    async (id: string) => {
+      try {
+        await workApp.TaskKill(id);
+        toast.show(t("tasks.killRequested"), "info");
+      } catch (e) {
+        toast.show(t("tasks.killFail", { msg: String(e) }), "warn");
+      }
+    },
+    [toast, t],
+  );
+
   const retry = useCallback(
     async (id: string) => {
       try {
@@ -220,7 +234,7 @@ export function TaskCenter() {
         {active.length > 0 && (
           <div className="space-y-2">
             {active.map((t) => (
-              <TaskRow key={t.id} task={t} selected={t.id === selectedId} onSelect={select} onCancel={cancel} onRetry={retry} />
+              <TaskRow key={t.id} task={t} selected={t.id === selectedId} onSelect={select} onCancel={cancel} onKill={kill} onRetry={retry} />
             ))}
           </div>
         )}
@@ -232,7 +246,7 @@ export function TaskCenter() {
             </div>
             <div className="space-y-1">
               {history.map((t) => (
-                <TaskRow key={t.id} task={t} selected={t.id === selectedId} onSelect={select} onCancel={cancel} onRetry={retry} />
+                <TaskRow key={t.id} task={t} selected={t.id === selectedId} onSelect={select} onCancel={cancel} onKill={kill} onRetry={retry} />
               ))}
             </div>
           </>
@@ -292,18 +306,32 @@ function TaskRow({
   selected,
   onSelect,
   onCancel,
+  onKill,
   onRetry,
 }: {
   task: TaskView;
   selected: boolean;
   onSelect: (id: string) => void;
   onCancel: (id: string) => void;
+  onKill: (id: string) => void;
   onRetry: (id: string) => void;
 }) {
   const t = useT();
   const meta = statusMeta(task.status, t);
   const running = task.status === "running" || task.status === "queued" || task.status === "stopping";
   const cancelable = task.status === "running" || task.status === "queued" || task.status === "stopping";
+  // v4.78 两击确认（对齐 dsh 任务页防误杀）：running 首击进入确认态，3s 无
+  // 再击自动回退；状态离开 running（如已转 stopping）一并复位。
+  const [confirmingKill, setConfirmingKill] = useState(false);
+  useEffect(() => {
+    if (task.status !== "running") {
+      setConfirmingKill(false);
+      return;
+    }
+    if (!confirmingKill) return;
+    const timer = window.setTimeout(() => setConfirmingKill(false), 3000);
+    return () => window.clearTimeout(timer);
+  }, [confirmingKill, task.status]);
   return (
     <div
       className="group rounded-[var(--radius-md)] p-2.5 space-y-1.5 cursor-pointer transition-colors"
@@ -385,19 +413,42 @@ function TaskRow({
         <span className="ml-auto flex items-center gap-1">
           {cancelable && (
             <button
+              type="button"
+              data-testid={task.status === "running" ? "task-kill-btn" : "task-cancel-btn"}
+              title={task.status === "running" ? (confirmingKill ? t("tasks.forceStopConfirm") : t("tasks.forceStopBtn")) : undefined}
+              aria-label={task.status === "running" ? (confirmingKill ? t("tasks.forceStopConfirm") : t("tasks.forceStopBtn")) : t("tasks.cancelBtn")}
               className="px-1.5 py-0.5 rounded-md cursor-pointer transition-colors"
-              style={{
-                border: "1px solid var(--md-sys-color-outline-variant)",
-                color: task.status === "stopping" ? "var(--md-sys-color-warning)" : "var(--md-sys-color-text-secondary)",
-                background: "transparent",
-              }}
+              style={
+                confirmingKill
+                  ? {
+                      border: "1px solid var(--md-sys-color-destructive)",
+                      color: "var(--md-sys-color-destructive)",
+                      background: "color-mix(in srgb, var(--md-sys-color-destructive) 12%, transparent)",
+                    }
+                  : {
+                      border: "1px solid var(--md-sys-color-outline-variant)",
+                      color: task.status === "stopping" ? "var(--md-sys-color-warning)" : "var(--md-sys-color-text-secondary)",
+                      background: "transparent",
+                    }
+              }
               onClick={(e) => {
                 e.stopPropagation();
+                if (task.status === "running") {
+                  if (!confirmingKill) {
+                    setConfirmingKill(true);
+                    return;
+                  }
+                  setConfirmingKill(false);
+                  onKill(task.id);
+                  return;
+                }
                 onCancel(task.id);
               }}
             >
               {task.status === "running"
-                ? t("tasks.forceStopBtn")
+                ? confirmingKill
+                  ? t("tasks.forceStopConfirm")
+                  : t("tasks.forceStopBtn")
                 : task.status === "stopping"
                   ? t("tasks.stoppingBtn")
                   : t("tasks.cancelBtn")}

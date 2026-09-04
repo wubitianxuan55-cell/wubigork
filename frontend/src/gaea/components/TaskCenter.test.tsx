@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, afterEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import { TaskCenter } from "./TaskCenter";
 import { ToastProvider } from "./Toast";
 import { LocaleProvider } from "../lib/i18n";
@@ -10,10 +10,17 @@ const tasks = vi.hoisted(() => ({
   output: {} as Record<string, TaskOutputView>,
 }));
 
+// v4.78：Cancel/Kill 间谍（两击确认断言用）
+const spies = vi.hoisted(() => ({
+  cancel: vi.fn<(id: string) => Promise<void>>().mockResolvedValue(undefined),
+  kill: vi.fn<(id: string) => Promise<void>>().mockResolvedValue(undefined),
+}));
+
 vi.mock("../lib/bridge", () => ({
   workApp: {
     TaskList: async (): Promise<TaskView[]> => [...tasks.list],
-    TaskCancel: async () => {},
+    TaskCancel: (id: string) => spies.cancel(id),
+    TaskKill: (id: string) => spies.kill(id),
     TaskRetry: async () => {},
     TaskOutput: async (id: string): Promise<TaskOutputView> => tasks.output[id] ?? { tail: "", truncated: false },
   },
@@ -65,6 +72,8 @@ function makeTask(over: Partial<TaskView>): TaskView {
 afterEach(() => {
   tasks.list = [];
   tasks.output = {};
+  spies.cancel.mockClear();
+  spies.kill.mockClear();
 });
 
 describe("TaskCenter 任务中心（C1 实时输出 + 结束态细分）", () => {
@@ -90,6 +99,51 @@ describe("TaskCenter 任务中心（C1 实时输出 + 结束态细分）", () =>
     render(wrap(<TaskCenter />));
     expect(await screen.findByText("强制终止")).toBeTruthy();
     expect(screen.getByText("取消")).toBeTruthy();
+  });
+
+  it("v4.78 两击确认：首击仅进入确认态不调用 TaskKill，再击才强制终止；queued 单击取消直通", async () => {
+    tasks.list = [
+      makeTask({ id: "k1", label: "运行任务", status: "running" }),
+      makeTask({ id: "q1", label: "排队任务", status: "queued", progress: 0 }),
+    ];
+    render(wrap(<TaskCenter />));
+    const killBtn = await screen.findByTestId("task-kill-btn");
+    fireEvent.click(killBtn);
+    expect(screen.getByText("再击确认终止")).toBeTruthy();
+    expect(spies.kill).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByTestId("task-kill-btn"));
+    expect(spies.kill).toHaveBeenCalledTimes(1);
+    expect(spies.kill).toHaveBeenCalledWith("k1");
+    // queued：单击取消（不走两击确认）
+    fireEvent.click(screen.getByTestId("task-cancel-btn"));
+    expect(spies.cancel).toHaveBeenCalledTimes(1);
+    expect(spies.cancel).toHaveBeenCalledWith("q1");
+    expect(spies.kill).toHaveBeenCalledTimes(1);
+  });
+
+  it("v4.78 两击确认：3s 无再击自动回退；状态离开 running 复位确认态", async () => {
+    tasks.list = [makeTask({ id: "k1", label: "运行任务", status: "running" })];
+    render(wrap(<TaskCenter />));
+    const btn = await screen.findByTestId("task-kill-btn");
+    vi.useFakeTimers();
+    try {
+      fireEvent.click(btn);
+      expect(screen.getByText("再击确认终止")).toBeTruthy();
+      act(() => {
+        vi.advanceTimersByTime(3100);
+      });
+      expect(screen.queryByText("再击确认终止")).toBeNull();
+      expect(screen.getByText("强制终止")).toBeTruthy();
+      expect(spies.kill).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+    // 状态离开 running（用户经他处取消转 stopping）→ 确认态复位、按钮回取消语义
+    taskEventCb?.(makeTask({ id: "k1", status: "stopping", progress: 60 }));
+    const stopBtn = await screen.findByTestId("task-cancel-btn");
+    fireEvent.click(stopBtn);
+    expect(spies.cancel).toHaveBeenCalledWith("k1");
+    expect(spies.kill).not.toHaveBeenCalled();
   });
 
   it("点击任务行 → 输出 dock 回放实时输出，可关闭", async () => {

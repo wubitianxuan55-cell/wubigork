@@ -127,6 +127,22 @@ func (p *Progress) ExitCode(code int) {
 	p.manager.recordExitCode(p.id, code)
 }
 
+// OnForceKill 登记本任务的强杀钩子（进程类任务）：用户强制终止（Kill）时，
+// 调度器在传播 context 取消之外逐个执行这些钩子——典型用法是闭包持有
+// os/exec 的 *exec.Cmd 调 proc.KillTree / KillTracked 击杀整棵进程树（协作
+// 取消对不感知 ctx 的子进程无能为力）。钩子应在进程创建后尽早登记：Kill 与
+// 登记并发时存在「快照后登记不被本次 Kill 执行」的窗口（与 Cancel×ctx 的
+// 固有时序同型），handler 自身仍须响应 ctx 并回收子进程兜底。多次调用累积
+// 登记；任务尝试结束由调度器统一清理，无需反注册。
+func (p *Progress) OnForceKill(fn func()) {
+	if p == nil || p.manager == nil || fn == nil {
+		return
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.manager.addKillHook(p.id, fn)
+}
+
 // Handler 执行一个任务。ctx 在用户取消 / Manager.Close 时 Done；错误返回后
 // 由调度器按重试策略处理（ctx.Err()==context.Canceled 视为用户取消）。
 type Handler func(ctx context.Context, t *Task, p *Progress) error
@@ -162,6 +178,11 @@ type Manager struct {
 	handlers  map[string]Handler
 	cancels   map[string]context.CancelFunc
 	cancelReq map[string]bool // 用户显式取消（区别于 Close 中断）
+	// kills 登记进程类任务的强杀钩子（m.mu 保护）：handler 经
+	// Progress.OnForceKill 注册、Manager.Kill 锁外快照后逐个执行并删除；
+	// 尝试结束（worker 收尾 / unregisterCancel / clearStaleCancel）一并清理，
+	// 旧尝试的钩子不串味到重跑。
+	kills map[string][]func()
 	lastEmit  map[string]time.Time
 
 	// lastOutputEmit 是输出事件的独立节流时间戳（C9）：与进度事件分开计时，
@@ -366,6 +387,7 @@ func New(db *sql.DB, emit func(Task), opts Options) *Manager {
 		handlers:       map[string]Handler{},
 		cancels:        map[string]context.CancelFunc{},
 		cancelReq:      map[string]bool{},
+		kills:          map[string][]func(){},
 		lastEmit:       map[string]time.Time{},
 		lastOutputEmit: map[string]time.Time{},
 		outputs:        map[string]*taskOutput{},
@@ -603,6 +625,64 @@ func (m *Manager) Cancel(id string) error {
 		return nil
 	}
 	return fmt.Errorf("任务不存在或已结束")
+}
+
+// Kill 强制终止一个任务：在协作取消（与 Cancel 同款语义——queued 原子取消、
+// running 置 stopping 并传播 context、cancelReq 记用户意图保证终态判定一致）
+// 之外，执行 handler 经 Progress.OnForceKill 登记的强杀钩子（击杀任务自有的
+// OS 进程树，复用 internal/gaea/proc）。钩子在 m.mu 外逐个执行：先杀进程再
+// 传播取消（handler 可能卡在不感知 ctx 的进程等待上，先杀进程让它尽快退出；
+// 顺序对调只影响退出快慢，不改变终态判定）。未登记钩子的纯函数任务 Kill
+// 等价 Cancel，诚实降级不造假。重复 Kill 幂等（钩子已清空、cancel 幂等）；
+// 对已结束/不存在的任务返回错误。
+func (m *Manager) Kill(id string) error {
+	if m == nil || m.db == nil {
+		return fmt.Errorf("任务调度器不可用")
+	}
+	// ① 原子终止 queued 任务：与 Cancel/claimQueued 共用 status 条件互斥，
+	// 措辞区分强杀（前端可据 message 展示）。
+	res, err := m.db.Exec(`UPDATE tasks SET status=?, message=?, finished_at=? WHERE id=? AND status=?`,
+		string(StatusCancelled), "已强制终止", nowMillis(), id, string(StatusQueued))
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n > 0 {
+		t, err := m.Get(id)
+		if err != nil {
+			return err
+		}
+		m.emitView(t)
+		return nil
+	}
+	// ② running：锁内快照 cancel + 钩子并取走钩子（同锁内记用户取消意图），
+	// 锁外先执行强杀钩子再传播取消。
+	m.mu.Lock()
+	cancel, running := m.cancels[id]
+	hooks := m.kills[id]
+	delete(m.kills, id)
+	if running {
+		m.cancelReq[id] = true
+	}
+	m.mu.Unlock()
+	if !running && len(hooks) == 0 {
+		return fmt.Errorf("任务不存在或已结束")
+	}
+	for _, fn := range hooks {
+		fn()
+	}
+	if running {
+		// C1 结束态细分同 Cancel：先条件置 stopping，再传播取消；handler 退出
+		// 后由 worker 收尾为 cancelled。
+		_ = m.setStoppingIfRunning(id)
+		cancel()
+	}
+	return nil
+}
+
+// addKillHook 登记强杀钩子（m.mu 保护；OnForceKill 持 p.mu 调入，与 worker
+// 收尾的 delete 同锁互斥）。
+func (m *Manager) addKillHook(id string, fn func()) {
+	m.kills[id] = append(m.kills[id], fn)
 }
 
 // setStoppingIfRunning 把仍处于 running 的任务置为 stopping（C1 结束态细分）。
@@ -878,6 +958,7 @@ func (m *Manager) execute(t *Task) {
 	delete(m.cancels, t.ID)
 	userCancel := m.cancelReq[t.ID]
 	delete(m.cancelReq, t.ID)
+	delete(m.kills, t.ID) // 本尝试登记的强杀钩子随尝试结束一并清理
 	m.mu.Unlock()
 	// 关键：必须在 cancel() 之前判定中断（handler 若因 ctx.Done 返回
 	// ctx.Err()，此时 ctx.Err() 非空；普通业务错误则为空）。
@@ -930,6 +1011,7 @@ func (m *Manager) unregisterCancel(id string) {
 	m.mu.Lock()
 	delete(m.cancels, id)
 	delete(m.cancelReq, id)
+	delete(m.kills, id)
 	m.mu.Unlock()
 }
 
@@ -957,6 +1039,7 @@ func (m *Manager) clearStaleCancel(id string) {
 		return // 有执行者：注册归其所有
 	}
 	delete(m.cancels, id)
+	delete(m.kills, id) // 无执行者的残留强杀钩子同理清理（登记方只可能已死）
 }
 
 // handlerPanicError 标记 handler 内部 panic（区别于普通业务错误，不参与退避重试）。

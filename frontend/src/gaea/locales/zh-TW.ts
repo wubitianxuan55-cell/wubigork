@@ -1228,6 +1228,8 @@ export const zhTW: Record<DictKey, string> = {
   "tasks.statusFailed": "失敗",
   "tasks.statusCancelled": "已取消",
   "tasks.cancelRequested": "已請求取消任務",
+  "tasks.killRequested": "已請求強制終止",
+  "tasks.killFail": "強制終止失敗：{msg}",
   "tasks.cancelFail": "取消失敗：{msg}",
   "tasks.requeued": "任務已重新排隊",
   "tasks.retryFail": "重試失敗：{msg}",
@@ -1250,6 +1252,7 @@ export const zhTW: Record<DictKey, string> = {
   "tasks.retried": "已重試 {n} 次",
   "tasks.stoppingBtn": "停止中…",
   "tasks.forceStopBtn": "強制終止",
+  "tasks.forceStopConfirm": "再擊確認終止",
   "tasks.cancelBtn": "取消",
   "tasks.retryBtn": "重試",
 
