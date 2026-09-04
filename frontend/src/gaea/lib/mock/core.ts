@@ -82,6 +82,7 @@ export function buildCore(s: MakeMockState): CoreMethods {
           { seq: 4, cat: "tool", tokens: 8000, text: "package main …" },
           { seq: 5, cat: "user", tokens: 20, text: "帮我梳理 config 装载链路（mock 跳转锚点样例）" },
           { seq: 6, cat: "assistant", tokens: 1200, text: "好的，config 装载从 Load() 入口…（mock 跳转锚点样例）" },
+          { seq: 8, cat: "tool", tokens: 500, text: "图中是一张季度报表截图（mock 样例：图片缩略卡走查）", tool: "vision" },
         ],
         archive: [],
         files: [
@@ -104,6 +105,34 @@ export function buildCore(s: MakeMockState): CoreMethods {
           output:
             "package main\n\n// config.go — gaea 配置装载\n// （mock 样例正文：完整调用输出，Raw/渲染切换走查用）\nfunc Load() (*Config, error) {\n\treturn loadFromDisk()\n}\n",
           lines: 7,
+        };
+      }
+      if (seq === 8) {
+        // 2.5b 后半缩略卡走查样例：识图工具结果（参数带 image_path + 输出
+        // 引用产物图）。tokens 按 ⌈w/28⌉×⌈h/28⌉ 官方口径（1000×1000→1296）。
+        return {
+          seq,
+          kind: "tool_result" as const,
+          ts: 1750000008,
+          tool: "vision",
+          args: '{"image_path":"C:/demo/报表截图.png","prompt":"描述这张图"}',
+          output: "图中是一张季度报表截图（mock 样例：图片缩略卡走查）",
+          lines: 1,
+          imageRefs: ["C:/demo/报表截图.png", "C:/demo/缺失图.png"],
+          images: [
+            {
+              ref: "C:/demo/报表截图.png",
+              path: "C:/demo/报表截图.png",
+              exists: true,
+              width: 1000,
+              height: 1000,
+              scaledW: 1000,
+              scaledH: 1000,
+              stdTokens: 1296,
+              highTokens: 1296,
+            },
+            { ref: "C:/demo/缺失图.png", path: "C:/demo/缺失图.png", exists: false },
+          ],
         };
       }
       if (seq === 3) {

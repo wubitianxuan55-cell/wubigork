@@ -1,3 +1,9 @@
+## v4.83.0 · 工具结果图片缩略卡：官方 patch 口径 token 估算（2026-09-05）
+> 双源蒸馏规划阶段二.5 2.5b 后半（前半=v4.80 深读面板）；**绑定面 571 零变更**（NodeDetail 增可选 JSON 字段）。详见 releases/v4.83.0.md。
+- **Go**：imgtoken.go 按官方 patch 口径估算（28×28px=1 token，⌈w/28⌉×⌈h/28⌉，先档位缩放再封顶：标准档 1568px/1568 tok、高分辨率档 2576px/4784 tok；官方例 1000×1000→1296 有测试锚定）；imgrefs.go 从参数 JSON/自由文本确定性提取图片引用（去重保序上限 4，非法 JSON 诚实不猜）；detail 层透出 imageRefs，App 层 resolveNodeImages 解析绝对路径+仅解码头部取尺寸+估 token（缺失/不可解码诚实降级）；fold 修 stats.Images 恒 0 死字段（按引用出现次数计数）。
+- **前端**：详情面板图片缩略卡——缩略图（AttachmentDataURL 懒加载、点击开预览）+「原始尺寸→标准档缩放尺寸」+「≈N tok · 标准档」成对显示（悬停给完整口径与高分辨率档值）；缺失灰态/尺寸未知诚实标注；i18n 三语 +6 键；dev mock 补 vision 节点缩略卡样例。
+- 测试：imgtoken/detail/fold +6（-count=2 绿）+ App resolveNodeImages 真实 PNG 编解码 +1 + 组件 +2；门禁：Go 全量 0 FAIL、tsc/tsc -b/eslint 0、vitest 224/1700、drift PASS（571）、?mock=1 走查通过（DOM 断言；截图通道沿 v4.82 故障如实记录）。
+
 ## v4.82.0 · 上下文趋势跳转浏览器：brief 行锚点 · 偏好持久化 · 设置中心默认（2026-09-05）
 > 双源蒸馏规划阶段二.5 2.5d；**绑定面 571 零变更**（锚点搭 GaeaContextView 既有返回结构）。详见 releases/v4.82.0.md。
 - **Go**：fold 跟踪 brief 文本来源事件 seq（user=消息节点；工具交换结果到达时锚到结果节点、未到退化 assistant 消息节点），RequestRecord 透出 briefUserSeq/briefRespSeq；header/usage 关闭/turn_done 估算关闭三处同拍刷新。

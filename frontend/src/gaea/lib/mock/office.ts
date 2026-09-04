@@ -513,7 +513,13 @@ export function buildOffice(_s: MakeMockState): OfficeMethods {
       return ".gaea/attachments/mock-file.bin";
     },
     async AttachmentDataURL(_path: string) {
-      return "data:image/png;base64,iVBORw0KGgo=";
+      // 浏览器 mock：返回一张可渲染的 4×3 色块 SVG dataURL（占位缩略图）。
+      return (
+        "data:image/svg+xml;utf8," +
+        encodeURIComponent(
+          '<svg xmlns="http://www.w3.org/2000/svg" width="40" height="30"><rect width="40" height="30" fill="#134e4a"/><circle cx="14" cy="12" r="6" fill="#2dd4bf"/><rect x="24" y="16" width="12" height="8" fill="#f59e0b"/></svg>',
+        )
+      );
     },
     async CaptureScreen() {
       // 1x1 红色 PNG，占位截图

@@ -19,7 +19,7 @@ import { fmtTokens } from "../../lib/stats";
 import { loadContextPrefs, saveContextPref, type CtxBrowserSort, type CtxFileSort } from "../../lib/contextPrefs";
 import { usePreviewStore } from "../../lib/store";
 import type { DictKey } from "../../locales/en";
-import type { ContextNodeDetailView, ContextSurfaceNode, FileActivity } from "../../lib/types";
+import type { ContextNodeDetailView, ContextNodeImage, ContextSurfaceNode, FileActivity } from "../../lib/types";
 
 // 分类折叠组定义（来源：ContextView.tsx 的 CATS / CAT_BROWSE_LABELS，未导出故本地
 // 重声明；i18n 键复用 contextview.cat*（组行全名）与 contextview.browse*（节点行短名））。
@@ -79,6 +79,75 @@ const DETAILABLE = new Set<ContextSurfaceNode["cat"]>(["tool", "user", "assistan
 
 // v4.81 节点/文件操作共用的完整调用详情面板（原文/渲染切换在面板内部自持；
 // 默认原文防任意工具输出噪声；渲染走 MemoMarkdown）。
+// v4.83 图片缩略卡（2.5b 后半，dsh 图片 payload 缩略卡同款交互）：缩略图 +
+// 「原始尺寸→标准档缩放尺寸」与 token 估算成对显示；token 按官方 patch 口径
+// （⌈w/28⌉×⌈h/28⌉，先档位缩放再封顶）由 Go 侧估算，前端只渲染不重算。
+// 文件缺失/不可解码诚实降级（灰态/尺寸未知），绝不猜数。
+function NodeImageCard({ img }: { img: ContextNodeImage }) {
+  const t = useT();
+  const openPreview = usePreviewStore((s) => s.openFilePreview);
+  const [dataUrl, setDataUrl] = useState<string | null>(null);
+  useEffect(() => {
+    let live = true;
+    setDataUrl(null);
+    if (img.exists) {
+      app.AttachmentDataURL?.(img.path)
+        .then((u: string) => {
+          if (live) setDataUrl(u);
+        })
+        .catch(() => {});
+    }
+    return () => {
+      live = false;
+    };
+  }, [img.path, img.exists]);
+  const known = (img.width ?? 0) > 0;
+  return (
+    <div
+      data-testid="ctx-img-card"
+      className={`flex w-56 shrink-0 gap-1.5 rounded-md border border-border-soft p-1 ${img.exists ? "" : "opacity-55"}`}
+    >
+      <button
+        type="button"
+        disabled={!img.exists}
+        title={img.exists ? img.path : undefined}
+        className={`flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded bg-bg-soft ${img.exists ? "cursor-pointer" : "cursor-default"}`}
+        onClick={() => openPreview(img.path)}
+      >
+        {dataUrl ? (
+          <img src={dataUrl} alt={img.ref} className="h-full w-full object-cover" />
+        ) : (
+          <FileTypeIcon name={img.ref} size={18} />
+        )}
+      </button>
+      <div className="min-w-0 flex-1 py-0.5">
+        <div className="truncate font-mono text-[9.5px] text-fg-dim" title={img.path}>{img.ref}</div>
+        {img.exists ? (
+          <>
+            <div className="mt-0.5 font-mono text-[9px] tabular-nums text-fg-faint">
+              {known
+                ? t("contextview.imgDims", { w: img.width!, h: img.height!, sw: img.scaledW ?? img.width!, sh: img.scaledH ?? img.height! })
+                : t("contextview.imgUnknownDims")}
+            </div>
+            {known && (
+              <div
+                className="mt-0.5 truncate font-mono text-[9px] tabular-nums text-warning"
+                title={t("contextview.imgEstTip", { high: img.highTokens ?? 0 })}
+              >
+                {t("contextview.imgTokens", { tokens: img.stdTokens ?? 0 })}
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="mt-0.5 text-[9px]" style={{ color: "var(--md-sys-color-destructive)" }}>
+            {t("contextview.imgMissing")}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function NodeDetailPanel({ d }: { d: ContextNodeDetailView }) {
   const t = useT();
   const [rendered, setRendered] = useState(false);
@@ -113,6 +182,17 @@ function NodeDetailPanel({ d }: { d: ContextNodeDetailView }) {
       </div>
       {d.kind === "tool_result" && d.args && (
         <div className="mt-1 break-all font-mono text-[9.5px] text-fg-faint" title={d.args}>→ {d.args}</div>
+      )}
+      {/* 2.5b 后半：图片引用缩略卡（缩略图 + 尺寸→缩放尺寸 + 官方口径 token） */}
+      {d.images && d.images.length > 0 && (
+        <div data-testid="ctx-node-images" className="mt-1">
+          <div className="text-[9px] text-fg-faint">{t("contextview.imgSection")}</div>
+          <div className="mt-0.5 flex flex-wrap gap-1.5">
+            {d.images.map((img) => (
+              <NodeImageCard key={`${img.ref}|${img.path}`} img={img} />
+            ))}
+          </div>
+        </div>
       )}
       <div className="mt-1 max-h-[26rem] overflow-y-auto whitespace-pre-wrap break-all font-mono text-[10px] text-fg-dim">
         {rendered ? <MemoMarkdown text={body} streaming={false} /> : body || t("contextview.noPreview")}

@@ -283,6 +283,21 @@ export interface ContextSurfaceNode {
   err?: boolean; // 工具结果为错误返回（error 语义点）
 }
 
+// ContextNodeImage 是详情里一张图片引用的缩略卡数据（2.5b 后半；Go App 层
+// 解析：绝对路径 + 尺寸 + 官方 patch 口径 token 估算）。
+export interface ContextNodeImage {
+  ref: string; // 日志中出现的原始引用
+  path: string; // 解析后的绝对路径（供 AttachmentDataURL 加载）
+  refCwd?: string; // 相对引用所依据的 cwd
+  exists?: boolean; // 文件不存在=false（灰态）
+  width?: number; // 像素；0/缺省=解码失败（尺寸未知）
+  height?: number;
+  scaledW?: number; // 标准档缩放后尺寸
+  scaledH?: number;
+  stdTokens?: number; // 标准档估算 token
+  highTokens?: number; // 高分辨率档估算（悬停详情）
+}
+
 // ContextNodeDetailView 是浏览器节点「完整调用」详情（v4.80 懒加载：
 // GaeaContextNodeDetail 按 seq 回读当前会话日志）。
 export interface ContextNodeDetailView {
@@ -297,6 +312,8 @@ export interface ContextNodeDetailView {
   text?: string;
   lines?: number;
   clamped?: boolean; // 详情超返回上限被截断
+  imageRefs?: string[]; // 详情文本/参数里提取的图片引用（纯函数层）
+  images?: ContextNodeImage[]; // 解析结果（App 层 I/O；与 imageRefs 对应）
 }
 
 export interface ContextTimeline {

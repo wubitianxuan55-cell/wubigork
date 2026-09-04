@@ -86,3 +86,29 @@ func TestNodeDetailClamp(t *testing.T) {
 		t.Fatal("截断点破坏了 UTF-8 rune 边界")
 	}
 }
+
+// TestNodeDetailForImageRefs（2.5b 后半）：工具参数 JSON 的 image_path 与
+// 输出文本里的图片路径被确定性提取；user 正文 @附件引用同验。
+func TestNodeDetailForImageRefs(t *testing.T) {
+	entries := []session.LogEntry{
+		entry(1, "tool_dispatch", map[string]any{"id": "t1", "name": "vision", "args": `{"image_path":"C:\\imgs\\wx.png","prompt":"描述"}`, "partial": false}),
+		entry(2, "tool_result", map[string]any{"id": "t1", "name": "vision", "output": "图中是一张报表截图"}),
+		entry(3, "tool_result", map[string]any{"id": "t2", "name": "chart_gen", "output": "已生成 ![图表](out/plot.webp)"}),
+		entry(4, "user_message", map[string]any{"content": "看这张 @C:/pics/a.png"}),
+	}
+	d, ok := NodeDetailFor(entries, 2)
+	if !ok {
+		t.Fatal("节点应可展开")
+	}
+	if len(d.ImageRefs) != 1 || d.ImageRefs[0] != `C:\imgs\wx.png` {
+		t.Fatalf("参数图片引用提取错误: %v", d.ImageRefs)
+	}
+	d2, _ := NodeDetailFor(entries, 3)
+	if len(d2.ImageRefs) != 1 || d2.ImageRefs[0] != "out/plot.webp" {
+		t.Fatalf("输出图片引用提取错误: %v", d2.ImageRefs)
+	}
+	u, _ := NodeDetailFor(entries, 4)
+	if len(u.ImageRefs) != 1 || u.ImageRefs[0] != `C:/pics/a.png` {
+		t.Fatalf("user 图片引用提取错误: %v", u.ImageRefs)
+	}
+}

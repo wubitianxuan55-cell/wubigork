@@ -3,12 +3,20 @@ package app
 import (
 	"errors"
 	"fmt"
+	"image"
+	_ "image/gif"
+	_ "image/jpeg"
+	_ "image/png"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/gaea/gaea/internal/gaea/agent/session"
 	"github.com/gaea/gaea/internal/gaea/contextview"
 	"github.com/gaea/gaea/internal/gaea/trajectory"
+
+	_ "golang.org/x/image/bmp"
+	_ "golang.org/x/image/webp"
 )
 
 // GaeaContextView 返回当前会话的上下文构成快照（dsh-context Go 移植 Phase A）：
@@ -47,7 +55,46 @@ func (a *App) GaeaContextNodeDetail(seq int64) (contextview.NodeDetail, error) {
 	if !ok {
 		return contextview.NodeDetail{}, fmt.Errorf("未找到 seq=%d 的可展开节点", seq)
 	}
+	resolveNodeImages(&d, gaeaCwd())
 	return d, nil
+}
+
+// resolveNodeImages 把详情里的图片引用解析为缩略卡数据（2.5b 后半）：相对
+// 引用按 gaea cwd 解析为绝对路径；文件存在则仅解码头部取尺寸，并按官方
+// patch 口径（⌈w/28⌉×⌈h/28⌉，先档位缩放再封顶）估算 token。文件缺失/
+// 解码失败诚实降级（Exists=false / 尺寸留零），绝不阻塞详情主体。
+func resolveNodeImages(d *contextview.NodeDetail, cwd string) {
+	if len(d.ImageRefs) == 0 {
+		return
+	}
+	images := make([]contextview.NodeImage, 0, len(d.ImageRefs))
+	for _, ref := range d.ImageRefs {
+		img := contextview.NodeImage{Ref: ref, Path: ref}
+		if !filepath.IsAbs(ref) && cwd != "" {
+			img.Path = filepath.Join(cwd, ref)
+			img.RefCwd = cwd
+		}
+		f, err := os.Open(img.Path)
+		if err != nil {
+			images = append(images, img) // Exists=false：前端灰态「文件不存在」
+			continue
+		}
+		cfg, _, err := image.DecodeConfig(f)
+		f.Close()
+		if err != nil || cfg.Width <= 0 || cfg.Height <= 0 {
+			// 文件在但尺寸未知（svg/ico 等非栅格或不受支持格式）。
+			img.Exists = true
+			images = append(images, img)
+			continue
+		}
+		img.Exists = true
+		img.Width, img.Height = cfg.Width, cfg.Height
+		est := contextview.EstimateImageTokens(cfg.Width, cfg.Height)
+		img.ScaledW, img.ScaledH = est.ScaledW, est.ScaledH
+		img.StdTokens, img.HighTokens = est.StdTokens, est.HighTokens
+		images = append(images, img)
+	}
+	d.Images = images
 }
 
 // GaeaTrajectory 返回当前会话的轨迹时间线（dsh 轨迹标签的 Go 移植）：

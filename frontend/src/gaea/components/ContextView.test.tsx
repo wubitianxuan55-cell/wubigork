@@ -498,3 +498,76 @@ describe("ContextView 2.5d：趋势 brief 跳转浏览器 + 偏好持久化", ()
     expect(prefs.browserSort).toBe("size");
   });
 });
+
+describe("ContextView 2.5b 后半：工具结果图片缩略卡 + token 估算", () => {
+  const DETAIL_SEQ = 4;
+
+  beforeEach(() => {
+    localStorage.removeItem("gaea.context.prefs");
+    contextViewMock.mockReset();
+    contextViewMock.mockResolvedValue(TIMELINE);
+    contextNodeDetailMock.mockReset();
+    contextNodeDetailMock.mockResolvedValue({
+      seq: DETAIL_SEQ,
+      kind: "tool_result",
+      ts: 1750000004,
+      tool: "vision",
+      args: '{"image_path":"C:/demo/报表截图.png"}',
+      output: "图中是一张季度报表截图",
+      lines: 1,
+      imageRefs: ["C:/demo/报表截图.png", "C:/demo/缺失图.png"],
+      images: [
+        {
+          ref: "C:/demo/报表截图.png",
+          path: "C:/demo/报表截图.png",
+          exists: true,
+          width: 1000,
+          height: 1000,
+          scaledW: 1000,
+          scaledH: 1000,
+          stdTokens: 1296,
+          highTokens: 1296,
+        },
+        { ref: "C:/demo/缺失图.png", path: "C:/demo/缺失图.png", exists: false },
+      ],
+    });
+    Element.prototype.scrollIntoView = vi.fn();
+  });
+
+  it("详情面板渲染图片缩略卡：尺寸→缩放尺寸 + 官方口径 token 成对显示", async () => {
+    const { ContextView } = await import("./ContextView");
+    renderT(<ContextView running={false} />);
+    await screen.findByText("上下文浏览器");
+    // 浏览器默认全收起：先展开「工具结果」组
+    fireEvent.click(screen.getByRole("button", { name: /工具结果/ }));
+    const detailBtns = await screen.findAllByTestId("ctx-node-detail-btn");
+    fireEvent.click(detailBtns[0]);
+    const images = await screen.findByTestId("ctx-node-images");
+    expect(images).toBeTruthy();
+    const cards = images.querySelectorAll("[data-testid='ctx-img-card']");
+    expect(cards.length).toBe(2);
+    // 官方例：1000×1000 → 1296 tok（标准档）
+    expect(screen.getByText("≈1296 tok · 标准档")).toBeTruthy();
+    expect(screen.getByText("1000×1000 → 1000×1000")).toBeTruthy();
+    // 缺失文件灰态
+    expect(screen.getByText("文件不存在")).toBeTruthy();
+  });
+
+  it("尺寸未知的图片（svg/ico）不显示 token 行，只显示未知标注", async () => {
+    contextNodeDetailMock.mockResolvedValue({
+      seq: DETAIL_SEQ,
+      kind: "tool_result",
+      tool: "vision",
+      images: [{ ref: "C:/demo/logo.svg", path: "C:/demo/logo.svg", exists: true }],
+    });
+    const { ContextView } = await import("./ContextView");
+    renderT(<ContextView running={false} />);
+    await screen.findByText("上下文浏览器");
+    fireEvent.click(screen.getByRole("button", { name: /工具结果/ }));
+    const detailBtns = await screen.findAllByTestId("ctx-node-detail-btn");
+    fireEvent.click(detailBtns[0]);
+    expect(await screen.findByTestId("ctx-node-images")).toBeTruthy();
+    expect(screen.getByText("尺寸未知")).toBeTruthy();
+    expect(screen.queryByText(/tok · 标准档/)).toBeNull();
+  });
+});

@@ -280,6 +280,9 @@ func (f *folding) applyUser(e session.LogEntry) {
 	if err := json.Unmarshal(e.Payload, &p); err != nil {
 		return
 	}
+	// 2.5b 后半：用户消息里的图片附件引用（@路径）计入 stats.Images
+	// （此前恒 0 的死字段；引用出现次数口径）。
+	f.stats.Images += countImageRefs(p.Content)
 	inject, user := splitInjected(p.Content)
 	if user != "" {
 		tok := estimateTokens(user)
@@ -330,6 +333,8 @@ func (f *folding) applyToolDispatch(e session.LogEntry) {
 		return
 	}
 	f.lastToolCall = briefOf(p.Name+" "+p.Args, maxBrief)
+	// 参数带图片路径（识图 image_path 等）同样计入图片引用数。
+	f.stats.Images += countImageRefs(p.Args)
 	f.recordFile(e.Seq, e.Ts, p.Name, p.Args, "", false, p.ID)
 }
 

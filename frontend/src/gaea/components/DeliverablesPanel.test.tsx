@@ -155,7 +155,7 @@ describe("DeliverablesPanel 会话产物面板", () => {
     );
     await waitFor(() => expect(container.querySelector("img")).toBeTruthy());
     const img = container.querySelector("img");
-    expect(img?.getAttribute("src")).toContain("data:image/png");
+    expect(img?.getAttribute("src")).toMatch(/^data:image\//);
     // 非图片产物不渲染 <img> 缩略图（仅一张图片，共两个产物）
     expect(container.querySelectorAll("img")).toHaveLength(1);
   });

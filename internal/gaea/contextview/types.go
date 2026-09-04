@@ -127,8 +127,33 @@ type NodeDetail struct {
 	// user_message / assistant_message 专有：完整正文。
 	Text string `json:"text,omitempty"`
 
+	// ImageRefs 是详情文本/参数里确定性提取的图片文件引用（2.5b 后半；
+	// 纯函数提取，上限 4、去重保序）。空=无图片引用。
+	ImageRefs []string `json:"imageRefs,omitempty"`
+	// Images 是 ImageRefs 的解析结果（App 绑定层 I/O：绝对路径解析 + 尺寸
+	// 解码 + 官方 patch 口径 token 估算；纯函数层不填）。与 ImageRefs 一一
+	// 对应；文件缺失 Exists=false、解码失败尺寸留零（诚实缺失，不猜）。
+	Images []NodeImage `json:"images,omitempty"`
+
 	Lines   int  `json:"lines,omitempty"`   // 正文行数（Output/Text）
 	Clamped bool `json:"clamped,omitempty"` // 详情超返回上限被截断（诚实标注）
+}
+
+// NodeImage 是一张图片引用的缩略卡数据（尺寸/token 只在文件存在且可解码
+// 时有效；真实计费因供应商而异，估算为展示层统一近似）。
+type NodeImage struct {
+	Ref    string `json:"ref"`              // 日志中出现的原始引用
+	Path   string `json:"path"`             // 解析后的绝对路径（供前端 AttachmentDataURL 加载）
+	RefCwd string `json:"refCwd,omitempty"` // 相对引用所依据的 cwd（绝对引用为空）
+	Exists bool   `json:"exists,omitempty"` // 文件不存在=false（前端灰态）
+
+	Width  int `json:"width,omitempty"` // 像素；0=解码失败（尺寸未知）
+	Height int `json:"height,omitempty"`
+	// 标准档缩放后尺寸 + 双档估算（⌈w/28⌉×⌈h/28⌉，先缩放再封顶）。
+	ScaledW    int   `json:"scaledW,omitempty"`
+	ScaledH    int   `json:"scaledH,omitempty"`
+	StdTokens  int64 `json:"stdTokens,omitempty"`
+	HighTokens int64 `json:"highTokens,omitempty"` // 高分辨率档（悬停详情）
 }
 
 // MaxDetailBytes 是单节点详情的返回上限（懒加载单点，防超大输出拖垮桥）。

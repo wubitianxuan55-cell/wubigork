@@ -190,13 +190,13 @@ pane 工作台/文件 tab（v4.25）、任务+分工同屏（v4.53）、子代�
   头重计）→ RequestDelta 逐类 signed delta + 跨压缩 Approx + 首请求 First；
   趋势卡请求详情 delta 条。**边界**：历史步仅聚合级 delta，dsh 式逐步节点
   回放有意不做（wire 载荷 + Go 权威折中，蓝图成文）；
-- 2.5b 工具结果与图片深读：~~整段调用展开（OK/error、Raw/Markdown）、
-  来源 chip 与排序/搜索~~ **前半已完成（v4.80.0：GaeaContextNodeDetail
-  懒加载 + 来源 chip/error 点 + 时间序/大小序）**；剩余图片缩略卡 + 图片
-  token 估算——**2026-09-05 调研补充（docs/market-research-2026-09-05.md）**：
-  估算采用 Anthropic 官方 patch 口径 ⌈w/28⌉×⌈h/28⌉（先档位缩放再计，
-  来源 platform.claude.com/docs/en/build-with-claude/vision），弃用社区
-  旧式 /750（系统性高估大图）；缩略卡成对显示「缩放后尺寸→实际计费 token」；
+- ~~2.5b 工具结果与图片深读~~ **已完成**：前半（v4.80.0：GaeaContextNodeDetail
+  懒加载 + 来源 chip/error 点 + 时间序/大小序）+ 后半（v4.83.0：图片缩略卡
+  + 官方 patch 口径 token 估算 ⌈w/28⌉×⌈h/28⌉ 先档位缩放再封顶——口径经
+  2026-09-05 调研核实 platform.claude.com/docs/en/build-with-claude/vision，
+  官方例 1000×1000→1296 单测锚定；弃用社区旧式 /750；缩略卡成对显示
+  「原始尺寸→缩放尺寸」与「≈N tok · 标准档」；缺失/不可解码诚实降级；
+  fold 修 stats.Images 死字段）；
 - ~~2.5c File Activity 行级 ±增量、搜索命中行、操作日志展开跳转~~
   **已完成（v4.81.0）**：FileActivity.Added/Removed/Hits（写类工具参数
   确定性提取 + grep 结果行数下界）；前端 ±徽标 + 「N 次操作」展开 +
@@ -259,6 +259,7 @@ pane 工作台/文件 tab（v4.25）、任务+分工同屏（v4.53）、子代�
 | v4.80 | 工具结果深读（懒加载完整调用 + 原文/渲染 + 来源 chip + 排序） | Context Browser 工具行展开/来源/排序 | 懒加载单点回读代 dsh 全量回放；2.5b 前半收口 |
 | v4.81 | 文件活动 ±行增量/命中数/操作日志展开跳转 | File Activity ±added/−removed + 操作日志 | 2.5c 收口；1b 勘误销账（前两项 v4.25-4.31 已落地） |
 | v4.82 | Trend brief 跳转锚点 + 粒度/模式/排序偏好持久化 + 设置中心默认卡 | step brief 跳转 Context Browser + 设置持久化默认 | 2.5d 收口；hover 联动边界成文（有意不做） |
+| v4.83 | 图片缩略卡 + 官方 patch 口径图片 token 估算 + 图片引用提取 | 图片 payload 缩略卡（含 token 估算） | 2.5b 后半收口，阶段二.5 全部完成；口径来自 2026-09-05 调研 |
 
 ## 8. 成功标准（长期）
 

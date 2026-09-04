@@ -43,6 +43,7 @@ func NodeDetailFor(entries []session.LogEntry, seq int64) (NodeDetail, bool) {
 		return NodeDetail{
 			Seq: e.Seq, Kind: "user_message", Ts: e.Ts,
 			Text: text, Lines: countLines(text), Clamped: clamped,
+			ImageRefs: ExtractImageRefs(text),
 		}, true
 	case session.KindAssistantMessage:
 		var p assistantPayload
@@ -56,6 +57,7 @@ func NodeDetailFor(entries []session.LogEntry, seq int64) (NodeDetail, bool) {
 		return NodeDetail{
 			Seq: e.Seq, Kind: "assistant_message", Ts: e.Ts,
 			Text: text, Lines: countLines(text), Clamped: clamped,
+			ImageRefs: ExtractImageRefs(text),
 		}, true
 	}
 	return NodeDetail{}, false
@@ -97,6 +99,10 @@ func toolResultDetail(entries []session.LogEntry, idx int, e session.LogEntry) (
 	d.Output = body
 	d.Lines = countLines(body)
 	d.Clamped = clamped
+	// 2.5b 后半：图片引用 = 参数 JSON 字符串值（识图 image_path 等）+ 输出
+	// 文本自由匹配（生成类工具的产物路径）。输出正文与参数都可能引用同一
+	// 张图，mergeImageRefs 去重保序。
+	d.ImageRefs = mergeImageRefs(ExtractImageRefsFromArgs(d.Args), ExtractImageRefs(body))
 	return d, true
 }
 

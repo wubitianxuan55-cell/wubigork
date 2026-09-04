@@ -13,7 +13,7 @@ describe("FileThumb（P1 产物缩略图增强）", () => {
   it("图片走 dataURL 缩略图", async () => {
     const { container } = render(<FileThumb path="exports/趋势.png" ext=".png" />);
     await waitFor(() => expect(container.querySelector("img")).toBeTruthy());
-    expect(container.querySelector("img")?.getAttribute("src")).toContain("data:image/png");
+    expect(container.querySelector("img")?.getAttribute("src")).toMatch(/^data:image\//);
   });
 
   it("xlsx 渲染迷你表格缩略图（复用 GaeaPreview 结构化数据）", async () => {
