@@ -5,7 +5,13 @@
 
 ## 版本状态（顶部速览）
 
-- **最新发布：v4.63.3（2026-09-04）「对标 dsh：单轮询聚合 + 自动切任务
+- **最新发布：v4.63.4（2026-09-04）「mt_/长文本输出 Codex 式有界渲染」**
+  ——用户点名。BoundedAssistantMessage：mt_ 标签页/超 4000 字 assistant
+  内容默认限高 26rem 内部滚动（Markdown 照常），「展开全部（N 字）/收起」
+  +字数标注；流式实时行保持跟随。i18n 三语 +3 键。绑定面 **559 零变更**；
+  vitest 217/1602、tsc/eslint 0、drift PASS、冒烟通过。详见
+  releases/v4.63.4.md。
+- **此前：v4.63.3（2026-09-04）「对标 dsh：单轮询聚合 + 自动切任务
   视图」**——用户点名借鉴 dsh-better-sidebar。①GaeaSubagentRuns 共享单
   轮询聚合（lib/subagentRunsStore.ts：每会话单定时器/单在途/不可见门控/
   订阅即拉，App 两处独立轮询并入；任务树/左栏子行后续刀迁移）；②新子代理

@@ -1,7 +1,7 @@
 {
   "name": "gaea-frontend",
   "private": true,
-  "version": "4.63.3",
+  "version": "4.63.4",
   "type": "module",
   "scripts": {
     "dev": "vite",
