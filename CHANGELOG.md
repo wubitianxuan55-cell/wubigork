@@ -1,3 +1,9 @@
+## v4.89.0 · 成本费率 hover：单价快照 · 三档明细 · 诚实降级（2026-09-05）
+> 2026-09-05 调研回填中期候选（langfuse/ccusage 费率口径对齐）；**绑定面 578 零变更**（Timeline 增可选 JSON 字段）。详见 releases/v4.89.0.md。
+- **Go**：fold 跟踪最近一次 usage 事件上报的非零单价（input/output/cacheHitPrice——本就是每 1M tokens 口径，费用公式 ÷1e6 证实），ContextTimeline 透出 `rate{inputPer1M,outputPer1M,cacheHitPer1M,currency}`；无定价上报时 rate=nil。
+- **前端**：SummaryBar 成本单元格 hover 展示五居中明细——来源口径说明 + 未缓存输入/输出/缓存命中三档费率（¥X / 1M tok，USD 用 $）+ 累计费用；无费率诚实显示「供应商未上报费率，费用未估算」；costHoverTitle 纯函数（可测）；i18n 三语 +5 键。
+- 测试：fold +1（费率透传/无定价 nil/-count=2 绿）+ cards costHoverTitle +2（CNY 明细/USD 符号/无费率降级）；vitest 227/1742、Go 全量 0 FAIL、tsc -b/eslint 0、drift PASS（578）、?mock=1 走查通过（hover title 五行断言；截图通道沿例故障如实记录）。
+
 ## v4.88.0 · /context 居中弹层 + 常驻「剩余上下文%」徽标（2026-09-05）
 > 双源蒸馏规划阶段二.5 2.5e（与 2026-09-05 调研回填「codex 式常驻上下文徽标」合并为一刀）；**绑定面 578 零变更**（纯前端刀）。详见 releases/v4.88.0.md。
 - **ContextPill 常驻徽标**：Composer 上方右侧常驻「剩余 N%」胶囊（codex 式 context left 语义）——数据来自会话 store 的 ContextUsage（加载/回合末/usage 事件自动刷新），迷你进度条三档配色（≥90% err / ≥75% warning / 常规），title 带占用与总窗口；win≤0 不渲染。点击打开居中弹层。

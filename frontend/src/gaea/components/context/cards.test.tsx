@@ -3,7 +3,7 @@
 import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import type { ContextRequestRecord, ContextStats, ContextTiming } from "../../lib/types";
-import { fmtDuration, SessionInfoCard, StatsCard, summarizeTokens, SummaryBar, TimingCard, TokenCard } from "./cards";
+import { costHoverTitle, fmtDuration, SessionInfoCard, StatsCard, summarizeTokens, SummaryBar, TimingCard, TokenCard } from "./cards";
 import type { ReactElement } from "react";
 import { LocaleProvider } from "../../lib/i18n";
 
@@ -200,5 +200,36 @@ describe("SummaryBar", () => {
     expect(screen.getByText("0 / 0 · 0%")).toBeTruthy();
     expect(screen.getByText("0 次请求")).toBeTruthy();
     expect(screen.getByText("累计费用 —")).toBeTruthy();
+  });
+});
+
+describe("costHoverTitle 2.5e 成本 hover", () => {
+  const t = (k: string) => {
+    const zh: Record<string, string> = {
+      "contextview.costNoRate": "费用未估算",
+      "contextview.costRateIn": "未缓存输入",
+      "contextview.costRateOut": "输出",
+      "contextview.costRateCache": "缓存命中",
+      "contextview.costRateSource": "费率取自最近一次用量上报",
+      "contextview.summaryCost": "累计费用",
+    };
+    return zh[k] ?? k;
+  };
+
+  it("有费率：输出三档明细 + 合计（USD 用 $）", () => {
+    const title = costHoverTitle(
+      { inputPer1M: 2, outputPer1M: 8, cacheHitPer1M: 0.5, currency: "CNY" },
+      3.83,
+      t,
+    );
+    expect(title).toContain("未缓存输入 ¥2 / 1M tok");
+    expect(title).toContain("输出 ¥8 / 1M tok");
+    expect(title).toContain("缓存命中 ¥0.5 / 1M tok");
+    expect(title).toContain("累计费用 ¥3.83");
+  });
+
+  it("无费率：诚实说明费用未估算", () => {
+    expect(costHoverTitle(undefined, undefined, t)).toBe("费用未估算");
+    expect(costHoverTitle({}, undefined, t)).toBe("费用未估算");
   });
 });

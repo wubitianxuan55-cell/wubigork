@@ -595,3 +595,34 @@ func TestFoldFileDelta(t *testing.T) {
 		t.Fatalf("read_file 不应有增量/命中: %+v", f)
 	}
 }
+
+func TestFoldCostRate(t *testing.T) {
+	// 2.5e 成本 hover：fold 透出最近一次 usage 上报的单价（每 1M tokens）。
+	entries := []session.LogEntry{
+		entry(1, "turn_started", map[string]any{}),
+		entry(2, "request_header", headerPayload("sys", "read_file")),
+		entry(3, "usage", map[string]any{
+			"promptTokens": 100, "completionTokens": 10,
+			"cacheHitTokens": 80, "cacheMissTokens": 20,
+			"input": 2.0, "output": 8.0, "cacheHitPrice": 0.5,
+			"currency": "CNY", "turn": 1,
+		}),
+	}
+	tl := FoldTimeline(entries, 1_000_000, 0)
+	if tl.Rate == nil {
+		t.Fatal("有定价 usage 时应透出 Rate")
+	}
+	if tl.Rate.InputPer1M != 2.0 || tl.Rate.OutputPer1M != 8.0 || tl.Rate.CacheHitPer1M != 0.5 {
+		t.Fatalf("rate = %+v", tl.Rate)
+	}
+	if tl.Rate.Currency != "CNY" {
+		t.Fatalf("currency = %q, want CNY", tl.Rate.Currency)
+	}
+	// 无定价 usage → Rate 为 nil（诚实：费用未估算）
+	tl2 := FoldTimeline([]session.LogEntry{
+		entry(1, "usage", map[string]any{"promptTokens": 10, "turn": 1}),
+	}, 1_000_000, 0)
+	if tl2.Rate != nil {
+		t.Fatalf("无定价时 Rate 应为 nil: %+v", tl2.Rate)
+	}
+}

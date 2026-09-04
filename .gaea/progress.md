@@ -1,7 +1,7 @@
 # 任务进度
 
-> 最后更新: 2026-09-05（v4.88.0「/context 居中弹层 + 常驻剩余上下文%
-> 徽标」，578 零变更；v4.87.0「统一 diff 渲染升级」，578 零变更，
+> 最后更新: 2026-09-05（v4.89.0「成本费率 hover」，578 零变更；
+> v4.88.0「/context 居中弹层 + 常驻剩余上下文% 徽标」，578 零变更；v4.87.0「统一 diff 渲染升级」，578 零变更，
 > 阶段二收口；v4.86.0「Git 面板
 > 最小集」，571→578；v4.85.0
 > 「本轮文件三态折叠：写入/编辑/读取独立成层 + 类型筛选」，571 零变更；v4.84.0「HTML 沙箱预览 · 外链协议分流」，
@@ -24,10 +24,23 @@
   3a CodeMirror（可带语法着色）/3b Mermaid strict/3c 人工沙箱浏览器
   多开；中期候选见 docs/market-research-2026-09-05.md（成本费率 hover、
   终止级联、失败子代理可恢复）；docx/xlsx 对比迁移 ChangesDiff 另刀；
-  Agent Network 会话跳转（GaeaContextView 按会话参数化前置）。
+  Agent Network 会话跳转（GaeaContextView 按会话参数化前置）。成本费率
+  hover 已落地（v4.89）。
 - **dsh 剩余借鉴**：2.5e /context 弹层与 Agent Network 会话跳转（拍板）。
 - **老账**：run_skill AllowedTools 真机观察；pptx 真编辑；Verifier 通道 B
   逐页缩略图；子代理队列非唯一命中交互式确认。
+
+## 最新发布：v4.89.0（2026-09-05）「成本费率 hover：单价快照 · 三档明细 · 诚实降级」
+
+- 调研回填中期候选第一项（langfuse/ccusage 费率口径）。绑定面 578 零变更。
+- Go：fold 跟踪最近一次 usage 上报的非零单价（每 1M tokens），Timeline
+  透出 rate{inputPer1M,outputPer1M,cacheHitPer1M,currency}；无定价 → nil。
+- 前端：SummaryBar 成本单元格 hover 五行明细（来源口径+三档费率+合计，
+  币种 CNY/USD）；无费率诚实「费用未估算」；costHoverTitle 纯函数；
+  i18n 三语 +5 键。
+- 门禁：Go 全量 0 FAIL、tsc -b/eslint 0、vitest 227/1742、drift PASS（578）、
+  ?mock=1 DOM 走查通过（hover title 五行断言；截图通道沿例故障）。
+- 详见 releases/v4.89.0.md。
 
 ## 最新发布：v4.88.0（2026-09-05）「/context 居中弹层 + 常驻「剩余上下文%」徽标」
 

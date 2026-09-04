@@ -58,6 +58,14 @@ func FoldTimeline(entries []session.LogEntry, window int64, retention int) Conte
 		t.Tools = f.timingToolsRanked()
 		tl.Timing = &t
 	}
+	if f.rateIn > 0 || f.rateOut > 0 || f.rateCacheHit > 0 {
+		tl.Rate = &CostRate{
+			InputPer1M:    f.rateIn,
+			OutputPer1M:   f.rateOut,
+			CacheHitPer1M: f.rateCacheHit,
+			Currency:      f.currency,
+		}
+	}
 	// Go 的 nil 切片会序列化成 JSON null，前端按数组消费（.length / for-of）
 	// 会整页崩——空会话恰好四条全 nil。统一兜底为空切片。
 	if tl.Requests == nil {
@@ -127,6 +135,9 @@ type folding struct {
 	cacheMiss      int64
 	cost           float64
 	currency       string
+	rateIn         float64 // 最近一次 usage 上报的单价（每 1M tokens）
+	rateOut        float64
+	rateCacheHit   float64
 
 	// ─── 耗时折叠（timing）状态：与上面各字段同趟累加，不引入第二遍扫描 ───
 	timing    ContextTiming
@@ -628,6 +639,16 @@ func (f *folding) applyUsage(e session.LogEntry) {
 		f.cost += (float64(p.CacheHitTokens)*p.CacheHitPrice +
 			float64(p.CacheMissTokens)*p.Input +
 			float64(p.CompletionTokens)*p.Output) / 1e6
+	}
+	// 2.5e 成本 hover：记录最近一次非零单价（供应商口径，每 1M tokens）。
+	if p.Input > 0 {
+		f.rateIn = p.Input
+	}
+	if p.Output > 0 {
+		f.rateOut = p.Output
+	}
+	if p.CacheHitPrice > 0 {
+		f.rateCacheHit = p.CacheHitPrice
 	}
 	f.stats.CostEstimate = f.cost
 	f.stats.Steps = f.step

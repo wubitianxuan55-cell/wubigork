@@ -677,6 +677,7 @@ export function ContextView({
             window={timeline.window}
             requests={timeline.requests}
             costEstimate={timeline.stats.costEstimate}
+            rate={timeline.rate}
           />
           <div className="text-[9.5px] leading-relaxed text-fg-faint">{t("contextview.estimateNote")}</div>
         </>

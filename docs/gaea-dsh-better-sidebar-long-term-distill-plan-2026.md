@@ -149,7 +149,7 @@ pane 工作台/文件 tab（v4.25）、任务+分工同屏（v4.53）、子代�
 | Agent Network 点击进入对应会话 Context | 部分（AgentRadial 可开子代理对话 tab） | P3 |
 | `/context` 居中弹层 | 斜杠命令切主区 tab（等价但不同交互） | P3（拍板） |
 | 设置中心持久化默认（粒度/模式/排序） | 已落地（v4.82 gaea.context.prefs + 设置卡） | ✅ |
-| 成本费率 hover | 无 | P4 |
+| 成本费率 hover | 已落地（v4.89 fold 透出 Rate 快照 + SummaryBar hover 三档明细） | ✅ |
 
 ## 4. 蒸馏节奏（建议循环）
 
@@ -286,6 +286,7 @@ pane 工作台/文件 tab（v4.25）、任务+分工同屏（v4.53）、子代�
 | v4.85 | 变更面板三态折叠（写入/编辑/读取）+ 类型筛选 chips | 统一文件变动（读写状态分层） | 2a 收口；读取白名单对齐 fileActionByTool |
 | v4.86 | Git 面板最小集（status/diff/stage/unstage/discard/commit/log + 一级 Tab） | git tab（地址栏/暂存/提交/历史） | 2b 收口；D3 采纳推荐默认；2c 渲染升级另刀 |
 | v4.87 | diff 渲染升级（改蓝配对/字符高亮/上下文折叠） | 统一 diff 查看器渲染 | 2c 收口（语法着色随 3a）；阶段二全部完成 |
+| v4.89 | 成本费率 hover（fold Rate 快照 + 三档明细） | 成本 hover 展示 per-1M 费率 | 调研回填中期候选第一项（langfuse/ccusage 口径） |
 | v4.88 | /context 居中弹层 + 常驻剩余上下文% 徽标 | /context 弹层 + 常驻 context 计数 | 2.5e 收口（Agent Network 跳转半项留后续） |
 
 ## 8. 成功标准（长期）

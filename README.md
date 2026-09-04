@@ -89,6 +89,7 @@ gaea/
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| **v4.89.0** | 2026-09-05 | 成本费率 hover（绑定面 578 零变更）：fold 透出最近一次用量上报的单价快照（每 1M tokens 三档），SummaryBar 成本单元格 hover 五行明细（来源口径+未缓存输入/输出/缓存命中+合计），币种 CNY/USD，无费率诚实降级；vitest 227/1742、Go 全量 0 FAIL、drift PASS（578）、?mock=1 DOM 走查通过 |
 | **v4.88.0** | 2026-09-05 | /context 居中弹层 + 常驻「剩余上下文%」徽标（绑定面 578 零变更）：ContextPill codex 式常驻徽标（迷你进度条三档配色，点击开弹层）；ContextModal 复用 ContextView 不离开对话看构成；/context 命令改道弹层、主区 tab 保留；Agent Network 跳转留后续；vitest 227/1743、Go 全量 0 FAIL、drift PASS（578）、?mock=1 DOM 走查通过 |
 | **v4.87.0** | 2026-09-05 | 统一 diff 渲染升级（绑定面 578 零变更）：改蓝配对（相邻删块+增块按行配对蓝底替代红绿）+ 行内字符高亮（配对行字符级 LCS 变化片段着色）+ 上下文折叠（ctx 中段收起可展开）；diffRender 纯函数展示模型，变更面板/Git 面板共用查看器；语法着色留阶段三；vitest 226/1741、Go 全量 0 FAIL、drift PASS（578）、?mock=1 DOM 走查通过 |
 | **v4.86.0** | 2026-09-05 | Git 面板最小集（绑定面 571→578，+GaeaGit*7）：D3 推荐默认（单仓库无 push）——porcelain 状态三分组、unified diff 复用 ChangesDiff 红绿渲染、暂存/取消暂存/丢弃（两击确认）、提交（仅暂存区+说明必填）、历史懒加载；Git 一级 Tab 声明式清单派生；vitest 225/1723、Go 全量 0 FAIL、drift PASS（578）、?mock=1 DOM 走查通过 |

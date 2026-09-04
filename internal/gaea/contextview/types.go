@@ -230,6 +230,18 @@ type ContextTimeline struct {
 	// Timing 是耗时统计卡（会话无任何可测时长时为 nil，整体省略——例如
 	// 迁移日志全部条目同一秒，差值处处为零，诚实留空）。
 	Timing *ContextTiming `json:"timing,omitempty"`
+	// Rate 是成本费率快照（2.5e 成本 hover）：最近一次 usage 事件上报的
+	// 单价（每 1M tokens，供应商口径）。无任何费率上报时为 nil——前端
+	// 显示「费用未估算」，不伪造费率。
+	Rate *CostRate `json:"rate,omitempty"`
+}
+
+// CostRate 是当前生效的模型单价快照（每 1M tokens）。
+type CostRate struct {
+	InputPer1M    float64 `json:"inputPer1M,omitempty"`
+	OutputPer1M   float64 `json:"outputPer1M,omitempty"`
+	CacheHitPer1M float64 `json:"cacheHitPer1M,omitempty"`
+	Currency      string  `json:"currency,omitempty"`
 }
 
 // EmptyTimeline 返回全空快照（会话/日志不存在时绑定层的早退返回值）。

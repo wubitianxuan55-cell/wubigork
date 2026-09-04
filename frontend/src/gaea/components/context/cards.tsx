@@ -11,6 +11,7 @@ import { Clock, Coins, MessageSquare, type Icon } from "../../icons";
 // 语义色豁免说明：六分类语义色 hex 与 ContextView.tsx 的 CAT_COLORS 单源保持一致
 // （页面蓝图 context.md 豁免条款）；主代理收口时可将其提升为共享模块再统一 import。
 import type { ContextRequestRecord, ContextStats, ContextTiming } from "../../lib/types";
+import type { DictKey } from "../../locales/en";
 import { fmtTokens } from "../../lib/stats";
 
 // ─── 语义色（与 ContextView CAT_COLORS 同值；hex-exempt 页面级语义色板） ────
@@ -347,6 +348,26 @@ export function SessionInfoCard({
   );
 }
 
+// 2.5e 成本 hover：费率明细（每 1M tokens，供应商口径）；无费率诚实说明。
+export function costHoverTitle(
+  rate: { inputPer1M?: number; outputPer1M?: number; cacheHitPer1M?: number; currency?: string } | undefined,
+  costEstimate: number | undefined,
+  t: (k: DictKey, vars?: Record<string, string | number>) => string,
+): string {
+  const cur = rate?.currency === "USD" ? "$" : "¥";
+  if (!rate || (!rate.inputPer1M && !rate.outputPer1M && !rate.cacheHitPer1M)) {
+    return t("contextview.costNoRate");
+  }
+  const line = (label: string, v?: number) => (v ? `${label} ${cur}${v} / 1M tok` : "");
+  const parts = [
+    line(t("contextview.costRateIn"), rate.inputPer1M),
+    line(t("contextview.costRateOut"), rate.outputPer1M),
+    line(t("contextview.costRateCache"), rate.cacheHitPer1M),
+  ].filter(Boolean);
+  const total = costEstimate != null ? `${t("contextview.summaryCost")} ${cur}${costEstimate.toFixed(2)}` : "";
+  return [t("contextview.costRateSource"), ...parts, total].filter(Boolean).join("\n");
+}
+
 // ─── 5. SummaryBar 底部汇总条（单行摘要 + 六分类图例） ────────────
 export function SummaryBar({
   sessionName,
@@ -354,12 +375,15 @@ export function SummaryBar({
   window: win,
   requests,
   costEstimate,
+  rate,
 }: {
   sessionName: string;
   used: number;
   window: number;
   requests: ContextRequestRecord[];
   costEstimate?: number;
+  /** 2.5e 成本 hover：最近一次用量上报的单价快照（每 1M tokens）。 */
+  rate?: { inputPer1M?: number; outputPer1M?: number; cacheHitPer1M?: number; currency?: string };
 }) {
   const t = useT();
   const pct = win > 0 ? Math.min(100, Math.round((used / win) * 100)) : 0;
@@ -373,8 +397,14 @@ export function SummaryBar({
           {fmtTokens(used)} / {fmtTokens(win)} · {pct}%
         </span>
         <span className="font-mono text-[10px] tabular-nums text-fg-faint">{t("contextview.summaryRequests", { n: requests.length })}</span>
-        <span className="font-mono text-[10px] tabular-nums text-fg-faint">
-          {costEstimate != null ? `${t("contextview.summaryCost")} ¥${costEstimate.toFixed(2)}` : `${t("contextview.summaryCost")} —`}
+        <span
+          className="font-mono text-[10px] tabular-nums text-fg-faint"
+          data-testid="ctx-cost-cell"
+          title={costHoverTitle(rate, costEstimate, t)}
+        >
+          {costEstimate != null
+            ? `${t("contextview.summaryCost")} ${rate?.currency === "USD" ? "$" : "¥"}${costEstimate.toFixed(2)}`
+            : `${t("contextview.summaryCost")} —`}
         </span>
         <span className="min-[900px]:flex-1" />
         <span className="flex flex-wrap items-center gap-x-2.5 gap-y-0.5">

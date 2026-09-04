@@ -346,6 +346,14 @@ export interface ContextNodeDetailView {
   images?: ContextNodeImage[]; // 解析结果（App 层 I/O；与 imageRefs 对应）
 }
 
+// ContextCostRate 是成本费率快照（2.5e 成本 hover；每 1M tokens，供应商口径）。
+export interface ContextCostRate {
+  inputPer1M?: number;
+  outputPer1M?: number;
+  cacheHitPer1M?: number;
+  currency?: string;
+}
+
 export interface ContextTimeline {
   ok: boolean;
   window: number;
@@ -357,6 +365,7 @@ export interface ContextTimeline {
   archive: ContextSurfaceNode[];
   files: FileActivity[];
   timing?: ContextTiming;
+  rate?: ContextCostRate; // 最近一次用量上报的单价快照（成本 hover 用）
 }
 
 // 耗时统计条目：单个工具名的调用次数与执行时长合计（timing.tools 排行项）。

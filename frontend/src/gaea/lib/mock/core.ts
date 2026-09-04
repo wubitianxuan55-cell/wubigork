@@ -85,6 +85,8 @@ export function buildCore(s: MakeMockState): CoreMethods {
           { seq: 8, cat: "tool", tokens: 500, text: "图中是一张季度报表截图（mock 样例：图片缩略卡走查）", tool: "vision" },
         ],
         archive: [],
+        // 2.5e 成本 hover 走查样例：最近一次用量上报的单价（每 1M tokens）
+        rate: { inputPer1M: 2, outputPer1M: 8, cacheHitPer1M: 0.5, currency: "CNY" },
         files: [
           { seq: 5, ts: 1750000005, turn: 1, step: 1, tool: "read_file", action: "read", path: "internal/gaea/config/config.go" },
           { seq: 9, ts: 1750000009, turn: 1, step: 2, tool: "grep", action: "read", path: "internal/gaea/config", hits: 4 },
