@@ -1,3 +1,10 @@
+## v4.85.0 · 本轮文件三态折叠：写入/编辑/读取独立成层 + 类型筛选（2026-09-05）
+> 双源蒸馏规划阶段二 2a（对标源 better-sidebar v0.18「统一文件变动」）；**绑定面 571 零变更**（纯前端刀）。详见 releases/v4.85.0.md。
+- **三态独立折叠层**：ChangesPanel 由单一写类列表重构为 写入（write_file/move_file）/ 编辑（edit_file/edit_lines/multi_edit/notebook_edit/delete_*）/ 读取（read_file/grep/vision/format_convert，对齐后端 fileActionByTool read 白名单）三层——同一文件跨层独立出现（读后又被写=两层各一条，独立语义）；读取层轻量行（无 diff，点击直接开预览）默认收起降噪；写/编辑层保留行级 diff 展开+证据链回滚，工具集参数化（buildChangeCalls/buildSessionChanges 传集合，默认值不变零破坏）。
+- **类型筛选 chips**：全部/文档/表格/图片/代码/其他按扩展名分桶（categoryOf），横贯三层过滤，chip 计数=并集文件数；过滤后全空显示诚实提示。
+- items 为权威源；prop changes 在 items 为空时回退为「变更」合并层（历史恢复场景兼容）。diff 展开与回滚链路逐行保真搬运未改语义。
+- 测试：changes +3（reads 聚合/分桶/工具集划分）+ 面板 +3（三态层头与默认折叠/读取层轻量行回调/分类过滤与空提示）+ 空状态用例补 store 清空；vitest 224/1720、Go 全量 0 FAIL、tsc/tsc -b/eslint 0、drift PASS（571）、?mock=1 走查通过（DOM 断言：三层计数/读取展开/分类过滤/空提示；截图通道沿例故障如实记录）。
+
 ## v4.84.0 · HTML 沙箱预览 · 外链协议分流（2026-09-05）
 > 双源蒸馏规划阶段一 1c（阶段一 1a/1c 收口，1b 已勘误销账）；**绑定面 571 零变更**。详见 releases/v4.84.0.md。
 - **HTML 沙箱预览**：GaeaPreview 增 `.html/.htm` kind=html（原文截断读，此前落 textExts 当纯文本）；前端 SandboxedHtml 组件——独立 iframe `sandbox="allow-scripts"`（刻意无 allow-same-origin=不透明源，无法触宿主 DOM/存储）+ Chromium csp 属性 `default-src 'none'`（禁一切网络外链，只放内联样式/脚本与 data:/blob: 图）双保险，顶条如实标注沙箱语义；FilePreview/FilePreviewModal 双消费点接线；i18n 三语 +1 键（非响应式 t()，沿 DocxPreview 先例防未包 Provider 挂载点抛错）。

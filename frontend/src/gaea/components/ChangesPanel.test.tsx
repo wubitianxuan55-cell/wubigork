@@ -71,7 +71,8 @@ describe("ChangesPanel 文件变更面板（v4.25 diff 化）", () => {
     expect(names).toEqual(["b.md", "a.md"]);
   });
 
-  it("无变更时展示空状态", () => {
+  it("无变更时展示空状态（prop 与 store items 均为空）", () => {
+    seedItems([]); // 2a 起 items 为权威源，store 有种子则不视为空
     render(wrap(<ChangesPanel changes={[]} onOpenFile={() => {}} />));
     expect(screen.getByText(/本会话暂无文件变更/)).toBeTruthy();
   });
@@ -157,5 +158,66 @@ describe("ChangesPanel 文件变更面板（v4.25 diff 化）", () => {
     fireEvent.click(screen.getByLabelText("展开 /ws/a.md 的改动 diff"));
     expect(await screen.findByText(/调用未成功落盘/)).toBeTruthy();
     expect(document.querySelector('[data-testid="changes-diff-hunk"]')).toBeNull();
+  });
+});
+
+describe("ChangesPanel 2a 三态折叠 + 类型筛选", () => {
+  const readItem: Item = {
+    kind: "tool",
+    id: "t3",
+    name: "read_file",
+    args: JSON.stringify({ path: "/ws/a.md" }),
+    readOnly: true,
+    status: "done",
+  };
+  const visionItem: Item = {
+    kind: "tool",
+    id: "t4",
+    name: "vision",
+    args: JSON.stringify({ image_path: "/ws/图表.png" }),
+    readOnly: true,
+    status: "done",
+  };
+
+  beforeEach(() => {
+    seedItems([editItem, writeItem, readItem, visionItem]);
+  });
+
+  it("三态独立成层：写入=write_file、编辑=edit_file、读取=read_file/vision；读取层默认收起", () => {
+    render(wrap(<ChangesPanel changes={changes} onOpenFile={() => {}} />));
+    // 层头计数（过滤前）
+    expect(screen.getByTestId("changes-layer-write").textContent).toContain("写入");
+    expect(screen.getByTestId("changes-layer-write").textContent).toContain("1");
+    expect(screen.getByTestId("changes-layer-edit").textContent).toContain("编辑");
+    expect(screen.getByTestId("changes-layer-edit").textContent).toContain("1");
+    const readHead = screen.getByTestId("changes-layer-read");
+    expect(readHead.textContent).toContain("读取");
+    expect(readHead.textContent).toContain("2"); // a.md + 图表.png
+    expect(readHead.getAttribute("aria-expanded")).toBe("false"); // 默认收起
+    // a.md 同时在编辑层（写入层无它）
+    expect(screen.getByLabelText("展开 /ws/a.md 的改动 diff")).toBeTruthy();
+    expect(screen.queryByLabelText("展开 /ws/b.md 的改动 diff")).toBeTruthy();
+  });
+
+  it("读取层展开后为轻量行：点击直接回调 onOpenFile", () => {
+    const onOpenFile = vi.fn();
+    render(wrap(<ChangesPanel changes={changes} onOpenFile={onOpenFile} />));
+    fireEvent.click(screen.getByTestId("changes-layer-read"));
+    fireEvent.click(screen.getByLabelText("打开 /ws/a.md 预览"));
+    expect(onOpenFile).toHaveBeenCalledWith("/ws/a.md");
+    expect(screen.getAllByText(/读 1 次/).length).toBe(2); // a.md + 图表.png 各 1 次
+  });
+
+  it("类型筛选：图片分类只剩读取层的 png，代码分类提示为空", () => {
+    render(wrap(<ChangesPanel changes={changes} onOpenFile={() => {}} />));
+    fireEvent.click(screen.getByTestId("changes-layer-read")); // 读取层默认收起，先展开
+    fireEvent.click(screen.getByTestId("changes-cat-image"));
+    expect(screen.getByText("图表.png")).toBeTruthy();
+    expect(screen.queryByText("a.md")).toBeNull();
+    fireEvent.click(screen.getByTestId("changes-cat-code"));
+    expect(screen.getByText(/该类型暂无文件/)).toBeTruthy();
+    fireEvent.click(screen.getByTestId("changes-cat-all"));
+    // a.md 跨层独立出现（编辑层+读取层各一行），正是「独立折叠层」语义
+    expect(screen.getAllByText("a.md").length).toBeGreaterThanOrEqual(2);
   });
 });

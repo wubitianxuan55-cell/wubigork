@@ -140,10 +140,13 @@ export function pathsMatch(a: string, b: string): boolean {
 // 从会话 items 聚合「路径 → 该路径上的写类调用列表」（按出现顺序；展示端再倒序）。
 // 与 changes.ts 的 buildSessionChanges 同源同口径：同一个 WRITE_TOOL_NAMES 集合、
 // 同一个 extractChangedPaths 提取，保证次数与明细一一对应。
-export function buildChangeCalls(items: Item[]): Map<string, ChangeCall[]> {
+export function buildChangeCalls(
+  items: Item[],
+  tools: ReadonlySet<string> = WRITE_TOOL_NAMES,
+): Map<string, ChangeCall[]> {
   const map = new Map<string, ChangeCall[]>();
   items.forEach((it) => {
-    if (it.kind !== "tool" || !(WRITE_TOOL_NAMES as ReadonlySet<string>).has(it.name)) return;
+    if (it.kind !== "tool" || !tools.has(it.name)) return;
     const paths = extractChangedPaths(it.args || "");
     if (paths.length === 0) return;
     const diff = buildChangeDiff(it.name, it.args || "");
