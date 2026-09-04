@@ -165,3 +165,50 @@ export function buildChangeCalls(
   });
   return map;
 }
+
+// ── Git unified diff 解析（2b Git 面板）──────────────────────────
+// 把 `git diff --no-color -- <path>` 的标准 unified diff 文本解析为
+// ChangeDiff（复用 ChangesDiff 渲染：行级红绿 + 上下文行）。解析不了的
+// 输入诚实降级 kind="none"，不伪造行。
+
+/**
+ * 从 unified diff 文本构造内容级视图。
+ * 口径：hunk 头 `@@ -a,b +c,d @@` 起新块；`+`/`-`/` `（空格）分别为增/删/
+ * 上下文；`\ No newline at end of file` 行跳过；`diff --git`/`index`/
+ * `---`/`+++` 头部行作为 hunk label 来源（取文件对）。
+ */
+export function buildGitDiff(diffText: string): ChangeDiff {
+  const text = (diffText || "").replace(/\r\n/g, "\n");
+  if (!text.trim()) return { kind: "none", hunks: [], note: "无差异" };
+  const lines = text.split("\n");
+  const hunks: DiffHunk[] = [];
+  let cur: DiffHunk | null = null;
+  let fileLabel = "";
+  for (const line of lines) {
+    if (line.startsWith("diff --git")) {
+      fileLabel = line.replace(/^diff --git a\//, "").replace(/ b\/.*$/, "");
+      continue;
+    }
+    if (line.startsWith("index ") || line.startsWith("old mode") || line.startsWith("new mode")) continue;
+    if (line.startsWith("--- ") || line.startsWith("+++ ")) continue;
+    if (line.startsWith("@@")) {
+      cur = { label: fileLabel ? `${fileLabel} · ${line}` : line, rows: [] };
+      hunks.push(cur);
+      continue;
+    }
+    if (line.startsWith("\\ No newline")) continue; // 尾行无换行标记：展示层跳过
+    if (!cur) continue; // hunk 之前的杂项（如 mode 行）不入行
+    if (line.startsWith("+")) {
+      cur.rows.push({ type: "add", text: line.slice(1) });
+    } else if (line.startsWith("-")) {
+      cur.rows.push({ type: "del", text: line.slice(1) });
+    } else if (line.startsWith(" ")) {
+      cur.rows.push({ type: "ctx", text: line.slice(1) });
+    } else if (line === "") {
+      cur.rows.push({ type: "ctx", text: "" });
+    }
+    // 其他未知前缀行：跳过（诚实丢弃，不猜语义）
+  }
+  if (hunks.length === 0) return { kind: "none", hunks: [], note: "未能解析出 diff 内容" };
+  return { kind: "diff", hunks };
+}

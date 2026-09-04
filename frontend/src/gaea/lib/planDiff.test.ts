@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildChangeCalls, buildChangeDiff, pathsMatch } from "./planDiff";
+import { buildChangeCalls, buildChangeDiff, pathsMatch, buildGitDiff } from "./planDiff";
 import type { Item } from "./store";
 
 const editArgs = JSON.stringify({
@@ -113,5 +113,36 @@ describe("planDiff pathsMatch（变更路径 ↔ Journal target）", () => {
   });
   it("无关路径不匹配", () => {
     expect(pathsMatch("docs/a.md", "docs/b.md")).toBe(false);
+  });
+});
+
+describe("buildGitDiff 2b Git unified diff 解析", () => {
+  it("解析 hunk 头/增删/上下文行，头部 index/---/+++ 不入行", () => {
+    const d = buildGitDiff(
+      [
+        "diff --git a/src/a.go b/src/a.go",
+        "index 111..222 100644",
+        "--- a/src/a.go",
+        "+++ b/src/a.go",
+        "@@ -1,2 +1,2 @@",
+        "-old",
+        "+new",
+        " ctx",
+        "\\ No newline at end of file",
+      ].join("\n"),
+    );
+    expect(d.kind).toBe("diff");
+    expect(d.hunks).toHaveLength(1);
+    expect(d.hunks[0].label).toContain("src/a.go");
+    expect(d.hunks[0].rows).toEqual([
+      { type: "del", text: "old" },
+      { type: "add", text: "new" },
+      { type: "ctx", text: "ctx" },
+    ]);
+  });
+
+  it("空输入/无 hunk 诚实降级 none", () => {
+    expect(buildGitDiff("").kind).toBe("none");
+    expect(buildGitDiff("diff --git a/x b/x\nindex 1..2\n").kind).toBe("none");
   });
 });

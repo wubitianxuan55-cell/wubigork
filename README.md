@@ -89,6 +89,7 @@ gaea/
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| **v4.86.0** | 2026-09-05 | Git 面板最小集（绑定面 571→578，+GaeaGit*7）：D3 推荐默认（单仓库无 push）——porcelain 状态三分组、unified diff 复用 ChangesDiff 红绿渲染、暂存/取消暂存/丢弃（两击确认）、提交（仅暂存区+说明必填）、历史懒加载；Git 一级 Tab 声明式清单派生；vitest 225/1723、Go 全量 0 FAIL、drift PASS（578）、?mock=1 DOM 走查通过 |
 | **v4.85.0** | 2026-09-05 | 本轮文件三态折叠（绑定面 571 零变更）：ChangesPanel 重构为 写入/编辑/读取 三层独立折叠（同文件跨层独立出现；读取层轻量行默认收起），类型筛选 chips 横贯三层（文档/表格/图片/代码/其他），写/编辑层 diff+回滚逐行保真；vitest 224/1720、Go 全量 0 FAIL、drift PASS（571）、?mock=1 DOM 走查通过 |
 | **v4.84.0** | 2026-09-05 | HTML 沙箱预览 + 外链协议分流（绑定面 571 零变更）：.html kind=html 沙箱 iframe（sandbox 无同源 + csp default-src 'none' 双保险）+ 标注条；classifyExternalLink 渲染链接协议分流（http(s) 放行/loopback 拒/mailto/tel 交系统/其余 blocked）接线三处点击点；vitest 224/1712、Go 全量 0 FAIL、drift PASS（571）、?mock=1 DOM 走查通过；阶段一收口 |
 | **v4.83.0** | 2026-09-05 | 工具结果图片缩略卡（绑定面 571 零变更）：详情面板缩略图+「原始尺寸→标准档缩放尺寸」+官方 patch 口径 token（⌈w/28⌉×⌈h/28⌉ 先缩放再封顶，官方例 1000×1000→1296 单测锚定）；图片引用确定性提取；fold 修 stats.Images 死字段；vitest 224/1700、Go 全量 0 FAIL、drift PASS（571）、?mock=1 DOM 走查通过 |

@@ -19,7 +19,7 @@
 // 与既有行为对齐）。
 
 import type { Icon } from "../icons";
-import { ClipboardList, FileText, FolderTree, Globe } from "../icons";
+import { ClipboardList, FileText, FolderTree, GitBranch, Globe } from "../icons";
 import { readWorkbenchValue, writeWorkbenchValue } from "./workbenchStorage";
 import { loadOptionalLayoutSize, saveLayoutSize } from "./layoutPreferences";
 
@@ -30,7 +30,8 @@ import { loadOptionalLayoutSize, saveLayoutSize } from "./layoutPreferences";
  *  （MergedPanel 上下分区同屏全可见，不是二级标签），6→4。
  *  旧存储值经 normalizeWorkspaceTabId 别名收敛（changes→deliverables、
  *  subagents→tasks），非法值回默认「文件」。 */
-export const WORKSPACE_TAB_IDS = ["files", "deliverables", "tasks", "browser"] as const;
+// v4.86 2b：追加 git（Git 面板最小集，D3 单仓库无 push）——v4.53 合并后首个新一级 Tab。
+export const WORKSPACE_TAB_IDS = ["files", "deliverables", "tasks", "browser", "git"] as const;
 export type WorkspaceTabId = (typeof WORKSPACE_TAB_IDS)[number];
 
 export interface WorkspaceTabDef {
@@ -56,6 +57,8 @@ export const WORKSPACE_TABS: WorkspaceTabDef[] = [
   // v4.28 A2 浏览器观察窗：受控 Edge 的截图步进流 + 操作时间线（被动观察，
   // 不拉起浏览器；「新 browser_* 工具自动弹出」由 App 经 browserPrefs 接线）。
   { id: "browser", label: "浏览器", icon: Globe, keywords: ["browser", "浏览器", "观察", "网页"], defaultEnabled: true },
+  // 2b Git 面板最小集（分支/状态/暂存/提交/历史；仓库锚定工作区 cwd）。
+  { id: "git", label: "Git", icon: GitBranch, keywords: ["git", "版本", "提交", "分支", "暂存", "diff", "commit", "history"], defaultEnabled: true },
 ];
 
 // v4.53 合并后的旧 id 别名：历史持久化值（裸 tab id / 记录 / 启用集）读入时

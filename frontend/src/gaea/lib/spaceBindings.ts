@@ -303,6 +303,14 @@ export const GAEA_METHOD_FACETS = {
   ContextNodeDetail: "work",
   // v4.1 证据链：Journal 读取属工位（前端「证据」入口，DeliverablesPanel）。
   GaeaJournalList: "work",
+  // 2b Git 面板最小集（工位工作台文件域；D3：单仓库无 push）。
+  GaeaGitStatus: "work",
+  GaeaGitDiff: "work",
+  GaeaGitStage: "work",
+  GaeaGitUnstage: "work",
+  GaeaGitDiscard: "work",
+  GaeaGitCommit: "work",
+  GaeaGitLog: "work",
   VerifyRecord: "work",
   RollbackRecord: "work",
   DocumentLint: "work",

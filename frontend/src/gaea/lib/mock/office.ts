@@ -31,6 +31,7 @@ type OfficeMethods = Pick<
   | "PickFiles" | "PickDirectory"
   | "TaskList" | "TaskCancel" | "TaskKill" | "TaskRetry" | "TaskOutput"
   | "GaeaJournalList" | "VerifyRecord" | "RollbackRecord"
+  | "GaeaGitStatus" | "GaeaGitDiff" | "GaeaGitStage" | "GaeaGitUnstage" | "GaeaGitDiscard" | "GaeaGitCommit" | "GaeaGitLog"
 >;
 
 export function buildOffice(_s: MakeMockState): OfficeMethods {
@@ -560,6 +561,46 @@ export function buildOffice(_s: MakeMockState): OfficeMethods {
     async PickDirectory(): Promise<string> {
       // mock: no native dialog
       return "";
+    },
+    async GaeaGitStatus() {
+      // 2b 走查样例：三分组状态（暂存/未暂存/未跟踪）+ 分支 ahead。
+      return {
+        isRepo: true,
+        branch: "main",
+        ahead: 1,
+        behind: 0,
+        files: [
+          { path: "docs/调研结论.md", x: "M", y: " ", staged: true, modified: true },
+          { path: "internal/gaea/config/config.go", x: " ", y: "M", modified: true },
+          { path: "reports/季度报告.html", x: "?", y: "?", untracked: true },
+        ],
+      };
+    },
+    async GaeaGitDiff(path: string, staged: boolean) {
+      void staged;
+      return [
+        "diff --git a/" + path + " b/" + path,
+        "index 111111..222222 100644",
+        "--- a/" + path,
+        "+++ b/" + path,
+        "@@ -1,2 +1,3 @@",
+        " 第一行（上下文）",
+        "-被删除的一行",
+        "+新增加的一行",
+        "+第二个新增行",
+      ].join("\n");
+    },
+    async GaeaGitStage(_paths: string[]) {},
+    async GaeaGitUnstage(_paths: string[]) {},
+    async GaeaGitDiscard(_path: string) {},
+    async GaeaGitCommit(_message: string) {
+      return "abc1234";
+    },
+    async GaeaGitLog(_limit: number) {
+      return [
+        { hash: "abc1234", subject: "release: 演示提交（mock）", author: "gaea", ts: 1750000000 },
+        { hash: "def5678", subject: "fix: 上一笔演示修复（mock）", author: "gaea", ts: 1749990000 },
+      ];
     },
     async TaskList() {
       return [...taskMock];

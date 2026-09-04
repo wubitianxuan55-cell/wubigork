@@ -33,8 +33,8 @@ describe("workspaceTabs 清单完整性（v4.53 合并：文件/产物/任务/�
     expect(ids.sort()).toEqual([...WORKSPACE_TAB_IDS].sort());
   });
 
-  it("清单为 4 Tab（v4.53 产物与变更/任务与分工合并），不含已删除面板", () => {
-    expect(WORKSPACE_TABS.map((t) => t.id)).toEqual(["files", "deliverables", "tasks", "browser"]);
+  it("清单为 5 Tab（v4.53 合并后 v4.86 2b 追加 Git），不含已删除面板", () => {
+    expect(WORKSPACE_TABS.map((t) => t.id)).toEqual(["files", "deliverables", "tasks", "browser", "git"]);
     expect(WORKSPACE_TABS.some((t) => (t.id as string) === "materials")).toBe(false);
     expect(WORKSPACE_TABS.some((t) => (t.id as string) === "cost")).toBe(false);
     expect(isWorkspaceTabId("materials")).toBe(false); // 旧存储值收敛回默认

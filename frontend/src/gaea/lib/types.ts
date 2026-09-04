@@ -283,6 +283,36 @@ export interface ContextSurfaceNode {
   err?: boolean; // 工具结果为错误返回（error 语义点）
 }
 
+// GitFileStatus 是一条文件状态（git status porcelain v1 的 X/Y 两列展开）。
+export interface GitFileStatus {
+  path: string;
+  x: string;
+  y: string;
+  staged?: boolean;
+  untracked?: boolean;
+  deleted?: boolean;
+  modified?: boolean;
+  renamed?: boolean;
+}
+
+// GitStatusView 是仓库状态快照（非 Git 仓库时 isRepo=false + error）。
+export interface GitStatusView {
+  isRepo: boolean;
+  branch?: string;
+  ahead?: number;
+  behind?: number;
+  files: GitFileStatus[];
+  error?: string;
+}
+
+// GitCommitInfoView 是一条历史提交。
+export interface GitCommitInfoView {
+  hash: string;
+  subject: string;
+  author?: string;
+  ts?: number;
+}
+
 // ContextNodeImage 是详情里一张图片引用的缩略卡数据（2.5b 后半；Go App 层
 // 解析：绝对路径 + 尺寸 + 官方 patch 口径 token 估算）。
 export interface ContextNodeImage {

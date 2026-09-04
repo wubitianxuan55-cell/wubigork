@@ -67,6 +67,13 @@ func (b *OfficeB) GaeaFileSearch(query string, limit int) []FileSearchHit { retu
 func (b *OfficeB) GaeaFileSemanticSearch(query string, topN int) ([]FileSemanticHit, error) { return b.a.GaeaFileSemanticSearch(query, topN) }
 func (b *OfficeB) GaeaForget(name string) error { return b.a.GaeaForget(name) }
 func (b *OfficeB) GaeaFork(turn int) error { return b.a.GaeaFork(turn) }
+func (b *OfficeB) GaeaGitCommit(message string) (string, error) { return b.a.GaeaGitCommit(message) }
+func (b *OfficeB) GaeaGitDiff(path string, staged bool) (string, error) { return b.a.GaeaGitDiff(path, staged) }
+func (b *OfficeB) GaeaGitDiscard(path string) error { return b.a.GaeaGitDiscard(path) }
+func (b *OfficeB) GaeaGitLog(limit int) ([]GitCommitInfo, error) { return b.a.GaeaGitLog(limit) }
+func (b *OfficeB) GaeaGitStage(paths []string) error { return b.a.GaeaGitStage(paths) }
+func (b *OfficeB) GaeaGitStatus() GitStatus { return b.a.GaeaGitStatus() }
+func (b *OfficeB) GaeaGitUnstage(paths []string) error { return b.a.GaeaGitUnstage(paths) }
 func (b *OfficeB) GaeaHistory() []HistoryMessage { return b.a.GaeaHistory() }
 func (b *OfficeB) GaeaInit() error { return b.a.GaeaInit() }
 func (b *OfficeB) GaeaJobs() []JobView { return b.a.GaeaJobs() }

@@ -188,8 +188,12 @@ pane 工作台/文件 tab（v4.25）、任务+分工同屏（v4.53）、子代�
   （同文件跨层独立出现；读取层轻量行默认收起；写/编辑层 diff+证据链回滚
   保真）+ 类型筛选 chips（文档/表格/图片/代码/其他，横贯三层）；读取白名单
   对齐后端 fileActionByTool；工具集参数化零破坏；
-- 2b Git 面板最小集：status/diff/stage/commit/revert/history（无 push/pull/
-  fetch，与源一致），单仓库优先，worktree/子仓库列为 2c；
+- ~~2b Git 面板最小集：status/diff/stage/commit/revert/history~~ **已完成
+  （v4.86.0；D3 采纳推荐默认，v4.78 D1 先例）**：GaeaGit*7 绑定（git CLI
+  exec 列表、仓库锚定 gaeaCwd、非仓库/git 缺失诚实错误）；Git 一级 Tab
+  （声明式清单派生）——三分组状态、unified diff 复用 ChangesDiff（2c 的
+  改蓝配对/字符高亮/语法着色仍留）、暂存/取消暂存/丢弃两击确认、提交仅
+  暂存区不代 add、历史懒加载；无 push/pull/fetch，worktree/子仓库另案；
 - 2c 统一 diff 渲染升级：改蓝配对 + 行内字符高亮 + 语法着色 + 上下文折叠
   （docx/xlsx 现有 diff 归入同一查看器，不破坏既有编辑面）。
 
@@ -271,6 +275,7 @@ pane 工作台/文件 tab（v4.25）、任务+分工同屏（v4.53）、子代�
 | v4.83 | 图片缩略卡 + 官方 patch 口径图片 token 估算 + 图片引用提取 | 图片 payload 缩略卡（含 token 估算） | 2.5b 后半收口，阶段二.5 全部完成；口径来自 2026-09-05 调研 |
 | v4.84 | HTML 沙箱预览（sandbox+CSP iframe）+ classifyExternalLink 外链分流 | html viewer + 外链协议分流 | 1c 收口，阶段一全部完成 |
 | v4.85 | 变更面板三态折叠（写入/编辑/读取）+ 类型筛选 chips | 统一文件变动（读写状态分层） | 2a 收口；读取白名单对齐 fileActionByTool |
+| v4.86 | Git 面板最小集（status/diff/stage/unstage/discard/commit/log + 一级 Tab） | git tab（地址栏/暂存/提交/历史） | 2b 收口；D3 采纳推荐默认；2c 渲染升级另刀 |
 
 ## 8. 成功标准（长期）
 

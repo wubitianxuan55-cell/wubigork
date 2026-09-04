@@ -16,6 +16,7 @@ import { createElement } from "react";
 import type { ReactNode } from "react";
 import { DeliverablesPanel, type SessionDeliverable } from "../components/DeliverablesPanel";
 import { ChangesPanel } from "../components/ChangesPanel";
+import { GitPanel } from "../components/GitPanel";
 import { BrowserPanel } from "../components/BrowserPanel";
 import { MergedPanel } from "../components/MergedPanel";
 import { ExplorerView } from "../components/ExplorerView";
@@ -120,6 +121,8 @@ const RENDERERS: Record<WorkspaceTabId, (ctx: WorkspacePanelContext) => ReactNod
   // v4.28 A2 浏览器观察窗：数据自取（GaeaBrowserObserve + Trajectory 过滤
   // browser_* 工具记录），不依赖 ctx —— 被动观察面与工作区/会话路径解耦。
   browser: () => createElement(BrowserPanel),
+  // 2b Git 面板：数据自取（GaeaGit*，仓库=工作区 cwd）；onOpenFile 复用 pane 文件 tab。
+  git: (_ctx) => createElement(GitPanel, { onOpenFile: openPaneFileTab }),
 };
 
 /** 打开 pane 文件 tab（行内打开的统一入口）：路径去重、追加到工作台 tab 条。 */

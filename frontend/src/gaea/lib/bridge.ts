@@ -114,6 +114,8 @@ import type {
   TaskView,
   ModelSwitchEstimate,
   JournalChangeRecord,
+  GitStatusView,
+  GitCommitInfoView,
   VerdictView,
   LintReportView,
   WhisperSubgraph,
@@ -623,6 +625,14 @@ export interface AppBindings {
   ContextNodeDetail(seq: number): Promise<ContextNodeDetailView>;
   // v4.1 证据链：Journal 最近证据卡（跨会话聚合，时间倒序；前端「证据」入口）。
   GaeaJournalList(limit: number): Promise<JournalChangeRecord[]>;
+  // 2b Git 面板最小集（D3：单仓库 status/diff/stage/unstage/discard/commit/log，无 push）。
+  GaeaGitStatus(): Promise<GitStatusView>;
+  GaeaGitDiff(path: string, staged: boolean): Promise<string>;
+  GaeaGitStage(paths: string[]): Promise<void>;
+  GaeaGitUnstage(paths: string[]): Promise<void>;
+  GaeaGitDiscard(path: string): Promise<void>;
+  GaeaGitCommit(message: string): Promise<string>;
+  GaeaGitLog(limit: number): Promise<GitCommitInfoView[]>;
   // v4.1b：双通道复核一张证据卡（A 结构/引用完整性 + B 视觉健全性）。
   VerifyRecord(id: string): Promise<VerdictView>;
   // v4.1b：基线快照回滚（目标被手工修改时拒绝，零覆盖）。
@@ -963,6 +973,13 @@ const gaeaToGaea = {
   TaskOutput: "GaeaTaskOutput",
   ContextNodeDetail: "GaeaContextNodeDetail",
   GaeaJournalList: "GaeaJournalList",
+  GaeaGitStatus: "GaeaGitStatus",
+  GaeaGitDiff: "GaeaGitDiff",
+  GaeaGitStage: "GaeaGitStage",
+  GaeaGitUnstage: "GaeaGitUnstage",
+  GaeaGitDiscard: "GaeaGitDiscard",
+  GaeaGitCommit: "GaeaGitCommit",
+  GaeaGitLog: "GaeaGitLog",
   VerifyRecord: "GaeaVerifyRecord",
   RollbackRecord: "GaeaRollbackRecord",
   DocumentLint: "GaeaDocumentLint",

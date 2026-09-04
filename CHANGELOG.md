@@ -1,3 +1,9 @@
+## v4.86.0 · Git 面板最小集：status/diff/stage/commit/history（2026-09-05）
+> 双源蒸馏规划阶段二 2b；决策门 D3 采纳推荐默认（单仓库、无 push/pull/fetch，v4.78 采纳 D1 推荐默认同款先例）；**绑定面 571→578**（+GaeaGitStatus/GaeaGitDiff/GaeaGitStage/GaeaGitUnstage/GaeaGitDiscard/GaeaGitCommit/GaeaGitLog，默认落 office 门面）。详见 releases/v4.86.0.md。
+- **Go**（gaea_git.go 新）：执行 git CLI（exec 列表无 shell 注入面，仓库锚定 gaeaCwd）；status=porcelain v1（分支/ahead/behind/X|Y 两列展开为 staged/untracked/deleted/modified/renamed）；diff=unified 文本（--no-color，staged 走 --cached）；commit 只提交暂存区（不代 add），空说明拒绝，返回短 hash；discard=checkout --（破坏性，前端两击确认）；log=NUL 分隔 pretty format；非仓库/git 缺失诚实错误。
+- **前端**：workspaceTabs 追加 git 一级 Tab（v4.53 合并后首个新增）；GitPanel——三分组（已暂存/未暂存/未跟踪）+ 状态字母徽标 + 暂存/取消暂存/丢弃（两击 3s 确认态）+ 行内 diff（buildGitDiff 解析 unified diff 复用 ChangesDiff 红绿渲染，未跟踪文件诚实提示无 diff 语义）+ 提交区（暂存计数/说明必填/按钮解禁逻辑）+ 提交历史折叠懒加载；非仓库空态；GaeaGit* 调用可选守卫（无后端环境不抛）。绑定三件套同步（bindingNames/spaceBindings 全 work + 数量锁 270→277/bridge）。
+- 测试：Go +3（真实临时仓库走 status→stage→diff→unstage→commit→log→discard 全链路、非仓库错误、-count 含复跑）；planDiff +2（unified diff 解析/空降级）；GitPanel +6（三组渲染/非仓库态/暂存 diff/提交门禁/两击确认/历史懒加载）；spaceBindings 数量锁更新。vitest 225/1723、Go 全量 0 FAIL、tsc -b/eslint 0、drift PASS（578）、?mock=1 走查通过（DOM 断言四项；截图通道沿例故障如实记录）。
+
 ## v4.85.0 · 本轮文件三态折叠：写入/编辑/读取独立成层 + 类型筛选（2026-09-05）
 > 双源蒸馏规划阶段二 2a（对标源 better-sidebar v0.18「统一文件变动」）；**绑定面 571 零变更**（纯前端刀）。详见 releases/v4.85.0.md。
 - **三态独立折叠层**：ChangesPanel 由单一写类列表重构为 写入（write_file/move_file）/ 编辑（edit_file/edit_lines/multi_edit/notebook_edit/delete_*）/ 读取（read_file/grep/vision/format_convert，对齐后端 fileActionByTool read 白名单）三层——同一文件跨层独立出现（读后又被写=两层各一条，独立语义）；读取层轻量行（无 diff，点击直接开预览）默认收起降噪；写/编辑层保留行级 diff 展开+证据链回滚，工具集参数化（buildChangeCalls/buildSessionChanges 传集合，默认值不变零破坏）。
