@@ -89,6 +89,7 @@ gaea/
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| **v4.69.0** | 2026-09-04 | 上下文页第三轮精修「对齐 dsh-context 仪表」（绑定面 561 零变更，纯前端）：图例 chip hover 联动高亮（悬停分类该段保持、其余段 150ms 淡出）；趋势卡内联请求详情——默认选中最新一步打开即有内容、删独立详情行（master-detail 收进同卡）；事件筛选改 dsh 多选 chips（全亮→单类→再点恢复全选）；四仪表卡头「标题+右副注」单行排版；Token 环心命中率两位小数；死键 contextview.pickHint 三语删除；vitest 224/1683、tsc/eslint 0、冒烟 200 |
 | **v4.68.0** | 2026-09-04 | 上下文页对齐 dsh-context（绑定面 561 零变更）：ContextTiming 时长折叠（wall/ttft/gen/tools，诚实近似）；dsh 全宽网格仪表（四仪表卡+当前上下文宽卡含空闲段+浏览器分类折叠组+文件活动聚合树+Agent 径向树+汇总条）；i18n +47 键；judge 三图 pass；vitest 224/1681、冒烟 200 |
 | **v4.67.0** | 2026-09-04 | 上下文标签页重设计（绑定面 561 零变更，ui-ux-pro-max 技能刀）：单列 8 卡 → 驾驶舱三区（顶部总览条+左过程轴+右 inspector 三 tab），功能零删减；judge 视觉验收 pass；vitest 221/1647、冒烟 200 |
 | **v4.66.0** | 2026-09-04 | 子代理会话提升（绑定面 560→561 +GaeaPromoteSubagent）：transcript 忠实投影为独立新顶层会话（投影往返双校验/诚实降级/原运行不动）+ SubagentThread「保存为新会话」入口；TasksWorkbench 双源轮询迁 store（四消费点全收敛、失败不再吞错）；Go 全量 exit 0、vitest 221/1647、drift PASS（561）、冒烟 200 |

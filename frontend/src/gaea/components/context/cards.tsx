@@ -67,10 +67,15 @@ function fmtPct(part: number, whole: number): string {
 // ─── 卡片外壳与公共小件 ─────────────────────────────────────────
 
 function CardHead({ title, sub }: { title: string; sub?: string }) {
+  // v4.69（对齐 dsh 仪表头）：标题左置、副注右置同行的单行卡头，数据密度优先。
   return (
-    <div>
-      <div className="text-[11px] font-medium text-fg">{title}</div>
-      {sub && <div className="text-[9.5px] text-fg-faint">{sub}</div>}
+    <div className="flex items-baseline justify-between gap-2">
+      <div className="min-w-0 truncate text-[11px] font-medium text-fg">{title}</div>
+      {sub && (
+        <div className="min-w-0 shrink-0 truncate text-right text-[9.5px] leading-none text-fg-faint" title={sub}>
+          {sub}
+        </div>
+      )}
     </div>
   );
 }
@@ -173,7 +178,7 @@ export function TokenCard({ requests }: { requests: ContextRequestRecord[] }) {
   const { hit, miss, out } = summarizeTokens(requests);
   const graded = hit + miss;
   const total = graded + out;
-  const hitPct = graded > 0 ? ((hit / graded) * 100).toFixed(1) + "%" : "—";
+  const hitPct = graded > 0 ? ((hit / graded) * 100).toFixed(2) + "%" : "—"; // v4.69 对齐 dsh：环心命中率两位小数
   const rows = [
     { label: t("contextview.tokensCached"), value: hit, color: COLORS.cacheHit },
     { label: t("contextview.tokensUncached"), value: miss, color: COLORS.cacheMiss },

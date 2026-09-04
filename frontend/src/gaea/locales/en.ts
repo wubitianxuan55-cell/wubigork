@@ -1353,7 +1353,6 @@ export const en = {
   "contextview.total": "total {tokens}",
   "contextview.deltaTitle": "Turn {turn} · Step {step} Δ{delta}",
   "contextview.catBarTitle": "Turn {turn} · Step {step} {cat} {tokens} · total {total}",
-  "contextview.pickHint": "Click a bar in the trend chart to see that request's input, reply and context composition.",
   "contextview.estimated": "Estimated composition (no usage record)",
   "contextview.actualPrompt": "actual prompt {tokens}",
   "contextview.outputTokens": "output {n}",

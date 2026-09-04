@@ -1,6 +1,7 @@
 # 任务进度
 
-> 最后更新: 2026-09-04（v4.68.0「上下文页对齐 dsh-context：网格仪表+耗时
+> 最后更新: 2026-09-04（v4.69.0「上下文页第三轮精修：图例联动 · 趋势卡内联
+> 详情 · 事件多选」；v4.68.0「上下文页对齐 dsh-context：网格仪表+耗时
 > 折叠+径向 Agent 图」；v4.67.0「上下文标签页重设计：驾驶舱三区布局」；
 > v4.66.0「子代理会话提升：保存为新会话 ·
 > TasksWorkbench 轮询收敛」，绑定面 560→561；v4.65.1「追问失败感知 ·
@@ -41,6 +42,27 @@
 - ~~autoOpenJobs 进设置中心~~ 已完成（v4.65.0 线B；该键经 grep 不存在，
   实际由 gaea.tasks.autoOpenSubagent 承担——过期条目销账）。
 - ~~releases/README.md 索引治理~~ 已完成（v4.65.0 线D）。
+
+## 最新发布：v4.69.0（2026-09-04）「上下文页第三轮精修：图例联动 · 趋势卡内联详情 · 事件多选」
+
+- 用户实拍 dsh-context v0.41.3 上下文页两张截图 + 源码复核（本机
+  node_modules client.js / .tmp/dsh-context 检出）后继续对齐；技能
+  （ui-ux-pro-max + design-taste-frontend）全程约束（Subtle motion/
+  密度/语义色单源/禁 AI 紫）。纯前端，绑定面 561 零变更、Go 零改动。
+- ①当前上下文宽卡图例 chip hover 联动（dsh hover-key 同款：悬停分类该段
+  保持、其余段+空闲段 150ms 淡出 opacity 0.28，chip 微高亮，data-testid
+  铺点）；②趋势卡 master-detail 单元——请求详情内联进趋势卡（删独立
+  StepDetail 行，顶部分隔线）+ 默认选中最新请求（打开即有内容；钉住选择
+  保留、请求消失自动回退最新）；③事件筛选改 dsh 多选 chips（去「全部」：
+  全亮点一=单选、点掉=排除、单选再点=恢复全选，aria-pressed）；④四仪表
+  卡头「标题左+副注右」单行排版；⑤Token 环心命中率两位小数；⑥死键
+  contextview.pickHint 三语删除（点击引导已由趋势图例行承载）。
+- 门禁：tsc -b/eslint 0（全量）、vitest 224 文件/1683 用例（净 +2）、
+  drift PASS（561）、冒烟 200。蓝图 design-system/gaea/pages/context.md
+  已更新为 v4.69 全宽网格仪表现状。
+- 欠账（沿 v4.68）：浏览器「对比上一步变动」下拉（需 per-request 快照）；
+  真实供应商用量卡；图例 hover 跨卡联动（浏览器同分类高亮）为远期。
+  详见 releases/v4.69.0.md。
 
 ## 最新发布：v4.68.0（2026-09-04）「上下文页对齐 dsh-context」
 

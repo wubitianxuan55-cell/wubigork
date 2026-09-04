@@ -1354,7 +1354,6 @@ export const zh: Record<DictKey, string> = {
   "contextview.total": "合计 {tokens}",
   "contextview.deltaTitle": "第{turn}轮·第{step}步 Δ{delta}",
   "contextview.catBarTitle": "第{turn}轮·第{step}步 {cat} {tokens} · 合计 {total}",
-  "contextview.pickHint": "点击趋势图中的柱查看该请求的输入、回复与上下文构成。",
   "contextview.estimated": "估算构成（无用量记录）",
   "contextview.actualPrompt": "实际 prompt {tokens}",
   "contextview.outputTokens": "输出 {n}",

@@ -75,7 +75,7 @@ describe("ContextView 上下文仪表（v4.68 dsh 网格）", () => {
     renderT(<ContextView running={false} />);
     expect(await screen.findByText("工具调用")).toBeTruthy();
     expect(screen.getByText("279")).toBeTruthy();
-    expect(screen.getByText("99.9%")).toBeTruthy(); // TokenCard 环心缓存命中（requests 汇总 350200/350600）
+    expect(screen.getByText("99.89%")).toBeTruthy(); // TokenCard 环心缓存命中（requests 汇总 350200/350600，v4.69 两位小数）
     expect(screen.getByText("缓存输入")).toBeTruthy();
     expect(screen.getByText("未缓存输入")).toBeTruthy();
     expect(screen.getByText("耗时统计")).toBeTruthy();
@@ -118,11 +118,12 @@ describe("ContextView 上下文仪表（v4.68 dsh 网格）", () => {
     expect(screen.getByText(/\/ 0 tokens/)).toBeTruthy();
   });
 
-  it("渲染趋势图、步骤详情与事件流", async () => {
+  it("渲染趋势图与事件流；默认选中最新请求、详情内联趋势卡", async () => {
     const { ContextView } = await import("./ContextView");
     renderT(<ContextView running={false} />);
     expect(await screen.findByText("上下文趋势")).toBeTruthy();
-    expect(await screen.findByText(/点击趋势图中的柱查看该请求的输入、回复与上下文构成/)).toBeTruthy();
+    // v4.69：默认选中最新请求 → 详情（实际 prompt 等）无需点击即内联展示在趋势卡内
+    expect(await screen.findByText(/实际 prompt 350\.6k/)).toBeTruthy();
     expect(await screen.findByText(/指令注入 · \.gaea/)).toBeTruthy();
     expect((await screen.findAllByText("压缩")).length).toBeGreaterThan(0);
     expect(await screen.findByText(/-535\.5k/)).toBeTruthy();
@@ -138,6 +139,37 @@ describe("ContextView 上下文仪表（v4.68 dsh 网格）", () => {
     expect(await screen.findByText(/grep internal\/gaea\/config/)).toBeTruthy();
     expect(screen.getByText(/实际 prompt 350.6k/)).toBeTruthy();
     expect(screen.getByText(/占窗口 4%/)).toBeTruthy();
+  });
+
+  it("事件筛选：dsh 多选语义（全亮 → 单类 → 再点恢复全选）", async () => {
+    const { ContextView } = await import("./ContextView");
+    renderT(<ContextView running={false} />);
+    await screen.findByText("上下文事件");
+    // 初始五类全亮：注入与压缩事件都可见
+    expect(await screen.findByText(/指令注入 · \.gaea/)).toBeTruthy();
+    expect(screen.getByText(/-535\.5k/)).toBeTruthy();
+    // 全亮态点「压缩」→ 只留压缩（注入事件被筛掉）
+    fireEvent.click(screen.getByRole("button", { name: "压缩" }));
+    expect(screen.queryByText(/指令注入 · \.gaea/)).toBeNull();
+    expect(screen.getByText(/-535\.5k/)).toBeTruthy();
+    // 单选态再点「压缩」→ 恢复全选（注入事件回来）
+    fireEvent.click(screen.getByRole("button", { name: "压缩" }));
+    expect(await screen.findByText(/指令注入 · \.gaea/)).toBeTruthy();
+  });
+
+  it("构成卡：图例 hover 联动——该分类分段保持、其余分段淡出", async () => {
+    const { ContextView } = await import("./ContextView");
+    const { container } = renderT(<ContextView running={false} />);
+    await screen.findByText("当前上下文");
+    const chip = container.querySelector('[data-testid="comp-chip-user"]');
+    const segUser = container.querySelector('[data-testid="comp-seg-user"]');
+    const segTool = container.querySelector('[data-testid="comp-seg-tool"]');
+    if (!chip || !segUser || !segTool) throw new Error("comp segments/chips missing");
+    fireEvent.mouseEnter(chip);
+    expect((segUser as HTMLElement).style.opacity).toBe("1");
+    expect((segTool as HTMLElement).style.opacity).toBe("0.28");
+    fireEvent.mouseLeave(chip);
+    expect((segTool as HTMLElement).style.opacity).toBe("1");
   });
 
   it("悬停柱显示该步六分类构成详情条", async () => {

@@ -75,8 +75,8 @@ describe("TokenCard", () => {
 
   it("环形中心显示缓存命中率，分解行显示三分类值与占比", () => {
     const { container } = renderZ(<TokenCard requests={requests} />);
-    // 命中率 = hit/(hit+miss) = 400000/410000 → 97.6%
-    expect(screen.getByText("97.6%")).toBeTruthy();
+    // 命中率 = hit/(hit+miss) = 400000/410000 → 97.56%（v4.69 环心两位小数）
+    expect(screen.getByText("97.56%")).toBeTruthy();
     expect(screen.getByText("缓存输入")).toBeTruthy();
     expect(screen.getByText("400k")).toBeTruthy();
     expect(screen.getByText("10k")).toBeTruthy();

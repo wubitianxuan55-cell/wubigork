@@ -1,5 +1,5 @@
 /* eslint-disable react-refresh/only-export-components -- 子组件与容器同文件（Phase A 收敛，避免过早拆文件） */
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { app } from "../lib/bridge";
 import { useT } from "../lib/i18n";
 import type {
@@ -55,6 +55,14 @@ function CurrentContextCard({
   current: ContextCategory;
 }) {
   const t = useT();
+  // v4.69：图例 chip hover 联动（dsh hover-key 同款）——悬停某分类时该段保持
+  // 不透明度、其余段淡出（150ms opacity 过渡），视觉焦点即时定位。
+  const [activeCat, setActiveCat] = useState<keyof ContextCategory | "idle" | null>(null);
+  const segOpacity = (key: keyof ContextCategory | "idle") =>
+    activeCat !== null && activeCat !== key ? 0.28 : 1;
+  const chipDim = (key: keyof ContextCategory | "idle") =>
+    activeCat !== null && activeCat !== key ? "opacity-45" : "opacity-100";
+  const leaveChip = (key: keyof ContextCategory | "idle") => setActiveCat((cur) => (cur === key ? null : cur));
   const total = used;
   const pct = win > 0 ? Math.min(100, Math.round((total / win) * 100)) : 0;
   const idle = Math.max(0, win - total);
@@ -81,14 +89,24 @@ function CurrentContextCard({
         {CATS.map((c) => {
           const w = total > 0 ? (current[c.key] / total) * 100 : 0;
           if (w <= 0) return null;
-          return <div key={c.key} style={{ width: `${w}%`, background: CAT_COLORS[c.key] }} />;
+          return (
+            <div
+              key={c.key}
+              data-testid={`comp-seg-${c.key}`}
+              data-cat={c.key}
+              style={{ width: `${w}%`, background: CAT_COLORS[c.key], opacity: segOpacity(c.key), transition: "opacity 150ms ease" }}
+            />
+          );
         })}
         {idle > 0 && pct < 100 && (
           <div
+            data-testid="comp-seg-idle"
             className="h-full"
             style={{
               width: `${(idle / win) * 100}%`,
               background: "color-mix(in srgb, var(--md-sys-color-text-secondary) 14%, transparent)",
+              opacity: segOpacity("idle"),
+              transition: "opacity 150ms ease",
             }}
             title={t("contextview.idleWindow")}
           />
@@ -98,7 +116,16 @@ function CurrentContextCard({
         {CATS.map((c) => {
           const share = total > 0 ? Math.round((current[c.key] / total) * 100) : 0;
           return (
-            <span key={c.key} className="inline-flex items-center gap-1 text-[10px] text-fg-dim">
+            <span
+              key={c.key}
+              data-testid={`comp-chip-${c.key}`}
+              data-cat={c.key}
+              className={`inline-flex cursor-default items-center gap-1 text-[10px] text-fg-dim transition-opacity duration-150 ${chipDim(c.key)} ${
+                activeCat === c.key ? "rounded bg-accent/10 px-1" : ""
+              }`}
+              onMouseEnter={() => setActiveCat(c.key)}
+              onMouseLeave={() => leaveChip(c.key)}
+            >
               <span className="h-2 w-2 shrink-0 rounded-sm" style={{ background: CAT_COLORS[c.key] }} />
               {t(c.labelKey)}
               <span className="tabular-nums font-mono text-fg-faint">
@@ -107,7 +134,14 @@ function CurrentContextCard({
             </span>
           );
         })}
-        <span className="inline-flex items-center gap-1 text-[10px] text-fg-dim">
+        <span
+          data-testid="comp-chip-idle"
+          className={`inline-flex cursor-default items-center gap-1 text-[10px] text-fg-dim transition-opacity duration-150 ${chipDim("idle")} ${
+            activeCat === "idle" ? "rounded bg-accent/10 px-1" : ""
+          }`}
+          onMouseEnter={() => setActiveCat("idle")}
+          onMouseLeave={() => leaveChip("idle")}
+        >
           <span
             className="h-2 w-2 shrink-0 rounded-sm"
             style={{ background: "color-mix(in srgb, var(--md-sys-color-text-secondary) 14%, transparent)" }}
@@ -126,10 +160,13 @@ function CurrentContextCard({
 }
 
 // ─── 上下文趋势（原生 SVG 堆叠柱，全局模式；增量 Phase B） ─────
-function ContextTrendChart({ requests, events, onPick }: {
+// v4.69：detail 插槽把「选中步骤详情」收进趋势卡内部（对齐 dsh：趋势卡即
+// master-detail 单元，详情不再单独占一行跨屏滚动）。
+function ContextTrendChart({ requests, events, onPick, detail }: {
   requests: ContextRequestRecord[];
   events: ContextEvent[];
   onPick: (r: ContextRequestRecord) => void;
+  detail?: ReactNode;
 }) {
   const t = useT();
   const [granularity, setGranularity] = useState<"step" | "turn">("step");
@@ -284,27 +321,23 @@ function ContextTrendChart({ requests, events, onPick }: {
           })}
         </svg>
       </div>
+      {detail}
     </div>
   );
 }
 
-// ─── 步骤详情卡 ─────────────────────────────────────────────
+// ─── 选中步骤详情（v4.69 起内联进趋势卡：无独立外框，顶部分隔线区隔） ──
 function StepDetail({ record, window }: { record: ContextRequestRecord | null; window: number }) {
   const t = useT();
-  if (!record) {
-    return (
-      <div className="rounded-lg border border-border-soft bg-bg p-3 text-[10px] text-fg-faint">
-        {t("contextview.pickHint")}
-      </div>
-    );
-  }
+  // 容器已默认选中最新请求，null 只存在于快照过渡瞬间 → 不渲染，避免空态闪烁。
+  if (!record) return null;
   const total = catTotal(record.category);
   const windowPct = window > 0 ? Math.round((total / window) * 100) : null;
   const cacheHit = record.cacheHitTokens ?? 0;
   const cacheMiss = record.cacheMissTokens ?? 0;
   const cachePct = cacheHit + cacheMiss > 0 ? (cacheHit * 100) / (cacheHit + cacheMiss) : null;
   return (
-    <div className="rounded-lg border border-border-soft bg-bg p-3">
+    <div className="mt-2 border-t border-border-soft/70 pt-2">
       <div className="flex items-center justify-between">
         <div className="text-[11px] font-medium text-fg">{t("contextview.turnStep", { turn: record.turn, step: record.step })}</div>
         <div className="text-[9px] text-fg-faint tabular-nums font-mono">{new Date(record.ts * 1000).toLocaleTimeString()}</div>
@@ -342,25 +375,42 @@ function StepDetail({ record, window }: { record: ContextRequestRecord | null; w
 }
 
 // ─── 上下文事件流 ───────────────────────────────────────────
-const EVENT_KINDS = ["all", "inject", "compact", "prune", "switch", "mode"] as const;
-const EVENT_LABEL: Record<string, DictKey> = { inject: "contextview.evInject", compact: "contextview.evCompact", prune: "contextview.evPrune", switch: "contextview.evSwitch", mode: "contextview.evMode" };
+// v4.69：事件筛选对齐 dsh 多选 chips（去「全部」单选项）——默认五类全亮；
+// 全亮时点某类=仅看该类；多选态点某类=排除它；单选态再点=恢复全选。
+const EVENT_KINDS = ["inject", "compact", "prune", "switch", "mode"] as const;
+type EventKind = (typeof EVENT_KINDS)[number];
+const EVENT_LABEL: Record<EventKind, DictKey> = { inject: "contextview.evInject", compact: "contextview.evCompact", prune: "contextview.evPrune", switch: "contextview.evSwitch", mode: "contextview.evMode" };
 
 function EventsList({ events }: { events: ContextEvent[] }) {
   const t = useT();
-  const [filter, setFilter] = useState<(typeof EVENT_KINDS)[number]>("all");
-  const shown = filter === "all" ? events : events.filter((e) => e.kind === filter);
+  const [kinds, setKinds] = useState<readonly EventKind[]>(EVENT_KINDS);
+  const allOn = kinds.length === EVENT_KINDS.length;
+  const shown = allOn ? events : events.filter((e) => kinds.includes(e.kind));
+  const toggle = (k: EventKind) => {
+    setKinds((cur) => {
+      if (allOn) return [k]; // 全选态点一 → 只留该分类（dsh 排他单选）
+      if (!cur.includes(k)) return [...cur, k]; // 点加
+      return cur.length === 1 ? [...EVENT_KINDS] : cur.filter((x) => x !== k); // 点掉；最后一项点掉 = 恢复全选
+    });
+  };
   return (
     <div className="rounded-lg border border-border-soft bg-bg p-3">
       <div className="flex items-center justify-between">
         <div className="text-[11px] font-medium text-fg">{t("contextview.eventsTitle")}</div>
         <div className="flex items-center gap-1 text-[10px]">
-          {EVENT_KINDS.map((k) => (
-            <button
-              key={k}
-              className={`px-1.5 py-0.5 rounded border-0 cursor-pointer ${filter === k ? "bg-accent/15 text-accent" : "text-fg-dim hover:text-fg"}`}
-              onClick={() => setFilter(k)}
-            >{k === "all" ? t("contextview.all") : t(EVENT_LABEL[k])}</button>
-          ))}
+          {EVENT_KINDS.map((k) => {
+            const on = kinds.includes(k);
+            return (
+              <button
+                key={k}
+                aria-pressed={on}
+                className={`rounded border-0 px-1.5 py-0.5 cursor-pointer transition-colors duration-150 ${
+                  on ? "bg-accent/15 text-accent" : "text-fg-faint hover:text-fg"
+                }`}
+                onClick={() => toggle(k)}
+              >{t(EVENT_LABEL[k])}</button>
+            );
+          })}
         </div>
       </div>
       <div className="mt-1.5 max-h-44 overflow-y-auto">
@@ -368,7 +418,7 @@ function EventsList({ events }: { events: ContextEvent[] }) {
         {shown.slice(-30).reverse().map((e) => (
           <div key={`${e.kind}-${e.seq}`} className="flex items-center gap-1.5 py-0.5 text-[10px] border-b border-border-soft/40 last:border-0">
             <span className={`shrink-0 px-1 rounded text-[9px] ${e.kind === "compact" ? "bg-warning/15 text-warning" : e.kind === "prune" ? "bg-err/15 text-err" : "bg-accent/10 text-accent"}`}>
-              {e.delta != null && e.delta < 0 ? "" : "+"}{EVENT_LABEL[e.kind] ? t(EVENT_LABEL[e.kind]) : e.kind}
+              {e.delta != null && e.delta < 0 ? "" : "+"}{t(EVENT_LABEL[e.kind])}
             </span>
             <span className="truncate text-fg-dim">{e.source || "—"}</span>
             <span className="ml-auto shrink-0 text-fg-faint tabular-nums font-mono">
@@ -440,6 +490,17 @@ export function ContextView({
   // 运行中随事件流节流刷新 + 回合结束立即刷新（useLiveReload）。
   useLiveReload(running, load);
 
+  // v4.69：默认选中最新请求（对齐 dsh——趋势卡详情随快照实时跟随最新一步，
+  // 打开页面即有内容可读）；用户点柱钉住的选择在请求仍存在时保留不动，请求
+  // 消失（如压缩重折叠移除）时回退最新。
+  useEffect(() => {
+    const reqs = timeline.requests;
+    setPicked((cur) => {
+      if (cur && reqs.some((r) => r.seq === cur.seq)) return cur;
+      return reqs.length > 0 ? reqs[reqs.length - 1] : null;
+    });
+  }, [timeline.requests]);
+
   const isEmpty =
     timeline.window <= 0 &&
     catTotal(timeline.current) === 0 &&
@@ -486,9 +547,13 @@ export function ContextView({
             <CurrentContextCard used={catTotal(timeline.current)} window={timeline.window} current={timeline.current} />
             <ContextBrowserTree nodes={timeline.nodes} archive={timeline.archive} />
           </div>
-          {/* 行3：趋势（点柱 → 行4 详情就地联动） */}
-          <ContextTrendChart requests={timeline.requests} events={timeline.events} onPick={setPicked} />
-          <StepDetail record={picked} window={timeline.window} />
+          {/* 行3：趋势卡（master-detail 单元——请求详情内联卡内，点柱/悬停联动） */}
+          <ContextTrendChart
+            requests={timeline.requests}
+            events={timeline.events}
+            onPick={setPicked}
+            detail={picked ? <StepDetail record={picked} window={timeline.window} /> : null}
+          />
           {/* 行5：事件流 + 文件活动 */}
           <div className="grid grid-cols-1 gap-3 min-[1100px]:grid-cols-2">
             <EventsList events={timeline.events} />
