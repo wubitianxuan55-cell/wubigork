@@ -5,7 +5,13 @@
 
 ## 版本状态（顶部速览）
 
-- **最新发布：v4.62.2（2026-09-04）「修复：对话标签页实时输出失聪」**——
+- **最新发布：v4.63.0（2026-09-04）「子代理会话 tab 输出对齐主对话 Codex
+  式渲染」**——用户点名。assistant 正文/思考走主对话 AssistantMessage、
+  工具按 toolCallId 配对走主对话 ToolCard（映射层 lib/subagentRender.ts：
+  孤儿降级/乱序配对/运行中 running），流式实时行同款。绑定面 **559 零
+  变更**；vitest 214/1594、tsc/eslint 0、drift PASS、冒烟通过。详见
+  releases/v4.63.0.md。
+- **此前：v4.62.2（2026-09-04）「修复：对话标签页实时输出失聪」**——
   用户实机报告三问题全收口。**主因（v4.61.0 引入）**：SubagentThread 卸载
   清理用 `EventsOff("gaea-event")`——wails 语义是注销该通道**全部**监听者，
   从子代理标签页切回对话即把主对话 store 的订阅连带炸掉，实时流式/工具卡/

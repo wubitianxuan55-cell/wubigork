@@ -1,3 +1,9 @@
+## v4.63.0 · 子代理会话 tab 输出对齐主对话 Codex 式渲染（2026-09-04）
+> 用户点名。**绑定面 559 零变更**。详见 releases/v4.63.0.md。
+- assistant 正文/思考走主对话 AssistantMessage、工具走主对话 ToolCard
+  （toolCallId 配对映射层 subagentRender.ts，孤儿降级、运行中标 running）；
+  流式实时行同款。vitest 214/1594、drift PASS（559）、冒烟通过。
+
 ## v4.62.2 · 修复：对话标签页实时输出失聪（2026-09-04）
 > 热修复 v4.61.0 引入的 EventsOff 连坐炸订 + 两个实机报告问题。**绑定面 559
 > 零变更**。详见 releases/v4.62.2.md。

@@ -89,6 +89,7 @@ gaea/
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| **v4.63.0** | 2026-09-04 | 子代理会话 tab 输出对齐主对话 Codex 式渲染（绑定面 559 零变更）：正文/思考走 AssistantMessage、工具按 toolCallId 配对走 ToolCard（subagentRender.ts 纯映射层，孤儿降级/运行中 running）、流式实时行同款；vitest 214/1594、drift PASS（559）、冒烟通过 |
 | **v4.62.2** | 2026-09-04 | 热修复：对话标签页实时输出失聪（绑定面 559 零变更）：v4.61 子代理标签页卸载时 EventsOff 连坐炸掉主对话事件订阅——按监听者精确注销修复+3 回归测试；mt_ transcript 信封拆包（消灭字面 
  转义墙）；GaeaTaskList 变参必填修正（任务中心恒空）；vitest 214/1590、drift PASS（559）、冒烟通过 |
 | **v4.62.1** | 2026-09-04 | 热修复：子代理流式打断对话窗过程可见性（绑定面 559 零变更）：SubagentText 分道专用通道 gaea-subagent-text（无 seq），修复「wire-only 事件消费 seq 致缺口不可补拉→反复 resync 整体重建对话视图」的 v4.62.0 回归；forwarder 不变量成文 + 回归测试钉死；vitest 214/1587、drift PASS（559）、冒烟通过 |
