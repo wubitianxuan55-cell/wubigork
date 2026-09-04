@@ -193,7 +193,10 @@ pane 工作台/文件 tab（v4.25）、任务+分工同屏（v4.53）、子代�
 - 2.5b 工具结果与图片深读：~~整段调用展开（OK/error、Raw/Markdown）、
   来源 chip 与排序/搜索~~ **前半已完成（v4.80.0：GaeaContextNodeDetail
   懒加载 + 来源 chip/error 点 + 时间序/大小序）**；剩余图片缩略卡 + 图片
-  token 估算；
+  token 估算——**2026-09-05 调研补充（docs/market-research-2026-09-05.md）**：
+  估算采用 Anthropic 官方 patch 口径 ⌈w/28⌉×⌈h/28⌉（先档位缩放再计，
+  来源 platform.claude.com/docs/en/build-with-claude/vision），弃用社区
+  旧式 /750（系统性高估大图）；缩略卡成对显示「缩放后尺寸→实际计费 token」；
 - ~~2.5c File Activity 行级 ±增量、搜索命中行、操作日志展开跳转~~
   **已完成（v4.81.0）**：FileActivity.Added/Removed/Hits（写类工具参数
   确定性提取 + grep 结果行数下界）；前端 ±徽标 + 「N 次操作」展开 +
