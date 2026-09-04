@@ -1,8 +1,30 @@
 # 任务进度
 
-> 最后更新: 2026-09-04（v4.61.0 发布「子代理会话闭环 · Word 目录侧栏」；子代理入口收敛两级 + transcript 真机接线/本地模型工具同 UI 在途快照；子代理 tab 对齐主代理在途快照；Word 目录侧栏在途快照；better-sidebar pane 化三刀 v4.60.0；i18n二批+落划线+自定义引擎价目 v4.59.0；三线收欠账+搜索重定位修复 v4.58.0；设置中心删四补一 v4.57.0；拆分二批+Herdsman mock+task卡关联 v4.56.0；补测起步+mock补面+label化 v4.55.0；三线收欠账 v4.54.0；办公四点降噪 v4.53.0；首页双舷驾驶舱 v4.52.0；壳层左缘+深链绑定 v4.51.0；造价数据库化繁为简 v4.50.0；青鸟生命周期补全 v4.49.0；青鸟更名+人格选择器 v4.48.0；微信助手星枢化 v4.47.0；小说第二轮 v4.46.0；百炼全量下线 v4.45.0；绘梦专项
+> 最后更新: 2026-09-04（v4.62.0 发布「办公板块：子代理逐 token 流式 · 交付验收闭环 A2」；
+> v4.61.0 发布「子代理会话闭环 · Word 目录侧栏」；子代理入口收敛两级 + transcript 真机接线/本地模型工具同 UI 在途快照；子代理 tab 对齐主代理在途快照；Word 目录侧栏在途快照；better-sidebar pane 化三刀 v4.60.0；i18n二批+落划线+自定义引擎价目 v4.59.0；三线收欠账+搜索重定位修复 v4.58.0；设置中心删四补一 v4.57.0；拆分二批+Herdsman mock+task卡关联 v4.56.0；补测起步+mock补面+label化 v4.55.0；三线收欠账 v4.54.0；办公四点降噪 v4.53.0；首页双舷驾驶舱 v4.52.0；壳层左缘+深链绑定 v4.51.0；造价数据库化繁为简 v4.50.0；青鸟生命周期补全 v4.49.0；青鸟更名+人格选择器 v4.48.0；微信助手星枢化 v4.47.0；小说第二轮 v4.46.0；百炼全量下线 v4.45.0；绘梦专项
 > v4.44.0 三刀；小说板块 v4.43.0 四刀；微信助手
 > 三刀 v4.39.0-v4.42.0——绑定面 557 零变更）
+
+## 最新发布：v4.62.0（2026-09-04）「办公板块：子代理逐 token 流式 · 交付验收闭环 A2」
+
+- **两刀快照发布**：①线 A 子代理逐 token 流式——`SubagentText` 事件
+  **wire-only**（EventLogSink 免落盘：增量全文由 SubagentMessage 收尾 +
+  子代理自身 transcript 承载），task 路径 subSinkFor 增 refSrc、run_skill
+  路径 RunPersistedSubAgent 外层 refTextSink 注入，双路殊途同归；前端
+  SubagentThread 流式缓冲实时行（MemoMarkdown streaming）+ **快照接管
+  reconcile**（快照尾条含缓冲开头或长过基线 → 清缓冲），P1 销账。②线 B+C
+  交付验收闭环 A2——Word 修改队列（docxAnnotationQueue 纯逻辑：状态机/
+  归一化定位坐标映射/runQueue 串行编排再定位；DocxPreview 队列侧栏：攒批
+  去重、执行进度 n/m、汇总、单条重试；「执行全部」走 OfficeEditText→
+  DocxApplyEdit→DocxAcceptChanges(accept) 通道，定位不到诚实 skipped 绝不
+  错位替换）+ 版本结构化对比（docxTextDiff 段级 LCS/xlsxCellDiff sheet+
+  单元格对齐；versionCompare 按扩展名分派，结构不可信降级 unsupported 宁
+  漏勿误；VersionTimeline docx 序号列/xlsx 分组差异表+截断提示）。
+- **i18n**：三语 +35 键（docxQueue.* 28 + vcompare.* 7，zh 逐字）。
+- **验证**：go vet/test 全量绿；tsc -b/eslint 0；vitest **214 文件/1586
+  用例**；drift PASS（**559** 零变更）；build.bat 冒烟 /api/health 200。
+  **走查受限如实记录**：新能力依赖真机 docx/子代理数据，?mock=1 无法驱动，
+  以 60+ 新 jsdom 用例为验收面（同 v4.59 A1 先例）。详见 releases/v4.62.0.md。
 
 ## 最新发布：v4.61.0（2026-09-04）「子代理会话闭环 · Word 目录侧栏」
 

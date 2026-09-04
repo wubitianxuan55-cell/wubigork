@@ -5,7 +5,23 @@
 
 ## 版本状态（顶部速览）
 
-- **最新发布：v4.61.0（2026-09-04）「子代理会话闭环 · Word 目录侧栏」**——
+- **最新发布：v4.62.0（2026-09-04）「办公板块：子代理逐 token 流式 · 交付
+  验收闭环 A2」**——两刀快照发布（线 A 流式 / 线 B+C 合并）。绑定面
+  **559 零变更**；go vet/test 全量绿、tsc -b/eslint 0、vitest **214 文件/
+  1586 用例**、drift PASS。核心事实：①`SubagentText` 事件 **wire-only**
+  （EventLogSink 免落盘），task 路径 subSinkFor(refSrc) / run_skill 路径
+  refTextSink 双路注入 ref，SubagentThread 流式缓冲实时行 + 快照接管
+  reconcile（P1 销账）；②Word 修改队列（docxAnnotationQueue 纯逻辑 +
+  面板）：框选攒批去重→「执行全部」串行走 OfficeEditText→DocxApplyEdit→
+  DocxAcceptChanges(accept) 通道，每条对最新全文再定位、定位不到诚实
+  skipped 绝不错位替换，汇总+单条重试，修订制兜底不变；③版本结构化对比：
+  docxTextDiff（段级 LCS，表格每格独立段落）+ xlsxCellDiff（sheet/单元格
+  对齐，公式串当文本，截断计数不失真），VersionTimeline 渲染 docx 序号列/
+  xlsx 分组差异表，结构不可信整体降级 unsupported 宁漏勿误；④i18n 三语
+  +35 键（docxQueue.*/vcompare.*）。**走查受限如实记录**：新能力依赖真机
+  docx/子代理数据，?mock=1 无法驱动，以 60+ 新 jsdom 用例为验收面。
+  产物 gaea-v4.62.0.exe SHA256 + 冒烟通过，详见 releases/v4.62.0.md。
+- **此前：v4.61.0（2026-09-04）「子代理会话闭环 · Word 目录侧栏」**——
   四个未发版快照（eb84c82c Word 目录 / 5c52a5b8 子代理 tab 对齐 / 1f70e06d
   transcript 真机接线 + 本地模型工具同 UI / aa57784c 子代理入口收敛两级）
   合并发布。绑定面 **559 零变更**；vitest **211 文件/1535 用例**、tsc
