@@ -133,6 +133,7 @@ func (b *OfficeB) GaeaSettings() SettingsView { return b.a.GaeaSettings() }
 func (b *OfficeB) GaeaSkills() []map[string]interface{} { return b.a.GaeaSkills() }
 func (b *OfficeB) GaeaSlashArgs(input string) SlashArgsResult { return b.a.GaeaSlashArgs(input) }
 func (b *OfficeB) GaeaSteer(input string) { b.a.GaeaSteer(input) }
+func (b *OfficeB) GaeaSubagentFollowUp(sessionPath string, ref string, prompt string) (string, error) { return b.a.GaeaSubagentFollowUp(sessionPath, ref, prompt) }
 func (b *OfficeB) GaeaSubagentRuns(sessionPath string) SubagentRunsView { return b.a.GaeaSubagentRuns(sessionPath) }
 func (b *OfficeB) GaeaSubagentTranscript(sessionPath string, ref string) (SubagentTranscriptView, error) { return b.a.GaeaSubagentTranscript(sessionPath, ref) }
 func (b *OfficeB) GaeaSummarizeFile(rel string, focus string) (GaeaSummaryResult, error) { return b.a.GaeaSummarizeFile(rel, focus) }

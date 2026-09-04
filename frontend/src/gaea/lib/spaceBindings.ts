@@ -114,6 +114,7 @@ export const GAEA_METHOD_FACETS = {
   Cancel: "work",
   Steer: "work",
   GaeaRunning: "work",
+  SubagentFollowUp: "work",
   Approve: "work",
   AnswerQuestion: "work",
   Compact: "work",

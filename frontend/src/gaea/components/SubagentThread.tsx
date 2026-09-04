@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Loader2, Rollback } from "../icons";
+import { ArrowUp, Loader2, Rollback } from "../icons";
 import { app, onEvent, onSubagentText } from "../lib/bridge";
 import { useT, type Translator } from "../lib/i18n";
 import type { SubagentTranscriptView } from "../lib/types";
@@ -170,11 +170,7 @@ export function SubagentThread({
   // 实时：运行中每 3s 轮询（不可见门控空转）+ 事件驱动（turn_done 立即、
   // 运行中事件节流）；running→done 由 useLiveReload 触发一次收尾刷新。
   const running = status === "running";
-  useEffect(() => {
-    if (!running) return;
-    const timer = window.setInterval(() => { if (gate) load(); }, THREAD_POLL_MS);
-    return () => window.clearInterval(timer);
-  }, [running, gate, load]);
+
   useLiveReload(running, load);
   // 事件驱动刷新：子代理的工具活动（nested tool_dispatch/tool_result）会经
   // subSinkFor 转发到主事件流；运行时收到即补拉 transcript（transcript 由
@@ -238,6 +234,44 @@ export function SubagentThread({
   // 走主对话 AssistantMessage（同款 Markdown/思考折叠/复制）。
   const isMtTab = target.startsWith("mt_");
   const renderItems = buildRenderItems(messages, running);
+
+  // ── Side Chat 式追问（v4.64）─────────────────────────────────
+  // 用户在子代理会话 tab 里对已完结的运行追加提问：乐观上屏本地用户气泡，
+  // 派发后台运行（绑定即刻返回），transcript 快照轮询带回真实内容后清掉
+  // 乐观态。mt_ 运行是单次工具调用，不提供追问。
+  const [followUpText, setFollowUpText] = useState("");
+  const [followUpBusy, setFollowUpBusy] = useState(false);
+  const [followUpErr, setFollowUpErr] = useState("");
+  const [followUpPending, setFollowUpPending] = useState("");
+  const followUpBaseRef = useRef(0);
+  useEffect(() => {
+    // 权威快照长过派发时基线 → 真实内容已落盘，清乐观气泡
+    if (followUpPending && messages.length > followUpBaseRef.current) setFollowUpPending("");
+  }, [messages.length, followUpPending]);
+  const sendFollowUp = useCallback(() => {
+    const text = followUpText.trim();
+    if (!text || followUpBusy || isMtTab) return;
+    followUpBaseRef.current = messages.length;
+    setFollowUpPending(text);
+    setFollowUpText("");
+    setFollowUpBusy(true);
+    setFollowUpErr("");
+    app
+      .SubagentFollowUp(sessionPath, target, text)
+      .then(() => load())
+      .catch((e) => {
+        setFollowUpErr(e instanceof Error ? e.message : String(e));
+        setFollowUpPending("");
+      })
+      .finally(() => setFollowUpBusy(false));
+  }, [followUpText, followUpBusy, isMtTab, messages.length, sessionPath, target, load]);
+  // 追问运行期间保持 3s 轮询拉取新增内容（status prop 可能尚未翻转）
+  const followUpActive = followUpBusy || !!followUpPending;
+  useEffect(() => {
+    if (!running && !followUpActive) return;
+    const timer = window.setInterval(() => { if (gate) load(); }, THREAD_POLL_MS);
+    return () => window.clearInterval(timer);
+  }, [running, followUpActive, gate, load]);
 
   return (
     <div className="flex flex-col h-full min-h-0 text-xs" data-testid="agent-thread" style={{ color: "var(--md-sys-color-text-secondary)" }}>
@@ -354,6 +388,18 @@ export function SubagentThread({
                 </div>
               );
             })}
+            {/* Side Chat 追问的乐观用户气泡：快照带回真实内容后清除 */}
+            {followUpPending && (
+              <div className="flex justify-end">
+                <div
+                  data-testid="agent-follow-up-pending"
+                  className="max-w-[88%] whitespace-pre-wrap break-words rounded-lg px-2.5 py-1.5 text-[12.5px] leading-relaxed opacity-70"
+                  style={{ background: "color-mix(in srgb, var(--md-sys-color-surface-container-high) 70%, transparent)", color: "var(--md-sys-color-text)" }}
+                >
+                  {followUpPending}
+                </div>
+              </div>
+            )}
             {/* P1 流式实时行：运行中「正在打出的字」，主对话 AssistantMessage
                 同款渲染（流式光标/思考自动展开）；快照追上后由 reconcile 清
                 缓冲交给权威渲染。 */}
@@ -368,6 +414,46 @@ export function SubagentThread({
           </div>
         )}
       </div>
+
+      {/* Side Chat 式追问输入框（v4.64）：仅 sa_ 真子代理；mt_ 是单次工具
+          调用没有可追问的线程。运行中禁用（后端同样拒绝 running 续跑）。 */}
+      {!isMtTab && (
+        <div className="shrink-0 px-2.5 pb-2" data-testid="agent-follow-up">
+          {followUpErr && (
+            <div className="mb-1 text-[10.5px]" style={{ color: "var(--md-sys-color-destructive)" }}>
+              {followUpErr}
+            </div>
+          )}
+          <div className="flex items-center gap-1.5">
+            <input
+              value={followUpText}
+              onChange={(e) => setFollowUpText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.nativeEvent.isComposing) {
+                  e.preventDefault();
+                  sendFollowUp();
+                }
+              }}
+              placeholder={t("subagent.followUpPh")}
+              data-testid="agent-follow-up-input"
+              className="min-w-0 flex-1 rounded-lg border px-2.5 py-1.5 text-[12px] outline-none"
+              style={{ borderColor: "var(--md-sys-color-outline-variant)", background: "var(--md-sys-color-surface-container-low)", color: "var(--md-sys-color-text)" }}
+            />
+            <button
+              type="button"
+              data-testid="agent-follow-up-send"
+              aria-label={t("subagent.followUpSend")}
+              title={t("subagent.followUpSend")}
+              className="flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-lg border-0 disabled:cursor-not-allowed disabled:opacity-40"
+              style={{ background: "var(--gaea-glow)", color: "var(--md-sys-color-surface-container-low)" }}
+              disabled={!followUpText.trim() || followUpBusy || running}
+              onClick={sendFollowUp}
+            >
+              {followUpBusy ? <Loader2 size={12} className="animate-spin" /> : <ArrowUp size={13} />}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* 运行中实时提示 */}
       {running && (

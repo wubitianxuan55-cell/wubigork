@@ -332,6 +332,59 @@ func (t *TaskTool) mergeSubUsage(u *provider.Usage) {
 	a.ReasoningTokens += u.ReasoningTokens
 }
 
+// SubagentFollowUpRunner 是用户侧追问执行器（v4.64 Side Chat 式追问）：
+// 对一个已完结的 sa_ 运行追加一条用户消息并继续运行。boot 用 taskTool 的
+// continue_from 管道组装，宿主保存后由 GaeaSubagentFollowUp 绑定调用。
+type SubagentFollowUpRunner = func(ctx context.Context, ref, prompt string) error
+
+// FollowUpSink 把追问运行的文本增量转成专用流式通道事件（SubagentText，
+// wire-only），其余事件全部丢弃——追问的过程可见性由「tab 内流式打字 +
+// transcript 快照轮询」承载，绝不进主对话账本（对齐 v4.62.2 的通道纪律）。
+func FollowUpSink(ref string, onText func(text string)) event.Sink {
+	return event.FuncSink(func(e event.Event) {
+		if e.Kind == event.Text && onText != nil {
+			onText(e.Text)
+		}
+	})
+}
+
+// RunFollowUp 对已完结的 sa_ 运行执行一次用户追问：追加 prompt 后继续运行
+// （复用 continue_from 管道：PrepareContinue 拒绝 running/mt_/跨空间，
+// MarkRunning + TrackProgress 维持 ~1s 快照，收尾 SaveCompleted/SaveFailed）。
+// 结果不回投 SubagentMessage——追问的产出留在子代理会话 tab 内（Side Chat
+// 语义：线程对主对话不可见），完成态由 meta 承载、前端轮询自校正。
+func (t *TaskTool) RunFollowUp(ctx context.Context, ref, prompt string, sink event.Sink) error {
+	prompt = strings.TrimSpace(prompt)
+	if prompt == "" {
+		return fmt.Errorf("prompt is required")
+	}
+	run, err := t.prepareRun(ctx, ref, false)
+	if err != nil {
+		return err
+	}
+	if run == nil {
+		return fmt.Errorf("subagent transcript store is not available")
+	}
+	defer run.Release()
+	if err := t.transcripts.MarkRunning(run); err != nil {
+		return fmt.Errorf("mark subagent running: %w", err)
+	}
+	stop := t.transcripts.TrackProgress(run, 0)
+	defer stop()
+
+	subReg := t.buildSubReg(nil)
+	maxSteps := t.maxSteps / 2
+	if maxSteps < 5 {
+		maxSteps = 5
+	}
+	_, err = t.runSubSession(ctx, prompt, subReg, sink, run, maxSteps, nil)
+	if err != nil {
+		_ = t.transcripts.SaveFailed(run)
+		return err
+	}
+	return t.transcripts.SaveCompleted(run)
+}
+
 // SetSubagentProvider installs an optional provider for sub-agents. When nil the
 // sub-agent falls back to the parent's execution provider (prov).
 func (t *TaskTool) SetSubagentProvider(p provider.LLMProvider, pricing *provider.Pricing, ctxWin int) {

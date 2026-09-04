@@ -286,6 +286,9 @@ export interface AppBindings {
   ZipDeliverables(paths: string[]): Promise<ZipDeliverableResult>;
   // SubagentRuns 读取当前会话派发的全部子代理分工（状态/任务摘要/回答/工具数）。
   SubagentRuns(sessionPath: string): Promise<SubagentRunsView>;
+  // Side Chat 式追问（v4.64）：对已完结的 sa_ 运行追加用户提问，后台运行
+  // 即刻返回；文本增量走 gaea-subagent-text 专用通道，完成态经轮询自校正。
+  SubagentFollowUp(sessionPath: string, ref: string, prompt: string): Promise<string>;
   // SubagentTranscript 读取某个子代理的完整 transcript（Agent 网络节点查看用）。
   SubagentTranscript(sessionPath: string, ref: string): Promise<SubagentTranscriptView>;
   // DeliverableRegistry 读取会话的权威产物登记表（v4.24 C1）：后端从事件日志
@@ -943,6 +946,7 @@ const gaeaToGaea = {
   PriceFetch: "GaeaPriceFetch",
   PriceFetchAll: "GaeaPriceFetchAll",
   TaskList: "GaeaTaskList",
+  SubagentFollowUp: "GaeaSubagentFollowUp",
   TaskCancel: "GaeaTaskCancel",
   TaskRetry: "GaeaTaskRetry",
   TaskOutput: "GaeaTaskOutput",

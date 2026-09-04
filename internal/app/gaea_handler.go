@@ -13,6 +13,7 @@ import (
 
 	appconfig "github.com/gaea/gaea/internal/config"
 	gaeaBoot "github.com/gaea/gaea/internal/gaea/boot"
+	gaeaAgent "github.com/gaea/gaea/internal/gaea/agent"
 	gaeaConfig "github.com/gaea/gaea/internal/gaea/config"
 	"github.com/gaea/gaea/internal/gaea/control"
 	"github.com/gaea/gaea/internal/gaea/event"
@@ -34,6 +35,11 @@ type gaeaRuntime struct {
 	// cfg 是当前生效的办公引擎配置。设置面板的写操作（Agent 参数/权限/沙箱）
 	// 直接修改它并持久化到用户配置，随后重建 controller 使变更生效。
 	cfg *gaeaConfig.Config
+	// followUp 是子代理追问执行器（v4.64 Side Chat 式追问）：boot 用 taskTool
+	// 的 continue_from 管道组装，经 OnFollowUpReady 交给这里；随 controller
+	// 重建而更新（任务树/tab 状态经轮询自校正，无在途状态需要迁移）。
+	followUp   gaeaAgent.SubagentFollowUpRunner
+	followUpMu sync.Mutex
 	// wire 是 gaea 事件流 → 前端 gaea-event 的转发层（v4.26 对话流式重造）：
 	// wire seq 打点 + phase 节流的唯一状态点，随进程存活（不随 controller
 	// 重建重置——设置变更重建引擎不打断当前会话，seq 回退会破坏前端断号检测）。
@@ -106,6 +112,18 @@ func (a *App) gaeaBuildController() (*control.Controller, error) {
 	}
 	ctrl, err := gaeaBoot.Build(a.ctx, gaeaBoot.Options{
 		Model:      "gaea",
+		// v4.64 Side Chat 式追问：文本增量走专用通道（gaea-subagent-text），
+		// 追问执行器交给 ga 保存（GaeaSubagentFollowUp 绑定调用）。
+		EmitSubagentText: func(ref, text string) {
+			a.emit("gaea-subagent-text", map[string]interface{}{
+				"kind": "subagent_text", "text": text, "subagentRef": ref,
+			})
+		},
+		OnFollowUpReady: func(runner gaeaAgent.SubagentFollowUpRunner) {
+			ga.followUpMu.Lock()
+			ga.followUp = runner
+			ga.followUpMu.Unlock()
+		},
 		RequireKey: false,
 		Sink:       sink,
 		MaxSteps:   0,

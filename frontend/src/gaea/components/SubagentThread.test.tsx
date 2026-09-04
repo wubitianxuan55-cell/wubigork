@@ -2,7 +2,7 @@
 // 消息流渲染（system/user/assistant 思考+正文/tool）、返回回调、运行中
 // 3s 轮询实时刷新（fake timers 确定性）。
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, fireEvent, act } from "@testing-library/react";
+import { render, screen, fireEvent, act, cleanup } from "@testing-library/react";
 import { SubagentThread } from "./SubagentThread";
 import { LocaleProvider } from "../lib/i18n";
 import type { SubagentTranscriptView } from "../lib/types";
@@ -22,6 +22,7 @@ const transcript: SubagentTranscriptView = {
 
 const mocks = vi.hoisted(() => ({
   SubagentTranscript: vi.fn(),
+  SubagentFollowUp: vi.fn(),
   onEvent: vi.fn(() => () => {}),
   onSubagentText: vi.fn(() => () => {}),
 }));
@@ -209,5 +210,24 @@ describe("SubagentThread 子代理对话全面板（v4.27）", () => {
     expect(screen.getByTestId("agent-thread-bounded-toggle").textContent).toContain("展开全部");
     fireEvent.click(screen.getByTestId("agent-thread-bounded-toggle"));
     expect(screen.getByTestId("agent-thread-bounded-toggle").textContent).toContain("收起");
+  });
+
+  // v4.64 Side Chat 式追问：sa_ 会话 tab 有追问输入框；发送即乐观上屏 +
+  // 调用绑定；mt_ 运行不提供追问。
+  it("追问输入框：发送派发绑定并乐观上屏；mt_ 运行隐藏输入框", async () => {
+    mocks.SubagentFollowUp.mockResolvedValue("follow-up started");
+    render(wrap(<SubagentThread sessionPath="s1.jsonl" target="sa_2_b2b2b2b2" task="任务" status="completed" onBack={() => {}} />));
+    await screen.findByText("开始检索公开信息。");
+    fireEvent.change(screen.getByTestId("agent-follow-up-input"), { target: { value: "再补充一下第二点" } });
+    fireEvent.click(screen.getByTestId("agent-follow-up-send"));
+    expect(mocks.SubagentFollowUp).toHaveBeenCalledWith("s1.jsonl", "sa_2_b2b2b2b2", "再补充一下第二点");
+    // 乐观气泡可见；快照未变化时持续显示
+    expect(screen.getByTestId("agent-follow-up-pending")).toBeTruthy();
+
+    // mt_ 运行不提供追问
+    cleanup();
+    render(wrap(<SubagentThread sessionPath="s1.jsonl" target="mt_9" task="摘要" status="completed" onBack={() => {}} />));
+    await screen.findByText("摘要");
+    expect(screen.queryByTestId("agent-follow-up-input")).toBeNull();
   });
 });

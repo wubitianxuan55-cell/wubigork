@@ -53,6 +53,11 @@ type Options struct {
 	MaxSteps   int
 	RequireKey bool
 	Sink       event.Sink
+	// EmitSubagentText / OnFollowUpReady（v4.64 Side Chat 式追问）：前者把
+	// 追问运行的文本增量发到前端专用通道；后者接收「追问执行器」——boot 用
+	// taskTool 的 continue_from 管道组装，宿主（App）保存并在绑定里调用。
+	EmitSubagentText func(ref, text string)
+	OnFollowUpReady  func(runner agent.SubagentFollowUpRunner)
 	// Stderr is the writer for diagnostic warnings and plugin subprocess
 	// stderr output. When nil, defaults to os.Stderr. Set to io.Discard
 	// during model switch inside a bubbletea session to prevent any output
@@ -286,6 +291,21 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 	// v4.61：真实引擎接线——task 工具派发的子代理从现在起真正落盘 transcript
 	// （此前 WithTranscripts 只有测试调用，真机子代理 tab 无数据可显示）。
 	taskTool.WithTranscripts(subagentStore)
+
+	// v4.64 Side Chat 式追问：把「用户在子代理 tab 里追问」的执行器交给宿主
+	// （App 绑定 GaeaSubagentFollowUp）。事件只走专用流式通道（文本增量），
+	// 权威内容落子代理自身 transcript（~1s 快照），不进主对话账本避免刷屏；
+	// 追问完成态由 meta 侧车承载（任务树/tab 状态点经轮询自校正）。
+	if opts.EmitSubagentText != nil {
+		emitText := opts.EmitSubagentText
+		followUp := func(ctx context.Context, ref, prompt string) error {
+			sink := agent.FollowUpSink(ref, func(text string) { emitText(ref, text) })
+			return taskTool.RunFollowUp(ctx, ref, prompt, sink)
+		}
+		if opts.OnFollowUpReady != nil {
+			opts.OnFollowUpReady(followUp)
+		}
+	}
 
 	// The `remember` tool lets the model persist durable facts to the project's
 	// auto-memory store; `forget` prunes ones that turn out wrong. The saved index
