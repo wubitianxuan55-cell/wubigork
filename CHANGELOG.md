@@ -1,3 +1,15 @@
+## v4.62.2 · 修复：对话标签页实时输出失聪（2026-09-04）
+> 热修复 v4.61.0 引入的 EventsOff 连坐炸订 + 两个实机报告问题。**绑定面 559
+> 零变更**。详见 releases/v4.62.2.md。
+- **主因**：SubagentThread 卸载时 EventsOff("gaea-event") 注销该通道全部
+  监听者，主对话订阅被连带炸掉→实时过程全灭（切过一次子代理标签页即触发）。
+  修复=按监听者精确注销（wails EventsOn 返回值），前端禁用 EventsOff，
+  3 个回归测试钉死。
+- **附带**：mt_ transcript 落盘前拆 JSON 信封（消灭字面 
+ 转义墙）；
+  GaeaTaskList 变参必填修正（任务中心恒空）。vitest 214/1590、drift PASS
+  （559）、冒烟通过。
+
 ## v4.62.1 · 修复：子代理流式打断对话窗过程可见性（2026-09-04）
 > 热修复 v4.62.0 线 A 回归。**绑定面 559 零变更**。详见 releases/v4.62.1.md。
 - **根因**：SubagentText 挂 gaea-event 消费 seq 但 wire-only 不落账本，破坏
