@@ -5,7 +5,16 @@
 
 ## 版本状态（顶部速览）
 
-- **最新发布：v4.63.1（2026-09-04）「主对话子代理卡片整卡可点」**——用户
+- **最新发布：v4.63.2（2026-09-04）「并行子代理：批量派发不再串行排队」**
+  ——用户实测三路子代理串行。根因=getConflictKey 全局冲突键 "!spawn" 把
+  同回合 N 路 task/run_skill 派发拆成 N 个串行批（账本同秒 3 条 dispatch、
+  sa_ 运行却相隔 ~4 分钟先后启动=铁证）。修复=task/run_skill 改每调用
+  唯一键 spawn:<callID> 落同一并行批（runParallel ≤8）；TaskTool 用量改
+  usageMu 合并（并行安全，覆写会丢路且是数据竞争）。**如实说明：本地模型
+  推理在服务端仍可能排队，工具段真实重叠。** 绑定面 **559 零变更**；
+  vitest 216/1597、tsc/eslint 0、drift PASS、冒烟通过。详见
+  releases/v4.63.2.md。
+- **此前：v4.63.1（2026-09-04）「主对话子代理卡片整卡可点」**——用户
   点名：单击 task/run_skill 卡直接打开对应子代理会话 tab。taskActivity 新增
   打开会话注入点（App 注册跳转）；ref 解析（args.continue_from / 结果
   "Subagent reference:" 行）+ 空 ref 唯一 running 命中回退（宁缺勿错）；
