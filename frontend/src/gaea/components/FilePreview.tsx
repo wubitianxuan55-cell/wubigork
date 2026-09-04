@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Component, lazy, Suspense, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { AlertCircle, Check, ExternalLink, File, FileText, FolderTree, Loader2, Maximize2, Minimize2, Pencil, X } from "../icons";
 import { app } from "../lib/bridge";
 import {
@@ -19,6 +19,24 @@ import { PptxOutline } from "./PptxOutline";
 import { XlsxPreview } from "./XlsxPreview";
 import { usePreviewProgress } from "../hooks/usePreviewProgress";
 import { useToast } from "./Toast";
+// 3a：CodeMirror 编辑器懒加载 chunk；chunk 加载失败（Suspense 之外的
+// ErrorBoundary）或运行时挂载失败均回落纯 textarea，编辑能力永不丢失。
+const CodeEditorLazy = lazy(() =>
+  import("./CodeEditor").then((m) => ({ default: m.CodeEditor })),
+);
+
+class EditorBoundary extends Component<
+  { fallback: ReactNode; children: ReactNode },
+  { failed: boolean }
+> {
+  state = { failed: false };
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+  render() {
+    return this.state.failed ? this.props.fallback : this.props.children;
+  }
+}
 
 function formatSize(n: number): string {
   if (n < 1024) return `${n} B`;
@@ -362,18 +380,50 @@ export function FilePreview({
                 </button>
               </div>
             )}
-            <textarea
-              className="w-full h-full bg-transparent text-fg text-[12px] p-3 font-mono leading-relaxed outline-none resize-none whitespace-pre"
-              value={draft}
-              onChange={(e) => {
-                setDraft(e.target.value);
-                setDirty(true);
-                setSaveState("idle");
-              }}
-              spellCheck={false}
-              autoFocus
-              aria-label="文本编辑"
-            />
+            {/* 3a：CodeMirror 语法高亮编辑器（React.lazy 懒加载 chunk；
+                加载失败时 ErrorBoundary 不适用——改由 key 重挂的 textarea 回落） */}
+            <Suspense
+              fallback={
+                <textarea
+                  className="w-full h-full bg-transparent text-fg text-[12px] p-3 font-mono leading-relaxed outline-none resize-none whitespace-pre"
+                  value={draft}
+                  onChange={(e) => {
+                    setDraft(e.target.value);
+                    setDirty(true);
+                    setSaveState("idle");
+                  }}
+                  spellCheck={false}
+                  aria-label="文本编辑"
+                />
+              }
+            >
+              <EditorBoundary
+                fallback={
+                  <textarea
+                    className="w-full h-full bg-transparent text-fg text-[12px] p-3 font-mono leading-relaxed outline-none resize-none whitespace-pre"
+                    value={draft}
+                    onChange={(e) => {
+                      setDraft(e.target.value);
+                      setDirty(true);
+                      setSaveState("idle");
+                    }}
+                    spellCheck={false}
+                    aria-label="文本编辑"
+                  />
+                }
+              >
+                <CodeEditorLazy
+                  key={relPath}
+                  value={draft}
+                  path={relPath}
+                  onChange={(next) => {
+                    setDraft(next);
+                    setDirty(true);
+                    setSaveState("idle");
+                  }}
+                />
+              </EditorBoundary>
+            </Suspense>
           </>
         ) : (
           <>

@@ -1,3 +1,9 @@
+## v4.91.0 · CodeMirror 语法高亮编辑器（2026-09-05）
+> 双源蒸馏规划阶段三 3a（拍板项——经用户「继续」指令按列序推进，采纳懒加载方案）；**绑定面 578 零变更**（纯前端刀）。详见 releases/v4.91.0.md。
+- **依赖**：新增 codemirror@6 元包 + lang-markdown/javascript/python/json/css/html（MIT，均按需进懒加载 chunk；不引主题包——中性透明底 + defaultHighlightStyle，明暗主题均可读，无主题检测 seam）。
+- **前端**：CodeEditor 组件（EditorState/lineNumbers/history/drawSelection + cmLanguageFor 按扩展名选语言：md/js·ts·jsx·tsx/py/json/css/html，未知扩展纯文本）；FilePreview 编辑态改挂懒加载编辑器——React.lazy chunk + Suspense（加载中回落 textarea）+ EditorBoundary（渲染错误回落 textarea），编辑能力永不丢失；value 由 CM 内部维护避免光标回跳，换文件经 key 重挂。onViewReady 回调供测试/高级用法。
+- 测试：CodeEditor +3（jsdom 挂载与初值/onChange 经 dispatch 事务回传/换路径重建）+ cmLanguage +2（常见扩展映射/未知回退）；FilePreview 既有编辑流不破（23 用例同文件全绿）；vitest 228/1750、Go 全量 0 FAIL、tsc -b/eslint 0、drift PASS（578）、?mock=1 走查通过（go.mod 编辑态 .cm-editor/.cm-content/.cm-gutters 三断言；截图通道沿例故障如实记录）。
+
 ## v4.90.0 · 终止级联：父任务中止连带终止派生后代（2026-09-05）
 > 2026-09-05 调研回填中期候选（claude-code/cline「终止即级联」共识）；**绑定面 578 零变更**（Job.ParentID 为 Go 内部字段，FE 视图未动）。详见 releases/v4.90.0.md。
 - **Go（jobs 包）**：`StartIn(caller, kind, label, run)`——从调用方 ctx 检出 job ID（复用既有 jobIDKey 注入）登记父子链（children 表 + Job.ParentID 字段）；`Kill(id)` 在原语义上追加 BFS 级联：全部存活后代连带取消（跨多层；已终态中间节点继续下钻），bash job 的 ctx watcher 随即强杀进程树；`Kill` 子任务不影响父任务（单向向下）；Close 全局取消原语义不变。

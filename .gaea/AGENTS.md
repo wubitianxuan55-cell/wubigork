@@ -6,12 +6,12 @@
 ## 版本状态（顶部速览）
 
 - **下会话待办（2026-09-05 收档，详见 progress.md「下会话续做」）**：
-  **蒸馏规划阶段一、二.5、二 2a/2b/2c 全部收口 + 中期候选成本费率 hover
-  与终止级联落地**（v4.78~v4.90），剩余拍板项：阶段三 3a CodeMirror
-  （可带语法着色）/3b Mermaid strict/3c 人工沙箱浏览器；中期候选剩失败
-  子代理可恢复、微信文件收发（抓包前置）；docx/xlsx 对比迁移 ChangesDiff、
-  Agent Network 会话跳转另刀，清单见 docs/market-research-2026-09-05.md
-  与老账。本会话另落 GitHub 市场调研三路
+  **蒸馏规划阶段一、二.5、二 2a/2b/2c + 阶段三 3a 全部收口 + 中期候选
+  成本费率 hover、终止级联落地**（v4.78~v4.91），剩余拍板项：阶段三
+  3b Mermaid strict/3c 人工沙箱浏览器；中期候选剩失败子代理可恢复、
+  微信文件收发（抓包前置）；docx/xlsx 对比迁移 ChangesDiff、diff 语法
+  着色、Agent Network 会话跳转另刀，清单见
+  docs/market-research-2026-09-05.md 与老账。本会话另落 GitHub 市场调研三路
   （docs/research-2026-09-05/）+ 合成版 market-research-2026-09-05.md +
   长期规划回填（蒸馏规划 §7/§3.4 + gaea-nextgen-roadmap）。
   **长期蒸馏规划待拍板**（D1-D6 决策门 + 阶段起点）——双源规划文档
@@ -20,7 +20,12 @@
   （浏览器对比上一步/工具来源 chip/图片卡/文件活动行增量）；TaskCenter
   推送式实时输出流（现轮询 tail，独立刀）；老账（run_skill AllowedTools
   真机观察、pptx 真编辑、Verifier 逐页缩略图、队列非唯一命中交互式确认）。
-- **最新发布：v4.90.0（2026-09-05）「终止级联」**——调研回填中期候选；
+- **最新发布：v4.91.0（2026-09-05）「CodeMirror 语法高亮编辑器」**——
+  3a 收口；绑定面 578 零变更：codemirror@6+六语言包懒加载 chunk，
+  FilePreview 编辑态双层回落编辑能力永不丢失；2c 遗留语法着色能力就位。
+  vitest 228/1750、Go 全量 0 FAIL、drift PASS（578）、?mock=1 DOM 走查
+  通过。详见 releases/v4.91.0.md。
+- **此前：v4.90.0（2026-09-05）「终止级联」**——调研回填中期候选；
   绑定面 578 零变更：jobs.StartIn 父子链登记 + Kill BFS 级联取消全部存活
   后代（bash 进程树连带强杀），杀子不动父；后台 task/bash 派生点改道。
   vitest 227/1740、Go 全量 0 FAIL、drift PASS（578）、jobs 单测 -count=2 绿。

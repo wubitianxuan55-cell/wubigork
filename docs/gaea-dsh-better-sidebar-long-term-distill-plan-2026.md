@@ -236,7 +236,10 @@ pane 工作台/文件 tab（v4.25）、任务+分工同屏（v4.53）、子代�
   Network 会话跳转需 GaeaContextView 按会话参数化，随中期候选另刀；
 
 ### 阶段三（拍板后）：预览与浏览增强
-- 3a CodeMirror 语法高亮编辑器（懒加载，md/代码共用）；
+- ~~3a CodeMirror 语法高亮编辑器~~ **已完成（v4.91.0）**：codemirror@6 +
+  六语言包（md/js·ts·jsx·tsx/py/json/css/html）懒加载 chunk；FilePreview
+  编辑态双层回落（Suspense fallback + EditorBoundary→textarea）；**语法
+  着色能力随依赖就位**（diff token 着色另小刀）；
 - 3b Mermaid strict 渲染 + DOMPurify HTML 消毒（沿用 ChatMarkdown 安全线）；
 - 3c 人工沙箱浏览器多开（若拍板「观察窗 + 人工浏览双形态」）。
 
@@ -287,6 +290,7 @@ pane 工作台/文件 tab（v4.25）、任务+分工同屏（v4.53）、子代�
 | v4.86 | Git 面板最小集（status/diff/stage/unstage/discard/commit/log + 一级 Tab） | git tab（地址栏/暂存/提交/历史） | 2b 收口；D3 采纳推荐默认；2c 渲染升级另刀 |
 | v4.87 | diff 渲染升级（改蓝配对/字符高亮/上下文折叠） | 统一 diff 查看器渲染 | 2c 收口（语法着色随 3a）；阶段二全部完成 |
 | v4.89 | 成本费率 hover（fold Rate 快照 + 三档明细） | 成本 hover 展示 per-1M 费率 | 调研回填中期候选第一项（langfuse/ccusage 口径） |
+| v4.91 | CodeMirror 语法高亮编辑器（懒加载 + 语言映射 + 双层回落） | 代码编辑器（语法高亮+懒加载） | 3a 收口；2c 遗留语法着色能力就位 |
 | v4.88 | /context 居中弹层 + 常驻剩余上下文% 徽标 | /context 弹层 + 常驻 context 计数 | 2.5e 收口（Agent Network 跳转半项留后续） |
 
 ## 8. 成功标准（长期）
