@@ -1,3 +1,9 @@
+## v4.90.0 · 终止级联：父任务中止连带终止派生后代（2026-09-05）
+> 2026-09-05 调研回填中期候选（claude-code/cline「终止即级联」共识）；**绑定面 578 零变更**（Job.ParentID 为 Go 内部字段，FE 视图未动）。详见 releases/v4.90.0.md。
+- **Go（jobs 包）**：`StartIn(caller, kind, label, run)`——从调用方 ctx 检出 job ID（复用既有 jobIDKey 注入）登记父子链（children 表 + Job.ParentID 字段）；`Kill(id)` 在原语义上追加 BFS 级联：全部存活后代连带取消（跨多层；已终态中间节点继续下钻），bash job 的 ctx watcher 随即强杀进程树；`Kill` 子任务不影响父任务（单向向下）；Close 全局取消原语义不变。
+- 两个派生点改道 `StartIn`：后台 task 工具（agent/task.go）与后台 bash 工具（tool/builtin/bash.go）——嵌套派生自动挂父，主回合派生无父=原行为。会话 Close/回合取消传播路径不变。
+- 测试：jobs +3（跨层级联+无关任务不受波及/杀子不动父/无父等价 Start，-count=2 绿）；vitest 227/1740、Go 全量 0 FAIL、tsc -b/eslint 0、drift PASS（578）。**勘误**：v4.88/v4.89 发布说明的 vitest 计数（1743/1742）含测量口径误差，复跑稳定值 1740，本刀起以复跑稳定值为准。级联为引擎语义，mock UI 不可驱动，以 jobs 包单测为验收面（A1 先例）。
+
 ## v4.89.0 · 成本费率 hover：单价快照 · 三档明细 · 诚实降级（2026-09-05）
 > 2026-09-05 调研回填中期候选（langfuse/ccusage 费率口径对齐）；**绑定面 578 零变更**（Timeline 增可选 JSON 字段）。详见 releases/v4.89.0.md。
 - **Go**：fold 跟踪最近一次 usage 事件上报的非零单价（input/output/cacheHitPrice——本就是每 1M tokens 口径，费用公式 ÷1e6 证实），ContextTimeline 透出 `rate{inputPer1M,outputPer1M,cacheHitPer1M,currency}`；无定价上报时 rate=nil。

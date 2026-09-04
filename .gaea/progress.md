@@ -1,6 +1,7 @@
 # 任务进度
 
-> 最后更新: 2026-09-05（v4.89.0「成本费率 hover」，578 零变更；
+> 最后更新: 2026-09-05（v4.90.0「终止级联」，578 零变更；v4.89.0
+> 「成本费率 hover」，578 零变更；
 > v4.88.0「/context 居中弹层 + 常驻剩余上下文% 徽标」，578 零变更；v4.87.0「统一 diff 渲染升级」，578 零变更，
 > 阶段二收口；v4.86.0「Git 面板
 > 最小集」，571→578；v4.85.0
@@ -25,10 +26,21 @@
   多开；中期候选见 docs/market-research-2026-09-05.md（成本费率 hover、
   终止级联、失败子代理可恢复）；docx/xlsx 对比迁移 ChangesDiff 另刀；
   Agent Network 会话跳转（GaeaContextView 按会话参数化前置）。成本费率
-  hover 已落地（v4.89）。
+  hover（v4.89）与终止级联（v4.90）已落地。
 - **dsh 剩余借鉴**：2.5e /context 弹层与 Agent Network 会话跳转（拍板）。
 - **老账**：run_skill AllowedTools 真机观察；pptx 真编辑；Verifier 通道 B
   逐页缩略图；子代理队列非唯一命中交互式确认。
+
+## 最新发布：v4.90.0（2026-09-05）「终止级联：父任务中止连带终止派生后代」
+
+- 调研回填中期候选（claude-code/cline 终止即级联共识）。绑定面 578 零变更。
+- jobs.StartIn 从调用方 ctx 检出父 job ID 登记父子链（复用既有 jobIDKey）；
+  Kill 追加 BFS 级联取消全部存活后代（bash ctx watcher 强杀进程树）；
+  杀子不动父；后台 task/bash 两派生点改道 StartIn，主回合派生=原行为。
+- 门禁：Go 全量 0 FAIL、tsc -b/eslint 0、vitest 227/1740（勘误 v4.88/89
+  计数）、drift PASS（578）、jobs 并发单测 -count=2 绿（引擎语义 mock 不可
+  驱动，沿 A1 先例以单测为验收面）。
+- 详见 releases/v4.90.0.md。
 
 ## 最新发布：v4.89.0（2026-09-05）「成本费率 hover：单价快照 · 三档明细 · 诚实降级」
 

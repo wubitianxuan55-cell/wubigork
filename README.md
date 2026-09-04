@@ -89,6 +89,7 @@ gaea/
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| **v4.90.0** | 2026-09-05 | 终止级联（绑定面 578 零变更）：jobs.StartIn 从调用方 ctx 登记父子链，Kill 父任务 BFS 级联取消全部存活后代（bash ctx watcher 连带强杀进程树），杀子不动父；后台 task/bash 两派生点改道；vitest 227/1740（勘误 v4.88/89 计数）、Go 全量 0 FAIL、drift PASS（578）、jobs 并发单测为验收面 |
 | **v4.89.0** | 2026-09-05 | 成本费率 hover（绑定面 578 零变更）：fold 透出最近一次用量上报的单价快照（每 1M tokens 三档），SummaryBar 成本单元格 hover 五行明细（来源口径+未缓存输入/输出/缓存命中+合计），币种 CNY/USD，无费率诚实降级；vitest 227/1742、Go 全量 0 FAIL、drift PASS（578）、?mock=1 DOM 走查通过 |
 | **v4.88.0** | 2026-09-05 | /context 居中弹层 + 常驻「剩余上下文%」徽标（绑定面 578 零变更）：ContextPill codex 式常驻徽标（迷你进度条三档配色，点击开弹层）；ContextModal 复用 ContextView 不离开对话看构成；/context 命令改道弹层、主区 tab 保留；Agent Network 跳转留后续；vitest 227/1743、Go 全量 0 FAIL、drift PASS（578）、?mock=1 DOM 走查通过 |
 | **v4.87.0** | 2026-09-05 | 统一 diff 渲染升级（绑定面 578 零变更）：改蓝配对（相邻删块+增块按行配对蓝底替代红绿）+ 行内字符高亮（配对行字符级 LCS 变化片段着色）+ 上下文折叠（ctx 中段收起可展开）；diffRender 纯函数展示模型，变更面板/Git 面板共用查看器；语法着色留阶段三；vitest 226/1741、Go 全量 0 FAIL、drift PASS（578）、?mock=1 DOM 走查通过 |

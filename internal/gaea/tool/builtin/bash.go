@@ -5,8 +5,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log/slog"
 	"io"
+	"log/slog"
 	"os/exec"
 	"runtime"
 	"strconv"
@@ -100,7 +100,9 @@ func (b bash) Execute(ctx context.Context, args json.RawMessage) (string, error)
 		workDir := b.workDir
 		// The job runs under the manager's session context (no 120s timeout), so it
 		// survives this turn; its combined output streams to the job buffer.
-		job := jm.Start("bash", commandPreview(p.Command), func(jobCtx context.Context, out io.Writer) (string, error) {
+		// StartIn：在嵌套场景（后台 task 的子会话里再开后台命令）自动挂到父 job，
+		// 父任务被杀时级联取消（2b 终止级联）。
+		job := jm.StartIn(ctx, "bash", commandPreview(p.Command), func(jobCtx context.Context, out io.Writer) (string, error) {
 			cmd := exec.CommandContext(jobCtx, argv[0], argv[1:]...)
 			hideBashWindow(cmd) // Windows: 防止弹出 cmd 黑框
 			cmd.Dir = workDir

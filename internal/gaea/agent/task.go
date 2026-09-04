@@ -1,13 +1,13 @@
 package agent
 
 import (
-	"sync"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"strings"
+	"sync"
 
 	"github.com/gaea/gaea/internal/gaea/event"
 	"github.com/gaea/gaea/internal/gaea/jobs"
@@ -254,7 +254,8 @@ func (t *TaskTool) Execute(ctx context.Context, args json.RawMessage) (string, e
 		if label == "" {
 			label = "task"
 		}
-		job := jm.Start("task", label, func(jobCtx context.Context, _ io.Writer) (string, error) {
+		// StartIn：嵌套派生自动挂父 job（终止级联；主回合派生无父=原行为）。
+		job := jm.StartIn(ctx, "task", label, func(jobCtx context.Context, _ io.Writer) (string, error) {
 			// S3 双空间：jobCtx 由 jobs.Manager 的 root（context.Background 派生）
 			// 新建，不继承父调用 ctx 的 value——空间会在此丢失。显式补注父空间，
 			// 后台子代理与前台一样继承（缺省 work）。

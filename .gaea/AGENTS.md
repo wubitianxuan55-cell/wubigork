@@ -6,12 +6,12 @@
 ## 版本状态（顶部速览）
 
 - **下会话待办（2026-09-05 收档，详见 progress.md「下会话续做」）**：
-  **蒸馏规划阶段一、二.5（含 2.5e）与二 2a/2b/2c 全部收口 + 中期候选
-  成本费率 hover 落地**（v4.78~v4.89），剩余拍板项：阶段三 3a CodeMirror
-  （可带语法着色）/3b Mermaid strict/3c 人工沙箱浏览器；中期候选剩
-  终止级联、失败子代理可恢复、微信文件收发（抓包前置）；docx/xlsx 对比
-  迁移 ChangesDiff、Agent Network 会话跳转另刀，清单见
-  docs/market-research-2026-09-05.md 与老账。本会话另落 GitHub 市场调研三路
+  **蒸馏规划阶段一、二.5、二 2a/2b/2c 全部收口 + 中期候选成本费率 hover
+  与终止级联落地**（v4.78~v4.90），剩余拍板项：阶段三 3a CodeMirror
+  （可带语法着色）/3b Mermaid strict/3c 人工沙箱浏览器；中期候选剩失败
+  子代理可恢复、微信文件收发（抓包前置）；docx/xlsx 对比迁移 ChangesDiff、
+  Agent Network 会话跳转另刀，清单见 docs/market-research-2026-09-05.md
+  与老账。本会话另落 GitHub 市场调研三路
   （docs/research-2026-09-05/）+ 合成版 market-research-2026-09-05.md +
   长期规划回填（蒸馏规划 §7/§3.4 + gaea-nextgen-roadmap）。
   **长期蒸馏规划待拍板**（D1-D6 决策门 + 阶段起点）——双源规划文档
@@ -20,7 +20,12 @@
   （浏览器对比上一步/工具来源 chip/图片卡/文件活动行增量）；TaskCenter
   推送式实时输出流（现轮询 tail，独立刀）；老账（run_skill AllowedTools
   真机观察、pptx 真编辑、Verifier 逐页缩略图、队列非唯一命中交互式确认）。
-- **最新发布：v4.89.0（2026-09-05）「成本费率 hover」**——调研回填中期
+- **最新发布：v4.90.0（2026-09-05）「终止级联」**——调研回填中期候选；
+  绑定面 578 零变更：jobs.StartIn 父子链登记 + Kill BFS 级联取消全部存活
+  后代（bash 进程树连带强杀），杀子不动父；后台 task/bash 派生点改道。
+  vitest 227/1740、Go 全量 0 FAIL、drift PASS（578）、jobs 单测 -count=2 绿。
+  详见 releases/v4.90.0.md。
+- **此前：v4.89.0（2026-09-05）「成本费率 hover」**——调研回填中期
   候选第一项；绑定面 578 零变更：fold 透出最近一次用量上报单价快照
   （每 1M tokens 三档），SummaryBar 成本 hover 五行明细，币种 CNY/USD，
   无费率诚实降级。vitest 227/1742、Go 全量 0 FAIL、drift PASS（578）、

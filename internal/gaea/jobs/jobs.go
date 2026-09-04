@@ -57,10 +57,11 @@ type Result struct {
 // terminal fields; the run goroutine writes them, readers (Output/Wait/snapshots)
 // take the same lock.
 type Job struct {
-	ID    string
-	Kind  string // "bash" | "task"
-	Label string
-	Pid   int // OS process PID (set by bash.go for kill_shell fallback on Windows)
+	ID       string
+	Kind     string // "bash" | "task"
+	Label    string
+	Pid      int    // OS process PID (set by bash.go for kill_shell fallback on Windows)
+	ParentID string // 派生该 job 的父任务 ID（主回合派生为空；终止级联用）
 
 	mu         sync.Mutex
 	buf        bytes.Buffer
@@ -84,6 +85,10 @@ type Manager struct {
 	jobs      map[string]*Job
 	order     []string
 	completed []string // finished-job summaries awaiting drain into the next turn
+
+	// children 是「父 job ID → 其派生子 job ID」链（终止级联）：Kill 父任务
+	// 时 BFS 级联取消全部存活后代。仅 StartIn 检出父 ctx 时登记。
+	children map[string][]string
 }
 
 // terminalJobLimit caps how many finished jobs the manager retains. Evicted jobs
@@ -118,14 +123,30 @@ func (w jobWriter) Write(p []byte) (int, error) {
 // the buffer and returns ""). The job is marked killed when its context was
 // cancelled, failed on any other error, else done.
 func (m *Manager) Start(kind, label string, run func(ctx context.Context, out io.Writer) (string, error)) *Job {
+	return m.StartIn(context.Background(), kind, label, run)
+}
+
+// StartIn 与 Start 相同，但把「调用方 ctx 里嵌的 job ID」（若有）登记为新
+// job 的父任务（终止级联，2b 调研回填：中止父任务必须连带终止其派生的
+// 子任务/后台命令）。后台 task/bash 工具在自己的 Execute ctx（= 父 job 的
+// run ctx，已嵌父 job ID）里派生新 job 时自动成链；主回合派生的 job 无父，
+// 行为与 Start 完全一致。
+func (m *Manager) StartIn(caller context.Context, kind, label string, run func(ctx context.Context, out io.Writer) (string, error)) *Job {
+	parentID, _ := JobIDFromContext(caller)
 	m.mu.Lock()
 	m.seq++
 	id := fmt.Sprintf("%s-%d", kind, m.seq)
 	ctx, cancel := context.WithCancel(m.root)
 	ctx = context.WithValue(ctx, jobIDKey{}, id)
-	j := &Job{ID: id, Kind: kind, Label: label, status: Running, startedAt: nowMs(), cancel: cancel, done: make(chan struct{})}
+	j := &Job{ID: id, ParentID: parentID, Kind: kind, Label: label, status: Running, startedAt: nowMs(), cancel: cancel, done: make(chan struct{})}
 	m.jobs[id] = j
 	m.order = append(m.order, id)
+	if parentID != "" {
+		if m.children == nil {
+			m.children = map[string][]string{}
+		}
+		m.children[parentID] = append(m.children[parentID], id)
+	}
 	m.mu.Unlock()
 
 	m.sink.Emit(event.Event{Kind: event.Notice, Level: event.LevelInfo, Text: startedText(kind, id, label)})
@@ -269,7 +290,45 @@ func (m *Manager) Kill(id string) bool {
 		return false
 	}
 	j.cancel()
+	// 终止级联（2b 调研回填，claude-code/cline 同款语义）：父任务被杀时，
+	// 其派生的全部存活后代（后台子任务/后台命令）连带取消。bash job 的
+	// ctx watcher 会随即强杀进程树，无需额外处理。
+	for _, child := range m.runningDescendants(id) {
+		if cj := m.get(child); cj != nil {
+			cj.cancel()
+		}
+	}
 	return true
+}
+
+// runningDescendants BFS 收集 id 的全部存活后代 job ID（跨多层；已终态的
+// 中间节点仍继续下钻——其存活的子代同样属于被遗弃链）。
+func (m *Manager) runningDescendants(id string) []string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var out []string
+	queue := []string{id}
+	seen := map[string]bool{id: true}
+	for len(queue) > 0 {
+		cur := queue[0]
+		queue = queue[1:]
+		for _, child := range m.children[cur] {
+			if seen[child] {
+				continue
+			}
+			seen[child] = true
+			if j, ok := m.jobs[child]; ok {
+				j.mu.Lock()
+				running := j.status == Running
+				j.mu.Unlock()
+				if running {
+					out = append(out, child)
+				}
+			}
+			queue = append(queue, child)
+		}
+	}
+	return out
 }
 
 // Wait blocks until the named jobs (or every currently-running job when ids is
