@@ -152,7 +152,7 @@ export function TasksWorkbench({
 
       <div className="tasks-scroll flex-1 min-h-0 overflow-y-auto">
         {/* ① 子代理拓扑（better-sidebar：整树挂主 agent，running 实时预览） */}
-        <div className="px-2 pt-1.5 pb-0.5 flex items-center gap-1.5 text-[10px] uppercase tracking-wider" style={{ color: "var(--md-sys-color-text-secondary)" }}>
+        <div className="px-2 pt-2 pb-1 flex items-center gap-1.5 text-[10px] uppercase tracking-wider" style={{ color: "var(--md-sys-color-text-secondary)" }}>
           <Users size={10} aria-hidden />
           子代理
         </div>
@@ -180,7 +180,7 @@ export function TasksWorkbench({
         {modelToolRuns.length > 0 && (
           <>
             <div
-              className="px-2 pt-2 pb-0.5 flex items-center gap-1.5 text-[10px] uppercase tracking-wider"
+              className="px-2 pt-2.5 pb-1 flex items-center gap-1.5 text-[10px] uppercase tracking-wider"
               style={{ color: "var(--md-sys-color-text-secondary)" }}
             >
               <Bot size={10} aria-hidden />
@@ -189,7 +189,7 @@ export function TasksWorkbench({
                 {modelToolRuns.length}
               </span>
             </div>
-            <div className="flex flex-col gap-px px-1">
+            <div className="flex flex-col gap-1 px-1 pb-1">
               {modelToolRuns.map((r) => {
                 const statusLabel =
                   r.status === "running"
@@ -202,7 +202,7 @@ export function TasksWorkbench({
                     key={r.ref}
                     type="button"
                     data-model-tool-row={`${sessionPath}:${r.ref}`}
-                    className="flex w-full items-start gap-1.5 rounded-md px-1.5 py-1 text-left bg-transparent border-0 cursor-pointer transition-colors hover:bg-(color:--md-sys-color-surface-container-high)"
+                    className="flex w-full items-start gap-2 rounded-md px-1.5 py-1.5 text-left bg-transparent border-0 cursor-pointer transition-colors hover:bg-(color:--md-sys-color-surface-container-high)"
                     onClick={() =>
                       sessionPath &&
                       onOpenSubagent?.({
@@ -214,7 +214,7 @@ export function TasksWorkbench({
                     }
                   >
                     <span
-                      className={`mt-[5px] h-1.5 w-1.5 shrink-0 rounded-full ${
+                      className={`mt-[4px] h-2 w-2 shrink-0 rounded-full ${
                         r.status === "running"
                           ? "bg-accent animate-pulse"
                           : r.status === "failed"
@@ -223,7 +223,7 @@ export function TasksWorkbench({
                       }`}
                     />
                     <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                      <span className="truncate text-[11.5px] leading-snug" style={{ color: "var(--md-sys-color-text)" }}>
+                      <span className="truncate text-[12px] leading-snug" style={{ color: "var(--md-sys-color-text)" }}>
                         {r.task || r.tool || r.ref}
                       </span>
                       <span className="truncate text-[10px] leading-snug" style={{ color: "var(--md-sys-color-text-secondary)" }}>

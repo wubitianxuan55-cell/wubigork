@@ -175,7 +175,7 @@ export function AgentTree({ network, runs, onOpenThread }: {
     const transcriptRef = run?.ref ?? (node.id.startsWith("sa_") ? node.id : null);
     // 子代理节点可打开对话（root 无 transcript，不响应）
     const canOpenThread = node.kind === "subagent" && transcriptRef !== null;
-    const dotCls = `inline-block h-1.5 w-1.5 shrink-0 rounded-full${node.status === "running" ? " animate-pulse" : ""}`;
+    const dotCls = `inline-block h-2 w-2 shrink-0 rounded-full${node.status === "running" ? " animate-pulse" : ""}`;
     return (
       <div
         key={node.id}
@@ -185,10 +185,10 @@ export function AgentTree({ network, runs, onOpenThread }: {
         style={{
           background: "var(--md-sys-color-surface-container)",
           border: "1px solid var(--md-sys-color-outline-variant)",
-          marginLeft: f.depth * 10,
+          marginLeft: f.depth * 12,
         }}
       >
-        <div className="flex items-center gap-0.5 py-1 pr-1" style={{ paddingLeft: 4 }}>
+        <div className="flex items-center gap-1 py-1.5 pr-1.5" style={{ paddingLeft: 6 }}>
           {hasChildren ? (
             <button
               type="button"
@@ -211,30 +211,30 @@ export function AgentTree({ network, runs, onOpenThread }: {
             title={canOpenThread ? `${statusText(node.status, t)} · ${title}${t("subagent.threadHint")}` : `${statusText(node.status, t)} · ${title}`}
           >
             <span className={dotCls} aria-hidden style={{ background: statusColor(node.status) }} />
-            <span className="min-w-0 flex-1 truncate text-[11.5px] font-medium" style={{ color: "var(--md-sys-color-text)" }}>
+            <span className="min-w-0 flex-1 truncate text-[12px] font-medium" style={{ color: "var(--md-sys-color-text)" }}>
               {title}
             </span>
             {node.errors > 0 && (
-              <span className="shrink-0 text-[9.5px]" style={{ color: "var(--md-sys-color-destructive)" }}>{t("subagent.errCount", { n: node.errors })}</span>
+              <span className="shrink-0 text-[10px]" style={{ color: "var(--md-sys-color-destructive)" }}>{t("subagent.errCount", { n: node.errors })}</span>
             )}
-            <span className="shrink-0 font-mono text-[9.5px]" style={{ color: "var(--md-sys-color-text-secondary)" }}>
+            <span className="shrink-0 font-mono text-[10px]" style={{ color: "var(--md-sys-color-text-secondary)" }}>
               ⚙{node.toolCalls}
             </span>
             {(node.model || run?.model) && (
-              <span className="shrink-0 rounded px-1 py-px font-mono text-[9px]" style={{ background: "var(--md-sys-color-surface-container-high)" }}>
+              <span className="shrink-0 rounded px-1 py-px font-mono text-[9.5px]" style={{ background: "var(--md-sys-color-surface-container-high)" }}>
                 {node.model || run?.model}
               </span>
             )}
             {dur.label && (
               <span
-                className="shrink-0 font-mono text-[9.5px]"
+                className="shrink-0 font-mono text-[10px]"
                 style={{ color: dur.live ? "var(--gaea-glow)" : "var(--md-sys-color-text-secondary)" }}
               >
                 {dur.label}
               </span>
             )}
             {node.tokens > 0 && (
-              <span className="shrink-0 font-mono text-[9.5px]" style={{ color: "var(--md-sys-color-text-secondary)" }}>
+              <span className="shrink-0 font-mono text-[10px]" style={{ color: "var(--md-sys-color-text-secondary)" }}>
                 ≈{fmtTokens(node.tokens)}
               </span>
             )}
@@ -244,7 +244,7 @@ export function AgentTree({ network, runs, onOpenThread }: {
         {/* C2 活动行迁入树内：运行节点的实时预览（匹配失败时整块省略 = 纯节点统计降级） */}
         {node.status === "running" && run && (run.lastText || run.lastTool) && (
           <div
-            className="mx-1 mb-1 flex flex-col gap-px rounded-md px-1.5 py-1 text-[10px] leading-relaxed"
+            className="mx-1.5 mb-1.5 flex flex-col gap-0.5 rounded-md px-2 py-1.5 text-[10.5px] leading-relaxed"
             style={{
               background: "color-mix(in srgb, var(--gaea-glow) 6%, transparent)",
               border: "1px solid color-mix(in srgb, var(--gaea-glow) 16%, transparent)",
@@ -272,7 +272,7 @@ export function AgentTree({ network, runs, onOpenThread }: {
   };
 
   return (
-    <div className="flex flex-col gap-1" data-testid="agent-tree">
+    <div className="flex flex-col gap-1.5" data-testid="agent-tree">
       {renderNode({ node: root, depth: 0, ancestors: [] })}
     </div>
   );

@@ -89,6 +89,7 @@ gaea/
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| **v4.64.3** | 2026-09-04 | 任务管理树呼吸感优化（绑定面 560 零变更，纯前端）：AgentTree 行高/间距/字号/状态点/层级缩进放宽 + 本地模型工具区块同步；信息零删减；vitest 217/1605、冒烟通过、实机走查 PASS |
 | **v4.64.2** | 2026-09-04 | 修复：任务管理树丢失零工具子代理（绑定面 560 零变更）：FoldAgentNetwork 以「拥有子工具记录」定义节点致纯调研子代理（零工具调用）整批不可见；enrichAgentNetwork 对未被承载的 run 补挂合成节点（id=sa_ ref）；+3 回归；同日 v4.62.2～v4.64.1 六版实机验收六项全 PASS；Go 全量 0 FAIL、vitest 217/1605、drift PASS（560）、冒烟通过 |
 | **v4.64.1** | 2026-09-04 | 修复：mt_ 信封双层嵌套转义墙（绑定面 560 零变更）：写端 unwrapModelToolOutput 递归拆包（data.result/message/output 逐层）+ 读端 unwrapEnvelopeText 显示侧拆包救历史转录；双侧回归测试；vitest 217/1605、drift PASS（560）、冒烟通过 |
 | **v4.64.0** | 2026-09-04 | Side Chat 式追问（绑定面 559→560 +GaeaSubagentFollowUp）：子代理会话 tab 内可持续提问——复用 continue_from 管道带完整工作记忆继续运行；乐观上屏+专用通道流式+快照轮询；守卫双侧对齐（running/mt_/主回合运行中拒绝）；vitest 217/1603、drift PASS（560）、冒烟通过 |
