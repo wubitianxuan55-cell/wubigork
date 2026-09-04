@@ -1387,6 +1387,7 @@ export const zh: Record<DictKey, string> = {
   "contextview.imgTokens": "≈{tokens} tok · 标准档",
   "contextview.imgEstTip": "官方 patch 口径 ⌈w÷28⌉×⌈h÷28⌉（先档位缩放再封顶）；高分辨率档 ≈{high} tok",
   "contextview.imgMissing": "文件不存在",
+  "preview.sandboxNote": "沙箱预览：脚本受限运行，禁止访问网络与本机资源",
   "contextview.detailLoading": "读取中…",
   "contextview.sortTime": "时间序",
   "contextview.sortSize": "大小序",

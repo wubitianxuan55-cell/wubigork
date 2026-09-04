@@ -142,6 +142,20 @@ func (a *App) GaeaPreview(rel string) PreviewResult {
 	}
 
 	switch ext {
+	case ".html", ".htm":
+		// 1c HTML 沙箱预览：原文（截断口径与 markdown 同款）交前端沙箱
+		// iframe 渲染（sandbox 无 allow-same-origin + CSP 白名单），绝不
+		// 注入宿主 DOM；此前 .html 落 textExts 当纯文本展示。
+		body, truncated, err := readPreviewCapped(path)
+		if err != nil {
+			base.Kind = "error"
+			base.Error = err.Error()
+			return base
+		}
+		base.Kind = "html"
+		base.Body = body
+		base.Truncated = truncated
+		return base
 	case ".md", ".markdown":
 		body, truncated, err := readPreviewCapped(path)
 		if err != nil {

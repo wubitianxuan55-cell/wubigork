@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Modal } from "antd";
 import { CloudUpload, Copy, ExternalLink, Pencil, RefreshCw, Trash2 } from "../../icons";
 import { app, openExternal } from "../../lib/bridge";
+import { classifyExternalLink } from "../../lib/browserPolicy";
 import type { PriceSource } from "../../lib/types";
 import { useToast } from "../Toast";
 import { PriceSourceFormModal } from "./PriceSourceFormModal";
@@ -169,7 +170,7 @@ export function PriceSourcesRepository() {
                     <button
                       type="button"
                       className="flex items-center justify-center w-5 h-5 rounded border-0 bg-transparent text-fg-faint cursor-pointer hover:text-fg hover:bg-bg-soft"
-                      onClick={() => openExternal(src.url)}
+                      onClick={() => { const d = classifyExternalLink(src.url); if (d.kind === "open") openExternal(d.url); }}
                       title="在浏览器打开抓取地址"
                     >
                       <ExternalLink size={10} />

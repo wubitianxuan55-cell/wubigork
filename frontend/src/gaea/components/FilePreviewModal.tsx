@@ -14,6 +14,7 @@ import {
 import { usePreviewStore } from "../lib/store";
 import type { PreviewResult } from "../lib/types";
 import { DocxPreview } from "./DocxPreview";
+import { SandboxedHtml } from "./SandboxedHtml";
 import { Markdown } from "./Markdown";
 import { PptxOutline } from "./PptxOutline";
 import { usePreviewProgress } from "../hooks/usePreviewProgress";
@@ -31,6 +32,7 @@ function formatSize(n: number): string {
 
 const KIND_LABEL: Record<PreviewResult["kind"], string> = {
   image: "图片",
+  html: "网页",
   docx: "Word 文档",
   xlsx: "Excel 表格",
   // v4.31 B：弹窗 pdf 分支已补齐逐页预览（收 v4.28 欠账）——pages 逐页
@@ -398,6 +400,20 @@ export function FilePreviewModal() {
             <pre className="p-5 text-[13px] text-fg-dim font-mono leading-relaxed whitespace-pre-wrap overflow-x-auto">
               {preview.body}
             </pre>
+          )}
+
+          {!loading && preview?.kind === "html" && (
+            // 1c HTML 沙箱预览（与 FilePreview 同款组件）：独立 iframe。
+            <div className="px-6 py-4">
+              {preview.truncated && (
+                <div className="mb-2 px-3 py-2 rounded-md border border-amber-500/30 bg-amber-500/5 text-amber-500 text-[12px] leading-relaxed">
+                  ⚠️ 预览已截断（文件过大），仅展示前部内容。
+                </div>
+              )}
+              <div className="h-[64vh] overflow-hidden rounded-lg border border-border-soft">
+                <SandboxedHtml html={preview.body} title={name} />
+              </div>
+            </div>
           )}
 
           {!loading && (preview?.kind === "unsupported" || preview?.kind === "error") && (

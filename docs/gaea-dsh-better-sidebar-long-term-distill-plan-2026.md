@@ -174,8 +174,13 @@ pane 工作台/文件 tab（v4.25）、任务+分工同屏（v4.53）、子代�
   推荐默认；绑定面 +GaeaTaskKill（drift 570）；
 - 1b 文件/浏览器小面：文件行右键菜单（新 tab/复制路径/在侧边打开）、@文件
   悬浮引用、上传/拖放（cwd 围栏复用写路径守门）；
-- 1c HTML 沙箱预览（iframe 属性 + CSP）+ 外部链接协议分流策略（browserPolicy
-  已有雏形）。
+- ~~1c HTML 沙箱预览（iframe 属性 + CSP）+ 外部链接协议分流~~ **已完成
+  （v4.84.0，阶段一收口）**：GaeaPreview kind=html（原文截断读）；SandboxedHtml
+  独立 iframe——`sandbox="allow-scripts"` 无同源 + Chromium csp 属性
+  `default-src 'none'` 双保险 + 顶条如实标注；FilePreview/FilePreviewModal
+  双消费点。外链分流=`classifyExternalLink` 纯函数（http/https 放行
+  loopback 拒、mailto/tel 交系统、其余 blocked），接线 Markdown 链接与
+  价格源两处点击点。
 
 ### 阶段二（中 2-4 版）：统一文件变动与 Git
 - 2a 本轮文件折叠补全：模型读/写/编辑三态追踪 + 按文件分组 + 类型筛选；
@@ -260,6 +265,7 @@ pane 工作台/文件 tab（v4.25）、任务+分工同屏（v4.53）、子代�
 | v4.81 | 文件活动 ±行增量/命中数/操作日志展开跳转 | File Activity ±added/−removed + 操作日志 | 2.5c 收口；1b 勘误销账（前两项 v4.25-4.31 已落地） |
 | v4.82 | Trend brief 跳转锚点 + 粒度/模式/排序偏好持久化 + 设置中心默认卡 | step brief 跳转 Context Browser + 设置持久化默认 | 2.5d 收口；hover 联动边界成文（有意不做） |
 | v4.83 | 图片缩略卡 + 官方 patch 口径图片 token 估算 + 图片引用提取 | 图片 payload 缩略卡（含 token 估算） | 2.5b 后半收口，阶段二.5 全部完成；口径来自 2026-09-05 调研 |
+| v4.84 | HTML 沙箱预览（sandbox+CSP iframe）+ classifyExternalLink 外链分流 | html viewer + 外链协议分流 | 1c 收口，阶段一全部完成 |
 
 ## 8. 成功标准（长期）
 

@@ -379,3 +379,40 @@ describe("FilePreview pdf 逐页懒加载（v4.33.0 C）", () => {
     }
   });
 });
+
+describe("FilePreview HTML 沙箱预览（1c）", () => {
+  function htmlPreview(over: Partial<PreviewResult> = {}): PreviewResult {
+    return {
+      path: "reports/r.html",
+      name: "r.html",
+      ext: ".html",
+      size: 120,
+      kind: "html",
+      body: "<html><body><h1>季报</h1></body></html>",
+      dataUrl: "",
+      error: "",
+      ...over,
+    };
+  }
+
+  beforeEach(() => {
+    mocks.preview = htmlPreview();
+  });
+
+  it("kind=html 渲染沙箱 iframe（无同源 + 原文 srcDoc）与沙箱标注条", async () => {
+    render(wrap(<FilePreview relPath="reports/r.html" onClose={() => {}} />));
+    const iframe = await screen.findByTestId("sandboxed-html");
+    expect(iframe.getAttribute("sandbox")).toBe("allow-scripts");
+    // 无 allow-same-origin：通过属性串断言（Chromium csp 属性经 attribute 落 DOM）
+    expect(iframe.getAttribute("csp")).toContain("default-src 'none'");
+    expect(iframe.getAttribute("srcdoc")).toContain("<h1>季报</h1>");
+    expect(screen.getByTestId("sandbox-html-note")).toBeTruthy();
+  });
+
+  it("截断的 html 显示截断提示", async () => {
+    mocks.preview = htmlPreview({ truncated: true });
+    render(wrap(<FilePreview relPath="reports/r.html" onClose={() => {}} />));
+    await screen.findByTestId("sandboxed-html");
+    expect(screen.getByText(/预览已截断/)).toBeTruthy();
+  });
+});

@@ -176,6 +176,15 @@ export function buildOffice(_s: MakeMockState): OfficeMethods {
           body: MOCK_XLSX_BODY, dataUrl: "", error: "",
         };
       }
+      if (ext === "html" || ext === "htm") {
+        // 1c 走查样例：沙箱 iframe 渲染（脚本受限+无网络，标注条可见）。
+        return {
+          path: rel, name: rel.split("/").pop() ?? rel, ext: ".html",
+          size: 512, kind: "html" as const,
+          body: "<html><body style=\"font-family: sans-serif; padding: 16px;\"><h1>季度报告（沙箱样例）</h1><p>这段文字由沙箱 iframe 渲染：脚本受限、无网络、与宿主隔离。</p></body></html>",
+          dataUrl: "", error: "",
+        };
+      }
       if (ext === "md") {
         return {
           path: rel, name: rel.split("/").pop() ?? rel, ext: ".md",

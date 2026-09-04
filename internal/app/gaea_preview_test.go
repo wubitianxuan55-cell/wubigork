@@ -206,3 +206,24 @@ func TestGaeaPreview_Xlsx(t *testing.T) {
 		t.Errorf("body 缺少工作表/公式信息: %.200s", got.Body)
 	}
 }
+
+// TestGaeaPreview_Html（1c）：.html/.htm 返回 kind=html 原文（交前端沙箱
+// iframe 渲染），不再按 textExts 落纯文本。
+func TestGaeaPreview_Html(t *testing.T) {
+	t.Chdir(t.TempDir())
+	rel := "report.html"
+	if err := os.WriteFile(rel, []byte("<html><body><h1>报告</h1></body></html>"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	a := &App{}
+	got := a.GaeaPreview(rel)
+	if got.Kind != "html" {
+		t.Fatalf("kind = %q, want html", got.Kind)
+	}
+	if !strings.Contains(got.Body, "<h1>报告</h1>") {
+		t.Fatalf("body = %q, want 原文", got.Body)
+	}
+	if got.Truncated {
+		t.Fatal("小文件不应截断")
+	}
+}

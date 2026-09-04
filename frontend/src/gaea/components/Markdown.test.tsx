@@ -1,5 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
+const openExternalMock = vi.hoisted(() => vi.fn());
+vi.mock("../lib/bridge", () => ({
+  app: new Proxy({}, { get: () => () => Promise.resolve({}) }),
+  openExternal: openExternalMock,
+  onEvent: () => () => {},
+}));
 import { Markdown } from "./Markdown";
 import { usePreviewStore } from "../lib/store";
 
@@ -65,5 +71,25 @@ describe("Markdown 本地文件预览", () => {
   it("代码块/内联代码里的路径不转成链接", () => {
     render(<Markdown text={"```\nC:\\AI\\bangong\\内部说明.xlsx\n```\n运行 `C:\\AI\\tools\\fix.bat` 即可。"} />);
     expect(screen.queryAllByRole("button").length).toBe(0);
+  });
+});
+
+describe("Markdown 外链协议分流（1c）", () => {
+  beforeEach(() => {
+    openExternalMock.mockClear();
+  });
+
+  it("loopback 链接点击不交给系统（渲染文档不得探测本机服务）", () => {
+    render(<Markdown text="探针 [内网](http://127.0.0.1:8080/api) 谢谢" />);
+    const link = screen.getByRole("link", { name: /内网/ });
+    expect(link).toBeTruthy();
+    fireEvent.click(link);
+    expect(openExternalMock).not.toHaveBeenCalled();
+  });
+
+  it("https 链接点击交给系统浏览器", () => {
+    render(<Markdown text="参考 [文档](https://example.com/doc)" />);
+    fireEvent.click(screen.getByRole("link", { name: /文档/ }));
+    expect(openExternalMock).toHaveBeenCalledWith("https://example.com/doc");
   });
 });

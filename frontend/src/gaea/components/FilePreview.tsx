@@ -13,6 +13,7 @@ import {
 } from "../lib/pageLazy";
 import type { PreviewResult } from "../lib/types";
 import { DocxPreview } from "./DocxPreview";
+import { SandboxedHtml } from "./SandboxedHtml";
 import { Markdown } from "./Markdown";
 import { PptxOutline } from "./PptxOutline";
 import { XlsxPreview } from "./XlsxPreview";
@@ -461,6 +462,19 @@ export function FilePreview({
         )}
         {!loading && preview?.kind === "text" && (
           <pre className="p-3 text-[12px] text-fg-dim font-mono leading-relaxed whitespace-pre-wrap overflow-x-auto">{preview.body}</pre>
+        )}
+        {!loading && preview?.kind === "html" && (
+          // 1c HTML 沙箱预览：独立 iframe（无同源+CSP），绝不注入宿主 DOM。
+          <div className="min-h-full px-4 py-3">
+            {preview.truncated && (
+              <div className="mb-2 px-3 py-2 rounded-md border border-amber-500/30 bg-amber-500/5 text-amber-500 text-[11px] leading-relaxed">
+                ⚠️ 预览已截断（文件过大），仅展示前部内容。
+              </div>
+            )}
+            <div className="h-[62vh] overflow-hidden rounded-lg border border-border-soft">
+              <SandboxedHtml html={preview.body} title={fileName} />
+            </div>
+          </div>
         )}
         {!loading && (preview?.kind === "unsupported" || preview?.kind === "error") && (
           <div className="flex flex-col items-center justify-center h-full text-fg-faint text-xs gap-3 p-4 text-center">

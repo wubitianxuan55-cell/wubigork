@@ -1,6 +1,7 @@
 # 任务进度
 
-> 最后更新: 2026-09-05（v4.83.0「工具结果图片缩略卡：官方 patch 口径
+> 最后更新: 2026-09-05（v4.84.0「HTML 沙箱预览 · 外链协议分流」，571 零
+> 变更，阶段一收口；v4.83.0「工具结果图片缩略卡：官方 patch 口径
 > token 估算」，571 零变更；v4.82.0「上下文趋势跳转浏览器：brief 行锚点 ·
 > 偏好持久化 · 设置中心默认」，571 零变更；v4.81.0「文件活动行级增量：
 > ±徽标 · 操作日志展开 · 详情跳转」，571 零变更；v4.80.0「上下文工具结果
@@ -14,16 +15,29 @@
 
 ## 下会话续做（待办清单，2026-09-05 v4.81.0 后更新）
 
-- **蒸馏规划滚动中**：1a（v4.78）、2.5a（v4.79）、2.5b 前半（v4.80）、
-  2.5c（v4.81）、2.5d（v4.82）、**2.5b 后半（v4.83 图片缩略卡+官方 patch
-  口径 token 估算）已完成，阶段二.5 全部收口**；1b 勘误销账。**下一刀
-  候选**：1c（HTML 沙箱预览 + 外链协议分流）、2b/2c Git 面板与统一 diff
-  （需拍板）、2.5e /context 弹层（拍板，调研建议与「剩余上下文 % 常驻
-  徽标」合并考虑）；中期候选见 docs/market-research-2026-09-05.md
+- **蒸馏规划滚动中**：阶段一（1a v4.78、1c v4.84；1b 勘误销账）与阶段
+  二.5（2.5a/2.5b 前后半/2.5c/2.5d = v4.79~v4.83）**全部收口**。**下一刀
+  候选**：2a 本轮文件折叠补全（写/编辑三态+类型筛选）、2b/2c Git 面板与
+  统一 diff（需拍板）、2.5e /context 弹层（拍板，建议与「剩余上下文 %
+  常驻徽标」合并）；中期候选见 docs/market-research-2026-09-05.md
   （成本费率 hover、终止级联、失败子代理可恢复）。
 - **dsh 剩余借鉴**：2.5e /context 弹层与 Agent Network 会话跳转（拍板）。
 - **老账**：run_skill AllowedTools 真机观察；pptx 真编辑；Verifier 通道 B
   逐页缩略图；子代理队列非唯一命中交互式确认。
+
+## 最新发布：v4.84.0（2026-09-05）「HTML 沙箱预览 · 外链协议分流」
+
+- 双源蒸馏规划阶段一 1c，**阶段一收口**。绑定面 571 零变更。
+- GaeaPreview 增 .html kind=html（原文截断读）；前端 SandboxedHtml——
+  独立 iframe `sandbox="allow-scripts"`（无同源=不透明源）+ Chromium csp
+  属性 `default-src 'none'`（禁网络外链，只放内联样式/脚本与 data:/blob: 图）
+  双保险 + 顶条标注；FilePreview/FilePreviewModal 双消费点接线。
+- 外链分流：browserPolicy.classifyExternalLink（http/https 放行 loopback 拒、
+  mailto/tel 交系统、其余 blocked）；Markdown 渲染链接与价格源两处接线
+  （此前任意 href 直接 openExternal）。
+- 门禁：Go 全量 0 FAIL、tsc/tsc -b/eslint 0、vitest 224/1712、drift PASS（571）、
+  ?mock=1 DOM 走查通过（iframe sandbox/csp/srcdoc/标注条全验；截图通道沿例故障）。
+- 详见 releases/v4.84.0.md。
 
 ## 最新发布：v4.83.0（2026-09-05）「工具结果图片缩略卡：官方 patch 口径 token 估算」
 

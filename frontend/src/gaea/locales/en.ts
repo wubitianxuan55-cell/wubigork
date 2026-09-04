@@ -1386,6 +1386,7 @@ export const en = {
   "contextview.imgTokens": "≈{tokens} tok · standard tier",
   "contextview.imgEstTip": "Official patch scheme ⌈w÷28⌉×⌈h÷28⌉ (tier-scaled then capped); high-res tier ≈{high} tok",
   "contextview.imgMissing": "File missing",
+  "preview.sandboxNote": "Sandboxed preview: scripts run restricted, network and local resources blocked",
   "contextview.detailLoading": "Loading…",
   "contextview.sortTime": "Chronological",
   "contextview.sortSize": "By size",

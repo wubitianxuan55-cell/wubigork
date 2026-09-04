@@ -8,6 +8,7 @@ import mermaid from "mermaid";
 import { Check, Copy, FileText, Loader } from "../icons";
 
 import { app, openExternal } from "../lib/bridge";
+import { classifyExternalLink } from "../lib/browserPolicy";
 import { isLocalFilePath } from "../lib/fileLinks";
 import { remarkFileLinks } from "../lib/remarkFileLinks";
 import { remarkMemCitations } from "../lib/remarkMemCitations";
@@ -414,8 +415,18 @@ function buildComponents(onOpenFile: (rel: string) => void, autoExportMermaid = 
         );
       }
       return (
-        <a href={href} onClick={(e) => { e.preventDefault(); if (href) openExternal(href); }}
-          className="text-accent hover:underline">
+        <a
+          href={href}
+          onClick={(e) => {
+            e.preventDefault();
+            // 1c 外链协议分流：http(s)→系统浏览器（loopback 拒）、mailto/tel
+            // →系统处理器；javascript:/file:/相对路径等一律不交给系统。
+            if (!href) return;
+            const decision = classifyExternalLink(href);
+            if (decision.kind === "open") openExternal(decision.url);
+          }}
+          className="text-accent hover:underline"
+        >
           {children}
         </a>
       );

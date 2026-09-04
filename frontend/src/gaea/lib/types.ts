@@ -554,7 +554,7 @@ export interface PreviewResult {
   name: string;
   ext: string;
   size: number;
-  kind: "image" | "docx" | "xlsx" | "pdf" | "markdown" | "text" | "unsupported" | "error";
+  kind: "image" | "docx" | "xlsx" | "pdf" | "markdown" | "text" | "html" | "unsupported" | "error";
   body: string;
   dataUrl: string;
   error: string;

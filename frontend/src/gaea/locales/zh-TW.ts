@@ -1391,6 +1391,7 @@ export const zhTW: Record<DictKey, string> = {
   "contextview.imgTokens": "≈{tokens} tok · 標準檔",
   "contextview.imgEstTip": "官方 patch 口徑 ⌈w÷28⌉×⌈h÷28⌉（先檔位縮放再封頂）；高解析度檔 ≈{high} tok",
   "contextview.imgMissing": "檔案不存在",
+  "preview.sandboxNote": "沙箱預覽：腳本受限執行，禁止存取網路與本機資源",
   "contextview.detailLoading": "讀取中…",
   "contextview.sortTime": "時間序",
   "contextview.sortSize": "大小序",

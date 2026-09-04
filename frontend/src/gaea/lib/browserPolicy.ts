@@ -49,3 +49,30 @@ export function normalizeBrowserUrl(input: string): BrowserNavigateResult {
   if (isLoopback(url.hostname)) return { kind: "blocked", reason: "loopback" };
   return { kind: "ok", url: url.href };
 }
+
+// ── 渲染文档外链分流（1c）───────────────────────────────────────────
+// Markdown/HTML 渲染出的 <a> 点击统一走此判定（此前对任意 href 直接
+// openExternal——javascript:/file: 等会原样交给系统，是真实风险面）。
+// http/https → 系统浏览器（loopback 拒：渲染文档不得探测本机服务）；
+// mailto/tel → 交系统处理器（无 webview 风险，办公文档常见）；其余
+// （javascript:/data:/file:/blob:/相对路径等）→ blocked。
+
+export type ExternalLinkDecision =
+  | { kind: "open"; url: string }
+  | { kind: "blocked"; reason: "scheme" | "loopback" };
+
+export function classifyExternalLink(href: string): ExternalLinkDecision {
+  const trimmed = (href ?? "").trim();
+  const schemeMatch = /^([a-zA-Z][a-zA-Z0-9+.-]*):/.exec(trimmed);
+  if (schemeMatch === null) return { kind: "blocked", reason: "scheme" };
+  const scheme = schemeMatch[1]!.toLowerCase();
+  if (scheme === "mailto" || scheme === "tel") return { kind: "open", url: trimmed };
+  if (scheme !== "http" && scheme !== "https") return { kind: "blocked", reason: "scheme" };
+  try {
+    const url = new URL(trimmed);
+    if (isLoopback(url.hostname)) return { kind: "blocked", reason: "loopback" };
+    return { kind: "open", url: url.href };
+  } catch {
+    return { kind: "blocked", reason: "scheme" };
+  }
+}
