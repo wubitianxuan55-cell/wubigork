@@ -310,16 +310,19 @@ func (a *App) Startup(ctx context.Context) {
 	encryptSecretIfLegacy(config.KeyGLMAPIKey, &a.cfg.GLMAPIKey)
 	encryptSecretIfLegacy(config.KeyOpencodeGoAPIKey, &a.cfg.OpenCodeGoAPIKey)
 	encryptSecretIfLegacy(config.KeyOpencodeZenAPIKey, &a.cfg.OpenCodeZenAPIKey)
+	encryptSecretIfLegacy(config.KeyModelHubAPIKey, &a.cfg.ModelHubAPIKey)
 	deepseekKey, _ := secure.DecryptString(a.cfg.DeepseekAPIKey)
 	glmKey, _ := secure.DecryptString(a.cfg.GLMAPIKey)
 	opencodeGoKey, _ := secure.DecryptString(a.cfg.OpenCodeGoAPIKey)
 	opencodeZenKey, _ := secure.DecryptString(a.cfg.OpenCodeZenAPIKey)
+	modelHubKey, _ := secure.DecryptString(a.cfg.ModelHubAPIKey)
 
 	// 初始化模型引擎管理器，尝试恢复已保存的 xAI token
 	a.engineMgr = modelengine.NewManager("", deepseekKey)
 	a.engineMgr.UpdateGLMKey(glmKey)
 	a.engineMgr.UpdateOpencodeKey(opencodeGoKey)
 	a.engineMgr.UpdateOpencodeZenKey(opencodeZenKey)
+	a.engineMgr.UpdateModelHubKey(modelHubKey)
 	// A 刀自定义引擎：custom_engine_keys 密文解密为明文后注入 Manager（Key 只存
 	// 内存；引擎本体由下方 LoadState 从状态文件恢复，Key 与引擎分离存储）。
 	a.engineMgr.SetCustomEngineKeys(decryptCustomEngineKeys(a.cfg.CustomEngineKeys))

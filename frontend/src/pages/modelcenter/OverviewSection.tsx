@@ -8,7 +8,7 @@ import {
   ThunderboltOutlined,
 } from '@ant-design/icons'
 import { EmptyState, KpiTile, ModelCard, SectionHead, StatusChip } from './ui'
-import { engineLabel } from './utils'
+import { engineLabel, modelDisplayName } from './utils'
 import { useModelCenter } from './context'
 
 /** 巡检时间 title（C 刀）：ISO → 「巡检 HH:MM」；缺失/解析失败返回 undefined 不占位 */
@@ -112,7 +112,7 @@ export function OverviewSection() {
                 <div key={`${s.engine_id}|${s.model}`} className="mc-issue">
                   <span style={{ color: 'var(--mc-danger)' }}><AlertOutlined /></span>
                   <div style={{ minWidth: 0, flex: 1 }}>
-                    <div className="mc-issue-name">{s.model}</div>
+                    <div className="mc-issue-name">{modelDisplayName(engines, s.engine_id, s.model)}</div>
                     <div className="mc-issue-sub">
                       {engineLabel({ id: s.engine_id })} · 失败 {s.fail_count}/{s.call_count}
                     </div>

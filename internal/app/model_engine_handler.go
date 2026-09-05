@@ -344,6 +344,48 @@ func (c *core) GetOpencodeZenKeyStatus() map[string]interface{} {
 	}
 }
 
+// ── Model Hub (Unsloth) API ────────────────────────────────
+
+// SetModelHubKey 设置 Unsloth Model Hub API Key（本地引擎；Unsloth 设置 →
+// API 创建，sk-unsloth- 开头。与云端引擎 Key 同一安全口径：DPAPI 密文落盘、
+// Manager 内存只持明文）。
+func (c *core) SetModelHubKey(apiKey string) error {
+	if c.engineMgr == nil {
+		return errNoEngineMgr
+	}
+	enc, err := secure.EncryptString(apiKey)
+	if err != nil {
+		return &appError{"API Key 加密失败: " + err.Error()}
+	}
+	c.engineMgr.UpdateModelHubKey(apiKey)
+	c.cfg.ModelHubAPIKey = enc
+	if err := config.Save(config.KeyModelHubAPIKey, enc); err != nil {
+		slog.Warn("保存 Model Hub API Key 失败", "error", err)
+		return err
+	}
+	slog.Info("Model Hub API Key 已更新")
+	return nil
+}
+
+// GetModelHubKeyStatus 获取 Model Hub API Key 配置状态（脱敏展示）
+func (c *core) GetModelHubKeyStatus() map[string]interface{} {
+	hasKey, masked := maskKeyStatus(c.cfg.ModelHubAPIKey)
+	return map[string]interface{}{
+		"configured": hasKey,
+		"masked":     masked,
+	}
+}
+
+// StartModelHubModel 让 Unsloth Studio 加载指定模型（modelID 为
+// ollama-manifest:… 引用，来自 Model Hub 引擎刷新出的模型列表）。
+// 调用后 Studio 切换当前加载模型，前端刷新即可看到状态变化。
+func (c *core) StartModelHubModel(modelID string) error {
+	if c.engineMgr == nil {
+		return errNoEngineMgr
+	}
+	return c.engineMgr.StartModelHubModel(c.ctx, modelID)
+}
+
 // maskKeyStatus 解密持久化的密钥并返回脱敏展示。
 // 存储值可能为 DPAPI 密文或旧版明文；解密失败时保守显示 ****。
 func maskKeyStatus(enc string) (hasKey bool, masked string) {

@@ -108,9 +108,10 @@ describe('useEngineState · T6-6.5 竞态守卫', () => {
       await act(async () => { vi.advanceTimersByTime(4900) }) // t=8900 旧定时器若未重置早已触发
       expect(mRefresh).not.toHaveBeenCalled()
 
-      // 新分类下定时器到达 5s：触发一次刷新（一次刷新 = 3 个本地引擎各刷一次）
+      // 新分类下定时器到达 5s：触发一次刷新（一次刷新 = 4 个本地引擎各刷一次：
+      // herdsman / ollama / cosyvoice / modelhub）
       await act(async () => { vi.advanceTimersByTime(200) }) // t=9100
-      expect(mRefresh).toHaveBeenCalledTimes(3)
+      expect(mRefresh).toHaveBeenCalledTimes(4)
     } finally {
       vi.useRealTimers()
     }

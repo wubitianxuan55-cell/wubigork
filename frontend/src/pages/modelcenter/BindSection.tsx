@@ -61,6 +61,15 @@ export function BindSection() {
           const enabled = featureEnabled[f.key] !== false
           const state = featureState(bound, enabled)
           const stateMeta = featureStateMeta[state]
+          // 绑定/路由文本展示友好名：引擎取 engineLabel，模型经 llmModels
+          // 的 modelName（Model Hub 的别名 ID → tinyrick/…:Q6_K_P）。
+          const modelText = (engineId?: string, modelId?: string): string => {
+            const hit = engineId && modelId
+              ? llmModels.find(m => m.engineId === engineId && m.modelId === modelId)
+              : undefined
+            return [engineId ? engineLabel({ id: engineId }) : '', hit?.modelName || modelId || '']
+              .filter(Boolean).join(' / ') || '-'
+          }
           return (
             <div key={f.key} className={`mc-bind-card${bound ? ' is-bound' : ''}`}>
               <div className="mc-bind-head">
@@ -77,18 +86,18 @@ export function BindSection() {
                 {state === 'fallback'
                   ? '未绑定，跟随全局默认'
                   : state === 'bound-disabled'
-                    ? `已停用，跟随全局默认（绑定保留：${cur!.engine} / ${cur!.model}）`
-                    : `当前：${cur!.engine} / ${cur!.model}`}
+                    ? `已停用，跟随全局默认（绑定保留：${modelText(cur!.engine, cur!.model)}）`
+                    : `当前：${modelText(cur!.engine, cur!.model)}`}
               </div>
               {modelRoutes[f.key] && (
                 <div className="mc-bind-meta">
-                  当前生效：{modelRoutes[f.key].engine || '-'} / {modelRoutes[f.key].model || '-'}
+                  当前生效：{modelText(modelRoutes[f.key].engine, modelRoutes[f.key].model)}
                   （{routeSourceLabel(modelRoutes[f.key].source)}）
                 </div>
               )}
               {f.key === 'office' && modelRoutes['gaea'] && (
                 <div className="mc-bind-meta">
-                  通用办公 / 知识库路由：{modelRoutes['gaea'].engine || '-'} / {modelRoutes['gaea'].model || '-'}
+                  通用办公 / 知识库路由：{modelText(modelRoutes['gaea'].engine, modelRoutes['gaea'].model)}
                   （{routeSourceLabel(modelRoutes['gaea'].source)}）
                 </div>
               )}

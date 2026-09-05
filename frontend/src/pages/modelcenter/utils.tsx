@@ -146,13 +146,13 @@ export const hasPointsCoef = (meta?: ModelMeta): boolean =>
   !!meta && (meta.points_in != null || meta.points_cached != null || meta.points_out != null)
 
 export const engineIcons: Record<string, ReactNode> = {
-  xai: <CloudOutlined />, ollama: <DesktopOutlined />, herdsman: <RocketOutlined />, deepseek: <KeyOutlined />, glm: <KeyOutlined />, cosyvoice: <RocketOutlined />, 'opencode-go': <GlobalOutlined />, 'opencode-zen': <GlobalOutlined />, custom: <GlobalOutlined />,
+  xai: <CloudOutlined />, ollama: <DesktopOutlined />, herdsman: <RocketOutlined />, deepseek: <KeyOutlined />, glm: <KeyOutlined />, cosyvoice: <RocketOutlined />, 'opencode-go': <GlobalOutlined />, 'opencode-zen': <GlobalOutlined />, modelhub: <RocketOutlined />, custom: <GlobalOutlined />,
 }
 export const engineColors: Record<string, string> = {
-  xai: '#60a5fa', ollama: '#f59e0b', herdsman: '#84cc16', deepseek: '#8b5cf6', glm: '#38bdf8', cosyvoice: '#f472b6', 'opencode-go': '#22d3ee', 'opencode-zen': '#a78bfa', custom: '#94a3b8', // hex-exempt 引擎品牌识别色（模型中心身份色板）
+  xai: '#60a5fa', ollama: '#f59e0b', herdsman: '#84cc16', deepseek: '#8b5cf6', glm: '#38bdf8', cosyvoice: '#f472b6', 'opencode-go': '#22d3ee', 'opencode-zen': '#a78bfa', modelhub: '#fb7185', custom: '#94a3b8', // hex-exempt 引擎品牌识别色（模型中心身份色板）
 }
 export const engineLabels: Record<string, string> = {
-  xai: 'xAI 云端', ollama: 'Ollama 本地', herdsman: 'Herdsman 本地', deepseek: 'DeepSeek 云端', glm: 'GLM 云端', cosyvoice: 'CosyVoice2 本地', 'opencode-go': 'OpenCode Go 云端', 'opencode-zen': 'OpenCode Zen 云端', custom: '自定义 OpenAI 兼容',
+  xai: 'xAI 云端', ollama: 'Ollama 本地', herdsman: 'Herdsman 本地', deepseek: 'DeepSeek 云端', glm: 'GLM 云端', cosyvoice: 'CosyVoice2 本地', 'opencode-go': 'OpenCode Go 云端', 'opencode-zen': 'OpenCode Zen 云端', modelhub: 'Model Hub 本地', custom: '自定义 OpenAI 兼容',
 }
 
 // ── 自定义引擎（A 刀：OpenAI 兼容自定义服务商，type=custom / id=custom-*） ──
@@ -170,6 +170,15 @@ export const isValidBaseURL = (url: string): boolean =>
 // custom 引擎 id 动态（custom-*），本地映射按 type 兜底到 custom 专用条目。
 export const engineLabel = (e: { id?: string; engineId?: string; label?: string; type?: string }) =>
   e.label || engineLabels[e.id || e.engineId || ''] || (e.type === 'custom' ? engineLabels.custom : '') || e.id || e.engineId || ''
+
+/** 引擎模型 ID → 展示名：优先取后端下发的 name（如 Model Hub 的
+ *  tinyrick/Qwen3.8-…:Q6_K_P），未找到/无 name 时原样回退 modelId。 */
+export function modelDisplayName(engines: EngineConfig[], engineId?: string, modelId?: string): string {
+  if (!modelId) return ''
+  const eng = engines.find(e => e.id === engineId)
+  const mdl = eng?.models?.find(m => m.id === modelId)
+  return mdl?.name || modelId
+}
 export const engineColor = (e: { id?: string; engineId?: string; color?: string; type?: string }) =>
   e.color || engineColors[e.id || e.engineId || ''] || (e.type === 'custom' ? engineColors.custom : '') || 'var(--color-text-secondary)'
 // 引擎图标：按 id 命中内置映射；custom-* 动态 id 未命中时按 type 兜底。
@@ -331,7 +340,7 @@ export const COSYVOICE_FALLBACK_VOICES = ['中文女', '中文男', '英文女',
 
 // ── 费用展示工具（汇率单一来源：优先取后端下发的 usd_to_cny） ───
 export const USD_TO_CNY = 7.2
-export const isLocalEngine = (id: string) => id === 'ollama' || id === 'herdsman' || id === 'cosyvoice'
+export const isLocalEngine = (id: string) => id === 'ollama' || id === 'herdsman' || id === 'cosyvoice' || id === 'modelhub'
 export const costToCNY = (cost: number, currency?: string, rate: number = USD_TO_CNY) => (currency === 'USD' ? cost * rate : cost)
 
 // 本地 TTS 引擎的服务端音色兜底：CosyVoice2 4 个内置音色（中文女/男、英文女/男）

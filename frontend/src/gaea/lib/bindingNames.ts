@@ -395,6 +395,7 @@ export const bindingNames = [
 	"GetLoginStatus",
 	"GetLorebookEntries",
 	"GetModelCallStats",
+	"GetModelHubKeyStatus",
 	"GetModelMonitor",
 	"GetModelRoute",
 	"GetNovelState",
@@ -509,6 +510,7 @@ export const bindingNames = [
 	"SetGlmKey",
 	"SetImageBackend",
 	"SetKeepWarm",
+	"SetModelHubKey",
 	"SetOfficeLocal",
 	"SetOfflineMode",
 	"SetOpencodeGoKey",
@@ -521,6 +523,7 @@ export const bindingNames = [
 	"Shutdown",
 	"StartComfyUI",
 	"StartLocalTTSService",
+	"StartModelHubModel",
 	"StartProgrammingWeb",
 	"StartTTSServer",
 	"Startup",
@@ -584,4 +587,3 @@ export const bindingNames = [
 ] as const
 
 export default bindingNames
-

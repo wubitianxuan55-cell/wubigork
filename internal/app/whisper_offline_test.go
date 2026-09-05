@@ -23,7 +23,7 @@ func TestWhisperCausalOfflineFilter(t *testing.T) {
 	if err := a.SetFeatureModel("chat", "xai", "grok-4.20"); err != nil {
 		t.Fatal(err)
 	}
-	// 停用 ollama/cosyvoice，保留 herdsman 作为唯一本地引擎（xai 云端被滤）；
+	// 停用 ollama/cosyvoice/modelhub，保留 herdsman 作为唯一本地引擎（xai 云端被滤）；
 	// 兜底路由取 DefaultModel（夹具默认空，补上才有模型可发本地 mock）
 	if e, ok := a.engineMgr.GetEngine("herdsman"); ok {
 		e.DefaultModel = "qwen3-8b"
@@ -31,7 +31,7 @@ func TestWhisperCausalOfflineFilter(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	for _, id := range []string{"ollama", "cosyvoice"} {
+	for _, id := range []string{"ollama", "cosyvoice", "modelhub"} {
 		if e, ok := a.engineMgr.GetEngine(id); ok {
 			e.Enabled = false
 			if err := a.engineMgr.SaveEngine(*e); err != nil {
@@ -77,7 +77,7 @@ func TestWhisperRetellOfflineFilter(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	for _, id := range []string{"ollama", "cosyvoice"} {
+	for _, id := range []string{"ollama", "cosyvoice", "modelhub"} {
 		if e, ok := a.engineMgr.GetEngine(id); ok {
 			e.Enabled = false
 			if err := a.engineMgr.SaveEngine(*e); err != nil {

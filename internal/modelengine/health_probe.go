@@ -14,7 +14,7 @@ import (
 //
 // 健康巡检：周期性轻量探测云端引擎连通性，只探 enabled 且非本地
 // （EngineType.IsLocal()==false）的引擎（xai/deepseek/glm/opencode-*/custom-*）；
-// 本地引擎（ollama/herdsman/cosyvoice）由保活机制（keep-warm）管理，巡检跳过。
+// 本地引擎（ollama/herdsman/cosyvoice/modelhub）由保活机制（keep-warm）管理，巡检跳过。
 //
 // 探测口径：GET {BaseURL}/models（与 fetchModels 的 /models 端点同源拼法），
 // 带按引擎的鉴权头（与 fetchModels/BuildChatURL 同一取 Key 链；custom 无 Key

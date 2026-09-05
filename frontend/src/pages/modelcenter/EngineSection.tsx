@@ -15,10 +15,12 @@ export function EngineSection() {
     glmKey, setGlmKeyState, glmKeyMasked,
     opencodeGoKey, setOpencodeGoKeyState, opencodeGoKeyMasked,
     opencodeZenKey, setOpencodeZenKeyState, opencodeZenKeyMasked,
+    modelHubKey, setModelHubKeyState, modelHubKeyMasked,
     settingGlmEndpoint, handleSetGlmEndpoint,
     handleTestConnection, handleRefreshModels, handleSaveURL, handleToggleEngine,
     handleBulkToggleEngines,
     handleSaveDeepseekKey, handleSaveGlmKey, handleSaveOpencodeGoKey, handleSaveOpencodeZenKey,
+    handleSaveModelHubKey,
     handleAddCustomEngine, handleUpdateCustomEngine, handleRemoveCustomEngine,
     makeModels,
   } = useModelCenter()
@@ -152,6 +154,13 @@ export function EngineSection() {
       placeholder: opencodeZenKeyMasked || 'zen-...（opencode.ai/auth 获取）',
       save: handleSaveOpencodeZenKey,
     },
+    {
+      type: 'modelhub',
+      value: modelHubKey,
+      setter: setModelHubKeyState,
+      placeholder: modelHubKeyMasked || 'sk-unsloth-...（Unsloth 设置 → API 创建）',
+      save: handleSaveModelHubKey,
+    },
   ]
 
   return (
@@ -256,7 +265,10 @@ export function EngineSection() {
                 <div style={{ minWidth: 0 }}>
                   <div className="mc-engine-name">{engine.name}</div>
                   <div className="mc-engine-sub">
-                    {engineLabel(engine)} · 默认模型 {engine.default_model || '未设置'}
+                    {engineLabel(engine)} · 默认模型 {
+                      (engine.models || []).find(m => m.id === engine.default_model)?.name
+                      || engine.default_model || '未设置'
+                    }
                   </div>
                 </div>
               </div>
@@ -448,6 +460,14 @@ export function EngineSection() {
                   编码套餐 Key 须走 /api/coding 端点；标准 Key 走 /api/paas
                   {glmFamily === 'coding' && '；编码套餐=积分制计费，下方费用估算不含该端点用量'}
                 </span>
+              </div>
+            )}
+
+            {engine.id === 'modelhub' && (
+              <div style={{ fontSize: 11, color: 'var(--mc-muted)' }}>
+                先在本机 Unsloth Studio「Model hub」加载模型；刷新后只列出已加载模型。
+                Key 在 Unsloth 左下角头像 → 设置 → API 创建（sk-unsloth- 开头）；
+                地址保持 Studio 固定入口 127.0.0.1:8888/v1 即可（llama 内部端口每次加载会变，8888/v1 自动转发当前模型）。
               </div>
             )}
 

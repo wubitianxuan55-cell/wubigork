@@ -18,6 +18,7 @@ import {
   setActiveEngine, getActiveEngine, setDeepseekKey, getDeepseekKeyStatus,
   setGlmKey, getGlmKeyStatus, setGlmEndpoint,
   setOpencodeGoKey, getOpencodeGoKeyStatus, setOpencodeZenKey, getOpencodeZenKeyStatus,
+  setModelHubKey, getModelHubKeyStatus, startModelHubModel,
   addCustomEngine, updateCustomEngine, removeCustomEngine,
   type EngineConfig, type EngineStatus,
 } from '../../../api/engines'
@@ -50,6 +51,9 @@ export interface EngineState {
   opencodeZenKey: string
   setOpencodeZenKeyState: (v: string) => void
   opencodeZenKeyMasked: string
+  modelHubKey: string
+  setModelHubKeyState: (v: string) => void
+  modelHubKeyMasked: string
   settingGlmEndpoint: boolean
   handleSetGlmEndpoint: (family: 'std' | 'coding') => Promise<void>
   loadAll: () => Promise<void>
@@ -71,6 +75,7 @@ export interface EngineState {
   handleSaveGlmKey: () => Promise<void>
   handleSaveOpencodeGoKey: () => Promise<void>
   handleSaveOpencodeZenKey: () => Promise<void>
+  handleSaveModelHubKey: () => Promise<void>
   // A 刀「自定义引擎」：成功返回 true（表单据此关闭）；失败已弹错并返回 false
   handleAddCustomEngine: (name: string, baseURL: string, apiKey: string) => Promise<boolean>
   handleUpdateCustomEngine: (engineID: string, name: string, baseURL: string, apiKey: string) => Promise<boolean>
@@ -95,6 +100,8 @@ export function useEngineState(category: Category): EngineState {
   const [opencodeGoKeyMasked, setOpencodeGoKeyMasked] = useState('')
   const [opencodeZenKey, setOpencodeZenKeyState] = useState('')
   const [opencodeZenKeyMasked, setOpencodeZenKeyMasked] = useState('')
+  const [modelHubKey, setModelHubKeyState] = useState('')
+  const [modelHubKeyMasked, setModelHubKeyMasked] = useState('')
 
   // T6-6.5 竞态守卫：loadAll 的最新请求序号，晚到的旧响应直接丢弃。
   const loadAllSeq = useRef(0)
@@ -134,6 +141,10 @@ export function useEngineState(category: Category): EngineState {
         const ks = await getOpencodeZenKeyStatus()
         if (ks) { setOpencodeZenKeyMasked(ks.masked || '') }
       } catch (_) {}
+      try {
+        const ks = await getModelHubKeyStatus()
+        if (ks) { setModelHubKeyMasked(ks.masked || '') }
+      } catch (_) {}
     } catch (err: unknown) {
       if (seq === loadAllSeq.current) {
         message.error(errText(err, '加载引擎列表失败，请重试'))
@@ -148,7 +159,7 @@ export function useEngineState(category: Category): EngineState {
   // 返回时序号不匹配即丢弃（不触发 loadAll，避免旧结果覆盖新分类视图）。
   const refreshLocalModels = useCallback(async () => {
     const seq = ++refreshSeq.current
-    await Promise.allSettled(['herdsman', 'ollama', 'cosyvoice'].map(id => refreshEngineModels(id)))
+    await Promise.allSettled(['herdsman', 'ollama', 'cosyvoice', 'modelhub'].map(id => refreshEngineModels(id)))
     if (seq !== refreshSeq.current) return // 过期刷新结果：切分类后已作废，丢弃
     await loadAll()
   }, [loadAll])
@@ -179,6 +190,16 @@ export function useEngineState(category: Category): EngineState {
     }
     if (kind !== 'llm') return
     try {
+      // Model Hub（Unsloth Studio）：模型在 Studio 里未加载（stopped）时先
+      // 触发 Studio 加载/切换（ollama-manifest 引用），成功后再设为活跃默认。
+      if (card.engineId === 'modelhub' && card.status === 'stopped') {
+        setSavingEngine(card.engineId)
+        try {
+          await startModelHubModel(card.modelId)
+        } finally {
+          setSavingEngine(null)
+        }
+      }
       if (activeEngine !== card.engineId) { await setActiveEngine(card.engineId); setActiveEngineState(card.engineId) }
       await setEngineDefaultModel(card.engineId, card.modelId)
       setEngines(prev => prev.map(e => e.id === card.engineId ? { ...e, default_model: card.modelId } : e))
@@ -277,6 +298,17 @@ export function useEngineState(category: Category): EngineState {
     } catch (err: unknown) { message.error(errText(err, '操作失败')) }
   }
 
+  const handleSaveModelHubKey = async () => {
+    if (!modelHubKey.trim()) { message.warning('请输入 API Key'); return }
+    try {
+      await setModelHubKey(modelHubKey.trim())
+      message.success('Model Hub Key 已保存')
+      const ks = await getModelHubKeyStatus()
+      if (ks) setModelHubKeyMasked(ks.masked || '')
+      setModelHubKeyState('')
+    } catch (err: unknown) { message.error(errText(err, '操作失败')) }
+  }
+
   // ── A 刀「自定义引擎」（OpenAI 兼容，后端 Add/Update/RemoveCustomEngine） ──
   // 表单层已做「名称非空 + 地址 http(s) 前缀」校验（与后端 validBaseURL 同口径
   // 双保险，防 Key 粘进地址框）；这里只负责调用、提示与刷新。
@@ -324,7 +356,7 @@ export function useEngineState(category: Category): EngineState {
       // B 刀：模型元数据透传（ModelInfo→meta，目录未下发时不构造空对象）
       const meta = modelMeta(m)
       return {
-        modelId: m.id, modelName: m.id, engineId: engine.id, engineName: engine.name,
+        modelId: m.id, modelName: m.name || m.id, engineId: engine.id, engineName: engine.name,
         engineType: engine.type, engineEnabled: engine.enabled,
         status: m.status || 'running', kind: m.kind || '',
         ...(meta ? { meta } : {}),
@@ -360,6 +392,9 @@ export function useEngineState(category: Category): EngineState {
     opencodeZenKey,
     setOpencodeZenKeyState,
     opencodeZenKeyMasked,
+    modelHubKey,
+    setModelHubKeyState,
+    modelHubKeyMasked,
     settingGlmEndpoint,
     handleSetGlmEndpoint,
     loadAll,
@@ -377,9 +412,9 @@ export function useEngineState(category: Category): EngineState {
     handleSaveGlmKey,
     handleSaveOpencodeGoKey,
     handleSaveOpencodeZenKey,
+    handleSaveModelHubKey,
     handleAddCustomEngine,
     handleUpdateCustomEngine,
     handleRemoveCustomEngine,
   }
 }
-

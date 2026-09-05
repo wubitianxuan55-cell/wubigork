@@ -33,6 +33,9 @@ export interface ModelCenterContextValue {
   opencodeZenKey: string
   setOpencodeZenKeyState: (v: string) => void
   opencodeZenKeyMasked: string
+  modelHubKey: string
+  setModelHubKeyState: (v: string) => void
+  modelHubKeyMasked: string
   callStats: ModelStatsSummary | null
   loadError: string | null
   statsSort: StatsSort
@@ -90,6 +93,7 @@ export interface ModelCenterContextValue {
   handleSaveGlmKey: () => Promise<void>
   handleSaveOpencodeGoKey: () => Promise<void>
   handleSaveOpencodeZenKey: () => Promise<void>
+  handleSaveModelHubKey: () => Promise<void>
   // A 刀「自定义引擎」：add/update 成功返回 true（表单据此关闭）
   handleAddCustomEngine: (name: string, baseURL: string, apiKey: string) => Promise<boolean>
   handleUpdateCustomEngine: (engineID: string, name: string, baseURL: string, apiKey: string) => Promise<boolean>

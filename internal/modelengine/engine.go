@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -35,6 +36,10 @@ const (
 	EngineOpencodeGo EngineType = "opencode-go"
 	// EngineOpencodeZen OpenCode Zen 云端目录（OpenAI 兼容 /chat/completions 子集）
 	EngineOpencodeZen EngineType = "opencode-zen"
+	// EngineModelHub Unsloth 本地 Model Hub（Desktop/Studio「Model hub」标签页
+	// 选模型下载后，由 unsloth run/start 暴露 OpenAI 兼容 /v1 端点；本地引擎，
+	// 请求带 sk-unsloth- 开头的 Bearer Key——见 unsloth.ai/docs/basics/api）。
+	EngineModelHub EngineType = "modelhub"
 	// EngineCustom 自定义引擎（A 刀）：用户自带的 OpenAI 兼容服务商
 	// （自定义 BaseURL + /chat/completions + /models），Key 只存 Manager 内存
 	// customKeys（落盘走 config 层 custom_engine_keys 密文）。IsLocal=false（云端语义，
@@ -51,11 +56,11 @@ const (
 )
 
 // IsLocal 引擎是否本地服务（数据不出本机）——全局离线模式（v4.8）据此
-// 门控路由：offline 开启时只允许本地引擎（ollama/herdsman/cosyvoice），
+// 门控路由：offline 开启时只允许本地引擎（ollama/herdsman/cosyvoice/modelhub），
 // 云端（xai/deepseek/opencode-*）一律跳过。
 func (t EngineType) IsLocal() bool {
 	switch t {
-	case EngineOllama, EngineHerdsman, EngineCosyVoice:
+	case EngineOllama, EngineHerdsman, EngineCosyVoice, EngineModelHub:
 		return true
 	}
 	return false
@@ -69,6 +74,10 @@ type ModelInfo struct {
 	OwnedBy string `json:"owned_by"`
 	Status  string `json:"status,omitempty"` // "running" / "stopped" / "unknown"
 	Kind    string `json:"kind,omitempty"`   // "llm" / "tts" / "stt" / "image"，由后端按引擎/名称分类，前端不再猜测
+	// Name 展示名（可选）：服务商 /models 下发 display_name 或由 ID/别名解析
+	// 出的友好名。请求路由仍一律使用 ID——展示名与请求名解耦，避免把
+	// URL 编码的 ollama-manifest 别名直接当模型名展示给用户。
+	Name string `json:"name,omitempty"`
 	// AliasOf coding 端点家族下服务端实际服务的模型（套餐旧名自动切换，
 	// 见 glm_alias.go）；std 家族为空。诚实展示注记，请求模型名不改写。
 	AliasOf string `json:"alias_of,omitempty"`
@@ -133,7 +142,34 @@ type modelsListResponse struct {
 		ID      string `json:"id"`
 		OwnedBy string `json:"owned_by"`
 		Status  string `json:"status"`
+		// Unsloth Studio OpenAI 兼容目录扩展（/v1/models）：当前是否已加载。
+		// Studio 固定后端 8888/v1 会同时列出「已加载模型」与「仅缓存/未加载
+		// 条目」（如下载一半的 GGUF）；loaded=false 的条目 gaea 无法调用，
+		// 刷新时直接过滤掉，避免把不可用模型带回默认模型/功能绑定候选。
+		Loaded *bool `json:"loaded,omitempty"`
+		// Studio 某些条目会下发展示名（如 HF 缓存半成品）；已加载的
+		// ollama-manifest 别名没有 display_name，由 modelHubDisplayName
+		// 从别名解析出友好名（tinyrick/…:Q6_K_P）。
+		DisplayName string `json:"display_name,omitempty"`
 	} `json:"data"`
+}
+
+// studioHubLocalModel Studio /api/hub/local 单条模型（Ollama 迁移模型与
+// HF 缓存均在其中；OpenAI /v1/models 只列「已加载」）。gaea 用它与 /v1/models
+// 合并：Ollama 迁移的两个模型（tinyrick/aratan）无论当前是否加载都能识别。
+type studioHubLocalModel struct {
+	ID           string `json:"id"` // ollama-manifest:… 引用（与 /v1/models id 一致）
+	DisplayName  string `json:"display_name"`
+	Source       string `json:"source"`
+	ModelFormat  string `json:"model_format"`
+	Partial      bool   `json:"partial"`
+	Capabilities struct {
+		CanChat bool `json:"can_chat"`
+	} `json:"capabilities"`
+}
+
+type studioHubLocalResponse struct {
+	Models []studioHubLocalModel `json:"models"`
 }
 
 // ── 引擎管理器 ─────────────────────────────────────────────
@@ -148,6 +184,7 @@ type Manager struct {
 	glmKey         string            // 智谱 GLM API key（用户手动配置）
 	opencodeKey    string            // OpenCode Go API key（用户手动配置，订阅后从 console 获取）
 	opencodeZenKey string            // OpenCode Zen API key（按量付费，opencode.ai/auth 获取）
+	modelhubKey    string            // Unsloth Model Hub API key（用户手动配置，sk-unsloth- 前缀）
 	customKeys     map[string]string // 自定义引擎 Key（engineID → 明文，仅内存；落盘走 config 层密文）
 	httpClient     *http.Client
 	statsMu        sync.Mutex     // 保护 statsRec 的懒初始化
@@ -165,14 +202,14 @@ type Manager struct {
 func NewManager(xaiAPIKey, deepseekKey string) *Manager {
 	m := &Manager{
 		engines:     make(map[string]*EngineConfig),
-		order:       []string{"xai", "ollama", "herdsman", "deepseek", "glm", "cosyvoice", "opencode-go", "opencode-zen"},
+		order:       []string{"xai", "ollama", "herdsman", "deepseek", "glm", "cosyvoice", "modelhub", "opencode-go", "opencode-zen"},
 		xaiKey:      xaiAPIKey,
 		deepseekKey: deepseekKey,
 		customKeys:  make(map[string]string),
 		httpClient:  netclient.NewSimpleClient(15 * time.Second),
 	}
 
-	// 预置四大引擎默认配置
+	// 预置引擎默认配置
 	m.engines["xai"] = &EngineConfig{
 		ID:           "xai",
 		Name:         "xAI (Grok)",
@@ -263,6 +300,22 @@ func NewManager(xaiAPIKey, deepseekKey string) *Manager {
 		BaseURL:      "https://opencode.ai/zen/v1",
 		Enabled:      true,
 		DefaultModel: "deepseek-v4-pro",
+	}
+	m.engines["modelhub"] = &EngineConfig{
+		ID:      "modelhub",
+		Name:    "Unsloth Model Hub",
+		Type:    EngineModelHub,
+		Label:   "Model Hub 本地",
+		Color:   "#fb7185",
+		Icon:    "rocket",
+		IsLocal: true,
+		// Unsloth Studio 后端固定 127.0.0.1:8888，并把 OpenAI 兼容 API 挂在
+		// /v1（转发到当前已加载模型的 llama-server，llama 端口每次加载会变，
+		// 8888/v1 是稳定入口）。鉴权：Settings → API 创建 sk-unsloth- Key，
+		// 请求需带 Authorization: Bearer。地址框可改（8888 被占用时 Studio
+		// 会漂移到其他端口）。
+		BaseURL: "http://127.0.0.1:8888/v1",
+		Enabled: true,
 	}
 
 	return m
@@ -360,6 +413,14 @@ func (m *Manager) UpdateOpencodeZenKey(key string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.opencodeZenKey = key
+}
+
+// UpdateModelHubKey 更新 Unsloth Model Hub API key（sk-unsloth- 前缀，
+// Unsloth 设置 → API 创建；本地端点每次请求都必须带 Bearer）。
+func (m *Manager) UpdateModelHubKey(key string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.modelhubKey = key
 }
 
 // ── 自定义引擎（A 刀：OpenAI 兼容自定义服务商）────────────────
@@ -728,6 +789,12 @@ func (m *Manager) fetchModels(ctx context.Context, engine *EngineConfig) ([]Mode
 		// 智谱无 /models 端点：刷新直接返回官方静态目录（零 HTTP）
 		return m.glmCatalogModels(), nil
 	}
+	if engine.Type == EngineModelHub {
+		// Unsloth Studio：OpenAI /v1/models 只暴露「当前已加载」模型，完整
+		// 模型清单要再读 Studio 内部 /api/hub/local（同一把 sk- Key 可访问）。
+		// 合并后两个 Ollama 迁移模型都能被 gaea 识别（运行/停止状态分开）。
+		return m.fetchModelHubModels(ctx, engine)
+	}
 	baseURL := strings.TrimRight(strings.TrimSpace(engine.BaseURL), "/")
 	if !validBaseURL(baseURL) {
 		return nil, fmt.Errorf("引擎地址无效：需要 http:// 或 https:// 前缀，请在模型中心修正")
@@ -739,7 +806,8 @@ func (m *Manager) fetchModels(ctx context.Context, engine *EngineConfig) ([]Mode
 		return nil, fmt.Errorf("创建请求失败: %w", err)
 	}
 
-	// xAI / DeepSeek / GLM / OpenCode Go 需要认证
+	// xAI / DeepSeek / GLM / OpenCode Go / Model Hub 需要认证（Key 未配置时
+	// 不带 Authorization 头，服务端会回 401 由下方给出对应引擎提示）
 	if engine.Type == EngineXAI && m.xaiKey != "" {
 		req.Header.Set("Authorization", "Bearer "+m.xaiKey)
 	} else if engine.Type == EngineDeepseek && m.deepseekKey != "" {
@@ -750,6 +818,8 @@ func (m *Manager) fetchModels(ctx context.Context, engine *EngineConfig) ([]Mode
 		req.Header.Set("Authorization", "Bearer "+m.opencodeKey)
 	} else if engine.Type == EngineOpencodeZen && m.opencodeZenKey != "" {
 		req.Header.Set("Authorization", "Bearer "+m.opencodeZenKey)
+	} else if engine.Type == EngineModelHub && m.modelhubKey != "" {
+		req.Header.Set("Authorization", "Bearer "+m.modelhubKey)
 	} else if engine.Type == EngineCustom {
 		// 自定义引擎：Key 在内存 customKeys（KeyStore 同源），空 Key 不带
 		// Authorization 头（兼容无鉴权的本地 OpenAI 兼容服务）。
@@ -776,6 +846,8 @@ func (m *Manager) fetchModels(ctx context.Context, engine *EngineConfig) ([]Mode
 				return nil, fmt.Errorf("HTTP 401: OpenCode Go API Key 无效或未配置，请先在模型中心配置（opencode.ai 订阅获取）")
 			} else if engine.Type == EngineOpencodeZen {
 				return nil, fmt.Errorf("HTTP 401: OpenCode Zen API Key 无效或未配置，请先在模型中心配置（opencode.ai/auth 获取）")
+			} else if engine.Type == EngineModelHub {
+				return nil, fmt.Errorf("HTTP 401: Model Hub API Key 无效或未配置，请先在模型中心保存 Unsloth 生成的 Key（sk-unsloth- 开头，Unsloth 设置 → API 创建）")
 			} else if engine.Type == EngineCustom {
 				return nil, fmt.Errorf("HTTP 401: 自定义引擎 API Key 无效或未配置，请在模型中心自定义引擎卡片修正")
 			}
@@ -841,6 +913,188 @@ func (m *Manager) fetchModels(ctx context.Context, engine *EngineConfig) ([]Mode
 	return models, nil
 }
 
+// fetchModelHubModels 拉取 Unsloth Studio 的模型清单并合并：
+//  1. OpenAI 兼容 /v1/models → 「当前已加载」模型集合（loaded=true）；
+//  2. Studio 内部 /api/hub/local（同一 sk- Key 可访问）→ 完整本地模型，
+//     其中 source=ollama 且可聊天的条目（tinyrick/aratan）即使未加载也列出，
+//     状态标记为 stopped——让 gaea 一次看到「Ollama 迁来的两个模型」。
+//     /api/hub/local 请求失败时降级为只列已加载模型（保证主链路不受影响）。
+func (m *Manager) fetchModelHubModels(ctx context.Context, engine *EngineConfig) ([]ModelInfo, error) {
+	base := strings.TrimRight(strings.TrimSpace(engine.BaseURL), "/")
+	if !validBaseURL(base) {
+		return nil, fmt.Errorf("引擎地址无效：需要 http:// 或 https:// 前缀，请在模型中心修正")
+	}
+	m.mu.RLock()
+	key := m.modelhubKey
+	m.mu.RUnlock()
+
+	loadJSON := func(url string, out any) error {
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+		if err != nil {
+			return fmt.Errorf("创建请求失败: %w", err)
+		}
+		if key != "" {
+			req.Header.Set("Authorization", "Bearer "+key)
+		}
+		resp, err := m.httpClient.Do(req)
+		if err != nil {
+			return fmt.Errorf("请求失败: %w", err)
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode == http.StatusUnauthorized {
+			return fmt.Errorf("HTTP 401: Model Hub API Key 无效或未配置，请先在模型中心保存 Unsloth 生成的 Key（sk-unsloth- 开头，Unsloth 设置 → API 创建）")
+		}
+		if resp.StatusCode != http.StatusOK {
+			return fmt.Errorf("HTTP %d: 模型列表获取失败", resp.StatusCode)
+		}
+		if err := json.NewDecoder(resp.Body).Decode(out); err != nil {
+			return fmt.Errorf("解析模型列表失败: %w", err)
+		}
+		return nil
+	}
+
+	// 1) 已加载集合（/v1/models，loaded=true；缺失 loaded 字段保守放行）
+	var list modelsListResponse
+	if err := loadJSON(base+"/models", &list); err != nil {
+		return nil, err
+	}
+	running := map[string]ModelInfo{}
+	for _, d := range list.Data {
+		if d.Loaded != nil && !*d.Loaded {
+			continue
+		}
+		running[d.ID] = ModelInfo{
+			ID:      d.ID,
+			OwnedBy: d.OwnedBy,
+			Status:  "running",
+			Name:    modelHubDisplayName(d.ID, d.DisplayName),
+			Kind:    ClassifyModelKind(engine.Type, d.ID),
+		}
+	}
+
+	// 2) 完整本地清单（best-effort）
+	hubBase := strings.TrimSuffix(base, "/v1")
+	merged := make(map[string]ModelInfo, len(running)+2)
+	var hub studioHubLocalResponse
+	if err := loadJSON(hubBase+"/api/hub/local", &hub); err != nil {
+		slog.Warn("Model Hub 本地清单获取失败（降级为只列已加载模型）", "error", err)
+	} else {
+		for _, item := range hub.Models {
+			// Ollama 迁移模型（可聊天 GGUF、未半成品）即使未加载也带回；
+			// HF 缓存条目只在已加载时由 running 集合兜底。
+			if item.Source != "ollama" || item.ModelFormat != "gguf" ||
+				item.Partial || !item.Capabilities.CanChat || item.ID == "" {
+				continue
+			}
+			status := "stopped"
+			if _, ok := running[item.ID]; ok {
+				status = "running"
+			}
+			merged[item.ID] = ModelInfo{
+				ID:      item.ID,
+				OwnedBy: "unsloth-studio",
+				Status:  status,
+				Name:    cleanModelHubDisplayName(item.DisplayName),
+				Kind:    ClassifyModelKind(engine.Type, item.ID),
+			}
+		}
+	}
+	// 已加载但未出现在清单过滤范围里的模型（如用户加载的 HF GGUF）兜底补回
+	for id, mdl := range running {
+		if _, ok := merged[id]; !ok {
+			merged[id] = mdl
+		}
+	}
+
+	models := make([]ModelInfo, 0, len(merged))
+	for _, mdl := range merged {
+		models = append(models, mdl)
+	}
+	sort.SliceStable(models, func(i, j int) bool {
+		if (models[i].Status == "running") != (models[j].Status == "running") {
+			return models[i].Status == "running" // 运行中的排前面（默认模型拾取优先）
+		}
+		return models[i].ID < models[j].ID
+	})
+	return models, nil
+}
+
+// cleanModelHubDisplayName 去掉 Studio /api/hub/local 展示名里的规格后缀
+// （如 "…:Q6_K_P (27.3B Q6_K)" → "…:Q6_K_P"），保持模型卡名称干净。
+func cleanModelHubDisplayName(display string) string {
+	if i := strings.Index(display, " ("); i > 0 {
+		return display[:i]
+	}
+	return display
+}
+
+// StartModelHubModel 让 Unsloth Studio 加载指定模型（modelID 为
+// ollama-manifest:… 引用）。调用后 Studio 会把当前加载模型切换为该模型，
+// gaea 前端随后刷新模型列表即可看到状态变化。返回 nil 表示已加载成功。
+func (m *Manager) StartModelHubModel(ctx context.Context, modelID string) error {
+	m.mu.RLock()
+	engine, ok := m.engines["modelhub"]
+	m.mu.RUnlock()
+	if !ok {
+		return fmt.Errorf("引擎 modelhub 不存在")
+	}
+	if !engine.Enabled {
+		return fmt.Errorf("Model Hub 引擎未启用")
+	}
+	base := strings.TrimRight(strings.TrimSpace(engine.BaseURL), "/")
+	if !validBaseURL(base) {
+		return fmt.Errorf("引擎地址无效：需要 http:// 或 https:// 前缀")
+	}
+	m.mu.RLock()
+	key := m.modelhubKey
+	m.mu.RUnlock()
+	if key == "" {
+		return fmt.Errorf("Model Hub API Key 未配置，请先在模型中心保存 Unsloth 生成的 Key（sk-unsloth- 开头）")
+	}
+	hubBase := strings.TrimSuffix(base, "/v1")
+	payload, err := json.Marshal(map[string]any{
+		"model_path":   modelID,
+		"load_in_4bit": false,
+		"force_reload": false,
+	})
+	if err != nil {
+		return fmt.Errorf("序列化加载请求失败: %w", err)
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, hubBase+"/api/inference/load", strings.NewReader(string(payload)))
+	if err != nil {
+		return fmt.Errorf("创建加载请求失败: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+key)
+	resp, err := m.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("加载请求失败: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusUnauthorized {
+		return fmt.Errorf("HTTP 401: Model Hub API Key 无效，请在模型中心重新保存（Unsloth 设置 → API 创建）")
+	}
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 2048))
+		return fmt.Errorf("Studio 加载模型失败（HTTP %d）: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+	}
+	var out struct {
+		Status string `json:"status"`
+		Error  string `json:"error"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return nil // 成功响应但无可解析体（某些版本直接 204/空）→ 视为成功
+	}
+	if out.Error != "" {
+		return fmt.Errorf("Studio 加载模型失败: %s", out.Error)
+	}
+	if out.Status != "" && out.Status != "loaded" && out.Status != "loading" {
+		return fmt.Errorf("Studio 加载模型未就绪（status=%s）", out.Status)
+	}
+	slog.Info("Model Hub 模型已加载", "model", modelID)
+	return nil
+}
+
 // ClassifyModelKind 按引擎类型与模型名分类（llm/tts/stt/ocr/rerank/embedding/image）。
 // 3.0 Step 3d：模型能力关键词分类的单一来源——语音（voice_handler.go:isSTTModel）、
 // OCR（gaea_ocr.go:pickHerdsmanModel）等消费点委托到本函数，不再各自维护关键词表。
@@ -895,6 +1149,36 @@ func ClassifyModelKind(engineType EngineType, modelID string) string {
 // 与 ClassifyModelKind 的引擎无关部分保持同一关键词表，避免双源漂移。
 func ClassifyModelByName(modelID string) string {
 	return ClassifyModelKind("", modelID)
+}
+
+// modelHubDisplayName 生成 Model Hub（Unsloth Studio）模型的展示名。
+// Studio /v1/models 已加载模型只给 opaque 的 ollama-manifest:<URL 编码路径>
+// 别名（形如 C:\Users\…\manifests\registry.ollama.ai\tinyrick\<模型>\Q6_K_P），
+// 不适合直接展示；这里解析出 Ollama 同款 repo 名（tinyrick/<模型>:Q6_K_P）。
+// 服务端显式下发 display_name 时优先使用（如 HF 缓存条目的友好名）。
+func modelHubDisplayName(id, display string) string {
+	if strings.TrimSpace(display) != "" {
+		return display
+	}
+	if !strings.HasPrefix(id, "ollama-manifest:") {
+		return id
+	}
+	decoded, err := url.QueryUnescape(strings.TrimPrefix(id, "ollama-manifest:"))
+	if err != nil {
+		return id
+	}
+	norm := strings.ReplaceAll(decoded, "\\", "/")
+	idx := strings.Index(norm, "manifests/")
+	if idx < 0 {
+		return id
+	}
+	parts := strings.Split(norm[idx+len("manifests/"):], "/")
+	// 期望布局 manifests/<host>/<namespace>/<model>/<tag>（≥4 段）。
+	if len(parts) < 4 {
+		return id
+	}
+	repo := strings.Join(parts[1:len(parts)-1], "/")
+	return repo + ":" + parts[len(parts)-1]
 }
 
 // glmPing 用最小 chat 请求验证 Key 有效性——智谱没有模型列表端点可供鉴权
@@ -1157,6 +1441,10 @@ func (m *Manager) BuildChatURL(engineID string) (string, string, error) {
 		apiKey = m.opencodeKey
 	} else if engine.Type == EngineOpencodeZen {
 		apiKey = m.opencodeZenKey
+	} else if engine.Type == EngineModelHub {
+		// 本地 Model Hub：Key 由 Unsloth 生成（sk-unsloth-），存 Manager 内存
+		// （与 GLMKey/自定义 Key 同口径，不进 EngineConfig.APIKey）。
+		apiKey = m.modelhubKey
 	} else if engine.Type == EngineCustom {
 		// 自定义引擎：Key 在内存 customKeys（已持读锁，直接读 map 防重入死锁）；
 		// 空 Key 原样返回，调用方（ai.Client）为空串时省略 Authorization 头。

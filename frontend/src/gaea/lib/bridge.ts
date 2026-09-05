@@ -1491,6 +1491,7 @@ type LegacySurfaceNames =
   | "GetLoginStatus"
   | "GetLorebookEntries"
   | "GetModelCallStats"
+  | "GetModelHubKeyStatus" // Model Hub（Unsloth 本地引擎）Key 状态（引擎管理经 App() 直调）
   | "GetModelMonitor"
   | "GetModelRoute"
   | "GetNovelsDir"
@@ -1588,6 +1589,8 @@ type LegacySurfaceNames =
   | "SetDeepseekKey"
   | "SetGlmEndpoint"
   | "SetGlmKey"
+  | "SetModelHubKey" // Model Hub（Unsloth 本地引擎）Key（Unsloth 设置 → API 创建）
+  | "StartModelHubModel" // Model Hub：让 Unsloth Studio 加载/切换模型（ollama-manifest 引用）
   | "SetDistFS"
   | "SetEngineDefaultModel"
   | "SetEngineFailover"

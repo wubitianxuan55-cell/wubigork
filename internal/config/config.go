@@ -90,7 +90,7 @@ const (
 	// 意图 LLM 兜底硬超时（毫秒，默认 2000）：超时立即走聊天管道不重试。
 	KeyIntentsLLMTimeoutMS = "intents_llm_timeout_ms"
 	// 全局离线模式（v4.8）：开启后所有 AI 路由只允许本地引擎
-	// （ollama/herdsman/cosyvoice），云端引擎（xai/deepseek/opencode-*）
+	// （ollama/herdsman/cosyvoice/modelhub），云端引擎（xai/deepseek/opencode-*）
 	// 一律跳过——数据不出本机的总闸。默认关闭。
 	KeyOfflineMode = "offline_mode"
 	// 引擎故障转移（C 刀 v0）：开启后聊天请求链（流式/非流式）首请求失败且为
@@ -109,6 +109,8 @@ const (
 	KeyGLMAPIKey         = "glm_api_key"
 	KeyOpencodeGoAPIKey  = "opencode_go_api_key"
 	KeyOpencodeZenAPIKey = "opencode_zen_api_key"
+	// Unsloth Model Hub 本地引擎 Key（模型中心配置；sk-unsloth- 开头）。
+	KeyModelHubAPIKey = "modelhub_api_key"
 	// 自定义引擎 Key 库（A 刀自定义引擎）：值为 JSON map[string]string
 	// （engineID → secure.EncryptString 密文）。config 层只存取字符串/JSON、
 	// 不做加解密（明文↔密文由 app 层 secure 负责，先例 realtime_api_key）。
@@ -175,6 +177,7 @@ type configFile struct {
 	GLMAPIKey           string            `json:"glm_api_key,omitempty"`            // GLM (智谱) API Key
 	OpenCodeGoAPIKey    string            `json:"opencode_go_api_key,omitempty"`    // OpenCode Go API Key
 	OpenCodeZenAPIKey   string            `json:"opencode_zen_api_key,omitempty"`   // OpenCode Zen API Key
+	ModelHubAPIKey      string            `json:"modelhub_api_key,omitempty"`       // Unsloth Model Hub API Key
 	CustomEngineKeys    map[string]string `json:"custom_engine_keys,omitempty"`     // 自定义引擎 Key 库（engineID → 密文）
 	ActiveASREngine     string            `json:"active_asr_engine,omitempty"`      // 语音识别激活引擎
 	ActiveASRModel      string            `json:"active_asr_model,omitempty"`       // 语音识别激活模型
@@ -311,6 +314,9 @@ type Config struct {
 
 	// OpenCode Zen API Key（按量付费，opencode.ai/auth 获取）
 	OpenCodeZenAPIKey string
+
+	// Unsloth Model Hub API Key（本地 Model Hub 引擎；Unsloth 设置 → API 创建）
+	ModelHubAPIKey string
 
 	// 自定义引擎 Key 库（A 刀自定义引擎）：engineID → secure.EncryptString
 	// 密文。app 层启动时解密为明文后注入 modelengine.Manager（明文只存内存）。
@@ -929,6 +935,9 @@ func Load() *Config {
 			if cf.OpenCodeZenAPIKey != "" {
 				cfg.OpenCodeZenAPIKey = cf.OpenCodeZenAPIKey
 			}
+			if cf.ModelHubAPIKey != "" {
+				cfg.ModelHubAPIKey = cf.ModelHubAPIKey
+			}
 			if len(cf.CustomEngineKeys) > 0 {
 				cfg.CustomEngineKeys = cf.CustomEngineKeys
 			}
@@ -1330,6 +1339,7 @@ var saveSetters = map[string]func(cf *configFile, value string) error{
 	KeyGLMAPIKey:         func(cf *configFile, v string) error { cf.GLMAPIKey = v; return nil },
 	KeyOpencodeGoAPIKey:  func(cf *configFile, v string) error { cf.OpenCodeGoAPIKey = v; return nil },
 	KeyOpencodeZenAPIKey: func(cf *configFile, v string) error { cf.OpenCodeZenAPIKey = v; return nil },
+	KeyModelHubAPIKey:    func(cf *configFile, v string) error { cf.ModelHubAPIKey = v; return nil },
 	KeyCustomEngineKeys: func(cf *configFile, v string) error {
 		// 值为 JSON map[string]string（engineID → secure 密文）；空串 = 清空。
 		if v == "" {

@@ -26,7 +26,8 @@ func TestPlainChatOfflineFilter(t *testing.T) {
 	}
 	c.cfg.OfflineMode = true
 
-	// 停用 ollama/cosyvoice，保留 herdsman 作为唯一本地引擎（xai 云端被滤）。
+	// 停用 ollama/cosyvoice；herdsman 注册序在 modelhub 之前，仍为本地兜底首选
+	// （xai 云端被滤）。
 	for _, id := range []string{"ollama", "cosyvoice"} {
 		if e, ok := c.engineMgr.GetEngine(id); ok {
 			e.Enabled = false
@@ -41,10 +42,12 @@ func TestPlainChatOfflineFilter(t *testing.T) {
 	}
 
 	// 停用全部本地引擎（仅剩云端 xai）→ 路由为空。
-	if e, ok := c.engineMgr.GetEngine("herdsman"); ok {
-		e.Enabled = false
-		if err := c.engineMgr.SaveEngine(*e); err != nil {
-			t.Fatal(err)
+	for _, id := range []string{"herdsman", "modelhub"} {
+		if e, ok := c.engineMgr.GetEngine(id); ok {
+			e.Enabled = false
+			if err := c.engineMgr.SaveEngine(*e); err != nil {
+				t.Fatal(err)
+			}
 		}
 	}
 	eng, model, source := c.routeModel("chat")

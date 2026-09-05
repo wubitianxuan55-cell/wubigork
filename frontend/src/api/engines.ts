@@ -7,6 +7,9 @@
 
 export interface ModelInfo {
   id: string
+  /** 展示名（可选）：后端 /models 下发或由 ID 解析（如 Model Hub 的
+   *  tinyrick/Qwen3.8-…:Q6_K_P）；缺省时前端回退显示 id */
+  name?: string
   owned_by: string
   status: string
   kind?: string // 后端分类：llm / tts / stt / image / embedding / rerank / ocr
@@ -31,7 +34,9 @@ export interface EngineConfig {
   id: string
   name: string
   // custom = 用户自建 OpenAI 兼容服务商（A 刀），id 以 custom- 开头
-  type: 'xai' | 'ollama' | 'herdsman' | 'deepseek' | 'glm' | 'cosyvoice' | 'opencode-go' | 'opencode-zen' | 'custom'
+  // modelhub = Unsloth 本地 Model Hub（Desktop/Studio 选模型下载后 unsloth run/start
+  // 暴露 OpenAI 兼容 /v1；Key 为 sk-unsloth-，Unsloth 设置 → API 创建）
+  type: 'xai' | 'ollama' | 'herdsman' | 'deepseek' | 'glm' | 'cosyvoice' | 'opencode-go' | 'opencode-zen' | 'modelhub' | 'custom'
   label?: string
   color?: string
   icon?: string
@@ -468,6 +473,22 @@ export async function setOpencodeZenKey(apiKey: string): Promise<void> {
 export async function getOpencodeZenKeyStatus(): Promise<{ configured: boolean; masked: string }> {
   const result = await App().GetOpencodeZenKeyStatus()
   return result as { configured: boolean; masked: string }
+}
+
+/** 设置 Model Hub (Unsloth) API Key */
+export async function setModelHubKey(apiKey: string): Promise<void> {
+  await App().SetModelHubKey(apiKey)
+}
+
+/** 获取 Model Hub Key 状态（脱敏显示） */
+export async function getModelHubKeyStatus(): Promise<{ configured: boolean; masked: string }> {
+  const result = await App().GetModelHubKeyStatus()
+  return result as { configured: boolean; masked: string }
+}
+
+/** 让 Unsloth Studio 加载指定模型（Model Hub 引擎，modelID 为 ollama-manifest:… 引用） */
+export async function startModelHubModel(modelID: string): Promise<void> {
+  await App().StartModelHubModel(modelID)
 }
 
 /** 获取模型调用统计汇总 */

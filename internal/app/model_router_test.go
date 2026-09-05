@@ -216,7 +216,7 @@ func TestRouteModelOfflineMode(t *testing.T) {
 	}
 
 	// 停用全部本地引擎 → 无可用路由（调用方按模型不可用降级）
-	for _, id := range []string{"ollama", "herdsman", "cosyvoice"} {
+	for _, id := range []string{"ollama", "herdsman", "cosyvoice", "modelhub"} {
 		if e, ok := c.engineMgr.GetEngine(id); ok {
 			e.Enabled = false
 			if err := c.engineMgr.SaveEngine(*e); err != nil {

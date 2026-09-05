@@ -12,7 +12,7 @@ import (
 // 降级链：功能绑定 → 全局活跃 → 首个可用引擎。
 // source: feature | global | fallback（供前端与诊断展示）。
 // 全局离线模式（v4.8，offline_mode）开启时只允许本地引擎
-// （EngineType.IsLocal：ollama/herdsman/cosyvoice）——云端引擎在各步一律
+// （EngineType.IsLocal：ollama/herdsman/cosyvoice/modelhub）——云端引擎在各步一律
 // 跳过；无本地可用则返回空（调用方按「模型不可用」既有降级路径处理）。
 func (c *core) routeModel(feature string) (engine, model, source string) {
 	offline := c.cfg != nil && c.cfg.GetOfflineMode()

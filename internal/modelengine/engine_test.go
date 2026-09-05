@@ -3,6 +3,7 @@ package modelengine
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -19,12 +20,13 @@ func TestNewManager_Presets(t *testing.T) {
 	if m == nil {
 		t.Fatal("NewManager returned nil")
 	}
-	// 预置 8 引擎
+	// 预置 9 引擎
 	want := map[string]EngineType{
 		"xai": EngineXAI, "ollama": EngineOllama,
 		"herdsman": EngineHerdsman, "deepseek": EngineDeepseek,
 		"glm":         EngineGLM,
 		"opencode-go": EngineOpencodeGo, "opencode-zen": EngineOpencodeZen,
+		"modelhub": EngineModelHub,
 	}
 	if _, ok := m.GetEngine("cosyvoice"); !ok {
 		t.Error("引擎 cosyvoice 未预置")
@@ -91,8 +93,8 @@ func TestGetEngine_StripsAPIKey(t *testing.T) {
 func TestGetEngines_CountAndKeys(t *testing.T) {
 	m := NewManager("", "")
 	es := m.GetEngines()
-	if len(es) != 8 {
-		t.Fatalf("GetEngines 数量 = %d, want 8", len(es))
+	if len(es) != 9 {
+		t.Fatalf("GetEngines 数量 = %d, want 9", len(es))
 	}
 	for _, e := range es {
 		if e.APIKey != "" {
@@ -494,6 +496,248 @@ func TestOpencodeZen_RefreshModels_401(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "OpenCode Zen API Key") {
 		t.Errorf("错误信息 = %q, want 包含 OpenCode Zen Key 提示", err.Error())
+	}
+}
+
+// ─── Model Hub（Unsloth 本地引擎）─────────────────────────────
+
+func TestModelHub_DefaultConfig(t *testing.T) {
+	m := NewManager("", "")
+	e, ok := m.GetEngine("modelhub")
+	if !ok {
+		t.Fatal("引擎 modelhub 未预置")
+	}
+	if e.Type != EngineModelHub || !e.IsLocal {
+		t.Errorf("modelhub 应为本地引擎（type=%s is_local=%v）", e.Type, e.IsLocal)
+	}
+	if !EngineModelHub.IsLocal() {
+		t.Error("EngineModelHub.IsLocal() 应为 true（离线模式放行本地引擎）")
+	}
+	if e.Label != "Model Hub 本地" || e.BaseURL != "http://127.0.0.1:8888/v1" {
+		t.Errorf("modelhub 预置 = %q @ %q, want Model Hub 本地 @ 127.0.0.1:8888", e.Label, e.BaseURL)
+	}
+	if !e.Enabled {
+		t.Error("modelhub 默认应启用")
+	}
+}
+
+func TestModelHub_BuildChatURL(t *testing.T) {
+	m := NewManager("", "")
+	url, key, err := m.BuildChatURL("modelhub")
+	if err != nil {
+		t.Fatalf("BuildChatURL(modelhub): %v", err)
+	}
+	if url != "http://127.0.0.1:8888/v1/chat/completions" || key != "" {
+		t.Errorf("未配置 Key 时 = (%q, %q), want URL + 空 Key", url, key)
+	}
+	m.UpdateModelHubKey("sk-unsloth-test")
+	url, key, err = m.BuildChatURL("modelhub")
+	if err != nil {
+		t.Fatalf("BuildChatURL(modelhub, 有 Key): %v", err)
+	}
+	if key != "sk-unsloth-test" {
+		t.Errorf("Key = %q, want sk-unsloth-test", key)
+	}
+}
+
+func TestModelHub_RefreshModels_UsesKeyAnd401Hint(t *testing.T) {
+	var gotAuth string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/models" {
+			gotAuth = r.Header.Get("Authorization")
+			if r.Header.Get("Authorization") == "" {
+				w.WriteHeader(http.StatusUnauthorized)
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]any{
+				"data": []map[string]any{{"id": "unsloth/gemma-4-26B-A4B-it-GGUF:UD-Q4_K_XL"}},
+			})
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	t.Cleanup(srv.Close)
+
+	m := NewManager("", "")
+	m.SaveEngine(EngineConfig{ID: "modelhub", BaseURL: srv.URL, Enabled: true})
+	m.UpdateModelHubKey("sk-unsloth-abc")
+	models, err := m.RefreshModels(context.Background(), "modelhub")
+	if err != nil {
+		t.Fatalf("RefreshModels(modelhub): %v", err)
+	}
+	if gotAuth != "Bearer sk-unsloth-abc" {
+		t.Errorf("Authorization = %q, want Bearer sk-unsloth-abc", gotAuth)
+	}
+	if len(models) != 1 || models[0].Kind != "llm" {
+		t.Errorf("modelhub 模型 = %+v, want 1 个 llm", models)
+	}
+
+	// 未配置 Key → 401 专属提示（指引 Unsloth 设置 → API 创建）
+	m2 := NewManager("", "")
+	m2.SaveEngine(EngineConfig{ID: "modelhub", BaseURL: srv.URL, Enabled: true})
+	_, err2 := m2.RefreshModels(context.Background(), "modelhub")
+	if err2 == nil {
+		t.Fatal("401 应报错")
+	}
+	if !strings.Contains(err2.Error(), "Model Hub API Key") || !strings.Contains(err2.Error(), "sk-unsloth") {
+		t.Errorf("错误信息 = %q, want 包含 Model Hub Key / sk-unsloth 指引", err2.Error())
+	}
+}
+
+// TestModelHub_RefreshModels_OnlyLoaded Unsloth Studio /v1/models 会同时列出
+// 已加载模型与仅缓存/未加载条目（含下载一半的 repo）；刷新只保留 loaded=true
+// 的模型并按 running 回填，避免 gaea 默认模型/绑定选到不可调用项。
+func TestModelHub_RefreshModels_OnlyLoaded(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/models" {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{
+			"data": []map[string]any{
+				{"id": "loaded-model-a", "owned_by": "unsloth-studio", "loaded": true},
+				{"id": "cached-unloaded-b", "owned_by": "unsloth-studio", "loaded": false},
+				{"id": "legacy-no-loaded-field", "owned_by": "unsloth-studio"},
+			},
+		})
+	}))
+	t.Cleanup(srv.Close)
+
+	m := NewManager("", "")
+	m.SaveEngine(EngineConfig{ID: "modelhub", BaseURL: srv.URL, Enabled: true})
+	m.UpdateModelHubKey("sk-unsloth-test")
+	models, err := m.RefreshModels(context.Background(), "modelhub")
+	if err != nil {
+		t.Fatalf("RefreshModels(modelhub): %v", err)
+	}
+	if len(models) != 2 {
+		t.Fatalf("模型数 = %d, want 2（loaded=false 应被过滤）: %+v", len(models), models)
+	}
+	byID := map[string]ModelInfo{}
+	for _, mdl := range models {
+		byID[mdl.ID] = mdl
+	}
+	if mdl := byID["loaded-model-a"]; mdl.Status != "running" {
+		t.Errorf("loaded-model-a = %+v, want running", mdl)
+	}
+	if mdl := byID["legacy-no-loaded-field"]; mdl.Status != "running" {
+		t.Errorf("legacy-no-loaded-field = %+v, want running（缺失字段保守放行）", mdl)
+	}
+}
+
+// TestModelHub_RefreshModels_MergesStudioInventory 合并 Studio 完整清单：
+// /v1/models 只有已加载 tinyrick，/api/hub/local 里有 Ollama 迁来的两个模型；
+// 结果应两个都在——已加载的 tinyrick=running 在前，未加载的 aratan=stopped，
+// 展示名去掉 " (27.3B Q6_K)" 规格后缀。
+func TestModelHub_RefreshModels_MergesStudioInventory(t *testing.T) {
+	const tinyID = "ollama-manifest:C%3A%5Ctinyrick%5CQ6_K_P"
+	const aratanID = "ollama-manifest:C%3A%5Caratan%5Clatest"
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/v1/models":
+			json.NewEncoder(w).Encode(map[string]any{
+				"data": []map[string]any{
+					{"id": tinyID, "owned_by": "unsloth-studio", "loaded": true},
+					{"id": "unsloth/Qwen3.8-Flash-Next-GGUF", "loaded": false},
+				},
+			})
+		case "/api/hub/local":
+			json.NewEncoder(w).Encode(map[string]any{
+				"models": []map[string]any{
+					{
+						"id": tinyID, "display_name": "tinyrick/Qwen3.8-27B-Uncensored-HauhauCS-Aggressive-MTP-GGUF:Q6_K_P (27.3B Q6_K)",
+						"source": "ollama", "model_format": "gguf", "partial": false,
+						"capabilities": map[string]any{"can_chat": true},
+					},
+					{
+						"id": aratanID, "display_name": "aratan/qwen3.7-abliterated-35b-q4:latest (34.7B Q4_K_M)",
+						"source": "ollama", "model_format": "gguf", "partial": false,
+						"capabilities": map[string]any{"can_chat": true},
+					},
+					{
+						"id": "bge-m3", "display_name": "bge-m3", "source": "ollama",
+						"model_format": "gguf", "partial": false,
+						"capabilities": map[string]any{"can_chat": false},
+					},
+				},
+			})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(srv.Close)
+
+	m := NewManager("", "")
+	m.SaveEngine(EngineConfig{ID: "modelhub", BaseURL: srv.URL + "/v1", Enabled: true})
+	m.UpdateModelHubKey("sk-unsloth-test")
+	models, err := m.RefreshModels(context.Background(), "modelhub")
+	if err != nil {
+		t.Fatalf("RefreshModels(modelhub): %v", err)
+	}
+	if len(models) != 2 {
+		t.Fatalf("模型数 = %d, want 2（tinyrick+aratan 都在）: %+v", len(models), models)
+	}
+	if models[0].ID != tinyID || models[0].Status != "running" {
+		t.Errorf("models[0] = %+v, want tinyrick running（默认拾取优先运行中）", models[0])
+	}
+	if models[0].Name != "tinyrick/Qwen3.8-27B-Uncensored-HauhauCS-Aggressive-MTP-GGUF:Q6_K_P" {
+		t.Errorf("models[0].Name = %q, want 去掉规格后缀的 repo 名", models[0].Name)
+	}
+	if models[1].ID != aratanID || models[1].Status != "stopped" {
+		t.Errorf("models[1] = %+v, want aratan stopped", models[1])
+	}
+	if models[1].Name != "aratan/qwen3.7-abliterated-35b-q4:latest" {
+		t.Errorf("models[1].Name = %q, want aratan repo 名", models[1].Name)
+	}
+}
+
+// TestStartModelHubModel 让 Studio 加载指定模型：携带 Bearer Key 与
+// model_path（ollama-manifest 引用），status=loaded 视为成功。
+func TestStartModelHubModel(t *testing.T) {
+	var gotAuth, gotBody string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/api/inference/load" {
+			http.NotFound(w, r)
+			return
+		}
+		gotAuth = r.Header.Get("Authorization")
+		body, _ := io.ReadAll(r.Body)
+		gotBody = string(body)
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{"status": "loaded"})
+	}))
+	t.Cleanup(srv.Close)
+
+	m := NewManager("", "")
+	m.SaveEngine(EngineConfig{ID: "modelhub", BaseURL: srv.URL + "/v1", Enabled: true})
+	m.UpdateModelHubKey("sk-unsloth-test")
+	if err := m.StartModelHubModel(context.Background(), "ollama-manifest:abc"); err != nil {
+		t.Fatalf("StartModelHubModel: %v", err)
+	}
+	if gotAuth != "Bearer sk-unsloth-test" {
+		t.Errorf("Authorization = %q, want Bearer sk-unsloth-test", gotAuth)
+	}
+	if !strings.Contains(gotBody, "ollama-manifest:abc") {
+		t.Errorf("请求体 = %q, want 含 model_path=ollama-manifest:abc", gotBody)
+	}
+}
+
+// TestModelHubDisplayName Studio 的 ollama-manifest 别名是 URL 编码的绝对路径，
+// 展示名应解析为 Ollama 同款 repo 名；显式 display_name 优先；非 manifest 原样。
+func TestModelHubDisplayName(t *testing.T) {
+	const alias = "ollama-manifest:C%3A%5CUsers%5Cwubi%5C.ollama%5Cmodels%5Cmanifests%5Cregistry.ollama.ai%5Ctinyrick%5CQwen3.8-27B-Uncensored-HauhauCS-Aggressive-MTP-GGUF%5CQ6_K_P"
+	const want = "tinyrick/Qwen3.8-27B-Uncensored-HauhauCS-Aggressive-MTP-GGUF:Q6_K_P"
+	if got := modelHubDisplayName(alias, ""); got != want {
+		t.Errorf("modelHubDisplayName(alias) = %q, want %q", got, want)
+	}
+	if got := modelHubDisplayName(alias, "自定义展示名"); got != "自定义展示名" {
+		t.Errorf("display_name 应优先, got %q", got)
+	}
+	if got := modelHubDisplayName("unsloth/Qwen3.8-Flash-Next-GGUF", ""); got != "unsloth/Qwen3.8-Flash-Next-GGUF" {
+		t.Errorf("非 manifest id 应原样, got %q", got)
 	}
 }
 
