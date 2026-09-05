@@ -1,8 +1,9 @@
 # 任务进度
 
-> 最后更新: 2026-09-05（v4.95.0「三线并行收欠账：版本对比入统一查看器 ·
-> README 内嵌 HTML 白名单 · 子代理歧义选择器」，579 零变更；
-> v4.94.0「Agent 网络会话跳转」，578→579；
+> 最后更新: 2026-09-05（v4.96.0「三线并行：下钻联动收尾 · Verifier 逐页
+> 缩略图 · pptx 真编辑设计」，579 零变更；v4.95.0「三线并行收欠账：版本
+> 对比入统一查看器 · README 内嵌 HTML 白名单 · 子代理歧义选择器」，579
+> 零变更；v4.94.0「Agent 网络会话跳转」，578→579；
 > v4.93.0「失败子代理恢复入口 + diff 行内语法着色」，578 零变更；v4.92.0「Mermaid strict 安全线成文 + MemoMarkdown
 > 消毒层」，578 零变更，阶段三 3b 收口；v4.91.0「CodeMirror 语法高亮
 > 编辑器」，578 零变更；v4.89.0
@@ -22,6 +23,38 @@
 > 索引（101 个发布说明）已刷新。本会话另落 GitHub 市场调研三路
 > （docs/research-2026-09-05/ + market-research-2026-09-05.md）与
 > 长期规划回填）
+
+## 最新发布：v4.96.0（2026-09-05）「三线并行：下钻联动收尾 · Verifier 逐页缩略图 · pptx 真编辑设计」
+
+- 「继续」惯例三线并行（文件所有权互斥），**绑定面 579 零变更**。
+- **刀A 三级下钻收尾**（调研中期候选第 4 条，**四条全部落地**）：TokenCard
+  「查看趋势」入口（可选回调向后兼容）→ jumpToTrend tick 锚点（与 brief
+  跳转同款机制/令牌）→ scrollIntoView + accent outline 强调 3s；不碰趋势卡
+  选中态；contextview.* +2 键 ×三语。
+- **刀B Verifier 逐页缩略图**（老账销账）：证据卡「视觉复核」行内
+  before/after 逐页缩略卡（页码标注/缺页诚实占位/懒加载/并发≤4/四态诚实
+  降级）。**零绑定变更**：verifyArtifactRelPath 按固定标记截取相对路径 +
+  GaeaPreview 探测定性，绕开 GaeaListDir 无 IsAbs 分支且吞错的缺口
+  （**Go 小刀候选登记**：IsAbs+错误透传/结构化错误码）。
+  **走查实锤并修复两个 jsdom 测不出的真缺陷**：①setState updater 内副作用
+  被父级轮询竞争吞掉（副作用移回事件处理器本体）；②liveRef 只写 cleanup
+  在 React18 dev StrictMode effect double-invoke 下恒 false → 组件 dev 下
+  永远「已卸载」（改 effect 本体重置 true 标准写法）。
+- **刀C pptx 真编辑设计文档**（待拍板，不动代码）：
+  docs/gaea-pptx-edit-design-2026-09.md + research-2026-09-05b/。现状=
+  docx 自研字节级 OOXML 手术（docxedit 零依赖）/xlsx excelize 直编/
+  **pptx 编辑为零且格式无修订制**（改走 xlsx 同款 Plan→Apply+基线快照）；
+  推荐 Go 自研 pptxedit 与 docxedit 同构（排除 gooxml AGPL/unioffice
+  商业授权）；分期四刀（数据层 579→580→编辑面→结构化对比→队列泛化）；
+  **待拍板 6 项**见文档末节。
+- 门禁：Go 全量 0 FAIL、tsc -b/eslint 0、vitest **1825/1825**（净增 39）、
+  drift PASS（579）、SHA256SUMS-v4.96.0.txt 当场生成。一轮 31 failed
+  （4 文件含 NovelSettingPage）为负载 flaky 漂移，复跑两轮全绿——如实记录。
+- 走查：缩略图全链路 PASS（产物 tab→证据链→双通道复核→查看缩略图→6 卡
+  成对+页码标注；img 不显系 mock dataUrl 为截断样例）；Token 卡→趋势
+  PASS（outline 强调+定位视口内）。走查新坑：evaluate click 对热区被遮挡
+  的开关无效，elementFromPoint 校验后 CUA 真实点击；antd 菜单/tab 用
+  mousedown+mouseup+click 三连 dispatch。
 
 ## 最新发布：v4.95.0（2026-09-05）「三线并行收欠账」
 
@@ -51,8 +84,6 @@
   mock 不可驱动，以单测为验收面（A1 先例）。**走查新坑：产物面板 mock
   无产物行、IAB 截图通道故障转 DOM 断言（沿例）**。
 
-## 下会话续做（待办清单，2026-09-05 v4.95.0 后更新）
-
 - **蒸馏规划滚动中**：阶段一、二.5（含 2.5e 弹层+徽标）、阶段二
   2a/2b/2c 全部收口（v4.78~v4.88）；3a CodeMirror（v4.91）/3b Mermaid
   strict（v4.92）已收口，**语法着色随 v4.93 落地**。**销账（v4.95）**：
@@ -68,6 +99,25 @@
 - **v4.95 已知边界**：taskpick 选择器候选为点击瞬间快照（点选后 5s 轮询
   自校正）；raw `<input type=radio>` 现剥成空 input，若要支持需拍板；
   vcompare.cellRef/cellOld/cellNew 三键不再被消费（键保留字典）。
+
+## 下会话续做（待办清单，2026-09-05 v4.96.0 后更新）
+
+- **蒸馏规划**：阶段一/二/二.5/三 3a 3b 全部收口；**销账（v4.95+v4.96）**：
+  docx/xlsx 对比迁移 ChangesDiff、README 级内嵌 HTML 白名单、子代理队列
+  非唯一命中交互式确认、Verifier 通道 B 逐页缩略图、三级下钻联动收尾
+  （调研中期候选四条全部落地）。**剩余拍板项**：阶段三 3c 人工沙箱浏览器
+  多开；阶段四真实终端（D1 推荐暂不做）；微信文件收发（抓包前置）；
+  **pptx 真编辑按 docs/gaea-pptx-edit-design-2026-09.md 待拍板（6 项），
+  拍板前不动刀**。
+- **Go 小刀候选（v4.96 登记）**：GaeaListDir 补 IsAbs 分支 + 错误透传/
+  结构化错误码（缩略图探测降级现依赖错误文案匹配）。
+- **老账**：run_skill AllowedTools 真机观察。
+- **待解锁复核真机验收**：弹层关闭、Git 面板真机操作、CodeMirror 真机
+  编辑态、v4.94 径向图跳转、v4.96 缩略图真数据（pdftoppm PNG）。
+- **v4.96 走查新坑**：evaluate click 对热区被遮挡的开关无效
+  （elementFromPoint 校验后 CUA 真实点击）；antd 菜单/tab 用
+  mousedown+mouseup+click 三连 dispatch；mock 样例 dataUrl 为截断 base64
+  （仅形状示意，真实产物为 pdftoppm PNG）。
 
 ## 最新发布：v4.94.0（2026-09-05）「Agent 网络会话跳转：子代理上下文按会话查看」
 
