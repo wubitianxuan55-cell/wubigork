@@ -584,6 +584,7 @@ export const bindingNames = [
 	"WhisperWeixinQRStatus",
 	"WhisperWeixinQRStatusWithCode",
 	"WhisperWeixinStatus",
+	"WarmComfyUI",
 ] as const
 
 export default bindingNames

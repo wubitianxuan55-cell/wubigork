@@ -247,6 +247,29 @@ export function filterEnginesByEnabled(engines: EngineConfig[], onlyEnabled: boo
 export const isImageModel = (m: { id: string; kind?: string }): boolean =>
   ((m.kind as ModelKind) || classifyModel(m.id)) === 'image'
 
+// CU2（蒸馏 unsloth §六-2）：ComfyUI 本地模型 → 底层 checkpoint 文件名
+// （与 Go 侧 txt2imgWorkflows 构建器同源锚定，仅展示层消费，不影响生成路径）。
+export const COMFY_MODEL_CHECKPOINT: Record<string, string> = {
+  krea2: 'krea2_turbo_fp8_scaled.safetensors',
+  'z-image-turbo': 'z_image_turbo_bf16_完整版_效果最好.safetensors',
+  flux: 'flux1-schnell.safetensors',
+}
+
+// checkpoint 文件名自含量化标记（fp8/scaled）= 显存省/加载快档位（unsloth
+// UD 引导的同款思路：权重侧量化收益该让用户看得见）。
+export const isQuantEfficientCheckpoint = (ckpt: string): boolean => /fp8|scaled/i.test(ckpt)
+
+// 逻辑模型是否量化高效档（未登记 checkpoint 的模型一律 false，诚实不猜）。
+export const comfyModelQuantFlag = (modelId: string): boolean => {
+  const ckpt = COMFY_MODEL_CHECKPOINT[modelId]
+  return !!ckpt && isQuantEfficientCheckpoint(ckpt)
+}
+
+// comfy 模型量化高效档置顶（稳定排序，其余保持原顺序）。
+export function sortComfyModelsQuantFirst<T extends ModelCardData>(models: T[]): T[] {
+  return [...models].sort((a, b) => Number(comfyModelQuantFlag(b.modelId)) - Number(comfyModelQuantFlag(a.modelId)))
+}
+
 // ComfyUI 本地出图模型（无需依赖引擎模型列表，恒可用）
 export const COMFY_IMAGE_MODELS: ModelCardData[] = [
   { modelId: 'krea2', modelName: 'Krea2 Turbo', engineId: 'comfyui', engineName: 'ComfyUI', engineType: 'comfyui', engineEnabled: true, status: 'running', kind: 'image' },

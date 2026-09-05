@@ -283,6 +283,13 @@ func (a *App) Startup(ctx context.Context) {
 	// 测试进程不调用 Startup，登记永不落盘。
 	imageHubRuntimeArmed.Store(true)
 
+	// MH4 Model Hub 预热运行态武装（gaea_schedule.go）：同款显式武装位，
+	// 禁「cfg != nil 即运行态」惯性闸。
+	modelHubPreloadArmed.Store(true)
+
+	// CU1 ComfyUI 预热运行态武装（image_handler.go）：同款显式武装位。
+	comfyWarmArmed.Store(true)
+
 	// 卡死诊断端口（仅本机）：即使 Wails 调用队列死锁，这个独立 HTTP
 	// 服务仍可访问，用于抓取 Go 协程栈定位进程级死锁。
 	startDebugServer()

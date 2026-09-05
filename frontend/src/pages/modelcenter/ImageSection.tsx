@@ -2,7 +2,7 @@ import { Button, Segmented, Select } from 'antd'
 import { FolderOpenOutlined, PictureOutlined } from '@ant-design/icons'
 import SettingField from '../../components/SettingField'
 import { ModelCard, SectionHead, StatusChip } from './ui'
-import { COMFY_IMAGE_MODELS, engineLabel, imageModelDefaultFor, imageModelOptionsFor } from './utils'
+import { COMFY_IMAGE_MODELS, comfyModelQuantFlag, engineLabel, imageModelDefaultFor, imageModelOptionsFor, sortComfyModelsQuantFirst } from './utils'
 import { useModelCenter } from './context'
 import { openImageSaveDir } from '../../api/image'
 
@@ -128,9 +128,11 @@ export function ImageSection() {
         <div className="mc-engine-group">
           <div className="mc-group-title"><PictureOutlined /> 发现的图片模型</div>
           <div className="mc-grid">
-            {[...COMFY_IMAGE_MODELS, ...imageModels.filter(m => m.engineId !== 'comfyui')].map(m => {
+            {[...sortComfyModelsQuantFirst(COMFY_IMAGE_MODELS), ...imageModels.filter(m => m.engineId !== 'comfyui')].map(m => {
               const isComfy = m.engineId === 'comfyui'
               const running = isComfy ? comfyStatus.running : m.status === 'running'
+              // CU2：fp8/scaled 量化 checkpoint = 显存省/加载快档位，给「fp8」徽标
+              const quant = isComfy && comfyModelQuantFlag(m.modelId)
               return (
                 <ModelCard
                   key={`${m.engineId}:${m.modelId}`}
@@ -138,6 +140,9 @@ export function ImageSection() {
                   engineId={m.engineId}
                   engineName={engineLabel(m)}
                   kindChip={<StatusChip tone="warn">图片</StatusChip>}
+                  chips={quant
+                    ? [<StatusChip key="quant" tone="ok" title="fp8 量化权重：显存占用更省、加载更快">fp8</StatusChip>]
+                    : undefined}
                   status={{
                     tone: running ? 'ok' : 'neutral',
                     text: running ? '运行中' : isComfy ? '未启动' : '已停止',

@@ -36,6 +36,7 @@ type ImageHubFacade = {
   GetComfyUITaskProgress(): Promise<Partial<ComfyTaskProgress>>
   StartComfyUI(): Promise<void>
   StopComfyUI(): Promise<void>
+  WarmComfyUI(): Promise<{ started: boolean; reason?: string; model?: string }>
   GetSystemStats(): Promise<Partial<SystemStats>>
   OpenImageSaveDir(): Promise<void>
   OpenNovelImagesDir(): Promise<void>
@@ -414,6 +415,18 @@ export async function generateMedia(
 /** 启动 ComfyUI */
 export async function startComfyUI(): Promise<void> {
   await appFacade().StartComfyUI()
+}
+
+/**
+ * CU1 绘梦页首入预热：后端提交一次 64×64 极小空跑把默认模型预加载进显存。
+ * 静默语义：任何失败/跳过都返回 {started:false, reason}，绝不抛错打扰用户。
+ */
+export async function warmComfyUI(): Promise<{ started: boolean; reason?: string; model?: string }> {
+  try {
+    return await appFacade().WarmComfyUI()
+  } catch {
+    return { started: false, reason: 'unavailable' }
+  }
 }
 
 /** 停止 ComfyUI */

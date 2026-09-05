@@ -6,7 +6,7 @@
 // 3.0「画廊工作台」：顶部轨道式模式 tab（细条，激活=主色容器+光条）
 // + 3 分区工作台（左控制台 zone / 中画布 zone / 右历史·任务 inspector），
 // 分区用 v3-split-v 分隔，容器统一 Luminous Glass 2.0（v3-panel / v3-zone）。
-import React, { useState, useCallback } from 'react'
+import React, { useState, useCallback, useEffect } from 'react'
 import { Button, message } from 'antd'
 import {
   PictureOutlined, FolderOpenOutlined,
@@ -30,6 +30,7 @@ import { useImageGenConfig } from '../hooks/useImageGenConfig'
 import { useImageGenQueue } from '../hooks/useImageGenQueue'
 import { useImageGenHistory } from '../hooks/useImageGenHistory'
 import { useCustomTemplates } from '../hooks/useCustomTemplates'
+import { warmComfyUI } from '../api/image'
 import { useT } from '../gaea/lib/i18n'
 import {
   backendLabel, isLocalBackend, resolveResultImage, templateSizeToPreset,
@@ -40,6 +41,10 @@ import '../components/imagegen/imagegen.css'
 // T1 创作资产面板：TEMPLATES 是「分类 → 模板」记录，面板槽只要平铺列表——
 // 模块级展开一次（静态数据，不随渲染重算）。
 const STUDIO_TEMPLATES: Template[] = Object.values(TEMPLATES).flat()
+
+// CU1 绘梦预热进程内一次标记：页首入只触发一次（后端另有武装位+已启动闸
+// 双保险，这里的标记纯粹省一次零成本 IPC）。失败静默：预热是尽力而为。
+let comfyWarmTriggered = false
 
 const ImageGenPage: React.FC = () => {
   const t = useT()
@@ -57,6 +62,15 @@ const ImageGenPage: React.FC = () => {
     handleSwitchBackend, handleStartEngine, handleStopEngine,
     handleOpenDir, handleOpenNovelDir,
   } = cfg
+
+  // CU1 绘梦预热（蒸馏 unsloth §六-2）：页首入触发一次后台 64×64 空跑，
+  // 把默认生图模型预加载进显存——首图免几十秒惰性加载。静默降级：后端
+  // 逐项闸（引擎/模型/运行态/生成在途）不过即跳过，前端不感知不弹错。
+  useEffect(() => {
+    if (comfyWarmTriggered) return
+    comfyWarmTriggered = true
+    void warmComfyUI()
+  }, [])
 
   const historyApi = useImageGenHistory({ setPrompt, setNegative, setSeed, setSize })
   const {

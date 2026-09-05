@@ -23,6 +23,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+	"sync/atomic"
 	"time"
 
 	"github.com/gaea/gaea/internal/config"
@@ -235,6 +236,9 @@ func (a *App) startAutoPreload() {
 			}()
 			time.Sleep(preloadDelay)
 			a.runAutoPreload()
+			// MH4（蒸馏 unsloth §三/§四）：modelhub 常驻预热，与 herdsman 预载
+			// 同一延迟节拍、同一总闸、显存互斥（见 runModelHubPreload）。
+			a.runModelHubPreload()
 		}()
 	})
 }
@@ -277,6 +281,87 @@ func (a *App) runAutoPreload() {
 			slog.Warn("auto-preload: 预载失败", "model", model, "error", err)
 		}
 	}()
+}
+
+// ─── MH4 Model Hub 常驻预热（蒸馏 unsloth，规划 §三/§四） ───────────
+
+// modelHubPreloadArmed 运行态武装位：仅真实 App 生命周期（Startup）置位。
+// 按项目纪律禁用「cfg != nil 即运行态」的惯性闸——包内其他测试初始化全局
+// 配置会让惯性闸恒真（imageHubRuntimeArmed 同款先例）。
+var modelHubPreloadArmed atomic.Bool
+
+// modelHubPreloadWaitTimeout 预热等待 Studio 冷加载完成的收敛上限（§七实测
+// 冷加载 50s+、内存挤占可超 2min，给足 6 分钟；含 StartModelHubModel 本身）。
+const modelHubPreloadWaitTimeout = 6 * time.Minute
+
+// modelHubPreloadPollInterval 预热收敛轮询间隔（var 供测试注入缩短）。
+var modelHubPreloadPollInterval = 5 * time.Second
+
+// runModelHubPreload 一轮 modelhub 预热（后台，静默降级不阻塞启动）：
+// 武装位 → auto_preload 总闸 → 活跃引擎跟随（只预热活跃引擎就是 modelhub 的
+// 场景，规划 §四-4 单卡显存互斥）→ 引擎启用+钉选默认模型+Key 已配置 →
+// herdsman 预载将在途时让路（两个大模型同入统一内存会互相挤占）→
+// /v1/models 已含目标即跳过（force_reload 幂等语义未证实，从不重复 load，
+// §四-2）→ StartModelHubModel → 轮询收敛到 loaded，超时只记日志。
+func (a *App) runModelHubPreload() {
+	if !modelHubPreloadArmed.Load() {
+		return
+	}
+	if a == nil || a.cfg == nil || a.engineMgr == nil || a.client == nil {
+		return
+	}
+	if !a.cfg.GetAutoPreload() {
+		return // 与 herdsman 预载同一总闸：用户关掉启动预载时不该被 modelhub 绕过
+	}
+	if a.client.ActiveEngineID() != "modelhub" {
+		return
+	}
+	engine, ok := a.engineMgr.GetEngine("modelhub")
+	if !ok || !engine.Enabled || engine.DefaultModel == "" {
+		return
+	}
+	if !a.engineMgr.ModelHubKeyConfigured() {
+		return
+	}
+	// 显存互斥：herdsman 预载将启动大模型时让路（catalog 判定纯读，失败不阻塞让路逻辑）
+	if model, ok := preloadTarget(a.cfg); ok {
+		if catalog, err := a.HerdsmanModelCatalog(); err == nil {
+			if shouldStart, reason := autoPreloadDecision(catalog, model); shouldStart {
+				slog.Info("modelhub-preload: herdsman 预载将在途，避免显存互斥，跳过", "herdsman_model", model, "reason", reason)
+				return
+			}
+		}
+	}
+	target := engine.DefaultModel
+	ctx, cancel := context.WithTimeout(context.Background(), modelHubPreloadWaitTimeout)
+	defer cancel()
+	loaded, err := a.engineMgr.ModelHubModelLoaded(ctx, target)
+	if err != nil {
+		// Studio 未启动/不可达：静默降级（预热是尽力而为，绝不报错打扰）
+		slog.Info("modelhub-preload: Studio 不可达，跳过预热", "error", err)
+		return
+	}
+	if loaded {
+		slog.Info("modelhub-preload: 默认模型已加载，跳过", "model", target)
+		return
+	}
+	slog.Info("modelhub-preload: 开始预热", "model", target)
+	if err := a.engineMgr.StartModelHubModel(ctx, target); err != nil {
+		slog.Warn("modelhub-preload: 预热请求失败（静默降级）", "model", target, "error", err)
+		return
+	}
+	for {
+		select {
+		case <-ctx.Done():
+			slog.Warn("modelhub-preload: 等待加载收敛超时", "model", target)
+			return
+		case <-time.After(modelHubPreloadPollInterval):
+		}
+		if ok, err := a.engineMgr.ModelHubModelLoaded(ctx, target); err == nil && ok {
+			slog.Info("modelhub-preload: 预热完成", "model", target)
+			return
+		}
+	}
 }
 
 // ─── T5-3c 换模预计等待 ────────────────────────────────────

@@ -1,6 +1,6 @@
 # 任务进度
 
-> 最后更新: 2026-09-06（v4.104.0「Model Hub 蒸馏 MH1–MH3：采样让位+默认关思考 · 加载状态收敛 · UD 档位引导」，绑定面 584 零变更；v4.103.0「办公搜索对齐 unsloth：web_search url 直取整页 · 结果域名策略过滤 · 日期钉定」，绑定面 584 零变更；v4.102.0「Hub 落库 + 围栏 slot 口径统一 · 图像域 17
+> 最后更新: 2026-09-06（v4.105.0「Model Hub 蒸馏 MH4 常驻预热 · ComfyUI 预热 CU1+量化档位 CU2」，584→585 +WarmComfyUI；v4.104.0「Model Hub 蒸馏 MH1–MH3：采样让位+默认关思考 · 加载状态收敛 · UD 档位引导」，绑定面 584 零变更；v4.103.0「办公搜索对齐 unsloth：web_search url 直取整页 · 结果域名策略过滤 · 日期钉定」，绑定面 584 零变更；v4.102.0「Hub 落库 + 围栏 slot 口径统一 · 图像域 17
 > 绑定转正 · Model Hub mock」，绑定面 584；Model Hub（Unsloth）并行会话线完结
 > 落库 6cd891df + v4.101 漏提交补录 efe80310；v4.101.0「三线并行：GenUI 围栏
 > Go 侧收口 · 画室模型目录 · 深检误报缓解」，绑定面 581 零变更；v4.100.0
@@ -35,6 +35,15 @@
 > 索引（101 个发布说明）已刷新。本会话另落 GitHub 市场调研三路
 > （docs/research-2026-09-05/ + market-research-2026-09-05.md）与
 > 长期规划回填）
+
+## 最新发布：v4.105.0（2026-09-06）「Model Hub 蒸馏 MH4 常驻预热 · ComfyUI 预热 CU1+量化档位 CU2」
+
+- **真机前置**：本轮 unsloth Studio(8888)/ComfyUI(8188) 均未运行（连接拒绝实锤）、herdsman 8080 在跑。MH4 幂等走规划 §四-2 保守路径（预热前查 /v1/models 已含即跳过，从不重复 load）；CU3 POST /free 确认不了维持观察项。
+- **MH4（Go）**：启动自动预载扩 modelhub——四重门控（modelHubPreloadArmed 武装位 / auto_preload 总闸 / 活跃引擎跟随 / herdsman 预载将在途让路）+ 已加载跳过 + StartModelHubModel 后 5s/6min 轮询收敛，全程静默降级。新增 Manager.ModelHubModelLoaded（轻量 /v1/models 探测）+ ModelHubKeyConfigured。
+- **CU1（Go+前端，+WarmComfyUI 绑定）**：ComfyUIBackend.Warmup=64×64/1 步空跑复用既有构建器（预热的就是下次真实生成的模型文件），绘梦页首入触发（非 gaea 启动），门控=引擎/模型登记/运行中/无生成在途/武装位+一次闸，跳过带 reason 静默。gen_bindings 585；分类锁 297→298。
+- **CU2（纯前端）**：COMFY_MODEL_CHECKPOINT 映射（与 Go 构建器同源锚定），fp8/scaled=量化高效档——krea2「fp8」徽标+置顶；bf16/无标记诚实不猜。
+- 测试：Go +10 例（gaea_schedule_modelhub_test 6 + image_comfyui_warmup_test 4）、前端 +2；门禁 go 全量绿、vitest 2042/2042、tsc -b/eslint 0、drift PASS@585。
+- 欠账：真机端到端补验（MH4 日志链/CU1 首图收益量化/CU3 /free 支持性）；herdsman 预载与 modelhub 的对称互斥留观察；HS-obs 维持；乐园人格思考默认值待拍板。
 
 ## 最新发布：v4.104.0（2026-09-06）「Model Hub 蒸馏 MH1–MH3：采样让位+默认关思考 · 加载状态收敛 · UD 档位引导」
 

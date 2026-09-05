@@ -18,6 +18,8 @@ import {
   sortModelsPinnedFirst,
   isUDVariant,
   sortModelHubUDFirst,
+  comfyModelQuantFlag,
+  sortComfyModelsQuantFirst,
   modelOptionsForEngine,
   filterEnginesByEnabled,
   glmEndpointFamily,
@@ -174,6 +176,25 @@ describe('模型中心 MH3 · UD 动态量化档位', () => {
     const sorted = sortModelsPinnedFirst(sortModelHubUDFirst(hubModels), ['qwen3.6:Q4_K_P'])
     expect(sorted[0].modelId).toBe('qwen3.6:Q4_K_P')
     expect(sorted.slice(1, 3).map(m => m.modelId)).toEqual(['qwen3.6:UD-Q4_K_XL', 'llama3:UD-Q5_K_XL'])
+  })
+})
+
+describe('模型中心 CU2 · ComfyUI 量化档位', () => {
+  it('fp8/scaled checkpoint 判定为量化高效档，bf16/未登记不猜', () => {
+    expect(comfyModelQuantFlag('krea2')).toBe(true) // krea2_turbo_fp8_scaled
+    expect(comfyModelQuantFlag('z-image-turbo')).toBe(false) // bf16
+    expect(comfyModelQuantFlag('flux')).toBe(false) // 文件名无标记，诚实不猜
+    expect(comfyModelQuantFlag('ghost-model')).toBe(false)
+  })
+
+  it('sortComfyModelsQuantFirst 把量化高效档置顶且稳定', () => {
+    const comfyCards: ModelCardData[] = [
+      { modelId: 'z-image-turbo', modelName: 'Z-Image-Turbo', engineId: 'comfyui', engineName: 'ComfyUI', engineType: 'comfyui', engineEnabled: true, status: 'running' },
+      { modelId: 'krea2', modelName: 'Krea2 Turbo', engineId: 'comfyui', engineName: 'ComfyUI', engineType: 'comfyui', engineEnabled: true, status: 'running' },
+    ]
+    const sorted = sortComfyModelsQuantFirst(comfyCards)
+    expect(sorted.map(m => m.modelId)).toEqual(['krea2', 'z-image-turbo'])
+    expect(sortComfyModelsQuantFirst(sorted).map(m => m.modelId)).toEqual(['krea2', 'z-image-turbo'])
   })
 })
 

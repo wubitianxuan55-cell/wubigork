@@ -1,3 +1,12 @@
+## v4.105.0 · Model Hub 蒸馏 MH4 常驻预热 · ComfyUI 预热 CU1+量化档位 CU2（2026-09-06）
+> 蒸馏 unsloth（规划 §三 MH4 + §六 CU1/CU2）；绑定面 584→**585**（+WarmComfyUI）。详见 releases/v4.105.0.md。
+- **MH4 modelhub 常驻预热（Go）**：启动自动预载扩到 modelhub——活跃引擎就是 modelhub 且钉选默认模型+Key 已配置时，后台 StartModelHubModel 并轮询收敛到 loaded（5s/6 分钟上限），首聊免等冷加载。四重门控：显式武装位（Startup 置位，同 imageHubRuntimeArmed 先例）/ auto_preload 总闸 / 活跃引擎跟随（§四-4 显存互斥）/ herdsman 预载将在途时让路；预热前查 /v1/models 已含目标即跳过（§四-2 幂等语义未证实，从不重复 load）；Studio 不可达静默降级只记日志。
+- **CU1 ComfyUI 绘梦预热（Go+前端，新绑定 WarmComfyUI）**：绘梦页首入触发一次 64×64/1 步空跑（复用既有 workflow 构建器，预热的就是下次真实生成要加载的模型文件），后台把默认模型预加载进显存——首图免几十秒惰性加载（§六-2）。门控：引擎=comfyui/模型已登记/ComfyUI 运行中/无生成在途/武装位+进程内一次闸；任何跳过返回 reason 静默降级，前端零弹错。
+- **CU2 fp8 量化档位引导（纯前端）**：comfy 模型 ↔ checkpoint 文件名映射（与 Go 构建器同源锚定），fp8/scaled 判定为量化高效档——krea2 显示「fp8」徽标（显存省/加载快）并置顶；bf16/无标记模型诚实不猜。
+- **CU3 显存释放对偶维持观察项**：真机前置确认未做（本轮 ComfyUI 未运行，连接拒绝实锤），POST /free 端点支持性未证实前不动代码。
+- 测试：Go 新增 10 例（MH4 六分支+端到端收敛 6 例、CU1 空跑三要素/未知拒绝/门控/超时有界 4 例）；前端 +2 例（CU2 判定与稳定置顶）；分类锁 297→298。门禁：go vet/全量绿、vitest 2042/2042、tsc -b/eslint 0、drift PASS@585。
+- **真机口径如实记录**：本轮 unsloth Studio（8888）与 ComfyUI（8188）均未运行（连接拒绝），MH4/CU1 的 Studio 侧真机端到端验证待服务可用时补（httptest 假端已覆盖契约面）。
+
 ## v4.104.0 · Model Hub 蒸馏 MH1–MH3：采样让位+默认关思考 · 加载状态收敛 · UD 档位引导（2026-09-06）
 > 蒸馏 unsloth（docs/gaea-unsloth-modelhub-distill-plan-2026-09.md §三刀序 MH1→MH2→MH3）；绑定面 584 零变更。详见 releases/v4.104.0.md。
 - **MH1 采样让位（Go）**：modelhub 引擎下用户未显式配置 temperature 时不再兜底 0.7（omitempty 丢弃不传），把按模型自动采样调优让给 Studio；其余引擎维持 0.7 兜底（`internal/ai/client.go` ChatStreamChunks 单点收敛，copilot 显式温度不受影响）。

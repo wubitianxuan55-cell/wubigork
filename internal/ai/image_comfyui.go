@@ -388,6 +388,49 @@ func lookupTxt2imgBuilder(model string) (txt2imgWorkflowBuilder, bool) {
 	return nil, false
 }
 
+// ComfyUIWarmupSupported 报告模型是否可预热（有无登记的工作流构建器）。
+// 供 App 层在发起预热前做零成本闸（未知模型静默跳过，不打扰用户）。
+func ComfyUIWarmupSupported(model string) bool {
+	_, ok := lookupTxt2imgBuilder(model)
+	return ok
+}
+
+// Warmup 提交一次极小空跑（64×64、1 步）把目标模型的 UNET/CLIP/VAE 预加载
+// 进显存——CU1（蒸馏 unsloth §六-2）：惰性加载是「首图几十秒」体感的根源，
+// 绘梦页首入时后台预热把「惰性首次」变「提前完成」。产出图直接丢弃。
+// 复用既有 workflow 构建器保证预热加载的就是下次真实生成要用的模型文件；
+// 步数取最低档（krea2/z-image 传 1，flux 固定 4 步），空跑算力开销可忽略，
+// 加载才是目的。与真实生成共用 ComfyUI 队列：预热排队中用户提交真任务时，
+// 真任务只是排在极小空跑后面，天然串行无冲突。
+func (b *ComfyUIBackend) Warmup(ctx context.Context, model string) error {
+	if model == "" {
+		model = "krea2"
+	}
+	var workflow map[string]interface{}
+	switch {
+	case strings.HasPrefix(model, "krea2"):
+		workflow = b.buildKreaWorkflow("(warmup)", 64, 64, 0, 1, nil)
+	case model == "z-image-turbo":
+		workflow = b.buildZImageWorkflow("(warmup)", "", 64, 64, 0, 1, "z_image_turbo_bf16_完整版_效果最好.safetensors", nil)
+	case model == "flux":
+		workflow = b.buildFluxWorkflow("(warmup)", 64, 64, 0, nil)
+	default:
+		return fmt.Errorf("模型 %s 未登记预热工作流", model)
+	}
+	promptID, err := b.queuePrompt(ctx, workflow)
+	if err != nil {
+		return fmt.Errorf("预热任务提交失败: %w", err)
+	}
+	// 等空跑完成=模型确已进显存；产物丢弃（64×64 下载开销可忽略）。
+	// 进度回调 nil：预热静默，不向前端推进度。
+	_, _, err = b.waitForResult(ctx, promptID, &ImageGenerationRequest{Model: model}, nil)
+	if err != nil {
+		return fmt.Errorf("预热任务未完成: %w", err)
+	}
+	slog.Info("ComfyUI 预热完成", "model", model)
+	return nil
+}
+
 // buildFluxWorkflow 构建 FLUX.1-schnell 工作流（官方 ComfyUI 模板）：
 // UNETLoader(flux1-schnell) + DualCLIPLoader(type=flux, T5+CLIP-L) + VAELoader(ae)
 // → EmptySD3LatentImage → KSampler(cfg=1.0, euler/simple, 4 步) → VAEDecode → SaveImage。

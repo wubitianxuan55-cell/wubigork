@@ -331,6 +331,8 @@ export interface AppBindings {
   GetComfyUITaskProgress(): Promise<Record<string, unknown>>;
   StartComfyUI(): Promise<void>;
   StopComfyUI(): Promise<void>;
+  // CU1 绘梦页首入预热（64×64 空跑预加载默认模型；后端武装位+一次闸+静默降级）
+  WarmComfyUI(): Promise<{ started: boolean; reason?: string; model?: string }>;
   GetSystemStats(): Promise<Record<string, unknown>>;
   OpenImageSaveDir(): Promise<void>;
   OpenNovelImagesDir(): Promise<void>;

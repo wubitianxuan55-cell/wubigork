@@ -1095,6 +1095,63 @@ func (m *Manager) StartModelHubModel(ctx context.Context, modelID string) error 
 	return nil
 }
 
+// ModelHubKeyConfigured 报告 Model Hub API Key 是否已配置（MH4 预热前置判定用，
+// 只查布尔不回传明文）。未配置时预热静默跳过，不用等 HTTP 401 才发现。
+func (m *Manager) ModelHubKeyConfigured() bool {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.modelhubKey != ""
+}
+
+// ModelHubModelLoaded 轻量探测目标模型是否已在 Studio 加载（MH4 预热的幂等
+// 守护：force_reload 语义官方未文档化（蒸馏规划 §四-2），预热前先查 /v1/models
+// 已含目标即跳过，从不依赖重复 load 的行为）。
+// 返回 (false, nil) = 可达但目标未加载；(false, err) = Studio 不可达/鉴权失败。
+func (m *Manager) ModelHubModelLoaded(ctx context.Context, modelID string) (bool, error) {
+	m.mu.RLock()
+	engine, ok := m.engines["modelhub"]
+	key := m.modelhubKey
+	m.mu.RUnlock()
+	if !ok {
+		return false, fmt.Errorf("引擎 modelhub 不存在")
+	}
+	if !engine.Enabled {
+		return false, fmt.Errorf("Model Hub 引擎未启用")
+	}
+	base := strings.TrimRight(strings.TrimSpace(engine.BaseURL), "/")
+	if !validBaseURL(base) {
+		return false, fmt.Errorf("引擎地址无效：需要 http:// 或 https:// 前缀")
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, base+"/models", nil)
+	if err != nil {
+		return false, fmt.Errorf("创建探测请求失败: %w", err)
+	}
+	if key != "" {
+		req.Header.Set("Authorization", "Bearer "+key)
+	}
+	resp, err := m.httpClient.Do(req)
+	if err != nil {
+		return false, fmt.Errorf("Studio 不可达: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusUnauthorized {
+		return false, fmt.Errorf("HTTP 401: Model Hub API Key 无效")
+	}
+	if resp.StatusCode != http.StatusOK {
+		return false, fmt.Errorf("Studio 探测失败（HTTP %d）", resp.StatusCode)
+	}
+	var list modelsListResponse
+	if err := json.NewDecoder(resp.Body).Decode(&list); err != nil {
+		return false, fmt.Errorf("解析已加载模型列表失败: %w", err)
+	}
+	for _, d := range list.Data {
+		if d.ID == modelID && (d.Loaded == nil || *d.Loaded) {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 // ClassifyModelKind 按引擎类型与模型名分类（llm/tts/stt/ocr/rerank/embedding/image）。
 // 3.0 Step 3d：模型能力关键词分类的单一来源——语音（voice_handler.go:isSTTModel）、
 // OCR（gaea_ocr.go:pickHerdsmanModel）等消费点委托到本函数，不再各自维护关键词表。

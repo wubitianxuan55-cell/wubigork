@@ -45,3 +45,4 @@ func (b *ImageB) StartLocalTTSService(engineID string) map[string]interface{} { 
 func (b *ImageB) StartTTSServer(modelPath string, port int, backend string) error { return b.a.StartTTSServer(modelPath, port, backend) }
 func (b *ImageB) StopComfyUI() error { return b.a.StopComfyUI() }
 func (b *ImageB) StopTTSServer() error { return b.a.StopTTSServer() }
+func (b *ImageB) WarmComfyUI() map[string]interface{} { return b.a.WarmComfyUI() }

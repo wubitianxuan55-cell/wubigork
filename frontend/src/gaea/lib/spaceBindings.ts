@@ -79,6 +79,7 @@ export const GAEA_METHOD_FACETS = {
   GetComfyUILoras: "play",
   GetComfyUITaskProgress: "play",
   StartComfyUI: "play",
+  WarmComfyUI: "play",
   StopComfyUI: "play",
   GetSystemStats: "play",
   OpenImageSaveDir: "play",

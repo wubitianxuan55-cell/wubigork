@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 	"unsafe"
@@ -33,6 +34,58 @@ type imageItem struct {
 	Size     string  `json:"size"`
 	Kind     string  `json:"kind,omitempty"`      // image | video
 	FilePath string  `json:"file_path,omitempty"` // T6-4.3：本地保存路径（历史图片可恢复）
+}
+
+// CU1（蒸馏 unsloth §六-2）ComfyUI 预热：运行态武装位（Startup 置位，同
+// imageHubRuntimeArmed 先例禁 cfg!=nil 惯性闸）+ 已启动闸（只在真正发起
+// 预热时置位；首入时 ComfyUI 未就绪等可重试原因不消耗触发机会）。
+var comfyWarmArmed atomic.Bool
+var comfyWarmStarted atomic.Bool
+
+// WarmComfyUI 绘梦页首入预热：后台提交一次 64×64 极小空跑把当前默认生图模型
+// 预加载进显存（首图免几十秒惰性加载）。门控：引擎非 comfyui/模型未登记
+// 工作流/ComfyUI 未运行/真实生成在途 → 静默跳过；预热结果只记日志，绝不弹错。
+// 返回 {started, reason} 供测试断言与日志排查，前端 UI 不展示。
+func (a *mediaState) WarmComfyUI() map[string]interface{} {
+	if !comfyWarmArmed.Load() {
+		return map[string]interface{}{"started": false, "reason": "unarmed"}
+	}
+	if a.cfg == nil || a.cfg.ImageBackend != "comfyui" {
+		return map[string]interface{}{"started": false, "reason": "backend-not-comfyui"}
+	}
+	model := a.cfg.ImageModel
+	if model == "" {
+		model = "krea2" // 与生图路径的兜底口径一致
+	}
+	if !ai.ComfyUIWarmupSupported(model) {
+		return map[string]interface{}{"started": false, "reason": "model-unsupported"}
+	}
+	if !a.isComfyUIRunning() {
+		return map[string]interface{}{"started": false, "reason": "comfyui-not-running"}
+	}
+	a.imageGenMu.Lock()
+	busy := a.imageGenRunning
+	a.imageGenMu.Unlock()
+	if busy {
+		return map[string]interface{}{"started": false, "reason": "generation-in-flight"}
+	}
+	if !comfyWarmStarted.CompareAndSwap(false, true) {
+		return map[string]interface{}{"started": false, "reason": "already-started"}
+	}
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("comfy-warm panic recovered", "panic", r)
+			}
+		}()
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+		defer cancel()
+		backend := ai.NewComfyUIBackend(a.cfg.ComfyUIURL)
+		if err := backend.Warmup(ctx, model); err != nil {
+			slog.Info("ComfyUI 预热未生效（静默降级）", "model", model, "error", err)
+		}
+	}()
+	return map[string]interface{}{"started": true, "model": model}
 }
 
 func (a *mediaState) beginImageGen(parent context.Context) (context.Context, context.CancelFunc, uint64) {
