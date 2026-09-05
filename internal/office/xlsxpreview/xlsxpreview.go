@@ -30,6 +30,10 @@ type Sheet struct {
 	ColWidths map[string]float64 `json:"colWidths,omitempty"`
 	Freeze    *Freeze            `json:"freeze,omitempty"` // 冻结窗格（表头）
 	Truncated bool               `json:"truncated,omitempty"`
+	// 条件格式（U4 缺口 #2）：仅 CellIs 静态可判定子集；其余类型计数在
+	// CondSkipped，前端不渲染不猜测。
+	CondRules   []CondRule `json:"condRules,omitempty"`
+	CondSkipped int        `json:"condSkipped,omitempty"`
 }
 
 // Freeze 描述冻结窗格：Row/Col 为从首行/首列起冻结的行列数。
@@ -229,6 +233,14 @@ func renderSheet(f *excelize.File, name string) (Sheet, error) {
 		if w, err := f.GetColWidth(name, col); err == nil {
 			sh.ColWidths[col] = w
 		}
+	}
+	// 条件格式（CellIs 静态子集）提取；失败静默（条件格式属增强层，不阻断预览）
+	rules, skipped := extractCondRules(f, name)
+	if len(rules) > 0 {
+		sh.CondRules = rules
+	}
+	if skipped > 0 {
+		sh.CondSkipped = skipped
 	}
 	return sh, nil
 }

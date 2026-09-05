@@ -1,6 +1,6 @@
 # 任务进度
 
-> 最后更新: 2026-09-06（v4.105.0「Model Hub 蒸馏 MH4 常驻预热 · ComfyUI 预热 CU1+量化档位 CU2」，584→585 +WarmComfyUI；v4.104.0「Model Hub 蒸馏 MH1–MH3：采样让位+默认关思考 · 加载状态收敛 · UD 档位引导」，绑定面 584 零变更；v4.103.0「办公搜索对齐 unsloth：web_search url 直取整页 · 结果域名策略过滤 · 日期钉定」，绑定面 584 零变更；v4.102.0「Hub 落库 + 围栏 slot 口径统一 · 图像域 17
+> 最后更新: 2026-09-06（v4.106.0「办公 U4 缺口收口：xlsx 条件格式预览 · herdsman HS-obs 实测销账」，585 零变更；v4.105.0「Model Hub 蒸馏 MH4 常驻预热 · ComfyUI 预热 CU1+量化档位 CU2」，584→585 +WarmComfyUI；v4.104.0「Model Hub 蒸馏 MH1–MH3：采样让位+默认关思考 · 加载状态收敛 · UD 档位引导」，绑定面 584 零变更；v4.103.0「办公搜索对齐 unsloth：web_search url 直取整页 · 结果域名策略过滤 · 日期钉定」，绑定面 584 零变更；v4.102.0「Hub 落库 + 围栏 slot 口径统一 · 图像域 17
 > 绑定转正 · Model Hub mock」，绑定面 584；Model Hub（Unsloth）并行会话线完结
 > 落库 6cd891df + v4.101 漏提交补录 efe80310；v4.101.0「三线并行：GenUI 围栏
 > Go 侧收口 · 画室模型目录 · 深检误报缓解」，绑定面 581 零变更；v4.100.0
@@ -35,6 +35,14 @@
 > 索引（101 个发布说明）已刷新。本会话另落 GitHub 市场调研三路
 > （docs/research-2026-09-05/ + market-research-2026-09-05.md）与
 > 长期规划回填）
+
+## 最新发布：v4.106.0（2026-09-06）「办公 U4 缺口收口：xlsx 条件格式预览 · herdsman HS-obs 实测销账」
+
+- **xlsx 条件格式预览（U4 缺口 #2，零绑定）**：后端 xlsxpreview/condfmt.go 经 f.Pkg 原始 XML 三层解析（workbook rels→worksheet cfRule→styles dxfs）提取 CellIs 静态子集（range+常量阈值+dxf 底/字色/加粗）进预览 JSON（condRules/condSkipped omitempty）；前端 lib/xlsxCondFmt.ts 纯函数判定 + XlsxPreview 命中覆盖基础样式（priority 小者整体胜出/文本大小写不敏感/between 无序归一/空格不参与）。expression/色阶/数据条/引用阈值诚实跳过计数。
+- **实测坑成文**：①Go xml 带 URL 属性命名空间匹配不可靠，r:id 按本地名匹配；②excelize 写侧 SetConditionalFormat 不落 dxfs 表（dxfId=内部样式 id），真实 Excel 产物才有完整 dxfs——测试夹具需 zip 后处理注入（教训：excelize 写侧≠真实文件形状，读侧实现必须按真实文件口径测）。
+- **HS-obs 实测销账**：herdsman v0.6.4 /props 404=采样面不可外部观测，坐实不立项；/api/benchmarks 自报 avg_ttft_ms=119 vs 真实聊天 2.8s 固定开销 → HS-obs-2 具象化为网关/调度路径差异（herdsman 侧，gaea 不可改）。
+- 门禁：Go 全量绿、vitest 2049/2049、tsc -b/eslint 0、drift PASS@585、版本四处 4.106.0。
+- 欠账：条件格式真机视觉走查（真实造价样例）；缺口 #1/#3/#4 维持盘点口径不做；真机补验池（MH4/CU1/CU3）不变——本机 ComfyUI 未配置实锤（comfyui_path 缺失+8188 拒连）。
 
 ## 最新发布：v4.105.0（2026-09-06）「Model Hub 蒸馏 MH4 常驻预热 · ComfyUI 预热 CU1+量化档位 CU2」
 

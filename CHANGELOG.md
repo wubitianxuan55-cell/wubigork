@@ -1,3 +1,9 @@
+## v4.106.0 · 办公 U4 缺口收口：xlsx 条件格式预览 · herdsman HS-obs 实测销账（2026-09-06）
+> 收 U4 渲染证据盘点缺口清单 #2（Go excelize 读条件格式 + 前端渲染分支，零绑定）；绑定面 **585** 零变更。详见 releases/v4.106.0.md。
+- **xlsx 条件格式预览（零绑定）**：后端 `xlsxpreview/condfmt.go` 经 f.Pkg 原始 XML 解析（workbook rels → worksheet cfRule → styles.xml dxfs），提取 CellIs 静态可判定子集（range+常量阈值+dxf 底色/字色/加粗）进既有预览 JSON（`condRules`/`condSkipped`，omitempty）；expression/色阶/数据条/图标集/引用单元格阈值等不可静态判定类型诚实跳过并计数。前端 `lib/xlsxCondFmt.ts` 纯函数判定（range 包含/数值文本比较/between 上下限无序归一/文本大小写不敏感/priority 小者整体胜出），XlsxPreview 单元格渲染命中即覆盖基础样式（Excel 语义）。
+- **测试**：Go 2 例（Render 端到端提取含 dxf 样式/skipped 计数/无条件格式 omitempty；夹具注入真实 Excel 形状 dxfs——excelize 写侧只写 cfRule 不落 dxfs 表的局限实测成文）；前端 7 例（解析/覆盖/匹配/优先级胜出）。门禁：Go 全量绿、vitest 2049/2049、tsc -b/eslint 0、drift PASS@585。
+- **HS-obs 实测销账（蒸馏规划 §六-1 回填）**：herdsman v0.6.4 `/props` 404=采样默认不可外部观测，无判定性实验设计，坐实不立项；`/api/benchmarks` 自报 `avg_ttft_ms=119`（vs §七实测真实聊天固定 2.8s）→ HS-obs-2 具象化为「bench 路径与聊天路径的网关/调度差异」，herdsman 侧观察。
+
 ## v4.105.0 · Model Hub 蒸馏 MH4 常驻预热 · ComfyUI 预热 CU1+量化档位 CU2（2026-09-06）
 > 蒸馏 unsloth（规划 §三 MH4 + §六 CU1/CU2）；绑定面 584→**585**（+WarmComfyUI）。详见 releases/v4.105.0.md。
 - **MH4 modelhub 常驻预热（Go）**：启动自动预载扩到 modelhub——活跃引擎就是 modelhub 且钉选默认模型+Key 已配置时，后台 StartModelHubModel 并轮询收敛到 loaded（5s/6 分钟上限），首聊免等冷加载。四重门控：显式武装位（Startup 置位，同 imageHubRuntimeArmed 先例）/ auto_preload 总闸 / 活跃引擎跟随（§四-4 显存互斥）/ herdsman 预载将在途时让路；预热前查 /v1/models 已含目标即跳过（§四-2 幂等语义未证实，从不重复 load）；Studio 不可达静默降级只记日志。

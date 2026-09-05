@@ -14,6 +14,7 @@ import {
 import { GbaseGroupedView } from "./GbaseGroupedView";
 import { useToast } from "./Toast";
 import type { XlsxCell, XlsxChartResult, XlsxPlanResult, XlsxPreview, XlsxSheet } from "../lib/types";
+import { condStyleFor } from "../lib/xlsxCondFmt";
 
 function parseRef(ref: string): { col: number; row: number } {
   const m = /^([A-Z]+)(\d+)$/.exec(ref);
@@ -1113,13 +1114,17 @@ function SheetGrid({
                 const isEditing = editingRef === ref;
                 const isFrozenRow = freezeRow > 0 && r <= freezeRow;
                 const isColSelected = selectedCol === letter;
-                const displayBackground = cell?.style?.fill
-                  ? `#${cell.style.fill}`
-                  : isFrozenRow
-                    ? "var(--bg)"
-                    : isColSelected
-                      ? "var(--accent-soft, rgba(99,102,241,0.06))"
-                      : undefined;
+                // 条件格式命中：fill/fontColor/bold 整体覆盖基础样式（Excel 语义）
+                const cond = condStyleFor(sheet.condRules, ref, cell);
+                const displayBackground = cond?.fill
+                  ? `#${cond.fill}`
+                  : cell?.style?.fill
+                    ? `#${cell.style.fill}`
+                    : isFrozenRow
+                      ? "var(--bg)"
+                      : isColSelected
+                        ? "var(--accent-soft, rgba(99,102,241,0.06))"
+                        : undefined;
                 return (
                   <td
                     key={ref}
@@ -1141,14 +1146,18 @@ function SheetGrid({
                       ...(isFrozenRow
                         ? { top: TH_H + (r - 1) * ROW_H, zIndex: 12, height: ROW_H, overflow: "hidden" as const }
                         : {}),
-                      fontWeight: cell?.style?.bold ? 600 : undefined,
+                      fontWeight: cond?.bold || cell?.style?.bold ? 600 : undefined,
                       fontStyle: cell?.style?.italic ? "italic" : undefined,
                       textDecoration: cell?.style?.underline
                         ? "underline"
                         : cell?.style?.strike
                           ? "line-through"
                           : undefined,
-                      color: cell?.style?.fontColor ? `#${cell.style.fontColor}` : undefined,
+                      color: cond?.fontColor
+                        ? `#${cond.fontColor}`
+                        : cell?.style?.fontColor
+                          ? `#${cell.style.fontColor}`
+                          : undefined,
                       background: displayBackground,
                       textAlign: (cell?.style?.align as CSSProperties["textAlign"]) ?? undefined,
                       whiteSpace: isFrozenRow ? "nowrap" : cell?.style?.wrap ? "pre-wrap" : "nowrap",

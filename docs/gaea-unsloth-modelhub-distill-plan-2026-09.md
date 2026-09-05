@@ -58,6 +58,7 @@ MH1 → MH2 → MH3（两把小刀可并行，均零绑定）→ MH4（依赖 MH
 
 - **API 面全清单核验**（herdsman-api-docs-2026-08-13，git 历史 f0332aeb^）：`/v1/models`、chat/completions、embeddings、rerank、anthropic/messages、images/*、ocr、documents/parse、audio/*、`/api/benchmarks`——**零 load/unload/keep-alive/加载状态端点**。模型生命周期完全由 herdsman 服务端内部管理，`/v1/models` 是能力清单而非已加载状态，gaea 客户端没有 MH2/MH4 的着力点。
 - **MH1 同类让位不适用**：文档未记载「省略采样参数→服务端按模型自动调优」机制，行为未证实前改请求构造是无依据的行为变更。唯一动作=**观察项 HS-obs**：真机一次 `curl` 实验对比「带/不带 temperature」的响应差异，证实服务端有默认采样调优后再议。
+- **HS-obs 实测补充（2026-09-06，herdsman 在跑 v0.6.4-0-ga95fb2fb）**：`/props`、`/v1/props` 均 404——llama.cpp 式「采样默认参数外露」端点不存在，服务端采样面**无法从外部观测**；`/api/benchmarks` 可读（自报基准记录）。结论：HS-obs 无判定性实验设计，**坐实不立项**。
 - 已有的 `HerdsmanModelCatalog` 只读目录（v4.101 线 B）已覆盖「能力分族展示」，MH3 同类引导无增量。
 
 ### 6.2 ComfyUI（internal/ai/image_comfyui.go）——预热最大受益者（CU1–CU3）
@@ -89,6 +90,8 @@ MH1 → MH2 → MH3（两把小刀可并行，均零绑定）→ MH4（依赖 MH
 | 加载时间 | 27s（热页缓存，unsloth 先读过该文件） | 冷 50s；热加载在 herdsman 常驻时 >2min（内存挤占，剩 20.9GB） | **口径不齐，不下结论** |
 
 **修正 §六/§三口径**：「modelhub 大概率更快」不成立——**本机解码 herdsman 更快，unsloth 赢在 TTFT**。herdsman 的 2.8s 固定首字开销与算力无关（prompt 46 token 且 42 命中缓存），属 herdsman 网关/调度层问题；若该开销可配置消除，herdsman 全面占优。
+
+**HS-obs-2 数据点（2026-09-06）**：`/api/benchmarks` 显示 herdsman 自报基准 `avg_ttft_ms=119`、`avg_tps≈57.4`（Qwen3.6-35B Q4_K_P-2，4096 ctx standard）——**TTFT 119ms 说明其管线路径本身能做到百毫秒级首字**，§7 实测的 2.8s 固定开销不是模型/算力上限，而是真实聊天路径与 bench 路径的网关/调度差异（herdsman 侧配置问题，gaea 不可改，维持观察）。
 
 **落到 gaea 的动作**：① MH1 补一条——modelhub 引擎请求默认携带 `chat_template_kwargs.enable_thinking=false`（专业秘书人设直答；乐园人格另议）；② herdsman 2.8s 固定开销立为观察项 HS-obs-2（查 herdsman 网关配置/版本，非 gaea 侧可改）；③ 「迁 herdsman 模型到 unsloth」**不推荐**作为提速手段——收益只在短答 TTFT，长答与解码均输。
 

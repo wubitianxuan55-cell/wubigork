@@ -662,6 +662,19 @@ export interface XlsxSheet {
   colWidths?: Record<string, number>;
   freeze?: { row?: number; col?: number }; // 冻结窗格（表头）
   truncated?: boolean;
+  // 条件格式（CellIs 静态可判定子集；后端 xlsxpreview/condfmt.go 提取）
+  condRules?: XlsxCondRule[];
+  condSkipped?: number; // 无法静态判定而被跳过的规则数
+}
+
+export interface XlsxCondRule {
+  range: string; // "D2:D100"（sqref 单段）
+  op: "greaterThan" | "lessThan" | "greaterThanOrEqual" | "lessThanOrEqual" | "equal" | "notEqual" | "between" | "notBetween";
+  formulas: string[]; // 常量阈值（数字原文或带引号文本）
+  priority?: number; // Excel 优先级（小者先行）
+  fill?: string; // 6 位 hex
+  fontColor?: string;
+  bold?: boolean;
 }
 
 export interface XlsxPreview {
