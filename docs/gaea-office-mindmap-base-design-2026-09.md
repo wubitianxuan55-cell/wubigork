@@ -1,6 +1,7 @@
 # gaea 办公板块新增能力设计：思维导图 + 多维表（gaea 原生）
 
-> 状态：设计稿（未改任何功能代码）。2026-09-05 用户拍板办公板块新增两能力；承接
+> 状态：M1 / B1 已实施（2026-09-05，均零绑定面，vitest 1898 全绿）；M2 / B2 待拍板。
+> 2026-09-05 用户拍板办公板块新增两能力；承接
 > docs/gaea-dsh-univer-office-distill-plan-2026-09.md 方针「取道不取器」——dsh-univer-office
 > 的 Base（多维表格）/Board（含思维导图分支）为 Univer Pro 承载，本文裁定其**能力本身**
 > 以 gaea 原生形态实现，引擎/私有格式零引入。
@@ -127,8 +128,8 @@
 
 | 刀 | 内容 | 绑定面 | 档位 |
 |---|---|---|---|
-| **M1** | `.md` 导图视图切换 + 自研交互树（解析纯函数+单测先行） | 0 | 小刀 |
-| **B1** | `.gbase.json` schema + XlsxPreview 视图层（分组/筛选/排序/着色）+ agent 技能条款 | 0 | 中刀 |
+| **M1** | `.md` 导图视图切换 + 自研交互树（解析纯函数+单测先行） | 0 | 小刀（✅ 已实施 lib/mindmap.ts + MindMapView，双入口 FilePreview/FilePreviewModal） |
+| **B1** | `.gbase.json` schema + XlsxPreview 视图层（分组/筛选/排序/着色）+ agent 技能条款 | 0 | 中刀（✅ 已实施 lib/gbase.ts + GbaseGroupedView；**agent 技能条款随 U1 office-edit 补**） |
 | **M2** | 画布编辑回写大纲（拍板后） | 0 | 中刀 |
 | **B2** | 看板拖拽 + 字段面板 + 可选 validate 工具（拍板后） | 0~1 | 中刀 |
 
