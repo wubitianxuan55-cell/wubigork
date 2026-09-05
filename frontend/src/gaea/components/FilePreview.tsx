@@ -197,11 +197,13 @@ export function FilePreview({
     setEditing(true);
   }, [preview]);
 
-  const save = useCallback(async () => {
+  // M2 导图画布编辑：override 传入画布序列化的规范大纲（导图保存条 / Ctrl+S），
+  // 其余走内联文本编辑的 draft。
+  const save = useCallback(async (override?: string) => {
     if (!relPath) return;
     setSaveState("saving");
     try {
-      await app.WriteFile(relPath, draft);
+      await app.WriteFile(relPath, override ?? draft);
       setDirty(false);
       setSaveState("saved");
       toast.show("已保存到工作区", "info");
@@ -581,7 +583,7 @@ export function FilePreview({
             {mdView === "mindmap" ? (
               // M1 导图视图：内层自管平移/缩放，外层容器不再给 max-w 排版
               <div className="h-full min-h-[420px]">
-                <MindMapView text={preview.body} title={fileName} />
+                <MindMapView text={preview.body} title={fileName} onSave={(t) => void save(t)} />
               </div>
             ) : (
               <div className="px-4 py-3 max-w-[860px] mx-auto">

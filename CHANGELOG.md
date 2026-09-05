@@ -1,3 +1,11 @@
+## v4.108.0 · 导图画布编辑 M2 自研 v1：改名/增删/拖拽挂载 · 规范大纲回写（2026-09-06）
+> 已批刀序 M2，选型按蒸馏纪律定为自研（与 M1 自研树同构，不引 mind-elixir，决策可逆）；绑定面 **585** 零变更。详见 releases/v4.108.0.md。
+- **纯函数层（lib/mindmapEdit.ts 新增）**：不可变树操作 addChild/addSibling/rename/remove/move（守卫=根不可删拖/不挂自身/目标在拖动子树内拒绝成环，文本去换行截 120）+ `serializeMindmapOutline` 规范序列化（root→H1、depth1→H2、depth≥2→嵌套列表），parse∘serialize 结构幂等（单测钉死）。
+- **MindMapView 编辑态**：onSave 传入且纯大纲时启用——单击选中（带子节点节点保留 M1 折叠切换）、双击改名、Tab 加子/Enter 加同级/Delete 删、HTML5 拖拽挂载；脏态保存条（Ctrl+S/保存/放弃）回写规范大纲，FilePreview save(override) 复用既有 WriteFile+Preview 回读状态机。
+- **防丢内容闸**：parseMindmapOutline 上报 skipped（未进大纲的非空行：段落/代码块/围栏标记）；混合内容或截断解析时编辑闸关闭并如实提示——回写会丢非大纲内容，宁禁勿损。未传 onSave 保持 M1 只读行为零变化（M1 测试原样全绿）。
+- 测试：mindmapEdit 7 例（操作守卫/序列化/幂等）+ MindMapView 4 例（改名回写/增删/混合内容闸/只读兼容）。门禁：Go 全量绿（零 Go 改动例行回归）、vitest 2068/2068、tsc -b/eslint 0、drift PASS@585。
+- 欠账：M2 后半（拖拽挂载的真机手感、节点折叠态在编辑后的保持策略）；真机走查待样例。
+
 ## v4.107.0 · 多维表 B2 首刀：看板视图（泳道=select 列 · 拖拽改值直编）（2026-09-06）
 > 已批刀序 M1→B1→M2/B2 的余件；绑定面 **585** 零变更。详见 releases/v4.107.0.md。
 - **看板视图（GbaseBoardView 新组件）**：.gbase.json 视图 `type:"board"` 放行（须带 groupBy=泳道列）——groupBy 列值分泳道、行=卡片（cardFields 首字段=卡标题、其余卡面行，缺省取前 4 字段），复用 B1 既有 filter/sort/colorRules 计算（applyGbaseView 同源）。

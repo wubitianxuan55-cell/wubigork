@@ -18,6 +18,9 @@ export interface MindmapParseResult {
   count: number;
   /** 触发节点上限被截断（继续消费行以维持围栏状态，但不再建节点）。 */
   truncated: boolean;
+  /** 未进大纲的非空行数（段落/代码块/围栏标记等）。>0 = 混合内容文件，
+   * 画布编辑回写会丢这些内容 → M2 编辑闸据此禁用（防数据丢失）。 */
+  skipped: number;
 }
 
 export const MINDMAP_MAX_NODES = 500;
@@ -60,6 +63,7 @@ export function parseMindmapOutline(text: string, fallbackTitle: string): Mindma
   let truncated = false;
   let sawH1 = false;
   let lastHeadingDepth = -1;
+  let skipped = 0;
   const stack: MindNode[] = [root];
   let idSeq = 1;
   let inFence = false;
@@ -73,11 +77,18 @@ export function parseMindmapOutline(text: string, fallbackTitle: string): Mindma
   for (const rawLine of text.split(/\r?\n/)) {
     if (/^\s*(```|~~~)/.test(rawLine)) {
       inFence = !inFence;
+      skipped++; // 围栏标记本身也是内容，回写会丢
       continue;
     }
-    if (inFence) continue;
+    if (inFence) {
+      if (rawLine.trim() !== "") skipped++;
+      continue;
+    }
     const token = toToken(rawLine);
-    if (!token || token.text.trim() === "") continue;
+    if (!token || token.text.trim() === "") {
+      if (rawLine.trim() !== "") skipped++; // 段落等非大纲文本
+      continue;
+    }
 
     if (count >= MINDMAP_MAX_NODES) {
       truncated = true;
@@ -107,7 +118,7 @@ export function parseMindmapOutline(text: string, fallbackTitle: string): Mindma
     added.text = stripCheckbox(added.text).slice(0, MAX_NODE_TEXT);
     count++;
   }
-  return { root, count, truncated };
+  return { root, count, truncated, skipped };
 }
 
 // ─── 布局（右向逻辑树）────────────────────────────────────────────
