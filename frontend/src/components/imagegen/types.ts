@@ -17,6 +17,8 @@ export interface GenResult {
   denoise?: number
   frames?: number
   fps?: number
+  /** T2 角色参考槽：本次生成引用的角色 ID（进溯源登记） */
+  characterId?: string
   customWidth?: number
   customHeight?: number
 }
@@ -38,6 +40,9 @@ export interface GenTask {
   denoise: number
   frames: number
   fps: number
+  /** T2 角色参考槽：角色 ID 与全部参考图（data URL；首张作图生图种子） */
+  characterId?: string
+  refImages?: string[]
 }
 
 export type QueueStatus = 'pending' | 'running' | 'done' | 'failed' | 'canceled'

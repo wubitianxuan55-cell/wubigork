@@ -249,7 +249,14 @@ func (a *writingState) SetCharacterPortrait(charID string, imageData string) err
 	if a.characterAgent == nil {
 		return fmt.Errorf("请先打开项目")
 	}
-	return a.characterAgent.SetPortrait(charID, imageData)
+	if err := a.characterAgent.SetPortrait(charID, imageData); err != nil {
+		return err
+	}
+	// T1：剧照保存成功后登记进图像域 ledger（失败只 warn，不影响主流程）。
+	if cf := a.characterAgent.GetCharacters(); cf != nil {
+		registerCharacterPortraitAsset(gaeaCwd(), cf.Characters, charID)
+	}
+	return nil
 }
 
 // SaveCharactersBatch 批量创建章节新发现角色。

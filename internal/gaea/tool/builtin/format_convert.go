@@ -4,9 +4,11 @@ package builtin
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/gaea/gaea/internal/gaea/tool"
 	"github.com/gaea/gaea/internal/office/docmd"
@@ -48,15 +50,23 @@ type fcInput struct {
 func (formatConvert) Execute(ctx context.Context, args json.RawMessage) (string, error) {
 	var p fcInput
 	if err := json.Unmarshal(args, &p); err != nil {
-		return "", fmt.Errorf("参数无效: %w", err)
+		return "", codedError("FORMAT_INVALID_ARGS", "参数无效: %v", err)
 	}
 	if p.Path == "" {
-		return "", fmt.Errorf("path 不能为空")
+		return "", codedError("FORMAT_INVALID_ARGS", "path 不能为空")
 	}
 
 	md, total, truncated, err := docmd.ConvertLimit(p.Path, p.Pages, docmd.DefaultMaxPDFPages)
 	if err != nil {
-		return "", err
+		// U1 错误码：模型按 code 路由恢复（换路径/如实告知不支持），不解析散文
+		switch {
+		case strings.Contains(err.Error(), "不支持的文件格式"):
+			return "", codedError("FORMAT_UNSUPPORTED", "%v", err)
+		case errors.Is(err, os.ErrNotExist) || os.IsNotExist(err):
+			return "", codedError("FORMAT_SOURCE_MISSING", "源文件不存在: %s（%v）", p.Path, err)
+		default:
+			return "", codedError("FORMAT_CONVERT_FAILED", "%v", err)
+		}
 	}
 	if truncated {
 		md += fmt.Sprintf("\n\n> 转换已截断：PDF 共 %d 页，本次仅处理前 %d 页。可指定 pages 参数分段转换，或使用 summarize_file 获取全文摘要。",
@@ -69,11 +79,11 @@ func (formatConvert) Execute(ctx context.Context, args json.RawMessage) (string,
 		// 指向不存在的目录时 os.WriteFile 会失败，导致“没有生成文件”。
 		if dir := filepath.Dir(p.Output); dir != "" && dir != "." {
 			if err := os.MkdirAll(dir, 0o755); err != nil {
-				return "", fmt.Errorf("创建输出目录失败: %w", err)
+				return "", codedError("FORMAT_OUTPUT_WRITE_FAILED", "创建输出目录失败: %v", err)
 			}
 		}
 		if err := os.WriteFile(p.Output, []byte(md), 0o644); err != nil {
-			return "", fmt.Errorf("写入输出文件失败: %w", err)
+			return "", codedError("FORMAT_OUTPUT_WRITE_FAILED", "写入输出文件失败: %v", err)
 		}
 		return tool.WrapText(fmt.Sprintf("已转换并保存为 %s（%d 字符）", p.Output, len(md))), nil
 	}

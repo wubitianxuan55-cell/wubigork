@@ -92,6 +92,7 @@ gaea/
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| **v4.98.0** | 2026-09-05 | 图像域 T0 契约落地（绑定面 579→581）：五原语能力注册表（识图-读/懂、生图、图示；改图 fail-closed）+ Asset Ledger v1 按空间 JSONL 溯源登记（只存路径+元数据）+ 模型中心目录只读视图；试点书封/绘梦登记、OCR/识图入口校验；T1 提前量（章节配图落盘登记+本章历史配图、绘梦「素材库」tab、角色剧照溯源）；T2 参考槽 v0（选角色→参考图图生图近似，ipadapter/pulid 诚实拒绝）；办公 U1 FORMAT_* 错误码 + office-edit 技能；修登记闸测试污染；vitest 245/1898、Go 全量 0 FAIL、drift PASS（581） |
 | **v4.97.0** | 2026-09-05 | GenUI 蒸馏（绑定面 579 零变更）：蒸馏 dsh-genui——回答内嵌 ```genui 围栏渲染为白名单交互组件（34 种：stat/table/chart/表单/Quiz 本地判卷/action 回传），办公与聊天双板块渲染；办公右栏「UI」会话面板 REPLACE/APPEND 原地更新；genui inline 技能 + genui_validate 校验工具；vitest 241/1860、Go 全量 0 FAIL、drift PASS（579）、生产构建通过 |
 | **v4.96.0** | 2026-09-05 | 三线并行（绑定面 579 零变更）：三级下钻收尾（Token 卡→趋势锚点，中期候选四条全落地）；Verifier 通道 B 逐页缩略图（零绑定变更，四态诚实降级，走查实锤修复 updater 副作用/liveRef 两真缺陷）；pptx 真编辑设计文档待拍板；vitest 1825/1825、Go 全量 0 FAIL、drift PASS（579） |
 | **v4.95.0** | 2026-09-05 | 三线并行收欠账（绑定面 579 零变更）：docx/xlsx 版本对比迁移 ChangesDiff 统一查看器（marker 列保段落号/单元格 ref，配对改蓝+字符级高亮）；README 级内嵌 HTML 白名单渲染（rehype-raw+rehype-sanitize 显式 schema，GFM checkbox 保留）；子代理队列非唯一命中交互式选择器（宁缺勿错不变）；vitest 1786/1786、Go 全量 0 FAIL、drift PASS（579） |

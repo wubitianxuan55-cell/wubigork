@@ -140,6 +140,51 @@ export async function readFileAsDataURL(path: string): Promise<string> {
   return App.GaeaAttachmentDataURL(path)
 }
 
+/** 图像域登记视图（ImageHubAssets 绑定，T1 画室素材库）。 */
+export interface ImageHubAssetView {
+  id?: string
+  kind?: string
+  path?: string
+  mime?: string
+  space?: string
+  source_board?: string
+  capability?: string
+  backend?: string
+  model?: string
+  cost?: string
+  created_at?: string
+  prompt_truncate?: string
+  params?: Record<string, unknown>
+}
+
+/** 章节插图清单条目（ChapterArtList 绑定，T1）。 */
+export interface ChapterArtEntry {
+  chapter?: number
+  asset_id?: string
+  path?: string
+  created_at?: string
+}
+
+/** 画室素材读取：按空间/来源筛选（失败 = 空列表，登记是辅助视图）。 */
+export async function imageHubAssets(space: string, sourceBoard: string, limit: number): Promise<ImageHubAssetView[]> {
+  try {
+    const res = await App.ImageHubAssets(space, sourceBoard, limit)
+    return Array.isArray(res) ? res as unknown as ImageHubAssetView[] : []
+  } catch (_) {
+    return []
+  }
+}
+
+/** 章节插图清单读取（失败 = 空列表，不阻断主流程）。 */
+export async function chapterArtList(chapterNum: number): Promise<ChapterArtEntry[]> {
+  try {
+    const res = await App.ChapterArtList(chapterNum)
+    return Array.isArray(res) ? res as unknown as ChapterArtEntry[] : []
+  } catch (_) {
+    return []
+  }
+}
+
 export interface ComfyTaskProgress {
   status: string
   elapsed: number
@@ -177,6 +222,10 @@ export interface MediaParams {
   denoise?: number
   frames?: number
   fps?: number
+  /** T2 角色参考槽：角色 ID 与参考图列表（data URL；首张作图生图种子） */
+  characterId?: string
+  refImages?: string[]
+  refMethod?: string
 }
 
 /** 多模式媒体生成（绘梦页：图生图 / 文生视频） */

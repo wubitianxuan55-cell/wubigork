@@ -1,3 +1,12 @@
+## v4.98.0 · 图像域 T0 契约落地：登记底座 · 素材库 · 参考槽 v0（2026-09-05）
+> 图像能力域第一步（设计 docs/gaea-image-domain-t0-contract-design-2026-09.md）；**绑定面 579→581**（+ImageHubAssets/ChapterArtList 只读）。详见 releases/v4.98.0.md。
+- **T0 契约与试点**：五原语能力注册表（识图-读/懂、生图、改图=未实现 fail-closed、图示）+ Asset Ledger v1（按空间 append-only JSONL，play=.gaea/play/imagehub/assets.jsonl，只存路径+溯源元数据，坏行容错、上限折叠不删文件）+ 模型中心目录只读静态视图（档位/成本，未知模型诚实留空）；三试点接线：书封/绘梦落盘登记（失败只 warn 不拖垮生成）、GaeaOCRText/GaeaRecognizeImage 入口经注册表校验（行为不变）。
+- **T1 提前量**：章节配图落盘 play exports + 登记 + 项目清单（.gaea/play/art/chapter-art.json，ChapterArtList 只读取）；绘梦任务中心新增「素材库」tab（读 ledger 缩略卡：模型/成本/来源/时间）；角色剧照保存后进溯源（characterlib）。
+- **T2 参考槽 v0**：绘梦左栏选角色库角色 → 自动取参考图（≤4 张，首张作图生图种子）载入图生图；ComfyUI 文生图带参考自动转图生图，ipadapter/pulid 诚实报错未实现；GLM/开放端点不支持参考图时诚实拒绝；character_id 随生成进登记。
+- **办公纪律两刀**：U1 工具错误码——format_convert 全出口改 `Error [FORMAT_*]` 结构化错误（INVALID_ARGS/SOURCE_MISSING/UNSUPPORTED/CONVERT_FAILED/OUTPUT_WRITE_FAILED），模型按 code 路由恢复；内置 office-edit 技能（先读后写、写后回读验证、宁拒不误改、逐 run 编辑防丢格式、soffice 渲染取证、错误码路由、.gbase.json/思维导图纪律）。
+- **修复**：图像域登记运行态闸测试进程污染——闸改为 `App.Startup` 显式武装位（原 gaeaCfgSnapshot()!=nil 在 app 包测试恒真，登记写进源码树 internal/app/.gaea/），测试进程恒不落盘，附回归钉。
+- 门禁：Go 全量 0 FAIL、tsc -b/eslint 0、vitest 245 文件/1898 用例全绿（净增 4 文件/38 用例）、drift PASS（581）、冒烟 200；v4.97.0 tag 树隔离 worktree 验证（Go/tsc）补做通过。
+
 ## v4.97.0 · GenUI 蒸馏：回答即 UI · 办公会话面板（2026-09-05）
 > 蒸馏 dsh-genui（MIT，快照 680693e）；**绑定面 579 零变更**。详见 releases/v4.97.0.md。
 - **共享内核 frontend/src/genui**：34 种白名单组件（布局/展示/轻图表/代码/交互/quiz），

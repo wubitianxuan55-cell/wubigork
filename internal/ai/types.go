@@ -180,19 +180,21 @@ type ModelsResponse struct {
 
 // ImageGenerationRequest POST /v1/images/generations
 type ImageGenerationRequest struct {
-	Model            string                                  `json:"model"`
-	Prompt           string                                  `json:"prompt"`
-	Negative         string                                  `json:"negative,omitempty"`
-	N                int                                     `json:"n,omitempty"`
-	Size             string                                  `json:"size,omitempty"`
-	ResponseFormat   string                                  `json:"response_format,omitempty"` // "url" 或 "b64_json"
-	Seed             int                                     `json:"seed,omitempty"`
-	Lora             string                                  `json:"lora,omitempty"`       // LoRA 文件名（逗号分隔多个）
-	Mode             string                                  `json:"mode,omitempty"`       // txt2img | img2img | t2v
-	InitImage        string                                  `json:"init_image,omitempty"` // img2img 参考图（base64 data URL）
-	Denoise          float64                                 `json:"denoise,omitempty"`    // img2img 重绘幅度 0-1
-	Frames           int                                     `json:"frames,omitempty"`     // t2v 帧数
-	FPS              int                                     `json:"fps,omitempty"`        // t2v 帧率
+	Model          string   `json:"model"`
+	Prompt         string   `json:"prompt"`
+	Negative       string   `json:"negative,omitempty"`
+	N              int      `json:"n,omitempty"`
+	Size           string   `json:"size,omitempty"`
+	ResponseFormat string   `json:"response_format,omitempty"` // "url" 或 "b64_json"
+	Seed           int      `json:"seed,omitempty"`
+	Lora           string   `json:"lora,omitempty"`       // LoRA 文件名（逗号分隔多个）
+	Mode           string   `json:"mode,omitempty"`       // txt2img | img2img | t2v
+	InitImage      string   `json:"init_image,omitempty"` // img2img 参考图（base64 data URL）
+	RefImages      []string `json:"ref_images,omitempty"` // T2 一致性参考槽（data URL/本地路径）
+	RefMethod      string   `json:"ref_method,omitempty"` // ""|"img2img" 现支持；"ipadapter"|"pulid" 排期中
+	Denoise        float64  `json:"denoise,omitempty"`    // img2img 重绘幅度 0-1
+	Frames         int      `json:"frames,omitempty"`     // t2v 帧数
+	FPS            int      `json:"fps,omitempty"`        // t2v 帧率
 	// ProgressCallback 生成进度回调（status/elapsedSeconds/percent(-1=未知)/node 当前节点 class_type）。
 	// 仅 ComfyUI 后端会带上真实 percent 与 node；其余后端 percent 恒为 -1。
 	ProgressCallback func(status string, elapsedSeconds int, percent int, node string) `json:"-"`

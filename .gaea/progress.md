@@ -1,6 +1,10 @@
 # 任务进度
 
-> 最后更新: 2026-09-05（v4.96.0「三线并行：下钻联动收尾 · Verifier 逐页
+> 最后更新: 2026-09-05（v4.98.0「图像域 T0 契约落地：登记底座 · 素材库 ·
+> 参考槽 v0」，579→581；v4.97.0「GenUI 蒸馏：回答即 UI · 办公会话面板」
+> 579 零变更——**补记：该版发布说明/产物/SHA256 齐备但当时漏 commit+tag，
+> 本会话已补提交 e9baae3c + tag v4.97.0，并经隔离 worktree 门禁验证**；
+> v4.96.0「三线并行：下钻联动收尾 · Verifier 逐页
 > 缩略图 · pptx 真编辑设计」，579 零变更；v4.95.0「三线并行收欠账：版本
 > 对比入统一查看器 · README 内嵌 HTML 白名单 · 子代理歧义选择器」，579
 > 零变更；v4.94.0「Agent 网络会话跳转」，578→579；
@@ -23,6 +27,40 @@
 > 索引（101 个发布说明）已刷新。本会话另落 GitHub 市场调研三路
 > （docs/research-2026-09-05/ + market-research-2026-09-05.md）与
 > 长期规划回填）
+
+## 最新发布：v4.98.0（2026-09-05）「图像域 T0 契约落地：登记底座 · 素材库 · 参考槽 v0」
+
+- 图像能力域第一步（设计 docs/gaea-image-domain-t0-contract-design-2026-09.md，
+  权威路线 docs/gaea-image-domain-longterm-plan-2026.md）。**绑定面 579→581**
+  （+ImageHubAssets/ChapterArtList 只读绑定）。
+- **T0 契约**：五原语能力注册表（识图-读/懂、生图、图示可用；改图 fail-closed）
+  + Asset Ledger v1（按空间 append-only JSONL：play=.gaea/play/imagehub/
+  assets.jsonl、work=.gaea/imagehub/assets.jsonl；只存路径+溯源元数据，坏行
+  容错、2000 上限折叠不删文件）+ 模型中心目录只读静态视图（档位/成本，未知
+  模型诚实留空不伪装 0）。三试点：书封登记、绘梦落盘登记（失败只 warn 不拖垮
+  生成）、GaeaOCRText/GaeaRecognizeImage 入口注册表校验（行为不变）。
+- **T1 提前量**：章节配图落盘 play exports + 登记 + 项目清单 chapter-art.json
+  （ChapterArtList 只读取，ChapterIllustration 展示本章历史配图）；绘梦任务
+  中心新增「素材库」tab（ledger 缩略卡：模型/成本/来源/视频/时间）；角色剧照
+  保存后进溯源（characterlib）。
+- **T2 参考槽 v0**：绘梦左栏选角色库角色 → 取参考图（≤4，首张作图生图种子）
+  自动切图生图（denoise 0.65）；ComfyUI txt2img 带参考自动转 img2img，
+  ipadapter/pulid 诚实报错未实现；GLM/OpenAI 兼容端点不支持参考图诚实拒绝；
+  character_id 随生成进登记。
+- **办公纪律两刀**：U1 工具错误码（format_convert 全出口 `Error [FORMAT_*]`
+  结构化：INVALID_ARGS/SOURCE_MISSING/UNSUPPORTED/CONVERT_FAILED/
+  OUTPUT_WRITE_FAILED，模型按 code 路由恢复，蒸馏 dsh-univer-office 拍板项 4）
+  + 内置 office-edit 技能（先读后写/写后回读验证/宁拒不误改/逐 run 编辑/
+  soffice 渲染取证/错误码路由/.gbase.json 与思维导图纪律）。
+- **修复**：登记运行态闸测试进程污染——原闸 gaeaCfgSnapshot()!=nil 在 app 包
+  测试进程恒真（其他测试初始化全局配置），TestGenerateFreeImage_SafeMode 把
+  登记写进源码树 internal/app/.gaea/；改为 App.Startup 显式武装位
+  （imageHubRuntimeArmed），测试进程恒不落盘 + 回归钉。
+- 门禁：Go 全量 0 FAIL（闸修复后复跑）、tsc -b/eslint 0、vitest **245 文件/
+  1898 用例全绿**（净增 4 文件/38 用例）、drift PASS（581）；v4.97.0 tag 树
+  隔离 worktree 验证（Go/tsc）补做通过。真机验收（生成后 assets.jsonl 出
+  登记、素材库 tab、章节配图历史）待用户复验。
+- 详见 releases/v4.98.0.md。
 
 ## 最新发布：v4.96.0（2026-09-05）「三线并行：下钻联动收尾 · Verifier 逐页缩略图 · pptx 真编辑设计」
 
@@ -121,21 +159,25 @@
   自校正）；raw `<input type=radio>` 现剥成空 input，若要支持需拍板；
   vcompare.cellRef/cellOld/cellNew 三键不再被消费（键保留字典）。
 
-## 下会话续做（待办清单，2026-09-05 v4.96.0 后更新）
+## 下会话续做（待办清单，2026-09-05 v4.98.0 后更新）
 
-- **蒸馏规划**：阶段一/二/二.5/三 3a 3b 全部收口；**销账（v4.95+v4.96）**：
-  docx/xlsx 对比迁移 ChangesDiff、README 级内嵌 HTML 白名单、子代理队列
-  非唯一命中交互式确认、Verifier 通道 B 逐页缩略图、三级下钻联动收尾
-  （调研中期候选四条全部落地）。**剩余拍板项**：阶段三 3c 人工沙箱浏览器
-  多开；阶段四真实终端（D1 推荐暂不做）；微信文件收发（抓包前置）；
-  **pptx 真编辑按 docs/gaea-pptx-edit-design-2026-09.md 待拍板（6 项），
-  拍板前不动刀**。
+- **图像域后续（按 longterm-plan 主题线）**：T1 收口——GenerateDiagram 登记
+  接线（media.diagram 原语第二试点）、素材库成本表轻扫更新机制、画室素材库
+  独立页（现仅 TaskCenter tab）；T2 后续——ipadapter/pulid 一致性方法实现、
+  一致性参考槽进角色剧照链；T5 收口——微信识图/造价 OCR 入域、粘贴/附件图
+  入域。真机验收：生成后 assets.jsonl 出登记、素材库 tab、章节配图历史。
+- **蒸馏规划**：阶段一/二/二.5/三 3a 3b 全部收口；v4.95~v4.98 销账见各版
+  说明。**剩余拍板项**：阶段三 3c 人工沙箱浏览器多开；阶段四真实终端
+  （D1 推荐暂不做）；微信文件收发（抓包前置）；**pptx 真编辑按
+  docs/gaea-pptx-edit-design-2026-09.md 待拍板（6 项），拍板前不动刀**。
+- **GenUI P5 剩余（v4.97）**：真模型端到端（办公面板原地更新/聊天出 UI）、
+  ?mock=1 视觉走查、记忆/压缩侧围栏剥离审计（若影响确认）。
 - **Go 小刀候选（v4.96 登记）**：GaeaListDir 补 IsAbs 分支 + 错误透传/
   结构化错误码（缩略图探测降级现依赖错误文案匹配）。
 - **老账**：run_skill AllowedTools 真机观察。
 - **待解锁复核真机验收**：弹层关闭、Git 面板真机操作、CodeMirror 真机
   编辑态、v4.94 径向图跳转、v4.96 缩略图真数据（pdftoppm PNG）。
-- **v4.96 走查新坑**：evaluate click 对热区被遮挡的开关无效
+- **走查新坑（沿记）**：evaluate click 对热区被遮挡的开关无效
   （elementFromPoint 校验后 CUA 真实点击）；antd 菜单/tab 用
   mousedown+mouseup+click 三连 dispatch；mock 样例 dataUrl 为截断 base64
   （仅形状示意，真实产物为 pdftoppm PNG）。

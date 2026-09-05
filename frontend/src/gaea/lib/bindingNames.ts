@@ -1,4 +1,4 @@
-﻿// bindingNames.ts — Go 侧全部导出绑定方法名（由 scripts/gen_bindings -names 生成；勿手改）。
+// bindingNames.ts — Go 侧全部导出绑定方法名（由 scripts/gen_bindings -names 生成；勿手改）。
 export const bindingNames = [
 	"AddCustomEngine",
 	"AddOutlineNode",
@@ -15,6 +15,7 @@ export const bindingNames = [
 	"BuildRichContext",
 	"CancelCreateChapter",
 	"CancelImageGeneration",
+	"ChapterArtList",
 	"CharacterAssociate",
 	"CharacterAssociateTo",
 	"CharacterDelete",
@@ -174,7 +175,6 @@ export const bindingNames = [
 	"GaeaFork",
 	"GaeaGenerateBookCover",
 	"GaeaGetUsdCnyRate",
-	"GaeaHistory",
 	"GaeaGitCommit",
 	"GaeaGitDiff",
 	"GaeaGitDiscard",
@@ -182,7 +182,7 @@ export const bindingNames = [
 	"GaeaGitStage",
 	"GaeaGitStatus",
 	"GaeaGitUnstage",
-	"GaeaSubagentContextView",
+	"GaeaHistory",
 	"GaeaInit",
 	"GaeaJobs",
 	"GaeaJournalList",
@@ -300,6 +300,7 @@ export const bindingNames = [
 	"GaeaSpaceActive",
 	"GaeaSpaceList",
 	"GaeaSteer",
+	"GaeaSubagentContextView",
 	"GaeaSubagentFollowUp",
 	"GaeaSubagentRuns",
 	"GaeaSubagentTranscript",
@@ -431,6 +432,7 @@ export const bindingNames = [
 	"HerdsmanOperations",
 	"HerdsmanProbe",
 	"HerdsmanSecurityCheck",
+	"ImageHubAssets",
 	"ImportNovelBook",
 	"ImportStyleProfile",
 	"InjectMemories",
@@ -582,3 +584,4 @@ export const bindingNames = [
 ] as const
 
 export default bindingNames
+

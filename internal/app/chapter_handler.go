@@ -167,10 +167,41 @@ func (a *writingState) GenerateSceneIllustration(chapterNum int) (map[string]int
 		return nil, fmt.Errorf("未生成图片")
 	}
 
-	return map[string]interface{}{
+	// T1：配图落盘 play exports + 图像域登记（失败只 warn，URL 返回不变）。
+	outPath, saveErr := saveSceneIllustrationToPlayExports(pm, chapterNum, resp)
+	if saveErr != nil {
+		slog.Warn("章节配图落盘失败（继续返回 URL）", "chapter", chapterNum, "error", saveErr)
+	} else {
+		revised := ""
+		if resp.Data[0].RevisedPrompt != "" {
+			revised = resp.Data[0].RevisedPrompt
+		}
+		asset := imageHubAsset{
+			ID:   newImageHubAssetID(),
+			Kind: ImageHubAssetKindImage,
+			Path: outPath,
+			MIME: "image/png",
+		}
+		regErr := recordImageHubGeneratedAsset(gaeaCwd(), "play", "novel", "",
+			"grok-imagine-image-quality", revised,
+			map[string]interface{}{"chapter": chapterNum, "size": "1024x576", "n": 1},
+			asset, nil)
+		if regErr != nil {
+			slog.Warn("章节配图登记失败（不影响生成）", "path", outPath, "error", regErr)
+		}
+		if artErr := appendChapterArt(pm, chapterNum, asset.ID, outPath); artErr != nil {
+			slog.Warn("章节插图清单追加失败（不影响生成）", "path", outPath, "error", artErr)
+		}
+	}
+
+	result := map[string]interface{}{
 		"url":            resp.Data[0].URL,
 		"revised_prompt": resp.Data[0].RevisedPrompt,
-	}, nil
+	}
+	if outPath != "" {
+		result["file_path"] = outPath
+	}
+	return result, nil
 }
 
 // ── v4 场景 API ──────────────────────────────────────────────

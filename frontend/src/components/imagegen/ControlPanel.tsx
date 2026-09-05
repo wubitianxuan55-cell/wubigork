@@ -125,6 +125,9 @@ export interface ControlPanelProps {
   onStartEngine: () => void
   onStopEngine: () => void
   sysStats: SystemStats | null
+  /** T2 角色参考槽 v0：全局角色库中有参考图的角色（可选，缺省不渲染） */
+  refChars?: { id: string; name: string; refCount: number }[]
+  onApplyRef?: (id: string) => void
 }
 
 export const ControlPanel: React.FC<ControlPanelProps> = ({
@@ -139,6 +142,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
   backend, backendSwitching, engineRunning, engineStarting, engineModelCount,
   onSwitchBackend, onStartEngine, onStopEngine,
   sysStats,
+  refChars, onApplyRef,
 }) => {
   const [showNegative, setShowNegative] = React.useState(false)
   const fileRef = React.useRef<HTMLInputElement>(null)
@@ -212,6 +216,29 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
             模板库
           </Button>
         </div>
+
+        {refChars && refChars.length > 0 && (
+          <div>
+            <Typography.Text style={labelStyle}><RobotOutlined />人设参考</Typography.Text>
+            <Select
+              allowClear
+              size="small"
+              placeholder="选角色 → 自动用其参考图打底"
+              style={{ width: '100%' }}
+              options={refChars.map((c) => ({
+                label: `${c.name}（${c.refCount} 张参考）`,
+                value: c.id,
+              }))}
+              {...selectPopupProps}
+              onChange={(v?: string | number) => {
+                if (v && onApplyRef) onApplyRef(String(v))
+              }}
+            />
+            <div style={{ fontSize: 11, color: C('color-text-secondary'), lineHeight: 1.5, marginTop: 5 }}>
+              当前为 v0 图生图近似：选定后自动切到图生图并载入该角色第一张参考图（ComfyUI / Herdsman）。
+            </div>
+          </div>
+        )}
 
         {mode === 'img2img' && (
           <>

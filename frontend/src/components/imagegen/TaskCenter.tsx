@@ -1,16 +1,21 @@
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { Button, Input, Tag, Typography } from 'antd'
 import {
   AppstoreOutlined, CheckCircleOutlined, ClockCircleOutlined, CloseCircleOutlined,
-  DeleteOutlined, HistoryOutlined, LoadingOutlined, MenuFoldOutlined, MenuUnfoldOutlined,
+  DeleteOutlined, FolderOpenOutlined, HistoryOutlined, LoadingOutlined, MenuFoldOutlined, MenuUnfoldOutlined,
   SearchOutlined, ThunderboltOutlined,
 } from '@ant-design/icons'
 import { C } from '../../utils/theme'
 import { HistoryRail } from './HistoryRail'
 import { CATEGORIES, type Template, type CustomTemplate } from '../../data/imageTemplates'
+import { imageHubAssets, readFileAsDataURL, type ImageHubAssetView } from '../../api/image'
 import type { GenResult, QueueEntry, QueueStatus } from './types'
 
-type TabKey = 'queue' | 'recent' | 'templates'
+type TabKey = 'queue' | 'recent' | 'templates' | 'assets'
+
+interface AssetThumb extends ImageHubAssetView {
+  url: string
+}
 
 const STATUS_META: Record<QueueStatus, { label: string; icon: React.ReactNode; color: string }> = {
   pending: { label: '待执行', icon: <ClockCircleOutlined />, color: 'default' },
@@ -42,6 +47,7 @@ interface Props {
 const TABS: { key: TabKey; label: string; icon: React.ReactNode }[] = [
   { key: 'queue', label: '队列', icon: <ThunderboltOutlined /> },
   { key: 'recent', label: '最近结果', icon: <HistoryOutlined /> },
+  { key: 'assets', label: '素材库', icon: <FolderOpenOutlined /> },
   { key: 'templates', label: '模板', icon: <AppstoreOutlined /> },
 ]
 
@@ -53,6 +59,32 @@ export const TaskCenter: React.FC<Props> = ({
   const [tab, setTab] = useState<TabKey>('queue')
   const [collapsed, setCollapsed] = useState(false)
   const [keyword, setKeyword] = useState('')
+  // T1 画室素材库：登记读取（play 空间，最多展示 12 张缩略）。
+  const [assetThumbs, setAssetThumbs] = useState<AssetThumb[]>([])
+  const [activeAsset, setActiveAsset] = useState<AssetThumb | null>(null)
+  const [assetsLoaded, setAssetsLoaded] = useState(false)
+
+  useEffect(() => {
+    if (tab !== 'assets' || assetsLoaded) return
+    let cancelled = false
+    ;(async () => {
+      const list = await imageHubAssets('play', '', 50)
+      if (cancelled) return
+      const items: AssetThumb[] = []
+      for (const a of list) {
+        if (!a.path) continue
+        const url = await readFileAsDataURL(a.path).catch(() => '')
+        if (url) {
+          items.push({ ...a, url })
+          if (items.length >= 12) break
+        }
+      }
+      setAssetThumbs(items)
+      setActiveAsset(items[0] || null)
+      setAssetsLoaded(true)
+    })()
+    return () => { cancelled = true }
+  }, [tab, assetsLoaded])
 
   const activeRunning = queueItems.some((q) => q.status === 'pending' || q.status === 'running')
   const recentCount = history.length
@@ -79,7 +111,9 @@ export const TaskCenter: React.FC<Props> = ({
     return (
       <div className="ig-task-center is-collapsed v3-panel" role="complementary" aria-label="历史与任务队列（已收起）">
         {TABS.map((t) => {
-          const count = t.key === 'queue' ? queueItems.length : t.key === 'recent' ? recentCount : customTemplates.length
+          const count = t.key === 'queue' ? queueItems.length
+            : t.key === 'recent' ? recentCount
+              : t.key === 'assets' ? assetThumbs.length : customTemplates.length
           const active = tab === t.key
           return (
             <button
@@ -111,7 +145,9 @@ export const TaskCenter: React.FC<Props> = ({
       <div className="ig-task-tabs" role="tablist" aria-label="任务中心">
         {TABS.map((t) => {
           const active = tab === t.key
-          const count = t.key === 'queue' ? queueItems.length : t.key === 'recent' ? recentCount : customTemplates.length
+          const count = t.key === 'queue' ? queueItems.length
+            : t.key === 'recent' ? recentCount
+              : t.key === 'assets' ? assetThumbs.length : customTemplates.length
           return (
             <button
               key={t.key}
@@ -139,6 +175,59 @@ export const TaskCenter: React.FC<Props> = ({
       </div>
 
       <div className="ig-task-body" style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', padding: '10px 2px 2px' }}>
+        {tab === 'assets' && (
+          assetThumbs.length === 0 ? (
+            <div className="ig-task-empty">
+              <FolderOpenOutlined style={{ fontSize: 20, color: C('color-text-secondary'), opacity: 0.6 }} />
+              <span>画室素材库还是空的——先在图生图中选角色/上传参考图生成一张</span>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {activeAsset && activeAsset.url && (
+                <div style={{ textAlign: 'center' }}>
+                  <img
+                    src={activeAsset.url}
+                    alt="素材预览"
+                    style={{ maxWidth: '100%', maxHeight: 240, objectFit: 'contain', borderRadius: 10, border: '1px solid var(--border-subtle)' }}
+                  />
+                  <div style={{ marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 4, justifyContent: 'center' }}>
+                    {activeAsset.model && <Tag color="blue">{activeAsset.model}</Tag>}
+                    {activeAsset.cost && <Tag>{activeAsset.cost}</Tag>}
+                    {activeAsset.source_board === 'novel' && <Tag color="purple">小说</Tag>}
+                    {activeAsset.source_board === 'characterlib' && <Tag color="green">角色</Tag>}
+                    {activeAsset.kind === 'video' && <Tag color="orange">视频</Tag>}
+                  </div>
+                  {activeAsset.created_at && (
+                    <div style={{ fontSize: 11, color: C('color-text-secondary') }}>
+                      {activeAsset.created_at}
+                    </div>
+                  )}
+                </div>
+              )}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 5 }}>
+                {assetThumbs.map((a) => (
+                  <button
+                    key={a.path}
+                    type="button"
+                    onClick={() => setActiveAsset(a)}
+                    title={a.path}
+                    style={{
+                      padding: 2, border: '1px solid',
+                      borderColor: activeAsset?.path === a.path ? 'var(--color-primary)' : 'var(--border-subtle)',
+                      borderRadius: 8, background: 'rgba(255,255,255,0.03)', cursor: 'pointer',
+                    }}
+                  >
+                    <img
+                      src={a.url}
+                      alt={a.path || '素材'}
+                      style={{ width: '100%', aspectRatio: '1 / 1', objectFit: 'cover', borderRadius: 6, display: 'block' }}
+                    />
+                  </button>
+                ))}
+              </div>
+            </div>
+          )
+        )}
         {tab === 'queue' && (
           queueItems.length === 0 ? (
             <div className="ig-task-empty">

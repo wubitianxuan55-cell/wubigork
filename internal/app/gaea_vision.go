@@ -48,5 +48,9 @@ func (a *App) GaeaCaptureScreen() (string, error) {
 
 // GaeaRecognizeImage 用本地视觉模型识别图片，返回文本描述（办公板块识图用）。
 func (a *App) GaeaRecognizeImage(imagePath, prompt string) (string, error) {
+	// T0 图像域试点：识图-懂 先经域能力注册表校验（可用性恒定，行为不变）。
+	if _, err := imageDomainEntry(CapabilityVisionUnderstand); err != nil {
+		return "", err
+	}
 	return vision.RecognizeImage(context.Background(), imagePath, prompt)
 }

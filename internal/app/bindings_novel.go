@@ -14,6 +14,7 @@ func (b *NovelB) BuildContextBudget(systemPrompt string, currentScene string, pr
 func (b *NovelB) BuildNovelStatePatch(chapterNum int) (map[string]interface{}, error) { return b.a.BuildNovelStatePatch(chapterNum) }
 func (b *NovelB) BuildRichContext(systemPrompt string, userText string) (map[string]interface{}, error) { return b.a.BuildRichContext(systemPrompt, userText) }
 func (b *NovelB) CancelCreateChapter(chapterNum int, branch string) bool { return b.a.CancelCreateChapter(chapterNum, branch) }
+func (b *NovelB) ChapterArtList(chapter int) []chapterArtEntry { return b.a.ChapterArtList(chapter) }
 func (b *NovelB) CheckConsistency() (map[string]interface{}, error) { return b.a.CheckConsistency() }
 func (b *NovelB) CheckConsistencyDeep(maxChapters int) (map[string]interface{}, error) { return b.a.CheckConsistencyDeep(maxChapters) }
 func (b *NovelB) CmdKEdit(selectedText string, instruction string, styleProfile string) (map[string]interface{}, error) { return b.a.CmdKEdit(selectedText, instruction, styleProfile) }

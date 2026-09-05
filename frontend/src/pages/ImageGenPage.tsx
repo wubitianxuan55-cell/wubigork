@@ -42,6 +42,7 @@ const ImageGenPage: React.FC = () => {
     loraOptions, loraLoading, loraError, refreshComfyLoras,
     backendSwitching, engineRunning, engineStarting, engineModelCount, sysStats,
     modelOptions, characters,
+    refChars, applyRefCharacter, refSlot, clearRefSlot,
     handleSwitchBackend, handleStartEngine, handleStopEngine,
     handleOpenDir, handleOpenNovelDir,
   } = cfg
@@ -59,6 +60,8 @@ const ImageGenPage: React.FC = () => {
       prompt, mode, initImage, backend, negative, size,
       customWidth, customHeight, model, seed, count, selectedLoras,
       denoise, frames, fps,
+      refImages: refSlot?.refs ?? [],
+      characterId: refSlot?.characterId,
     },
   })
   const {
@@ -85,7 +88,8 @@ const ImageGenPage: React.FC = () => {
     setMode(m)
     setResults([])
     setLightboxIndex(-1)
-  }, [setMode, setResults, setLightboxIndex])
+    clearRefSlot()
+  }, [setMode, setResults, setLightboxIndex, clearRefSlot])
 
   // ── 结果操作 ──
   const handlePreviewResult = useCallback((i: number) => {
@@ -263,6 +267,8 @@ const ImageGenPage: React.FC = () => {
             onSwitchBackend={handleSwitchBackend}
             onStartEngine={handleStartEngine} onStopEngine={handleStopEngine}
             sysStats={sysStats}
+            refChars={refChars}
+            onApplyRef={(id) => { void applyRefCharacter(id) }}
           />
         </aside>
 

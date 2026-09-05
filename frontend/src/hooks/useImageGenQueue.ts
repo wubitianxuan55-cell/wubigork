@@ -29,6 +29,9 @@ export interface ImageGenQueueConfig {
   denoise: number
   frames: number
   fps: number
+  /** T2 角色参考槽：角色 ID 与参考图（首张同时作 initImage） */
+  characterId?: string
+  refImages?: string[]
 }
 
 export interface UseImageGenQueueOptions {
@@ -119,6 +122,11 @@ export function useImageGenQueue({ setHistory, setLightboxIndex, config }: UseIm
         mode: task.mode,
       }
       if (task.mode === 'img2img') { mediaParams.initImage = task.initImage; mediaParams.denoise = task.denoise }
+      if (task.mode === 'img2img' && (task.characterId || (task.refImages?.length ?? 0) > 0)) {
+        mediaParams.characterId = task.characterId
+        mediaParams.refImages = task.refImages
+        mediaParams.refMethod = 'img2img'
+      }
       if (task.mode === 't2v') { mediaParams.frames = task.frames; mediaParams.fps = task.fps }
       const res: { error?: string; images?: GenResult[]; results?: GenResult[] } = task.mode === 'txt2img'
         ? await generateImage(task.prompt, task.negative, finalSize, task.model, task.seed, task.count, loraStr)
@@ -133,6 +141,7 @@ export function useImageGenQueue({ setHistory, setLightboxIndex, config }: UseIm
           mode: task.mode,
           count: task.count,
           selectedLoras: task.selectedLoras,
+          characterId: task.characterId,
           denoise: task.denoise,
           frames: task.frames,
           fps: task.fps,
@@ -152,6 +161,7 @@ export function useImageGenQueue({ setHistory, setLightboxIndex, config }: UseIm
           mode: task.mode,
           count: task.count,
           selectedLoras: task.selectedLoras,
+          characterId: task.characterId,
           denoise: task.denoise,
           frames: task.frames,
           fps: task.fps,
@@ -227,6 +237,8 @@ export function useImageGenQueue({ setHistory, setLightboxIndex, config }: UseIm
       model: config.model, seed: config.seed, count: config.count,
       selectedLoras: config.selectedLoras, mode: config.mode, initImage: config.initImage,
       denoise: config.denoise, frames: config.frames, fps: config.fps,
+      characterId: config.mode === 'img2img' ? config.characterId : undefined,
+      refImages: config.mode === 'img2img' ? config.refImages : undefined,
     }
     enqueueTask(task)
   }, [config, enqueueTask])

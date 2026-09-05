@@ -14,6 +14,10 @@ import (
 // 优先使用 Herdsman /v1/ocr（PaddleOCR），其次 /v1/documents/parse（MinerU），
 // 都不可用时回退本地 OvisOCR2。
 func (a *App) GaeaOCRText(imagePath string) (string, error) {
+	// T0 图像域试点：识图-读 先经域能力注册表校验（可用性恒定，行为不变）。
+	if _, err := imageDomainEntry(CapabilityVisionRead); err != nil {
+		return "", err
+	}
 	if imagePath == "" {
 		return "", fmt.Errorf("缺少图片路径")
 	}

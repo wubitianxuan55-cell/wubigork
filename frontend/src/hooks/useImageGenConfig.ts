@@ -4,9 +4,10 @@ import { message } from 'antd'
 import {
   getImageBackendInfo, getCharacters, getComfyUIStatus, getSystemStats,
   getComfyUILoras, startComfyUI, stopComfyUI,
-  openImageSaveDir, openNovelImagesDir,
+  openImageSaveDir, openNovelImagesDir, readFileAsDataURL,
   type SystemStats,
 } from '../api/image'
+import { getCharacter, listCharacters } from '../api/characterlib'
 import { getEngines, testEngineConnection, setActiveEngine, setEngineDefaultModel, type EngineConfig } from '../api/engines'
 import { setImageBackend as setImageBackendAPI } from '../api/settings'
 import { filterLorasByModel, loraFamily, loraFamiliesForModel } from '../utils/loraFilter'
@@ -51,6 +52,10 @@ export function useImageGenConfig() {
   const [sysStats, setSysStats] = useState<SystemStats | null>(null)
 
   const [characters, setCharacters] = useState<{ id: string; name: string }[]>([])
+  // T2 角色参考槽 v0：全局角色库中有参考图的角色（角色资产 → 绘梦入口）。
+  const [refChars, setRefChars] = useState<{ id: string; name: string; refCount: number }[]>([])
+  // T2 角色参考槽：当前选中的角色（ID + 已解析参考图 + 名称；随生成进入溯源）。
+  const [refSlot, setRefSlot] = useState<{ characterId: string; refs: string[]; name: string } | null>(null)
 
   // 系统级后台轮询治理：页面不可见（窗口最小化/切走）时各轮询空转零成本
   const pollable = usePollingGate()
@@ -100,6 +105,23 @@ export function useImageGenConfig() {
         const list = await getEngines()
         setEngines(list || [])
       } catch (_) { /* ignore */ }
+    })()
+  }, [])
+
+  // T2 角色参考槽：加载全局角色库中「有参考图」的角色（供绘梦左栏选择）。
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await listCharacters('', '', false, 1, 200)
+        const withRefs = (res?.items || []).filter((c) => (c.referenceImages?.length ?? 0) > 0)
+        setRefChars(withRefs.map((c) => ({
+          id: c.id,
+          name: c.name || '未命名角色',
+          refCount: c.referenceImages?.length ?? 0,
+        })))
+      } catch (_) {
+        setRefChars([])
+      }
     })()
   }, [])
 
@@ -188,6 +210,40 @@ export function useImageGenConfig() {
     return () => clearInterval(timer)
   }, [backend, pollable])
 
+  // T2 角色参考槽 v0：选定角色 → 取第一张参考图 → 自动切图生图载入（ComfyUI/Herdsman）。
+  const applyRefCharacter = useCallback(async (id: string) => {
+    try {
+      const detail = await getCharacter(id)
+      const refs = detail?.character?.referenceImages || []
+      if (refs.length === 0) {
+        message.warning('该角色暂无参考图，请先在角色库添加')
+        return
+      }
+      const resolved: string[] = []
+      for (const ref of refs) {
+        const dataUrl = ref.startsWith('data:')
+          ? ref
+          : await readFileAsDataURL(ref)
+        if (dataUrl) resolved.push(dataUrl)
+        if (resolved.length >= 4) break // v0 最多取前 4 张（首张作图生图种子）
+      }
+      if (resolved.length === 0) {
+        message.warning('参考图读取失败，请检查文件是否存在')
+        return
+      }
+      setRefSlot({ characterId: id, refs: resolved, name: detail?.character?.name || '角色' })
+      setMode('img2img')
+      setInitImage(resolved[0])
+      setDenoise(0.65)
+      message.success(`已载入「${detail?.character?.name || '角色'}」${resolved.length} 张参考图，输入修改/场景描述后生成`)
+    } catch (err: unknown) {
+      message.error(errText(err, '载入角色参考图失败'))
+    }
+  }, [setMode, setInitImage, setDenoise, setRefSlot])
+
+  // T2 角色参考槽：清空（切模式/手动换参考图时由页面调用，避免过期引用随行）。
+  const clearRefSlot = useCallback(() => setRefSlot(null), [])
+
   // ── 切换后端 ──
   const handleSwitchBackend = useCallback(async (newBackend: string) => {
     if (newBackend === backend) return
@@ -271,6 +327,7 @@ export function useImageGenConfig() {
     comfyLoras, loraOptions, loraLoading, loraError, refreshComfyLoras,
     engines, backendSwitching, engineRunning, engineStarting, engineModelCount, sysStats,
     modelOptions, characters,
+    refChars, applyRefCharacter, refSlot, clearRefSlot,
     handleSwitchBackend, handleStartEngine, handleStopEngine,
     handleOpenDir, handleOpenNovelDir,
   }

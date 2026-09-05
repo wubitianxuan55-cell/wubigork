@@ -259,6 +259,8 @@ func (a *mediaState) GenerateFreeImage(prompt string, negative string, size stri
 			// 未配置专用目录时，自动保存到小说 images/ 目录
 			item.FilePath = a.saveToNovelImages(imageData, fullPrompt)
 		}
+		// T0 图像域试点：绘梦落盘后登记（imagegen/media.generate；失败只 warn）。
+		a.recordImageHubGenerated(item, "txt2img", "")
 		images = append(images, item)
 	}
 
@@ -289,6 +291,10 @@ type mediaGenParams struct {
 	Denoise   float64 `json:"denoise"`   // 重绘幅度 0-1
 	Frames    int     `json:"frames"`    // 视频帧数
 	FPS       int     `json:"fps"`       // 视频帧率
+	// T2 角色参考槽：角色 ID + 参考图（data URL；首张作图生图种子）+ 一致性方法。
+	CharacterID string   `json:"characterId"`
+	RefImages   []string `json:"refImages"`
+	RefMethod   string   `json:"refMethod"`
 }
 
 // GenerateMedia 多模式媒体生成：文生图 / 图生图 / 文生视频（供绘梦页使用）
@@ -316,8 +322,8 @@ func (a *mediaState) GenerateMedia(paramsJSON string) (map[string]interface{}, e
 	if mode == "img2img" && a.cfg.ImageBackend != "comfyui" && a.cfg.ImageBackend != "herdsman" {
 		return map[string]interface{}{"error": "图生图目前支持 ComfyUI / Herdsman 本地后端，请先在左侧切换引擎"}, nil
 	}
-	if mode == "img2img" && strings.TrimSpace(p.InitImage) == "" {
-		return map[string]interface{}{"error": "图生图需要先上传参考图"}, nil
+	if mode == "img2img" && strings.TrimSpace(p.InitImage) == "" && len(p.RefImages) == 0 {
+		return map[string]interface{}{"error": "图生图需要先上传参考图或选择角色参考"}, nil
 	}
 	if strings.TrimSpace(p.Prompt) == "" {
 		return map[string]interface{}{"error": "请输入画面描述"}, nil
@@ -368,6 +374,8 @@ func (a *mediaState) GenerateMedia(paramsJSON string) (map[string]interface{}, e
 			Denoise:   p.Denoise,
 			Frames:    p.Frames,
 			FPS:       p.FPS,
+			RefImages: p.RefImages,
+			RefMethod: p.RefMethod,
 		}
 		if a.cfg.ImageBackend == "comfyui" {
 			imgReq.ProgressCallback = a.updateComfyTaskProgress
@@ -414,6 +422,8 @@ func (a *mediaState) GenerateMedia(paramsJSON string) (map[string]interface{}, e
 				item.FilePath = a.saveMediaToNovelImages(imageData, p.Prompt)
 			}
 		}
+		// T0 图像域试点：多模式媒体落盘后登记（imagegen/media.generate；失败只 warn）。
+		a.recordImageHubGenerated(item, mode, p.CharacterID)
 		results = append(results, item)
 	}
 
@@ -1161,9 +1171,9 @@ func (a *mediaState) GetSystemStats() map[string]interface{} {
 //    直接调 kernel32.dll 原生 API，不依赖 x/sys/windows 符号，全版本可用）──
 
 var (
-	kernel32                  = syscall.NewLazyDLL("kernel32.dll")
-	procGetSystemTimes        = kernel32.NewProc("GetSystemTimes")
-	procGlobalMemoryStatusEx  = kernel32.NewProc("GlobalMemoryStatusEx")
+	kernel32                 = syscall.NewLazyDLL("kernel32.dll")
+	procGetSystemTimes       = kernel32.NewProc("GetSystemTimes")
+	procGlobalMemoryStatusEx = kernel32.NewProc("GlobalMemoryStatusEx")
 )
 
 type winFiletime struct{ LowDateTime, HighDateTime uint32 }
@@ -1171,12 +1181,12 @@ type winFiletime struct{ LowDateTime, HighDateTime uint32 }
 // winMemoryStatusEx 必须与 Windows MEMORYSTATUSEX 完全一致（64 字节）：
 // 2×uint32 + 7×uint64。字段数不对会令 GlobalMemoryStatusEx 失败（返回 0）。
 type winMemoryStatusEx struct {
-	Length               uint32
-	MemoryLoad           uint32
-	TotalPhys, AvailPhys uint64
-	TotalPageFile, AvailPageFile   uint64
-	TotalVirtual, AvailVirtual     uint64
-	AvailExtendedVirtual uint64
+	Length                       uint32
+	MemoryLoad                   uint32
+	TotalPhys, AvailPhys         uint64
+	TotalPageFile, AvailPageFile uint64
+	TotalVirtual, AvailVirtual   uint64
+	AvailExtendedVirtual         uint64
 }
 
 // getCPUUsage 获取 Windows CPU 使用率（%）。

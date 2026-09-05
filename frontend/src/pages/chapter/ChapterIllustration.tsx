@@ -3,6 +3,7 @@ import { Button, Modal, Spin } from 'antd'
 import { ReloadOutlined } from '@ant-design/icons'
 import { GenerateSceneIllustration } from '../../wailsjsCompat'
 import { PortraitImg } from '../../components/characterlib/PortraitImg'
+import { chapterArtList, readFileAsDataURL } from '../../api/image'
 
 /**
  * 章节配图（v4.3g 图文联动前端）：为指定章节生成场景插图。
@@ -35,6 +36,21 @@ export function ChapterIllustration({ chapterNum, onClose }: ChapterIllustration
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<{ url: string; revisedPrompt: string } | null>(null)
+  // T1 画室素材：本章历史配图（后端落盘后登记，本地路径转 data URL 展示）。
+  const [history, setHistory] = useState<{ path: string; url: string; createdAt: string }[]>([])
+  const [activeArt, setActiveArt] = useState(0)
+
+  const loadHistory = useCallback(async () => {
+    if (chapterNum < 1) return
+    const entries = await chapterArtList(chapterNum)
+    const items: { path: string; url: string; createdAt: string }[] = []
+    for (const e of entries.slice(0, 6)) {
+      if (!e.path) continue
+      const url = await readFileAsDataURL(e.path).catch(() => '')
+      if (url) items.push({ path: e.path, url, createdAt: e.created_at || '' })
+    }
+    setHistory(items)
+  }, [chapterNum])
 
   const run = useCallback(async () => {
     if (chapterNum < 1) {
@@ -52,17 +68,20 @@ export function ChapterIllustration({ chapterNum, onClose }: ChapterIllustration
       if (!url) throw new Error('未生成图片')
       const revisedPrompt = typeof data.revised_prompt === 'string' ? data.revised_prompt : ''
       setResult({ url, revisedPrompt })
+      setActiveArt(0)
+      void loadHistory()
     } catch (err) {
       setError(errText(err, '配图生成失败'))
     } finally {
       setLoading(false)
     }
-  }, [chapterNum])
+  }, [chapterNum, loadHistory])
 
   // 打开即加载：挂载即触发一次生成
   useEffect(() => {
     void run()
-  }, [run])
+    void loadHistory()
+  }, [run, loadHistory])
 
   return (
     <Modal
@@ -110,6 +129,43 @@ export function ChapterIllustration({ chapterNum, onClose }: ChapterIllustration
             </div>
           </div>
         ) : null}
+        {!loading && history.length > 0 && (
+          <div style={{ width: '100%', marginTop: 12 }}>
+            <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginBottom: 6 }}>
+              本章历史配图（{history.length}）
+            </div>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'center' }}>
+              {history.map((h, i) => (
+                <button
+                  key={h.path}
+                  type="button"
+                  onClick={() => setActiveArt(i)}
+                  title={`${h.createdAt} · ${h.path}`}
+                  style={{
+                    padding: 2, border: '1px solid',
+                    borderColor: i === activeArt ? 'var(--color-primary)' : 'var(--border-subtle)',
+                    borderRadius: 8, background: 'rgba(255,255,255,0.03)', cursor: 'pointer',
+                  }}
+                >
+                  <img
+                    src={h.url}
+                    alt={`历史配图 ${i + 1}`}
+                    style={{ width: 56, height: 42, objectFit: 'cover', borderRadius: 6, display: 'block' }}
+                  />
+                </button>
+              ))}
+            </div>
+            {history[activeArt] && (
+              <div style={{ marginTop: 8, textAlign: 'center' }}>
+                <PortraitImg
+                  src={history[activeArt].url}
+                  alt="历史配图预览"
+                  style={{ maxWidth: 320, maxHeight: 240, borderRadius: 8 }}
+                />
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </Modal>
   )

@@ -67,9 +67,9 @@ type glmImageRequest struct {
 
 // GenerateImage 调智谱 /images/generations 生成图片。
 func (b *GLMImageBackend) GenerateImage(ctx context.Context, req *ImageGenerationRequest) (*ImageGenerationResponse, error) {
-	if req.Mode == "img2img" || strings.TrimSpace(req.InitImage) != "" {
+	if req.Mode == "img2img" || strings.TrimSpace(req.InitImage) != "" || len(req.RefImages) > 0 {
 		// 官方端点无图生图参数——诚实报错，不静默丢弃参考图。
-		return nil, fmt.Errorf("GLM 生图端点仅支持文生图（官方 images/generations 无图生图参数）")
+		return nil, fmt.Errorf("GLM 生图端点仅支持文生图（官方 images/generations 无图生图/参考图参数）")
 	}
 	model := strings.TrimSpace(req.Model)
 	if model == "" {

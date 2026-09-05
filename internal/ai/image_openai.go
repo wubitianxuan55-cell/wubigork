@@ -53,8 +53,16 @@ func (b *OpenAIImageBackend) GenerateImage(ctx context.Context, req *ImageGenera
 	if req.Mode == "img2img" {
 		// Herdsman 图生图：JSON 请求，image 字段为参考图 base64 data URL
 		endpoint = b.baseURL + "/images/img2img"
-		body, err = b.buildImg2ImgBody(req)
+		// T2 参考槽 v0：未显式给 InitImage 时，取第一张参考图作图生图种子。
+		r := *req
+		if strings.TrimSpace(r.InitImage) == "" && len(req.RefImages) > 0 {
+			r.InitImage = req.RefImages[0]
+		}
+		body, err = b.buildImg2ImgBody(&r)
 	} else {
+		if len(req.RefImages) > 0 {
+			return nil, fmt.Errorf("该后端文生图端点不支持参考图（参考槽当前仅图生图可用）：%s", req.Model)
+		}
 		endpoint = b.baseURL + "/images/generations"
 		body, err = json.Marshal(req)
 	}

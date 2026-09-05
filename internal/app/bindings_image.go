@@ -30,6 +30,7 @@ func (b *ImageB) GetTTSConfig() map[string]interface{} { return b.a.GetTTSConfig
 func (b *ImageB) GetTTSSpeakers(model string) ([]string, error) { return b.a.GetTTSSpeakers(model) }
 func (b *ImageB) GetTTSStatus() map[string]interface{} { return b.a.GetTTSStatus() }
 func (b *ImageB) GetVoicePipelineConfig() map[string]interface{} { return b.a.GetVoicePipelineConfig() }
+func (b *ImageB) ImageHubAssets(space string, sourceBoard string, limit int) []imageHubAssetView { return b.a.ImageHubAssets(space, sourceBoard, limit) }
 func (b *ImageB) OpenImageSaveDir() error { return b.a.OpenImageSaveDir() }
 func (b *ImageB) OpenNovelImagesDir() error { return b.a.OpenNovelImagesDir() }
 func (b *ImageB) SaveTTSConfig(modelPath string, serverPath string, port int, backend string, speed float64) error { return b.a.SaveTTSConfig(modelPath, serverPath, port, backend, speed) }

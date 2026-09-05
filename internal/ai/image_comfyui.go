@@ -219,6 +219,18 @@ func (b *ComfyUIBackend) GenerateImage(ctx context.Context, req *ImageGeneration
 	if mode == "" {
 		mode = "txt2img"
 	}
+	// T2 参考槽 v0：文生图带参考图且方法为 img2img 近似时转图生图（krea2/z-image）；
+	// ipadapter/pulid 未实现 → 诚实报错，不静默忽略参考图。
+	if len(req.RefImages) > 0 {
+		nm, err := comfyResolveRefMode(mode, req.RefMethod)
+		if err != nil {
+			return nil, err
+		}
+		mode = nm
+		if req.InitImage == "" {
+			req.InitImage = req.RefImages[0]
+		}
+	}
 
 	// 解析 LoRA 列表
 	var loras []string
@@ -741,6 +753,22 @@ func (b *ComfyUIBackend) waitForResult(ctx context.Context, promptID string, req
 	}
 }
 
+// comfyResolveRefMode 解析参考槽的一致性方法：""/"img2img" → 图生图近似；
+// 其余方法（ipadapter/pulid）在 ComfyUI 工作流注入实现前诚实拒绝。
+func comfyResolveRefMode(mode, refMethod string) (string, error) {
+	if mode == "img2img" {
+		return mode, nil
+	}
+	switch refMethod {
+	case "", "img2img":
+		return "img2img", nil
+	case "ipadapter", "pulid":
+		return mode, fmt.Errorf("一致性方法 %s 尚未支持（排期中；当前可用 img2img 近似）", refMethod)
+	default:
+		return mode, fmt.Errorf("未知一致性方法: %s", refMethod)
+	}
+}
+
 // pollComfyProgress 订阅 ComfyUI /ws 实时进度（尽力而为，失败静默）。
 // 兼容两种消息：新版 progress_state（nodes{id:{value,max,state}}，节点名经 nodeClasses 映射）
 // 与旧版 progress（data.value/max/node，node 即 class_type）。
@@ -805,9 +833,9 @@ func (b *ComfyUIBackend) pollComfyProgress(ctx context.Context, promptID string,
 				var d struct {
 					ID    string `json:"prompt_id"`
 					Nodes map[string]struct {
-						Value float64 `json:"value"`
-						Max   float64 `json:"max"`
-						State string  `json:"state"`
+						Value  float64 `json:"value"`
+						Max    float64 `json:"max"`
+						State  string  `json:"state"`
 						NodeID string  `json:"node_id"`
 					} `json:"nodes"`
 				}
