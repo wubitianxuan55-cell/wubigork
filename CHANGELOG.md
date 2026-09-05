@@ -1,3 +1,10 @@
+## v4.108.1 · ?mock=1 真浏览器走查：条件格式/看板/导图编辑三链全过 · mock 升级走查态（2026-09-06）
+> 收「新交互组件刀必走 ?mock=1」欠账（v4.96 教训）；零产品缺陷，mock 层升级 + 走查结论入档；绑定面 **585** 零变更。
+- **走查实锤（DOM+计算样式断言）**：①条件格式——金额 120.50 命中 >100 规则，计算样式=红底 rgb(255,199,206)+红字 rgb(156,0,6)+加粗 600（三属性覆盖基础样式）；②看板——4 泳道 4 卡渲染正确，拖卡片跨泳道 → XlsxSetCell 真实改 mock 工作簿 C2 → 预览回读泳道重算（数据驱动泳道：空泳道不保留，记 B2 后半候选）；③导图编辑——双击改名/Tab/Delete/保存条全链通，保存落盘=规范大纲（H1/H2/嵌套列表与设计一致），改名持久化。
+- **mock 升级（走查基建）**：office.ts 静态样例升级会话内可变态（mockXlsxState/mockFileBodies）——XlsxSetCell 真实写内存工作簿、WriteFile 会话内记忆、Preview 保存优先回读；新增「阶段看板」board 视图样例、预算表阶段列+condRules 样例、docs/项目大纲.md 纯大纲样例、FileSearch 索引同步。
+- **走查工具结论**：CUA 真实鼠标输入在后台 IAB 不达页面（document 级监听零捕获）——原生 HTML5 DnD/双击手势的手感验证仍需真人；处理链语义经合成事件（分 tick 派发，同 tick 连发会撞 React 批处理陈旧态——新坑入册）实锤。
+- 门禁：tsc -b/eslint 0、vitest 2068/2068（mock 契约测试全绿）。
+
 ## v4.108.0 · 导图画布编辑 M2 自研 v1：改名/增删/拖拽挂载 · 规范大纲回写（2026-09-06）
 > 已批刀序 M2，选型按蒸馏纪律定为自研（与 M1 自研树同构，不引 mind-elixir，决策可逆）；绑定面 **585** 零变更。详见 releases/v4.108.0.md。
 - **纯函数层（lib/mindmapEdit.ts 新增）**：不可变树操作 addChild/addSibling/rename/remove/move（守卫=根不可删拖/不挂自身/目标在拖动子树内拒绝成环，文本去换行截 120）+ `serializeMindmapOutline` 规范序列化（root→H1、depth1→H2、depth≥2→嵌套列表），parse∘serialize 结构幂等（单测钉死）。

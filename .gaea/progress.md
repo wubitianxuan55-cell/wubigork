@@ -1,6 +1,6 @@
 # 任务进度
 
-> 最后更新: 2026-09-06（v4.108.0「导图画布编辑 M2 自研 v1」，585 零变更；v4.107.0「多维表 B2 首刀：看板视图」，585 零变更；v4.106.0「办公 U4 缺口收口：xlsx 条件格式预览 · herdsman HS-obs 实测销账」，585 零变更；v4.105.0「Model Hub 蒸馏 MH4 常驻预热 · ComfyUI 预热 CU1+量化档位 CU2」，584→585 +WarmComfyUI；v4.104.0「Model Hub 蒸馏 MH1–MH3：采样让位+默认关思考 · 加载状态收敛 · UD 档位引导」，绑定面 584 零变更；v4.103.0「办公搜索对齐 unsloth：web_search url 直取整页 · 结果域名策略过滤 · 日期钉定」，绑定面 584 零变更；v4.102.0「Hub 落库 + 围栏 slot 口径统一 · 图像域 17
+> 最后更新: 2026-09-06（v4.108.1「?mock=1 三链走查全过+mock 走查态升级」，585 零变更；v4.108.0「导图画布编辑 M2 自研 v1」，585 零变更；v4.107.0「多维表 B2 首刀：看板视图」，585 零变更；v4.106.0「办公 U4 缺口收口：xlsx 条件格式预览 · herdsman HS-obs 实测销账」，585 零变更；v4.105.0「Model Hub 蒸馏 MH4 常驻预热 · ComfyUI 预热 CU1+量化档位 CU2」，584→585 +WarmComfyUI；v4.104.0「Model Hub 蒸馏 MH1–MH3：采样让位+默认关思考 · 加载状态收敛 · UD 档位引导」，绑定面 584 零变更；v4.103.0「办公搜索对齐 unsloth：web_search url 直取整页 · 结果域名策略过滤 · 日期钉定」，绑定面 584 零变更；v4.102.0「Hub 落库 + 围栏 slot 口径统一 · 图像域 17
 > 绑定转正 · Model Hub mock」，绑定面 584；Model Hub（Unsloth）并行会话线完结
 > 落库 6cd891df + v4.101 漏提交补录 efe80310；v4.101.0「三线并行：GenUI 围栏
 > Go 侧收口 · 画室模型目录 · 深检误报缓解」，绑定面 581 零变更；v4.100.0
@@ -35,6 +35,14 @@
 > 索引（101 个发布说明）已刷新。本会话另落 GitHub 市场调研三路
 > （docs/research-2026-09-05/ + market-research-2026-09-05.md）与
 > 长期规划回填）
+
+## 最新发布：v4.108.1（2026-09-06）「?mock=1 三链走查全过 + mock 走查态升级」
+
+- **走查实锤（DOM+计算样式）**：①条件格式 B2:B4>100 规则命中，实测红底 FFC7CE/红字 9C0006/加粗 600 三属性覆盖；②看板 4 泳道 4 卡 + 拖拽跨泳道（XlsxSetCell 真改内存工作簿→泳道重算，空泳道不保留=既定语义，固定泳道值列表记 B2 后半候选）；③导图改名/Tab/Delete/保存全链，落盘=规范大纲逐字一致、改名持久。
+- **mock 升级**：office.ts 会话内可变态（mockXlsxState/mockFileBodies，XlsxSetCell/WriteFile 真改+Preview 保存优先回读）；新增阶段列+condRules 样例、board 视图样例、项目大纲.md 纯大纲样例、FileSearch 索引同步。
+- **新坑入册**：①合成事件同 tick 连发撞 React 批处理（dragstart 后立刻 drop 读到陈旧 state），必须分 tick 派发；②CUA 输入对后台 IAB 页面不达（document capture 零捕获），原生 DnD/双击手势走查需真人；③该 Playwright surface 的 locator(selector,{hasText}) 不过滤，要用 .filter({hasText})。
+- 门禁：tsc -b/eslint 0、vitest 2068/2068、drift PASS@585、版本四处 4.108.1。零产品缺陷。
+- 欠账：原生拖拽/双击手感留真人复核；拍板池与真机补验池不变。
 
 ## 最新发布：v4.108.0（2026-09-06）「导图画布编辑 M2 自研 v1」
 

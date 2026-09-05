@@ -123,14 +123,17 @@ export const MOCK_XLSX_BODY = JSON.stringify({
       name: "预算",
       rows: [
         [{ ref: "A1", value: "项目", type: "string", style: { bold: true, fill: "4472C4", fontColor: "FFFFFF", align: "center", border: true } },
-         { ref: "B1", value: "金额", type: "string", style: { bold: true, fill: "4472C4", fontColor: "FFFFFF", align: "center", border: true } }],
-        [{ ref: "A2", value: "设备", type: "string" }, { ref: "B2", value: "120.50", type: "number", style: { numFmt: "0.00%" } }],
-        [{ ref: "A3", value: "人工", type: "string" }, { ref: "B3", value: "80", type: "number", style: { numFmt: "0.00%" } }],
-        [{ ref: "A4", value: "合计", type: "string", style: { bold: true } }, { ref: "B4", value: "200.50", formula: "SUM(B2:B3)", type: "string", style: { bold: true } }],
+         { ref: "B1", value: "金额", type: "string", style: { bold: true, fill: "4472C4", fontColor: "FFFFFF", align: "center", border: true } },
+         { ref: "C1", value: "阶段", type: "string", style: { bold: true, fill: "4472C4", fontColor: "FFFFFF", align: "center", border: true } }],
+        [{ ref: "A2", value: "设备", type: "string" }, { ref: "B2", value: "120.50", type: "number", style: { numFmt: "0.00%" } }, { ref: "C2", value: "设计", type: "string" }],
+        [{ ref: "A3", value: "人工", type: "string" }, { ref: "B3", value: "80", type: "number", style: { numFmt: "0.00%" } }, { ref: "C3", value: "施工", type: "string" }],
+        [{ ref: "A4", value: "合计", type: "string", style: { bold: true } }, { ref: "B4", value: "200.50", formula: "SUM(B2:B3)", type: "string", style: { bold: true } }, { ref: "C4", value: "完成", type: "string" }],
         [{ ref: "A5", value: "合并单元格（mock）", type: "string" }],
       ],
       merged: ["A5:B5"],
-      colWidths: { A: 16, B: 14 },
+      colWidths: { A: 16, B: 14, C: 12 },
+      // v4.106 条件格式走查样例：金额>100 → 红底红字加粗（CellIs 静态子集）
+      condRules: [{ range: "B2:B4", op: "greaterThan", formulas: ["100"], priority: 1, fill: "FFC7CE", fontColor: "9C0006", bold: true }],
     },
     {
       name: "明细",

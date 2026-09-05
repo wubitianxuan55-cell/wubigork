@@ -15,6 +15,14 @@ import {
 } from "./shared";
 import type { MakeMockState } from "./state";
 
+// 走查态（v4.108）：浏览器 mock 从「静态样例」升级为「会话内可变」——
+// XlsxSetCell/WriteFile 真实改动内存状态，Preview 回读即所见，支持
+// 看板拖拽/导图编辑保存的全链真浏览器走查（不落盘，刷新即复位）。
+const mockFileBodies: Record<string, string> = {};
+const mockXlsxState = JSON.parse(MOCK_XLSX_BODY) as {
+  sheets: { name: string; rows: { ref: string; value: string }[][] }[];
+};
+
 type OfficeMethods = Pick<
   AppBindings,
   | "ListDir" | "FileSearch" | "Materials" | "WorkspaceSearch"
@@ -77,6 +85,7 @@ export function buildOffice(_s: MakeMockState): OfficeMethods {
         { path: "README.md", name: "README.md", isDir: false, size: 18, modTime: 0 },
         { path: "desktop/file.go", name: "file.go", isDir: false, size: 42, modTime: 0 },
         { path: "docs/成本测算.xlsx", name: "成本测算.xlsx", isDir: false, size: 120, modTime: 0 },
+        { path: "docs/项目大纲.md", name: "项目大纲.md", isDir: false, size: 96, modTime: 0 },
         { path: "docs/方案.docx", name: "方案.docx", isDir: false, size: 80, modTime: 0 },
         { path: "internal/control", name: "control", isDir: true, size: 0, modTime: 0 },
       ];
@@ -170,8 +179,19 @@ export function buildOffice(_s: MakeMockState): OfficeMethods {
               sort: [{ column: "金额", dir: "desc" }],
               colorRules: [{ column: "金额", op: "gt", value: 100, color: "rgba(99,102,241,0.10)" }],
             },
+            {
+              // B2 看板走查样例：阶段列=泳道，拖卡片改阶段单元格
+              id: "byStage",
+              name: "阶段看板",
+              type: "board",
+              sheet: "预算",
+              groupBy: "阶段",
+              cardFields: ["项目", "金额"],
+            },
           ],
         }),
+        // M2 导图画布编辑走查样例：纯大纲（无段落/代码块）→ 编辑闸放行
+        "docs/项目大纲.md": "# 项目大纲\n## 设计\n- 原型\n- 评审\n## 开发\n- 后端\n- 前端\n",
       };
       return {
         path: rel,
@@ -183,6 +203,8 @@ export function buildOffice(_s: MakeMockState): OfficeMethods {
       const samples: Record<string, string> = {
         "README.md": "# gaea\n\nBrowser-dev workspace preview.\n\n```mermaid\nflowchart LR\n  A[输入] --> B[处理]\n  B --> C[输出]\n```\n\n- Chat in the center\n- Browse files on the right\n- Keep sessions on the left\n\n内嵌 HTML 白名单样例：<b>加粗</b>、<em>强调</em>、<sub>下标</sub>、<details><summary>点开详情</summary>折叠正文，白名单内标签原样渲染。</details>\n\n<script>alert('xss')</script><img src='x' onerror='alert(1)'> 危险标签应被消毒剥除，仅本行文字可见。\n",
         "go.mod": "module gaea\n\ngo 1.23\n",
+        // M2 导图画布编辑走查样例：纯大纲（编辑闸放行）；保存后优先回读 mockFileBodies
+        "docs/项目大纲.md": "# 项目大纲\n## 设计\n- 原型\n- 评审\n## 开发\n- 后端\n- 前端\n",
       };
       const ext = rel.split(".").pop()?.toLowerCase() ?? "";
       if (["png", "jpg", "jpeg", "gif", "webp", "svg"].includes(ext)) {
@@ -206,7 +228,7 @@ export function buildOffice(_s: MakeMockState): OfficeMethods {
         return {
           path: rel, name: rel.split("/").pop() ?? rel, ext: ".xlsx",
           size: 2048, kind: "xlsx" as const,
-          body: MOCK_XLSX_BODY, dataUrl: "", error: "",
+          body: JSON.stringify(mockXlsxState), dataUrl: "", error: "",
         };
       }
       if (ext === "html" || ext === "htm") {
@@ -221,8 +243,8 @@ export function buildOffice(_s: MakeMockState): OfficeMethods {
       if (ext === "md") {
         return {
           path: rel, name: rel.split("/").pop() ?? rel, ext: ".md",
-          size: samples[rel]?.length ?? 0, kind: "markdown" as const,
-          body: samples[rel] ?? "# Mock\n\n预览内容来自浏览器 mock。", dataUrl: "", error: "",
+          size: (mockFileBodies[rel] ?? samples[rel])?.length ?? 0, kind: "markdown" as const,
+          body: mockFileBodies[rel] ?? samples[rel] ?? "# Mock\n\n预览内容来自浏览器 mock。", dataUrl: "", error: "",
         };
       }
       if (ext === "pdf") {
@@ -296,8 +318,13 @@ export function buildOffice(_s: MakeMockState): OfficeMethods {
       };
     },
     async XlsxSetCell(_rel: string, sheet: string, ref: string, value: string) {
+      // 走查态：真实写内存工作簿（看板拖卡片后泳道即时移动）
+      const sh = mockXlsxState.sheets.find((x) => x.name === sheet);
+      const row = sh?.rows.find((r) => r.some((c) => c.ref === ref));
+      const cell = row?.find((c) => c.ref === ref);
+      if (cell) cell.value = value;
       return {
-        preview: MOCK_XLSX_BODY,
+        preview: JSON.stringify(mockXlsxState),
         summary: `（mock）已更新 ${sheet}!${ref} = ${value}`,
         applied: 1,
       };
@@ -750,8 +777,10 @@ export function buildOffice(_s: MakeMockState): OfficeMethods {
     async RollbackRecord(_id: string) {
       // 成功路径：mock 不落盘，返回空即可（前端 toast 透出成功文案）。
     },
-    async WriteFile(_rel: string, _content: string) {
+    async WriteFile(rel: string, content: string) {
       // mock：浏览器开发环境不落盘（真实实现 = GaeaWriteFile 原子写回工作区）。
+      // 走查态：会话内记忆（导图编辑 Ctrl+S 后预览回读可见，刷新即复位）。
+      mockFileBodies[rel] = content;
     },
   };
 }
