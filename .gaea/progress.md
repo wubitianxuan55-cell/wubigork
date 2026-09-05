@@ -1,6 +1,8 @@
 # 任务进度
 
-> 最后更新: 2026-09-05（v4.94.0「Agent 网络会话跳转」，578→579；
+> 最后更新: 2026-09-05（v4.95.0「三线并行收欠账：版本对比入统一查看器 ·
+> README 内嵌 HTML 白名单 · 子代理歧义选择器」，579 零变更；
+> v4.94.0「Agent 网络会话跳转」，578→579；
 > v4.93.0「失败子代理恢复入口 + diff 行内语法着色」，578 零变更；v4.92.0「Mermaid strict 安全线成文 + MemoMarkdown
 > 消毒层」，578 零变更，阶段三 3b 收口；v4.91.0「CodeMirror 语法高亮
 > 编辑器」，578 零变更；v4.89.0
@@ -21,19 +23,51 @@
 > （docs/research-2026-09-05/ + market-research-2026-09-05.md）与
 > 长期规划回填）
 
-## 下会话续做（待办清单，2026-09-05 v4.81.0 后更新）
+## 最新发布：v4.95.0（2026-09-05）「三线并行收欠账」
+
+- 「继续」惯例三线并行子代理（文件所有权互斥），**绑定面 579 零变更**。
+- **刀A docx/xlsx 对比迁移 ChangesDiff**（v4.87 成文计划最后一项销账）：
+  DiffRow 可选 marker 列（docx 段号/xlsx 单元格 ref，pairModifications 整行
+  spread 防丢）；VersionTimeline 对比体经 ChangesDiff；xlsx 每 sheet 一
+  hunk、change 单元格→相邻 del+add 对（改蓝配对+字符级高亮）、formula
+  后缀；diffstat/截断提示/展开全部全保留。
+- **刀B README 级内嵌 HTML 白名单**（3b 遗留销账）：rehype-raw+
+  rehype-sanitize 显式 schema（46 白名单/27 strip/className 按值放行
+  KaTeX+language-*）；协议收口走渲染层（mdUrlTransform+classifyExternalLink；
+  schema.protocols 浅合并坑实测踩中）；transformer 必须 Pluggable 元组否
+  则静默 no-op；**收口修正 GFM 任务列表 checkbox 误伤**（input 移入白名单
+  按值受限 ["type","checkbox"]——styles.css .md input[type=checkbox] 既有
+  样式依赖，红线不许丢）；MemoMarkdown 聊天流有意不动。
+- **刀C 子代理歧义选择器**（老账销账）：matchRunningCandidates 纯函数+
+  歧义两槽位（resolver/handler）；ToolCard 歧义卡可点→App 居中选择器
+  人工挑选跳转；**宁缺勿错不变**（绝不自动跳，0/1 候选与现状一致）；
+  taskpick.* 三语 +7 键。
+- 门禁：Go 全量 0 FAIL、tsc -b/eslint 0、vitest **1786/1786**（净增 28）、
+  drift PASS（579）、SHA256SUMS-v4.95.0.txt 当场生成。**ContextView.test
+  全量负载三连 5s 超时（单独复跑绿、与刀零接触）→ 文件级
+  vi.setConfig({testTimeout:20_000}) 只放宽时限，处置成文**。
+- 走查：?mock=1 README 内嵌 HTML DOM 断言六项过（白名单渲染+消毒剥净；
+  mock README 样例补内嵌 HTML 段）；VersionTimeline 对比/taskpick 歧义
+  mock 不可驱动，以单测为验收面（A1 先例）。**走查新坑：产物面板 mock
+  无产物行、IAB 截图通道故障转 DOM 断言（沿例）**。
+
+## 下会话续做（待办清单，2026-09-05 v4.95.0 后更新）
 
 - **蒸馏规划滚动中**：阶段一、二.5（含 2.5e 弹层+徽标）、阶段二
-  2a/2b/2c **全部收口**（v4.78~v4.88）。**剩余候选均为拍板项**：阶段三
-  3a CodeMirror（可带语法着色）/3b Mermaid strict/3c 人工沙箱浏览器
-  多开；中期候选见 docs/market-research-2026-09-05.md（成本费率 hover 已落地 v4.89、
-  终止级联已落地 v4.90、失败子代理可恢复入口已落地 v4.93）；docx/xlsx 对比迁移 ChangesDiff 另刀；
-  Agent Network 会话跳转已落地（v4.94：GaeaSubagentContextView + 径向图入口）。成本费率
-  hover（v4.89）、终止级联（v4.90）、CodeMirror 编辑器（v4.91）、Mermaid
-  strict 安全线（v4.92）、失败恢复入口+diff 语法着色（v4.93）已落地。
+  2a/2b/2c 全部收口（v4.78~v4.88）；3a CodeMirror（v4.91）/3b Mermaid
+  strict（v4.92）已收口，**语法着色随 v4.93 落地**。**销账（v4.95）**：
+  docx/xlsx 对比迁移 ChangesDiff（v4.87 成文计划最后一项）、README 级内嵌
+  HTML 白名单（3b 遗留）、子代理队列非唯一命中交互式确认（老账）。
+  **剩余候选均为拍板项**：阶段三 3c 人工沙箱浏览器多开；阶段四真实终端
+  （D1 推荐默认=暂不做交互终端）；中期候选见 docs/market-research-2026-09-05.md（成本费率 hover v4.89、
+  终止级联 v4.90、失败子代理可恢复入口 v4.93 已落地）；微信文件收发（抓包前置）；
+  Agent Network 会话跳转已落地（v4.94）。
 - **dsh 剩余借鉴**：2.5e /context 弹层与 Agent Network 会话跳转均已落地（v4.88/v4.94）。
 - **老账**：run_skill AllowedTools 真机观察；pptx 真编辑；Verifier 通道 B
-  逐页缩略图；子代理队列非唯一命中交互式确认。
+  逐页缩略图。
+- **v4.95 已知边界**：taskpick 选择器候选为点击瞬间快照（点选后 5s 轮询
+  自校正）；raw `<input type=radio>` 现剥成空 input，若要支持需拍板；
+  vcompare.cellRef/cellOld/cellNew 三键不再被消费（键保留字典）。
 
 ## 最新发布：v4.94.0（2026-09-05）「Agent 网络会话跳转：子代理上下文按会话查看」
 
