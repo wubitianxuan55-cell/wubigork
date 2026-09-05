@@ -318,8 +318,9 @@ Chrome（可 `UNIVER_RENDER_BROWSER` 指定）；发布包按平台装原生依�
 - 不引入 Univer（任何形态）作为 gaea 交互面、不建平行编辑面（蒸馏=完善自有栈；推倒换壳
   =删除既有编辑能力，撞 UI 简化红线）；
 - 不引入 `.univer` 文件格式、协作服务、Gateway 常驻进程、Node/puppeteer 依赖链；
-- 不做 Base（多维表格）/Board（画布）/资源库——gaea 已有 genui 面板、chart、表格面，
-  边际价值低且均为 Pro；
+- 不做 Univer 承载的 Base（多维表格）/Board（画布）/资源库——前两能力本身经用户拍板
+  （2026-09-05）以 gaea 原生形态另立设计：docs/gaea-office-mindmap-base-design-2026-09.md；
+  资源库仍不做；
 - 不照抄上游技能全文（工具名、API、错误码全不同；只搬纪律骨架）；
 - 不因「竞品有」而扩 binding 面（每处新增绑定须对应 pptx 刀1/U4 的实有功能）；
 - 不在对外文案宣称「首家 Office 真编辑」（DSH 插件已在先）。
