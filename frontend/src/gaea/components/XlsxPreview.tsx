@@ -12,6 +12,7 @@ import {
   type GbaseView,
 } from "../lib/gbase";
 import { GbaseGroupedView } from "./GbaseGroupedView";
+import { GbaseBoardView } from "./GbaseBoardView";
 import { useToast } from "./Toast";
 import type { XlsxCell, XlsxChartResult, XlsxPlanResult, XlsxPreview, XlsxSheet } from "../lib/types";
 import { condStyleFor } from "../lib/xlsxCondFmt";
@@ -842,7 +843,22 @@ export function XlsxPreview({
 
       <div className="flex-1 min-h-0">
         {viewUsable && gModel && activeView ? (
-          <GbaseGroupedView model={gModel} view={activeView} />
+          activeView.type === "board" ? (
+            <GbaseBoardView
+              model={gModel}
+              view={activeView}
+              moving={saving}
+              onMoveCard={(rowIndex, laneKey) => {
+                // B2 拖拽改值：泳道值写回该行 groupBy 列单元格（直编通道，与
+                // 表格视图双击编辑同口径）；「（空）」泳道=清空单元格。
+                const col = activeView.groupBy ? gModel.fieldCols[activeView.groupBy] : undefined;
+                if (!col) return;
+                void commitCell(colToLetter(col) + rowIndex, laneKey === "（空）" ? "" : laneKey);
+              }}
+            />
+          ) : (
+            <GbaseGroupedView model={gModel} view={activeView} />
+          )
         ) : (
         <SheetGrid
           sheet={sheet}

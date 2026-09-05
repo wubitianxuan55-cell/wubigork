@@ -82,12 +82,12 @@ describe("parseGbaseConfig", () => {
     expect(parseGbaseConfig(JSON.stringify({ version: 1 })).error).toContain("views");
   });
 
-  it("字段级容错：坏 type 视图跳过、坏条件丢弃、缺 id/name 给默认", () => {
+  it("字段级容错：无泳道列的 board 跳过、坏条件丢弃、缺 id/name 给默认", () => {
     const r = parseGbaseConfig(
       JSON.stringify({
         version: 1,
         views: [
-          { type: "board", name: "x" },
+          { type: "board", name: "x" }, // board 无 groupBy → 丢弃
           { name: "ok", filter: { conditions: [{ column: "", op: "eq" }, { column: "金额", op: "weird" }, { column: "金额" }] } },
         ],
       }),
@@ -97,7 +97,25 @@ describe("parseGbaseConfig", () => {
     expect(v.name).toBe("ok");
     expect(v.filter!.conditions).toHaveLength(2); // 空列名丢弃；未知 op 回落 eq
     expect(v.filter!.conditions[1]!.op).toBe("eq");
-    expect(r.error).toContain("仅支持 grid");
+    expect(r.error).toContain("board 视图需要 groupBy");
+  });
+
+  it("B2：board 视图放行（须带 groupBy），cardFields 去重截断；未知 type 仍拒绝", () => {
+    const r = parseGbaseConfig(
+      JSON.stringify({
+        version: 1,
+        views: [
+          { type: "board", name: "看板", groupBy: "状态", cardFields: ["负责人", "金额", "负责人", "", "状态", "a", "b", "c", "d", "e"] },
+          { type: "kanban", name: "y" },
+        ],
+      }),
+    );
+    expect(r.config!.views).toHaveLength(1);
+    const v = r.config!.views[0]!;
+    expect(v.type).toBe("board");
+    expect(v.groupBy).toBe("状态");
+    expect(v.cardFields).toEqual(["负责人", "金额", "状态", "a", "b", "c", "d", "e"]); // 去重后恰 8 个（GBASE_MAX_CARD_FIELDS）
+    expect(r.error).toContain("仅支持 grid/board");
   });
 
   it("非法颜色规则丢弃；非对象视图跳过", () => {
@@ -126,6 +144,11 @@ describe("gbaseSheetModel", () => {
     const done = m.records.find((r) => r.cells["负责人"] === "")!;
     expect(done.cells["负责人"]).toBe("");
     expect(done.cells["状态"]).toBe("完成");
+  });
+
+  it("B2：fieldCols 字段名→1 起列号（拖拽回写定位单元格）", () => {
+    const m = gbaseSheetModel(BASE);
+    expect(m.fieldCols).toEqual({ 状态: 1, 金额: 2, 负责人: 3 });
   });
 });
 
@@ -198,6 +221,13 @@ describe("gbaseMissingColumns / gbaseRowColor", () => {
       sort: [{ column: "状态", dir: "asc" }],
     };
     expect(gbaseMissingColumns(valid, ["状态", "金额"])).toEqual([]);
+  });
+
+  it("B2：board 视图 cardFields 缺列计入失配", () => {
+    const board: GbaseView = {
+      id: "v", name: "v", type: "board", groupBy: "状态", cardFields: ["负责人", "阶段"],
+    };
+    expect(gbaseMissingColumns(board, ["状态", "金额", "负责人"])).toEqual(["阶段"]);
   });
 
   it("行着色首条命中优先", () => {

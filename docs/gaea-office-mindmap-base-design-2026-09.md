@@ -1,6 +1,6 @@
 # gaea 办公板块新增能力设计：思维导图 + 多维表（gaea 原生）
 
-> 状态：M1 / B1 已实施（2026-09-05，均零绑定面，vitest 1898 全绿）；M2 / B2 待拍板。
+> 状态：M1 / B1 已实施（2026-09-05）；B2 首刀=看板视图已实施（v4.107.0，零绑定，拖拽改值走 XlsxSetCell 直编通道而非本文初稿的 Plan→Apply 表述——与表格视图双击直编同口径）；B2 后半（字段类型面板/画廊视图/可选 validate 工具）与 M2（有「自研回写 vs mind-elixir」未决项）待拍板。
 > 2026-09-05 用户拍板办公板块新增两能力；承接
 > docs/gaea-dsh-univer-office-distill-plan-2026-09.md 方针「取道不取器」——dsh-univer-office
 > 的 Base（多维表格）/Board（含思维导图分支）为 Univer Pro 承载，本文裁定其**能力本身**

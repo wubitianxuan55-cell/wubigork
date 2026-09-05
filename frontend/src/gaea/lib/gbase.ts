@@ -31,8 +31,8 @@ export interface GbaseFilterCondition {
 export interface GbaseView {
   id: string;
   name: string;
-  /** v1 仅 grid（分组视图）；board/画廊列 B2。 */
-  type: "grid";
+  /** grid=分组视图（B1）；board=看板视图（B2，groupBy 列=泳道，须带 groupBy）。 */
+  type: "grid" | "board";
   /** 绑定 sheet 名；缺省作用于当前激活 sheet。 */
   sheet?: string;
   /** 分组列名（表头文本）；缺省平铺。 */
@@ -41,6 +41,8 @@ export interface GbaseView {
   sort?: { column: string; dir: "asc" | "desc" }[];
   /** 行级条件着色（首条命中优先）。 */
   colorRules?: { column: string; op: GbaseFilterOp; value?: string | number; color: string }[];
+  /** 看板卡片字段（B2）：首字段=卡标题，其余为卡面行；缺省取前 4 个字段。 */
+  cardFields?: string[];
 }
 
 export interface GbaseConfig {
@@ -52,6 +54,7 @@ export const GBASE_MAX_VIEWS = 24;
 export const GBASE_MAX_CONDITIONS = 20;
 export const GBASE_MAX_SORTS = 5;
 export const GBASE_MAX_RULES = 10;
+export const GBASE_MAX_CARD_FIELDS = 8;
 
 /** report.xlsx → report.gbase.json（同目录同名 sidecar）。 */
 export function gbaseSidecarPath(relPath: string): string {
@@ -89,17 +92,32 @@ export function parseGbaseConfig(text: string): { config: GbaseConfig | null; er
       continue;
     }
     const o = v as Record<string, unknown>;
-    if (o.type !== undefined && o.type !== "grid") {
-      errors.push(`views[${i}].type 仅支持 grid，已跳过`);
+    // B2：board（看板）视图类型放行；其他未知类型仍丢弃（宁缺勿误）。
+    const vType = o.type === undefined || o.type === "grid" ? "grid" : o.type === "board" ? "board" : null;
+    if (vType === null) {
+      errors.push(`views[${i}].type 仅支持 grid/board，已跳过`);
       continue;
     }
     const view: GbaseView = {
       id: typeof o.id === "string" && o.id ? o.id : `v${views.length + 1}`,
       name: typeof o.name === "string" && o.name.trim() ? o.name.trim().slice(0, 60) : `视图${views.length + 1}`,
-      type: "grid",
+      type: vType,
     };
     if (typeof o.sheet === "string" && o.sheet.trim()) view.sheet = o.sheet.trim();
     if (typeof o.groupBy === "string" && o.groupBy.trim()) view.groupBy = o.groupBy.trim();
+    if (vType === "board" && !view.groupBy) {
+      errors.push(`views[${i}].board 视图需要 groupBy（泳道列），已跳过`);
+      continue;
+    }
+    if (Array.isArray(o.cardFields)) {
+      const cardFields: string[] = [];
+      for (const cf of o.cardFields) {
+        if (typeof cf === "string" && cf.trim() && !cardFields.includes(cf.trim()) && cardFields.length < GBASE_MAX_CARD_FIELDS) {
+          cardFields.push(cf.trim());
+        }
+      }
+      if (cardFields.length > 0) view.cardFields = cardFields;
+    }
 
     if (typeof o.filter === "object" && o.filter !== null) {
       const f = o.filter as Record<string, unknown>;
@@ -177,6 +195,8 @@ export interface GbaseSheetModel {
   fields: string[];
   /** 第 2 行起的数据记录（全空行跳过）。 */
   records: GbaseRecord[];
+  /** 字段名 → 1 起列号（B2 看板拖拽回写定位单元格用；重名取首列）。 */
+  fieldCols: Record<string, number>;
 }
 
 export function gbaseSheetModel(sheet: XlsxSheet): GbaseSheetModel {
@@ -209,7 +229,11 @@ export function gbaseSheetModel(sheet: XlsxSheet): GbaseSheetModel {
     }
     if (hasValue) records.push({ rowIndex: first.row, cells });
   }
-  return { fields, records };
+  const fieldCols: Record<string, number> = {};
+  for (const [col, name] of fieldByCol) {
+    if (fieldCols[name] === undefined) fieldCols[name] = col;
+  }
+  return { fields, records, fieldCols };
 }
 
 // ─── 视图计算 ───────────────────────────────────────────────────
@@ -317,6 +341,7 @@ export function gbaseMissingColumns(view: GbaseView, fields: string[]): string[]
   for (const c of view.filter?.conditions ?? []) push(c.column);
   for (const s of view.sort ?? []) push(s.column);
   for (const r of view.colorRules ?? []) push(r.column);
+  for (const cf of view.cardFields ?? []) push(cf);
   return missing;
 }
 

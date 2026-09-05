@@ -1,3 +1,11 @@
+## v4.107.0 · 多维表 B2 首刀：看板视图（泳道=select 列 · 拖拽改值直编）（2026-09-06）
+> 已批刀序 M1→B1→M2/B2 的余件；绑定面 **585** 零变更。详见 releases/v4.107.0.md。
+- **看板视图（GbaseBoardView 新组件）**：.gbase.json 视图 `type:"board"` 放行（须带 groupBy=泳道列）——groupBy 列值分泳道、行=卡片（cardFields 首字段=卡标题、其余卡面行，缺省取前 4 字段），复用 B1 既有 filter/sort/colorRules 计算（applyGbaseView 同源）。
+- **拖拽改值**：卡片拖到目标泳道 = 该行 groupBy 列单元格写值（「（空）」泳道=清空），走 XlsxSetCell 直编通道（与表格视图双击直编同口径；设计文初稿的 Plan→Apply 表述按实际通道修正成文）；原地放下不写盘；moving 期间禁用拖拽。
+- **数据模型**：gbase.ts 放行 board 类型 + cardFields（去重截断 8）+ GbaseSheetModel.fieldCols（字段名→列号，回写定位）；gbaseMissingColumns 纳入 cardFields 缺列降级；未知 type 仍拒绝。
+- 测试：gbase 3 例（board 解析/fieldCols/cardFields 失配）+ GbaseBoardView 4 例（泳道渲染/拖拽触发/原地不写/moving 禁用）。门禁：Go 全量绿、vitest 2056/2056、tsc -b/eslint 0、drift PASS@585。
+- 欠账：B2 后半（字段类型面板/画廊/可选 validate 工具）与 M2（自研回写 vs mind-elixir 未决）待拍板；看板真机走查待真实样例。
+
 ## v4.106.0 · 办公 U4 缺口收口：xlsx 条件格式预览 · herdsman HS-obs 实测销账（2026-09-06）
 > 收 U4 渲染证据盘点缺口清单 #2（Go excelize 读条件格式 + 前端渲染分支，零绑定）；绑定面 **585** 零变更。详见 releases/v4.106.0.md。
 - **xlsx 条件格式预览（零绑定）**：后端 `xlsxpreview/condfmt.go` 经 f.Pkg 原始 XML 解析（workbook rels → worksheet cfRule → styles.xml dxfs），提取 CellIs 静态可判定子集（range+常量阈值+dxf 底色/字色/加粗）进既有预览 JSON（`condRules`/`condSkipped`，omitempty）；expression/色阶/数据条/图标集/引用单元格阈值等不可静态判定类型诚实跳过并计数。前端 `lib/xlsxCondFmt.ts` 纯函数判定（range 包含/数值文本比较/between 上下限无序归一/文本大小写不敏感/priority 小者整体胜出），XlsxPreview 单元格渲染命中即覆盖基础样式（Excel 语义）。

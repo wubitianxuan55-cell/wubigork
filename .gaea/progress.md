@@ -1,6 +1,6 @@
 # 任务进度
 
-> 最后更新: 2026-09-06（v4.106.0「办公 U4 缺口收口：xlsx 条件格式预览 · herdsman HS-obs 实测销账」，585 零变更；v4.105.0「Model Hub 蒸馏 MH4 常驻预热 · ComfyUI 预热 CU1+量化档位 CU2」，584→585 +WarmComfyUI；v4.104.0「Model Hub 蒸馏 MH1–MH3：采样让位+默认关思考 · 加载状态收敛 · UD 档位引导」，绑定面 584 零变更；v4.103.0「办公搜索对齐 unsloth：web_search url 直取整页 · 结果域名策略过滤 · 日期钉定」，绑定面 584 零变更；v4.102.0「Hub 落库 + 围栏 slot 口径统一 · 图像域 17
+> 最后更新: 2026-09-06（v4.107.0「多维表 B2 首刀：看板视图」，585 零变更；v4.106.0「办公 U4 缺口收口：xlsx 条件格式预览 · herdsman HS-obs 实测销账」，585 零变更；v4.105.0「Model Hub 蒸馏 MH4 常驻预热 · ComfyUI 预热 CU1+量化档位 CU2」，584→585 +WarmComfyUI；v4.104.0「Model Hub 蒸馏 MH1–MH3：采样让位+默认关思考 · 加载状态收敛 · UD 档位引导」，绑定面 584 零变更；v4.103.0「办公搜索对齐 unsloth：web_search url 直取整页 · 结果域名策略过滤 · 日期钉定」，绑定面 584 零变更；v4.102.0「Hub 落库 + 围栏 slot 口径统一 · 图像域 17
 > 绑定转正 · Model Hub mock」，绑定面 584；Model Hub（Unsloth）并行会话线完结
 > 落库 6cd891df + v4.101 漏提交补录 efe80310；v4.101.0「三线并行：GenUI 围栏
 > Go 侧收口 · 画室模型目录 · 深检误报缓解」，绑定面 581 零变更；v4.100.0
@@ -35,6 +35,15 @@
 > 索引（101 个发布说明）已刷新。本会话另落 GitHub 市场调研三路
 > （docs/research-2026-09-05/ + market-research-2026-09-05.md）与
 > 长期规划回填）
+
+## 最新发布：v4.107.0（2026-09-06）「多维表 B2 首刀：看板视图」
+
+- 已批刀序 M1→B1→M2/B2 余件；B2 只做看板（价值最独立），后半（字段面板/画廊/validate 工具）与 M2（自研 vs mind-elixir 未决）留拍板。
+- **看板**：type:"board" 放行（必须带 groupBy=泳道列，缺失丢弃+横幅）；泳道=列值（首现序/空值「（空）」）、卡片=行（cardFields 首字段标题、≤5 行、缺省前 4 字段）；计算复用 applyGbaseView/gbaseRowColor 零新语义。
+- **拖拽改值**：拖到泳道=写该行 groupBy 单元格（XlsxSetCell 直编通道，与表格双击直编同口径；设计文初稿 Plan→Apply 表述已按实际修正）；「（空）」=清空；原地不写盘；moving 禁拖；cardFields 纳入列失配降级。
+- 数据模型：fieldCols（字段→列号）+ cardFields（去重截断 8）+ 未知 type 仍拒（文案改 grid/board）。
+- 门禁：Go 全量绿（零 Go 改动例行回归）、vitest 2056/2056、tsc -b/eslint 0、drift PASS@585、版本四处 4.107.0。新增 gbase 3 例 + GbaseBoardView 4 例。
+- 欠账：B2 后半/M2 待拍板；看板 HTML5 DnD 真浏览器走查（?mock=1）；真机补验池不变。
 
 ## 最新发布：v4.106.0（2026-09-06）「办公 U4 缺口收口：xlsx 条件格式预览 · herdsman HS-obs 实测销账」
 
