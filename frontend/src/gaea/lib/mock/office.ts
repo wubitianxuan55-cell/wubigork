@@ -157,6 +157,21 @@ export function buildOffice(_s: MakeMockState): OfficeMethods {
         "go.mod": "module gaea\n\ngo 1.23\n",
         "desktop/file.go": "package desktop\n\nfunc main() {\n\tprintln(\"workspace preview\")\n}\n",
         "internal/event.go": "package internal\n\n// mock file used by the browser dev seam\n",
+        // B1 多维表视图配置样例：与 MOCK_XLSX_BODY（docs/成本测算.xlsx 预算 sheet）配套，
+        // ?mock=1 打开该 xlsx 即出现「按金额」视图 chips（金额>100 行着色）
+        "docs/成本测算.gbase.json": JSON.stringify({
+          version: 1,
+          views: [
+            {
+              id: "byAmount",
+              name: "按金额",
+              type: "grid",
+              sheet: "预算",
+              sort: [{ column: "金额", dir: "desc" }],
+              colorRules: [{ column: "金额", op: "gt", value: 100, color: "rgba(99,102,241,0.10)" }],
+            },
+          ],
+        }),
       };
       return {
         path: rel,

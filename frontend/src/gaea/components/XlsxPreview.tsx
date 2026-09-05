@@ -3,6 +3,15 @@ import type { CSSProperties } from "react";
 import { AlertCircle, BarChart3, Check, ChevronDown, FileText, LineChart, Loader2, MessageSquare, PieChart, RefreshCw, Table, Wand2, X } from "../icons";
 import { app } from "../lib/bridge";
 import { useComposerInsertStore, useUpdatedFilesStore } from "../lib/store";
+import {
+  gbaseMissingColumns,
+  gbaseSheetModel,
+  gbaseSidecarPath,
+  parseGbaseConfig,
+  type GbaseSheetModel,
+  type GbaseView,
+} from "../lib/gbase";
+import { GbaseGroupedView } from "./GbaseGroupedView";
 import { useToast } from "./Toast";
 import type { XlsxCell, XlsxChartResult, XlsxPlanResult, XlsxPreview, XlsxSheet } from "../lib/types";
 
@@ -126,6 +135,9 @@ export function XlsxPreview({
   const [selectedCol, setSelectedCol] = useState<string | null>(null);
   const [colOpsBusy, setColOpsBusy] = useState(false);
   const [confirmDeleteCol, setConfirmDeleteCol] = useState(false);
+  // B1 多维表视图层：.gbase.json sidecar 视图配置 + 激活视图（null=表格视图，既有行为不变）
+  const [gbaseState, setGbaseState] = useState<{ views: GbaseView[]; warnings: string } | null>(null);
+  const [activeViewId, setActiveViewId] = useState<string | null>(null);
   // P0-2 表格「选中区域 → 一键图表」：选中单元格后把原生图表嵌入工作簿，
   // 前端用 SVG 迷你图即时反馈（原生对象在 Excel/WPS 中可见可编辑）
   const [chartBusy, setChartBusy] = useState(false);
@@ -151,6 +163,36 @@ export function XlsxPreview({
     setPlan(null);
     setChart(null);
   }, [body]);
+
+  // B1 sidecar 加载：文件不存在/读取失败/内容非视图配置 → 无视图（静默，= 既有行为）；
+  // 坏配置（JSON 坏/根形状坏）→ warnings 横幅；字段级容错（坏视图丢弃、好视图保留）
+  // 由 parseGbaseConfig 承担。GaeaReadFile 契约 = {path, markdown, size}（无 kind）。
+  useEffect(() => {
+    let live = true;
+    setActiveViewId(null);
+    app.ReadFile(gbaseSidecarPath(relPath))
+      .then((r) => {
+        if (!live) return;
+        const text = r.markdown ?? "";
+        // 嗅探：不含 "views" 的文本（mock 兜底正文、纯注释文件）不当配置报错
+        if (!text.includes('"views"')) {
+          setGbaseState(null);
+          return;
+        }
+        const parsed = parseGbaseConfig(text);
+        if (!parsed.config) {
+          setGbaseState({ views: [], warnings: parsed.error });
+          return;
+        }
+        setGbaseState({ views: parsed.config.views, warnings: parsed.error });
+      })
+      .catch(() => {
+        if (live) setGbaseState(null);
+      });
+    return () => {
+      live = false;
+    };
+  }, [relPath]);
 
   const preview = useMemo<XlsxPreview | null>(() => {
     try {
@@ -401,6 +443,14 @@ export function XlsxPreview({
     setSelectedCol((prev) => (prev === letter ? null : letter));
   }, []);
 
+  // B1 视图解析：gModel 仅在激活视图时计算（hooks 必须在早退 return 之前）
+  const activeView = gbaseState?.views.find((v) => v.id === activeViewId) ?? null;
+  const gModel = useMemo<GbaseSheetModel | null>(() => {
+    if (!activeView || !preview || preview.sheets.length === 0) return null;
+    const s = preview.sheets[Math.min(active, preview.sheets.length - 1)];
+    return gbaseSheetModel(s);
+  }, [activeView, preview, active]);
+
   if (!preview || preview.sheets.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-3 px-8 text-center">
@@ -412,6 +462,11 @@ export function XlsxPreview({
 
   const sheet = preview.sheets[Math.min(active, preview.sheets.length - 1)];
   const selectedRow = selected ? Number(/^[A-Z]+(\d+)$/.exec(selected)?.[1]) : 0;
+  // sheet 绑定失配或列失配 → 降级表格视图（横幅如实提示，不静默装好）
+  const viewSheetMismatch = activeView?.sheet !== undefined && activeView.sheet !== sheet.name;
+  const missingCols =
+    activeView && !viewSheetMismatch && gModel ? gbaseMissingColumns(activeView, gModel.fields) : [];
+  const viewUsable = activeView !== null && !viewSheetMismatch && missingCols.length === 0;
 
   return (
     <div className="flex flex-col h-full relative">
@@ -419,6 +474,29 @@ export function XlsxPreview({
         <div className="flex items-center gap-1.5 px-3 py-1.5 border-b border-accent/25 bg-accent/8 text-accent text-[11.5px]">
           <Check size={12} />
           <span className="truncate">{notice}</span>
+        </div>
+      )}
+      {/* B1 视图层降级/告警横幅：坏配置、sheet 失配、列失配（genui 红横幅口径的琥珀版） */}
+      {(gbaseState?.warnings || (activeView && (viewSheetMismatch || missingCols.length > 0))) && (
+        <div className="flex items-center gap-1.5 px-3 py-1.5 border-b border-amber-500/30 bg-amber-500/10 text-amber-500 text-[11px]">
+          <AlertCircle size={12} className="shrink-0" />
+          <span className="truncate">
+            {gbaseState?.warnings ? `视图配置告警：${gbaseState.warnings}` : ""}
+            {activeView && viewSheetMismatch
+              ? `视图「${activeView.name}」仅作用于 sheet「${activeView.sheet}」，当前「${sheet.name}」`
+              : ""}
+            {activeView && !viewSheetMismatch && missingCols.length > 0
+              ? `视图「${activeView.name}」引用的列不存在：${missingCols.join("、")}，已回退表格视图`
+              : ""}
+          </span>
+          {activeViewId !== null && (
+            <button
+              className="ml-auto shrink-0 px-2 py-0.5 rounded border border-amber-500/40 text-amber-500 hover:bg-amber-500/10 cursor-pointer"
+              onClick={() => setActiveViewId(null)}
+            >
+              回表格
+            </button>
+          )}
         </div>
       )}
       {/* 原生图表迷你预览：图表对象已嵌入 xlsx，这里是即时视觉反馈 */}
@@ -564,6 +642,37 @@ export function XlsxPreview({
             {s.name}
           </button>
         ))}
+        {gbaseState && gbaseState.views.length > 0 && (
+          <>
+            <span className="w-px h-4 bg-border-soft mx-1 shrink-0" />
+            <button
+              data-testid="gbase-view-grid"
+              className={`px-2.5 py-1 rounded-md text-[12px] cursor-pointer transition-colors shrink-0 ${
+                activeViewId === null
+                  ? "bg-accent/12 text-accent border border-accent/30"
+                  : "text-fg-dim border border-transparent hover:bg-bg-soft"
+              }`}
+              onClick={() => setActiveViewId(null)}
+            >
+              表格
+            </button>
+            {gbaseState.views.map((v) => (
+              <button
+                key={v.id}
+                data-testid={`gbase-view-${v.id}`}
+                title={v.sheet ? `仅作用于 sheet「${v.sheet}」` : undefined}
+                className={`px-2.5 py-1 rounded-md text-[12px] cursor-pointer transition-colors shrink-0 ${
+                  activeViewId === v.id
+                    ? "bg-accent/12 text-accent border border-accent/30"
+                    : "text-fg-dim border border-transparent hover:bg-bg-soft"
+                }`}
+                onClick={() => setActiveViewId(v.id)}
+              >
+                {v.name}
+              </button>
+            ))}
+          </>
+        )}
         {sheet.truncated && (
           <span className="ml-auto text-[10px] text-amber-500/80 shrink-0">
             大表格已截断（仅预览前 2000 行 × 100 列）
@@ -728,6 +837,9 @@ export function XlsxPreview({
       )}
 
       <div className="flex-1 min-h-0">
+        {viewUsable && gModel && activeView ? (
+          <GbaseGroupedView model={gModel} view={activeView} />
+        ) : (
         <SheetGrid
           sheet={sheet}
           selected={selected}
@@ -745,6 +857,7 @@ export function XlsxPreview({
           onCancelEdit={cancelEdit}
           disabled={saving}
         />
+        )}
         {/* B3 浮动「引用到对话」：选中单元格且不在直接编辑时出现（次级入口，
             不抢占既有 AI 编辑/行列表头/双击编辑等任何交互） */}
         {selected && editingRef === null && (
