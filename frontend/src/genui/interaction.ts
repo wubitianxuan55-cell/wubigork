@@ -83,3 +83,28 @@ export function resetInteractionStore(): void {
     // noop
   }
 }
+
+/**
+ * 按会话清理该会话的全部交互状态（审计 2026-09 #7：会话删除时接线）。
+ *
+ * stateKey 形态（fingerprint.ts）：
+ *   - 消息槽位：`genui:{scope}:{sessionKey}:{slot}:{fp}`（scope = chat|office）；
+ *   - 办公面板：`genui:{scope}:panel:{sessionKey}:{panelKey}`（"panel" 占据
+ *     scope 后的固定段，须单独前缀）。
+ * sessionKey 由会话路径清洗而来（冒号已被替换为下划线），因此以「前缀 +
+ * 冒号边界」匹配不会误伤其他会话（含前缀相似的 key 如 s1 vs s10）。
+ */
+export function clearBlockStatesForSession(sessionKey: string): void {
+  if (sessionKey === "") return;
+  const prefixes = [
+    `genui:chat:${sessionKey}:`,
+    `genui:office:${sessionKey}:`,
+    `genui:office:panel:${sessionKey}:`,
+  ];
+  const store = readStore();
+  const order = store.order.filter((k) => !prefixes.some((p) => k.startsWith(p)));
+  if (order.length === store.order.length) return;
+  const blocks: Record<string, BlockInteractionState> = {};
+  for (const k of order) blocks[k] = store.blocks[k];
+  writeStore({ order, blocks });
+}

@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"unicode"
 
 	"github.com/gaea/gaea/internal/ai"
 	"github.com/gaea/gaea/internal/graph"
@@ -27,6 +28,19 @@ import (
 //   - client nil / 无可用模型 / 全部章节 AI 提取失败 → 只返回规则层结果，
 //     ai_available=false，ai_note 说明原因；
 //   - 单章 AI 失败 → 跳过该章不中断整体（chapters_failed 计数）。
+//
+// 误报缓解（v4.101，宁多提示勿漏报：降级项仍产出告警，只调级别并标注原因）：
+//   - 文本归一化后再比对（deepNormalizeText：全半角/空白/包裹标点/大小写），
+//     消除「玄铁剑」vs「那柄玄铁剑」类措辞/格式差异；
+//   - 位置比对先做归一化包含判定，同区域表述差异（「青云宗」vs「青云宗后山」）
+//     降级为 info 提示（reason=wording），不再按瞬移报 warning；
+//   - 角色名按项目人物名单归一（deepAliasResolver：项目数据无别名字段，用
+//     名单+包含+称谓剥离的保守归一），别名参与的比对标 reason=alias 降置信度；
+//   - 时间倒流：任一方时间标记为空/粗粒度（「三年后」「翌日」类）→ 降为
+//     warning + reason=granularity（疑似闪回/省略）；
+//   - 无中生有：仅因「无交代消失」入账的物品 → 降为 warning +
+//     reason=unexplained（可能后期才寻回），有 items_lost 明确交代的仍报 error。
+//   - 每条 AI 告警带 confidence（high/medium/low）与 reason 分类，前端分级展示。
 
 // deepStateCard 单章实体状态卡（AI 提取，结构稳定可解析）
 type deepStateCard struct {
@@ -72,15 +86,18 @@ func (a *writingState) CheckConsistencyDeep(maxChapters int) (map[string]interfa
 	cards, failed, aiNotes := a.deepExtractCards(pm, maxChapters)
 	notes = append(notes, aiNotes...)
 
-	var aiIssues []graph.ConsistencyIssue
+	// 误报缓解：按项目人物名单归一角色名（characters.json + lorebook 人物词条）
+	res := newDeepAliasResolver(deepCanonicalPeople(pm))
+
+	var aiIssues []deepIssue
 	for _, cardsByBranch := range deepGroupByBranch(cards) {
-		aiIssues = append(aiIssues, deepCompareStateLine(cardsByBranch)...)
+		aiIssues = append(aiIssues, deepCompareStateLine(cardsByBranch, res)...)
 	}
 
 	// 合并：规则层在前（source=rule），AI 在后（source=ai）
 	merged := make([]map[string]interface{}, 0, len(ruleIssues)+len(aiIssues))
 	for _, iss := range ruleIssues {
-		merged = append(merged, deepIssueToMap(iss, "rule"))
+		merged = append(merged, deepIssueToMap(deepIssue{ConsistencyIssue: iss, Confidence: "high"}, "rule"))
 	}
 	for _, iss := range aiIssues {
 		merged = append(merged, deepIssueToMap(iss, "ai"))
@@ -119,8 +136,22 @@ func (a *writingState) CheckConsistencyDeep(maxChapters int) (map[string]interfa
 	}, nil
 }
 
-// deepIssueToMap 状态卡比对产出 → 与规则层同构的 issue map（附 source 字段）
-func deepIssueToMap(iss graph.ConsistencyIssue, source string) map[string]interface{} {
+// deepIssue AI 比对产出：与规则层同构的 issue + 误报缓解标注（嵌入保持字段直读）。
+// Confidence：high（确定冲突）/ medium（疑似）/ low（提示级）；Reason 为原因分类
+// （wording=措辞差异 / granularity=时间粒度差异 / alias=称谓别名差异 /
+// unexplained=缺少明确交代），空串=常规判定。规则层告警 Confidence 恒为 high。
+type deepIssue struct {
+	graph.ConsistencyIssue
+	Confidence string `json:"confidence,omitempty"`
+	Reason     string `json:"reason,omitempty"`
+}
+
+// deepIssueToMap 状态卡比对产出 → 与规则层同构的 issue map（附 source/confidence/reason）
+func deepIssueToMap(iss deepIssue, source string) map[string]interface{} {
+	confidence := iss.Confidence
+	if confidence == "" {
+		confidence = "high"
+	}
 	return map[string]interface{}{
 		"severity":    iss.Severity,
 		"category":    iss.Category,
@@ -131,7 +162,201 @@ func deepIssueToMap(iss graph.ConsistencyIssue, source string) map[string]interf
 		"suggestion":  iss.Suggestion,
 		"branch":      iss.Branch,
 		"source":      source,
+		"confidence":  confidence,
+		"reason":      iss.Reason,
 	}
+}
+
+// ── 误报缓解：文本归一化 + 项目人物名单归一 + 时间粒度判定 ──
+
+// deepWrapPunct 比对时剥离的包裹符号（引号/书名号/括号等；全角括号经半角折叠
+// 后也落入 ASCII 项，故两套都列）
+const deepWrapPunct = "「」『』【】〔〕（）()《》〈〉“”‘’\"'`()[]{}"
+
+// deepEdgePunct 归一化结果首尾可剥离的标点
+const deepEdgePunct = "。，、；：！？!?,.:;·…—－–~～＿_-"
+
+// deepNormalizeText 实体名/地名/物品名比对前的文本归一化（缓解误报①措辞差异
+// ④数字/单位格式差异）：
+//   - 全角 ASCII（U+FF01–U+FF5E，含全角字母数字）折叠为半角、全角空格折叠为空格；
+//   - 大写拉丁折叠为小写；
+//   - 剥离全部空白与包裹符号（引号/书名号/括号），去掉首尾标点。
+//
+// 仅用作比对键，不用于正文展示。
+func deepNormalizeText(s string) string {
+	var b strings.Builder
+	for _, r := range s {
+		switch {
+		case r >= 0xFF01 && r <= 0xFF5E:
+			r -= 0xFEE0
+		case r == 0x3000:
+			r = ' '
+		}
+		if r >= 'A' && r <= 'Z' {
+			r += 'a' - 'A'
+		} else if unicode.IsSpace(r) {
+			continue
+		}
+		if strings.ContainsRune(deepWrapPunct, r) {
+			continue
+		}
+		b.WriteRune(r)
+	}
+	return strings.Trim(b.String(), deepEdgePunct)
+}
+
+// deepNormContains 归一化包含判定：b（针）归一化后是 a（堆）归一化结果的子串
+// 或与之相等。针的有效长度 <2 rune 时只允许相等命中，避免「剑」「王」等单字
+// 造成误合并。
+func deepNormContains(a, b string) bool {
+	na, nb := deepNormalizeText(a), deepNormalizeText(b)
+	if na == "" || nb == "" {
+		return false
+	}
+	if na == nb {
+		return true
+	}
+	if len([]rune(nb)) < 2 {
+		return false
+	}
+	return strings.Contains(na, nb)
+}
+
+// deepCoarseTimeRe 粗粒度时间标记：间隔表达（数/几/余/半/中文数字 + 时间单位，
+// 如「三年」「数月」「半月前」；阿拉伯数字须带后/前缀才是间隔，如「1247年后」，
+// 「1247年」视为绝对时间保持精确）。锚定词首尾，避免「第三日」「1247年春」误中
+var deepCoarseTimeRe = regexp.MustCompile(`^((数|几|余|半|[一二两三四五六七八九十百千万]+)(年|载|月|日|天|夜|晨)(之?后|之?前)?|[0-9]+(年|载|月|日|天|夜|晨)(之?后|之?前))$`)
+
+// deepCoarseTimeWords 粗粒度/相对时间关键词（翌日、次日、当年、回忆插叙类）
+var deepCoarseTimeWords = []string{
+	"翌", "次日", "次晨", "次夜", "当年", "当初", "昔日", "曾经",
+	"从前", "此前", "其后", "此后", "后来", "回忆", "闪回", "梦境", "梦中", "梦里",
+}
+
+// deepCoarseTimeMark 时间标记是否为空或粗粒度/相对表述（缓解误报③时间粒度差异）。
+// 粗粒度标记下 AI 给出的 time_relation=earlier 不可靠（「三年后」被误判为倒流、
+// 闪回被误判为时间线冲突），此时时间倒流只按「疑似」降级处理。
+func deepCoarseTimeMark(s string) bool {
+	n := deepNormalizeText(s)
+	if n == "" {
+		return true
+	}
+	for _, w := range deepCoarseTimeWords {
+		if strings.Contains(n, w) {
+			return true
+		}
+	}
+	return deepCoarseTimeRe.MatchString(n)
+}
+
+// deepAffixes 称谓/绰号前后缀剥离表（缓解误报②角色别名/称谓）。项目数据
+// （characters.json / lorebook）没有显式别名字段，只能对名单做保守的
+// 「精确命中 → 唯一包含 → 剥一层称谓后重试」归一。
+var deepAffixes = []string{
+	"师祖", "师尊", "师父", "师傅", "师姐", "师妹", "师兄", "师弟",
+	"前辈", "晚辈", "大人", "殿下", "陛下", "姑娘", "公子", "小姐",
+	"道友", "掌门", "长老", "宗主", "阁下", "少侠", "将军", "老祖",
+	"仙子", "圣主", "儿", "阿", "小", "老",
+}
+
+// deepAliasResolver 把状态卡中的角色名对齐到项目人物名单（canonical names）。
+// nil 接收者安全（直接返回归一化原名，便于纯函数测试传 nil）。
+// 归一是保守的：任一步候选不唯一即放弃映射（宁可对不齐，也不把两个角色错并）。
+type deepAliasResolver struct {
+	canon []string // 归一化后的既有人名
+}
+
+// newDeepAliasResolver 用既有人名建归一器（自动去重、归一化、去空）
+func newDeepAliasResolver(names []string) *deepAliasResolver {
+	seen := map[string]bool{}
+	var canon []string
+	for _, n := range names {
+		n = deepNormalizeText(n)
+		if n == "" || seen[n] {
+			continue
+		}
+		seen[n] = true
+		canon = append(canon, n)
+	}
+	sort.Strings(canon)
+	if len(canon) == 0 {
+		return nil
+	}
+	return &deepAliasResolver{canon: canon}
+}
+
+// candidates 与 n（已归一）相等或互为包含的 canonical 名单
+func (r *deepAliasResolver) candidates(n string) []string {
+	if r == nil {
+		return nil
+	}
+	var hits []string
+	for _, c := range r.canon {
+		if c == n || strings.Contains(c, n) || strings.Contains(n, c) {
+			hits = append(hits, c)
+		}
+	}
+	return hits
+}
+
+// Resolve 归一化角色名：精确命中 → 唯一包含命中（「林晚师姐」→「林晚」）→
+// 剥一层称谓前后缀后重试（「晚儿」→「晚」→「林晚」）。剥称谓后的单字允许
+// 唯一包含命中（候选不唯一即放弃）。未命中返回归一化原名。
+func (r *deepAliasResolver) Resolve(name string) string {
+	n := deepNormalizeText(name)
+	if n == "" || r == nil {
+		return n
+	}
+	for _, c := range r.canon {
+		if c == n {
+			return c
+		}
+	}
+	if len([]rune(n)) >= 2 {
+		if hits := r.candidates(n); len(hits) == 1 {
+			return hits[0]
+		}
+	}
+	for _, aff := range deepAffixes {
+		trimmed := strings.TrimPrefix(n, aff)
+		if trimmed == n {
+			trimmed = strings.TrimSuffix(n, aff)
+		}
+		if trimmed == "" || trimmed == n {
+			continue
+		}
+		for _, c := range r.canon {
+			if c == trimmed {
+				return c
+			}
+		}
+		if hits := r.candidates(trimmed); len(hits) == 1 {
+			return hits[0]
+		}
+	}
+	return n
+}
+
+// deepCanonicalPeople 项目人物名单（characters.json 全部角色 + lorebook 人物词条）
+func deepCanonicalPeople(pm *project.Manager) []string {
+	var names []string
+	if chars, err := pm.ReadCharacters(); err == nil && chars != nil {
+		for _, ch := range chars.Characters {
+			if n := strings.TrimSpace(ch.Name); n != "" {
+				names = append(names, n)
+			}
+		}
+	}
+	if lb, err := pm.ReadLorebook(); err == nil && lb != nil {
+		for _, e := range lb.Entries {
+			if e.Category == "character" {
+				if n := strings.TrimSpace(e.Key); n != "" {
+					names = append(names, n)
+				}
+			}
+		}
+	}
+	return names
 }
 
 // ── 章节枚举与窗口 ───────────────────────────────────────────
@@ -365,14 +590,50 @@ func deepNormStatus(s string) string {
 	}
 }
 
-func deepHasItem(list []string, item string) bool {
-	item = strings.TrimSpace(item)
+// deepMentionsList 列表中是否提及该物品（归一化包含匹配，缓解措辞/格式差异误报：
+// 「玄铁剑」vs「那柄玄铁剑」vs「玄铁剑（残）」视为同一物品）
+func deepMentionsList(list []string, item string) bool {
 	for _, it := range list {
-		if strings.TrimSpace(it) == item {
+		if deepNormContains(it, item) || deepNormContains(item, it) {
 			return true
 		}
 	}
 	return false
+}
+
+// deepHeldContains held 表中是否持有该物品（归一化包含匹配，任一方向命中即可）
+func deepHeldContains(held map[string]string, item string) bool {
+	for name := range held {
+		if deepNormContains(name, item) || deepNormContains(item, name) {
+			return true
+		}
+	}
+	return false
+}
+
+// deepLostLookup 在失去台账（key 为归一化物品名）中查找与 item 匹配的条目：
+// 归一化相等优先，再唯一包含命中；多个候选不命中（避免误并不同物品）。
+// 返回（标记失去的章节号, 台账 key, 是否命中）。
+func deepLostLookup(lostAt map[string]int, norm string) (int, string, bool) {
+	if at, ok := lostAt[norm]; ok {
+		return at, norm, true
+	}
+	if len([]rune(norm)) < 2 {
+		return 0, "", false
+	}
+	hit := ""
+	for k := range lostAt {
+		if strings.Contains(k, norm) || strings.Contains(norm, k) {
+			if hit != "" {
+				return 0, "", false
+			}
+			hit = k
+		}
+	}
+	if hit == "" {
+		return 0, "", false
+	}
+	return lostAt[hit], hit, true
 }
 
 // deepHeldItems 收集一章状态卡中「物品名 -> 持有者」（同名物品首个持有者生效）
@@ -392,17 +653,25 @@ func deepHeldItems(card *deepStateCard) map[string]string {
 	return held
 }
 
-// deepCompareStateLine 单条故事线内的跨章比对（纯函数）：cards 须同分支且按章节号升序。
-// 检出矛盾类型：
-//  1. 时间倒流（time_relation=earlier）
-//  2. 死亡角色后期以存活状态再出场
-//  3. 相邻章位置瞬移（所在地变化且无 travel_notes 交代）
-//  4. 关键物品凭空消失（上一章末仍持有，本章无人持有且无失去交代）
-//  5. 已失去/损毁的关键物品无中生有（无重新获得交代）
-func deepCompareStateLine(cards []*deepStateCard) []graph.ConsistencyIssue {
-	var issues []graph.ConsistencyIssue
-	deadAt := map[string]int{} // 角色名 -> 标记死亡的章节号
-	lostAt := map[string]int{} // 物品名 -> 标记失去/损毁的章节号
+// deepCompareStateLine 单条故事线内的跨章比对（纯函数）：cards 须同分支且按章节号升序；
+// res 为角色名归一器（可为 nil）。检出矛盾类型与误报缓解分级：
+//  1. 时间倒流：双方时间标记均精确 → error；任一方为空/粗粒度（「三年后」「翌日」类）
+//     → warning + reason=granularity（疑似闪回/省略，非确定冲突）
+//  2. 死亡角色后期以存活状态再出场：error；别名归一参与链接两章 → confidence=medium
+//     + reason=alias
+//  3. 位置变化无移动交代：同地异写（归一化相等）不告警；同区域表述差异（归一化后
+//     互为包含）→ info + reason=wording；真跨区域 → warning（别名归一参与时
+//     confidence=medium + reason=alias）
+//  4. 关键物品凭空消失：warning + reason=unexplained（物品名归一化包含匹配，
+//     「玄铁剑」vs「那柄玄铁剑」类措辞差异不再整条误报）
+//  5. 失去物品无中生有：items_lost 明确交代过失去 → error；仅因「无交代消失」入账
+//     → warning + reason=unexplained（可能后期才寻回/刻意留白），报后清除台账只报一次
+func deepCompareStateLine(cards []*deepStateCard, res *deepAliasResolver) []deepIssue {
+	var issues []deepIssue
+	deadAt := map[string]int{}       // 归一化角色名 -> 标记死亡的章节号
+	deadByAlias := map[string]bool{} // 死亡标记是否依赖别名归一
+	lostAt := map[string]int{}       // 归一化物品名 -> 标记失去/损毁的章节号
+	lostExplicit := map[string]bool{}
 	prevHeld := map[string]string{}
 	var prev *deepStateCard
 
@@ -411,70 +680,108 @@ func deepCompareStateLine(cards []*deepStateCard) []graph.ConsistencyIssue {
 
 		// 1. 时间倒流
 		if prev != nil && strings.EqualFold(strings.TrimSpace(curr.TimeRelation), "earlier") {
-			issues = append(issues, graph.ConsistencyIssue{
-				Severity:    "error",
-				Category:    "timeline",
-				Description: fmt.Sprintf("%s 的时间标记（%s）早于上一章（%s），疑似时间倒流", place, curr.TimeMark, prev.TimeMark),
-				Location:    place,
-				Evidence:    fmt.Sprintf("上一章 time_mark=%s，本章 time_mark=%s / time_relation=earlier", prev.TimeMark, curr.TimeMark),
-				Suggestion:  "核对两章时间标记与叙事顺序，调整时间线或在文中说明（闪回需有明确标记）",
-				Branch:      curr.Branch,
-			})
+			iss := deepIssue{Confidence: "high"}
+			iss.Category = "timeline"
+			iss.Location = place
+			iss.Branch = curr.Branch
+			iss.Evidence = fmt.Sprintf("上一章 time_mark=%s，本章 time_mark=%s / time_relation=earlier", prev.TimeMark, curr.TimeMark)
+			iss.Suggestion = "核对两章时间标记与叙事顺序，调整时间线或在文中说明（闪回需有明确标记）"
+			if deepCoarseTimeMark(prev.TimeMark) || deepCoarseTimeMark(curr.TimeMark) {
+				iss.Severity = "warning"
+				iss.Confidence = "medium"
+				iss.Reason = "granularity"
+				iss.Description = fmt.Sprintf("%s 的时间标记（%s）早于上一章（%s），疑似时间倒流（时间表述存在粒度差异，可能为闪回/省略，非确定冲突）", place, curr.TimeMark, prev.TimeMark)
+			} else {
+				iss.Severity = "error"
+				iss.Description = fmt.Sprintf("%s 的时间标记（%s）早于上一章（%s），疑似时间倒流", place, curr.TimeMark, prev.TimeMark)
+			}
+			issues = append(issues, iss)
 		}
 
 		prevLoc := map[string]string{}
 		if prev != nil {
 			for _, c := range prev.Characters {
 				if loc := strings.TrimSpace(c.Location); loc != "" {
-					prevLoc[c.Name] = loc
+					prevLoc[res.Resolve(c.Name)] = loc
 				}
 			}
 		}
 		noTravel := len(curr.TravelNotes) == 0
 
 		for _, c := range curr.Characters {
-			name := strings.TrimSpace(c.Name)
-			if name == "" {
+			rawName := strings.TrimSpace(c.Name)
+			if rawName == "" {
 				continue
 			}
+			name := res.Resolve(rawName)
+			aliasResolved := name != deepNormalizeText(rawName)
 			status := deepNormStatus(c.Status)
 
 			// 2. 死亡角色再出场（复活仅报一次：报后清除死亡标记）
 			if at, ok := deadAt[name]; ok && status == "alive" {
-				issues = append(issues, graph.ConsistencyIssue{
-					Severity:    "error",
-					Category:    "status",
-					EntityName:  name,
-					Description: fmt.Sprintf("%s 在第%d章已死亡，但%s仍以存活状态出场", name, at, place),
-					Location:    place,
-					Evidence:    fmt.Sprintf("第%d章状态卡 status=dead；%s状态卡 status=alive", at, place),
-					Suggestion:  "确认是否为复活/回忆/幻象并在文中明确交代，否则修正角色生死状态",
-					Branch:      curr.Branch,
-				})
+				iss := deepIssue{Confidence: "high"}
+				if aliasResolved || deadByAlias[name] {
+					iss.Confidence = "medium"
+					iss.Reason = "alias"
+				}
+				iss.Severity = "error"
+				iss.Category = "status"
+				iss.EntityName = name
+				iss.Description = fmt.Sprintf("%s 在第%d章已死亡，但%s仍以存活状态出场", name, at, place)
+				iss.Location = place
+				iss.Evidence = fmt.Sprintf("第%d章状态卡 status=dead；%s状态卡 status=alive", at, place)
+				if aliasResolved || deadByAlias[name] {
+					iss.Evidence += fmt.Sprintf("（「%s」按人物名单归一为「%s」，如为称谓误并请核对）", rawName, name)
+				}
+				iss.Suggestion = "确认是否为复活/回忆/幻象并在文中明确交代，否则修正角色生死状态"
+				iss.Branch = curr.Branch
+				issues = append(issues, iss)
 				delete(deadAt, name)
+				delete(deadByAlias, name)
 				continue
 			}
 
-			// 3. 位置瞬移（相邻章所在地变化且无移动交代）
+			// 3. 位置比对（归一化包含 → 同区域表述差异降级为提示）
 			if prev != nil && status != "dead" {
 				if prevL, ok := prevLoc[name]; ok {
-					if loc := strings.TrimSpace(c.Location); loc != "" && loc != prevL && noTravel {
-						issues = append(issues, graph.ConsistencyIssue{
-							Severity:    "warning",
-							Category:    "status",
-							EntityName:  name,
-							Description: fmt.Sprintf("%s 所在地从「%s」变为「%s」，但本章无移动/赶路交代，疑似位置瞬移", name, prevL, loc),
-							Location:    place,
-							Evidence:    fmt.Sprintf("上一章 location=%s；%slocation=%s，travel_notes 为空", prevL, place, loc),
-							Suggestion:  "补充角色移动过程（赶路/传送/时间跳跃），或修正两地之一的位置描述",
-							Branch:      curr.Branch,
-						})
+					if loc := strings.TrimSpace(c.Location); loc != "" {
+						switch {
+						case deepNormalizeText(prevL) == deepNormalizeText(loc):
+							// 同地异写（全半角/空白/标点差异），不告警
+						case deepNormContains(prevL, loc) || deepNormContains(loc, prevL):
+							iss := deepIssue{Confidence: "low", Reason: "wording"}
+							iss.Severity = "info"
+							iss.Category = "status"
+							iss.EntityName = name
+							iss.Description = fmt.Sprintf("%s 所在地从「%s」变为「%s」，为同区域表述差异，提示核对移动描写（非冲突）", name, prevL, loc)
+							iss.Location = place
+							iss.Evidence = fmt.Sprintf("上一章 location=%s；%slocation=%s（归一化后互为包含）", prevL, place, loc)
+							iss.Suggestion = "如为跨区域移动请补充赶路/传送交代；同区域内活动可忽略此提示"
+							iss.Branch = curr.Branch
+							issues = append(issues, iss)
+						case noTravel:
+							iss := deepIssue{Confidence: "high"}
+							if aliasResolved {
+								iss.Confidence = "medium"
+								iss.Reason = "alias"
+							}
+							iss.Severity = "warning"
+							iss.Category = "status"
+							iss.EntityName = name
+							iss.Description = fmt.Sprintf("%s 所在地从「%s」变为「%s」，但本章无移动/赶路交代，疑似位置瞬移", name, prevL, loc)
+							iss.Location = place
+							iss.Evidence = fmt.Sprintf("上一章 location=%s；%slocation=%s，travel_notes 为空", prevL, place, loc)
+							iss.Suggestion = "补充角色移动过程（赶路/传送/时间跳跃），或修正两地之一的位置描述"
+							iss.Branch = curr.Branch
+							issues = append(issues, iss)
+						}
 					}
 				}
 			}
 
 			if status == "dead" {
 				deadAt[name] = curr.Chapter
+				deadByAlias[name] = aliasResolved
 			}
 		}
 
@@ -482,48 +789,66 @@ func deepCompareStateLine(cards []*deepStateCard) []graph.ConsistencyIssue {
 		held := deepHeldItems(curr)
 		if prev != nil {
 			for _, item := range deepSortedKeys(prevHeld) {
-				if _, stillHeld := held[item]; stillHeld {
+				if deepHeldContains(held, item) {
 					continue
 				}
-				if deepHasItem(curr.ItemsLost, item) || deepHasItem(prev.ItemsLost, item) {
+				if deepMentionsList(curr.ItemsLost, item) || deepMentionsList(prev.ItemsLost, item) {
 					continue
 				}
-				// 无交代消失视同失去：记入台账，后续无交代地再次出现将按「无中生有」报错
-				lostAt[item] = curr.Chapter
-				issues = append(issues, graph.ConsistencyIssue{
-					Severity:    "warning",
-					Category:    "item",
-					EntityName:  item,
-					Description: fmt.Sprintf("关键物品「%s」凭空消失：上一章由 %s 持有，%s已无人持有且无失去交代", item, prevHeld[item], place),
-					Location:    place,
-					Evidence:    fmt.Sprintf("上一章状态卡 items 含「%s」（持有者 %s）；%s状态卡无人持有且 items_lost 未提及", item, prevHeld[item], place),
-					Suggestion:  "补写物品去向（遗失/被夺/存放），或从角色物品清单中移除",
-					Branch:      curr.Branch,
-				})
+				// 无交代消失视同失去：记入台账，后续无交代地再次出现按「无中生有」处理
+				lostAt[deepNormalizeText(item)] = curr.Chapter
+				lostExplicit[deepNormalizeText(item)] = false
+				iss := deepIssue{Confidence: "medium", Reason: "unexplained"}
+				iss.Severity = "warning"
+				iss.Category = "item"
+				iss.EntityName = item
+				iss.Description = fmt.Sprintf("关键物品「%s」凭空消失：上一章由 %s 持有，%s已无人持有且无失去交代", item, prevHeld[item], place)
+				iss.Location = place
+				iss.Evidence = fmt.Sprintf("上一章状态卡 items 含「%s」（持有者 %s）；%s状态卡无人持有且 items_lost 未提及", item, prevHeld[item], place)
+				iss.Suggestion = "补写物品去向（遗失/被夺/存放），或从角色物品清单中移除"
+				iss.Branch = curr.Branch
+				issues = append(issues, iss)
 			}
 			for _, item := range deepSortedKeys(held) {
-				if at, ok := lostAt[item]; ok && !deepHasItem(curr.ItemsRegained, item) {
-					issues = append(issues, graph.ConsistencyIssue{
-						Severity:    "error",
-						Category:    "item",
-						EntityName:  item,
-						Description: fmt.Sprintf("已失去/损毁的关键物品「%s」无中生有：第%d章已标记失去，%s由 %s 再次持有且无重新获得交代", item, at, place, held[item]),
-						Location:    place,
-						Evidence:    fmt.Sprintf("第%d章状态卡 items_lost 含「%s」；%s状态卡 items 含「%s」且 items_regained 未提及", at, item, place, item),
-						Suggestion:  "补写物品失而复得的过程（寻回/修复/复制），或修正前后章的物品状态",
-						Branch:      curr.Branch,
-					})
+				at, key, ok := deepLostLookup(lostAt, deepNormalizeText(item))
+				if !ok || deepMentionsList(curr.ItemsRegained, item) {
+					continue
 				}
+				iss := deepIssue{Confidence: "high"}
+				iss.Category = "item"
+				iss.EntityName = item
+				iss.Location = place
+				iss.Branch = curr.Branch
+				iss.Evidence = fmt.Sprintf("第%d章状态卡 items_lost 含「%s」；%s状态卡 items 含「%s」且 items_regained 未提及", at, item, place, item)
+				iss.Suggestion = "补写物品失而复得的过程（寻回/修复/复制），或修正前后章的物品状态"
+				if lostExplicit[key] {
+					iss.Severity = "error"
+					iss.Description = fmt.Sprintf("已失去/损毁的关键物品「%s」无中生有：第%d章已标记失去，%s由 %s 再次持有且无重新获得交代", item, at, place, held[item])
+				} else {
+					// 仅因「无交代消失」入账：可能刻意留白/后期才寻回/提取遗漏，降为疑似
+					iss.Severity = "warning"
+					iss.Confidence = "medium"
+					iss.Reason = "unexplained"
+					iss.Description = fmt.Sprintf("关键物品「%s」在第%d章无交代消失后，%s由 %s 再次持有且无重新获得交代（疑似同一物品去留不明，非确定冲突）", item, at, place, held[item])
+					// 报后清除台账：再出现即已知，不逐章重复
+					delete(lostAt, key)
+					delete(lostExplicit, key)
+				}
+				issues = append(issues, iss)
 			}
 		}
 		for _, it := range curr.ItemsLost {
 			if it = strings.TrimSpace(it); it != "" {
-				lostAt[it] = curr.Chapter
+				lostAt[deepNormalizeText(it)] = curr.Chapter
+				lostExplicit[deepNormalizeText(it)] = true
 			}
 		}
 		for _, it := range curr.ItemsRegained {
 			if it = strings.TrimSpace(it); it != "" {
-				delete(lostAt, it)
+				if _, key, ok := deepLostLookup(lostAt, deepNormalizeText(it)); ok {
+					delete(lostAt, key)
+					delete(lostExplicit, key)
+				}
 			}
 		}
 

@@ -6,7 +6,8 @@
 // 模型不可用」）。锁定 mock 契约：每名存在性 + 返回形状关键键，键名与消费方
 // 解构字段一一对应（SchedulingSection 读 running/error、HerdsmanCatalogSection
 // 读 models/total/installed、runOp 读 ok/status/message）。
-// 数值取中性空态（空列表 + 计数 0），不编造逼真模型名。
+// v4.100 T1 起 HerdsmanModelCatalog 带图像模型走查样例（画室「模型目录」tab），
+// 断言从「中性空态」改为「列表与计数一致 + 无 error」；其余各名保持原契约。
 //
 // 说明：各名与 Get/SetEngineFailover 同为 legacy 绑定面（bridge.ts
 // LegacySurfaceNames 显式排除，AppBindings 认领待后端合入后收口），故这里经
@@ -55,13 +56,18 @@ describe("mock 契约 · Herdsman 方法族（模型中心模型库/调度段）
     }
   });
 
-  it("HerdsmanModelCatalog 中性空态：空列表 + 计数 0 + 无 error（调度段读 running 显示 0 个）", async () => {
+  it("HerdsmanModelCatalog 走查样例（v4.100 T1 画室目录视图）：列表与计数一致 + 无 error（调度段不报错）", async () => {
+    // v4.100 T1 起 mock 从「中性空态」改为带图像模型样例（画室「模型目录」tab
+    // 走查有料；模型名与 mock/imagehub.ts 资产样例同源）。本断言随之从
+    // 「空列表 + 计数 0」改为「一致性不变量」：计数必须从列表派生（与真实后端
+    // 同一不变量），且无 error 键——SchedulingSection 的 runningErr 保持 null，
+    // 不渲染报错文案的原目的不变。
     const c = await herdsman.HerdsmanModelCatalog();
     expect(Array.isArray(c.models)).toBe(true);
-    expect(c.models).toHaveLength(0);
-    expect(c.total).toBe(0);
-    expect(c.installed).toBe(0);
-    expect(c.running).toBe(0);
+    const rows = c.models as Array<{ installed?: boolean; running?: boolean }>;
+    expect(c.total).toBe(rows.length);
+    expect(c.installed).toBe(rows.filter((m) => m.installed).length);
+    expect(c.running).toBe(rows.filter((m) => m.running).length);
     expect(typeof c.source).toBe("string");
     // 无 error 键：SchedulingSection 的 runningErr 才为 null，不再渲染报错文案
     expect(c.error).toBeUndefined();

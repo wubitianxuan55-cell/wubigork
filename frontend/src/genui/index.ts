@@ -58,6 +58,7 @@ export {
   loadBlockState,
   saveBlockState,
   clearBlockState,
+  clearBlockStatesForSession,
   resetInteractionStore,
 } from "./interaction";
 export type { BlockInteractionState } from "./interaction";

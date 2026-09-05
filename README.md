@@ -92,6 +92,7 @@ gaea/
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| **v4.101.0** | 2026-09-05 | 三线并行（绑定面 581 零变更）：GenUI 围栏纪律 Go 侧收口——共享剥离 helper（围栏折叠占位/正文逐字保留）+ 做梦/compact 摘要/whisper 摘要三处剥离 + 压缩 prompt 指引 + 面板 resync 去重 + 会话删除清理交互状态；画室模型目录——HerdsmanModelCatalog 只读按能力分族、未定价不伪装、创作语境高亮；小说深检误报缓解——归一化+别名归一+置信度/原因三档分级+忽略记忆可恢复；vitest 254/2024、Go 全量 0 FAIL、drift PASS（581 口径） |
 | **v4.100.0** | 2026-09-05 | 三线并行（绑定面 581 零变更）：画室 T1 余件——识图「读/懂」试用入口（粘贴→识别/提取文字，诚实错误原文+历史）、创作资产面板（角色槽/模板槽/近期作品，经既有 applyTemplate/applyRefCharacter 回填）、修三视图互斥缺陷；办公 U4 前半——渲染证据通道盘点（首选 GaeaPreview 单口刷新零绑定）+ 写后预览实时跟随（800ms 防抖静默重载/保滚动位/不作废修改队列/关闭优先）；GenUI 围栏审计——五链路结论+password 明文不回传修复；vitest 250/1993、Go 全量 0 FAIL、drift PASS（581 口径） |
 | **v4.99.0** | 2026-09-05 | 三线并行（绑定面 581 零变更）：图像域 T1 收口——GenerateDiagram 登记（media.diagram 第二试点）、素材库成本表轻扫、画室素材库独立页 AssetLibrary（筛选/溯源/双空间）；办公 U2——officeTurnProjection 回归纯函数、统一回合卡 draft/ready 徽标、预览浮窗状态机（写弹读不弹/关闭优先/跨回合意图/终态清理）、草稿轻量版；Go 小刀 GaeaListDir——IsAbs+GAEADIR_* 结构化错误码（签名改 ([]DirEntry,error)）；ImageHubAssets/ChapterArtList 转正 AppBindings + mock 中性样例；vitest 248/1954、Go 全量 0 FAIL、drift PASS（581） |
 | **v4.98.0** | 2026-09-05 | 图像域 T0 契约落地（绑定面 579→581）：五原语能力注册表（识图-读/懂、生图、图示；改图 fail-closed）+ Asset Ledger v1 按空间 JSONL 溯源登记（只存路径+元数据）+ 模型中心目录只读视图；试点书封/绘梦登记、OCR/识图入口校验；T1 提前量（章节配图落盘登记+本章历史配图、绘梦「素材库」tab、角色剧照溯源）；T2 参考槽 v0（选角色→参考图图生图近似，ipadapter/pulid 诚实拒绝）；办公 U1 FORMAT_* 错误码 + office-edit 技能；修登记闸测试污染；vitest 245/1898、Go 全量 0 FAIL、drift PASS（581） |

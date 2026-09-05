@@ -1,3 +1,10 @@
+## v4.101.0 · 三线并行：GenUI 围栏 Go 侧收口 · 画室模型目录 · 深检误报缓解（2026-09-05）
+> 「继续」惯例三线并行（避开并行会话 Model Hub 线禁区）；**绑定面 581 零变更**。详见 releases/v4.101.0.md。
+- **GenUI 围栏纪律 Go 侧收口**（审计 §8 六项落地，第 5 项 resume 槽位口径另行排期）：新共享剥离 helper internal/gaea/genui/fence.go（行扫描语义照搬前端 splitGenuiFences，围栏折叠为 `[genui 组件]` 占位、正文逐字保留）；做梦 dreamInput / BuildCompactSummary pendingItems / whisper companion_reply 摘要三处剥离（JSON 不再占 1500 字符窗口与入记忆）；压缩 summarySystemPrompt 增补「UI 围栏 JSON 不原样收录」指引；办公面板 append 去重键改 spec 指纹（resync 不再重复追加）；会话删除按 stateKey 前缀清理 genui 交互状态与面板（App 删除点接线）。
+- **画室模型目录**：imagegen 新增「模型目录」tab——读 HerdsmanModelCatalog（mock 契约不变），按目录能力字段分能力族（生图/改图/视频/识图），状态/参数量/量化/文件大小/运行时等实有字段展示；目录无档位/成本字段→「未定价/目录未标注」不伪装（T0 口径）；当前生成台模型「当前使用」高亮（创作语境，不做管理功能）。
+- **小说深检误报缓解**：文本归一化（全半角/空白/包裹符）+ 角色别名归一（名单推断+称谓剥离，歧义即放弃）+ 告警置信度/原因分类（冲突/疑似/提示三档 UI，措辞差异与粗粒度时间降级不吞真冲突）+ 单条忽略记忆（项目级 localStorage 上限 500，横幅保持可见可恢复）。
+- 门禁：Go 全量 0 FAIL（含并行会话在途 Model Hub 改动如实注明）、tsc -b/eslint 0、vitest 254 文件/2024 用例全绿（净增 4 文件/31 用例）、drift PASS（581 口径）、?mock=1 模型目录走查 PASS。
+
 ## v4.100.0 · 三线并行：画室 T1 余件 · 办公 U4 前半 · GenUI 围栏审计（2026-09-05）
 > 「继续」惯例三线并行（文件所有权互斥子代理，避开并行会话 Model Hub 线禁区）；**绑定面 581 零变更**。详见 releases/v4.100.0.md。
 - **画室 T1 余件**：①识图「读/懂」画室试用入口（粘贴/选图→SavePastedImage 落盘→GaeaRecognizeImage/GaeaOCRText，原语 Tag+诚实错误原文+localStorage 最近 5 条，零新绑定）；②画室「创作资产」面板（角色槽 CharacterList 分页带出立绘摘要、模板槽复用绘梦模板库、近期作品读 ledger；选中经既有 applyTemplate/applyRefCharacter 回填生成台，不硬拼）。**走查实锤并修复**：三视图 tab 互斥缺陷（onClick 只开不关，aria 双 selected 且内容不切换）。

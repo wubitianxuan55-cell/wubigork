@@ -49,6 +49,47 @@ export function sourceBadge(source?: string): { label: string; color: string } |
   return null
 }
 
+// ── 误报缓解：置信度/原因标注 → UI 三档分级 ─────────────────
+// 对齐 internal/app/consistency_deep_handler.go deepIssueToMap 输出的
+// confidence（high/medium/low）与 reason（缓解原因分类）两个可选字段。
+
+/** 缓解原因分类（后端 reason 字段的合法值） */
+export type DeepIssueReason = 'wording' | 'granularity' | 'alias' | 'unexplained'
+
+/** 深检告警 UI 分级：conflict=冲突 / suspected=疑似 / hint=提示 */
+export type DeepIssueLevel = 'conflict' | 'suspected' | 'hint'
+
+/** 携带缓解标注的告警（后端 v4.101 起新增的可选字段） */
+export interface DeepIssueAnnotation {
+  confidence?: string
+  reason?: string
+}
+
+/** 原因 → 分级映射：措辞差异一律降为「提示」，粒度/别名/缺交代降为「疑似」 */
+const REASON_LEVEL: Record<DeepIssueReason, DeepIssueLevel> = {
+  wording: 'hint',
+  granularity: 'suspected',
+  alias: 'suspected',
+  unexplained: 'suspected',
+}
+
+/**
+ * 告警分级：带合法缓解原因的按原因映射（降级），否则按 severity 直映射
+ * （error→冲突 / warning→疑似 / 其余→提示）。分级只降不升，绝不吞掉真问题。
+ */
+export function deepIssueLevel(iss: ConsistencyDeepIssue & DeepIssueAnnotation): DeepIssueLevel {
+  const byReason = iss.reason && iss.reason in REASON_LEVEL ? REASON_LEVEL[iss.reason as DeepIssueReason] : undefined
+  if (byReason) return byReason
+  if (iss.severity === 'error') return 'conflict'
+  if (iss.severity === 'warning') return 'suspected'
+  return 'hint'
+}
+
+/** 缓解原因收窄：未知/缺失 reason 返回 ''（不渲染原因徽标） */
+export function deepIssueReason(iss: ConsistencyDeepIssue & DeepIssueAnnotation): DeepIssueReason | '' {
+  return iss.reason && iss.reason in REASON_LEVEL ? (iss.reason as DeepIssueReason) : ''
+}
+
 /** 深检元信息一行文案：「AI 深检：已扫描 20 章」+ 可选失败后缀；无扫描记录返回 null */
 export function deepScanMeta(result: ConsistencyDeepResult): string | null {
   if (result.chapters_scanned <= 0) return null

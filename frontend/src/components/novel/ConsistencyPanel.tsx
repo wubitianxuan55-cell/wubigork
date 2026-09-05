@@ -1,20 +1,49 @@
-// ConsistencyPanel.tsx — 一致性检查面板（v4.3f + AI 深检 v0）
+// ConsistencyPanel.tsx — 一致性检查面板（v4.3f + AI 深检 v0 + 误报缓解 v4.101）
 // 展示 CheckConsistency 三类规则告警（角色属性/角色状态/时间线），带严重度/描述，
 // 「重新检查」按钮 + 全部通过时的成功空态。
 // 「AI 深检」：AI 逐章提取实体状态卡，本地跨章比对矛盾（死亡再出场/位置瞬移/
 // 物品凭空消失·无中生有/时间倒流），与规则层合并展示（source 徽标区分来源）；
 // AI 不可用时诚实降级为规则层结果并展示说明。
+// 误报缓解（v4.101）：深检模式下告警按 冲突/疑似/提示 三档分级展示（后端带
+// confidence/reason 标注，措辞/粒度/别名类降级附原因徽标）；每条可「忽略」并按
+// 项目记忆（localStorage），被忽略条目以计数横幅保持可见、可一键恢复显示。
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { Alert, Button, Empty, InputNumber, Spin, Tag } from 'antd'
-import { CheckCircleOutlined, ReloadOutlined, SafetyCertificateOutlined, ThunderboltOutlined } from '@ant-design/icons'
+import { CheckCircleOutlined, CloseOutlined, ReloadOutlined, SafetyCertificateOutlined, ThunderboltOutlined } from '@ant-design/icons'
 import * as App from '../../../src/wailsjsCompat'
-import { clampDeepChapters, deepScanMeta, normalizeDeepResult, sourceBadge } from './consistencyDeep'
+// 注意：用 i18n 模块的非响应式 t（根级 LocaleProvider 每次渲染同步 currentLocale
+// 镜像），而非 useT —— NovelSettingPage 测试直接渲染本组件且外层无 Provider，
+// useI18n 会抛错；非响应式 t 无 Provider 依赖，测试环境安全回退英文。
+import { t as dictT } from '../../gaea/lib/i18n'
+import type { DictKey } from '../../gaea/locales/en'
+import { useAppStore } from '../../stores/appStore'
+import {
+  clampDeepChapters, deepIssueLevel, deepIssueReason, deepScanMeta,
+  normalizeDeepResult, sourceBadge,
+} from './consistencyDeep'
+import type { DeepIssueLevel, DeepIssueReason } from './consistencyDeep'
+import { clearIgnoredIssues, deepIssueFingerprint, ignoreIssue, loadIgnoredFingerprints } from './consistencyIgnore'
 import type { ConsistencyCheckIssue, ConsistencyCheckReport, ConsistencyDeepIssue, ConsistencyDeepResult, ConsistencySeverity } from '../../types'
 
 const SEVERITY_META: Record<ConsistencySeverity, { label: string; color: string }> = {
   error: { label: '错误', color: 'red' },
   warning: { label: '警告', color: 'gold' },
   info: { label: '提示', color: 'blue' },
+}
+
+/** 深检模式三档分级样式（i18n 标签，规则层-only 视图不启用分级） */
+const LEVEL_META: Record<DeepIssueLevel, { labelKey: DictKey; color: string }> = {
+  conflict: { labelKey: 'novelDeep.levelConflict', color: 'red' },
+  suspected: { labelKey: 'novelDeep.levelSuspected', color: 'gold' },
+  hint: { labelKey: 'novelDeep.levelHint', color: 'blue' },
+}
+
+/** 缓解原因徽标文案（与后端 reason 分类一一对应） */
+const REASON_LABEL_KEY: Record<DeepIssueReason, DictKey> = {
+  wording: 'novelDeep.reasonWording',
+  granularity: 'novelDeep.reasonGranularity',
+  alias: 'novelDeep.reasonAlias',
+  unexplained: 'novelDeep.reasonUnexplained',
 }
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -37,13 +66,21 @@ interface ConsistencyPanelProps {
 }
 
 const ConsistencyPanel: React.FC<ConsistencyPanelProps> = ({ disabled }) => {
+  const t = dictT
+  const projectPath = useAppStore((s) => s.projectPath)
   const [report, setReport] = useState<ConsistencyCheckReport | null>(null)
   const [loading, setLoading] = useState(true)
   const [deepResult, setDeepResult] = useState<ConsistencyDeepResult | null>(null)
   const [deepLoading, setDeepLoading] = useState(false)
   const [deepError, setDeepError] = useState('')
   const [deepChapters, setDeepChapters] = useState(20)
+  const [ignoredFps, setIgnoredFps] = useState<string[]>([])
   const loadToken = useRef(0)
+
+  // 忽略记忆随项目切换加载（localStorage 按项目路径隔离）
+  useEffect(() => {
+    setIgnoredFps(loadIgnoredFingerprints(projectPath))
+  }, [projectPath])
 
   const load = useCallback(async () => {
     const token = ++loadToken.current
@@ -92,9 +129,24 @@ const ConsistencyPanel: React.FC<ConsistencyPanelProps> = ({ disabled }) => {
     }
   }, [deepChapters, disabled])
 
-  const issues: ConsistencyCheckIssue[] = deepResult?.issues ?? report?.issues ?? []
+  const allIssues: ConsistencyCheckIssue[] = deepResult?.issues ?? report?.issues ?? []
+  // 忽略记忆只在深检视图生效（指纹按项目隔离）；被忽略条目以计数横幅保持可见
+  const issues = deepResult
+    ? allIssues.filter((iss) => !ignoredFps.includes(deepIssueFingerprint(iss as ConsistencyDeepIssue)))
+    : allIssues
+  const ignoredCount = deepResult ? allIssues.length - issues.length : 0
   const summaryText = deepResult?.summary ?? report?.summary
   const showSourceBadge = deepResult !== null
+
+  const handleIgnore = useCallback((iss: ConsistencyDeepIssue) => {
+    ignoreIssue(projectPath, iss)
+    setIgnoredFps(loadIgnoredFingerprints(projectPath))
+  }, [projectPath])
+
+  const handleRestore = useCallback(() => {
+    clearIgnoredIssues(projectPath)
+    setIgnoredFps(loadIgnoredFingerprints(projectPath))
+  }, [projectPath])
 
   return (
     <div className="novel-panel fs-panel" style={{ flex: 1, minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -151,34 +203,76 @@ const ConsistencyPanel: React.FC<ConsistencyPanelProps> = ({ disabled }) => {
             {deepResult && deepScanMeta(deepResult) && (
               <div className="novel-setting-meta" data-testid="consistency-deep-meta">{deepScanMeta(deepResult)}</div>
             )}
-            {issues.length === 0 ? (
-              <Empty
-                image={Empty.PRESENTED_IMAGE_SIMPLE}
-                description={
-                  <span style={{ color: 'var(--color-success, #34d399)' }}>
-                    <CheckCircleOutlined /> 全部通过，未发现一致性问题
-                  </span>
-                }
-                style={{ margin: 'auto' }}
+            {deepResult && ignoredCount > 0 && (
+              <Alert
+                type="info" showIcon style={{ width: '100%' }}
+                data-testid="consistency-ignored-banner"
+                message={t('novelDeep.ignoredSummary', { count: ignoredCount })}
+                action={(
+                  <Button size="small" type="text" onClick={handleRestore} data-testid="consistency-ignored-restore">
+                    {t('novelDeep.restoreIgnored')}
+                  </Button>
+                )}
               />
+            )}
+            {issues.length === 0 ? (
+              ignoredCount > 0 ? (
+                <Empty
+                  image={Empty.PRESENTED_IMAGE_SIMPLE}
+                  description={<span data-testid="consistency-all-ignored">{t('novelDeep.allIgnored', { count: ignoredCount })}</span>}
+                  style={{ margin: 'auto' }}
+                />
+              ) : (
+                <Empty
+                  image={Empty.PRESENTED_IMAGE_SIMPLE}
+                  description={
+                    <span style={{ color: 'var(--color-success, #34d399)' }}>
+                      <CheckCircleOutlined /> 全部通过，未发现一致性问题
+                    </span>
+                  }
+                  style={{ margin: 'auto' }}
+                />
+              )
             ) : (
               <div className="fs-list" style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {issues.map((iss, idx) => {
                   const deepIss = iss as ConsistencyDeepIssue
                   const badge = showSourceBadge ? sourceBadge(deepIss.source) : null
+                  // 分级标签只在深检视图启用（冲突/疑似/提示）；规则层-only 视图沿用严重度
+                  const level: DeepIssueLevel | null = showSourceBadge ? deepIssueLevel(deepIss) : null
+                  const reason: DeepIssueReason | '' = showSourceBadge ? deepIssueReason(deepIss) : ''
                   return (
                     <div key={`${deepIss.source ?? 'rule'}-${deepIss.category}-${deepIss.entity_name}-${idx}`} className="fs-item">
                       <div className="fs-item-head">
-                        <Tag style={{ marginInlineEnd: 6, fontSize: 11 }} color={SEVERITY_META[deepIss.severity]?.color ?? 'default'}>
-                          {SEVERITY_META[deepIss.severity]?.label ?? deepIss.severity}
-                        </Tag>
+                        {level ? (
+                          <Tag style={{ marginInlineEnd: 6, fontSize: 11 }} color={LEVEL_META[level].color} data-testid="consistency-issue-level">
+                            {t(LEVEL_META[level].labelKey)}
+                          </Tag>
+                        ) : (
+                          <Tag style={{ marginInlineEnd: 6, fontSize: 11 }} color={SEVERITY_META[deepIss.severity]?.color ?? 'default'}>
+                            {SEVERITY_META[deepIss.severity]?.label ?? deepIss.severity}
+                          </Tag>
+                        )}
                         <Tag style={{ marginInlineEnd: 6, fontSize: 11 }} color="default">{CATEGORY_LABELS[deepIss.category] || deepIss.category}</Tag>
                         {badge && (
                           <Tag style={{ marginInlineEnd: 6, fontSize: 11 }} color={badge.color} data-testid="consistency-issue-source">{badge.label}</Tag>
                         )}
+                        {reason && (
+                          <Tag style={{ marginInlineEnd: 6, fontSize: 11 }} color="warning" data-testid="consistency-issue-reason">
+                            {t(REASON_LABEL_KEY[reason])}
+                          </Tag>
+                        )}
                         <span className="fs-item-desc">
                           {deepIss.entity_name ? `${deepIss.entity_name}：` : ''}{deepIss.description}
                         </span>
+                        {showSourceBadge && (
+                          <Button
+                            type="text" size="small" icon={<CloseOutlined />}
+                            onClick={() => handleIgnore(deepIss)}
+                            title={t('novelDeep.ignoreTip')}
+                            data-testid="consistency-issue-ignore"
+                          />
+                        )}
                       </div>
                       {deepIss.location && (
                         <div className="fs-item-foot">

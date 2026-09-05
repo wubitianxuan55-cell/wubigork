@@ -15,7 +15,6 @@ import (
 
 	"github.com/gaea/gaea/internal/ai"
 	"github.com/gaea/gaea/internal/config"
-	"github.com/gaea/gaea/internal/graph"
 	"github.com/gaea/gaea/internal/modelengine"
 	"github.com/gaea/gaea/internal/project"
 	"github.com/gaea/gaea/internal/prompt"
@@ -172,9 +171,9 @@ func TestDeepCompareStateLineDeadReappear(t *testing.T) {
 		{Chapter: 3, Characters: []deepCharacterState{{Name: "林晚", Status: "alive", Location: "青云宗"}}},
 		{Chapter: 4, Characters: []deepCharacterState{{Name: "林晚", Status: "alive", Location: "青云宗"}}},
 	}
-	issues := deepCompareStateLine(cards)
+	issues := deepCompareStateLine(cards, nil)
 
-	var hits []graph.ConsistencyIssue
+	var hits []deepIssue
 	for _, iss := range issues {
 		if iss.Category == "status" && iss.Severity == "error" && strings.Contains(iss.EntityName, "林晚") {
 			hits = append(hits, iss)
@@ -197,7 +196,7 @@ func TestDeepCompareStateLineDeadInBranch(t *testing.T) {
 		{Chapter: 3, Branch: "a", Characters: []deepCharacterState{{Name: "陈九", Status: "dead"}}},
 		{Chapter: 5, Branch: "a", Characters: []deepCharacterState{{Name: "陈九", Status: "alive", Location: "黑市"}}},
 	}
-	issues := deepCompareStateLine(cards)
+	issues := deepCompareStateLine(cards, nil)
 	if len(issues) != 1 {
 		t.Fatalf("期望 1 条告警: %+v", issues)
 	}
@@ -206,26 +205,29 @@ func TestDeepCompareStateLineDeadInBranch(t *testing.T) {
 	}
 }
 
-// TestDeepCompareStateLineItemVanishAndConjure 物品凭空消失（warning）→ 无中生有（error）→ 有重新获得交代则不报
+// TestDeepCompareStateLineItemVanishAndConjure 物品凭空消失（warning）→ 无中生有：
+// 仅因「无交代消失」入账的降级为 warning + unexplained（疑似留白/后期寻回，只报
+// 一次）；items_lost 明确交代过的失去仍报 error（真冲突不降级）；有 items_regained
+// 交代则不报
 func TestDeepCompareStateLineItemVanishAndConjure(t *testing.T) {
 	cards := []*deepStateCard{
 		{Chapter: 1, Characters: []deepCharacterState{{Name: "林晚", Status: "alive", Location: "青云宗", Items: []string{"玄铁剑"}}}},
 		// 玄铁剑消失且无 items_lost 交代 → warning
 		{Chapter: 2, Characters: []deepCharacterState{{Name: "林晚", Status: "alive", Location: "青云宗"}}},
-		// 玄铁剑又出现但无 items_regained 交代 → error
+		// 玄铁剑又出现但无 items_regained 交代 → 无交代消失入账，降级 warning + unexplained
 		{Chapter: 3, Characters: []deepCharacterState{{Name: "林晚", Status: "alive", Location: "青云宗", Items: []string{"玄铁剑"}}}},
 	}
-	issues := deepCompareStateLine(cards)
+	issues := deepCompareStateLine(cards, nil)
 
-	var vanish, conjure *graph.ConsistencyIssue
+	var vanish, conjure *deepIssue
 	for i := range issues {
 		iss := issues[i]
 		if iss.Category == "item" && strings.Contains(iss.EntityName, "玄铁剑") {
-			if iss.Severity == "warning" && vanish == nil {
+			if strings.Contains(iss.Description, "凭空消失") && vanish == nil {
 				v := iss
 				vanish = &v
 			}
-			if iss.Severity == "error" && conjure == nil {
+			if strings.Contains(iss.Description, "无交代消失后") && conjure == nil {
 				c := iss
 				conjure = &c
 			}
@@ -237,17 +239,23 @@ func TestDeepCompareStateLineItemVanishAndConjure(t *testing.T) {
 	if !strings.Contains(vanish.Description, "凭空消失") || !strings.Contains(vanish.Location, "第2章") {
 		t.Fatalf("凭空消失告警不符: %+v", *vanish)
 	}
-	if conjure == nil {
-		t.Fatalf("缺「无中生有」告警: %+v", issues)
+	if vanish.Reason != "unexplained" || vanish.Confidence != "medium" {
+		t.Fatalf("凭空消失应带 unexplained/medium 标注: %+v", *vanish)
 	}
-	if !strings.Contains(conjure.Description, "无中生有") || !strings.Contains(conjure.Description, "第2章已标记失去") {
-		t.Fatalf("无中生有告警不符: %+v", *conjure)
+	if conjure == nil {
+		t.Fatalf("缺「无中生有」降级告警: %+v", issues)
+	}
+	if conjure.Severity != "warning" || conjure.Reason != "unexplained" || conjure.Confidence != "medium" {
+		t.Fatalf("无交代消失入账的无中生有应降级为 warning/unexplained/medium: %+v", *conjure)
+	}
+	if !strings.Contains(conjure.Description, "第2章") {
+		t.Fatalf("无中生有告警缺来源章节: %+v", *conjure)
 	}
 
 	// 有 items_regained 交代 → 无中生有不再报
 	cards[2].ItemsRegained = []string{"玄铁剑"}
-	for _, iss := range deepCompareStateLine(cards) {
-		if iss.Category == "item" && iss.Severity == "error" {
+	for _, iss := range deepCompareStateLine(cards, nil) {
+		if iss.Category == "item" && strings.Contains(iss.Description, "无交代消失后") {
 			t.Fatalf("有重新获得交代仍报无中生有: %+v", iss)
 		}
 	}
@@ -257,10 +265,25 @@ func TestDeepCompareStateLineItemVanishAndConjure(t *testing.T) {
 	cards[1].ItemsLost = []string{"玄铁剑"}
 	cards[2].Characters = []deepCharacterState{{Name: "林晚", Status: "alive", Location: "青云宗"}}
 	cards[2].ItemsRegained = nil
-	for _, iss := range deepCompareStateLine(cards) {
-		if iss.Category == "item" && iss.Severity == "warning" {
+	for _, iss := range deepCompareStateLine(cards, nil) {
+		if iss.Category == "item" && iss.Severity == "warning" && strings.Contains(iss.Description, "凭空消失") {
 			t.Fatalf("items_lost 有交代仍报凭空消失: %+v", iss)
 		}
+	}
+
+	// items_lost 明确交代过的失去 → 再次持有且无 regain 仍报 error（真冲突不降级）
+	cards[2].Characters = []deepCharacterState{{Name: "林晚", Status: "alive", Location: "青云宗", Items: []string{"玄铁剑"}}}
+	var explicit *deepIssue
+	explicitIssues := deepCompareStateLine(cards, nil)
+	for i := range explicitIssues {
+		iss := explicitIssues[i]
+		if iss.Category == "item" && strings.Contains(iss.EntityName, "玄铁剑") {
+			e := iss
+			explicit = &e
+		}
+	}
+	if explicit == nil || explicit.Severity != "error" || explicit.Reason != "" || explicit.Confidence != "high" {
+		t.Fatalf("明确交代过的失去应报 error/high 且无 reason: %+v", explicitIssues)
 	}
 }
 
@@ -270,7 +293,7 @@ func TestDeepCompareStateLineTeleportAndTime(t *testing.T) {
 		{Chapter: 1, TimeMark: "第一日", TimeRelation: "unknown", Characters: []deepCharacterState{{Name: "林晚", Status: "alive", Location: "青云宗"}}},
 		{Chapter: 2, TimeMark: "第一日晨", TimeRelation: "earlier", Characters: []deepCharacterState{{Name: "林晚", Status: "alive", Location: "北境荒原"}}},
 	}
-	issues := deepCompareStateLine(cards)
+	issues := deepCompareStateLine(cards, nil)
 
 	var teleport, rewind bool
 	for _, iss := range issues {
@@ -291,7 +314,7 @@ func TestDeepCompareStateLineTeleportAndTime(t *testing.T) {
 	// 有 travel_notes 交代 → 不报瞬移；time_relation 改 later → 不报倒流
 	cards[1].TravelNotes = []string{"连夜御剑赶往北境"}
 	cards[1].TimeRelation = "later"
-	if issues = deepCompareStateLine(cards); len(issues) != 0 {
+	if issues = deepCompareStateLine(cards, nil); len(issues) != 0 {
 		t.Fatalf("有交代后不应再报: %+v", issues)
 	}
 }

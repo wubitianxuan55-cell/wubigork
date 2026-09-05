@@ -1673,6 +1673,49 @@ export const zhTW: Record<DictKey, string> = {
   "imagehubT1.studioWorksHint": "點擊卡片跳轉素材庫查看溯源",
   "imagehubT1.studioWorksOpenLib": "去素材庫",
 
+  // ── T1 畫室「模型目錄」創作語境視圖（imagegen 頂部導航 tab）：資料源 = 模型
+  //    中心目錄（HerdsmanModelCatalog 唯讀，零新綁定）；目錄未攜帶的檔位/成本
+  //    元資料誠實留空（成本統一「未定價」，不偽裝 0）；引擎/金鑰/模型啟停管理
+  //    職責在模型中心，此處不重複。 ──
+  "imagehubT1.modelDirNav": "模型目錄",
+  "imagehubT1.modelDirTitle": "模型目錄 · 創作語境",
+  "imagehubT1.modelDirSubtitle": "按目錄能力欄位分族的圖像相關模型（唯讀）——徽標 / 狀態 / 佔用為目錄實有欄位，點擊卡片看詳情。",
+  "imagehubT1.modelDirLoading": "目錄載入中…",
+  "imagehubT1.modelDirCount": "圖像相關 {n} 個 · 目錄總計 {total} 個（已裝 {installed} · 執行中 {running}）",
+  "imagehubT1.modelDirGroupGen": "生圖",
+  "imagehubT1.modelDirGroupEdit": "改圖",
+  "imagehubT1.modelDirGroupVideo": "影片",
+  "imagehubT1.modelDirGroupVision": "識圖",
+  "imagehubT1.modelDirGroupOther": "其他圖像能力",
+  "imagehubT1.modelDirCapGen": "生圖",
+  "imagehubT1.modelDirCapEdit": "改圖",
+  "imagehubT1.modelDirCapVideo": "影片",
+  "imagehubT1.modelDirCapVision": "識圖",
+  "imagehubT1.modelDirCapOcr": "文字辨識",
+  "imagehubT1.modelDirCapParse": "文件解析",
+  "imagehubT1.modelDirFamilies": "能力族",
+  "imagehubT1.modelDirCurrent": "目前使用",
+  "imagehubT1.modelDirRunning": "執行中",
+  "imagehubT1.modelDirInstalled": "已安裝",
+  "imagehubT1.modelDirNotInstalled": "未安裝",
+  "imagehubT1.modelDirMetaStatus": "狀態",
+  "imagehubT1.modelDirMetaRunStatus": "執行狀態",
+  "imagehubT1.modelDirMetaParams": "參數量",
+  "imagehubT1.modelDirActiveParams": "啟用參數",
+  "imagehubT1.modelDirMetaQuant": "量化",
+  "imagehubT1.modelDirMetaSize": "檔案大小",
+  "imagehubT1.modelDirMetaRuntime": "執行時",
+  "imagehubT1.modelDirMetaEngines": "推論引擎",
+  "imagehubT1.modelDirMetaVariants": "可選變體",
+  "imagehubT1.modelDirTierLabel": "檔位",
+  "imagehubT1.modelDirTierUnset": "目錄未標註",
+  "imagehubT1.modelDirDetailTitle": "模型詳情（僅目錄實有欄位）",
+  "imagehubT1.modelDirHintTitle": "用途建議（本機實測）",
+  "imagehubT1.modelDirEmpty": "目錄中暫無圖像相關模型。",
+  "imagehubT1.modelDirLoadFail": "模型目錄載入失敗：{msg}",
+  "imagehubT1.modelDirCatalogError": "目錄來源回傳異常：{msg}",
+  "imagehubT1.modelDirSourceNote": "資料源：與模型中心目錄同源（HerdsmanModelCatalog 唯讀視圖）。目錄未攜帶檔位/成本元資料，成本統一誠實顯示「未定價」而非 0；引擎啟停 / 金鑰 / 模型啟停管理在模型中心，此處不重複。",
+
   // ── U2 回合投影與審閱收口（officeTurn）：統一 Office 回合卡草稿/就緒徽標。
   //    口徑寫死（規劃拍板項 2）：首次寫盤=草稿、Plan→Apply 批准=就緒；
   //    保留/回滾沿用既有驗收與證據鏈按鈕，不新增操作。 ──
@@ -1683,4 +1726,16 @@ export const zhTW: Record<DictKey, string> = {
   // ── U4 寫後預覽即時跟隨：靜默重載後的短暫「已自動重新整理」指示 ──
   "officeTurn.autoRefreshed": "已自動重新整理",
   "officeTurn.autoRefreshedTitle": "內容已按 agent 剛寫入的檔案重新載入（預覽只跟隨已開啟的檔案，不會彈出任何視窗）",
+  // ── 小說一致性深檢（CheckConsistencyDeep）誤報緩解 ──
+  "novelDeep.levelConflict": "衝突",
+  "novelDeep.levelSuspected": "疑似",
+  "novelDeep.levelHint": "提示",
+  "novelDeep.reasonWording": "措辭差異（非衝突）",
+  "novelDeep.reasonGranularity": "時間表述粒度差異",
+  "novelDeep.reasonAlias": "稱謂或別名差異",
+  "novelDeep.reasonUnexplained": "缺少明確交代",
+  "novelDeep.ignoreTip": "忽略此條並記憶（僅本專案）",
+  "novelDeep.ignoredSummary": "已忽略 {count} 則提示（本專案記憶，可恢復）",
+  "novelDeep.allIgnored": "已忽略全部 {count} 則提示，可恢復顯示",
+  "novelDeep.restoreIgnored": "恢復顯示",
 };

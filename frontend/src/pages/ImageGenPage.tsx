@@ -11,7 +11,7 @@ import { Button, message } from 'antd'
 import {
   PictureOutlined, FolderOpenOutlined,
   SwapOutlined, VideoCameraOutlined,
-  AppstoreOutlined, EyeOutlined,
+  AppstoreOutlined, EyeOutlined, DatabaseOutlined,
 } from '@ant-design/icons'
 import Lightbox from '../components/Lightbox'
 import CustomTemplateModal from '../components/imagegen/CustomTemplateModal'
@@ -23,6 +23,7 @@ import { TaskCenter } from '../components/imagegen/TaskCenter'
 import { AssetLibrary } from '../components/imagegen/AssetLibrary'
 import { AssetStudio } from '../components/imagegen/AssetStudio'
 import { VisionTrial } from '../components/imagegen/VisionTrial'
+import { ModelDirectory } from '../components/imagegen/ModelDirectory'
 import { StatusDot } from '../components/imagegen/ui'
 import { TEMPLATES, type Template } from '../data/imageTemplates'
 import { useImageGenConfig } from '../hooks/useImageGenConfig'
@@ -96,6 +97,8 @@ const ImageGenPage: React.FC = () => {
   // T1 创作资产面板 + 识图试用：与素材库同模式（轨道 tab，激活时替换工作台）。
   const [assetStudioOpen, setAssetStudioOpen] = useState(false)
   const [visionTrialOpen, setVisionTrialOpen] = useState(false)
+  // T1 模型目录：创作语境视图（读模型中心目录，与素材库同模式，激活时替换工作台）。
+  const [modelDirectoryOpen, setModelDirectoryOpen] = useState(false)
 
   // ── 跨 hook 操作 ──
 
@@ -108,6 +111,7 @@ const ImageGenPage: React.FC = () => {
     setAssetLibraryOpen(false)
     setAssetStudioOpen(false)
     setVisionTrialOpen(false)
+    setModelDirectoryOpen(false)
   }, [setMode, setResults, setLightboxIndex, clearRefSlot])
 
   // ── 结果操作 ──
@@ -250,7 +254,7 @@ const ImageGenPage: React.FC = () => {
             role="tab"
             aria-selected={assetLibraryOpen}
             className={`ig-mode-item${assetLibraryOpen ? ' is-active' : ''}`}
-            onClick={() => { setAssetLibraryOpen(true); setAssetStudioOpen(false); setVisionTrialOpen(false) }}
+            onClick={() => { setAssetLibraryOpen(true); setAssetStudioOpen(false); setVisionTrialOpen(false); setModelDirectoryOpen(false) }}
           >
             <FolderOpenOutlined /> {t('imagehubT1.libraryNav')}
           </button>
@@ -259,7 +263,7 @@ const ImageGenPage: React.FC = () => {
             role="tab"
             aria-selected={assetStudioOpen}
             className={`ig-mode-item${assetStudioOpen ? ' is-active' : ''}`}
-            onClick={() => { setAssetStudioOpen(true); setAssetLibraryOpen(false); setVisionTrialOpen(false) }}
+            onClick={() => { setAssetStudioOpen(true); setAssetLibraryOpen(false); setVisionTrialOpen(false); setModelDirectoryOpen(false) }}
           >
             <AppstoreOutlined /> {t('imagehubT1.studioNav')}
           </button>
@@ -268,9 +272,18 @@ const ImageGenPage: React.FC = () => {
             role="tab"
             aria-selected={visionTrialOpen}
             className={`ig-mode-item${visionTrialOpen ? ' is-active' : ''}`}
-            onClick={() => { setVisionTrialOpen(true); setAssetLibraryOpen(false); setAssetStudioOpen(false) }}
+            onClick={() => { setVisionTrialOpen(true); setAssetLibraryOpen(false); setAssetStudioOpen(false); setModelDirectoryOpen(false) }}
           >
             <EyeOutlined /> {t('imagehubT1.visionNav')}
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={modelDirectoryOpen}
+            className={`ig-mode-item${modelDirectoryOpen ? ' is-active' : ''}`}
+            onClick={() => { setModelDirectoryOpen(true); setAssetLibraryOpen(false); setAssetStudioOpen(false); setVisionTrialOpen(false) }}
+          >
+            <DatabaseOutlined /> {t('imagehubT1.modelDirNav')}
           </button>
         </div>
 
@@ -294,7 +307,7 @@ const ImageGenPage: React.FC = () => {
         </div>
       </div>
 
-      {/* T1 素材库 / 创作资产 / 识图试用视图：激活时替换生成工作台（模块内独立页，行为零回归） */}
+      {/* T1 素材库 / 创作资产 / 识图试用 / 模型目录视图：激活时替换生成工作台（模块内独立页，行为零回归） */}
       {assetLibraryOpen ? (
         <AssetLibrary onClose={() => setAssetLibraryOpen(false)} />
       ) : assetStudioOpen ? (
@@ -308,6 +321,12 @@ const ImageGenPage: React.FC = () => {
         />
       ) : visionTrialOpen ? (
         <VisionTrial onClose={() => setVisionTrialOpen(false)} />
+      ) : modelDirectoryOpen ? (
+        <ModelDirectory
+          onClose={() => setModelDirectoryOpen(false)}
+          backend={backend}
+          model={model}
+        />
       ) : (
         <>
       {/* 3 分区工作台：左控制台 zone | 中画布 zone | 右历史·任务 inspector */}

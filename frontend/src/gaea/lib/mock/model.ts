@@ -144,6 +144,106 @@ type ModelMethods = Pick<
   | "ModelSwitchEstimate" | "Balance"
 > & LegacyModelMethods & LegacyHerdsmanMethods & LegacyBenchmarkMethods;
 
+// HerdsmanCatalogModel 本地视图（对齐 internal/app/herdsman_catalog.go 的 json
+// 字段；mock 层不 import Go 侧，字段漂移由 mock-contract-herdsman 兜底）。
+type HerdsmanCatalogModelMock = {
+  name: string;
+  display_name: string;
+  type: string;
+  runtime?: string;
+  inference_engines?: string[];
+  capabilities?: string[];
+  installed: boolean;
+  running: boolean;
+  status: string;
+  run_status?: string;
+  quantization?: string;
+  parameter_count?: number;
+  active_parameters?: number;
+  is_moe?: boolean;
+  file_size?: number;
+  llama_cpp_variants?: string[];
+  hint?: string;
+};
+
+// 走查样例（v4.100 T1 画室「模型目录」）：6 条 = 5 条图像相关（生图/改图/视频/
+// 识图各有着落）+ 1 条纯 LLM（验证画室视图按能力字段过滤、LLM 不混入）。
+// hint 文案取 Go herdsmanModelHint 的真实映射输出；档位/成本/上下文目录本就
+// 不携带，样例不编造（未知留空）。
+const HERDSMAN_CATALOG_SAMPLE: HerdsmanCatalogModelMock[] = [
+  {
+    name: "z-image-turbo",
+    display_name: "Z-Image Turbo",
+    type: "image",
+    capabilities: ["text-to-image", "image-to-image"],
+    installed: true,
+    running: true,
+    status: "installed",
+    run_status: "running",
+    file_size: 20401094656,
+    hint: "本地文生图（19GB）：绘梦板块 herdsman 后端",
+  },
+  {
+    name: "flux",
+    display_name: "FLUX",
+    type: "image",
+    capabilities: ["text-to-image"],
+    installed: true,
+    running: false,
+    status: "installed",
+    run_status: "stopped",
+    file_size: 23843624960,
+    hint: "本地文生图（19GB）：绘梦板块 herdsman 后端",
+  },
+  {
+    name: "ltx-video",
+    display_name: "LTX Video",
+    type: "video",
+    capabilities: ["text-to-video", "image-to-video"],
+    installed: false,
+    running: false,
+    status: "uninstalled",
+    run_status: "stopped",
+  },
+  {
+    name: "ovis2-8b",
+    display_name: "Ovis2 8B",
+    type: "vision",
+    capabilities: ["image-understanding", "ocr"],
+    installed: true,
+    running: false,
+    status: "installed",
+    run_status: "stopped",
+    file_size: 17179869184,
+  },
+  {
+    name: "paddleocr",
+    display_name: "PaddleOCR",
+    type: "ocr",
+    capabilities: ["ocr"],
+    installed: true,
+    running: false,
+    status: "installed",
+    run_status: "stopped",
+    hint: "快速 OCR（约 90ms）：中文混合场景有错字，失败自动回退 OvisOCR2",
+  },
+  {
+    // 非图像条目：画室目录视图应过滤掉（仅模型中心「模型库」可见）。
+    name: "qwen3-14b",
+    display_name: "Qwen3 14B",
+    type: "llm",
+    capabilities: ["chat", "thinking"],
+    installed: true,
+    running: false,
+    status: "installed",
+    run_status: "stopped",
+    quantization: "Q4_K_M",
+    parameter_count: 14700000000,
+    file_size: 9126805504,
+    llama_cpp_variants: ["Q4_K_M", "Q8_0"],
+  },
+];
+
 export function buildModel(s: MakeMockState): ModelMethods {
   return {
     async Models() {
@@ -209,14 +309,27 @@ export function buildModel(s: MakeMockState): ModelMethods {
 
     // ── Herdsman 方法族（B 线欠账，v4.55 走查）─────────────────
     // 浏览器 ?mock=1 下原缺这批绑定，模型中心 load() 抛「... is not a
-    // function」级 TypeError：调度段呈现「当前运行中的本地模型不可用」、
-    // 模型库段呈现「模型目录不可用」错误横幅。契约取中性空态（空模型列表 +
-    // 计数 0，不编造逼真模型名）：调度段读 running=0 →「0 个」、无 error →
-    // 不再报错；模型库段空列表 → 「没有匹配的模型」空态；测评段 installed
-    // 过滤为空。生命周期操作诚实返回 ok:false（mock 无 herdsman.exe 后端，
-    // 假成功会误导走查；消费方 runOp 对 !ok 弹 message.error）。
+    // function」级 TypeError。v4.100 T1 起 HerdsmanModelCatalog 从「中性空态」
+    // 改为带图像模型走查样例（画室「模型目录」tab 需要样例才能走查分层展示；
+    // 授权刀：mock 样例数据追加，方法形状/语义不变——计数仍从列表派生、无
+    // error 键，SchedulingSection/模型库段不再报错的不变量由契约测试继续锁定，
+    // 断言已从「空态」改为「一致性」，见 mock-contract-herdsman.test.ts）。
+    // 样例口径：模型名取项目既有口径（z-image-turbo/flux/LTX/ovis/paddleocr，
+    // 与 mock/imagehub.ts 资产样例的 model 字段同源），字段逐一对齐 Go
+    // HerdsmanCatalogModel（status/run_status 取真实 CLI 词汇 installed/
+    // uninstalled/running/stopped）；目录本就不携带档位/成本/上下文元数据，
+    // 样例同样不编造（诚实留空）。模型中心「模型库」段在 mock 下会显示这些
+    // 样例（原为空态）——名称与画室视图同源，走查两侧一致。
     async HerdsmanModelCatalog() {
-      return { models: [], total: 0, installed: 0, running: 0, source: "mock" };
+      // 计数从列表派生（与 Go HerdsmanModelCatalog 同一不变量），无 error 键。
+      const models = HERDSMAN_CATALOG_SAMPLE;
+      return {
+        models,
+        total: models.length,
+        installed: models.filter((m) => m.installed).length,
+        running: models.filter((m) => m.running).length,
+        source: "mock",
+      };
     },
     async HerdsmanLaunchPresets() {
       return [];

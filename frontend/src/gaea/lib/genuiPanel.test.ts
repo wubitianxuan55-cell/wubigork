@@ -43,4 +43,27 @@ describe("genuiPanel store", () => {
       label: "C",
     });
   });
+
+  // 审计 2026-09 #6：会话中途 resync 更换消息 id（a<seq> → a<日志序>），
+  // append 规格以新 sourceKey 重发同一内容时不得重复追加。
+  it("append 规格 resync 换 sourceKey 后同内容不重复追加", () => {
+    const s = useGenuiPanelStore.getState();
+    s.publish("s1", "a1#0", { append: true, items: [statSpec("A").items[0]] });
+    // resync：同一围栏内容以新消息 id 重新发布
+    s.publish("s1", "a99#0", { append: true, items: [statSpec("A").items[0]] });
+    const session = useGenuiPanelStore.getState().sessions["s1"];
+    expect(session?.appendCount).toBe(1);
+    expect(session?.content?.items).toHaveLength(1);
+    expect(session?.seen.size).toBe(1);
+  });
+
+  // 内容不同的新消息照常追加（内容指纹去重不吞合法更新）。
+  it("不同内容的新 append 仍正常叠加", () => {
+    const s = useGenuiPanelStore.getState();
+    s.publish("s1", "a1#0", { append: true, items: [statSpec("A").items[0]] });
+    s.publish("s1", "a2#0", { append: true, items: [statSpec("B").items[0]] });
+    const session = useGenuiPanelStore.getState().sessions["s1"];
+    expect(session?.appendCount).toBe(2);
+    expect(session?.content?.items).toHaveLength(2);
+  });
 });

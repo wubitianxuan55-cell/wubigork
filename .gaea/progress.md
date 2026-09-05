@@ -1,7 +1,9 @@
 # 任务进度
 
-> 最后更新: 2026-09-05（v4.100.0「三线并行：画室 T1 余件 · 办公 U4 前半 ·
-> GenUI 围栏审计」，绑定面 581 零变更；v4.99.0「三线并行：图像域 T1 收口 ·
+> 最后更新: 2026-09-05（v4.101.0「三线并行：GenUI 围栏 Go 侧收口 · 画室模型
+> 目录 · 深检误报缓解」，绑定面 581 零变更；v4.100.0「三线并行：画室 T1 余件
+> · 办公 U4 前半 · GenUI 围栏审计」，绑定面 581 零变更；v4.99.0「三线并行：
+> 图像域 T1 收口 ·
 > 办公 U2 回合投影 · GaeaListDir 硬化」，绑定面 581 零变更、
 > ImageHubAssets/ChapterArtList 前端转正 AppBindings；v4.98.0「图像域 T0
 > 契约落地：登记底座 · 素材库 ·
@@ -31,6 +33,39 @@
 > 索引（101 个发布说明）已刷新。本会话另落 GitHub 市场调研三路
 > （docs/research-2026-09-05/ + market-research-2026-09-05.md）与
 > 长期规划回填）
+
+## 最新发布：v4.101.0（2026-09-05）「三线并行：GenUI 围栏 Go 侧收口 · 画室模型目录 · 深检误报缓解」
+
+- 「继续」惯例三线并行；**绑定面 581 零变更**（子代理禁区继续排除并行会话
+  Model Hub 文件族与 bridge/spaceBindings/bindingNames）。
+- **线 A GenUI 围栏纪律 Go 侧收口**（审计 §8 六项落地；第 5 项 resume 槽位
+  口径统一明确不做另行排期）：共享剥离 helper internal/gaea/genui/fence.go
+  （行扫描照搬前端 splitGenuiFences，围栏折叠 `[genui 组件]` 占位、正文逐字
+  保留；选位=internal/app 与 internal/whisper 已导入该包零新增依赖边）；做梦
+  dreamInput/BuildCompactSummary pendingItems/whisper companion_reply 三处
+  剥离（JSON 不再占窗口与入记忆，无围栏输入逐字节回归锚）；压缩
+  summarySystemPrompt 增补「围栏 JSON 不原样收录」指引；面板 append 去重键改
+  spec 指纹（resync 不重复追加）；会话删除按 stateKey 前缀清理交互状态与面板
+  （App 删除点接线，删除成功判定后才清）。行为红线：剥离只影响提炼/摘要/记忆
+  输入，正文/压缩尾部/转录/导出原样。
+- **线 B 画室模型目录**（T1 剩余件）：imagegen 新 tab 读 HerdsmanModelCatalog
+  （mock 契约不变、样例 +6；api/image.ts 本地类型三态回退零绑定），按目录能力
+  字段分族（生图/改图/视频/识图，落位优先级+多族归最高族+徽标全量；纯 LLM
+  不入视图）；**目录无档位/成本字段→「未定价/目录未标注」不伪装 0（T0 口径，
+  明示目录没有的字段）**；当前生成台模型「当前使用」高亮（herdsman 后端限定，
+  创作语境不做管理功能）。?mock=1 走查 PASS（截图）。
+- **线 C 小说深检误报缓解**：误报分类盘点（精确串比对/别名/时间粒度/全半角/
+  无中生有过重五源）；缓解=deepNormalizeText 归一化+deepNormContains（相等
+  优先→唯一包含→歧义不命中）+deepAliasResolver（项目无 alias 字段，canon
+  名单+称谓剥离表 30 项，歧义即放弃）+confidence/reason 分类与 UI 三档（冲突/
+  疑似/提示，**只降不升零静默吞**）+单条忽略记忆（项目级 localStorage 上限
+  500、指纹不含漂移 description、横幅保持可见可恢复）。gate 消费键不变。
+- 收口修 3 处 tsc 错（ModelDirectory 模板拼接 GROUP_KEY 已是完整 DictKey 再拼
+  前缀）。i18n imagehubT1.modelDir* +38、novelDeep.* +11 ×三语（126 键体检
+  none）。
+- 门禁：Go build/test/vet 全量 0 FAIL（含并行会话在途代码如实注明）、tsc -b/
+  eslint 0、vitest **254/2024**（净增 4 文件/31 用例）、drift PASS（581 口径）。
+- 详见 releases/v4.101.0.md。
 
 ## 最新发布：v4.100.0（2026-09-05）「三线并行：画室 T1 余件 · 办公 U4 前半 · GenUI 围栏审计」
 
@@ -228,18 +263,19 @@
   自校正）；raw `<input type=radio>` 现剥成空 input，若要支持需拍板；
   vcompare.cellRef/cellOld/cellNew 三键不再被消费（键保留字典）。
 
-## 下会话续做（待办清单，2026-09-05 v4.100.0 后更新）
+## 下会话续做（待办清单，2026-09-05 v4.101.0 后更新）
 
-- **GenUI 审计裁决清单（docs/gaea-genui-memoryfence-audit-2026-09.md §8，Go 侧 6 项）**：
-  dreamInput 围栏剥离（P5 规划项本体）、BuildCompactSummary/whisper 摘要跳围栏、
-  compact summarizer 围栏口径、resume 槽位口径统一（实时/重放/resync 三套锚点）、
-  面板 append resync 去重、会话删除清理 resetInteractionStore。
+- **GenUI 审计余项**：§8 第 5 项 resume 槽位口径统一（实时 `a${seq}`/重放
+  `h${index}`/resync `a<日志seq>` 三套锚点，跨重启状态恢复实际不生效）——
+  跨层设计改动需排期单独刀。其余六项已落地（v4.101）。
 - **U4 后半**：pptx 面板接续编辑与刀2 联调（随 pptx 真编辑拍板）；渲染证据缺口
   6 条真模型走查后再定是否立绑定。**U2/U4 真机复验**：写弹预览/关闭优先/写后
   自动跟随（badge）需真模型回合。
-- **图像域**：T2 一致性方法实现（ipadapter/pulid）、画室模型目录分层展示、
-  识图入口真机走查（paste 真图）；真机验收：真实生成后 ledger 登记、
-  AssetLibrary/AssetStudio/VisionTrial 真数据。
+- **图像域**：T2 一致性方法实现（ipadapter/pulid）、识图入口真机走查（paste
+  真图）；真机验收：真实生成后 ledger 登记、AssetLibrary/AssetStudio/VisionTrial/
+  模型目录真数据（模型目录若目录携带档位/成本元数据回填替换「未定价/目录未标注」）。
+- **小说深检**：别名真值数据源（项目无 alias 字段，现为启发式名单）；粗粒度
+  时间降级与忽略记忆真机观察。
 - **并行会话 Model Hub 线（非本会话所辖）**：其 +3 绑定与 modelcenter 改动未提交；
   其收尾后 bridge.ts/spaceBindings/bindingNames 恢复可动，「GenerateFreeImage 等
   直调族转正」欠账再启动。

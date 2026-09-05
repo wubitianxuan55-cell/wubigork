@@ -23,6 +23,7 @@ type ImageHubFacade = {
   OCRText(imagePath: string): Promise<unknown>
   CharacterList(query: string, kind: string, chatOnly: boolean, page: number, pageSize: number):
     Promise<{ items?: Array<Record<string, unknown>>; total?: number }>
+  HerdsmanModelCatalog(): Promise<HerdsmanCatalogView>
 }
 const appFacade = (): ImageHubFacade => (window.go?.app?.App ?? bridgeApp) as unknown as ImageHubFacade
 
@@ -274,6 +275,56 @@ export async function chatCharacters(page: number, pageSize: number):
   } catch (_) {
     return { items: [], total: 0 }
   }
+}
+
+// ── T1 画室「模型目录」创作语境视图（HerdsmanModelCatalog 只读，零新绑定）──
+// HerdsmanModelCatalog 与 Get/SetEngineFailover 同为 legacy 绑定面（挂在后端
+// ModelB 门面；模型中心「模型库」段经 api/engines.ts 消费同名绑定）。这里按
+// appFacade 三态回退（window.go.app.App 兼容代理 + bridge mock 兜底）局部重述
+// 返回形状（对齐 internal/app/herdsman_catalog.go 的 HerdsmanCatalog /
+// HerdsmanCatalogModel json 字段）；不从 api/engines.ts import（避免 api↔api
+// 环），字段漂移由消费方诚实留空 + mock 契约测试兜底。
+
+/** 模型目录单条记录（对齐 Go HerdsmanCatalogModel json 字段；缺省 = 目录未携带）。 */
+export interface HerdsmanCatalogModelView {
+  name?: string
+  display_name?: string
+  type?: string
+  runtime?: string
+  inference_engines?: string[]
+  capabilities?: string[]
+  installed?: boolean
+  running?: boolean
+  status?: string
+  run_status?: string
+  quantization?: string
+  parameter_count?: number
+  active_parameters?: number
+  is_moe?: boolean
+  file_size?: number
+  llama_cpp_variants?: string[]
+  /** 本机实测/受控测评给出的用途建议（Go 侧按模型名/能力映射）。 */
+  hint?: string
+}
+
+/** 模型目录完整载荷（对齐 Go HerdsmanCatalog；error 非空 = 目录来源异常）。 */
+export interface HerdsmanCatalogView {
+  models?: HerdsmanCatalogModelView[]
+  total?: number
+  installed?: number
+  running?: number
+  source?: string
+  error?: string
+}
+
+/**
+ * 画室模型目录只读读取（画室「模型目录」tab 数据源）。
+ * 不做二次加工、不补默认值：目录未携带的档位/成本字段原样缺省，由视图层
+ * 诚实显示「未定价」/「目录未标注」；调用失败向上抛，由视图呈现错误原文。
+ */
+export async function herdsmanModelCatalog(): Promise<HerdsmanCatalogView> {
+  const res = await appFacade().HerdsmanModelCatalog()
+  return (res && typeof res === 'object' ? res : {}) as HerdsmanCatalogView
 }
 
 export interface ComfyTaskProgress {

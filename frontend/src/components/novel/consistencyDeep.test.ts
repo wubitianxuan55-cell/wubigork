@@ -1,7 +1,9 @@
-// consistencyDeep.test.ts — 一致性 AI 深检前端纯函数单测（载荷收窄 / 章数夹取 / 徽标）
+// consistencyDeep.test.ts — 一致性 AI 深检前端纯函数单测（载荷收窄 / 章数夹取 / 徽标 / 分级）
 import { describe, expect, it } from 'vitest'
 import {
   clampDeepChapters,
+  deepIssueLevel,
+  deepIssueReason,
   deepScanMeta,
   normalizeDeepResult,
   sourceBadge,
@@ -97,5 +99,39 @@ describe('deepScanMeta', () => {
     expect(
       deepScanMeta({ issues: [], total_issues: 0, summary: '', chapters_scanned: 2, chapters_failed: 1, ai_available: true, ai_note: '1 章 AI 提取失败已跳过' }),
     ).toBe('AI 深检：已扫描 2 章，1 章提取失败已跳过')
+  })
+})
+
+// ── 误报缓解：置信度/原因标注 → UI 三档分级 ─────────────────
+
+describe('deepIssueLevel', () => {
+  it('无标注时按 severity 直映射：error→冲突 / warning→疑似 / info→提示', () => {
+    expect(deepIssueLevel({ ...aiIssue })).toBe('conflict')
+    expect(deepIssueLevel({ ...aiIssue, severity: 'warning' })).toBe('suspected')
+    expect(deepIssueLevel({ ...aiIssue, severity: 'info' })).toBe('hint')
+  })
+
+  it('带缓解原因时按原因降级（只降不升，绝不吞真问题）', () => {
+    // 措辞差异 → 提示（即使后端误标 error 也压到提示档）
+    expect(deepIssueLevel({ ...aiIssue, severity: 'error', reason: 'wording' })).toBe('hint')
+    // 时间粒度差异 / 称谓别名 / 缺少明确交代 → 疑似
+    expect(deepIssueLevel({ ...aiIssue, severity: 'warning', reason: 'granularity' })).toBe('suspected')
+    expect(deepIssueLevel({ ...aiIssue, severity: 'warning', reason: 'alias' })).toBe('suspected')
+    expect(deepIssueLevel({ ...aiIssue, severity: 'warning', reason: 'unexplained' })).toBe('suspected')
+  })
+
+  it('未知 reason 视为无标注，回退 severity 映射', () => {
+    expect(deepIssueLevel({ ...aiIssue, reason: 'mystery' })).toBe('conflict')
+  })
+})
+
+describe('deepIssueReason', () => {
+  it('合法原因透传，未知/缺失返回空串', () => {
+    expect(deepIssueReason({ ...aiIssue, reason: 'wording' })).toBe('wording')
+    expect(deepIssueReason({ ...aiIssue, reason: 'granularity' })).toBe('granularity')
+    expect(deepIssueReason({ ...aiIssue, reason: 'alias' })).toBe('alias')
+    expect(deepIssueReason({ ...aiIssue, reason: 'unexplained' })).toBe('unexplained')
+    expect(deepIssueReason({ ...aiIssue, reason: 'mystery' })).toBe('')
+    expect(deepIssueReason({ ...aiIssue })).toBe('')
   })
 })

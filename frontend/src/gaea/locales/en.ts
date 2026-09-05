@@ -1668,6 +1668,50 @@ export const en = {
   "imagehubT1.studioWorksHint": "Click a card to open the asset library with full provenance",
   "imagehubT1.studioWorksOpenLib": "Open library",
 
+  // ── T1 Studio "Model catalog" creation-context view (imagegen top nav tab):
+  //    data source = the Model Center catalog (HerdsmanModelCatalog read-only,
+  //    zero new bindings); tier/cost metadata the catalog does not carry stays
+  //    honestly blank (cost shows "Unpriced", never a fake 0); engine / key /
+  //    model lifecycle management stays in Model Center. ──
+  "imagehubT1.modelDirNav": "Model catalog",
+  "imagehubT1.modelDirTitle": "Model catalog · Studio context",
+  "imagehubT1.modelDirSubtitle": "Image-related models grouped by catalog capability fields (read-only) — badges / status / footprint are real catalog fields; click a card for details.",
+  "imagehubT1.modelDirLoading": "Loading catalog…",
+  "imagehubT1.modelDirCount": "{n} image-related · {total} in catalog ({installed} installed · {running} running)",
+  "imagehubT1.modelDirGroupGen": "Text-to-image",
+  "imagehubT1.modelDirGroupEdit": "Image editing",
+  "imagehubT1.modelDirGroupVideo": "Video",
+  "imagehubT1.modelDirGroupVision": "Vision",
+  "imagehubT1.modelDirGroupOther": "Other image abilities",
+  "imagehubT1.modelDirCapGen": "Txt2img",
+  "imagehubT1.modelDirCapEdit": "Img2img",
+  "imagehubT1.modelDirCapVideo": "Video",
+  "imagehubT1.modelDirCapVision": "Vision",
+  "imagehubT1.modelDirCapOcr": "OCR",
+  "imagehubT1.modelDirCapParse": "Doc parse",
+  "imagehubT1.modelDirFamilies": "Capability families",
+  "imagehubT1.modelDirCurrent": "In use",
+  "imagehubT1.modelDirRunning": "Running",
+  "imagehubT1.modelDirInstalled": "Installed",
+  "imagehubT1.modelDirNotInstalled": "Not installed",
+  "imagehubT1.modelDirMetaStatus": "Status",
+  "imagehubT1.modelDirMetaRunStatus": "Run status",
+  "imagehubT1.modelDirMetaParams": "Params",
+  "imagehubT1.modelDirActiveParams": "Active params",
+  "imagehubT1.modelDirMetaQuant": "Quant",
+  "imagehubT1.modelDirMetaSize": "File size",
+  "imagehubT1.modelDirMetaRuntime": "Runtime",
+  "imagehubT1.modelDirMetaEngines": "Inference engines",
+  "imagehubT1.modelDirMetaVariants": "Variants",
+  "imagehubT1.modelDirTierLabel": "Tier",
+  "imagehubT1.modelDirTierUnset": "Not tagged in catalog",
+  "imagehubT1.modelDirDetailTitle": "Model details (catalog fields only)",
+  "imagehubT1.modelDirHintTitle": "Usage hint (measured on this machine)",
+  "imagehubT1.modelDirEmpty": "No image-related models in the catalog yet.",
+  "imagehubT1.modelDirLoadFail": "Failed to load the model catalog: {msg}",
+  "imagehubT1.modelDirCatalogError": "Catalog source reported an error: {msg}",
+  "imagehubT1.modelDirSourceNote": "Source: same catalog as Model Center (HerdsmanModelCatalog read-only view). Tier/cost metadata is not carried by this catalog — cost honestly shows 'Unpriced' instead of 0; engine / key / model lifecycle management lives in Model Center.",
+
   // ── U2 turn projection & review closeout (officeTurn): unified Office turn
   //    card draft/ready badge. Fixed mapping (decision item 2): first write =
   //    draft, Plan→Apply approval = ready; keep/rollback reuse the existing
@@ -1679,5 +1723,17 @@ export const en = {
   // ── U4 write-then-preview live follow: transient badge on silent preview reload ──
   "officeTurn.autoRefreshed": "Auto-refreshed",
   "officeTurn.autoRefreshedTitle": "Content reloaded from the file the agent just wrote (preview only follows files already open; nothing is popped up)",
+  // ── Novel consistency deep-check (CheckConsistencyDeep) false-positive mitigation ──
+  "novelDeep.levelConflict": "Conflict",
+  "novelDeep.levelSuspected": "Suspect",
+  "novelDeep.levelHint": "Hint",
+  "novelDeep.reasonWording": "Wording difference (not a conflict)",
+  "novelDeep.reasonGranularity": "Time granularity difference",
+  "novelDeep.reasonAlias": "Name or alias variation",
+  "novelDeep.reasonUnexplained": "Lacks explicit explanation",
+  "novelDeep.ignoreTip": "Ignore this issue and remember it for this project",
+  "novelDeep.ignoredSummary": "{count} issue(s) ignored (remembered for this project)",
+  "novelDeep.allIgnored": "All {count} issue(s) ignored; restore to show",
+  "novelDeep.restoreIgnored": "Restore",
 };
 export type DictKey = keyof typeof en;

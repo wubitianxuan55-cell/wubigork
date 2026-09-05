@@ -1669,6 +1669,49 @@ export const zh: Record<DictKey, string> = {
   "imagehubT1.studioWorksHint": "点击卡片跳转素材库查看溯源",
   "imagehubT1.studioWorksOpenLib": "去素材库",
 
+  // ── T1 画室「模型目录」创作语境视图（imagegen 顶部导航 tab）：数据源 = 模型
+  //    中心目录（HerdsmanModelCatalog 只读，零新绑定）；目录未携带的档位/成本
+  //    元数据诚实留空（成本统一「未定价」，不伪装 0）；引擎/密钥/模型启停管理
+  //    职责在模型中心，此处不重复。 ──
+  "imagehubT1.modelDirNav": "模型目录",
+  "imagehubT1.modelDirTitle": "模型目录 · 创作语境",
+  "imagehubT1.modelDirSubtitle": "按目录能力字段分族的图像相关模型（只读）——徽标 / 状态 / 占用为目录实有字段，点击卡片看详情。",
+  "imagehubT1.modelDirLoading": "目录加载中…",
+  "imagehubT1.modelDirCount": "图像相关 {n} 个 · 目录总计 {total} 个（已装 {installed} · 运行中 {running}）",
+  "imagehubT1.modelDirGroupGen": "生图",
+  "imagehubT1.modelDirGroupEdit": "改图",
+  "imagehubT1.modelDirGroupVideo": "视频",
+  "imagehubT1.modelDirGroupVision": "识图",
+  "imagehubT1.modelDirGroupOther": "其他图像能力",
+  "imagehubT1.modelDirCapGen": "生图",
+  "imagehubT1.modelDirCapEdit": "改图",
+  "imagehubT1.modelDirCapVideo": "视频",
+  "imagehubT1.modelDirCapVision": "识图",
+  "imagehubT1.modelDirCapOcr": "文字识别",
+  "imagehubT1.modelDirCapParse": "文档解析",
+  "imagehubT1.modelDirFamilies": "能力族",
+  "imagehubT1.modelDirCurrent": "当前使用",
+  "imagehubT1.modelDirRunning": "运行中",
+  "imagehubT1.modelDirInstalled": "已安装",
+  "imagehubT1.modelDirNotInstalled": "未安装",
+  "imagehubT1.modelDirMetaStatus": "状态",
+  "imagehubT1.modelDirMetaRunStatus": "运行状态",
+  "imagehubT1.modelDirMetaParams": "参数量",
+  "imagehubT1.modelDirActiveParams": "激活参数",
+  "imagehubT1.modelDirMetaQuant": "量化",
+  "imagehubT1.modelDirMetaSize": "文件大小",
+  "imagehubT1.modelDirMetaRuntime": "运行时",
+  "imagehubT1.modelDirMetaEngines": "推理引擎",
+  "imagehubT1.modelDirMetaVariants": "可选变体",
+  "imagehubT1.modelDirTierLabel": "档位",
+  "imagehubT1.modelDirTierUnset": "目录未标注",
+  "imagehubT1.modelDirDetailTitle": "模型详情（仅目录实有字段）",
+  "imagehubT1.modelDirHintTitle": "用途建议（本机实测）",
+  "imagehubT1.modelDirEmpty": "目录中暂无图像相关模型。",
+  "imagehubT1.modelDirLoadFail": "模型目录加载失败：{msg}",
+  "imagehubT1.modelDirCatalogError": "目录来源返回异常：{msg}",
+  "imagehubT1.modelDirSourceNote": "数据源：与模型中心目录同源（HerdsmanModelCatalog 只读视图）。目录未携带档位/成本元数据，成本统一诚实显示「未定价」而非 0；引擎启停 / 密钥 / 模型启停管理在模型中心，此处不重复。",
+
   // ── U2 回合投影与审阅收口（officeTurn）：统一 Office 回合卡草稿/就绪徽标。
   //    口径写死（规划拍板项 2）：首次写盘=草稿、Plan→Apply 批准=就绪；
   //    保留/回滚沿用既有验收与证据链按钮，不新增操作。 ──
@@ -1679,4 +1722,16 @@ export const zh: Record<DictKey, string> = {
   // ── U4 写后预览实时跟随：静默重载后的短暂「已自动刷新」指示 ──
   "officeTurn.autoRefreshed": "已自动刷新",
   "officeTurn.autoRefreshedTitle": "内容已按 agent 刚写入的文件重新加载（预览只跟随已打开的文件，不会弹出任何窗口）",
+  // ── 小说一致性深检（CheckConsistencyDeep）误报缓解 ──
+  "novelDeep.levelConflict": "冲突",
+  "novelDeep.levelSuspected": "疑似",
+  "novelDeep.levelHint": "提示",
+  "novelDeep.reasonWording": "措辞差异（非冲突）",
+  "novelDeep.reasonGranularity": "时间表述粒度差异",
+  "novelDeep.reasonAlias": "称谓或别名差异",
+  "novelDeep.reasonUnexplained": "缺少明确交代",
+  "novelDeep.ignoreTip": "忽略此条并记忆（仅本项目）",
+  "novelDeep.ignoredSummary": "已忽略 {count} 条提示（本项目记忆，可恢复）",
+  "novelDeep.allIgnored": "已忽略全部 {count} 条提示，可恢复显示",
+  "novelDeep.restoreIgnored": "恢复显示",
 };

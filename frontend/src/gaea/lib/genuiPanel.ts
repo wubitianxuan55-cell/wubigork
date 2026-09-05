@@ -6,7 +6,7 @@ import { fingerprint } from "../../genui/fingerprint";
 
 export interface GenuiPanelSession {
   content?: GenuiSpec;
-  /** 已处理的发布键（消息源+围栏序号+内容指纹），防流式/重放重复发布。 */
+  /** 已处理的发布键（内容指纹），防流式/重放/resync 重复发布。 */
   seen: Set<string>;
   appendCount: number;
 }
@@ -44,16 +44,24 @@ function clipItems(items: GenuiSpec["items"]): GenuiSpec["items"] {
   return items.slice(0, budget);
 }
 
-export function panelSourceKey(sourceKey: string, spec: GenuiSpec): string {
-  return `${sourceKey}:${fingerprint(JSON.stringify(spec))}`;
+/**
+ * 发布去重键：内容指纹（审计 2026-09 #6 的口径选择——忽略 sourceKey）。
+ * 会话中途 resync 会更换消息 id（a<seq> → a<日志序>），append 规格若按
+ * sourceKey 去重会以新 id 重复发布、面板 tab 重复追加。相同内容的重复发布
+ * 对面板永远是无意义操作（REPLACE 内容不变、append 只会叠加重复行），按
+ * 内容指纹去重无信息损失；备选「resync 重建时清空 seen」需触碰 store.ts
+ * 跨层接线，不采用。
+ */
+function specFingerprint(spec: GenuiSpec): string {
+  return fingerprint(JSON.stringify(spec));
 }
 
 export const useGenuiPanelStore = create<GenuiPanelState>()((set) => ({
   sessions: {},
-  publish: (sessionKey, sourceKey, spec) => {
+  publish: (sessionKey, _sourceKey, spec) => {
     set((s) => {
       const prev = s.sessions[sessionKey] ?? { seen: new Set(), appendCount: 0 };
-      const dedupeKey = panelSourceKey(sourceKey, spec);
+      const dedupeKey = specFingerprint(spec);
       if (prev.seen.has(dedupeKey)) return s;
       const seen = new Set(prev.seen);
       seen.add(dedupeKey);

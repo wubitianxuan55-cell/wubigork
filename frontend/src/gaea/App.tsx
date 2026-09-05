@@ -14,7 +14,8 @@ import { app, onTaskEvent } from "./lib/bridge";
 import { GenuiActionProvider } from "../genui/GenuiActionContext";
 import { GenuiScopeProvider } from "../genui/scope";
 import { setGenuiActionHandler } from "./lib/genuiHost";
-import { clearGenuiPanel } from "./lib/genuiPanel";
+import { clearGenuiPanel, sanitizeSessionKey } from "./lib/genuiPanel";
+import { clearBlockStatesForSession } from "../genui/interaction";
 import { Transcript } from "./components/Transcript";
 import { JumpBar } from "./components/JumpBar";
 import { useToast } from "./components/Toast";
@@ -101,6 +102,14 @@ import type { TaskTemplate } from "./lib/types";
 
 /** 右栏拖宽时保留的对话区最小宽度（Codex 式：面板可拉很宽，但聊天不能消失）。 */
 const CHAT_MIN_WIDTH = 400;
+
+// 会话删除成功后的 GenUI 状态清理（审计 2026-09 #7）：localStorage 交互状态
+// 按 stateKey 前缀清理，内存面板内容按会话键清除。幂等；只应在删除成功路径
+// 调用（删除失败时保留现场，交互状态丢失只会退化为干净默认渲染）。
+function purgeDeletedSessionGenui(path: string): void {
+  clearBlockStatesForSession(sanitizeSessionKey(path));
+  clearGenuiPanel(path);
+}
 
 export default function App() {
   const toast = useToast();
@@ -634,7 +643,14 @@ export default function App() {
     [handleResumeSession, setHistView],
   );
   const onDeleteSession = useCallback(
-    async (path: string) => { await handleDeleteSession(path); setHistView(await refreshSessions()); },
+    async (path: string) => {
+      await handleDeleteSession(path);
+      const sessions = await refreshSessions();
+      setHistView(sessions);
+      // 审计 2026-09 #7：列表中已无该会话（删除成功）才清理其 GenUI 交互状态。
+      // handleDeleteSession 内部吞错（toast + 列表回滚），据此区分成败。
+      if (!sessions.some((s) => s.path === path)) purgeDeletedSessionGenui(path);
+    },
     [handleDeleteSession, refreshSessions, setHistView],
   );
   const onRenameSession = useCallback(
@@ -648,7 +664,11 @@ export default function App() {
     try {
       const all = await refreshSessions();
       const cur = all.find((s) => s.current);
-      if (cur) await deleteSession(cur.path);
+      if (cur) {
+        await deleteSession(cur.path);
+        // 审计 2026-09 #7：删除成功路径清理该会话的 GenUI 交互状态与面板内容。
+        purgeDeletedSessionGenui(cur.path);
+      }
     } catch {
       // 删除失败不阻塞新建会话
     }
