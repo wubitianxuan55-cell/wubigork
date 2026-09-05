@@ -205,3 +205,60 @@ func TestKeepProtectedToolResult(t *testing.T) {
 		t.Error("non-protected messages should not be kept")
 	}
 }
+
+// ─── GenUI 围栏剥离（审计 docs/gaea-genui-memoryfence-audit-2026-09.md #2/#4）───
+
+// 审计 #2：pendingItems 吸入前剥离围栏体——围栏外正文的待办关键词照常触发，
+// 但条目文本是剥离后的（围栏 JSON 不进摘要，占位行替代）。
+func TestBuildCompactSummaryPendingSkipsFenceBody(t *testing.T) {
+	msgs := []provider.Message{
+		{Role: provider.RoleUser, Content: "整理费用表"},
+		{Role: provider.RoleAssistant, Content: "```genui\n{\"items\":[{\"type\":\"list\",\"label\":\"todo next pending\"}]}\n```\n正文提到 remaining 需跟进。"},
+	}
+	out := BuildCompactSummary(msgs)
+	if strings.Contains(out, `"items"`) || strings.Contains(out, "```") {
+		t.Fatalf("围栏 JSON 不应进入压缩摘要: %q", out)
+	}
+	if !strings.Contains(out, "remaining 需跟进") {
+		t.Fatalf("正文待办应保留: %q", out)
+	}
+}
+
+// 审计 #2：关键词只出现在围栏 JSON 里时，不应触发 Pending work 条目
+// （剥离后的正文无关键词 → 无待办噪声）。
+func TestBuildCompactSummaryFenceKeywordDoesNotTriggerPending(t *testing.T) {
+	msgs := []provider.Message{
+		{Role: provider.RoleUser, Content: "出个看板"},
+		{Role: provider.RoleAssistant, Content: "```genui\n{\"items\":[{\"type\":\"text\",\"text\":\"next pending todo\"}]}\n```\n已完成。"},
+	}
+	out := BuildCompactSummary(msgs)
+	if strings.Contains(out, "Pending work") {
+		t.Fatalf("围栏内关键词不应触发待办条目: %q", out)
+	}
+}
+
+// 回归锚：无围栏回复的待办条目行为不变。
+func TestBuildCompactSummaryPendingNoFenceRegression(t *testing.T) {
+	msgs := []provider.Message{
+		{Role: provider.RoleUser, Content: "费用表"},
+		{Role: provider.RoleAssistant, Content: "todo: 检查环比公式"},
+	}
+	out := BuildCompactSummary(msgs)
+	if !strings.Contains(out, "- Pending work:\n  - todo: 检查环比公式\n") {
+		t.Fatalf("无围栏待办条目应原样保留: %q", out)
+	}
+}
+
+// 审计 #4：summarizer 提示词快照——UI 围栏口径指引必须存在（保守口径：提示词
+// 增补而非 renderTranscript 剥离，正文保留供回看）。若调整措辞请同步本断言。
+func TestSummarySystemPromptUIFenceGuidance(t *testing.T) {
+	if !strings.Contains(summarySystemPrompt, "genui") || !strings.Contains(summarySystemPrompt, "dsh-ui") {
+		t.Fatal("summarySystemPrompt 应包含 UI 围栏语言指引（genui / dsh-ui）")
+	}
+	if !strings.Contains(summarySystemPrompt, "never reproduce their JSON in the summary") {
+		t.Fatal("summarySystemPrompt 应明确禁止把围栏 JSON 原样收进摘要")
+	}
+	if !strings.Contains(summarySystemPrompt, "interactive components were used") {
+		t.Fatal("summarySystemPrompt 应给出「使用了交互组件」的概括口径")
+	}
+}

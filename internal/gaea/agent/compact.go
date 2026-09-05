@@ -78,7 +78,7 @@ Problems hit and how they were resolved (or not), so the same dead ends are not 
 ## Pending & next step
 What is still in progress or unstarted, and the single most concrete next action to take.
 
-Rules: be terse — bullet points and fragments, not prose. Preserve identifiers, paths, and numbers exactly. Do NOT invent anything not present in the messages; if something is unknown, leave it out rather than guessing.`
+Rules: be terse — bullet points and fragments, not prose. Preserve identifiers, paths, and numbers exactly. UI fences (genui / dsh-ui) in assistant turns are frontend interactive components, not content: never reproduce their JSON in the summary; at most note that interactive components were used. Do NOT invent anything not present in the messages; if something is unknown, leave it out rather than guessing.`
 
 // maybeCompact checks if the prompt has grown too large and applies compaction.
 // Strategy (inspired by Reasonix's three-tier approach):

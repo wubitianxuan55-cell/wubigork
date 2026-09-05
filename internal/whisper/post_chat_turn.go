@@ -4,7 +4,11 @@
 
 package whisper
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/gaea/gaea/internal/gaea/genui"
+)
 
 // ─── 纠正触发词 ──────────────────────────────────────────────
 
@@ -192,17 +196,25 @@ func writeSyncLightFacts(orch *Orchestrator, ctx PostTurnContext) []string {
 	return facts
 }
 
-// writeCompanionReplyLog 写入gaea回复日志
+// writeCompanionReplyLog 写入gaea回复日志。
+// 审计 #3（docs/gaea-genui-memoryfence-audit-2026-09.md）：摘要截取前先剥离
+// genui/dsh-ui 围栏体——防止围栏 JSON 以「gaea回复：」摘要形态进入 FactStore
+// （FactLayer=raw）。剥离后为空（回复仅由围栏/空白构成）则保留占位行，保证
+// 摘要仍有可读形态；working memory 原样存全文不受影响。
 func writeCompanionReplyLog(orch *Orchestrator, ctx PostTurnContext) []string {
 	if orch.FactStore == nil || ctx.AssistantText == "" {
 		return nil
+	}
+	reply := genui.StripUIFences(ctx.AssistantText)
+	if strings.TrimSpace(reply) == "" {
+		reply = genui.UIFencePlaceholder
 	}
 	ec := CaptureEmotionalContext(orch.State.Relationship, orch.State.Emotion)
 	f := orch.FactStore.Add(MemoryFact{
 		Domain:           "companion_reply",
 		Subcategory:      "SELF_NARRATIVE",
 		Subject:          "gaea",
-		Summary:          "gaea回复：" + truncateStr(ctx.AssistantText, 200),
+		Summary:          "gaea回复：" + truncateStr(reply, 200),
 		Weight:           0.3,
 		Confidence:       1.0,
 		SelfRelevance:    1.0,

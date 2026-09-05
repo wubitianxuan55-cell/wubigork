@@ -4,6 +4,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/gaea/gaea/internal/gaea/genui"
 	"github.com/gaea/gaea/internal/gaea/provider"
 	"github.com/gaea/gaea/internal/gaea/strutil"
 )
@@ -50,11 +51,15 @@ func BuildCompactSummary(truncated []provider.Message) string {
 					}
 				}
 			}
-			// 检测待办项
-			lower := strings.ToLower(msg.Content)
+			// 检测待办项。审计 #2（docs/gaea-genui-memoryfence-audit-2026-09.md）：
+			// 检测与截取都用剥离后的文本——genui/dsh-ui 围栏 JSON 里的 todo/next
+			// 等词不应触发待办条目，围栏体也不得经 160 字符截取进 pendingItems
+			// （占位行除外，正文关键词命中时占位随之保留）。
+			text := genui.StripUIFences(msg.Content)
+			lower := strings.ToLower(text)
 			for _, kw := range []string{"todo", "next", "pending", "follow up", "remaining"} {
 				if strings.Contains(lower, kw) {
-					short := truncateText(msg.Content, 160)
+					short := truncateText(text, 160)
 					if short != "" {
 						pendingItems = append(pendingItems, short)
 					}

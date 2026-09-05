@@ -66,6 +66,7 @@
 - 门禁：Go build/test/vet 全量 0 FAIL（含并行会话在途代码如实注明）、tsc -b/
   eslint 0、vitest **254/2024**（净增 4 文件/31 用例）、drift PASS（581 口径）。
 - 详见 releases/v4.101.0.md。
+- **补记（同日）**：v4.101.0 提交漏列围栏接线 5 文件 + 2 测试文件（第一批 add 整批失败被吞、第二批清单漏列），已补提交；tag 不移，详见 release 补记。**教训：多步 add 后必须 git diff --cached --stat 对照预期清单核数；2>/dev/null 会吞 add 的 fatal。**
 
 ## 最新发布：v4.100.0（2026-09-05）「三线并行：画室 T1 余件 · 办公 U4 前半 · GenUI 围栏审计」
 

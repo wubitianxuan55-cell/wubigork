@@ -28,6 +28,7 @@ import (
 
 	"github.com/gaea/gaea/internal/ai"
 	"github.com/gaea/gaea/internal/gaea/event"
+	"github.com/gaea/gaea/internal/gaea/genui"
 	"github.com/gaea/gaea/internal/gaea/memory"
 	"github.com/gaea/gaea/internal/gaea/provider"
 	"github.com/gaea/gaea/internal/gaea/spaces"
@@ -273,11 +274,15 @@ func dreamWorthwhile(msgs []provider.Message) bool {
 }
 
 // dreamInput 把消息拼成整理输入（截断超长内容，控制 token）。
+// 审计 #1（docs/gaea-genui-memoryfence-audit-2026-09.md）：拼接前先对
+// user/assistant 文本做 UI 围栏剥离——若回复以大围栏开头，1500 字符窗口会被
+// 围栏 JSON 占满，真结论进不了提炼，噪声还可能经 SaveDreamFacts/QuickAdd 入
+// 长期记忆。占位行计入截断窗口（与正文同权）；只影响提炼输入，会话正文不动。
 func dreamInput(msgs []provider.Message) string {
 	var b strings.Builder
 	b.WriteString("以下是刚结束的一轮对话，请提炼值得长期记住的信息。\n\n")
 	for _, m := range msgs {
-		content := m.Content
+		content := genui.StripUIFences(m.Content)
 		if len(content) > 1500 {
 			content = content[:1500] + "…"
 		}
