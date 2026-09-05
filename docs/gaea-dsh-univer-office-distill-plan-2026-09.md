@@ -1,4 +1,4 @@
-# gaea 蒸馏 dsh-univer-office 长期规划：办公板块「契约照收、引擎不换」
+# gaea 蒸馏 dsh-univer-office 长期规划：取道不取器——优化完善自有办公栈
 
 > 状态：规划版（调研与规划，未改任何功能代码）
 > 日期：2026-09-05 · gaea 基线 v4.96.0（绑定面 579）
@@ -17,21 +17,25 @@ Univer 引擎 + 隔离草稿 worktree + 14 个结构化工具 + 8 个技能 + �
 中间格式 `.univer`（SQLite）+ Univer Pro 授权（水印/导入体积限制，上游自带 90 天轮换 dev
 license）+ Node ≥22 + 无头 Chrome + libsql 重依赖。
 
-gaea 的蒸馏总方针：**契约照收、引擎不换**。
+gaea 的蒸馏总方针：**取道不取器**——蒸馏的目的是优化完善 gaea 自有办公栈，不是替换它
+（用户 2026-09-05 拍板）。不引入 Univer 引擎（含 OSS 交互面）、不建平行编辑面；上游的
+核心体验与纪律全部以「改自家组件 / 加自家纪律」的方式落地。
 
-1. 上游真正可搬运的资产是**行为契约**：草稿生命周期（draft→ready→merge/discard，用户审批）、
-   verify 循环（「工具成功≠正确」，回读+lint+截图）、回合投影（生命周期/写入/读取三类操作
-   独立归约）、浮窗拉起规则（写动作才弹、用户关闭优先）、`Error [CODE]` 错误路由、按 Unit
-   分册的技能纪律——这些全部与引擎无关，蒸馏进 gaea 现有三件套栈（docx 修订制 / xlsx
-   Plan→Apply / pptx 真编辑设计）；
-2. **引擎不换**：gaea 的差异化恰恰是自研 OOXML 字节级手术（零中间格式、零授权运维、保真
-   不重写）——对照上游后这条路线的价值更清晰；Univer OSS 交互面降级为试点拍板项（U4），
-   Pro 依赖（导入导出/Slides/Base/Board/协作/语义 diff/打印）默认不做；
-3. 对外口径修正：「全场空白」改为「第三方桌面助手空白已被 DSH 官方插件打破；gaea 是
-   『编辑直接发生在原文件』的自研保真路线」。
+1. **行为契约层**：草稿生命周期（draft→ready→merge/discard，用户审批）、verify 循环
+   （「工具成功≠正确」，回读+lint+截图）、回合投影（生命周期/写入/读取三类操作独立归约）、
+   浮窗拉起规则（写动作才弹、用户关闭优先）、`Error [CODE]` 错误路由、按 Unit 分册的技能
+   纪律——与引擎无关，蒸馏进 gaea 现有三件套栈（docx 修订制 / xlsx Plan→Apply / pptx
+   真编辑设计）；
+2. **核心体验层（上游的真正核心=agent 与用户共用活文档）**：gaea 不引引擎，用自有栈补齐
+   等效体验——agent 写后渲染反馈闭环（soffice/poppler+vision 既有管线）、预览实时跟随、
+   用户在同一预览面接续编辑（docx 框选/xlsx 直编已有，pptx 随刀2 面板补齐），见 U4；
+3. **引擎路线**：自研 OOXML 字节级手术是差异化卖点；Univer（含 OSS）不引入，Pro 依赖
+   （导入导出/Slides/Base/Board/协作/语义 diff/打印）全拒；对外口径修正：「全场空白」改为
+   「第三方桌面助手空白已被 DSH 官方插件打破；gaea 是『编辑直接发生在原文件』的自研保真
+   路线」。
 
 排期上让位进行中队列（genui P2–P5 优先），本规划 U1/U2 为独立小中刀，U3 即 pptx 真编辑
-既有设计（吸收上游纪律，不重复设计），U4/U5 为拍板后远期。
+既有设计（吸收上游纪律，不重复设计），U4 为活文档体验收口，U5 为远期观察项。
 
 ---
 
@@ -195,8 +199,8 @@ Chrome（可 `UNIVER_RENDER_BROWSER` 指定）；发布包按平台装原生依�
 
 1. gaea agent 在 **Go**，无 Node 运行时——上游「无头 Univer worker 跑 Facade JS」整条
    agent 写入通道不可照搬；gaea 的写入权威是 Go 工具（docxedit/xlsxedit/pptxedit）。
-2. gaea 前端是 **Wails 系统 webview**——Univer OSS 可作为前端依赖嵌入（用户交互面），
-   但 bundle 体积、webview 兼容、快照保真都要试点验证。
+2. gaea 前端是 **Wails 系统 webview**——技术上可嵌 Univer OSS（已裁定不引入，见 §4.4）；
+   活文档体验走自有栈。
 3. 绑定面纪律：新增绑定按 pptx 刀1 先例（579→580，gen_bindings 再生），不为蒸馏铺新面。
 4. 零商业依赖、零 AGPL 红线：Pro 授权（轮换/水印/导入限制）与 OnlyOffice（AGPL）均撞线。
 
@@ -207,9 +211,10 @@ Chrome（可 `UNIVER_RENDER_BROWSER` 指定）；发布包按平台装原生依�
 ### 4.1 核心判断
 
 1. 上游的**行为契约层**与其 Univer 引擎解耦良好，可整组搬运到 gaea 既有栈；
-2. gaea 与上游的真正分野在引擎路线（自研 OOXML 手术 vs Univer 中间格式+Pro 引擎），
-   这条分野是**卖点不是欠账**；
-3. 引擎层只留一个低成本试点口（Univer Sheet 交互面，U4），默认不启动。
+2. 上游的**核心体验（活文档）**不依赖其引擎才能成立——「agent 看得见渲染结果、用户实时
+   跟随、改完同面接续」三件事都可以用 gaea 自有预览与渲染管线实现，缺的只是纪律与接线；
+3. 引擎路线（任何形态的 Univer 引入）不做：gaea 与上游的分野（自研 OOXML 手术 vs 中间
+   格式+Pro 引擎）是**卖点不是欠账**。
 
 ### 4.2 必收（行为契约，引擎无关）
 
@@ -223,18 +228,22 @@ Chrome（可 `UNIVER_RENDER_BROWSER` 指定）；发布包按平台装原生依�
 | 6 | `Error [CODE]` 错误码 | office 写类工具（docx/xlsx/pptx 应用）错误统一前缀 + 技能内恢复路由表 | U1 |
 | 7 | Slide 生成纪律（spec 先行/逐页闭环/replace 不叠加/8 项清单） | 进 `office-edit` 技能 pptx 分节 + 未来 pptx 生成技能；lint 落地在 U3 | U1/U3 |
 
-### 4.3 选收（引擎试点，默认不启动，拍板后立 U4）
+### 4.3 核心体验收口（gaea 自有栈，立 U4）
 
-- **Univer Sheet 只读/交互试点**：Univer OSS 前端嵌入；数据来源走 **excelize→Univer snapshot
-  只读桥**（Go 侧读 xlsx→IWorkbookData JSON→前端渲染），公式重算/筛选/排序用 OSS 引擎；
-  **写回**（snapshot→excelize）列二期，且只允许经 Plan→Apply 通道落盘。
-- 如实标注失真清单：图表（Pro）、图片锚定、sparkline、部分 numfmt——桥的覆盖面先行实测。
-- 红线：XlsxPreview 全量保留（换壳不换芯），Univer 面是**并存的新入口**，由设置卡开关。
+上游「agent 与用户共用活文档」的体验拆成三个可自有实现的机制（不引引擎）：
+
+1. **agent 看得见渲染结果**：office 写类工具完成后，模型可对当前文件取渲染证据——
+   复用既有 soffice→PDF→poppler 管线与 vision/screenshot 通道；实施首步盘点是否零新增
+   绑定（优先走既有工具接线），缺口再立小绑定；技能侧写入 verify 循环条款（U1 已含）；
+2. **用户实时跟随**：写类工具落盘 → 预览缓存失效（pptx 缓存键含 ModTime 已天然支持）+
+   预览面自动刷新跟随（不抢用户焦点，用户翻页/编辑时不重置视图）；
+3. **改完同面接续**：docx 框选即改、xlsx 直编已成立；pptx 由刀2 编辑面板补齐后三件套
+   在同一预览面闭环——agent 改完用户立即可改，无需换工具。
 
 ### 4.4 拒绝清单（本规划明确不做）
 
-- Univer Pro 全家（OOXML 导入导出、Slides、Base、Board、协作、History 语义 diff、打印、
-  图表）——授权轮换+水印+导入限制+insiders 锁版本，运维与合规双输；
+- Univer 任何形态的引入（Pro 全家=授权轮换+水印+导入限制+insiders 锁版本；OSS 交互面=
+  平行编辑面双倍维护+bundle 体积，且蒸馏目的=完善自有栈而非替换）；
 - `.univer` 中间格式作为 gaea 文件形态（用户文件权威性不可让渡）；
 - Node sidecar / puppeteer 无头链（gaea 无 Node；截图/文本度量走既有 soffice+CDP Edge）；
 - OnlyOffice / Collabora / 商业表格组件（§2.1）；
@@ -256,11 +265,11 @@ Chrome（可 `UNIVER_RENDER_BROWSER` 指定）；发布包按平台装原生依�
 | **U1** | 工作流纪律蒸馏 | ① 内置 inline 技能 `office-edit`（docx/xlsx/pptx 三分节：入口纪律、verify 循环、状态机、错误路由表、Slide 生成纪律；全部用 gaea 工具名与既有管线表述）② office 写类工具错误码规范化（`Error [OFFICE_XXX]` 常量 + 单测）③ 技能索引/提示词不超限校验 | 0 | 小刀 |
 | **U2** | 回合投影与审阅收口 | ① officeTurnProjection 前端纯函数（三类操作归约，vitest 全覆盖）② 统一 Office 回合卡（DeliverableCards/VersionTimeline 收敛，draft/ready 状态徽标，不复制操作 footer）③ 预览浮窗语义状态机（写弹读不弹/关闭优先/意图跨回合/终态清理）④ 草稿轻量版（Journal 首写→draft、Plan→Apply 批准→ready 映射） | 0 | 中刀 |
 | **U3** | pptx 真编辑（=既有设计刀1–刀4，吸收上游纪律） | 按 docs/gaea-pptx-edit-design-2026-09.md 执行；增量吸收：刀2 验收加「逐页截图回读+8 项清单」、刀3 增加 **pptx lint**（越页/越容器/文本重叠——几何取自 pptxedit 解析数据 + 文本度量经 CDP Edge 或 Go 字体度量，不引 puppeteer） | 刀1 +1 | 中刀×4 |
-| **U4**（拍板后） | Univer Sheet 试点 | excelize→snapshot 只读桥 + XlsxUniver 面（设置卡开关、双入口并存）+ 失真清单实测文档；写回二期且只走 Plan→Apply | +1~2 | 中刀 |
-| **U5**（远期拍板） | 引擎扩展与授权评估 | 视 U4 反馈与 Univer 商务条款再定：Doc/Slide 面、Pro license 商务评估（若评估，须先过「授权轮换不进发布纪律」这条红线） | — | — |
+| **U4** | 活文档体验收口（自有栈） | §4.3 三机制：①渲染证据通道接线（先盘点零绑定方案）②写后预览实时跟随③pptx 面板接续编辑与刀2 联调；XlsxPreview/预览面按需增强（条件格式/图表渲染按实测保真度分步，不承诺引擎级） | 视①而定（目标 0~1） | 中刀 |
+| **U5** | 远期观察项（非承诺） | dsh-univer-office 与 Univer agents 动向季度跟踪；自研渲染增强队列（条件格式/图表/文本度量精度）；「引入 Univer」仅当未来用户明确拍板才另案 | — | — |
 
 并行线：U1 内部技能文案线与错误码线足迹互斥可并行；U2 的 reducer 纯函数线与卡片 UI 线
-可拆；U3 按既有刀序；U4 前端面线与 Go 桥线可拆。U1/U2 与 genui P2–P5 互不相交，可穿插。
+可拆；U3 按既有刀序；U4 的渲染通道线与预览跟随线可拆。U1/U2 与 genui P2–P5 互不相交，可穿插。
 
 ---
 
@@ -279,12 +288,12 @@ Chrome（可 `UNIVER_RENDER_BROWSER` 指定）；发布包按平台装原生依�
 
 | # | 决策 | 推荐 | 影响 |
 |---|---|---|---|
-| 1 | 引擎路线 | 契约照收、引擎不换；U4 仅 Sheet 只读试点且默认不启动 | 资源投向纪律线，避免授权受制 |
+| 1 | 引擎路线 | 取道不取器：不引入 Univer（含 OSS 交互面），蒸馏全部落在自有栈 | 蒸馏=完善自有栈；避免平行编辑面与授权受制 |
 | 2 | 草稿概念形态 | 轻量版（产物级 draft/ready 状态映射证据链），不建持久 worktree 实体 | 零绑定面；docx/xlsx 逐操作范式不动 |
 | 3 | office-edit 技能形态 | 单技能三分节 inline（对齐 genui 技能先例），非三技能 | 索引 ≤4000 字预算内可控 |
 | 4 | 错误码范围 | 仅 office 写类工具（docx/xlsx/pptx 应用+导出），不全局推广 | 小切口可回退 |
 | 5 | pptx lint 执行器 | 优先 CDP Edge（既有通道），Go 字体度量备选；不引 puppeteer | 零新重依赖 |
-| 6 | U4 是否立项 | 默认否；用户拍板后才进排期（需先实测失真清单） | 避免与 XlsxPreview 双面维护冲突 |
+| 6 | U4 渲染证据通道 | 先盘点零绑定方案（既有 screenshot/vision 工具接线），缺口再立小绑定 | 绑定面纪律 |
 | 7 | 对外口径 | 「AI 直接改你的原文件 / 保真自研路线」；修正「全场空白」表述 | README/营销语境同步 |
 | 8 | 竞品跟踪 | dsh-univer-office 与 Univer agents 动向纳入市场调研例行（每季） | docs/market-research-* |
 
@@ -298,7 +307,7 @@ Chrome（可 `UNIVER_RENDER_BROWSER` 指定）；发布包按平台装原生依�
 | U2 回合卡收敛动到 DeliverableCards 既有行为 | 红线：登记表/证据链入口/置前行为不变；卡片只做呈现层收敛；vitest 回归锁定 |
 | draft/ready 徽标语义与 xlsx Plan→Apply「批准」撞车 | 拍板项 2 的映射口径写死（首次写盘=draft、批准=ready）；文案如实标注 |
 | pptx lint 误报泛滥（上游也只敢做三保守规则） | 只做三规则+逐条「必修/查证后可保留」口径；findings 必须在验收单销账或显式豁免 |
-| Univer 试点引发「双预览面」维护负担 | U4 默认不启动；立项时先出失真清单实测报告再拍板；设置卡可整体关闭 |
+| 自研预览渲染保真上限（条件格式/图表与 Office 实际渲染有差距） | 如实标注「预览口径」；分步增强不承诺引擎级渲染；渲染证据以 soffice 管线为准 |
 | 竞品跟进速度（更多助手嵌 Univer） | 每季竞品例行调研；差异化口径落 README/发布说明，不在功能面跟随 |
 | 上游 Apache-2.0 引用边界 | 只蒸馏行为契约与纪律文案（改写不照抄技能全文）；如需引用原文段落保留 LICENSE 声明 |
 
@@ -306,7 +315,8 @@ Chrome（可 `UNIVER_RENDER_BROWSER` 指定）；发布包按平台装原生依�
 
 ## 9. 明确不做（反模式清单）
 
-- 不把 gaea 办公栈重写为 Univer 前端（推倒换壳 = 删除既有编辑能力，撞 UI 简化红线）；
+- 不引入 Univer（任何形态）作为 gaea 交互面、不建平行编辑面（蒸馏=完善自有栈；推倒换壳
+  =删除既有编辑能力，撞 UI 简化红线）；
 - 不引入 `.univer` 文件格式、协作服务、Gateway 常驻进程、Node/puppeteer 依赖链；
 - 不做 Base（多维表格）/Board（画布）/资源库——gaea 已有 genui 面板、chart、表格面，
   边际价值低且均为 Pro；
