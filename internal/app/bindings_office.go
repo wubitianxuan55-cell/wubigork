@@ -100,6 +100,7 @@ func (b *OfficeB) GaeaPickWorkspace() string { return b.a.GaeaPickWorkspace() }
 func (b *OfficeB) GaeaPinMaterial(rel string) []FileSearchHit { return b.a.GaeaPinMaterial(rel) }
 func (b *OfficeB) GaeaPinSession(path string, pinned bool) error { return b.a.GaeaPinSession(path, pinned) }
 func (b *OfficeB) GaeaPinnedMaterials() []FileSearchHit { return b.a.GaeaPinnedMaterials() }
+func (b *OfficeB) GaeaPptxApplyEdit(rel string, slideIdx int, target string, replacement string) (PreviewResult, error) { return b.a.GaeaPptxApplyEdit(rel, slideIdx, target, replacement) }
 func (b *OfficeB) GaeaPptxOutline(rel string) PptxOutlineView { return b.a.GaeaPptxOutline(rel) }
 func (b *OfficeB) GaeaPreview(rel string) PreviewResult { return b.a.GaeaPreview(rel) }
 func (b *OfficeB) GaeaPromoteSubagent(sessionPath string, ref string) (string, error) { return b.a.GaeaPromoteSubagent(sessionPath, ref) }

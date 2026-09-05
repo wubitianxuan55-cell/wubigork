@@ -198,6 +198,7 @@ export const GAEA_METHOD_FACETS = {
   GaeaBrowserObserve: "work",
   OfficeEditText: "work",
   DocxApplyEdit: "work",
+  PptxApplyEdit: "work",
   DocxAcceptChanges: "work",
   XlsxPlanEdit: "work",
   XlsxApplyEdit: "work",

@@ -1,6 +1,6 @@
 # 任务进度
 
-> 最后更新: 2026-09-06（v4.108.1「?mock=1 三链走查全过+mock 走查态升级」，585 零变更；v4.108.0「导图画布编辑 M2 自研 v1」，585 零变更；v4.107.0「多维表 B2 首刀：看板视图」，585 零变更；v4.106.0「办公 U4 缺口收口：xlsx 条件格式预览 · herdsman HS-obs 实测销账」，585 零变更；v4.105.0「Model Hub 蒸馏 MH4 常驻预热 · ComfyUI 预热 CU1+量化档位 CU2」，584→585 +WarmComfyUI；v4.104.0「Model Hub 蒸馏 MH1–MH3：采样让位+默认关思考 · 加载状态收敛 · UD 档位引导」，绑定面 584 零变更；v4.103.0「办公搜索对齐 unsloth：web_search url 直取整页 · 结果域名策略过滤 · 日期钉定」，绑定面 584 零变更；v4.102.0「Hub 落库 + 围栏 slot 口径统一 · 图像域 17
+> 最后更新: 2026-09-06（v4.109.0「pptx 真编辑刀1 数据层 GaeaPptxApplyEdit」，585→586；v4.108.1「?mock=1 三链走查全过+mock 走查态升级」，585 零变更；v4.108.0「导图画布编辑 M2 自研 v1」，585 零变更；v4.107.0「多维表 B2 首刀：看板视图」，585 零变更；v4.106.0「办公 U4 缺口收口：xlsx 条件格式预览 · herdsman HS-obs 实测销账」，585 零变更；v4.105.0「Model Hub 蒸馏 MH4 常驻预热 · ComfyUI 预热 CU1+量化档位 CU2」，584→585 +WarmComfyUI；v4.104.0「Model Hub 蒸馏 MH1–MH3：采样让位+默认关思考 · 加载状态收敛 · UD 档位引导」，绑定面 584 零变更；v4.103.0「办公搜索对齐 unsloth：web_search url 直取整页 · 结果域名策略过滤 · 日期钉定」，绑定面 584 零变更；v4.102.0「Hub 落库 + 围栏 slot 口径统一 · 图像域 17
 > 绑定转正 · Model Hub mock」，绑定面 584；Model Hub（Unsloth）并行会话线完结
 > 落库 6cd891df + v4.101 漏提交补录 efe80310；v4.101.0「三线并行：GenUI 围栏
 > Go 侧收口 · 画室模型目录 · 深检误报缓解」，绑定面 581 零变更；v4.100.0
@@ -35,6 +35,15 @@
 > 索引（101 个发布说明）已刷新。本会话另落 GitHub 市场调研三路
 > （docs/research-2026-09-05/ + market-research-2026-09-05.md）与
 > 长期规划回填）
+
+## 最新发布：v4.109.0（2026-09-06）「pptx 真编辑刀1 数据层」
+
+- 设计六拍板全按文档推荐落地（A=Go 自研同构 docxedit；P1 对齐 xlsx_apply；表格/组内包含，备注/图表边界外；Journal 对齐 xlsx_apply；docx 补账另刀）。
+- **pptxedit 新包**：slide 序映射（sldIdLst+rels，Token 模式属性命名空间匹配——struct tag URL 属性匹配不可靠坑复用 v4.106 结论）；DrawingML 段落解析（a:fld 内 a:t 无 a:r 包装的真实形状覆盖——文本可见记 blocker 不可编辑）；LocateText/ApplyTextReplace（跨 run 命中、新文本继承最后受影响 run 的 a:rPr 原字节=保格式、完全覆盖非最后 run 省略）；zip 条目序+原子写、未知条目字节零扰动（测试锁定）。
+- **App 层**：GaeaPptxApplyEdit（rollback 快照+Journal pptx_apply+GaeaPreview 返回）。
+- 绑定链：586（gen_bindings→bindingNames→bridge PptxApplyEdit→spaceBindings work→锁 299）。
+- 门禁：pptxedit 6 用例+Go 全量绿、vitest 2068/2068、tsc -b/eslint 0、drift PASS@586、版本四处 4.109.0。
+- 欠账：刀2 编辑面（大纲扩展+编辑面板）；备注/图表边界外；PowerPoint/WPS 兼容性真机走查；docx_apply Journal 补账另刀。
 
 ## 最新发布：v4.108.1（2026-09-06）「?mock=1 三链走查全过 + mock 走查态升级」
 

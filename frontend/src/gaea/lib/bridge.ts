@@ -266,6 +266,8 @@ export interface AppBindings {
   // （w:del+w:ins）写入 docx 并返回更新后的预览。
   OfficeEditText(selectedText: string, instruction: string): Promise<OfficeEditResult>;
   DocxApplyEdit(rel: string, selectedText: string, replacement: string): Promise<PreviewResult>;
+  // PptxApplyEdit pptx 真编辑刀1：页码+目标文本+替换 → run 级直接替换（快照+Journal）
+  PptxApplyEdit(rel: string, slideIdx: number, target: string, replacement: string): Promise<PreviewResult>;
   // DocxAcceptChanges 接受/拒绝 gaea 的待处理修订，返回更新预览。
   DocxAcceptChanges(rel: string, accept: boolean): Promise<PreviewResult>;
   // XlsxPlanEdit 单元格操作规划（不落盘）：上下文 → AI 规划操作 → 临时副本
@@ -888,6 +890,7 @@ const gaeaToGaea = {
   GaeaBrowserObserve: "GaeaBrowserObserve",
   OfficeEditText: "GaeaOfficeEditText",
   DocxApplyEdit: "GaeaDocxApplyEdit",
+  PptxApplyEdit: "GaeaPptxApplyEdit",
   DocxAcceptChanges: "GaeaDocxAcceptChanges",
   XlsxPlanEdit: "GaeaXlsxPlanEdit",
   XlsxApplyEdit: "GaeaXlsxApplyEdit",

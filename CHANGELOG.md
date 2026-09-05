@@ -1,3 +1,10 @@
+## v4.109.0 · pptx 真编辑刀1 数据层：GaeaPptxApplyEdit（run 级替换 · rPr 原字节继承 · 快照+Journal）（2026-09-06）
+> 设计文档六项拍板全部按其推荐口径落地（技术路径 A=Go 自研同构 docxedit 等），绑定面 585→**586**（+GaeaPptxApplyEdit）。详见 releases/v4.109.0.md。
+- **internal/office/pptxedit 新包**：slide 序映射（presentation.xml sldIdLst → rels → part 路径，放映顺序）+ DrawingML 段落解析（a:p/a:r/a:t/a:rPr 原字节区间；blocker=a:br/a:fld/a:tab；a:fld 内 a:t 无 a:r 包装的真实形状已覆盖——文本可见、进拼接文本、记 blocker 不可编辑）+ `LocateText`（按页码定位段落文本）+ `ApplyTextReplace`（页码+目标+替换，首个命中；跨 run 拼接可命中；新文本继承最后受影响 run 的 rPr 原字节=天然保格式；完全覆盖的非最后 run 整体省略；zip 条目序保留+临时文件原子替换，母版/主题/动画字节零扰动）。
+- **App 层 GaeaPptxApplyEdit**：落盘前基线快照（rollback 目录，Verifier 通道 B 可复核）+ Journal 证据卡（Tool=pptx_apply，对齐 xlsx_apply；play 空间不落）+ 返回 GaeaPreview 新预览。
+- **测试**：pptxedit 6 例（手工最小 pptx 夹具：slide 映射/跨 run rPr 继承/表格内命中/a:br+fld 拒绝/未命中越界/仅动目标页）。门禁：Go 全量绿、vitest 2068/2068、tsc -b/eslint 0、drift PASS@586、分类锁 299。
+- 欠账：刀2 编辑面（大纲扩展+编辑面板）、备注页/图表文本边界外、`sz` 之外字体族等 rPr 细粒度保真以真机 PowerPoint 兼容性走查为准。
+
 ## v4.108.1 · ?mock=1 真浏览器走查：条件格式/看板/导图编辑三链全过 · mock 升级走查态（2026-09-06）
 > 收「新交互组件刀必走 ?mock=1」欠账（v4.96 教训）；零产品缺陷，mock 层升级 + 走查结论入档；绑定面 **585** 零变更。
 - **走查实锤（DOM+计算样式断言）**：①条件格式——金额 120.50 命中 >100 规则，计算样式=红底 rgb(255,199,206)+红字 rgb(156,0,6)+加粗 600（三属性覆盖基础样式）；②看板——4 泳道 4 卡渲染正确，拖卡片跨泳道 → XlsxSetCell 真实改 mock 工作簿 C2 → 预览回读泳道重算（数据驱动泳道：空泳道不保留，记 B2 后半候选）；③导图编辑——双击改名/Tab/Delete/保存条全链通，保存落盘=规范大纲（H1/H2/嵌套列表与设计一致），改名持久化。
