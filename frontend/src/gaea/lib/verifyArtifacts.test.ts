@@ -2,10 +2,13 @@ import { describe, expect, it } from "vitest";
 import {
   buildThumbSections,
   classifyDirProbe,
+  DIR_ERROR_CODES,
+  faultFromDirCode,
   imagePageNo,
   mapPool,
   orderGroupDirs,
   pairPages,
+  parseErrorCode,
   splitArtifactEntries,
   verifyArtifactRelPath,
 } from "./verifyArtifacts";
@@ -164,13 +167,68 @@ describe("buildThumbSections 渲染区组装", () => {
   });
 });
 
-describe("classifyDirProbe 目录探测结果 → 降级原因（对齐 gaea_preview.go 语义）", () => {
+describe("classifyDirProbe 目录探测结果 → 降级原因（码优先 + 文案兜底）", () => {
   it("目录不存在 → missing；目录在（无法预览）而列为空 → empty", () => {
     expect(classifyDirProbe("error", "文件不存在")).toBe("missing");
     expect(classifyDirProbe("error", "目录无法预览")).toBe("empty");
   });
   it("非 error 负载（mock/异常）→ noPages", () => {
     expect(classifyDirProbe("text", "")).toBe("noPages");
+  });
+  it("结构化错误码优先：GAEADIR_NOT_FOUND 定 missing（即使文案不含「不存在」）", () => {
+    expect(
+      classifyDirProbe("error", "Error [GAEADIR_NOT_FOUND]: 目录不存在: C:/ws/x（stat 失败）"),
+    ).toBe("missing");
+  });
+  it("GAEADIR_NOT_DIR（是文件不是目录）→ missing", () => {
+    expect(classifyDirProbe("error", "Error [GAEADIR_NOT_DIR]: 不是目录: C:/ws/x")).toBe("missing");
+  });
+  it("GAEADIR_READ_FAILED（权限等）无对应降级态 → 落文案兜底（无「不存在」→ empty）", () => {
+    expect(classifyDirProbe("error", "Error [GAEADIR_READ_FAILED]: 读取目录失败: x（拒绝访问）")).toBe(
+      "empty",
+    );
+  });
+  it("无关码不劫持兜底：非 GAEADIR_* 码仍走文案匹配", () => {
+    expect(classifyDirProbe("error", "Error [FORMAT_SOURCE_MISSING]: 源文件不存在: x")).toBe("missing");
+    expect(classifyDirProbe("error", "Error [FORMAT_UNSUPPORTED]: 不支持")).toBe("empty");
+  });
+});
+
+describe("parseErrorCode 从后端错误串提取结构化错误码", () => {
+  it("U1 口径（Error [CODE]: message）提取码", () => {
+    expect(parseErrorCode("Error [GAEADIR_NOT_FOUND]: 目录不存在: x（y）")).toBe(
+      "GAEADIR_NOT_FOUND",
+    );
+    expect(parseErrorCode("Error [FORMAT_UNSUPPORTED]: 格式不支持")).toBe("FORMAT_UNSUPPORTED");
+  });
+  it("无码（旧后端自然语言文案）/空串/非字符串 → null", () => {
+    expect(parseErrorCode("文件不存在")).toBeNull();
+    expect(parseErrorCode("")).toBeNull();
+    expect(parseErrorCode(undefined)).toBeNull();
+    expect(parseErrorCode(42)).toBeNull();
+  });
+  it("Error 实例取 message（Wails 拒绝值为 string，防御两种形态）", () => {
+    expect(parseErrorCode(new Error("Error [GAEADIR_READ_FAILED]: 读取目录失败"))).toBe(
+      "GAEADIR_READ_FAILED",
+    );
+  });
+  it("首个码生效；小写片段不误吞", () => {
+    expect(parseErrorCode("前缀 Error [A_B] 后缀")).toBe("A_B");
+    expect(parseErrorCode("error [lower_case]: x")).toBeNull();
+  });
+});
+
+describe("faultFromDirCode GAEADIR_* 码 → 诚实降级态", () => {
+  it("NOT_FOUND / NOT_DIR → missing（预期的产物目录不存在）", () => {
+    expect(faultFromDirCode(DIR_ERROR_CODES.notFound)).toBe("missing");
+    expect(faultFromDirCode(DIR_ERROR_CODES.notDir)).toBe("missing");
+  });
+  it("READ_FAILED（权限等）无四态文案 → null（走 Preview 探测兜底）", () => {
+    expect(faultFromDirCode(DIR_ERROR_CODES.readFailed)).toBeNull();
+  });
+  it("无码 / 无关码 → null", () => {
+    expect(faultFromDirCode(null)).toBeNull();
+    expect(faultFromDirCode("SOMETHING_ELSE")).toBeNull();
   });
 });
 

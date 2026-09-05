@@ -1,3 +1,11 @@
+## v4.99.0 · 三线并行：图像域 T1 收口 · 办公 U2 回合投影 · GaeaListDir 硬化（2026-09-05）
+> 「继续」惯例三线并行（文件所有权互斥子代理）；**绑定面 581 零变更**（ImageHubAssets/ChapterArtList 前端转正 AppBindings，Go 侧不变）。详见 releases/v4.99.0.md。
+- **图像域 T1 收口**：①GenerateDiagram 登记接线（media.diagram 第二试点：成功后 .mmd 落盘 .gaea/uploads + 写 Asset Ledger，受 Startup 武装位闸控，失败只 warn，model/cost 诚实留空）；②绘梦任务中心素材库 tab 轻扫（激活重读 + 30s 可见性门控轮询，缩略按 path 缓存）；③画室素材库独立页 AssetLibrary（grid 缩略/懒加载分页/原语与来源筛选/点选溯源详情/play+work 双空间切换，零新绑定）。
+- **办公 U2 回合投影与审阅收口**（蒸馏规划 §4.2，绑定面 0）：①officeTurnProjection 前端纯函数（tool_dispatch/result 按 callId 配对，写入/验证/生命周期三类归约，失败不提交转换，乱序/孤儿/重复容错）；②统一 Office 回合卡 draft/ready 徽标（DeliverableCards/VersionTimeline 同判定函数；登记表/证据链/置前行为不变，regress 锁原样全绿）；③预览浮窗语义状态机（写弹读不弹、关闭优先不复活、写意图跨回合、终态清理，App 接线+挂载/恢复只建基线）；④草稿轻量版（证据链首写=draft、Plan→Apply 批准=ready，不新增实体与按钮）。
+- **Go 小刀 GaeaListDir 硬化**（v4.96 登记）：补 IsAbs 分支 + 结构化错误码 GAEADIR_NOT_FOUND/NOT_DIR/READ_FAILED（签名 []DirEntry→([]DirEntry, error)，osStat/osReadDir 注入缝使权限用例全平台确定性）；前端 verifyArtifacts 切「错误码优先+文案匹配兜底」，四态诚实降级语义不变。
+- **wailsjsCompat 消费族欠账部分销账**：ImageHubAssets/ChapterArtList 转正 AppBindings/spaceBindings（shared/play，分类锁 278→280）；api/image.ts 三态回退（window.go.app.App ?? bridgeApp）；dev mock 补 imagehub 中性样例（生图/图示/视频三形态，未定价诚实留空）。
+- 门禁：Go 全量 0 FAIL、tsc -b/eslint 0、vitest 248 文件/1954 用例全绿（净增 3 文件/56 用例）、drift PASS（581）、?mock=1 真浏览器走查（AssetLibrary 筛选/详情/空间切换/返回 + 任务中心素材库 tab）通过。
+
 ## v4.98.0 · 图像域 T0 契约落地：登记底座 · 素材库 · 参考槽 v0（2026-09-05）
 > 图像能力域第一步（设计 docs/gaea-image-domain-t0-contract-design-2026-09.md）；**绑定面 579→581**（+ImageHubAssets/ChapterArtList 只读）。详见 releases/v4.98.0.md。
 - **T0 契约与试点**：五原语能力注册表（识图-读/懂、生图、改图=未实现 fail-closed、图示）+ Asset Ledger v1（按空间 append-only JSONL，play=.gaea/play/imagehub/assets.jsonl，只存路径+溯源元数据，坏行容错、上限折叠不删文件）+ 模型中心目录只读静态视图（档位/成本，未知模型诚实留空）；三试点接线：书封/绘梦落盘登记（失败只 warn 不拖垮生成）、GaeaOCRText/GaeaRecognizeImage 入口经注册表校验（行为不变）。

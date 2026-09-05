@@ -318,6 +318,11 @@ export interface AppBindings {
   SavePastedImage(dataUrl: string): Promise<string>;
   SaveAttachmentFile(fileName: string, base64Data: string): Promise<string>;
   AttachmentDataURL(path: string): Promise<string>;
+  // ImageHubAssets 图像域登记只读视图（按空间/来源过滤，T1 画室素材库；
+  // 原 legacy wailsjsCompat 直调转正，浏览器 dev mock 可达；从 LegacySurfaceNames 摘除）。
+  ImageHubAssets(space: string, sourceBoard: string, limit: number): Promise<Array<Record<string, unknown>>>;
+  // ChapterArtList 项目章节配图清单（chapter-art.json 只读取，同批转正）。
+  ChapterArtList(chapterNum: number): Promise<Array<Record<string, unknown>>>;
   // CaptureScreen 捕获整个屏幕（返回 PNG data URL）；RecognizeImage 用本地
   // 视觉模型识别图片内容，返回文本描述。
   CaptureScreen(): Promise<string>;
@@ -1376,7 +1381,6 @@ type LegacySurfaceNames =
   | "CharacterSave"
   | "CharacterSetProjectState"
   | "CharacterSyncProject"
-  | "ChapterArtList"
   | "Chat"
   | "ChatCharacter"
   | "ChatCharacterDetail"
@@ -1484,7 +1488,6 @@ type LegacySurfaceNames =
   | "GetImageBackend"
   | "GetImageBackendConfig"
   | "GetImageBackendInfo"
-  | "ImageHubAssets"
   | "GetLoginStatus"
   | "GetLorebookEntries"
   | "GetModelCallStats"

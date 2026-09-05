@@ -5,6 +5,20 @@
 
 ## 版本状态（顶部速览）
 
+- **最新发布：v4.99.0（2026-09-05）「三线并行：图像域 T1 收口 · 办公 U2 回合
+  投影 · GaeaListDir 硬化」**——绑定面 581 零变更（ImageHubAssets/
+  ChapterArtList 前端转正 AppBindings/spaceBindings shared/play，分类锁
+  278→280）：线 A=GenerateDiagram 登记（media.diagram 第二试点，武装位闸控
+  失败只 warn、model/cost 诚实留空）+ 素材库成本表轻扫（激活重读+30s 可见性
+  轮询）+ 画室素材库独立页 AssetLibrary（筛选/溯源详情/双空间/懒加载分页）；
+  线 B=办公 U2（officeTurnProjection 纯函数 30 用例、统一回合卡 draft/ready
+  徽标 regress 锁原样全绿、预览浮窗状态机「写弹读不弹/关闭优先/跨回合意图/
+  终态清理」、草稿轻量版）；线 C=GaeaListDir 硬化（IsAbs 分支+GAEADIR_*
+  结构化错误码，签名改 ([]DirEntry,error)，相对路径行为回归锁，前端错误码
+  优先+文案兜底）。收口：api/image.ts 三态回退（wailsjsCompat 消费族欠账部分
+  销账）+ dev mock 补 imagehub 中性样例。Go 全量 0 FAIL、vitest 248/1954、
+  drift PASS（581）、?mock=1 真浏览器走查 PASS（AssetLibrary+任务中心 tab）。
+  U2 真模型端到端待用户复验。详见 releases/v4.99.0.md。
 - **最新发布：v4.98.0（2026-09-05）「图像域 T0 契约落地：登记底座 · 素材库 ·
   参考槽 v0」**——绑定面 579→581（+ImageHubAssets/ChapterArtList 只读）：
   五原语能力注册表 + Asset Ledger v1（按空间 JSONL 溯源登记，只存路径+元数据）

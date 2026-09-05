@@ -5,6 +5,18 @@
 
 import type { GenResult } from '../components/imagegen/types'
 import * as App from '../../src/wailsjsCompat'
+import { app as bridgeApp } from '../gaea/lib/bridge'
+
+// 三态回退（v4.58 wailsjsCompat 消费族模式）：?mock=1 下 window.go 刻意为空，
+// wailsjsCompat 直调绕过 bridge mock——登记/清单读取统一经此 helper 走
+// window.go.app.App 兼容代理 + bridgeApp mock 兜底（ImageHubAssets/
+// ChapterArtList 已转正 AppBindings，mock 样例见 gaea/lib/mock/imagehub.ts）。
+type ImageHubFacade = {
+  ImageHubAssets(space: string, sourceBoard: string, limit: number): Promise<Array<Record<string, unknown>>>
+  ChapterArtList(chapterNum: number): Promise<Array<Record<string, unknown>>>
+  AttachmentDataURL(path: string): Promise<string>
+}
+const appFacade = (): ImageHubFacade => (window.go?.app?.App ?? bridgeApp) as unknown as ImageHubFacade
 
 export interface BackendInfo {
   backend: string
@@ -137,7 +149,8 @@ export async function cancelImageGeneration(): Promise<boolean> {
  * 复用现有 GaeaAttachmentDataURL（OfficeB 门面），不新增绑定。
  */
 export async function readFileAsDataURL(path: string): Promise<string> {
-  return App.GaeaAttachmentDataURL(path)
+  // 经 appFacade：mock 下落到 office.ts 的 AttachmentDataURL 占位色块。
+  return appFacade().AttachmentDataURL(path)
 }
 
 /** 图像域登记视图（ImageHubAssets 绑定，T1 画室素材库）。 */
@@ -168,7 +181,7 @@ export interface ChapterArtEntry {
 /** 画室素材读取：按空间/来源筛选（失败 = 空列表，登记是辅助视图）。 */
 export async function imageHubAssets(space: string, sourceBoard: string, limit: number): Promise<ImageHubAssetView[]> {
   try {
-    const res = await App.ImageHubAssets(space, sourceBoard, limit)
+    const res = await appFacade().ImageHubAssets(space, sourceBoard, limit)
     return Array.isArray(res) ? res as unknown as ImageHubAssetView[] : []
   } catch (_) {
     return []
@@ -178,7 +191,7 @@ export async function imageHubAssets(space: string, sourceBoard: string, limit: 
 /** 章节插图清单读取（失败 = 空列表，不阻断主流程）。 */
 export async function chapterArtList(chapterNum: number): Promise<ChapterArtEntry[]> {
   try {
-    const res = await App.ChapterArtList(chapterNum)
+    const res = await appFacade().ChapterArtList(chapterNum)
     return Array.isArray(res) ? res as unknown as ChapterArtEntry[] : []
   } catch (_) {
     return []

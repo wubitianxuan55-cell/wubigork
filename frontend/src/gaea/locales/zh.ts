@@ -1593,4 +1593,41 @@ export const zh: Record<DictKey, string> = {
   "taskpick.statusRunning": "运行中",
   "taskpick.statusCompleted": "已完成",
   "taskpick.statusFailed": "失败",
+
+  // ── imagegen 画室素材库 T1 收口（独立素材库页 + 轻扫更新）──
+  "imagehubT1.libraryNav": "素材库",
+  "imagehubT1.libraryTitle": "画室素材库",
+  "imagehubT1.libraryBack": "返回生成台",
+  "imagehubT1.spaceWork": "办公空间",
+  "imagehubT1.spacePlay": "创作空间",
+  "imagehubT1.filterSource": "来源",
+  "imagehubT1.filterPrimitive": "原语",
+  "imagehubT1.filterAll": "全部",
+  "imagehubT1.capMediaGenerate": "生图",
+  "imagehubT1.capMediaDiagram": "图示",
+  "imagehubT1.boardImagegen": "绘梦",
+  "imagehubT1.boardNovel": "小说",
+  "imagehubT1.boardCharacterlib": "角色",
+  "imagehubT1.metaModel": "模型",
+  "imagehubT1.metaCost": "成本",
+  "imagehubT1.metaSource": "来源",
+  "imagehubT1.metaRole": "角色",
+  "imagehubT1.metaTime": "时间",
+  "imagehubT1.metaPrompt": "提示词",
+  "imagehubT1.metaPath": "路径",
+  "imagehubT1.costUnset": "未定价",
+  "imagehubT1.empty": "该空间还没有登记素材——生成的图片会自动溯源入库。",
+  "imagehubT1.emptyFiltered": "没有符合筛选条件的素材。",
+  "imagehubT1.loadMore": "加载更多",
+  "imagehubT1.kindVideo": "视频",
+  "imagehubT1.thumbUnavailable": "缩略图不可用",
+  "imagehubT1.count": "{n} 项素材",
+
+  // ── U2 回合投影与审阅收口（officeTurn）：统一 Office 回合卡草稿/就绪徽标。
+  //    口径写死（规划拍板项 2）：首次写盘=草稿、Plan→Apply 批准=就绪；
+  //    保留/回滚沿用既有验收与证据链按钮，不新增操作。 ──
+  "officeTurn.phaseDraft": "草稿",
+  "officeTurn.phaseDraftTitle": "已写入工作区（首次写盘=草稿），经批准（Plan → Apply）后转为就绪",
+  "officeTurn.phaseReady": "就绪",
+  "officeTurn.phaseReadyTitle": "已经 Plan → Apply 批准落盘（批准=就绪）；保留/回滚沿用既有验收与证据链操作",
 };

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { Button, Input, Tag, Typography } from 'antd'
 import {
   AppstoreOutlined, CheckCircleOutlined, ClockCircleOutlined, CloseCircleOutlined,
@@ -9,6 +9,7 @@ import { C } from '../../utils/theme'
 import { HistoryRail } from './HistoryRail'
 import { CATEGORIES, type Template, type CustomTemplate } from '../../data/imageTemplates'
 import { imageHubAssets, readFileAsDataURL, type ImageHubAssetView } from '../../api/image'
+import { usePollingGate } from '../../hooks/usePollingGate'
 import type { GenResult, QueueEntry, QueueStatus } from './types'
 
 type TabKey = 'queue' | 'recent' | 'templates' | 'assets'
@@ -16,6 +17,9 @@ type TabKey = 'queue' | 'recent' | 'templates' | 'assets'
 interface AssetThumb extends ImageHubAssetView {
   url: string
 }
+
+// T1 收口：素材库轻扫轮询间隔（低频：登记/成本表变化远慢于任务状态）。
+const ASSETS_POLL_MS = 30000
 
 const STATUS_META: Record<QueueStatus, { label: string; icon: React.ReactNode; color: string }> = {
   pending: { label: '待执行', icon: <ClockCircleOutlined />, color: 'default' },
@@ -62,29 +66,44 @@ export const TaskCenter: React.FC<Props> = ({
   // T1 画室素材库：登记读取（play 空间，最多展示 12 张缩略）。
   const [assetThumbs, setAssetThumbs] = useState<AssetThumb[]>([])
   const [activeAsset, setActiveAsset] = useState<AssetThumb | null>(null)
-  const [assetsLoaded, setAssetsLoaded] = useState(false)
+  // T1 收口：素材库轻扫更新——tab 激活即重读（成本表不再一次性陈旧）+
+  // 30s 低频轮询（复用 usePollingGate 页面可见性门控：不可见即停表，
+  // 恢复可见时立即重读一次）。缩略 dataURL 按 path 缓存，避免每轮重读文件。
+  const assetsVisible = usePollingGate()
+  const assetUrlCacheRef = useRef<Map<string, string>>(new Map())
 
   useEffect(() => {
-    if (tab !== 'assets' || assetsLoaded) return
+    if (tab !== 'assets' || collapsed || !assetsVisible) return
     let cancelled = false
-    ;(async () => {
+    const load = async () => {
       const list = await imageHubAssets('play', '', 50)
       if (cancelled) return
       const items: AssetThumb[] = []
       for (const a of list) {
         if (!a.path) continue
-        const url = await readFileAsDataURL(a.path).catch(() => '')
+        let url = assetUrlCacheRef.current.get(a.path)
+        if (url === undefined) {
+          url = await readFileAsDataURL(a.path).catch(() => '')
+          if (cancelled) return
+          if (url) assetUrlCacheRef.current.set(a.path, url)
+        }
         if (url) {
           items.push({ ...a, url })
           if (items.length >= 12) break
         }
       }
+      if (cancelled) return
       setAssetThumbs(items)
-      setActiveAsset(items[0] || null)
-      setAssetsLoaded(true)
-    })()
-    return () => { cancelled = true }
-  }, [tab, assetsLoaded])
+      // 轻扫刷新保留用户当前选中（仍在列表内时不跳到第一张）。
+      setActiveAsset((prev) => (prev && items.some((x) => x.path === prev.path) ? prev : items[0] || null))
+    }
+    void load()
+    const timer = window.setInterval(() => { void load() }, ASSETS_POLL_MS)
+    return () => {
+      cancelled = true
+      window.clearInterval(timer)
+    }
+  }, [tab, collapsed, assetsVisible])
 
   const activeRunning = queueItems.some((q) => q.status === 'pending' || q.status === 'running')
   const recentCount = history.length

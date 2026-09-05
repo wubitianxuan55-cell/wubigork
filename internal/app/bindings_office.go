@@ -78,7 +78,7 @@ func (b *OfficeB) GaeaHistory() []HistoryMessage { return b.a.GaeaHistory() }
 func (b *OfficeB) GaeaInit() error { return b.a.GaeaInit() }
 func (b *OfficeB) GaeaJobs() []JobView { return b.a.GaeaJobs() }
 func (b *OfficeB) GaeaJournalList(limit int) []evidence.ChangeRecord { return b.a.GaeaJournalList(limit) }
-func (b *OfficeB) GaeaListDir(rel string) []DirEntry { return b.a.GaeaListDir(rel) }
+func (b *OfficeB) GaeaListDir(rel string) ([]DirEntry, error) { return b.a.GaeaListDir(rel) }
 func (b *OfficeB) GaeaListProjectSessions() []ProjectGroup { return b.a.GaeaListProjectSessions() }
 func (b *OfficeB) GaeaListSessions() []SessionMeta { return b.a.GaeaListSessions() }
 func (b *OfficeB) GaeaListWorkspaces() []WorkspaceView { return b.a.GaeaListWorkspaces() }

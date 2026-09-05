@@ -1,6 +1,8 @@
 # 任务进度
 
-> 最后更新: 2026-09-05（v4.98.0「图像域 T0 契约落地：登记底座 · 素材库 ·
+> 最后更新: 2026-09-05（v4.99.0「三线并行：图像域 T1 收口 · 办公 U2 回合投影 ·
+> GaeaListDir 硬化」，绑定面 581 零变更、ImageHubAssets/ChapterArtList 前端
+> 转正 AppBindings；v4.98.0「图像域 T0 契约落地：登记底座 · 素材库 ·
 > 参考槽 v0」，579→581；v4.97.0「GenUI 蒸馏：回答即 UI · 办公会话面板」
 > 579 零变更——**补记：该版发布说明/产物/SHA256 齐备但当时漏 commit+tag，
 > 本会话已补提交 e9baae3c + tag v4.97.0，并经隔离 worktree 门禁验证**；
@@ -27,6 +29,42 @@
 > 索引（101 个发布说明）已刷新。本会话另落 GitHub 市场调研三路
 > （docs/research-2026-09-05/ + market-research-2026-09-05.md）与
 > 长期规划回填）
+
+## 最新发布：v4.99.0（2026-09-05）「三线并行：图像域 T1 收口 · 办公 U2 回合投影 · GaeaListDir 硬化」
+
+- 「继续」惯例三线并行（文件所有权互斥子代理），**绑定面 581 零变更**
+  （drift PASS；ImageHubAssets/ChapterArtList 前端转正 AppBindings/spaceBindings
+  shared/play，分类锁 278→280，Go 侧不变）。
+- **线 A 图像域 T1 收口**：①GenerateDiagram 登记接线（media.diagram 第二试点：
+  成功后 .mmd 落盘 .gaea/uploads + 写 Asset Ledger，Startup 武装位闸控、失败只
+  warn、model/cost 诚实留空，Go 用例 +4）；②任务中心素材库 tab 轻扫（激活重读
+  +30s 可见性门控轮询，缩略按 path 缓存）；③画室素材库独立页 AssetLibrary
+  （顶部「生成模式」新增「素材库」入口；grid 懒加载分页/原语与来源筛选/点选溯源
+  详情/play+work 双空间切换/返回即还原；ChapterArtList 未接入=按章清单语义不匹配）。
+- **线 B 办公 U2**（蒸馏规划 §4.2 拍板 2/3/4/5，绑定面 0）：①officeTurnProjection
+  纯函数（callId 配对，写入/验证/生命周期三归约，失败不提交转换，乱序/孤儿/重复
+  容错，30 用例）；②统一 Office 回合卡 draft/ready 徽标（DeliverableCards/
+  VersionTimeline 同判定；登记表/证据链/置前不动，**regress 锁原样全绿**）；
+  ③预览浮窗状态机 previewAutoFrontReduce（写弹读不弹/关闭优先不复活/写意图跨
+  回合/终态清理；挂载/恢复/resync 只建基线；Office 扩展名+专注/窄屏守卫）；
+  ④草稿轻量版（证据链首写=draft、Plan→Apply 批准=ready，零新实体零新按钮）。
+- **线 C GaeaListDir 硬化**（v4.96 登记）：IsAbs 分支（相对路径行为逐字节不变
+  回归锁）+ 结构化错误码 GAEADIR_NOT_FOUND/NOT_DIR/READ_FAILED（对齐 U1 先例）；
+  **签名 []DirEntry→([]DirEntry, error)**（成功负载不变，Completeness PASS）；
+  osStat/osReadDir 注入缝使权限用例全平台确定性；前端 verifyArtifacts 切错误码
+  优先+文案匹配兜底（旧后端兼容），四态诚实降级不变。
+- **收口**：wailsjsCompat 消费族欠账部分销账（转正+api/image.ts 三态回退
+  window.go?.app?.App ?? bridgeApp）；dev mock 补 mock/imagehub.ts 中性样例
+  （生图×2/图示/视频，未定价诚实留空）；i18n imagehubT1.* 27 键+officeTurn.* 4 键
+  ×三语（重复/缺失体检 none）。
+- **?mock=1 真浏览器走查 PASS**（DOM+截图双验收）：绘梦→素材库入口→AssetLibrary
+  （3 卡/图示筛选=1/点选详情/创作空间 1 视频卡/返回恢复）+ 任务中心素材库 tab
+  （play 1 卡+计数徽标）。U2 回合卡/浮窗依赖真实办公回合，mock 无法驱动，
+  验收面=174 个 jsdom 用例+regress 锁（A1 先例口径），真模型端到端待用户复验。
+- 门禁：Go 全量 0 FAIL、tsc -b/eslint 0、vitest **248/1954**（净增 3 文件/56
+  用例；首轮 FilePreviewModal 1 例负载 flaky，单独+全量复跑均绿=既有模式）、
+  drift PASS（581）。
+- 详见 releases/v4.99.0.md。
 
 ## 最新发布：v4.98.0（2026-09-05）「图像域 T0 契约落地：登记底座 · 素材库 · 参考槽 v0」
 
@@ -159,28 +197,33 @@
   自校正）；raw `<input type=radio>` 现剥成空 input，若要支持需拍板；
   vcompare.cellRef/cellOld/cellNew 三键不再被消费（键保留字典）。
 
-## 下会话续做（待办清单，2026-09-05 v4.98.0 后更新）
+## 下会话续做（待办清单，2026-09-05 v4.99.0 后更新）
 
-- **图像域后续（按 longterm-plan 主题线）**：T1 收口——GenerateDiagram 登记
-  接线（media.diagram 原语第二试点）、素材库成本表轻扫更新机制、画室素材库
-  独立页（现仅 TaskCenter tab）；T2 后续——ipadapter/pulid 一致性方法实现、
-  一致性参考槽进角色剧照链；T5 收口——微信识图/造价 OCR 入域、粘贴/附件图
-  入域。真机验收：生成后 assets.jsonl 出登记、素材库 tab、章节配图历史。
-- **蒸馏规划**：阶段一/二/二.5/三 3a 3b 全部收口；v4.95~v4.98 销账见各版
-  说明。**剩余拍板项**：阶段三 3c 人工沙箱浏览器多开；阶段四真实终端
-  （D1 推荐暂不做）；微信文件收发（抓包前置）；**pptx 真编辑按
-  docs/gaea-pptx-edit-design-2026-09.md 待拍板（6 项），拍板前不动刀**。
+- **图像域后续（按 longterm-plan 主题线）**：T1 余件——识图「读/懂」画室试用入口
+  （粘贴图片→识别/理解）、画室「创作资产」面板（角色槽/模板槽）；T2 后续——
+  ipadapter/pulid 一致性方法实现、一致性参考槽进角色剧照链；T5 收口——微信识图/
+  造价 OCR 入域、粘贴/附件图入域。真机验收：真实生成后 assets.jsonl 出登记、
+  AssetLibrary/素材库 tab 真数据、章节配图历史。
+- **办公 U2 余件**：真模型端到端（写弹预览/回合卡徽标/关闭优先）待用户复验；
+  写弹默认开（契约直落），如需 opt-in 在 App 接线 open 分支加
+  `shouldAutoOpenDeliverables()` 门槛（纯函数层零改动）。
+- **蒸馏规划**：阶段一/二/二.5/三 3a 3b 全部收口；U1/U2 已落地（v4.98/v4.99）。
+  **剩余拍板项**：阶段三 3c 人工沙箱浏览器多开；阶段四真实终端（D1 推荐暂不做）；
+  微信文件收发（抓包前置）；**pptx 真编辑（=U3）按 docs/gaea-pptx-edit-design-2026-09.md
+  待拍板（6 项），拍板前不动刀**。
+- **转正余件**：GenerateFreeImage 等 image 域绑定仍在 LegacySurfaceNames 直调
+  （本轮只转正 ImageHubAssets/ChapterArtList 两个素材库消费点）；其余消费族按需转正。
+- **GaeaListDir 真机观察**：真实 OS 权限剥夺场景（注入缝只覆盖测试确定性）；
+  「权限不可读」独立文案键 deliverPanel.thumbsDenied 候选。
 - **GenUI P5 剩余（v4.97）**：真模型端到端（办公面板原地更新/聊天出 UI）、
-  ?mock=1 视觉走查、记忆/压缩侧围栏剥离审计（若影响确认）。
-- **Go 小刀候选（v4.96 登记）**：GaeaListDir 补 IsAbs 分支 + 错误透传/
-  结构化错误码（缩略图探测降级现依赖错误文案匹配）。
+  记忆/压缩侧围栏剥离审计（若影响确认）。
 - **老账**：run_skill AllowedTools 真机观察。
 - **待解锁复核真机验收**：弹层关闭、Git 面板真机操作、CodeMirror 真机
   编辑态、v4.94 径向图跳转、v4.96 缩略图真数据（pdftoppm PNG）。
 - **走查新坑（沿记）**：evaluate click 对热区被遮挡的开关无效
   （elementFromPoint 校验后 CUA 真实点击）；antd 菜单/tab 用
-  mousedown+mouseup+click 三连 dispatch；mock 样例 dataUrl 为截断 base64
-  （仅形状示意，真实产物为 pdftoppm PNG）。
+  mousedown+mouseup+click 三连 dispatch；antd Segmented 点 .ant-segmented-item
+  （label.title 定位）；mock 样例 dataUrl 为截断 base64。
 
 ## 最新发布：v4.94.0（2026-09-05）「Agent 网络会话跳转：子代理上下文按会话查看」
 

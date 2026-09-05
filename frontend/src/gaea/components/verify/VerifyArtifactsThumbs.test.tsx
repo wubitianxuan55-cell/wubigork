@@ -143,6 +143,58 @@ describe("VerifyArtifactsThumbs 通道 B 逐页缩略图", () => {
     expect(screen.queryByTestId("verify-thumb-cell")).toBeNull();
   });
 
+  it("诚实降级：结构化错误码优先——ListDir 拒绝 GAEADIR_NOT_FOUND → missing（省一次 Preview 探测）", async () => {
+    // 新后端（gaea_listdir.go）：缺失目录 promise reject `Error [CODE]: message`
+    mocks.listDir.mockRejectedValue("Error [GAEADIR_NOT_FOUND]: 目录不存在: C:/ws/x（stat 失败）");
+    mocks.preview.mockResolvedValue({
+      path: ROOT, name: ROOT, ext: "", size: 0, kind: "text", body: "", dataUrl: "", error: "",
+    });
+    renderT(<VerifyArtifactsThumbs artifacts={ROOT} />);
+    fireEvent.click(screen.getByTestId("verify-thumbs-toggle"));
+    const fault = await screen.findByTestId("verify-thumbs-fault");
+    expect(fault.textContent).toContain("产物目录不存在");
+    // 码已定性：不再发 Preview 探测
+    expect(mocks.preview).not.toHaveBeenCalled();
+  });
+
+  it("诚实降级：GAEADIR_NOT_DIR（是文件不是目录）同归 missing", async () => {
+    mocks.listDir.mockRejectedValue("Error [GAEADIR_NOT_DIR]: 不是目录: C:/ws/x");
+    mocks.preview.mockResolvedValue({
+      path: ROOT, name: ROOT, ext: "", size: 0, kind: "text", body: "", dataUrl: "", error: "",
+    });
+    renderT(<VerifyArtifactsThumbs artifacts={ROOT} />);
+    fireEvent.click(screen.getByTestId("verify-thumbs-toggle"));
+    const fault = await screen.findByTestId("verify-thumbs-fault");
+    expect(fault.textContent).toContain("产物目录不存在");
+    expect(mocks.preview).not.toHaveBeenCalled();
+  });
+
+  it("诚实降级：GAEADIR_READ_FAILED（权限）无四态码 → 走 Preview 探测兜底（语义不变落 empty）", async () => {
+    mocks.listDir.mockRejectedValue("Error [GAEADIR_READ_FAILED]: 读取目录失败: x（拒绝访问）");
+    mocks.preview.mockResolvedValue({
+      path: ROOT, name: ROOT, ext: "", size: 0, kind: "error",
+      body: "", dataUrl: "", error: "目录无法预览",
+    });
+    renderT(<VerifyArtifactsThumbs artifacts={ROOT} />);
+    fireEvent.click(screen.getByTestId("verify-thumbs-toggle"));
+    const fault = await screen.findByTestId("verify-thumbs-fault");
+    expect(fault.textContent).toContain("产物目录为空");
+    expect(mocks.preview).toHaveBeenCalledWith(ROOT);
+  });
+
+  it("诚实降级：旧后端兜底——ListDir 拒绝但错误串无码 → Preview 文案匹配照常定性", async () => {
+    mocks.listDir.mockRejectedValue("listdir boom");
+    mocks.preview.mockResolvedValue({
+      path: ROOT, name: ROOT, ext: "", size: 0, kind: "error",
+      body: "", dataUrl: "", error: "文件不存在",
+    });
+    renderT(<VerifyArtifactsThumbs artifacts={ROOT} />);
+    fireEvent.click(screen.getByTestId("verify-thumbs-toggle"));
+    const fault = await screen.findByTestId("verify-thumbs-fault");
+    expect(fault.textContent).toContain("产物目录不存在");
+    expect(mocks.preview).toHaveBeenCalledWith(ROOT);
+  });
+
   it("诚实降级：目录在但列为空（探测「目录无法预览」）", async () => {
     mocks.listDir.mockResolvedValue([]);
     mocks.preview.mockResolvedValue({

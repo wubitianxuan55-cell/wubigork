@@ -424,27 +424,13 @@ func gaeaCwd() string {
 	return cwd
 }
 
-// GaeaListDir 列出工作区相对路径下的目录。
-func (a *App) GaeaListDir(rel string) []DirEntry {
-	out := []DirEntry{}
-	root := gaeaCwd()
-	dir := root
-	if rel != "" {
-		dir = filepath.Join(root, rel)
-	}
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return out
-	}
-	for _, e := range entries {
-		info, _ := e.Info()
-		size := int64(0)
-		if info != nil {
-			size = info.Size()
-		}
-		out = append(out, DirEntry{Name: e.Name(), IsDir: e.IsDir(), Size: size})
-	}
-	return out
+// GaeaListDir 列出工作区目录：rel 为空 = 工作区根，相对路径 Join 工作区根
+// （旧行为不变），绝对路径直接使用（v4.96 登记缺口补齐）。错误不再吞：
+// 带 GAEADIR_* 结构化错误码透传（实现与码表见 gaea_listdir.go）。签名例外
+// （[]DirEntry → ([]DirEntry, error)，主代理拍板）：方法名/绑定数 581 不变，
+// 失败从 resolve 空切片改为 reject 错误串（前端调用点均有 catch）。
+func (a *App) GaeaListDir(rel string) ([]DirEntry, error) {
+	return listDirEntries(rel)
 }
 
 // FileSearchHit 工作区文件名搜索结果（@ 引用增强用）。

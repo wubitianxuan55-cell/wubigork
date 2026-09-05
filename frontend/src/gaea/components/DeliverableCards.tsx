@@ -1,4 +1,4 @@
-import { memo, useMemo } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 import {
   Copy,
   ExternalLink,
@@ -11,6 +11,12 @@ import {
   mergeDeliverableCards,
   useTurnDeliverables,
 } from "../lib/deliverablesTurn";
+import {
+  deliverablePhaseOf,
+  ensureOfficeJournal,
+  isOfficeDeliverablePath,
+} from "../lib/officeTurnProjection";
+import type { JournalChangeRecord } from "../lib/types";
 import { useUpdatedFilesStore } from "../lib/store";
 import { openPaneFileOrPreview } from "../lib/paneFileOpen";
 import { useT } from "../lib/i18n";
@@ -37,6 +43,14 @@ const iconBtn =
 // 「已更新」徽标。登记口径 = 派发即登记，登记-only 卡确认文件不存在时
 // 灰色淡化 + 「未生成」徽标（缺失态探测失败按存在处理，宁漏勿误）。
 // 安静、低边框，突出文件名。
+//
+// U2 统一 Office 回合卡（docs/gaea-dsh-univer-office-distill-plan-2026-09.md
+// §4.2-2/4）：Office 文档卡叠加草稿/就绪状态徽标（首次写盘=草稿、Plan→Apply
+// 批准=就绪，判定源=证据链 JournalList + 本轮登记条目，见 lib/
+// officeTurnProjection.deliverablePhaseOf；数据不可用时不标，宁缺勿误）。
+// 本卡与 DeliverablesPanel 的 VersionTimeline 共用同一徽标语言与判定函数——
+// 呈现层收敛，但本卡不复制操作 footer：保留/回滚/验收等操作仍只在登记面
+// （DeliverablesPanel）与证据链入口，登记表数据源与产物置前行为不变。
 export const DeliverableCards = memo(function DeliverableCards({ text, turnNo, mergeRegistry = true }: { text: string; turnNo?: number; mergeRegistry?: boolean }) {
   const updatedAt = useUpdatedFilesStore((s) => s.updatedAt);
   const toast = useToast();
@@ -51,6 +65,27 @@ export const DeliverableCards = memo(function DeliverableCards({ text, turnNo, m
     () => mergeDeliverableCards(textPaths, entries, turnNo),
     [textPaths, entries, turnNo],
   );
+  // 草稿/就绪徽标数据源：证据链 JournalList（会话级，与版本时间线/回滚同源）。
+  // 只在卡片里存在 Office 文档时拉取（共享缓存 2s 去重；失败静默 → 不标徽标）。
+  // 注意：hooks 全部在 cards.length 早退之前调用（Rules of Hooks）。
+  const hasOfficeCard = cards.some((c) => isOfficeDeliverablePath(c.path));
+  const [journal, setJournal] = useState<JournalChangeRecord[] | null>(null);
+  useEffect(() => {
+    if (!hasOfficeCard) return;
+    let cancelled = false;
+    void ensureOfficeJournal().then((recs) => {
+      if (!cancelled) setJournal(recs);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [hasOfficeCard]);
+  // 本轮登记条目索引（路径归一键 → 工具名）：正文卡的草稿判定兜底。
+  const entryToolByPath = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const e of entries) m.set(deliverablePathKey(e.path), e.tool);
+    return m;
+  }, [entries]);
   if (cards.length === 0) return null;
 
   const copyPath = async (path: string) => {
@@ -85,6 +120,12 @@ export const DeliverableCards = memo(function DeliverableCards({ text, turnNo, m
           // 缺失态：登记-only 且已确认文件不存在（登记 = 派发即登记，写失败
           // 不回剔）→ 整行灰色淡化 +「未生成」徽标；正文卡不做缺失判定。
           const isMissing = from === "registry" && missing.has(deliverablePathKey(path));
+          // U2 草稿/就绪徽标：判定源 = 证据链（JournalList）+ 本轮登记条目；
+          // 已确认缺失（登记-only 未生成）的卡不标（写失败谈不上草稿）。
+          const regTool = entryToolByPath.get(deliverablePathKey(path));
+          const phase = isMissing
+            ? null
+            : deliverablePhaseOf(path, journal, regTool ? { tool: regTool } : null);
           return (
             <div
               key={path}
@@ -122,6 +163,36 @@ export const DeliverableCards = memo(function DeliverableCards({ text, turnNo, m
                       }}
                     >
                       {t("deliver.updated")}
+                    </span>
+                  )}
+                  {/* U2 草稿/就绪徽标：与 VersionTimeline 头部同一判定函数、同一
+                      胶囊语言（草稿=警示色/就绪=成功色）；title 说明判定口径。 */}
+                  {phase === "draft" && (
+                    <span
+                      data-testid="office-turn-phase-draft"
+                      className="shrink-0 rounded-full px-1.5 py-px text-[9px] leading-none"
+                      title={t("officeTurn.phaseDraftTitle")}
+                      style={{
+                        color: "var(--md-sys-color-warning)",
+                        background: "color-mix(in srgb, var(--md-sys-color-warning) 12%, transparent)",
+                        border: "1px solid color-mix(in srgb, var(--md-sys-color-warning) 32%, transparent)",
+                      }}
+                    >
+                      {t("officeTurn.phaseDraft")}
+                    </span>
+                  )}
+                  {phase === "ready" && (
+                    <span
+                      data-testid="office-turn-phase-ready"
+                      className="shrink-0 rounded-full px-1.5 py-px text-[9px] leading-none"
+                      title={t("officeTurn.phaseReadyTitle")}
+                      style={{
+                        color: "var(--md-sys-color-success)",
+                        background: "color-mix(in srgb, var(--md-sys-color-success) 12%, transparent)",
+                        border: "1px solid color-mix(in srgb, var(--md-sys-color-success) 32%, transparent)",
+                      }}
+                    >
+                      {t("officeTurn.phaseReady")}
                     </span>
                   )}
                   {isMissing && (

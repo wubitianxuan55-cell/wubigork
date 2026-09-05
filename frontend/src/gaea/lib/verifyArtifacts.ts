@@ -20,7 +20,8 @@ export interface VerifyDirEntry {
 }
 
 // VerifyPageFile 是一张已解析页码的页面图（relPath 为工作区相对路径，直接可
-// 传给 GaeaListDir/GaeaPreview —— 后者对相对路径 Join(工作区根) 后读取）。
+// 传给 GaeaListDir/GaeaPreview —— 后者对相对路径 Join(工作区根) 后读取；
+// GaeaListDir 亦已支持绝对路径，见 gaea_listdir.go IsAbs 分支）。
 export interface VerifyPageFile {
   page: number;
   name: string;
@@ -54,12 +55,41 @@ export interface VerifyThumbSection {
 }
 
 // VerifyArtifactsFault 是「诚实降级」的原因分类（组件映射到 i18n 文案）：
-//   unreachable — channelBArtifacts 无法相对化（不在当前工作区，且 ListDir 不
-//                 收绝对路径；只能外部打开，见汇报能力缺口）
-//   missing     — 目录不存在（GaeaPreview 探测 error「文件不存在」）
+//   unreachable — channelBArtifacts 无法相对化（不含固定标记且是绝对路径，
+//                 无法定位产物目录；只能外部打开，见汇报能力缺口）
+//   missing     — 目录不存在（GAEADIR_NOT_FOUND/NOT_DIR 码，或旧后端探测
+//                 error「文件不存在」文案兜底）
 //   empty       — 目录在但列不出页面（探测 error「目录无法预览」= 存在而空）
 //   noPages     — 列到了条目但没有可识别的逐页 PNG（如仅有 PDF：渲染降级）
 export type VerifyArtifactsFault = "unreachable" | "missing" | "empty" | "noPages";
+
+// DIR_ERROR_CODES 是后端 GaeaListDir 的结构化错误码（internal/app/gaea_listdir.go，
+// 形态 `Error [CODE]: message`，对齐 internal/gaea/tool/builtin/errcode.go 口径）。
+export const DIR_ERROR_CODES = {
+  notFound: "GAEADIR_NOT_FOUND", // 目录不存在
+  notDir: "GAEADIR_NOT_DIR", // 路径存在但不是目录（是文件）
+  readFailed: "GAEADIR_READ_FAILED", // 读取目录失败（权限等 OS 错误透传）
+} as const;
+
+// parseErrorCode 从后端错误串提取结构化错误码（`Error [CODE]` 片段）；入参
+// 兼容 string 与 Error（Wails 拒绝值是错误串原文）。无码（旧后端自然语言
+// 文案 / 非错误负载）返回 null，调用方走文案匹配兜底。
+export function parseErrorCode(message: unknown): string | null {
+  const text =
+    typeof message === "string" ? message : message instanceof Error ? message.message : "";
+  const hit = /Error \[([A-Z0-9_]+)\]/.exec(text);
+  return hit ? hit[1] : null;
+}
+
+// faultFromDirCode 把 GaeaListDir 的 GAEADIR_* 码映射为诚实降级态：
+//   NOT_FOUND / NOT_DIR — 预期的产物目录不存在（含「是文件不是目录」）→ missing
+//   READ_FAILED（权限等）— 四态无对应文案（i18n 冻结零新键），返回 null 走
+//                         原 Preview 探测路径，与旧后端同口径落 empty
+//   无码 / 无关码        — null（调用方走兜底）
+export function faultFromDirCode(code: string | null): VerifyArtifactsFault | null {
+  if (code === DIR_ERROR_CODES.notFound || code === DIR_ERROR_CODES.notDir) return "missing";
+  return null;
+}
 
 // verifyArtifactRelPath 把 verdict 里的产物目录（Go filepath.ToSlash 绝对路径；
 // mock/旧数据可能是已相对路径）解析为工作区相对路径。目录恒在固定标记
@@ -195,12 +225,16 @@ export function buildThumbSections(
   return sections.filter((s) => s.rows.length > 0);
 }
 
-// classifyDirProbe 把「目录列不出/列空」时的 GaeaPreview 探测结果映射为降级
-// 原因。后端语义（gaea_preview.go）：目录不存在 → kind=error「文件不存在」；
-// 目录存在 → kind=error「目录无法预览」（此时列为空 = 目录为空）；非 error
-// （mock 或异常负载）→ 目录可访问只是没有可识别页面。
+// classifyDirProbe 把「目录列不出/列空」时的降级原因定性——结构化错误码优先：
+// 错误串带 `Error [GAEADIR_*]` 码时按码路由（新后端，不解析散文）；无码退回
+// 旧后端错误文案匹配兜底。后端语义（gaea_preview.go / gaea_listdir.go）：目录
+// 不存在 → kind=error「文件不存在」/码 GAEADIR_NOT_FOUND；目录存在 →
+// kind=error「目录无法预览」（此时列为空 = 目录为空）；非 error（mock 或异常
+// 负载）→ 目录可访问只是没有可识别页面。
 export function classifyDirProbe(kind: string, error: string): VerifyArtifactsFault {
   if (kind !== "error") return "noPages";
+  const byCode = faultFromDirCode(parseErrorCode(error));
+  if (byCode) return byCode;
   return (error ?? "").includes("不存在") ? "missing" : "empty";
 }
 

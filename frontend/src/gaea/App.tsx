@@ -70,8 +70,16 @@ import { DELIVERABLE_EXT_RE, deliverableMentions } from "./lib/fileLinks";
 import { recordRecentFile } from "./lib/recentFiles";
 import { useUpdatedFilesStore } from "./lib/store";
 import { buildSessionChanges, extractDeliverablePaths, WRITE_TOOL_NAMES, type SessionChange } from "./lib/changes";
+import {
+  initialPreviewAutoFrontState,
+  isOfficeDeliverablePath,
+  OFFICE_WRITE_TOOLS,
+  previewAutoFrontReduce,
+  extractOfficeWritePaths,
+  type PreviewAutoFrontEvent,
+} from "./lib/officeTurnProjection";
 import { usePaneTabsStore } from "./lib/paneTabs";
-import { setPaneFileOpenHandler } from "./lib/paneFileOpen";
+import { setPaneFileOpenHandler, openPaneFileOrPreview } from "./lib/paneFileOpen";
 import { parseSidebarOpenResult } from "./lib/sidebarOpen";
 import { setEventSyncFetcher } from "./lib/eventSync";
 import { shouldAutoOpenBrowser } from "./lib/browserPrefs";
@@ -901,6 +909,86 @@ export default function App() {
   }, [rightTab]);
   // v4.30 产物自动置前：未查看的新产物数角标（激活产物 tab 即清零，见上方 effect）
   const freshDeliverableCount = rightTab === "deliverables" ? 0 : freshDeliverablePaths.length;
+
+  // ── U2 预览浮窗语义状态机接线（docs/gaea-dsh-univer-office-distill-plan-2026-09.md
+  // §4.2-5）：写弹读不弹（office 写类工具成功回执才自动置前预览）、关闭优先（用户
+  // 手动关闭清除打开意图，同回合读取不复活）、意图跨回合（写意图未兑现跨 turnEnd
+  // 保持）、终态清理（回合终结复位回合级状态）。状态迁移全部在 lib/
+  // officeTurnProjection.previewAutoFrontReduce（纯函数，单测钉死），此处只做
+  // 事件喂入与 open 动作执行（经 paneFileOpen 统一入口：工作台开 pane 文件 tab，
+  // 未注册页面回落大预览）。置前范围收窄在 Office 文档路径，bash/脚本写盘不打扰。
+  const previewAutoRef = useRef(initialPreviewAutoFrontState);
+  // 工具卡状态基线：挂载/会话恢复/补拉快照只建基线不触发（与 v4.30 freshDeliverablePaths
+  // 的 baselinePending 同式），此后状态跃迁才产生 dispatch/result 事件。
+  const previewAutoToolSeenRef = useRef<Map<string, string>>(new Map());
+  const previewAutoBaselineRef = useRef(true);
+  const focusModeRef = useRef(focusMode);
+  useEffect(() => { focusModeRef.current = focusMode; }, [focusMode]);
+
+  const applyPreviewAutoEvent = useCallback((event: PreviewAutoFrontEvent) => {
+    const next = previewAutoFrontReduce(previewAutoRef.current, event);
+    previewAutoRef.current = next.state;
+    if (next.action.type !== "open") return;
+    // 专注模式 = 用户明确只要对话；窄屏（<1240）工作台 pane 被 CSS 隐藏——
+    // 两种场景都不自动置前（与 openTasksAuto 的窄屏守卫同口径）。
+    if (focusModeRef.current || window.innerWidth < 1240) return;
+    if (!isOfficeDeliverablePath(next.action.path)) return;
+    openPaneFileOrPreview(next.action.path);
+  }, []);
+
+  // 会话切换：状态机整体复位 + 重建工具状态基线（恢复会话绝不弹预览）。
+  useEffect(() => {
+    previewAutoRef.current = initialPreviewAutoFrontState;
+    previewAutoToolSeenRef.current = new Map();
+    previewAutoBaselineRef.current = true;
+  }, [currentSessionKey]);
+
+  // 工具事件喂入：写类工具卡（状态 running→done/error 跃迁）→ writeDispatch /
+  // writeResult。读取事件对状态机是恒 no-op（读不弹），不喂、省一次路径提取。
+  useEffect(() => {
+    const seen = previewAutoToolSeenRef.current;
+    const baseline = previewAutoBaselineRef.current;
+    if (baseline) previewAutoBaselineRef.current = false;
+    for (const it of state.items) {
+      if (it.kind !== "tool") continue;
+      const prev = seen.get(it.id);
+      if (prev === it.status) continue;
+      seen.set(it.id, it.status);
+      if (baseline && prev === undefined) continue; // 基线期只登记
+      if (!OFFICE_WRITE_TOOLS.has(it.name)) continue;
+      const paths = extractOfficeWritePaths(it.name, it.args).filter(isOfficeDeliverablePath);
+      if (paths.length === 0) continue;
+      const path = paths[0]; // 同回合多文件取首个：同文件同回合至多一窗（纯函数层守卫）
+      if (prev === undefined) {
+        applyPreviewAutoEvent({ type: "writeDispatch", path });
+        if (it.status === "done") applyPreviewAutoEvent({ type: "writeResult", path, ok: true });
+        else if (it.status === "error") applyPreviewAutoEvent({ type: "writeResult", path, ok: false });
+      } else if (it.status === "done") {
+        applyPreviewAutoEvent({ type: "writeResult", path, ok: true });
+      } else if (it.status === "error" || it.status === "stopped") {
+        applyPreviewAutoEvent({ type: "writeResult", path, ok: false });
+      }
+    }
+  }, [state.items, applyPreviewAutoEvent]);
+
+  // 终态清理：回合终结（running 熄灭）复位回合级状态；写意图跨回合保持。
+  const prevRunningRef = useRef(state.running);
+  useEffect(() => {
+    if (prevRunningRef.current && !state.running) {
+      applyPreviewAutoEvent({ type: "turnEnd" });
+    }
+    prevRunningRef.current = state.running;
+  }, [state.running, applyPreviewAutoEvent]);
+
+  // 关闭优先：预览从有到无（Esc/×/切 pane/专注模式）= 用户手动关闭 → 喂
+  // userClose，清除该路径的打开意图；同回合后续读取/回执不再复活浮窗。
+  useEffect(() => {
+    return usePreviewStore.subscribe((s, prev) => {
+      if (prev.previewFile != null && s.previewFile == null) {
+        applyPreviewAutoEvent({ type: "userClose", path: prev.previewFile });
+      }
+    });
+  }, [applyPreviewAutoEvent]);
   // v4.63 自动展开（对标 dsh better-sidebar 的 0→N 触发 + 500ms 去抖重臂 +
   // 偏好开关）：当前会话出现新子代理/本地模型工具运行 → 自动切右栏「任务」
   // 视图（已在任务视图则只记角标语义，不打扰）。去抖的 Why 与 dsh #314 同源：

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -153,7 +154,37 @@ func (a *mediaState) GenerateDiagram(prompt string) (map[string]interface{}, err
 	if !validMermaidStart(code) {
 		return map[string]interface{}{"error": fmt.Sprintf("生成的代码不是有效 Mermaid（%s）", truncateStr(code, 120))}, nil
 	}
+	// T1 图示登记接线（media.diagram 第二试点）：生成成功先落盘再登记。
+	registerDiagramAsset(code, userPrompt)
 	return map[string]interface{}{"code": code}, nil
+}
+
+// registerDiagramAsset 图示产物落盘 + Asset Ledger 登记（T1 收口，完全复刻
+// v4.98 书封/绘梦试点模式）：
+//   - 受运行态武装位闸控（imageHubRuntimeArmed）：测试进程/未武装整体跳过，
+//     既不写 .mmd 也不写登记；
+//   - 落盘复用 saveDiagramMermaid（.gaea/uploads/diagram-<ts>.mmd，与聊天画图
+//     工具同目录），登记走 recordImageHubDiagramAsset（source_board=imagegen，
+//     allowRoots 限定 uploads 根防穿越；图示走活跃对话引擎，无显式模型名，
+//     model/cost 诚实留空）；
+//   - 落盘/登记任一失败只 warn，绝不影响生成返回（调用方无 error 出口）。
+func registerDiagramAsset(code, prompt string) {
+	if !imageHubLedgerRuntimeCheck() {
+		return // 未武装：不落盘（行为保持，登记是辅助视图）
+	}
+	cwd := gaeaCwd()
+	rel, err := saveDiagramMermaid(cwd, code)
+	if err != nil {
+		slog.Warn("图示产物落盘失败（不影响生成）", "error", err)
+		return
+	}
+	abs := filepath.Join(cwd, filepath.FromSlash(rel))
+	uploadsRoot := filepath.Join(cwd, ".gaea", "uploads")
+	if err := recordImageHubDiagramAsset(cwd, gaeaEffectiveSpace(), "imagegen", "", "", prompt,
+		map[string]interface{}{"format": "mermaid", "render": "frontend_png"},
+		imageHubAsset{Path: abs}, []string{uploadsRoot}); err != nil {
+		slog.Warn("图示产物登记失败（不影响生成）", "path", abs, "error", err)
+	}
 }
 
 // extractDiagramMermaid 从模型回复中提取 Mermaid 代码（兼容围栏与裸代码）。

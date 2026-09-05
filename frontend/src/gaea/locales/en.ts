@@ -1592,5 +1592,43 @@ export const en = {
   "taskpick.statusRunning": "Running",
   "taskpick.statusCompleted": "Completed",
   "taskpick.statusFailed": "Failed",
+
+  // ── imagegen 画室素材库 T1 收口（独立素材库页 + 轻扫更新）──
+  "imagehubT1.libraryNav": "Library",
+  "imagehubT1.libraryTitle": "Studio Asset Library",
+  "imagehubT1.libraryBack": "Back to studio",
+  "imagehubT1.spaceWork": "Work space",
+  "imagehubT1.spacePlay": "Play space",
+  "imagehubT1.filterSource": "Source",
+  "imagehubT1.filterPrimitive": "Primitive",
+  "imagehubT1.filterAll": "All",
+  "imagehubT1.capMediaGenerate": "Generate",
+  "imagehubT1.capMediaDiagram": "Diagram",
+  "imagehubT1.boardImagegen": "Imagegen",
+  "imagehubT1.boardNovel": "Novel",
+  "imagehubT1.boardCharacterlib": "Characters",
+  "imagehubT1.metaModel": "Model",
+  "imagehubT1.metaCost": "Cost",
+  "imagehubT1.metaSource": "Source",
+  "imagehubT1.metaRole": "Character",
+  "imagehubT1.metaTime": "Time",
+  "imagehubT1.metaPrompt": "Prompt",
+  "imagehubT1.metaPath": "Path",
+  "imagehubT1.costUnset": "Unpriced",
+  "imagehubT1.empty": "No registered assets in this space yet — generated images are tracked here automatically.",
+  "imagehubT1.emptyFiltered": "No assets match the current filters.",
+  "imagehubT1.loadMore": "Load more",
+  "imagehubT1.kindVideo": "Video",
+  "imagehubT1.thumbUnavailable": "Thumbnail unavailable",
+  "imagehubT1.count": "{n} assets",
+
+  // ── U2 turn projection & review closeout (officeTurn): unified Office turn
+  //    card draft/ready badge. Fixed mapping (decision item 2): first write =
+  //    draft, Plan→Apply approval = ready; keep/rollback reuse the existing
+  //    acceptance and evidence-chain actions — no new buttons. ──
+  "officeTurn.phaseDraft": "Draft",
+  "officeTurn.phaseDraftTitle": "Written to the workspace (first write = draft); becomes ready after approval (Plan → Apply)",
+  "officeTurn.phaseReady": "Ready",
+  "officeTurn.phaseReadyTitle": "Approved and written via Plan → Apply (approval = ready); keep/rollback reuse the existing acceptance and evidence-chain actions",
 };
 export type DictKey = keyof typeof en;

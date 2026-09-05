@@ -19,12 +19,14 @@ import { ControlPanel } from '../components/imagegen/ControlPanel'
 import { ResultStage } from '../components/imagegen/ResultStage'
 import { GenerationBar } from '../components/imagegen/GenerationBar'
 import { TaskCenter } from '../components/imagegen/TaskCenter'
+import { AssetLibrary } from '../components/imagegen/AssetLibrary'
 import { StatusDot } from '../components/imagegen/ui'
 import { TEMPLATES, type Template } from '../data/imageTemplates'
 import { useImageGenConfig } from '../hooks/useImageGenConfig'
 import { useImageGenQueue } from '../hooks/useImageGenQueue'
 import { useImageGenHistory } from '../hooks/useImageGenHistory'
 import { useCustomTemplates } from '../hooks/useCustomTemplates'
+import { useT } from '../gaea/lib/i18n'
 import {
   backendLabel, isLocalBackend, resolveResultImage, templateSizeToPreset,
 } from '../components/imagegen/meta'
@@ -32,6 +34,7 @@ import { downloadFileName } from '../components/imagegen/media'
 import '../components/imagegen/imagegen.css'
 
 const ImageGenPage: React.FC = () => {
+  const t = useT()
   const cfg = useImageGenConfig()
   const {
     mode, setMode, prompt, setPrompt, negative, setNegative, size, setSize,
@@ -80,6 +83,9 @@ const ImageGenPage: React.FC = () => {
   } = tmpl
 
   const [templatePickerOpen, setTemplatePickerOpen] = useState(false)
+  // T1 画室素材库独立页：入口挂在模块自身导航（模式轨道）内，激活时以
+  // 素材库视图替换生成工作台，返回生成台即恢复原工作台状态。
+  const [assetLibraryOpen, setAssetLibraryOpen] = useState(false)
 
   // ── 跨 hook 操作 ──
 
@@ -89,6 +95,7 @@ const ImageGenPage: React.FC = () => {
     setResults([])
     setLightboxIndex(-1)
     clearRefSlot()
+    setAssetLibraryOpen(false)
   }, [setMode, setResults, setLightboxIndex, clearRefSlot])
 
   // ── 结果操作 ──
@@ -215,6 +222,15 @@ const ImageGenPage: React.FC = () => {
           >
             <VideoCameraOutlined /> 文生视频
           </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={assetLibraryOpen}
+            className={`ig-mode-item${assetLibraryOpen ? ' is-active' : ''}`}
+            onClick={() => setAssetLibraryOpen(true)}
+          >
+            <FolderOpenOutlined /> {t('imagehubT1.libraryNav')}
+          </button>
         </div>
 
         <div className="ig-strip-spacer" />
@@ -237,6 +253,11 @@ const ImageGenPage: React.FC = () => {
         </div>
       </div>
 
+      {/* T1 素材库视图：激活时替换生成工作台（模块内独立页，行为零回归） */}
+      {assetLibraryOpen ? (
+        <AssetLibrary onClose={() => setAssetLibraryOpen(false)} />
+      ) : (
+        <>
       {/* 3 分区工作台：左控制台 zone | 中画布 zone | 右历史·任务 inspector */}
       <div className="ig-workspace">
         <aside className="ig-control-rail v3-panel" aria-label="生成控制台">
@@ -326,6 +347,8 @@ const ImageGenPage: React.FC = () => {
         onGenerate={handleGenerate}
         onCancel={handleCancel}
       />
+        </>
+      )}
 
       {/* 灯箱 */}
       {lightboxIndex >= 0 && (

@@ -239,6 +239,55 @@ func (m *mediaState) recordImageHubGenerated(item imageItem, mode, characterID s
 	}
 }
 
+// recordImageHubDiagramAsset 图示原语产物登记（media.diagram 统一入口，T1 收口）。
+// 与 recordImageHubGeneratedAsset 同一试点模式：登记失败只向上返回 error，由
+// 调用方 warn，绝不拖垮生成主路径；allowRoots 非空时校验路径必须落在允许根内。
+func recordImageHubDiagramAsset(cwd, space, sourceBoard, backend, model, prompt string,
+	params map[string]interface{}, asset imageHubAsset, allowRoots []string) error {
+
+	if !imageHubLedgerRuntimeCheck() {
+		return nil // 非运行态：不落盘（行为保持，登记是辅助视图）
+	}
+	entry, err := imageDomainEntry(CapabilityMediaDiagram)
+	if err != nil {
+		return err
+	}
+	if !entry.Available || !entry.ProducesAsset {
+		return fmt.Errorf("图像域能力不可用: %s", CapabilityMediaDiagram)
+	}
+	if strings.TrimSpace(asset.Path) == "" {
+		return fmt.Errorf("缺少产物路径")
+	}
+	if len(allowRoots) > 0 && !imagePathWithinAny(asset.Path, allowRoots) {
+		return fmt.Errorf("产物路径不在允许根内: %s", asset.Path)
+	}
+	if asset.ID == "" {
+		asset.ID = newImageHubAssetID()
+	}
+	if asset.Kind == "" {
+		asset.Kind = imageHubKindByPath(asset.Path)
+	}
+	if asset.MIME == "" {
+		asset.MIME = imageHubMIMEByExt(asset.Path)
+	}
+	cost, license := imageHubCostAndLicense(model)
+	meta := imageHubAssetMeta{
+		Space:       normalizeImageHubSpace(space),
+		SourceBoard: sourceBoard,
+		Capability:  string(CapabilityMediaDiagram),
+		Backend:     backend,
+		Model:       model,
+		Cost:        cost,
+		Prompt:      prompt,
+		Params:      params,
+		CreatedAt:   time.Now().Format(time.RFC3339),
+		LicenseHint: license,
+		AIFlag:      true,
+	}
+	led := newImageHubLedger(cwd)
+	return led.record(meta.Space, imageHubLedgerRecord{Meta: meta, Asset: asset})
+}
+
 // ImageHubAssets 画室素材库读取（T1 绑定入口：空间/来源筛选，最新在前）。
 func (m *mediaState) ImageHubAssets(space, sourceBoard string, limit int) []imageHubAssetView {
 	return imageHubAssetSummaries(gaeaCwd(), space, sourceBoard, "", limit)

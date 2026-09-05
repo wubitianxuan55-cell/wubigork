@@ -6,8 +6,10 @@ import type { PreviewResult } from "../../lib/types";
 import {
   buildThumbSections,
   classifyDirProbe,
+  faultFromDirCode,
   mapPool,
   orderGroupDirs,
+  parseErrorCode,
   splitArtifactEntries,
   verifyArtifactRelPath,
 } from "../../lib/verifyArtifacts";
@@ -67,16 +69,18 @@ export const VerifyArtifactsThumbs = memo(function VerifyArtifactsThumbs({
   const loadThumbs = useCallback(async () => {
     const rel = verifyArtifactRelPath(artifacts);
     if (!rel) {
-      // 路径不可达（不在当前工作区且 ListDir 不收绝对路径）：只能外部打开
+      // 路径不可达（不含固定标记的绝对路径，无法定位产物目录）：只能外部打开
       if (liveRef.current) setLoad({ phase: "fault", fault: "unreachable" });
       return;
     }
     if (liveRef.current) setLoad({ phase: "listing" });
     let rootEntries: VerifyDirEntry[] = [];
+    let rootErr: unknown = undefined;
     try {
       rootEntries = (await app.ListDir(rel)) ?? [];
-    } catch {
+    } catch (e) {
       rootEntries = [];
+      rootErr = e;
     }
     const root = splitArtifactEntries(rootEntries, rel);
     let groups: Array<{ key: string; pages: VerifyPageFile[] }> = [];
@@ -96,7 +100,14 @@ export const VerifyArtifactsThumbs = memo(function VerifyArtifactsThumbs({
       groups = [{ key: "flat", pages: root.pages }];
     }
     if (groups.every((g) => g.pages.length === 0)) {
-      // 列不出/列为空/无可识别页面 → Preview 探测定性（不存在/为空/无页面图）
+      // 结构化错误码优先（新后端）：ListDir 拒绝串带 GAEADIR_* 码时按码定性，
+      // 省一次 Preview 探测（NOT_FOUND/NOT_DIR → missing）。无码（旧后端 /
+      // 权限类 READ_FAILED）→ 原 Preview 探测定性 + 文案匹配兜底，语义不变。
+      const byCode = faultFromDirCode(parseErrorCode(rootErr));
+      if (byCode) {
+        if (liveRef.current) setLoad({ phase: "fault", fault: byCode });
+        return;
+      }
       let probe: PreviewResult | undefined;
       try {
         probe = await app.Preview(rel);

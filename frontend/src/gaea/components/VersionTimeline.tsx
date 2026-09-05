@@ -29,10 +29,11 @@
 // sheet 名 + 状态/截断文案，change 单元格 = 相邻 del+add 对，marker = 单元格
 // ref，formula 追加 fx 后缀），诚实原则：不伪造 ctx 行、不补未变单元格。
 // clampDiffRows(200) + 展开全部开关保留在本组件（ChangesDiff 下方）。
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { Clock, Diff, Eye, Loader2, Rollback } from "../icons";
 import { ChangesDiff } from "./ChangesDiff";
 import { useT } from "../lib/i18n";
+import { deliverablePhaseOf } from "../lib/officeTurnProjection";
 import type { DiffRow } from "../lib/diff";
 import type { JournalChangeRecord } from "../lib/types";
 import { versionStatusText, versionTimeText } from "../lib/versionTimeline";
@@ -293,6 +294,14 @@ function VersionComparePanel({
 
 export function VersionTimeline({ path, records, onPreview, onRestore }: VersionTimelineProps) {
   const t = useT();
+  // U2 统一 Office 回合卡：与 DeliverableCards 共用同一判定函数（首次写盘=
+  // 草稿、Plan→Apply 批准=就绪）与同一徽标语言。数据源 = 本组件已持有的
+  // 该文件版本记录（JournalChangeRecord[]，即证据链 JournalList 折叠结果），
+  // 不新增任何 IO；records=null（加载中）不标，宁缺勿误。
+  const phase = useMemo(
+    () => (records ? deliverablePhaseOf(path, records) : null),
+    [path, records],
+  );
   // 恢复进行中的卡 id：期间禁用所有「恢复」按钮（避免并发写盘），本行转圈。
   const [restoringId, setRestoringId] = useState<string | null>(null);
   // 对比区状态：展开行的 id + 该行取数结果（result=null 表示请求进行中）。
@@ -367,6 +376,36 @@ export function VersionTimeline({ path, records, onPreview, onRestore }: Version
             }}
           >
             {records.length}
+          </span>
+        )}
+        {/* U2 草稿/就绪徽标：与正文交付卡同一判定函数、同一胶囊语言
+            （草稿=警示色/就绪=成功色），title 说明判定口径。 */}
+        {phase === "draft" && (
+          <span
+            data-testid="office-turn-phase-draft"
+            className="shrink-0 rounded px-1 py-px text-[9px] leading-none"
+            title={t("officeTurn.phaseDraftTitle")}
+            style={{
+              color: "var(--md-sys-color-warning)",
+              background: "color-mix(in srgb, var(--md-sys-color-warning) 12%, transparent)",
+              border: "1px solid color-mix(in srgb, var(--md-sys-color-warning) 32%, transparent)",
+            }}
+          >
+            {t("officeTurn.phaseDraft")}
+          </span>
+        )}
+        {phase === "ready" && (
+          <span
+            data-testid="office-turn-phase-ready"
+            className="shrink-0 rounded px-1 py-px text-[9px] leading-none"
+            title={t("officeTurn.phaseReadyTitle")}
+            style={{
+              color: "var(--md-sys-color-success)",
+              background: "color-mix(in srgb, var(--md-sys-color-success) 12%, transparent)",
+              border: "1px solid color-mix(in srgb, var(--md-sys-color-success) 32%, transparent)",
+            }}
+          >
+            {t("officeTurn.phaseReady")}
           </span>
         )}
       </div>

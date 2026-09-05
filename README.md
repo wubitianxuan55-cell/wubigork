@@ -92,6 +92,7 @@ gaea/
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| **v4.99.0** | 2026-09-05 | 三线并行（绑定面 581 零变更）：图像域 T1 收口——GenerateDiagram 登记（media.diagram 第二试点）、素材库成本表轻扫、画室素材库独立页 AssetLibrary（筛选/溯源/双空间）；办公 U2——officeTurnProjection 回归纯函数、统一回合卡 draft/ready 徽标、预览浮窗状态机（写弹读不弹/关闭优先/跨回合意图/终态清理）、草稿轻量版；Go 小刀 GaeaListDir——IsAbs+GAEADIR_* 结构化错误码（签名改 ([]DirEntry,error)）；ImageHubAssets/ChapterArtList 转正 AppBindings + mock 中性样例；vitest 248/1954、Go 全量 0 FAIL、drift PASS（581） |
 | **v4.98.0** | 2026-09-05 | 图像域 T0 契约落地（绑定面 579→581）：五原语能力注册表（识图-读/懂、生图、图示；改图 fail-closed）+ Asset Ledger v1 按空间 JSONL 溯源登记（只存路径+元数据）+ 模型中心目录只读视图；试点书封/绘梦登记、OCR/识图入口校验；T1 提前量（章节配图落盘登记+本章历史配图、绘梦「素材库」tab、角色剧照溯源）；T2 参考槽 v0（选角色→参考图图生图近似，ipadapter/pulid 诚实拒绝）；办公 U1 FORMAT_* 错误码 + office-edit 技能；修登记闸测试污染；vitest 245/1898、Go 全量 0 FAIL、drift PASS（581） |
 | **v4.97.0** | 2026-09-05 | GenUI 蒸馏（绑定面 579 零变更）：蒸馏 dsh-genui——回答内嵌 ```genui 围栏渲染为白名单交互组件（34 种：stat/table/chart/表单/Quiz 本地判卷/action 回传），办公与聊天双板块渲染；办公右栏「UI」会话面板 REPLACE/APPEND 原地更新；genui inline 技能 + genui_validate 校验工具；vitest 241/1860、Go 全量 0 FAIL、drift PASS（579）、生产构建通过 |
 | **v4.96.0** | 2026-09-05 | 三线并行（绑定面 579 零变更）：三级下钻收尾（Token 卡→趋势锚点，中期候选四条全落地）；Verifier 通道 B 逐页缩略图（零绑定变更，四态诚实降级，走查实锤修复 updater 副作用/liveRef 两真缺陷）；pptx 真编辑设计文档待拍板；vitest 1825/1825、Go 全量 0 FAIL、drift PASS（579） |

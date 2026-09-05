@@ -65,6 +65,11 @@ export const GAEA_METHOD_FACETS = {
   // v4.7 S4.6 命令面板接统一意图路由：触点层内核两空间共用（路线图 §10.4a
   // 「路由内核是触点层内核（两空间共用家底）」），dry-run 预览-确认制防误触发
   RouteIntent: "shared",
+  // 图像域登记只读视图（T1 画室素材库）：space 由参数承担、两空间各自 ledger，
+  // 消费面绘梦（play）与后续工位配图（work）都会调 → shared（转正自 Legacy 直调）。
+  ImageHubAssets: "shared",
+  // 项目章节配图清单（chapter-art.json）：小说域（play）专属消费。
+  ChapterArtList: "play",
 
   // ── play：乐园数据面（轻语聊天记忆）──────────────────────────
   WhisperMemories: "play",
