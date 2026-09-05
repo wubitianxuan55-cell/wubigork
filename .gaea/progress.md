@@ -56,6 +56,27 @@
   的开关无效，elementFromPoint 校验后 CUA 真实点击；antd 菜单/tab 用
   mousedown+mouseup+click 三连 dispatch。
 
+## 最新发布：v4.97.0（2026-09-05）「GenUI 蒸馏：回答即 UI · 办公会话面板」
+
+- 文档：docs/gaea-dsh-genui-distill-plan-2026-09.md（完整规划 + 执行状态）。
+- P1 共享内核 frontend/src/genui：spec/guard/parse/interaction/fingerprint/
+  GenuiBlock/renderNode/styles/scope/action-context（34 种白名单组件、LIMITS 权威、
+  未知 type 丢弃、流式部分解析、LRU 200 持久化、本地判卷/防抖/secret 禁令）。
+- P2 双板块 markdown 缝：办公 Markdown/MemoMarkdown/Message/App（office scope +
+  action 宿主 steer/send）；聊天 ChatMarkdown/MarkdownContent/ChatRow/ChatPage。
+- P3 模型侧：internal/gaea/genui（embed Handbook/ChatRule/OfficePointer +
+  ValidateSpec）+ genui_validate 只读工具 + genui inline 技能 + boot/app/whisper
+  提示词接线（人格统一注入点带门控）。
+- P4 办公「UI」面板：genuiPanel store（REPLACE/APPEND/去重/会话隔离）+
+  GenuiPanel + workspaceTabs/sidebarRegistry 第六 Tab + /panel open|clear|<指令>。
+- 门禁：tsc/eslint 0；vitest 241 文件 1860 用例全绿（P5 面板/命令/验收走查 +10 已含）；
+  前端生产构建 npm run build 通过；GenuiPanel/命令/Go 校验工具 Execute 契约测试已补。
+  Go genui/skill/tool·builtin/boot/app/whisper 全绿；绑定面 579 不变。
+- P5 剩余（需真机/发布决策）：真模型端到端（办公面板原地更新/聊天出 UI）、?mock=1
+  视觉走查（发布说明已如实记录待用户复验）、记忆/压缩侧围栏剥离审计（若影响确认）。
+- 发布产物：releases/v4.97.0.md + SHA256SUMS-v4.97.0.txt；冒烟 /api/health 200；
+  wails.json/versioninfo.rc/README/CHANGELOG 已同步 4.97.0。
+
 ## 最新发布：v4.95.0（2026-09-05）「三线并行收欠账」
 
 - 「继续」惯例三线并行子代理（文件所有权互斥），**绑定面 579 零变更**。

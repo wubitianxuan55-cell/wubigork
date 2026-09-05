@@ -19,7 +19,7 @@
 // 与既有行为对齐）。
 
 import type { Icon } from "../icons";
-import { ClipboardList, FileText, FolderTree, GitBranch, Globe } from "../icons";
+import { Blocks, ClipboardList, FileText, FolderTree, GitBranch, Globe } from "../icons";
 import { readWorkbenchValue, writeWorkbenchValue } from "./workbenchStorage";
 import { loadOptionalLayoutSize, saveLayoutSize } from "./layoutPreferences";
 
@@ -31,7 +31,7 @@ import { loadOptionalLayoutSize, saveLayoutSize } from "./layoutPreferences";
  *  旧存储值经 normalizeWorkspaceTabId 别名收敛（changes→deliverables、
  *  subagents→tasks），非法值回默认「文件」。 */
 // v4.86 2b：追加 git（Git 面板最小集，D3 单仓库无 push）——v4.53 合并后首个新一级 Tab。
-export const WORKSPACE_TAB_IDS = ["files", "deliverables", "tasks", "browser", "git"] as const;
+export const WORKSPACE_TAB_IDS = ["files", "deliverables", "tasks", "browser", "git", "ui"] as const;
 export type WorkspaceTabId = (typeof WORKSPACE_TAB_IDS)[number];
 
 export interface WorkspaceTabDef {
@@ -59,6 +59,7 @@ export const WORKSPACE_TABS: WorkspaceTabDef[] = [
   { id: "browser", label: "浏览器", icon: Globe, keywords: ["browser", "浏览器", "观察", "网页"], defaultEnabled: true },
   // 2b Git 面板最小集（分支/状态/暂存/提交/历史；仓库锚定工作区 cwd）。
   { id: "git", label: "Git", icon: GitBranch, keywords: ["git", "版本", "提交", "分支", "暂存", "diff", "commit", "history"], defaultEnabled: true },
+  { id: "ui", label: "UI", icon: Blocks, keywords: ["genui", "ui", "面板", "交互", "dashboard", "看板"], defaultEnabled: true },
 ];
 
 // v4.53 合并后的旧 id 别名：历史持久化值（裸 tab id / 记录 / 启用集）读入时

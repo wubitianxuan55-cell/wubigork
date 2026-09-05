@@ -16,6 +16,17 @@ describe("classifyComposerCommand 斜杠命令分类", () => {
     expect(classifyComposerCommand("  /context  ")).toEqual({ type: "context" });
   });
 
+  it("识别 /panel open/clear/自定义指令（GenUI 会话面板）", () => {
+    expect(classifyComposerCommand("/panel")).toEqual({ type: "panel", action: "open" });
+    expect(classifyComposerCommand("/panel open")).toEqual({ type: "panel", action: "open" });
+    expect(classifyComposerCommand("/panel clear")).toEqual({ type: "panel", action: "clear" });
+    expect(classifyComposerCommand("/panel 把成本拆成月度趋势")).toEqual({
+      type: "panel",
+      action: "open",
+      instruction: "把成本拆成月度趋势",
+    });
+  });
+
   it("其它输入按提交处理", () => {
     expect(classifyComposerCommand("帮我写报告")).toEqual({ type: "submit" });
     expect(classifyComposerCommand("/unknown cmd")).toEqual({ type: "submit" });

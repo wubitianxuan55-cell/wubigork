@@ -5,6 +5,13 @@
 
 ## 版本状态（顶部速览）
 
+- **最新发布：v4.97.0（2026-09-05）「GenUI 蒸馏：回答即 UI · 办公会话面板」**
+  ——绑定面 579 零变更：蒸馏 dsh-genui（快照 680693e）——frontend/src/genui 共享内核
+  （34 白名单组件/守卫/本地优先/action 防抖/持久化）+ 办公与聊天双板块 ```genui 围栏
+  渲染缝 + 办公右栏「UI」会话面板（REPLACE/APPEND）+ genui inline 技能 +
+  genui_validate 工具 + 聊天/办公/人格提示词接线。vitest 241/1860、Go 全量 0 FAIL、
+  tsc/eslint 0、drift PASS（579）、冒烟 200。真机视觉/真模型端到端待用户复验。
+  详见 releases/v4.97.0.md。
 - **下会话待办（2026-09-05 收档，详见 progress.md「下会话续做」）**：
   **蒸馏规划阶段一、二.5（含 Agent 网络跳转）、二 2a/2b/2c、阶段三
   3a/3b 全部收口 + 中期候选成本费率 hover、终止级联、失败恢复入口、

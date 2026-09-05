@@ -15,6 +15,8 @@ import { MarkdownContent } from '../MarkdownContent'
 import AnsweredByLine from './AnsweredByLine'
 import type { AnsweredByInfo } from './AnsweredByLine'
 import type { ChatMsg } from '../../pages/chat/types'
+import { useGenuiScope } from '../../genui/scope'
+import { buildMarkdownGenuiOverrides } from './genuiAdapter'
 
 export interface ChatRowProps {
   /** 行对应的消息对象：未更新的行保持同一对象引用（updateMessage 仅替换被补丁的行），memo 才能命中 */
@@ -41,6 +43,11 @@ export const ChatRow: React.FC<ChatRowProps> = ({
   copied, speaking, onCopy, onSpeak, onRetry,
 }) => {
   const display = text
+  const genuiScope = useGenuiScope()
+  const genuiOverrides = React.useMemo(
+    () => buildMarkdownGenuiOverrides(genuiScope, msg.key),
+    [genuiScope, msg.key],
+  )
   if (msg.role === 'user') {
     return (
       <div className="chat-row chat-row-user">
@@ -91,8 +98,8 @@ export const ChatRow: React.FC<ChatRowProps> = ({
             </span>
           ) : (
             mode === 'plain'
-              ? <ChatMarkdown text={display} />
-              : <MarkdownContent source={display} className="md-content" />
+              ? <ChatMarkdown text={display} genuiKey={msg.key} />
+              : <MarkdownContent source={display} className="md-content" components={genuiOverrides} />
           )}
         </div>
       )}

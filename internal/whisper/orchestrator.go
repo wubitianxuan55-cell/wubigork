@@ -7,6 +7,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/gaea/gaea/internal/gaea/genui"
 )
 
 // ─── PreLLMResult ─────────────────────────────────────────────
@@ -449,6 +451,9 @@ func (o *Orchestrator) PreLLMTurn(userMsg string) PreLLMResult {
 			parts = append(parts, runtimeHint)
 		}
 	}
+	// GenUI 结构化呈现规则（蒸馏 dsh-genui）：人格模式只在复盘/清单/数据
+	// 回顾类内容使用，气氛与情感对话绝不输出围栏。
+	parts = append(parts, "轻语对话提醒：GenUI ```genui 围栏只在复盘/清单/选项/数据回顾类内容使用，气氛与情感对话绝不使用。\n\n"+genui.ChatRule)
 
 	systemPrompt := strings.Join(parts, "\n\n")
 

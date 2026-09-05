@@ -33,6 +33,11 @@ describe("sidebarRegistry 注册表完整性（蒸馏 dsh-better-sidebar registe
     expect(browser!.label).toBe("浏览器");
     expect(browser!.defaultEnabled).toBe(true);
     expect(typeof browser!.render).toBe("function");
+    // GenUI 会话面板（panel:true 投递目标）
+    const ui = SIDEBAR_REGISTRY.find((r) => r.id === "ui");
+    expect(ui).toBeTruthy();
+    expect(ui!.label).toBe("UI");
+    expect(typeof ui!.render).toBe("function");
   });
 
   it("元数据复用清单（单一数据源）：label/icon/keywords/defaultEnabled 同源", () => {

@@ -1,0 +1,764 @@
+/* GenUI 组件样式 — 只消费全局令牌，聊天/办公两板块通用。
+   兼容层：--color-*（App 层注入）为主，--md-sys-* 兜底。 */
+.gui-block {
+  --gui-accent: var(--gaea-glow, var(--color-primary, var(--md-sys-color-primary)));
+  --gui-accent-rgb: var(--accent-rgb, 125, 140, 255);
+  --gui-text: var(--color-text, var(--md-sys-color-text));
+  --gui-text-dim: var(--color-text-secondary, var(--md-sys-color-text-secondary));
+  --gui-border: var(--color-border, var(--md-sys-color-border));
+  --gui-surface: var(--color-surface-container, var(--md-sys-color-surface-container));
+  --gui-surface-soft: color-mix(in srgb, var(--gui-text) 5%, transparent);
+  --gui-ok: var(--color-success, #34d399);
+  --gui-warn: var(--color-warning, #f59e0b);
+  --gui-err: var(--color-destructive, #ef4444);
+  --gui-radius: var(--md-sys-radius-lg, var(--radius-lg, 12px));
+  --gui-radius-sm: var(--md-sys-radius-md, var(--radius-md, 8px));
+  box-sizing: border-box;
+  color: var(--gui-text);
+}
+.gui-panel-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 4px 0;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px dashed color-mix(in srgb, var(--gui-accent) 45%, transparent);
+  background: color-mix(in srgb, var(--gui-accent) 8%, transparent);
+  color: var(--gui-accent);
+  font-size: 11.5px;
+}
+.gui-block *,
+.gui-block *::before,
+.gui-block *::after {
+  box-sizing: border-box;
+}
+.gui-block {
+  border: 1px solid color-mix(in srgb, var(--gui-border) 75%, transparent);
+  border-radius: var(--gui-radius);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--gui-text) 2.5%, transparent), transparent 40%),
+    color-mix(in srgb, var(--gui-surface) 62%, transparent);
+  padding: 12px 14px;
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+.gui-banner {
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid color-mix(in srgb, var(--gui-border) 70%, transparent);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.gui-col,
+.gui-row {
+  display: flex;
+}
+.gui-col {
+  flex-direction: column;
+}
+.gui-row {
+  flex-direction: row;
+  align-items: flex-start;
+}
+.gui-wrap {
+  flex-wrap: wrap;
+}
+.gui-grid {
+  display: grid;
+  gap: 8px;
+}
+.gui-item {
+  min-width: 0;
+  animation: gui-reveal 180ms ease-out both;
+}
+@keyframes gui-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.gui-text {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.gui-text-h1 {
+  font-size: 18px;
+  font-weight: 700;
+  margin: 4px 0 2px;
+}
+.gui-text-h2 {
+  font-size: 15.5px;
+  font-weight: 650;
+  margin: 3px 0 1px;
+}
+.gui-text-h3 {
+  font-size: 14px;
+  font-weight: 600;
+}
+.gui-text-muted,
+.gui-muted {
+  color: var(--gui-text-dim);
+}
+.gui-text-caption {
+  font-size: 11.5px;
+  color: var(--gui-text-dim);
+}
+.gui-center {
+  text-align: center;
+}
+.gui-divider {
+  border: none;
+  border-top: 1px solid color-mix(in srgb, var(--gui-border) 80%, transparent);
+  margin: 8px 0;
+}
+.gui-spacer {
+  height: 8px;
+}
+.gui-card {
+  border: 1px solid color-mix(in srgb, var(--gui-border) 70%, transparent);
+  border-radius: var(--gui-radius-sm);
+  background: color-mix(in srgb, var(--gui-surface) 80%, transparent);
+  padding: 10px 12px;
+}
+.gui-card-title {
+  font-weight: 650;
+  font-size: 13px;
+  margin-bottom: 6px;
+}
+.gui-card-body > .gui-item + .gui-item {
+  margin-top: 8px;
+}
+
+/* 展示 */
+.gui-stat {
+  border: 1px solid color-mix(in srgb, var(--gui-border) 70%, transparent);
+  border-radius: var(--gui-radius-sm);
+  background: color-mix(in srgb, var(--gui-surface) 88%, transparent);
+  padding: 10px 12px;
+}
+.gui-stat-label {
+  font-size: 11px;
+  color: var(--gui-text-dim);
+  letter-spacing: 0.03em;
+}
+.gui-stat-value {
+  font-size: 22px;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+  margin: 2px 0;
+}
+.gui-stat-delta {
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+.gui-delta-up {
+  color: var(--gui-ok);
+}
+.gui-delta-down {
+  color: var(--gui-err);
+}
+.gui-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  border: 1px solid transparent;
+  background: var(--gui-surface-soft);
+  color: var(--gui-text-dim);
+}
+.gui-tone-success,
+.gui-ok {
+  color: var(--gui-ok);
+}
+.gui-tone-warn {
+  color: var(--gui-warn);
+}
+.gui-tone-danger,
+.gui-err {
+  color: var(--gui-err);
+}
+.gui-tone-accent {
+  color: var(--gui-accent);
+}
+.gui-tone-info {
+  color: var(--gui-accent);
+}
+.gui-tone-error {
+  color: var(--gui-err);
+}
+.gui-progress-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+.gui-progress-track {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--gui-surface-soft);
+  overflow: hidden;
+}
+.gui-progress-bar {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--gui-accent);
+}
+.gui-kv {
+  display: flex;
+  flex-direction: column;
+}
+.gui-kv-row {
+  display: flex;
+  gap: 12px;
+  padding: 3px 0;
+  border-bottom: 1px dashed color-mix(in srgb, var(--gui-border) 55%, transparent);
+}
+.gui-kv-row:last-child {
+  border-bottom: none;
+}
+.gui-kv-key {
+  flex: 0 0 auto;
+  min-width: 86px;
+  color: var(--gui-text-dim);
+}
+.gui-kv-value {
+  word-break: break-word;
+}
+.gui-list {
+  margin: 2px 0;
+  padding-left: 18px;
+}
+.gui-list-item + .gui-list-item {
+  margin-top: 2px;
+}
+.gui-table-wrap {
+  overflow-x: auto;
+  border: 1px solid color-mix(in srgb, var(--gui-border) 70%, transparent);
+  border-radius: var(--gui-radius-sm);
+}
+.gui-table {
+  width: 100%;
+  min-width: 320px;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+.gui-th {
+  text-align: left;
+  font-size: 11px;
+  color: var(--gui-text-dim);
+  background: var(--gui-surface-soft);
+}
+.gui-th-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  padding: 6px 8px;
+  cursor: pointer;
+  text-align: left;
+}
+.gui-th-btn:hover {
+  color: var(--gui-text);
+}
+.gui-th-sorted {
+  color: var(--gui-accent);
+}
+.gui-sort-arrow {
+  font-size: 10px;
+}
+.gui-td {
+  padding: 5px 8px;
+  border-top: 1px solid color-mix(in srgb, var(--gui-border) 50%, transparent);
+  vertical-align: top;
+}
+.gui-num {
+  text-align: right;
+}
+.gui-timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.gui-timeline-item {
+  position: relative;
+  display: flex;
+  gap: 10px;
+  padding: 0 0 10px 0;
+}
+.gui-timeline-item:not(:last-child)::before {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 14px;
+  bottom: 0;
+  width: 1px;
+  background: var(--gui-border);
+}
+.gui-timeline-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--gui-accent);
+  margin-top: 5px;
+  flex: 0 0 auto;
+}
+.gui-timeline-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.gui-timeline-title {
+  font-weight: 600;
+}
+.gui-timeline-time {
+  font-size: 11px;
+}
+.gui-timeline-desc {
+  font-size: 12.5px;
+  color: var(--gui-text-dim);
+}
+.gui-callout {
+  border-radius: var(--gui-radius-sm);
+  padding: 9px 11px;
+  border: 1px solid color-mix(in srgb, var(--gui-accent) 24%, transparent);
+  background: color-mix(in srgb, var(--gui-accent) 7%, transparent);
+}
+.gui-callout-title {
+  font-weight: 650;
+  margin-bottom: 2px;
+}
+.gui-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.gui-step {
+  position: relative;
+  padding: 0 0 10px 26px;
+}
+.gui-step:not(:last-child)::before {
+  content: "";
+  position: absolute;
+  left: 8px;
+  top: 20px;
+  bottom: 0;
+  width: 1px;
+  background: var(--gui-border);
+}
+.gui-step-no {
+  position: absolute;
+  left: 0;
+  top: 1px;
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  border: 1px solid var(--gui-border);
+  color: var(--gui-text-dim);
+  background: var(--gui-surface);
+}
+.gui-step-current .gui-step-no {
+  background: var(--gui-accent);
+  border-color: transparent;
+  color: var(--gui-surface);
+}
+.gui-step-title {
+  font-weight: 600;
+}
+.gui-step-desc {
+  font-size: 12px;
+  color: var(--gui-text-dim);
+}
+.gui-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  font-size: 13px;
+  font-weight: 700;
+  background: var(--gui-surface-soft);
+  color: var(--gui-accent);
+  flex: 0 0 auto;
+}
+
+/* 图表 */
+.gui-chart-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+.gui-chart-axis {
+  font-size: 10px;
+  fill: var(--gui-text-dim);
+}
+.gui-chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 4px;
+  font-size: 11px;
+  color: var(--gui-text-dim);
+}
+.gui-chart-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.gui-chart-legend-swatch {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+}
+.gui-donut-total {
+  fill: var(--gui-text);
+  font-size: 22px;
+  font-weight: 700;
+}
+
+/* 代码 */
+.gui-code-block {
+  position: relative;
+  border-radius: var(--gui-radius-sm);
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--gui-border) 80%, transparent);
+  background: color-mix(in srgb, var(--gui-surface) 65%, transparent);
+}
+.gui-code-lang {
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 4px 10px;
+  border-bottom: 1px solid color-mix(in srgb, var(--gui-border) 70%, transparent);
+  color: var(--gui-text-dim);
+  background: var(--gui-surface-soft);
+}
+.gui-code-pre {
+  margin: 0;
+  padding: 8px 10px;
+  overflow-x: auto;
+  font-size: 12px;
+  line-height: 1.55;
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+}
+.gui-diffs {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.gui-diff {
+  border: 1px solid color-mix(in srgb, var(--gui-border) 70%, transparent);
+  border-radius: var(--gui-radius-sm);
+  overflow: hidden;
+}
+.gui-diff-path {
+  font-size: 11px;
+  font-family: ui-monospace, Consolas, monospace;
+  padding: 4px 8px;
+  background: var(--gui-surface-soft);
+  color: var(--gui-text-dim);
+  border-bottom: 1px solid color-mix(in srgb, var(--gui-border) 60%, transparent);
+}
+.gui-diff-old,
+.gui-diff-new {
+  margin: 0;
+  padding: 5px 8px;
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.gui-diff-old {
+  color: var(--gui-err);
+}
+.gui-diff-new {
+  color: var(--gui-ok);
+}
+
+/* 交互 */
+.gui-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  border: 1px solid transparent;
+  border-radius: var(--gui-radius-sm);
+  padding: 6px 14px;
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: opacity 160ms ease, transform 120ms ease;
+  background: var(--gui-surface-soft);
+  color: var(--gui-text);
+}
+.gui-btn:hover:not(:disabled) {
+  opacity: 0.88;
+}
+.gui-btn:active:not(:disabled) {
+  transform: translateY(0.5px);
+}
+.gui-btn:focus-visible,
+.gui-tab-btn:focus-visible,
+.gui-accordion-head:focus-visible,
+.gui-quiz-opt:focus-visible,
+.gui-th-btn:focus-visible,
+.gui-toggle-input:focus-visible + .gui-toggle-track {
+  outline: 2px solid var(--gui-accent);
+  outline-offset: 1px;
+}
+.gui-btn-primary {
+  background: var(--gui-accent);
+  color: var(--color-on-primary, var(--md-sys-color-on-primary, #06121a));
+}
+.gui-btn-danger {
+  background: color-mix(in srgb, var(--gui-err) 18%, transparent);
+  color: var(--gui-err);
+  border-color: color-mix(in srgb, var(--gui-err) 35%, transparent);
+}
+.gui-btn-success {
+  background: color-mix(in srgb, var(--gui-ok) 18%, transparent);
+  color: var(--gui-ok);
+  border-color: color-mix(in srgb, var(--gui-ok) 35%, transparent);
+}
+.gui-btn-ghost {
+  background: transparent;
+  border-color: color-mix(in srgb, var(--gui-border) 90%, transparent);
+}
+.gui-btn-full {
+  width: 100%;
+}
+.gui-btn-small {
+  padding: 3px 9px;
+  font-size: 12px;
+}
+.gui-btn-disabled,
+.gui-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.gui-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.gui-field-label {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--gui-text-dim);
+}
+.gui-input,
+.gui-select,
+.gui-textarea,
+.gui-slider {
+  width: 100%;
+  border: 1px solid color-mix(in srgb, var(--gui-border) 90%, transparent);
+  border-radius: var(--gui-radius-sm);
+  background: color-mix(in srgb, var(--gui-surface) 75%, transparent);
+  color: var(--gui-text);
+  padding: 5px 8px;
+  font-size: 13px;
+  font-family: inherit;
+}
+.gui-select {
+  appearance: auto;
+}
+.gui-slider {
+  padding: 0;
+  accent-color: var(--gui-accent);
+}
+.gui-slider-value {
+  font-variant-numeric: tabular-nums;
+  color: var(--gui-text);
+}
+.gui-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  cursor: pointer;
+  user-select: none;
+}
+.gui-toggle-input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.gui-toggle-track {
+  width: 32px;
+  height: 18px;
+  border-radius: 999px;
+  background: var(--gui-surface-soft);
+  border: 1px solid color-mix(in srgb, var(--gui-border) 90%, transparent);
+  position: relative;
+  transition: background 160ms ease;
+  flex: 0 0 auto;
+}
+.gui-toggle-track::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--gui-text-dim);
+  transition: transform 160ms ease, background 160ms ease;
+}
+.gui-toggle-input:checked + .gui-toggle-track {
+  background: var(--gui-accent);
+  border-color: transparent;
+}
+.gui-toggle-input:checked + .gui-toggle-track::after {
+  transform: translateX(14px);
+  background: var(--color-on-primary, var(--md-sys-color-on-primary, #06121a));
+}
+.gui-toggle:has(.gui-toggle-input:disabled) {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.gui-radio-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  padding: 2px 0;
+}
+.gui-disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.gui-radio-input {
+  accent-color: var(--gui-accent);
+}
+.gui-grade-result {
+  border: 1px dashed color-mix(in srgb, var(--gui-border) 80%, transparent);
+  border-radius: var(--gui-radius-sm);
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12.5px;
+}
+.gui-grade-score {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.gui-grade-row {
+  display: flex;
+  gap: 6px;
+}
+.gui-tabs-bar {
+  display: flex;
+  gap: 2px;
+  border-bottom: 1px solid color-mix(in srgb, var(--gui-border) 80%, transparent);
+  overflow-x: auto;
+}
+.gui-tab-btn {
+  border: 0;
+  background: transparent;
+  color: var(--gui-text-dim);
+  padding: 5px 10px;
+  font-size: 12.5px;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  white-space: nowrap;
+}
+.gui-tab-btn:hover {
+  color: var(--gui-text);
+}
+.gui-tab-active {
+  color: var(--gui-accent);
+  border-bottom-color: var(--gui-accent);
+  font-weight: 600;
+}
+.gui-tab-panel {
+  padding-top: 8px;
+}
+.gui-accordion {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.gui-accordion-item {
+  border: 1px solid color-mix(in srgb, var(--gui-border) 70%, transparent);
+  border-radius: var(--gui-radius-sm);
+  overflow: hidden;
+}
+.gui-accordion-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  border: 0;
+  background: var(--gui-surface-soft);
+  color: var(--gui-text);
+  font: inherit;
+  padding: 7px 10px;
+  cursor: pointer;
+  text-align: left;
+}
+.gui-accordion-body {
+  padding: 8px 10px;
+}
+.gui-accordion-arrow {
+  color: var(--gui-text-dim);
+}
+.gui-quiz-opt {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: 1px solid color-mix(in srgb, var(--gui-border) 80%, transparent);
+  background: color-mix(in srgb, var(--gui-surface) 60%, transparent);
+  color: var(--gui-text);
+  border-radius: var(--gui-radius-sm);
+  padding: 6px 10px;
+  font-size: 13px;
+  cursor: pointer;
+  margin-top: 4px;
+}
+.gui-quiz-feedback {
+  color: var(--gui-text-dim);
+  font-size: 12px;
+}
+.gui-quiz-result {
+  margin-top: 6px;
+  font-size: 13px;
+}
+.gui-quiz-result .gui-btn {
+  margin-top: 6px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gui-item {
+    animation: none;
+  }
+  .gui-btn,
+  .gui-toggle-track,
+  .gui-toggle-track::after {
+    transition: none;
+  }
+}

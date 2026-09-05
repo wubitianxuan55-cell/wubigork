@@ -33,8 +33,8 @@ describe("workspaceTabs 清单完整性（v4.53 合并：文件/产物/任务/�
     expect(ids.sort()).toEqual([...WORKSPACE_TAB_IDS].sort());
   });
 
-  it("清单为 5 Tab（v4.53 合并后 v4.86 2b 追加 Git），不含已删除面板", () => {
-    expect(WORKSPACE_TABS.map((t) => t.id)).toEqual(["files", "deliverables", "tasks", "browser", "git"]);
+  it("清单为 6 Tab（v4.53 合并后 v4.86 2b 追加 Git、GenUI 蒸馏追加 UI），不含已删除面板", () => {
+    expect(WORKSPACE_TABS.map((t) => t.id)).toEqual(["files", "deliverables", "tasks", "browser", "git", "ui"]);
     expect(WORKSPACE_TABS.some((t) => (t.id as string) === "materials")).toBe(false);
     expect(WORKSPACE_TABS.some((t) => (t.id as string) === "cost")).toBe(false);
     expect(isWorkspaceTabId("materials")).toBe(false); // 旧存储值收敛回默认
@@ -52,6 +52,11 @@ describe("workspaceTabs 清单完整性（v4.53 合并：文件/产物/任务/�
     expect(browser!.label).toBe("浏览器");
     expect(browser!.keywords).toEqual(["browser", "浏览器", "观察", "网页"]);
     expect(browser!.defaultEnabled).toBe(true);
+    // GenUI 蒸馏：会话 UI 面板 Tab（v4.x 新增）
+    const ui = WORKSPACE_TABS.find((t) => t.id === "ui");
+    expect(ui).toBeTruthy();
+    expect(ui!.label).toBe("UI");
+    expect(ui!.defaultEnabled).toBe(true);
   });
 
   it("v4.53 旧 id 别名：changes→deliverables、subagents→tasks，非法值回 null", () => {

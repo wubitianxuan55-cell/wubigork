@@ -1,5 +1,6 @@
 import { memo } from 'react'
 import ReactMarkdown from 'react-markdown'
+import type { Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 
 /** Markdown 渲染（GFM：表格/删除线/任务列表等，基于 react-markdown） */
@@ -7,11 +8,13 @@ import remarkGfm from 'remark-gfm'
 type Props = {
   source: string
   className?: string
+  /** 可选组件覆盖（聊天 GenUI 渲染缝用；缺省 = 现状零变化）。 */
+  components?: Components
 }
 
 // T7-4：React.memo 包裹——source 未变化时跳过重渲染，避免父级无关
 // state 刷新导致整棵 markdown 子树（大文档时开销明显）重复 diff。
-export const MarkdownContent = memo(function MarkdownContent({ source, className }: Props) {
+export const MarkdownContent = memo(function MarkdownContent({ source, className, components }: Props) {
   return (
     <div
       className={className}
@@ -21,7 +24,7 @@ export const MarkdownContent = memo(function MarkdownContent({ source, className
         wordBreak: 'break-word',
       }}
     >
-      <ReactMarkdown remarkPlugins={[remarkGfm]}>{source}</ReactMarkdown>
+      <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>{source}</ReactMarkdown>
     </div>
   )
 })

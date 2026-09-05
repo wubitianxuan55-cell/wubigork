@@ -11,6 +11,10 @@ import { sessionTitle, sessionTime } from "./lib/session";
 import { relativeTime } from "./lib/time";
 import { useController, usePreviewStore } from "./lib/store";
 import { app, onTaskEvent } from "./lib/bridge";
+import { GenuiActionProvider } from "../genui/GenuiActionContext";
+import { GenuiScopeProvider } from "../genui/scope";
+import { setGenuiActionHandler } from "./lib/genuiHost";
+import { clearGenuiPanel } from "./lib/genuiPanel";
 import { Transcript } from "./components/Transcript";
 import { JumpBar } from "./components/JumpBar";
 import { useToast } from "./components/Toast";
@@ -141,6 +145,22 @@ export default function App() {
   const [memView, setMemView] = useState<MemoryView | null>(null);
   const { sidebarSessions, sidebarQuery, setSidebarQuery, newSessionDone, refreshSessions, startNewSession, handleResumeSession, handleDeleteSession, handleRenameSession, projectGroups } = useSessionManager(newSession, listSessions, listProjectSessions, resumeSession, deleteSession, renameSession, (msg) => toast.show(msg, "warn"));
   const newSessionAndReset = useCallback(async () => { await startNewSession(); }, [startNewSession]);
+  // GenUI action 宿主：运行中 → steer（注入当前回合），空闲 → send（短展示文案 +
+  // 完整信封原文走 SubmitDisplay raw）。paylod 紧凑化防超长。
+  const genuiActionHandler = useCallback(
+    (action: string, payload: Record<string, unknown>) => {
+      const envelope = JSON.stringify({ action, payload });
+      const raw = `[genui-action] ${envelope}`.slice(0, 1200);
+      const display = `（UI 操作）${action}`.slice(0, 80);
+      if (state.running) steer(raw);
+      else send(display, raw);
+    },
+    [state.running, steer, send],
+  );
+  useEffect(() => {
+    setGenuiActionHandler(genuiActionHandler);
+    return () => setGenuiActionHandler(undefined);
+  }, [genuiActionHandler]);
   // 当前会话标识：直接使用 Go 后端生成的 .jsonl 文件路径作为 key。
   // 每个会话文件对应唯一的 localStorage key：新会话自然空数据开始，
   // 恢复/重启同一会话则统计数据持续累加，会话之间互不干扰。
@@ -575,9 +595,20 @@ export default function App() {
         setCtxModalOpen(true);
         return;
       }
+      if (command.type === "panel") {
+        if (command.action === "clear") {
+          clearGenuiPanel(currentSessionPath);
+          return;
+        }
+        openPaneView("ui");
+        if (command.instruction !== undefined) {
+          send(`/panel ${command.instruction}`);
+        }
+        return;
+      }
       send(displayText.trim(), submitText.trim());
     },
-    [switchModel, send, setChatTab],
+    [switchModel, send, setChatTab, openPaneView, currentSessionPath],
   );
 
   // History drawer: opening fetches the saved-session list; picking one resumes it
@@ -1331,10 +1362,12 @@ export default function App() {
                 ) : (
                   <>
                     {chatTab === "chat" && (
-                      <>
-                        <Transcript onPrompt={send} running={state.running} onRewind={rewind} onScrollToTurnReady={setScrollToTurn} cwd={state.meta?.cwd} cwdName={cwdName} sessions={recentSessions} onResumeSession={resumeRecentSession} meta={state.meta} />
-                        {state.items.length > 1 && <JumpBar items={state.items} scrollToTurn={scrollToTurn ?? undefined} />}
-                      </>
+                      <GenuiScopeProvider scope={{ scope: "office", sessionKey: currentSessionKey }}>
+                        <GenuiActionProvider onAction={genuiActionHandler}>
+                          <Transcript onPrompt={send} running={state.running} onRewind={rewind} onScrollToTurnReady={setScrollToTurn} cwd={state.meta?.cwd} cwdName={cwdName} sessions={recentSessions} onResumeSession={resumeRecentSession} meta={state.meta} />
+                          {state.items.length > 1 && <JumpBar items={state.items} scrollToTurn={scrollToTurn ?? undefined} />}
+                        </GenuiActionProvider>
+                      </GenuiScopeProvider>
                     )}
                     {chatTab === "trajectory" && <TrajectoryView running={state.running} />}
                     {chatTab === "context" && (

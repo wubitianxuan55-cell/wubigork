@@ -28,6 +28,8 @@ import { STREAM_SILENCE_TIMEOUT_MS, EMO_COLORS } from './chat/constants'
 import { navigateToCharacterLib, loadCompanionName, toUpdatedAt, loadPersonality } from './chat/utils'
 import type { ChatMsg, Personality } from './chat/types'
 import '../chat-board.css'
+import { GenuiScopeProvider } from '../genui/scope'
+import { GenuiActionProvider } from '../genui/GenuiActionContext'
 
 // T6-3.1：流式对话无帧超时（30s 无任何帧即视为失败）。测试从 ChatPage 导入
 // （vitest fake timers 推进同一阈值），故在此再导出。
@@ -227,6 +229,24 @@ const ChatPage: React.FC = () => {
   }, [send, modeRef, activeIdRef, searchEnabledRef, thinkingRef, forceSearchRef])
 
   const handleSend = useCallback(() => { doSend(input) }, [input, doSend])
+  // GenUI action：聊天没有运行中 steer → 仅在本回合结束后发送；payload 折成
+  // 可读文本进话题历史（模型按提示词规则解析 [UI 操作] 前缀）。
+  const genuiChatAction = useCallback((action: string, payload: Record<string, unknown>) => {
+    if (sending) return
+    const extra = Object.entries(payload)
+      .map(([k, v]) => `${k}=${String(v).slice(0, 160)}`)
+      .join(' · ')
+    const text = `[UI 操作] ${action}${extra ? `（${extra}）` : ''}`.slice(0, 500)
+    if (!activeIdRef.current || !text) return
+    void send({
+      text,
+      mode: modeRef.current,
+      active: activeIdRef.current,
+      search: searchEnabledRef.current,
+      thinking: thinkingRef.current,
+      force: forceSearchRef.current,
+    })
+  }, [sending, send, activeIdRef, modeRef])
   const handleSuggestion = useCallback((label: string) => { doSend(label) }, [doSend])
   const handleFillInput = useCallback((label: string) => { setInput(label); inputRef.current?.focus?.() }, [])
   const handleRetry = useCallback((msgKey: string) => {
@@ -387,18 +407,22 @@ const ChatPage: React.FC = () => {
               onSuggestion={handleSuggestion}
             />
           ) : (
-            <MessageList
-              messages={messages}
-              streamKey={streamKey}
-              streamText={streamText}
-              mode={mode}
-              companionName={companionName}
-              copiedId={copiedId}
-              speakingId={speakingId}
-              onCopy={handleCopy}
-              onSpeak={handleSpeak}
-              onRetry={handleRetry}
-            />
+            <GenuiScopeProvider scope={activeId ? { scope: 'chat', sessionKey: activeId } : null}>
+              <GenuiActionProvider onAction={genuiChatAction}>
+                <MessageList
+                  messages={messages}
+                  streamKey={streamKey}
+                  streamText={streamText}
+                  mode={mode}
+                  companionName={companionName}
+                  copiedId={copiedId}
+                  speakingId={speakingId}
+                  onCopy={handleCopy}
+                  onSpeak={handleSpeak}
+                  onRetry={handleRetry}
+                />
+              </GenuiActionProvider>
+            </GenuiScopeProvider>
           )}
         </div>
 

@@ -37,6 +37,10 @@ import { openPaneFileOrPreview } from "../lib/paneFileOpen";
 import { useToast } from "./Toast";
 import { FileChip } from "./FileChip";
 import { MemCitationChip } from "./MemCitationChip";
+import { GenuiMarkdownFence, genuiFenceStateKey, isGenuiFenceLang } from "../../genui/markdownFence";
+import { parseGenuiFenceBody, splitGenuiFences } from "../../genui/parse";
+import { useGenuiScope } from "../../genui/scope";
+import { useGenuiPanelStore } from "../lib/genuiPanel";
 
 // KaTeX CSS 延迟注入：避免非数学对话的 ~23KB CSS 开销。
 // 有数学内容时才加载（$$ 或 $ 包裹的公式）。
@@ -398,7 +402,11 @@ function CodeBlockHeader({ language, text }: { language?: string; text: string }
 
 // ── Markdown 组件 ────────────────────────────────────────────────────
 
-function buildComponents(onOpenFile: (rel: string) => void, autoExportMermaid = true): Components {
+function buildComponents(
+  onOpenFile: (rel: string) => void,
+  autoExportMermaid: boolean,
+  fenceKeyFor: ((body: string) => string | undefined) | undefined,
+): Components {
   return {
     pre: ({ children }) => {
       // md 围栏代码：components.code 已产出完整样式块，pre 透传避免双层
@@ -417,6 +425,15 @@ function buildComponents(onOpenFile: (rel: string) => void, autoExportMermaid = 
       const isBlock = match !== null || text.includes("\n");
       if (lang === "mermaid") {
         return <MermaidBlock code={text} autoExport={autoExportMermaid} />;
+      }
+      if (lang !== undefined && isGenuiFenceLang(lang)) {
+        return (
+          <GenuiMarkdownFence
+            code={text}
+            stateKey={fenceKeyFor?.(text)}
+            panelRender="chip"
+          />
+        );
       }
       if (isBlock) {
         return (
@@ -517,15 +534,42 @@ const mdUrlTransform = (url: string): string =>
     ? url
     : defaultUrlTransform(url);
 
-export const Markdown = memo(function Markdown({ text, autoExportMermaid = true }: { text: string; autoExportMermaid?: boolean }) {
+export const Markdown = memo(function Markdown({
+  text,
+  autoExportMermaid = true,
+  genuiKey,
+}: {
+  text: string;
+  autoExportMermaid?: boolean;
+  /** 消息级源 key：用于 GenUI 状态持久化与面板发布去重（预览等场景缺省）。 */
+  genuiKey?: string;
+}) {
   if (hasMathContent(text)) ensureKatexCss();
   const openFilePreview = openPaneFileOrPreview;
+  const genuiScope = useGenuiScope();
+  const publishPanel = useGenuiPanelStore((s) => s.publish);
+  // panel:true 规格投递右栏 UI 面板（同一来源+内容指纹幂等；历史重放收敛）。
+  useEffect(() => {
+    if (genuiScope === null || genuiKey === undefined) return;
+    const { segments } = splitGenuiFences(text);
+    for (const seg of segments) {
+      if (seg.kind !== "fence" || !seg.closed) continue;
+      const spec = parseGenuiFenceBody(seg.body);
+      if (spec?.panel === true) {
+        publishPanel(genuiScope.sessionKey, `${genuiKey}#${seg.fenceNo}`, spec);
+      }
+    }
+  }, [text, genuiKey, genuiScope, publishPanel]);
+  const fenceKeyFor =
+    genuiScope !== null && genuiKey !== undefined
+      ? (body: string): string | undefined => genuiFenceStateKey(genuiScope, genuiKey, body)
+      : undefined;
   return (
     <div className="md text-[14px] leading-relaxed">
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkMath, remarkFileLinks, remarkMemCitations]}
         rehypePlugins={[rehypeRaw, mdHtmlSchemaSanitize, rehypeKatex]}
-        components={buildComponents(openFilePreview, autoExportMermaid)}
+        components={buildComponents(openFilePreview, autoExportMermaid, fenceKeyFor)}
         urlTransform={mdUrlTransform}
       >
         {normalizeMath(text)}

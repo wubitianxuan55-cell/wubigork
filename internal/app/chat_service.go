@@ -11,12 +11,13 @@ import (
 
 	"github.com/gaea/gaea/internal/ai"
 	"github.com/gaea/gaea/internal/chat"
+	"github.com/gaea/gaea/internal/gaea/genui"
 	"github.com/gaea/gaea/internal/modelengine"
 	"github.com/gaea/gaea/internal/whisper"
 )
 
 // chatPlainSystemPrompt 普通对话（聊天板块 plain 模式）的系统提示词。
-const chatPlainSystemPrompt = "你是一个热心、博学的AI助手，用中文与用户进行日常对话。你具备联网搜索能力：用户询问需要实时/最新信息的问题时，系统会把搜索结果以「以下是关于此问题的实时搜索结果」注入到消息中，请优先依据这些搜索结果作答，并如实告诉用户信息来源；不要说自己无法联网搜索。"
+var chatPlainSystemPrompt = "你是一个热心、博学的AI助手，用中文与用户进行日常对话。你具备联网搜索能力：用户询问需要实时/最新信息的问题时，系统会把搜索结果以「以下是关于此问题的实时搜索结果」注入到消息中，请优先依据这些搜索结果作答，并如实告诉用户信息来源；不要说自己无法联网搜索。\n\n" + genui.ChatRule
 
 // chatWebSearch 可注入的联网搜索函数：生产走 whisper.WebSearch，测试可替换避免真实网络请求。
 var chatWebSearch = whisper.WebSearch

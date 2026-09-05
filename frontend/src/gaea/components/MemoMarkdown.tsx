@@ -7,6 +7,8 @@ import { openPaneFileOrPreview } from "../lib/paneFileOpen";
 interface MemoMarkdownProps {
   text: string;
   streaming: boolean;
+  /** 消息级源 key（透传 Markdown → genui 状态 key）。 */
+  genuiKey?: string;
 }
 
 /**
@@ -105,7 +107,7 @@ function useProgressiveMarkdown(text: string): { stable: string; pending: string
  * 流式期间：找到稳定段落边界（\n\n），前缀用完整 Markdown 渲染，
  * 未完成尾部用简单样式。流式结束后全量 Markdown 渲染。
  */
-export const MemoMarkdown = memo(function MemoMarkdown({ text, streaming }: MemoMarkdownProps) {
+export const MemoMarkdown = memo(function MemoMarkdown({ text, streaming, genuiKey }: MemoMarkdownProps) {
   const openFilePreview = openPaneFileOrPreview;
   // RAF 节流：每帧最多更新一次
   const [visible, setVisible] = useState(text);
@@ -127,7 +129,7 @@ export const MemoMarkdown = memo(function MemoMarkdown({ text, streaming }: Memo
   if (!streaming) {
     return (
       <div className="break-words overflow-wrap-break-word">
-        <Markdown text={text || ""} />
+        <Markdown text={text || ""} genuiKey={genuiKey} />
       </div>
     );
   }
@@ -137,7 +139,7 @@ export const MemoMarkdown = memo(function MemoMarkdown({ text, streaming }: Memo
     <div className="break-words overflow-wrap-break-word">
       {stable && (
         <div className="md text-[14px] leading-relaxed">
-          <Markdown text={stable} />
+          <Markdown text={stable} genuiKey={genuiKey} />
         </div>
       )}
       {pending && (

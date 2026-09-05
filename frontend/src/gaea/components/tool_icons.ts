@@ -28,6 +28,7 @@ export const ICONS: Record<string, Icon> = {
   // 通用
   memory_search: Brain, remember: Brain, memory_get: Brain, read_skill: BookOpen,
   knowledge_search: Search, knowledge_add: PlusCircle, promote_session_facts: Sparkles,
+  genui_validate: CheckCircle,
   wait: Hourglass, complete_step: CheckCircle, ask: List, brainstorm: Sparkles,
 };
 

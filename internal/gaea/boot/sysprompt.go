@@ -12,6 +12,7 @@ import (
 	"github.com/gaea/gaea/internal/gaea/cache"
 	"github.com/gaea/gaea/internal/gaea/config"
 	"github.com/gaea/gaea/internal/gaea/db"
+	"github.com/gaea/gaea/internal/gaea/genui"
 	"github.com/gaea/gaea/internal/gaea/memory"
 	"github.com/gaea/gaea/internal/gaea/outputstyle"
 	"github.com/gaea/gaea/internal/gaea/pins"
@@ -51,6 +52,7 @@ func buildSystemPrompt(cfg *config.Config, cwd, space string, morningPreload boo
 		sysPrompt = outputstyle.Apply(sysPrompt, st)
 	}
 	sysPrompt += "\n\n" + config.LanguagePolicy
+	sysPrompt += "\n\n" + genui.OfficePointer
 
 	userDir := config.MemoryUserDir()
 	gdb := db.GetDatabase(userDir)

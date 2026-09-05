@@ -22,6 +22,7 @@ import { MergedPanel } from "../components/MergedPanel";
 import { ExplorerView } from "../components/ExplorerView";
 import { usePaneTabsStore } from "./paneTabs";
 import { TasksWorkbench } from "../components/TasksWorkbench";
+import { GenuiPanel } from "../components/GenuiPanel";
 import type { SessionChange } from "./changes";
 import type { Icon } from "../icons";
 import { WORKSPACE_TABS, type WorkspaceTabId } from "./workspaceTabs";
@@ -123,6 +124,8 @@ const RENDERERS: Record<WorkspaceTabId, (ctx: WorkspacePanelContext) => ReactNod
   browser: () => createElement(BrowserPanel),
   // 2b Git 面板：数据自取（GaeaGit*，仓库=工作区 cwd）；onOpenFile 复用 pane 文件 tab。
   git: (_ctx) => createElement(GitPanel, { onOpenFile: openPaneFileTab }),
+  // GenUI 会话面板：数据自取（genuiPanel store，按会话隔离）。
+  ui: (ctx) => createElement(GenuiPanel, { sessionPath: ctx.currentSessionPath }),
 };
 
 /** 打开 pane 文件 tab（行内打开的统一入口）：路径去重、追加到工作台 tab 条。 */

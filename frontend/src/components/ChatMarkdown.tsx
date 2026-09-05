@@ -4,6 +4,8 @@ import type { Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { CheckOutlined, CopyOutlined } from '@ant-design/icons'
 import { C } from '../utils/theme'
+import { genuiFenceStateKey, isGenuiFenceLang, GenuiMarkdownFence } from '../genui/markdownFence'
+import { useGenuiScope } from '../genui/scope'
 
 /** 代码块头部：语言标签 + 复制按钮（对齐行业标准：深色底 + 右上角复制） */
 function CodeBlockHeader({ language, text }: { language?: string; text: string }) {
@@ -44,21 +46,30 @@ function CodeBlockHeader({ language, text }: { language?: string; text: string }
 }
 
 /** ChatMarkdown — 聊天消息 Markdown 渲染（老栈 M3 令牌样式，供 ChatPage 使用） */
-const ChatMarkdown: React.FC<{ text: string }> = memo(function ChatMarkdown({ text }) {
+const ChatMarkdown: React.FC<{ text: string; genuiKey?: string }> = memo(function ChatMarkdown({ text, genuiKey }) {
+  const genuiScope = useGenuiScope()
+  const fenceKeyFor =
+    genuiScope !== null && genuiKey !== undefined
+      ? (body: string): string | undefined => genuiFenceStateKey(genuiScope, genuiKey, body)
+      : undefined
   return (
     <div style={{ fontSize: 14, lineHeight: 1.75, wordBreak: 'break-word' }}>
-      <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>{text}</ReactMarkdown>
+      <ReactMarkdown remarkPlugins={[remarkGfm]} components={chatMarkdownComponents(fenceKeyFor)}>{text}</ReactMarkdown>
     </div>
   )
 })
 
-const components: Components = {
+function chatMarkdownComponents(fenceKeyFor: ((body: string) => string | undefined) | undefined): Components {
+return {
   pre: ({ children }) => <>{children}</>,
   code: ({ className, children }) => {
     const text = String(children ?? '').replace(/\n$/, '')
     const match = /language-([\w-]+)/.exec(className ?? '')
     const lang = match?.[1]
     const isBlock = match !== null || text.includes('\n')
+    if (lang !== undefined && isGenuiFenceLang(lang) && isBlock) {
+      return <GenuiMarkdownFence code={text} stateKey={fenceKeyFor?.(text)} />
+    }
     if (isBlock) {
       return (
         /* 代码块专用深色底（#0b0e14/#e2e8f0 为行业标准暗色代码面板，不随主题，属专用色保留） */
@@ -113,6 +124,7 @@ const components: Components = {
   h4: ({ children }) => <h4 style={{ margin: '9px 0 5px', fontSize: 14, fontWeight: 600, color: C('color-text') }}>{children}</h4>,
   p: ({ children }) => <p style={{ margin: '6px 0' }}>{children}</p>,
   strong: ({ children }) => <strong style={{ fontWeight: 700 }}>{children}</strong>,
+}
 }
 
 export default ChatMarkdown

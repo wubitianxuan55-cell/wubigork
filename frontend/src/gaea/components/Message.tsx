@@ -267,7 +267,7 @@ export const AssistantMessage = memo(function AssistantMessage({
           {/* 正文区 */}
           {item.text && (
             <div className="min-w-0">
-              <MemoMarkdown text={item.text} streaming={streaming} />
+              <MemoMarkdown text={item.text} streaming={streaming} genuiKey={item.id} />
               {/* 流式光标：生成中闪烁的细光标（reduced-motion 下全局动画关停 → 静态） */}
               {streaming && (
                 <span aria-hidden className="inline-block w-[2px] h-[1.05em] align-text-bottom ml-0.5 rounded-full bg-accent/80 animate-pulse" />

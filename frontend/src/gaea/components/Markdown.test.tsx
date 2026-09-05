@@ -8,8 +8,37 @@ vi.mock("../lib/bridge", () => ({
 }));
 import { Markdown } from "./Markdown";
 import { usePreviewStore } from "../lib/store";
+import { GenuiScopeProvider } from "../../genui/scope";
+import { useGenuiPanelStore } from "../lib/genuiPanel";
 
 describe("Markdown 本地文件预览", () => {
+  it("genui 围栏渲染为组件；panel 规格只显示占位 chip 并投递面板 store", () => {
+    const fence =
+      '```genui\n{"title":"订单","items":[{"type":"stat","label":"营收","value":"¥128k"}]}\n```';
+    const { container } = render(
+      <GenuiScopeProvider scope={{ scope: "office", sessionKey: "s1" }}>
+        <Markdown text={`摘要\n${fence}`} genuiKey="a1" />
+      </GenuiScopeProvider>,
+    );
+    expect(container.querySelector(".gui-stat")).toBeTruthy();
+    expect(screen.getByText("营收")).toBeTruthy();
+
+    const panelFence =
+      '```genui\n{"panel":true,"items":[{"type":"stat","label":"面板指标","value":"9"}]}\n```';
+    const panelBox = render(
+      <GenuiScopeProvider scope={{ scope: "office", sessionKey: "s1" }}>
+        <Markdown text={panelFence} genuiKey="a2" />
+      </GenuiScopeProvider>,
+    );
+    expect(panelBox.getByText("已更新 UI 面板")).toBeTruthy();
+    expect(panelBox.queryByText("面板指标")).toBeNull();
+    expect(useGenuiPanelStore.getState().sessions["s1"]?.content?.items[0]).toMatchObject({
+      type: "stat",
+      label: "面板指标",
+    });
+    useGenuiPanelStore.getState().clear("s1");
+  });
+
   it("本地文件链接渲染为可点击预览按钮", () => {
     usePreviewStore.setState({ previewFile: null });
     render(<Markdown text="报告见 [汇总报告](reports/汇总.md)。" />);

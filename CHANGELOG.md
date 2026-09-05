@@ -1,3 +1,21 @@
+## v4.97.0 · GenUI 蒸馏：回答即 UI · 办公会话面板（2026-09-05）
+> 蒸馏 dsh-genui（MIT，快照 680693e）；**绑定面 579 零变更**。详见 releases/v4.97.0.md。
+- **共享内核 frontend/src/genui**：34 种白名单组件（布局/展示/轻图表/代码/交互/quiz），
+  守卫（未知 type 丢弃、节点 200/深度 8/字符串/表格/选项上限）、流式部分解析、
+  状态按会话+内容指纹持久化（LRU 200）、本地判卷/排序/折叠零往返、action 300ms 防抖、
+  password 永不落库/不收集。
+- **双板块渲染缝**：办公 MemoMarkdown/Markdown、聊天 ChatMarkdown/MarkdownContent 均
+  识别 ```genui（兼容 dsh-ui）围栏；action 办公走 steer/send、聊天回合结束后追问。
+- **模型侧**：内置 genui inline 技能（词汇手册 embed）+ genui_validate 只读工具；
+  办公系统提示词指针、聊天 plain 与轻语人格统一注入规则（人格带门控：仅复盘/清单/数据
+  回顾类使用）。
+- **办公 UI 面板**：panel:true 规格经 Markdown 缝投递右栏第六 Tab「UI」；
+  genuiPanel store REPLACE/APPEND、来源+内容指纹去重、会话隔离；/panel open|clear|<指令>。
+- 门禁：vitest 241 文件/1860 用例全绿（净增 35）、Go genui/skill/tool·builtin/boot/app/
+  whisper 全绿、tsc -b/eslint 0、drift PASS（579）、npm run build 通过；
+  办公验收走查以 jsdom DOM 等价路径覆盖（真机视觉与真模型端到端待用户复验，如实记录）。
+
+
 ## v4.96.0 · 三线并行：下钻联动收尾 · Verifier 逐页缩略图 · pptx 真编辑设计（2026-09-05）
 > 「继续」惯例三线并行；**绑定面 579 零变更**。详见 releases/v4.96.0.md。
 - **刀A 三级下钻收尾**（调研中期候选第 4 条，四条全落地）：TokenCard「查看趋势」入口 → jumpToTrend tick 锚点（与 brief 跳转同款机制）→ 趋势卡 scrollIntoView + accent 强调 3s；不碰选中态；contextview.* +2 键 ×三语。

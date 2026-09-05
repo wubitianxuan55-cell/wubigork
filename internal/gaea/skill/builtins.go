@@ -1,5 +1,9 @@
 package skill
 
+import (
+	"github.com/gaea/gaea/internal/gaea/genui"
+)
+
 // Built-in skills ship with gaea and back general office subagent workflows.
 // A user/project file with the same name overrides the built-in (see Store.List / Store.Read).
 
@@ -13,6 +17,14 @@ const tuiFormatting = `Keep the final answer compact and terminal-friendly: shor
 // can't mutate the shared set.
 func builtinSkills() []Skill {
 	return []Skill{
+		{
+			Name:        "genui",
+			Description: "生成式 UI 词汇手册：回答中用 ```genui 围栏输出卡片/表格/图表/表单/quiz 前必读，含组件词汇、JSON 自检与纪律。",
+			Body:        genui.Handbook,
+			Scope:       ScopeBuiltin,
+			Path:        "(builtin)",
+			RunAs:       RunInline,
+		},
 		{
 			Name:        "format-convert",
 			Description: "文档格式转换：docx/xlsx/pdf→Markdown 格式转换，可用于统一不同来源的工程文档为可编辑 Markdown。",
