@@ -21,7 +21,7 @@ const card = (over: Partial<ModelCardData>): ModelCardData => ({
   ...over,
 })
 
-function renderLLM(models: ModelCardData[]) {
+function renderLLM(models: ModelCardData[], over: Record<string, unknown> = {}) {
   const value = {
     engines: [
       { id: 'glm', name: 'GLM', type: 'glm', enabled: true, base_url: '', default_model: '', models: [] },
@@ -29,10 +29,12 @@ function renderLLM(models: ModelCardData[]) {
     llmModels: models,
     engineStatuses: {},
     testingEngine: null,
+    hubLoadingIds: [] as string[],
     handleTestConnection: vi.fn(),
     handleRefreshModels: vi.fn(),
     handleStartModel: vi.fn(),
     isModelActive: () => false,
+    ...over,
   } as unknown as ModelCenterContextValue
   return render(
     <ModelCenterContext.Provider value={value}>
@@ -80,5 +82,47 @@ describe('LLMSection · 模型元数据徽标（B 刀）', () => {
     ])
     expect(chipTexts(container, 'plain-model')).toEqual(['GLM 云端'])
     expect(chipTexts(container, 'glm-5.3')).toEqual(['GLM 云端', '8K'])
+  })
+})
+
+describe('LLMSection · MH2/MH3（modelhub 加载态与 UD 档位）', () => {
+  const hubCard = (over: Partial<ModelCardData>): ModelCardData => card({
+    engineId: 'modelhub', engineName: 'Model Hub 本地', ...over,
+  })
+
+  function renderHub(models: ModelCardData[], over: Record<string, unknown> = {}) {
+    return renderLLM(models, {
+      engines: [
+        { id: 'modelhub', name: 'Model Hub', type: 'modelhub', enabled: true, base_url: '', default_model: '', models: [] },
+      ],
+      ...over,
+    })
+  }
+
+  it('UD 变体显示「推荐」徽标并置顶，普通量化名不显示', () => {
+    const { container } = renderHub([
+      hubCard({ modelId: 'qwen3.6:Q4_K_P', modelName: 'Qwen3.6:Q4_K_P' }),
+      hubCard({ modelId: 'qwen3.6:UD-Q4_K_XL', modelName: 'Qwen3.6:UD-Q4_K_XL' }),
+    ])
+    expect(screen.getByText('推荐').closest('.mc-chip')?.getAttribute('title')).toContain('动态量化')
+    const cards = Array.from(container.querySelectorAll('.mc-model-name')).map(el => el.textContent)
+    expect(cards[0]).toBe('Qwen3.6:UD-Q4_K_XL')
+    expect(chipTexts(container, 'Qwen3.6:Q4_K_P')).toEqual(['Model Hub 本地'])
+  })
+
+  it('加载中模型：状态与按钮显示「加载中」且按钮禁用', () => {
+    renderHub(
+      [hubCard({ modelId: 'qwen3.6:UD-Q4_K_XL', modelName: 'Qwen3.6:UD-Q4_K_XL', status: 'stopped' })],
+      { hubLoadingIds: ['qwen3.6:UD-Q4_K_XL'] },
+    )
+    expect(screen.getAllByText('加载中').length).toBeGreaterThanOrEqual(1)
+    // antd 按钮可访问名称含图标 aria-label（"loading 加载中"），用正则匹配文字部分
+    const btn = screen.getByRole('button', { name: /加载中/ }) as HTMLButtonElement
+    expect(btn.disabled).toBe(true)
+  })
+
+  it('非 modelhub 引擎的 UD 字样不触发「推荐」徽标（作用域守护）', () => {
+    renderLLM([card({ modelId: 'SUD-Model', modelName: 'SUD-Model' })])
+    expect(screen.queryByText('推荐')).toBeNull()
   })
 })

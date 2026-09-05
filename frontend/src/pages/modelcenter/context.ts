@@ -36,6 +36,8 @@ export interface ModelCenterContextValue {
   modelHubKey: string
   setModelHubKeyState: (v: string) => void
   modelHubKeyMasked: string
+  /** MH2：正在 Studio 侧加载的 modelhub 模型 id（模型卡显示「加载中」并禁用按钮） */
+  hubLoadingIds: string[]
   callStats: ModelStatsSummary | null
   loadError: string | null
   statsSort: StatsSort

@@ -1,3 +1,12 @@
+## v4.104.0 · Model Hub 蒸馏 MH1–MH3：采样让位+默认关思考 · 加载状态收敛 · UD 档位引导（2026-09-06）
+> 蒸馏 unsloth（docs/gaea-unsloth-modelhub-distill-plan-2026-09.md §三刀序 MH1→MH2→MH3）；绑定面 584 零变更。详见 releases/v4.104.0.md。
+- **MH1 采样让位（Go）**：modelhub 引擎下用户未显式配置 temperature 时不再兜底 0.7（omitempty 丢弃不传），把按模型自动采样调优让给 Studio；其余引擎维持 0.7 兜底（`internal/ai/client.go` ChatStreamChunks 单点收敛，copilot 显式温度不受影响）。
+- **MH1 思考默认关（Go）**：modelhub 请求默认显式 `chat_template_kwargs.enable_thinking=false`（实测 unsloth 默认开思考，token 全烧 reasoning、正文 0 字）；显式开启时传 true 并抬 max_tokens≥4096 守护。只走 A/B 实验证实的 kwarg 通道，不发顶层 enable_thinking。
+- **MH2 加载状态收敛（前端）**：一键加载 stopped 模型后不再谎报「已启动」——挂「加载中」徽标（按钮 loading+禁用）轮询模型列表直到 running（5s 一拍/3 分钟上限），成功才设默认模型；超时诚实提示（Studio 冷加载实测 50s+）。
+- **MH3 UD 档位引导（前端）**：modelhub 组 UD-* 动态量化变体稳定置顶 + 「推荐」徽标（title 说明：关键层保高精度/体积小/加载快/显存省）；手动置顶优先于自动推荐（排序组合语义有测试锚定）。
+- 测试：Go 新增 `client_modelhub_test` 3 例（temperature 省略/透传、思考开关与预算守护、非 modelhub 0.7 兜底守护）；前端新增 6 例（UD 判定/置顶/组合排序 + 推荐/加载中/作用域守护）。门禁全量：Go 全量绿、vitest 2040/2040（dot 复跑；首跑 28 例负载 flaky 复跑通过）、tsc/eslint 0、drift PASS@584。
+- 顺带收 v4.103.0 产物欠账：`build.bat` 冒烟 + SHA256SUMS（v4.103.0 exe 无法从 HEAD 产出，欠账转为 v4.104.0 产物一步到位）。
+
 ## v4.103.0 · 办公搜索对齐 unsloth：web_search url 直取整页 · 结果域名策略过滤（2026-09-05）
 > 蒸馏 unsloth 搜索工具行为（`clones/unsloth`，`tools.py 的 _web_search`/`web_access_policy`）；绑定面 584 零变更。详见 releases/v4.103.0.md。
 - **web_search 新增 url 直取整页模式**：复用 web_fetch 的 SSRF/域名策略/HTML→文本 `doFetch`，搜索→取全文→引用收敛为一次调用（对齐 unsloth direct URL fetch；url 优先）。

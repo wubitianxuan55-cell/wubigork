@@ -16,6 +16,8 @@ import {
   routeSourceLabel,
   filterModelsBySearch,
   sortModelsPinnedFirst,
+  isUDVariant,
+  sortModelHubUDFirst,
   modelOptionsForEngine,
   filterEnginesByEnabled,
   glmEndpointFamily,
@@ -144,6 +146,34 @@ describe('模型中心 搜索 / 置顶排序', () => {
     const sorted = sortModelsPinnedFirst(models, ['flux-dev'])
     expect(sorted[0].modelId).toBe('flux-dev')
     expect(sorted.map(m => m.modelId).sort()).toEqual(['flux-dev', 'grok-4.20', 'qwen3-8b'])
+  })
+})
+
+describe('模型中心 MH3 · UD 动态量化档位', () => {
+  const hubModels: ModelCardData[] = [
+    { modelId: 'qwen3.6:Q4_K_P', modelName: 'Qwen3.6:Q4_K_P', engineId: 'modelhub', engineName: 'Model Hub', engineType: 'modelhub', engineEnabled: true, status: 'stopped' },
+    { modelId: 'qwen3.6:UD-Q4_K_XL', modelName: 'Qwen3.6:UD-Q4_K_XL', engineId: 'modelhub', engineName: 'Model Hub', engineType: 'modelhub', engineEnabled: true, status: 'stopped' },
+    { modelId: 'llama3:UD-Q5_K_XL', modelName: 'Llama3:UD-Q5_K_XL', engineId: 'modelhub', engineName: 'Model Hub', engineType: 'modelhub', engineEnabled: true, status: 'stopped' },
+    { modelId: 'qwen3.6:Q6_K', modelName: 'Qwen3.6:Q6_K', engineId: 'modelhub', engineName: 'Model Hub', engineType: 'modelhub', engineEnabled: true, status: 'running' },
+  ]
+
+  it('isUDVariant 认 UD- 标记，放过普通量化名', () => {
+    expect(isUDVariant('qwen3.6:UD-Q4_K_XL')).toBe(true)
+    expect(isUDVariant('qwen3.6:Q4_K_P')).toBe(false)
+    expect(isUDVariant('qwen3.6:Q6_K')).toBe(false)
+  })
+
+  it('sortModelHubUDFirst 把 UD 变体置顶且稳定保持原相对顺序', () => {
+    const sorted = sortModelHubUDFirst(hubModels)
+    expect(sorted.map(m => m.modelId).slice(0, 2)).toEqual(['qwen3.6:UD-Q4_K_XL', 'llama3:UD-Q5_K_XL'])
+    expect(sorted[2].modelId).toBe('qwen3.6:Q4_K_P')
+    expect(sorted[3].modelId).toBe('qwen3.6:Q6_K')
+  })
+
+  it('与 sortModelsPinnedFirst 组合：手动置顶优先，UD 顺序在组内保留', () => {
+    const sorted = sortModelsPinnedFirst(sortModelHubUDFirst(hubModels), ['qwen3.6:Q4_K_P'])
+    expect(sorted[0].modelId).toBe('qwen3.6:Q4_K_P')
+    expect(sorted.slice(1, 3).map(m => m.modelId)).toEqual(['qwen3.6:UD-Q4_K_XL', 'llama3:UD-Q5_K_XL'])
   })
 })
 

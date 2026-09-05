@@ -213,6 +213,18 @@ export function sortModelsPinnedFirst<T extends ModelCardData>(models: T[], pinn
   return [...models].sort((a, b) => (pinned.has(b.modelId) ? 1 : 0) - (pinned.has(a.modelId) ? 1 : 0))
 }
 
+// MH3（蒸馏 unsloth §三）：Unsloth UD 动态量化变体判定——模型 id/名含
+// "UD-"（如 …:UD-Q4_K_XL）。动态量化关键层保高精度、其余压低，权重更小
+// → 加载快、显存占用低，是 unsloth 官方主推档位，前端给「推荐」引导。
+export const isUDVariant = (modelId: string): boolean => modelId.includes('UD-')
+
+// modelhub 模型 UD 变体置顶（稳定排序，其余保持原顺序）。
+// 用法：先 UD 置顶、后 sortModelsPinnedFirst——置顶排序稳定，UD 顺序在
+// 置顶组/普通组内部得以保留，用户手动置顶优先于自动推荐。
+export function sortModelHubUDFirst<T extends ModelCardData>(models: T[]): T[] {
+  return [...models].sort((a, b) => Number(isUDVariant(b.modelId)) - Number(isUDVariant(a.modelId)))
+}
+
 // 指定引擎的模型下拉选项；当前模型不在候选中时兜底补一条，避免表单值悬空。
 export function modelOptionsForEngine(
   engineId: string,

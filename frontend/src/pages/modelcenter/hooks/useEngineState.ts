@@ -29,6 +29,11 @@ function errText(err: unknown, fallback: string): string {
   return (err instanceof Error && err.message) || fallback
 }
 
+// MH2（蒸馏 unsloth §三）：Studio 加载是异步长任务（冷加载实测 50s+，
+// 内存挤占时可超 2min），轮询上限给 3 分钟、5s 一拍，超时诚实失败。
+const MODEL_HUB_LOAD_TIMEOUT_MS = 180_000
+const MODEL_HUB_POLL_INTERVAL_MS = 5_000
+
 export interface EngineState {
   loading: boolean
   engines: EngineConfig[]
@@ -54,6 +59,8 @@ export interface EngineState {
   modelHubKey: string
   setModelHubKeyState: (v: string) => void
   modelHubKeyMasked: string
+  /** MH2：正在 Studio 侧加载的 modelhub 模型 id（模型卡据此显示「加载中」并禁用按钮） */
+  hubLoadingIds: string[]
   settingGlmEndpoint: boolean
   handleSetGlmEndpoint: (family: 'std' | 'coding') => Promise<void>
   loadAll: () => Promise<void>
@@ -102,6 +109,7 @@ export function useEngineState(category: Category): EngineState {
   const [opencodeZenKeyMasked, setOpencodeZenKeyMasked] = useState('')
   const [modelHubKey, setModelHubKeyState] = useState('')
   const [modelHubKeyMasked, setModelHubKeyMasked] = useState('')
+  const [hubLoadingIds, setHubLoadingIds] = useState<string[]>([])
 
   // T6-6.5 竞态守卫：loadAll 的最新请求序号，晚到的旧响应直接丢弃。
   const loadAllSeq = useRef(0)
@@ -176,6 +184,25 @@ export function useEngineState(category: Category): EngineState {
   // 首次进入模型中心读取已保存的引擎状态（启动阶段不抢线程，仅读取）。
   useEffect(() => { void loadAll() }, [loadAll])
 
+  // MH2 状态收敛：Studio 加载完成后目标模型才会以 running 出现在模型列表；
+  // 轮询 getEngines 直到命中（顺手把最新列表喂给 UI，让卡片即时翻成运行中）。
+  // 单次轮询失败不终止（Studio 瞬时抖动/降级路径），超时由调用方诚实失败。
+  const waitForModelHubLoaded = async (modelId: string): Promise<boolean> => {
+    const deadline = Date.now() + MODEL_HUB_LOAD_TIMEOUT_MS
+    while (Date.now() < deadline) {
+      await new Promise(r => setTimeout(r, MODEL_HUB_POLL_INTERVAL_MS))
+      try {
+        const list = await getEngines()
+        const m = (list.find(e => e.id === 'modelhub')?.models || []).find(x => x.id === modelId)
+        if (m && (m.status || 'running') === 'running') {
+          setEngines(list)
+          return true
+        }
+      } catch (_) { /* 瞬时失败继续拍 */ }
+    }
+    return false
+  }
+
   const handleStartModel = async (card: ModelCardData) => {
     const kind = kindOf(card)
     if (kind === 'tts') {
@@ -191,13 +218,22 @@ export function useEngineState(category: Category): EngineState {
     if (kind !== 'llm') return
     try {
       // Model Hub（Unsloth Studio）：模型在 Studio 里未加载（stopped）时先
-      // 触发 Studio 加载/切换（ollama-manifest 引用），成功后再设为活跃默认。
+      // 触发 Studio 加载/切换（ollama-manifest 引用）。加载是异步的：挂上
+      // 「加载中」徽标并轮询到 running 才算启动成功，超时不设默认模型、
+      // 不谎报已启动（Studio 侧最终加载结果以刷新后的模型列表为准）。
       if (card.engineId === 'modelhub' && card.status === 'stopped') {
         setSavingEngine(card.engineId)
+        setHubLoadingIds(prev => prev.includes(card.modelId) ? prev : [...prev, card.modelId])
         try {
           await startModelHubModel(card.modelId)
+          const loaded = await waitForModelHubLoaded(card.modelId)
+          if (!loaded) {
+            message.warning(`「${card.modelName}」仍在加载（已等待 3 分钟）。大模型冷加载可能更久，稍后刷新模型列表确认；确认运行中后再点「启动」设为默认。`)
+            return
+          }
         } finally {
           setSavingEngine(null)
+          setHubLoadingIds(prev => prev.filter(id => id !== card.modelId))
         }
       }
       if (activeEngine !== card.engineId) { await setActiveEngine(card.engineId); setActiveEngineState(card.engineId) }
@@ -395,6 +431,7 @@ export function useEngineState(category: Category): EngineState {
     modelHubKey,
     setModelHubKeyState,
     modelHubKeyMasked,
+    hubLoadingIds,
     settingGlmEndpoint,
     handleSetGlmEndpoint,
     loadAll,

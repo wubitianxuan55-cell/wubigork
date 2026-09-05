@@ -1,6 +1,6 @@
 # 任务进度
 
-> 最后更新: 2026-09-05（v4.103.0「办公搜索对齐 unsloth：web_search url 直取整页 · 结果域名策略过滤 · 日期钉定」，绑定面 584 零变更；v4.102.0「Hub 落库 + 围栏 slot 口径统一 · 图像域 17
+> 最后更新: 2026-09-06（v4.104.0「Model Hub 蒸馏 MH1–MH3：采样让位+默认关思考 · 加载状态收敛 · UD 档位引导」，绑定面 584 零变更；v4.103.0「办公搜索对齐 unsloth：web_search url 直取整页 · 结果域名策略过滤 · 日期钉定」，绑定面 584 零变更；v4.102.0「Hub 落库 + 围栏 slot 口径统一 · 图像域 17
 > 绑定转正 · Model Hub mock」，绑定面 584；Model Hub（Unsloth）并行会话线完结
 > 落库 6cd891df + v4.101 漏提交补录 efe80310；v4.101.0「三线并行：GenUI 围栏
 > Go 侧收口 · 画室模型目录 · 深检误报缓解」，绑定面 581 零变更；v4.100.0
@@ -35,6 +35,15 @@
 > 索引（101 个发布说明）已刷新。本会话另落 GitHub 市场调研三路
 > （docs/research-2026-09-05/ + market-research-2026-09-05.md）与
 > 长期规划回填）
+
+## 最新发布：v4.104.0（2026-09-06）「Model Hub 蒸馏 MH1–MH3：采样让位+默认关思考 · 加载状态收敛 · UD 档位引导」
+
+- 按 unsloth 蒸馏规划 §三刀序收 MH1–MH3 三把小刀（MH4 与 CU1–CU3 留待后续）；§七 A/B 实测硬口径直接进实现：unsloth 默认开思考烧光 token → modelhub 必须显式关；Studio 按模型自动采样调优 → 客户端 0.7 恒兜底是在顶掉它。
+- **MH1（Go）**：ChatStreamChunks 按引擎 Type（非 id 硬编码）判定 modelhub——用户未显式配置 temperature 时不再兜底 0.7（omitempty 丢弃，让位 Studio 自动调优；全仓温度兜底仅此一处）；请求恒带 `chat_template_kwargs.enable_thinking`（默认 false，显式开 true + max_tokens≥4096 守护），只走实测证实的 kwarg 通道、不发顶层 enable_thinking。
+- **MH2（前端）**：一键加载 stopped 模型不再谎报「已启动」——「加载中」徽标（hubLoadingIds，按钮 loading+禁用）+ 轮询 getEngines 到 running（5s/3 分钟上限，单次失败不终止），收敛成功才设默认模型；超时诚实提示且不设默认（冷加载实测 50s+）。
+- **MH3（前端）**：`isUDVariant`（id 含 UD-）+ `sortModelHubUDFirst` 稳定置顶 + 「推荐」徽标；先 UD 后 pinned 组合排序=手动置顶优先、UD 顺序组内保留（测试锚定）。
+- 测试：Go 新增 client_modelhub_test 3 例（httptest 捕请求体：默认/显式/非 modelhub 守护）；前端新增 6 例。门禁全量：Go 全量绿、vitest 2040/2040（首跑 28 例负载 flaky 复跑全绿）、tsc/eslint 0、drift PASS@584、版本四处 4.104.0。
+- 欠账：MH4（前置=幂等真机核对+活跃引擎判定）；CU1–CU3 可并行；herdsman HS-obs 观察；乐园人格思考默认值「另议」（现可经 EnableThinking 显式开）；v4.103.0 专项 exe 不再补（版本源已前移，产物按 v4.104.0 一步到位）。
 
 ## 最新发布：v4.103.0（2026-09-05）「办公搜索对齐 unsloth：web_search url 直取整页 · 结果域名策略过滤 · 日期钉定」
 

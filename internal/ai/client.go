@@ -1144,8 +1144,21 @@ func (c *Client) ChatStreamChunks(ctx context.Context, model, systemPrompt, user
 		"engine":    reqEngine,
 	})
 
+	// modelhub 引擎判定（MH1/§七蒸馏：unsloth Studio 服务端有按模型自动采样
+	// 调优与思考模板开关，客户端默认值不应顶掉）。自定义引擎 Type 恒为
+	// custom，modelhub 型引擎只有内置 modelhub 一个，但仍按 Type 查证。
+	isModelHub := false
+	if c.engineMgr != nil {
+		if eng, ok := c.engineMgr.GetEngine(reqEngine); ok && eng.Type == modelengine.EngineModelHub {
+			isModelHub = true
+		}
+	}
+
 	temperature := opts.Temperature
-	if temperature <= 0 {
+	// MH1 采样让位：modelhub 下用户未显式配置（<=0）时不传 temperature
+	// （零值经 omitempty 丢弃），把默认采样让给 Studio 自动调优；其余引擎
+	// 维持 0.7 兜底。
+	if temperature <= 0 && !isModelHub {
 		temperature = 0.7
 	}
 	maxTokens := opts.MaxTokens
@@ -1164,11 +1177,20 @@ func (c *Client) ChatStreamChunks(ctx context.Context, model, systemPrompt, user
 	if opts.TopP > 0 {
 		req.TopP = opts.TopP
 	}
-	if opts.EnableThinking {
-		reqEngine := opts.EngineID
-		if reqEngine == "" {
-			reqEngine = c.ActiveEngineID()
+	if isModelHub {
+		// 实测（蒸馏规划 §七）：unsloth 服务端默认开思考，token 全烧在
+		// reasoning（正文 0 字、finish=length）——gaea 专业秘书人设默认显式
+		// 关思考；显式开启（乐园人格等）时传 true 并同样抬预算守护。只走
+		// chat_template_kwargs（A/B 实测证实的唯一有效通道），不发顶层
+		// enable_thinking。
+		req.ChatTemplateKwargs = map[string]any{"enable_thinking": opts.EnableThinking}
+		if opts.EnableThinking {
+			// 思考与正文共享 max_tokens：显式小预算抬到 4096（同 herdsman 守护）。
+			if req.MaxTokens > 0 && req.MaxTokens < 4096 {
+				req.MaxTokens = 4096
+			}
 		}
+	} else if opts.EnableThinking {
 		if reqEngine == "herdsman" || reqEngine == "ollama" {
 			t := true
 			req.EnableThinking = &t

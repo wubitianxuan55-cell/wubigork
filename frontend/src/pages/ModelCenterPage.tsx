@@ -168,6 +168,7 @@ const ModelCenterPage: React.FC = () => {
     handleSaveOpencodeGoKey: engine.handleSaveOpencodeGoKey,
     handleSaveOpencodeZenKey: engine.handleSaveOpencodeZenKey,
     handleSaveModelHubKey: engine.handleSaveModelHubKey,
+    hubLoadingIds: engine.hubLoadingIds,
     handleAddCustomEngine: engine.handleAddCustomEngine,
     handleUpdateCustomEngine: engine.handleUpdateCustomEngine,
     handleRemoveCustomEngine: engine.handleRemoveCustomEngine,
