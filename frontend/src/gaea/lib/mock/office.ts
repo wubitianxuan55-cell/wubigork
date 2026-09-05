@@ -53,6 +53,23 @@ export function buildOffice(_s: MakeMockState): OfficeMethods {
           { name: "event.go", isDir: false, size: 9 },
         ];
       }
+      // v4.96 走查样例：Verifier 通道 B 逐页缩略图的产物目录（布局对齐
+      // internal/app/gaea_verify.go：before/after 子目录 + <prefix>-<N>.png）。
+      if (rel.replace(/\/+$/, "") === ".gaea/work/journal/verify/ev_1003") {
+        return [
+          { name: "before.pdf", isDir: false, size: 1024 },
+          { name: "after.pdf", isDir: false, size: 1024 },
+          { name: "before", isDir: true, size: 0 },
+          { name: "after", isDir: true, size: 0 },
+        ];
+      }
+      {
+        const m = rel.replace(/\/+$/, "").match(/^\.gaea\/work\/journal\/verify\/ev_1003\/(before|after)$/);
+        if (m) {
+          const p = m[1];
+          return [1, 2, 3].map((n) => ({ name: `${p}-${n}.png`, isDir: false, size: 2048 }));
+        }
+      }
       return [{ name: "file.go", isDir: false, size: 4 }];
     },
     async FileSearch(query: string, limit = 30) {

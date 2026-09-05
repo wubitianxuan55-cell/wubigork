@@ -89,6 +89,7 @@ gaea/
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| **v4.96.0** | 2026-09-05 | 三线并行（绑定面 579 零变更）：三级下钻收尾（Token 卡→趋势锚点，中期候选四条全落地）；Verifier 通道 B 逐页缩略图（零绑定变更，四态诚实降级，走查实锤修复 updater 副作用/liveRef 两真缺陷）；pptx 真编辑设计文档待拍板；vitest 1825/1825、Go 全量 0 FAIL、drift PASS（579） |
 | **v4.95.0** | 2026-09-05 | 三线并行收欠账（绑定面 579 零变更）：docx/xlsx 版本对比迁移 ChangesDiff 统一查看器（marker 列保段落号/单元格 ref，配对改蓝+字符级高亮）；README 级内嵌 HTML 白名单渲染（rehype-raw+rehype-sanitize 显式 schema，GFM checkbox 保留）；子代理队列非唯一命中交互式选择器（宁缺勿错不变）；vitest 1786/1786、Go 全量 0 FAIL、drift PASS（579） |
 | **v4.94.0** | 2026-09-05 | Agent 网络会话跳转（绑定面 578→579，+GaeaSubagentContextView）：径向图 sa_ 节点「查看上下文」入口 → 居中弹层展示该子代理上下文（同一 FoldTimeline 管线，transcript 直读）；ContextView fetcher 数据源抽象；vitest 231/1758、Go 全量 0 FAIL、drift PASS（579）、2.5e 全部收口 |
 | **v4.93.0** | 2026-09-05 | 失败子代理恢复入口 + diff 行内语法着色（绑定面 578 零变更，双小刀）：SubagentThread 失败态恢复提示条（RunFollowUp 支持续跑，入口可发现化）；diffHighlight 按路径 Lezer parser 单行 token 切分（ts/js/py/json/css/html/md，tok-* 色板），ChangesDiff 接线配对行字符高亮优先；vitest 231/1756、Go 全量 0 FAIL、drift PASS（578）、?mock=1 DOM 走查通过 |

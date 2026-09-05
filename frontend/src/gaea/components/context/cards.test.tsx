@@ -1,7 +1,8 @@
 // cards.test.tsx — dsh-context 头部仪表卡（cards.tsx）定向 jsdom 测试。
-// 被测组件为纯展示（无 bridge/i18n 依赖），无需 mock 外部模块。
-import { render, screen, within } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+// 被测组件为纯展示（无 bridge 依赖；TokenCard v4.96 起带可选 onViewTrend
+// 回调，缺省不渲染入口），无需 mock 外部模块。
+import { fireEvent, render, screen, within } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 import type { ContextRequestRecord, ContextStats, ContextTiming } from "../../lib/types";
 import { costHoverTitle, fmtDuration, SessionInfoCard, StatsCard, summarizeTokens, SummaryBar, TimingCard, TokenCard } from "./cards";
 import type { ReactElement } from "react";
@@ -101,6 +102,20 @@ describe("TokenCard", () => {
     expect(screen.getAllByText("0%").length).toBe(3);
     // 只有 track，无数据段
     expect(container.querySelectorAll("circle").length).toBe(1);
+  });
+
+  it("v4.96 无 onViewTrend 回调：不渲染「查看趋势」入口（向后兼容，零破坏）", () => {
+    renderZ(<TokenCard requests={requests} />);
+    expect(screen.queryByTestId("token-view-trend")).toBeNull();
+  });
+
+  it("v4.96 有 onViewTrend 回调：渲染「查看趋势」入口，点击触发一次回调", () => {
+    const onViewTrend = vi.fn();
+    renderZ(<TokenCard requests={requests} onViewTrend={onViewTrend} />);
+    const entry = screen.getByTestId("token-view-trend");
+    expect(entry.textContent).toBe("查看趋势");
+    fireEvent.click(entry);
+    expect(onViewTrend).toHaveBeenCalledTimes(1);
   });
 });
 

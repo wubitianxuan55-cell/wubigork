@@ -181,11 +181,16 @@ function CurrentContextCard({
 // ─── 上下文趋势（原生 SVG 堆叠柱，全局模式；增量 Phase B） ─────
 // v4.69：detail 插槽把「选中步骤详情」收进趋势卡内部（对齐 dsh：趋势卡即
 // master-detail 单元，详情不再单独占一行跨屏滚动）。
-function ContextTrendChart({ requests, events, onPick, detail }: {
+// v4.96：导出供定向测试（对齐本文件 react-refresh 豁免的收敛模式）；
+// focus 锚点（Token 卡「查看趋势」下钻最后一跳）——tick 去重，滚动定位到卡
+// （scrollIntoView block:nearest，与 v4.82 brief→浏览器锚点同款机制）+ 3s
+// accent 外圈强调；只定位不改选中态（默认最新请求语义保持）。
+export function ContextTrendChart({ requests, events, onPick, detail, focus }: {
   requests: ContextRequestRecord[];
   events: ContextEvent[];
   onPick: (r: ContextRequestRecord) => void;
   detail?: ReactNode;
+  focus?: { tick: number } | null;
 }) {
   const t = useT();
   // 2.5d：粒度/模式初值读设置中心偏好（卡内 toggle 交互不变，变更写回）。
@@ -195,6 +200,22 @@ function ContextTrendChart({ requests, events, onPick, detail }: {
   // v4.27 悬停构成详情：hover 柱时在图上展示该步六分类分解（原生 SVG title
   // 之外再给一个随时可见的 HTML 详情条，比浏览器默认 tooltip 更丰富）。
   const [hovered, setHovered] = useState<number | null>(null);
+  // v4.96 Token 卡→趋势锚点：handledFocus 去重（同 ContextBrowserTree focus
+  // 机制）；flash 强调 3s 后自动解除。
+  const cardRef = useRef<HTMLDivElement | null>(null);
+  const [flash, setFlash] = useState(false);
+  const handledFocus = useRef(0);
+
+  useEffect(() => {
+    if (!focus || focus.tick === handledFocus.current) return;
+    handledFocus.current = focus.tick;
+    setFlash(true);
+    requestAnimationFrame(() => {
+      cardRef.current?.scrollIntoView({ block: "nearest" });
+    });
+    const timer = window.setTimeout(() => setFlash(false), 3000);
+    return () => window.clearTimeout(timer);
+  }, [focus]);
 
   const pickGranularity = (g: CtxTrendGranularity) => {
     setGranularity(g);
@@ -245,7 +266,12 @@ function ContextTrendChart({ requests, events, onPick, detail }: {
   };
 
   return (
-    <div className="ctx-card p-3">
+    <div
+      ref={cardRef}
+      data-testid="trend-card"
+      data-flash={flash ? "true" : "false"}
+      className={`ctx-card p-3 ${flash ? "outline outline-1 -outline-offset-1 outline-accent/50" : ""}`}
+    >
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-1.5">
           <span className="ctx-head-ic" aria-hidden>
@@ -567,6 +593,15 @@ export function ContextView({
     setFocusNode({ seq, tick: focusTick.current });
   }, []);
 
+  // v4.96 Token 卡→趋势联动（三级下钻收尾）：与 focusNode 同款 tick 锚点，
+  // 重复点击重新触发定位/强调；不触碰趋势卡选中态。
+  const [trendFocus, setTrendFocus] = useState<{ tick: number } | null>(null);
+  const trendFocusTick = useRef(0);
+  const jumpToTrend = useCallback(() => {
+    trendFocusTick.current += 1;
+    setTrendFocus({ tick: trendFocusTick.current });
+  }, []);
+
   const [net, setNet] = useState<AgentNetwork | null>(null);
   // Agent 网络：订阅共享 store；running 时 useLiveReload 驱动的 load() 顺带 reload。
   useEffect(() => subscribeAgentNetwork((n) => setNet(n)), []);
@@ -648,9 +683,9 @@ export function ContextView({
         <>
           {/* 行1：8 个统计小卡（v4.71 卡片化——每项独立成卡，不做 1 张大卡） */}
           <StatsCard stats={timeline.stats} />
-          {/* 行2：三大仪表卡 */}
+          {/* 行2：三大仪表卡（Token 卡带「查看趋势」入口 → 行4 趋势卡锚点） */}
           <div className="grid grid-cols-1 gap-3 min-[1100px]:grid-cols-3">
-            <TokenCard requests={timeline.requests} />
+            <TokenCard requests={timeline.requests} onViewTrend={jumpToTrend} />
             <TimingCard timing={timeline.timing} />
             <SessionInfoCard
               sessionName={sessionName}
@@ -665,12 +700,14 @@ export function ContextView({
             <CurrentContextCard used={catTotal(timeline.current)} window={timeline.window} current={timeline.current} />
             <ContextBrowserTree nodes={timeline.nodes} archive={timeline.archive} focus={focusNode} />
           </div>
-          {/* 行4：趋势卡（master-detail 单元——请求详情内联卡内，点柱/悬停联动） */}
+          {/* 行4：趋势卡（master-detail 单元——请求详情内联卡内，点柱/悬停联动；
+              focus=Token 卡锚点，仅定位+强调） */}
           <ContextTrendChart
             requests={timeline.requests}
             events={timeline.events}
             onPick={setPicked}
             detail={picked ? <StepDetail record={picked} window={timeline.window} onJump={jumpToNode} /> : null}
+            focus={trendFocus}
           />
           {/* 行5：事件流 + 文件活动 */}
           <div className="grid grid-cols-1 gap-3 min-[1100px]:grid-cols-2">

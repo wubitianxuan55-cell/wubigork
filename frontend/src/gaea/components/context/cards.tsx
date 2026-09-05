@@ -2,6 +2,7 @@
 import { useT } from "../../lib/i18n";
 import "./context-view.css";
 import { Clock, Coins, MessageSquare, type Icon } from "../../icons";
+import type { ReactNode } from "react";
 // cards.tsx — dsh-context 头部仪表卡移植（对齐 dsh-context 插件 StatsCard/TokenCard/
 // TimingCard/SessionInfoCard/SummaryBar 信息架构，套用 gaea 星枢皮肤）。
 //
@@ -69,9 +70,11 @@ function fmtPct(part: number, whole: number): string {
 
 // ─── 卡片外壳与公共小件 ─────────────────────────────────────────
 
-function CardHead({ title, sub, icon }: { title: string; sub?: string; icon?: Icon }) {
+function CardHead({ title, sub, icon, extra }: { title: string; sub?: string; icon?: Icon; extra?: ReactNode }) {
   // v4.71（卡片化）：标题前带 22px 图标章；标题左置（12.5px w600）、
   // 副注右置（10.5px）同行的单行卡头。
+  // v4.96：可选 extra 插槽（副注右侧的轻量操作位，如 Token 卡「查看趋势」）；
+  // 缺省不渲染，既有外观不变。
   const HeadIcon = icon;
   return (
     <div className="flex items-center justify-between gap-2">
@@ -83,11 +86,14 @@ function CardHead({ title, sub, icon }: { title: string; sub?: string; icon?: Ic
         )}
         <span className="min-w-0 truncate text-[12.5px] font-semibold text-fg">{title}</span>
       </div>
-      {sub && (
-        <div className="max-w-[44%] shrink-0 truncate text-right text-[10.5px] leading-none text-fg-faint" title={sub}>
-          {sub}
-        </div>
-      )}
+      <div className="flex shrink-0 items-center gap-2">
+        {sub && (
+          <div className="max-w-[44%] truncate text-right text-[10.5px] leading-none text-fg-faint" title={sub}>
+            {sub}
+          </div>
+        )}
+        {extra}
+      </div>
     </div>
   );
 }
@@ -184,7 +190,16 @@ export function StatsCard({ stats }: { stats: ContextStats }) {
 }
 
 // ─── 2. TokenCard Token 统计（环形缓存命中 + 三分解行） ───────────
-export function TokenCard({ requests }: { requests: ContextRequestRecord[] }) {
+// v4.96 三级下钻收尾（聚合 Token 卡 → 趋势）：可选 onViewTrend 回调（缺省不
+// 渲染入口，既有消费方/测试零破坏）；点击只触发外层定位+强调锚点，不改趋势
+// 卡选中态（保持默认最新请求语义）。纯展示不持 ref——滚动由 ContextView 完成。
+export function TokenCard({
+  requests,
+  onViewTrend,
+}: {
+  requests: ContextRequestRecord[];
+  onViewTrend?: () => void;
+}) {
   const t = useT();
   const { hit, miss, out } = summarizeTokens(requests);
   const graded = hit + miss;
@@ -197,7 +212,24 @@ export function TokenCard({ requests }: { requests: ContextRequestRecord[] }) {
   ];
   return (
     <div className="ctx-card p-3">
-      <CardHead title={t("contextview.tokensTitle")} sub={t("contextview.tokensHint")} icon={Coins} />
+      <CardHead
+        title={t("contextview.tokensTitle")}
+        sub={t("contextview.tokensHint")}
+        icon={Coins}
+        extra={
+          onViewTrend ? (
+            <button
+              type="button"
+              data-testid="token-view-trend"
+              title={t("contextview.trendJumpTip")}
+              className="shrink-0 cursor-pointer border-0 bg-transparent p-0 text-[10.5px] leading-none text-accent hover:underline"
+              onClick={onViewTrend}
+            >
+              {t("contextview.viewTrend")}
+            </button>
+          ) : undefined
+        }
+      />
       <div className="mt-2 flex items-center gap-4">
         <Donut
           segments={rows.map((r) => ({ value: r.value, color: r.color }))}

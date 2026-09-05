@@ -1,3 +1,11 @@
+## v4.96.0 · 三线并行：下钻联动收尾 · Verifier 逐页缩略图 · pptx 真编辑设计（2026-09-05）
+> 「继续」惯例三线并行；**绑定面 579 零变更**。详见 releases/v4.96.0.md。
+- **刀A 三级下钻收尾**（调研中期候选第 4 条，四条全落地）：TokenCard「查看趋势」入口 → jumpToTrend tick 锚点（与 brief 跳转同款机制）→ 趋势卡 scrollIntoView + accent 强调 3s；不碰选中态；contextview.* +2 键 ×三语。
+- **刀B Verifier 逐页缩略图**（老账）：「视觉复核」行内 before/after 逐页缩略卡（页码标注/缺页诚实占位/懒加载/并发≤4）；零绑定变更——verifyArtifactRelPath 标记截取 + Preview 探测定性绕 GaeaListDir 无 IsAbs/吞错缺口（Go 小刀候选登记）；四态诚实降级；deliverPanel.* +12 键 ×三语。**走查实锤修复两个 jsdom 测不出的真缺陷**：setState updater 内副作用被父级轮询竞争吞掉（副作用移回事件处理器）、liveRef 只写 cleanup 在 StrictMode double-invoke 下恒 false（改 effect 本体重置标准写法）。
+- **刀C pptx 真编辑设计文档**（待拍板，不动代码）：现状=docx 自研字节级 OOXML 手术/xlsx excelize 直编/pptx 编辑为零且格式无修订制；推荐 Go 自研 pptxedit 与 docxedit 同构（排除 gooxml AGPL/unioffice 商业）；分期四刀；待拍板 6 项成文 docs/gaea-pptx-edit-design-2026-09.md。
+- 门禁：Go 全量 0 FAIL、tsc -b/eslint 0、vitest **1825/1825**（净增 39；一轮 31 败为负载 flaky 漂移，复跑全绿——如实记录）、drift PASS（579）；走查：缩略图全链路 PASS（6 卡成对+页码标注）、Token 卡→趋势定位+强调 PASS。
+
+
 ## v4.95.0 · 三线并行收欠账：版本对比入统一查看器 · README 内嵌 HTML 白名单 · 子代理歧义选择器（2026-09-05）
 > 「继续」惯例：欠账池挑互不相交线并行子代理；**绑定面 579 零变更**（纯前端三线）。详见 releases/v4.95.0.md。
 - **刀A docx/xlsx 对比迁移 ChangesDiff**（v4.87 成文计划最后一项）：DiffRow 增可选 marker 列（docx 段号/xlsx 单元格 ref，pairModifications 整行 spread 防丢）；VersionTimeline 对比体改经 ChangesDiff——xlsx 每 sheet 一个 hunk，change 单元格→相邻 del+add 对（自动获得改蓝配对+字符级高亮），formula 后缀/截断提示/diffstat/展开全部全保留；ChangesPanel/GitPanel 零变化。

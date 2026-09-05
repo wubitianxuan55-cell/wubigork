@@ -31,6 +31,7 @@ import { FRONTEND_EVENTS, emitFrontendEvent } from "../../events";
 import { useToast } from "./Toast";
 import { FileThumb } from "./FileThumb";
 import { VersionTimeline } from "./VersionTimeline";
+import { VerifyArtifactsThumbs } from "./verify/VerifyArtifactsThumbs";
 
 export interface SessionDeliverable {
   path: string;
@@ -1007,7 +1008,9 @@ export const DeliverablesPanel = memo(function DeliverablesPanel({
                       v4.16：通道 B 结果产品化——verdict 携带像素差异率时追加
                       「视觉复核」行（差异率 + 页数 + 查看产物按钮；产物目录是
                       绝对路径，OpenWorkspacePath 直接打开目录）。旧 verdict /
-                      无通道 B（无 channelBRatio）不渲染该行，向后兼容。 */}
+                      无通道 B（无 channelBRatio）不渲染该行，向后兼容。
+                      老账收口：行内追加「查看缩略图」入口（VerifyArtifactsThumbs，
+                      展开才列目录/取图，失败诚实降级），不跳出应用即可逐页复核。 */}
                   {v && (
                     <div className="flex flex-col gap-1">
                       <div className="flex flex-wrap items-center gap-1.5">
@@ -1051,6 +1054,11 @@ export const DeliverablesPanel = memo(function DeliverablesPanel({
                             >
                               <FolderTree size={11} />
                             </button>
+                          )}
+                          {v.channelBArtifacts && (
+                            /* 老账收口：行内逐页缩略图（before/after 成对，懒加载
+                               + 诚实降级），目录布局与降级语义见 verifyArtifacts.ts */
+                            <VerifyArtifactsThumbs artifacts={v.channelBArtifacts} />
                           )}
                         </div>
                       )}
