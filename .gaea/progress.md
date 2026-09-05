@@ -1,6 +1,6 @@
 # 任务进度
 
-> 最后更新: 2026-09-05（v4.102.0「Hub 落库 + 围栏 slot 口径统一 · 图像域 17
+> 最后更新: 2026-09-05（v4.103.0「办公搜索对齐 unsloth：web_search url 直取整页 · 结果域名策略过滤 · 日期钉定」，绑定面 584 零变更；v4.102.0「Hub 落库 + 围栏 slot 口径统一 · 图像域 17
 > 绑定转正 · Model Hub mock」，绑定面 584；Model Hub（Unsloth）并行会话线完结
 > 落库 6cd891df + v4.101 漏提交补录 efe80310；v4.101.0「三线并行：GenUI 围栏
 > Go 侧收口 · 画室模型目录 · 深检误报缓解」，绑定面 581 零变更；v4.100.0
@@ -35,6 +35,16 @@
 > 索引（101 个发布说明）已刷新。本会话另落 GitHub 市场调研三路
 > （docs/research-2026-09-05/ + market-research-2026-09-05.md）与
 > 长期规划回填）
+
+## 最新发布：v4.103.0（2026-09-05）「办公搜索对齐 unsloth：web_search url 直取整页 · 结果域名策略过滤 · 日期钉定」
+
+- 用户反馈 unsloth Studio 的搜索工具「很好用」，希望 gaea 对齐其**行为**（非照搬 Python）。unsloth 源码本环境 web 抓取被拦（github/unsloth.ai/deepwiki/jsdelivr 均解析到非公网 IP），改经 `git clone`（`clones/unsloth`，已 gitignore `/clones/`）研究真实实现（`studio/backend/core/inference/tools.py` `_web_search`/`web_access_policy`/`search_images`、`web_search_tool_with_images`。
+- **关键失败经验**：本环境 web_fetch 对多域名被拦截（"非公网 IP"），但 `git clone`/`git ls-remote` **可达**——研究第三方源码优先试 git 而非 web_fetch；`url.Parse("not a url")` 不报错（解析成 path-only），过滤搜索结果必须校验 scheme http(s)+非空 host。
+- **蒸馏结论**：unsloth 搜索"好用"= 一个工具两条路（搜索 + `url` 直取整页文本）+ 结果受域名 allow/deny 约束 + 策略受限时过度抓取再过滤 + 末尾引导用 `url` 取全文 + 注入当前日期。
+- **改动（Go 内部，绑定面 584 零变更，未触及前端/绑定）**：web_search 新增 `url` 直取整页（复用 web_fetch 的 SSRF/`checkDomainPolicy`/HTML→文本 `doFetch`，搜索→取全文→引用一次调用，url 优先）；`[search] allow/deny`（沿用 `checkDomainPolicy`）作用于搜索结果（`filterSearchResults`：deny 优先、allow 非空须匹配、丢弃非法非 http(s) 无 host 结果）；受限时过度抓取（`topK×3`，`searchPolicyOverfetch`）再过滤；注入当前日期（url 结果头部 `as of <date>`）+ 描述/`Schema`/`compact` 同步（去 `required:["query"]`、加 `url`）。
+- **测试**：新增单测 6 例（`websearch_policy_test`：受限判定/allow-deny 过滤/非法 url 拒绝/无策略原样）+ 联网端到端实测（`websearch_live_test`，`GAEA_LIVE_TEST=1` 才出网、默认 SKIP——真实 Bing 搜索 JSON 1498B/source=bing + example.com 整页抓取+日期钉定生效）。
+- 门禁：`go build ./...` OK、`go vet builtin` OK、builtin 全包 `-count=1` ok（live 默认 SKIP）；vitest/tsc/drift **未实跑**（纯 Go 内部、无绑定变更，drift 理论 PASS@584）。
+- **未做（用户确认核心 Scope A）**：图片结果（`[[img:<id>]]` 令牌 + 前端 envelope，需动前端，Scope B）、工具调用内联确认 UX（Allow/Always/Deny）、Deep Research；RAG 已有 `knowledge_search`。日期钉定放在 web_search 内部（未动全局 sysprompt，避免 golden prompt 漂移）。
 
 ## 最新发布：v4.102.0（2026-09-05）「Hub 落库 + 围栏 slot 口径统一 · 图像域 17 绑定转正 · Model Hub mock」
 

@@ -92,6 +92,7 @@ gaea/
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| **v4.103.0** | 2026-09-05 | 办公搜索对齐 unsloth（绑定面 584 零变更）：蒸馏 unsloth 搜索工具行为——web_search 新增 url 直取整页模式（复用 web_fetch SSRF/域名策略/HTML→文本，搜索→取全文→引用一次调用）；[search] allow/deny 域名策略作用于搜索结果（受限时过度抓取再过滤）；注入当前日期+引导取全文；新增单测 6 例+联网端到端实测；Go build/test/vet 绿 |
 | **v4.102.0** | 2026-09-05 | Hub 落库+收尾三线（绑定面 584=Hub 线 +3，本刀零新增）：Model Hub（Unsloth）并行线完结落库（modelcenter 设置区/engine Key 管理/config）；GenUI 审计 §8-5 resume 槽位口径统一（实时取号优先日志序+三路装载折叠快照优先，跨重启状态可命中，旧 key 任其逐出）；图像域 17 绑定转正 AppBindings（分类锁 297、api/image.ts 三态回退、mock 17 方法+契约）；Model Hub/OpenCode Key dev mock 补齐（内存态联动+诚实失败+契约）；附带修复 v4.101 漏提交事故（补提交+教训入册）；vitest 256/2034、Go 全量 0 FAIL、drift PASS（584） |
 | **v4.101.0** | 2026-09-05 | 三线并行（绑定面 581 零变更）：GenUI 围栏纪律 Go 侧收口——共享剥离 helper（围栏折叠占位/正文逐字保留）+ 做梦/compact 摘要/whisper 摘要三处剥离 + 压缩 prompt 指引 + 面板 resync 去重 + 会话删除清理交互状态；画室模型目录——HerdsmanModelCatalog 只读按能力分族、未定价不伪装、创作语境高亮；小说深检误报缓解——归一化+别名归一+置信度/原因三档分级+忽略记忆可恢复；vitest 254/2024、Go 全量 0 FAIL、drift PASS（581 口径） |
 | **v4.100.0** | 2026-09-05 | 三线并行（绑定面 581 零变更）：画室 T1 余件——识图「读/懂」试用入口（粘贴→识别/提取文字，诚实错误原文+历史）、创作资产面板（角色槽/模板槽/近期作品，经既有 applyTemplate/applyRefCharacter 回填）、修三视图互斥缺陷；办公 U4 前半——渲染证据通道盘点（首选 GaeaPreview 单口刷新零绑定）+ 写后预览实时跟随（800ms 防抖静默重载/保滚动位/不作废修改队列/关闭优先）；GenUI 围栏审计——五链路结论+password 明文不回传修复；vitest 250/1993、Go 全量 0 FAIL、drift PASS（581 口径） |

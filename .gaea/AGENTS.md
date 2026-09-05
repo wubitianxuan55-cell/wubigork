@@ -5,6 +5,17 @@
 
 ## 版本状态（顶部速览）
 
+- **最新发布：v4.103.0（2026-09-05）「办公搜索对齐 unsloth：web_search url 直取整页 ·
+  结果域名策略过滤 · 日期钉定」**——绑定面 **584 零变更**（蒸馏 unsloth 搜索工具行为，
+  `clones/unsloth` tools.py `_web_search`/`web_access_policy`）：web_search 新增 `url`
+  直取整页模式（复用 web_fetch 的 SSRF/`checkDomainPolicy`/HTML→文本 `doFetch`，
+  搜索→取全文→引用一次调用，url 优先）；`[search] allow/deny` 域名策略作用于搜索结果
+  （`filterSearchResults`：deny 优先、allow 非空须匹配、丢弃非法非 http(s) 无 host 结果），
+  受限时过度抓取（`topK×3`）再过滤避免“前几条被拒→结果空”；注入当前日期+引导取全文；
+  Schema/Description/compact 同步（去 `required:["query"]`、加 `url`）。新增单测 6 例 +
+  联网端到端实测（`GAEA_LIVE_TEST=1` 出网：真实 Bing 搜索 JSON + example.com 整页抓取）。
+  Go build/vet/builtin 全包 test 绿；vitest/tsc/drift 未实跑（纯 Go 内部、无绑定变更，
+  drift 理论 PASS@584）。详见 releases/v4.103.0.md。
 - **最新发布：v4.102.0（2026-09-05）「Hub 落库 + 围栏 slot 口径统一 · 图像域
   17 绑定转正 · Model Hub mock」**——**绑定面权威口径 584**（Model Hub 线 +3
   落库 6cd891df；本刀零新增）：§8-5 resume 槽位口径统一（实时取号优先日志序、

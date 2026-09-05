@@ -4,6 +4,7 @@ gaea.exe
 
 # 运行时/测试产物（不进版本库）
 .tmp*
+/clones/
 cpu.out
 xlsx.out
 .gaea/exports/

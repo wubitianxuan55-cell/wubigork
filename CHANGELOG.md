@@ -1,3 +1,11 @@
+## v4.103.0 · 办公搜索对齐 unsloth：web_search url 直取整页 · 结果域名策略过滤（2026-09-05）
+> 蒸馏 unsloth 搜索工具行为（`clones/unsloth`，`tools.py 的 _web_search`/`web_access_policy`）；绑定面 584 零变更。详见 releases/v4.103.0.md。
+- **web_search 新增 url 直取整页模式**：复用 web_fetch 的 SSRF/域名策略/HTML→文本 `doFetch`，搜索→取全文→引用收敛为一次调用（对齐 unsloth direct URL fetch；url 优先）。
+- **结果域名策略过滤**：`[search] allow_domains/deny_domains` 作用于搜索结果（`filterSearchResults`，deny 优先/allow 非空须匹配/丢弃非法非 http(s) 结果）；策略受限时过度抓取（`topK×3`）再过滤，避免“前几条被拒→结果空”。
+- **日期钉定 + 引导取全文**：url 结果头部注入 `as of <date>`；`Schema`/`Description`/`compact` 同步（去掉 `required:["query"]`、新增 `url`）。
+- 测试：新增单测 6 例（`websearch_policy_test`，域名过滤/受限判定/非法 url）+ 联网端到端实测（`websearch_live_test`，`GAEA_LIVE_TEST=1` 才出网，默认 SKIP）；Go build/vet/builtin 全包 test 绿（绑定 584 不变）。
+- 门禁：本轮纯 Go 内部改动、未触及前端与绑定；vitest/tsc/drift 未实跑（按惯例发布前跑全量；理论上 drift PASS@584）。
+
 ## v4.102.0 · Hub 落库 + 围栏 slot 口径统一 · 图像域 17 绑定转正 · Model Hub mock（2026-09-05）
 > Model Hub（Unsloth）并行会话线完结落库（6cd891df）后解禁的收尾三线；绑定面 584（+3 为 Hub 线绑定，本刀零新增）。详见 releases/v4.102.0.md。
 - **附带修复**：v4.101 提交事故补录——第一批 git add 因错误路径整批失败（报错被吞）、第二批漏列围栏接线 5 文件 + 2 测试文件，已补提交（efe80310）；教训入册（多步 add 后必须 git diff --cached --stat 对照预期清单核数）。

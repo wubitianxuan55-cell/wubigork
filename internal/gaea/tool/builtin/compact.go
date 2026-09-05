@@ -18,7 +18,7 @@ var compactDesc = map[string]string{
 	"kill_shell":         "终止后台任务",
 	"wait":               "阻塞等待后台任务结束",
 	"web_fetch":          "抓取URL纯文本(去标签,SSRF安全,支持重试)",
-	"web_search":         "搜索公开网页，返回结构化JSON(title/url/snippet/source)，支持引用追踪",
+	"web_search":         "搜索公开网页，返回结构化JSON(title/url/snippet/source)，支持引用追踪；传url直接抓取该页整页文本",
 	"todo_write":         "更新任务清单(全量替换,最多一个进行中)",
 	"complete_step":      "完成计划步骤(须可验证证据,禁止纯manual)",
 	"memory_search":      "搜索记忆(关键词,kind过滤,BM25排序)",
@@ -74,7 +74,7 @@ var compactSchema = map[string]json.RawMessage{
 	"web_fetch": json.RawMessage(
 		`{"type":"object","properties":{"url":{"type":"string"},"retries":{"type":"integer"}},"required":["url"]}`),
 	"web_search": json.RawMessage(
-		`{"type":"object","properties":{"query":{"type":"string"},"topK":{"type":"integer"}},"required":["query"]}`),
+		`{"type":"object","properties":{"query":{"type":"string"},"url":{"type":"string"},"topK":{"type":"integer"}}}`),
 	"todo_write": json.RawMessage(
 		`{"type":"object","properties":{"todos":{"type":"array","items":{"type":"object","properties":{"content":{"type":"string"},"status":{"type":"string"},"activeForm":{"type":"string"},"level":{"type":"integer"}},"required":["content","status"]}}},"required":["todos"]}`),
 	"complete_step": json.RawMessage(
