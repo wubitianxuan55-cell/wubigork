@@ -76,3 +76,22 @@ MH1 → MH2 → MH3（两把小刀可并行，均零绑定）→ MH4（依赖 MH
 | MH3 量化档位引导 | ✅ UD 变体 | ⚠️ 收益低，目录分族已覆盖 | ✅ CU2 fp8 标记置顶 |
 | MH4 常驻预热 | ✅（活跃引擎跟随） | ❌ 无 load 端点 | ✅✅ CU1，但触发点=绘梦页首入，非启动 |
 
+## 七、实测：herdsman vs unsloth 同模型同文件 A/B（2026-09-05，用户要求「别猜，测」）
+
+**条件**：同一 GGUF 文件 `D:\模型\Qwen\Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive-Q4_K_P.gguf`（23.4GB）分别由 herdsman（8080）与 unsloth Studio（8888，`/api/inference/load` 直加载本地路径成功）加载；AMD Radeon 8060S 统一内存 63.6GB；同 prompt（约 300 字中文说明）、流式、`include_usage` 取服务端真实 completion_tokens、**双方均关思考**（unsloth 需显式 `chat_template_kwargs.enable_thinking=false`）、自然 stop。
+
+| 指标 | herdsman | unsloth | 结论 |
+|---|---|---|---|
+| 解码速度（首→末 token） | **61.5~62.4 tok/s**（块间隔中位 16ms） | 46.0~49.7 tok/s（中位 20ms） | **herdsman 快 ~25%** |
+| 首字延迟 TTFT | 2.8s（**固定开销**：只要 8 token 也 2.81s；一次 1.34s） | **0.57~0.76s** | **unsloth 快 ~4x** |
+| ~200 token 回答墙钟 | 5.1~6.1s | 4.75~5.35s | 基本打平；临界≈**400 token**，短答 unsloth 先完成、长答 herdsman 先完成 |
+| 默认思考模式 | 关（直出中文正文） | **开**——256 token 全烧在英文 reasoning，正文 0 字、finish=length | gaea 若切 modelhub **必须显式关思考**，否则体感大幅变慢 |
+| 加载时间 | 27s（热页缓存，unsloth 先读过该文件） | 冷 50s；热加载在 herdsman 常驻时 >2min（内存挤占，剩 20.9GB） | **口径不齐，不下结论** |
+
+**修正 §六/§三口径**：「modelhub 大概率更快」不成立——**本机解码 herdsman 更快，unsloth 赢在 TTFT**。herdsman 的 2.8s 固定首字开销与算力无关（prompt 46 token 且 42 命中缓存），属 herdsman 网关/调度层问题；若该开销可配置消除，herdsman 全面占优。
+
+**落到 gaea 的动作**：① MH1 补一条——modelhub 引擎请求默认携带 `chat_template_kwargs.enable_thinking=false`（专业秘书人设直答；乐园人格另议）；② herdsman 2.8s 固定开销立为观察项 HS-obs-2（查 herdsman 网关配置/版本，非 gaea 侧可改）；③ 「迁 herdsman 模型到 unsloth」**不推荐**作为提速手段——收益只在短答 TTFT，长答与解码均输。
+
+**测法坑（下次照做）**：流式 chunk 计数≠token 数（unsloth/herdsman 恰好 1 块 1 token，但不可依赖）→ 必须 `stream_options.include_usage`；同分词器下「字数/token」两边差 2.5x = 一边输出了另一语言或 reasoning，先看实际文本再解读数字；unsloth 加载中文路径要用 UTF-8 文件体 `--data-binary`（Git Bash 命令行内联中文 JSON 会被 Studio 拒 "error parsing the body"）；`/api/inference/unload` 需带 `model_path`（空体 422）；`/api/inference/status` 有 `loaded[]/loading[]` 数组可轮询。
+
+
