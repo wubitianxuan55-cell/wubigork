@@ -133,7 +133,15 @@ export function DocxPreview({
     latestDocRef.current = docDataUrl;
   }, [docDataUrl]);
 
+  // U4 写后预览实时跟随：relPath 不变下的 dataUrl 变化 = 同文件内容刷新
+  // （agent 写类工具落盘 → FilePreview 静默重读 → 新 dataUrl 传入），只换
+  // 载荷与清过期选区，不动作废修改队列——队列执行前本就对最新文档全文重新
+  // 定位摘录（定位不到诚实 skipped），刷新反而让队列对准最新内容；跨 relPath
+  // 才是换文件，摘录归属旧文档，队列作废（既有语义不变）。
+  const prevRelRef = useRef(relPath);
   useEffect(() => {
+    const fileSwap = prevRelRef.current !== relPath;
+    prevRelRef.current = relPath;
     setDocDataUrl(dataUrl);
     setSelected(null);
     setProposal(null);
@@ -146,14 +154,16 @@ export function DocxPreview({
     setOutlineItems([]);
     setOutlineError("");
     setOutlineOpen(false);
-    // 换文件（外部传入的 dataUrl 变化）→ 队列作废：摘录归属旧文档，留着
-    // 只会产生整列 skipped。
-    setQueue([]);
-    setQueueOpen(false);
-    setQueueRunning(false);
-    setQueueRunIds([]);
-    setQueueSummary(null);
-  }, [dataUrl]);
+    if (fileSwap) {
+      // 换文件（外部传入的 dataUrl 变化）→ 队列作废：摘录归属旧文档，留着
+      // 只会产生整列 skipped。
+      setQueue([]);
+      setQueueOpen(false);
+      setQueueRunning(false);
+      setQueueRunIds([]);
+      setQueueSummary(null);
+    }
+  }, [dataUrl, relPath]);
 
   useEffect(() => {
     let live = true;
@@ -172,6 +182,9 @@ export function DocxPreview({
         if (!live) return;
         const container = containerRef.current;
         if (!container) return;
+        // U4 刷新（同路径换载荷重渲染）前后保留滚动位：renderAsync 会整体替换
+        // 容器子树，不记不还原文档会跳回顶部；首渲 scrollTop=0 时是 no-op。
+        const keepScroll = container.scrollTop;
         await renderAsync(blob, container, undefined, {
           inWrapper: true,
           breakPages: true,
@@ -182,6 +195,7 @@ export function DocxPreview({
           renderChanges: true,
           renderComments: true,
         });
+        container.scrollTop = keepScroll;
         if (!live) return;
         // 检测文档中是否存在修订标记（ins/del），显示接受/拒绝入口
         const revCount = container.querySelectorAll("ins, del").length;

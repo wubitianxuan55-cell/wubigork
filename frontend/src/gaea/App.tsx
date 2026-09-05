@@ -71,8 +71,10 @@ import { recordRecentFile } from "./lib/recentFiles";
 import { useUpdatedFilesStore } from "./lib/store";
 import { buildSessionChanges, extractDeliverablePaths, WRITE_TOOL_NAMES, type SessionChange } from "./lib/changes";
 import {
+  createPreviewRefreshScheduler,
   initialPreviewAutoFrontState,
   isOfficeDeliverablePath,
+  normalizePreviewPath,
   OFFICE_WRITE_TOOLS,
   previewAutoFrontReduce,
   extractOfficeWritePaths,
@@ -368,6 +370,8 @@ export default function App() {
   const closeFilePreview = usePreviewStore((s) => s.closeFilePreview);
   const navTo = usePreviewStore((s) => s.navTo);
   const closePreviewAt = usePreviewStore((s) => s.closePreviewAt);
+  // U4 写后预览实时跟随：主区大预览与 pane 文件 tab 共用 reloadTicks 刷新总线
+  const previewReloadTicks = usePaneTabsStore((s) => s.reloadTicks);
 
   // ── 专注模式（Kun 精华）：一键收起侧栏与右侧面板，只留对话和输入区 ──
   const [focusMode, setFocusMode] = useState(() => {
@@ -925,22 +929,65 @@ export default function App() {
   const focusModeRef = useRef(focusMode);
   useEffect(() => { focusModeRef.current = focusMode; }, [focusMode]);
 
-  const applyPreviewAutoEvent = useCallback((event: PreviewAutoFrontEvent) => {
+  // 返回值 = 状态机给出 open 且本机真的执行了置前（U4 刷新信号用它跳过刚
+  // 置前的文件——挂载即加载最新）；专注模式/窄屏守卫拦下时返回 false（此时
+  // 预览并未打开，isOpen 判定天然为假，刷新信号会被调度器丢弃）。
+  const applyPreviewAutoEvent = useCallback((event: PreviewAutoFrontEvent): boolean => {
     const next = previewAutoFrontReduce(previewAutoRef.current, event);
     previewAutoRef.current = next.state;
-    if (next.action.type !== "open") return;
+    if (next.action.type !== "open") return false;
     // 专注模式 = 用户明确只要对话；窄屏（<1240）工作台 pane 被 CSS 隐藏——
     // 两种场景都不自动置前（与 openTasksAuto 的窄屏守卫同口径）。
-    if (focusModeRef.current || window.innerWidth < 1240) return;
-    if (!isOfficeDeliverablePath(next.action.path)) return;
+    if (focusModeRef.current || window.innerWidth < 1240) return false;
+    if (!isOfficeDeliverablePath(next.action.path)) return false;
     openPaneFileOrPreview(next.action.path);
+    return true;
   }, []);
 
-  // 会话切换：状态机整体复位 + 重建工具状态基线（恢复会话绝不弹预览）。
+  // ── U4 写后预览实时跟随接线（docs/gaea-u4-render-evidence-inventory-2026-09.md
+  // §3 推荐组合：GaeaPreview 直读刷新，零绑定）──写类工具成功回执 → 刷新调度器
+  // （800ms 防抖合并连写，纯逻辑在 lib/officeTurnProjection.createPreviewRefresh
+  // Scheduler，单测钉死触发/合并/关闭抑制）→ 目标文件此刻正打开在预览面才递增
+  // paneTabs.reloadTicks → FilePreview 静默重读（不进 loading、不重挂、滚动位保持）。
+  // 刷新≠置前：绝不打开已关闭的预览（U2 关闭优先/读不弹语义不变）；专注模式/
+  // 窄屏下工作台面板本就关闭，isOpen 天然为假。主区大预览（previewFile）与 pane
+  // 活动文件 tab 共用同一刷新总线。
+  const previewRefreshCtxRef = useRef<{ panelOpen: boolean; previewFile: string | null }>({
+    panelOpen: false,
+    previewFile: null,
+  });
+  useEffect(() => {
+    previewRefreshCtxRef.current = { panelOpen: workspacePanelOpen, previewFile };
+  }, [workspacePanelOpen, previewFile]);
+  const previewRefreshRef = useRef<ReturnType<typeof createPreviewRefreshScheduler> | null>(null);
+  if (previewRefreshRef.current === null) {
+    previewRefreshRef.current = createPreviewRefreshScheduler({
+      isOpen: (path) => {
+        const key = normalizePreviewPath(path);
+        if (!key) return false;
+        const ctx = previewRefreshCtxRef.current;
+        // 主区大预览正开着该文件 → 刷新
+        if (ctx.previewFile && normalizePreviewPath(ctx.previewFile) === key) return true;
+        // 工作台面板未打开（含专注模式/窄屏）→ pane 文件 tab 不可见，不刷
+        if (!ctx.panelOpen) return false;
+        const pane = usePaneTabsStore.getState();
+        const active = pane.tabs.find((tb) => tb.id === pane.active);
+        // 仅活动文件 tab 算「正在看」：后台 tab 未挂载 FilePreview，重开即最新
+        return active?.kind === "file" && !!active.path && normalizePreviewPath(active.path) === key;
+      },
+      refresh: (path) => {
+        usePaneTabsStore.getState().requestReload(path);
+      },
+    });
+  }
+
+  // 会话切换：状态机整体复位 + 重建工具状态基线（恢复会话绝不弹预览）；
+  // U4 刷新调度器同步清空待刷新计时（新会话文件 tab 全新挂载，无需跟随）。
   useEffect(() => {
     previewAutoRef.current = initialPreviewAutoFrontState;
     previewAutoToolSeenRef.current = new Map();
     previewAutoBaselineRef.current = true;
+    previewRefreshRef.current?.cancelAll();
   }, [currentSessionKey]);
 
   // 工具事件喂入：写类工具卡（状态 running→done/error 跃迁）→ writeDispatch /
@@ -959,14 +1006,28 @@ export default function App() {
       const paths = extractOfficeWritePaths(it.name, it.args).filter(isOfficeDeliverablePath);
       if (paths.length === 0) continue;
       const path = paths[0]; // 同回合多文件取首个：同文件同回合至多一窗（纯函数层守卫）
+      let openedNow = false;
       if (prev === undefined) {
         applyPreviewAutoEvent({ type: "writeDispatch", path });
-        if (it.status === "done") applyPreviewAutoEvent({ type: "writeResult", path, ok: true });
-        else if (it.status === "error") applyPreviewAutoEvent({ type: "writeResult", path, ok: false });
+        if (it.status === "done") {
+          openedNow = applyPreviewAutoEvent({ type: "writeResult", path, ok: true });
+        } else if (it.status === "error") {
+          applyPreviewAutoEvent({ type: "writeResult", path, ok: false });
+        }
       } else if (it.status === "done") {
-        applyPreviewAutoEvent({ type: "writeResult", path, ok: true });
+        openedNow = applyPreviewAutoEvent({ type: "writeResult", path, ok: true });
       } else if (it.status === "error" || it.status === "stopped") {
         applyPreviewAutoEvent({ type: "writeResult", path, ok: false });
+      }
+      // U4 写后预览实时跟随：成功落盘 → 逐路径喂刷新调度器（失败/中断不派：
+      // 内容未变或无回执，刷新也是旧内容；打开判定在计时到点进行，已关闭的
+      // 文件不会被刷新也不会被弹）。刚被本回执自动置前的路径跳过——挂载即
+      // 加载最新，无需二次静默重读。
+      if (it.status === "done") {
+        for (const p of paths) {
+          if (openedNow && normalizePreviewPath(p) === normalizePreviewPath(path)) continue;
+          previewRefreshRef.current?.notify(p);
+        }
       }
     }
   }, [state.items, applyPreviewAutoEvent]);
@@ -1560,6 +1621,7 @@ export default function App() {
                 onBackToFiles={backToFiles}
                 maximized={previewMaximized}
                 onToggleMaximize={togglePreviewMaximize}
+                reloadSignal={previewReloadTicks[normalizePreviewPath(previewFile)] ?? 0}
               />
               <PreviewNavBar
                 files={previewList}

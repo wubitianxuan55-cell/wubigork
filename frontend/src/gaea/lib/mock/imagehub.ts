@@ -76,6 +76,36 @@ const ASSETS: MockAsset[] = [
     created_at: "2026-09-04T21:30:00+08:00",
     prompt_truncate: "片头运镜：从云层俯冲入山谷",
   },
+  // T1 创作资产「近期作品」扩样例：work/play 各补一张 imagegen 生图登记。
+  {
+    id: "mock-a5",
+    kind: "image",
+    path: ".gaea/uploads/mock-poster.png",
+    mime: "image/png",
+    space: "work",
+    source_board: "imagegen",
+    capability: "media.generate",
+    backend: "xai",
+    model: "grok-imagine-image",
+    cost: "0.05",
+    created_at: "2026-09-05T12:02:00+08:00",
+    prompt_truncate: "复古旅行海报，山间铁路，晨雾",
+  },
+  {
+    id: "mock-a6",
+    kind: "image",
+    path: ".gaea/uploads/mock-avatar.png",
+    mime: "image/png",
+    space: "play",
+    source_board: "imagegen",
+    capability: "media.generate",
+    backend: "herdsman",
+    model: "krea2",
+    cost: "0.02",
+    created_at: "2026-09-05T13:20:00+08:00",
+    prompt_truncate: "少女头像，银发红瞳，柔和顶光",
+    params: { character_id: "mara" },
+  },
 ];
 
 export function buildImagehub(): ImageHubMethods {

@@ -11,10 +11,18 @@ import { app as bridgeApp } from '../gaea/lib/bridge'
 // wailsjsCompat 直调绕过 bridge mock——登记/清单读取统一经此 helper 走
 // window.go.app.App 兼容代理 + bridgeApp mock 兜底（ImageHubAssets/
 // ChapterArtList 已转正 AppBindings，mock 样例见 gaea/lib/mock/imagehub.ts）。
+// T1 识图试用/创作资产追加：落盘 GaeaSavePastedImage、识图 GaeaRecognizeImage、
+// OCR GaeaOCRText（mock 见 gaea/lib/mock/office.ts）、角色 CharacterList
+// （mock 见 gaea/lib/mock/weixin.ts）——全部既有绑定，零新绑定。
 type ImageHubFacade = {
   ImageHubAssets(space: string, sourceBoard: string, limit: number): Promise<Array<Record<string, unknown>>>
   ChapterArtList(chapterNum: number): Promise<Array<Record<string, unknown>>>
   AttachmentDataURL(path: string): Promise<string>
+  SavePastedImage(dataUrl: string): Promise<string>
+  RecognizeImage(imagePath: string, prompt: string): Promise<unknown>
+  OCRText(imagePath: string): Promise<unknown>
+  CharacterList(query: string, kind: string, chatOnly: boolean, page: number, pageSize: number):
+    Promise<{ items?: Array<Record<string, unknown>>; total?: number }>
 }
 const appFacade = (): ImageHubFacade => (window.go?.app?.App ?? bridgeApp) as unknown as ImageHubFacade
 
@@ -195,6 +203,76 @@ export async function chapterArtList(chapterNum: number): Promise<ChapterArtEntr
     return Array.isArray(res) ? res as unknown as ChapterArtEntry[] : []
   } catch (_) {
     return []
+  }
+}
+
+// ── T1 识图「读/懂」画室试用（零新绑定，原语 vision.read / vision.understand）──
+
+/**
+ * 粘贴/选择的图片落盘（GaeaSavePastedImage），返回可传给识图原语的本地路径。
+ * 失败向上抛，由调用方诚实呈现错误原文。
+ */
+export async function savePastedImage(dataUrl: string): Promise<string> {
+  return appFacade().SavePastedImage(dataUrl)
+}
+
+/** 识图调用结果规范视图：文本必给，模型名仅当返回里确实携带时才有。 */
+export interface VisionCallResult {
+  text: string
+  model?: string
+}
+
+/** 归一化识图返回：字符串直取；对象按 text/content/description 取文本、model 取模型名。 */
+function normalizeVisionResult(raw: unknown): VisionCallResult {
+  if (typeof raw === 'string') return { text: raw }
+  if (raw && typeof raw === 'object') {
+    const o = raw as Record<string, unknown>
+    const text = [o.text, o.content, o.description].find((v): v is string => typeof v === 'string')
+    const model = typeof o.model === 'string' ? o.model : undefined
+    if (text !== undefined) return { text, model }
+    return { text: JSON.stringify(o), model }
+  }
+  return { text: String(raw ?? '') }
+}
+
+/** 识图-懂（GaeaRecognizeImage）：内容理解/描述，prompt 由调用方自填。 */
+export async function visionUnderstand(imagePath: string, prompt: string): Promise<VisionCallResult> {
+  return normalizeVisionResult(await appFacade().RecognizeImage(imagePath, prompt))
+}
+
+/** 识图-读（GaeaOCRText）：提取图内文字。 */
+export async function visionRead(imagePath: string): Promise<VisionCallResult> {
+  return normalizeVisionResult(await appFacade().OCRText(imagePath))
+}
+
+// ── T1 创作资产 · 角色槽（CharacterList 只读分页，零新绑定）──
+
+/** 可聊天角色卡最小消费面（对齐 characterlib.Character 的展示字段）。 */
+export interface ChatCharacterView {
+  id?: string
+  name?: string
+  kind?: string
+  gender?: string
+  tags?: string[]
+  portraitUrl?: string
+  roleType?: string
+  personality?: string
+  background?: string
+  appearance?: string
+  referenceImages?: string[]
+}
+
+/** 分页拉取可聊天角色（chatOnly=true；失败 = 空列表，浏览是辅助视图）。 */
+export async function chatCharacters(page: number, pageSize: number):
+  Promise<{ items: ChatCharacterView[]; total: number }> {
+  try {
+    const res = await appFacade().CharacterList('', '', true, page, pageSize)
+    const items = Array.isArray(res?.items)
+      ? res.items as unknown as ChatCharacterView[]
+      : []
+    return { items, total: typeof res?.total === 'number' ? res.total : items.length }
+  } catch (_) {
+    return { items: [], total: 0 }
   }
 }
 

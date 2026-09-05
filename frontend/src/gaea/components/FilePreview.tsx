@@ -1,6 +1,7 @@
 import { Component, lazy, Suspense, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { AlertCircle, Check, ExternalLink, File, FileText, FolderTree, Loader2, Maximize2, Minimize2, Pencil, X } from "../icons";
+import { AlertCircle, Check, ExternalLink, File, FileText, FolderTree, Loader2, Maximize2, Minimize2, Pencil, RefreshCw, X } from "../icons";
 import { app } from "../lib/bridge";
+import { t } from "../lib/i18n";
 import {
   LAZY_ROOT_MARGIN_PX,
   addForcedPage,
@@ -58,6 +59,7 @@ export function FilePreview({
   embedded = false,
   maximized = false,
   onToggleMaximize,
+  reloadSignal,
 }: {
   relPath: string | null;
   onClose: () => void;
@@ -71,6 +73,12 @@ export function FilePreview({
   maximized?: boolean;
   /** 最大化 ↔ 半幅 切换回调（App 接线；不传则不渲染按钮，行为完全不变）。 */
   onToggleMaximize?: () => void;
+  /**
+   * U4 写后预览实时跟随：reloadSignal 递增（App 从 office 写类工具成功回执
+   * 派生，经 800ms 防抖合并连写，经 paneTabs reloadTicks 总线送进）→ 静默
+   * 重读文件内容。缺省（undefined，如弹窗/未接线调用方）行为完全不变。
+   */
+  reloadSignal?: number;
 }) {
   const [preview, setPreview] = useState<PreviewResult | null>(null);
   const [loading, setLoading] = useState(false);
@@ -136,6 +144,47 @@ export function FilePreview({
       .finally(() => { if (live) setLoading(false); });
     return () => { live = false; };
   }, [relPath]);
+
+  // ── U4 写后预览实时跟随（reloadSignal 递增 → 静默重读）──────────────────
+  // 与上方初始加载 effect 的分工：初始加载换 relPath（可清 preview、进 loading、
+  // 重置编辑态）；本 effect 是同路径的内容更新（agent 写类工具落盘）——绝不
+  // 清 preview / 不进 loading / 不动编辑态，组件不重挂，滚动位由各渲染容器
+  // 自身保持（docx 由 DocxPreview 在重渲染前后保留 scrollTop）。
+  // 跳过条件：编辑中或有未保存草稿（绝不拿旧草稿覆盖 agent 刚写入的新内容，
+  // 也不打断输入；退出编辑后的下一次信号仍会跟随）；reloadSignal 为 undefined
+  // = 未接线调用方（弹窗/旧用例），行为与既有完全一致。
+  const reloadSeenRef = useRef<number | undefined>(undefined);
+  const [autoRefreshedAt, setAutoRefreshedAt] = useState(0);
+  useEffect(() => {
+    if (reloadSignal === undefined) return;
+    if (reloadSeenRef.current === undefined) {
+      reloadSeenRef.current = reloadSignal; // 挂载首值只登记（初始加载由上方 effect 负责）
+      return;
+    }
+    if (reloadSignal === reloadSeenRef.current) return;
+    reloadSeenRef.current = reloadSignal;
+    if (editing || dirty) return;
+    if (!relPath) return;
+    let live = true;
+    app.Preview(relPath)
+      .then((r) => {
+        if (!live || !r) return;
+        // 内容没变就不换载荷（避免 docx 全量重渲染闪烁），但刷新动作本身如实亮徽标
+        setPreview((prev) =>
+          prev && prev.kind === r.kind && prev.size === r.size &&
+          prev.body === r.body && prev.dataUrl === r.dataUrl ? prev : r,
+        );
+        setAutoRefreshedAt(Date.now());
+      })
+      .catch(() => { /* 静默跟随：文件可能已被改名/删除，不打扰用户 */ });
+    return () => { live = false; };
+  }, [relPath, reloadSignal, editing, dirty]);
+  // 「已自动刷新」轻量指示：短暂亮起后自动熄灭（不弹 toast 不抢焦点）
+  useEffect(() => {
+    if (!autoRefreshedAt) return;
+    const id = window.setTimeout(() => setAutoRefreshedAt(0), 2600);
+    return () => window.clearTimeout(id);
+  }, [autoRefreshedAt]);
 
   // 可编辑 = 纯文本/markdown 预览且未截断（截断内容不完整，写回会丢数据）
   const editable = preview !== null && !loading && !editing && (preview.kind === "markdown" || preview.kind === "text") && !preview.truncated;
@@ -299,6 +348,16 @@ export function FilePreview({
         )}
         {preview && preview.size > 0 && (
           <span className="text-fg-faint text-[10px] shrink-0">{formatSize(preview.size)}</span>
+        )}
+        {autoRefreshedAt > 0 && (
+          <span
+            data-testid="office-auto-refreshed"
+            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full border border-accent/30 bg-accent/10 text-accent text-[10px] shrink-0"
+            title={t("officeTurn.autoRefreshedTitle")}
+          >
+            <RefreshCw size={9} aria-hidden />
+            {t("officeTurn.autoRefreshed")}
+          </span>
         )}
         <button
           className={HEAD_BTN}

@@ -84,3 +84,32 @@ describe("paneTabs 右栏 pane tab 状态机（对标 better-sidebar）", () => 
     expect(s.active).toBe("file:README.md");
   });
 });
+
+// ── U4 写后预览实时跟随：reloadTicks 刷新总线（pane 文件 tab 与主区大预览共用）──
+describe("paneTabs reloadTicks 写后预览刷新总线（U4）", () => {
+  it("requestReload 递增对应路径序号；未刷过的路径取 0", () => {
+    expect(usePaneTabsStore.getState().reloadTicks["docs/a.docx"] ?? 0).toBe(0);
+    usePaneTabsStore.getState().requestReload("docs/a.docx");
+    usePaneTabsStore.getState().requestReload("docs/a.docx");
+    // zustand getState 是快照：断言前重取最新 state
+    expect(usePaneTabsStore.getState().reloadTicks["docs/a.docx"]).toBe(2);
+  });
+
+  it("键走归一口径：反斜杠/大小写不同的同一文件命中同一序号", () => {
+    usePaneTabsStore.getState().requestReload("Docs\\报告.DOCX");
+    expect(usePaneTabsStore.getState().reloadTicks["docs/报告.docx"]).toBe(1);
+  });
+
+  it("空路径不动作", () => {
+    usePaneTabsStore.getState().requestReload("");
+    expect(usePaneTabsStore.getState().reloadTicks).toEqual({});
+  });
+
+  it("会话切换清空刷新序号（瞬态不跨会话、不落盘）", () => {
+    usePaneTabsStore.getState().setSessionKey("sess-1");
+    usePaneTabsStore.getState().requestReload("a.docx");
+    expect(Object.keys(usePaneTabsStore.getState().reloadTicks).length).toBe(1);
+    usePaneTabsStore.getState().setSessionKey("sess-2");
+    expect(usePaneTabsStore.getState().reloadTicks).toEqual({});
+  });
+});

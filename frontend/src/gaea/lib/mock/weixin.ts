@@ -52,6 +52,12 @@ const characters = [
     portraitUrl: charPortrait("顾", 200), roleType: "男主", personality: "沉稳寡言，护短",
     background: "边关少将，战功赫赫却厌战", chatEnabled: true,
   },
+  {
+    // T1 画室「创作资产」角色槽扩样例：无立绘可聊天角色（诚实占位路径）。
+    id: "c_baimo", name: "白墨", kind: "custom", gender: "male", tags: ["书生", "谋士"],
+    portraitUrl: "", roleType: "配角", personality: "温吞细致，擅推演",
+    background: "落第书生，以抄书为业，胸有丘壑", chatEnabled: true,
+  },
 ];
 
 // 扫码流模拟：每个 token 独立相位（轮询 2 次 → 已扫码；4 次 → confirmed）。

@@ -5,6 +5,18 @@
 
 ## 版本状态（顶部速览）
 
+- **最新发布：v4.100.0（2026-09-05）「三线并行：画室 T1 余件 · 办公 U4 前半 ·
+  GenUI 围栏审计」**——绑定面 581 零变更（并行会话 Model Hub 线同工作区在途，
+  其 +3 绑定未收编；子代理禁区清单显式排除其文件族）：线 A=识图「读/懂」画室
+  试用入口 VisionTrial（paste→SavePastedImage→GaeaRecognizeImage/GaeaOCRText，
+  诚实错误原文+最近 5 条历史）+ 创作资产 AssetStudio（角色槽/模板槽/近期作品，
+  经既有 applyTemplate/applyRefCharacter 回填）+ 修三视图 tab 互斥缺陷（走查
+  实锤）；线 B=U4 渲染证据盘点（首选 GaeaPreview 单口刷新零绑定）+ 写后预览
+  实时跟随（800ms 防抖静默重载/保滚动位/不作废修改队列/关闭优先协同 U2）；
+  线 C=GenUI 围栏审计五链路（password 明文不回传修复；Go 侧 6 项裁决清单落
+  docs/gaea-genui-memoryfence-audit-2026-09.md）。Go 全量 0 FAIL（含他线在途
+  如实注明）、vitest 250/1993、drift PASS（581 口径）、?mock=1 走查 PASS。
+  详见 releases/v4.100.0.md。
 - **最新发布：v4.99.0（2026-09-05）「三线并行：图像域 T1 收口 · 办公 U2 回合
   投影 · GaeaListDir 硬化」**——绑定面 581 零变更（ImageHubAssets/
   ChapterArtList 前端转正 AppBindings/spaceBindings shared/play，分类锁

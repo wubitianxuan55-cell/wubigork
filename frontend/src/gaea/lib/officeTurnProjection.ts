@@ -529,3 +529,103 @@ export function ensureOfficeJournal(now = Date.now()): Promise<JournalChangeReco
 export function invalidateOfficeJournal(): void {
   journalCache = null;
 }
+
+// ── §5 写后预览实时跟随（U4 §4.3-2；纯逻辑，接线在 App）─────────────────
+// 信号源 = office 写类工具的成功回执（write result ok 且落盘路径为 Office 文档）；
+// 消费方 = 预览面「静默重载」（FilePreview 重读 app.Preview：不进 loading、不重挂、
+// 不弹窗）。与 §3 浮窗状态机的分工：§3 管「要不要置前」（写弹读不弹/关闭优先/
+// 意图跨回合/终态清理），本节管「已打开的预览要不要刷新」——刷新绝不打开任何
+// 东西；用户已关闭的文件天然不在打开集里，既不会被刷新也不会被弹（U2 语义零回退）。
+
+/**
+ * 预览路径归一（刷新总线与打开判定共用的键口径）：反斜杠→斜杠 + 小写——
+ * Windows 路径大小写不敏感，写类工具参数里的路径与 pane tab 里登记的路径
+ * 可能大小写/分隔符不同；与 deliverablePhaseOf 的 journalMatchesPath 同式。
+ */
+export function normalizePreviewPath(path: string): string {
+  return (path ?? "").trim().replace(/\\/g, "/").toLowerCase();
+}
+
+/**
+ * 写类工具回执 → 「文件已更新」信号路径集（本回合信号派生的唯一口径）：
+ * 失败回执不派（内容未变，刷新了也是旧内容）；非 office 写类工具不派
+ * （bash/脚本写盘不打扰，与 §3 的置前范围同口径）；路径取
+ * extractOfficeWritePaths 的产物口径并过滤到 Office 文档扩展名。
+ */
+export function officeUpdatedPathsFromResult(
+  tool: string,
+  args: string | undefined,
+  ok: boolean,
+): string[] {
+  if (!ok) return [];
+  if (!OFFICE_WRITE_TOOLS.has(tool)) return [];
+  return extractOfficeWritePaths(tool, args).filter(isOfficeDeliverablePath);
+}
+
+export interface PreviewRefreshDeps {
+  /** 目标文件此刻是否正打开在预览面（pane 活动文件 tab / 主区大预览）。 */
+  isOpen: (path: string) => boolean;
+  /** 执行刷新（App：paneTabs reloadTicks 递增 → FilePreview 静默重读）。 */
+  refresh: (path: string) => void;
+  /** 计时器注入（缺省 window.setTimeout/clearTimeout；测试注入虚拟时钟）。 */
+  setTimer?: (fn: () => void, ms: number) => unknown;
+  clearTimer?: (id: unknown) => void;
+  /** 防抖窗口毫秒（缺省 800：合并 agent 连写，避免逐次重渲染抖动）。 */
+  delayMs?: number;
+}
+
+export interface PreviewRefreshScheduler {
+  /** 写类工具成功回执时逐路径喂入；同路径窗口内重复喂入合并为一次刷新。 */
+  notify: (path: string) => void;
+  /** 取消某路径的待刷新（会话切换/卸载卫生）。 */
+  cancel: (path: string) => void;
+  /** 取消全部待刷新（会话切换）。 */
+  cancelAll: () => void;
+  /** 测试/断言辅助：该路径当前是否有挂起的防抖计时。 */
+  pending: (path: string) => boolean;
+}
+
+/**
+ * 写后预览刷新调度器（防抖合并 + 到点时打开判定，纯逻辑不碰 React/store）：
+ *   notify(path) → 重置该路径计时（连写合并为最后一次）；到点时再次
+ *   isOpen(path) 判定——窗口内用户关闭 → 不刷新（关闭抑制，关闭优先语义）；
+ *   窗口内用户（重新）打开 → 刷新（对新鲜挂载只是多一次幂等的静默重读）。
+ *   isOpen/refresh 由 App 注入（App 判 pane 活动文件 tab / 主区大预览并递增
+ *   reloadTicks 总线），单测用虚拟时钟钉死触发/合并/抑制三语义。
+ */
+export function createPreviewRefreshScheduler(deps: PreviewRefreshDeps): PreviewRefreshScheduler {
+  const delayMs = deps.delayMs ?? 800;
+  const setTimer = deps.setTimer ?? ((fn: () => void, ms: number) => window.setTimeout(fn, ms));
+  const clearTimer = deps.clearTimer ?? ((id: unknown) => window.clearTimeout(id as number));
+  const timers = new Map<string, unknown>();
+  const drop = (key: string) => {
+    const id = timers.get(key);
+    if (id !== undefined) {
+      clearTimer(id);
+      timers.delete(key);
+    }
+  };
+  return {
+    notify(path) {
+      const key = normalizePreviewPath(path);
+      if (!key) return;
+      drop(key);
+      timers.set(
+        key,
+        setTimer(() => {
+          timers.delete(key);
+          if (deps.isOpen(path)) deps.refresh(path);
+        }, delayMs),
+      );
+    },
+    cancel(path) {
+      drop(normalizePreviewPath(path));
+    },
+    cancelAll() {
+      for (const key of [...timers.keys()]) drop(key);
+    },
+    pending(path) {
+      return timers.has(normalizePreviewPath(path));
+    },
+  };
+}

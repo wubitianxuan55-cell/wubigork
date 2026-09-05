@@ -128,3 +128,50 @@ describe("GenuiBlock 持久化", () => {
     expect((screen.getByLabelText("北京") as HTMLInputElement).checked).toBe(true);
   });
 });
+
+describe("GenuiBlock password 不回传", () => {
+  it("password input 的 action payload 不含明文，只带 valueLength/id（记忆链防泄漏）", () => {
+    vi.useFakeTimers();
+    const handler = vi.fn<GenuiActionHandler>();
+    const spec: GenuiSpec = {
+      items: [{ type: "input", inputType: "password", id: "pw", label: "口令", action: "login" }],
+    };
+    render(
+      <GenuiActionProvider onAction={handler}>
+        <GenuiBlock spec={spec} />
+      </GenuiActionProvider>,
+    );
+    const field = screen.getByLabelText("口令") as HTMLInputElement;
+    fireEvent.change(field, { target: { value: "super-secret-pw" } });
+    fireEvent.blur(field);
+    act(() => {
+      vi.advanceTimersByTime(320);
+    });
+    expect(handler).toHaveBeenCalledTimes(1);
+    const [action, payload] = handler.mock.calls[0];
+    expect(action).toBe("login");
+    expect(JSON.stringify(payload)).not.toContain("super-secret-pw");
+    expect(payload.valueLength).toBe(15);
+    expect(payload.id).toBe("pw");
+  });
+
+  it("普通 text input 的 action payload 仍回传明文 value（行为不变）", () => {
+    vi.useFakeTimers();
+    const handler = vi.fn<GenuiActionHandler>();
+    const spec: GenuiSpec = {
+      items: [{ type: "input", id: "who", label: "姓名", action: "save-name" }],
+    };
+    render(
+      <GenuiActionProvider onAction={handler}>
+        <GenuiBlock spec={spec} />
+      </GenuiActionProvider>,
+    );
+    const field = screen.getByLabelText("姓名") as HTMLInputElement;
+    fireEvent.change(field, { target: { value: "王小明" } });
+    fireEvent.blur(field);
+    act(() => {
+      vi.advanceTimersByTime(320);
+    });
+    expect(handler).toHaveBeenCalledWith("save-name", { value: "王小明", id: "who" });
+  });
+});

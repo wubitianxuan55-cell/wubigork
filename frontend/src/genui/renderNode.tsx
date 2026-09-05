@@ -611,9 +611,20 @@ function InputNode({ node }: { node: GenuiInput }) {
     if (node.action === undefined || !api?.hasAction) return;
     if (changedRef.current || value !== (node.value ?? "")) {
       changedRef.current = false;
+      // P5 记忆围栏审计：password 明文绝不回传——payload 走 [genui-action]
+      // 会落会话日志、进压缩摘要与自动做梦记忆链（dreamInput 读 user 消息），
+      // 与「password 值永不落库」同款纪律；只回传长度信号供模型确认提交。
+      if (isSecret) {
+        const secretPayload: Record<string, unknown> = { valueLength: value.length };
+        if (node.id !== undefined) secretPayload.id = node.id;
+        api.emit(node.action, secretPayload);
+        return;
+      }
       const payload: Record<string, unknown> = { value };
-      if (node.id !== undefined) payload.id = node.id;
-      if (!isSecret && node.id !== undefined) api.setField(node.id, value);
+      if (node.id !== undefined) {
+        payload.id = node.id;
+        api.setField(node.id, value);
+      }
       api.emit(node.action, payload);
     }
   };

@@ -1,10 +1,13 @@
-// officeTurnProjection 单测 — U2 回合投影与审阅收口（规划 §4.2 表 2/3/4/5 行）。
+// officeTurnProjection 单测 — U2 回合投影与审阅收口（规划 §4.2 表 2/3/4/5 行）
+// + U4 写后预览实时跟随（§4.3-2，§5）。
 // 覆盖：三类操作归约（写入/验证/生命周期）、callId 配对（乱序/孤儿/重复容错）、
 // 失败保留原因不提交转换、wire/items 适配器、预览浮窗语义状态机迁移表
 // （写弹读不弹/关闭优先/意图跨回合/终态清理）、draft/ready 判定（首次写盘=
-// 草稿、Plan→Apply 批准=就绪）与 Journal 共享薄壳降级。
+// 草稿、Plan→Apply 批准=就绪）、Journal 共享薄壳降级，以及 U4 的「文件已更新」
+// 信号派生与刷新调度器（防抖合并/到点打开判定/关闭抑制/归一键/取消清理）。
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  createPreviewRefreshScheduler,
   extractOfficeReadPaths,
   extractOfficeWritePaths,
   deliverablePhaseOf,
@@ -12,8 +15,10 @@ import {
   initialPreviewAutoFrontState,
   invalidateOfficeJournal,
   isOfficeDeliverablePath,
+  normalizePreviewPath,
   officeToolEventsFromItems,
   officeToolEventsFromWire,
+  officeUpdatedPathsFromResult,
   previewAutoFrontReduce,
   projectOfficeTurn,
 } from "./officeTurnProjection";
@@ -398,5 +403,164 @@ describe("ensureOfficeJournal 共享薄壳（2s 去重 + 失败/缺绑定降级�
     vi.mocked(app.GaeaJournalList).mockRejectedValue(new Error("boom"));
     invalidateOfficeJournal();
     await expect(ensureOfficeJournal()).resolves.toBeNull();
+  });
+});
+
+// ── §5 写后预览实时跟随（U4 §4.3-2）──────────────────────────────────────
+// 覆盖：信号派生口径（ok 才派/写类才派/Office 文档才派/产物路径口径）、调度器
+// 防抖合并、到点打开判定（触发/关闭抑制/窗口内打开）、路径归一键与取消清理。
+
+describe("officeUpdatedPathsFromResult 写后「文件已更新」信号派生", () => {
+  it("成功回执按产物口径派生路径（单值/数组/edits，去重保序）", () => {
+    expect(officeUpdatedPathsFromResult("multi_edit", JSON.stringify({ path: "a.docx" }), true))
+      .toEqual(["a.docx"]);
+    expect(officeUpdatedPathsFromResult("multi_edit", JSON.stringify({ paths: ["a.xlsx", "b.xlsx"] }), true))
+      .toEqual(["a.xlsx", "b.xlsx"]);
+    // 生成/导出类只取 output（path 是输入源）
+    expect(officeUpdatedPathsFromResult("format_convert", JSON.stringify({ path: "in.md", output: "out.docx" }), true))
+      .toEqual(["out.docx"]);
+  });
+
+  it("失败回执不派（内容未变）；非写类工具不派（bash 写盘不打扰）", () => {
+    expect(officeUpdatedPathsFromResult("multi_edit", JSON.stringify({ path: "a.docx" }), false)).toEqual([]);
+    expect(officeUpdatedPathsFromResult("read_file", JSON.stringify({ path: "a.docx" }), true)).toEqual([]);
+    expect(officeUpdatedPathsFromResult("bash", JSON.stringify({ command: "x" }), true)).toEqual([]);
+  });
+
+  it("非 Office 文档扩展名不派（与浮窗置前范围同口径）", () => {
+    expect(officeUpdatedPathsFromResult("write_file", JSON.stringify({ path: "notes/a.md" }), true)).toEqual([]);
+    expect(officeUpdatedPathsFromResult("write_file", JSON.stringify({ path: "script.py" }), true)).toEqual([]);
+    // 国产格式与 pdf 在 Office 集合内，照派
+    expect(officeUpdatedPathsFromResult("write_file", JSON.stringify({ path: "报表.et" }), true))
+      .toEqual(["报表.et"]);
+  });
+});
+
+describe("normalizePreviewPath 预览路径归一", () => {
+  it("反斜杠→斜杠 + 小写 + 去空白；空串原样返回", () => {
+    expect(normalizePreviewPath(" Docs\\报告.DOCX ")).toBe("docs/报告.docx");
+    expect(normalizePreviewPath("docs/报告.docx")).toBe("docs/报告.docx");
+    expect(normalizePreviewPath("")).toBe("");
+  });
+});
+
+describe("createPreviewRefreshScheduler 写后预览刷新调度器（防抖/触发/关闭抑制）", () => {
+  /** 虚拟时钟：手动推进 registered 定时器（绝对到点时刻，单测钉死时序）。 */
+  function makeClock() {
+    const tasks = new Map<number, { fn: () => void; at: number }>();
+    let next = 1;
+    let now = 0;
+    const setTimer = (fn: () => void, ms: number) => {
+      const id = next++;
+      tasks.set(id, { fn, at: now + ms });
+      return id;
+    };
+    const clearTimer = (id: unknown) => {
+      tasks.delete(id as number);
+    };
+    const advance = (ms: number) => {
+      const target = now + ms;
+      for (const [id, t] of [...tasks.entries()]) {
+        if (t.at <= target) {
+          tasks.delete(id);
+          t.fn();
+        }
+      }
+      now = target;
+    };
+    return { setTimer, clearTimer, advance, size: () => tasks.size };
+  }
+
+  function makeHarness(isOpen: (p: string) => boolean) {
+    const clock = makeClock();
+    const fired: string[] = [];
+    const sched = createPreviewRefreshScheduler({
+      isOpen,
+      refresh: (p) => fired.push(p),
+      setTimer: clock.setTimer,
+      clearTimer: clock.clearTimer,
+    });
+    return { clock, fired, sched };
+  }
+
+  it("800ms 到点且文件正打开才触发刷新；缺省 delayMs=800", () => {
+    const { clock, fired, sched } = makeHarness(() => true);
+    sched.notify("报告.docx");
+    expect(sched.pending("报告.docx")).toBe(true);
+    clock.advance(799);
+    expect(fired).toEqual([]);
+    clock.advance(1);
+    expect(fired).toEqual(["报告.docx"]);
+    expect(sched.pending("报告.docx")).toBe(false);
+  });
+
+  it("连写合并：窗口内重复 notify 只在最后一次计时到点刷一次", () => {
+    const { clock, fired, sched } = makeHarness(() => true);
+    sched.notify("a.docx");
+    clock.advance(500);
+    sched.notify("a.docx");
+    clock.advance(500); // 距首次 1000ms，但距第二次仅 500ms
+    expect(fired).toEqual([]);
+    clock.advance(300);
+    expect(fired).toEqual(["a.docx"]);
+    expect(clock.size()).toBe(0);
+  });
+
+  it("关闭抑制：窗口内用户关闭（isOpen 变假）→ 到点不刷新也不弹", () => {
+    let open = true;
+    const { clock, fired, sched } = makeHarness(() => open);
+    sched.notify("a.docx");
+    clock.advance(300);
+    open = false; // 用户在窗口内关闭预览
+    clock.advance(500);
+    expect(fired).toEqual([]);
+    // 重新打开后的下一次写入正常跟随（关闭抑制只作用于当前窗口）
+    open = true;
+    sched.notify("a.docx");
+    clock.advance(800);
+    expect(fired).toEqual(["a.docx"]);
+  });
+
+  it("窗口内（重新）打开 → 到点照刷（对新鲜挂载只是幂等静默重读）", () => {
+    let open = false;
+    const { clock, fired, sched } = makeHarness(() => open);
+    sched.notify("a.docx");
+    clock.advance(100);
+    open = true;
+    clock.advance(700);
+    expect(fired).toEqual(["a.docx"]);
+  });
+
+  it("路径归一键：大小写/分隔符不同的连写命中同一路径并合并", () => {
+    const { clock, fired, sched } = makeHarness(() => true);
+    sched.notify("Docs\\报告.docx");
+    clock.advance(400);
+    sched.notify("docs/报告.DOCX");
+    clock.advance(800);
+    expect(fired).toEqual(["docs/报告.DOCX"]); // 后喂入的路径串交给刷新方
+    expect(clock.size()).toBe(0);
+  });
+
+  it("空路径不派；cancel/cancelAll 清计时（会话切换卫生）", () => {
+    const { clock, fired, sched } = makeHarness(() => true);
+    sched.notify("");
+    expect(clock.size()).toBe(0);
+    sched.notify("a.docx");
+    sched.notify("b.docx");
+    sched.cancel("a.docx");
+    expect(sched.pending("a.docx")).toBe(false);
+    expect(sched.pending("b.docx")).toBe(true);
+    sched.cancelAll();
+    expect(sched.pending("b.docx")).toBe(false);
+    clock.advance(1000);
+    expect(fired).toEqual([]);
+  });
+
+  it("isOpen 为假时到点不触发，计时器已出清（不残留）", () => {
+    const { clock, fired, sched } = makeHarness(() => false);
+    sched.notify("a.docx");
+    clock.advance(800);
+    expect(fired).toEqual([]);
+    expect(clock.size()).toBe(0);
   });
 });

@@ -454,3 +454,60 @@ describe("FilePreview markdown 导图视图（M1）", () => {
     expect(screen.queryByTestId("md-view-mindmap")).toBeNull();
   });
 });
+
+// U4 写后预览实时跟随（docs/gaea-u4-render-evidence-inventory-2026-09.md §3）：
+// reloadSignal 递增（App 从 office 写类工具成功回执派生，800ms 防抖后递增
+// paneTabs.reloadTicks）→ 静默重读 app.Preview：不重挂、不进 loading、滚动位
+// 保持；编辑态跳过（绝不拿旧草稿覆盖 agent 新写入的内容）；未接线调用方
+// （不传 reloadSignal）行为完全不变。
+describe("FilePreview U4 写后预览实时跟随（reloadSignal 静默重载）", () => {
+  it("reloadSignal 递增 → 重读 app.Preview、内容更新并亮「已自动刷新」徽标", async () => {
+    const { rerender } = render(
+      wrap(<FilePreview relPath="notes/a.md" onClose={() => {}} reloadSignal={0} />),
+    );
+    await screen.findByText("旧内容");
+    expect(mocks.previewCall).toHaveBeenCalledTimes(1);
+    expect(screen.queryByTestId("office-auto-refreshed")).toBeNull();
+
+    mocks.preview = markdownPreview({ body: "新内容", size: 15 });
+    rerender(wrap(<FilePreview relPath="notes/a.md" onClose={() => {}} reloadSignal={1} />));
+    expect(await screen.findByText("新内容")).toBeTruthy();
+    expect(mocks.previewCall).toHaveBeenCalledTimes(2); // 静默重读恰好一次
+    expect(screen.getByTestId("office-auto-refreshed")).toBeTruthy();
+    // 刷新是内容更新而非重新打开：无 loading 占位（旧内容被新内容原位替换）
+    expect(screen.queryByText("加载中…")).toBeNull();
+  });
+
+  it("同序号重渲染不重读（reloadSignal 未变 = 无新信号）", async () => {
+    const { rerender } = render(
+      wrap(<FilePreview relPath="notes/a.md" onClose={() => {}} reloadSignal={3} />),
+    );
+    await screen.findByText("旧内容");
+    expect(mocks.previewCall).toHaveBeenCalledTimes(1);
+    rerender(wrap(<FilePreview relPath="notes/a.md" onClose={() => {}} reloadSignal={3} />));
+    await act(async () => { await Promise.resolve(); });
+    expect(mocks.previewCall).toHaveBeenCalledTimes(1);
+  });
+
+  it("编辑态跳过刷新（不打断输入，退出后下一次信号仍跟随）", async () => {
+    const { rerender } = render(
+      wrap(<FilePreview relPath="notes/a.md" onClose={() => {}} reloadSignal={0} />),
+    );
+    await screen.findByText("旧内容");
+    fireEvent.click(screen.getByText("编辑")); // 进入编辑态
+    mocks.preview = markdownPreview({ body: "新内容" });
+    rerender(wrap(<FilePreview relPath="notes/a.md" onClose={() => {}} reloadSignal={1} />));
+    await act(async () => { await Promise.resolve(); });
+    expect(mocks.previewCall).toHaveBeenCalledTimes(1); // 编辑中不重读
+    expect(screen.queryByTestId("office-auto-refreshed")).toBeNull();
+  });
+
+  it("未接线（reloadSignal 缺省）行为不变：重渲染不触发额外重读", async () => {
+    const { rerender } = render(wrap(<FilePreview relPath="notes/a.md" onClose={() => {}} />));
+    await screen.findByText("旧内容");
+    expect(mocks.previewCall).toHaveBeenCalledTimes(1);
+    rerender(wrap(<FilePreview relPath="notes/a.md" onClose={() => {}} />));
+    await act(async () => { await Promise.resolve(); });
+    expect(mocks.previewCall).toHaveBeenCalledTimes(1);
+  });
+});

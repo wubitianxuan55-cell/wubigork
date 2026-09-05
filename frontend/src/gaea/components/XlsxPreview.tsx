@@ -192,7 +192,10 @@ export function XlsxPreview({
     return () => {
       live = false;
     };
-  }, [relPath]);
+    // U4 写后预览实时跟随：body 变化（agent 改了 xlsx 本体）也重读 sidecar——
+    // 技能口径里 .gbase.json 视图配置与 xlsx 同名同改，本体刷新而视图不刷会
+    // 呈现滞后口径。重读会复位激活视图（配置可能已变，诚实重置）。
+  }, [relPath, body]);
 
   const preview = useMemo<XlsxPreview | null>(() => {
     try {

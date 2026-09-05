@@ -1,6 +1,7 @@
 import { createElement, useEffect, type ComponentType } from "react";
 import { Dropdown } from "antd";
 import { usePaneTabsStore } from "../lib/paneTabs";
+import { normalizePreviewPath } from "../lib/officeTurnProjection";
 import { WORKSPACE_TABS, type WorkspaceTabId } from "../lib/workspaceTabs";
 import { getWorkspaceRegistration, type WorkspacePanelContext } from "../lib/sidebarRegistry";
 import { FileTypeIcon } from "../lib/fileIcon";
@@ -37,6 +38,9 @@ export function WorkspacePane({
 }) {
   const tabs = usePaneTabsStore((s) => s.tabs);
   const active = usePaneTabsStore((s) => s.active);
+  // U4 写后预览实时跟随：文件 tab 的 FilePreview 消费 reloadTicks 总线
+  // （App 从 office 写类工具成功回执派生，800ms 防抖合并连写后递增）。
+  const reloadTicks = usePaneTabsStore((s) => s.reloadTicks);
   const activeTab = tabs.find((t) => t.id === active) ?? tabs[tabs.length - 1];
 
   const api = usePaneTabsStore.getState;
@@ -105,6 +109,7 @@ export function WorkspacePane({
         onClose={() => closeTab(activeTab.id)}
         onBackToFiles={() => openView("files", "文件")}
         embedded
+        reloadSignal={reloadTicks[normalizePreviewPath(activeTab.path)] ?? 0}
       />
     );
   } else if (activeTab?.kind === "view" && activeTab.viewId === "browser") {

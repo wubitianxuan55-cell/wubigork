@@ -1,3 +1,10 @@
+## v4.100.0 · 三线并行：画室 T1 余件 · 办公 U4 前半 · GenUI 围栏审计（2026-09-05）
+> 「继续」惯例三线并行（文件所有权互斥子代理，避开并行会话 Model Hub 线禁区）；**绑定面 581 零变更**。详见 releases/v4.100.0.md。
+- **画室 T1 余件**：①识图「读/懂」画室试用入口（粘贴/选图→SavePastedImage 落盘→GaeaRecognizeImage/GaeaOCRText，原语 Tag+诚实错误原文+localStorage 最近 5 条，零新绑定）；②画室「创作资产」面板（角色槽 CharacterList 分页带出立绘摘要、模板槽复用绘梦模板库、近期作品读 ledger；选中经既有 applyTemplate/applyRefCharacter 回填生成台，不硬拼）。**走查实锤并修复**：三视图 tab 互斥缺陷（onClick 只开不关，aria 双 selected 且内容不切换）。
+- **办公 U4 前半**：①渲染证据通道盘点 docs/gaea-u4-render-evidence-inventory-2026-09.md（6 通道对照：soffice 技能源/Verifier 成对缩略/GaeaPreview 直读（缓存键含 mtime 纳秒自动失配重转）/Preview 探测/ReadFile/排除项；结论=写后反馈首选 GaeaPreview 单口刷新零绑定）；②写后预览实时跟随（写类 result 成功→800ms 防抖→isOpen 判定→paneTabs.reloadTicks 刷新总线→FilePreview 静默重载不清屏不重挂、DocxPreview 保滚动位且同文件不作废修改队列；协同 U2：刷新绝不置前、已关闭不刷新不弹、编辑态有草稿跳过；「已自动刷新」badge 三语）。
+- **GenUI 记忆/压缩围栏审计**：docs/gaea-genui-memoryfence-audit-2026-09.md 五链路逐条结论（压缩/子代理投影/回放/导出=原样无害或防线有效；记忆链 3 个 Go 侧低风险吸收点登记待裁决）；**genui 内修复 1 项**：password 输入 action 只回传长度信号不再回传明文（堵「交互值→会话日志→做梦记忆链」泄漏）。
+- 门禁：Go 全量 0 FAIL（树内含并行会话在途 Model Hub 改动，drift PASS@584 其中 +3 为其未提交绑定，本刀口径 581 零变更）、tsc -b/eslint 0、vitest 250 文件/1993 用例全绿（净增 2 文件/39 用例；首轮 1 例负载 flaky 复跑绿）、?mock=1 走查 PASS（创作资产三槽/识图试用全要素/三视图互斥修复验证）。
+
 ## v4.99.0 · 三线并行：图像域 T1 收口 · 办公 U2 回合投影 · GaeaListDir 硬化（2026-09-05）
 > 「继续」惯例三线并行（文件所有权互斥子代理）；**绑定面 581 零变更**（ImageHubAssets/ChapterArtList 前端转正 AppBindings，Go 侧不变）。详见 releases/v4.99.0.md。
 - **图像域 T1 收口**：①GenerateDiagram 登记接线（media.diagram 第二试点：成功后 .mmd 落盘 .gaea/uploads + 写 Asset Ledger，受 Startup 武装位闸控，失败只 warn，model/cost 诚实留空）；②绘梦任务中心素材库 tab 轻扫（激活重读 + 30s 可见性门控轮询，缩略按 path 缓存）；③画室素材库独立页 AssetLibrary（grid 缩略/懒加载分页/原语与来源筛选/点选溯源详情/play+work 双空间切换，零新绑定）。

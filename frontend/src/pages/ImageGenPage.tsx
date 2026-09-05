@@ -11,6 +11,7 @@ import { Button, message } from 'antd'
 import {
   PictureOutlined, FolderOpenOutlined,
   SwapOutlined, VideoCameraOutlined,
+  AppstoreOutlined, EyeOutlined,
 } from '@ant-design/icons'
 import Lightbox from '../components/Lightbox'
 import CustomTemplateModal from '../components/imagegen/CustomTemplateModal'
@@ -20,6 +21,8 @@ import { ResultStage } from '../components/imagegen/ResultStage'
 import { GenerationBar } from '../components/imagegen/GenerationBar'
 import { TaskCenter } from '../components/imagegen/TaskCenter'
 import { AssetLibrary } from '../components/imagegen/AssetLibrary'
+import { AssetStudio } from '../components/imagegen/AssetStudio'
+import { VisionTrial } from '../components/imagegen/VisionTrial'
 import { StatusDot } from '../components/imagegen/ui'
 import { TEMPLATES, type Template } from '../data/imageTemplates'
 import { useImageGenConfig } from '../hooks/useImageGenConfig'
@@ -32,6 +35,10 @@ import {
 } from '../components/imagegen/meta'
 import { downloadFileName } from '../components/imagegen/media'
 import '../components/imagegen/imagegen.css'
+
+// T1 创作资产面板：TEMPLATES 是「分类 → 模板」记录，面板槽只要平铺列表——
+// 模块级展开一次（静态数据，不随渲染重算）。
+const STUDIO_TEMPLATES: Template[] = Object.values(TEMPLATES).flat()
 
 const ImageGenPage: React.FC = () => {
   const t = useT()
@@ -86,6 +93,9 @@ const ImageGenPage: React.FC = () => {
   // T1 画室素材库独立页：入口挂在模块自身导航（模式轨道）内，激活时以
   // 素材库视图替换生成工作台，返回生成台即恢复原工作台状态。
   const [assetLibraryOpen, setAssetLibraryOpen] = useState(false)
+  // T1 创作资产面板 + 识图试用：与素材库同模式（轨道 tab，激活时替换工作台）。
+  const [assetStudioOpen, setAssetStudioOpen] = useState(false)
+  const [visionTrialOpen, setVisionTrialOpen] = useState(false)
 
   // ── 跨 hook 操作 ──
 
@@ -96,6 +106,8 @@ const ImageGenPage: React.FC = () => {
     setLightboxIndex(-1)
     clearRefSlot()
     setAssetLibraryOpen(false)
+    setAssetStudioOpen(false)
+    setVisionTrialOpen(false)
   }, [setMode, setResults, setLightboxIndex, clearRefSlot])
 
   // ── 结果操作 ──
@@ -176,6 +188,17 @@ const ImageGenPage: React.FC = () => {
     message.success(`已套用模板「${t.label}」`)
   }, [setPrompt, setNegative, mode, setSize, setCustomWidth, setCustomHeight])
 
+  // ── 创作资产 → 生成台回填：复用页面级既有路径（模板 applyTemplate /
+  //    角色 applyRefCharacter），面板关闭露出工作台让用户看到回填结果。 ──
+  const handleStudioApplyTemplate = useCallback((tp: Template) => {
+    setAssetStudioOpen(false)
+    applyTemplate(tp)
+  }, [applyTemplate])
+  const handleStudioApplyCharacter = useCallback((id: string) => {
+    setAssetStudioOpen(false)
+    void applyRefCharacter(id)
+  }, [applyRefCharacter])
+
   // ── 引擎启停派生 ──
   const isLocalEngine = isLocalBackend(backend)
   // needsComfy = 当前模式需要特定后端能力（提示性；glm 无 img2img/t2v 能力
@@ -227,9 +250,27 @@ const ImageGenPage: React.FC = () => {
             role="tab"
             aria-selected={assetLibraryOpen}
             className={`ig-mode-item${assetLibraryOpen ? ' is-active' : ''}`}
-            onClick={() => setAssetLibraryOpen(true)}
+            onClick={() => { setAssetLibraryOpen(true); setAssetStudioOpen(false); setVisionTrialOpen(false) }}
           >
             <FolderOpenOutlined /> {t('imagehubT1.libraryNav')}
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={assetStudioOpen}
+            className={`ig-mode-item${assetStudioOpen ? ' is-active' : ''}`}
+            onClick={() => { setAssetStudioOpen(true); setAssetLibraryOpen(false); setVisionTrialOpen(false) }}
+          >
+            <AppstoreOutlined /> {t('imagehubT1.studioNav')}
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={visionTrialOpen}
+            className={`ig-mode-item${visionTrialOpen ? ' is-active' : ''}`}
+            onClick={() => { setVisionTrialOpen(true); setAssetLibraryOpen(false); setAssetStudioOpen(false) }}
+          >
+            <EyeOutlined /> {t('imagehubT1.visionNav')}
           </button>
         </div>
 
@@ -253,9 +294,20 @@ const ImageGenPage: React.FC = () => {
         </div>
       </div>
 
-      {/* T1 素材库视图：激活时替换生成工作台（模块内独立页，行为零回归） */}
+      {/* T1 素材库 / 创作资产 / 识图试用视图：激活时替换生成工作台（模块内独立页，行为零回归） */}
       {assetLibraryOpen ? (
         <AssetLibrary onClose={() => setAssetLibraryOpen(false)} />
+      ) : assetStudioOpen ? (
+        <AssetStudio
+          onClose={() => setAssetStudioOpen(false)}
+          onOpenLibrary={() => { setAssetStudioOpen(false); setAssetLibraryOpen(true) }}
+          templates={STUDIO_TEMPLATES}
+          customTemplates={customTemplates}
+          onApplyTemplate={handleStudioApplyTemplate}
+          onApplyCharacter={handleStudioApplyCharacter}
+        />
+      ) : visionTrialOpen ? (
+        <VisionTrial onClose={() => setVisionTrialOpen(false)} />
       ) : (
         <>
       {/* 3 分区工作台：左控制台 zone | 中画布 zone | 右历史·任务 inspector */}

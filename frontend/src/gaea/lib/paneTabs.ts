@@ -15,6 +15,7 @@
 // EditorTabs 一致（关激活 tab 先右邻、末位取左邻；激活触碰最近顺序）。
 
 import { create } from "zustand";
+import { normalizePreviewPath } from "./officeTurnProjection";
 import { WORKSPACE_TABS } from "./workspaceTabs";
 
 /** 一个 pane tab：视图（如资源管理器/产物/任务/浏览器）或文件。 */
@@ -42,10 +43,18 @@ export interface PaneTabsState {
   order: string[];
   /** 当前会话 key（null = 未绑定，欢迎态不落盘）。 */
   sessionKey: string | null;
+  /**
+   * U4 写后预览实时跟随：每路径刷新序号（键 = normalizePreviewPath(path)）。
+   * 递增即请求该路径「已打开」的预览静默重载（pane 文件 tab 与主区大预览共用
+   * 同一刷新总线；FilePreview 以 reloadSignal prop 消费）。会话瞬态，不落盘。
+   */
+  reloadTicks: Record<string, number>;
   /** 打开视图 tab：同 viewId 已开则激活，否则追加激活。 */
   openView: (viewId: string, title: string) => void;
   /** 打开文件 tab：同路径已开则激活，否则追加激活。 */
   openFile: (path: string, title: string) => void;
+  /** 请求刷新某路径的已打开预览（App 从写类工具成功回执派生，经防抖调度器调进）。 */
+  requestReload: (path: string) => void;
   /** 关闭 tab：激活相邻（先右后左）；关唯一 tab 回空（欢迎态）。 */
   close: (id: string) => void;
   /** 激活已开 tab。 */
@@ -65,6 +74,16 @@ export const usePaneTabsStore = create<PaneTabsState>()((set, get) => ({
   active: null,
   order: [],
   sessionKey: null,
+  reloadTicks: {},
+
+  // U4 写后预览刷新总线：递增序号（而非布尔的置回）让同文件连续刷新的每次
+  // 都可被 FilePreview 的 reloadSignal effect 感知；键走归一口径，写类工具
+  // 参数路径与 tab 登记路径大小写/分隔符不一致也能命中同一份预览。
+  requestReload: (path) => {
+    const key = normalizePreviewPath(path);
+    if (!key) return;
+    set((s) => ({ reloadTicks: { ...s.reloadTicks, [key]: (s.reloadTicks[key] ?? 0) + 1 } }));
+  },
 
   openView: (viewId, title) => {
     if (!viewId) return;
@@ -129,7 +148,7 @@ export const usePaneTabsStore = create<PaneTabsState>()((set, get) => ({
     const norm = key ? key.replace(/[\\/:*?"<>|]/g, "_") : null;
     if (norm === current) return;
     if (norm === null) {
-      set({ tabs: [], active: null, order: [], sessionKey: null });
+      set({ tabs: [], active: null, order: [], sessionKey: null, reloadTicks: {} });
       return;
     }
     const saved = loadPaneTabsSnapshot(norm);
@@ -138,6 +157,7 @@ export const usePaneTabsStore = create<PaneTabsState>()((set, get) => ({
       active: saved.active,
       order: saved.order,
       sessionKey: norm,
+      reloadTicks: {}, // 会话切换清刷新序号：新会话文件 tab 全新挂载，无需跟随
     });
   },
 
@@ -226,5 +246,5 @@ export function resetPaneTabsForTest(): void {
   } catch {
     /* ignore */
   }
-  usePaneTabsStore.setState({ tabs: [], active: null, order: [], sessionKey: null });
+  usePaneTabsStore.setState({ tabs: [], active: null, order: [], sessionKey: null, reloadTicks: {} });
 }
