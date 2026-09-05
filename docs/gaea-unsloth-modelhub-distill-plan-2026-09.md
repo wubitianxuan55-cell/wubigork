@@ -44,7 +44,35 @@
 1. **内部 API 契约漂移**：load/hub-local 均非文档化端点。现有降级（hub-local 失败→只列已加载）保主链路；MH2 落地时补「404/结构变化」测试锚定，漂移时错误文案引导用户走 Studio UI 加载兜底。
 2. **幂等语义未证实**：`force_reload:false` 重复加载同模型是否幂等，官方无文档——MH4 实施前真机核对（重复 load 已加载模型），不证实则预热前先查 `/v1/models` 已含目标再跳过。
 3. **Key 安全现状已合规**：DPAPI 落盘+Manager 内存持明文+脱敏展示；预热/收敛日志不得打印 Key。
+4. **显存互斥（单卡硬约束）**：预热不是零成本——把 8GB+ 模型拉进显存会挤掉当前活跃引擎的模型（换入换出甚至 OOM）。**预热目标必须跟随「当前活跃引擎」，不得无条件预热 modelhub**；ComfyUI 预热同理且更重（见 §六）。
 
 ## 五、刀序建议
 
-MH1 → MH2 → MH3（两把小刀可并行，均零绑定）→ MH4（依赖 MH2 的状态收敛，且需真机核对幂等语义）。
+MH1 → MH2 → MH3（两把小刀可并行，均零绑定）→ MH4（依赖 MH2 的状态收敛；前置=幂等语义真机核对 + 活跃引擎判定，见 §六显存互斥）。CU1/CU2 与 MH 系列文件零交叠可并行；herdsman 不立项（§六）。
+
+## 六、其它本地引擎适用性对照（2026-09-05 补，用户问：herdsman / ComfyUI 能否参考此方式）
+
+**结论先行：herdsman 不可蒸馏（零加载面 API，gaea 是纯客户端无从干预）；ComfyUI 是「常驻预热」最大受益者，但触发点必须重新设计。**
+
+### 6.1 herdsman（OpenAI 兼容，localhost:8080/v1）——不立项
+
+- **API 面全清单核验**（herdsman-api-docs-2026-08-13，git 历史 f0332aeb^）：`/v1/models`、chat/completions、embeddings、rerank、anthropic/messages、images/*、ocr、documents/parse、audio/*、`/api/benchmarks`——**零 load/unload/keep-alive/加载状态端点**。模型生命周期完全由 herdsman 服务端内部管理，`/v1/models` 是能力清单而非已加载状态，gaea 客户端没有 MH2/MH4 的着力点。
+- **MH1 同类让位不适用**：文档未记载「省略采样参数→服务端按模型自动调优」机制，行为未证实前改请求构造是无依据的行为变更。唯一动作=**观察项 HS-obs**：真机一次 `curl` 实验对比「带/不带 temperature」的响应差异，证实服务端有默认采样调优后再议。
+- 已有的 `HerdsmanModelCatalog` 只读目录（v4.101 线 B）已覆盖「能力分族展示」，MH3 同类引导无增量。
+
+### 6.2 ComfyUI（internal/ai/image_comfyui.go）——预热最大受益者（CU1–CU3）
+
+- **惰性加载实锤**：模型由 workflow 内 CheckpointLoaderSimple/UNETLoader 节点按名加载（gaea 已用端点=object_info/prompt/history/upload/image），首图要把几 GB checkpoint 读进显存（几十秒）——这正是 unsloth「加载快」体感差距的同类场景，预热把「惰性首次」变「提前完成」。
+- **CU1 常驻预热（触发点重设计，不能照抄 MH4）**：预热手段=后台提交一次极小空跑 workflow（1-step、64×64）把默认 checkpoint 拉进显存；但**触发点=绘梦模块首次进入（或首次生图任务前），而不是 gaea 启动**——开机不画图却常驻 8GB 生图模型会挤掉聊天主力（§四-4 显存互斥）。ComfyUI 未启动时静默降级。
+- **CU2 量化档位引导**（同 MH3 套路，纯展示层零绑定）：checkpoint 文件名自含量化标记（fp8/scaled 等，如 flux1-schnell-fp8），object_info 模型名列表即可标记「fp8=显存省/加载快」并置顶。
+- **CU3 显存释放对偶（观察项偏小刀）**：ComfyUI 官方 `POST /free {"unload_models":true,"free_memory":true}`（gaea 从未用过）——绘梦任务完成后或显存吃紧时释放，与 CU1 成「进/出」一对；实施前先真机确认本机 ComfyUI 版本支持该端点。
+
+### 6.3 对照总表
+
+| 蒸馏点 | modelhub (Unsloth) | herdsman | ComfyUI |
+|---|---|---|---|
+| MH1 采样让位 | ✅ Studio 自动调优 | ❌ 机制未证实（HS-obs 观察） | N/A（workflow 采样参数为显式必要） |
+| MH2 状态收敛 | ✅ | ❌ 无加载状态概念 | 部分：绘梦任务已有 /history 轮询；「已缓存」无公开 API，不立项 |
+| MH3 量化档位引导 | ✅ UD 变体 | ⚠️ 收益低，目录分族已覆盖 | ✅ CU2 fp8 标记置顶 |
+| MH4 常驻预热 | ✅（活跃引擎跟随） | ❌ 无 load 端点 | ✅✅ CU1，但触发点=绘梦页首入，非启动 |
+
