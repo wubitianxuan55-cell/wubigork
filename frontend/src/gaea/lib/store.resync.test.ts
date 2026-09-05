@@ -4,7 +4,7 @@
 //  - onEvent seq 缺口 → 经注入 fetcher 触发一次补拉（集成：含无 seq 旁路、冷却、失败保底、会话切换归零）
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, renderHook } from "@testing-library/react";
-import { applyEvent, initialState, parseResyncItems, reducer, useController, useStore } from "./store";
+import { applyEvent, initialState, parseResyncItems, reducer, resumeSnapshotItems, useController, useStore } from "./store";
 import { emitMock } from "./mock";
 import { resetEventSync, setEventSyncFetcher } from "./eventSync";
 import type { EventSyncSnapshot } from "./eventSync";
@@ -310,5 +310,29 @@ describe("parseResyncItems 缺省键宽容（v4.26.2 回归）", () => {
   it("缺 id / 未知 kind 维持判坏（安全边界不变）", () => {
     expect(parseResyncItems([{ kind: "user", text: "no-id" }])).toBeNull();
     expect(parseResyncItems([{ kind: "mystery", id: "m1" }])).toBeNull();
+  });
+});
+
+
+describe("resumeSnapshotItems（§8-5 resume 槽位口径统一）", () => {
+  it("合法折叠快照原样通过；running 工具卡收尾为 stopped（重启后无在跑工具）", () => {
+    const raw = [
+      { kind: "user", id: "u3", text: "做表" },
+      { kind: "assistant", id: "a7", text: "好的", reasoning: "", streaming: false },
+      { kind: "tool", id: "t2", name: "bash", args: "{}", readOnly: false, status: "running" },
+    ];
+    const items = resumeSnapshotItems(raw);
+    expect(items).not.toBeNull();
+    expect(items![0]).toMatchObject({ kind: "user", id: "u3" });
+    expect(items![2]).toMatchObject({ kind: "tool", status: "stopped" });
+  });
+
+  it("坏形状返回 null（调用方回退 History+rebuild 的 h<index> 保底）", () => {
+    expect(resumeSnapshotItems("not-an-array")).toBeNull();
+    expect(resumeSnapshotItems([{ kind: "mystery" }])).toBeNull();
+  });
+
+  it("空数组返回空数组（不是 null：空会话无需回退 History）", () => {
+    expect(resumeSnapshotItems([])).toEqual([]);
   });
 });

@@ -21,6 +21,7 @@ import type { AppBindings } from "./bridge";
 import { buildChat } from "./mock/chat";
 import { buildCore } from "./mock/core";
 import { buildCost } from "./mock/cost";
+import { buildImagegenTools } from "./mock/imagegen";
 import { buildImagehub } from "./mock/imagehub";
 import { buildMemory } from "./mock/memory";
 import { buildModel } from "./mock/model";
@@ -58,5 +59,6 @@ export function makeMockApp(): AppBindings {
     buildSettings(state),
     buildWeixin(),
     buildImagehub(),
+    buildImagegenTools(),
   );
 }

@@ -318,6 +318,24 @@ export interface AppBindings {
   SavePastedImage(dataUrl: string): Promise<string>;
   SaveAttachmentFile(fileName: string, base64Data: string): Promise<string>;
   AttachmentDataURL(path: string): Promise<string>;
+  // ── 图像域 legacy 直调族转正（v4.102，api/image.ts 消费收口；从 LegacySurfaceNames 摘除）──
+  GenerateFreeImage(prompt: string, negative: string, size: string, initImage: string, model: string, seed: number, count: number, lora: string): Promise<Record<string, unknown>>;
+  CancelImageGeneration(): Promise<boolean>;
+  GenerateMedia(params: string): Promise<Record<string, unknown>>;
+  GenerateDiagram(prompt: string): Promise<Record<string, unknown>>;
+  GetImageBackendInfo(): Promise<Record<string, string>>;
+  GetPortraitConfig(): Promise<Record<string, string>>;
+  SetPortraitConfig(backend: string, model: string): Promise<void>;
+  GetComfyUIStatus(): Promise<Record<string, unknown>>;
+  GetComfyUILoras(): Promise<Array<string>>;
+  GetComfyUITaskProgress(): Promise<Record<string, unknown>>;
+  StartComfyUI(): Promise<void>;
+  StopComfyUI(): Promise<void>;
+  GetSystemStats(): Promise<Record<string, unknown>>;
+  OpenImageSaveDir(): Promise<void>;
+  OpenNovelImagesDir(): Promise<void>;
+  GetCharacters(): Promise<Record<string, unknown>>;
+  SetCharacterPortrait(characterId: string, portraitPath: string): Promise<void>;
   // ImageHubAssets 图像域登记只读视图（按空间/来源过滤，T1 画室素材库；
   // 原 legacy wailsjsCompat 直调转正，浏览器 dev mock 可达；从 LegacySurfaceNames 摘除）。
   ImageHubAssets(space: string, sourceBoard: string, limit: number): Promise<Array<Record<string, unknown>>>;
@@ -1364,7 +1382,6 @@ type LegacySurfaceNames =
   | "BuildContextBudget"
   | "BuildRichContext"
   | "CancelCreateChapter"
-  | "CancelImageGeneration"
   | "CharacterAssociate"
   | "CharacterAssociateTo"
   | "CharacterDelete"
@@ -1447,9 +1464,6 @@ type LegacySurfaceNames =
   | "GenerateCharacterPortrait"
   | "GenerateCharacters"
   | "GenerateDefaultCanvas"
-  | "GenerateDiagram"
-  | "GenerateFreeImage"
-  | "GenerateMedia"
   | "GenerateOutlineWithDialogue"
   | "GenerateProjectCharacterFill"
   | "GenerateSceneIllustration"
@@ -1468,11 +1482,7 @@ type LegacySurfaceNames =
   | "GetChapter"
   | "GetChapterBranch"
   | "GetChapterScenes"
-  | "GetCharacters"
   | "GetChatVoiceModel"
-  | "GetComfyUILoras"
-  | "GetComfyUIStatus"
-  | "GetComfyUITaskProgress"
   | "GetCompileTemplates"
   | "GetConfig"
   | "GetDashboard"
@@ -1487,7 +1497,6 @@ type LegacySurfaceNames =
   | "GetForeshadows"
   | "GetImageBackend"
   | "GetImageBackendConfig"
-  | "GetImageBackendInfo"
   | "GetLoginStatus"
   | "GetLorebookEntries"
   | "GetModelCallStats"
@@ -1500,12 +1509,10 @@ type LegacySurfaceNames =
   | "GetOpencodeGoKeyStatus"
   | "GetOpencodeZenKeyStatus"
   | "GetOutlines"
-  | "GetPortraitConfig"
   | "GetProjectInfo"
   | "GetSensitiveLocal"
   | "GetStats"
   | "GetStyleProfile"
-  | "GetSystemStats"
   | "GetTTSConfig"
   | "GetTTSSpeakers"
   | "GetTTSStatus"
@@ -1546,8 +1553,6 @@ type LegacySurfaceNames =
   | "OfficeListFolder"
   | "OfficeReadFile"
   | "OfficeSetMode"
-  | "OpenImageSaveDir"
-  | "OpenNovelImagesDir"
   | "OpenProject"
   | "ParseLinks"
   | "QueryEntities"
@@ -1584,7 +1589,6 @@ type LegacySurfaceNames =
   | "SetActiveEngine"
   | "SetActiveOCRModel"
   | "SetActiveTTSModel"
-  | "SetCharacterPortrait"
   | "SetChatVoiceModel"
   | "SetDeepseekKey"
   | "SetGlmEndpoint"
@@ -1601,15 +1605,12 @@ type LegacySurfaceNames =
   | "SetOfficeLocal"
   | "SetOpencodeGoKey"
   | "SetOpencodeZenKey"
-  | "SetPortraitConfig"
   | "SetPromptFS"
   | "SetSensitiveLocal"
   | "Shutdown"
-  | "StartComfyUI"
   | "StartLocalTTSService"
   | "StartTTSServer"
   | "Startup"
-  | "StopComfyUI"
   | "StopTTSServer"
   | "SyncEntityDB"
   | "TTSSpeak"

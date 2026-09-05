@@ -57,6 +57,60 @@ type Action =
   | { type: "clearApproval" } | { type: "clearAsk" } | { type: "reset" };
 
 
+// ── item id 取号（GenUI 审计 §8-5 slot 口径统一）────────────────
+// 对话项 id 有三条生成路径，genui 交互状态 key（genuiStateKey 的 slot 段=
+// assistant 条目 id）要求「同一条 assistant 消息」三路同 id 才能跨重启命中：
+//   - 实时：事件 payload 可选字段 logSeq（=磁盘日志行 seq，EventLogSink 落盘
+//     时回填；后端落地前恒缺省 → 行为与旧计数器口径逐字节一致）；
+//   - resume / 补拉：后端折叠器统一以日志序取号（u/a/n/sa<seq>，见
+//     internal/app/gaea_resync.go resyncID）。
+// 日志 seq 是唯一跨重启稳定的会话内身份。本地计数器（s.seq）与日志 seq 是
+// 两个独立数字空间，resume/补拉落库的日志序 id 与后续本地新建 id 会互相穿越
+// ——counterSlot 从 s.seq 起跳过已占用后缀，保证新建 id 不撞已有条目（React
+// key 唯一 + genui 槽位不串状态）。
+
+// eventLogSeq 提取事件 payload 的可选日志序：非有限非负数视为缺省（旧后端）。
+function eventLogSeq(e: WireEvent): number | null {
+  const raw = (e as { logSeq?: unknown }).logSeq;
+  if (typeof raw !== "number" || !Number.isFinite(raw) || raw < 0) return null;
+  return Math.floor(raw);
+}
+
+// idTaken 判断 id 是否已被现有条目占用（logSeq 命中已占用时回退计数器）。
+function idTaken(items: Item[], id: string): boolean {
+  return items.some((it) => it.id === id);
+}
+
+// counterSlot 返回 prefix+start 起、第一个未被现有条目占用的数字后缀。
+// 只比对同前缀 id（不同前缀天然不相交；sa 不被 a 前缀误吸——startsWith 边界）。
+function counterSlot(items: Item[], prefix: string, start: number): number {
+  const used = new Set<number>();
+  for (const it of items) {
+    if (!it.id.startsWith(prefix)) continue;
+    const suffix = it.id.slice(prefix.length);
+    if (suffix === "") continue;
+    const n = Number(suffix);
+    if (Number.isInteger(n) && n >= 0) used.add(n);
+  }
+  let n = Math.max(0, Math.floor(start));
+  while (used.has(n)) n++;
+  return n;
+}
+
+// assistantSlot 为新建 assistant 条目取 id：logSeq 可用且未被占用 → 日志序
+// （与 resume/补拉折叠快照同口径）；否则回退本地计数器。subagent 答复气泡与
+// 折叠器同前缀 sa（foldResyncItems 的 subagent_message 条目）。返回 seq 为
+// 落库后的计数器值：日志序取号不消耗计数器（原值保留），计数器取号跳到 n+1。
+function assistantSlot(s: ControllerState, e: WireEvent, subagent: boolean): { id: string; seq: number } {
+  const prefix = subagent ? "sa" : "a";
+  const lseq = eventLogSeq(e);
+  if (lseq !== null && !idTaken(s.items, `${prefix}${lseq}`)) {
+    return { id: `${prefix}${lseq}`, seq: s.seq };
+  }
+  const n = counterSlot(s.items, prefix, s.seq);
+  return { id: `${prefix}${n}`, seq: n + 1 };
+}
+
 export function flushPendingUser(s: ControllerState): ControllerState {
   if (s.pendingUser === undefined) return s;
   // 如果消息已通过 user action 立即加入 items，只清除 pendingUser 避免重复
@@ -64,7 +118,8 @@ export function flushPendingUser(s: ControllerState): ControllerState {
   if (last && last.kind === "user" && last.text === s.pendingUser) {
     return { ...s, pendingUser: undefined };
   }
-  return { ...s, seq: s.seq + 1, items: [...s.items, { kind: "user", id: `u${s.seq}`, text: s.pendingUser }], pendingUser: undefined };
+  const n = counterSlot(s.items, "u", s.seq);
+  return { ...s, seq: n + 1, items: [...s.items, { kind: "user", id: `u${n}`, text: s.pendingUser }], pendingUser: undefined };
 }
 
 // rebuildHistoryItems 把后端历史消息还原为对话项：用户/助手正文 + 工具
@@ -185,6 +240,24 @@ export function parseResyncItems(raw: unknown): Item[] | null {
   return items;
 }
 
+// resumeSnapshotItems 校验「恢复会话」用的日志折叠快照并做恢复语义收尾
+//（GenUI 审计 §8-5 slot 口径统一）：形状坏/空返回 null（调用方回退
+// History+rebuildHistoryItems 的 h<index> 口径，legacy 会话保底）；快照里
+// status=running 的工具卡收尾为 stopped——重启后没有任何在跑的工具，与
+// rebuildHistoryItems 的 stopped 语义对齐（补拉场景刻意不做此收尾：回合
+// 可能真在跑，见 reducer case "resync"）。返回规范化后的数组，reducer 内
+// parseResyncItems 会二次校验（幂等）。
+export function resumeSnapshotItems(raw: unknown): unknown[] | null {
+  // 空数组=空会话（合法，返回 [] 让调用方短路，不必回退 History）；
+  // parseResyncItems 对空数组返回 null 是补拉场景的「无有效内容」口径，二者有意区分。
+  if (Array.isArray(raw) && raw.length === 0) return [];
+  const items = parseResyncItems(raw);
+  if (items === null) return null;
+  return items.map((it) =>
+    it.kind === "tool" && it.status === "running" ? { ...it, status: "stopped" as const } : it,
+  );
+}
+
 // 待办收尾：turn 正常结束但 todo 列表从未推进（没有 completed、也没有
 // in_progress）时，说明 agent 干完活忘了回写状态；把展示状态置为
 // completed，避免“任务已完成却一直显示 0/N 待办”。已被 agent 推进过的
@@ -242,10 +315,11 @@ export function applyEvent(s: ControllerState, e: WireEvent): ControllerState {
           : { ...it, reasoning: it.reasoning + delta, streaming: true };
         return { ...s, items: next, currentAssistant: it.id, lastAssistantIdx: idx };
       }
-      // 没有可追加的活跃 assistant 项时创建新的
-      const id = `a${s.seq}`;
+      // 没有可追加的活跃 assistant 项时创建新的（id 取号见 assistantSlot：
+      // 优先事件日志序，回退本地计数器）
+      const slot = assistantSlot(s, e, false);
       const newIdx = s.items.length;
-      return { ...s, seq: s.seq + 1, items: [...s.items, { kind: "assistant", id, text: e.kind === "text" ? delta : "", reasoning: e.kind === "reasoning" ? delta : "", streaming: true }], currentAssistant: id, lastAssistantIdx: newIdx };
+      return { ...s, seq: slot.seq, items: [...s.items, { kind: "assistant", id: slot.id, text: e.kind === "text" ? delta : "", reasoning: e.kind === "reasoning" ? delta : "", streaming: true }], currentAssistant: slot.id, lastAssistantIdx: newIdx };
     }
     case "message": {
       // 始终更新最后一个 assistant，不创建新的。
@@ -269,10 +343,11 @@ export function applyEvent(s: ControllerState, e: WireEvent): ControllerState {
         next[idx] = { ...it, text: e.text ?? it.text, reasoning: e.reasoning ?? it.reasoning, streaming: false, subagentRef: e.subagentRef };
         return { ...s, items: next, currentAssistant: undefined, lastAssistantIdx: idx };
       }
-      // 没有任何可更新的 assistant 项时创建新的（首轮且模型直接回了 message）
-      const id = `a${s.seq}`;
+      // 没有任何可更新的 assistant 项时创建新的（首轮且模型直接回了 message；
+      // 子代理答复气泡与折叠快照同前缀 sa，id 取号见 assistantSlot）
+      const slot = assistantSlot(s, e, !!e.subagentRef);
       const newIdx = s.items.length;
-      return { ...s, seq: s.seq + 1, items: [...s.items, { kind: "assistant", id, text: e.text ?? "", reasoning: e.reasoning ?? "", streaming: false, subagentRef: e.subagentRef }], currentAssistant: undefined, lastAssistantIdx: newIdx };
+      return { ...s, seq: slot.seq, items: [...s.items, { kind: "assistant", id: slot.id, text: e.text ?? "", reasoning: e.reasoning ?? "", streaming: false, subagentRef: e.subagentRef }], currentAssistant: undefined, lastAssistantIdx: newIdx };
     }
     case "tool_dispatch": {
       const t = e.tool; if (!t) return s;
@@ -564,18 +639,40 @@ export function useController() {
   const state = store(useShallow(s => s));
   const dispatch = store.getState()._dispatch;
 
+  // loadItemsFoldedFirst 对话项装载统一入口（GenUI 审计 §8-5 slot 口径统一）：
+  // GaeaResyncEvents(0) 恒返回会话全量折叠快照（id=日志序 resyncID），resume/
+  // 回退/启动三路同 id → genui 交互状态跨重启可命中；快照不可用（旧后端异常/
+  // 形状坏 null/空会话）回退 History+rebuildHistoryItems（h<index> legacy 保底）。
+  // 恒 resolve 不抛：装载失败不阻断会话流（错误走 logBridgeError 记录）。
+  const loadItemsFoldedFirst = useCallback(async (): Promise<void> => {
+    try {
+      const snap = await app.ResyncEvents(0);
+      const items = resumeSnapshotItems(snap?.items);
+      if (items) {
+        if (items.length) dispatch({ type: "resync", items });
+        return;
+      }
+    } catch (err) {
+      logBridgeError("loadItemsFoldedFirst ResyncEvents", err);
+    }
+    const ms = await app.History().catch((err: unknown) => {
+      logBridgeError("loadItemsFoldedFirst History", err);
+      return [] as HistoryMessage[];
+    });
+    if (ms.length) dispatch({ type: "history", messages: ms });
+  }, [dispatch]);
+
   const loadSessionData = useCallback(async () => {
     try {
       dispatch({ type: "meta", meta: await app.Meta() });
       dispatch({ type: "context", context: await app.ContextUsage() });
-      const history = await app.History();
-      if (history && history.length) dispatch({ type: "history", messages: history });
+      await loadItemsFoldedFirst();
     } catch (err) {
       // 启动期后端未就绪时 Meta/Context/History 可能失败：记录错误，
       // 状态保持默认值，不再静默。
       logBridgeError("loadSessionData", err);
     }
-  }, [dispatch]);
+  }, [dispatch, loadItemsFoldedFirst]);
 
   // 最终回答兜底：turn_done（或看门狗检测到后端已停）时拉一次 History，
   // 如果最后一条 assistant 正文没有渲染过，就补发一条 message 事件。
@@ -736,7 +833,7 @@ export function useController() {
       .catch((err) => { logBridgeError("fetchSessionStats", err); dispatch({ type: "sessionStats", stats: undefined }); });
   }, [dispatch]);
   const resumeSession = useCallback(async (path: string) => {
-    const ms = await app.ResumeSession(path).catch((e: unknown) => {
+    await app.ResumeSession(path).catch((e: unknown) => {
       // 恢复失败不要静默清空：给用户明确提示
       dispatch({
         type: "event",
@@ -746,12 +843,12 @@ export function useController() {
     });
     dispatch({ type: "reset" });
     resetEventSync(); // v4.26：恢复会话同样归零 seq 基线
-    if (ms.length) dispatch({ type: "history", messages: ms });
+    await loadItemsFoldedFirst(); // §8-5：折叠快照优先（日志序 id），History 保底
     // 恢复后回填会话级派生统计（成本/用量历史，评审缺陷 11 根治）
     void fetchSessionStats(path);
     app.ContextUsage().then(c => dispatch({ type: "context", context: c })).catch((err) => logBridgeError("resumeSession ContextUsage", err));
     refreshFactBase();
-  }, [dispatch, refreshFactBase, fetchSessionStats]);
+  }, [dispatch, loadItemsFoldedFirst, refreshFactBase, fetchSessionStats]);
   const archiveSession = useCallback((path: string) => app.ArchiveSession(path).catch((err) => failWrite(dispatch, "归档会话", err)), [dispatch]);
   const unarchiveSession = useCallback((path: string): Promise<string> => app.UnarchiveSession(path).catch((err) => { failWrite(dispatch, "取消归档", err); return ""; }), [dispatch]);
   const pinSession = useCallback((path: string, pinned: boolean) => app.PinSession(path, pinned).catch((err) => failWrite(dispatch, "更新固定状态", err)), [dispatch]);
@@ -821,12 +918,11 @@ export function useController() {
     else if (scope === "summ-upto") ok = await act(app.SummarizeUpTo(turn));
     else ok = await act(app.Rewind(turn, scope));
     if (!ok) return;
-    const ms = await app.History().catch((err) => { logBridgeError("rewind History", err); return [] as HistoryMessage[]; });
     dispatch({ type: "reset" });
     resetEventSync(); // v4.26：回退重载历史，seq 基线归零
-    if (ms.length) dispatch({ type: "history", messages: ms });
+    await loadItemsFoldedFirst(); // §8-5：折叠快照优先（日志序 id），History 保底
     app.ContextUsage().then(c => dispatch({ type: "context", context: c })).catch((err) => logBridgeError("rewind ContextUsage", err));
-  }, [dispatch]);
+  }, [dispatch, loadItemsFoldedFirst]);
 
   return { state, send, steer, cancel, approve, answerQuestion, setPermLevel, newSession, listSessions, listProjectSessions, resumeSession, archiveSession, unarchiveSession, pinSession, deleteSession, renameSession, refreshMeta, pickWorkspace, switchWorkspace, compact, rewind, setModel, fetchMemory, remember, forget, saveDoc, updateFact, changeFactType, clearFactBase, promoteFactBase, fetchSessionStats };
 }

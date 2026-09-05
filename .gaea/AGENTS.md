@@ -5,6 +5,15 @@
 
 ## 版本状态（顶部速览）
 
+- **最新发布：v4.102.0（2026-09-05）「Hub 落库 + 围栏 slot 口径统一 · 图像域
+  17 绑定转正 · Model Hub mock」**——**绑定面权威口径 584**（Model Hub 线 +3
+  落库 6cd891df；本刀零新增）：§8-5 resume 槽位口径统一（实时取号优先日志序、
+  三路装载折叠快照优先+History 保底、旧 key 任其 LRU 逐出，GenUI 审计全清）；
+  图像域 17 绑定转正（分类锁 297、api/image.ts 三态回退、mock+契约）；Model
+  Hub/OpenCode Key mock 补齐（modelcenter 走查 CLEAN）；附带修复 v4.101 漏
+  提交事故（补提交 efe80310 + 教训入册：多步 add 后必须 diff --cached --stat
+  对照清单核数）。Go 全量 0 FAIL、vitest 256/2034、drift PASS（584）。
+  详见 releases/v4.102.0.md。
 - **最新发布：v4.101.0（2026-09-05）「三线并行：GenUI 围栏 Go 侧收口 · 画室
   模型目录 · 深检误报缓解」**——绑定面 581 零变更：审计 §8 六项落地（共享
   剥离 helper internal/gaea/genui/fence.go 围栏折叠 `[genui 组件]` 占位正文

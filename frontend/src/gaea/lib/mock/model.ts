@@ -142,7 +142,8 @@ type ModelMethods = Pick<
   | "Models" | "SetModel"
   | "KeepWarmGet" | "KeepWarmSet" | "PreloadPlanGet" | "PreloadPlanSet"
   | "ModelSwitchEstimate" | "Balance"
-> & LegacyModelMethods & LegacyHerdsmanMethods & LegacyBenchmarkMethods;
+> & LegacyModelMethods & LegacyHerdsmanMethods & LegacyBenchmarkMethods &
+  LegacyModelHubMethods & LegacyOpencodeKeyMethods;
 
 // HerdsmanCatalogModel 本地视图（对齐 internal/app/herdsman_catalog.go 的 json
 // 字段；mock 层不 import Go 侧，字段漂移由 mock-contract-herdsman 兜底）。
@@ -244,7 +245,38 @@ const HERDSMAN_CATALOG_SAMPLE: HerdsmanCatalogModelMock[] = [
   },
 ];
 
+// Model Hub（Unsloth）本地引擎（6cd891df 落库，legacy 直调面同款局部类型补足）。
+// 语义：Set 成功=浏览器内存态联动（makeMockApp 每次新建即回未配置，诚实无持久化）；
+// Start 无本地引擎进程，诚实失败（rejected promise）——照 GetProgrammingWebStatus
+// 「浏览器 mock 恒为未运行」先例。
+type LegacyModelHubMethods = {
+  SetModelHubKey(apiKey: string): Promise<void>;
+  GetModelHubKeyStatus(): Promise<{ configured: boolean; masked: string }>;
+  StartModelHubModel(modelID: string): Promise<void>;
+};
+
+// OpenCode Go/Zen Key（v4.4x 既有的 legacy 直调族，modelcenter 引擎管理同屏消费；
+// 补 mock 消「引擎管理运行态报错」同族欠账）。语义同上：内存态联动、无持久化。
+type LegacyOpencodeKeyMethods = {
+  SetOpencodeGoKey(apiKey: string): Promise<void>;
+  GetOpencodeGoKeyStatus(): Promise<{ configured: boolean; masked: string }>;
+  SetOpencodeZenKey(apiKey: string): Promise<void>;
+  GetOpencodeZenKeyStatus(): Promise<{ configured: boolean; masked: string }>;
+};
+
+// 脱敏口径对齐 internal/app/model_engine_handler.go maskKeyStatus：
+// >8 位=前 4 + **** + 后 4，其余 ****，空=未配置。
+function maskMockKey(key: string): { configured: boolean; masked: string } {
+  if (!key) return { configured: false, masked: "" };
+  if (key.length <= 8) return { configured: true, masked: "****" };
+  return { configured: true, masked: key.slice(0, 4) + "****" + key.slice(-4) };
+}
+
 export function buildModel(s: MakeMockState): ModelMethods {
+  // Key 内存态（makeMockApp 每次新建=重置；?mock=1 刷新即回未配置，诚实语义）
+  let modelHubKey = "";
+  let opencodeGoKey = "";
+  let opencodeZenKey = "";
   return {
     async Models() {
       // 契约对齐 Go GaeaModels（internal/app/gaea_ui_meta.go）：ref = 引擎ID + "/" + 模型，
@@ -442,6 +474,31 @@ export function buildModel(s: MakeMockState): ModelMethods {
     // 呈现「无本地引擎」chip + 0% 条，不编造真实 CPU/显存数值。
     async GetModelMonitor(): Promise<ResourceMonitorDataMock> {
       return { engines: [], stats: {}, comfyRunning: false };
+    },
+    // ── Model Hub（Unsloth）与 OpenCode Key：浏览器内存态联动，无持久化 ──
+    async SetModelHubKey(apiKey: string): Promise<void> {
+      if (!apiKey || !apiKey.trim()) throw new Error("API Key 不能为空");
+      modelHubKey = apiKey.trim();
+    },
+    async GetModelHubKeyStatus() {
+      return maskMockKey(modelHubKey);
+    },
+    async StartModelHubModel(_modelID: string): Promise<void> {
+      throw new Error("浏览器 dev mock 无本地 Unsloth Studio 进程，模型加载不可用（mock）");
+    },
+    async SetOpencodeGoKey(apiKey: string): Promise<void> {
+      if (!apiKey || !apiKey.trim()) throw new Error("API Key 不能为空");
+      opencodeGoKey = apiKey.trim();
+    },
+    async GetOpencodeGoKeyStatus() {
+      return maskMockKey(opencodeGoKey);
+    },
+    async SetOpencodeZenKey(apiKey: string): Promise<void> {
+      if (!apiKey || !apiKey.trim()) throw new Error("API Key 不能为空");
+      opencodeZenKey = apiKey.trim();
+    },
+    async GetOpencodeZenKeyStatus() {
+      return maskMockKey(opencodeZenKey);
     },
   };
 }

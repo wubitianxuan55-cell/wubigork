@@ -65,6 +65,26 @@ export const GAEA_METHOD_FACETS = {
   // v4.7 S4.6 命令面板接统一意图路由：触点层内核两空间共用（路线图 §10.4a
   // 「路由内核是触点层内核（两空间共用家底）」），dry-run 预览-确认制防误触发
   RouteIntent: "shared",
+  // ── 图像域 legacy 直调族转正（v4.102）：绘梦/图示消费面=play；角色数据
+  // （GetCharacters/SetCharacterPortrait）跨画室参考槽（play）与青鸟/角色域
+  // （work）两用 → shared。分类锁同步见 spaceBindings.test.ts。──
+  GenerateFreeImage: "play",
+  CancelImageGeneration: "play",
+  GenerateMedia: "play",
+  GenerateDiagram: "play",
+  GetImageBackendInfo: "play",
+  GetPortraitConfig: "play",
+  SetPortraitConfig: "play",
+  GetComfyUIStatus: "play",
+  GetComfyUILoras: "play",
+  GetComfyUITaskProgress: "play",
+  StartComfyUI: "play",
+  StopComfyUI: "play",
+  GetSystemStats: "play",
+  OpenImageSaveDir: "play",
+  OpenNovelImagesDir: "play",
+  GetCharacters: "shared",
+  SetCharacterPortrait: "shared",
   // 图像域登记只读视图（T1 画室素材库）：space 由参数承担、两空间各自 ledger，
   // 消费面绘梦（play）与后续工位配图（work）都会调 → shared（转正自 Legacy 直调）。
   ImageHubAssets: "shared",

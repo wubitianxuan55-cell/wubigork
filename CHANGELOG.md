@@ -1,3 +1,11 @@
+## v4.102.0 · Hub 落库 + 围栏 slot 口径统一 · 图像域 17 绑定转正 · Model Hub mock（2026-09-05）
+> Model Hub（Unsloth）并行会话线完结落库（6cd891df）后解禁的收尾三线；绑定面 584（+3 为 Hub 线绑定，本刀零新增）。详见 releases/v4.102.0.md。
+- **附带修复**：v4.101 提交事故补录——第一批 git add 因错误路径整批失败（报错被吞）、第二批漏列围栏接线 5 文件 + 2 测试文件，已补提交（efe80310）；教训入册（多步 add 后必须 git diff --cached --stat 对照预期清单核数）。
+- **GenUI 审计 §8-5 resume 槽位口径统一**（最后一项遗留，跨层收口）：实时 assistant 取号优先事件日志序（assistantSlot，logSeq 缺省回退计数器=旧后端逐字节兼容）；resume/回退/启动三路装载统一「GaeaResyncEvents(0) 折叠快照优先（id=日志序）+ History+rebuildHistoryItems 保底」——genui 交互状态跨重启可命中（旧 h<index>/旧 seq key 任其 LRU 逐出不迁移）；空数组=空会话短路。
+- **图像域 17 绑定转正 AppBindings/spaceBindings**（GenerateFreeImage/CancelImageGeneration/GenerateMedia/GenerateDiagram/GetImageBackendInfo/GetPortraitConfig/SetPortraitConfig/GetComfyUIStatus/GetComfyUILoras/GetComfyUITaskProgress/StartComfyUI/StopComfyUI/GetSystemStats/OpenImageSaveDir/OpenNovelImagesDir=play，GetCharacters/SetCharacterPortrait=shared；分类锁 280→297）；api/image.ts 全部直调迁 appFacade 三态回退（wailsjsCompat import 清零）；dev mock 补 mock/imagegen.ts 17 方法（查询中性空态/动作诚实失败/GetCharacters 最小样例）+ 契约测试。
+- **Model Hub / OpenCode Key dev mock 补齐**：SetModelHubKey（内存态联动）/GetModelHubKeyStatus（脱敏对齐 maskKeyStatus）/StartModelHubModel（无本地引擎诚实失败）+ OpenCode Go/Zen Key 四方法同族欠账销账 + 契约测试；?mock=1 modelcenter 全区块零 is-not-a-function 报错。
+- 门禁：Go 全量 0 FAIL、tsc -b/eslint 0、vitest 256 文件/2034 用例全绿（净增 2 文件/10 用例）、drift PASS（584）、?mock=1 模型中心走查 CLEAN。
+
 ## v4.101.0 · 三线并行：GenUI 围栏 Go 侧收口 · 画室模型目录 · 深检误报缓解（2026-09-05）
 > 「继续」惯例三线并行（避开并行会话 Model Hub 线禁区）；**绑定面 581 零变更**。详见 releases/v4.101.0.md。
 - **GenUI 围栏纪律 Go 侧收口**（审计 §8 六项落地，第 5 项 resume 槽位口径另行排期）：新共享剥离 helper internal/gaea/genui/fence.go（行扫描语义照搬前端 splitGenuiFences，围栏折叠为 `[genui 组件]` 占位、正文逐字保留）；做梦 dreamInput / BuildCompactSummary pendingItems / whisper companion_reply 摘要三处剥离（JSON 不再占 1500 字符窗口与入记忆）；压缩 summarySystemPrompt 增补「UI 围栏 JSON 不原样收录」指引；办公面板 append 去重键改 spec 指纹（resync 不再重复追加）；会话删除按 stateKey 前缀清理 genui 交互状态与面板（App 删除点接线）。

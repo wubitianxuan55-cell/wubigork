@@ -1,9 +1,11 @@
 # 任务进度
 
-> 最后更新: 2026-09-05（v4.101.0「三线并行：GenUI 围栏 Go 侧收口 · 画室模型
-> 目录 · 深检误报缓解」，绑定面 581 零变更；v4.100.0「三线并行：画室 T1 余件
-> · 办公 U4 前半 · GenUI 围栏审计」，绑定面 581 零变更；v4.99.0「三线并行：
-> 图像域 T1 收口 ·
+> 最后更新: 2026-09-05（v4.102.0「Hub 落库 + 围栏 slot 口径统一 · 图像域 17
+> 绑定转正 · Model Hub mock」，绑定面 584；Model Hub（Unsloth）并行会话线完结
+> 落库 6cd891df + v4.101 漏提交补录 efe80310；v4.101.0「三线并行：GenUI 围栏
+> Go 侧收口 · 画室模型目录 · 深检误报缓解」，绑定面 581 零变更；v4.100.0
+> 「三线并行：画室 T1 余件 · 办公 U4 前半 · GenUI 围栏审计」，绑定面 581 零
+> 变更；v4.99.0「三线并行：图像域 T1 收口 ·
 > 办公 U2 回合投影 · GaeaListDir 硬化」，绑定面 581 零变更、
 > ImageHubAssets/ChapterArtList 前端转正 AppBindings；v4.98.0「图像域 T0
 > 契约落地：登记底座 · 素材库 ·
@@ -33,6 +35,30 @@
 > 索引（101 个发布说明）已刷新。本会话另落 GitHub 市场调研三路
 > （docs/research-2026-09-05/ + market-research-2026-09-05.md）与
 > 长期规划回填）
+
+## 最新发布：v4.102.0（2026-09-05）「Hub 落库 + 围栏 slot 口径统一 · 图像域 17 绑定转正 · Model Hub mock」
+
+- 用户确认 Model Hub（Unsloth）线完结后落库（6cd891df，835 行：modelcenter
+  Unsloth 设置区/engine Key 管理/config/modelengine/model_router），**绑定面
+  权威口径 579→584**（+3=SetModelHubKey/GetModelHubKeyStatus/StartModelHubModel，
+  legacy 直调面）。**附带修复 v4.101 提交事故**：第一批 add 整批失败被吞、第二批
+  漏列围栏接线 5+2 文件 → 补提交 efe80310（tag 不移，release 补记；教训=多步
+  add 后必须 git diff --cached --stat 对照清单核数）。
+- **§8-5 resume 槽位口径统一**（GenUI 审计最后一项）：实时 assistantSlot 优先
+  事件日志序（logSeq 缺省回退计数器=旧后端逐字节兼容）；loadItemsFoldedFirst
+  三路装载（resume/回退/启动）统一「GaeaResyncEvents(0) 折叠快照优先（id=日志
+  序）+ History 保底」——genui 交互状态跨重启可命中；旧 key 不迁移任其 LRU
+  逐出；resumeSnapshotItems（running 工具卡收尾 stopped、空数组=空会话短路）。
+- **图像域 17 绑定转正**（GenerateFreeImage 等 15=play、GetCharacters/
+  SetCharacterPortrait=shared；分类锁 280→297）：api/image.ts 直调迁 appFacade
+  三态回退（wailsjsCompat import 清零，facade 类型=消费端形状消灭 any）；
+  mock/imagegen.ts 17 方法（查询中性空态/动作诚实失败）+ 契约 3 例。
+- **Model Hub/OpenCode Key mock 补齐**：七方法（Key 内存态联动+脱敏对齐
+  maskKeyStatus+Start 诚实失败）+ 契约 4 例；?mock=1 modelcenter 全区块走查
+  CLEAN（零 is-not-a-function，Unsloth 卡片真机配置后出现=预期）。
+- 门禁：Go 全量 0 FAIL、tsc -b/eslint 0、vitest **256/2034**（净增 2 文件/
+  10 用例）、drift PASS（584）。
+- 详见 releases/v4.102.0.md。
 
 ## 最新发布：v4.101.0（2026-09-05）「三线并行：GenUI 围栏 Go 侧收口 · 画室模型目录 · 深检误报缓解」
 

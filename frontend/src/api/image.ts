@@ -4,7 +4,6 @@
  */
 
 import type { GenResult } from '../components/imagegen/types'
-import * as App from '../../src/wailsjsCompat'
 import { app as bridgeApp } from '../gaea/lib/bridge'
 
 // 三态回退（v4.58 wailsjsCompat 消费族模式）：?mock=1 下 window.go 刻意为空，
@@ -24,6 +23,24 @@ type ImageHubFacade = {
   CharacterList(query: string, kind: string, chatOnly: boolean, page: number, pageSize: number):
     Promise<{ items?: Array<Record<string, unknown>>; total?: number }>
   HerdsmanModelCatalog(): Promise<HerdsmanCatalogView>
+  // ── 图像域 legacy 直调族（v4.102 转正 AppBindings，此处统一走三态回退）──
+  GenerateFreeImage(prompt: string, negative: string, size: string, initImage: string, model: string, seed: number, count: number, lora: string): Promise<{ error?: string; images?: Array<GenImageLike> }>
+  CancelImageGeneration(): Promise<boolean>
+  GenerateMedia(params: string): Promise<{ error?: string; results?: Array<GenImageLike>; mode?: string }>
+  GenerateDiagram(prompt: string): Promise<{ error?: string; code?: string }>
+  GetImageBackendInfo(): Promise<Partial<BackendInfo>>
+  GetPortraitConfig(): Promise<{ backend?: string; model?: string }>
+  SetPortraitConfig(backend: string, model: string): Promise<void>
+  GetComfyUIStatus(): Promise<Record<string, unknown>>
+  GetComfyUILoras(): Promise<Array<string>>
+  GetComfyUITaskProgress(): Promise<Partial<ComfyTaskProgress>>
+  StartComfyUI(): Promise<void>
+  StopComfyUI(): Promise<void>
+  GetSystemStats(): Promise<Partial<SystemStats>>
+  OpenImageSaveDir(): Promise<void>
+  OpenNovelImagesDir(): Promise<void>
+  GetCharacters(): Promise<{ characters?: Array<Record<string, unknown>> }>
+  SetCharacterPortrait(characterId: string, portraitPath: string): Promise<void>
 }
 const appFacade = (): ImageHubFacade => (window.go?.app?.App ?? bridgeApp) as unknown as ImageHubFacade
 
@@ -67,14 +84,14 @@ interface GenImageLike {
 
 /** 获取后端信息 */
 export async function getImageBackendInfo(): Promise<BackendInfo> {
-  const info = await App.GetImageBackendInfo()
+  const info = await appFacade().GetImageBackendInfo()
   return info as unknown as BackendInfo
 }
 
 /** 获取角色列表 */
 export async function getCharacters(): Promise<{ id: string; name: string }[]> {
   try {
-    const cf = await App.GetCharacters()
+    const cf = await appFacade().GetCharacters()
     if (cf?.characters) {
       return cf.characters.map((c: { id?: string; name?: string }) => ({ id: c.id ?? '', name: c.name ?? '' }))
     }
@@ -84,7 +101,7 @@ export async function getCharacters(): Promise<{ id: string; name: string }[]> {
 
 /** 获取 ComfyUI 状态 */
 export async function getComfyUIStatus(): Promise<ComfyUIStatus> {
-  const s = await App.GetComfyUIStatus()
+  const s = await appFacade().GetComfyUIStatus()
   return s as unknown as ComfyUIStatus
 }
 
@@ -96,7 +113,7 @@ export interface ComfyLorasResult {
 
 export async function getComfyUILoras(): Promise<ComfyLorasResult> {
   try {
-    const list = await App.GetComfyUILoras()
+    const list = await appFacade().GetComfyUILoras()
     return { list: Array.isArray(list) ? list : [] }
   } catch (e: unknown) {
     return { list: [], error: e instanceof Error ? e.message : 'LoRA 列表加载失败' }
@@ -106,7 +123,7 @@ export async function getComfyUILoras(): Promise<ComfyLorasResult> {
 /** 获取系统状态 */
 export async function getSystemStats(): Promise<SystemStats | null> {
   try {
-    const s = await App.GetSystemStats()
+    const s = await appFacade().GetSystemStats()
     return s as unknown as SystemStats
   } catch (_) {
     return null
@@ -116,7 +133,7 @@ export async function getSystemStats(): Promise<SystemStats | null> {
 /** 获取角色库剧照独立后端/模型（空 = 跟随绘梦） */
 export async function getPortraitConfig(): Promise<{ backend: string; model: string }> {
   try {
-    const r = await App.GetPortraitConfig()
+    const r = await appFacade().GetPortraitConfig()
     return (r || { backend: '', model: '' }) as { backend: string; model: string }
   } catch (_) {
     return { backend: '', model: '' }
@@ -125,7 +142,7 @@ export async function getPortraitConfig(): Promise<{ backend: string; model: str
 
 /** 设置角色库剧照独立后端/模型（空 = 跟随绘梦） */
 export async function setPortraitConfig(backend: string, model: string): Promise<void> {
-  await App.SetPortraitConfig(backend, model)
+  await appFacade().SetPortraitConfig(backend, model)
 }
 
 /** 生成图片 */
@@ -134,7 +151,7 @@ export async function generateImage(
   model: string, seed: number, count: number,
   lora?: string,
 ): Promise<{ error?: string; images?: GenResult[] }> {
-  const res = await App.GenerateFreeImage(prompt.trim(), negative.trim(), size, '', model, seed, count, lora || '')
+  const res = await appFacade().GenerateFreeImage(prompt.trim(), negative.trim(), size, '', model, seed, count, lora || '')
   if (res?.error) return { error: res.error }
   if (res?.images?.length) {
     const images: GenResult[] = res.images.map((img: GenImageLike) => ({
@@ -150,7 +167,7 @@ export async function generateImage(
 
 /** 取消当前正在执行的图片/视频生成任务 */
 export async function cancelImageGeneration(): Promise<boolean> {
-  return App.CancelImageGeneration()
+  return appFacade().CancelImageGeneration()
 }
 
 /**
@@ -338,7 +355,7 @@ export interface ComfyTaskProgress {
 
 /** 获取当前 ComfyUI 任务状态（前端轮询显示） */
 export async function getComfyUITaskProgress(): Promise<ComfyTaskProgress> {
-  const p = await App.GetComfyUITaskProgress()
+  const p = await appFacade().GetComfyUITaskProgress()
   return (p || { status: '', elapsed: 0 }) as ComfyTaskProgress
 }
 
@@ -346,7 +363,7 @@ export async function getComfyUITaskProgress(): Promise<ComfyTaskProgress> {
 export async function generateDiagram(
   prompt: string,
 ): Promise<{ error?: string; code?: string }> {
-  const res = await App.GenerateDiagram(prompt.trim())
+  const res = await appFacade().GenerateDiagram(prompt.trim())
   return (res || {}) as { error?: string; code?: string }
 }
 
@@ -374,7 +391,7 @@ export interface MediaParams {
 export async function generateMedia(
   params: MediaParams,
 ): Promise<{ error?: string; results?: GenResult[]; mode?: string }> {
-  const res = await App.GenerateMedia(JSON.stringify(params))
+  const res = await appFacade().GenerateMedia(JSON.stringify(params))
   if (res?.error) return { error: res.error }
   if (res?.results?.length) {
     const results: GenResult[] = res.results.map((img: GenImageLike) => ({
@@ -396,25 +413,25 @@ export async function generateMedia(
 /** 启动 ComfyUI */
 /** 启动 ComfyUI */
 export async function startComfyUI(): Promise<void> {
-  await App.StartComfyUI()
+  await appFacade().StartComfyUI()
 }
 
 /** 停止 ComfyUI */
 export async function stopComfyUI(): Promise<void> {
-  await App.StopComfyUI()
+  await appFacade().StopComfyUI()
 }
 
 /** 打开图片保存目录 */
 export async function openImageSaveDir(): Promise<void> {
-  await App.OpenImageSaveDir()
+  await appFacade().OpenImageSaveDir()
 }
 
 /** 打开小说图片目录 */
 export async function openNovelImagesDir(): Promise<void> {
-  await App.OpenNovelImagesDir()
+  await appFacade().OpenNovelImagesDir()
 }
 
 /** 设置角色剧照 */
 export async function setCharacterPortrait(charID: string, imageData: string): Promise<void> {
-  await App.SetCharacterPortrait(charID, imageData)
+  await appFacade().SetCharacterPortrait(charID, imageData)
 }
