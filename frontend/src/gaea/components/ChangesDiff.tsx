@@ -16,8 +16,10 @@ import "./changesdiff-tok.css";
 // v4.87「2c 统一 diff 渲染升级」：改蓝配对（相邻删块+增块按行配对成
 // 「改动」对，蓝底替代红/绿）+ 行内字符高亮（配对行内变化片段加删除/
 // 新增强调）+ 上下文折叠（连续 ctx 行中段收起可展开）。三个数据源
-// （变更面板 LCS、Git 面板 unified diff、后续归入的 docx/xlsx 对比）
-// 共用本查看器。语法着色留阶段三（CodeMirror）。
+// （变更面板 LCS、Git 面板 unified diff、版本时间线 text/docx/xlsx 对比）
+// 共用本查看器。语法着色经 path 参数（diffHighlight）。DiffRow.marker
+// （docx 段落序号 / xlsx 单元格 ref）渲染为 +/- 列后的定宽右对齐暗色列，
+// 配对与折叠占位都携带原行对象，marker 不丢；无 marker 的数据源零变化。
 
 // 单 hunk 最大渲染行数：超出截断（LCS 全量行可能上万）。
 const MAX_ROWS = 300;
@@ -71,10 +73,18 @@ function PresentRows({ present, path }: { present: DiffPresentRow[]; path?: stri
               </button>
             );
           }
-          // 展开态：原上下文行就地渲染。
+          // 展开态：原上下文行就地渲染（marker 列照常携带，docx 段号不丢）。
           return p.rows.map((r, k) => (
             <div key={`${i}-${k}`} className="flex whitespace-pre-wrap break-all" style={{ background: "transparent" }}>
               <span className="w-4 shrink-0 text-center select-none opacity-70"> </span>
+              {r.marker !== undefined && (
+                <span
+                  className="w-9 shrink-0 select-none text-right tabular-nums opacity-60"
+                  style={{ color: "var(--md-sys-color-text-secondary)" }}
+                >
+                  {r.marker}
+                </span>
+              )}
               <span className="flex-1 min-w-0 pr-2" style={{ color: "var(--md-sys-color-text-secondary)" }}>
                 {r.text === "" ? " " : r.text}
               </span>
@@ -111,6 +121,14 @@ function PresentRows({ present, path }: { present: DiffPresentRow[]; path?: stri
             >
               {r.type === "add" ? "+" : r.type === "del" ? "-" : " "}
             </span>
+            {r.marker !== undefined && (
+              <span
+                className="w-9 shrink-0 select-none text-right tabular-nums opacity-60"
+                style={{ color: "var(--md-sys-color-text-secondary)" }}
+              >
+                {r.marker}
+              </span>
+            )}
             <span className="flex-1 min-w-0 pr-2" style={{ color: fg }}>
               {paired && r.type === "del"
                 ? <Segments segs={charSegments(p.pairOld!, p.pairNew!).oldSegs} side="old" />

@@ -141,11 +141,33 @@ function taskDescOf(args: unknown): string {
 }
 
 /**
- * matchRunningRun：args 任务描述 ↔ run.task 归一化（trim）双向包含匹配。
+ * matchRunningCandidates：args 任务描述 ↔ run.task 归一化（trim）双向包含
+ * 匹配，返回全部命中的 running run（保序）。命中语义与 matchRunningRun
+ * 同源：desc 包含 run.task 或 run.task 包含 desc 任一成立（覆盖模型短摘要
+ * vs transcript 长首条消息两个方向）；非 running、task 空/缺失的 run 跳过。
  * Why 只有 trim：派发双方都以中文任务描述为主，大小写折叠收益极小反而
- * 扩大误配面；「前缀命中」是「包含命中」的子集，统一用双向 contains 判定。
- * 命中语义：desc 包含 run.task 或 run.task 包含 desc 任一成立（覆盖模型
- * 短摘要 vs transcript 长首条消息两个方向）。
+ * 扩大误配面。args 无描述文本 → 空数组（宁缺勿错，不炸）。
+ * 消费方：App 侧「多候选歧义」链路（整卡可点 → 点击弹选择器人工挑一个），
+ * 以及 matchRunningRun 的唯一命中判定。
+ */
+export function matchRunningCandidates<T extends SubagentRunLike>(
+  args: unknown,
+  runs: readonly T[],
+): T[] {
+  const desc = taskDescOf(args);
+  if (!desc) return [];
+  const hits: T[] = [];
+  for (const r of runs) {
+    if (r.status !== "running") continue;
+    const t = typeof r.task === "string" ? r.task.trim() : "";
+    if (!t) continue;
+    if (t.includes(desc) || desc.includes(t)) hits.push(r);
+  }
+  return hits;
+}
+
+/**
+ * matchRunningRun：matchRunningCandidates 的唯一命中包装（语义不变）。
  * 返回：恰好一个 running run 命中 → 该 run；0 或 ≥2 命中、args 无描述
  * 文本 → null（宁缺勿错：绝不把别的子代理动态安到错误卡片上）。
  */
@@ -153,19 +175,8 @@ export function matchRunningRun<T extends SubagentRunLike>(
   args: unknown,
   runs: readonly T[],
 ): T | null {
-  const desc = taskDescOf(args);
-  if (!desc) return null;
-  let hit: T | null = null;
-  for (const r of runs) {
-    if (r.status !== "running") continue;
-    const t = typeof r.task === "string" ? r.task.trim() : "";
-    if (!t) continue;
-    if (t.includes(desc) || desc.includes(t)) {
-      if (hit) return null; // 第二个命中即歧义：立即放弃
-      hit = r;
-    }
-  }
-  return hit;
+  const hits = matchRunningCandidates(args, runs);
+  return hits.length === 1 ? hits[0] : null;
 }
 
 // ── 打开子代理会话 tab 的注入点（v4.63，用户点名）────────────────────
@@ -210,6 +221,62 @@ export function openTaskCardSession(ref: string): boolean {
   if (!openHandler || !ref) return false;
   try {
     openHandler(ref);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// ── 多候选歧义点击（v4.68，用户点名）────────────────────────────────
+// 空 ref 并行多 running 时 matchRunningRun 按宁缺勿错返回 ""（卡不可点），
+// 用户此前没有任何入口。本槽位把「多候选」从死路改成人工选择：App 注册
+// 歧义判定（渲染期查询）与点击回调（弹选择器，人工挑一个再跳转）。
+// 宁缺勿错红线不变：0/1 候选走原链路（不可点/直接跳转），选择器只由用户
+// 点击触发，绝不自动跳转。activity provider 链路不受影响。
+//
+// 契约（镜像 openTarget/openHandler 的「解析/执行」两槽位拆分）：
+//  - setTaskCardAmbiguityResolver(fn)：App 注入「该卡是否处于多候选歧义态」
+//    的纯判定，渲染期逐卡查询；fn 收到与 getTaskCardOpenTarget 相同的
+//    (ref, args)。ref 非空（已有唯一目标）时必须返回 false。
+//  - setTaskCardAmbiguityHandler(fn)：App 注入点击回调（弹选择器）；fn 收到
+//    卡片原始 args，候选集由 App 在点击瞬间现算（数据最新鲜，不传快照）。
+//  - 两槽位置 null 即卸载注入，卡片回退现状（歧义卡不可点）。
+
+let ambiguityResolver: ((ref: string, args?: unknown) => boolean) | null = null;
+let ambiguityHandler: ((args?: unknown) => void) | null = null;
+
+/** 注入/卸载（null）歧义判定。重复注入以最后一次为准。 */
+export function setTaskCardAmbiguityResolver(
+  fn: ((ref: string, args?: unknown) => boolean) | null,
+): void {
+  ambiguityResolver = typeof fn === "function" ? fn : null;
+}
+
+/** 注入/卸载（null）歧义点击回调。重复注入以最后一次为准。 */
+export function setTaskCardAmbiguityHandler(fn: ((args?: unknown) => void) | null): void {
+  ambiguityHandler = typeof fn === "function" ? fn : null;
+}
+
+/** 是否已注入歧义点击回调：未注入时歧义卡按现状渲染（不可点）。 */
+export function hasTaskCardAmbiguityHandler(): boolean {
+  return ambiguityHandler !== null;
+}
+
+/** 卡片侧查询：该卡是否处于多候选歧义态（无注入/异常 → false，渲染不炸）。 */
+export function getTaskCardAmbiguity(ref: string, args?: unknown): boolean {
+  if (!ambiguityResolver) return false;
+  try {
+    return !!ambiguityResolver(ref, args);
+  } catch {
+    return false;
+  }
+}
+
+/** 卡片点击派发歧义；返回是否已派发（false = 无注入，调用方维持现状）。 */
+export function fireTaskCardAmbiguity(args?: unknown): boolean {
+  if (!ambiguityHandler) return false;
+  try {
+    ambiguityHandler(args);
     return true;
   } catch {
     return false;

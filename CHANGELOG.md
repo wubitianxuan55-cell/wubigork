@@ -1,4 +1,12 @@
+## v4.95.0 · 三线并行收欠账：版本对比入统一查看器 · README 内嵌 HTML 白名单 · 子代理歧义选择器（2026-09-05）
+> 「继续」惯例：欠账池挑互不相交线并行子代理；**绑定面 579 零变更**（纯前端三线）。详见 releases/v4.95.0.md。
+- **刀A docx/xlsx 对比迁移 ChangesDiff**（v4.87 成文计划最后一项）：DiffRow 增可选 marker 列（docx 段号/xlsx 单元格 ref，pairModifications 整行 spread 防丢）；VersionTimeline 对比体改经 ChangesDiff——xlsx 每 sheet 一个 hunk，change 单元格→相邻 del+add 对（自动获得改蓝配对+字符级高亮），formula 后缀/截断提示/diffstat/展开全部全保留；ChangesPanel/GitPanel 零变化。
+- **刀B README 级内嵌 HTML 白名单**（3b 遗留收口）：rehype-raw + rehype-sanitize 显式 schema（46 白名单标签/27 strip/className 按值放行 KaTeX 与 language-*）；协议收口走渲染层（mdUrlTransform+classifyExternalLink，schema.protocols 浅合并坑实测踩中）；文件预览链专用，MemoMarkdown 聊天流不动；收口修正 GFM 任务列表 checkbox 误伤（input 按值受限白名单）。
+- **刀C 子代理歧义选择器**（老账）：matchRunningCandidates 纯函数 + 歧义两槽位（resolver/handler）；ToolCard 歧义卡可点（aria「多个运行中任务，点击选择」）→ App 居中选择器人工挑一个跳转；宁缺勿错不变（绝不自动跳，0/1 候选与现状一致）；taskpick.* 三语 +7 键。
+- 测试：vitest **1786/1786**（净增 28；ContextView 全量负载三连 5s 超时与刀零接触，文件级放宽 20s 后全绿——处置成文）、Go 全量 0 FAIL、tsc -b/eslint 0、drift PASS（579）；?mock=1 README 内嵌 HTML DOM 断言六项过（白名单渲染+消毒剥净），VersionTimeline/taskpick 以单测为验收面（A1 先例）。新增依赖 rehype-raw/rehype-sanitize。
+
 ## v4.94.0 · Agent 网络会话跳转：子代理上下文按会话查看（2026-09-05）
+
 > 双源蒸馏规划阶段二.5 2.5e 后半收口；**绑定面 578→579**（+GaeaSubagentContextView）。详见 releases/v4.94.0.md。
 - **Go**：GaeaSubagentContextView(sessionPath, ref)——校验 sa_ ref → 定位 <会话目录>/subagents/<ref>.jsonl → ReadLogRepaired 读入 → contextview.FoldTimeline 折叠（与主上下文同一管线）；ref 非法/缺失诚实报错或空快照。
 - **前端**：ContextView 增 fetchTimeline 可选数据源（缺省仍走当前会话）+ onViewSubagentContext 回调透传 AgentRadial；AgentRadial sa_ 节点渲染「查看上下文」可点入口（回调在场才渲染）；ContextModal 增 fetchTimeline/title 透传；App 接线——主上下文页径向图节点「查看上下文」→ 打开该子代理的上下文弹层（标题带 ref）。

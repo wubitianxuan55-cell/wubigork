@@ -1,9 +1,29 @@
-import { memo, useCallback, useEffect, useRef, useState } from "react";
+// ── 内嵌 HTML 白名单（蒸馏规划 3b 遗留刀，决策记录）─────────────────
+// 范围 = 文件预览链（本组件：FilePreview/AskCard/KnowledgePanel 的 .md
+// 渲染）。MemoMarkdown（聊天流）不在此刀范围，仍走其 DOMPurify 流式尾部
+// 消毒；两条渲染链并存，互不改动。
+// 机制：rehypeRaw 把 raw HTML 解析进 hast 树（此前 react-markdown 默认整体
+// 跳过 raw，README 的 details/table/img 全部消失）；消毒在 raw 解析后、
+// React 渲染前完成（lib/sanitize.ts mdHtmlSchemaSanitize：rehype-sanitize
+// 显式白名单 schema），全程不经 dangerouslySetInnerHTML。树级选
+// rehype-sanitize 而非 DOMPurify，正因消毒发生在 hast 树级：早于 React
+// createElement，与 md 管线产物同树统一过滤，可按值保住 KaTeX math-* /
+// 围栏代码 language-* 命脉 class，且渲染无 HTML 序列化回转（无 mXSS 面；
+// DOMPurify 逐 raw 片段消毒会补全残缺标签、与 rehype-raw 重组冲突，
+// 详见 sanitize.ts 头注）。
+// 链接/图片策略不变：urlTransform 与点击分流（classifyExternalLink /
+// FileChip / mem 徽标）对渲染树所有 a/img 生效，raw HTML 版本同策略
+// （测试覆盖）；urlTransform 额外放行 data:image/*（README 内嵌 base64 图）。
+// 性能：插件恒挂管线（未做 "<字母" 启发式门控）——树级消毒 O(树)，代价
+// 远小于一次 reparse，正确性优先避免启发式漏判。
+
+import { isValidElement, memo, useCallback, useEffect, useRef, useState } from "react";
 import ReactMarkdown, { defaultUrlTransform } from "react-markdown";
 import type { Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
+import rehypeRaw from "rehype-raw";
 import mermaid from "mermaid";
 import { Check, Copy, FileText, Loader } from "../icons";
 
@@ -12,6 +32,7 @@ import { classifyExternalLink } from "../lib/browserPolicy";
 import { isLocalFilePath } from "../lib/fileLinks";
 import { remarkFileLinks } from "../lib/remarkFileLinks";
 import { remarkMemCitations } from "../lib/remarkMemCitations";
+import { mdHtmlSchemaSanitize } from "../lib/sanitize";
 import { openPaneFileOrPreview } from "../lib/paneFileOpen";
 import { useToast } from "./Toast";
 import { FileChip } from "./FileChip";
@@ -379,7 +400,16 @@ function CodeBlockHeader({ language, text }: { language?: string; text: string }
 
 function buildComponents(onOpenFile: (rel: string) => void, autoExportMermaid = true): Components {
   return {
-    pre: ({ children }) => <>{children}</>,
+    pre: ({ children }) => {
+      // md 围栏代码：components.code 已产出完整样式块，pre 透传避免双层
+      // 包裹；raw HTML 的 <pre>（子节点非 code 组件产物）给基本等宽样式。
+      if (isValidElement(children)) return <>{children}</>;
+      return (
+        <pre className="px-3 py-2.5 font-mono text-[12.5px] leading-[1.55] overflow-auto whitespace-pre text-fg">
+          {children}
+        </pre>
+      );
+    },
     code: ({ className, children }) => {
       const text = String(children ?? "").replace(/\n$/, "");
       const match = /language-([\w-]+)/.exec(className ?? "");
@@ -479,6 +509,14 @@ function normalizeMath(s: string): string {
   return r;
 }
 
+// 渲染层 URL 收口（对渲染树所有 a/img 生效，含 raw HTML 版本）：
+// 本地文件路径 / mem: 引用 / data:image/* 显式放行；其余（javascript:、
+// data:text/html 等）交 defaultUrlTransform 剥成空串。
+const mdUrlTransform = (url: string): string =>
+  isLocalFilePath(url) || url.startsWith("mem:") || /^data:image\//i.test(url)
+    ? url
+    : defaultUrlTransform(url);
+
 export const Markdown = memo(function Markdown({ text, autoExportMermaid = true }: { text: string; autoExportMermaid?: boolean }) {
   if (hasMathContent(text)) ensureKatexCss();
   const openFilePreview = openPaneFileOrPreview;
@@ -486,9 +524,9 @@ export const Markdown = memo(function Markdown({ text, autoExportMermaid = true 
     <div className="md text-[14px] leading-relaxed">
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkMath, remarkFileLinks, remarkMemCitations]}
-        rehypePlugins={[rehypeKatex]}
+        rehypePlugins={[rehypeRaw, mdHtmlSchemaSanitize, rehypeKatex]}
         components={buildComponents(openFilePreview, autoExportMermaid)}
-        urlTransform={(url) => (isLocalFilePath(url) || url.startsWith("mem:") ? url : defaultUrlTransform(url))}
+        urlTransform={mdUrlTransform}
       >
         {normalizeMath(text)}
       </ReactMarkdown>

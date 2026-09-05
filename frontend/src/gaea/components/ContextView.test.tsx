@@ -4,6 +4,11 @@ import type { ReactElement } from "react";
 import { LocaleProvider } from "../lib/i18n";
 import type { ContextTimeline } from "../lib/types";
 
+// 本文件组件重（SVG 径向图/大卡片墙），全量 vitest 并行负载下 5s 默认上限
+// 会超时（v4.95 收口实测：单独复跑全绿、全量三连超时）——文件级放宽到 20s，
+// 只放宽时限不改断言。
+vi.setConfig({ testTimeout: 20_000 });
+
 // ContextView 走 useT：钉住 zh 让既有中文文案断言继续成立
 const renderT = (ui: ReactElement) => {
   localStorage.setItem("gaea-lang", "zh");

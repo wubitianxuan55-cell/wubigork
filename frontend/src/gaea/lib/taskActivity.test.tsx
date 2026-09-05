@@ -4,8 +4,10 @@
 import { describe, expect, it, afterEach } from "vitest";
 import { fireEvent, render } from "@testing-library/react";
 import {
-  getTaskCardActivity, hasTaskCardActivityProvider, matchRunningRun,
-  resolveTaskRef, setTaskCardActivityProvider, taskResultSummary,
+  fireTaskCardAmbiguity, getTaskCardActivity, getTaskCardAmbiguity,
+  hasTaskCardActivityProvider, hasTaskCardAmbiguityHandler, matchRunningCandidates,
+  matchRunningRun, resolveTaskRef, setTaskCardActivityProvider,
+  setTaskCardAmbiguityHandler, setTaskCardAmbiguityResolver, taskResultSummary,
 } from "./taskActivity";
 import { ToolCard } from "../components/ToolCard";
 import { ToolGroup } from "../components/ToolGroup";
@@ -17,6 +19,8 @@ type ToolItem = Extract<Item, { kind: "tool" }>;
 afterEach(() => {
   // 卸载注入，避免串测
   setTaskCardActivityProvider(null);
+  setTaskCardAmbiguityResolver(null);
+  setTaskCardAmbiguityHandler(null);
 });
 
 const wrap = (node: React.ReactNode) => {
@@ -240,5 +244,96 @@ describe("ToolCard 空 ref 并行匹配通路（item.args 透传）", () => {
     const live = view.container.querySelector('[data-testid="task-live"]');
     expect(live).not.toBeNull();
     expect(live?.textContent).not.toContain("错卡动态");
+  });
+});
+
+// ── v4.68 多候选歧义链路：matchRunningCandidates + 歧义点击槽位 ──────────
+describe("matchRunningCandidates：返回全部文本匹配的 running（多候选不再丢弃）", () => {
+  it("多候选：≥2 命中全部返回（保序），供点击选择器人工挑", () => {
+    const runs = [runOf(), runOf({ ref: "sa_2" }), runOf({ ref: "sa_3", task: "抓取价格数据" })];
+    const args = JSON.stringify({ description: "梳理项目配置项" });
+    const hits = matchRunningCandidates(args, runs);
+    expect(hits.map((r) => r.ref)).toEqual(["sa_20260903_01", "sa_2"]);
+    // 元素是入参数组原对象（泛型保型，调用方拿回的仍是 SubagentRunView）
+    expect(hits[0]).toBe(runs[0]);
+  });
+
+  it("零候选：空数组（含描述不沾边 / 非 running / 空 task 的情形）", () => {
+    const runs = [
+      runOf({ task: "抓取价格数据" }),
+      runOf({ ref: "sa_2", status: "completed" }),
+      runOf({ ref: "sa_3", task: "" }),
+    ];
+    expect(matchRunningCandidates(JSON.stringify({ description: "写发布公告" }), runs)).toEqual([]);
+    expect(matchRunningCandidates(JSON.stringify({ description: "梳理项目配置项" }), runs)).toEqual([]);
+  });
+
+  it("空白归一化：desc 与 run.task 前后空白（含换行）trim 后仍命中", () => {
+    const runs = [runOf({ task: "  梳理项目配置项\n" })];
+    expect(
+      matchRunningCandidates(JSON.stringify({ prompt: "\n 梳理项目配置项 \n" }), runs),
+    ).toHaveLength(1);
+  });
+
+  it("大小写：按模块既有设计只做 trim、不做大小写折叠（宁缺勿错，锁定语义）", () => {
+    const runs = [runOf({ task: "Review Config" })];
+    expect(matchRunningCandidates(JSON.stringify({ description: "review config" }), runs)).toEqual([]);
+    expect(matchRunningCandidates(JSON.stringify({ description: "REVIEW CONFIG" }), runs)).toEqual([]);
+    // 完全一致（含大小写）才命中
+    expect(matchRunningCandidates(JSON.stringify({ description: "Review Config" }), runs)).toHaveLength(1);
+  });
+
+  it("args 无任务文本：空数组不炸（与 matchRunningRun 同源防线）", () => {
+    const runs = [runOf()];
+    expect(matchRunningCandidates(undefined, runs)).toEqual([]);
+    expect(matchRunningCandidates("not-json", runs)).toEqual([]);
+    expect(matchRunningCandidates(null, runs)).toEqual([]);
+  });
+
+  it("与 matchRunningRun 同构：0/≥2 候选 → null，恰好 1 个 → 该 run", () => {
+    const args = JSON.stringify({ description: "梳理项目配置项" });
+    const two = [runOf(), runOf({ ref: "sa_2" })];
+    expect(matchRunningCandidates(args, two)).toHaveLength(2);
+    expect(matchRunningRun(args, two)).toBeNull();
+    const one = [runOf()];
+    expect(matchRunningCandidates(args, one)).toHaveLength(1);
+    expect(matchRunningRun(args, one)?.ref).toBe("sa_20260903_01");
+  });
+});
+
+describe("setTaskCardAmbiguityResolver / setTaskCardAmbiguityHandler 歧义点击槽位", () => {
+  it("未注入：查询 false、hasHandler false、派发 false", () => {
+    expect(getTaskCardAmbiguity("", "{}")).toBe(false);
+    expect(hasTaskCardAmbiguityHandler()).toBe(false);
+    expect(fireTaskCardAmbiguity("{}")).toBe(false);
+  });
+
+  it("resolver 透传 (ref, args)；返回值按真值归一；异常吞掉按 false", () => {
+    const seen: { ref?: string; args?: unknown } = {};
+    setTaskCardAmbiguityResolver((ref, args) => {
+      seen.ref = ref;
+      seen.args = args;
+      return true;
+    });
+    expect(getTaskCardAmbiguity("", '{"description":"x"}')).toBe(true);
+    expect(seen).toEqual({ ref: "", args: '{"description":"x"}' });
+    setTaskCardAmbiguityResolver(() => false);
+    expect(getTaskCardAmbiguity("sa_1")).toBe(false);
+    setTaskCardAmbiguityResolver(() => { throw new Error("boom"); });
+    expect(getTaskCardAmbiguity("")).toBe(false);
+    setTaskCardAmbiguityResolver(null);
+    expect(getTaskCardAmbiguity("")).toBe(false);
+  });
+
+  it("handler 收到原始 args；返回值区分已派发/未注入；异常吞掉返回 false", () => {
+    const fired: unknown[] = [];
+    setTaskCardAmbiguityHandler((args) => { fired.push(args); });
+    const raw = JSON.stringify({ description: "梳理项目配置项" });
+    expect(fireTaskCardAmbiguity(raw)).toBe(true);
+    expect(fired).toEqual([raw]);
+    setTaskCardAmbiguityHandler(() => { throw new Error("boom"); });
+    expect(fireTaskCardAmbiguity(raw)).toBe(false);
+    setTaskCardAmbiguityHandler(null);
+    expect(fireTaskCardAmbiguity(raw)).toBe(false);
   });
 });

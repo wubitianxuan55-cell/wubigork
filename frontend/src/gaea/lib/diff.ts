@@ -1,4 +1,7 @@
-export type DiffRow = { type: "ctx" | "add" | "del"; text: string };
+// marker 可选列（v4.87 统一 diff 查看器）：docx 段落序号 / xlsx 单元格 ref 等
+// 「行定位」标注。ChangesDiff 在 +/- 符号列后渲染定宽右对齐列；缺省不渲染，
+// 既有数据源（ChangesPanel LCS / GitPanel unified diff）零变化。
+export type DiffRow = { type: "ctx" | "add" | "del"; text: string; marker?: string };
 
 // diffLines is a classic LCS line diff. Used by the diff seam to render edit-tool
 // before/after; a real editor (Monaco/CodeMirror merge) would replace the

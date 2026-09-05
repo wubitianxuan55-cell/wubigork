@@ -46,8 +46,10 @@ export function pairModifications(rows: DiffRow[]): DiffPresentRow[] {
     const { dels, adds } = splitRun(run);
     const pairN = Math.min(dels.length, adds.length);
     for (let k = 0; k < pairN; k += 1) {
-      out.push({ kind: "row", row: { type: "del", text: dels[k]!.text }, pairOld: dels[k]!.text, pairNew: adds[k]!.text });
-      out.push({ kind: "row", row: { type: "add", text: adds[k]!.text }, pairOld: dels[k]!.text, pairNew: adds[k]!.text });
+      // 配对行整体拷贝（spread）而非只挑 text：marker 等可选列必须跟着走，
+      // 否则 docx 段号 / xlsx ref 在改蓝对上丢失（fold 占位存整行对象，同此口径）。
+      out.push({ kind: "row", row: { ...dels[k]! }, pairOld: dels[k]!.text, pairNew: adds[k]!.text });
+      out.push({ kind: "row", row: { ...adds[k]! }, pairOld: dels[k]!.text, pairNew: adds[k]!.text });
     }
     for (let k = pairN; k < dels.length; k += 1) out.push({ kind: "row", row: dels[k]! });
     for (let k = pairN; k < adds.length; k += 1) out.push({ kind: "row", row: adds[k]! });

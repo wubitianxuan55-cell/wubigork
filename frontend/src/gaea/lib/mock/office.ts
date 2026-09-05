@@ -136,7 +136,7 @@ export function buildOffice(_s: MakeMockState): OfficeMethods {
     },
     async ReadFile(rel: string) {
       const samples: Record<string, string> = {
-        "README.md": "# gaea\n\nBrowser-dev workspace preview.\n\n```mermaid\nflowchart LR\n  A[输入] --> B[处理]\n  B --> C[输出]\n```\n\n- Chat in the center\n- Browse files on the right\n- Keep sessions on the left\n",
+        "README.md": "# gaea\n\nBrowser-dev workspace preview.\n\n```mermaid\nflowchart LR\n  A[输入] --> B[处理]\n  B --> C[输出]\n```\n\n- Chat in the center\n- Browse files on the right\n- Keep sessions on the left\n\n内嵌 HTML 白名单样例：<b>加粗</b>、<em>强调</em>、<sub>下标</sub>、<details><summary>点开详情</summary>折叠正文，白名单内标签原样渲染。</details>\n\n<script>alert('xss')</script><img src='x' onerror='alert(1)'> 危险标签应被消毒剥除，仅本行文字可见。\n",
         "go.mod": "module gaea\n\ngo 1.23\n",
         "desktop/file.go": "package desktop\n\nfunc main() {\n\tprintln(\"workspace preview\")\n}\n",
         "internal/event.go": "package internal\n\n// mock file used by the browser dev seam\n",
@@ -149,7 +149,7 @@ export function buildOffice(_s: MakeMockState): OfficeMethods {
     },
     async Preview(rel: string) {
       const samples: Record<string, string> = {
-        "README.md": "# gaea\n\nBrowser-dev workspace preview.\n\n```mermaid\nflowchart LR\n  A[输入] --> B[处理]\n  B --> C[输出]\n```\n\n- Chat in the center\n- Browse files on the right\n- Keep sessions on the left\n",
+        "README.md": "# gaea\n\nBrowser-dev workspace preview.\n\n```mermaid\nflowchart LR\n  A[输入] --> B[处理]\n  B --> C[输出]\n```\n\n- Chat in the center\n- Browse files on the right\n- Keep sessions on the left\n\n内嵌 HTML 白名单样例：<b>加粗</b>、<em>强调</em>、<sub>下标</sub>、<details><summary>点开详情</summary>折叠正文，白名单内标签原样渲染。</details>\n\n<script>alert('xss')</script><img src='x' onerror='alert(1)'> 危险标签应被消毒剥除，仅本行文字可见。\n",
         "go.mod": "module gaea\n\ngo 1.23\n",
       };
       const ext = rel.split(".").pop()?.toLowerCase() ?? "";

@@ -1574,4 +1574,13 @@ export const zhTW: Record<DictKey, string> = {
   "vcompare.cellOld": "原值",
   "vcompare.cellNew": "新值",
   "vcompare.cellTruncated": "變更過多，僅展示前 {n} 條",
+
+  // ── v4.68 task 卡多候選歧義選擇器（並行多 running 點擊人工挑一個）──
+  "taskpick.title": "選擇要開啟的子代理任務",
+  "taskpick.desc": "有多個執行中的任務與這張卡片匹配，請選擇要開啟的一個。",
+  "taskpick.cardAria": "多個執行中任務，點擊選擇",
+  "taskpick.rowAria": "開啟子代理任務：{task}",
+  "taskpick.statusRunning": "執行中",
+  "taskpick.statusCompleted": "已完成",
+  "taskpick.statusFailed": "失敗",
 };

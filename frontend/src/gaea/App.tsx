@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
-import { Layout } from "antd";
+import { Layout, Modal } from "antd";
 import {
   BookOpen, Check, SquarePen, Brain, ChevronDown, FolderGit2, FileText,
   PanelRightOpen, PanelRightClose, MessageSquare, Trash2, X, Aim, List, Square,
@@ -8,6 +8,7 @@ import {
 import { Sidebar } from "./components/Sidebar";
 import { useT } from "./lib/i18n";
 import { sessionTitle, sessionTime } from "./lib/session";
+import { relativeTime } from "./lib/time";
 import { useController, usePreviewStore } from "./lib/store";
 import { app, onTaskEvent } from "./lib/bridge";
 import { Transcript } from "./components/Transcript";
@@ -70,7 +71,7 @@ import { setPaneFileOpenHandler } from "./lib/paneFileOpen";
 import { parseSidebarOpenResult } from "./lib/sidebarOpen";
 import { setEventSyncFetcher } from "./lib/eventSync";
 import { shouldAutoOpenBrowser } from "./lib/browserPrefs";
-import { matchRunningRun, setTaskCardActivityProvider, setTaskCardOpenHandler, setTaskCardOpenTarget } from "./lib/taskActivity";
+import { matchRunningCandidates, matchRunningRun, setTaskCardActivityProvider, setTaskCardAmbiguityHandler, setTaskCardAmbiguityResolver, setTaskCardOpenHandler, setTaskCardOpenTarget } from "./lib/taskActivity";
 import { detectNewRunRefs, subscribeSubagentRuns } from "./lib/subagentRunsStore";
 import { classifyComposerCommand } from "./lib/command";
 import { rankPaletteItems } from "./lib/paletteRank";
@@ -206,6 +207,11 @@ export default function App() {
     },
     [subagentTabs],
   );
+  // v4.68 task 卡多候选歧义选择器：空 ref 命中 ≥2 个 running 时点击弹此
+  // 轻量选择器，人工挑一个跳转（宁缺勿错：选择器只由用户点击触发，绝不
+  // 自动跳转；0/1 候选走原「唯一 running 命中」直跳链路，行为不变）。
+  // state 只存点击瞬间的候选快照（SubagentRunView 原样引用），App 本地即可。
+  const [taskPickCandidates, setTaskPickCandidates] = useState<SubagentRunView[] | null>(null);
   // 独立子代理 tab 实时状态同步（v4.63 换共享单轮询 store）：打开后运行/
   // 完成/失败与模型随 GaeaSubagentRuns 刷新——tab 状态点与 SubagentThread
   // 头部的状态徽标不再停留在点击瞬间的快照。轮询本身由 subagentRunsStore
@@ -1038,6 +1044,23 @@ export default function App() {
       const running = subRunsCacheRef.current.filter((r) => r.status === "running");
       return matchRunningRun(args, running)?.ref ?? "";
     });
+    // v4.68：空 ref 多候选（≥2 文本匹配 running）时 matchRunningRun 按宁缺
+    // 勿错返回 ""，卡此前不可点、用户没有入口。歧义两槽位补上：渲染期判定
+    // （仅 ≥2 候选为真，0/1 候选维持现状）+ 点击弹选择器人工挑（候选在点击
+    // 瞬间现算，数据最新鲜；0 候选不弹，绝不自动跳转）。
+    setTaskCardAmbiguityResolver((ref, args) => {
+      if (ref) return false; // 已有唯一目标：不歧义
+      const running = subRunsCacheRef.current.filter((r) => r.status === "running");
+      return matchRunningCandidates(args, running).length > 1;
+    });
+    setTaskCardAmbiguityHandler((args) => {
+      const cands = matchRunningCandidates(
+        args,
+        subRunsCacheRef.current.filter((r) => r.status === "running"),
+      );
+      if (cands.length === 0) return; // 点击瞬间已无候选：维持现状，不弹空壳
+      setTaskPickCandidates(cands);
+    });
     setTaskCardOpenHandler((ref) => {
       const hit = subRunsCacheRef.current.find((r) => r.ref === ref);
       openSubagentThread({ sessionPath: currentSessionPath ?? "", ref, task: hit?.task, status: hit?.status ?? "running", model: hit?.model });
@@ -1046,6 +1069,8 @@ export default function App() {
       setTaskCardActivityProvider(null);
       setTaskCardOpenTarget(null);
       setTaskCardOpenHandler(null);
+      setTaskCardAmbiguityResolver(null);
+      setTaskCardAmbiguityHandler(null);
     };
   }, [currentSessionPath, openSubagentThread]);
   // v4.63：task 卡 live 活动的数据源并入共享单轮询（上方 subagentRuns 订阅
@@ -1521,6 +1546,44 @@ export default function App() {
         }
         model={state.meta?.label ?? undefined}
       />
+
+      {/* v4.68 task 卡多候选歧义选择器：一张卡同时匹配 ≥2 个 running 子代理
+          时（并行派发、任务文本相近），点击卡片弹此居中轻量弹层，人工挑一个
+          打开对应会话 tab。点行走既有 openSubagentThread；Esc/遮罩/关闭均取消。 */}
+      <Modal
+        open={taskPickCandidates !== null}
+        onCancel={() => setTaskPickCandidates(null)}
+        footer={null}
+        width={480}
+        centered
+        title={t("taskpick.title")}
+        destroyOnHidden
+      >
+        <div data-testid="task-pick" className="flex flex-col gap-1">
+          <div className="pb-1 text-[11.5px] leading-snug text-fg-faint">{t("taskpick.desc")}</div>
+          {(taskPickCandidates ?? []).map((r) => (
+            <button
+              key={r.ref}
+              type="button"
+              data-testid="task-pick-row"
+              aria-label={t("taskpick.rowAria", { task: r.task })}
+              onClick={() => {
+                setTaskPickCandidates(null);
+                openSubagentThread({ sessionPath: currentSessionPath ?? "", ref: r.ref, task: r.task, status: r.status, model: r.model });
+              }}
+              className="flex w-full cursor-pointer items-center gap-2 rounded-md border border-border-soft bg-bg-soft px-2 py-1.5 text-left transition-colors hover:bg-(color:--md-sys-color-surface-container-high)"
+            >
+              <span className="inline-flex shrink-0 items-center gap-1 text-[10.5px] text-fg-faint">
+                <span className={`h-1.5 w-1.5 rounded-full ${r.status === "running" ? "animate-pulse bg-accent" : r.status === "failed" ? "bg-err" : "bg-info/70"}`} />
+                {r.status === "running" ? t("taskpick.statusRunning") : r.status === "failed" ? t("taskpick.statusFailed") : t("taskpick.statusCompleted")}
+              </span>
+              <span className="min-w-0 flex-1 truncate text-[12px] text-fg" title={r.task}>{r.task}</span>
+              {r.model && <span className="max-w-[30%] shrink-0 truncate font-mono text-[10.5px] text-fg-faint" title={r.model}>{r.model}</span>}
+              <span className="shrink-0 text-[10.5px] tabular-nums text-fg-faint" title={r.createdAt}>{relativeTime(Date.parse(r.createdAt))}</span>
+            </button>
+          ))}
+        </div>
+      </Modal>
 
     </>
   );

@@ -22,13 +22,18 @@
 // 递增，只有最新一次请求的返回可写回状态（连点不同版本行，旧结果丢弃）；再点
 // 同一行（或点面板「收起对比」）折叠并取消挂载对比内容。
 //
-// A2 结构化对比（v4.28 记账，本轮收掉）：.docx → 段级红绿 diff（附段落序号
-// 列，数据层 docxTextDiff）；.xlsx → sheet 级 + 单元格级差异表（xlsxCellDiff，
-// 数据层已截断则如实展示「已折叠」提示，不提供展开）。text/docx 行走同一
-// 渲染块，xlsx 有独立对比体 XlsxCompareBody。
+// A2 结构化对比（v4.28 记账）+ v4.87 统一 diff 查看器收口：text/docx/xlsx
+// 三种对比体统一经 ChangesDiff 渲染（改蓝配对 + 字符级高亮 + ctx 折叠 +
+// path 语法着色全套生效）——text/docx 构造 { kind:"diff", hunks:[{ rows }] }
+// （docx 段落序号走 DiffRow.marker 列）；xlsx 每 sheet 一个 hunk（label =
+// sheet 名 + 状态/截断文案，change 单元格 = 相邻 del+add 对，marker = 单元格
+// ref，formula 追加 fx 后缀），诚实原则：不伪造 ctx 行、不补未变单元格。
+// clampDiffRows(200) + 展开全部开关保留在本组件（ChangesDiff 下方）。
 import { useCallback, useRef, useState } from "react";
 import { Clock, Diff, Eye, Loader2, Rollback } from "../icons";
+import { ChangesDiff } from "./ChangesDiff";
 import { useT } from "../lib/i18n";
+import type { DiffRow } from "../lib/diff";
 import type { JournalChangeRecord } from "../lib/types";
 import { versionStatusText, versionTimeText } from "../lib/versionTimeline";
 import {
@@ -90,10 +95,37 @@ function DiffStatChip({ add, del }: { add: number; del: number }) {
   );
 }
 
-// xlsx 对比体（A2 结构化对比）：sheet 级 + 单元格级差异。变更列表在数据层
-// 已按 MAX_XLSX_SHEET_CELLS 截断（计数不失真），这里如实展示「已折叠」提示，
-// 不做展开全部（数据已截，展开无从恢复——与 text/docx 的 UI 层折叠不同）。
-function XlsxCompareBody({ result }: { result: VersionXlsxDiff }) {
+// xlsx 单个 sheet 的变更列表 → DiffRow[]（诚实原则：xlsxCellDiff 只产变更
+// 单元格，不补未变行/不伪造 ctx）。change = 相邻 del+add 对（ChangesDiff 的
+// 改蓝配对自动给出「改蓝 + 行内字符高亮」）；marker 列 = 单元格 ref；formula
+// 非空在 new 值后追加「  fx: =公式」后缀；整表级 add/del（无 cells）生成单行
+// （text=sheet 名，无 marker）。
+function xlsxSheetRows(s: VersionXlsxDiff["sheets"][number]): DiffRow[] {
+  if (s.cells.length === 0) {
+    if (s.state === "add") return [{ type: "add", text: s.name }];
+    if (s.state === "del") return [{ type: "del", text: s.name }];
+    return [];
+  }
+  const rows: DiffRow[] = [];
+  for (const c of s.cells) {
+    const fx = c.formula ? `  fx: =${c.formula}` : "";
+    if (c.kind === "change") {
+      rows.push({ type: "del", marker: c.ref, text: c.old });
+      rows.push({ type: "add", marker: c.ref, text: `${c.new}${fx}` });
+    } else if (c.kind === "add") {
+      rows.push({ type: "add", marker: c.ref, text: `${c.new}${fx}` });
+    } else {
+      rows.push({ type: "del", marker: c.ref, text: c.old });
+    }
+  }
+  return rows;
+}
+
+// xlsx 对比体（统一 diff 查看器）：每个 sheet 一个 hunk 经 ChangesDiff 渲染——
+// hunk label = sheet 名 + 状态文案（sheetAdd/sheetDel/sheetChanged），截断时拼
+// cellTruncated（数据层已按 MAX_XLSX_SHEET_CELLS 截断、计数不失真，label 如实
+// 标注，不提供展开全部——数据已截，展开无从恢复，与 text/docx 的 UI 层折叠不同）。
+function XlsxCompareBody({ result, path }: { result: VersionXlsxDiff; path?: string }) {
   const t = useT();
   if (result.sheets.length === 0) {
     return (
@@ -109,82 +141,53 @@ function XlsxCompareBody({ result }: { result: VersionXlsxDiff }) {
           {t("vcompare.contentMissing")}
         </div>
       )}
-      {result.sheets.map((s, i) => (
-        <div key={`${s.name}-${i}`} data-testid={`vcompare-sheet-${i}`} className="rounded-md border" style={{ borderColor: "color-mix(in srgb, var(--md-sys-color-outline-variant) 60%, transparent)" }}>
-          <div className="flex items-center gap-1.5 px-1.5 py-1 text-[9.5px]" style={{ background: "color-mix(in srgb, var(--md-sys-color-surface-container-high) 40%, transparent)" }}>
-            <span className="font-mono font-medium" style={{ color: "var(--md-sys-color-text)" }}>{s.name}</span>
-            {s.state === "add" && (
-              <span data-testid={`vcompare-sheet-state-${i}`} className="rounded px-1 py-px" style={{ color: "var(--md-sys-color-success)", background: "var(--add-bg)" }}>
-                {t("vcompare.sheetAdd")}
-              </span>
-            )}
-            {s.state === "del" && (
-              <span data-testid={`vcompare-sheet-state-${i}`} className="rounded px-1 py-px" style={{ color: "var(--md-sys-color-destructive)", background: "var(--del-bg)" }}>
-                {t("vcompare.sheetDel")}
-              </span>
-            )}
-            {s.state === "changed" && (
-              <span data-testid={`vcompare-sheet-state-${i}`} className="rounded px-1 py-px tabular-nums" style={{ color: "var(--md-sys-color-on-surface-variant, var(--md-sys-color-text-secondary))", background: "color-mix(in srgb, var(--md-sys-color-surface-container-high) 60%, transparent)" }}>
-                {t("vcompare.sheetChanged", { n: s.total })}
-              </span>
-            )}
-            <span className="min-w-0 flex-1" />
-            {s.truncated && (
-              <span className="text-[9px]" style={{ color: "var(--md-sys-color-warning)" }}>
-                {t("vcompare.cellTruncated", { n: s.cells.length })}
-              </span>
-            )}
+      {result.sheets.map((s, i) => {
+        const stateText =
+          s.state === "add"
+            ? t("vcompare.sheetAdd")
+            : s.state === "del"
+              ? t("vcompare.sheetDel")
+              : t("vcompare.sheetChanged", { n: s.total });
+        const label = [
+          s.name,
+          stateText,
+          s.truncated ? t("vcompare.cellTruncated", { n: s.cells.length }) : "",
+        ]
+          .filter(Boolean)
+          .join(" · ");
+        return (
+          <div
+            key={`${s.name}-${i}`}
+            data-testid={`vcompare-sheet-${i}`}
+            className="max-h-60 overflow-auto rounded-md"
+          >
+            <ChangesDiff diff={{ kind: "diff", hunks: [{ label, rows: xlsxSheetRows(s) }] }} path={path} />
           </div>
-          {s.state === "changed" && s.cells.length > 0 && (
-            <div className="max-h-60 overflow-auto font-mono text-[10px] leading-[1.6]">
-              <div className="flex gap-1 px-1.5 py-px text-[9px]" style={{ color: "var(--md-sys-color-text-secondary)" }}>
-                <span className="w-9 shrink-0">{t("vcompare.cellRef")}</span>
-                <span className="min-w-0 flex-1">{t("vcompare.cellOld")}</span>
-                <span className="min-w-0 flex-1">{t("vcompare.cellNew")}</span>
-              </div>
-              {s.cells.map((c, j) => (
-                <div
-                  key={`${c.ref}-${j}`}
-                  className="flex gap-1 whitespace-pre-wrap break-all px-1.5"
-                  style={{
-                    background:
-                      c.kind === "add" ? "var(--add-bg)" : c.kind === "del" ? "var(--del-bg)" : "transparent",
-                  }}
-                >
-                  <span className="w-9 shrink-0 tabular-nums" style={{ color: "var(--md-sys-color-text-secondary)" }}>{c.ref}</span>
-                  <span className="min-w-0 flex-1" style={{ color: c.kind === "del" ? "var(--del-fg)" : "var(--md-sys-color-text-secondary)" }}>
-                    {c.old === "" ? " " : c.old}
-                  </span>
-                  <span className="min-w-0 flex-1" style={{ color: c.kind === "add" ? "var(--add-fg)" : c.kind === "change" ? "var(--md-sys-color-warning)" : "var(--md-sys-color-text-secondary)" }}>
-                    {c.new === "" ? " " : c.new}
-                    {c.formula ? <span className="ml-1 opacity-70" title={c.formula}>fx</span> : null}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
 
-// 内联对比区：该基线快照 vs 当前工作区文件的行级红绿 diff。
-// result === null 表示取数进行中（spinner）；text/docx 按行渲染（docx 附段落
-// 序号列），xlsx 走结构化对比体，行配色复用 styles.css 的 --add/--del diff
-// 令牌（与 ChangesDiff 同源）。
+// 内联对比区：该基线快照 vs 当前工作区文件。result === null 表示取数进行中
+// （spinner）；text/docx 构造 { kind:"diff", hunks:[{ rows }] } 交 ChangesDiff
+// 统一渲染（docx 段落序号进 DiffRow.marker 列），xlsx 走结构化对比体
+// XlsxCompareBody；行配色/配对/折叠与「变更」「Git」面板同源（ChangesDiff）。
 function VersionComparePanel({
   label,
   result,
   showAll,
   onToggleAll,
   onHide,
+  path,
 }: {
   label: string;
   result: VersionCompareResult | null;
   showAll: boolean;
   onToggleAll: () => void;
   onHide: () => void;
+  /** 目标文件路径：透传给 ChangesDiff 走 diffHighlight 语法着色（文本类生效）。 */
+  path?: string;
 }) {
   const t = useT();
   const rowResult =
@@ -193,7 +196,15 @@ function VersionComparePanel({
   const clamped = rowResult
     ? clampDiffRows(rowResult, showAll ? Number.MAX_SAFE_INTEGER : MAX_DIFF_ROWS)
     : null;
-  const shown = clamped?.shown ?? [];
+  // 行模型归一为 DiffRow（docx 段落序号 → marker 列），交 ChangesDiff 统一渲染；
+  // clampDiffRows(200) + 展开全部开关保留在本组件（UI 层折叠逻辑不变）。
+  const diffRows: DiffRow[] | null = clamped
+    ? clamped.shown.map((r) =>
+        isDocx
+          ? { type: r.type, text: r.text, marker: String((r as DocxRow).index) }
+          : r,
+      )
+    : null;
   // 仅当全量行数超上限时出现折叠开关（展开后切换为「收起」）。
   const overLimit = rowResult !== null && rowResult.length > MAX_DIFF_ROWS;
   return (
@@ -259,56 +270,9 @@ function VersionComparePanel({
               {t("vcompare.empty")}
             </div>
           ) : (
-            <div
-              data-testid="vcompare-diff"
-              className="max-h-80 overflow-auto rounded-md border font-mono text-[10px] leading-[1.6]"
-              style={{ borderColor: "color-mix(in srgb, var(--md-sys-color-outline-variant) 60%, transparent)" }}
-            >
-              {shown.map((r, i) => {
-                // docx 行附段落序号列（DocxRow.index，1 起）；text 行无序号。
-                const para = isDocx ? (r as DocxRow).index : null;
-                return (
-                <div
-                  key={i}
-                  className="flex whitespace-pre-wrap break-all"
-                  style={{
-                    background:
-                      r.type === "add" ? "var(--add-bg)" : r.type === "del" ? "var(--del-bg)" : "transparent",
-                  }}
-                >
-                  <span
-                    className="w-4 shrink-0 select-none text-center opacity-70"
-                    style={{
-                      color:
-                        r.type === "add" ? "var(--add-fg)" : r.type === "del" ? "var(--del-fg)" : "inherit",
-                    }}
-                  >
-                    {r.type === "add" ? "+" : r.type === "del" ? "-" : " "}
-                  </span>
-                  {para !== null && (
-                    <span
-                      className="w-7 shrink-0 select-none text-right opacity-60"
-                      style={{ color: "var(--md-sys-color-text-secondary)" }}
-                    >
-                      {para}
-                    </span>
-                  )}
-                  <span
-                    className="min-w-0 flex-1 pr-2"
-                    style={{
-                      color:
-                        r.type === "add"
-                          ? "var(--add-fg)"
-                          : r.type === "del"
-                            ? "var(--del-fg)"
-                            : "var(--md-sys-color-text-secondary)",
-                    }}
-                  >
-                    {r.text === "" ? " " : r.text}
-                  </span>
-                </div>
-                );
-              })}
+            <div data-testid="vcompare-diff" className="max-h-80 overflow-auto rounded-md">
+              {/* 统一 diff 查看器：改蓝配对 / 字符级高亮 / ctx 折叠 / 语法着色 */}
+              <ChangesDiff diff={{ kind: "diff", hunks: [{ rows: diffRows ?? [] }] }} path={path} />
               {overLimit && (
                 <button
                   type="button"
@@ -495,6 +459,7 @@ export function VersionTimeline({ path, records, onPreview, onRestore }: Version
                     showAll={showAllRows}
                     onToggleAll={() => setShowAllRows((v) => !v)}
                     onHide={collapseCompare}
+                    path={path}
                   />
                 )}
               </li>

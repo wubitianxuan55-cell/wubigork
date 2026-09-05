@@ -14,7 +14,7 @@ import { useT } from "../lib/i18n";
 import { useCompact } from "../hooks/useCompact";
 import { useGSAPCollapse } from "../lib/useGSAPCollapse";
 import { boundedOutput, diffStatFor, diffsFor, subjectOf, summarize } from "../lib/tools";
-import { getTaskCardActivity, getTaskCardOpenTarget, hasTaskCardActivityProvider, openTaskCardSession, resolveTaskRef, taskResultSummary } from "../lib/taskActivity";
+import { fireTaskCardAmbiguity, getTaskCardActivity, getTaskCardAmbiguity, getTaskCardOpenTarget, hasTaskCardActivityProvider, hasTaskCardAmbiguityHandler, openTaskCardSession, resolveTaskRef, taskResultSummary } from "../lib/taskActivity";
 import { formatElapsed } from "../lib/time";
 import { useNow } from "../lib/useNow";
 import type { Item } from "../lib/store";
@@ -57,7 +57,11 @@ function TaskLiveRow({ item }: { item: ToolItem }) {
   // 任务描述文本与并行各 run.task 做唯一命中匹配（taskActivity 契约）。
   const activity = getTaskCardActivity(ref, item.args);
   // v4.63：运行中活动行本身也是「打开会话」入口（与整卡点击同语义）。
+  // v4.68：空 ref 多候选歧义时同样可点——点击改派歧义处理器（App 弹选择器
+  // 人工挑一个），不自动跳转；0/1 候选走原 openRef 直跳链路，行为不变。
   const openRef = ref || getTaskCardOpenTarget("", item.args);
+  const ambiguous = !openRef && getTaskCardAmbiguity("", item.args) && hasTaskCardAmbiguityHandler();
+  const rowClickable = !!openRef || ambiguous;
   // 未注入活动数据源（null）：按现状渲染（v4.26 之前没有这一行）
   if (!hasTaskCardActivityProvider()) return null;
   const elapsed = formatElapsed(Math.max(0, now - Math.floor(startRef.current / 1000)));
@@ -65,9 +69,10 @@ function TaskLiveRow({ item }: { item: ToolItem }) {
   return (
     <div
       data-testid="task-live"
-      className={`flex items-center gap-1.5 px-2 pb-1 pl-7 text-[11px] text-fg-faint select-none ${openRef ? "cursor-pointer hover:text-fg-dim" : ""}`}
-      title={openRef ? t("tool.openSessionHint") : undefined}
-      onClick={openRef ? () => { openTaskCardSession(openRef); } : undefined}
+      className={`flex items-center gap-1.5 px-2 pb-1 pl-7 text-[11px] text-fg-faint select-none ${rowClickable ? "cursor-pointer hover:text-fg-dim" : ""}`}
+      title={ambiguous ? t("taskpick.cardAria") : openRef ? t("tool.openSessionHint") : undefined}
+      aria-label={ambiguous ? t("taskpick.cardAria") : undefined}
+      onClick={rowClickable ? () => { if (openRef) openTaskCardSession(openRef); else fireTaskCardAmbiguity(item.args); } : undefined}
     >
       {activity?.lastText && (
         <span className="min-w-0 truncate text-fg-dim/80" title={activity.lastText}>
@@ -131,11 +136,19 @@ export const ToolCard = memo(function ToolCard({ item, subcalls }: { item: ToolI
   // v4.63 子代理卡片整卡可点：task / run_skill 卡解析出可跳转的子代理 ref
   // 时，点击头部行直接打开对应会话 tab（与右栏任务树同款跳转），不再只是
   // 折叠展开。空目标 = 不可点（诚实维持现状）。
+  // v4.68：空 ref 多候选歧义（≥2 文本匹配 running）时不再死路——整卡可点，
+  // 点击派发歧义处理器由 App 弹轻量选择器人工挑一个（宁缺勿错：绝不自动
+  // 跳转；0/1 候选行为与 v4.63 完全一致）。可达性：cursor-pointer +
+  // aria-label 说明「多个运行中任务，点击选择」。
   const isSubagentCard = item.name === "task" || item.name === "run_skill";
+  const resolvedRef = isSubagentCard ? resolveTaskRef(item.args, item.output) : "";
   const openTarget = isSubagentCard
-    ? getTaskCardOpenTarget(resolveTaskRef(item.args, item.output), item.args)
+    ? getTaskCardOpenTarget(resolvedRef, item.args)
     : "";
-  const clickable = isSubagentCard && !!openTarget;
+  const ambiguous = isSubagentCard && !openTarget
+    && getTaskCardAmbiguity(resolvedRef, item.args)
+    && hasTaskCardAmbiguityHandler();
+  const clickable = isSubagentCard && (!!openTarget || ambiguous);
 
   const rowPy = compact ? "py-0" : "py-0.5";
   const rowPx = compact ? "px-1" : "px-2";
@@ -158,12 +171,15 @@ export const ToolCard = memo(function ToolCard({ item, subcalls }: { item: ToolI
         } ${quiet ? "text-fg-faint/60" : "text-fg-dim"}`}
         onClick={
           clickable
-            ? () => { openTaskCardSession(openTarget); }
+            ? ambiguous
+              ? () => { fireTaskCardAmbiguity(item.args); }
+              : () => { openTaskCardSession(openTarget); }
             : expandable
               ? () => setOpen((v) => !v)
               : undefined
         }
-        title={clickable ? t("tool.openSessionHint") : undefined}
+        title={ambiguous ? t("taskpick.cardAria") : clickable ? t("tool.openSessionHint") : undefined}
+        aria-label={ambiguous ? t("taskpick.cardAria") : undefined}
       >
         {expandable ? (
           <ChevronRight

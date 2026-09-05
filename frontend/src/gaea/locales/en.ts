@@ -1569,5 +1569,14 @@ export const en = {
   "vcompare.cellOld": "Before",
   "vcompare.cellNew": "After",
   "vcompare.cellTruncated": "Too many changes — showing first {n}",
+
+  // ── v4.68 task 卡多候选歧义选择器（并行多 running 点击人工挑一个）──
+  "taskpick.title": "Choose a subagent task",
+  "taskpick.desc": "Multiple running tasks match this card. Pick one to open its session.",
+  "taskpick.cardAria": "Multiple running tasks — click to choose one",
+  "taskpick.rowAria": "Open subagent task: {task}",
+  "taskpick.statusRunning": "Running",
+  "taskpick.statusCompleted": "Completed",
+  "taskpick.statusFailed": "Failed",
 };
 export type DictKey = keyof typeof en;

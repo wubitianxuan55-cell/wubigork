@@ -1570,4 +1570,13 @@ export const zh: Record<DictKey, string> = {
   "vcompare.cellOld": "原值",
   "vcompare.cellNew": "新值",
   "vcompare.cellTruncated": "变更过多，仅展示前 {n} 条",
+
+  // ── v4.68 task 卡多候选歧义选择器（并行多 running 点击人工挑一个）──
+  "taskpick.title": "选择要打开的子代理任务",
+  "taskpick.desc": "有多个运行中的任务与这张卡片匹配，请选择要打开的一个。",
+  "taskpick.cardAria": "多个运行中任务，点击选择",
+  "taskpick.rowAria": "打开子代理任务：{task}",
+  "taskpick.statusRunning": "运行中",
+  "taskpick.statusCompleted": "已完成",
+  "taskpick.statusFailed": "失败",
 };

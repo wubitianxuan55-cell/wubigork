@@ -93,3 +93,141 @@ describe("Markdown 外链协议分流（1c）", () => {
     expect(openExternalMock).toHaveBeenCalledWith("https://example.com/doc");
   });
 });
+
+describe("Markdown 内嵌 HTML 白名单", () => {
+  beforeEach(() => {
+    openExternalMock.mockClear();
+  });
+
+  it("白名单标签正常渲染（b/sub/details/table/pre）", () => {
+    const { container } = render(
+      <Markdown
+        text={[
+          "<b>加粗</b> 与 H<sub>2</sub>O",
+          "",
+          "<details><summary>展开详情</summary>正文内容</details>",
+          "",
+          "<table><tr><td>单元格</td></tr></table>",
+          "",
+          "<pre>预格式文本</pre>",
+        ].join("\n")}
+      />,
+    );
+    expect(container.querySelector("b")?.textContent).toBe("加粗");
+    expect(container.querySelector("sub")?.textContent).toBe("2");
+    expect(container.querySelector("details > summary")?.textContent).toContain("展开详情");
+    expect(container.querySelector("details")?.textContent).toContain("正文内容");
+    expect(container.querySelector("td")?.textContent).toBe("单元格");
+    expect(container.querySelector("pre")?.textContent).toBe("预格式文本");
+  });
+
+  it("消毒不误伤 md 管线自产 class（KaTeX 公式与围栏代码语言）", () => {
+    const { container } = render(
+      <Markdown text={"$a^2+b^2=c^2$\n\n```python\nprint(1)\n```"} />,
+    );
+    expect(container.querySelector(".katex")).toBeTruthy();
+    expect(screen.getByText("python")).toBeTruthy();
+  });
+
+  it("script 节点与脚本体文本都不出现", () => {
+    const { container } = render(<Markdown text={"前文\n\n<script>alert(1)</script>\n\n后文"} />);
+    expect(container.querySelector("script")).toBeNull();
+    expect(container.textContent).not.toContain("alert(1)");
+    expect(container.textContent).toContain("前文");
+    expect(container.textContent).toContain("后文");
+  });
+
+  it("img 事件属性被剥，安全 src 保留", () => {
+    const { container } = render(
+      <Markdown text={'<img src="https://example.com/logo.png" onerror="alert(1)" onload="alert(2)">'} />,
+    );
+    const img = container.querySelector("img");
+    expect(img).toBeTruthy();
+    expect(img!.getAttribute("onerror")).toBeNull();
+    expect(img!.getAttribute("onload")).toBeNull();
+    expect(img!.getAttribute("src")).toBe("https://example.com/logo.png");
+  });
+
+  it("javascript: href 被剥，点击不交给系统", () => {
+    const { container } = render(<Markdown text={'<a href="javascript:alert(1)">诱导链接</a>'} />);
+    const link = container.querySelector("a");
+    expect(link).toBeTruthy();
+    const href = link!.getAttribute("href");
+    expect(href === null || href === "").toBe(true);
+    expect(link!.textContent).toBe("诱导链接");
+    fireEvent.click(link!);
+    expect(openExternalMock).not.toHaveBeenCalled();
+  });
+
+  it("iframe/style/svg 等禁用标签不渲染且内容不泄漏", () => {
+    const { container } = render(
+      <Markdown text={'<iframe src="https://example.com">后备字</iframe>\n\n<style>body{}</style>\n\n<svg><circle /></svg>'} />,
+    );
+    expect(container.querySelector("iframe")).toBeNull();
+    expect(container.querySelector("style")).toBeNull();
+    expect(container.querySelector("svg")).toBeNull();
+    expect(container.textContent).not.toContain("后备字");
+    expect(container.textContent).not.toContain("body{}");
+  });
+
+  it("form/button 标签全剥；input 仅作任务列表复选框载体（type 按值受限）", () => {
+    const { container } = render(
+      <Markdown text={'<form action="/steal"><button onclick="alert(1)">提交</button></form>\n\n<input type="text" onclick="x()">'} />,
+    );
+    expect(container.querySelector("form")).toBeNull();
+    expect(container.querySelector("button")).toBeNull();
+    expect(container.textContent).not.toContain("提交");
+    expect(container.innerHTML).not.toContain("onclick");
+    // input 放行只为 remark-gfm 任务列表复选框：raw 的 type="text" 被剥值，
+    // 不再渲染成文本输入框（无 type 的空 input 无交互面）。
+    const rawInput = container.querySelector("input");
+    expect(rawInput).not.toBeNull();
+    expect(rawInput!.getAttribute("type")).toBeNull();
+  });
+
+  it("GFM 任务列表复选框不被消毒误伤（既有能力红线）", () => {
+    const { container } = render(<Markdown text={"- [ ] 待办一\n- [x] 已办二\n"} />);
+    const boxes = container.querySelectorAll('input[type="checkbox"]');
+    expect(boxes.length).toBe(2);
+    expect((boxes[0] as HTMLInputElement).checked).toBe(false);
+    expect((boxes[1] as HTMLInputElement).checked).toBe(true);
+    expect(container.textContent).toContain("待办一");
+  });
+
+  it("style/class/onclick 属性被剥，文本保留", () => {
+    const { container } = render(
+      <Markdown text={'<div style="color:red" class="evil" onclick="alert(1)">文字</div>'} />,
+    );
+    expect(container.innerHTML).not.toContain("color:red");
+    expect(container.innerHTML).not.toContain("evil");
+    expect(container.innerHTML).not.toContain("onclick");
+    expect(container.textContent).toContain("文字");
+  });
+
+  it("data:image/* 的 img src 保留，其余 data: 剥成空串", () => {
+    const { container } = render(
+      <Markdown
+        text={
+          '<img src="data:image/png;base64,iVBORw0KGgo=" alt="内嵌图">\n\n' +
+          '<img src="data:text/html;base64,PHNjcmlwdD4=" alt="坏图">'
+        }
+      />,
+    );
+    const imgs = container.querySelectorAll("img");
+    expect(imgs.length).toBe(2);
+    expect(imgs[0]!.getAttribute("src")).toBe("data:image/png;base64,iVBORw0KGgo=");
+    expect(imgs[1]!.getAttribute("src")).toBe("");
+  });
+
+  it("raw HTML 外链点击走既有 1c 分流（https 交系统浏览器）", () => {
+    render(<Markdown text={'<a href="https://example.com/doc">HTML外链</a>'} />);
+    fireEvent.click(screen.getByRole("link", { name: /HTML外链/ }));
+    expect(openExternalMock).toHaveBeenCalledWith("https://example.com/doc");
+  });
+
+  it("raw HTML loopback 链接点击不交给系统", () => {
+    render(<Markdown text={'<a href="http://127.0.0.1:8080/api">内网HTML</a>'} />);
+    fireEvent.click(screen.getByRole("link", { name: /内网HTML/ }));
+    expect(openExternalMock).not.toHaveBeenCalled();
+  });
+});
