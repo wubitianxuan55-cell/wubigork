@@ -416,3 +416,41 @@ describe("FilePreview HTML 沙箱预览（1c）", () => {
     expect(screen.getByText(/预览已截断/)).toBeTruthy();
   });
 });
+
+describe("FilePreview markdown 导图视图（M1）", () => {
+  beforeEach(() => {
+    localStorage.removeItem("gaea.preview.mdView");
+  });
+
+  it("markdown 预览出现文档/导图切换；点导图渲染交互节点，可切回", async () => {
+    mocks.preview = markdownPreview({ body: "# 标题\n- 甲\n- 乙\n" });
+    render(wrap(<FilePreview relPath="notes/a.md" onClose={() => {}} />));
+    await screen.findByText("标题");
+    fireEvent.click(screen.getByTestId("md-view-mindmap"));
+    expect(await screen.findByTestId("mind-map")).toBeTruthy();
+    expect(screen.getByText("甲")).toBeTruthy();
+    // 编辑能力保留红线：导图态「编辑」入口常驻（点击进文本编辑器）
+    expect(screen.getByText("编辑")).toBeTruthy();
+    fireEvent.click(screen.getByTestId("md-view-doc"));
+    await waitFor(() => expect(screen.queryByTestId("mind-map")).toBeNull());
+  });
+
+  it("导图偏好持久化：切到导图后重挂载仍为导图态", async () => {
+    mocks.preview = markdownPreview({ body: "# 标题\n- 甲\n" });
+    const { unmount } = render(wrap(<FilePreview relPath="notes/a.md" onClose={() => {}} />));
+    await screen.findByText("标题");
+    fireEvent.click(screen.getByTestId("md-view-mindmap"));
+    expect(await screen.findByTestId("mind-map")).toBeTruthy();
+    unmount();
+    render(wrap(<FilePreview relPath="notes/b.md" onClose={() => {}} />));
+    await waitFor(() => expect(screen.queryByTestId("mind-map")).not.toBeNull());
+    localStorage.removeItem("gaea.preview.mdView");
+  });
+
+  it("text 等非 markdown 文件不显示视图切换", async () => {
+    mocks.preview = { ...markdownPreview(), kind: "text" };
+    render(wrap(<FilePreview relPath="notes/a.txt" onClose={() => {}} />));
+    await screen.findByText("旧内容");
+    expect(screen.queryByTestId("md-view-mindmap")).toBeNull();
+  });
+});

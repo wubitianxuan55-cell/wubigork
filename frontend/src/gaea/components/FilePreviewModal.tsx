@@ -16,6 +16,8 @@ import type { PreviewResult } from "../lib/types";
 import { DocxPreview } from "./DocxPreview";
 import { SandboxedHtml } from "./SandboxedHtml";
 import { Markdown } from "./Markdown";
+import { MdViewToggle, MindMapView } from "./MindMapView";
+import { readMdViewPref, writeMdViewPref, type MdViewMode } from "../lib/mdViewPref";
 import { PptxOutline } from "./PptxOutline";
 import { usePreviewProgress } from "../hooks/usePreviewProgress";
 import { useToast } from "./Toast";
@@ -56,6 +58,12 @@ export function FilePreviewModal() {
   // 大纲卡条目按 data-pptx-page 锚点滚动（与 FilePreview v4.28 B2 同机制）。
   const pptxPagesRef = useRef<HTMLDivElement | null>(null);
   const [exportingPdf, setExportingPdf] = useState(false);
+  // M1 markdown 双视图（文档/导图）：偏好持久化，默认文档视图（既有行为不变）
+  const [mdView, setMdView] = useState<MdViewMode>(readMdViewPref);
+  const switchMdView = useCallback((v: MdViewMode) => {
+    setMdView(v);
+    writeMdViewPref(v);
+  }, []);
   const toast = useToast();
 
   // 每次切换文件重新加载
@@ -264,6 +272,9 @@ export function FilePreviewModal() {
             </span>
           )}
           <div className="flex items-center gap-1 shrink-0">
+            {!loading && preview?.kind === "markdown" && (
+              <MdViewToggle value={mdView} onChange={switchMdView} size="md" />
+            )}
             {PDF_CONVERT_RE.test(previewFile) && (
               <button
                 className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-accent/30 bg-accent/8 text-accent text-[12px] cursor-pointer hover:bg-accent/15 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
@@ -386,14 +397,23 @@ export function FilePreviewModal() {
           )}
 
           {!loading && preview?.kind === "markdown" && (
-            <div className="px-8 py-6 max-w-[860px] mx-auto">
+            <>
               {preview.truncated && (
-                <div className="mb-3 px-3 py-2 rounded-md border border-amber-500/30 bg-amber-500/5 text-amber-500 text-[12px] leading-relaxed">
+                <div className="mb-3 px-3 py-2 rounded-md border border-amber-500/30 bg-amber-500/5 text-amber-500 text-[12px] leading-relaxed mx-8 mt-4">
                   ⚠️ 预览已截断（{preview.totalPages ? `PDF 共 ${preview.totalPages} 页` : "文件过大"}），仅展示前部内容；可让 AI 调用 summarize_file 获取全文摘要。
                 </div>
               )}
-              <Markdown text={preview.body} autoExportMermaid={false} />
-            </div>
+              {mdView === "mindmap" ? (
+                // M1 导图视图：内层自管平移/缩放；min-h 保证弹窗内容区可滚动
+                <div className="h-full min-h-[560px]">
+                  <MindMapView text={preview.body} title={name} />
+                </div>
+              ) : (
+                <div className="px-8 py-6 max-w-[860px] mx-auto">
+                  <Markdown text={preview.body} autoExportMermaid={false} />
+                </div>
+              )}
+            </>
           )}
 
           {!loading && preview?.kind === "text" && (

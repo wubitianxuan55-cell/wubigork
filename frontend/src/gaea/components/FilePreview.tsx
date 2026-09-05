@@ -15,6 +15,8 @@ import type { PreviewResult } from "../lib/types";
 import { DocxPreview } from "./DocxPreview";
 import { SandboxedHtml } from "./SandboxedHtml";
 import { Markdown } from "./Markdown";
+import { MdViewToggle, MindMapView } from "./MindMapView";
+import { readMdViewPref, writeMdViewPref, type MdViewMode } from "../lib/mdViewPref";
 import { PptxOutline } from "./PptxOutline";
 import { XlsxPreview } from "./XlsxPreview";
 import { usePreviewProgress } from "../hooks/usePreviewProgress";
@@ -80,6 +82,8 @@ export function FilePreview({
   const [dirty, setDirty] = useState(false);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "failed">("idle");
   const [confirmDiscard, setConfirmDiscard] = useState(false);
+  // M1 markdown 双视图（文档/导图）：偏好持久化，默认文档视图（既有行为不变）
+  const [mdView, setMdView] = useState<MdViewMode>(readMdViewPref);
   // v4.28 B2 pptx 逐页预览：页图容器（大纲卡点页条目按 data-pptx-page 锚点滚动）
   const pptxPagesRef = useRef<HTMLDivElement | null>(null);
   // v4.33.0 C：pdf 逐页懒加载（对齐弹窗 FilePreviewModal v4.32 C，同一套
@@ -177,6 +181,11 @@ export function FilePreview({
     setDirty(false);
     setSaveState("idle");
     setConfirmDiscard(false);
+  }, []);
+
+  const switchMdView = useCallback((v: MdViewMode) => {
+    setMdView(v);
+    writeMdViewPref(v);
   }, []);
 
   // 页图容器注册表：figure 挂载即登记（data-pptx-page 既是大纲滚动锚点也是
@@ -316,6 +325,9 @@ export function FilePreview({
           >
             {maximized ? <Minimize2 size={10} /> : <Maximize2 size={10} />}
           </button>
+        )}
+        {!loading && preview?.kind === "markdown" && !editing && (
+          <MdViewToggle value={mdView} onChange={switchMdView} />
         )}
         {editable && (
           <button
@@ -501,14 +513,23 @@ export function FilePreview({
           </div>
         )}
         {!loading && preview?.kind === "markdown" && (
-          <div className="px-4 py-3 max-w-[860px] mx-auto">
+          <>
             {preview.truncated && (
               <div className="mb-2 px-3 py-2 rounded-md border border-amber-500/30 bg-amber-500/5 text-amber-500 text-[11px] leading-relaxed">
                 ⚠️ 预览已截断（{preview.totalPages ? `PDF 共 ${preview.totalPages} 页` : "文件过大"}），仅展示前部内容；可让 AI 调用 summarize_file 获取全文摘要。
               </div>
             )}
-            <Markdown text={preview.body} />
-          </div>
+            {mdView === "mindmap" ? (
+              // M1 导图视图：内层自管平移/缩放，外层容器不再给 max-w 排版
+              <div className="h-full min-h-[420px]">
+                <MindMapView text={preview.body} title={fileName} />
+              </div>
+            ) : (
+              <div className="px-4 py-3 max-w-[860px] mx-auto">
+                <Markdown text={preview.body} />
+              </div>
+            )}
+          </>
         )}
         {!loading && preview?.kind === "text" && (
           <pre className="p-3 text-[12px] text-fg-dim font-mono leading-relaxed whitespace-pre-wrap overflow-x-auto">{preview.body}</pre>
