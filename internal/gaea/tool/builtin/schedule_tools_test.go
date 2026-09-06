@@ -107,6 +107,56 @@ func TestScheduleAnalyzeNoPredFinding(t *testing.T) {
 	}
 }
 
+// v4.117.0 刀8：倒排校核全链——set_meta deadline 落盘 → analyze 可行性裁决 →
+// 调整超期后发现报超期量 → 清除后消失。
+func TestScheduleDeadlineChain(t *testing.T) {
+	dir := t.TempDir()
+	schedApply(t, dir, `{"project":{"name":"P","startDate":"2026-09-01","tasks":[
+		{"id":"a","name":"A","level":1,"duration":3},
+		{"id":"b","name":"B","level":1,"duration":2},
+		{"id":"c","name":"C","level":1,"duration":4}],
+		"links":[{"from":"a","to":"b","type":"FS","lag":0},{"from":"b","to":"c","type":"FS","lag":0}]}}`)
+
+	// 目标竣工 2026-09-10：周一开工起第 8 个工作日，总工期 9 → 超 1 天
+	out := schedApply(t, dir, `{"ops":[{"type":"set_meta","deadline":"2026-09-10"}]}`)
+	if out["duration"].(float64) != 9 {
+		t.Fatalf("总工期 = %v", out["duration"])
+	}
+	dc, ok := out["deadlineCheck"].(map[string]any)
+	if !ok || dc["feasible"].(bool) || dc["overrun"].(float64) != 1 {
+		t.Fatalf("apply 回执缺倒排校核或口径错：%v", out["deadlineCheck"])
+	}
+	get, err := scheduleGet{workDir: dir}.Execute(context.Background(), json.RawMessage(`{}`))
+	if err != nil || !strings.Contains(get, `"deadline":"2026-09-10"`) {
+		t.Fatalf("get 缺 deadline：err=%v %s", err, get)
+	}
+	ana, err := scheduleAnalyze{workDir: dir}.Execute(context.Background(), json.RawMessage(`{}`))
+	if err != nil || !strings.Contains(ana, "倒排校核：目标竣工 2026-09-10（第 8 工作日）不可达——总工期 9 天，超 1 天") {
+		t.Fatalf("analyze 缺超期发现：err=%v %s", err, ana)
+	}
+
+	// 压缩 C 4→3 达标后：不可达发现消失（压线 feasible）
+	schedApply(t, dir, `{"ops":[{"type":"patch_task","id":"c","patch":{"duration":3}}]}`)
+	ana, err = scheduleAnalyze{workDir: dir}.Execute(context.Background(), json.RawMessage(`{}`))
+	if err != nil || strings.Contains(ana, "不可达") {
+		t.Fatalf("达标后不应报不可达：err=%v %s", err, ana)
+	}
+
+	// 富余充足（目标 09-30）不产生倒排发现，仅 deadlineCheck 数据
+	schedApply(t, dir, `{"ops":[{"type":"set_meta","deadline":"2026-09-30"}]}`)
+	ana, err = scheduleAnalyze{workDir: dir}.Execute(context.Background(), json.RawMessage(`{}`))
+	if err != nil || strings.Contains(ana, "倒排校核") {
+		t.Fatalf("富余充足不应有倒排发现：err=%v %s", err, ana)
+	}
+
+	// 空串清除 → get/analyze 无 deadline
+	schedApply(t, dir, `{"ops":[{"type":"set_meta","deadline":""}]}`)
+	get, err = scheduleGet{workDir: dir}.Execute(context.Background(), json.RawMessage(`{}`))
+	if err != nil || strings.Contains(get, `"deadline"`) {
+		t.Fatalf("清除后 get 不应带 deadline：err=%v %s", err, get)
+	}
+}
+
 func TestScheduleApplyConfine(t *testing.T) {
 	outside := t.TempDir()
 	roots := t.TempDir()

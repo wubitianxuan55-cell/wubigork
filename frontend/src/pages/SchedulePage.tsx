@@ -18,6 +18,7 @@ import { computeCpm } from '../schedule/cpm'
 import { buildAoa } from '../schedule/aoa'
 import { buildProjectXml, parseProjectXml } from '../schedule/mspdi'
 import { computeBaselineDrift } from '../schedule/baseline'
+import { checkDeadline } from '../schedule/deadline'
 import type { CpmResult } from '../schedule/types'
 import { useScheduleStore, isGroupRow, initScheduleSync } from '../schedule/store'
 import { GanttView } from '../schedule/GanttView'
@@ -189,6 +190,7 @@ const SchedulePage: React.FC = () => {
   const selectedId = useScheduleStore((s) => s.selectedId)
   const renameProject = useScheduleStore((s) => s.renameProject)
   const setStartDate = useScheduleStore((s) => s.setStartDate)
+  const setDeadline = useScheduleStore((s) => s.setDeadline)
   const importProject = useScheduleStore((s) => s.importProject)
   const addTask = useScheduleStore((s) => s.addTask)
   const addGroup = useScheduleStore((s) => s.addGroup)
@@ -209,6 +211,7 @@ const SchedulePage: React.FC = () => {
   const cpm = useMemo(() => computeCpm(project.tasks, project.links), [project])
   const aoa = useMemo(() => buildAoa(project.tasks, project.links), [project])
   const drift = useMemo(() => computeBaselineDrift(project, cpm), [project, cpm])
+  const dl = useMemo(() => checkDeadline(project, cpm), [project, cpm])
 
   const selected = project.tasks.find((t) => t.id === selectedId) ?? null
   const selectedIsGroup = selected ? isGroupRow(project.tasks, project.tasks.findIndex((t) => t.id === selected!.id)) : false
@@ -256,6 +259,18 @@ const SchedulePage: React.FC = () => {
             style={{ width: 140 }}
           />
         </Space>
+        <Tooltip title="目标竣工日期（合同/定额工期约束）：引擎按工作日换算并裁决可行性，横道图画竣工线">
+          <Space size={4}>
+            <span className="sched-dim">目标竣工</span>
+            <Input
+              type="date"
+              size="small"
+              value={project.deadline ?? ''}
+              onChange={(e) => setDeadline(e.target.value || null)}
+              style={{ width: 140 }}
+            />
+          </Space>
+        </Tooltip>
         <Popover trigger="click" placement="bottom" content={<CalendarEditor />} title="工作日历">
           <Button size="small" icon={<CalendarOutlined />}>日历</Button>
         </Popover>
@@ -359,6 +374,14 @@ const SchedulePage: React.FC = () => {
             {drift.durationDrift !== 0 && (
               <span className={drift.durationDrift > 0 ? 'sched-sb-crit' : 'sched-sb-good'}>（{fmtDrift(drift.durationDrift)}）</span>
             )}
+          </span>
+        )}
+        {dl && (
+          <span title="倒排校核：目标竣工按工作日换算（第 N 个工作日竣工）">
+            目标竣工 <span className="sched-sb-strong">{dl.deadline}</span>（第 {dl.targetWorkdays} 工作日）
+            {!dl.feasible && <span className="sched-sb-crit">超 {dl.overrun} 天</span>}
+            {dl.feasible && dl.overrun < 0 && <span className="sched-sb-good">富余 {-dl.overrun} 天</span>}
+            {dl.feasible && dl.overrun === 0 && <span className="sched-sb-good">压线达成</span>}
           </span>
         )}
         <span>工作制：<span className="sched-sb-strong">{workweekLabel(project.calendar)}</span>{(project.calendar?.holidays.length ?? 0) > 0 && <> · 节假日 {project.calendar!.holidays.length} 天</>}</span>

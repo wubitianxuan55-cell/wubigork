@@ -41,6 +41,14 @@ function wbsOf(tasks: SchedTask[]): string[] {
   return out
 }
 
+/** 目标竣工日期 → 开工日起自然日偏移（未设返回 -1） */
+function deadlineOff(deadline: string | null | undefined, startMs: number): number {
+  if (!deadline) return -1
+  const t = new Date(`${deadline}T00:00:00Z`).getTime()
+  if (!Number.isFinite(t)) return -1
+  return Math.round((t - startMs) / 86400000)
+}
+
 /** 分组行汇总跨度（子孙叶项的 min ES / max EF） */
 function groupSpan(project: SchedProject, cpm: CpmResult, idx: number): { es: number; ef: number } | null {
   const ids = descendantIds(project.tasks, project.tasks[idx].id)
@@ -136,7 +144,7 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult }> = ({
     return Math.round((wdToDate(project.startDate, wd, cal).getTime() - startMs) / 86400000)
   }, [project.startDate, cal, startMs])
 
-  const days = Math.max(dayNo(Math.max(cpm.duration, 7)) + 3, 21)
+  const days = Math.max(dayNo(Math.max(cpm.duration, 7)) + 3, 21, deadlineOff(project.deadline, startMs) + 2)
   const chartW = days * dayW
   const totalH = project.tasks.length * ROW_H
 
@@ -152,6 +160,12 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult }> = ({
     const off = Math.floor((Date.now() - startMs) / 86400000)
     return off >= 0 && off <= days ? off : null
   }, [startMs, days])
+
+  /** 目标竣工线（自然日列位；超出画布为 null 不画） */
+  const deadlineCol = useMemo(() => {
+    const off = deadlineOff(project.deadline, startMs)
+    return off >= 0 && off <= days ? off : null
+  }, [project.deadline, startMs, days])
 
   const linkRows = useMemo(() => {
     const rowIdx = new Map(project.tasks.map((t, i) => [t.id, i]))
@@ -407,6 +421,11 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult }> = ({
                 <path key={p.key} d={p.d} className="sched-link-line" markerEnd="url(#sched-arrow)" />
               ))}
               {todayCol !== null && <line x1={todayCol * dayW} y1={0} x2={todayCol * dayW} y2={totalH + 40} className="sched-today-line" />}
+              {deadlineCol !== null && (
+                <line x1={deadlineCol * dayW + dayW} y1={0} x2={deadlineCol * dayW + dayW} y2={totalH + 40} className="sched-deadline-line">
+                  <title>{`目标竣工 ${project.deadline}（倒排校核线）`}</title>
+                </line>
+              )}
               {frontLine && (
                 <>
                   <line x1={frontLine.checkX} y1={0} x2={frontLine.checkX} y2={totalH + 40} className="sched-front-check" />

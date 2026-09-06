@@ -46,10 +46,11 @@ type Op struct {
 	ToID  string   `json:"toId,omitempty"`
 	Links []opLink `json:"links,omitempty"`
 
-	// set_meta：工程名/开工日期/日历。
+	// set_meta：工程名/开工日期/日历/目标竣工（指针三态：nil=不动；空串=清除）。
 	Name      string    `json:"name,omitempty"`
 	StartDate string    `json:"startDate,omitempty"`
 	Calendar  *Calendar `json:"calendar,omitempty"`
+	Deadline  *string   `json:"deadline,omitempty"`
 
 	// set_baseline：基线名（缺省「基线」）+保存时间（调用方标注，缺省拒绝）。
 	BaselineName string `json:"baselineName,omitempty"`
@@ -230,6 +231,19 @@ func applyOne(p *Project, op Op) (string, error) {
 		if op.Calendar != nil {
 			p.Calendar = ptr(NormalizeCalendar(op.Calendar))
 			changes = append(changes, "更新工作日历")
+		}
+		if op.Deadline != nil {
+			d := strings.TrimSpace(*op.Deadline)
+			if d != "" {
+				if len(d) != 10 {
+					return "", fmt.Errorf("目标竣工日期口径应为 YYYY-MM-DD：%s", d)
+				}
+				p.Deadline = d
+				changes = append(changes, fmt.Sprintf("目标竣工→%s", d))
+			} else {
+				p.Deadline = ""
+				changes = append(changes, "清除目标竣工")
+			}
 		}
 		if len(changes) == 0 {
 			return "", fmt.Errorf("set_meta 未提供任何字段")

@@ -191,6 +191,12 @@
   stroke-width: 1.4;
   stroke-dasharray: 4 3;
 }
+/* 目标竣工线（刀8 倒排校核：画在竣工日列末=当日完工口径，紫虚线区别今日线） */
+.sched-deadline-line {
+  stroke: #7c3aed;
+  stroke-width: 1.4;
+  stroke-dasharray: 6 3;
+}
 /* 前锋线（斑马式进度检查线） */
 .sched-front-check {
   stroke: #f59e0b;

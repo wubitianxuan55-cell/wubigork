@@ -70,3 +70,20 @@ export function dateToWd(startISO: string, dateISO: string, calInput?: SchedCale
   }
   return null
 }
+
+/**
+ * 目标竣工日期 → 目标总工期（工作日）：[开工日, 竣工日] 内的工作日计数
+ * （竣工日恰为非工作日时自然回落到此前最近工作日，即「第 count 个工作日竣工」）。
+ * 竣工早于开工 → 0（必然不可达，由倒排校核裁决报告）。
+ */
+export function deadlineWorkdays(startISO: string, deadlineISO: string, calInput?: SchedCalendar): number {
+  const cal = normalizeCalendar(calInput)
+  const start = parseISO(startISO).getTime()
+  const dl = parseISO(deadlineISO).getTime()
+  if (dl < start) return 0
+  let count = 0
+  for (let t = start; t <= dl && count < SCAN_LIMIT; t += 86400000) {
+    if (isWorkingDate(new Date(t), cal)) count++
+  }
+  return count
+}

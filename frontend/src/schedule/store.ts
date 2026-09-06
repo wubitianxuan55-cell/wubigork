@@ -28,13 +28,14 @@ export interface PredDraft {
   lag: number
 }
 
-/** 旧持久化数据兼容：补日历缺省（v4.110 数据无 calendar） */
+/** 旧持久化数据兼容：补日历缺省（v4.110 数据无 calendar）；deadline 非法格式丢弃 */
 export function normalizeProject(p: SchedProject): SchedProject {
   return {
     ...p,
     calendar: normalizeCalendar(p.calendar),
     tasks: (p.tasks ?? []).map((t) => ({ ...t, progress: t.progress ?? 0 })),
     links: p.links ?? [],
+    deadline: typeof p.deadline === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(p.deadline) ? p.deadline : null,
   }
 }
 
@@ -54,6 +55,8 @@ interface ScheduleState {
   /** 整体替换工程（XML 导入/文件水合），缺省字段归一 */
   importProject: (p: SchedProject) => void
   setCalendar: (cal: SchedCalendar) => void
+  /** 目标竣工日期（null=清除），倒排校核用 */
+  setDeadline: (d: string | null) => void
   /**
    * 保存/更新基线（快照当前排程）。返回 null=成功；否则为失败原因
    * （循环依赖/无叶任务），UI 据此提示——不静默。
@@ -117,6 +120,7 @@ export const useScheduleStore = create<ScheduleState>()(
       setStartDate: (startDate) => set((s) => ({ project: { ...s.project, startDate } })),
       importProject: (p) => set({ project: normalizeProject(p), selectedId: null }),
       setCalendar: (calendar) => set((s) => ({ project: { ...s.project, calendar: normalizeCalendar(calendar) } })),
+      setDeadline: (d) => set((s) => ({ project: { ...s.project, deadline: d } })),
 
       setBaseline: (name) => {
         const { project } = useScheduleStore.getState()

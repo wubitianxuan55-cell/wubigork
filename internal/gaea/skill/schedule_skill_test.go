@@ -48,6 +48,10 @@ func TestScheduleEditBuiltinSkill(t *testing.T) {
 		"set_baseline",
 		"clear_baseline",
 		"baselineDrift",
+		// v4.117 刀8：倒排工期
+		"倒排校核",
+		"deadline",
+		"deadlineCheck",
 	}
 	body := sk.Body
 	for _, a := range anchors {

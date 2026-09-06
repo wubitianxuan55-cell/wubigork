@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { DEFAULT_CALENDAR, dateToWd, isWorkingDate, normalizeCalendar, wdToDate } from './calendar'
+import { DEFAULT_CALENDAR, dateToWd, deadlineWorkdays, isWorkingDate, normalizeCalendar, wdToDate } from './calendar'
 import type { SchedCalendar } from './types'
 
 // 2026-09-07 是周一；2026-09-12 周六、09-13 周日
@@ -52,5 +52,20 @@ describe('dateToWd（日期 → 工作日序号）', () => {
       const d = wdToDate(MON, i)
       expect(dateToWd(MON, d.toISOString().slice(0, 10))).toBe(i)
     }
+  })
+})
+
+describe('deadlineWorkdays（目标竣工 → 目标总工期，v4.117 刀8）', () => {
+  it('工作日竣工含当日：周一开工、周五竣工=5 个工作日', () => {
+    expect(deadlineWorkdays(MON, '2026-09-11')).toBe(5)
+    expect(deadlineWorkdays(MON, '2026-09-14')).toBe(6) // 跨周末到下周一
+  })
+  it('竣工日为非工作日回落到此前最近工作日', () => {
+    expect(deadlineWorkdays(MON, '2026-09-12')).toBe(5) // 周六 → 记周五 5 个
+  })
+  it('节假日命中不计；竣工早于开工 → 0', () => {
+    expect(deadlineWorkdays(MON, '2026-09-18')).toBe(10) // 两个完整工作周
+    expect(deadlineWorkdays(MON, '2026-09-18', { workweek: [1, 2, 3, 4, 5], holidays: ['2026-09-11'] })).toBe(9)
+    expect(deadlineWorkdays('2026-09-10', '2026-09-09')).toBe(0)
   })
 })

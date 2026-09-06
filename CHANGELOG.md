@@ -1,3 +1,14 @@
+## v4.117.0 · 进度计划刀8：倒排工期——目标竣工约束 · 引擎可行性裁决 · 横道竣工线（2026-09-06）
+> v4.111/112 欠账池收刀（绑定面 **588** 零变更）；对齐 Project「必须完成期限」：目标是引擎**裁决**合同/定额竣工约束的可行性，不自动改排程——压缩方案由 AI 建议、用户拍板。详见 releases/v4.117.0.md。
+- **数据模型**（双侧同构）：SchedProject.deadline（YYYY-MM-DD 日历日期，开工日调整后语义稳定）；引擎按工作日换算 targetWorkdays（「第 N 个工作日竣工」，竣工日为非工作日自然回落；早于开工=0 必然不可达）。
+- **TS deadline.ts（纯函数，6 例）+ calendar.deadlineWorkdays（3 例）**：checkDeadline 返回可行性/超期量（正=超期，负=富余）/关键工作清单（手动不计）。
+- **Go 镜像 deadline.go + ops set_meta{deadline}（指针三态：nil 不动/空串清除/日期设置）+ Validate 格式校验**（+9 例，测试与 TS 同批场景）：非法长度拒绝；DeadlineWorkdays/CheckDeadline 与 TS 逐字段镜像。
+- **agent 三工具接线**：get 带 deadline；apply 回执带 deadlineCheck；analyze 输出 deadlineCheck+checks 倒排发现（不可达=超期量+压缩对象；富余≤2 提示触线；富余充足不出发现不噪声化）。工具链测试：设 09-10 超 1 天→压缩 C 达标→清除。
+- **板块 UI**：页头「目标竣工」日期输入（Tooltip 口径说明）；状态栏倒排段（第 N 工作日+超期红/富余绿/压线达成）；横道图紫虚线竣工线（画在竣工日列末=当日完工口径，超出画布不画）。
+- **schedule-edit 技能编制流程第 3 步改写**（锚点锁 +3）：约束场景先 set_meta deadline，analyze 倒排校核裁决，manual 仅作个别任务定位手段。
+- 测试：vitest 2126→**2135**（+9）；Go internal/schedule +9（含 ops set_meta deadline 三态）。门禁：tsc -b/eslint 0、Go 全量一次绿、drift PASS@588、版本四处 4.117.0、build.bat 冒烟 /api/health 200；?mock=1 走查：超期红（第 29 工作日超 121 天）/富余绿（217 工作日富余 67 天）/清除/重载持久化/紫线渲染全过。
+- 欠账：进度计划拍板池余——对话式调整 diff 确认卡、双工期口径（定额日历天 vs 工作日）、多工程管理；非拍板——横道拖拽调排程、资源成本；真机池——真机端到端+基线/倒排 UI 手感。
+
 ## v4.116.0 · 进度计划刀7：基线对比——快照固排程 · 漂移量化 · 板块/agent 同口径（2026-09-06）
 > v4.111/112 欠账池收刀（绑定面 **588** 零变更）；对齐 Project「设置基线」：把保存时的排程结果固化，之后每次调整量化「较基线」偏差。详见 releases/v4.116.0.md。
 - **基线数据模型**（types 同构双侧）：SchedProject.baseline={name,savedAt,duration,rows}，行=叶任务快照 {name,es,ef,dur,critical}（工作日序号，口径=相对开工日偏移，不受开工日调整影响；分组行不入基线）。

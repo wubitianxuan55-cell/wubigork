@@ -132,3 +132,22 @@ func DateToWd(startISO, dateISO string, calInput *Calendar) (int, bool) {
 	}
 	return 0, false
 }
+
+// DeadlineWorkdays 目标竣工日期 → 目标总工期（工作日）：[开工日, 竣工日] 内的
+// 工作日计数（竣工日恰为非工作日时自然回落到此前最近工作日，即「第 count 个
+// 工作日竣工」）。竣工早于开工 → 0（必然不可达，由倒排校核裁决报告）。
+func DeadlineWorkdays(startISO, deadlineISO string, calInput *Calendar) int {
+	cal := NormalizeCalendar(calInput)
+	start := parseISO(startISO)
+	dl := parseISO(deadlineISO)
+	if dl.Before(start) {
+		return 0
+	}
+	count := 0
+	for cur := start; !cur.After(dl) && count < scanLimit; cur = cur.AddDate(0, 0, 1) {
+		if IsWorkingDate(cur, cal) {
+			count++
+		}
+	}
+	return count
+}

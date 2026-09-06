@@ -106,6 +106,9 @@ func Validate(p *Project) error {
 	if p.StartDate != "" && len(p.StartDate) != 10 {
 		return fmt.Errorf("开工日期口径应为 YYYY-MM-DD：%s", p.StartDate)
 	}
+	if p.Deadline != "" && len(p.Deadline) != 10 {
+		return fmt.Errorf("目标竣工日期口径应为 YYYY-MM-DD：%s", p.Deadline)
+	}
 	return nil
 }
 

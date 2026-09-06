@@ -71,6 +71,8 @@ type Project struct {
 	Calendar  *Calendar `json:"calendar,omitempty"`
 	// Baseline 基线（v4.116 刀7：保存时的排程快照，缺省=尚未保存）。
 	Baseline *Baseline `json:"baseline,omitempty"`
+	// Deadline 目标竣工日期（v4.117 刀8：YYYY-MM-DD，倒排校核用，缺省=未设）。
+	Deadline string `json:"deadline,omitempty"`
 }
 
 // BaselineRow 基线行快照：单任务保存基线时的排程结果（叶任务专属）。
