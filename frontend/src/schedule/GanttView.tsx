@@ -5,16 +5,18 @@
  *  - 自然日时间轴 + 周末/节假日底纹（CPM 仍按工作日计算，条形跨非工作日渲染）；
  *  - 行号列、分组行彩色底纹（五色循环 + 左色条）；
  *  - 关键红条、分组黑汇总条、里程碑黑菱形、总时差尾巴、搭接箭线、前锋线。
- * 列：行号 | 任务名称 | WBS | 工期 | 开始 | 完成 | 模式 | 前置 | 成本。
+ * 列（v4.127 刀B 补齐 Project 口径）：行号 | 任务名称 | WBS | 工期 | 开始 | 完成 |
+ * 最迟开始 | 最迟完成 | 总时差 | 自由时差 | 模式 | 前置 | 后续 | 成本。
  */
 import React, { useMemo, useState } from 'react'
 import { Button, DatePicker, Input, InputNumber, Popover, Select } from 'antd'
-import { DeleteOutlined, LinkOutlined, TeamOutlined, ZoomInOutlined, ZoomOutOutlined } from '@ant-design/icons'
+import { DeleteOutlined, TeamOutlined, ZoomInOutlined, ZoomOutOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import type { CpmResult, LinkType, SchedProject, SchedTask } from './types'
 import { isWorkingDate, normalizeCalendar, wdToDate } from './calendar'
 import { dropToWd, resizeToDuration, workdayOffsets } from './drag'
 import { computeCosts, type CostResult } from './cost'
+import { fmtLinkRefs, ganttLinkPath } from './ganttLinks'
 import { descendantIds, isGroupRow, useScheduleStore, type PredDraft } from './store'
 import { TaskResourceEditor } from './ResourcePanel'
 import { fmtCost, hasCostData } from './costUi'
@@ -22,15 +24,24 @@ import { fmtCost, hasCostData } from './costUi'
 const ROW_H = 30
 const COLS = [
   { key: 'no', label: '', w: 34 },
-  { key: 'name', label: '任务名称', w: 184 },
-  { key: 'wbs', label: 'WBS', w: 46 },
-  { key: 'dur', label: '工期', w: 52 },
-  { key: 'start', label: '开始', w: 74 },
-  { key: 'finish', label: '完成', w: 74 },
-  { key: 'mode', label: '模式', w: 54 },
-  { key: 'links', label: '前置', w: 56 },
-  { key: 'cost', label: '成本', w: 72 },
-]
+  { key: 'name', label: '任务名称', w: 160 },
+  { key: 'wbs', label: 'WBS', w: 44 },
+  { key: 'dur', label: '工期', w: 48 },
+  { key: 'start', label: '开始', w: 66 },
+  { key: 'finish', label: '完成', w: 66 },
+  { key: 'ls', label: '最迟开始', w: 66 },
+  { key: 'lf', label: '最迟完成', w: 66 },
+  { key: 'tf', label: '总时差', w: 44 },
+  { key: 'ff', label: '自由时差', w: 58 },
+  { key: 'mode', label: '模式', w: 48 },
+  { key: 'preds', label: '前置', w: 68 },
+  { key: 'succ', label: '后续', w: 68 },
+  { key: 'cost', label: '成本', w: 68 },
+] as const
+/** 列宽速查（按 key 取，避免序号漂移） */
+const W: Record<(typeof COLS)[number]['key'], number> = Object.fromEntries(
+  COLS.map((c) => [c.key, c.w]),
+) as Record<(typeof COLS)[number]['key'], number>
 const LEFT_W = COLS.reduce((s, c) => s + c.w, 0)
 const DAY_W_STEPS = [8, 14, 20, 28]
 const WEEKDAY_LABELS = ['日', '一', '二', '三', '四', '五', '六']
@@ -44,6 +55,21 @@ function wbsOf(tasks: SchedTask[]): string[] {
     if (t.level === 0) { g++; k = 0; out.push(`${g}`) } else { k++; out.push(`${g}.${k}`) }
   }
   return out
+}
+
+/** 入边（前置）/出边（后续）引用（刀B 前置/后续列数据源） */
+function predsOf(id: string, project: SchedProject) {
+  return project.links.filter((l) => l.to === id)
+}
+function succsOf(id: string, project: SchedProject) {
+  return project.links.filter((l) => l.from === id)
+}
+function taskNameOf(project: SchedProject, id: string): string {
+  return project.tasks.find((t) => t.id === id)?.name ?? id
+}
+/** 任务 id → 行号（Project 引用文本口径，1-based） */
+function noOf(project: SchedProject): (id: string) => number {
+  return (id) => project.tasks.findIndex((t) => t.id === id) + 1
 }
 
 /** 目标竣工日期 → 开工日起自然日偏移（未设返回 -1） */
@@ -257,19 +283,22 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult }> = ({
       .filter((x) => x.fi !== undefined && x.ti !== undefined && cpm.ok)
   }, [project.links, project.tasks, cpm.ok])
 
+  /** 依赖线（刀B）：按四种搭接类型取各自锚点画正交折线 */
   const linkPaths = linkRows.map(({ l, fi, ti }) => {
     const f = cpm.rows[l.from]
     const t2 = cpm.rows[l.to]
     if (!f || !t2) return null
-    const y1 = fi! * ROW_H + ROW_H / 2
-    const y2 = ti! * ROW_H + ROW_H / 2
-    const x1 = dayNo(f.ef) * dayW
-    const x2 = dayNo(t2.es) * dayW
-    const mid = Math.max(x1 + 5, (x1 + x2) / 2)
-    const d = x2 >= x1 + 10
-      ? `M ${x1} ${y1} H ${mid} V ${y2} H ${x2 - 3}`
-      : `M ${x1} ${y1} h 6 V ${y1 < y2 ? y2 - 8 : y2 + 8} H ${x2 - 3} V ${y2} H ${x2 - 3}`
-    return { d, key: `${l.from}>${l.to}>${l.type}` }
+    return {
+      d: ganttLinkPath(l.type, {
+        x1s: dayNo(f.es) * dayW,
+        x1f: dayNo(f.ef) * dayW,
+        y1: fi! * ROW_H + ROW_H / 2,
+        x2s: dayNo(t2.es) * dayW,
+        x2f: dayNo(t2.ef) * dayW,
+        y2: ti! * ROW_H + ROW_H / 2,
+      }),
+      key: `${l.from}>${l.to}>${l.type}`,
+    }
   }).filter(Boolean) as { d: string; key: string }[]
 
   /** 前锋线折线点（行中心；x=自然日列） */
@@ -377,8 +406,8 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult }> = ({
                 onClick={() => select(t.id)}
               >
                 <div className="sched-gantt-left sched-sticky-left" style={{ width: LEFT_W }}>
-                  <div style={{ width: COLS[0].w }} className="sched-gantt-cell sched-row-no">{i + 1}</div>
-                  <div style={{ width: COLS[1].w }} className="sched-gantt-cell">
+                  <div style={{ width: W.no }} className="sched-gantt-cell sched-row-no">{i + 1}</div>
+                  <div style={{ width: W.name }} className="sched-gantt-cell">
                     <span style={{ paddingLeft: t.level * 14, display: 'inline-flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
                       {group ? <strong className="sched-group-name">▲{t.name}</strong> : (
                         <Input
@@ -406,8 +435,8 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult }> = ({
                       )}
                     </span>
                   </div>
-                  <div style={{ width: COLS[2].w }} className="sched-gantt-cell sched-dim">{wbs[i]}</div>
-                  <div style={{ width: COLS[3].w }} className="sched-gantt-cell">
+                  <div style={{ width: W.wbs }} className="sched-gantt-cell sched-dim">{wbs[i]}</div>
+                  <div style={{ width: W.dur }} className="sched-gantt-cell">
                     {group ? <span className="sched-dim">汇总</span> : (
                       <InputNumber
                         size="small"
@@ -419,7 +448,7 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult }> = ({
                       />
                     )}
                   </div>
-                  <div style={{ width: COLS[4].w }} className="sched-gantt-cell sched-dim">
+                  <div style={{ width: W.start }} className="sched-gantt-cell sched-dim">
                     {manual && !group ? (
                       <InputNumber
                         size="small"
@@ -434,10 +463,23 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult }> = ({
                       (group ? span : row) ? fmtDate(project.startDate, group ? span!.es : row!.es, cal) : ''
                     )}
                   </div>
-                  <div style={{ width: COLS[5].w }} className="sched-gantt-cell sched-dim">
+                  <div style={{ width: W.finish }} className="sched-gantt-cell sched-dim">
                     {(group ? span : row) ? fmtDate(project.startDate, group ? span!.ef : row!.ef, cal) : ''}
                   </div>
-                  <div style={{ width: COLS[6].w }} className="sched-gantt-cell">
+                  {/* 六时参（刀B）：LS/LF/TF/FF——手动任务逆推不回传，诚实显示 —（不放假数据） */}
+                  <div style={{ width: W.ls }} className="sched-gantt-cell sched-dim" title="最迟开始（逆推）">
+                    {group || manual ? (manual && !group ? '—' : '') : fmtDate(project.startDate, row!.ls, cal)}
+                  </div>
+                  <div style={{ width: W.lf }} className="sched-gantt-cell sched-dim" title="最迟完成（逆推）">
+                    {group || manual ? (manual && !group ? '—' : '') : fmtDate(project.startDate, row!.lf, cal)}
+                  </div>
+                  <div style={{ width: W.tf }} className={`sched-gantt-cell${!group && !manual && row?.tf === 0 ? ' sched-critical-text' : ' sched-dim'}`} title={manual ? '手动模式不参与时差计算' : '总时差 = LS − ES（0=关键）'}>
+                    {group ? '' : manual ? '—' : row?.tf}
+                  </div>
+                  <div style={{ width: W.ff }} className="sched-gantt-cell sched-dim" title={manual ? '手动模式不参与时差计算' : '自由时差 = 紧后 ES 最小值 − EF'}>
+                    {group ? '' : manual ? '—' : row?.ff}
+                  </div>
+                  <div style={{ width: W.mode }} className="sched-gantt-cell">
                     {!group && (
                       <Button
                         size="small"
@@ -451,16 +493,33 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult }> = ({
                       </Button>
                     )}
                   </div>
-                  <div style={{ width: COLS[7].w }} className="sched-gantt-cell">
+                  <div style={{ width: W.preds }} className="sched-gantt-cell">
                     {!group && (
                       <Popover trigger="click" placement="left" content={<PredEditor task={t} />} title={`「${t.name}」前置任务`}>
-                        <Button size="small" type="text" icon={<LinkOutlined />}>
-                          {project.links.filter((l) => l.to === t.id).length || ''}
+                        <Button
+                          size="small"
+                          type="text"
+                          className="sched-link-cell"
+                          data-testid={`sched-preds-${t.id}`}
+                          title={predsOf(t.id, project).map((l) => taskNameOf(project, l.from)).join('、') || '无前置，点击添加'}
+                        >
+                          {fmtLinkRefs(predsOf(t.id, project).map((l) => ({ id: l.from, type: l.type, lag: l.lag })), noOf(project))}
                         </Button>
                       </Popover>
                     )}
                   </div>
-                  <div style={{ width: COLS[8].w }} className="sched-gantt-cell sched-cost-cell" data-testid={`sched-cost-${t.id}`}>
+                  <div style={{ width: W.succ }} className="sched-gantt-cell">
+                    {!group && (
+                      <span
+                        className="sched-dim sched-link-cell-text"
+                        data-testid={`sched-succ-${t.id}`}
+                        title={succsOf(t.id, project).map((l) => taskNameOf(project, l.to)).join('、') || '无后续任务'}
+                      >
+                        {fmtLinkRefs(succsOf(t.id, project).map((l) => ({ id: l.to, type: l.type, lag: l.lag })), noOf(project))}
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ width: W.cost }} className="sched-gantt-cell sched-cost-cell" data-testid={`sched-cost-${t.id}`}>
                     {costShown && (group ? (
                       <span className="sched-dim" title="分组汇总：子孙叶任务成本求和">{fmtCost(groupCost(project, costs, i))}</span>
                     ) : (

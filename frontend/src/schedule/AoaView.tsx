@@ -10,6 +10,9 @@
  * x 与时间解耦（时间参数仍全量显示）。拖拽布点对齐横道刀9 纪律：
  * window 监听三件套、半格吸附纯函数（aoaLayout.ts snapPt）、未移动不提交、
  * Esc 取消、自动模式拖拽=自动转手动（「不骗人」先例）、提交时剪枝失配键。
+ *
+ * v4.127 基本功刀A：箭线正交画法合规——横平竖直、直角拐弯、禁斜线
+ * （JGJ/T 121 绘图口径）；工作名称/工期标注随水平段归位；平行边错位通道。
  */
 import React, { useRef, useState } from 'react'
 import type { AoaEdge, AoaGraph } from './aoa'
@@ -20,23 +23,61 @@ import type { AoaPin, SchedTask } from './types'
 
 const R = 16
 
-function edgeGeom(e: AoaEdge, nodeById: Map<string, { x: number; y: number }>) {
+/**
+ * 正交箭线几何（v4.127 刀A：横平竖直、直角拐弯，禁斜线——JGJ/T 121 绘图口径）。
+ * 前进边：右缘出、直角拐、左缘入；同列边：竖直直连；后退边（手动布局可能产生）：
+ * 底缘出、下方通道绕行、底缘入。同节点对多条平行边按序错开通道防重叠。
+ */
+function edgeGeom(e: AoaEdge, nodeById: Map<string, { x: number; y: number }>, lane: { idx: number; cnt: number }) {
   const a = nodeById.get(e.from)!
   const b = nodeById.get(e.to)!
   const dx = b.x - a.x
   const dy = b.y - a.y
-  const len = Math.hypot(dx, dy) || 1
-  const shrink = (R + 3) / len
-  // 直连；同列（dx≈0）时的小偏移避免完全重合
-  const bow = Math.abs(dx) < 2 ? 14 : 0
+  // 平行边错位：同 (from,to) 多条边（如虚工作+实工作）各让 10px
+  const off = lane.cnt > 1 ? (lane.idx - (lane.cnt - 1) / 2) * 10 : 0
+  if (Math.abs(dx) < 2) {
+    // 同列：竖直边（虚工作常态）；并行时横向微移防重合
+    const x = a.x + off
+    const up = b.y < a.y
+    const y1 = up ? a.y - R : a.y + R
+    const y2 = up ? b.y + R : b.y - R
+    const my = (y1 + y2) / 2
+    return {
+      d: `M ${x} ${y1} L ${x} ${y2}`,
+      lx: x + 7, ly: my, lanchor: 'start' as const,
+      nx: x + 7, ny: my + 12,
+    }
+  }
+  if (dx > 0) {
+    const x1 = a.x + R
+    const x2 = b.x - R
+    if (Math.abs(dy) < 2) {
+      const y = a.y + off
+      return {
+        d: `M ${x1} ${y} L ${x2} ${y}`,
+        lx: (x1 + x2) / 2, ly: y - 5, lanchor: 'middle' as const,
+        nx: (x1 + x2) / 2, ny: y + 12,
+      }
+    }
+    // H-V-H：通道 x 错开并行边；标注贴第一段水平线，过短则贴末段
+    const mid = (x1 + x2) / 2 + off
+    const firstLen = mid - x1
+    const onFirst = firstLen >= 36
+    const lx = onFirst ? (x1 + mid) / 2 : (mid + x2) / 2
+    const ly = (onFirst ? a.y : b.y) - 5
+    return {
+      d: `M ${x1} ${a.y} L ${mid} ${a.y} L ${mid} ${b.y} L ${x2} ${b.y}`,
+      lx, ly, lanchor: 'middle' as const,
+      nx: lx, ny: ly + 12,
+    }
+  }
+  // 后退边（手动布局）：底缘出 → 下方通道 → 底缘入（箭头朝上）
+  const laneY = Math.max(a.y, b.y) + R + 14 + off
+  const mx = (a.x + b.x) / 2
   return {
-    x1: a.x + dx * shrink + (bow ? -6 : 0),
-    y1: a.y + dy * shrink,
-    x2: b.x - dx * shrink,
-    y2: b.y - dy * shrink,
-    bow,
-    midX: (a.x + b.x) / 2 + (bow ? 16 : 0),
-    midY: (a.y + b.y) / 2 - 5,
+    d: `M ${a.x} ${a.y + R} L ${a.x} ${laneY} L ${b.x} ${laneY} L ${b.x} ${b.y + R}`,
+    lx: mx, ly: laneY - 4, lanchor: 'middle' as const,
+    nx: mx, ny: laneY + 10,
   }
 }
 
@@ -175,32 +216,44 @@ export const AoaView: React.FC<{ graph: AoaGraph; tasks: SchedTask[] }> = ({ gra
               <path d="M0,0 L9,4.5 L0,9 z" fill="var(--sched-critical, #dc2626)" />
             </marker>
           </defs>
-          {shown.edges.map((e) => {
-            const g = edgeGeom(e, nodeById)
-            const dummy = e.kind === 'dummy'
-            const cls = `sched-aoa-link${e.critical ? ' sched-aoa-link-critical' : ''}${dummy ? ' sched-aoa-dummy' : ''}`
-            return (
-              <g key={e.id}>
-                <path
-                  d={`M ${g.x1} ${g.y1} L ${g.x2} ${g.y2}`}
-                  className={cls}
-                  markerEnd={e.critical ? 'url(#aoa-arrow-crit)' : 'url(#aoa-arrow)'}
-                  onClick={() => e.taskId && select(e.taskId)}
-                  style={{ pointerEvents: e.taskId ? 'stroke' : 'none', cursor: e.taskId ? 'pointer' : 'default' }}
-                />
-                {e.label && (
-                  <text x={g.midX} y={g.midY} textAnchor="middle" className={`sched-net-label${e.critical ? ' sched-net-label-critical' : ''}`}>
-                    {e.label}
-                  </text>
-                )}
-                {e.taskId && (
-                  <text x={g.midX} y={g.midY + 12} textAnchor="middle" className="sched-aoa-taskname">
-                    {taskName(e.taskId)}
-                  </text>
-                )}
-              </g>
-            )
-          })}
+          {(() => {
+            // 同 (from,to) 平行边计数（错位通道用）
+            const pairCnt = new Map<string, number>()
+            for (const e of shown.edges) {
+              const k = `${e.from}>${e.to}`
+              pairCnt.set(k, (pairCnt.get(k) ?? 0) + 1)
+            }
+            const pairSeen = new Map<string, number>()
+            return shown.edges.map((e) => {
+              const k = `${e.from}>${e.to}`
+              const idx = pairSeen.get(k) ?? 0
+              pairSeen.set(k, idx + 1)
+              const g = edgeGeom(e, nodeById, { idx, cnt: pairCnt.get(k)! })
+              const dummy = e.kind === 'dummy'
+              const cls = `sched-aoa-link${e.critical ? ' sched-aoa-link-critical' : ''}${dummy ? ' sched-aoa-dummy' : ''}`
+              return (
+                <g key={e.id}>
+                  <path
+                    d={g.d}
+                    className={cls}
+                    markerEnd={e.critical ? 'url(#aoa-arrow-crit)' : 'url(#aoa-arrow)'}
+                    onClick={() => e.taskId && select(e.taskId)}
+                    style={{ pointerEvents: e.taskId ? 'stroke' : 'none', cursor: e.taskId ? 'pointer' : 'default' }}
+                  />
+                  {e.label && (
+                    <text x={g.lx} y={g.ly} textAnchor={g.lanchor} className={`sched-net-label${e.critical ? ' sched-net-label-critical' : ''}`}>
+                      {e.label}
+                    </text>
+                  )}
+                  {e.taskId && (
+                    <text x={g.nx} y={g.ny} textAnchor={g.lanchor} className="sched-aoa-taskname">
+                      {taskName(e.taskId)}
+                    </text>
+                  )}
+                </g>
+              )
+            })
+          })()}
         </svg>
         {shown.nodes.map((n) => {
           const isDragging = drag?.anchor === n.anchor

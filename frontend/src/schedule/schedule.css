@@ -6,6 +6,7 @@
   --sched-link: #94a3b8;
   --sched-group: #1f2937;
   --sched-weekend: rgba(148, 163, 184, 0.14);
+  --sched-grid: rgba(148, 163, 184, 0.16); /* 网络图坐标纸底（v4.127 降强度，不压节点） */
 }
 
 /* ── 页面骨架 ─────────────────────────────────────────────── */
@@ -37,7 +38,8 @@
   flex-wrap: wrap;
 }
 .sched-dim {
-  color: var(--md-sys-color-outline, #8a8f98);
+  /* v4.127 刀E：outline→on-surface-variant，日期/数值类次级文字对比度过 WCAG 4.5:1 */
+  color: var(--md-sys-color-on-surface-variant, #6b7280);
   font-size: 12px;
 }
 .sched-critical-text {
@@ -164,7 +166,7 @@
 .sched-day-cell {
   flex: 1;
   font-size: 10px;
-  color: var(--md-sys-color-outline, #8a8f98);
+  color: var(--md-sys-color-on-surface-variant, #6b7280);
   border-left: 1px solid var(--md-sys-color-border-variant, #f0f1f3);
   text-align: center;
   line-height: 18px;
@@ -378,8 +380,8 @@
   min-height: 320px;
   position: relative;
   background:
-    linear-gradient(var(--md-sys-color-border-variant, #f0f1f3) 1px, transparent 1px) 0 0 / 24px 24px,
-    linear-gradient(90deg, var(--md-sys-color-border-variant, #f0f1f3) 1px, transparent 1px) 0 0 / 24px 24px,
+    linear-gradient(var(--sched-grid) 1px, transparent 1px) 0 0 / 24px 24px,
+    linear-gradient(90deg, var(--sched-grid) 1px, transparent 1px) 0 0 / 24px 24px,
     var(--md-sys-color-bg-container, #fff);
 }
 .sched-network-canvas {
@@ -388,12 +390,18 @@
   min-height: 100%;
 }
 .sched-network-legend {
+  /* v4.127 刀E：吸顶常驻——长图滚动时图例/统计牌不消失 */
+  position: sticky;
+  top: 0;
+  z-index: 30;
   display: flex;
   gap: 16px;
   align-items: center;
   font-size: 12px;
-  color: var(--md-sys-color-outline, #8a8f98);
-  padding: 6px 2px;
+  color: var(--md-sys-color-on-surface-variant, #6b7280);
+  padding: 6px 8px;
+  background: var(--md-sys-color-bg-container, #fff);
+  border-bottom: 1px solid var(--md-sys-color-border-variant, #f0f1f3);
 }
 .sched-network-legend .lg-dot {
   display: inline-block;
@@ -434,7 +442,7 @@
 }
 .sched-net-label {
   font-size: 10px;
-  fill: var(--md-sys-color-outline, #8a8f98);
+  fill: var(--md-sys-color-on-surface-variant, #6b7280);
 }
 .sched-net-label-critical {
   fill: var(--sched-critical);
@@ -483,6 +491,14 @@
 }
 .sched-pdm-grid span:nth-child(n + 4) {
   border-bottom: none;
+}
+/* 单代号缩放读数（v4.127 刀E 缩放/适配） */
+.sched-pdm-zoom {
+  font-size: 11px;
+  line-height: 22px;
+  min-width: 38px;
+  text-align: center;
+  color: var(--md-sys-color-on-surface-variant, #6b7280);
 }
 
 /* ── 双代号节点/箭线 ──────────────────────────────────────── */
@@ -537,46 +553,47 @@
 }
 
 /* ── 斑马对齐：分组彩色行 / 行号 / 工具分组 / 状态栏 / 统计牌 ────────── */
-/* 分组行六色循环（斑马真机口径：橙/青/粉/黄/蓝/绿 饱和实底 + 黑字 + 深色左条） */
+/* 分组行六色循环（v4.127 刀E：降饱和淡底 + 深色左条——保留分组色相导航，
+   让位任务条/汇总条对比层级；色相仍为 橙/青/粉/黄/蓝/绿 斑马循环） */
 .sched-group-row {
   font-weight: 600;
 }
 .sched-group-row .sched-group-name {
   font-size: 12px;
-  color: #17202e;
+  color: var(--md-sys-color-on-surface, #1f2937);
 }
 .sched-group-c0 {
-  background: #f9a03a;
+  background: rgba(249, 160, 58, 0.18);
 }
 .sched-group-c0::before {
   background: #c97a1e;
 }
 .sched-group-c1 {
-  background: #45d6d0;
+  background: rgba(69, 214, 208, 0.16);
 }
 .sched-group-c1::before {
   background: #2aa8a3;
 }
 .sched-group-c2 {
-  background: #f783cf;
+  background: rgba(247, 131, 207, 0.16);
 }
 .sched-group-c2::before {
   background: #cc58a6;
 }
 .sched-group-c3 {
-  background: #ffd83a;
+  background: rgba(255, 216, 58, 0.18);
 }
 .sched-group-c3::before {
   background: #d4ae12;
 }
 .sched-group-c4 {
-  background: #5a9cf0;
+  background: rgba(90, 156, 240, 0.18);
 }
 .sched-group-c4::before {
   background: #3a74c4;
 }
 .sched-group-c5 {
-  background: #30c46a;
+  background: rgba(48, 196, 106, 0.16);
 }
 .sched-group-c5::before {
   background: #1f9a4f;
@@ -593,9 +610,9 @@
 .sched-group-row .sched-sticky-left {
   background: inherit; /* 经 .sched-gantt-left 的 inherit 链落到行底色 */
 }
-/* 饱和分组底上的次级文字对比度（斑马：组行数值黑字可读） */
+/* 饱和分组底上的次级文字对比度（v4.127 刀E：随行底淡化同步换语义令牌） */
 .sched-group-row .sched-dim {
-  color: rgba(23, 32, 46, 0.72);
+  color: var(--md-sys-color-on-surface-variant, #6b7280);
   font-weight: 600;
 }
 .sched-row-no {
@@ -612,13 +629,13 @@
   margin: 0 4px;
 }
 
-/* 底部状态栏（斑马：缩放/刻度/统计提示） */
+/* 底部状态栏（斑马：缩放/刻度/统计提示；v4.127 刀E 次级文字提对比度） */
 .sched-statusbar {
   display: flex;
   align-items: center;
   gap: 14px;
   font-size: 12px;
-  color: var(--md-sys-color-outline, #8a8f98);
+  color: var(--md-sys-color-on-surface-variant, #6b7280);
   border-top: 1px solid var(--md-sys-color-border, #e5e7eb);
   padding: 4px 8px 0;
 }
