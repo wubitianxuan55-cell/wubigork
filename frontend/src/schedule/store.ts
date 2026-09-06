@@ -9,12 +9,13 @@
  */
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { LinkType, SchedAssignment, SchedCalendar, SchedLink, SchedProject, SchedResource, SchedTask } from './types'
+import type { AoaPin, LinkType, SchedAssignment, SchedCalendar, SchedLink, SchedProject, SchedResource, SchedTask } from './types'
 import { makeEmptyProject, makeSampleProject } from './sample'
 import { normalizeCalendar } from './calendar'
 import { computeCpm } from './cpm'
 import { loadScheduleFile, saveScheduleFile } from './api'
 import { snapshotBaseline } from './baseline'
+import { normalizeAoaLayout } from './aoaLayout'
 
 export type ScheduleView = 'gantt' | 'pdm' | 'aoa'
 
@@ -67,6 +68,7 @@ export function normalizeProject(p: SchedProject): SchedProject {
     deadline: typeof p.deadline === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(p.deadline) ? p.deadline : null,
     resources,
     assignments,
+    aoaLayout: normalizeAoaLayout(p.aoaLayout), // v4.123 AOA 刀1：结构归一+缺省
   }
 }
 
@@ -101,6 +103,8 @@ interface ScheduleState {
   removeTask: (id: string) => void
   /** 整体替换某任务的前置关系（Popover 编辑提交） */
   setPreds: (taskId: string, preds: PredDraft[]) => void
+  /** 双代号手动布局：整体替换 pins（拖拽提交/重置；v4.123 AOA 刀1） */
+  setAoaPins: (pins: Record<string, AoaPin>) => void
   loadSample: () => void
   clearAll: () => void
 }
@@ -213,6 +217,8 @@ export const useScheduleStore = create<ScheduleState>()(
           .map((p): SchedLink => ({ from: p.from, to: taskId, type: p.type, lag: Math.round(p.lag) || 0 }))
         return { project: { ...s.project, links: [...kept, ...added] } }
       }),
+
+      setAoaPins: (pins) => set((s) => ({ project: { ...s.project, aoaLayout: { pins } } })),
 
       loadSample: () => set({ project: makeSampleProject(), selectedId: null }),
       clearAll: () => set({ project: makeEmptyProject(), selectedId: null }),

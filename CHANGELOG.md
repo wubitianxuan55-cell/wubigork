@@ -1,3 +1,11 @@
+## v4.123.0 · AOA 手动布局刀1：锚点化 + 拖拽布点 + 双模式开关（2026-09-06）
+> 按 docs/gaea-schedule-aoa-manual-layout-design-2026-09.md 推荐拍板项实施：混合锚定/pins 内嵌/mode 不入文件/半格吸附/agent 不暴露布局。布局=展示层状态，buildAoa 引擎口径零变更。绑定面 **588** 零变更。详见 releases/v4.123.0.md。
+- **锚点键**（aoa.ts）：AoaNode.anchor=事件业务身份（S/T/成员键字典序最小者），跨拓扑变更稳定，5 例单测钉死。
+- **纯函数 aoaLayout.ts**：snapPt 半格吸附（55×37）/normalizeAoaLayout 结构归一/applyPins 混合共存/prunePins 提交剪枝。
+- **持久化**：gsched.json 内嵌 aoaLayout.pins（TS↔Go 镜像；Go 结构校验 pass-through 坐标/键数；维持无 aoa.go）；旧文件零迁移。
+- **AoaView**：布局 Segmented 自动/手动+重置布局；拖拽布点（window 三件套/未移动不提交/Esc 取消/自动拖拽=转手动/提交剪枝）；手动模式时间参数不受影响明示。
+- 测试 +15（纯函数 9+组件 6）；门禁全绿（CostProjectsView 负载 flaky 单跑复跑绿入册）。
+
 ## v4.122.0 · 资源成本刀1：模型 + 成本 rollup 引擎 + 持久化（2026-09-06）
 > 按拍板方案实施（docs/gaea-schedule-resource-cost-design-2026-09.md 推荐项生效：元/工日口径、fixed-units 简化公式、材料固定总量、分组行禁 fixedCost/分配）。数据层先行，行为对老用户零变化。绑定面 **588** 零变更。详见 releases/v4.122.0.md。
 - **数据模型**：三类资源（work/material/cost）+ 分配（(taskId,resourceId) 唯一）+ 任务 fixedCost；SchedProject 增 resources/assignments——全 optional，旧文件零迁移可读。

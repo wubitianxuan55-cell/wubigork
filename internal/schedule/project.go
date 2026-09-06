@@ -168,6 +168,21 @@ func Validate(p *Project) error {
 	if p.Deadline != "" && len(p.Deadline) != 10 {
 		return fmt.Errorf("目标竣工日期口径应为 YYYY-MM-DD：%s", p.Deadline)
 	}
+	// AOA 手动布局（v4.123 刀1）：仅结构校验 pass-through——坐标非负有限/键数
+	// 上限；锚点键业务合法性（是否命中当前事件）由前端裁决与清理。
+	if p.AoaLayout != nil {
+		if len(p.AoaLayout.Pins) > 5000 {
+			return fmt.Errorf("手动布点数超上限（5000）：%d", len(p.AoaLayout.Pins))
+		}
+		for key, pt := range p.AoaLayout.Pins {
+			if key == "" {
+				return fmt.Errorf("存在空锚点键的布点")
+			}
+			if pt.X < 0 || pt.Y < 0 || pt.X > 100000 || pt.Y > 100000 {
+				return fmt.Errorf("布点 %s 坐标越界（0~100000）：(%d,%d)", key, pt.X, pt.Y)
+			}
+		}
+	}
 	return nil
 }
 

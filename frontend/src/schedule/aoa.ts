@@ -25,6 +25,12 @@ export interface AoaNode {
   ls: number
   x: number
   y: number
+  /**
+   * 锚点键（v4.123 AOA 刀1）：事件业务身份，跨拓扑变更稳定（手动布局 pin 的匹配键）。
+   * START→"S"、END→"T"；其余=全部成员键（end:<taskId>|start:<taskId>）的字典序最小者
+   * （end: < start: 保证合并事件代表=先构造者）。推导规则单测钉死（aoaLayout.test.ts）。
+   */
+  anchor: string
 }
 
 export interface AoaEdge {
@@ -236,9 +242,23 @@ export function buildAoa(tasks: SchedTask[], links: SchedLink[]): AoaGraph {
     nodeIds.map((id) => ({ id, es: nodeEs.get(id)! })),
     raws.map((r) => ({ from: r.from, to: r.to })),
   )
+  // 锚点键：事件成员关系求逆（task → start/end 两成员键），取字典序最小者为代表
+  const nodeMembers = new Map<string, string[]>(nodeIds.map((id) => [id, []]))
+  for (const t of tasks) {
+    nodeMembers.get(startOf.get(t.id)!)!.push(`start:${t.id}`)
+    nodeMembers.get(endOf.get(t.id)!)!.push(`end:${t.id}`)
+  }
   const nodes: AoaNode[] = nodeIds.map((id) => {
     const p = pos.get(id) ?? { col: 0, row: 0 }
-    return { id, num: num.get(id)!, es: nodeEs.get(id)!, ls: nodeLs.get(id)!, x: AOA_MARGIN + p.col * AOA_COL_W, y: AOA_MARGIN + p.row * AOA_ROW_H }
+    return {
+      id,
+      num: num.get(id)!,
+      es: nodeEs.get(id)!,
+      ls: nodeLs.get(id)!,
+      x: AOA_MARGIN + p.col * AOA_COL_W,
+      y: AOA_MARGIN + p.row * AOA_ROW_H,
+      anchor: id === START ? 'S' : id === END ? 'T' : (nodeMembers.get(id)!.sort()[0] ?? id),
+    }
   })
 
   return { ok: true, nodes, edges, taskEdge }

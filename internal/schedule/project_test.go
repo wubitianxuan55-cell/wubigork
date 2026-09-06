@@ -3,6 +3,7 @@ package schedule
 // project_test.go / ops_test.go — 落盘、校验与增量操作用例（v4.113.0 刀4）。
 
 import (
+	"fmt"
 	"math"
 	"os"
 	"path/filepath"
@@ -345,5 +346,72 @@ func TestSaveRoundTripsResources(t *testing.T) {
 	r := ComputeCosts(loaded, ComputeCpm(loaded.Tasks, loaded.Links))
 	if r.Total != 3100 {
 		t.Errorf("往返后总成本 = %v, want 3100", r.Total)
+	}
+}
+
+// ── AOA 手动布局（v4.123 刀1）：Validate 结构 pass-through ─────────────────
+
+func TestValidateAoaLayoutOk(t *testing.T) {
+	p := validResourceProject()
+	p.AoaLayout = &AoaLayout{Pins: map[string]AoaPt{"S": {X: 55, Y: 37}, "end:A": {X: 110, Y: 74}}}
+	if err := Validate(p); err != nil {
+		t.Fatalf("合法 pins 不应报错：%v", err)
+	}
+}
+
+func TestValidateAoaLayoutRejects(t *testing.T) {
+	neg := validResourceProject()
+	neg.AoaLayout = &AoaLayout{Pins: map[string]AoaPt{"S": {X: -1, Y: 0}}}
+	if err := Validate(neg); err == nil {
+		t.Fatal("负坐标应拒绝")
+	}
+	oob := validResourceProject()
+	oob.AoaLayout = &AoaLayout{Pins: map[string]AoaPt{"S": {X: 100001, Y: 0}}}
+	if err := Validate(oob); err == nil {
+		t.Fatal("越界坐标应拒绝")
+	}
+	emptyKey := validResourceProject()
+	emptyKey.AoaLayout = &AoaLayout{Pins: map[string]AoaPt{"": {X: 1, Y: 1}}}
+	if err := Validate(emptyKey); err == nil {
+		t.Fatal("空锚点键应拒绝")
+	}
+	many := validResourceProject()
+	pins := make(map[string]AoaPt, 5001)
+	for i := 0; i < 5001; i++ {
+		pins[fmt.Sprintf("k%d", i)] = AoaPt{X: i, Y: i}
+	}
+	many.AoaLayout = &AoaLayout{Pins: pins}
+	if err := Validate(many); err == nil {
+		t.Fatal("键数超上限应拒绝")
+	}
+}
+
+func TestSaveRoundTripsAoaLayout(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "p.gsched.json")
+	p := validResourceProject()
+	p.AoaLayout = &AoaLayout{Pins: map[string]AoaPt{"S": {X: 55, Y: 37}}}
+	if err := Save(path, *p); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if loaded.AoaLayout == nil || loaded.AoaLayout.Pins["S"] != (AoaPt{X: 55, Y: 37}) {
+		t.Fatalf("pins 往返丢失：%+v", loaded.AoaLayout)
+	}
+	// 无 aoaLayout 的旧文件：Load 不回写 null
+	old := `{"name":"旧","startDate":"2026-01-05","tasks":[{"id":"A","name":"A","duration":3,"level":1,"progress":0}],"links":[]}`
+	oldPath := filepath.Join(dir, "old.gsched.json")
+	if err := os.WriteFile(oldPath, []byte(old), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	loadedOld, err := Load(oldPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if loadedOld.AoaLayout != nil {
+		t.Errorf("旧文件不应产生 aoaLayout：%+v", loadedOld.AoaLayout)
 	}
 }

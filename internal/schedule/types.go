@@ -118,6 +118,21 @@ type Project struct {
 	Resources []Resource `json:"resources,omitempty"`
 	// Assignments 任务↔资源分配（(TaskID,ResourceID) 唯一）。
 	Assignments []Assignment `json:"assignments,omitempty"`
+	// AoaLayout 双代号手动布局 pins（v4.123 AOA 刀1：缺省=自动布局）。
+	// schema 镜像 + 结构校验 pass-through：锚点键的业务合法性由前端渲染端
+	// 裁决与清理，Go 无从验证也不验证（维持无 aoa.go）。
+	AoaLayout *AoaLayout `json:"aoaLayout,omitempty"`
+}
+
+// AoaPt 双代号手动布点（整数像素）。
+type AoaPt struct {
+	X int `json:"x"`
+	Y int `json:"y"`
+}
+
+// AoaLayout 双代号布局覆盖：pin 按事件锚点键匹配（混合锚定）。
+type AoaLayout struct {
+	Pins map[string]AoaPt `json:"pins"`
 }
 
 // BaselineRow 基线行快照：单任务保存基线时的排程结果（叶任务专属）。

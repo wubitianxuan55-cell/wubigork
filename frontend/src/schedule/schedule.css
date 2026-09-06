@@ -783,3 +783,44 @@
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+/* ── AOA 手动布局（v4.123 刀1）：布局开关 + 拖拽 tip ────────────────────── */
+.sched-aoa-mode {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  border: 1px solid var(--md-sys-color-border, #e5e7eb);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.sched-aoa-mode-btn {
+  font-size: 11px;
+  color: var(--sched-dim, #64748b);
+  border: 0;
+  background: transparent;
+  padding: 1px 8px;
+  cursor: pointer;
+}
+.sched-aoa-mode-btn:hover {
+  color: var(--sched-normal, #2563eb);
+}
+.sched-aoa-mode-on {
+  background: var(--sched-normal, #2563eb);
+  color: #fff;
+}
+.sched-aoa-mode-on:hover {
+  color: #fff;
+}
+.sched-aoa-drag-tip {
+  position: absolute;
+  left: 50%;
+  bottom: -26px;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--sched-critical, #dc2626);
+  color: #fff;
+  pointer-events: none;
+}

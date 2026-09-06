@@ -81,6 +81,17 @@ export interface SchedAssignment {
   amount?: number
 }
 
+/** AOA 事件手动布点（整数像素，与 AOA_COL_W/ROW_H 同一坐标系；v4.123 AOA 刀1） */
+export interface AoaPin {
+  x: number
+  y: number
+}
+
+/** 双代号布局覆盖：pin 按事件锚点键匹配（混合锚定——命中手动位，未命中自动落位） */
+export interface AoaLayout {
+  pins: Record<string, AoaPin>
+}
+
 export interface SchedProject {
   name: string
   /** 开工日期（YYYY-MM-DD，工作日历推算锚点） */
@@ -97,6 +108,8 @@ export interface SchedProject {
   resources?: SchedResource[]
   /** 任务↔资源分配（(taskId,resourceId) 唯一） */
   assignments?: SchedAssignment[]
+  /** 双代号手动布局 pins（v4.123 AOA 刀1：缺省=自动布局） */
+  aoaLayout?: AoaLayout
 }
 
 /** 基线行快照：单任务保存基线时的排程结果（叶任务专属，分组行不入基线） */
