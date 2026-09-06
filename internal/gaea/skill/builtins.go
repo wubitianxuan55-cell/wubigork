@@ -88,7 +88,7 @@ func builtinSkills() []Skill {
 		},
 		{
 			Name:        "schedule-edit",
-			Description: "进度计划编制与调整纪律：用户要编进度计划/排施工计划/改工期/调搭接/分析关键线路时必读——schedule_get 先读后写、schedule_apply 双通道（project 整计划/ops 增量）、CPM 引擎裁决 fail-closed、回执核对「成功≠正确」、工作日口径与 WBS 两级分解、JGJ/T 121-2015 先分解后编网。",
+			Description: "进度计划编制与调整纪律：用户要编进度计划/排施工计划/改工期/调搭接/挂资源算成本/分析关键线路时必读——schedule_get 先读后写、schedule_apply 双通道（project 整计划/ops 增量，含资源与分配 ops）、CPM 引擎裁决 fail-closed、回执核对「成功≠正确」（含总成本）、工作日口径与费率元/工日纪律、WBS 两级分解、JGJ/T 121-2015 先分解后编网。",
 			Body: `你正在通过 schedule_get / schedule_apply / schedule_analyze 三工具编制或调整用户的工程进度计划（「进度计划」板块同款数据，双向实时同步）。开工前先通读本技能。
 
 ## 铁律
@@ -113,6 +113,17 @@ func builtinSkills() []Skill {
 - 改逻辑：set_links{toId,links}（整体替换该任务前置）；增删任务 upsert_task/remove_task（remove 级联子孙）。
 - 多条调整一次 ops 数组下发（原子应用，单条失败整批拒绝）。
 - 进度反馈：patch_task{progress}（0-100），前锋线在板块横道图查看。
+
+## 资源与成本（对话式挂资源与算钱）
+
+- 三类资源（对齐 Project）。纪律：**先建资源（upsert_resource）再挂分配（set_assignments）**；只有叶任务可挂分配、可设 fixedCost（分组行拒绝——汇总唯一口径=子孙求和）：
+  - work 工时（人/机）：standardRate=**元/工日** + costPerUse 每次使用成本；分配 units=投入强度（缺省 1）；成本=工期×units×费率+每次使用。
+  - material 材料：unit 计量单位（t/m³…）+ standardRate=**元/单位**；分配 quantity=固定总量；成本=总量×单价+每次使用。
+  - cost 成本（差旅/规费等一次性费用）：无费率；分配 amount=固定金额（元）；成本=金额。
+- 费率单位纪律：一律元/工日（工时）与元/单位（材料），与引擎工作日口径天然对齐；与 MS Project 互通的小时换算由导出层负责，录入禁止手算 ×8/÷8。
+- ops 口径：upsert_resource{resource:{id,name,type:work|material|cost,...}}（整量新增或按 id 替换）；patch_resource{id,resourcePatch}（指针三态，缺省不动）；remove_resource{id}（级联删除其全部分配）；set_assignments{taskId,assignments:[{resourceId,units?/quantity?/amount?}]}（整体替换该任务分配集，(taskId,resourceId) 唯一）；任务固定成本 patch_task{fixedCost}（元，叶任务专属）。project 整计划通道直写 resources/assignments/fixedCost 字段（与板块同构）。
+- 成本改动回执核对（「成功≠正确」延伸）：工期/费率/分配/固定成本任一改动都会改变成本——schedule_apply 回执带写入后总成本（totalCost，ops 通道另带 taskCosts 涉及任务行成本），必须核对变化方向与幅度再汇报；schedule_analyze 的 costs 给总成本/成本 Top5 任务/按资源汇总。
+- 未定价要点破：schedule_analyze checks 出「已分配未定价」（工时资源未设费率且未设每次使用，或成本资源未填金额——成本按 0 计，AI 建议层提醒非引擎拒绝）时，向用户点破并建议补价，不得当作不存在。
 
 ## 基线对比（调整效果的量化口径）
 

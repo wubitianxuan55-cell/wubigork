@@ -52,11 +52,55 @@ func TestScheduleEditBuiltinSkill(t *testing.T) {
 		"倒排校核",
 		"deadline",
 		"deadlineCheck",
+		// v4.122 刀2：资源与成本（ops 扩枚举 + 成本回执 + 未定价发现）
+		"资源与成本",
+		"元/工日",
+		"upsert_resource",
+		"patch_resource",
+		"remove_resource",
+		"set_assignments",
+		"fixedCost",
+		"已分配未定价",
+	}
+	// 锚点锁数：增删锚点须如实更新此期望（当前 23→31，v4.122 刀2 +8）
+	if len(anchors) != 31 {
+		t.Fatalf("锚点锁数变化：len(anchors)=%d, want 31", len(anchors))
 	}
 	body := sk.Body
 	for _, a := range anchors {
 		if !strings.Contains(body, a) {
 			t.Errorf("schedule-edit body 缺锚点 %q", a)
 		}
+	}
+}
+
+// v4.122.0 刀2：schedule-edit「资源与成本」分节——三类资源口径、费率单位纪律、
+// 先建资源再挂分配、成本改动回执核对要求。
+func TestScheduleEditResourceCostSection(t *testing.T) {
+	st := New(Options{HomeDir: t.TempDir()})
+	sk, ok := st.Read("schedule-edit")
+	if !ok {
+		t.Fatal("built-in schedule-edit skill not found")
+	}
+	// 分节位置：调整流程之后、基线对比之前
+	iSection := strings.Index(sk.Body, "## 资源与成本")
+	iAdjust := strings.Index(sk.Body, "## 调整流程")
+	iBaseline := strings.Index(sk.Body, "## 基线对比")
+	if iSection < 0 || iAdjust < 0 || iBaseline < 0 || !(iAdjust < iSection && iSection < iBaseline) {
+		t.Fatalf("资源与成本分节缺失或位置不对：adjust=%d section=%d baseline=%d", iAdjust, iSection, iBaseline)
+	}
+	for _, a := range []string{
+		"work 工时", "material 材料", "cost 成本", // 三类资源口径
+		"元/工日", "元/单位", // 费率单位纪律
+		"先建资源", "set_assignments", // 先建资源再挂分配
+		"totalCost", "taskCosts", // 成本改动回执核对
+		"已分配未定价", // 未定价点破
+	} {
+		if !strings.Contains(sk.Body, a) {
+			t.Errorf("schedule-edit 资源成本分节缺锚点 %q", a)
+		}
+	}
+	if !strings.Contains(sk.Description, "成本") {
+		t.Errorf("Description 应含资源成本触发词：%s", sk.Description)
 	}
 }

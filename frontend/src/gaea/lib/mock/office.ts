@@ -10,6 +10,7 @@ import {
   emit,
   MOCK_DOCX_DATA_URL,
   MOCK_XLSX_BODY,
+  mockScenario,
   mockTaskListeners,
   pinnedMock,
   setPinnedMock,
@@ -511,6 +512,11 @@ export function buildOffice(_s: MakeMockState): OfficeMethods {
             },
           ],
         };
+      }
+      // calm 场景：无 running 子代理——消除办公冷挂载「子代理任务自动置前」
+      // 对文件预览链路走查的干扰（demo 场景的置前噪声，v4.123 走查发现）。
+      if (mockScenario() === "calm") {
+        return { available: false, total: 0, running: 0, runs: [] };
       }
       if (sessionPath === "" || sessionPath.includes("c.jsonl") || sessionPath.includes("cur.jsonl")) {
         return {

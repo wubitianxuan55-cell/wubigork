@@ -1,3 +1,10 @@
+## v4.124.0 · 资源成本刀2+刀3：agent 通道 + 板块 UI（2026-09-06）
+> 并行双线（Go 侧/前端侧互不相交，子代理分头实施+主代理合并走查），绑定面 **588** 零变更。详见 releases/v4.124.0.md。
+- **刀2 agent 通道**：ops 扩 upsert_resource/patch_resource/remove_resource（级联删分配）/set_assignments/patch_task.fixedCost；apply 回执强制带 totalCost+taskCosts；get 增 resources/assignments/costs；analyze 增成本叙事（Top5/byResource/未定价 finding）；compact 同步；技能「资源与成本」分节（锚点锁 23→31）。
+- **刀3 板块 UI**：资源工作表弹层（单位显式标注/类型切换联动清理/删除级联）；甘特「成本」列（叶明细+分组滚动求和，无数据留空）；任务行资源 Popover（勾选建分配/三类字段/整体替换）；状态栏总成本段（无数据不显示）；removeTask 级联删分配（防 Validate 拒收）。
+- 测试：TS +19、Go +18（ops 8/叙事 4/回执 4/技能 2）；?mock=1 全链走查贯通（录入→挂分配→成本列→状态栏→自动保存）。
+- 门禁：tsc/eslint 0、vitest 2194→**2213**、Go 全量绿、drift PASS@588、版本四处 4.124.0、build.bat 冒烟 200。
+
 ## v4.123.0 · AOA 手动布局刀1：锚点化 + 拖拽布点 + 双模式开关（2026-09-06）
 > 按 docs/gaea-schedule-aoa-manual-layout-design-2026-09.md 推荐拍板项实施：混合锚定/pins 内嵌/mode 不入文件/半格吸附/agent 不暴露布局。布局=展示层状态，buildAoa 引擎口径零变更。绑定面 **588** 零变更。详见 releases/v4.123.0.md。
 - **锚点键**（aoa.ts）：AoaNode.anchor=事件业务身份（S/T/成员键字典序最小者），跨拓扑变更稳定，5 例单测钉死。

@@ -3,10 +3,13 @@
 // 与 xlsxedit.Op 同范式：单结构体 + Type 判别 + 可选字段。全量替换走 project
 // 通道；ops 用于对话式调整（「主体结构压 10 天」→ patch_task 等）。
 // 应用后由调用方统一校验 + CPM fail-closed（环依赖拒绝落盘）。
+// 资源成本刀2（v4.122）：扩 upsert_resource/patch_resource/remove_resource/
+// set_assignments 与 patch_task.fixedCost——零新绑定，仅 Go 侧通道。
 package schedule
 
 import (
 	"fmt"
+	"math"
 	"strings"
 )
 
@@ -19,6 +22,20 @@ type patchTask struct {
 	IsMilestone *bool     `json:"isMilestone,omitempty"`
 	Mode        *TaskMode `json:"mode,omitempty"`
 	ManualStart *int      `json:"manualStart,omitempty"`
+	// FixedCost 任务固定成本（元，叶任务专属；v4.122 资源成本刀2。
+	// 分组行拒绝=汇总唯一口径为子孙求和，拍板项 4）。
+	FixedCost *float64 `json:"fixedCost,omitempty"`
+}
+
+// patchResource 部分更新载荷（指针三态：nil=不动；v4.122 资源成本刀2，
+// 对齐 patch_task 范式）。Unit 空串=清除材料计量单位。
+type patchResource struct {
+	Name         *string       `json:"name,omitempty"`
+	Type         *ResourceType `json:"type,omitempty"`
+	Unit         *string       `json:"unit,omitempty"`
+	StandardRate *float64      `json:"standardRate,omitempty"`
+	CostPerUse   *float64      `json:"costPerUse,omitempty"`
+	MaxUnits     *float64      `json:"maxUnits,omitempty"`
 }
 
 // opLink set_links 的单条前置关系。
@@ -30,7 +47,7 @@ type opLink struct {
 
 // Op 计划增量操作。
 type Op struct {
-	Type string `json:"type"` // upsert_task | patch_task | remove_task | set_links | set_meta | auto_chain | set_baseline | clear_baseline
+	Type string `json:"type"` // upsert_task | patch_task | remove_task | set_links | set_meta | auto_chain | set_baseline | clear_baseline | upsert_resource | patch_resource | remove_resource | set_assignments
 
 	// upsert_task：整任务（含 id）；afterId 缺省追加表尾。
 	AfterID string `json:"afterId,omitempty"`
@@ -39,7 +56,7 @@ type Op struct {
 	// patch_task：部分更新载荷（指针三态：nil=不动）。
 	Patch *patchTask `json:"patch,omitempty"`
 
-	// patch_task / remove_task：目标任务 id。
+	// patch_task / remove_task / remove_resource：目标任务/资源 id。
 	ID string `json:"id,omitempty"`
 
 	// set_links：整体替换 toId 的入边（前端 setPreds 同语义）。
@@ -55,6 +72,18 @@ type Op struct {
 	// set_baseline：基线名（缺省「基线」）+保存时间（调用方标注，缺省拒绝）。
 	BaselineName string `json:"baselineName,omitempty"`
 	SavedAt      string `json:"savedAt,omitempty"`
+
+	// ── 资源成本刀2（v4.122）：资源/分配增量操作 ──
+
+	// upsert_resource：整资源（含 id）；同 id 即整量替换。
+	Resource *Resource `json:"resource,omitempty"`
+
+	// patch_resource：部分更新载荷（指针三态：nil=不动）。
+	ResourcePatch *patchResource `json:"resourcePatch,omitempty"`
+
+	// set_assignments：整体替换 taskId 的分配集（set_links「整体替换入边」同范式）。
+	TaskID      string       `json:"taskId,omitempty"`
+	Assignments []Assignment `json:"assignments,omitempty"`
 }
 
 // ApplyOps 依次应用操作集，返回人类可读摘要（供 Journal 与工具回执）。
@@ -86,6 +115,12 @@ func applyOne(p *Project, op Op) (string, error) {
 		}
 		if t.Progress < 0 || t.Progress > 100 {
 			return "", fmt.Errorf("任务 %s 进度超出 0-100", t.ID)
+		}
+		if t.Level == 0 && t.FixedCost != 0 {
+			return "", fmt.Errorf("分组行 %s 禁止固定成本（汇总唯一口径为子孙求和）", t.ID)
+		}
+		if badMoney(t.FixedCost) {
+			return "", fmt.Errorf("任务 %s 固定成本非法（须为非负有限数）：%v", t.ID, t.FixedCost)
 		}
 		at := len(p.Tasks)
 		if op.AfterID != "" {
@@ -152,6 +187,16 @@ func applyOne(p *Project, op Op) (string, error) {
 			if pt.ManualStart != nil {
 				t.ManualStart = *pt.ManualStart
 				changes = append(changes, fmt.Sprintf("锁定开始→第 %d 工作日", *pt.ManualStart))
+			}
+			if pt.FixedCost != nil {
+				if badMoney(*pt.FixedCost) {
+					return "", fmt.Errorf("固定成本非法（须为非负有限数）：%v", *pt.FixedCost)
+				}
+				if t.Level == 0 {
+					return "", fmt.Errorf("分组行 %s 禁止固定成本（汇总唯一口径为子孙求和）", t.ID)
+				}
+				changes = append(changes, fmt.Sprintf("固定成本 %v→%v 元", t.FixedCost, *pt.FixedCost))
+				t.FixedCost = *pt.FixedCost
 			}
 		}
 		if len(changes) == 0 {
@@ -300,6 +345,141 @@ func applyOne(p *Project, op Op) (string, error) {
 		p.Baseline = nil
 		return "清除基线", nil
 
+	case "upsert_resource":
+		// 整量新增或按 id 替换资源（v4.122 资源成本刀2）。
+		r := op.Resource
+		if r == nil {
+			return "", fmt.Errorf("upsert_resource 缺少 resource")
+		}
+		if err := checkResource(*r); err != nil {
+			return "", err
+		}
+		for i := range p.Resources {
+			if p.Resources[i].ID == r.ID {
+				p.Resources[i] = *r
+				return fmt.Sprintf("更新资源「%s」（%s）", r.Name, resourceTypeLabel(r.Type)), nil
+			}
+		}
+		p.Resources = append(p.Resources, *r)
+		return fmt.Sprintf("新增资源「%s」（%s）", r.Name, resourceTypeLabel(r.Type)), nil
+
+	case "patch_resource":
+		// 部分更新（指针三态：nil=不动），对齐 patch_task 范式。
+		idx := indexOfResource(p.Resources, op.ID)
+		if idx < 0 {
+			return "", fmt.Errorf("资源不存在：%s", op.ID)
+		}
+		r := &p.Resources[idx]
+		changes := make([]string, 0, 3)
+		if op.ResourcePatch != nil {
+			pr := op.ResourcePatch
+			if pr.Name != nil {
+				r.Name = *pr.Name
+				changes = append(changes, fmt.Sprintf("改名「%s」", *pr.Name))
+			}
+			if pr.Type != nil {
+				if err := checkResourceType(*pr.Type); err != nil {
+					return "", err
+				}
+				r.Type = *pr.Type
+				changes = append(changes, fmt.Sprintf("类型→%s", resourceTypeLabel(r.Type)))
+			}
+			if pr.Unit != nil {
+				r.Unit = *pr.Unit
+				if *pr.Unit == "" {
+					changes = append(changes, "清除计量单位")
+				} else {
+					changes = append(changes, fmt.Sprintf("计量单位→%s", *pr.Unit))
+				}
+			}
+			if pr.StandardRate != nil {
+				if badMoney(*pr.StandardRate) {
+					return "", fmt.Errorf("标准费率非法（须为非负有限数）：%v", *pr.StandardRate)
+				}
+				changes = append(changes, fmt.Sprintf("标准费率 %v→%v %s", r.StandardRate, *pr.StandardRate, rateUnit(r.Type)))
+				r.StandardRate = *pr.StandardRate
+			}
+			if pr.CostPerUse != nil {
+				if badMoney(*pr.CostPerUse) {
+					return "", fmt.Errorf("每次使用成本非法（须为非负有限数）：%v", *pr.CostPerUse)
+				}
+				changes = append(changes, fmt.Sprintf("每次使用成本 %v→%v 元", r.CostPerUse, *pr.CostPerUse))
+				r.CostPerUse = *pr.CostPerUse
+			}
+			if pr.MaxUnits != nil {
+				if badMoney(*pr.MaxUnits) {
+					return "", fmt.Errorf("可用上限非法（须为非负有限数）：%v", *pr.MaxUnits)
+				}
+				changes = append(changes, fmt.Sprintf("可用上限 %v→%v", r.MaxUnits, *pr.MaxUnits))
+				r.MaxUnits = *pr.MaxUnits
+			}
+		}
+		if len(changes) == 0 {
+			return "", fmt.Errorf("patch_resource 未提供任何字段")
+		}
+		return fmt.Sprintf("调整资源「%s」：%s", r.Name, strings.Join(changes, "、")), nil
+
+	case "remove_resource":
+		// 删除资源并级联删除其全部分配（悬空引用不过夜）。
+		idx := indexOfResource(p.Resources, op.ID)
+		if idx < 0 {
+			return "", fmt.Errorf("资源不存在：%s", op.ID)
+		}
+		name := p.Resources[idx].Name
+		p.Resources = append(p.Resources[:idx], p.Resources[idx+1:]...)
+		kept := make([]Assignment, 0, len(p.Assignments))
+		cascaded := 0
+		for _, a := range p.Assignments {
+			if a.ResourceID == op.ID {
+				cascaded++
+				continue
+			}
+			kept = append(kept, a)
+		}
+		p.Assignments = kept
+		if cascaded > 0 {
+			return fmt.Sprintf("移除资源「%s」及其 %d 条分配", name, cascaded), nil
+		}
+		return fmt.Sprintf("移除资源「%s」（无分配）", name), nil
+
+	case "set_assignments":
+		// 整体替换某任务的分配集（set_links「整体替换入边」同范式）。
+		idx := indexOfTask(p.Tasks, op.TaskID)
+		if idx < 0 {
+			return "", fmt.Errorf("任务不存在：%s", op.TaskID)
+		}
+		if p.Tasks[idx].Level == 0 {
+			return "", fmt.Errorf("分组行 %s 禁止挂分配（汇总唯一口径为子孙求和）", op.TaskID)
+		}
+		taskName := p.Tasks[idx].Name
+		pairSeen := make(map[string]bool, len(op.Assignments))
+		for _, a := range op.Assignments {
+			if a.TaskID != "" && a.TaskID != op.TaskID {
+				return "", fmt.Errorf("set_assignments 只允许目标任务 %s 的分配，出现 %s", op.TaskID, a.TaskID)
+			}
+			if indexOfResource(p.Resources, a.ResourceID) < 0 {
+				return "", fmt.Errorf("资源不存在：%s", a.ResourceID)
+			}
+			pair := op.TaskID + "\x00" + a.ResourceID
+			if pairSeen[pair] {
+				return "", fmt.Errorf("分配重复（任务 %s ↔ 资源 %s）", op.TaskID, a.ResourceID)
+			}
+			pairSeen[pair] = true
+		}
+		// 只换该任务的入边，其他任务的分配原样保留。
+		kept := make([]Assignment, 0, len(p.Assignments)+len(op.Assignments))
+		for _, a := range p.Assignments {
+			if a.TaskID != op.TaskID {
+				kept = append(kept, a)
+			}
+		}
+		for _, a := range op.Assignments {
+			a.TaskID = op.TaskID
+			kept = append(kept, a)
+		}
+		p.Assignments = kept
+		return fmt.Sprintf("更新「%s」资源分配（共 %d 条）", taskName, len(op.Assignments)), nil
+
 	default:
 		return "", fmt.Errorf("不支持的操作类型：%s", op.Type)
 	}
@@ -312,6 +492,76 @@ func indexOfTask(tasks []Task, id string) int {
 		}
 	}
 	return -1
+}
+
+func indexOfResource(resources []Resource, id string) int {
+	for i := range resources {
+		if resources[i].ID == id {
+			return i
+		}
+	}
+	return -1
+}
+
+// badMoney 金额/费率类字段非法判定：负值/NaN/Inf（Validate 同口径，fail-closed）。
+func badMoney(v float64) bool {
+	return v < 0 || math.IsNaN(v) || math.IsInf(v, 0)
+}
+
+// checkResourceType 资源类型枚举校验（与 Validate 同口径）。
+func checkResourceType(t ResourceType) error {
+	switch t {
+	case ResWork, ResMaterial, ResCost:
+		return nil
+	default:
+		return fmt.Errorf("资源类型非法（work|material|cost）：%s", t)
+	}
+}
+
+// checkResource upsert_resource 的整量校验（id/类型/数值非负有限，与 Validate 同口径；
+// 最终闸仍在 Save→Validate，这里提前给出可定位的错误原文）。
+func checkResource(r Resource) error {
+	if strings.TrimSpace(r.ID) == "" {
+		return fmt.Errorf("upsert_resource 缺少资源 id")
+	}
+	if err := checkResourceType(r.Type); err != nil {
+		return fmt.Errorf("资源 %s：%w", r.ID, err)
+	}
+	for _, nv := range [3]struct {
+		name string
+		v    float64
+	}{{"标准费率", r.StandardRate}, {"每次使用成本", r.CostPerUse}, {"可用上限", r.MaxUnits}} {
+		if badMoney(nv.v) {
+			return fmt.Errorf("资源 %s %s 非法（须为非负有限数）：%v", r.ID, nv.name, nv.v)
+		}
+	}
+	return nil
+}
+
+// resourceTypeLabel 资源类型的中文标签（回执摘要用）。
+func resourceTypeLabel(t ResourceType) string {
+	switch t {
+	case ResWork:
+		return "工时"
+	case ResMaterial:
+		return "材料"
+	case ResCost:
+		return "成本"
+	default:
+		return string(t)
+	}
+}
+
+// rateUnit 标准费率的单位标注（口径纪律：work=元/工日，material=元/单位）。
+func rateUnit(t ResourceType) string {
+	switch t {
+	case ResMaterial:
+		return "元/单位"
+	case ResCost:
+		return "元"
+	default:
+		return "元/工日"
+	}
 }
 
 // descendantIDs 以扁平数组 level 语义取第 idx 行及其子孙 id 集合（前端

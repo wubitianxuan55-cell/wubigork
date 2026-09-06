@@ -55,7 +55,7 @@ type scheduleGet struct{ workDir string }
 func (scheduleGet) Name() string { return "schedule_get" }
 
 func (scheduleGet) Description() string {
-	return "读取工程进度计划文件（.gsched.json，进度计划板块同款数据）并返回 CPM 计算结果：任务表（ES/EF/LS/LF/总时差/关键标记）、搭接关系、工作日历与总工期。工期口径为工作日（按日历扣除周末/节假日）。传 path 缺省读当前计划。用于编辑前了解现状、或核对修改后的计划。"
+	return "读取工程进度计划文件（.gsched.json，进度计划板块同款数据）并返回 CPM 计算结果：任务表（ES/EF/LS/LF/总时差/关键标记）、搭接关系、工作日历与总工期；含资源维度时一并返回资源表（resources）、任务↔资源分配（assignments）与成本汇总（costs：total 总成本/byTask 各任务行成本/byResource 按资源汇总，单位元；费率口径=工时资源元/工日、材料资源元/单位）。工期口径为工作日（按日历扣除周末/节假日）。传 path 缺省读当前计划。用于编辑前了解现状、或核对修改后的计划与成本。"
 }
 
 func (scheduleGet) Schema() json.RawMessage {
@@ -101,6 +101,25 @@ func (s scheduleGet) Execute(ctx context.Context, args json.RawMessage) (string,
 		"leafCount":     a.LeafCount,
 		"tasks":         taskTable(proj, cpm),
 		"links":         proj.Links,
+	}
+	// 资源成本刀2（v4.122）：资源表/分配集/成本汇总（ComputeCosts；CPM 不过时
+	// costs.ok=false 成本不出——本工具在 CPM 不过时已提前整单返回，此为兜底口径）。
+	resources := proj.Resources
+	if resources == nil {
+		resources = []schedule.Resource{}
+	}
+	assignments := proj.Assignments
+	if assignments == nil {
+		assignments = []schedule.Assignment{}
+	}
+	costs := schedule.ComputeCosts(proj, cpm)
+	out["resources"] = resources
+	out["assignments"] = assignments
+	out["costs"] = map[string]any{
+		"ok":         costs.OK,
+		"total":      costs.Total,
+		"byTask":     costs.Rows,
+		"byResource": costs.ByResource,
 	}
 	if b := proj.Baseline; b != nil {
 		out["baseline"] = map[string]any{"name": b.Name, "savedAt": b.SavedAt, "duration": b.Duration, "rowCount": len(b.Rows)}
@@ -159,7 +178,7 @@ type scheduleApply struct {
 func (scheduleApply) Name() string { return "schedule_apply" }
 
 func (scheduleApply) Description() string {
-	return "写入工程进度计划（进度计划板块同款数据）。两种通道二选一：① project=完整计划 JSON（整计划生成/重排，任务含 id/name/level(0分组,1子任务)/duration(工作日)/isMilestone，搭接 links 含 from/to/type(FS|SS|FF|SF)/lag，calendar 含 workweek(getDay 口径 0=周日..6=周六)/holidays）；② ops=增量操作数组（upsert_task/patch_task/remove_task/set_links/set_meta，用于局部调整如压缩某任务工期、改搭接、设里程碑）。计划编制纪律：工期为工作日整数；里程碑 duration=0；搭接缺省 FS lag=0；分组行 duration=0 且不参与搭接；先分组后子任务按 WBS 顺序排列。写入前引擎自动校验并做 CPM 计算，存在循环依赖/悬空引用/非法字段则整批拒绝（返回错误原文，修复后重试）。回执含写入后总工期与关键工作数，必须核对该结果是否与预期一致。"
+	return "写入工程进度计划（进度计划板块同款数据）。两种通道二选一：① project=完整计划 JSON（整计划生成/重排，任务含 id/name/level(0分组,1子任务)/duration(工作日)/isMilestone/fixedCost(固定成本,元,叶任务专属)，搭接 links 含 from/to/type(FS|SS|FF|SF)/lag，resources 含 id/name/type(work|material|cost)/standardRate(元/工日或元/单位)/costPerUse(每次使用,元)/unit(材料计量单位)/maxUnits，assignments 含 taskId/resourceId/units|quantity|amount，calendar 含 workweek(getDay 口径 0=周日..6=周六)/holidays）；② ops=增量操作数组（upsert_task/patch_task/remove_task/set_links/set_meta/upsert_resource/patch_resource/remove_resource/set_assignments，用于局部调整如压缩某任务工期、改搭接、挂资源、调费率）。计划编制纪律：工期为工作日整数；里程碑 duration=0；搭接缺省 FS lag=0；分组行 duration=0、不参与搭接、禁挂分配与固定成本；费率一律元/工日（工时）与元/单位（材料）；先建资源再挂分配。写入前引擎自动校验并做 CPM 计算，存在循环依赖/悬空引用/非法字段则整批拒绝（返回错误原文，修复后重试）。回执含写入后总工期、关键工作数与总成本（totalCost 及涉及任务行成本），必须核对该结果是否与预期一致。"
 }
 
 func (scheduleApply) Schema() json.RawMessage {
@@ -168,7 +187,7 @@ func (scheduleApply) Schema() json.RawMessage {
 "properties":{
   "path":{"type":"string","description":"计划文件路径；缺省=当前计划（进度计划/当前计划.gsched.json）"},
   "project":{"type":"object","description":"完整计划对象（整计划生成/重排通道，与 ops 二选一）"},
-  "ops":{"type":"array","description":"增量操作数组（局部调整通道，与 project 二选一）。元素 type：upsert_task{task:{id,name,level,duration,...},afterId?} | patch_task{id,patch:{name?/duration?/progress?/mode?/manualStart?/isMilestone?/level?}} | remove_task{id}(含子孙与相关搭接) | set_links{toId,links:[{from,type?,lag?}]}(整体替换该任务入边,type 缺省 FS) | set_meta{name?/startDate?/calendar?/deadline?}(deadline=YYYY-MM-DD 目标竣工日期，倒排校核用；空串清除) | auto_chain{}(推荐逻辑关系缺省步：仅为无前置叶任务按 WBS 顺序补 FS 串联，已有逻辑/手动任务不动) | set_baseline{name?}(固化当前排程为基线，重大调整前建议先做；循环依赖/无叶任务会拒绝) | clear_baseline{}(清除基线，无基线时报错)",
+  "ops":{"type":"array","description":"增量操作数组（局部调整通道，与 project 二选一）。元素 type：upsert_task{task:{id,name,level,duration,...},afterId?} | patch_task{id,patch:{name?/duration?/progress?/mode?/manualStart?/isMilestone?/level?/fixedCost?(元,叶任务专属)}} | remove_task{id}(含子孙与相关搭接) | set_links{toId,links:[{from,type?,lag?}]}(整体替换该任务入边,type 缺省 FS) | set_meta{name?/startDate?/calendar?/deadline?}(deadline=YYYY-MM-DD 目标竣工日期，倒排校核用；空串清除) | auto_chain{}(推荐逻辑关系缺省步：仅为无前置叶任务按 WBS 顺序补 FS 串联，已有逻辑/手动任务不动) | set_baseline{name?}(固化当前排程为基线，重大调整前建议先做；循环依赖/无叶任务会拒绝) | clear_baseline{}(清除基线，无基线时报错) | upsert_resource{resource:{id,name,type:work|material|cost,unit?,standardRate?,costPerUse?,maxUnits?}}(整量新增或按 id 替换；work 费率=元/工日，material=元/单位，cost 资源无费率) | patch_resource{id,resourcePatch:{name?/type?/unit?/standardRate?/costPerUse?/maxUnits?}}(指针三态，缺省=不动) | remove_resource{id}(级联删除其全部分配) | set_assignments{taskId,assignments:[{resourceId,units?/quantity?/amount?}]}(整体替换该任务分配集；先建资源再挂分配；分组行拒绝)",
     "items":{"type":"object","properties":{"type":{"type":"string"}},"required":["type"]}},
   "summary":{"type":"string","description":"本次修改的一句话摘要（落证据卡，供用户在轨迹中审阅）"}
 },
@@ -255,8 +274,9 @@ func (s scheduleApply) Execute(ctx context.Context, args json.RawMessage) (strin
 	}
 	afterDesc := strings.Join(changes, "；")
 	cpm, a := proj.Analyze()
+	costs := schedule.ComputeCosts(proj, cpm)
 	if cpm.OK {
-		afterDesc = fmt.Sprintf("%s → 写入后总工期 %d 天、关键工作 %d 项", afterDesc, cpm.Duration, len(a.Critical))
+		afterDesc = fmt.Sprintf("%s → 写入后总工期 %d 天、关键工作 %d 项、总成本 %.2f 元", afterDesc, cpm.Duration, len(a.Critical), costs.Total)
 	}
 	evidence.RecordChange(ctx, evidence.ChangeRecord{
 		Tool:          "schedule_apply",
@@ -274,6 +294,20 @@ func (s scheduleApply) Execute(ctx context.Context, args json.RawMessage) (strin
 		"duration":  cpm.Duration,
 		"critical":  a.Critical,
 		"taskCount": a.LeafCount,
+	}
+	// 资源成本刀2（v4.122）：写入后总成本——「成功≠正确」纪律延伸，改费率/
+	// 工期/分配都必须让模型核对总成本变化；ops 通道另带涉及任务的行成本。
+	out["totalCost"] = costs.Total
+	if touched := costTouchedTaskIDs(in.Ops); len(touched) > 0 && costs.OK {
+		rows := map[string]schedule.TaskCost{}
+		for _, id := range touched {
+			if row, ok := costs.Rows[id]; ok {
+				rows[id] = row
+			}
+		}
+		if len(rows) > 0 {
+			out["taskCosts"] = rows
+		}
 	}
 	// 已有基线时回执带漂移摘要——模型汇报前先讲「较基线」偏差
 	if d := schedule.ComputeBaselineDrift(&proj, cpm); d != nil {
@@ -311,6 +345,32 @@ func leafCount(p schedule.Project) int {
 	return n
 }
 
+// costTouchedTaskIDs ops 通道中涉及成本的任务 id（去重保序）。set_links/
+// auto_chain 不改行成本（工期不变），remove_task 的行已不存在（Rows 查不到
+// 自然不出现在回执），均不入列；project 整计划通道 ops 为空 → 回执只带总成本。
+func costTouchedTaskIDs(ops []schedule.Op) []string {
+	seen := map[string]bool{}
+	out := make([]string, 0, len(ops))
+	for _, op := range ops {
+		id := ""
+		switch op.Type {
+		case "upsert_task":
+			if op.Task != nil {
+				id = op.Task.ID
+			}
+		case "patch_task", "remove_task":
+			id = op.ID
+		case "set_assignments":
+			id = op.TaskID
+		}
+		if id != "" && !seen[id] {
+			seen[id] = true
+			out = append(out, id)
+		}
+	}
+	return out
+}
+
 // ── schedule_analyze ─────────────────────────────────────────
 
 type scheduleAnalyze struct{ workDir string }
@@ -318,7 +378,7 @@ type scheduleAnalyze struct{ workDir string }
 func (scheduleAnalyze) Name() string { return "schedule_analyze" }
 
 func (scheduleAnalyze) Description() string {
-	return "分析工程进度计划：确定性 CPM 引擎裁决 + 规则质检。返回总工期、关键工作链、近关键工作（总时差≤2，缓冲小）、里程碑清单，以及计划检查发现（无任何搭接的孤立任务、无前置的任务——可用 ops auto_chain 一键补缺省串联、空分组、无收口尾巴、无里程碑提醒等）。已保存基线时附带漂移对比（baselineDrift：总工期 X→Y、推移/新增/移除、关键链进出），汇报调整效果时先讲这组偏差。已设目标竣工时附带倒排校核（deadlineCheck：可行性裁决、超期/富余量、关键工作清单——超期时压缩对象即关键链）。用于编写/修改后的自检（成功≠正确：先 analyze 再向用户汇报）、进度合理性解读与风险提示、推荐逻辑关系的依据。"
+	return "分析工程进度计划：确定性 CPM 引擎裁决 + 规则质检。返回总工期、关键工作链、近关键工作（总时差≤2，缓冲小）、里程碑清单，以及计划检查发现（无任何搭接的孤立任务、无前置的任务——可用 ops auto_chain 一键补缺省串联、空分组、无收口尾巴、无里程碑提醒等）。含资源维度时附带成本叙事（costs：total 总成本、topTasks 成本 Top5 任务、byResource 按资源汇总，单位元）与「已分配未定价」发现（工时资源未设费率或成本资源缺金额，成本按 0 计——AI 建议层提醒，非引擎拒绝）。已保存基线时附带漂移对比（baselineDrift：总工期 X→Y、推移/新增/移除、关键链进出），汇报调整效果时先讲这组偏差。已设目标竣工时附带倒排校核（deadlineCheck：可行性裁决、超期/富余量、关键工作清单——超期时压缩对象即关键链）。用于编写/修改后的自检（成功≠正确：先 analyze 再向用户汇报）、进度合理性解读与风险提示、推荐逻辑关系的依据。"
 }
 
 func (scheduleAnalyze) Schema() json.RawMessage {
@@ -361,8 +421,14 @@ func (s scheduleAnalyze) Execute(ctx context.Context, args json.RawMessage) (str
 		"milestones":   a.Milestones,
 		"checks":       qualityChecks(proj, cpm),
 	}
-	// 有基线时输出漂移对比（决定性数据，模型据此组织「较基线」汇报）
 	findings := out["checks"].([]string)
+	// 资源成本刀2（v4.122）：成本叙事数据（总成本/Top5/按资源汇总/未定价清单）——
+	// 后续刀3 板块与走查依赖这组字段名。
+	narrative := proj.CostNarrative(cpm)
+	out["costs"] = narrative
+	if len(narrative.Unpriced) > 0 {
+		findings = append(findings, unpricedFinding(narrative.Unpriced))
+	}
 	if d := schedule.ComputeBaselineDrift(&proj, cpm); d != nil {
 		out["baselineDrift"] = d
 		if d.DurationDrift != 0 || d.ShiftedCount > 0 || d.AddedCount > 0 || d.RemovedCount > 0 {
@@ -387,6 +453,26 @@ func (s scheduleAnalyze) Execute(ctx context.Context, args json.RawMessage) (str
 	}
 	out["checks"] = findings
 	return mustJSON(out)
+}
+
+// unpricedFinding 「已分配未定价」发现文案（AI 建议层：成本按 0 计，非引擎拒绝；
+// 设计 §3.2——work 无费率且无每次使用 / cost 缺金额）。
+func unpricedFinding(items []schedule.UnpricedAssignment) string {
+	parts := make([]string, 0, len(items))
+	for _, u := range items {
+		switch u.Kind {
+		case schedule.UnpricedWorkNoRate:
+			parts = append(parts, fmt.Sprintf("「%s」的资源「%s」未设费率", u.TaskName, u.ResourceName))
+		case schedule.UnpricedCostNoAmount:
+			parts = append(parts, fmt.Sprintf("「%s」的资源「%s」未填金额", u.TaskName, u.ResourceName))
+		default:
+			parts = append(parts, fmt.Sprintf("「%s」↔「%s」", u.TaskName, u.ResourceName))
+		}
+	}
+	if len(parts) > 3 {
+		parts = append(parts[:3:3], fmt.Sprintf("…等 %d 处", len(parts)))
+	}
+	return fmt.Sprintf("已分配未定价 %d 处（成本按 0 计，建议补费率/金额）：%s", len(items), strings.Join(parts, "、"))
 }
 
 // qualityChecks 规则质检（斑马「AI 计划检查」口径的确定性子集）。

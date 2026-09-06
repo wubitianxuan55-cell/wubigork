@@ -784,8 +784,50 @@
   cursor: not-allowed;
 }
 
-/* ── AOA 手动布局（v4.123 刀1）：布局开关 + 拖拽 tip ────────────────────── */
-.sched-aoa-mode {
+/* ── 资源成本（v4.124 刀3）：资源弹层工作表 / 甘特成本列 / 任务行资源入口 ── */
+.sched-res-panel {
+  display: grid;
+  gap: 6px;
+  min-width: 560px;
+  max-width: 640px;
+}
+.sched-res-row {
+  display: grid;
+  grid-template-columns: minmax(90px, 1.1fr) 62px 122px 92px 88px 36px 74px 26px;
+  gap: 5px;
+  align-items: center;
+}
+.sched-res-head {
+  font-size: 11px;
+  color: var(--md-sys-color-outline, #8a8f98);
+}
+.sched-res-num {
+  text-align: right;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.sched-res-na {
+  text-align: center;
+}
+.sched-res-cost {
+  color: var(--md-sys-color-on-surface, #374151);
+  font-weight: 600;
+}
+/* 甘特左表「成本」列：右对齐 + 等宽数字（分组行灰显汇总口径沿 .sched-dim） */
+.sched-cost-cell {
+  justify-content: flex-end;
+  font-variant-numeric: tabular-nums;
+}
+/* 任务行资源入口（名称单元格内小图标按钮，跟随行高） */
+.sched-res-entry {
+  flex-shrink: 0;
+  padding: 0 2px;
+  height: 20px;
+  font-size: 11px;
+  color: var(--md-sys-color-outline, #8a8f98);
+}
+
+/* ── AOA 手动布局（v4.123 刀1）：布局开关 + 拖拽 tip ────────────────────── */.sched-aoa-mode {
   display: inline-flex;
   align-items: center;
   gap: 0;

@@ -5,16 +5,19 @@
  *  - 自然日时间轴 + 周末/节假日底纹（CPM 仍按工作日计算，条形跨非工作日渲染）；
  *  - 行号列、分组行彩色底纹（五色循环 + 左色条）；
  *  - 关键红条、分组黑汇总条、里程碑黑菱形、总时差尾巴、搭接箭线、前锋线。
- * 列：行号 | 任务名称 | WBS | 工期 | 开始 | 完成 | 模式 | 前置。
+ * 列：行号 | 任务名称 | WBS | 工期 | 开始 | 完成 | 模式 | 前置 | 成本。
  */
 import React, { useMemo, useState } from 'react'
 import { Button, DatePicker, Input, InputNumber, Popover, Select } from 'antd'
-import { DeleteOutlined, LinkOutlined, ZoomInOutlined, ZoomOutOutlined } from '@ant-design/icons'
+import { DeleteOutlined, LinkOutlined, TeamOutlined, ZoomInOutlined, ZoomOutOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import type { CpmResult, LinkType, SchedProject, SchedTask } from './types'
 import { isWorkingDate, normalizeCalendar, wdToDate } from './calendar'
 import { dropToWd, resizeToDuration, workdayOffsets } from './drag'
+import { computeCosts, type CostResult } from './cost'
 import { descendantIds, isGroupRow, useScheduleStore, type PredDraft } from './store'
+import { TaskResourceEditor } from './ResourcePanel'
+import { fmtCost, hasCostData } from './costUi'
 
 const ROW_H = 30
 const COLS = [
@@ -26,6 +29,7 @@ const COLS = [
   { key: 'finish', label: '完成', w: 74 },
   { key: 'mode', label: '模式', w: 54 },
   { key: 'links', label: '前置', w: 56 },
+  { key: 'cost', label: '成本', w: 72 },
 ]
 const LEFT_W = COLS.reduce((s, c) => s + c.w, 0)
 const DAY_W_STEPS = [8, 14, 20, 28]
@@ -65,6 +69,14 @@ function groupSpan(project: SchedProject, cpm: CpmResult, idx: number): { es: nu
     ef = Math.max(ef, row.ef)
   }
   return any ? { es, ef } : null
+}
+
+/** 分组行成本汇总（子孙叶任务 total 求和；复用 groupSpan 的扁平 WBS 滚动口径，同甘特汇总条） */
+function groupCost(project: SchedProject, costs: CostResult, idx: number): number {
+  const ids = descendantIds(project.tasks, project.tasks[idx].id)
+  let sum = 0
+  for (const id of ids) sum += costs.rows[id]?.total ?? 0
+  return sum
 }
 
 /** 前锋线任务点：按完成进度取前锋位置（工作日序号，可为小数） */
@@ -182,6 +194,11 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult }> = ({
     () => workdayOffsets(project.startDate, Math.max(cpm.duration + 30, 45), project.calendar),
     [project.startDate, project.calendar, cpm.duration],
   )
+
+  // 资源成本（刀3）：computeCosts 每次 render 重算（与 CPM 同范式，工期变→成本自动变）。
+  // 无任何资源/成本数据时成本列留空（诚实呈现，不留 ¥0 假象）；CPM 未过成本不出（fail-closed）。
+  const costs = useMemo(() => computeCosts(project, cpm), [project, cpm])
+  const costShown = hasCostData(project) && costs.ok
 
   /** 开始拖拽：拖移（转手动锁定）或右缘缩放（改工期）。循环依赖/分组行/里程碑缩放禁用。 */
   const beginDrag = (e: React.MouseEvent, t: SchedTask, kind: 'move' | 'resize') => {
@@ -373,6 +390,20 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult }> = ({
                         />
                       )}
                       {t.isMilestone && <span className="sched-milestone-tag">里程碑</span>}
+                      {!group && (
+                        <Popover trigger="click" placement="left" content={<TaskResourceEditor task={t} />} title={`「${t.name}」资源与成本`}>
+                          <Button
+                            size="small"
+                            type="text"
+                            className="sched-res-entry"
+                            data-testid={`sched-task-res-${t.id}`}
+                            icon={<TeamOutlined />}
+                            title="资源与成本（分配挂载、固定成本）"
+                          >
+                            {(project.assignments?.filter((a) => a.taskId === t.id).length ?? 0) || ''}
+                          </Button>
+                        </Popover>
+                      )}
                     </span>
                   </div>
                   <div style={{ width: COLS[2].w }} className="sched-gantt-cell sched-dim">{wbs[i]}</div>
@@ -428,6 +459,13 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult }> = ({
                         </Button>
                       </Popover>
                     )}
+                  </div>
+                  <div style={{ width: COLS[8].w }} className="sched-gantt-cell sched-cost-cell" data-testid={`sched-cost-${t.id}`}>
+                    {costShown && (group ? (
+                      <span className="sched-dim" title="分组汇总：子孙叶任务成本求和">{fmtCost(groupCost(project, costs, i))}</span>
+                    ) : (
+                      <span title="明细合计：固定成本 + 分配成本（随工期实时重算）">{fmtCost(costs.rows[t.id]?.total ?? 0)}</span>
+                    ))}
                   </div>
                 </div>
                 {/* 条形区 */}

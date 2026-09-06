@@ -12,15 +12,18 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { Alert, Button, Checkbox, Input, Popconfirm, Popover, Segmented, Space, Tag, Tooltip } from 'antd'
 import {
   AimOutlined, CalendarOutlined, ClearOutlined, ClusterOutlined, ExportOutlined, FundOutlined, ImportOutlined,
-  MessageOutlined, NodeIndexOutlined, PlusOutlined, TableOutlined, ThunderboltOutlined, PartitionOutlined, DeleteOutlined, ToolOutlined,
+  MessageOutlined, NodeIndexOutlined, PlusOutlined, TableOutlined, TeamOutlined, ThunderboltOutlined, PartitionOutlined, DeleteOutlined, ToolOutlined,
 } from '@ant-design/icons'
 import { computeCpm } from '../schedule/cpm'
+import { computeCosts } from '../schedule/cost'
 import { buildAoa } from '../schedule/aoa'
 import { buildProjectXml, parseProjectXml } from '../schedule/mspdi'
 import { computeBaselineDrift } from '../schedule/baseline'
 import { checkDeadline } from '../schedule/deadline'
 import type { CpmResult } from '../schedule/types'
 import { useScheduleStore, isGroupRow, initScheduleSync } from '../schedule/store'
+import { ResourcePanel } from '../schedule/ResourcePanel'
+import { fmtCost, hasCostData } from '../schedule/costUi'
 import { SCHEDULE_FILE_PATH } from '../schedule/gschedSummary'
 import { usePreviewStore } from '../gaea/lib/store'
 import { emitFrontendEvent, FRONTEND_EVENTS } from '../events'
@@ -247,6 +250,10 @@ const SchedulePage: React.FC = () => {
   const aoa = useMemo(() => buildAoa(project.tasks, project.links), [project])
   const drift = useMemo(() => computeBaselineDrift(project, cpm), [project, cpm])
   const dl = useMemo(() => checkDeadline(project, cpm), [project, cpm])
+  // 资源成本（刀3）：总成本随每次 render 重算（与 CPM 同范式）；无资源/成本数据不显示（诚实呈现）
+  const costs = useMemo(() => computeCosts(project, cpm), [project, cpm])
+  const showCost = hasCostData(project) && costs.ok
+  const hasResources = (project.resources?.length ?? 0) > 0
 
   const selected = project.tasks.find((t) => t.id === selectedId) ?? null
   const selectedIsGroup = selected ? isGroupRow(project.tasks, project.tasks.findIndex((t) => t.id === selected!.id)) : false
@@ -346,6 +353,18 @@ const SchedulePage: React.FC = () => {
             基线{project.baseline ? `·${project.baseline.name}` : ''}
           </Button>
         </Popover>
+        <Popover trigger="click" placement="bottom" content={<ResourcePanel cpm={cpm} />} title="资源与成本">
+          <Button
+            size="small"
+            icon={<TeamOutlined />}
+            type={hasResources ? 'primary' : 'default'}
+            ghost={hasResources}
+            data-testid="sched-resource-btn"
+            title="资源工作表：工时/材料/成本三类资源与费率；任务行「资源」入口挂载分配"
+          >
+            资源
+          </Button>
+        </Popover>
         <div style={{ flex: 1 }} />
         <Segmented
           value={view}
@@ -429,6 +448,11 @@ const SchedulePage: React.FC = () => {
         <span>视图：<span className="sched-sb-strong">{view === 'gantt' ? '横道图' : view === 'pdm' ? '单代号网络图' : '双代号网络图'}</span></span>
         <span>共 <span className="sched-sb-strong">{project.tasks.filter((t) => t.level > 0).length}</span> 项工作，总工期 <span className="sched-sb-strong">{cpm.duration}</span> 天</span>
         <span>关键工作 <span className="sched-sb-crit">{project.tasks.filter((t) => t.level > 0 && cpm.rows[t.id]?.critical).length}</span> 项</span>
+        {showCost && (
+          <span data-testid="sched-statusbar-cost" title="总成本 = Σ任务（固定成本 + 分配成本），随工期实时重算（元）">
+            总成本 <span className="sched-sb-strong">¥{fmtCost(costs.total)}</span>
+          </span>
+        )}
         {drift && (
           <span title={`基线「${drift.baselineName}」保存于 ${drift.baselineSavedAt}`}>
             基线 <span className="sched-sb-strong">{drift.baselineDuration}</span> → 当前 {drift.currentDuration} 天

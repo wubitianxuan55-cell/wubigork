@@ -35,6 +35,15 @@ function validNum(v: unknown): boolean {
 }
 
 /**
+ * 数值字段容错写入（资源成本刀3）：合法（有限非负）透传，否则丢弃回落缺省
+ * （undefined=引擎按缺省口径处理）。负数/NaN/Inf 的「拒绝」方式=丢弃字段，
+ * 与 normalizeProject 坏形字段逐条丢弃同口径，不抛错打断编辑流。
+ */
+function numOrUndefined(v: unknown): number | undefined {
+  return typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : undefined
+}
+
+/**
  * 旧持久化数据兼容：补日历缺省（v4.110 数据无 calendar）；deadline 非法格式丢弃；
  * 资源成本刀1（v4.122）：补 resources/assignments 空数组，坏形条目逐条丢弃
  * （容错进板块；落盘拒绝由 Go Validate fail-closed 承担——两道闸分工同现状）。
@@ -103,6 +112,12 @@ interface ScheduleState {
   removeTask: (id: string) => void
   /** 整体替换某任务的前置关系（Popover 编辑提交） */
   setPreds: (taskId: string, preds: PredDraft[]) => void
+  /** 新增/更新资源（v4.124 刀3：id 空=新增生成；数值容错见 numOrUndefined；类型切换联动清理无关字段） */
+  upsertResource: (r: SchedResource) => void
+  /** 删除资源并级联删除其全部分配 */
+  removeResource: (id: string) => void
+  /** 整体替换某任务的分配集（set_links「整体替换入边」同语义；分组行拒绝=no-op，fail-closed） */
+  setTaskAssignments: (taskId: string, list: SchedAssignment[]) => void
   /** 双代号手动布局：整体替换 pins（拖拽提交/重置；v4.123 AOA 刀1） */
   setAoaPins: (pins: Record<string, AoaPin>) => void
   loadSample: () => void
@@ -205,6 +220,8 @@ export const useScheduleStore = create<ScheduleState>()(
             ...s.project,
             tasks: s.project.tasks.filter((t) => !kill.has(t.id)),
             links: s.project.links.filter((l) => !kill.has(l.from) && !kill.has(l.to)),
+            // 级联删分配（v4.124 刀3）：悬空分配会被 Go Validate 拒收，须随任务一并清除
+            assignments: s.project.assignments?.filter((a) => !kill.has(a.taskId)),
           },
           selectedId: s.selectedId === id ? null : s.selectedId,
         }
@@ -216,6 +233,60 @@ export const useScheduleStore = create<ScheduleState>()(
           .filter((p) => p.from && p.from !== taskId)
           .map((p): SchedLink => ({ from: p.from, to: taskId, type: p.type, lag: Math.round(p.lag) || 0 }))
         return { project: { ...s.project, links: [...kept, ...added] } }
+      }),
+
+      // ── 资源成本（v4.124 刀3）：提交即写 project.resources/assignments，
+      // 走既有防抖自动保存链路（编辑 → dirty → 800ms → GaeaScheduleSave）。
+      upsertResource: (r) => set((s) => {
+        const type = r.type === 'material' || r.type === 'cost' ? r.type : 'work'
+        const id = typeof r.id === 'string' ? r.id : ''
+        const clean: SchedResource = {
+          id: id || newId('r'),
+          name: typeof r.name === 'string' && r.name ? r.name : '未命名资源',
+          type,
+          // 类型切换联动清理：cost 无费率/每次使用（金额在分配上）；unit 仅材料；maxUnits 仅工时
+          standardRate: type === 'cost' ? undefined : numOrUndefined(r.standardRate),
+          costPerUse: type === 'cost' ? undefined : numOrUndefined(r.costPerUse),
+          unit: type === 'material' && typeof r.unit === 'string' && r.unit ? r.unit : undefined,
+          maxUnits: type === 'work' ? numOrUndefined(r.maxUnits) : undefined,
+        }
+        const resources = s.project.resources ?? []
+        const next = resources.some((x) => x.id === clean.id)
+          ? resources.map((x) => (x.id === clean.id ? clean : x))
+          : [...resources, clean]
+        return { project: { ...s.project, resources: next } }
+      }),
+
+      removeResource: (id) => set((s) => ({
+        project: {
+          ...s.project,
+          resources: (s.project.resources ?? []).filter((r) => r.id !== id),
+          assignments: (s.project.assignments ?? []).filter((a) => a.resourceId !== id), // 级联删其分配
+        },
+      })),
+
+      setTaskAssignments: (taskId, list) => set((s) => {
+        // 分组行禁挂分配（fail-closed：汇总唯一口径=子孙求和，UI 入口已隐藏）
+        const task = s.project.tasks.find((t) => t.id === taskId)
+        if (!task || task.level === 0) return {}
+        const resIds = new Set((s.project.resources ?? []).map((r) => r.id))
+        const seen = new Set<string>()
+        const next: SchedAssignment[] = []
+        for (const a of list) {
+          // 整体替换前清洗：悬空资源/重复 (taskId,resourceId)/非法数值条目丢弃（同 normalize 容错口径）
+          if (!a || typeof a.resourceId !== 'string' || !resIds.has(a.resourceId)) continue
+          if (seen.has(a.resourceId)) continue
+          seen.add(a.resourceId)
+          next.push({
+            taskId,
+            resourceId: a.resourceId,
+            units: numOrUndefined(a.units),
+            quantity: numOrUndefined(a.quantity),
+            amount: numOrUndefined(a.amount),
+          })
+        }
+        const kept = (s.project.assignments ?? []).filter((a) => a.taskId !== taskId)
+        return { project: { ...s.project, assignments: [...kept, ...next] } }
       }),
 
       setAoaPins: (pins) => set((s) => ({ project: { ...s.project, aoaLayout: { pins } } })),
