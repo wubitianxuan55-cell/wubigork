@@ -285,6 +285,47 @@
   padding: 0 3px;
   flex-shrink: 0;
 }
+/* 基线横道（刀7：保存基线时各任务的位置，灰描边细条贴行底、垫在当前条下方） */
+.sched-baseline-bar {
+  position: absolute;
+  bottom: 3px;
+  height: 5px;
+  border-radius: 2px;
+  border: 1px solid #64748b;
+  background: rgba(100, 116, 139, 0.12);
+  z-index: 11;
+}
+/* 基线对比文案色（提前/退出关键=绿；拖后/新进关键沿用关键红） */
+.sched-drift-good {
+  color: #16a34a;
+  font-weight: 700;
+}
+.sched-statusbar .sched-sb-good {
+  color: #16a34a;
+  font-weight: 700;
+}
+/* 基线对比行类别徽标 */
+.sched-base-chip {
+  font-size: 10px;
+  border-radius: 4px;
+  padding: 0 4px;
+  border: 1px solid;
+  flex-shrink: 0;
+  line-height: 16px;
+}
+.sched-base-shifted {
+  color: #b45309;
+  border-color: #f59e0b;
+}
+.sched-base-added {
+  color: #1d4ed8;
+  border-color: #3b82f6;
+}
+.sched-base-removed {
+  color: #6b7280;
+  border-color: #9ca3af;
+  text-decoration: line-through;
+}
 
 /* ── 网络图共用（单代号/双代号） ──────────────────────────── */
 .sched-network-scroll {

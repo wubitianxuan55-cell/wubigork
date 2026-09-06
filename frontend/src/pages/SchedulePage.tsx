@@ -11,12 +11,14 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { Alert, Button, Checkbox, Input, Popconfirm, Popover, Segmented, Space, Tag, Tooltip } from 'antd'
 import {
-  AimOutlined, CalendarOutlined, ClearOutlined, ClusterOutlined, ExportOutlined, ImportOutlined,
+  AimOutlined, CalendarOutlined, ClearOutlined, ClusterOutlined, ExportOutlined, FundOutlined, ImportOutlined,
   NodeIndexOutlined, PlusOutlined, TableOutlined, ThunderboltOutlined, PartitionOutlined, DeleteOutlined,
 } from '@ant-design/icons'
 import { computeCpm } from '../schedule/cpm'
 import { buildAoa } from '../schedule/aoa'
 import { buildProjectXml, parseProjectXml } from '../schedule/mspdi'
+import { computeBaselineDrift } from '../schedule/baseline'
+import type { CpmResult } from '../schedule/types'
 import { useScheduleStore, isGroupRow, initScheduleSync } from '../schedule/store'
 import { GanttView } from '../schedule/GanttView'
 import { PdmView } from '../schedule/PdmView'
@@ -85,6 +87,101 @@ const CalendarEditor: React.FC = () => {
   )
 }
 
+/** 偏移量文本：+N / -N / ±0 */
+function fmtDrift(n: number): string {
+  return n > 0 ? `+${n}` : `${n}`
+}
+
+/** 基线漂移行类别徽标 */
+const DRIFT_KIND_LABEL: Record<'shifted' | 'added' | 'removed', string> = {
+  shifted: '推移',
+  added: '新增',
+  removed: '移除',
+}
+
+/**
+ * 基线对比弹层（v4.116 刀7）：无基线时引导保存；有基线时展示漂移摘要
+ * （总工期漂移/推移·新增·移除/关键链进出/偏差行清单）与更新、清除操作。
+ */
+const BaselinePanel: React.FC<{ cpm: CpmResult }> = ({ cpm }) => {
+  const project = useScheduleStore((s) => s.project)
+  const setBaseline = useScheduleStore((s) => s.setBaseline)
+  const clearBaseline = useScheduleStore((s) => s.clearBaseline)
+  const [err, setErr] = useState<string | null>(null)
+  const drift = useMemo(() => computeBaselineDrift(project, cpm), [project, cpm])
+  const hasLeaf = project.tasks.some((t) => t.level > 0)
+  const guard = !cpm.ok ? '计划存在循环依赖，先修正搭接' : !hasLeaf ? '计划还没有任何任务' : null
+
+  const save = () => {
+    const e = setBaseline()
+    setErr(e)
+  }
+
+  return (
+    <div style={{ display: 'grid', gap: 8, minWidth: 300, maxWidth: 400 }}>
+      {!drift ? (
+        <>
+          <span className="sched-dim">基线会固化当前排程结果；之后每次调整都能对比「较基线」的推移、总工期漂移与关键链变化。</span>
+          {guard && <span className="sched-dim">暂不可保存：{guard}</span>}
+          <Button size="small" type="primary" disabled={!!guard} onClick={save}>保存基线</Button>
+          {err && <span className="sched-critical-text">{err}</span>}
+        </>
+      ) : (
+        <>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+            <strong>{drift.baselineName}</strong>
+            <span className="sched-dim">保存于 {drift.baselineSavedAt}</span>
+          </div>
+          <div style={{ fontSize: 13 }}>
+            总工期 <b>{drift.baselineDuration}</b> → <b>{drift.currentDuration}</b> 天
+            {drift.durationDrift !== 0 ? (
+              <span className={drift.durationDrift > 0 ? 'sched-critical-text' : 'sched-drift-good'}>
+                （{fmtDrift(drift.durationDrift)} 天，{drift.durationDrift > 0 ? '拖后' : '提前'}）
+              </span>
+            ) : (
+              <span className="sched-dim">（与基线持平）</span>
+            )}
+          </div>
+          <div className="sched-dim">
+            推移 {drift.shiftedCount} · 新增 {drift.addedCount} · 移除 {drift.removedCount} · 一致 {drift.sameCount}
+          </div>
+          {(drift.criticalGained.length > 0 || drift.criticalLost.length > 0) && (
+            <div style={{ fontSize: 12, display: 'grid', gap: 2 }}>
+              {drift.criticalGained.length > 0 && <div><span className="sched-critical-text">新进关键</span>：{drift.criticalGained.join('、')}</div>}
+              {drift.criticalLost.length > 0 && <div><span className="sched-drift-good">退出关键</span>：{drift.criticalLost.join('、')}</div>}
+            </div>
+          )}
+          {drift.rows.length > 0 && (
+            <div style={{ maxHeight: 180, overflow: 'auto', display: 'grid', gap: 3 }}>
+              {drift.rows.map((r) => (
+                <div key={r.id} style={{ display: 'flex', gap: 6, fontSize: 12, alignItems: 'center' }}>
+                  <span className={`sched-base-chip sched-base-${r.kind}`}>{DRIFT_KIND_LABEL[r.kind]}</span>
+                  <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.name}</span>
+                  <span className="sched-dim">
+                    {r.kind === 'removed'
+                      ? `原第 ${r.base!.es}~${r.base!.ef} 工作日`
+                      : r.kind === 'added'
+                        ? `第 ${r.now!.es}~${r.now!.ef} 工作日`
+                        : `第 ${r.base!.es}→${r.now!.es} 工作日`}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+          {guard && <span className="sched-dim">暂不可更新：{guard}</span>}
+          <Space size={6}>
+            <Button size="small" type="primary" ghost disabled={!!guard} onClick={save}>更新基线</Button>
+            <Popconfirm title="清除基线？" description="清除后基线对比不可用，横道图不再显示基线条" onConfirm={() => { clearBaseline(); setErr(null) }}>
+              <Button size="small" danger>清除基线</Button>
+            </Popconfirm>
+          </Space>
+          {err && <span className="sched-critical-text">{err}</span>}
+        </>
+      )}
+    </div>
+  )
+}
+
 const SchedulePage: React.FC = () => {
   const project = useScheduleStore((s) => s.project)
   const view = useScheduleStore((s) => s.view)
@@ -111,6 +208,7 @@ const SchedulePage: React.FC = () => {
 
   const cpm = useMemo(() => computeCpm(project.tasks, project.links), [project])
   const aoa = useMemo(() => buildAoa(project.tasks, project.links), [project])
+  const drift = useMemo(() => computeBaselineDrift(project, cpm), [project, cpm])
 
   const selected = project.tasks.find((t) => t.id === selectedId) ?? null
   const selectedIsGroup = selected ? isGroupRow(project.tasks, project.tasks.findIndex((t) => t.id === selected!.id)) : false
@@ -160,6 +258,17 @@ const SchedulePage: React.FC = () => {
         </Space>
         <Popover trigger="click" placement="bottom" content={<CalendarEditor />} title="工作日历">
           <Button size="small" icon={<CalendarOutlined />}>日历</Button>
+        </Popover>
+        <Popover trigger="click" placement="bottom" content={<BaselinePanel cpm={cpm} />} title="基线对比">
+          <Button
+            size="small"
+            icon={<FundOutlined />}
+            type={project.baseline ? 'primary' : 'default'}
+            ghost={!!project.baseline}
+            title="保存基线快照，对比每次调整的推移与关键链变化"
+          >
+            基线{project.baseline ? `·${project.baseline.name}` : ''}
+          </Button>
         </Popover>
         <div style={{ flex: 1 }} />
         <Segmented
@@ -244,6 +353,14 @@ const SchedulePage: React.FC = () => {
         <span>视图：<span className="sched-sb-strong">{view === 'gantt' ? '横道图' : view === 'pdm' ? '单代号网络图' : '双代号网络图'}</span></span>
         <span>共 <span className="sched-sb-strong">{project.tasks.filter((t) => t.level > 0).length}</span> 项工作，总工期 <span className="sched-sb-strong">{cpm.duration}</span> 天</span>
         <span>关键工作 <span className="sched-sb-crit">{project.tasks.filter((t) => t.level > 0 && cpm.rows[t.id]?.critical).length}</span> 项</span>
+        {drift && (
+          <span title={`基线「${drift.baselineName}」保存于 ${drift.baselineSavedAt}`}>
+            基线 <span className="sched-sb-strong">{drift.baselineDuration}</span> → 当前 {drift.currentDuration} 天
+            {drift.durationDrift !== 0 && (
+              <span className={drift.durationDrift > 0 ? 'sched-sb-crit' : 'sched-sb-good'}>（{fmtDrift(drift.durationDrift)}）</span>
+            )}
+          </span>
+        )}
         <span>工作制：<span className="sched-sb-strong">{workweekLabel(project.calendar)}</span>{(project.calendar?.holidays.length ?? 0) > 0 && <> · 节假日 {project.calendar!.holidays.length} 天</>}</span>
         <span>时间单位：工作日（日期轴为自然日）</span>
         <span style={{ marginLeft: 'auto' }} title={syncError ?? '进度计划/当前计划.gsched.json'}>

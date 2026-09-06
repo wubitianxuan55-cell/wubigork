@@ -124,6 +124,8 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult }> = ({
   const updateTask = useScheduleStore((s) => s.updateTask)
   const [dayW, setDayW] = useState(20)
   const [showFront, setShowFront] = useState(false)
+  /** 基线条显示（有基线才出现开关；默认开，v4.116 刀7） */
+  const [showBase, setShowBase] = useState(true)
   const [checkDate, setCheckDate] = useState<string>(new Date().toISOString().slice(0, 10))
 
   const cal = project.calendar
@@ -216,6 +218,16 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult }> = ({
         >
           前锋线
         </Button>
+        {project.baseline && (
+          <Button
+            size="small"
+            type={showBase ? 'primary' : 'default'}
+            onClick={() => setShowBase((v) => !v)}
+            title={`基线条：保存「${project.baseline.name}」时各任务的位置（灰描边细条）`}
+          >
+            基线
+          </Button>
+        )}
         {showFront && (
           <DatePicker
             size="small"
@@ -256,6 +268,7 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult }> = ({
             const manual = t.mode === 'manual'
             const dur = t.isMilestone ? 0 : Math.max(0, Math.round(t.duration))
             const colorCls = group ? ` sched-group-c${groupColorSeq[i]}` : ''
+            const baseRow = showBase && !group ? project.baseline?.rows[t.id] : undefined
             return (
               <div
                 key={t.id}
@@ -336,6 +349,15 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult }> = ({
                 </div>
                 {/* 条形区 */}
                 <div className="sched-bar-lane" style={{ width: chartW }}>
+                  {baseRow && (
+                    <div
+                      className="sched-baseline-bar"
+                      style={{ left: dayNo(baseRow.es) * dayW, width: Math.max((dayNo(baseRow.ef) - dayNo(baseRow.es)) * dayW, 5) }}
+                      title={row && (row.es !== baseRow.es || row.ef !== baseRow.ef)
+                        ? `基线：第 ${baseRow.es}~${baseRow.ef} 工作日（当前第 ${row.es}~${row.ef}）`
+                        : `基线：第 ${baseRow.es}~${baseRow.ef} 工作日（与当前一致）`}
+                    />
+                  )}
                   {group ? (
                     span && (
                       <div

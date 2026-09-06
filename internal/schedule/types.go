@@ -69,6 +69,33 @@ type Project struct {
 	Tasks     []Task    `json:"tasks"`
 	Links     []Link    `json:"links"`
 	Calendar  *Calendar `json:"calendar,omitempty"`
+	// Baseline 基线（v4.116 刀7：保存时的排程快照，缺省=尚未保存）。
+	Baseline *Baseline `json:"baseline,omitempty"`
+}
+
+// BaselineRow 基线行快照：单任务保存基线时的排程结果（叶任务专属）。
+type BaselineRow struct {
+	// Name 任务名（任务被移除后仍可读）。
+	Name string `json:"name"`
+	// ES/EF 基线最早开始/完成（工作日序号）。
+	ES int `json:"es"`
+	EF int `json:"ef"`
+	// Dur 有效工期（里程碑 0）。
+	Dur int `json:"dur"`
+	// Critical 保存时是否关键。
+	Critical bool `json:"critical"`
+}
+
+// Baseline 基线（对齐 Project「设置基线」：快照排程结果，供漂移对比）。
+type Baseline struct {
+	// Name 基线名（缺省「基线」）。
+	Name string `json:"name"`
+	// SavedAt 保存时间（YYYY-MM-DD HH:mm，由调用方标注）。
+	SavedAt string `json:"savedAt"`
+	// Duration 保存时总工期（工作日）。
+	Duration int `json:"duration"`
+	// Rows 叶任务基线行。
+	Rows map[string]BaselineRow `json:"rows"`
 }
 
 // TaskCpm 单任务 CPM 计算结果（天数，ES/EF 为相对开工日的天偏移）。

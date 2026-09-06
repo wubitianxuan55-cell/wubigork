@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/gaea/gaea/internal/gaea/evidence"
 	"github.com/gaea/gaea/internal/gaea/tool"
@@ -101,6 +102,9 @@ func (s scheduleGet) Execute(ctx context.Context, args json.RawMessage) (string,
 		"tasks":         taskTable(proj, cpm),
 		"links":         proj.Links,
 	}
+	if b := proj.Baseline; b != nil {
+		out["baseline"] = map[string]any{"name": b.Name, "savedAt": b.SavedAt, "duration": b.Duration, "rowCount": len(b.Rows)}
+	}
 	return mustJSON(out)
 }
 
@@ -161,7 +165,7 @@ func (scheduleApply) Schema() json.RawMessage {
 "properties":{
   "path":{"type":"string","description":"计划文件路径；缺省=当前计划（进度计划/当前计划.gsched.json）"},
   "project":{"type":"object","description":"完整计划对象（整计划生成/重排通道，与 ops 二选一）"},
-  "ops":{"type":"array","description":"增量操作数组（局部调整通道，与 project 二选一）。元素 type：upsert_task{task:{id,name,level,duration,...},afterId?} | patch_task{id,patch:{name?/duration?/progress?/mode?/manualStart?/isMilestone?/level?}} | remove_task{id}(含子孙与相关搭接) | set_links{toId,links:[{from,type?,lag?}]}(整体替换该任务入边,type 缺省 FS) | set_meta{name?/startDate?/calendar?} | auto_chain{}(推荐逻辑关系缺省步：仅为无前置叶任务按 WBS 顺序补 FS 串联，已有逻辑/手动任务不动)",
+  "ops":{"type":"array","description":"增量操作数组（局部调整通道，与 project 二选一）。元素 type：upsert_task{task:{id,name,level,duration,...},afterId?} | patch_task{id,patch:{name?/duration?/progress?/mode?/manualStart?/isMilestone?/level?}} | remove_task{id}(含子孙与相关搭接) | set_links{toId,links:[{from,type?,lag?}]}(整体替换该任务入边,type 缺省 FS) | set_meta{name?/startDate?/calendar?} | auto_chain{}(推荐逻辑关系缺省步：仅为无前置叶任务按 WBS 顺序补 FS 串联，已有逻辑/手动任务不动) | set_baseline{name?}(固化当前排程为基线，重大调整前建议先做；循环依赖/无叶任务会拒绝) | clear_baseline{}(清除基线，无基线时报错)",
     "items":{"type":"object","properties":{"type":{"type":"string"}},"required":["type"]}},
   "summary":{"type":"string","description":"本次修改的一句话摘要（落证据卡，供用户在轨迹中审阅）"}
 },
@@ -223,6 +227,13 @@ func (s scheduleApply) Execute(ctx context.Context, args json.RawMessage) (strin
 			}
 			cur = schedule.Project{Tasks: []schedule.Task{}, Links: []schedule.Link{}}
 		}
+		// set_baseline 的 savedAt 由工具层标注（引擎是纯函数不取时钟）
+		now := time.Now().Format("2006-01-02 15:04")
+		for i := range in.Ops {
+			if in.Ops[i].Type == "set_baseline" && strings.TrimSpace(in.Ops[i].SavedAt) == "" {
+				in.Ops[i].SavedAt = now
+			}
+		}
 		sums, err := schedule.ApplyOps(&cur, in.Ops)
 		if err != nil {
 			return "", err
@@ -261,6 +272,19 @@ func (s scheduleApply) Execute(ctx context.Context, args json.RawMessage) (strin
 		"critical":  a.Critical,
 		"taskCount": a.LeafCount,
 	}
+	// 已有基线时回执带漂移摘要——模型汇报前先讲「较基线」偏差
+	if d := schedule.ComputeBaselineDrift(&proj, cpm); d != nil {
+		out["baselineDrift"] = map[string]any{
+			"name":           d.BaselineName,
+			"baselineToNow":  fmt.Sprintf("%d→%d 天", d.BaselineDuration, d.CurrentDuration),
+			"durationDrift":  d.DurationDrift,
+			"shifted":        d.ShiftedCount,
+			"added":          d.AddedCount,
+			"removed":        d.RemovedCount,
+			"criticalGained": d.CriticalGained,
+			"criticalLost":   d.CriticalLost,
+		}
+	}
 	if in.Summary != "" {
 		out["declaredSummary"] = in.Summary
 	}
@@ -287,7 +311,7 @@ type scheduleAnalyze struct{ workDir string }
 func (scheduleAnalyze) Name() string { return "schedule_analyze" }
 
 func (scheduleAnalyze) Description() string {
-	return "分析工程进度计划：确定性 CPM 引擎裁决 + 规则质检。返回总工期、关键工作链、近关键工作（总时差≤2，缓冲小）、里程碑清单，以及计划检查发现（无任何搭接的孤立任务、无前置的任务——可用 ops auto_chain 一键补缺省串联、空分组、无收口尾巴、无里程碑提醒等）。用于编写/修改后的自检（成功≠正确：先 analyze 再向用户汇报）、进度合理性解读与风险提示、推荐逻辑关系的依据。"
+	return "分析工程进度计划：确定性 CPM 引擎裁决 + 规则质检。返回总工期、关键工作链、近关键工作（总时差≤2，缓冲小）、里程碑清单，以及计划检查发现（无任何搭接的孤立任务、无前置的任务——可用 ops auto_chain 一键补缺省串联、空分组、无收口尾巴、无里程碑提醒等）。已保存基线时附带漂移对比（baselineDrift：总工期 X→Y、推移/新增/移除、关键链进出），汇报调整效果时先讲这组偏差。用于编写/修改后的自检（成功≠正确：先 analyze 再向用户汇报）、进度合理性解读与风险提示、推荐逻辑关系的依据。"
 }
 
 func (scheduleAnalyze) Schema() json.RawMessage {
@@ -329,6 +353,22 @@ func (s scheduleAnalyze) Execute(ctx context.Context, args json.RawMessage) (str
 		"nearCritical": a.NearCritical,
 		"milestones":   a.Milestones,
 		"checks":       qualityChecks(proj, cpm),
+	}
+	// 有基线时输出漂移对比（决定性数据，模型据此组织「较基线」汇报）
+	if d := schedule.ComputeBaselineDrift(&proj, cpm); d != nil {
+		out["baselineDrift"] = d
+		findings := out["checks"].([]string)
+		if d.DurationDrift != 0 || d.ShiftedCount > 0 || d.AddedCount > 0 || d.RemovedCount > 0 {
+			findings = append(findings, fmt.Sprintf("较基线「%s」：总工期 %d→%d 天（%+d），推移 %d · 新增 %d · 移除 %d",
+				d.BaselineName, d.BaselineDuration, d.CurrentDuration, d.DurationDrift, d.ShiftedCount, d.AddedCount, d.RemovedCount))
+			if len(d.CriticalGained) > 0 {
+				findings = append(findings, fmt.Sprintf("较基线新进关键线路：%s", strings.Join(d.CriticalGained, "、")))
+			}
+			if len(d.CriticalLost) > 0 {
+				findings = append(findings, fmt.Sprintf("较基线退出关键线路：%s", strings.Join(d.CriticalLost, "、")))
+			}
+		}
+		out["checks"] = findings
 	}
 	return mustJSON(out)
 }

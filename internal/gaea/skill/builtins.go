@@ -26,7 +26,7 @@ func builtinSkills() []Skill {
 			RunAs:       RunInline,
 		},
 		{
-			Name: "office-edit",
+			Name:        "office-edit",
 			Description: "办公文件编辑纪律总纲：创建/修改 xlsx、docx、pptx、markdown 思维导图大纲或 .gbase.json 多维表视图前必读——先读后写、写后回读验证、宁拒不误改、逐 run 编辑防丢格式、.gbase.json 列名口径与 JSON 自检、soffice 渲染取证与 Error [FORMAT_*] 错误码路由。",
 			Body: `你正在创建或修改用户的办公文件。本技能是办公编辑纪律总纲：xlsx / docx / pptx 二进制文件一律用 bash + python 库处理；markdown 大纲（思维导图）与 .gbase.json（多维表视图）用 read_file / write_file / edit_file 处理。开工前先通读本技能，写完后按验证闭环收尾。
 
@@ -82,12 +82,12 @@ func builtinSkills() []Skill {
 - bash / python 报错：读完整 traceback 定位行号，修复后重跑；同类失败两次就换方案并说明原因。
 
 ` + negativeClaimRule + "\n\n" + tuiFormatting,
-			Scope:       ScopeBuiltin,
-			Path:        "(builtin)",
-			RunAs:       RunInline,
+			Scope: ScopeBuiltin,
+			Path:  "(builtin)",
+			RunAs: RunInline,
 		},
 		{
-			Name: "schedule-edit",
+			Name:        "schedule-edit",
 			Description: "进度计划编制与调整纪律：用户要编进度计划/排施工计划/改工期/调搭接/分析关键线路时必读——schedule_get 先读后写、schedule_apply 双通道（project 整计划/ops 增量）、CPM 引擎裁决 fail-closed、回执核对「成功≠正确」、工作日口径与 WBS 两级分解、JGJ/T 121-2015 先分解后编网。",
 			Body: `你正在通过 schedule_get / schedule_apply / schedule_analyze 三工具编制或调整用户的工程进度计划（「进度计划」板块同款数据，双向实时同步）。开工前先通读本技能。
 
@@ -114,6 +114,12 @@ func builtinSkills() []Skill {
 - 多条调整一次 ops 数组下发（原子应用，单条失败整批拒绝）。
 - 进度反馈：patch_task{progress}（0-100），前锋线在板块横道图查看。
 
+## 基线对比（调整效果的量化口径）
+
+- 用户确认计划或重大调整前，建议 ops set_baseline 固化现状（引擎保存当前排程快照；循环依赖/无叶任务会拒绝；基线名可用阶段名如「开工版」，时间戳由工具层标注）。
+- 已有基线后：schedule_apply 回执带 baselineDrift（总工期 X→Y（±N 天）、推移/新增/移除计数、关键链进出），schedule_analyze 的 checks 也有「较基线」发现——汇报时先讲这组偏差再讲措施。
+- 计划结构性重排后旧基线会失真，主动建议 set_baseline 更新（更新即以当前状态为准）；clear_baseline 清除后对比不可用。板块横道图会叠加灰描边基线条，口径=相对开工日的工作日偏移。
+
 ## 推荐逻辑关系（编制环节最高痛点）
 
 schedule_analyze 的 checks 会列出「无前置/孤立任务」——这就是推荐输入。推荐步骤：
@@ -135,9 +141,9 @@ schedule_analyze 的 checks 会列出「无前置/孤立任务」——这就是
 - 互通：可建议用户在板块里导入/导出 MS Project XML 与 Project/斑马互查。
 
 ` + negativeClaimRule,
-			Scope:       ScopeBuiltin,
-			Path:        "(builtin)",
-			RunAs:       RunInline,
+			Scope: ScopeBuiltin,
+			Path:  "(builtin)",
+			RunAs: RunInline,
 		},
 		{
 			Name:        "format-convert",

@@ -1,3 +1,14 @@
+## v4.116.0 · 进度计划刀7：基线对比——快照固排程 · 漂移量化 · 板块/agent 同口径（2026-09-06）
+> v4.111/112 欠账池收刀（绑定面 **588** 零变更）；对齐 Project「设置基线」：把保存时的排程结果固化，之后每次调整量化「较基线」偏差。详见 releases/v4.116.0.md。
+- **基线数据模型**（types 同构双侧）：SchedProject.baseline={name,savedAt,duration,rows}，行=叶任务快照 {name,es,ef,dur,critical}（工作日序号，口径=相对开工日偏移，不受开工日调整影响；分组行不入基线）。
+- **TS 引擎 baseline.ts（纯函数，11 例）**：snapshotBaseline（循环依赖/无叶任务 fail-closed 拒绝）+ computeBaselineDrift（总工期漂移、推移/新增/移除、关键链进出 criticalGained/Lost；rows 只含有偏差行，移除行按 id 排序与 Go 镜像一致；单关键标记翻转也计推移）。
+- **Go 镜像 internal/schedule/baseline.go + ops set_baseline/clear_baseline**（+8 例，测试与 TS 同批场景同批期望）：set_baseline 缺 savedAt 拒绝（引擎纯函数不取时钟，工具层盖时间戳）；clear 无基线报错（无事可做≠静默成功）。
+- **agent 三工具接线**：schedule_get 带基线元信息；schedule_apply 回执带 baselineDrift 摘要（模型汇报先讲偏差）；schedule_analyze 输出 baselineDrift 全量+checks「较基线」发现（漂移≠0 才出现）。
+- **板块 UI**：页头「基线」弹层（保存/更新/清除+漂移摘要+偏差行清单）；横道图基线条开关（灰描边细条垫行底，悬停看基线 vs 当前）；状态栏基线段（基线 X → 当前 Y 天（±N），拖后红/提前绿）。store setBaseline/clearBaseline 动作，文件化自动随存（零新绑定）。
+- **schedule-edit 技能增「基线对比」节**（锚点锁 +3）：调整前建议 set_baseline 固化、回执/analyze 先讲偏差再讲措施、结构性重排后更新基线。
+- 测试：vitest 2115→**2126**（baseline 11 例）；Go internal/schedule 21→32 测试函数（baseline 11，与 TS 同批场景镜像）+ 工具链用例 TestScheduleBaselineDriftChain（保存→调整→analyze 报 9→11（+2）→更新基线清零→清除后消失）。门禁：tsc -b/eslint 0、Go 全量绿（app 包 1 例 TempDir 清理竞态 flaky 复跑绿）、drift PASS@588、版本四处 4.116.0、build.bat 冒烟 /api/health 200。
+- 欠账：进度计划拍板池余——对话式调整 diff 确认卡、双工期口径（定额日历天 vs 工作日）、多工程管理、真机端到端（真机池）；横道图基线滑条样式细化观察项。
+
 ## v4.115.0 · 进度计划刀6：推荐逻辑关系——auto_chain 确定性原语 · 无前置质检 · 报告模板（2026-09-06）
 > 拍板池 P2 首件（绑定面 **588** 零变更）；「AI 产建议、引擎裁决」分工的编制侧落地。详见 releases/v4.115.0.md。
 - **auto_chain 增量操作**（internal/schedule/ops.go，+1 例）：推荐逻辑关系的确定性缺省步——仅为无前置叶任务按 WBS 顺序补 FS 串联；分组行/已有逻辑/手动任务不动（手动=有意定位，忽略入边故不作链源）；无可补拒绝（无事可做≠静默成功）。

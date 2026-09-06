@@ -30,7 +30,7 @@ type opLink struct {
 
 // Op 计划增量操作。
 type Op struct {
-	Type string `json:"type"` // upsert_task | patch_task | remove_task | set_links | set_meta | auto_chain
+	Type string `json:"type"` // upsert_task | patch_task | remove_task | set_links | set_meta | auto_chain | set_baseline | clear_baseline
 
 	// upsert_task：整任务（含 id）；afterId 缺省追加表尾。
 	AfterID string `json:"afterId,omitempty"`
@@ -50,6 +50,10 @@ type Op struct {
 	Name      string    `json:"name,omitempty"`
 	StartDate string    `json:"startDate,omitempty"`
 	Calendar  *Calendar `json:"calendar,omitempty"`
+
+	// set_baseline：基线名（缺省「基线」）+保存时间（调用方标注，缺省拒绝）。
+	BaselineName string `json:"baselineName,omitempty"`
+	SavedAt      string `json:"savedAt,omitempty"`
 }
 
 // ApplyOps 依次应用操作集，返回人类可读摘要（供 Journal 与工具回执）。
@@ -260,6 +264,27 @@ func applyOne(p *Project, op Op) (string, error) {
 			return "", fmt.Errorf("auto_chain 没有可补的任务（无前置的叶任务不足两个，或均已手动定位）")
 		}
 		return fmt.Sprintf("自动补全 %d 条缺省串联逻辑（仅无前置任务，FS lag=0）", added), nil
+
+	case "set_baseline":
+		// 基线快照：固化此刻排程（ops 序列中的当前位置），供后续漂移对比。
+		// CPM 不过/无叶任务 fail-closed 拒绝；savedAt 必须由调用方标注
+		// （引擎是纯函数不取时钟）。
+		if strings.TrimSpace(op.SavedAt) == "" {
+			return "", fmt.Errorf("set_baseline 缺少 savedAt（YYYY-MM-DD HH:mm，由工具层标注）")
+		}
+		b, err := SnapshotBaseline(p, op.SavedAt, op.BaselineName)
+		if err != nil {
+			return "", err
+		}
+		p.Baseline = b
+		return fmt.Sprintf("保存基线「%s」（%d 项工作，总工期 %d 天）", b.Name, len(b.Rows), b.Duration), nil
+
+	case "clear_baseline":
+		if p.Baseline == nil {
+			return "", fmt.Errorf("当前没有基线可清除")
+		}
+		p.Baseline = nil
+		return "清除基线", nil
 
 	default:
 		return "", fmt.Errorf("不支持的操作类型：%s", op.Type)

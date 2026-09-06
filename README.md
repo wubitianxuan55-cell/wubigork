@@ -92,6 +92,7 @@ gaea/
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| **v4.116.0** | 2026-09-06 | 进度计划刀7：基线对比（588 零变更）——对齐 Project「设置基线」：TS/Go 镜像引擎（baseline.ts↔baseline.go，快照 fail-closed+漂移对比：总工期漂移/推移·新增·移除/关键链进出）、ops set_baseline/clear_baseline（缺 savedAt 拒绝/无基线报错）、agent 三工具接线（get 基线元信息/apply 回执 baselineDrift/analyze checks「较基线」发现）、板块 UI（基线弹层+横道灰描边基线条+状态栏漂移段）、schedule-edit 技能「基线对比」节（锚点锁 +3）；vitest 2126/2126（+11）。详见 releases/v4.116.0.md |
 | **v4.115.0** | 2026-09-06 | 进度计划刀6：推荐逻辑关系（588 零变更）——ops auto_chain 确定性原语（仅为无前置叶任务按 WBS 顺序补 FS 串联，已有逻辑/手动不动，无可补拒绝）、schedule_analyze 质检新增「无前置」发现（文案指路 auto_chain→set_links 覆写，工具测试闭环验证）、schedule-edit 技能增推荐工作流+分析报告四段模板（进度/风险/盲点/建议）；Go schedule 33 例、vitest 2115/2115。详见 releases/v4.115.0.md |
 | **v4.114.0** | 2026-09-06 | 进度计划刀5：对话即排程（588 零变更）——schedule-edit 内联技能（编制/调整纪律：JGJ/T 121-2015 先分解后编网、回执核对、引擎裁决）、agent 写计划→板块即时回读（schedule_apply 回执触发，绕过 15s 轻扫）、schedule_* 工具卡摘要（总工期/关键/修改数一行）；vitest 2115/2115（store 同步链全链用例）、drift PASS@588。详见 releases/v4.114.0.md |
 | **v4.113.0** | 2026-09-06 | 进度计划刀4：AI 原生通道地基（586→588 +ScheduleLoad/Save）——internal/schedule Go 引擎（CPM/日历/ops 移植 28 例，与前端测试互为镜像）、agent 工具三件套 schedule_get/apply/analyze（快照+证据卡+CPM fail-closed，AI 产建议引擎裁决）、计划文件化 进度计划/当前计划.gsched.json（板块与 agent 共享，水合+自动保存+轮询回读）；?mock=1 全链走查过；市场调研 docs/market-research-2026-09-06.md。详见 releases/v4.113.0.md |

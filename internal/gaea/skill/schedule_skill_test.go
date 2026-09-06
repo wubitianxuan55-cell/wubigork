@@ -33,8 +33,8 @@ func TestScheduleEditBuiltinSkill(t *testing.T) {
 		"schedule_apply",
 		"schedule_analyze",
 		"JGJ/T 121-2015", // 先分解后编网
-		"工作日",           // 工期口径
-		"总工期",           // 回执核对/汇报口径
+		"工作日",            // 工期口径
+		"总工期",            // 回执核对/汇报口径
 		"关键",             // 关键线路汇报
 		"里程碑",
 		"isMilestone",
@@ -44,6 +44,10 @@ func TestScheduleEditBuiltinSkill(t *testing.T) {
 		"推荐逻辑关系",
 		"分析报告模板",
 		"近关键",
+		// v4.116 刀7：基线对比
+		"set_baseline",
+		"clear_baseline",
+		"baselineDrift",
 	}
 	body := sk.Body
 	for _, a := range anchors {

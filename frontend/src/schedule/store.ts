@@ -12,7 +12,9 @@ import { persist } from 'zustand/middleware'
 import type { LinkType, SchedCalendar, SchedLink, SchedProject, SchedTask } from './types'
 import { makeEmptyProject, makeSampleProject } from './sample'
 import { normalizeCalendar } from './calendar'
+import { computeCpm } from './cpm'
 import { loadScheduleFile, saveScheduleFile } from './api'
+import { snapshotBaseline } from './baseline'
 
 export type ScheduleView = 'gantt' | 'pdm' | 'aoa'
 
@@ -52,6 +54,13 @@ interface ScheduleState {
   /** 整体替换工程（XML 导入/文件水合），缺省字段归一 */
   importProject: (p: SchedProject) => void
   setCalendar: (cal: SchedCalendar) => void
+  /**
+   * 保存/更新基线（快照当前排程）。返回 null=成功；否则为失败原因
+   * （循环依赖/无叶任务），UI 据此提示——不静默。
+   */
+  setBaseline: (name?: string) => string | null
+  /** 清除基线（无基线时为无害空操作） */
+  clearBaseline: () => void
   addTask: (afterId?: string) => void
   addGroup: () => void
   updateTask: (id: string, patch: Partial<SchedTask>) => void
@@ -64,6 +73,13 @@ interface ScheduleState {
 
 let idSeq = Date.now() % 100000
 const newId = (p: string) => `${p}${(idSeq++).toString(36)}${Math.floor(Math.random() * 1296).toString(36)}`
+
+/** 基线保存时间戳（本地时间 YYYY-MM-DD HH:mm） */
+function formatNow(): string {
+  const d = new Date()
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`
+}
 
 /** 判断任务是否为分组行（有子级：后面紧跟更深层级的行） */
 export function isGroupRow(tasks: SchedTask[], idx: number): boolean {
@@ -101,6 +117,16 @@ export const useScheduleStore = create<ScheduleState>()(
       setStartDate: (startDate) => set((s) => ({ project: { ...s.project, startDate } })),
       importProject: (p) => set({ project: normalizeProject(p), selectedId: null }),
       setCalendar: (calendar) => set((s) => ({ project: { ...s.project, calendar: normalizeCalendar(calendar) } })),
+
+      setBaseline: (name) => {
+        const { project } = useScheduleStore.getState()
+        const cpm = computeCpm(project.tasks, project.links)
+        const r = snapshotBaseline(project, cpm, formatNow(), name)
+        if (!r.ok) return r.error
+        useScheduleStore.setState({ project: { ...project, baseline: r.baseline } })
+        return null
+      },
+      clearBaseline: () => set((s) => ({ project: { ...s.project, baseline: null } })),
 
       addTask: (afterId) => set((s) => {
         const tasks = [...s.project.tasks]

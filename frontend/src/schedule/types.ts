@@ -56,6 +56,70 @@ export interface SchedProject {
   links: SchedLink[]
   /** 工作日历（缺省=周一~周五） */
   calendar?: SchedCalendar
+  /** 基线（v4.116 刀7：保存时的排程快照，缺省=尚未保存） */
+  baseline?: SchedBaseline | null
+}
+
+/** 基线行快照：单任务保存基线时的排程结果（叶任务专属，分组行不入基线） */
+export interface SchedBaselineRow {
+  /** 任务名（任务被移除后仍可读） */
+  name: string
+  /** 基线最早开始（工作日序号） */
+  es: number
+  /** 基线最早完成（工作日序号） */
+  ef: number
+  /** 有效工期（里程碑 0） */
+  dur: number
+  /** 保存时是否关键 */
+  critical: boolean
+}
+
+/** 基线（对齐 Project「设置基线」：快照排程结果，供漂移对比） */
+export interface SchedBaseline {
+  /** 基线名（缺省「基线」） */
+  name: string
+  /** 保存时间（YYYY-MM-DD HH:mm） */
+  savedAt: string
+  /** 保存时总工期（工作日） */
+  duration: number
+  /** 叶任务基线行 */
+  rows: Record<string, SchedBaselineRow>
+}
+
+/** 基线漂移行：只含有偏差的任务（shifted=推移 / added=新增 / removed=已移除） */
+export interface BaselineDriftRow {
+  id: string
+  name: string
+  kind: 'shifted' | 'added' | 'removed'
+  /** 基线行（新增任务为 null） */
+  base: SchedBaselineRow | null
+  /** 当前排程（已移除任务为 null） */
+  now: { es: number; ef: number; dur: number } | null
+  esDrift: number
+  efDrift: number
+  durDrift: number
+  criticalNow: boolean
+  criticalBase: boolean
+}
+
+/** 基线漂移对比汇总 */
+export interface BaselineDrift {
+  baselineName: string
+  baselineSavedAt: string
+  baselineDuration: number
+  currentDuration: number
+  /** 总工期漂移（正=拖后，负=提前） */
+  durationDrift: number
+  sameCount: number
+  shiftedCount: number
+  addedCount: number
+  removedCount: number
+  /** 新进入关键线路的任务名 */
+  criticalGained: string[]
+  /** 退出关键线路的任务名 */
+  criticalLost: string[]
+  /** 有偏差的任务行（一致行不进列表） */
+  rows: BaselineDriftRow[]
 }
 
 /** 单任务 CPM 计算结果（天数，ES/EF 为相对开工日的天偏移） */

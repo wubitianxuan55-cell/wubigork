@@ -117,6 +117,66 @@ func TestScheduleApplyConfine(t *testing.T) {
 	}
 }
 
+// v4.116.0 刀7：基线对比全链——set_baseline 落盘 → 调整产生漂移 →
+// analyze/apply 回执带对比 → clear_baseline 后消失。
+func TestScheduleBaselineDriftChain(t *testing.T) {
+	dir := t.TempDir()
+	schedApply(t, dir, `{"project":{"name":"P","startDate":"2026-09-01","tasks":[
+		{"id":"a","name":"A","level":1,"duration":3},
+		{"id":"b","name":"B","level":1,"duration":2},
+		{"id":"c","name":"C","level":1,"duration":4}],
+		"links":[{"from":"a","to":"b","type":"FS","lag":0},{"from":"b","to":"c","type":"FS","lag":0}]}}`)
+
+	// 保存基线（savedAt 缺省由工具层标注）
+	out := schedApply(t, dir, `{"ops":[{"type":"set_baseline","baselineName":"开工版"}]}`)
+	if out["duration"].(float64) != 9 {
+		t.Fatalf("基线时总工期 = %v", out["duration"])
+	}
+	// get 带基线元信息
+	get, err := scheduleGet{workDir: dir}.Execute(context.Background(), json.RawMessage(`{}`))
+	if err != nil || !strings.Contains(get, `"baseline"`) || !strings.Contains(get, "开工版") {
+		t.Fatalf("get 缺基线信息：err=%v %s", err, get)
+	}
+
+	// 无变化：analyze 不出漂移发现
+	ana, err := scheduleAnalyze{workDir: dir}.Execute(context.Background(), json.RawMessage(`{}`))
+	if err != nil || strings.Contains(ana, "较基线") {
+		t.Fatalf("无变化不应有漂移发现：err=%v %s", err, ana)
+	}
+
+	// 调整 A 工期 3→5：回执与 analyze 都带漂移（9→11）
+	out = schedApply(t, dir, `{"ops":[{"type":"patch_task","id":"a","patch":{"duration":5}}]}`)
+	drift, ok := out["baselineDrift"].(map[string]any)
+	if !ok || drift["durationDrift"].(float64) != 2 {
+		t.Fatalf("apply 回执缺漂移或口径错：%v", out["baselineDrift"])
+	}
+	ana, err = scheduleAnalyze{workDir: dir}.Execute(context.Background(), json.RawMessage(`{}`))
+	if err != nil || !strings.Contains(ana, "较基线「开工版」：总工期 9→11 天（+2）") {
+		t.Fatalf("analyze 缺漂移发现：err=%v %s", err, ana)
+	}
+	if !strings.Contains(ana, `"baselineDrift"`) || !strings.Contains(ana, `"shiftedCount":3`) {
+		t.Fatalf("analyze 缺漂移数据：%s", ana)
+	}
+
+	// 更新基线到新状态后漂移清零
+	schedApply(t, dir, `{"ops":[{"type":"set_baseline"}]}`)
+	ana, err = scheduleAnalyze{workDir: dir}.Execute(context.Background(), json.RawMessage(`{}`))
+	if err != nil || strings.Contains(ana, "较基线") {
+		t.Fatalf("更新基线后不应再有漂移发现：err=%v %s", err, ana)
+	}
+
+	// clear_baseline 后 get/analyze 无基线
+	schedApply(t, dir, `{"ops":[{"type":"clear_baseline"}]}`)
+	get, err = scheduleGet{workDir: dir}.Execute(context.Background(), json.RawMessage(`{}`))
+	if err != nil || strings.Contains(get, `"baseline"`) {
+		t.Fatalf("清除后 get 不应带基线：err=%v %s", err, get)
+	}
+	tool := scheduleApply{workDir: dir, roots: []string{dir}}
+	if _, err := tool.Execute(context.Background(), json.RawMessage(`{"ops":[{"type":"clear_baseline"}]}`)); err == nil {
+		t.Fatal("无基线再清除应报错")
+	}
+}
+
 func TestScheduleGetMissingFile(t *testing.T) {
 	dir := t.TempDir()
 	_, err := scheduleGet{workDir: dir}.Execute(context.Background(), json.RawMessage(`{}`))
