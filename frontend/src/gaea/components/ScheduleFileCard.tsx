@@ -16,6 +16,8 @@ import { useStore } from "../lib/store";
 import { emitFrontendEvent, FRONTEND_EVENTS } from "../../events";
 import { useToast } from "./Toast";
 import { isScheduleFilePath, SCHEDULE_FILE_PATH, type GschedSummary } from "../../schedule/gschedSummary";
+import { notifyScheduleFileChanged } from "../../schedule/store";
+import { saveScheduleFile } from "../../schedule/api";
 
 const HEAD_BTN =
   "flex items-center gap-1 px-1.5 py-0.5 border-0 rounded bg-transparent text-fg-dim text-[10px] cursor-pointer hover:bg-bg-soft";
@@ -33,6 +35,7 @@ export function ScheduleFileCard({ relPath, summary, raw }: { relPath: string; s
   const t = useT();
   const toast = useToast();
   const [showRaw, setShowRaw] = useState(false);
+  const [copied, setCopied] = useState(false);
   const approval = useStore((s) => s.approval);
   const metaReady = useStore((s) => s.meta?.ready);
   // 审批挂起/内核未就绪时禁止发起（与 Composer disabled 同语义）
@@ -58,6 +61,18 @@ export function ScheduleFileCard({ relPath, summary, raw }: { relPath: string; s
 
   const jumpToSchedule = () => {
     emitFrontendEvent(FRONTEND_EVENTS.NAVIGATE, { page: "schedule" });
+  };
+
+  /** 设为当前计划（v4.124 联动候选）：把该文件内容复制为当前计划，板块即时回读。
+   *  仅 ok=true 的计划可复制（Go Save 对循环依赖 fail-closed，拒收必失败）；仅非当前计划文件显示。 */
+  const setAsCurrent = () => {
+    saveScheduleFile(summary.project)
+      .then(() => {
+        notifyScheduleFileChanged();
+        toast.show(t("schedCard.copied"), "info");
+        setCopied(true);
+      })
+      .catch((err) => toast.show(`${t("schedCard.copyFail")}：${err instanceof Error ? err.message : String(err)}`, "error"));
   };
 
   return (
@@ -128,7 +143,21 @@ export function ScheduleFileCard({ relPath, summary, raw }: { relPath: string; s
           </div>
         )}
 
-        {!isCurrentPlan && <div className="text-fg-faint text-[10px]">{t("schedCard.notCurrent", { path: SCHEDULE_FILE_PATH })}</div>}
+        {!isCurrentPlan && (
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-fg-faint text-[10px] flex-1">{t("schedCard.notCurrent", { path: SCHEDULE_FILE_PATH })}</span>
+            {!copied && summary.ok && (
+              <button
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-accent/40 text-accent bg-transparent text-[11px] cursor-pointer hover:bg-accent/10"
+                onClick={setAsCurrent}
+                title={t("schedCard.setAsCurrentTip")}
+              >
+                {t("schedCard.setAsCurrent")}
+              </button>
+            )}
+            {copied && <span className="text-emerald-500 text-[10px]">{t("schedCard.copied")}</span>}
+          </div>
+        )}
 
         {isCurrentPlan && (
           <div className="flex items-center gap-2 flex-wrap">

@@ -1,3 +1,9 @@
+## v4.125.0 · 联动候选：摘要卡「设为当前计划」+ 拍板池三设计文档落档（2026-09-06）
+> 非当前计划的 .gsched.json 摘要卡新增「设为当前计划」一键（复制为当前计划+板块即时回读，循环依赖不提供入口）；拍板池三项（diff 确认卡/双工期口径/多工程）并行子代理完成拍板用设计文档。绑定面 **588** 零变更。详见 releases/v4.125.0.md。
+- 「设为当前计划」：走既有 ScheduleSave fail-closed 通道+notifyScheduleFileChanged 即时回读；i18n 三语 +4 键。
+- 三份拍板文档：diff 确认卡（混合分级确认，零绑定可行已核实，4 刀）/双工期口径（durationUnit 标记，9 拍板项，4 刀）/多工程管理（每文件一工程+索引，绑定 588→590 或零新增备选，8 拍板项）。
+- 门禁：tsc/eslint 0、vitest 2213→**2214**、Go 例行绿、drift PASS@588、版本四处 4.125.0、build.bat 冒烟 200。
+
 ## v4.124.0 · 资源成本刀2+刀3：agent 通道 + 板块 UI（2026-09-06）
 > 并行双线（Go 侧/前端侧互不相交，子代理分头实施+主代理合并走查），绑定面 **588** 零变更。详见 releases/v4.124.0.md。
 - **刀2 agent 通道**：ops 扩 upsert_resource/patch_resource/remove_resource（级联删分配）/set_assignments/patch_task.fixedCost；apply 回执强制带 totalCost+taskCosts；get 增 resources/assignments/costs；analyze 增成本叙事（Top5/byResource/未定价 finding）；compact 同步；技能「资源与成本」分节（锚点锁 23→31）。

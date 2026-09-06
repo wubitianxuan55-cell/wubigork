@@ -12,14 +12,18 @@ import type { SchedProject } from "../../schedule/types";
 const mocks = vi.hoisted(() => ({
   submit: vi.fn(async (_text: string) => {}),
   steer: vi.fn(async (_text: string) => {}),
+  scheduleSave: vi.fn(async (_json: string) => ({ path: "进度计划/当前计划.gsched.json", savedAt: "2026-01-05 08:00", duration: 5, critical: 2 })),
 }));
 
 vi.mock("../lib/bridge", () => ({
   app: {
     Submit: (text: string) => mocks.submit(text),
     Steer: (text: string) => mocks.steer(text),
+    ScheduleSave: (json: string) => mocks.scheduleSave(json),
   },
 }));
+
+
 
 function project(): SchedProject {
   return {
@@ -115,6 +119,22 @@ describe("ScheduleFileCard 办公侧计划摘要卡", () => {
     render(wrap(<ScheduleFileCard relPath={CURRENT} summary={s} raw="{}" />));
     expect(screen.getByText(/循环依赖/)).toBeTruthy();
     expect(screen.queryByText("5 天")).toBeNull();
+  });
+
+  it("非当前计划可一键设为当前计划：写 ScheduleSave 并提示（循环依赖计划不显示入口）", async () => {
+    const s = parseSchedSummary(JSON.stringify(project()))!;
+    const { rerender } = render(wrap(<ScheduleFileCard relPath={OTHER} summary={s} raw={JSON.stringify(project())} />));
+    const btn = screen.getByText("设为当前计划");
+    fireEvent.click(btn);
+    await waitFor(() => expect(mocks.scheduleSave).toHaveBeenCalledTimes(1));
+    expect(screen.getAllByText("已复制为当前计划").length).toBeGreaterThanOrEqual(1); // toast+行内双显示
+
+    // 循环依赖计划：Go Save 会拒收，不提供复制入口
+    const bad = project();
+    bad.links.push({ from: "B", to: "A", type: "FS", lag: 0 });
+    const badSummary = parseSchedSummary(JSON.stringify(bad))!;
+    rerender(wrap(<ScheduleFileCard relPath={OTHER} summary={badSummary} raw="{}" />));
+    expect(screen.queryByText("设为当前计划")).toBeNull();
   });
 
   it("原始 JSON 开关：展开显示原文，收起消失", () => {
