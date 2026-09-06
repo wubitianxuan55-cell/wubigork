@@ -500,6 +500,26 @@
   text-align: center;
   color: var(--md-sys-color-on-surface-variant, #6b7280);
 }
+/* 虚拟起点/终点节点（v4.128 刀F：JGJ/T 121 多起点/多终点口径，虚线框） */
+.sched-pdm-virtual {
+  border: 1.5px dashed var(--sched-link, #94a3b8);
+  background: transparent;
+  box-shadow: none;
+  color: var(--md-sys-color-on-surface-variant, #6b7280);
+  pointer-events: none;
+}
+/* 虚拟起终点虚箭线 */
+.sched-net-link-virtual {
+  stroke-dasharray: 5 4;
+}
+/* 节点行号角标（Project 网络图节点带 ID 口径） */
+.sched-pdm-id {
+  display: inline-block;
+  margin-right: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--md-sys-color-on-surface-variant, #6b7280);
+}
 
 /* ── 双代号节点/箭线 ──────────────────────────────────────── */
 .sched-aoa-link {
