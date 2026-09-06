@@ -1,0 +1,418 @@
+/* schedule/schedule.css — 进度计划板块样式（横道图/单代号/双代号共用令牌） */
+
+:root {
+  --sched-critical: #dc2626;
+  --sched-normal: #2563eb;
+  --sched-link: #94a3b8;
+  --sched-group: #1f2937;
+  --sched-weekend: rgba(148, 163, 184, 0.14);
+}
+
+/* ── 页面骨架 ─────────────────────────────────────────────── */
+.sched-page {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  height: 100%;
+  min-height: 0;
+}
+.sched-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.sched-header-title {
+  font-size: 16px;
+  font-weight: 700;
+  margin: 0;
+}
+.sched-header input.sched-name-input {
+  font-weight: 600;
+}
+.sched-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.sched-dim {
+  color: var(--md-sys-color-outline, #8a8f98);
+  font-size: 12px;
+}
+.sched-critical-text {
+  color: var(--sched-critical);
+  font-weight: 700;
+}
+.sched-empty {
+  padding: 48px 0;
+  text-align: center;
+  color: var(--md-sys-color-outline, #8a8f98);
+}
+
+/* ── 横道图 ───────────────────────────────────────────────── */
+.sched-gantt {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 0;
+  flex: 1;
+}
+.sched-gantt-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.sched-gantt-stats {
+  font-size: 12px;
+  color: var(--md-sys-color-outline, #8a8f98);
+}
+.sched-gantt-scroll {
+  overflow: auto;
+  border: 1px solid var(--md-sys-color-border, #e5e7eb);
+  border-radius: 8px;
+  flex: 1;
+  min-height: 0;
+  background: var(--md-sys-color-bg-container, #fff);
+}
+.sched-gantt-inner {
+  position: relative;
+  min-width: 100%;
+}
+.sched-gantt-row {
+  display: flex;
+  position: relative;
+  border-bottom: 1px solid var(--md-sys-color-border-variant, #f0f1f3);
+}
+.sched-gantt-row:hover {
+  background: rgba(37, 99, 235, 0.05);
+}
+.sched-row-selected {
+  background: rgba(37, 99, 235, 0.1) !important;
+}
+.sched-gantt-head {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  background: var(--md-sys-color-surface-container, #f6f7f9);
+  border-bottom: 1px solid var(--md-sys-color-border, #e5e7eb);
+}
+.sched-gantt-left {
+  display: flex;
+  align-items: stretch;
+  background: inherit;
+}
+.sched-gantt-head .sched-gantt-left {
+  position: sticky;
+  left: 0;
+  z-index: 31;
+}
+.sched-sticky-left {
+  position: sticky;
+  left: 0;
+  z-index: 20;
+  background: var(--md-sys-color-bg-container, #fff);
+}
+.sched-gantt-head .sched-sticky-left {
+  background: var(--md-sys-color-surface-container, #f6f7f9);
+}
+.sched-gantt-cell {
+  display: flex;
+  align-items: center;
+  padding: 0 6px;
+  font-size: 12px;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.sched-th {
+  font-weight: 600;
+  font-size: 12px;
+  justify-content: center;
+}
+.sched-group-name {
+  font-size: 12px;
+}
+.sched-milestone-tag {
+  font-size: 10px;
+  color: #b45309;
+  border: 1px solid #f59e0b;
+  border-radius: 4px;
+  padding: 0 3px;
+  flex-shrink: 0;
+}
+.sched-gantt-datehead {
+  display: flex;
+  flex-direction: column;
+  height: 40px;
+}
+.sched-day-col {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  height: 100%;
+}
+.sched-month-cell {
+  height: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  border-left: 1px solid var(--md-sys-color-border, #e5e7eb);
+  padding-left: 2px;
+  line-height: 20px;
+}
+.sched-day-cell {
+  flex: 1;
+  font-size: 10px;
+  color: var(--md-sys-color-outline, #8a8f98);
+  border-left: 1px solid var(--md-sys-color-border-variant, #f0f1f3);
+  text-align: center;
+  line-height: 18px;
+}
+.sched-bar-lane {
+  position: relative;
+  flex-shrink: 0;
+}
+.sched-overlay {
+  position: absolute;
+  top: 0;
+  z-index: 10;
+}
+.sched-weekend {
+  fill: var(--sched-weekend);
+}
+.sched-link-line {
+  fill: none;
+  stroke: var(--sched-link);
+  stroke-width: 1.2;
+}
+.sched-today-line {
+  stroke: var(--sched-critical);
+  stroke-width: 1.4;
+  stroke-dasharray: 4 3;
+}
+.sched-bar {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 14px;
+  border-radius: 4px;
+  background: var(--sched-normal);
+  overflow: hidden;
+  z-index: 12;
+}
+.sched-bar-critical {
+  background: var(--sched-critical);
+}
+.sched-bar-progress {
+  height: 100%;
+  background: rgba(255, 255, 255, 0.42);
+}
+.sched-summary-bar {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 6px;
+  background: var(--sched-group);
+  border-radius: 2px;
+  z-index: 12;
+}
+.sched-summary-bar::before,
+.sched-summary-bar::after {
+  content: '';
+  position: absolute;
+  top: -3px;
+  border: 6px solid transparent;
+}
+.sched-summary-bar::before {
+  left: -2px;
+  border-left-color: var(--sched-group);
+}
+.sched-summary-bar::after {
+  right: -2px;
+  border-right-color: var(--sched-group);
+}
+.sched-float {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 2px;
+  border-top: 2px dotted var(--sched-link);
+  z-index: 11;
+}
+.sched-milestone {
+  position: absolute;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  transform: translate(0, -50%) rotate(45deg);
+  background: #b45309;
+  border: 1px solid #92400e;
+  z-index: 12;
+}
+
+/* ── 网络图共用（单代号/双代号） ──────────────────────────── */
+.sched-network-scroll {
+  overflow: auto;
+  border: 1px solid var(--md-sys-color-border, #e5e7eb);
+  border-radius: 8px;
+  flex: 1;
+  min-height: 320px;
+  position: relative;
+  background:
+    linear-gradient(var(--md-sys-color-border-variant, #f0f1f3) 1px, transparent 1px) 0 0 / 24px 24px,
+    linear-gradient(90deg, var(--md-sys-color-border-variant, #f0f1f3) 1px, transparent 1px) 0 0 / 24px 24px,
+    var(--md-sys-color-bg-container, #fff);
+}
+.sched-network-canvas {
+  position: relative;
+  min-width: 100%;
+  min-height: 100%;
+}
+.sched-network-legend {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  font-size: 12px;
+  color: var(--md-sys-color-outline, #8a8f98);
+  padding: 6px 2px;
+}
+.sched-network-legend .lg-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  margin-right: 4px;
+  vertical-align: -1px;
+}
+.sched-network-legend .lg-line {
+  display: inline-block;
+  width: 18px;
+  height: 0;
+  border-top: 2px solid;
+  margin-right: 4px;
+  vertical-align: 3px;
+}
+.sched-network-legend .lg-critical {
+  background: var(--sched-critical);
+  border-color: var(--sched-critical);
+}
+.sched-network-legend .lg-normal {
+  background: var(--sched-normal);
+  border-color: var(--sched-normal);
+}
+.sched-network-legend .lg-dummy {
+  border-top-style: dashed;
+  border-color: var(--sched-link);
+}
+.sched-net-link {
+  fill: none;
+  stroke: var(--sched-link);
+  stroke-width: 1.4;
+}
+.sched-net-link-critical {
+  stroke: var(--sched-critical);
+  stroke-width: 2;
+}
+.sched-net-label {
+  font-size: 10px;
+  fill: var(--md-sys-color-outline, #8a8f98);
+}
+.sched-net-label-critical {
+  fill: var(--sched-critical);
+}
+
+/* ── 单代号节点 ───────────────────────────────────────────── */
+.sched-pdm-node {
+  position: absolute;
+  background: var(--md-sys-color-bg-container, #fff);
+  border: 1.5px solid var(--sched-normal);
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: pointer;
+  z-index: 12;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+.sched-pdm-node-critical {
+  border-color: var(--sched-critical);
+}
+.sched-pdm-node-selected {
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.28);
+}
+.sched-pdm-name {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 8px;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  border-bottom: 1px solid var(--md-sys-color-border, #e5e7eb);
+}
+.sched-pdm-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  font-size: 12px;
+  text-align: center;
+}
+.sched-pdm-grid span {
+  padding: 3px 0;
+  border-right: 1px solid var(--md-sys-color-border-variant, #f0f1f3);
+  border-bottom: 1px solid var(--md-sys-color-border-variant, #f0f1f3);
+}
+.sched-pdm-grid span:nth-child(3n) {
+  border-right: none;
+}
+.sched-pdm-grid span:nth-child(n + 4) {
+  border-bottom: none;
+}
+
+/* ── 双代号节点/箭线 ──────────────────────────────────────── */
+.sched-aoa-link {
+  fill: none;
+  stroke: var(--sched-link);
+  stroke-width: 1.6;
+}
+.sched-aoa-link-critical {
+  stroke: var(--sched-critical);
+  stroke-width: 2.4;
+}
+.sched-aoa-dummy {
+  stroke-dasharray: 5 4;
+}
+.sched-aoa-taskname {
+  font-size: 11px;
+  fill: var(--md-sys-color-on-surface, #374151);
+}
+.sched-aoa-node-wrap {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  z-index: 14;
+}
+.sched-aoa-node {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1.6px solid var(--md-sys-color-on-surface, #374151);
+  background: var(--md-sys-color-bg-container, #fff);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+}
+.sched-aoa-node-hl {
+  border-color: var(--sched-normal);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.28);
+}
+.sched-aoa-time {
+  font-size: 10px;
+  line-height: 1;
+  color: var(--md-sys-color-outline, #8a8f98);
+}
+.sched-aoa-time-shift {
+  color: var(--sched-critical);
+  font-weight: 700;
+}

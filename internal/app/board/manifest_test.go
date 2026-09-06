@@ -72,6 +72,7 @@ func TestManifestSpaceAssignments(t *testing.T) {
 		"settings":     SpaceShared,
 		"weixin":       SpaceWork,
 		"knowledge":    SpaceWork,
+		"schedule":     SpaceWork,
 	}
 	got := map[string]string{}
 	for _, m := range BuiltinManifests() {

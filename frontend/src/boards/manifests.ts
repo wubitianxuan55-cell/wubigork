@@ -18,6 +18,7 @@ import {
   HomeOutlined, MessageOutlined, ReadOutlined, PictureOutlined,
   ToolOutlined, DatabaseOutlined, ApiOutlined, TeamOutlined,
   SettingOutlined, WechatOutlined, BookOutlined, CodeOutlined, AccountBookOutlined,
+  ScheduleOutlined,
 } from '@ant-design/icons'
 import type { ComponentType } from 'react'
 import type { BoardManifest, BoardNavChild } from './types'
@@ -29,6 +30,7 @@ const ICON_REGISTRY: Record<string, ComponentType> = {
   HomeOutlined, MessageOutlined, ReadOutlined, PictureOutlined,
   ToolOutlined, DatabaseOutlined, ApiOutlined, TeamOutlined,
   SettingOutlined, WechatOutlined, BookOutlined, CodeOutlined, AccountBookOutlined,
+  ScheduleOutlined,
 }
 
 /** 查表解析 antd 图标；未知图标名返回 null（不抛错，渲染时退化） */
@@ -131,6 +133,12 @@ export const canonicalBoards: BoardManifest[] = [
     id: 'weixin', label: '青鸟', icon: 'WechatOutlined', page: 'WeixinPage',
     lazy: true, keepAlive: true, layout: 'padded',
     menuOrder: 11, inMenu: true, space: 'work', // v4.4：触点落地，进 rail + 首页左翼
+  },
+  {
+    id: 'schedule', label: '进度计划', icon: 'ScheduleOutlined', page: 'SchedulePage',
+    lazy: true, keepAlive: true, layout: 'padded',
+    menuOrder: 12, inMenu: true, space: 'work', // v4.110.0：工程进度计划（横道图/单代号/双代号三视图）
+    featureModel: 'schedule',
   },
 ]
 

@@ -1,3 +1,10 @@
+## v4.110.0 · 进度计划一级板块刀1：CPM 引擎 + 横道图/单代号/双代号三视图自由切换（2026-09-06）
+> 「一表多图实时联动」口径（对齐斑马进度）；绑定面 586 零变更（刀1 纯前端自治，localStorage 持久化）。详见 releases/v4.110.0.md。
+- **引擎层纯函数 27 例钉死**：`schedule/cpm.ts` 关键路径法（FS/SS/FF/SF+时距、环检测 fail-closed、正逆推 ES/EF/LS/LF、总/自由时差、关键工作、里程碑 0 工期）15 例；`schedule/aoa.ts` 双代号转换（PDM→AOA 教材口径：唯一 FS(lag0) 安全合并免虚工作、其余按搭接类型自动插虚箭线+去重、一始一终、i<j 拓扑编号、事件时间正逆推、关键虚工作红虚线、时标分层布局）11 例；`schedule/layout.ts` 时标分层（列=最早时间+重心松弛）单双代号共用。
+- **三视图**：SchedulePage 一级板块（工位，menuOrder 12）Segmented 自由切换。横道图=任务表（大纲缩进/行内编辑/前置 Popover 编辑器）+ 时间轴（月日双行/周末底纹/今日线/缩放/关键红条/分组汇总条/时差尾巴/里程碑菱形/搭接箭线）；单代号=六格节点（ES/工期/EF·LS/总时差/LF）+搭接标注；双代号=圆圈事件（编号+早迟时间）+实工作/虚工作箭线+关键线路红粗。
+- **板块接线双侧**：Go builtins.go schedule manifest（SpaceWork）+CanonicalIDs；前端 manifests.ts+图标注册表 ScheduleOutlined、launcher 卡描述、PageRegistry 注册；boards 快照测试同步（菜单 12 板块）。
+- 门禁：tsc -b/eslint 0、vitest **2094/2094**、Go board 包+全量绿、绑定 586 零变更、build.bat 冒烟 /api/health 200。
+
 ## v4.109.0 · pptx 真编辑刀1 数据层：GaeaPptxApplyEdit（run 级替换 · rPr 原字节继承 · 快照+Journal）（2026-09-06）
 > 设计文档六项拍板全部按其推荐口径落地（技术路径 A=Go 自研同构 docxedit 等），绑定面 585→**586**（+GaeaPptxApplyEdit）。详见 releases/v4.109.0.md。
 - **internal/office/pptxedit 新包**：slide 序映射（presentation.xml sldIdLst → rels → part 路径，放映顺序）+ DrawingML 段落解析（a:p/a:r/a:t/a:rPr 原字节区间；blocker=a:br/a:fld/a:tab；a:fld 内 a:t 无 a:r 包装的真实形状已覆盖——文本可见、进拼接文本、记 blocker 不可编辑）+ `LocateText`（按页码定位段落文本）+ `ApplyTextReplace`（页码+目标+替换，首个命中；跨 run 拼接可命中；新文本继承最后受影响 run 的 rPr 原字节=天然保格式；完全覆盖的非最后 run 整体省略；zip 条目序保留+临时文件原子替换，母版/主题/动画字节零扰动）。

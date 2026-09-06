@@ -27,6 +27,8 @@ registerPage('SettingsPage', lazy(() => import('./pages/SettingsPage')))
 registerPage('WeixinPage', lazy(() => import('./pages/WeixinPage')))
 // D7 knowledge 独立板块（页面文件已存在；GetBoardManifests 接线后菜单可点击）——3.0 Wave 3 集成补注册
 registerPage('KnowledgePage', lazy(() => import('./pages/KnowledgePage')))
+// v4.110.0 进度计划板块（横道图/单代号/双代号三视图自由切换）
+registerPage('SchedulePage', lazy(() => import('./pages/SchedulePage')))
 
 
 // ═══ WebView2 rAF 节流降级 ═══════════════════════════════════════════

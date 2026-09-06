@@ -32,6 +32,7 @@ export const LAUNCHER_DESC: Record<string, string> = {
   modelcenter: '模型引擎管理与配置',
   characterlib: '角色档案与跨板块角色管理',
   weixin: '青鸟传信 · 微信遥控器：扫码绑定与离线代办提醒',
+  schedule: '工程进度计划：横道图 / 单代号 / 双代号网络图',
   settings: '应用偏好与主题外观',
 }
 

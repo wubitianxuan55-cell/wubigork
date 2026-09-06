@@ -153,6 +153,14 @@ var builtinManifests = []Manifest{
 		FeatureModel: "knowledge",
 		Bindings:     []string{"MemoryB"}, // 知识库能力经记忆域门面（§3.1 建议）
 	},
+	{
+		ID: "schedule", Label: "进度计划", Icon: "ScheduleOutlined",
+		Page: "SchedulePage", Lazy: true, // v4.110.0：工程进度计划（横道图/单代号/双代号三视图，前端自治）
+		KeepAlive: Bool(true), Layout: "padded",
+		MenuOrder: 12, InMenu: Bool(true),
+		Space:        SpaceWork, // 工位·进度计划
+		FeatureModel: "schedule",
+	},
 }
 
 // BuiltinManifests 返回 canonical 板块 manifest 清单（拷贝，调用方可安全修改）。
@@ -178,5 +186,5 @@ func Builtins() []Board {
 // CanonicalIDs 返回 canonical 业务板块的 id（验收断言用；不含 knowledge——
 // knowledge 是 D7 独立板块，见 BuiltinManifests）。
 func CanonicalIDs() []string {
-	return []string{"chat", "novel", "imagegen", "gaea", "cost", "code", "memoryhub", "modelcenter", "characterlib", "settings", "weixin"}
+	return []string{"chat", "novel", "imagegen", "gaea", "cost", "code", "memoryhub", "modelcenter", "characterlib", "settings", "weixin", "schedule"}
 }

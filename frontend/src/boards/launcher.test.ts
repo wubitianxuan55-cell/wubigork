@@ -37,10 +37,10 @@ const BACKEND_FIXTURE = [
 ]
 
 describe('deriveLauncherModules（启动器清单纯函数）', () => {
-  it('静态清单 → 11 卡，顺序与 LAUNCHER_DESC 对齐（v4.4 起 weixin 进清单；不含 home）', () => {
+  it('静态清单 → 12 卡，顺序与 LAUNCHER_DESC 对齐（v4.110.0 起 schedule 进清单；不含 home）', () => {
     const modules = deriveLauncherModules(canonicalBoards, LAUNCHER_DESC)
     expect(modules.map((m) => m.key)).toEqual([
-      'chat', 'novel', 'imagegen', 'gaea', 'cost', 'code', 'memoryhub', 'modelcenter', 'characterlib', 'settings', 'weixin',
+      'chat', 'novel', 'imagegen', 'gaea', 'cost', 'code', 'memoryhub', 'modelcenter', 'characterlib', 'settings', 'weixin', 'schedule',
     ])
     expect(modules.map((m) => m.key)).not.toContain('home')
   })
@@ -68,7 +68,6 @@ describe('deriveLauncherModules（启动器清单纯函数）', () => {
     ])
     expect(modules.map((m) => m.key)).not.toContain('knowledge')
   })
-
   it('icon 字段透传图标注册表名；未知名 resolveBoardIcon 返回 null（渲染层兜底）', () => {
     const withUnknownIcon = [
       { ...canonicalBoards[1], id: 'legacy', label: '旧模块', icon: 'NoSuchIconOutlined', inMenu: true },
