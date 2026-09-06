@@ -39,6 +39,11 @@ func TestScheduleEditBuiltinSkill(t *testing.T) {
 		"里程碑",
 		"isMilestone",
 		"FS", // 搭接缺省
+		// v4.115 刀6：推荐逻辑关系 + 报告模板
+		"auto_chain",
+		"推荐逻辑关系",
+		"分析报告模板",
+		"近关键",
 	}
 	body := sk.Body
 	for _, a := range anchors {

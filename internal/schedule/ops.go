@@ -30,7 +30,7 @@ type opLink struct {
 
 // Op 计划增量操作。
 type Op struct {
-	Type string `json:"type"` // upsert_task | patch_task | remove_task | set_links | set_meta
+	Type string `json:"type"` // upsert_task | patch_task | remove_task | set_links | set_meta | auto_chain
 
 	// upsert_task：整任务（含 id）；afterId 缺省追加表尾。
 	AfterID string `json:"afterId,omitempty"`
@@ -231,6 +231,35 @@ func applyOne(p *Project, op Op) (string, error) {
 			return "", fmt.Errorf("set_meta 未提供任何字段")
 		}
 		return strings.Join(changes, "、"), nil
+
+	case "auto_chain":
+		// 推荐逻辑关系的确定性缺省：仅对【无前置】的叶任务按 WBS 顺序补
+		// FS 串联（上一个叶任务→当前；全程首个叶不补）。已有逻辑/手动
+		// 任务不动（手动=有意定位；并行例外由 AI 用 set_links 覆写）。
+		hasIn := make(map[string]bool, len(p.Links))
+		for _, l := range p.Links {
+			hasIn[l.To] = true
+		}
+		added := 0
+		lastLeaf := ""
+		for i := range p.Tasks {
+			t := p.Tasks[i]
+			if t.Level == 0 {
+				continue
+			}
+			if t.Mode == ModeManual {
+				continue // 手动=有意定位：不补、也不作链源（manual 忽略入边，链它无意义）
+			}
+			if lastLeaf != "" && !hasIn[t.ID] {
+				p.Links = append(p.Links, Link{From: lastLeaf, To: t.ID, Type: FS, Lag: 0})
+				added++
+			}
+			lastLeaf = t.ID
+		}
+		if added == 0 {
+			return "", fmt.Errorf("auto_chain 没有可补的任务（无前置的叶任务不足两个，或均已手动定位）")
+		}
+		return fmt.Sprintf("自动补全 %d 条缺省串联逻辑（仅无前置任务，FS lag=0）", added), nil
 
 	default:
 		return "", fmt.Errorf("不支持的操作类型：%s", op.Type)

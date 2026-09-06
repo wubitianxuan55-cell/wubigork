@@ -130,6 +130,48 @@ func TestOpsFailures(t *testing.T) {
 	}
 }
 
+func TestOpsAutoChain(t *testing.T) {
+	// 结构：g(分组) a b(无前置) | g2 c(有前置) d(无前置) m(手动) M(里程碑,无前置)
+	p := Project{Tasks: []Task{
+		{ID: "g", Name: "分组1", Level: 0},
+		tsk("a", 2, nil),
+		tsk("b", 3, nil),
+		{ID: "g2", Name: "分组2", Level: 0},
+		tsk("c", 1, nil),
+		tsk("d", 4, nil),
+		tsk("m", 2, func(x *Task) { x.Mode = ModeManual }),
+		tsk("M", 0, func(x *Task) { x.IsMilestone = true }),
+	}, Links: []Link{lnk("a", "c", FS, 0)}}
+	sums, err := ApplyOps(&p, []Op{{Type: "auto_chain"}})
+	if err != nil {
+		t.Fatalf("auto_chain: %v", err)
+	}
+	// 期望补：b←a（组内顺序）；d←c（同组上一叶）；c 有前置不动；
+	// m 手动跳过（不补、不改链源）；M 里程碑无前置←d（最后一个可排程叶，
+	// 不挂在手动任务上——manual 忽略入边，链它无意义）。
+	if len(p.Links) != 4 {
+		t.Fatalf("links = %+v", p.Links)
+	}
+	expect := map[string]string{"b": "a", "d": "c", "M": "d"}
+	for _, l := range p.Links {
+		if want, ok := expect[l.To]; ok && l.From != want {
+			t.Fatalf("%s 前置 = %s, want %s", l.To, l.From, want)
+		}
+	}
+	if !strings.Contains(sums[0], "3 条") {
+		t.Fatalf("summary = %q", sums[0])
+	}
+	// 已全部有前置 → 拒绝（无事可做）
+	p2 := Project{Tasks: []Task{tsk("a", 1, nil), tsk("b", 1, nil)}, Links: []Link{lnk("a", "b", FS, 0)}}
+	if _, err := ApplyOps(&p2, []Op{{Type: "auto_chain"}}); err == nil {
+		t.Fatal("无可补应拒绝")
+	}
+	// 应用后 CPM 仍 OK
+	if c := ComputeCpm(p.Tasks, p.Links); !c.OK {
+		t.Fatalf("cpm: %+v", c)
+	}
+}
+
 func TestAnalyzeNarrative(t *testing.T) {
 	p := Project{
 		Name:      "分析",

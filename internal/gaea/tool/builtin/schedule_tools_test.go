@@ -80,6 +80,33 @@ func TestScheduleToolsOpsChannelAndCycleReject(t *testing.T) {
 	}
 }
 
+func TestScheduleAnalyzeNoPredFinding(t *testing.T) {
+	dir := t.TempDir()
+	// a(首叶,天然无前置不计) b(无前置→发现) c(有前置) manual(手动不计)
+	schedApply(t, dir, `{"project":{"name":"P","startDate":"2026-09-01","tasks":[
+		{"id":"a","name":"A","level":1,"duration":2},
+		{"id":"b","name":"B","level":1,"duration":2},
+		{"id":"c","name":"C","level":1,"duration":2},
+		{"id":"m","name":"M","level":1,"duration":1,"mode":"manual","manualStart":3}],
+		"links":[{"from":"a","to":"c","type":"FS","lag":0}]}}`)
+	ana, err := scheduleAnalyze{workDir: dir}.Execute(context.Background(), json.RawMessage(`{}`))
+	if err != nil {
+		t.Fatalf("analyze: %v", err)
+	}
+	if !strings.Contains(ana, "1 个任务无前置搭接") {
+		t.Fatalf("缺无前置发现：%s", ana)
+	}
+	// auto_chain 修复后复查：发现清零
+	schedApply(t, dir, `{"ops":[{"type":"auto_chain"}]}`)
+	ana2, err := scheduleAnalyze{workDir: dir}.Execute(context.Background(), json.RawMessage(`{}`))
+	if err != nil {
+		t.Fatalf("analyze2: %v", err)
+	}
+	if strings.Contains(ana2, "无前置搭接") {
+		t.Fatalf("auto_chain 后应清零：%s", ana2)
+	}
+}
+
 func TestScheduleApplyConfine(t *testing.T) {
 	outside := t.TempDir()
 	roots := t.TempDir()

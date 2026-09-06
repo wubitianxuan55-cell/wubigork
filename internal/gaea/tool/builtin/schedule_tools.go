@@ -161,7 +161,7 @@ func (scheduleApply) Schema() json.RawMessage {
 "properties":{
   "path":{"type":"string","description":"计划文件路径；缺省=当前计划（进度计划/当前计划.gsched.json）"},
   "project":{"type":"object","description":"完整计划对象（整计划生成/重排通道，与 ops 二选一）"},
-  "ops":{"type":"array","description":"增量操作数组（局部调整通道，与 project 二选一）。元素 type：upsert_task{task:{id,name,level,duration,...},afterId?} | patch_task{id,patch:{name?/duration?/progress?/mode?/manualStart?/isMilestone?/level?}} | remove_task{id}(含子孙与相关搭接) | set_links{toId,links:[{from,type?,lag?}]}(整体替换该任务入边,type 缺省 FS) | set_meta{name?/startDate?/calendar?}",
+  "ops":{"type":"array","description":"增量操作数组（局部调整通道，与 project 二选一）。元素 type：upsert_task{task:{id,name,level,duration,...},afterId?} | patch_task{id,patch:{name?/duration?/progress?/mode?/manualStart?/isMilestone?/level?}} | remove_task{id}(含子孙与相关搭接) | set_links{toId,links:[{from,type?,lag?}]}(整体替换该任务入边,type 缺省 FS) | set_meta{name?/startDate?/calendar?} | auto_chain{}(推荐逻辑关系缺省步：仅为无前置叶任务按 WBS 顺序补 FS 串联，已有逻辑/手动任务不动)",
     "items":{"type":"object","properties":{"type":{"type":"string"}},"required":["type"]}},
   "summary":{"type":"string","description":"本次修改的一句话摘要（落证据卡，供用户在轨迹中审阅）"}
 },
@@ -287,7 +287,7 @@ type scheduleAnalyze struct{ workDir string }
 func (scheduleAnalyze) Name() string { return "schedule_analyze" }
 
 func (scheduleAnalyze) Description() string {
-	return "分析工程进度计划：确定性 CPM 引擎裁决 + 规则质检。返回总工期、关键工作链、近关键工作（总时差≤2，缓冲小）、里程碑清单，以及计划检查发现（无任何搭接的孤立任务、无出边的收尾任务、空分组、无里程碑的提醒等）。用于编写/修改后的自检（成功≠正确：先 analyze 再向用户汇报）、进度合理性解读与风险提示。"
+	return "分析工程进度计划：确定性 CPM 引擎裁决 + 规则质检。返回总工期、关键工作链、近关键工作（总时差≤2，缓冲小）、里程碑清单，以及计划检查发现（无任何搭接的孤立任务、无前置的任务——可用 ops auto_chain 一键补缺省串联、空分组、无收口尾巴、无里程碑提醒等）。用于编写/修改后的自检（成功≠正确：先 analyze 再向用户汇报）、进度合理性解读与风险提示、推荐逻辑关系的依据。"
 }
 
 func (scheduleAnalyze) Schema() json.RawMessage {
@@ -375,6 +375,25 @@ func qualityChecks(p schedule.Project, cpm schedule.CpmResult) []string {
 		findings = append(findings, "搭接关系覆盖良好：无孤立任务")
 	} else {
 		findings = append(findings, fmt.Sprintf("共 %d 个孤立任务", isolated))
+	}
+	// 无前置（无入边）叶任务：推荐逻辑关系的主输入。首个非手动叶是计划
+	// 起点、天然无前置不计；手动任务=有意定位，也不计。
+	noIn := 0
+	seenLeaf := false
+	for _, t := range p.Tasks {
+		if t.Level == 0 || t.Mode == schedule.ModeManual {
+			continue
+		}
+		if !seenLeaf {
+			seenLeaf = true
+			continue
+		}
+		if !inEdge[t.ID] {
+			noIn++
+		}
+	}
+	if noIn > 0 {
+		findings = append(findings, fmt.Sprintf("%d 个任务无前置搭接（可先 ops auto_chain 补缺省串联，再按工艺逻辑用 set_links 覆写例外）", noIn))
 	}
 	if noOut > 1 {
 		findings = append(findings, fmt.Sprintf("%d 个任务无后续却不在总工期收尾（多条并行尾巴，确认收口里程碑是否遗漏）", noOut))
