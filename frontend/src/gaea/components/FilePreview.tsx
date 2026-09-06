@@ -20,6 +20,8 @@ import { MdViewToggle, MindMapView } from "./MindMapView";
 import { readMdViewPref, writeMdViewPref, type MdViewMode } from "../lib/mdViewPref";
 import { PptxOutline } from "./PptxOutline";
 import { XlsxPreview } from "./XlsxPreview";
+import { ScheduleFileCard } from "./ScheduleFileCard";
+import { isScheduleFilePath, parseSchedSummary } from "../../schedule/gschedSummary";
 import { usePreviewProgress } from "../hooks/usePreviewProgress";
 import { useToast } from "./Toast";
 // 3a：CodeMirror 编辑器懒加载 chunk；chunk 加载失败（Suspense 之外的
@@ -592,9 +594,16 @@ export function FilePreview({
             )}
           </>
         )}
-        {!loading && preview?.kind === "text" && (
-          <pre className="p-3 text-[12px] text-fg-dim font-mono leading-relaxed whitespace-pre-wrap overflow-x-auto">{preview.body}</pre>
-        )}
+        {!loading && preview?.kind === "text" && (() => {
+          // v4.121 刀12 办公联动：.gsched.json 走进度计划摘要卡（解析失败回落原始
+          // 文本视图，宁回落勿误报）；其余文本文件行为完全不变。
+          const sched = isScheduleFilePath(relPath) ? parseSchedSummary(preview.body) : null;
+          return sched ? (
+            <ScheduleFileCard relPath={relPath} summary={sched} raw={preview.body} />
+          ) : (
+            <pre className="p-3 text-[12px] text-fg-dim font-mono leading-relaxed whitespace-pre-wrap overflow-x-auto">{preview.body}</pre>
+          );
+        })()}
         {!loading && preview?.kind === "html" && (
           // 1c HTML 沙箱预览：独立 iframe（无同源+CSP），绝不注入宿主 DOM。
           <div className="min-h-full px-4 py-3">

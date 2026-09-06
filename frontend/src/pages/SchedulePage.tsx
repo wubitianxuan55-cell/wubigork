@@ -12,7 +12,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { Alert, Button, Checkbox, Input, Popconfirm, Popover, Segmented, Space, Tag, Tooltip } from 'antd'
 import {
   AimOutlined, CalendarOutlined, ClearOutlined, ClusterOutlined, ExportOutlined, FundOutlined, ImportOutlined,
-  MessageOutlined, NodeIndexOutlined, PlusOutlined, TableOutlined, ThunderboltOutlined, PartitionOutlined, DeleteOutlined,
+  MessageOutlined, NodeIndexOutlined, PlusOutlined, TableOutlined, ThunderboltOutlined, PartitionOutlined, DeleteOutlined, ToolOutlined,
 } from '@ant-design/icons'
 import { computeCpm } from '../schedule/cpm'
 import { buildAoa } from '../schedule/aoa'
@@ -21,6 +21,9 @@ import { computeBaselineDrift } from '../schedule/baseline'
 import { checkDeadline } from '../schedule/deadline'
 import type { CpmResult } from '../schedule/types'
 import { useScheduleStore, isGroupRow, initScheduleSync } from '../schedule/store'
+import { SCHEDULE_FILE_PATH } from '../schedule/gschedSummary'
+import { usePreviewStore } from '../gaea/lib/store'
+import { emitFrontendEvent, FRONTEND_EVENTS } from '../events'
 import { ScheduleChatPane } from '../schedule/ChatPane'
 import { clampChatWidth, loadChatPrefs, saveChatPrefs, CHAT_WIDTH_DEFAULT } from '../schedule/chatPrefs'
 import { GanttView } from '../schedule/GanttView'
@@ -231,6 +234,12 @@ const SchedulePage: React.FC = () => {
   }
   const resetChatWidth = () => setChat(saveChatPrefs({ width: CHAT_WIDTH_DEFAULT }))
 
+  /** 反向入口（刀12 办公联动）：在办公板块中预览计划文件（store 预置，未挂载也能落地） */
+  const openInOffice = () => {
+    usePreviewStore.getState().openFilePreview(SCHEDULE_FILE_PATH)
+    emitFrontendEvent(FRONTEND_EVENTS.NAVIGATE, { page: 'gaea' })
+  }
+
   // 文件同步：水合（文件为准，localStorage 迁移）+ 自动保存 + agent 写入回读
   useEffect(() => { void initScheduleSync() }, [])
 
@@ -291,6 +300,9 @@ const SchedulePage: React.FC = () => {
           title={chat.collapsed ? '展开左栏 AI 对话（对话即排程）' : '收起左栏 AI 对话'}
           aria-label="切换 AI 对话栏"
         />
+        <Tooltip title="在办公板块中预览计划文件（进度计划/当前计划.gsched.json）">
+          <Button size="small" icon={<ToolOutlined />} onClick={openInOffice} aria-label="在办公板块中查看计划" />
+        </Tooltip>
         <Input
           className="sched-name-input"
           variant="borderless"
