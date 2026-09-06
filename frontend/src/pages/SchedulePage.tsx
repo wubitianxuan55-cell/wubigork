@@ -22,6 +22,7 @@ import { checkDeadline } from '../schedule/deadline'
 import type { CpmResult } from '../schedule/types'
 import { useScheduleStore, isGroupRow, initScheduleSync } from '../schedule/store'
 import { ScheduleChatPane } from '../schedule/ChatPane'
+import { clampChatWidth, loadChatPrefs, saveChatPrefs, CHAT_WIDTH_DEFAULT } from '../schedule/chatPrefs'
 import { GanttView } from '../schedule/GanttView'
 import { PdmView } from '../schedule/PdmView'
 import { AoaView } from '../schedule/AoaView'
@@ -206,8 +207,29 @@ const SchedulePage: React.FC = () => {
   const sync = useScheduleStore((s) => s.sync)
   const savedAt = useScheduleStore((s) => s.savedAt)
   const syncError = useScheduleStore((s) => s.syncError)
-  /** 左栏 AI 对话折叠态（刀10：对话即排程的直接入口，默认展开） */
-  const [chatCollapsed, setChatCollapsed] = useState(false)
+  /** 左栏 AI 对话偏好（刀11：折叠态+宽度持久化 localStorage） */
+  const [chat, setChat] = useState(loadChatPrefs)
+  const chatDragRef = useRef<{ startX: number; startW: number } | null>(null)
+
+  const toggleChat = () => setChat(saveChatPrefs({ collapsed: !chat.collapsed }))
+
+  /** 拖宽分隔条：左移加宽；拖完持久化；双击复位 420 */
+  const onDividerMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault()
+    chatDragRef.current = { startX: e.clientX, startW: chat.width }
+    const onMove = (ev: MouseEvent) => {
+      const w = clampChatWidth(chatDragRef.current!.startW - (ev.clientX - chatDragRef.current!.startX))
+      setChat((p) => ({ ...p, width: w }))
+    }
+    const onUp = () => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+      setChat((p) => saveChatPrefs({ width: p.width }))
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+  }
+  const resetChatWidth = () => setChat(saveChatPrefs({ width: CHAT_WIDTH_DEFAULT }))
 
   // 文件同步：水合（文件为准，localStorage 迁移）+ 自动保存 + agent 写入回读
   useEffect(() => { void initScheduleSync() }, [])
@@ -244,21 +266,29 @@ const SchedulePage: React.FC = () => {
 
   return (
     <div className="sched-shell">
-      {!chatCollapsed && (
-        <div className="sched-chat-pane">
+      {!chat.collapsed && (
+        <div className="sched-chat-pane" style={{ width: chat.width }}>
           <ScheduleChatPane />
         </div>
+      )}
+      {!chat.collapsed && (
+        <div
+          className="sched-chat-divider"
+          title="拖动调宽 · 双击复位"
+          onMouseDown={onDividerMouseDown}
+          onDoubleClick={resetChatWidth}
+        />
       )}
       <div className="sched-page" style={{ flex: 1, minWidth: 0, padding: '12px 16px' }}>
       <div className="sched-header">
         <h2 className="sched-header-title">进度计划</h2>
         <Button
           size="small"
-          type={chatCollapsed ? 'primary' : 'default'}
-          ghost={chatCollapsed}
+          type={chat.collapsed ? 'primary' : 'default'}
+          ghost={chat.collapsed}
           icon={<MessageOutlined />}
-          onClick={() => setChatCollapsed((v) => !v)}
-          title={chatCollapsed ? '展开左栏 AI 对话（对话即排程）' : '收起左栏 AI 对话'}
+          onClick={toggleChat}
+          title={chat.collapsed ? '展开左栏 AI 对话（对话即排程）' : '收起左栏 AI 对话'}
           aria-label="切换 AI 对话栏"
         />
         <Input

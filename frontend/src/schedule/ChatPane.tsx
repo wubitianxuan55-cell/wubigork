@@ -1,5 +1,5 @@
 /**
- * schedule/ChatPane.tsx — 进度计划板块左栏 AI 对话（v4.119.0 刀10）
+ * schedule/ChatPane.tsx — 进度计划板块左栏 AI 对话（v4.119.0 刀10 / v4.120 刀11 细节）
  *
  * 与办公板块 GaeaApp 共享同一会话 store（gaea/lib/store 模块单例）：
  * 左栏里聊的就是办公那条工作线程，schedule_* 工具的审批/回执/证据卡
@@ -8,7 +8,9 @@
  * 刀5 接线同款，绕过 15s 轻扫）。
  */
 import React, { useEffect, useRef } from 'react'
+import { Popconfirm } from 'antd'
 import { LocaleProvider, useT } from '../gaea/lib/i18n'
+import type { DictKey } from '../gaea/locales/en'
 import { Transcript } from '../gaea/components/Transcript'
 import { Composer } from '../gaea/components/Composer'
 import { ApprovalModal } from '../gaea/components/ApprovalModal'
@@ -33,6 +35,22 @@ function useScheduleApplyNotify(): void {
   }, [state.items])
 }
 
+/** 常用指令快捷条（点击即发送，与 Transcript 欢迎卡同口径；运行中禁用） */
+const QUICK_PROMPTS: DictKey[] = ['schedChat.q1', 'schedChat.q2', 'schedChat.q3', 'schedChat.q4']
+
+const QuickChips: React.FC<{ running: boolean; onSend: (text: string) => void }> = ({ running, onSend }) => {
+  const t = useT()
+  return (
+    <div className="sched-chat-chips">
+      {QUICK_PROMPTS.map((k) => (
+        <button key={k} className="sched-chat-chip" disabled={running} onClick={() => onSend(t(k))}>
+          {t(k)}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 const ChatPaneInner: React.FC = () => {
   const t = useT()
   const ctrl = useController()
@@ -42,20 +60,25 @@ const ChatPaneInner: React.FC = () => {
   return (
     <div className="sched-chat">
       <div className="sched-chat-head">
-        <span className="sched-chat-title">{t('schedChat.title')}</span>
+        <div className="sched-chat-head-text">
+          <span className="sched-chat-title">{t('schedChat.title')}</span>
+          <span className="sched-chat-sub">{t('schedChat.subtitle')}</span>
+        </div>
         {state.running && (
           <span className="sched-chat-running">
             <span className="sched-chat-running-dot" aria-hidden="true" />
             {t('schedChat.running')}
           </span>
         )}
-        <button
-          className="sched-chat-new"
-          title={t('schedChat.newTip')}
-          onClick={() => { void ctrl.newSession() }}
+        <Popconfirm
+          title={t('schedChat.newConfirm')}
+          onConfirm={() => { void ctrl.newSession() }}
+          placement="bottomRight"
         >
-          + {t('schedChat.new')}
-        </button>
+          <button className="sched-chat-new" title={t('schedChat.newTip')}>
+            + {t('schedChat.new')}
+          </button>
+        </Popconfirm>
       </div>
       {/* .transcript 自带 flex:1/min-height:0/overflow-y（styles.css），直接作为弹性行 */}
       <Transcript
@@ -64,6 +87,7 @@ const ChatPaneInner: React.FC = () => {
         cwd={state.meta?.cwd}
         meta={state.meta}
       />
+      <QuickChips running={state.running} onSend={(text) => ctrl.send(text)} />
       <Composer
         running={state.running}
         cwd={state.meta?.cwd}
