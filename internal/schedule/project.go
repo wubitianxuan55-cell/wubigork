@@ -8,6 +8,7 @@ package schedule
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -67,8 +68,11 @@ func Save(path string, p Project) error {
 
 // Validate 结构校验（fail-closed）：id 唯一非空、层级 0/1、搭接引用存在且
 // 类型合法、工期非负、进度 0-100、日期口径合法。空任务表合法（空计划）。
+// 资源成本刀1（v4.122）：资源 id 唯一/类型合法/数值非负、分配引用存在且
+// (taskId,resourceId) 唯一、分组行禁止挂分配、固定成本非负。
 func Validate(p *Project) error {
 	seen := make(map[string]bool, len(p.Tasks))
+	leaf := make(map[string]bool, len(p.Tasks))
 	for _, t := range p.Tasks {
 		if strings.TrimSpace(t.ID) == "" {
 			return fmt.Errorf("存在空 id 任务")
@@ -77,6 +81,9 @@ func Validate(p *Project) error {
 			return fmt.Errorf("任务 id 重复：%s", t.ID)
 		}
 		seen[t.ID] = true
+		if t.Level != 0 {
+			leaf[t.ID] = true
+		}
 		if t.Level != 0 && t.Level != 1 {
 			return fmt.Errorf("任务 %s 层级非法（仅 0=分组/1=子任务）：%d", t.ID, t.Level)
 		}
@@ -88,6 +95,9 @@ func Validate(p *Project) error {
 		}
 		if t.Mode != "" && t.Mode != ModeAuto && t.Mode != ModeManual {
 			return fmt.Errorf("任务 %s 模式非法：%s", t.ID, t.Mode)
+		}
+		if t.FixedCost < 0 || math.IsNaN(t.FixedCost) || math.IsInf(t.FixedCost, 0) {
+			return fmt.Errorf("任务 %s 固定成本非法（须为非负有限数）：%v", t.ID, t.FixedCost)
 		}
 	}
 	for _, l := range p.Links {
@@ -101,6 +111,55 @@ func Validate(p *Project) error {
 		case FS, SS, FF, SF:
 		default:
 			return fmt.Errorf("搭接类型非法（%s→%s）：%s", l.From, l.To, l.Type)
+		}
+	}
+	resSeen := make(map[string]bool, len(p.Resources))
+	for _, r := range p.Resources {
+		if strings.TrimSpace(r.ID) == "" {
+			return fmt.Errorf("存在空 id 资源")
+		}
+		if resSeen[r.ID] {
+			return fmt.Errorf("资源 id 重复：%s", r.ID)
+		}
+		resSeen[r.ID] = true
+		switch r.Type {
+		case ResWork, ResMaterial, ResCost:
+		default:
+			return fmt.Errorf("资源 %s 类型非法（work|material|cost）：%s", r.ID, r.Type)
+		}
+		for _, nv := range [3]struct {
+			name string
+			v    float64
+		}{{"标准费率", r.StandardRate}, {"每次使用成本", r.CostPerUse}, {"可用上限", r.MaxUnits}} {
+			if nv.v < 0 || math.IsNaN(nv.v) || math.IsInf(nv.v, 0) {
+				return fmt.Errorf("资源 %s %s 非法（须为非负有限数）：%v", r.ID, nv.name, nv.v)
+			}
+		}
+	}
+	pairSeen := make(map[string]bool, len(p.Assignments))
+	for _, a := range p.Assignments {
+		if !seen[a.TaskID] {
+			return fmt.Errorf("分配引用了不存在的任务：%s", a.TaskID)
+		}
+		if !resSeen[a.ResourceID] {
+			return fmt.Errorf("分配引用了不存在的资源：%s", a.ResourceID)
+		}
+		if !leaf[a.TaskID] {
+			return fmt.Errorf("分组行 %s 禁止挂分配（汇总唯一口径为子孙求和）", a.TaskID)
+		}
+		pair := a.TaskID + "\x00" + a.ResourceID
+		if pairSeen[pair] {
+			return fmt.Errorf("分配重复（任务 %s ↔ 资源 %s）", a.TaskID, a.ResourceID)
+		}
+		pairSeen[pair] = true
+		if a.Units != nil && (*a.Units < 0 || math.IsNaN(*a.Units) || math.IsInf(*a.Units, 0)) {
+			return fmt.Errorf("分配（任务 %s ↔ 资源 %s）units 非法（须为非负有限数）：%v", a.TaskID, a.ResourceID, *a.Units)
+		}
+		if a.Quantity < 0 || math.IsNaN(a.Quantity) || math.IsInf(a.Quantity, 0) {
+			return fmt.Errorf("分配（任务 %s ↔ 资源 %s）数量非法（须为非负有限数）：%v", a.TaskID, a.ResourceID, a.Quantity)
+		}
+		if a.Amount < 0 || math.IsNaN(a.Amount) || math.IsInf(a.Amount, 0) {
+			return fmt.Errorf("分配（任务 %s ↔ 资源 %s）金额非法（须为非负有限数）：%v", a.TaskID, a.ResourceID, a.Amount)
 		}
 	}
 	if p.StartDate != "" && len(p.StartDate) != 10 {

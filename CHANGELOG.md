@@ -1,3 +1,11 @@
+## v4.122.0 · 资源成本刀1：模型 + 成本 rollup 引擎 + 持久化（2026-09-06）
+> 按拍板方案实施（docs/gaea-schedule-resource-cost-design-2026-09.md 推荐项生效：元/工日口径、fixed-units 简化公式、材料固定总量、分组行禁 fixedCost/分配）。数据层先行，行为对老用户零变化。绑定面 **588** 零变更。详见 releases/v4.122.0.md。
+- **数据模型**：三类资源（work/material/cost）+ 分配（(taskId,resourceId) 唯一）+ 任务 fixedCost；SchedProject 增 resources/assignments——全 optional，旧文件零迁移可读。
+- **成本 rollup 引擎**（cost.ts/cost.go 镜像）：work=工期×units×费率+每次使用；material=总量×单价+每次使用；cost=金额；rows 只含叶任务；CPM 循环→ok=false fail-closed；悬空分配跳过；金额到分舍入。
+- **两道闸**：前端 normalize 补空数组+坏形条目逐条丢弃；Go Validate fail-closed（资源 id 唯一/类型合法/数值非负、分配引用存在+对唯一+分组行禁挂、FixedCost 非负）。
+- 测试：TS +13（cost 10+normalize 3）、Go +14（cost 9+validate/roundtrip 5），镜像纪律同批场景同期望。
+- 门禁：tsc/eslint 0、vitest 2166→**2179**、Go 全量绿、drift PASS@588、版本四处 4.122.0、build.bat 冒烟 200。
+
 ## v4.121.0 · 进度计划刀12：办公联动三件套——计划摘要卡 · 板块互跳 · AI 周报一键（2026-09-06）
 > 办公板块与进度板块联动收口：方向拍板**不并板、做轻联动**（数据/AI 层已是「单资产、双入口、事件互通」终态，本刀补交互层）。绑定面 **588** 零变更。详见 releases/v4.121.0.md。
 - **办公侧计划摘要卡**：文件预览打开 `.gsched.json` 显示摘要（总工期/工作/关键/搭接/里程碑 chips+开竣工日期+基线漂移+倒排校核+循环依赖告警），原始 JSON 开关保留文本视图，解析失败回落原文本视图。

@@ -51,6 +51,47 @@ type Task struct {
 	Mode TaskMode `json:"mode,omitempty"`
 	// ManualStart 手动任务锁定开始（工作日序号，0=开工日）。
 	ManualStart int `json:"manualStart,omitempty"`
+	// FixedCost 任务固定成本（元，叶任务专属；v4.122 资源成本刀1。
+	// 分组行禁止=汇总唯一口径为子孙求和）。
+	FixedCost float64 `json:"fixedCost,omitempty"`
+}
+
+// ResourceType 资源类型（对齐 Project：工时/材料/成本三类）。
+type ResourceType string
+
+const (
+	ResWork     ResourceType = "work"
+	ResMaterial ResourceType = "material"
+	ResCost     ResourceType = "cost"
+)
+
+// Resource 资源（Project 资源工作表的工期制子集，v4.122 资源成本刀1）。
+type Resource struct {
+	ID   string       `json:"id"`
+	Name string       `json:"name"`
+	Type ResourceType `json:"type"`
+	// Unit 材料计量单位（type=material 有意义：t/m³/…，展示与导出用）。
+	Unit string `json:"unit,omitempty"`
+	// StandardRate 标准费率（元）：work=元/工日；material=元/单位；cost 不用。
+	StandardRate float64 `json:"standardRate,omitempty"`
+	// CostPerUse 每次使用成本（元，每条分配计一次；work/material 可用）。
+	CostPerUse float64 `json:"costPerUse,omitempty"`
+	// MaxUnits 工时资源可用上限（默认 1；v1 仅承载与 mspdi 往返，不做平衡）。
+	MaxUnits float64 `json:"maxUnits,omitempty"`
+}
+
+// Assignment 分配（任务↔资源；(TaskID,ResourceID) 唯一，无独立 id）。
+type Assignment struct {
+	// TaskID 叶任务 id（分组行禁止分配，fail-closed）。
+	TaskID string `json:"taskId"`
+	// ResourceID 资源 id。
+	ResourceID string `json:"resourceId"`
+	// Units 工时资源投入强度（默认 1；成本=工期×units×费率）。
+	Units *float64 `json:"units,omitempty"`
+	// Quantity 材料固定总量（type=material：总量×单价，不随时长变）。
+	Quantity float64 `json:"quantity,omitempty"`
+	// Amount 成本资源金额（type=cost：该分配的固定金额，元）。
+	Amount float64 `json:"amount,omitempty"`
 }
 
 // Calendar 工作日历（对齐 Project 基准日历）：Workweek 为 JS getDay 口径 0=周日..6=周六。
@@ -73,6 +114,10 @@ type Project struct {
 	Baseline *Baseline `json:"baseline,omitempty"`
 	// Deadline 目标竣工日期（v4.117 刀8：YYYY-MM-DD，倒排校核用，缺省=未设）。
 	Deadline string `json:"deadline,omitempty"`
+	// Resources 资源表（v4.122 资源成本刀1：缺省=无资源维度，旧文件零迁移可读）。
+	Resources []Resource `json:"resources,omitempty"`
+	// Assignments 任务↔资源分配（(TaskID,ResourceID) 唯一）。
+	Assignments []Assignment `json:"assignments,omitempty"`
 }
 
 // BaselineRow 基线行快照：单任务保存基线时的排程结果（叶任务专属）。

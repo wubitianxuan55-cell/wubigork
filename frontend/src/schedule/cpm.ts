@@ -14,8 +14,8 @@
  */
 import type { CpmResult, SchedLink, SchedTask, TaskCpm } from './types'
 
-/** 有效工期：里程碑为 0，其余取非负整数 */
-function effDur(t: SchedTask): number {
+/** 有效工期：里程碑为 0，其余取非负整数（cost.ts 成本工期同口径，单一来源） */
+export function effDur(t: SchedTask): number {
   return t.isMilestone ? 0 : Math.max(0, Math.round(t.duration))
 }
 

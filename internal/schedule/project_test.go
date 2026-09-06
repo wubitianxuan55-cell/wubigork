@@ -3,6 +3,7 @@ package schedule
 // project_test.go / ops_test.go — 落盘、校验与增量操作用例（v4.113.0 刀4）。
 
 import (
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -231,5 +232,118 @@ func TestSaveAtomicNoTempLeft(t *testing.T) {
 		if strings.HasSuffix(e.Name(), ".tmp") {
 			t.Fatalf("残留临时文件：%s", e.Name())
 		}
+	}
+}
+
+// ── 资源成本刀1（v4.122）：Validate fail-closed 扩展 ──────────────────────
+
+func validResourceProject() *Project {
+	return &Project{
+		Name: "P", StartDate: "2026-01-05",
+		Tasks:       []Task{{ID: "A", Name: "A", Duration: 3, Level: 1}},
+		Resources:   []Resource{{ID: "r1", Name: "人力", Type: ResWork, StandardRate: 100}},
+		Assignments: []Assignment{{TaskID: "A", ResourceID: "r1"}},
+	}
+}
+
+func TestValidateResourceOk(t *testing.T) {
+	if err := Validate(validResourceProject()); err != nil {
+		t.Fatalf("合法资源计划不应报错：%v", err)
+	}
+}
+
+func TestValidateRejectsBadResourceTypeAndDupID(t *testing.T) {
+	p := validResourceProject()
+	p.Resources[0].Type = ResourceType("weird")
+	if err := Validate(p); err == nil {
+		t.Fatal("非法资源类型应拒绝")
+	}
+	p2 := validResourceProject()
+	p2.Resources = append(p2.Resources, Resource{ID: "r1", Name: "重复", Type: ResWork})
+	if err := Validate(p2); err == nil {
+		t.Fatal("资源 id 重复应拒绝")
+	}
+	p3 := validResourceProject()
+	p3.Resources[0].StandardRate = -5
+	if err := Validate(p3); err == nil {
+		t.Fatal("负费率应拒绝")
+	}
+	p4 := validResourceProject()
+	p4.Resources[0].MaxUnits = math.Inf(1)
+	if err := Validate(p4); err == nil {
+		t.Fatal("Inf 上限应拒绝")
+	}
+}
+
+func TestValidateRejectsAssignmentIssues(t *testing.T) {
+	mk := func(a Assignment) *Project {
+		p := validResourceProject()
+		p.Assignments = append(p.Assignments, a)
+		return p
+	}
+	if err := Validate(mk(Assignment{TaskID: "A", ResourceID: "ghost"})); err == nil {
+		t.Fatal("悬空资源引用应拒绝")
+	}
+	if err := Validate(mk(Assignment{TaskID: "ghostTask", ResourceID: "r1"})); err == nil {
+		t.Fatal("悬空任务引用应拒绝")
+	}
+	if err := Validate(mk(Assignment{TaskID: "A", ResourceID: "r1"})); err == nil {
+		t.Fatal("(taskId,resourceId) 重复应拒绝")
+	}
+	u := -1.0
+	if err := Validate(mk(Assignment{TaskID: "A", ResourceID: "r1", Units: &u})); err == nil {
+		t.Fatal("负 units 应拒绝")
+	}
+	group := validResourceProject()
+	group.Tasks = append(group.Tasks, Task{ID: "G", Name: "G", Level: 0})
+	group.Assignments = []Assignment{{TaskID: "G", ResourceID: "r1"}}
+	if err := Validate(group); err == nil {
+		t.Fatal("分组行挂分配应拒绝")
+	}
+}
+
+func TestValidateRejectsNegativeFixedCost(t *testing.T) {
+	p := validResourceProject()
+	p.Tasks[0].FixedCost = -0.01
+	if err := Validate(p); err == nil {
+		t.Fatal("负固定成本应拒绝")
+	}
+	nan := math.NaN()
+	p2 := validResourceProject()
+	p2.Tasks[0].FixedCost = nan
+	if err := Validate(p2); err == nil {
+		t.Fatal("NaN 固定成本应拒绝")
+	}
+}
+
+func TestSaveRoundTripsResources(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "p.gsched.json")
+	p := costProject()
+	// 引擎跳过分组行分配的容错在 Validate 是硬拒绝（fail-closed 落盘闸），
+	// 往返用例须用合法计划：去掉 G1 分组行分配。
+	legal := []Assignment{}
+	for _, a := range p.Assignments {
+		if a.TaskID != "G1" {
+			legal = append(legal, a)
+		}
+	}
+	p.Assignments = legal
+	if err := Save(path, *p); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(loaded.Resources) != 3 || len(loaded.Assignments) != 4 {
+		t.Fatalf("往返丢失资源/分配：r=%d a=%d", len(loaded.Resources), len(loaded.Assignments))
+	}
+	if loaded.Tasks[1].FixedCost != 50 {
+		t.Errorf("FixedCost 往返 = %v, want 50", loaded.Tasks[1].FixedCost)
+	}
+	r := ComputeCosts(loaded, ComputeCpm(loaded.Tasks, loaded.Links))
+	if r.Total != 3100 {
+		t.Errorf("往返后总成本 = %v, want 3100", r.Total)
 	}
 }

@@ -9,7 +9,7 @@
  */
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { LinkType, SchedCalendar, SchedLink, SchedProject, SchedTask } from './types'
+import type { LinkType, SchedAssignment, SchedCalendar, SchedLink, SchedProject, SchedResource, SchedTask } from './types'
 import { makeEmptyProject, makeSampleProject } from './sample'
 import { normalizeCalendar } from './calendar'
 import { computeCpm } from './cpm'
@@ -28,14 +28,45 @@ export interface PredDraft {
   lag: number
 }
 
-/** 旧持久化数据兼容：补日历缺省（v4.110 数据无 calendar）；deadline 非法格式丢弃 */
+/** 可选数值字段容错：缺省合法；出现时必须为有限非负数（资源成本刀1 口径） */
+function validNum(v: unknown): boolean {
+  return v === undefined || (typeof v === 'number' && Number.isFinite(v) && v >= 0)
+}
+
+/**
+ * 旧持久化数据兼容：补日历缺省（v4.110 数据无 calendar）；deadline 非法格式丢弃；
+ * 资源成本刀1（v4.122）：补 resources/assignments 空数组，坏形条目逐条丢弃
+ * （容错进板块；落盘拒绝由 Go Validate fail-closed 承担——两道闸分工同现状）。
+ */
 export function normalizeProject(p: SchedProject): SchedProject {
+  const resources = Array.isArray(p.resources)
+    ? p.resources.filter(
+        (r): r is SchedResource =>
+          !!r && typeof r.id === 'string' && r.id !== '' && typeof r.name === 'string'
+          && (r.type === 'work' || r.type === 'material' || r.type === 'cost')
+          && validNum(r.standardRate) && validNum(r.costPerUse) && validNum(r.maxUnits),
+      )
+    : []
+  const assignments = Array.isArray(p.assignments)
+    ? p.assignments.filter(
+        (a): a is SchedAssignment =>
+          !!a && typeof a.taskId === 'string' && a.taskId !== ''
+          && typeof a.resourceId === 'string' && a.resourceId !== ''
+          && validNum(a.units) && validNum(a.quantity) && validNum(a.amount),
+      )
+    : []
   return {
     ...p,
     calendar: normalizeCalendar(p.calendar),
-    tasks: (p.tasks ?? []).map((t) => ({ ...t, progress: t.progress ?? 0 })),
+    tasks: (p.tasks ?? []).map((t) => ({
+      ...t,
+      progress: t.progress ?? 0,
+      fixedCost: validNum(t.fixedCost) ? t.fixedCost : undefined,
+    })),
     links: p.links ?? [],
     deadline: typeof p.deadline === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(p.deadline) ? p.deadline : null,
+    resources,
+    assignments,
   }
 }
 

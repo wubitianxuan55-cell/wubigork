@@ -38,6 +38,8 @@ export interface SchedTask {
   mode?: TaskMode
   /** 手动任务锁定开始（工作日序号，0=开工日） */
   manualStart?: number
+  /** 任务固定成本（元，叶任务专属；v4.122 资源成本刀1。分组行禁止=汇总唯一口径为子孙求和） */
+  fixedCost?: number
 }
 
 /** 工作日历（对齐 Project 基准日历）：workweek 为 JS getDay 口径 0=周日..6=周六 */
@@ -46,6 +48,37 @@ export interface SchedCalendar {
   workweek: number[]
   /** 节假日/停工例外（YYYY-MM-DD，命中即非工作日） */
   holidays: string[]
+}
+
+/** 资源类型（对齐 Project：工时/材料/成本三类） */
+export type ResourceType = 'work' | 'material' | 'cost'
+
+/** 资源（Project 资源工作表的工期制子集，v4.122.0 资源成本刀1） */
+export interface SchedResource {
+  id: string
+  name: string
+  type: ResourceType
+  /** 材料计量单位（type=material 有意义：t/m³/…，展示与导出用） */
+  unit?: string
+  /** 标准费率（元）：work=元/工日；material=元/单位；cost 不用 */
+  standardRate?: number
+  /** 每次使用成本（元，每条分配计一次；work/material 可用） */
+  costPerUse?: number
+  /** 工时资源可用上限（默认 1；v1 仅承载与 mspdi 往返，不做平衡） */
+  maxUnits?: number
+}
+
+/** 分配（任务↔资源；(taskId,resourceId) 唯一，无独立 id） */
+export interface SchedAssignment {
+  /** 叶任务 id（分组行禁止分配，fail-closed） */
+  taskId: string
+  resourceId: string
+  /** 工时资源投入强度（默认 1；成本=工期×units×费率） */
+  units?: number
+  /** 材料固定总量（type=material：总量×单价，不随时长变） */
+  quantity?: number
+  /** 成本资源金额（type=cost：该分配的固定金额，元） */
+  amount?: number
 }
 
 export interface SchedProject {
@@ -60,6 +93,10 @@ export interface SchedProject {
   baseline?: SchedBaseline | null
   /** 目标竣工日期（v4.117 刀8：YYYY-MM-DD，倒排校核用，缺省=未设） */
   deadline?: string | null
+  /** 资源表（v4.122 资源成本刀1：缺省=无资源维度，旧文件零迁移可读） */
+  resources?: SchedResource[]
+  /** 任务↔资源分配（(taskId,resourceId) 唯一） */
+  assignments?: SchedAssignment[]
 }
 
 /** 基线行快照：单任务保存基线时的排程结果（叶任务专属，分组行不入基线） */
