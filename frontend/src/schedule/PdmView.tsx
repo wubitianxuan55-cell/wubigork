@@ -43,6 +43,7 @@ export const PdmView: React.FC<{ project: SchedProject; cpm: CpmResult }> = ({ p
   }
 
   const links = project.links.filter((l) => layout.pos.has(l.from) && layout.pos.has(l.to))
+  const critCount = leaves.filter((t) => cpm.rows[t.id]?.critical).length
 
   return (
     <div className="sched-network-scroll" data-testid="sched-pdm">
@@ -51,6 +52,21 @@ export const PdmView: React.FC<{ project: SchedProject; cpm: CpmResult }> = ({ p
         <span><i className="lg-dot lg-normal" />非关键</span>
         <span>格：ES / 工期 / EF · LS / 总时差 / LF</span>
         <span>时间单位：工作日（按日历）</span>
+        {/* 进度统计牌（斑马口径：红字大数字，挂图例行右端避免遮挡节点） */}
+        <div className="sched-net-badge">
+          <div className="nb-item">
+            <span className="nb-num">{cpm.duration}</span>
+            <span className="nb-label">总工期(日)</span>
+          </div>
+          <div className="nb-item">
+            <span className="nb-num">{critCount}</span>
+            <span className="nb-label">关键工作</span>
+          </div>
+          <div className="nb-item">
+            <span className="nb-num">{leaves.length}</span>
+            <span className="nb-label">工作总数</span>
+          </div>
+        </div>
       </div>
       <div className="sched-network-canvas" style={{ width: layout.w, height: layout.h }}>
         <svg width={layout.w} height={layout.h} style={{ position: 'absolute', inset: 0 }}>

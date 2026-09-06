@@ -46,6 +46,8 @@ export const AoaView: React.FC<{ graph: AoaGraph; tasks: SchedTask[] }> = ({ gra
   const w = Math.max(...graph.nodes.map((n) => n.x)) + AOA_MARGIN + AOA_COL_W / 2
   const h = Math.max(...graph.nodes.map((n) => n.y)) + AOA_MARGIN + AOA_ROW_H / 2
   const taskName = (id: string) => tasks.find((t) => t.id === id)?.name ?? ''
+  const critCount = graph.edges.filter((e) => e.critical && e.kind === 'task').length
+  const dummyCount = graph.edges.filter((e) => e.kind === 'dummy').length
 
   return (
     <div className="sched-network-scroll" data-testid="sched-aoa">
@@ -55,6 +57,21 @@ export const AoaView: React.FC<{ graph: AoaGraph; tasks: SchedTask[] }> = ({ gra
         <span><i className="lg-line lg-dummy" />虚工作</span>
         <span>节点：上=最早时间 · 下=最迟时间</span>
         <span>时间单位：工作日（按日历）</span>
+        {/* 进度统计牌（斑马口径：红字大数字，挂图例行右端避免遮挡节点） */}
+        <div className="sched-net-badge">
+          <div className="nb-item">
+            <span className="nb-num">{nodeFinish(graph)}</span>
+            <span className="nb-label">总工期(日)</span>
+          </div>
+          <div className="nb-item">
+            <span className="nb-num">{critCount}</span>
+            <span className="nb-label">关键工作</span>
+          </div>
+          <div className="nb-item">
+            <span className="nb-num">{dummyCount}</span>
+            <span className="nb-label">虚工作</span>
+          </div>
+        </div>
       </div>
       <div className="sched-network-canvas" style={{ width: w, height: h }}>
         <svg width={w} height={h} style={{ position: 'absolute', inset: 0 }}>
@@ -105,4 +122,10 @@ export const AoaView: React.FC<{ graph: AoaGraph; tasks: SchedTask[] }> = ({ gra
       </div>
     </div>
   )
+}
+
+/** 双代号总工期 = 终点事件最早时间（编号最大事件） */
+function nodeFinish(graph: { nodes: { num: number; es: number }[] }): number {
+  const last = graph.nodes.reduce((a, b) => (b.num > a.num ? b : a), graph.nodes[0])
+  return last?.es ?? 0
 }

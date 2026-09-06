@@ -1,8 +1,8 @@
 /* schedule/schedule.css — 进度计划板块样式（横道图/单代号/双代号共用令牌） */
 
 :root {
-  --sched-critical: #dc2626;
-  --sched-normal: #2563eb;
+  --sched-critical: #e02020;   /* 斑马关键红 */
+  --sched-normal: #1e6fd9;     /* 斑马工作蓝 */
   --sched-link: #94a3b8;
   --sched-group: #1f2937;
   --sched-weekend: rgba(148, 163, 184, 0.14);
@@ -84,8 +84,14 @@
   position: relative;
   border-bottom: 1px solid var(--md-sys-color-border-variant, #f0f1f3);
 }
-.sched-gantt-row:hover {
-  background: rgba(37, 99, 235, 0.05);
+.sched-gantt-row:not(.sched-group-row):hover {
+  background: rgba(30, 111, 217, 0.06);
+}
+.sched-gantt-row:not(.sched-group-row):hover .sched-sticky-left {
+  background: rgba(30, 111, 217, 0.06);
+}
+.sched-row-selected .sched-sticky-left {
+  background: rgba(30, 111, 217, 0.12);
 }
 .sched-row-selected {
   background: rgba(37, 99, 235, 0.1) !important;
@@ -133,14 +139,6 @@
 .sched-group-name {
   font-size: 12px;
 }
-.sched-milestone-tag {
-  font-size: 10px;
-  color: #b45309;
-  border: 1px solid #f59e0b;
-  border-radius: 4px;
-  padding: 0 3px;
-  flex-shrink: 0;
-}
 .sched-gantt-datehead {
   display: flex;
   flex-direction: column;
@@ -159,6 +157,9 @@
   border-left: 1px solid var(--md-sys-color-border, #e5e7eb);
   padding-left: 2px;
   line-height: 20px;
+  white-space: nowrap; /* 窄列（dayW=8~14）防「9月」竖排折行 */
+  overflow: visible;
+  z-index: 2;
 }
 .sched-day-cell {
   flex: 1;
@@ -272,9 +273,17 @@
   width: 12px;
   height: 12px;
   transform: translate(0, -50%) rotate(45deg);
-  background: #b45309;
-  border: 1px solid #92400e;
+  background: #1f2937;
+  border: 1px solid #111827;
   z-index: 12;
+}
+.sched-milestone-tag {
+  font-size: 10px;
+  color: #374151;
+  border: 1px solid #6b7280;
+  border-radius: 4px;
+  padding: 0 3px;
+  flex-shrink: 0;
 }
 
 /* ── 网络图共用（单代号/双代号） ──────────────────────────── */
@@ -442,4 +451,136 @@
 .sched-aoa-time-shift {
   color: var(--sched-critical);
   font-weight: 700;
+}
+
+/* ── 斑马对齐：分组彩色行 / 行号 / 工具分组 / 状态栏 / 统计牌 ────────── */
+/* 分组行六色循环（斑马真机口径：橙/青/粉/黄/蓝/绿 饱和实底 + 黑字 + 深色左条） */
+.sched-group-row {
+  font-weight: 600;
+}
+.sched-group-row .sched-group-name {
+  font-size: 12px;
+  color: #17202e;
+}
+.sched-group-c0 {
+  background: #f9a03a;
+}
+.sched-group-c0::before {
+  background: #c97a1e;
+}
+.sched-group-c1 {
+  background: #45d6d0;
+}
+.sched-group-c1::before {
+  background: #2aa8a3;
+}
+.sched-group-c2 {
+  background: #f783cf;
+}
+.sched-group-c2::before {
+  background: #cc58a6;
+}
+.sched-group-c3 {
+  background: #ffd83a;
+}
+.sched-group-c3::before {
+  background: #d4ae12;
+}
+.sched-group-c4 {
+  background: #5a9cf0;
+}
+.sched-group-c4::before {
+  background: #3a74c4;
+}
+.sched-group-c5 {
+  background: #30c46a;
+}
+.sched-group-c5::before {
+  background: #1f9a4f;
+}
+.sched-group-row::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  z-index: 21;
+}
+.sched-group-row .sched-sticky-left {
+  background: inherit; /* 经 .sched-gantt-left 的 inherit 链落到行底色 */
+}
+/* 饱和分组底上的次级文字对比度（斑马：组行数值黑字可读） */
+.sched-group-row .sched-dim {
+  color: rgba(23, 32, 46, 0.72);
+  font-weight: 600;
+}
+.sched-row-no {
+  justify-content: center;
+  color: var(--md-sys-color-outline, #8a8f98);
+  font-size: 11px;
+}
+
+/* 工具栏分组（ribbon 感：分组间竖分隔线） */
+.sched-toolbar .sched-tool-divider {
+  width: 1px;
+  height: 18px;
+  background: var(--md-sys-color-border, #e5e7eb);
+  margin: 0 4px;
+}
+
+/* 底部状态栏（斑马：缩放/刻度/统计提示） */
+.sched-statusbar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-size: 12px;
+  color: var(--md-sys-color-outline, #8a8f98);
+  border-top: 1px solid var(--md-sys-color-border, #e5e7eb);
+  padding: 4px 8px 0;
+}
+.sched-statusbar .sched-sb-strong {
+  color: var(--md-sys-color-on-surface, #374151);
+  font-weight: 600;
+}
+.sched-statusbar .sched-sb-crit {
+  color: var(--sched-critical);
+  font-weight: 700;
+}
+
+/* 网络图进度统计牌（斑马红字大数字；挂图例行右端，不遮挡节点） */
+.sched-net-badge {
+  margin-left: auto;
+  flex-shrink: 0;
+  background: var(--md-sys-color-bg-container, #fff);
+  border: 1px solid var(--md-sys-color-border, #e5e7eb);
+  border-radius: 8px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+  padding: 4px 12px;
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+.sched-net-badge .nb-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1.1;
+}
+.sched-net-badge .nb-num {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--sched-critical);
+}
+.sched-net-badge .nb-label {
+  font-size: 11px;
+  color: var(--md-sys-color-outline, #8a8f98);
+}
+
+/* 非工作日表头列底纹（与图区底纹呼应） */
+.sched-day-col.sched-day-off .sched-day-cell {
+  color: #e08c8c;
+}
+.sched-day-col.sched-day-off .sched-month-cell {
+  background: rgba(224, 32, 32, 0.05);
 }

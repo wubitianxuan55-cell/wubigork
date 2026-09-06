@@ -92,6 +92,16 @@ gaea/
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| **v4.112.0** | 2026-09-06 | 进度计划刀3：斑马 UI 对齐（绑定面 586 零变更）——横道图分组行六色饱和循环+▲组名+行号列、时间轴改自然日列（非工作日底纹，CPM 仍按工作日）、单代号/双代号图例右端红字大数字统计牌、底部状态栏常驻（共 N 项工作·总工期 N 天）；?mock=1 三视图走查全过；vitest 2110/2110、drift PASS@586。详见 releases/v4.112.0.md |
+| **v4.111.0** | 2026-09-06 | 进度计划刀2：Project/斑马对齐（586 零变更）——工作日历 calendar.ts（周工作制+节假日例外，工期口径改工作日）、手动/自动任务模式、WBS 编码列、mspdi.ts MS Project XML 导入导出（务实子集+roundtrip）、横道图前锋线；vitest 2110/2110。详见 releases/v4.111.0.md |
+| **v4.110.0** | 2026-09-06 | 进度计划一级板块刀1（586 零变更）——CPM 引擎 cpm.ts（FS/SS/FF/SF+时距/环检测/时差/关键）15 例+双代号转换 aoa.ts 11 例+三视图 Segmented 切换（横道图/单代号六格/双代号圆圈事件）+示例工程+localStorage 持久化；前后端 manifest 双接线。详见 releases/v4.110.0.md |
+| **v4.109.0** | 2026-09-06 | pptx 真编辑刀1 数据层（585→586 +GaeaPptxApplyEdit）——internal/office/pptxedit：slide 序映射+DrawingML 段落解析+LocateText/ApplyTextReplace（跨 run 命中、rPr 原字节继承保格式）+快照+Journal，zip 条目序原子写；Go 全量绿、drift PASS@586。详见 releases/v4.109.0.md |
+| **v4.108.1** | 2026-09-06 | ?mock=1 真浏览器走查刀（585 零变更）——条件格式/看板拖拽/导图编辑三链全过（DOM+计算样式断言）；mock 升级会话内可变态（XlsxSetCell 真改+Preview 保存回读）；CUA 后台 IAB 不达坑入册 |
+| **v4.108.0** | 2026-09-06 | 导图画布编辑 M2 自研 v1（585 零变更）——mindmapEdit.ts 不可变树操作+serializeMindmapOutline 幂等+MindMapView 编辑态（单击/双击/Tab/Enter/Delete/HTML5 拖拽/脏态保存条）；防丢内容闸（混合内容编辑禁用+琥珀横幅）。详见 releases/v4.108.0.md |
+| **v4.107.0** | 2026-09-06 | 多维表 B2 首刀：看板视图（585 零变更）——GbaseBoardView（type:"board" 带 groupBy 泳道列，卡片字段/首字段标题）；拖拽改值写 groupBy 单元格走 XlsxSetCell 直编通道；GbaseSheetModel.fieldCols 回写定位 |
+| **v4.106.0** | 2026-09-06 | 办公 U4 缺口收口（585 零变更）——xlsx 条件格式预览（后端 condfmt 三层解析 CellIs 静态子集+前端纯函数命中覆盖；excelize 写侧≠真实文件形状教训入册）+herdsman HS-obs 实测销账（/props 404 坐实采样面不可外观测） |
+| **v4.105.0** | 2026-09-06 | Model Hub 蒸馏 MH4+ComfyUI CU1/CU2（584→585 +WarmComfyUI）——modelhub 常驻预热（四重门控+武装位+幂等护栏）、ComfyUI 绘梦页首入预热（空跑 warmup）+fp8 档位标记置顶；预热跟随活跃引擎原则成文。详见 releases/v4.105.0.md |
+| **v4.104.0** | 2026-09-06 | Model Hub 蒸馏 MH1–MH3（584 零变更）——modelhub 引擎 temperature≤0 让位 Studio 自动调优+显式 enable_thinking=false（默认关思考）；加载状态收敛轮询（hubLoadingIds+waitForModelHubLoaded）；UD 变体置顶+推荐徽标；Go 3 例+前端 6 例 |
 | **v4.103.0** | 2026-09-05 | 办公搜索对齐 unsloth（绑定面 584 零变更）：蒸馏 unsloth 搜索工具行为——web_search 新增 url 直取整页模式（复用 web_fetch SSRF/域名策略/HTML→文本，搜索→取全文→引用一次调用）；[search] allow/deny 域名策略作用于搜索结果（受限时过度抓取再过滤）；注入当前日期+引导取全文；新增单测 6 例+联网端到端实测；Go build/test/vet 绿 |
 | **v4.102.0** | 2026-09-05 | Hub 落库+收尾三线（绑定面 584=Hub 线 +3，本刀零新增）：Model Hub（Unsloth）并行线完结落库（modelcenter 设置区/engine Key 管理/config）；GenUI 审计 §8-5 resume 槽位口径统一（实时取号优先日志序+三路装载折叠快照优先，跨重启状态可命中，旧 key 任其逐出）；图像域 17 绑定转正 AppBindings（分类锁 297、api/image.ts 三态回退、mock 17 方法+契约）；Model Hub/OpenCode Key dev mock 补齐（内存态联动+诚实失败+契约）；附带修复 v4.101 漏提交事故（补提交+教训入册）；vitest 256/2034、Go 全量 0 FAIL、drift PASS（584） |
 | **v4.101.0** | 2026-09-05 | 三线并行（绑定面 581 零变更）：GenUI 围栏纪律 Go 侧收口——共享剥离 helper（围栏折叠占位/正文逐字保留）+ 做梦/compact 摘要/whisper 摘要三处剥离 + 压缩 prompt 指引 + 面板 resync 去重 + 会话删除清理交互状态；画室模型目录——HerdsmanModelCatalog 只读按能力分族、未定价不伪装、创作语境高亮；小说深检误报缓解——归一化+别名归一+置信度/原因三档分级+忽略记忆可恢复；vitest 254/2024、Go 全量 0 FAIL、drift PASS（581 口径） |

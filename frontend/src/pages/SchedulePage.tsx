@@ -187,7 +187,7 @@ const SchedulePage: React.FC = () => {
             <Button size="small" danger icon={<DeleteOutlined />}>删除</Button>
           </Popconfirm>
         )}
-        <div style={{ flex: 1 }} />
+        <div className="sched-tool-divider" />
         <input
           ref={fileRef}
           type="file"
@@ -205,6 +205,7 @@ const SchedulePage: React.FC = () => {
         <Tooltip title="导出为 MS Project XML（可被 Project / 斑马进度打开）">
           <Button size="small" icon={<ExportOutlined />} onClick={exportXml}>导出 XML</Button>
         </Tooltip>
+        <div className="sched-tool-divider" />
         <Tooltip title="载入示例工程（办公楼施工），覆盖当前数据">
           <Button size="small" icon={<ThunderboltOutlined />} onClick={() => { loadSample(); setImportMsg(null) }}>示例工程</Button>
         </Tooltip>
@@ -229,8 +230,24 @@ const SchedulePage: React.FC = () => {
       {view === 'gantt' && <GanttView project={project} cpm={cpm} />}
       {view === 'pdm' && <PdmView project={project} cpm={cpm} />}
       {view === 'aoa' && <AoaView graph={aoa} tasks={project.tasks} />}
+
+      {/* 底部状态栏（斑马口径：共 N 项工作总工期 N 天 + 关键/工作制常驻） */}
+      <div className="sched-statusbar">
+        <span>视图：<span className="sched-sb-strong">{view === 'gantt' ? '横道图' : view === 'pdm' ? '单代号网络图' : '双代号网络图'}</span></span>
+        <span>共 <span className="sched-sb-strong">{project.tasks.filter((t) => t.level > 0).length}</span> 项工作，总工期 <span className="sched-sb-strong">{cpm.duration}</span> 天</span>
+        <span>关键工作 <span className="sched-sb-crit">{project.tasks.filter((t) => t.level > 0 && cpm.rows[t.id]?.critical).length}</span> 项</span>
+        <span>工作制：<span className="sched-sb-strong">{workweekLabel(project.calendar)}</span>{(project.calendar?.holidays.length ?? 0) > 0 && <> · 节假日 {project.calendar!.holidays.length} 天</>}</span>
+        <span>时间单位：工作日（日期轴为自然日）</span>
+      </div>
     </div>
   )
+}
+
+/** 工作制描述（周一~周五 简写） */
+function workweekLabel(cal?: { workweek: number[] }): string {
+  const names = ['日', '一', '二', '三', '四', '五', '六']
+  const wk = (cal?.workweek?.length ? [...cal.workweek] : [1, 2, 3, 4, 5]).sort((a, b) => ((a + 6) % 7) - ((b + 6) % 7))
+  return '周' + wk.map((d) => names[d]).join('、')
 }
 
 export default SchedulePage

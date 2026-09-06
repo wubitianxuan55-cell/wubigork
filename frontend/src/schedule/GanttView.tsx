@@ -1,27 +1,28 @@
 /**
- * schedule/GanttView.tsx — 横道图（甘特图）视图
+ * schedule/GanttView.tsx — 横道图（甘特图）视图（v4.112.0 斑马 UI 对齐）
  *
- * 左侧任务表（WBS 编码/大纲缩进/工期/起止/模式/前置编辑）+ 右侧时间轴条形图，
- * 关键工作红色、分组汇总条黑色、总时差尾巴、里程碑菱形、搭接箭线。
- * v4.111.0 对齐 Project/斑马：工作日历日期轴（列=工作日序号，跨周末/节假日）、
- * 手动/自动任务模式、WBS 编码列、前锋线（进度检查线）。
- * 与单代号/双代号共享同一份 store 数据与 CPM 结果（一表多图联动）。
+ * 视觉/交互对齐广联达斑马进度（官网截图口径）：
+ *  - 自然日时间轴 + 周末/节假日底纹（CPM 仍按工作日计算，条形跨非工作日渲染）；
+ *  - 行号列、分组行彩色底纹（五色循环 + 左色条）；
+ *  - 关键红条、分组黑汇总条、里程碑黑菱形、总时差尾巴、搭接箭线、前锋线。
+ * 列：行号 | 任务名称 | WBS | 工期 | 开始 | 完成 | 模式 | 前置。
  */
 import React, { useMemo, useState } from 'react'
 import { Button, DatePicker, Input, InputNumber, Popover, Select } from 'antd'
 import { DeleteOutlined, LinkOutlined, ZoomInOutlined, ZoomOutOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import type { CpmResult, LinkType, SchedProject, SchedTask } from './types'
-import { dateToWd, wdToDate } from './calendar'
+import { isWorkingDate, normalizeCalendar, wdToDate } from './calendar'
 import { descendantIds, isGroupRow, useScheduleStore, type PredDraft } from './store'
 
 const ROW_H = 30
 const COLS = [
-  { key: 'name', label: '任务名称', w: 196 },
+  { key: 'no', label: '', w: 34 },
+  { key: 'name', label: '任务名称', w: 184 },
   { key: 'wbs', label: 'WBS', w: 46 },
   { key: 'dur', label: '工期', w: 52 },
-  { key: 'start', label: '开始', w: 78 },
-  { key: 'finish', label: '完成', w: 78 },
+  { key: 'start', label: '开始', w: 74 },
+  { key: 'finish', label: '完成', w: 74 },
   { key: 'mode', label: '模式', w: 54 },
   { key: 'links', label: '前置', w: 56 },
 ]
@@ -57,7 +58,7 @@ function groupSpan(project: SchedProject, cpm: CpmResult, idx: number): { es: nu
   return any ? { es, ef } : null
 }
 
-/** 前锋线任务点：按完成进度取横道条上的前锋位置（工作日序号，可为小数） */
+/** 前锋线任务点：按完成进度取前锋位置（工作日序号，可为小数） */
 function frontierWd(t: SchedTask, row: { es: number; ef: number } | undefined, checkIdx: number): number | null {
   if (!row || t.level === 0) return null
   const dur = t.isMilestone ? 0 : Math.max(0, Math.round(t.duration))
@@ -127,20 +128,28 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult }> = ({
 
   const cal = project.calendar
   const wbs = useMemo(() => wbsOf(project.tasks), [project.tasks])
-  const days = Math.max(cpm.duration, 14) + 4
+  const startMs = useMemo(() => new Date(`${project.startDate}T00:00:00Z`).getTime(), [project.startDate])
+  /** 工作日序号 → 自然日列偏移（条形 x 坐标；跨周末自然变宽，斑马口径） */
+  const dayNo = useMemo(() => (wd: number) => {
+    return Math.round((wdToDate(project.startDate, wd, cal).getTime() - startMs) / 86400000)
+  }, [project.startDate, cal, startMs])
+
+  const days = Math.max(dayNo(Math.max(cpm.duration, 7)) + 3, 21)
   const chartW = days * dayW
   const totalH = project.tasks.length * ROW_H
-  const maxTf = Math.max(0, ...project.tasks.map((t) => cpm.rows[t.id]?.tf ?? 0))
 
-  /** 列序号 → 日期（工作日历口径）+ 月份变化标记 */
+  /** 自然日列（斑马口径：每天一列，非工作日底纹） */
   const colDates = useMemo(
     () => Array.from({ length: days }, (_, i) => {
-      const d = wdToDate(project.startDate, i, cal)
-      return { d, iso: d.toISOString().slice(0, 10), monthChange: i === 0 || d.getUTCMonth() !== wdToDate(project.startDate, i - 1, cal).getUTCMonth() }
+      const d = new Date(startMs + i * 86400000)
+      return { d, iso: d.toISOString().slice(0, 10), offWork: !isWorkingDate(d, normalizeCalendar(cal)) }
     }),
-    [project.startDate, cal, days],
+    [startMs, cal, days],
   )
-  const todayIdx = useMemo(() => dateToWd(project.startDate, new Date().toISOString().slice(0, 10), cal), [project.startDate, cal])
+  const todayCol = useMemo(() => {
+    const off = Math.floor((Date.now() - startMs) / 86400000)
+    return off >= 0 && off <= days ? off : null
+  }, [startMs, days])
 
   const linkRows = useMemo(() => {
     const rowIdx = new Map(project.tasks.map((t, i) => [t.id, i]))
@@ -155,8 +164,8 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult }> = ({
     if (!f || !t2) return null
     const y1 = fi! * ROW_H + ROW_H / 2
     const y2 = ti! * ROW_H + ROW_H / 2
-    const x1 = f.ef * dayW
-    const x2 = t2.es * dayW
+    const x1 = dayNo(f.ef) * dayW
+    const x2 = dayNo(t2.es) * dayW
     const mid = Math.max(x1 + 5, (x1 + x2) / 2)
     const d = x2 >= x1 + 10
       ? `M ${x1} ${y1} H ${mid} V ${y2} H ${x2 - 3}`
@@ -164,27 +173,41 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult }> = ({
     return { d, key: `${l.from}>${l.to}>${l.type}` }
   }).filter(Boolean) as { d: string; key: string }[]
 
-  /** 前锋线折线点（行中心） */
+  /** 前锋线折线点（行中心；x=自然日列） */
   const frontLine = useMemo(() => {
     if (!showFront || !cpm.ok) return null
-    const checkIdx = dateToWd(project.startDate, checkDate, cal)
-    if (checkIdx === null) return null
+    const off = Math.round((new Date(`${checkDate}T00:00:00Z`).getTime() - startMs) / 86400000)
+    if (!Number.isFinite(off) || off < 0) return null
     const pts: { x: number; y: number }[] = []
     project.tasks.forEach((t, i) => {
-      const w = frontierWd(t, cpm.rows[t.id], checkIdx)
-      if (w !== null) pts.push({ x: w * dayW, y: i * ROW_H + ROW_H / 2 })
+      const w = frontierWd(t, cpm.rows[t.id], checkWdIdx(checkDate))
+      if (w !== null) pts.push({ x: dayNo(w) * dayW, y: i * ROW_H + ROW_H / 2 })
     })
-    return pts.length >= 2 ? { pts, checkX: checkIdx * dayW } : null
-  }, [showFront, cpm, project.tasks, project.startDate, checkDate, cal, dayW])
+    return pts.length >= 2 ? { pts, checkX: Math.min(off, days) * dayW } : null
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showFront, cpm, project.tasks, checkDate, startMs, dayNo, dayW, days, colDates])
+
+  /** 检查日期 → 工作日序号（前锋点按进度比例需要工作日刻度） */
+  function checkWdIdx(dateIso: string): number {
+    let idx = 0
+    for (const c of colDates) {
+      if (c.iso > dateIso) break
+      if (!c.offWork) idx++
+    }
+    return Math.max(0, idx - 1)
+  }
+
+  // 分组行配色序号（斑马口径：橙/青/粉/黄/蓝/绿 六色循环，子行随组）
+  const groupColorSeq: number[] = []
+  let gc = 0
+  for (let i = 0; i < project.tasks.length; i++) {
+    if (project.tasks[i].level === 0) gc = (gc + 1) % 6
+    groupColorSeq[i] = project.tasks[i].level === 0 ? gc : (i > 0 ? groupColorSeq[i - 1] : gc)
+  }
 
   return (
     <div className="sched-gantt" data-testid="sched-gantt">
       <div className="sched-gantt-toolbar">
-        <span className="sched-gantt-stats">
-          总工期 {cpm.duration} 工作日 · 关键工作 {project.tasks.filter((t) => t.level > 0 && cpm.rows[t.id]?.critical).length} 项
-          {maxTf > 0 && <> · 最大总时差 {maxTf} 天</>}
-        </span>
-        <div style={{ flex: 1 }} />
         <Button
           size="small"
           type={showFront ? 'primary' : 'default'}
@@ -202,6 +225,7 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult }> = ({
             placeholder="检查日期"
           />
         )}
+        <div style={{ flex: 1 }} />
         <Button size="small" icon={<ZoomOutOutlined />} onClick={() => setDayW((w) => DAY_W_STEPS[Math.max(0, DAY_W_STEPS.indexOf(w) - 1)] ?? w)} />
         <Button size="small" icon={<ZoomInOutlined />} onClick={() => setDayW((w) => DAY_W_STEPS[Math.min(DAY_W_STEPS.length - 1, DAY_W_STEPS.indexOf(w) + 1)] ?? w)} />
       </div>
@@ -216,11 +240,9 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult }> = ({
             </div>
             <div className="sched-gantt-datehead" style={{ width: chartW }}>
               {colDates.map((c, i) => (
-                <div key={i} className="sched-day-col" style={{ width: dayW }}>
-                  <div className="sched-month-cell">{c.monthChange ? `${c.d.getUTCMonth() + 1}月` : ''}</div>
-                  <div className="sched-day-cell" title={`周${WEEKDAY_LABELS[c.d.getUTCDay()]}`}>
-                    {c.d.getUTCDate()}
-                  </div>
+                <div key={i} className={`sched-day-col${c.offWork ? ' sched-day-off' : ''}`} style={{ width: dayW }} title={c.offWork ? '非工作日' : `周${WEEKDAY_LABELS[c.d.getUTCDay()]}`}>
+                  <div className="sched-month-cell">{c.d.getUTCDate() === 1 || i === 0 ? `${c.d.getUTCMonth() + 1}月` : ''}</div>
+                  <div className="sched-day-cell">{dayW >= 14 || i % 2 === 0 ? c.d.getUTCDate() : ''}</div>
                 </div>
               ))}
             </div>
@@ -233,17 +255,19 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult }> = ({
             const crit = !group && t.mode !== 'manual' && row?.critical
             const manual = t.mode === 'manual'
             const dur = t.isMilestone ? 0 : Math.max(0, Math.round(t.duration))
+            const colorCls = group ? ` sched-group-c${groupColorSeq[i]}` : ''
             return (
               <div
                 key={t.id}
-                className={`sched-gantt-row${selectedId === t.id ? ' sched-row-selected' : ''}`}
+                className={`sched-gantt-row${group ? ' sched-group-row' : ''}${colorCls}${selectedId === t.id ? ' sched-row-selected' : ''}`}
                 style={{ height: ROW_H }}
                 onClick={() => select(t.id)}
               >
                 <div className="sched-gantt-left sched-sticky-left" style={{ width: LEFT_W }}>
-                  <div style={{ width: COLS[0].w }} className="sched-gantt-cell">
+                  <div style={{ width: COLS[0].w }} className="sched-gantt-cell sched-row-no">{i + 1}</div>
+                  <div style={{ width: COLS[1].w }} className="sched-gantt-cell">
                     <span style={{ paddingLeft: t.level * 14, display: 'inline-flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
-                      {group ? <strong className="sched-group-name">{t.name}</strong> : (
+                      {group ? <strong className="sched-group-name">▲{t.name}</strong> : (
                         <Input
                           size="small"
                           variant="borderless"
@@ -255,8 +279,8 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult }> = ({
                       {t.isMilestone && <span className="sched-milestone-tag">里程碑</span>}
                     </span>
                   </div>
-                  <div style={{ width: COLS[1].w }} className="sched-gantt-cell sched-dim">{wbs[i]}</div>
-                  <div style={{ width: COLS[2].w }} className="sched-gantt-cell">
+                  <div style={{ width: COLS[2].w }} className="sched-gantt-cell sched-dim">{wbs[i]}</div>
+                  <div style={{ width: COLS[3].w }} className="sched-gantt-cell">
                     {group ? <span className="sched-dim">汇总</span> : (
                       <InputNumber
                         size="small"
@@ -268,7 +292,7 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult }> = ({
                       />
                     )}
                   </div>
-                  <div style={{ width: COLS[3].w }} className="sched-gantt-cell sched-dim">
+                  <div style={{ width: COLS[4].w }} className="sched-gantt-cell sched-dim">
                     {manual && !group ? (
                       <InputNumber
                         size="small"
@@ -280,13 +304,13 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult }> = ({
                         title="手动模式：锁定开始（工作日序号）"
                       />
                     ) : (
-                      colDates.length > 0 && (group ? span : row) ? fmtDate(colDates, group ? span!.es : row!.es) : ''
+                      (group ? span : row) ? fmtDate(project.startDate, group ? span!.es : row!.es, cal) : ''
                     )}
                   </div>
-                  <div style={{ width: COLS[4].w }} className="sched-gantt-cell sched-dim">
-                    {colDates.length > 0 && (group ? span : row) ? fmtDate(colDates, group ? span!.ef : row!.ef) : ''}
+                  <div style={{ width: COLS[5].w }} className="sched-gantt-cell sched-dim">
+                    {(group ? span : row) ? fmtDate(project.startDate, group ? span!.ef : row!.ef, cal) : ''}
                   </div>
-                  <div style={{ width: COLS[5].w }} className="sched-gantt-cell">
+                  <div style={{ width: COLS[6].w }} className="sched-gantt-cell">
                     {!group && (
                       <Button
                         size="small"
@@ -300,7 +324,7 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult }> = ({
                       </Button>
                     )}
                   </div>
-                  <div style={{ width: COLS[6].w }} className="sched-gantt-cell">
+                  <div style={{ width: COLS[7].w }} className="sched-gantt-cell">
                     {!group && (
                       <Popover trigger="click" placement="left" content={<PredEditor task={t} />} title={`「${t.name}」前置任务`}>
                         <Button size="small" type="text" icon={<LinkOutlined />}>
@@ -316,20 +340,20 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult }> = ({
                     span && (
                       <div
                         className="sched-summary-bar"
-                        style={{ left: span.es * dayW, width: Math.max((span.ef - span.es) * dayW, 8) }}
+                        style={{ left: dayNo(span.es) * dayW, width: Math.max((dayNo(span.ef) - dayNo(span.es)) * dayW, 8) }}
                         title={`${t.name}：${span.es} ~ ${span.ef} 工作日`}
                       />
                     )
                   ) : t.isMilestone ? (
                     row && (
-                      <div className="sched-milestone" style={{ left: row.es * dayW - 7 }} title={`${t.name}（里程碑）`} />
+                      <div className="sched-milestone" style={{ left: dayNo(row.es) * dayW - 7 }} title={`${t.name}（里程碑）`} />
                     )
                   ) : (
                     row && (
                       <>
                         <div
                           className={`sched-bar${crit ? ' sched-bar-critical' : ''}${manual ? ' sched-bar-manual' : ''}`}
-                          style={{ left: row.es * dayW, width: Math.max(dur * dayW, 6) }}
+                          style={{ left: dayNo(row.es) * dayW, width: Math.max((dayNo(row.ef) - dayNo(row.es)) * dayW, 6) }}
                           title={`${t.name}：第 ${row.es}~${row.ef} 工作日${manual ? '（手动锁定）' : crit ? '（关键）' : `，总时差 ${row.tf} 天`}`}
                         >
                           {t.progress > 0 && (
@@ -337,7 +361,7 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult }> = ({
                           )}
                         </div>
                         {!manual && row.tf > 0 && (
-                          <div className="sched-float" style={{ left: row.ef * dayW, width: row.tf * dayW }} title={`总时差 ${row.tf} 天`} />
+                          <div className="sched-float" style={{ left: dayNo(row.ef) * dayW, width: row.tf * dayW }} title={`总时差 ${row.tf} 天`} />
                         )}
                       </>
                     )
@@ -346,7 +370,7 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult }> = ({
               </div>
             )
           })}
-          {/* 覆盖层：今日线 + 前锋线（搭接箭线在条形下方） */}
+          {/* 覆盖层：非工作日底纹 + 今日线 + 前锋线 + 搭接箭线 */}
           <div className="sched-overlay" style={{ left: LEFT_W, width: chartW, height: totalH + 40 }}>
             <svg width={chartW} height={totalH + 40} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
               <defs>
@@ -354,12 +378,13 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult }> = ({
                   <path d="M0,0 L7,3.5 L0,7 z" fill="var(--sched-link, #94a3b8)" />
                 </marker>
               </defs>
+              {colDates.map((c, i) => c.offWork && (
+                <rect key={`off${i}`} x={i * dayW} y={0} width={dayW} height={totalH + 40} className="sched-weekend" />
+              ))}
               {linkPaths.map((p) => (
                 <path key={p.key} d={p.d} className="sched-link-line" markerEnd="url(#sched-arrow)" />
               ))}
-              {todayIdx !== null && todayIdx <= days && (
-                <line x1={todayIdx * dayW} y1={0} x2={todayIdx * dayW} y2={totalH + 40} className="sched-today-line" />
-              )}
+              {todayCol !== null && <line x1={todayCol * dayW} y1={0} x2={todayCol * dayW} y2={totalH + 40} className="sched-today-line" />}
               {frontLine && (
                 <>
                   <line x1={frontLine.checkX} y1={0} x2={frontLine.checkX} y2={totalH + 40} className="sched-front-check" />
@@ -378,10 +403,8 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult }> = ({
   )
 }
 
-/** 日期列查找：工作日序号 → M/D 文本 */
-function fmtDate(colDates: { iso: string }[], workdayIdx: number): string {
-  const c = colDates[Math.max(0, Math.min(colDates.length - 1, Math.round(workdayIdx)))]
-  if (!c) return ''
-  const [, m, d] = c.iso.split('-')
-  return `${Number(m)}/${Number(d)}`
+/** 工作日序号 → M/D 文本（按日历换算日期） */
+function fmtDate(startISO: string, workdayIdx: number, cal: SchedProject['calendar']): string {
+  const d = wdToDate(startISO, workdayIdx, cal)
+  return `${d.getUTCMonth() + 1}/${d.getUTCDate()}`
 }
