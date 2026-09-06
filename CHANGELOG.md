@@ -1,3 +1,11 @@
+## v4.114.0 · 进度计划刀5：对话即排程——schedule-edit 技能 · agent 写板块即回读 · 工具卡摘要（2026-09-06）
+> 刀4 地基上的智能层首刀（绑定面 **588** 零变更）；真机端到端（真模型生成整计划）入真机池。详见 releases/v4.114.0.md。
+- **schedule-edit 内联技能**（internal/gaea/skill/builtins.go，+1 注册锁测试）：编制与调整纪律总纲——先读后写、「成功≠正确」回执核对、引擎裁决不绕校验、JGJ/T 121-2015 先分解后编网（WBS 两级→逻辑关系→工期→日历→project 通道写入→analyze 质检清零→汇报总工期/关键线路变化）、ops 增量调整口径（压缩非关键不缩总工期要点破）、工作日口径与手动模式锁定的适用边界。
+- **agent 写计划→板块即时回读**：App 工具事件喂入——schedule_apply 成功回执触发 notifyScheduleFileChanged()（绕过 15s 轻扫；防抖/未保存守卫在 store 侧宁守勿冲），对话调计划板块秒级可见。
+- **工具卡可读化**（tools.ts subjectOf/summarize + 用例）：schedule_apply 卡=「总工期 X 天 · 关键 Y 项 · N 处修改」、get/analyze 卡=总工期一行/质检计数，行首主体缺省回退「当前计划」；信封剥离兜底对齐 chart_gen 先例。
+- 测试：vitest 2110→**2115**（tools 5 例+store.sync 全链 2 例——迁移→防抖自动保存→外部写回读，走 bridge mock+window.__mockScheduleFile）；Go schedule-edit 锚点锁 1 例。门禁：tsc -b/eslint 0、Go 全量绿、drift PASS@588、?mock=1 健康走查（无控制台错误/板块无回归）、版本四处 4.114.0、build.bat 冒烟 /api/health 200。
+- 欠账：真机端到端（真模型一句话生成整计划→板块实时可见→对话式调整 diff 确认卡）、推荐逻辑关系、分析报告模板化、双工期口径（合成版拍板池）。
+
 ## v4.113.0 · 进度计划刀4：AI 原生通道地基——计划文件化 · agent 工具三件套（2026-09-06）
 > 响应「进度计划必须依托 AI 平台」拍板；绑定面 586→**588**（+GaeaScheduleLoad/Save）。详见 releases/v4.113.0.md。
 - **internal/schedule 新包（Go，28 例）**：前端 schedule 引擎的忠实移植——types/cpm（FS/SS/FF/SF+时距、手动/自动、环 fail-closed）/calendar（工作日↔日期互逆）/project（校验+临时文件原子写）/ops（upsert_task/patch_task/remove_task/set_links/set_meta 增量操作集）/analysis（关键链/近关键/里程碑叙事）。Go 与 TS 测试互为镜像，口径改动必须两侧同步。

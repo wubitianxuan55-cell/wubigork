@@ -87,6 +87,45 @@ func builtinSkills() []Skill {
 			RunAs:       RunInline,
 		},
 		{
+			Name: "schedule-edit",
+			Description: "进度计划编制与调整纪律：用户要编进度计划/排施工计划/改工期/调搭接/分析关键线路时必读——schedule_get 先读后写、schedule_apply 双通道（project 整计划/ops 增量）、CPM 引擎裁决 fail-closed、回执核对「成功≠正确」、工作日口径与 WBS 两级分解、JGJ/T 121-2015 先分解后编网。",
+			Body: `你正在通过 schedule_get / schedule_apply / schedule_analyze 三工具编制或调整用户的工程进度计划（「进度计划」板块同款数据，双向实时同步）。开工前先通读本技能。
+
+## 铁律
+
+1. 先读后写：schedule_get 读现状（无文件=空计划），禁止基于想象修改用户已有计划。
+2. 工具成功 ≠ 正确：schedule_apply 回执带写入后总工期与关键工作数，必须核对是否与预期一致；不一致就 schedule_analyze 找原因，修到对为止。
+3. 引擎裁决：环依赖/悬空引用/非法字段会被整批拒绝并返回错误原文——读错误、修数据、重试；绝不绕过校验或手算工期冒充引擎结果。
+4. 汇报口径：改动后向用户报告「改了什么（清单）→ 总工期 X→Y 天 → 关键线路变化 → 风险提示」，未验证的明说未验证。
+
+## 编制流程（整计划生成，走 project 通道）
+
+顺序对齐 JGJ/T 121-2015「先分解、后编网」：
+1. 工作分解：WBS 两级——分组行 level=0（分部工程，如 施工准备/基础工程/主体结构/机电与装修/竣工验收），子任务 level=1（分项，命名动词+对象，如 基础钢筋绑扎）。分组行 duration=0、不参与搭接。
+2. 逻辑关系：工艺逻辑（工序先后）+组织逻辑（流水段）；搭接 type 缺省 FS lag=0，流水搭接用 SS+时距，收口用里程碑（duration=0，isMilestone=true）。
+3. 工期：工作日整数；类似工程经验值估列并说明依据；有合同/定额工期约束时先声明目标再倒排校核（倒排可用手动模式 manual+manualStart 锁定，注意 manual 不参与关键线路）。
+4. 日历：缺省周一~五；用户给停工季/节假日就写进 calendar.holidays；工期全部按工作日计。
+5. 写入：schedule_apply project 通道一次性写入 → 回执核对总工期 → schedule_analyze 质检（孤立任务/空分组/缺里程碑必须清零）→ 汇报。生成后主动问用户是否要调整（工期目标/资源限制/分段流水）。
+
+## 调整流程（局部修改，走 ops 通道）
+
+- 压缩/延长工期：patch_task{duration}——只改用户点名的任务；改完汇报总工期与关键线路变化（压缩非关键任务不缩总工期，向用户点破）。
+- 改逻辑：set_links{toId,links}（整体替换该任务前置）；增删任务 upsert_task/remove_task（remove 级联子孙）。
+- 多条调整一次 ops 数组下发（原子应用，单条失败整批拒绝）。
+- 进度反馈：patch_task{progress}（0-100），前锋线在板块横道图查看。
+
+## 口径
+
+- 工期/时距一律工作日；日期显示由开工日期+工作日历推导，汇报日期时说明是工作日序还是日历日期。
+- 关键工作=总时差 0 且非手动；总时差≤2 为近关键，风险提示优先级高。
+- 互通：可建议用户在板块里导入/导出 MS Project XML 与 Project/斑马互查。
+
+` + negativeClaimRule,
+			Scope:       ScopeBuiltin,
+			Path:        "(builtin)",
+			RunAs:       RunInline,
+		},
+		{
 			Name:        "format-convert",
 			Description: "文档格式转换：docx/xlsx/pdf→Markdown 格式转换，可用于统一不同来源的工程文档为可编辑 Markdown。",
 			Body: `你作为格式转换子代理运行。将工程文档转换为 Markdown 格式。

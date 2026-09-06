@@ -168,6 +168,29 @@ describe("summarize 办公工具完成态摘要", () => {
     expect(summarize("read_skill", JSON.stringify({ name: "s" }), "# 技能\n正文两行\n第三行")).toBe("3 行");
   });
 
+  it("schedule_apply：总工期 + 关键数 + 修改数（v4.114 刀5）", () => {
+    const out = JSON.stringify({ ok: true, duration: 141, critical: ["A", "B"], changes: ["调整「A」", "调整「B」"] });
+    expect(summarize("schedule_apply", "{}", out)).toBe("总工期 141 天 · 关键 2 项 · 2 处修改");
+    expect(summarize("schedule_apply", "{}", JSON.stringify({ ok: true, duration: 9, critical: [], changes: [] }))).toBe("总工期 9 天");
+    expect(summarize("schedule_apply", "{}", "not json")).toBe("");
+  });
+
+  it("schedule_get / analyze：总工期一行", () => {
+    expect(
+      summarize("schedule_get", "{}", JSON.stringify({ ok: true, duration: 141, leafCount: 15 })),
+    ).toBe("总工期 141 天 · 15 项工作");
+    expect(
+      summarize("schedule_analyze", "{}", JSON.stringify({ ok: true, duration: 141, critical: ["A"], checks: ["x", "y"] })),
+    ).toBe("总工期 141 天 · 关键链 1 项 · 质检 2 条");
+  });
+
+  it("schedule_*：subject 行首（缺省路径回退「当前计划」）", () => {
+    expect(subjectOf("schedule_apply", JSON.stringify({ ops: [] }))).toBe("当前计划");
+    expect(subjectOf("schedule_analyze", JSON.stringify({ path: "进度计划/当前计划.gsched.json" }))).toBe(
+      "进度计划/当前计划.gsched.json",
+    );
+  });
+
   it("error 态一律无摘要", () => {
     expect(summarize("chart_gen", "{}", undefined, "boom")).toBe("");
   });

@@ -184,6 +184,11 @@ let applyingExternal = false
 let saveTimer: ReturnType<typeof setTimeout> | null = null
 /** 最近一次与文件达成一致的 JSON（编辑防抖期间不被外部回读覆盖的基准） */
 let lastSyncedRaw = ''
+/** agent 写计划的即时回读触发（App 工具事件喂入：schedule_apply 成功回执即调） */
+let pollNow: (() => void) | null = null
+export function notifyScheduleFileChanged(): void {
+  pollNow?.()
+}
 
 function projectRaw(p: SchedProject): string {
   return JSON.stringify(normalizeProject(p))
@@ -259,6 +264,7 @@ export async function initScheduleSync(): Promise<void> {
       }
     } catch { /* 轻扫失败静默，下轮再试 */ }
   }
+  pollNow = () => { void poll() }
   if (typeof window !== 'undefined' && typeof document !== 'undefined') {
     window.addEventListener('focus', () => { void poll() })
     setInterval(() => { if (document.visibilityState === 'visible') void poll() }, 15000)

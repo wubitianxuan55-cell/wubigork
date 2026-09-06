@@ -13,6 +13,7 @@ import { useController, usePreviewStore } from "./lib/store";
 import { app, onTaskEvent } from "./lib/bridge";
 import { GenuiActionProvider } from "../genui/GenuiActionContext";
 import { GenuiScopeProvider } from "../genui/scope";
+import { notifyScheduleFileChanged } from "../schedule/store";
 import { setGenuiActionHandler } from "./lib/genuiHost";
 import { clearGenuiPanel, sanitizeSessionKey } from "./lib/genuiPanel";
 import { clearBlockStatesForSession } from "../genui/interaction";
@@ -1022,6 +1023,12 @@ export default function App() {
       if (prev === it.status) continue;
       seen.set(it.id, it.status);
       if (baseline && prev === undefined) continue; // 基线期只登记
+      // 进度计划（v4.114 刀5）：agent schedule_apply 成功 → 板块即时回读
+      //（绕过 15s 轻扫等待；防抖/未保存守卫在 store 侧，宁守勿冲）。
+      if (it.name === "schedule_apply" && it.status === "done") {
+        notifyScheduleFileChanged();
+        continue;
+      }
       if (!OFFICE_WRITE_TOOLS.has(it.name)) continue;
       const paths = extractOfficeWritePaths(it.name, it.args).filter(isOfficeDeliverablePath);
       if (paths.length === 0) continue;

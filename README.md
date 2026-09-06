@@ -92,6 +92,7 @@ gaea/
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| **v4.114.0** | 2026-09-06 | 进度计划刀5：对话即排程（588 零变更）——schedule-edit 内联技能（编制/调整纪律：JGJ/T 121-2015 先分解后编网、回执核对、引擎裁决）、agent 写计划→板块即时回读（schedule_apply 回执触发，绕过 15s 轻扫）、schedule_* 工具卡摘要（总工期/关键/修改数一行）；vitest 2115/2115（store 同步链全链用例）、drift PASS@588。详见 releases/v4.114.0.md |
 | **v4.113.0** | 2026-09-06 | 进度计划刀4：AI 原生通道地基（586→588 +ScheduleLoad/Save）——internal/schedule Go 引擎（CPM/日历/ops 移植 28 例，与前端测试互为镜像）、agent 工具三件套 schedule_get/apply/analyze（快照+证据卡+CPM fail-closed，AI 产建议引擎裁决）、计划文件化 进度计划/当前计划.gsched.json（板块与 agent 共享，水合+自动保存+轮询回读）；?mock=1 全链走查过；市场调研 docs/market-research-2026-09-06.md。详见 releases/v4.113.0.md |
 | **v4.112.0** | 2026-09-06 | 进度计划刀3：斑马 UI 对齐（绑定面 586 零变更）——横道图分组行六色饱和循环+▲组名+行号列、时间轴改自然日列（非工作日底纹，CPM 仍按工作日）、单代号/双代号图例右端红字大数字统计牌、底部状态栏常驻（共 N 项工作·总工期 N 天）；?mock=1 三视图走查全过；vitest 2110/2110、drift PASS@586。详见 releases/v4.112.0.md |
 | **v4.111.0** | 2026-09-06 | 进度计划刀2：Project/斑马对齐（586 零变更）——工作日历 calendar.ts（周工作制+节假日例外，工期口径改工作日）、手动/自动任务模式、WBS 编码列、mspdi.ts MS Project XML 导入导出（务实子集+roundtrip）、横道图前锋线；vitest 2110/2110。详见 releases/v4.111.0.md |

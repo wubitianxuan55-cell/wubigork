@@ -58,6 +58,11 @@ export function subjectOf(name: string, args: string): string {
     case "chart_gen":
     case "diagram_gen":
       return str(a, "title");
+    case "schedule_get":
+    case "schedule_apply":
+    case "schedule_analyze":
+      // 缺省路径在 Go 侧解析（当前计划），args 里可能没有——给可读回退
+      return str(a, "path") || "当前计划";
     case "knowledge_search":
     case "memory_search":
       return str(a, "query");
@@ -267,6 +272,36 @@ export function summarize(name: string, args: string, output?: string, error?: s
       try {
         const r = JSON.parse(output) as { ok?: boolean; output?: string };
         if (r.ok && r.output) return r.output;
+      } catch {}
+      return "";
+    }
+    // ── 进度计划工具（v4.114 刀5）：返回裸 JSON（经信封剥离兜底），取回执字段 ──
+    case "schedule_apply": {
+      try {
+        const r = JSON.parse(extractOutputFromEnvelope(output)) as { duration?: number; critical?: string[]; changes?: string[] };
+        const parts: string[] = [];
+        if (typeof r.duration === "number") parts.push(`总工期 ${r.duration} 天`);
+        if (Array.isArray(r.critical) && r.critical.length > 0) parts.push(`关键 ${r.critical.length} 项`);
+        if (Array.isArray(r.changes) && r.changes.length > 0) parts.push(`${r.changes.length} 处修改`);
+        return parts.join(" · ");
+      } catch {}
+      return "";
+    }
+    case "schedule_get": {
+      try {
+        const r = JSON.parse(extractOutputFromEnvelope(output)) as { duration?: number; leafCount?: number };
+        if (typeof r.duration === "number") return `总工期 ${r.duration} 天 · ${r.leafCount ?? "?"} 项工作`;
+      } catch {}
+      return "";
+    }
+    case "schedule_analyze": {
+      try {
+        const r = JSON.parse(extractOutputFromEnvelope(output)) as { duration?: number; critical?: string[]; checks?: string[] };
+        const parts: string[] = [];
+        if (typeof r.duration === "number") parts.push(`总工期 ${r.duration} 天`);
+        if (Array.isArray(r.critical)) parts.push(`关键链 ${r.critical.length} 项`);
+        if (Array.isArray(r.checks) && r.checks.length > 0) parts.push(`质检 ${r.checks.length} 条`);
+        return parts.join(" · ");
       } catch {}
       return "";
     }
