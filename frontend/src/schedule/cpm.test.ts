@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { computeCpm } from './cpm'
+import { computeCpm, freeFloatPart } from './cpm'
 import type { SchedLink, SchedTask } from './types'
 
 function t(id: string, duration: number, extra?: Partial<SchedTask>): SchedTask {
@@ -156,5 +156,73 @@ describe('computeCpm 健壮性', () => {
     expect(r.rows.M).toMatchObject({ es: 4, ef: 4, critical: true })
     expect(r.rows.B).toMatchObject({ es: 4, ef: 6 })
     expect(r.duration).toBe(6)
+  })
+})
+
+describe('freeFloatPart 四型搭接口径（v4.129 刀G 修 E1）', () => {
+  // to 行：ES/EF 任意给（贡献只看 to 的锚点减 from 侧锚点与时距）
+  const to = { es: 21, ef: 25, ls: 0, lf: 0, tf: 0, ff: 0, critical: false }
+  it('FS 锚点=前置 EF', () => {
+    expect(freeFloatPart({ from: 'a', to: 'b', type: 'FS', lag: 2 }, to, 15, 10)).toBe(4) // 21-2-15
+  })
+  it('SS 锚点=前置 ES（旧版漏减致虚高 5）', () => {
+    expect(freeFloatPart({ from: 'a', to: 'b', type: 'SS', lag: 6 }, to, 15, 10)).toBe(5) // 21-6-10
+  })
+  it('FF 锚点=前置 EF', () => {
+    expect(freeFloatPart({ from: 'a', to: 'b', type: 'FF', lag: 1 }, to, 15, 10)).toBe(9) // 25-1-15
+  })
+  it('SF 锚点=前置 ES（旧版漏减致虚高 10）', () => {
+    expect(freeFloatPart({ from: 'a', to: 'b', type: 'SF', lag: 3 }, to, 15, 10)).toBe(12) // 25-3-10
+  })
+})
+
+describe('SS 搭接下 FF 积分口径（E1 回归钉死）', () => {
+  // A(5)→P(10)FS；Q(20) 根；S2 前置=P SS+2 与 Q FS：ES(S2)=max(7,20)=20
+  // FF(P)=min(32-15=17, ES(S2)-2-ES(P)=13)=13（旧版漏减 ES(P) 得 17）
+  const tasks = [t('A', 5), t('P', 10), t('Q', 20), t('S2', 12)]
+  const links = [l('A', 'P'), l('P', 'S2', 'SS', 2), l('Q', 'S2')]
+  it('FF(P)=13 而非 17', () => {
+    const r = computeCpm(tasks, links)
+    expect(r.rows.P).toMatchObject({ es: 5, ef: 15, ff: 13 })
+  })
+  it('「TF=0 ⇒ FF=0」定理：P 非关键路径上 FF ≤ TF', () => {
+    const r = computeCpm(tasks, links)
+    expect(r.rows.P.ff).toBeLessThanOrEqual(r.rows.P.tf)
+  })
+})
+
+describe('SF 搭接下 FF 积分口径（E1 回归钉死）', () => {
+  // A(5)→P(10)FS；Q(16) 根；S 前置=P SF+3 与 Q FS：ES(S)=max(8,16)=16，EF(S)=18
+  // T(20)←S：duration=38；FF(P)=min(38-15=23, EF(S)-3-ES(P)=10)=10（旧版得 15）
+  const tasks = [t('A', 5), t('P', 10), t('Q', 16), t('S', 2), t('T', 20)]
+  const links = [l('A', 'P'), l('P', 'S', 'SF', 3), l('Q', 'S'), l('S', 'T')]
+  it('FF(P)=10 而非 15', () => {
+    const r = computeCpm(tasks, links)
+    expect(r.rows.P).toMatchObject({ es: 5, ef: 15, ff: 10 })
+  })
+})
+
+describe('计划工期锚点（G3：deadline 进逆推）', () => {
+  const tasks = [t('A', 3), t('B', 4), t('C', 5)]
+  const links = [l('A', 'B'), l('B', 'C')]
+  it('planFinish=10 < Tc=12：绑定链负时差、关键=TF 最小集', () => {
+    const r = computeCpm(tasks, links, { planFinish: 10 })
+    expect(r.duration).toBe(12)
+    expect(r.rows.A).toMatchObject({ tf: -2, critical: true })
+    expect(r.rows.B).toMatchObject({ tf: -2, critical: true })
+    expect(r.rows.C).toMatchObject({ tf: -2, critical: true, ff: -2 })
+  })
+  it('planFinish=Tc：与无锚点一致（TF=0）', () => {
+    const r = computeCpm(tasks, links, { planFinish: 12 })
+    expect(r.rows.A).toMatchObject({ tf: 0, critical: true })
+    expect(r.rows.C).toMatchObject({ ff: 0 })
+  })
+  it('planFinish>Tc：不拉伸（锚点回落计算工期）', () => {
+    const r = computeCpm(tasks, links, { planFinish: 15 })
+    expect(r.rows.A).toMatchObject({ tf: 0, critical: true })
+  })
+  it('无锚点：与旧口径完全一致', () => {
+    const r = computeCpm(tasks, links)
+    expect(r.rows.B).toMatchObject({ es: 3, ef: 7, tf: 0, critical: true })
   })
 })

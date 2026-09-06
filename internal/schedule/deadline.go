@@ -21,6 +21,15 @@ type DeadlineCheck struct {
 	CriticalTasks []string `json:"criticalTasks"`
 }
 
+// PlanFinish 计划工期锚点（v4.129 刀G G3）：目标竣工 → 工作日边界索引
+// （第 N 工作日竣工 = N）。未设目标竣工返回 0（调用方按计算工期逆推）。
+func PlanFinish(p *Project) int {
+	if p.Deadline == "" {
+		return 0
+	}
+	return DeadlineWorkdays(p.StartDate, p.Deadline, p.Calendar)
+}
+
 // CheckDeadline 倒排校核。未设目标竣工或计划未通过 CPM 返回 nil。
 func CheckDeadline(p *Project, cpm CpmResult) *DeadlineCheck {
 	if p.Deadline == "" || !cpm.OK {

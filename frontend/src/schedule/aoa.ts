@@ -66,7 +66,7 @@ function effDur(t: SchedTask): number {
   return t.isMilestone ? 0 : Math.max(0, Math.round(t.duration))
 }
 
-export function buildAoa(tasks: SchedTask[], links: SchedLink[]): AoaGraph {
+export function buildAoa(tasks: SchedTask[], links: SchedLink[], opts?: { planFinish?: number | null }): AoaGraph {
   if (tasks.length === 0) return { ok: true, nodes: [], edges: [], taskEdge: {} }
   const byId = new Map(tasks.map((t) => [t.id, t]))
   const valid = links.filter((l) => l.from !== l.to && byId.has(l.from) && byId.has(l.to))
@@ -205,23 +205,28 @@ export function buildAoa(tasks: SchedTask[], links: SchedLink[]): AoaGraph {
   }
 
   const nodeLs = new Map<string, number>()
+  // 逆推锚点（v4.129 刀G G3）：目标竣工换算的计划工期 < 计算工期时按计划工期逆推
+  const total = Math.max(0, ...nodeIds.map((id) => nodeEs.get(id)!))
+  const planFinish = opts?.planFinish
+  const finish = planFinish != null && planFinish < total ? planFinish : total
   for (const id of eventOrder) {
     let es = 0
     for (const e of inEdges.get(id) ?? []) es = Math.max(es, nodeEs.get(e.from)! + e.dur)
     nodeEs.set(id, es)
   }
-  const total = Math.max(0, ...nodeIds.map((id) => nodeEs.get(id)!))
   for (let i = eventOrder.length - 1; i >= 0; i--) {
     const id = eventOrder[i]
-    let ls = total
+    let ls = finish
     for (const e of outEdges.get(id) ?? []) ls = Math.min(ls, nodeLs.get(e.to)! - e.dur)
     nodeLs.set(id, ls)
   }
 
   // ── 编号（拓扑序 1..N）与箭线关键标记 ─────────────────────
   const num = new Map(eventOrder.map((id, i) => [id, i + 1]))
+  // 关键箭线=浮时最小（规程口径：Tp<Tc 时最小浮时为负，不再恒为 0）
+  const floats = raws.map((r) => nodeLs.get(r.to)! - r.dur - nodeEs.get(r.from)!)
+  const minFloat = Math.min(0, ...floats)
   const edges: AoaEdge[] = raws.map((r, i) => {
-    const float = nodeLs.get(r.to)! - r.dur - nodeEs.get(r.from)!
     return {
       id: `e${i}`,
       from: r.from,
@@ -229,7 +234,7 @@ export function buildAoa(tasks: SchedTask[], links: SchedLink[]): AoaGraph {
       kind: r.kind,
       taskId: r.taskId,
       dur: r.dur,
-      critical: float === 0,
+      critical: floats[i] === minFloat,
       label: r.kind === 'task' ? `${r.dur}d` : (r.lag && r.lag !== 0 ? `${r.lag > 0 ? '+' : ''}${r.lag}d` : ''),
     }
   })

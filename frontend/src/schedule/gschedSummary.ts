@@ -9,7 +9,7 @@ import { computeCpm } from './cpm'
 import { normalizeProject } from './store'
 import { isoOf, wdToDate } from './calendar'
 import { computeBaselineDrift } from './baseline'
-import { checkDeadline } from './deadline'
+import { checkDeadline, planFinishOf } from './deadline'
 import type { SchedProject } from './types'
 
 /** 当前计划文件路径（与 Go internal/schedule/project.go DefaultRelPath 镜像） */
@@ -49,7 +49,7 @@ export function parseSchedSummary(raw: string): GschedSummary | null {
   }
   if (!data || typeof data !== 'object' || !Array.isArray((data as SchedProject).tasks)) return null
   const project = normalizeProject(data as SchedProject)
-  const cpm = computeCpm(project.tasks, project.links)
+  const cpm = computeCpm(project.tasks, project.links, { planFinish: planFinishOf(project) })
   const leaf = project.tasks.filter((t) => t.level > 0)
   const hasSchedule = cpm.ok && leaf.length > 0 && /^\d{4}-\d{2}-\d{2}$/.test(project.startDate)
   const drift = cpm.ok ? computeBaselineDrift(project, cpm) : null

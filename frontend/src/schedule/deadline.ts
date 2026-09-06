@@ -40,3 +40,13 @@ export function checkDeadline(project: SchedProject, cpm: CpmResult): DeadlineCh
     criticalTasks,
   }
 }
+
+/**
+ * 计划工期锚点（v4.129.0 刀G，G3）：目标竣工 → 工作日边界索引（第 N 工作日竣工
+ * = N）。规程口径：计划工期 Tp 小于计算工期 Tc 时逆推从 Tp 起（负时差诚实呈现）。
+ * 未设目标竣工返回 null（调用方按计算工期逆推，与旧口径零差异）。
+ */
+export function planFinishOf(project: Pick<SchedProject, 'startDate' | 'deadline' | 'calendar'>): number | null {
+  if (!project.deadline) return null
+  return deadlineWorkdays(project.startDate, project.deadline, project.calendar)
+}

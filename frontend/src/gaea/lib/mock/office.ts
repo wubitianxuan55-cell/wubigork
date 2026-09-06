@@ -4,6 +4,7 @@
 import type { AppBindings } from "../bridge";
 import type { FilePickResult } from "../types";
 import { computeCpm } from "../../../schedule/cpm";
+import { planFinishOf } from "../../../schedule/deadline";
 import { makeSampleProject } from "../../../schedule/sample";
 import {
   delay,
@@ -384,8 +385,11 @@ export function buildOffice(_s: MakeMockState): OfficeMethods {
       let duration = 0;
       let critical = 0;
       try {
-        const p = JSON.parse(projectJSON) as { tasks: Parameters<typeof computeCpm>[0]; links: Parameters<typeof computeCpm>[1] };
-        const r = computeCpm(p.tasks, p.links);
+        const p = JSON.parse(projectJSON) as Parameters<typeof planFinishOf>[0] & {
+          tasks: Parameters<typeof computeCpm>[0];
+          links: Parameters<typeof computeCpm>[1];
+        };
+        const r = computeCpm(p.tasks, p.links, { planFinish: planFinishOf(p) });
         duration = r.duration;
         critical = Object.values(r.rows).filter((x) => x.critical).length;
       } catch { /* 坏 JSON 由真实 Go 侧拒绝，mock 宽松回 0 */ }

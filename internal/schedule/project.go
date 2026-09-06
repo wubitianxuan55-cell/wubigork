@@ -189,7 +189,7 @@ func Validate(p *Project) error {
 // Analyze CPM 分析（含关键链与近关键清单）——schedule_analyze 与 apply
 // 回执共用的叙事数据。
 func (p Project) Analyze() (CpmResult, Analysis) {
-	cpm := ComputeCpm(p.Tasks, p.Links)
+	cpm := ComputeCpmPlan(p.Tasks, p.Links, PlanFinish(&p))
 	a := Analysis{Cpm: cpm}
 	if !cpm.OK {
 		return cpm, a

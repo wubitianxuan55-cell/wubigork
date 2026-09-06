@@ -13,6 +13,7 @@ import type { AoaPin, LinkType, SchedAssignment, SchedCalendar, SchedLink, Sched
 import { makeEmptyProject, makeSampleProject } from './sample'
 import { normalizeCalendar } from './calendar'
 import { computeCpm } from './cpm'
+import { planFinishOf } from './deadline'
 import { loadScheduleFile, saveScheduleFile } from './api'
 import { snapshotBaseline } from './baseline'
 import { normalizeAoaLayout } from './aoaLayout'
@@ -174,7 +175,7 @@ export const useScheduleStore = create<ScheduleState>()(
 
       setBaseline: (name) => {
         const { project } = useScheduleStore.getState()
-        const cpm = computeCpm(project.tasks, project.links)
+        const cpm = computeCpm(project.tasks, project.links, { planFinish: planFinishOf(project) })
         const r = snapshotBaseline(project, cpm, formatNow(), name)
         if (!r.ok) return r.error
         useScheduleStore.setState({ project: { ...project, baseline: r.baseline } })

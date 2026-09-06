@@ -19,7 +19,7 @@ import { computeCosts } from '../schedule/cost'
 import { buildAoa } from '../schedule/aoa'
 import { buildProjectXml, parseProjectXml } from '../schedule/mspdi'
 import { computeBaselineDrift } from '../schedule/baseline'
-import { checkDeadline } from '../schedule/deadline'
+import { checkDeadline, planFinishOf } from '../schedule/deadline'
 import type { CpmResult } from '../schedule/types'
 import { useScheduleStore, isGroupRow, initScheduleSync } from '../schedule/store'
 import { ResourcePanel } from '../schedule/ResourcePanel'
@@ -246,8 +246,8 @@ const SchedulePage: React.FC = () => {
   // 文件同步：水合（文件为准，localStorage 迁移）+ 自动保存 + agent 写入回读
   useEffect(() => { void initScheduleSync() }, [])
 
-  const cpm = useMemo(() => computeCpm(project.tasks, project.links), [project])
-  const aoa = useMemo(() => buildAoa(project.tasks, project.links), [project])
+  const cpm = useMemo(() => computeCpm(project.tasks, project.links, { planFinish: planFinishOf(project) }), [project])
+  const aoa = useMemo(() => buildAoa(project.tasks, project.links, { planFinish: planFinishOf(project) }), [project])
   const drift = useMemo(() => computeBaselineDrift(project, cpm), [project, cpm])
   const dl = useMemo(() => checkDeadline(project, cpm), [project, cpm])
   // 资源成本（刀3）：总成本随每次 render 重算（与 CPM 同范式）；无资源/成本数据不显示（诚实呈现）

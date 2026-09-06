@@ -48,17 +48,19 @@ func backwardBound(l Link, to TaskCpm, durFrom, durTo int) int {
 	return 0
 }
 
-// freeFloatPart 单条搭接对前置任务自由时差的贡献。
-func freeFloatPart(l Link, to TaskCpm, efFrom int) int {
+// freeFloatPart 单条搭接对前置任务自由时差的贡献（搭接口径 LAG_i-j，
+// v4.129 刀G 修 E1）：FF/FS 锚点=前置 EF；SS/SF 锚点=前置 ES
+// （旧版漏减 ES_from 致 SS/SF 下 FF 虚高，违反「TF=0 ⇒ FF=0」定理）。
+func freeFloatPart(l Link, to TaskCpm, efFrom, esFrom int) int {
 	switch l.Type {
 	case FS:
 		return to.ES - l.Lag - efFrom
 	case SS:
-		return to.ES - l.Lag
+		return to.ES - l.Lag - esFrom
 	case FF:
 		return to.EF - l.Lag - efFrom
 	case SF:
-		return to.EF - l.Lag
+		return to.EF - l.Lag - esFrom
 	}
 	return 0
 }
@@ -117,7 +119,20 @@ func minInt(a, b int) int {
 
 // ComputeCpm CPM 主计算。任务表全量参与（分组行 duration=0 退化为零工期点，
 // 汇总条由视图层按子项滚动，不经引擎）。
+// ComputeCpm CPM 主计算（无目标竣工锚点，按计算工期逆推）。
 func ComputeCpm(tasks []Task, links []Link) CpmResult {
+	return computeCpmAnchor(tasks, links, 0)
+}
+
+// ComputeCpmPlan 带计划工期锚点的 CPM（v4.129 刀G G3）：planFinish=目标竣工换算的
+// 工作日边界（第 N 工作日竣工）。规程口径：计划工期 Tp 小于计算工期 Tc 时逆推从
+// Tp 起——绑定链出现负时差，关键工作=总时差最小者（不再恒为 TF=0）；
+// planFinish<=0 或 ≥Tc 时与 ComputeCpm 完全一致。
+func ComputeCpmPlan(tasks []Task, links []Link, planFinish int) CpmResult {
+	return computeCpmAnchor(tasks, links, planFinish)
+}
+
+func computeCpmAnchor(tasks []Task, links []Link, planFinish int) CpmResult {
 	byID := make(map[string]Task, len(tasks))
 	ids := make([]string, 0, len(tasks))
 	for _, t := range tasks {
@@ -195,7 +210,13 @@ func ComputeCpm(tasks []Task, links []Link) CpmResult {
 		duration = maxInt(duration, rows[t.ID].EF)
 	}
 
-	// 逆推：LF = min(各搭接上界 / 总工期)；manual 任务 LF=EF（锁定，不回传约束）。
+	// 逆推锚点（G3）：计划工期 < 计算工期时从计划工期逆推（负时差诚实呈现）。
+	anchor := duration
+	if planFinish > 0 && planFinish < duration {
+		anchor = planFinish
+	}
+
+	// 逆推：LF = min(各搭接上界 / 计划工期)；manual 任务 LF=EF（锁定，不回传约束）。
 	for i := len(order) - 1; i >= 0; i-- {
 		id := order[i]
 		t := byID[id]
@@ -207,7 +228,7 @@ func ComputeCpm(tasks []Task, links []Link) CpmResult {
 			rows[id] = row
 			continue
 		}
-		lf := duration
+		lf := anchor
 		for _, l := range outLinks[id] {
 			if byID[l.To].Mode == ModeManual {
 				continue // 手动后继不约束前置
@@ -219,19 +240,36 @@ func ComputeCpm(tasks []Task, links []Link) CpmResult {
 		rows[id] = row
 	}
 
-	// 时差与关键标记（manual 任务时差为 0 但不标关键）。
+	// 时差与关键标记（manual 任务不标关键）：关键工作=总时差最小者
+	// （规程口径：Tp=Tc 时最小值为 0，Tp<Tc 时为负——不再恒为 TF==0）。
+	// 仅在 deadline 真正收紧（anchor<duration）时启用 minTF：manual 驱动总工期、
+	// 非手动链无 TF=0 的场景维持经典口径（避免把带浮动的工作误标关键）。
+	minTF := -1
+	for _, t := range tasks {
+		if t.Mode == ModeManual {
+			continue
+		}
+		tf := rows[t.ID].LS - rows[t.ID].ES
+		if minTF == -1 || tf < minTF {
+			minTF = tf
+		}
+	}
+	critTF := 0
+	if anchor < duration {
+		critTF = minTF
+	}
 	for _, t := range tasks {
 		row := rows[t.ID]
 		row.TF = row.LS - row.ES
-		ff := duration - row.EF
+		ff := anchor - row.EF
 		for _, l := range outLinks[t.ID] {
 			if byID[l.To].Mode == ModeManual {
 				continue
 			}
-			ff = minInt(ff, freeFloatPart(l, rows[l.To], row.EF))
+			ff = minInt(ff, freeFloatPart(l, rows[l.To], row.EF, row.ES))
 		}
 		row.FF = ff
-		row.Critical = t.Mode != ModeManual && row.TF == 0
+		row.Critical = t.Mode != ModeManual && row.TF == critTF
 		rows[t.ID] = row
 	}
 

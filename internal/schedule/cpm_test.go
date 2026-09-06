@@ -188,3 +188,86 @@ func TestCpmMilestoneChain(t *testing.T) {
 		t.Fatalf("dur = %d", r.Duration)
 	}
 }
+
+// ── v4.129.0 刀G：E1 四型 FF 口径 + G3 计划工期锚点（与 cpm.test.ts 镜像）──
+
+func TestFreeFloatPartFourTypes(t *testing.T) {
+	to := TaskCpm{ES: 21, EF: 25}
+	cases := []struct {
+		typ            LinkType
+		lag            int
+		efFrom, esFrom int
+		want           int
+	}{
+		{FS, 2, 15, 10, 4},  // 21-2-15
+		{SS, 6, 15, 10, 5},  // 21-6-10（旧版漏减 esFrom 得 15）
+		{FF, 1, 15, 10, 9},  // 25-1-15
+		{SF, 3, 15, 10, 12}, // 25-3-10（旧版漏减 esFrom 得 22）
+	}
+	for _, c := range cases {
+		if got := freeFloatPart(Link{From: "a", To: "b", Type: c.typ, Lag: c.lag}, to, c.efFrom, c.esFrom); got != c.want {
+			t.Fatalf("%s: got %d want %d", c.typ, got, c.want)
+		}
+	}
+}
+
+func TestCpmSSTaskFloatE1(t *testing.T) {
+	// A(5)→P(10)FS；Q(20) 根；S2 前置=P SS+2 与 Q FS：ES(S2)=max(7,20)=20
+	// FF(P)=min(32-15=17, 20-2-5=13)=13（旧版漏减 ES(P) 得 17）
+	r := ComputeCpm(
+		[]Task{tsk("A", 5, nil), tsk("P", 10, nil), tsk("Q", 20, nil), tsk("S2", 12, nil)},
+		[]Link{lnk("A", "P", FS, 0), lnk("P", "S2", SS, 2), lnk("Q", "S2", FS, 0)},
+	)
+	if got := r.Rows["P"]; got.ES != 5 || got.EF != 15 || got.FF != 13 {
+		t.Fatalf("P = %+v", got)
+	}
+	if r.Rows["P"].FF > r.Rows["P"].TF {
+		t.Fatalf("定理 TF=0⇒FF=0 / FF≤TF 破坏: %+v", r.Rows["P"])
+	}
+}
+
+func TestCpmSFTaskFloatE1(t *testing.T) {
+	// A(5)→P(10)FS；Q(16) 根；S 前置=P SF+3 与 Q FS：ES(S)=16，EF(S)=18
+	// T(20)←S：duration=38；FF(P)=min(38-15=23, 18-3-5=10)=10（旧版得 15）
+	r := ComputeCpm(
+		[]Task{tsk("A", 5, nil), tsk("P", 10, nil), tsk("Q", 16, nil), tsk("S", 2, nil), tsk("T", 20, nil)},
+		[]Link{lnk("A", "P", FS, 0), lnk("P", "S", SF, 3), lnk("Q", "S", FS, 0), lnk("S", "T", FS, 0)},
+	)
+	if got := r.Rows["P"]; got.ES != 5 || got.EF != 15 || got.FF != 10 {
+		t.Fatalf("P = %+v", got)
+	}
+}
+
+func TestCpmPlanFinishAnchor(t *testing.T) {
+	tasks := []Task{tsk("A", 3, nil), tsk("B", 4, nil), tsk("C", 5, nil)}
+	links := []Link{lnk("A", "B", FS, 0), lnk("B", "C", FS, 0)}
+	// planFinish=10 < Tc=12：绑定链负时差、关键=TF 最小集
+	r := ComputeCpmPlan(tasks, links, 10)
+	if r.Duration != 12 {
+		t.Fatalf("dur = %d", r.Duration)
+	}
+	for _, id := range []string{"A", "B", "C"} {
+		got := r.Rows[id]
+		if got.TF != -2 || !got.Critical {
+			t.Fatalf("%s = %+v", id, got)
+		}
+	}
+	if r.Rows["C"].FF != -2 {
+		t.Fatalf("C.FF = %d", r.Rows["C"].FF)
+	}
+	// planFinish=Tc：与无锚点一致（TF=0）
+	r = ComputeCpmPlan(tasks, links, 12)
+	if !r.Rows["A"].Critical || r.Rows["A"].TF != 0 || r.Rows["C"].FF != 0 {
+		t.Fatalf("planFinish=Tc: A=%+v C=%+v", r.Rows["A"], r.Rows["C"])
+	}
+	// planFinish>Tc：不拉伸（锚点回落计算工期）
+	r = ComputeCpmPlan(tasks, links, 15)
+	if !r.Rows["A"].Critical || r.Rows["A"].TF != 0 {
+		t.Fatalf("planFinish>Tc: A=%+v", r.Rows["A"])
+	}
+	// 无锚点：与旧口径完全一致
+	r = ComputeCpm(tasks, links)
+	if !r.Rows["B"].Critical || r.Rows["B"].ES != 3 || r.Rows["B"].EF != 7 {
+		t.Fatalf("no anchor: B=%+v", r.Rows["B"])
+	}
+}

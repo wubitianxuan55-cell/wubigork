@@ -1,3 +1,9 @@
+## v4.129.0 · 进度计划基本功刀G：引擎诚实化——FF 搭接口径 + 计划工期锚点（2026-09-07）
+> 修审计确认的两处引擎缺陷：E1=freeFloatPart SS/SF 型漏减前置 ES 锚点（自由时差虚高，违反 TF=0⇒FF=0 定理）；G3=目标竣工作计划工期锚点进逆推（超期时负时差诚实呈现、关键工作=TF 最小集；manual 驱动场景维持经典口径）。TS/Go 镜像。绑定面 **588** 零变更。详见 releases/v4.129.0.md。
+- E1：freeFloatPart 增 esFrom 参数并导出，四型公式单测钉死；实证 管道铺设 FF 11→0、沥青面层 2→0。
+- G3：computeCpm/ComputeCpmPlan 增 planFinish 锚点（PlanFinish/planFinishOf=deadlineWorkdays 换算）；接线 SchedulePage/buildAoa/setBaseline/gschedSummary/mock analyze/Project.Analyze；AOA 事件逆推同步收紧、箭线关键=浮时最小。
+- 测试：TS +11、Go +4（镜像）；实证 deadline 收紧后绑定链 TF=−2、关键集 8 项不变、状态栏「超 2 天」。门禁：tsc/eslint 0、vitest **2241**、go test ./... 绿、drift PASS@588、版本四处 4.129.0。坑复证：vitest 与 go test 并发跑必 flaky，门禁分开跑。
+
 ## v4.128.0 · 进度计划基本功刀F：单代号网络图合规整改（2026-09-06）
 > 修「整网一条直线/无分支/关键线路不可辨」：布局从时标分层改拓扑分层（并行分支同列并列）、多起点/终点增虚拟 S/T 节点、关键线路=绑定中的临界搭接红色贯通、节点行号角标。引擎零变更，绑定面 **588** 零变更。详见 releases/v4.128.0.md。
 - layerByTopology 纯函数（列=最长路径深度+三轮重心松弛；layerByTime 原样保留供 AOA 时标口径）；isLinkBinding 四型绑定判定（FS/SS/FF/SF 的关键搭接不再漏标）。

@@ -39,13 +39,17 @@ function backwardBound(link: SchedLink, to: TaskCpm, durFrom: number, durTo: num
   }
 }
 
-/** 单条搭接对前置任务自由时差的贡献（相对 to 的最早时间；FS 按完成对齐再减 EF_from） */
-function freeFloatPart(link: SchedLink, to: TaskCpm, efFrom: number): number {
+/**
+ * 单条搭接对前置任务自由时差的贡献（搭接口径 LAG_i-j，v4.129 刀G 修 E1）：
+ * FF/FS 锚点=前置 EF；SS/SF 锚点=前置 ES（旧版漏减 ES_from 致 SS/SF 下 FF 虚高，
+ * 违反「TF=0 ⇒ FF=0」定理）。导出供镜像测试直接钉死四型公式。
+ */
+export function freeFloatPart(link: SchedLink, to: TaskCpm, efFrom: number, esFrom: number): number {
   switch (link.type) {
     case 'FS': return to.es - link.lag - efFrom
-    case 'SS': return to.es - link.lag
+    case 'SS': return to.es - link.lag - esFrom
     case 'FF': return to.ef - link.lag - efFrom
-    case 'SF': return to.ef - link.lag
+    case 'SF': return to.ef - link.lag - esFrom
   }
 }
 
@@ -72,8 +76,17 @@ function topoOrder(ids: string[], out: Map<string, string[]>, indeg: Map<string,
 /**
  * CPM 主计算。任务表全量参与（分组行 duration=0、无搭接时退化为零工期点，
  * 汇总条由视图层按子项滚动，不经引擎）。
+ *
+ * v4.129 刀G（G3）：opts.planFinish=计划工期锚点（工作日边界，来自目标竣工换算）。
+ * 规程口径：计划工期 Tp 小于计算工期 Tc 时逆推从 Tp 起——绑定链出现**负时差**，
+ * 关键工作=总时差最小者（不再恒为 TF=0）；planFinish 缺省/≥Tc 时与旧口径完全一致。
  */
-export function computeCpm(tasks: SchedTask[], links: SchedLink[]): CpmResult {
+export interface CpmOptions {
+  /** 计划工期锚点（工作日边界索引；null/undefined=无目标竣工，按计算工期逆推） */
+  planFinish?: number | null
+}
+
+export function computeCpm(tasks: SchedTask[], links: SchedLink[], opts?: CpmOptions): CpmResult {
   const byId = new Map(tasks.map((t) => [t.id, t]))
   const ids = tasks.map((t) => t.id)
   const valid = links.filter((l) => l.from !== l.to && byId.has(l.from) && byId.has(l.to))
@@ -125,7 +138,12 @@ export function computeCpm(tasks: SchedTask[], links: SchedLink[]): CpmResult {
   }
   const duration = Math.max(0, ...tasks.map((t) => rows[t.id].ef))
 
-  // 逆推：LF = min(各搭接上界 / 总工期)；manual 任务 LF=EF（锁定，不回传约束）
+  // 逆推锚点（G3）：计划工期 < 计算工期时从计划工期逆推（负时差诚实呈现）；
+  // 其余（无目标竣工/压线/富余）从计算工期逆推，与旧口径零差异。
+  const planFinish = opts?.planFinish
+  const anchor = planFinish != null && planFinish < duration ? planFinish : duration
+
+  // 逆推：LF = min(各搭接上界 / 计划工期)；manual 任务 LF=EF（锁定，不回传约束）
   for (let i = topo.order.length - 1; i >= 0; i--) {
     const id = topo.order[i]
     const t = byId.get(id)!
@@ -136,7 +154,7 @@ export function computeCpm(tasks: SchedTask[], links: SchedLink[]): CpmResult {
       row.ls = row.es
       continue
     }
-    let lf = duration
+    let lf = anchor
     for (const l of outLinks.get(id) ?? []) {
       if (byId.get(l.to)!.mode === 'manual') continue // 手动后继不约束前置
       lf = Math.min(lf, backwardBound(l, rows[l.to], dur, effDur(byId.get(l.to)!)))
@@ -145,17 +163,27 @@ export function computeCpm(tasks: SchedTask[], links: SchedLink[]): CpmResult {
     row.ls = lf - dur
   }
 
-  // 时差与关键标记（manual 任务时差为 0 但不标关键）
+  // 时差与关键标记（manual 任务不标关键）：关键工作=总时差最小者
+  // （规程口径：Tp=Tc 时最小值为 0，Tp<Tc 时为负——不再恒为 TF===0）。
+  // 仅在 deadline 真正收紧（anchor<duration）时启用 minTF：manual 驱动总工期、
+  // 非手动链无 TF=0 的场景维持经典口径（避免把带浮动的任务误标关键）。
+  let minTf = Number.POSITIVE_INFINITY
+  for (const t of tasks) {
+    if (t.mode === 'manual') continue
+    minTf = Math.min(minTf, rows[t.id].ls - rows[t.id].es)
+  }
+  if (!Number.isFinite(minTf)) minTf = 0
+  const critTf = anchor < duration ? minTf : 0
   for (const t of tasks) {
     const row = rows[t.id]
     row.tf = row.ls - row.es
-    let ff = duration - row.ef
+    let ff = anchor - row.ef
     for (const l of outLinks.get(t.id) ?? []) {
       if (byId.get(l.to)!.mode === 'manual') continue
-      ff = Math.min(ff, freeFloatPart(l, rows[l.to], row.ef))
+      ff = Math.min(ff, freeFloatPart(l, rows[l.to], row.ef, row.es))
     }
     row.ff = ff
-    row.critical = t.mode !== 'manual' && row.tf === 0
+    row.critical = t.mode !== 'manual' && row.tf === critTf
   }
 
   return { ok: true, rows, duration }
