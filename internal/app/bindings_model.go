@@ -18,7 +18,7 @@ func (b *ModelB) GaeaBenchmarkStart(req BenchmarkRequest) (string, error) { retu
 func (b *ModelB) GaeaEngines() []modelengine.EngineConfig { return b.a.GaeaEngines() }
 func (b *ModelB) GaeaGetUsdCnyRate() float64 { return b.a.GaeaGetUsdCnyRate() }
 func (b *ModelB) GaeaModel() string { return b.a.GaeaModel() }
-func (b *ModelB) GaeaModelSwitchEstimate(engineID string) ModelSwitchEstimate { return b.a.GaeaModelSwitchEstimate(engineID) }
+func (b *ModelB) GaeaModelSwitchEstimate(engineID string, model string) ModelSwitchEstimate { return b.a.GaeaModelSwitchEstimate(engineID, model) }
 func (b *ModelB) GaeaModels() []ModelInfo { return b.a.GaeaModels() }
 func (b *ModelB) GaeaSetEngine(engineID string) error { return b.a.GaeaSetEngine(engineID) }
 func (b *ModelB) GaeaSetModel(name string) error { return b.a.GaeaSetModel(name) }

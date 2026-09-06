@@ -684,8 +684,10 @@ export interface AppBindings {
   PreloadPlanGet(): Promise<boolean>;
   PreloadPlanSet(enabled: boolean): Promise<void>;
   // ModelSwitchEstimate 换模预估：目标本地模型 hot/cold/download/unknown，
-  // 前端在非 hot 时提示预计等待秒数并让用户确认是否继续切换。
-  ModelSwitchEstimate(engineID: string): Promise<ModelSwitchEstimate>;
+  // 前端在非 hot 时提示预计等待并让用户确认是否继续切换。v4.126 刀2 起
+  // 按目标模型口径覆盖全部本地引擎（herdsman/ollama/modelhub）；model 省略
+  // 时后端回退引擎默认模型。
+  ModelSwitchEstimate(engineID: string, model?: string): Promise<ModelSwitchEstimate>;
   // ── 对话 chat（T6-3 契约同步）────────────────────────────
   // ChatTopicsList/ChatMessagesList Go 侧签名变为 ([]T, error)（T6-3.2 读错
   // 返回 error），Wails 绑定后失败为 rejected promise；这里以 [T[], unknown]

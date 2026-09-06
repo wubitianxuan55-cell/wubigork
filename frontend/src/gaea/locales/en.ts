@@ -1586,6 +1586,8 @@ export const en = {
   "model.switchAsk": "{name} is not running ({note}).\n{wait} — switch anyway?",
   "model.switchOk": "Switch anyway",
   "model.needColdStart": "cold start required",
+  "model.localTag": "local",
+  "model.running": "running",
 
   // ── v4.62 交付验收闭环 A2：Word 修改队列 ──
   "docxQueue.toggle": "Queue",

@@ -1,3 +1,10 @@
+## v4.126.0 · 本地模型使用：切换器模型粒度化 + 换模预估按目标模型全覆盖（2026-09-06）
+> 办公模型切换器从引擎粒度到模型粒度；换模预估从「只支持 herdsman 且按错模型」到按目标模型覆盖全部本地引擎（宁 unknown 勿假 hot）。绑定面 **588** 零变更（GaeaModelSwitchEstimate 仅扩展签名）。详见 releases/v4.126.0.md。
+- **刀1 切换器模型粒度**：GaeaModels 按引擎展开全部 Kind=llm 模型（本地组置前/ModelInfo 增 local·status·label/空清单回退 "(默认)"）；GaeaSetModel("engine/model") 先 SetDefaultModel 再切引擎（清单外报错 fail-closed）；前端分组+「本地」标+运行中徽标+展示名优先；附带修 GaeaModels nil-client 空指针风险。
+- **刀2 预估诚实化**：herdsman 按目标模型查目录（修旧版只查 DefaultModel）；ollama 原生 /api/ps+/api/tags（:latest 归一，ps 挂 tags 活保守 cold）；modelhub 复用 ModelHubModelLoaded；未加载 cold 不假报秒数（前端「需要一些时间」）；i18n 三语 +2 键；mock 契约对齐。
+- 测试：Go +新预估表驱动/GaeaModels/GaeaSetModel；TS +2；?mock=1 走查 DOM 断言六项全过（分组序/组名标/徽标/展示名/确认弹层/云端直切）。
+- 门禁：tsc/eslint 0、vitest 2214→**2216**、Go 全量 0 FAIL、drift PASS@588、版本四处 4.126.0、build.bat 冒烟 200。
+
 ## v4.125.0 · 联动候选：摘要卡「设为当前计划」+ 拍板池三设计文档落档（2026-09-06）
 > 非当前计划的 .gsched.json 摘要卡新增「设为当前计划」一键（复制为当前计划+板块即时回读，循环依赖不提供入口）；拍板池三项（diff 确认卡/双工期口径/多工程）并行子代理完成拍板用设计文档。绑定面 **588** 零变更。详见 releases/v4.125.0.md。
 - 「设为当前计划」：走既有 ScheduleSave fail-closed 通道+notifyScheduleFileChanged 即时回读；i18n 三语 +4 键。

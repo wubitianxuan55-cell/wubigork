@@ -1591,6 +1591,8 @@ export const zhTW: Record<DictKey, string> = {
   "model.switchAsk": "{name} 未在執行（{note}）。\n{wait}，確定繼續切換嗎？",
   "model.switchOk": "繼續切換",
   "model.needColdStart": "需冷啟動",
+  "model.localTag": "本地",
+  "model.running": "執行中",
 
   // ── v4.62 交付驗收閉環 A2：Word 修改佇列 ──
   "docxQueue.toggle": "佇列",

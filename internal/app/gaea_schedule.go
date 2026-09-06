@@ -23,11 +23,17 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync/atomic"
 	"time"
 
 	"github.com/gaea/gaea/internal/config"
+	"github.com/gaea/gaea/internal/modelengine"
 )
+
+// ollamaProbeClient Ollama 原生 API 探测专用客户端（超时由请求 ctx 控制，
+// 独立实例避免与引擎主客户端配置互相牵连）。
+var ollamaProbeClient = &http.Client{}
 
 // ─── T5-3a 保活 keep-warm ──────────────────────────────────
 
@@ -390,36 +396,64 @@ func estimateModelSwitch(installed, running bool) (status string, waitSeconds in
 	return "download", 0
 }
 
-// GaeaModelSwitchEstimate 换模预计等待：
-// 非 herdsman 引擎恒为 hot（引擎常驻，无需本机加载）；herdsman 读引擎
-// DefaultModel，查模型目录定位 hot/cold/download；目录不可用 → unknown。
-func (a *App) GaeaModelSwitchEstimate(engineID string) ModelSwitchEstimate {
-	out := ModelSwitchEstimate{Engine: engineID}
-	if engineID != "herdsman" {
-		// 云端/常驻引擎无需本机加载，视为热切换。
+// ollamaProbeTimeout Ollama 原生 API 探测超时（切换器交互路径，宁短勿卡）。
+const ollamaProbeTimeout = 3 * time.Second
+
+// estimateUnknown 填 unknown 档（共享文案，调用方按语境可覆盖）。
+func estimateUnknown(out ModelSwitchEstimate, note string) ModelSwitchEstimate {
+	out.Status = "unknown"
+	out.WaitSeconds = 0
+	out.Note = note
+	return out
+}
+
+// GaeaModelSwitchEstimate 换模预计等待。v4.126 刀2 起按「目标模型」口径覆盖全部
+// 本地引擎（旧版非 herdsman 恒 hot、herdsman 只查引擎默认模型——ollama/modelhub
+// 未加载模型切过去明明要冷启动却报「引擎已就绪」）：云端引擎常驻恒 hot；
+// 本地引擎查目标 model 的加载态——herdsman 读模型目录（Installed/Running）、
+// ollama 读原生 /api/ps（已加载）与 /api/tags（已安装）、modelhub 探测 Studio
+// /v1/models；服务不可达如实 unknown（宁未知勿假 hot）。model 为空或 "(默认)"
+// 回退引擎默认模型（兼容旧调用）。
+func (a *App) GaeaModelSwitchEstimate(engineID, model string) ModelSwitchEstimate {
+	out := ModelSwitchEstimate{Engine: engineID, Model: model}
+	switch engineID {
+	case "herdsman", "ollama", "modelhub":
+		// 本地引擎：往下按目标模型查加载态
+	default:
 		out.Status = "hot"
 		out.WaitSeconds = 1
 		out.Note = "引擎已就绪"
 		return out
 	}
-	if a == nil || a.core == nil || a.engineMgr == nil {
-		out.Status = "unknown"
-		out.Note = "无法确认模型状态，切换后可能需等待"
-		return out
+	if a == nil || a.engineMgr == nil {
+		return estimateUnknown(out, "无法确认模型状态，切换后可能需等待")
 	}
-	eng, ok := a.engineMgr.GetEngine("herdsman")
-	if !ok || eng.DefaultModel == "" {
-		out.Status = "unknown"
-		out.Note = "无法确认模型状态，切换后可能需等待"
-		return out
+	eng, ok := a.engineMgr.GetEngine(engineID)
+	if !ok {
+		return estimateUnknown(out, "无法确认模型状态，切换后可能需等待")
 	}
-	model := eng.DefaultModel
-	out.Model = model
+	if model == "" || model == "(默认)" {
+		model = eng.DefaultModel
+		out.Model = model
+	}
+	if model == "" {
+		return estimateUnknown(out, "引擎未设默认模型，无法预估；请选择具体模型")
+	}
+	switch engineID {
+	case "herdsman":
+		return a.estimateHerdsmanModelSwitch(model, out)
+	case "ollama":
+		return a.estimateOllamaModelSwitch(eng, model, out)
+	default:
+		return a.estimateModelHubModelSwitch(model, out)
+	}
+}
+
+// estimateHerdsmanModelSwitch 按目标模型查 herdsman 目录（Installed/Running）估档位。
+func (a *App) estimateHerdsmanModelSwitch(model string, out ModelSwitchEstimate) ModelSwitchEstimate {
 	catalog, err := a.HerdsmanModelCatalog()
 	if err != nil {
-		out.Status = "unknown"
-		out.Note = "无法确认模型状态，切换后可能需等待"
-		return out
+		return estimateUnknown(out, "无法确认模型状态，切换后可能需等待")
 	}
 	installed, running := false, false
 	for _, m := range catalog.Models {
@@ -432,13 +466,102 @@ func (a *App) GaeaModelSwitchEstimate(engineID string) ModelSwitchEstimate {
 	out.Status, out.WaitSeconds = status, wait
 	switch status {
 	case "hot":
-		out.Note = "引擎已就绪"
+		out.Note = "模型已运行，可直接切换"
 	case "cold":
 		out.Note = "本地模型需冷启动，实测约 15-20 秒"
 	case "download":
 		out.Note = "模型未安装，需先下载（模型中心模型库可下载）"
 	}
 	return out
+}
+
+// estimateOllamaModelSwitch 按目标模型查 Ollama 原生 API 估档位：
+// /api/ps=已加载（hot）、/api/tags=已安装（未加载→cold，加载时长随模型大小差异
+// 大，不假报秒数）、都不在=未安装（download 引导 ollama pull）。/api/ps 不可达但
+// /api/tags 可达时按已安装未加载保守估 cold；两路都不可达如实 unknown。
+func (a *App) estimateOllamaModelSwitch(eng *modelengine.EngineConfig, model string, out ModelSwitchEstimate) ModelSwitchEstimate {
+	root := ollamaNativeRoot(eng.BaseURL)
+	ctx, cancel := context.WithTimeout(context.Background(), ollamaProbeTimeout)
+	defer cancel()
+	loaded, loadedErr := fetchOllamaModelNames(ctx, root, "/api/ps")
+	installed, instErr := fetchOllamaModelNames(ctx, root, "/api/tags")
+	if loadedErr != nil && instErr != nil {
+		return estimateUnknown(out, "无法连接 Ollama，无法确认模型状态")
+	}
+	inLoaded := loadedErr == nil && ollamaHasModel(loaded, model)
+	inInstalled := instErr == nil && ollamaHasModel(installed, model)
+	switch {
+	case inLoaded:
+		out.Status, out.WaitSeconds, out.Note = "hot", 1, "模型已加载，可直接切换"
+	case inInstalled:
+		out.Status, out.Note = "cold", "模型已安装未加载，切换后首次对话需等待加载"
+	case instErr == nil:
+		// 安装清单可达且无此模型：未安装（加载列表是否可达不影响结论）。
+		out.Status, out.Note = "download", "Ollama 未安装该模型，需先 ollama pull 下载"
+	case loadedErr == nil:
+		// 加载列表可达但模型不在其中、安装清单不可达：未加载属实，是否已安装
+		// 未知，保守按需加载估。
+		out.Status, out.Note = "cold", "模型已安装未加载，切换后首次对话需等待加载"
+	}
+	return out
+}
+
+// estimateModelHubModelSwitch 探测 Studio /v1/models 是否已含目标模型（已加载
+// →hot；未加载→cold 不报秒数——大 GGUF 加载以分钟计，模型中心 Model Hub 卡
+// 可一键加载）；探测失败如实 unknown。
+func (a *App) estimateModelHubModelSwitch(model string, out ModelSwitchEstimate) ModelSwitchEstimate {
+	ctx, cancel := context.WithTimeout(context.Background(), ollamaProbeTimeout)
+	defer cancel()
+	loaded, err := a.engineMgr.ModelHubModelLoaded(ctx, model)
+	if err != nil {
+		return estimateUnknown(out, "无法连接 Model Hub，无法确认模型状态")
+	}
+	if loaded {
+		out.Status, out.WaitSeconds, out.Note = "hot", 1, "模型已加载，可直接切换"
+		return out
+	}
+	out.Status, out.Note = "cold", "模型未加载，切换后首次对话需等待加载（模型中心 Model Hub 卡可一键加载）"
+	return out
+}
+
+// ollamaNativeRoot 由 OpenAI 兼容 BaseURL（…/v1）推 Ollama 原生 API 根地址。
+func ollamaNativeRoot(baseURL string) string {
+	return strings.TrimSuffix(strings.TrimRight(strings.TrimSpace(baseURL), "/"), "/v1")
+}
+
+// fetchOllamaModelNames 拉 Ollama 原生 API 模型名集合，名字去掉 ":latest" 后缀
+// 归一（/v1/models 与原生 API 同名，但显式 tag 与 latest 缺省写法需互通）。
+func fetchOllamaModelNames(ctx context.Context, root, path string) (map[string]bool, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, root+path, nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := ollamaProbeClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("HTTP %d: %s", resp.StatusCode, path)
+	}
+	var doc struct {
+		Models []struct {
+			Name string `json:"name"`
+		} `json:"models"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&doc); err != nil {
+		return nil, err
+	}
+	set := make(map[string]bool, len(doc.Models))
+	for _, m := range doc.Models {
+		set[strings.TrimSuffix(m.Name, ":latest")] = true
+	}
+	return set, nil
+}
+
+// ollamaHasModel 目标模型是否在集合中（":latest" 归一后比对）。
+func ollamaHasModel(set map[string]bool, model string) bool {
+	return set[strings.TrimSuffix(model, ":latest")]
 }
 
 // ─── 绑定：保活/预载开关（T5-3a/b，持久化到 ~/.gaea_config.json） ──

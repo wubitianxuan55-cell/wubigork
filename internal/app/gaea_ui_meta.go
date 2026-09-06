@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"encoding/json"
+	"sort"
 	"strings"
 	"time"
 
@@ -77,6 +78,9 @@ type ModelInfo struct {
 	Provider string `json:"provider"`
 	Model    string `json:"model"`
 	Current  bool   `json:"current"`
+	Local    bool   `json:"local,omitempty"`  // 本地引擎（数据不出本机，切前可预估加载等待）
+	Status   string `json:"status,omitempty"` // 本地模型加载态（running/stopped，引擎自报，缺省为空）
+	Label    string `json:"label,omitempty"`  // 展示名（Model Hub 友好名等），前端优先展示
 }
 
 // GaeaMeta 返回会话元信息。控制器未初始化时懒初始化（首次调用即就绪），
@@ -110,32 +114,73 @@ func (a *App) GaeaMeta() Meta {
 	}
 }
 
-// GaeaModels 返回模型中心全部引擎/模型（切换器选项）。
+// GaeaModels 返回模型中心全部引擎/模型（切换器选项）。v4.126 刀1 起按引擎展开
+// 全部对话模型（旧版只列每引擎默认模型一条，ollama/modelhub 装了多个模型也无法
+// 在办公切换器里选）：只含 Kind=llm（tts/embedding 等旁支不进聊天切换器）；
+// 本地引擎置前；引擎清单为空或无对话模型时回退单条 "(默认)" 保持旧观感。
 func (a *App) GaeaModels() []ModelInfo {
 	out := []ModelInfo{}
 	if a.engineMgr == nil {
 		return out
 	}
-	active := a.client.ActiveEngineID()
-	for _, eng := range a.engineMgr.GetEngines() {
+	active := a.GetActiveEngine()
+	engines := a.engineMgr.GetEngines()
+	// 本地引擎置前（本地优先使用心智），组内保持引擎注册顺序（稳定排序）。
+	sort.SliceStable(engines, func(i, j int) bool {
+		return engines[i].Type.IsLocal() && !engines[j].Type.IsLocal()
+	})
+	for _, eng := range engines {
 		if !eng.Enabled {
 			continue
 		}
-		model := eng.DefaultModel
-		if model == "" {
-			model = "(默认)"
+		local := eng.Type.IsLocal()
+		current := eng.ID == active
+		listed := 0
+		for _, mdl := range eng.Models {
+			if mdl.Kind != "llm" || mdl.ID == "" {
+				continue
+			}
+			out = append(out, ModelInfo{
+				Ref:      eng.ID + "/" + mdl.ID,
+				Provider: eng.ID,
+				Model:    mdl.ID,
+				Current:  current && mdl.ID == eng.DefaultModel,
+				Local:    local,
+				Status:   mdl.Status,
+				Label:    mdl.Name,
+			})
+			listed++
 		}
-		ref := eng.ID + "/" + model
-		out = append(out, ModelInfo{Ref: ref, Provider: eng.ID, Model: model, Current: eng.ID == active})
+		// 无对话模型清单（未刷新/目录不可达）回退 "(默认)"：引擎默认模型语义
+		// 与旧版一致；Current 跟随活跃引擎而非具体模型。
+		if listed == 0 {
+			out = append(out, ModelInfo{
+				Ref:      eng.ID + "/(默认)",
+				Provider: eng.ID,
+				Model:    "(默认)",
+				Current:  current,
+				Local:    local,
+			})
+		}
 	}
 	return out
 }
 
-// GaeaSetModel 切换模型：接受 "engine/model" 或 "engine"，按引擎切换。
+// GaeaSetModel 切换模型：接受 "engine/model" 或 "engine"。ref 带具体模型时先
+// 精确设引擎默认模型再切引擎（"(默认)" 占位只切引擎，保持旧行为）；
+// SetDefaultModel 校验模型在引擎清单内，失败如实报错不静默降级（防陈旧清单
+// 悄悄回落引擎默认，用户以为切过去了）。
 func (a *App) GaeaSetModel(name string) error {
 	engine := name
+	model := ""
 	if i := strings.Index(name, "/"); i > 0 {
 		engine = name[:i]
+		model = name[i+1:]
+	}
+	if model != "" && model != "(默认)" {
+		if err := a.engineMgr.SetDefaultModel(engine, model); err != nil {
+			return err
+		}
 	}
 	return a.SetActiveEngine(engine)
 }

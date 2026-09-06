@@ -7,7 +7,10 @@ package app
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -303,19 +306,23 @@ func TestRunAutoPreloadRunningSkips(t *testing.T) {
 
 // ─── T5-3c 换模预计等待 ────────────────────────────────────
 
-// TestGaeaModelSwitchEstimateNonHerdsman 非 herdsman 引擎恒为 hot。
-func TestGaeaModelSwitchEstimateNonHerdsman(t *testing.T) {
+// TestGaeaModelSwitchEstimateCloudHot 云端/常驻引擎恒为 hot（v4.126 刀2 起仅限
+// 非本地引擎；模型参数不参与云端档位）。
+func TestGaeaModelSwitchEstimateCloudHot(t *testing.T) {
 	a := scheduleTestApp(&config.Config{})
-	e := a.GaeaModelSwitchEstimate("xai")
-	if e.Status != "hot" || e.WaitSeconds != 1 {
-		t.Errorf("xai 应为 hot/1s，got %q/%d", e.Status, e.WaitSeconds)
-	}
-	if e.Note != "引擎已就绪" {
-		t.Errorf("note = %q", e.Note)
+	for _, engineID := range []string{"xai", "deepseek", "glm", "custom-abc"} {
+		e := a.GaeaModelSwitchEstimate(engineID, "some-model")
+		if e.Status != "hot" || e.WaitSeconds != 1 {
+			t.Errorf("%s 应为 hot/1s，got %q/%d", engineID, e.Status, e.WaitSeconds)
+		}
+		if e.Note != "引擎已就绪" {
+			t.Errorf("%s note = %q", engineID, e.Note)
+		}
 	}
 }
 
-// TestGaeaModelSwitchEstimateHerdsman 按目录状态给 hot/cold/download。
+// TestGaeaModelSwitchEstimateHerdsman 按目标模型查目录状态给 hot/cold/download；
+// model 为空回退引擎默认模型。
 func TestGaeaModelSwitchEstimateHerdsman(t *testing.T) {
 	cases := []struct {
 		name       string
@@ -331,15 +338,13 @@ func TestGaeaModelSwitchEstimateHerdsman(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			a := scheduleTestApp(&config.Config{})
-			if err := a.engineMgr.SetDefaultModel("herdsman", "m1"); err != nil {
-				t.Fatalf("SetDefaultModel: %v", err)
-			}
 			oldCLI := herdsmanCLI
 			defer func() { herdsmanCLI = oldCLI }()
 			herdsmanCLI = func(args ...string) ([]byte, error) {
 				return []byte(catalogResult("m1", c.installed, c.running)), nil
 			}
-			e := a.GaeaModelSwitchEstimate("herdsman")
+			// 显式目标模型（不再依赖引擎默认模型）。
+			e := a.GaeaModelSwitchEstimate("herdsman", "m1")
 			if e.Status != c.wantStatus || e.WaitSeconds != c.wantWait {
 				t.Errorf("Status/Wait = (%q,%d), want (%q,%d)", e.Status, e.WaitSeconds, c.wantStatus, c.wantWait)
 			}
@@ -348,30 +353,205 @@ func TestGaeaModelSwitchEstimateHerdsman(t *testing.T) {
 			}
 		})
 	}
+
+	// model 为空：回退引擎默认模型（兼容旧调用与 "(默认)" 占位）。
+	t.Run("空模型回退默认模型", func(t *testing.T) {
+		a := scheduleTestApp(&config.Config{})
+		if err := a.engineMgr.SetDefaultModel("herdsman", "m1"); err != nil {
+			t.Fatalf("SetDefaultModel: %v", err)
+		}
+		oldCLI := herdsmanCLI
+		defer func() { herdsmanCLI = oldCLI }()
+		herdsmanCLI = func(args ...string) ([]byte, error) {
+			return []byte(catalogResult("m1", true, true)), nil
+		}
+		for _, arg := range []string{"", "(默认)"} {
+			e := a.GaeaModelSwitchEstimate("herdsman", arg)
+			if e.Status != "hot" || e.Model != "m1" {
+				t.Errorf("arg=%q 应回退默认模型 m1/hot，got %q/%q", arg, e.Status, e.Model)
+			}
+		}
+	})
+
+	// 目标模型不在目录（目录里只有别的模型）→ download（未安装）。
+	t.Run("目标模型未安装→download", func(t *testing.T) {
+		a := scheduleTestApp(&config.Config{})
+		oldCLI := herdsmanCLI
+		defer func() { herdsmanCLI = oldCLI }()
+		herdsmanCLI = func(args ...string) ([]byte, error) {
+			return []byte(catalogResult("other-m", true, true)), nil
+		}
+		e := a.GaeaModelSwitchEstimate("herdsman", "m-missing")
+		if e.Status != "download" {
+			t.Errorf("目录外模型应 download，got %q", e.Status)
+		}
+	})
 }
 
-// TestGaeaModelSwitchEstimateUnknown 目录不可用/引擎未配置 → unknown。
+// TestGaeaModelSwitchEstimateUnknown 目录不可用/引擎未配置/无默认模型 → unknown。
 func TestGaeaModelSwitchEstimateUnknown(t *testing.T) {
 	// catalog 不可用。
 	a := scheduleTestApp(&config.Config{})
-	if err := a.engineMgr.SetDefaultModel("herdsman", "m1"); err != nil {
-		t.Fatal(err)
-	}
 	oldCLI := herdsmanCLI
 	defer func() { herdsmanCLI = oldCLI }()
 	herdsmanCLI = func(args ...string) ([]byte, error) {
 		return nil, errors.New("herdsman 未运行")
 	}
-	e := a.GaeaModelSwitchEstimate("herdsman")
+	e := a.GaeaModelSwitchEstimate("herdsman", "m1")
 	if e.Status != "unknown" || e.WaitSeconds != 0 {
 		t.Errorf("目录不可用应为 unknown/0s，got %q/%d", e.Status, e.WaitSeconds)
 	}
 
 	// 引擎管理器未初始化。
 	b := &App{core: &core{cfg: &config.Config{}}}
-	e = b.GaeaModelSwitchEstimate("herdsman")
+	e = b.GaeaModelSwitchEstimate("herdsman", "m1")
 	if e.Status != "unknown" {
 		t.Errorf("引擎未初始化应为 unknown，got %q", e.Status)
+	}
+
+	// 引擎无默认模型且未指定目标模型：无法预估，诚实 unknown。
+	c := scheduleTestApp(&config.Config{})
+	e = c.GaeaModelSwitchEstimate("herdsman", "")
+	if e.Status != "unknown" || e.Note == "" {
+		t.Errorf("无默认模型应 unknown 且带说明，got %q/%q", e.Status, e.Note)
+	}
+}
+
+// ─── v4.126 刀2：ollama / modelhub 换模预估（按目标模型） ──
+
+// ollamaStub 假 Ollama：/api/ps（已加载）与 /api/tags（已安装）两个端点
+// 可独立设置内容或断连，覆盖预估全分支。
+type ollamaStub struct {
+	psNames   []string
+	tagsNames []string
+	psDown    bool
+	tagsDown  bool
+}
+
+func newOllamaStub(t *testing.T) (*ollamaStub, *httptest.Server) {
+	t.Helper()
+	st := &ollamaStub{}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		names, down := st.tagsNames, st.tagsDown
+		if r.URL.Path == "/api/ps" {
+			names, down = st.psNames, st.psDown
+		}
+		if down {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+		list := []map[string]string{}
+		for _, n := range names {
+			list = append(list, map[string]string{"name": n})
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"models": list})
+	}))
+	t.Cleanup(srv.Close)
+	return st, srv
+}
+
+// TestGaeaModelSwitchEstimateOllama 已加载→hot / 已安装未加载→cold /
+// 未安装→download / ps 挂而 tags 活→保守 cold / 双挂→unknown；
+// ":latest" 后缀归一互通。
+func TestGaeaModelSwitchEstimateOllama(t *testing.T) {
+	cases := []struct {
+		name       string
+		stub       ollamaStub
+		model      string
+		wantStatus string
+	}{
+		{"已加载→hot", ollamaStub{psNames: []string{"q3:8b"}, tagsNames: []string{"q3:8b"}}, "q3:8b", "hot"},
+		{"latest 归一命中→hot", ollamaStub{psNames: []string{"m1:latest"}}, "m1", "hot"},
+		{"已安装未加载→cold", ollamaStub{psNames: []string{"other"}, tagsNames: []string{"q3:8b"}}, "q3:8b", "cold"},
+		{"请求带 latest 安装为裸名→cold", ollamaStub{tagsNames: []string{"m1"}}, "m1:latest", "cold"},
+		{"未安装→download", ollamaStub{psNames: []string{"other"}, tagsNames: []string{"other"}}, "q3:8b", "download"},
+		{"ps 挂 tags 活且无此模型→download", ollamaStub{psDown: true, tagsNames: []string{"other"}}, "q3:8b", "download"},
+		{"ps 活 tags 挂且未加载→保守 cold", ollamaStub{psNames: []string{"other"}, tagsDown: true}, "q3:8b", "cold"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			st, srv := newOllamaStub(t)
+			*st = c.stub
+			a := scheduleTestApp(&config.Config{})
+			if err := a.engineMgr.SaveEngine(modelengine.EngineConfig{ID: "ollama", BaseURL: srv.URL + "/v1", Enabled: true}); err != nil {
+				t.Fatalf("SaveEngine: %v", err)
+			}
+			e := a.GaeaModelSwitchEstimate("ollama", c.model)
+			if e.Status != c.wantStatus {
+				t.Errorf("status = %q, want %q（note=%q）", e.Status, c.wantStatus, e.Note)
+			}
+		})
+	}
+
+	t.Run("Ollama 不可达→unknown", func(t *testing.T) {
+		st, srv := newOllamaStub(t)
+		st.psDown, st.tagsDown = true, true
+		a := scheduleTestApp(&config.Config{})
+		if err := a.engineMgr.SaveEngine(modelengine.EngineConfig{ID: "ollama", BaseURL: srv.URL + "/v1", Enabled: true}); err != nil {
+			t.Fatalf("SaveEngine: %v", err)
+		}
+		e := a.GaeaModelSwitchEstimate("ollama", "q3:8b")
+		if e.Status != "unknown" {
+			t.Errorf("双路不可达应 unknown，got %q", e.Status)
+		}
+	})
+}
+
+// TestGaeaModelSwitchEstimateModelHub 探测 Studio /v1/models loaded 集合：
+// 已加载→hot、未加载→cold（不假报秒数）、Studio 不可达→unknown。
+func TestGaeaModelSwitchEstimateModelHub(t *testing.T) {
+	newApp := func(t *testing.T, hubURL string) *App {
+		t.Helper()
+		a := scheduleTestApp(&config.Config{})
+		if err := a.engineMgr.SaveEngine(modelengine.EngineConfig{
+			ID: "modelhub", BaseURL: hubURL + "/v1", Enabled: true,
+		}); err != nil {
+			t.Fatalf("SaveEngine: %v", err)
+		}
+		return a
+	}
+
+	t.Run("已加载→hot", func(t *testing.T) {
+		st, srv := newModelHubHubStub(t)
+		st.mu.Lock()
+		st.loaded["ollama-manifest:qwen:UD-Q4_K_XL"] = true
+		st.mu.Unlock()
+		a := newApp(t, srv.URL)
+		e := a.GaeaModelSwitchEstimate("modelhub", "ollama-manifest:qwen:UD-Q4_K_XL")
+		if e.Status != "hot" || e.WaitSeconds != 1 {
+			t.Errorf("已加载应 hot/1s，got %q/%d", e.Status, e.WaitSeconds)
+		}
+	})
+
+	t.Run("未加载→cold", func(t *testing.T) {
+		_, srv := newModelHubHubStub(t)
+		a := newApp(t, srv.URL)
+		e := a.GaeaModelSwitchEstimate("modelhub", "ollama-manifest:qwen:UD-Q4_K_XL")
+		if e.Status != "cold" || e.WaitSeconds != 0 {
+			t.Errorf("未加载应 cold/0s（不假报秒数），got %q/%d", e.Status, e.WaitSeconds)
+		}
+	})
+
+	t.Run("Studio 不可达→unknown", func(t *testing.T) {
+		a := newApp(t, "http://127.0.0.1:0")
+		e := a.GaeaModelSwitchEstimate("modelhub", "ollama-manifest:x")
+		if e.Status != "unknown" {
+			t.Errorf("Studio 不可达应 unknown，got %q", e.Status)
+		}
+	})
+}
+
+// TestOllamaNativeRoot OpenAI 兼容地址推原生 API 根。
+func TestOllamaNativeRoot(t *testing.T) {
+	cases := []struct{ in, want string }{
+		{"http://localhost:11434/v1", "http://localhost:11434"},
+		{"http://localhost:11434/v1/", "http://localhost:11434"},
+		{"http://localhost:11434", "http://localhost:11434"},
+	}
+	for _, c := range cases {
+		if got := ollamaNativeRoot(c.in); got != c.want {
+			t.Errorf("ollamaNativeRoot(%q) = %q, want %q", c.in, got, c.want)
+		}
 	}
 }
 

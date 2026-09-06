@@ -279,14 +279,17 @@ export function buildModel(s: MakeMockState): ModelMethods {
   let opencodeZenKey = "";
   return {
     async Models() {
-      // 契约对齐 Go GaeaModels（internal/app/gaea_ui_meta.go）：ref = 引擎ID + "/" + 模型，
-      // provider = 引擎 ID，model 为空回退 "(默认)"，current = 活跃引擎；引擎默认模型取
-      // internal/modelengine/engine.go 预置值（deepseek→deepseek-v4-pro、xai→grok-4.20、
-      // herdsman/ollama 默认模型为空 → "(默认)"）。
+      // 契约对齐 Go GaeaModels（internal/app/gaea_ui_meta.go，v4.126 刀1）：
+      // 按引擎展开全部对话模型（本地引擎置前、local/status/label 透传），空清单
+      // 引擎回退 "(默认)" 一条。ref = 引擎ID + "/" + 模型，current = 活跃引擎
+      // 且为引擎默认模型。演示两个 ollama 模型（一加载一未加载）与 modelhub
+      // stopped 条目，供切换器分组/徽标/预估确认走查。
       return [
+        { ref: "ollama/qwen3:8b", provider: "ollama", model: "qwen3:8b", current: false, local: true, status: "running" },
+        { ref: "ollama/qwen3:14b", provider: "ollama", model: "qwen3:14b", current: false, local: true },
+        { ref: "modelhub/ollama-manifest:tiny", provider: "modelhub", model: "ollama-manifest:tiny", current: false, local: true, status: "stopped", label: "Tinyrick Q6" },
+        { ref: "herdsman/(默认)", provider: "herdsman", model: "(默认)", current: false, local: true },
         { ref: "xai/grok-4.20", provider: "xai", model: "grok-4.20", current: false },
-        { ref: "ollama/(默认)", provider: "ollama", model: "(默认)", current: false },
-        { ref: "herdsman/(默认)", provider: "herdsman", model: "(默认)", current: false },
         { ref: "deepseek/deepseek-v4-pro", provider: "deepseek", model: "deepseek-v4-pro", current: true },
       ];
     },
@@ -312,24 +315,28 @@ export function buildModel(s: MakeMockState): ModelMethods {
     async SetEngineFailover(enabled: boolean) {
       s.setEngineFailover(enabled);
     },
-    async ModelSwitchEstimate(engineID: string): Promise<ModelSwitchEstimate> {
-      // 契约对齐 Go GaeaModelSwitchEstimate（internal/app/gaea_schedule.go）：
-      // 非 herdsman 引擎恒为 hot（引擎常驻，waitSeconds=1）；herdsman 演示冷启动。
-      if (engineID !== "herdsman") {
-        return {
-          engine: engineID,
-          model: "",
-          status: "hot",
-          waitSeconds: 1,
-          note: "引擎已就绪",
-        };
+    async ModelSwitchEstimate(engineID: string, model = ""): Promise<ModelSwitchEstimate> {
+      // 契约对齐 Go GaeaModelSwitchEstimate（internal/app/gaea_schedule.go，
+      // v4.126 刀2）：云端引擎恒 hot；本地引擎按目标模型演示——ollama 未在
+      // 运行列表 → cold（不假报秒数），herdsman → cold 20s（实测口径），
+      // modelhub 未加载 → cold 引导一键加载。
+      if (engineID !== "herdsman" && engineID !== "ollama" && engineID !== "modelhub") {
+        return { engine: engineID, model, status: "hot", waitSeconds: 1, note: "引擎已就绪" };
       }
+      if (engineID === "ollama" && model.endsWith(":8b")) {
+        return { engine: engineID, model, status: "hot", waitSeconds: 1, note: "模型已加载，可直接切换" };
+      }
+      const notes: Record<string, string> = {
+        herdsman: "本地模型需冷启动，实测约 15-20 秒（mock）",
+        ollama: "模型已安装未加载，切换后首次对话需等待加载（mock）",
+        modelhub: "模型未加载，切换后首次对话需等待加载（mock）",
+      };
       return {
         engine: engineID,
-        model: "",
+        model,
         status: "cold",
-        waitSeconds: 20,
-        note: "本地模型需冷启动，实测约 15-20 秒（mock）",
+        waitSeconds: engineID === "herdsman" ? 20 : 0,
+        note: notes[engineID] ?? "",
       };
     },
     async Balance() {
