@@ -1,19 +1,21 @@
 /**
- * SchedulePage — 「进度计划」一级板块（v4.110.0 刀1）
+ * SchedulePage — 「进度计划」一级板块（v4.110.0 刀1 / v4.111.0 刀2）
  *
  * 工程进度计划编制工作台：一套任务表数据驱动三种视图自由切换——
  * 横道图（甘特）/ 单代号网络图（PDM 六格）/ 双代号网络图（AOA 虚工作自动生成）。
- * CPM 引擎纯前端计算（FS/SS/FF/SF + 时距、正逆推、总/自由时差、关键线路），
+ * CPM 引擎纯前端计算（FS/SS/FF/SF + 时距、正逆推、总/自由时差、关键线路、
+ * 手动/自动任务模式），工作日历推算日期，MS Project XML 导入导出互通，
  * 数据 localStorage 持久化（gaea.schedule.v1）。
  */
-import React, { useMemo } from 'react'
-import { Alert, Button, Input, Popconfirm, Segmented, Space, Tooltip } from 'antd'
+import React, { useMemo, useRef, useState } from 'react'
+import { Alert, Button, Checkbox, Input, Popconfirm, Popover, Segmented, Space, Tag, Tooltip } from 'antd'
 import {
-  AimOutlined, ClearOutlined, ClusterOutlined, NodeIndexOutlined, PlusOutlined,
-  TableOutlined, ThunderboltOutlined, PartitionOutlined, DeleteOutlined,
+  AimOutlined, CalendarOutlined, ClearOutlined, ClusterOutlined, ExportOutlined, ImportOutlined,
+  NodeIndexOutlined, PlusOutlined, TableOutlined, ThunderboltOutlined, PartitionOutlined, DeleteOutlined,
 } from '@ant-design/icons'
 import { computeCpm } from '../schedule/cpm'
 import { buildAoa } from '../schedule/aoa'
+import { buildProjectXml, parseProjectXml } from '../schedule/mspdi'
 import { useScheduleStore, isGroupRow } from '../schedule/store'
 import { GanttView } from '../schedule/GanttView'
 import { PdmView } from '../schedule/PdmView'
@@ -22,6 +24,66 @@ import '../schedule/schedule.css'
 import '../gaea/styles.css'
 import '../gaea/tailwind.css'
 
+const WEEKDAYS: { day: number; label: string }[] = [
+  { day: 1, label: '一' }, { day: 2, label: '二' }, { day: 3, label: '三' },
+  { day: 4, label: '四' }, { day: 5, label: '五' }, { day: 6, label: '六' }, { day: 0, label: '日' },
+]
+
+/** 日历设置弹层：周工作制 + 节假日例外 */
+const CalendarEditor: React.FC = () => {
+  const project = useScheduleStore((s) => s.project)
+  const setCalendar = useScheduleStore((s) => s.setCalendar)
+  const cal = project.calendar ?? { workweek: [1, 2, 3, 4, 5], holidays: [] }
+  const [holidayDraft, setHolidayDraft] = useState('')
+
+  const toggleDay = (day: number, on: boolean) => {
+    const next = on ? [...new Set([...cal.workweek, day])] : cal.workweek.filter((d) => d !== day)
+    if (next.length === 0) return // 至少保留一个工作日
+    setCalendar({ workweek: next, holidays: cal.holidays })
+  }
+  const addHoliday = () => {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(holidayDraft) || cal.holidays.includes(holidayDraft)) return
+    setCalendar({ workweek: cal.workweek, holidays: [...cal.holidays, holidayDraft].sort() })
+    setHolidayDraft('')
+  }
+
+  return (
+    <div style={{ display: 'grid', gap: 8, minWidth: 280 }}>
+      <div>
+        <div className="sched-dim" style={{ marginBottom: 4 }}>周工作制（至少一项）</div>
+        <Space size={4} wrap>
+          {WEEKDAYS.map((w) => (
+            <Checkbox
+              key={w.day}
+              checked={cal.workweek.includes(w.day)}
+              onChange={(e) => toggleDay(w.day, e.target.checked)}
+            >
+              周{w.label}
+            </Checkbox>
+          ))}
+        </Space>
+      </div>
+      <div>
+        <div className="sched-dim" style={{ marginBottom: 4 }}>节假日 / 停工日（YYYY-MM-DD）</div>
+        <Space size={4} wrap style={{ marginBottom: 6 }}>
+          {cal.holidays.map((h) => (
+            <Tag key={h} closable onClose={() => setCalendar({ workweek: cal.workweek, holidays: cal.holidays.filter((x) => x !== h) })}>
+              {h}
+            </Tag>
+          ))}
+          {cal.holidays.length === 0 && <span className="sched-dim">无</span>}
+        </Space>
+        <Space size={4}>
+          <Input size="small" placeholder="2026-10-01" value={holidayDraft} style={{ width: 130 }}
+            onChange={(e) => setHolidayDraft(e.target.value)} onPressEnter={addHoliday} />
+          <Button size="small" type="dashed" onClick={addHoliday}>添加</Button>
+        </Space>
+      </div>
+      <span className="sched-dim">工期/时距均按工作日计算；日期轴自动跳过非工作日。</span>
+    </div>
+  )
+}
+
 const SchedulePage: React.FC = () => {
   const project = useScheduleStore((s) => s.project)
   const view = useScheduleStore((s) => s.view)
@@ -29,19 +91,43 @@ const SchedulePage: React.FC = () => {
   const selectedId = useScheduleStore((s) => s.selectedId)
   const renameProject = useScheduleStore((s) => s.renameProject)
   const setStartDate = useScheduleStore((s) => s.setStartDate)
+  const importProject = useScheduleStore((s) => s.importProject)
   const addTask = useScheduleStore((s) => s.addTask)
   const addGroup = useScheduleStore((s) => s.addGroup)
   const updateTask = useScheduleStore((s) => s.updateTask)
   const removeTask = useScheduleStore((s) => s.removeTask)
   const loadSample = useScheduleStore((s) => s.loadSample)
   const clearAll = useScheduleStore((s) => s.clearAll)
+  const fileRef = useRef<HTMLInputElement>(null)
+  const [importMsg, setImportMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
   const cpm = useMemo(() => computeCpm(project.tasks, project.links), [project])
   const aoa = useMemo(() => buildAoa(project.tasks, project.links), [project])
 
   const selected = project.tasks.find((t) => t.id === selectedId) ?? null
   const selectedIsGroup = selected ? isGroupRow(project.tasks, project.tasks.findIndex((t) => t.id === selected!.id)) : false
-  const canDelete = !!selected
+
+  const exportXml = () => {
+    const xml = buildProjectXml(project, cpm.rows)
+    const blob = new Blob([xml], { type: 'application/xml;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${project.name || '进度计划'}.xml`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const onImportFile = async (file: File) => {
+    const text = await file.text()
+    const r = parseProjectXml(text)
+    if (r.ok && r.project) {
+      importProject(r.project)
+      setImportMsg({ type: 'success', text: `已导入「${r.project.name}」：${r.project.tasks.length} 行 / ${r.project.links.length} 条搭接` })
+    } else {
+      setImportMsg({ type: 'error', text: r.error ?? '导入失败' })
+    }
+  }
 
   return (
     <div className="sched-page" style={{ padding: '12px 16px' }}>
@@ -64,6 +150,9 @@ const SchedulePage: React.FC = () => {
             style={{ width: 140 }}
           />
         </Space>
+        <Popover trigger="click" placement="bottom" content={<CalendarEditor />} title="工作日历">
+          <Button size="small" icon={<CalendarOutlined />}>日历</Button>
+        </Popover>
         <div style={{ flex: 1 }} />
         <Segmented
           value={view}
@@ -89,7 +178,7 @@ const SchedulePage: React.FC = () => {
             {selected.isMilestone ? '取消里程碑' : '设为里程碑'}
           </Button>
         )}
-        {canDelete && (
+        {selected && (
           <Popconfirm
             title="删除选中项"
             description={selectedIsGroup ? '分组及其子任务一并删除' : `删除「${selected!.name}」及其搭接关系`}
@@ -99,14 +188,40 @@ const SchedulePage: React.FC = () => {
           </Popconfirm>
         )}
         <div style={{ flex: 1 }} />
-        <Tooltip title="载入示例工程（办公楼施工），覆盖当前数据">
-          <Button size="small" icon={<ThunderboltOutlined />} onClick={loadSample}>示例工程</Button>
+        <input
+          ref={fileRef}
+          type="file"
+          accept=".xml,application/xml,text/xml"
+          style={{ display: 'none' }}
+          onChange={(e) => {
+            const f = e.target.files?.[0]
+            e.target.value = ''
+            if (f) void onImportFile(f)
+          }}
+        />
+        <Tooltip title="导入 MS Project XML（mspdi 口径），覆盖当前工程">
+          <Button size="small" icon={<ImportOutlined />} onClick={() => fileRef.current?.click()}>导入 XML</Button>
         </Tooltip>
-        <Popconfirm title="清空全部任务与搭接？" onConfirm={clearAll}>
+        <Tooltip title="导出为 MS Project XML（可被 Project / 斑马进度打开）">
+          <Button size="small" icon={<ExportOutlined />} onClick={exportXml}>导出 XML</Button>
+        </Tooltip>
+        <Tooltip title="载入示例工程（办公楼施工），覆盖当前数据">
+          <Button size="small" icon={<ThunderboltOutlined />} onClick={() => { loadSample(); setImportMsg(null) }}>示例工程</Button>
+        </Tooltip>
+        <Popconfirm title="清空全部任务与搭接？" onConfirm={() => { clearAll(); setImportMsg(null) }}>
           <Button size="small" icon={<ClearOutlined />}>清空</Button>
         </Popconfirm>
       </div>
 
+      {importMsg && (
+        <Alert
+          type={importMsg.type}
+          showIcon
+          closable
+          message={importMsg.text}
+          onClose={() => setImportMsg(null)}
+        />
+      )}
       {!cpm.ok && cpm.error && (
         <Alert type="error" showIcon message={cpm.error} description="请修正搭接关系后重试；网络图视图在循环解除前不可用。" />
       )}

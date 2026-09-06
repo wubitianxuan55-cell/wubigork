@@ -1,9 +1,10 @@
 /**
- * schedule/types.ts — 工程进度计划数据模型（v4.110.0 刀1）
+ * schedule/types.ts — 工程进度计划数据模型（v4.110.0 刀1 / v4.111.0 刀2）
  *
  * 一套数据模型驱动三种视图（横道图 / 单代号网络图 / 双代号网络图），
  * 对齐斑马进度「一表双图」口径：表格做计划，多视图同步生成、自由切换。
- * 日历口径：工期/时距均为自然日整数（刀1）；日期显示由 startDate 锚点推导。
+ * 日历口径：工期/时距均为**工作日**整数；日期显示由 startDate + 工作日历推导
+ * （刀2 起对齐 Project/斑马工作制：默认周一~五，节假日例外）。
  */
 
 /** 搭接关系类型：完成-开始 / 开始-开始 / 完成-完成 / 开始-完成 */
@@ -14,30 +15,47 @@ export interface SchedLink {
   from: string
   to: string
   type: LinkType
-  /** 时距（天，整数，可为负） */
+  /** 时距（工作日，整数，可为负） */
   lag: number
 }
+
+/** 任务排程模式（对齐 Project）：自动=CPM 排程；手动=锁定开始不动 */
+export type TaskMode = 'auto' | 'manual'
 
 /** 任务/分组行（level 缩进表达 WBS 层级，扁平数组按顺序渲染） */
 export interface SchedTask {
   id: string
   name: string
-  /** 工期（天；分组行固定 0，汇总条由子项滚动推导） */
+  /** 工期（工作日；分组行固定 0，汇总条由子项滚动推导） */
   duration: number
-  /** 大纲层级：0=分组，1=子任务（刀1 两级，足够工程口径） */
+  /** 大纲层级：0=分组，1=子任务（两级，足够工程口径） */
   level: number
   /** 完成进度 0-100 */
   progress: number
   /** 里程碑（工期视为 0，菱形显示） */
   isMilestone?: boolean
+  /** 排程模式（缺省 auto=自动）；手动任务锁定开始、不参与关键线路 */
+  mode?: TaskMode
+  /** 手动任务锁定开始（工作日序号，0=开工日） */
+  manualStart?: number
+}
+
+/** 工作日历（对齐 Project 基准日历）：workweek 为 JS getDay 口径 0=周日..6=周六 */
+export interface SchedCalendar {
+  /** 视为工作日的星期集合 */
+  workweek: number[]
+  /** 节假日/停工例外（YYYY-MM-DD，命中即非工作日） */
+  holidays: string[]
 }
 
 export interface SchedProject {
   name: string
-  /** 开工日期（YYYY-MM-DD，横道图日期轴锚点） */
+  /** 开工日期（YYYY-MM-DD，工作日历推算锚点） */
   startDate: string
   tasks: SchedTask[]
   links: SchedLink[]
+  /** 工作日历（缺省=周一~周五） */
+  calendar?: SchedCalendar
 }
 
 /** 单任务 CPM 计算结果（天数，ES/EF 为相对开工日的天偏移） */

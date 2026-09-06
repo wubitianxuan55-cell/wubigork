@@ -6,8 +6,9 @@
  */
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { LinkType, SchedLink, SchedProject, SchedTask } from './types'
+import type { LinkType, SchedCalendar, SchedLink, SchedProject, SchedTask } from './types'
 import { makeEmptyProject, makeSampleProject } from './sample'
+import { normalizeCalendar } from './calendar'
 
 export type ScheduleView = 'gantt' | 'pdm' | 'aoa'
 
@@ -18,6 +19,16 @@ export interface PredDraft {
   lag: number
 }
 
+/** 旧持久化数据兼容：补日历缺省（v4.110 数据无 calendar） */
+export function normalizeProject(p: SchedProject): SchedProject {
+  return {
+    ...p,
+    calendar: normalizeCalendar(p.calendar),
+    tasks: (p.tasks ?? []).map((t) => ({ ...t, progress: t.progress ?? 0 })),
+    links: p.links ?? [],
+  }
+}
+
 interface ScheduleState {
   project: SchedProject
   view: ScheduleView
@@ -26,6 +37,9 @@ interface ScheduleState {
   select: (id: string | null) => void
   renameProject: (name: string) => void
   setStartDate: (d: string) => void
+  /** 整体替换工程（XML 导入），缺省字段归一 */
+  importProject: (p: SchedProject) => void
+  setCalendar: (cal: SchedCalendar) => void
   addTask: (afterId?: string) => void
   addGroup: () => void
   updateTask: (id: string, patch: Partial<SchedTask>) => void
@@ -69,6 +83,8 @@ export const useScheduleStore = create<ScheduleState>()(
       select: (selectedId) => set({ selectedId }),
       renameProject: (name) => set((s) => ({ project: { ...s.project, name } })),
       setStartDate: (startDate) => set((s) => ({ project: { ...s.project, startDate } })),
+      importProject: (p) => set({ project: normalizeProject(p), selectedId: null }),
+      setCalendar: (calendar) => set((s) => ({ project: { ...s.project, calendar: normalizeCalendar(calendar) } })),
 
       addTask: (afterId) => set((s) => {
         const tasks = [...s.project.tasks]
@@ -126,7 +142,12 @@ export const useScheduleStore = create<ScheduleState>()(
     }),
     {
       name: 'gaea.schedule.v1',
-      partialize: (s) => ({ project: s.project }) as unknown as ScheduleState,
+      partialize: (s) => ({ project: normalizeProject(s.project) }) as unknown as ScheduleState,
+      // v4.110 旧数据无 calendar/mode 字段：水合时归一补缺省
+      merge: (persisted, current) => {
+        const p = (persisted as Partial<ScheduleState>)?.project
+        return { ...current, ...(p ? { project: normalizeProject(p) } : {}) }
+      },
     },
   ),
 )

@@ -50,6 +50,7 @@ export const PdmView: React.FC<{ project: SchedProject; cpm: CpmResult }> = ({ p
         <span><i className="lg-dot lg-critical" />关键工作</span>
         <span><i className="lg-dot lg-normal" />非关键</span>
         <span>格：ES / 工期 / EF · LS / 总时差 / LF</span>
+        <span>时间单位：工作日（按日历）</span>
       </div>
       <div className="sched-network-canvas" style={{ width: layout.w, height: layout.h }}>
         <svg width={layout.w} height={layout.h} style={{ position: 'absolute', inset: 0 }}>

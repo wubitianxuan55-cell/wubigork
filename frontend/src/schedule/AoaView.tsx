@@ -54,6 +54,7 @@ export const AoaView: React.FC<{ graph: AoaGraph; tasks: SchedTask[] }> = ({ gra
         <span><i className="lg-line lg-normal" />工作</span>
         <span><i className="lg-line lg-dummy" />虚工作</span>
         <span>节点：上=最早时间 · 下=最迟时间</span>
+        <span>时间单位：工作日（按日历）</span>
       </div>
       <div className="sched-network-canvas" style={{ width: w, height: h }}>
         <svg width={w} height={h} style={{ position: 'absolute', inset: 0 }}>

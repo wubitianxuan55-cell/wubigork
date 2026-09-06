@@ -1,3 +1,11 @@
+## v4.111.0 · 进度计划刀2：Project/斑马对齐——工作日历 · 手动/自动模式 · WBS · MS Project XML 互通 · 前锋线（2026-09-06）
+> 对齐清单五项全落（工作制/任务模式/WBS/mspdi 互通/前锋线）；绑定面 586 零变更（导入导出纯前端）。详见 releases/v4.111.0.md。
+- **calendar.ts（8 例）**：工作日历纯函数——工作日序号↔日历日期双向换算（周末工作制+节假日例外、开工日非工作日顺延、3650 天扫描防呆）；工期/时距口径从自然日修正为**工作日**（刀1 口径修正），CPM 数值模型不变、三视图口径首次统一。
+- **cpm.ts 手动/自动双模式（+3 例）**：manual 锁定开始（正推忽略入边）、逆推不回传约束（前置 LF 不被收小）、不标关键；后继自动任务仍以其 EF 为正向约束（Project 口径可用子集）。
+- **mspdi.ts MS Project XML 导入导出（5 例）**：Calendars（DayType 1=周日..7=周六+Exceptions）/Tasks（WBS/IsSummary/Milestone/Duration ISO8601/Manual/PredecessorLink Type+LinkLag 十分之一分钟）务实子集；宽松容错 fail-closed；样例工程 roundtrip 逐项一致。真机 Project/斑马互开验证入真机池。
+- **视图**：横道图日期轴工作日历化+WBS 编码列+模式列+**前锋线**（按完成进度取点连折线+检查日期线，DatePicker 可调）+手动条灰；工具栏导入/导出 XML（file input+Blob 下载，零绑定）+日历弹层（周工作制+节假日增删）；persist merge 兼容 v4.110 旧数据（自动补 calendar/mode 缺省）。
+- 门禁：tsc -b/eslint 0、vitest **2110/2110**、Go 零改动例行回归绿、绑定 586 零变更、版本四处 4.111.0、build.bat 冒烟 /api/health 200。
+
 ## v4.110.0 · 进度计划一级板块刀1：CPM 引擎 + 横道图/单代号/双代号三视图自由切换（2026-09-06）
 > 「一表多图实时联动」口径（对齐斑马进度）；绑定面 586 零变更（刀1 纯前端自治，localStorage 持久化）。详见 releases/v4.110.0.md。
 - **引擎层纯函数 27 例钉死**：`schedule/cpm.ts` 关键路径法（FS/SS/FF/SF+时距、环检测 fail-closed、正逆推 ES/EF/LS/LF、总/自由时差、关键工作、里程碑 0 工期）15 例；`schedule/aoa.ts` 双代号转换（PDM→AOA 教材口径：唯一 FS(lag0) 安全合并免虚工作、其余按搭接类型自动插虚箭线+去重、一始一终、i<j 拓扑编号、事件时间正逆推、关键虚工作红虚线、时标分层布局）11 例；`schedule/layout.ts` 时标分层（列=最早时间+重心松弛）单双代号共用。

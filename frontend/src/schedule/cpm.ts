@@ -1,10 +1,16 @@
 /**
- * schedule/cpm.ts — 关键路径法（CPM）计算引擎（纯函数，v4.110.0 刀1）
+ * cpm.ts — 关键路径法（CPM）计算引擎（纯函数，v4.110.0 刀1 / v4.111.0 刀2）
  *
  * 输入任务表 + 搭接关系（FS/SS/FF/SF + 时距），输出正推（ES/EF）、
  * 逆推（LS/LF）、总时差（TF）、自由时差（FF）与关键工作标记。
  * 四种搭接均以 from → to 为拓扑方向（计算 from 先于 to）；
  * 检测到循环依赖时 fail-closed 返回 ok=false（UI 提示，不静默出错误条）。
+ *
+ * 手动/自动双模式（对齐 Project 任务模式）：
+ *  - auto：按搭接逻辑排程（标准 CPM）；
+ *  - manual：正推忽略其入边、ES 锁定为 manualStart（不动）；
+ *    逆推不回传约束（前置任务不因手动任务收 LF）；自身 TF/FF=0、
+ *    不标关键；其后继仍以 manual 的 EF 为正向约束。
  */
 import type { CpmResult, SchedLink, SchedTask, TaskCpm } from './types'
 
@@ -99,10 +105,17 @@ export function computeCpm(tasks: SchedTask[], links: SchedLink[]): CpmResult {
     return { ok: false, rows, duration: 0, error: `存在循环依赖：${names.join(' → ')}`, cycle: topo.cycle }
   }
 
-  // 正推：ES = max(各搭接下界)，EF = ES + 工期
+  // 正推：ES = max(各搭接下界)，EF = ES + 工期；manual 任务锁定开始、忽略入边
   for (const id of topo.order) {
-    const dur = effDur(byId.get(id)!)
+    const t = byId.get(id)!
+    const dur = effDur(t)
     const row = rows[id]
+    if (t.mode === 'manual') {
+      const fixed = Math.max(0, Math.round(t.manualStart ?? 0))
+      row.es = fixed
+      row.ef = fixed + dur
+      continue
+    }
     let es = 0
     for (const l of inLinks.get(id) ?? []) {
       es = Math.max(es, forwardBound(l, rows[l.from], dur))
@@ -112,29 +125,37 @@ export function computeCpm(tasks: SchedTask[], links: SchedLink[]): CpmResult {
   }
   const duration = Math.max(0, ...tasks.map((t) => rows[t.id].ef))
 
-  // 逆推：LF = min(各搭接上界 / 总工期)
+  // 逆推：LF = min(各搭接上界 / 总工期)；manual 任务 LF=EF（锁定，不回传约束）
   for (let i = topo.order.length - 1; i >= 0; i--) {
     const id = topo.order[i]
-    const dur = effDur(byId.get(id)!)
+    const t = byId.get(id)!
+    const dur = effDur(t)
     const row = rows[id]
+    if (t.mode === 'manual') {
+      row.lf = row.ef
+      row.ls = row.es
+      continue
+    }
     let lf = duration
     for (const l of outLinks.get(id) ?? []) {
+      if (byId.get(l.to)!.mode === 'manual') continue // 手动后继不约束前置
       lf = Math.min(lf, backwardBound(l, rows[l.to], dur, effDur(byId.get(l.to)!)))
     }
     row.lf = lf
     row.ls = lf - dur
   }
 
-  // 时差与关键标记
+  // 时差与关键标记（manual 任务时差为 0 但不标关键）
   for (const t of tasks) {
     const row = rows[t.id]
     row.tf = row.ls - row.es
     let ff = duration - row.ef
     for (const l of outLinks.get(t.id) ?? []) {
+      if (byId.get(l.to)!.mode === 'manual') continue
       ff = Math.min(ff, freeFloatPart(l, rows[l.to], row.ef))
     }
     row.ff = ff
-    row.critical = row.tf === 0
+    row.critical = t.mode !== 'manual' && row.tf === 0
   }
 
   return { ok: true, rows, duration }

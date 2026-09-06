@@ -102,6 +102,40 @@ describe('computeCpm 逆推与时差', () => {
   })
 })
 
+describe('computeCpm 手动/自动双模式（Project 口径）', () => {
+  it('manual 锁定开始：入边不推它，后继以它的 EF 为约束', () => {
+    // A(10) FS M；M manual start=2 dur=3；B FS M
+    const r = computeCpm(
+      [t('A', 10), { id: 'M', name: 'M', duration: 3, level: 1, progress: 0, mode: 'manual', manualStart: 2 }, t('B', 1)],
+      [l('A', 'M'), l('M', 'B')],
+    )
+    expect(r.rows.M).toMatchObject({ es: 2, ef: 5, tf: 0, critical: false })
+    expect(r.rows.B).toMatchObject({ es: 5, ef: 6 })
+    expect(r.rows.A.critical).toBe(true)
+    expect(r.duration).toBe(10)
+  })
+
+  it('manual 不回传约束：前置 LF 不被手动任务收小，且不被标关键误伤', () => {
+    // P(2) FS M(manual start=5,dur=1)：P.lf 应=总工期6（不被 M 的 ls=5 收小）
+    const r = computeCpm(
+      [t('P', 2), { id: 'M', name: 'M', duration: 1, level: 1, progress: 0, mode: 'manual', manualStart: 5 }],
+      [l('P', 'M')],
+    )
+    expect(r.rows.M).toMatchObject({ es: 5, ef: 6 })
+    expect(r.rows.P).toMatchObject({ es: 0, ef: 2, lf: 6, tf: 4, critical: false })
+    // P 的自由时差不被 manual 收：= 总工期 - EF = 4
+    expect(r.rows.P.ff).toBe(4)
+  })
+
+  it('manual 任务缺省 manualStart=0：与开工同日起算', () => {
+    const r = computeCpm(
+      [{ id: 'M', name: 'M', duration: 4, level: 1, progress: 0, mode: 'manual' }],
+      [],
+    )
+    expect(r.rows.M).toMatchObject({ es: 0, ef: 4, critical: false })
+  })
+})
+
 describe('computeCpm 健壮性', () => {
   it('循环依赖：fail-closed 并给出环上任务名', () => {
     const r = computeCpm([t('A', 1), t('B', 1), t('C', 1)], [l('A', 'B'), l('B', 'C'), l('C', 'A')])
