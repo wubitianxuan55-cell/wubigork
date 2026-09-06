@@ -4,6 +4,7 @@
 import type { AppBindings } from "../bridge";
 import type { FilePickResult } from "../types";
 import { computeCpm } from "../../../schedule/cpm";
+import { makeSampleProject } from "../../../schedule/sample";
 import {
   delay,
   emit,
@@ -293,6 +294,18 @@ export function buildOffice(_s: MakeMockState): OfficeMethods {
           dataUrl: "", error: "",
           truncated: truncated || undefined,
           totalPages: truncated ? 1200 : undefined,
+        };
+      }
+      // v4.121 刀12 走查：计划文件预览=真实 mock 计划态（板块未保存过时给最小
+      // 样例），FilePreview 据此出摘要卡；坏形状仍可手工构造以验证回落文本视图。
+      if (rel.toLowerCase().endsWith(".gsched.json")) {
+        const body = mockScheduleJSON !== ""
+          ? mockScheduleJSON
+          : JSON.stringify(makeSampleProject());
+        return {
+          path: rel, name: rel.split("/").pop() ?? rel, ext: ".gsched.json",
+          size: body.length, kind: "text" as const,
+          body, dataUrl: "", error: "",
         };
       }
       return {
