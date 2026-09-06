@@ -222,6 +222,42 @@
   background: var(--sched-normal);
   overflow: hidden;
   z-index: 12;
+  cursor: grab;
+}
+/* 拖拽态（刀9：拖移/缩放预览） */
+.sched-bar-dragging {
+  opacity: 0.78;
+  cursor: grabbing;
+  outline: 1px dashed rgba(255, 255, 255, 0.9);
+}
+.sched-resize-handle {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 7px;
+  cursor: ew-resize;
+  opacity: 0;
+  border-radius: 0 4px 4px 0;
+  background: rgba(255, 255, 255, 0.55);
+  transition: opacity 0.12s;
+}
+.sched-bar:hover .sched-resize-handle {
+  opacity: 1;
+}
+.sched-drag-tip {
+  position: absolute;
+  top: -22px;
+  transform: translateX(-50%);
+  font-size: 11px;
+  line-height: 16px;
+  white-space: nowrap;
+  background: #1f2937;
+  color: #fff;
+  border-radius: 4px;
+  padding: 1px 6px;
+  z-index: 40;
+  pointer-events: none;
 }
 .sched-bar-critical {
   background: var(--sched-critical);

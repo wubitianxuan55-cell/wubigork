@@ -92,6 +92,7 @@ gaea/
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| **v4.118.0** | 2026-09-06 | 进度计划刀9：横道拖拽调排程（588 零变更）——拖移 auto 任务=转手动锁定到落点（Project 约束同源）、manual 拖移=改锁定、右缘缩放=改工期；落点按最近工作日吸附（drag.ts 纯函数反查表）、Esc 取消、循环依赖禁拖、拖拽浮动提示；GanttView 首次拥有组件测试（+5）；vitest 2145/2145（+11）。详见 releases/v4.118.0.md |
 | **v4.117.0** | 2026-09-06 | 进度计划刀8：倒排工期（588 零变更）——对齐 Project「必须完成期限」：deadline 目标竣工字段（日历日期）+TS/Go 镜像 checkDeadline 引擎可行性裁决（工作日换算/超期量/关键工作清单）+ops set_meta deadline 三态（nil 不动/空串清除/日期设置）+三工具接线（get deadline/apply 回执 deadlineCheck/analyze 倒排发现）+板块 UI（页头目标竣工输入/状态栏倒排段/横道紫虚线竣工线）+schedule-edit 技能第 3 步改写（锚点锁 +3）；vitest 2135/2135（+9）。详见 releases/v4.117.0.md |
 | **v4.116.0** | 2026-09-06 | 进度计划刀7：基线对比（588 零变更）——对齐 Project「设置基线」：TS/Go 镜像引擎（baseline.ts↔baseline.go，快照 fail-closed+漂移对比：总工期漂移/推移·新增·移除/关键链进出）、ops set_baseline/clear_baseline（缺 savedAt 拒绝/无基线报错）、agent 三工具接线（get 基线元信息/apply 回执 baselineDrift/analyze checks「较基线」发现）、板块 UI（基线弹层+横道灰描边基线条+状态栏漂移段）、schedule-edit 技能「基线对比」节（锚点锁 +3）；vitest 2126/2126（+11）。详见 releases/v4.116.0.md |
 | **v4.115.0** | 2026-09-06 | 进度计划刀6：推荐逻辑关系（588 零变更）——ops auto_chain 确定性原语（仅为无前置叶任务按 WBS 顺序补 FS 串联，已有逻辑/手动不动，无可补拒绝）、schedule_analyze 质检新增「无前置」发现（文案指路 auto_chain→set_links 覆写，工具测试闭环验证）、schedule-edit 技能增推荐工作流+分析报告四段模板（进度/风险/盲点/建议）；Go schedule 33 例、vitest 2115/2115。详见 releases/v4.115.0.md |

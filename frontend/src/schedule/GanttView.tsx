@@ -13,6 +13,7 @@ import { DeleteOutlined, LinkOutlined, ZoomInOutlined, ZoomOutOutlined } from '@
 import dayjs from 'dayjs'
 import type { CpmResult, LinkType, SchedProject, SchedTask } from './types'
 import { isWorkingDate, normalizeCalendar, wdToDate } from './calendar'
+import { dropToWd, resizeToDuration, workdayOffsets } from './drag'
 import { descendantIds, isGroupRow, useScheduleStore, type PredDraft } from './store'
 
 const ROW_H = 30
@@ -135,6 +136,15 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult }> = ({
   /** 基线条显示（有基线才出现开关；默认开，v4.116 刀7） */
   const [showBase, setShowBase] = useState(true)
   const [checkDate, setCheckDate] = useState<string>(new Date().toISOString().slice(0, 10))
+  /** 拖拽态（刀9）：move=拖移（auto 转手动锁定）、resize=右缘改工期 */
+  const [drag, setDrag] = useState<{
+    id: string
+    kind: 'move' | 'resize'
+    origEs: number
+    origDur: number
+    preview: number
+    moved: boolean
+  } | null>(null)
 
   const cal = project.calendar
   const wbs = useMemo(() => wbsOf(project.tasks), [project.tasks])
@@ -166,6 +176,62 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult }> = ({
     const off = deadlineOff(project.deadline, startMs)
     return off >= 0 && off <= days ? off : null
   }, [project.deadline, startMs, days])
+
+  /** 工作日→自然日偏移反查表（拖拽落点吸附用） */
+  const wdOffsets = useMemo(
+    () => workdayOffsets(project.startDate, Math.max(cpm.duration + 30, 45), project.calendar),
+    [project.startDate, project.calendar, cpm.duration],
+  )
+
+  /** 开始拖拽：拖移（转手动锁定）或右缘缩放（改工期）。循环依赖/分组行/里程碑缩放禁用。 */
+  const beginDrag = (e: React.MouseEvent, t: SchedTask, kind: 'move' | 'resize') => {
+    if (!cpm.ok || t.level === 0) return
+    if (kind === 'resize' && t.isMilestone) return
+    const row = cpm.rows[t.id]
+    if (!row) return
+    e.preventDefault()
+    e.stopPropagation()
+    const startX = e.clientX
+    const origEs = row.es
+    const origDur = t.isMilestone ? 0 : Math.max(0, Math.round(t.duration))
+    const st = {
+      id: t.id, kind, origEs, origDur,
+      preview: kind === 'move' ? origEs : origDur,
+      moved: false,
+    }
+    const onMove = (ev: MouseEvent) => {
+      const dx = ev.clientX - startX
+      if (dx !== 0) st.moved = true
+      st.preview = kind === 'move'
+        ? dropToWd(wdOffsets, dayNo(origEs), dx, dayW)
+        : resizeToDuration(wdOffsets, origEs, dayNo(origEs + origDur), dx, dayW)
+      setDrag({ ...st })
+    }
+    const onUp = () => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+      window.removeEventListener('keydown', onKey)
+      if (st.moved) {
+        if (kind === 'move') {
+          if (t.mode === 'manual') updateTask(t.id, { manualStart: st.preview })
+          else updateTask(t.id, { mode: 'manual', manualStart: st.preview })
+        } else {
+          updateTask(t.id, { duration: st.preview })
+        }
+      }
+      setDrag(null)
+    }
+    const onKey = (ev: KeyboardEvent) => {
+      if (ev.key !== 'Escape') return
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+      window.removeEventListener('keydown', onKey)
+      setDrag(null) // 未 moved 提交逻辑不触发=取消
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+    window.addEventListener('keydown', onKey)
+  }
 
   const linkRows = useMemo(() => {
     const rowIdx = new Map(project.tasks.map((t, i) => [t.id, i]))
@@ -283,6 +349,9 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult }> = ({
             const dur = t.isMilestone ? 0 : Math.max(0, Math.round(t.duration))
             const colorCls = group ? ` sched-group-c${groupColorSeq[i]}` : ''
             const baseRow = showBase && !group ? project.baseline?.rows[t.id] : undefined
+            const isDrag = drag?.id === t.id
+            const movePreview = isDrag && drag!.kind === 'move' ? drag!.preview : null
+            const resizePreview = isDrag && drag!.kind === 'resize' ? drag!.preview : null
             return (
               <div
                 key={t.id}
@@ -382,22 +451,45 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult }> = ({
                     )
                   ) : t.isMilestone ? (
                     row && (
-                      <div className="sched-milestone" style={{ left: dayNo(row.es) * dayW - 7 }} title={`${t.name}（里程碑）`} />
+                      <div
+                        className={`sched-milestone${isDrag && drag!.kind === 'move' ? ' sched-bar-dragging' : ''}`}
+                        style={{ left: dayNo(movePreview ?? row.es) * dayW - 7 }}
+                        title={`${t.name}（里程碑，拖动可定位）`}
+                        onMouseDown={(e) => beginDrag(e, t, 'move')}
+                      />
                     )
                   ) : (
                     row && (
                       <>
                         <div
-                          className={`sched-bar${crit ? ' sched-bar-critical' : ''}${manual ? ' sched-bar-manual' : ''}`}
-                          style={{ left: dayNo(row.es) * dayW, width: Math.max((dayNo(row.ef) - dayNo(row.es)) * dayW, 6) }}
-                          title={`${t.name}：第 ${row.es}~${row.ef} 工作日${manual ? '（手动锁定）' : crit ? '（关键）' : `，总时差 ${row.tf} 天`}`}
+                          className={`sched-bar${crit ? ' sched-bar-critical' : ''}${manual ? ' sched-bar-manual' : ''}${isDrag ? ' sched-bar-dragging' : ''}`}
+                          style={{
+                            left: dayNo(movePreview ?? row.es) * dayW,
+                            width: Math.max(
+                              (dayNo((movePreview ?? row.es) + (resizePreview ?? dur)) - dayNo(movePreview ?? row.es)) * dayW,
+                              6,
+                            ),
+                          }}
+                          title={`${t.name}：第 ${row.es}~${row.ef} 工作日${manual ? '（手动锁定，拖动移位）' : crit ? '（关键，拖动=转手动锁定）' : `，总时差 ${row.tf} 天，拖动=转手动锁定`}`}
+                          onMouseDown={(e) => beginDrag(e, t, 'move')}
                         >
                           {t.progress > 0 && (
                             <div className="sched-bar-progress" style={{ width: `${Math.min(100, t.progress)}%` }} />
                           )}
+                          <div className="sched-resize-handle" onMouseDown={(e) => beginDrag(e, t, 'resize')} title="拖动改工期" />
                         </div>
-                        {!manual && row.tf > 0 && (
+                        {!manual && !isDrag && row.tf > 0 && (
                           <div className="sched-float" style={{ left: dayNo(row.ef) * dayW, width: row.tf * dayW }} title={`总时差 ${row.tf} 天`} />
+                        )}
+                        {isDrag && (
+                          <div
+                            className="sched-drag-tip"
+                            style={{ left: dayNo(drag!.kind === 'move' ? drag!.preview : row.es + drag!.preview) * dayW }}
+                          >
+                            {drag!.kind === 'move'
+                              ? `第 ${row.es} → ${drag!.preview} 工作日${manual ? '' : '（转手动）'}`
+                              : `工期 ${dur} → ${drag!.preview} 天`}
+                          </div>
                         )}
                       </>
                     )
