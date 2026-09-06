@@ -92,6 +92,7 @@ gaea/
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| **v4.113.0** | 2026-09-06 | 进度计划刀4：AI 原生通道地基（586→588 +ScheduleLoad/Save）——internal/schedule Go 引擎（CPM/日历/ops 移植 28 例，与前端测试互为镜像）、agent 工具三件套 schedule_get/apply/analyze（快照+证据卡+CPM fail-closed，AI 产建议引擎裁决）、计划文件化 进度计划/当前计划.gsched.json（板块与 agent 共享，水合+自动保存+轮询回读）；?mock=1 全链走查过；市场调研 docs/market-research-2026-09-06.md。详见 releases/v4.113.0.md |
 | **v4.112.0** | 2026-09-06 | 进度计划刀3：斑马 UI 对齐（绑定面 586 零变更）——横道图分组行六色饱和循环+▲组名+行号列、时间轴改自然日列（非工作日底纹，CPM 仍按工作日）、单代号/双代号图例右端红字大数字统计牌、底部状态栏常驻（共 N 项工作·总工期 N 天）；?mock=1 三视图走查全过；vitest 2110/2110、drift PASS@586。详见 releases/v4.112.0.md |
 | **v4.111.0** | 2026-09-06 | 进度计划刀2：Project/斑马对齐（586 零变更）——工作日历 calendar.ts（周工作制+节假日例外，工期口径改工作日）、手动/自动任务模式、WBS 编码列、mspdi.ts MS Project XML 导入导出（务实子集+roundtrip）、横道图前锋线；vitest 2110/2110。详见 releases/v4.111.0.md |
 | **v4.110.0** | 2026-09-06 | 进度计划一级板块刀1（586 零变更）——CPM 引擎 cpm.ts（FS/SS/FF/SF+时距/环检测/时差/关键）15 例+双代号转换 aoa.ts 11 例+三视图 Segmented 切换（横道图/单代号六格/双代号圆圈事件）+示例工程+localStorage 持久化；前后端 manifest 双接线。详见 releases/v4.110.0.md |

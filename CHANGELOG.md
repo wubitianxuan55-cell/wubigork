@@ -1,3 +1,12 @@
+## v4.113.0 · 进度计划刀4：AI 原生通道地基——计划文件化 · agent 工具三件套（2026-09-06）
+> 响应「进度计划必须依托 AI 平台」拍板；绑定面 586→**588**（+GaeaScheduleLoad/Save）。详见 releases/v4.113.0.md。
+- **internal/schedule 新包（Go，28 例）**：前端 schedule 引擎的忠实移植——types/cpm（FS/SS/FF/SF+时距、手动/自动、环 fail-closed）/calendar（工作日↔日期互逆）/project（校验+临时文件原子写）/ops（upsert_task/patch_task/remove_task/set_links/set_meta 增量操作集）/analysis（关键链/近关键/里程碑叙事）。Go 与 TS 测试互为镜像，口径改动必须两侧同步。
+- **agent 工具三件套（schedule_get/apply/analyze）**：计划文件=板块与 agent 共享资产。get 返回任务表+CPM 全景；apply 双通道（project 整计划 / ops 局部调整）——快照（StageBaseline）+证据卡（RecordChange tool=schedule_apply）+写根 confine，环依赖/悬空引用 fail-closed 拒绝、错误原文回传，回执强制带写入后总工期（「成功≠正确」verify 纪律）；analyze=质检 findings（孤立任务/空分组/无收口/缺里程碑）+关键链/近关键/里程碑。三工具入 Workspace.Tools()（workDir+写根绑定）。
+- **板块文件化**：`进度计划/当前计划.gsched.json`（默认计划，多工程留后续刀）——GaeaScheduleLoad/Save 轻量 IO（无证据卡，UI 自动保存不刷 Journal）；前端 store 水合（文件为准，localStorage 自动迁移）+防抖 800ms 自动保存+focus/15s 可见轻扫回读 agent 改动；状态栏同步指示器（改动待保存/已保存 HH:MM/保存失败）。mock 同步走查态（window.__mockScheduleFile 钩子可模拟 agent 外部写）。
+- **调研落档**：docs/market-research-2026-09-06.md（15 竞品原始稿 docs/research-2026-09-06/）——AI 产建议/引擎裁决双市场验证、对话式调整安全空白 gaea 自定义标准（diff 确认+快照回滚）、斑马 AI 11 项功能=analyze 需求清单、行内 AI 建议必须可全局关闭；勘误 JGJ/T 121-2015。
+- 门禁：tsc -b/eslint 0、vitest **2110/2110**、Go 全量绿（schedule 28 例+工具 4 例）、drift PASS@**588**、分类锁 299→301、版本四处 4.113.0、?mock=1 全链走查（迁移→自动保存→agent 写入回读）、build.bat 冒烟 /api/health 200。
+- 欠账（刀5 候选，见合成版拍板池）：对话式调整 diff 确认闭环、整计划生成三确认口径、推荐逻辑关系、分析报告模板化、双工期口径（定额日历天 vs 工作日）。
+
 ## v4.112.0 · 进度计划刀3：斑马 UI 对齐——六色分组横道 · 网络图统计牌 · 底部状态栏（2026-09-06）
 > 视觉/交互对齐斑马进度真机参考截图；绑定面 586 零变更（纯前端展示层）。详见 releases/v4.112.0.md。
 - **横道图斑马化**：分组行六色饱和循环（橙/青/粉/黄/蓝/绿实底+深色左条+▲组名前缀，全宽贯通表格与条形区，组行次级文字黑字对比度修正）；时间轴改**自然日列**（每天一列，周末/节假日底纹+表头红字呼应，CPM 仍按工作日计算、条形跨非工作日自然变宽）；新增行号列；开始/完成列按日历换算 M/D；月份标签 nowrap 防窄列折行；里程碑菱形黑化对齐斑马。

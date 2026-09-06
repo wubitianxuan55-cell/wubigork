@@ -1,16 +1,23 @@
 /**
- * schedule/store.ts — 进度计划板块状态（zustand + localStorage 持久化）
+ * schedule/store.ts — 进度计划板块状态（zustand + 文件持久化 v4.113.0 刀4）
  *
- * 刀1 前端自治：数据落 localStorage（gaea.schedule.v1），与壳层
- * shellPage 持久化同范式；接后端绑定面留给后续刀次。
+ * 计划文件（进度计划/当前计划.gsched.json）是板块与 agent 的共享资产：
+ * 挂载时经 GaeaScheduleLoad 水合（文件不存在则把 localStorage 旧数据迁移上
+ * 文件），编辑后防抖自动保存（GaeaScheduleSave，Go 侧校验+CPM fail-closed）。
+ * localStorage persist 保留为离线缓存与迁移源。agent 写文件后板块靠
+ * initScheduleSync 的 focus/可见轮询回读（15s 轻扫，不脏写时才覆盖）。
  */
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { LinkType, SchedCalendar, SchedLink, SchedProject, SchedTask } from './types'
 import { makeEmptyProject, makeSampleProject } from './sample'
 import { normalizeCalendar } from './calendar'
+import { loadScheduleFile, saveScheduleFile } from './api'
 
 export type ScheduleView = 'gantt' | 'pdm' | 'aoa'
+
+/** 文件同步状态（工具栏指示器） */
+export type ScheduleSyncState = 'idle' | 'dirty' | 'saving' | 'saved' | 'error'
 
 /** 待编辑的前置关系（Popover 行编辑形态） */
 export interface PredDraft {
@@ -33,11 +40,16 @@ interface ScheduleState {
   project: SchedProject
   view: ScheduleView
   selectedId: string | null
+  /** 文件同步：hydrated=已完成水合；sync=指示器；savedAt/syncError 供展示 */
+  hydrated: boolean
+  sync: ScheduleSyncState
+  savedAt: string | null
+  syncError: string | null
   setView: (v: ScheduleView) => void
   select: (id: string | null) => void
   renameProject: (name: string) => void
   setStartDate: (d: string) => void
-  /** 整体替换工程（XML 导入），缺省字段归一 */
+  /** 整体替换工程（XML 导入/文件水合），缺省字段归一 */
   importProject: (p: SchedProject) => void
   setCalendar: (cal: SchedCalendar) => void
   addTask: (afterId?: string) => void
@@ -78,6 +90,10 @@ export const useScheduleStore = create<ScheduleState>()(
       project: makeSampleProject(),
       view: 'gantt',
       selectedId: null,
+      hydrated: false,
+      sync: 'idle',
+      savedAt: null,
+      syncError: null,
 
       setView: (view) => set({ view }),
       select: (selectedId) => set({ selectedId }),
@@ -156,4 +172,95 @@ export const useScheduleStore = create<ScheduleState>()(
 export const scheduleActions = {
   addTask: (afterId?: string) => useScheduleStore.getState().addTask(afterId),
   removeTask: (id: string) => useScheduleStore.getState().removeTask(id),
+}
+
+// ── 文件同步（v4.113.0 刀4）────────────────────────────────
+// 水合 → 防抖自动保存 → agent 写入回读（focus/可见轻扫）。终态语义：
+// 板块不弹窗打断编辑，失败落 syncError 由指示器诚实展示。
+
+let syncStarted = false
+let hydrating = false
+let applyingExternal = false
+let saveTimer: ReturnType<typeof setTimeout> | null = null
+/** 最近一次与文件达成一致的 JSON（编辑防抖期间不被外部回读覆盖的基准） */
+let lastSyncedRaw = ''
+
+function projectRaw(p: SchedProject): string {
+  return JSON.stringify(normalizeProject(p))
+}
+
+async function doSave(): Promise<void> {
+  const { project } = useScheduleStore.getState()
+  useScheduleStore.setState({ sync: 'saving' })
+  try {
+    const r = await saveScheduleFile(project)
+    lastSyncedRaw = projectRaw(project)
+    useScheduleStore.setState({ sync: 'saved', savedAt: r.savedAt, syncError: null })
+  } catch (e) {
+    useScheduleStore.setState({ sync: 'error', syncError: e instanceof Error ? e.message : String(e) })
+  }
+}
+
+/** 板块挂载时调用一次：文件水合 + 编辑自动保存 + agent 写入回读 */
+export async function initScheduleSync(): Promise<void> {
+  if (syncStarted) return
+  syncStarted = true
+  hydrating = true
+  try {
+    const r = await loadScheduleFile()
+    if (r.exists && r.project) {
+      lastSyncedRaw = projectRaw(r.project)
+      useScheduleStore.setState({ project: r.project, hydrated: true, sync: 'saved' })
+    } else {
+      // 迁移：localStorage 旧数据（persist 中间件维护）上文件；无则落当前内存态
+      const ls = typeof localStorage !== 'undefined' ? localStorage.getItem('gaea.schedule.v1') : null
+      let seed = useScheduleStore.getState().project
+      try {
+        const legacy = ls ? (JSON.parse(ls)?.state?.project as SchedProject | undefined) : undefined
+        if (legacy) seed = normalizeProject(legacy)
+      } catch { /* 坏缓存忽略，落内存态 */ }
+      useScheduleStore.setState({ project: seed, hydrated: true })
+      lastSyncedRaw = projectRaw(seed)
+      await doSave()
+    }
+  } catch (e) {
+    useScheduleStore.setState({ hydrated: true, sync: 'error', syncError: e instanceof Error ? e.message : String(e) })
+  } finally {
+    hydrating = false
+  }
+
+  // 编辑 → 防抖 800ms 自动保存（外部回读不触发）
+  useScheduleStore.subscribe((s, prev) => {
+    if (applyingExternal || hydrating || !s.hydrated) return
+    if (s.project === prev.project) return
+    const st = useScheduleStore.getState()
+    if (st.sync !== 'error' && st.sync !== 'dirty') useScheduleStore.setState({ sync: 'dirty' })
+    if (saveTimer !== null) clearTimeout(saveTimer)
+    saveTimer = setTimeout(() => { saveTimer = null; void doSave() }, 800)
+  })
+
+  // agent 写文件回读：focus + 15s 可见轻扫（无未保存变更/失败态时才覆盖）
+  const poll = async (): Promise<void> => {
+    const st = useScheduleStore.getState()
+    if (!st.hydrated || hydrating || saveTimer !== null) return
+    if (st.sync === 'saving' || st.sync === 'dirty' || st.sync === 'error') return
+    try {
+      const r = await loadScheduleFile()
+      if (!r.exists || !r.project) return
+      const raw = projectRaw(r.project)
+      if (raw !== lastSyncedRaw) {
+        lastSyncedRaw = raw
+        applyingExternal = true
+        try {
+          useScheduleStore.setState({ project: r.project, sync: 'saved', syncError: null })
+        } finally {
+          applyingExternal = false
+        }
+      }
+    } catch { /* 轻扫失败静默，下轮再试 */ }
+  }
+  if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+    window.addEventListener('focus', () => { void poll() })
+    setInterval(() => { if (document.visibilityState === 'visible') void poll() }, 15000)
+  }
 }

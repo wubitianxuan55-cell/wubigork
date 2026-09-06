@@ -3,6 +3,7 @@
 // FileSemanticSearch）因行数约束拆分至 retrieval.ts，见该文件头注释。
 import type { AppBindings } from "../bridge";
 import type { FilePickResult } from "../types";
+import { computeCpm } from "../../../schedule/cpm";
 import {
   delay,
   emit,
@@ -23,6 +24,27 @@ const mockXlsxState = JSON.parse(MOCK_XLSX_BODY) as {
   sheets: { name: string; rows: { ref: string; value: string }[][] }[];
 };
 
+// 进度计划文件走查态（v4.113 刀4）：会话内可变（板块 Save 落这里，Load 回读）。
+// 初始为空（exists=false）→ 板块首启把 localStorage/样例迁移上「文件」，
+// 与真机语义一致；外部写（模拟 agent schedule_apply）改这里板块轮询即回读。
+let mockScheduleJSON = "";
+
+// 走查钩子：模拟 agent 外部写计划文件（schedule_apply 同语义），再 dispatch
+// window focus 事件即可驱动板块轮询回读。仅 mock 存在，真机无此全局。
+const mockScheduleFile = {
+  load: () => ({ path: "进度计划/当前计划.gsched.json", exists: mockScheduleJSON !== "", project: mockScheduleJSON }),
+  save: (projectJSON: string) => {
+    mockScheduleJSON = projectJSON;
+    return { path: "进度计划/当前计划.gsched.json", savedAt: "" };
+  },
+};
+declare global {
+  interface Window {
+    __mockScheduleFile?: typeof mockScheduleFile;
+  }
+}
+if (typeof window !== "undefined") window.__mockScheduleFile = mockScheduleFile;
+
 type OfficeMethods = Pick<
   AppBindings,
   | "ListDir" | "FileSearch" | "Materials" | "WorkspaceSearch"
@@ -31,6 +53,7 @@ type OfficeMethods = Pick<
   | "ReadFile" | "Preview" | "OpenWorkspacePath"
   | "OfficeEditText" | "DocxApplyEdit" | "DocxAcceptChanges"
   | "XlsxPlanEdit" | "XlsxApplyEdit" | "XlsxSetCell" | "XlsxRecalc" | "XlsxRowOps" | "XlsxColOps"
+  | "ScheduleLoad" | "ScheduleSave"
   | "XlsxChart" | "ZipDeliverables" | "SubagentRuns" | "SubagentTranscript" | "DeliverableRegistry" | "WriteFile"
   | "ExportDeliverable" | "ConvertToPdf" | "CrossEmbed" | "RevealWorkspacePath"
   | "SavePastedImage" | "SaveAttachmentFile" | "AttachmentDataURL"
@@ -334,6 +357,29 @@ export function buildOffice(_s: MakeMockState): OfficeMethods {
         preview: MOCK_XLSX_BODY,
         summary: "（mock）已重算公式",
         applied: 1,
+      };
+    },
+    async ScheduleLoad() {
+      // 走查态：exists=false → 板块走迁移分支把 localStorage/样例上「文件」
+      const f = mockScheduleFile.load();
+      return { ...f, project: f.project };
+    },
+    async ScheduleSave(projectJSON: string) {
+      mockScheduleFile.save(projectJSON);
+      // mock 也走真实 CPM 纯函数：保存回执的工期/关键数与板块口径一致
+      let duration = 0;
+      let critical = 0;
+      try {
+        const p = JSON.parse(projectJSON) as { tasks: Parameters<typeof computeCpm>[0]; links: Parameters<typeof computeCpm>[1] };
+        const r = computeCpm(p.tasks, p.links);
+        duration = r.duration;
+        critical = Object.values(r.rows).filter((x) => x.critical).length;
+      } catch { /* 坏 JSON 由真实 Go 侧拒绝，mock 宽松回 0 */ }
+      return {
+        path: "进度计划/当前计划.gsched.json",
+        savedAt: new Date().toTimeString().slice(0, 5),
+        duration,
+        critical,
       };
     },
     async XlsxRowOps(_rel: string, sheet: string, action: string, ref: string) {

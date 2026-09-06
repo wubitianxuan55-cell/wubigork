@@ -126,6 +126,8 @@ func (b *OfficeB) GaeaSavePastedImage(dataURL string) (string, error) { return b
 func (b *OfficeB) GaeaSaveProvider(p ProviderView) error { return b.a.GaeaSaveProvider(p) }
 func (b *OfficeB) GaeaSaveSettings(view SettingsView) error { return b.a.GaeaSaveSettings(view) }
 func (b *OfficeB) GaeaSaveWindowState(state map[string]interface{}) error { return b.a.GaeaSaveWindowState(state) }
+func (b *OfficeB) GaeaScheduleLoad() (ScheduleLoadResult, error) { return b.a.GaeaScheduleLoad() }
+func (b *OfficeB) GaeaScheduleSave(projectJSON string) (ScheduleSaveResult, error) { return b.a.GaeaScheduleSave(projectJSON) }
 func (b *OfficeB) GaeaSend(input string) { b.a.GaeaSend(input) }
 func (b *OfficeB) GaeaSessionStats(path string) SessionStatsView { return b.a.GaeaSessionStats(path) }
 func (b *OfficeB) GaeaSetAgentParams(temperature float64, maxSteps int, systemPrompt string) error { return b.a.GaeaSetAgentParams(temperature, maxSteps, systemPrompt) }

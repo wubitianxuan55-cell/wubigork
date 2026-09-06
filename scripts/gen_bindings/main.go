@@ -170,6 +170,9 @@ var explicitOverrides = map[string]string{
 	// v4.3：TTS 参数预览归 voice 板块；书封生成归 novel 板块（前缀规则会落 office）
 	"GaeaTTSVoiceParams":  "voice",
 	"GaeaGenerateBookCover": "novel",
+	// v4.113.0 刀4：进度计划文件持久化（前缀规则本就落 office，显式声明对齐登记惯例）
+	"GaeaScheduleLoad": "office",
+	"GaeaScheduleSave": "office",
 }
 
 func main() {

@@ -1,13 +1,14 @@
 /**
- * SchedulePage — 「进度计划」一级板块（v4.110.0 刀1 / v4.111.0 刀2）
+ * SchedulePage — 「进度计划」一级板块（v4.110 刀1 / v4.111 刀2 / v4.113 刀4）
  *
  * 工程进度计划编制工作台：一套任务表数据驱动三种视图自由切换——
  * 横道图（甘特）/ 单代号网络图（PDM 六格）/ 双代号网络图（AOA 虚工作自动生成）。
  * CPM 引擎纯前端计算（FS/SS/FF/SF + 时距、正逆推、总/自由时差、关键线路、
- * 手动/自动任务模式），工作日历推算日期，MS Project XML 导入导出互通，
- * 数据 localStorage 持久化（gaea.schedule.v1）。
+ * 手动/自动任务模式），工作日历推算日期，MS Project XML 导入导出互通。
+ * 刀4 起：计划文件化（进度计划/当前计划.gsched.json）——板块与 agent 共享
+ * 同一资产（GaeaScheduleLoad/Save 水合+自动保存，agent 经 schedule_* 工具读写）。
  */
-import React, { useMemo, useRef, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { Alert, Button, Checkbox, Input, Popconfirm, Popover, Segmented, Space, Tag, Tooltip } from 'antd'
 import {
   AimOutlined, CalendarOutlined, ClearOutlined, ClusterOutlined, ExportOutlined, ImportOutlined,
@@ -16,7 +17,7 @@ import {
 import { computeCpm } from '../schedule/cpm'
 import { buildAoa } from '../schedule/aoa'
 import { buildProjectXml, parseProjectXml } from '../schedule/mspdi'
-import { useScheduleStore, isGroupRow } from '../schedule/store'
+import { useScheduleStore, isGroupRow, initScheduleSync } from '../schedule/store'
 import { GanttView } from '../schedule/GanttView'
 import { PdmView } from '../schedule/PdmView'
 import { AoaView } from '../schedule/AoaView'
@@ -100,6 +101,13 @@ const SchedulePage: React.FC = () => {
   const clearAll = useScheduleStore((s) => s.clearAll)
   const fileRef = useRef<HTMLInputElement>(null)
   const [importMsg, setImportMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  const hydrated = useScheduleStore((s) => s.hydrated)
+  const sync = useScheduleStore((s) => s.sync)
+  const savedAt = useScheduleStore((s) => s.savedAt)
+  const syncError = useScheduleStore((s) => s.syncError)
+
+  // 文件同步：水合（文件为准，localStorage 迁移）+ 自动保存 + agent 写入回读
+  useEffect(() => { void initScheduleSync() }, [])
 
   const cpm = useMemo(() => computeCpm(project.tasks, project.links), [project])
   const aoa = useMemo(() => buildAoa(project.tasks, project.links), [project])
@@ -238,6 +246,12 @@ const SchedulePage: React.FC = () => {
         <span>关键工作 <span className="sched-sb-crit">{project.tasks.filter((t) => t.level > 0 && cpm.rows[t.id]?.critical).length}</span> 项</span>
         <span>工作制：<span className="sched-sb-strong">{workweekLabel(project.calendar)}</span>{(project.calendar?.holidays.length ?? 0) > 0 && <> · 节假日 {project.calendar!.holidays.length} 天</>}</span>
         <span>时间单位：工作日（日期轴为自然日）</span>
+        <span style={{ marginLeft: 'auto' }} title={syncError ?? '进度计划/当前计划.gsched.json'}>
+          {!hydrated ? '读取计划…' : sync === 'dirty' ? '改动待保存…'
+            : sync === 'saving' ? '保存中…'
+            : sync === 'error' ? <span className="sched-sb-crit">保存失败</span>
+            : savedAt ? <>已保存 {savedAt} · <span className="sched-dim">agent 可读写</span></> : '已同步 · agent 可读写'}
+        </span>
       </div>
     </div>
   )

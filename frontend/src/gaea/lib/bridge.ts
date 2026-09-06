@@ -40,6 +40,8 @@ import type {
   OfficeEditResult,
   XlsxEditResult,
   XlsxPlanResult,
+  ScheduleLoadResult,
+  ScheduleSaveResult,
   XlsxChartInput,
   XlsxChartResult,
   ZipDeliverableResult,
@@ -278,6 +280,10 @@ export interface AppBindings {
   XlsxApplyEdit(rel: string, ops: string): Promise<XlsxEditResult>;
   // XlsxSetCell 直接写单元格（Excel 式双击编辑）：写值/公式 + LibreOffice 重算。
   XlsxSetCell(rel: string, sheet: string, ref: string, value: string): Promise<XlsxEditResult>;
+  // ScheduleLoad/Save 进度计划板块文件持久化（v4.113.0 刀4）：默认计划文件
+  // 进度计划/当前计划.gsched.json，与 agent 工具（schedule_*）共享同一资产。
+  ScheduleLoad(): Promise<ScheduleLoadResult>;
+  ScheduleSave(projectJSON: string): Promise<ScheduleSaveResult>;
   // XlsxRecalc 手动重算全部公式（LibreOffice）并返回更新预览。
   XlsxRecalc(rel: string): Promise<XlsxEditResult>;
   // XlsxRowOps 行级操作：insert_before / insert_after / delete（基于选中单元格所在行）。
@@ -895,6 +901,8 @@ const gaeaToGaea = {
   XlsxPlanEdit: "GaeaXlsxPlanEdit",
   XlsxApplyEdit: "GaeaXlsxApplyEdit",
   XlsxSetCell: "GaeaXlsxSetCell",
+  ScheduleLoad: "GaeaScheduleLoad",
+  ScheduleSave: "GaeaScheduleSave",
   XlsxRecalc: "GaeaXlsxRecalc",
   XlsxRowOps: "GaeaXlsxRowOps",
   XlsxColOps: "GaeaXlsxColOps",

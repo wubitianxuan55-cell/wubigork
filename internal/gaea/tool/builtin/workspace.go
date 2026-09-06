@@ -49,6 +49,9 @@ func (w Workspace) Tools(enabled ...string) []tool.Tool {
 		screenCapture{workDir: w.Dir},
 		webFetch{proxySpec: w.ProxySpec},
 		sidebarOpen{root: w.Dir},
+		scheduleGet{workDir: w.Dir},
+		scheduleApply{workDir: w.Dir, roots: roots},
+		scheduleAnalyze{workDir: w.Dir},
 	}
 	if len(enabled) == 0 {
 		return all

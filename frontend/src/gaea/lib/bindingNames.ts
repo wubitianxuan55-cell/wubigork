@@ -276,6 +276,8 @@ export const bindingNames = [
 	"GaeaSaveProvider",
 	"GaeaSaveSettings",
 	"GaeaSaveWindowState",
+	"GaeaScheduleLoad",
+	"GaeaScheduleSave",
 	"GaeaSemanticIndexStatus",
 	"GaeaSemanticSearch",
 	"GaeaSend",

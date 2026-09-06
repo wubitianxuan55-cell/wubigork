@@ -633,6 +633,22 @@ export interface OfficeEditResult {
   edited: string;
 }
 
+// ScheduleLoadResult / ScheduleSaveResult 对齐后端 GaeaScheduleLoad/Save
+// （gaea_schedule_file.go）：进度计划板块文件持久化（v4.113.0 刀4）。
+// project 为计划 JSON 串（前端自行解析，schedule/types 的 SchedProject 口径）。
+export interface ScheduleLoadResult {
+  path: string;
+  exists: boolean;
+  project: string;
+}
+
+export interface ScheduleSaveResult {
+  path: string;
+  savedAt: string;
+  duration: number;
+  critical: number;
+}
+
 // ── xlsx 单元格级预览 ──────────────────────────────────────
 export interface XlsxCellStyle {
   bold?: boolean;
