@@ -1,3 +1,11 @@
+## v4.119.0 · 进度计划刀10：左 AI 对话 · 右工作台——双栏版面 · 共享工作线程（2026-09-06）
+> 用户点名版面（绑定面 **588** 零变更）：进度计划板块改为左侧 AI 对话、右侧工作台双栏；与办公板块**共享同一条工作线程**——左栏聊的就是办公那条会话，schedule_* 工具审批/回执/证据卡全部同源。详见 releases/v4.119.0.md。
+- **架构关键（store.ts 事件绑定提升恰好一次）**：gaea/lib/store 是模块单例，原 useController 每挂载订阅一次 gaea-event——keepAlive 树下 GaeaApp 与新对话 pane 同时挂载会双订阅，text/reasoning 增量重复 dispatch（气泡翻倍）。提升为模块级 ensureEventsBound（首个宿主绑定、卸载不退订：隐藏期间事件继续入库，回到板块即热态）；看门狗保持每宿主（只读校准+localCancel 幂等）。**回归测试钉死：双宿主挂载+流式增量→只入库一份**。
+- **ScheduleChatPane**（schedule/ChatPane.tsx）：LocaleProvider+useController+Transcript+Composer+ApprovalModal+AskCard 装配；头部=标题+执行中脉冲徽标+新会话；schedule_apply done→notifyScheduleFileChanged 即时回读（与 App.tsx 刀5 同款）；composer disabled 门禁对齐（meta 未就绪/审批打开）。
+- **SchedulePage 双栏**：左 420px 对话栏（可折叠，页头切换按钮）+右工作台（原横道/单代号/双代号+全部工具原样保留，零功能删除）；i18n 三语 +4 键（schedChat.*）。
+- 门禁：tsc -b/eslint 0、vitest 2145→**2146**（+1 双宿主回归，一次全绿）、Go 例行构建绿、drift PASS@588、版本四处 4.119.0、build.bat 冒烟 /api/health 200；?mock=1 走查：双栏渲染（左 420px 对话+右 gantt）→左栏发消息（流式回合+工具卡+最终答案+输入框清空）→折叠/展开→**切办公板块同线程互认**（左栏发的消息办公对话区可见，往返保留）。
+- 欠账：对话栏宽度拖拽调节、双代号手动布局、资源成本（需先出设计方案）；拍板池：diff 确认卡/双工期口径/多工程；真机池：真机端到端+拖拽/双栏手感。
+
 ## v4.118.0 · 进度计划刀9：横道拖拽调排程——拖移即定位锁定 · 右缘缩放改工期 · 直接操作闭环（2026-09-06）
 > v4.110/112 欠账池收刀（绑定面 **588** 零变更）；「一表多图」的直接操作编辑补完——对话即排程（刀4~6）之外，鼠标也能改计划。详见 releases/v4.118.0.md。
 - **语义钉死（诚实口径）**：拖移 auto 任务=**转手动并锁定开始到落点**（Project 拖动加约束同源）——auto 位置由搭接决定，拖完会被 CPM 拉回，转手动是唯一不骗人的做法；manual 任务拖移=更新 manualStart；右缘缩放=改工期（es 不动，auto/manual 皆可）；里程碑可拖移不可缩放；分组行不可拖。落点按**最近工作日**吸附（跨周末/节假日吸附相邻工作日，等距取左），Esc 取消、未移动=纯点击不产生修改。

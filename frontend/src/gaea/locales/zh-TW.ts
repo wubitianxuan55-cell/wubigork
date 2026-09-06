@@ -4,6 +4,11 @@ import type { DictKey } from "./en";
 
 export const zhTW: Record<DictKey, string> = {
   //  shared verbs / chrome
+  // 進度計畫左欄對話（v4.119 刀10）
+  "schedChat.title": "AI 助手",
+  "schedChat.running": "執行中",
+  "schedChat.new": "新會話",
+  "schedChat.newTip": "開始一條新的工作會話（與辦公板塊共享執行緒）",
   "common.close": "關閉",
   "common.cancel": "取消",
   "common.save": "儲存",

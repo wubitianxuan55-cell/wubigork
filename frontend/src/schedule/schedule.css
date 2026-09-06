@@ -667,3 +667,67 @@
 .sched-day-col.sched-day-off .sched-month-cell {
   background: rgba(224, 32, 32, 0.05);
 }
+
+/* ── 双栏布局（v4.119 刀10：左 AI 对话 · 右工作台） ─────────── */
+.sched-shell {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+}
+.sched-chat-pane {
+  width: 420px;
+  flex-shrink: 0;
+  min-width: 0;
+  border-right: 1px solid var(--md-sys-color-border, #e5e7eb);
+  background: var(--md-sys-color-bg-container, #fff);
+  display: flex;
+}
+.sched-chat {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+.sched-chat-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--md-sys-color-border, #e5e7eb);
+  flex-shrink: 0;
+}
+.sched-chat-title {
+  font-weight: 700;
+  font-size: 13px;
+}
+.sched-chat-running {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--sched-critical);
+}
+.sched-chat-running-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--sched-critical);
+  animation: sched-pulse 1.1s ease-in-out infinite;
+}
+@keyframes sched-pulse {
+  50% { opacity: 0.25; }
+}
+.sched-chat-new {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--md-sys-color-on-surface, #374151);
+  border: 1px solid var(--md-sys-color-border, #e5e7eb);
+  background: transparent;
+  border-radius: 6px;
+  padding: 2px 8px;
+  cursor: pointer;
+}
+.sched-chat-new:hover {
+  background: var(--md-sys-color-surface-container, #f6f7f9);
+}

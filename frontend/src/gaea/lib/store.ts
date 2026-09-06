@@ -634,6 +634,76 @@ export function isFinalAnswerRendered(rendered: string, finalContent: string): b
   return rendered.trimEnd().endsWith(full);
 }
 
+// ── 全局事件/就绪绑定（恰好一次，v4.119 刀10）────────────────────────
+// 进度计划板块的 AI 对话 pane 与办公板块 GaeaApp 共享本模块的会话 store
+// （keepAlive 树下两者可能同时挂载）。事件绑定必须**恰好一次**：多订阅会让
+// text/reasoning 增量重复 dispatch（气泡翻倍）。首个 useController 挂载时绑定，
+// 之后任何宿主复用；卸载不退订——隐藏期间事件继续入库，回到板块即热态。
+// 注入的回调都是 store 单例上的稳定闭包，跨宿主语义一致。
+interface EventBindDeps {
+  loadSessionData: () => Promise<void>;
+  refreshFactBase: () => void;
+  reconcileFinalAnswer: () => void;
+  store: typeof useStore;
+  dispatch: (a: Action) => void;
+}
+let eventsBound = false;
+function ensureEventsBound(deps: EventBindDeps): void {
+  if (eventsBound) return;
+  eventsBound = true;
+  const { dispatch, refreshFactBase, reconcileFinalAnswer } = deps;
+  onEvent((e) => {
+    // v4.26 事件序号防线：payload 带 seq（可选字段）时做缺口检测，命中缺口
+    // 经注入的 fetcher（App.tsx 挂 app.GaeaResyncEvents）补拉后端折叠快照，
+    // 以 resync action 落库。旧后端无 seq / 未挂 fetcher 时整条防线静默旁路；
+    // 5s 冷却 + 在途去重防补拉风暴。resync 只补 items，不动 running/turnActive
+    // （见 reducer case "resync"）。会话切换的 seq 基线归零在各 reset 调用点
+    // 经 resetEventSync() 完成。
+    noteEventSeq(e, {
+      onSnapshot: (snap) => dispatch({ type: "resync", items: snap.items }),
+      onError: (err) => logBridgeError("eventSync 补拉", err),
+    });
+    // 流式 text/reasoning 用 queueMicrotask 确保每次 chunk 即时渲染，
+    // 不被 React 18 自动批处理合并。同步 dispatch 会导致多个事件在同一
+    // 微任务中批量更新从而不渲染中间态。
+    if (e.kind === "text" || e.kind === "reasoning") {
+      queueMicrotask(() => dispatch({ type: "event", e }));
+    } else {
+      dispatch({ type: "event", e });
+    }
+    if (e.kind === "turn_done") {
+      app.ContextUsage().then(c => dispatch({ type: "context", context: c })).catch((err) => logBridgeError("turn_done ContextUsage", err));
+      app.Balance().then(b => dispatch({ type: "balance", balance: b })).catch((err) => logBridgeError("turn_done Balance", err));
+      app.TCCAReport().then(raw => {
+        try { dispatch({ type: "tcca", report: JSON.parse(raw) as TCCAReport }); }
+        catch (err) { logBridgeError("TCCAReport JSON.parse", err); }
+      }).catch((err) => logBridgeError("TCCAReport", err));
+      reconcileFinalAnswer();
+    }
+    if (e.kind === "turn_done" || e.kind === "notice") {
+      app.Jobs().then(j => dispatch({ type: "jobs", jobs: j })).catch((err) => logBridgeError("Jobs", err));
+      refreshFactBase();
+    }
+    if (e.kind === "tool_result" && e.tool?.name?.startsWith("fact_")) {
+      refreshFactBase();
+    }
+  });
+  onReady(() => {
+    void deps.loadSessionData();
+    app.Balance().then(b => dispatch({ type: "balance", balance: b })).catch((err) => logBridgeError("onReady Balance", err));
+    app.Jobs().then(j => dispatch({ type: "jobs", jobs: j })).catch((err) => logBridgeError("onReady Jobs", err));
+    refreshFactBase();
+    app.TCCAReport().then(raw => {
+      try { dispatch({ type: "tcca", report: JSON.parse(raw) as TCCAReport }); }
+      catch (err) { logBridgeError("TCCAReport JSON.parse", err); }
+    }).catch((err) => logBridgeError("TCCAReport", err));
+  });
+  void deps.loadSessionData();
+  app.Balance().then(b => dispatch({ type: "balance", balance: b })).catch((err) => logBridgeError("init Balance", err));
+  app.Jobs().then(j => dispatch({ type: "jobs", jobs: j })).catch((err) => logBridgeError("init Jobs", err));
+  refreshFactBase();
+}
+
 export function useController() {
   const store = useStore;
   const state = store(useShallow(s => s));
@@ -706,54 +776,13 @@ export function useController() {
   }, [dispatch]);
 
   useEffect(() => {
-    const off = onEvent((e) => {
-      // v4.26 事件序号防线：payload 带 seq（可选字段）时做缺口检测，命中缺口
-      // 经注入的 fetcher（App.tsx 挂 app.GaeaResyncEvents）补拉后端折叠快照，
-      // 以 resync action 落库。旧后端无 seq / 未挂 fetcher 时整条防线静默旁路；
-      // 5s 冷却 + 在途去重防补拉风暴。resync 只补 items，不动 running/turnActive
-      // （见 reducer case "resync"）。会话切换的 seq 基线归零在各 reset 调用点
-      // 经 resetEventSync() 完成。
-      noteEventSeq(e, {
-        onSnapshot: (snap) => dispatch({ type: "resync", items: snap.items }),
-        onError: (err) => logBridgeError("eventSync 补拉", err),
-      });
-      // 流式 text/reasoning 用 queueMicrotask 确保每次 chunk 即时渲染，
-      // 不被 React 18 自动批处理合并。同步 dispatch 会导致多个事件在同一
-      // 微任务中批量更新从而不渲染中间态。
-      if (e.kind === "text" || e.kind === "reasoning") {
-        queueMicrotask(() => dispatch({ type: "event", e }));
-      } else {
-        dispatch({ type: "event", e });
-      }
-      if (e.kind === "turn_done") {
-        app.ContextUsage().then(c => dispatch({ type: "context", context: c })).catch((err) => logBridgeError("turn_done ContextUsage", err));
-        app.Balance().then(b => dispatch({ type: "balance", balance: b })).catch((err) => logBridgeError("turn_done Balance", err));
-        app.TCCAReport().then(raw => {
-          try { dispatch({ type: "tcca", report: JSON.parse(raw) as TCCAReport }); }
-          catch (err) { logBridgeError("TCCAReport JSON.parse", err); }
-        }).catch((err) => logBridgeError("TCCAReport", err));
-        reconcileFinalAnswer();
-      }
-      if (e.kind === "turn_done" || e.kind === "notice") {
-        app.Jobs().then(j => dispatch({ type: "jobs", jobs: j })).catch((err) => logBridgeError("Jobs", err));
-        refreshFactBase();
-      }
-      if (e.kind === "tool_result" && e.tool?.name?.startsWith("fact_")) {
-        refreshFactBase();
-      }
-    });
-    const offReady = onReady(() => {
-      void loadSessionData();
-      app.Balance().then(b => dispatch({ type: "balance", balance: b })).catch((err) => logBridgeError("onReady Balance", err));
-      app.Jobs().then(j => dispatch({ type: "jobs", jobs: j })).catch((err) => logBridgeError("onReady Jobs", err));
-      refreshFactBase();
-      app.TCCAReport().then(raw => {
-        try { dispatch({ type: "tcca", report: JSON.parse(raw) as TCCAReport }); }
-        catch (err) { logBridgeError("TCCAReport JSON.parse", err); }
-      }).catch((err) => logBridgeError("TCCAReport", err));
-    });
+    // v4.119 刀10：事件/就绪绑定提升为模块级恰好一次（见 ensureEventsBound）——
+    // 进度计划板块的 AI 对话 pane 与本板块 GaeaApp 在 keepAlive 树下可能同时
+    // 挂载，多订阅会让 text/reasoning 增量重复 dispatch（气泡翻倍）。
+    ensureEventsBound({ loadSessionData, refreshFactBase, reconcileFinalAnswer, store, dispatch });
     // 看门狗：running=true 时每 30s 用后端真实状态校准一次，防止
-    // turn_done 事件丢失导致界面永久卡在“执行中”。
+    // turn_done 事件丢失导致界面永久卡在“执行中”。（每宿主各自运行：
+    // 只读校准 + localCancel 幂等，多宿主共存无害。）
     const watchdog = window.setInterval(() => {
       const st = store.getState();
       if (!st.running) return;
@@ -764,11 +793,7 @@ export function useController() {
         }
       }).catch((err) => logBridgeError("watchdog GaeaRunning", err));
     }, 30000);
-    void loadSessionData();
-    app.Balance().then(b => dispatch({ type: "balance", balance: b })).catch((err) => logBridgeError("init Balance", err));
-    app.Jobs().then(j => dispatch({ type: "jobs", jobs: j })).catch((err) => logBridgeError("init Jobs", err));
-    refreshFactBase();
-    return () => { off(); offReady(); window.clearInterval(watchdog); };
+    return () => { window.clearInterval(watchdog); };
   }, [loadSessionData, refreshFactBase, reconcileFinalAnswer, store, dispatch]);
 
   // T7-4：send 失败不再静默——保留已上屏的用户消息（可复制重发），

@@ -4,6 +4,11 @@
 // it at compile time), so adding a key here makes the build fail until zh has it.
 export const en = {
   // shared verbs / chrome
+  // 进度计划左栏对话（v4.119 刀10）
+  "schedChat.title": "AI 助手",
+  "schedChat.running": "执行中",
+  "schedChat.new": "新会话",
+  "schedChat.newTip": "开始一条新的工作会话（与办公板块共享线程）",
   "common.close": "Close",
   "common.cancel": "Cancel",
   "common.save": "Save",

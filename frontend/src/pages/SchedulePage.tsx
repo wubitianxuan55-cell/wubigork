@@ -12,7 +12,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { Alert, Button, Checkbox, Input, Popconfirm, Popover, Segmented, Space, Tag, Tooltip } from 'antd'
 import {
   AimOutlined, CalendarOutlined, ClearOutlined, ClusterOutlined, ExportOutlined, FundOutlined, ImportOutlined,
-  NodeIndexOutlined, PlusOutlined, TableOutlined, ThunderboltOutlined, PartitionOutlined, DeleteOutlined,
+  MessageOutlined, NodeIndexOutlined, PlusOutlined, TableOutlined, ThunderboltOutlined, PartitionOutlined, DeleteOutlined,
 } from '@ant-design/icons'
 import { computeCpm } from '../schedule/cpm'
 import { buildAoa } from '../schedule/aoa'
@@ -21,11 +21,13 @@ import { computeBaselineDrift } from '../schedule/baseline'
 import { checkDeadline } from '../schedule/deadline'
 import type { CpmResult } from '../schedule/types'
 import { useScheduleStore, isGroupRow, initScheduleSync } from '../schedule/store'
+import { ScheduleChatPane } from '../schedule/ChatPane'
 import { GanttView } from '../schedule/GanttView'
 import { PdmView } from '../schedule/PdmView'
 import { AoaView } from '../schedule/AoaView'
 import '../schedule/schedule.css'
 import '../gaea/styles.css'
+import '../gaea/redesign.css'
 import '../gaea/tailwind.css'
 
 const WEEKDAYS: { day: number; label: string }[] = [
@@ -204,6 +206,8 @@ const SchedulePage: React.FC = () => {
   const sync = useScheduleStore((s) => s.sync)
   const savedAt = useScheduleStore((s) => s.savedAt)
   const syncError = useScheduleStore((s) => s.syncError)
+  /** 左栏 AI 对话折叠态（刀10：对话即排程的直接入口，默认展开） */
+  const [chatCollapsed, setChatCollapsed] = useState(false)
 
   // 文件同步：水合（文件为准，localStorage 迁移）+ 自动保存 + agent 写入回读
   useEffect(() => { void initScheduleSync() }, [])
@@ -239,9 +243,24 @@ const SchedulePage: React.FC = () => {
   }
 
   return (
-    <div className="sched-page" style={{ padding: '12px 16px' }}>
+    <div className="sched-shell">
+      {!chatCollapsed && (
+        <div className="sched-chat-pane">
+          <ScheduleChatPane />
+        </div>
+      )}
+      <div className="sched-page" style={{ flex: 1, minWidth: 0, padding: '12px 16px' }}>
       <div className="sched-header">
         <h2 className="sched-header-title">进度计划</h2>
+        <Button
+          size="small"
+          type={chatCollapsed ? 'primary' : 'default'}
+          ghost={chatCollapsed}
+          icon={<MessageOutlined />}
+          onClick={() => setChatCollapsed((v) => !v)}
+          title={chatCollapsed ? '展开左栏 AI 对话（对话即排程）' : '收起左栏 AI 对话'}
+          aria-label="切换 AI 对话栏"
+        />
         <Input
           className="sched-name-input"
           variant="borderless"
@@ -392,6 +411,7 @@ const SchedulePage: React.FC = () => {
             : sync === 'error' ? <span className="sched-sb-crit">保存失败</span>
             : savedAt ? <>已保存 {savedAt} · <span className="sched-dim">agent 可读写</span></> : '已同步 · agent 可读写'}
         </span>
+      </div>
       </div>
     </div>
   )

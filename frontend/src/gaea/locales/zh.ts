@@ -5,6 +5,11 @@ import type { DictKey } from "./en";
 
 export const zh: Record<DictKey, string> = {
   // 通用动词 / 框架
+  // 进度计划左栏对话（v4.119 刀10）
+  "schedChat.title": "AI 助手",
+  "schedChat.running": "执行中",
+  "schedChat.new": "新会话",
+  "schedChat.newTip": "开始一条新的工作会话（与办公板块共享线程）",
   "common.close": "关闭",
   "common.cancel": "取消",
   "common.save": "保存",
