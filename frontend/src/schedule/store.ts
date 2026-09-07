@@ -1,11 +1,14 @@
 /**
  * schedule/store.ts — 进度计划板块状态（zustand + 文件持久化 v4.113.0 刀4）
  *
- * 计划文件（进度计划/当前计划.gsched.json）是板块与 agent 的共享资产：
- * 挂载时经 GaeaScheduleLoad 水合（文件不存在则把 localStorage 旧数据迁移上
- * 文件），编辑后防抖自动保存（GaeaScheduleSave，Go 侧校验+CPM fail-closed）。
- * localStorage persist 保留为离线缓存与迁移源。agent 写文件后板块靠
- * initScheduleSync 的 focus/可见轮询回读（15s 轻扫，不脏写时才覆盖）。
+ * 计划文件（进度计划/*.gsched.json，每文件一工程）是板块与 agent 的共享资产：
+ * 挂载时经 GaeaScheduleLoad 水合当前指针指向的工程（文件不存在则把 localStorage
+ * 旧数据迁移上文件），编辑后防抖自动保存（GaeaScheduleSave 显式带当前工程
+ * rel，Go 侧校验+CPM fail-closed）。localStorage persist 保留为离线缓存与迁移
+ * 源（多工程下降级为「当前工程缓存」，切换后旧缓存被覆盖是既定口径）。agent
+ * 写文件后板块靠 initScheduleSync 的 focus/可见轮询回读（15s 轻扫，不脏写时
+ * 才覆盖）。多工程切换/新建/归档/删除见文件尾（v4.139 #15 刀1，设计文档
+ * docs/gaea-schedule-multi-project-design-2026-09.md §3.3/3.4）。
  */
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
@@ -14,9 +17,29 @@ import { makeEmptyProject, makeSampleProject } from './sample'
 import { normalizeCalendar } from './calendar'
 import { computeCpm } from './cpm'
 import { planFinishOf } from './deadline'
-import { loadScheduleFile, saveScheduleFile } from './api'
+import {
+  archiveScheduleProject,
+  createScheduleProject,
+  deleteScheduleProject,
+  listScheduleProjects,
+  loadScheduleFile,
+  openScheduleProject,
+  saveScheduleFile,
+} from './api'
+import type { ScheduleProjectSummary } from './api'
 import { snapshotBaseline, upsertBaseline } from './baseline'
 import { normalizeAoaLayout } from './aoaLayout'
+
+/**
+ * 缺省工程文件 rel（v4.139 #15 刀1 起语义降级为「缺省值」）：单工程老用户/
+ * 指针未切换时 currentPath 即此值；水合后一律以 LoadResult.path 为准，展示
+ * 口径（状态栏 title/办公卡 isCurrentPlan 等）应读 store 的 currentPath 而
+ * 不再直读常量。此处镜像 gschedSummary.ts 的 SCHEDULE_FILE_PATH（常量本体
+ * 不动）而不直接转引，是因为 gschedSummary 已 import 本模块的 normalizeProject
+ * ——再加 store→gschedSummary 一条边即成模块环，gschedSummary 先于本模块
+ * 求值时该 const 尚未初始化（TDZ），会在其先加载的入口（如办公卡）崩溃。
+ */
+export const DEFAULT_SCHEDULE_PATH = '进度计划/当前计划.gsched.json'
 
 export type ScheduleView = 'gantt' | 'pdm' | 'aoa' | 'usage'
 
@@ -135,6 +158,30 @@ interface ScheduleState {
   future: SchedProject[]
   undo: () => void
   redo: () => void
+  // ── 多工程（v4.139 #15 刀1，docs/gaea-schedule-multi-project-design-2026-09.md §3.3/3.4）──
+  /**
+   * 当前工程文件 rel：初值=缺省路径（DEFAULT_SCHEDULE_PATH），水合后=
+   * LoadResult.path（外部回读/轻扫同样校正）。localStorage persist 结构不变，
+   * 仍只缓存当前工程——切换后旧缓存被覆盖是既定降级（设计 §6 风险 5）。
+   */
+  currentPath: string
+  /** 工程列表缓存（GaeaScheduleProjects 索引视图；refreshProjects 维护，失败静默=空列表由 UI 出空态） */
+  projects: ScheduleProjectSummary[]
+  /**
+   * 切换当前工程（测试重点）：sync=dirty 先用旧 currentPath 冲刷保存（await）→
+   * Open 切指针 → 重水合（新工程新历史：past/future 清空、selectedId 置空、
+   * 合并游标复位）。失败 fail-closed：保持原工程/currentPath 不变，只落
+   * syncError 提示，绝不静默半切换。
+   */
+  openProject: (rel: string) => Promise<void>
+  /** 新建工程（Go slug 落盘+登记索引+自动切为当前）→ openProject 同款重水合收尾 */
+  createProject: (name: string) => Promise<void>
+  /** 归档/反归档（文件保留原位，仅索引标记）→ 刷新列表缓存；指针与返回 current 不一致时重水合 */
+  archiveProject: (rel: string, archived: boolean) => Promise<void>
+  /** 删除工程（物理删文件，不可恢复）→ 刷新列表缓存；删的是当前工程时重水合到返回的 current */
+  deleteProject: (rel: string) => Promise<void>
+  /** 刷新工程列表缓存（失败静默：保留旧缓存/初值空列表） */
+  refreshProjects: () => Promise<void>
 }
 
 let idSeq = Date.now() % 100000
@@ -211,6 +258,9 @@ export const useScheduleStore = create<ScheduleState>()(
       syncError: null,
       past: [],
       future: [],
+      // 多工程（v4.139 #15 刀1）：currentPath 初值=缺省常量；projects=空缓存
+      currentPath: DEFAULT_SCHEDULE_PATH,
+      projects: [],
 
       undo: () => {
         const st = useScheduleStore.getState()
@@ -411,6 +461,14 @@ export const useScheduleStore = create<ScheduleState>()(
 
       loadSample: () => { pushHistory(); set({ project: makeSampleProject(), selectedId: null }) },
       clearAll: () => { pushHistory(); set({ project: makeEmptyProject(), selectedId: null }) },
+
+      // ── 多工程（v4.139 #15 刀1）：实现放在下方模块函数——切换流程要触达
+      // doSave/防抖计时器/水合锁等文件同步内部状态，不宜塞进 creator 闭包。
+      openProject: (rel) => switchProject(rel),
+      createProject: (name) => createThenSwitch(name),
+      archiveProject: (rel, archived) => mutateProjectList(() => archiveScheduleProject(rel, archived)),
+      deleteProject: (rel) => mutateProjectList(() => deleteScheduleProject(rel)),
+      refreshProjects: () => refreshProjectsCache(),
     }),
     {
       name: 'gaea.schedule.v1',
@@ -451,10 +509,13 @@ function projectRaw(p: SchedProject): string {
 }
 
 async function doSave(): Promise<void> {
-  const { project } = useScheduleStore.getState()
+  // project 与 currentPath 同刻快照（v4.139 #15 刀1）：保存目标永远=装载时的
+  // 工程文件。防抖在途时切工程由 switchProject 先冲刷后切指针兜底——即使保存
+  // 迟到也落在旧 rel 上，结构性防「旧内容写进新文件」竞态（设计 §3.2 方案 A）。
+  const { project, currentPath } = useScheduleStore.getState()
   useScheduleStore.setState({ sync: 'saving' })
   try {
-    const r = await saveScheduleFile(project)
+    const r = await saveScheduleFile(project, currentPath)
     lastSyncedRaw = projectRaw(project)
     useScheduleStore.setState({ sync: 'saved', savedAt: r.savedAt, syncError: null })
   } catch (e) {
@@ -471,7 +532,8 @@ export async function initScheduleSync(): Promise<void> {
     const r = await loadScheduleFile()
     if (r.exists && r.project) {
       lastSyncedRaw = projectRaw(r.project)
-      useScheduleStore.setState({ project: r.project, hydrated: true, sync: 'saved' })
+      // currentPath 以文件回执为准（多工程指针解析在 Go 侧），展示口径随之
+      useScheduleStore.setState({ project: r.project, currentPath: r.path, hydrated: true, sync: 'saved' })
     } else {
       // 迁移：localStorage 旧数据（persist 中间件维护）上文件；无则落当前内存态
       const ls = typeof localStorage !== 'undefined' ? localStorage.getItem('gaea.schedule.v1') : null
@@ -480,7 +542,7 @@ export async function initScheduleSync(): Promise<void> {
         const legacy = ls ? (JSON.parse(ls)?.state?.project as SchedProject | undefined) : undefined
         if (legacy) seed = normalizeProject(legacy)
       } catch { /* 坏缓存忽略，落内存态 */ }
-      useScheduleStore.setState({ project: seed, hydrated: true })
+      useScheduleStore.setState({ project: seed, currentPath: r.path, hydrated: true })
       lastSyncedRaw = projectRaw(seed)
       await doSave()
     }
@@ -489,6 +551,9 @@ export async function initScheduleSync(): Promise<void> {
   } finally {
     hydrating = false
   }
+
+  // 工程列表缓存顺带刷新（v4.139 #15 刀1；失败静默=空列表，切换器自出空态）
+  void refreshProjectsCache()
 
   // 编辑 → 防抖 800ms 自动保存（外部回读不触发）
   useScheduleStore.subscribe((s, prev) => {
@@ -513,10 +578,14 @@ export async function initScheduleSync(): Promise<void> {
         lastSyncedRaw = raw
         applyingExternal = true
         try {
-          useScheduleStore.setState({ project: r.project, sync: 'saved', syncError: null })
+          // 外部回读同样校正 currentPath（agent/办公卡切指针后，轻扫即跟上）
+          useScheduleStore.setState({ project: r.project, currentPath: r.path, sync: 'saved', syncError: null })
         } finally {
           applyingExternal = false
         }
+      } else if (r.path !== st.currentPath) {
+        // 内容未变但指针变了：只校正路径，不动工程内容
+        useScheduleStore.setState({ currentPath: r.path })
       }
     } catch { /* 轻扫失败静默，下轮再试 */ }
   }
@@ -525,4 +594,104 @@ export async function initScheduleSync(): Promise<void> {
     window.addEventListener('focus', () => { void poll() })
     setInterval(() => { if (document.visibilityState === 'visible') void poll() }, 15000)
   }
+}
+
+// ── 多工程切换/管理（v4.139 #15 刀1，设计 §3.3/3.4）────────────────────────
+// 切换语义（§3.3）：GaeaScheduleProjectOpen 只校验 rel + 原子写索引 current，
+// 不搬运数据不改文件。板块在切换前后自己守住两条纪律：
+// ① dirty 先用「旧 currentPath」冲刷（Save 显式带目标文件，结构性防「防抖在途
+//    时切工程，旧内容写进新文件」）；
+// ② 切换=新工程新历史（重水合整体落位：past/future 清空、selectedId 置空、
+//    文本合并游标复位），失败 fail-closed 保持原工程，不静默半切换。
+
+/**
+ * 重水合当前指针指向的工程（切换/新建/删当前后的统一收尾）。
+ * Load → normalizeProject（api 层）→ 整体落位；currentPath 以 LoadResult.path
+ * 为准。hydrating 锁与 initScheduleSync 水合分支同款：落位不经编辑订阅器，
+ * 不触发 dirty/防抖。失败向上抛错，由调用方统一 fail-closed。
+ */
+async function rehydrateCurrent(): Promise<void> {
+  const r = await loadScheduleFile()
+  if (!r.exists || !r.project) throw new Error(`工程文件缺失或不可读：${r.path}`)
+  hydrating = true
+  try {
+    lastSyncedRaw = projectRaw(r.project)
+    useScheduleStore.setState({
+      project: r.project,
+      currentPath: r.path,
+      selectedId: null,
+      past: [],
+      future: [],
+      sync: 'saved',
+      syncError: null,
+    })
+  } finally {
+    hydrating = false
+  }
+  resetHistorySession()
+}
+
+/**
+ * dirty 冲刷：作废防抖计时器并立即按当前 state（project+currentPath 同刻快照）
+ * 落盘。多工程动作（切换/新建/归档/删除）前置调用——绑定调用改指针/删文件
+ * 之前，旧工程的未保存编辑先落回旧 rel，既不丢编辑也杜绝迟到保存写错目标。
+ */
+async function flushDirty(): Promise<void> {
+  if (useScheduleStore.getState().sync !== 'dirty') return
+  if (saveTimer !== null) {
+    clearTimeout(saveTimer)
+    saveTimer = null
+  }
+  await doSave()
+}
+
+/** 切换当前工程（测试重点：dirty 冲刷带旧 rel → Open → 重水合；失败保持原工程） */
+async function switchProject(rel: string): Promise<void> {
+  // a. 冲刷：立即落盘，此刻 currentPath 仍是旧工程 rel
+  await flushDirty()
+  try {
+    await openScheduleProject(rel)
+    await rehydrateCurrent()
+    void refreshProjectsCache() // 列表缓存活刷新（失败静默）
+  } catch (e) {
+    // d. fail-closed：指针/工程保持原状，错误交指示器诚实展示
+    useScheduleStore.setState({ syncError: e instanceof Error ? e.message : String(e) })
+  }
+}
+
+/** 新建工程后走 openProject 同款收尾：先冲刷旧工程未存编辑，再重水合到新 rel */
+async function createThenSwitch(name: string): Promise<void> {
+  await flushDirty()
+  try {
+    await createScheduleProject(name)
+    await rehydrateCurrent()
+    // Create 回执不含列表：显式刷新把新条目带进缓存
+    await refreshProjectsCache()
+  } catch (e) {
+    useScheduleStore.setState({ syncError: e instanceof Error ? e.message : String(e) })
+  }
+}
+
+/** Archive/Delete 后的统一收尾：列表缓存取回执；指针与返回 current 不一致（删了当前工程等）则重水合 */
+async function mutateProjectList(
+  call: () => Promise<{ current: string; projects: ScheduleProjectSummary[] }>,
+): Promise<void> {
+  await flushDirty()
+  try {
+    const r = await call()
+    if (r.current !== useScheduleStore.getState().currentPath) {
+      await rehydrateCurrent() // 当前工程被删/指针被切：Go 已切到返回的 current
+    }
+    useScheduleStore.setState({ projects: r.projects })
+  } catch (e) {
+    useScheduleStore.setState({ syncError: e instanceof Error ? e.message : String(e) })
+  }
+}
+
+/** 工程列表缓存刷新（失败静默=保留旧缓存/初值空列表，UI 自己出空态） */
+async function refreshProjectsCache(): Promise<void> {
+  try {
+    const r = await listScheduleProjects()
+    useScheduleStore.setState({ projects: r.projects })
+  } catch { /* 静默 */ }
 }

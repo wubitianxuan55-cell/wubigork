@@ -2,10 +2,13 @@
  * ScheduleFileCard — 办公文件预览中的进度计划摘要卡（v4.121.0 刀12 办公联动）
  *
  * 办公板块预览 .gsched.json 时不再裸吐 JSON 文本：解析为摘要（总工期/关键/
- * 搭接/基线漂移/倒排校核），并提供两个联动动作——「在进度计划中打开」跳板块、
+ * 搭接/基线漂移/倒排校核），并提供联动动作——「在进度计划中打开」跳板块、
  * 「AI 进度周报」把周报指令发进共享工作线程（与进度计划板块左栏同一条线程）。
- * 联动不并板：两个动作只对当前计划文件（进度计划/当前计划.gsched.json）提供，
- * 其余 .gsched.json 只读摘要（板块绑定的是当前计划，跳转会误导）。
+ * v4.139 #15 多工程（设计 §3.5）：「打开」从仅当前计划扩展为任意计划——非当前
+ * 计划点击先切指针（GaeaScheduleProjectOpen，原「复制内容为当前计划」语义废弃：
+ * 复制会制造两份同源文件漂移无从收拾）+ 通知板块重水合再跳转；isCurrentPlan 按
+ * rel 与当前指针（store.currentPath，缺省回落常量）全等判定。周报仍仅当前计划
+ * （schedule_get 缺省读当前指针）。
  * 解析失败时 FilePreview 端回落原始文本视图，本组件不渲染。
  */
 import { useState } from "react";
@@ -16,8 +19,7 @@ import { useStore } from "../lib/store";
 import { emitFrontendEvent, FRONTEND_EVENTS } from "../../events";
 import { useToast } from "./Toast";
 import { isScheduleFilePath, SCHEDULE_FILE_PATH, type GschedSummary } from "../../schedule/gschedSummary";
-import { notifyScheduleFileChanged } from "../../schedule/store";
-import { saveScheduleFile } from "../../schedule/api";
+import { notifyScheduleFileChanged, useScheduleStore } from "../../schedule/store";
 
 const HEAD_BTN =
   "flex items-center gap-1 px-1.5 py-0.5 border-0 rounded bg-transparent text-fg-dim text-[10px] cursor-pointer hover:bg-bg-soft";
@@ -35,13 +37,15 @@ export function ScheduleFileCard({ relPath, summary, raw }: { relPath: string; s
   const t = useT();
   const toast = useToast();
   const [showRaw, setShowRaw] = useState(false);
-  const [copied, setCopied] = useState(false);
   const approval = useStore((s) => s.approval);
   const metaReady = useStore((s) => s.meta?.ready);
   // 审批挂起/内核未就绪时禁止发起（与 Composer disabled 同语义）
   const sendBlocked = approval != null || metaReady === false;
+  // 当前指针（v4.139 #15）：store.currentPath 缺省回落常量（旧 store 形态=老行为）；
+  // isCurrentPlan 按 rel 全等判定，不再按文件名后缀猜。
+  const currentPath = useScheduleStore((s) => s.currentPath);
   const isCurrentPlan = isScheduleFilePath(relPath) &&
-    relPath.replaceAll("\\", "/").endsWith(SCHEDULE_FILE_PATH);
+    relPath.replaceAll("\\", "/") === (currentPath ?? SCHEDULE_FILE_PATH);
   const p = summary.project;
   const drift = summary.baseline?.drift ?? 0;
 
@@ -63,14 +67,20 @@ export function ScheduleFileCard({ relPath, summary, raw }: { relPath: string; s
     emitFrontendEvent(FRONTEND_EVENTS.NAVIGATE, { page: "schedule" });
   };
 
-  /** 设为当前计划（v4.124 联动候选）：把该文件内容复制为当前计划，板块即时回读。
-   *  仅 ok=true 的计划可复制（Go Save 对循环依赖 fail-closed，拒收必失败）；仅非当前计划文件显示。 */
-  const setAsCurrent = () => {
-    saveScheduleFile(summary.project)
+  /** 在进度计划中打开（v4.139 #15 切指针语义）：当前计划直接跳板块；非当前计划
+   *  先 GaeaScheduleProjectOpen 切当前指针 + 通知板块重水合（notifyScheduleFileChanged
+   *  既有事件复用）再跳。原「复制内容为当前计划」（saveScheduleFile 覆盖写）废弃。
+   *  循环依赖计划也开放打开：指针切换不落盘，修正搭接在板块内完成。 */
+  const openThisPlan = () => {
+    if (isCurrentPlan) {
+      jumpToSchedule();
+      return;
+    }
+    app.ScheduleProjectOpen(relPath)
       .then(() => {
         notifyScheduleFileChanged();
-        toast.show(t("schedCard.copied"), "info");
-        setCopied(true);
+        jumpToSchedule();
+        toast.show(t("schedCard.copied"), "info"); // 「已切换为当前计划」
       })
       .catch((err) => toast.show(`${t("schedCard.copyFail")}：${err instanceof Error ? err.message : String(err)}`, "error"));
   };
@@ -143,31 +153,20 @@ export function ScheduleFileCard({ relPath, summary, raw }: { relPath: string; s
           </div>
         )}
 
-        {!isCurrentPlan && (
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-fg-faint text-[10px] flex-1">{t("schedCard.notCurrent", { path: SCHEDULE_FILE_PATH })}</span>
-            {!copied && summary.ok && (
-              <button
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-accent/40 text-accent bg-transparent text-[11px] cursor-pointer hover:bg-accent/10"
-                onClick={setAsCurrent}
-                title={t("schedCard.setAsCurrentTip")}
-              >
-                {t("schedCard.setAsCurrent")}
-              </button>
-            )}
-            {copied && <span className="text-emerald-500 text-[10px]">{t("schedCard.copied")}</span>}
-          </div>
-        )}
-
-        {isCurrentPlan && (
-          <div className="flex items-center gap-2 flex-wrap">
-            <button
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-accent text-bg text-[11px] font-medium cursor-pointer hover:opacity-90 border-0"
-              onClick={jumpToSchedule}
-            >
-              <ExternalLink size={11} />
-              {t("schedCard.openInSchedule")}
-            </button>
+        {/* 联动动作行（任意计划）：非当前计划附说明文案（「打开」=切为当前工程+进板块） */}
+        <div className="flex items-center gap-2 flex-wrap">
+          {!isCurrentPlan && (
+            <span className="text-fg-faint text-[10px] flex-1">{t("schedCard.notCurrent", { path: relPath })}</span>
+          )}
+          <button
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] font-medium cursor-pointer border-0 ${isCurrentPlan ? "bg-accent text-bg hover:opacity-90" : "border border-accent/40 text-accent bg-transparent hover:bg-accent/10"}`}
+            onClick={openThisPlan}
+            title={isCurrentPlan ? undefined : t("schedCard.setAsCurrentTip")}
+          >
+            <ExternalLink size={11} />
+            {t("schedCard.openInSchedule")}
+          </button>
+          {isCurrentPlan && (
             <button
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-accent/40 text-accent bg-transparent text-[11px] cursor-pointer hover:bg-accent/10 disabled:opacity-50"
               onClick={sendReport}
@@ -177,8 +176,8 @@ export function ScheduleFileCard({ relPath, summary, raw }: { relPath: string; s
               <Sparkles size={11} />
               {t("schedCard.weeklyReport")}
             </button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {showRaw && (

@@ -30,10 +30,17 @@ func init() {
 	tool.RegisterBuiltin(scheduleAnalyze{})
 }
 
-// resolveSchedulePath 缺省路径回落默认计划文件（与板块打开的是同一个）。
+// resolveSchedulePath 缺省路径回落当前工程指针（索引 .gaea/schedule/index.json
+// 的 current，与板块打开的是同一个；索引不可用回落默认计划文件）。
+// 显式 path 永远优先（多工程：docs/gaea-schedule-multi-project-design-2026-09.md §3.3）。
 func resolveSchedulePath(workDir, path string) string {
 	if strings.TrimSpace(path) == "" {
 		path = schedule.DefaultRelPath
+		if workDir != "" {
+			if idx, err := schedule.LoadScheduleIndex(workDir); err == nil && strings.TrimSpace(idx.Current) != "" {
+				path = idx.Current
+			}
+		}
 	}
 	return resolveIn(workDir, path)
 }
@@ -55,14 +62,14 @@ type scheduleGet struct{ workDir string }
 func (scheduleGet) Name() string { return "schedule_get" }
 
 func (scheduleGet) Description() string {
-	return "读取工程进度计划文件（.gsched.json，进度计划板块同款数据）并返回 CPM 计算结果：任务表（ES/EF/LS/LF/总时差/关键标记）、搭接关系、工作日历与总工期；含资源维度时一并返回资源表（resources）、任务↔资源分配（assignments）与成本汇总（costs：total 总成本/byTask 各任务行成本/byResource 按资源汇总，单位元；费率口径=工时资源元/工日、材料资源元/单位）。工期口径为工作日（按日历扣除周末/节假日）。传 path 缺省读当前计划。用于编辑前了解现状、或核对修改后的计划与成本。"
+	return "读取工程进度计划文件（.gsched.json，进度计划板块同款数据）并返回 CPM 计算结果：任务表（ES/EF/LS/LF/总时差/关键标记）、搭接关系、工作日历与总工期；含资源维度时一并返回资源表（resources）、任务↔资源分配（assignments）与成本汇总（costs：total 总成本/byTask 各任务行成本/byResource 按资源汇总，单位元；费率口径=工时资源元/工日、材料资源元/单位）。工期口径为工作日（按日历扣除周末/节假日）。传 path 缺省读当前工程（可在进度计划板块切换）。用于编辑前了解现状、或核对修改后的计划与成本。"
 }
 
 func (scheduleGet) Schema() json.RawMessage {
 	return json.RawMessage(`{
 "type":"object",
 "properties":{
-  "path":{"type":"string","description":"计划文件路径（.gsched.json）；缺省=当前计划（进度计划/当前计划.gsched.json）"}
+  "path":{"type":"string","description":"计划文件路径（.gsched.json）；缺省=当前工程（可在进度计划板块切换）"}
 }
 }`)
 }
@@ -185,7 +192,7 @@ func (scheduleApply) Schema() json.RawMessage {
 	return json.RawMessage(`{
 "type":"object",
 "properties":{
-  "path":{"type":"string","description":"计划文件路径；缺省=当前计划（进度计划/当前计划.gsched.json）"},
+  "path":{"type":"string","description":"计划文件路径；缺省=当前工程（可在进度计划板块切换）"},
   "project":{"type":"object","description":"完整计划对象（整计划生成/重排通道，与 ops 二选一）"},
   "ops":{"type":"array","description":"增量操作数组（局部调整通道，与 project 二选一）。元素 type：upsert_task{task:{id,name,level,duration,...},afterId?} | patch_task{id,patch:{name?/duration?/progress?/mode?/manualStart?/isMilestone?/level?/fixedCost?(元,叶任务专属)}} | remove_task{id}(含子孙与相关搭接) | set_links{toId,links:[{from,type?,lag?}]}(整体替换该任务入边,type 缺省 FS) | set_meta{name?/startDate?/calendar?/deadline?}(deadline=YYYY-MM-DD 目标竣工日期，倒排校核用；空串清除) | auto_chain{}(推荐逻辑关系缺省步：仅为无前置叶任务按 WBS 顺序补 FS 串联，已有逻辑/手动任务不动) | set_baseline{name?}(固化当前排程为基线，重大调整前建议先做；循环依赖/无叶任务会拒绝) | clear_baseline{}(清除基线，无基线时报错) | upsert_resource{resource:{id,name,type:work|material|cost,unit?,standardRate?,costPerUse?,maxUnits?}}(整量新增或按 id 替换；work 费率=元/工日，material=元/单位，cost 资源无费率) | patch_resource{id,resourcePatch:{name?/type?/unit?/standardRate?/costPerUse?/maxUnits?}}(指针三态，缺省=不动) | remove_resource{id}(级联删除其全部分配) | set_assignments{taskId,assignments:[{resourceId,units?/quantity?/amount?}]}(整体替换该任务分配集；先建资源再挂分配；分组行拒绝)",
     "items":{"type":"object","properties":{"type":{"type":"string"}},"required":["type"]}},
@@ -385,7 +392,7 @@ func (scheduleAnalyze) Schema() json.RawMessage {
 	return json.RawMessage(`{
 "type":"object",
 "properties":{
-  "path":{"type":"string","description":"计划文件路径；缺省=当前计划"}
+  "path":{"type":"string","description":"计划文件路径；缺省=当前工程（可在进度计划板块切换）"}
 }
 }`)
 }

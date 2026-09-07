@@ -42,6 +42,9 @@ import type {
   XlsxPlanResult,
   ScheduleLoadResult,
   ScheduleSaveResult,
+  ScheduleProjectsResult,
+  ScheduleProjectOpenResult,
+  ScheduleProjectCreateResult,
   XlsxChartInput,
   XlsxChartResult,
   ZipDeliverableResult,
@@ -282,8 +285,18 @@ export interface AppBindings {
   XlsxSetCell(rel: string, sheet: string, ref: string, value: string): Promise<XlsxEditResult>;
   // ScheduleLoad/Save 进度计划板块文件持久化（v4.113.0 刀4）：默认计划文件
   // 进度计划/当前计划.gsched.json，与 agent 工具（schedule_*）共享同一资产。
+  // v4.139 #15：Save 加可选 rel（方案 A 签名级扩展，防切换竞态——保存显式带
+  // 装载时的工程文件，切换只改指针不动保存目标；空串=当前指针文件）。
   ScheduleLoad(): Promise<ScheduleLoadResult>;
-  ScheduleSave(projectJSON: string): Promise<ScheduleSaveResult>;
+  ScheduleSave(projectJSON: string, rel?: string): Promise<ScheduleSaveResult>;
+  // ── 进度计划多工程（v4.139 #15 刀1+刀2）：每文件一工程（进度计划/*.gsched.json），
+  // 当前指针收敛 Go 侧索引（.gaea/schedule/index.json）——板块 Load/Save 与 agent
+  // 三工具缺省 path 解析同一指针，「对话改的=板块打开的」跨多工程保持（设计 §3.3）。
+  ScheduleProjects(): Promise<ScheduleProjectsResult>;
+  ScheduleProjectOpen(rel: string): Promise<ScheduleProjectOpenResult>;
+  ScheduleProjectCreate(name: string): Promise<ScheduleProjectCreateResult>;
+  ScheduleProjectArchive(rel: string, archived: boolean): Promise<ScheduleProjectsResult>;
+  ScheduleProjectDelete(rel: string): Promise<ScheduleProjectsResult>;
   // ScheduleExportXlsx/ImportXlsx 上报 Excel 通道（v4.134.0 刀D3）：导出=计划
   // JSON → 上报口径 xlsx（base64）；导入=上报 xlsx（base64）→ 计划 JSON。
   ScheduleExportXlsx(projectJSON: string): Promise<string>;
@@ -911,6 +924,11 @@ const gaeaToGaea = {
   ScheduleSave: "GaeaScheduleSave",
   ScheduleExportXlsx: "GaeaScheduleExportXlsx",
   ScheduleImportXlsx: "GaeaScheduleImportXlsx",
+  ScheduleProjects: "GaeaScheduleProjects",
+  ScheduleProjectOpen: "GaeaScheduleProjectOpen",
+  ScheduleProjectCreate: "GaeaScheduleProjectCreate",
+  ScheduleProjectArchive: "GaeaScheduleProjectArchive",
+  ScheduleProjectDelete: "GaeaScheduleProjectDelete",
   XlsxRecalc: "GaeaXlsxRecalc",
   XlsxRowOps: "GaeaXlsxRowOps",
   XlsxColOps: "GaeaXlsxColOps",

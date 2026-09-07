@@ -7,12 +7,15 @@
  * 手动/自动任务模式），工作日历推算日期，MS Project XML 导入导出互通。
  * 刀4 起：计划文件化（进度计划/当前计划.gsched.json）——板块与 agent 共享
  * 同一资产（GaeaScheduleLoad/Save 水合+自动保存，agent 经 schedule_* 工具读写）。
+ * v4.139 #15 多工程：每文件一工程+Go 侧索引指针，页头工程切换器（Select）与
+ * 管理入口（新建/改名/归档/删除/载入，GaeaScheduleProjects/Project* 五绑定）；
+ * 仅一项工程时切换器收窄为纯显示，老用户零感知。
  */
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { Alert, Button, Checkbox, Input, Modal, Popconfirm, Popover, Segmented, Space, Tag, Tooltip } from 'antd'
+import { Alert, Button, Checkbox, Input, Modal, Popconfirm, Popover, Segmented, Select, Space, Tag, Tooltip } from 'antd'
 import {
   AimOutlined, AppstoreOutlined, CalendarOutlined, ClearOutlined, ClusterOutlined, ExportOutlined, FileImageOutlined, FundOutlined, ImportOutlined,
-  FileExcelOutlined, MessageOutlined, NodeIndexOutlined, PlusOutlined, RedoOutlined, TableOutlined, TeamOutlined, ThunderboltOutlined, PartitionOutlined, DeleteOutlined, ToolOutlined, UndoOutlined,
+  FileExcelOutlined, MessageOutlined, NodeIndexOutlined, PlusOutlined, RedoOutlined, SettingOutlined, TableOutlined, TeamOutlined, ThunderboltOutlined, PartitionOutlined, DeleteOutlined, ToolOutlined, UndoOutlined,
 } from '@ant-design/icons'
 import { computeCpm } from '../schedule/cpm'
 import { computeCosts } from '../schedule/cost'
@@ -229,6 +232,87 @@ const ExportDialog: React.FC<{
   )
 }
 
+/**
+ * 工程管理面板（v4.139 #15 刀2 §3.4）：列表（名称/工期/任务数）+ 归档/反归档 +
+ * 删除（Popconfirm 二次确认，文案注明不可恢复）+ 新建工程。v1 简化：仅当前
+ * 工程可行内改名（走既有 renameProject=改文件内 project.name 而非文件名——
+ * 文件名机械化，agent 显式 path 引用稳定性优先），其余工程显示只读名+载入。
+ */
+const ProjectsManagePanel: React.FC = () => {
+  const projects = useScheduleStore((s) => s.projects)
+  const currentPath = useScheduleStore((s) => s.currentPath)
+  const projectName = useScheduleStore((s) => s.project.name)
+  const renameProject = useScheduleStore((s) => s.renameProject)
+  const openProject = useScheduleStore((s) => s.openProject)
+  const createProject = useScheduleStore((s) => s.createProject)
+  const archiveProject = useScheduleStore((s) => s.archiveProject)
+  const deleteProject = useScheduleStore((s) => s.deleteProject)
+  const [draft, setDraft] = useState('')
+
+  /** 管理动作统一入口：store 动作未就绪（旧形态）时无害跳过 */
+  const submit = (fn: () => unknown) => { void Promise.resolve(fn()) }
+
+  const doCreate = () => {
+    const name = draft.trim()
+    if (!name) return
+    submit(() => createProject(name))
+    setDraft('')
+  }
+
+  return (
+    <div data-testid="sched-projects-manage-panel" style={{ display: 'grid', gap: 6, minWidth: 420 }}>
+      {(projects ?? []).map((p) => (
+        <div key={p.rel} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          {p.rel === currentPath ? (
+            <Input
+              size="small"
+              variant="borderless"
+              value={projectName}
+              onChange={(e) => renameProject(e.target.value)}
+              style={{ flex: 1, minWidth: 0, fontSize: 13 }}
+              title="行内改名=改文件内工程名（文件名不变）"
+            />
+          ) : (
+            <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 13 }} title={p.rel}>
+              {p.name || p.rel}{p.archived ? '（已归档）' : ''}
+            </span>
+          )}
+          <span className="sched-dim" style={{ fontSize: 12, whiteSpace: 'nowrap' }}>{p.duration} 天 / {p.taskCount} 项</span>
+          {p.rel !== currentPath && (
+            <Button size="small" onClick={() => submit(() => openProject(p.rel))} title="切换为当前工程（板块重水合）">载入</Button>
+          )}
+          <Button
+            size="small"
+            data-testid="sched-project-archive"
+            onClick={() => submit(() => archiveProject(p.rel, !p.archived))}
+            title={p.archived ? '取消归档（切换器恢复显示）' : '归档（文件保留原位，切换器不再显示）'}
+          >
+            {p.archived ? '反归档' : '归档'}
+          </Button>
+          <Popconfirm title="删除工程" description="删除后不可恢复" onConfirm={() => submit(() => deleteProject(p.rel))}>
+            <Button size="small" danger data-testid="sched-project-delete" title="物理删除计划文件并从注册表摘除">删除</Button>
+          </Popconfirm>
+        </div>
+      ))}
+      <Space size={4} style={{ marginTop: 2 }}>
+        <Input
+          size="small"
+          placeholder="新工程名称"
+          value={draft}
+          data-testid="sched-project-create-input"
+          style={{ width: 220 }}
+          onChange={(e) => setDraft(e.target.value)}
+          onPressEnter={doCreate}
+        />
+        <Button size="small" type="dashed" icon={<PlusOutlined />} data-testid="sched-project-create" disabled={!draft.trim()} onClick={doCreate}>
+          新建工程
+        </Button>
+      </Space>
+      <span className="sched-dim" style={{ fontSize: 12 }}>删除当前工程时自动切到剩余第一个工程；归档不移动文件。</span>
+    </div>
+  )
+}
+
 const SchedulePage: React.FC = () => {
   const project = useScheduleStore((s) => s.project)
   const view = useScheduleStore((s) => s.view)
@@ -260,6 +344,15 @@ const SchedulePage: React.FC = () => {
   /** 左栏 AI 对话偏好（刀11：折叠态+宽度持久化 localStorage） */
   const [chat, setChat] = useState(loadChatPrefs)
   const chatDragRef = useRef<{ startX: number; startW: number } | null>(null)
+  /** 多工程（v4.139 #15）：projects/currentPath 由 store 提供（Go 索引指针视图）；
+   *  旧 store 形态/未加载时为空 → 切换器整体隐藏，老用户零感知。 */
+  const projects = useScheduleStore((s) => s.projects)
+  const currentPath = useScheduleStore((s) => s.currentPath)
+  const openProject = useScheduleStore((s) => s.openProject)
+  const refreshProjects = useScheduleStore((s) => s.refreshProjects)
+  /** 切换/管理动作在途（Select loading 态） */
+  const [projBusy, setProjBusy] = useState(false)
+  const projectList = projects ?? []
 
   const toggleChat = () => setChat(saveChatPrefs({ collapsed: !chat.collapsed }))
 
@@ -281,9 +374,11 @@ const SchedulePage: React.FC = () => {
   }
   const resetChatWidth = () => setChat(saveChatPrefs({ width: CHAT_WIDTH_DEFAULT }))
 
-  /** 反向入口（刀12 办公联动）：在办公板块中预览计划文件（store 预置，未挂载也能落地） */
+  /** 反向入口（刀12 办公联动）：在办公板块中预览当前工程计划文件（store 预置，未挂载也能落地）
+   *  v4.139 #15：预览目标跟随当前工程 rel（缺省回落常量=老形态）。 */
+  const previewRel = currentPath ?? SCHEDULE_FILE_PATH
   const openInOffice = () => {
-    usePreviewStore.getState().openFilePreview(SCHEDULE_FILE_PATH)
+    usePreviewStore.getState().openFilePreview(previewRel)
     emitFrontendEvent(FRONTEND_EVENTS.NAVIGATE, { page: 'gaea' })
   }
 
@@ -417,9 +512,36 @@ const SchedulePage: React.FC = () => {
           title={chat.collapsed ? '展开左栏 AI 对话（对话即排程）' : '收起左栏 AI 对话'}
           aria-label="切换 AI 对话栏"
         />
-        <Tooltip title="在办公板块中预览计划文件（进度计划/当前计划.gsched.json）">
+        <Tooltip title="在办公板块中预览计划文件">
           <Button size="small" icon={<ToolOutlined />} onClick={openInOffice} aria-label="在办公板块中查看计划" />
         </Tooltip>
+        {/* 工程切换器（v4.139 #15 §3.4）：列未归档工程、当前项高亮勾选；仅一项时
+            收窄为纯显示（disabled）不占交互成本；projects 为空（旧形态）整体隐藏。 */}
+        {projectList.length > 0 && (
+          <Select
+            size="small"
+            style={{ width: 200 }}
+            value={currentPath}
+            loading={projBusy}
+            disabled={projectList.length <= 1}
+            data-testid="sched-project-select"
+            options={projectList.filter((p) => !p.archived).map((p) => ({ value: p.rel, label: p.name || p.rel }))}
+            onChange={(rel: string) => {
+              setProjBusy(true)
+              // openProject=切指针+冲刷+重水合（store 动作）；旧形态无此动作时无害跳过
+              void Promise.resolve(openProject(rel)).finally(() => setProjBusy(false))
+            }}
+          />
+        )}
+        <Popover
+          trigger="click"
+          placement="bottom"
+          content={<ProjectsManagePanel />}
+          title="工程管理"
+          onOpenChange={(open) => { if (open) void Promise.resolve(refreshProjects?.()) }}
+        >
+          <Button size="small" icon={<SettingOutlined />} data-testid="sched-projects-manage" title="工程管理：新建 / 改名 / 归档 / 删除 / 载入" aria-label="工程管理" />
+        </Popover>
         <Input
           className="sched-name-input"
           variant="borderless"
@@ -629,7 +751,7 @@ const SchedulePage: React.FC = () => {
         )}
         <span>工作制：<span className="sched-sb-strong">{workweekLabel(project.calendar)}</span>{(project.calendar?.holidays.length ?? 0) > 0 && <> · 节假日 {project.calendar!.holidays.length} 天</>}</span>
         <span>时间单位：工作日（日期轴为自然日）</span>
-        <span style={{ marginLeft: 'auto' }} title={syncError ?? '进度计划/当前计划.gsched.json'}>
+        <span style={{ marginLeft: 'auto' }} title={syncError ?? currentPath ?? SCHEDULE_FILE_PATH}>
           {!hydrated ? '读取计划…' : sync === 'dirty' ? '改动待保存…'
             : sync === 'saving' ? '保存中…'
             : sync === 'error' ? <span className="sched-sb-crit">保存失败</span>

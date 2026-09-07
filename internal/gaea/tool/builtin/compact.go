@@ -44,7 +44,7 @@ var compactDesc = map[string]string{
 	"browser_switch_tab": "切换当前标签页(tab_id必填,切换后refs失效需重新snapshot)",
 	"browser_close":      "关闭受控浏览器(缺省关页+杀Edge+清临时profile;tab_id只关指定标签)",
 	"sidebar_open":       "把工作区内文件/目录推到右面板打开(纯UI动作,不读内容不落盘;kind缺省按path推断)",
-	"schedule_get":       "读进度计划+CPM结果(任务ES/EF/时差/关键标记,工期=工作日;含资源/分配/成本汇总total,缺省当前计划)",
+	"schedule_get":       "读进度计划+CPM结果(任务ES/EF/时差/关键标记,工期=工作日;含资源/分配/成本汇总total,缺省=当前工程)",
 	"schedule_apply":     "写进度计划(project整计划或ops增量,二选一;ops含任务/搭接/基线与资源upsert_resource/patch_resource/remove_resource/set_assignments/patch_task.fixedCost;引擎校验+CPM环检测fail-closed,回执带新总工期与总成本)",
 	"schedule_analyze":   "分析进度计划(关键链/近关键/里程碑+质检发现:孤立任务/空分组/缺里程碑;含成本叙事:总成本/Top任务/按资源汇总/已分配未定价发现)",
 }

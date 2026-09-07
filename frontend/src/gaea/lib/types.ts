@@ -649,6 +649,38 @@ export interface ScheduleSaveResult {
   critical: number;
 }
 
+// ── 进度计划多工程（v4.139 #15 刀1+刀2）：每文件一工程 + Go 侧索引指针 ──
+// 对齐后端 GaeaScheduleProjects/ProjectOpen/ProjectCreate/ProjectArchive/
+// ProjectDelete（gaea_schedule_file.go，设计 docs/gaea-schedule-multi-project-
+// design-2026-09.md §3.2/3.3）。rel=工作区相对路径（工程身份：文件名落盘后不改，
+// agent 显式 path 引用稳定性优先）；current=当前指针（「对话改的=板块打开的」）。
+export interface ScheduleProjectSummary {
+  rel: string;
+  name: string;
+  archived: boolean;
+  duration: number;
+  taskCount: number;
+  ok: boolean;
+  updatedAt: string;
+}
+
+/** GaeaScheduleProjects / ProjectArchive / ProjectDelete：索引视图（当前指针 + 工程列表）。 */
+export interface ScheduleProjectsResult {
+  current: string;
+  projects: ScheduleProjectSummary[];
+}
+
+/** GaeaScheduleProjectOpen：切指针成功后的当前 rel。 */
+export interface ScheduleProjectOpenResult {
+  current: string;
+}
+
+/** GaeaScheduleProjectCreate：新工程 rel（已登记并自动切为当前）。 */
+export interface ScheduleProjectCreateResult {
+  rel: string;
+  current: string;
+}
+
 // ── xlsx 单元格级预览 ──────────────────────────────────────
 export interface XlsxCellStyle {
   bold?: boolean;

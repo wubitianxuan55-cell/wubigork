@@ -13,6 +13,8 @@ const mocks = vi.hoisted(() => ({
   submit: vi.fn(async (_text: string) => {}),
   steer: vi.fn(async (_text: string) => {}),
   scheduleSave: vi.fn(async (_json: string) => ({ path: "进度计划/当前计划.gsched.json", savedAt: "2026-01-05 08:00", duration: 5, critical: 2 })),
+  // v4.139 #15 多工程：切指针通道（原「复制为当前计划」的 ScheduleSave 语义废弃）
+  projectOpen: vi.fn(async (rel: string) => ({ current: rel })),
 }));
 
 vi.mock("../lib/bridge", () => ({
@@ -20,6 +22,7 @@ vi.mock("../lib/bridge", () => ({
     Submit: (text: string) => mocks.submit(text),
     Steer: (text: string) => mocks.steer(text),
     ScheduleSave: (json: string) => mocks.scheduleSave(json),
+    ScheduleProjectOpen: (rel: string) => mocks.projectOpen(rel),
   },
 }));
 
@@ -50,6 +53,8 @@ beforeEach(() => {
   localStorage.setItem("gaea-lang", "zh"); // 钉住 zh，中文文案断言稳定
   mocks.submit.mockClear();
   mocks.steer.mockClear();
+  mocks.scheduleSave.mockClear();
+  mocks.projectOpen.mockClear();
   useStore.setState({ items: [], running: false, approval: undefined, pendingUser: undefined, seq: 0 });
 });
 
@@ -104,10 +109,10 @@ describe("ScheduleFileCard 办公侧计划摘要卡", () => {
     expect(useStore.getState().items.length).toBe(0);
   });
 
-  it("非当前计划文件：不渲染联动按钮，展示说明", () => {
+  it("非当前计划文件：「打开」仍可用（v4.139 任意计划可开），周报不显示", () => {
     const s = parseSchedSummary(JSON.stringify(project()))!;
     render(wrap(<ScheduleFileCard relPath={OTHER} summary={s} raw="{}" />));
-    expect(screen.queryByText("在进度计划中打开")).toBeNull();
+    expect(screen.getByText("在进度计划中打开")).toBeTruthy();
     expect(screen.queryByText("AI 进度周报")).toBeNull();
     expect(screen.getByText(/非当前计划文件/)).toBeTruthy();
   });
@@ -121,20 +126,53 @@ describe("ScheduleFileCard 办公侧计划摘要卡", () => {
     expect(screen.queryByText("5 天")).toBeNull();
   });
 
-  it("非当前计划可一键设为当前计划：写 ScheduleSave 并提示（循环依赖计划不显示入口）", async () => {
+  // v4.139 #15 语义升级（原用例「非当前计划可一键设为当前计划：写 ScheduleSave」）：
+  // 「设为当前计划」从复制内容改为切指针——点「打开」调 ScheduleProjectOpen +
+  // 跳板块；不再复制覆盖（ScheduleSave 联动路径废弃，多工程下复制会制造同源漂移）。
+  it("非当前计划点「打开」=切指针：ScheduleProjectOpen+navigate，不再走 ScheduleSave 复制", async () => {
     const s = parseSchedSummary(JSON.stringify(project()))!;
-    const { rerender } = render(wrap(<ScheduleFileCard relPath={OTHER} summary={s} raw={JSON.stringify(project())} />));
-    const btn = screen.getByText("设为当前计划");
-    fireEvent.click(btn);
-    await waitFor(() => expect(mocks.scheduleSave).toHaveBeenCalledTimes(1));
-    expect(screen.getAllByText("已复制为当前计划").length).toBeGreaterThanOrEqual(1); // toast+行内双显示
+    const seen: unknown[] = [];
+    const listener = (e: Event) => seen.push((e as CustomEvent).detail);
+    window.addEventListener(FRONTEND_EVENTS.NAVIGATE, listener);
+    try {
+      render(wrap(<ScheduleFileCard relPath={OTHER} summary={s} raw="{}" />));
+      fireEvent.click(screen.getByText("在进度计划中打开"));
+      await waitFor(() => expect(mocks.projectOpen).toHaveBeenCalledTimes(1));
+      expect(mocks.projectOpen).toHaveBeenCalledWith(OTHER);
+      expect(seen).toContainEqual({ page: "schedule" });
+      await waitFor(() =>
+        expect(screen.getAllByText("已切换为当前计划").length).toBeGreaterThanOrEqual(1),
+      );
+      expect(mocks.scheduleSave).not.toHaveBeenCalled();
+    } finally {
+      window.removeEventListener(FRONTEND_EVENTS.NAVIGATE, listener);
+    }
+  });
 
-    // 循环依赖计划：Go Save 会拒收，不提供复制入口
+  it("当前计划点「打开」：直接跳板块，不重复切指针", () => {
+    const s = parseSchedSummary(JSON.stringify(project()))!;
+    const seen: unknown[] = [];
+    const listener = (e: Event) => seen.push((e as CustomEvent).detail);
+    window.addEventListener(FRONTEND_EVENTS.NAVIGATE, listener);
+    try {
+      render(wrap(<ScheduleFileCard relPath={CURRENT} summary={s} raw="{}" />));
+      fireEvent.click(screen.getByText("在进度计划中打开"));
+      expect(seen).toContainEqual({ page: "schedule" });
+      expect(mocks.projectOpen).not.toHaveBeenCalled();
+    } finally {
+      window.removeEventListener(FRONTEND_EVENTS.NAVIGATE, listener);
+    }
+  });
+
+  // v4.139 #15：循环依赖计划也开放「打开」——切指针不落盘（原复制语义因 Go Save
+  // fail-closed 拒收而隐藏入口），修正搭接在板块内完成后回看即可。
+  it("循环依赖计划也可「打开」：切指针不依赖 CPM 通过", async () => {
     const bad = project();
     bad.links.push({ from: "B", to: "A", type: "FS", lag: 0 });
     const badSummary = parseSchedSummary(JSON.stringify(bad))!;
-    rerender(wrap(<ScheduleFileCard relPath={OTHER} summary={badSummary} raw="{}" />));
-    expect(screen.queryByText("设为当前计划")).toBeNull();
+    render(wrap(<ScheduleFileCard relPath={OTHER} summary={badSummary} raw="{}" />));
+    fireEvent.click(screen.getByText("在进度计划中打开"));
+    await waitFor(() => expect(mocks.projectOpen).toHaveBeenCalledTimes(1));
   });
 
   it("原始 JSON 开关：展开显示原文，收起消失", () => {

@@ -12,7 +12,12 @@ import { computeBaselineDrift } from './baseline'
 import { checkDeadline, planFinishOf } from './deadline'
 import type { SchedProject } from './types'
 
-/** 当前计划文件路径（与 Go internal/schedule/project.go DefaultRelPath 镜像） */
+/**
+ * 当前计划文件路径（与 Go internal/schedule/project.go DefaultRelPath 镜像）。
+ * v4.139 #15 多工程：本常量降级为「缺省 rel」——真实当前工程以 Go 侧索引指针
+ * （store.currentPath，GaeaScheduleProjects 返回的 current）为准；索引不可用/
+ * 旧 store 形态时各消费点（页头状态栏、办公卡 isCurrentPlan）回落本常量值。
+ */
 export const SCHEDULE_FILE_PATH = '进度计划/当前计划.gsched.json'
 
 /** 路径是否为进度计划文件：.gsched.json 后缀（大小写不敏感，两种分隔符兼容） */
