@@ -123,6 +123,11 @@ interface ScheduleState {
   setAoaPins: (pins: Record<string, AoaPin>) => void
   loadSample: () => void
   clearAll: () => void
+  /** 多级撤消/重做（刀C 余项）：编制动作快照式历史，上限 50，不入持久化 */
+  past: SchedProject[]
+  future: SchedProject[]
+  undo: () => void
+  redo: () => void
 }
 
 let idSeq = Date.now() % 100000
@@ -154,6 +159,39 @@ export function descendantIds(tasks: SchedTask[], id: string): Set<string> {
   return out
 }
 
+/** 撤销历史上限（编制动作快照数） */
+const HISTORY_CAP = 50
+/** 文本编辑合并窗口：同 (kind,id) 的连续编辑 800ms 内只压一次栈（打字不逐键入史） */
+const HISTORY_COALESCE_MS = 800
+let lastPush: { kind: string; id: string; at: number } | null = null
+
+/**
+ * 压栈当前计划（动作落库前调用）。kind 提供时做合并窗口判断——连续同类
+ * 编辑只保留会话开始前的快照（undo 一次回到整段打字之前）；整体替换
+ * （导入/示例/清空）kind 缺省强制压栈。外部回读/水合走 setState 直改，
+ * 不经本函数=天然不入史。
+ */
+function pushHistory(kind?: string, id?: string): void {
+  const st = useScheduleStore.getState()
+  if (kind) {
+    const now = Date.now()
+    if (lastPush && lastPush.kind === kind && lastPush.id === id && now - lastPush.at < HISTORY_COALESCE_MS) {
+      lastPush.at = now
+      return
+    }
+    lastPush = { kind, id: id ?? '', at: now }
+  } else {
+    lastPush = null
+  }
+  const past = [...st.past, st.project]
+  useScheduleStore.setState({ past: past.slice(-HISTORY_CAP), future: [] })
+}
+
+/** 测试/特殊场景用：清掉合并会话游标（跨用例隔离） */
+export function resetHistorySession(): void {
+  lastPush = null
+}
+
 export const useScheduleStore = create<ScheduleState>()(
   persist(
     (set) => ({
@@ -164,16 +202,40 @@ export const useScheduleStore = create<ScheduleState>()(
       sync: 'idle',
       savedAt: null,
       syncError: null,
+      past: [],
+      future: [],
+
+      undo: () => {
+        const st = useScheduleStore.getState()
+        if (st.past.length === 0) return
+        lastPush = null
+        useScheduleStore.setState({
+          past: st.past.slice(0, -1),
+          future: [...st.future, st.project],
+          project: st.past[st.past.length - 1],
+        })
+      },
+      redo: () => {
+        const st = useScheduleStore.getState()
+        if (st.future.length === 0) return
+        lastPush = null
+        useScheduleStore.setState({
+          past: [...st.past, st.project],
+          future: st.future.slice(0, -1),
+          project: st.future[st.future.length - 1],
+        })
+      },
 
       setView: (view) => set({ view }),
       select: (selectedId) => set({ selectedId }),
-      renameProject: (name) => set((s) => ({ project: { ...s.project, name } })),
-      setStartDate: (startDate) => set((s) => ({ project: { ...s.project, startDate } })),
-      importProject: (p) => set({ project: normalizeProject(p), selectedId: null }),
-      setCalendar: (calendar) => set((s) => ({ project: { ...s.project, calendar: normalizeCalendar(calendar) } })),
-      setDeadline: (d) => set((s) => ({ project: { ...s.project, deadline: d } })),
+      renameProject: (name) => set((s) => { pushHistory('rename'); return { project: { ...s.project, name } } }),
+      setStartDate: (startDate) => set((s) => { pushHistory('startDate'); return { project: { ...s.project, startDate } } }),
+      importProject: (p) => { pushHistory(); set({ project: normalizeProject(p), selectedId: null }) },
+      setCalendar: (calendar) => set((s) => { pushHistory('calendar'); return { project: { ...s.project, calendar: normalizeCalendar(calendar) } } }),
+      setDeadline: (d) => set((s) => { pushHistory('deadline'); return { project: { ...s.project, deadline: d } } }),
 
       setBaseline: (name) => {
+        pushHistory('baseline')
         const { project } = useScheduleStore.getState()
         const cpm = computeCpm(project.tasks, project.links, { planFinish: planFinishOf(project) })
         const r = snapshotBaseline(project, cpm, formatNow(), name)
@@ -181,9 +243,10 @@ export const useScheduleStore = create<ScheduleState>()(
         useScheduleStore.setState({ project: { ...project, baseline: r.baseline } })
         return null
       },
-      clearBaseline: () => set((s) => ({ project: { ...s.project, baseline: null } })),
+      clearBaseline: () => set((s) => { pushHistory('baseline'); return { project: { ...s.project, baseline: null } } }),
 
       addTask: (afterId) => set((s) => {
+        pushHistory('addTask')
         const tasks = [...s.project.tasks]
         const task: SchedTask = { id: newId('t'), name: '新任务', duration: 3, level: 1, progress: 0 }
         let at = tasks.length
@@ -200,6 +263,7 @@ export const useScheduleStore = create<ScheduleState>()(
       }),
 
       addGroup: () => set((s) => {
+        pushHistory('addGroup')
         const tasks = [...s.project.tasks]
         const group: SchedTask = { id: newId('g'), name: '新分组', duration: 0, level: 0, progress: 0 }
         const child: SchedTask = { id: newId('t'), name: '新任务', duration: 3, level: 1, progress: 0 }
@@ -207,14 +271,18 @@ export const useScheduleStore = create<ScheduleState>()(
         return { project: { ...s.project, tasks }, selectedId: group.id }
       }),
 
-      updateTask: (id, patch) => set((s) => ({
-        project: {
-          ...s.project,
-          tasks: s.project.tasks.map((t) => (t.id === id ? { ...t, ...patch } : t)),
-        },
-      })),
+      updateTask: (id, patch) => set((s) => {
+        pushHistory('updateTask', id)
+        return {
+          project: {
+            ...s.project,
+            tasks: s.project.tasks.map((t) => (t.id === id ? { ...t, ...patch } : t)),
+          },
+        }
+      }),
 
       removeTask: (id) => set((s) => {
+        pushHistory('removeTask')
         const kill = descendantIds(s.project.tasks, id)
         return {
           project: {
@@ -229,6 +297,7 @@ export const useScheduleStore = create<ScheduleState>()(
       }),
 
       setPreds: (taskId, preds) => set((s) => {
+        pushHistory('preds', taskId)
         const kept = s.project.links.filter((l) => l.to !== taskId)
         const added = preds
           .filter((p) => p.from && p.from !== taskId)
@@ -239,6 +308,7 @@ export const useScheduleStore = create<ScheduleState>()(
       // ── 资源成本（v4.124 刀3）：提交即写 project.resources/assignments，
       // 走既有防抖自动保存链路（编辑 → dirty → 800ms → GaeaScheduleSave）。
       upsertResource: (r) => set((s) => {
+        pushHistory('resource')
         const type = r.type === 'material' || r.type === 'cost' ? r.type : 'work'
         const id = typeof r.id === 'string' ? r.id : ''
         const clean: SchedResource = {
@@ -267,6 +337,7 @@ export const useScheduleStore = create<ScheduleState>()(
       })),
 
       setTaskAssignments: (taskId, list) => set((s) => {
+        pushHistory('assign', taskId)
         // 分组行禁挂分配（fail-closed：汇总唯一口径=子孙求和，UI 入口已隐藏）
         const task = s.project.tasks.find((t) => t.id === taskId)
         if (!task || task.level === 0) return {}
@@ -290,10 +361,10 @@ export const useScheduleStore = create<ScheduleState>()(
         return { project: { ...s.project, assignments: [...kept, ...next] } }
       }),
 
-      setAoaPins: (pins) => set((s) => ({ project: { ...s.project, aoaLayout: { pins } } })),
+      setAoaPins: (pins) => set((s) => { pushHistory('aoaPins'); return { project: { ...s.project, aoaLayout: { pins } } } }),
 
-      loadSample: () => set({ project: makeSampleProject(), selectedId: null }),
-      clearAll: () => set({ project: makeEmptyProject(), selectedId: null }),
+      loadSample: () => { pushHistory(); set({ project: makeSampleProject(), selectedId: null }) },
+      clearAll: () => { pushHistory(); set({ project: makeEmptyProject(), selectedId: null }) },
     }),
     {
       name: 'gaea.schedule.v1',

@@ -116,11 +116,13 @@ describe('GanttView 工作台双栏（刀C）', () => {
     useScheduleStore.setState({ project: chainProject(), selectedId: null, hydrated: true, sync: 'saved', syncError: null })
   })
 
-  it('缺省全列展开：表格窗格宽=全列宽（与旧版一致）', () => {
+  it('缺省：进度列默认隐藏，窗格宽=可见列总宽（960-56=904），列菜单可开进度', () => {
     const p = chainProject()
     render(<GanttView project={p} cpm={computeCpm(p.tasks, p.links)} />)
-    expect(tablePane().style.width).toBe(`${GANTT_LEFT_W_FULL}px`)
+    // 15 列全宽 960，进度列缺省隐藏 → 可见总宽 904
+    expect(tablePane().style.width).toBe(`${GANTT_LEFT_W_FULL - 56}px`)
     expect(tablePane().textContent).toContain('最迟开始')
+    expect(tablePane().textContent).not.toContain('进度')
   })
 
   it('分隔条拖动：左移收纳表格并持久化；拖到最窄剩行号+名称', () => {
@@ -151,7 +153,8 @@ describe('GanttView 工作台双栏（刀C）', () => {
     render(<GanttView project={p} cpm={computeCpm(p.tasks, p.links)} />)
     expect(tablePane().style.width).toBe(`${GANTT_LEFT_W_FULL - 300}px`)
     fireEvent.dblClick(screen.getByTestId('sched-gantt-split'))
-    expect(tablePane().style.width).toBe(`${GANTT_LEFT_W_FULL}px`)
+    // 复位=展开到全列宽，钳位到可见列总宽（进度列仍缺省隐藏）
+    expect(tablePane().style.width).toBe(`${GANTT_LEFT_W_FULL - 56}px`)
   })
 
   it('列显隐：取消勾选「最迟开始」后表头消失并持久化；固定列不提供勾选', () => {
@@ -178,5 +181,62 @@ describe('GanttView 工作台双栏（刀C）', () => {
     }
     expect(tablePane().style.width).toBe(`${GANTT_TABLE_W_MIN}px`)
     expect(tablePane().textContent).toContain('任务名称')
+  })
+})
+
+
+/** antd 组件 data-testid 落点不一（Input 在 input 本体、InputNumber 在包装层），统一取内部 input */
+function inputOf(testid: string): HTMLInputElement {
+  const el = screen.getByTestId(testid)
+  if (el instanceof HTMLInputElement) return el
+  const inner = el.querySelector('input')
+  if (inner) return inner
+  throw new Error(`${testid} 内无 input`)
+}
+
+describe('GanttView 刀C 余项（筛选/右键菜单/进度）', () => {
+  beforeEach(() => {
+    localStorage.removeItem(CHAT_PREFS_KEY)
+    useScheduleStore.setState({ project: chainProject(), selectedId: null, hydrated: true, sync: 'saved', syncError: null, past: [], future: [] })
+  })
+
+  it('筛选「手动」：无手动任务时出空态提示；切回「全部」恢复', () => {
+    render(<GanttView project={chainProject()} cpm={computeCpm(chainProject().tasks, chainProject().links)} />)
+    const rowsBefore = screen.getByTestId('sched-gantt-table').querySelectorAll('.sched-gantt-row:not(.sched-gantt-head)').length
+    expect(rowsBefore).toBe(3)
+    fireEvent.click(screen.getByTestId('sched-gantt-filter').querySelectorAll('input, [role=radio], button')[2])
+    // 手动模：链式样板全为自动 → 空态
+    expect(screen.getByTestId('sched-gantt-filter-empty')).toBeTruthy()
+    // 切回全部
+    fireEvent.click(screen.getByTestId('sched-gantt-filter').querySelectorAll('input, [role=radio], button')[0])
+    expect(screen.queryByTestId('sched-gantt-filter-empty')).toBeNull()
+  })
+
+  it('文本搜索命中行保留，其余行隐藏（表格与条形同源）', () => {
+    render(<GanttView project={chainProject()} cpm={computeCpm(chainProject().tasks, chainProject().links)} />)
+    fireEvent.change(inputOf('sched-gantt-search'), { target: { value: '垫层' } })
+    const rows = screen.getByTestId('sched-gantt-table').querySelectorAll('.sched-gantt-row:not(.sched-gantt-head)')
+    expect(rows).toHaveLength(1)
+    // 行名在 Input 的 value 里（非 textContent）
+    const nameInput = rows[0].querySelector('.sched-gantt-cell input') as HTMLInputElement
+    expect(nameInput.value).toBe('垫层')
+  })
+
+  it('行右键菜单：设为里程碑/删除落库；进度格可直接编辑', () => {
+    render(<GanttView project={chainProject()} cpm={computeCpm(chainProject().tasks, chainProject().links)} />)
+    const rows = screen.getByTestId('sched-gantt-table').querySelectorAll('.sched-gantt-row:not(.sched-gantt-head)')
+    fireEvent.contextMenu(rows[0])
+    // Dropdown 菜单挂 body：点「设为里程碑」
+    const mileItem = screen.getAllByText('设为里程碑').pop()!
+    fireEvent.click(mileItem)
+    expect(useScheduleStore.getState().project.tasks[0].isMilestone).toBe(true)
+    // 进度格（默认隐藏）→ 开列后编辑
+    localStorage.removeItem(CHAT_PREFS_KEY)
+    fireEvent.click(screen.getByTestId('sched-gantt-cols-btn'))
+    const progressLabel = Array.from(screen.getByTestId('sched-gantt-colmenu').querySelectorAll('label'))
+      .find((l) => l.textContent?.includes('进度'))!
+    fireEvent.click(progressLabel.querySelector('input')!)
+    fireEvent.change(inputOf('sched-progress-A'), { target: { value: '60' } })
+    expect(useScheduleStore.getState().project.tasks[0].progress).toBe(60)
   })
 })

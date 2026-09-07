@@ -18,7 +18,7 @@ function fakeStorage(initial: Record<string, string> = {}): Storage & { dump: ()
   } as Storage & { dump: () => Record<string, string> }
 }
 
-const DEFAULTS = { collapsed: false, width: 420, ganttTableW: GANTT_LEFT_W_FULL, ganttHide: [] }
+const DEFAULTS = { collapsed: false, width: 420, ganttTableW: GANTT_LEFT_W_FULL, ganttHide: ['progress'] }
 
 describe('clampChatWidth', () => {
   it('钳位 320~680，非有限值回落 420', () => {

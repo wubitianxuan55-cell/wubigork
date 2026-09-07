@@ -16,8 +16,8 @@
  *  - 时间刻度防竖排：日期格 nowrap，窄刻度（<10px）只画格不写数。
  */
 import React, { useMemo, useRef, useState } from 'react'
-import { Button, Checkbox, DatePicker, Input, InputNumber, Popover, Select } from 'antd'
-import { ColumnWidthOutlined, DeleteOutlined, TeamOutlined, ZoomInOutlined, ZoomOutOutlined } from '@ant-design/icons'
+import { Button, Checkbox, DatePicker, Dropdown, Input, InputNumber, Popover, Segmented, Select } from 'antd'
+import { ColumnWidthOutlined, DeleteOutlined, SearchOutlined, TeamOutlined, ZoomInOutlined, ZoomOutOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import type { CpmResult, LinkType, SchedProject, SchedTask } from './types'
 import { isWorkingDate, normalizeCalendar, wdToDate } from './calendar'
@@ -28,6 +28,7 @@ import { descendantIds, isGroupRow, useScheduleStore, type PredDraft } from './s
 import { TaskResourceEditor } from './ResourcePanel'
 import { fmtCost, hasCostData } from './costUi'
 import { GANTT_COLS, GANTT_FIXED_KEYS, GANTT_LEFT_W_FULL, clampTableW, visibleCols, visibleLeftW } from './ganttCols'
+import { GANTT_FILTER_DEFAULT, filterGanttRows, type GanttFilter, type GanttFilterKind } from './ganttFilter'
 import { loadChatPrefs, saveChatPrefs } from './chatPrefs'
 
 const ROW_H = 30
@@ -158,8 +159,13 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult }> = ({
   const selectedId = useScheduleStore((s) => s.selectedId)
   const select = useScheduleStore((s) => s.select)
   const updateTask = useScheduleStore((s) => s.updateTask)
+  const addTask = useScheduleStore((s) => s.addTask)
+  const addGroup = useScheduleStore((s) => s.addGroup)
+  const removeTask = useScheduleStore((s) => s.removeTask)
   const [dayW, setDayW] = useState(20)
   const [showFront, setShowFront] = useState(false)
+  /** 行筛选（刀C 余项）：全部/关键/手动 + 名称文本；仅作用于横道（网络图=逻辑图不筛选） */
+  const [filter, setFilter] = useState<GanttFilter>(GANTT_FILTER_DEFAULT)
   /** 基线条显示（有基线才出现开关；默认开，v4.116 刀7） */
   const [showBase, setShowBase] = useState(true)
   const [checkDate, setCheckDate] = useState<string>(new Date().toISOString().slice(0, 10))
@@ -221,6 +227,26 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult }> = ({
   const cal = project.calendar
   const wbs = useMemo(() => wbsOf(project.tasks), [project.tasks])
   const startMs = useMemo(() => new Date(`${project.startDate}T00:00:00Z`).getTime(), [project.startDate])
+  const visibleIdx = useMemo(() => filterGanttRows(project.tasks, filter, cpm), [project.tasks, filter, cpm])
+  /** 可见行号（渲染行序）↔ 任务 id：条形/依赖线 y 坐标按可见行序算 */
+  const visPos = useMemo(() => {
+    const m = new Map<string, number>()
+    visibleIdx.forEach((orig, row) => m.set(project.tasks[orig].id, row))
+    return m
+  }, [visibleIdx, project.tasks])
+  const rowMenu = (t: SchedTask, group: boolean) => [
+    { key: 'add', label: '在下方添加任务' },
+    { key: 'group', label: '添加分组' },
+    ...(group ? [] : [{ key: 'milestone', label: t.isMilestone ? '取消里程碑' : '设为里程碑' }]),
+    { type: 'divider' as const },
+    { key: 'del', label: '删除', danger: true },
+  ]
+  const rowMenuClick = (key: string, t: SchedTask) => {
+    if (key === 'add') addTask(t.id)
+    else if (key === 'group') addGroup()
+    else if (key === 'milestone') updateTask(t.id, { isMilestone: !t.isMilestone })
+    else if (key === 'del') removeTask(t.id)
+  }
   /** 工作日序号 → 自然日列偏移（条形 x 坐标；跨周末自然变宽，斑马口径） */
   const dayNo = useMemo(() => (wd: number) => {
     return Math.round((wdToDate(project.startDate, wd, cal).getTime() - startMs) / 86400000)
@@ -228,7 +254,7 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult }> = ({
 
   const days = Math.max(dayNo(Math.max(cpm.duration, 7)) + 3, 21, deadlineOff(project.deadline, startMs) + 2)
   const chartW = days * dayW
-  const totalH = project.tasks.length * ROW_H
+  const totalH = visibleIdx.length * ROW_H
 
   /** 自然日列（斑马口径：每天一列，非工作日底纹） */
   const colDates = useMemo(
@@ -310,44 +336,41 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult }> = ({
     window.addEventListener('keydown', onKey)
   }
 
-  const linkRows = useMemo(() => {
-    const rowIdx = new Map(project.tasks.map((t, i) => [t.id, i]))
-    return project.links
-      .map((l) => ({ l, fi: rowIdx.get(l.from), ti: rowIdx.get(l.to) }))
-      .filter((x) => x.fi !== undefined && x.ti !== undefined && cpm.ok)
-  }, [project.links, project.tasks, cpm.ok])
-
-  /** 依赖线（刀B）：按四种搭接类型取各自锚点画正交折线 */
-  const linkPaths = linkRows.map(({ l, fi, ti }) => {
+  /** 依赖线（刀B）：按四种搭接类型取各自锚点画正交折线；两端均可见才画，
+   *  y 按可见行序（筛选后行位变化，全表序会错位——刀C 余项口径） */
+  const linkPaths = project.links.map((l) => {
+    const fy = visPos.get(l.from)
+    const ty = visPos.get(l.to)
     const f = cpm.rows[l.from]
     const t2 = cpm.rows[l.to]
-    if (!f || !t2) return null
+    if (fy === undefined || ty === undefined || !f || !t2) return null
     return {
       d: ganttLinkPath(l.type, {
         x1s: dayNo(f.es) * dayW,
         x1f: dayNo(f.ef) * dayW,
-        y1: fi! * ROW_H + ROW_H / 2,
+        y1: fy * ROW_H + ROW_H / 2,
         x2s: dayNo(t2.es) * dayW,
         x2f: dayNo(t2.ef) * dayW,
-        y2: ti! * ROW_H + ROW_H / 2,
+        y2: ty * ROW_H + ROW_H / 2,
       }),
       key: `${l.from}>${l.to}>${l.type}`,
     }
   }).filter(Boolean) as { d: string; key: string }[]
 
-  /** 前锋线折线点（行中心；x=自然日列） */
+  /** 前锋线折线点（行中心；x=自然日列；仅可见行参与，y=可见行序） */
   const frontLine = useMemo(() => {
     if (!showFront || !cpm.ok) return null
     const off = Math.round((new Date(`${checkDate}T00:00:00Z`).getTime() - startMs) / 86400000)
     if (!Number.isFinite(off) || off < 0) return null
     const pts: { x: number; y: number }[] = []
-    project.tasks.forEach((t, i) => {
+    visibleIdx.forEach((orig, row) => {
+      const t = project.tasks[orig]
       const w = frontierWd(t, cpm.rows[t.id], checkWdIdx(checkDate))
-      if (w !== null) pts.push({ x: dayNo(w) * dayW, y: i * ROW_H + ROW_H / 2 })
+      if (w !== null) pts.push({ x: dayNo(w) * dayW, y: row * ROW_H + ROW_H / 2 })
     })
     return pts.length >= 2 ? { pts, checkX: Math.min(off, days) * dayW } : null
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showFront, cpm, project.tasks, checkDate, startMs, dayNo, dayW, days, colDates])
+  }, [showFront, cpm, project.tasks, visibleIdx, checkDate, startMs, dayNo, dayW, days, colDates])
 
   /** 检查日期 → 工作日序号（前锋点按进度比例需要工作日刻度） */
   function checkWdIdx(dateIso: string): number {
@@ -397,6 +420,28 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult }> = ({
             placeholder="检查日期"
           />
         )}
+        {/* 行筛选（刀C 余项）：关键/手动/文本；仅横道视图参与（网络图=逻辑图） */}
+        <Segmented
+          size="small"
+          value={filter.kind}
+          onChange={(v) => setFilter((f) => ({ ...f, kind: v as GanttFilterKind }))}
+          options={[
+            { value: 'all', label: '全部' },
+            { value: 'critical', label: '关键' },
+            { value: 'manual', label: '手动' },
+          ]}
+          data-testid="sched-gantt-filter"
+        />
+        <Input
+          size="small"
+          allowClear
+          prefix={<SearchOutlined />}
+          placeholder="搜任务名"
+          value={filter.text}
+          onChange={(e) => setFilter((f) => ({ ...f, text: e.target.value }))}
+          style={{ width: 150 }}
+          data-testid="sched-gantt-search"
+        />
         <div style={{ flex: 1 }} />
         {/* 列显隐（刀C 双栏）：行号/名称固定，其余单列可藏让位画布 */}
         <Popover
@@ -431,7 +476,8 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult }> = ({
           </div>
           <div className="sched-gantt-tbody" ref={tbodyRef}>
             <div style={{ width: leftW }}>
-              {project.tasks.map((t, i) => {
+              {visibleIdx.map((i) => {
+                const t = project.tasks[i]
                 const row = cpm.rows[t.id]
                 const group = isGroupRow(project.tasks, i)
                 const span = group ? groupSpan(project, cpm, i) : null
@@ -439,8 +485,8 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult }> = ({
                 const dur = t.isMilestone ? 0 : Math.max(0, Math.round(t.duration))
                 const colorCls = group ? ` sched-group-c${groupColorSeq[i]}` : ''
                 return (
+                  <Dropdown key={t.id} trigger={['contextMenu']} menu={{ items: rowMenu(t, group), onClick: (e) => rowMenuClick(e.key, t) }}>
                   <div
-                    key={t.id}
                     className={`sched-gantt-row${group ? ' sched-group-row' : ''}${colorCls}${selectedId === t.id ? ' sched-row-selected' : ''}`}
                     style={{ height: ROW_H }}
                     onClick={() => select(t.id)}
@@ -485,6 +531,23 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult }> = ({
                             value={dur}
                             onChange={(v) => updateTask(t.id, { duration: Number(v) || 0 })}
                             style={{ padding: 0, width: '100%' }}
+                          />
+                        )}
+                      </div>
+                    )}
+                    {colOn('progress') && (
+                      <div style={{ width: W.progress }} className="sched-gantt-cell">
+                        {!group && (
+                          <InputNumber
+                            size="small"
+                            variant="borderless"
+                            min={0}
+                            max={100}
+                            value={t.progress}
+                            onChange={(v) => updateTask(t.id, { progress: Math.max(0, Math.min(100, Math.round(Number(v) || 0))) })}
+                            style={{ padding: 0, width: '100%' }}
+                            data-testid={`sched-progress-${t.id}`}
+                            title="完成进度 0-100（条形进度覆盖与前锋线按此绘制）"
                           />
                         )}
                       </div>
@@ -588,6 +651,7 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult }> = ({
                       </div>
                     )}
                   </div>
+                  </Dropdown>
                 )
               })}
             </div>
@@ -614,7 +678,8 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult }> = ({
                 ))}
               </div>
             </div>
-            {project.tasks.map((t, i) => {
+            {visibleIdx.map((i) => {
+              const t = project.tasks[i]
               const row = cpm.rows[t.id]
               const group = isGroupRow(project.tasks, i)
               const span = group ? groupSpan(project, cpm, i) : null
@@ -627,8 +692,8 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult }> = ({
               const movePreview = isDrag && drag!.kind === 'move' ? drag!.preview : null
               const resizePreview = isDrag && drag!.kind === 'resize' ? drag!.preview : null
               return (
+                <Dropdown key={t.id} trigger={['contextMenu']} menu={{ items: rowMenu(t, group), onClick: (e) => rowMenuClick(e.key, t) }}>
                 <div
-                  key={t.id}
                   className={`sched-gantt-row${group ? ' sched-group-row' : ''}${colorCls}${selectedId === t.id ? ' sched-row-selected' : ''}`}
                   style={{ height: ROW_H }}
                   onClick={() => select(t.id)}
@@ -698,8 +763,12 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult }> = ({
                     )}
                   </div>
                 </div>
+                </Dropdown>
               )
             })}
+            {visibleIdx.length === 0 && project.tasks.length > 0 && (
+              <div className="sched-empty" data-testid="sched-gantt-filter-empty">没有符合筛选条件的任务（切回「全部」或清空搜索）</div>
+            )}
             {/* 覆盖层：非工作日底纹 + 今日线 + 前锋线 + 搭接箭线 */}
             <div className="sched-overlay" style={{ left: 0, width: chartW, height: totalH + 40 }}>
               <svg width={chartW} height={totalH + 40} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>

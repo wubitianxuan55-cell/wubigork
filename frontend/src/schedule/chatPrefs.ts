@@ -5,7 +5,8 @@
  * 键 gaea.schedule.chatPrefs：{"collapsed":boolean,"width":number,
  * "ganttTableW":number,"ganttHide":string[]}。
  * 宽度钳位 320~680（窄了输入框挤压、宽了横道图不够用）；表格窗格宽度钳位
- * [行号+名称, 可见列总宽]；字段级容错——坏值回落缺省，单个字段坏不拖累另一个。
+ * [行号+名称, 可见列总宽]；ganttHide 缺省=进度列收起（v4.135）；字段级容错——
+ * 坏值回落缺省，单个字段坏不拖累另一个。
  */
 import { clampTableW, sanitizeHide, GANTT_LEFT_W_FULL } from './ganttCols'
 
@@ -23,7 +24,10 @@ export const CHAT_WIDTH_MIN = 320
 export const CHAT_WIDTH_MAX = 680
 export const CHAT_WIDTH_DEFAULT = 420
 
-const DEFAULTS: ChatPrefs = { collapsed: false, width: CHAT_WIDTH_DEFAULT, ganttTableW: GANTT_LEFT_W_FULL, ganttHide: [] }
+/** 缺省隐藏列：进度列默认收起（让位画布；列菜单可开） */
+const DEFAULT_HIDE: string[] = ['progress']
+
+const DEFAULTS: ChatPrefs = { collapsed: false, width: CHAT_WIDTH_DEFAULT, ganttTableW: GANTT_LEFT_W_FULL, ganttHide: DEFAULT_HIDE }
 
 /** 宽度钳位：非有限值/越界回落缺省与边界 */
 export function clampChatWidth(w: number): number {
@@ -39,7 +43,8 @@ function parse(raw: string | null): ChatPrefs {
       collapsed: typeof o.collapsed === 'boolean' ? o.collapsed : DEFAULTS.collapsed,
       width: clampChatWidth(typeof o.width === 'number' ? o.width : NaN),
       ganttTableW: clampTableW(typeof o.ganttTableW === 'number' ? o.ganttTableW : NaN, GANTT_LEFT_W_FULL),
-      ganttHide: sanitizeHide(o.ganttHide),
+      // 存量数据无 ganttHide 字段时回落缺省隐藏集；已有数组则逐项容错
+      ganttHide: Array.isArray(o.ganttHide) ? sanitizeHide(o.ganttHide) : [...DEFAULT_HIDE],
     }
   } catch {
     return { ...DEFAULTS }

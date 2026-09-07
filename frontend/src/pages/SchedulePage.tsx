@@ -12,7 +12,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { Alert, Button, Checkbox, Input, Modal, Popconfirm, Popover, Segmented, Space, Tag, Tooltip } from 'antd'
 import {
   AimOutlined, CalendarOutlined, ClearOutlined, ClusterOutlined, ExportOutlined, FileImageOutlined, FundOutlined, ImportOutlined,
-  FileExcelOutlined, MessageOutlined, NodeIndexOutlined, PlusOutlined, TableOutlined, TeamOutlined, ThunderboltOutlined, PartitionOutlined, DeleteOutlined, ToolOutlined,
+  FileExcelOutlined, MessageOutlined, NodeIndexOutlined, PlusOutlined, RedoOutlined, TableOutlined, TeamOutlined, ThunderboltOutlined, PartitionOutlined, DeleteOutlined, ToolOutlined, UndoOutlined,
 } from '@ant-design/icons'
 import { computeCpm } from '../schedule/cpm'
 import { computeCosts } from '../schedule/cost'
@@ -311,6 +311,10 @@ const SchedulePage: React.FC = () => {
   const removeTask = useScheduleStore((s) => s.removeTask)
   const loadSample = useScheduleStore((s) => s.loadSample)
   const clearAll = useScheduleStore((s) => s.clearAll)
+  const past = useScheduleStore((s) => s.past)
+  const future = useScheduleStore((s) => s.future)
+  const undo = useScheduleStore((s) => s.undo)
+  const redo = useScheduleStore((s) => s.redo)
   const fileRef = useRef<HTMLInputElement>(null)
   const [importMsg, setImportMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [exportOpen, setExportOpen] = useState(false)
@@ -350,6 +354,19 @@ const SchedulePage: React.FC = () => {
 
   // 文件同步：水合（文件为准，localStorage 迁移）+ 自动保存 + agent 写入回读
   useEffect(() => { void initScheduleSync() }, [])
+
+  // 撤销/重做快捷键（刀C 余项）：Ctrl+Z / Ctrl+Y / Ctrl+Shift+Z；输入控件聚焦时不抢
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey)) return
+      const el = document.activeElement
+      if (el instanceof HTMLElement && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)) return
+      const k = e.key.toLowerCase()
+      if (k === 'z') { e.preventDefault(); if (e.shiftKey) redo(); else undo() } else if (k === 'y') { e.preventDefault(); redo() }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [undo, redo])
 
   const cpm = useMemo(() => computeCpm(project.tasks, project.links, { planFinish: planFinishOf(project) }), [project])
   const aoa = useMemo(() => buildAoa(project.tasks, project.links, { planFinish: planFinishOf(project) }), [project])
@@ -513,6 +530,12 @@ const SchedulePage: React.FC = () => {
       </div>
 
       <div className="sched-toolbar">
+        <Tooltip title="撤销（Ctrl+Z）">
+          <Button size="small" icon={<UndoOutlined />} disabled={past.length === 0} data-testid="sched-undo" onClick={() => undo()} aria-label="撤销" />
+        </Tooltip>
+        <Tooltip title="重做（Ctrl+Y / Ctrl+Shift+Z）">
+          <Button size="small" icon={<RedoOutlined />} disabled={future.length === 0} data-testid="sched-redo" onClick={() => redo()} aria-label="重做" />
+        </Tooltip>
         <Button size="small" icon={<PlusOutlined />} onClick={() => addTask(selectedId ?? undefined)}>添加任务</Button>
         <Button size="small" icon={<ClusterOutlined />} onClick={addGroup}>添加分组</Button>
         {selected && !selectedIsGroup && (

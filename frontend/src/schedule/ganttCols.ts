@@ -18,6 +18,7 @@ export const GANTT_COLS: GanttCol[] = [
   { key: 'name', label: '任务名称', w: 160 },
   { key: 'wbs', label: 'WBS', w: 44 },
   { key: 'dur', label: '工期', w: 48 },
+  { key: 'progress', label: '进度', w: 56 },
   { key: 'start', label: '开始', w: 66 },
   { key: 'finish', label: '完成', w: 66 },
   { key: 'ls', label: '最迟开始', w: 66 },

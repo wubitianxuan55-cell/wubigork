@@ -5,10 +5,10 @@ import { describe, expect, it } from 'vitest'
 import { GANTT_COLS, GANTT_FIXED_KEYS, GANTT_HIDEABLE_KEYS, GANTT_LEFT_W_FULL, GANTT_REPORT_KEYS, GANTT_TABLE_W_MIN, clampTableW, colsByKeys, sanitizeHide, visibleCols, visibleLeftW } from './ganttCols'
 
 describe('ganttCols 列定义', () => {
-  it('14 列、行号+名称固定、全列宽=各列宽求和', () => {
-    expect(GANTT_COLS).toHaveLength(14)
+  it('15 列、行号+名称固定、全列宽=各列宽求和（进度列 v4.135 加入）', () => {
+    expect(GANTT_COLS).toHaveLength(15)
     expect(GANTT_FIXED_KEYS).toEqual(['no', 'name'])
-    expect(GANTT_HIDEABLE_KEYS).toHaveLength(12)
+    expect(GANTT_HIDEABLE_KEYS).toHaveLength(13)
     expect(GANTT_LEFT_W_FULL).toBe(GANTT_COLS.reduce((s, c) => s + c.w, 0))
     expect(GANTT_TABLE_W_MIN).toBe(34 + 160)
   })
