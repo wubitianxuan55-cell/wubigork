@@ -209,6 +209,8 @@ export const GAEA_METHOD_FACETS = {
   XlsxChart: "work",
   ScheduleLoad: "work",
   ScheduleSave: "work",
+  ScheduleExportXlsx: "work",
+  ScheduleImportXlsx: "work",
   ZipDeliverables: "work",
   SubagentRuns: "work",
   SubagentTranscript: "work",

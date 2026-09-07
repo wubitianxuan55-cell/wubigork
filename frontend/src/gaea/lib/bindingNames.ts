@@ -276,6 +276,8 @@ export const bindingNames = [
 	"GaeaSaveProvider",
 	"GaeaSaveSettings",
 	"GaeaSaveWindowState",
+	"GaeaScheduleExportXlsx",
+	"GaeaScheduleImportXlsx",
 	"GaeaScheduleLoad",
 	"GaeaScheduleSave",
 	"GaeaSemanticIndexStatus",
@@ -555,6 +557,7 @@ export const bindingNames = [
 	"VoiceSetPTTActive",
 	"VoiceStart",
 	"VoiceStop",
+	"WarmComfyUI",
 	"WeixinReminderAdd",
 	"WeixinReminderConfig",
 	"WeixinReminderDelete",
@@ -586,8 +589,7 @@ export const bindingNames = [
 	"WhisperWeixinGetQR",
 	"WhisperWeixinQRStatus",
 	"WhisperWeixinQRStatusWithCode",
-	"WhisperWeixinStatus",
-	"WarmComfyUI",
+	"WhisperWeixinStatus"
 ] as const
 
 export default bindingNames

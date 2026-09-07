@@ -1,3 +1,9 @@
+## v4.134.0 · 进度计划刀D3：Excel 导入导出——上报口径往返（2026-09-07）
+> 差距清单 #2（官方「Excel 导入/导出」项）。Go excelize，绑定面 **588→590**。详见 releases/v4.134.0.md。
+- internal/schedule/xlsx.go：ExportXlsx（序号/WBS/任务名称/工期/开始/完成/前置，CPM fail-closed，分组跨度，前置 `2FS+3` 引用）+ ImportXlsx（表头别名归一识别、WBS 深度/空工期行分级、工期文本提取、前置引用大小写不敏感回链去重、日期仅取开工日、Validate fail-closed——排程交回 CPM 重算与 mspdi 同律）。
+- 绑定 GaeaScheduleExportXlsx/ImportXlsx（base64）+ bridge/spaceBindings(+2 work，数量锁 303)/mock 直通/api.ts/SchedulePage「导入 Excel/导出 Excel」按钮。
+- 门禁：go test 绿（+7 用例）、drift PASS@590、vitest 2301、tsc -b/eslint 0、版本四处 4.134.0、build 1m4。走查：导出回执+往返 20 行保名。
+
 ## v4.133.0 · 进度计划刀D2：网络图上报件 + AOA 逆推锚点修正（2026-09-07）
 > 差距清单 #3（对标 .gzp 时标网络上报件）。纯前端，绑定面 **588** 零变更。详见 releases/v4.133.0.md。
 - **引擎修正（aoa.ts）**：total（计算工期）在正推前取事件初始 es，长链下逆推整体平移出假负时差（实证 办公楼样例 min(ls) −111）且刀G AOA 侧 planFinish 锚点从未真实生效——total 移至正推后；+3 回归用例。

@@ -284,6 +284,10 @@ export interface AppBindings {
   // 进度计划/当前计划.gsched.json，与 agent 工具（schedule_*）共享同一资产。
   ScheduleLoad(): Promise<ScheduleLoadResult>;
   ScheduleSave(projectJSON: string): Promise<ScheduleSaveResult>;
+  // ScheduleExportXlsx/ImportXlsx 上报 Excel 通道（v4.134.0 刀D3）：导出=计划
+  // JSON → 上报口径 xlsx（base64）；导入=上报 xlsx（base64）→ 计划 JSON。
+  ScheduleExportXlsx(projectJSON: string): Promise<string>;
+  ScheduleImportXlsx(xlsxBase64: string): Promise<string>;
   // XlsxRecalc 手动重算全部公式（LibreOffice）并返回更新预览。
   XlsxRecalc(rel: string): Promise<XlsxEditResult>;
   // XlsxRowOps 行级操作：insert_before / insert_after / delete（基于选中单元格所在行）。
@@ -905,6 +909,8 @@ const gaeaToGaea = {
   XlsxSetCell: "GaeaXlsxSetCell",
   ScheduleLoad: "GaeaScheduleLoad",
   ScheduleSave: "GaeaScheduleSave",
+  ScheduleExportXlsx: "GaeaScheduleExportXlsx",
+  ScheduleImportXlsx: "GaeaScheduleImportXlsx",
   XlsxRecalc: "GaeaXlsxRecalc",
   XlsxRowOps: "GaeaXlsxRowOps",
   XlsxColOps: "GaeaXlsxColOps",

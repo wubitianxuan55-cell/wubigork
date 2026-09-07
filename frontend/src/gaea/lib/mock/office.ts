@@ -56,7 +56,7 @@ type OfficeMethods = Pick<
   | "ReadFile" | "Preview" | "OpenWorkspacePath"
   | "OfficeEditText" | "DocxApplyEdit" | "DocxAcceptChanges"
   | "XlsxPlanEdit" | "XlsxApplyEdit" | "XlsxSetCell" | "XlsxRecalc" | "XlsxRowOps" | "XlsxColOps"
-  | "ScheduleLoad" | "ScheduleSave"
+  | "ScheduleLoad" | "ScheduleSave" | "ScheduleExportXlsx" | "ScheduleImportXlsx"
   | "XlsxChart" | "ZipDeliverables" | "SubagentRuns" | "SubagentTranscript" | "DeliverableRegistry" | "WriteFile"
   | "ExportDeliverable" | "ConvertToPdf" | "CrossEmbed" | "RevealWorkspacePath"
   | "SavePastedImage" | "SaveAttachmentFile" | "AttachmentDataURL"
@@ -378,6 +378,13 @@ export function buildOffice(_s: MakeMockState): OfficeMethods {
       // 走查态：exists=false → 板块走迁移分支把 localStorage/样例上「文件」
       const f = mockScheduleFile.load();
       return { ...f, project: f.project };
+    },
+    async ScheduleExportXlsx(projectJSON: string) {
+      // 浏览器 mock 无 excelize：JSON 直通模拟 xlsx 往返（与真实导入同构）
+      return btoa(unescape(encodeURIComponent(projectJSON)));
+    },
+    async ScheduleImportXlsx(xlsxBase64: string) {
+      return decodeURIComponent(escape(atob(xlsxBase64)));
     },
     async ScheduleSave(projectJSON: string) {
       mockScheduleFile.save(projectJSON);

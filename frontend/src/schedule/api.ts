@@ -34,3 +34,30 @@ export async function loadScheduleFile(): Promise<ScheduleLoadOk> {
 export async function saveScheduleFile(p: SchedProject): Promise<ScheduleSaveOk> {
   return app.ScheduleSave(JSON.stringify(normalizeProject(p)))
 }
+
+const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+
+/** 导出上报 Excel：Go excelize 渲染（CPM fail-closed）→ base64 → Blob 下载 */
+export async function exportScheduleXlsx(p: SchedProject): Promise<void> {
+  const b64 = await app.ScheduleExportXlsx(JSON.stringify(normalizeProject(p)))
+  const bin = atob(b64)
+  const bytes = new Uint8Array(bin.length)
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
+  const url = URL.createObjectURL(new Blob([bytes], { type: XLSX_MIME }))
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `${p.name || '进度计划'}.xlsx`
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
+/** 导入上报 Excel：文件 → base64 → Go 解析 → 计划（排程交回 CPM 重算） */
+export async function importScheduleXlsx(file: File): Promise<SchedProject> {
+  const bytes = new Uint8Array(await file.arrayBuffer())
+  const CHUNK = 0x8000
+  let bin = ''
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    bin += String.fromCharCode(...bytes.subarray(i, i + CHUNK))
+  }
+  return normalizeProject(JSON.parse(await app.ScheduleImportXlsx(btoa(bin))))
+}

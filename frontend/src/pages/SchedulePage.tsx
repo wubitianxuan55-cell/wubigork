@@ -12,7 +12,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { Alert, Button, Checkbox, Input, Modal, Popconfirm, Popover, Segmented, Space, Tag, Tooltip } from 'antd'
 import {
   AimOutlined, CalendarOutlined, ClearOutlined, ClusterOutlined, ExportOutlined, FileImageOutlined, FundOutlined, ImportOutlined,
-  MessageOutlined, NodeIndexOutlined, PlusOutlined, TableOutlined, TeamOutlined, ThunderboltOutlined, PartitionOutlined, DeleteOutlined, ToolOutlined,
+  FileExcelOutlined, MessageOutlined, NodeIndexOutlined, PlusOutlined, TableOutlined, TeamOutlined, ThunderboltOutlined, PartitionOutlined, DeleteOutlined, ToolOutlined,
 } from '@ant-design/icons'
 import { computeCpm } from '../schedule/cpm'
 import { computeCosts } from '../schedule/cost'
@@ -27,6 +27,7 @@ import { buildGanttExportSvg } from '../schedule/ganttExport'
 import { buildAoaExportSvg, buildPdmExportSvg } from '../schedule/networkExport'
 import { svgToPngBlob, svgToPdfBlob, downloadBlob, printSvg } from '../schedule/exportArtifact'
 import { loadExportMeta, saveExportMeta, todayIso, type ExportMetaPrefs } from '../schedule/exportMeta'
+import { exportScheduleXlsx, importScheduleXlsx } from '../schedule/api'
 import { ResourcePanel } from '../schedule/ResourcePanel'
 import { fmtCost, hasCostData } from '../schedule/costUi'
 import { SCHEDULE_FILE_PATH } from '../schedule/gschedSummary'
@@ -384,6 +385,36 @@ const SchedulePage: React.FC = () => {
     }
   }
 
+  const [xlsxBusy, setXlsxBusy] = useState(false)
+  const xlsxRef = useRef<HTMLInputElement>(null)
+
+  /** 导出上报 Excel（Go excelize 渲染，CPM fail-closed） */
+  const exportXlsx = async () => {
+    setXlsxBusy(true)
+    try {
+      await exportScheduleXlsx(project)
+      setImportMsg({ type: 'success', text: '已导出 Excel（进度计划.xlsx）' })
+    } catch (e) {
+      setImportMsg({ type: 'error', text: e instanceof Error ? e.message : String(e) })
+    } finally {
+      setXlsxBusy(false)
+    }
+  }
+
+  /** 导入上报 Excel：表头别名识别 + 前置引用回链，排程交回 CPM 重算 */
+  const onImportXlsx = async (file: File) => {
+    setXlsxBusy(true)
+    try {
+      const p = await importScheduleXlsx(file)
+      importProject(p)
+      setImportMsg({ type: 'success', text: `已导入「${p.name}」：${p.tasks.length} 行 / ${p.links.length} 条搭接（已按搭接重排）` })
+    } catch (e) {
+      setImportMsg({ type: 'error', text: e instanceof Error ? e.message : String(e) })
+    } finally {
+      setXlsxBusy(false)
+    }
+  }
+
   return (
     <div className="sched-shell">
       {!chat.collapsed && (
@@ -520,6 +551,23 @@ const SchedulePage: React.FC = () => {
         </Tooltip>
         <Tooltip title="导出为 MS Project XML（可被 Project / 斑马进度打开）">
           <Button size="small" icon={<ExportOutlined />} onClick={exportXml}>导出 XML</Button>
+        </Tooltip>
+        <input
+          ref={xlsxRef}
+          type="file"
+          accept=".xlsx"
+          style={{ display: 'none' }}
+          onChange={(e) => {
+            const f = e.target.files?.[0]
+            e.target.value = ''
+            if (f) void onImportXlsx(f)
+          }}
+        />
+        <Tooltip title="导入上报 Excel（xlsx）：表头别名自动识别，前置引用按序号回链，按搭接重排">
+          <Button size="small" icon={<FileExcelOutlined />} data-testid="sched-xlsx-import" disabled={xlsxBusy} onClick={() => xlsxRef.current?.click()}>导入 Excel</Button>
+        </Tooltip>
+        <Tooltip title="导出上报 Excel（xlsx）：序号/WBS/任务名称/工期/开始/完成/前置，可被 Project / WPS 打开">
+          <Button size="small" icon={<FileExcelOutlined />} data-testid="sched-xlsx-export" loading={xlsxBusy} onClick={() => void exportXlsx()}>导出 Excel</Button>
         </Tooltip>
         <Tooltip title="导出上报图面：横道图 / 双代号时标网络（含工程标尺）/ 单代号网络（PNG / PDF / 打印）">
           <Button size="small" icon={<FileImageOutlined />} data-testid="sched-export-btn" onClick={() => setExportOpen(true)}>导出图面</Button>
