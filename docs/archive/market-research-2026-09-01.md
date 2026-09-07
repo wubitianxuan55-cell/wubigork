@@ -1,5 +1,7 @@
 # 模块制市场调研 · 2026-09-01（v4.24.0 基线）
 
+> [已归档 2026-09-09] 一次性调研（结论已吸收进 gaea-nextgen-roadmap-2026.md 与对应域规划）。
+
 > 3 分模块子代理调研（浏览器观察窗 / 文件版本时间线 / pptx 与工作台动向），原始稿在
 > `docs/research-2026-09-01/`（browser-observation.md · version-timeline-diff.md ·
 > pptx-workbench-trends.md），来源随句标注，未核实项在原始稿内明示。目的：为

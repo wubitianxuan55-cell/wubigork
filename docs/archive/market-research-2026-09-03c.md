@@ -1,5 +1,7 @@
 # gaea 市场调研合成：文件交付（2026-09-03c）
 
+> [已归档 2026-09-09] 一次性调研（结论已吸收进 gaea-nextgen-roadmap-2026.md 与对应域规划）。
+
 > 原始稿：`docs/research-2026-09-03c/agent-delivery.md`（Agent 产品交付物 UX，Claude/ChatGPT/Kimi/Manus/Devin/Genspark/Lovable 等，69 条来源）、`office-delivery.md`（办公文档交付后链路，M365 Copilot/Gemini/Notion/飞书/钉钉/WPS/Gamma/Zapier，101 条来源）。本合成版只做差距分析与方案打包，模式编号引用原始稿清单（A#=agent-delivery，O#=office-delivery）。
 
 ## 一、gaea 现状对照（调研确认的已有能力，不重复建设）

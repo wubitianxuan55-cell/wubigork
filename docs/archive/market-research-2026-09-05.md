@@ -1,5 +1,7 @@
 # gaea × GitHub 生态市场调研合成（2026-09-05）
 
+> [已归档 2026-09-09] 一次性调研（结论已吸收；其中办公域修正见 gaea-dsh-univer-office-distill-plan-2026-09.md §0）。
+
 > 三路并行子代理原始稿：`docs/research-2026-09-05/`（agent-workbench.md /
 > context-observability.md / desktop-assistant.md）。本文为合成结论 + 对
 > gaea 长期规划的回填建议。数据为 2026-09-04/05 GitHub 快照，未核实项均

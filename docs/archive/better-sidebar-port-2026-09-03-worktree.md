@@ -1,5 +1,7 @@
 # 工作树快照记录：办公右栏 dsh-better-sidebar pane 化移植（2026-09-03，未发版）
 
+> [已归档 2026-09-09] 一次性工作记录（better-sidebar worktree 移植过程；长期方案见 gaea-dsh-better-sidebar-long-term-distill-plan-2026.md）。
+
 > 状态：已完成一版可运行的 pane 移植，前端全量门禁绿；**未 bump 版本、未发布**。
 > 续会话：已再完成「左栏子代理会话入口」（快照二）与「产物行开 pane 文件
 > tab」（快照三，见下）；仍未 bump/发布。
