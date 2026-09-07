@@ -1,13 +1,21 @@
 /**
- * chatPrefs.ts — 左栏对话偏好（折叠态/宽度，纯函数 + 可注入 storage，刀11）
+ * chatPrefs.ts — 板块工作台偏好（左栏对话折叠/宽度 + 横道表格窗格宽度/列显隐，
+ * 纯函数 + 可注入 storage，刀11；v4.131 刀C 增横道双栏字段）
  *
- * 键 gaea.schedule.chatPrefs：{"collapsed":boolean,"width":number}。
- * 宽度钳位 320~680（窄了输入框挤压、宽了横道图不够用）；字段级容错——
- * 坏值回落缺省，单个字段坏不拖累另一个。
+ * 键 gaea.schedule.chatPrefs：{"collapsed":boolean,"width":number,
+ * "ganttTableW":number,"ganttHide":string[]}。
+ * 宽度钳位 320~680（窄了输入框挤压、宽了横道图不够用）；表格窗格宽度钳位
+ * [行号+名称, 可见列总宽]；字段级容错——坏值回落缺省，单个字段坏不拖累另一个。
  */
+import { clampTableW, sanitizeHide, GANTT_LEFT_W_FULL } from './ganttCols'
+
 export interface ChatPrefs {
   collapsed: boolean
   width: number
+  /** 横道表格窗格宽度（刀C 双栏；缺省=全列展开） */
+  ganttTableW: number
+  /** 横道隐藏列键集（缺省=全显） */
+  ganttHide: string[]
 }
 
 export const CHAT_PREFS_KEY = 'gaea.schedule.chatPrefs'
@@ -15,7 +23,7 @@ export const CHAT_WIDTH_MIN = 320
 export const CHAT_WIDTH_MAX = 680
 export const CHAT_WIDTH_DEFAULT = 420
 
-const DEFAULTS: ChatPrefs = { collapsed: false, width: CHAT_WIDTH_DEFAULT }
+const DEFAULTS: ChatPrefs = { collapsed: false, width: CHAT_WIDTH_DEFAULT, ganttTableW: GANTT_LEFT_W_FULL, ganttHide: [] }
 
 /** 宽度钳位：非有限值/越界回落缺省与边界 */
 export function clampChatWidth(w: number): number {
@@ -30,6 +38,8 @@ function parse(raw: string | null): ChatPrefs {
     return {
       collapsed: typeof o.collapsed === 'boolean' ? o.collapsed : DEFAULTS.collapsed,
       width: clampChatWidth(typeof o.width === 'number' ? o.width : NaN),
+      ganttTableW: clampTableW(typeof o.ganttTableW === 'number' ? o.ganttTableW : NaN, GANTT_LEFT_W_FULL),
+      ganttHide: sanitizeHide(o.ganttHide),
     }
   } catch {
     return { ...DEFAULTS }
@@ -49,9 +59,12 @@ export function loadChatPrefs(storage?: Pick<Storage, 'getItem'>): ChatPrefs {
 
 /** 保存偏好（部分字段合并；storage 不可写静默失败——偏好属锦上添花） */
 export function saveChatPrefs(patch: Partial<ChatPrefs>, storage?: Pick<Storage, 'getItem' | 'setItem'>): ChatPrefs {
+  const base = loadChatPrefs(storage)
   const next: ChatPrefs = {
-    collapsed: typeof patch.collapsed === 'boolean' ? patch.collapsed : loadChatPrefs(storage).collapsed,
-    width: patch.width !== undefined ? clampChatWidth(patch.width) : loadChatPrefs(storage).width,
+    collapsed: typeof patch.collapsed === 'boolean' ? patch.collapsed : base.collapsed,
+    width: patch.width !== undefined ? clampChatWidth(patch.width) : base.width,
+    ganttTableW: patch.ganttTableW !== undefined ? clampTableW(patch.ganttTableW, GANTT_LEFT_W_FULL) : base.ganttTableW,
+    ganttHide: patch.ganttHide !== undefined ? sanitizeHide(patch.ganttHide) : base.ganttHide,
   }
   const s = storage ?? (typeof localStorage !== 'undefined' ? localStorage : undefined)
   try {

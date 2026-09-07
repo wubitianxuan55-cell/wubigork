@@ -12,6 +12,7 @@ export const zh: Record<DictKey, string> = {
   "schedChat.newTip": "开始一条新的工作会话（与办公板块共享线程）",
   "schedChat.subtitle": "与办公板块共享同一条工作线程",
   "schedChat.newConfirm": "新建会话？当前线程仍保留在办公板块历史中。",
+  "schedChat.collapseTip": "收起 AI 助手，腾出工作台（页头可再展开）",
   "schedChat.q1": "分析当前计划与关键线路",
   "schedChat.q2": "检查缺前置任务并推荐逻辑关系",
   "schedChat.q3": "生成本周进度汇报",

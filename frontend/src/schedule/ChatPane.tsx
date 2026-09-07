@@ -15,6 +15,7 @@ import { Transcript } from '../gaea/components/Transcript'
 import { Composer } from '../gaea/components/Composer'
 import { ApprovalModal } from '../gaea/components/ApprovalModal'
 import { AskCard } from '../gaea/components/AskCard'
+import { LeftOutlined } from '@ant-design/icons'
 import { useController } from '../gaea/lib/store'
 import { notifyScheduleFileChanged } from './store'
 
@@ -51,7 +52,7 @@ const QuickChips: React.FC<{ running: boolean; onSend: (text: string) => void }>
   )
 }
 
-const ChatPaneInner: React.FC = () => {
+const ChatPaneInner: React.FC<{ onCollapse?: () => void }> = ({ onCollapse }) => {
   const t = useT()
   const ctrl = useController()
   const state = ctrl.state
@@ -79,6 +80,18 @@ const ChatPaneInner: React.FC = () => {
             + {t('schedChat.new')}
           </button>
         </Popconfirm>
+        {/* 刀C：栏内折叠入口（头部图标按钮之外的第二入口，用户点名「腾出工作台」） */}
+        {onCollapse && (
+          <button
+            className="sched-chat-fold"
+            data-testid="sched-chat-fold"
+            onClick={onCollapse}
+            title={t('schedChat.collapseTip')}
+            aria-label={t('schedChat.collapseTip')}
+          >
+            <LeftOutlined aria-hidden />
+          </button>
+        )}
       </div>
       {/* .transcript 自带 flex:1/min-height:0/overflow-y（styles.css），直接作为弹性行 */}
       <Transcript
@@ -114,9 +127,10 @@ const ChatPaneInner: React.FC = () => {
   )
 }
 
-/** 进度计划左栏对话宿主：LocaleProvider 必须包外层（gaea 组件顶层 useT）。 */
-export const ScheduleChatPane: React.FC = () => (
+/** 进度计划左栏对话宿主：LocaleProvider 必须包外层（gaea 组件顶层 useT）；
+ * onCollapse=栏内折叠按钮（刀C：SchedulePage 传 toggleChat，偏好持久化）。 */
+export const ScheduleChatPane: React.FC<{ onCollapse?: () => void }> = ({ onCollapse }) => (
   <LocaleProvider>
-    <ChatPaneInner />
+    <ChatPaneInner onCollapse={onCollapse} />
   </LocaleProvider>
 )

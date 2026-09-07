@@ -11,6 +11,7 @@ export const en = {
   "schedChat.newTip": "开始一条新的工作会话（与办公板块共享线程）",
   "schedChat.subtitle": "Shares the same working thread with the Office board",
   "schedChat.newConfirm": "Start a new session? The current thread stays in the Office board history.",
+  "schedChat.collapseTip": "Collapse AI pane to free the workbench (expand from the header)",
   "schedChat.q1": "Analyze the current plan and critical path",
   "schedChat.q2": "Check missing predecessors and recommend links",
   "schedChat.q3": "Draft a weekly progress report",

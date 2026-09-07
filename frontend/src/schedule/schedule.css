@@ -69,17 +69,65 @@
   font-size: 12px;
   color: var(--md-sys-color-outline, #8a8f98);
 }
-.sched-gantt-scroll {
-  overflow: auto;
-  border: 1px solid var(--md-sys-color-border, #e5e7eb);
-  border-radius: 8px;
+/* 刀C 双栏：表格窗格 | 分隔条 | 画布窗格（表格纵滚随画布同步，横滚各自独立） */
+.sched-gantt-frame {
+  display: flex;
   flex: 1;
   min-height: 0;
+  border: 1px solid var(--md-sys-color-border, #e5e7eb);
+  border-radius: 8px;
+  overflow: hidden;
   background: var(--md-sys-color-bg-container, #fff);
 }
-.sched-gantt-inner {
+.sched-gantt-tablepane {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+  border-right: none;
+  background: var(--md-sys-color-bg-container, #fff);
+}
+.sched-gantt-tbody {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
   position: relative;
-  min-width: 100%;
+}
+.sched-gantt-split {
+  flex-shrink: 0;
+  width: 5px;
+  cursor: col-resize;
+  background: var(--md-sys-color-border, #e5e7eb);
+  transition: background 0.15s;
+}
+.sched-gantt-split:hover {
+  background: var(--sched-normal, #2563eb);
+}
+.sched-gantt-canvaspane {
+  flex: 1;
+  min-width: 0;
+  overflow: auto;
+  background: var(--md-sys-color-bg-container, #fff);
+}
+.sched-gantt-canvas-inner {
+  position: relative;
+}
+/* 列显隐菜单 */
+.sched-colmenu {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 2px 14px;
+  max-width: 260px;
+}
+.sched-colmenu-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  padding: 2px 0;
 }
 .sched-gantt-row {
   display: flex;
@@ -88,12 +136,6 @@
 }
 .sched-gantt-row:not(.sched-group-row):hover {
   background: rgba(30, 111, 217, 0.06);
-}
-.sched-gantt-row:not(.sched-group-row):hover .sched-sticky-left {
-  background: rgba(30, 111, 217, 0.06);
-}
-.sched-row-selected .sched-sticky-left {
-  background: rgba(30, 111, 217, 0.12);
 }
 .sched-row-selected {
   background: rgba(37, 99, 235, 0.1) !important;
@@ -104,25 +146,6 @@
   z-index: 30;
   background: var(--md-sys-color-surface-container, #f6f7f9);
   border-bottom: 1px solid var(--md-sys-color-border, #e5e7eb);
-}
-.sched-gantt-left {
-  display: flex;
-  align-items: stretch;
-  background: inherit;
-}
-.sched-gantt-head .sched-gantt-left {
-  position: sticky;
-  left: 0;
-  z-index: 31;
-}
-.sched-sticky-left {
-  position: sticky;
-  left: 0;
-  z-index: 20;
-  background: var(--md-sys-color-bg-container, #fff);
-}
-.sched-gantt-head .sched-sticky-left {
-  background: var(--md-sys-color-surface-container, #f6f7f9);
 }
 .sched-gantt-cell {
   display: flex;
@@ -170,6 +193,8 @@
   border-left: 1px solid var(--md-sys-color-border-variant, #f0f1f3);
   text-align: center;
   line-height: 18px;
+  white-space: nowrap; /* 窄刻度（dayW=8~10）两位日期防竖排折行；<10px 只画格不写数 */
+  overflow: hidden;
 }
 .sched-bar-lane {
   position: relative;
@@ -627,9 +652,6 @@
   width: 3px;
   z-index: 21;
 }
-.sched-group-row .sched-sticky-left {
-  background: inherit; /* 经 .sched-gantt-left 的 inherit 链落到行底色 */
-}
 /* 饱和分组底上的次级文字对比度（v4.127 刀E：随行底淡化同步换语义令牌） */
 .sched-group-row .sched-dim {
   color: var(--md-sys-color-on-surface-variant, #6b7280);
@@ -765,6 +787,25 @@
   cursor: pointer;
 }
 .sched-chat-new:hover {
+  background: var(--md-sys-color-surface-container, #f6f7f9);
+}
+/* 栏内折叠按钮（刀C：第二折叠入口，紧跟新会话按钮） */
+.sched-chat-fold {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  color: var(--md-sys-color-on-surface-variant, #6b7280);
+  border: 1px solid var(--md-sys-color-border, #e5e7eb);
+  background: transparent;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.sched-chat-fold:hover {
+  color: var(--md-sys-color-on-surface, #374151);
   background: var(--md-sys-color-surface-container, #f6f7f9);
 }
 

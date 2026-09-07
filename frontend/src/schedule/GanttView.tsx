@@ -7,10 +7,17 @@
  *  - 关键红条、分组黑汇总条、里程碑黑菱形、总时差尾巴、搭接箭线、前锋线。
  * 列（v4.127 刀B 补齐 Project 口径）：行号 | 任务名称 | WBS | 工期 | 开始 | 完成 |
  * 最迟开始 | 最迟完成 | 总时差 | 自由时差 | 模式 | 前置 | 后续 | 成本。
+ *
+ * v4.131 刀C：工作台改「表格窗格 | 画布窗格」真双栏——
+ *  - 表格窗格（左）与时间画布（右）各自独立横滚、纵向滚动同步（画布 scroll
+ *    → 表格体 translateY，直改 DOM 不走 setState）；
+ *  - 分隔条可拖：拖窄=收纳表格（最小=行号+名称，画布全屏）、拖宽=展开，
+ *    双击复位全列；列显隐菜单（行号/名称固定，其余单列可藏）；均持久化 chatPrefs；
+ *  - 时间刻度防竖排：日期格 nowrap，窄刻度（<10px）只画格不写数。
  */
-import React, { useMemo, useState } from 'react'
-import { Button, DatePicker, Input, InputNumber, Popover, Select } from 'antd'
-import { DeleteOutlined, TeamOutlined, ZoomInOutlined, ZoomOutOutlined } from '@ant-design/icons'
+import React, { useMemo, useRef, useState } from 'react'
+import { Button, Checkbox, DatePicker, Input, InputNumber, Popover, Select } from 'antd'
+import { ColumnWidthOutlined, DeleteOutlined, TeamOutlined, ZoomInOutlined, ZoomOutOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import type { CpmResult, LinkType, SchedProject, SchedTask } from './types'
 import { isWorkingDate, normalizeCalendar, wdToDate } from './calendar'
@@ -20,29 +27,11 @@ import { fmtLinkRefs, ganttLinkPath } from './ganttLinks'
 import { descendantIds, isGroupRow, useScheduleStore, type PredDraft } from './store'
 import { TaskResourceEditor } from './ResourcePanel'
 import { fmtCost, hasCostData } from './costUi'
+import { GANTT_COLS, GANTT_FIXED_KEYS, GANTT_LEFT_W_FULL, clampTableW, visibleCols, visibleLeftW } from './ganttCols'
+import { loadChatPrefs, saveChatPrefs } from './chatPrefs'
 
 const ROW_H = 30
-const COLS = [
-  { key: 'no', label: '', w: 34 },
-  { key: 'name', label: '任务名称', w: 160 },
-  { key: 'wbs', label: 'WBS', w: 44 },
-  { key: 'dur', label: '工期', w: 48 },
-  { key: 'start', label: '开始', w: 66 },
-  { key: 'finish', label: '完成', w: 66 },
-  { key: 'ls', label: '最迟开始', w: 66 },
-  { key: 'lf', label: '最迟完成', w: 66 },
-  { key: 'tf', label: '总时差', w: 44 },
-  { key: 'ff', label: '自由时差', w: 58 },
-  { key: 'mode', label: '模式', w: 48 },
-  { key: 'preds', label: '前置', w: 68 },
-  { key: 'succ', label: '后续', w: 68 },
-  { key: 'cost', label: '成本', w: 68 },
-] as const
-/** 列宽速查（按 key 取，避免序号漂移） */
-const W: Record<(typeof COLS)[number]['key'], number> = Object.fromEntries(
-  COLS.map((c) => [c.key, c.w]),
-) as Record<(typeof COLS)[number]['key'], number>
-const LEFT_W = COLS.reduce((s, c) => s + c.w, 0)
+const W: Record<string, number> = Object.fromEntries(GANTT_COLS.map((c) => [c.key, c.w]))
 const DAY_W_STEPS = [8, 14, 20, 28]
 const WEEKDAY_LABELS = ['日', '一', '二', '三', '四', '五', '六']
 
@@ -183,6 +172,51 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult }> = ({
     preview: number
     moved: boolean
   } | null>(null)
+
+  // ── 刀C 双栏：表格窗格宽度/列显隐（持久化 chatPrefs）────────────
+  const [tableW, setTableW] = useState<number>(() => loadChatPrefs().ganttTableW)
+  const [hide, setHide] = useState<string[]>(() => loadChatPrefs().ganttHide)
+  const splitRef = useRef<{ startX: number; startW: number; w: number } | null>(null)
+  const tbodyRef = useRef<HTMLDivElement | null>(null)
+  const cols = useMemo(() => visibleCols(hide), [hide])
+  const leftW = useMemo(() => visibleLeftW(hide), [hide])
+  const effW = Math.min(tableW, leftW)
+  const colOn = (key: string) => !hide.includes(key)
+
+  /** 分隔条拖动：右移加宽表格、左移收纳（最小=行号+名称）；拖完持久化 */
+  const beginSplit = (e: React.MouseEvent) => {
+    e.preventDefault()
+    splitRef.current = { startX: e.clientX, startW: tableW, w: tableW }
+    const onMove = (ev: MouseEvent) => {
+      const s = splitRef.current!
+      s.w = clampTableW(s.startW + (ev.clientX - s.startX), leftW)
+      setTableW(s.w)
+    }
+    const onUp = () => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+      const s = splitRef.current
+      splitRef.current = null
+      if (s) saveChatPrefs({ ganttTableW: s.w }) // 提交在渲染期外（updater 禁副作用）
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+  }
+  const resetSplit = () => {
+    const w = clampTableW(GANTT_LEFT_W_FULL, leftW)
+    setTableW(w)
+    saveChatPrefs({ ganttTableW: w })
+  }
+  /** 单列显隐（行号/名称固定不藏） */
+  const toggleCol = (key: string, on: boolean) => {
+    const next = on ? hide.filter((k) => k !== key) : [...hide, key]
+    setHide(next)
+    saveChatPrefs({ ganttHide: next })
+  }
+  /** 画布纵向滚动 → 表格体同步（直改 DOM，滚动帧不走 setState） */
+  const onCanvasScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    if (tbodyRef.current) tbodyRef.current.style.transform = `translateY(${-e.currentTarget.scrollTop}px)`
+  }
 
   const cal = project.calendar
   const wbs = useMemo(() => wbsOf(project.tasks), [project.tasks])
@@ -364,265 +398,337 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult }> = ({
           />
         )}
         <div style={{ flex: 1 }} />
+        {/* 列显隐（刀C 双栏）：行号/名称固定，其余单列可藏让位画布 */}
+        <Popover
+          trigger="click"
+          placement="bottomRight"
+          title="显示列（行号与任务名称固定）"
+          content={
+            <div className="sched-colmenu" data-testid="sched-gantt-colmenu">
+              {GANTT_COLS.filter((c) => !GANTT_FIXED_KEYS.includes(c.key)).map((c) => (
+                <label key={c.key} className="sched-colmenu-item">
+                  <Checkbox checked={colOn(c.key)} onChange={(e) => toggleCol(c.key, e.target.checked)} />
+                  <span>{c.label}</span>
+                </label>
+              ))}
+            </div>
+          }
+        >
+          <Button size="small" icon={<ColumnWidthOutlined />} data-testid="sched-gantt-cols-btn" title="显示/隐藏表格列（让位时间画布）">
+            列
+          </Button>
+        </Popover>
         <Button size="small" icon={<ZoomOutOutlined />} onClick={() => setDayW((w) => DAY_W_STEPS[Math.max(0, DAY_W_STEPS.indexOf(w) - 1)] ?? w)} />
         <Button size="small" icon={<ZoomInOutlined />} onClick={() => setDayW((w) => DAY_W_STEPS[Math.min(DAY_W_STEPS.length - 1, DAY_W_STEPS.indexOf(w) + 1)] ?? w)} />
       </div>
-      <div className="sched-gantt-scroll">
-        <div className="sched-gantt-inner" style={{ width: LEFT_W + chartW }}>
-          {/* 表头 */}
+      <div className="sched-gantt-frame">
+        {/* 表格窗格（左）：宽度=分隔条拖动（chatPrefs 持久化），列显隐收纳 */}
+        <div className="sched-gantt-tablepane" data-testid="sched-gantt-table" style={{ width: effW }}>
           <div className="sched-gantt-row sched-gantt-head" style={{ height: 40 }}>
-            <div className="sched-gantt-left sched-sticky-left" style={{ width: LEFT_W }}>
-              {COLS.map((c) => (
-                <div key={c.key} style={{ width: c.w }} className="sched-gantt-cell sched-th">{c.label}</div>
-              ))}
-            </div>
-            <div className="sched-gantt-datehead" style={{ width: chartW }}>
-              {colDates.map((c, i) => (
-                <div key={i} className={`sched-day-col${c.offWork ? ' sched-day-off' : ''}`} style={{ width: dayW }} title={c.offWork ? '非工作日' : `周${WEEKDAY_LABELS[c.d.getUTCDay()]}`}>
-                  <div className="sched-month-cell">{c.d.getUTCDate() === 1 || i === 0 ? `${c.d.getUTCMonth() + 1}月` : ''}</div>
-                  <div className="sched-day-cell">{dayW >= 14 || i % 2 === 0 ? c.d.getUTCDate() : ''}</div>
-                </div>
-              ))}
-            </div>
+            {cols.map((c) => (
+              <div key={c.key} style={{ width: c.w }} className="sched-gantt-cell sched-th">{c.label}</div>
+            ))}
           </div>
-          {/* 数据行 */}
-          {project.tasks.map((t, i) => {
-            const row = cpm.rows[t.id]
-            const group = isGroupRow(project.tasks, i)
-            const span = group ? groupSpan(project, cpm, i) : null
-            const crit = !group && t.mode !== 'manual' && row?.critical
-            const manual = t.mode === 'manual'
-            const dur = t.isMilestone ? 0 : Math.max(0, Math.round(t.duration))
-            const colorCls = group ? ` sched-group-c${groupColorSeq[i]}` : ''
-            const baseRow = showBase && !group ? project.baseline?.rows[t.id] : undefined
-            const isDrag = drag?.id === t.id
-            const movePreview = isDrag && drag!.kind === 'move' ? drag!.preview : null
-            const resizePreview = isDrag && drag!.kind === 'resize' ? drag!.preview : null
-            return (
-              <div
-                key={t.id}
-                className={`sched-gantt-row${group ? ' sched-group-row' : ''}${colorCls}${selectedId === t.id ? ' sched-row-selected' : ''}`}
-                style={{ height: ROW_H }}
-                onClick={() => select(t.id)}
-              >
-                <div className="sched-gantt-left sched-sticky-left" style={{ width: LEFT_W }}>
-                  <div style={{ width: W.no }} className="sched-gantt-cell sched-row-no">{i + 1}</div>
-                  <div style={{ width: W.name }} className="sched-gantt-cell">
-                    <span style={{ paddingLeft: t.level * 14, display: 'inline-flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
-                      {group ? <strong className="sched-group-name">▲{t.name}</strong> : (
-                        <Input
-                          size="small"
-                          variant="borderless"
-                          value={t.name}
-                          onChange={(e) => updateTask(t.id, { name: e.target.value })}
-                          style={{ padding: 0 }}
-                        />
-                      )}
-                      {t.isMilestone && <span className="sched-milestone-tag">里程碑</span>}
-                      {!group && (
-                        <Popover trigger="click" placement="left" content={<TaskResourceEditor task={t} />} title={`「${t.name}」资源与成本`}>
+          <div className="sched-gantt-tbody" ref={tbodyRef}>
+            <div style={{ width: leftW }}>
+              {project.tasks.map((t, i) => {
+                const row = cpm.rows[t.id]
+                const group = isGroupRow(project.tasks, i)
+                const span = group ? groupSpan(project, cpm, i) : null
+                const manual = t.mode === 'manual'
+                const dur = t.isMilestone ? 0 : Math.max(0, Math.round(t.duration))
+                const colorCls = group ? ` sched-group-c${groupColorSeq[i]}` : ''
+                return (
+                  <div
+                    key={t.id}
+                    className={`sched-gantt-row${group ? ' sched-group-row' : ''}${colorCls}${selectedId === t.id ? ' sched-row-selected' : ''}`}
+                    style={{ height: ROW_H }}
+                    onClick={() => select(t.id)}
+                  >
+                    <div style={{ width: W.no }} className="sched-gantt-cell sched-row-no">{i + 1}</div>
+                    <div style={{ width: W.name }} className="sched-gantt-cell">
+                      <span style={{ paddingLeft: t.level * 14, display: 'inline-flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
+                        {group ? <strong className="sched-group-name">▲{t.name}</strong> : (
+                          <Input
+                            size="small"
+                            variant="borderless"
+                            value={t.name}
+                            onChange={(e) => updateTask(t.id, { name: e.target.value })}
+                            style={{ padding: 0 }}
+                          />
+                        )}
+                        {t.isMilestone && <span className="sched-milestone-tag">里程碑</span>}
+                        {!group && (
+                          <Popover trigger="click" placement="left" content={<TaskResourceEditor task={t} />} title={`「${t.name}」资源与成本`}>
+                            <Button
+                              size="small"
+                              type="text"
+                              className="sched-res-entry"
+                              data-testid={`sched-task-res-${t.id}`}
+                              icon={<TeamOutlined />}
+                              title="资源与成本（分配挂载、固定成本）"
+                            >
+                              {(project.assignments?.filter((a) => a.taskId === t.id).length ?? 0) || ''}
+                            </Button>
+                          </Popover>
+                        )}
+                      </span>
+                    </div>
+                    {colOn('wbs') && <div style={{ width: W.wbs }} className="sched-gantt-cell sched-dim">{wbs[i]}</div>}
+                    {colOn('dur') && (
+                      <div style={{ width: W.dur }} className="sched-gantt-cell">
+                        {group ? <span className="sched-dim">汇总</span> : (
+                          <InputNumber
+                            size="small"
+                            variant="borderless"
+                            min={0}
+                            value={dur}
+                            onChange={(v) => updateTask(t.id, { duration: Number(v) || 0 })}
+                            style={{ padding: 0, width: '100%' }}
+                          />
+                        )}
+                      </div>
+                    )}
+                    {colOn('start') && (
+                      <div style={{ width: W.start }} className="sched-gantt-cell sched-dim">
+                        {manual && !group ? (
+                          <InputNumber
+                            size="small"
+                            variant="borderless"
+                            min={0}
+                            value={row?.es ?? 0}
+                            onChange={(v) => updateTask(t.id, { manualStart: Number(v) || 0 })}
+                            style={{ padding: 0, width: '100%' }}
+                            title="手动模式：锁定开始（工作日序号）"
+                          />
+                        ) : (
+                          (group ? span : row) ? fmtDate(project.startDate, group ? span!.es : row!.es, cal) : ''
+                        )}
+                      </div>
+                    )}
+                    {colOn('finish') && (
+                      <div style={{ width: W.finish }} className="sched-gantt-cell sched-dim">
+                        {(group ? span : row) ? fmtDate(project.startDate, group ? span!.ef : row!.ef, cal) : ''}
+                      </div>
+                    )}
+                    {/* 六时参（刀B）：LS/LF/TF/FF——手动任务逆推不回传，诚实显示 —（不放假数据） */}
+                    {colOn('ls') && (
+                      <div style={{ width: W.ls }} className="sched-gantt-cell sched-dim" title="最迟开始（逆推）">
+                        {group || manual ? (manual && !group ? '—' : '') : fmtDate(project.startDate, row!.ls, cal)}
+                      </div>
+                    )}
+                    {colOn('lf') && (
+                      <div style={{ width: W.lf }} className="sched-gantt-cell sched-dim" title="最迟完成（逆推）">
+                        {group || manual ? (manual && !group ? '—' : '') : fmtDate(project.startDate, row!.lf, cal)}
+                      </div>
+                    )}
+                    {colOn('tf') && (
+                      <div style={{ width: W.tf }} className={`sched-gantt-cell${!group && !manual && row?.tf === 0 ? ' sched-critical-text' : ' sched-dim'}`} title={manual ? '手动模式不参与时差计算' : '总时差 = LS − ES（0=关键）'}>
+                        {group ? '' : manual ? '—' : row?.tf}
+                      </div>
+                    )}
+                    {colOn('ff') && (
+                      <div style={{ width: W.ff }} className="sched-gantt-cell sched-dim" title={manual ? '手动模式不参与时差计算' : '自由时差 = 紧后 ES 最小值 − EF'}>
+                        {group ? '' : manual ? '—' : row?.ff}
+                      </div>
+                    )}
+                    {colOn('mode') && (
+                      <div style={{ width: W.mode }} className="sched-gantt-cell">
+                        {!group && (
                           <Button
                             size="small"
-                            type="text"
-                            className="sched-res-entry"
-                            data-testid={`sched-task-res-${t.id}`}
-                            icon={<TeamOutlined />}
-                            title="资源与成本（分配挂载、固定成本）"
+                            type={manual ? 'primary' : 'text'}
+                            ghost={manual}
+                            className={`sched-mode-chip${manual ? ' sched-mode-manual' : ''}`}
+                            onClick={() => updateTask(t.id, manual ? { mode: 'auto' } : { mode: 'manual', manualStart: row?.es ?? 0 })}
+                            title={manual ? '手动模式（锁定开始，点击切回自动）' : '自动模式（CPM 排程，点击切手动）'}
                           >
-                            {(project.assignments?.filter((a) => a.taskId === t.id).length ?? 0) || ''}
+                            {manual ? '手动' : '自动'}
                           </Button>
-                        </Popover>
-                      )}
-                    </span>
-                  </div>
-                  <div style={{ width: W.wbs }} className="sched-gantt-cell sched-dim">{wbs[i]}</div>
-                  <div style={{ width: W.dur }} className="sched-gantt-cell">
-                    {group ? <span className="sched-dim">汇总</span> : (
-                      <InputNumber
-                        size="small"
-                        variant="borderless"
-                        min={0}
-                        value={dur}
-                        onChange={(v) => updateTask(t.id, { duration: Number(v) || 0 })}
-                        style={{ padding: 0, width: '100%' }}
-                      />
-                    )}
-                  </div>
-                  <div style={{ width: W.start }} className="sched-gantt-cell sched-dim">
-                    {manual && !group ? (
-                      <InputNumber
-                        size="small"
-                        variant="borderless"
-                        min={0}
-                        value={row?.es ?? 0}
-                        onChange={(v) => updateTask(t.id, { manualStart: Number(v) || 0 })}
-                        style={{ padding: 0, width: '100%' }}
-                        title="手动模式：锁定开始（工作日序号）"
-                      />
-                    ) : (
-                      (group ? span : row) ? fmtDate(project.startDate, group ? span!.es : row!.es, cal) : ''
-                    )}
-                  </div>
-                  <div style={{ width: W.finish }} className="sched-gantt-cell sched-dim">
-                    {(group ? span : row) ? fmtDate(project.startDate, group ? span!.ef : row!.ef, cal) : ''}
-                  </div>
-                  {/* 六时参（刀B）：LS/LF/TF/FF——手动任务逆推不回传，诚实显示 —（不放假数据） */}
-                  <div style={{ width: W.ls }} className="sched-gantt-cell sched-dim" title="最迟开始（逆推）">
-                    {group || manual ? (manual && !group ? '—' : '') : fmtDate(project.startDate, row!.ls, cal)}
-                  </div>
-                  <div style={{ width: W.lf }} className="sched-gantt-cell sched-dim" title="最迟完成（逆推）">
-                    {group || manual ? (manual && !group ? '—' : '') : fmtDate(project.startDate, row!.lf, cal)}
-                  </div>
-                  <div style={{ width: W.tf }} className={`sched-gantt-cell${!group && !manual && row?.tf === 0 ? ' sched-critical-text' : ' sched-dim'}`} title={manual ? '手动模式不参与时差计算' : '总时差 = LS − ES（0=关键）'}>
-                    {group ? '' : manual ? '—' : row?.tf}
-                  </div>
-                  <div style={{ width: W.ff }} className="sched-gantt-cell sched-dim" title={manual ? '手动模式不参与时差计算' : '自由时差 = 紧后 ES 最小值 − EF'}>
-                    {group ? '' : manual ? '—' : row?.ff}
-                  </div>
-                  <div style={{ width: W.mode }} className="sched-gantt-cell">
-                    {!group && (
-                      <Button
-                        size="small"
-                        type={manual ? 'primary' : 'text'}
-                        ghost={manual}
-                        className={`sched-mode-chip${manual ? ' sched-mode-manual' : ''}`}
-                        onClick={() => updateTask(t.id, manual ? { mode: 'auto' } : { mode: 'manual', manualStart: row?.es ?? 0 })}
-                        title={manual ? '手动模式（锁定开始，点击切回自动）' : '自动模式（CPM 排程，点击切手动）'}
-                      >
-                        {manual ? '手动' : '自动'}
-                      </Button>
-                    )}
-                  </div>
-                  <div style={{ width: W.preds }} className="sched-gantt-cell">
-                    {!group && (
-                      <Popover trigger="click" placement="left" content={<PredEditor task={t} />} title={`「${t.name}」前置任务`}>
-                        <Button
-                          size="small"
-                          type="text"
-                          className="sched-link-cell"
-                          data-testid={`sched-preds-${t.id}`}
-                          title={predsOf(t.id, project).map((l) => taskNameOf(project, l.from)).join('、') || '无前置，点击添加'}
-                        >
-                          {fmtLinkRefs(predsOf(t.id, project).map((l) => ({ id: l.from, type: l.type, lag: l.lag })), noOf(project))}
-                        </Button>
-                      </Popover>
-                    )}
-                  </div>
-                  <div style={{ width: W.succ }} className="sched-gantt-cell">
-                    {!group && (
-                      <span
-                        className="sched-dim sched-link-cell-text"
-                        data-testid={`sched-succ-${t.id}`}
-                        title={succsOf(t.id, project).map((l) => taskNameOf(project, l.to)).join('、') || '无后续任务'}
-                      >
-                        {fmtLinkRefs(succsOf(t.id, project).map((l) => ({ id: l.to, type: l.type, lag: l.lag })), noOf(project))}
-                      </span>
-                    )}
-                  </div>
-                  <div style={{ width: W.cost }} className="sched-gantt-cell sched-cost-cell" data-testid={`sched-cost-${t.id}`}>
-                    {costShown && (group ? (
-                      <span className="sched-dim" title="分组汇总：子孙叶任务成本求和">{fmtCost(groupCost(project, costs, i))}</span>
-                    ) : (
-                      <span title="明细合计：固定成本 + 分配成本（随工期实时重算）">{fmtCost(costs.rows[t.id]?.total ?? 0)}</span>
-                    ))}
-                  </div>
-                </div>
-                {/* 条形区 */}
-                <div className="sched-bar-lane" style={{ width: chartW }}>
-                  {baseRow && (
-                    <div
-                      className="sched-baseline-bar"
-                      style={{ left: dayNo(baseRow.es) * dayW, width: Math.max((dayNo(baseRow.ef) - dayNo(baseRow.es)) * dayW, 5) }}
-                      title={row && (row.es !== baseRow.es || row.ef !== baseRow.ef)
-                        ? `基线：第 ${baseRow.es}~${baseRow.ef} 工作日（当前第 ${row.es}~${row.ef}）`
-                        : `基线：第 ${baseRow.es}~${baseRow.ef} 工作日（与当前一致）`}
-                    />
-                  )}
-                  {group ? (
-                    span && (
-                      <div
-                        className="sched-summary-bar"
-                        style={{ left: dayNo(span.es) * dayW, width: Math.max((dayNo(span.ef) - dayNo(span.es)) * dayW, 8) }}
-                        title={`${t.name}：${span.es} ~ ${span.ef} 工作日`}
-                      />
-                    )
-                  ) : t.isMilestone ? (
-                    row && (
-                      <div
-                        className={`sched-milestone${isDrag && drag!.kind === 'move' ? ' sched-bar-dragging' : ''}`}
-                        style={{ left: dayNo(movePreview ?? row.es) * dayW - 7 }}
-                        title={`${t.name}（里程碑，拖动可定位）`}
-                        onMouseDown={(e) => beginDrag(e, t, 'move')}
-                      />
-                    )
-                  ) : (
-                    row && (
-                      <>
-                        <div
-                          className={`sched-bar${crit ? ' sched-bar-critical' : ''}${manual ? ' sched-bar-manual' : ''}${isDrag ? ' sched-bar-dragging' : ''}`}
-                          style={{
-                            left: dayNo(movePreview ?? row.es) * dayW,
-                            width: Math.max(
-                              (dayNo((movePreview ?? row.es) + (resizePreview ?? dur)) - dayNo(movePreview ?? row.es)) * dayW,
-                              6,
-                            ),
-                          }}
-                          title={`${t.name}：第 ${row.es}~${row.ef} 工作日${manual ? '（手动锁定，拖动移位）' : crit ? '（关键，拖动=转手动锁定）' : `，总时差 ${row.tf} 天，拖动=转手动锁定`}`}
-                          onMouseDown={(e) => beginDrag(e, t, 'move')}
-                        >
-                          {t.progress > 0 && (
-                            <div className="sched-bar-progress" style={{ width: `${Math.min(100, t.progress)}%` }} />
-                          )}
-                          <div className="sched-resize-handle" onMouseDown={(e) => beginDrag(e, t, 'resize')} title="拖动改工期" />
-                        </div>
-                        {!manual && !isDrag && row.tf > 0 && (
-                          <div className="sched-float" style={{ left: dayNo(row.ef) * dayW, width: row.tf * dayW }} title={`总时差 ${row.tf} 天`} />
                         )}
-                        {isDrag && (
-                          <div
-                            className="sched-drag-tip"
-                            style={{ left: dayNo(drag!.kind === 'move' ? drag!.preview : row.es + drag!.preview) * dayW }}
+                      </div>
+                    )}
+                    {colOn('preds') && (
+                      <div style={{ width: W.preds }} className="sched-gantt-cell">
+                        {!group && (
+                          <Popover trigger="click" placement="left" content={<PredEditor task={t} />} title={`「${t.name}」前置任务`}>
+                            <Button
+                              size="small"
+                              type="text"
+                              className="sched-link-cell"
+                              data-testid={`sched-preds-${t.id}`}
+                              title={predsOf(t.id, project).map((l) => taskNameOf(project, l.from)).join('、') || '无前置，点击添加'}
+                            >
+                              {fmtLinkRefs(predsOf(t.id, project).map((l) => ({ id: l.from, type: l.type, lag: l.lag })), noOf(project))}
+                            </Button>
+                          </Popover>
+                        )}
+                      </div>
+                    )}
+                    {colOn('succ') && (
+                      <div style={{ width: W.succ }} className="sched-gantt-cell">
+                        {!group && (
+                          <span
+                            className="sched-dim sched-link-cell-text"
+                            data-testid={`sched-succ-${t.id}`}
+                            title={succsOf(t.id, project).map((l) => taskNameOf(project, l.to)).join('、') || '无后续任务'}
                           >
-                            {drag!.kind === 'move'
-                              ? `第 ${row.es} → ${drag!.preview} 工作日${manual ? '' : '（转手动）'}`
-                              : `工期 ${dur} → ${drag!.preview} 天`}
-                          </div>
+                            {fmtLinkRefs(succsOf(t.id, project).map((l) => ({ id: l.to, type: l.type, lag: l.lag })), noOf(project))}
+                          </span>
                         )}
-                      </>
-                    )
-                  )}
-                </div>
+                      </div>
+                    )}
+                    {colOn('cost') && (
+                      <div style={{ width: W.cost }} className="sched-gantt-cell sched-cost-cell" data-testid={`sched-cost-${t.id}`}>
+                        {costShown && (group ? (
+                          <span className="sched-dim" title="分组汇总：子孙叶任务成本求和">{fmtCost(groupCost(project, costs, i))}</span>
+                        ) : (
+                          <span title="明细合计：固定成本 + 分配成本（随工期实时重算）">{fmtCost(costs.rows[t.id]?.total ?? 0)}</span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+        {/* 分隔条：拖动收纳/展开表格窗格，双击复位全列 */}
+        <div
+          className="sched-gantt-split"
+          data-testid="sched-gantt-split"
+          onMouseDown={beginSplit}
+          onDoubleClick={resetSplit}
+          title="拖动收纳/展开表格 · 双击复位"
+        />
+        {/* 画布窗格（右）：时间轴+条形+覆盖层；横滚独立，纵滚同步表格体 */}
+        <div className="sched-gantt-canvaspane" data-testid="sched-gantt-canvas" onScroll={onCanvasScroll}>
+          <div className="sched-gantt-canvas-inner" style={{ width: chartW }}>
+            <div className="sched-gantt-row sched-gantt-head" style={{ height: 40, width: chartW }}>
+              <div className="sched-gantt-datehead" style={{ width: chartW }}>
+                {colDates.map((c, i) => (
+                  <div key={i} className={`sched-day-col${c.offWork ? ' sched-day-off' : ''}`} style={{ width: dayW }} title={c.offWork ? '非工作日' : `周${WEEKDAY_LABELS[c.d.getUTCDay()]}`}>
+                    <div className="sched-month-cell">{c.d.getUTCDate() === 1 || i === 0 ? `${c.d.getUTCMonth() + 1}月` : ''}</div>
+                    <div className="sched-day-cell">{dayW >= 14 || (dayW >= 10 && i % 2 === 0) ? c.d.getUTCDate() : ''}</div>
+                  </div>
+                ))}
               </div>
-            )
-          })}
-          {/* 覆盖层：非工作日底纹 + 今日线 + 前锋线 + 搭接箭线 */}
-          <div className="sched-overlay" style={{ left: LEFT_W, width: chartW, height: totalH + 40 }}>
-            <svg width={chartW} height={totalH + 40} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
-              <defs>
-                <marker id="sched-arrow" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
-                  <path d="M0,0 L7,3.5 L0,7 z" fill="var(--sched-link, #94a3b8)" />
-                </marker>
-              </defs>
-              {colDates.map((c, i) => c.offWork && (
-                <rect key={`off${i}`} x={i * dayW} y={0} width={dayW} height={totalH + 40} className="sched-weekend" />
-              ))}
-              {linkPaths.map((p) => (
-                <path key={p.key} d={p.d} className="sched-link-line" markerEnd="url(#sched-arrow)" />
-              ))}
-              {todayCol !== null && <line x1={todayCol * dayW} y1={0} x2={todayCol * dayW} y2={totalH + 40} className="sched-today-line" />}
-              {deadlineCol !== null && (
-                <line x1={deadlineCol * dayW + dayW} y1={0} x2={deadlineCol * dayW + dayW} y2={totalH + 40} className="sched-deadline-line">
-                  <title>{`目标竣工 ${project.deadline}（倒排校核线）`}</title>
-                </line>
-              )}
-              {frontLine && (
-                <>
-                  <line x1={frontLine.checkX} y1={0} x2={frontLine.checkX} y2={totalH + 40} className="sched-front-check" />
-                  <polyline points={frontLine.pts.map((p) => `${p.x},${p.y}`).join(' ')} className="sched-front-line" />
-                  {frontLine.pts.map((p, i) => <circle key={i} cx={p.x} cy={p.y} r={2.4} className="sched-front-dot" />)}
-                </>
-              )}
-            </svg>
+            </div>
+            {project.tasks.map((t, i) => {
+              const row = cpm.rows[t.id]
+              const group = isGroupRow(project.tasks, i)
+              const span = group ? groupSpan(project, cpm, i) : null
+              const crit = !group && t.mode !== 'manual' && row?.critical
+              const manual = t.mode === 'manual'
+              const dur = t.isMilestone ? 0 : Math.max(0, Math.round(t.duration))
+              const colorCls = group ? ` sched-group-c${groupColorSeq[i]}` : ''
+              const baseRow = showBase && !group ? project.baseline?.rows[t.id] : undefined
+              const isDrag = drag?.id === t.id
+              const movePreview = isDrag && drag!.kind === 'move' ? drag!.preview : null
+              const resizePreview = isDrag && drag!.kind === 'resize' ? drag!.preview : null
+              return (
+                <div
+                  key={t.id}
+                  className={`sched-gantt-row${group ? ' sched-group-row' : ''}${colorCls}${selectedId === t.id ? ' sched-row-selected' : ''}`}
+                  style={{ height: ROW_H }}
+                  onClick={() => select(t.id)}
+                >
+                  <div className="sched-bar-lane" style={{ width: chartW }}>
+                    {baseRow && (
+                      <div
+                        className="sched-baseline-bar"
+                        style={{ left: dayNo(baseRow.es) * dayW, width: Math.max((dayNo(baseRow.ef) - dayNo(baseRow.es)) * dayW, 5) }}
+                        title={row && (row.es !== baseRow.es || row.ef !== baseRow.ef)
+                          ? `基线：第 ${baseRow.es}~${baseRow.ef} 工作日（当前第 ${row.es}~${row.ef}）`
+                          : `基线：第 ${baseRow.es}~${baseRow.ef} 工作日（与当前一致）`}
+                      />
+                    )}
+                    {group ? (
+                      span && (
+                        <div
+                          className="sched-summary-bar"
+                          style={{ left: dayNo(span.es) * dayW, width: Math.max((dayNo(span.ef) - dayNo(span.es)) * dayW, 8) }}
+                          title={`${t.name}：${span.es} ~ ${span.ef} 工作日`}
+                        />
+                      )
+                    ) : t.isMilestone ? (
+                      row && (
+                        <div
+                          className={`sched-milestone${isDrag && drag!.kind === 'move' ? ' sched-bar-dragging' : ''}`}
+                          style={{ left: dayNo(movePreview ?? row.es) * dayW - 7 }}
+                          title={`${t.name}（里程碑，拖动可定位）`}
+                          onMouseDown={(e) => beginDrag(e, t, 'move')}
+                        />
+                      )
+                    ) : (
+                      row && (
+                        <>
+                          <div
+                            className={`sched-bar${crit ? ' sched-bar-critical' : ''}${manual ? ' sched-bar-manual' : ''}${isDrag ? ' sched-bar-dragging' : ''}`}
+                            style={{
+                              left: dayNo(movePreview ?? row.es) * dayW,
+                              width: Math.max(
+                                (dayNo((movePreview ?? row.es) + (resizePreview ?? dur)) - dayNo(movePreview ?? row.es)) * dayW,
+                                6,
+                              ),
+                            }}
+                            title={`${t.name}：第 ${row.es}~${row.ef} 工作日${manual ? '（手动锁定，拖动移位）' : crit ? '（关键，拖动=转手动锁定）' : `，总时差 ${row.tf} 天，拖动=转手动锁定`}`}
+                            onMouseDown={(e) => beginDrag(e, t, 'move')}
+                          >
+                            {t.progress > 0 && (
+                              <div className="sched-bar-progress" style={{ width: `${Math.min(100, t.progress)}%` }} />
+                            )}
+                            <div className="sched-resize-handle" onMouseDown={(e) => beginDrag(e, t, 'resize')} title="拖动改工期" />
+                          </div>
+                          {!manual && !isDrag && row.tf > 0 && (
+                            <div className="sched-float" style={{ left: dayNo(row.ef) * dayW, width: row.tf * dayW }} title={`总时差 ${row.tf} 天`} />
+                          )}
+                          {isDrag && (
+                            <div
+                              className="sched-drag-tip"
+                              style={{ left: dayNo(drag!.kind === 'move' ? drag!.preview : row.es + drag!.preview) * dayW }}
+                            >
+                              {drag!.kind === 'move'
+                                ? `第 ${row.es} → ${drag!.preview} 工作日${manual ? '' : '（转手动）'}`
+                                : `工期 ${dur} → ${drag!.preview} 天`}
+                            </div>
+                          )}
+                        </>
+                      )
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+            {/* 覆盖层：非工作日底纹 + 今日线 + 前锋线 + 搭接箭线 */}
+            <div className="sched-overlay" style={{ left: 0, width: chartW, height: totalH + 40 }}>
+              <svg width={chartW} height={totalH + 40} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+                <defs>
+                  <marker id="sched-arrow" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+                    <path d="M0,0 L7,3.5 L0,7 z" fill="var(--sched-link, #94a3b8)" />
+                  </marker>
+                </defs>
+                {colDates.map((c, i) => c.offWork && (
+                  <rect key={`off${i}`} x={i * dayW} y={0} width={dayW} height={totalH + 40} className="sched-weekend" />
+                ))}
+                {linkPaths.map((p) => (
+                  <path key={p.key} d={p.d} className="sched-link-line" markerEnd="url(#sched-arrow)" />
+                ))}
+                {todayCol !== null && <line x1={todayCol * dayW} y1={0} x2={todayCol * dayW} y2={totalH + 40} className="sched-today-line" />}
+                {deadlineCol !== null && (
+                  <line x1={deadlineCol * dayW + dayW} y1={0} x2={deadlineCol * dayW + dayW} y2={totalH + 40} className="sched-deadline-line">
+                    <title>{`目标竣工 ${project.deadline}（倒排校核线）`}</title>
+                  </line>
+                )}
+                {frontLine && (
+                  <>
+                    <line x1={frontLine.checkX} y1={0} x2={frontLine.checkX} y2={totalH + 40} className="sched-front-check" />
+                    <polyline points={frontLine.pts.map((p) => `${p.x},${p.y}`).join(' ')} className="sched-front-line" />
+                    {frontLine.pts.map((p, i) => <circle key={i} cx={p.x} cy={p.y} r={2.4} className="sched-front-dot" />)}
+                  </>
+                )}
+              </svg>
+            </div>
           </div>
         </div>
       </div>

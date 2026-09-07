@@ -11,6 +11,7 @@ export const zhTW: Record<DictKey, string> = {
   "schedChat.newTip": "開始一條新的工作會話（與辦公板塊共享執行緒）",
   "schedChat.subtitle": "與辦公板塊共享同一條工作執行緒",
   "schedChat.newConfirm": "新建會話？目前執行緒仍保留在辦公板塊歷史中。",
+  "schedChat.collapseTip": "收起 AI 助手，騰出工作台（頁頭可再展開）",
   "schedChat.q1": "分析目前計畫與關鍵線路",
   "schedChat.q2": "檢查缺前置任務並推薦邏輯關係",
   "schedChat.q3": "產生本週進度彙報",

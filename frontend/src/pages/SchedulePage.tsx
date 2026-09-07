@@ -284,7 +284,7 @@ const SchedulePage: React.FC = () => {
     <div className="sched-shell">
       {!chat.collapsed && (
         <div className="sched-chat-pane" style={{ width: chat.width }}>
-          <ScheduleChatPane />
+          <ScheduleChatPane onCollapse={toggleChat} />
         </div>
       )}
       {!chat.collapsed && (
