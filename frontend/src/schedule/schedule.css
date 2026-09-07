@@ -179,6 +179,7 @@
   min-width: 0;
   overflow: hidden;
   white-space: nowrap;
+  flex-shrink: 0; /* 列宽神圣不可压缩：容器变窄=裁剪隐藏，绝不挤压错位（v4.142） */
 }
 .sched-th {
   font-weight: 600;
@@ -624,6 +625,20 @@
 }
 .sched-aoa-dummy {
   stroke-dasharray: 5 4;
+}
+/* 分级汇总箭线（v4.142）：一级工作从二级子网络开始界点连到完成界点，
+   深色粗线（同横道分组汇总条色），不参与关键线路着色 */
+.sched-aoa-summary {
+  stroke: var(--sched-group, #1f2937);
+  stroke-width: 2.6;
+}
+.sched-aoa-summary-legend {
+  border-top-color: var(--sched-group, #1f2937);
+  border-top-width: 2.6px;
+}
+.sched-aoa-taskname-summary {
+  font-weight: 700;
+  fill: var(--sched-group, #1f2937);
 }
 .sched-aoa-taskname {
   font-size: 11px;

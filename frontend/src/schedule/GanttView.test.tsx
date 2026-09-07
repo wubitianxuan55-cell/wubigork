@@ -528,3 +528,22 @@ describe('GanttView 缩放与周刻度（v4.141：窗口内全览）', () => {
     expect(document.querySelectorAll('.sched-day-col').length).toBeGreaterThan(0) // 日宽回到 ≥12 → 日层
   })
 })
+
+describe('GanttView 列头不压缩（v4.142：收纳=裁剪隐藏，绝不挤压错位）', () => {
+  beforeEach(() => {
+    localStorage.removeItem(CHAT_PREFS_KEY)
+    useScheduleStore.setState({ project: chainProject(), selectedId: null, hydrated: true, sync: 'saved', syncError: null })
+  })
+
+  it('列头行显式宽度=全部可见列合计（与数据行同宽，收纳时被容器裁剪而非压缩）', () => {
+    const p = chainProject()
+    render(<GanttView project={p} cpm={computeCpm(p.tasks, p.links)} />)
+    const head = document.querySelector('.sched-gantt-tablepane .sched-gantt-head') as HTMLElement
+    const bodyWrap = document.querySelector('.sched-gantt-tbody > div') as HTMLElement
+    expect(head.style.width).toBe(bodyWrap.style.width) // 同为 leftW
+    const sum = Array.from(head.querySelectorAll('.sched-gantt-cell')).reduce(
+      (s, el) => s + Number.parseFloat((el as HTMLElement).style.width), 0,
+    )
+    expect(Number.parseFloat(head.style.width)).toBe(sum)
+  })
+})

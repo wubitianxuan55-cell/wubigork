@@ -45,6 +45,39 @@ export const AoaView: React.FC<{ graph: AoaGraph; tasks: SchedTask[] }> = ({ gra
   // 拖拽中状态：只动本体（节点跟随+吸附位 tip），提交在 mouseup
   const [drag, setDrag] = useState<{ anchor: string; x: number; y: number; moved: boolean } | null>(null)
   const dragRef = useRef<{ anchor: string; startX: number; startY: number; orig: { x: number; y: number }; x: number; y: number; moved: boolean } | null>(null)
+  // 图面尺寸（提前派生供自动适配用）
+  const shownEarly = mode === 'manual' ? applyPins(graph, pins) : graph
+  const wEarly = shownEarly.nodes.length > 0 ? Math.max(...shownEarly.nodes.map((n) => n.x)) + AOA_MARGIN + AOA_COL_W / 2 : 0
+  const hEarly = shownEarly.nodes.length > 0 ? Math.max(...shownEarly.nodes.map((n) => n.y)) + AOA_MARGIN + AOA_ROW_H / 2 : 0
+  // 缩放/全览（v4.142，对齐单代号刀E 范式）：长计划 110px/天 展开上万像素，
+  // 没有缩放根本读不了——首帧自动适配一次，用户手动缩放后不再抢占
+  const scrollRef = useRef<HTMLDivElement | null>(null)
+  const [zoom, setZoom] = useState(1)
+  const zoomRef = useRef(1)
+  const touchedRef = useRef(false)
+  const applyZoom = (z: number) => {
+    const c = Math.min(2, Math.max(0.1, Math.round(z * 100) / 100))
+    zoomRef.current = c
+    setZoom(c)
+  }
+  const stepZoom = (f: number) => {
+    touchedRef.current = true
+    applyZoom(zoomRef.current * f)
+  }
+  const fitView = () => {
+    touchedRef.current = true
+    const el = scrollRef.current
+    if (!el) return
+    applyZoom(Math.max(0.1, Math.min(el.clientWidth / wEarly, Math.max(160, el.clientHeight - 24) / hEarly, 1.5)))
+  }
+  // 图面尺寸变化（切工程/增删任务）且用户未手动缩放时，自动适配一次
+  React.useEffect(() => {
+    if (touchedRef.current) return
+    const el = scrollRef.current
+    if (!el || wEarly <= 0) return
+    const z = Math.min(el.clientWidth / wEarly, Math.max(160, el.clientHeight - 24) / hEarly, 1.5)
+    if (Number.isFinite(z) && z > 0) applyZoom(z)
+  }, [wEarly, hEarly])
 
   if (!graph.ok || graph.nodes.length === 0) {
     return <div className="sched-empty">暂无任务或计划存在循环依赖，无法绘制双代号网络图</div>
@@ -78,7 +111,8 @@ export const AoaView: React.FC<{ graph: AoaGraph; tasks: SchedTask[] }> = ({ gra
     const onMove = (ev: MouseEvent) => {
       const d = dragRef.current
       if (!d) return
-      const snapped = snapPt(d.orig.x + (ev.clientX - d.startX), d.orig.y + (ev.clientY - d.startY))
+      const k = zoomRef.current || 1 // 缩放下拖拽：屏幕位移折算回图面坐标
+      const snapped = snapPt(d.orig.x + (ev.clientX - d.startX) / k, d.orig.y + (ev.clientY - d.startY) / k)
       const moved = d.orig.x !== snapped.x || d.orig.y !== snapped.y
       dragRef.current = { ...d, x: snapped.x, y: snapped.y, moved }
       setDrag({ anchor, x: snapped.x, y: snapped.y, moved })
@@ -108,7 +142,7 @@ export const AoaView: React.FC<{ graph: AoaGraph; tasks: SchedTask[] }> = ({ gra
   }
 
   return (
-    <div className="sched-network-scroll" data-testid="sched-aoa">
+    <div className="sched-network-scroll" data-testid="sched-aoa" ref={scrollRef}>
       <div className="sched-network-legend">
         <span><i className="lg-line lg-critical" />关键工作</span>
         <span><i className="lg-line lg-normal" />工作</span>
@@ -121,6 +155,7 @@ export const AoaView: React.FC<{ graph: AoaGraph; tasks: SchedTask[] }> = ({ gra
         </span>
         <span>节点：上=最早时间 · 下=最迟时间</span>
         <span>标注：箭线上=工作名称 · 下=工期</span>
+        <span><i className="lg-line sched-aoa-summary-legend" />一级汇总箭线（界点衔接二级子网络）</span>
         {/* 布局开关（视图态，不入文件）：手动=自由坐标，时间参数不受影响 */}
         <span className="sched-aoa-mode" data-testid="sched-aoa-mode">
           <button
@@ -151,6 +186,15 @@ export const AoaView: React.FC<{ graph: AoaGraph; tasks: SchedTask[] }> = ({ gra
             重置布局
           </button>
         )}
+        {/* 缩放/全览（v4.142）：长计划时标展开上万像素，首帧自动适配一次 */}
+        <span style={{ display: 'inline-flex', gap: 4, alignItems: 'center' }}>
+          <button type="button" className="sched-aoa-mode-btn" data-testid="sched-aoa-zoomout" title="缩小" onClick={() => stepZoom(1 / 1.2)}>−</button>
+          <span className="sched-pdm-zoom" data-testid="sched-aoa-zoom">{Math.round(zoom * 100)}%</span>
+          <button type="button" className="sched-aoa-mode-btn" data-testid="sched-aoa-zoomin" title="放大" onClick={() => stepZoom(1.2)}>＋</button>
+          <button type="button" className="sched-aoa-mode-btn" data-testid="sched-aoa-fit" title="全览：整网适配当前视口" onClick={() => { touchedRef.current = true; fitView() }}>
+            全览
+          </button>
+        </span>
         <div className="sched-net-badge">
           <div className="nb-item">
             <span className="nb-num">{nodeFinish(graph)}</span>
@@ -166,7 +210,8 @@ export const AoaView: React.FC<{ graph: AoaGraph; tasks: SchedTask[] }> = ({ gra
           </div>
         </div>
       </div>
-      <div className="sched-network-canvas" style={{ width: w, height: h }}>
+      <div className="sched-network-canvas" style={{ width: w * zoom, height: h * zoom }}>
+        <div style={{ position: 'absolute', inset: 0, width: w, height: h, transform: `scale(${zoom})`, transformOrigin: '0 0' }}>
         <svg width={w} height={h} style={{ position: 'absolute', inset: 0 }}>
           <defs>
             <marker id="aoa-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto">
@@ -174,6 +219,9 @@ export const AoaView: React.FC<{ graph: AoaGraph; tasks: SchedTask[] }> = ({ gra
             </marker>
             <marker id="aoa-arrow-crit" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto">
               <path d="M0,0 L9,4.5 L0,9 z" fill="var(--sched-critical, #dc2626)" />
+            </marker>
+            <marker id="aoa-arrow-summary" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto">
+              <path d="M0,0 L9,4.5 L0,9 z" fill="var(--sched-group, #1f2937)" />
             </marker>
           </defs>
           {(() => {
@@ -190,20 +238,22 @@ export const AoaView: React.FC<{ graph: AoaGraph; tasks: SchedTask[] }> = ({ gra
               const k = `${e.from}>${e.to}`
               const idx = pairSeen.get(k) ?? 0
               pairSeen.set(k, idx + 1)
-              const waveFromX = manual ? null : nodeById.get(e.from)!.x + R + e.dur * AOA_COL_W
+              // 波形切点只对实/虚工作有意义；汇总箭线横跨子网络界点，无波形
+              const waveFromX = !manual && e.kind !== 'summary' ? nodeById.get(e.from)!.x + R + e.dur * AOA_COL_W : null
               return { e, i, waveFromX, g: edgeSegs(e, nodeById, { idx, cnt: pairCnt.get(k)! }, waveFromX) }
             })
             // G1 过桥法：竖段垂直穿越他边横段处画半圆（水平段=时标轴不断）
             const bridges = findBridgeArcs(geoms.map((it) => it.g.segs))
             return geoms.map(({ e, i, waveFromX, g }) => {
               const dummy = e.kind === 'dummy'
-              const cls = `sched-aoa-link${e.critical ? ' sched-aoa-link-critical' : ''}${dummy ? ' sched-aoa-dummy' : ''}`
+              const summary = e.kind === 'summary'
+              const cls = `sched-aoa-link${e.critical ? ' sched-aoa-link-critical' : ''}${dummy ? ' sched-aoa-dummy' : ''}${summary ? ' sched-aoa-summary' : ''}`
               return (
                 <g key={e.id}>
                   <path
                     d={segsToPath(g.segs, waveFromX, bridges.get(i))}
                     className={cls}
-                    markerEnd={e.critical ? 'url(#aoa-arrow-crit)' : 'url(#aoa-arrow)'}
+                    markerEnd={e.critical ? 'url(#aoa-arrow-crit)' : summary ? 'url(#aoa-arrow-summary)' : 'url(#aoa-arrow)'}
                     onClick={() => e.taskId && select(e.taskId)}
                     style={{ pointerEvents: e.taskId ? 'stroke' : 'none', cursor: e.taskId ? 'pointer' : 'default' }}
                   />
@@ -213,7 +263,7 @@ export const AoaView: React.FC<{ graph: AoaGraph; tasks: SchedTask[] }> = ({ gra
                     </text>
                   )}
                   {e.taskId && (
-                    <text x={g.name.x} y={g.name.y} textAnchor={g.name.anchor} className="sched-aoa-taskname">
+                    <text x={g.name.x} y={g.name.y} textAnchor={g.name.anchor} className={`sched-aoa-taskname${summary ? ' sched-aoa-taskname-summary' : ''}`}>
                       {taskName(e.taskId)}
                     </text>
                   )}
@@ -247,6 +297,7 @@ export const AoaView: React.FC<{ graph: AoaGraph; tasks: SchedTask[] }> = ({ gra
             </div>
           )
         })}
+        </div>
       </div>
     </div>
   )

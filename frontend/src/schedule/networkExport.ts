@@ -103,7 +103,8 @@ export function buildAoaExportSvg(project: SchedProject, graph: AoaGraph, meta: 
     const idx = pairSeen.get(k) ?? 0
     pairSeen.set(k, idx + 1)
     const a = nodeById.get(e.from)!
-    const waveFromX = a.x + AOA_R + e.dur * dayW
+    // 汇总箭线横跨子网络界点（时间由二级决定），波形切点无意义不画
+    const waveFromX = e.kind === 'summary' ? null : a.x + AOA_R + e.dur * dayW
     return { e, i, waveFromX, g: edgeSegs(e, nodeById, { idx, cnt: pairCnt.get(k)! }, waveFromX) }
   })
   const bridges = findBridgeArcs(geoms.map((it) => it.g.segs))
@@ -112,6 +113,7 @@ export function buildAoaExportSvg(project: SchedProject, graph: AoaGraph, meta: 
   let net = `<defs>` +
     `<marker id="exp-aoa-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="${C.link}"/></marker>` +
     `<marker id="exp-aoa-arrow-crit" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="${C.critical}"/></marker>` +
+    `<marker id="exp-aoa-arrow-summary" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="${C.ink}"/></marker>` +
     `</defs>`
   // 月界竖线（浅，贯通图面+标尺）
   let lastMonth = `${dateAt(0).getUTCFullYear()}-${dateAt(0).getUTCMonth()}`
@@ -125,11 +127,13 @@ export function buildAoaExportSvg(project: SchedProject, graph: AoaGraph, meta: 
   }
   for (const { e, i, waveFromX, g } of geoms) {
     const crit = e.critical
-    const cls = `sched-exp-aoa${crit ? ' sched-exp-aoa-critical' : ''}${e.kind === 'dummy' ? ' sched-exp-aoa-dummy' : ''}`
-    net += `<path class="${cls}" d="${segsToPath(g.segs, waveFromX, bridges.get(i))}" fill="none" stroke="${crit ? C.critical : C.link}" stroke-width="${crit ? 2.4 : 1.2}"${e.kind === 'dummy' ? ' stroke-dasharray="6 4"' : ''} marker-end="url(#exp-aoa-arrow${crit ? '-crit' : ''})"/>`
+    const summary = e.kind === 'summary'
+    const cls = `sched-exp-aoa${crit ? ' sched-exp-aoa-critical' : ''}${e.kind === 'dummy' ? ' sched-exp-aoa-dummy' : ''}${summary ? ' sched-exp-aoa-summary' : ''}`
+    const strokeC = summary ? C.ink : crit ? C.critical : C.link
+    net += `<path class="${cls}" d="${segsToPath(g.segs, waveFromX, bridges.get(i))}" fill="none" stroke="${strokeC}" stroke-width="${summary ? 2.6 : crit ? 2.4 : 1.2}"${e.kind === 'dummy' ? ' stroke-dasharray="6 4"' : ''} marker-end="url(#exp-aoa-arrow${crit ? '-crit' : summary ? '-summary' : ''})"/>`
     const nameText = e.taskId ? taskName(e.taskId) : ''
     if (nameText) {
-      net += `<text class="sched-exp-aoa-name" x="${g.name.x}" y="${g.name.y}" text-anchor="${g.name.anchor}" font-family="${FONT}" font-size="11" fill="${crit ? C.critical : C.ink}">${esc(nameText)}</text>`
+      net += `<text class="sched-exp-aoa-name${summary ? ' sched-exp-aoa-name-summary' : ''}" x="${g.name.x}" y="${g.name.y}" text-anchor="${g.name.anchor}" font-family="${FONT}" font-size="11" font-weight="${summary ? 700 : 400}" fill="${crit ? C.critical : C.ink}">${esc(nameText)}</text>`
     }
     const durText = e.kind === 'task' ? String(e.dur) : e.label
     if (durText) {
@@ -191,6 +195,7 @@ export function buildAoaExportSvg(project: SchedProject, graph: AoaGraph, meta: 
     { draw: `<line x1="${lx}" y1="${legendY}" x2="${lx + 20}" y2="${legendY}" stroke="${C.critical}" stroke-width="2.4"/>`, label: '关键工作', lw: 20 },
     { draw: `<line x1="${lx}" y1="${legendY}" x2="${lx + 20}" y2="${legendY}" stroke="${C.link}" stroke-width="1.2"/>`, label: '工作', lw: 20 },
     { draw: `<line x1="${lx}" y1="${legendY}" x2="${lx + 20}" y2="${legendY}" stroke="${C.link}" stroke-width="1.2" stroke-dasharray="6 4"/>`, label: '虚工作', lw: 20 },
+    { draw: `<line x1="${lx}" y1="${legendY}" x2="${lx + 20}" y2="${legendY}" stroke="${C.ink}" stroke-width="2.6"/>`, label: '一级汇总（界点衔接二级）', lw: 20 },
     { draw: `<path d="M${lx} ${legendY} q 2.5 -5 5 0 t 5 0 t 5 0 t 5 0" fill="none" stroke="${C.link}" stroke-width="1.2"/>`, label: '自由时差（波形线）', lw: 22 },
   ]
   for (const it of items) {

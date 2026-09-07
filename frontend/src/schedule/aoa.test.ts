@@ -76,6 +76,80 @@ describe('buildAoa 教材画法', () => {
   })
 })
 
+describe('buildAoa 分级计划（v4.142：一级汇总箭线界点衔接二级子网络）', () => {
+  it('分组行=一条汇总箭线：从子网络开始界点事件连到完成界点事件，不新增事件、不扰动正逆推', () => {
+    const tasks = [
+      { id: 'G1', name: '前期准备', duration: 0, level: 0, progress: 0 },
+      t('A', 3), t('B', 2),
+    ]
+    const g1 = buildAoa(tasks, [l('A', 'B')])
+    const g2 = buildAoa([t('A', 3), t('B', 2)], [l('A', 'B')])
+    expect(g1.ok).toBe(true)
+    // 汇总箭线不新增事件、不改变正逆推：事件集与纯二级网络完全一致
+    expect(g1.nodes).toHaveLength(g2.nodes.length)
+    const esOf = (g: typeof g1) => new Map(g.nodes.map((n) => [n.anchor, n.es]))
+    const lsOf = (g: typeof g1) => new Map(g.nodes.map((n) => [n.anchor, n.ls]))
+    for (const [a, es] of esOf(g1)) expect(es).toBe(esOf(g2).get(a))
+    for (const [a, ls] of lsOf(g1)) expect(ls).toBe(lsOf(g2).get(a))
+    // 恰一条汇总箭线：A 开始事件 → B 完成事件，跨子网络（时长 5=界点时间差）
+    const sums = g1.edges.filter((e) => e.kind === 'summary')
+    expect(sums).toHaveLength(1)
+    const sEdge = sums[0]
+    expect(sEdge.taskId).toBe('G1')
+    expect(sEdge.critical).toBe(false) // 不参与关键判定
+    const nodeById = new Map(g1.nodes.map((n) => [n.id, n]))
+    const bStart = nodeById.get(sEdge.from)!
+    const bEnd = nodeById.get(sEdge.to)!
+    expect(bStart.es).toBe(0) // 开始界点=A 的开始（S 事件）
+    expect(bEnd.es).toBe(5) // 完成界点=B 的完成（最早时间=子网络工期）
+    expect(sEdge.dur).toBe(5)
+    expect(g1.taskEdge['G1']).toBe(sEdge.id) // 分组行可经 taskEdge 命中汇总箭线
+    // 二级实/虚箭线不含分组行
+    expect(g1.edges.some((e) => e.kind !== 'summary' && e.taskId === 'G1')).toBe(false)
+  })
+
+  it('空分组（无子级）不产汇总箭线；仅分组行 → 空图', () => {
+    // 轮廓语义：[G1, G2, A] → G1 无子级、G2 拥有 A
+    const g = buildAoa([
+      { id: 'G1', name: '空分组', duration: 0, level: 0, progress: 0 },
+      { id: 'G2', name: '有子分组', duration: 0, level: 0, progress: 0 },
+      t('A', 2),
+    ], [])
+    expect(g.ok).toBe(true)
+    const sums = g.edges.filter((e) => e.kind === 'summary')
+    expect(sums).toHaveLength(1) // 只有 G2（拥有 A）出汇总箭线
+    expect(sums[0].taskId).toBe('G2')
+    const only = buildAoa([{ id: 'G1', name: '空分组', duration: 0, level: 0, progress: 0 }], [])
+    expect(only.ok).toBe(true)
+    expect(only.nodes).toHaveLength(0)
+  })
+
+  it('跨分组搭接把各子网络连成一张图；一级箭线共享界点事件（一始一终不被破坏）', () => {
+    const tasks = [
+      { id: 'G1', name: '一期', duration: 0, level: 0, progress: 0 },
+      t('A', 3), t('B', 2),
+      { id: 'G2', name: '二期', duration: 0, level: 0, progress: 0 },
+      t('C', 4), t('D', 1),
+    ]
+    const g = buildAoa(tasks, [l('A', 'B'), l('B', 'D'), l('C', 'D')])
+    expect(g.ok).toBe(true)
+    expect(g.edges.filter((e) => e.kind === 'task')).toHaveLength(4)
+    const sums = g.edges.filter((e) => e.kind === 'summary')
+    expect(sums).toHaveLength(2) // G1、G2 各一条
+    const byTask = new Map(sums.map((e) => [e.taskId, e]))
+    expect(byTask.get('G1')!.dur).toBe(5) // A(3)+B(2)：界点 S(0)→B 完成(5)
+    // C 无前置 → 汇入 S(时刻 0)；D 完成事件 es=6 → G2 界点时间差=6（跨度口径）
+    expect(byTask.get('G2')!.dur).toBe(6)
+    // 一始一终：S/T 各恰一个；总工期=max(6, 5)=6 不被汇总箭线扰动
+    const sNodes = g.nodes.filter((n) => n.anchor === 'S')
+    const tNodes = g.nodes.filter((n) => n.anchor === 'T')
+    expect(sNodes).toHaveLength(1)
+    expect(tNodes).toHaveLength(1)
+    const last = g.nodes.reduce((a, b) => (b.num > a.num ? b : a))
+    expect(last.es).toBe(6)
+  })
+})
+
 describe('buildAoa 结构不变量', () => {
   const cases: { name: string; tasks: SchedTask[]; links: SchedLink[] }[] = [
     { name: '链式', tasks: [t('A', 3), t('B', 2), t('C', 4)], links: [l('A', 'B'), l('B', 'C')] },

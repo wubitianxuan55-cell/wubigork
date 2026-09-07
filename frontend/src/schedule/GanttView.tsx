@@ -723,7 +723,9 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult; onInsp
       <div className="sched-gantt-frame">
         {/* 表格窗格（左）：宽度=分隔条拖动（chatPrefs 持久化），列显隐收纳 */}
         <div className="sched-gantt-tablepane" data-testid="sched-gantt-table" style={{ width: effW }}>
-          <div className="sched-gantt-row sched-gantt-head" style={{ height: 40 }}>
+          {/* 列头行宽=全部可见列合计（leftW）：表格收纳时多余列被裁剪隐藏，
+              绝不被 flex 压缩——压缩会造成列头与数据行永久错位（v4.142 修正） */}
+          <div className="sched-gantt-row sched-gantt-head" style={{ height: 40, width: leftW }}>
             {cols.map((c) => (
               <div key={c.key} style={{ width: c.w }} className="sched-gantt-cell sched-th">{c.label}</div>
             ))}

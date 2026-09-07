@@ -10,6 +10,9 @@
  *  - 其余情况每任务独立开始/完成事件，按搭接类型补虚箭线（FS/SS/FF/SF）；
  *  - 无后续任务 → 虚箭线汇入唯一终点事件 END（一始一终规则）；
  *  - 虚箭线去重（同 from+to 只留一条）。
+ *  - 分级衔接（v4.142）：一级（分组）工作=一条汇总箭线，从其二级子网络的开始
+ *    界点事件连到完成界点事件——共享事件、嵌入同一张图；汇总箭线不参与正逆推
+ *    （时间由二级工作决定）、恒非关键。分组行绝不单独成图。
  * 事件时间沿箭线网络正逆推（虚工作工期=0 或时距），关键线路 = 时差为 0 的箭线
  * （虚工作也可能是关键线路的一段，红色虚线显示）。
  */
@@ -37,14 +40,18 @@ export interface AoaEdge {
   id: string
   from: string
   to: string
-  /** 'task' = 实工作箭线；'dummy' = 虚工作（虚线） */
-  kind: 'task' | 'dummy'
-  /** kind='task' 时对应的任务 id */
+  /**
+   * 'task'=实工作箭线；'dummy'=虚工作（虚线）；'summary'=分级汇总箭线（v4.142）：
+   * 一级（分组）工作从其二级子网络的开始界点事件连到完成界点事件——同一批事件、
+   * 同一张图（分级衔接口径），不参与正逆推（时间由二级工作决定），恒非关键。
+   */
+  kind: 'task' | 'dummy' | 'summary'
+  /** kind='task'/'summary' 时对应的任务 id（summary=分组行 id） */
   taskId?: string
-  /** 箭线时长（虚工作=0 或时距） */
+  /** 箭线时长（虚工作=0 或时距；汇总箭线=界点事件时间差） */
   dur: number
   critical: boolean
-  /** 箭线标注：实工作=工期，虚工作=时距（0 不标） */
+  /** 箭线标注：实工作=工期，虚工作=时距（0 不标），汇总=界点时间差 */
   label: string
 }
 
@@ -68,14 +75,18 @@ function effDur(t: SchedTask): number {
 }
 
 export function buildAoa(tasks: SchedTask[], links: SchedLink[], opts?: { planFinish?: number | null }): AoaGraph {
-  if (tasks.length === 0) return { ok: true, nodes: [], edges: [], taskEdge: {} }
-  const byId = new Map(tasks.map((t) => [t.id, t]))
+  // 分组行（level 0，汇总口径）不是工作，不进双代号网络图（JGJ/T 121：网络图
+  // 只画实际工作）。分组行入图会变成挂在 START/END 上的零工期假箭线，与二级
+  // 实际工作网络割裂成「两张图」（v4.142 修正，用户实测反馈）。
+  const acts = tasks.filter((t) => t.level > 0)
+  if (acts.length === 0) return { ok: true, nodes: [], edges: [], taskEdge: {} }
+  const byId = new Map(acts.map((t) => [t.id, t]))
   const valid = links.filter((l) => l.from !== l.to && byId.has(l.from) && byId.has(l.to))
 
   // 搭接索引：按 to 分组（约束入度）、FF/SF 指入记录（判断完成事件是否被污染）
   const inOf = new Map<string, SchedLink[]>()
   const outOf = new Map<string, SchedLink[]>()
-  for (const t of tasks) { inOf.set(t.id, []); outOf.set(t.id, []) }
+  for (const t of acts) { inOf.set(t.id, []); outOf.set(t.id, []) }
   for (const l of valid) {
     inOf.get(l.to)!.push(l)
     outOf.get(l.from)!.push(l)
@@ -83,8 +94,8 @@ export function buildAoa(tasks: SchedTask[], links: SchedLink[], opts?: { planFi
 
   // PDM 层拓扑序（Kahn）；不完整 = 有环。事件分配必须按拓扑序进行，
   // 否则前向引用前置任务的 startOf/endOf 会取到 undefined。
-  const indeg = new Map(tasks.map((t) => [t.id, inOf.get(t.id)!.length]))
-  const queue = tasks.filter((t) => indeg.get(t.id) === 0).map((t) => t.id)
+  const indeg = new Map(acts.map((t) => [t.id, inOf.get(t.id)!.length]))
+  const queue = acts.filter((t) => indeg.get(t.id) === 0).map((t) => t.id)
   const order: string[] = []
   while (queue.length > 0) {
     const id = queue.shift()!
@@ -95,9 +106,9 @@ export function buildAoa(tasks: SchedTask[], links: SchedLink[], opts?: { planFi
       if (v === 0) queue.push(l.to)
     }
   }
-  if (order.length !== tasks.length) {
+  if (order.length !== acts.length) {
     const inOrder = new Set(order)
-    const names = tasks.filter((t) => !inOrder.has(t.id)).map((t) => t.name)
+    const names = acts.filter((t) => !inOrder.has(t.id)).map((t) => t.name)
     return { ok: false, error: `存在循环依赖：${names.join(' → ')}`, nodes: [], edges: [], taskEdge: {} }
   }
 
@@ -245,6 +256,52 @@ export function buildAoa(tasks: SchedTask[], links: SchedLink[], opts?: { planFi
     if (e.taskId) taskEdge[e.taskId] = e.id
   }
 
+  // ── 分级汇总箭线（一级工作界点衔接二级子网络）──────────────
+  // 分组行轮廓配对（扁平大纲）：level 0 行的子级=其后连续的非分组行。界点=
+  // 子网络最早开始事件 / 最迟完成事件（按正推后事件时间）。汇总箭线只进展示
+  // 边集、不进 raws——正逆推/浮时/编号全部只由二级工作决定，一级不扰动计算。
+  const groupKids: { taskId: string; childIds: string[] }[] = []
+  {
+    let cur: { taskId: string; childIds: string[] } | null = null
+    for (const t of tasks) {
+      if (t.level === 0) {
+        if (cur) groupKids.push(cur)
+        cur = { taskId: t.id, childIds: [] }
+      } else if (cur) {
+        cur.childIds.push(t.id)
+      }
+    }
+    if (cur) groupKids.push(cur)
+  }
+  for (const g of groupKids) {
+    const starts = g.childIds.map((id) => startOf.get(id)).filter((v): v is string => !!v)
+    const ends = g.childIds.map((id) => endOf.get(id)).filter((v): v is string => !!v)
+    if (starts.length === 0 || ends.length === 0) continue
+    // 界点：最早开始事件 / 最迟完成事件（时间并列取编号小者，稳定）
+    let bStart = starts[0]
+    let bEnd = ends[0]
+    for (const s of starts) {
+      if (nodeEs.get(s)! < nodeEs.get(bStart)! || (nodeEs.get(s) === nodeEs.get(bStart)! && num.get(s)! < num.get(bStart)!)) bStart = s
+    }
+    for (const e of ends) {
+      if (nodeEs.get(e)! > nodeEs.get(bEnd)! || (nodeEs.get(e) === nodeEs.get(bEnd)! && num.get(e)! < num.get(bEnd)!)) bEnd = e
+    }
+    if (bStart === bEnd) continue // 退化（全零工期子网）无箭线可画
+    const dur = nodeEs.get(bEnd)! - nodeEs.get(bStart)!
+    const edge: AoaEdge = {
+      id: `s${edges.length}`,
+      from: bStart,
+      to: bEnd,
+      kind: 'summary',
+      taskId: g.taskId,
+      dur,
+      critical: false, // 汇总箭线不参与关键判定（红色留给二级关键线路）
+      label: `${dur}d`,
+    }
+    edges.push(edge)
+    taskEdge[g.taskId] = edge.id
+  }
+
   // ── 布局（真时标：x=最早时间×列宽，1 天=AOA_COL_W px）──────────
   // v4.130 刀H G4 前提：时标网络图的水平距离必须与时间成线性（旧版按 es 排名
   // 分列，es 有空洞时跨边距离不可比、波形线读不出真实自由时差）。
@@ -255,7 +312,7 @@ export function buildAoa(tasks: SchedTask[], links: SchedLink[], opts?: { planFi
   )
   // 锚点键：事件成员关系求逆（task → start/end 两成员键），取字典序最小者为代表
   const nodeMembers = new Map<string, string[]>(nodeIds.map((id) => [id, []]))
-  for (const t of tasks) {
+  for (const t of acts) {
     nodeMembers.get(startOf.get(t.id)!)!.push(`start:${t.id}`)
     nodeMembers.get(endOf.get(t.id)!)!.push(`end:${t.id}`)
   }
