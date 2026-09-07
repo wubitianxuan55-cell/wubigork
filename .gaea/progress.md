@@ -8,6 +8,7 @@
 - **UI**：管理面板每行「复制」→弹窗默认「-副本」名、空名禁用、失败弹窗不关。
 - **接线**：绑定面 596→597（gen_bindings 门面+bindingNames 手工同步+bridge 双向断言+spaceBindings 锁 310+mock+api 窄接口）。
 - **门禁**：tsc -b/eslint 0；Go 全量绿（+TestGaeaScheduleProjectCopy）；vitest 2472→2477（+5）；drift PASS@597；版本三处 4.145.0；build+冒烟过。
+- **浏览器 DOM 走查补记（2026-09-08，v4.141~145 首次真浏览器走查，零缺陷）**：mock 模式七项全过——①导入菜单四项结构；②工程复制全链（面板行→弹窗默认「-副本」名→改名确认→副本行入列表→弹窗关闭）；③多工程切换器（副本切换生效，信息条随动）；④AOA 渲染（147 路径/45 文本，15 项工作+141 天与 20 行=5 分组口径一致）；⑤缩放步进 ×1.2（50→60→72%）、全览钳 0.3%、缩小 25%（v4.142/143 语义实证）；⑥横道列头显式宽（160/44px，v4.142 修复实证）；⑦mock 保存链通（状态栏「已保存 HH:mm」；不带 ?mock=1 会走 HTTP 代理报 404 保存失败——非 bug，走查必须带参数）。一次性 scrollTop=128 空画布现象无法复现（干净挂载恒 0），判定走查自动化杂散滚轮。**走查方法论（可复用）**：`?mock=1` 必须；用 `window.dispatchEvent(new CustomEvent("navigate",{detail:{page:"schedule"}}))` 直达板块（首页能力矩阵卡片坐标点击不稳）；IAB 里 role 定位 click 恒超时（页面持续重渲），改 `evaluate`+`data-testid` 原生 `.click()`；React 受控输入走原生 setter+input 事件；antd 弹窗关后 DOM 残留（wrap display:none），存活判定必须查 computedStyle；走查前 `localStorage.clear()`+reload 防跨版本残留。
 - **坑**：①Edit 工具多行替换把「注释+签名行」当 old_string 而 new_string 漏带签名=函数被腰斩（本刀两次）——替换后必须核对函数完整性；②bindingNames.ts 的 `-names` 模式只打印清单不写文件，需对照手工按字典序插入。
 - **观察池余**：E1 负数对称哨兵（动逆推时按 ProjectLibre E1 准绳收口）· 刀3 list_projects 真机实测 · 用户截图反馈驱动的新对标项。
 
