@@ -301,6 +301,8 @@ export interface AppBindings {
   // JSON → 上报口径 xlsx（base64）；导入=上报 xlsx（base64）→ 计划 JSON。
   ScheduleExportXlsx(projectJSON: string): Promise<string>;
   ScheduleImportXlsx(xlsxBase64: string): Promise<string>;
+  // ScheduleImportMpp 二进制 MS Project 工程导入（v4.140.0）：mpp（base64）→ 计划 JSON。
+  ScheduleImportMpp(mppBase64: string): Promise<string>;
   // XlsxRecalc 手动重算全部公式（LibreOffice）并返回更新预览。
   XlsxRecalc(rel: string): Promise<XlsxEditResult>;
   // XlsxRowOps 行级操作：insert_before / insert_after / delete（基于选中单元格所在行）。
@@ -924,6 +926,7 @@ const gaeaToGaea = {
   ScheduleSave: "GaeaScheduleSave",
   ScheduleExportXlsx: "GaeaScheduleExportXlsx",
   ScheduleImportXlsx: "GaeaScheduleImportXlsx",
+  ScheduleImportMpp: "GaeaScheduleImportMpp",
   ScheduleProjects: "GaeaScheduleProjects",
   ScheduleProjectOpen: "GaeaScheduleProjectOpen",
   ScheduleProjectCreate: "GaeaScheduleProjectCreate",

@@ -277,6 +277,7 @@ export const bindingNames = [
 	"GaeaSaveSettings",
 	"GaeaSaveWindowState",
 	"GaeaScheduleExportXlsx",
+	"GaeaScheduleImportMpp",
 	"GaeaScheduleImportXlsx",
 	"GaeaScheduleLoad",
 	"GaeaScheduleProjectArchive",

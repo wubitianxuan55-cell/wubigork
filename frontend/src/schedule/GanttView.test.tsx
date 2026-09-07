@@ -464,3 +464,31 @@ describe('GanttView 自定义字段列（v4.138 #14）', () => {
     expect(inputOf('sched-custom-text1-A')).toBeTruthy()
   })
 })
+
+describe('GanttView 双层时标（v4.140：自左向右水平）', () => {
+  beforeEach(() => {
+    localStorage.removeItem(CHAT_PREFS_KEY)
+    useScheduleStore.setState({ project: chainProject(), selectedId: null, hydrated: true, sync: 'saved', syncError: null })
+  })
+
+  it('月份跨列段=上行、逐日列=下行，两行日宽合计一致（时间轴水平非纵向堆叠）', () => {
+    const p = chainProject()
+    render(<GanttView project={p} cpm={computeCpm(p.tasks, p.links)} />)
+    const head = document.querySelector('.sched-gantt-datehead')!
+    const months = head.querySelectorAll<HTMLElement>('.sched-ts-month')
+    const days = head.querySelectorAll<HTMLElement>('.sched-day-col')
+    expect(months.length).toBeGreaterThanOrEqual(1)
+    expect(days.length).toBeGreaterThanOrEqual(21) // days 下限 21
+    // 每个月段宽=该段日数×dayW（跨列段，非逐日竖排）；段宽合计=日列宽合计=chartW
+    const monthW = Array.from(months).reduce((s, el) => s + el.offsetWidth, 0)
+    const dayW = Array.from(days).reduce((s, el) => s + el.offsetWidth, 0)
+    expect(monthW).toBe(dayW)
+    // jsdom 无布局：以 style.width 断言跨列口径（月段宽=日列宽和）
+    const monthWStyle = Array.from(months).reduce((s, el) => s + Number.parseFloat(el.style.width), 0)
+    const dayWStyle = Array.from(days).reduce((s, el) => s + Number.parseFloat(el.style.width), 0)
+    expect(monthWStyle).toBe(dayWStyle)
+    // 下行日号自左向右递增（1 号起），跨月段含「年月」标注
+    const nums = Array.from(head.querySelectorAll('.sched-day-cell')).map((el) => Number.parseInt(el.textContent || '0', 10))
+    expect(nums[0]).toBe(7) // 样板开工 2026-09-07
+  })
+})

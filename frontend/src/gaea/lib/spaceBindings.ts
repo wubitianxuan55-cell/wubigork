@@ -211,6 +211,7 @@ export const GAEA_METHOD_FACETS = {
   ScheduleSave: "work",
   ScheduleExportXlsx: "work",
   ScheduleImportXlsx: "work",
+  ScheduleImportMpp: "work",
   // v4.139 #15 进度计划多工程（列表/切换/新建/归档/删除）：进度计划板块数据面。
   ScheduleProjects: "work",
   ScheduleProjectOpen: "work",

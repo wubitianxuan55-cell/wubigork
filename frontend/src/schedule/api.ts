@@ -126,6 +126,17 @@ export async function deleteScheduleProject(rel: string): Promise<ScheduleProjec
 
 const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
 
+/** 文件 → base64（分块拼接，避开 Function.apply 参数上限） */
+async function fileToBase64(file: File): Promise<string> {
+  const bytes = new Uint8Array(await file.arrayBuffer())
+  const CHUNK = 0x8000
+  let bin = ''
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    bin += String.fromCharCode(...bytes.subarray(i, i + CHUNK))
+  }
+  return btoa(bin)
+}
+
 /** 导出上报 Excel：Go excelize 渲染（CPM fail-closed）→ base64 → Blob 下载 */
 export async function exportScheduleXlsx(p: SchedProject): Promise<void> {
   const b64 = await app.ScheduleExportXlsx(JSON.stringify(normalizeProject(p)))
@@ -142,11 +153,10 @@ export async function exportScheduleXlsx(p: SchedProject): Promise<void> {
 
 /** 导入上报 Excel：文件 → base64 → Go 解析 → 计划（排程交回 CPM 重算） */
 export async function importScheduleXlsx(file: File): Promise<SchedProject> {
-  const bytes = new Uint8Array(await file.arrayBuffer())
-  const CHUNK = 0x8000
-  let bin = ''
-  for (let i = 0; i < bytes.length; i += CHUNK) {
-    bin += String.fromCharCode(...bytes.subarray(i, i + CHUNK))
-  }
-  return normalizeProject(JSON.parse(await app.ScheduleImportXlsx(btoa(bin))))
+  return normalizeProject(JSON.parse(await app.ScheduleImportXlsx(await fileToBase64(file))))
+}
+
+/** 导入 MPP（v4.140）：二进制 MS Project 工程 → Go 解析器（MPP9/12/14 子集）→ 计划 */
+export async function importScheduleMpp(file: File): Promise<SchedProject> {
+  return normalizeProject(JSON.parse(await app.ScheduleImportMpp(await fileToBase64(file))))
 }

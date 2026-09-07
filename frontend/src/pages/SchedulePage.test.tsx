@@ -11,7 +11,7 @@
  * useScheduleStore.setState 预置（zustand 运行时合并任意键），动作用 vi.fn 替身。
  * 左栏 ChatPane 依赖会话 store 全家桶，mock 掉保持用例聚焦（同 ResourcePanel.test）。
  */
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import SchedulePage from './SchedulePage'
 import { useScheduleStore } from '../schedule/store'
@@ -160,5 +160,58 @@ describe('SchedulePage 页头工程切换器/管理面板（v4.139 #15）', () =
     fireEvent.click(createBtn)
     await waitFor(() => expect(createProjectSpy).toHaveBeenCalledWith('新工程'))
     expect(createInput.value).toBe('')
+  })
+})
+
+/** 打开 antd Dropdown 菜单（fireEvent 点击菜单栏按钮），返回当前打开菜单项文本 */
+async function openMenu(testid: string): Promise<string[]> {
+  const trigger = screen.getByTestId(testid)
+  await act(async () => { fireEvent.click(trigger) })
+  const menu = await waitFor(() => {
+    const el = Array.from(document.querySelectorAll('.ant-dropdown:not(.ant-dropdown-hidden) .ant-dropdown-menu')).at(-1)
+    if (!el) throw new Error('菜单未打开：' + testid)
+    return el
+  })
+  return Array.from(menu.querySelectorAll('.ant-dropdown-menu-item')).map(
+    (i) => i.textContent?.trim() + (i.classList.contains('ant-dropdown-menu-item-disabled') ? '(dis)' : ''),
+  )
+}
+
+
+describe('SchedulePage 命令区三行（v4.140：菜单栏/工具栏/信息条）', () => {
+  it('四个菜单项齐全：编辑（撤销/重做/删除/清空）、视图（四档勾选）、任务（选中前禁用）', async () => {
+    render(<SchedulePage />)
+    const edit = await openMenu('sched-menu-edit')
+    expect(edit.some((t) => t.startsWith('撤销'))).toBe(true)
+    expect(edit.some((t) => t.startsWith('重做'))).toBe(true)
+    expect(edit).toContain('删除选中(dis)')
+    expect(edit).toContain('清空全部任务与搭接')
+    const view = await openMenu('sched-menu-view')
+    expect(view).toEqual(['横道图', '单代号网络图', '双代号网络图', '资源使用'])
+    const task = await openMenu('sched-menu-task')
+    expect(task.some((t) => t.startsWith('添加任务'))).toBe(true)
+    expect(task).toContain('设为里程碑(dis)')
+    expect(task).toContain('任务检查器…(dis)')
+    expect(task).toContain('删除选中(dis)')
+  })
+
+  it('导入/导出下拉：MPP 与 XML/Excel 同列，导出含图面；选中任务后「任务」菜单解锁', async () => {
+    seed({
+      project: {
+        name: '当前计划', startDate: '2026-09-07',
+        tasks: [{ id: 'A', name: '挖土', duration: 2, level: 1, progress: 0 }],
+        links: [],
+      },
+      selectedId: 'A',
+    })
+    render(<SchedulePage />)
+    const imp = await openMenu('sched-import-btn')
+    expect(imp).toEqual(['导入 MS Project XML…', '导入 Excel…', '导入 MPP（MS Project 工程）…'])
+    const exp = await openMenu('sched-export-menu-btn')
+    expect(exp).toEqual(['导出 MS Project XML', '导出 Excel', '导出图面（PNG / PDF / 打印）…'])
+    const task = await openMenu('sched-menu-task')
+    expect(task).toContain('设为里程碑')
+    expect(task).toContain('任务检查器…')
+    expect(task.some((t) => t.startsWith('删除选中') && !t.endsWith('(dis)'))).toBe(true)
   })
 })

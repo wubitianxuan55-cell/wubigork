@@ -127,8 +127,14 @@ func (b *OfficeB) GaeaSaveProvider(p ProviderView) error { return b.a.GaeaSavePr
 func (b *OfficeB) GaeaSaveSettings(view SettingsView) error { return b.a.GaeaSaveSettings(view) }
 func (b *OfficeB) GaeaSaveWindowState(state map[string]interface{}) error { return b.a.GaeaSaveWindowState(state) }
 func (b *OfficeB) GaeaScheduleExportXlsx(projectJSON string) (string, error) { return b.a.GaeaScheduleExportXlsx(projectJSON) }
+func (b *OfficeB) GaeaScheduleImportMpp(mppBase64 string) (string, error) { return b.a.GaeaScheduleImportMpp(mppBase64) }
 func (b *OfficeB) GaeaScheduleImportXlsx(xlsxBase64 string) (string, error) { return b.a.GaeaScheduleImportXlsx(xlsxBase64) }
 func (b *OfficeB) GaeaScheduleLoad() (ScheduleLoadResult, error) { return b.a.GaeaScheduleLoad() }
+func (b *OfficeB) GaeaScheduleProjectArchive(rel string, archived bool) (ScheduleProjectsResult, error) { return b.a.GaeaScheduleProjectArchive(rel, archived) }
+func (b *OfficeB) GaeaScheduleProjectCreate(name string) (ScheduleCreateResult, error) { return b.a.GaeaScheduleProjectCreate(name) }
+func (b *OfficeB) GaeaScheduleProjectDelete(rel string) (ScheduleProjectsResult, error) { return b.a.GaeaScheduleProjectDelete(rel) }
+func (b *OfficeB) GaeaScheduleProjectOpen(rel string) (ScheduleOpenResult, error) { return b.a.GaeaScheduleProjectOpen(rel) }
+func (b *OfficeB) GaeaScheduleProjects() (ScheduleProjectsResult, error) { return b.a.GaeaScheduleProjects() }
 func (b *OfficeB) GaeaScheduleSave(projectJSON string, rel string) (ScheduleSaveResult, error) { return b.a.GaeaScheduleSave(projectJSON, rel) }
 func (b *OfficeB) GaeaSend(input string) { b.a.GaeaSend(input) }
 func (b *OfficeB) GaeaSessionStats(path string) SessionStatsView { return b.a.GaeaSessionStats(path) }
@@ -189,28 +195,3 @@ func (b *OfficeB) OfficeIsTask(text string) bool { return b.a.OfficeIsTask(text)
 func (b *OfficeB) OfficeListFolder(p string) office.ExecResult { return b.a.OfficeListFolder(p) }
 func (b *OfficeB) OfficeReadFile(p string) office.ExecResult { return b.a.OfficeReadFile(p) }
 func (b *OfficeB) OfficeSetMode(s string, e bool) { b.a.OfficeSetMode(s, e) }
-// ── OfficeB 门面委托（gen_bindings 生成物惯例在 bindings_office.go）──────
-//
-// v4.139 差距 #15 多工程：以下 5 个新委托按本轮拍板先落在本文件（go test
-// ./... 全绿，完备性测试 595=595 对齐）。主线集成 bindings_office.go 时把
-// 这段剪切过去归位即可——勿两边都留（同名方法重复定义会编译错）。
-
-func (b *OfficeB) GaeaScheduleProjects() (ScheduleProjectsResult, error) {
-	return b.a.GaeaScheduleProjects()
-}
-
-func (b *OfficeB) GaeaScheduleProjectOpen(rel string) (ScheduleOpenResult, error) {
-	return b.a.GaeaScheduleProjectOpen(rel)
-}
-
-func (b *OfficeB) GaeaScheduleProjectCreate(name string) (ScheduleCreateResult, error) {
-	return b.a.GaeaScheduleProjectCreate(name)
-}
-
-func (b *OfficeB) GaeaScheduleProjectArchive(rel string, archived bool) (ScheduleProjectsResult, error) {
-	return b.a.GaeaScheduleProjectArchive(rel, archived)
-}
-
-func (b *OfficeB) GaeaScheduleProjectDelete(rel string) (ScheduleProjectsResult, error) {
-	return b.a.GaeaScheduleProjectDelete(rel)
-}

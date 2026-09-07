@@ -10,12 +10,16 @@
  * v4.139 #15 多工程：每文件一工程+Go 侧索引指针，页头工程切换器（Select）与
  * 管理入口（新建/改名/归档/删除/载入，GaeaScheduleProjects/Project* 五绑定）；
  * 仅一项工程时切换器收窄为纯显示，老用户零感知。
+ * v4.140 命令区三行化（对标 MS Project / ProjectLibre）：菜单栏（文件/编辑/
+ * 视图/任务，命令全量归属）+ 工具栏（高频命令分组快捷区，导入/导出收拢下拉，
+ * 增 MPP 导入）+ 工程信息条（工程名/开工/目标竣工/日历/基线/资源 | 视图档位）。
  */
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { Alert, Button, Checkbox, Input, Modal, Popconfirm, Popover, Segmented, Select, Space, Tag, Tooltip } from 'antd'
+import { Alert, Button, Checkbox, Dropdown, Input, Modal, Popconfirm, Popover, Segmented, Select, Space, Tag, Tooltip } from 'antd'
+import type { MenuProps } from 'antd'
 import {
-  AimOutlined, AppstoreOutlined, CalendarOutlined, ClearOutlined, ClusterOutlined, ExportOutlined, FileImageOutlined, FundOutlined, ImportOutlined,
-  FileExcelOutlined, MessageOutlined, NodeIndexOutlined, PlusOutlined, RedoOutlined, SettingOutlined, TableOutlined, TeamOutlined, ThunderboltOutlined, PartitionOutlined, DeleteOutlined, ToolOutlined, UndoOutlined,
+  AimOutlined, AppstoreOutlined, CalendarOutlined, CheckOutlined, ClearOutlined, ClusterOutlined, DeleteOutlined, DownOutlined, ExportOutlined, FileExcelOutlined, FileImageOutlined, FileOutlined, FundOutlined, ImportOutlined, InfoCircleOutlined,
+  MessageOutlined, NodeIndexOutlined, PlusOutlined, RedoOutlined, SettingOutlined, TableOutlined, TeamOutlined, ThunderboltOutlined, PartitionOutlined, ToolOutlined, UndoOutlined,
 } from '@ant-design/icons'
 import { computeCpm } from '../schedule/cpm'
 import { computeCosts } from '../schedule/cost'
@@ -33,7 +37,7 @@ import { buildGanttExportSvg } from '../schedule/ganttExport'
 import { buildAoaExportSvg, buildPdmExportSvg } from '../schedule/networkExport'
 import { svgToPngBlob, svgToPdfBlob, downloadBlob, printSvg } from '../schedule/exportArtifact'
 import { loadExportMeta, saveExportMeta, todayIso, type ExportMetaPrefs } from '../schedule/exportMeta'
-import { exportScheduleXlsx, importScheduleXlsx } from '../schedule/api'
+import { exportScheduleXlsx, importScheduleXlsx, importScheduleMpp } from '../schedule/api'
 import { ResourcePanel } from '../schedule/ResourcePanel'
 import { UsageView } from '../schedule/UsageView'
 import { computeUsage } from '../schedule/usage'
@@ -352,6 +356,8 @@ const SchedulePage: React.FC = () => {
   const refreshProjects = useScheduleStore((s) => s.refreshProjects)
   /** 切换/管理动作在途（Select loading 态） */
   const [projBusy, setProjBusy] = useState(false)
+  /** 工程管理弹层受控开合（菜单「文件 → 工程管理…」与 ⚙ 按钮同一入口） */
+  const [manageOpen, setManageOpen] = useState(false)
   const projectList = projects ?? []
 
   const toggleChat = () => setChat(saveChatPrefs({ collapsed: !chat.collapsed }))
@@ -485,6 +491,114 @@ const SchedulePage: React.FC = () => {
     }
   }
 
+  /** 导入 MPP（v4.140）：二进制 MS Project 工程（MPP9/12/14 子集）走 Go 解析器
+   *  GaeaScheduleImportMpp，任务/搭接/资源/分配入模型，排程交回 CPM 重算 */
+  const [mppBusy, setMppBusy] = useState(false)
+  const mppRef = useRef<HTMLInputElement>(null)
+  const onImportMpp = async (file: File) => {
+    setMppBusy(true)
+    try {
+      const p = await importScheduleMpp(file)
+      if (!p.name) p.name = file.name.replace(/\.mpp$/i, '') // 文件内无工程名,以文件名兜底
+      importProject(p)
+      setImportMsg({ type: 'success', text: `已导入「${p.name}」（MPP）：${p.tasks.length} 行 / ${p.links.length} 条搭接（已按搭接重排；约束日期/日历例外未映射）` })
+    } catch (e) {
+      setImportMsg({ type: 'error', text: e instanceof Error ? e.message : String(e) })
+    } finally {
+      setMppBusy(false)
+    }
+  }
+
+  // ── 菜单栏（v4.140）：命令按 文件/编辑/视图/任务 归属；导入/导出项与工具栏下拉共用 ──
+  const importMenuItems: MenuProps['items'] = [
+    { key: 'importXml', icon: <ImportOutlined />, label: '导入 MS Project XML…' },
+    { key: 'importXlsx', icon: <FileExcelOutlined />, label: '导入 Excel…' },
+    { key: 'importMpp', icon: <FileOutlined />, label: '导入 MPP（MS Project 工程）…' },
+  ]
+  const exportMenuItems: MenuProps['items'] = [
+    { key: 'exportXml', icon: <ExportOutlined />, label: '导出 MS Project XML' },
+    { key: 'exportXlsx', icon: <FileExcelOutlined />, label: '导出 Excel' },
+    { key: 'exportArt', icon: <FileImageOutlined />, label: '导出图面（PNG / PDF / 打印）…' },
+  ]
+  const runMenu = (key: string) => {
+    if (key === 'sample') { loadSample(); setImportMsg(null) }
+    else if (key === 'importXml') fileRef.current?.click()
+    else if (key === 'importXlsx') xlsxRef.current?.click()
+    else if (key === 'importMpp') mppRef.current?.click()
+    else if (key === 'exportXml') exportXml()
+    else if (key === 'exportXlsx') void exportXlsx()
+    else if (key === 'exportArt') setExportOpen(true)
+    else if (key === 'manage') setManageOpen(true)
+    else if (key === 'undo') undo()
+    else if (key === 'redo') redo()
+    else if (key === 'add') addTask(selectedId ?? undefined)
+    else if (key === 'group') addGroup()
+    else if (key === 'milestone' && selected && !selectedIsGroup) updateTask(selected.id, { isMilestone: !selected.isMilestone })
+    else if (key === 'inspector' && selected && !selectedIsGroup) setInspectId(selected.id)
+    else if (key === 'del' && selected) {
+      Modal.confirm({
+        title: '删除选中项',
+        content: selectedIsGroup ? '分组及其子任务一并删除' : `删除「${selected.name}」及其搭接关系`,
+        onOk: () => removeTask(selected.id),
+      })
+    } else if (key === 'clear') {
+      Modal.confirm({ title: '清空全部任务与搭接？', onOk: () => { clearAll(); setImportMsg(null) } })
+    } else if (key === 'gantt' || key === 'pdm' || key === 'aoa' || key === 'usage') {
+      setView(key)
+    }
+  }
+  const fileMenuCfg: MenuProps = {
+    items: [
+      { key: 'sample', icon: <ThunderboltOutlined />, label: '载入示例工程' },
+      { type: 'divider' },
+      ...importMenuItems,
+      { type: 'divider' },
+      ...exportMenuItems,
+      { type: 'divider' },
+      { key: 'manage', icon: <SettingOutlined />, label: '工程管理…' },
+    ],
+    onClick: ({ key }) => runMenu(key),
+  }
+  const editMenuCfg: MenuProps = {
+    items: [
+      { key: 'undo', icon: <UndoOutlined />, label: '撤销（Ctrl+Z）', disabled: past.length === 0 },
+      { key: 'redo', icon: <RedoOutlined />, label: '重做（Ctrl+Y）', disabled: future.length === 0 },
+      { type: 'divider' },
+      { key: 'del', icon: <DeleteOutlined />, label: '删除选中', danger: true, disabled: !selected },
+      { key: 'clear', icon: <ClearOutlined />, label: '清空全部任务与搭接', danger: true },
+    ],
+    onClick: ({ key }) => runMenu(key),
+  }
+  const VIEW_MENU: { key: typeof view; label: string; icon: React.ReactNode }[] = [
+    { key: 'gantt', label: '横道图', icon: <TableOutlined /> },
+    { key: 'pdm', label: '单代号网络图', icon: <NodeIndexOutlined /> },
+    { key: 'aoa', label: '双代号网络图', icon: <PartitionOutlined /> },
+    { key: 'usage', label: '资源使用', icon: <TeamOutlined /> },
+  ]
+  const viewMenuCfg: MenuProps = {
+    items: VIEW_MENU.map((v) => ({
+      key: v.key,
+      icon: view === v.key ? <CheckOutlined /> : <span className="sched-menu-hold" />,
+      label: v.label,
+    })),
+    onClick: ({ key }) => runMenu(key),
+  }
+  const selectedLeaf = !!selected && !selectedIsGroup
+  const taskMenuCfg: MenuProps = {
+    items: [
+      { key: 'add', icon: <PlusOutlined />, label: '添加任务' },
+      { key: 'group', icon: <ClusterOutlined />, label: '添加分组' },
+      { type: 'divider' },
+      { key: 'milestone', icon: <AimOutlined />, label: selected?.isMilestone ? '取消里程碑' : '设为里程碑', disabled: !selectedLeaf },
+      { key: 'inspector', icon: <InfoCircleOutlined />, label: '任务检查器…', disabled: !selectedLeaf },
+      { type: 'divider' },
+      { key: 'del', icon: <DeleteOutlined />, label: '删除选中', danger: true, disabled: !selected },
+    ],
+    onClick: ({ key }) => runMenu(key),
+  }
+  const importMenuCfg: MenuProps = { items: importMenuItems, onClick: ({ key }) => runMenu(key) }
+  const exportMenuCfg: MenuProps = { items: exportMenuItems, onClick: ({ key }) => runMenu(key) }
+
   return (
     <div className="sched-shell">
       {!chat.collapsed && (
@@ -501,26 +615,28 @@ const SchedulePage: React.FC = () => {
         />
       )}
       <div className="sched-page" style={{ flex: 1, minWidth: 0, padding: '12px 16px' }}>
-      <div className="sched-header">
-        <h2 className="sched-header-title">进度计划</h2>
-        <Button
-          size="small"
-          type={chat.collapsed ? 'primary' : 'default'}
-          ghost={chat.collapsed}
-          icon={<MessageOutlined />}
-          onClick={toggleChat}
-          title={chat.collapsed ? '展开左栏 AI 对话（对话即排程）' : '收起左栏 AI 对话'}
-          aria-label="切换 AI 对话栏"
-        />
-        <Tooltip title="在办公板块中预览计划文件">
-          <Button size="small" icon={<ToolOutlined />} onClick={openInOffice} aria-label="在办公板块中查看计划" />
-        </Tooltip>
-        {/* 工程切换器（v4.139 #15 §3.4）：列未归档工程、当前项高亮勾选；仅一项时
-            收窄为纯显示（disabled）不占交互成本；projects 为空（旧形态）整体隐藏。 */}
+      {/* ── 菜单栏（行1，v4.140）：参考 MS Project / ProjectLibre 菜单口径——命令按
+          文件/编辑/视图/任务 归属，右端为工程区（切换器/管理/办公预览/AI 栏），
+          命令不再与文档属性平铺混排 ── */}
+      <div className="sched-menubar" data-testid="sched-menubar">
+        <Dropdown trigger={['click']} menu={fileMenuCfg}>
+          <button type="button" className="sched-menu-item" data-testid="sched-menu-file">文件</button>
+        </Dropdown>
+        <Dropdown trigger={['click']} menu={editMenuCfg}>
+          <button type="button" className="sched-menu-item" data-testid="sched-menu-edit">编辑</button>
+        </Dropdown>
+        <Dropdown trigger={['click']} menu={viewMenuCfg}>
+          <button type="button" className="sched-menu-item" data-testid="sched-menu-view">视图</button>
+        </Dropdown>
+        <Dropdown trigger={['click']} menu={taskMenuCfg}>
+          <button type="button" className="sched-menu-item" data-testid="sched-menu-task">任务</button>
+        </Dropdown>
+        <div style={{ flex: 1 }} />
+        {/* 工程区（v4.139 #15 交互不变，位置收进菜单栏右端） */}
         {projectList.length > 0 && (
           <Select
             size="small"
-            style={{ width: 200 }}
+            style={{ width: 190 }}
             value={currentPath}
             loading={projBusy}
             disabled={projectList.length <= 1}
@@ -535,20 +651,127 @@ const SchedulePage: React.FC = () => {
         )}
         <Popover
           trigger="click"
-          placement="bottom"
+          placement="bottomRight"
+          open={manageOpen}
+          onOpenChange={(open) => { setManageOpen(open); if (open) void Promise.resolve(refreshProjects?.()) }}
           content={<ProjectsManagePanel />}
           title="工程管理"
-          onOpenChange={(open) => { if (open) void Promise.resolve(refreshProjects?.()) }}
         >
           <Button size="small" icon={<SettingOutlined />} data-testid="sched-projects-manage" title="工程管理：新建 / 改名 / 归档 / 删除 / 载入" aria-label="工程管理" />
         </Popover>
+        <Tooltip title="在办公板块中预览计划文件">
+          <Button size="small" icon={<ToolOutlined />} onClick={openInOffice} aria-label="在办公板块中查看计划" />
+        </Tooltip>
+        <Button
+          size="small"
+          type={chat.collapsed ? 'primary' : 'default'}
+          ghost={chat.collapsed}
+          icon={<MessageOutlined />}
+          onClick={toggleChat}
+          title={chat.collapsed ? '展开左栏 AI 对话（对话即排程）' : '收起左栏 AI 对话'}
+          aria-label="切换 AI 对话栏"
+        />
+      </div>
+
+      {/* ── 工具栏（行2）：高频命令快捷区，分组竖线分隔（ribbon 感）；
+          导入/导出收拢为下拉，MPP（v4.140）随 XML/Excel 同列 ── */}
+      <div className="sched-toolbar">
+        <Tooltip title="撤销（Ctrl+Z）">
+          <Button size="small" icon={<UndoOutlined />} disabled={past.length === 0} data-testid="sched-undo" onClick={() => undo()} aria-label="撤销" />
+        </Tooltip>
+        <Tooltip title="重做（Ctrl+Y / Ctrl+Shift+Z）">
+          <Button size="small" icon={<RedoOutlined />} disabled={future.length === 0} data-testid="sched-redo" onClick={() => redo()} aria-label="重做" />
+        </Tooltip>
+        <div className="sched-tool-divider" />
+        <Button size="small" icon={<PlusOutlined />} onClick={() => addTask(selectedId ?? undefined)}>添加任务</Button>
+        <Button size="small" icon={<ClusterOutlined />} onClick={addGroup}>添加分组</Button>
+        {selected && !selectedIsGroup && (
+          <Button
+            size="small"
+            icon={<AimOutlined />}
+            type={selected.isMilestone ? 'primary' : 'default'}
+            onClick={() => updateTask(selected.id, { isMilestone: !selected.isMilestone })}
+          >
+            {selected.isMilestone ? '取消里程碑' : '设为里程碑'}
+          </Button>
+        )}
+        {selected && (
+          <Popconfirm
+            title="删除选中项"
+            description={selectedIsGroup ? '分组及其子任务一并删除' : `删除「${selected!.name}」及其搭接关系`}
+            onConfirm={() => removeTask(selected!.id)}
+          >
+            <Button size="small" danger icon={<DeleteOutlined />}>删除</Button>
+          </Popconfirm>
+        )}
+        <div className="sched-tool-divider" />
+        <input
+          ref={fileRef}
+          type="file"
+          accept=".xml,application/xml,text/xml"
+          style={{ display: 'none' }}
+          onChange={(e) => {
+            const f = e.target.files?.[0]
+            e.target.value = ''
+            if (f) void onImportFile(f)
+          }}
+        />
+        <input
+          ref={xlsxRef}
+          type="file"
+          accept=".xlsx"
+          style={{ display: 'none' }}
+          onChange={(e) => {
+            const f = e.target.files?.[0]
+            e.target.value = ''
+            if (f) void onImportXlsx(f)
+          }}
+        />
+        <input
+          ref={mppRef}
+          type="file"
+          accept=".mpp"
+          style={{ display: 'none' }}
+          onChange={(e) => {
+            const f = e.target.files?.[0]
+            e.target.value = ''
+            if (f) void onImportMpp(f)
+          }}
+        />
+        <Dropdown trigger={['click']} menu={importMenuCfg}>
+          <Button size="small" icon={<ImportOutlined />} loading={xlsxBusy || mppBusy} data-testid="sched-import-btn">导入 <DownOutlined /></Button>
+        </Dropdown>
+        <Dropdown trigger={['click']} menu={exportMenuCfg}>
+          <Button size="small" icon={<ExportOutlined />} data-testid="sched-export-menu-btn">导出 <DownOutlined /></Button>
+        </Dropdown>
+        <div className="sched-tool-divider" />
+        <Popover trigger="click" placement="bottom" content={<TemplatesPanel cpm={cpm} />} title="项目模板">
+          <Tooltip title="另存为模板 / 从模板新建（本机保存，最多 10 个）">
+            <Button size="small" icon={<AppstoreOutlined />} data-testid="sched-templates-btn">模板</Button>
+          </Tooltip>
+        </Popover>
+        <div className="sched-tool-divider" />
+        <Tooltip title="载入示例工程（办公楼施工），覆盖当前数据">
+          <Button size="small" icon={<ThunderboltOutlined />} onClick={() => { loadSample(); setImportMsg(null) }}>示例工程</Button>
+        </Tooltip>
+        <Popconfirm title="清空全部任务与搭接？" onConfirm={() => { clearAll(); setImportMsg(null) }}>
+          <Button size="small" icon={<ClearOutlined />}>清空</Button>
+        </Popconfirm>
+      </div>
+
+      {/* ── 工程信息条（行3）：文档名（工程名）+ 编制锚点（开工/目标竣工）+
+          面板入口（日历/基线/资源）| 右端视图档位 ── */}
+      <div className="sched-infobar" data-testid="sched-infobar">
         <Input
           className="sched-name-input"
           variant="borderless"
           value={project.name}
           onChange={(e) => renameProject(e.target.value)}
-          style={{ maxWidth: 260, fontSize: 15 }}
+          style={{ maxWidth: 240, fontSize: 15 }}
+          placeholder="工程名称"
+          aria-label="工程名称"
         />
+        <div className="sched-tool-divider" />
         <Space size={4}>
           <span className="sched-dim">开工日期</span>
           <Input
@@ -608,86 +831,6 @@ const SchedulePage: React.FC = () => {
             { value: 'usage', label: <span><TeamOutlined /> 资源使用</span> },
           ]}
         />
-      </div>
-
-      <div className="sched-toolbar">
-        <Tooltip title="撤销（Ctrl+Z）">
-          <Button size="small" icon={<UndoOutlined />} disabled={past.length === 0} data-testid="sched-undo" onClick={() => undo()} aria-label="撤销" />
-        </Tooltip>
-        <Tooltip title="重做（Ctrl+Y / Ctrl+Shift+Z）">
-          <Button size="small" icon={<RedoOutlined />} disabled={future.length === 0} data-testid="sched-redo" onClick={() => redo()} aria-label="重做" />
-        </Tooltip>
-        <Button size="small" icon={<PlusOutlined />} onClick={() => addTask(selectedId ?? undefined)}>添加任务</Button>
-        <Button size="small" icon={<ClusterOutlined />} onClick={addGroup}>添加分组</Button>
-        {selected && !selectedIsGroup && (
-          <Button
-            size="small"
-            icon={<AimOutlined />}
-            type={selected.isMilestone ? 'primary' : 'default'}
-            onClick={() => updateTask(selected.id, { isMilestone: !selected.isMilestone })}
-          >
-            {selected.isMilestone ? '取消里程碑' : '设为里程碑'}
-          </Button>
-        )}
-        {selected && (
-          <Popconfirm
-            title="删除选中项"
-            description={selectedIsGroup ? '分组及其子任务一并删除' : `删除「${selected!.name}」及其搭接关系`}
-            onConfirm={() => removeTask(selected!.id)}
-          >
-            <Button size="small" danger icon={<DeleteOutlined />}>删除</Button>
-          </Popconfirm>
-        )}
-        <div className="sched-tool-divider" />
-        <input
-          ref={fileRef}
-          type="file"
-          accept=".xml,application/xml,text/xml"
-          style={{ display: 'none' }}
-          onChange={(e) => {
-            const f = e.target.files?.[0]
-            e.target.value = ''
-            if (f) void onImportFile(f)
-          }}
-        />
-        <Tooltip title="导入 MS Project XML（mspdi 口径），覆盖当前工程">
-          <Button size="small" icon={<ImportOutlined />} onClick={() => fileRef.current?.click()}>导入 XML</Button>
-        </Tooltip>
-        <Tooltip title="导出为 MS Project XML（可被 Project / 斑马进度打开）">
-          <Button size="small" icon={<ExportOutlined />} onClick={exportXml}>导出 XML</Button>
-        </Tooltip>
-        <input
-          ref={xlsxRef}
-          type="file"
-          accept=".xlsx"
-          style={{ display: 'none' }}
-          onChange={(e) => {
-            const f = e.target.files?.[0]
-            e.target.value = ''
-            if (f) void onImportXlsx(f)
-          }}
-        />
-        <Tooltip title="导入上报 Excel（xlsx）：表头别名自动识别，前置引用按序号回链，按搭接重排">
-          <Button size="small" icon={<FileExcelOutlined />} data-testid="sched-xlsx-import" disabled={xlsxBusy} onClick={() => xlsxRef.current?.click()}>导入 Excel</Button>
-        </Tooltip>
-        <Tooltip title="导出上报 Excel（xlsx）：序号/WBS/任务名称/工期/开始/完成/前置，可被 Project / WPS 打开">
-          <Button size="small" icon={<FileExcelOutlined />} data-testid="sched-xlsx-export" loading={xlsxBusy} onClick={() => void exportXlsx()}>导出 Excel</Button>
-        </Tooltip>
-        <Tooltip title="导出上报图面：横道图 / 双代号时标网络（含工程标尺）/ 单代号网络（PNG / PDF / 打印）">
-          <Button size="small" icon={<FileImageOutlined />} data-testid="sched-export-btn" onClick={() => setExportOpen(true)}>导出图面</Button>
-        </Tooltip>
-        <Popover trigger="click" placement="bottom" content={<TemplatesPanel cpm={cpm} />} title="项目模板">
-          <Tooltip title="另存为模板 / 从模板新建（本机保存，最多 10 个）">
-            <Button size="small" icon={<AppstoreOutlined />} data-testid="sched-templates-btn">模板</Button>
-          </Tooltip>
-        </Popover>
-        <div className="sched-tool-divider" />
-        <Tooltip title="载入示例工程（办公楼施工），覆盖当前数据">
-          <Button size="small" icon={<ThunderboltOutlined />} onClick={() => { loadSample(); setImportMsg(null) }}>示例工程</Button>
-        </Tooltip>
-        <Popconfirm title="清空全部任务与搭接？" onConfirm={() => { clearAll(); setImportMsg(null) }}>
-          <Button size="small" icon={<ClearOutlined />}>清空</Button>
-        </Popconfirm>
       </div>
 
       {importMsg && (

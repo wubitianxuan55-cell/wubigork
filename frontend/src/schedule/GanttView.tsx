@@ -24,6 +24,9 @@
  *    附「改名」铅笔：行内 Input 受控编辑，回车/失焦提交 setCustomLabel、Esc 取消；
  *  - 叶行单元格直接编辑：text=Input（同名称列 borderless 范式）、num=InputNumber
  *    （无 min、可小数），清空=删除槽键（custom 不留空值）；分组行留空。
+ *
+ * v4.140：双层时标修正——时标自左向右水平排（上行=月份跨列段、下行=逐日号，
+ * MS Project 口径）；此前 datehead 误用 column 主轴导致日列纵向堆叠（时间轴竖排）。
  */
 import React, { useMemo, useRef, useState } from 'react'
 import { Button, Checkbox, DatePicker, Dropdown, Input, InputNumber, Popover, Segmented, Select } from 'antd'
@@ -349,6 +352,18 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult; onInsp
     }),
     [startMs, cal, days],
   )
+  /** 月份跨列段（双层时标上行：连续同月合成一段，MS Project 口径） */
+  const monthRuns = useMemo(() => {
+    const runs: { y: number; m: number; count: number }[] = []
+    for (const c of colDates) {
+      const y = c.d.getUTCFullYear()
+      const m = c.d.getUTCMonth()
+      const last = runs[runs.length - 1]
+      if (last && last.y === y && last.m === m) last.count++
+      else runs.push({ y, m, count: 1 })
+    }
+    return runs
+  }, [colDates])
   const todayCol = useMemo(() => {
     const off = Math.floor((Date.now() - startMs) / 86400000)
     return off >= 0 && off <= days ? off : null
@@ -923,13 +938,25 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult; onInsp
         <div className="sched-gantt-canvaspane" data-testid="sched-gantt-canvas" onScroll={onCanvasScroll}>
           <div className="sched-gantt-canvas-inner" style={{ width: chartW }}>
             <div className="sched-gantt-row sched-gantt-head" style={{ height: 40, width: chartW }}>
+              {/* 双层时标（MS Project 口径，自左向右）：上行=月份跨列段，下行=逐日号 */}
               <div className="sched-gantt-datehead" style={{ width: chartW }}>
-                {colDates.map((c, i) => (
-                  <div key={i} className={`sched-day-col${c.offWork ? ' sched-day-off' : ''}`} style={{ width: dayW }} title={c.offWork ? '非工作日' : `周${WEEKDAY_LABELS[c.d.getUTCDay()]}`}>
-                    <div className="sched-month-cell">{c.d.getUTCDate() === 1 || i === 0 ? `${c.d.getUTCMonth() + 1}月` : ''}</div>
-                    <div className="sched-day-cell">{dayW >= 14 || (dayW >= 10 && i % 2 === 0) ? c.d.getUTCDate() : ''}</div>
-                  </div>
-                ))}
+                <div className="sched-ts-months">
+                  {monthRuns.map((r, i) => {
+                    const w = r.count * dayW
+                    return (
+                      <div key={i} className="sched-ts-month" style={{ width: w }} title={`${r.y}年${r.m + 1}月`}>
+                        {w >= 76 ? `${r.y}年${r.m + 1}月` : w >= 44 ? `${r.m + 1}月` : w >= 14 ? r.m + 1 : ''}
+                      </div>
+                    )
+                  })}
+                </div>
+                <div className="sched-ts-days">
+                  {colDates.map((c, i) => (
+                    <div key={i} className={`sched-day-col${c.offWork ? ' sched-day-off' : ''}`} style={{ width: dayW }} title={c.offWork ? '非工作日' : `周${WEEKDAY_LABELS[c.d.getUTCDay()]}`}>
+                      <div className="sched-day-cell">{dayW >= 14 || (dayW >= 10 && i % 2 === 0) ? c.d.getUTCDate() : ''}</div>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
             {(() => {

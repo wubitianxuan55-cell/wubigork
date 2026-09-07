@@ -158,7 +158,7 @@ type OfficeMethods = Pick<
   | "ReadFile" | "Preview" | "OpenWorkspacePath"
   | "OfficeEditText" | "DocxApplyEdit" | "DocxAcceptChanges"
   | "XlsxPlanEdit" | "XlsxApplyEdit" | "XlsxSetCell" | "XlsxRecalc" | "XlsxRowOps" | "XlsxColOps"
-  | "ScheduleLoad" | "ScheduleSave" | "ScheduleExportXlsx" | "ScheduleImportXlsx"
+  | "ScheduleLoad" | "ScheduleSave" | "ScheduleExportXlsx" | "ScheduleImportXlsx" | "ScheduleImportMpp"
   | "ScheduleProjects" | "ScheduleProjectOpen" | "ScheduleProjectCreate" | "ScheduleProjectArchive" | "ScheduleProjectDelete"
   | "XlsxChart" | "ZipDeliverables" | "SubagentRuns" | "SubagentTranscript" | "DeliverableRegistry" | "WriteFile"
   | "ExportDeliverable" | "ConvertToPdf" | "CrossEmbed" | "RevealWorkspacePath"
@@ -488,6 +488,10 @@ export function buildOffice(_s: MakeMockState): OfficeMethods {
     },
     async ScheduleImportXlsx(xlsxBase64: string) {
       return decodeURIComponent(escape(atob(xlsxBase64)));
+    },
+    async ScheduleImportMpp(_mppBase64: string) {
+      // 浏览器 mock 无 Go 侧 MPP 解析器：诚实报错（真实壳走 GaeaScheduleImportMpp）
+      throw new Error("MPP 导入需在桌面端使用（浏览器预览态无二进制解析器）");
     },
     async ScheduleSave(projectJSON: string, rel = "") {
       // v4.139 #15：第二参 rel（空串=当前指针文件）——与真机 GaeaScheduleSave
