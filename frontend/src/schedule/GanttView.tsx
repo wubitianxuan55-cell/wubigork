@@ -14,6 +14,10 @@
  *  - 分隔条可拖：拖窄=收纳表格（最小=行号+名称，画布全屏）、拖宽=展开，
  *    双击复位全列；列显隐菜单（行号/名称固定，其余单列可藏）；均持久化 chatPrefs；
  *  - 时间刻度防竖排：日期格 nowrap，窄刻度（<10px）只画格不写数。
+ *
+ * v4.136 小刀：行序列唯一状态源（筛选→排序→多级分组→折叠 全部合成进 rows，
+ * buildGanttRows 缺省恒等原顺序）+ 路径分析（沿选中任务的驱动边高亮前驱/后继链，
+ * 蒸馏 ProjectLibre E8：逐依赖自由时差=0 即驱动）+ 大纲折叠（组头 ▲/▶ 点击）。
  */
 import React, { useMemo, useRef, useState } from 'react'
 import { Button, Checkbox, DatePicker, Dropdown, Input, InputNumber, Popover, Segmented, Select } from 'antd'
@@ -24,28 +28,19 @@ import { isWorkingDate, normalizeCalendar, wdToDate } from './calendar'
 import { dropToWd, resizeToDuration, workdayOffsets } from './drag'
 import { computeCosts, type CostResult } from './cost'
 import { fmtLinkRefs, ganttLinkPath } from './ganttLinks'
-import { descendantIds, isGroupRow, useScheduleStore, type PredDraft } from './store'
+import { descendantIds, useScheduleStore, type PredDraft } from './store'
 import { TaskResourceEditor } from './ResourcePanel'
 import { fmtCost, hasCostData } from './costUi'
 import { GANTT_COLS, GANTT_FIXED_KEYS, GANTT_LEFT_W_FULL, clampTableW, visibleCols, visibleLeftW } from './ganttCols'
 import { GANTT_FILTER_DEFAULT, filterGanttRows, type GanttFilter, type GanttFilterKind } from './ganttFilter'
+import { buildGanttRows, wbsOf, type GanttGroupField, type GanttSort, type GanttSortField } from './ganttGroup'
+import { drivingChain, linkKey } from './pathDriver'
 import { loadChatPrefs, saveChatPrefs } from './chatPrefs'
 
 const ROW_H = 30
 const W: Record<string, number> = Object.fromEntries(GANTT_COLS.map((c) => [c.key, c.w]))
 const DAY_W_STEPS = [8, 14, 20, 28]
 const WEEKDAY_LABELS = ['日', '一', '二', '三', '四', '五', '六']
-
-/** WBS 编码：分组 n、叶 n.k（与 mspdi 导出同构） */
-function wbsOf(tasks: SchedTask[]): string[] {
-  const out: string[] = []
-  let g = 0
-  let k = 0
-  for (const t of tasks) {
-    if (t.level === 0) { g++; k = 0; out.push(`${g}`) } else { k++; out.push(`${g}.${k}`) }
-  }
-  return out
-}
 
 /** 入边（前置）/出边（后续）引用（刀B 前置/后续列数据源） */
 function predsOf(id: string, project: SchedProject) {
@@ -70,24 +65,7 @@ function deadlineOff(deadline: string | null | undefined, startMs: number): numb
   return Math.round((t - startMs) / 86400000)
 }
 
-/** 分组行汇总跨度（子孙叶项的 min ES / max EF） */
-function groupSpan(project: SchedProject, cpm: CpmResult, idx: number): { es: number; ef: number } | null {
-  const ids = descendantIds(project.tasks, project.tasks[idx].id)
-  let es = Number.POSITIVE_INFINITY
-  let ef = 0
-  let any = false
-  for (const id of ids) {
-    const row = cpm.rows[id]
-    const t = project.tasks.find((x) => x.id === id)
-    if (!row || !t || t.level === 0) continue
-    any = true
-    es = Math.min(es, row.es)
-    ef = Math.max(ef, row.ef)
-  }
-  return any ? { es, ef } : null
-}
-
-/** 分组行成本汇总（子孙叶任务 total 求和；复用 groupSpan 的扁平 WBS 滚动口径，同甘特汇总条） */
+/** 分组行成本汇总（子孙叶任务 total 求和；复用扁平 WBS 滚动口径，同甘特汇总条） */
 function groupCost(project: SchedProject, costs: CostResult, idx: number): number {
   const ids = descendantIds(project.tasks, project.tasks[idx].id)
   let sum = 0
@@ -155,7 +133,7 @@ const PredEditor: React.FC<{ task: SchedTask }> = ({ task }) => {
   )
 }
 
-export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult }> = ({ project, cpm }) => {
+export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult; onInspect?: (taskId: string) => void }> = ({ project, cpm, onInspect }) => {
   const selectedId = useScheduleStore((s) => s.selectedId)
   const select = useScheduleStore((s) => s.select)
   const updateTask = useScheduleStore((s) => s.updateTask)
@@ -166,6 +144,12 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult }> = ({
   const [showFront, setShowFront] = useState(false)
   /** 行筛选（刀C 余项）：全部/关键/手动 + 名称文本；仅作用于横道（网络图=逻辑图不筛选） */
   const [filter, setFilter] = useState<GanttFilter>(GANTT_FILTER_DEFAULT)
+  /** 排序/分组（v4.136 小刀，持久化 chatPrefs）；折叠组头 key 集为会话态 */
+  const [sort, setSort] = useState<GanttSort>(() => loadChatPrefs().ganttSort as GanttSort)
+  const [groupBy, setGroupBy] = useState<GanttGroupField[]>(() => loadChatPrefs().ganttGroup as GanttGroupField[])
+  const [collapsedKeys, setCollapsedKeys] = useState<Set<string>>(() => new Set())
+  /** 路径分析（v4.136 小刀）：沿选中任务的驱动边高亮前驱/后继链 */
+  const [pathMode, setPathMode] = useState<'off' | 'pred' | 'succ'>('off')
   /** 基线条显示（有基线才出现开关；默认开，v4.116 刀7） */
   const [showBase, setShowBase] = useState(true)
   const [checkDate, setCheckDate] = useState<string>(new Date().toISOString().slice(0, 10))
@@ -228,16 +212,48 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult }> = ({
   const wbs = useMemo(() => wbsOf(project.tasks), [project.tasks])
   const startMs = useMemo(() => new Date(`${project.startDate}T00:00:00Z`).getTime(), [project.startDate])
   const visibleIdx = useMemo(() => filterGanttRows(project.tasks, filter, cpm), [project.tasks, filter, cpm])
-  /** 可见行号（渲染行序）↔ 任务 id：条形/依赖线 y 坐标按可见行序算 */
+  /** 可见行序列（v4.136 唯一状态源）：筛选→排序→多级分组→折叠全部合成进 rows；
+   *  缺省（不排序不分组不折叠）=恒等原顺序，原分组行合成 kind=group（key=`wbs:原索引`） */
+  const rows = useMemo(
+    () => buildGanttRows(project.tasks, cpm, {
+      sort: sort.field === 'none' ? undefined : sort,
+      groupBy,
+      collapsed: collapsedKeys.size > 0 ? collapsedKeys : undefined,
+      visibleIdx,
+    }),
+    [project.tasks, cpm, sort, groupBy, collapsedKeys, visibleIdx],
+  )
+  /** 渲染行序 ↔ 任务 id：条形/依赖线 y 坐标按渲染行序算 */
   const visPos = useMemo(() => {
     const m = new Map<string, number>()
-    visibleIdx.forEach((orig, row) => m.set(project.tasks[orig].id, row))
+    rows.forEach((r, row) => { if (r.kind === 'task') m.set(project.tasks[r.idx].id, row) })
     return m
-  }, [visibleIdx, project.tasks])
+  }, [rows, project.tasks])
+  /** 驱动链（路径分析）：锚点=选中任务；路径关/未选中/循环依赖=null 不参与渲染 */
+  const chain = useMemo(() => {
+    if (pathMode === 'off' || !selectedId || !cpm.ok) return null
+    return drivingChain(project.tasks, project.links, cpm, selectedId, pathMode)
+  }, [pathMode, selectedId, cpm, project.tasks, project.links])
+  const chainTasks = useMemo(() => (chain ? new Set(chain.taskIds) : null), [chain])
+  const chainLinks = useMemo(() => (chain ? new Set(chain.links.map(linkKey)) : null), [chain])
+  /** 路径开启时非链行淡化（锚点行与链上行保持） */
+  const rowDim = (id: string): boolean => !!chainTasks && id !== selectedId && !chainTasks.has(id)
+  /** 组头折叠/展开（▲=展开 ▶=折叠）；折叠集变化不影响 chatPrefs（会话态） */
+  const toggleCollapse = (key: string) => {
+    setCollapsedKeys((s) => {
+      const n = new Set(s)
+      if (n.has(key)) n.delete(key)
+      else n.add(key)
+      return n
+    })
+  }
   const rowMenu = (t: SchedTask, group: boolean) => [
     { key: 'add', label: '在下方添加任务' },
     { key: 'group', label: '添加分组' },
-    ...(group ? [] : [{ key: 'milestone', label: t.isMilestone ? '取消里程碑' : '设为里程碑' }]),
+    ...(group ? [] : [
+      { key: 'milestone', label: t.isMilestone ? '取消里程碑' : '设为里程碑' },
+      { key: 'inspector', label: '任务检查器' },
+    ]),
     { type: 'divider' as const },
     { key: 'del', label: '删除', danger: true },
   ]
@@ -245,6 +261,7 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult }> = ({
     if (key === 'add') addTask(t.id)
     else if (key === 'group') addGroup()
     else if (key === 'milestone') updateTask(t.id, { isMilestone: !t.isMilestone })
+    else if (key === 'inspector') onInspect?.(t.id)
     else if (key === 'del') removeTask(t.id)
   }
   /** 工作日序号 → 自然日列偏移（条形 x 坐标；跨周末自然变宽，斑马口径） */
@@ -254,7 +271,7 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult }> = ({
 
   const days = Math.max(dayNo(Math.max(cpm.duration, 7)) + 3, 21, deadlineOff(project.deadline, startMs) + 2)
   const chartW = days * dayW
-  const totalH = visibleIdx.length * ROW_H
+  const totalH = rows.length * ROW_H
 
   /** 自然日列（斑马口径：每天一列，非工作日底纹） */
   const colDates = useMemo(
@@ -354,8 +371,9 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult }> = ({
         y2: ty * ROW_H + ROW_H / 2,
       }),
       key: `${l.from}>${l.to}>${l.type}`,
+      lk: linkKey(l),
     }
-  }).filter(Boolean) as { d: string; key: string }[]
+  }).filter(Boolean) as { d: string; key: string; lk: string }[]
 
   /** 前锋线折线点（行中心；x=自然日列；仅可见行参与，y=可见行序） */
   const frontLine = useMemo(() => {
@@ -363,14 +381,15 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult }> = ({
     const off = Math.round((new Date(`${checkDate}T00:00:00Z`).getTime() - startMs) / 86400000)
     if (!Number.isFinite(off) || off < 0) return null
     const pts: { x: number; y: number }[] = []
-    visibleIdx.forEach((orig, row) => {
-      const t = project.tasks[orig]
+    rows.forEach((r, row) => {
+      if (r.kind !== 'task') return
+      const t = project.tasks[r.idx]
       const w = frontierWd(t, cpm.rows[t.id], checkWdIdx(checkDate))
       if (w !== null) pts.push({ x: dayNo(w) * dayW, y: row * ROW_H + ROW_H / 2 })
     })
     return pts.length >= 2 ? { pts, checkX: Math.min(off, days) * dayW } : null
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showFront, cpm, project.tasks, visibleIdx, checkDate, startMs, dayNo, dayW, days, colDates])
+  }, [showFront, cpm, project.tasks, rows, checkDate, startMs, dayNo, dayW, days, colDates])
 
   /** 检查日期 → 工作日序号（前锋点按进度比例需要工作日刻度） */
   function checkWdIdx(dateIso: string): number {
@@ -442,6 +461,72 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult }> = ({
           style={{ width: 150 }}
           data-testid="sched-gantt-search"
         />
+        {/* 排序（v4.136 小刀）：叶行重排、组头不动；持久化 chatPrefs */}
+        <Select
+          size="small"
+          value={sort.field}
+          style={{ width: 92 }}
+          options={[
+            { value: 'none', label: '不排序' },
+            { value: 'name', label: '按名称' },
+            { value: 'duration', label: '按工期' },
+            { value: 'start', label: '按开始' },
+            { value: 'progress', label: '按进度' },
+            { value: 'tf', label: '按时差' },
+          ]}
+          onChange={(v) => {
+            const next: GanttSort = { field: v as GanttSortField, dir: sort.dir }
+            setSort(next)
+            saveChatPrefs({ ganttSort: next })
+          }}
+          data-testid="sched-gantt-sort"
+        />
+        {sort.field !== 'none' && (
+          <Button
+            size="small"
+            data-testid="sched-gantt-sortdir"
+            onClick={() => {
+              const next: GanttSort = { field: sort.field, dir: sort.dir === 'asc' ? 'desc' : 'asc' }
+              setSort(next)
+              saveChatPrefs({ ganttSort: next })
+            }}
+            title="切换升/降序"
+          >
+            {sort.dir === 'asc' ? '升序' : '降序'}
+          </Button>
+        )}
+        {/* 多级分组（v4.136 小刀）：至多两级合成组头行；启用后 WBS 分组行由分组接管 */}
+        <Select
+          size="small"
+          mode="multiple"
+          placeholder="分组"
+          value={groupBy}
+          style={{ minWidth: 100, maxWidth: 170 }}
+          options={[
+            { value: 'critical', label: '关键' },
+            { value: 'mode', label: '模式' },
+            { value: 'milestone', label: '里程碑' },
+          ]}
+          onChange={(v) => {
+            const next = v.slice(-2) as GanttGroupField[]
+            setGroupBy(next)
+            setCollapsedKeys(new Set())
+            saveChatPrefs({ ganttGroup: next })
+          }}
+          data-testid="sched-gantt-group"
+        />
+        {/* 路径分析（v4.136 小刀）：锚点=选中行，沿驱动边（依赖 ff=0）高亮上下游链 */}
+        <Segmented
+          size="small"
+          value={pathMode}
+          onChange={(v) => setPathMode(v as 'off' | 'pred' | 'succ')}
+          options={[
+            { value: 'off', label: '路径' },
+            { value: 'pred', label: '前驱链' },
+            { value: 'succ', label: '后继链' },
+          ]}
+          data-testid="sched-gantt-path"
+        />
         <div style={{ flex: 1 }} />
         {/* 列显隐（刀C 双栏）：行号/名称固定，其余单列可藏让位画布 */}
         <Popover
@@ -476,25 +561,76 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult }> = ({
           </div>
           <div className="sched-gantt-tbody" ref={tbodyRef}>
             <div style={{ width: leftW }}>
-              {visibleIdx.map((i) => {
+              {(() => {
+                let synSeq = -1
+                return rows.map((r, rowIdx) => {
+                if (r.kind === 'group' && !r.key.startsWith('wbs:')) {
+                  // 合成组头行（分组模式）：名称+计数+汇总跨度，点击折叠/展开
+                  synSeq++
+                  const open = !collapsedKeys.has(r.key)
+                  return (
+                  <div
+                    key={r.key}
+                    data-testid={`sched-group-row-${rowIdx}`}
+                    className={`sched-gantt-row sched-group-row sched-group-c${synSeq % 6}`}
+                    style={{ height: ROW_H }}
+                    onClick={() => toggleCollapse(r.key)}
+                    title="点击折叠/展开该组"
+                  >
+                    <div style={{ width: W.no }} className="sched-gantt-cell sched-row-no" />
+                    <div style={{ width: W.name }} className="sched-gantt-cell">
+                      <span style={{ paddingLeft: r.level * 14, display: 'inline-flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                        <strong className="sched-group-name">{open ? '▲' : '▶'}{r.label}</strong>
+                        <span className="sched-dim" style={{ fontSize: 12 }}>{r.count} 项</span>
+                      </span>
+                    </div>
+                    {colOn('wbs') && <div style={{ width: W.wbs }} className="sched-gantt-cell sched-dim" />}
+                    {colOn('dur') && <div style={{ width: W.dur }} className="sched-gantt-cell"><span className="sched-dim">汇总</span></div>}
+                    {colOn('progress') && <div style={{ width: W.progress }} className="sched-gantt-cell" />}
+                    {colOn('start') && <div style={{ width: W.start }} className="sched-gantt-cell sched-dim">{cpm.ok ? fmtDate(project.startDate, r.minEs, cal) : ''}</div>}
+                    {colOn('finish') && <div style={{ width: W.finish }} className="sched-gantt-cell sched-dim">{cpm.ok ? fmtDate(project.startDate, r.maxEf, cal) : ''}</div>}
+                    {colOn('ls') && <div style={{ width: W.ls }} className="sched-gantt-cell" />}
+                    {colOn('lf') && <div style={{ width: W.lf }} className="sched-gantt-cell" />}
+                    {colOn('tf') && <div style={{ width: W.tf }} className="sched-gantt-cell" />}
+                    {colOn('ff') && <div style={{ width: W.ff }} className="sched-gantt-cell" />}
+                    {colOn('mode') && <div style={{ width: W.mode }} className="sched-gantt-cell" />}
+                    {colOn('preds') && <div style={{ width: W.preds }} className="sched-gantt-cell" />}
+                    {colOn('succ') && <div style={{ width: W.succ }} className="sched-gantt-cell" />}
+                    {colOn('cost') && <div style={{ width: W.cost }} className="sched-gantt-cell sched-cost-cell" />}
+                  </div>
+                  )
+                }
+                const i = r.kind === 'task' ? r.idx : Number(r.key.slice(4))
                 const t = project.tasks[i]
                 const row = cpm.rows[t.id]
-                const group = isGroupRow(project.tasks, i)
-                const span = group ? groupSpan(project, cpm, i) : null
+                const group = r.kind === 'group'
+                const span = group ? { es: r.minEs, ef: r.maxEf } : null
                 const manual = t.mode === 'manual'
                 const dur = t.isMilestone ? 0 : Math.max(0, Math.round(t.duration))
                 const colorCls = group ? ` sched-group-c${groupColorSeq[i]}` : ''
+                const dimCls = !group && rowDim(t.id) ? ' sched-row-dim' : ''
+                const groupKey = `wbs:${i}`
+                const groupOpen = !collapsedKeys.has(groupKey)
                 return (
                   <Dropdown key={t.id} trigger={['contextMenu']} menu={{ items: rowMenu(t, group), onClick: (e) => rowMenuClick(e.key, t) }}>
                   <div
-                    className={`sched-gantt-row${group ? ' sched-group-row' : ''}${colorCls}${selectedId === t.id ? ' sched-row-selected' : ''}`}
+                    className={`sched-gantt-row${group ? ' sched-group-row' : ''}${colorCls}${dimCls}${selectedId === t.id ? ' sched-row-selected' : ''}`}
                     style={{ height: ROW_H }}
                     onClick={() => select(t.id)}
                   >
                     <div style={{ width: W.no }} className="sched-gantt-cell sched-row-no">{i + 1}</div>
                     <div style={{ width: W.name }} className="sched-gantt-cell">
                       <span style={{ paddingLeft: t.level * 14, display: 'inline-flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
-                        {group ? <strong className="sched-group-name">▲{t.name}</strong> : (
+                        {group ? (
+                          <strong
+                            className="sched-group-name"
+                            style={{ cursor: 'pointer' }}
+                            onClick={(e) => { e.stopPropagation(); toggleCollapse(groupKey) }}
+                            title="点击折叠/展开"
+                          >
+                            {groupOpen ? '▲' : '▶'}{t.name}
+                          </strong>
+                        ) : (
                           <Input
                             size="small"
                             variant="borderless"
@@ -653,7 +789,9 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult }> = ({
                   </div>
                   </Dropdown>
                 )
-              })}
+                }
+              )
+              })()}
             </div>
           </div>
         </div>
@@ -678,15 +816,40 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult }> = ({
                 ))}
               </div>
             </div>
-            {visibleIdx.map((i) => {
+            {(() => {
+              let synSeq = -1
+              return rows.map((r) => {
+              if (r.kind === 'group' && !r.key.startsWith('wbs:')) {
+                synSeq++
+                return (
+                  <div
+                    key={r.key}
+                    className={`sched-gantt-row sched-group-row sched-group-c${synSeq % 6}`}
+                    style={{ height: ROW_H }}
+                    onClick={() => toggleCollapse(r.key)}
+                  >
+                    <div className="sched-bar-lane" style={{ width: chartW }}>
+                      {cpm.ok && (
+                        <div
+                          className="sched-summary-bar"
+                          style={{ left: dayNo(r.minEs) * dayW, width: Math.max((dayNo(r.maxEf) - dayNo(r.minEs)) * dayW, 8) }}
+                          title={`${r.label}：${r.count} 项（组汇总条）`}
+                        />
+                      )}
+                    </div>
+                  </div>
+                )
+              }
+              const i = r.kind === 'task' ? r.idx : Number(r.key.slice(4))
               const t = project.tasks[i]
               const row = cpm.rows[t.id]
-              const group = isGroupRow(project.tasks, i)
-              const span = group ? groupSpan(project, cpm, i) : null
+              const group = r.kind === 'group'
+              const span = group ? { es: r.minEs, ef: r.maxEf } : null
               const crit = !group && t.mode !== 'manual' && row?.critical
               const manual = t.mode === 'manual'
               const dur = t.isMilestone ? 0 : Math.max(0, Math.round(t.duration))
               const colorCls = group ? ` sched-group-c${groupColorSeq[i]}` : ''
+              const dimCls = !group && rowDim(t.id) ? ' sched-row-dim' : ''
               const baseRow = showBase && !group ? project.baseline?.rows[t.id] : undefined
               const isDrag = drag?.id === t.id
               const movePreview = isDrag && drag!.kind === 'move' ? drag!.preview : null
@@ -694,7 +857,7 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult }> = ({
               return (
                 <Dropdown key={t.id} trigger={['contextMenu']} menu={{ items: rowMenu(t, group), onClick: (e) => rowMenuClick(e.key, t) }}>
                 <div
-                  className={`sched-gantt-row${group ? ' sched-group-row' : ''}${colorCls}${selectedId === t.id ? ' sched-row-selected' : ''}`}
+                  className={`sched-gantt-row${group ? ' sched-group-row' : ''}${colorCls}${dimCls}${selectedId === t.id ? ' sched-row-selected' : ''}`}
                   style={{ height: ROW_H }}
                   onClick={() => select(t.id)}
                 >
@@ -765,8 +928,10 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult }> = ({
                 </div>
                 </Dropdown>
               )
-            })}
-            {visibleIdx.length === 0 && project.tasks.length > 0 && (
+              }
+            )
+            })()}
+            {rows.length === 0 && project.tasks.length > 0 && (
               <div className="sched-empty" data-testid="sched-gantt-filter-empty">没有符合筛选条件的任务（切回「全部」或清空搜索）</div>
             )}
             {/* 覆盖层：非工作日底纹 + 今日线 + 前锋线 + 搭接箭线 */}
@@ -781,7 +946,12 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult }> = ({
                   <rect key={`off${i}`} x={i * dayW} y={0} width={dayW} height={totalH + 40} className="sched-weekend" />
                 ))}
                 {linkPaths.map((p) => (
-                  <path key={p.key} d={p.d} className="sched-link-line" markerEnd="url(#sched-arrow)" />
+                  <path
+                    key={p.key}
+                    d={p.d}
+                    className={`sched-link-line${chainLinks ? (chainLinks.has(p.lk) ? ' sched-link-chain' : ' sched-link-dim') : ''}`}
+                    markerEnd="url(#sched-arrow)"
+                  />
                 ))}
                 {todayCol !== null && <line x1={todayCol * dayW} y1={0} x2={todayCol * dayW} y2={totalH + 40} className="sched-today-line" />}
                 {deadlineCol !== null && (

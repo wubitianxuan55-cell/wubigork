@@ -1,9 +1,11 @@
 /**
- * networkExport.test.ts — 网络图上报图面构建器（刀D2）
+ * networkExport.test.ts — 网络图上报图面构建器（刀D2 / v4.137.0 刀D4 增
+ * 里程碑旗标用例）
  *
  * 用例口径：DOMParser 解析 SVG 做结构断言；AOA 用 buildAoa 真引擎输出，
  * 断言时标几何（节点 x=留白+es×日宽）、波形=自由时差（虚工作尾段含 q 波形）、
  * 工程标尺四行与总工期红刻度；PDM 断言六格盒/虚拟 S/T/绑定红链/无时标。
+ * 里程碑旗标以 data-exp-flag 特征断言（横道/网络同款小旗）。
  * 循环依赖 fail-closed。
  */
 import { describe, expect, it } from 'vitest'
@@ -93,6 +95,20 @@ describe('buildAoaExportSvg 双代号时标', () => {
     const long = buildAoaExportSvg(proj(longTasks, []), longGraph)
     expect(long.w).toBe(40 + 201 * 59 + 20)
   })
+
+  it('里程碑旗标（v4.137.0 刀D4）：里程碑完成事件圈右上角一面小旗，非里程碑事件无', () => {
+    const graph = buildAoa(baseProj.tasks, baseProj.links)
+    const { svg } = buildAoaExportSvg(baseProj, graph)
+    const doc = parse(svg)
+    const flags = doc.querySelectorAll('[data-exp-flag]')
+    expect(flags.length, '仅里程碑 D 完成事件一面').toBe(1)
+    expect(flags[0].querySelector('line'), '旗杆竖线').toBeTruthy()
+    expect(flags[0].querySelector('polygon')!.getAttribute('fill'), '关键红').toBe(EXP_COLORS.critical)
+    // 旗贴事件圈右上角：旗杆 x = 事件 cx + AOA_R(16) + 3
+    const flagX = Number(flags[0].querySelector('line')!.getAttribute('x1'))
+    const xs = Array.from(doc.querySelectorAll('.sched-exp-aoa-node')).map((c) => Number(c.getAttribute('cx')))
+    expect(xs, '存在 cx=旗杆x-19 的事件圈').toContain(flagX - 16 - 3)
+  })
 })
 
 describe('buildPdmExportSvg 单代号', () => {
@@ -114,5 +130,21 @@ describe('buildPdmExportSvg 单代号', () => {
     const { svg } = buildPdmExportSvg(baseProj, cpm)
     expect(svg).toContain('单代号网络图')
     expect(() => buildPdmExportSvg(proj([], []), computeCpm([], []))).toThrow(/暂无任务/)
+  })
+
+  it('里程碑旗标（v4.137.0 刀D4）：里程碑六格盒右上角小旗、非里程碑盒无；里程碑名让位收窄', () => {
+    const cpm = computeCpm(baseProj.tasks, baseProj.links)
+    const { svg } = buildPdmExportSvg(baseProj, cpm)
+    const doc = parse(svg)
+    const flags = doc.querySelectorAll('[data-exp-flag]')
+    expect(flags.length, '仅里程碑 D 一面（A/B/C 盒无旗）').toBe(1)
+    expect(flags[0].querySelector('polygon')!.getAttribute('fill'), '关键红').toBe(EXP_COLORS.critical)
+    // D 盒 = 叶序第 3 个（A/B/D/C 按任务序出盒，排除虚拟 S/T）：旗杆 x=盒右缘-8、y=盒顶+4
+    const boxes = Array.from(doc.querySelectorAll('.sched-exp-pdm-node:not(.sched-exp-pdm-node-virtual)'))
+    const dBox = boxes[2]
+    expect(Number(flags[0].querySelector('line')!.getAttribute('x1')), '旗在盒右上角').toBe(Number(dBox.getAttribute('x')) + 150 - 8)
+    expect(Number(flags[0].querySelector('line')!.getAttribute('y1'))).toBe(Number(dBox.getAttribute('y')) + 4)
+    const texts = Array.from(doc.querySelectorAll('text')).map((n) => n.textContent ?? '')
+    expect(texts, '里程碑名带 ◆ 前缀（fit 宽度收窄 14px 给旗让位）').toContain('◆ 任务D')
   })
 })

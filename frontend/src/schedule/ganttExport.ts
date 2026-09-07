@@ -1,11 +1,13 @@
 /**
- * ganttExport.ts — 横道图上报图面构建器（纯函数 → SVG 字符串，v4.132.0 刀D1）
+ * ganttExport.ts — 横道图上报图面构建器（纯函数 → SVG 字符串，v4.132.0 刀D1 /
+ * v4.137.0 刀D4 增条尾标注与里程碑旗标）
  *
  * 对标真实上报件口径（MS Project 横道导出 / .gzp 时标计划）：
  *  - 标题带：图名 + 编制单位/编制日期；
  *  - 表格：上报 6 列（序号/任务名称/工期/开始/完成/前置），分组行汇总；
  *  - 图面：自然日双行时标（月/日）+ 非工作日底纹 + 关键红/普通蓝/手动灰条
- *    + 分组汇总条 + 里程碑菱形 + 总时差尾 + 依赖线 + 目标竣工线 + 今日线；
+ *    + 分组汇总条 + 里程碑菱形 + 里程碑小旗 + 条尾「任务名（N天）」标注
+ *    + 总时差尾 + 依赖线 + 目标竣工线 + 今日线；
  *  - 图脚：图例 + 图签（编制人/审核人/批准）。
  * 与 GanttView 同一套几何公式（dayNo 换算/条形 left/width/依赖线锚点），但独立
  * 实现——图面是发布物，不随工作台交互态（缩放/列显隐/拖拽预览）漂移。
@@ -24,6 +26,11 @@ export interface ExportMeta {
   reviewer?: string
   approver?: string
   date?: string
+  /**
+   * 横道条尾标注开关（v4.137.0 刀D4；仅横道图构建器消费，网络图忽略）：
+   * 缺省 true=叶任务条末端右侧标「任务名（N天）」（上报件口径默认带标注）。
+   */
+  barLabels?: boolean
 }
 
 export interface GanttExportSvg {
@@ -87,6 +94,27 @@ export function fitText(s: string, maxPx: number, fontPx: number): string {
   let out = s
   while (out.length > 1 && w(out + '…') > maxPx) out = out.slice(0, -1)
   return out + '…'
+}
+
+/** 估算文本像素宽（与 fitText 同一 CJK 全宽/半角 0.55 口径，用于排版前量宽） */
+function textWidth(s: string, fontPx: number): number {
+  let n = 0
+  for (const ch of s) n += ch.charCodeAt(0) > 0xff ? fontPx : fontPx * 0.55
+  return n
+}
+
+/**
+ * 里程碑小旗（v4.137.0 刀D4）：旗杆竖线 + 三角旗面，data-exp-flag 供导出
+ * 图面测试断言。(x,y)=旗杆顶点，poleH=杆高，fw/fh=旗面宽高（旗面自杆顶向右）；
+ * 颜色由调用方传 EXP_COLORS 现成色（横道=关键红，网络图各图面同款）。
+ */
+function expFlagSvg(x: number, y: number, poleH: number, fw: number, fh: number, color: string): string {
+  return (
+    `<g class="sched-exp-flag" data-exp-flag="1">` +
+    `<line x1="${x}" y1="${y}" x2="${x}" y2="${y + poleH}" stroke="${color}" stroke-width="1.5"/>` +
+    `<polygon points="${x},${y} ${x + fw},${y + fh / 2} ${x},${y + fh}" fill="${color}"/>` +
+    `</g>`
+  )
 }
 
 /** 分组行汇总跨度（子孙叶项 min ES / max EF，与 GanttView.groupSpan 同口径） */
@@ -167,6 +195,7 @@ export function exportTitleSvg(meta: ExportMeta, totalW: number, fallbackTitle: 
  */
 export function buildGanttExportSvg(project: SchedProject, cpm: CpmResult, meta: ExportMeta = {}): GanttExportSvg {
   if (!cpm.ok) throw new Error('计划存在循环依赖，导出前先修正搭接')
+  const barLabels = meta.barLabels !== false // 条尾标注缺省开启（上报件口径）
   const cal = project.calendar
   const norm = normalizeCalendar(cal)
   const startMs = new Date(`${project.startDate}T00:00:00Z`).getTime()
@@ -287,6 +316,8 @@ export function buildGanttExportSvg(project: SchedProject, cpm: CpmResult, meta:
       const cx = dayNo(row.es) * DAY_W
       const cy = yTop + ROW_H / 2
       out += `<polygon class="sched-exp-mile" points="${cx - 6.5},${cy} ${cx},${cy - 6.5} ${cx + 6.5},${cy} ${cx},${cy + 6.5}" fill="${C.ink}"/>`
+      // 里程碑旗标（上报口径恒带）：菱形右侧一面小旗（旗杆高 14，关键红）
+      out += expFlagSvg(cx + 12, cy - 7, 14, 8, 7, C.critical)
       return out
     }
     const crit = !manual && row.critical
@@ -295,6 +326,19 @@ export function buildGanttExportSvg(project: SchedProject, cpm: CpmResult, meta:
     out += `<rect class="sched-exp-bar${crit ? ' sched-exp-bar-crit' : ''}${manual ? ' sched-exp-bar-manual' : ''}" x="${bx}" y="${yTop + (ROW_H - 12) / 2}" width="${bw}" height="12" fill="${crit ? C.critical : manual ? C.barManual : C.bar}" rx="2"/>`
     if (!manual && row.tf > 0) {
       out += `<rect class="sched-exp-float" x="${dayNo(row.ef) * DAY_W}" y="${yTop + (ROW_H - 6) / 2}" width="${row.tf * DAY_W}" height="6" fill="${C.float}"/>`
+    }
+    // 条尾标注（缺省开启，meta.barLabels=false 关闭）：叶任务条末端右侧 +6px
+    // 标「任务名（N天）」，字号同表格小字口径（11px）、墨色深字与条面对比可读；
+    // 超出图面右界时改画条内右端白字——保持简单：只判右边界，宁可 fitText 截断。
+    if (barLabels) {
+      const label = `${t.name}（${dur}天）`
+      const outX = bx + bw + 6
+      const labelY = yTop + ROW_H / 2 + 4
+      if (outX + textWidth(label, 11) <= days * DAY_W) {
+        out += `<text class="sched-exp-bar-label" x="${outX}" y="${labelY}" font-family="${FONT}" font-size="11" fill="${C.ink}">${esc(label)}</text>`
+      } else {
+        out += `<text class="sched-exp-bar-label" x="${bx + bw - 6}" y="${labelY}" text-anchor="end" font-family="${FONT}" font-size="11" fill="white">${esc(fitText(label, Math.max(bw - 12, 1), 11))}</text>`
+      }
     }
     return out
   }

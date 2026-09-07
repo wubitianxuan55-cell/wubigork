@@ -1,5 +1,6 @@
 /**
- * ganttExport.test.ts — 横道图上报图面构建器（刀D1）
+ * ganttExport.test.ts — 横道图上报图面构建器（刀D1 / v4.137.0 刀D4 增
+ * 条尾标注与里程碑旗标用例）
  *
  * 用例口径：DOMParser 解析 SVG 字符串做结构断言（testid 类选择器），
  * 条形几何用 calendar.wdToDate 独立换算自然日偏移对照（验证接线公式
@@ -159,5 +160,64 @@ describe('buildGanttExportSvg 结构', () => {
     const art = buildGanttExportSvg(empty, cpm2)
     expect(art.h).toBeGreaterThan(0)
     expect(parse(art.svg).querySelectorAll('.sched-exp-bar').length).toBe(0)
+  })
+})
+
+describe('条尾标注与里程碑旗标（v4.137.0 刀D4）', () => {
+  it('条尾标注：叶任务条末端 +6px 标「任务名（N天）」，摘要/里程碑不标注', () => {
+    const cpm = computeCpm(baseProj.tasks, baseProj.links)
+    const { svg } = buildGanttExportSvg(baseProj, cpm)
+    const doc = parse(svg)
+    const labels = Array.from(doc.querySelectorAll('.sched-exp-bar-label')).map((n) => n.textContent ?? '')
+    expect(labels, '实体条 B/C/F 各一条').toHaveLength(3)
+    for (const s of ['任务B（3天）', '任务C（5天）', '任务F（2天）']) expect(labels, s).toContain(s)
+    expect(labels.some((s) => s.includes('任务D')), '里程碑走旗标不标注').toBe(false)
+    expect(labels.some((s) => s.includes('任务G')), '分组摘要条不标注').toBe(false)
+    // 位置口径：标注 x = 条末端（dayNo(ef)×14）+ 6
+    const xOf = (wd: number): number =>
+      Math.round((wdToDate(START, wd, baseProj.calendar).getTime() - new Date(`${START}T00:00:00Z`).getTime()) / 86400000) * 14
+    const cLabel = Array.from(doc.querySelectorAll('.sched-exp-bar-label')).find((n) => n.textContent === '任务C（5天）')
+    expect(cLabel, 'C 标注存在').toBeTruthy()
+    expect(cLabel!.getAttribute('x'), '条末端 +6px').toBe(String(xOf(cpm.rows.C!.ef) + 6))
+  })
+
+  it('条尾标注开关：meta.barLabels=false 不出标注；缺省（不传）=开启（向后兼容）', () => {
+    const cpm = computeCpm(baseProj.tasks, baseProj.links)
+    const off = buildGanttExportSvg(baseProj, cpm, { barLabels: false })
+    expect(off.svg, '关闭后无标注元素').not.toContain('sched-exp-bar-label')
+    expect(off.svg, '关闭后无「（N天）」文本').not.toContain('（3天）')
+    const on = buildGanttExportSvg(baseProj, cpm)
+    expect(on.svg, '不传 meta 仍带标注').toContain('任务B（3天）')
+  })
+
+  it('右界回退：条尾空间不足改画条内右端白字、超长名 fitText 截断', () => {
+    // 单任务 14 工作日（跨两个周末=18 自然日）→ 画布 days=max(21,21)=21 天、
+    // 右界 294px：条末端 252+6 放不下标注 → 回退条内右端（白字右对齐）
+    const p = proj([t('A', 14)], [])
+    p.tasks[0].name = '超'.repeat(60)
+    const cpm = computeCpm(p.tasks, p.links)
+    const { svg } = buildGanttExportSvg(p, cpm)
+    const doc = parse(svg)
+    const label = doc.querySelector('.sched-exp-bar-label')
+    expect(label, '回退条内右端').toBeTruthy()
+    expect(label!.getAttribute('text-anchor'), '右端对齐').toBe('end')
+    expect(label!.getAttribute('fill'), '条内白字').toBe('white')
+    expect(label!.textContent, '超长名截断加省略号').toContain('…')
+  })
+
+  it('里程碑旗标：菱形右侧一面小旗（data-exp-flag、关键红），非里程碑无', () => {
+    const cpm = computeCpm(baseProj.tasks, baseProj.links)
+    const { svg } = buildGanttExportSvg(baseProj, cpm)
+    const doc = parse(svg)
+    const flags = doc.querySelectorAll('[data-exp-flag]')
+    expect(flags.length, '仅里程碑 D 一面').toBe(1)
+    expect(flags[0].querySelector('line'), '旗杆竖线').toBeTruthy()
+    const flag = flags[0].querySelector('polygon')
+    expect(flag, '三角旗面').toBeTruthy()
+    expect(flag!.getAttribute('fill'), '关键红').toBe(EXP_COLORS.critical)
+    // 旗在菱形右侧 +12px（菱形外接半径 6.5，points 首点横坐标 = cx-6.5）
+    const mile = doc.querySelector('.sched-exp-mile')!
+    const cx = Number(mile.getAttribute('points')!.split(',')[0]) + 6.5
+    expect(Number(flags[0].querySelector('line')!.getAttribute('x1')), '旗杆贴菱形右侧').toBe(cx + 12)
   })
 })

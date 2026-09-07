@@ -1,5 +1,6 @@
 /**
- * networkExport.ts — 网络图上报图面构建器（纯函数 → SVG 字符串，v4.133.0 刀D2）
+ * networkExport.ts — 网络图上报图面构建器（纯函数 → SVG 字符串，v4.133.0 刀D2 /
+ * v4.137.0 刀D4 增里程碑旗标）
  *
  * 对标 .gzp 时标网络上报件（重庆干休所件口径）：双代号=时标网络+工程标尺
  * （工程日/月/日/星期四行，月界竖线贯通图面）；单代号=拓扑分层+六格节点
@@ -9,6 +10,8 @@
  * layerByTopology、盒尺寸与连线三段式同 PdmView 口径（isLinkBinding 本地
  * 同构副本，判定口径：后继日期恰由该搭接决定）。
  * 标题带/图签/调色板共用 ganttExport 导出件；全部纯函数零 DOM。
+ * v4.137.0 刀D4：里程碑节点加小旗标——单代号六格盒右上角、双代号里程碑
+ * 完成事件圈右上角（与横道菱形旗同款形状，本文件内重复实现，不建第三文件）。
  */
 import type { AoaGraph } from './aoa'
 import { AOA_R, AOA_ROW_H } from './aoa'
@@ -34,6 +37,20 @@ export interface NetworkExportSvg {
 
 /** AOA 左侧留白：工程标尺行名（工程日/月/日/星期）右对齐落位 */
 const AOA_LGUT = 40
+
+/**
+ * 里程碑小旗（与 ganttExport 内 expFlagSvg 同款形状的本文件副本）：旗杆竖线 +
+ * 三角旗面，data-exp-flag 供导出图面测试断言。(x,y)=旗杆顶点，poleH=杆高，
+ * fw/fh=旗面宽高（旗面自杆顶向右）；颜色传 EXP_COLORS 现成色（关键红）。
+ */
+function expFlagSvg(x: number, y: number, poleH: number, fw: number, fh: number, color: string): string {
+  return (
+    `<g class="sched-exp-flag" data-exp-flag="1">` +
+    `<line x1="${x}" y1="${y}" x2="${x}" y2="${y + poleH}" stroke="${color}" stroke-width="1.5"/>` +
+    `<polygon points="${x},${y} ${x + fw},${y + fh / 2} ${x},${y + fh}" fill="${color}"/>` +
+    `</g>`
+  )
+}
 
 /** PDM 节点盒尺寸（与 PdmView 同口径：六格标注法 150×92） */
 const PDM_NODE_W = 150
@@ -124,6 +141,18 @@ export function buildAoaExportSvg(project: SchedProject, graph: AoaGraph, meta: 
     net += `<text x="${n.x}" y="${n.y + 4}" text-anchor="middle" font-family="${FONT}" font-size="11" font-weight="600" fill="${C.ink}">${n.num}</text>`
     net += `<text x="${n.x}" y="${n.y - AOA_R - 6}" text-anchor="middle" font-family="${FONT}" font-size="10" fill="${C.dim}">${n.es}</text>`
     net += `<text x="${n.x}" y="${n.y + AOA_R + 14}" text-anchor="middle" font-family="${FONT}" font-size="10" fill="${C.dim}">${n.ls}</text>`
+  }
+  // 里程碑旗标：里程碑实工作箭线的完成事件圈右上角加缩小版小旗（杆高 10，
+  // 让开圈上方最早时间文本）；多里程碑共事件按事件去重只画一面
+  const mileEnds = new Set<string>()
+  for (const e of graph.edges) {
+    if (e.kind !== 'task' || !e.taskId) continue
+    const task = project.tasks.find((x) => x.id === e.taskId)
+    if (task?.isMilestone) mileEnds.add(e.to)
+  }
+  for (const nid of mileEnds) {
+    const n = nodeById.get(nid)
+    if (n) net += expFlagSvg(n.x + AOA_R + 3, n.y - AOA_R - 2, 10, 6, 5, C.critical)
   }
 
   // 工程标尺四行（列=工作日；非工作日不占列，与引擎时标口径一致）
@@ -290,7 +319,8 @@ export function buildPdmExportSvg(project: SchedProject, cpm: CpmResult, meta: E
     const cellH = (PDM_NODE_H - nameH) / 2
     let out = `<rect class="sched-exp-pdm-node${crit ? ' sched-exp-pdm-node-critical' : ''}" x="${x}" y="${y}" width="${PDM_NODE_W}" height="${PDM_NODE_H}" rx="4" fill="white" stroke="${crit ? C.critical : C.border}" stroke-width="${crit ? 1.8 : 1.2}"/>`
     out += `<text x="${x + 7}" y="${y + 17}" font-family="${FONT}" font-size="9" fill="${C.dim}">${rowNo.get(id) ?? ''}</text>`
-    out += `<text x="${x + 20}" y="${y + 17}" font-family="${FONT}" font-size="10.5" font-weight="600" fill="${C.ink}">${esc(fitText(`${t.isMilestone ? '◆ ' : ''}${t.name}`, PDM_NODE_W - 26, 10.5))}</text>`
+    // 里程碑名 fit 宽度收窄 14px：给右上角小旗让位，旗不压文字
+    out += `<text x="${x + 20}" y="${y + 17}" font-family="${FONT}" font-size="10.5" font-weight="600" fill="${C.ink}">${esc(fitText(`${t.isMilestone ? '◆ ' : ''}${t.name}`, PDM_NODE_W - 26 - (t.isMilestone ? 14 : 0), 10.5))}</text>`
     out += `<line x1="${x}" y1="${y + nameH}" x2="${x + PDM_NODE_W}" y2="${y + nameH}" stroke="${C.grid}"/>`
     out += `<line x1="${x}" y1="${y + nameH + cellH}" x2="${x + PDM_NODE_W}" y2="${y + nameH + cellH}" stroke="${C.grid}"/>`
     for (let i = 1; i < 3; i++) {
@@ -302,6 +332,10 @@ export function buildPdmExportSvg(project: SchedProject, cpm: CpmResult, meta: E
     ]
     for (const cell of cells) {
       out += `<text x="${x + cell.c * cellW + cellW / 2}" y="${y + nameH + cell.r * cellH + cellH / 2 + 4}" text-anchor="middle" font-family="${FONT}" font-size="11" fill="${cell.critMark && crit ? C.critical : C.ink}">${esc(cell.v)}</text>`
+    }
+    // 里程碑旗标（上报口径恒带）：六格盒右上角缩小版小旗（杆高 10，关键红）
+    if (t.isMilestone) {
+      out += expFlagSvg(x + PDM_NODE_W - 8, y + 4, 10, 6, 5, C.critical)
     }
     return out
   }

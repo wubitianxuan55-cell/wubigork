@@ -3,7 +3,8 @@
  * 纯函数 + 可注入 storage，刀11；v4.131 刀C 增横道双栏字段）
  *
  * 键 gaea.schedule.chatPrefs：{"collapsed":boolean,"width":number,
- * "ganttTableW":number,"ganttHide":string[]}。
+ * "ganttTableW":number,"ganttHide":string[],
+ * "ganttSort":{"field":string,"dir":"asc"|"desc"},"ganttGroup":string[]}。
  * 宽度钳位 320~680（窄了输入框挤压、宽了横道图不够用）；表格窗格宽度钳位
  * [行号+名称, 可见列总宽]；ganttHide 缺省=进度列收起（v4.135）；字段级容错——
  * 坏值回落缺省，单个字段坏不拖累另一个。
@@ -17,6 +18,10 @@ export interface ChatPrefs {
   ganttTableW: number
   /** 横道隐藏列键集（缺省=全显） */
   ganttHide: string[]
+  /** 横道排序（v4.136；缺省=不排序按原顺序） */
+  ganttSort: { field: string; dir: 'asc' | 'desc' }
+  /** 横道分组字段（v4.136；缺省=不分组；多级=数组顺序即层级，至多两级） */
+  ganttGroup: string[]
 }
 
 export const CHAT_PREFS_KEY = 'gaea.schedule.chatPrefs'
@@ -27,7 +32,30 @@ export const CHAT_WIDTH_DEFAULT = 420
 /** 缺省隐藏列：进度列默认收起（让位画布；列菜单可开） */
 const DEFAULT_HIDE: string[] = ['progress']
 
-const DEFAULTS: ChatPrefs = { collapsed: false, width: CHAT_WIDTH_DEFAULT, ganttTableW: GANTT_LEFT_W_FULL, ganttHide: DEFAULT_HIDE }
+const SORT_FIELDS = ['none', 'name', 'duration', 'start', 'progress', 'tf']
+const GROUP_FIELDS = ['critical', 'mode', 'milestone']
+
+const DEFAULTS: ChatPrefs = {
+  collapsed: false,
+  width: CHAT_WIDTH_DEFAULT,
+  ganttTableW: GANTT_LEFT_W_FULL,
+  ganttHide: DEFAULT_HIDE,
+  ganttSort: { field: 'none', dir: 'asc' },
+  ganttGroup: [],
+}
+
+function parseSort(o: unknown): ChatPrefs['ganttSort'] {
+  if (!o || typeof o !== 'object') return { ...DEFAULTS.ganttSort }
+  const s = o as { field?: unknown; dir?: unknown }
+  const field = typeof s.field === 'string' && SORT_FIELDS.includes(s.field) ? s.field : 'none'
+  const dir = s.dir === 'desc' ? 'desc' : 'asc'
+  return { field, dir }
+}
+
+function parseGroup(o: unknown): string[] {
+  if (!Array.isArray(o)) return []
+  return o.filter((v): v is string => typeof v === 'string' && GROUP_FIELDS.includes(v)).slice(0, 2)
+}
 
 /** 宽度钳位：非有限值/越界回落缺省与边界 */
 export function clampChatWidth(w: number): number {
@@ -45,6 +73,8 @@ function parse(raw: string | null): ChatPrefs {
       ganttTableW: clampTableW(typeof o.ganttTableW === 'number' ? o.ganttTableW : NaN, GANTT_LEFT_W_FULL),
       // 存量数据无 ganttHide 字段时回落缺省隐藏集；已有数组则逐项容错
       ganttHide: Array.isArray(o.ganttHide) ? sanitizeHide(o.ganttHide) : [...DEFAULT_HIDE],
+      ganttSort: parseSort(o.ganttSort),
+      ganttGroup: parseGroup(o.ganttGroup),
     }
   } catch {
     return { ...DEFAULTS }
@@ -70,6 +100,8 @@ export function saveChatPrefs(patch: Partial<ChatPrefs>, storage?: Pick<Storage,
     width: patch.width !== undefined ? clampChatWidth(patch.width) : base.width,
     ganttTableW: patch.ganttTableW !== undefined ? clampTableW(patch.ganttTableW, GANTT_LEFT_W_FULL) : base.ganttTableW,
     ganttHide: patch.ganttHide !== undefined ? sanitizeHide(patch.ganttHide) : base.ganttHide,
+    ganttSort: patch.ganttSort !== undefined ? parseSort(patch.ganttSort) : base.ganttSort,
+    ganttGroup: patch.ganttGroup !== undefined ? parseGroup(patch.ganttGroup) : base.ganttGroup,
   }
   const s = storage ?? (typeof localStorage !== 'undefined' ? localStorage : undefined)
   try {

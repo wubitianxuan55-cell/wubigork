@@ -240,3 +240,102 @@ describe('GanttView 刀C 余项（筛选/右键菜单/进度）', () => {
     expect(useScheduleStore.getState().project.tasks[0].progress).toBe(60)
   })
 })
+
+/** 分组样板：G(土建){A(3)→B(2)→C(4)} + 独立 D(1)。A/B/C 关键（tf=0），D tf=8 非关键 */
+function groupProject(): SchedProject {
+  return {
+    name: '分组样板',
+    startDate: '2026-09-07',
+    tasks: [
+      { id: 'G', name: '土建', duration: 0, level: 0, progress: 0 },
+      { id: 'A', name: '挖土', duration: 3, level: 1, progress: 0 },
+      { id: 'B', name: '垫层', duration: 2, level: 1, progress: 0 },
+      { id: 'C', name: '浇筑', duration: 4, level: 1, progress: 0 },
+      { id: 'D', name: '独立项', duration: 1, level: 1, progress: 0 },
+    ],
+    links: [
+      { from: 'A', to: 'B', type: 'FS', lag: 0 },
+      { from: 'B', to: 'C', type: 'FS', lag: 0 },
+    ],
+  }
+}
+
+/** 表格数据行的行名 Input 值（叶行） */
+function rowNames(): string[] {
+  const rows = screen.getByTestId('sched-gantt-table').querySelectorAll('.sched-gantt-row:not(.sched-gantt-head)')
+  return Array.from(rows).map((r) => {
+    const inp = r.querySelector('.sched-gantt-cell input') as HTMLInputElement | null
+    return inp ? inp.value : (r.querySelector('.sched-group-name')?.textContent ?? '')
+  })
+}
+
+describe('GanttView v4.136 小刀（排序/分组/折叠/路径/检查器）', () => {
+  beforeEach(() => {
+    localStorage.removeItem(CHAT_PREFS_KEY)
+    useScheduleStore.setState({ project: groupProject(), selectedId: null, hydrated: true, sync: 'saved', syncError: null, past: [], future: [] })
+  })
+
+  it('排序持久化读：ganttSort=工期降序 → 组内叶序 C(4)、A(3)、B(2)，组头不动', () => {
+    localStorage.setItem(CHAT_PREFS_KEY, JSON.stringify({
+      collapsed: false, width: 420, ganttTableW: GANTT_LEFT_W_FULL, ganttHide: ['progress'],
+      ganttSort: { field: 'duration', dir: 'desc' }, ganttGroup: [],
+    }))
+    const p = groupProject()
+    render(<GanttView project={p} cpm={computeCpm(p.tasks, p.links)} />)
+    expect(rowNames()).toEqual(['▲土建', '浇筑', '挖土', '垫层', '独立项'])
+  })
+
+  it('多级分组（受控渲染）：直接以 localStorage 预置 ganttGroup → 合成组头行 + 汇总跨度', () => {
+    localStorage.setItem(CHAT_PREFS_KEY, JSON.stringify({
+      collapsed: false, width: 420, ganttTableW: GANTT_LEFT_W_FULL, ganttHide: ['progress'],
+      ganttSort: { field: 'none', dir: 'asc' }, ganttGroup: ['critical'],
+    }))
+    const p = groupProject()
+    render(<GanttView project={p} cpm={computeCpm(p.tasks, p.links)} />)
+    expect(rowNames()).toEqual(['▲关键: 是', '挖土', '垫层', '浇筑', '▲关键: 否', '独立项'])
+    // 折叠「关键: 是」组头 → 该组 3 叶消失，组头与「关键: 否」组保留
+    fireEvent.click(screen.getAllByText('关键: 是', { exact: false })[0])
+    expect(rowNames()).toEqual(['▶关键: 是', '▲关键: 否', '独立项'])
+    fireEvent.click(screen.getAllByText('关键: 是', { exact: false })[0])
+    expect(rowNames()).toEqual(['▲关键: 是', '挖土', '垫层', '浇筑', '▲关键: 否', '独立项'])
+  })
+
+  it('大纲折叠：点击 WBS 组头名折叠/展开直接子叶（v4.136 顺带销项）', () => {
+    const p = groupProject()
+    render(<GanttView project={p} cpm={computeCpm(p.tasks, p.links)} />)
+    expect(rowNames()).toHaveLength(5)
+    fireEvent.click(screen.getByText('土建', { exact: false }))
+    expect(rowNames()).toEqual(['▶土建'])
+    fireEvent.click(screen.getByText('土建', { exact: false }))
+    expect(rowNames()).toHaveLength(5)
+  })
+
+  it('路径分析：选中 B 开前驱链 → 链外 C 行淡化为 sched-row-dim，链上依赖线 sched-link-chain', () => {
+    const p = chainProject()
+    useScheduleStore.setState({ project: p, selectedId: 'B' })
+    render(<GanttView project={p} cpm={computeCpm(p.tasks, p.links)} />)
+    fireEvent.click(screen.getByTestId('sched-gantt-path').querySelectorAll('input, [role=radio], button')[1])
+    const rows = screen.getByTestId('sched-gantt-table').querySelectorAll('.sched-gantt-row:not(.sched-gantt-head)')
+    expect(rows[0].className).not.toContain('sched-row-dim') // A 链上
+    expect(rows[1].className).not.toContain('sched-row-dim') // B 锚点
+    expect(rows[2].className).toContain('sched-row-dim') // C 链外
+    const canvas = screen.getByTestId('sched-gantt-canvas')
+    expect(canvas.querySelectorAll('path.sched-link-chain')).toHaveLength(1) // A→B
+    expect(canvas.querySelectorAll('path.sched-link-dim')).toHaveLength(1) // B→C
+    // 切回「路径」档 → 全部还原
+    fireEvent.click(screen.getByTestId('sched-gantt-path').querySelectorAll('input, [role=radio], button')[0])
+    expect(rows[2].className).not.toContain('sched-row-dim')
+  })
+
+  it('右键菜单「任务检查器」回调 onInspect（叶行）；路径关闭时无淡化类', () => {
+    let inspectResult = ''
+    const onInspect = (id: string) => { inspectResult = id }
+    const p = chainProject()
+    render(<GanttView project={p} cpm={computeCpm(p.tasks, p.links)} onInspect={onInspect} />)
+    const rows = screen.getByTestId('sched-gantt-table').querySelectorAll('.sched-gantt-row:not(.sched-gantt-head)')
+    expect(rows[0].className).not.toContain('sched-row-dim')
+    fireEvent.contextMenu(rows[0])
+    fireEvent.click(screen.getAllByText('任务检查器').pop()!)
+    expect(inspectResult).toBe('A')
+  })
+})

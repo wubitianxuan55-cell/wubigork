@@ -20,9 +20,12 @@ import { buildAoa } from '../schedule/aoa'
 import { buildProjectXml, parseProjectXml } from '../schedule/mspdi'
 import { computeBaselineDrift } from '../schedule/baseline'
 import { checkDeadline, planFinishOf } from '../schedule/deadline'
-import type { CpmResult, SchedProject } from '../schedule/types'
+import type { CpmResult, SchedLink, SchedProject } from '../schedule/types'
 import type { AoaGraph } from '../schedule/aoa'
 import { useScheduleStore, isGroupRow, initScheduleSync } from '../schedule/store'
+import { depFreeSlacks, drivingLinkKeys, linkKey } from '../schedule/pathDriver'
+import { TaskInspector, type InspectorDepRow } from '../schedule/TaskInspector'
+import { wbsOf } from '../schedule/ganttGroup'
 import { buildGanttExportSvg } from '../schedule/ganttExport'
 import { buildAoaExportSvg, buildPdmExportSvg } from '../schedule/networkExport'
 import { svgToPngBlob, svgToPdfBlob, downloadBlob, printSvg } from '../schedule/exportArtifact'
@@ -222,6 +225,8 @@ const ExportDialog: React.FC<{
   const [msg, setMsg] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [kind, setKind] = useState<ExportKind>(defaultView)
+  /** 横道条尾标注（v4.136 PDF 对比余项：任务名（工期）写在条上；网络图不受控） */
+  const [barLabels, setBarLabels] = useState(true)
   useEffect(() => {
     if (open) setKind(defaultView) // 每次打开跟随当前视图
   }, [open, defaultView])
@@ -234,7 +239,7 @@ const ExportDialog: React.FC<{
     setBusy(true)
     setMsg(null)
     try {
-      const m = { ...meta, date: meta.date || todayIso() }
+      const m = { ...meta, date: meta.date || todayIso(), barLabels }
       const art = kind === 'gantt'
         ? buildGanttExportSvg(project, cpm, m)
         : kind === 'aoa'
@@ -285,6 +290,15 @@ const ExportDialog: React.FC<{
             <Input size="small" value={meta.approver} onChange={setField('approver')} placeholder="（可空）" />
           </label>
         </div>
+        {kind === 'gantt' && (
+          <Checkbox
+            checked={barLabels}
+            onChange={(e) => setBarLabels(e.target.checked)}
+            data-testid="sched-export-barlabels"
+          >
+            条尾标注（任务名与工期写在条上）
+          </Checkbox>
+        )}
         <Space size={8}>
           <Button type="primary" loading={busy} data-testid="sched-export-png" onClick={() => void run('png')}>导出 PNG</Button>
           <Button data-testid="sched-export-pdf" disabled={busy} onClick={() => void run('pdf')}>导出 PDF</Button>
@@ -318,6 +332,8 @@ const SchedulePage: React.FC = () => {
   const fileRef = useRef<HTMLInputElement>(null)
   const [importMsg, setImportMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [exportOpen, setExportOpen] = useState(false)
+  /** 任务检查器（v4.136 小刀）：inspectId=正在检查的任务；右键菜单「任务检查器」/检查器内点前置名跳转 */
+  const [inspectId, setInspectId] = useState<string | null>(null)
   const hydrated = useScheduleStore((s) => s.hydrated)
   const sync = useScheduleStore((s) => s.sync)
   const savedAt = useScheduleStore((s) => s.savedAt)
@@ -379,6 +395,27 @@ const SchedulePage: React.FC = () => {
 
   const selected = project.tasks.find((t) => t.id === selectedId) ?? null
   const selectedIsGroup = selected ? isGroupRow(project.tasks, project.tasks.findIndex((t) => t.id === selected!.id)) : false
+
+  // 任务检查器数据（v4.136）：逐依赖自由时差 + 驱动标记（ProjectLibre E8 口径）。
+  // 只查叶任务（分组行无排程语义）；驱动边=ff===0 且后继 auto——即「绑定了本任务日期」的那条搭接。
+  const inspectTask = inspectId ? project.tasks.find((t) => t.id === inspectId) ?? null : null
+  const inspectorData = useMemo(() => {
+    if (!inspectTask || inspectTask.level === 0) return null
+    const slacks = depFreeSlacks(project.tasks, project.links, cpm)
+    const driving = drivingLinkKeys(project.tasks, project.links, cpm)
+    const mkRow = (l: SchedLink, otherId: string): InspectorDepRow => ({
+      link: l,
+      otherId,
+      otherName: project.tasks.find((t) => t.id === otherId)?.name ?? otherId,
+      freeSlack: slacks[linkKey(l)] ?? 0,
+      driving: driving.has(linkKey(l)),
+    })
+    return {
+      predecessors: project.links.filter((l) => l.to === inspectTask.id).map((l) => mkRow(l, l.from)),
+      successors: project.links.filter((l) => l.from === inspectTask.id).map((l) => mkRow(l, l.to)),
+    }
+  }, [inspectTask, project.tasks, project.links, cpm])
+  const select = useScheduleStore((s) => s.select)
 
   const exportXml = () => {
     const xml = buildProjectXml(project, cpm.rows)
@@ -618,9 +655,23 @@ const SchedulePage: React.FC = () => {
         <Alert type="error" showIcon message={cpm.error} description="请修正搭接关系后重试；网络图视图在循环解除前不可用。" />
       )}
 
-      {view === 'gantt' && <GanttView project={project} cpm={cpm} />}
+      {view === 'gantt' && <GanttView project={project} cpm={cpm} onInspect={setInspectId} />}
       {view === 'pdm' && <PdmView project={project} cpm={cpm} />}
       {view === 'aoa' && <AoaView graph={aoa} tasks={project.tasks} />}
+
+      {/* 任务检查器（v4.136）：该任务日期由哪条搭接决定 + 前驱/后继可点击跳转 */}
+      <TaskInspector
+        open={!!inspectTask && inspectTask.level > 0 && !!inspectorData}
+        task={inspectTask && inspectTask.level > 0 ? inspectTask : null}
+        row={inspectTask ? cpm.rows[inspectTask.id] ?? null : null}
+        wbs={inspectTask ? wbsOf(project.tasks)[project.tasks.findIndex((t) => t.id === inspectTask.id)] : undefined}
+        predecessors={inspectorData?.predecessors ?? []}
+        successors={inspectorData?.successors ?? []}
+        startDate={project.startDate}
+        calendar={project.calendar}
+        onClose={() => setInspectId(null)}
+        onNavigate={(id) => { setInspectId(id); select(id) }}
+      />
 
       {/* 底部状态栏（斑马口径：共 N 项工作总工期 N 天 + 关键/工作制常驻） */}
       <div className="sched-statusbar">
