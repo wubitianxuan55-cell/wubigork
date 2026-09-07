@@ -32,8 +32,10 @@ export interface GanttExportSvg {
   h: number
 }
 
-const M = 20 // 页边距
-const TITLE_H = 60
+export const EXP_MARGIN = 20 // 图面页边距（网络图导出共用）
+const M = EXP_MARGIN
+export const EXP_TITLE_H = 60 // 标题带高（共用）
+const TITLE_H = EXP_TITLE_H
 const HEAD_H = 44 // 双行时标：月 22 + 日 22
 const ROW_H = 30
 const FOOT_H = 76 // 图例 + 图签 + 底边距
@@ -50,7 +52,7 @@ const EXP_COLS: { key: string; label: string; w: number }[] = [
 ]
 const TABLE_W = EXP_COLS.reduce((s, c) => s + c.w, 0)
 
-const C = {
+export const EXP_COLORS = {
   ink: '#0f172a',
   border: '#475569',
   grid: '#e2e8f0',
@@ -66,14 +68,16 @@ const C = {
   today: '#10b981',
   dim: '#64748b',
 }
-const FONT = "system-ui, 'Microsoft YaHei', sans-serif"
+const C = EXP_COLORS
+export const EXP_FONT = "system-ui, 'Microsoft YaHei', sans-serif"
+const FONT = EXP_FONT
 
-function esc(s: string): string {
+export function esc(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 }
 
 /** 估算文本像素宽（CJK 全宽、半角 0.55），超出 maxPx 截断加省略号 */
-function fitText(s: string, maxPx: number, fontPx: number): string {
+export function fitText(s: string, maxPx: number, fontPx: number): string {
   const w = (t: string): number => {
     let n = 0
     for (const ch of t) n += ch.charCodeAt(0) > 0xff ? fontPx : fontPx * 0.55
@@ -124,12 +128,17 @@ function footSvg(meta: ExportMeta, dataBottomY: number, totalW: number): string 
     out += `<text x="${x + 24}" y="${y + 4}" font-family="${FONT}" font-size="11" fill="${C.ink}">${it.label}</text>`
     x += 24 + it.label.length * 11 + 18
   }
-  // 图签（右下）：编制人 | 审核人 | 批准，空值留白=签章位
+  out += exportSignSvg(meta, y, totalW)
+  return out
+}
+
+/** 图签（右下三格）：编制人 | 审核人 | 批准，空值留白=签章位（各图面共用） */
+export function exportSignSvg(meta: ExportMeta, y: number, totalW: number): string {
   const cells: [string, string][] = [['编制人', meta.designer ?? ''], ['审核人', meta.reviewer ?? ''], ['批准', meta.approver ?? '']]
   const cw = 104
   const ch = 34
   const bx = totalW - M - cells.length * cw
-  out += `<g class="sched-exp-sign">`
+  let out = `<g class="sched-exp-sign">`
   for (let i = 0; i < cells.length; i++) {
     const cx = bx + i * cw
     out += `<rect x="${cx}" y="${y - 8}" width="${cw}" height="${ch}" fill="white" stroke="${C.border}"/>`
@@ -139,6 +148,17 @@ function footSvg(meta: ExportMeta, dataBottomY: number, totalW: number): string 
     }
   }
   out += `</g>`
+  return out
+}
+
+/** 标题带（图名居中 + 编制单位/编制日期有值才显示；各图面共用） */
+export function exportTitleSvg(meta: ExportMeta, totalW: number, fallbackTitle: string): string {
+  const title = meta.title?.trim() || fallbackTitle
+  let out = `<text x="${totalW / 2}" y="30" text-anchor="middle" font-family="${FONT}" font-size="18" font-weight="700" fill="${C.ink}">${esc(fitText(title, totalW - M * 2, 18))}</text>`
+  const metaParts = [meta.org?.trim() ? `编制单位：${meta.org.trim()}` : '', meta.date?.trim() ? `编制日期：${meta.date.trim()}` : ''].filter(Boolean)
+  if (metaParts.length > 0) {
+    out += `<text x="${totalW / 2}" y="50" text-anchor="middle" font-family="${FONT}" font-size="12" fill="${C.dim}">${esc(metaParts.join('\u3000\u3000'))}</text>`
+  }
   return out
 }
 
@@ -305,13 +325,8 @@ export function buildGanttExportSvg(project: SchedProject, cpm: CpmResult, meta:
     overlay += `<line class="sched-exp-deadline" x1="${deadlineOff * DAY_W + DAY_W}" y1="0" x2="${deadlineOff * DAY_W + DAY_W}" y2="${gridH}" stroke="${C.deadline}" stroke-width="1.2" stroke-dasharray="5 4"/>`
   }
 
-  // 标题带
-  const title = meta.title?.trim() || `${project.name || '进度计划'}\u3000施工进度计划横道图`
-  let head = `<text x="${totalW / 2}" y="30" text-anchor="middle" font-family="${FONT}" font-size="18" font-weight="700" fill="${C.ink}">${esc(fitText(title, totalW - M * 2, 18))}</text>`
-  const metaParts = [meta.org?.trim() ? `编制单位：${meta.org.trim()}` : '', meta.date?.trim() ? `编制日期：${meta.date.trim()}` : ''].filter(Boolean)
-  if (metaParts.length > 0) {
-    head += `<text x="${totalW / 2}" y="50" text-anchor="middle" font-family="${FONT}" font-size="12" fill="${C.dim}">${esc(metaParts.join('　　'))}</text>`
-  }
+  // 标题带（共用 helper，缺省图名按图种给）
+  const head = exportTitleSvg(meta, totalW, `${project.name || '进度计划'}\u3000施工进度计划横道图`)
 
   const svg =
     `<svg xmlns="http://www.w3.org/2000/svg" width="${totalW}" height="${totalH}" viewBox="0 0 ${totalW} ${totalH}" class="sched-exp-gantt">` +

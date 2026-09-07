@@ -21,8 +21,10 @@ import { buildProjectXml, parseProjectXml } from '../schedule/mspdi'
 import { computeBaselineDrift } from '../schedule/baseline'
 import { checkDeadline, planFinishOf } from '../schedule/deadline'
 import type { CpmResult, SchedProject } from '../schedule/types'
+import type { AoaGraph } from '../schedule/aoa'
 import { useScheduleStore, isGroupRow, initScheduleSync } from '../schedule/store'
 import { buildGanttExportSvg } from '../schedule/ganttExport'
+import { buildAoaExportSvg, buildPdmExportSvg } from '../schedule/networkExport'
 import { svgToPngBlob, svgToPdfBlob, downloadBlob, printSvg } from '../schedule/exportArtifact'
 import { loadExportMeta, saveExportMeta, todayIso, type ExportMetaPrefs } from '../schedule/exportMeta'
 import { ResourcePanel } from '../schedule/ResourcePanel'
@@ -196,30 +198,53 @@ const BaselinePanel: React.FC<{ cpm: CpmResult }> = ({ cpm }) => {
 }
 
 /**
- * 图面导出弹层（v4.132.0 刀D1）：横道图上报件三出口 PNG/PDF/打印。
- * 签署字段（编制单位/人/审核/批准/日期）持久化 exportMeta；构建走
- * ganttExport 纯函数——图面是发布物，不随工作台交互态漂移。
+ * 图面导出弹层（v4.132.0 刀D1 / v4.133.0 刀D2）：三图面 × 三出口。
+ * 图面类型（横道图/双代号时标网络/单代号网络）默认跟随当前视图；签署字段
+ * （编制单位/人/审核/批准/日期）持久化 exportMeta；构建走 ganttExport /
+ * networkExport 纯函数——图面是发布物，不随工作台交互态漂移。
  */
-const ExportDialog: React.FC<{ open: boolean; onClose: () => void; project: SchedProject; cpm: CpmResult }> = ({ open, onClose, project, cpm }) => {
+type ExportKind = 'gantt' | 'aoa' | 'pdm'
+const EXPORT_KIND_LABEL: Record<ExportKind, string> = { gantt: '横道图', aoa: '双代号网络图', pdm: '单代号网络图' }
+const EXPORT_KIND_FILE: Record<ExportKind, string> = {
+  gantt: '施工进度计划横道图', aoa: '双代号时标网络图', pdm: '单代号网络图',
+}
+
+const ExportDialog: React.FC<{
+  open: boolean
+  onClose: () => void
+  project: SchedProject
+  cpm: CpmResult
+  aoa: AoaGraph
+  defaultView: 'gantt' | 'pdm' | 'aoa'
+}> = ({ open, onClose, project, cpm, aoa, defaultView }) => {
   const [meta, setMeta] = useState<ExportMetaPrefs>(loadExportMeta)
   const [msg, setMsg] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
-  const base = `${project.name || '进度计划'}-施工进度计划横道图`
+  const [kind, setKind] = useState<ExportKind>(defaultView)
+  useEffect(() => {
+    if (open) setKind(defaultView) // 每次打开跟随当前视图
+  }, [open, defaultView])
 
   const setField = (k: keyof ExportMetaPrefs) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setMeta((p) => ({ ...p, [k]: e.target.value }))
 
-  const run = async (kind: 'png' | 'pdf' | 'print') => {
+  const run = async (out: 'png' | 'pdf' | 'print') => {
     if (!cpm.ok) { setMsg('计划存在循环依赖，导出前先修正搭接'); return }
     setBusy(true)
     setMsg(null)
     try {
-      const art = buildGanttExportSvg(project, cpm, { ...meta, date: meta.date || todayIso() })
-      if (kind === 'print') printSvg(art.svg)
-      else if (kind === 'png') downloadBlob(await svgToPngBlob(art.svg), `${base}.png`)
+      const m = { ...meta, date: meta.date || todayIso() }
+      const art = kind === 'gantt'
+        ? buildGanttExportSvg(project, cpm, m)
+        : kind === 'aoa'
+          ? buildAoaExportSvg(project, aoa, m)
+          : buildPdmExportSvg(project, cpm, m)
+      const base = `${project.name || '进度计划'}-${EXPORT_KIND_FILE[kind]}`
+      if (out === 'print') printSvg(art.svg)
+      else if (out === 'png') downloadBlob(await svgToPngBlob(art.svg), `${base}.png`)
       else downloadBlob(await svgToPdfBlob(art.svg), `${base}.pdf`)
       saveExportMeta(meta)
-      setMsg(kind === 'print' ? '已唤起系统打印（目标选「另存为 PDF」可得 PDF 文件）' : '已导出')
+      setMsg(out === 'print' ? '已唤起系统打印（目标选「另存为 PDF」可得 PDF 文件）' : '已导出')
     } catch (e) {
       setMsg(`导出失败：${e instanceof Error ? e.message : String(e)}`)
     } finally {
@@ -228,10 +253,19 @@ const ExportDialog: React.FC<{ open: boolean; onClose: () => void; project: Sche
   }
 
   return (
-    <Modal open={open} onCancel={onClose} title="导出图面（横道图上报件）" footer={null} width={520} destroyOnClose>
+    <Modal open={open} onCancel={onClose} title="导出图面（上报件）" footer={null} width={520} destroyOnClose>
       <div className="sched-export-modal" data-testid="sched-export-modal" style={{ display: 'grid', gap: 10 }}>
+        <Segmented
+          value={kind}
+          onChange={(v) => setKind(v as ExportKind)}
+          options={(Object.keys(EXPORT_KIND_LABEL) as ExportKind[]).map((k) => ({ value: k, label: EXPORT_KIND_LABEL[k] }))}
+        />
         <span className="sched-dim" style={{ fontSize: 12 }}>
-          按上报口径输出：标题带 + 上报 6 列（序号/任务名称/工期/开始/完成/前置）+ 双行时标 + 图例 + 图签。
+          {kind === 'gantt'
+            ? '横道图：标题带 + 上报 6 列（序号/任务名称/工期/开始/完成/前置）+ 双行时标 + 图例 + 图签。'
+            : kind === 'aoa'
+              ? '双代号：时标网络（1 格=1 天，波形线=自由时差）+ 工程标尺（工程日/月/日/星期）+ 图例 + 图签。'
+              : '单代号：拓扑分层 + 六格节点（ES/工期/EF·LS/总时差/LF）+ 绑定红链 + 图例 + 图签。'}
         </span>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
           <label style={{ display: 'grid', gap: 2, fontSize: 12 }}><span className="sched-dim">编制单位</span>
@@ -487,7 +521,7 @@ const SchedulePage: React.FC = () => {
         <Tooltip title="导出为 MS Project XML（可被 Project / 斑马进度打开）">
           <Button size="small" icon={<ExportOutlined />} onClick={exportXml}>导出 XML</Button>
         </Tooltip>
-        <Tooltip title="导出横道图上报图面：标题带 + 上报 6 列 + 图例 + 图签（PNG / PDF / 打印）">
+        <Tooltip title="导出上报图面：横道图 / 双代号时标网络（含工程标尺）/ 单代号网络（PNG / PDF / 打印）">
           <Button size="small" icon={<FileImageOutlined />} data-testid="sched-export-btn" onClick={() => setExportOpen(true)}>导出图面</Button>
         </Tooltip>
         <div className="sched-tool-divider" />
@@ -508,7 +542,7 @@ const SchedulePage: React.FC = () => {
           onClose={() => setImportMsg(null)}
         />
       )}
-      <ExportDialog open={exportOpen} onClose={() => setExportOpen(false)} project={project} cpm={cpm} />
+      <ExportDialog open={exportOpen} onClose={() => setExportOpen(false)} project={project} cpm={cpm} aoa={aoa} defaultView={view} />
       {!cpm.ok && cpm.error && (
         <Alert type="error" showIcon message={cpm.error} description="请修正搭接关系后重试；网络图视图在循环解除前不可用。" />
       )}

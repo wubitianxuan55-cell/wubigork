@@ -134,3 +134,34 @@ describe('buildAoa 真时标布局（v4.130 刀H G4 前提）', () => {
     expect(g.nodes.some((n) => n.x === AOA_MARGIN + 5 * AOA_COL_W)).toBe(true)
   })
 })
+
+describe('buildAoa 逆推锚点（v4.133 修正：total 取自正推后）', () => {
+  it('长链：逆推自计算工期起，全部事件 ls≥0 且 T 事件 es=ls=计算工期', () => {
+    // 修正前：total 用注册初始 es（=单任务工期 4），逆推整体平移 -5 出假负时差
+    const g = buildAoa([t('A', 3), t('B', 2), t('C', 4)], [l('A', 'B'), l('B', 'C')])
+    expect(g.ok).toBe(true)
+    expect(Math.max(...g.nodes.map((n) => n.es))).toBe(9)
+    const endT = g.nodes.find((n) => n.anchor === 'T')!
+    expect(endT.es).toBe(9)
+    expect(endT.ls).toBe(9)
+    expect(Math.min(...g.nodes.map((n) => n.ls)), '无假负时差').toBeGreaterThanOrEqual(0)
+  })
+
+  it('planFinish < 计算工期：逆推真从 Tp 锚起（S 事件 ls=Tp−Tc）', () => {
+    const g = buildAoa([t('A', 3), t('B', 2)], [l('A', 'B')], { planFinish: 4 })
+    const startS = g.nodes.find((n) => n.anchor === 'S')!
+    expect(startS.ls).toBe(-1) // 4 − 5
+    // 关键箭线（真浮时 0）：A、B 与汇出虚工作（虚工作可为关键线路一段）
+    const crit = g.edges.filter((e) => e.critical)
+    expect(crit).toHaveLength(3)
+    expect(crit.map((e) => e.taskId)).toContain('A')
+    expect(crit.map((e) => e.taskId)).toContain('B')
+  })
+
+  it('planFinish ≥ 计算工期：不收紧，逆推仍自 Tc 起（ls(S)=0）', () => {
+    const g = buildAoa([t('A', 3), t('B', 2)], [l('A', 'B')], { planFinish: 8 })
+    const startS = g.nodes.find((n) => n.anchor === 'S')!
+    expect(startS.ls).toBe(0)
+    expect(Math.min(...g.nodes.map((n) => n.ls))).toBeGreaterThanOrEqual(0)
+  })
+})

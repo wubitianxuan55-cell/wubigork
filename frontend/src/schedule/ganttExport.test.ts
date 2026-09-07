@@ -6,7 +6,7 @@
  * left=dayNo×14/width=ΔdayNo×14，DAY_W=14）；循环依赖 fail-closed。
  */
 import { describe, expect, it } from 'vitest'
-import { buildGanttExportSvg } from './ganttExport'
+import { buildGanttExportSvg, EXP_COLORS } from './ganttExport'
 import { computeCpm } from './cpm'
 import { wdToDate } from './calendar'
 import type { SchedProject, SchedTask } from './types'
@@ -112,7 +112,7 @@ describe('buildGanttExportSvg 结构', () => {
     const cBar = bars.find((b) => b.getAttribute('x') === String(xOf(cRow.es)))
     expect(cBar, 'C 条在 dayNo(es)×14 列位').toBeTruthy()
     expect(cBar!.getAttribute('width')).toBe(String(xOf(cRow.es + 5) - xOf(cRow.es)))
-    expect(cBar!.getAttribute('fill')).toBe('#dc2626')
+    expect(cBar!.getAttribute('fill')).toBe(EXP_COLORS.critical)
   })
 
   it('非工作日底纹列数与日历一致；目标竣工线在竣工列右缘', () => {

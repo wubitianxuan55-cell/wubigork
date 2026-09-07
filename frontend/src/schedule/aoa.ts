@@ -206,15 +206,17 @@ export function buildAoa(tasks: SchedTask[], links: SchedLink[], opts?: { planFi
   }
 
   const nodeLs = new Map<string, number>()
-  // 逆推锚点（v4.129 刀G G3）：目标竣工换算的计划工期 < 计算工期时按计划工期逆推
-  const total = Math.max(0, ...nodeIds.map((id) => nodeEs.get(id)!))
-  const planFinish = opts?.planFinish
-  const finish = planFinish != null && planFinish < total ? planFinish : total
+  // 逆推锚点（v4.129 刀G G3）：目标竣工换算的计划工期 < 计算工期时按计划工期逆推。
+  // v4.133 修正：total 必须在正推**之后**取（事件注册时的初始 es=单任务工期，
+  // 长链下远小于真实计算工期——逆推整体平移出假负时差，且 planFinish 锚点失真）。
   for (const id of eventOrder) {
     let es = 0
     for (const e of inEdges.get(id) ?? []) es = Math.max(es, nodeEs.get(e.from)! + e.dur)
     nodeEs.set(id, es)
   }
+  const total = Math.max(0, ...nodeIds.map((id) => nodeEs.get(id)!))
+  const planFinish = opts?.planFinish
+  const finish = planFinish != null && planFinish < total ? planFinish : total
   for (let i = eventOrder.length - 1; i >= 0; i--) {
     const id = eventOrder[i]
     let ls = finish
