@@ -1,5 +1,14 @@
 # 任务进度
 
+## 最新发布：v4.148.0（2026-09-08）「diff 确认卡刀C：project 整量替换引擎强制逐条确认」
+
+- **闸门**：controller_approval.go——schedule_apply project 通道（args.project 非空）在 hardAskSet 之后、auto 快捷之前分支 → requestApproval(alwaysPrompt=true)：任何级别（含 auto/yolo）逐条弹卡、不读不写 granted；ops 通道维持现状。
+- **可读 subject**：scheduleApplyProjectSubject=解析 args.project→Project.Analyze()→「整计划替换（目标文件）：N 项工作，总工期 Y 天，关键 K 项」；CPM 不过标注批准也将被拒；解析失败诚实降级。
+- **前端**：scheduleApplyIsProjectChannel（applyDiff 镜像）→ ApprovalModal project 卡三钮形态（hardConfirm 统一分支，快捷键 3/5 调整）；ops 五钮不变。
+- **纪律同步**：schedule-edit Body 增「确认与回滚」分节（逐条批准/禁止原样重发/超时=拒绝/以回执为准/回滚入口），锚点锁 31→35；scheduleApply.Description+compact.go 同步。
+- **门禁**：Go 全量绿（+5 闸门用例：ask 弹/auto·yolo 仍弹/禁会话记忆双弹/ops ask 弹+auto 静默/subject 可读与降级）；skill 锚点过；tsc/eslint 0；vitest 2499；drift PASS@597；版本三处 4.148.0；build+冒烟过。
+- **待续**：刀D=simulateOps TS 镜像（12 op 对齐 Go ApplyOps）+Go/TS 对拍单测（设计最大风险对冲主阵地）。
+
 ## 最新发布：v4.147.0（2026-09-08）「diff 确认卡刀B：schedule_apply 审批卡结构化 diff 预览」
 
 - **设计**：diff 确认闭环刀B（§2.2）。ask 级审批卡本就弹出，此前只有 path 一行字；本刀卡体升级为结构化 diff——批准前先看清改动与工期/成本影响。

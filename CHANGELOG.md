@@ -1,3 +1,6 @@
+## v4.148.0 · diff 确认卡刀C：project 整量替换引擎强制逐条确认（2026-09-08）
+> schedule_apply 的 project 整量通道（整计划生成/替换）毁伤半径最大——升级为引擎强制 hardAsk：任何权限级别（含 auto/yolo）前置逐条弹卡、禁会话放行；ops 通道维持现状闸门。可读 subject=「整计划替换：N 项工作，总工期 Y 天，关键 K 项」（同一 schedule 引擎口径，CPM 不过如实标注批准也将被拒）。schedule-edit 技能增「确认与回滚」分节（禁止原样重发/以回执为准/回滚入口），锚点锁 31→35；compact 同步。Go 全量绿（+5 闸门用例）、无新绑定 597、vitest 2499。详见 releases/v4.148.0.md。
+
 ## v4.147.0 · diff 确认卡刀B：schedule_apply 审批卡升级为结构化 diff 预览（2026-09-08）
 > diff 确认闭环设计刀B（§2.2）：ask 级别审批卡本就弹出，但只有「schedule_apply 当前计划」一行字——有确认之形、无审阅之实。本刀卡体升级为结构化 diff：批准前先看清改了什么、工期/成本怎么动。决策/快捷键/超时/双宿主全复用既有件，零 Go 改动，绑定面 **597 零变更**。详见 releases/v4.147.0.md。
 - 纯函数层 applyDiff.ts：`diffProjects(before, after)`——任务 id 键控增删改（字段级 from→to 中文 label）、搭接按 to 分组入边比对（对齐 set_links 语义）、资源删除标级联数、分配增删改、meta 四项、汇总行（总工期/关键/总成本双方 CPM+倒排校核+基线漂移预览）；after CPM 不过如实标注「引擎将拒绝」（预览层复刻 fail-closed）；两侧归一后再比不冒充改动。

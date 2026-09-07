@@ -312,3 +312,17 @@ export function scheduleApplyArgsOf(items: ReadonlyArray<{ kind: string; name?: 
   }
   return null
 }
+
+/** project 整量通道判定（前端镜像 Go control.scheduleApplyIsProjectChannel）：
+ *  args.project 非空对象=整计划替换/生成 → 审批卡按 hardAsk 三钮形态渲染
+ *  （禁会话记忆，拍板项 2）；ops 增量通道维持五钮（拍板项 3）。展示层判定，
+ *  强制权威在 Go 闸门（alwaysPrompt 不读不写会话放行）。 */
+export function scheduleApplyIsProjectChannel(args: string | null): boolean {
+  if (!args) return false
+  try {
+    const parsed = JSON.parse(args) as { project?: unknown }
+    return !!parsed.project && typeof parsed.project === 'object'
+  } catch {
+    return false
+  }
+}

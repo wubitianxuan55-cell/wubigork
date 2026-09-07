@@ -92,6 +92,7 @@ gaea/
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| **v4.148.0** | 2026-09-08 | diff 确认卡刀C：schedule_apply **project 整量通道引擎强制逐条确认**——任何权限级别（含 auto/yolo）前置弹卡、禁会话放行（alwaysPrompt 不读不写 granted）；可读 subject=「整计划替换：N 项工作，总工期 Y 天，关键 K 项」（Analyze 同口径，CPM 不过标注批准也将被拒）；前端审批卡按三钮形态渲染（args 判定镜像）；schedule-edit 技能增「确认与回滚」分节（禁止原样重发/以回执为准/回滚入口）锚点锁 31→35；compact 同步。ops 通道维持现状闸门。Go 全量绿 +5 闸门用例；无新绑定 597。详见 releases/v4.148.0.md |
 | **v4.147.0** | 2026-09-08 | diff 确认卡刀B：schedule_apply 审批卡升级为结构化 diff 预览——新纯函数层 applyDiff.ts `diffProjects`（任务 id 键控字段级增删改/搭接入边比对/资源分配/meta/汇总行=总工期·关键·总成本双方 CPM+倒排+基线漂移预览；after CPM 不过如实标注「引擎将拒绝」）+新组件 ScheduleDiffCard 替换审批通用卡体（缺省路径读文件实况为 before，非缺省/ops 通道诚实降级；「预览数字，落盘以回执为准」；60 行截断）；决策钮/快捷键/双宿主全复用既有件。纯前端 597 零变更；vitest 2483→2499（+16）。详见 releases/v4.147.0.md |
 | **v4.146.0** | 2026-09-08 | 对话改计划回滚闭环（diff 确认卡刀A）：schedule_apply 证据卡此前不在变更 tab 白名单、工具卡无回滚入口——AI 改计划后用户没有反悔入口。现变更 tab 纳入 schedule_apply（缺省路径回填+诚实降级说明），新组件 ScheduleApplyRollback 在 apply 回执卡常驻「回滚本次」（Journal 按 target 匹配最新基线，GaeaRollbackRecord 既有守卫）。纯前端 597 零变更；vitest 2477→2483（+6）。详见 releases/v4.146.0.md |
 | **v4.145.0** | 2026-09-08 | 工程复制（另存为，观察池「多工程欠账转移」销项）：管理面板新增每行「复制」→弹窗取名（默认「-副本」）；Go `GaeaScheduleProjectCopy`=源文件全套校验+slug 去重落盘（任务/搭接/资源/基线/AOA 布点随行）+索引登记+指针不动；store `copyProject` 当前工程先冲刷再拷；副本任务 id 同源→基线漂移/对比直接可用（签证「调整1→调整2」迭代底座）。绑定面 596→597；Go 全量绿；vitest 2472→2477（+5）。详见 releases/v4.145.0.md |

@@ -11,6 +11,7 @@ import (
 
 	"github.com/gaea/gaea/internal/gaea/event"
 	"github.com/gaea/gaea/internal/gaea/permission"
+	"github.com/gaea/gaea/internal/schedule"
 )
 
 // --- approval bridge (agent gate → events) ---
@@ -43,6 +44,13 @@ func (g gateApprover) Approve(ctx context.Context, tool, subject string, args js
 	if g.c.hardAskSet()[tool] {
 		return g.c.requestApproval(ctx, tool, approvalSubjectFor(tool, args), true)
 	}
+	// diff 确认闭环刀C：schedule_apply project 通道（args.project 非空=整计划
+	// 替换/生成）毁伤半径最大——任何权限级别（含 auto/yolo）前置强制逐条
+	// 确认，alwaysPrompt 不读不写会话放行（拍板项 2：禁会话记忆）。ops 增量
+	// 通道维持现状闸门（拍板项 3：auto/yolo 豁免弹卡，后置回执+回滚兜底）。
+	if tool == "schedule_apply" && scheduleApplyIsProjectChannel(args) {
+		return g.c.requestApproval(ctx, tool, approvalSubjectFor(tool, args), true)
+	}
 	if auto {
 		return true, false, nil
 	}
@@ -60,8 +68,58 @@ func approvalSubjectFor(tool string, args json.RawMessage) string {
 		return knowledgeAddApprovalSubject(args)
 	case "promote_session_facts":
 		return "把本次会话沉淀的临时事实提升为永久记忆（跨会话自动加载）"
+	case "schedule_apply":
+		if scheduleApplyIsProjectChannel(args) {
+			return scheduleApplyProjectSubject(args)
+		}
+		return permission.Subject(args)
 	}
 	return permission.Subject(args)
+}
+
+// scheduleApplyIsProjectChannel 判定 schedule_apply 是否 project 整量通道
+// （args.project 非空 JSON 对象 = 整计划替换/生成）。ops 增量通道与解析
+// 失败都按非 project 处理（走现状闸门）。
+func scheduleApplyIsProjectChannel(args json.RawMessage) bool {
+	var a struct {
+		Project json.RawMessage `json:"project"`
+	}
+	if err := json.Unmarshal(args, &a); err != nil {
+		return false
+	}
+	s := strings.TrimSpace(string(a.Project))
+	return s != "" && s != "null" && s != "{}"
+}
+
+// scheduleApplyProjectSubject 为 project 通道整量替换生成可读确认摘要
+// （diff 确认闭环刀C）：解析 args.project 跑 CPM，把「要写进来的东西」说
+// 清楚——总工期/关键项数来自同一 schedule 引擎（与板块/回执同口径）。
+// before 侧对比不在这里做（闸门无工作区上下文；改动明细对比由前端 diff
+// 确认卡承担，v4.147 刀B）。解析失败/CPM 不过都诚实降级标注。
+func scheduleApplyProjectSubject(args json.RawMessage) string {
+	var a struct {
+		Path    string          `json:"path"`
+		Project json.RawMessage `json:"project"`
+	}
+	_ = json.Unmarshal(args, &a)
+	target := "当前计划文件"
+	if strings.TrimSpace(a.Path) != "" {
+		target = strings.TrimSpace(a.Path)
+	}
+	if len(a.Project) == 0 {
+		return fmt.Sprintf("整计划替换（%s）：参数解析失败，详见参数原文", target)
+	}
+	var p schedule.Project
+	if err := json.Unmarshal(a.Project, &p); err != nil {
+		return fmt.Sprintf("整计划替换（%s）：计划 JSON 无效，批准也将被引擎拒绝", target)
+	}
+	cpm, analysis := p.Analyze()
+	if !cpm.OK {
+		return fmt.Sprintf("整计划替换（%s）：%d 项工作，CPM 校验未过（%s）——批准也将被引擎拒绝",
+			target, len(p.Tasks), cpm.Error)
+	}
+	return fmt.Sprintf("整计划替换（%s）：%d 项工作，总工期 %d 天，关键 %d 项；改动明细见 diff 预览",
+		target, len(p.Tasks), cpm.Duration, len(analysis.Critical))
 }
 
 // approvalPrompt 参数化一次审批弹卡：常规工具闸门（gateApprover）与

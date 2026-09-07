@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { useT } from "../lib/i18n";
 import type { WireApproval } from "../lib/types";
 import { ScheduleDiffCard } from "../../schedule/ScheduleDiffCard";
+import { scheduleApplyIsProjectChannel } from "../../schedule/applyDiff";
 
 const btnBase = "grid grid-cols-[28px_1fr] items-center gap-2.5 w-full min-h-[46px] rounded-lg text-fg p-1.5 px-2 text-left cursor-pointer transition-all duration-[var(--dur-fast)]";
 
@@ -62,6 +63,12 @@ export function ApprovalModal({
   // 不提供「本会话内允许」「始终允许」，批准仅本次生效。
   const HARD_ASK_TOOLS = ["cost_save", "remember", "knowledge_add", "promote_session_facts"];
   const isHardAsk = HARD_ASK_TOOLS.includes(approval.tool);
+  // diff 确认闭环刀C：schedule_apply project 整量通道（args.project 非空）
+  // 同样按三钮形态渲染（禁会话记忆，拍板项 2）——Go 闸门 alwaysPrompt 是
+  // 强制权威，这里只是让按钮形态与后端语义一致；ops 增量通道维持五钮。
+  const isProjectHard =
+    approval.tool === "schedule_apply" && scheduleApplyIsProjectChannel(scheduleApplyArgs ?? null);
+  const hardConfirm = isHardAsk || isProjectHard;
 
   useEffect(() => { cardRef.current?.focus(); }, [approval.id]);
 
@@ -76,13 +83,13 @@ export function ApprovalModal({
       }
       const decision = KEY_DECISIONS[event.key];
       if (!decision) return;
-      if (isHardAsk && (decision === "allow_session" || decision === "persist_allow")) return;
+      if (hardConfirm && (decision === "allow_session" || decision === "persist_allow")) return;
       event.preventDefault();
       onAnswer(decision);
     };
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, [onAnswer, isHardAsk]);
+  }, [onAnswer, hardConfirm]);
 
   return (
     <div className="plan-approval-dock" aria-live="polite">
@@ -140,14 +147,19 @@ export function ApprovalModal({
         <div className="flex flex-col gap-1.5">
           <PlanBtn num={1} title={t("approval.deny")} hint={t("approval.denyHint")} onClick={() => onAnswer("deny")} />
           <PlanBtn num={2} active title={t("approval.allowOnce")} hint={t("approval.allowOnceHint")} onClick={() => onAnswer("allow_once")} />
-          {!isHardAsk && (
+          {!hardConfirm && (
             <PlanBtn num={3} title={t("approval.allowSession")} hint={t("approval.allowSessionHint")} onClick={() => onAnswer("allow_session")} />
           )}
-          {!isHardAsk && (
+          {!hardConfirm && (
             <PlanBtn num={4} title={t("approval.persistAlways")} hint={t("approval.persistAlwaysHint")} onClick={() => onAnswer("persist_allow")} />
           )}
-          <PlanBtn num={isHardAsk ? 3 : 5} title={t("approval.abort")} hint={t("approval.abortHint")} onClick={() => onAnswer("abort")} />
+          <PlanBtn num={hardConfirm ? 3 : 5} title={t("approval.abort")} hint={t("approval.abortHint")} onClick={() => onAnswer("abort")} />
         </div>
+        {isProjectHard && (
+          <div className="mt-2 text-[11px] text-fg-faint leading-snug">
+            整计划替换需逐条确认：批准仅本次生效，不会自动放行后续写入；拒绝后可让模型按你的意见修改后重新提交。
+          </div>
+        )}
         {isHardAsk && (
           <div className="mt-2 text-[11px] text-fg-faint leading-snug">
             持久化写入需逐条确认：批准仅本次生效，不会自动放行后续写入。
