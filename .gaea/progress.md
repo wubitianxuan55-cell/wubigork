@@ -1,5 +1,15 @@
 # 任务进度
 
+## 最新发布：v4.149.0（2026-09-08）「diff 确认卡刀D：ops 通道投影模拟器 + Go/TS 对拍收官」
+
+- **收官**：diff 确认闭环设计四刀全落地（A 后置回滚 v4.146 / B project diff 卡 v4.147 / C 引擎强制 v4.148 / D ops 投影对拍本刀）。
+- **opsSim.ts**：Go ApplyOps 逐语义 TS 镜像——深拷贝顺序应用 fail-closed；指针三态/零值语义/remove_task 级联/set_links 替换/set_meta 口径/auto_chain/set_baseline/资源操作全对齐。
+- **对拍主阵地**：internal/schedule/ops_golden_test.go 生成校验 frontend/src/schedule/ops_golden.fixture.json（49 例=21 成功+28 失败；`-update-golden` 重生成）；opsSim.golden.test.ts 双跑逐例比对——一侧漂移炸对端，50/50 过。
+- **卡体**：ops 通道缺省路径真 diff 投影（「ops 投影」标注）+三级诚实降级；project 标注「文件实况对比」。
+- **门禁**：Go 全量绿；vitest 2499→2550（+51）；tsc/eslint 0；drift PASS@597；版本三处 4.149.0；build+冒烟过。
+- **坑**：jsdom import.meta.url 非 file 协议→resolveJsonModule+JSON 直接导入；canonical 丢空数组（Go omitempty vs TS []）；control 同包测试 strPtr 重名→gStrPtr；if 头复合字面量加括号。
+- **闭环全貌**：AI 改计划=事前 diff 卡（project 整量强制逐条+ops 投影）→批准落盘→回执核对「成功≠正确」→事后工具卡/变更 tab 一键回滚。
+
 ## 最新发布：v4.148.0（2026-09-08）「diff 确认卡刀C：project 整量替换引擎强制逐条确认」
 
 - **闸门**：controller_approval.go——schedule_apply project 通道（args.project 非空）在 hardAskSet 之后、auto 快捷之前分支 → requestApproval(alwaysPrompt=true)：任何级别（含 auto/yolo）逐条弹卡、不读不写 granted；ops 通道维持现状。

@@ -1,3 +1,10 @@
+## v4.149.0 · diff 确认卡刀D：ops 通道投影模拟器 + Go/TS 对拍收官（2026-09-08）
+> diff 确认闭环设计收官刀。ops 通道此前在审批卡上只是意图清单——模型说改什么就显示什么，看不到落盘后的样子。本刀交付 `simulateOps`（Go ApplyOps 逐语义 TS 镜像），审批卡在落盘前投影 ops 应用后的真实 diff（与 project 通道同管线渲染）；设计标注的最大风险「批的是 A，落的是 B」由 **Go/TS 对拍 golden fixture（49 例双端同吃，50/50 过）** 钉死。纯前端，绑定面 **597 零变更**。详见 releases/v4.149.0.md。
+- 对拍主阵地：internal/schedule/ops_golden_test.go 生成并校验 fixture（21 成功+28 失败路径，覆盖全部 12 op 及守卫分支；`-update-golden` 重生成）；opsSim.golden.test.ts 双跑逐例比对「是否失败+after 状态」（canonical 消化 omitempty 表达差）。
+- opsSim.ts：深拷贝顺序应用 fail-closed；指针三态/零值语义/remove_task 级联/set_links 替换缺省 FS/set_meta 日期口径与 null 不动/auto_chain 手动跳过/set_baseline 缺 savedAt 拒绝/资源级联/重复对/外来 taskId 全部钉死。
+- 卡体：ops 通道缺省路径即真 diff（「ops 投影」标注），三级诚实降级（非缺省/读取失败/模拟失败→意图清单+原因）；落盘权威永远在 Go。
+- 门禁 tsc -b/eslint 0、vitest **2550**（+51）、Go 全量绿、drift PASS@597、版本三处 4.149.0、build+冒烟过。**diff 确认闭环四刀（A 回滚/B diff 卡/C 引擎强制/D 投影对拍）全部收官。**
+
 ## v4.148.0 · diff 确认卡刀C：project 整量替换引擎强制逐条确认（2026-09-08）
 > schedule_apply 的 project 整量通道（整计划生成/替换）毁伤半径最大——升级为引擎强制 hardAsk：任何权限级别（含 auto/yolo）前置逐条弹卡、禁会话放行；ops 通道维持现状闸门。可读 subject=「整计划替换：N 项工作，总工期 Y 天，关键 K 项」（同一 schedule 引擎口径，CPM 不过如实标注批准也将被拒）。schedule-edit 技能增「确认与回滚」分节（禁止原样重发/以回执为准/回滚入口），锚点锁 31→35；compact 同步。Go 全量绿（+5 闸门用例）、无新绑定 597、vitest 2499。详见 releases/v4.148.0.md。
 

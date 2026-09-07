@@ -42,7 +42,7 @@ describe('ScheduleDiffCard（schedule_apply 审批卡 diff 卡体，刀B）', ()
     const card = await screen.findByTestId('sched-diff-card')
     await screen.findAllByTestId('sched-diff-line')
     expect(card.textContent).toContain('总工期 2→7 天')
-    expect(card.textContent).toContain('预览数字，落盘以回执为准')
+    expect(card.textContent).toContain('预览数字（文件实况对比），落盘以回执为准')
     const lines = Array.from(document.querySelectorAll('[data-testid="sched-diff-line"]')).map((e) => e.textContent)
     expect(lines.some((t) => t?.includes('新增任务：垫层'))).toBe(true)
     expect(lines.some((t) => t?.includes('工期（工作日）：2 → 5'))).toBe(true)
@@ -57,11 +57,26 @@ describe('ScheduleDiffCard（schedule_apply 审批卡 diff 卡体，刀B）', ()
     expect(mocks.load).not.toHaveBeenCalled()
   })
 
-  it('ops 通道（刀D 前）→ 诚实降级为意图清单说明', () => {
-    render(<ScheduleDiffCard args={JSON.stringify({ ops: [{ op: 'patch_task' }] })} />)
-    const card = screen.getByTestId('sched-diff-card')
-    expect(card.textContent).toContain('ops 增量调整 1 条')
-    expect(card.textContent).toContain('以 apply 回执为准')
+  it('ops 通道（刀D）：缺省路径模拟投影 → 真 diff 行+投影标注', async () => {
+    mocks.load.mockResolvedValue({ exists: true, path: '进度计划/当前计划.gsched.json', project: before })
+    render(<ScheduleDiffCard args={JSON.stringify({ ops: [{ type: 'patch_task', id: 'A', patch: { duration: 9 } }, { type: 'upsert_task', task: { id: 'B', name: '垫层', duration: 2, level: 1 } }] })} />)
+    const card = await screen.findByTestId('sched-diff-card')
+    const lines = await screen.findAllByTestId('sched-diff-line')
+    const all = lines.map((e) => e.textContent).join('|')
+    expect(all).toContain('新增任务：垫层')
+    expect(all).toContain('工期（工作日）：2 → 9')
+    expect(card.textContent).toContain('ops 投影')
+    expect(card.textContent).toContain('落盘以回执为准')
+  })
+
+  it('ops 通道模拟失败 → 诚实降级为意图清单+原因', () => {
+    mocks.load.mockResolvedValue({ exists: true, path: '进度计划/当前计划.gsched.json', project: before })
+    render(<ScheduleDiffCard args={JSON.stringify({ ops: [{ type: 'patch_task', id: 'NOPE', patch: { duration: 3 } }] })} />)
+    vi.waitFor(() => {
+      const card = screen.getByTestId('sched-diff-card')
+      expect(card.textContent).toContain('ops 投影失败')
+      expect(card.textContent).toContain('以 apply 回执为准')
+    })
   })
 
   it('args 为 null（参数未就绪）→ 提示且不崩', () => {

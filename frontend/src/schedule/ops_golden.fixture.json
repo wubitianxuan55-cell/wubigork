@@ -1,0 +1,3192 @@
+{
+  "cases": [
+    {
+      "name": "upsert 追加表尾",
+      "base": {
+        "name": "对拍工程",
+        "startDate": "2026-09-07",
+        "tasks": [
+          {
+            "id": "A",
+            "name": "挖土",
+            "duration": 2,
+            "level": 1,
+            "progress": 0
+          },
+          {
+            "id": "B",
+            "name": "垫层",
+            "duration": 3,
+            "level": 1,
+            "progress": 40
+          }
+        ],
+        "links": [
+          {
+            "from": "A",
+            "to": "B",
+            "type": "FS",
+            "lag": 0
+          }
+        ]
+      },
+      "ops": [
+        {
+          "type": "upsert_task",
+          "task": {
+            "id": "C",
+            "name": "基础",
+            "duration": 2,
+            "level": 1,
+            "progress": 0
+          }
+        }
+      ],
+      "after": {
+        "name": "对拍工程",
+        "startDate": "2026-09-07",
+        "tasks": [
+          {
+            "id": "A",
+            "name": "挖土",
+            "duration": 2,
+            "level": 1,
+            "progress": 0
+          },
+          {
+            "id": "B",
+            "name": "垫层",
+            "duration": 3,
+            "level": 1,
+            "progress": 40
+          },
+          {
+            "id": "C",
+            "name": "基础",
+            "duration": 2,
+            "level": 1,
+            "progress": 0
+          }
+        ],
+        "links": [
+          {
+            "from": "A",
+            "to": "B",
+            "type": "FS",
+            "lag": 0
+          }
+        ]
+      }
+    },
+    {
+      "name": "upsert afterId 插入",
+      "base": {
+        "name": "对拍工程",
+        "startDate": "2026-09-07",
+        "tasks": [
+          {
+            "id": "A",
+            "name": "挖土",
+            "duration": 2,
+            "level": 1,
+            "progress": 0
+          },
+          {
+            "id": "B",
+            "name": "垫层",
+            "duration": 3,
+            "level": 1,
+            "progress": 40
+          }
+        ],
+        "links": [
+          {
+            "from": "A",
+            "to": "B",
+            "type": "FS",
+            "lag": 0
+          }
+        ]
+      },
+      "ops": [
+        {
+          "type": "upsert_task",
+          "afterId": "A",
+          "task": {
+            "id": "C",
+            "name": "基础",
+            "duration": 2,
+            "level": 1,
+            "progress": 0
+          }
+        }
+      ],
+      "after": {
+        "name": "对拍工程",
+        "startDate": "2026-09-07",
+        "tasks": [
+          {
+            "id": "A",
+            "name": "挖土",
+            "duration": 2,
+            "level": 1,
+            "progress": 0
+          },
+          {
+            "id": "C",
+            "name": "基础",
+            "duration": 2,
+            "level": 1,
+            "progress": 0
+          },
+          {
+            "id": "B",
+            "name": "垫层",
+            "duration": 3,
+            "level": 1,
+            "progress": 40
+          }
+        ],
+        "links": [
+          {
+            "from": "A",
+            "to": "B",
+            "type": "FS",
+            "lag": 0
+          }
+        ]
+      }
+    },
+    {
+      "name": "upsert 同 id 整量替换",
+      "base": {
+        "name": "对拍工程",
+        "startDate": "2026-09-07",
+        "tasks": [
+          {
+            "id": "A",
+            "name": "挖土",
+            "duration": 2,
+            "level": 1,
+            "progress": 0
+          },
+          {
+            "id": "B",
+            "name": "垫层",
+            "duration": 3,
+            "level": 1,
+            "progress": 40
+          }
+        ],
+        "links": [
+          {
+            "from": "A",
+            "to": "B",
+            "type": "FS",
+            "lag": 0
+          }
+        ]
+      },
+      "ops": [
+        {
+          "type": "upsert_task",
+          "task": {
+            "id": "A",
+            "name": "挖土方",
+            "duration": 5,
+            "level": 1,
+            "progress": 20
+          }
+        }
+      ],
+      "after": {
+        "name": "对拍工程",
+        "startDate": "2026-09-07",
+        "tasks": [
+          {
+            "id": "A",
+            "name": "挖土方",
+            "duration": 5,
+            "level": 1,
+            "progress": 20
+          },
+          {
+            "id": "B",
+            "name": "垫层",
+            "duration": 3,
+            "level": 1,
+            "progress": 40
+          }
+        ],
+        "links": [
+          {
+            "from": "A",
+            "to": "B",
+            "type": "FS",
+            "lag": 0
+          }
+        ]
+      }
+    },
+    {
+      "name": "upsert 零值语义（缺字段=0/分组）",
+      "base": {
+        "name": "对拍工程",
+        "startDate": "2026-09-07",
+        "tasks": [
+          {
+            "id": "A",
+            "name": "挖土",
+            "duration": 2,
+            "level": 1,
+            "progress": 0
+          },
+          {
+            "id": "B",
+            "name": "垫层",
+            "duration": 3,
+            "level": 1,
+            "progress": 40
+          }
+        ],
+        "links": [
+          {
+            "from": "A",
+            "to": "B",
+            "type": "FS",
+            "lag": 0
+          }
+        ]
+      },
+      "ops": [
+        {
+          "type": "upsert_task",
+          "task": {
+            "id": "Z",
+            "name": "",
+            "duration": 0,
+            "level": 0,
+            "progress": 0
+          }
+        }
+      ],
+      "after": {
+        "name": "对拍工程",
+        "startDate": "2026-09-07",
+        "tasks": [
+          {
+            "id": "A",
+            "name": "挖土",
+            "duration": 2,
+            "level": 1,
+            "progress": 0
+          },
+          {
+            "id": "B",
+            "name": "垫层",
+            "duration": 3,
+            "level": 1,
+            "progress": 40
+          },
+          {
+            "id": "Z",
+            "name": "",
+            "duration": 0,
+            "level": 0,
+            "progress": 0
+          }
+        ],
+        "links": [
+          {
+            "from": "A",
+            "to": "B",
+            "type": "FS",
+            "lag": 0
+          }
+        ]
+      }
+    },
+    {
+      "name": "upsert afterId 不存在",
+      "base": {
+        "name": "对拍工程",
+        "startDate": "2026-09-07",
+        "tasks": [
+          {
+            "id": "A",
+            "name": "挖土",
+            "duration": 2,
+            "level": 1,
+            "progress": 0
+          },
+          {
+            "id": "B",
+            "name": "垫层",
+            "duration": 3,
+            "level": 1,
+            "progress": 40
+          }
+        ],
+        "links": [
+          {
+            "from": "A",
+            "to": "B",
+            "type": "FS",
+            "lag": 0
+          }
+        ]
+      },
+      "ops": [
+        {
+          "type": "upsert_task",
+          "afterId": "NOPE",
+          "task": {
+            "id": "C",
+            "name": "x",
+            "duration": 1,
+            "level": 1,
+            "progress": 0
+          }
+        }
+      ],
+      "error": "第 1 条操作失败：afterId 不存在：NOPE"
+    },
+    {
+      "name": "upsert 层级非法",
+      "base": {
+        "name": "对拍工程",
+        "startDate": "2026-09-07",
+        "tasks": [
+          {
+            "id": "A",
+            "name": "挖土",
+            "duration": 2,
+            "level": 1,
+            "progress": 0
+          },
+          {
+            "id": "B",
+            "name": "垫层",
+            "duration": 3,
+            "level": 1,
+            "progress": 40
+          }
+        ],
+        "links": [
+          {
+            "from": "A",
+            "to": "B",
+            "type": "FS",
+            "lag": 0
+          }
+        ]
+      },
+      "ops": [
+        {
+          "type": "upsert_task",
+          "task": {
+            "id": "C",
+            "name": "x",
+            "duration": 1,
+            "level": 2,
+            "progress": 0
+          }
+        }
+      ],
+      "error": "第 1 条操作失败：任务 C 层级非法（仅 0/1）：2"
+    },
+    {
+      "name": "upsert 分组行禁固定成本",
+      "base": {
+        "name": "对拍工程",
+        "startDate": "2026-09-07",
+        "tasks": [
+          {
+            "id": "A",
+            "name": "挖土",
+            "duration": 2,
+            "level": 1,
+            "progress": 0
+          },
+          {
+            "id": "B",
+            "name": "垫层",
+            "duration": 3,
+            "level": 1,
+            "progress": 40
+          }
+        ],
+        "links": [
+          {
+            "from": "A",
+            "to": "B",
+            "type": "FS",
+            "lag": 0
+          }
+        ]
+      },
+      "ops": [
+        {
+          "type": "upsert_task",
+          "task": {
+            "id": "G",
+            "name": "分组",
+            "duration": 0,
+            "level": 0,
+            "progress": 0,
+            "fixedCost": 100
+          }
+        }
+      ],
+      "error": "第 1 条操作失败：分组行 G 禁止固定成本（汇总唯一口径为子孙求和）"
+    },
+    {
+      "name": "upsert 负固定成本",
+      "base": {
+        "name": "对拍工程",
+        "startDate": "2026-09-07",
+        "tasks": [
+          {
+            "id": "A",
+            "name": "挖土",
+            "duration": 2,
+            "level": 1,
+            "progress": 0
+          },
+          {
+            "id": "B",
+            "name": "垫层",
+            "duration": 3,
+            "level": 1,
+            "progress": 40
+          }
+        ],
+        "links": [
+          {
+            "from": "A",
+            "to": "B",
+            "type": "FS",
+            "lag": 0
+          }
+        ]
+      },
+      "ops": [
+        {
+          "type": "upsert_task",
+          "task": {
+            "id": "C",
+            "name": "x",
+            "duration": 1,
+            "level": 1,
+            "progress": 0,
+            "fixedCost": -5
+          }
+        }
+      ],
+      "error": "第 1 条操作失败：任务 C 固定成本非法（须为非负有限数）：-5"
+    },
+    {
+      "name": "patch 多字段",
+      "base": {
+        "name": "对拍工程",
+        "startDate": "2026-09-07",
+        "tasks": [
+          {
+            "id": "A",
+            "name": "挖土",
+            "duration": 2,
+            "level": 1,
+            "progress": 0
+          },
+          {
+            "id": "B",
+            "name": "垫层",
+            "duration": 3,
+            "level": 1,
+            "progress": 40
+          }
+        ],
+        "links": [
+          {
+            "from": "A",
+            "to": "B",
+            "type": "FS",
+            "lag": 0
+          }
+        ]
+      },
+      "ops": [
+        {
+          "type": "patch_task",
+          "patch": {
+            "name": "挖土方",
+            "duration": 4,
+            "progress": 50
+          },
+          "id": "A"
+        }
+      ],
+      "after": {
+        "name": "对拍工程",
+        "startDate": "2026-09-07",
+        "tasks": [
+          {
+            "id": "A",
+            "name": "挖土方",
+            "duration": 4,
+            "level": 1,
+            "progress": 50
+          },
+          {
+            "id": "B",
+            "name": "垫层",
+            "duration": 3,
+            "level": 1,
+            "progress": 40
+          }
+        ],
+        "links": [
+          {
+            "from": "A",
+            "to": "B",
+            "type": "FS",
+            "lag": 0
+          }
+        ]
+      }
+    },
+    {
+      "name": "patch 模式手动+锁定开始",
+      "base": {
+        "name": "对拍工程",
+        "startDate": "2026-09-07",
+        "tasks": [
+          {
+            "id": "A",
+            "name": "挖土",
+            "duration": 2,
+            "level": 1,
+            "progress": 0
+          },
+          {
+            "id": "B",
+            "name": "垫层",
+            "duration": 3,
+            "level": 1,
+            "progress": 40
+          }
+        ],
+        "links": [
+          {
+            "from": "A",
+            "to": "B",
+            "type": "FS",
+            "lag": 0
+          }
+        ]
+      },
+      "ops": [
+        {
+          "type": "patch_task",
+          "patch": {
+            "mode": "manual",
+            "manualStart": 2
+          },
+          "id": "A"
+        }
+      ],
+      "after": {
+        "name": "对拍工程",
+        "startDate": "2026-09-07",
+        "tasks": [
+          {
+            "id": "A",
+            "name": "挖土",
+            "duration": 2,
+            "level": 1,
+            "progress": 0,
+            "mode": "manual",
+            "manualStart": 2
+          },
+          {
+            "id": "B",
+            "name": "垫层",
+            "duration": 3,
+            "level": 1,
+            "progress": 40
+          }
+        ],
+        "links": [
+          {
+            "from": "A",
+            "to": "B",
+            "type": "FS",
+            "lag": 0
+          }
+        ]
+      }
+    },
+    {
+      "name": "patch 里程碑",
+      "base": {
+        "name": "对拍工程",
+        "startDate": "2026-09-07",
+        "tasks": [
+          {
+            "id": "A",
+            "name": "挖土",
+            "duration": 2,
+            "level": 1,
+            "progress": 0
+          },
+          {
+            "id": "B",
+            "name": "垫层",
+            "duration": 3,
+            "level": 1,
+            "progress": 40
+          }
+        ],
+        "links": [
+          {
+            "from": "A",
+            "to": "B",
+            "type": "FS",
+            "lag": 0
+          }
+        ]
+      },
+      "ops": [
+        {
+          "type": "patch_task",
+          "patch": {
+            "duration": 0,
+            "isMilestone": true
+          },
+          "id": "B"
+        }
+      ],
+      "after": {
+        "name": "对拍工程",
+        "startDate": "2026-09-07",
+        "tasks": [
+          {
+            "id": "A",
+            "name": "挖土",
+            "duration": 2,
+            "level": 1,
+            "progress": 0
+          },
+          {
+            "id": "B",
+            "name": "垫层",
+            "duration": 0,
+            "level": 1,
+            "progress": 40,
+            "isMilestone": true
+          }
+        ],
+        "links": [
+          {
+            "from": "A",
+            "to": "B",
+            "type": "FS",
+            "lag": 0
+          }
+        ]
+      }
+    },
+    {
+      "name": "patch 固定成本",
+      "base": {
+        "name": "对拍工程",
+        "startDate": "2026-09-07",
+        "tasks": [
+          {
+            "id": "A",
+            "name": "挖土",
+            "duration": 2,
+            "level": 1,
+            "progress": 0
+          },
+          {
+            "id": "B",
+            "name": "垫层",
+            "duration": 3,
+            "level": 1,
+            "progress": 40
+          }
+        ],
+        "links": [
+          {
+            "from": "A",
+            "to": "B",
+            "type": "FS",
+            "lag": 0
+          }
+        ]
+      },
+      "ops": [
+        {
+          "type": "patch_task",
+          "patch": {
+            "fixedCost": 120.5
+          },
+          "id": "A"
+        }
+      ],
+      "after": {
+        "name": "对拍工程",
+        "startDate": "2026-09-07",
+        "tasks": [
+          {
+            "id": "A",
+            "name": "挖土",
+            "duration": 2,
+            "level": 1,
+            "progress": 0,
+            "fixedCost": 120.5
+          },
+          {
+            "id": "B",
+            "name": "垫层",
+            "duration": 3,
+            "level": 1,
+            "progress": 40
+          }
+        ],
+        "links": [
+          {
+            "from": "A",
+            "to": "B",
+            "type": "FS",
+            "lag": 0
+          }
+        ]
+      }
+    },
+    {
+      "name": "patch 无字段",
+      "base": {
+        "name": "对拍工程",
+        "startDate": "2026-09-07",
+        "tasks": [
+          {
+            "id": "A",
+            "name": "挖土",
+            "duration": 2,
+            "level": 1,
+            "progress": 0
+          },
+          {
+            "id": "B",
+            "name": "垫层",
+            "duration": 3,
+            "level": 1,
+            "progress": 40
+          }
+        ],
+        "links": [
+          {
+            "from": "A",
+            "to": "B",
+            "type": "FS",
+            "lag": 0
+          }
+        ]
+      },
+      "ops": [
+        {
+          "type": "patch_task",
+          "patch": {},
+          "id": "A"
+        }
+      ],
+      "error": "第 1 条操作失败：patch_task 未提供任何字段"
+    },
+    {
+      "name": "patch 任务不存在",
+      "base": {
+        "name": "对拍工程",
+        "startDate": "2026-09-07",
+        "tasks": [
+          {
+            "id": "A",
+            "name": "挖土",
+            "duration": 2,
+            "level": 1,
+            "progress": 0
+          },
+          {
+            "id": "B",
+            "name": "垫层",
+            "duration": 3,
+            "level": 1,
+            "progress": 40
+          }
+        ],
+        "links": [
+          {
+            "from": "A",
+            "to": "B",
+            "type": "FS",
+            "lag": 0
+          }
+        ]
+      },
+      "ops": [
+        {
+          "type": "patch_task",
+          "patch": {
+            "duration": 1
+          },
+          "id": "NOPE"
+        }
+      ],
+      "error": "第 1 条操作失败：任务不存在：NOPE"
+    },
+    {
+      "name": "patch 分组行禁固定成本",
+      "base": {
+        "name": "对拍工程",
+        "startDate": "2026-09-07",
+        "tasks": [
+          {
+            "id": "G",
+            "name": "基础工程",
+            "duration": 0,
+            "level": 0,
+            "progress": 0
+          },
+          {
+            "id": "A",
+            "name": "挖土",
+            "duration": 2,
+            "level": 1,
+            "progress": 0
+          },
+          {
+            "id": "B",
+            "name": "垫层",
+            "duration": 3,
+            "level": 1,
+            "progress": 40
+          }
+        ],
+        "links": [
+          {
+            "from": "A",
+            "to": "B",
+            "type": "FS",
+            "lag": 0
+          }
+        ]
+      },
+      "ops": [
+        {
+          "type": "patch_task",
+          "patch": {
+            "fixedCost": 9
+          },
+          "id": "G"
+        }
+      ],
+      "error": "第 1 条操作失败：分组行 G 禁止固定成本（汇总唯一口径为子孙求和）"
+    },
+    {
+      "name": "patch 负工期",
+      "base": {
+        "name": "对拍工程",
+        "startDate": "2026-09-07",
+        "tasks": [
+          {
+            "id": "A",
+            "name": "挖土",
+            "duration": 2,
+            "level": 1,
+            "progress": 0
+          },
+          {
+            "id": "B",
+            "name": "垫层",
+            "duration": 3,
+            "level": 1,
+            "progress": 40
+          }
+        ],
+        "links": [
+          {
+            "from": "A",
+            "to": "B",
+            "type": "FS",
+            "lag": 0
+          }
+        ]
+      },
+      "ops": [
+        {
+          "type": "patch_task",
+          "patch": {
+            "duration": -1
+          },
+          "id": "A"
+        }
+      ],
+      "error": "第 1 条操作失败：工期为负"
+    },
+    {
+      "name": "remove 分组级联子孙与搭接",
+      "base": {
+        "name": "对拍工程",
+        "startDate": "2026-09-07",
+        "tasks": [
+          {
+            "id": "G",
+            "name": "基础工程",
+            "duration": 0,
+            "level": 0,
+            "progress": 0
+          },
+          {
+            "id": "A",
+            "name": "挖土",
+            "duration": 2,
+            "level": 1,
+            "progress": 0
+          },
+          {
+            "id": "B",
+            "name": "垫层",
+            "duration": 3,
+            "level": 1,
+            "progress": 40
+          }
+        ],
+        "links": [
+          {
+            "from": "A",
+            "to": "B",
+            "type": "FS",
+            "lag": 0
+          }
+        ]
+      },
+      "ops": [
+        {
+          "type": "remove_task",
+          "id": "G"
+        }
+      ],
+      "after": {
+        "name": "对拍工程",
+        "startDate": "2026-09-07",
+        "tasks": [],
+        "links": []
+      }
+    },
+    {
+      "name": "remove 叶任务清相关搭接",
+      "base": {
+        "name": "对拍工程",
+        "startDate": "2026-09-07",
+        "tasks": [
+          {
+            "id": "A",
+            "name": "挖土",
+            "duration": 2,
+            "level": 1,
+            "progress": 0
+          },
+          {
+            "id": "B",
+            "name": "垫层",
+            "duration": 3,
+            "level": 1,
+            "progress": 40
+          }
+        ],
+        "links": [
+          {
+            "from": "A",
+            "to": "B",
+            "type": "FS",
+            "lag": 0
+          }
+        ]
+      },
+      "ops": [
+        {
+          "type": "remove_task",
+          "id": "A"
+        }
+      ],
+      "after": {
+        "name": "对拍工程",
+        "startDate": "2026-09-07",
+        "tasks": [
+          {
+            "id": "B",
+            "name": "垫层",
+            "duration": 3,
+            "level": 1,
+            "progress": 40
+          }
+        ],
+        "links": []
+      }
+    },
+    {
+      "name": "remove 不存在",
+      "base": {
+        "name": "对拍工程",
+        "startDate": "2026-09-07",
+        "tasks": [
+          {
+            "id": "A",
+            "name": "挖土",
+            "duration": 2,
+            "level": 1,
+            "progress": 0
+          },
+          {
+            "id": "B",
+            "name": "垫层",
+            "duration": 3,
+            "level": 1,
+            "progress": 40
+          }
+        ],
+        "links": [
+          {
+            "from": "A",
+            "to": "B",
+            "type": "FS",
+            "lag": 0
+          }
+        ]
+      },
+      "ops": [
+        {
+          "type": "remove_task",
+          "id": "NOPE"
+        }
+      ],
+      "error": "第 1 条操作失败：任务不存在：NOPE"
+    },
+    {
+      "name": "set_links 整体替换+缺省 FS",
+      "base": {
+        "name": "对拍工程",
+        "startDate": "2026-09-07",
+        "tasks": [
+          {
+            "id": "A",
+            "name": "挖土",
+            "duration": 2,
+            "level": 1,
+            "progress": 0
+          },
+          {
+            "id": "B",
+            "name": "垫层",
+            "duration": 3,
+            "level": 1,
+            "progress": 40
+          }
+        ],
+        "links": [
+          {
+            "from": "A",
+            "to": "B",
+            "type": "FS",
+            "lag": 0
+          }
+        ]
+      },
+      "ops": [
+        {
+          "type": "set_links",
+          "toId": "B",
+          "links": [
+            {
+              "from": "A",
+              "lag": 1
+            },
+            {
+              "from": "B",
+              "type": "SS"
+            }
+          ]
+        }
+      ],
+      "error": "第 1 条操作失败：任务不能以自身为前置"
+    },
+    {
+      "name": "set_links 自前置",
+      "base": {
+        "name": "对拍工程",
+        "startDate": "2026-09-07",
+        "tasks": [
+          {
+            "id": "A",
+            "name": "挖土",
+            "duration": 2,
+            "level": 1,
+            "progress": 0
+          },
+          {
+            "id": "B",
+            "name": "垫层",
+            "duration": 3,
+            "level": 1,
+            "progress": 40
+          }
+        ],
+        "links": [
+          {
+            "from": "A",
+            "to": "B",
+            "type": "FS",
+            "lag": 0
+          }
+        ]
+      },
+      "ops": [
+        {
+          "type": "set_links",
+          "toId": "B",
+          "links": [
+            {
+              "from": "B"
+            }
+          ]
+        }
+      ],
+      "error": "第 1 条操作失败：任务不能以自身为前置"
+    },
+    {
+      "name": "set_links 前置不存在",
+      "base": {
+        "name": "对拍工程",
+        "startDate": "2026-09-07",
+        "tasks": [
+          {
+            "id": "A",
+            "name": "挖土",
+            "duration": 2,
+            "level": 1,
+            "progress": 0
+          },
+          {
+            "id": "B",
+            "name": "垫层",
+            "duration": 3,
+            "level": 1,
+            "progress": 40
+          }
+        ],
+        "links": [
+          {
+            "from": "A",
+            "to": "B",
+            "type": "FS",
+            "lag": 0
+          }
+        ]
+      },
+      "ops": [
+        {
+          "type": "set_links",
+          "toId": "B",
+          "links": [
+            {
+              "from": "NOPE"
+            }
+          ]
+        }
+      ],
+      "error": "第 1 条操作失败：前置任务不存在：NOPE"
+    },
+    {
+      "name": "set_meta 全字段含日历归一",
+      "base": {
+        "name": "对拍工程",
+        "startDate": "2026-09-07",
+        "tasks": [
+          {
+            "id": "A",
+            "name": "挖土",
+            "duration": 2,
+            "level": 1,
+            "progress": 0
+          },
+          {
+            "id": "B",
+            "name": "垫层",
+            "duration": 3,
+            "level": 1,
+            "progress": 40
+          }
+        ],
+        "links": [
+          {
+            "from": "A",
+            "to": "B",
+            "type": "FS",
+            "lag": 0
+          }
+        ]
+      },
+      "ops": [
+        {
+          "type": "set_meta",
+          "name": "新名",
+          "startDate": "2026-10-01",
+          "calendar": {
+            "workweek": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6
+            ],
+            "holidays": null
+          },
+          "deadline": "2026-10-31"
+        }
+      ],
+      "after": {
+        "name": "新名",
+        "startDate": "2026-10-01",
+        "tasks": [
+          {
+            "id": "A",
+            "name": "挖土",
+            "duration": 2,
+            "level": 1,
+            "progress": 0
+          },
+          {
+            "id": "B",
+            "name": "垫层",
+            "duration": 3,
+            "level": 1,
+            "progress": 40
+          }
+        ],
+        "links": [
+          {
+            "from": "A",
+            "to": "B",
+            "type": "FS",
+            "lag": 0
+          }
+        ],
+        "calendar": {
+          "workweek": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6
+          ],
+          "holidays": []
+        },
+        "deadline": "2026-10-31"
+      }
+    },
+    {
+      "name": "set_meta 空串清竣工",
+      "base": {
+        "name": "对拍工程",
+        "startDate": "2026-09-07",
+        "tasks": [
+          {
+            "id": "A",
+            "name": "挖土",
+            "duration": 2,
+            "level": 1,
+            "progress": 0
+          },
+          {
+            "id": "B",
+            "name": "垫层",
+            "duration": 3,
+            "level": 1,
+            "progress": 40
+          }
+        ],
+        "links": [
+          {
+            "from": "A",
+            "to": "B",
+            "type": "FS",
+            "lag": 0
+          }
+        ]
+      },
+      "ops": [
+        {
+          "type": "set_meta",
+          "deadline": ""
+        }
+      ],
+      "after": {
+        "name": "对拍工程",
+        "startDate": "2026-09-07",
+        "tasks": [
+          {
+            "id": "A",
+            "name": "挖土",
+            "duration": 2,
+            "level": 1,
+            "progress": 0
+          },
+          {
+            "id": "B",
+            "name": "垫层",
+            "duration": 3,
+            "level": 1,
+            "progress": 40
+          }
+        ],
+        "links": [
+          {
+            "from": "A",
+            "to": "B",
+            "type": "FS",
+            "lag": 0
+          }
+        ]
+      }
+    },
+    {
+      "name": "set_meta null 竣工=不动",
+      "base": {
+        "name": "对拍工程",
+        "startDate": "2026-09-07",
+        "tasks": [
+          {
+            "id": "A",
+            "name": "挖土",
+            "duration": 2,
+            "level": 1,
+            "progress": 0
+          },
+          {
+            "id": "B",
+            "name": "垫层",
+            "duration": 3,
+            "level": 1,
+            "progress": 40
+          }
+        ],
+        "links": [
+          {
+            "from": "A",
+            "to": "B",
+            "type": "FS",
+            "lag": 0
+          }
+        ]
+      },
+      "ops": [
+        {
+          "type": "set_meta",
+          "name": "只改名"
+        }
+      ],
+      "after": {
+        "name": "只改名",
+        "startDate": "2026-09-07",
+        "tasks": [
+          {
+            "id": "A",
+            "name": "挖土",
+            "duration": 2,
+            "level": 1,
+            "progress": 0
+          },
+          {
+            "id": "B",
+            "name": "垫层",
+            "duration": 3,
+            "level": 1,
+            "progress": 40
+          }
+        ],
+        "links": [
+          {
+            "from": "A",
+            "to": "B",
+            "type": "FS",
+            "lag": 0
+          }
+        ]
+      }
+    },
+    {
+      "name": "set_meta 日期口径错",
+      "base": {
+        "name": "对拍工程",
+        "startDate": "2026-09-07",
+        "tasks": [
+          {
+            "id": "A",
+            "name": "挖土",
+            "duration": 2,
+            "level": 1,
+            "progress": 0
+          },
+          {
+            "id": "B",
+            "name": "垫层",
+            "duration": 3,
+            "level": 1,
+            "progress": 40
+          }
+        ],
+        "links": [
+          {
+            "from": "A",
+            "to": "B",
+            "type": "FS",
+            "lag": 0
+          }
+        ]
+      },
+      "ops": [
+        {
+          "type": "set_meta",
+          "startDate": "2026-9-1"
+        }
+      ],
+      "error": "第 1 条操作失败：开工日期口径应为 YYYY-MM-DD：2026-9-1"
+    },
+    {
+      "name": "set_meta 无字段",
+      "base": {
+        "name": "对拍工程",
+        "startDate": "2026-09-07",
+        "tasks": [
+          {
+            "id": "A",
+            "name": "挖土",
+            "duration": 2,
+            "level": 1,
+            "progress": 0
+          },
+          {
+            "id": "B",
+            "name": "垫层",
+            "duration": 3,
+            "level": 1,
+            "progress": 40
+          }
+        ],
+        "links": [
+          {
+            "from": "A",
+            "to": "B",
+            "type": "FS",
+            "lag": 0
+          }
+        ]
+      },
+      "ops": [
+        {
+          "type": "set_meta"
+        }
+      ],
+      "error": "第 1 条操作失败：set_meta 未提供任何字段"
+    },
+    {
+      "name": "auto_chain 三叶补二",
+      "base": {
+        "name": "对拍工程",
+        "startDate": "2026-09-07",
+        "tasks": [
+          {
+            "id": "G",
+            "name": "基础工程",
+            "duration": 0,
+            "level": 0,
+            "progress": 0
+          },
+          {
+            "id": "A",
+            "name": "挖土",
+            "duration": 2,
+            "level": 1,
+            "progress": 0
+          },
+          {
+            "id": "B",
+            "name": "垫层",
+            "duration": 3,
+            "level": 1,
+            "progress": 40
+          }
+        ],
+        "links": [
+          {
+            "from": "A",
+            "to": "B",
+            "type": "FS",
+            "lag": 0
+          }
+        ]
+      },
+      "ops": [
+        {
+          "type": "upsert_task",
+          "task": {
+            "id": "C",
+            "name": "钢筋",
+            "duration": 2,
+            "level": 1,
+            "progress": 0
+          }
+        },
+        {
+          "type": "auto_chain"
+        }
+      ],
+      "after": {
+        "name": "对拍工程",
+        "startDate": "2026-09-07",
+        "tasks": [
+          {
+            "id": "G",
+            "name": "基础工程",
+            "duration": 0,
+            "level": 0,
+            "progress": 0
+          },
+          {
+            "id": "A",
+            "name": "挖土",
+            "duration": 2,
+            "level": 1,
+            "progress": 0
+          },
+          {
+            "id": "B",
+            "name": "垫层",
+            "duration": 3,
+            "level": 1,
+            "progress": 40
+          },
+          {
+            "id": "C",
+            "name": "钢筋",
+            "duration": 2,
+            "level": 1,
+            "progress": 0
+          }
+        ],
+        "links": [
+          {
+            "from": "A",
+            "to": "B",
+            "type": "FS",
+            "lag": 0
+          },
+          {
+            "from": "B",
+            "to": "C",
+            "type": "FS",
+            "lag": 0
+          }
+        ]
+      }
+    },
+    {
+      "name": "auto_chain 跳过手动",
+      "base": {
+        "name": "对拍工程",
+        "startDate": "2026-09-07",
+        "tasks": [
+          {
+            "id": "G",
+            "name": "基础工程",
+            "duration": 0,
+            "level": 0,
+            "progress": 0
+          },
+          {
+            "id": "A",
+            "name": "挖土",
+            "duration": 2,
+            "level": 1,
+            "progress": 0
+          },
+          {
+            "id": "B",
+            "name": "垫层",
+            "duration": 3,
+            "level": 1,
+            "progress": 40
+          }
+        ],
+        "links": [
+          {
+            "from": "A",
+            "to": "B",
+            "type": "FS",
+            "lag": 0
+          }
+        ]
+      },
+      "ops": [
+        {
+          "type": "patch_task",
+          "patch": {
+            "mode": "manual"
+          },
+          "id": "B"
+        },
+        {
+          "type": "auto_chain"
+        }
+      ],
+      "error": "第 2 条操作失败：auto_chain 没有可补的任务（无前置的叶任务不足两个，或均已手动定位）"
+    },
+    {
+      "name": "auto_chain 无可补",
+      "base": {
+        "name": "对拍工程",
+        "startDate": "2026-09-07",
+        "tasks": [
+          {
+            "id": "A",
+            "name": "挖土",
+            "duration": 2,
+            "level": 1,
+            "progress": 0
+          },
+          {
+            "id": "B",
+            "name": "垫层",
+            "duration": 3,
+            "level": 1,
+            "progress": 40
+          }
+        ],
+        "links": [
+          {
+            "from": "A",
+            "to": "B",
+            "type": "FS",
+            "lag": 0
+          }
+        ]
+      },
+      "ops": [
+        {
+          "type": "auto_chain"
+        }
+      ],
+      "error": "第 1 条操作失败：auto_chain 没有可补的任务（无前置的叶任务不足两个，或均已手动定位）"
+    },
+    {
+      "name": "set_baseline 固化",
+      "base": {
+        "name": "对拍工程",
+        "startDate": "2026-09-07",
+        "tasks": [
+          {
+            "id": "A",
+            "name": "挖土",
+            "duration": 2,
+            "level": 1,
+            "progress": 0
+          },
+          {
+            "id": "B",
+            "name": "垫层",
+            "duration": 3,
+            "level": 1,
+            "progress": 40
+          }
+        ],
+        "links": [
+          {
+            "from": "A",
+            "to": "B",
+            "type": "FS",
+            "lag": 0
+          }
+        ]
+      },
+      "ops": [
+        {
+          "type": "set_baseline",
+          "baselineName": "对拍版",
+          "savedAt": "2026-09-07 08:00"
+        }
+      ],
+      "after": {
+        "name": "对拍工程",
+        "startDate": "2026-09-07",
+        "tasks": [
+          {
+            "id": "A",
+            "name": "挖土",
+            "duration": 2,
+            "level": 1,
+            "progress": 0
+          },
+          {
+            "id": "B",
+            "name": "垫层",
+            "duration": 3,
+            "level": 1,
+            "progress": 40
+          }
+        ],
+        "links": [
+          {
+            "from": "A",
+            "to": "B",
+            "type": "FS",
+            "lag": 0
+          }
+        ],
+        "baseline": {
+          "name": "对拍版",
+          "savedAt": "2026-09-07 08:00",
+          "duration": 5,
+          "rows": {
+            "A": {
+              "name": "挖土",
+              "es": 0,
+              "ef": 2,
+              "dur": 2,
+              "critical": true
+            },
+            "B": {
+              "name": "垫层",
+              "es": 2,
+              "ef": 5,
+              "dur": 3,
+              "critical": true
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "set_baseline 缺 savedAt",
+      "base": {
+        "name": "对拍工程",
+        "startDate": "2026-09-07",
+        "tasks": [
+          {
+            "id": "A",
+            "name": "挖土",
+            "duration": 2,
+            "level": 1,
+            "progress": 0
+          },
+          {
+            "id": "B",
+            "name": "垫层",
+            "duration": 3,
+            "level": 1,
+            "progress": 40
+          }
+        ],
+        "links": [
+          {
+            "from": "A",
+            "to": "B",
+            "type": "FS",
+            "lag": 0
+          }
+        ]
+      },
+      "ops": [
+        {
+          "type": "set_baseline",
+          "baselineName": "x"
+        }
+      ],
+      "error": "第 1 条操作失败：set_baseline 缺少 savedAt（YYYY-MM-DD HH:mm，由工具层标注）"
+    },
+    {
+      "name": "set_baseline CPM 拒绝",
+      "base": {
+        "name": "环",
+        "startDate": "2026-09-07",
+        "tasks": [
+          {
+            "id": "A",
+            "name": "a",
+            "duration": 1,
+            "level": 1,
+            "progress": 0
+          },
+          {
+            "id": "B",
+            "name": "b",
+            "duration": 1,
+            "level": 1,
+            "progress": 0
+          }
+        ],
+        "links": [
+          {
+            "from": "A",
+            "to": "B",
+            "type": "FS",
+            "lag": 0
+          },
+          {
+            "from": "B",
+            "to": "A",
+            "type": "FS",
+            "lag": 0
+          }
+        ]
+      },
+      "ops": [
+        {
+          "type": "set_baseline",
+          "savedAt": "2026-09-07 08:00"
+        }
+      ],
+      "error": "第 1 条操作失败：存在循环依赖：a → b"
+    },
+    {
+      "name": "clear_baseline 清除",
+      "base": {
+        "name": "对拍工程",
+        "startDate": "2026-09-07",
+        "tasks": [
+          {
+            "id": "A",
+            "name": "挖土",
+            "duration": 2,
+            "level": 1,
+            "progress": 0
+          },
+          {
+            "id": "B",
+            "name": "垫层",
+            "duration": 3,
+            "level": 1,
+            "progress": 40
+          }
+        ],
+        "links": [
+          {
+            "from": "A",
+            "to": "B",
+            "type": "FS",
+            "lag": 0
+          }
+        ],
+        "baseline": {
+          "name": "开工版",
+          "savedAt": "2026-09-07 08:00",
+          "duration": 5,
+          "rows": {
+            "A": {
+              "name": "挖土",
+              "es": 0,
+              "ef": 2,
+              "dur": 2,
+              "critical": true
+            },
+            "B": {
+              "name": "垫层",
+              "es": 2,
+              "ef": 5,
+              "dur": 3,
+              "critical": true
+            }
+          }
+        }
+      },
+      "ops": [
+        {
+          "type": "clear_baseline"
+        }
+      ],
+      "after": {
+        "name": "对拍工程",
+        "startDate": "2026-09-07",
+        "tasks": [
+          {
+            "id": "A",
+            "name": "挖土",
+            "duration": 2,
+            "level": 1,
+            "progress": 0
+          },
+          {
+            "id": "B",
+            "name": "垫层",
+            "duration": 3,
+            "level": 1,
+            "progress": 40
+          }
+        ],
+        "links": [
+          {
+            "from": "A",
+            "to": "B",
+            "type": "FS",
+            "lag": 0
+          }
+        ]
+      }
+    },
+    {
+      "name": "clear_baseline 无基线",
+      "base": {
+        "name": "对拍工程",
+        "startDate": "2026-09-07",
+        "tasks": [
+          {
+            "id": "A",
+            "name": "挖土",
+            "duration": 2,
+            "level": 1,
+            "progress": 0
+          },
+          {
+            "id": "B",
+            "name": "垫层",
+            "duration": 3,
+            "level": 1,
+            "progress": 40
+          }
+        ],
+        "links": [
+          {
+            "from": "A",
+            "to": "B",
+            "type": "FS",
+            "lag": 0
+          }
+        ]
+      },
+      "ops": [
+        {
+          "type": "clear_baseline"
+        }
+      ],
+      "error": "第 1 条操作失败：当前没有基线可清除"
+    },
+    {
+      "name": "upsert_resource 新增",
+      "base": {
+        "name": "对拍工程",
+        "startDate": "2026-09-07",
+        "tasks": [
+          {
+            "id": "A",
+            "name": "挖土",
+            "duration": 2,
+            "level": 1,
+            "progress": 0
+          },
+          {
+            "id": "B",
+            "name": "垫层",
+            "duration": 3,
+            "level": 1,
+            "progress": 40
+          }
+        ],
+        "links": [
+          {
+            "from": "A",
+            "to": "B",
+            "type": "FS",
+            "lag": 0
+          }
+        ],
+        "resources": [
+          {
+            "id": "r1",
+            "name": "挖机",
+            "type": "work",
+            "standardRate": 800,
+            "costPerUse": 200,
+            "maxUnits": 2
+          },
+          {
+            "id": "r2",
+            "name": "混凝土",
+            "type": "material",
+            "unit": "m³",
+            "standardRate": 450
+          }
+        ],
+        "assignments": [
+          {
+            "taskId": "A",
+            "resourceId": "r1",
+            "units": 1.5
+          },
+          {
+            "taskId": "B",
+            "resourceId": "r2",
+            "quantity": 30
+          }
+        ]
+      },
+      "ops": [
+        {
+          "type": "upsert_resource",
+          "resource": {
+            "id": "r3",
+            "name": "吊车",
+            "type": "cost",
+            "costPerUse": 500
+          }
+        }
+      ],
+      "after": {
+        "name": "对拍工程",
+        "startDate": "2026-09-07",
+        "tasks": [
+          {
+            "id": "A",
+            "name": "挖土",
+            "duration": 2,
+            "level": 1,
+            "progress": 0
+          },
+          {
+            "id": "B",
+            "name": "垫层",
+            "duration": 3,
+            "level": 1,
+            "progress": 40
+          }
+        ],
+        "links": [
+          {
+            "from": "A",
+            "to": "B",
+            "type": "FS",
+            "lag": 0
+          }
+        ],
+        "resources": [
+          {
+            "id": "r1",
+            "name": "挖机",
+            "type": "work",
+            "standardRate": 800,
+            "costPerUse": 200,
+            "maxUnits": 2
+          },
+          {
+            "id": "r2",
+            "name": "混凝土",
+            "type": "material",
+            "unit": "m³",
+            "standardRate": 450
+          },
+          {
+            "id": "r3",
+            "name": "吊车",
+            "type": "cost",
+            "costPerUse": 500
+          }
+        ],
+        "assignments": [
+          {
+            "taskId": "A",
+            "resourceId": "r1",
+            "units": 1.5
+          },
+          {
+            "taskId": "B",
+            "resourceId": "r2",
+            "quantity": 30
+          }
+        ]
+      }
+    },
+    {
+      "name": "upsert_resource 整量替换",
+      "base": {
+        "name": "对拍工程",
+        "startDate": "2026-09-07",
+        "tasks": [
+          {
+            "id": "A",
+            "name": "挖土",
+            "duration": 2,
+            "level": 1,
+            "progress": 0
+          },
+          {
+            "id": "B",
+            "name": "垫层",
+            "duration": 3,
+            "level": 1,
+            "progress": 40
+          }
+        ],
+        "links": [
+          {
+            "from": "A",
+            "to": "B",
+            "type": "FS",
+            "lag": 0
+          }
+        ],
+        "resources": [
+          {
+            "id": "r1",
+            "name": "挖机",
+            "type": "work",
+            "standardRate": 800,
+            "costPerUse": 200,
+            "maxUnits": 2
+          },
+          {
+            "id": "r2",
+            "name": "混凝土",
+            "type": "material",
+            "unit": "m³",
+            "standardRate": 450
+          }
+        ],
+        "assignments": [
+          {
+            "taskId": "A",
+            "resourceId": "r1",
+            "units": 1.5
+          },
+          {
+            "taskId": "B",
+            "resourceId": "r2",
+            "quantity": 30
+          }
+        ]
+      },
+      "ops": [
+        {
+          "type": "upsert_resource",
+          "resource": {
+            "id": "r1",
+            "name": "挖机2",
+            "type": "work",
+            "standardRate": 900
+          }
+        }
+      ],
+      "after": {
+        "name": "对拍工程",
+        "startDate": "2026-09-07",
+        "tasks": [
+          {
+            "id": "A",
+            "name": "挖土",
+            "duration": 2,
+            "level": 1,
+            "progress": 0
+          },
+          {
+            "id": "B",
+            "name": "垫层",
+            "duration": 3,
+            "level": 1,
+            "progress": 40
+          }
+        ],
+        "links": [
+          {
+            "from": "A",
+            "to": "B",
+            "type": "FS",
+            "lag": 0
+          }
+        ],
+        "resources": [
+          {
+            "id": "r1",
+            "name": "挖机2",
+            "type": "work",
+            "standardRate": 900
+          },
+          {
+            "id": "r2",
+            "name": "混凝土",
+            "type": "material",
+            "unit": "m³",
+            "standardRate": 450
+          }
+        ],
+        "assignments": [
+          {
+            "taskId": "A",
+            "resourceId": "r1",
+            "units": 1.5
+          },
+          {
+            "taskId": "B",
+            "resourceId": "r2",
+            "quantity": 30
+          }
+        ]
+      }
+    },
+    {
+      "name": "upsert_resource 类型非法",
+      "base": {
+        "name": "对拍工程",
+        "startDate": "2026-09-07",
+        "tasks": [
+          {
+            "id": "A",
+            "name": "挖土",
+            "duration": 2,
+            "level": 1,
+            "progress": 0
+          },
+          {
+            "id": "B",
+            "name": "垫层",
+            "duration": 3,
+            "level": 1,
+            "progress": 40
+          }
+        ],
+        "links": [
+          {
+            "from": "A",
+            "to": "B",
+            "type": "FS",
+            "lag": 0
+          }
+        ],
+        "resources": [
+          {
+            "id": "r1",
+            "name": "挖机",
+            "type": "work",
+            "standardRate": 800,
+            "costPerUse": 200,
+            "maxUnits": 2
+          },
+          {
+            "id": "r2",
+            "name": "混凝土",
+            "type": "material",
+            "unit": "m³",
+            "standardRate": 450
+          }
+        ],
+        "assignments": [
+          {
+            "taskId": "A",
+            "resourceId": "r1",
+            "units": 1.5
+          },
+          {
+            "taskId": "B",
+            "resourceId": "r2",
+            "quantity": 30
+          }
+        ]
+      },
+      "ops": [
+        {
+          "type": "upsert_resource",
+          "resource": {
+            "id": "r9",
+            "name": "x",
+            "type": "nope"
+          }
+        }
+      ],
+      "error": "第 1 条操作失败：资源 r9：资源类型非法（work|material|cost）：nope"
+    },
+    {
+      "name": "patch_resource 多字段含清单位",
+      "base": {
+        "name": "对拍工程",
+        "startDate": "2026-09-07",
+        "tasks": [
+          {
+            "id": "A",
+            "name": "挖土",
+            "duration": 2,
+            "level": 1,
+            "progress": 0
+          },
+          {
+            "id": "B",
+            "name": "垫层",
+            "duration": 3,
+            "level": 1,
+            "progress": 40
+          }
+        ],
+        "links": [
+          {
+            "from": "A",
+            "to": "B",
+            "type": "FS",
+            "lag": 0
+          }
+        ],
+        "resources": [
+          {
+            "id": "r1",
+            "name": "挖机",
+            "type": "work",
+            "standardRate": 800,
+            "costPerUse": 200,
+            "maxUnits": 2
+          },
+          {
+            "id": "r2",
+            "name": "混凝土",
+            "type": "material",
+            "unit": "m³",
+            "standardRate": 450
+          }
+        ],
+        "assignments": [
+          {
+            "taskId": "A",
+            "resourceId": "r1",
+            "units": 1.5
+          },
+          {
+            "taskId": "B",
+            "resourceId": "r2",
+            "quantity": 30
+          }
+        ]
+      },
+      "ops": [
+        {
+          "type": "patch_resource",
+          "id": "r2",
+          "resourcePatch": {
+            "unit": "t",
+            "standardRate": 500
+          }
+        }
+      ],
+      "after": {
+        "name": "对拍工程",
+        "startDate": "2026-09-07",
+        "tasks": [
+          {
+            "id": "A",
+            "name": "挖土",
+            "duration": 2,
+            "level": 1,
+            "progress": 0
+          },
+          {
+            "id": "B",
+            "name": "垫层",
+            "duration": 3,
+            "level": 1,
+            "progress": 40
+          }
+        ],
+        "links": [
+          {
+            "from": "A",
+            "to": "B",
+            "type": "FS",
+            "lag": 0
+          }
+        ],
+        "resources": [
+          {
+            "id": "r1",
+            "name": "挖机",
+            "type": "work",
+            "standardRate": 800,
+            "costPerUse": 200,
+            "maxUnits": 2
+          },
+          {
+            "id": "r2",
+            "name": "混凝土",
+            "type": "material",
+            "unit": "t",
+            "standardRate": 500
+          }
+        ],
+        "assignments": [
+          {
+            "taskId": "A",
+            "resourceId": "r1",
+            "units": 1.5
+          },
+          {
+            "taskId": "B",
+            "resourceId": "r2",
+            "quantity": 30
+          }
+        ]
+      }
+    },
+    {
+      "name": "patch_resource 无字段",
+      "base": {
+        "name": "对拍工程",
+        "startDate": "2026-09-07",
+        "tasks": [
+          {
+            "id": "A",
+            "name": "挖土",
+            "duration": 2,
+            "level": 1,
+            "progress": 0
+          },
+          {
+            "id": "B",
+            "name": "垫层",
+            "duration": 3,
+            "level": 1,
+            "progress": 40
+          }
+        ],
+        "links": [
+          {
+            "from": "A",
+            "to": "B",
+            "type": "FS",
+            "lag": 0
+          }
+        ],
+        "resources": [
+          {
+            "id": "r1",
+            "name": "挖机",
+            "type": "work",
+            "standardRate": 800,
+            "costPerUse": 200,
+            "maxUnits": 2
+          },
+          {
+            "id": "r2",
+            "name": "混凝土",
+            "type": "material",
+            "unit": "m³",
+            "standardRate": 450
+          }
+        ],
+        "assignments": [
+          {
+            "taskId": "A",
+            "resourceId": "r1",
+            "units": 1.5
+          },
+          {
+            "taskId": "B",
+            "resourceId": "r2",
+            "quantity": 30
+          }
+        ]
+      },
+      "ops": [
+        {
+          "type": "patch_resource",
+          "id": "r1",
+          "resourcePatch": {}
+        }
+      ],
+      "error": "第 1 条操作失败：patch_resource 未提供任何字段"
+    },
+    {
+      "name": "patch_resource 不存在",
+      "base": {
+        "name": "对拍工程",
+        "startDate": "2026-09-07",
+        "tasks": [
+          {
+            "id": "A",
+            "name": "挖土",
+            "duration": 2,
+            "level": 1,
+            "progress": 0
+          },
+          {
+            "id": "B",
+            "name": "垫层",
+            "duration": 3,
+            "level": 1,
+            "progress": 40
+          }
+        ],
+        "links": [
+          {
+            "from": "A",
+            "to": "B",
+            "type": "FS",
+            "lag": 0
+          }
+        ],
+        "resources": [
+          {
+            "id": "r1",
+            "name": "挖机",
+            "type": "work",
+            "standardRate": 800,
+            "costPerUse": 200,
+            "maxUnits": 2
+          },
+          {
+            "id": "r2",
+            "name": "混凝土",
+            "type": "material",
+            "unit": "m³",
+            "standardRate": 450
+          }
+        ],
+        "assignments": [
+          {
+            "taskId": "A",
+            "resourceId": "r1",
+            "units": 1.5
+          },
+          {
+            "taskId": "B",
+            "resourceId": "r2",
+            "quantity": 30
+          }
+        ]
+      },
+      "ops": [
+        {
+          "type": "patch_resource",
+          "id": "NOPE",
+          "resourcePatch": {
+            "name": "x"
+          }
+        }
+      ],
+      "error": "第 1 条操作失败：资源不存在：NOPE"
+    },
+    {
+      "name": "remove_resource 级联分配",
+      "base": {
+        "name": "对拍工程",
+        "startDate": "2026-09-07",
+        "tasks": [
+          {
+            "id": "A",
+            "name": "挖土",
+            "duration": 2,
+            "level": 1,
+            "progress": 0
+          },
+          {
+            "id": "B",
+            "name": "垫层",
+            "duration": 3,
+            "level": 1,
+            "progress": 40
+          }
+        ],
+        "links": [
+          {
+            "from": "A",
+            "to": "B",
+            "type": "FS",
+            "lag": 0
+          }
+        ],
+        "resources": [
+          {
+            "id": "r1",
+            "name": "挖机",
+            "type": "work",
+            "standardRate": 800,
+            "costPerUse": 200,
+            "maxUnits": 2
+          },
+          {
+            "id": "r2",
+            "name": "混凝土",
+            "type": "material",
+            "unit": "m³",
+            "standardRate": 450
+          }
+        ],
+        "assignments": [
+          {
+            "taskId": "A",
+            "resourceId": "r1",
+            "units": 1.5
+          },
+          {
+            "taskId": "B",
+            "resourceId": "r2",
+            "quantity": 30
+          }
+        ]
+      },
+      "ops": [
+        {
+          "type": "remove_resource",
+          "id": "r1"
+        }
+      ],
+      "after": {
+        "name": "对拍工程",
+        "startDate": "2026-09-07",
+        "tasks": [
+          {
+            "id": "A",
+            "name": "挖土",
+            "duration": 2,
+            "level": 1,
+            "progress": 0
+          },
+          {
+            "id": "B",
+            "name": "垫层",
+            "duration": 3,
+            "level": 1,
+            "progress": 40
+          }
+        ],
+        "links": [
+          {
+            "from": "A",
+            "to": "B",
+            "type": "FS",
+            "lag": 0
+          }
+        ],
+        "resources": [
+          {
+            "id": "r2",
+            "name": "混凝土",
+            "type": "material",
+            "unit": "m³",
+            "standardRate": 450
+          }
+        ],
+        "assignments": [
+          {
+            "taskId": "B",
+            "resourceId": "r2",
+            "quantity": 30
+          }
+        ]
+      }
+    },
+    {
+      "name": "set_assignments 整体替换",
+      "base": {
+        "name": "对拍工程",
+        "startDate": "2026-09-07",
+        "tasks": [
+          {
+            "id": "A",
+            "name": "挖土",
+            "duration": 2,
+            "level": 1,
+            "progress": 0
+          },
+          {
+            "id": "B",
+            "name": "垫层",
+            "duration": 3,
+            "level": 1,
+            "progress": 40
+          }
+        ],
+        "links": [
+          {
+            "from": "A",
+            "to": "B",
+            "type": "FS",
+            "lag": 0
+          }
+        ],
+        "resources": [
+          {
+            "id": "r1",
+            "name": "挖机",
+            "type": "work",
+            "standardRate": 800,
+            "costPerUse": 200,
+            "maxUnits": 2
+          },
+          {
+            "id": "r2",
+            "name": "混凝土",
+            "type": "material",
+            "unit": "m³",
+            "standardRate": 450
+          }
+        ],
+        "assignments": [
+          {
+            "taskId": "A",
+            "resourceId": "r1",
+            "units": 1.5
+          },
+          {
+            "taskId": "B",
+            "resourceId": "r2",
+            "quantity": 30
+          }
+        ]
+      },
+      "ops": [
+        {
+          "type": "set_assignments",
+          "taskId": "A",
+          "assignments": [
+            {
+              "taskId": "",
+              "resourceId": "r2",
+              "quantity": 10
+            },
+            {
+              "taskId": "",
+              "resourceId": "r1",
+              "units": 2
+            }
+          ]
+        }
+      ],
+      "after": {
+        "name": "对拍工程",
+        "startDate": "2026-09-07",
+        "tasks": [
+          {
+            "id": "A",
+            "name": "挖土",
+            "duration": 2,
+            "level": 1,
+            "progress": 0
+          },
+          {
+            "id": "B",
+            "name": "垫层",
+            "duration": 3,
+            "level": 1,
+            "progress": 40
+          }
+        ],
+        "links": [
+          {
+            "from": "A",
+            "to": "B",
+            "type": "FS",
+            "lag": 0
+          }
+        ],
+        "resources": [
+          {
+            "id": "r1",
+            "name": "挖机",
+            "type": "work",
+            "standardRate": 800,
+            "costPerUse": 200,
+            "maxUnits": 2
+          },
+          {
+            "id": "r2",
+            "name": "混凝土",
+            "type": "material",
+            "unit": "m³",
+            "standardRate": 450
+          }
+        ],
+        "assignments": [
+          {
+            "taskId": "B",
+            "resourceId": "r2",
+            "quantity": 30
+          },
+          {
+            "taskId": "A",
+            "resourceId": "r2",
+            "quantity": 10
+          },
+          {
+            "taskId": "A",
+            "resourceId": "r1",
+            "units": 2
+          }
+        ]
+      }
+    },
+    {
+      "name": "set_assignments 分组行拒绝",
+      "base": {
+        "name": "对拍工程",
+        "startDate": "2026-09-07",
+        "tasks": [
+          {
+            "id": "G",
+            "name": "基础工程",
+            "duration": 0,
+            "level": 0,
+            "progress": 0
+          },
+          {
+            "id": "A",
+            "name": "挖土",
+            "duration": 2,
+            "level": 1,
+            "progress": 0
+          },
+          {
+            "id": "B",
+            "name": "垫层",
+            "duration": 3,
+            "level": 1,
+            "progress": 40
+          }
+        ],
+        "links": [
+          {
+            "from": "A",
+            "to": "B",
+            "type": "FS",
+            "lag": 0
+          }
+        ]
+      },
+      "ops": [
+        {
+          "type": "set_assignments",
+          "taskId": "G",
+          "assignments": [
+            {
+              "taskId": "",
+              "resourceId": "r1"
+            }
+          ]
+        }
+      ],
+      "error": "第 1 条操作失败：分组行 G 禁止挂分配（汇总唯一口径为子孙求和）"
+    },
+    {
+      "name": "set_assignments 资源不存在",
+      "base": {
+        "name": "对拍工程",
+        "startDate": "2026-09-07",
+        "tasks": [
+          {
+            "id": "A",
+            "name": "挖土",
+            "duration": 2,
+            "level": 1,
+            "progress": 0
+          },
+          {
+            "id": "B",
+            "name": "垫层",
+            "duration": 3,
+            "level": 1,
+            "progress": 40
+          }
+        ],
+        "links": [
+          {
+            "from": "A",
+            "to": "B",
+            "type": "FS",
+            "lag": 0
+          }
+        ],
+        "resources": [
+          {
+            "id": "r1",
+            "name": "挖机",
+            "type": "work",
+            "standardRate": 800,
+            "costPerUse": 200,
+            "maxUnits": 2
+          },
+          {
+            "id": "r2",
+            "name": "混凝土",
+            "type": "material",
+            "unit": "m³",
+            "standardRate": 450
+          }
+        ],
+        "assignments": [
+          {
+            "taskId": "A",
+            "resourceId": "r1",
+            "units": 1.5
+          },
+          {
+            "taskId": "B",
+            "resourceId": "r2",
+            "quantity": 30
+          }
+        ]
+      },
+      "ops": [
+        {
+          "type": "set_assignments",
+          "taskId": "A",
+          "assignments": [
+            {
+              "taskId": "",
+              "resourceId": "NOPE"
+            }
+          ]
+        }
+      ],
+      "error": "第 1 条操作失败：资源不存在：NOPE"
+    },
+    {
+      "name": "set_assignments 重复对",
+      "base": {
+        "name": "对拍工程",
+        "startDate": "2026-09-07",
+        "tasks": [
+          {
+            "id": "A",
+            "name": "挖土",
+            "duration": 2,
+            "level": 1,
+            "progress": 0
+          },
+          {
+            "id": "B",
+            "name": "垫层",
+            "duration": 3,
+            "level": 1,
+            "progress": 40
+          }
+        ],
+        "links": [
+          {
+            "from": "A",
+            "to": "B",
+            "type": "FS",
+            "lag": 0
+          }
+        ],
+        "resources": [
+          {
+            "id": "r1",
+            "name": "挖机",
+            "type": "work",
+            "standardRate": 800,
+            "costPerUse": 200,
+            "maxUnits": 2
+          },
+          {
+            "id": "r2",
+            "name": "混凝土",
+            "type": "material",
+            "unit": "m³",
+            "standardRate": 450
+          }
+        ],
+        "assignments": [
+          {
+            "taskId": "A",
+            "resourceId": "r1",
+            "units": 1.5
+          },
+          {
+            "taskId": "B",
+            "resourceId": "r2",
+            "quantity": 30
+          }
+        ]
+      },
+      "ops": [
+        {
+          "type": "set_assignments",
+          "taskId": "A",
+          "assignments": [
+            {
+              "taskId": "",
+              "resourceId": "r1"
+            },
+            {
+              "taskId": "",
+              "resourceId": "r1",
+              "units": 2
+            }
+          ]
+        }
+      ],
+      "error": "第 1 条操作失败：分配重复（任务 A ↔ 资源 r1）"
+    },
+    {
+      "name": "set_assignments 外来 taskId",
+      "base": {
+        "name": "对拍工程",
+        "startDate": "2026-09-07",
+        "tasks": [
+          {
+            "id": "A",
+            "name": "挖土",
+            "duration": 2,
+            "level": 1,
+            "progress": 0
+          },
+          {
+            "id": "B",
+            "name": "垫层",
+            "duration": 3,
+            "level": 1,
+            "progress": 40
+          }
+        ],
+        "links": [
+          {
+            "from": "A",
+            "to": "B",
+            "type": "FS",
+            "lag": 0
+          }
+        ],
+        "resources": [
+          {
+            "id": "r1",
+            "name": "挖机",
+            "type": "work",
+            "standardRate": 800,
+            "costPerUse": 200,
+            "maxUnits": 2
+          },
+          {
+            "id": "r2",
+            "name": "混凝土",
+            "type": "material",
+            "unit": "m³",
+            "standardRate": 450
+          }
+        ],
+        "assignments": [
+          {
+            "taskId": "A",
+            "resourceId": "r1",
+            "units": 1.5
+          },
+          {
+            "taskId": "B",
+            "resourceId": "r2",
+            "quantity": 30
+          }
+        ]
+      },
+      "ops": [
+        {
+          "type": "set_assignments",
+          "taskId": "A",
+          "assignments": [
+            {
+              "taskId": "B",
+              "resourceId": "r1"
+            }
+          ]
+        }
+      ],
+      "error": "第 1 条操作失败：set_assignments 只允许目标任务 A 的分配，出现 B"
+    },
+    {
+      "name": "未知操作类型",
+      "base": {
+        "name": "对拍工程",
+        "startDate": "2026-09-07",
+        "tasks": [
+          {
+            "id": "A",
+            "name": "挖土",
+            "duration": 2,
+            "level": 1,
+            "progress": 0
+          },
+          {
+            "id": "B",
+            "name": "垫层",
+            "duration": 3,
+            "level": 1,
+            "progress": 40
+          }
+        ],
+        "links": [
+          {
+            "from": "A",
+            "to": "B",
+            "type": "FS",
+            "lag": 0
+          }
+        ]
+      },
+      "ops": [
+        {
+          "type": "nope"
+        }
+      ],
+      "error": "第 1 条操作失败：不支持的操作类型：nope"
+    },
+    {
+      "name": "多 op 中途失败（半途状态不外泄）",
+      "base": {
+        "name": "对拍工程",
+        "startDate": "2026-09-07",
+        "tasks": [
+          {
+            "id": "A",
+            "name": "挖土",
+            "duration": 2,
+            "level": 1,
+            "progress": 0
+          },
+          {
+            "id": "B",
+            "name": "垫层",
+            "duration": 3,
+            "level": 1,
+            "progress": 40
+          }
+        ],
+        "links": [
+          {
+            "from": "A",
+            "to": "B",
+            "type": "FS",
+            "lag": 0
+          }
+        ]
+      },
+      "ops": [
+        {
+          "type": "patch_task",
+          "patch": {
+            "duration": 9
+          },
+          "id": "A"
+        },
+        {
+          "type": "patch_task",
+          "patch": {
+            "duration": 1
+          },
+          "id": "NOPE"
+        }
+      ],
+      "error": "第 2 条操作失败：任务不存在：NOPE"
+    }
+  ]
+}

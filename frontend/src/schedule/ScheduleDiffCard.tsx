@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { diffProjects, type ScheduleApplyDiff } from './applyDiff'
+import { simulateOps, type SimOp } from './opsSim'
 import { loadScheduleFile } from './api'
 import { SCHEDULE_FILE_PATH } from './gschedSummary'
 import type { SchedProject } from './types'
@@ -92,13 +93,14 @@ export function ScheduleDiffCard({ args }: { args: string | null }) {
 
   const projectKey = parsed?.project ? JSON.stringify(parsed.project).length + (parsed.project.name ?? '') : ''
   useEffect(() => {
-    if (!parsed?.project || !isDefaultPath) return
+    if (!parsed || (!parsed.project && !parsed.ops) || !isDefaultPath) return
     let alive = true
     loadScheduleFile()
       .then((r) => { if (alive) setBefore(r.exists && r.project ? r.project : null) })
       .catch(() => { if (alive) setBefore(null) })
     return () => { alive = false }
-  }, [parsed?.project, isDefaultPath, projectKey])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- parsed 是 useMemo 派生对象，展开依赖会每帧重读文件；projectKey 已代表其内容变化
+  }, [parsed?.project, parsed?.ops, isDefaultPath, projectKey])
 
   if (!parsed) {
     return (
@@ -108,21 +110,37 @@ export function ScheduleDiffCard({ args }: { args: string | null }) {
     )
   }
 
-  // ── ops 通道（刀D 前的诚实降级）：意图清单 ──────────────────────
-  if (!parsed.project) {
-    const ops = parsed.ops ?? []
+  // ── 统一 diff 计算：project=直比；ops=simulateOps 投影（刀D）后同管线 ──
+  // 降级链（全部诚实上屏）：非缺省路径（绑定只服务缺省）→ before 读取失败 →
+  // ops 模拟失败（Go 闸门/落盘权威不受影响，回执为准）→ ops 意图清单。
+  let diff: ScheduleApplyDiff | null = null
+  let degrade: string | null = null
+  if (parsed.project) {
+    diff = before ? diffProjects(before, parsed.project) : null
+    if (!before) degrade = isDefaultPath ? '现状读取失败，无对比' : '非当前计划文件，无现状对比'
+  } else if (before) {
+    const sim = simulateOps(before, (parsed.ops ?? []) as SimOp[])
+    if (sim.ok) {
+      diff = diffProjects(before, sim.project)
+    } else {
+      degrade = `ops 投影失败（${sim.error}）：本次执行结果以 apply 回执为准`
+    }
+  } else if (!isDefaultPath) {
+    degrade = '非当前计划文件，无现状对比（ops 意图见参数折叠区）'
+  } else {
+    degrade = '现状读取失败，无对比'
+  }
+  if (!parsed.project && !before) {
+    // ops 通道降级形态：意图清单 + 原因
     return (
       <div className="mb-3 border border-border-soft rounded-lg bg-bg-soft py-[7px] px-2" data-testid="sched-diff-card">
         <div className="text-fg-dim text-[12px] leading-[1.5]">
-          ops 增量调整 {ops.length} 条：逐条意图见参数折叠区。投影预览将在后续版本提供；
+          ops 增量调整 {(parsed.ops ?? []).length} 条：{degrade}。
           本次执行结果以 apply 回执为准，回执卡可用「回滚本次」整体还原。
         </div>
       </div>
     )
   }
-
-  // ── project 通道 ────────────────────────────────────────────────
-  const diff = before ? diffProjects(before, parsed.project) : null
   const s = diff?.summary
   const lines = diff ? projectChannelLines(diff) : []
   const shown = expanded ? lines : lines.slice(0, ROW_CAP)
@@ -132,7 +150,7 @@ export function ScheduleDiffCard({ args }: { args: string | null }) {
       {/* 卡头汇总（预览口径显式标注；审批疲劳对策=汇总行醒目+行数截断） */}
       <div className="flex items-center gap-2 flex-wrap text-[12px] leading-[1.5] mb-1.5" data-testid="sched-diff-summary">
         <span className="shrink-0 text-fg-faint font-mono text-[11px] uppercase tracking-[0.04em]">diff 预览</span>
-        {before ? (
+        {diff ? (
           <>
             <span className="font-mono text-fg">
               总工期 {s?.durationFrom ?? '—'}→{s?.durationTo ?? '—'} 天
@@ -156,11 +174,9 @@ export function ScheduleDiffCard({ args }: { args: string | null }) {
             ) : null}
           </>
         ) : (
-          <span className="text-fg-faint">
-            {isDefaultPath ? '现状读取失败，无对比' : '非当前计划文件，无现状对比'}
-          </span>
+          <span className="text-fg-faint">{degrade ?? '无对比'}</span>
         )}
-        <span className="ml-auto text-[10px] text-fg-faint">预览数字，落盘以回执为准</span>
+        <span className="ml-auto text-[10px] text-fg-faint">{"预览数字（" + (parsed.project ? "文件实况对比" : "ops 投影") + "），落盘以回执为准"}</span>
       </div>
 
       {/* 预览层复刻引擎 fail-closed：after CPM 不过=这单会被拒，如实提示 */}
