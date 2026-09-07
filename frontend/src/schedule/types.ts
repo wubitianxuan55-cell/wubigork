@@ -40,6 +40,8 @@ export interface SchedTask {
   manualStart?: number
   /** 任务固定成本（元，叶任务专属；v4.122 资源成本刀1。分组行禁止=汇总唯一口径为子孙求和） */
   fixedCost?: number
+  /** 自定义字段值（v4.138 #14：槽位见 customFields.ts 注册表，text|number；只存有值槽，旧文件零迁移） */
+  custom?: Partial<Record<string, string | number>>
 }
 
 /** 工作日历（对齐 Project 基准日历）：workweek 为 JS getDay 口径 0=周日..6=周六 */
@@ -106,6 +108,8 @@ export interface SchedProject {
   baseline?: SchedBaseline | null
   /** 基线槽位列表（v4.137 #11 多基线：FIFO 上限 3，支持签证 1→N 场景切换对比；缺省=单基线旧文件零迁移） */
   baselines?: SchedBaseline[]
+  /** 自定义字段列名覆盖（v4.138 #14：key→显示名；缺省用注册表 label。xlsx 导入导出同口径） */
+  customLabels?: Record<string, string>
   /** 目标竣工日期（v4.117 刀8：YYYY-MM-DD，倒排校核用，缺省=未设） */
   deadline?: string | null
   /** 资源表（v4.122 资源成本刀1：缺省=无资源维度，旧文件零迁移可读） */

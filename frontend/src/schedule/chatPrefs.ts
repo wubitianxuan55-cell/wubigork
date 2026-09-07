@@ -6,17 +6,18 @@
  * "ganttTableW":number,"ganttHide":string[],
  * "ganttSort":{"field":string,"dir":"asc"|"desc"},"ganttGroup":string[]}。
  * 宽度钳位 320~680（窄了输入框挤压、宽了横道图不够用）；表格窗格宽度钳位
- * [行号+名称, 可见列总宽]；ganttHide 缺省=进度列收起（v4.135）；字段级容错——
- * 坏值回落缺省，单个字段坏不拖累另一个。
+ * [行号+名称, 可见列总宽]；ganttHide 缺省=进度列收起（v4.135）+ 自定义字段列
+ * 全部收起（v4.138 #14，让位画布；列菜单可开）；字段级容错——坏值回落缺省，
+ * 单个字段坏不拖累另一个。
  */
-import { clampTableW, sanitizeHide, GANTT_LEFT_W_FULL } from './ganttCols'
+import { clampTableW, sanitizeHide, GANTT_CUSTOM_KEYS, GANTT_LEFT_W_FULL } from './ganttCols'
 
 export interface ChatPrefs {
   collapsed: boolean
   width: number
   /** 横道表格窗格宽度（刀C 双栏；缺省=全列展开） */
   ganttTableW: number
-  /** 横道隐藏列键集（缺省=全显） */
+  /** 横道隐藏列键集（缺省=进度列+自定义字段列收起，其余全显） */
   ganttHide: string[]
   /** 横道排序（v4.136；缺省=不排序按原顺序） */
   ganttSort: { field: string; dir: 'asc' | 'desc' }
@@ -29,8 +30,8 @@ export const CHAT_WIDTH_MIN = 320
 export const CHAT_WIDTH_MAX = 680
 export const CHAT_WIDTH_DEFAULT = 420
 
-/** 缺省隐藏列：进度列默认收起（让位画布；列菜单可开） */
-const DEFAULT_HIDE: string[] = ['progress']
+/** 缺省隐藏列：进度列（v4.135）+ 全部自定义字段列（v4.138 #14）缺省收起（让位画布；列菜单可开） */
+const DEFAULT_HIDE: string[] = ['progress', ...GANTT_CUSTOM_KEYS]
 
 const SORT_FIELDS = ['none', 'name', 'duration', 'start', 'progress', 'tf']
 const GROUP_FIELDS = ['critical', 'mode', 'milestone']

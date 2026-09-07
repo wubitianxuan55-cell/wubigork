@@ -1,8 +1,9 @@
 /**
  * exportMeta.ts — 图面导出签署字段偏好（纯函数 + 可注入 storage，v4.132.0 刀D1）
  *
- * 键 gaea.schedule.exportMeta：{"org","designer","reviewer","approver","date"}。
+ * 键 gaea.schedule.exportMeta：{"org","designer","reviewer","approver","date","notes?"}。
  * 全部字符串逐项容错（trim、上限 40；date 须 YYYY-MM-DD 否则丢弃），
+ * notes 为可选多行文本（\n 分行，仅收字符串、上限 600，非字符串丢弃），
  * 单个字段坏不拖累另一个；写失败静默（偏好属锦上添花）。
  */
 
@@ -12,6 +13,8 @@ export interface ExportMetaPrefs {
   reviewer: string
   approver: string
   date: string
+  /** 编制说明（多行文本，\n 分行；可选——导出图面图签上方渲染，见 ganttExport.exportNotesSvg） */
+  notes?: string
 }
 
 export const EXPORT_META_KEY = 'gaea.schedule.exportMeta'
@@ -21,6 +24,12 @@ const DEFAULTS: ExportMetaPrefs = { org: '', designer: '', reviewer: '', approve
 function str(v: unknown): string {
   if (typeof v !== 'string') return ''
   return v.trim().slice(0, 40)
+}
+
+/** notes 容错：仅收字符串（多行 \n 原样保留），上限 600；非字符串丢弃 */
+function notesStr(v: unknown): string | undefined {
+  if (typeof v !== 'string') return undefined
+  return v.slice(0, 600)
 }
 
 function parse(raw: string | null): ExportMetaPrefs {
@@ -33,6 +42,7 @@ function parse(raw: string | null): ExportMetaPrefs {
       reviewer: str(o.reviewer),
       approver: str(o.approver),
       date: /^\d{4}-\d{2}-\d{2}$/.test(str(o.date)) ? str(o.date) : '',
+      notes: notesStr(o.notes),
     }
   } catch {
     return { ...DEFAULTS }
@@ -58,6 +68,7 @@ export function saveExportMeta(patch: ExportMetaPrefs, storage?: Pick<Storage, '
     reviewer: str(patch.reviewer),
     approver: str(patch.approver),
     date: /^\d{4}-\d{2}-\d{2}$/.test(str(patch.date)) ? str(patch.date) : '',
+    notes: notesStr(patch.notes),
   }
   const s = storage ?? (typeof localStorage !== 'undefined' ? localStorage : undefined)
   try {

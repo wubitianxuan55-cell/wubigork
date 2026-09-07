@@ -1,16 +1,53 @@
 /**
- * ganttCols.test.ts — 横道列显隐/表格窗格宽度纯函数用例（v4.131.0 刀C）
+ * ganttCols.test.ts — 横道列显隐/表格窗格宽度纯函数用例（v4.131.0 刀C；v4.138 #14 增自定义字段列）
  */
 import { describe, expect, it } from 'vitest'
-import { GANTT_COLS, GANTT_FIXED_KEYS, GANTT_HIDEABLE_KEYS, GANTT_LEFT_W_FULL, GANTT_REPORT_KEYS, GANTT_TABLE_W_MIN, clampTableW, colsByKeys, sanitizeHide, visibleCols, visibleLeftW } from './ganttCols'
+import { GANTT_COLS, GANTT_CUSTOM_KEYS, GANTT_FIXED_KEYS, GANTT_HIDEABLE_KEYS, GANTT_LEFT_W_FULL, GANTT_REPORT_KEYS, GANTT_TABLE_W_MIN, clampTableW, colsByKeys, sanitizeHide, visibleCols, visibleLeftW } from './ganttCols'
 
 describe('ganttCols 列定义', () => {
-  it('15 列、行号+名称固定、全列宽=各列宽求和（进度列 v4.135 加入）', () => {
-    expect(GANTT_COLS).toHaveLength(15)
+  it('20 列（15 标准+5 自定义）、行号+名称固定、全列宽=各列宽求和', () => {
+    expect(GANTT_COLS).toHaveLength(20)
     expect(GANTT_FIXED_KEYS).toEqual(['no', 'name'])
-    expect(GANTT_HIDEABLE_KEYS).toHaveLength(13)
+    expect(GANTT_HIDEABLE_KEYS).toHaveLength(18)
     expect(GANTT_LEFT_W_FULL).toBe(GANTT_COLS.reduce((s, c) => s + c.w, 0))
     expect(GANTT_TABLE_W_MIN).toBe(34 + 160)
+  })
+})
+
+describe('自定义字段列（v4.138 #14）', () => {
+  it('GANTT_CUSTOM_KEYS=注册表序 5 槽、排成本列之后、宽 text 90 / number 64', () => {
+    expect(GANTT_CUSTOM_KEYS).toEqual(['text1', 'text2', 'text3', 'num1', 'num2'])
+    const keys = GANTT_COLS.map((c) => c.key)
+    expect(keys[14]).toBe('cost')
+    expect(keys.slice(15)).toEqual(GANTT_CUSTOM_KEYS)
+    const w = Object.fromEntries(GANTT_COLS.map((c) => [c.key, c.w]))
+    expect(w.text1).toBe(90)
+    expect(w.text3).toBe(90)
+    expect(w.num1).toBe(64)
+    expect(w.num2).toBe(64)
+  })
+  it('visibleCols：hide 含自定义键即隐藏（缺省收起口径），既有 15 列键序零变化', () => {
+    const hidden = visibleCols(['progress', ...GANTT_CUSTOM_KEYS])
+    const keys = hidden.map((c) => c.key)
+    for (const k of GANTT_CUSTOM_KEYS) expect(keys).not.toContain(k)
+    expect(keys).toEqual(
+      ['no', 'name', 'wbs', 'dur', 'start', 'finish', 'ls', 'lf', 'tf', 'ff', 'mode', 'preds', 'succ', 'cost'],
+    )
+    // 不藏自定义列时键序=原 15 列 + 自定义 5 列
+    expect(visibleCols(['progress']).map((c) => c.key)).toEqual(
+      ['no', 'name', 'wbs', 'dur', 'start', 'finish', 'ls', 'lf', 'tf', 'ff', 'mode', 'preds', 'succ', 'cost', ...GANTT_CUSTOM_KEYS],
+    )
+  })
+  it('自定义列名：不传 customLabels=注册表缺省名；项目覆盖优先；空串/空白覆盖回落；标准列名不受影响', () => {
+    const dft = visibleCols([], undefined)
+    expect(dft.find((c) => c.key === 'text1')!.label).toBe('文本1')
+    expect(dft.find((c) => c.key === 'num2')!.label).toBe('数值2')
+    const renamed = visibleCols([], { text1: '施工部位', num1: '方量', text2: '  ' })
+    expect(renamed.find((c) => c.key === 'text1')!.label).toBe('施工部位')
+    expect(renamed.find((c) => c.key === 'num1')!.label).toBe('方量')
+    expect(renamed.find((c) => c.key === 'text2')!.label).toBe('文本2')
+    expect(renamed.find((c) => c.key === 'name')!.label).toBe('任务名称')
+    expect(renamed.find((c) => c.key === 'cost')!.label).toBe('成本')
   })
 })
 

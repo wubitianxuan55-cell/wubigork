@@ -6,6 +6,7 @@
  * 断言时标几何（节点 x=留白+es×日宽）、波形=自由时差（虚工作尾段含 q 波形）、
  * 工程标尺四行与总工期红刻度；PDM 断言六格盒/虚拟 S/T/绑定红链/无时标。
  * 里程碑旗标以 data-exp-flag 特征断言（横道/网络同款小旗）。
+ * 编制说明注（meta.notes）：图签上方出块/截断/无 notes 不出块。
  * 循环依赖 fail-closed。
  */
 import { describe, expect, it } from 'vitest'
@@ -146,5 +147,43 @@ describe('buildPdmExportSvg 单代号', () => {
     expect(Number(flags[0].querySelector('line')!.getAttribute('y1'))).toBe(Number(dBox.getAttribute('y')) + 4)
     const texts = Array.from(doc.querySelectorAll('text')).map((n) => n.textContent ?? '')
     expect(texts, '里程碑名带 ◆ 前缀（fit 宽度收窄 14px 给旗让位）').toContain('◆ 任务D')
+  })
+})
+
+describe('编制说明注（meta.notes）', () => {
+  it('AOA：图签上方出「编制说明」块含首行、图签下移画布增高；无 notes 不出块', () => {
+    const graph = buildAoa(baseProj.tasks, baseProj.links)
+    const plain = buildAoaExportSvg(baseProj, graph)
+    const noted = buildAoaExportSvg(baseProj, graph, { notes: '关键线路 A→B→D\n总工期 8 天' })
+    expect(noted.svg, '块标题').toContain('编制说明')
+    expect(noted.svg, '首行内容').toContain('关键线路 A→B→D')
+    const doc = parse(noted.svg)
+    const rect = doc.querySelector('.sched-exp-notes rect')!
+    const signTop = Number(doc.querySelector('.sched-exp-sign rect')!.getAttribute('y'))
+    // 块整体在图签顶上方、右对齐画布右缘-M
+    expect(Number(rect.getAttribute('y')) + Number(rect.getAttribute('height'))).toBeLessThanOrEqual(signTop)
+    expect(Number(rect.getAttribute('x')) + Number(rect.getAttribute('width'))).toBe(noted.w - 20)
+    expect(noted.h, '画布增高容纳说明块').toBeGreaterThan(plain.h)
+    expect(plain.svg, '无 notes 不出块').not.toContain('sched-exp-notes')
+    expect(plain.svg).not.toContain('编制说明')
+  })
+
+  it('AOA 超 6 行截断第 6 行加「…」；PDM 同样出块且无 notes 不出', () => {
+    const graph = buildAoa(baseProj.tasks, baseProj.links)
+    const notes = ['一', '二', '三', '四', '五', '六', '七'].join('\n')
+    const body = Array.from(parse(buildAoaExportSvg(baseProj, graph, { notes }).svg).querySelectorAll('.sched-exp-notes text'))
+      .map((n) => n.textContent ?? '')
+    expect(body, '标题 + 6 行正文').toHaveLength(7)
+    expect(body[0]).toBe('编制说明')
+    expect(body[6], '第 6 行尾加省略号').toContain('…')
+    expect(body.join('\n'), '第 7 行不入图').not.toContain('七')
+    // PDM：有 notes 出块含首行；无 notes 不出
+    const cpm = computeCpm(baseProj.tasks, baseProj.links)
+    const pdm = buildPdmExportSvg(baseProj, cpm, { notes: '逻辑关系按 PDM 六格标注' })
+    expect(pdm.svg).toContain('编制说明')
+    expect(pdm.svg).toContain('逻辑关系按 PDM 六格标注')
+    const pdmPlain = buildPdmExportSvg(baseProj, cpm)
+    expect(pdmPlain.svg).not.toContain('sched-exp-notes')
+    expect(pdmPlain.svg).not.toContain('编制说明')
   })
 })

@@ -11,15 +11,19 @@
  *  - 有活跃基线 → 旧版漂移摘要（总工期 X→Y/推移·新增·移除·一致/关键链进出/偏差行
  *    清单，数值一律来自 computeBaselineDrift，UI 不重复实现公式）+「更新基线」
  *    （=setBaseline(活跃名) 原位更新）+「清除对比」（=clearBaseline，只清活跃指针，
- *    槽位保留可再激活）。
+ *    槽位保留可再激活）；
+ *  - 有槽位 → 槽位列表下方「导出台账」（v4.138）：CSV 下载（\ufeff BOM 防 Excel
+ *    中文乱码），列=基线名称/保存时间/基线总工期/当前总工期/总工期漂移，每槽
+ *    一行不汇总；下载复用 exportArtifact.downloadBlob。
  * props 只收 cpm（页面级 CPM 结果）；工程与槽位动作一律取自 useScheduleStore，
  * 不依赖页面局部状态，可整体替换进基线 Popover。
  */
 import React, { useMemo, useState } from 'react'
 import { Button, Input, Popconfirm, Radio, Space, Tag } from 'antd'
 import { computeBaselineDrift } from './baseline'
+import { downloadBlob } from './exportArtifact'
 import { useScheduleStore } from './store'
-import type { CpmResult } from './types'
+import type { CpmResult, SchedBaseline } from './types'
 
 /** 偏移量文本：+N / -N / ±0（与旧版同口径） */
 function fmtDrift(n: number): string {
@@ -36,6 +40,24 @@ const DRIFT_KIND_LABEL: Record<'shifted' | 'added' | 'removed', string> = {
 /** 保存新基线的缺省名：基线{槽位数+1} */
 function defaultSlotName(count: number): string {
   return `基线${count + 1}`
+}
+
+/** CSV 单元格转义：含逗号/引号/换行的字段用引号包裹、内部引号翻倍（Excel 兼容） */
+function csvCell(v: string): string {
+  return /[",\r\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v
+}
+
+/**
+ * 签证台账 CSV 文本（不含 BOM，BOM 由调用方拼在 Blob 头部）：
+ * 表头 + 每槽一行（当前总工期=cpm.duration；漂移=当前-基线，正=拖后），
+ * 末行不汇总。
+ */
+function ledgerCsv(slots: SchedBaseline[], currentDuration: number): string {
+  const header = '基线名称,保存时间,基线总工期(天),当前总工期(天),总工期漂移(天)'
+  const rows = slots.map((b) => [
+    b.name, b.savedAt, String(b.duration), String(currentDuration), String(currentDuration - b.duration),
+  ].map(csvCell).join(','))
+  return [header, ...rows].join('\r\n')
 }
 
 /** 基线对比弹层（多基线槽位版） */
@@ -71,6 +93,13 @@ export const BaselinesPanel: React.FC<{ cpm: CpmResult }> = ({ cpm }) => {
   const updateActive = () => {
     if (!drift) return
     setErr(setBaseline(drift.baselineName))
+  }
+
+  /** 导出签证台账 CSV：\ufeff BOM 防 Excel 中文乱码；文件名=工程名-签证台账.csv */
+  const exportLedger = () => {
+    const csv = ledgerCsv(slots, cpm.duration)
+    const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' })
+    downloadBlob(blob, `${project.name || '进度计划'}-签证台账.csv`)
   }
 
   return (
@@ -130,6 +159,13 @@ export const BaselinesPanel: React.FC<{ cpm: CpmResult }> = ({ cpm }) => {
             )
           })}
         </div>
+      )}
+
+      {/* 签证台账导出（v4.138）：有槽位才在位，无槽位隐藏；CSV 每槽一行对比当前总工期 */}
+      {slots.length > 0 && (
+        <Button size="small" data-testid="sched-baseline-ledger" onClick={exportLedger}>
+          导出台账
+        </Button>
       )}
 
       {/* 保存新基线：表单展开态 / 按钮态（缺省名=基线{N+1}，重名=原位更新） */}

@@ -18,10 +18,16 @@
  * v4.136 小刀：行序列唯一状态源（筛选→排序→多级分组→折叠 全部合成进 rows，
  * buildGanttRows 缺省恒等原顺序）+ 路径分析（沿选中任务的驱动边高亮前驱/后继链，
  * 蒸馏 ProjectLibre E8：逐依赖自由时差=0 即驱动）+ 大纲折叠（组头 ▲/▶ 点击）。
+ *
+ * v4.138 #14：自定义字段列（text×3 / num×2，排成本列之后，缺省收起）——
+ *  - 列名按项目 customLabels 覆盖（列头/菜单/xlsx 导出同源）；列菜单自定义行
+ *    附「改名」铅笔：行内 Input 受控编辑，回车/失焦提交 setCustomLabel、Esc 取消；
+ *  - 叶行单元格直接编辑：text=Input（同名称列 borderless 范式）、num=InputNumber
+ *    （无 min、可小数），清空=删除槽键（custom 不留空值）；分组行留空。
  */
 import React, { useMemo, useRef, useState } from 'react'
 import { Button, Checkbox, DatePicker, Dropdown, Input, InputNumber, Popover, Segmented, Select } from 'antd'
-import { ColumnWidthOutlined, DeleteOutlined, SearchOutlined, TeamOutlined, ZoomInOutlined, ZoomOutOutlined } from '@ant-design/icons'
+import { ColumnWidthOutlined, DeleteOutlined, EditOutlined, SearchOutlined, TeamOutlined, ZoomInOutlined, ZoomOutOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import type { CpmResult, LinkType, SchedProject, SchedTask } from './types'
 import { isWorkingDate, normalizeCalendar, wdToDate } from './calendar'
@@ -31,7 +37,8 @@ import { fmtLinkRefs, ganttLinkPath } from './ganttLinks'
 import { descendantIds, useScheduleStore, type PredDraft } from './store'
 import { TaskResourceEditor } from './ResourcePanel'
 import { fmtCost, hasCostData } from './costUi'
-import { GANTT_COLS, GANTT_FIXED_KEYS, GANTT_LEFT_W_FULL, clampTableW, visibleCols, visibleLeftW } from './ganttCols'
+import { CUSTOM_FIELDS, customLabelOf, customValueOf, type CustomFieldDef, type CustomFieldKey } from './customFields'
+import { GANTT_COLS, GANTT_CUSTOM_KEYS, GANTT_FIXED_KEYS, GANTT_LEFT_W_FULL, clampTableW, visibleCols, visibleLeftW } from './ganttCols'
 import { GANTT_FILTER_DEFAULT, filterGanttRows, type GanttFilter, type GanttFilterKind } from './ganttFilter'
 import { buildGanttRows, wbsOf, type GanttGroupField, type GanttSort, type GanttSortField } from './ganttGroup'
 import { drivingChain, linkKey } from './pathDriver'
@@ -41,6 +48,8 @@ const ROW_H = 30
 const W: Record<string, number> = Object.fromEntries(GANTT_COLS.map((c) => [c.key, c.w]))
 const DAY_W_STEPS = [8, 14, 20, 28]
 const WEEKDAY_LABELS = ['日', '一', '二', '三', '四', '五', '六']
+/** 自定义字段注册表按 key 索引（行渲染 O(1) 取槽类型） */
+const CUSTOM_FIELD_BY_KEY: Record<string, CustomFieldDef> = Object.fromEntries(CUSTOM_FIELDS.map((f) => [f.key, f]))
 
 /** 入边（前置）/出边（后续）引用（刀B 前置/后续列数据源） */
 function predsOf(id: string, project: SchedProject) {
@@ -133,10 +142,57 @@ const PredEditor: React.FC<{ task: SchedTask }> = ({ task }) => {
   )
 }
 
+/**
+ * 自定义字段单元格（v4.138 #14）：仅叶任务可编辑（分组行由调用方留空）。
+ * text 槽=Input（borderless，同名称列范式）；num 槽=InputNumber（无 min、可小数）。
+ * 写回整体替换 patch.custom；清空文本（空串）/清空数值（null）=删除该槽键，
+ * custom 里不留空值。
+ */
+const CustomFieldCell: React.FC<{ task: SchedTask; field: CustomFieldDef }> = ({ task, field }) => {
+  const updateTask = useScheduleStore((s) => s.updateTask)
+  /** 落库：有值写槽、空值删槽（patch.custom 整体替换口径） */
+  const write = (v: string | number | null) => {
+    const next: Partial<Record<string, string | number>> = { ...(task.custom ?? {}) }
+    if (v === null || v === '') delete next[field.key]
+    else next[field.key] = v
+    updateTask(task.id, { custom: next })
+  }
+  if (field.type === 'number') {
+    const v = customValueOf(task, field.key)
+    return (
+      <InputNumber
+        size="small"
+        variant="borderless"
+        value={typeof v === 'number' ? v : undefined}
+        onChange={(nv) => {
+          if (nv === null) write(null)
+          else {
+            const n = Number(nv)
+            write(Number.isFinite(n) ? n : null)
+          }
+        }}
+        style={{ padding: 0, width: '100%' }}
+        data-testid={`sched-custom-${field.key}-${task.id}`}
+      />
+    )
+  }
+  return (
+    <Input
+      size="small"
+      variant="borderless"
+      value={String(customValueOf(task, field.key) ?? '')}
+      onChange={(e) => write(e.target.value)}
+      style={{ padding: 0 }}
+      data-testid={`sched-custom-${field.key}-${task.id}`}
+    />
+  )
+}
+
 export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult; onInspect?: (taskId: string) => void }> = ({ project, cpm, onInspect }) => {
   const selectedId = useScheduleStore((s) => s.selectedId)
   const select = useScheduleStore((s) => s.select)
   const updateTask = useScheduleStore((s) => s.updateTask)
+  const setCustomLabel = useScheduleStore((s) => s.setCustomLabel)
   const addTask = useScheduleStore((s) => s.addTask)
   const addGroup = useScheduleStore((s) => s.addGroup)
   const removeTask = useScheduleStore((s) => s.removeTask)
@@ -166,9 +222,13 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult; onInsp
   // ── 刀C 双栏：表格窗格宽度/列显隐（持久化 chatPrefs）────────────
   const [tableW, setTableW] = useState<number>(() => loadChatPrefs().ganttTableW)
   const [hide, setHide] = useState<string[]>(() => loadChatPrefs().ganttHide)
+  /** 自定义列改名态（v4.138 #14）：renameKey=改名中的列（null=无）；Esc 取消标记走 ref（先于 blur） */
+  const [renameKey, setRenameKey] = useState<string | null>(null)
+  const [renameVal, setRenameVal] = useState('')
+  const renameCancel = useRef(false)
   const splitRef = useRef<{ startX: number; startW: number; w: number } | null>(null)
   const tbodyRef = useRef<HTMLDivElement | null>(null)
-  const cols = useMemo(() => visibleCols(hide), [hide])
+  const cols = useMemo(() => visibleCols(hide, project.customLabels), [hide, project.customLabels])
   const leftW = useMemo(() => visibleLeftW(hide), [hide])
   const effW = Math.min(tableW, leftW)
   const colOn = (key: string) => !hide.includes(key)
@@ -202,6 +262,14 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult; onInsp
     const next = on ? hide.filter((k) => k !== key) : [...hide, key]
     setHide(next)
     saveChatPrefs({ ganttHide: next })
+  }
+  /** 提交自定义列改名（v4.138 #14）：回车/失焦提交 setCustomLabel、Esc 置取消标记不落库；
+   *  空串由 store 口径恢复缺省名；提交后关闭行内 Input */
+  const commitRename = () => {
+    if (!renameKey) return
+    if (!renameCancel.current) setCustomLabel(renameKey, renameVal)
+    renameCancel.current = false
+    setRenameKey(null)
   }
   /** 画布纵向滚动 → 表格体同步（直改 DOM，滚动帧不走 setState） */
   const onCanvasScroll = (e: React.UIEvent<HTMLDivElement>) => {
@@ -528,19 +596,57 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult; onInsp
           data-testid="sched-gantt-path"
         />
         <div style={{ flex: 1 }} />
-        {/* 列显隐（刀C 双栏）：行号/名称固定，其余单列可藏让位画布 */}
+        {/* 列显隐（刀C 双栏）：行号/名称固定，其余单列可藏让位画布；
+            自定义列（v4.138 #14）菜单行附「改名」铅笔（行内 Input，回车/失焦提交、Esc 取消） */}
         <Popover
           trigger="click"
           placement="bottomRight"
           title="显示列（行号与任务名称固定）"
           content={
             <div className="sched-colmenu" data-testid="sched-gantt-colmenu">
-              {GANTT_COLS.filter((c) => !GANTT_FIXED_KEYS.includes(c.key)).map((c) => (
-                <label key={c.key} className="sched-colmenu-item">
-                  <Checkbox checked={colOn(c.key)} onChange={(e) => toggleCol(c.key, e.target.checked)} />
-                  <span>{c.label}</span>
-                </label>
-              ))}
+              {GANTT_COLS.filter((c) => !GANTT_FIXED_KEYS.includes(c.key)).map((c) => {
+                const isCustom = GANTT_CUSTOM_KEYS.includes(c.key)
+                const label = isCustom ? customLabelOf(c.key as CustomFieldKey, project.customLabels) : c.label
+                return (
+                  <label key={c.key} className="sched-colmenu-item">
+                    <Checkbox checked={colOn(c.key)} onChange={(e) => toggleCol(c.key, e.target.checked)} />
+                    {renameKey === c.key ? (
+                      <Input
+                        size="small"
+                        autoFocus
+                        value={renameVal}
+                        onChange={(e) => setRenameVal(e.target.value)}
+                        onBlur={commitRename}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') e.currentTarget.blur()
+                          else if (e.key === 'Escape') {
+                            renameCancel.current = true
+                            e.currentTarget.blur()
+                          }
+                        }}
+                        style={{ width: 92 }}
+                        data-testid={`sched-colmenu-rename-${c.key}`}
+                      />
+                    ) : (
+                      <span>{label}</span>
+                    )}
+                    {isCustom && renameKey !== c.key && (
+                      <Button
+                        size="small"
+                        type="text"
+                        icon={<EditOutlined />}
+                        title={`重命名「${label}」`}
+                        onClick={(e) => {
+                          e.preventDefault() // 在 label 内：阻止激活勾选框
+                          e.stopPropagation()
+                          setRenameKey(c.key)
+                          setRenameVal(label)
+                        }}
+                      />
+                    )}
+                  </label>
+                )
+              })}
             </div>
           }
         >
@@ -597,6 +703,10 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult; onInsp
                     {colOn('preds') && <div style={{ width: W.preds }} className="sched-gantt-cell" />}
                     {colOn('succ') && <div style={{ width: W.succ }} className="sched-gantt-cell" />}
                     {colOn('cost') && <div style={{ width: W.cost }} className="sched-gantt-cell sched-cost-cell" />}
+                    {/* 自定义字段列（v4.138 #14）：合成组头行留空（汇总只对叶任务有意义） */}
+                    {GANTT_CUSTOM_KEYS.filter((ck) => colOn(ck)).map((ck) => (
+                      <div key={ck} style={{ width: W[ck] }} className="sched-gantt-cell" />
+                    ))}
                   </div>
                   )
                 }
@@ -786,6 +896,12 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult; onInsp
                         ))}
                       </div>
                     )}
+                    {/* 自定义字段列（v4.138 #14）：叶行可编辑（text=Input/num=InputNumber，清空=删槽键）、分组行留空 */}
+                    {GANTT_CUSTOM_KEYS.filter((ck) => colOn(ck)).map((ck) => (
+                      <div key={ck} style={{ width: W[ck] }} className="sched-gantt-cell">
+                        {!group && <CustomFieldCell task={t} field={CUSTOM_FIELD_BY_KEY[ck]} />}
+                      </div>
+                    ))}
                   </div>
                   </Dropdown>
                 )

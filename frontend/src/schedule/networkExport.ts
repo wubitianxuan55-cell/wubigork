@@ -9,7 +9,7 @@
  * 日宽——图面按计划长度自适应 36~110px/天，长计划不爆画布）；PDM 分层=
  * layerByTopology、盒尺寸与连线三段式同 PdmView 口径（isLinkBinding 本地
  * 同构副本，判定口径：后继日期恰由该搭接决定）。
- * 标题带/图签/调色板共用 ganttExport 导出件；全部纯函数零 DOM。
+ * 标题带/图签/调色板/编制说明注共用 ganttExport 导出件；全部纯函数零 DOM。
  * v4.137.0 刀D4：里程碑节点加小旗标——单代号六格盒右上角、双代号里程碑
  * 完成事件圈右上角（与横道菱形旗同款形状，本文件内重复实现，不建第三文件）。
  */
@@ -20,8 +20,8 @@ import { layerByTopology } from './layout'
 import { wdToDate } from './calendar'
 import type { CpmResult, LinkType, SchedProject } from './types'
 import {
-  EXP_COLORS, EXP_FONT, EXP_MARGIN, EXP_TITLE_H, esc, fitText,
-  exportSignSvg, exportTitleSvg, type ExportMeta,
+  EXP_COLORS, EXP_FONT, EXP_MARGIN, EXP_TITLE_H, esc, exportNotesBlockH, exportNotesSvg,
+  fitText, exportSignSvg, exportTitleSvg, type ExportMeta,
 } from './ganttExport'
 
 const C = EXP_COLORS
@@ -86,7 +86,8 @@ export function buildAoaExportSvg(project: SchedProject, graph: AoaGraph, meta: 
   const netH = Math.max(...graph.nodes.map((n) => n.y)) + AOA_ROW_H / 2 + 46
   const chartW = AOA_LGUT + (total + 1) * dayW + M
   const RULER_H = 62
-  const footY = TITLE_H + netH + RULER_H + 24
+  const notesH = exportNotesBlockH(meta.notes) // 编制说明块占高（无 notes=0，布局不变）
+  const footY = TITLE_H + netH + RULER_H + 24 + notesH // 图脚整体下移说明块高度，块不压图面
   const totalH = footY + 44
   const dateAt = (wd: number): Date => wdToDate(project.startDate, wd, project.calendar)
 
@@ -206,6 +207,7 @@ export function buildAoaExportSvg(project: SchedProject, graph: AoaGraph, meta: 
     `<g transform="translate(0,${TITLE_H})">` + net + `</g>` +
     `<g transform="translate(0,${TITLE_H + netH})">` + ruler + `</g>` +
     foot +
+    exportNotesSvg(meta, footY - 8, chartW) + // 块底=图签顶(footY+4-8)上浮 4px
     exportSignSvg(meta, footY + 4, chartW) +
     `</svg>`
   return { svg, w: chartW, h: totalH }
@@ -243,7 +245,8 @@ export function buildPdmExportSvg(project: SchedProject, cpm: CpmResult, meta: E
   const rowNo = new Map(project.tasks.map((t, i) => [t.id, i + 1]))
 
   const totalW = w + M * 2
-  const footY = TITLE_H + netH + 24
+  const notesH = exportNotesBlockH(meta.notes) // 编制说明块占高（无 notes=0，布局不变）
+  const footY = TITLE_H + netH + 24 + notesH // 图脚整体下移说明块高度，块不压图面
   const totalH = footY + 44
 
   /** 连线三段式：右缘出、直角拐、左缘入（与 PdmView 同口径） */
@@ -371,6 +374,7 @@ export function buildPdmExportSvg(project: SchedProject, cpm: CpmResult, meta: E
     exportTitleSvg(meta, totalW, `${project.name || '进度计划'}\u3000施工进度计划（单代号网络图）`) +
     `<g transform="translate(${M},${TITLE_H})">` + net + `</g>` +
     foot +
+    exportNotesSvg(meta, footY - 8, totalW) + // 块底=图签顶(footY+4-8)上浮 4px
     exportSignSvg(meta, footY + 4, totalW) +
     `</svg>`
   return { svg, w: totalW, h: totalH }

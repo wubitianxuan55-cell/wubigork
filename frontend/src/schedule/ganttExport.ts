@@ -8,7 +8,8 @@
  *  - 图面：自然日双行时标（月/日）+ 非工作日底纹 + 关键红/普通蓝/手动灰条
  *    + 分组汇总条 + 里程碑菱形 + 里程碑小旗 + 条尾「任务名（N天）」标注
  *    + 总时差尾 + 依赖线 + 目标竣工线 + 今日线；
- *  - 图脚：图例 + 图签（编制人/审核人/批准）。
+ *  - 图脚：图例 + 图签（编制人/审核人/批准）+ 编制说明注（meta.notes 有值时，
+ *    图签正上方，横道/网络图共用 exportNotesLines/BlockH/Svg）。
  * 与 GanttView 同一套几何公式（dayNo 换算/条形 left/width/依赖线锚点），但独立
  * 实现——图面是发布物，不随工作台交互态（缩放/列显隐/拖拽预览）漂移。
  * 全部纯函数零 DOM：PNG/PDF/打印管线见 exportArtifact.ts。
@@ -31,6 +32,12 @@ export interface ExportMeta {
    * 缺省 true=叶任务条末端右侧标「任务名（N天）」（上报件口径默认带标注）。
    */
   barLabels?: boolean
+  /**
+   * 编制说明（多行文本，\n 分行）：trim 非空时在图签正上方渲染「编制说明」
+   * 块（标题 + 正文逐行，最多 6 行，行宽 fitText 截断）；空/未传不画、
+   * 布局不变。横道/网络图共用（exportNotesLines/BlockH/Svg）。
+   */
+  notes?: string
 }
 
 export interface GanttExportSvg {
@@ -45,7 +52,7 @@ export const EXP_TITLE_H = 60 // 标题带高（共用）
 const TITLE_H = EXP_TITLE_H
 const HEAD_H = 44 // 双行时标：月 22 + 日 22
 const ROW_H = 30
-const FOOT_H = 76 // 图例 + 图签 + 底边距
+const FOOT_H = 76 // 图例 + 图签 + 底边距（编制说明注高度另加，见 exportNotesBlockH）
 const DAY_W = 14 // 图面固定刻度（发布物可读口径，不随工作台缩放）
 
 /** 上报 6 列的图面列宽（发布物专用，比工作台列宽：长日期/前置引用完整可读） */
@@ -134,9 +141,9 @@ function groupSpan(project: SchedProject, cpm: CpmResult, idx: number): { es: nu
   return any ? { es, ef } : null
 }
 
-/** 图例（左）+ 图签（右）图脚组 */
-function footSvg(meta: ExportMeta, dataBottomY: number, totalW: number): string {
-  const y = dataBottomY + 26
+/** 图例（左）+ 编制说明注（图签上方）+ 图签（右）图脚组；notesH=说明块占高 */
+function footSvg(meta: ExportMeta, dataBottomY: number, totalW: number, notesH = 0): string {
+  const y = dataBottomY + 26 + notesH // 图例/图签整体下移说明块高度（块顶仍落在图面底下 ≥24px）
   const legend: { fill?: string; stroke?: string; dash?: boolean; diamond?: boolean; label: string }[] = [
     { fill: C.critical, label: '关键工作' },
     { fill: C.bar, label: '非关键工作' },
@@ -156,6 +163,7 @@ function footSvg(meta: ExportMeta, dataBottomY: number, totalW: number): string 
     out += `<text x="${x + 24}" y="${y + 4}" font-family="${FONT}" font-size="11" fill="${C.ink}">${it.label}</text>`
     x += 24 + it.label.length * 11 + 18
   }
+  out += exportNotesSvg(meta, y - 12, totalW) // 块底=图签顶(y-8)上浮 4px
   out += exportSignSvg(meta, y, totalW)
   return out
 }
@@ -191,6 +199,60 @@ export function exportTitleSvg(meta: ExportMeta, totalW: number, fallbackTitle: 
 }
 
 /**
+ * 编制说明注（图签上方注释块，横道/网络图共用）：
+ *  - exportNotesLines：正文行口径——trim 非空才出块；split('\n') 过滤空行、
+ *    最多 6 行，超出在第 6 行尾加「…」（行宽超限再由 fitText 截断）；
+ *  - exportNotesBlockH：块占用的图脚增量高度（块高 + 与图签顶的间隙），
+ *    调用方把它计入画布高/图脚 y，保证图签整体下移不压图面；
+ *  - exportNotesSvg：块渲染——细边框 + 淡底（headBg）与图面区分，标题
+ *    小字号加粗、正文 10px 墨色，右缘对齐图签右缘（totalW - M）。
+ * 各图面接线约定：块底 = 图签顶（signY - 8）再上浮 4px。
+ */
+const NOTES_MAX_LINES = 6
+const NOTES_FONT = 10
+const NOTES_TITLE_H = 16 // 标题行高
+const NOTES_LINE_H = 14 // 正文行高
+const NOTES_PAD = 6 // 块内边距
+const NOTES_GAP = 10 // 块与图签顶间隙（4px 视觉空隙 + 呼吸位）
+const NOTES_W = 360 // 块宽（右对齐；窄画布按可用宽收）
+
+/** 有效说明行（trim 非空；过滤空行、最多 6 行、超出第 6 行尾加…） */
+export function exportNotesLines(notes: string | undefined): string[] {
+  const text = notes?.trim()
+  if (!text) return []
+  const rows = text.split('\n').map((l) => l.trim()).filter((l) => l !== '')
+  if (rows.length === 0) return []
+  const shown = rows.slice(0, NOTES_MAX_LINES)
+  if (rows.length > NOTES_MAX_LINES) shown[NOTES_MAX_LINES - 1] += '…'
+  return shown
+}
+
+/** 说明块计入图脚布局的增量高度（无有效内容=0，布局与现状完全一致） */
+export function exportNotesBlockH(notes: string | undefined): number {
+  const lines = exportNotesLines(notes)
+  if (lines.length === 0) return 0
+  return NOTES_GAP + NOTES_PAD * 2 + NOTES_TITLE_H + lines.length * NOTES_LINE_H
+}
+
+/** 编制说明块 SVG（bottomY=块底 y；右对齐 totalW-M；无有效内容返回空串） */
+export function exportNotesSvg(meta: ExportMeta, bottomY: number, totalW: number): string {
+  const lines = exportNotesLines(meta.notes)
+  if (lines.length === 0) return ''
+  const w = Math.min(NOTES_W, totalW - M * 2)
+  const h = NOTES_PAD * 2 + NOTES_TITLE_H + lines.length * NOTES_LINE_H
+  const x = totalW - M - w
+  const y = bottomY - h
+  let out = `<g class="sched-exp-notes" data-exp-notes="1">`
+  out += `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${C.headBg}" stroke="${C.grid}"/>`
+  out += `<text x="${x + NOTES_PAD}" y="${y + NOTES_PAD + 10}" font-family="${FONT}" font-size="${NOTES_FONT}" font-weight="700" fill="${C.ink}">编制说明</text>`
+  lines.forEach((l, i) => {
+    out += `<text x="${x + NOTES_PAD}" y="${y + NOTES_PAD + NOTES_TITLE_H + i * NOTES_LINE_H + 10}" font-family="${FONT}" font-size="${NOTES_FONT}" fill="${C.ink}">${esc(fitText(l, w - NOTES_PAD * 2, NOTES_FONT))}</text>`
+  })
+  out += `</g>`
+  return out
+}
+
+/**
  * 构建横道图上报件 SVG。cpm 未过（循环依赖）时抛错——发布物不得出自坏计划。
  */
 export function buildGanttExportSvg(project: SchedProject, cpm: CpmResult, meta: ExportMeta = {}): GanttExportSvg {
@@ -210,7 +272,8 @@ export function buildGanttExportSvg(project: SchedProject, cpm: CpmResult, meta:
   const totalW = gridW + M * 2
   const dataH = project.tasks.length * ROW_H
   const gridH = HEAD_H + dataH
-  const totalH = TITLE_H + gridH + FOOT_H
+  const notesH = exportNotesBlockH(meta.notes) // 编制说明块占高（无 notes=0，布局不变）
+  const totalH = TITLE_H + gridH + FOOT_H + notesH
 
   // 双行时标（自然日列）：底纹先画、月/日文本后画不被盖；月行 + 日行
   const colDates = Array.from({ length: days }, (_, i) => {
@@ -384,7 +447,7 @@ export function buildGanttExportSvg(project: SchedProject, cpm: CpmResult, meta:
     `</g>` +
     `<g transform="translate(${M},${TITLE_H})">` + table + `</g>` +
     `<rect x="${M}" y="${TITLE_H}" width="${gridW}" height="${gridH}" fill="none" stroke="${C.border}"/>` +
-    footSvg(meta, TITLE_H + gridH, totalW) +
+    footSvg(meta, TITLE_H + gridH, totalW, notesH) +
     `</svg>`
   return { svg, w: totalW, h: totalH }
 }

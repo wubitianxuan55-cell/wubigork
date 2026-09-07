@@ -4,9 +4,11 @@ package schedule
 //
 // 口径：往返一致（任务名/层级/工期/里程碑/搭接/开工日）；表头别名容错；
 // 前置引用「2、2FS、2SS+3」按序号回链；工期文本「5 个工作日」提取；
-// WBS 深度与空工期行的分组判定；CPM 循环/未知表头 fail-closed。
+// WBS 深度与空工期行的分组判定；CPM 循环/未知表头 fail-closed；
+// 自定义字段列往返（v4.138 #14：有值槽出列/覆盖名/缺省名识别/数值容错）。
 
 import (
+	"bytes"
 	"strconv"
 	"strings"
 	"testing"
@@ -251,5 +253,154 @@ func TestImportXlsxUnknownHeader(t *testing.T) {
 	_, err := ImportXlsx(buf.Bytes())
 	if err == nil || !strings.Contains(err.Error(), "未识别表头") {
 		t.Fatalf("未知表头应报可读错误：%v", err)
+	}
+}
+
+// ── 自定义字段列往返（v4.138 #14）────────────────────────────────────────
+
+// TestExportXlsxCustomColumns 有值槽出列：列头=覆盖名优先否则缺省中文 label；
+// 无值槽与「仅分组行有值」的槽不出列；分组行该列留空。
+func TestExportXlsxCustomColumns(t *testing.T) {
+	p := xlsxSampleProject()
+	p.CustomLabels = map[string]string{"text1": "施工部位"}
+	p.Tasks[1].Custom = map[string]interface{}{"text1": "A 区地下室", "num1": 3.5}
+	p.Tasks[2].Custom = map[string]interface{}{"num1": 8}
+	p.Tasks[0].Custom = map[string]interface{}{"text3": "仅分组行有值"} // 分组行不算有值
+	data, err := ExportXlsx(p)
+	if err != nil {
+		t.Fatalf("导出失败：%v", err)
+	}
+	f, err := excelize.OpenReader(bytes.NewReader(data))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	rows, err := f.GetRows(f.GetSheetList()[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantHeader := []string{"序号", "WBS", "任务名称", "工期(天)", "开始", "完成", "前置", "施工部位", "数值1"}
+	if len(rows[0]) != len(wantHeader) {
+		t.Fatalf("表头 %v，希望 %v", rows[0], wantHeader)
+	}
+	for i, w := range wantHeader {
+		if rows[0][i] != w {
+			t.Errorf("表头列 %d：%q，希望 %q", i+1, rows[0][i], w)
+		}
+	}
+	cellAt := func(r, c int) string {
+		if r < len(rows) && c < len(rows[r]) {
+			return rows[r][c]
+		}
+		return ""
+	}
+	if got := cellAt(2, 7); got != "A 区地下室" { // 0 基：任务 a 行、H 列
+		t.Errorf("「场地三通一平」施工部位=%q，希望「A 区地下室」", got)
+	}
+	if got := cellAt(2, 8); got != "3.5" {
+		t.Errorf("「场地三通一平」数值1=%q，希望 3.5", got)
+	}
+	if got := cellAt(3, 8); got != "8" {
+		t.Errorf("「施工许可办理」数值1=%q，希望 8", got)
+	}
+	if got := cellAt(1, 7); got != "" {
+		t.Errorf("分组行自定义列应留空，得 %q", got)
+	}
+}
+
+// TestXlsxCustomRoundTrip 导出再导入：文本与数值自定义值保真；分组行导出留空
+// 故导入不带 custom。
+func TestXlsxCustomRoundTrip(t *testing.T) {
+	p := xlsxSampleProject()
+	p.Tasks[1].Custom = map[string]interface{}{"text1": "A 区地下室", "num2": 2.5}
+	p.Tasks[2].Custom = map[string]interface{}{"text2": "钢结构"}
+	p.Tasks[5].Custom = map[string]interface{}{"num1": 7}
+	data, err := ExportXlsx(p)
+	if err != nil {
+		t.Fatalf("导出失败：%v", err)
+	}
+	got, err := ImportXlsx(data)
+	if err != nil {
+		t.Fatalf("导入失败：%v", err)
+	}
+	if len(got.Tasks) != len(p.Tasks) {
+		t.Fatalf("任务数 %d，希望 %d", len(got.Tasks), len(p.Tasks))
+	}
+	a := got.Tasks[1].Custom
+	if a["text1"] != "A 区地下室" {
+		t.Errorf("text1 往返保真：%v", a["text1"])
+	}
+	if v, ok := a["num2"].(float64); !ok || v != 2.5 {
+		t.Errorf("num2 往返应保真 float64 2.5：%v", a["num2"])
+	}
+	if got.Tasks[2].Custom["text2"] != "钢结构" {
+		t.Errorf("text2 往返保真：%v", got.Tasks[2].Custom["text2"])
+	}
+	if v, ok := got.Tasks[5].Custom["num1"].(float64); !ok || v != 7 {
+		t.Errorf("num1 往返应保真 float64 7：%v", got.Tasks[5].Custom["num1"])
+	}
+	if len(got.Tasks[0].Custom) != 0 {
+		t.Errorf("分组行不应带回自定义值：%v", got.Tasks[0].Custom)
+	}
+}
+
+// TestImportXlsxCustomLabels 按项目改名后的列头导入回填（缺省名恒识别）。
+func TestImportXlsxCustomLabels(t *testing.T) {
+	f := excelize.NewFile()
+	rows := [][]any{
+		{"任务名称", "工期", "施工部位", "数量", "文本3"},
+		{"场地平整", "5", "A 区", "12", "北侧"},
+	}
+	for r, row := range rows {
+		for c, v := range row {
+			cell, _ := excelize.CoordinatesToCellName(c+1, r+1)
+			_ = f.SetCellValue("Sheet1", cell, v)
+		}
+	}
+	buf, _ := f.WriteToBuffer()
+	p, err := ImportXlsx(buf.Bytes(), map[string]string{"text1": "施工部位", "num1": "数量"})
+	if err != nil {
+		t.Fatalf("导入失败：%v", err)
+	}
+	custom := p.Tasks[0].Custom
+	if custom["text1"] != "A 区" {
+		t.Errorf("覆盖名列头「施工部位」应回填 text1：%v", custom["text1"])
+	}
+	if v, ok := custom["num1"].(float64); !ok || v != 12 {
+		t.Errorf("覆盖名列头「数量」应回填 num1=12：%v", custom["num1"])
+	}
+	if custom["text3"] != "北侧" {
+		t.Errorf("缺省名「文本3」恒识别：%v", custom["text3"])
+	}
+}
+
+// TestImportXlsxCustomBadNumber number 槽非法值（「abc」/带单位）丢弃不报错。
+func TestImportXlsxCustomBadNumber(t *testing.T) {
+	f := excelize.NewFile()
+	rows := [][]any{
+		{"任务名称", "工期", "数值1"},
+		{"A", "3", "abc"},
+		{"B", "2", "3.5 天"},
+		{"C", "1", "3.5"},
+	}
+	for r, row := range rows {
+		for c, v := range row {
+			cell, _ := excelize.CoordinatesToCellName(c+1, r+1)
+			_ = f.SetCellValue("Sheet1", cell, v)
+		}
+	}
+	buf, _ := f.WriteToBuffer()
+	p, err := ImportXlsx(buf.Bytes())
+	if err != nil {
+		t.Fatalf("非法数值应忽略而非报错：%v", err)
+	}
+	if len(p.Tasks[0].Custom) != 0 {
+		t.Errorf("「abc」应忽略：%v", p.Tasks[0].Custom)
+	}
+	if len(p.Tasks[1].Custom) != 0 {
+		t.Errorf("带单位「3.5 天」应丢弃不报错：%v", p.Tasks[1].Custom)
+	}
+	if v, ok := p.Tasks[2].Custom["num1"].(float64); !ok || v != 3.5 {
+		t.Errorf("「3.5」应解析为数值：%v", p.Tasks[2].Custom["num1"])
 	}
 }

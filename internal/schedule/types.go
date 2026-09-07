@@ -54,6 +54,9 @@ type Task struct {
 	// FixedCost 任务固定成本（元，叶任务专属；v4.122 资源成本刀1。
 	// 分组行禁止=汇总唯一口径为子孙求和）。
 	FixedCost float64 `json:"fixedCost,omitempty"`
+	// Custom 自定义字段值（v4.138 #14：固定 5 槽 text1..num2，镜像前端
+	// customFields.ts 注册表；只存有值槽，值 string|number。旧 JSON 零迁移）。
+	Custom map[string]interface{} `json:"custom,omitempty"`
 }
 
 // ResourceType 资源类型（对齐 Project：工时/材料/成本三类）。
@@ -122,6 +125,9 @@ type Project struct {
 	// schema 镜像 + 结构校验 pass-through：锚点键的业务合法性由前端渲染端
 	// 裁决与清理，Go 无从验证也不验证（维持无 aoa.go）。
 	AoaLayout *AoaLayout `json:"aoaLayout,omitempty"`
+	// CustomLabels 自定义字段列名覆盖（v4.138 #14：key=text1..num2，空串/缺省
+	// 回落注册表缺省 label；xlsx 导出列头与导入识别同口径）。
+	CustomLabels map[string]string `json:"customLabels,omitempty"`
 }
 
 // AoaPt 双代号手动布点（整数像素）。

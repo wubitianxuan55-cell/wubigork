@@ -11,7 +11,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { Alert, Button, Checkbox, Input, Modal, Popconfirm, Popover, Segmented, Space, Tag, Tooltip } from 'antd'
 import {
-  AimOutlined, CalendarOutlined, ClearOutlined, ClusterOutlined, ExportOutlined, FileImageOutlined, FundOutlined, ImportOutlined,
+  AimOutlined, AppstoreOutlined, CalendarOutlined, ClearOutlined, ClusterOutlined, ExportOutlined, FileImageOutlined, FundOutlined, ImportOutlined,
   FileExcelOutlined, MessageOutlined, NodeIndexOutlined, PlusOutlined, RedoOutlined, TableOutlined, TeamOutlined, ThunderboltOutlined, PartitionOutlined, DeleteOutlined, ToolOutlined, UndoOutlined,
 } from '@ant-design/icons'
 import { computeCpm } from '../schedule/cpm'
@@ -35,6 +35,7 @@ import { ResourcePanel } from '../schedule/ResourcePanel'
 import { UsageView } from '../schedule/UsageView'
 import { computeUsage } from '../schedule/usage'
 import { BaselinesPanel } from '../schedule/BaselinesPanel'
+import { TemplatesPanel } from '../schedule/TemplatesPanel'
 import { fmtCost, hasCostData } from '../schedule/costUi'
 import { SCHEDULE_FILE_PATH } from '../schedule/gschedSummary'
 import { usePreviewStore } from '../gaea/lib/store'
@@ -206,6 +207,17 @@ const ExportDialog: React.FC<{
             条尾标注（任务名与工期写在条上）
           </Checkbox>
         )}
+        <label style={{ display: 'grid', gap: 2, fontSize: 12 }}>
+          <span className="sched-dim">编制说明（可空，随图面出注：工程概况/控制性节点/关键工序安排）</span>
+          <Input.TextArea
+            rows={2}
+            placeholder="1. 本计划开工日期以开工令为准。 2. 关键线路为……"
+            maxLength={600}
+            value={meta.notes ?? ''}
+            onChange={(e) => setMeta((p2) => ({ ...p2, notes: e.target.value }))}
+            data-testid="sched-export-notes"
+          />
+        </label>
         <Space size={8}>
           <Button type="primary" loading={busy} data-testid="sched-export-png" onClick={() => void run('png')}>导出 PNG</Button>
           <Button data-testid="sched-export-pdf" disabled={busy} onClick={() => void run('pdf')}>导出 PDF</Button>
@@ -542,6 +554,11 @@ const SchedulePage: React.FC = () => {
         <Tooltip title="导出上报图面：横道图 / 双代号时标网络（含工程标尺）/ 单代号网络（PNG / PDF / 打印）">
           <Button size="small" icon={<FileImageOutlined />} data-testid="sched-export-btn" onClick={() => setExportOpen(true)}>导出图面</Button>
         </Tooltip>
+        <Popover trigger="click" placement="bottom" content={<TemplatesPanel cpm={cpm} />} title="项目模板">
+          <Tooltip title="另存为模板 / 从模板新建（本机保存，最多 10 个）">
+            <Button size="small" icon={<AppstoreOutlined />} data-testid="sched-templates-btn">模板</Button>
+          </Tooltip>
+        </Popover>
         <div className="sched-tool-divider" />
         <Tooltip title="载入示例工程（办公楼施工），覆盖当前数据">
           <Button size="small" icon={<ThunderboltOutlined />} onClick={() => { loadSample(); setImportMsg(null) }}>示例工程</Button>

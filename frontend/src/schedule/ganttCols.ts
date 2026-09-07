@@ -4,8 +4,11 @@
  * 口径：行号/任务名称为不可隐藏的最小可用集；其余列可按需收纳，
  * 让位后面的时间画布。表格窗格宽度独立可拖（分隔条），拖窄=收纳表格、
  * 拖宽=展开；列显隐与窗格宽度均持久化（chatPrefs）。
+ * v4.138 #14：成本列之后追加 5 个自定义字段列（text1..num2，=注册表序），
+ * 列名按项目 customLabels 覆盖（customLabelOf），visibleCols 增可选参。
  * 全部纯函数零 DOM。
  */
+import { CUSTOM_FIELDS, customLabelOf, type CustomFieldKey } from './customFields'
 
 export interface GanttCol {
   key: string
@@ -29,10 +32,16 @@ export const GANTT_COLS: GanttCol[] = [
   { key: 'preds', label: '前置', w: 68 },
   { key: 'succ', label: '后续', w: 68 },
   { key: 'cost', label: '成本', w: 68 },
+  // 自定义字段列（v4.138 #14）：排成本列之后，=注册表序；label 仅为缺省名，
+  // 显示名统一走 customLabelOf（项目 customLabels 覆盖优先），宽 text 90 / number 64
+  ...CUSTOM_FIELDS.map((f) => ({ key: f.key, label: f.label, w: f.type === 'number' ? 64 : 90 })),
 ]
 
 /** 不可隐藏列：行号+任务名称（表格最小可用集） */
 export const GANTT_FIXED_KEYS: string[] = ['no', 'name']
+
+/** 自定义字段列键（v4.138 #14）：=注册表序 text1..num2，判别自定义列/测试共用 */
+export const GANTT_CUSTOM_KEYS: string[] = CUSTOM_FIELDS.map((f) => f.key)
 
 /** 可隐藏列键（显隐菜单口径，键集校验用） */
 export const GANTT_HIDEABLE_KEYS: string[] = GANTT_COLS.map((c) => c.key).filter((k) => !GANTT_FIXED_KEYS.includes(k))
@@ -52,10 +61,16 @@ export function colsByKeys(keys: string[]): GanttCol[] {
   return GANTT_COLS.filter((c) => on.has(c.key))
 }
 
-/** 可见列序列：固定列（行号/名称）恒保留，其余滤除 hide（未知键在 sanitizeHide 已滤，此处再防御） */
-export function visibleCols(hide: string[]): GanttCol[] {
+/**
+ * 可见列序列：固定列（行号/名称）恒保留，其余滤除 hide（未知键在 sanitizeHide 已滤，
+ * 此处再防御）。customLabels（v4.138 #14，可选）仅作用于自定义列的显示名——
+ * 项目覆盖优先，标准列不受影响；不传时自定义列用注册表缺省名。
+ */
+export function visibleCols(hide: string[], customLabels?: Record<string, string>): GanttCol[] {
   const off = new Set(hide)
-  return GANTT_COLS.filter((c) => GANTT_FIXED_KEYS.includes(c.key) || !off.has(c.key))
+  return GANTT_COLS
+    .filter((c) => GANTT_FIXED_KEYS.includes(c.key) || !off.has(c.key))
+    .map((c) => (GANTT_CUSTOM_KEYS.includes(c.key) ? { ...c, label: customLabelOf(c.key as CustomFieldKey, customLabels) } : c))
 }
 
 /** 可见列总宽（=表格内容宽度） */

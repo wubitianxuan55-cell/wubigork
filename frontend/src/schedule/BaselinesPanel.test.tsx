@@ -8,10 +8,13 @@
  * 3 槽上限提示与 FIFO 淘汰、更新基线原位写回。
  * 面板数据全部走 useScheduleStore（与被替换进 Popover 的运行形态一致），
  * 漂移期望值与 baseline.ts 同口径（工作日序号快照）。
+ * v4.138 追加：签证台账 CSV 导出——无槽位隐藏、有槽位在位，点击经
+ * downloadBlob 触发下载（jsdom stub URL.createObjectURL），断言文件名、
+ * BOM、表头与每槽一行（漂移=当前-基线，正=拖后）。
  */
 
 import { fireEvent, render, screen } from '@testing-library/react'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { BaselinesPanel } from './BaselinesPanel'
 import { computeCpm } from './cpm'
 import { useScheduleStore } from './store'
@@ -259,5 +262,63 @@ describe('BaselinesPanel 槽位管理', () => {
     expect(s.baseline?.name).toBe('评审基线')
     expect(s.baseline?.duration).toBe(9)
     expect(screen.getByTestId('sched-baselines-panel').textContent).toContain('与基线持平')
+  })
+})
+
+describe('BaselinesPanel 签证台账 CSV 导出（v4.138）', () => {
+  beforeEach(() => {
+    localStorage.removeItem('gaea.schedule.v1')
+    useScheduleStore.setState({ project: chainProject(), selectedId: null, hydrated: true, sync: 'saved', savedAt: null, syncError: null, past: [], future: [] })
+  })
+
+  /** 点击导出按钮并捕获交给 downloadBlob 的 Blob 与 <a download> 文件名（jsdom 无 blob URL，先 stub） */
+  async function clickLedgerAndCapture(): Promise<{ blob: Blob; filename: string }> {
+    let blob: Blob | null = null
+    let filename = ''
+    const create = vi.fn((b: Blob) => { blob = b; return 'blob:ledger' })
+    const revoke = vi.fn()
+    vi.stubGlobal('URL', { ...globalThis.URL, createObjectURL: create, revokeObjectURL: revoke })
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function mock(this: HTMLAnchorElement) {
+      filename = this.download
+    })
+    try {
+      fireEvent.click(screen.getByTestId('sched-baseline-ledger'))
+    } finally {
+      vi.unstubAllGlobals()
+      click.mockRestore()
+    }
+    expect(create).toHaveBeenCalledTimes(1)
+    expect(revoke).toHaveBeenCalledTimes(1) // downloadBlob 用完即回收 URL
+    if (!blob) throw new Error('未捕获到下载 Blob')
+    return { blob, filename }
+  }
+
+  it('无槽位时隐藏「导出台账」按钮', () => {
+    renderPanel(chainProject())
+    expect(screen.queryByTestId('sched-baseline-ledger')).toBeNull()
+  })
+
+  it('有槽位时按钮在位；点击下载 CSV：文件名/BOM/表头/每槽一行（漂移=当前-基线，正=拖后）', async () => {
+    const p = chainProject()
+    p.baselines = [slotOf('开工基线', 9, CHAIN_SNAP), slotOf('签证基线', 6, STALE_SNAP)]
+    p.baseline = p.baselines[0]
+    renderPanel(p)
+    expect(screen.getByTestId('sched-baseline-ledger').textContent).toContain('导出台账')
+
+    const { blob, filename } = await clickLedgerAndCapture()
+    expect(filename).toBe('链式样板-签证台账.csv')
+    expect(blob.type).toBe('text/csv;charset=utf-8')
+    // \ufeff BOM：Excel 中文乱码防线。blob.text() 会按规范剥掉 BOM，改查原始字节（EF BB BF）
+    const bytes = new Uint8Array(await blob.arrayBuffer())
+    expect(Array.from(bytes.slice(0, 3))).toEqual([0xef, 0xbb, 0xbf])
+    const text = await blob.text()
+    expect(text).toContain('基线名称,保存时间,基线总工期(天),当前总工期(天),总工期漂移(天)')
+    // 每槽一行：开工基线 9 vs 当前 9 漂移 0；签证基线 6 vs 当前 9 漂移 +3（拖后）
+    expect(text).toContain('开工基线,2026-09-01 08:00,9,9,0')
+    expect(text).toContain('签证基线,2026-09-01 08:00,6,9,3')
+    // 末行不汇总：最后一行是最后一个槽位的数据行
+    const lines = text.replace(/^\ufeff/, '').trimEnd().split('\r\n')
+    expect(lines).toHaveLength(3)
+    expect(lines[2]).toBe('签证基线,2026-09-01 08:00,6,9,3')
   })
 })

@@ -1,19 +1,23 @@
 /**
- * GanttView.test.tsx — 横道拖拽交互（刀9）+ 工作台双栏（刀C）
+ * GanttView.test.tsx — 横道拖拽交互（刀9）+ 工作台双栏（刀C）+ 自定义字段列（v4.138 #14）
  *
  * 用例口径：fireEvent 鼠标序列（down→move→up）驱动 window 监听器，
  * 断言 store 落库结果（拖移 auto→转 manual 锁定、缩放→改工期、
  * 未移动=无操作、Esc=取消）；刀C：分隔条拖动收纳表格/双击复位/列显隐
- * （行号名称固定，其余单列可藏）持久化 chatPrefs。
+ * （行号名称固定，其余单列可藏）持久化 chatPrefs；v4.138 #14：自定义列
+ * 开启/改名/叶行编辑（清空=删槽键）/分组行留空。
  */
-import { fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { GanttView } from './GanttView'
 import { computeCpm } from './cpm'
 import { useScheduleStore } from './store'
 import { CHAT_PREFS_KEY } from './chatPrefs'
 import { GANTT_LEFT_W_FULL, GANTT_TABLE_W_MIN } from './ganttCols'
-import type { SchedProject } from './types'
+import type { CpmResult, SchedProject } from './types'
+
+/** 缺省隐藏列宽合计：进度 56 + 文本×3（90）+ 数值×2（64）= 454（自定义列 v4.138 #14 缺省收起） */
+const DEF_HIDE_W = 56 + 90 * 3 + 64 * 2
 
 /** A(3)→B(2)→C(4) 串联，周一开工：es A=0/B=3/C=5，总工期 9 */
 function chainProject(): SchedProject {
@@ -42,6 +46,16 @@ function barAt(idx: number): HTMLElement {
 
 function tablePane(): HTMLElement {
   return screen.getByTestId('sched-gantt-table')
+}
+
+/** 打开列菜单并按名称勾选开启某列（popover 保持打开，返回该菜单行 label 供续操作） */
+function enableCol(name: string): HTMLElement {
+  fireEvent.click(screen.getByTestId('sched-gantt-cols-btn'))
+  const label = Array.from(screen.getByTestId('sched-gantt-colmenu').querySelectorAll('label'))
+    .find((l) => l.textContent?.includes(name))
+  if (!label) throw new Error(`列菜单无「${name}」`)
+  fireEvent.click(label.querySelector('input')!)
+  return label
 }
 
 describe('GanttView 拖拽（刀9）', () => {
@@ -116,13 +130,14 @@ describe('GanttView 工作台双栏（刀C）', () => {
     useScheduleStore.setState({ project: chainProject(), selectedId: null, hydrated: true, sync: 'saved', syncError: null })
   })
 
-  it('缺省：进度列默认隐藏，窗格宽=可见列总宽（960-56=904），列菜单可开进度', () => {
+  it('缺省：进度列+自定义列默认隐藏，窗格宽=可见列总宽（全宽 1358-454=904），列菜单可开', () => {
     const p = chainProject()
     render(<GanttView project={p} cpm={computeCpm(p.tasks, p.links)} />)
-    // 15 列全宽 960，进度列缺省隐藏 → 可见总宽 904
-    expect(tablePane().style.width).toBe(`${GANTT_LEFT_W_FULL - 56}px`)
+    // 20 列全宽 1358，进度列+5 自定义列缺省隐藏 → 可见总宽 904
+    expect(tablePane().style.width).toBe(`${GANTT_LEFT_W_FULL - DEF_HIDE_W}px`)
     expect(tablePane().textContent).toContain('最迟开始')
     expect(tablePane().textContent).not.toContain('进度')
+    expect(tablePane().textContent).not.toContain('文本1')
   })
 
   it('分隔条拖动：左移收纳表格并持久化；拖到最窄剩行号+名称', () => {
@@ -130,10 +145,10 @@ describe('GanttView 工作台双栏（刀C）', () => {
     render(<GanttView project={p} cpm={computeCpm(p.tasks, p.links)} />)
     const split = screen.getByTestId('sched-gantt-split')
     fireEvent.mouseDown(split, { clientX: 900 })
-    fireEvent.mouseMove(window, { clientX: 900 - 300 })
+    fireEvent.mouseMove(window, { clientX: 900 - 500 })
     fireEvent.mouseUp(window)
-    expect(tablePane().style.width).toBe(`${GANTT_LEFT_W_FULL - 300}px`)
-    expect(JSON.parse(localStorage.getItem(CHAT_PREFS_KEY)!).ganttTableW).toBe(GANTT_LEFT_W_FULL - 300)
+    expect(tablePane().style.width).toBe(`${GANTT_LEFT_W_FULL - 500}px`)
+    expect(JSON.parse(localStorage.getItem(CHAT_PREFS_KEY)!).ganttTableW).toBe(GANTT_LEFT_W_FULL - 500)
     // 再拖 9999：钳到最小宽（行号+名称），画布让位
     fireEvent.mouseDown(split, { clientX: 0 })
     fireEvent.mouseMove(window, { clientX: -9999 })
@@ -146,15 +161,15 @@ describe('GanttView 工作台双栏（刀C）', () => {
     const { unmount } = render(<GanttView project={p} cpm={computeCpm(p.tasks, p.links)} />)
     const split = screen.getByTestId('sched-gantt-split')
     fireEvent.mouseDown(split, { clientX: 900 })
-    fireEvent.mouseMove(window, { clientX: 900 - 300 })
+    fireEvent.mouseMove(window, { clientX: 900 - 500 })
     fireEvent.mouseUp(window)
     unmount()
     // 重挂载：读 localStorage 恢复收纳宽度（偏好持久化）
     render(<GanttView project={p} cpm={computeCpm(p.tasks, p.links)} />)
-    expect(tablePane().style.width).toBe(`${GANTT_LEFT_W_FULL - 300}px`)
+    expect(tablePane().style.width).toBe(`${GANTT_LEFT_W_FULL - 500}px`)
     fireEvent.dblClick(screen.getByTestId('sched-gantt-split'))
-    // 复位=展开到全列宽，钳位到可见列总宽（进度列仍缺省隐藏）
-    expect(tablePane().style.width).toBe(`${GANTT_LEFT_W_FULL - 56}px`)
+    // 复位=钳到可见列总宽（进度列+自定义列仍缺省隐藏）
+    expect(tablePane().style.width).toBe(`${GANTT_LEFT_W_FULL - DEF_HIDE_W}px`)
   })
 
   it('列显隐：取消勾选「最迟开始」后表头消失并持久化；固定列不提供勾选', () => {
@@ -337,5 +352,115 @@ describe('GanttView v4.136 小刀（排序/分组/折叠/路径/检查器）', (
     fireEvent.contextMenu(rows[0])
     fireEvent.click(screen.getAllByText('任务检查器').pop()!)
     expect(inspectResult).toBe('A')
+  })
+})
+
+/**
+ * 自定义字段列（v4.138 #14）：列菜单开启/改名（customLabels 驱动列头与菜单同步）、
+ * 叶行 text=Input / num=InputNumber 编辑落 store.custom（清空=删槽键）、分组行留空。
+ * 交互约定：菜单行「改名」铅笔→行内受控 Input（初值=当前名），回车/失焦提交
+ * setCustomLabel、Esc 取消。
+ * StoreGanttView 包装：project 直读 store——对齐真实父组件「订阅 store 再传 props」
+ * 的重渲染链路；否则落库后列头/菜单/受控格不重渲染（测试静态 props 的假阴性）。
+ */
+function StoreGanttView(props: { cpm: CpmResult }) {
+  const project = useScheduleStore((s) => s.project)
+  return <GanttView project={project} cpm={props.cpm} />
+}
+
+describe('GanttView 自定义字段列（v4.138 #14）', () => {
+  beforeEach(() => {
+    localStorage.removeItem(CHAT_PREFS_KEY)
+    useScheduleStore.setState({ project: chainProject(), selectedId: null, hydrated: true, sync: 'saved', syncError: null, past: [], future: [] })
+  })
+
+  it('自定义列缺省收起；列菜单开启 text1 → 表头显示缺省名「文本1」，排成本列之后', () => {
+    const p = chainProject()
+    useScheduleStore.setState({ project: p })
+    render(<StoreGanttView cpm={computeCpm(p.tasks, p.links)} />)
+    expect(tablePane().textContent).not.toContain('文本1')
+    enableCol('文本1')
+    expect(tablePane().textContent).toContain('文本1')
+    // 列序：末位=文本1、次末位=成本（自定义列排成本列之后）
+    const heads = Array.from(tablePane().querySelectorAll('.sched-gantt-head .sched-th')).map((el) => el.textContent)
+    expect(heads[heads.length - 1]).toBe('文本1')
+    expect(heads[heads.length - 2]).toBe('成本')
+  })
+
+  it('叶行 text 槽：Input 输入「垫层底部」落 store.custom；清空=删除槽键', () => {
+    const p = chainProject()
+    useScheduleStore.setState({ project: p })
+    render(<StoreGanttView cpm={computeCpm(p.tasks, p.links)} />)
+    enableCol('文本1')
+    fireEvent.change(inputOf('sched-custom-text1-B'), { target: { value: '垫层底部' } })
+    expect(useScheduleStore.getState().project.tasks[1].custom).toEqual({ text1: '垫层底部' })
+    // 无值任务不受牵连（不留空值槽）
+    expect(useScheduleStore.getState().project.tasks[0].custom).toBeUndefined()
+    fireEvent.change(inputOf('sched-custom-text1-B'), { target: { value: '' } })
+    expect(useScheduleStore.getState().project.tasks[1].custom).toEqual({})
+  })
+
+  it('叶行 num 槽：InputNumber 输入 3.5 落数字（可小数）；清空=删除槽键', () => {
+    const p = chainProject()
+    useScheduleStore.setState({ project: p })
+    render(<StoreGanttView cpm={computeCpm(p.tasks, p.links)} />)
+    enableCol('数值1')
+    fireEvent.change(inputOf('sched-custom-num1-A'), { target: { value: '3.5' } })
+    expect(useScheduleStore.getState().project.tasks[0].custom).toEqual({ num1: 3.5 })
+    fireEvent.change(inputOf('sched-custom-num1-A'), { target: { value: '' } })
+    expect(useScheduleStore.getState().project.tasks[0].custom).toEqual({})
+  })
+
+  it('列改名：菜单行「改名」铅笔→行内 Input 回车提交 → 表头/菜单同步（customLabels 驱动）', () => {
+    const p = chainProject()
+    useScheduleStore.setState({ project: p })
+    render(<StoreGanttView cpm={computeCpm(p.tasks, p.links)} />)
+    const t1 = enableCol('文本1')
+    expect(tablePane().textContent).toContain('文本1')
+    fireEvent.click(t1.querySelector('button')!) // 改名铅笔（仅自定义列有）
+    const input = inputOf('sched-colmenu-rename-text1')
+    input.focus()
+    expect(input.value).toBe('文本1') // 初值=当前名
+    fireEvent.change(input, { target: { value: '施工部位' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(useScheduleStore.getState().project.customLabels).toEqual({ text1: '施工部位' })
+    expect(screen.getByTestId('sched-gantt-colmenu').textContent).toContain('施工部位')
+    expect(tablePane().textContent).toContain('施工部位')
+    expect(tablePane().textContent).not.toContain('文本1')
+  })
+
+  it('列改名：失焦提交；Esc 取消不落库', () => {
+    const p = chainProject()
+    useScheduleStore.setState({ project: p })
+    render(<StoreGanttView cpm={computeCpm(p.tasks, p.links)} />)
+    // 失焦提交（程序化 blur 非 React 离散事件，需 act 包裹触发同步冲刷）
+    const t1 = enableCol('文本1')
+    fireEvent.click(t1.querySelector('button')!)
+    const input = inputOf('sched-colmenu-rename-text1')
+    fireEvent.change(input, { target: { value: '施工部位' } })
+    act(() => { input.focus() })
+    act(() => { input.blur() })
+    expect(useScheduleStore.getState().project.customLabels).toEqual({ text1: '施工部位' })
+    // Esc 取消：列名不变、不落库
+    const renamed = Array.from(screen.getByTestId('sched-gantt-colmenu').querySelectorAll('label'))
+      .find((l) => l.textContent?.includes('施工部位'))!
+    fireEvent.click(renamed.querySelector('button')!)
+    const input2 = inputOf('sched-colmenu-rename-text1')
+    input2.focus()
+    fireEvent.change(input2, { target: { value: '乱改' } })
+    fireEvent.keyDown(input2, { key: 'Escape' })
+    expect(useScheduleStore.getState().project.customLabels).toEqual({ text1: '施工部位' })
+    expect(screen.getByTestId('sched-gantt-colmenu').textContent).toContain('施工部位')
+  })
+
+  it('分组行自定义列留空（汇总只对叶任务有意义），叶行可编辑', () => {
+    const p = groupProject()
+    useScheduleStore.setState({ project: p })
+    render(<StoreGanttView cpm={computeCpm(p.tasks, p.links)} />)
+    enableCol('文本1')
+    const rows = tablePane().querySelectorAll('.sched-gantt-row:not(.sched-gantt-head)')
+    expect(rows[0].textContent).toContain('土建') // G 组头行
+    expect(rows[0].querySelectorAll('input')).toHaveLength(0)
+    expect(inputOf('sched-custom-text1-A')).toBeTruthy()
   })
 })

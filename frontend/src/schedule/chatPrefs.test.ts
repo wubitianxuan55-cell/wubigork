@@ -1,9 +1,9 @@
 /**
- * chatPrefs.test.ts — 板块工作台偏好纯函数用例（刀11；刀C 增横道双栏字段）
+ * chatPrefs.test.ts — 板块工作台偏好纯函数用例（刀11；刀C 增横道双栏字段；v4.138 #14 增自定义列缺省收起）
  */
 import { describe, expect, it } from 'vitest'
 import { CHAT_PREFS_KEY, clampChatWidth, loadChatPrefs, saveChatPrefs } from './chatPrefs'
-import { GANTT_LEFT_W_FULL, GANTT_TABLE_W_MIN } from './ganttCols'
+import { GANTT_CUSTOM_KEYS, GANTT_LEFT_W_FULL, GANTT_TABLE_W_MIN } from './ganttCols'
 
 function fakeStorage(initial: Record<string, string> = {}): Storage & { dump: () => Record<string, string> } {
   const bag = { ...initial }
@@ -18,7 +18,9 @@ function fakeStorage(initial: Record<string, string> = {}): Storage & { dump: ()
   } as Storage & { dump: () => Record<string, string> }
 }
 
-const DEFAULTS = { collapsed: false, width: 420, ganttTableW: GANTT_LEFT_W_FULL, ganttHide: ['progress'], ganttSort: { field: 'none', dir: 'asc' }, ganttGroup: [] }
+/** 缺省隐藏=进度列 + 全部自定义字段列（v4.138 #14，收起让位画布；列菜单可开） */
+const DEFAULT_HIDE = ['progress', ...GANTT_CUSTOM_KEYS]
+const DEFAULTS = { collapsed: false, width: 420, ganttTableW: GANTT_LEFT_W_FULL, ganttHide: DEFAULT_HIDE, ganttSort: { field: 'none', dir: 'asc' }, ganttGroup: [] }
 
 describe('clampChatWidth', () => {
   it('钳位 320~680，非有限值回落 420', () => {
@@ -46,6 +48,15 @@ describe('loadChatPrefs', () => {
     expect(loadChatPrefs(s2).ganttTableW).toBe(GANTT_LEFT_W_FULL)
     const s3 = fakeStorage({ [CHAT_PREFS_KEY]: JSON.stringify({ ganttTableW: 5 }) })
     expect(loadChatPrefs(s3).ganttTableW).toBe(GANTT_TABLE_W_MIN)
+  })
+  it('v4.138 #14：缺省隐藏集含进度列与全部 5 个自定义字段列；存量 ganttHide（无自定义键）原样保留不迁移', () => {
+    expect(DEFAULT_HIDE).toEqual(['progress', 'text1', 'text2', 'text3', 'num1', 'num2'])
+    // 存量数据已存 ganttHide 数组时逐项容错原样保留（自定义列对老用户不强制弹出）
+    const s = fakeStorage({ [CHAT_PREFS_KEY]: JSON.stringify({ ganttHide: ['progress'] }) })
+    expect(loadChatPrefs(s).ganttHide).toEqual(['progress'])
+    // 存量数据无 ganttHide 字段 → 回落新缺省（自定义列收起）
+    const s2 = fakeStorage({ [CHAT_PREFS_KEY]: '{"width":420}' })
+    expect(loadChatPrefs(s2).ganttHide).toEqual(DEFAULT_HIDE)
   })
 })
 

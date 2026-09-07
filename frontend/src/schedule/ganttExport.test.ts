@@ -7,7 +7,7 @@
  * left=dayNo×14/width=ΔdayNo×14，DAY_W=14）；循环依赖 fail-closed。
  */
 import { describe, expect, it } from 'vitest'
-import { buildGanttExportSvg, EXP_COLORS } from './ganttExport'
+import { buildGanttExportSvg, EXP_COLORS, EXP_MARGIN } from './ganttExport'
 import { computeCpm } from './cpm'
 import { wdToDate } from './calendar'
 import type { SchedProject, SchedTask } from './types'
@@ -219,5 +219,48 @@ describe('条尾标注与里程碑旗标（v4.137.0 刀D4）', () => {
     const mile = doc.querySelector('.sched-exp-mile')!
     const cx = Number(mile.getAttribute('points')!.split(',')[0]) + 6.5
     expect(Number(flags[0].querySelector('line')!.getAttribute('x1')), '旗杆贴菱形右侧').toBe(cx + 12)
+  })
+})
+
+describe('编制说明注（meta.notes）', () => {
+  const signTop = (doc: Document): number => Number(doc.querySelector('.sched-exp-sign rect')!.getAttribute('y'))
+
+  it('有 notes：图签上方出「编制说明」块含首行内容；块右对齐图签右缘、图签整体下移不压块', () => {
+    const cpm = computeCpm(baseProj.tasks, baseProj.links)
+    const plain = buildGanttExportSvg(baseProj, cpm)
+    const noted = buildGanttExportSvg(baseProj, cpm, { notes: '基础开挖至设计标高\n混凝土采用 C30' })
+    const doc = parse(noted.svg)
+    expect(noted.svg, '块标题').toContain('编制说明')
+    const texts = Array.from(doc.querySelectorAll('.sched-exp-notes text')).map((n) => n.textContent ?? '')
+    expect(texts[0], '标题行在正文前').toBe('编制说明')
+    expect(texts, '首行内容').toContain('基础开挖至设计标高')
+    expect(texts, '第二行内容').toContain('混凝土采用 C30')
+    // 右对齐图签右缘：块 x+width = totalW - EXP_MARGIN
+    const rect = doc.querySelector('.sched-exp-notes rect')!
+    expect(Number(rect.getAttribute('x')) + Number(rect.getAttribute('width'))).toBe(noted.w - EXP_MARGIN)
+    // 块整体在图签顶上方（不重叠）；画布增量=图签下移量
+    expect(Number(rect.getAttribute('y')) + Number(rect.getAttribute('height'))).toBeLessThanOrEqual(signTop(doc))
+    expect(noted.h, '画布增高容纳说明块').toBeGreaterThan(plain.h)
+    expect(noted.h - plain.h).toBe(signTop(doc) - signTop(parse(plain.svg)))
+    // 无 notes 基线：不出块、不含标题文本
+    expect(plain.svg).not.toContain('sched-exp-notes')
+    expect(plain.svg).not.toContain('编制说明')
+  })
+
+  it('超 6 行截断：只渲染前 6 行、第 6 行尾加「…」；超宽行 fitText 截断', () => {
+    const cpm = computeCpm(baseProj.tasks, baseProj.links)
+    const notes = ['一', '二', '三', '四', '五', '六', '七'].join('\n')
+    const doc = parse(buildGanttExportSvg(baseProj, cpm, { notes }).svg)
+    const body = Array.from(doc.querySelectorAll('.sched-exp-notes text')).map((n) => n.textContent ?? '')
+    const lines = body.slice(1) // 首行=标题「编制说明」
+    expect(lines, '最多 6 行正文').toHaveLength(6)
+    expect(lines[0]).toBe('一')
+    expect(lines[5], '第 6 行尾加省略号').toContain('…')
+    expect(body.join('\n'), '第 7 行不入图').not.toContain('七')
+    // 超宽行：80 个 CJK 字按块宽（360-2×6px 内距）fitText 截断
+    const long = buildGanttExportSvg(baseProj, cpm, { notes: '超'.repeat(80) })
+    const bodyLine = Array.from(parse(long.svg).querySelectorAll('.sched-exp-notes text'))[1]
+    expect(bodyLine.textContent!, '截到块宽内并加省略号').toContain('…')
+    expect(bodyLine.textContent!.length).toBeLessThanOrEqual(35)
   })
 })

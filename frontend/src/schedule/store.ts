@@ -112,6 +112,8 @@ interface ScheduleState {
   activateBaseline: (name: string) => void
   /** 删除基线槽（v4.137 #11；删活跃槽则活跃指针一并清空） */
   removeBaseline: (name: string) => void
+  /** 改自定义字段列名（v4.138 #14：项目级覆盖注册表 label；空串=恢复缺省） */
+  setCustomLabel: (key: string, label: string) => void
   addTask: (afterId?: string) => void
   addGroup: () => void
   updateTask: (id: string, patch: Partial<SchedTask>) => void
@@ -269,6 +271,15 @@ export const useScheduleStore = create<ScheduleState>()(
             baseline: s.project.baseline?.name === name ? null : s.project.baseline,
           },
         }
+      }),
+      /** 改自定义字段列名（v4.138 #14）：空串=恢复缺省（删覆盖键） */
+      setCustomLabel: (key, label) => set((s) => {
+        pushHistory('customLabel')
+        const next = { ...(s.project.customLabels ?? {}) }
+        const trimmed = label.trim()
+        if (trimmed === '') delete next[key]
+        else next[key] = trimmed
+        return { project: { ...s.project, customLabels: next } }
       }),
 
       addTask: (afterId) => set((s) => {
