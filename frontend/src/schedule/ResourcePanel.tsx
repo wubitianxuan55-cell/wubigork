@@ -1,24 +1,35 @@
 /**
- * schedule/ResourcePanel.tsx — 资源与成本 UI（v4.124 资源成本刀3，零新绑定）
+ * schedule/ResourcePanel.tsx — 资源与成本 UI（v4.124 资源成本刀3；v4.137 #13 资源级日历）
  *
  * 板块版面三件套中的两件（docs/gaea-schedule-resource-cost-design-2026-09.md §3.4）：
  *  - ResourcePanel：页头「资源」弹层（与日历/基线弹层同范式）——资源工作表 CRUD，
  *    提交即写 store（project.resources/assignments），走既有防抖自动保存链路，无独立保存按钮；
+ *    work 资源行另有「日历」入口 → ResourceCalendarEditor（个人周工作制+休假，
+ *    仅影响使用视图可用性/超载判定，不改 CPM 排程；material/cost 无按天可用性语义不显示）；
  *  - TaskResourceEditor：任务行「资源」Popover（复用前置 Popover 范式）——固定成本输入
  *    + 资源多选挂载（勾选建分配/取消删分配）+ 按资源类型的 units/quantity/amount 输入，
  *    每次变更整体替换该任务分配集（set_links「整体替换入边」同语义）。
  * 成本数值一律来自 computeCosts（引擎裁决，UI 不重复实现公式）；
  * 成本列/状态栏共用的显隐与格式化口径在 costUi.ts（hasCostData/fmtCost）。
  */
-import React, { useMemo } from 'react'
-import { Button, Checkbox, Input, InputNumber, Popconfirm, Select } from 'antd'
-import { DeleteOutlined } from '@ant-design/icons'
+import React, { useMemo, useState } from 'react'
+import { Button, Checkbox, Input, InputNumber, Popconfirm, Popover, Select, Space, Tag } from 'antd'
+import { CalendarOutlined, DeleteOutlined } from '@ant-design/icons'
 import { computeCosts } from './cost'
 import { fmtCost } from './costUi'
-import type { CpmResult, ResourceType, SchedAssignment, SchedResource, SchedTask } from './types'
+import type { CpmResult, ResourceType, SchedAssignment, SchedCalendar, SchedResource, SchedTask } from './types'
 import { useScheduleStore } from './store'
 
 const TYPE_LABEL: Record<ResourceType, string> = { work: '工时', material: '材料', cost: '成本' }
+
+/** 周工作制选项（JS getDay 口径 0=周日..6=周六），展示顺序 周日~周六 */
+const WEEKDAYS: { day: number; label: string }[] = [
+  { day: 0, label: '日' }, { day: 1, label: '一' }, { day: 2, label: '二' }, { day: 3, label: '三' },
+  { day: 4, label: '四' }, { day: 5, label: '五' }, { day: 6, label: '六' },
+]
+
+/** 项目日历缺省口径（与 store/types「缺省=周一~周五」一致） */
+const DEFAULT_WORKWEEK = [1, 2, 3, 4, 5]
 
 /** 资源费率的单位标注口径：work=元/工日、material=元/单位（含计量单位）、cost 无费率 */
 function rateSuffix(r: SchedResource): string {
@@ -26,8 +37,83 @@ function rateSuffix(r: SchedResource): string {
 }
 
 /**
+ * 资源个人日历编辑器（v4.137 #13）：work 资源行「日历」Popover 内容。
+ * 周工作制 Checkbox 组（周日~周六，至少一项——全取消该次点击无效）+ 节假日 Tag 列表
+ * （YYYY-MM-DD 校验+去重）+「跟随项目日历」清除。与费率字段同范式：直接 upsertResource
+ * 落库，无草稿态。诚实口径：个人日历只影响使用视图的可用性与超载判定，不改任务排程。
+ */
+const ResourceCalendarEditor: React.FC<{ resourceId: string }> = ({ resourceId }) => {
+  const project = useScheduleStore((s) => s.project)
+  const upsertResource = useScheduleStore((s) => s.upsertResource)
+  const resource = (project.resources ?? []).find((r) => r.id === resourceId)
+  const [holidayDraft, setHolidayDraft] = useState('')
+  if (!resource) return null
+  /** 未自定义时编辑视图跟随项目日历（项目亦缺省则周一~周五），首个改动即固化为个人日历 */
+  const base = resource.calendar ?? project.calendar ?? { workweek: DEFAULT_WORKWEEK, holidays: [] }
+
+  const commit = (calendar: SchedCalendar | undefined) => {
+    // 整体替换该资源（与费率字段同一动作；calendar 已在 upsertResource 清洗白名单内）
+    upsertResource({ ...resource, calendar })
+  }
+  const toggleDay = (day: number, on: boolean) => {
+    const next = on ? [...new Set([...base.workweek, day])] : base.workweek.filter((d) => d !== day)
+    if (next.length === 0) return // 至少保留一个工作日：全取消时该次点击无效
+    commit({ workweek: next.sort((a, b) => a - b), holidays: base.holidays })
+  }
+  const addHoliday = () => {
+    const d = holidayDraft.trim()
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(d) || base.holidays.includes(d)) return // 格式校验+去重
+    commit({ workweek: base.workweek, holidays: [...base.holidays, d].sort() })
+    setHolidayDraft('')
+  }
+
+  return (
+    <div style={{ display: 'grid', gap: 8, minWidth: 280 }} data-testid={`sched-res-cal-editor-${resource.id}`}>
+      <span className="sched-dim">个人休假/停工只影响使用视图的可用性与超载判定，不改任务排程（排程按项目日历）。</span>
+      {!resource.calendar && <span className="sched-dim" data-testid={`sched-res-cal-follow-${resource.id}`}>未自定义（跟随项目日历）</span>}
+      <div>
+        <div className="sched-dim" style={{ marginBottom: 4 }}>周工作制（至少一项）</div>
+        <Space size={4} wrap>
+          {WEEKDAYS.map((w) => (
+            <Checkbox key={w.day} checked={base.workweek.includes(w.day)} onChange={(e) => toggleDay(w.day, e.target.checked)}>
+              周{w.label}
+            </Checkbox>
+          ))}
+        </Space>
+      </div>
+      <div>
+        <div className="sched-dim" style={{ marginBottom: 4 }}>节假日 / 个人休假（YYYY-MM-DD）</div>
+        <Space size={4} wrap style={{ marginBottom: 6 }}>
+          {base.holidays.map((h) => (
+            <Tag key={h} closable onClose={() => commit({ workweek: base.workweek, holidays: base.holidays.filter((x) => x !== h) })}>
+              {h}
+            </Tag>
+          ))}
+          {base.holidays.length === 0 && <span className="sched-dim">无</span>}
+        </Space>
+        <Space size={4}>
+          <Input
+            size="small"
+            placeholder="2026-10-01"
+            value={holidayDraft}
+            style={{ width: 130 }}
+            onChange={(e) => setHolidayDraft(e.target.value)}
+            onPressEnter={addHoliday}
+          />
+          <Button size="small" type="dashed" onClick={addHoliday}>添加</Button>
+        </Space>
+      </div>
+      <Button size="small" disabled={!resource.calendar} onClick={() => commit(undefined)}>
+        跟随项目日历（清除个人设置）
+      </Button>
+    </div>
+  )
+}
+
+/**
  * 资源工作表弹层：名称/类型/费率（带单位标注）/每次使用/单位·上限/已分配任务数/资源成本合计。
- * 类型切换联动字段显隐（cost 隐藏费率与每次使用）；删除级联清除其分配（Popconfirm）。
+ * 类型切换联动字段显隐（cost 隐藏费率与每次使用）；删除级联清除其分配（Popconfirm）；
+ * work 资源名称旁有「日历」入口（primary=已自定义 / default=未自定义跟随项目日历）。
  */
 export const ResourcePanel: React.FC<{ cpm: CpmResult }> = ({ cpm }) => {
   const project = useScheduleStore((s) => s.project)
@@ -64,12 +150,28 @@ export const ResourcePanel: React.FC<{ cpm: CpmResult }> = ({ cpm }) => {
         const isCost = r.type === 'cost'
         return (
           <div className="sched-res-row" key={r.id} data-testid={`sched-res-row-${r.id}`}>
-            <Input
-              size="small"
-              variant="borderless"
-              value={r.name}
-              onChange={(e) => upsertResource({ ...r, name: e.target.value })}
-            />
+            <span style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
+              <Input
+                size="small"
+                variant="borderless"
+                value={r.name}
+                style={{ flex: 1, minWidth: 0, padding: 0 }}
+                onChange={(e) => upsertResource({ ...r, name: e.target.value })}
+              />
+              {r.type === 'work' && (
+                <Popover trigger="click" placement="bottom" content={<ResourceCalendarEditor resourceId={r.id} />} title={`「${r.name}」个人日历`}>
+                  <Button
+                    size="small"
+                    type={r.calendar ? 'primary' : 'default'}
+                    icon={<CalendarOutlined />}
+                    aria-label={`资源日历${r.name}`}
+                    title={`资源个人日历（${r.calendar ? '已自定义' : '未自定义，跟随项目日历'}）`}
+                    data-testid={`sched-res-cal-${r.id}`}
+                    style={{ flexShrink: 0 }}
+                  />
+                </Popover>
+              )}
+            </span>
             <Select
               size="small"
               value={r.type}

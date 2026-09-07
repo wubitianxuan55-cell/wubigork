@@ -66,6 +66,8 @@ export interface SchedResource {
   costPerUse?: number
   /** 工时资源可用上限（默认 1；v1 仅承载与 mspdi 往返，不做平衡） */
   maxUnits?: number
+  /** 资源级日历（v4.137 #13：个人周工作制+休假例外；缺省=跟随项目日历。影响使用视图可用性/超载口径，不改 CPM 排程） */
+  calendar?: SchedCalendar
 }
 
 /** 分配（任务↔资源；(taskId,resourceId) 唯一，无独立 id） */
@@ -100,8 +102,10 @@ export interface SchedProject {
   links: SchedLink[]
   /** 工作日历（缺省=周一~周五） */
   calendar?: SchedCalendar
-  /** 基线（v4.116 刀7：保存时的排程快照，缺省=尚未保存） */
+  /** 基线（v4.116 刀7：保存时的排程快照，缺省=尚未保存；=baselines 中的**活跃**槽，Go 镜像/AI 工具口径不变） */
   baseline?: SchedBaseline | null
+  /** 基线槽位列表（v4.137 #11 多基线：FIFO 上限 3，支持签证 1→N 场景切换对比；缺省=单基线旧文件零迁移） */
+  baselines?: SchedBaseline[]
   /** 目标竣工日期（v4.117 刀8：YYYY-MM-DD，倒排校核用，缺省=未设） */
   deadline?: string | null
   /** 资源表（v4.122 资源成本刀1：缺省=无资源维度，旧文件零迁移可读） */

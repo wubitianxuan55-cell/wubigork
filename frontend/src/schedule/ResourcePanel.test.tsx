@@ -13,7 +13,7 @@ import { ResourcePanel, TaskResourceEditor } from './ResourcePanel'
 import { hasCostData } from './costUi'
 import { computeCpm } from './cpm'
 import { useScheduleStore } from './store'
-import type { SchedAssignment, SchedProject, SchedResource, SchedTask } from './types'
+import type { SchedAssignment, SchedCalendar, SchedProject, SchedResource, SchedTask } from './types'
 import SchedulePage from '../pages/SchedulePage'
 
 // 状态栏用例渲染 SchedulePage：左栏 ChatPane 依赖会话 store 全家桶，mock 掉保持用例聚焦
@@ -327,5 +327,92 @@ describe('状态栏总成本段（刀3）', () => {
     useScheduleStore.setState({ project: plainProject() })
     render(<SchedulePage />)
     expect(screen.queryByTestId('sched-statusbar-cost')).toBeNull()
+  })
+})
+
+// ── v4.137 #13 资源级日历：work 行「日历」入口 + 个人周工作制/休假编辑器 ──
+// 口径：只影响使用视图可用性/超载判定，不改任务排程；直接 upsertResource 落库无草稿态。
+
+describe('ResourcePanel 资源个人日历（v4.137 #13）', () => {
+  beforeEach(() => {
+    localStorage.removeItem('gaea.schedule.v1')
+    useScheduleStore.setState({
+      project: costedProject(),
+      selectedId: null,
+      hydrated: true,
+      sync: 'saved',
+      savedAt: null,
+      syncError: null,
+    })
+  })
+
+  /** store 中的 r1（每次断言现取，避免旧引用） */
+  const stored = () => useScheduleStore.getState().project.resources!.find((x) => x.id === 'r1')!
+  /** 打开 r1 行的日历编辑器 Popover */
+  const openEditor = async () => {
+    fireEvent.click(screen.getByTestId('sched-res-cal-r1'))
+    await screen.findByRole('checkbox', { name: '周六' })
+  }
+  /** 预置 r1 的个人日历 */
+  const withCalendar = (cal: SchedCalendar) => ({
+    ...costedProject(),
+    resources: costedProject().resources!.map((r) => (r.id === 'r1' ? { ...r, calendar: cal } : r)),
+  })
+
+  it('work 资源有「日历」入口（未自定义=default 态），material/cost 无', () => {
+    renderPanel(useScheduleStore.getState().project)
+    const entry = screen.getByTestId('sched-res-cal-r1')
+    expect(entry.className).not.toContain('ant-btn-primary')
+    expect(entry.getAttribute('title')).toContain('未自定义')
+    expect(screen.queryByTestId('sched-res-cal-m1')).toBeNull()
+    expect(screen.queryByTestId('sched-res-cal-c1')).toBeNull()
+  })
+
+  it('勾掉周六：upsertResource 落库 calendar.workweek 不含周六，入口转已自定义态', async () => {
+    // 项目日历全勾：未自定义资源跟随之（缺省全勾视觉），勾掉周六即固化为个人日历
+    useScheduleStore.setState({ project: { ...costedProject(), calendar: { workweek: [0, 1, 2, 3, 4, 5, 6], holidays: [] } } })
+    renderPanel(useScheduleStore.getState().project)
+    await openEditor()
+    expect(screen.getByTestId('sched-res-cal-follow-r1').textContent).toContain('未自定义（跟随项目日历）')
+    fireEvent.click(screen.getByRole('checkbox', { name: '周六' }))
+    expect(stored().calendar!.workweek).toEqual([0, 1, 2, 3, 4, 5]) // 不含 6=周六
+    expect(screen.getByTestId('sched-res-cal-r1').className).toContain('ant-btn-primary') // 已自定义态
+    expect(screen.queryByTestId('sched-res-cal-follow-r1')).toBeNull()
+  })
+
+  it('节假日：添加入库（格式校验+去重），删 Tag 即移除', async () => {
+    renderPanel(useScheduleStore.getState().project)
+    await openEditor()
+    const input = screen.getByPlaceholderText('2026-10-01')
+    const addBtn = () => screen.getByRole('button', { name: /添\s*加/ }) // antd 两汉字按钮文案自动加空格
+    fireEvent.change(input, { target: { value: '2026-10-01' } })
+    fireEvent.click(addBtn())
+    expect(stored().calendar!.holidays).toEqual(['2026-10-01'])
+    fireEvent.click(addBtn()) // 同日期去重
+    expect(stored().calendar!.holidays).toEqual(['2026-10-01'])
+    fireEvent.change(input, { target: { value: 'abc' } }) // 非法格式拒绝
+    fireEvent.click(addBtn())
+    expect(stored().calendar!.holidays).toEqual(['2026-10-01'])
+    fireEvent.click(screen.getByText('2026-10-01').closest('.ant-tag')!.querySelector('.anticon-close')!)
+    expect(stored().calendar!.holidays).toEqual([])
+  })
+
+  it('「跟随项目日历」清除：resource.calendar 变 undefined，回未自定义态', async () => {
+    useScheduleStore.setState({ project: withCalendar({ workweek: [1, 2, 3, 4], holidays: ['2026-10-01'] }) })
+    renderPanel(useScheduleStore.getState().project)
+    expect(screen.getByTestId('sched-res-cal-r1').className).toContain('ant-btn-primary')
+    await openEditor()
+    fireEvent.click(screen.getByRole('button', { name: /跟随项目日历/ }))
+    expect(stored().calendar).toBeUndefined()
+    expect(screen.getByTestId('sched-res-cal-r1').className).not.toContain('ant-btn-primary')
+    expect(screen.getByTestId('sched-res-cal-follow-r1').textContent).toContain('未自定义（跟随项目日历）')
+  })
+
+  it('全取消周工作制被拒绝：仅剩的一项勾不掉（至少保留一项）', async () => {
+    useScheduleStore.setState({ project: withCalendar({ workweek: [6], holidays: [] }) })
+    renderPanel(useScheduleStore.getState().project)
+    await openEditor()
+    fireEvent.click(screen.getByRole('checkbox', { name: '周六' })) // 勾掉唯一工作日 → 该次点击无效
+    expect(stored().calendar!.workweek).toEqual([6])
   })
 })

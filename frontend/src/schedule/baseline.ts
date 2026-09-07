@@ -116,3 +116,25 @@ export function computeBaselineDrift(project: SchedProject, cpm: CpmResult): Bas
     rows,
   }
 }
+
+/**
+ * 基线槽位更新（v4.137 #11 多基线）：同名在原位替换（「更新基线」语义），
+ * 否则追加；超出 max 按 FIFO 淘汰最旧（签证 1→N 场景默认保留 3 个槽），
+ * 刚写入的槽永不被淘汰。纯函数，不改入参。
+ */
+export function upsertBaseline(
+  list: SchedBaseline[] | undefined,
+  b: SchedBaseline,
+  max = 3,
+): SchedBaseline[] {
+  const next = [...(list ?? [])]
+  const i = next.findIndex((x) => x.name === b.name)
+  if (i >= 0) next[i] = b
+  else next.push(b)
+  while (next.length > max && next.length > 1) {
+    const oldestIdx = next.findIndex((x) => x.name !== b.name)
+    if (oldestIdx < 0) break
+    next.splice(oldestIdx, 1)
+  }
+  return next
+}

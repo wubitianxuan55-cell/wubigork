@@ -32,6 +32,9 @@ import { svgToPngBlob, svgToPdfBlob, downloadBlob, printSvg } from '../schedule/
 import { loadExportMeta, saveExportMeta, todayIso, type ExportMetaPrefs } from '../schedule/exportMeta'
 import { exportScheduleXlsx, importScheduleXlsx } from '../schedule/api'
 import { ResourcePanel } from '../schedule/ResourcePanel'
+import { UsageView } from '../schedule/UsageView'
+import { computeUsage } from '../schedule/usage'
+import { BaselinesPanel } from '../schedule/BaselinesPanel'
 import { fmtCost, hasCostData } from '../schedule/costUi'
 import { SCHEDULE_FILE_PATH } from '../schedule/gschedSummary'
 import { usePreviewStore } from '../gaea/lib/store'
@@ -111,102 +114,6 @@ function fmtDrift(n: number): string {
   return n > 0 ? `+${n}` : `${n}`
 }
 
-/** 基线漂移行类别徽标 */
-const DRIFT_KIND_LABEL: Record<'shifted' | 'added' | 'removed', string> = {
-  shifted: '推移',
-  added: '新增',
-  removed: '移除',
-}
-
-/**
- * 基线对比弹层（v4.116 刀7）：无基线时引导保存；有基线时展示漂移摘要
- * （总工期漂移/推移·新增·移除/关键链进出/偏差行清单）与更新、清除操作。
- */
-const BaselinePanel: React.FC<{ cpm: CpmResult }> = ({ cpm }) => {
-  const project = useScheduleStore((s) => s.project)
-  const setBaseline = useScheduleStore((s) => s.setBaseline)
-  const clearBaseline = useScheduleStore((s) => s.clearBaseline)
-  const [err, setErr] = useState<string | null>(null)
-  const drift = useMemo(() => computeBaselineDrift(project, cpm), [project, cpm])
-  const hasLeaf = project.tasks.some((t) => t.level > 0)
-  const guard = !cpm.ok ? '计划存在循环依赖，先修正搭接' : !hasLeaf ? '计划还没有任何任务' : null
-
-  const save = () => {
-    const e = setBaseline()
-    setErr(e)
-  }
-
-  return (
-    <div style={{ display: 'grid', gap: 8, minWidth: 300, maxWidth: 400 }}>
-      {!drift ? (
-        <>
-          <span className="sched-dim">基线会固化当前排程结果；之后每次调整都能对比「较基线」的推移、总工期漂移与关键链变化。</span>
-          {guard && <span className="sched-dim">暂不可保存：{guard}</span>}
-          <Button size="small" type="primary" disabled={!!guard} onClick={save}>保存基线</Button>
-          {err && <span className="sched-critical-text">{err}</span>}
-        </>
-      ) : (
-        <>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-            <strong>{drift.baselineName}</strong>
-            <span className="sched-dim">保存于 {drift.baselineSavedAt}</span>
-          </div>
-          <div style={{ fontSize: 13 }}>
-            总工期 <b>{drift.baselineDuration}</b> → <b>{drift.currentDuration}</b> 天
-            {drift.durationDrift !== 0 ? (
-              <span className={drift.durationDrift > 0 ? 'sched-critical-text' : 'sched-drift-good'}>
-                （{fmtDrift(drift.durationDrift)} 天，{drift.durationDrift > 0 ? '拖后' : '提前'}）
-              </span>
-            ) : (
-              <span className="sched-dim">（与基线持平）</span>
-            )}
-          </div>
-          <div className="sched-dim">
-            推移 {drift.shiftedCount} · 新增 {drift.addedCount} · 移除 {drift.removedCount} · 一致 {drift.sameCount}
-          </div>
-          {(drift.criticalGained.length > 0 || drift.criticalLost.length > 0) && (
-            <div style={{ fontSize: 12, display: 'grid', gap: 2 }}>
-              {drift.criticalGained.length > 0 && <div><span className="sched-critical-text">新进关键</span>：{drift.criticalGained.join('、')}</div>}
-              {drift.criticalLost.length > 0 && <div><span className="sched-drift-good">退出关键</span>：{drift.criticalLost.join('、')}</div>}
-            </div>
-          )}
-          {drift.rows.length > 0 && (
-            <div style={{ maxHeight: 180, overflow: 'auto', display: 'grid', gap: 3 }}>
-              {drift.rows.map((r) => (
-                <div key={r.id} style={{ display: 'flex', gap: 6, fontSize: 12, alignItems: 'center' }}>
-                  <span className={`sched-base-chip sched-base-${r.kind}`}>{DRIFT_KIND_LABEL[r.kind]}</span>
-                  <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.name}</span>
-                  <span className="sched-dim">
-                    {r.kind === 'removed'
-                      ? `原第 ${r.base!.es}~${r.base!.ef} 工作日`
-                      : r.kind === 'added'
-                        ? `第 ${r.now!.es}~${r.now!.ef} 工作日`
-                        : `第 ${r.base!.es}→${r.now!.es} 工作日`}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-          {guard && <span className="sched-dim">暂不可更新：{guard}</span>}
-          <Space size={6}>
-            <Button size="small" type="primary" ghost disabled={!!guard} onClick={save}>更新基线</Button>
-            <Popconfirm title="清除基线？" description="清除后基线对比不可用，横道图不再显示基线条" onConfirm={() => { clearBaseline(); setErr(null) }}>
-              <Button size="small" danger>清除基线</Button>
-            </Popconfirm>
-          </Space>
-          {err && <span className="sched-critical-text">{err}</span>}
-        </>
-      )}
-    </div>
-  )
-}
-
-/**
- * 图面导出弹层（v4.132.0 刀D1 / v4.133.0 刀D2）：三图面 × 三出口。
- * 图面类型（横道图/双代号时标网络/单代号网络）默认跟随当前视图；签署字段
- * （编制单位/人/审核/批准/日期）持久化 exportMeta；构建走 ganttExport /
- * networkExport 纯函数——图面是发布物，不随工作台交互态漂移。
- */
 type ExportKind = 'gantt' | 'aoa' | 'pdm'
 const EXPORT_KIND_LABEL: Record<ExportKind, string> = { gantt: '横道图', aoa: '双代号网络图', pdm: '单代号网络图' }
 const EXPORT_KIND_FILE: Record<ExportKind, string> = {
@@ -386,6 +293,8 @@ const SchedulePage: React.FC = () => {
 
   const cpm = useMemo(() => computeCpm(project.tasks, project.links, { planFinish: planFinishOf(project) }), [project])
   const aoa = useMemo(() => buildAoa(project.tasks, project.links, { planFinish: planFinishOf(project) }), [project])
+  // 资源使用/超载（v4.137 #12/#13）：逐工作日负载 vs 可用性（工时资源；个人日历收紧可用性）
+  const usage = useMemo(() => computeUsage(project, cpm), [project, cpm])
   const drift = useMemo(() => computeBaselineDrift(project, cpm), [project, cpm])
   const dl = useMemo(() => checkDeadline(project, cpm), [project, cpm])
   // 资源成本（刀3）：总成本随每次 render 重算（与 CPM 同范式）；无资源/成本数据不显示（诚实呈现）
@@ -531,7 +440,7 @@ const SchedulePage: React.FC = () => {
         <Popover trigger="click" placement="bottom" content={<CalendarEditor />} title="工作日历">
           <Button size="small" icon={<CalendarOutlined />}>日历</Button>
         </Popover>
-        <Popover trigger="click" placement="bottom" content={<BaselinePanel cpm={cpm} />} title="基线对比">
+        <Popover trigger="click" placement="bottom" content={<BaselinesPanel cpm={cpm} />} title="基线对比">
           <Button
             size="small"
             icon={<FundOutlined />}
@@ -562,6 +471,7 @@ const SchedulePage: React.FC = () => {
             { value: 'gantt', label: <span><TableOutlined /> 横道图</span> },
             { value: 'pdm', label: <span><NodeIndexOutlined /> 单代号网络图</span> },
             { value: 'aoa', label: <span><PartitionOutlined /> 双代号网络图</span> },
+            { value: 'usage', label: <span><TeamOutlined /> 资源使用</span> },
           ]}
         />
       </div>
@@ -650,7 +560,7 @@ const SchedulePage: React.FC = () => {
           onClose={() => setImportMsg(null)}
         />
       )}
-      <ExportDialog open={exportOpen} onClose={() => setExportOpen(false)} project={project} cpm={cpm} aoa={aoa} defaultView={view} />
+      <ExportDialog open={exportOpen} onClose={() => setExportOpen(false)} project={project} cpm={cpm} aoa={aoa} defaultView={view === 'usage' ? 'gantt' : view} />
       {!cpm.ok && cpm.error && (
         <Alert type="error" showIcon message={cpm.error} description="请修正搭接关系后重试；网络图视图在循环解除前不可用。" />
       )}
@@ -658,6 +568,7 @@ const SchedulePage: React.FC = () => {
       {view === 'gantt' && <GanttView project={project} cpm={cpm} onInspect={setInspectId} />}
       {view === 'pdm' && <PdmView project={project} cpm={cpm} />}
       {view === 'aoa' && <AoaView graph={aoa} tasks={project.tasks} />}
+      {view === 'usage' && <UsageView usage={usage} />}
 
       {/* 任务检查器（v4.136）：该任务日期由哪条搭接决定 + 前驱/后继可点击跳转 */}
       <TaskInspector
@@ -675,7 +586,7 @@ const SchedulePage: React.FC = () => {
 
       {/* 底部状态栏（斑马口径：共 N 项工作总工期 N 天 + 关键/工作制常驻） */}
       <div className="sched-statusbar">
-        <span>视图：<span className="sched-sb-strong">{view === 'gantt' ? '横道图' : view === 'pdm' ? '单代号网络图' : '双代号网络图'}</span></span>
+        <span>视图：<span className="sched-sb-strong">{view === 'gantt' ? '横道图' : view === 'pdm' ? '单代号网络图' : view === 'usage' ? '资源使用视图' : '双代号网络图'}</span></span>
         <span>共 <span className="sched-sb-strong">{project.tasks.filter((t) => t.level > 0).length}</span> 项工作，总工期 <span className="sched-sb-strong">{cpm.duration}</span> 天</span>
         <span>关键工作 <span className="sched-sb-crit">{project.tasks.filter((t) => t.level > 0 && cpm.rows[t.id]?.critical).length}</span> 项</span>
         {showCost && (

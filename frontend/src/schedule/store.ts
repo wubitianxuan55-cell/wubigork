@@ -15,10 +15,10 @@ import { normalizeCalendar } from './calendar'
 import { computeCpm } from './cpm'
 import { planFinishOf } from './deadline'
 import { loadScheduleFile, saveScheduleFile } from './api'
-import { snapshotBaseline } from './baseline'
+import { snapshotBaseline, upsertBaseline } from './baseline'
 import { normalizeAoaLayout } from './aoaLayout'
 
-export type ScheduleView = 'gantt' | 'pdm' | 'aoa'
+export type ScheduleView = 'gantt' | 'pdm' | 'aoa' | 'usage'
 
 /** 文件同步状态（工具栏指示器） */
 export type ScheduleSyncState = 'idle' | 'dirty' | 'saving' | 'saved' | 'error'
@@ -103,10 +103,15 @@ interface ScheduleState {
   /**
    * 保存/更新基线（快照当前排程）。返回 null=成功；否则为失败原因
    * （循环依赖/无叶任务），UI 据此提示——不静默。
+   * v4.137 #11：同名=原位更新，否则入槽（FIFO 上限 3）并设为活跃。
    */
   setBaseline: (name?: string) => string | null
-  /** 清除基线（无基线时为无害空操作） */
+  /** 清除基线（无基线时为无害空操作；只清活跃指针，槽位保留可再激活） */
   clearBaseline: () => void
+  /** 切换活跃基线槽（v4.137 #11 多基线；名字必须在槽位中） */
+  activateBaseline: (name: string) => void
+  /** 删除基线槽（v4.137 #11；删活跃槽则活跃指针一并清空） */
+  removeBaseline: (name: string) => void
   addTask: (afterId?: string) => void
   addGroup: () => void
   updateTask: (id: string, patch: Partial<SchedTask>) => void
@@ -240,10 +245,31 @@ export const useScheduleStore = create<ScheduleState>()(
         const cpm = computeCpm(project.tasks, project.links, { planFinish: planFinishOf(project) })
         const r = snapshotBaseline(project, cpm, formatNow(), name)
         if (!r.ok) return r.error
-        useScheduleStore.setState({ project: { ...project, baseline: r.baseline } })
+        // v4.137 #11 多基线：存快照进槽位列表（同名原位替换，FIFO 上限 3），并设为活跃
+        const baselines = upsertBaseline(project.baselines, r.baseline)
+        useScheduleStore.setState({ project: { ...project, baseline: r.baseline, baselines } })
         return null
       },
       clearBaseline: () => set((s) => { pushHistory('baseline'); return { project: { ...s.project, baseline: null } } }),
+      /** 切换活跃基线（v4.137 #11）：必须是槽位里已有的名字，否则无害 no-op */
+      activateBaseline: (name) => set((s) => {
+        const b = s.project.baselines?.find((x) => x.name === name)
+        if (!b || s.project.baseline?.name === name) return {}
+        pushHistory('baseline')
+        return { project: { ...s.project, baseline: b } }
+      }),
+      /** 删除基线槽（v4.137 #11）：删的是活跃槽时活跃指针一并置空（横道基线条消失，诚实） */
+      removeBaseline: (name) => set((s) => {
+        if (!s.project.baselines?.some((b) => b.name === name)) return {}
+        pushHistory('baseline')
+        return {
+          project: {
+            ...s.project,
+            baselines: s.project.baselines!.filter((b) => b.name !== name),
+            baseline: s.project.baseline?.name === name ? null : s.project.baseline,
+          },
+        }
+      }),
 
       addTask: (afterId) => set((s) => {
         pushHistory('addTask')
@@ -320,6 +346,15 @@ export const useScheduleStore = create<ScheduleState>()(
           costPerUse: type === 'cost' ? undefined : numOrUndefined(r.costPerUse),
           unit: type === 'material' && typeof r.unit === 'string' && r.unit ? r.unit : undefined,
           maxUnits: type === 'work' ? numOrUndefined(r.maxUnits) : undefined,
+          // 个人日历（v4.137 #13）：仅工时资源有按天可用性语义；周历至少一项+字段逐项容错
+          calendar: type === 'work' && r.calendar && Array.isArray(r.calendar.workweek) && r.calendar.workweek.length > 0
+            ? {
+                workweek: [...new Set(r.calendar.workweek.filter((n) => Number.isInteger(n) && n >= 0 && n <= 6))].sort((a, b) => a - b),
+                holidays: Array.isArray(r.calendar.holidays)
+                  ? [...new Set(r.calendar.holidays.filter((h) => typeof h === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(h)))].sort()
+                  : [],
+              }
+            : undefined,
         }
         const resources = s.project.resources ?? []
         const next = resources.some((x) => x.id === clean.id)
