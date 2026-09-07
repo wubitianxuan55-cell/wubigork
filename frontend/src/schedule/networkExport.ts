@@ -15,7 +15,7 @@
  */
 import type { AoaGraph } from './aoa'
 import { AOA_R, AOA_ROW_H } from './aoa'
-import { edgeSegs, findBridgeArcs, segsToPath } from './aoaLayout'
+import { edgeSegs, findBridgeArcs, segsToPath, assignChannels } from './aoaLayout'
 import { layerByTopology } from './layout'
 import { wdToDate } from './calendar'
 import type { CpmResult, LinkType, SchedProject } from './types'
@@ -98,14 +98,17 @@ export function buildAoaExportSvg(project: SchedProject, graph: AoaGraph, meta: 
     pairCnt.set(k, (pairCnt.get(k) ?? 0) + 1)
   }
   const pairSeen = new Map<string, number>()
+  // 同行长边通道分配（与视图同口径：长线走行间通道不重合）
+  const channels = assignChannels(graph.edges, nodeById)
   const geoms = graph.edges.map((e, i) => {
     const k = `${e.from}>${e.to}`
     const idx = pairSeen.get(k) ?? 0
     pairSeen.set(k, idx + 1)
     const a = nodeById.get(e.from)!
-    // 汇总箭线横跨子网络界点（时间由二级决定），波形切点无意义不画
+    // 汇总箭线横跨子网络界点（时间由二级决定）、走通道的边：波形切点无意义不画
+    const chY = channels.get(e.id)
     const waveFromX = e.kind === 'summary' ? null : a.x + AOA_R + e.dur * dayW
-    return { e, i, waveFromX, g: edgeSegs(e, nodeById, { idx, cnt: pairCnt.get(k)! }, waveFromX) }
+    return { e, i, waveFromX, g: edgeSegs(e, nodeById, { idx, cnt: pairCnt.get(k)! }, waveFromX, chY) }
   })
   const bridges = findBridgeArcs(geoms.map((it) => it.g.segs))
   const taskName = (id: string): string => project.tasks.find((t) => t.id === id)?.name ?? ''

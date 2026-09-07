@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { buildAoa, type AoaEdge, type AoaGraph } from './aoa'
 import { AOA_COL_W, AOA_MARGIN, AOA_R, AOA_ROW_H } from './aoa'
-import { applyPins, edgeSegs, findBridgeArcs, normalizeAoaLayout, prunePins, segsToPath, snapPt } from './aoaLayout'
+import { applyPins, assignChannels, edgeSegs, findBridgeArcs, normalizeAoaLayout, prunePins, segsToPath, snapPt } from './aoaLayout'
 import type { SchedLink, SchedTask } from './types'
 
 function t(id: string, duration: number, extra?: Partial<SchedTask>): SchedTask {
@@ -251,5 +251,39 @@ describe('findBridgeArcs + segsToPath：G1 过桥法', () => {
     expect(bridges.get(1)?.get(0)).toEqual([100, 150])
     const d = segsToPath(segsByEdge[1], null, bridges.get(1))
     expect(d.match(/A 5 5/g)?.length).toBe(2)
+  })
+})
+
+describe('assignChannels 同行长边通道（v4.143 分行）', () => {
+  function edge(id: string, from: string, to: string): AoaEdge {
+    return { id, from, to, kind: 'dummy', dur: 0, critical: false, label: '' }
+  }
+
+  it('跨 >1.5 列的同行边走通道；x 区间重叠者层号递增，不重叠者共享层；短边不分配', () => {
+    const map = new Map<string, { x: number; y: number }>([
+      ['a1', { x: 40, y: 100 }], ['a2', { x: 1150, y: 100 }],
+      ['b1', { x: 40, y: 100 }], ['b2', { x: 900, y: 100 }],
+      ['c1', { x: 1300, y: 100 }], ['c2', { x: 1900, y: 100 }],
+      ['d1', { x: 40, y: 100 }], ['d2', { x: 100, y: 100 }], // 短边（dx=60 < 1.5 列）
+    ])
+    const ch = assignChannels([edge('e1', 'a1', 'a2'), edge('e2', 'b1', 'b2'), edge('e3', 'c1', 'c2'), edge('e4', 'd1', 'd2')], map)
+    expect(ch.get('e2')).toBe(100 + AOA_ROW_H / 2) // 按 x1/x2 排序先处理 → 层 0
+    expect(ch.get('e1')).toBe(100 + AOA_ROW_H / 2 + 12) // 与 e2 区间重叠 → 层 1
+    expect(ch.get('e3')).toBe(100 + AOA_ROW_H / 2) // 与 e1/e2 不重叠 → 层 0
+    expect(ch.has('e4')).toBe(false) // 短边直连不占通道
+  })
+
+  it('edgeSegs 带 channelY：五段路径经行间通道，标注挂通道中线', () => {
+    const map = new Map<string, { x: number; y: number }>([
+      ['a', { x: 40, y: 100 }], ['b', { x: 1150, y: 100 }],
+    ])
+    const g = edgeSegs(edge('e', 'a', 'b'), map, { idx: 0, cnt: 1 }, null, 137)
+    expect(g.segs).toHaveLength(5)
+    expect(g.segs.some((seg) => seg.y1 === 137 && seg.y2 === 137)).toBe(true)
+    expect(g.name.y).toBe(132) // 通道名标注在通道线上方
+    // 无 channelY 时保持直连单段
+    const g2 = edgeSegs(edge('e', 'a', 'b'), map, { idx: 0, cnt: 1 }, null)
+    expect(g2.segs).toHaveLength(1)
+    expect(g2.segs[0].y1).toBe(100)
   })
 })

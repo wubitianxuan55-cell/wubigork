@@ -49,9 +49,9 @@ export function layerByTime(items: LayoutItem[], edges: LayoutEdge[]): Map<strin
   const rowKey = new Map<string, number>()
   for (const col of cols) col.forEach((id, i) => rowKey.set(id, i))
 
-  // 两轮重心松弛（左→右、右→左各一轮）
-  for (let pass = 0; pass < 2; pass++) {
-    const order = pass === 0 ? cols : [...cols].reverse()
+  // 四轮重心松弛（左→右、右→左交替）——交叉削减迭代越多长计划分层越稳
+  for (let pass = 0; pass < 4; pass++) {
+    const order = pass % 2 === 0 ? cols : [...cols].reverse()
     for (const col of order) {
       const keyed = col.map((id) => {
         const nbrs = [...(inOf.get(id) ?? []), ...(outOf.get(id) ?? [])]

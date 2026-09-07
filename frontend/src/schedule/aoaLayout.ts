@@ -106,6 +106,7 @@ export function edgeSegs(
   nodeById: Map<string, { x: number; y: number }>,
   lane: { idx: number; cnt: number },
   waveFromX?: number | null,
+  channelY?: number,
 ): EdgeGeom {
   const a = nodeById.get(e.from)!
   const b = nodeById.get(e.to)!
@@ -130,6 +131,25 @@ export function edgeSegs(
     const x1 = a.x + AOA_R
     const x2 = b.x - AOA_R
     if (Math.abs(dy) < 2) {
+      // 同行长边走行间通道（v4.143 分行）：跨多列的同行边从节点中心线让到
+      // 行间通道（channelY，调用方按 x 区间重叠分配层号防通道互压），
+      // 短边/未分配者保持直连（链式箭线笔画，参考斑马口径）
+      if (channelY != null && x2 - x1 > 24) {
+        const c1 = x1 + 14
+        const c2 = x2 - 14
+        const mid = (c1 + c2) / 2
+        return {
+          segs: [
+            { x1, y1: a.y, x2: c1, y2: a.y },
+            { x1: c1, y1: a.y, x2: c1, y2: channelY },
+            { x1: c1, y1: channelY, x2: c2, y2: channelY },
+            { x1: c2, y1: channelY, x2: c2, y2: b.y },
+            { x1: c2, y1: b.y, x2, y2: b.y },
+          ],
+          name: { x: mid, y: channelY - 5, anchor: 'middle' },
+          dur: { x: mid, y: channelY + 7, anchor: 'middle' },
+        }
+      }
       const y = a.y + off
       // 波形线存在时标注居中于实体段（工期段），不落在波形上
       const solidEnd = waveFromX != null ? Math.min(x2, Math.max(x1, waveFromX)) : x2
@@ -168,6 +188,38 @@ export function edgeSegs(
     name: { x: mx, y: laneY - 4, anchor: 'middle' },
     dur: { x: mx, y: laneY + 10, anchor: 'middle' },
   }
+}
+
+/**
+ * 同行长边通道分配（v4.143 分行）：跨 >1.5 列的同行边从节点中心线下让到行间
+ * 通道（基准 = 行 y + ROW_H/2，x 区间重叠者依次 +12px 层号），非重叠者共享
+ * 通道层。返回 edgeId → 通道 y（无通道的边不在表中）。分层后短链仍直连、
+ * 长跳线互不重合、也不横穿中间列的节点圆——参考斑马/Project 显示口径。
+ */
+export function assignChannels(
+  edges: AoaEdge[],
+  nodeById: Map<string, { x: number; y: number }>,
+): Map<string, number> {
+  const longs: { id: string; x1: number; x2: number; y: number }[] = []
+  for (const e of edges) {
+    const a = nodeById.get(e.from)
+    const b = nodeById.get(e.to)
+    if (!a || !b) continue
+    const dx = b.x - a.x
+    if (dx > AOA_COL_W * 1.5 && Math.abs(b.y - a.y) < 2) {
+      longs.push({ id: e.id, x1: a.x + AOA_R + 16, x2: b.x - AOA_R - 16, y: a.y })
+    }
+  }
+  longs.sort((p, q) => p.x1 - q.x1 || p.x2 - q.x2)
+  const placed: { x1: number; x2: number; y: number; lvl: number }[] = []
+  const out = new Map<string, number>()
+  for (const L of longs) {
+    let lvl = 0
+    while (placed.some((p) => p.y === L.y && p.lvl === lvl && L.x1 < p.x2 && L.x2 > p.x1)) lvl++
+    placed.push({ x1: L.x1, x2: L.x2, y: L.y, lvl })
+    out.set(L.id, L.y + AOA_ROW_H / 2 + lvl * 12)
+  }
+  return out
 }
 
 /** G1 过桥法半圆半径（px） */

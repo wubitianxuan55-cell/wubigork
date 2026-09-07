@@ -23,7 +23,7 @@
 import React, { useRef, useState } from 'react'
 import type { AoaGraph } from './aoa'
 import { AOA_COL_W, AOA_MARGIN, AOA_R, AOA_ROW_H } from './aoa'
-import { applyPins, edgeSegs, findBridgeArcs, prunePins, segsToPath, snapPt } from './aoaLayout'
+import { applyPins, assignChannels, edgeSegs, findBridgeArcs, prunePins, segsToPath, snapPt } from './aoaLayout'
 import { useScheduleStore } from './store'
 import type { AoaPin, SchedTask } from './types'
 
@@ -67,15 +67,18 @@ export const AoaView: React.FC<{ graph: AoaGraph; tasks: SchedTask[] }> = ({ gra
   const fitView = () => {
     touchedRef.current = true
     const el = scrollRef.current
-    if (!el) return
-    applyZoom(Math.max(0.1, Math.min(el.clientWidth / wEarly, Math.max(160, el.clientHeight - 24) / hEarly, 1.5)))
+    if (!el || el.clientWidth <= 0) return
+    // 全览下限 0.3：整图入窗也不缩成蚂蚁（再小读不出字）
+    applyZoom(Math.max(0.3, Math.min(el.clientWidth / wEarly, Math.max(160, el.clientHeight - 24) / hEarly, 1.5)))
   }
-  // 图面尺寸变化（切工程/增删任务）且用户未手动缩放时，自动适配一次
+  // 图面尺寸变化（切工程/增删任务）且用户未手动缩放时，自动适配一次。
+  // 下限 0.5=可读优先：装不下就横向滚动（参考斑马/Project 显示口径），
+  // 绝不把整图无脑缩到看不清
   React.useEffect(() => {
     if (touchedRef.current) return
     const el = scrollRef.current
-    if (!el || wEarly <= 0) return
-    const z = Math.min(el.clientWidth / wEarly, Math.max(160, el.clientHeight - 24) / hEarly, 1.5)
+    if (!el || wEarly <= 0 || el.clientWidth <= 0) return // clientWidth=0（jsdom/未布局）不误适配
+    const z = Math.max(0.5, Math.min(el.clientWidth / wEarly, Math.max(160, el.clientHeight - 24) / hEarly, 1.5))
     if (Number.isFinite(z) && z > 0) applyZoom(z)
   }, [wEarly, hEarly])
 
@@ -232,15 +235,19 @@ export const AoaView: React.FC<{ graph: AoaGraph; tasks: SchedTask[] }> = ({ gra
               pairCnt.set(k, (pairCnt.get(k) ?? 0) + 1)
             }
             const pairSeen = new Map<string, number>()
+            // 同行长边通道分配（v4.143 分行）：跨多列的同行边让到行间通道，
+            // x 区间重叠者分层，杜绝长线沿节点中心线重合/横穿节点
+            const channels = assignChannels(shown.edges, nodeById)
             // G4 波形线（auto=时标）：实体工期终点 x=源事件 x+R+工期×列宽；
-            // 手动布局 x 与时间解耦，波形失义不画
+            // 手动布局 x 与时间解耦，波形失义不画；走通道的边无波形
             const geoms = shown.edges.map((e, i) => {
               const k = `${e.from}>${e.to}`
               const idx = pairSeen.get(k) ?? 0
               pairSeen.set(k, idx + 1)
               // 波形切点只对实/虚工作有意义；汇总箭线横跨子网络界点，无波形
+              const chY = channels.get(e.id)
               const waveFromX = !manual && e.kind !== 'summary' ? nodeById.get(e.from)!.x + R + e.dur * AOA_COL_W : null
-              return { e, i, waveFromX, g: edgeSegs(e, nodeById, { idx, cnt: pairCnt.get(k)! }, waveFromX) }
+              return { e, i, waveFromX, g: edgeSegs(e, nodeById, { idx, cnt: pairCnt.get(k)! }, waveFromX, chY) }
             })
             // G1 过桥法：竖段垂直穿越他边横段处画半圆（水平段=时标轴不断）
             const bridges = findBridgeArcs(geoms.map((it) => it.g.segs))
