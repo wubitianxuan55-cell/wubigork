@@ -184,6 +184,59 @@ func (a *App) GaeaScheduleProjectCreate(name string) (ScheduleCreateResult, erro
 	return ScheduleCreateResult{Rel: rel, Current: rel}, nil
 }
 
+// GaeaScheduleProjectCopy 复制工程（v4.145「另存为」）：源文件 schedule.Load
+// 全套校验 → 新名 trim 非空 → SafeSlugName（冲突加序号，同 Create 口径，
+// 登记条目与目录游离文件都算占用）→ 内容深拷贝仅改 name 落新文件（基线/
+// AOA 布点/日历随行）→ 索引显式登记（未归档，UpdatedAt=now）。指针不动
+// （文件级动作语义，同归档——复制品是快照，用户自行切换打开）。
+// 回执含列表，前端取回执刷新即可。
+func (a *App) GaeaScheduleProjectCopy(rel, name string) (ScheduleProjectsResult, error) {
+	rel = filepath.ToSlash(strings.TrimSpace(rel))
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return ScheduleProjectsResult{}, fmt.Errorf("工程名称为空")
+	}
+	if err := checkScheduleRel(rel); err != nil {
+		return ScheduleProjectsResult{}, err
+	}
+	if rel == "" {
+		return ScheduleProjectsResult{}, fmt.Errorf("源工程路径为空")
+	}
+	cwd := gaeaCwd()
+	src := filepath.Join(cwd, filepath.FromSlash(rel))
+	if _, err := os.Stat(src); err != nil {
+		return ScheduleProjectsResult{}, fmt.Errorf("源工程不存在：%s", rel)
+	}
+	p, err := schedule.Load(src)
+	if err != nil {
+		return ScheduleProjectsResult{}, fmt.Errorf("源工程读取失败：%w", err)
+	}
+	idx, err := schedule.LoadScheduleIndex(cwd)
+	if err != nil {
+		return ScheduleProjectsResult{}, err
+	}
+	existing := map[string]bool{}
+	for _, e := range idx.Projects {
+		existing[scheduleRelBase(e.Rel)] = true
+	}
+	if scanned, err := schedule.ScanScheduleProjects(cwd); err == nil {
+		for _, e := range scanned {
+			existing[scheduleRelBase(e.Rel)] = true
+		}
+	}
+	slug := schedule.SafeSlugName(name, existing)
+	newRel := path.Join(schedule.ScheduleProjectsDir, slug+schedule.ScheduleFileSuffix)
+	p.Name = name
+	if err := schedule.Save(filepath.Join(cwd, filepath.FromSlash(newRel)), p); err != nil {
+		return ScheduleProjectsResult{}, err
+	}
+	idx.Projects = append(idx.Projects, schedule.ScheduleIndexEntry{Rel: newRel, Name: name, UpdatedAt: time.Now()})
+	if err := schedule.SaveScheduleIndex(cwd, idx); err != nil {
+		return ScheduleProjectsResult{}, err
+	}
+	return buildScheduleProjectsResult(cwd, idx), nil
+}
+
 // GaeaScheduleProjectArchive 归档/反归档：索引标 archived，文件不动（用户
 // 资产，agent 显式 path 引用不失效）；未知 rel 报错。
 func (a *App) GaeaScheduleProjectArchive(rel string, archived bool) (ScheduleProjectsResult, error) {

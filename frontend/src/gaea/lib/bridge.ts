@@ -297,6 +297,9 @@ export interface AppBindings {
   ScheduleProjectCreate(name: string): Promise<ScheduleProjectCreateResult>;
   ScheduleProjectArchive(rel: string, archived: boolean): Promise<ScheduleProjectsResult>;
   ScheduleProjectDelete(rel: string): Promise<ScheduleProjectsResult>;
+  // ScheduleProjectCopy 工程复制=另存为（v4.145.0）：源文件全套校验→新名 slug
+  // 去重落盘→索引登记；指针不动（文件级动作，同归档）。
+  ScheduleProjectCopy(rel: string, name: string): Promise<ScheduleProjectsResult>;
   // ScheduleExportXlsx/ImportXlsx 上报 Excel 通道（v4.134.0 刀D3）：导出=计划
   // JSON → 上报口径 xlsx（base64）；导入=上报 xlsx（base64）→ 计划 JSON。
   ScheduleExportXlsx(projectJSON: string): Promise<string>;
@@ -932,6 +935,7 @@ const gaeaToGaea = {
   ScheduleProjectCreate: "GaeaScheduleProjectCreate",
   ScheduleProjectArchive: "GaeaScheduleProjectArchive",
   ScheduleProjectDelete: "GaeaScheduleProjectDelete",
+  ScheduleProjectCopy: "GaeaScheduleProjectCopy",
   XlsxRecalc: "GaeaXlsxRecalc",
   XlsxRowOps: "GaeaXlsxRowOps",
   XlsxColOps: "GaeaXlsxColOps",

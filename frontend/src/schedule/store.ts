@@ -19,6 +19,7 @@ import { computeCpm } from './cpm'
 import { planFinishOf } from './deadline'
 import {
   archiveScheduleProject,
+  copyScheduleProject,
   createScheduleProject,
   deleteScheduleProject,
   listScheduleProjects,
@@ -187,6 +188,12 @@ interface ScheduleState {
   archiveProject: (rel: string, archived: boolean) => Promise<void>
   /** 删除工程（物理删文件，不可恢复）→ 刷新列表缓存；删的是当前工程时重水合到返回的 current */
   deleteProject: (rel: string) => Promise<void>
+  /**
+   * 复制工程（v4.145 另存为）：Go 深拷贝源文件落新 slug+登记索引，指针不动
+   * （文件级动作，同归档）。rel 是当前工程时先冲刷在途编辑（拷的是已存盘内容）。
+   * 返回 false=失败（syncError 已置位）。
+   */
+  copyProject: (rel: string, name: string) => Promise<boolean>
   /** 刷新工程列表缓存（失败静默：保留旧缓存/初值空列表） */
   refreshProjects: () => Promise<void>
 }
@@ -476,6 +483,7 @@ export const useScheduleStore = create<ScheduleState>()(
       createProject: (name) => createThenSwitch(name),
       archiveProject: (rel, archived) => mutateProjectList(() => archiveScheduleProject(rel, archived)),
       deleteProject: (rel) => mutateProjectList(() => deleteScheduleProject(rel)),
+      copyProject: (rel, name) => copyProjectFile(rel, name),
       refreshProjects: () => refreshProjectsCache(),
     }),
     {
@@ -693,6 +701,23 @@ async function importThenSwitch(p: SchedProject): Promise<boolean> {
   await flushDirty()
   await refreshProjectsCache()
   return true
+}
+
+/** 复制工程（v4.145 另存为）：rel 是当前工程时先冲刷在途编辑——拷的是已存盘
+ *  内容，不含未落盘编辑；Go 深拷贝落新 slug+登记索引，指针不动。失败只落
+ *  syncError 返回 false；成功以回执列表入缓存（不另刷）。 */
+async function copyProjectFile(rel: string, name: string): Promise<boolean> {
+  if (rel === useScheduleStore.getState().currentPath) {
+    await flushDirty()
+  }
+  try {
+    const r = await copyScheduleProject(rel, name)
+    useScheduleStore.setState({ projects: r.projects })
+    return true
+  } catch (e) {
+    useScheduleStore.setState({ syncError: e instanceof Error ? e.message : String(e) })
+    return false
+  }
 }
 
 /** Archive/Delete 后的统一收尾：列表缓存取回执；指针与返回 current 不一致（删了当前工程等）则重水合 */

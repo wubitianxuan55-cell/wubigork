@@ -1,5 +1,16 @@
 # 任务进度
 
+## 最新发布：v4.145.0（2026-09-08）「工程复制（另存为）：管理面板第四动作 · 签证迭代底座」
+
+- **销项**：v4.139 多工程「欠账转移」候选池（该池三项清算：导入为新工程=v4.144 已销；工程复制=本刀；基线跨工程直接复制=裁定不做——不同源文件 id 无对应，按 id 漂移全噪音；跨工程资源池=设计 §7 维持不做）。
+- **Go**：`GaeaScheduleProjectCopy(rel,name)`——Load 全套校验→SafeSlugName 去重→深拷贝仅改 name 落新文件（基线槽/AOA 布点/日历随行）→索引显式登记；指针不动（文件级动作同归档）；回执=ScheduleProjectsResult。
+- **store**：`copyProject`——当前工程先 flushDirty（拷已存盘内容）；回执列表直接入缓存；失败只落 syncError 返回 false。
+- **UI**：管理面板每行「复制」→弹窗默认「-副本」名、空名禁用、失败弹窗不关。
+- **接线**：绑定面 596→597（gen_bindings 门面+bindingNames 手工同步+bridge 双向断言+spaceBindings 锁 310+mock+api 窄接口）。
+- **门禁**：tsc -b/eslint 0；Go 全量绿（+TestGaeaScheduleProjectCopy）；vitest 2472→2477（+5）；drift PASS@597；版本三处 4.145.0；build+冒烟过。
+- **坑**：①Edit 工具多行替换把「注释+签名行」当 old_string 而 new_string 漏带签名=函数被腰斩（本刀两次）——替换后必须核对函数完整性；②bindingNames.ts 的 `-names` 模式只打印清单不写文件，需对照手工按字典序插入。
+- **观察池余**：E1 负数对称哨兵（动逆推时按 ProjectLibre E1 准绳收口）· 刀3 list_projects 真机实测 · 用户截图反馈驱动的新对标项。
+
 ## 最新发布：v4.144.0（2026-09-07）「导入为新工程：三路导入安全化 · 非破坏口径」
 
 - **销项**：观察池「mspdi 导入为新工程候选池」。此前 MPP/XML/Excel 三路导入一律 `importProject` 原地整体替换当前工程（防抖落盘后原文件被静默覆盖，仅撤销兜底）。

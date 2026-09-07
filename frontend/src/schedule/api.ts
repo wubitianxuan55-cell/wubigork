@@ -75,6 +75,7 @@ interface ScheduleMultiProjectSurface {
   ScheduleProjectCreate(name: string): Promise<ScheduleProjectCreateOk>
   ScheduleProjectArchive(rel: string, archived: boolean): Promise<ScheduleProjectMutatedOk>
   ScheduleProjectDelete(rel: string): Promise<ScheduleProjectMutatedOk>
+  ScheduleProjectCopy(rel: string, name: string): Promise<ScheduleProjectMutatedOk>
 }
 
 /** 同一通道取窄接口视图：app 是调用时解析的代理，强转只影响静态类型 */
@@ -122,6 +123,12 @@ export async function archiveScheduleProject(rel: string, archived: boolean): Pr
 /** 删除工程：物理删文件+索引摘除（不可恢复）；删当前工程时 Go 侧先切到剩余第一个 */
 export async function deleteScheduleProject(rel: string): Promise<ScheduleProjectMutatedOk> {
   return scheduleSurface().ScheduleProjectDelete(rel)
+}
+
+/** 复制工程（v4.145 另存为）：源文件全套校验→新名 slug 去重落盘→索引登记；
+ *  指针不动（文件级动作，同归档），回执含最新列表 */
+export async function copyScheduleProject(rel: string, name: string): Promise<ScheduleProjectMutatedOk> {
+  return scheduleSurface().ScheduleProjectCopy(rel, name)
 }
 
 const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'

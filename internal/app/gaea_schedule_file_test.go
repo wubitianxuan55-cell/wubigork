@@ -263,6 +263,48 @@ func TestGaeaScheduleProjectCreateSlug(t *testing.T) {
 	}
 }
 
+func TestGaeaScheduleProjectCopy(t *testing.T) {
+	ws := isolateScheduleWorkspace(t)
+	saveSchedulePlan(t, ws, schedule.DefaultRelPath, "调整1", 3, 2)
+	seedScheduleIndex(t, ws, schedule.ScheduleIndex{Version: 1, Current: schedule.DefaultRelPath, Projects: []schedule.ScheduleIndexEntry{
+		{Rel: schedule.DefaultRelPath, Name: "调整1", UpdatedAt: time.Now()},
+	}})
+	a := &App{}
+
+	newRel := "进度计划/调整2.gsched.json"
+	res, err := a.GaeaScheduleProjectCopy(schedule.DefaultRelPath, "调整2")
+	if err != nil {
+		t.Fatalf("copy: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(ws, filepath.FromSlash(newRel))); err != nil {
+		t.Fatalf("副本未落盘：%v", err)
+	}
+	if p, err := schedule.Load(filepath.Join(ws, filepath.FromSlash(newRel))); err != nil || p.Name != "调整2" || len(p.Tasks) != 2 {
+		t.Fatalf("副本内容不符（任务应随行）：name=%q n=%d err=%v", p.Name, len(p.Tasks), err)
+	}
+	// 指针不动（文件级动作语义，同归档）
+	if l, err := a.GaeaScheduleLoad(); err != nil || l.Path != schedule.DefaultRelPath {
+		t.Fatalf("复制不应切指针：%+v err=%v", l, err)
+	}
+	if s, ok := findScheduleSummary(res, newRel); !ok || s.Name != "调整2" || s.Archived {
+		t.Fatalf("回执列表应含未归档副本：%+v ok=%v", res, ok)
+	}
+
+	// 同名 slug 加序号；源不存在/空名拒绝
+	if _, err := a.GaeaScheduleProjectCopy(schedule.DefaultRelPath, "调整2"); err != nil {
+		t.Fatalf("同名复制: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(ws, "进度计划", "调整2-2.gsched.json")); err != nil {
+		t.Fatalf("同名复制应加序号落盘：%v", err)
+	}
+	if _, err := a.GaeaScheduleProjectCopy("进度计划/不存在.gsched.json", "x"); err == nil {
+		t.Fatal("源不存在应拒绝")
+	}
+	if _, err := a.GaeaScheduleProjectCopy(schedule.DefaultRelPath, "  "); err == nil {
+		t.Fatal("空名应拒绝")
+	}
+}
+
 func TestGaeaScheduleProjectArchiveKeepsFile(t *testing.T) {
 	ws := isolateScheduleWorkspace(t)
 	saveSchedulePlan(t, ws, schedule.DefaultRelPath, "当前计划", 3, 2)

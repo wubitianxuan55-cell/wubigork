@@ -50,6 +50,7 @@ let createProjectSpy: ReturnType<typeof vi.fn>
 let archiveProjectSpy: ReturnType<typeof vi.fn>
 let deleteProjectSpy: ReturnType<typeof vi.fn>
 let refreshProjectsSpy: ReturnType<typeof vi.fn>
+let copyProjectSpy: ReturnType<typeof vi.fn>
 
 beforeEach(() => {
   localStorage.removeItem('gaea.schedule.v1')
@@ -58,6 +59,7 @@ beforeEach(() => {
   archiveProjectSpy = vi.fn(async (_rel: string, _archived: boolean) => {})
   deleteProjectSpy = vi.fn(async (_rel: string) => {})
   refreshProjectsSpy = vi.fn(async () => {})
+  copyProjectSpy = vi.fn(async (_rel: string, _name: string) => true)
   seed({
     project: { name: '当前计划', startDate: '2026-09-07', tasks: [], links: [] },
     view: 'gantt',
@@ -75,6 +77,7 @@ beforeEach(() => {
     archiveProject: archiveProjectSpy,
     deleteProject: deleteProjectSpy,
     refreshProjects: refreshProjectsSpy,
+    copyProject: copyProjectSpy,
   })
 })
 
@@ -318,5 +321,35 @@ describe('SchedulePage 导入为新工程（v4.144）', () => {
     })
     expect(await screen.findByText(/不支持的格式 \.docx/)).toBeTruthy()
     expect(importAsProjectSpy).not.toHaveBeenCalled()
+  })
+})
+
+describe('SchedulePage 工程复制（v4.145 另存为）', () => {
+  it('行内「复制」→ 弹窗默认「-副本」名 → 确认调 copyProject(rel, name)', async () => {
+    render(<SchedulePage />)
+    const panel = await openManagePanel()
+    const copyBtns = panel.querySelectorAll('[data-testid="sched-project-copy"]')
+    expect(copyBtns.length).toBe(projectsOf.length)
+    fireEvent.click(copyBtns[1]) // 办公楼二期
+    const input = (await screen.findByTestId('sched-project-copy-input')) as HTMLInputElement
+    expect(input.value).toBe('办公楼二期-副本') // 默认名 = 原名+「-副本」
+    fireEvent.change(input, { target: { value: '办公楼三期' } })
+    fireEvent.click(await screen.findByTestId('sched-project-copy-ok'))
+    await waitFor(() => expect(copyProjectSpy).toHaveBeenCalledWith(B2_REL, '办公楼三期'))
+  })
+
+  it('空名禁用确认键；复制失败弹窗不关（syncError 由指示器展示）', async () => {
+    copyProjectSpy.mockResolvedValue(false)
+    render(<SchedulePage />)
+    const panel = await openManagePanel()
+    fireEvent.click(panel.querySelectorAll('[data-testid="sched-project-copy"]')[0])
+    const input = (await screen.findByTestId('sched-project-copy-input')) as HTMLInputElement
+    const ok = await screen.findByTestId('sched-project-copy-ok')
+    fireEvent.change(input, { target: { value: '  ' } })
+    expect(ok.hasAttribute('disabled')).toBe(true) // 空名禁用
+    fireEvent.change(input, { target: { value: '快照' } })
+    fireEvent.click(ok)
+    await waitFor(() => expect(copyProjectSpy).toHaveBeenCalledWith(DEFAULT_REL, '快照'))
+    expect(screen.findByTestId('sched-project-copy-input')).toBeTruthy() // 失败弹窗未关
   })
 })

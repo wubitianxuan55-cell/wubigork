@@ -131,6 +131,7 @@ func (b *OfficeB) GaeaScheduleImportMpp(mppBase64 string) (string, error) { retu
 func (b *OfficeB) GaeaScheduleImportXlsx(xlsxBase64 string) (string, error) { return b.a.GaeaScheduleImportXlsx(xlsxBase64) }
 func (b *OfficeB) GaeaScheduleLoad() (ScheduleLoadResult, error) { return b.a.GaeaScheduleLoad() }
 func (b *OfficeB) GaeaScheduleProjectArchive(rel string, archived bool) (ScheduleProjectsResult, error) { return b.a.GaeaScheduleProjectArchive(rel, archived) }
+func (b *OfficeB) GaeaScheduleProjectCopy(rel string, name string) (ScheduleProjectsResult, error) { return b.a.GaeaScheduleProjectCopy(rel, name) }
 func (b *OfficeB) GaeaScheduleProjectCreate(name string) (ScheduleCreateResult, error) { return b.a.GaeaScheduleProjectCreate(name) }
 func (b *OfficeB) GaeaScheduleProjectDelete(rel string) (ScheduleProjectsResult, error) { return b.a.GaeaScheduleProjectDelete(rel) }
 func (b *OfficeB) GaeaScheduleProjectOpen(rel string) (ScheduleOpenResult, error) { return b.a.GaeaScheduleProjectOpen(rel) }

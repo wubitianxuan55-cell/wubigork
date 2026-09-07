@@ -159,7 +159,7 @@ type OfficeMethods = Pick<
   | "OfficeEditText" | "DocxApplyEdit" | "DocxAcceptChanges"
   | "XlsxPlanEdit" | "XlsxApplyEdit" | "XlsxSetCell" | "XlsxRecalc" | "XlsxRowOps" | "XlsxColOps"
   | "ScheduleLoad" | "ScheduleSave" | "ScheduleExportXlsx" | "ScheduleImportXlsx" | "ScheduleImportMpp"
-  | "ScheduleProjects" | "ScheduleProjectOpen" | "ScheduleProjectCreate" | "ScheduleProjectArchive" | "ScheduleProjectDelete"
+  | "ScheduleProjects" | "ScheduleProjectOpen" | "ScheduleProjectCreate" | "ScheduleProjectArchive" | "ScheduleProjectDelete" | "ScheduleProjectCopy"
   | "XlsxChart" | "ZipDeliverables" | "SubagentRuns" | "SubagentTranscript" | "DeliverableRegistry" | "WriteFile"
   | "ExportDeliverable" | "ConvertToPdf" | "CrossEmbed" | "RevealWorkspacePath"
   | "SavePastedImage" | "SaveAttachmentFile" | "AttachmentDataURL"
@@ -550,6 +550,20 @@ export function buildOffice(_s: MakeMockState): OfficeMethods {
         const rest = [...mockScheduleFiles.keys()].filter((r) => !mockScheduleMeta.get(r)?.archived).sort((a, b) => a.localeCompare(b));
         mockScheduleCurrent = rest[0] ?? SCHEDULE_DEFAULT_REL;
       }
+      return mockScheduleSummaries();
+    },
+    async ScheduleProjectCopy(rel: string, name: string) {
+      // 复制（v4.145 另存为）：源文件深拷贝仅改 name 落新文件；指针不动（文件级
+      // 动作，同归档——复制品由用户自行切换打开）；同名 slug 加序号同 Create 语义
+      const trimmed = name.trim();
+      if (trimmed === "") throw new Error("工程名不能为空");
+      const src = mockScheduleFiles.get(rel);
+      if (src === undefined) throw new Error(`源工程不存在：${rel}`);
+      let newRel = `进度计划/${trimmed}.gsched.json`;
+      for (let n = 2; mockScheduleFiles.has(newRel); n++) newRel = `进度计划/${trimmed}-${n}.gsched.json`;
+      const p = JSON.parse(src) as { name: string };
+      p.name = trimmed;
+      mockScheduleRegister(newRel, JSON.stringify(p));
       return mockScheduleSummaries();
     },
     async XlsxRowOps(_rel: string, sheet: string, action: string, ref: string) {

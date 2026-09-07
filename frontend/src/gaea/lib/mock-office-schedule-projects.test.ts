@@ -141,4 +141,22 @@ describe("进度计划多工程 mock 全链（v4.139 #15）", () => {
     expect(v.projects.length).toBe(0);
     expect(hook().load().exists).toBe(false);
   });
+
+  it("Copy（v4.145 另存为）：深拷贝仅改 name 落新文件、同名加序号；指针不动", async () => {
+    // 上一用例删空：指针已回落缺省，先落源文件
+    hook().save(plan("当前计划", 2));
+    const c = await app.ScheduleProjectCopy(DEFAULT_REL, "调整2");
+    const newRel = "进度计划/调整2.gsched.json";
+    expect(c.current).toBe(DEFAULT_REL); // 指针不动（文件级动作）
+    expect(c.projects.some((p) => p.rel === newRel && p.name === "调整2")).toBe(true);
+    hook().open(newRel); // 走查钩子切指针读副本内容
+    const raw = JSON.parse(hook().load().project) as { name: string };
+    expect(raw.name).toBe("调整2");
+    // 同名加序号 + 源不存在拒绝 + 空名拒绝
+    await app.ScheduleProjectCopy(DEFAULT_REL, "调整2");
+    await app.ScheduleProjectOpen("进度计划/调整2-2.gsched.json");
+    expect(hook().load().exists).toBe(true);
+    await expect(app.ScheduleProjectCopy("进度计划/不存在.gsched.json", "x")).rejects.toThrow();
+    await expect(app.ScheduleProjectCopy(DEFAULT_REL, "  ")).rejects.toThrow();
+  });
 });

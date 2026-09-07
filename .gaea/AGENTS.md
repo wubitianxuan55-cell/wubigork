@@ -5,9 +5,9 @@
 
 ## 版本状态（顶部速览）
 
-- **最新发布：v4.144.0（2026-09-07）「导入为新工程：三路导入安全化 · 非破坏口径」**——观察池销项（mspdi 导入为新工程候选池）。①此前 MPP/XML/Excel 三路导入一律 `importProject` **原地整体替换当前工程**（防抖落盘后原文件被静默覆盖，仅撤销兜底）。②store 新动作 `importAsProject`（importThenSwitch）：名字空兜底「导入工程」→ createThenSwitch（slug 去重+登记索引+自动切指针+重水合）→ importProject 内容替换 → flushDirty 立即落盘 → refreshProjectsCache 刷摘要；slug/文件内容/列表摘要三处同源一名；**fail-closed：Create 失败（currentPath 未变）返回 false、syncError 已置位、当前工程原状**；成功不触碰原工程文件（与 v4.139「复制=切指针」同口径）。③页面菜单重组：「导入为新工程…」主入口按扩展名分发（.xml/.xlsx/.xlsm/.mpp+文件名兜底工程名）；三路替换入口改显式标注「导入 X 替换当前工程…」（模板/签证覆盖场景保留）。**坑：①versioninfo.rc 的 FILEVERSION 逗号位自 v4.140 起停在 4,139,0,0 四版未随动（字符串位一直正常，check-version-drift.ps1 才捕获）——发布提版必须跑 sync-version.ps1 而非只 sed 字符串位；②createThenSwitch 内部吞错只置 syncError，importThenSwitch 判成败只能比对 currentPath 是否变化；③antd 子菜单在 jsdom 要 hover 交互很难测——导入菜单用扁平四项（新工程主入口+三路显式替换标注）不搞 submenu。**vitest 2467→**2472**（+5）、tsc -b/eslint 0、drift PASS@596、build+冒烟过。
+- **最新发布：v4.145.0（2026-09-08）「工程复制（另存为）：管理面板第四动作 · 签证迭代底座」**——观察池「多工程欠账转移」销项。①Go `GaeaScheduleProjectCopy(rel,name)`：源文件 Load 全套校验→SafeSlugName（冲突加序号，同 Create）→深拷贝仅改 name 落新文件（任务/搭接/资源/基线槽/AOA 布点/日历随行）→索引显式登记；**指针不动**（文件级动作同归档，Create 才自动切）。②store `copyProject`：rel=当前工程先 flushDirty（拷已存盘内容）；回执列表直接入缓存；失败只落 syncError 返回 false。③管理面板每行「复制」→弹窗默认名「-副本」、空名禁用、失败弹窗不关。副本任务 id 同源→基线漂移直接可用（签证调整1→调整2 底座）。**接线全链（绑定面 596→597）：gen_bindings 门面+bindingNames.ts 手工同步（`-names` 只打印清单不写文件！）+bridge.ts AppBindings/gaeaToGaea+spaceBindings 数量锁 309→310+mock/office.ts+api.ts 窄接口——六处缺一 tsc/drift 才报，逐个补不遗漏靠对比 v4.139 足迹。**坑：①`Edit` 工具把「注释+函数签名行」当 old_string、new_string 只含注释=签名被吃掉（本刀连吃两次，Archive 与 mutateProjectList），多行替换务必把后续签名行原样带回 new_string；②bindingNames.ts 由 `-names` 输出对照手工补，排序插入。**vitest 2472→**2477**（+5）、Go 全量绿（+TestGaeaScheduleProjectCopy）、tsc -b/eslint 0、drift PASS@597、build+冒烟过。
 
-- **近期三版一行账**：v4.144.0 导入为新工程（三路导入分流+非破坏口径）· v4.143.0 双代号显示路径优化（长线分行走通道+可读适配）· v4.142.0 分级双代号（界点衔接）+列头错位修复——16 项差距 v4.139 全清后进入体验深化。
+- **近期三版一行账**：v4.145.0 工程复制（另存为+签证迭代底座）· v4.144.0 导入为新工程（三路导入分流+非破坏口径）· v4.143.0 双代号显示路径优化（长线分行走通道+可读适配）——16 项差距 v4.139 全清后进入体验深化。
 - **历史存档**：v4.110 之前的逐版全文与本文件原「版本状态」历史段（v2.x~v4.135，2100+ 行）已于 2026-09-09 迁往 docs/archive/agents-version-history-2026-09.md；长期有效结论已沉淀在下方各专节（执行纪律/发布流程/已知注意）。
 
 ## 执行纪律：默认并发子代理（2026-09-03 用户强化习惯）

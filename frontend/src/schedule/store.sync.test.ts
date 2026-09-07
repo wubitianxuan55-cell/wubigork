@@ -75,6 +75,7 @@ interface SurfaceStub {
   create?: (name: string) => Promise<{ rel: string; current: string }>;
   archive?: (rel: string, archived: boolean) => Promise<ScheduleProjectMutatedOk>;
   del?: (rel: string) => Promise<ScheduleProjectMutatedOk>;
+  copy?: (rel: string, name: string) => Promise<ScheduleProjectMutatedOk>;
 }
 
 /** 把多工程绑定面装到 window.go.app（bridge realApp 代理按方法名路由到它） */
@@ -90,6 +91,7 @@ function stubScheduleSurface(s: SurfaceStub): void {
   if (s.create) { ns.GaeaScheduleProjectCreate = s.create; ns.ScheduleProjectCreate = s.create; }
   if (s.archive) { ns.GaeaScheduleProjectArchive = s.archive; ns.ScheduleProjectArchive = s.archive; }
   if (s.del) { ns.GaeaScheduleProjectDelete = s.del; ns.ScheduleProjectDelete = s.del; }
+  if (s.copy) { ns.GaeaScheduleProjectCopy = s.copy; ns.ScheduleProjectCopy = s.copy; }
   (window as unknown as { go?: unknown }).go = { app: { ScheduleTestB: ns } };
 }
 
@@ -303,6 +305,52 @@ describe("多工程切换流（window.go stub，v4.139 #15 刀1）", () => {
     expect(st.currentPath).toBe(OLD); // 指针未动
     expect(st.project.name).toBe("调整1"); // 工程未被替换
     expect(st.syncError).toContain("磁盘写入失败"); // 错误诚实上屏（指示器）
+  });
+
+  it("copyProject（v4.145 另存为）：当前工程在途编辑先冲刷再拷，指针不动+列表入缓存", async () => {
+    const files = new Map<string, SchedProject>([[OLD, { ...makeSampleProject(), name: "调整1" }]]);
+    const current = OLD;
+    stubScheduleSurface({
+      load: async () => ({ path: current, exists: true, project: JSON.stringify(files.get(current)!) }),
+      save: async (projectJSON, rel) => {
+        files.set(rel, JSON.parse(projectJSON) as SchedProject); // 冲刷=源文件更新
+        return { path: rel, savedAt: "10:00", duration: 3, critical: 0 };
+      },
+      copy: async (rel, name) => {
+        const src = files.get(rel)!;
+        files.set(`进度计划/${name}.gsched.json`, { ...src, name });
+        return {
+          current,
+          projects: [...files.entries()].map(([r, p]) => summary(r, p.name)),
+        };
+      },
+    });
+    seeded(normalizeProject(files.get(OLD)!), OLD, "dirty"); // 在途编辑同语义
+
+    await expect(useScheduleStore.getState().copyProject(OLD, "调整1-副本")).resolves.toBe(true);
+    const st = useScheduleStore.getState();
+    expect(st.currentPath).toBe(OLD); // 指针未动（文件级动作，同归档）
+    expect(st.sync).toBe("saved"); // 拷前已冲刷
+    expect(files.get("进度计划/调整1-副本.gsched.json")?.name).toBe("调整1-副本");
+    expect(files.get("进度计划/调整1-副本.gsched.json")?.tasks.length).toBe(files.get(OLD)!.tasks.length); // 内容同源
+    expect(st.projects.some((p) => p.name === "调整1-副本")).toBe(true); // 回执列表入缓存
+    expect(st.syncError).toBeNull();
+  });
+
+  it("copyProject 失败：返回 false，syncError 有值", async () => {
+    const files = new Map<string, SchedProject>([[OLD, { ...makeSampleProject(), name: "调整1" }]]);
+    stubScheduleSurface({
+      load: async () => ({ path: OLD, exists: true, project: JSON.stringify(files.get(OLD)!) }),
+      save: async (projectJSON, rel) => {
+        files.set(rel, JSON.parse(projectJSON) as SchedProject);
+        return { path: rel, savedAt: "10:00", duration: 0, critical: 0 };
+      },
+      copy: async () => { throw new Error("源工程不存在"); },
+    });
+    seeded(normalizeProject(files.get(OLD)!), OLD);
+
+    await expect(useScheduleStore.getState().copyProject(OLD, "副本")).resolves.toBe(false);
+    expect(useScheduleStore.getState().syncError).toContain("源工程不存在");
   });
 
   it("deleteProject 删当前工程：重水合到返回的 current，列表摘除被删项", async () => {

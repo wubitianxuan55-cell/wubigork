@@ -281,6 +281,7 @@ export const bindingNames = [
 	"GaeaScheduleImportXlsx",
 	"GaeaScheduleLoad",
 	"GaeaScheduleProjectArchive",
+	"GaeaScheduleProjectCopy",
 	"GaeaScheduleProjectCreate",
 	"GaeaScheduleProjectDelete",
 	"GaeaScheduleProjectOpen",

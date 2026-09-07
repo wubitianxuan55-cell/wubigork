@@ -218,6 +218,7 @@ export const GAEA_METHOD_FACETS = {
   ScheduleProjectCreate: "work",
   ScheduleProjectArchive: "work",
   ScheduleProjectDelete: "work",
+  ScheduleProjectCopy: "work", // v4.145 工程复制（另存为）
   ZipDeliverables: "work",
   SubagentRuns: "work",
   SubagentTranscript: "work",

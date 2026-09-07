@@ -1,3 +1,12 @@
+## v4.145.0 · 工程复制（另存为）：管理面板第四动作 · 签证迭代底座（2026-09-08）
+> 观察池「多工程欠账转移」销项：管理面板此前只有新建/改名/归档/删除/载入，缺「复制」——签证「调整1→调整2」迭代只能导入覆盖或从零重录。复制副本后任务 id 同源，基线漂移/任务对比天然可用。绑定面 **596→597**（+GaeaScheduleProjectCopy）。
+- Go `GaeaScheduleProjectCopy(rel, name)`：源文件 `schedule.Load` 全套校验 → 新名 trim 非空 → SafeSlugName（冲突加序号，同 Create 口径，登记条目与游离文件都算占用）→ 深拷贝仅改 name 落新文件（任务/搭接/资源/基线/AOA 布点/日历随行）→ 索引显式登记（未归档，UpdatedAt=now）；**指针不动**（文件级动作语义，同归档——复制品是快照，用户自行切换）；回执含列表。
+- store `copyProject(rel, name)`：rel 是当前工程时先冲刷在途编辑（拷的是已存盘内容）；回执列表直接入缓存不另刷；失败只落 syncError 返回 false（fail-closed）。
+- 管理面板每行「复制」按钮 → 弹窗取名（默认原名+「-副本」，空名禁用确认；失败弹窗不关，syncError 由指示器诚实展示）。
+- 绑定面接线全链：gen_bindings 门面重生成 + bindingNames.ts（596→597）+ bridge.ts AppBindings/gaeaToGaea + spaceBindings（数量锁 309→310）+ mock/office.ts（内存深拷贝语义）+ api.ts `copyScheduleProject`。
+- 门禁 tsc -b/eslint 0、Go 全量绿（+TestGaeaScheduleProjectCopy）、vitest **2477**（+5：store 复制链/失败、页面弹窗流/空名禁用、mock 复制语义）、drift PASS@597、版本三处 4.145.0。build+冒烟过。
+- 维持不做（记录在案）：跨工程资源池（多工程设计 §7 明确不做，单机形态无关）；基线跨工程直接复制（任务 id 不同源时漂移全噪音，工程复制保证 id 同源后文件内基线对比已覆盖该场景）；E1 负数对称哨兵维持「动逆推时收口」设计准绳；agent list_projects 刀3 维持等真机实测。
+
 ## v4.144.0 · 导入为新工程：三路导入安全化 · 非破坏口径（2026-09-07）
 > 观察池销项：此前 MPP/XML/Excel 三路导入一律 `importProject` 原地整体替换当前工程——导入一个 146 任务的 MPP 直接顶掉当前工程内容（仅撤销兜底，防抖落盘后原文件被覆盖）。本轮把导入分流：**新工程=安全默认，替换当前=显式标注**。纯前端，绑定面 **596** 零变更。详见 releases/v4.144.0.md。
 - store 新动作 `importAsProject`（importThenSwitch）：名字空兜底「导入工程」→ createThenSwitch（Go slug 去重+登记索引+自动切指针）→ importProject 内容替换 → flushDirty 立即落盘 → refreshProjectsCache 刷摘要；slug/文件内容/列表摘要三处同源一名。fail-closed：Create 失败返回 false、syncError 已置位、当前工程原状；成功则不触碰原工程文件（与 v4.139「复制=切指针」同口径）。

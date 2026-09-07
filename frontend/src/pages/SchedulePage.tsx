@@ -38,6 +38,7 @@ import { buildAoaExportSvg, buildPdmExportSvg } from '../schedule/networkExport'
 import { svgToPngBlob, svgToPdfBlob, downloadBlob, printSvg, svgWithViewBox } from '../schedule/exportArtifact'
 import { loadExportMeta, saveExportMeta, todayIso, type ExportMetaPrefs } from '../schedule/exportMeta'
 import { exportScheduleXlsx, importScheduleXlsx, importScheduleMpp } from '../schedule/api'
+import type { ScheduleProjectSummary } from '../schedule/api'
 import { ResourcePanel } from '../schedule/ResourcePanel'
 import { UsageView } from '../schedule/UsageView'
 import { computeUsage } from '../schedule/usage'
@@ -281,7 +282,11 @@ const ProjectsManagePanel: React.FC = () => {
   const createProject = useScheduleStore((s) => s.createProject)
   const archiveProject = useScheduleStore((s) => s.archiveProject)
   const deleteProject = useScheduleStore((s) => s.deleteProject)
+  const copyProject = useScheduleStore((s) => s.copyProject)
   const [draft, setDraft] = useState('')
+  // v4.145 工程复制（另存为）：行内「复制」→ 弹窗取名（默认「-副本」）→ 落独立文件
+  const [copyTarget, setCopyTarget] = useState<ScheduleProjectSummary | null>(null)
+  const [copyName, setCopyName] = useState('')
 
   /** 管理动作统一入口：store 动作未就绪（旧形态）时无害跳过 */
   const submit = (fn: () => unknown) => { void Promise.resolve(fn()) }
@@ -317,6 +322,12 @@ const ProjectsManagePanel: React.FC = () => {
           )}
           <Button
             size="small"
+            data-testid="sched-project-copy"
+            onClick={() => { setCopyTarget(p); setCopyName(`${p.name}-副本`) }}
+            title="复制为独立工程文件（含基线/布局/日历），当前打开的工程不变"
+          >复制</Button>
+          <Button
+            size="small"
             data-testid="sched-project-archive"
             onClick={() => submit(() => archiveProject(p.rel, !p.archived))}
             title={p.archived ? '取消归档（切换器恢复显示）' : '归档（文件保留原位，切换器不再显示）'}
@@ -342,7 +353,28 @@ const ProjectsManagePanel: React.FC = () => {
           新建工程
         </Button>
       </Space>
-      <span className="sched-dim" style={{ fontSize: 12 }}>删除当前工程时自动切到剩余第一个工程；归档不移动文件。</span>
+      <span className="sched-dim" style={{ fontSize: 12 }}>删除当前工程时自动切到剩余第一个工程；归档不移动文件；复制不切换指针。</span>
+      <Modal
+        title={`复制工程「${copyTarget?.name ?? ''}」`}
+        open={!!copyTarget}
+        okText="复制"
+        okButtonProps={{ disabled: !copyName.trim(), 'data-testid': 'sched-project-copy-ok' }}
+        onOk={async () => { if (copyTarget && (await copyProject(copyTarget.rel, copyName))) setCopyTarget(null) }}
+        onCancel={() => setCopyTarget(null)}
+        destroyOnHidden
+      >
+        <Input
+          size="small"
+          value={copyName}
+          data-testid="sched-project-copy-input"
+          placeholder="新工程名称"
+          onChange={(e) => setCopyName(e.target.value)}
+          onPressEnter={async () => { if (copyTarget && copyName.trim() && (await copyProject(copyTarget.rel, copyName))) setCopyTarget(null) }}
+        />
+        <div className="sched-dim" style={{ marginTop: 8, fontSize: 12 }}>
+          复制为独立工程文件入注册表（含基线/AOA 布点/日历），副本打开后改动互不影响——签证「调整1→调整2」迭代可先复制再改，基线漂移直接对比。
+        </div>
+      </Modal>
     </div>
   )
 }
