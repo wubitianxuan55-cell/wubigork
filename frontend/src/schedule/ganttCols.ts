@@ -42,6 +42,15 @@ export const GANTT_LEFT_W_FULL: number = GANTT_COLS.reduce((s, c) => s + c.w, 0)
 /** 表格窗格最小宽：行号+名称（拖到最窄=收纳表格只留身份列，画布全屏） */
 export const GANTT_TABLE_W_MIN: number = GANTT_COLS.filter((c) => GANTT_FIXED_KEYS.includes(c.key)).reduce((s, c) => s + c.w, 0)
 
+/** 上报 6 列键序（刀D1 导出图面预设；对标 MS Project 上报件：标识号/任务名称/工期/开始/完成/前置） */
+export const GANTT_REPORT_KEYS: string[] = ['no', 'name', 'dur', 'start', 'finish', 'preds']
+
+/** 按键集取列定义（保持 GANTT_COLS 既有顺序） */
+export function colsByKeys(keys: string[]): GanttCol[] {
+  const on = new Set(keys)
+  return GANTT_COLS.filter((c) => on.has(c.key))
+}
+
 /** 可见列序列：固定列（行号/名称）恒保留，其余滤除 hide（未知键在 sanitizeHide 已滤，此处再防御） */
 export function visibleCols(hide: string[]): GanttCol[] {
   const off = new Set(hide)

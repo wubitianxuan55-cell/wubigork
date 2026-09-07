@@ -2,7 +2,7 @@
  * ganttCols.test.ts — 横道列显隐/表格窗格宽度纯函数用例（v4.131.0 刀C）
  */
 import { describe, expect, it } from 'vitest'
-import { GANTT_COLS, GANTT_FIXED_KEYS, GANTT_HIDEABLE_KEYS, GANTT_LEFT_W_FULL, GANTT_TABLE_W_MIN, clampTableW, sanitizeHide, visibleCols, visibleLeftW } from './ganttCols'
+import { GANTT_COLS, GANTT_FIXED_KEYS, GANTT_HIDEABLE_KEYS, GANTT_LEFT_W_FULL, GANTT_REPORT_KEYS, GANTT_TABLE_W_MIN, clampTableW, colsByKeys, sanitizeHide, visibleCols, visibleLeftW } from './ganttCols'
 
 describe('ganttCols 列定义', () => {
   it('14 列、行号+名称固定、全列宽=各列宽求和', () => {
@@ -51,5 +51,15 @@ describe('sanitizeHide', () => {
     expect(sanitizeHide('ls')).toEqual([])
     expect(sanitizeHide(['ls', 'ghost', 3, 'ls', 'no'])).toEqual(['ls'])
     expect(sanitizeHide(Array.from({ length: 40 }, (_, i) => GANTT_HIDEABLE_KEYS[i % 12])).length).toBeLessThanOrEqual(12)
+  })
+})
+
+describe('上报 6 列预设（刀D1）', () => {
+  it('GANTT_REPORT_KEYS 保序取列，恰为上报件口径', () => {
+    expect(GANTT_REPORT_KEYS).toEqual(['no', 'name', 'dur', 'start', 'finish', 'preds'])
+    const cols = colsByKeys(GANTT_REPORT_KEYS)
+    expect(cols.map((c) => c.key)).toEqual(GANTT_REPORT_KEYS)
+    // 未知键不进结果；重复键幂等
+    expect(colsByKeys(['no', 'ghost', 'name', 'name']).map((c) => c.key)).toEqual(['no', 'name'])
   })
 })

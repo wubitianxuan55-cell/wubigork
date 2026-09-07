@@ -1,3 +1,9 @@
+## v4.132.0 · 进度计划刀D1：图面导出——横道图上报件 PNG/PDF/打印（2026-09-07）
+> 差距清单第一项（对标真实上报件+MS Project 官方「PDF/XPS 输出」）。纯前端，绑定面 **588** 零变更。详见 releases/v4.132.0.md。
+- ganttExport.ts 纯函数构建器：标题带+上报 6 列表格+双行时标/周末底纹+关键红/汇总黑/里程碑菱形/时差尾/四型依赖线/竣工线/今日线+图例+图签（空值留白签章位）；fitText CJK 截断、XML 转义、循环依赖 fail-closed。
+- imgPdf.ts 最小 PDF 封装（单页 PDF 1.4+JPEG DCTDecode 直嵌+xref 偏移对齐，零依赖）；exportArtifact.ts 管线（2 倍超采样 canvas→PNG/PDF/iframe 打印）；exportMeta.ts 签署字段持久化；SchedulePage「导出图面」弹窗三出口。
+- 测试 TS +18（用例抓出 imgPdf 初稿偏移表错位）；门禁 tsc/eslint 0、vitest **2291**、go test 绿、drift PASS@588、版本四处 4.132.0。走查：PNG/PDF 真实管线出回执+图面 20 行 14 条 12 关键目检全对。ganttExport.ts 入 eslint hex-exempt（图面调色板是数据）。
+
 ## v4.131.0 · 进度计划刀C：工作台双栏——表格｜画布可拖分栏 + 列显隐 + AI 栏折叠入口（2026-09-07）
 > 用户点名整改：14 列表格挤占画布/时间刻度竖排/AI 助手折叠。纯前端。绑定面 **588** 零变更。详见 releases/v4.131.0.md。
 - 横道重构「表格窗格｜分隔条｜画布窗格」真双栏：分隔条拖动收纳表格（最小=行号+名称）、双击复位、纵向滚动同步（画布 scroll→表格体 translateY 直改 DOM）；列显隐菜单 12 列单列可藏（行号/名称固定）；ganttCols 纯函数+chatPrefs 扩展 ganttTableW/ganttHide 持久化。

@@ -55,6 +55,8 @@ export default defineConfig([
           'constants.ts',
           // 图表工具：mermaid 渲染配色
           'mermaidPng.ts',
+          // 图面导出（进度计划上报件）：独立打印调色板，不随主题
+          'ganttExport.ts',
         ],
       }],
       // T6-10.2（v2.33.0）：any 已全仓清零，升为硬错误进 CI 门禁——

@@ -9,9 +9,9 @@
  * 同一资产（GaeaScheduleLoad/Save 水合+自动保存，agent 经 schedule_* 工具读写）。
  */
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { Alert, Button, Checkbox, Input, Popconfirm, Popover, Segmented, Space, Tag, Tooltip } from 'antd'
+import { Alert, Button, Checkbox, Input, Modal, Popconfirm, Popover, Segmented, Space, Tag, Tooltip } from 'antd'
 import {
-  AimOutlined, CalendarOutlined, ClearOutlined, ClusterOutlined, ExportOutlined, FundOutlined, ImportOutlined,
+  AimOutlined, CalendarOutlined, ClearOutlined, ClusterOutlined, ExportOutlined, FileImageOutlined, FundOutlined, ImportOutlined,
   MessageOutlined, NodeIndexOutlined, PlusOutlined, TableOutlined, TeamOutlined, ThunderboltOutlined, PartitionOutlined, DeleteOutlined, ToolOutlined,
 } from '@ant-design/icons'
 import { computeCpm } from '../schedule/cpm'
@@ -20,8 +20,11 @@ import { buildAoa } from '../schedule/aoa'
 import { buildProjectXml, parseProjectXml } from '../schedule/mspdi'
 import { computeBaselineDrift } from '../schedule/baseline'
 import { checkDeadline, planFinishOf } from '../schedule/deadline'
-import type { CpmResult } from '../schedule/types'
+import type { CpmResult, SchedProject } from '../schedule/types'
 import { useScheduleStore, isGroupRow, initScheduleSync } from '../schedule/store'
+import { buildGanttExportSvg } from '../schedule/ganttExport'
+import { svgToPngBlob, svgToPdfBlob, downloadBlob, printSvg } from '../schedule/exportArtifact'
+import { loadExportMeta, saveExportMeta, todayIso, type ExportMetaPrefs } from '../schedule/exportMeta'
 import { ResourcePanel } from '../schedule/ResourcePanel'
 import { fmtCost, hasCostData } from '../schedule/costUi'
 import { SCHEDULE_FILE_PATH } from '../schedule/gschedSummary'
@@ -192,6 +195,72 @@ const BaselinePanel: React.FC<{ cpm: CpmResult }> = ({ cpm }) => {
   )
 }
 
+/**
+ * 图面导出弹层（v4.132.0 刀D1）：横道图上报件三出口 PNG/PDF/打印。
+ * 签署字段（编制单位/人/审核/批准/日期）持久化 exportMeta；构建走
+ * ganttExport 纯函数——图面是发布物，不随工作台交互态漂移。
+ */
+const ExportDialog: React.FC<{ open: boolean; onClose: () => void; project: SchedProject; cpm: CpmResult }> = ({ open, onClose, project, cpm }) => {
+  const [meta, setMeta] = useState<ExportMetaPrefs>(loadExportMeta)
+  const [msg, setMsg] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  const base = `${project.name || '进度计划'}-施工进度计划横道图`
+
+  const setField = (k: keyof ExportMetaPrefs) => (e: React.ChangeEvent<HTMLInputElement>) =>
+    setMeta((p) => ({ ...p, [k]: e.target.value }))
+
+  const run = async (kind: 'png' | 'pdf' | 'print') => {
+    if (!cpm.ok) { setMsg('计划存在循环依赖，导出前先修正搭接'); return }
+    setBusy(true)
+    setMsg(null)
+    try {
+      const art = buildGanttExportSvg(project, cpm, { ...meta, date: meta.date || todayIso() })
+      if (kind === 'print') printSvg(art.svg)
+      else if (kind === 'png') downloadBlob(await svgToPngBlob(art.svg), `${base}.png`)
+      else downloadBlob(await svgToPdfBlob(art.svg), `${base}.pdf`)
+      saveExportMeta(meta)
+      setMsg(kind === 'print' ? '已唤起系统打印（目标选「另存为 PDF」可得 PDF 文件）' : '已导出')
+    } catch (e) {
+      setMsg(`导出失败：${e instanceof Error ? e.message : String(e)}`)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Modal open={open} onCancel={onClose} title="导出图面（横道图上报件）" footer={null} width={520} destroyOnClose>
+      <div className="sched-export-modal" data-testid="sched-export-modal" style={{ display: 'grid', gap: 10 }}>
+        <span className="sched-dim" style={{ fontSize: 12 }}>
+          按上报口径输出：标题带 + 上报 6 列（序号/任务名称/工期/开始/完成/前置）+ 双行时标 + 图例 + 图签。
+        </span>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+          <label style={{ display: 'grid', gap: 2, fontSize: 12 }}><span className="sched-dim">编制单位</span>
+            <Input size="small" value={meta.org} onChange={setField('org')} placeholder="（可空）" />
+          </label>
+          <label style={{ display: 'grid', gap: 2, fontSize: 12 }}><span className="sched-dim">编制日期</span>
+            <Input size="small" type="date" value={meta.date || todayIso()} onChange={setField('date')} />
+          </label>
+          <label style={{ display: 'grid', gap: 2, fontSize: 12 }}><span className="sched-dim">编制人</span>
+            <Input size="small" value={meta.designer} onChange={setField('designer')} placeholder="（可空，图签留白签章位）" />
+          </label>
+          <label style={{ display: 'grid', gap: 2, fontSize: 12 }}><span className="sched-dim">审核人</span>
+            <Input size="small" value={meta.reviewer} onChange={setField('reviewer')} placeholder="（可空）" />
+          </label>
+          <label style={{ display: 'grid', gap: 2, fontSize: 12 }}><span className="sched-dim">批准</span>
+            <Input size="small" value={meta.approver} onChange={setField('approver')} placeholder="（可空）" />
+          </label>
+        </div>
+        <Space size={8}>
+          <Button type="primary" loading={busy} data-testid="sched-export-png" onClick={() => void run('png')}>导出 PNG</Button>
+          <Button data-testid="sched-export-pdf" disabled={busy} onClick={() => void run('pdf')}>导出 PDF</Button>
+          <Button data-testid="sched-export-print" disabled={busy} onClick={() => void run('print')}>打印</Button>
+        </Space>
+        {msg && <div data-testid="sched-export-msg" style={{ fontSize: 12 }}>{msg}</div>}
+      </div>
+    </Modal>
+  )
+}
+
 const SchedulePage: React.FC = () => {
   const project = useScheduleStore((s) => s.project)
   const view = useScheduleStore((s) => s.view)
@@ -209,6 +278,7 @@ const SchedulePage: React.FC = () => {
   const clearAll = useScheduleStore((s) => s.clearAll)
   const fileRef = useRef<HTMLInputElement>(null)
   const [importMsg, setImportMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  const [exportOpen, setExportOpen] = useState(false)
   const hydrated = useScheduleStore((s) => s.hydrated)
   const sync = useScheduleStore((s) => s.sync)
   const savedAt = useScheduleStore((s) => s.savedAt)
@@ -417,6 +487,9 @@ const SchedulePage: React.FC = () => {
         <Tooltip title="导出为 MS Project XML（可被 Project / 斑马进度打开）">
           <Button size="small" icon={<ExportOutlined />} onClick={exportXml}>导出 XML</Button>
         </Tooltip>
+        <Tooltip title="导出横道图上报图面：标题带 + 上报 6 列 + 图例 + 图签（PNG / PDF / 打印）">
+          <Button size="small" icon={<FileImageOutlined />} data-testid="sched-export-btn" onClick={() => setExportOpen(true)}>导出图面</Button>
+        </Tooltip>
         <div className="sched-tool-divider" />
         <Tooltip title="载入示例工程（办公楼施工），覆盖当前数据">
           <Button size="small" icon={<ThunderboltOutlined />} onClick={() => { loadSample(); setImportMsg(null) }}>示例工程</Button>
@@ -435,6 +508,7 @@ const SchedulePage: React.FC = () => {
           onClose={() => setImportMsg(null)}
         />
       )}
+      <ExportDialog open={exportOpen} onClose={() => setExportOpen(false)} project={project} cpm={cpm} />
       {!cpm.ok && cpm.error && (
         <Alert type="error" showIcon message={cpm.error} description="请修正搭接关系后重试；网络图视图在循环解除前不可用。" />
       )}
