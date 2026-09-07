@@ -1,85 +1,38 @@
 /**
  * schedule/AoaView.tsx — 双代号网络图（AOA）视图
  *
- * 圆圈节点=事件（圈内编号，上方最早时间、下方最迟时间），箭线=工作，
+ * 圈节点=事件（圈内编号，上方最早时间、下方最迟时间），箭线=工作，
  * 虚箭线=虚工作（虚线）。关键线路（含关键虚工作）红色加粗。
- * 数据来自 buildAoa（虚工作自动插入 + i<j 编号 + 时标分层布局）。
+ * 数据来自 buildAoa（虚工作自动插入 + i<j 编号 + 真时标布局：x=最早时间）。
  *
- * v4.123 AOA 刀1：手动布局双模式——「自动」=时标分层（现状零改动）；
+ * v4.123 AOA 刀1：手动布局双模式——「自动」=时标布局（现状零改动）；
  * 「手动」= pins 覆盖（applyPins 混合锚定：命中手动位/新事件自动落位），
  * x 与时间解耦（时间参数仍全量显示）。拖拽布点对齐横道刀9 纪律：
  * window 监听三件套、半格吸附纯函数（aoaLayout.ts snapPt）、未移动不提交、
  * Esc 取消、自动模式拖拽=自动转手动（「不骗人」先例）、提交时剪枝失配键。
  *
  * v4.127 基本功刀A：箭线正交画法合规——横平竖直、直角拐弯、禁斜线
- * （JGJ/T 121 绘图口径）；工作名称/工期标注随水平段归位；平行边错位通道。
+ * （JGJ/T 121 绘图口径）；平行边错位通道。
+ *
+ * v4.130 基本功刀H（图例语言）：G2 标注归位（工作名称在箭线上、持续时间
+ * 在下）；G4 波形线——auto 时标模式下水平段超出实体工期终点（x=事件 x+R+
+ * 工期×列宽）的尾段画波形线=自由时差（虚工作有时差时加波形线），手动布局
+ * x 与时间解耦不画波形；G1 过桥法——竖直段垂直穿越他边水平段处画半圆跨过
+ * （几何纯函数在 aoaLayout.ts，单代号视图共用）。
  */
 import React, { useRef, useState } from 'react'
-import type { AoaEdge, AoaGraph } from './aoa'
-import { AOA_COL_W, AOA_MARGIN, AOA_ROW_H } from './aoa'
-import { applyPins, prunePins, snapPt } from './aoaLayout'
+import type { AoaGraph } from './aoa'
+import { AOA_COL_W, AOA_MARGIN, AOA_R, AOA_ROW_H } from './aoa'
+import { applyPins, edgeSegs, findBridgeArcs, prunePins, segsToPath, snapPt } from './aoaLayout'
 import { useScheduleStore } from './store'
 import type { AoaPin, SchedTask } from './types'
 
-const R = 16
+const R = AOA_R
 
 /**
- * 正交箭线几何（v4.127 刀A：横平竖直、直角拐弯，禁斜线——JGJ/T 121 绘图口径）。
- * 前进边：右缘出、直角拐、左缘入；同列边：竖直直连；后退边（手动布局可能产生）：
- * 底缘出、下方通道绕行、底缘入。同节点对多条平行边按序错开通道防重叠。
+ * 正交箭线几何已迁 aoaLayout.edgeSegs（v4.130 刀H：纯函数可测 + 段序列
+ * 供波形/过桥二次加工）。
  */
-function edgeGeom(e: AoaEdge, nodeById: Map<string, { x: number; y: number }>, lane: { idx: number; cnt: number }) {
-  const a = nodeById.get(e.from)!
-  const b = nodeById.get(e.to)!
-  const dx = b.x - a.x
-  const dy = b.y - a.y
-  // 平行边错位：同 (from,to) 多条边（如虚工作+实工作）各让 10px
-  const off = lane.cnt > 1 ? (lane.idx - (lane.cnt - 1) / 2) * 10 : 0
-  if (Math.abs(dx) < 2) {
-    // 同列：竖直边（虚工作常态）；并行时横向微移防重合
-    const x = a.x + off
-    const up = b.y < a.y
-    const y1 = up ? a.y - R : a.y + R
-    const y2 = up ? b.y + R : b.y - R
-    const my = (y1 + y2) / 2
-    return {
-      d: `M ${x} ${y1} L ${x} ${y2}`,
-      lx: x + 7, ly: my, lanchor: 'start' as const,
-      nx: x + 7, ny: my + 12,
-    }
-  }
-  if (dx > 0) {
-    const x1 = a.x + R
-    const x2 = b.x - R
-    if (Math.abs(dy) < 2) {
-      const y = a.y + off
-      return {
-        d: `M ${x1} ${y} L ${x2} ${y}`,
-        lx: (x1 + x2) / 2, ly: y - 5, lanchor: 'middle' as const,
-        nx: (x1 + x2) / 2, ny: y + 12,
-      }
-    }
-    // H-V-H：通道 x 错开并行边；标注贴第一段水平线，过短则贴末段
-    const mid = (x1 + x2) / 2 + off
-    const firstLen = mid - x1
-    const onFirst = firstLen >= 36
-    const lx = onFirst ? (x1 + mid) / 2 : (mid + x2) / 2
-    const ly = (onFirst ? a.y : b.y) - 5
-    return {
-      d: `M ${x1} ${a.y} L ${mid} ${a.y} L ${mid} ${b.y} L ${x2} ${b.y}`,
-      lx, ly, lanchor: 'middle' as const,
-      nx: lx, ny: ly + 12,
-    }
-  }
-  // 后退边（手动布局）：底缘出 → 下方通道 → 底缘入（箭头朝上）
-  const laneY = Math.max(a.y, b.y) + R + 14 + off
-  const mx = (a.x + b.x) / 2
-  return {
-    d: `M ${a.x} ${a.y + R} L ${a.x} ${laneY} L ${b.x} ${laneY} L ${b.x} ${b.y + R}`,
-    lx: mx, ly: laneY - 4, lanchor: 'middle' as const,
-    nx: mx, ny: laneY + 10,
-  }
-}
 
 export const AoaView: React.FC<{ graph: AoaGraph; tasks: SchedTask[] }> = ({ graph, tasks }) => {
   const select = useScheduleStore((s) => s.select)
@@ -160,14 +113,21 @@ export const AoaView: React.FC<{ graph: AoaGraph; tasks: SchedTask[] }> = ({ gra
         <span><i className="lg-line lg-critical" />关键工作</span>
         <span><i className="lg-line lg-normal" />工作</span>
         <span><i className="lg-line lg-dummy" />虚工作</span>
+        <span>
+          <svg width="18" height="8" style={{ marginRight: 4, verticalAlign: 'middle' }} aria-hidden>
+            <path d="M0 4 q 2.25 -5 4.5 0 t 4.5 0 t 4.5 0 t 4.5 0" fill="none" stroke="var(--sched-link, #94a3b8)" strokeWidth="1.4" />
+          </svg>
+          自由时差（波形线）
+        </span>
         <span>节点：上=最早时间 · 下=最迟时间</span>
+        <span>标注：箭线上=工作名称 · 下=工期</span>
         {/* 布局开关（视图态，不入文件）：手动=自由坐标，时间参数不受影响 */}
         <span className="sched-aoa-mode" data-testid="sched-aoa-mode">
           <button
             type="button"
             className={`sched-aoa-mode-btn${!manual ? ' sched-aoa-mode-on' : ''}`}
             onClick={() => setMode('auto')}
-            title="时标分层布局（列=最早时间）"
+            title="时标布局：水平位置=最早时间（1 格=1 天），波形线=自由时差"
           >
             自动
           </button>
@@ -224,29 +184,36 @@ export const AoaView: React.FC<{ graph: AoaGraph; tasks: SchedTask[] }> = ({ gra
               pairCnt.set(k, (pairCnt.get(k) ?? 0) + 1)
             }
             const pairSeen = new Map<string, number>()
-            return shown.edges.map((e) => {
+            // G4 波形线（auto=时标）：实体工期终点 x=源事件 x+R+工期×列宽；
+            // 手动布局 x 与时间解耦，波形失义不画
+            const geoms = shown.edges.map((e, i) => {
               const k = `${e.from}>${e.to}`
               const idx = pairSeen.get(k) ?? 0
               pairSeen.set(k, idx + 1)
-              const g = edgeGeom(e, nodeById, { idx, cnt: pairCnt.get(k)! })
+              const waveFromX = manual ? null : nodeById.get(e.from)!.x + R + e.dur * AOA_COL_W
+              return { e, i, waveFromX, g: edgeSegs(e, nodeById, { idx, cnt: pairCnt.get(k)! }, waveFromX) }
+            })
+            // G1 过桥法：竖段垂直穿越他边横段处画半圆（水平段=时标轴不断）
+            const bridges = findBridgeArcs(geoms.map((it) => it.g.segs))
+            return geoms.map(({ e, i, waveFromX, g }) => {
               const dummy = e.kind === 'dummy'
               const cls = `sched-aoa-link${e.critical ? ' sched-aoa-link-critical' : ''}${dummy ? ' sched-aoa-dummy' : ''}`
               return (
                 <g key={e.id}>
                   <path
-                    d={g.d}
+                    d={segsToPath(g.segs, waveFromX, bridges.get(i))}
                     className={cls}
                     markerEnd={e.critical ? 'url(#aoa-arrow-crit)' : 'url(#aoa-arrow)'}
                     onClick={() => e.taskId && select(e.taskId)}
                     style={{ pointerEvents: e.taskId ? 'stroke' : 'none', cursor: e.taskId ? 'pointer' : 'default' }}
                   />
                   {e.label && (
-                    <text x={g.lx} y={g.ly} textAnchor={g.lanchor} className={`sched-net-label${e.critical ? ' sched-net-label-critical' : ''}`}>
+                    <text x={g.dur.x} y={g.dur.y} textAnchor={g.dur.anchor} className={`sched-net-label${e.critical ? ' sched-net-label-critical' : ''}`}>
                       {e.label}
                     </text>
                   )}
                   {e.taskId && (
-                    <text x={g.nx} y={g.ny} textAnchor={g.lanchor} className="sched-aoa-taskname">
+                    <text x={g.name.x} y={g.name.y} textAnchor={g.name.anchor} className="sched-aoa-taskname">
                       {taskName(e.taskId)}
                     </text>
                   )}

@@ -117,3 +117,56 @@ describe('AoaView 手动布局（AOA 刀1）', () => {
     expect(pins.T).toEqual(snapPt(tox + 220, toy + 74))
   })
 })
+
+// ── v4.130 刀H：G2 标注归位 + G4 波形线（图例语言）────────────────
+
+describe('AoaView 刀H（G2/G4）', () => {
+  beforeEach(() => {
+    useScheduleStore.setState({ project: chainProject(), selectedId: null, hydrated: true, sync: 'saved', syncError: null })
+  })
+
+  /** A(2)→B(5)/A→C(1)：C 完成事件 es=3 早于总工期 7，其汇出虚工作带 4 天自由时差 */
+  function floatGraph() {
+    const tasks = [
+      { id: 'A', name: '挖土', duration: 2, level: 1, progress: 0 },
+      { id: 'B', name: '主体', duration: 5, level: 1, progress: 0 },
+      { id: 'C', name: '零星', duration: 1, level: 1, progress: 0 },
+    ]
+    const links = [
+      { from: 'A', to: 'B', type: 'FS' as const, lag: 0 },
+      { from: 'A', to: 'C', type: 'FS' as const, lag: 0 },
+    ]
+    return { tasks, links, graph: buildAoa(tasks, links) }
+  }
+
+  it('G4：auto 时标模式自由时差画波形线（d 含波浪 q 段）', () => {
+    const { tasks, graph } = floatGraph()
+    render(<AoaView graph={graph} tasks={tasks} />)
+    // 只看网络图连线（图例里的波形小图标 d 同样含 q，不可混入）
+    const waved = Array.from(screen.getByTestId('sched-aoa').querySelectorAll('path.sched-aoa-link'))
+      .filter((p) => (p.getAttribute('d') ?? '').includes(' q '))
+    expect(waved.length).toBeGreaterThan(0)
+    expect(screen.getByTestId('sched-aoa').textContent).toContain('自由时差（波形线）')
+  })
+
+  it('G4：手动布局 x 与时间解耦，不画波形线', () => {
+    const { tasks, graph } = floatGraph()
+    useScheduleStore.getState().setAoaPins({ S: { x: 550, y: 222 } })
+    render(<AoaView graph={graph} tasks={tasks} />)
+    const waved = Array.from(screen.getByTestId('sched-aoa').querySelectorAll('path.sched-aoa-link'))
+      .filter((p) => (p.getAttribute('d') ?? '').includes(' q '))
+    expect(waved).toHaveLength(0)
+    useScheduleStore.getState().setAoaPins({})
+  })
+
+  it('G2：同一边内工作名称在工期标注上方', () => {
+    const p = chainProject()
+    render(<AoaView graph={buildAoa(p.tasks, p.links)} tasks={p.tasks} />)
+    const g = screen.getByTestId('sched-aoa').querySelector('svg g')! // 首边=起点→挖土完成事件
+    const name = g.querySelector('text.sched-aoa-taskname')
+    const dur = g.querySelector('text.sched-net-label')
+    expect(name).toBeTruthy()
+    expect(dur?.textContent).toBe('3d')
+    expect(parseFloat(name!.getAttribute('y')!)).toBeLessThan(parseFloat(dur!.getAttribute('y')!))
+  })
+})

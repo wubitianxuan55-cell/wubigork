@@ -57,10 +57,11 @@ export interface AoaGraph {
   taskEdge: Record<string, string>
 }
 
-/** 布局常量（视图层按比例消费） */
+/** 布局常量（视图层按比例消费）；AOA_R=事件圆半径（渲染/文字避让共用） */
 export const AOA_COL_W = 110
 export const AOA_ROW_H = 74
 export const AOA_MARGIN = 40
+export const AOA_R = 16
 
 function effDur(t: SchedTask): number {
   return t.isMilestone ? 0 : Math.max(0, Math.round(t.duration))
@@ -242,7 +243,10 @@ export function buildAoa(tasks: SchedTask[], links: SchedLink[], opts?: { planFi
     if (e.taskId) taskEdge[e.taskId] = e.id
   }
 
-  // ── 布局（事件最早时间为列）────────────────────────────────
+  // ── 布局（真时标：x=最早时间×列宽，1 天=AOA_COL_W px）──────────
+  // v4.130 刀H G4 前提：时标网络图的水平距离必须与时间成线性（旧版按 es 排名
+  // 分列，es 有空洞时跨边距离不可比、波形线读不出真实自由时差）。
+  // 行序仍由 layerByTime 重心松弛决定（同列/邻列交错最少），列坐标弃用。
   const pos = layerByTime(
     nodeIds.map((id) => ({ id, es: nodeEs.get(id)! })),
     raws.map((r) => ({ from: r.from, to: r.to })),
@@ -260,7 +264,7 @@ export function buildAoa(tasks: SchedTask[], links: SchedLink[], opts?: { planFi
       num: num.get(id)!,
       es: nodeEs.get(id)!,
       ls: nodeLs.get(id)!,
-      x: AOA_MARGIN + p.col * AOA_COL_W,
+      x: AOA_MARGIN + nodeEs.get(id)! * AOA_COL_W,
       y: AOA_MARGIN + p.row * AOA_ROW_H,
       anchor: id === START ? 'S' : id === END ? 'T' : (nodeMembers.get(id)!.sort()[0] ?? id),
     }

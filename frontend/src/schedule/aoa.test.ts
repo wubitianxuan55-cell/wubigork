@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildAoa } from './aoa'
+import { buildAoa, AOA_COL_W, AOA_MARGIN } from './aoa'
 import type { SchedLink, SchedTask } from './types'
 
 function t(id: string, duration: number, extra?: Partial<SchedTask>): SchedTask {
@@ -121,5 +121,16 @@ describe('buildAoa 健壮性', () => {
     expect(g.ok).toBe(true)
     const m = g.edges.find((e) => e.taskId === 'M')!
     expect(m.dur).toBe(0)
+  })
+})
+
+describe('buildAoa 真时标布局（v4.130 刀H G4 前提）', () => {
+  it('x=AOA_MARGIN+es×AOA_COL_W：es 线性，时距空洞成比例（波形线才读得出真实自由时差）', () => {
+    const g = buildAoa([t('A', 3), t('B', 2), t('C', 4)], [l('A', 'B'), l('B', 'C')])
+    for (const n of g.nodes) {
+      expect(n.x, `节点 ${n.id} es=${n.es}`).toBe(AOA_MARGIN + n.es * AOA_COL_W)
+    }
+    // end:B 事件 es=5：x 随 es 而非列排名（旧版排名会把 0/3/5 压成等距 0/1/2）
+    expect(g.nodes.some((n) => n.x === AOA_MARGIN + 5 * AOA_COL_W)).toBe(true)
   })
 })

@@ -10,12 +10,15 @@
  *  - 多起点/多终点增画 **虚拟起点/终点节点**（虚线框 S/T，JGJ/T 121 单代号口径）；
  *  - 关键线路贯通：搭接两端均关键且该搭接为「绑定约束」（后继日期恰由该搭接决定）时红色加粗。
  *  - v4.127 刀E：缩放/适配全图 + 图例吸顶。
+ *  - v4.130 刀H G1：连线改段序列（aoaLayout.segs）共用过桥法——竖直段垂直
+ *    穿越他边水平段处画半圆跨过（findBridgeArcs/segsToPath 与双代号同源）。
  */
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { Button } from 'antd'
 import { AimOutlined, ZoomInOutlined, ZoomOutOutlined } from '@ant-design/icons'
 import type { CpmResult, LinkType, SchedProject } from './types'
 import { layerByTopology } from './layout'
+import { findBridgeArcs, segsToPath, type Seg } from './aoaLayout'
 import { useScheduleStore } from './store'
 
 const NODE_W = 150
@@ -112,14 +115,18 @@ export const PdmView: React.FC<{ project: SchedProject; cpm: CpmResult }> = ({ p
   const links = project.links.filter((l) => layout.pos.has(l.from) && layout.pos.has(l.to))
   const critCount = leaves.filter((t) => cpm.rows[t.id]?.critical).length
 
-  /** 搭接连线几何：右缘出、直角拐、左缘入（与横道/双代号同口径的正交折线） */
-  const linkPath = (l: { from: string; to: string }) => {
+  /** 搭接连线段：右缘出、直角拐、左缘入（与横道/双代号同口径的正交三段） */
+  const linkSegs = (l: { from: string; to: string }): Seg[] => {
     const x1 = layout.nodeX(l.from) + NODE_W
     const y1 = layout.nodeY(l.from) + NODE_H / 2
     const x2 = layout.nodeX(l.to)
     const y2 = layout.nodeY(l.to) + NODE_H / 2
     const midX = Math.max(x1 + 8, (x1 + x2) / 2)
-    return `M ${x1} ${y1} H ${midX} V ${y2} H ${x2 - 4}`
+    return [
+      { x1, y1, x2: midX, y2: y1 },
+      { x1: midX, y1, x2: midX, y2 },
+      { x1: midX, y1: y2, x2: x2 - 4, y2 },
+    ]
   }
   const linkLabelXY = (l: { from: string; to: string }) => {
     const x1 = layout.nodeX(l.from) + NODE_W
@@ -129,6 +136,34 @@ export const PdmView: React.FC<{ project: SchedProject; cpm: CpmResult }> = ({ p
     const midX = Math.max(x1 + 8, (x1 + x2) / 2)
     return { x: midX, y: (y1 + y2) / 2 - 4 }
   }
+  // G1 过桥法（v4.130 刀H）：全部连线（含虚拟 S/T 短桩）参与交叉检测，
+  // 竖直段垂直穿越他边水平段处画半圆跨过
+  const allSegs: Seg[][] = [
+    ...links.map(linkSegs),
+    // 虚拟起点桩：节点右缘 →8px→ 竖拐 → 目标左缘
+    ...layout.sources.map((id) => {
+      const yS = layout.midY + NODE_H / 2
+      const yT = layout.nodeY(id) + NODE_H / 2
+      const xV = layout.startX + NODE_W + 8
+      return [
+        { x1: layout.startX + NODE_W, y1: yS, x2: xV, y2: yS },
+        { x1: xV, y1: yS, x2: xV, y2: yT },
+        { x1: xV, y1: yT, x2: layout.nodeX(id) - 4, y2: yT },
+      ]
+    }),
+    // 虚拟完成桩：节点右缘 → 长横线 → 竖拐 → 终点列
+    ...layout.sinks.map((id) => {
+      const yN = layout.nodeY(id) + NODE_H / 2
+      const yT = layout.midY + NODE_H / 2
+      const xV = layout.endX - 8
+      return [
+        { x1: layout.nodeX(id) + NODE_W, y1: yN, x2: xV, y2: yN },
+        { x1: xV, y1: yN, x2: xV, y2: yT },
+        { x1: xV, y1: yT, x2: layout.endX - 4, y2: yT },
+      ]
+    }),
+  ]
+  const bridges = findBridgeArcs(allSegs)
 
   return (
     <div className="sched-network-scroll" data-testid="sched-pdm" ref={scrollRef}>
@@ -183,7 +218,7 @@ export const PdmView: React.FC<{ project: SchedProject; cpm: CpmResult }> = ({ p
               return (
                 <g key={i}>
                   <path
-                    d={linkPath(l)}
+                    d={segsToPath(allSegs[i], null, bridges.get(i))}
                     className={`sched-net-link${crit ? ' sched-net-link-critical' : ''}`}
                     markerEnd={crit ? 'url(#pdm-arrow-crit)' : 'url(#pdm-arrow)'}
                   />
@@ -193,19 +228,19 @@ export const PdmView: React.FC<{ project: SchedProject; cpm: CpmResult }> = ({ p
             })}
             {/* 虚拟起点/终点（多起点/多终点时，JGJ/T 121 单代号口径）：虚线框 + 虚箭线 */}
             {layout.hasStart &&
-              layout.sources.map((id) => (
+              layout.sources.map((id, j) => (
                 <path
                   key={`vs-${id}`}
-                  d={`M ${layout.startX + NODE_W} ${layout.midY + NODE_H / 2} H ${layout.startX + NODE_W + 8} V ${layout.nodeY(id) + NODE_H / 2} H ${layout.nodeX(id) - 4}`}
+                  d={segsToPath(allSegs[links.length + j], null, bridges.get(links.length + j))}
                   className="sched-net-link sched-net-link-virtual"
                   markerEnd="url(#pdm-arrow)"
                 />
               ))}
             {layout.hasEnd &&
-              layout.sinks.map((id) => (
+              layout.sinks.map((id, j) => (
                 <path
                   key={`vt-${id}`}
-                  d={`M ${layout.nodeX(id) + NODE_W} ${layout.nodeY(id) + NODE_H / 2} H ${layout.endX - 8} V ${layout.midY + NODE_H / 2} H ${layout.endX - 4}`}
+                  d={segsToPath(allSegs[links.length + layout.sources.length + j], null, bridges.get(links.length + layout.sources.length + j))}
                   className="sched-net-link sched-net-link-virtual"
                   markerEnd="url(#pdm-arrow)"
                 />
