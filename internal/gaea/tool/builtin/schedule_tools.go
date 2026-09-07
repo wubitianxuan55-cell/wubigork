@@ -62,7 +62,7 @@ type scheduleGet struct{ workDir string }
 func (scheduleGet) Name() string { return "schedule_get" }
 
 func (scheduleGet) Description() string {
-	return "读取工程进度计划文件（.gsched.json，进度计划板块同款数据）并返回 CPM 计算结果：任务表（ES/EF/LS/LF/总时差/关键标记）、搭接关系、工作日历与总工期；含资源维度时一并返回资源表（resources）、任务↔资源分配（assignments）与成本汇总（costs：total 总成本/byTask 各任务行成本/byResource 按资源汇总，单位元；费率口径=工时资源元/工日、材料资源元/单位）。工期口径为工作日（按日历扣除周末/节假日）。传 path 缺省读当前工程（可在进度计划板块切换）。用于编辑前了解现状、或核对修改后的计划与成本。"
+	return "读取工程进度计划文件（.gsched.json，进度计划板块同款数据）并返回 CPM 计算结果：任务表（ES/EF/LS/LF/总时差/关键标记）、搭接关系、工作日历与总工期；含资源维度时一并返回资源表（resources）、任务↔资源分配（assignments）与成本汇总（costs：total 总成本/byTask 各任务行成本/byResource 按资源汇总，单位元；费率口径=工时资源元/工日、材料资源元/单位）。工期口径为工作日（按日历扣除周末/节假日）；任务带 durationUnit=cd 表示日历天（自然日定时，duration 为自然日数，等效工作日跨度=该任务 cpm 行 ef−es）。传 path 缺省读当前工程（可在进度计划板块切换）。用于编辑前了解现状、或核对修改后的计划与成本。"
 }
 
 func (scheduleGet) Schema() json.RawMessage {
@@ -147,13 +147,15 @@ type taskView struct {
 	IsMilestone bool   `json:"isMilestone,omitempty"`
 	Mode        string `json:"mode,omitempty"`
 	ManualStart int    `json:"manualStart,omitempty"`
-	ES          int    `json:"es"`
-	EF          int    `json:"ef"`
-	LS          int    `json:"ls"`
-	LF          int    `json:"lf"`
-	TF          int    `json:"tf"`
-	FF          int    `json:"ff"`
-	Critical    bool   `json:"critical"`
+	// DurationUnit 工期单位（v4.151 双工期刀2：缺省 wd=工作日；cd=日历天）。
+	DurationUnit string `json:"durationUnit,omitempty"`
+	ES           int    `json:"es"`
+	EF           int    `json:"ef"`
+	LS           int    `json:"ls"`
+	LF           int    `json:"lf"`
+	TF           int    `json:"tf"`
+	FF           int    `json:"ff"`
+	Critical     bool   `json:"critical"`
 }
 
 func taskTable(p schedule.Project, cpm schedule.CpmResult) []taskView {
@@ -167,8 +169,9 @@ func taskTable(p schedule.Project, cpm schedule.CpmResult) []taskView {
 		out = append(out, taskView{
 			ID: t.ID, Name: t.Name, Level: t.Level, Duration: t.Duration,
 			Progress: t.Progress, IsMilestone: t.IsMilestone, Mode: mode,
-			ManualStart: t.ManualStart,
-			ES:          row.ES, EF: row.EF, LS: row.LS, LF: row.LF, TF: row.TF, FF: row.FF,
+			ManualStart:  t.ManualStart,
+			DurationUnit: string(t.DurationUnit),
+			ES:           row.ES, EF: row.EF, LS: row.LS, LF: row.LF, TF: row.TF, FF: row.FF,
 			Critical: row.Critical,
 		})
 	}
@@ -185,7 +188,7 @@ type scheduleApply struct {
 func (scheduleApply) Name() string { return "schedule_apply" }
 
 func (scheduleApply) Description() string {
-	return "写入工程进度计划（进度计划板块同款数据）。两种通道二选一：① project=完整计划 JSON（整计划生成/重排，任务含 id/name/level(0分组,1子任务)/duration(工作日)/isMilestone/fixedCost(固定成本,元,叶任务专属)，搭接 links 含 from/to/type(FS|SS|FF|SF)/lag，resources 含 id/name/type(work|material|cost)/standardRate(元/工日或元/单位)/costPerUse(每次使用,元)/unit(材料计量单位)/maxUnits，assignments 含 taskId/resourceId/units|quantity|amount，calendar 含 workweek(getDay 口径 0=周日..6=周六)/holidays）；② ops=增量操作数组（upsert_task/patch_task/remove_task/set_links/set_meta/upsert_resource/patch_resource/remove_resource/set_assignments，用于局部调整如压缩某任务工期、改搭接、挂资源、调费率）。计划编制纪律：工期为工作日整数；里程碑 duration=0；搭接缺省 FS lag=0；分组行 duration=0、不参与搭接、禁挂分配与固定成本；费率一律元/工日（工时）与元/单位（材料）；先建资源再挂分配。写入前引擎自动校验并做 CPM 计算，存在循环依赖/悬空引用/非法字段则整批拒绝（返回错误原文，修复后重试）。回执含写入后总工期、关键工作数与总成本（totalCost 及涉及任务行成本），必须核对该结果是否与预期一致。确认机制：project 整量通道须经用户在 diff 确认卡批准后才执行（任何权限级别逐条确认，不存在会话放行）；被拒即未写入，不要原样重发——按用户在对话里给出的意见修改参数后重发是新一次确认，连续被拒两次应停止下发并要明确口径。ops 通道在 ask 权限级别同样弹确认卡。回执与预览数字不一致时以回执为准并向用户点破。"
+	return "写入工程进度计划（进度计划板块同款数据）。两种通道二选一：① project=完整计划 JSON（整计划生成/重排，任务含 id/name/level(0分组,1子任务)/duration(工作日)/durationUnit(wd|cd，cd=日历天自然日定时，仅叶任务非里程碑、搭接仅 FS)/isMilestone/fixedCost(固定成本,元,叶任务专属)，搭接 links 含 from/to/type(FS|SS|FF|SF)/lag，resources 含 id/name/type(work|material|cost)/standardRate(元/工日或元/单位)/costPerUse(每次使用,元)/unit(材料计量单位)/maxUnits，assignments 含 taskId/resourceId/units|quantity|amount，calendar 含 workweek(getDay 口径 0=周日..6=周六)/holidays）；② ops=增量操作数组（upsert_task/patch_task/remove_task/set_links/set_meta/upsert_resource/patch_resource/remove_resource/set_assignments，用于局部调整如压缩某任务工期、改搭接、挂资源、调费率；patch_task 支持 durationUnit 切换工期口径）。计划编制纪律：工期为工作日整数，混凝土养护/干燥等自然日定时工作才用 durationUnit:'cd'（数值=自然日数）；里程碑 duration=0；搭接缺省 FS lag=0；分组行 duration=0、不参与搭接、禁挂分配与固定成本；费率一律元/工日（工时）与元/单位（材料）；先建资源再挂分配。写入前引擎自动校验并做 CPM 计算，存在循环依赖/悬空引用/非法字段则整批拒绝（返回错误原文，修复后重试）。回执含写入后总工期（工作日）、关键工作数与总成本（totalCost 及涉及任务行成本），必须核对该结果是否与预期一致。确认机制：project 整量通道须经用户在 diff 确认卡批准后才执行（任何权限级别逐条确认，不存在会话放行）；被拒即未写入，不要原样重发——按用户在对话里给出的意见修改参数后重发是新一次确认，连续被拒两次应停止下发并要明确口径。ops 通道在 ask 权限级别同样弹确认卡。回执与预览数字不一致时以回执为准并向用户点破。"
 }
 
 func (scheduleApply) Schema() json.RawMessage {
@@ -283,7 +286,7 @@ func (s scheduleApply) Execute(ctx context.Context, args json.RawMessage) (strin
 	cpm, a := proj.Analyze()
 	costs := schedule.ComputeCosts(proj, cpm)
 	if cpm.OK {
-		afterDesc = fmt.Sprintf("%s → 写入后总工期 %d 天、关键工作 %d 项、总成本 %.2f 元", afterDesc, cpm.Duration, len(a.Critical), costs.Total)
+		afterDesc = fmt.Sprintf("%s → 写入后总工期 %d 天（工作日）、关键工作 %d 项、总成本 %.2f 元", afterDesc, cpm.Duration, len(a.Critical), costs.Total)
 	}
 	evidence.RecordChange(ctx, evidence.ChangeRecord{
 		Tool:          "schedule_apply",
@@ -385,7 +388,7 @@ type scheduleAnalyze struct{ workDir string }
 func (scheduleAnalyze) Name() string { return "schedule_analyze" }
 
 func (scheduleAnalyze) Description() string {
-	return "分析工程进度计划：确定性 CPM 引擎裁决 + 规则质检。返回总工期、关键工作链、近关键工作（总时差≤2，缓冲小）、里程碑清单，以及计划检查发现（无任何搭接的孤立任务、无前置的任务——可用 ops auto_chain 一键补缺省串联、空分组、无收口尾巴、无里程碑提醒等）。含资源维度时附带成本叙事（costs：total 总成本、topTasks 成本 Top5 任务、byResource 按资源汇总，单位元）与「已分配未定价」发现（工时资源未设费率或成本资源缺金额，成本按 0 计——AI 建议层提醒，非引擎拒绝）。已保存基线时附带漂移对比（baselineDrift：总工期 X→Y、推移/新增/移除、关键链进出），汇报调整效果时先讲这组偏差。已设目标竣工时附带倒排校核（deadlineCheck：可行性裁决、超期/富余量、关键工作清单——超期时压缩对象即关键链）。用于编写/修改后的自检（成功≠正确：先 analyze 再向用户汇报）、进度合理性解读与风险提示、推荐逻辑关系的依据。"
+	return "分析工程进度计划：确定性 CPM 引擎裁决 + 规则质检。返回总工期、关键工作链、近关键工作（总时差≤2，缓冲小）、里程碑清单，以及计划检查发现（无任何搭接的孤立任务、无前置的任务——可用 ops auto_chain 一键补缺省串联、空分组、无收口尾巴、无里程碑提醒等）；混排计划附带日历天任务清单（cdTasks：自然日数/等效工作日跨度/锚点日期——汇报口径时先讲这组）。含资源维度时附带成本叙事（costs：total 总成本、topTasks 成本 Top5 任务、byResource 按资源汇总，单位元）与「已分配未定价」发现（工时资源未设费率或成本资源缺金额，成本按 0 计——AI 建议层提醒，非引擎拒绝）。已保存基线时附带漂移对比（baselineDrift：总工期 X→Y、推移/新增/移除、关键链进出），汇报调整效果时先讲这组偏差。已设目标竣工时附带倒排校核（deadlineCheck：可行性裁决、超期/富余量、关键工作清单——超期时压缩对象即关键链）。用于编写/修改后的自检（成功≠正确：先 analyze 再向用户汇报）、进度合理性解读与风险提示、推荐逻辑关系的依据。"
 }
 
 func (scheduleAnalyze) Schema() json.RawMessage {
@@ -426,6 +429,7 @@ func (s scheduleAnalyze) Execute(ctx context.Context, args json.RawMessage) (str
 		"critical":     a.Critical,
 		"nearCritical": a.NearCritical,
 		"milestones":   a.Milestones,
+		"cdTasks":      a.CdTasks,
 		"checks":       qualityChecks(proj, cpm),
 	}
 	findings := out["checks"].([]string)
@@ -556,6 +560,18 @@ func qualityChecks(p schedule.Project, cpm schedule.CpmResult) []string {
 	}
 	if !hasMilestone && len(p.Tasks) > 0 {
 		findings = append(findings, "计划中没有里程碑（建议为关键交付节点设里程碑，duration=0）")
+	}
+	// cd 任务非 FS 搭接（v4.151 双工期刀2 防御：闸在 Validate/apply，正常不该发生）。
+	cdTask := map[string]bool{}
+	for _, t := range p.Tasks {
+		if t.DurationUnit == schedule.UnitCd {
+			cdTask[t.ID] = true
+		}
+	}
+	for _, l := range p.Links {
+		if (cdTask[l.From] || cdTask[l.To]) && l.Type != schedule.FS {
+			findings = append(findings, fmt.Sprintf("日历天任务搭接出现 %s（%s→%s，仅 FS 合法——疑为旧口径残留，建议改 FS）", l.Type, l.From, l.To))
+		}
 	}
 	return findings
 }

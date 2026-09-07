@@ -44,9 +44,9 @@ var compactDesc = map[string]string{
 	"browser_switch_tab": "切换当前标签页(tab_id必填,切换后refs失效需重新snapshot)",
 	"browser_close":      "关闭受控浏览器(缺省关页+杀Edge+清临时profile;tab_id只关指定标签)",
 	"sidebar_open":       "把工作区内文件/目录推到右面板打开(纯UI动作,不读内容不落盘;kind缺省按path推断)",
-	"schedule_get":       "读进度计划+CPM结果(任务ES/EF/时差/关键标记,工期=工作日;含资源/分配/成本汇总total,缺省=当前工程)",
-	"schedule_apply":     "写进度计划(project整计划或ops增量,二选一;ops含任务/搭接/基线与资源upsert_resource/patch_resource/remove_resource/set_assignments/patch_task.fixedCost;引擎校验+CPM环检测fail-closed,回执带新总工期与总成本;project通道须经用户diff确认卡批准才落盘且逐条确认不记忆,被拒=未写入,禁原样重发;ops在ask级别也弹确认卡)",
-	"schedule_analyze":   "分析进度计划(关键链/近关键/里程碑+质检发现:孤立任务/空分组/缺里程碑;含成本叙事:总成本/Top任务/按资源汇总/已分配未定价发现)",
+	"schedule_get":       "读进度计划+CPM结果(任务ES/EF/时差/关键标记,工期=工作日,durationUnit=cd为日历天;含资源/分配/成本汇总total,缺省=当前工程)",
+	"schedule_apply":     "写进度计划(project整计划或ops增量,二选一;ops含任务/搭接/基线与资源upsert_resource/patch_resource/remove_resource/set_assignments/patch_task.fixedCost与durationUnit工期口径;引擎校验+CPM环检测fail-closed,回执带新总工期(工作日)与总成本;project通道须经用户diff确认卡批准才落盘且逐条确认不记忆,被拒=未写入,禁原样重发;ops在ask级别也弹确认卡)",
+	"schedule_analyze":   "分析进度计划(关键链/近关键/里程碑+质检发现:孤立任务/空分组/缺里程碑+日历天任务清单cdTasks;含成本叙事:总成本/Top任务/按资源汇总/已分配未定价发现)",
 }
 
 var compactSchema = map[string]json.RawMessage{

@@ -15,6 +15,19 @@ type MilestoneInfo struct {
 	Workday int    `json:"workday"`
 }
 
+// CdTask 日历天（cd）任务行（v4.151 双工期刀2：混排计划自检——哪几项按
+// 自然日定时、占多少工作日跨度）。
+type CdTask struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	// Duration 自然日数（durationUnit=cd 下的 duration 原值）。
+	Duration int `json:"duration"`
+	// Span 等效工作日跨度（cpm 行 ef−es；成本按此计费，元/工日不因日历天放大）。
+	Span int `json:"span"`
+	// Anchor 锚点日期（es 所在工作日，YYYY-MM-DD）。
+	Anchor string `json:"anchor"`
+}
+
 // Analysis CPM 之上的叙事数据（agent 据此组织自然语言解读）。
 type Analysis struct {
 	Cpm CpmResult `json:"cpm"`
@@ -24,6 +37,8 @@ type Analysis struct {
 	NearCritical []NearCriticalTask `json:"nearCritical"`
 	// Milestones 里程碑清单（含计划完成工作日序号）。
 	Milestones []MilestoneInfo `json:"milestones"`
+	// CdTasks 日历天任务清单（v4.151 双工期刀2；缺省=无 cd 任务）。
+	CdTasks []CdTask `json:"cdTasks,omitempty"`
 	// LeafCount 叶任务数（不含分组行）。
 	LeafCount int `json:"leafCount"`
 }

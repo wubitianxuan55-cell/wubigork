@@ -1,5 +1,14 @@
 # 任务进度
 
+## 最新发布：v4.151.0（2026-09-08）「双工期口径刀2：agent 通道」
+
+- **对话链路打通**：ops patch_task 增 durationUnit 指针三态（空串 no-op 同 Mode；单位分支先于工期分支=工期词尾随新单位）；upsert_task 直带 cd（五闸校验）；回执口径词「工期口径→日历天（自然日定时）」「28 日历天」。
+- **对拍扩容**：Go/TS golden fixture +12 例（49→61，含 cd 全链 upsert+FS+基线）；opsSim.golden.test.ts 63/63 过。
+- **三工具**：get 带 durationUnit（wd 不出）；analyze 增 cdTasks（自然日数/等效跨度/锚点日期）+ cd 非 FS 防御发现；apply 回执「总工期 X 天（工作日）」。
+- **技能/compact**：cd 纪律入 schedule-edit（自然日定时才标 cd/仅 FS/成本按等效跨度），锚点锁 35→37；compact 三工具同步。
+- **门禁**：Go 全量绿（+3）、vitest 2576→2589、tsc -b 0、drift PASS@597、版本三处 4.151.0、build+冒烟过。
+- **待续**：刀3 板块 UI（工期列单位切换+chip+悬停等效提示+拖拽 resize 换算）→刀4 mspdi 互通（绑真机池）。
+
 ## 最新发布：v4.150.0（2026-09-08）「双工期口径刀1：任务级工期单位（模型+引擎）」
 
 - **拍板池收官项启动**：docs/gaea-schedule-dual-duration-design-2026-09.md 推荐项全采纳——`task.durationUnit?: 'wd'|'cd'` 缺省 wd 零迁移零行为变化；cd=日历天（养护/干燥类自然日定时，mspdi DurationFormat 8 同语义）。

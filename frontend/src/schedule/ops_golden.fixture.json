@@ -935,6 +935,772 @@
       "error": "第 1 条操作失败：工期为负"
     },
     {
+      "name": "patch 单位→cd+工期",
+      "base": {
+        "name": "对拍工程",
+        "startDate": "2026-09-07",
+        "tasks": [
+          {
+            "id": "A",
+            "name": "挖土",
+            "duration": 2,
+            "level": 1,
+            "progress": 0
+          },
+          {
+            "id": "B",
+            "name": "垫层",
+            "duration": 3,
+            "level": 1,
+            "progress": 40
+          }
+        ],
+        "links": [
+          {
+            "from": "A",
+            "to": "B",
+            "type": "FS",
+            "lag": 0
+          }
+        ]
+      },
+      "ops": [
+        {
+          "type": "patch_task",
+          "patch": {
+            "duration": 28,
+            "durationUnit": "cd"
+          },
+          "id": "A"
+        }
+      ],
+      "after": {
+        "name": "对拍工程",
+        "startDate": "2026-09-07",
+        "tasks": [
+          {
+            "id": "A",
+            "name": "挖土",
+            "duration": 28,
+            "level": 1,
+            "progress": 0,
+            "durationUnit": "cd"
+          },
+          {
+            "id": "B",
+            "name": "垫层",
+            "duration": 3,
+            "level": 1,
+            "progress": 40
+          }
+        ],
+        "links": [
+          {
+            "from": "A",
+            "to": "B",
+            "type": "FS",
+            "lag": 0
+          }
+        ]
+      }
+    },
+    {
+      "name": "patch 单位→wd 显式",
+      "base": {
+        "name": "对拍工程",
+        "startDate": "2026-09-07",
+        "tasks": [
+          {
+            "id": "A",
+            "name": "挖土",
+            "duration": 2,
+            "level": 1,
+            "progress": 0
+          },
+          {
+            "id": "B",
+            "name": "垫层",
+            "duration": 3,
+            "level": 1,
+            "progress": 40
+          }
+        ],
+        "links": [
+          {
+            "from": "A",
+            "to": "B",
+            "type": "FS",
+            "lag": 0
+          }
+        ]
+      },
+      "ops": [
+        {
+          "type": "upsert_task",
+          "task": {
+            "id": "H",
+            "name": "养护",
+            "duration": 28,
+            "level": 1,
+            "progress": 0,
+            "durationUnit": "cd"
+          }
+        },
+        {
+          "type": "patch_task",
+          "patch": {
+            "durationUnit": "wd"
+          },
+          "id": "H"
+        }
+      ],
+      "after": {
+        "name": "对拍工程",
+        "startDate": "2026-09-07",
+        "tasks": [
+          {
+            "id": "A",
+            "name": "挖土",
+            "duration": 2,
+            "level": 1,
+            "progress": 0
+          },
+          {
+            "id": "B",
+            "name": "垫层",
+            "duration": 3,
+            "level": 1,
+            "progress": 40
+          },
+          {
+            "id": "H",
+            "name": "养护",
+            "duration": 28,
+            "level": 1,
+            "progress": 0,
+            "durationUnit": "wd"
+          }
+        ],
+        "links": [
+          {
+            "from": "A",
+            "to": "B",
+            "type": "FS",
+            "lag": 0
+          }
+        ]
+      }
+    },
+    {
+      "name": "patch 单位非法",
+      "base": {
+        "name": "对拍工程",
+        "startDate": "2026-09-07",
+        "tasks": [
+          {
+            "id": "A",
+            "name": "挖土",
+            "duration": 2,
+            "level": 1,
+            "progress": 0
+          },
+          {
+            "id": "B",
+            "name": "垫层",
+            "duration": 3,
+            "level": 1,
+            "progress": 40
+          }
+        ],
+        "links": [
+          {
+            "from": "A",
+            "to": "B",
+            "type": "FS",
+            "lag": 0
+          }
+        ]
+      },
+      "ops": [
+        {
+          "type": "patch_task",
+          "patch": {
+            "durationUnit": "week"
+          },
+          "id": "A"
+        }
+      ],
+      "error": "第 1 条操作失败：工期单位非法（wd|cd）：week"
+    },
+    {
+      "name": "patch 单位空串=no-op",
+      "base": {
+        "name": "对拍工程",
+        "startDate": "2026-09-07",
+        "tasks": [
+          {
+            "id": "A",
+            "name": "挖土",
+            "duration": 2,
+            "level": 1,
+            "progress": 0
+          },
+          {
+            "id": "B",
+            "name": "垫层",
+            "duration": 3,
+            "level": 1,
+            "progress": 40
+          }
+        ],
+        "links": [
+          {
+            "from": "A",
+            "to": "B",
+            "type": "FS",
+            "lag": 0
+          }
+        ]
+      },
+      "ops": [
+        {
+          "type": "patch_task",
+          "patch": {
+            "durationUnit": ""
+          },
+          "id": "A"
+        }
+      ],
+      "error": "第 1 条操作失败：patch_task 未提供任何字段"
+    },
+    {
+      "name": "patch cd 分组行拒绝",
+      "base": {
+        "name": "对拍工程",
+        "startDate": "2026-09-07",
+        "tasks": [
+          {
+            "id": "G",
+            "name": "基础工程",
+            "duration": 0,
+            "level": 0,
+            "progress": 0
+          },
+          {
+            "id": "A",
+            "name": "挖土",
+            "duration": 2,
+            "level": 1,
+            "progress": 0
+          },
+          {
+            "id": "B",
+            "name": "垫层",
+            "duration": 3,
+            "level": 1,
+            "progress": 40
+          }
+        ],
+        "links": [
+          {
+            "from": "A",
+            "to": "B",
+            "type": "FS",
+            "lag": 0
+          }
+        ]
+      },
+      "ops": [
+        {
+          "type": "patch_task",
+          "patch": {
+            "durationUnit": "cd"
+          },
+          "id": "G"
+        }
+      ],
+      "error": "第 1 条操作失败：分组行 G 禁止日历天（cd）工期（汇总唯一口径为子孙求和）"
+    },
+    {
+      "name": "patch cd 里程碑拒绝",
+      "base": {
+        "name": "对拍工程",
+        "startDate": "2026-09-07",
+        "tasks": [
+          {
+            "id": "A",
+            "name": "挖土",
+            "duration": 2,
+            "level": 1,
+            "progress": 0
+          },
+          {
+            "id": "B",
+            "name": "垫层",
+            "duration": 3,
+            "level": 1,
+            "progress": 40
+          }
+        ],
+        "links": [
+          {
+            "from": "A",
+            "to": "B",
+            "type": "FS",
+            "lag": 0
+          }
+        ]
+      },
+      "ops": [
+        {
+          "type": "patch_task",
+          "patch": {
+            "isMilestone": true
+          },
+          "id": "B"
+        },
+        {
+          "type": "patch_task",
+          "patch": {
+            "durationUnit": "cd"
+          },
+          "id": "B"
+        }
+      ],
+      "error": "第 2 条操作失败：里程碑 B 禁止日历天（cd）工期"
+    },
+    {
+      "name": "patch 单位cd+工期超上限",
+      "base": {
+        "name": "对拍工程",
+        "startDate": "2026-09-07",
+        "tasks": [
+          {
+            "id": "A",
+            "name": "挖土",
+            "duration": 2,
+            "level": 1,
+            "progress": 0
+          },
+          {
+            "id": "B",
+            "name": "垫层",
+            "duration": 3,
+            "level": 1,
+            "progress": 40
+          }
+        ],
+        "links": [
+          {
+            "from": "A",
+            "to": "B",
+            "type": "FS",
+            "lag": 0
+          }
+        ]
+      },
+      "ops": [
+        {
+          "type": "patch_task",
+          "patch": {
+            "duration": 3651,
+            "durationUnit": "cd"
+          },
+          "id": "A"
+        }
+      ],
+      "error": "第 1 条操作失败：日历天工期超上限（3650）：3651"
+    },
+    {
+      "name": "upsert cd 任务",
+      "base": {
+        "name": "对拍工程",
+        "startDate": "2026-09-07",
+        "tasks": [
+          {
+            "id": "A",
+            "name": "挖土",
+            "duration": 2,
+            "level": 1,
+            "progress": 0
+          },
+          {
+            "id": "B",
+            "name": "垫层",
+            "duration": 3,
+            "level": 1,
+            "progress": 40
+          }
+        ],
+        "links": [
+          {
+            "from": "A",
+            "to": "B",
+            "type": "FS",
+            "lag": 0
+          }
+        ]
+      },
+      "ops": [
+        {
+          "type": "upsert_task",
+          "task": {
+            "id": "H",
+            "name": "养护",
+            "duration": 28,
+            "level": 1,
+            "progress": 0,
+            "durationUnit": "cd"
+          }
+        }
+      ],
+      "after": {
+        "name": "对拍工程",
+        "startDate": "2026-09-07",
+        "tasks": [
+          {
+            "id": "A",
+            "name": "挖土",
+            "duration": 2,
+            "level": 1,
+            "progress": 0
+          },
+          {
+            "id": "B",
+            "name": "垫层",
+            "duration": 3,
+            "level": 1,
+            "progress": 40
+          },
+          {
+            "id": "H",
+            "name": "养护",
+            "duration": 28,
+            "level": 1,
+            "progress": 0,
+            "durationUnit": "cd"
+          }
+        ],
+        "links": [
+          {
+            "from": "A",
+            "to": "B",
+            "type": "FS",
+            "lag": 0
+          }
+        ]
+      }
+    },
+    {
+      "name": "upsert cd 里程碑拒绝",
+      "base": {
+        "name": "对拍工程",
+        "startDate": "2026-09-07",
+        "tasks": [
+          {
+            "id": "A",
+            "name": "挖土",
+            "duration": 2,
+            "level": 1,
+            "progress": 0
+          },
+          {
+            "id": "B",
+            "name": "垫层",
+            "duration": 3,
+            "level": 1,
+            "progress": 40
+          }
+        ],
+        "links": [
+          {
+            "from": "A",
+            "to": "B",
+            "type": "FS",
+            "lag": 0
+          }
+        ]
+      },
+      "ops": [
+        {
+          "type": "upsert_task",
+          "task": {
+            "id": "M",
+            "name": "m",
+            "duration": 0,
+            "level": 1,
+            "progress": 0,
+            "isMilestone": true,
+            "durationUnit": "cd"
+          }
+        }
+      ],
+      "error": "第 1 条操作失败：里程碑 M 禁止日历天（cd）工期"
+    },
+    {
+      "name": "upsert cd 分组行拒绝",
+      "base": {
+        "name": "对拍工程",
+        "startDate": "2026-09-07",
+        "tasks": [
+          {
+            "id": "A",
+            "name": "挖土",
+            "duration": 2,
+            "level": 1,
+            "progress": 0
+          },
+          {
+            "id": "B",
+            "name": "垫层",
+            "duration": 3,
+            "level": 1,
+            "progress": 40
+          }
+        ],
+        "links": [
+          {
+            "from": "A",
+            "to": "B",
+            "type": "FS",
+            "lag": 0
+          }
+        ]
+      },
+      "ops": [
+        {
+          "type": "upsert_task",
+          "task": {
+            "id": "G2",
+            "name": "g",
+            "duration": 0,
+            "level": 0,
+            "progress": 0,
+            "durationUnit": "cd"
+          }
+        }
+      ],
+      "error": "第 1 条操作失败：分组行 G2 禁止日历天（cd）工期（汇总唯一口径为子孙求和）"
+    },
+    {
+      "name": "upsert cd 超上限",
+      "base": {
+        "name": "对拍工程",
+        "startDate": "2026-09-07",
+        "tasks": [
+          {
+            "id": "A",
+            "name": "挖土",
+            "duration": 2,
+            "level": 1,
+            "progress": 0
+          },
+          {
+            "id": "B",
+            "name": "垫层",
+            "duration": 3,
+            "level": 1,
+            "progress": 40
+          }
+        ],
+        "links": [
+          {
+            "from": "A",
+            "to": "B",
+            "type": "FS",
+            "lag": 0
+          }
+        ]
+      },
+      "ops": [
+        {
+          "type": "upsert_task",
+          "task": {
+            "id": "H",
+            "name": "x",
+            "duration": 4000,
+            "level": 1,
+            "progress": 0,
+            "durationUnit": "cd"
+          }
+        }
+      ],
+      "error": "第 1 条操作失败：任务 H 日历天工期超上限（3650）：4000"
+    },
+    {
+      "name": "upsert 单位非法",
+      "base": {
+        "name": "对拍工程",
+        "startDate": "2026-09-07",
+        "tasks": [
+          {
+            "id": "A",
+            "name": "挖土",
+            "duration": 2,
+            "level": 1,
+            "progress": 0
+          },
+          {
+            "id": "B",
+            "name": "垫层",
+            "duration": 3,
+            "level": 1,
+            "progress": 40
+          }
+        ],
+        "links": [
+          {
+            "from": "A",
+            "to": "B",
+            "type": "FS",
+            "lag": 0
+          }
+        ]
+      },
+      "ops": [
+        {
+          "type": "upsert_task",
+          "task": {
+            "id": "H",
+            "name": "x",
+            "duration": 1,
+            "level": 1,
+            "progress": 0,
+            "durationUnit": "week"
+          }
+        }
+      ],
+      "error": "第 1 条操作失败：任务 H 工期单位非法（wd|cd）：week"
+    },
+    {
+      "name": "cd 全链 upsert+FS+基线",
+      "base": {
+        "name": "对拍工程",
+        "startDate": "2026-09-07",
+        "tasks": [
+          {
+            "id": "A",
+            "name": "挖土",
+            "duration": 2,
+            "level": 1,
+            "progress": 0
+          },
+          {
+            "id": "B",
+            "name": "垫层",
+            "duration": 3,
+            "level": 1,
+            "progress": 40
+          }
+        ],
+        "links": [
+          {
+            "from": "A",
+            "to": "B",
+            "type": "FS",
+            "lag": 0
+          }
+        ]
+      },
+      "ops": [
+        {
+          "type": "upsert_task",
+          "task": {
+            "id": "H",
+            "name": "养护",
+            "duration": 28,
+            "level": 1,
+            "progress": 0,
+            "durationUnit": "cd"
+          }
+        },
+        {
+          "type": "set_links",
+          "toId": "H",
+          "links": [
+            {
+              "from": "B"
+            }
+          ]
+        },
+        {
+          "type": "set_baseline",
+          "baselineName": "含养护",
+          "savedAt": "2026-09-07 08:00"
+        }
+      ],
+      "after": {
+        "name": "对拍工程",
+        "startDate": "2026-09-07",
+        "tasks": [
+          {
+            "id": "A",
+            "name": "挖土",
+            "duration": 2,
+            "level": 1,
+            "progress": 0
+          },
+          {
+            "id": "B",
+            "name": "垫层",
+            "duration": 3,
+            "level": 1,
+            "progress": 40
+          },
+          {
+            "id": "H",
+            "name": "养护",
+            "duration": 28,
+            "level": 1,
+            "progress": 0,
+            "durationUnit": "cd"
+          }
+        ],
+        "links": [
+          {
+            "from": "A",
+            "to": "B",
+            "type": "FS",
+            "lag": 0
+          },
+          {
+            "from": "B",
+            "to": "H",
+            "type": "FS",
+            "lag": 0
+          }
+        ],
+        "baseline": {
+          "name": "含养护",
+          "savedAt": "2026-09-07 08:00",
+          "duration": 25,
+          "rows": {
+            "A": {
+              "name": "挖土",
+              "es": 0,
+              "ef": 2,
+              "dur": 2,
+              "critical": true
+            },
+            "B": {
+              "name": "垫层",
+              "es": 2,
+              "ef": 5,
+              "dur": 3,
+              "critical": true
+            },
+            "H": {
+              "name": "养护",
+              "es": 5,
+              "ef": 25,
+              "dur": 20,
+              "critical": true
+            }
+          }
+        }
+      }
+    },
+    {
       "name": "remove 分组级联子孙与搭接",
       "base": {
         "name": "对拍工程",

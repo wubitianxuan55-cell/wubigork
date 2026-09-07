@@ -300,3 +300,62 @@ func TestOpsResourceOpsEndToEnd(t *testing.T) {
 // ptrStr / resTypePtr ops_test 局部指针助手（floatPtr 复用 cost_test.go）。
 func ptrStr(v string) *string                 { return &v }
 func resTypePtr(t ResourceType) *ResourceType { return &t }
+
+// TestOpsPatchTaskDurationUnit 双工期刀2（v4.151）：patch/upsert 的工期口径
+// 三态、守卫与回执文案（语义对拍在 golden，本测钉回执口径词）。
+func TestOpsPatchTaskDurationUnit(t *testing.T) {
+	p := Project{
+		Name:      "口径样板",
+		StartDate: "2026-09-07",
+		Tasks:     []Task{{ID: "A", Name: "挖土", Duration: 2, Level: 1}, {ID: "G", Name: "分组", Level: 0}},
+	}
+	// 单位→cd + 工期：回执带「日历天（自然日定时）」与「日历天」
+	sums, err := ApplyOps(&p, []Op{{Type: "patch_task", ID: "A", Patch: &patchTask{
+		DurationUnit: (*DurationUnit)(gStrPtr("cd")), Duration: gIntPtr(28),
+	}}})
+	if err != nil {
+		t.Fatalf("apply: %v", err)
+	}
+	if !strings.Contains(sums[0], "工期口径→日历天（自然日定时）") || !strings.Contains(sums[0], "28 日历天") {
+		t.Fatalf("cd 摘要 = %q", sums[0])
+	}
+	if p.Tasks[0].DurationUnit != UnitCd || p.Tasks[0].Duration != 28 {
+		t.Fatalf("未写入：%+v", p.Tasks[0])
+	}
+	// cd 任务再调工期：工期词=日历天
+	sums, err = ApplyOps(&p, []Op{{Type: "patch_task", ID: "A", Patch: &patchTask{Duration: gIntPtr(30)}}})
+	if err != nil || !strings.Contains(sums[0], "28→30 日历天") {
+		t.Fatalf("cd 工期摘要 = %q err=%v", sums, err)
+	}
+	// 单位→wd：回执「工期口径→工作日」
+	if sums, err = ApplyOps(&p, []Op{{Type: "patch_task", ID: "A", Patch: &patchTask{DurationUnit: (*DurationUnit)(gStrPtr("wd"))}}}); err != nil || !strings.Contains(sums[0], "工期口径→工作日") {
+		t.Fatalf("wd 摘要 = %q err=%v", sums, err)
+	}
+	if p.Tasks[0].DurationUnit != UnitWd {
+		t.Fatalf("wd 未写入：%+v", p.Tasks[0])
+	}
+	// 守卫：非法枚举/空串 no-op/分组行 cd/cd 超上限
+	if _, err := ApplyOps(&p, []Op{{Type: "patch_task", ID: "A", Patch: &patchTask{DurationUnit: (*DurationUnit)(gStrPtr("week"))}}}); err == nil || !strings.Contains(err.Error(), "工期单位非法") {
+		t.Fatalf("非法单位应拒绝：%v", err)
+	}
+	if _, err := ApplyOps(&p, []Op{{Type: "patch_task", ID: "A", Patch: &patchTask{DurationUnit: (*DurationUnit)(gStrPtr(""))}}}); err == nil || !strings.Contains(err.Error(), "未提供任何字段") {
+		t.Fatalf("空串应 no-op 报无字段：%v", err)
+	}
+	if _, err := ApplyOps(&p, []Op{{Type: "patch_task", ID: "G", Patch: &patchTask{DurationUnit: (*DurationUnit)(gStrPtr("cd"))}}}); err == nil || !strings.Contains(err.Error(), "分组行") {
+		t.Fatalf("分组行 cd 应拒绝：%v", err)
+	}
+	if _, err := ApplyOps(&p, []Op{{Type: "patch_task", ID: "A", Patch: &patchTask{DurationUnit: (*DurationUnit)(gStrPtr("cd")), Duration: gIntPtr(3651)}}}); err == nil || !strings.Contains(err.Error(), "超上限") {
+		t.Fatalf("cd 超上限应拒绝：%v", err)
+	}
+	// upsert：cd 新增回执=日历天；里程碑/非法枚举拒绝
+	sums, err = ApplyOps(&p, []Op{{Type: "upsert_task", Task: &Task{ID: "H", Name: "养护", Duration: 28, Level: 1, DurationUnit: UnitCd}}})
+	if err != nil || !strings.Contains(sums[0], "28 日历天") {
+		t.Fatalf("upsert cd 摘要 = %q err=%v", sums, err)
+	}
+	if _, err := ApplyOps(&p, []Op{{Type: "upsert_task", Task: &Task{ID: "M", Name: "m", Level: 1, IsMilestone: true, DurationUnit: UnitCd}}}); err == nil || !strings.Contains(err.Error(), "里程碑") {
+		t.Fatalf("里程碑 cd 应拒绝：%v", err)
+	}
+	if _, err := ApplyOps(&p, []Op{{Type: "upsert_task", Task: &Task{ID: "X", Name: "x", Duration: 1, Level: 1, DurationUnit: "week"}}}); err == nil || !strings.Contains(err.Error(), "工期单位非法") {
+		t.Fatalf("upsert 非法单位应拒绝：%v", err)
+	}
+}

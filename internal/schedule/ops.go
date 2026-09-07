@@ -13,15 +13,18 @@ import (
 	"strings"
 )
 
-// patchTask 部分更新载荷（指针三态：nil=不动；Mode 指针区分「不改」与「改 auto」）。
+// patchTask 部分更新载荷（指针三态：nil=不动；Mode 指针区分「不改」与「改 auto」；
+// DurationUnit 指针三态，空串 no-op 同 Mode，v4.151 双工期刀2）。
 type patchTask struct {
-	Name        *string   `json:"name,omitempty"`
-	Level       *int      `json:"level,omitempty"`
-	Duration    *int      `json:"duration,omitempty"`
-	Progress    *int      `json:"progress,omitempty"`
-	IsMilestone *bool     `json:"isMilestone,omitempty"`
-	Mode        *TaskMode `json:"mode,omitempty"`
-	ManualStart *int      `json:"manualStart,omitempty"`
+	Name        *string       `json:"name,omitempty"`
+	Level       *int          `json:"level,omitempty"`
+	Duration    *int          `json:"duration,omitempty"`
+	Progress    *int          `json:"progress,omitempty"`
+	IsMilestone *bool         `json:"isMilestone,omitempty"`
+	Mode        *TaskMode     `json:"mode,omitempty"`
+	ManualStart *int          `json:"manualStart,omitempty"`
+	// DurationUnit 工期单位（wd|cd；v4.151 双工期刀2）。cd 仅限叶任务非里程碑。
+	DurationUnit *DurationUnit `json:"durationUnit,omitempty"`
 	// FixedCost 任务固定成本（元，叶任务专属；v4.122 资源成本刀2。
 	// 分组行拒绝=汇总唯一口径为子孙求和，拍板项 4）。
 	FixedCost *float64 `json:"fixedCost,omitempty"`
@@ -122,6 +125,23 @@ func applyOne(p *Project, op Op) (string, error) {
 		if badMoney(t.FixedCost) {
 			return "", fmt.Errorf("任务 %s 固定成本非法（须为非负有限数）：%v", t.ID, t.FixedCost)
 		}
+		// 工期单位（v4.151 双工期刀2）：校验同 Validate（枚举/分组行/里程碑/上限）。
+		switch t.DurationUnit {
+		case "", UnitWd, UnitCd:
+		default:
+			return "", fmt.Errorf("任务 %s 工期单位非法（wd|cd）：%s", t.ID, t.DurationUnit)
+		}
+		if t.DurationUnit == UnitCd {
+			if t.Level == 0 {
+				return "", fmt.Errorf("分组行 %s 禁止日历天（cd）工期（汇总唯一口径为子孙求和）", t.ID)
+			}
+			if t.IsMilestone {
+				return "", fmt.Errorf("里程碑 %s 禁止日历天（cd）工期", t.ID)
+			}
+			if t.Duration > 3650 {
+				return "", fmt.Errorf("任务 %s 日历天工期超上限（3650）：%d", t.ID, t.Duration)
+			}
+		}
 		at := len(p.Tasks)
 		if op.AfterID != "" {
 			idx := indexOfTask(p.Tasks, op.AfterID)
@@ -134,8 +154,12 @@ func applyOne(p *Project, op Op) (string, error) {
 			p.Tasks[idx] = *t
 			return fmt.Sprintf("更新任务「%s」", t.Name), nil
 		}
+		unit := "工作日"
+		if t.DurationUnit == UnitCd {
+			unit = "日历天"
+		}
 		p.Tasks = append(p.Tasks[:at], append([]Task{*t}, p.Tasks[at:]...)...)
-		return fmt.Sprintf("新增任务「%s」（工期 %d 工作日）", t.Name, t.Duration), nil
+		return fmt.Sprintf("新增任务「%s」（工期 %d %s）", t.Name, t.Duration, unit), nil
 
 	case "patch_task":
 		idx := indexOfTask(p.Tasks, op.ID)
@@ -150,11 +174,40 @@ func applyOne(p *Project, op Op) (string, error) {
 				t.Name = *pt.Name
 				changes = append(changes, fmt.Sprintf("改名「%s」", *pt.Name))
 			}
+			if pt.DurationUnit != nil && *pt.DurationUnit != "" {
+				if *pt.DurationUnit != UnitWd && *pt.DurationUnit != UnitCd {
+					return "", fmt.Errorf("工期单位非法（wd|cd）：%s", *pt.DurationUnit)
+				}
+				if *pt.DurationUnit == UnitCd {
+					if t.Level == 0 {
+						return "", fmt.Errorf("分组行 %s 禁止日历天（cd）工期（汇总唯一口径为子孙求和）", t.ID)
+					}
+					if t.IsMilestone {
+						return "", fmt.Errorf("里程碑 %s 禁止日历天（cd）工期", t.ID)
+					}
+				}
+				t.DurationUnit = *pt.DurationUnit
+				if *pt.DurationUnit == UnitCd {
+					if t.Duration > 3650 {
+						return "", fmt.Errorf("任务 %s 日历天工期超上限（3650）：%d", t.ID, t.Duration)
+					}
+					changes = append(changes, "工期口径→日历天（自然日定时）")
+				} else {
+					changes = append(changes, "工期口径→工作日")
+				}
+			}
 			if pt.Duration != nil {
 				if *pt.Duration < 0 {
 					return "", fmt.Errorf("工期为负")
 				}
-				changes = append(changes, fmt.Sprintf("工期 %d→%d 工作日", t.Duration, *pt.Duration))
+				if t.DurationUnit == UnitCd && *pt.Duration > 3650 {
+					return "", fmt.Errorf("日历天工期超上限（3650）：%d", *pt.Duration)
+				}
+				unit := "工作日"
+				if t.DurationUnit == UnitCd {
+					unit = "日历天"
+				}
+				changes = append(changes, fmt.Sprintf("工期 %d→%d %s", t.Duration, *pt.Duration, unit))
 				t.Duration = *pt.Duration
 			}
 			if pt.Progress != nil {

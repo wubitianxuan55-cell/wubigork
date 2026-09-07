@@ -66,10 +66,13 @@ func TestScheduleEditBuiltinSkill(t *testing.T) {
 		"禁止原样重发",
 		"以回执为准",
 		"回滚本次",
+		// v4.151 双工期刀2：日历天口径（cd 用法纪律 + cdTasks 汇报清单）
+		"日历天",
+		"cdTasks",
 	}
-	// 锚点锁数：增删锚点须如实更新此期望（当前 23→31→35，v4.148 刀C +4）
-	if len(anchors) != 35 {
-		t.Fatalf("锚点锁数变化：len(anchors)=%d, want 35", len(anchors))
+	// 锚点锁数：增删锚点须如实更新此期望（当前 23→31→35→37，v4.151 双工期刀2 +2）
+	if len(anchors) != 37 {
+		t.Fatalf("锚点锁数变化：len(anchors)=%d, want 37", len(anchors))
 	}
 	body := sk.Body
 	for _, a := range anchors {

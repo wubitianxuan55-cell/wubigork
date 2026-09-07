@@ -118,3 +118,30 @@ func TestCostNarrativeLegacyPlan(t *testing.T) {
 		t.Fatalf("无资源维度旧计划叙事应全空：%+v", n)
 	}
 }
+
+// TestAnalyzeCdTasks 双工期刀2（v4.151）：混排计划的日历天任务清单
+// （自然日数/等效工作日跨度/锚点日期；显式 wd 任务不入清单）。
+func TestAnalyzeCdTasks(t *testing.T) {
+	p := Project{
+		Name:      "混排样板",
+		StartDate: "2026-09-07",
+		Tasks: []Task{
+			tsk("A", 5, nil),
+			cdTask("养护", 28, nil),
+			tsk("回填", 5, nil),
+			tsk("wd标记", 3, func(x *Task) { x.DurationUnit = UnitWd }),
+		},
+		Links: []Link{lnk("A", "养护", FS, 0), lnk("养护", "回填", FS, 0)},
+	}
+	cpm, a := p.Analyze()
+	if !cpm.OK || cpm.Duration != 30 {
+		t.Fatalf("ok=%v dur=%d, want 30", cpm.OK, cpm.Duration)
+	}
+	if len(a.CdTasks) != 1 {
+		t.Fatalf("cdTasks = %+v", a.CdTasks)
+	}
+	cd := a.CdTasks[0]
+	if cd.ID != "养护" || cd.Duration != 28 || cd.Span != 20 || cd.Anchor != "2026-09-14" {
+		t.Fatalf("cd 行 = %+v", cd)
+	}
+}

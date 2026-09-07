@@ -1,3 +1,10 @@
+## v4.151.0 · 双工期口径刀2：agent 通道（ops durationUnit + cdTasks 清单 + 技能条款）（2026-09-08）
+> 双工期四刀之本刀2（设计 §3.5）：打通对话链路——AI 可用 ops 表达养护类自然日定时工作，analyze 出日历天任务清单自检，技能写入 cd 纪律。零新绑定 **597**；**Go/TS 对拍 golden +12 例（49→61）双端同吃**。
+- ops：patch_task.durationUnit 指针三态（空串 no-op 同 Mode 先例；非法枚举报错原文）；单位分支先于工期分支——工期词尾随新单位，cd 态超 3650 当场拒；upsert_task 直带 durationUnit（校验同 Validate 五闸，新增回执「工期 28 日历天」）。
+- 三工具：get taskView 带 durationUnit（wd 不出=旧客户端零噪音）；analyze 增 cdTasks（duration 自然日数/span 等效跨度/anchor 锚点日期）+ cd 非 FS 防御发现；apply 回执「总工期 X 天（工作日）」。
+- 技能：工期分节增 cd 纪律（自然日定时才标 cd/仅 FS/成本按 ef−es=元/工日不放大；定额工期禁误标）锚点锁 35→37；汇报口径补「混排先讲 cdTasks」；compact 三工具同步。
+- 门禁 Go 全量绿（+3）、vitest 2576→**2589**、tsc -b 0、drift PASS@597、版本三处 4.151.0、build+冒烟过。刀3 板块 UI/刀4 mspdi（绑真机池）按序待续。详见 releases/v4.151.0.md。
+
 ## v4.150.0 · 双工期口径刀1：任务级工期单位（模型+引擎，TS↔Go 镜像）（2026-09-08）
 > 拍板池最后一项启动实施（推荐项全采纳）：养护类自然日定时工作不再被迫按工作日误录。`task.durationUnit?: 'wd'|'cd'` 缺省 wd 旧文件零迁移；cd=日历天，引擎完成边界 ceil 吸附工作日。绑定面 **597 零变更**。
 - 引擎：`cdToEf`/`cdLatestStart` 换算纯函数对（ceil 吸附折叠 26/27/28cd 同 ef；逆推平段镜像回退+有界双侧校正，性质 fwd(ls)≤lf<fwd(ls+1) 钉死）；cpm 增可选 ctx（Go 双入口 ComputeCpmCal/ComputeCpmPlanCal），**快路径铁律**=无 cd 任务逐位一致（既有用例零改动全绿）；缺开工日期与 cd 涉非 FS 均 fail-closed。

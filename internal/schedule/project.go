@@ -238,6 +238,13 @@ func (p Project) Analyze() (CpmResult, Analysis) {
 		if t.IsMilestone {
 			a.Milestones = append(a.Milestones, MilestoneInfo{Name: t.Name, Workday: row.ES})
 		}
+		// 日历天任务清单（v4.151 双工期刀2）：自然日数/等效工作日跨度/锚点日期。
+		if t.DurationUnit == UnitCd && t.Level != 0 {
+			a.CdTasks = append(a.CdTasks, CdTask{
+				ID: t.ID, Name: t.Name, Duration: t.Duration, Span: row.EF - row.ES,
+				Anchor: ISOOf(WdToDate(p.StartDate, row.ES, p.Calendar)),
+			})
+		}
 	}
 	return cpm, a
 }

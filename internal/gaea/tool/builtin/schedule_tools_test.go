@@ -417,3 +417,53 @@ func TestScheduleResourceOpsChain(t *testing.T) {
 		t.Fatalf("资源应已删：%s", get)
 	}
 }
+
+// TestScheduleDualDurationChain 双工期刀2（v4.151）：project 通道写 cd 任务 →
+// get 带 durationUnit → analyze 出 cdTasks 清单 → ops patch 口径词回执。
+func TestScheduleDualDurationChain(t *testing.T) {
+	dir := t.TempDir()
+	proj := `{
+		"name":"养护样板","startDate":"2026-09-07",
+		"calendar":{"workweek":[1,2,3,4,5],"holidays":[]},
+		"tasks":[{"id":"a","name":"挖土","level":1,"duration":5,"progress":0},
+		         {"id":"h","name":"养护","level":1,"duration":28,"progress":0,"durationUnit":"cd"},
+		         {"id":"b","name":"回填","level":1,"duration":5,"progress":0}],
+		"links":[{"from":"a","to":"h","type":"FS","lag":0},{"from":"h","to":"b","type":"FS","lag":0}]
+	}`
+	out := schedApply(t, dir, `{"project":`+proj+`,"summary":"生成混排计划"}`)
+	if out["duration"].(float64) != 30 {
+		t.Fatalf("duration = %v, want 30（5+20+5 等效跨度）", out["duration"])
+	}
+
+	get, err := scheduleGet{workDir: dir}.Execute(context.Background(), json.RawMessage(`{}`))
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if !strings.Contains(get, `"durationUnit":"cd"`) || !strings.Contains(get, `"ef":25`) {
+		t.Fatalf("get 缺 cd 口径: %s", get)
+	}
+
+	ana, err := scheduleAnalyze{workDir: dir}.Execute(context.Background(), json.RawMessage(`{}`))
+	if err != nil {
+		t.Fatalf("analyze: %v", err)
+	}
+	var m map[string]any
+	if err := json.Unmarshal([]byte(ana), &m); err != nil {
+		t.Fatalf("analyze 输出非 JSON: %v", err)
+	}
+	cds, ok := m["cdTasks"].([]any)
+	if !ok || len(cds) != 1 {
+		t.Fatalf("cdTasks 缺失或数量错: %s", ana)
+	}
+	cd := cds[0].(map[string]any)
+	if cd["name"].(string) != "养护" || cd["duration"].(float64) != 28 || cd["span"].(float64) != 20 || cd["anchor"].(string) != "2026-09-14" {
+		t.Fatalf("cdTasks 行 = %v", cd)
+	}
+
+	// ops 通道：patch 口径切换与 cd 工期回执词
+	out = schedApply(t, dir, `{"ops":[{"type":"patch_task","id":"b","patch":{"durationUnit":"cd","duration":10}}],"summary":"改口径"}`)
+	changes := out["changes"].([]any)
+	if len(changes) == 0 || !strings.Contains(changes[0].(string), "工期口径→日历天（自然日定时）") || !strings.Contains(changes[0].(string), "10 日历天") {
+		t.Fatalf("patch 口径回执 = %v", changes)
+	}
+}

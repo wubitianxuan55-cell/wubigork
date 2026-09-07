@@ -27,6 +27,7 @@ export interface SimOp {
   patch?: {
     name?: string; level?: number; duration?: number; progress?: number
     isMilestone?: boolean; mode?: string; manualStart?: number; fixedCost?: number
+    durationUnit?: string
   }
   id?: string
   toId?: string
@@ -66,7 +67,7 @@ function descendantIdsFlat(tasks: SchedTask[], idx: number): Set<string> {
 }
 
 /** upsert_task 的零值语义补齐（Go JSON unmarshal：缺 duration=0、缺 level=0
- *  分组行、缺 progress=0；isMilestone/mode/manualStart/fixedCost omitempty）。 */
+ *  分组行、缺 progress=0；isMilestone/mode/manualStart/fixedCost/durationUnit omitempty）。 */
 function materializeTask(t: Partial<SchedTask> & { id?: string }): SchedTask {
   return {
     id: t.id ?? '',
@@ -78,6 +79,7 @@ function materializeTask(t: Partial<SchedTask> & { id?: string }): SchedTask {
     ...(t.mode !== undefined ? { mode: t.mode } : {}),
     ...(t.manualStart !== undefined ? { manualStart: t.manualStart } : {}),
     ...(t.fixedCost !== undefined ? { fixedCost: t.fixedCost } : {}),
+    ...(t.durationUnit !== undefined ? { durationUnit: t.durationUnit } : {}),
     ...(t.custom !== undefined ? { custom: t.custom } : {}),
   }
 }
@@ -96,6 +98,15 @@ function applyOne(p: SchedProject, op: SimOp): string {
       if (t.fixedCost !== undefined && badMoney(t.fixedCost)) {
         throw new Error(`任务 ${t.id} 固定成本非法（须为非负有限数）：${t.fixedCost}`)
       }
+      // 工期单位校验（v4.151 双工期刀2，镜像 Go upsert_task）。
+      if (t.durationUnit !== undefined && t.durationUnit !== 'wd' && t.durationUnit !== 'cd') {
+        throw new Error(`任务 ${t.id} 工期单位非法（wd|cd）：${t.durationUnit}`)
+      }
+      if (t.durationUnit === 'cd') {
+        if (t.level === 0) throw new Error(`分组行 ${t.id} 禁止日历天（cd）工期（汇总唯一口径为子孙求和）`)
+        if (t.isMilestone) throw new Error(`里程碑 ${t.id} 禁止日历天（cd）工期`)
+        if (t.duration > 3650) throw new Error(`任务 ${t.id} 日历天工期超上限（3650）：${t.duration}`)
+      }
       let at = p.tasks.length
       if (op.afterId) {
         const idx = idxTask(p.tasks, op.afterId)
@@ -108,7 +119,7 @@ function applyOne(p: SchedProject, op: SimOp): string {
         return `更新任务「${t.name}」`
       }
       p.tasks.splice(at, 0, t)
-      return `新增任务「${t.name}」（工期 ${t.duration} 工作日）`
+      return `新增任务「${t.name}」（工期 ${t.duration} ${t.durationUnit === 'cd' ? '日历天' : '工作日'}）`
     }
 
     case 'patch_task': {
@@ -119,9 +130,25 @@ function applyOne(p: SchedProject, op: SimOp): string {
       if (op.patch) {
         const pt = op.patch
         if (pt.name !== undefined) { t.name = pt.name; changes.push(`改名「${pt.name}」`) }
+        if (pt.durationUnit !== undefined && pt.durationUnit !== '') {
+          if (pt.durationUnit !== 'wd' && pt.durationUnit !== 'cd') throw new Error(`工期单位非法（wd|cd）：${pt.durationUnit}`)
+          if (pt.durationUnit === 'cd') {
+            if (t.level === 0) throw new Error(`分组行 ${t.id} 禁止日历天（cd）工期（汇总唯一口径为子孙求和）`)
+            if (t.isMilestone) throw new Error(`里程碑 ${t.id} 禁止日历天（cd）工期`)
+          }
+          t.durationUnit = pt.durationUnit as SchedTask['durationUnit']
+          if (pt.durationUnit === 'cd') {
+            if ((t.duration ?? 0) > 3650) throw new Error(`任务 ${t.id} 日历天工期超上限（3650）：${t.duration}`)
+            changes.push('工期口径→日历天（自然日定时）')
+          } else {
+            changes.push('工期口径→工作日')
+          }
+        }
         if (pt.duration !== undefined) {
           if (pt.duration < 0) throw new Error('工期为负')
-          changes.push(`工期 ${t.duration}→${pt.duration} 工作日`)
+          if (t.durationUnit === 'cd' && pt.duration > 3650) throw new Error(`日历天工期超上限（3650）：${pt.duration}`)
+          const unit = t.durationUnit === 'cd' ? '日历天' : '工作日'
+          changes.push(`工期 ${t.duration}→${pt.duration} ${unit}`)
           t.duration = pt.duration
         }
         if (pt.progress !== undefined) {
