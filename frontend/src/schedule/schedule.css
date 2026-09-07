@@ -214,6 +214,20 @@
   flex: 1;
   min-height: 0;
 }
+/* 周刻度层（v4.141：dayW<12 时底层由日切周，跨月自然周段） */
+.sched-ts-week {
+  flex-shrink: 0;
+  font-size: 10px;
+  color: var(--md-sys-color-on-surface-variant, #6b7280);
+  text-align: center;
+  line-height: 20px;
+  border-right: 1px solid var(--md-sys-color-border-variant, #f0f1f3);
+  white-space: nowrap;
+  overflow: hidden;
+}
+.sched-ts-week:last-child {
+  border-right: none;
+}
 .sched-day-col {
   flex-shrink: 0;
   height: 100%;
@@ -426,6 +440,26 @@
   color: #6b7280;
   border-color: #9ca3af;
   text-decoration: line-through;
+}
+
+/* 导出预览（v4.141）：构建器 SVG 注入 viewBox 等比缩放进弹窗 */
+.sched-export-preview {
+  border: 1px solid var(--md-sys-color-border, #e5e7eb);
+  border-radius: 6px;
+  background: var(--md-sys-color-surface-container, #f6f7f9);
+  min-height: 96px;
+  max-height: 340px;
+  overflow: auto;
+  padding: 8px;
+  display: flex;
+  justify-content: center;
+}
+.sched-export-preview-body svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
 }
 
 /* ── 网络图共用（单代号/双代号） ──────────────────────────── */

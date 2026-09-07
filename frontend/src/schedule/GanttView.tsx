@@ -27,10 +27,14 @@
  *
  * v4.140：双层时标修正——时标自左向右水平排（上行=月份跨列段、下行=逐日号，
  * MS Project 口径）；此前 datehead 误用 column 主轴导致日列纵向堆叠（时间轴竖排）。
+ *
+ * v4.141：画布窗口内全览——日宽步进档改连续缩放（zoom×1.35，2~40px），「全览」
+ * 把整计划适配画布可视宽（长计划不再无限横向拉长）；底层刻度随缩放切换
+ * （dayW≥12 逐日号 / <12 自然周，周一始，跨月不断开），月层恒在顶行。
  */
 import React, { useMemo, useRef, useState } from 'react'
 import { Button, Checkbox, DatePicker, Dropdown, Input, InputNumber, Popover, Segmented, Select } from 'antd'
-import { ColumnWidthOutlined, DeleteOutlined, EditOutlined, SearchOutlined, TeamOutlined, ZoomInOutlined, ZoomOutOutlined } from '@ant-design/icons'
+import { ColumnWidthOutlined, DeleteOutlined, EditOutlined, FullscreenOutlined, SearchOutlined, TeamOutlined, ZoomInOutlined, ZoomOutOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import type { CpmResult, LinkType, SchedProject, SchedTask } from './types'
 import { isWorkingDate, normalizeCalendar, wdToDate } from './calendar'
@@ -49,7 +53,13 @@ import { loadChatPrefs, saveChatPrefs } from './chatPrefs'
 
 const ROW_H = 30
 const W: Record<string, number> = Object.fromEntries(GANTT_COLS.map((c) => [c.key, c.w]))
-const DAY_W_STEPS = [8, 14, 20, 28]
+/** 日宽连续缩放（v4.141）：下限 2px 防长计划爆画布，<12px 自动切周刻度层 */
+const DAY_W_MIN = 2
+const DAY_W_MAX = 40
+const DAY_W_DEFAULT = 20
+const ZOOM_FACTOR = 1.35
+/** 周刻度切换阈值：dayW 低于此值时底层刻度由「日」切「周」（MS Project 口径） */
+const WEEK_TIER_BELOW = 12
 const WEEKDAY_LABELS = ['日', '一', '二', '三', '四', '五', '六']
 /** 自定义字段注册表按 key 索引（行渲染 O(1) 取槽类型） */
 const CUSTOM_FIELD_BY_KEY: Record<string, CustomFieldDef> = Object.fromEntries(CUSTOM_FIELDS.map((f) => [f.key, f]))
@@ -199,7 +209,19 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult; onInsp
   const addTask = useScheduleStore((s) => s.addTask)
   const addGroup = useScheduleStore((s) => s.addGroup)
   const removeTask = useScheduleStore((s) => s.removeTask)
-  const [dayW, setDayW] = useState(20)
+  /** 日宽连续缩放（v4.141：步进档改连续值，zoom×1.35；全览=整计划适配窗口宽） */
+  const [dayW, setDayW] = useState(DAY_W_DEFAULT)
+  const canvasPaneRef = useRef<HTMLDivElement | null>(null)
+  const zoomStep = (dir: 1 | -1) =>
+    setDayW((w) => Math.min(DAY_W_MAX, Math.max(DAY_W_MIN, Math.round(w * (dir > 0 ? ZOOM_FACTOR : 1 / ZOOM_FACTOR) * 10) / 10)))
+  /** 窗口内全览：整计划时长压进画布可视宽（长计划不再无限横向拉长） */
+  const fitToWindow = () => {
+    const pane = canvasPaneRef.current
+    const avail = pane?.clientWidth ?? 0
+    if (avail <= 0) return
+    setDayW(Math.min(DAY_W_MAX, Math.max(DAY_W_MIN, Math.floor(((avail - 2) / days) * 10) / 10)))
+    if (pane) pane.scrollLeft = 0
+  }
   const [showFront, setShowFront] = useState(false)
   /** 行筛选（刀C 余项）：全部/关键/手动 + 名称文本；仅作用于横道（网络图=逻辑图不筛选） */
   const [filter, setFilter] = useState<GanttFilter>(GANTT_FILTER_DEFAULT)
@@ -364,6 +386,28 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult; onInsp
     }
     return runs
   }, [colDates])
+  /** 周刻度层（v4.141：dayW<12 时底层刻度由日切周）——连续同自然周（周一始）
+   *  合成一段，跨月不断开；label=周起始日，title=工程周序号+起止日期 */
+  const useWeekTier = dayW < WEEK_TIER_BELOW
+  const weekRuns = useMemo(() => {
+    const runs: { startIdx: number; count: number; label: string; title: string }[] = []
+    colDates.forEach((c, i) => {
+      const last = runs[runs.length - 1]
+      if (last && c.d.getUTCDay() !== 1) {
+        last.count++
+        return
+      }
+      runs.push({ startIdx: i, count: 1, label: '', title: '' })
+    })
+    for (const r of runs) {
+      const start = colDates[r.startIdx].d
+      const end = colDates[Math.min(r.startIdx + r.count - 1, colDates.length - 1)].d
+      const w = r.count * dayW
+      r.label = w >= 44 ? `${start.getUTCMonth() + 1}/${start.getUTCDate()}` : w >= 18 ? `${start.getUTCDate()}` : ''
+      r.title = `第 ${Math.floor(r.startIdx / 7) + 1} 周（${start.getUTCMonth() + 1}/${start.getUTCDate()} ~ ${end.getUTCMonth() + 1}/${end.getUTCDate()}）`
+    }
+    return runs
+  }, [colDates, dayW])
   const todayCol = useMemo(() => {
     const off = Math.floor((Date.now() - startMs) / 86400000)
     return off >= 0 && off <= days ? off : null
@@ -669,8 +713,12 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult; onInsp
             列
           </Button>
         </Popover>
-        <Button size="small" icon={<ZoomOutOutlined />} onClick={() => setDayW((w) => DAY_W_STEPS[Math.max(0, DAY_W_STEPS.indexOf(w) - 1)] ?? w)} />
-        <Button size="small" icon={<ZoomInOutlined />} onClick={() => setDayW((w) => DAY_W_STEPS[Math.min(DAY_W_STEPS.length - 1, DAY_W_STEPS.indexOf(w) + 1)] ?? w)} />
+        {/* 缩放/全览（v4.141：连续缩放 ×1.35；全览=整计划适配画布可视宽） */}
+        <Button size="small" icon={<ZoomOutOutlined />} data-testid="sched-gantt-zoomout" title="缩小（日宽 ÷1.35）" onClick={() => zoomStep(-1)} />
+        <Button size="small" icon={<ZoomInOutlined />} data-testid="sched-gantt-zoomin" title="放大（日宽 ×1.35）" onClick={() => zoomStep(1)} />
+        <Button size="small" icon={<FullscreenOutlined />} data-testid="sched-gantt-fit" title="窗口内全览：整计划适配画布宽度，不再无限横向拉长" onClick={fitToWindow}>
+          全览
+        </Button>
       </div>
       <div className="sched-gantt-frame">
         {/* 表格窗格（左）：宽度=分隔条拖动（chatPrefs 持久化），列显隐收纳 */}
@@ -935,10 +983,11 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult; onInsp
           title="拖动收纳/展开表格 · 双击复位"
         />
         {/* 画布窗格（右）：时间轴+条形+覆盖层；横滚独立，纵滚同步表格体 */}
-        <div className="sched-gantt-canvaspane" data-testid="sched-gantt-canvas" onScroll={onCanvasScroll}>
+        <div className="sched-gantt-canvaspane" data-testid="sched-gantt-canvas" ref={canvasPaneRef} onScroll={onCanvasScroll}>
           <div className="sched-gantt-canvas-inner" style={{ width: chartW }}>
             <div className="sched-gantt-row sched-gantt-head" style={{ height: 40, width: chartW }}>
-              {/* 双层时标（MS Project 口径，自左向右）：上行=月份跨列段，下行=逐日号 */}
+              {/* 双层时标（MS Project 口径，自左向右）：上行=月份跨列段；
+                  下行随缩放切换刻度——dayW≥12 逐日号，<12 自然周（周一起始） */}
               <div className="sched-gantt-datehead" style={{ width: chartW }}>
                 <div className="sched-ts-months">
                   {monthRuns.map((r, i) => {
@@ -950,13 +999,23 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult; onInsp
                     )
                   })}
                 </div>
-                <div className="sched-ts-days">
-                  {colDates.map((c, i) => (
-                    <div key={i} className={`sched-day-col${c.offWork ? ' sched-day-off' : ''}`} style={{ width: dayW }} title={c.offWork ? '非工作日' : `周${WEEKDAY_LABELS[c.d.getUTCDay()]}`}>
-                      <div className="sched-day-cell">{dayW >= 14 || (dayW >= 10 && i % 2 === 0) ? c.d.getUTCDate() : ''}</div>
-                    </div>
-                  ))}
-                </div>
+                {useWeekTier ? (
+                  <div className="sched-ts-days">
+                    {weekRuns.map((r, i) => (
+                      <div key={i} className="sched-ts-week" style={{ width: r.count * dayW }} title={r.title}>
+                        {r.label}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="sched-ts-days">
+                    {colDates.map((c, i) => (
+                      <div key={i} className={`sched-day-col${c.offWork ? ' sched-day-off' : ''}`} style={{ width: dayW }} title={c.offWork ? '非工作日' : `周${WEEKDAY_LABELS[c.d.getUTCDay()]}`}>
+                        <div className="sched-day-cell">{dayW >= 14 || (dayW >= 10 && i % 2 === 0) ? c.d.getUTCDate() : ''}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
             {(() => {

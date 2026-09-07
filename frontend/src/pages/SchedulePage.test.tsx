@@ -215,3 +215,34 @@ describe('SchedulePage 命令区三行（v4.140：菜单栏/工具栏/信息条�
     expect(task.some((t) => t.startsWith('删除选中') && !t.endsWith('(dis)'))).toBe(true)
   })
 })
+
+describe('SchedulePage 导出预览（v4.141：所见即所得）', () => {
+  it('打开导出图面弹窗后生成预览 SVG（注入 viewBox，可等比缩放）', async () => {
+    seed({
+      project: {
+        name: '当前计划', startDate: '2026-09-07',
+        tasks: [
+          { id: 'A', name: '挖土', duration: 2, level: 1, progress: 0 },
+          { id: 'B', name: '垫层', duration: 2, level: 1, progress: 0 },
+        ],
+        links: [{ from: 'A', to: 'B', type: 'FS', lag: 0 }],
+      },
+      selectedId: null,
+    })
+    render(<SchedulePage />)
+    await act(async () => { fireEvent.click(screen.getByTestId('sched-menu-file')) })
+    const item = await waitFor(() => {
+      const el = Array.from(document.querySelectorAll('.ant-dropdown:not(.ant-dropdown-hidden) .ant-dropdown-menu-item'))
+        .find((i) => i.textContent?.includes('导出图面'))
+      if (!el) throw new Error('菜单未开')
+      return el
+    })
+    await act(async () => { fireEvent.click(item) })
+    const preview = await waitFor(() => {
+      const svg = document.querySelector('[data-testid="sched-export-preview"] svg')
+      if (!svg) throw new Error('预览未生成')
+      return svg
+    }, { timeout: 3000 })
+    expect(preview.getAttribute('viewBox')).toMatch(/^0 0 [\d.]+ [\d.]+$/)
+  })
+})

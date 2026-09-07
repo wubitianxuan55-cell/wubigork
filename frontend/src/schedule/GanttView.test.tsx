@@ -492,3 +492,39 @@ describe('GanttView 双层时标（v4.140：自左向右水平）', () => {
     expect(nums[0]).toBe(7) // 样板开工 2026-09-07
   })
 })
+
+describe('GanttView 缩放与周刻度（v4.141：窗口内全览）', () => {
+  beforeEach(() => {
+    localStorage.removeItem(CHAT_PREFS_KEY)
+    useScheduleStore.setState({ project: chainProject(), selectedId: null, hydrated: true, sync: 'saved', syncError: null })
+  })
+
+  it('连续缩小跨过 12px 阈值：底层刻度由日切周（月层保留），周段=自然周周一始', () => {
+    const p = chainProject()
+    render(<GanttView project={p} cpm={computeCpm(p.tasks, p.links)} />)
+    expect(document.querySelectorAll('.sched-day-col').length).toBeGreaterThan(0)
+    fireEvent.click(screen.getByTestId('sched-gantt-zoomout'))
+    fireEvent.click(screen.getByTestId('sched-gantt-zoomout')) // 20/1.35²≈11.0 <12 → 周层
+    const weeks = document.querySelectorAll('.sched-ts-week')
+    expect(weeks.length).toBeGreaterThanOrEqual(3) // 2026-09-07(周一) 起 21 天=3 个自然周
+    expect(document.querySelectorAll('.sched-ts-month').length).toBeGreaterThanOrEqual(1)
+    expect(weeks[0].textContent).toBe('9/7') // 首周段标注起始日
+    expect(document.querySelectorAll('.sched-day-col').length).toBe(0)
+  })
+
+  it('连续放大不超过上限；再点全览=整计划适配画布宽并回到日刻度', () => {
+    const p = chainProject()
+    render(<GanttView project={p} cpm={computeCpm(p.tasks, p.links)} />)
+    for (let i = 0; i < 8; i++) fireEvent.click(screen.getByTestId('sched-gantt-zoomin'))
+    // 连续放大后仍能全览收回
+    const pane = screen.getByTestId('sched-gantt-canvas')
+    Object.defineProperty(pane, 'clientWidth', { value: 800, configurable: true })
+    fireEvent.click(screen.getByTestId('sched-gantt-fit'))
+    const w = Array.from(document.querySelectorAll('.sched-ts-month')).reduce(
+      (s, el) => s + Number.parseFloat((el as HTMLElement).style.width), 0,
+    )
+    expect(w).toBeGreaterThan(600) // 21 天铺满 ~800px 窗
+    expect(w).toBeLessThanOrEqual(800)
+    expect(document.querySelectorAll('.sched-day-col').length).toBeGreaterThan(0) // 日宽回到 ≥12 → 日层
+  })
+})

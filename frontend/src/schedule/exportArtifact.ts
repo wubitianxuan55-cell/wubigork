@@ -17,6 +17,16 @@ function svgSize(svg: string): { w: number; h: number } {
   return { w, h }
 }
 
+/** 注入 viewBox（预览用：有 viewBox 的 SVG 可被 CSS 等比缩放进容器） */
+export function svgWithViewBox(svg: string): string {
+  const tag = /<svg[^>]*>/i.exec(svg)?.[0]
+  if (!tag || /viewBox=/i.test(tag)) return svg
+  const w = /width="([\d.]+)"/i.exec(tag)
+  const h = /height="([\d.]+)"/i.exec(tag)
+  if (!w || !h) return svg
+  return svg.replace(tag, tag.replace(/height="([\d.]+)"/i, `viewBox="0 0 ${w[1]} ${h[1]}" height="$1"`))
+}
+
 /** SVG 字符串 → Image（Blob URL 加载；加载完成后即回收 URL） */
 function svgToImage(svg: string): Promise<HTMLImageElement> {
   const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml;charset=utf-8' }))

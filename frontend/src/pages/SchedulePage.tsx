@@ -35,7 +35,7 @@ import { TaskInspector, type InspectorDepRow } from '../schedule/TaskInspector'
 import { wbsOf } from '../schedule/ganttGroup'
 import { buildGanttExportSvg } from '../schedule/ganttExport'
 import { buildAoaExportSvg, buildPdmExportSvg } from '../schedule/networkExport'
-import { svgToPngBlob, svgToPdfBlob, downloadBlob, printSvg } from '../schedule/exportArtifact'
+import { svgToPngBlob, svgToPdfBlob, downloadBlob, printSvg, svgWithViewBox } from '../schedule/exportArtifact'
 import { loadExportMeta, saveExportMeta, todayIso, type ExportMetaPrefs } from '../schedule/exportMeta'
 import { exportScheduleXlsx, importScheduleXlsx, importScheduleMpp } from '../schedule/api'
 import { ResourcePanel } from '../schedule/ResourcePanel'
@@ -142,9 +142,31 @@ const ExportDialog: React.FC<{
   const [kind, setKind] = useState<ExportKind>(defaultView)
   /** 横道条尾标注（v4.136 PDF 对比余项：任务名（工期）写在条上；网络图不受控） */
   const [barLabels, setBarLabels] = useState(true)
+  /** 导出预览（v4.141）：构建器产物注入 viewBox 后等比缩放进弹窗，所见即所得 */
+  const [previewSvg, setPreviewSvg] = useState<string | null>(null)
   useEffect(() => {
     if (open) setKind(defaultView) // 每次打开跟随当前视图
   }, [open, defaultView])
+  useEffect(() => {
+    if (!open || !cpm.ok) {
+      setPreviewSvg(null)
+      return
+    }
+    const t = window.setTimeout(() => {
+      try {
+        const m = { ...meta, date: meta.date || todayIso(), barLabels }
+        const art = kind === 'gantt'
+          ? buildGanttExportSvg(project, cpm, m)
+          : kind === 'aoa'
+            ? buildAoaExportSvg(project, aoa, m)
+            : buildPdmExportSvg(project, cpm, m)
+        setPreviewSvg(svgWithViewBox(art.svg))
+      } catch {
+        setPreviewSvg(null)
+      }
+    }, 350)
+    return () => window.clearTimeout(t)
+  }, [open, kind, barLabels, meta, project, cpm, aoa])
 
   const setField = (k: keyof ExportMetaPrefs) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setMeta((p) => ({ ...p, [k]: e.target.value }))
@@ -174,13 +196,21 @@ const ExportDialog: React.FC<{
   }
 
   return (
-    <Modal open={open} onCancel={onClose} title="导出图面（上报件）" footer={null} width={520} destroyOnClose>
+    <Modal open={open} onCancel={onClose} title="导出图面（上报件）" footer={null} width={720} destroyOnClose>
       <div className="sched-export-modal" data-testid="sched-export-modal" style={{ display: 'grid', gap: 10 }}>
         <Segmented
           value={kind}
           onChange={(v) => setKind(v as ExportKind)}
           options={(Object.keys(EXPORT_KIND_LABEL) as ExportKind[]).map((k) => ({ value: k, label: EXPORT_KIND_LABEL[k] }))}
         />
+        {/* 预览（v4.141）：构建器 SVG 注入 viewBox 等比缩放，导出前所见即所得 */}
+        <div className="sched-export-preview" data-testid="sched-export-preview">
+          {previewSvg ? (
+            <div className="sched-export-preview-body" dangerouslySetInnerHTML={{ __html: previewSvg }} />
+          ) : (
+            <span className="sched-dim">{cpm.ok ? '正在生成预览…' : '计划存在循环依赖，无法生成图面，请先修正搭接'}</span>
+          )}
+        </div>
         <span className="sched-dim" style={{ fontSize: 12 }}>
           {kind === 'gantt'
             ? '横道图：标题带 + 上报 6 列（序号/任务名称/工期/开始/完成/前置）+ 双行时标 + 图例 + 图签。'
