@@ -97,6 +97,20 @@ describe("planDiff buildChangeCalls（路径 → 写类调用明细）", () => {
     const map = buildChangeCalls(items);
     expect(map.get("/ws/报告.md")![0].applied).toBe(false);
   });
+
+  // v4.146 diff 确认闭环刀A：schedule_apply 进变更明细，diff 显式降级说明
+  it("schedule_apply：缺省路径回填聚合 + 诚实降级说明", () => {
+    const items: Item[] = [
+      toolItem("s1", "schedule_apply", JSON.stringify({ ops: [{ op: "add_task" }] })),
+    ];
+    const map = buildChangeCalls(items);
+    expect([...map.keys()]).toEqual(["进度计划/当前计划.gsched.json"]);
+    const call = map.get("进度计划/当前计划.gsched.json")![0];
+    expect(call.tool).toBe("schedule_apply");
+    expect(call.diff.kind).toBe("none");
+    expect(call.diff.note).toContain("无行级 diff");
+    expect(buildChangeDiff("schedule_apply", "{}").note).toContain("回执");
+  });
 });
 
 describe("planDiff pathsMatch（变更路径 ↔ Journal target）", () => {

@@ -19,6 +19,7 @@ import { formatElapsed } from "../lib/time";
 import { useNow } from "../lib/useNow";
 import type { Item } from "../lib/store";
 import { FileLinkText } from "./FileLinkText";
+import { ScheduleApplyRollback } from "./ScheduleApplyRollback";
 
 type ToolItem = Extract<Item, { kind: "tool" }>;
 
@@ -220,6 +221,10 @@ export const ToolCard = memo(function ToolCard({ item, subcalls }: { item: ToolI
       {/* v4.26 子代理 task 卡 live 化：运行中在头部行下方渲染实时活动行
           （活动预览 / 已用时 / 查看分工），不进折叠区、常驻可见。 */}
       {item.name === "task" && item.status === "running" && <TaskLiveRow item={item} />}
+
+      {/* diff 确认闭环刀A（v4.146）：schedule_apply 回执卡常驻「回滚本次」行
+          （Journal 按 target 匹配最新基线快照；无记录整行不渲染）。 */}
+      {item.name === "schedule_apply" && item.status === "done" && <ScheduleApplyRollback args={item.args} />}
 
       <div ref={bodyRef} style={{ overflow: "hidden" }}>
         <div>

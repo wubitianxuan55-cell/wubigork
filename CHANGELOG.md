@@ -1,4 +1,11 @@
+## v4.146.0 · 对话改计划回滚闭环（diff 确认卡刀A）：schedule_apply 进变更 tab + 回执卡「回滚本次」（2026-09-08）
+> v4.125 落档的 diff 确认闭环设计按刀序启动，刀A=后置回滚补全（设计原文：即使确认卡不做也独立成立）。缺口：schedule_apply 证据卡一直在 Journal，但变更 tab 白名单不含它、工具卡无回滚入口——AI 改计划后用户没有任何可点的反悔入口。纯前端，绑定面 **597 零变更**。详见 releases/v4.146.0.md。
+- 变更 tab：WRITE_TOOL_NAMES/WRITE_ONLY_TOOL_NAMES +schedule_apply（三态完备性锁同步满足）；extractChangedPaths 增可选 tool 参——缺省 path 回填「进度计划/当前计划.gsched.json」（与 Journal target 同口径，缺省路径整计划替换不漏记）；buildChangeDiff 显式降级说明（不伪造行级 diff）。
+- 工具卡：新组件 ScheduleApplyRollback——schedule_apply 卡 done 后常驻「回滚本次」行（Journal 按 target 匹配最新带基线记录，标题带 turn；点击调既有 GaeaRollbackRecord，「已被手工修改」守卫在 Go 侧；无匹配整行不渲染）。
+- 门禁 tsc -b/eslint 0、vitest **2483**（+6）、drift PASS@597、版本三处 4.146.0、build+冒烟过。刀B（diff 确认卡体）/刀C（Go 审批闸门）/刀D（ops 投影+对拍）按设计刀序待续。
+
 ## v4.145.0 · 工程复制（另存为）：管理面板第四动作 · 签证迭代底座（2026-09-08）
+
 > 观察池「多工程欠账转移」销项：管理面板此前只有新建/改名/归档/删除/载入，缺「复制」——签证「调整1→调整2」迭代只能导入覆盖或从零重录。复制副本后任务 id 同源，基线漂移/任务对比天然可用。绑定面 **596→597**（+GaeaScheduleProjectCopy）。
 - Go `GaeaScheduleProjectCopy(rel, name)`：源文件 `schedule.Load` 全套校验 → 新名 trim 非空 → SafeSlugName（冲突加序号，同 Create 口径，登记条目与游离文件都算占用）→ 深拷贝仅改 name 落新文件（任务/搭接/资源/基线/AOA 布点/日历随行）→ 索引显式登记（未归档，UpdatedAt=now）；**指针不动**（文件级动作语义，同归档——复制品是快照，用户自行切换）；回执含列表。
 - store `copyProject(rel, name)`：rel 是当前工程时先冲刷在途编辑（拷的是已存盘内容）；回执列表直接入缓存不另刷；失败只落 syncError 返回 false（fail-closed）。

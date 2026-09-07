@@ -7,10 +7,19 @@ export interface SessionChange {
 }
 
 // 会修改工作区文件的工具（用于「变更」面板汇总）。
+// schedule_apply（v4.146 diff 确认闭环刀A）：整计划替换/ops 调整落盘
+// .gsched.json——证据卡本就入 Journal，白名单纳入后变更 tab 可见、
+// 与工具卡「回滚本次」同链路。
 export const WRITE_TOOL_NAMES = new Set([
   "write_file", "edit_file", "edit_lines", "multi_edit",
   "move_file", "notebook_edit", "delete_range", "delete_symbol",
+  "schedule_apply",
 ]);
+
+/** 与 schedule/gschedSummary 的 SCHEDULE_FILE_PATH、Go DefaultRelPath 同源镜像
+ *  （schedule/store DEFAULT_SCHEDULE_PATH 同款先例）：本文件不反向拉起进度
+ *  计划 store 图谱。 */
+const SCHEDULE_DEFAULT_REL = "进度计划/当前计划.gsched.json";
 
 function pushPath(out: string[], v: unknown): void {
   if (typeof v === "string" && v.trim() !== "") out.push(v.trim());
@@ -19,7 +28,7 @@ function pushPath(out: string[], v: unknown): void {
 // 从写类工具的参数里提取被改动的工作区文件路径，与后端
 // internal/gaea/evidence/evidence.go 的 extractPaths 及
 // internal/gaea/agent/agent_helpers.go 的 extractFilePath 对齐。
-export function extractChangedPaths(args: string): string[] {
+export function extractChangedPaths(args: string, tool?: string): string[] {
   let parsed: Record<string, unknown>;
   try {
     parsed = JSON.parse(args || "{}") as Record<string, unknown>;
@@ -43,6 +52,9 @@ export function extractChangedPaths(args: string): string[] {
       }
     }
   }
+  // schedule_apply 缺省 path 由 Go 侧解析为当前计划（v4.146 刀A）——
+  // 缺省路径的整计划替换在变更聚合里不漏记（与 Journal target 同口径）。
+  if (out.length === 0 && tool === "schedule_apply") out.push(SCHEDULE_DEFAULT_REL);
   return out;
 }
 
@@ -54,7 +66,7 @@ export function buildSessionChanges(
   const map = new Map<string, { count: number; lastTouched: number }>();
   items.forEach((it, idx) => {
     if (it.kind !== "tool" || !writeTools.has(it.name)) return;
-    for (const p of extractChangedPaths(it.args || "")) {
+    for (const p of extractChangedPaths(it.args || "", it.name)) {
       const cur = map.get(p) ?? { count: 0, lastTouched: idx };
       map.set(p, { count: cur.count + 1, lastTouched: idx });
     }
@@ -115,8 +127,9 @@ export const EDIT_TOOL_NAMES = new Set([
   "delete_range", "delete_symbol",
 ]);
 
-/** 「写入」= 新建/整写/移动/生成：写入内容预览降级态（write_file 等）。 */
-export const WRITE_ONLY_TOOL_NAMES = new Set(["write_file", "move_file"]);
+/** 「写入」= 新建/整写/移动/生成：写入内容预览降级态（write_file 等）。
+ *  schedule_apply（v4.146 刀A）= 整计划替换，无行级 old/new，归写入层。 */
+export const WRITE_ONLY_TOOL_NAMES = new Set(["write_file", "move_file", "schedule_apply"]);
 
 /** 「读取」= 模型读过的输入文件（与后端 fileActionByTool read 白名单对齐）。 */
 export const READ_TOOL_NAMES = new Set(["read_file", "grep", "vision", "format_convert"]);

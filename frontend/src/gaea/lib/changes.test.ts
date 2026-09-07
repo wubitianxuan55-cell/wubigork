@@ -30,6 +30,20 @@ describe("extractChangedPaths", () => {
       expect(WRITE_TOOL_NAMES.has(name)).toBe(true);
     }
   });
+
+  // v4.146 diff 确认闭环刀A：schedule_apply 纳入写类白名单 + 缺省路径回填
+  it("schedule_apply 纳入白名单；显式 path 直取", () => {
+    expect(WRITE_TOOL_NAMES.has("schedule_apply")).toBe(true);
+    expect(extractChangedPaths('{"path":"进度计划/办公楼二期.gsched.json"}', "schedule_apply"))
+      .toEqual(["进度计划/办公楼二期.gsched.json"]);
+  });
+
+  it("schedule_apply 缺省 path 回填当前计划（其他工具不回填）", () => {
+    expect(extractChangedPaths('{"ops":[]}', "schedule_apply")).toEqual(["进度计划/当前计划.gsched.json"]);
+    expect(extractChangedPaths("{}", "schedule_apply")).toEqual(["进度计划/当前计划.gsched.json"]);
+    expect(extractChangedPaths("{}", "write_file")).toEqual([]);
+    expect(extractChangedPaths('{"path":"a.md"}')).toEqual(["a.md"]); // 不带 tool 名=旧行为不变
+  });
 });
 
 describe("extractDeliverablePaths", () => {
@@ -59,6 +73,17 @@ describe("buildSessionChanges", () => {
     expect(buildSessionChanges(items)).toEqual([
       { path: "a.md", count: 2, lastTouched: 3 },
       { path: "b.md", count: 1, lastTouched: 1 },
+    ]);
+  });
+
+  it("schedule_apply：显式 path 与缺省回填都进聚合（v4.146 刀A）", () => {
+    const items: Item[] = [
+      { kind: "tool", id: "s1", name: "schedule_apply", args: '{"path":"进度计划/办公楼二期.gsched.json","project":{}}', readOnly: false, status: "done" },
+      { kind: "tool", id: "s2", name: "schedule_apply", args: '{"ops":[{"op":"add_task"}]}', readOnly: false, status: "done" },
+    ];
+    expect(buildSessionChanges(items)).toEqual([
+      { path: "进度计划/当前计划.gsched.json", count: 1, lastTouched: 1 },
+      { path: "进度计划/办公楼二期.gsched.json", count: 1, lastTouched: 0 },
     ]);
   });
 });

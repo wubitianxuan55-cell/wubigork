@@ -1,5 +1,14 @@
 # 任务进度
 
+## 最新发布：v4.146.0（2026-09-08）「对话改计划回滚闭环（diff 确认卡刀A）」
+
+- **启动**：v4.125 落档的 diff 确认闭环设计（docs/gaea-schedule-diff-confirm-design-2026-09.md）按刀序启动——刀A 后置回滚补全（设计原文：即使确认卡不做也独立成立）。用户连续「继续」按「按建议刀路推进」理解。
+- **变更 tab**：WRITE_TOOL_NAMES/WRITE_ONLY_TOOL_NAMES +schedule_apply；extractChangedPaths(args, tool?) 缺省 path 回填当前计划；buildChangeDiff 显式降级说明。
+- **工具卡**：新组件 ScheduleApplyRollback——schedule_apply done 后常驻「回滚本次」（Journal 按 target 匹配最新带基线记录→GaeaRollbackRecord；无匹配整行不渲染；标题带 turn）。
+- **门禁**：tsc -b/eslint 0；vitest 2477→2483（+6）；drift PASS@597（零绑定）；版本三处 4.146.0；build+冒烟过。
+- **待续**：刀B（diffProjects 纯函数+ScheduleDiffCard+ApprovalModal 变体，纯前端）→刀C（Go approvalSubjectFor project 分支+锚点锁 31→N）→刀D（simulateOps TS 镜像+Go/TS 对拍）。
+- **坑（重犯）**：文档头插新刀条目吃掉上版标题（第三次）——「old_string=上版标题」式插入必须把标题带回 new_string 尾部。
+
 ## 最新发布：v4.145.0（2026-09-08）「工程复制（另存为）：管理面板第四动作 · 签证迭代底座」
 
 - **销项**：v4.139 多工程「欠账转移」候选池（该池三项清算：导入为新工程=v4.144 已销；工程复制=本刀；基线跨工程直接复制=裁定不做——不同源文件 id 无对应，按 id 漂移全噪音；跨工程资源池=设计 §7 维持不做）。

@@ -105,6 +105,12 @@ export function buildChangeDiff(tool: string, argsJson: string): ChangeDiff {
     return { kind: "none", hunks: [], note: "移动/重命名操作，无内容变化记录" };
   }
 
+  // schedule_apply（v4.146 刀A）：整计划 JSON / ops 序列，无行级片段可还原——
+  // 显式降级说明（变更 tab 可见、可回滚），不伪造红绿 diff。
+  if (tool === "schedule_apply") {
+    return { kind: "none", hunks: [], note: "整计划替换/ops 调整：无行级 diff，结果以工具回执与进度计划板块为准" };
+  }
+
   return { kind: "none", hunks: [], note: "该工具不携带 old/new 片段，无法构造行级 diff" };
 }
 
@@ -147,7 +153,7 @@ export function buildChangeCalls(
   const map = new Map<string, ChangeCall[]>();
   items.forEach((it) => {
     if (it.kind !== "tool" || !tools.has(it.name)) return;
-    const paths = extractChangedPaths(it.args || "");
+    const paths = extractChangedPaths(it.args || "", it.name);
     if (paths.length === 0) return;
     const diff = buildChangeDiff(it.name, it.args || "");
     const call: ChangeCall = {
