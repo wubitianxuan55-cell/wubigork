@@ -234,7 +234,7 @@ function applyOne(p: SchedProject, op: SimOp): string {
       // 基线快照：固化此刻排程（ops 序列中的当前位置）。savedAt 必须由调用方
       // 标注；CPM 无 planFinish 口径（Go ComputeCpm 同款）；无叶任务/环拒绝。
       if (!op.savedAt?.trim()) throw new Error('set_baseline 缺少 savedAt（YYYY-MM-DD HH:mm，由工具层标注）')
-      const cpm = computeCpm(p.tasks, p.links)
+      const cpm = computeCpm(p.tasks, p.links, { calendar: p.calendar, startDate: p.startDate })
       const r = snapshotBaseline(p, cpm, op.savedAt, op.baselineName)
       if (!r.ok) throw new Error(r.error)
       p.baseline = r.baseline

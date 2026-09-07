@@ -42,7 +42,7 @@ func Save(path string, p Project) error {
 	if err := Validate(&p); err != nil {
 		return err
 	}
-	if c := ComputeCpm(p.Tasks, p.Links); !c.OK {
+	if c := ComputeCpmCal(p.Tasks, p.Links, p.Calendar, p.StartDate); !c.OK {
 		return fmt.Errorf("%s", c.Error)
 	}
 	raw, err := json.MarshalIndent(p, "", "  ")
@@ -73,6 +73,7 @@ func Save(path string, p Project) error {
 func Validate(p *Project) error {
 	seen := make(map[string]bool, len(p.Tasks))
 	leaf := make(map[string]bool, len(p.Tasks))
+	cdTask := make(map[string]bool, len(p.Tasks))
 	for _, t := range p.Tasks {
 		if strings.TrimSpace(t.ID) == "" {
 			return fmt.Errorf("存在空 id 任务")
@@ -83,6 +84,9 @@ func Validate(p *Project) error {
 		seen[t.ID] = true
 		if t.Level != 0 {
 			leaf[t.ID] = true
+		}
+		if t.DurationUnit == UnitCd {
+			cdTask[t.ID] = true
 		}
 		if t.Level != 0 && t.Level != 1 {
 			return fmt.Errorf("任务 %s 层级非法（仅 0=分组/1=子任务）：%d", t.ID, t.Level)
@@ -95,6 +99,25 @@ func Validate(p *Project) error {
 		}
 		if t.Mode != "" && t.Mode != ModeAuto && t.Mode != ModeManual {
 			return fmt.Errorf("任务 %s 模式非法：%s", t.ID, t.Mode)
+		}
+		// 工期单位（v4.150 双工期刀1）：非空须 wd|cd；cd 仅限叶任务非里程碑
+		//（里程碑 effDur=0 口径不动，分组行汇总唯一口径为子孙求和）；数值上限
+		// 3650（与 calendar 扫描上限同源防呆）。
+		switch t.DurationUnit {
+		case "", UnitWd, UnitCd:
+		default:
+			return fmt.Errorf("任务 %s 工期单位非法（wd|cd）：%s", t.ID, t.DurationUnit)
+		}
+		if t.DurationUnit == UnitCd {
+			if t.Level == 0 {
+				return fmt.Errorf("分组行 %s 禁止日历天（cd）工期（汇总唯一口径为子孙求和）", t.ID)
+			}
+			if t.IsMilestone {
+				return fmt.Errorf("里程碑 %s 禁止日历天（cd）工期", t.ID)
+			}
+			if t.Duration > 3650 {
+				return fmt.Errorf("任务 %s 日历天工期超上限（3650）：%d", t.ID, t.Duration)
+			}
 		}
 		if t.FixedCost < 0 || math.IsNaN(t.FixedCost) || math.IsInf(t.FixedCost, 0) {
 			return fmt.Errorf("任务 %s 固定成本非法（须为非负有限数）：%v", t.ID, t.FixedCost)
@@ -111,6 +134,11 @@ func Validate(p *Project) error {
 		case FS, SS, FF, SF:
 		default:
 			return fmt.Errorf("搭接类型非法（%s→%s）：%s", l.From, l.To, l.Type)
+		}
+		// cd 任务搭接收窄（v4.150 双工期刀1）：仅 FS（SS/FF/SF 涉 cd 引入对
+		// dur 的不动点迭代，按欠账矩阵 v1 后逐格放行）。
+		if (cdTask[l.From] || cdTask[l.To]) && l.Type != FS {
+			return fmt.Errorf("日历天（cd）任务仅支持 FS 搭接（%s→%s 为 %s）", l.From, l.To, l.Type)
 		}
 	}
 	resSeen := make(map[string]bool, len(p.Resources))
@@ -189,7 +217,7 @@ func Validate(p *Project) error {
 // Analyze CPM 分析（含关键链与近关键清单）——schedule_analyze 与 apply
 // 回执共用的叙事数据。
 func (p Project) Analyze() (CpmResult, Analysis) {
-	cpm := ComputeCpmPlan(p.Tasks, p.Links, PlanFinish(&p))
+	cpm := ComputeCpmPlanCal(p.Tasks, p.Links, PlanFinish(&p), p.Calendar, p.StartDate)
 	a := Analysis{Cpm: cpm}
 	if !cpm.OK {
 		return cpm, a

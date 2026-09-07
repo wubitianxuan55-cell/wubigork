@@ -253,7 +253,7 @@ export function diffProjects(beforeRaw: SchedProject, afterRaw: SchedProject): S
 
   // ── 汇总（预览层复刻引擎 fail-closed：after CPM 不过如实标注）────
   const cpmOf = (p: SchedProject): CpmResult =>
-    computeCpm(p.tasks, p.links, { planFinish: planFinishOf(p) })
+    computeCpm(p.tasks, p.links, { planFinish: planFinishOf(p), calendar: p.calendar, startDate: p.startDate })
   const cpmB = cpmOf(before)
   const cpmA = cpmOf(after)
   const costB = computeCosts(before, cpmB)

@@ -103,7 +103,7 @@ function mockScheduleSummaries(): {
             tasks: Parameters<typeof computeCpm>[0];
             links: Parameters<typeof computeCpm>[1];
           };
-          const r = computeCpm(p.tasks, p.links, { planFinish: planFinishOf(p) });
+          const r = computeCpm(p.tasks, p.links, { planFinish: planFinishOf(p), calendar: p.calendar, startDate: p.startDate });
           duration = r.duration;
           ok = r.ok;
         } catch { /* 占位 0/false */ }
@@ -505,7 +505,7 @@ export function buildOffice(_s: MakeMockState): OfficeMethods {
           tasks: Parameters<typeof computeCpm>[0];
           links: Parameters<typeof computeCpm>[1];
         };
-        const r = computeCpm(p.tasks, p.links, { planFinish: planFinishOf(p) });
+        const r = computeCpm(p.tasks, p.links, { planFinish: planFinishOf(p), calendar: p.calendar, startDate: p.startDate });
         duration = r.duration;
         critical = Object.values(r.rows).filter((x) => x.critical).length;
       } catch { /* 坏 JSON 由真实 Go 侧拒绝，mock 宽松回 0 */ }

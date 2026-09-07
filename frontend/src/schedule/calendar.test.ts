@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { DEFAULT_CALENDAR, dateToWd, deadlineWorkdays, isWorkingDate, normalizeCalendar, wdToDate } from './calendar'
+import { DEFAULT_CALENDAR, cdLatestStart, cdToEf, dateToWd, deadlineWorkdays, isWorkingDate, normalizeCalendar, wdToDate } from './calendar'
 import type { SchedCalendar } from './types'
 
 // 2026-09-07 是周一；2026-09-12 周六、09-13 周日
@@ -67,5 +67,40 @@ describe('deadlineWorkdays（目标竣工 → 目标总工期，v4.117 刀8）',
     expect(deadlineWorkdays(MON, '2026-09-18')).toBe(10) // 两个完整工作周
     expect(deadlineWorkdays(MON, '2026-09-18', { workweek: [1, 2, 3, 4, 5], holidays: ['2026-09-11'] })).toBe(9)
     expect(deadlineWorkdays('2026-09-10', '2026-09-09')).toBe(0)
+  })
+})
+
+describe('cdToEf / cdLatestStart（双工期刀1：日历天换算，镜像 Go CdToEf/CdLatestStart）', () => {
+  it('28cd 周一起：边界=4 周后周一，等效工作日跨度 20（28wd 误录=失真 +8）', () => {
+    expect(cdToEf(MON, 0, 28)).toBe(20)
+    expect(cdToEf(MON, 0, 1)).toBe(1)
+    expect(cdToEf(MON, 0, 0)).toBe(0) // cd=0 → es
+  })
+  it('ceil 吸附：26/27/28cd 边界落周末 → 同一 ef=20（吸附折叠）', () => {
+    expect(cdToEf(MON, 0, 26)).toBe(20) // 边界周六
+    expect(cdToEf(MON, 0, 27)).toBe(20) // 边界周日
+    expect(cdToEf(MON, 0, 28)).toBe(20) // 边界恰为周一工作日
+  })
+  it('es>0 锚点随行：周四起 7cd，跨度 5 个工作日', () => {
+    expect(cdToEf(MON, 3, 7)).toBe(8) // 09-10(周四)+7 自然日=09-17(周四)
+  })
+  it('节假日窗口：边界命中节假日顺延其后首个工作日', () => {
+    const cal: SchedCalendar = { workweek: [1, 2, 3, 4, 5], holidays: ['2026-09-16'] }
+    expect(cdToEf(MON, 0, 10, cal)).toBe(7) // 边界 09-17，其前一节假日 09-16 不计入索引
+    expect(cdToEf(MON, 0, 10)).toBe(8) // 无节假日对照：边界 09-17 即索引 8
+  })
+  it('开工日为非工作日：锚点顺延后起算', () => {
+    expect(cdToEf('2026-09-12', 0, 3)).toBe(3) // 周六开工顺延周一 09-14，+3=周四
+  })
+  it('cdLatestStart：fwd(s)≤lf<fwd(s+1) 性质钉死', () => {
+    expect(cdLatestStart(MON, 20, 28)).toBe(0) // fwd(0)=20≤20<fwd(1)=21
+    expect(cdLatestStart(MON, 25, 28)).toBe(5) // fwd(5)=25≤25<fwd(6)=26
+  })
+  it('平段吸附：26cd 时 fwd(0)=fwd(1)=fwd(2)=20，逆推取最大 s=2', () => {
+    expect(cdLatestStart(MON, 20, 26)).toBe(2)
+  })
+  it('lf 过小（负时差极端）：下限截 0，两侧镜像一致', () => {
+    expect(cdLatestStart(MON, 0, 28)).toBe(0)
+    expect(cdLatestStart(MON, 19, 28)).toBe(0) // 锚点回退越过开工日
   })
 })

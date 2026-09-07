@@ -262,3 +262,47 @@ func findRow(t *testing.T, d *Drift, id string) DriftRow {
 }
 
 func intPtr(v int) *int { return &v }
+
+// ── 双工期口径（v4.150 刀1）：基线 dur=等效工作日跨度 EF−ES（镜像 TS baseline.test.ts 双工期 describe）──
+
+func cdCureProject() *Project {
+	return &Project{
+		Name:      "养护样板",
+		StartDate: "2026-09-07",
+		Tasks:     []Task{{ID: "HY", Name: "养护", Duration: 28, Level: 1, Progress: 0, DurationUnit: UnitCd}},
+	}
+}
+
+func TestBaselineCdSpan(t *testing.T) {
+	p := cdCureProject()
+	b := mustSnapshot(t, p, "2026-09-07 10:00", "")
+	row := b.Rows["HY"]
+	if row.ES != 0 || row.EF != 20 || row.Dur != 20 || !row.Critical {
+		t.Fatalf("快照行 = %+v, want dur=20（等效跨度，非自然日数 28）", row)
+	}
+
+	// 平移（manualStart 0→10）等效跨度不变：durDrift=0，shifted 仅因 es/ef
+	moved := cdCureProject()
+	moved.Tasks[0].Mode = ModeManual
+	moved.Tasks[0].ManualStart = 10
+	moved.Baseline = b
+	d := ComputeBaselineDrift(moved, ComputeCpmCal(moved.Tasks, moved.Links, nil, moved.StartDate))
+	if d == nil || len(d.Rows) != 1 {
+		t.Fatalf("drift = %+v", d)
+	}
+	if got := d.Rows[0]; got.Kind != "shifted" || got.ESDrift != 10 || got.EFDrift != 10 || got.DurDrift != 0 {
+		t.Fatalf("平移行 = %+v", got)
+	}
+
+	// 日历变化改等效跨度：durDrift 如实呈现（边界日期不变、工作日索引收缩 20→19）
+	holiday := cdCureProject()
+	holiday.Calendar = &Calendar{Workweek: []int{1, 2, 3, 4, 5}, Holidays: []string{"2026-09-16"}}
+	holiday.Baseline = b
+	dh := ComputeBaselineDrift(holiday, ComputeCpmCal(holiday.Tasks, holiday.Links, holiday.Calendar, holiday.StartDate))
+	if dh == nil || len(dh.Rows) != 1 {
+		t.Fatalf("holiday drift = %+v", dh)
+	}
+	if got := dh.Rows[0]; got.Kind != "shifted" || got.DurDrift != -1 {
+		t.Fatalf("日历漂移行 = %+v, want durDrift=-1", got)
+	}
+}

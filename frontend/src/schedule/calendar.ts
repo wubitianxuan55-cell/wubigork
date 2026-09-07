@@ -87,3 +87,45 @@ export function deadlineWorkdays(startISO: string, deadlineISO: string, calInput
   }
   return count
 }
+
+/**
+ * cd（日历天）任务正推换算（v4.150 双工期刀1）：完成边界 = 首个 ≥（es 所在
+ * 工作日 + cd 自然日）的工作日序号（ceil 吸附：边界落在周末/节假日即顺延到
+ * 其后第一个工作日；边界恰为工作日即当日；cd≤0 → es）。扫描上限与 wdToDate
+ * 同源（3650 天防呆，越界截断）。与 Go 侧 calendar.go CdToEf 互为镜像。
+ */
+export function cdToEf(startISO: string, es: number, cd: number, calInput?: SchedCalendar): number {
+  const cal = normalizeCalendar(calInput)
+  const es0 = Number.isFinite(es) && es > 0 ? Math.round(es) : 0
+  const days = Number.isFinite(cd) && cd > 0 ? Math.round(cd) : 0
+  const anchor = wdToDate(startISO, es0, cal).getTime()
+  const boundary = anchor + days * 86400000
+  let idx = es0
+  let cur = anchor
+  for (let steps = 0; steps < SCAN_LIMIT && (cur < boundary || !isWorkingDate(new Date(cur), cal)); steps++) {
+    cur += 86400000
+    if (isWorkingDate(new Date(cur), cal)) idx++
+  }
+  return idx
+}
+
+/**
+ * cd（日历天）任务逆推换算：最大的工作日序号 s 使 fwd(s) ≤ lf（fwd=cdToEf，
+ * 单调不减且有平段）。镜像回退：lf 所在工作日回退 cd 自然日、向下吸附到
+ * 工作日，再有界双侧校正至满足性质 fwd(s) ≤ lf < fwd(s+1)；下限截到 0
+ * （负时差极端场景，两侧镜像一致）。与 Go 侧 calendar.go CdLatestStart 互为镜像。
+ */
+export function cdLatestStart(startISO: string, lf: number, cd: number, calInput?: SchedCalendar): number {
+  const cal = normalizeCalendar(calInput)
+  const days = Number.isFinite(cd) && cd > 0 ? Math.round(cd) : 0
+  const lf0 = Number.isFinite(lf) && lf > 0 ? Math.round(lf) : 0
+  const start = parseISO(startISO).getTime()
+  const boundary = wdToDate(startISO, lf0, cal).getTime() - days * 86400000
+  let cur = boundary
+  while (cur > start && !isWorkingDate(new Date(cur), cal)) cur -= 86400000
+  const idx = dateToWd(startISO, isoOf(new Date(cur)), cal)
+  let s = idx != null && idx > 0 ? idx : 0
+  for (let i = 0; i < SCAN_LIMIT && s > 0 && cdToEf(startISO, s, days, cal) > lf0; i++) s--
+  for (let i = 0; i < SCAN_LIMIT && cdToEf(startISO, s + 1, days, cal) <= lf0; i++) s++
+  return s
+}

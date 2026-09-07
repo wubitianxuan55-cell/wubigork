@@ -1,3 +1,10 @@
+## v4.150.0 · 双工期口径刀1：任务级工期单位（模型+引擎，TS↔Go 镜像）（2026-09-08）
+> 拍板池最后一项启动实施（推荐项全采纳）：养护类自然日定时工作不再被迫按工作日误录。`task.durationUnit?: 'wd'|'cd'` 缺省 wd 旧文件零迁移；cd=日历天，引擎完成边界 ceil 吸附工作日。绑定面 **597 零变更**。
+- 引擎：`cdToEf`/`cdLatestStart` 换算纯函数对（ceil 吸附折叠 26/27/28cd 同 ef；逆推平段镜像回退+有界双侧校正，性质 fwd(ls)≤lf<fwd(ls+1) 钉死）；cpm 增可选 ctx（Go 双入口 ComputeCpmCal/ComputeCpmPlanCal），**快路径铁律**=无 cd 任务逐位一致（既有用例零改动全绿）；缺开工日期与 cd 涉非 FS 均 fail-closed。
+- 成本/基线换源：work 分配与基线快照/漂移改用 cpm 行等效工作日跨度 ef−es——养护期周末不记工日（28cd=20 工日×费率），wd 两值恒等有 pin；倒排/摘要卡零改动。
+- 校验：Go Validate 五闸（枚举/分组行/里程碑/3650 上限/FS-only）；TS normalizeProject 容错回落 wd。TS↔Go 同批镜像用例 vitest +26、Go +10。
+- 门禁 tsc -b 0、vitest 2550→**2576**、Go 全量绿、版本三处 4.150.0、drift PASS@597。刀2 agent 通道/刀3 板块 UI/刀4 mspdi 按序待续。详见 releases/v4.150.0.md。
+
 ## v4.149.0 · diff 确认卡刀D：ops 通道投影模拟器 + Go/TS 对拍收官（2026-09-08）
 > diff 确认闭环设计收官刀。ops 通道此前在审批卡上只是意图清单——模型说改什么就显示什么，看不到落盘后的样子。本刀交付 `simulateOps`（Go ApplyOps 逐语义 TS 镜像），审批卡在落盘前投影 ops 应用后的真实 diff（与 project 通道同管线渲染）；设计标注的最大风险「批的是 A，落的是 B」由 **Go/TS 对拍 golden fixture（49 例双端同吃，50/50 过）** 钉死。纯前端，绑定面 **597 零变更**。详见 releases/v4.149.0.md。
 - 对拍主阵地：internal/schedule/ops_golden_test.go 生成并校验 fixture（21 成功+28 失败路径，覆盖全部 12 op 及守卫分支；`-update-golden` 重生成）；opsSim.golden.test.ts 双跑逐例比对「是否失败+after 状态」（canonical 消化 omitempty 表达差）。

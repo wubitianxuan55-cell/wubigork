@@ -467,7 +467,7 @@ const SchedulePage: React.FC = () => {
     return () => window.removeEventListener('keydown', onKey)
   }, [undo, redo])
 
-  const cpm = useMemo(() => computeCpm(project.tasks, project.links, { planFinish: planFinishOf(project) }), [project])
+  const cpm = useMemo(() => computeCpm(project.tasks, project.links, { planFinish: planFinishOf(project), calendar: project.calendar, startDate: project.startDate }), [project])
   const aoa = useMemo(() => buildAoa(project.tasks, project.links, { planFinish: planFinishOf(project) }), [project])
   // 资源使用/超载（v4.137 #12/#13）：逐工作日负载 vs 可用性（工时资源；个人日历收紧可用性）
   const usage = useMemo(() => computeUsage(project, cpm), [project, cpm])

@@ -8,6 +8,7 @@ package schedule
 import (
 	"fmt"
 	"sort"
+	"strings"
 )
 
 // effDur 有效工期：里程碑为 0，其余取非负整数。
@@ -117,11 +118,10 @@ func minInt(a, b int) int {
 	return b
 }
 
-// ComputeCpm CPM 主计算。任务表全量参与（分组行 duration=0 退化为零工期点，
-// 汇总条由视图层按子项滚动，不经引擎）。
-// ComputeCpm CPM 主计算（无目标竣工锚点，按计算工期逆推）。
+// ComputeCpm CPM 主计算（无目标竣工锚点，按计算工期逆推；无日历换算上下文，
+// 含 cd 任务时 fail-closed——调用方持有 Project 时应走 ComputeCpmCal）。
 func ComputeCpm(tasks []Task, links []Link) CpmResult {
-	return computeCpmAnchor(tasks, links, 0)
+	return computeCpmFull(tasks, links, 0, nil, "")
 }
 
 // ComputeCpmPlan 带计划工期锚点的 CPM（v4.129 刀G G3）：planFinish=目标竣工换算的
@@ -129,10 +129,23 @@ func ComputeCpm(tasks []Task, links []Link) CpmResult {
 // Tp 起——绑定链出现负时差，关键工作=总时差最小者（不再恒为 TF=0）；
 // planFinish<=0 或 ≥Tc 时与 ComputeCpm 完全一致。
 func ComputeCpmPlan(tasks []Task, links []Link, planFinish int) CpmResult {
-	return computeCpmAnchor(tasks, links, planFinish)
+	return computeCpmFull(tasks, links, planFinish, nil, "")
 }
 
-func computeCpmAnchor(tasks []Task, links []Link, planFinish int) CpmResult {
+// ComputeCpmCal 带日历换算上下文的 CPM（v4.150 双工期刀1）：存在 cd（日历天）
+// 任务时以 cal/start 为换算锚点（cal 缺省回落周一~五，与 WdToDate 全部读点
+// 同口径；start 缺失 → OK=false fail-closed）。无 cd 任务时上下文不被读取，
+// 与 ComputeCpm 逐位一致。
+func ComputeCpmCal(tasks []Task, links []Link, cal *Calendar, start string) CpmResult {
+	return computeCpmFull(tasks, links, 0, cal, start)
+}
+
+// ComputeCpmPlanCal ComputeCpmPlan 的日历上下文变体（Go 无默认参，先例式双入口）。
+func ComputeCpmPlanCal(tasks []Task, links []Link, planFinish int, cal *Calendar, start string) CpmResult {
+	return computeCpmFull(tasks, links, planFinish, cal, start)
+}
+
+func computeCpmFull(tasks []Task, links []Link, planFinish int, calInput *Calendar, start string) CpmResult {
 	byID := make(map[string]Task, len(tasks))
 	ids := make([]string, 0, len(tasks))
 	for _, t := range tasks {
@@ -185,6 +198,34 @@ func computeCpmAnchor(tasks []Task, links []Link, planFinish int) CpmResult {
 		return res
 	}
 
+	// 双工期口径（v4.150 刀1）：存在 cd（日历天）任务时启用日历换算分支；
+	// 无 cd 任务走快路径（下方分支全部短路，结果与旧口径逐位一致）。
+	// fail-closed：缺开工日期无法换算；cd 涉非 FS 搭接会引入对 dur 的不动点
+	// 迭代，v1 引擎拒绝（闸在 Validate，此处防御直接调用）。
+	hasCd := false
+	for _, t := range tasks {
+		if t.DurationUnit == UnitCd {
+			hasCd = true
+			break
+		}
+	}
+	cal := Calendar{}
+	startISO := ""
+	if hasCd {
+		if strings.TrimSpace(start) == "" {
+			res.Error = "计划缺开工日期，无法计算日历天（cd）任务"
+			return res
+		}
+		cal = NormalizeCalendar(calInput)
+		startISO = start
+		for _, l := range valid {
+			if (byID[l.From].DurationUnit == UnitCd || byID[l.To].DurationUnit == UnitCd) && l.Type != FS {
+				res.Error = fmt.Sprintf("日历天（cd）任务仅支持 FS 搭接（%s → %s 为 %s）", byID[l.From].Name, byID[l.To].Name, l.Type)
+				return res
+			}
+		}
+	}
+
 	// 正推：ES = max(各搭接下界)，EF = ES + 工期；manual 任务锁定开始、忽略入边。
 	for _, id := range order {
 		t := byID[id]
@@ -193,7 +234,11 @@ func computeCpmAnchor(tasks []Task, links []Link, planFinish int) CpmResult {
 		if t.Mode == ModeManual {
 			fixed := maxInt(0, t.ManualStart)
 			row.ES = fixed
-			row.EF = fixed + dur
+			if hasCd && t.DurationUnit == UnitCd {
+				row.EF = CdToEf(startISO, fixed, dur, &cal)
+			} else {
+				row.EF = fixed + dur
+			}
 			rows[id] = row
 			continue
 		}
@@ -202,7 +247,11 @@ func computeCpmAnchor(tasks []Task, links []Link, planFinish int) CpmResult {
 			es = maxInt(es, forwardBound(l, rows[l.From], dur))
 		}
 		row.ES = es
-		row.EF = es + dur
+		if hasCd && t.DurationUnit == UnitCd {
+			row.EF = CdToEf(startISO, es, dur, &cal)
+		} else {
+			row.EF = es + dur
+		}
 		rows[id] = row
 	}
 	duration := 0
@@ -233,10 +282,20 @@ func computeCpmAnchor(tasks []Task, links []Link, planFinish int) CpmResult {
 			if byID[l.To].Mode == ModeManual {
 				continue // 手动后继不约束前置
 			}
-			lf = minInt(lf, backwardBound(l, rows[l.To], dur, effDur(byID[l.To])))
+			// FS 上界=后继最迟开始−lag：wd 后继 to.ls=to.lf−durTo 与旧式逐位
+			// 一致；cd 后继的 ls 已按日历换算（≠lf−dur），必须用 to.ls 才诚实。
+			if hasCd && l.Type == FS {
+				lf = minInt(lf, rows[l.To].LS-l.Lag)
+			} else {
+				lf = minInt(lf, backwardBound(l, rows[l.To], dur, effDur(byID[l.To])))
+			}
 		}
 		row.LF = lf
-		row.LS = lf - dur
+		if hasCd && t.DurationUnit == UnitCd {
+			row.LS = CdLatestStart(startISO, lf, dur, &cal)
+		} else {
+			row.LS = lf - dur
+		}
 		rows[id] = row
 	}
 

@@ -202,3 +202,55 @@ describe('computeBaselineDrift', () => {
     expect(d.sameCount).toBe(2)
   })
 })
+
+describe('双工期口径（v4.150 刀1）：基线 dur=等效工作日跨度 ef−es', () => {
+  const START = { startDate: '2026-09-07' }
+  function cdProject(): SchedProject {
+    return {
+      name: '养护样板',
+      startDate: '2026-09-07',
+      tasks: [{ id: 'HY', name: '养护', duration: 28, level: 1, progress: 0, durationUnit: 'cd' }],
+      links: [],
+    }
+  }
+
+  it('快照 dur 存等效跨度 20（非自然日数 28），漂移仍工作日空间', () => {
+    const p = cdProject()
+    const cpm = computeCpm(p.tasks, p.links, START)
+    const r = snapshotBaseline(p, cpm, '2026-09-07 10:00')
+    expect(r.ok).toBe(true)
+    if (r.ok) expect(r.baseline.rows.HY).toMatchObject({ es: 0, ef: 20, dur: 20, critical: true })
+  })
+
+  it('养护支路平移（es 0→10）等效跨度不变：durDrift=0，shifted 仅因 es/ef', () => {
+    const p = cdProject()
+    const base = snapshotBaseline(p, computeCpm(p.tasks, p.links, START), '2026-09-07 10:00')
+    expect(base.ok).toBe(true)
+    if (!base.ok) return
+    const moved: SchedProject = {
+      ...p,
+      baseline: base.ok ? base.baseline : null,
+      tasks: [{ id: 'HY', name: '养护', duration: 28, level: 1, progress: 0, durationUnit: 'cd', mode: 'manual', manualStart: 10 }],
+    }
+    const d = computeBaselineDrift(moved, computeCpm(moved.tasks, moved.links, START))
+    // manualStart=10 → ef=30，等效跨度 20 不变
+    expect(d).not.toBeNull()
+    if (d) {
+      expect(d.rows[0]).toMatchObject({ kind: 'shifted', esDrift: 10, efDrift: 10, durDrift: 0 })
+    }
+  })
+
+  it('日历变化改等效跨度：durDrift 如实呈现（诚实口径，非 bug）', () => {
+    const p = cdProject()
+    const base = snapshotBaseline(p, computeCpm(p.tasks, p.links, START), '2026-09-07 10:00')
+    expect(base.ok).toBe(true)
+    if (!base.ok) return
+    const cal = { workweek: [1, 2, 3, 4, 5], holidays: ['2026-09-16'] }
+    const after: SchedProject = { ...p, calendar: cal, baseline: base.ok ? base.baseline : null }
+    const d = computeBaselineDrift(after, computeCpm(after.tasks, after.links, { ...START, calendar: cal }))
+    expect(d).not.toBeNull()
+    if (d) {
+      expect(d.rows[0]).toMatchObject({ kind: 'shifted', durDrift: -1 }) // 边界日期不变、工作日索引收缩：跨度 20→19
+    }
+  })
+})

@@ -36,6 +36,16 @@ const (
 	ModeManual TaskMode = "manual"
 )
 
+// DurationUnit 工期单位（v4.150 双工期口径刀1，镜像前端 types.ts）：
+// 缺省/空=wd 工作日（现状口径，旧文件零迁移）；cd=日历天（自然日定时，
+// 对齐 mspdi DurationFormat 8）。Duration 恒为「当前单位下的数值」。
+type DurationUnit string
+
+const (
+	UnitWd DurationUnit = "wd"
+	UnitCd DurationUnit = "cd"
+)
+
 // Task 任务/分组行（Level 缩进表达 WBS 层级，扁平数组按顺序渲染）。
 type Task struct {
 	ID       string `json:"id"`
@@ -54,6 +64,9 @@ type Task struct {
 	// FixedCost 任务固定成本（元，叶任务专属；v4.122 资源成本刀1。
 	// 分组行禁止=汇总唯一口径为子孙求和）。
 	FixedCost float64 `json:"fixedCost,omitempty"`
+	// DurationUnit 工期单位（v4.150 双工期刀1：缺省/空=wd 工作日；cd=日历天，
+	// 仅限叶任务非里程碑、搭接仅 FS、数值上限 3650，见 Validate）。
+	DurationUnit DurationUnit `json:"durationUnit,omitempty"`
 	// Custom 自定义字段值（v4.138 #14：固定 5 槽 text1..num2，镜像前端
 	// customFields.ts 注册表；只存有值槽，值 string|number。旧 JSON 零迁移）。
 	Custom map[string]interface{} `json:"custom,omitempty"`

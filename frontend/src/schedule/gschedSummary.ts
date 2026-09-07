@@ -54,7 +54,7 @@ export function parseSchedSummary(raw: string): GschedSummary | null {
   }
   if (!data || typeof data !== 'object' || !Array.isArray((data as SchedProject).tasks)) return null
   const project = normalizeProject(data as SchedProject)
-  const cpm = computeCpm(project.tasks, project.links, { planFinish: planFinishOf(project) })
+  const cpm = computeCpm(project.tasks, project.links, { planFinish: planFinishOf(project), calendar: project.calendar, startDate: project.startDate })
   const leaf = project.tasks.filter((t) => t.level > 0)
   const hasSchedule = cpm.ok && leaf.length > 0 && /^\d{4}-\d{2}-\d{2}$/.test(project.startDate)
   const drift = cpm.ok ? computeBaselineDrift(project, cpm) : null

@@ -9,9 +9,13 @@
  */
 import type { BaselineDrift, BaselineDriftRow, CpmResult, SchedBaseline, SchedBaselineRow, SchedProject } from './types'
 
-/** 有效工期：里程碑为 0（与 cpm.ts effDur 同口径） */
-function effDur(t: { duration: number; isMilestone?: boolean }): number {
-  return t.isMilestone ? 0 : Math.max(0, Math.round(t.duration))
+/**
+ * 有效工期快照口径（v4.150 双工期刀1 换源）：cpm 行的等效工作日跨度 ef−es
+ * （wd 任务=effDur 逐位相等；cd 任务=养护窗口内的工作日数——基线漂移仍在
+ * 工作日空间对比，「等效跨度随日历/位置变化」是诚实口径非 bug）。
+ */
+function rowDur(row: { es: number; ef: number }): number {
+  return row.ef - row.es
 }
 
 /**
@@ -30,7 +34,7 @@ export function snapshotBaseline(
     if (t.level === 0) continue
     const row = cpm.rows[t.id]
     if (!row) continue
-    rows[t.id] = { name: t.name, es: row.es, ef: row.ef, dur: effDur(t), critical: row.critical }
+    rows[t.id] = { name: t.name, es: row.es, ef: row.ef, dur: rowDur(row), critical: row.critical }
   }
   if (Object.keys(rows).length === 0) {
     return { ok: false, error: '计划中没有叶任务，无可固化的基线' }
@@ -67,16 +71,17 @@ export function computeBaselineDrift(project: SchedProject, cpm: CpmResult): Bas
       addedCount++
       rows.push({
         id: t.id, name: t.name, kind: 'added', base: null,
-        now: { es: row.es, ef: row.ef, dur: effDur(t) },
-        esDrift: row.es, efDrift: row.ef, durDrift: effDur(t),
+        now: { es: row.es, ef: row.ef, dur: rowDur(row) },
+        esDrift: row.es, efDrift: row.ef, durDrift: rowDur(row),
         criticalNow: row.critical, criticalBase: false,
       })
       if (row.critical) criticalGained.push(t.name)
       continue
     }
+    const dur = rowDur(row)
     const esD = row.es - b.es
     const efD = row.ef - b.ef
-    const durD = effDur(t) - b.dur
+    const durD = dur - b.dur
     const shifted = esD !== 0 || efD !== 0 || durD !== 0 || row.critical !== b.critical
     if (!shifted) {
       sameCount++
@@ -85,7 +90,7 @@ export function computeBaselineDrift(project: SchedProject, cpm: CpmResult): Bas
     shiftedCount++
     rows.push({
       id: t.id, name: t.name, kind: 'shifted', base: b,
-      now: { es: row.es, ef: row.ef, dur: effDur(t) },
+      now: { es: row.es, ef: row.ef, dur },
       esDrift: esD, efDrift: efD, durDrift: durD,
       criticalNow: row.critical, criticalBase: b.critical,
     })

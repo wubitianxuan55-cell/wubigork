@@ -151,3 +151,59 @@ func DeadlineWorkdays(startISO, deadlineISO string, calInput *Calendar) int {
 	}
 	return count
 }
+
+// CdToEf cd（日历天）任务正推换算（v4.150 双工期刀1，镜像前端 calendar.ts
+// cdToEf）：完成边界 = 首个 ≥（es 所在工作日 + cd 自然日）的工作日序号
+// （ceil 吸附：边界落在周末/节假日即顺延到其后第一个工作日；边界恰为工作日
+// 即当日；cd<=0 → es）。扫描上限与 WdToDate 同源（3650 天防呆，越界截断）。
+func CdToEf(startISO string, es, cd int, calInput *Calendar) int {
+	cal := NormalizeCalendar(calInput)
+	if es < 0 {
+		es = 0
+	}
+	if cd < 0 {
+		cd = 0
+	}
+	anchor := WdToDate(startISO, es, &cal)
+	boundary := anchor.AddDate(0, 0, cd)
+	idx := es
+	steps := 0
+	for cur := anchor; steps < scanLimit && (cur.Before(boundary) || !IsWorkingDate(cur, cal)); steps++ {
+		cur = cur.AddDate(0, 0, 1)
+		if IsWorkingDate(cur, cal) {
+			idx++
+		}
+	}
+	return idx
+}
+
+// CdLatestStart cd（日历天）任务逆推换算（镜像前端 calendar.ts cdLatestStart）：
+// 最大的工作日序号 s 使 fwd(s) ≤ lf（fwd=CdToEf，单调不减且有平段）。
+// 镜像回退：lf 所在工作日回退 cd 自然日、向下吸附到工作日，再有界双侧校正至
+// 满足性质 fwd(s) ≤ lf < fwd(s+1)；下限截到 0（负时差极端场景，两侧镜像一致）。
+func CdLatestStart(startISO string, lf, cd int, calInput *Calendar) int {
+	cal := NormalizeCalendar(calInput)
+	if cd < 0 {
+		cd = 0
+	}
+	if lf < 0 {
+		lf = 0
+	}
+	start := parseISO(startISO)
+	boundary := WdToDate(startISO, lf, &cal).AddDate(0, 0, -cd)
+	cur := boundary
+	for cur.After(start) && !IsWorkingDate(cur, cal) {
+		cur = cur.AddDate(0, 0, -1)
+	}
+	s := 0
+	if idx, ok := DateToWd(startISO, ISOOf(cur), &cal); ok && idx > 0 {
+		s = idx
+	}
+	for i := 0; i < scanLimit && s > 0 && CdToEf(startISO, s, cd, &cal) > lf; i++ {
+		s--
+	}
+	for i := 0; i < scanLimit && CdToEf(startISO, s+1, cd, &cal) <= lf; i++ {
+		s++
+	}
+	return s
+}

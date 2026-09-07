@@ -271,3 +271,181 @@ func TestCpmPlanFinishAnchor(t *testing.T) {
 		t.Fatalf("no anchor: B=%+v", r.Rows["B"])
 	}
 }
+
+// ── 双工期口径（v4.150 刀1）：cd 任务 CPM（镜像 TS cpm.test.ts 双工期 describe）──
+
+func cdTask(id string, dur int, extra func(*Task)) Task {
+	return tsk(id, dur, func(x *Task) {
+		x.DurationUnit = UnitCd
+		if extra != nil {
+			extra(x)
+		}
+	})
+}
+
+const cdMon = "2026-09-07" // 周一开工锚点（镜像 TS START）
+
+func TestCpmCdCuring(t *testing.T) {
+	r := ComputeCpmCal([]Task{cdTask("养护", 28, nil)}, nil, nil, cdMon)
+	if !r.OK || r.Duration != 20 {
+		t.Fatalf("ok=%v dur=%d, want 20", r.OK, r.Duration)
+	}
+	want := TaskCpm{ES: 0, EF: 20, LS: 0, LF: 20, TF: 0, FF: 0, Critical: true}
+	if got := r.Rows["养护"]; got != want {
+		t.Fatalf("养护 = %+v", got)
+	}
+}
+
+func TestCpmCdMixedChain(t *testing.T) {
+	r := ComputeCpmCal(
+		[]Task{tsk("挖土", 5, nil), cdTask("养护", 28, nil), tsk("回填", 5, nil)},
+		[]Link{lnk("挖土", "养护", FS, 0), lnk("养护", "回填", FS, 0)},
+		nil, cdMon)
+	if !r.OK || r.Duration != 30 {
+		t.Fatalf("ok=%v dur=%d, want 30", r.OK, r.Duration)
+	}
+	if got := r.Rows["养护"]; got != (TaskCpm{ES: 5, EF: 25, LS: 5, LF: 25, TF: 0, FF: 0, Critical: true}) {
+		t.Fatalf("养护 = %+v", got)
+	}
+	if got := r.Rows["挖土"]; got.EF != 5 || !got.Critical {
+		t.Fatalf("挖土 = %+v", got)
+	}
+	if got := r.Rows["回填"]; got != (TaskCpm{ES: 25, EF: 30, LS: 25, LF: 30, TF: 0, FF: 0, Critical: true}) {
+		t.Fatalf("回填 = %+v", got)
+	}
+}
+
+func TestCpmCdSnapFold(t *testing.T) {
+	r := ComputeCpmCal([]Task{cdTask("a", 26, nil), cdTask("b", 27, nil), cdTask("c", 28, nil)}, nil, nil, cdMon)
+	if !r.OK || r.Duration != 20 {
+		t.Fatalf("ok=%v dur=%d, want 20", r.OK, r.Duration)
+	}
+	for _, id := range []string{"a", "b", "c"} {
+		if r.Rows[id].EF != 20 {
+			t.Fatalf("%s ef = %d, want 20", id, r.Rows[id].EF)
+		}
+	}
+}
+
+func TestCpmCdHolidayCalendar(t *testing.T) {
+	cal := &Calendar{Workweek: []int{1, 2, 3, 4, 5}, Holidays: []string{"2026-09-16"}}
+	r := ComputeCpmCal([]Task{cdTask("养护", 9, nil)}, nil, cal, cdMon)
+	if !r.OK || r.Rows["养护"].EF != 7 {
+		t.Fatalf("ok=%v ef=%d, want 7", r.OK, r.Rows["养护"].EF)
+	}
+}
+
+func TestCpmCdFsLag(t *testing.T) {
+	r := ComputeCpmCal(
+		[]Task{cdTask("养护", 28, nil), tsk("验收", 2, nil)},
+		[]Link{lnk("养护", "验收", FS, 2)},
+		nil, cdMon)
+	if !r.OK || r.Duration != 24 {
+		t.Fatalf("ok=%v dur=%d, want 24", r.OK, r.Duration)
+	}
+	if got := r.Rows["验收"]; got != (TaskCpm{ES: 22, EF: 24, LS: 22, LF: 24, TF: 0, FF: 0, Critical: true}) {
+		t.Fatalf("验收 = %+v", got)
+	}
+	if got := r.Rows["养护"]; got.EF != 20 || got.LS != 0 || !got.Critical {
+		t.Fatalf("养护 = %+v", got)
+	}
+}
+
+func TestCpmCdFloatBranch(t *testing.T) {
+	r := ComputeCpmCal([]Task{tsk("主线", 30, nil), cdTask("养护", 28, nil)}, nil, nil, cdMon)
+	if !r.OK || r.Duration != 30 {
+		t.Fatalf("ok=%v dur=%d, want 30", r.OK, r.Duration)
+	}
+	if !r.Rows["主线"].Critical {
+		t.Fatalf("主线 = %+v", r.Rows["主线"])
+	}
+	if got := r.Rows["养护"]; got != (TaskCpm{ES: 0, EF: 20, LS: 10, LF: 30, TF: 10, FF: 10, Critical: false}) {
+		t.Fatalf("养护 = %+v", got)
+	}
+}
+
+func TestCpmCdBackwardFlat(t *testing.T) {
+	r := ComputeCpmCal(
+		[]Task{tsk("主线", 20, nil), cdTask("养护", 26, nil), tsk("收尾", 4, nil)},
+		[]Link{lnk("主线", "收尾", FS, 0), lnk("养护", "收尾", FS, 0)},
+		nil, cdMon)
+	if !r.OK {
+		t.Fatalf("ok=%v", r.OK)
+	}
+	// 养护 lf=20，26cd 平段 fwd(0..2)=20 → ls=2（非 0）
+	if got := r.Rows["养护"]; got.ES != 0 || got.EF != 20 || got.LS != 2 || got.TF != 2 || got.Critical {
+		t.Fatalf("养护 = %+v", got)
+	}
+	if got := r.Rows["主线"]; got.TF != 0 || !got.Critical {
+		t.Fatalf("主线 = %+v", got)
+	}
+}
+
+func TestCpmCdManual(t *testing.T) {
+	r := ComputeCpmCal(
+		[]Task{cdTask("养护", 28, func(x *Task) { x.Mode = ModeManual; x.ManualStart = 2 }), tsk("验收", 3, nil)},
+		[]Link{lnk("养护", "验收", FS, 0)},
+		nil, cdMon)
+	if !r.OK || r.Duration != 25 {
+		t.Fatalf("ok=%v dur=%d, want 25", r.OK, r.Duration)
+	}
+	if got := r.Rows["养护"]; got != (TaskCpm{ES: 2, EF: 22, LS: 2, LF: 22, TF: 0, FF: 0, Critical: false}) {
+		t.Fatalf("养护 = %+v", got)
+	}
+	if got := r.Rows["验收"]; got.ES != 22 || got.EF != 25 || !got.Critical {
+		t.Fatalf("验收 = %+v", got)
+	}
+}
+
+func TestCpmCdFastPathBitwise(t *testing.T) {
+	tasks := []Task{tsk("A", 3, nil), tsk("B", 2, nil), tsk("C", 4, nil)}
+	links := []Link{lnk("A", "B", FS, 0), lnk("B", "C", FS, 0)}
+	plain := ComputeCpm(tasks, links)
+	holiday := &Calendar{Workweek: []int{1, 2, 3, 4, 5}, Holidays: []string{"2026-09-08"}}
+	withCtx := ComputeCpmCal(tasks, links, holiday, cdMon)
+	if withCtx.OK != plain.OK || withCtx.Duration != plain.Duration {
+		t.Fatalf("快路径口径漂移：%+v vs %+v", withCtx, plain)
+	}
+	for id, want := range plain.Rows {
+		if withCtx.Rows[id] != want {
+			t.Fatalf("%s 快路径漂移：%+v vs %+v", id, withCtx.Rows[id], want)
+		}
+	}
+	// 显式 wd 单位同样走快路径
+	wdMarked := ComputeCpmCal([]Task{tsk("A", 3, func(x *Task) { x.DurationUnit = UnitWd })}, nil, nil, cdMon)
+	plainWd := ComputeCpm([]Task{tsk("A", 3, nil)}, nil)
+	if !wdMarked.OK || wdMarked.Duration != plainWd.Duration || wdMarked.Rows["A"] != plainWd.Rows["A"] {
+		t.Fatalf("显式 wd 漂移：%+v vs %+v", wdMarked.Rows["A"], plainWd.Rows["A"])
+	}
+}
+
+func TestCpmCdFailClosed(t *testing.T) {
+	r := ComputeCpmCal([]Task{cdTask("养护", 28, nil)}, nil, nil, "")
+	if r.OK || !strings.Contains(r.Error, "缺开工日期") {
+		t.Fatalf("ok=%v err=%q", r.OK, r.Error)
+	}
+	ss := ComputeCpmCal([]Task{cdTask("养护", 28, nil), tsk("后续", 3, nil)}, []Link{lnk("养护", "后续", SS, 0)}, nil, cdMon)
+	if ss.OK || !strings.Contains(ss.Error, "FS") {
+		t.Fatalf("SS ok=%v err=%q", ss.OK, ss.Error)
+	}
+	ff := ComputeCpmCal([]Task{tsk("A", 3, nil), cdTask("养护", 28, nil)}, []Link{lnk("A", "养护", FF, 0)}, nil, cdMon)
+	if ff.OK || !strings.Contains(ff.Error, "FS") {
+		t.Fatalf("FF ok=%v err=%q", ff.OK, ff.Error)
+	}
+}
+
+func TestCpmCdPlanFinish(t *testing.T) {
+	r := ComputeCpmPlanCal(
+		[]Task{tsk("挖土", 5, nil), cdTask("养护", 28, nil), tsk("回填", 5, nil)},
+		[]Link{lnk("挖土", "养护", FS, 0), lnk("养护", "回填", FS, 0)},
+		25, nil, cdMon)
+	if !r.OK || r.Duration != 30 {
+		t.Fatalf("ok=%v dur=%d, want 30", r.OK, r.Duration)
+	}
+	if got := r.Rows["养护"]; got.LS != 0 || got.TF != -5 || !got.Critical {
+		t.Fatalf("养护 = %+v", got)
+	}
+	if got := r.Rows["挖土"]; got.TF != -5 || !got.Critical {
+		t.Fatalf("挖土 = %+v", got)
+	}
+}

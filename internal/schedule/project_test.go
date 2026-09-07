@@ -3,6 +3,7 @@ package schedule
 // project_test.go / ops_test.go — 落盘、校验与增量操作用例（v4.113.0 刀4）。
 
 import (
+	"encoding/json"
 	"fmt"
 	"math"
 	"os"
@@ -413,5 +414,53 @@ func TestSaveRoundTripsAoaLayout(t *testing.T) {
 	}
 	if loadedOld.AoaLayout != nil {
 		t.Errorf("旧文件不应产生 aoaLayout：%+v", loadedOld.AoaLayout)
+	}
+}
+
+// ── 双工期口径（v4.150 刀1）：工期单位校验与往返（镜像 TS normalizeProject 用例的落盘闸侧）──
+
+func TestValidateDurationUnit(t *testing.T) {
+	ok := Project{
+		StartDate: "2026-09-07",
+		Tasks:     []Task{{ID: "A", Name: "A", Duration: 28, Level: 1, DurationUnit: UnitCd}},
+	}
+	if err := Validate(&ok); err != nil {
+		t.Fatalf("合法 cd 应通过：%v", err)
+	}
+	wdExplicit := Project{StartDate: "2026-09-07", Tasks: []Task{{ID: "A", Name: "A", Duration: 3, Level: 1, DurationUnit: UnitWd}}}
+	if err := Validate(&wdExplicit); err != nil {
+		t.Fatalf("显式 wd 应通过：%v", err)
+	}
+	bad := []Project{
+		{Tasks: []Task{{ID: "A", Name: "A", Duration: 3, Level: 1, DurationUnit: "week"}}},                                              // 非法枚举
+		{Tasks: []Task{{ID: "G", Name: "G", Level: 0, DurationUnit: UnitCd}}},                                                           // 分组行禁止
+		{Tasks: []Task{{ID: "M", Name: "M", Level: 1, IsMilestone: true, DurationUnit: UnitCd}}},                                        // 里程碑禁止
+		{Tasks: []Task{{ID: "A", Name: "A", Duration: 3651, Level: 1, DurationUnit: UnitCd}}},                                           // 超上限
+		{Tasks: []Task{{ID: "A", Name: "A", Duration: 5, Level: 1, DurationUnit: UnitCd}, {ID: "B", Name: "B", Duration: 3, Level: 1}}, Links: []Link{{From: "A", To: "B", Type: SS}}}, // cd 涉非 FS
+	}
+	for i, p := range bad {
+		if err := Validate(&p); err == nil {
+			t.Fatalf("case %d 应拒绝", i)
+		}
+	}
+	// cd+FS 合法，JSON 往返保字段（omitempty 只在零值丢弃，"cd" 非零）
+	okFS := Project{
+		StartDate: "2026-09-07",
+		Tasks:     []Task{{ID: "A", Name: "A", Duration: 5, Level: 1, DurationUnit: UnitCd}, {ID: "B", Name: "B", Duration: 3, Level: 1}},
+		Links:     []Link{{From: "A", To: "B", Type: FS}},
+	}
+	raw, err := json.Marshal(okFS)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var back Project
+	if err := json.Unmarshal(raw, &back); err != nil {
+		t.Fatal(err)
+	}
+	if back.Tasks[0].DurationUnit != UnitCd {
+		t.Fatalf("往返应保 durationUnit：%s", back.Tasks[0].DurationUnit)
+	}
+	if err := Validate(&back); err != nil {
+		t.Fatalf("往返后应仍合法：%v", err)
 	}
 }

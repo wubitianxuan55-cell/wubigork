@@ -14,9 +14,11 @@ import (
 
 // SnapshotBaseline 保存基线：以当前计划 CPM 结果固快照。守卫 fail-closed——
 // 循环依赖或无叶任务时报错，绝不存出无意义的空基线。savedAt 由调用方标注
-// （ops 通道=工具层盖时间戳；测试传固定值）。
+// （ops 通道=工具层盖时间戳；测试传固定值）。Dur 存等效工作日跨度 EF−ES
+// （v4.150 双工期刀1 换源：wd 任务=effDur 逐位不变；cd 任务=养护窗口内
+// 工作日数），漂移仍在工作日空间对比。
 func SnapshotBaseline(p *Project, savedAt, name string) (*Baseline, error) {
-	cpm := ComputeCpm(p.Tasks, p.Links)
+	cpm := ComputeCpmCal(p.Tasks, p.Links, p.Calendar, p.StartDate)
 	if !cpm.OK {
 		return nil, fmt.Errorf("%s", cpm.Error)
 	}
@@ -29,7 +31,7 @@ func SnapshotBaseline(p *Project, savedAt, name string) (*Baseline, error) {
 		if !ok {
 			continue
 		}
-		rows[t.ID] = BaselineRow{Name: t.Name, ES: row.ES, EF: row.EF, Dur: effDur(t), Critical: row.Critical}
+		rows[t.ID] = BaselineRow{Name: t.Name, ES: row.ES, EF: row.EF, Dur: row.EF - row.ES, Critical: row.Critical}
 	}
 	if len(rows) == 0 {
 		return nil, fmt.Errorf("计划中没有叶任务，无可固化的基线")
@@ -108,7 +110,8 @@ func ComputeBaselineDrift(p *Project, cpm CpmResult) *Drift {
 			continue
 		}
 		seen[t.ID] = true
-		now := DriftNow{ES: row.ES, EF: row.EF, Dur: effDur(t)}
+		// Dur=等效工作日跨度 EF−ES（v4.150 双工期刀1 换源，wd 逐位不变）
+		now := DriftNow{ES: row.ES, EF: row.EF, Dur: row.EF - row.ES}
 		b, has := base.Rows[t.ID]
 		if !has {
 			d.AddedCount++

@@ -97,6 +97,12 @@ export function normalizeProject(p: SchedProject): SchedProject {
       ...t,
       progress: t.progress ?? 0,
       fixedCost: validNum(t.fixedCost) ? t.fixedCost : undefined,
+      // 工期单位容错（v4.150 双工期刀1）：非 cd 枚举/分组行/里程碑/数值越界
+      // 一律丢弃回落 wd（undefined）；落盘拒绝由 Go Validate fail-closed 承担。
+      durationUnit:
+        t.durationUnit === 'cd' && t.level !== 0 && !t.isMilestone
+          && Number.isInteger(t.duration) && t.duration >= 0 && t.duration <= 3650
+          ? 'cd' : undefined,
     })),
     links: p.links ?? [],
     deadline: typeof p.deadline === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(p.deadline) ? p.deadline : null,
@@ -309,7 +315,7 @@ export const useScheduleStore = create<ScheduleState>()(
       setBaseline: (name) => {
         pushHistory('baseline')
         const { project } = useScheduleStore.getState()
-        const cpm = computeCpm(project.tasks, project.links, { planFinish: planFinishOf(project) })
+        const cpm = computeCpm(project.tasks, project.links, { planFinish: planFinishOf(project), calendar: project.calendar, startDate: project.startDate })
         const r = snapshotBaseline(project, cpm, formatNow(), name)
         if (!r.ok) return r.error
         // v4.137 #11 多基线：存快照进槽位列表（同名原位替换，FIFO 上限 3），并设为活跃

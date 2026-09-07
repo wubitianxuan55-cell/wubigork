@@ -55,3 +55,62 @@ func TestWdToDateRoundTrip(t *testing.T) {
 		t.Fatal("早于开工日应 false")
 	}
 }
+
+// ── 双工期口径（v4.150 刀1）：cd=日历天换算（镜像 TS calendar.test.ts cdToEf/cdLatestStart）──
+
+func TestCdToEf(t *testing.T) {
+	mon := "2026-09-07"
+	if got := CdToEf(mon, 0, 28, nil); got != 20 {
+		t.Fatalf("28cd = %d, want 20（等效跨度）", got)
+	}
+	if got := CdToEf(mon, 0, 1, nil); got != 1 {
+		t.Fatalf("1cd = %d", got)
+	}
+	if got := CdToEf(mon, 0, 0, nil); got != 0 {
+		t.Fatalf("0cd 应回 es")
+	}
+	// ceil 吸附折叠：边界落周末（26/27）与恰为工作日（28）同 ef
+	for _, cd := range []int{26, 27, 28} {
+		if got := CdToEf(mon, 0, cd, nil); got != 20 {
+			t.Fatalf("%dcd = %d, want 20", cd, got)
+		}
+	}
+	// es>0 锚点随行：周四起 7cd → ef=8（跨度 5）
+	if got := CdToEf(mon, 3, 7, nil); got != 8 {
+		t.Fatalf("es3+7cd = %d, want 8", got)
+	}
+	// 节假日窗口：边界前一节假日不计入索引
+	cal := Calendar{Workweek: []int{1, 2, 3, 4, 5}, Holidays: []string{"2026-09-16"}}
+	if got := CdToEf(mon, 0, 10, &cal); got != 7 {
+		t.Fatalf("holiday 10cd = %d, want 7", got)
+	}
+	if got := CdToEf(mon, 0, 10, nil); got != 8 {
+		t.Fatalf("plain 10cd = %d, want 8", got)
+	}
+	// 开工日为非工作日：锚点顺延后起算
+	if got := CdToEf("2026-09-12", 0, 3, nil); got != 3 {
+		t.Fatalf("sat start 3cd = %d, want 3", got)
+	}
+}
+
+func TestCdLatestStart(t *testing.T) {
+	mon := "2026-09-07"
+	// 性质 fwd(s) ≤ lf < fwd(s+1)：fwd(0)=20、fwd(5)=25
+	if got := CdLatestStart(mon, 20, 28, nil); got != 0 {
+		t.Fatalf("lf20 = %d, want 0", got)
+	}
+	if got := CdLatestStart(mon, 25, 28, nil); got != 5 {
+		t.Fatalf("lf25 = %d, want 5", got)
+	}
+	// 平段吸附：26cd 时 fwd(0)=fwd(1)=fwd(2)=20，取最大 s=2
+	if got := CdLatestStart(mon, 20, 26, nil); got != 2 {
+		t.Fatalf("flat = %d, want 2", got)
+	}
+	// 负时差极端：下限截 0
+	if got := CdLatestStart(mon, 0, 28, nil); got != 0 {
+		t.Fatalf("lf0 = %d", got)
+	}
+	if got := CdLatestStart(mon, 19, 28, nil); got != 0 {
+		t.Fatalf("lf19 = %d", got)
+	}
+}

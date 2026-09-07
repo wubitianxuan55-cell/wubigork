@@ -3,7 +3,9 @@
  *
  * 设计口径（docs/gaea-schedule-resource-cost-design-2026-09.md §3.2，TS↔Go
  * 与 internal/schedule/cost.go 互为镜像，测试同批场景同批期望值）：
- *  - work：effDur(工作日) × units(默认1) × standardRate + costPerUse
+ *  - work：等效工作日跨度（cpm 行 ef−es；v4.150 双工期刀1 换源——wd 任务
+ *    =effDur 逐位不变，cd 任务=养护窗口内的工作日数，周末不记工日）
+ *    × units(默认1) × standardRate + costPerUse
  *  - material：quantity × standardRate + costPerUse
  *  - cost：amount
  *  - 任务成本 = fixedCost(默认0) + Σ 分配成本；rows 只含叶任务
@@ -73,7 +75,10 @@ export function computeCosts(project: SchedProject, cpm: CpmResult): CostResult 
     const res = resources.get(a.resourceId)
     const task = tasksById.get(a.taskId)
     if (!res || !task || task.level === 0) continue // 悬空引用/分组行分配：跳过（闸在 Validate）
-    const c = assignmentCost(a, res, effDur(task))
+    // 工期换源（v4.150 双工期刀1）：cpm 行的等效工作日跨度 ef−es（wd 任务
+    // =effDur 逐位相等，cd 任务=养护窗口内工作日数）；行缺失兜底 effDur。
+    const row = cpm.rows[a.taskId]
+    const c = assignmentCost(a, res, row ? row.ef - row.es : effDur(task))
     if (c === null) continue
     assignedRaw.set(a.taskId, (assignedRaw.get(a.taskId) ?? 0) + c)
     byResourceRaw.set(a.resourceId, (byResourceRaw.get(a.resourceId) ?? 0) + c)

@@ -226,3 +226,113 @@ describe('计划工期锚点（G3：deadline 进逆推）', () => {
     expect(r.rows.B).toMatchObject({ es: 3, ef: 7, tf: 0, critical: true })
   })
 })
+
+describe('computeCpm 双工期口径（v4.150 刀1：cd=日历天，镜像 Go TestCpmCd*）', () => {
+  const START = { startDate: '2026-09-07' } // 周一开工
+
+  it('养护 28cd：ef=第 20 工作日，等效跨度 20，单链全关键', () => {
+    const r = computeCpm([t('养护', 28, { durationUnit: 'cd' })], [], START)
+    expect(r.ok).toBe(true)
+    expect(r.duration).toBe(20)
+    expect(r.rows['养护']).toMatchObject({ es: 0, ef: 20, ls: 0, lf: 20, tf: 0, ff: 0, critical: true })
+  })
+
+  it('混合链 挖土5wd → 养护28cd → 回填5wd：总工期 30（=5+20+5），全关键', () => {
+    const r = computeCpm(
+      [t('挖土', 5), t('养护', 28, { durationUnit: 'cd' }), t('回填', 5)],
+      [l('挖土', '养护'), l('养护', '回填')],
+      START,
+    )
+    expect(r.duration).toBe(30)
+    expect(r.rows['养护']).toMatchObject({ es: 5, ef: 25, ls: 5, lf: 25, tf: 0, critical: true })
+    expect(r.rows['挖土']).toMatchObject({ es: 0, ef: 5, tf: 0, critical: true })
+    expect(r.rows['回填']).toMatchObject({ es: 25, ef: 30, tf: 0, critical: true })
+  })
+
+  it('吸附折叠：26/27/28cd 并行无搭接，ef 全=20', () => {
+    const r = computeCpm([t('a', 26, { durationUnit: 'cd' }), t('b', 27, { durationUnit: 'cd' }), t('c', 28, { durationUnit: 'cd' })], [], START)
+    expect(r.duration).toBe(20)
+    expect(r.rows.a.ef).toBe(20)
+    expect(r.rows.b.ef).toBe(20)
+    expect(r.rows.c.ef).toBe(20)
+  })
+
+  it('日历感知：节假日命中养护窗口，ef 顺延（ctx 传自定义日历）', () => {
+    const cal = { workweek: [1, 2, 3, 4, 5], holidays: ['2026-09-16'] }
+    const r = computeCpm([t('养护', 9, { durationUnit: 'cd' })], [], { ...START, calendar: cal })
+    expect(r.rows['养护'].ef).toBe(7)
+  })
+
+  it('FS+lag：cd 前置完成边界吸附后，后继从 ef+lag 开工', () => {
+    const r = computeCpm([t('养护', 28, { durationUnit: 'cd' }), t('验收', 2)], [l('养护', '验收', 'FS', 2)], START)
+    expect(r.duration).toBe(24)
+    expect(r.rows['验收']).toMatchObject({ es: 22, ef: 24, tf: 0, critical: true })
+    expect(r.rows['养护']).toMatchObject({ es: 0, ef: 20, ls: 0, critical: true })
+  })
+
+  it('cd 有富余：长支路 30wd 关键，养护支路 tf=10', () => {
+    const r = computeCpm([t('主线', 30), t('养护', 28, { durationUnit: 'cd' })], [], START)
+    expect(r.duration).toBe(30)
+    expect(r.rows['主线'].critical).toBe(true)
+    expect(r.rows['养护']).toMatchObject({ es: 0, ef: 20, ls: 10, tf: 10, ff: 10, critical: false })
+  })
+
+  it('逆推平段：养护支路 lf=20 时 ls 取平段最大 s（cdLatestStart 镜像）', () => {
+    const r = computeCpm(
+      [t('主线', 20), t('养护', 26, { durationUnit: 'cd' }), t('收尾', 4)],
+      [l('主线', '收尾'), l('养护', '收尾')],
+      START,
+    )
+    // 收尾 es=20；养护 lf=20 → 26cd 平段 fwd(0..2)=20 → ls=2（非 0）
+    expect(r.rows['养护']).toMatchObject({ es: 0, ef: 20, ls: 2, tf: 2, critical: false })
+    expect(r.rows['主线']).toMatchObject({ tf: 0, critical: true })
+  })
+
+  it('manual cd：es 锁 manualStart，ef=日历换算，不标关键不回传约束', () => {
+    const r = computeCpm(
+      [t('养护', 28, { durationUnit: 'cd', mode: 'manual', manualStart: 2 }), t('验收', 3)],
+      [l('养护', '验收')],
+      START,
+    )
+    expect(r.duration).toBe(25)
+    expect(r.rows['养护']).toMatchObject({ es: 2, ef: 22, ls: 2, lf: 22, tf: 0, critical: false })
+    expect(r.rows['验收']).toMatchObject({ es: 22, ef: 25, tf: 0, critical: true })
+  })
+
+  it('快路径铁律：无 cd 任务时 ctx 不影响结果（逐位一致）', () => {
+    const tasks = [t('A', 3), t('B', 2), t('C', 4)]
+    const links = [l('A', 'B'), l('B', 'C')]
+    const plain = computeCpm(tasks, links)
+    const withCtx = computeCpm(tasks, links, { ...START, calendar: { workweek: [1, 2, 3, 4, 5], holidays: ['2026-09-08'] } })
+    expect(withCtx).toEqual(plain)
+    // 显式 wd 单位同样走快路径
+    const wdMarked = computeCpm([t('A', 3, { durationUnit: 'wd' })], [], START)
+    expect(wdMarked).toEqual(computeCpm([t('A', 3)], []))
+  })
+
+  it('fail-closed：有 cd 任务而缺开工日期 → ok=false 不静默', () => {
+    const r = computeCpm([t('养护', 28, { durationUnit: 'cd' })], [], {})
+    expect(r.ok).toBe(false)
+    expect(r.error).toContain('缺开工日期')
+  })
+
+  it('fail-closed：cd 涉非 FS 搭接 → ok=false（SS/FF 双例）', () => {
+    const ss = computeCpm([t('养护', 28, { durationUnit: 'cd' }), t('后续', 3)], [l('养护', '后续', 'SS')], START)
+    expect(ss.ok).toBe(false)
+    expect(ss.error).toContain('FS')
+    const ff = computeCpm([t('A', 3), t('养护', 28, { durationUnit: 'cd' })], [l('A', '养护', 'FF')], START)
+    expect(ff.ok).toBe(false)
+    expect(ff.error).toContain('FS')
+  })
+
+  it('planFinish 收紧 + cd：逆推锚点按工作日边界，负时差诚实呈现', () => {
+    const r = computeCpm(
+      [t('挖土', 5), t('养护', 28, { durationUnit: 'cd' }), t('回填', 5)],
+      [l('挖土', '养护'), l('养护', '回填')],
+      { ...START, planFinish: 25 },
+    )
+    expect(r.duration).toBe(30)
+    expect(r.rows['养护']).toMatchObject({ ls: 0, tf: -5, critical: true })
+    expect(r.rows['挖土']).toMatchObject({ tf: -5, critical: true })
+  })
+})

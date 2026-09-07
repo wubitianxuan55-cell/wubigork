@@ -190,3 +190,40 @@ describe('normalizeProject 资源成本 schema 演进（刀1）', () => {
     expect(n.assignments![0]).toMatchObject({ quantity: 0, units: 2 })
   })
 })
+
+describe('computeCosts 双工期口径（v4.150 刀1：等效工作日跨度计费，镜像 Go TestComputeCostsCd*）', () => {
+  const START = { startDate: '2026-09-07' }
+
+  it('养护 28cd 挂工时资源：按等效跨度 20 计费（周末不记工日，非 28）', () => {
+    const p = project({
+      startDate: START.startDate,
+      tasks: [t('养护', 28, { durationUnit: 'cd' })],
+      resources: [res('r1', 'work', { standardRate: 100 })],
+      assignments: [asg('养护', 'r1')],
+    })
+    const r = computeCosts(p, computeCpm(p.tasks, p.links, START))
+    expect(r.rows['养护'].assigned).toBe(2000)
+  })
+
+  it('wd 任务逐位不变：5wd×1×100=500（换源 ef−es 与 effDur 相等 pin）', () => {
+    const p = project({
+      startDate: START.startDate,
+      tasks: [t('A', 5)],
+      resources: [res('r1', 'work', { standardRate: 100 })],
+      assignments: [asg('A', 'r1')],
+    })
+    const r = computeCosts(p, computeCpm(p.tasks, p.links, START))
+    expect(r.rows.A.assigned).toBe(500)
+  })
+
+  it('manual cd：按锁定区间的等效跨度计费（manualStart=2，跨度仍 20）', () => {
+    const p = project({
+      startDate: START.startDate,
+      tasks: [t('养护', 28, { durationUnit: 'cd', mode: 'manual', manualStart: 2 })],
+      resources: [res('r1', 'work', { standardRate: 100 })],
+      assignments: [asg('养护', 'r1')],
+    })
+    const r = computeCosts(p, computeCpm(p.tasks, p.links, START))
+    expect(r.rows['养护'].assigned).toBe(2000)
+  })
+})

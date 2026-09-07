@@ -231,7 +231,7 @@ func (s scheduleApply) Execute(ctx context.Context, args json.RawMessage) (strin
 	if raw, err := os.ReadFile(path); err == nil {
 		oldRaw = raw
 		if old, lerr := schedule.Load(path); lerr == nil {
-			if oc := schedule.ComputeCpm(old.Tasks, old.Links); oc.OK {
+			if oc := schedule.ComputeCpmCal(old.Tasks, old.Links, old.Calendar, old.StartDate); oc.OK {
 				beforeDesc = fmt.Sprintf("「%s」%d 项工作，总工期 %d 天", old.Name, leafCount(old), oc.Duration)
 			}
 		}

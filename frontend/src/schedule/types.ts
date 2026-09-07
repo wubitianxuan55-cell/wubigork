@@ -22,6 +22,9 @@ export interface SchedLink {
 /** 任务排程模式（对齐 Project）：自动=CPM 排程；手动=锁定开始不动 */
 export type TaskMode = 'auto' | 'manual'
 
+/** 工期单位（v4.150 双工期口径刀1）：缺省 wd=工作日（现状口径，旧文件零迁移）；cd=日历天（自然日定时，对齐 mspdi DurationFormat 8）。duration 恒为「当前单位下的数值」 */
+export type DurationUnit = 'wd' | 'cd'
+
 /** 任务/分组行（level 缩进表达 WBS 层级，扁平数组按顺序渲染） */
 export interface SchedTask {
   id: string
@@ -40,6 +43,8 @@ export interface SchedTask {
   manualStart?: number
   /** 任务固定成本（元，叶任务专属；v4.122 资源成本刀1。分组行禁止=汇总唯一口径为子孙求和） */
   fixedCost?: number
+  /** 工期单位（v4.150 双工期刀1：缺省/空=wd 工作日；cd=日历天，仅限叶任务非里程碑、搭接仅 FS，数值上限 3650） */
+  durationUnit?: DurationUnit
   /** 自定义字段值（v4.138 #14：槽位见 customFields.ts 注册表，text|number；只存有值槽，旧文件零迁移） */
   custom?: Partial<Record<string, string | number>>
 }

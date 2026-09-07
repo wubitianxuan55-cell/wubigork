@@ -12,7 +12,8 @@
  *    逆推不回传约束（前置任务不因手动任务收 LF）；自身 TF/FF=0、
  *    不标关键；其后继仍以 manual 的 EF 为正向约束。
  */
-import type { CpmResult, SchedLink, SchedTask, TaskCpm } from './types'
+import type { CpmResult, SchedCalendar, SchedLink, SchedTask, TaskCpm } from './types'
+import { cdLatestStart, cdToEf, normalizeCalendar } from './calendar'
 
 /** 有效工期：里程碑为 0，其余取非负整数（cost.ts 成本工期同口径，单一来源） */
 export function effDur(t: SchedTask): number {
@@ -84,6 +85,17 @@ function topoOrder(ids: string[], out: Map<string, string[]>, indeg: Map<string,
 export interface CpmOptions {
   /** 计划工期锚点（工作日边界索引；null/undefined=无目标竣工，按计算工期逆推） */
   planFinish?: number | null
+  /** 日历换算上下文（v4.150 双工期刀1）：存在 cd（日历天）任务时的换算锚点。
+   * 任务表无 cd 任务时本组字段不被读取（快路径，行为与缺省逐位一致）；
+   * 有 cd 任务而 startDate 缺失 → fail-closed（日历缺省回落周一~五，与全部
+   * wdToDate 读点同口径）。 */
+  calendar?: SchedCalendar
+  startDate?: string
+}
+
+/** 任务是否按日历天（cd）工期（v4.150 双工期刀1） */
+export function isCd(t: Pick<SchedTask, 'durationUnit'>): boolean {
+  return t.durationUnit === 'cd'
 }
 
 export function computeCpm(tasks: SchedTask[], links: SchedLink[], opts?: CpmOptions): CpmResult {
@@ -118,6 +130,29 @@ export function computeCpm(tasks: SchedTask[], links: SchedLink[], opts?: CpmOpt
     return { ok: false, rows, duration: 0, error: `存在循环依赖：${names.join(' → ')}`, cycle: topo.cycle }
   }
 
+  // 双工期口径（v4.150 刀1）：存在 cd（日历天）任务时启用日历换算分支；
+  // 无 cd 任务走快路径（下方分支全部短路，结果与旧口径逐位一致）。
+  // fail-closed：缺开工日期无法换算（日历缺省回落周一~五，与全部 wdToDate
+  // 读点同口径）；cd 涉非 FS 搭接会引入对 dur 的不动点迭代，v1 引擎拒绝。
+  const hasCd = tasks.some(isCd)
+  let cal: SchedCalendar | undefined
+  let startISO = ''
+  if (hasCd) {
+    if (!opts?.startDate) {
+      return { ok: false, rows, duration: 0, error: '计划缺开工日期，无法计算日历天（cd）任务' }
+    }
+    cal = normalizeCalendar(opts.calendar)
+    startISO = opts.startDate
+    for (const l of valid) {
+      if ((isCd(byId.get(l.from)!) || isCd(byId.get(l.to)!)) && l.type !== 'FS') {
+        return {
+          ok: false, rows, duration: 0,
+          error: `日历天（cd）任务仅支持 FS 搭接（${byId.get(l.from)!.name} → ${byId.get(l.to)!.name} 为 ${l.type}）`,
+        }
+      }
+    }
+  }
+
   // 正推：ES = max(各搭接下界)，EF = ES + 工期；manual 任务锁定开始、忽略入边
   for (const id of topo.order) {
     const t = byId.get(id)!
@@ -126,7 +161,7 @@ export function computeCpm(tasks: SchedTask[], links: SchedLink[], opts?: CpmOpt
     if (t.mode === 'manual') {
       const fixed = Math.max(0, Math.round(t.manualStart ?? 0))
       row.es = fixed
-      row.ef = fixed + dur
+      row.ef = hasCd && isCd(t) ? cdToEf(startISO, fixed, dur, cal) : fixed + dur
       continue
     }
     let es = 0
@@ -134,7 +169,7 @@ export function computeCpm(tasks: SchedTask[], links: SchedLink[], opts?: CpmOpt
       es = Math.max(es, forwardBound(l, rows[l.from], dur))
     }
     row.es = es
-    row.ef = es + dur
+    row.ef = hasCd && isCd(t) ? cdToEf(startISO, es, dur, cal) : es + dur
   }
   const duration = Math.max(0, ...tasks.map((t) => rows[t.id].ef))
 
@@ -157,10 +192,16 @@ export function computeCpm(tasks: SchedTask[], links: SchedLink[], opts?: CpmOpt
     let lf = anchor
     for (const l of outLinks.get(id) ?? []) {
       if (byId.get(l.to)!.mode === 'manual') continue // 手动后继不约束前置
-      lf = Math.min(lf, backwardBound(l, rows[l.to], dur, effDur(byId.get(l.to)!)))
+      // FS 上界=后继最迟开始−lag：wd 后继 to.ls=to.lf−durTo 与旧式逐位一致；
+      // cd 后继的 ls 已按日历换算（≠lf−dur），必须用 to.ls 才诚实。
+      if (hasCd && l.type === 'FS') {
+        lf = Math.min(lf, rows[l.to].ls - l.lag)
+      } else {
+        lf = Math.min(lf, backwardBound(l, rows[l.to], dur, effDur(byId.get(l.to)!)))
+      }
     }
     row.lf = lf
-    row.ls = lf - dur
+    row.ls = hasCd && isCd(t) ? cdLatestStart(startISO, lf, dur, cal) : lf - dur
   }
 
   // 时差与关键标记（manual 任务不标关键）：关键工作=总时差最小者

@@ -196,3 +196,46 @@ func TestComputeCostsZeroUnitsAndManualDuration(t *testing.T) {
 		t.Errorf("Total = %v, want 400", r.Total)
 	}
 }
+
+// ── 双工期口径（v4.150 刀1）：等效工作日跨度计费（镜像 TS cost.test.ts 双工期 describe）──
+
+func TestComputeCostsCdSpan(t *testing.T) {
+	// 养护 28cd 挂工时资源：按等效跨度 20 计费（周末不记工日，非 28）
+	cdP := func(extra func(*Task)) Project {
+		tk := costTask("养护", 28, func(x *Task) { x.DurationUnit = UnitCd })
+		if extra != nil {
+			extra(&tk)
+		}
+		return Project{
+			Name:        "养护样板",
+			StartDate:   "2026-09-07",
+			Tasks:       []Task{tk},
+			Resources:   []Resource{{ID: "r1", Name: "r1", Type: ResWork, StandardRate: 100}},
+			Assignments: []Assignment{{TaskID: "养护", ResourceID: "r1"}},
+		}
+	}
+	manual := func(x *Task) { x.Mode = ModeManual; x.ManualStart = 2 }
+	auto := cdP(nil)
+	r := ComputeCosts(auto, ComputeCpmCal(auto.Tasks, auto.Links, nil, auto.StartDate))
+	if !r.OK || r.Rows["养护"].Assigned != 2000 {
+		t.Errorf("28cd assigned = %v, want 2000（20 工日×100）", r.Rows["养护"].Assigned)
+	}
+	// wd 任务逐位不变：5wd×1×100=500（换源 ef−es 与 effDur 相等 pin）
+	wdP := Project{
+		Name:        "wd 样板",
+		StartDate:   "2026-09-07",
+		Tasks:       []Task{costTask("A", 5, nil)},
+		Resources:   []Resource{{ID: "r1", Name: "r1", Type: ResWork, StandardRate: 100}},
+		Assignments: []Assignment{{TaskID: "A", ResourceID: "r1"}},
+	}
+	rw := ComputeCosts(wdP, ComputeCpmCal(wdP.Tasks, wdP.Links, nil, wdP.StartDate))
+	if !rw.OK || rw.Rows["A"].Assigned != 500 {
+		t.Errorf("5wd assigned = %v, want 500", rw.Rows["A"].Assigned)
+	}
+	// manual cd：按锁定区间的等效跨度计费（manualStart=2，ef=22，跨度 20）
+	man := cdP(manual)
+	rm := ComputeCosts(man, ComputeCpmCal(man.Tasks, man.Links, nil, man.StartDate))
+	if !rm.OK || rm.Rows["养护"].Assigned != 2000 {
+		t.Errorf("manual cd assigned = %v, want 2000", rm.Rows["养护"].Assigned)
+	}
+}

@@ -1,5 +1,14 @@
 # 任务进度
 
+## 最新发布：v4.150.0（2026-09-08）「双工期口径刀1：任务级工期单位（模型+引擎）」
+
+- **拍板池收官项启动**：docs/gaea-schedule-dual-duration-design-2026-09.md 推荐项全采纳——`task.durationUnit?: 'wd'|'cd'` 缺省 wd 零迁移零行为变化；cd=日历天（养护/干燥类自然日定时，mspdi DurationFormat 8 同语义）。
+- **引擎**：cdToEf（ceil 吸附，26/27/28cd 同 ef 吸附折叠）/cdLatestStart（镜像回退+有界双侧校正，fwd(ls)≤lf<fwd(ls+1) 钉死）纯函数对；cpm 可选 ctx（Go 双入口 ComputeCpmCal/ComputeCpmPlanCal）；快路径铁律=无 cd 逐位一致；缺开工日期/cd 涉非 FS 均 fail-closed（日历缺省回落周一~五=对设计 §3.2.2 的细化）。
+- **成本/基线换源**：work 分配与基线 dur 改用 cpm 行等效工作日跨度 ef−es——养护期周末不记工日（28cd=20 工日计费），wd 恒等有 pin；倒排/摘要卡零改动。
+- **校验**：Go Validate 五闸（枚举/分组行/里程碑/3650/FS-only）+normalizeProject 容错回落；TS↔Go 同批镜像用例（TS +26 / Go +10）。
+- **门禁**：Go 全量绿；vitest 2550→2576；tsc -b 0；drift PASS@597；版本三处 4.150.0。
+- **待续**：刀2 agent 通道（patch_task.durationUnit+analyze cdTasks 清单+技能条款）→刀3 板块 UI（工期列单位切换）→刀4 mspdi 互通（绑真机池，不真机不发布）。
+
 ## 最新发布：v4.149.0（2026-09-08）「diff 确认卡刀D：ops 通道投影模拟器 + Go/TS 对拍收官」
 
 - **收官**：diff 确认闭环设计四刀全落地（A 后置回滚 v4.146 / B project diff 卡 v4.147 / C 引擎强制 v4.148 / D ops 投影对拍本刀）。

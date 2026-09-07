@@ -2,7 +2,9 @@
 //
 // 与前端 frontend/src/schedule/cost.ts 互为镜像（测试同批场景同批期望值）。
 // 设计口径（docs/gaea-schedule-resource-cost-design-2026-09.md §3.2）：
-//   - work：effDur(工作日) × units(默认1) × StandardRate + CostPerUse
+//   - work：等效工作日跨度（cpm 行 EF−ES；v4.150 双工期刀1 换源——wd 任务
+//     =effDur 逐位不变，cd 任务=养护窗口内的工作日数，周末不记工日）
+//     × units(默认1) × StandardRate + CostPerUse
 //   - material：Quantity × StandardRate + CostPerUse
 //   - cost：Amount
 //   - 任务成本 = FixedCost(默认0) + Σ 分配成本；rows 只含叶任务（分组行汇总
@@ -79,7 +81,13 @@ func ComputeCosts(p Project, cpm CpmResult) CostResult {
 		if !resOK || !taskOK || task.Level == 0 {
 			continue // 悬空引用/分组行分配：跳过（闸在 Validate）
 		}
-		c, ok := assignmentCost(a, res, effDur(task))
+		// 工期换源（v4.150 双工期刀1）：cpm 行的等效工作日跨度 EF−ES（wd 任务
+		// =effDur 逐位相等，cd 任务=养护窗口内工作日数）；行缺失兜底 effDur。
+		dur := effDur(task)
+		if row, ok := cpm.Rows[a.TaskID]; ok {
+			dur = row.EF - row.ES
+		}
+		c, ok := assignmentCost(a, res, dur)
 		if !ok {
 			continue
 		}
