@@ -1,3 +1,9 @@
+## v4.144.0 · 导入为新工程：三路导入安全化 · 非破坏口径（2026-09-07）
+> 观察池销项：此前 MPP/XML/Excel 三路导入一律 `importProject` 原地整体替换当前工程——导入一个 146 任务的 MPP 直接顶掉当前工程内容（仅撤销兜底，防抖落盘后原文件被覆盖）。本轮把导入分流：**新工程=安全默认，替换当前=显式标注**。纯前端，绑定面 **596** 零变更。详见 releases/v4.144.0.md。
+- store 新动作 `importAsProject`（importThenSwitch）：名字空兜底「导入工程」→ createThenSwitch（Go slug 去重+登记索引+自动切指针）→ importProject 内容替换 → flushDirty 立即落盘 → refreshProjectsCache 刷摘要；slug/文件内容/列表摘要三处同源一名。fail-closed：Create 失败返回 false、syncError 已置位、当前工程原状；成功则不触碰原工程文件（与 v4.139「复制=切指针」同口径）。
+- 页面菜单重组：「导入为新工程…」主入口（.xml/.xlsx/.xlsm/.mpp 按扩展名分发+文件名兜底工程名+诚实报错）；三路替换入口改显式标注「导入 XML/Excel/MPP 替换当前工程…」（模板/签证覆盖场景保留，TemplatesPanel Popconfirm 口径不变）。
+- 门禁 tsc -b/eslint 0、vitest **2472**（+5：importAsProject 成功链/名字兜底/Create 失败、页面 MPP 分发/不支持格式）、drift PASS@596、版本三处 4.144.0（顺手修正 versioninfo.rc FILEVERSION 逗号位——v4.140 起停在 4,139,0,0 四版未随动）。build+冒烟过。
+
 ## v4.143.0 · 双代号显示路径优化：长线分行走通道 · 可读优先适配（2026-09-07）
 > 用户对照斑马进度/Project 截图批「别人优化显示路径方便查看，你直接自适应整个界面，图变多小完全不管，线重合了也不分行」。纯前端，绑定面 **596** 零变更。详见 releases/v4.143.0.md。
 - 同行长箭线走行间通道：assignChannels（aoaLayout.ts 纯函数）——跨 >1.5 列的同行边从节点中心线让到行间通道（基准=行 y+ROW_H/2），x 区间重叠者依次 +12px 层号，非重叠共享层；五段正交路径+标注挂通道中线；短链箭线保持直连（链式笔画参考斑马口径）；视图/导出同源。

@@ -356,6 +356,7 @@ const SchedulePage: React.FC = () => {
   const setStartDate = useScheduleStore((s) => s.setStartDate)
   const setDeadline = useScheduleStore((s) => s.setDeadline)
   const importProject = useScheduleStore((s) => s.importProject)
+  const importAsProject = useScheduleStore((s) => s.importAsProject)
   const addTask = useScheduleStore((s) => s.addTask)
   const addGroup = useScheduleStore((s) => s.addGroup)
   const updateTask = useScheduleStore((s) => s.updateTask)
@@ -525,6 +526,7 @@ const SchedulePage: React.FC = () => {
    *  GaeaScheduleImportMpp，任务/搭接/资源/分配入模型，排程交回 CPM 重算 */
   const [mppBusy, setMppBusy] = useState(false)
   const mppRef = useRef<HTMLInputElement>(null)
+  const newRef = useRef<HTMLInputElement>(null)
   const onImportMpp = async (file: File) => {
     setMppBusy(true)
     try {
@@ -539,11 +541,55 @@ const SchedulePage: React.FC = () => {
     }
   }
 
+  /** 导入为新工程（v4.144 主入口）：XML/Excel/MPP 按扩展名分发，解析成功即
+   *  落独立工程文件入索引——非破坏口径（不覆盖当前工程，同 v4.139 复制=切
+   *  指针）；Create 失败返回 false 时当前工程未被改动，提示诚实上屏 */
+  const onImportNewFile = async (file: File) => {
+    const ext = (file.name.split('.').pop() ?? '').toLowerCase()
+    try {
+      let p: SchedProject | null = null
+      let note = ''
+      if (ext === 'xml') {
+        const r = parseProjectXml(await file.text())
+        if (!r.ok || !r.project) {
+          setImportMsg({ type: 'error', text: r.error ?? '导入失败' })
+          return
+        }
+        p = r.project
+      } else if (ext === 'xlsx' || ext === 'xlsm') {
+        setXlsxBusy(true)
+        p = await importScheduleXlsx(file)
+        note = '（已按搭接重排）'
+      } else if (ext === 'mpp') {
+        setMppBusy(true)
+        p = await importScheduleMpp(file)
+        note = '（已按搭接重排；约束日期/日历例外未映射）'
+      } else {
+        setImportMsg({ type: 'error', text: `不支持的格式 .${ext || '?'}：导入为新工程支持 XML / Excel / MPP` })
+        return
+      }
+      if (!p.name) p.name = file.name.replace(/\.(xml|xlsx|xlsm|mpp)$/i, '')
+      if (!(await importAsProject(p))) {
+        setImportMsg({ type: 'error', text: `新工程「${p.name}」创建失败，当前工程未被修改；详见状态栏错误` })
+        return
+      }
+      setImportMsg({ type: 'success', text: `已导入为新工程「${p.name}」：${p.tasks.length} 行 / ${p.links.length} 条搭接${note}` })
+    } catch (e) {
+      setImportMsg({ type: 'error', text: e instanceof Error ? e.message : String(e) })
+    } finally {
+      setXlsxBusy(false)
+      setMppBusy(false)
+    }
+  }
+
   // ── 菜单栏（v4.140）：命令按 文件/编辑/视图/任务 归属；导入/导出项与工具栏下拉共用 ──
+  // v4.144 导入重组：「导入为新工程」=安全默认主入口（独立文件入索引）；
+  // 三路「替换当前工程」降为显式标注项（模板/签证调整覆盖场景，可撤销）。
   const importMenuItems: MenuProps['items'] = [
-    { key: 'importXml', icon: <ImportOutlined />, label: '导入 MS Project XML…' },
-    { key: 'importXlsx', icon: <FileExcelOutlined />, label: '导入 Excel…' },
-    { key: 'importMpp', icon: <FileOutlined />, label: '导入 MPP（MS Project 工程）…' },
+    { key: 'importNew', icon: <ImportOutlined />, label: '导入为新工程…' },
+    { key: 'importXml', icon: <ImportOutlined />, label: '导入 XML 替换当前工程…' },
+    { key: 'importXlsx', icon: <FileExcelOutlined />, label: '导入 Excel 替换当前工程…' },
+    { key: 'importMpp', icon: <FileOutlined />, label: '导入 MPP 替换当前工程…' },
   ]
   const exportMenuItems: MenuProps['items'] = [
     { key: 'exportXml', icon: <ExportOutlined />, label: '导出 MS Project XML' },
@@ -552,6 +598,7 @@ const SchedulePage: React.FC = () => {
   ]
   const runMenu = (key: string) => {
     if (key === 'sample') { loadSample(); setImportMsg(null) }
+    else if (key === 'importNew') newRef.current?.click()
     else if (key === 'importXml') fileRef.current?.click()
     else if (key === 'importXlsx') xlsxRef.current?.click()
     else if (key === 'importMpp') mppRef.current?.click()
@@ -766,6 +813,17 @@ const SchedulePage: React.FC = () => {
             const f = e.target.files?.[0]
             e.target.value = ''
             if (f) void onImportMpp(f)
+          }}
+        />
+        <input
+          ref={newRef}
+          type="file"
+          accept=".xml,.xlsx,.xlsm,.mpp"
+          style={{ display: 'none' }}
+          onChange={(e) => {
+            const f = e.target.files?.[0]
+            e.target.value = ''
+            if (f) void onImportNewFile(f)
           }}
         />
         <Dropdown trigger={['click']} menu={importMenuCfg}>

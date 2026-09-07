@@ -120,6 +120,13 @@ interface ScheduleState {
   setStartDate: (d: string) => void
   /** 整体替换工程（XML 导入/文件水合），缺省字段归一 */
   importProject: (p: SchedProject) => void
+  /**
+   * 导入为新工程（v4.144）：以导入工程名落独立文件（Go slug 去重+登记索引+
+   * 切指针）→ 内容替换 → 立即冲刷 → 刷列表。非破坏口径：绝不触碰导入前的
+   * 当前工程（同 v4.139 复制=切指针）。返回 false=Create 失败（syncError
+   * 已置位、当前工程原状），UI 据此出诚实提示。
+   */
+  importAsProject: (p: SchedProject) => Promise<boolean>
   setCalendar: (cal: SchedCalendar) => void
   /** 目标竣工日期（null=清除），倒排校核用 */
   setDeadline: (d: string | null) => void
@@ -288,6 +295,7 @@ export const useScheduleStore = create<ScheduleState>()(
       renameProject: (name) => set((s) => { pushHistory('rename'); return { project: { ...s.project, name } } }),
       setStartDate: (startDate) => set((s) => { pushHistory('startDate'); return { project: { ...s.project, startDate } } }),
       importProject: (p) => { pushHistory(); set({ project: normalizeProject(p), selectedId: null }) },
+      importAsProject: (p) => importThenSwitch(p),
       setCalendar: (calendar) => set((s) => { pushHistory('calendar'); return { project: { ...s.project, calendar: normalizeCalendar(calendar) } } }),
       setDeadline: (d) => set((s) => { pushHistory('deadline'); return { project: { ...s.project, deadline: d } } }),
 
@@ -670,6 +678,21 @@ async function createThenSwitch(name: string): Promise<void> {
   } catch (e) {
     useScheduleStore.setState({ syncError: e instanceof Error ? e.message : String(e) })
   }
+}
+
+/** 导入为新工程（v4.144）：先 Create 落空工程+切指针（slug 去重），成功才替换
+ *  内容并立即冲刷。currentPath 未变=Create 失败（createThenSwitch 已置
+ *  syncError）→ 返回 false，当前工程保持原状（fail-closed）。名字空兜底
+ *  「导入工程」，slug、文件内容、列表摘要三处同源此名。 */
+async function importThenSwitch(p: SchedProject): Promise<boolean> {
+  const named: SchedProject = { ...p, name: p.name?.trim() || '导入工程' }
+  const before = useScheduleStore.getState().currentPath
+  await createThenSwitch(named.name)
+  if (useScheduleStore.getState().currentPath === before) return false
+  useScheduleStore.getState().importProject(named)
+  await flushDirty()
+  await refreshProjectsCache()
+  return true
 }
 
 /** Archive/Delete 后的统一收尾：列表缓存取回执；指针与返回 current 不一致（删了当前工程等）则重水合 */

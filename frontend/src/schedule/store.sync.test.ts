@@ -220,6 +220,91 @@ describe("多工程切换流（window.go stub，v4.139 #15 刀1）", () => {
     expect(st.syncError).toBeNull();
   });
 
+  it("importAsProject（v4.144）：Create 切指针后内容替换+立即落盘+列表刷新；原工程文件不动", async () => {
+    const NEW_REL = "进度计划/qian-zheng-tiao-zheng-2.gsched.json";
+    const files = new Map<string, SchedProject>([[OLD, { ...makeSampleProject(), name: "调整1" }]]);
+    let current = OLD;
+    let list: ScheduleProjectSummary[] = [summary(OLD, "调整1")];
+    stubScheduleSurface({
+      load: async () => ({ path: current, exists: files.has(current), project: JSON.stringify(files.get(current) ?? makeEmptyProject()) }),
+      save: async (projectJSON, rel) => {
+        files.set(rel, JSON.parse(projectJSON) as SchedProject);
+        return { path: rel, savedAt: "10:00", duration: 0, critical: 0 };
+      },
+      create: async (name) => {
+        files.set(NEW_REL, { ...makeEmptyProject(), name });
+        list = [...list, summary(NEW_REL, name)];
+        current = NEW_REL; // Go 侧：登记索引并自动切为当前
+        return { rel: NEW_REL, current: NEW_REL };
+      },
+      projects: async () => ({ current, projects: list }),
+    });
+    seeded(normalizeProject(files.get(OLD)!), OLD);
+
+    const imported: SchedProject = {
+      ...makeSampleProject(),
+      name: "签证调整2",
+      tasks: [{ id: "i1", name: "导入任务", duration: 4, level: 1, progress: 0 }],
+    };
+    await expect(useScheduleStore.getState().importAsProject(imported)).resolves.toBe(true);
+    const st = useScheduleStore.getState();
+    expect(st.currentPath).toBe(NEW_REL); // 独立新文件成为当前工程
+    expect(st.project.name).toBe("签证调整2"); // 内容=导入内容
+    expect(st.project.tasks.some((t) => t.id === "i1")).toBe(true);
+    expect(st.sync).toBe("saved"); // importProject 后已立即冲刷（不悬在防抖窗口）
+    expect(files.get(NEW_REL)?.tasks.some((t) => t.id === "i1")).toBe(true); // 落盘新 rel
+    expect(files.get(OLD)?.tasks.some((t) => t.id === "i1")).toBe(false); // 原工程文件未被触碰
+    expect(st.projects.some((p) => p.rel === NEW_REL && p.name === "签证调整2")).toBe(true);
+    expect(st.syncError).toBeNull();
+  });
+
+  it("importAsProject 名字空兜底「导入工程」：slug/文件内容/列表摘要同源此名", async () => {
+    const NEW_REL = "进度计划/导入工程.gsched.json";
+    const files = new Map<string, SchedProject>([[OLD, { ...makeSampleProject(), name: "调整1" }]]);
+    let current = OLD;
+    let list: ScheduleProjectSummary[] = [summary(OLD, "调整1")];
+    stubScheduleSurface({
+      load: async () => ({ path: current, exists: files.has(current), project: JSON.stringify(files.get(current) ?? makeEmptyProject()) }),
+      save: async (projectJSON, rel) => {
+        files.set(rel, JSON.parse(projectJSON) as SchedProject);
+        return { path: rel, savedAt: "10:00", duration: 0, critical: 0 };
+      },
+      create: async (name) => {
+        files.set(NEW_REL, { ...makeEmptyProject(), name });
+        list = [...list, summary(NEW_REL, name)];
+        current = NEW_REL;
+        return { rel: NEW_REL, current: NEW_REL };
+      },
+      projects: async () => ({ current, projects: list }),
+    });
+    seeded(normalizeProject(files.get(OLD)!), OLD);
+
+    await expect(useScheduleStore.getState().importAsProject({ ...makeSampleProject(), name: "  " })).resolves.toBe(true);
+    const st = useScheduleStore.getState();
+    expect(st.currentPath).toBe(NEW_REL);
+    expect(st.project.name).toBe("导入工程");
+    expect(st.projects.some((p) => p.rel === NEW_REL && p.name === "导入工程")).toBe(true);
+  });
+
+  it("importAsProject Create 失败：返回 false，当前工程原状（fail-closed）", async () => {
+    const files = new Map<string, SchedProject>([[OLD, { ...makeSampleProject(), name: "调整1" }]]);
+    stubScheduleSurface({
+      load: async () => ({ path: OLD, exists: true, project: JSON.stringify(files.get(OLD)!) }),
+      save: async (projectJSON, rel) => {
+        files.set(rel, JSON.parse(projectJSON) as SchedProject);
+        return { path: rel, savedAt: "10:00", duration: 0, critical: 0 };
+      },
+      create: async () => { throw new Error("磁盘写入失败"); },
+    });
+    seeded(normalizeProject(files.get(OLD)!), OLD);
+
+    await expect(useScheduleStore.getState().importAsProject({ ...makeSampleProject(), name: "另一工程" })).resolves.toBe(false);
+    const st = useScheduleStore.getState();
+    expect(st.currentPath).toBe(OLD); // 指针未动
+    expect(st.project.name).toBe("调整1"); // 工程未被替换
+    expect(st.syncError).toContain("磁盘写入失败"); // 错误诚实上屏（指示器）
+  });
+
   it("deleteProject 删当前工程：重水合到返回的 current，列表摘除被删项", async () => {
     const B = "进度计划/办公楼二期.gsched.json";
     const files = new Map<string, SchedProject>([

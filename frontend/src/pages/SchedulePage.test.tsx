@@ -18,6 +18,19 @@ import { useScheduleStore } from '../schedule/store'
 
 vi.mock('../schedule/ChatPane', () => ({ ScheduleChatPane: () => <div data-testid="mock-chat-pane" /> }))
 
+// v4.144 导入为新工程：只替换 MPP 解析（分发用例不触真绑定）；其余 api 成员原样保留
+vi.mock('../schedule/api', async (importOriginal) => {
+  const orig = await importOriginal<typeof import('../schedule/api')>()
+  return {
+    ...orig,
+    importScheduleMpp: vi.fn(async () => ({
+      name: '', startDate: '2026-09-07',
+      tasks: [{ id: 'm1', name: 'MPP任务', duration: 3, level: 1, progress: 0 }],
+      links: [],
+    })),
+  }
+})
+
 type StorePatch = Record<string, unknown>
 const seed = (patch: StorePatch) =>
   useScheduleStore.setState(patch as unknown as Parameters<typeof useScheduleStore.setState>[0])
@@ -195,7 +208,7 @@ describe('SchedulePage 命令区三行（v4.140：菜单栏/工具栏/信息条�
     expect(task).toContain('删除选中(dis)')
   })
 
-  it('导入/导出下拉：MPP 与 XML/Excel 同列，导出含图面；选中任务后「任务」菜单解锁', async () => {
+  it('导入/导出下拉：新工程主入口+三路替换当前显式标注；导出含图面；选中任务后「任务」菜单解锁', async () => {
     seed({
       project: {
         name: '当前计划', startDate: '2026-09-07',
@@ -206,7 +219,7 @@ describe('SchedulePage 命令区三行（v4.140：菜单栏/工具栏/信息条�
     })
     render(<SchedulePage />)
     const imp = await openMenu('sched-import-btn')
-    expect(imp).toEqual(['导入 MS Project XML…', '导入 Excel…', '导入 MPP（MS Project 工程）…'])
+    expect(imp).toEqual(['导入为新工程…', '导入 XML 替换当前工程…', '导入 Excel 替换当前工程…', '导入 MPP 替换当前工程…'])
     const exp = await openMenu('sched-export-menu-btn')
     expect(exp).toEqual(['导出 MS Project XML', '导出 Excel', '导出图面（PNG / PDF / 打印）…'])
     const task = await openMenu('sched-menu-task')
@@ -244,5 +257,66 @@ describe('SchedulePage 导出预览（v4.141：所见即所得）', () => {
       return svg
     }, { timeout: 3000 })
     expect(preview.getAttribute('viewBox')).toMatch(/^0 0 [\d.]+ [\d.]+$/)
+  })
+})
+
+describe('SchedulePage 导入为新工程（v4.144）', () => {
+  it('主入口按扩展名分发：MPP 解析→importAsProject（文件名兜底工程名）+成功回执', async () => {
+    const importAsProjectSpy = vi.fn(async (_p: { name: string }) => true)
+    seed({
+      project: { name: '当前计划', startDate: '2026-09-07', tasks: [], links: [] },
+      selectedId: null,
+      importAsProject: importAsProjectSpy as unknown as ReturnType<typeof useScheduleStore.getState>['importAsProject'],
+    })
+    render(<SchedulePage />)
+    await act(async () => { fireEvent.click(screen.getByTestId('sched-import-btn')) })
+    const item = await waitFor(() => {
+      const el = Array.from(document.querySelectorAll('.ant-dropdown:not(.ant-dropdown-hidden) .ant-dropdown-menu-item'))
+        .find((i) => i.textContent?.includes('导入为新工程'))
+      if (!el) throw new Error('菜单未开')
+      return el
+    })
+    await act(async () => { fireEvent.click(item) })
+    const input = await waitFor(() => {
+      const el = document.querySelector('input[accept=".xml,.xlsx,.xlsm,.mpp"]') as HTMLInputElement | null
+      if (!el) throw new Error('新工程文件输入未挂载')
+      return el
+    })
+    await act(async () => {
+      fireEvent.change(input, { target: { files: [new File(['MPP binary'], '签证调整2.mpp')] } })
+    })
+    await waitFor(() => expect(importAsProjectSpy).toHaveBeenCalledTimes(1))
+    const arg = importAsProjectSpy.mock.calls[0][0] as unknown as { name: string; tasks: unknown[] }
+    expect(arg.name).toBe('签证调整2') // MPP 文件内无工程名 → 文件名兜底
+    expect(arg.tasks.length).toBe(1)
+    expect(await screen.findByText(/已导入为新工程「签证调整2」/)).toBeTruthy()
+  })
+
+  it('不支持格式：诚实报错且不动 store', async () => {
+    const importAsProjectSpy = vi.fn(async () => true)
+    seed({
+      project: { name: '当前计划', startDate: '2026-09-07', tasks: [], links: [] },
+      selectedId: null,
+      importAsProject: importAsProjectSpy as unknown as ReturnType<typeof useScheduleStore.getState>['importAsProject'],
+    })
+    render(<SchedulePage />)
+    await act(async () => { fireEvent.click(screen.getByTestId('sched-import-btn')) })
+    const item = await waitFor(() => {
+      const el = Array.from(document.querySelectorAll('.ant-dropdown:not(.ant-dropdown-hidden) .ant-dropdown-menu-item'))
+        .find((i) => i.textContent?.includes('导入为新工程'))
+      if (!el) throw new Error('菜单未开')
+      return el
+    })
+    await act(async () => { fireEvent.click(item) })
+    const input = await waitFor(() => {
+      const el = document.querySelector('input[accept=".xml,.xlsx,.xlsm,.mpp"]') as HTMLInputElement | null
+      if (!el) throw new Error('新工程文件输入未挂载')
+      return el
+    })
+    await act(async () => {
+      fireEvent.change(input, { target: { files: [new File(['x'], '计划.docx')] } })
+    })
+    expect(await screen.findByText(/不支持的格式 \.docx/)).toBeTruthy()
+    expect(importAsProjectSpy).not.toHaveBeenCalled()
   })
 })

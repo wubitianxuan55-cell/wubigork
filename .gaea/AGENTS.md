@@ -5,9 +5,9 @@
 
 ## 版本状态（顶部速览）
 
-- **最新发布：v4.143.0（2026-09-07）「双代号显示路径优化：长线分行走通道 · 可读优先适配」**——用户对照斑马进度/Project 截图批「直接自适应整个界面、图变多小不管、线重合不分行」。①**同行长箭线走行间通道**：aoaLayout.ts 新增 `assignChannels(edges,nodeById)`（纯函数）——跨 >1.5 列（dx>AOA_COL_W×1.5）且同行（|dy|<2）的边让出节点中心线，走通道 y=行 y+ROW_H/2，x 区间重叠者按处理序（x1,x2 排序）依次 +12px 层号、非重叠共享层；edgeSegs 增 channelY 参数走五段正交路径（短出→下→通道→上→短入），标注挂通道中线；短边/未分配保持直连（链式笔画不破坏）；AoaView 与 networkExport 同源调用；通道边仍画波形（segsToPath 按段切，waveFromX 保留）。②**交叉削减 2→4 轮**（layerByTime 左右交替重心松弛）。③**可读优先适配**：AOA 自动适配下限 0.5、全览按钮下限 0.3（装不下横向滚动——参考斑马/Project 口径，绝不无脑缩成蚂蚁）；缩放下手动布点拖拽位移 ÷zoomRef 折算回图面坐标。**坑：①jsdom clientWidth=0——自动适配会误算出 0.5 并污染拖拽测试，须 el.clientWidth<=0 直接 return（AoaView.test 拖拽用例假阳性根因）；②assignChannels 层号依赖处理序（x1,x2 排序），同 y 重叠夹具的期望层号按序对调；③通道段波形由 segsToPath 既有按段切分自动生效，不要因「走通道」就把 waveFromX 置 null。**vitest 2465→**2467**（+2）、tsc -b/eslint 0、drift PASS@596、build+冒烟过。走查：示例工程 50% 可读缩放、通道让道可见、5 条汇总箭线嵌入同一网络。
+- **最新发布：v4.144.0（2026-09-07）「导入为新工程：三路导入安全化 · 非破坏口径」**——观察池销项（mspdi 导入为新工程候选池）。①此前 MPP/XML/Excel 三路导入一律 `importProject` **原地整体替换当前工程**（防抖落盘后原文件被静默覆盖，仅撤销兜底）。②store 新动作 `importAsProject`（importThenSwitch）：名字空兜底「导入工程」→ createThenSwitch（slug 去重+登记索引+自动切指针+重水合）→ importProject 内容替换 → flushDirty 立即落盘 → refreshProjectsCache 刷摘要；slug/文件内容/列表摘要三处同源一名；**fail-closed：Create 失败（currentPath 未变）返回 false、syncError 已置位、当前工程原状**；成功不触碰原工程文件（与 v4.139「复制=切指针」同口径）。③页面菜单重组：「导入为新工程…」主入口按扩展名分发（.xml/.xlsx/.xlsm/.mpp+文件名兜底工程名）；三路替换入口改显式标注「导入 X 替换当前工程…」（模板/签证覆盖场景保留）。**坑：①versioninfo.rc 的 FILEVERSION 逗号位自 v4.140 起停在 4,139,0,0 四版未随动（字符串位一直正常，check-version-drift.ps1 才捕获）——发布提版必须跑 sync-version.ps1 而非只 sed 字符串位；②createThenSwitch 内部吞错只置 syncError，importThenSwitch 判成败只能比对 currentPath 是否变化；③antd 子菜单在 jsdom 要 hover 交互很难测——导入菜单用扁平四项（新工程主入口+三路显式替换标注）不搞 submenu。**vitest 2467→**2472**（+5）、tsc -b/eslint 0、drift PASS@596、build+冒烟过。
 
-- **近期三版一行账**：v4.143.0 双代号显示路径优化（长线分行走通道+可读适配）· v4.142.0 分级双代号（界点衔接）+列头错位修复 · v4.141.0 导出预览+画布全览+周刻度——16 项差距 v4.139 全清后进入体验深化。
+- **近期三版一行账**：v4.144.0 导入为新工程（三路导入分流+非破坏口径）· v4.143.0 双代号显示路径优化（长线分行走通道+可读适配）· v4.142.0 分级双代号（界点衔接）+列头错位修复——16 项差距 v4.139 全清后进入体验深化。
 - **历史存档**：v4.110 之前的逐版全文与本文件原「版本状态」历史段（v2.x~v4.135，2100+ 行）已于 2026-09-09 迁往 docs/archive/agents-version-history-2026-09.md；长期有效结论已沉淀在下方各专节（执行纪律/发布流程/已知注意）。
 
 ## 执行纪律：默认并发子代理（2026-09-03 用户强化习惯）
