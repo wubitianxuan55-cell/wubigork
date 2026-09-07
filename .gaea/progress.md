@@ -1,5 +1,14 @@
 # 任务进度
 
+## 最新发布：v4.147.0（2026-09-08）「diff 确认卡刀B：schedule_apply 审批卡结构化 diff 预览」
+
+- **设计**：diff 确认闭环刀B（§2.2）。ask 级审批卡本就弹出，此前只有 path 一行字；本刀卡体升级为结构化 diff——批准前先看清改动与工期/成本影响。
+- **纯函数层 schedule/applyDiff.ts**：`diffProjects`（两侧 normalize 后纯比较）任务 id 键控字段级增删改/搭接按 to 分组入边比对/资源级联标注/分配增删改/meta 四项/汇总行（双方 CPM+成本+倒排+基线漂移预览）；after CPM 不过=「引擎将拒绝」预览 fail-closed；`scheduleApplyArgsOf` 宿主取 running 工具卡 args（放纯函数层守 react-refresh 单组件导出）。
+- **卡体**：ScheduleDiffCard + ApprovalModal 新 prop `scheduleApplyArgs`（approval.tool==="schedule_apply" 替换通用卡体；双宿主各传 items）；降级三级=非缺省路径/读取失败/ops 通道（simulateOps=刀D）；「预览数字，落盘以回执为准」；60 行截断。
+- **门禁**：tsc -b/eslint 0；vitest 2483→2499（+16）；drift PASS@597（零绑定）；版本三处 4.147.0；build+冒烟过。
+- **坑**：CpmResult 从 types 导入（cpm.ts 不再出）；SchedCalendar 字段 holidays 非 exceptions；全角空格踩 no-irregular-whitespace；i18n schedDiff.* 键有意识不做（域内容层 zh-only §405）。
+- **待续**：刀C（Go approvalSubjectFor project 分支=整计划替换 hardAsk 化+schedule-edit 锚点锁 31→N）→刀D（simulateOps+Go/TS 对拍）。
+
 ## 最新发布：v4.146.0（2026-09-08）「对话改计划回滚闭环（diff 确认卡刀A）」
 
 - **启动**：v4.125 落档的 diff 确认闭环设计（docs/gaea-schedule-diff-confirm-design-2026-09.md）按刀序启动——刀A 后置回滚补全（设计原文：即使确认卡不做也独立成立）。用户连续「继续」按「按建议刀路推进」理解。

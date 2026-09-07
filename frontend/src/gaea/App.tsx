@@ -14,6 +14,7 @@ import { app, onTaskEvent } from "./lib/bridge";
 import { GenuiActionProvider } from "../genui/GenuiActionContext";
 import { GenuiScopeProvider } from "../genui/scope";
 import { notifyScheduleFileChanged } from "../schedule/store";
+import { scheduleApplyArgsOf } from "../schedule/applyDiff";
 import { setGenuiActionHandler } from "./lib/genuiHost";
 import { clearGenuiPanel, sanitizeSessionKey } from "./lib/genuiPanel";
 import { clearBlockStatesForSession } from "../genui/interaction";
@@ -1688,6 +1689,7 @@ export default function App() {
       {state.approval && (
           <ApprovalModal
             approval={state.approval}
+            scheduleApplyArgs={scheduleApplyArgsOf(state.items)}
             onAnswer={(decision) => {
               approve(state.approval!.id, decision);
             }}

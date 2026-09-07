@@ -1,3 +1,9 @@
+## v4.147.0 · diff 确认卡刀B：schedule_apply 审批卡升级为结构化 diff 预览（2026-09-08）
+> diff 确认闭环设计刀B（§2.2）：ask 级别审批卡本就弹出，但只有「schedule_apply 当前计划」一行字——有确认之形、无审阅之实。本刀卡体升级为结构化 diff：批准前先看清改了什么、工期/成本怎么动。决策/快捷键/超时/双宿主全复用既有件，零 Go 改动，绑定面 **597 零变更**。详见 releases/v4.147.0.md。
+- 纯函数层 applyDiff.ts：`diffProjects(before, after)`——任务 id 键控增删改（字段级 from→to 中文 label）、搭接按 to 分组入边比对（对齐 set_links 语义）、资源删除标级联数、分配增删改、meta 四项、汇总行（总工期/关键/总成本双方 CPM+倒排校核+基线漂移预览）；after CPM 不过如实标注「引擎将拒绝」（预览层复刻 fail-closed）；两侧归一后再比不冒充改动。
+- ScheduleDiffCard 卡体 + ApprovalModal 接线（新 prop scheduleApplyArgs，双宿主从 Transcript running 工具卡取 args）：缺省路径读文件实况为 before；非缺省/读取失败/ops 通道三级诚实降级（ops 投影=刀D）；「预览数字，落盘以回执为准」标注；60 行截断+展开全部。
+- 门禁 tsc -b/eslint 0、vitest **2499**（+16）、drift PASS@597、版本三处 4.147.0、build+冒烟过。刀C（Go 审批闸门 hardAsk 化+锚点锁）/刀D（simulateOps+对拍）待续。
+
 ## v4.146.0 · 对话改计划回滚闭环（diff 确认卡刀A）：schedule_apply 进变更 tab + 回执卡「回滚本次」（2026-09-08）
 > v4.125 落档的 diff 确认闭环设计按刀序启动，刀A=后置回滚补全（设计原文：即使确认卡不做也独立成立）。缺口：schedule_apply 证据卡一直在 Journal，但变更 tab 白名单不含它、工具卡无回滚入口——AI 改计划后用户没有任何可点的反悔入口。纯前端，绑定面 **597 零变更**。详见 releases/v4.146.0.md。
 - 变更 tab：WRITE_TOOL_NAMES/WRITE_ONLY_TOOL_NAMES +schedule_apply（三态完备性锁同步满足）；extractChangedPaths 增可选 tool 参——缺省 path 回填「进度计划/当前计划.gsched.json」（与 Journal target 同口径，缺省路径整计划替换不漏记）；buildChangeDiff 显式降级说明（不伪造行级 diff）。

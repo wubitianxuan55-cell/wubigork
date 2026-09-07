@@ -18,6 +18,7 @@ import { AskCard } from '../gaea/components/AskCard'
 import { LeftOutlined } from '@ant-design/icons'
 import { useController } from '../gaea/lib/store'
 import { notifyScheduleFileChanged } from './store'
+import { scheduleApplyArgsOf } from './applyDiff'
 
 /** schedule_apply 回执 → 板块即时回读（监听 items 里工具卡的 status 跃迁） */
 function useScheduleApplyNotify(): void {
@@ -113,6 +114,7 @@ const ChatPaneInner: React.FC<{ onCollapse?: () => void }> = ({ onCollapse }) =>
       {state.approval && (
         <ApprovalModal
           approval={state.approval}
+          scheduleApplyArgs={scheduleApplyArgsOf(state.items)}
           onAnswer={(decision) => ctrl.approve(state.approval!.id, decision)}
         />
       )}

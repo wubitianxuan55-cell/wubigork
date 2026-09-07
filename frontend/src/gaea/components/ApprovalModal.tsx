@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useT } from "../lib/i18n";
 import type { WireApproval } from "../lib/types";
+import { ScheduleDiffCard } from "../../schedule/ScheduleDiffCard";
 
 const btnBase = "grid grid-cols-[28px_1fr] items-center gap-2.5 w-full min-h-[46px] rounded-lg text-fg p-1.5 px-2 text-left cursor-pointer transition-all duration-[var(--dur-fast)]";
 
@@ -46,10 +47,14 @@ const KEY_DECISIONS: Record<string, ApprovalDecision> = {
 export function ApprovalModal({
   approval,
   onAnswer,
+  scheduleApplyArgs,
 }: {
   approval: WireApproval;
   onAnswer: (decision: ApprovalDecision) => void;
   onRevisePlan?: (text: string) => void;
+  /** schedule_apply 专用：宿主从 Transcript 取该次调用的完整 args（弹卡期间
+   *  工具卡 status=running 已携带，§1.3）→ diff 确认卡（刀B）事前预览用。 */
+  scheduleApplyArgs?: string | null;
 }) {
   const t = useT();
   const cardRef = useRef<HTMLDivElement | null>(null);
@@ -120,10 +125,16 @@ export function ApprovalModal({
           </div>
         )}
 
-        {!approval.request && approval.subject && (
-          <pre className="m-0 mb-3 px-[11px] py-[9px] bg-bg-soft border border-border-soft rounded-lg font-mono text-[12.5px] whitespace-pre-wrap break-words max-h-[140px] overflow-auto">
-            {approval.subject}
-          </pre>
+        {approval.tool === "schedule_apply" ? (
+          /* diff 确认闭环刀B：schedule_apply 卡体升级为结构化 diff 预览
+             （决策钮/快捷键/超时语义不变，只换卡体内容）。 */
+          <ScheduleDiffCard args={scheduleApplyArgs ?? null} />
+        ) : (
+          !approval.request && approval.subject && (
+            <pre className="m-0 mb-3 px-[11px] py-[9px] bg-bg-soft border border-border-soft rounded-lg font-mono text-[12.5px] whitespace-pre-wrap break-words max-h-[140px] overflow-auto">
+              {approval.subject}
+            </pre>
+          )
         )}
 
         <div className="flex flex-col gap-1.5">
