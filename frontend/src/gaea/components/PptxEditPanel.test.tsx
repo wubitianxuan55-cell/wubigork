@@ -122,7 +122,7 @@ describe("PptxEditPanel pptx 编辑面板（v4.156 刀2）", () => {
     expect(screen.getByText(/绑定不可用/)).toBeTruthy();
   });
 
-  it("选中段落 → 生成调用 OfficeEditText 且拼入 pptx 场景约束；双栏对比整块着色", async () => {
+  it("选中段落 → 生成调用 OfficeEditText 且拼入 pptx 场景约束；对比区改蓝配对+字符级高亮", async () => {
     renderPanel();
     await screen.findByTestId("pptx-para-1-1");
     fireEvent.click(screen.getByTestId("pptx-para-1-1"));
@@ -137,16 +137,26 @@ describe("PptxEditPanel pptx 编辑面板（v4.156 刀2）", () => {
       expect.stringContaining("改得更精炼"),
     );
     expect(String(mocks.officeEdit.mock.calls[0][1])).toContain("防止文本框溢出");
-    // 双栏：原文栏 / 新文栏；mock 改写与原文句级不等 → 原文栏有删除着色、新文栏有新增着色
-    expect(screen.getByTestId("pptx-edit-original").textContent).toContain("营收同比增长");
-    expect(screen.getByTestId("pptx-edit-proposal").textContent).toContain("改写：营收同比增长");
-    const delSpan = screen.getByTestId("pptx-edit-original").querySelector("span[class*='bg-del-bg']");
-    const addSpan = screen.getByTestId("pptx-edit-proposal").querySelector("span[class*='bg-accent']");
-    expect(delSpan).toBeTruthy();
-    expect(addSpan).toBeTruthy();
-    // 诚实标注：句级对比（无字符级高亮）+ pptx 无修订标记说明
-    expect(screen.getByText(/句级对比（无字符级高亮）/)).toBeTruthy();
+    // 对比区复用 ChangesDiff：mock 改写与原文句级不等 → 相邻 del+add 行改蓝
+    // 配对（data-pair=old/new），行首带 -/+ 标记
+    const cmp = screen.getByTestId("pptx-edit-compare");
+    const rows = Array.from(
+      cmp.querySelectorAll("[data-testid='changes-diff-hunk'] > div > div"),
+    ) as HTMLElement[];
+    expect(rows).toHaveLength(2);
+    expect(rows[0]!.getAttribute("data-pair")).toBe("old");
+    expect(rows[0]!.textContent).toBe("-营收同比增长 12%，成本结构持续优化");
+    expect(rows[1]!.getAttribute("data-pair")).toBe("new");
+    expect(rows[1]!.textContent).toBe("+改写：营收同比增长 12%，成本结构持续优化");
+    // 字符级高亮：配对行内变化片段由 ChangesDiff 的 Segments 独立成 span，
+    // 新侧新增的「改写：」被单独标出
+    const changedSeg = Array.from(rows[1]!.querySelectorAll("span")).find(
+      (s) => s.textContent === "改写：",
+    );
+    expect(changedSeg).toBeTruthy();
+    // 常驻标注保留；「句级对比（无字符级高亮）」已被真实字符级取代，不再出现
     expect(screen.getByText(/PPT 格式不支持修订标记/)).toBeTruthy();
+    expect(screen.queryByText(/句级对比（无字符级高亮）/)).toBeNull();
   });
 
   it("应用成功：PptxApplyEdit 收到 (rel, 页码, 段落全文, 新文)；宿主收到新预览并刷新段落", async () => {

@@ -11,7 +11,10 @@ import {
 } from "../icons";
 import { app } from "../lib/bridge";
 import type { PreviewResult } from "../lib/types";
-import { diffDocxParagraphs, type DocxRow } from "../lib/docxTextDiff";
+import { diffDocxParagraphs } from "../lib/docxTextDiff";
+import type { DiffRow } from "../lib/diff";
+import type { ChangeDiff } from "../lib/planDiff";
+import { ChangesDiff } from "./ChangesDiff";
 import { useUpdatedFilesStore } from "../lib/store";
 
 // GaeaPptxSlideText / GaeaPptxApplyEdit 走窄类型访问（对齐 PptxOutline 的既有
@@ -42,7 +45,7 @@ const PPTX_TEXT_CONSTRAINT = "附加约束：这是 PPT 文本框要点，请短
 
 // splitSentenceUnits 把段落拆成句级单元（中英文句末标点/换行切分，标点归前句）。
 // 用途：单段原文 vs 单段新文喂给段级 LCS（docxTextDiff）做对齐——未改动的句子
-// 在双栏里保持中性上下文着色，改动的句子整块增删着色。
+// 出 ctx 行（中性），改动的句子成相邻 del/add 行。
 function splitSentenceUnits(text: string): string[] {
   return text
     .split(/(?<=[。！？；!?;\n])/g)
@@ -51,9 +54,14 @@ function splitSentenceUnits(text: string): string[] {
 }
 
 // buildCompareRows 段级对齐（复用 docxTextDiff 的经典 LCS，不新写算法）。
-// 粒度=句级整块着色，无字符级高亮——面板文案如实标注，不伪造字符级。
-function buildCompareRows(original: string, proposal: string): DocxRow[] {
-  return diffDocxParagraphs(splitSentenceUnits(original), splitSentenceUnits(proposal));
+// 句级单元做 LCS：未变句子 = ctx 行，改动 = 相邻 del+add 行——交给 ChangesDiff
+// 的改蓝配对即自动获得行内字符级高亮（设计 §3.3 层3 白得）。DocxRow.index 是
+// 段内句序号，不是 docx 段号/xlsx ref 那类用户可对照的坐标，归一为 DiffRow 时
+// 不带 marker 列。
+function buildCompareRows(original: string, proposal: string): DiffRow[] {
+  return diffDocxParagraphs(splitSentenceUnits(original), splitSentenceUnits(proposal)).map(
+    (r) => ({ type: r.type, text: r.text }),
+  );
 }
 
 /**
@@ -68,7 +76,8 @@ function buildCompareRows(original: string, proposal: string): DocxRow[] {
  *      重试，绑定未接线按同款降级）。
  *   2. 预设动作 + 自定义指令 → GaeaOfficeEditText 生成替换文（pptx 场景约束
  *      以附加提示词拼进 instruction，绑定零改动）。
- *   3. 双栏对比（原文/新文，句级 LCS 整块着色，如实标注无字符级高亮）。
+ *   3. 对比区（复用 ChangesDiff 统一渲染：句级 LCS 的相邻 del+add 对自动改蓝
+ *      配对 + 行内字符级高亮，未变句子给 ctx 行、长上下文自动折叠）。
  *   4. 「应用」→ GaeaPptxApplyEdit(rel, slideIdx, target, replacement)；
  *      定位不到/原文不匹配的后端错误原样透出（宁拒不误改）；成功后把返回的
  *      新 PreviewResult 交宿主刷新预览（写盘后预览缓存已自动失效），并静默
@@ -231,9 +240,14 @@ export function PptxEditPanel({
     onClose();
   }, [onClose]);
 
-  // 对比行：句级 LCS 整块着色（ctx 中性 / del 删 / add 增），无字符级高亮。
-  const compareRows = useMemo(
-    () => (selectedText && proposal ? buildCompareRows(selectedText, proposal) : null),
+  // 对比 diff：单段编辑天然一个 hunk（粒度 =「第 N 页·第 M 段」，页码/段号已在
+  // 上方标题行给出，hunk 不再重复 label）；pptx 纯文本不传 path（无语法着色），
+  // 改蓝配对 / 字符级高亮 / ctx 折叠全部由 ChangesDiff 内部完成。
+  const compareDiff = useMemo<ChangeDiff | null>(
+    () =>
+      selectedText && proposal
+        ? { kind: "diff", hunks: [{ rows: buildCompareRows(selectedText, proposal) }] }
+        : null,
     [selectedText, proposal],
   );
 
@@ -391,47 +405,16 @@ export function PptxEditPanel({
               </>
             ) : (
               <>
-                {/* 双栏对比：句级 LCS 整块着色（诚实标注，无字符级高亮） */}
+                {/* 对比区：统一 diff 查看器——相邻 del+add 对改蓝配对 + 行内
+                    字符级高亮 + ctx 折叠（§3.3 层3，与版本时间线同源渲染） */}
                 <div className="flex items-center gap-1 text-[10.5px] text-fg-faint mb-1.5">
                   <Sparkles size={10} className="text-accent shrink-0" />
                   <span>
                     对比预览：第 {sel?.slide} 页 第 {(sel?.para ?? 0) + 1} 段
                   </span>
-                  <span className="ml-auto">句级对比（无字符级高亮）</span>
                 </div>
-                <div className="grid grid-cols-2 gap-1.5" data-testid="pptx-edit-compare">
-                  <div className="min-w-0">
-                    <div className="text-[9.5px] text-fg-faint mb-0.5">原文</div>
-                    <div
-                      data-testid="pptx-edit-original"
-                      className="max-h-32 overflow-auto rounded-md border border-border-soft px-1.5 py-1 text-[10.5px] leading-relaxed whitespace-pre-wrap"
-                    >
-                      {compareRows?.filter((r) => r.type !== "add").map((r, i) => (
-                        <span
-                          key={i}
-                          className={r.type === "del" ? "bg-del-bg/25 text-fg-dim rounded-sm" : "text-fg-dim"}
-                        >
-                          {r.text}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="min-w-0">
-                    <div className="text-[9.5px] text-fg-faint mb-0.5">AI 新文</div>
-                    <div
-                      data-testid="pptx-edit-proposal"
-                      className="max-h-32 overflow-auto rounded-md border border-accent/25 bg-accent/5 px-1.5 py-1 text-[10.5px] leading-relaxed whitespace-pre-wrap"
-                    >
-                      {compareRows?.filter((r) => r.type !== "del").map((r, i) => (
-                        <span
-                          key={i}
-                          className={r.type === "add" ? "bg-accent/15 text-fg rounded-sm" : "text-fg-dim"}
-                        >
-                          {r.text}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
+                <div data-testid="pptx-edit-compare" className="max-h-32 overflow-auto rounded-md">
+                  {compareDiff && <ChangesDiff diff={compareDiff} />}
                 </div>
                 <div className="flex items-center justify-end gap-1.5 mt-1.5">
                   <button

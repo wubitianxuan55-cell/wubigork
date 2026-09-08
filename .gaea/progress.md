@@ -1,5 +1,12 @@
 # 任务进度
 
+## 最新发布：v4.157.0（2026-09-08）「Office 编辑链一致性小刀：docx 证据链补齐 + pptx 面板字符级对比」
+
+- **docx_apply 补证据链**（pptx 设计 §6 推荐项）：快照+Journal 对齐 pptx/xlsx 口径，ApplyTrackedReplace 语义零改动；accept=true 同款、拒绝分支天然回滚不加——docx 编辑从此可经版本时间线回滚。
+- **PptxEditPanel 对比区升级 ChangesDiff**：句级 LCS 归一 DiffRow，changed 对改蓝配对+字符级高亮；删句级降级标注。
+- **门禁**：Go app 包全绿(+3)、vitest 2650、tsc/eslint 0、drift PASS@598、版本三处 4.157.0、build+冒烟过。
+- **欠账**：pptx 刀2 真机走查挂池；刀4 待反馈；Verifier 通道 B 对 docx_apply 复核口径未动。
+
 ## 最新发布：v4.156.0（2026-09-08）「pptx 真编辑刀2+刀3：编辑面板 + 版本对比（Office 三件套编辑闭环）」
 
 - **起因**：用户拍板「进度计划暂时到此,优化迭代其它方向」。侦察发现 pptx 编辑设计（docs/gaea-pptx-edit-design-2026-09.md）刀1 数据层早在 v4.109.0 落地,刀2/刀3 因主线转入进度计划而搁置——接续刀序。

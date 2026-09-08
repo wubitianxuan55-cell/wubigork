@@ -1,3 +1,6 @@
+## v4.157.0 · Office 编辑链一致性小刀：docx 证据链补齐 + pptx 面板字符级对比（2026-09-08）
+> 两个小项收口三件套编辑线：①docx_apply 补快照+Journal（对齐 pptx_apply/xlsx_apply；ApplyTrackedReplace 语义零改动；accept=true 同款、拒绝分支天然回滚不加）——docx 编辑可经版本时间线回滚；②PptxEditPanel 对比区升级 ChangesDiff（changed=相邻 del/add 对改蓝配对+字符级高亮；ctx 折叠不伪造全量；删句级降级标注）。零新绑定 598；Go +3、vitest 2650、tsc/eslint 0、build+冒烟过。详见 releases/v4.157.0.md。
+
 ## v4.156.0 · pptx 真编辑刀2+刀3：编辑面板 + 版本对比（2026-09-08）
 > docs/gaea-pptx-edit-design-2026-09.md 刀2/刀3 并行交付（刀1=v4.109.0）——docx/xlsx/pptx 三件套编辑能力闭环。绑定 597→598（+GaeaPptxSlideText）。
 - 刀2：新绑定 `GaeaPptxSlideText`（pptxedit.LocateText 段落全文,纯 Go 零 python;大纲 texts 是 200 rune 截断预览不可当 target,apply 单段落精确匹配宁拒不误改）;PptxOutline 两级导航;PptxEditPanel(P1 Plan→Apply:段落单选→预设动作/自定义指令(短句化防溢出约束)→双栏对比→应用→新预览刷新);FilePreview pdf 分支挂面板;桥接六处(数量锁 310→311,mock ApplyEdit 未命中按后端同语义抛错)。
