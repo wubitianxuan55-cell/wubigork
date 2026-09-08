@@ -60,12 +60,14 @@ describe('buildAoaExportSvg 双代号时标', () => {
     expect(circles.filter((x) => x === 40 + 2 * 110).length, 'es=2 的事件（n3 与…）').toBeGreaterThanOrEqual(1)
   })
 
-  it('波形线=自由时差：独立任务 C 的完成事件虚工作尾段画波形（d 含 q 段），关键链无波形', () => {
+  it('波形线=自由时差：独立任务 C 的完成事件虚工作尾段画波形（独立绿色路径），关键链无波形', () => {
     const graph = buildAoa(baseProj.tasks, baseProj.links)
     const { svg } = buildAoaExportSvg(baseProj, graph)
     const doc = parse(svg)
-    const waves = Array.from(doc.querySelectorAll('path.sched-exp-aoa-dummy')).filter((p) => (p.getAttribute('d') ?? '').includes(' q '))
+    // 波形拆独立路径（v4.161）：sched-exp-aoa-wave，绿色 stroke
+    const waves = Array.from(doc.querySelectorAll('path.sched-exp-aoa-wave'))
     expect(waves.length, 'C 完成事件→T 虚工作带波形').toBe(1)
+    expect(waves[0].getAttribute('stroke'), '绿色自由时差').toBe('#22c55e') // hex-exempt：导出件内联色值
     const critWithWave = Array.from(doc.querySelectorAll('path.sched-exp-aoa-critical')).filter((p) => (p.getAttribute('d') ?? '').includes(' q '))
     expect(critWithWave.length, '关键箭线不画波形').toBe(0)
   })

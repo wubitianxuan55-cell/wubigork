@@ -15,7 +15,7 @@
  */
 import type { AoaGraph } from './aoa'
 import { AOA_R, AOA_ROW_H } from './aoa'
-import { edgeSegs, findBridgeArcs, segsToPath, assignChannels, summarySegs } from './aoaLayout'
+import { edgeSegs, findBridgeArcs, segsToPath, segsToPathSplit, assignChannels, summarySegs } from './aoaLayout'
 import { layerByTopology } from './layout'
 import { wdToDate } from './calendar'
 import type { CpmResult, LinkType, SchedProject } from './types'
@@ -154,7 +154,10 @@ export function buildAoaExportSvg(project: SchedProject, graph: AoaGraph, meta: 
     const summary = e.kind === 'summary'
     const cls = `sched-exp-aoa${crit ? ' sched-exp-aoa-critical' : ''}${e.kind === 'dummy' ? ' sched-exp-aoa-dummy' : ''}${summary ? ' sched-exp-aoa-summary' : ''}`
     const strokeC = summary ? C.ink : crit ? C.critical : C.link
-    net += `<path class="${cls}" d="${segsToPath(g.segs, waveFromX, bridges.get(i))}" fill="none" stroke="${strokeC}" stroke-width="${summary ? 2.6 : crit ? 2.4 : 1.2}"${e.kind === 'dummy' ? ' stroke-dasharray="6 4"' : ''} marker-end="url(#exp-aoa-arrow${crit ? '-crit' : summary ? '-summary' : ''})"/>`
+    // 波形拆独立路径（v4.161）：绿色=自由时差（标杆图例语言）
+    const { d, wave } = segsToPathSplit(g.segs, waveFromX, bridges.get(i))
+    net += `<path class="${cls}" d="${d}" fill="none" stroke="${strokeC}" stroke-width="${summary ? 2.6 : crit ? 2.4 : 1.2}"${e.kind === 'dummy' ? ' stroke-dasharray="6 4"' : ''} marker-end="url(#exp-aoa-arrow${crit ? '-crit' : summary ? '-summary' : ''})"/>`
+    if (wave) net += `<path class="sched-exp-aoa-wave" d="${wave}" fill="none" stroke="#22c55e" stroke-width="1.2"/>`
     const nameText = e.taskId ? taskName(e.taskId) : ''
     if (nameText) {
       net += `<text class="sched-exp-aoa-name${summary ? ' sched-exp-aoa-name-summary' : ''}" x="${g.name.x}" y="${g.name.y}" text-anchor="${g.name.anchor}" font-family="${FONT}" font-size="11" font-weight="${summary ? 700 : 400}" fill="${crit ? C.critical : C.ink}">${esc(nameText)}</text>`
@@ -220,7 +223,7 @@ export function buildAoaExportSvg(project: SchedProject, graph: AoaGraph, meta: 
     { draw: `<line x1="${lx}" y1="${legendY}" x2="${lx + 20}" y2="${legendY}" stroke="${C.link}" stroke-width="1.2"/>`, label: '工作', lw: 20 },
     { draw: `<line x1="${lx}" y1="${legendY}" x2="${lx + 20}" y2="${legendY}" stroke="${C.link}" stroke-width="1.2" stroke-dasharray="6 4"/>`, label: '虚工作', lw: 20 },
     { draw: `<line x1="${lx}" y1="${legendY}" x2="${lx + 20}" y2="${legendY}" stroke="${C.ink}" stroke-width="2.6"/>`, label: '一级汇总线（分组横幅顶部，衔接二级子网络）', lw: 20 },
-    { draw: `<path d="M${lx} ${legendY} q 2.5 -5 5 0 t 5 0 t 5 0 t 5 0" fill="none" stroke="${C.link}" stroke-width="1.2"/>`, label: '自由时差（波形线）', lw: 22 },
+    { draw: `<path d="M${lx} ${legendY} q 2.5 -5 5 0 t 5 0 t 5 0 t 5 0" fill="none" stroke="#22c55e" stroke-width="1.2"/>`, label: '自由时差（波形线）', lw: 22 },
   ]
   for (const it of items) {
     foot += it.draw

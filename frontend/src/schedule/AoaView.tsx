@@ -23,12 +23,16 @@
 import React, { useRef, useState } from 'react'
 import type { AoaGraph } from './aoa'
 import { AOA_COL_W, AOA_MARGIN, AOA_R, AOA_ROW_H } from './aoa'
-import { applyPins, assignChannels, edgeSegs, findBridgeArcs, prunePins, segsToPath, snapPt, summarySegs } from './aoaLayout'
+import { applyPins, assignChannels, edgeSegs, findBridgeArcs, prunePins, segsToPathSplit, snapPt, summarySegs } from './aoaLayout'
+import { buildAoaRuler } from './aoaRuler'
 import { useScheduleStore } from './store'
 import type { AoaPin, SchedTask } from './types'
 import { useWheelZoom } from './wheelZoom'
 
 const R = AOA_R
+/** 工程标尺行高（v4.161，时间坐标框架：顶=工程日/月/日，底=星期/工程周） */
+const RULER_TOP_H = 54
+const RULER_BOT_H = 34
 
 /**
  * 正交箭线几何已迁 aoaLayout.edgeSegs（v4.130 刀H：纯函数可测 + 段序列
@@ -40,6 +44,8 @@ export const AoaView: React.FC<{ graph: AoaGraph; tasks: SchedTask[] }> = ({ gra
   const selectedId = useScheduleStore((s) => s.selectedId)
   const aoaLayout = useScheduleStore((s) => s.project.aoaLayout)
   const setAoaPins = useScheduleStore((s) => s.setAoaPins)
+  const startDate = useScheduleStore((s) => s.project.startDate)
+  const calendar = useScheduleStore((s) => s.project.calendar)
   const pins = aoaLayout?.pins ?? {} // 派生放渲染体：selector 必须返回稳定引用（getSnapshot 缓存纪律）
   // 布局开关是视图态（mode 不入文件）：默认 pins 非空→手动
   const [mode, setMode] = useState<'auto' | 'manual'>(() => (Object.keys(pins).length > 0 ? 'manual' : 'auto'))
@@ -100,6 +106,12 @@ export const AoaView: React.FC<{ graph: AoaGraph; tasks: SchedTask[] }> = ({ gra
   const taskName = (id: string) => tasks.find((t) => t.id === id)?.name ?? ''
   const critCount = graph.edges.filter((e) => e.critical && e.kind === 'task').length
   const dummyCount = graph.edges.filter((e) => e.kind === 'dummy').length
+  // 工程标尺（v4.161，时间坐标框架）：auto=时标模式显示（手动布局 x 与时间
+  // 解耦，标尺失义不画）；顶部工程日/月/日+底部星期/工程周，月界竖线贯通图面
+  const ruler = manual
+    ? null
+    : buildAoaRuler(Math.max(0, ...graph.nodes.map((n) => n.es)), AOA_COL_W, AOA_MARGIN, startDate, calendar)
+  const rulerTop = ruler ? RULER_TOP_H : 0
 
   /** 拖拽提交：吸附落点写 pin + 剪枝失配键；自动模式拖拽=转手动（不骗人先例） */
   const commitPin = (anchor: string, pin: AoaPin) => {
@@ -152,15 +164,15 @@ export const AoaView: React.FC<{ graph: AoaGraph; tasks: SchedTask[] }> = ({ gra
     <div className="sched-network-scroll" data-testid="sched-aoa" ref={scrollRef}>
       <div className="sched-network-legend">
         <span><i className="lg-line lg-critical" />关键工作</span>
-        <span><i className="lg-line lg-normal" />工作</span>
+        <span><i className="lg-line sched-lg-task" />工作</span>
         <span><i className="lg-line lg-dummy" />虚工作</span>
         <span>
           <svg width="18" height="8" style={{ marginRight: 4, verticalAlign: 'middle' }} aria-hidden>
-            <path d="M0 4 q 2.25 -5 4.5 0 t 4.5 0 t 4.5 0 t 4.5 0" fill="none" stroke="var(--sched-link, #94a3b8)" strokeWidth="1.4" />
+            <path d="M0 4 q 2.25 -5 4.5 0 t 4.5 0 t 4.5 0 t 4.5 0" fill="none" stroke="var(--sched-float, #22c55e)" strokeWidth="1.4" />
           </svg>
           自由时差（波形线）
         </span>
-        <span>节点：上=最早时间 · 下=最迟时间</span>
+        <span>节点：上=最早时间 · 下=最迟时间（红圈=关键事件）</span>
         <span>标注：箭线上=工作名称 · 下=工期（「(日历)」=日历天任务）</span>
         <span><i className="lg-line sched-aoa-summary-legend" />一级汇总线（分组横幅顶部通长线，衔接二级子网络）</span>
         {/* 布局开关（视图态，不入文件）：手动=自由坐标，时间参数不受影响 */}
@@ -218,9 +230,30 @@ export const AoaView: React.FC<{ graph: AoaGraph; tasks: SchedTask[] }> = ({ gra
           </div>
         </div>
       </div>
-      <div className="sched-network-canvas" style={{ width: w * zoom, height: h * zoom }}>
-        <div style={{ position: 'absolute', inset: 0, width: w, height: h, transform: `scale(${zoom})`, transformOrigin: '0 0' }}>
-        <svg width={w} height={h} style={{ position: 'absolute', inset: 0 }}>
+      <div className="sched-network-canvas" style={{ width: w * zoom, height: (h + (ruler ? RULER_TOP_H + RULER_BOT_H : 0)) * zoom }}>
+        <div style={{ position: 'absolute', inset: 0, width: w, height: h + (ruler ? RULER_TOP_H + RULER_BOT_H : 0), transform: `scale(${zoom})`, transformOrigin: '0 0' }}>
+        {ruler && (
+          <svg width={w} height={RULER_TOP_H} style={{ position: 'absolute', top: 0, left: 0 }} data-testid="sched-aoa-ruler-top">
+            <line x1={0} y1={RULER_TOP_H - 1} x2={w} y2={RULER_TOP_H - 1} stroke="var(--md-sys-color-border, #e5e7eb)" />
+            <line x1={AOA_MARGIN} y1={10} x2={w - AOA_COL_W / 2} y2={10} stroke="var(--md-sys-color-border, #e5e7eb)" />
+            <text x={AOA_MARGIN - 6} y={14} textAnchor="end" fontSize="9" fill="var(--md-sys-color-outline, #8a8f98)">工程日</text>
+            <text x={AOA_MARGIN - 6} y={30} textAnchor="end" fontSize="9" fill="var(--md-sys-color-outline, #8a8f98)">月</text>
+            <text x={AOA_MARGIN - 6} y={45} textAnchor="end" fontSize="9" fill="var(--md-sys-color-outline, #8a8f98)">日</text>
+            {ruler.dayTicks.map((t) => (
+              <g key={`t${t.x}`}>
+                <line x1={t.x} y1={0} x2={t.x} y2={10} stroke="var(--md-sys-color-border, #e5e7eb)" />
+                <text x={t.x} y={14} textAnchor="middle" fontSize="9" fill={t.total ? 'var(--sched-critical, #e02020)' : 'var(--md-sys-color-outline, #8a8f98)'} fontWeight={t.total ? 600 : 400}>{t.label}</text>
+              </g>
+            ))}
+            {ruler.monthLabels.map((m) => (
+              <text key={`m${m.x}`} x={m.x} y={30} fontSize="9" fill="var(--md-sys-color-on-surface, #374151)">{m.label}</text>
+            ))}
+            {ruler.dayLabels.map((d) => (
+              <text key={`d${d.x}`} x={d.x} y={45} textAnchor="middle" fontSize="9" fill="var(--md-sys-color-on-surface, #374151)">{d.label}</text>
+            ))}
+          </svg>
+        )}
+        <svg width={w} height={h} style={{ position: 'absolute', top: rulerTop, left: 0 }} data-testid="sched-aoa-graph">
           <defs>
             <marker id="aoa-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto">
               <path d="M0,0 L9,4.5 L0,9 z" fill="var(--sched-link, #94a3b8)" />
@@ -232,6 +265,9 @@ export const AoaView: React.FC<{ graph: AoaGraph; tasks: SchedTask[] }> = ({ gra
               <path d="M0,0 L9,4.5 L0,9 z" fill="var(--sched-group, #1f2937)" />
             </marker>
           </defs>
+          {ruler && ruler.monthLines.map((m) => (
+            <line key={`ml${m.x}`} x1={m.x} y1={0} x2={m.x} y2={h} stroke="var(--sched-grid, rgba(148,163,184,0.16))" />
+          ))}
           {(() => {
             // 分级横幅底纹（v4.160，对标上报件交替底色）：每 band 一块浅色
             // 矩形垫底，一级/二级分区一眼可辨；band 顶=带内最小 y−半个行距
@@ -291,17 +327,20 @@ export const AoaView: React.FC<{ graph: AoaGraph; tasks: SchedTask[] }> = ({ gra
                   const dummy = e.kind === 'dummy'
                   const summary = e.kind === 'summary'
                   const cls = `sched-aoa-link${e.critical ? ' sched-aoa-link-critical' : ''}${dummy ? ' sched-aoa-dummy' : ''}${summary ? ' sched-aoa-summary' : ''}`
+                  const { d, wave } = segsToPathSplit(g.segs, waveFromX, bridges.get(i))
                   return (
                     <g key={e.id}>
                       <path
-                        d={segsToPath(g.segs, waveFromX, bridges.get(i))}
+                        d={d}
                         className={cls}
                         markerEnd={e.critical ? 'url(#aoa-arrow-crit)' : summary ? 'url(#aoa-arrow-summary)' : 'url(#aoa-arrow)'}
                         onClick={() => e.taskId && select(e.taskId)}
                         style={{ pointerEvents: e.taskId ? 'stroke' : 'none', cursor: e.taskId ? 'pointer' : 'default' }}
                       />
+                      {/* 自由时差波形独立路径（v4.161）：绿色=标杆图例语言 */}
+                      {wave && <path d={wave} className="sched-aoa-wave" data-testid="sched-aoa-wave" />}
                       {e.label && (
-                        <text x={g.dur.x} y={g.dur.y} textAnchor={g.dur.anchor} className={`sched-net-label${e.critical ? ' sched-net-label-critical' : ''}`}>
+                        <text x={g.dur.x} y={g.dur.y} textAnchor={g.dur.anchor} className={`sched-aoa-dur${e.critical ? ' sched-net-label-critical' : ''}`}>
                           {e.label}
                         </text>
                       )}
@@ -325,12 +364,12 @@ export const AoaView: React.FC<{ graph: AoaGraph; tasks: SchedTask[] }> = ({ gra
               key={n.id}
               data-anchor={n.anchor}
               className="sched-aoa-node-wrap"
-              style={{ left: pos.x - R, top: pos.y - R, cursor: 'grab', opacity: isDragging ? 0.85 : 1 }}
+              style={{ left: pos.x - R, top: pos.y - R + rulerTop, cursor: 'grab', opacity: isDragging ? 0.85 : 1 }}
               onMouseDown={(e) => beginDrag(e, n.id)}
               title={manual ? '拖动布点（半格吸附）' : '拖动即转入手动布局'}
             >
               <div className={`sched-aoa-time sched-aoa-time-es${n.es === n.ls ? '' : ' sched-aoa-time-shift'}`}>{n.es}</div>
-              <div className={`sched-aoa-node${selectedEdge && (selectedEdge.from === n.id || selectedEdge.to === n.id) ? ' sched-aoa-node-hl' : ''}`}>
+              <div className={`sched-aoa-node${n.es === n.ls ? ' sched-aoa-node-crit' : ''}${selectedEdge && (selectedEdge.from === n.id || selectedEdge.to === n.id) ? ' sched-aoa-node-hl' : ''}`}>
                 {n.num}
               </div>
               <div className="sched-aoa-time sched-aoa-time-ls">{n.ls}</div>
@@ -342,6 +381,19 @@ export const AoaView: React.FC<{ graph: AoaGraph; tasks: SchedTask[] }> = ({ gra
             </div>
           )
         })}
+        {ruler && (
+          <svg width={w} height={RULER_BOT_H} style={{ position: 'absolute', top: rulerTop + h, left: 0 }} data-testid="sched-aoa-ruler-bot">
+            <line x1={0} y1={0} x2={w} y2={0} stroke="var(--md-sys-color-border, #e5e7eb)" />
+            <text x={AOA_MARGIN - 6} y={14} textAnchor="end" fontSize="9" fill="var(--md-sys-color-outline, #8a8f98)">星期</text>
+            <text x={AOA_MARGIN - 6} y={28} textAnchor="end" fontSize="9" fill="var(--md-sys-color-outline, #8a8f98)">工程周</text>
+            {ruler.weekdays.map((d) => (
+              <text key={`w${d.x}`} x={d.x} y={14} textAnchor="middle" fontSize="9" fill="var(--md-sys-color-on-surface, #374151)">{d.label}</text>
+            ))}
+            {ruler.weeks.map((d) => (
+              <text key={`k${d.x}`} x={d.x} y={28} textAnchor="middle" fontSize="9" fill="var(--md-sys-color-outline, #8a8f98)">{d.label}</text>
+            ))}
+          </svg>
+        )}
         </div>
       </div>
     </div>

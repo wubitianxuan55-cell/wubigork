@@ -305,14 +305,19 @@ export function findBridgeArcs(segsByEdge: Seg[][]): Map<number, Map<number, num
 }
 
 /**
- * 单边段序列 → path d。G4 波形线（时标网络图例语言：自由时差以波形线表示，
- * 虚工作有时差时加波形线）：右行水平段超出 waveFromX（实体工期终点 x）的
- * 尾段画波形，<6px 不足半个波则直连；waveFromX=null（手动布局，x 与时间
- * 解耦）不画波形。G1 过桥：bridges=本边 段序号→桥位 y（findBridgeArcs 内层），
- * 竖段在桥位画半圆（下行 sweep=1、上行 sweep=0，统一右凸）。
+ * 单边段序列 → path d + 独立波形路径（v4.161 拆分：波形线单独着色=标杆图
+ * 绿色自由时差）。主路径 d 与旧 segsToPath 的实体段/过桥完全一致；wave=
+ * 右行水平段超出 waveFromX 的尾段（<6px 不足半个波则不拆，并入主路径），
+ * 以绝对 M 起头可独立渲染；waveFromX=null（手动布局，x 与时间解耦）恒 null。
+ * segsToPath 保持旧输出（d + ' ' + wave 拼接=逐字符兼容），PdmView/测试沿用。
  */
-export function segsToPath(segs: Seg[], waveFromX: number | null, bridges?: Map<number, number[]>): string {
+export function segsToPathSplit(
+  segs: Seg[],
+  waveFromX: number | null,
+  bridges?: Map<number, number[]>,
+): { d: string; wave: string | null } {
   const parts: string[] = [`M ${segs[0].x1} ${segs[0].y1}`]
+  let wave = ''
   segs.forEach((s, si) => {
     if (s.x1 === s.x2) {
       const down = s.y2 >= s.y1
@@ -331,14 +336,23 @@ export function segsToPath(segs: Seg[], waveFromX: number | null, bridges?: Map<
       const solidEnd = Math.max(s.x1, Math.min(waveFromX, s.x2))
       if (solidEnd > s.x1) parts.push(`L ${solidEnd} ${s.y1}`)
       const w = s.x2 - solidEnd
-      if (w >= 6) parts.push(waveD(w))
-      parts.push(`L ${s.x2} ${s.y2}`)
+      if (w >= 6) {
+        // 独立子路径绝对 M 起头（多段波形各自定位，相对 q 不串位）；段尾 L 收口
+        wave += `M ${solidEnd} ${s.y1} ${waveD(w)} L ${s.x2} ${s.y2} `
+      } else {
+        parts.push(`L ${s.x2} ${s.y2}`)
+      }
     } else {
       parts.push(`L ${s.x1} ${s.y1}`)
       parts.push(`L ${s.x2} ${s.y2}`)
     }
   })
-  return parts.join(' ')
+  return { d: parts.join(' '), wave: wave ? wave.trimEnd() : null }
+}
+
+export function segsToPath(segs: Seg[], waveFromX: number | null, bridges?: Map<number, number[]>): string {
+  const { d, wave } = segsToPathSplit(segs, waveFromX, bridges)
+  return wave ? `${d} ${wave}` : d
 }
 
 /** 波形线 d：等宽半波交替成 ⌒⌓⌒⌓ 正弦形，相对坐标接续当前点、终点恰落段尾 */

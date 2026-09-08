@@ -48,15 +48,14 @@ describe('AoaView 手动布局（AOA 刀1）', () => {
   })
 
   it('自动模式拖拽节点：落点写 pins、视图自动转手动', () => {
-    render(<AoaView graph={buildAoa(useScheduleStore.getState().project.tasks, useScheduleStore.getState().project.links)} tasks={[]} />)
-    const el = nodeWrap('S')
-    const ox = parseFloat(el.style.left) + 16 // R=16：wrap left = pos.x - R
-    const oy = parseFloat(el.style.top) + 16
-    fireEvent.mouseDown(el, { clientX: 0, clientY: 0 })
+    const graph = buildAoa(useScheduleStore.getState().project.tasks, useScheduleStore.getState().project.links)
+    render(<AoaView graph={graph} tasks={[]} />)
+    const s = graph.nodes.find((n) => n.anchor === 'S')! // 期望=图面坐标+位移（wrap style 含标尺偏移不可反推）
+    fireEvent.mouseDown(nodeWrap('S'), { clientX: 0, clientY: 0 })
     fireEvent.mouseMove(window, { clientX: 500, clientY: 37 })
     fireEvent.mouseUp(window)
     const pins = useScheduleStore.getState().project.aoaLayout?.pins ?? {}
-    expect(pins.S).toEqual(snapPt(ox + 500, oy + 37))
+    expect(pins.S).toEqual(snapPt(s.x + 500, s.y + 37))
     // 开关切到手动（自动模式拖拽=转手动）
     expect(screen.getByTestId('sched-aoa-mode').textContent).toContain('手动')
   })
@@ -106,15 +105,14 @@ describe('AoaView 手动布局（AOA 刀1）', () => {
     p.aoaLayout = { pins: { 'end:ghost': { x: 1, y: 1 }, S: { x: 55, y: 37 } } }
     useScheduleStore.setState({ project: p })
     render(<AoaView graph={buildAoa(p.tasks, p.links)} tasks={[]} />)
-    const tEl = nodeWrap('T')
-    const tox = parseFloat(tEl.style.left) + 16
-    const toy = parseFloat(tEl.style.top) + 16
-    fireEvent.mouseDown(tEl, { clientX: 0, clientY: 0 })
+    const graph = buildAoa(p.tasks, p.links)
+    const tNode = graph.nodes.find((n) => n.anchor === 'T')!
+    fireEvent.mouseDown(nodeWrap('T'), { clientX: 0, clientY: 0 })
     fireEvent.mouseMove(window, { clientX: 220, clientY: 74 })
     fireEvent.mouseUp(window)
     const pins = useScheduleStore.getState().project.aoaLayout?.pins ?? {}
     expect(pins['end:ghost']).toBeUndefined() // 失配键被剪枝
-    expect(pins.T).toEqual(snapPt(tox + 220, toy + 74))
+    expect(pins.T).toEqual(snapPt(tNode.x + 220, tNode.y + 74))
   })
 })
 
@@ -139,13 +137,12 @@ describe('AoaView 刀H（G2/G4）', () => {
     return { tasks, links, graph: buildAoa(tasks, links) }
   }
 
-  it('G4：auto 时标模式自由时差画波形线（d 含波浪 q 段）', () => {
+  it('G4：auto 时标模式自由时差画波形线（独立路径，绿色图例语言）', () => {
     const { tasks, graph } = floatGraph()
     render(<AoaView graph={graph} tasks={tasks} />)
-    // 只看网络图连线（图例里的波形小图标 d 同样含 q，不可混入）
-    const waved = Array.from(screen.getByTestId('sched-aoa').querySelectorAll('path.sched-aoa-link'))
-      .filter((p) => (p.getAttribute('d') ?? '').includes(' q '))
-    expect(waved.length).toBeGreaterThan(0)
+    // 波形拆独立路径（v4.161）：sched-aoa-wave，主路径不再含 q 段
+    const waves = screen.getByTestId('sched-aoa').querySelectorAll('path.sched-aoa-wave')
+    expect(waves.length).toBeGreaterThan(0)
     expect(screen.getByTestId('sched-aoa').textContent).toContain('自由时差（波形线）')
   })
 
@@ -153,8 +150,7 @@ describe('AoaView 刀H（G2/G4）', () => {
     const { tasks, graph } = floatGraph()
     useScheduleStore.getState().setAoaPins({ S: { x: 550, y: 222 } })
     render(<AoaView graph={graph} tasks={tasks} />)
-    const waved = Array.from(screen.getByTestId('sched-aoa').querySelectorAll('path.sched-aoa-link'))
-      .filter((p) => (p.getAttribute('d') ?? '').includes(' q '))
+    const waved = screen.getByTestId('sched-aoa').querySelectorAll('path.sched-aoa-wave')
     expect(waved).toHaveLength(0)
     useScheduleStore.getState().setAoaPins({})
   })
@@ -162,9 +158,9 @@ describe('AoaView 刀H（G2/G4）', () => {
   it('G2：同一边内工作名称在工期标注上方', () => {
     const p = chainProject()
     render(<AoaView graph={buildAoa(p.tasks, p.links)} tasks={p.tasks} />)
-    const g = screen.getByTestId('sched-aoa').querySelector('svg g')! // 首边=起点→挖土完成事件
+    const g = screen.getByTestId('sched-aoa-graph').querySelector('g')! // 首边=起点→挖土完成事件
     const name = g.querySelector('text.sched-aoa-taskname')
-    const dur = g.querySelector('text.sched-net-label')
+    const dur = g.querySelector('text.sched-aoa-dur')
     expect(name).toBeTruthy()
     expect(dur?.textContent).toBe('3d')
     expect(parseFloat(name!.getAttribute('y')!)).toBeLessThan(parseFloat(dur!.getAttribute('y')!))
@@ -239,5 +235,37 @@ describe('AoaView 分级横幅（v4.160）', () => {
     const p = bandedProject()
     render(<AoaView graph={buildAoa(p.tasks, p.links)} tasks={p.tasks} />)
     expect(screen.getByTestId('sched-aoa').textContent).toContain('分组横幅顶部通长线')
+  })
+})
+
+describe('AoaView 工程标尺与图面语言（v4.161 对齐标杆）', () => {
+  beforeEach(() => {
+    useScheduleStore.setState({ project: chainProject(), selectedId: null, hydrated: true, sync: 'saved', syncError: null })
+  })
+
+  it('auto 模式：顶部标尺（工程日/月/日）+底部（星期/工程周）齐备；月界竖线贯通', () => {
+    const p = chainProject()
+    render(<AoaView graph={buildAoa(p.tasks, p.links)} tasks={p.tasks} />)
+    expect(screen.getByTestId('sched-aoa-ruler-top')).toBeTruthy()
+    expect(screen.getByTestId('sched-aoa-ruler-bot')).toBeTruthy()
+    const top = screen.getByTestId('sched-aoa-ruler-top').textContent ?? ''
+    const bot = screen.getByTestId('sched-aoa-ruler-bot').textContent ?? ''
+    for (const s of ['工程日', '2026.9']) expect(top).toContain(s)
+    for (const s of ['星期', '工程周', '一']) expect(bot).toContain(s)
+  })
+
+  it('手动模式 x 与时间解耦：标尺隐藏', () => {
+    const p = chainProject()
+    useScheduleStore.getState().setAoaPins({ S: { x: 550, y: 222 } })
+    render(<AoaView graph={buildAoa(p.tasks, p.links)} tasks={p.tasks} />)
+    expect(screen.queryByTestId('sched-aoa-ruler-top')).toBeNull()
+    useScheduleStore.getState().setAoaPins({})
+  })
+
+  it('关键事件（es=ls）红圈：图面至少一个 sched-aoa-node-crit', () => {
+    const p = chainProject() // 全关键链
+    render(<AoaView graph={buildAoa(p.tasks, p.links)} tasks={p.tasks} />)
+    const critNodes = screen.getByTestId('sched-aoa').querySelectorAll('.sched-aoa-node-crit')
+    expect(critNodes.length).toBeGreaterThan(0)
   })
 })

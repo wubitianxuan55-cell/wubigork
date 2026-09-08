@@ -620,9 +620,10 @@
 }
 
 /* ── 双代号节点/箭线 ──────────────────────────────────────── */
+/* 非关键工作线加深（v4.161 对齐标杆图：非关键=深灰，让位关键红） */
 .sched-aoa-link {
   fill: none;
-  stroke: var(--sched-link);
+  stroke: #475569;
   stroke-width: 1.6;
 }
 .sched-aoa-link-critical {
@@ -631,6 +632,13 @@
 }
 .sched-aoa-dummy {
   stroke-dasharray: 5 4;
+  stroke: #64748b;
+}
+/* 自由时差波形线（v4.161 独立路径）：绿色=标杆图例语言 */
+.sched-aoa-wave {
+  fill: none;
+  stroke: var(--sched-float, #22c55e);
+  stroke-width: 1.6;
 }
 /* 分级汇总箭线（v4.142）：一级工作从二级子网络开始界点连到完成界点，
    深色粗线（同横道分组汇总条色），不参与关键线路着色 */
@@ -648,7 +656,18 @@
 }
 .sched-aoa-taskname {
   font-size: 11px;
-  fill: var(--md-sys-color-on-surface, #374151);
+  /* 工作名蓝色（v4.161 对齐标杆图：名称=工作蓝，关键红由 -critical 覆盖） */
+  fill: var(--sched-normal, #1e6fd9);
+}
+/* 工期/时距标注（v4.161：同标杆图蓝色系，弱一档） */
+.sched-aoa-dur {
+  font-size: 10px;
+  fill: var(--sched-normal, #1e6fd9);
+  opacity: 0.8;
+}
+/* 图例「工作」样本（v4.161：与非关键线同深灰） */
+.sched-lg-task {
+  border-top-color: #475569;
 }
 .sched-aoa-node-wrap {
   position: absolute;
@@ -669,6 +688,11 @@
   justify-content: center;
   font-size: 13px;
   font-weight: 700;
+}
+/* 关键事件红圈（v4.161 对齐标杆图：es=ls 的事件圈红色） */
+.sched-aoa-node-crit {
+  border-color: var(--sched-critical);
+  color: var(--sched-critical);
 }
 .sched-aoa-node-hl {
   border-color: var(--sched-normal);

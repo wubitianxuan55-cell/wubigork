@@ -380,27 +380,32 @@ export function buildAoa(tasks: SchedTask[], links: SchedLink[], opts?: { planFi
   // band 内保序打包：沿用全局重心行序为 band 内相对序（同列节点行号必不同，
   // 打包不产生同行冲突），band 间留 1 行空档容纳下一横幅的顶部汇总线；
   // y 首行再预留半个行距（band 0 顶汇总线不越界）。
-  const bandRowCount = new Map<number, number>()
-  const ordered = nodeIds
-    .map((id) => ({ id, band: nodeBand.get(id) ?? 0, gRow: pos.get(id)!.row, col: pos.get(id)!.col }))
-    .sort((p, q) => p.band - q.band || p.gRow - q.gRow || p.col - q.col)
-  for (const it of ordered) bandRowCount.set(it.band, (bandRowCount.get(it.band) ?? 0) + 1)
+  // band 内打包的输入：每个节点的（归属带, 全局重心行道）
+  const ordered = nodeIds.map((id) => ({ id, band: nodeBand.get(id) ?? 0, gRow: pos.get(id)!.row }))
+  // band 内按「行道」打包：gRow=全局重心行道——链式合并事件同列同行道，
+  // 直接压缩带内空行道作带内行号（链保持一条水平线不阶梯化；带间经 bandBase
+  // 错开，带间再留 1 行空档容纳下一横幅顶部汇总线；y 首行预留半个行距）。
+  const bandLanes = new Map<number, number[]>() // band → 升序行道（=带内行号）
+  {
+    const lanes = new Map<number, Set<number>>()
+    for (const it of ordered) {
+      if (!lanes.has(it.band)) lanes.set(it.band, new Set())
+      lanes.get(it.band)!.add(it.gRow)
+    }
+    for (const [b, set] of lanes) bandLanes.set(b, [...set].sort((p, q) => p - q))
+  }
   const bandBase = new Map<number, number>()
   {
     let acc = 0
     for (let b = 0; b < bandLabels.length; b++) {
       bandBase.set(b, acc)
-      acc += (bandRowCount.get(b) ?? 0) + 1 // +1=横幅间空档
+      acc += (bandLanes.get(b)?.length ?? 0) + 1 // +1=横幅间空档
     }
   }
   const rowOf = new Map<string, number>()
-  {
-    const packCursor = new Map<number, number>()
-    for (const it of ordered) {
-      const r = packCursor.get(it.band) ?? 0
-      packCursor.set(it.band, r + 1)
-      rowOf.set(it.id, (bandBase.get(it.band) ?? 0) + r)
-    }
+  for (const it of ordered) {
+    const lanes = bandLanes.get(it.band)!
+    rowOf.set(it.id, (bandBase.get(it.band) ?? 0) + lanes.indexOf(it.gRow))
   }
   const rowsTotal = Math.max(1, ...[...rowOf.values()].map((r) => r + 1))
   // 行距自适应（比例协调）：时标图宽度被工期锁定，低并行度的长计划行数少，
