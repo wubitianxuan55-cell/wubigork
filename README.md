@@ -92,6 +92,7 @@ gaea/
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| **v4.158.0** | 2026-09-09 | AI 组价复核闭环（造价板块；前置调研校正「AI 组价 v4.2 已在产」,真缺口见新档 gaea-cost-domain-survey）:①组价确认留痕 SchemaV16 快照价格带/人材机/证据链/校验(无确认不落库红线不变)+GaeaCostComposeRecords 回看,条目详情「组价依据(N 次)」折叠区,证据链表抽共享组件;②LLM 拆解合理性校验纯函数(金额一致性/非正值/合计偏差两档)进 Compose 响应,面板行级徽标+全局提示,校验随留痕入档。绑定 598→599;Go +18、vitest 2650→2658。详见 releases/v4.158.0.md |
 | **v4.157.0** | 2026-09-08 | Office 编辑链一致性小刀：docx_apply 补证据链（快照+Journal，对齐 pptx/xlsx 口径——docx 编辑从此可经版本时间线回滚；accept=true 分支同款，拒绝分支天然回滚不加）+pptx 编辑面板对比区升级 ChangesDiff（改蓝配对+字符级高亮，删句级降级标注）。零新绑定 598；Go +3 用例、vitest 2650。详见 releases/v4.157.0.md |
 | **v4.156.0** | 2026-09-08 | pptx 真编辑刀2+刀3（Office 三件套编辑闭环）：新绑定 `GaeaPptxSlideText`（段落全文,纯 Go 零 python——大纲 texts 截断预览不可当 target）+PptxOutline 两级导航+PptxEditPanel（预设动作→生成→双栏对比→应用,Plan→Apply 范式,快照+Journal 沿刀1）;版本时间线第四种 kind:pptx（pptxTextDiff 页对齐+段落 LCS,取数走 AttachmentDataURL 因 Preview 对 pptx 是 PDF 缩略）;句级对比诚实降级。绑定 597→598;vitest 2617→2650。详见 releases/v4.156.0.md |
 | **v4.155.0** | 2026-09-08 | 双工期欠账放开：cd（日历天）任务搭接从仅 FS 放开到 SS/FF/SF 全类型（§3.2.5 实施前重推——原矩阵四格「需不动点」系 wd 代数形误判，实际零迭代可解）。新原语 `cdEarliestStart` 单调逆查解 FF/SF-to；SS/SF-from 直接 ls 下界+后继 effLf 诚实传播；wd 路径逐位不变。Validate/引擎/analyze 三处「仅 FS」闸全拆（余四闸不动），文案四处同步。锚点表×6+用例 A-E 两侧镜像；golden 62→65。TS↔Go 同批镜像；597 零变更；vitest 2601→2617。详见 releases/v4.155.0.md |

@@ -1,7 +1,19 @@
 import { useEffect, useMemo, useState } from "react";
 import { Form, Input, InputNumber, Modal, Select, TreeSelect } from "antd";
 import { app } from "../../lib/bridge";
-import type { CostCategory, CostComponent, CostEntry, CostSummary } from "../../lib/types";
+import type { CostCategory, CostComponent, CostComposeRecord, CostEntry, CostSummary } from "../../lib/types";
+import { ChevronDown, Clock } from "../../icons";
+import { ComposeEvidenceTable } from "./ComposeEvidenceTable";
+
+const fmtPrice = new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 2 });
+
+// 确认时间展示：本地时区 YYYY-MM-DD HH:mm（非法/空串原样回显，不编造）。
+const fmtRecordTime = (iso: string) => {
+  const d = new Date(iso);
+  if (!iso || Number.isNaN(d.getTime())) return iso || "—";
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+};
 
 // CostEntryModal 成本条目新建/编辑弹窗（记忆中枢 CostLibrary 与办公侧
 // CostLibraryPanel 共用，避免两处维护两份表单逻辑）。
@@ -18,6 +30,8 @@ export function CostEntryModal({
 }) {
   const [form] = Form.useForm();
   const [categories, setCategories] = useState<CostCategory[]>([]);
+  // v4.158 组价依据回看：该条目全部确认记录（null=加载中/无编辑对象；[]=无记录或加载失败）。
+  const [records, setRecords] = useState<CostComposeRecord[] | null>(null);
 
   // 分类树 → antd TreeSelect treeData + 路径索引（多级：选任意节点即以其完整路径保存）。
   const treeData = useMemo(() => buildTreeData(categories), [categories]);
@@ -54,6 +68,27 @@ export function CostEntryModal({
       form.setFieldsValue({ categoryId: undefined, status: "现行" });
     }
   }, [open, editing, form, pathById]);
+
+  // v4.158 组价依据回看（独立于表单 effect：分类树加载不触发重复拉取）。
+  // 加载失败按无记录静默收起（诚实但不打扰）；无记录时折叠区整体不渲染。
+  useEffect(() => {
+    if (!open || !editing) {
+      setRecords(null);
+      return;
+    }
+    let alive = true;
+    setRecords(null);
+    app.CostComposeRecords(editing.name)
+      .then((rs) => {
+        if (alive) setRecords(rs ?? []);
+      })
+      .catch(() => {
+        if (alive) setRecords([]);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [open, editing]);
 
   const handleSubmit = async () => {
     const v = await form.validateFields();
@@ -264,6 +299,8 @@ export function CostEntryModal({
           <Input.TextArea rows={3} placeholder="含燃油与操作手等说明" />
         </Form.Item>
       </Form>
+      {/* v4.158 组价依据回看（只读折叠区，不动上方编辑表单）：仅在编辑态且有确认记录时渲染 */}
+      {editing && records && records.length > 0 && <ComposeEvidencePanel records={records} />}
     </Modal>
   );
 }
@@ -272,6 +309,137 @@ interface TreeDataItem {
   title: string;
   value: number;
   children?: TreeDataItem[];
+}
+
+// ── 组价依据回看（v4.158 AI 组价复核闭环，只读）──────────────────
+// 每次确认组价（CostComposeApply）留痕一条记录：时间 + 推荐价 + LLM/规则徽标；
+// 展开单条显示价格带一行（P25/P50/P75）+ 人材机组成小表 + 证据链小表。
+
+/** 组价依据折叠区：按确认时间倒序列出记录（后端已倒序，这里再兜底排一次）。 */
+function ComposeEvidencePanel({ records }: { records: CostComposeRecord[] }) {
+  const [open, setOpen] = useState(false);
+  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const sorted = [...records].sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""));
+  return (
+    <div className="mt-1 rounded-lg border border-border-soft bg-bg-soft/30">
+      <button
+        type="button"
+        className="flex w-full items-center gap-1.5 px-2.5 py-2 text-left text-[11.5px] font-semibold text-fg hover:text-accent transition-colors"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+      >
+        <Clock size={12} className="text-sky-400" />
+        组价依据（{sorted.length} 次）
+        <ChevronDown
+          size={11}
+          className={`ml-auto text-fg-faint transition-transform ${open ? "rotate-180" : ""}`}
+        />
+      </button>
+      {open && (
+        <div className="space-y-1.5 px-2.5 pb-2.5">
+          {sorted.map((r) => (
+            <ComposeRecordItem
+              key={r.id}
+              record={r}
+              expanded={expandedId === r.id}
+              onToggle={() => setExpandedId((cur) => (cur === r.id ? null : r.id))}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** 单条确认记录行：展开显示价格带一行 + 人材机组成小表 + 证据链小表。 */
+function ComposeRecordItem({
+  record,
+  expanded,
+  onToggle,
+}: {
+  record: CostComposeRecord;
+  expanded: boolean;
+  onToggle: () => void;
+}) {
+  const snap = record.snapshot;
+  return (
+    <div className="rounded-md border border-border/70 bg-bg">
+      <button
+        type="button"
+        className="flex w-full items-center gap-2 px-2 py-1.5 text-left text-[11px]"
+        aria-expanded={expanded}
+        onClick={onToggle}
+      >
+        <span className="shrink-0 tabular-nums text-fg-dim">{fmtRecordTime(record.createdAt)}</span>
+        {snap && (
+          <span className="shrink-0 font-semibold text-amber-300 tabular-nums">
+            ¥{fmtPrice.format(snap.recommendedPrice)}
+            {snap.unit ? `/${snap.unit}` : ""}
+          </span>
+        )}
+        <span
+          className={`px-1.5 py-px rounded text-[9.5px] ${
+            record.llmUsed ? "text-violet-400 bg-violet-400/10" : "text-amber-400 bg-amber-400/10"
+          }`}
+        >
+          {record.llmUsed ? "LLM" : "规则"}
+        </span>
+        <span className="ml-auto shrink-0 text-fg-faint">{expanded ? "收起" : "展开"}</span>
+      </button>
+      {expanded &&
+        (snap ? (
+          <div className="space-y-2 border-t border-border-soft px-2 py-2">
+            {snap.band && (
+              <div className="text-[10.5px] text-fg-dim tabular-nums">
+                <span className="text-fg-faint">价格带 </span>
+                P25 ¥{fmtPrice.format(snap.band.p25)} · P50 ¥{fmtPrice.format(snap.band.median)} · P75 ¥
+                {fmtPrice.format(snap.band.p75)}
+                {`（${snap.band.samples} 个样本）`}
+              </div>
+            )}
+            {snap.components && snap.components.length > 0 && (
+              <div>
+                <div className="mb-1 text-[10.5px] font-semibold text-fg">人材机组成（{snap.components.length} 行）</div>
+                <table className="w-full text-[11px]">
+                  <thead className="text-fg-faint text-left">
+                    <tr>
+                      <th className="py-0.5 pr-2 font-normal w-20">类别</th>
+                      <th className="py-0.5 pr-2 font-normal">名称</th>
+                      <th className="py-0.5 pr-2 font-normal w-14">单位</th>
+                      <th className="py-0.5 pr-2 font-normal w-16 text-right">含量</th>
+                      <th className="py-0.5 pr-2 font-normal w-20 text-right">单价(元)</th>
+                      <th className="py-0.5 font-normal w-20 text-right">金额(元)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {snap.components.map((c, i) => (
+                      <tr key={i} className="border-t border-border-soft/60">
+                        <td className="py-1 pr-2 text-fg-dim">{c.kind || "—"}</td>
+                        <td className="py-1 pr-2 text-fg">{c.title || "—"}</td>
+                        <td className="py-1 pr-2 text-fg-dim">{c.unit || "—"}</td>
+                        <td className="py-1 pr-2 text-right tabular-nums text-fg-dim">{c.quantity ?? 0}</td>
+                        <td className="py-1 pr-2 text-right tabular-nums text-fg-dim">{fmtPrice.format(c.price ?? 0)}</td>
+                        <td className="py-1 text-right tabular-nums text-fg">{fmtPrice.format(c.amount ?? 0)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            {snap.evidence.length > 0 && (
+              <div>
+                <div className="mb-1 text-[10.5px] font-semibold text-fg">证据链（{snap.evidence.length} 条）</div>
+                <ComposeEvidenceTable rows={snap.evidence} band={snap.band} maxCls="max-h-44" />
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="border-t border-border-soft px-2 py-1.5 text-[10.5px] text-fg-faint">
+            该次确认未留存快照，仅记录时间与拆解方式
+          </div>
+        ))}
+    </div>
+  );
 }
 
 function buildTreeData(nodes: CostCategory[]): TreeDataItem[] {

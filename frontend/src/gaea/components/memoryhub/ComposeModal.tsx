@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { Modal } from "antd";
 import { Coins, FileText, Layers, Loader, TrendingUp, Wand2, X, Zap } from "../../icons";
 import { app } from "../../lib/bridge";
-import type { CostComponent, CostComposeEvidence, CostComposeView, PriceBand } from "../../lib/types";
+import type { CostComponent, CostComposeEvidence, CostComposeView } from "../../lib/types";
+import { ComposeEvidenceTable } from "./ComposeEvidenceTable";
 import { useToast } from "../Toast";
 
 const fmtPrice = new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 2 });
@@ -32,12 +33,28 @@ const confidenceClass = (c: string) => {
   return "text-fg-faint bg-bg-elev";
 };
 
-// 离群判定：样本价 < P25-1.5IQR 或 > P75+1.5IQR（IQR = P75-P25），与后端 band.outliers 同口径。
-const isOutlierPrice = (band: PriceBand, price: number) => {
-  const iqr = band.p75 - band.p25;
-  if (iqr <= 0) return false;
-  return price < band.p25 - 1.5 * iqr || price > band.p75 + 1.5 * iqr;
-};
+// 合理性校验徽标配色（v4.158 复核闭环）：warn=红点、info=灰点。
+const checkDotCls = (level: "warn" | "info") =>
+  level === "warn" ? "bg-red-400" : "bg-fg-faint/70";
+
+/**
+ * 行级校验归并（v4.158）：同一组件行可能有多条 checks，warn 主导级别、
+ * msg 用「；」串接进 title（悬停可见完整校验文案）。全局（row=-1）另行出提示行。
+ */
+function groupRowChecks(checks: { level: "warn" | "info"; row: number; msg: string }[]) {
+  const byRow = new Map<number, { level: "warn" | "info"; msgs: string[] }>();
+  for (const c of checks) {
+    if (c.row < 0) continue;
+    const cur = byRow.get(c.row);
+    if (cur) {
+      if (c.level === "warn") cur.level = "warn";
+      cur.msgs.push(c.msg);
+    } else {
+      byRow.set(c.row, { level: c.level, msgs: [c.msg] });
+    }
+  }
+  return byRow;
+}
 
 /**
  * ComposeModal AI 组价弹窗（v4.2c）：输入清单描述/单位 → GaeaCostCompose →
@@ -45,6 +62,9 @@ const isOutlierPrice = (band: PriceBand, price: number) => {
  * + 人材机拆解（可增删改行，金额=含量×单价自动算）→ 「应用」回调父级（应用为
  * 明细行或沉淀成本库）。band=null 展示空态，失败持久展示错误可修改重试。
  * 组件行编辑不影响推荐价（推荐价来自价格带，组件是拆解明细）。
+ * v4.158 复核闭环：渲染合理性校验 checks——全局（row=-1）在拆解区上方出提示行
+ * （warn 红字/info 灰字），行级按组件行下标挂徽标（warn 红点/info 灰点，title=msg）；
+ * 旧响应无 checks 字段时渲染零变化。
  */
 export function ComposeModal({
   open,
@@ -140,6 +160,10 @@ export function ComposeModal({
   };
 
   const band = view?.band ?? null;
+  // v4.158 合理性校验：旧响应无 checks 字段 → 空数组，渲染零变化（向后兼容）。
+  const checks = view?.checks ?? [];
+  const globalChecks = checks.filter((c) => c.row < 0);
+  const rowChecks = groupRowChecks(checks);
 
   return (
     <Modal
@@ -243,47 +267,27 @@ export function ComposeModal({
             <div className="mb-1.5 flex items-center gap-1.5 text-[11.5px] font-semibold text-fg">
               <FileText size={12} className="text-sky-400" /> 证据链（{band.sources.length} 条）
             </div>
-            <div className="max-h-[36vh] overflow-auto rounded-lg border border-border-soft">
-              <table className="w-full text-[11px]">
-                <thead className="sticky top-0 bg-bg-elev text-fg-faint text-left">
-                  <tr>
-                    <th className="px-2 py-1.5 min-w-[150px]">标题</th>
-                    <th className="px-2 py-1.5 min-w-[110px]">规格</th>
-                    <th className="px-2 py-1.5 w-24 text-right">单价(元)</th>
-                    <th className="px-2 py-1.5 w-14">单位</th>
-                    <th className="px-2 py-1.5 min-w-[110px]">来源</th>
-                    <th className="px-2 py-1.5 w-20">地区</th>
-                    <th className="px-2 py-1.5 w-24">期数</th>
-                    <th className="px-2 py-1.5 w-24">口径</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {band.sources.map((s, i) => {
-                    const outlier = isOutlierPrice(band, s.price);
-                    return (
-                      <tr key={i} className={`border-t border-border-soft/60 ${outlier ? "bg-red-500/5" : ""}`}>
-                        <td className="px-2 py-1.5 text-fg">
-                          {s.title || "—"}
-                          {outlier && (
-                            <span className="ml-1.5 px-1 py-px rounded bg-red-500/10 text-red-400 text-[9px]">离群</span>
-                          )}
-                        </td>
-                        <td className="px-2 py-1.5 text-fg-dim">{s.spec || "—"}</td>
-                        <td className="px-2 py-1.5 text-right text-amber-300 font-semibold tabular-nums whitespace-nowrap">
-                          ¥{fmtPrice.format(s.price)}
-                        </td>
-                        <td className="px-2 py-1.5 text-fg-dim">{s.unit || "—"}</td>
-                        <td className="px-2 py-1.5 text-fg-dim">{s.source || "—"}</td>
-                        <td className="px-2 py-1.5 text-fg-faint">{s.region || "—"}</td>
-                        <td className="px-2 py-1.5 text-fg-faint">{s.priceDate || "—"}</td>
-                        <td className="px-2 py-1.5 text-fg-faint">{s.priceType || "—"}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+            <ComposeEvidenceTable rows={band.sources} band={band} />
           </div>
+
+          {/* 合理性校验全局提示（v4.158 复核闭环，row=-1）：warn 红字 / info 灰字 */}
+          {globalChecks.length > 0 && (
+            <div className="space-y-1">
+              {globalChecks.map((c, i) => (
+                <div
+                  key={i}
+                  role="note"
+                  className={`rounded-md border px-2 py-1 text-[10.5px] leading-relaxed ${
+                    c.level === "warn"
+                      ? "border-red-400/30 bg-red-400/10 text-red-400"
+                      : "border-border bg-bg-elev/60 text-fg-faint"
+                  }`}
+                >
+                  {c.msg}
+                </div>
+              ))}
+            </div>
+          )}
 
           {/* 人材机拆解 */}
           {view.components && (
@@ -295,60 +299,71 @@ export function ComposeModal({
                 {!view.llmUsed && <span className={`${badgeCls} text-amber-400 bg-amber-400/10`}>规则降级</span>}
               </div>
               <div className="space-y-1.5">
-                {components.map((c, i) => (
-                  <div key={i} className="flex items-center gap-1.5 rounded-lg border border-border/70 bg-bg-soft/40 p-1.5">
-                    <select
-                      className="w-24 shrink-0 bg-bg border border-border-soft rounded-md text-fg text-[11px] px-1.5 py-1 outline-none focus:border-accent"
-                      value={c.kind}
-                      onChange={(e) => patchComponent(i, { kind: e.target.value })}
-                    >
-                      {KIND_OPTIONS.map((k) => (
-                        <option key={k} value={k}>
-                          {k}
-                        </option>
-                      ))}
-                    </select>
-                    <input
-                      className={`${cellInputCls} flex-1 min-w-0`}
-                      value={c.title ?? ""}
-                      placeholder="名称"
-                      onChange={(e) => patchComponent(i, { title: e.target.value })}
-                    />
-                    <input
-                      className={`${cellInputCls} w-16 shrink-0`}
-                      value={c.unit ?? ""}
-                      placeholder="单位"
-                      onChange={(e) => patchComponent(i, { unit: e.target.value })}
-                    />
-                    <input
-                      className={`${cellInputCls} w-16 shrink-0 text-right tabular-nums`}
-                      type="number"
-                      min={0}
-                      value={c.quantity ?? ""}
-                      placeholder="含量"
-                      onChange={(e) => patchComponent(i, { quantity: e.target.value === "" ? 0 : Number(e.target.value) })}
-                    />
-                    <input
-                      className={`${cellInputCls} w-20 shrink-0 text-right tabular-nums`}
-                      type="number"
-                      min={0}
-                      value={c.price ?? ""}
-                      placeholder="单价"
-                      onChange={(e) => patchComponent(i, { price: e.target.value === "" ? 0 : Number(e.target.value) })}
-                    />
-                    <span className="w-20 shrink-0 text-right tabular-nums text-fg font-medium">
-                      ¥{fmtPrice.format((c.quantity ?? 0) * (c.price ?? 0))}
-                    </span>
-                    <button
-                      type="button"
-                      className={iconBtn}
-                      title={`删除第 ${i + 1} 行`}
-                      onClick={() => removeComponent(i)}
-                    >
-                      <X size={11} />
-                    </button>
-                  </div>
-                ))}
+                {components.map((c, i) => {
+                  const rowCheck = rowChecks.get(i);
+                  return (
+                    <div key={i} className="flex items-center gap-1.5 rounded-lg border border-border/70 bg-bg-soft/40 p-1.5">
+                      {/* 合理性校验行级徽标（v4.158）：warn 红点 / info 灰点，title 承载校验文案 */}
+                      {rowCheck && (
+                        <span
+                          title={rowCheck.msgs.join("；")}
+                          aria-label={rowCheck.msgs.join("；")}
+                          className={`inline-block w-2 h-2 shrink-0 rounded-full ${checkDotCls(rowCheck.level)}`}
+                        />
+                      )}
+                      <select
+                        className="w-24 shrink-0 bg-bg border border-border-soft rounded-md text-fg text-[11px] px-1.5 py-1 outline-none focus:border-accent"
+                        value={c.kind}
+                        onChange={(e) => patchComponent(i, { kind: e.target.value })}
+                      >
+                        {KIND_OPTIONS.map((k) => (
+                          <option key={k} value={k}>
+                            {k}
+                          </option>
+                        ))}
+                      </select>
+                      <input
+                        className={`${cellInputCls} flex-1 min-w-0`}
+                        value={c.title ?? ""}
+                        placeholder="名称"
+                        onChange={(e) => patchComponent(i, { title: e.target.value })}
+                      />
+                      <input
+                        className={`${cellInputCls} w-16 shrink-0`}
+                        value={c.unit ?? ""}
+                        placeholder="单位"
+                        onChange={(e) => patchComponent(i, { unit: e.target.value })}
+                      />
+                      <input
+                        className={`${cellInputCls} w-16 shrink-0 text-right tabular-nums`}
+                        type="number"
+                        min={0}
+                        value={c.quantity ?? ""}
+                        placeholder="含量"
+                        onChange={(e) => patchComponent(i, { quantity: e.target.value === "" ? 0 : Number(e.target.value) })}
+                      />
+                      <input
+                        className={`${cellInputCls} w-20 shrink-0 text-right tabular-nums`}
+                        type="number"
+                        min={0}
+                        value={c.price ?? ""}
+                        placeholder="单价"
+                        onChange={(e) => patchComponent(i, { price: e.target.value === "" ? 0 : Number(e.target.value) })}
+                      />
+                      <span className="w-20 shrink-0 text-right tabular-nums text-fg font-medium">
+                        ¥{fmtPrice.format((c.quantity ?? 0) * (c.price ?? 0))}
+                      </span>
+                      <button
+                        type="button"
+                        className={iconBtn}
+                        title={`删除第 ${i + 1} 行`}
+                        onClick={() => removeComponent(i)}
+                      >
+                        <X size={11} />
+                      </button>
+                    </div>
+                  );
+                })}
                 <button
                   type="button"
                   className="w-full h-7 rounded-lg border border-dashed border-border text-fg-faint hover:text-accent hover:border-accent/50 transition-colors text-[11.5px]"

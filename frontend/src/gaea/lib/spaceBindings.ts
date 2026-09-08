@@ -286,6 +286,7 @@ export const GAEA_METHOD_FACETS = {
   CostCompare: "work",
   CostCompose: "work",
   CostComposeApply: "work",
+  CostComposeRecords: "work", // v4.158 组价复核闭环：确认记录回看（条目详情）
   CostInquirySave: "work",
   CostInquiryList: "work",
   CostInquiryDelete: "work",

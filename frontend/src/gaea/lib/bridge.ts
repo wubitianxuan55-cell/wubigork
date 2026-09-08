@@ -98,6 +98,7 @@ import type {
   CostImportPreview,
   CostCompareRow,
   CostComposeView,
+  CostComposeRecord,
   CostInquiryRecord,
   CostAdjustSuggestion,
   CostStageValue,
@@ -605,6 +606,10 @@ export interface AppBindings {
   CostCompose(desc: string, unit: string): Promise<CostComposeView>;
   // CostComposeApply 确认组价建议并回写成本库（UPSERT），返回条目 name。
   CostComposeApply(v: CostComposeView): Promise<string>;
+  // CostComposeRecords 组价确认记录回看（v4.158 复核闭环）：entryName 非空 =
+  // 该条目全部记录（createdAt 倒序）；空串 = 全库最近 20 条。snapshot 为确认
+  // 组价时的完整视图（含 band/recommendedPrice/components/evidence/checks）。
+  CostComposeRecords(entryName: string): Promise<CostComposeRecord[]>;
   // ── 询价飞轮（四源归一数据点：信息价/OCR报价/供应商比价/手动询价）──
   CostInquirySave(r: CostInquiryRecord): Promise<number>;
   CostInquiryList(query: string, limit: number): Promise<CostInquiryRecord[]>;
@@ -1076,6 +1081,7 @@ const gaeaToGaea = {
   CostCompare: "GaeaCostCompare",
   CostCompose: "GaeaCostCompose",
   CostComposeApply: "GaeaCostComposeApply",
+  CostComposeRecords: "GaeaCostComposeRecords",
   CostInquirySave: "GaeaCostInquirySave",
   CostInquiryList: "GaeaCostInquiryList",
   CostInquiryDelete: "GaeaCostInquiryDelete",

@@ -379,3 +379,20 @@ CREATE TABLE IF NOT EXISTS cost_stage_values (
   UNIQUE(project_id, stage)
 );
 `
+
+// SchemaV16 AI 组价复核闭环 v4.158.0:cost_compose_records 组价确认留痕。
+// 现状痛点:GaeaCostComposeApply 确认回写成本库后,证据链当场即丢(条目 Source
+// 只剩「AI组价」四字,不可回看)。本表在每次确认回写成功后落一条完整
+// CostComposeView JSON 快照(含 Evidence 证据链/Band 价格带/Components 人材机/
+// Checks 合理性校验),供 GaeaCostComposeRecords 回看。仍是无确认不落库:
+// 只在确认回写成功后写入(确认即留痕)。
+const SchemaV16 = `
+CREATE TABLE IF NOT EXISTS cost_compose_records (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  entry_name TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  llm_used INTEGER NOT NULL DEFAULT 0,
+  snapshot TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_cost_compose_records_entry ON cost_compose_records(entry_name, created_at);
+`

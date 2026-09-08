@@ -1,3 +1,6 @@
+## v4.158.0 · AI 组价复核闭环：确认留痕 + 拆解合理性校验（2026-09-09）
+> 前置调研校正：AI 组价 v4.2 已在产，roadmap §15 部分造价欠账描述过时（校正档 docs/gaea-cost-domain-survey-2026-09.md）。本刀销真缺口：①SchemaV16 cost_compose_records 确认即留痕（完整视图快照；无确认不落库红线不变；留痕尽力而为不阻断回写）+GaeaCostComposeRecords 回看（条目详情「组价依据」折叠区，证据链表抽共享 ComposeEvidenceTable）；②cost.CheckComposeComponents 纯函数（金额一致性/非正值/合计偏差 warn+info 两档，恰阈值不触发）进 Compose 响应，ComposeModal 行级徽标+全局提示，校验随留痕入档。绑定 598→599；Go 全量绿 +18、vitest 2650→2658、tsc/eslint 0、build+冒烟过。详见 releases/v4.158.0.md。
+
 ## v4.157.0 · Office 编辑链一致性小刀：docx 证据链补齐 + pptx 面板字符级对比（2026-09-08）
 > 两个小项收口三件套编辑线：①docx_apply 补快照+Journal（对齐 pptx_apply/xlsx_apply；ApplyTrackedReplace 语义零改动；accept=true 同款、拒绝分支天然回滚不加）——docx 编辑可经版本时间线回滚；②PptxEditPanel 对比区升级 ChangesDiff（changed=相邻 del/add 对改蓝配对+字符级高亮；ctx 折叠不伪造全量；删句级降级标注）。零新绑定 598；Go +3、vitest 2650、tsc/eslint 0、build+冒烟过。详见 releases/v4.157.0.md。
 

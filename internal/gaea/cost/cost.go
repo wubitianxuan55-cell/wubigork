@@ -125,6 +125,12 @@ func Open(gdb *sql.DB) *Store {
 // Available 报告存储是否可用。
 func (s *Store) Available() bool { return s.db != nil }
 
+// DB 暴露底层数据库句柄(委托)。仅供 app 层直写「快照类型归属 app、
+// 不宜反向依赖 cost 包」的伴生表(如 v4.158.0 组价确认留痕 cost_compose_records);
+// 成本库自身表(cost_entries/cost_entry_components 等)仍应走本包方法,
+// 本包不做通用 SQL 网关。db 为 nil(不可用)时返回 nil,调用方自行判空。
+func (s *Store) DB() *sql.DB { return s.db }
+
 // Save 写入/更新一条成本条目（同名 UPSERT）。
 func (s *Store) Save(e Entry) error {
 	if s.db == nil {

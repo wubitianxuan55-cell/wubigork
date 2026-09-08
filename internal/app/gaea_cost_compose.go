@@ -38,6 +38,9 @@ type CostComposeView struct {
 	ComponentsNote   string                `json:"componentsNote,omitempty"`
 	LLMUsed          bool                  `json:"llmUsed"`
 	Evidence         []CostComposeEvidence `json:"evidence"`
+	// Checks LLM 拆解结果合理性校验结论(v4.158.0 复核闭环,纯函数
+	// cost.CheckComposeComponents 产出):warn=需人工修正,info=口径提醒。
+	Checks []cost.ComposeCheck `json:"checks,omitempty"`
 }
 
 // GaeaCostCompose AI 组价:清单描述 → 相似清单检索(关键词+语义+精排)→ 价格带
@@ -92,6 +95,9 @@ func (a *App) GaeaCostCompose(desc, unit string) (CostComposeView, error) {
 		RecommendedPrice: rec, Reason: reason,
 		Components: toCostComponentViews(comps), ComponentsNote: note,
 		LLMUsed: llmUsed, Evidence: evidence,
+		// 5. 拆解结果合理性校验(纯函数):金额一致性/非正值/合计口径,
+		// 随视图一并展示,确认前把可疑行摆到人眼前。
+		Checks: cost.CheckComposeComponents(comps, rec),
 	}, nil
 }
 
@@ -128,7 +134,86 @@ func (a *App) GaeaCostComposeApply(v CostComposeView) (string, error) {
 	if err := a.hubCostStore().Save(e); err != nil {
 		return "", fmt.Errorf("回写成本库失败: %w", err)
 	}
+	// 确认即留痕(v4.158.0 证据链闭环):回写成功后把确认时的完整视图
+	//(含 Evidence 证据链/Band/Components/Checks)序列化落一条快照,供
+	// GaeaCostComposeRecords 回看——否则条目 Source 只剩「AI组价」四字,不可溯源。
+	// 留痕尽力而为,不阻断回写主意图:失败静默(主意图已达成,不留半成功状态)。
+	a.saveComposeRecord(e.Name, v)
 	return e.Name, nil
+}
+
+// saveComposeRecord 写一条组价确认留痕(snapshot = 完整 CostComposeView JSON)。
+// 尽力而为:任何失败(库不可用/序列化/写库)静默返回,绝不影响已成功的回写。
+func (a *App) saveComposeRecord(entryName string, v CostComposeView) {
+	gdb := a.hubCostStore().DB()
+	if gdb == nil {
+		return
+	}
+	snap, err := json.Marshal(v)
+	if err != nil {
+		return
+	}
+	llm := 0
+	if v.LLMUsed {
+		llm = 1
+	}
+	_, _ = gdb.Exec(
+		`INSERT INTO cost_compose_records(entry_name, created_at, llm_used, snapshot) VALUES(?,?,?,?)`,
+		entryName, time.Now().UTC().Format(time.RFC3339), llm, string(snap))
+}
+
+// CostComposeRecord 组价确认留痕一条(v4.158.0 复核闭环:确认即留痕,可回看)。
+type CostComposeRecord struct {
+	ID        int64            `json:"id"`
+	EntryName string           `json:"entryName"`
+	CreatedAt string           `json:"createdAt"`
+	LLMUsed   bool             `json:"llmUsed"`
+	Snapshot  *CostComposeView `json:"snapshot"` // 反序列化失败时为 nil(该条如实降级,不整批失败)
+}
+
+// GaeaCostComposeRecords 回看组价确认留痕:entryName 非空=该条目全部记录
+// (created_at DESC);空=全库最近 20 条。snapshot 为完整 CostComposeView JSON,
+// 单条反序列化失败该条 Snapshot=nil,不影响其余记录。
+func (a *App) GaeaCostComposeRecords(entryName string) ([]CostComposeRecord, error) {
+	gdb := a.hubCostStore().DB()
+	if gdb == nil {
+		return nil, fmt.Errorf("成本库不可用")
+	}
+	name := strings.TrimSpace(entryName)
+	q := `SELECT id, entry_name, created_at, llm_used, snapshot FROM cost_compose_records`
+	var args []interface{}
+	if name != "" {
+		q += ` WHERE entry_name = ?`
+		args = append(args, name)
+	}
+	// created_at 为秒级 RFC3339,同秒多条以 id DESC 兜底保证「后确认先出现」。
+	q += ` ORDER BY created_at DESC, id DESC`
+	if name == "" {
+		q += ` LIMIT 20`
+	}
+	rows, err := gdb.Query(q, args...)
+	if err != nil {
+		return nil, fmt.Errorf("查询组价留痕失败: %w", err)
+	}
+	defer rows.Close()
+	var out []CostComposeRecord
+	for rows.Next() {
+		var (
+			rec      CostComposeRecord
+			llm      int64
+			snapshot string
+		)
+		if err := rows.Scan(&rec.ID, &rec.EntryName, &rec.CreatedAt, &llm, &snapshot); err != nil {
+			continue // 单行扫描失败跳过,不整批失败(与成本库读取口径一致)
+		}
+		rec.LLMUsed = llm != 0
+		var view CostComposeView
+		if err := json.Unmarshal([]byte(snapshot), &view); err == nil {
+			rec.Snapshot = &view
+		}
+		out = append(out, rec)
+	}
+	return out, rows.Err()
 }
 
 // leafCategoryOf 组价条目的默认分类:描述含「综合单价」关键词或带人材机组成时

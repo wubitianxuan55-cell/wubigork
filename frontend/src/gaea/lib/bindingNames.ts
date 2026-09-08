@@ -115,6 +115,7 @@ export const bindingNames = [
 	"GaeaCostCompare",
 	"GaeaCostCompose",
 	"GaeaCostComposeApply",
+	"GaeaCostComposeRecords",
 	"GaeaCostDelete",
 	"GaeaCostEstimateItemDelete",
 	"GaeaCostEstimateItemSave",

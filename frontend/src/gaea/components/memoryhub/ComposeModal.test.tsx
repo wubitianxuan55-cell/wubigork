@@ -224,4 +224,56 @@ describe("ComposeModal AI 组价", () => {
     const btn = screen.getByText("开始组价") as HTMLButtonElement;
     expect(btn.disabled).toBe(false);
   });
+
+  // ── v4.158 复核闭环：合理性校验（checks）渲染 ──
+  it("无 checks 字段的旧响应渲染零变化：无全局提示行、无行级徽标", async () => {
+    composeSpy.mockResolvedValue(VIEW);
+    renderModal();
+    compose();
+    await screen.findByText("人材机拆解（2 行）");
+    expect(screen.queryByRole("note")).toBeNull();
+    expect(document.querySelectorAll("span[title]")).toHaveLength(0);
+  });
+
+  it("合理性校验：全局 checks(row=-1) 在拆解区上方出提示行（warn 红字/info 灰字）", async () => {
+    composeSpy.mockResolvedValue({
+      ...VIEW,
+      checks: [
+        { level: "warn", row: -1, msg: "拆解合计偏离推荐价 12%，请人工复核" },
+        { level: "info", row: -1, msg: "证据链含 1 条离群样本，已自动剔除后取中位数" },
+      ],
+    });
+    renderModal();
+    compose();
+    await screen.findByText("价格带推荐");
+    // 全局提示行各出一条，warn 红 / info 灰。
+    const warn = screen.getByText("拆解合计偏离推荐价 12%，请人工复核");
+    expect(warn.className).toContain("text-red-400");
+    const info = screen.getByText("证据链含 1 条离群样本，已自动剔除后取中位数");
+    expect(info.className).toContain("text-fg-faint");
+    // 全局提示不落成行级徽标（span[title] 仅行级检查才有）。
+    expect(screen.queryByTitle("拆解合计偏离推荐价 12%，请人工复核")).toBeNull();
+  });
+
+  it("合理性校验：行级 checks 按组件行下标挂徽标，title 承载校验文案（warn 红点/info 灰点）", async () => {
+    composeSpy.mockResolvedValue({
+      ...VIEW,
+      checks: [
+        { level: "warn", row: 0, msg: "人工含量 0.6 偏高" },
+        { level: "info", row: 1, msg: "损耗系数取 1.02" },
+      ],
+    });
+    renderModal();
+    compose();
+    await screen.findByText("人材机拆解（2 行）");
+    // 行级徽标以 title 暴露文案；warn 红点 / info 灰点。
+    const warnDot = screen.getByTitle("人工含量 0.6 偏高");
+    expect(warnDot.className).toContain("bg-red-400");
+    const infoDot = screen.getByTitle("损耗系数取 1.02");
+    expect(infoDot.className).toContain("bg-fg-faint");
+    // 徽标挂在对应行：warn 点在第 1 行（人工）、info 点在第 2 行（材料）。
+    const rows = screen.getAllByPlaceholderText("含量").map((el) => el.closest("div[class*='rounded-lg']"));
+    expect(rows[0]?.contains(warnDot)).toBe(true);
+    expect(rows[1]?.contains(infoDot)).toBe(true);
+  });
 });

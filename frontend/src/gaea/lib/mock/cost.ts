@@ -26,6 +26,8 @@ type CostMethods = Pick<
   | "CostEstimateVersionSave" | "CostEstimateVersions" | "CostEstimateSediment"
   | "CostIndicators" | "CostAttribution" | "CostNoteSave" | "CostNoteList" | "CostNoteDelete" | "CostNoteBumpRef"
   | "CostGraph"
+  // v4.158 组价复核闭环：确认记录回看（条目详情「组价依据」折叠区取数）。
+  | "CostComposeRecords"
   // v4.50 询价飞轮 + 五算对比域补 mock（此前缺失，询价库视图在浏览器 dev 直接崩）
   | "CostInquirySave" | "CostInquiryList" | "CostInquiryDelete" | "CostInquiryExpiring" | "CostInquiryAdjust"
   | "CostStageSave" | "CostStages" | "CostStageCompare" | "CostStageDeviations"
@@ -529,6 +531,12 @@ export function buildCost(_s: MakeMockState): CostMethods {
     },
     async CostStageDeviations(projectId: string): Promise<CostStageDeviation[]> {
       void projectId;
+      return [];
+    },
+    // ── v4.158 组价确认记录（mock）：Compose/ComposeApply 在 mock 域本无桩
+    // （dev 浏览器模式无 AI 组价演示数据），Records 只给空数组桩 = 条目详情
+    // 「组价依据」折叠区零噪音，不编造历史记录（诚实纪律）。
+    async CostComposeRecords() {
       return [];
     },
     // ── v4.8 成本知识图谱（mock：与后端同形 JSON 串，tree/entry 两种 scope 演示）──

@@ -1555,6 +1555,13 @@ export interface CostComposeEvidence {
   priceDate: string;
   priceType: string;
 }
+// CostComposeCheck 组价合理性校验一条（v4.158 AI 组价复核闭环）：LLM 拆解后才
+// 可能返回，旧响应无此字段（可选，向后兼容）。row=组件行下标（-1=全局提示）。
+export interface CostComposeCheck {
+  level: "warn" | "info";
+  row: number;
+  msg: string;
+}
 // CostComposeView 是 AI 组价建议（无确认不落库；band=null 表示成本库无相似条目）。
 export interface CostComposeView {
   description: string;
@@ -1566,6 +1573,18 @@ export interface CostComposeView {
   componentsNote?: string;
   llmUsed: boolean;
   evidence: CostComposeEvidence[];
+  // v4.158 合理性校验（LLM 拆解后才可能有；无字段/空数组 = 无校验，前端零变化）。
+  checks?: CostComposeCheck[];
+}
+// CostComposeRecord 组价确认记录（v4.158 复核闭环）：每次确认组价（CostComposeApply）
+// 对完整视图留痕快照，供条目详情回看「组价依据」。snapshot 为确认时的完整视图
+// （含 band/recommendedPrice/components/evidence/checks），置 null 表示快照缺失。
+export interface CostComposeRecord {
+  id: number;
+  entryName: string;
+  createdAt: string;
+  llmUsed: boolean;
+  snapshot: CostComposeView | null;
 }
 // ── 询价飞轮（四源归一：信息价/OCR报价/供应商比价/手动询价）──
 export interface CostInquiryRecord {

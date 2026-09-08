@@ -22,6 +22,7 @@ func (b *CostB) GaeaCostCategorySave(parentID int, name string, sort int, id int
 func (b *CostB) GaeaCostCompare(name string) ([]CostCompareRow, error) { return b.a.GaeaCostCompare(name) }
 func (b *CostB) GaeaCostCompose(desc string, unit string) (CostComposeView, error) { return b.a.GaeaCostCompose(desc, unit) }
 func (b *CostB) GaeaCostComposeApply(v CostComposeView) (string, error) { return b.a.GaeaCostComposeApply(v) }
+func (b *CostB) GaeaCostComposeRecords(entryName string) ([]CostComposeRecord, error) { return b.a.GaeaCostComposeRecords(entryName) }
 func (b *CostB) GaeaCostDelete(name string) error { return b.a.GaeaCostDelete(name) }
 func (b *CostB) GaeaCostEstimateItemDelete(id int64) error { return b.a.GaeaCostEstimateItemDelete(id) }
 func (b *CostB) GaeaCostEstimateItemSave(i costproject.Item) (int64, error) { return b.a.GaeaCostEstimateItemSave(i) }
