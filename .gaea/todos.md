@@ -23,7 +23,17 @@
 | ✅ | 1.2 vitest 抗抖：testTimeout 15s + CI 前端 flaky retry（v4.164.0） |
 | ✅ | 1.3 DeliverablesPanel 过期 id 潜伏 bug 复现钉死（v4.164.0：office→gaea，+1 回归锁） |
 | ✅ | 1.4 WebView2 壳内残留面扫描 → docs/webview2-shell-audit-2026-09.md（P0×2/P1×7/刀序A-D；修复刀A-C 另立版本，刀D 真机取证） |
-| ⬜ | 拍板：性质路线 A/B + LICENSE 选择（阻塞 W2 起的产品期权项） |
+| ✅ | 拍板：性质路线=A 终极个人工具（产品化=期权）；LICENSE=私有 All Rights Reserved（v4.165.0 落档） |
+
+## 收敛计划 W2+（下一批）
+
+| 状态 | 任务 |
+|------|------|
+| 🔄 | 审计刀A（P0×2）：基线台账 CSV+角色库参考图壳内修复（v4.165.0 ✅） |
+| ⬜ | 审计刀B（下载类×4）：ImageGen 两处下载 / NovelSetting 导入导出 / 办公 md 分支 |
+| ⬜ | 审计刀C（上传类×3）：ControlPanel / VisionTrial / SkillModal 接 pickFile util |
+| ⬜ | 审计刀D（真机取证）：printSvg iframe print / 拖拽 / 粘贴 + GaeaPickFiles Filters 可选参数 |
+| ⬜ | W2 知识外化：30 分钟上手文档 / progress.md 瘦身归档 / 个人路径清洗 |
 
 ## 文档整理（2026-09-09）✅
 

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import CharacterLibEditor from './CharacterLibEditor'
 import type { LibraryCharacter } from '../../api/characterlib'
@@ -78,6 +78,11 @@ beforeEach(() => {
   mockedRandom.mockReset()
   readFileAsDataURLMock.mockReset()
   readFileAsDataURLMock.mockResolvedValue('data:image/png;base64,PATHREF')
+})
+
+// 壳内用例装的 window.go stub 用完即清，防泄漏进同文件浏览器分支用例
+afterEach(() => {
+  delete (window as unknown as { go?: unknown }).go
 })
 
 describe('CharacterLibEditor（档案详情）', () => {
@@ -271,6 +276,42 @@ describe('CharacterLibEditor（档案详情）', () => {
       expect(Array.isArray(payload.referenceImages)).toBe(true)
       expect((payload.referenceImages ?? []).length).toBe(1)
     })
+  })
+
+  // ── 审计刀A：Wails 壳内「添加参考图」走 GaeaPickFiles 系统对话框 ──────────
+
+  it('壳内添加参考图：GaeaPickFiles+GaeaReadFileB64 读回 data URL 追加列表（不点隐藏 input）', async () => {
+    const pickFiles = vi.fn(async () => ([
+      { path: 'C:/imgs/ref.png', name: 'ref.png', type: 'image', size: 5 },
+    ]))
+    const readFileB64 = vi.fn(async () => 'aGVsbG8=') // "hello"
+    // 真壳同款 Gaea 前缀绑定面（bridge realApp 按方法名路由）
+    ;(window as unknown as { go?: unknown }).go = {
+      app: { CharLibPickTest: { GaeaPickFiles: pickFiles, GaeaReadFileB64: readFileB64 } },
+    }
+    // 壳内分支不得回落浏览器 input.click()（jsdom 点了也不弹框，正是 P0 本体）
+    const inputClick = vi.spyOn(HTMLInputElement.prototype, 'click').mockImplementation(() => {})
+    try {
+      renderEditor()
+      fireEvent.click(screen.getByText('添加参考图'))
+      await waitFor(() => {
+        expect(pickFiles).toHaveBeenCalledTimes(1)
+        expect(readFileB64).toHaveBeenCalledWith('C:/imgs/ref.png')
+        expect(document.body.querySelectorAll('.cd-ref-img').length).toBe(1)
+      })
+      expect(document.body.querySelector('.cd-ref-img')?.getAttribute('src'))
+        .toBe('data:image/png;base64,aGVsbG8=')
+      expect(inputClick).not.toHaveBeenCalled()
+      // 保存载荷携带读回的 data URL（同浏览器路径口径）
+      mockedSave.mockResolvedValue(makeCharacter())
+      fireEvent.click(screen.getByText('保存'))
+      await waitFor(() => {
+        const payload = mockedSave.mock.calls[0][0] as Partial<LibraryCharacter>
+        expect(payload.referenceImages).toEqual(['data:image/png;base64,aGVsbG8='])
+      })
+    } finally {
+      inputClick.mockRestore()
+    }
   })
 
   it('移除参考图：点击删除后列表减少', () => {

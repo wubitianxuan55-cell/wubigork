@@ -9,16 +9,31 @@
  * 面板数据全部走 useScheduleStore（与被替换进 Popover 的运行形态一致），
  * 漂移期望值与 baseline.ts 同口径（工作日序号快照）。
  * v4.138 追加：签证台账 CSV 导出——无槽位隐藏、有槽位在位，点击经
- * downloadBlob 触发下载（jsdom stub URL.createObjectURL），断言文件名、
- * BOM、表头与每槽一行（漂移=当前-基线，正=拖后）。
+ * saveExportBlob（审计刀A：壳内系统另存为；jsdom 浏览器分支=downloadBlob）
+ * 触发下载（jsdom stub URL.createObjectURL），断言文件名、BOM、表头与
+ * 每槽一行（漂移=当前-基线，正=拖后）。
  */
 
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { saveExportBlob } from './exportArtifact'
 import { BaselinesPanel } from './BaselinesPanel'
 import { computeCpm } from './cpm'
 import { useScheduleStore } from './store'
 import type { SchedBaseline, SchedProject } from './types'
+
+// 审计刀A：导出口必须经 saveExportBlob（壳内 GaeaSaveFileAs；浏览器分支=
+// downloadBlob）。spy 委托真 downloadBlob，既有 URL stub/anchor 捕获口径不变。
+vi.mock('./exportArtifact', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./exportArtifact')>()
+  return {
+    ...actual,
+    saveExportBlob: vi.fn((blob: Blob, name: string) => {
+      actual.downloadBlob(blob, name)
+      return Promise.resolve(true)
+    }),
+  }
+})
 
 /** A(3)→B(2)→C(4) 串联，周一开工：es A=0/B=3/C=5，总工期 9，全关键 */
 function chainProject(): SchedProject {
@@ -268,6 +283,7 @@ describe('BaselinesPanel 槽位管理', () => {
 describe('BaselinesPanel 签证台账 CSV 导出（v4.138）', () => {
   beforeEach(() => {
     localStorage.removeItem('gaea.schedule.v1')
+    vi.mocked(saveExportBlob).mockClear()
     useScheduleStore.setState({ project: chainProject(), selectedId: null, hydrated: true, sync: 'saved', savedAt: null, syncError: null, past: [], future: [] })
   })
 
@@ -306,6 +322,9 @@ describe('BaselinesPanel 签证台账 CSV 导出（v4.138）', () => {
     expect(screen.getByTestId('sched-baseline-ledger').textContent).toContain('导出台账')
 
     const { blob, filename } = await clickLedgerAndCapture()
+    // 审计刀A：导出口必须经 saveExportBlob（壳内系统另存为，不直呼 downloadBlob）
+    expect(vi.mocked(saveExportBlob)).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(saveExportBlob).mock.calls[0][1]).toBe('链式样板-签证台账.csv')
     expect(filename).toBe('链式样板-签证台账.csv')
     expect(blob.type).toBe('text/csv;charset=utf-8')
     // \ufeff BOM：Excel 中文乱码防线。blob.text() 会按规范剥掉 BOM，改查原始字节（EF BB BF）

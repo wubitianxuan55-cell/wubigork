@@ -1,5 +1,12 @@
 # 任务进度
 
+## 最新发布：v4.165.0（2026-09-08）「拍板落档 + 壳内残留审计刀A：P0×2 修复」
+
+- **拍板**：收敛计划 §0 两项已决——路线 A=终极个人工具（产品化=期权不作承诺）；LICENSE=私有 All Rights Reserved（根目录 LICENSE + README 许可段 + AGENTS 长期规划回写）。
+- **刀A**：①新中立层 gaea/lib/pickFile.ts（inShellEnv/pickFileAsFile/pickImageAsDataUrl，只 import ./bridge 防倒挂；GaeaPickFiles 无过滤器→扩展名后置校验 fail-closed）；②BaselinesPanel 签证台账 CSV 导出改 saveExportBlob（v4.162 漏了同域邻居）；③角色库「添加参考图」壳内接 pickImageAsDataUrl（此前无替代路径卡死 img2img 立绘），浏览器回退保留。红→绿全链取证（修复前 GaeaPickFiles 0 次调用）。
+- **门禁**：vitest 2678→2684（+6，全量首跑全绿——v4.164 抗抖见效）、Go 0 FAIL、tsc/eslint 0、drift PASS@602、build 45.4s+冒烟 200。
+- **欠账**：审计刀 B（下载类×4）/C（上传类×3）/D（真机取证+Filters）、nanoid 升级刀。
+
 ## 最新发布：v4.164.0（2026-09-08）「收敛计划 W1 卫生刀」
 
 - **立项**：docs/gaea-convergence-plan-2026-09.md（收敛期叠加层：卫生/外化/止血刀+节奏改革）；三线并发子代理（A 供应链+抗抖/B 潜伏 bug/C 只读审计）足迹互斥，主代理收口。

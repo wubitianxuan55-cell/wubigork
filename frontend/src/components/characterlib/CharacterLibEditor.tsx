@@ -17,6 +17,7 @@ import {
 import { readFileAsDataURL } from '../../api/image'
 import { PortraitImg } from './PortraitImg'
 import { CHARACTER_STATUS_OPTIONS, characterStatusLabel } from '../../utils/characterStatus'
+import { inShellEnv, pickImageAsDataUrl } from '../../gaea/lib/pickFile'
 import './character-detail.css'
 
 const { Text } = Typography
@@ -343,6 +344,22 @@ const CharacterLibEditor: React.FC<Props> = ({
     reader.readAsDataURL(file)
   }
 
+  // 添加参考图（审计刀A，v4.162 实证）：Wails 壳内 <input type=file>.click()
+  // 不弹文件对话框（点击无反应），改走 GaeaPickFiles 系统对话框读回 data URL；
+  // 浏览器回退原生 input 弹框。扩展名不合法由 pickImageAsDataUrl 抛错，这里
+  // message 提示（fail-closed 不静默吞）；取消=返回 null 静默返回。
+  const onPickRef = async () => {
+    if (!inShellEnv()) { fileRef.current?.click(); return }
+    try {
+      const dataUrl = await pickImageAsDataUrl()
+      if (!dataUrl) return
+      patch({ referenceImages: [...(form.referenceImages ?? []), dataUrl] })
+      message.success('参考图已添加，保存后生效')
+    } catch (e) {
+      message.error(`添加参考图失败：${e instanceof Error ? e.message : String(e)}`)
+    }
+  }
+
   const dims = useMemo(() => form.dims ?? emptyDims(), [form.dims])
   const heroMeta = [
     form.roleType ? ROLE_LABELS[form.roleType] || form.roleType : '',
@@ -579,7 +596,7 @@ const CharacterLibEditor: React.FC<Props> = ({
                   )}
                   <input ref={fileRef} type="file" accept="image/*" hidden onChange={onPickRefFile} />
                   <div className="cd-refs-foot">
-                    <Button size="small" icon={<PictureOutlined />} disabled={busy} onClick={() => fileRef.current?.click()}>
+                    <Button size="small" icon={<PictureOutlined />} disabled={busy} onClick={() => void onPickRef()}>
                       添加参考图
                     </Button>
                     <span className="cd-refs-hint">以参考图生成立绘可保留角色特征（img2img，需 krea2 / z-image-turbo）</span>

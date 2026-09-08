@@ -14,14 +14,14 @@
  *    槽位保留可再激活）；
  *  - 有槽位 → 槽位列表下方「导出台账」（v4.138）：CSV 下载（\ufeff BOM 防 Excel
  *    中文乱码），列=基线名称/保存时间/基线总工期/当前总工期/总工期漂移，每槽
- *    一行不汇总；下载复用 exportArtifact.downloadBlob。
+ *    一行不汇总；导出复用 exportArtifact.saveExportBlob（壳内系统另存为）。
  * props 只收 cpm（页面级 CPM 结果）；工程与槽位动作一律取自 useScheduleStore，
  * 不依赖页面局部状态，可整体替换进基线 Popover。
  */
 import React, { useMemo, useState } from 'react'
 import { Button, Input, Popconfirm, Radio, Space, Tag } from 'antd'
 import { computeBaselineDrift } from './baseline'
-import { downloadBlob } from './exportArtifact'
+import { saveExportBlob } from './exportArtifact'
 import { useScheduleStore } from './store'
 import type { CpmResult, SchedBaseline } from './types'
 
@@ -95,11 +95,12 @@ export const BaselinesPanel: React.FC<{ cpm: CpmResult }> = ({ cpm }) => {
     setErr(setBaseline(drift.baselineName))
   }
 
-  /** 导出签证台账 CSV：\ufeff BOM 防 Excel 中文乱码；文件名=工程名-签证台账.csv */
+  /** 导出签证台账 CSV：\ufeff BOM 防 Excel 中文乱码；文件名=工程名-签证台账.csv；
+   *  壳内经 saveExportBlob 走系统另存为（<a download> 不落盘，v4.162），浏览器回退下载 */
   const exportLedger = () => {
     const csv = ledgerCsv(slots, cpm.duration)
     const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' })
-    downloadBlob(blob, `${project.name || '进度计划'}-签证台账.csv`)
+    void saveExportBlob(blob, `${project.name || '进度计划'}-签证台账.csv`)
   }
 
   return (

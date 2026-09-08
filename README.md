@@ -92,6 +92,7 @@ gaea/
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| **v4.165.0** | 2026-09-08 | 拍板落档（路线A=终极个人工具 + LICENSE=私有 All Rights Reserved）；壳内残留审计刀A：P0×2 修复——基线面板签证台账 CSV 导出改系统另存为（此前壳内点击无反应）、角色库「添加参考图」接 GaeaPickFiles 系统对话框读回 dataURL（此前无替代路径卡死 img2img 立绘）；新中立层 gaea/lib/pickFile（扩展名后置校验 fail-closed）。vitest 2684 首跑全绿。详见 releases/v4.165.0.md |
 | **v4.164.0** | 2026-09-08 | 收敛计划 W1 卫生刀：package-lock 入库+CI npm ci（供应链可复现，CI 与本地同树）；vitest testTimeout 15s+CI 前端 flaky retry（同机满并发超时假红实测驱动）；修 DeliverablesPanel「回办公面板重新规划」失效（NAVIGATE 过期板块 id office→gaea 被白名单静默丢弃，+1 回归锁）；WebView2 残留面审计落档（P0×2/P1×7/修复刀序 A-D）。零绑定 drift PASS@602；vitest 2678。详见 releases/v4.164.0.md |
 | **v4.163.0** | 2026-09-08 | gaea 长期日志机制：按日分文件 `<DataRoot>/logs/gaea-YYYYMMDD.log`（保留 365 天+1GB 总量兜底+启动清理）；旧 gaea.log 迁入 logs/gaea-legacy.log；启动头写版本、Shutdown 记运行时长；新绑定 GaeaOpenLogsDir+设置→数据「打开日志目录」按钮。附带修 v4.162 缺陷：ReadFileB64/SaveFileAs 漏 facade 委托致运行时不可达（OfficeB 补委托）。绑定 601→603；vitest 2677。详见 releases/v4.163.0.md |
 | **v4.162.0** | 2026-09-08 | 进度计划导入导出壳内修复（用户实测「点击没有反应」）：根因=Wails 壳内 input[file] 不弹框、`<a download>` 不落盘（浏览器正常故测试不可见）。新绑定 GaeaReadFileB64+GaeaSaveFileAs（599→601）：导入四路改系统文件对话框+读路径喂原解析器、导出五路统一另存为对话框（saveExportBlob，浏览器回退原机制）。壳内 CDP 受信任点击实测对话框正常弹出；vitest 2671→2677。详见 releases/v4.162.0.md |
@@ -393,3 +394,8 @@ gaea/
 | **v2.1.0** | 2026-08-07 | 二代完善：模型中心持久化/启停语义、Cmd+K 引擎路由、OAuth 回归、前端 E 系列守卫、小说剧照与模型链路审计 |
 | **v2.0.1** | 2026-08-07 | 三脑底座：模型路由降级链、三脑记忆、主脑可选编排、基线加固 |
 | **v1.0.0** | 2026-08-01 | 品牌重塑：wubigrok 正式更名 gaea，全量替换品牌名与 logo，版本重新起算 |
+
+## 许可
+
+私有软件，保留所有权利（All Rights Reserved，见 [LICENSE](./LICENSE)）。本项目定位为
+**个人工具**（2026-09-08 拍板：路线 A=终极个人工具，产品化为期权不作承诺）。

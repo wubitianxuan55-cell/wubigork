@@ -5,6 +5,8 @@
 
 ## 版本状态（顶部速览）
 
+- **最新发布：v4.165.0（2026-09-08）「拍板落档（路线A+私有许可）+ 壳内残留审计刀A：P0×2 修复」**——§0 拍板落档=路线 A 终极个人工具 + LICENSE 私有 All Rights Reserved（AGENTS 长期规划已回写）。刀A：①新中立层 `gaea/lib/pickFile.ts`（**只 import ./bridge 防域倒挂**；GaeaPickFiles 无过滤器→扩展名后置校验 fail-closed 抛错，调用方 toast）；②BaselinesPanel 签证台账 CSV 改 saveExportBlob（**教训：v4.162 只修了 SchedulePage 主链路，同域新出口 BaselinesPanel 漏网——同组件域新增导出/导入出口必须过统一收口**）；③角色库「添加参考图」壳内接 pickImageAsDataUrl（此前点击无反应且无替代，img2img 立绘链被卡死），浏览器回退原生 input、hidden input 与 jsdom 用例口径原样保留。红→绿取证（修复前 GaeaPickFiles 0 次调用）。vitest 2678→**2684**（全量**首跑全绿**，v4.164 抗抖当场见效）、Go 0 FAIL、tsc/eslint 0、drift PASS@602、build 45.4s+冒烟 200。欠账=审计刀 B/C/D、nanoid 升级刀。
+
 - **最新发布：v4.164.0（2026-09-08）「收敛计划 W1 卫生刀：供应链可复现+测试抗抖+过期导航 id 修复+壳内残留审计」**——收敛计划立项（docs/gaea-convergence-plan-2026-09.md）首轮，三线并发子代理足迹互斥。①package-lock.json 入库+CI npm ci（**坑：npm 11.6.2 --package-lock-only 产物缺条目，须 npm 10 生成或 dry-run 验证**）；②vitest testTimeout 15s+CI 前端 flaky retry（动因=Go/vitest 同机满并发 32 例 5s 超时假红、隔离复跑全绿——**门禁假红一次就会教人无视红灯**）；③修 DeliverablesPanel「回办公面板重新规划」失效：NAVIGATE 载荷沿用历史模块名 `page:"office"` 而 manifest 板块 id=gaea，MainLayout 白名单静默丢弃（**规约：NAVIGATE.page 是壳层板块 id，发送方必须用 manifest id**）；④WebView2 残留审计落档（P0×2：BaselinesPanel CSV/CharacterLibEditor 参考图；刀序 A-D）。零绑定 drift PASS@602；Go 116 包绿、vitest 2678 复跑全绿、tsc/eslint 0、build+冒烟过。欠账=nanoid high 升级刀、审计刀 A-D、LICENSE/性质拍板。
 
 - **最新发布：v4.163.0（2026-09-08）「gaea 长期日志机制」**——此前=单文件 whisper_data/gaea.log（目录误植/无轮转/无上限）。机制（internal/app/logging.go）：**按日分文件 `<DataRoot>/logs/gaea-YYYYMMDD.log`**（当日 O_APPEND），启动清理过期（**保留 365 天**）+总量兜底（>1GB 从最旧删），旧 gaea.log 一次性迁入 logs/gaea-legacy.log；启动头写 version+Go 版本，Shutdown 记运行时长；前端诊断（GaeaLogFrontendError→slog）自动落同一文件；新绑定 **GaeaOpenLogsDir**+设置→数据「打开日志目录」按钮。**⚠附带修 v4.162 缺陷：ReadFileB64/SaveFileAs 漏 facade 委托行致运行时不可达——Wails 只暴露 Bind 里门面结构体的方法，App 直挂方法必须同文件在任一门面（bindings_*.go）加委托行；gen_bindings -names 只扫方法名探测不到漏委托，接手后新绑定必须壳内实测一次调用可达。****坑：①壳内页面调试=WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9333 + CDP 受信任点击（合成 el.click() 在 rc-trigger 行为不同）；②原生对话框探测 UIA #32770 漏报，须 P/Invoke EnumWindows 按 pid 枚举；③壳内首页入口是 [role=button] div 非 button 标签，冷启动 >10s 要轮询。**绑定 601→603、vitest 2677、tsc/eslint 0、drift PASS@603、版本三处 4.163.0、build+冒烟过。欠账：日志查看 UI 按需另立小刀。
@@ -47,6 +49,9 @@
 
 ## 长期规划（权威，2026 定稿）
 
+- **用户拍板（2026-09-08，收敛计划 §0）：性质路线=A「终极个人工具」**——产品化
+  降为期权不作承诺，不为想象中的用户写代码；**LICENSE=私有 All Rights Reserved**
+  （根目录 LICENSE），未来开源须另行发布开源许可证覆盖对应模块并与私有部分区隔。
 - **唯一权威路线图 = `docs/gaea-nextgen-roadmap-2026.md`**（11 个子代理调研合成）：
   8 板块竞品调研（办公/造价/AI 底座/编程/小说/绘梦/轻语/微信+语音）+ WorkBuddy×灵犀
   深度拆解（§12）+ **版本重定义"双空间"（§10）** + 四层落地（§13 后端/前端/UX/UI）+
