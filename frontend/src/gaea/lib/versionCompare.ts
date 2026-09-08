@@ -8,6 +8,12 @@
 //   - .xlsx 经 Preview 拿结构化单元格 JSON（PreviewResult.body → XlsxSheet[]，
 //     与 XlsxPreview 组件同一数据面）→ sheet 名对齐 + 单元格 ref 对齐差异
 //     （xlsxCellDiff）；
+//   - .pptx 经 AttachmentDataURL 拿原始文件字节 → JSZip 解 ppt/slides/slideN.xml
+//     页对齐 + 页内段落 LCS diff（pptxTextDiff）。不走 docx 的 Preview-dataUrl
+//     通道：GaeaPreview 把 .pptx 渲染成 PDF 逐页缩略（gaea_pptx.go previewPptx，
+//     kind=pdf），拿不到原始包字节；基线快照又是 .before 扩展名，Preview 按扩展
+//     名分派对它落 unsupported。AttachmentDataURL（GaeaAttachmentDataURL）字节
+//     精确读任意路径（FileThumb 同款用法），两侧通吃；
 //   - 其余类型（pdf/图片等）无法结构化对比 → kind: "unsupported"，UI 降级为
 //     「双版本并排预览」入口。
 //
@@ -16,17 +22,26 @@
 //     空、size 0），视为「内容不可用」照常 diff 并标 contentMissing；
 //   - docx/xlsx 侧：一侧 size 0（空文件/读取失败回空壳）→ 该侧按空内容计、
 //     照常 diff 并标 contentMissing（与文本侧同口径）；但结构不可信——Preview
-//     抛错 / kind 不符 / docx 无 dataUrl / xlsx body 非 JSON / 解包解析失败——
-//     一律整体降级 unsupported（此时硬做 diff 会产出整篇误报，宁漏勿误；
-//     UI 的 unsupported 分支仍保留并排预览入口兜底）。
+//     抛错 / kind 不符 / docx 无 dataUrl / xlsx body 非 JSON / pptx 取数失败或
+//     解包解析失败（pptxTextDiff 结构化 {ok:false}）——一律整体降级 unsupported
+//    （此时硬做 diff 会产出整篇误报，宁漏勿误；UI 的 unsupported 分支仍保留
+//     并排预览入口兜底）。
 //
-// 纯函数（buildTextDiff/buildDocxDiff/buildXlsxDiff/diffStatOf/isTextComparable/
-// clampDiffRows）可单测；async 包装只做取数与编排。
+// 纯函数（buildTextDiff/buildDocxDiff/buildXlsxDiff/buildPptxDiff/diffStatOf/
+// isTextComparable/clampDiffRows）可单测；async 包装只做取数与编排。
 
 import { app } from "./bridge";
 import { diffLines, type DiffRow } from "./diff";
 import { extractDocxParagraphs } from "./docxText";
 import { diffDocxParagraphs, docxDiffStat, type DocxRow } from "./docxTextDiff";
+import {
+  diffPptxSlideTexts,
+  parsePptxSlides,
+  pptxBytesFromDataUrl,
+  type PptxPageSummary,
+  type PptxSlideTexts,
+  type PptxTextDiffOk,
+} from "./pptxTextDiff";
 import { diffXlsxSheets, MAX_XLSX_SHEET_CELLS, type XlsxSheetDiff } from "./xlsxCellDiff";
 import type { XlsxPreview, XlsxSheet } from "./types";
 
@@ -61,10 +76,44 @@ export interface VersionXlsxDiff {
   contentMissing: boolean;
 }
 
+/** pptx 单页差异（VersionPptxDiff.slides 元素）：state = 页级增删/改（xlsx
+ *  sheet state 同名对齐）；rows = 页内段级变更行（只含 add/del，未变段落不补
+ *  ——诚实口径同 xlsx「不补未变单元格」）；index 为页内段落序号（del 取基线
+ *  侧、add 取当前侧），渲染时走 DiffRow.marker 序号列。 */
+export interface PptxSlideDiff {
+  /** 展示页码：add/changed 取当前侧页码，del 取基线侧页码（DocxRow.index 同语义）。 */
+  page: number;
+  state: "add" | "del" | "changed";
+  rows: { type: "add" | "del"; index: number; text: string }[];
+  add: number;
+  del: number;
+  /** 该页变更合计（add+del，hunk label 文案用）。 */
+  total: number;
+  /** 相邻 del+add 贪心配对的改写段数（展示层细分用，对齐 xlsx change 口径）。 */
+  change: number;
+}
+
+/** pptx 结构化对比结果：层1 页级摘要 + 只含有差异页的段级变更（xlsx「只含有
+ *  差异的 sheet」同口径；字符级高亮由宿主把相邻 del+add 对交 ChangesDiff 白得）。 */
+export interface VersionPptxDiff {
+  kind: "pptx";
+  /** 层1 页对齐摘要：两侧页数 + 页级新增/删除/修改计数。 */
+  summary: PptxPageSummary;
+  slides: PptxSlideDiff[];
+  /** 汇总新增量 = Σ(新增段落 + 新增页)；「修改」按段落 del+add 对自然计一对 +1，与行级 diff 语义对齐，供 stat 徽标直接消费。 */
+  add: number;
+  /** 汇总删除量 = Σ(删除段落 + 删除页)。 */
+  del: number;
+  /** 段落级改写对合计（不计入 add/del，展示层细分用）。 */
+  change: number;
+  contentMissing: boolean;
+}
+
 export type VersionCompareResult =
   | VersionTextDiff
   | VersionDocxDiff
   | VersionXlsxDiff
+  | VersionPptxDiff
   | { kind: "unsupported"; ext: string };
 
 const TEXT_DIFF_EXTS = new Set([
@@ -113,6 +162,52 @@ export function buildXlsxDiff(baseSheets: XlsxSheet[], curSheets: XlsxSheet[], c
     change += s.change;
   }
   return { kind: "xlsx", sheets, add, del, change, contentMissing };
+}
+
+/** 纯函数：pptxTextDiff 的层1+层2 产出 → 只含有差异页的对比结果（含汇总计数）。
+ *  按 (pages, rows) 双游标切片：pages 为 walk 序、rowCount 记每页贡献的连续
+ *  行数，页码在基线/当前两侧各自编号故不做分组键。 */
+export function buildPptxDiff(d: PptxTextDiffOk, contentMissing = false): VersionPptxDiff {
+  const slides: PptxSlideDiff[] = [];
+  let add = 0;
+  let del = 0;
+  let change = 0;
+  let cursor = 0;
+  for (const p of d.pages) {
+    const slice = d.rows.slice(cursor, cursor + p.rowCount);
+    cursor += p.rowCount;
+    if (p.state === "equal") continue; // 整页未变不进结果（不伪造、不加噪）
+    const rows = slice
+      .filter((r) => r.type !== "equal")
+      .map((r) => ({ type: r.type as "add" | "del", index: r.index, text: r.text }));
+    const s: PptxSlideDiff = {
+      page: p.page,
+      state: p.state === "add" ? "add" : p.state === "del" ? "del" : "changed",
+      rows,
+      add: 0,
+      del: 0,
+      total: 0,
+      change: 0,
+    };
+    for (const r of rows) {
+      if (r.type === "add") s.add++;
+      else s.del++;
+    }
+    // 相邻 del+add 贪心配对 = 改写段落（与 ChangesDiff 渲染配对同口径）。
+    for (let k = 0; k < rows.length; k++) {
+      if (rows[k].type === "del" && rows[k + 1]?.type === "add") {
+        s.change++;
+        k++;
+      }
+    }
+    s.total = s.add + s.del;
+    // 整页级增删（无文本的空页也占一格）+1，与 xlsx sheet 增删 +1 同语义。
+    add += s.add + (p.state === "add" ? 1 : 0);
+    del += s.del + (p.state === "del" ? 1 : 0);
+    change += s.change;
+    slides.push(s);
+  }
+  return { kind: "pptx", summary: d.summary, slides, add, del, change, contentMissing };
 }
 
 export function diffStatOf(rows: DiffRow[]): { add: number; del: number } {
@@ -191,12 +286,37 @@ async function compareXlsxWithCurrent(baselinePath: string, currentPath: string)
   return buildXlsxDiff(base.sheets, cur.sheets, base.size === 0 || cur.size === 0);
 }
 
-/** 取数编排：基线快照 vs 当前文件，按扩展名分派 text/docx/xlsx，其余 unsupported
- *  （分派与降级口径见文件头注释）。 */
+// pptx 取数：经 AttachmentDataURL（字节精确，任意路径可读，通道说明见文件头）
+// 拿原始字节 → 解包解析（结构不可信 → null，上层整体降级 unsupported）；一侧
+// size 0（空文件/读取失败回空负载）→ 空页 + size 0（上层标 contentMissing，
+// 照常 diff），口径同 loadDocxSide。
+async function loadPptxSide(rel: string): Promise<{ slides: PptxSlideTexts[]; size: number } | null> {
+  try {
+    const url = await app.AttachmentDataURL(rel);
+    if (!url) return null;
+    const bytes = pptxBytesFromDataUrl(url);
+    if (bytes.length === 0) return { slides: [], size: 0 };
+    const parsed = await parsePptxSlides(bytes);
+    if (!parsed.ok) return null; // 非 pptx / 解包解析失败：宁漏勿误（不抛错）
+    return { slides: parsed.slides, size: bytes.length };
+  } catch {
+    return null; // 读取失败：宁漏勿误，交由上层降级
+  }
+}
+
+async function comparePptxWithCurrent(baselinePath: string, currentPath: string): Promise<VersionCompareResult> {
+  const [base, cur] = await Promise.all([loadPptxSide(baselinePath), loadPptxSide(currentPath)]);
+  if (!base || !cur) return { kind: "unsupported", ext: ".pptx" };
+  return buildPptxDiff(diffPptxSlideTexts(base.slides, cur.slides), base.size === 0 || cur.size === 0);
+}
+
+/** 取数编排：基线快照 vs 当前文件，按扩展名分派 text/docx/xlsx/pptx，其余
+ *  unsupported（分派与降级口径见文件头注释）。 */
 export async function compareVersionWithCurrent(baselinePath: string, currentPath: string): Promise<VersionCompareResult> {
   const ext = extOfPath(currentPath);
   if (isTextComparable(currentPath)) return compareTextWithCurrent(baselinePath, currentPath);
   if (ext === ".docx") return compareDocxWithCurrent(baselinePath, currentPath);
   if (ext === ".xlsx") return compareXlsxWithCurrent(baselinePath, currentPath);
+  if (ext === ".pptx") return comparePptxWithCurrent(baselinePath, currentPath);
   return { kind: "unsupported", ext };
 }

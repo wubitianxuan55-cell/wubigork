@@ -29,6 +29,13 @@
 // sheet 名 + 状态/截断文案，change 单元格 = 相邻 del+add 对，marker = 单元格
 // ref，formula 追加 fx 后缀），诚实原则：不伪造 ctx 行、不补未变单元格。
 // clampDiffRows(200) + 展开全部开关保留在本组件（ChangesDiff 下方）。
+//
+// v4.156.0 刀3 结构化对比：kind:"pptx" 收口——pptxTextDiff 页对齐 + 页内段落
+// LCS，渲染与 xlsx 同构（每「有差异的页」一个 hunk，label = 第 N 页 + 状态；
+// 段落序号走 marker 列；相邻 del+add 对交 ChangesDiff 自动获得改蓝配对 +
+// 字符级高亮，即 §3.3 层3 白得）；顶部一行层1 页级摘要（页数/页级增删改）。
+// 取数失败/解包不可信维持 vcompare.unsupported 原文案（诚实降级）。页级文案
+// 与本组件既有中文直出口径一致（页数摘要/新增页/已删除页），未新增 i18n 键。
 import { useCallback, useMemo, useRef, useState } from "react";
 import { Clock, Diff, Eye, Loader2, Rollback } from "../icons";
 import { ChangesDiff } from "./ChangesDiff";
@@ -41,6 +48,7 @@ import {
   clampDiffRows,
   compareVersionWithCurrent,
   type VersionCompareResult,
+  type VersionPptxDiff,
   type VersionXlsxDiff,
 } from "../lib/versionCompare";
 import type { DocxRow } from "../lib/docxTextDiff";
@@ -170,10 +178,77 @@ function XlsxCompareBody({ result, path }: { result: VersionXlsxDiff; path?: str
   );
 }
 
+// pptx 单页变更列表 → DiffRow[]（诚实原则同 xlsx：buildPptxDiff 只产变更段，
+// 不补未变段落）。页内无文本的整页增删生成单行占位（text=说明，无 marker，
+// 整页结构变更不能因无段落被吞）；段级行 marker = 页内段落序号（docx 段号列
+// 同语义）。
+function pptxSlideRows(s: VersionPptxDiff["slides"][number]): DiffRow[] {
+  if (s.rows.length === 0) {
+    if (s.state === "add") return [{ type: "add", text: "（此页无文本）" }];
+    if (s.state === "del") return [{ type: "del", text: "（此页无文本）" }];
+    return [];
+  }
+  return s.rows.map((r) => ({ type: r.type, marker: String(r.index), text: r.text }));
+}
+
+// pptx 对比体（统一 diff 查看器，与 XlsxCompareBody 同构）：顶部一行层1 页级
+// 摘要（页数/页级增删改，pptxTextDiff.summary），其下每个有差异的页一个 hunk
+// 经 ChangesDiff 渲染——相邻 del+add 对自动改蓝配对 + 字符级高亮（§3.3 层3），
+// 页容器与 xlsx sheet 同款 max-h-60 有界滚动。
+function PptxCompareBody({ result, path }: { result: VersionPptxDiff; path?: string }) {
+  const t = useT();
+  if (result.slides.length === 0) {
+    return (
+      <div data-testid="vcompare-empty" className="py-0.5 text-[10px] leading-relaxed" style={{ color: "var(--md-sys-color-text-secondary)" }}>
+        {t("vcompare.empty")}
+      </div>
+    );
+  }
+  const sm = result.summary;
+  return (
+    <div className="flex flex-col gap-1">
+      {result.contentMissing && (
+        <div data-testid="vcompare-content-missing" className="text-[9.5px] leading-relaxed" style={{ color: "var(--md-sys-color-warning)" }}>
+          {t("vcompare.contentMissing")}
+        </div>
+      )}
+      {/* 层1 页级摘要：两侧页数 + 页级增删改（页数一致且无页级增删时省略） */}
+      {(sm.pagesBase !== sm.pagesCur || sm.added > 0 || sm.removed > 0 || sm.changed > 0) && (
+        <div
+          data-testid="vcompare-pptx-summary"
+          className="text-[9.5px] leading-relaxed"
+          style={{ color: "var(--md-sys-color-text-secondary)" }}
+        >
+          页数 {sm.pagesBase} → {sm.pagesCur}，新增 {sm.added} 页 · 删除 {sm.removed} 页 · 修改 {sm.changed} 页
+        </div>
+      )}
+      {result.slides.map((s, i) => {
+        const stateText =
+          s.state === "add"
+            ? "新增页"
+            : s.state === "del"
+              ? "已删除页"
+              : `变更 ${s.total} 处`;
+        const label = `第 ${s.page} 页 · ${stateText}`;
+        return (
+          <div
+            key={`${s.page}-${i}`}
+            data-testid={`vcompare-slide-${i}`}
+            className="max-h-60 overflow-auto rounded-md"
+          >
+            <ChangesDiff diff={{ kind: "diff", hunks: [{ label, rows: pptxSlideRows(s) }] }} path={path} />
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // 内联对比区：该基线快照 vs 当前工作区文件。result === null 表示取数进行中
 // （spinner）；text/docx 构造 { kind:"diff", hunks:[{ rows }] } 交 ChangesDiff
 // 统一渲染（docx 段落序号进 DiffRow.marker 列），xlsx 走结构化对比体
-// XlsxCompareBody；行配色/配对/折叠与「变更」「Git」面板同源（ChangesDiff）。
+// XlsxCompareBody，pptx 走同构的 PptxCompareBody；行配色/配对/折叠与「变更」
+// 「Git」面板同源（ChangesDiff）。
 function VersionComparePanel({
   label,
   result,
@@ -223,7 +298,7 @@ function VersionComparePanel({
         <span className="shrink-0 text-[9.5px] font-medium" style={{ color: "var(--md-sys-color-text)" }}>
           {t("vcompare.title", { label })}
         </span>
-        {(result?.kind === "text" || result?.kind === "docx" || result?.kind === "xlsx") && (
+        {(result?.kind === "text" || result?.kind === "docx" || result?.kind === "xlsx" || result?.kind === "pptx") && (
           <DiffStatChip add={result.add} del={result.del} />
         )}
         <span className="min-w-0 flex-1" />
@@ -250,6 +325,8 @@ function VersionComparePanel({
         </div>
       ) : result.kind === "xlsx" ? (
         <XlsxCompareBody result={result} />
+      ) : result.kind === "pptx" ? (
+        <PptxCompareBody result={result} path={path} />
       ) : (
         <div className="flex flex-col gap-1">
           {/* 基线/当前任一侧内容不可用：顶部提示（结果仍展示，宁漏勿误口径） */}

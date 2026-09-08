@@ -1,3 +1,9 @@
+## v4.156.0 · pptx 真编辑刀2+刀3：编辑面板 + 版本对比（2026-09-08）
+> docs/gaea-pptx-edit-design-2026-09.md 刀2/刀3 并行交付（刀1=v4.109.0）——docx/xlsx/pptx 三件套编辑能力闭环。绑定 597→598（+GaeaPptxSlideText）。
+- 刀2：新绑定 `GaeaPptxSlideText`（pptxedit.LocateText 段落全文,纯 Go 零 python;大纲 texts 是 200 rune 截断预览不可当 target,apply 单段落精确匹配宁拒不误改）;PptxOutline 两级导航;PptxEditPanel(P1 Plan→Apply:段落单选→预设动作/自定义指令(短句化防溢出约束)→双栏对比→应用→新预览刷新);FilePreview pdf 分支挂面板;桥接六处(数量锁 310→311,mock ApplyEdit 未命中按后端同语义抛错)。
+- 刀3：lib/pptxTextDiff.ts(JSZip 解 slides,页签名 LCS 对齐+段落级复用 diffDocxParagraphs;坏 zip 结构化降级);versionCompare kind:"pptx"(取数走 AttachmentDataURL——Preview 对 pptx 渲染成 PDF 缩略、基线 .before 扩展名不走 Preview 分派);VersionTimeline PptxCompareBody(页摘要+差异页 hunk,改蓝配对+字符高亮白得)。
+- 门禁：Go 全量绿(+3)、vitest 2617→2650、tsc/eslint 0、drift PASS@598、build+冒烟过;flaky=TestCreateChapter_SameChapterConcurrentRejected TempDir 清理竞态复跑绿。真机走查挂真机池(mock Preview 无 pptx 分支,v4.28 起即如此)。详见 releases/v4.156.0.md。
+
 ## v4.155.0 · 双工期欠账放开：SS/FF/SF×cd 全搭接（§3.2.5 重推，零不动点）（2026-09-08）
 > 双工期设计 §6 欠账池首项销账：v4.150 刀1 曾收窄「cd 任务仅允许 FS 搭接」，本刀实施前重推语义矩阵——原矩阵四格「需不动点」均系 wd 代数形误判，实际零迭代可解，八格全放开。TS↔Go 同批镜像，597 零变更。
 - 重推手段：①新原语 `cdEarliestStart`（单调逆查：最小 s 使 cdToEf(s)≥T，与 cdToEf/cdLatestStart 互为镜像三件套）解 FF/SF-to；②SS/SF-from 直接 ls 下界（约束本就落在开始上，不经 lf+durFrom 换算）+后继 effLf=cdToEf(ls) 诚实传播。

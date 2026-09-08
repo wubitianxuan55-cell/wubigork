@@ -27,6 +27,24 @@ const mockXlsxState = JSON.parse(MOCK_XLSX_BODY) as {
   sheets: { name: string; rows: { ref: string; value: string }[][] }[];
 };
 
+// pptx 真编辑刀2 走查态：rel → 每页段落全文（段落粒度 = PptxApplyEdit 的
+// target 粒度）。首次访问播种两页四段演示数据，此后 ApplyEdit 真实改内存，
+// PptxSlideText 回读即所见（与 XlsxSetCell 同构；不落盘，刷新即复位）。
+const mockPptxTexts = new Map<string, { index: number; paragraphs: string[] }[]>();
+function mockPptxSeed(rel: string): { index: number; paragraphs: string[] }[] {
+  let slides = mockPptxTexts.get(rel);
+  if (!slides) {
+    slides = [
+      { index: 1, paragraphs: ["季度经营总结", "营收同比增长 12%，成本结构持续优化"] },
+      { index: 2, paragraphs: ["下季度计划", "重点推进三件事：拓客、提效、降本"] },
+    ];
+    mockPptxTexts.set(rel, slides);
+  }
+  return slides;
+}
+// 1x1 占位 PNG（与 image mock 同源的最小 PNG dataUrl）。
+const MOCK_PPTX_PAGE_PNG = "data:image/png;base64,iVBORw0KGgo=";
+
 // 进度计划多工程走查态（v4.139 #15：原 v4.113 单文件会话内存改造为
 // Map<rel, 计划 JSON> + 当前指针）——「每文件一工程」（设计
 // docs/gaea-schedule-multi-project-design-2026-09.md §3.1）：板块 Save 落
@@ -156,6 +174,7 @@ type OfficeMethods = Pick<
   | "PinnedMaterials" | "PinMaterial" | "UnpinMaterial" | "SummarizeFile"
   | "TaskTemplates"
   | "ReadFile" | "Preview" | "OpenWorkspacePath"
+  | "PptxSlideText" | "PptxApplyEdit"
   | "OfficeEditText" | "DocxApplyEdit" | "DocxAcceptChanges"
   | "XlsxPlanEdit" | "XlsxApplyEdit" | "XlsxSetCell" | "XlsxRecalc" | "XlsxRowOps" | "XlsxColOps"
   | "ScheduleLoad" | "ScheduleSave" | "ScheduleExportXlsx" | "ScheduleImportXlsx" | "ScheduleImportMpp"
@@ -436,6 +455,31 @@ export function buildOffice(_s: MakeMockState): OfficeMethods {
         path: rel, name: rel.split("/").pop() ?? rel, ext: ".docx",
         size: 1728, kind: "docx" as const,
         body: "", dataUrl: MOCK_DOCX_DATA_URL, error: "",
+      };
+    },
+    // ── pptx 真编辑刀2（编辑面）走查桩：GaeaPptxSlideText（每页段落全文，
+    // 两页四段演示数据）+ GaeaPptxApplyEdit（会话内存改数据——PptxSlideText
+    // 回读即所见，与 XlsxSetCell 的走查态先例同构；不落盘，刷新即复位）。
+    // target 未命中按后端同语义拒绝（宁拒不误改），前端透出原样错误。 ──
+    async PptxSlideText(rel: string) {
+      return mockPptxSeed(rel).map((s) => ({ index: s.index, paragraphs: [...s.paragraphs] }));
+    },
+    async PptxApplyEdit(rel: string, slideIdx: number, target: string, replacement: string) {
+      const slides = mockPptxSeed(rel);
+      const slide = slides.find((s) => s.index === slideIdx);
+      const at = slide?.paragraphs.findIndex((p) => p.includes(target)) ?? -1;
+      if (!slide || at < 0) {
+        throw new Error(`未在第 ${slideIdx} 页找到目标文本（宁拒不误改）`);
+      }
+      slide.paragraphs[at] = slide.paragraphs[at].replace(target, replacement);
+      // 返回新预览（与真机同契约：写盘后预览缓存自动失效）；mock 页缩略用
+      // 占位 PNG（真实壳 = soffice→PDF→poppler 逐页缩略）。
+      return {
+        path: rel, name: rel.split("/").pop() ?? rel, ext: ".pptx",
+        size: 4096, kind: "pdf" as const,
+        body: "", dataUrl: "", error: "",
+        hint: "outline",
+        pages: slides.map((s) => ({ page: s.index, dataUrl: MOCK_PPTX_PAGE_PNG })),
       };
     },
     async XlsxPlanEdit(_rel: string, sheet: string, instruction: string, selection: string) {

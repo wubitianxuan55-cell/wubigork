@@ -51,6 +51,26 @@ func (a *App) GaeaPptxApplyEdit(rel string, slideIdx int, target string, replace
 	return a.GaeaPreview(rel), nil
 }
 
+// GaeaPptxSlideText — pptx 真编辑刀2 编辑面绑定（docs/gaea-pptx-edit-design-2026-09.md
+// §4 刀2 的后端增量）：大纲 GaeaPptxOutline 的 texts 为 200 rune 截断预览
+//（附省略号），而 GaeaPptxApplyEdit 是精确匹配——拿截断文本当替换 target
+// 必匹配失败拒写（宁拒不误改口径）；本绑定供编辑面板取段落全文作为替换
+// target。走 pptxedit.LocateText（纯 Go 零 python）：ApplyTextReplace 匹配
+// 单段落，此处段落粒度即 target 粒度；页码序 = presentation.xml sldIdLst，
+// 与大纲 Index 一致。路径解析与 GaeaPptxOutline 同款（resolvePreviewPath：
+// Join/Clean 防穿越 + 裸文件名回退常见输出目录）；仅接受 .pptx。
+func (a *App) GaeaPptxSlideText(rel string) ([]pptxedit.SlideText, error) {
+	path, _ := resolvePreviewPath(rel)
+	info, err := os.Stat(path)
+	if err != nil || info.IsDir() {
+		return nil, fmt.Errorf("文件不存在：%s", rel)
+	}
+	if ext := strings.ToLower(filepath.Ext(path)); ext != ".pptx" {
+		return nil, fmt.Errorf("仅支持 .pptx 文本提取（收到 %s；.ppt 旧格式请先另存为 .pptx）", ext)
+	}
+	return pptxedit.LocateText(path)
+}
+
 // appendPptxEvidence 把一次 pptx 编辑写入 work 空间 Journal（JSONL）。
 // 红线：非 work 空间（play）不落证据链；journal 目录不可用/写失败静默
 //（对齐 appendXlsxEvidence 口径）。

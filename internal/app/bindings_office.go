@@ -8,6 +8,7 @@ import (
 	"github.com/gaea/gaea/internal/gaea/event"
 	"github.com/gaea/gaea/internal/gaea/evidence"
 	"github.com/gaea/gaea/internal/office"
+	"github.com/gaea/gaea/internal/office/pptxedit"
 	"github.com/gaea/gaea/internal/office/standard"
 	"github.com/gaea/gaea/internal/gaea/tasks"
 	"github.com/gaea/gaea/internal/gaea/trajectory"
@@ -102,6 +103,7 @@ func (b *OfficeB) GaeaPinSession(path string, pinned bool) error { return b.a.Ga
 func (b *OfficeB) GaeaPinnedMaterials() []FileSearchHit { return b.a.GaeaPinnedMaterials() }
 func (b *OfficeB) GaeaPptxApplyEdit(rel string, slideIdx int, target string, replacement string) (PreviewResult, error) { return b.a.GaeaPptxApplyEdit(rel, slideIdx, target, replacement) }
 func (b *OfficeB) GaeaPptxOutline(rel string) PptxOutlineView { return b.a.GaeaPptxOutline(rel) }
+func (b *OfficeB) GaeaPptxSlideText(rel string) ([]pptxedit.SlideText, error) { return b.a.GaeaPptxSlideText(rel) }
 func (b *OfficeB) GaeaPreview(rel string) PreviewResult { return b.a.GaeaPreview(rel) }
 func (b *OfficeB) GaeaPromoteSubagent(sessionPath string, ref string) (string, error) { return b.a.GaeaPromoteSubagent(sessionPath, ref) }
 func (b *OfficeB) GaeaReadFile(rel string) FilePreview { return b.a.GaeaReadFile(rel) }

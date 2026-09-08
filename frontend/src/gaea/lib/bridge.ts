@@ -147,6 +147,15 @@ import {
 // rejected promise，这里按「[数据, 错误]」元组形态标注。
 import type { app as AppModels, chat, whisper } from "../../../wailsjs/go/models";
 
+// GaeaPptxSlideText 单页条目（pptx 真编辑刀2）：index=1 起页码；paragraphs=
+// 该页段落**全文**列表。段落粒度 = GaeaPptxApplyEdit 的 target 粒度（apply 只在
+// 单段落内精确匹配），编辑目标必须取此处全文；GaeaPptxOutline 的 texts 是
+// 200 rune 截断预览，仅作大纲导航，不能当替换目标。
+export interface PptxSlideTextEntry {
+  index: number;
+  paragraphs: string[];
+}
+
 // AppBindings mirrors desktop/app.go's exported method set. Keep in sync by hand
 // (or regenerate with `wails generate module` and import wailsjs instead).
 //
@@ -273,6 +282,9 @@ export interface AppBindings {
   DocxApplyEdit(rel: string, selectedText: string, replacement: string): Promise<PreviewResult>;
   // PptxApplyEdit pptx 真编辑刀1：页码+目标文本+替换 → run 级直接替换（快照+Journal）
   PptxApplyEdit(rel: string, slideIdx: number, target: string, replacement: string): Promise<PreviewResult>;
+  // PptxSlideText pptx 真编辑刀2（编辑面）：每页段落全文列表（段落粒度 =
+  // PptxApplyEdit 的 target 粒度，见 PptxSlideTextEntry 注）；纯 Go 零 python。
+  PptxSlideText(rel: string): Promise<PptxSlideTextEntry[]>;
   // DocxAcceptChanges 接受/拒绝 gaea 的待处理修订，返回更新预览。
   DocxAcceptChanges(rel: string, accept: boolean): Promise<PreviewResult>;
   // XlsxPlanEdit 单元格操作规划（不落盘）：上下文 → AI 规划操作 → 临时副本
@@ -921,6 +933,7 @@ const gaeaToGaea = {
   OfficeEditText: "GaeaOfficeEditText",
   DocxApplyEdit: "GaeaDocxApplyEdit",
   PptxApplyEdit: "GaeaPptxApplyEdit",
+  PptxSlideText: "GaeaPptxSlideText",
   DocxAcceptChanges: "GaeaDocxAcceptChanges",
   XlsxPlanEdit: "GaeaXlsxPlanEdit",
   XlsxApplyEdit: "GaeaXlsxApplyEdit",

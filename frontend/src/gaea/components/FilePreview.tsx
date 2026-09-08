@@ -19,6 +19,7 @@ import { Markdown } from "./Markdown";
 import { MdViewToggle, MindMapView } from "./MindMapView";
 import { readMdViewPref, writeMdViewPref, type MdViewMode } from "../lib/mdViewPref";
 import { PptxOutline } from "./PptxOutline";
+import { PptxEditPanel } from "./PptxEditPanel";
 import { XlsxPreview } from "./XlsxPreview";
 import { ScheduleFileCard } from "./ScheduleFileCard";
 import { isScheduleFilePath, parseSchedSummary } from "../../schedule/gschedSummary";
@@ -96,6 +97,9 @@ export function FilePreview({
   const [mdView, setMdView] = useState<MdViewMode>(readMdViewPref);
   // v4.28 B2 pptx 逐页预览：页图容器（大纲卡点页条目按 data-pptx-page 锚点滚动）
   const pptxPagesRef = useRef<HTMLDivElement | null>(null);
+  // v4.156 pptx 真编辑刀2：编辑面板打开时的初始页码（大纲卡「编辑此页」/
+  // 文本框条目回调）；null = 面板关闭。宿主形态与 DocxQueuePanel 同款右栏侧栏。
+  const [pptxEditSlide, setPptxEditSlide] = useState<number | null>(null);
   // v4.33.0 C：pdf 逐页懒加载（对齐弹窗 FilePreviewModal v4.32 C，同一套
   // lib/pageLazy 纯函数）。lazyPdf.src 记录所属 preview，preview 换载荷时在
   // 渲染期重置（初始窗口 + 清空强制集合，React「props 变化时调整 state」模式，
@@ -140,6 +144,7 @@ export function FilePreview({
     setDraft("");
     setDirty(false);
     setSaveState("idle");
+    setPptxEditSlide(null); // 换文件时收起 pptx 编辑面板（面板归属旧文件）
     app.Preview(relPath)
       .then((r) => { if (live) setPreview(r); })
       .catch(() => { if (live) setPreview({ path: relPath, name: relPath.split("/").pop() ?? relPath, ext: "", size: 0, kind: "error", body: "", dataUrl: "", error: "读取文件失败" }); })
@@ -571,7 +576,23 @@ export function FilePreview({
               )}
             </div>
             {(preview.hint === "outline" || preview.ext === ".pptx") && (
-              <PptxOutline relPath={relPath} fileName={fileName} onPageSelect={scrollToPptxPage} />
+              <PptxOutline
+                relPath={relPath}
+                fileName={fileName}
+                onPageSelect={scrollToPptxPage}
+                onEditSlide={setPptxEditSlide}
+              />
+            )}
+            {/* v4.156 刀2：pptx 编辑面板（右栏，与大纲卡同排）。应用成功用返回
+                的新 PreviewResult 刷新预览（写盘后预览缓存已自动失效）。 */}
+            {(preview.hint === "outline" || preview.ext === ".pptx") && pptxEditSlide !== null && (
+              <PptxEditPanel
+                relPath={relPath}
+                fileName={fileName}
+                initialSlide={pptxEditSlide}
+                onClose={() => setPptxEditSlide(null)}
+                onApplied={setPreview}
+              />
             )}
           </div>
         )}

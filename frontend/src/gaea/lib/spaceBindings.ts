@@ -199,6 +199,7 @@ export const GAEA_METHOD_FACETS = {
   OfficeEditText: "work",
   DocxApplyEdit: "work",
   PptxApplyEdit: "work",
+  PptxSlideText: "work", // v4.156 pptx 真编辑刀2：每页段落全文（编辑面板取数）
   DocxAcceptChanges: "work",
   XlsxPlanEdit: "work",
   XlsxApplyEdit: "work",

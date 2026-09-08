@@ -12,7 +12,7 @@ import {
 describe("spaceBindings 分类表（S2.3 bridge 分面）", () => {
   it("AppBindings 全部方法被显式分类（satisfies 编译期已兜底；此处锁数量）", () => {
     const total = Object.keys(GAEA_METHOD_FACETS).length;
-    expect(total).toBe(310); // 与 keyof AppBindings 一致（satisfies 编译期钉死；v4.28 + PptxOutline/GaeaBrowserObserve；v4.64 + SubagentFollowUp；v4.66 + PromoteSubagent；v4.78 + TaskKill；v4.80 + ContextNodeDetail；v4.86 + GaeaGit*7；v4.94 + SubagentContextView；v4.99 直调转正 + ImageHubAssets/ChapterArtList；v4.102 图像域直调族转正 +17；v4.105 +WarmComfyUI；v4.109 +PptxApplyEdit；v4.113 +ScheduleLoad/Save；v4.134 +ScheduleExportXlsx/ImportXlsx；v4.139 进度计划多工程 +ScheduleProjects/ProjectOpen/ProjectCreate/ProjectArchive/ProjectDelete；v4.140 +ScheduleImportMpp；v4.145 +ScheduleProjectCopy）
+    expect(total).toBe(311); // 与 keyof AppBindings 一致（satisfies 编译期钉死；v4.28 + PptxOutline/GaeaBrowserObserve；v4.64 + SubagentFollowUp；v4.66 + PromoteSubagent；v4.78 + TaskKill；v4.80 + ContextNodeDetail；v4.86 + GaeaGit*7；v4.94 + SubagentContextView；v4.99 直调转正 + ImageHubAssets/ChapterArtList；v4.102 图像域直调族转正 +17；v4.105 +WarmComfyUI；v4.109 +PptxApplyEdit；v4.113 +ScheduleLoad/Save；v4.134 +ScheduleExportXlsx/ImportXlsx；v4.139 进度计划多工程 +ScheduleProjects/ProjectOpen/ProjectCreate/ProjectArchive/ProjectDelete；v4.140 +ScheduleImportMpp；v4.145 +ScheduleProjectCopy；v4.156 pptx 真编辑刀2 +PptxSlideText）
   });
 
   it("work/play/shared 三数组两两无交集且之和 + independent = 总数", () => {

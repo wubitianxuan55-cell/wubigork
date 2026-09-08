@@ -1,4 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
+import JSZip from "jszip";
 import {
   acceptanceOf,
   setAcceptance,
@@ -15,11 +16,12 @@ import {
   isTextComparable,
 } from "./versionCompare";
 
-// A2 结构化对比取数依赖：bridge（ReadFile/Preview）与 docx 段落提取。
-// 纯函数用例不触碰，这里整模块替换供 compareVersionWithCurrent 用例消费。
+// A2 结构化对比取数依赖：bridge（ReadFile/Preview/AttachmentDataURL）与 docx
+// 段落提取。纯函数用例不触碰，这里整模块替换供 compareVersionWithCurrent 用例消费。
 const appMocks = vi.hoisted(() => ({
   ReadFile: vi.fn(),
   Preview: vi.fn(),
+  AttachmentDataURL: vi.fn(),
 }));
 vi.mock("./bridge", () => ({ app: appMocks }));
 
@@ -31,6 +33,7 @@ vi.mock("./docxText", () => docxMocks);
 beforeEach(() => {
   appMocks.ReadFile.mockReset();
   appMocks.Preview.mockReset();
+  appMocks.AttachmentDataURL.mockReset();
   docxMocks.extractDocxParagraphs.mockReset();
 });
 
@@ -200,5 +203,88 @@ describe("compareVersionWithCurrent docx/xlsx 分派", () => {
       expect(r.add).toBe(1);
       expect(r.del).toBe(1);
     }
+  });
+});
+
+// ── 刀3 结构化对比：compareVersionWithCurrent 的 .pptx 分派 ──────────
+//
+// 取数通道 = AttachmentDataURL（真实字节经 JSZip 造 pptx，解包解析走真实
+// pptxTextDiff——不 mock，页对齐/段落 LCS/降级口径全链路可验）。
+
+const A_NS = 'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"';
+const P_NS = 'xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"';
+
+// 造一份最小 pptx 的 dataUrl：entries = [页码, 段落列表]。
+async function pptxDataUrl(pages: Array<[number, string[]]>): Promise<string> {
+  const zip = new JSZip();
+  for (const [no, paras] of pages) {
+    const body = paras.map((t) => `<a:p><a:r><a:t>${t}</a:t></a:r></a:p>`).join("");
+    zip.file(
+      `ppt/slides/slide${no}.xml`,
+      `<?xml version="1.0"?><p:sld ${A_NS} ${P_NS}><p:cSld><p:spTree><p:txBody>${body}</p:txBody></p:spTree></p:cSld></p:sld>`,
+    );
+  }
+  const bytes = await zip.generateAsync({ type: "uint8array" });
+  let bin = "";
+  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+  return `data:application/octet-stream;base64,${btoa(bin)}`;
+}
+
+describe("compareVersionWithCurrent pptx 分派", () => {
+  it(".pptx：两侧 AttachmentDataURL 字节 → 页对齐 + 段级 diff（真实解包）", async () => {
+    const baseUrl = await pptxDataUrl([
+      [1, ["标题一", "要点"]],
+      [2, ["第二页"]],
+    ]);
+    const curUrl = await pptxDataUrl([
+      [1, ["标题一", "要点改"]],
+      [2, ["第二页"]],
+      [3, ["新增页"]],
+    ]);
+    appMocks.AttachmentDataURL.mockImplementation(async (rel: string) =>
+      rel === "base.pptx" ? baseUrl : curUrl,
+    );
+    const r = await compareVersionWithCurrent("base.pptx", "cur.pptx");
+    expect(r.kind).toBe("pptx");
+    if (r.kind !== "pptx") return;
+    // 层1 页摘要：2 页 → 3 页，新页 1、改页 1；层2 只含有差异页
+    expect(r.summary).toEqual({ pagesBase: 2, pagesCur: 3, added: 1, removed: 0, changed: 1 });
+    expect(r.slides.map((s) => [s.page, s.state])).toEqual([
+      [1, "changed"],
+      [3, "add"],
+    ]);
+    // 汇总计数：改页 del+add 一对 + 新页（1 段 + 整页 1）
+    expect(r.add).toBe(3);
+    expect(r.del).toBe(1);
+    expect(r.change).toBe(1);
+    expect(r.contentMissing).toBe(false);
+  });
+
+  it(".pptx：AttachmentDataURL 抛错 / 坏字节 → 整体降级 unsupported（不抛错）", async () => {
+    appMocks.AttachmentDataURL.mockRejectedValue(new Error("read boom"));
+    expect((await compareVersionWithCurrent("base.pptx", "cur.pptx")).kind).toBe("unsupported");
+
+    appMocks.AttachmentDataURL.mockResolvedValue("data:application/octet-stream;base64,////");
+    expect((await compareVersionWithCurrent("base.pptx", "cur.pptx")).kind).toBe("unsupported");
+  });
+
+  it(".pptx：一侧空文件（空负载）→ 空内容照常 diff 并标 contentMissing", async () => {
+    const curUrl = await pptxDataUrl([[1, ["仅存页"]]]);
+    appMocks.AttachmentDataURL.mockImplementation(async (rel: string) =>
+      rel === "base.pptx" ? "data:application/octet-stream;base64," : curUrl,
+    );
+    const r = await compareVersionWithCurrent("base.pptx", "cur.pptx");
+    expect(r.kind).toBe("pptx");
+    if (r.kind !== "pptx") return;
+    expect(r.contentMissing).toBe(true);
+    expect(r.summary.pagesBase).toBe(0);
+    expect(r.add).toBe(2); // 1 段 + 整页 1
+  });
+
+  it(".ppt / .pdf 等其余类型 unsupported，不发起取数", async () => {
+    expect((await compareVersionWithCurrent("base.ppt", "cur.ppt")).kind).toBe("unsupported");
+    expect(appMocks.AttachmentDataURL).not.toHaveBeenCalled();
+    expect(appMocks.Preview).not.toHaveBeenCalled();
+    expect(appMocks.ReadFile).not.toHaveBeenCalled();
   });
 });

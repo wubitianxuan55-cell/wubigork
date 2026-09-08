@@ -518,4 +518,98 @@ describe("VersionTimeline 与当前对比", () => {
     expect(sheet0.textContent).toContain("A1");
     expect(sheet0.textContent).toContain("1");
   });
+
+  // ── 刀3 结构化对比：kind:"pptx"（页对齐 + 页内段落 LCS）──────────
+
+  it("pptx 结构化对比：页级摘要 + 每差异页一个 hunk（段落序号 marker、del+add 改蓝配对）", async () => {
+    mockedCompare.mockResolvedValue({
+      kind: "pptx",
+      summary: { pagesBase: 2, pagesCur: 3, added: 1, removed: 0, changed: 1 },
+      slides: [
+        {
+          page: 1,
+          state: "changed",
+          rows: [
+            { type: "del", index: 2, text: "旧要点" },
+            { type: "add", index: 2, text: "新要点" },
+          ],
+          add: 1,
+          del: 1,
+          total: 2,
+          change: 1,
+        },
+        { page: 3, state: "add", rows: [], add: 0, del: 0, total: 0, change: 0 },
+      ],
+      add: 2,
+      del: 1,
+      change: 1,
+      contentMissing: false,
+    });
+    renderT(
+      <VersionTimeline
+        path="out/deck.pptx"
+        records={[rec({ id: "r1", target: "out/deck.pptx" })]}
+        onPreview={() => {}}
+        onRestore={() => {}}
+      />,
+    );
+    fireEvent.click(screen.getByTitle("与当前对比"));
+    // 层1 页级摘要先行（页数/页级增删改）
+    expect(
+      await screen.findByTestId("vcompare-pptx-summary").then((el) => el.textContent),
+    ).toBe("页数 2 → 3，新增 1 页 · 删除 0 页 · 修改 1 页");
+    // diffstat 芯片消费 pptx 汇总
+    expect(screen.getByTestId("vcompare-stat").textContent).toBe("+2−1");
+    // 页 1：hunk label = 第 N 页 · 状态；相邻 del+add → 改蓝配对（data-pair）
+    const slide0 = screen.getByTestId("vcompare-slide-0");
+    expect(slide0.textContent).toContain("第 1 页 · 变更 2 处");
+    const rows0 = Array.from(
+      slide0.querySelectorAll("[data-testid='changes-diff-hunk'] > div > div"),
+    ) as HTMLElement[];
+    expect(rows0).toHaveLength(2);
+    expect(rows0[0].textContent).toBe("-2旧要点");
+    expect(rows0[0].getAttribute("data-pair")).toBe("old");
+    expect(rows0[1].textContent).toBe("+2新要点");
+    expect(rows0[1].getAttribute("data-pair")).toBe("new");
+    // 页 3：整页新增（无段级行）→ 单行占位，不配对
+    const slide1 = screen.getByTestId("vcompare-slide-1");
+    expect(slide1.textContent).toContain("第 3 页 · 新增页");
+    expect(slide1.textContent).toContain("（此页无文本）");
+    // unsupported 分支不再出现
+    expect(screen.queryByTestId("vcompare-unsupported")).toBeNull();
+  });
+
+  it("pptx：两侧内容一致 → 「两个版本内容一致」；取数降级 unsupported 维持原文案", async () => {
+    mockedCompare.mockResolvedValueOnce({
+      kind: "pptx",
+      summary: { pagesBase: 1, pagesCur: 1, added: 0, removed: 0, changed: 0 },
+      slides: [],
+      add: 0,
+      del: 0,
+      change: 0,
+      contentMissing: false,
+    });
+    renderT(
+      <VersionTimeline
+        path="out/deck.pptx"
+        records={[rec({ id: "r1", target: "out/deck.pptx" })]}
+        onPreview={() => {}}
+        onRestore={() => {}}
+      />,
+    );
+    fireEvent.click(screen.getByTitle("与当前对比"));
+    expect(await screen.findByTestId("vcompare-empty").then((el) => el.textContent)).toBe(
+      "两个版本内容一致",
+    );
+    expect(screen.queryByTestId("vcompare-stat")).toBeNull();
+
+    // 解包失败/无基线字节等数据层降级 → kind:"unsupported" 原文案（诚实降级）
+    mockedCompare.mockResolvedValueOnce({ kind: "unsupported", ext: ".pptx" });
+    fireEvent.click(screen.getByTitle("收起对比")); // 先收起（展开行按钮标题已切换）
+    fireEvent.click(screen.getByTitle("与当前对比"));
+    expect(await screen.findByTestId("vcompare-unsupported").then((el) => el.textContent)).toBe(
+      "该格式暂不支持文本对比，可分别预览两个版本",
+    );
+    expect(screen.queryByTestId("vcompare-slide-0")).toBeNull();
+  });
 });

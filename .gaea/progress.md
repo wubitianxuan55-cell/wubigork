@@ -1,5 +1,14 @@
 # 任务进度
 
+## 最新发布：v4.156.0（2026-09-08）「pptx 真编辑刀2+刀3：编辑面板 + 版本对比（Office 三件套编辑闭环）」
+
+- **起因**：用户拍板「进度计划暂时到此,优化迭代其它方向」。侦察发现 pptx 编辑设计（docs/gaea-pptx-edit-design-2026-09.md）刀1 数据层早在 v4.109.0 落地,刀2/刀3 因主线转入进度计划而搁置——接续刀序。
+- **刀2 编辑面**：Go 新绑定 `GaeaPptxSlideText`（段落全文,大纲截断预览不可当 target）;PptxOutline 两级导航;PptxEditPanel（P1 Plan→Apply:段落单选→预设动作/指令→双栏对比→应用→新预览刷新）;FilePreview 挂面板;桥接六处同步。
+- **刀3 对比**：pptxTextDiff（页对齐+段落 LCS,降级结构化）;versionCompare kind:"pptx"（取数走 AttachmentDataURL,Preview 对 pptx 是 PDF 缩略拿不到字节）;VersionTimeline 第四种 kind 收口 unsupported。
+- **实施**：三线并行（Go/刀2/刀3,足迹互斥）;主代理 gen_bindings+集成门禁。
+- **门禁**：Go 全量绿(+3)、vitest 2617→2650(+33)、tsc/eslint 0、drift PASS@598、版本三处 4.156.0、build+冒烟过;flaky=TestCreateChapter_SameChapterConcurrentRejected TempDir 清理竞态(复跑绿)。
+- **欠账**：真机走查挂真机池(mock Preview 无 pptx 分支);刀4 修改队列泛化待反馈拍板;docx_apply 证据链另立小刀;面板字符级高亮未接(句级诚实降级)。
+
 ## 最新发布：v4.155.0（2026-09-08）「双工期欠账放开：SS/FF/SF×cd 全搭接（§3.2.5 重推，零不动点）」
 
 - **起因**：双工期设计 §6 欠账池首项——v4.150 刀1 曾收窄 cd 任务仅 FS 搭接（fail-closed），§3.2.5 放开矩阵标注「实施前重推」。观察池三项全绑真机，本项为唯一不绑真机的既排队列。
