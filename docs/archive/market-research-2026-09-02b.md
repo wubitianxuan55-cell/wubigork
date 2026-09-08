@@ -2,7 +2,7 @@
 
 > [已归档 2026-09-09] 一次性调研（结论已吸收进 gaea-nextgen-roadmap-2026.md 与对应域规划）。
 
-模块制原始稿：`docs/research-2026-09-02b/`（codebase-recon 现状侦察 + capability-recon 能力底座侦察 + market-scan 市场扫描 v2）。
+模块制原始稿：`docs/archive/research-2026-09-02b/`（codebase-recon 现状侦察 + capability-recon 能力底座侦察 + market-scan 市场扫描 v2）。
 **定位（用户拍板）**：微信助手 = 通过微信与 gaea 对话进行各项工作——**对话聊天、出图、改图、收发文件、多微信并行**。本文为合成版：现状盘点 → 市场发现 → 差距 → 优化方向提案（供拍板）。
 
 ## 1. 现状盘点（对照定位五项）

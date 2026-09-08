@@ -1,6 +1,6 @@
 // screenshot.go 浏览器观察窗观察面（v4.28 A2「浏览器观察窗」）。
 //
-// 设计（docs/research-2026-09-01/browser-observation.md）：观察窗走「截图步进
+// 设计（docs/archive/research-2026-09-01/browser-observation.md）：观察窗走「截图步进
 // 流」起版——CDP Page.captureScreenshot 单帧 jpeg（optimizeForSpeed），不做实时
 // 帧流（远期再评估）。观察是**被动动作**：浏览器未运行时返回 Available=false，
 // 绝不拉起浏览器（拉起只由 browser_* 工具的 Ensure 触发）。

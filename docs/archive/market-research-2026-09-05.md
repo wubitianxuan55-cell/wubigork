@@ -2,7 +2,7 @@
 
 > [已归档 2026-09-09] 一次性调研（结论已吸收；其中办公域修正见 gaea-dsh-univer-office-distill-plan-2026-09.md §0）。
 
-> 三路并行子代理原始稿：`docs/research-2026-09-05/`（agent-workbench.md /
+> 三路并行子代理原始稿：`docs/archive/research-2026-09-05/`（agent-workbench.md /
 > context-observability.md / desktop-assistant.md）。本文为合成结论 + 对
 > gaea 长期规划的回填建议。数据为 2026-09-04/05 GitHub 快照，未核实项均
 > 已在原始稿标注。
@@ -64,7 +64,7 @@ gaea 规避了）；文件活动 ±行增量/操作日志跳转（A 线"文件�
 
 ## 四、信息来源
 
-- 原始稿三份（含全部仓库链接、星数、license、公式出处）：docs/research-2026-09-05/
+- 原始稿三份（含全部仓库链接、星数、license、公式出处）：docs/archive/research-2026-09-05/
 - 关键外部锚点：platform.claude.com/docs/en/build-with-claude/vision（图片
   token 官方口径）、ccusage/ccusage（本地用量聚合口径）、lobehub.com
   Channels 文档（微信渠道支持列表）。

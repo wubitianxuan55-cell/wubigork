@@ -1,7 +1,13 @@
 # 调研与规划：DSH-better-sidebar 整个 Go 化移植到办公板块（替换现有右栏工作台）
 
+> [已归档 2026-09-09] 「整包 Go 化替换」路线未被采纳，已被 gaea-dsh-better-sidebar-long-term-distill-plan-2026.md
+> 的滚动蒸馏取代（同源能力逐项落地：任务强杀+两击确认 v4.78、HTML 沙箱预览 v4.84、Git 面板 v4.86、
+> 统一 diff v4.87、CodeMirror 编辑器 v4.91、Mermaid strict v4.92 等；本方案提议的 internal/gaea/workbench
+> 未立项、v4.60–v4.64 实发内容与本分期无关；终端/侧边对话/自由窗口维持拍板门控）。
+> 本文 §0–§2 的一手代码盘点（源 v0.14.1 逐文件 + gaea v4.59 现状）仍有回查价值，作为调研存档保留。
+
 > 日期：2026-09-03 | 基线：v4.59.0（绑定面 559）
-> 状态：调研 + 方案完成，待用户拍板；**未改任何代码**
+> 状态：调研 + 方案完成，待用户拍板；**未改任何代码**（归档时仍如此——本方案未被实施）
 > 目标：① 全量盘点 [omdsh-dev/DSH-better-sidebar](https://github.com/omdsh-dev/DSH-better-sidebar)
 > 的能力面（不止此前两轮蒸馏选的项）；② 把它的 host 半（文件/终端/Git/任务/浏览器/
 > 会话作用域/信任围栏）用 **Go** 同构重写为 gaea 办公板块底座，React 只保留渲染壳；

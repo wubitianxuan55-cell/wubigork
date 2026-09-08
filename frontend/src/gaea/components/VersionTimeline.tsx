@@ -8,7 +8,7 @@
 // Preview 的 resolvePreviewPath IsAbs 分支可直读）、恢复回调（父级负责
 // RollbackRecord(id) + toast + 刷新时间线）全部经 props 注入，本组件不直接
 // 触碰 bridge。每行 = 时间/工具/轮次/状态徽标 + 对比/预览/恢复三个操作；恢复语义
-// 对齐调研结论（docs/research-2026-09-01/version-timeline-diff.md §4）：
+// 对齐调研结论（docs/archive/research-2026-09-01/version-timeline-diff.md §4）：
 // 不做二次确认弹窗（预览即护栏），顶部常驻说明「恢复会把该文件写回所选版本，
 // 当前内容成为新版本」；恢复进行中禁用全部恢复按钮，避免并发写盘竞态。
 //

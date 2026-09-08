@@ -3,7 +3,7 @@
 > [已归档 2026-09-09] 一次性调研（结论已吸收进 gaea-nextgen-roadmap-2026.md 与对应域规划）。
 
 > 3 分模块子代理调研（浏览器观察窗 / 文件版本时间线 / pptx 与工作台动向），原始稿在
-> `docs/research-2026-09-01/`（browser-observation.md · version-timeline-diff.md ·
+> `docs/archive/research-2026-09-01/`（browser-observation.md · version-timeline-diff.md ·
 > pptx-workbench-trends.md），来源随句标注，未核实项在原始稿内明示。目的：为
 > v4.26「浏览器与版本」（A2 观察窗 + B1 版本时间线 + B2 pptx + C2/C3）及后续供弹药。
 > 网络限制：openai.com / anthropic 官网 / google 域本环境 403 或超时，相关结论均经

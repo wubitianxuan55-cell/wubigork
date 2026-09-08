@@ -1,6 +1,6 @@
 # gaea 蒸馏 ProjectLibre：取道不取器——进度计划板块机制供给（2026-09-07）
 
-> 状态：规划版（调研落档，未改任何功能代码，无版本发布）
+> 状态：机制供给参考（蒸馏成果已全部落地：16 项差距清偿总账见 gaea-schedule-gap-vs-project-2026-09.md 收官总账，v4.132~v4.139 全 ✅）；clones/projectlibre 仍为只读参考（CPAL 零搬运）。
 > 日期：2026-09-07 · gaea 基线 v4.135.0（绑定面 590）
 > 上游：git://git.code.sf.net/p/projectlibre/code · master 0530be2（v1.9.8，Java 21）· **CPAL-1.0** · 只读克隆 `clones/projectlibre`（已 gitignore，永不入库、永不抄代码——CPAL 带署名展示+网络使用即分发条款）
 > 调研方式：三个只读探索代理分头通读——core（调度/日历/基线/undo/主子项目）、ui（横道/网络/使用视图/交互/打印）、exchange+field+reports，共约 230 个关键文件。

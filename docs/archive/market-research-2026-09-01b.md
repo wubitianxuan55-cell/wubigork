@@ -3,7 +3,7 @@
 > [已归档 2026-09-09] 一次性调研（结论已吸收进 gaea-nextgen-roadmap-2026.md 与对应域规划）。
 
 > 2 分模块子代理调研（AI 代理工作台简化模式 / 办公文档工具与生产力软件简化模式），原始稿在
-> `docs/research-2026-09-01b/`（agent-workbench-simplify.md · doc-tool-simplify.md），来源随句标注，
+> `docs/archive/research-2026-09-01b/`（agent-workbench-simplify.md · doc-tool-simplify.md），来源随句标注，
 > 未核实项在原始稿内单列。目的：为 v4.29「UI 化繁为简」刀供弹药。
 > 用户红线（本轮最高约束）：**简化界面 ≠ 删除功能**——只能重组入口、渐进披露、视觉降噪。
 

@@ -2,6 +2,10 @@
 
 > 依据：只读勘察报告（2026）。S1.1/S1.2 已完成。本文件为实现权威。
 > 实现顺序：**装配族**（S1.3-A 模型 profile + S1.3-B 工具标签 + S1.5-A 权限策略装配）→ **S1.4 任务分账**（可与装配族并行）→ **S1.5-B play 护栏**（依赖装配族配置键，后派）。
+> 状态：**已随 v3.8.0 落地收官**（装配族 S1.3+S1.5-A `f8612d0`、S1.4 任务分账 `5ccaa7a`、
+> S1.5-B play 护栏 `21f8978`，见 `releases/v3.8.0.md`）。本文件由「实现权威」转为已收官
+> 历史设计，现权威 = `docs/gaea-nextgen-roadmap-2026.md` 与现行代码；因前后端代码注释仍
+> 多处引用本文件为设计出处（docs/README.md「活跃设计」在列），留 docs/ 原位未移入 archive/。
 
 ## 0. 关键勘察事实
 1. **双路由平面**：Plane A = Seam 注册表（provider/provider.go:326-361 Register/New、llm.go:115-127 NewLLM、boot.go:515-530 NewProvider、gaea.toml providers[].kind）；Plane B = 模型中心功能绑定（app/model_router.go:14-49 routeModel + :75-93 routeSensitiveLocal/routeOfficeLocal、config GetFeatureModel、feature_model_handler.go:17-59 功能域 chat/whisper/novel/office/gaea/characterlib/routine）。**play 域（轻语/小说/角色库/绘梦）全走 Plane B 直连绑定**（whisper_handler.go:136、create_chapter_handler.go:277），不经过工具面与审批引擎。

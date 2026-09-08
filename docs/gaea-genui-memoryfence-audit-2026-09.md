@@ -1,5 +1,7 @@
 # GenUI P5 剩余项审计：记忆/压缩侧围栏剥离审计（若影响确认）
 
+> 状态：审计存档（2026-09）。主要发现修复状态：§8 待裁决 7 项中 6 项已于 v4.101.0 Go 侧收口（做梦剥离/BuildCompactSummary/whisper 摘要/压缩提示词口径/面板 append 去重/会话删除清理，共享 StripUIFences helper 落 internal/gaea/genui/fence.go，明细见 releases/v4.101.0.md 线 A）；第 5 项（resume 槽位口径统一）明确不做、另行排期，为唯一仍开放项。§7 password payload 修复随本审计落地。
+
 > 日期：2026-09-05 · 基线：v4.99.0 工作区（静态审计，未跑真模型）
 > 任务来源：docs/gaea-dsh-genui-distill-plan-2026-09.md §P5「记忆/压缩侧围栏剥离（若影响确认）」+ §5.6「记忆/压缩：待确认影响点」。
 > 方法：沿「围栏文本/交互状态的存储形态 → 每条链路的读写点」逐处核对代码（file:line 证据），不做印象判断；「无证据=未验证」如实标注。

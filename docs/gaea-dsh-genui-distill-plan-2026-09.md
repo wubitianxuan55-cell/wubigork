@@ -1,6 +1,6 @@
 # gaea 蒸馏 dsh-genui 完整规划：办公 / 聊天板块「回答即 UI」+ 办公会话面板
 
-> 状态：规划 v2 完整稿；执行进度 = **P0–P4 已完成，P5 收口并发布 v4.97.0**。
+> 状态：**✅ 已收官（P0–P5 全部发布，止于 v4.97.0）**。
 > 真机视觉/真模型端到端待用户复验（发布说明如实记录）。
 > 执行记录：2026-09-05 落地 frontend/src/genui 内核 + 双板块 markdown 缝（P1/P2）；
 > P3 新增 internal/gaea/genui（Handbook/ChatRule/OfficePointer embed + ValidateSpec）+

@@ -4,7 +4,7 @@
 > 招牌场景=框选→改→落盘回写」（docs/market-research-2026-09-05.md）；docx（框选即改+修订制）与
 > xlsx（Plan→Apply+直编）均已落地，**pptx 是三件套中唯一没有编辑能力的缺口**。红线沿用：简化界面
 > ≠删除功能；Word/Excel 编辑能力全量保留换壳不换芯（本文不动 docx/xlsx 通道，只在 pptx 侧补齐）。
-> 原始调研稿：docs/research-2026-09-05b/pptx-edit-survey.md（源码事实逐文件核实 + 外部库快照）。
+> 原始调研稿：docs/archive/research-2026-09-05b/pptx-edit-survey.md（源码事实逐文件核实 + 外部库快照）。
 
 ## 0. 结论速览
 
@@ -157,7 +157,7 @@ w:ins/w:del 无对应物）。因此 docx 的「修订写入→预览可见→�
 
 ## 7. 参考资料
 
-- 原始调研稿：docs/research-2026-09-05b/pptx-edit-survey.md（源码事实 + 外部库快照 + 引用链接）
+- 原始调研稿：docs/archive/research-2026-09-05b/pptx-edit-survey.md（源码事实 + 外部库快照 + 引用链接）
 - 战略依据：docs/market-research-2026-09-05.md（Office 真编辑全场空白、招牌场景口径）、
   docs/market-research-2026-09-03c.md（文件交付调研）
 - 既有设计：docs/gaea-office-upgrade-plan-2026-09.md（B2 pptx 最小交互来源）、

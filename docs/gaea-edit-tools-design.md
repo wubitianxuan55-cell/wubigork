@@ -1,5 +1,7 @@
 # gaea S0.6 edit_file 工具层 · 设计（实现权威）
 
+> 状态：✅ 已落地——五工具 grep / edit_file / multi_edit / edit_lines / move_file 全部在产（commit 7d560e66「S0.6 edit_file 工具层」起）：internal/gaea/tool/builtin/{grep,editfile,multiedit,editlines,movefile}.go 均带同名单测；名单对齐（缓存失效/stale 守卫/冲突串行/证据台账）随实现落齐，编辑链路（stale/循环守卫/rewind）在产验证。
+
 > 依据：只读勘察报告（2026）。背景：edit_file/multi_edit/edit_lines/move_file/grep 被 ~40 处
 > 引用但全无实现（模型收到 "unknown tool"）。本文件为实现权威；实现顺序 grep → edit_file →
 > multi_edit → edit_lines → move_file（风险递增），全部绿地为新工具（无半实现）。

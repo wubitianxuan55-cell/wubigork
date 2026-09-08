@@ -2,6 +2,10 @@
 
 > 触发：用户实测「unsloth 加载本地模型后速度更快」，要求蒸馏 unslothai/unsloth 给 gaea。
 > 方针沿用 Univer 蒸馏先例：**取道不取器**——吸收技术路径与编排思路，不引入 Unsloth 任何形态（含 Studio UI，AGPL）。
+> 状态（2026-09-08 补）：**✅ 主体已落地**——v4.102.0 modelhub 引擎落库（`6cd891df`）→
+> MH1–MH3 随 v4.104.0、MH4+CU1+CU2 随 v4.105.0；§六「herdsman 不可蒸馏」与 §七 真机
+> A/B 实测回写随 v4.106.0（结论：迁模型到 unsloth 不推荐）。剩余=真机补验池观察项
+> （CU1 首图收益、CU3 `/free` 支持性——本机 ComfyUI 未配置），非欠账刀。
 
 ## 一、调研结论（来源：github.com/unslothai/unsloth README + unsloth.ai/docs/basics/api + 本仓库代码核验）
 

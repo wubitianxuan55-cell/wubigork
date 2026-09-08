@@ -1,6 +1,6 @@
 # gaea × DSH 生态插件长期蒸馏规划（2026-09 起）
 
-> 状态：**滚动蒸馏**（每版 1-2 刀）｜ gaea 基线：v4.78.0（2026-09-04）
+> 状态：**滚动蒸馏**（每版 1-2 刀）｜ gaea 基线：v4.78.0（2026-09-04）；2026-09-09 进度：阶段一/二/二.5/三（3a/3b）已全部销账，3c 与阶段四/五维持『拍板后/若做』门控
 > 源 A：[omdsh-dev/DSH-better-sidebar](https://github.com/omdsh-dev/DSH-better-sidebar)
 > 源 A 快照：v0.18.0 · commit `e1b9b53`（2026-09-04）
 > 源 B：[bowenliang123/dsh-context](https://github.com/bowenliang123/dsh-context)

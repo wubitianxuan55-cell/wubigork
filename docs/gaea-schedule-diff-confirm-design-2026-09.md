@@ -1,6 +1,6 @@
 # gaea 进度计划「对话式调整 diff 确认闭环」设计（diff 确认卡）
 
-> 状态：**草案 / 待拍板**（2026-09-06）。本文只做调研与设计提案，未改任何代码。
+> 状态：**✅ 已收官**（v4.146~v4.149 四刀全部落地，2026-09-08）——刀A 对话改计划回滚闭环（v4.146.0，变更 tab 纳入 schedule_apply + 回执卡「回滚本次」）→ 刀B 结构化 diff 确认卡（v4.147.0，diffProjects + ScheduleDiffCard）→ 刀C project 通道引擎强制逐条确认（v4.148.0）→ 刀D ops 通道投影模拟器 + Go/TS 对拍收官（v4.149.0）。发布口径见 releases/v4.146.0.md ~ v4.149.0.md 与 .gaea/AGENTS.md 速览。
 > 承接：拍板池最老欠账「对话式调整 diff 确认闭环」「整计划生成三确认」（docs/market-research-2026-09-06.md §三 P1，v4.114.0 欠账清单原文：「对话式调整 diff 确认卡（改动清单+总工期对比预览→确认后 apply——现 apply 直接落盘+证据卡可回滚，确认卡为增强）」）。
 > 纪律对齐：AI 产建议、引擎裁决；「成功≠正确」回执核对；零新绑定偏好；TS 块注释禁 `*/`。
 
@@ -58,7 +58,7 @@
 
 ### 1.7 上游参照（只取口径）
 
-- 调研四步安全口径（docs/research-2026-09-06/参考-AI改计划的确认与回滚设计模式.md）：preview the diff → explicit confirmation gate → easy revert → familiar metaphors；PM 域是安全空白，gaea 可自定义标准。
+- 调研四步安全口径（docs/archive/research-2026-09-06/参考-AI改计划的确认与回滚设计模式.md）：preview the diff → explicit confirmation gate → easy revert → familiar metaphors；PM 域是安全空白，gaea 可自定义标准。
 - Ingantt 三确认：「as-is / tweak / from scratch」——整体接受 / 微调 / 从零手编，三态并列的生成确认文案。
 
 ---
@@ -187,5 +187,5 @@
 - 读码：internal/gaea/tool/builtin/schedule_tools.go、internal/schedule/ops.go、internal/gaea/evidence/{evidence,journal}.go、internal/gaea/control/controller_approval.go（+controller.go hardAskSet/SetPermLevel）、internal/gaea/permission/permission.go（Gate.AlwaysAsk/Check/Subject）、internal/gaea/agent/{batch_executor,execute_one,tool_dispatch}.go、internal/gaea/tool/builtin/compact.go、internal/gaea/skill/builtins.go（schedule-edit）、internal/app/gaea_schedule_file.go、internal/app/gaea_verify.go（GaeaRollbackRecord）
 - 前端：frontend/src/gaea/components/{ApprovalModal,ChangesDiff,ToolCard,ChangesPanel,ScheduleFileCard}.tsx、frontend/src/gaea/lib/{planDiff,changes,tools,store,types}.ts、frontend/src/schedule/{ChatPane,store,types,api,cpm,cost,baseline,deadline}.ts
 - 发布口径：releases/v4.114.0.md（刀5 欠账原文/工具卡摘要）、releases/v4.124.0.md（回执与总成本口径/锚点锁 31/绑定面 588）
-- 调研：docs/market-research-2026-09-06.md（拍板池 P1 原文）、docs/research-2026-09-06/参考-AI改计划的确认与回滚设计模式.md（四步安全口径）、docs/research-2026-09-06/Ingantt.md（as-is/tweak/from scratch）
+- 调研：docs/market-research-2026-09-06.md（拍板池 P1 原文）、docs/archive/research-2026-09-06/参考-AI改计划的确认与回滚设计模式.md（四步安全口径）、docs/archive/research-2026-09-06/Ingantt.md（as-is/tweak/from scratch）
 - 格式基准：docs/gaea-office-mindmap-base-design-2026-09.md

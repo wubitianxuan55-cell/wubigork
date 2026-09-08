@@ -2,6 +2,10 @@
 
 > 依据：只读勘察报告（2026）。S1.1 已完成（facts/tasks space_id、ListInSpace、session.Space、
 > space.mode、spaces 包）。本文件是 S1.2 实现权威；三步入：A 写侧+dream 空间化 → B 读端隔离器 → C 前端 scope。
+> 状态：**本设计（S1.2）已随 v3.8.0 落地收官**（后端 A+B `819d7ff`+`f0187a2`、前端 C
+> `53d621d`，见 `releases/v3.8.0.md`）。本文件由「实现权威」转为已收官历史设计，现权威 =
+> `docs/gaea-nextgen-roadmap-2026.md` 与现行代码；因前后端代码注释仍多处引用本文件为
+> 设计出处（docs/README.md「活跃设计」在列），留 docs/ 原位未移入 archive/。
 
 ## 检索面地图（全部已定位）
 | 组 | 位置 | 过滤方式 |

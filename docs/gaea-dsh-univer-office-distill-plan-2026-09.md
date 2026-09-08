@@ -1,6 +1,6 @@
 # gaea 蒸馏 dsh-univer-office 长期规划：取道不取器——优化完善自有办公栈
 
-> 状态：规划版（调研与规划，未改任何功能代码）
+> 状态：✅ 已蒸馏收官（能力裁定由 gaea 原生实现并落地：见 gaea-office-mindmap-base-design-2026-09.md；Univer/DSH 引擎零引入）。U 系亦已落齐：U1 office-edit 技能+错误码、U2 回合投影与浮窗（v4.99.0）、U4 活文档收口（v4.100.0/v4.106.0）、U3=pptx 真编辑（刀1 v4.109.0 起）；思维导图/多维表 M1/B1/B2/M2 落于 v4.97~v4.108。
 > 日期：2026-09-05 · gaea 基线 v4.96.0（绑定面 579）
 > 上游：github.com/dream-num/dsh-univer-office（Apache-2.0）· v0.2.14 · shallow clone 快照（2026-09-05）
 > 上游调研方式：只读克隆至临时目录逐文件通读（双语 README / 架构 ADR / turn 投影设计 / 14 个工具定义 /
@@ -13,7 +13,7 @@
 dsh-univer-office 是 DreamNum（Univer 官方团队）给 DeepSeek Harness（DSH）做的**办公插件**：
 Univer 引擎 + 隔离草稿 worktree + 14 个结构化工具 + 8 个技能 + 回合审阅卡/实时浮窗 +
 「结构回读→布局 lint→截图取证」验证闭环。它证明了一件事：**桌面 AI 助手交付 Office 真编辑
-已经不是空白**（修正 docs/market-research-2026-09-05.md 战略层结论），但其实现路线 =
+已经不是空白**（修正 docs/archive/market-research-2026-09-05.md 战略层结论），但其实现路线 =
 中间格式 `.univer`（SQLite）+ Univer Pro 授权（水印/导入体积限制，上游自带 90 天轮换 dev
 license）+ Node ≥22 + 无头 Chrome + libsql 重依赖。
 
@@ -338,7 +338,7 @@ Chrome（可 `UNIVER_RENDER_BROWSER` 指定）；发布包按平台装原生依�
   （"The Office Harness for AI Agents" 定位）；github.com/ONLYOFFICE/DocumentServer（AGPL-3.0）
 - 社区信号：知乎 DeepSeek Harness 插件推荐文（dsh-univer-office 列入）、掘金 15 款插件文、
   DSH 桌面封装项目（13k+ star）
-- 内部：docs/market-research-2026-09-05.md（战略层，本文修正其「全场空白」结论）、
+- 内部：docs/archive/market-research-2026-09-05.md（战略层，本文修正其「全场空白」结论）、
   docs/gaea-pptx-edit-design-2026-09.md（U3 即其刀1–刀4）、
   docs/gaea-office-upgrade-plan-2026-09.md（右栏工作台主线）、
   docs/gaea-dsh-genui-distill-plan-2026-09.md（并行队列）、

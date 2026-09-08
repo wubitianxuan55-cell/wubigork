@@ -2,7 +2,7 @@
 
 > [已归档 2026-09-09] 一次性调研（结论已吸收进 gaea-nextgen-roadmap-2026.md 与对应域规划）。
 
-模块制原始稿：`docs/research-2026-09-02/`（desktop-clients / web-apps / local-engines，3 个调研子代理产出）。
+模块制原始稿：`docs/archive/research-2026-09-02/`（desktop-clients / web-apps / local-engines，3 个调研子代理产出）。
 本文为合成版：现状盘点 → 竞品发现 → 差距 → 优化方向提案（供拍板）。
 
 ## 1. gaea 模型中心现状盘点（代码侦察）

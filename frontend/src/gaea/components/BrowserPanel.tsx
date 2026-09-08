@@ -9,7 +9,7 @@ import { relativeTime } from "../lib/time";
 import { Z_INDEX } from "../../utils/zIndex";
 
 // BrowserPanel — 浏览器观察窗（v4.28 A2，docs/gaea-office-upgrade-plan-2026-09.md
-// A2 + docs/research-2026-09-01/browser-observation.md）。受控 Edge 的「截图步进
+// A2 + docs/archive/research-2026-09-01/browser-observation.md）。受控 Edge 的「截图步进
 // 流」观察面（CDP Page.captureScreenshot 单帧，不做实时帧流——帧流/人工接管属
 // 远期），三段式：
 //   ①顶部 URL/标题行 + 截图（点击放大到内置 zoom 覆盖层）；

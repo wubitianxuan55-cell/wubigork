@@ -1,5 +1,8 @@
 # gaea (盖亚) — 2025/2026 Competitive Landscape & Positioning Report
 
+> 参考基线日期：2026-08-29（与长期规划同轮定稿，git `afefa115`；检索窗口 2026-08/09）。
+> 市场格局时效性强，引用前请核对最新动态。
+
 ## Executive summary
 China's AI-assistant market in 2025–26 has split into three layers: (1) general chat clients and agent platforms (Cherry Studio, Manus, Kimi, Coze/Dify, 豆包 PC) racing to become the "desktop agent hub"; (2) office-suite AI (WPS 灵犀, 千问表格 Agent, 腾讯文档/飞书) locked to SaaS suites and paid memberships; (3) proprietary ecosystems (Claude Cowork, Gemini desktop, Microsoft 365 Copilot) that assume cloud accounts and subscriptions. In parallel, local-first deployment has gone mainstream — open-weight Qwen/DeepSeek models now run comfortably on consumer hardware, with data sovereignty the stated driver. No mainstream product combines a **local-first desktop office agent + personal memory + a construction-cost vertical database + creative/companion modules** in one app. That combination — curated breadth plus one defensible vertical — is gaea's niche; its structural risk is that every individual capability is matched by a better-funded specialist.
 
