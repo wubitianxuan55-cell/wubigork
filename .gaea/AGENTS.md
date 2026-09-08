@@ -52,6 +52,11 @@
 - **用户拍板（2026-09-08，收敛计划 §0）：性质路线=A「终极个人工具」**——产品化
   降为期权不作承诺，不为想象中的用户写代码；**LICENSE=私有 All Rights Reserved**
   （根目录 LICENSE），未来开源须另行发布开源许可证覆盖对应模块并与私有部分区隔。
+- **瘦身长期总规划（2026-09-08 立项）= `docs/gaea-slim-masterplan-2026-09.md`**：七面
+  （认知/资产/结构/轮子/运行/产物/数据知识）×六阶段（P0 基线→P5 维持）；治理规则仍在
+  收敛计划。防复发规约自 P1 起生效（新下载走 saveExportBlob/新选取走 pickFile/新 diff
+  复用 lib/diff/新 slug 用 strutil.TitleSlug/新解码用 b64ToBytes/NAVIGATE 用 manifest id/
+  新域先问「能否是文档」）。
 - **唯一权威路线图 = `docs/gaea-nextgen-roadmap-2026.md`**（11 个子代理调研合成）：
   8 板块竞品调研（办公/造价/AI 底座/编程/小说/绘梦/轻语/微信+语音）+ WorkBuddy×灵犀
   深度拆解（§12）+ **版本重定义"双空间"（§10）** + 四层落地（§13 后端/前端/UX/UI）+

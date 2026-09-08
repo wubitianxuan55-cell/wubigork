@@ -35,6 +35,17 @@
 | ⬜ | 审计刀D（真机取证）：printSvg iframe print / 拖拽 / 粘贴 + GaeaPickFiles Filters 可选参数 |
 | ⬜ | W2 知识外化：30 分钟上手文档 / progress.md 瘦身归档 / 个人路径清洗 |
 
+## 瘦身长期总规划（2026-09-08 立项，权威= docs/gaea-slim-masterplan-2026-09.md）
+
+| 状态 | 任务 |
+|------|------|
+| ⬜ | P0 基线：七面四表+功能等价快照+IA 现状走查（随 P1 版附带） |
+| ⬜ | P1 快赢（2版）：轮子 W1 b64×18+inShell / W2 slug×5 / W3 novel diff + 刀B/C + locale 死键 + 依赖验活 |
+| ⬜ | P2 形态（2版）：白名单解耦刀0→schedule 并入办公刀1/2→乐园折叠→home 工作台→壳内走查 |
+| ⬜ | P3 结构（2版）：office 抽核+巨文件首批+bridge 双轨退役启动 |
+| ⬜ | P4 性能（1版）：懒初始化+exe strip+MemoryHub chunk+entry 拆解 |
+| ⬜ | P5 维持：季度复测+观察池审判（cost 文档化/虚拟滚动/内嵌） |
+
 ## 文档整理（2026-09-09）✅
 
 ✅ docs/ 全域状态大清算：43 份文档状态行对齐 git log 终态（schedule 两设计「待拍板」→已收官、M2 勘误 v4.108 已落地、dsh-univer/genui/edit-tools/unsloth 补收官头）；research-2026-09-* 八目录归档至 docs/archive/ 并修正全仓引用；go-port 方案归档（未采纳）；docs/README.md 索引重写为终态。
