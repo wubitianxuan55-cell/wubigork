@@ -5,7 +5,10 @@
  * 基准日历（周工作制+节假日例外）。时长换算按 MinutesPerDay=480（8h/日，ISO8601
  * PT#H#M#S），时距按 Project 惯例 LinkLag=十分之一分钟（4800/工作日）。
  * DayType 映射：Project 1=周日..7=周六 → JS getDay 0=周日..6=周六。
- * 真机 MS Project/WPS 兼容性走查入真机池（本项目纪律）。
+ * 双工期刀4（v4.153）：durationUnit=cd（日历天）任务导出 DurationFormat=8（elapsed，
+ * Duration=PT{自然日×24}H——序列化假说按 XSD xsd:duration 语义，真机 Project 往返
+ * 待真机池走查钉死）；导入读 DurationFormat=8 → cd（分钟÷1440），其余格式维持按
+ * 工作日折算（宽松容错）；任务日历（TaskCalendarUID）仍不导入。真机走查入真机池。
  */
 import type { LinkType, SchedCalendar, SchedLink, SchedProject, SchedTask, TaskMode } from './types'
 import { dateToWd, normalizeCalendar, wdToDate } from './calendar'
@@ -14,6 +17,11 @@ import { dateToWd, normalizeCalendar, wdToDate } from './calendar'
 const P_TYPE: Record<LinkType, number> = { FF: 0, FS: 1, SF: 2, SS: 3 }
 const P_TYPE_REV: Record<number, LinkType> = { 0: 'FF', 1: 'FS', 2: 'SF', 3: 'SS' }
 const MINUTES_PER_DAY = 480
+/** elapsed（日历天）：24h/日（双工期刀4，真机钉死前按 XSD 语义假说实现） */
+const MINUTES_PER_ELAPSED_DAY = 1440
+/** DurationFormat：7=天（工作日）8=日历天（elapsed） */
+const FORMAT_DAYS = 7
+const FORMAT_ELAPSED_DAYS = 8
 const TENTHS_PER_DAY = MINUTES_PER_DAY * 10
 
 function xmlEsc(s: string): string {
@@ -22,6 +30,11 @@ function xmlEsc(s: string): string {
 
 function iso8601Days(days: number): string {
   return `PT${days * 8}H0M0S`
+}
+
+/** elapsed（日历天）工期序列化：PT{自然日×24}H（刀4，真机池待钉死） */
+function iso8601ElapsedDays(days: number): string {
+  return `PT${days * 24}H0M0S`
 }
 
 function dt(iso: string): string {
@@ -78,6 +91,8 @@ export function buildProjectXml(project: SchedProject, rows: Record<string, { es
     const row = rows[t.id] ?? { es: 0, ef: 0 }
     const dur = t.isMilestone ? 0 : Math.max(0, Math.round(t.duration))
     const summary = t.level === 0
+    // cd（日历天）任务：DurationFormat 8 + elapsed 序列化（分组行恒工作日口径）
+    const cd = !summary && !t.isMilestone && t.durationUnit === 'cd'
     const startD = wdToDate(project.startDate, summary ? summaryStart(project, rows, i) : row.es, cal)
     const finishD = wdToDate(project.startDate, summary ? summaryFinish(project, rows, i) : row.ef, cal)
     lines.push('    <Task>')
@@ -85,8 +100,8 @@ export function buildProjectXml(project: SchedProject, rows: Record<string, { es
     lines.push(`      <Name>${xmlEsc(t.name)}</Name>`)
     lines.push(`      <Type>0</Type><IsSummary>${summary ? 1 : 0}</IsSummary>`)
     lines.push(`      <Milestone>${t.isMilestone || (dur === 0 && !summary) ? 1 : 0}</Milestone>`)
-    lines.push(`      <Duration>${iso8601Days(summary ? summaryFinish(project, rows, i) - summaryStart(project, rows, i) : dur)}</Duration>`)
-    lines.push('      <DurationFormat>7</DurationFormat>')
+    lines.push(`      <Duration>${cd ? iso8601ElapsedDays(dur) : iso8601Days(summary ? summaryFinish(project, rows, i) - summaryStart(project, rows, i) : dur)}</Duration>`)
+    lines.push(`      <DurationFormat>${cd ? FORMAT_ELAPSED_DAYS : FORMAT_DAYS}</DurationFormat>`)
     lines.push(`      <OutlineLevel>${Math.max(1, t.level + 1)}</OutlineLevel>`)
     lines.push(`      <Start>${dt(startD.toISOString().slice(0, 10))}</Start><Finish>${dt(finishD.toISOString().slice(0, 10))}</Finish>`)
     lines.push(`      <PercentComplete>${Math.min(100, Math.max(0, Math.round(t.progress)))}</PercentComplete>`)
@@ -116,13 +131,12 @@ export function buildProjectXml(project: SchedProject, rows: Record<string, { es
   }
 }
 
-/** 解析 ISO8601 时长（PT#H#M#S）→ 工作日数 */
-function parseDurationDays(s: string | undefined): number {
+/** 解析 ISO8601 时长（PT#H#M#S）→ 分钟数（解析失败/缺省 0） */
+function parseDurationMinutes(s: string | undefined): number {
   if (!s) return 0
   const m = /^-?PT(?:(\d+(?:\.\d+)?)H)?(?:(\d+(?:\.\d+)?)M)?(?:(\d+(?:\.\d+)?)S)?$/.exec(s.trim())
   if (!m) return 0
-  const minutes = (Number(m[1]) || 0) * 60 + (Number(m[2]) || 0) + (Number(m[3]) || 0) / 60
-  return Math.round(minutes / MINUTES_PER_DAY)
+  return (Number(m[1]) || 0) * 60 + (Number(m[2]) || 0) + (Number(m[3]) || 0) / 60
 }
 
 function textOf(el: Element | null | undefined, tag: string): string | undefined {
@@ -204,7 +218,13 @@ export function parseProjectXml(text: string): MspdiParseResult {
     const name2 = textOf(el, 'Name') ?? `任务${seq}`
     const isSummary = textOf(el, 'IsSummary') === '1'
     const milestone = textOf(el, 'Milestone') === '1'
-    const durRaw = textOf(el, 'Duration') ? parseDurationDays(textOf(el, 'Duration')) : textOf(el, 'ManualDuration') ? parseDurationDays(textOf(el, 'ManualDuration')) : 0
+    // 双工期刀4：DurationFormat=8（elapsed 日历天）→ durationUnit cd、分钟÷1440；
+    // 其余格式（含未知）维持按工作日 ÷480 折算（宽松容错沿现状）。
+    const elapsed = (Number(textOf(el, 'DurationFormat') ?? FORMAT_DAYS) || FORMAT_DAYS) === FORMAT_ELAPSED_DAYS
+    const durStr = textOf(el, 'Duration') ?? textOf(el, 'ManualDuration')
+    const durRaw = durStr
+      ? Math.round(parseDurationMinutes(durStr) / (elapsed ? MINUTES_PER_ELAPSED_DAY : MINUTES_PER_DAY))
+      : 0
     const mode: TaskMode = textOf(el, 'Manual') === '1' ? 'manual' : 'auto'
     const progress = Math.min(100, Math.max(0, Math.round(Number(textOf(el, 'PercentComplete') ?? 0) || 0)))
     const task: SchedTask = {
@@ -216,6 +236,7 @@ export function parseProjectXml(text: string): MspdiParseResult {
       progress,
     }
     if (milestone) task.isMilestone = true
+    if (elapsed && !isSummary && !milestone) task.durationUnit = 'cd' // 里程碑/汇总禁 cd（normalize 双保险）
     if (mode === 'manual') {
       task.mode = 'manual'
       const mStart = parseISODate(textOf(el, 'ManualStart') ?? textOf(el, 'Start'))

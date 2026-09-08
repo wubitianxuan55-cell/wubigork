@@ -1,3 +1,10 @@
+## v4.153.0 · 双工期口径刀4：mspdi 互通（DurationFormat 8 导出/导入）（2026-09-08）
+> 双工期四刀收官刀：cd（日历天）任务进出 MS Project XML 不再失真（此前 ed 任务导回被静默当工作日）。纯前端，绑定面 **597 零变更**。
+- 导出：cd 叶任务 `DurationFormat=8` + `PT{自然日×24}H`（wd 恒 7+PT{d×8}H 逐位不变；分组恒工作日口径）；Start/Finish 本就日历日期自动吻合。
+- 导入：Format 8 → cd（分钟÷1440）；其余/未知格式维持 ÷480 工作日折算宽松容错；里程碑/汇总不标 cd；经 normalizeProject/引擎 fail-closed 双保险。
+- 重构：parseDurationDays→parseDurationMinutes 按格式分流；FORMAT_*/MINUTES_PER_ELAPSED_DAY 常量显式化。
+- 门禁 vitest 2596→**2601**（+5）、tsc -b/eslint 0、drift PASS@597、版本三处 4.153.0、build+冒烟过；Go 零改动。**真机池：本机未装 MS Project——Project 往返重算/PT×24 序列化钉死/WPS 斑马行为挂真机池走查（沿用「等真机」先例）；Import 端为失真修复方向性收益确定，Export 端对 Project 实际兼容性待验证。**详见 releases/v4.153.0.md。
+
 ## v4.152.0 · 双工期口径刀3：板块 UI（单位 chip + 拖拽换算 + 等效透明）（2026-09-08）
 > 双工期四刀之本刀3：板块拿到 cd 的表达与编辑入口。纯前端，绑定面 **597 零变更**。
 - 工期列「日历」chip：cd 行常显、wd 行 hover 浮现（静态视觉零变化）、分组行/里程碑无入口；点击循环 wd↔cd 不换算数值（拍板项 7）；工期列宽 48→84。

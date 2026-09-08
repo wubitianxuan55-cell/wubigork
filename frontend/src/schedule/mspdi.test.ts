@@ -117,3 +117,82 @@ describe('mspdi 往返（导出→导入 同构）', () => {
     expect(q.calendar!.workweek).toEqual([1, 2, 3, 4, 5])
   })
 })
+
+describe('双工期刀4：mspdi cd（日历天）互通', () => {
+  function cdProject(): SchedProject {
+    return {
+      name: '养护样板',
+      startDate: '2026-09-07',
+      tasks: [
+        { id: 'A', name: '挖土', duration: 2, level: 1, progress: 0 },
+        { id: 'H', name: '养护', duration: 28, level: 1, progress: 0, durationUnit: 'cd' },
+      ],
+      links: [{ from: 'A', to: 'H', type: 'FS', lag: 0 }],
+    }
+  }
+
+  it('导出：cd 任务 DurationFormat=8 + PT{自然日×24}H；wd 任务恒 7 + PT{d×8}H', () => {
+    const p = cdProject()
+    const xml = buildProjectXml(p, computeCpm(p.tasks, p.links, { startDate: p.startDate }).rows, p.calendar)
+    expect(xml).toContain('<DurationFormat>8</DurationFormat>')
+    expect(xml).toContain('<Duration>PT672H0M0S</Duration>') // 28 自然日 ×24h
+    expect(xml).toContain('<Duration>PT16H0M0S</Duration>') // 2 工作日 ×8h
+  })
+
+  it('roundtrip：cd 任务进出不丢口径、数值不变；wd 任务不带单位', () => {
+    const p = cdProject()
+    const xml = buildProjectXml(p, computeCpm(p.tasks, p.links, { startDate: p.startDate }).rows, p.calendar)
+    const r = parseProjectXml(xml)
+    expect(r.ok).toBe(true)
+    const h = r.project!.tasks.find((t) => t.name === '养护')!
+    expect(h.duration).toBe(28)
+    expect(h.durationUnit).toBe('cd')
+    const a = r.project!.tasks.find((t) => t.name === '挖土')!
+    expect(a.duration).toBe(2)
+    expect(a.durationUnit).toBeUndefined()
+  })
+
+  it('导入：DurationFormat=8（PT168H）→ cd 7 自然日', () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<Project xmlns="http://schemas.microsoft.com/project">
+  <Name>导入养护</Name>
+  <StartDate>2026-09-07T08:00:00</StartDate>
+  <Tasks>
+    <Task><UID>1</UID><ID>1</ID><Name>养护</Name><OutlineLevel>1</OutlineLevel><Duration>PT168H0M0S</Duration><DurationFormat>8</DurationFormat></Task>
+  </Tasks>
+</Project>`
+    const r = parseProjectXml(xml)
+    expect(r.ok).toBe(true)
+    expect(r.project!.tasks[0]).toMatchObject({ duration: 7, durationUnit: 'cd' })
+  })
+
+  it('导入：其余/未知格式维持工作日折算（Format 9 + PT40H → 5 天，无单位）', () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<Project xmlns="http://schemas.microsoft.com/project">
+  <Name>导入周</Name>
+  <StartDate>2026-09-07T08:00:00</StartDate>
+  <Tasks>
+    <Task><UID>1</UID><ID>1</ID><Name>周工期</Name><OutlineLevel>1</OutlineLevel><Duration>PT40H0M0S</Duration><DurationFormat>9</DurationFormat></Task>
+  </Tasks>
+</Project>`
+    const r = parseProjectXml(xml)
+    expect(r.ok).toBe(true)
+    expect(r.project!.tasks[0]).toMatchObject({ duration: 5 })
+    expect(r.project!.tasks[0].durationUnit).toBeUndefined()
+  })
+
+  it('导入：elapsed 里程碑不标 cd（工期恒 0）', () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<Project xmlns="http://schemas.microsoft.com/project">
+  <Name>导入里程碑</Name>
+  <StartDate>2026-09-07T08:00:00</StartDate>
+  <Tasks>
+    <Task><UID>1</UID><ID>1</ID><Name>竣工</Name><OutlineLevel>1</OutlineLevel><Duration>PT0H0M0S</Duration><DurationFormat>8</DurationFormat><Milestone>1</Milestone></Task>
+  </Tasks>
+</Project>`
+    const r = parseProjectXml(xml)
+    expect(r.ok).toBe(true)
+    expect(r.project!.tasks[0]).toMatchObject({ isMilestone: true, duration: 0 })
+    expect(r.project!.tasks[0].durationUnit).toBeUndefined()
+  })
+})
