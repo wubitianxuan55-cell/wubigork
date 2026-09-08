@@ -1,5 +1,15 @@
 # 任务进度
 
+## 最新发布：v4.171.0（2026-09-09）「瘦身 P3 结构版2：office 抽核 + 次批巨文件拆分（>50KB 首拆池 9→0）」
+
+- **接手会话收口**：工作树由前一会话（02:04–02:20）完成遗留未提交（office 抽核 + 次批拆分），本会话全量门禁核验+修 1 处 lint（ExportDialog react-refresh）+补齐发布流程。
+- **线A office 抽核**：internal/office 顶层 8 文件（executor/job_manager/job_routing/session_mode/desktop_session/audit_log/types+测试）下沉新包 internal/core（fs/jobs/journal/modes/routing/sessionmode/types）；新 aliases.go 类型别名 ExecResult/AgentJobState 保绑定面生成签名（gen_bindings 产物受 TestBindingsCompleteness 保护，别名=同一类型）；app 层 office_handler/embed_check_test import 收口；archive.go 保留（whisper 事实归档不在范围）；**绑定面 602 零变更 drift PASS**。
+- **线B 次批 5+1 拆**：KnowledgePanel 62.2→40.8（knowledge/ 8）/DeliverablesPanel 57.4→23.2（deliverables/ 4）/XlsxPreview 56.4→35.5（xlsxpreview/ 4）/ChapterPage 55.9→35.6（chapter/ 5）/herdsmanTemplates 55.7→1.6（data/templates/ 13）/SchedulePage 超额（schedule/ 3：CalendarEditor/ExportDialog/ProjectsManagePanel）；classNames/data-testid 逐字节照搬。
+- **收口修复**：ExportDialog scoped warning×2（EXPORT_KIND_* 拆分前即局部 const 仅内用→去 export），eslint 0 error 0 warning 恢复。
+- **坑=vitest 首跑 4 文件 31 例失败**（与 Go test-all 同机并发负载假红，复跑两次全绿 2737/2737=在册「并发负载 flaky 复跑清同族」先例）——发布门禁以复跑全绿为准，勿把首跑红当回归。
+- **门禁**：Go 128/128 包 0 FAIL、vitest 2737（313 文件）、tsc/eslint 0、drift PASS@602（零绑定）、locale 0 死、build 34.7s+13.8s、冒烟 200、SHA256=834DCDEF35DDFCD049C7E9CB7E54FB3DB55EA04793B8055384770C42C2BCEB38。
+- **欠账**：P3 版3 候选=bridge 双轨退役启动（wailsjsCompat 单 shim 仍被 57 文件引用渐进迁移）+ Go 侧 config.go 58.7/engine.go 55.2 + frontend store.ts 54.3 二次拆分 + entry/页面级懒加载；壳内真机池/审计刀D 不变。
+
 ## 最新发布：v4.170.0（2026-09-09）「瘦身 P3 结构版1：巨文件首批 4 拆（App/bridge/types/GanttView）」
 
 - **线B App.tsx 拆分**（子代理）：87.3KB→46.6KB（<50KB）；palette 构建/exportConversation/JSX 布局因 App.export.test/App.palette.test 的 src 级断言（readFileSync 行级断言）刻意留壳内；11 组逻辑迁新 `gaea/app/`（useSubagentTabs/useTaskCards/usePreviewAutoFront/useDeliverables/useWorkspaceLayout/usePreviewPanel/useSessionHandlers/useAppKeyboard/useTasksAutoOpen/sessionCleanup/layout）——**deps 数组与执行顺序逐项原样**（35→16 组 effect，原 2 处 eslint-disable 保留），JSX 区与基线逐字节一致；hook 参数化后 exhaustive-deps 降级 warn，按仓库既有风格加带理由的 disable 注释（0 error 0 warning）。

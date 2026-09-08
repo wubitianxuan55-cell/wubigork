@@ -43,7 +43,8 @@
 | ✅ | P1 快赢轮子（v4.166.0）：W1 b64 收口（≈20 处含 inShell 合一）+ W2 slug×5（strutil.TitleSlug+legacy golden matrix）+ W3 novel diff（DiffReview 迁 lib/diff LCS）+ 刀B/C + locale 死键（1445 键 0 死）+ 依赖验活（26 依赖逐个统计，codemirror 顶包死重移除、@codemirror/* 四子包显式化） |
 | ✅ | P2 形态（v4.169.0 收官）：白名单解耦刀0（v4.167）→schedule 并入办公刀1/刀2（v4.168）→**双空间并列落地**（rail 顶部工位/乐园切换器+rail 主体按空间分域，code 独立仅 foot 单列=基线双入口闭合；审计 docs/gaea-slim-p2-dualspace-2026-09.md）→**home 空间感知化**（Bento 按空间过滤+每空间旗舰 work=gaea/play=chat+hero 空间 chip+工位「最近文档」面板）→走查待证项收口（rail code 双入口✅/后端 nav 子项差异=有意的双源回退落档✅/knowledge 孤儿页删除✅/刀2 G-2 基线数✅）→壳内真机走查（待真机清单见审计文档 §6） |
 | ✅ | P3 版1（v4.170.0）：巨文件首批 4 拆（App/bridge/types/GanttView，拆分池 >50KB 9→5 达成，零行为变化+公开导出面逐一同） |
-| ⬜ | P3 版2：office 抽核（journal/evidence/文件读写→internal/core，office 树 29 处 import 集中 internal/AI+根包已盘点）+ bridge 双轨退役启动（wailsjsCompat 单 shim 被 57 文件引用，渐进迁移）+ 次批 5 巨文件（KnowledgePanel/DeliverablesPanel/XlsxPreview/ChapterPage/herdsmanTemplates 或按实测）+ entry/页面级二次拆分待续 |
+| ✅ | P3 版2（v4.171.0）：office 抽核（journal/evidence/文件读写→internal/core，aliases.go 类型别名保绑定面，602 零变更）+ 次批 5+1 巨文件拆（KnowledgePanel/DeliverablesPanel/XlsxPreview/ChapterPage/herdsmanTemplates/SchedulePage，>50KB 首拆池 9→0） |
+| ⬜ | P3 版3 候选：**bridge 双轨退役启动**（wailsjsCompat 单 shim 仍被 57 文件引用，渐进迁移）+ Go 侧 config.go 58.7/engine.go 55.2 + frontend store.ts 54.3 二次拆分 + entry/页面级懒加载 |
 | ⬜ | P4 性能（1版）：懒初始化+exe strip+MemoryHub chunk+entry 拆解 |
 | ⬜ | P5 维持：季度复测+观察池审判（cost 文档化/虚拟滚动/内嵌） |
 
