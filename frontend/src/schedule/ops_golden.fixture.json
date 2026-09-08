@@ -1701,6 +1701,324 @@
       }
     },
     {
+      "name": "set_links cd 任务挂 SS",
+      "base": {
+        "name": "对拍工程",
+        "startDate": "2026-09-07",
+        "tasks": [
+          {
+            "id": "A",
+            "name": "挖土",
+            "duration": 2,
+            "level": 1,
+            "progress": 0
+          },
+          {
+            "id": "B",
+            "name": "垫层",
+            "duration": 3,
+            "level": 1,
+            "progress": 40
+          },
+          {
+            "id": "H",
+            "name": "养护",
+            "duration": 7,
+            "level": 1,
+            "progress": 0,
+            "durationUnit": "cd"
+          }
+        ],
+        "links": [
+          {
+            "from": "A",
+            "to": "B",
+            "type": "FS",
+            "lag": 0
+          }
+        ],
+        "calendar": {
+          "workweek": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "holidays": null
+        }
+      },
+      "ops": [
+        {
+          "type": "set_links",
+          "toId": "H",
+          "links": [
+            {
+              "from": "A",
+              "type": "SS",
+              "lag": 2
+            }
+          ]
+        }
+      ],
+      "after": {
+        "name": "对拍工程",
+        "startDate": "2026-09-07",
+        "tasks": [
+          {
+            "id": "A",
+            "name": "挖土",
+            "duration": 2,
+            "level": 1,
+            "progress": 0
+          },
+          {
+            "id": "B",
+            "name": "垫层",
+            "duration": 3,
+            "level": 1,
+            "progress": 40
+          },
+          {
+            "id": "H",
+            "name": "养护",
+            "duration": 7,
+            "level": 1,
+            "progress": 0,
+            "durationUnit": "cd"
+          }
+        ],
+        "links": [
+          {
+            "from": "A",
+            "to": "B",
+            "type": "FS",
+            "lag": 0
+          },
+          {
+            "from": "A",
+            "to": "H",
+            "type": "SS",
+            "lag": 2
+          }
+        ],
+        "calendar": {
+          "workweek": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "holidays": null
+        }
+      }
+    },
+    {
+      "name": "set_links cd 任务挂 SF",
+      "base": {
+        "name": "对拍工程",
+        "startDate": "2026-09-07",
+        "tasks": [
+          {
+            "id": "A",
+            "name": "挖土",
+            "duration": 2,
+            "level": 1,
+            "progress": 0
+          },
+          {
+            "id": "B",
+            "name": "垫层",
+            "duration": 3,
+            "level": 1,
+            "progress": 40
+          },
+          {
+            "id": "H",
+            "name": "养护",
+            "duration": 7,
+            "level": 1,
+            "progress": 0,
+            "durationUnit": "cd"
+          }
+        ],
+        "links": [
+          {
+            "from": "A",
+            "to": "B",
+            "type": "FS",
+            "lag": 0
+          }
+        ],
+        "calendar": {
+          "workweek": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "holidays": null
+        }
+      },
+      "ops": [
+        {
+          "type": "set_links",
+          "toId": "H",
+          "links": [
+            {
+              "from": "A",
+              "type": "SF",
+              "lag": 1
+            }
+          ]
+        }
+      ],
+      "after": {
+        "name": "对拍工程",
+        "startDate": "2026-09-07",
+        "tasks": [
+          {
+            "id": "A",
+            "name": "挖土",
+            "duration": 2,
+            "level": 1,
+            "progress": 0
+          },
+          {
+            "id": "B",
+            "name": "垫层",
+            "duration": 3,
+            "level": 1,
+            "progress": 40
+          },
+          {
+            "id": "H",
+            "name": "养护",
+            "duration": 7,
+            "level": 1,
+            "progress": 0,
+            "durationUnit": "cd"
+          }
+        ],
+        "links": [
+          {
+            "from": "A",
+            "to": "B",
+            "type": "FS",
+            "lag": 0
+          },
+          {
+            "from": "A",
+            "to": "H",
+            "type": "SF",
+            "lag": 1
+          }
+        ],
+        "calendar": {
+          "workweek": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "holidays": null
+        }
+      }
+    },
+    {
+      "name": "upsert cd 任务+FF 搭接",
+      "base": {
+        "name": "对拍工程",
+        "startDate": "2026-09-07",
+        "tasks": [
+          {
+            "id": "A",
+            "name": "挖土",
+            "duration": 2,
+            "level": 1,
+            "progress": 0
+          },
+          {
+            "id": "B",
+            "name": "垫层",
+            "duration": 3,
+            "level": 1,
+            "progress": 40
+          }
+        ],
+        "links": [
+          {
+            "from": "A",
+            "to": "B",
+            "type": "FS",
+            "lag": 0
+          }
+        ]
+      },
+      "ops": [
+        {
+          "type": "upsert_task",
+          "task": {
+            "id": "H",
+            "name": "养护",
+            "duration": 28,
+            "level": 1,
+            "progress": 0,
+            "durationUnit": "cd"
+          }
+        },
+        {
+          "type": "set_links",
+          "toId": "B",
+          "links": [
+            {
+              "from": "H",
+              "type": "FF"
+            }
+          ]
+        }
+      ],
+      "after": {
+        "name": "对拍工程",
+        "startDate": "2026-09-07",
+        "tasks": [
+          {
+            "id": "A",
+            "name": "挖土",
+            "duration": 2,
+            "level": 1,
+            "progress": 0
+          },
+          {
+            "id": "B",
+            "name": "垫层",
+            "duration": 3,
+            "level": 1,
+            "progress": 40
+          },
+          {
+            "id": "H",
+            "name": "养护",
+            "duration": 28,
+            "level": 1,
+            "progress": 0,
+            "durationUnit": "cd"
+          }
+        ],
+        "links": [
+          {
+            "from": "H",
+            "to": "B",
+            "type": "FF",
+            "lag": 0
+          }
+        ]
+      }
+    },
+    {
       "name": "remove 分组级联子孙与搭接",
       "base": {
         "name": "对拍工程",

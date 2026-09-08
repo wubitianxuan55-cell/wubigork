@@ -1,3 +1,10 @@
+## v4.155.0 · 双工期欠账放开：SS/FF/SF×cd 全搭接（§3.2.5 重推，零不动点）（2026-09-08）
+> 双工期设计 §6 欠账池首项销账：v4.150 刀1 曾收窄「cd 任务仅允许 FS 搭接」，本刀实施前重推语义矩阵——原矩阵四格「需不动点」均系 wd 代数形误判，实际零迭代可解，八格全放开。TS↔Go 同批镜像，597 零变更。
+- 重推手段：①新原语 `cdEarliestStart`（单调逆查：最小 s 使 cdToEf(s)≥T，与 cdToEf/cdLatestStart 互为镜像三件套）解 FF/SF-to；②SS/SF-from 直接 ls 下界（约束本就落在开始上，不经 lf+durFrom 换算）+后继 effLf=cdToEf(ls) 诚实传播。
+- 落地：正推 to=cd FF/SF 走逆查；逆推 from=cd 拆双上界 `ls=min(cdLatestStart(lf), lsBound)`、lf 保留 raw（兼容「fwd(ls)≤lf」pin）；wd 路径逐位不变（FS 项无条件读 to.ls 恒等）。
+- 拆闸：Go Validate「仅 FS」/引擎防御拒绝/analyze 防御 finding 三处全删，cd 余四闸不动；scheduleApply 描述、技能条款（锚点锁 37 不变）、types 注释、甘特 chip title 四处文案同步。
+- 测试：锚点表×6+用例 A-E 两侧镜像；golden 62→65（cd+SS/SF/FF 成功例）；既有 fail-closed 用例按新语义原位翻转。Go 全量绿、vitest 2601→2617、tsc/eslint 0、drift PASS@597、build+冒烟过。详见 releases/v4.155.0.md。
+
 ## v4.154.0 · MPP 导入支持 Project 2013+ 变体（真机样本驱动修复）（2026-09-08）
 > 用户真实工程文件（Project 2013+ 保存）此前被 ParseMpp 拒收（「缺 CompObj」），强拆后任务名/工期/层级系统性错乱。本刀字节级取证钉死 2013+ 变体五处漂移并修复——该文件现已完整导入（38 任务/8 分组/42 搭接/总工期 136 天零缺名）。纯 Go 内部引擎，597 零变更。
 - 五处漂移：①无 CompObj 流→按工程目录编号判版（   114=MPP14，无 CompObj ⇒ appVer≥15）；②任务工期 @42→@84；③Var2Data 回链键 uid→ID（uid@0 是陈旧键）；④parentUID@36 失效→大纲层级 @172+层级栈重建父链；⑤里程碑位失效→零工期语义。

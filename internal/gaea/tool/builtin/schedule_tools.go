@@ -188,7 +188,7 @@ type scheduleApply struct {
 func (scheduleApply) Name() string { return "schedule_apply" }
 
 func (scheduleApply) Description() string {
-	return "写入工程进度计划（进度计划板块同款数据）。两种通道二选一：① project=完整计划 JSON（整计划生成/重排，任务含 id/name/level(0分组,1子任务)/duration(工作日)/durationUnit(wd|cd，cd=日历天自然日定时，仅叶任务非里程碑、搭接仅 FS)/isMilestone/fixedCost(固定成本,元,叶任务专属)，搭接 links 含 from/to/type(FS|SS|FF|SF)/lag，resources 含 id/name/type(work|material|cost)/standardRate(元/工日或元/单位)/costPerUse(每次使用,元)/unit(材料计量单位)/maxUnits，assignments 含 taskId/resourceId/units|quantity|amount，calendar 含 workweek(getDay 口径 0=周日..6=周六)/holidays）；② ops=增量操作数组（upsert_task/patch_task/remove_task/set_links/set_meta/upsert_resource/patch_resource/remove_resource/set_assignments，用于局部调整如压缩某任务工期、改搭接、挂资源、调费率；patch_task 支持 durationUnit 切换工期口径）。计划编制纪律：工期为工作日整数，混凝土养护/干燥等自然日定时工作才用 durationUnit:'cd'（数值=自然日数）；里程碑 duration=0；搭接缺省 FS lag=0；分组行 duration=0、不参与搭接、禁挂分配与固定成本；费率一律元/工日（工时）与元/单位（材料）；先建资源再挂分配。写入前引擎自动校验并做 CPM 计算，存在循环依赖/悬空引用/非法字段则整批拒绝（返回错误原文，修复后重试）。回执含写入后总工期（工作日）、关键工作数与总成本（totalCost 及涉及任务行成本），必须核对该结果是否与预期一致。确认机制：project 整量通道须经用户在 diff 确认卡批准后才执行（任何权限级别逐条确认，不存在会话放行）；被拒即未写入，不要原样重发——按用户在对话里给出的意见修改参数后重发是新一次确认，连续被拒两次应停止下发并要明确口径。ops 通道在 ask 权限级别同样弹确认卡。回执与预览数字不一致时以回执为准并向用户点破。"
+	return "写入工程进度计划（进度计划板块同款数据）。两种通道二选一：① project=完整计划 JSON（整计划生成/重排，任务含 id/name/level(0分组,1子任务)/duration(工作日)/durationUnit(wd|cd，cd=日历天自然日定时，仅叶任务非里程碑)/isMilestone/fixedCost(固定成本,元,叶任务专属)，搭接 links 含 from/to/type(FS|SS|FF|SF)/lag，resources 含 id/name/type(work|material|cost)/standardRate(元/工日或元/单位)/costPerUse(每次使用,元)/unit(材料计量单位)/maxUnits，assignments 含 taskId/resourceId/units|quantity|amount，calendar 含 workweek(getDay 口径 0=周日..6=周六)/holidays）；② ops=增量操作数组（upsert_task/patch_task/remove_task/set_links/set_meta/upsert_resource/patch_resource/remove_resource/set_assignments，用于局部调整如压缩某任务工期、改搭接、挂资源、调费率；patch_task 支持 durationUnit 切换工期口径）。计划编制纪律：工期为工作日整数，混凝土养护/干燥等自然日定时工作才用 durationUnit:'cd'（数值=自然日数）；里程碑 duration=0；搭接缺省 FS lag=0；分组行 duration=0、不参与搭接、禁挂分配与固定成本；费率一律元/工日（工时）与元/单位（材料）；先建资源再挂分配。写入前引擎自动校验并做 CPM 计算，存在循环依赖/悬空引用/非法字段则整批拒绝（返回错误原文，修复后重试）。回执含写入后总工期（工作日）、关键工作数与总成本（totalCost 及涉及任务行成本），必须核对该结果是否与预期一致。确认机制：project 整量通道须经用户在 diff 确认卡批准后才执行（任何权限级别逐条确认，不存在会话放行）；被拒即未写入，不要原样重发——按用户在对话里给出的意见修改参数后重发是新一次确认，连续被拒两次应停止下发并要明确口径。ops 通道在 ask 权限级别同样弹确认卡。回执与预览数字不一致时以回执为准并向用户点破。"
 }
 
 func (scheduleApply) Schema() json.RawMessage {
@@ -560,18 +560,6 @@ func qualityChecks(p schedule.Project, cpm schedule.CpmResult) []string {
 	}
 	if !hasMilestone && len(p.Tasks) > 0 {
 		findings = append(findings, "计划中没有里程碑（建议为关键交付节点设里程碑，duration=0）")
-	}
-	// cd 任务非 FS 搭接（v4.151 双工期刀2 防御：闸在 Validate/apply，正常不该发生）。
-	cdTask := map[string]bool{}
-	for _, t := range p.Tasks {
-		if t.DurationUnit == schedule.UnitCd {
-			cdTask[t.ID] = true
-		}
-	}
-	for _, l := range p.Links {
-		if (cdTask[l.From] || cdTask[l.To]) && l.Type != schedule.FS {
-			findings = append(findings, fmt.Sprintf("日历天任务搭接出现 %s（%s→%s，仅 FS 合法——疑为旧口径残留，建议改 FS）", l.Type, l.From, l.To))
-		}
 	}
 	return findings
 }

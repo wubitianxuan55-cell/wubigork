@@ -126,12 +126,14 @@ export type DurationUnit = 'wd' | 'cd'
 - 换算纯函数落 calendar.ts / calendar.go（`cdToBoundary(startISO, es, cd, cal)` 与 `cdLatestStart(...)`，或收敛为带 ctx 的 effDur 变体——实施时定，两侧同名同签名同期望）；cpm.ts/cpm.go 引入分支；**测试互为镜像**（同批场景同批期望值，沿用 cpm/baseline/deadline/cost 四对先例）：平段吸附、节假日窗口、26/27/28cd 同 ef、逆推双侧校正、手动 cd、混合计划总工期、无 cd 快路径逐位等价。
 - gsched.json 演进：新字段 optional 零迁移（第五次，同 baseline/deadline/resources/aoaLayout 先例）；Validate 扩 §3.1 条款，Load/Save 一体生效（agent 与板块同受约束）。
 
-#### 3.2.5 欠账放开矩阵（v1 后逐格放行用，实施前重推）
+#### 3.2.5 欠账放开矩阵（✅ v4.155.0 已全放开——实施前重推结论：原矩阵四格「⚠ 需不动点」均系 wd 代数形误判，实际零迭代可解）
 
 | cd 任务角色 | FS | SS | FF | SF |
 |---|---|---|---|---|
-| 作为 to（后继） | ✅ v1 | ✅ 可放（forward 不含 durTo；backward durFrom 为前置） | ⚠ 需不动点（forward 含 durTo） | ⚠ 需不动点 |
-| 作为 from（前置） | ✅ v1 | ⚠ 需不动点（backward 含 durFrom） | ✅ 可放（backward 不含 durFrom） | ⚠ 需不动点 |
+| 作为 to（后继） | ✅ v1 | ✅ v4.155（forward 本就不含 durTo） | ✅ v4.155（**单调逆查** `cdEarliestStart`：fwd 关于 es 单调不减，逆像=最小 s 使 fwd(s)≥from.ef+lag，非迭代） | ✅ v4.155（同左逆查） |
+| 作为 from（前置） | ✅ v1 | ✅ v4.155（**直接 ls 下界**：SS 约束本就落在开始上，`ls ≤ to.ls−lag`，无需经 lf+durFrom 换算——换算才是原矩阵担心的不动点源） | ✅ v4.155（lf 约束 `lf ≤ to.lf−lag` 本不含 durFrom） | ✅ v4.155（同 SS 直接 ls 下界，右端读 to 的 effLf） |
+
+重推要点（v4.155.0 落地口径，TS↔Go 镜像）：①新原语 `cdEarliestStart(startISO,targetEf,cd,cal)`=最小 s 使 cdToEf(s)≥targetEf（估锚+有界双侧校正，与 cdLatestStart 互为镜像三件套）；②正推 to=cd 时 FF/SF 走逆查、FS/SS 同 wd 式；③逆推 from=cd 拆双上界——lf 收 FS/FF（完成约束）、lsBound 收 SS/SF（开始约束），`ls=min(cdLatestStart(lf), lsBound)`、`lf` 保留 raw 上界（兼容「fwd(ls)≤lf」pin）；④后继 effLf=cd 后继的 cdToEf(ls)（仅 FF/SF 读取，FF/SF 对前驱的传播读实际最迟完成才诚实）；⑤wd 路径逐位不变（FS 项无条件改读 to.ls 与旧式恒等，快路径用例零回归钉死）。六格锚点表+用例 A-E 两侧镜像落档 cpm/calendar 测试。
 
 ### 3.3 对既有功能的影响面（逐项裁决）
 
@@ -213,7 +215,7 @@ export type DurationUnit = 'wd' | 'cd'
 | 日历编辑联动（改节假日 → cd 等效跨度变） | CPM 每次全量重算无缓存，天然一致；基线漂移如实呈现跨度变化（§3.3，非静默） |
 | 单位切换误操作（wd↔cd 数值不换算） | 录入入口 chip 带悬停说明「切单位不换算数值」；patch_task 回执显式报口径变化 |
 
-**欠账池候选（本设计动完后再排）**：SS/FF/SF×cd 的不动点迭代放开（§3.2.5 矩阵逐格）；导入 Project 任务日历转 cd 的迁移助手（含警告清单）；斑马/定额文件导入的口径探测；等效跨度进甘特工期列的灰显双读数（若用户实测仍要）。
+**欠账池候选（本设计动完后再排）**：~~SS/FF/SF×cd 的不动点迭代放开~~（✅ v4.155.0 全放开销项——重推证明零迭代可解，见 §3.2.5）；导入 Project 任务日历转 cd 的迁移助手（含警告清单）；斑马/定额文件导入的口径探测；等效跨度进甘特工期列的灰显双读数（若用户实测仍要）。
 
 ## 7. 明确不做（v1 及可见将来，理由随列）
 

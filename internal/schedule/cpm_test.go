@@ -424,13 +424,78 @@ func TestCpmCdFailClosed(t *testing.T) {
 	if r.OK || !strings.Contains(r.Error, "缺开工日期") {
 		t.Fatalf("ok=%v err=%q", r.OK, r.Error)
 	}
-	ss := ComputeCpmCal([]Task{cdTask("养护", 28, nil), tsk("后续", 3, nil)}, []Link{lnk("养护", "后续", SS, 0)}, nil, cdMon)
-	if ss.OK || !strings.Contains(ss.Error, "FS") {
-		t.Fatalf("SS ok=%v err=%q", ss.OK, ss.Error)
+	// v4.155 欠账放开：SS/FF/SF 涉 cd 不再拒绝（成功路径见 TestCpmCdLinkMatrix），
+	// 唯一引擎级 fail-closed 保留缺开工日期。
+}
+
+// ── v4.155 双工期欠账放开：cd 全搭接 CPM 用例 A-E（与前端 cpm.test.ts 镜像同表）──
+
+const cdLinkMon = "2026-01-05" // 周一开工锚点（周一~五无节假日，镜像表同源）
+
+// TestCpmCdLinkMatrix A-E 全表：auto 模式，断言 es/ef/ls/lf/tf/critical/duration。
+func TestCpmCdLinkMatrix(t *testing.T) {
+	cases := []struct {
+		name     string
+		tasks    []Task
+		links    []Link
+		duration int
+		want     map[string]TaskCpm
+	}{
+		{"A_FF+cd-to带lag",
+			[]Task{tsk("A1", 10, nil), cdTask("B1", 7, nil)},
+			[]Link{lnk("A1", "B1", FF, 2)}, 12,
+			map[string]TaskCpm{
+				// B1.es=CdEarliestStart(12,7)=7；A1 读 effLf=CdToEf(7,7)=12
+				"A1": {ES: 0, EF: 10, LS: 0, LF: 10, TF: 0, FF: 0, Critical: true},
+				"B1": {ES: 7, EF: 12, LS: 7, LF: 12, TF: 0, FF: 0, Critical: true},
+			}},
+		{"B_SS+cd-from",
+			[]Task{cdTask("A1", 7, nil), tsk("B1", 5, nil)},
+			[]Link{lnk("A1", "B1", SS, 3)}, 8,
+			map[string]TaskCpm{
+				// A1: lfBound=anchor=8(raw)、lsBound=B1.ls−3=0 → ls=min(3,0)=0
+				"A1": {ES: 0, EF: 5, LS: 0, LF: 8, TF: 0, FF: 0, Critical: true},
+				"B1": {ES: 3, EF: 8, LS: 3, LF: 8, TF: 0, FF: 0, Critical: true},
+			}},
+		{"C_SF+cd-from非平凡",
+			[]Task{cdTask("A1", 7, nil), tsk("C1", 10, nil), tsk("B1", 5, nil)},
+			[]Link{lnk("C1", "B1", FS, 0), lnk("A1", "B1", SF, 0)}, 15,
+			map[string]TaskCpm{
+				// B1.es=max(FS 10, SF CdEarliestStart(0,5)=0)=10；A1.lsBound=B1.lf=15
+				"A1": {ES: 0, EF: 5, LS: 10, LF: 15, TF: 10, FF: 10, Critical: false},
+				"C1": {ES: 0, EF: 10, LS: 0, LF: 10, TF: 0, FF: 0, Critical: true},
+				"B1": {ES: 10, EF: 15, LS: 10, LF: 15, TF: 0, FF: 0, Critical: true},
+			}},
+		{"D_SS+cd-to旧路径恒等",
+			[]Task{tsk("A1", 3, nil), cdTask("B1", 7, nil)},
+			[]Link{lnk("A1", "B1", SS, 2)}, 7,
+			map[string]TaskCpm{
+				// SS 正推不含 dur：B1.es=from.ES+lag=2；A1 旧 SS 公式 to.ls−lag+dur
+				"A1": {ES: 0, EF: 3, LS: 0, LF: 3, TF: 0, FF: 0, Critical: true},
+				"B1": {ES: 2, EF: 7, LS: 2, LF: 7, TF: 0, FF: 0, Critical: true},
+			}},
+		{"E_FF链+cd中段",
+			[]Task{tsk("A1", 3, nil), cdTask("B1", 7, nil), tsk("D1", 5, nil)},
+			[]Link{lnk("A1", "B1", FF, 0), lnk("B1", "D1", FS, 0)}, 10,
+			map[string]TaskCpm{
+				// B1.es=CdEarliestStart(3,7)=0；A1 读 effLf=CdToEf(0,7)=5
+				"A1": {ES: 0, EF: 3, LS: 2, LF: 5, TF: 2, FF: 2, Critical: false},
+				"B1": {ES: 0, EF: 5, LS: 0, LF: 5, TF: 0, FF: 0, Critical: true},
+				"D1": {ES: 5, EF: 10, LS: 5, LF: 10, TF: 0, FF: 0, Critical: true},
+			}},
 	}
-	ff := ComputeCpmCal([]Task{tsk("A", 3, nil), cdTask("养护", 28, nil)}, []Link{lnk("A", "养护", FF, 0)}, nil, cdMon)
-	if ff.OK || !strings.Contains(ff.Error, "FS") {
-		t.Fatalf("FF ok=%v err=%q", ff.OK, ff.Error)
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			r := ComputeCpmCal(c.tasks, c.links, nil, cdLinkMon)
+			if !r.OK || r.Duration != c.duration {
+				t.Fatalf("ok=%v dur=%d, want %d（err=%s）", r.OK, r.Duration, c.duration, r.Error)
+			}
+			for id, want := range c.want {
+				if got := r.Rows[id]; got != want {
+					t.Fatalf("%s = %+v, want %+v", id, got, want)
+				}
+			}
+		})
 	}
 }
 

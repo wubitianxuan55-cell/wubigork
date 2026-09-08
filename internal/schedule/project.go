@@ -73,7 +73,6 @@ func Save(path string, p Project) error {
 func Validate(p *Project) error {
 	seen := make(map[string]bool, len(p.Tasks))
 	leaf := make(map[string]bool, len(p.Tasks))
-	cdTask := make(map[string]bool, len(p.Tasks))
 	for _, t := range p.Tasks {
 		if strings.TrimSpace(t.ID) == "" {
 			return fmt.Errorf("存在空 id 任务")
@@ -84,9 +83,6 @@ func Validate(p *Project) error {
 		seen[t.ID] = true
 		if t.Level != 0 {
 			leaf[t.ID] = true
-		}
-		if t.DurationUnit == UnitCd {
-			cdTask[t.ID] = true
 		}
 		if t.Level != 0 && t.Level != 1 {
 			return fmt.Errorf("任务 %s 层级非法（仅 0=分组/1=子任务）：%d", t.ID, t.Level)
@@ -134,11 +130,6 @@ func Validate(p *Project) error {
 		case FS, SS, FF, SF:
 		default:
 			return fmt.Errorf("搭接类型非法（%s→%s）：%s", l.From, l.To, l.Type)
-		}
-		// cd 任务搭接收窄（v4.150 双工期刀1）：仅 FS（SS/FF/SF 涉 cd 引入对
-		// dur 的不动点迭代，按欠账矩阵 v1 后逐格放行）。
-		if (cdTask[l.From] || cdTask[l.To]) && l.Type != FS {
-			return fmt.Errorf("日历天（cd）任务仅支持 FS 搭接（%s→%s 为 %s）", l.From, l.To, l.Type)
 		}
 	}
 	resSeen := make(map[string]bool, len(p.Resources))

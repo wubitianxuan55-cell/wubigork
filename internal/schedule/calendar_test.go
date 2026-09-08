@@ -114,3 +114,42 @@ func TestCdLatestStart(t *testing.T) {
 		t.Fatalf("lf19 = %d", got)
 	}
 }
+
+// ── v4.155 双工期欠账放开：CdEarliestStart（正推单调逆查，镜像 TS cdEarliestStart）──
+
+func TestCdEarliestStart(t *testing.T) {
+	mon := "2026-01-05" // 周一开工锚点（周一~五无节假日，与 v4.155 镜像表同源）
+	// 锚点表 cd=7（fwd(s,7)=5..15 单调）：target→最小 s
+	for _, c := range []struct{ target, want int }{
+		{5, 0}, {6, 1}, {9, 4}, {10, 5}, {11, 6}, {12, 7},
+	} {
+		if got := CdEarliestStart(mon, c.target, 7, nil); got != c.want {
+			t.Fatalf("cd7 target%d = %d, want %d", c.target, got, c.want)
+		}
+	}
+	// 锚点表 cd=5（fwd(s,5) 平段 0-2→5、5-7→10）：最小性取平台头
+	for _, c := range []struct{ target, want int }{
+		{5, 0}, {6, 3}, {10, 5}, {11, 8},
+	} {
+		if got := CdEarliestStart(mon, c.target, 5, nil); got != c.want {
+			t.Fatalf("cd5 target%d = %d, want %d", c.target, got, c.want)
+		}
+	}
+	// target ≤ 0 → 0
+	if got := CdEarliestStart(mon, 0, 7, nil); got != 0 {
+		t.Fatalf("target0 = %d", got)
+	}
+	if got := CdEarliestStart(mon, -3, 5, nil); got != 0 {
+		t.Fatalf("target-3 = %d", got)
+	}
+	// 最小性性质：CdToEf(s) ≥ target 且（s>0 时）CdToEf(s−1) < target
+	for target := 1; target <= 40; target++ {
+		s := CdEarliestStart(mon, target, 7, nil)
+		if s < 0 || CdToEf(mon, s, 7, nil) < target {
+			t.Fatalf("target%d: fwd(s=%d)=%d 未达下界", target, s, CdToEf(mon, s, 7, nil))
+		}
+		if s > 0 && CdToEf(mon, s-1, 7, nil) >= target {
+			t.Fatalf("target%d: s=%d 非最小（fwd(s−1)=%d）", target, s, CdToEf(mon, s-1, 7, nil))
+		}
+	}
+}

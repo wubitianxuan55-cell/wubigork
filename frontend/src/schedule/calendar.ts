@@ -129,3 +129,22 @@ export function cdLatestStart(startISO: string, lf: number, cd: number, calInput
   for (let i = 0; i < SCAN_LIMIT && cdToEf(startISO, s + 1, days, cal) <= lf0; i++) s++
   return s
 }
+
+/**
+ * cd（日历天）任务正推单调逆查（v4.155 双工期全搭接放开）：最小工作日序号 s
+ * 使 fwd(s) ≥ targetEf（fwd=cdToEf，正推单调不减且有平段；FF/SF-to-cd 的最早
+ * 开工换算用）。口径：正推单调逆查，与 cdToEf/cdLatestStart 互为镜像三件套；
+ * Go 侧 calendar.go CdEarliestStart 互为镜像。实现镜像 cdLatestStart 风格：
+ * 估锚 s0 = max(0, targetEf − cd)，再有界向下/向上双侧校正至满足性质
+ * fwd(s) ≥ targetEf 且（s=0 或 fwd(s−1) < targetEf）；targetEf ≤ 0 直接返回 0。
+ */
+export function cdEarliestStart(startISO: string, targetEf: number, cd: number, calInput?: SchedCalendar): number {
+  const cal = normalizeCalendar(calInput)
+  const target = Number.isFinite(targetEf) && targetEf > 0 ? Math.round(targetEf) : 0
+  if (target <= 0) return 0
+  const days = Number.isFinite(cd) && cd > 0 ? Math.round(cd) : 0
+  let s = Math.max(0, target - days)
+  for (let i = 0; i < SCAN_LIMIT && s > 0 && cdToEf(startISO, s - 1, days, cal) >= target; i++) s--
+  for (let i = 0; i < SCAN_LIMIT && cdToEf(startISO, s, days, cal) < target; i++) s++
+  return s
+}

@@ -177,6 +177,30 @@ func CdToEf(startISO string, es, cd int, calInput *Calendar) int {
 	return idx
 }
 
+// CdEarliestStart cd（日历天）任务最早开始单调逆查（v4.155 双工期欠账放开，
+// 镜像前端 calendar.ts cdEarliestStart）：最小的工作日序号 s 使 fwd(s) ≥
+// targetEf（fwd=CdToEf，正推单调不减且有平段）——FF/SF-to-cd 用「完成下界
+// 反查最早开始」。镜像正推：估 s0 = max(0, targetEf − cd)，再有界双侧校正至
+// 满足性质 fwd(s−1) < targetEf ≤ fwd(s)（最小性，平段取平台头）；下限截 0。
+// 与 CdToEf/CdLatestStart 互为镜像三件套。扫描上限与 CdLatestStart 同源防呆。
+func CdEarliestStart(startISO string, targetEf, cd int, calInput *Calendar) int {
+	cal := NormalizeCalendar(calInput)
+	if targetEf <= 0 {
+		return 0
+	}
+	if cd < 0 {
+		cd = 0
+	}
+	s := maxInt(0, targetEf-cd)
+	for i := 0; i < scanLimit && s > 0 && CdToEf(startISO, s-1, cd, &cal) >= targetEf; i++ {
+		s--
+	}
+	for i := 0; i < scanLimit && CdToEf(startISO, s, cd, &cal) < targetEf; i++ {
+		s++
+	}
+	return s
+}
+
 // CdLatestStart cd（日历天）任务逆推换算（镜像前端 calendar.ts cdLatestStart）：
 // 最大的工作日序号 s 使 fwd(s) ≤ lf（fwd=CdToEf，单调不减且有平段）。
 // 镜像回退：lf 所在工作日回退 cd 自然日、向下吸附到工作日，再有界双侧校正至

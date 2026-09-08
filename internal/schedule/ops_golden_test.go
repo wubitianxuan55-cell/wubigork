@@ -99,6 +99,15 @@ func goldenWithBaseline() Project {
 	return p
 }
 
+// goldenBaseCd 双工期欠账放开（v4.155）对拍基座：goldenBase 加显式日历 +
+// cd 养护任务（无搭接），供 set_links/upsert 组合挂 SS/FF/SF 全类型。
+func goldenBaseCd() Project {
+	p := goldenBase()
+	p.Calendar = &Calendar{Workweek: []int{1, 2, 3, 4, 5}}
+	p.Tasks = append(p.Tasks, Task{ID: "H", Name: "养护", Duration: 7, Level: 1, DurationUnit: UnitCd})
+	return p
+}
+
 func goldenCases() []goldenCase {
 	return []goldenCase{
 		// ── upsert_task ──
@@ -133,6 +142,10 @@ func goldenCases() []goldenCase {
 		{"upsert cd 超上限", goldenBase(), []Op{{Type: "upsert_task", Task: &Task{ID: "H", Name: "x", Duration: 4000, Level: 1, DurationUnit: UnitCd}}}, nil, nil},
 		{"upsert 单位非法", goldenBase(), []Op{{Type: "upsert_task", Task: &Task{ID: "H", Name: "x", Duration: 1, Level: 1, DurationUnit: "week"}}}, nil, nil},
 		{"cd 全链 upsert+FS+基线", goldenBase(), []Op{{Type: "upsert_task", Task: &Task{ID: "H", Name: "养护", Duration: 28, Level: 1, DurationUnit: UnitCd}}, {Type: "set_links", ToID: "H", Links: []opLink{{From: "B"}}}, {Type: "set_baseline", SavedAt: "2026-09-07 08:00", BaselineName: "含养护"}}, nil, nil},
+		// ── 双工期欠账放开（v4.155）：cd 涉 SS/FF/SF 全搭接成功例 ──
+		{"set_links cd 任务挂 SS", goldenBaseCd(), []Op{{Type: "set_links", ToID: "H", Links: []opLink{{From: "A", Type: SS, Lag: 2}}}}, nil, nil},
+		{"set_links cd 任务挂 SF", goldenBaseCd(), []Op{{Type: "set_links", ToID: "H", Links: []opLink{{From: "A", Type: SF, Lag: 1}}}}, nil, nil},
+		{"upsert cd 任务+FF 搭接", goldenBase(), []Op{{Type: "upsert_task", Task: &Task{ID: "H", Name: "养护", Duration: 28, Level: 1, DurationUnit: UnitCd}}, {Type: "set_links", ToID: "B", Links: []opLink{{From: "H", Type: FF, Lag: 0}}}}, nil, nil},
 		// ── remove_task ──
 		{"remove 分组级联子孙与搭接", goldenBaseGrouped(), []Op{{Type: "remove_task", ID: "G"}}, nil, nil},
 		{"remove 叶任务清相关搭接", goldenBase(), []Op{{Type: "remove_task", ID: "A"}}, nil, nil},

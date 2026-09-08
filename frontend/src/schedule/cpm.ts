@@ -13,7 +13,7 @@
  *    不标关键；其后继仍以 manual 的 EF 为正向约束。
  */
 import type { CpmResult, SchedCalendar, SchedLink, SchedTask, TaskCpm } from './types'
-import { cdLatestStart, cdToEf, normalizeCalendar } from './calendar'
+import { cdEarliestStart, cdLatestStart, cdToEf, normalizeCalendar } from './calendar'
 
 /** 有效工期：里程碑为 0，其余取非负整数（cost.ts 成本工期同口径，单一来源） */
 export function effDur(t: SchedTask): number {
@@ -30,13 +30,34 @@ function forwardBound(link: SchedLink, from: TaskCpm, durTo: number): number {
   }
 }
 
-/** 单条搭接对前置任务 LF 的逆推上界（durFrom/durTo 分别为前置/后续任务工期） */
-function backwardBound(link: SchedLink, to: TaskCpm, durFrom: number, durTo: number): number {
+/**
+ * cd（日历天）后续任务的单条搭接 ES 下界（v4.155 双工期全搭接放开）：
+ * FS/SS 与 wd 同式（from.ef/es + lag，日历换算发生在 ef 侧的 cdToEf）；
+ * FF/SF 完成约束先把目标完成序号（from.ef/es + lag）经 cdEarliestStart
+ * 单调逆查成最早开工序号（ceil 吸附，单趟零迭代）。durTo 为后续 cd 任务工期。
+ */
+function cdForwardBound(link: SchedLink, from: TaskCpm, durTo: number, startISO: string, cal?: SchedCalendar): number {
   switch (link.type) {
-    case 'FS': return to.lf - durTo - link.lag
+    case 'FS': return from.ef + link.lag
+    case 'SS': return from.es + link.lag
+    case 'FF': return cdEarliestStart(startISO, from.ef + link.lag, durTo, cal)
+    case 'SF': return cdEarliestStart(startISO, from.es + link.lag, durTo, cal)
+  }
+}
+
+/**
+ * 单条搭接对前置任务（wd）LF 的逆推上界（durFrom 为前置任务工期）。v4.155
+ * 口径统一：FS 上界=后继最迟开始−lag（wd 后继 to.ls=to.lf−durTo，与旧式
+ * to.lf−durTo−lag 逐位一致；cd 后继的 ls 已按日历换算（≠lf−dur），必须用
+ * to.ls 才诚实）；FF/SF 读后继「有效最迟完成」effLf（wd 后继=lf 逐位同旧；
+ * cd 后继=其 ls 的日历正推换算）。cd 前置不走本函数（见逆推主循环双上界分支）。
+ */
+function backwardBound(link: SchedLink, to: TaskCpm, durFrom: number, effLf: number): number {
+  switch (link.type) {
+    case 'FS': return to.ls - link.lag
     case 'SS': return to.ls - link.lag + durFrom
-    case 'FF': return to.lf - link.lag
-    case 'SF': return to.lf - link.lag + durFrom
+    case 'FF': return effLf - link.lag
+    case 'SF': return effLf - link.lag + durFrom
   }
 }
 
@@ -130,10 +151,11 @@ export function computeCpm(tasks: SchedTask[], links: SchedLink[], opts?: CpmOpt
     return { ok: false, rows, duration: 0, error: `存在循环依赖：${names.join(' → ')}`, cycle: topo.cycle }
   }
 
-  // 双工期口径（v4.150 刀1）：存在 cd（日历天）任务时启用日历换算分支；
-  // 无 cd 任务走快路径（下方分支全部短路，结果与旧口径逐位一致）。
+  // 双工期口径（v4.150 刀1 / v4.155 全搭接放开）：存在 cd（日历天）任务时启用
+  // 日历换算分支；无 cd 任务走快路径（下方分支全部短路，结果与旧口径逐位一致）。
   // fail-closed：缺开工日期无法换算（日历缺省回落周一~五，与全部 wdToDate
-  // 读点同口径）；cd 涉非 FS 搭接会引入对 dur 的不动点迭代，v1 引擎拒绝。
+  // 读点同口径）。cd 搭接 v4.155 起四型全放开：FF/SF-to 用 cdEarliestStart
+  // 单调逆查、SS/SF-from 用直接 ls 下界，单趟拓扑零迭代；wd 路径逐位不变。
   const hasCd = tasks.some(isCd)
   let cal: SchedCalendar | undefined
   let startISO = ''
@@ -143,14 +165,6 @@ export function computeCpm(tasks: SchedTask[], links: SchedLink[], opts?: CpmOpt
     }
     cal = normalizeCalendar(opts.calendar)
     startISO = opts.startDate
-    for (const l of valid) {
-      if ((isCd(byId.get(l.from)!) || isCd(byId.get(l.to)!)) && l.type !== 'FS') {
-        return {
-          ok: false, rows, duration: 0,
-          error: `日历天（cd）任务仅支持 FS 搭接（${byId.get(l.from)!.name} → ${byId.get(l.to)!.name} 为 ${l.type}）`,
-        }
-      }
-    }
   }
 
   // 正推：ES = max(各搭接下界)，EF = ES + 工期；manual 任务锁定开始、忽略入边
@@ -165,8 +179,11 @@ export function computeCpm(tasks: SchedTask[], links: SchedLink[], opts?: CpmOpt
       continue
     }
     let es = 0
+    // v4.155 放开：to 为 cd 时 FF/SF 完成约束经 cdEarliestStart 单调逆查 es 下界
+    // （FS/SS 与 wd 同式）；to 为 wd 保持既有 forwardBound 路径逐位不变。
+    const toCd = hasCd && isCd(t)
     for (const l of inLinks.get(id) ?? []) {
-      es = Math.max(es, forwardBound(l, rows[l.from], dur))
+      es = Math.max(es, toCd ? cdForwardBound(l, rows[l.from], dur, startISO, cal) : forwardBound(l, rows[l.from], dur))
     }
     row.es = es
     row.ef = hasCd && isCd(t) ? cdToEf(startISO, es, dur, cal) : es + dur
@@ -178,7 +195,11 @@ export function computeCpm(tasks: SchedTask[], links: SchedLink[], opts?: CpmOpt
   const planFinish = opts?.planFinish
   const anchor = planFinish != null && planFinish < duration ? planFinish : duration
 
-  // 逆推：LF = min(各搭接上界 / 计划工期)；manual 任务 LF=EF（锁定，不回传约束）
+  // 逆推：LF = min(各搭接上界 / 计划工期)；manual 任务 LF=EF（锁定，不回传约束）。
+  // v4.155 全搭接放开：from 为 cd 时拆双上界——lf 收 FS/FF（完成约束）、lsBound
+  // 收 SS/SF（开始约束）；row.lf 保留原始上界（兼容 v4.150「fwd(ls) ≤ lf」pin），
+  // row.ls = min(cdLatestStart(lf), lsBound)（无 SS/SF 后继时 lsBound 不参与）。
+  // 单趟拓扑直接计算，无对 dur 的不动点迭代；wd 路径（from 非 cd）逐位不变。
   for (let i = topo.order.length - 1; i >= 0; i--) {
     const id = topo.order[i]
     const t = byId.get(id)!
@@ -189,19 +210,32 @@ export function computeCpm(tasks: SchedTask[], links: SchedLink[], opts?: CpmOpt
       row.ls = row.es
       continue
     }
+    const fromCd = hasCd && isCd(t)
     let lf = anchor
+    let lsBound = Number.POSITIVE_INFINITY
     for (const l of outLinks.get(id) ?? []) {
       if (byId.get(l.to)!.mode === 'manual') continue // 手动后继不约束前置
-      // FS 上界=后继最迟开始−lag：wd 后继 to.ls=to.lf−durTo 与旧式逐位一致；
-      // cd 后继的 ls 已按日历换算（≠lf−dur），必须用 to.ls 才诚实。
-      if (hasCd && l.type === 'FS') {
-        lf = Math.min(lf, rows[l.to].ls - l.lag)
+      const toRow = rows[l.to]
+      const durTo = effDur(byId.get(l.to)!)
+      // 后继「有效最迟完成」effLf：wd 后继=lf（逐位同旧）；cd 后继=其 ls 经日历
+      // 正推换算（仅 FF/SF 读取；v4.150 组合全 FS 永不触及，旧 pin 零风险）。
+      const effLf = hasCd && isCd(byId.get(l.to)!) ? cdToEf(startISO, toRow.ls, durTo, cal) : toRow.lf
+      if (fromCd) {
+        if (l.type === 'SS') {
+          lsBound = Math.min(lsBound, toRow.ls - l.lag)
+        } else if (l.type === 'SF') {
+          lsBound = Math.min(lsBound, effLf - l.lag)
+        } else if (l.type === 'FF') {
+          lf = Math.min(lf, effLf - l.lag)
+        } else {
+          lf = Math.min(lf, toRow.ls - l.lag)
+        }
       } else {
-        lf = Math.min(lf, backwardBound(l, rows[l.to], dur, effDur(byId.get(l.to)!)))
+        lf = Math.min(lf, backwardBound(l, toRow, dur, effLf))
       }
     }
     row.lf = lf
-    row.ls = hasCd && isCd(t) ? cdLatestStart(startISO, lf, dur, cal) : lf - dur
+    row.ls = fromCd ? Math.min(cdLatestStart(startISO, lf, dur, cal), lsBound) : lf - dur
   }
 
   // 时差与关键标记（manual 任务不标关键）：关键工作=总时差最小者

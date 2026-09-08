@@ -863,7 +863,7 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult; onInsp
                                 className={`sched-unit-chip${isCd(t) ? ' sched-unit-cd' : ''}`}
                                 data-testid={`sched-unit-${t.id}`}
                                 onClick={() => updateTask(t.id, isCd(t) ? { durationUnit: 'wd' } : { durationUnit: 'cd' })}
-                                title={isCd(t) ? '日历天：按自然日定时（点击切回工作日；数值不变）' : '切为日历天：按自然日定时（数值不变；搭接仅 FS）'}
+                                title={isCd(t) ? '日历天：按自然日定时（点击切回工作日；数值不变）' : '切为日历天：按自然日定时（数值不变）'}
                               >
                                 日历
                               </Button>

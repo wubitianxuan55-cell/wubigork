@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { DEFAULT_CALENDAR, cdLatestStart, cdToEf, dateToWd, deadlineWorkdays, isWorkingDate, normalizeCalendar, wdToDate } from './calendar'
+import { DEFAULT_CALENDAR, cdEarliestStart, cdLatestStart, cdToEf, dateToWd, deadlineWorkdays, isWorkingDate, normalizeCalendar, wdToDate } from './calendar'
 import type { SchedCalendar } from './types'
 
 // 2026-09-07 是周一；2026-09-12 周六、09-13 周日
 const MON = '2026-09-07'
+// 2026-01-05 也是周一（镜像锚点表专用锚：1 月无节假日，跨周末节奏干净）
+const MON1 = '2026-01-05'
 const custom: SchedCalendar = { workweek: [1, 2, 3, 4, 6], holidays: ['2026-10-01', '2026-10-02'] } // 周日休，周六上班
 
 describe('isWorkingDate / normalizeCalendar', () => {
@@ -102,5 +104,43 @@ describe('cdToEf / cdLatestStart（双工期刀1：日历天换算，镜像 Go C
   it('lf 过小（负时差极端）：下限截 0，两侧镜像一致', () => {
     expect(cdLatestStart(MON, 0, 28)).toBe(0)
     expect(cdLatestStart(MON, 19, 28)).toBe(0) // 锚点回退越过开工日
+  })
+})
+
+describe('镜像锚点表（v4.155 全搭接放开：2026-01-05 周一锚、周一~五无节假日，与 Go 侧同表逐字钉死）', () => {
+  it('cdToEf(s,7)：s=0..10 平移不吸附', () => {
+    expect([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((s) => cdToEf(MON1, s, 7))).toEqual([5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15])
+  })
+  it('cdToEf(s,5)：平台 0-2→5、5-7→10（ceil 吸附折叠）', () => {
+    expect([0, 1, 2, 3, 4, 5, 6, 7, 8].map((s) => cdToEf(MON1, s, 5))).toEqual([5, 5, 5, 6, 7, 10, 10, 10, 11])
+  })
+  it('cdEarliestStart(target,7)：最小 s 使 fwd(s)≥target', () => {
+    const table: Array<[number, number]> = [[5, 0], [6, 1], [9, 4], [10, 5], [11, 6], [12, 7]]
+    for (const [target, want] of table) expect(cdEarliestStart(MON1, target, 7)).toBe(want)
+  })
+  it('cdEarliestStart(target,5)：吸附平段跳到平台右端', () => {
+    const table: Array<[number, number]> = [[5, 0], [6, 3], [10, 5], [11, 8]]
+    for (const [target, want] of table) expect(cdEarliestStart(MON1, target, 5)).toBe(want)
+  })
+  it('cdLatestStart(lf,7)（回归对照）：fwd(s)≤lf<fwd(s+1)', () => {
+    const table: Array<[number, number]> = [[5, 0], [8, 3], [9, 4], [10, 5], [12, 7], [15, 10]]
+    for (const [lf, want] of table) expect(cdLatestStart(MON1, lf, 7)).toBe(want)
+  })
+  it('cdLatestStart(lf,5)（回归对照）：平段取最大 s', () => {
+    const table: Array<[number, number]> = [[5, 2], [6, 3], [10, 7]]
+    for (const [lf, want] of table) expect(cdLatestStart(MON1, lf, 5)).toBe(want)
+  })
+  it('cdEarliestStart 最小性性质：fwd(res)≥target 且 fwd(res−1)<target', () => {
+    for (const cd of [5, 7, 26]) {
+      for (let target = 1; target <= 30; target++) {
+        const res = cdEarliestStart(MON1, target, cd)
+        expect(cdToEf(MON1, res, cd)).toBeGreaterThanOrEqual(target)
+        if (res > 0) expect(cdToEf(MON1, res - 1, cd)).toBeLessThan(target)
+      }
+    }
+  })
+  it('target≤0 → 0（防呆与 cdLatestStart 同款）', () => {
+    expect(cdEarliestStart(MON1, 0, 7)).toBe(0)
+    expect(cdEarliestStart(MON1, -3, 7)).toBe(0)
   })
 })

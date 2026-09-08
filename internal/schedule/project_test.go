@@ -432,16 +432,24 @@ func TestValidateDurationUnit(t *testing.T) {
 		t.Fatalf("显式 wd 应通过：%v", err)
 	}
 	bad := []Project{
-		{Tasks: []Task{{ID: "A", Name: "A", Duration: 3, Level: 1, DurationUnit: "week"}}},                                              // 非法枚举
-		{Tasks: []Task{{ID: "G", Name: "G", Level: 0, DurationUnit: UnitCd}}},                                                           // 分组行禁止
-		{Tasks: []Task{{ID: "M", Name: "M", Level: 1, IsMilestone: true, DurationUnit: UnitCd}}},                                        // 里程碑禁止
-		{Tasks: []Task{{ID: "A", Name: "A", Duration: 3651, Level: 1, DurationUnit: UnitCd}}},                                           // 超上限
-		{Tasks: []Task{{ID: "A", Name: "A", Duration: 5, Level: 1, DurationUnit: UnitCd}, {ID: "B", Name: "B", Duration: 3, Level: 1}}, Links: []Link{{From: "A", To: "B", Type: SS}}}, // cd 涉非 FS
+		{Tasks: []Task{{ID: "A", Name: "A", Duration: 3, Level: 1, DurationUnit: "week"}}},       // 非法枚举
+		{Tasks: []Task{{ID: "G", Name: "G", Level: 0, DurationUnit: UnitCd}}},                    // 分组行禁止
+		{Tasks: []Task{{ID: "M", Name: "M", Level: 1, IsMilestone: true, DurationUnit: UnitCd}}}, // 里程碑禁止
+		{Tasks: []Task{{ID: "A", Name: "A", Duration: 3651, Level: 1, DurationUnit: UnitCd}}},    // 超上限
 	}
 	for i, p := range bad {
 		if err := Validate(&p); err == nil {
 			t.Fatalf("case %d 应拒绝", i)
 		}
+	}
+	// v4.155 欠账放开：cd 涉 SS/FF/SF 搭接合法（cd 四闸仅枚举/分组行/里程碑/上限）
+	allLinks := Project{
+		StartDate: "2026-09-07",
+		Tasks:     []Task{{ID: "A", Name: "A", Duration: 5, Level: 1, DurationUnit: UnitCd}, {ID: "B", Name: "B", Duration: 3, Level: 1}},
+		Links:     []Link{{From: "A", To: "B", Type: SS}, {From: "A", To: "B", Type: FF}, {From: "B", To: "A", Type: SF}},
+	}
+	if err := Validate(&allLinks); err != nil {
+		t.Fatalf("cd 全搭接应通过：%v", err)
 	}
 	// cd+FS 合法，JSON 往返保字段（omitempty 只在零值丢弃，"cd" 非零）
 	okFS := Project{

@@ -65,7 +65,8 @@ type Task struct {
 	// 分组行禁止=汇总唯一口径为子孙求和）。
 	FixedCost float64 `json:"fixedCost,omitempty"`
 	// DurationUnit 工期单位（v4.150 双工期刀1：缺省/空=wd 工作日；cd=日历天，
-	// 仅限叶任务非里程碑、搭接仅 FS、数值上限 3650，见 Validate）。
+	// 仅限叶任务非里程碑、数值上限 3650，见 Validate；v4.155 起 FS/SS/FF/SF
+	// 搭接全类型放开）。
 	DurationUnit DurationUnit `json:"durationUnit,omitempty"`
 	// Custom 自定义字段值（v4.138 #14：固定 5 槽 text1..num2，镜像前端
 	// customFields.ts 注册表；只存有值槽，值 string|number。旧 JSON 零迁移）。

@@ -200,8 +200,9 @@ func computeCpmFull(tasks []Task, links []Link, planFinish int, calInput *Calend
 
 	// 双工期口径（v4.150 刀1）：存在 cd（日历天）任务时启用日历换算分支；
 	// 无 cd 任务走快路径（下方分支全部短路，结果与旧口径逐位一致）。
-	// fail-closed：缺开工日期无法换算；cd 涉非 FS 搭接会引入对 dur 的不动点
-	// 迭代，v1 引擎拒绝（闸在 Validate，此处防御直接调用）。
+	// fail-closed：缺开工日期无法换算。cd 全搭接放开（v4.155 重推）：
+	// FF/SF-to 用 CdEarliestStart 单调逆查，SS/SF-from 用直接 LS 下界，
+	// 单趟拓扑零迭代；wd 路径逐位不变。
 	hasCd := false
 	for _, t := range tasks {
 		if t.DurationUnit == UnitCd {
@@ -218,12 +219,6 @@ func computeCpmFull(tasks []Task, links []Link, planFinish int, calInput *Calend
 		}
 		cal = NormalizeCalendar(calInput)
 		startISO = start
-		for _, l := range valid {
-			if (byID[l.From].DurationUnit == UnitCd || byID[l.To].DurationUnit == UnitCd) && l.Type != FS {
-				res.Error = fmt.Sprintf("日历天（cd）任务仅支持 FS 搭接（%s → %s 为 %s）", byID[l.From].Name, byID[l.To].Name, l.Type)
-				return res
-			}
-		}
 	}
 
 	// 正推：ES = max(各搭接下界)，EF = ES + 工期；manual 任务锁定开始、忽略入边。
@@ -243,8 +238,24 @@ func computeCpmFull(tasks []Task, links []Link, planFinish int, calInput *Calend
 			continue
 		}
 		es := 0
+		isCd := hasCd && t.DurationUnit == UnitCd
 		for _, l := range inLinks[id] {
-			es = maxInt(es, forwardBound(l, rows[l.From], dur))
+			bound := 0
+			if isCd {
+				// to 为 cd：FS/SS 下界直接是工作日序号（不含 dur）；FF/SF 完成
+				// 下界经 CdEarliestStart 单调逆查反最早开始（v4.155 放开口径）。
+				switch l.Type {
+				case FF:
+					bound = CdEarliestStart(startISO, rows[l.From].EF+l.Lag, dur, &cal)
+				case SF:
+					bound = CdEarliestStart(startISO, rows[l.From].ES+l.Lag, dur, &cal)
+				default: // FS / SS（wd 公式不含 durTo，cd 同式）
+					bound = forwardBound(l, rows[l.From], dur)
+				}
+			} else {
+				bound = forwardBound(l, rows[l.From], dur)
+			}
+			es = maxInt(es, bound)
 		}
 		row.ES = es
 		if hasCd && t.DurationUnit == UnitCd {
@@ -265,6 +276,17 @@ func computeCpmFull(tasks []Task, links []Link, planFinish int, calInput *Calend
 		anchor = planFinish
 	}
 
+	// effLf 后继行的「有效最迟完成」：to 为 cd 时 LS 已按日历换算（≠LF−dur），
+	// FF/SF 逆推须读 CdToEf(LS) 才诚实；wd 后继即 LF。仅 cd 涉 FF/SF 时被
+	// 读取，无 cd 快路径恒等 LF，旧 pin 零风险。
+	effLf := func(toID string) int {
+		to := byID[toID]
+		if hasCd && to.DurationUnit == UnitCd {
+			return CdToEf(startISO, rows[toID].LS, effDur(to), &cal)
+		}
+		return rows[toID].LF
+	}
+
 	// 逆推：LF = min(各搭接上界 / 计划工期)；manual 任务 LF=EF（锁定，不回传约束）。
 	for i := len(order) - 1; i >= 0; i-- {
 		id := order[i]
@@ -277,25 +299,68 @@ func computeCpmFull(tasks []Task, links []Link, planFinish int, calInput *Calend
 			rows[id] = row
 			continue
 		}
+		if hasCd && t.DurationUnit == UnitCd {
+			// from 是 cd（v4.155 全搭接放开）：lfBound=min(anchor, FS 后继
+			// to.LS−lag, FF 后继 effLf−lag)；lsBound=min(SS 后继 to.LS−lag,
+			// SF 后继 effLf−lag)（无 SS/SF 后继时不参与 min）。LF 保留 raw
+			// 上界（兼容 v4.150「fwd(ls) ≤ lf」pin），LS 取 CdLatestStart 与
+			// lsBound 较小者——cd 的 ls≠lf−dur，SS/SF-from 须单独封顶。
+			lfBound := anchor
+			lsBound := 0
+			lsCapped := false
+			for _, l := range outLinks[id] {
+				if byID[l.To].Mode == ModeManual {
+					continue // 手动后继不约束前置
+				}
+				switch l.Type {
+				case FS:
+					lfBound = minInt(lfBound, rows[l.To].LS-l.Lag)
+				case SS:
+					if v := rows[l.To].LS - l.Lag; !lsCapped || v < lsBound {
+						lsBound, lsCapped = v, true
+					}
+				case FF:
+					lfBound = minInt(lfBound, effLf(l.To)-l.Lag)
+				case SF:
+					if v := effLf(l.To) - l.Lag; !lsCapped || v < lsBound {
+						lsBound, lsCapped = v, true
+					}
+				}
+			}
+			row.LF = lfBound
+			row.LS = CdLatestStart(startISO, lfBound, dur, &cal)
+			if lsCapped {
+				row.LS = minInt(row.LS, lsBound)
+			}
+			rows[id] = row
+			continue
+		}
+		// from 是 wd（或无 cd 快路径）：沿用 backwardBound 既有路径，仅两处口径
+		// 统一（v4.155）——①FS 无条件用 to.LS−lag（wd 后继 to.ls=to.lf−durTo
+		// 与旧式逐位一致；cd 后继的 ls 已按日历换算 ≠lf−dur，必须用 to.ls 才
+		// 诚实）；②FF/SF 公式读 to.LF 处，to 为 cd 改读 effLf。
 		lf := anchor
 		for _, l := range outLinks[id] {
 			if byID[l.To].Mode == ModeManual {
 				continue // 手动后继不约束前置
 			}
-			// FS 上界=后继最迟开始−lag：wd 后继 to.ls=to.lf−durTo 与旧式逐位
-			// 一致；cd 后继的 ls 已按日历换算（≠lf−dur），必须用 to.ls 才诚实。
-			if hasCd && l.Type == FS {
+			toLf := rows[l.To].LF
+			if hasCd && byID[l.To].DurationUnit == UnitCd {
+				toLf = effLf(l.To)
+			}
+			switch l.Type {
+			case FS:
 				lf = minInt(lf, rows[l.To].LS-l.Lag)
-			} else {
+			case FF:
+				lf = minInt(lf, toLf-l.Lag)
+			case SF:
+				lf = minInt(lf, toLf-l.Lag+dur)
+			default: // SS（及防御未知类型，同旧式回落 0 上界）
 				lf = minInt(lf, backwardBound(l, rows[l.To], dur, effDur(byID[l.To])))
 			}
 		}
 		row.LF = lf
-		if hasCd && t.DurationUnit == UnitCd {
-			row.LS = CdLatestStart(startISO, lf, dur, &cal)
-		} else {
-			row.LS = lf - dur
-		}
+		row.LS = lf - dur
 		rows[id] = row
 	}
 

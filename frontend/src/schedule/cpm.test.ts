@@ -316,13 +316,11 @@ describe('computeCpm 双工期口径（v4.150 刀1：cd=日历天，镜像 Go Te
     expect(r.error).toContain('缺开工日期')
   })
 
-  it('fail-closed：cd 涉非 FS 搭接 → ok=false（SS/FF 双例）', () => {
+  it('v4.155 放开：cd 涉 SS/FF 搭接不再拒绝（原 fail-closed 双例转正）', () => {
     const ss = computeCpm([t('养护', 28, { durationUnit: 'cd' }), t('后续', 3)], [l('养护', '后续', 'SS')], START)
-    expect(ss.ok).toBe(false)
-    expect(ss.error).toContain('FS')
+    expect(ss.ok).toBe(true)
     const ff = computeCpm([t('A', 3), t('养护', 28, { durationUnit: 'cd' })], [l('A', '养护', 'FF')], START)
-    expect(ff.ok).toBe(false)
-    expect(ff.error).toContain('FS')
+    expect(ff.ok).toBe(true)
   })
 
   it('planFinish 收紧 + cd：逆推锚点按工作日边界，负时差诚实呈现', () => {
@@ -334,5 +332,68 @@ describe('computeCpm 双工期口径（v4.150 刀1：cd=日历天，镜像 Go Te
     expect(r.duration).toBe(30)
     expect(r.rows['养护']).toMatchObject({ ls: 0, tf: -5, critical: true })
     expect(r.rows['挖土']).toMatchObject({ tf: -5, critical: true })
+  })
+})
+
+describe('computeCpm cd 全搭接放开（v4.155：SS/FF/SF，镜像 Go TestCpmCdLink*）', () => {
+  // 2026-01-05 周一开工，默认周一~五日历（cd 换算回落 DEFAULT_CALENDAR）
+  const JAN = { startDate: '2026-01-05' }
+
+  it('A. FF+cd-to（lag2）：B1.es=cdEarliestStart(12,7)=7，wd 前置读 effLf 收 LF', () => {
+    // B1 目标完成=EF_A1+2=12 → 逆查最小 es：fwd(7)=12；A1 逆推 FF 上界=effLf−2=cdToEf(B1.ls=7,7)−2=10
+    const r = computeCpm([t('A1', 10), t('B1', 7, { durationUnit: 'cd' })], [l('A1', 'B1', 'FF', 2)], JAN)
+    expect(r.ok).toBe(true)
+    expect(r.duration).toBe(12)
+    expect(r.rows.B1).toMatchObject({ es: 7, ef: 12, ls: 7, lf: 12, tf: 0, critical: true })
+    expect(r.rows.A1).toMatchObject({ es: 0, ef: 10, ls: 0, lf: 10, tf: 0, critical: true })
+  })
+
+  it('B. SS+cd-from（lag3）：SS-from 直接 ls 下界把 cd 前置 ls 收到 0', () => {
+    // A1.ef=fwd(0)=5；B1.es=0+3=3。A1：lfBound=anchor=8（raw 保留），lsBound=B1.ls−3=0 → ls=min(3,0)=0
+    const r = computeCpm([t('A1', 7, { durationUnit: 'cd' }), t('B1', 5)], [l('A1', 'B1', 'SS', 3)], JAN)
+    expect(r.ok).toBe(true)
+    expect(r.duration).toBe(8)
+    expect(r.rows.A1).toMatchObject({ es: 0, ef: 5, ls: 0, lf: 8, tf: 0, critical: true })
+    expect(r.rows.B1).toMatchObject({ es: 3, ef: 8, ls: 3, lf: 8, tf: 0, critical: true })
+  })
+
+  it('C. SF+cd-from（非平凡）：SF 后继只收 ls 不收 lf，cd 前置出正时差', () => {
+    // B1.es=max(C1.ef=10, SF 界=0−0−5<0)=10；A1：lsBound=B1.lf−0=15，lf=anchor=15
+    // → ls=min(cdLatestStart(15,7)=10, 15)=10，TF=10 非关键；C1 FS 链全关键
+    const r = computeCpm(
+      [t('A1', 7, { durationUnit: 'cd' }), t('C1', 10), t('B1', 5)],
+      [l('C1', 'B1'), l('A1', 'B1', 'SF', 0)],
+      JAN,
+    )
+    expect(r.ok).toBe(true)
+    expect(r.duration).toBe(15)
+    expect(r.rows.B1).toMatchObject({ es: 10, ef: 15, ls: 10, lf: 15, tf: 0, critical: true })
+    expect(r.rows.C1).toMatchObject({ es: 0, ef: 10, ls: 0, lf: 10, tf: 0, critical: true })
+    expect(r.rows.A1).toMatchObject({ es: 0, ef: 5, ls: 10, lf: 15, tf: 10, critical: false })
+  })
+
+  it('D. SS+cd-to（lag2）：wd 前置旧 SS 公式恒等（to.ls−lag+durFrom），to 侧 ef 走日历换算', () => {
+    // B1.es=A1.es+2=2、ef=fwd(2)=7；B1.ls=cdLatestStart(7,7)=2
+    // A1：SS 上界=to.ls−lag+durFrom=2−2+3=3 → lf=3、ls=0（wd 路径逐位同旧）
+    const r = computeCpm([t('A1', 3), t('B1', 7, { durationUnit: 'cd' })], [l('A1', 'B1', 'SS', 2)], JAN)
+    expect(r.ok).toBe(true)
+    expect(r.duration).toBe(7)
+    expect(r.rows.B1).toMatchObject({ es: 2, ef: 7, ls: 2, lf: 7, tf: 0, critical: true })
+    expect(r.rows.A1).toMatchObject({ es: 0, ef: 3, ls: 0, lf: 3, tf: 0, critical: true })
+  })
+
+  it('E. FF 链+cd 中段：FF-to 逆查 es=0，wd 前置读 effLf=fwd(B1.ls)=5', () => {
+    // B1：FF 界=cdEarliestStart(3,7)=0、ef=fwd(0)=5；D1.es=B1.ef=5
+    // B1 逆推 lf=D1.ls=5、ls=cdLatestStart(5,7)=0；A1：FF 上界=effLf−0=5 → lf=5、ls=2、TF=2
+    const r = computeCpm(
+      [t('A1', 3), t('B1', 7, { durationUnit: 'cd' }), t('D1', 5)],
+      [l('A1', 'B1', 'FF', 0), l('B1', 'D1')],
+      JAN,
+    )
+    expect(r.ok).toBe(true)
+    expect(r.duration).toBe(10)
+    expect(r.rows.B1).toMatchObject({ es: 0, ef: 5, ls: 0, lf: 5, tf: 0, critical: true })
+    expect(r.rows.D1).toMatchObject({ es: 5, ef: 10, ls: 5, lf: 10, tf: 0, critical: true })
+    expect(r.rows.A1).toMatchObject({ es: 0, ef: 3, ls: 2, lf: 5, tf: 2, critical: false })
   })
 })
