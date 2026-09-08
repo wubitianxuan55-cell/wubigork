@@ -547,3 +547,80 @@ describe('GanttView 列头不压缩（v4.142：收纳=裁剪隐藏，绝不挤�
     expect(Number.parseFloat(head.style.width)).toBe(sum)
   })
 })
+
+describe('GanttView 双工期（v4.152 刀3）', () => {
+  beforeEach(() => {
+    localStorage.removeItem(CHAT_PREFS_KEY)
+    useScheduleStore.setState({
+      project: chainProject(),
+      selectedId: null,
+      hydrated: true,
+      sync: 'saved',
+      syncError: null,
+    })
+  })
+
+  /** 分组 G + wd A + cd H(28) + 里程碑 M：es A=0，H es=2 ef=22（28cd 等效 20） */
+  function cdProject(): SchedProject {
+    return {
+      name: '养护样板',
+      startDate: '2026-09-07',
+      tasks: [
+        { id: 'G', name: '基础', duration: 0, level: 0, progress: 0 },
+        { id: 'A', name: '挖土', duration: 2, level: 1, progress: 0 },
+        { id: 'H', name: '养护', duration: 28, level: 1, progress: 0, durationUnit: 'cd' },
+        { id: 'M', name: '竣工', duration: 0, level: 1, progress: 0, isMilestone: true },
+      ],
+      links: [{ from: 'A', to: 'H', type: 'FS', lag: 0 }],
+    }
+  }
+
+  it('工期列单位 chip：cd 行带 cd 态、wd 行有入口、分组行与里程碑无入口', () => {
+    const p = cdProject()
+    render(<GanttView project={p} cpm={computeCpm(p.tasks, p.links)} />)
+    expect(screen.getByTestId('sched-unit-H').className).toContain('sched-unit-cd')
+    expect(screen.getByTestId('sched-unit-A').className).not.toContain('sched-unit-cd')
+    expect(screen.queryByTestId('sched-unit-M')).toBeNull()
+    expect(screen.queryByTestId('sched-unit-G')).toBeNull()
+  })
+
+  it('点击 chip 切单位不换算数值（wd→cd 与 cd→wd 双向）', () => {
+    const p = cdProject()
+    useScheduleStore.setState({ project: p })
+    render(<GanttView project={p} cpm={computeCpm(p.tasks, p.links)} />)
+    fireEvent.click(screen.getByTestId('sched-unit-A'))
+    expect(useScheduleStore.getState().project.tasks.find((t) => t.id === 'A')).toMatchObject({ durationUnit: 'cd', duration: 2 })
+    fireEvent.click(screen.getByTestId('sched-unit-H'))
+    expect(useScheduleStore.getState().project.tasks.find((t) => t.id === 'H')).toMatchObject({ durationUnit: 'wd', duration: 28 })
+  })
+
+  it('cd 条形宽=真实日历跨度（28cd 等效 20 工作日跨周末=28 自然日列），title 含等效', () => {
+    const p: SchedProject = {
+      name: '单养护',
+      startDate: '2026-09-07',
+      tasks: [{ id: 'H', name: '养护', duration: 28, level: 1, progress: 0, durationUnit: 'cd' }],
+      links: [],
+    }
+    render(<GanttView project={p} cpm={computeCpm(p.tasks, p.links, { startDate: p.startDate })} />)
+    // ef=20：dayNo(20)=28（跨 4 个周末的自然日列），dayW 缺省 20 → 宽 560px
+    expect(barAt(0).style.width).toBe('560px')
+    expect(barAt(0).getAttribute('title')).toContain('等效 20 工作日')
+    expect(barAt(0).getAttribute('title')).toContain('日历天 28')
+  })
+
+  it('cd 缩放拖拽回写自然日（+120px 跨周末：wd 版=7 工作日，cd 版=9 自然日）', () => {
+    const mk = (unit?: 'cd') => ({
+      name: '缩放样板',
+      startDate: '2026-09-07',
+      tasks: [{ id: 'H', name: '养护', duration: 3, level: 1, progress: 0, ...(unit ? { durationUnit: unit } : {}) }],
+      links: [],
+    })
+    const cd = mk('cd')
+    useScheduleStore.setState({ project: cd })
+    render(<GanttView project={cd} cpm={computeCpm(cd.tasks, cd.links, { startDate: cd.startDate })} />)
+    fireEvent.mouseDown(barAt(0).querySelector<HTMLElement>('.sched-resize-handle')!, { clientX: 0 })
+    fireEvent.mouseMove(window, { clientX: 120 }) // 右缘 3→9 自然日（下周三，工作日 wd7）
+    fireEvent.mouseUp(window)
+    expect(useScheduleStore.getState().project.tasks[0]).toMatchObject({ duration: 9, durationUnit: 'cd' })
+  })
+})

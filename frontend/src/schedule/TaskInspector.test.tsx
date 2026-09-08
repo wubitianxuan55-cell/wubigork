@@ -130,3 +130,15 @@ describe('TaskInspector 任务检查器', () => {
     expect(summary).not.toContain('天')
   })
 })
+
+describe('双工期（v4.152 刀3）：检查器工期行口径', () => {
+  it('cd 任务显「日历」口径与等效工作日跨度；wd 任务维持原样', () => {
+    const cd = render(<TaskInspector {...baseProps({ task: mkTask({ duration: 28, durationUnit: 'cd' }), row: mkRow({ es: 0, ef: 20 }) })} />)
+    expect(ui().getByTestId('sched-inspector-summary').textContent).toContain('28 天（日历，等效 20 工作日）')
+    cd.unmount()
+    const wd = render(<TaskInspector {...baseProps({ task: mkTask({ duration: 5 }) })} />)
+    expect(ui().getByTestId('sched-inspector-summary').textContent).toContain('5 天')
+    expect(ui().getByTestId('sched-inspector-summary').textContent).not.toContain('日历')
+    wd.unmount()
+  })
+})

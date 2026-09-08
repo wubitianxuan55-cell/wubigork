@@ -157,7 +157,7 @@ export const AoaView: React.FC<{ graph: AoaGraph; tasks: SchedTask[] }> = ({ gra
           自由时差（波形线）
         </span>
         <span>节点：上=最早时间 · 下=最迟时间</span>
-        <span>标注：箭线上=工作名称 · 下=工期</span>
+        <span>标注：箭线上=工作名称 · 下=工期（「(日历)」=日历天任务）</span>
         <span><i className="lg-line sched-aoa-summary-legend" />一级汇总箭线（界点衔接二级子网络）</span>
         {/* 布局开关（视图态，不入文件）：手动=自由坐标，时间参数不受影响 */}
         <span className="sched-aoa-mode" data-testid="sched-aoa-mode">

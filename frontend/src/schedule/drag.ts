@@ -54,3 +54,15 @@ export function resizeToDuration(offsets: number[], esWd: number, rightNaturalOf
   const newEf = nearestWd(offsets, rightNaturalOffset + Math.round(dxPx / dayW))
   return Math.max(0, newEf - esWd)
 }
+
+/**
+ * 缩放落点（cd 日历天任务，v4.152 双工期刀3）：右缘落点=新 ef（工作日吸附
+ * 与 wd 同款），回写自然日数 = 新 ef 与 es 的**自然日差**（offsets 表即
+ * 工作日→自然日映射，直接相减）。引擎复算：边界=锚点(es)+自然日数 恰落
+ * 新 ef，ceil 吸附不动——拖拽所见即所得。
+ */
+export function resizeToNaturalDuration(offsets: number[], esWd: number, rightNaturalOffset: number, dxPx: number, dayW: number): number {
+  const newEf = nearestWd(offsets, rightNaturalOffset + Math.round(dxPx / dayW))
+  const es = Math.min(Math.max(0, esWd), offsets.length - 1)
+  return Math.max(0, offsets[newEf] - offsets[es])
+}

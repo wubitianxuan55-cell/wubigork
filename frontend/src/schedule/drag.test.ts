@@ -5,7 +5,7 @@
  * wd0..wd4 = 偏移 0..4（一~五），wd5 = 偏移 7（下周一）……跨周末跳 3。
  */
 import { describe, expect, it } from 'vitest'
-import { dropToWd, nearestWd, resizeToDuration, workdayOffsets } from './drag'
+import { dropToWd, nearestWd, resizeToDuration, resizeToNaturalDuration, workdayOffsets } from './drag'
 
 const MON = '2026-09-07'
 /** 12 个工作日的反查表（覆盖两周+），手算基准 */
@@ -52,5 +52,18 @@ describe('resizeToDuration', () => {
     expect(resizeToDuration(OFFSETS, 2, 4, -999, 20)).toBe(0)
     // 不动 → 原工期
     expect(resizeToDuration(OFFSETS, 2, 4, 0, 20)).toBe(2)
+  })
+})
+
+describe('resizeToNaturalDuration（双工期刀3：cd 缩放回写自然日）', () => {
+  const offsets = workdayOffsets('2026-09-07', 30) // 周一开工：offsets[5]=7（下周一）
+
+  it('右缘落点=新 ef 工作日吸附不变，回写自然日差（5 工作日跨周末=7 自然日）', () => {
+    expect(resizeToNaturalDuration(offsets, 0, 7, 0, 10)).toBe(7) // wd 版同落点回写 5
+    expect(resizeToDuration(offsets, 0, 7, 0, 10)).toBe(5)
+  })
+  it('像素位移折算与钳位：负位移≥0、es 越界截断', () => {
+    expect(resizeToNaturalDuration(offsets, 0, 3, -100, 10)).toBe(0)
+    expect(resizeToNaturalDuration(offsets, 9999, 7, 0, 10)).toBe(0)
   })
 })

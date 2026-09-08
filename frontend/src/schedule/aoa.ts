@@ -237,6 +237,9 @@ export function buildAoa(tasks: SchedTask[], links: SchedLink[], opts?: { planFi
 
   // ── 编号（拓扑序 1..N）与箭线关键标记 ─────────────────────
   const num = new Map(eventOrder.map((id, i) => [id, i + 1]))
+  // cd（日历天）任务标注（v4.152 刀3）：AOA 网格恒工作日刻度，cd 箭线工期数
+  // 仍是自然日数（本图计算不换算），标「(日历)」防与工作日刻度混淆。
+  const cdTasks = new Set(tasks.filter((t) => t.durationUnit === 'cd').map((t) => t.id))
   // 关键箭线=浮时最小（规程口径：Tp<Tc 时最小浮时为负，不再恒为 0）
   const floats = raws.map((r) => nodeLs.get(r.to)! - r.dur - nodeEs.get(r.from)!)
   const minFloat = Math.min(0, ...floats)
@@ -249,7 +252,9 @@ export function buildAoa(tasks: SchedTask[], links: SchedLink[], opts?: { planFi
       taskId: r.taskId,
       dur: r.dur,
       critical: floats[i] === minFloat,
-      label: r.kind === 'task' ? `${r.dur}d` : (r.lag && r.lag !== 0 ? `${r.lag > 0 ? '+' : ''}${r.lag}d` : ''),
+      label: r.kind === 'task'
+        ? `${r.dur}d${r.taskId && cdTasks.has(r.taskId) ? '(日历)' : ''}`
+        : (r.lag && r.lag !== 0 ? `${r.lag > 0 ? '+' : ''}${r.lag}d` : ''),
     }
   })
   for (const e of edges) {

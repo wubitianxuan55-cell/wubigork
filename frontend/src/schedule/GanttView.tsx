@@ -38,8 +38,9 @@ import { ColumnWidthOutlined, DeleteOutlined, EditOutlined, FullscreenOutlined, 
 import dayjs from 'dayjs'
 import type { CpmResult, LinkType, SchedProject, SchedTask } from './types'
 import { isWorkingDate, normalizeCalendar, wdToDate } from './calendar'
-import { dropToWd, resizeToDuration, workdayOffsets } from './drag'
+import { dropToWd, resizeToDuration, resizeToNaturalDuration, workdayOffsets } from './drag'
 import { computeCosts, type CostResult } from './cost'
+import { isCd } from './cpm'
 import { fmtLinkRefs, ganttLinkPath } from './ganttLinks'
 import { descendantIds, useScheduleStore, type PredDraft } from './store'
 import { TaskResourceEditor } from './ResourcePanel'
@@ -95,10 +96,11 @@ function groupCost(project: SchedProject, costs: CostResult, idx: number): numbe
   return sum
 }
 
-/** 前锋线任务点：按完成进度取前锋位置（工作日序号，可为小数） */
+/** 前锋线任务点：按完成进度取前锋位置（工作日序号，可为小数）。
+ *  cd 任务 dur=等效工作日跨度 ef−es（v4.152 刀3：进度×等效工期，非自然日数）。 */
 function frontierWd(t: SchedTask, row: { es: number; ef: number } | undefined, checkIdx: number): number | null {
   if (!row || t.level === 0) return null
-  const dur = t.isMilestone ? 0 : Math.max(0, Math.round(t.duration))
+  const dur = t.isMilestone ? 0 : isCd(t) ? row.ef - row.es : Math.max(0, Math.round(t.duration))
   if (row.es >= checkIdx) return row.es // 未开始
   const pct = Math.min(100, Math.max(0, t.progress)) / 100
   return Math.min(row.ef, row.es + pct * dur)
@@ -440,7 +442,11 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult; onInsp
     e.stopPropagation()
     const startX = e.clientX
     const origEs = row.es
+    // 缩放右缘起点=条形实际右缘 ef（wd 任务=es+dur 与旧式逐位一致；cd 任务
+    // dur 是自然日数不能当工作日序号加）；cd 的 preview/回写=自然日数（刀3）。
+    const origEf = row.ef
     const origDur = t.isMilestone ? 0 : Math.max(0, Math.round(t.duration))
+    const cdTask = isCd(t)
     const st = {
       id: t.id, kind, origEs, origDur,
       preview: kind === 'move' ? origEs : origDur,
@@ -451,7 +457,9 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult; onInsp
       if (dx !== 0) st.moved = true
       st.preview = kind === 'move'
         ? dropToWd(wdOffsets, dayNo(origEs), dx, dayW)
-        : resizeToDuration(wdOffsets, origEs, dayNo(origEs + origDur), dx, dayW)
+        : cdTask
+          ? resizeToNaturalDuration(wdOffsets, origEs, dayNo(origEf), dx, dayW)
+          : resizeToDuration(wdOffsets, origEs, dayNo(origEf), dx, dayW)
       setDrag({ ...st })
     }
     const onUp = () => {
@@ -835,14 +843,32 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult; onInsp
                     {colOn('dur') && (
                       <div style={{ width: W.dur }} className="sched-gantt-cell">
                         {group ? <span className="sched-dim">汇总</span> : (
-                          <InputNumber
-                            size="small"
-                            variant="borderless"
-                            min={0}
-                            value={dur}
-                            onChange={(v) => updateTask(t.id, { duration: Number(v) || 0 })}
-                            style={{ padding: 0, width: '100%' }}
-                          />
+                          <span style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                            <InputNumber
+                              size="small"
+                              variant="borderless"
+                              min={0}
+                              value={dur}
+                              onChange={(v) => updateTask(t.id, { duration: Number(v) || 0 })}
+                              style={{ padding: 0, width: '100%', flex: 1, minWidth: 0 }}
+                              title={isCd(t) ? '日历天（自然日定时）；等效工作日跨度见条形悬停' : undefined}
+                            />
+                            {/* 单位 chip（刀3）：cd 行常显（点击切回工作日）；wd 行 hover 行时浮现。
+                                切单位不换算数值（拍板项 7）；分组行/里程碑无入口。 */}
+                            {!t.isMilestone && (
+                              <Button
+                                size="small"
+                                type={isCd(t) ? 'primary' : 'text'}
+                                ghost={isCd(t)}
+                                className={`sched-unit-chip${isCd(t) ? ' sched-unit-cd' : ''}`}
+                                data-testid={`sched-unit-${t.id}`}
+                                onClick={() => updateTask(t.id, isCd(t) ? { durationUnit: 'wd' } : { durationUnit: 'cd' })}
+                                title={isCd(t) ? '日历天：按自然日定时（点击切回工作日；数值不变）' : '切为日历天：按自然日定时（数值不变；搭接仅 FS）'}
+                              >
+                                日历
+                              </Button>
+                            )}
+                          </span>
                         )}
                       </div>
                     )}
@@ -1058,6 +1084,15 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult; onInsp
               const isDrag = drag?.id === t.id
               const movePreview = isDrag && drag!.kind === 'move' ? drag!.preview : null
               const resizePreview = isDrag && drag!.kind === 'resize' ? drag!.preview : null
+              const cdRow = isCd(t)
+              // 条形宽（刀3）：cd 行=真实日历跨度 dayNo(ef)−dayNo(es)（此前把自然日
+              // 数当工作日序号加会画过宽）；仅 resize 拖拽中按预览自然日直绘。
+              const barWidthPx = cdRow && resizePreview != null
+                ? Math.max(resizePreview * dayW, 6)
+                : Math.max(
+                    (dayNo((movePreview ?? row.es) + (cdRow ? row.ef - row.es : (resizePreview ?? dur))) - dayNo(movePreview ?? row.es)) * dayW,
+                    6,
+                  )
               return (
                 <Dropdown key={t.id} trigger={['contextMenu']} menu={{ items: rowMenu(t, group), onClick: (e) => rowMenuClick(e.key, t) }}>
                 <div
@@ -1099,12 +1134,13 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult; onInsp
                             className={`sched-bar${crit ? ' sched-bar-critical' : ''}${manual ? ' sched-bar-manual' : ''}${isDrag ? ' sched-bar-dragging' : ''}`}
                             style={{
                               left: dayNo(movePreview ?? row.es) * dayW,
-                              width: Math.max(
-                                (dayNo((movePreview ?? row.es) + (resizePreview ?? dur)) - dayNo(movePreview ?? row.es)) * dayW,
-                                6,
-                              ),
+                              width: barWidthPx,
                             }}
-                            title={`${t.name}：第 ${row.es}~${row.ef} 工作日${manual ? '（手动锁定，拖动移位）' : crit ? '（关键，拖动=转手动锁定）' : `，总时差 ${row.tf} 天，拖动=转手动锁定`}`}
+                            title={
+                              cdRow
+                                ? `${t.name}：日历天 ${dur}（等效 ${row.ef - row.es} 工作日，${fmtDate(project.startDate, row.es, cal)} ~ ${fmtDate(project.startDate, row.ef, cal)}）${manual ? '（手动锁定，拖动移位）' : crit ? '（关键）' : ''}`
+                                : `${t.name}：第 ${row.es}~${row.ef} 工作日${manual ? '（手动锁定，拖动移位）' : crit ? '（关键，拖动=转手动锁定）' : `，总时差 ${row.tf} 天，拖动=转手动锁定`}`
+                            }
                             onMouseDown={(e) => beginDrag(e, t, 'move')}
                           >
                             {t.progress > 0 && (
@@ -1118,11 +1154,13 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult; onInsp
                           {isDrag && (
                             <div
                               className="sched-drag-tip"
-                              style={{ left: dayNo(drag!.kind === 'move' ? drag!.preview : row.es + drag!.preview) * dayW }}
+                              style={{ left: (cdRow && drag!.kind === 'resize' ? dayNo(row.es) + drag!.preview : dayNo(drag!.kind === 'move' ? drag!.preview : row.es + drag!.preview)) * dayW }}
                             >
                               {drag!.kind === 'move'
                                 ? `第 ${row.es} → ${drag!.preview} 工作日${manual ? '' : '（转手动）'}`
-                                : `工期 ${dur} → ${drag!.preview} 天`}
+                                : cdRow
+                                  ? `日历 ${dur} → ${drag!.preview} 天（自然日）`
+                                  : `工期 ${dur} → ${drag!.preview} 天`}
                             </div>
                           )}
                         </>

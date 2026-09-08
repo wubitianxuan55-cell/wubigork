@@ -141,7 +141,12 @@ export const TaskInspector: React.FC<TaskInspectorProps> = ({
   // 概要字段：WBS（有则显）/工期（里程碑换「里程碑」标签）/模式（手动附锁定开始）/进度/关键
   const summaryCells: Array<[string, React.ReactNode]> = []
   if (wbs) summaryCells.push(['WBS', wbs])
-  summaryCells.push(['工期', task?.isMilestone ? <Tag color="purple">里程碑</Tag> : `${task?.duration ?? 0} 天`])
+  // 工期（刀3）：cd 任务显「日历」口径与等效工作日跨度（ef−es，透明不可编辑）
+  summaryCells.push(['工期', task?.isMilestone
+    ? <Tag color="purple">里程碑</Tag>
+    : task?.durationUnit === 'cd'
+      ? `${task.duration ?? 0} 天（日历，等效 ${row ? row.ef - row.es : '—'} 工作日）`
+      : `${task?.duration ?? 0} 天`])
   summaryCells.push([
     '模式',
     task?.mode === 'manual' ? `手动（锁定开始=第 ${(task.manualStart ?? 0) + 1} 工作日）` : '自动',

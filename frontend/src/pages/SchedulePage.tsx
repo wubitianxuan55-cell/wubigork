@@ -989,7 +989,7 @@ const SchedulePage: React.FC = () => {
       {/* 底部状态栏（斑马口径：共 N 项工作总工期 N 天 + 关键/工作制常驻） */}
       <div className="sched-statusbar">
         <span>视图：<span className="sched-sb-strong">{view === 'gantt' ? '横道图' : view === 'pdm' ? '单代号网络图' : view === 'usage' ? '资源使用视图' : '双代号网络图'}</span></span>
-        <span>共 <span className="sched-sb-strong">{project.tasks.filter((t) => t.level > 0).length}</span> 项工作，总工期 <span className="sched-sb-strong">{cpm.duration}</span> 天</span>
+        <span>共 <span className="sched-sb-strong">{project.tasks.filter((t) => t.level > 0).length}</span> 项工作，总工期 <span className="sched-sb-strong">{cpm.duration}</span> 天（工作日）</span>
         <span>关键工作 <span className="sched-sb-crit">{project.tasks.filter((t) => t.level > 0 && cpm.rows[t.id]?.critical).length}</span> 项</span>
         {showCost && (
           <span data-testid="sched-statusbar-cost" title="总成本 = Σ任务（固定成本 + 分配成本），随工期实时重算（元）">

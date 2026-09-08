@@ -172,7 +172,7 @@ export const PdmView: React.FC<{ project: SchedProject; cpm: CpmResult }> = ({ p
         <span><i className="lg-dot lg-normal" />非关键</span>
         <span>格：ES / 工期 / EF · LS / 总时差 / LF</span>
         <span>关键线路=红箭线贯通（绑定中的临界搭接）</span>
-        <span>时间单位：工作日（按日历）</span>
+        <span>时间单位：工作日（按日历）；「(日历)」=日历天任务（自然日定时，等效工作日跨度=EF−ES）</span>
         <span style={{ display: 'inline-flex', gap: 4 }}>
           <Button size="small" icon={<ZoomOutOutlined />} onClick={() => stepZoom(1 / 1.2)} title="缩小" />
           <span className="sched-pdm-zoom" data-testid="sched-pdm-zoom">{Math.round(zoom * 100)}%</span>
@@ -282,7 +282,7 @@ export const PdmView: React.FC<{ project: SchedProject; cpm: CpmResult }> = ({ p
                 </div>
                 <div className="sched-pdm-grid">
                   <span>{row.es}</span>
-                  <span className="sched-dim">{t.isMilestone ? 0 : Math.max(0, Math.round(t.duration))}</span>
+                  <span className="sched-dim">{t.isMilestone ? 0 : Math.max(0, Math.round(t.duration))}{t.durationUnit === 'cd' ? '(日历)' : ''}</span>
                   <span>{row.ef}</span>
                   <span>{row.ls}</span>
                   <span className={crit ? 'sched-critical-text' : 'sched-dim'}>{row.tf}</span>

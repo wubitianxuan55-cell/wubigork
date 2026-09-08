@@ -1034,3 +1034,18 @@
   stroke: var(--sched-critical, #e02020);
   stroke-width: 2;
 }
+
+/* ── 双工期刀3（v4.152）：工期列单位 chip ──
+   cd 行常显（primary ghost）；wd 行 hover 行时浮现（静态视觉零变化）；
+   切单位不换算数值（拍板项 7）。 */
+.sched-unit-chip {
+  display: none;
+  font-size: 11px;
+  padding: 0 4px;
+  height: 20px;
+  flex: none;
+}
+.sched-gantt-row:hover .sched-unit-chip,
+.sched-unit-chip.sched-unit-cd {
+  display: inline-flex;
+}

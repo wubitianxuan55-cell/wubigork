@@ -92,6 +92,7 @@ gaea/
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| **v4.152.0** | 2026-09-08 | 双工期口径刀3（板块 UI，纯前端）：工期列「日历」chip（cd 行常显/wd 行 hover 浮现=静态视觉零变化/分组与里程碑无入口；点击循环 wd↔cd **不换算数值**）；拖拽缩放 cd 回写自然日（新 `resizeToNaturalDuration`=新 ef 与 es 的自然日差，所见即所得）+ 右缘起点改 dayNo(ef)（顺带修 cd 条形画过宽）；条形悬停显等效工作日跨度（透明不可编辑，不做双值列）；前锋线 dur 换源等效跨度；检查器/状态栏/单双代号图例补口径词。597 零变更；vitest 2589→2596（+7）。详见 releases/v4.152.0.md |
 | **v4.151.0** | 2026-09-08 | 双工期口径刀2（agent 通道）：ops patch_task 增 `durationUnit` 指针三态（空串 no-op，回执口径词「工期口径→日历天（自然日定时）」，工期词尾随新单位），upsert_task 直带 cd（校验同五闸）；schedule_analyze 增 `cdTasks` 清单（自然日数/等效工作日跨度/锚点日期）+ cd 非 FS 防御发现；schedule_get 任务表带 durationUnit；apply 回执「总工期 X 天（工作日）」补词；schedule-edit 技能写入 cd 纪律（自然日定时才标 cd/搭接仅 FS/成本按等效跨度）锚点锁 35→37；compact 同步。**Go/TS 对拍 golden +12 例（49→61）63/63 过**；597 零变更；vitest 2576→2589。详见 releases/v4.151.0.md |
 | **v4.150.0** | 2026-09-08 | 双工期口径刀1（拍板池收官项启动）：任务级 `durationUnit wd\|cd`（缺省 wd 旧文件零迁移零行为变化）——cd=日历天（养护类自然日定时，28 误录工作日的 +8 工作日失真消除）：引擎 `cdToEf`（ceil 吸附）/`cdLatestStart`（平段镜像回退+双侧校正）纯函数对、cpm 可选 ctx（快路径无 cd 逐位一致；缺开工日期/cd 涉非 FS 均 fail-closed）、成本与基线换源等效工作日跨度 ef−es（养护周末不记工日）、Validate 五闸+normalize 容错回落。TS↔Go 镜像同批用例；597 零变更；vitest 2550→2576（+26）。详见 releases/v4.150.0.md |
 | **v4.149.0** | 2026-09-08 | diff 确认卡刀D 收官：新 `opsSim.ts` `simulateOps`=Go ApplyOps 逐语义 TS 镜像（指针三态/零值语义/级联/守卫全对齐），**Go/TS 对拍 golden fixture 49 例双端同吃 50/50 过**（Go 侧 -update-golden 生成，vitest 逐例比对是否失败+after 状态——「批的是 A 落的是 B」漂移硬对冲）；审批卡 ops 通道升级为落盘前真 diff 投影（与 project 同管线，「ops 投影」标注，三级诚实降级）。纯前端 597 零变更；vitest 2499→2550（+51）。详见 releases/v4.149.0.md |
