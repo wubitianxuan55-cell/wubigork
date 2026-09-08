@@ -227,6 +227,42 @@ export function assignChannels(
 export const AOA_BRIDGE_R = 5
 
 /**
+ * 一级汇总箭线（v4.160 横幅口径，对标重庆干休所上报件画法）：从分部开始
+ * 界点事件向上引到横幅顶部，横贯至完成界点事件落下——一级线=横幅顶部
+ * 通长线（分部名标在线上），二级工作在横幅内，图面分级不混排。
+ * yTop=横幅顶 y（调用方按该带节点最小 y−ROW_H/2 取）；两界点同列（退化
+ * 子网）退化为直连竖线。名称在线上方居中、工期在线下方居中。
+ */
+export function summarySegs(
+  a: { x: number; y: number },
+  b: { x: number; y: number },
+  yTop: number,
+): EdgeGeom {
+  if (Math.abs(b.x - a.x) < 2) {
+    const x = a.x
+    const up = b.y < a.y
+    const y1 = up ? a.y - AOA_R : a.y + AOA_R
+    const y2 = up ? b.y + AOA_R : b.y - AOA_R
+    const my = (y1 + y2) / 2
+    return {
+      segs: [{ x1: x, y1, x2: x, y2 }],
+      name: { x: x + 7, y: my, anchor: 'start' },
+      dur: { x: x + 7, y: my + 12, anchor: 'start' },
+    }
+  }
+  const mid = (a.x + b.x) / 2
+  return {
+    segs: [
+      { x1: a.x, y1: a.y, x2: a.x, y2: yTop },
+      { x1: a.x, y1: yTop, x2: b.x, y2: yTop },
+      { x1: b.x, y1: yTop, x2: b.x, y2: b.y },
+    ],
+    name: { x: mid, y: yTop - 5, anchor: 'middle' },
+    dur: { x: mid, y: yTop + 9, anchor: 'middle' },
+  }
+}
+
+/**
  * G1 过桥法桥位检测：竖直段垂直穿越「他边」水平段处竖线画半圆跨过
  * （JGJ/T 121：交叉宜避免，不可避免用过桥法/指向法）。水平段=时标轴不断，
  * 一律竖线让桥；H×H/V×V 平行重合不属过桥范畴。严格内交（端点相触=拐角/入出

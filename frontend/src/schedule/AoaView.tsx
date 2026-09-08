@@ -23,7 +23,7 @@
 import React, { useRef, useState } from 'react'
 import type { AoaGraph } from './aoa'
 import { AOA_COL_W, AOA_MARGIN, AOA_R, AOA_ROW_H } from './aoa'
-import { applyPins, assignChannels, edgeSegs, findBridgeArcs, prunePins, segsToPath, snapPt } from './aoaLayout'
+import { applyPins, assignChannels, edgeSegs, findBridgeArcs, prunePins, segsToPath, snapPt, summarySegs } from './aoaLayout'
 import { useScheduleStore } from './store'
 import type { AoaPin, SchedTask } from './types'
 import { useWheelZoom } from './wheelZoom'
@@ -162,7 +162,7 @@ export const AoaView: React.FC<{ graph: AoaGraph; tasks: SchedTask[] }> = ({ gra
         </span>
         <span>节点：上=最早时间 · 下=最迟时间</span>
         <span>标注：箭线上=工作名称 · 下=工期（「(日历)」=日历天任务）</span>
-        <span><i className="lg-line sched-aoa-summary-legend" />一级汇总箭线（界点衔接二级子网络）</span>
+        <span><i className="lg-line sched-aoa-summary-legend" />一级汇总线（分组横幅顶部通长线，衔接二级子网络）</span>
         {/* 布局开关（视图态，不入文件）：手动=自由坐标，时间参数不受影响 */}
         <span className="sched-aoa-mode" data-testid="sched-aoa-mode">
           <button
@@ -233,6 +233,30 @@ export const AoaView: React.FC<{ graph: AoaGraph; tasks: SchedTask[] }> = ({ gra
             </marker>
           </defs>
           {(() => {
+            // 分级横幅底纹（v4.160，对标上报件交替底色）：每 band 一块浅色
+            // 矩形垫底，一级/二级分区一眼可辨；band 顶=带内最小 y−半个行距
+            // （汇总线行），band 底=最大 y+半个行距
+            const bandRange = new Map<number, { top: number; bottom: number }>()
+            for (const n of shown.nodes) {
+              const r = bandRange.get(n.band)
+              if (!r) bandRange.set(n.band, { top: n.y, bottom: n.y })
+              else {
+                r.top = Math.min(r.top, n.y)
+                r.bottom = Math.max(r.bottom, n.y)
+              }
+            }
+            const bandTopY = (b: number): number => (bandRange.get(b)?.top ?? 0) - AOA_ROW_H / 2
+            const tints = [...bandRange.entries()].map(([b, r]) => (
+              <rect
+                key={`band-${b}`}
+                data-testid={`sched-aoa-band-${b}`}
+                x={0}
+                y={r.top - AOA_ROW_H / 2}
+                width={w}
+                height={r.bottom - r.top + AOA_ROW_H}
+                fill={b % 2 === 0 ? 'rgba(148,163,184,0.06)' : 'rgba(96,165,250,0.08)'}
+              />
+            ))
             // 同 (from,to) 平行边计数（错位通道用）
             const pairCnt = new Map<string, number>()
             for (const e of shown.edges) {
@@ -249,39 +273,48 @@ export const AoaView: React.FC<{ graph: AoaGraph; tasks: SchedTask[] }> = ({ gra
               const k = `${e.from}>${e.to}`
               const idx = pairSeen.get(k) ?? 0
               pairSeen.set(k, idx + 1)
-              // 波形切点只对实/虚工作有意义；汇总箭线横跨子网络界点，无波形
+              // 波形切点只对实/虚工作有意义；汇总箭线=横幅顶通长线（v4.160），无波形
               const chY = channels.get(e.id)
               const waveFromX = !manual && e.kind !== 'summary' ? nodeById.get(e.from)!.x + R + e.dur * AOA_COL_W : null
-              return { e, i, waveFromX, g: edgeSegs(e, nodeById, { idx, cnt: pairCnt.get(k)! }, waveFromX, chY) }
+              // 汇总箭线走横幅顶（归属带取两界点的较大 band=被汇总的分部）
+              const g = e.kind === 'summary'
+                ? summarySegs(nodeById.get(e.from)!, nodeById.get(e.to)!, bandTopY(Math.max(nodeById.get(e.from)!.band, nodeById.get(e.to)!.band)))
+                : edgeSegs(e, nodeById, { idx, cnt: pairCnt.get(k)! }, waveFromX, chY)
+              return { e, i, waveFromX, g }
             })
             // G1 过桥法：竖段垂直穿越他边横段处画半圆（水平段=时标轴不断）
             const bridges = findBridgeArcs(geoms.map((it) => it.g.segs))
-            return geoms.map(({ e, i, waveFromX, g }) => {
-              const dummy = e.kind === 'dummy'
-              const summary = e.kind === 'summary'
-              const cls = `sched-aoa-link${e.critical ? ' sched-aoa-link-critical' : ''}${dummy ? ' sched-aoa-dummy' : ''}${summary ? ' sched-aoa-summary' : ''}`
-              return (
-                <g key={e.id}>
-                  <path
-                    d={segsToPath(g.segs, waveFromX, bridges.get(i))}
-                    className={cls}
-                    markerEnd={e.critical ? 'url(#aoa-arrow-crit)' : summary ? 'url(#aoa-arrow-summary)' : 'url(#aoa-arrow)'}
-                    onClick={() => e.taskId && select(e.taskId)}
-                    style={{ pointerEvents: e.taskId ? 'stroke' : 'none', cursor: e.taskId ? 'pointer' : 'default' }}
-                  />
-                  {e.label && (
-                    <text x={g.dur.x} y={g.dur.y} textAnchor={g.dur.anchor} className={`sched-net-label${e.critical ? ' sched-net-label-critical' : ''}`}>
-                      {e.label}
-                    </text>
-                  )}
-                  {e.taskId && (
-                    <text x={g.name.x} y={g.name.y} textAnchor={g.name.anchor} className={`sched-aoa-taskname${summary ? ' sched-aoa-taskname-summary' : ''}`}>
-                      {taskName(e.taskId)}
-                    </text>
-                  )}
-                </g>
-              )
-            })
+            return (
+              <>
+                {tints}
+                {geoms.map(({ e, i, waveFromX, g }) => {
+                  const dummy = e.kind === 'dummy'
+                  const summary = e.kind === 'summary'
+                  const cls = `sched-aoa-link${e.critical ? ' sched-aoa-link-critical' : ''}${dummy ? ' sched-aoa-dummy' : ''}${summary ? ' sched-aoa-summary' : ''}`
+                  return (
+                    <g key={e.id}>
+                      <path
+                        d={segsToPath(g.segs, waveFromX, bridges.get(i))}
+                        className={cls}
+                        markerEnd={e.critical ? 'url(#aoa-arrow-crit)' : summary ? 'url(#aoa-arrow-summary)' : 'url(#aoa-arrow)'}
+                        onClick={() => e.taskId && select(e.taskId)}
+                        style={{ pointerEvents: e.taskId ? 'stroke' : 'none', cursor: e.taskId ? 'pointer' : 'default' }}
+                      />
+                      {e.label && (
+                        <text x={g.dur.x} y={g.dur.y} textAnchor={g.dur.anchor} className={`sched-net-label${e.critical ? ' sched-net-label-critical' : ''}`}>
+                          {e.label}
+                        </text>
+                      )}
+                      {e.taskId && (
+                        <text x={g.name.x} y={g.name.y} textAnchor={g.name.anchor} className={`sched-aoa-taskname${summary ? ' sched-aoa-taskname-summary' : ''}`}>
+                          {taskName(e.taskId)}
+                        </text>
+                      )}
+                    </g>
+                  )
+                })}
+              </>
+            )
           })()}
         </svg>
         {shown.nodes.map((n) => {

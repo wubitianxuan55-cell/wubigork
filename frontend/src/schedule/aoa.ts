@@ -29,6 +29,12 @@ export interface AoaNode {
   x: number
   y: number
   /**
+   * 分级横幅序号（v4.160，对标上报件画法）：一级分组行=一条横幅，组内事件的
+   * 归属带（共享事件取成员最小 band——跨组共用界点归前组，后组竖线衔接）。
+   * 无分组行=单一横幅（行为与旧版一致）。
+   */
+  band: number
+  /**
    * 锚点键（v4.123 AOA 刀1）：事件业务身份，跨拓扑变更稳定（手动布局 pin 的匹配键）。
    * START→"S"、END→"T"；其余=全部成员键（end:<taskId>|start:<taskId>）的字典序最小者
    * （end: < start: 保证合并事件代表=先构造者）。推导规则单测钉死（aoaLayout.test.ts）。
@@ -119,6 +125,29 @@ export function buildAoa(tasks: SchedTask[], links: SchedLink[], opts?: { planFi
     return { ok: false, error: `存在循环依赖：${names.join(' → ')}`, nodes: [], edges: [], taskEdge: {} }
   }
 
+  // ── 分级横幅归属（v4.160，需在事件分配前算好：合并事件只许同带）──
+  // 一级分组行（level 0）=一条横幅：分部汇总箭线走横幅顶部通长线（分部名
+  // 标在线上），二级事件只在横幅内排布——一级/二级图面分区，不再按全局
+  // 重心混排（用户实测「一级、二级没有分级展示，比较混乱」，对标重庆干休所
+  // 网络计划上报件）。组前未分组叶任务并入头部合成横幅；组后叶任务并入
+  // 最后一条分组横幅（扁平大纲轮廓语义=最后分组行拥有其后的全部非分组行，
+  // 与 groupKids 同口径）；全无分组行=单一横幅（退化=旧行为）。
+  const bandLabels: string[] = []
+  const taskBand = new Map<string, number>()
+  let curBand = -1
+  for (const t of tasks) {
+    if (t.level === 0) {
+      curBand = bandLabels.length
+      bandLabels.push(t.name)
+    } else if (byId.has(t.id)) {
+      if (curBand === -1) {
+        curBand = bandLabels.length
+        bandLabels.push('') // 组前未分组合成横幅
+      }
+      taskBand.set(t.id, curBand)
+    }
+  }
+
   // ── 事件分配 ──────────────────────────────────────────────
   const START = 'S'
   const END = 'T'
@@ -126,6 +155,8 @@ export function buildAoa(tasks: SchedTask[], links: SchedLink[], opts?: { planFi
   const nodeEs = new Map<string, number>([[START, 0], [END, 0]])
   const startOf = new Map<string, string>()
   const endOf = new Map<string, string>()
+  /** 非首横幅的无前置任务：自设开始事件（虚工作从 START 衔入，任务边不出带） */
+  const ownStart = new Set<string>()
   let seq = 0
   const nextNode = (es: number): string => {
     const id = `n${seq++}`
@@ -136,20 +167,28 @@ export function buildAoa(tasks: SchedTask[], links: SchedLink[], opts?: { planFi
   const finishClean = (p: string) => !inOf.get(p)!.some((l) => l.type === 'FF' || l.type === 'SF')
   // 开始事件无进入箭线的判断：无 FS/SS 搭接指入
   const startClean = (p: string) => !inOf.get(p)!.some((l) => l.type === 'FS' || l.type === 'SS')
+  // 跨横幅不合并事件（v4.160）：后学分部的工作不挂前学分部的事件上——
+  // 否则任务边跨带穿行、标注压字；跨分部改由虚工作竖向衔接（上报件画法）。
+  const sameBand = (a: string, b: string) => taskBand.get(a) === taskBand.get(b)
 
   for (const id of order) {
     const t = byId.get(id)!
     const preds = inOf.get(t.id)!
     if (preds.length === 0) {
-      startOf.set(t.id, START)
+      if ((taskBand.get(t.id) ?? 0) > 0) {
+        startOf.set(t.id, nextNode(0))
+        ownStart.add(t.id)
+      } else {
+        startOf.set(t.id, START)
+      }
     } else if (
       preds.length === 1 && preds[0].type === 'FS' && preds[0].lag === 0 &&
-      finishClean(preds[0].from)
+      finishClean(preds[0].from) && sameBand(preds[0].from, t.id)
     ) {
       startOf.set(t.id, endOf.get(preds[0].from)!)
     } else if (
       preds.length === 1 && preds[0].type === 'SS' && preds[0].lag === 0 &&
-      startClean(preds[0].from)
+      startClean(preds[0].from) && sameBand(preds[0].from, t.id)
     ) {
       startOf.set(t.id, startOf.get(preds[0].from)!)
     } else {
@@ -168,6 +207,10 @@ export function buildAoa(tasks: SchedTask[], links: SchedLink[], opts?: { planFi
     const t = byId.get(id)!
     const dur = effDur(t)
     raws.push({ from: startOf.get(t.id)!, to: endOf.get(t.id)!, dur, kind: 'task', taskId: t.id })
+    if (ownStart.has(t.id)) {
+      const key = `${START}>${startOf.get(t.id)!}`
+      if (!dummySeen.has(key)) { dummySeen.add(key); raws.push({ from: START, to: startOf.get(t.id)!, dur: 0, kind: 'dummy' }) }
+    }
     const succs = outOf.get(t.id)!
     if (succs.length === 0) {
       const key = `${endOf.get(t.id)!}>${END}`
@@ -322,15 +365,52 @@ export function buildAoa(tasks: SchedTask[], links: SchedLink[], opts?: { planFi
     nodeIds.map((id) => ({ id, es: nodeEs.get(id)! })),
     raws.map((r) => ({ from: r.from, to: r.to })),
   )
+  // ── 分级横幅布局（v4.160，归属带已在事件分配前算好=taskBand/bandLabels）──
+  // 事件归属带=成员任务最小 band（跨组共用界点归前组，后组经衔接线接入）
+  const nodeBand = new Map<string, number>()
+  const noteBand = (nid: string, b: number) => {
+    const prev = nodeBand.get(nid)
+    if (prev === undefined || b < prev) nodeBand.set(nid, b)
+  }
+  for (const t of acts) {
+    const b = taskBand.get(t.id) ?? 0
+    noteBand(startOf.get(t.id)!, b)
+    noteBand(endOf.get(t.id)!, b)
+  }
+  // band 内保序打包：沿用全局重心行序为 band 内相对序（同列节点行号必不同，
+  // 打包不产生同行冲突），band 间留 1 行空档容纳下一横幅的顶部汇总线；
+  // y 首行再预留半个行距（band 0 顶汇总线不越界）。
+  const bandRowCount = new Map<number, number>()
+  const ordered = nodeIds
+    .map((id) => ({ id, band: nodeBand.get(id) ?? 0, gRow: pos.get(id)!.row, col: pos.get(id)!.col }))
+    .sort((p, q) => p.band - q.band || p.gRow - q.gRow || p.col - q.col)
+  for (const it of ordered) bandRowCount.set(it.band, (bandRowCount.get(it.band) ?? 0) + 1)
+  const bandBase = new Map<number, number>()
+  {
+    let acc = 0
+    for (let b = 0; b < bandLabels.length; b++) {
+      bandBase.set(b, acc)
+      acc += (bandRowCount.get(b) ?? 0) + 1 // +1=横幅间空档
+    }
+  }
+  const rowOf = new Map<string, number>()
+  {
+    const packCursor = new Map<number, number>()
+    for (const it of ordered) {
+      const r = packCursor.get(it.band) ?? 0
+      packCursor.set(it.band, r + 1)
+      rowOf.set(it.id, (bandBase.get(it.band) ?? 0) + r)
+    }
+  }
+  const rowsTotal = Math.max(1, ...[...rowOf.values()].map((r) => r + 1))
   // 行距自适应（比例协调）：时标图宽度被工期锁定，低并行度的长计划行数少，
   // 天然「又矮又长」——宽高比超 AOA_ASPECT_MAX 时按比例放大行距（上限 2×
   // 基础行距，行间呼吸与整图比例两顾；y 仍与时间无耦合，波形语义不受影响）。
-  const maxRow = Math.max(0, ...[...pos.values()].map((p) => p.row))
   const w = AOA_MARGIN * 2 + total * AOA_COL_W
-  const hBase = AOA_MARGIN * 2 + (maxRow + 1) * AOA_ROW_H
+  const hBase = AOA_MARGIN * 2 + rowsTotal * AOA_ROW_H
   const rowH = w <= hBase * AOA_ASPECT_MAX
     ? AOA_ROW_H
-    : Math.min(AOA_ROW_H * 2, Math.floor((w / AOA_ASPECT_MAX - AOA_MARGIN * 2) / (maxRow + 1)))
+    : Math.min(AOA_ROW_H * 2, Math.floor((w / AOA_ASPECT_MAX - AOA_MARGIN * 2) / rowsTotal))
   // 锚点键：事件成员关系求逆（task → start/end 两成员键），取字典序最小者为代表
   const nodeMembers = new Map<string, string[]>(nodeIds.map((id) => [id, []]))
   for (const t of acts) {
@@ -338,14 +418,14 @@ export function buildAoa(tasks: SchedTask[], links: SchedLink[], opts?: { planFi
     nodeMembers.get(endOf.get(t.id)!)!.push(`end:${t.id}`)
   }
   const nodes: AoaNode[] = nodeIds.map((id) => {
-    const p = pos.get(id) ?? { col: 0, row: 0 }
     return {
       id,
       num: num.get(id)!,
       es: nodeEs.get(id)!,
       ls: nodeLs.get(id)!,
       x: AOA_MARGIN + nodeEs.get(id)! * AOA_COL_W,
-      y: AOA_MARGIN + p.row * rowH,
+      y: AOA_MARGIN + rowH / 2 + (rowOf.get(id) ?? 0) * rowH,
+      band: nodeBand.get(id) ?? 0,
       anchor: id === START ? 'S' : id === END ? 'T' : (nodeMembers.get(id)!.sort()[0] ?? id),
     }
   })

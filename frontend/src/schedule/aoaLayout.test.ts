@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { buildAoa, type AoaEdge, type AoaGraph } from './aoa'
 import { AOA_COL_W, AOA_MARGIN, AOA_R, AOA_ROW_H } from './aoa'
-import { applyPins, assignChannels, edgeSegs, findBridgeArcs, normalizeAoaLayout, prunePins, segsToPath, snapPt } from './aoaLayout'
+import { applyPins, assignChannels, edgeSegs, findBridgeArcs, normalizeAoaLayout, prunePins, segsToPath, snapPt, summarySegs } from './aoaLayout'
 import type { SchedLink, SchedTask } from './types'
 
 function t(id: string, duration: number, extra?: Partial<SchedTask>): SchedTask {
@@ -285,5 +285,24 @@ describe('assignChannels 同行长边通道（v4.143 分行）', () => {
     const g2 = edgeSegs(edge('e', 'a', 'b'), map, { idx: 0, cnt: 1 }, null)
     expect(g2.segs).toHaveLength(1)
     expect(g2.segs[0].y1).toBe(100)
+  })
+})
+
+describe('summarySegs 一级汇总线（v4.160 横幅顶通长线）', () => {
+  it('三段正交：竖起→横贯→竖落；分部名在线上、工期在线下', () => {
+    const g = summarySegs({ x: 40, y: 300 }, { x: 1150, y: 520 }, 100)
+    expect(g.segs).toEqual([
+      { x1: 40, y1: 300, x2: 40, y2: 100 },
+      { x1: 40, y1: 100, x2: 1150, y2: 100 },
+      { x1: 1150, y1: 100, x2: 1150, y2: 520 },
+    ])
+    expect(g.name.y).toBe(95) // 名称在通长线上方
+    expect(g.dur.y).toBe(109) // 工期在通长线下方
+    expect(g.name.anchor).toBe('middle')
+  })
+
+  it('两界点同列（退化子网）：退化为直连竖线', () => {
+    const g = summarySegs({ x: 150, y: 100 }, { x: 150, y: 300 }, 50)
+    expect(g.segs).toEqual([{ x1: 150, y1: 100 + 16, x2: 150, y2: 300 - 16 }])
   })
 })

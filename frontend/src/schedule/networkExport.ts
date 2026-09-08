@@ -15,7 +15,7 @@
  */
 import type { AoaGraph } from './aoa'
 import { AOA_R, AOA_ROW_H } from './aoa'
-import { edgeSegs, findBridgeArcs, segsToPath, assignChannels } from './aoaLayout'
+import { edgeSegs, findBridgeArcs, segsToPath, assignChannels, summarySegs } from './aoaLayout'
 import { layerByTopology } from './layout'
 import { wdToDate } from './calendar'
 import type { CpmResult, LinkType, SchedProject } from './types'
@@ -100,6 +100,22 @@ export function buildAoaExportSvg(project: SchedProject, graph: AoaGraph, meta: 
   const pairSeen = new Map<string, number>()
   // 同行长边通道分配（与视图同口径：长线走行间通道不重合）
   const channels = assignChannels(graph.edges, nodeById)
+  // 分级横幅（v4.160，与视图同口径）：每 band 一块交替底纹垫底，汇总箭线
+  // 走横幅顶通长线（一级/二级图面分区，重庆干休所上报件画法）
+  const bandRange = new Map<number, { top: number; bottom: number }>()
+  for (const n of graph.nodes) {
+    const r = bandRange.get(n.band)
+    if (!r) bandRange.set(n.band, { top: n.y, bottom: n.y })
+    else {
+      r.top = Math.min(r.top, n.y)
+      r.bottom = Math.max(r.bottom, n.y)
+    }
+  }
+  let bandTint = ''
+  for (const [b, r] of [...bandRange.entries()].sort((p, q) => p[0] - q[0])) {
+    bandTint += `<rect x="0" y="${r.top - AOA_ROW_H / 2}" width="${chartW}" height="${r.bottom - r.top + AOA_ROW_H}" fill="${b % 2 === 0 ? 'rgba(148,163,184,0.10)' : 'rgba(96,165,250,0.10)'}"/>`
+  }
+  const bandTopY = (b: number): number => (bandRange.get(b)?.top ?? 0) - AOA_ROW_H / 2
   const geoms = graph.edges.map((e, i) => {
     const k = `${e.from}>${e.to}`
     const idx = pairSeen.get(k) ?? 0
@@ -108,7 +124,11 @@ export function buildAoaExportSvg(project: SchedProject, graph: AoaGraph, meta: 
     // 汇总箭线横跨子网络界点（时间由二级决定）、走通道的边：波形切点无意义不画
     const chY = channels.get(e.id)
     const waveFromX = e.kind === 'summary' ? null : a.x + AOA_R + e.dur * dayW
-    return { e, i, waveFromX, g: edgeSegs(e, nodeById, { idx, cnt: pairCnt.get(k)! }, waveFromX, chY) }
+    // 汇总箭线=横幅顶通长线（归属带取两界点的较大 band=被汇总的分部）
+    const g = e.kind === 'summary'
+      ? summarySegs(a, nodeById.get(e.to)!, bandTopY(Math.max(a.band, nodeById.get(e.to)!.band)))
+      : edgeSegs(e, nodeById, { idx, cnt: pairCnt.get(k)! }, waveFromX, chY)
+    return { e, i, waveFromX, g }
   })
   const bridges = findBridgeArcs(geoms.map((it) => it.g.segs))
   const taskName = (id: string): string => project.tasks.find((t) => t.id === id)?.name ?? ''
@@ -118,6 +138,7 @@ export function buildAoaExportSvg(project: SchedProject, graph: AoaGraph, meta: 
     `<marker id="exp-aoa-arrow-crit" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="${C.critical}"/></marker>` +
     `<marker id="exp-aoa-arrow-summary" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="${C.ink}"/></marker>` +
     `</defs>`
+  net += bandTint // 底纹在月界线/箭线之下
   // 月界竖线（浅，贯通图面+标尺）
   let lastMonth = `${dateAt(0).getUTCFullYear()}-${dateAt(0).getUTCMonth()}`
   for (let wd = 1; wd <= total; wd++) {
@@ -198,7 +219,7 @@ export function buildAoaExportSvg(project: SchedProject, graph: AoaGraph, meta: 
     { draw: `<line x1="${lx}" y1="${legendY}" x2="${lx + 20}" y2="${legendY}" stroke="${C.critical}" stroke-width="2.4"/>`, label: '关键工作', lw: 20 },
     { draw: `<line x1="${lx}" y1="${legendY}" x2="${lx + 20}" y2="${legendY}" stroke="${C.link}" stroke-width="1.2"/>`, label: '工作', lw: 20 },
     { draw: `<line x1="${lx}" y1="${legendY}" x2="${lx + 20}" y2="${legendY}" stroke="${C.link}" stroke-width="1.2" stroke-dasharray="6 4"/>`, label: '虚工作', lw: 20 },
-    { draw: `<line x1="${lx}" y1="${legendY}" x2="${lx + 20}" y2="${legendY}" stroke="${C.ink}" stroke-width="2.6"/>`, label: '一级汇总（界点衔接二级）', lw: 20 },
+    { draw: `<line x1="${lx}" y1="${legendY}" x2="${lx + 20}" y2="${legendY}" stroke="${C.ink}" stroke-width="2.6"/>`, label: '一级汇总线（分组横幅顶部，衔接二级子网络）', lw: 20 },
     { draw: `<path d="M${lx} ${legendY} q 2.5 -5 5 0 t 5 0 t 5 0 t 5 0" fill="none" stroke="${C.link}" stroke-width="1.2"/>`, label: '自由时差（波形线）', lw: 22 },
   ]
   for (const it of items) {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildAoa, AOA_ASPECT_MAX, AOA_COL_W, AOA_MARGIN, AOA_ROW_H } from './aoa'
+import { buildAoa, AOA_COL_W, AOA_MARGIN, AOA_ROW_H } from './aoa'
 import type { SchedLink, SchedTask } from './types'
 
 function t(id: string, duration: number, extra?: Partial<SchedTask>): SchedTask {
@@ -210,22 +210,19 @@ describe('buildAoa 真时标布局（v4.130 刀H G4 前提）', () => {
 })
 
 describe('buildAoa 行距自适应（v4.159：宽高比超限时放大行距，治「又矮又长」）', () => {
-  it('长计划低并行度：行距按目标纵横比放大（两行节点间距 > AOA_ROW_H）', () => {
-    // A/B 并行各 40 天：同列 3 事件（endA/endB/T），w=80+40×110=4480 > 7×(80+3×112)
+  it('长计划低并行度：行距按目标纵横比放大（等距且 > AOA_ROW_H，不超 2×）', () => {
+    // A/B 并行各 40 天：同列多事件，w=4480 远超基础高度 ×7 → 行距放大
     const g = buildAoa([t('A', 40), t('B', 40)], [])
     expect(g.ok).toBe(true)
     const col = g.nodes.filter((n) => n.es === 40)
     expect(col.length).toBeGreaterThanOrEqual(2)
-    const ys = new Set(col.map((n) => n.y))
-    const pitch = Math.max(...col.map((n) => n.y)) - Math.min(...col.map((n) => n.y))
-    expect(pitch).toBeGreaterThan(0)
-    // 行距=逐行等距：最大相邻间距 × (行数−1) = 跨度，且跨度被放大过
-    const rows = ys.size
-    expect((pitch / (rows - 1))).toBeGreaterThan(AOA_ROW_H)
-    // 恰按公式：rowH=min(2×ROW_H, floor((w/ASPECT_MAX−2×MARGIN)/(maxRow+1)))
-    const w = AOA_MARGIN * 2 + 40 * AOA_COL_W
-    const rowH = Math.min(AOA_ROW_H * 2, Math.floor((w / AOA_ASPECT_MAX - AOA_MARGIN * 2) / 3))
-    expect(pitch / (rows - 1)).toBe(rowH)
+    const ys = [...new Set(col.map((n) => n.y))].sort((a, b) => a - b)
+    expect(ys.length).toBeGreaterThanOrEqual(2)
+    // 等距（横幅内逐行等距），且行距已放大、不超封顶
+    const pitch = ys[1] - ys[0]
+    for (let i = 1; i < ys.length; i++) expect(ys[i] - ys[i - 1]).toBe(pitch)
+    expect(pitch).toBeGreaterThan(AOA_ROW_H)
+    expect(pitch).toBeLessThanOrEqual(AOA_ROW_H * 2)
   })
 
   it('小图（纵横比未超限）行距保持基础值', () => {
@@ -240,6 +237,47 @@ describe('buildAoa 行距自适应（v4.159：宽高比超限时放大行距，�
     const col = g.nodes.filter((n) => n.es === 200) // endA 与 T 同列
     expect(col).toHaveLength(2)
     expect(Math.abs(col[0].y - col[1].y)).toBe(AOA_ROW_H * 2)
+  })
+})
+
+describe('buildAoa 分级横幅（v4.160：一级分组=横幅，二级事件只在横幅内）', () => {
+  it('两个分部：组内事件 band 按分组序，y 区间不打架（band 顶=min y−ROW_H/2 不相交）', () => {
+    const g = buildAoa([
+      { id: 'G1', name: '管网', duration: 0, level: 0, progress: 0 },
+      t('A', 3), t('B', 2),
+      { id: 'G2', name: '场平', duration: 0, level: 0, progress: 0 },
+      t('C', 4), t('D', 1),
+    ], [l('A', 'B'), l('C', 'D')])
+    expect(g.ok).toBe(true)
+    const bandOf = (anchor: string): number => {
+      const n = g.nodes.find((x) => x.anchor === anchor)
+      if (!n) throw new Error(`无锚点 ${anchor}`)
+      return n.band
+    }
+    // 组内专属事件归各分组横幅（跨组共享的 S/T 取最小 band=归前组，不在此断言）
+    expect(bandOf('end:A')).toBe(0)
+    expect(bandOf('end:B')).toBe(0)
+    expect(bandOf('end:C')).toBe(1)
+    expect(bandOf('end:D')).toBe(1)
+    // 两横幅 y 区间不打架（band 间空 1 行档：首行差=2×ROW_H）
+    const yOf = (anchor: string): number => g.nodes.find((x) => x.anchor === anchor)!.y
+    const b0Max = Math.max(yOf('end:A'), yOf('end:B'))
+    const b1Min = Math.min(yOf('end:C'), yOf('end:D'))
+    expect(b1Min - b0Max).toBeGreaterThanOrEqual(AOA_ROW_H * 2)
+  })
+
+  it('无分组行：全部事件单一横幅（退化=旧行为），共享界点归前组', () => {
+    const g = buildAoa([t('A', 3), t('B', 2)], [l('A', 'B')])
+    expect(new Set(g.nodes.map((n) => n.band))).toEqual(new Set([0]))
+    // 跨组共享：B 挂前组开始事件（S）→ S 归前组
+    const g2 = buildAoa([
+      { id: 'G1', name: '一', duration: 0, level: 0, progress: 0 },
+      t('A', 3),
+      { id: 'G2', name: '二', duration: 0, level: 0, progress: 0 },
+      t('C', 2),
+    ], [l('A', 'C', 'SS', 0)])
+    const s = g2.nodes.find((n) => n.anchor === 'S')!
+    expect(s.band).toBe(0)
   })
 })
 

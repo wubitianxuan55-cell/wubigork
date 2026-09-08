@@ -196,3 +196,48 @@ describe('AoaView 滚轮缩放（v4.159）', () => {
     expect(screen.getByTestId('sched-aoa-zoom').textContent).toBe('100%')
   })
 })
+
+describe('AoaView 分级横幅（v4.160）', () => {
+  beforeEach(() => {
+    useScheduleStore.setState({ project: chainProject(), selectedId: null, hydrated: true, sync: 'saved', syncError: null })
+  })
+
+  function bandedProject(): SchedProject {
+    return {
+      name: '分级样板',
+      startDate: '2026-09-07',
+      tasks: [
+        { id: 'G1', name: '管网工程', duration: 0, level: 0, progress: 0 },
+        { id: 'A', name: '挖土', duration: 3, level: 1, progress: 0 },
+        { id: 'B', name: '垫层', duration: 2, level: 1, progress: 0 },
+        { id: 'G2', name: '场平工程', duration: 0, level: 0, progress: 0 },
+        { id: 'C', name: '围墙', duration: 4, level: 1, progress: 0 },
+      ],
+      links: [
+        { from: 'A', to: 'B', type: 'FS', lag: 0 },
+        { from: 'B', to: 'C', type: 'FS', lag: 0 },
+      ],
+    }
+  }
+
+  it('两分部=两块交替底纹；汇总线=横幅顶通长线（分部名挂线上方）', () => {
+    const p = bandedProject()
+    const graph = buildAoa(p.tasks, p.links)
+    render(<AoaView graph={graph} tasks={p.tasks} />)
+    expect(screen.getByTestId('sched-aoa-band-0')).toBeTruthy()
+    expect(screen.getByTestId('sched-aoa-band-1')).toBeTruthy()
+    expect(screen.queryByTestId('sched-aoa-band-2')).toBeNull()
+    // 汇总线（G2 分部）：三段正交且含横贯段；分部名 y 在横贯段上方
+    const root = screen.getByTestId('sched-aoa')
+    const summaryPath = root.querySelector(`svg g path[marker-end="url(#aoa-arrow-summary)"]`)
+    expect(summaryPath).toBeTruthy()
+    const nameTexts = Array.from(root.querySelectorAll('text.sched-aoa-taskname-summary'))
+    expect(nameTexts.map((t) => t.textContent)).toContain('场平工程')
+  })
+
+  it('图例注明横幅口径', () => {
+    const p = bandedProject()
+    render(<AoaView graph={buildAoa(p.tasks, p.links)} tasks={p.tasks} />)
+    expect(screen.getByTestId('sched-aoa').textContent).toContain('分组横幅顶部通长线')
+  })
+})
