@@ -1,5 +1,14 @@
 # 任务进度
 
+## 最新发布：v4.168.0（2026-09-09）「瘦身 P2 刀1：schedule 并入办公文档面 + 命令面板入口 + 刀2 补验落档」
+
+- **线A 刀1a**（子代理）：前端 manifests.ts schedule inMenu:true→false（藏出顶栏菜单，白名单仍含=注册即可导航）；manifests.test 菜单断言 12→11 项+not.toContain('schedule') 锁、navigateWhitelist 保持 12 项；launcher.test 静态清单 12→11 卡同步（主代理收口）。
+- **线B 刀1b**（子代理）：App.tsx paletteItems 新增 cmd-schedule（Ctrl+K 直达，title 复用 schedCard.tag 三语键/icon=LineChart/run=NAVIGATE{page:schedule}）；办公文件面可达性=RecentFilesBar 单源含 .gsched→FilePreview 摘要卡既有链路零新增；App.palette.test 源级锁 3 例。
+- **线C 刀2 补验审计**（子代理）：docs/gaea-slim-knife2-audit-2026-09.md——刀2 主体已提前在产（v4.121 刀12 ScheduleFileCard+v4.139 多工程），三要素 2.5/3 实证；勘出 **G-1 前后端分裂**（前端 inMenu:false 但后端 builtins.go 仍 true，normalizeManifests 后端字段优先→真机仍显示）。
+- **主代理收口**：G-1 后端 builtins.go schedule InMenu:false 同步翻 + board_manifest_test 补断言；**v4.167 遗留绑定签名修复** DataPanel GaeaPickFiles()→GaeaPickFiles('zip')（wails 生成 OfficeB.d.ts 必填签名 TS2554，顺带恢复备份对话框前置过滤）；**G-5 补验** FilePreview.test 新增 .gsched 分发 2 例（合法→摘要卡/坏 JSON→回落文本）。
+- **门禁**：Go 115 包 0 FAIL、vitest 2715→2720（312 文件，首跑 1 flaky 复跑清同族）、tsc 0（基线 TS2554 清零）、eslint 0、drift PASS@602（零绑定）、冒烟 200。
+- **欠账**：审计刀D 真机取证、P2 走查待证项（rail code 双入口/nav 子项差异/knowledge 孤儿页）、刀2 G-2 基线计数口径关闭+G-3 真机走查、观察池刀3（工作台内嵌办公）待一周评估、双空间并列落地+home 空间感知化随 P2 主干。
+
 ## 最新发布：v4.167.0（2026-09-09）「瘦身 P2 刀0（白名单解耦）+ P0 基线落档 + 审计刀D Filters + nanoid 升级」
 
 - **线A P2 刀0 白名单解耦**（子代理）：deriveNavigateWhitelist filter `inMenu && !isHome` → `!isHome`——**注册即可导航**，inMenu 只控菜单（v4.164 前科根治；刀1 schedule inMenu=false 依赖本语义）；settings 进白名单（隐式入口）、weixin 进 fixture 白名单（角色库→青鸟 crossSpace 深链依赖）；menuBoards 展示层零改动。

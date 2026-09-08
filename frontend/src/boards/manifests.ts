@@ -137,7 +137,9 @@ export const canonicalBoards: BoardManifest[] = [
   {
     id: 'schedule', label: '进度计划', icon: 'ScheduleOutlined', page: 'SchedulePage',
     lazy: true, keepAlive: true, layout: 'padded',
-    menuOrder: 12, inMenu: true, space: 'work', // v4.110.0：工程进度计划（横道图/单代号/双代号三视图）
+    // 瘦身刀1（v4.168.0）：schedule 并入办公文档面——inMenu:false 藏出顶栏菜单，
+    // 办公『进度计划』入口承接（白名单刀0 已解耦，注册即可导航不丢能力）
+    menuOrder: 12, inMenu: false, space: 'work',
     featureModel: 'schedule',
   },
 ]

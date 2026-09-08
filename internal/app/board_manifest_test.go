@@ -197,6 +197,16 @@ func TestGetBoardManifestsCanonical(t *testing.T) {
 		len(ct.Bindings) != 1 || ct.Bindings[0] != "CostB" {
 		t.Errorf("成本库板块 manifest 字段不齐: %+v", ct)
 	}
+	// 进度计划（瘦身刀1 v4.168.0）：并入办公文档面——InMenu=false 藏出顶栏菜单/
+	// 启动器，仍注册可导航（前端白名单刀0 已解耦），办公文件面/命令面板承接。
+	sc, ok := byID["schedule"]
+	if !ok {
+		t.Fatal("进度计划板块缺失")
+	}
+	if sc.Label != "进度计划" || sc.Page != "SchedulePage" || sc.InMenu == nil || *sc.InMenu ||
+		sc.MenuOrder != 12 {
+		t.Errorf("瘦身刀1 schedule 应 InMenu=false（办公入口承接）: %+v", sc)
+	}
 	// chat 板块字段抽样对齐 TS schema
 	chat := byID["chat"]
 	if chat.Label != "聊天" || chat.Icon != "MessageOutlined" || chat.Page != "ChatPage" ||

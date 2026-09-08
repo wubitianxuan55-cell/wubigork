@@ -2,7 +2,7 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } fro
 import type { CSSProperties } from "react";
 import { Layout, Modal } from "antd";
 import {
-  BookOpen, Check, SquarePen, Brain, ChevronDown, FolderGit2, FileText,
+  BookOpen, Check, SquarePen, Brain, ChevronDown, FolderGit2, FileText, LineChart,
   PanelRightOpen, PanelRightClose, MessageSquare, Trash2, X, Aim, List, Square,
 } from "./icons";
 import { Sidebar } from "./components/Sidebar";
@@ -15,6 +15,7 @@ import { GenuiActionProvider } from "../genui/GenuiActionContext";
 import { GenuiScopeProvider } from "../genui/scope";
 import { notifyScheduleFileChanged } from "../schedule/store";
 import { scheduleApplyArgsOf } from "../schedule/applyDiff";
+import { emitFrontendEvent, FRONTEND_EVENTS } from "../events";
 import { setGenuiActionHandler } from "./lib/genuiHost";
 import { clearGenuiPanel, sanitizeSessionKey } from "./lib/genuiPanel";
 import { clearBlockStatesForSession } from "../genui/interaction";
@@ -1324,6 +1325,13 @@ export default function App() {
   const paletteItems = useMemo<PaletteItem[]>(() => {
     const cmds: PaletteItem[] = [
       { id: "cmd-new", group: t("palette.group.commands") ?? "命令", title: t("topbar.newSession") ?? "新建会话", icon: <SquarePen size={15} />, compact: true, keywords: ["new", "新建"], run: () => void newSessionAndReset() },
+      // 办公域「进度计划」入口（v4.168 刀1b）：Ctrl+K 直达 schedule 板块，与
+      // ScheduleFileCard.tsx:67 同款 NAVIGATE 事件（前置 v4.167.0 导航白名单已解耦，
+      // 引擎零改动）。title 复用既有键 schedCard.tag（zh=进度计划 / zh-TW=進度計畫 /
+      // en=Schedule，内容层不铺新字典）。「最近工程列表+打开工作台」不由本命令项
+      // 承担：办公文件面 RecentFilesBar 复用 lib/recentFiles 单源（.gsched 文件被
+      // 预览/引用即入列），点摘要卡「在进度计划中打开」已达，此处仅作可检索入口。
+      { id: "cmd-schedule", group: t("palette.group.commands") ?? "命令", title: t("schedCard.tag") ?? "进度计划", icon: <LineChart size={15} />, compact: true, keywords: ["schedule", "进度", "计划", "工作台"], run: () => { emitFrontendEvent(FRONTEND_EVENTS.NAVIGATE, { page: "schedule" }); } },
       { id: "cmd-memory", group: t("palette.group.commands") ?? "命令", title: t("topbar.memory") ?? "记忆", icon: <Brain size={15} />, compact: true, keywords: ["memory", "记忆"], run: () => { setChatTab("memory"); void openMemory(); } },
       { id: "cmd-history", group: t("palette.group.commands") ?? "命令", title: t("topbar.history") ?? "历史", icon: <MessageSquare size={15} />, compact: true, keywords: ["history", "历史"], run: () => void openHistory() },
       { id: "cmd-knowledge", group: t("palette.group.commands") ?? "命令", title: t("topbar.knowledge") ?? "知识库", icon: <BookOpen size={15} />, compact: true, keywords: ["knowledge", "知识库"], run: () => void openKnowledge() },

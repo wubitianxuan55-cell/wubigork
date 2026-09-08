@@ -37,12 +37,14 @@ const BACKEND_FIXTURE = [
 ]
 
 describe('deriveLauncherModules（启动器清单纯函数）', () => {
-  it('静态清单 → 12 卡，顺序与 LAUNCHER_DESC 对齐（v4.110.0 起 schedule 进清单；不含 home）', () => {
+  it('静态清单 → 11 卡，顺序与 LAUNCHER_DESC 对齐（瘦身刀1 v4.168.0：schedule inMenu=false 移出启动器；不含 home）', () => {
     const modules = deriveLauncherModules(canonicalBoards, LAUNCHER_DESC)
     expect(modules.map((m) => m.key)).toEqual([
-      'chat', 'novel', 'imagegen', 'gaea', 'cost', 'code', 'memoryhub', 'modelcenter', 'characterlib', 'settings', 'weixin', 'schedule',
+      'chat', 'novel', 'imagegen', 'gaea', 'cost', 'code', 'memoryhub', 'modelcenter', 'characterlib', 'settings', 'weixin',
     ])
     expect(modules.map((m) => m.key)).not.toContain('home')
+    // 刀1 语义：schedule 并入办公文档面，inMenu=false 移出启动器（办公文件面/命令面板承接）
+    expect(modules.map((m) => m.key)).not.toContain('schedule')
   })
 
   it('静态 11 卡 desc 全部取 LAUNCHER_DESC 文案（name/icon 取 manifest）', () => {

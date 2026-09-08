@@ -157,7 +157,10 @@ var builtinManifests = []Manifest{
 		ID: "schedule", Label: "进度计划", Icon: "ScheduleOutlined",
 		Page: "SchedulePage", Lazy: true, // v4.110.0：工程进度计划（横道图/单代号/双代号三视图，前端自治）
 		KeepAlive: Bool(true), Layout: "padded",
-		MenuOrder: 12, InMenu: Bool(true),
+		// 瘦身刀1（v4.168.0）：并入办公文档面——InMenu:false 藏出顶栏菜单/启动器，
+		// 办公文件面（.gsched 摘要卡）+命令面板「进度计划」项承接（与前端 manifests
+		// 同步翻，防 normalizeManifests 后端字段优先导致真机/浏览器分裂）。
+		MenuOrder: 12, InMenu: Bool(false),
 		Space:        SpaceWork, // 工位·进度计划
 		FeatureModel: "schedule",
 	},

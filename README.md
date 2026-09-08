@@ -92,6 +92,7 @@ gaea/
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| **v4.168.0** | 2026-09-09 | 瘦身 P2 刀1：schedule 并入办公文档面——inMenu:false 藏出顶栏菜单/启动器（前端 manifests+后端 builtins 同步翻，白名单刀0 已解耦注册即可导航）+ 办公「进度计划」入口（命令面板 cmd-schedule Ctrl+K 直达 + 办公文件面 .gsched 摘要卡既有链路）+ 刀2 补验审计落档（docs/gaea-slim-knife2-audit-2026-09.md）+ DataPanel 绑定签名修复。零绑定 602；vitest 2715→2720；Go 115 包全绿。详见 releases/v4.168.0.md |
 | **v4.167.0** | 2026-09-09 | 瘦身 P2 刀0（白名单解耦：注册即可导航，inMenu 只控菜单，settings 进白名单）+ P0 基线落档 docs/gaea-slim-baseline-2026-09.md（七面四表实测+13 板块等价快照+IA 走查）+ 审计刀D Filters（GaeaPickFiles 可选扩展名过滤，系统对话框前置）+ nanoid 3.3.17→3.3.18（GHSA 清零）+ downloadMarkdown 死代码清理。零绑定 602；vitest 2684→2715；Go 115 包全绿。详见 releases/v4.167.0.md |
 | **v4.166.0** | 2026-09-09 | 瘦身 P1 快赢：轮子四刀全收（W1 b64 收口 ~20 处+inShell 合一 / W2 slug×5 收敛 strutil.TitleSlug / W3 novel diff 迁 lib/diff LCS）+ 审计刀B（下载类×4：ImageGen×2/NovelSetting/办公 md 统一交付管线）+ 刀C（上传类×3：ControlPanel/VisionTrial/SkillModal 壳内系统对话框）+ locale 死键清零（1445 键 0 死）+ 依赖验活（26 直依赖逐个计数，codemirror 顶包死重移除、@codemirror/* 四子包显式化）。零绑定 602；vitest 2684→2712；Go 115 包全绿。详见 releases/v4.166.0.md |
 | **v4.165.0** | 2026-09-08 | 拍板落档（路线A=终极个人工具 + LICENSE=私有 All Rights Reserved）；壳内残留审计刀A：P0×2 修复——基线面板签证台账 CSV 导出改系统另存为（此前壳内点击无反应）、角色库「添加参考图」接 GaeaPickFiles 系统对话框读回 dataURL（此前无替代路径卡死 img2img 立绘）；新中立层 gaea/lib/pickFile（扩展名后置校验 fail-closed）。vitest 2684 首跑全绿。详见 releases/v4.165.0.md |

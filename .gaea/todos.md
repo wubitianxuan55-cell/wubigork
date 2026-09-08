@@ -41,7 +41,7 @@
 |------|------|
 | ✅ | P0 基线落档（v4.167.0）：docs/gaea-slim-baseline-2026-09.md——七面四表实测（dist 10.0MB/entry 1192.79kB/exe 46.22MB/npm 直依赖 29）+ 功能等价快照（13 板块×核心动作，knowledge 纠正为后端 D7 被过滤）+ IA 走查（rail/默认空间/首页陈列/双空间并列未表达实证） |
 | ✅ | P1 快赢轮子（v4.166.0）：W1 b64 收口（≈20 处含 inShell 合一）+ W2 slug×5（strutil.TitleSlug+legacy golden matrix）+ W3 novel diff（DiffReview 迁 lib/diff LCS）+ 刀B/C + locale 死键（1445 键 0 死）+ 依赖验活（26 依赖逐个统计，codemirror 顶包死重移除、@codemirror/* 四子包显式化） |
-| ⬜ | P2 形态（2版）：白名单解耦刀0 ✅（v4.167.0）→schedule 并入办公刀1/2→双空间并列落地（工位/乐园平级切换器+分域导航）→home 空间感知化→壳内走查（待证项：rail code 双入口/后端 nav 子项差异/knowledge 孤儿页） |
+| ⬜ | P2 形态（2版）：白名单解耦刀0 ✅（v4.167.0）→schedule 并入办公刀1/刀2 ✅（v4.168.0：inMenu:false 前后端同步翻+命令面板 cmd-schedule+.gsched 文件面审计落档 docs/gaea-slim-knife2-audit-2026-09.md）→双空间并列落地（工位/乐园平级切换器+分域导航）→home 空间感知化→壳内走查（待证项：rail code 双入口/后端 nav 子项差异/knowledge 孤儿页/刀3 工作台内嵌办公评估） |
 | ⬜ | P3 结构（2版）：office 抽核+巨文件首批+bridge 双轨退役启动 |
 | ⬜ | P4 性能（1版）：懒初始化+exe strip+MemoryHub chunk+entry 拆解 |
 | ⬜ | P5 维持：季度复测+观察池审判（cost 文档化/虚拟滚动/内嵌） |

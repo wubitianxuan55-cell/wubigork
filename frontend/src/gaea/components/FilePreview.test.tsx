@@ -2,6 +2,7 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import { FilePreview } from "./FilePreview";
 import { ToastProvider } from "./Toast";
+import { LocaleProvider } from "../lib/i18n";
 import { useComposerInsertStore } from "../lib/store";
 import type { PreviewResult, PptxOutlineView } from "../lib/types";
 
@@ -509,5 +510,53 @@ describe("FilePreview U4 写后预览实时跟随（reloadSignal 静默重载）
     rerender(wrap(<FilePreview relPath="notes/a.md" onClose={() => {}} />));
     await act(async () => { await Promise.resolve(); });
     expect(mocks.previewCall).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ── 瘦身 P2 刀2 补验（审计 G-5）：.gsched.json 在办公文件面走进度计划摘要卡 ──
+// 分发核心 = isScheduleFilePath + parseSchedSummary（FilePreview.tsx:618-627），
+// 既有组件级测试只到 ScheduleFileCard.test.tsx，本用例锁「分发」本身。
+// 合法 .gsched JSON → sched-file-card 渲染；坏 JSON → 回落 <pre> 文本视图。
+// 注意：ScheduleFileCard 内部 useT()（gdata/i18n），此处需 LocaleProvider 包裹
+//（同 ScheduleFileCard.test.tsx:44 先例；FilePreview 主测试其他分支不触发）。
+describe("FilePreview .gsched 分发（瘦身刀2 补验 G-5）", () => {
+  const wrapSched = (node: React.ReactNode) => (
+    <LocaleProvider>
+      <ToastProvider>{node}</ToastProvider>
+    </LocaleProvider>
+  );
+  const gschedPreview: PreviewResult = {
+    path: "进度计划/当前计划.gsched.json",
+    name: "当前计划.gsched.json",
+    ext: ".gsched.json",
+    size: 100,
+    kind: "text",
+    body: JSON.stringify({
+      startDate: "2026-01-05", // 周一；parseSchedSummary 要求 YYYY-MM-DD 才出 hasSchedule
+      tasks: [{ id: "t1", name: "开挖", duration: 5, level: 1 }],
+      links: [],
+      meta: {},
+    }),
+    dataUrl: "",
+    error: "",
+  };
+
+  beforeEach(() => {
+    mocks.preview = gschedPreview;
+  });
+
+  it("合法 .gsched.json → 摘要卡（sched-file-card）出现，不吐 JSON 原文", async () => {
+    render(wrapSched(<FilePreview relPath="进度计划/当前计划.gsched.json" onClose={() => {}} />));
+    const card = await screen.findByTestId("sched-file-card");
+    expect(card).toBeTruthy();
+    expect(screen.queryByText((_, el) => el?.textContent === gschedPreview.body)).toBeNull();
+    expect(mocks.previewCall).toHaveBeenCalledWith("进度计划/当前计划.gsched.json");
+  });
+
+  it("坏 JSON body → 回落原始文本视图（宁回落勿误报）", async () => {
+    mocks.preview = { ...gschedPreview, body: "not a valid project json" };
+    render(wrapSched(<FilePreview relPath="进度计划/当前计划.gsched.json" onClose={() => {}} />));
+    await screen.findByText(/not a valid project json/);
+    expect(screen.queryByTestId("sched-file-card")).toBeNull();
   });
 });

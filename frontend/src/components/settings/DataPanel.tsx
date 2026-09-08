@@ -80,7 +80,9 @@ export const DataPanel: React.FC = () => {
   const handleRestore = async () => {
     setRestoring(true)
     try {
-      const files: { path: string; name: string; size: number }[] = await App.GaeaPickFiles()
+      // 审计刀D Filters（v4.167.0）：恢复只接受 .zip → 系统对话框前置过滤，
+      // 选错概率趋零；后置校验（#9）保留为 fail-closed 双保险。
+      const files: { path: string; name: string; size: number }[] = await App.GaeaPickFiles('zip')
       if (!files || files.length === 0) return
       // #9：只接受 .zip；选到非 zip 直接提示
       const zip = files.find((f) => f.name.toLowerCase().endsWith('.zip'))
