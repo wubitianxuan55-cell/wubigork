@@ -68,12 +68,20 @@ jobs:
         with:
           node-version: '22'
 
-      # 仓库按约定不提交 package-lock.json（.gitignore），用 npm install 而非 npm ci
-      - run: npm install
+      # package-lock.json 已入库：npm ci 保证 CI 与本地依赖树一致。
+      - run: npm ci
 
       - run: npm run lint
 
       - run: npm run build
 
       # vitest 全量用例（此前未进 CI；E1-1 补齐）
-      - run: npm run test
+      # flaky 治理（2026-09-08）：双测试套件同机满并发时偶发 5s 超时假红，
+      # 隔离复跑即绿；整体失败后重试一次，二次仍失败则正常红。
+      - name: Frontend tests (with flaky retry)
+        shell: bash
+        run: |
+          if ! npm run test; then
+            echo "first run failed (possibly flaky), retrying once..."
+            npm run test
+          fi

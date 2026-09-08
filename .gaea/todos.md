@@ -19,10 +19,10 @@
 
 | 状态 | 任务 |
 |------|------|
-| 🔄 | 1.1 package-lock 入库 + CI npm ci（供应链可复现） |
-| 🔄 | 1.2 vitest 抗抖：testTimeout 15s + CI 前端 flaky retry（对齐 Go job） |
-| 🔄 | 1.3 DeliverablesPanel 过期 id 潜伏 bug 复现钉死（原「已知潜伏 bug」行转入本表） |
-| 🔄 | 1.4 WebView2 壳内残留面扫描（input[file]/a[download]/print → 风险表+刀序，修复另立刀） |
+| ✅ | 1.1 package-lock 入库 + CI npm ci（v4.164.0；npm 11 lockfile 缺漏坑已沉淀） |
+| ✅ | 1.2 vitest 抗抖：testTimeout 15s + CI 前端 flaky retry（v4.164.0） |
+| ✅ | 1.3 DeliverablesPanel 过期 id 潜伏 bug 复现钉死（v4.164.0：office→gaea，+1 回归锁） |
+| ✅ | 1.4 WebView2 壳内残留面扫描 → docs/webview2-shell-audit-2026-09.md（P0×2/P1×7/刀序A-D；修复刀A-C 另立版本，刀D 真机取证） |
 | ⬜ | 拍板：性质路线 A/B + LICENSE 选择（阻塞 W2 起的产品期权项） |
 
 ## 文档整理（2026-09-09）✅

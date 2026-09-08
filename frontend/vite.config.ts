@@ -39,6 +39,7 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: './src/test/setup.ts',
     css: true,
+    testTimeout: 15000, // 双测试套件同机满并发时偶发 5s 超时假红，放宽以降低环境抖动
   },
   server: {
     port: 5173,

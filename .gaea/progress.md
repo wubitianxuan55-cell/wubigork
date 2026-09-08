@@ -1,5 +1,12 @@
 # 任务进度
 
+## 最新发布：v4.164.0（2026-09-08）「收敛计划 W1 卫生刀」
+
+- **立项**：docs/gaea-convergence-plan-2026-09.md（收敛期叠加层：卫生/外化/止血刀+节奏改革）；三线并发子代理（A 供应链+抗抖/B 潜伏 bug/C 只读审计）足迹互斥，主代理收口。
+- **内容**：①package-lock 入库+CI npm ci（npm 11 lockfile 缺漏坑→npm 10 生成，701 包）；②vitest testTimeout 15s+CI 前端 flaky retry（动因=同机满并发 32 例假红实测）；③修 DeliverablesPanel「回办公面板重新规划」失效（NAVIGATE 过期板块 id office→gaea 被白名单静默丢弃，v4.121 潜伏 bug 销项，+1 先失败回归锁）；④WebView2 残留审计落档 docs/webview2-shell-audit-2026-09.md（P0×2/P1×7/刀序 A-D）。
+- **门禁**：Go 全量绿（116 包）、vitest 2677→2678（复跑全绿）、tsc/eslint 0、drift PASS@602（v4.163 文案 603 系口径出入）、build+冒烟过。
+- **欠账**：nanoid high 升级刀、审计刀 A-D、LICENSE/性质拍板。
+
 ## 最新发布：v4.163.0（2026-09-08）「gaea 长期日志机制」
 
 - **机制**：按日分文件 <DataRoot>/logs/gaea-YYYYMMDD.log（保留 365 天+1GB 兜底+启动清理）；旧 gaea.log 迁入 legacy；启动头带版本、Shutdown 记时长；前端诊断自动汇入；GaeaOpenLogsDir 绑定+设置→数据「打开日志目录」按钮。

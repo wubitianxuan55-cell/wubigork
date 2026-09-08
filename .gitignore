@@ -15,7 +15,6 @@ xlsx.out
 frontend/dist/
 frontend/node_modules/
 node_modules/
-package-lock.json
 /package.json
 *.tsbuildinfo
 frontend/package.json.md5

@@ -348,9 +348,11 @@ export const DeliverablesPanel = memo(function DeliverablesPanel({
     }
   }, [t, toast]);
 
-  // v4.6 失败回 Plan：xlsx_apply 复核未通过 → 一键回到办公板块重新规划
+  // v4.6 失败回 Plan：xlsx_apply 复核未通过 → 一键回到办公板块重新规划。
+  // NAVIGATE 的 page 是壳层板块 id（manifest），办公板块 id 为 gaea，
+  // 不能沿用历史模块名 office（不在 MainLayout 导航白名单内）。
   const replanFailed = useCallback((r: JournalChangeRecord) => {
-    emitFrontendEvent(FRONTEND_EVENTS.NAVIGATE, { page: "office" });
+    emitFrontendEvent(FRONTEND_EVENTS.NAVIGATE, { page: "gaea" });
     toast.show(t("deliverPanel.replanToast", { path: r.target }), "info");
   }, [t, toast]);
 

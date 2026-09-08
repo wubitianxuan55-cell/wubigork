@@ -5,6 +5,9 @@ import { DeliverablesPanel } from "./DeliverablesPanel";
 import { ToastProvider } from "./Toast";
 import { LocaleProvider } from "../lib/i18n";
 import { useComposerInsertStore, usePreviewStore, useUpdatedFilesStore } from "../lib/store";
+import type { JournalChangeRecord, VerdictView } from "../lib/types";
+import { canonicalBoards } from "../../boards/manifests";
+import { FRONTEND_EVENTS } from "../../events";
 
 // DeliverablesPanel 走 useT；钉住 zh 让既有中文文案断言继续成立（默认 zh，
 // i18n 抽查用例可显式传 "en" 验证英文键值）
@@ -511,6 +514,67 @@ describe("DeliverablesPanel 证据链三步展开（v4.8）", () => {
     expect(await screen.findByText(/已回滚 docs\/成本测算\.xlsx/)).toBeTruthy();
     // 回滚后可再次复核（按钮仍在）
     expect(screen.getAllByTitle("双通道复核（结构/引用完整性 + 视觉健全性）").length).toBeGreaterThan(0);
+  });
+
+  it("复核失败回 Plan：NAVIGATE 发当前办公板块 id（gaea），过期 office id 会被壳层白名单丢弃", async () => {
+    // 用一条可控证据卡 + failed verdict 驱动「回办公面板重新规划」按钮。
+    const record: JournalChangeRecord = {
+      id: "ev_replan_stale",
+      sessionId: "mock-session",
+      space: "work",
+      turn: 1,
+      tool: "xlsx_apply",
+      target: "docs/成本测算.xlsx",
+      beforeSummary: "旧版",
+      afterSummary: "新版",
+      at: Date.now() - 60_000,
+      status: "applied",
+    };
+    const verdict: VerdictView = {
+      id: record.id,
+      status: "failed",
+      channelA: "结构完整",
+      channelB: "视觉异常",
+      note: "复核失败",
+      at: Date.now(),
+    };
+    const win = window as unknown as { go?: unknown };
+    const originalGo = win.go;
+    win.go = {
+      app: {
+        regression: {
+          GaeaJournalList: vi.fn(async () => [record]),
+          GaeaVerifyRecord: vi.fn(async () => verdict),
+          GaeaListSessions: vi.fn(async () => []),
+          GaeaPreview: vi.fn(async () => ({ kind: "none" })),
+        },
+      },
+    };
+    const payloads: Array<{ page?: string }> = [];
+    const onNavigate = (e: Event) => payloads.push((e as CustomEvent).detail);
+    window.addEventListener(FRONTEND_EVENTS.NAVIGATE, onNavigate);
+
+    try {
+      renderT(
+        <ToastProvider>
+          <DeliverablesPanel items={[{ path: record.target, sourceId: "a1" }]} onOpenFile={() => {}} />
+        </ToastProvider>,
+      );
+      fireEvent.click(screen.getByText("证据链"));
+      await screen.findByText("1 条变更证据卡");
+      fireEvent.click(screen.getByTitle("双通道复核（结构/引用完整性 + 视觉健全性）"));
+      await screen.findByText("复核失败");
+      fireEvent.click(screen.getByTitle("回办公面板重新规划后再应用（失败回 Plan）"));
+
+      // MainLayout 的 NAVIGATE 消费只接受 manifest 板块 id（白名单）。
+      // 办公板块现 id=gaea；旧 office id 不在清单内，会被静默丢弃。
+      expect(payloads).toEqual([{ page: "gaea" }]);
+      expect(canonicalBoards.map((b) => b.id)).toContain("gaea");
+      expect(canonicalBoards.map((b) => b.id)).not.toContain("office");
+    } finally {
+      window.removeEventListener(FRONTEND_EVENTS.NAVIGATE, onNavigate);
+      win.go = originalGo;
+    }
   });
 
   // ── v4.16 通道 B 结果产品化：verdict 携带像素差异率时渲染「视觉复核」行 ──
