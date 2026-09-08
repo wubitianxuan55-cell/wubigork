@@ -704,14 +704,21 @@ func (a *App) GaeaPickDirectory() string {
 }
 
 // GaeaPickFiles 使用系统文件对话框选择文件。
-func (a *App) GaeaPickFiles() []FilePickResult {
+// filters 可选（审计刀D）：逗号分隔的小写扩展名列表（如 "png,jpg"），经 Wails
+// FileFilter 前置于系统对话框；空串 = 不过滤。调用方仍应保留 pickFile.ts 的
+// 扩展名后置校验（宽容模式下系统对话框过滤可绕过，fail-closed 双保险）。
+func (a *App) GaeaPickFiles(filters string) []FilePickResult {
 	if a.ctx == nil {
 		return []FilePickResult{}
 	}
-	files, err := runtime.OpenMultipleFilesDialog(a.ctx, runtime.OpenDialogOptions{
+	opts := runtime.OpenDialogOptions{
 		Title:            "选择文件",
 		DefaultDirectory: gaeaCwd(),
-	})
+	}
+	if f := pickFileFilter(filters); f != nil {
+		opts.Filters = []runtime.FileFilter{*f}
+	}
+	files, err := runtime.OpenMultipleFilesDialog(a.ctx, opts)
 	if err != nil {
 		return []FilePickResult{}
 	}
@@ -724,6 +731,26 @@ func (a *App) GaeaPickFiles() []FilePickResult {
 		out = append(out, FilePickResult{Path: f, Name: filepath.Base(f), Size: info.Size()})
 	}
 	return out
+}
+
+// pickFileFilter 把逗号分隔扩展名（"png,jpg"）转成 Wails FileFilter
+// （"*.png;*.jpg"）；空输入返回 nil=不过滤。扩展名去点小写去空白。
+func pickFileFilter(filters string) *runtime.FileFilter {
+	exts := []string{}
+	for _, raw := range strings.Split(filters, ",") {
+		e := strings.TrimSpace(strings.ToLower(strings.TrimPrefix(raw, ".")))
+		if e == "" {
+			continue
+		}
+		exts = append(exts, "*."+e)
+	}
+	if len(exts) == 0 {
+		return nil
+	}
+	return &runtime.FileFilter{
+		DisplayName: strings.Join(exts, "; "),
+		Pattern:     strings.Join(exts, ";"),
+	}
 }
 
 // GaeaLogFrontendError 记录前端错误/卡死诊断到 gaea.log（前端全局

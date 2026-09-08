@@ -681,7 +681,9 @@ export interface AppBindings {
   KnowledgeDelete(name: string): Promise<void>;
   // Cost database panel.
   // PickFiles opens a native file dialog and imports selected files.
-  PickFiles(): Promise<FilePickResult[]>;
+  // filters 可选（审计刀D）：逗号分隔小写扩展名（如 "png,jpg"），空串=不过滤；
+  // Wails 系统对话框前置过滤，壳内仍以后置校验兜底。
+  PickFiles(filters?: string): Promise<FilePickResult[]>;
   // ReadFileB64 读取本地文件为 base64（配合 PickFiles：进度计划导入链路，v4.162）。
   ReadFileB64(path: string): Promise<string>;
   // SaveFileAs 系统「另存为」对话框 + 写入 base64 内容（进度计划导出链路，v4.162）。

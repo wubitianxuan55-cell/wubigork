@@ -75,9 +75,12 @@ describe('menuBoards（附 B #4：filter(inMenu) + sort(menuOrder)）', () => {
 })
 
 describe('navigateWhitelist（附 B #2：manifest 派生导航白名单）', () => {
-  it('与旧 allPageKeys 一致：业务板块，不含 home/settings（v4.110.0 加 schedule）', () => {
+  // 刀0 瘦身：白名单与 inMenu 解耦——注册即可导航（!isHome），inMenu 只控菜单。
+  // settings 在 canonicalBoards 中 inMenu=false 但有隐式入口（右上角按钮），解耦后
+  // 也进白名单 = 允许 NAVIGATE 直达（v4.164 前科根治，藏板块不再静默丢导航）。
+  it('注册即可导航：全部业务板块（v4.110.0 加 schedule），不含 home，含 inMenu=false 的 settings', () => {
     expect(navigateWhitelist).toEqual([
-      'chat', 'novel', 'imagegen', 'gaea', 'cost', 'code', 'memoryhub', 'modelcenter', 'characterlib', 'weixin', 'schedule',
+      'chat', 'novel', 'imagegen', 'gaea', 'cost', 'code', 'memoryhub', 'modelcenter', 'characterlib', 'settings', 'weixin', 'schedule',
     ])
   })
 })
@@ -164,9 +167,12 @@ describe('normalizeManifests（板块差集归一：后端清单 + 前端 home �
     ])
   })
 
-  it('导航白名单 = 后端清单 + home（knowledge 已并入记忆中枢不单列）', () => {
+  // 刀0 解耦：fixture 中 settings/weixin 均 inMenu=false 但已注册 → 进白名单
+  // （settings 隐式入口、weixin 注册存在，注册即可导航）；home 排除；knowledge
+  // 已并入记忆中枢被过滤（不单列也不尾随）。
+  it('注册即可导航：后端清单 + home（inMenu=false 的 settings/weixin 进白名单；knowledge 仍被过滤）', () => {
     expect(deriveNavigateWhitelist(normalizeManifests(BACKEND_FIXTURE))).toEqual([
-      'chat', 'novel', 'imagegen', 'gaea', 'cost', 'code', 'memoryhub', 'modelcenter', 'characterlib',
+      'chat', 'novel', 'imagegen', 'gaea', 'cost', 'code', 'memoryhub', 'modelcenter', 'characterlib', 'settings', 'weixin',
     ])
   })
 

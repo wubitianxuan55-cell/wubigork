@@ -1,12 +1,13 @@
 /**
- * pickFile.test.ts — Wails 壳内文件选取共享 util 用例（审计刀A）
+ * pickFile.test.ts — Wails 壳内文件选取共享 util 用例（审计刀A + 刀D Filters）
  *
  * 壳路径经 window.go stub 直装真壳同款 Gaea 前缀绑定面（bridge realApp
  * 代理按方法名路由，同 schedule/store.sync.test.ts 口径）；afterEach 删
  * window.go 还原浏览器/bridge-mock 通道。
  * 覆盖：取消（PickFiles 空）→ null、扩展名白名单后置校验 fail-closed
- * （GaeaPickFiles 无过滤器）、正常链路 PickFiles→ReadFileB64→还原 File
- * / dataURL（mime 按扩展名映射）。
+ * （GaeaPickFiles 支持可选 filters，后置校验仍兜底）、filters 传参（系统
+ * 对话框前置过滤）、正常链路 PickFiles→ReadFileB64→还原 File / dataURL
+ * （mime 按扩展名映射）。
  */
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { inShellEnv, pickFileAsFile, pickImageAsDataUrl } from './pickFile'
@@ -43,7 +44,7 @@ describe('pickFile（壳内文件选取共享 util）', () => {
     expect(readFileB64).not.toHaveBeenCalled() // 取消不读内容
   })
 
-  it('扩展名白名单后置校验：不合法抛错且不读内容（GaeaPickFiles 无过滤器，fail-closed）', async () => {
+  it('扩展名白名单后置校验：不合法抛错且不读内容（fail-closed 双保险）', async () => {
     const { readFileB64 } = stubPickSurface(
       [{ path: 'C:/x/a.exe', name: 'a.exe', type: 'file', size: 5 }],
       'aGVsbG8=',
@@ -53,6 +54,25 @@ describe('pickFile（壳内文件选取共享 util）', () => {
       '仅支持 .png/.jpg/.jpeg/.webp/.gif/.bmp 文件',
     )
     expect(readFileB64).not.toHaveBeenCalled()
+  })
+
+  it('filters 前置：PickFiles 收到逗号分隔扩展名（审计刀D 系统对话框过滤）', async () => {
+    const { pickFiles, readFileB64 } = stubPickSurface(
+      [{ path: 'C:/imgs/ref.png', name: 'ref.png', type: 'image', size: 5 }],
+      'aGVsbG8=',
+    )
+    await pickFileAsFile(['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp'])
+    expect(pickFiles).toHaveBeenCalledWith('png,jpg,jpeg,webp,gif,bmp')
+    expect(readFileB64).toHaveBeenCalledWith('C:/imgs/ref.png')
+  })
+
+  it('无 accept：PickFiles 不传 filters（undefined=系统对话框不过滤）', async () => {
+    const { pickFiles } = stubPickSurface(
+      [{ path: 'C:/x/any.bin', name: 'any.bin', type: 'file', size: 5 }],
+      'aGVsbG8=',
+    )
+    await pickFileAsFile()
+    expect(pickFiles).toHaveBeenCalledWith(undefined)
   })
 
   it('正常链路：PickFiles → ReadFileB64 → 还原 File（文件名 + 字节内容）', async () => {

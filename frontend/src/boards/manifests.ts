@@ -159,9 +159,12 @@ export function deriveMenuBoards(list: BoardManifest[]): BoardManifest[] {
     .sort((a, b) => (a.menuOrder ?? Number.MAX_SAFE_INTEGER) - (b.menuOrder ?? Number.MAX_SAFE_INTEGER))
 }
 
-/** 导航白名单：非 home 且 inMenu 的板块 id（附 B #2，navigate 事件校验） */
+/** 导航白名单：所有已注册板块 id（附 B #2，navigate 事件校验）。
+ *  瘦身刀0 解耦（manifests 语义）：注册即可导航——filter 只排除 home（!isHome），
+ *  inMenu 只控菜单、不再派生可导航性。v4.164 前科：藏板块（inMenu=false）经
+ *  NAVIGATE 白名单 fail-closed 静默丢导航；刀1 schedule inMenu=false 依赖本语义。 */
 export function deriveNavigateWhitelist(list: BoardManifest[]): string[] {
-  return list.filter((b) => b.inMenu && !b.isHome).map((b) => b.id)
+  return list.filter((b) => !b.isHome).map((b) => b.id)
 }
 
 /** 快捷键映射：'ctrl+1' → board（附 B #6，显式声明不依赖数组顺序） */

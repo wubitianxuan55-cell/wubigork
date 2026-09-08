@@ -1,5 +1,14 @@
 # 任务进度
 
+## 最新发布：v4.167.0（2026-09-09）「瘦身 P2 刀0（白名单解耦）+ P0 基线落档 + 审计刀D Filters + nanoid 升级」
+
+- **线A P2 刀0 白名单解耦**（子代理）：deriveNavigateWhitelist filter `inMenu && !isHome` → `!isHome`——**注册即可导航**，inMenu 只控菜单（v4.164 前科根治；刀1 schedule inMenu=false 依赖本语义）；settings 进白名单（隐式入口）、weixin 进 fixture 白名单（角色库→青鸟 crossSpace 深链依赖）；menuBoards 展示层零改动。
+- **线B P0 基线落档**（子代理）：docs/gaea-slim-baseline-2026-09.md——§1 七面四表实测（dist 10.0MB/227、entry 1192.79kB、MemoryHub 1436.11kB 解剖、exe 46.22MB、npm 直依赖 29、>50KB 源文件 16）；§2 功能等价快照 13 板块×核心动作（纠正 knowledge 非一级导航=后端 D7 被过滤、KnowledgePage 孤儿页入 P2 待证）；§3 IA 走查（rail 12 板块平铺+foot code 区勘出双入口疑似项、默认空间=work、首页 Bento 无空间过滤、双空间并列未表达实证成立仅 3 处空间感知）。
+- **线C nanoid+死代码**（子代理）：nanoid 3.3.17→3.3.18（审计实证受影响范围 <3.3.18 修正过时口径；纯传递依赖免 overrides；npm 11 写坏 lockfile→git restore+手动单条目+dry-run，diff 3 行）；GHSA-2v37-7h3g-55p8 清零（npm audit total=0）；downloadMarkdown 删（export.ts，exportAsMarkdown 保留）+ App.export.test 源级断言强化。
+- **线D 审计刀D Filters**（主代理）：GaeaPickFiles(filters string) 可选扩展名过滤（Go 转 Wails FileFilter 前置系统对话框）+ 前端 bridge/mock/pickFile 传参，后置校验保留 fail-closed 双保险；pick_file_filter_test.go 7 例。
+- **门禁**：Go 115 包 0 FAIL（首跑干净）、vitest 2684→2715（+3 vs v4.166）、tsc/eslint 0、drift PASS@602（Filters 签名变化方法名零变更）、vite+wails build+冒烟 200。
+- **欠账**：审计刀D 真机取证（printSvg print/拖拽/粘贴）、P2 走查待证项（rail code 双入口/后端 nav 子项差异/knowledge 孤儿页）、P2 刀1/刀2 待续、双空间并列落地随 P2 主干。
+
 ## 最新发布：v4.166.0（2026-09-09）「瘦身 P1 快赢：轮子四刀全收 + 审计刀B/C + locale 死键 + 依赖验活」
 
 - **W1 字节+双门收口**：新中立层 gaea/lib/bytes.ts（b64ToBytes 唯一解码规范，全仓 ~20 处手搓 atob 循环收口）+ gaea/lib/saveFile.ts（downloadBlob/dataUrlToBlob/saveExportBlob 从 schedule/exportArtifact 迁入，schedule 侧 re-export 零改动，防域倒挂）；inShell 判定合一=pickFile.inShellEnv 全仓唯一规范（exportArtifact.inShell 薄委托）。

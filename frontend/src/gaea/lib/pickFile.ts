@@ -6,8 +6,9 @@
  * 本模块是中立基础层：只许 import ./bridge（types 经 bridge 返回类型带入）
  * 与同级零依赖 util（./bytes），供任意域（角色库参考图、进度计划导入…）
  * 复用，防 schedule 域依赖倒挂。
- * 注意：GaeaPickFiles 无文件类型过滤器（审计刀D 项）——调用方传 accept
- * 扩展名数组由本层后置校验，不合法抛错由调用方提示（fail-closed 不静默吞）。
+ * 注意：GaeaPickFiles 自审计刀D 起支持**可选扩展名过滤**（filters 传逗号分隔
+ * 小写扩展名，空=不过滤，系统对话框前置）——本层仍保留扩展名后置校验（宽容
+ * 模式可绕过系统过滤，fail-closed 双保险不静默吞），不合法抛错由调用方提示。
  * GaeaReadFileB64 后端上限 64MB（os.Stat 拒绝，防误用），超限报错透传。
  */
 import { app } from './bridge'
@@ -45,12 +46,13 @@ function extOf(name: string): string {
 /**
  * 壳内选取单个文件并还原为 File（浏览器路径由调用方走原生 input，本函数
  * 不做壳判断）。GaeaPickFiles 空=用户取消→返回 null。accept 传小写扩展名
- * 数组（如 ['png','jpg']），按文件名后缀判定（大小写不敏感）；不合法抛
- * Error('仅支持 …')由调用方 toast——fail-closed 不静默吞。内容经
- * GaeaReadFileB64 读回（上限 64MB，超限报错透传）。
+ * 数组（如 ['png','jpg']）：①系统对话框前置过滤（filters 逗号拼接，审计刀D）
+ * ②按文件名后缀后置复核（大小写不敏感），不合法抛 Error('仅支持 …')由
+ * 调用方 toast——fail-closed 双保险不静默吞。内容经 GaeaReadFileB64 读回
+ * （上限 64MB，超限报错透传）。
  */
 export async function pickFileAsFile(accept?: string[]): Promise<File | null> {
-  const picked = await app.PickFiles()
+  const picked = await app.PickFiles(accept?.length ? accept.map((e) => e.toLowerCase().replace(/^\./, '')).join(',') : undefined)
   if (!picked?.length) return null
   const f = picked[0]
   if (accept?.length) {

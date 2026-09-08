@@ -20,10 +20,3 @@ export function exportAsMarkdown(items: Item[]): string {
   }
   return lines.join("\n");
 }
-
-export function downloadMarkdown(md: string, filename = "gaea-session.md") {
-  const blob = new Blob([md], { type: "text/markdown;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a"); a.href = url; a.download = filename; a.click();
-  URL.revokeObjectURL(url);
-}

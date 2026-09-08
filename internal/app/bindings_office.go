@@ -96,7 +96,7 @@ func (b *OfficeB) GaeaOpenDownloadPage() error { return b.a.GaeaOpenDownloadPage
 func (b *OfficeB) GaeaOpenWorkspacePath(rel string) error { return b.a.GaeaOpenWorkspacePath(rel) }
 func (b *OfficeB) GaeaPermLevel() string { return b.a.GaeaPermLevel() }
 func (b *OfficeB) GaeaPickDirectory() string { return b.a.GaeaPickDirectory() }
-func (b *OfficeB) GaeaPickFiles() []FilePickResult { return b.a.GaeaPickFiles() }
+func (b *OfficeB) GaeaPickFiles(filters string) []FilePickResult { return b.a.GaeaPickFiles(filters) }
 func (b *OfficeB) GaeaPickWorkspace() string { return b.a.GaeaPickWorkspace() }
 func (b *OfficeB) GaeaPinMaterial(rel string) []FileSearchHit { return b.a.GaeaPinMaterial(rel) }
 func (b *OfficeB) GaeaPinSession(path string, pinned bool) error { return b.a.GaeaPinSession(path, pinned) }

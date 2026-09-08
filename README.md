@@ -92,6 +92,7 @@ gaea/
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| **v4.167.0** | 2026-09-09 | 瘦身 P2 刀0（白名单解耦：注册即可导航，inMenu 只控菜单，settings 进白名单）+ P0 基线落档 docs/gaea-slim-baseline-2026-09.md（七面四表实测+13 板块等价快照+IA 走查）+ 审计刀D Filters（GaeaPickFiles 可选扩展名过滤，系统对话框前置）+ nanoid 3.3.17→3.3.18（GHSA 清零）+ downloadMarkdown 死代码清理。零绑定 602；vitest 2684→2715；Go 115 包全绿。详见 releases/v4.167.0.md |
 | **v4.166.0** | 2026-09-09 | 瘦身 P1 快赢：轮子四刀全收（W1 b64 收口 ~20 处+inShell 合一 / W2 slug×5 收敛 strutil.TitleSlug / W3 novel diff 迁 lib/diff LCS）+ 审计刀B（下载类×4：ImageGen×2/NovelSetting/办公 md 统一交付管线）+ 刀C（上传类×3：ControlPanel/VisionTrial/SkillModal 壳内系统对话框）+ locale 死键清零（1445 键 0 死）+ 依赖验活（26 直依赖逐个计数，codemirror 顶包死重移除、@codemirror/* 四子包显式化）。零绑定 602；vitest 2684→2712；Go 115 包全绿。详见 releases/v4.166.0.md |
 | **v4.165.0** | 2026-09-08 | 拍板落档（路线A=终极个人工具 + LICENSE=私有 All Rights Reserved）；壳内残留审计刀A：P0×2 修复——基线面板签证台账 CSV 导出改系统另存为（此前壳内点击无反应）、角色库「添加参考图」接 GaeaPickFiles 系统对话框读回 dataURL（此前无替代路径卡死 img2img 立绘）；新中立层 gaea/lib/pickFile（扩展名后置校验 fail-closed）。vitest 2684 首跑全绿。详见 releases/v4.165.0.md |
 | **v4.164.0** | 2026-09-08 | 收敛计划 W1 卫生刀：package-lock 入库+CI npm ci（供应链可复现，CI 与本地同树）；vitest testTimeout 15s+CI 前端 flaky retry（同机满并发超时假红实测驱动）；修 DeliverablesPanel「回办公面板重新规划」失效（NAVIGATE 过期板块 id office→gaea 被白名单静默丢弃，+1 回归锁）；WebView2 残留面审计落档（P0×2/P1×7/修复刀序 A-D）。零绑定 drift PASS@602；vitest 2678。详见 releases/v4.164.0.md |

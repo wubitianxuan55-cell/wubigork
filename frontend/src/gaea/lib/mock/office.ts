@@ -892,7 +892,7 @@ export function buildOffice(_s: MakeMockState): OfficeMethods {
     async HerdsmanOperations() {
       return { total: 0, items: [], source: "herdsman-operations" };
     },
-    async PickFiles(): Promise<FilePickResult[]> {
+    async PickFiles(_filters?: string): Promise<FilePickResult[]> {
       // In dev mode there is no native dialog -- return empty.
       return [];
     },
