@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildAoa, AOA_COL_W, AOA_MARGIN } from './aoa'
+import { buildAoa, AOA_ASPECT_MAX, AOA_COL_W, AOA_MARGIN, AOA_ROW_H } from './aoa'
 import type { SchedLink, SchedTask } from './types'
 
 function t(id: string, duration: number, extra?: Partial<SchedTask>): SchedTask {
@@ -206,6 +206,40 @@ describe('buildAoa 真时标布局（v4.130 刀H G4 前提）', () => {
     }
     // end:B 事件 es=5：x 随 es 而非列排名（旧版排名会把 0/3/5 压成等距 0/1/2）
     expect(g.nodes.some((n) => n.x === AOA_MARGIN + 5 * AOA_COL_W)).toBe(true)
+  })
+})
+
+describe('buildAoa 行距自适应（v4.159：宽高比超限时放大行距，治「又矮又长」）', () => {
+  it('长计划低并行度：行距按目标纵横比放大（两行节点间距 > AOA_ROW_H）', () => {
+    // A/B 并行各 40 天：同列 3 事件（endA/endB/T），w=80+40×110=4480 > 7×(80+3×112)
+    const g = buildAoa([t('A', 40), t('B', 40)], [])
+    expect(g.ok).toBe(true)
+    const col = g.nodes.filter((n) => n.es === 40)
+    expect(col.length).toBeGreaterThanOrEqual(2)
+    const ys = new Set(col.map((n) => n.y))
+    const pitch = Math.max(...col.map((n) => n.y)) - Math.min(...col.map((n) => n.y))
+    expect(pitch).toBeGreaterThan(0)
+    // 行距=逐行等距：最大相邻间距 × (行数−1) = 跨度，且跨度被放大过
+    const rows = ys.size
+    expect((pitch / (rows - 1))).toBeGreaterThan(AOA_ROW_H)
+    // 恰按公式：rowH=min(2×ROW_H, floor((w/ASPECT_MAX−2×MARGIN)/(maxRow+1)))
+    const w = AOA_MARGIN * 2 + 40 * AOA_COL_W
+    const rowH = Math.min(AOA_ROW_H * 2, Math.floor((w / AOA_ASPECT_MAX - AOA_MARGIN * 2) / 3))
+    expect(pitch / (rows - 1)).toBe(rowH)
+  })
+
+  it('小图（纵横比未超限）行距保持基础值', () => {
+    const g = buildAoa([t('A', 3), t('B', 2), t('C', 4)], [l('A', 'B'), l('B', 'C')])
+    const col = g.nodes.filter((n) => n.es === 9) // endC 与 T 同列两行
+    expect(col).toHaveLength(2)
+    expect(Math.abs(col[0].y - col[1].y)).toBe(AOA_ROW_H)
+  })
+
+  it('放大封顶 2×AOA_ROW_H：超长单链不再无限拉高', () => {
+    const g = buildAoa([t('A', 200)], [])
+    const col = g.nodes.filter((n) => n.es === 200) // endA 与 T 同列
+    expect(col).toHaveLength(2)
+    expect(Math.abs(col[0].y - col[1].y)).toBe(AOA_ROW_H * 2)
   })
 })
 

@@ -211,19 +211,51 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult; onInsp
   const addTask = useScheduleStore((s) => s.addTask)
   const addGroup = useScheduleStore((s) => s.addGroup)
   const removeTask = useScheduleStore((s) => s.removeTask)
-  /** 日宽连续缩放（v4.141：步进档改连续值，zoom×1.35；全览=整计划适配窗口宽） */
+  /** 日宽连续缩放（v4.141：步进档改连续值，zoom×1.35；全览=整计划适配窗口宽）。
+   *  dayWRef 同步镜像：Ctrl+滚轮（v4.159）在监听器里读现值、不经渲染周期。 */
   const [dayW, setDayW] = useState(DAY_W_DEFAULT)
   const canvasPaneRef = useRef<HTMLDivElement | null>(null)
-  const zoomStep = (dir: 1 | -1) =>
-    setDayW((w) => Math.min(DAY_W_MAX, Math.max(DAY_W_MIN, Math.round(w * (dir > 0 ? ZOOM_FACTOR : 1 / ZOOM_FACTOR) * 10) / 10)))
+  const dayWRef = useRef(DAY_W_DEFAULT)
+  const setDayWAt = (w: number) => {
+    const c = Math.min(DAY_W_MAX, Math.max(DAY_W_MIN, Math.round(w * 10) / 10))
+    dayWRef.current = c
+    setDayW(c)
+  }
+  const zoomStep = (dir: 1 | -1) => setDayWAt(dayWRef.current * (dir > 0 ? ZOOM_FACTOR : 1 / ZOOM_FACTOR))
   /** 窗口内全览：整计划时长压进画布可视宽（长计划不再无限横向拉长） */
   const fitToWindow = () => {
     const pane = canvasPaneRef.current
     const avail = pane?.clientWidth ?? 0
     if (avail <= 0) return
-    setDayW(Math.min(DAY_W_MAX, Math.max(DAY_W_MIN, Math.floor(((avail - 2) / days) * 10) / 10)))
+    setDayWAt(Math.floor(((avail - 2) / days) * 10) / 10) // floor：全览宁窄勿溢出
     if (pane) pane.scrollLeft = 0
   }
+  /** Ctrl+滚轮缩放（v4.159，MS Project 口径；普通滚轮保持滚动行）：以光标下
+   *  日期为锚——缩放提交（DOM 宽更新）后在 layout effect 回写 scrollLeft，
+   *  同步回写会被旧内容宽钳制。 */
+  const ganttAnchorRef = useRef<{ px: number; dayG: number } | null>(null)
+  React.useLayoutEffect(() => {
+    const pane = canvasPaneRef.current
+    const a = ganttAnchorRef.current
+    if (!pane || !a) return
+    pane.scrollLeft = a.dayG * dayW - a.px
+    ganttAnchorRef.current = null
+  }, [dayW])
+  React.useEffect(() => {
+    const pane = canvasPaneRef.current
+    if (!pane) return
+    const onWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey && !e.metaKey) return // 普通滚轮=滚动行（原生）
+      e.preventDefault()
+      const w0 = dayWRef.current
+      const rect = pane.getBoundingClientRect()
+      const px = e.clientX - rect.left
+      ganttAnchorRef.current = { px, dayG: (pane.scrollLeft + px) / w0 }
+      setDayWAt(w0 * (e.deltaY < 0 ? ZOOM_FACTOR : 1 / ZOOM_FACTOR))
+    }
+    pane.addEventListener('wheel', onWheel, { passive: false })
+    return () => pane.removeEventListener('wheel', onWheel)
+  }, [])
   const [showFront, setShowFront] = useState(false)
   /** 行筛选（刀C 余项）：全部/关键/手动 + 名称文本；仅作用于横道（网络图=逻辑图不筛选） */
   const [filter, setFilter] = useState<GanttFilter>(GANTT_FILTER_DEFAULT)
@@ -721,9 +753,9 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult; onInsp
             列
           </Button>
         </Popover>
-        {/* 缩放/全览（v4.141：连续缩放 ×1.35；全览=整计划适配画布可视宽） */}
-        <Button size="small" icon={<ZoomOutOutlined />} data-testid="sched-gantt-zoomout" title="缩小（日宽 ÷1.35）" onClick={() => zoomStep(-1)} />
-        <Button size="small" icon={<ZoomInOutlined />} data-testid="sched-gantt-zoomin" title="放大（日宽 ×1.35）" onClick={() => zoomStep(1)} />
+        {/* 缩放/全览（v4.141：连续缩放 ×1.35；全览=整计划适配画布可视宽）；Ctrl+滚轮同效（v4.159） */}
+        <Button size="small" icon={<ZoomOutOutlined />} data-testid="sched-gantt-zoomout" title="缩小（日宽 ÷1.35；画布上 Ctrl+滚轮同效）" onClick={() => zoomStep(-1)} />
+        <Button size="small" icon={<ZoomInOutlined />} data-testid="sched-gantt-zoomin" title="放大（日宽 ×1.35；画布上 Ctrl+滚轮同效）" onClick={() => zoomStep(1)} />
         <Button size="small" icon={<FullscreenOutlined />} data-testid="sched-gantt-fit" title="窗口内全览：整计划适配画布宽度，不再无限横向拉长" onClick={fitToWindow}>
           全览
         </Button>

@@ -64,11 +64,18 @@ export interface AoaGraph {
   taskEdge: Record<string, string>
 }
 
-/** 布局常量（视图层按比例消费）；AOA_R=事件圆半径（渲染/文字避让共用） */
+/**
+ * 布局常量（视图层按比例消费）；AOA_R=事件圆半径（渲染/文字避让共用）。
+ * AOA_ROW_H=基础行距（节点含上下时间标注占 ~56px，74px 时只剩 18px 空隙
+ * ——用户实测「全部挤在一起」，2026-09 放宽到 112）；且它只是下限：buildAoa
+ * 按整图纵横比自适应放大（AOA_ASPECT_MAX），长计划不再「又矮又长」。
+ */
 export const AOA_COL_W = 110
-export const AOA_ROW_H = 74
+export const AOA_ROW_H = 112
 export const AOA_MARGIN = 40
 export const AOA_R = 16
+/** 行距自适应的目标纵横比上限（宽/高）：超过则放大行距，上限 2×AOA_ROW_H */
+export const AOA_ASPECT_MAX = 7
 
 function effDur(t: SchedTask): number {
   return t.isMilestone ? 0 : Math.max(0, Math.round(t.duration))
@@ -315,6 +322,15 @@ export function buildAoa(tasks: SchedTask[], links: SchedLink[], opts?: { planFi
     nodeIds.map((id) => ({ id, es: nodeEs.get(id)! })),
     raws.map((r) => ({ from: r.from, to: r.to })),
   )
+  // 行距自适应（比例协调）：时标图宽度被工期锁定，低并行度的长计划行数少，
+  // 天然「又矮又长」——宽高比超 AOA_ASPECT_MAX 时按比例放大行距（上限 2×
+  // 基础行距，行间呼吸与整图比例两顾；y 仍与时间无耦合，波形语义不受影响）。
+  const maxRow = Math.max(0, ...[...pos.values()].map((p) => p.row))
+  const w = AOA_MARGIN * 2 + total * AOA_COL_W
+  const hBase = AOA_MARGIN * 2 + (maxRow + 1) * AOA_ROW_H
+  const rowH = w <= hBase * AOA_ASPECT_MAX
+    ? AOA_ROW_H
+    : Math.min(AOA_ROW_H * 2, Math.floor((w / AOA_ASPECT_MAX - AOA_MARGIN * 2) / (maxRow + 1)))
   // 锚点键：事件成员关系求逆（task → start/end 两成员键），取字典序最小者为代表
   const nodeMembers = new Map<string, string[]>(nodeIds.map((id) => [id, []]))
   for (const t of acts) {
@@ -329,7 +345,7 @@ export function buildAoa(tasks: SchedTask[], links: SchedLink[], opts?: { planFi
       es: nodeEs.get(id)!,
       ls: nodeLs.get(id)!,
       x: AOA_MARGIN + nodeEs.get(id)! * AOA_COL_W,
-      y: AOA_MARGIN + p.row * AOA_ROW_H,
+      y: AOA_MARGIN + p.row * rowH,
       anchor: id === START ? 'S' : id === END ? 'T' : (nodeMembers.get(id)!.sort()[0] ?? id),
     }
   })

@@ -192,8 +192,9 @@ export function edgeSegs(
 
 /**
  * 同行长边通道分配（v4.143 分行）：跨 >1.5 列的同行边从节点中心线下让到行间
- * 通道（基准 = 行 y + ROW_H/2，x 区间重叠者依次 +12px 层号），非重叠者共享
- * 通道层。返回 edgeId → 通道 y（无通道的边不在表中）。分层后短链仍直连、
+ * 通道（基准 = 行 y + ROW_H/2，x 区间重叠者依次 +16px 层号——层距须容下
+ * 名称/工期上下标注，12px 时相邻层文字叠压），非重叠者共享通道层。
+ * 返回 edgeId → 通道 y（无通道的边不在表中）。分层后短链仍直连、
  * 长跳线互不重合、也不横穿中间列的节点圆——参考斑马/Project 显示口径。
  */
 export function assignChannels(
@@ -217,7 +218,7 @@ export function assignChannels(
     let lvl = 0
     while (placed.some((p) => p.y === L.y && p.lvl === lvl && L.x1 < p.x2 && L.x2 > p.x1)) lvl++
     placed.push({ x1: L.x1, x2: L.x2, y: L.y, lvl })
-    out.set(L.id, L.y + AOA_ROW_H / 2 + lvl * 12)
+    out.set(L.id, L.y + AOA_ROW_H / 2 + lvl * 16)
   }
   return out
 }

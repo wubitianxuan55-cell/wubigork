@@ -20,6 +20,7 @@ import type { CpmResult, LinkType, SchedProject } from './types'
 import { layerByTopology } from './layout'
 import { findBridgeArcs, segsToPath, type Seg } from './aoaLayout'
 import { useScheduleStore } from './store'
+import { useWheelZoom } from './wheelZoom'
 
 const NODE_W = 150
 const NODE_H = 92
@@ -43,7 +44,15 @@ export const PdmView: React.FC<{ project: SchedProject; cpm: CpmResult }> = ({ p
   // v4.127 刀E：缩放/一图适配——链式计划整网一行展开时也能整屏读完
   const scrollRef = useRef<HTMLDivElement | null>(null)
   const [zoom, setZoom] = useState(1)
+  const zoomRef = useRef(1)
   const touchedRef = useRef(false)
+  const applyZoom = (z: number) => {
+    const c = Math.min(2, Math.max(0.2, Math.round(z * 100) / 100))
+    zoomRef.current = c
+    setZoom(c)
+  }
+  // 滚轮缩放（v4.159）：普通滚轮=以光标为锚缩放，Shift+滚轮=横向滚动
+  useWheelZoom(scrollRef, zoomRef, applyZoom)
 
   const leaves = useMemo(() => project.tasks.filter((t) => t.level > 0), [project.tasks])
   /** 行号速查（Project 引用口径，节点角标） */
@@ -87,13 +96,14 @@ export const PdmView: React.FC<{ project: SchedProject; cpm: CpmResult }> = ({ p
   }, [leaves, project.links, cpm])
 
   // 布局尺寸变化（切工程/增删任务）且用户未手动缩放时，自动适配一次
-  // （hooks 顺序纪律：必须在下方 early return 之前）
+  // （hooks 顺序纪律：必须在下方 early return 之前；clientWidth=0（jsdom/未布局）
+  // 不误适配——v4.143 同款纪律，0 宽会让 min() 取负值把 zoom 压到下限）
   useEffect(() => {
     if (!layout || touchedRef.current || layout.w === 0 || layout.h === 0) return
     const el = scrollRef.current
-    if (!el) return
+    if (!el || el.clientWidth <= 0) return
     const z = Math.min(el.clientWidth / layout.w, (el.clientHeight - 40) / layout.h, 1)
-    setZoom(Math.max(0.2, Math.round(z * 100) / 100))
+    applyZoom(Math.max(0.2, Math.round(z * 100) / 100))
   }, [layout])
 
   if (!layout) {
@@ -105,11 +115,11 @@ export const PdmView: React.FC<{ project: SchedProject; cpm: CpmResult }> = ({ p
     const el = scrollRef.current
     if (!el || layout.w === 0 || layout.h === 0) return
     const z = Math.min(el.clientWidth / layout.w, (el.clientHeight - 40) / layout.h, 1)
-    setZoom(Math.max(0.2, Math.round(z * 100) / 100))
+    applyZoom(Math.max(0.2, Math.round(z * 100) / 100))
   }
   const stepZoom = (k: number) => {
     touchedRef.current = true
-    setZoom((z) => Math.round(Math.min(2, Math.max(0.2, z * k)) * 100) / 100)
+    applyZoom(zoomRef.current * k)
   }
 
   const links = project.links.filter((l) => layout.pos.has(l.from) && layout.pos.has(l.to))
@@ -173,11 +183,12 @@ export const PdmView: React.FC<{ project: SchedProject; cpm: CpmResult }> = ({ p
         <span>格：ES / 工期 / EF · LS / 总时差 / LF</span>
         <span>关键线路=红箭线贯通（绑定中的临界搭接）</span>
         <span>时间单位：工作日（按日历）；「(日历)」=日历天任务（自然日定时，等效工作日跨度=EF−ES）</span>
-        <span style={{ display: 'inline-flex', gap: 4 }}>
+        <span style={{ display: 'inline-flex', gap: 4, alignItems: 'center' }}>
           <Button size="small" icon={<ZoomOutOutlined />} onClick={() => stepZoom(1 / 1.2)} title="缩小" />
           <span className="sched-pdm-zoom" data-testid="sched-pdm-zoom">{Math.round(zoom * 100)}%</span>
           <Button size="small" icon={<ZoomInOutlined />} onClick={() => stepZoom(1.2)} title="放大" />
           <Button size="small" icon={<AimOutlined />} onClick={() => { touchedRef.current = true; fitView() }} title="适配全图" data-testid="sched-pdm-fit" />
+          <span className="sched-net-hint">滚轮缩放 · Shift+滚轮横移</span>
         </span>
         {/* 进度统计牌（斑马口径：红字大数字，挂图例行右端避免遮挡节点） */}
         <div className="sched-net-badge">

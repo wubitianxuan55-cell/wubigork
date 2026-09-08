@@ -624,3 +624,24 @@ describe('GanttView 双工期（v4.152 刀3）', () => {
     expect(useScheduleStore.getState().project.tasks[0]).toMatchObject({ duration: 9, durationUnit: 'cd' })
   })
 })
+
+describe('GanttView Ctrl+滚轮缩放（v4.159）', () => {
+  beforeEach(() => {
+    localStorage.removeItem(CHAT_PREFS_KEY)
+    useScheduleStore.setState({ project: chainProject(), selectedId: null, hydrated: true, sync: 'saved', syncError: null })
+  })
+
+  it('Ctrl+滚轮放大日宽（20→27），普通滚轮不缩放（保持滚动行）', () => {
+    const p = chainProject()
+    render(<GanttView project={p} cpm={computeCpm(p.tasks, p.links)} />)
+    const pane = screen.getByTestId('sched-gantt-canvas')
+    // days=21（短计划下限），chartW=21×20=420
+    const inner = pane.querySelector<HTMLElement>('.sched-gantt-canvas-inner')!
+    expect(inner.style.width).toBe('420px')
+    fireEvent.wheel(pane, { deltaY: -100, ctrlKey: true, clientX: 30 })
+    expect(inner.style.width).toBe('567px') // 21×27
+    // 普通滚轮：原生滚动行，日宽不动
+    fireEvent.wheel(pane, { deltaY: -100, clientX: 30 })
+    expect(inner.style.width).toBe('567px')
+  })
+})

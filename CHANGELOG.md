@@ -1,3 +1,6 @@
+## v4.159.0 · 进度计划画布手感：滚轮缩放 + 双代号行距自适应（2026-09-08）
+> 用户实测反馈两处：画布无法用鼠标滚轮缩放（只有按钮）、双代号网络图「行距太小全挤在一起、又矮又长严重不协调」。①三块画布补滚轮缩放：双代号/单代号=普通滚轮以光标为锚缩放（新共用钩子 useWheelZoom，layout effect 回写锚点滚动量防旧尺寸钳制）、Shift+滚轮放行原生横移；横道=Ctrl+滚轮缩日宽（MS Project 口径，普通滚轮保持滚动行，光标下日期锚定）。②双代号布局松绑：AOA_ROW_H 74→112（节点含上下时间标注占 56px，旧 74px 行只剩 18px 空隙），且行距按整图宽高比自适应放大（时标宽度被工期锁定，低并行度长计划天然扁平——宽高比超 7 时放大行距、上限 2×）；同行长边通道层距 12→16 治名称/工期标注叠压；PdmView 自动适配补 clientWidth≤0 防护（对齐 v4.143「jsdom 0 宽不误适配」纪律）。零绑定 599；vitest 2658→2665、tsc/eslint 0、build+冒烟过。详见 releases/v4.159.0.md。
+
 ## v4.158.0 · AI 组价复核闭环：确认留痕 + 拆解合理性校验（2026-09-09）
 > 前置调研校正：AI 组价 v4.2 已在产，roadmap §15 部分造价欠账描述过时（校正档 docs/gaea-cost-domain-survey-2026-09.md）。本刀销真缺口：①SchemaV16 cost_compose_records 确认即留痕（完整视图快照；无确认不落库红线不变；留痕尽力而为不阻断回写）+GaeaCostComposeRecords 回看（条目详情「组价依据」折叠区，证据链表抽共享 ComposeEvidenceTable）；②cost.CheckComposeComponents 纯函数（金额一致性/非正值/合计偏差 warn+info 两档，恰阈值不触发）进 Compose 响应，ComposeModal 行级徽标+全局提示，校验随留痕入档。绑定 598→599；Go 全量绿 +18、vitest 2650→2658、tsc/eslint 0、build+冒烟过。详见 releases/v4.158.0.md。
 

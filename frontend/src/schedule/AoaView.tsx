@@ -26,6 +26,7 @@ import { AOA_COL_W, AOA_MARGIN, AOA_R, AOA_ROW_H } from './aoa'
 import { applyPins, assignChannels, edgeSegs, findBridgeArcs, prunePins, segsToPath, snapPt } from './aoaLayout'
 import { useScheduleStore } from './store'
 import type { AoaPin, SchedTask } from './types'
+import { useWheelZoom } from './wheelZoom'
 
 const R = AOA_R
 
@@ -71,6 +72,9 @@ export const AoaView: React.FC<{ graph: AoaGraph; tasks: SchedTask[] }> = ({ gra
     // 全览下限 0.3：整图入窗也不缩成蚂蚁（再小读不出字）
     applyZoom(Math.max(0.3, Math.min(el.clientWidth / wEarly, Math.max(160, el.clientHeight - 24) / hEarly, 1.5)))
   }
+  // 滚轮缩放（v4.159）：普通滚轮=以光标为锚缩放，Shift+滚轮=横向滚动；
+  // 与按钮/全览共用 touchedRef（手动缩放后首帧自动适配不再抢占）
+  useWheelZoom(scrollRef, zoomRef, applyZoom)
   // 图面尺寸变化（切工程/增删任务）且用户未手动缩放时，自动适配一次。
   // 下限 0.5=可读优先：装不下就横向滚动（参考斑马/Project 显示口径），
   // 绝不把整图无脑缩到看不清
@@ -197,6 +201,7 @@ export const AoaView: React.FC<{ graph: AoaGraph; tasks: SchedTask[] }> = ({ gra
           <button type="button" className="sched-aoa-mode-btn" data-testid="sched-aoa-fit" title="全览：整网适配当前视口" onClick={() => { touchedRef.current = true; fitView() }}>
             全览
           </button>
+          <span className="sched-net-hint">滚轮缩放 · Shift+滚轮横移</span>
         </span>
         <div className="sched-net-badge">
           <div className="nb-item">

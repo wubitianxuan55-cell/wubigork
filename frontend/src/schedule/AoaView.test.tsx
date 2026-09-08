@@ -170,3 +170,29 @@ describe('AoaView 刀H（G2/G4）', () => {
     expect(parseFloat(name!.getAttribute('y')!)).toBeLessThan(parseFloat(dur!.getAttribute('y')!))
   })
 })
+
+// ── v4.159：画布滚轮缩放（普通滚轮=光标锚缩放，Shift+滚轮=原生横移）──
+
+describe('AoaView 滚轮缩放（v4.159）', () => {
+  beforeEach(() => {
+    useScheduleStore.setState({ project: chainProject(), selectedId: null, hydrated: true, sync: 'saved', syncError: null })
+  })
+
+  it('普通滚轮：以光标为锚放大（与按钮同一 clamp/读数）', () => {
+    render(<AoaView graph={buildAoa(useScheduleStore.getState().project.tasks, useScheduleStore.getState().project.links)} tasks={[]} />)
+    expect(screen.getByTestId('sched-aoa-zoom').textContent).toBe('100%')
+    const el = screen.getByTestId('sched-aoa')
+    fireEvent.wheel(el, { deltaY: -100, clientX: 60, clientY: 40 })
+    expect(screen.getByTestId('sched-aoa-zoom').textContent).toBe('120%')
+    // 反向滚回（下限 0.1 不触底）
+    fireEvent.wheel(el, { deltaY: 100, clientX: 60, clientY: 40 })
+    expect(screen.getByTestId('sched-aoa-zoom').textContent).toBe('100%')
+  })
+
+  it('Shift+滚轮放行原生横向滚动，不缩放', () => {
+    render(<AoaView graph={buildAoa(useScheduleStore.getState().project.tasks, useScheduleStore.getState().project.links)} tasks={[]} />)
+    const el = screen.getByTestId('sched-aoa')
+    fireEvent.wheel(el, { deltaY: -100, shiftKey: true })
+    expect(screen.getByTestId('sched-aoa-zoom').textContent).toBe('100%')
+  })
+})

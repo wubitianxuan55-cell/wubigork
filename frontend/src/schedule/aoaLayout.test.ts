@@ -65,11 +65,11 @@ describe('锚点键推导与稳定性（镜像设计 §3.2 稳定性分析）', 
 })
 
 describe('snapPt / normalizeAoaLayout / applyPins / prunePins', () => {
-  it('snapPt 半格吸附（55×37）', () => {
+  it('snapPt 半格吸附（55×56，随 AOA_COL_W/ROW_H 半格）', () => {
     expect(snapPt(0, 0)).toEqual({ x: 0, y: 0 })
-    expect(snapPt(52, 30)).toEqual({ x: 55, y: 37 })
-    expect(snapPt(AOA_MARGIN, AOA_MARGIN)).toEqual({ x: 55, y: 37 })
-    expect(snapPt(AOA_MARGIN + AOA_COL_W, AOA_MARGIN + AOA_ROW_H)).toEqual({ x: 165, y: 111 })
+    expect(snapPt(52, 30)).toEqual({ x: 55, y: 56 })
+    expect(snapPt(AOA_MARGIN, AOA_MARGIN)).toEqual({ x: 55, y: 56 })
+    expect(snapPt(AOA_MARGIN + AOA_COL_W, AOA_MARGIN + AOA_ROW_H)).toEqual({ x: 165, y: 168 })
   })
 
   it('normalizeAoaLayout：坏形丢弃、坐标取整、键数上限', () => {
@@ -268,7 +268,7 @@ describe('assignChannels 同行长边通道（v4.143 分行）', () => {
     ])
     const ch = assignChannels([edge('e1', 'a1', 'a2'), edge('e2', 'b1', 'b2'), edge('e3', 'c1', 'c2'), edge('e4', 'd1', 'd2')], map)
     expect(ch.get('e2')).toBe(100 + AOA_ROW_H / 2) // 按 x1/x2 排序先处理 → 层 0
-    expect(ch.get('e1')).toBe(100 + AOA_ROW_H / 2 + 12) // 与 e2 区间重叠 → 层 1
+    expect(ch.get('e1')).toBe(100 + AOA_ROW_H / 2 + 16) // 与 e2 区间重叠 → 层 1（层距 16：容下名称/工期标注）
     expect(ch.get('e3')).toBe(100 + AOA_ROW_H / 2) // 与 e1/e2 不重叠 → 层 0
     expect(ch.has('e4')).toBe(false) // 短边直连不占通道
   })

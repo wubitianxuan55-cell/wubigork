@@ -8,7 +8,7 @@
  * B→E 跨两列的首段水平线（y=行1）从其中间穿过——PDM 几何中横竖段都在
  * 节点行中线上，普通两行项目只会端点相触，必须 ≥3 行 + 跨列长横线才有内交。
  */
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { computeCpm } from './cpm'
 import { PdmView } from './PdmView'
@@ -52,5 +52,18 @@ describe('PdmView（刀H G1 过桥接线）', () => {
     const links = Array.from(screen.getByTestId('sched-pdm').querySelectorAll('path.sched-net-link, path.sched-net-link-virtual'))
     const bridged = links.filter((el) => (el.getAttribute('d') ?? '').includes('A 5 5'))
     expect(bridged.length).toBe(1) // C→D 的竖段被 B→E 的长横线内交，恰一处
+  })
+})
+
+describe('PdmView 滚轮缩放（v4.159）', () => {
+  it('普通滚轮：以光标为锚缩放；Shift+滚轮放行原生横移不缩放', () => {
+    const p = crossingProject()
+    render(<PdmView project={p} cpm={computeCpm(p.tasks, p.links)} />)
+    const el = screen.getByTestId('sched-pdm')
+    expect(screen.getByTestId('sched-pdm-zoom').textContent).toBe('100%')
+    fireEvent.wheel(el, { deltaY: -100, clientX: 60, clientY: 40 })
+    expect(screen.getByTestId('sched-pdm-zoom').textContent).toBe('120%')
+    fireEvent.wheel(el, { deltaY: -100, shiftKey: true })
+    expect(screen.getByTestId('sched-pdm-zoom').textContent).toBe('120%')
   })
 })

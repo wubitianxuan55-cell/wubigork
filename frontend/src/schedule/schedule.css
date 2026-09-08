@@ -487,6 +487,7 @@
   top: 0;
   z-index: 30;
   display: flex;
+  flex-wrap: wrap; /* 模式/缩放按钮右侧不裁剪：放不下换行（图例项多） */
   gap: 16px;
   align-items: center;
   font-size: 12px;
@@ -591,6 +592,11 @@
   min-width: 38px;
   text-align: center;
   color: var(--md-sys-color-on-surface-variant, #6b7280);
+}
+/* 滚轮缩放操作提示（v4.159，网络图图例内） */
+.sched-net-hint {
+  font-size: 11px;
+  color: var(--md-sys-color-outline, #8a8f98);
 }
 /* 虚拟起点/终点节点（v4.128 刀F：JGJ/T 121 多起点/多终点口径，虚线框） */
 .sched-pdm-virtual {
