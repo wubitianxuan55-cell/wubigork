@@ -5,6 +5,8 @@ import { setCharacterPortrait as setPortrait, readFileAsDataURL } from '../api/i
 import { restoreHistoryImages } from '../components/imagegen/historyMeta'
 import { downloadFileName } from '../components/imagegen/media'
 import { loadHistoryMeta, saveHistoryMeta, resolveResultImage } from '../components/imagegen/meta'
+import { inShellEnv } from '../gaea/lib/pickFile'
+import { dataUrlToBlob, saveExportBlob } from '../gaea/lib/saveFile'
 import type { GenResult } from '../components/imagegen/types'
 
 export interface UseImageGenHistoryOptions {
@@ -52,10 +54,17 @@ export function useImageGenHistory({ setPrompt, setNegative, setSeed, setSize }:
       message.warning('图片数据不可用（本地文件缺失且无内存数据），请重新生成')
       return
     }
+    // T6-4.2：按实际媒体类型命名（t2v 输出 webp 则 .webp，不再固定 .mp4）
+    const name = downloadFileName(r)
+    // 审计刀B a：壳内 <a download> 不落盘（v4.162）→ dataURL→Blob 走系统另存为；
+    // 浏览器保留原 <a download> 语义。
+    if (inShellEnv()) {
+      await saveExportBlob(dataUrlToBlob(href), name)
+      return
+    }
     const a = document.createElement('a')
     a.href = href
-    // T6-4.2：按实际媒体类型命名（t2v 输出 webp 则 .webp，不再固定 .mp4）
-    a.download = downloadFileName(r)
+    a.download = name
     a.click()
   }, [history])
 

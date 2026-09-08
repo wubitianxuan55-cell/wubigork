@@ -22,6 +22,7 @@ import {
   type VisionCallResult,
 } from '../../api/image'
 import { useT } from '../../gaea/lib/i18n'
+import { inShellEnv, pickImageAsDataUrl } from '../../gaea/lib/pickFile'
 
 type VisionAction = 'understand' | 'read'
 
@@ -106,6 +107,21 @@ export const VisionTrial: React.FC<{ onClose: () => void }> = ({ onClose }) => {
       setSaving(false)
     }
   }, [t])
+
+  // 审计刀C-2（v4.162 实证）：壳内 input[type=file].click() 不弹文件对话框，
+  // 改走 pickImageAsDataUrl（GaeaPickFiles 系统对话框 + GaeaReadFileB64 →
+  // data URL），直接喂既定入口 handleImageDataUrl（复用 SavePastedImage 落盘
+  // 漏斗，零新绑定）；浏览器回退原生 input 路径。fail-closed：扩展名/读取
+  // 错误 message 提示错误原文，不静默吞；取消=null 静默返回。
+  const pickImage = useCallback(async () => {
+    if (!inShellEnv()) { fileRef.current?.click(); return }
+    try {
+      const dataUrl = await pickImageAsDataUrl()
+      if (dataUrl) await handleImageDataUrl(dataUrl)
+    } catch (e) {
+      message.error(errText(e))
+    }
+  }, [handleImageDataUrl])
 
   // paste 事件：剪贴板里的图片直接进漏斗（窗口级监听，组件卸载时移除）。
   useEffect(() => {
@@ -226,7 +242,7 @@ export const VisionTrial: React.FC<{ onClose: () => void }> = ({ onClose }) => {
             e.target.value = ''
             if (f) void fileToDataUrl(f).then(handleImageDataUrl)
           }} />
-        <button type="button" onClick={() => fileRef.current?.click()}
+        <button type="button" onClick={() => void pickImage()}
           style={{
             border: '1px dashed var(--border-subtle)', borderRadius: 12, padding: '18px 12px',
             background: 'rgba(255,255,255,0.03)', cursor: 'pointer', width: '100%',

@@ -11,6 +11,7 @@ import (
 
 	"github.com/gaea/gaea/internal/gaea/memory"
 	"github.com/gaea/gaea/internal/gaea/spaces"
+	"github.com/gaea/gaea/internal/gaea/strutil"
 	"github.com/gaea/gaea/internal/gaea/tool/builtin"
 )
 
@@ -421,7 +422,5 @@ func (c *Controller) SaveSession(m memory.Memory) string {
 }
 
 func slugifyName(name string) string {
-	s := strings.ToLower(strings.TrimSpace(name))
-	s = strings.NewReplacer(" ", "-", "_", "-", ".", "-").Replace(s)
-	return s
+	return strutil.TitleSlug(name)
 }

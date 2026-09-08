@@ -16,6 +16,7 @@ import {
   Zap,
 } from "../icons";
 import { app } from "../lib/bridge";
+import { b64ToBytes } from "../lib/bytes";
 import { useComposerInsertStore, useUpdatedFilesStore } from "../lib/store";
 import { useToast } from "./Toast";
 import { t } from "../lib/i18n";
@@ -42,10 +43,7 @@ const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingm
 function dataUrlToBlob(dataUrl: string): Blob {
   const comma = dataUrl.indexOf(",");
   const b64 = comma >= 0 ? dataUrl.slice(comma + 1) : dataUrl;
-  const bin = atob(b64);
-  const bytes = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-  return new Blob([bytes], { type: DOCX_MIME });
+  return new Blob([b64ToBytes(b64)], { type: DOCX_MIME });
 }
 
 const PRESETS = [

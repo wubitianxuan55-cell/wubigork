@@ -1,6 +1,8 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import * as App from '../../src/wailsjsCompat'
 import { EventsOn } from '../../wailsjs/runtime/runtime'
+// W1 b64 收口：壳内事件 []byte 以 base64 字符串传输，解码一律走中立层
+import { b64ToBytes } from '../gaea/lib/bytes'
 
 // ── 状态类型（兼容现有 VoiceChatOrb） ──
 
@@ -131,11 +133,10 @@ export function useVoiceChat({ onTranscript, onReply }: Options = {}) {
     const ctx = playbackCtxRef.current
     if (ctx.state === 'suspended') await ctx.resume()
 
-    // 转换数据：Wails 事件中 []byte 以 base64 字符串传输（对齐 TTSPlayer atob 解码）
+    // 转换数据：Wails 事件中 []byte 以 base64 字符串传输（对齐 TTSPlayer b64ToBytes 解码）
     let bytes: Uint8Array
     if (typeof audioData === 'string') {
-      const bin = atob(audioData)
-      bytes = Uint8Array.from(bin, c => c.charCodeAt(0))
+      bytes = b64ToBytes(audioData)
     } else if (audioData instanceof Uint8Array) {
       bytes = audioData
     } else {

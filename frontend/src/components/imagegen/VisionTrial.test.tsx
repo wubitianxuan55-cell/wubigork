@@ -3,7 +3,7 @@
 // （原语标注/模型名/错误原文）→ 历史最近 5 条落 localStorage → 清空。
 // paste 事件与文件选择走同一漏斗（handleImageDataUrl），jsdom 无剪贴板文件，
 // 用例经 input[type=file] 驱动同一链路。
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { LocaleProvider } from '../../gaea/lib/i18n'
 import { VisionTrial } from './VisionTrial'
@@ -136,5 +136,57 @@ describe('VisionTrial 识图「读/懂」画室试用', () => {
       (content: string | null) => !!content && content.includes('历史条目结果'))
     fireEvent.click(histCard)
     await waitFor(() => expect(screen.getByText('历史条目结果')).toBeTruthy())
+  })
+})
+
+// ── 审计刀C-2：Wails 壳内选图走 pickImageAsDataUrl → 同一 SavePastedImage 漏斗 ──
+// mock 口径照 schedule/store.sync.test.ts：window.go.app.<门面> 装真壳同款
+// Gaea 前缀绑定，afterEach delete 还原。
+
+describe('VisionTrial 壳内选图（刀C-2）', () => {
+  afterEach(() => {
+    delete (window as unknown as { go?: unknown }).go
+  })
+
+  it('壳内选图：GaeaPickFiles+GaeaReadFileB64 → data URL 喂既定入口 handleImageDataUrl → SavePastedImage 落盘', async () => {
+    const pickFiles = vi.fn(async () => ([
+      { path: 'C:/imgs/shot.png', name: 'shot.png', type: 'image', size: 5 },
+    ]))
+    const readFileB64 = vi.fn(async () => 'aGVsbG8=') // "hello"
+    ;(window as unknown as { go?: unknown }).go = {
+      app: { VisionPickTestC: { GaeaPickFiles: pickFiles, GaeaReadFileB64: readFileB64 } },
+    }
+    // 壳内分支不得回落浏览器 input.click()（jsdom 点了也不弹框，正是 P0 本体）
+    const inputClick = vi.spyOn(HTMLInputElement.prototype, 'click').mockImplementation(() => {})
+    try {
+      renderTrial()
+      fireEvent.click(screen.getByText('点击选择图片，或直接 Ctrl+V 粘贴'))
+      await waitFor(() => {
+        expect(pickFiles).toHaveBeenCalledTimes(1)
+        expect(readFileB64).toHaveBeenCalledWith('C:/imgs/shot.png')
+      })
+      // pickImageAsDataUrl mime 按扩展名映射 → 直接喂 handleImageDataUrl（零新绑定）
+      await waitFor(() => expect(saveMock).toHaveBeenCalledWith('data:image/png;base64,aGVsbG8='))
+      await waitFor(() => expect(screen.getAllByText(SAVED_PATH).length).toBeGreaterThan(0))
+      expect(inputClick).not.toHaveBeenCalled()
+    } finally {
+      inputClick.mockRestore()
+    }
+  })
+
+  it('壳内选到非图片扩展名：fail-closed 提示错误原文，不进落盘漏斗', async () => {
+    const pickFiles = vi.fn(async () => ([
+      { path: 'C:/docs/shot.txt', name: 'shot.txt', type: 'file', size: 5 },
+    ]))
+    const readFileB64 = vi.fn(async () => 'eHg=')
+    ;(window as unknown as { go?: unknown }).go = {
+      app: { VisionPickTestC: { GaeaPickFiles: pickFiles, GaeaReadFileB64: readFileB64 } },
+    }
+    renderTrial()
+    fireEvent.click(screen.getByText('点击选择图片，或直接 Ctrl+V 粘贴'))
+    await waitFor(() => expect(pickFiles).toHaveBeenCalledTimes(1))
+    expect(await screen.findByText(/仅支持 \.png\/\.jpg/)).toBeTruthy()
+    expect(readFileB64).not.toHaveBeenCalled()
+    expect(saveMock).not.toHaveBeenCalled()
   })
 })

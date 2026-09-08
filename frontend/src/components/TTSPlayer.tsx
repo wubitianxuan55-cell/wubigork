@@ -1,4 +1,5 @@
 import { wailsApp } from '../lib/wailsApp';
+import { b64ToBytes } from '../gaea/lib/bytes';
 import React, { useState, useRef, useCallback, useEffect } from 'react'
 import { Button, Space, Tooltip, message, Progress, Typography } from 'antd'
 import {
@@ -124,7 +125,7 @@ const TTSPlayer: React.FC<TTSPlayerProps> = ({ getText, onStatusChange, onSenten
       } else if (ev.type === 'chunk') {
         if (ev.engine) setEngine(ev.engine)
         if (ev.audio && !stoppedRef.current) {
-          const bytes = Uint8Array.from(atob(ev.audio), c => c.charCodeAt(0))
+          const bytes = b64ToBytes(ev.audio)
           enqueueChunk({ audio: bytes, mimeType: ev.mimeType || 'audio/wav' })
           setProgress({ index: (ev.index ?? 0) + 1, total: ev.total ?? 0 })
           setPlaying(true)

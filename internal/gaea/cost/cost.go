@@ -15,6 +15,7 @@ import (
 	"unicode"
 
 	"github.com/gaea/gaea/internal/gaea/bm25"
+	"github.com/gaea/gaea/internal/gaea/strutil"
 )
 
 // Entry 成本条目。
@@ -679,23 +680,21 @@ func escapeLike(s string) string {
 // 折叠为连字符，小写截断。同名标题重复保存会覆盖更新而非新增。
 // cost_save 工具与文件导入共用此规则，保证同一标题的条目键一致。
 func SlugName(title string) string {
-	var b strings.Builder
-	prevDash := false
-	for _, r := range strings.ToLower(strings.TrimSpace(title)) {
-		if unicode.IsLetter(r) || unicode.IsDigit(r) {
-			b.WriteRune(r)
-			prevDash = false
-		} else if !prevDash {
-			b.WriteRune('-')
-			prevDash = true
-		}
-	}
-	name := strings.Trim(b.String(), "-")
-	if name == "" {
+	name := strutil.TitleSlug(title)
+	if name == strutil.TitleSlugFallback && !hasTitleSlugRune(title) {
 		name = "cost"
 	}
-	if runes := []rune(name); len(runes) > 60 {
-		name = string(runes[:60])
-	}
 	return name
+}
+
+// hasTitleSlugRune distinguishes TitleSlug's "entry" fallback from a real title
+// whose canonical slug happens to be "entry"; only the former keeps cost's
+// historical "cost" fallback.
+func hasTitleSlugRune(title string) bool {
+	for _, r := range title {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+			return true
+		}
+	}
+	return false
 }

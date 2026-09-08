@@ -10,6 +10,7 @@
 // 只取 w:p 聚合 w:t 文本，不引第三方解析器。
 
 import JSZip from "jszip";
+import { b64ToBytes } from "./bytes";
 
 const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 
@@ -17,10 +18,7 @@ const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingm
 function dataUrlToBytes(dataUrl: string): Uint8Array {
   const comma = dataUrl.indexOf(",");
   const b64 = comma >= 0 ? dataUrl.slice(comma + 1) : dataUrl;
-  const bin = atob(b64);
-  const bytes = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-  return bytes;
+  return b64ToBytes(b64);
 }
 
 // 提取 docx 正文段落文本（含表格内段落，按文档顺序）。任何一步失败都抛错，

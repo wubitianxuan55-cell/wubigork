@@ -7,7 +7,7 @@
  * · img2img + xai（不在白名单）提示切换引擎
  */
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ControlPanel } from './ControlPanel'
 import type { ImageMode } from './types'
 
@@ -110,5 +110,75 @@ describe('ControlPanel 引擎枚举与模式门禁', () => {
     render(<ControlPanel {...baseProps} mode="txt2img" backend="glm" />)
     expect(screen.queryByText(/GLM 仅支持文生图/)).toBeNull()
     expect(screen.queryByText(/请切换引擎/)).toBeNull()
+  })
+})
+
+// ── 审计刀C-1：Wails 壳内「上传参考图」收口到 GaeaPickFiles 系统对话框 ────
+// mock 口径照 schedule/store.sync.test.ts：window.go.app.<门面> 装真壳同款
+// Gaea 前缀绑定（bridge realApp 按方法名路由），afterEach delete 还原。
+
+describe('ControlPanel 壳内上传参考图（刀C-1）', () => {
+  beforeEach(() => {
+    // baseProps 的 mock 跨用例共享（含上方 describe），清掉上一用例调用记录
+    vi.clearAllMocks()
+  })
+
+  afterEach(() => {
+    delete (window as unknown as { go?: unknown }).go
+  })
+
+  it('壳内选图：GaeaPickFiles+GaeaReadFileB64 还原 File 喂同一条 readFile 管线（不点隐藏 input）', async () => {
+    const pickFiles = vi.fn(async () => ([
+      { path: 'C:/imgs/ref.png', name: 'ref.png', type: 'image', size: 5 },
+    ]))
+    const readFileB64 = vi.fn(async () => 'aGVsbG8=') // "hello"
+    ;(window as unknown as { go?: unknown }).go = {
+      app: { ImgPickTestC: { GaeaPickFiles: pickFiles, GaeaReadFileB64: readFileB64 } },
+    }
+    // 壳内分支不得回落浏览器 input.click()（jsdom 点了也不弹框，正是 P0 本体）
+    const inputClick = vi.spyOn(HTMLInputElement.prototype, 'click').mockImplementation(() => {})
+    try {
+      render(<ControlPanel {...baseProps} mode="img2img" backend="comfyui" />)
+      fireEvent.click(screen.getByText('点击上传或拖入参考图'))
+      await waitFor(() => {
+        expect(pickFiles).toHaveBeenCalledTimes(1)
+        expect(readFileB64).toHaveBeenCalledWith('C:/imgs/ref.png')
+      })
+      // 同一数据通路：还原 File → readFile(FileReader) → onInitImageChange(dataURL)
+      await waitFor(() => {
+        const arg = String(baseProps.onInitImageChange.mock.calls[0]?.[0] ?? '')
+        expect(arg).toContain('base64,aGVsbG8=')
+      })
+      expect(inputClick).not.toHaveBeenCalled()
+    } finally {
+      inputClick.mockRestore()
+    }
+  })
+
+  it('壳内选到非图片扩展名：fail-closed message 提示，不进 readFile 管线', async () => {
+    const pickFiles = vi.fn(async () => ([
+      { path: 'C:/docs/ref.txt', name: 'ref.txt', type: 'file', size: 5 },
+    ]))
+    const readFileB64 = vi.fn(async () => 'eHg=')
+    ;(window as unknown as { go?: unknown }).go = {
+      app: { ImgPickTestC: { GaeaPickFiles: pickFiles, GaeaReadFileB64: readFileB64 } },
+    }
+    render(<ControlPanel {...baseProps} mode="img2img" backend="comfyui" />)
+    fireEvent.click(screen.getByText('点击上传或拖入参考图'))
+    await waitFor(() => expect(pickFiles).toHaveBeenCalledTimes(1))
+    expect(await screen.findByText(/仅支持 \.png\/\.jpg/)).toBeTruthy()
+    expect(readFileB64).not.toHaveBeenCalled()
+    expect(baseProps.onInitImageChange).not.toHaveBeenCalled()
+  })
+
+  it('浏览器环境回退原生 input 弹框（不调 GaeaPickFiles）', () => {
+    const inputClick = vi.spyOn(HTMLInputElement.prototype, 'click').mockImplementation(() => {})
+    try {
+      render(<ControlPanel {...baseProps} mode="img2img" backend="comfyui" />)
+      fireEvent.click(screen.getByText('点击上传或拖入参考图'))
+      expect(inputClick).toHaveBeenCalledTimes(1)
+    } finally {
+      inputClick.mockRestore()
+    }
   })
 })

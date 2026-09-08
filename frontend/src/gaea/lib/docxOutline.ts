@@ -16,6 +16,7 @@
 // 标题文本」把定位锚点引到目录页。
 
 import JSZip from "jszip";
+import { b64ToBytes } from "./bytes";
 
 export interface DocxOutlineItem {
   /** 标题级（1..9，1 = 一级标题） */
@@ -41,10 +42,7 @@ interface DocxStyleInfo {
 function dataUrlToBytes(dataUrl: string): Uint8Array {
   const comma = dataUrl.indexOf(",");
   const b64 = comma >= 0 ? dataUrl.slice(comma + 1) : dataUrl;
-  const bin = atob(b64);
-  const bytes = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-  return bytes;
+  return b64ToBytes(b64);
 }
 
 function parseXmlString(xml: string): Document {

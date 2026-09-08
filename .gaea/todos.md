@@ -30,8 +30,8 @@
 | 状态 | 任务 |
 |------|------|
 | 🔄 | 审计刀A（P0×2）：基线台账 CSV+角色库参考图壳内修复（v4.165.0 ✅） |
-| ⬜ | 审计刀B（下载类×4）：ImageGen 两处下载 / NovelSetting 导入导出 / 办公 md 分支 |
-| ⬜ | 审计刀C（上传类×3）：ControlPanel / VisionTrial / SkillModal 接 pickFile util |
+| ✅ | 审计刀B（下载类×4）：ImageGen 两处下载 / NovelSetting 导入导出 / 办公 md 分支（瘦身 P1 v4.166.0） |
+| ✅ | 审计刀C（上传类×3）：ControlPanel / VisionTrial / SkillModal 接 pickFile util（瘦身 P1 v4.166.0） |
 | ⬜ | 审计刀D（真机取证）：printSvg iframe print / 拖拽 / 粘贴 + GaeaPickFiles Filters 可选参数 |
 | ⬜ | W2 知识外化：30 分钟上手文档 / progress.md 瘦身归档 / 个人路径清洗 |
 
@@ -39,8 +39,8 @@
 
 | 状态 | 任务 |
 |------|------|
-| ⬜ | P0 基线：七面四表+功能等价快照+IA 现状走查（随 P1 版附带） |
-| ⬜ | P1 快赢（2版）：轮子 W1 b64×18+inShell / W2 slug×5 / W3 novel diff + 刀B/C + locale 死键 + 依赖验活 |
+| ⬜ | P0 基线：七面四表+功能等价快照+IA 现状走查（随 P1 版附带；P1 实测数字见 v4.166.0 发布说明） |
+| ✅ | P1 快赢轮子（v4.166.0）：W1 b64 收口（≈20 处含 inShell 合一）+ W2 slug×5（strutil.TitleSlug+legacy golden matrix）+ W3 novel diff（DiffReview 迁 lib/diff LCS）+ 刀B/C + locale 死键（1445 键 0 死）+ 依赖验活（26 依赖逐个统计，codemirror 顶包死重移除、@codemirror/* 四子包显式化） |
 | ⬜ | P2 形态（2版）：白名单解耦刀0→schedule 并入办公刀1/2→双空间并列落地（工位/乐园平级切换器+分域导航）→home 空间感知化→壳内走查 |
 | ⬜ | P3 结构（2版）：office 抽核+巨文件首批+bridge 双轨退役启动 |
 | ⬜ | P4 性能（1版）：懒初始化+exe strip+MemoryHub chunk+entry 拆解 |

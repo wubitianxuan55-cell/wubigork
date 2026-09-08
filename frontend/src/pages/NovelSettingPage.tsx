@@ -19,6 +19,8 @@ import ConsistencyPanel from '../components/novel/ConsistencyPanel'
 import { useAppStore } from '../stores/appStore'
 import { countTextChars, extractSettingText } from '../utils/text'
 import * as App from '../../src/wailsjsCompat'
+import { inShellEnv, pickFileAsFile } from '../gaea/lib/pickFile'
+import { saveExportBlob } from '../gaea/lib/saveFile'
 
 type EditorMode = 'edit' | 'split' | 'preview' | 'sections'
 
@@ -95,29 +97,42 @@ const NovelSettingPage: React.FC = () => {
     return () => window.removeEventListener('keydown', handler)
   }, [handleSave])
 
-  const handleImport = () => fileInputRef.current?.click()
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
+  /** 导入内容进编辑器（FileReader 读文本回填）——壳内 PickFiles 与浏览器 input 共用管线 */
+  const readFileIntoContent = (file: File) => {
     const reader = new FileReader()
     reader.onload = () => {
       setContent((reader.result as string) || '')
       message.success(`已导入「${file.name}」`)
     }
     reader.readAsText(file)
+  }
+
+  // 审计刀B b：壳内 <input type=file> 不弹框（v4.162）→ pickFileAsFile 系统
+  // 对话框（扩展名同 input accept 口径）还原 File 喂原 FileReader 管线；
+  // 浏览器回退隐藏 input.click()（原生弹框，口径不变）。
+  const handleImport = async () => {
+    if (!inShellEnv()) { fileInputRef.current?.click(); return }
+    try {
+      const file = await pickFileAsFile(['md', 'txt', 'json'])
+      if (file) readFileIntoContent(file)
+    } catch (err: unknown) {
+      message.error('导入失败: ' + (err instanceof Error ? err.message : String(err)))
+    }
+  }
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    readFileIntoContent(file)
     e.target.value = ''
   }
 
-  const handleExport = () => {
+  // 审计刀B b：壳内 <a download> 不落盘（v4.162）→ saveExportBlob 系统另存为；
+  // 浏览器回退原 <a download>（saveExportBlob 内置）。
+  const handleExport = async () => {
     const blob = new Blob([content], { type: 'text/markdown;charset=utf-8' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = 'novel_setting.md'
-    a.click()
-    URL.revokeObjectURL(url)
-    message.success('已导出')
+    const saved = await saveExportBlob(blob, 'novel_setting.md')
+    if (saved) message.success('已导出')
   }
 
   const handleChatSend = async (userMsg: string): Promise<string> => {

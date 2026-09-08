@@ -1,4 +1,5 @@
 import React, { useMemo, useEffect, useCallback } from 'react'
+import { diffLines } from '../../../gaea/lib/diff'
 
 /**
  * DiffReview — 内联 Diff 审查组件
@@ -27,53 +28,34 @@ interface DiffLine {
   lineNum: number
 }
 
-/** 简单的行级 diff 算法（前端版，用于纯展示） */
+/**
+ * 统一 LCS（gaea/lib/diff.ts，W3 收口刀）映射到本地 DiffLine：ctx→same、
+ * add/del 直传。lineNum 口径沿旧实现：same/add=新侧行号、del=旧侧行号
+ * （现有 UI 不渲染 lineNum，仅保持导出类型契约不劣化）。空串=0 行边界：
+ * lib 的 split('\n') 会把 '' 拆成 ['']，这里按旧口径滤掉该幽灵行，避免
+ * 空原文/新文多显示一行空删除/新增（显示不劣化）。
+ */
 function computeDiff(oldText: string, newText: string): DiffLine[] {
-  const oldLines = oldText ? oldText.split('\n') : []
-  const newLines = newText ? newText.split('\n') : []
+  const oldEmpty = oldText === ''
+  const newEmpty = newText === ''
   const result: DiffLine[] = []
-
-  let oi = 0
-  let ni = 0
-
-  while (oi < oldLines.length && ni < newLines.length) {
-    if (oldLines[oi] === newLines[ni]) {
-      result.push({ type: 'same', content: newLines[ni], lineNum: ni + 1 })
-      oi++
-      ni++
+  let oi = 0 // 旧侧行游标（del/ctx 推进）
+  let ni = 0 // 新侧行游标（add/ctx 推进）
+  for (const row of diffLines(oldText, newText)) {
+    if (row.type === 'ctx') {
+      result.push({ type: 'same', content: row.text, lineNum: ni + 1 })
+      oi += 1
+      ni += 1
+    } else if (row.type === 'del') {
+      if (oldEmpty && row.text === '') continue
+      result.push({ type: 'del', content: row.text, lineNum: oi + 1 })
+      oi += 1
     } else {
-      // 前向搜索
-      let found = false
-      for (let look = ni + 1; look < ni + 4 && look < newLines.length; look++) {
-        if (newLines[look] === oldLines[oi]) {
-          for (; ni < look; ni++) {
-            result.push({ type: 'add', content: newLines[ni], lineNum: ni + 1 })
-          }
-          found = true
-          break
-        }
-      }
-      if (!found) {
-        result.push({ type: 'del', content: oldLines[oi], lineNum: oi + 1 })
-        oi++
-        if (ni < newLines.length) {
-          result.push({ type: 'add', content: newLines[ni], lineNum: ni + 1 })
-          ni++
-        }
-      }
+      if (newEmpty && row.text === '') continue
+      result.push({ type: 'add', content: row.text, lineNum: ni + 1 })
+      ni += 1
     }
   }
-
-  // 剩余行
-  while (oi < oldLines.length) {
-    result.push({ type: 'del', content: oldLines[oi], lineNum: oi + 1 })
-    oi++
-  }
-  while (ni < newLines.length) {
-    result.push({ type: 'add', content: newLines[ni], lineNum: ni + 1 })
-    ni++
-  }
-
   return result
 }
 

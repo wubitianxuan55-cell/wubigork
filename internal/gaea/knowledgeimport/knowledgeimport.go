@@ -10,11 +10,11 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-	"unicode"
 
 	"github.com/xuri/excelize/v2"
 
 	"github.com/gaea/gaea/internal/gaea/knowledge"
+	"github.com/gaea/gaea/internal/gaea/strutil"
 	"github.com/gaea/gaea/internal/gaea/textsim"
 	"github.com/gaea/gaea/internal/office/docmd"
 )
@@ -198,9 +198,9 @@ func MatchRows(rows []Row, store *knowledge.Store) []Row {
 					}
 				}
 			if bestScore >= 0.55 {
-					r.SimilarName = best
-					r.SimilarNote = fmt.Sprintf("与「%s」相似 %d%%，建议合并", best, int(bestScore*100))
-				}
+				r.SimilarName = best
+				r.SimilarNote = fmt.Sprintf("与「%s」相似 %d%%，建议合并", best, int(bestScore*100))
+			}
 			}
 		}
 		out = append(out, r)
@@ -484,23 +484,5 @@ func guessCategory(text string) string {
 
 // slugName 由标题确定性生成唯一键（与 cost.SlugName 同算法，保证同名覆盖）。
 func slugName(title string) string {
-	var b strings.Builder
-	prevDash := false
-	for _, r := range strings.ToLower(strings.TrimSpace(title)) {
-		if unicode.IsLetter(r) || unicode.IsDigit(r) {
-			b.WriteRune(r)
-			prevDash = false
-		} else if !prevDash {
-			b.WriteRune('-')
-			prevDash = true
-		}
-	}
-	name := strings.Trim(b.String(), "-")
-	if name == "" {
-		name = "entry"
-	}
-	if runes := []rune(name); len(runes) > 60 {
-		name = string(runes[:60])
-	}
-	return name
+	return strutil.TitleSlug(title)
 }

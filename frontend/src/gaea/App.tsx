@@ -48,7 +48,7 @@ import { UpdateBanner } from "./components/UpdateBanner";
 import { SelectionToComposer } from "./components/SelectionToComposer";
 import { NewSessionToast, JobDoneNotifier, RunStatus } from "./components/AppStatus";
 
-import { downloadMarkdown, exportAsMarkdown } from "./lib/export";
+import { exportAsMarkdown } from "./lib/export";
 import type { MemorySuggestion, MemorySuggestionsView, MemoryView, SessionMeta, SkillSuggestion, SubagentRunView } from "./lib/types";
 import { useTodoExtractor } from "./hooks/useTodoExtractor";
 import { useModeManager } from "./hooks/useModeManager";
@@ -1453,11 +1453,11 @@ export default function App() {
                 <Aim size={13} className={focusMode ? "text-accent" : ""} />
               </ToolbarButton>
               {/* v4.29 化繁为简：导出三出口（md/Word/PDF）收进单钮下拉，管线原样保留 */}
+              {/* 审计刀B c：md 分支一并收口 exportConversation 统一交付管线 */}
               <ExportMenu
                 disabled={state.items.length === 0}
                 onPick={(format: ExportFormat) => {
-                  if (format === "md") downloadMarkdown(exportAsMarkdown(state.items));
-                  else void exportConversation(format);
+                  void exportConversation(format);
                 }}
               />
               {deleteConfirm ? (

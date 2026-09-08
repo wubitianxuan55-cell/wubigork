@@ -11,6 +11,7 @@ import (
 	"github.com/gaea/gaea/internal/gaea/knowledgeimport"
 	"github.com/gaea/gaea/internal/gaea/provider"
 	"github.com/gaea/gaea/internal/gaea/semantic"
+	"github.com/gaea/gaea/internal/gaea/strutil"
 )
 
 // KnowledgeImportRowView 是知识导入预览中的一条候选条目。
@@ -239,25 +240,7 @@ func normalizeKnowledgeCategory(s string) string {
 }
 
 func slugFromTitle(title string) string {
-	var b strings.Builder
-	prevDash := false
-	for _, r := range strings.ToLower(strings.TrimSpace(title)) {
-		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r >= 0x4e00 {
-			b.WriteRune(r)
-			prevDash = false
-		} else if !prevDash {
-			b.WriteRune('-')
-			prevDash = true
-		}
-	}
-	name := strings.Trim(b.String(), "-")
-	if name == "" {
-		name = "entry"
-	}
-	if runes := []rune(name); len(runes) > 60 {
-		name = string(runes[:60])
-	}
-	return name
+	return strutil.TitleSlug(title)
 }
 
 // semanticKnowledgeRecall App 层知识语义召回（持久化向量索引）。

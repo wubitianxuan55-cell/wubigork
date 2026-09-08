@@ -36,6 +36,7 @@
 
 import JSZip from "jszip";
 import { diffDocxParagraphs } from "./docxTextDiff";
+import { b64ToBytes } from "./bytes";
 
 /** 单页文本快照：page 为 1 起页码（提取序 = 展示序）；texts 为页内段落文本序列。 */
 export interface PptxSlideTexts {
@@ -96,10 +97,7 @@ export interface PptxSlidesOk {
 export function pptxBytesFromDataUrl(dataUrl: string): Uint8Array {
   const comma = dataUrl.indexOf(",");
   const b64 = comma >= 0 ? dataUrl.slice(comma + 1) : dataUrl;
-  const bin = atob(b64);
-  const bytes = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-  return bytes;
+  return b64ToBytes(b64);
 }
 
 // slideN.xml 的 N（自然序排序键；非 slideN.xml 命名不会进候选）。

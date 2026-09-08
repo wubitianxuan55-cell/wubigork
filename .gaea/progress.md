@@ -1,5 +1,16 @@
 # 任务进度
 
+## 最新发布：v4.166.0（2026-09-09）「瘦身 P1 快赢：轮子四刀全收 + 审计刀B/C + locale 死键 + 依赖验活」
+
+- **W1 字节+双门收口**：新中立层 gaea/lib/bytes.ts（b64ToBytes 唯一解码规范，全仓 ~20 处手搓 atob 循环收口）+ gaea/lib/saveFile.ts（downloadBlob/dataUrlToBlob/saveExportBlob 从 schedule/exportArtifact 迁入，schedule 侧 re-export 零改动，防域倒挂）；inShell 判定合一=pickFile.inShellEnv 全仓唯一规范（exportArtifact.inShell 薄委托）。
+- **W2 slug×5 收敛**：新 internal/gaea/strutil/title_slug.go（TitleSlug：小写/保留 Unicode 字母数字/其余折叠 '-'/60 rune 截断/entry 兜底）；cost.SlugName（保留 cost 兜底语义）/knowledgeimport.slugName/app.slugFromTitle/modelengine.customSlug（保留 ASCII 白名单前置）/controller_memory.slugifyName（界面文案）并入；legacy golden matrix 测试钉死五旧实现逐项对照。
+- **W3 novel diff 收口**：DiffReview 手搓弱贪心行 diff → lib/diff.ts LCS（贪心 3 行窗口漂移边界用例锁死，空串=0 行口径不劣化）。
+- **审计刀B（下载类×4）**：ImageGen 两处下载、NovelSetting 导入导出、办公 md 分支并入 exportConversation 统一交付管线（App.export.test 源级回归锁）。
+- **审计刀C（上传类×3）**：ControlPanel/VisionTrial/SkillModal 壳内走 GaeaPickFiles+扩展名后置 fail-closed，浏览器回退原 input。
+- **locale 死键清零**：scripts/slim-locale-deadkeys.mjs（1445 键 0 死，en/zh/zh-TW 同步删）；依赖验活：26 直依赖逐个计数，存疑名单 gsap/docx-preview/unist-util-visit 洗清；codemirror 顶包死重移除（源码零引用），@codemirror/state|view|commands|language 四子包显式化（npm 11 uninstall 再次写坏 lockfile——git restore+手动删条目+dry-run 验证）。
+- **门禁**：Go 115 包全量绿（首跑 1 flaky 复跑清）、vitest 2684→2712（+28，311 文件）、tsc/eslint 0、drift PASS@602（零绑定）、vite build 过。
+- **欠账**：审计刀D（真机取证+Filters）、P0 基线快照表入档、nanoid 升级刀、downloadMarkdown 死代码下轮清。
+
 ## 最新发布：v4.165.0（2026-09-08）「拍板落档 + 壳内残留审计刀A：P0×2 修复」
 
 - **拍板**：收敛计划 §0 两项已决——路线 A=终极个人工具（产品化=期权不作承诺）；LICENSE=私有 All Rights Reserved（根目录 LICENSE + README 许可段 + AGENTS 长期规划回写）。

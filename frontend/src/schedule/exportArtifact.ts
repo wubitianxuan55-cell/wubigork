@@ -5,8 +5,18 @@
  * SVG 字符串；本模块只做浏览器编码：Blob URL → Image → canvas → toBlob，
  * 失败逐层抛错由调用方提示。打印走隐藏 iframe（WebView2 打开系统打印，
  * 「另存为 PDF」即得 PDF 文件）。
+ *
+ * 瘦身 P1 线1（双门+字节收口刀）：saveExportBlob/downloadBlob 实现体已迁
+ * gaea/lib/saveFile.ts（中立层），此处 re-export 保 schedule 域既有 import
+ * 零改动；inShell 薄委托 gaea/lib/pickFile 的 inShellEnv（唯一规范判定）；
+ * svgToPdfBlob 的 JPEG base64 解码改用 gaea/lib/bytes 的 b64ToBytes。
  */
 import { jpegBytesToPdf, bytesToBlob } from './imgPdf'
+import { b64ToBytes } from '../gaea/lib/bytes'
+import { inShellEnv } from '../gaea/lib/pickFile'
+
+// 迁移注记：导出保存双门的中立层实现 + 兼容 re-export（schedule 域调用方零改动）
+export { saveExportBlob, downloadBlob } from '../gaea/lib/saveFile'
 
 /** SVG 字符串尺寸（构建器写在 svg 根节点 width/height 属性上的数字） */
 function svgSize(svg: string): { w: number; h: number } {
@@ -73,52 +83,15 @@ export async function svgToPdfBlob(svg: string, scale = 2): Promise<Blob> {
   const canvas = await svgToCanvas(svg, scale)
   const dataUrl = canvas.toDataURL('image/jpeg', 0.92)
   const b64 = dataUrl.slice(dataUrl.indexOf(',') + 1)
-  const bin = atob(b64)
-  const jpeg = new Uint8Array(bin.length)
-  for (let i = 0; i < bin.length; i++) jpeg[i] = bin.charCodeAt(i)
+  const jpeg = b64ToBytes(b64)
   return bytesToBlob(jpegBytesToPdf(jpeg, canvas.width, canvas.height), 'application/pdf')
-}
-
-/** 触发浏览器下载（与导出 XML 同一 <a download> 机制） */
-export function downloadBlob(blob: Blob, name: string): void {
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = name
-  a.click()
-  URL.revokeObjectURL(url)
 }
 
 /** 是否运行在 Wails 壳内（v4.162）：壳内 <a download> 下载不落盘、
  *  <input type=file> 不弹框——导出/导入必须走系统对话框绑定。 */
 export function inShell(): boolean {
-  return typeof window !== 'undefined' && 'go' in window
-}
-
-/**
- * 保存导出文件（v4.162）：壳内走系统「另存为」对话框（GaeaSaveFileAs，
- * <a download> 在 WebView2 壳内不落盘——用户实测「导出点击没有反应」）；
- * 浏览器回退 <a download> 原机制。返回 true=已保存，false=用户取消。
- */
-export async function saveExportBlob(blob: Blob, name: string): Promise<boolean> {
-  if (inShell()) {
-    const { app } = await import('../gaea/lib/bridge')
-    const b64 = await blobToB64(blob)
-    const path = await app.SaveFileAs(name, b64)
-    return path !== ''
-  }
-  downloadBlob(blob, name)
-  return true
-}
-
-/** Blob → base64（FileReader dataURL，去掉 dataURL 头部） */
-function blobToB64(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const fr = new FileReader()
-    fr.onload = () => resolve(String(fr.result).slice(String(fr.result).indexOf(',') + 1))
-    fr.onerror = () => reject(new Error('读取导出内容失败'))
-    fr.readAsDataURL(blob)
-  })
+  // 薄委托唯一规范判定（schedule→gaea/lib 方向合规，不倒挂）
+  return inShellEnv()
 }
 
 /** 图面打印：隐藏 iframe 载入 SVG，唤起系统打印（另存为 PDF 可得 PDF） */

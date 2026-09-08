@@ -36,6 +36,8 @@ import {
   backendLabel, isLocalBackend, resolveResultImage, templateSizeToPreset,
 } from '../components/imagegen/meta'
 import { downloadFileName } from '../components/imagegen/media'
+import { inShellEnv } from '../gaea/lib/pickFile'
+import { dataUrlToBlob, saveExportBlob } from '../gaea/lib/saveFile'
 import '../components/imagegen/imagegen.css'
 
 // T1 创作资产面板：TEMPLATES 是「分类 → 模板」记录，面板槽只要平铺列表——
@@ -144,10 +146,17 @@ const ImageGenPage: React.FC = () => {
       message.warning('图片数据不可用，请重新生成')
       return
     }
+    // T6-4.2：按实际媒体类型命名（t2v 输出 webp 则 .webp，不再固定 .mp4）
+    const name = downloadFileName(r)
+    // 审计刀B a：壳内 <a download> 不落盘（v4.162）→ dataURL→Blob 走系统另存为；
+    // 浏览器保留原 <a download> 语义（与 useImageGenHistory.handleDownload 同款收口）。
+    if (inShellEnv()) {
+      await saveExportBlob(dataUrlToBlob(href), name)
+      return
+    }
     const a = document.createElement('a')
     a.href = href
-    // T6-4.2：按实际媒体类型命名（t2v 输出 webp 则 .webp，不再固定 .mp4）
-    a.download = downloadFileName(r)
+    a.download = name
     a.click()
   }, [results])
 

@@ -10,6 +10,7 @@
  * 会话内存态。
  */
 import { app } from '../gaea/lib/bridge'
+import { b64ToBytes } from '../gaea/lib/bytes'
 import type { SchedProject } from './types'
 import { normalizeProject } from './store'
 import { saveExportBlob } from './exportArtifact'
@@ -150,10 +151,7 @@ async function fileToBase64(file: File): Promise<string> {
  *  （v4.162：壳内 <a download> 下载不落盘，走 saveExportBlob 系统另存为） */
 export async function exportScheduleXlsx(p: SchedProject): Promise<void> {
   const b64 = await app.ScheduleExportXlsx(JSON.stringify(normalizeProject(p)))
-  const bin = atob(b64)
-  const bytes = new Uint8Array(bin.length)
-  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
-  await saveExportBlob(bytesToBlob(bytes, XLSX_MIME), `${p.name || '进度计划'}.xlsx`)
+  await saveExportBlob(bytesToBlob(b64ToBytes(b64), XLSX_MIME), `${p.name || '进度计划'}.xlsx`)
 }
 
 /** 导入上报 Excel：文件 → base64 → Go 解析 → 计划（排程交回 CPM 重算） */

@@ -3,19 +3,21 @@
  *
  * Wails 壳内 <input type=file>.click() 不弹文件对话框（浏览器一切正常），
  * 壳内选取必须走 GaeaPickFiles 系统对话框 + GaeaReadFileB64 读内容还原 File。
- * 本模块是中立基础层：只许 import ./bridge（types 经 bridge 返回类型带入），
- * 供任意域（角色库参考图、进度计划导入…）复用，防 schedule 域依赖倒挂。
+ * 本模块是中立基础层：只许 import ./bridge（types 经 bridge 返回类型带入）
+ * 与同级零依赖 util（./bytes），供任意域（角色库参考图、进度计划导入…）
+ * 复用，防 schedule 域依赖倒挂。
  * 注意：GaeaPickFiles 无文件类型过滤器（审计刀D 项）——调用方传 accept
  * 扩展名数组由本层后置校验，不合法抛错由调用方提示（fail-closed 不静默吞）。
  * GaeaReadFileB64 后端上限 64MB（os.Stat 拒绝，防误用），超限报错透传。
  */
 import { app } from './bridge'
+import { b64ToBytes } from './bytes'
 
 /**
- * 是否运行在 Wails 壳内——与 schedule/exportArtifact 的 inShell 同口径
- * （typeof window !== 'undefined' && 'go' in window；v4.162 实证：壳内
- * input[type=file] 不弹框、<a download> 不落盘，浏览器一切正常）。
- * 中立层自带一份等价判定，不动 schedule 侧既有导出。
+ * 是否运行在 Wails 壳内——全仓唯一规范判定（瘦身 P1 线1 ②合一）：
+ * typeof window !== 'undefined' && 'go' in window。schedule/exportArtifact
+ * 的 inShell 已薄委托至此（v4.162 实证：壳内 input[type=file] 不弹框、
+ * <a download> 不落盘，浏览器一切正常）。
  */
 export function inShellEnv(): boolean {
   return typeof window !== 'undefined' && 'go' in window
@@ -58,7 +60,7 @@ export async function pickFileAsFile(accept?: string[]): Promise<File | null> {
     }
   }
   const b64 = await app.ReadFileB64(f.path)
-  const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0))
+  const bytes = b64ToBytes(b64)
   return new File([bytes], f.name)
 }
 

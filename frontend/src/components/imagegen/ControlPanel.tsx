@@ -1,5 +1,5 @@
 import React from 'react'
-import { Input, InputNumber, Button, Typography, Slider, Select, Tooltip } from 'antd'
+import { Input, InputNumber, Button, Typography, Slider, Select, Tooltip, message } from 'antd'
 import {
   CloudOutlined, DesktopOutlined, RocketOutlined, KeyOutlined,
   EditOutlined, SlidersOutlined, CloudServerOutlined, DashboardOutlined,
@@ -13,6 +13,7 @@ import type { SystemStats } from '../../api/image'
 import { CollapsibleSection, PickerGroup, StatusDot } from './ui'
 import { BACKEND_OPTIONS, isLocalBackend, type BackendOptionMeta } from './meta'
 import type { ImageMode } from './types'
+import { inShellEnv, pickFileAsFile } from '../../gaea/lib/pickFile'
 
 const { TextArea } = Input
 
@@ -163,6 +164,22 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
     reader.readAsDataURL(file)
   }
 
+  // 审计刀C-1（v4.162 实证）：Wails 壳内 input[type=file].click() 不弹文件
+  // 对话框，改走 pickFileAsFile（GaeaPickFiles 系统对话框 + GaeaReadFileB64
+  // 还原 File），喂同一条 readFile 管线（单一数据通路，与拖拽/浏览器 input
+  // 同口径）；浏览器路径回退原生 hidden input 不动。扩展名不合法由
+  // pickFileAsFile 后置校验抛错，这里 message 提示（fail-closed 不静默）；
+  // 取消=null 静默返回。
+  const pickInitImage = async () => {
+    if (!inShellEnv()) { fileRef.current?.click(); return }
+    try {
+      const file = await pickFileAsFile(['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp'])
+      if (file) readFile(file)
+    } catch (e) {
+      message.error(`选择参考图失败：${e instanceof Error ? e.message : String(e)}`)
+    }
+  }
+
   /** 引擎选项是否应在当前模式下禁用（txt2imgOnly） */
   const optionDisabledInMode = (o: BackendOptionMeta): boolean =>
     o.txt2imgOnly === true && mode !== 'txt2img'
@@ -273,12 +290,12 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
             ) : (
               <div
                 className="ig-upload-zone"
-                onClick={() => fileRef.current?.click()}
+                onClick={() => void pickInitImage()}
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={(e) => { e.preventDefault(); readFile(e.dataTransfer.files?.[0]) }}
                 role="button"
                 tabIndex={0}
-                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileRef.current?.click() } }}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); void pickInitImage() } }}
               >
                 <UploadOutlined style={{ fontSize: 22, color: 'var(--color-primary)' }} />
                 <div style={{ fontSize: 12.5, color: 'var(--color-text)' }}>点击上传或拖入参考图</div>

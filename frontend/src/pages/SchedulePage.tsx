@@ -36,6 +36,7 @@ import { wbsOf } from '../schedule/ganttGroup'
 import { buildGanttExportSvg } from '../schedule/ganttExport'
 import { buildAoaExportSvg, buildPdmExportSvg } from '../schedule/networkExport'
 import { svgToPngBlob, svgToPdfBlob, saveExportBlob, inShell, printSvg, svgWithViewBox } from '../schedule/exportArtifact'
+import { b64ToBytes } from '../gaea/lib/bytes'
 import { loadExportMeta, saveExportMeta, todayIso, type ExportMetaPrefs } from '../schedule/exportMeta'
 import { exportScheduleXlsx, importScheduleXlsx, importScheduleMpp } from '../schedule/api'
 import { app } from '../gaea/lib/bridge'
@@ -623,7 +624,7 @@ const SchedulePage: React.FC = () => {
       if (!picked?.length) return
       const f = picked[0]
       const b64 = await app.ReadFileB64(f.path)
-      const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0))
+      const bytes = b64ToBytes(b64)
       const file = new File([bytes], f.name)
       if (kind === 'xml') void onImportFile(file)
       else if (kind === 'xlsx') void onImportXlsx(file)

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest'
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 
 // 屏蔽 Wails 绑定：jsdom 中没有 window.go
@@ -223,5 +223,78 @@ describe('NovelSettingPage 一致性检查面板（v4.3f）', () => {
   it('全部通过时显示成功空态', async () => {
     render(<NovelSettingPage />)
     expect(await screen.findByText(/全部通过，未发现一致性问题/)).toBeTruthy()
+  })
+})
+
+// ── 审计刀B b：导入/导出双门收口（壳内系统对话框 + 系统另存为；浏览器原生回退）──
+describe('NovelSettingPage 导入/导出双门（审计刀B b）', () => {
+  let saveFileAs: ReturnType<typeof vi.fn>
+  let pickFiles: ReturnType<typeof vi.fn>
+  let readFileB64: ReturnType<typeof vi.fn>
+
+  /** UTF-8 安全 base64（jsdom btoa 仅 Latin1；FileReader/后端均按 UTF-8 字节编码） */
+  const b64Of = (s: string) => btoa(String.fromCharCode(...new TextEncoder().encode(s)))
+
+  /** 装真壳同款 window.go 绑定面（bridge realApp 按方法名路由到 Gaea 前缀） */
+  const stubShell = (picked: unknown[], b64: string) => {
+    saveFileAs = vi.fn(async () => 'C:/导出/novel_setting.md')
+    pickFiles = vi.fn(async () => picked)
+    readFileB64 = vi.fn(async () => b64)
+    ;(window as unknown as { go?: unknown }).go = {
+      app: {
+        NovelSettingTestB: {
+          GaeaSaveFileAs: saveFileAs,
+          GaeaPickFiles: pickFiles,
+          GaeaReadFileB64: readFileB64,
+        },
+      },
+    }
+  }
+
+  beforeEach(() => {
+    useAppStore.setState({ projectOpen: true, projectPath: 'C:/novel/test' })
+    vi.clearAllMocks()
+    vi.mocked(GetWorldview).mockResolvedValue('# 世界观\n\n架空中世纪')
+    vi.mocked(GetForeshadows).mockResolvedValue({ items: [] })
+    vi.mocked(CheckConsistency).mockResolvedValue({ issues: [], total_issues: 0, summary: '✅ 未发现一致性问题' })
+  })
+
+  afterEach(() => {
+    delete (window as unknown as { go?: unknown }).go
+    vi.restoreAllMocks()
+  })
+
+  it('壳内导出：GaeaSaveFileAs 收到 novel_setting.md 与内容 base64（不再 <a download>）', async () => {
+    stubShell([], '')
+    render(<NovelSettingPage />)
+    const editor = (await screen.findByPlaceholderText(/在此撰写或粘贴小说设定/)) as HTMLTextAreaElement
+    fireEvent.change(editor, { target: { value: '# 蒸汽纪元' } })
+    fireEvent.click(screen.getByRole('button', { name: /导出/ }))
+    await waitFor(() => expect(saveFileAs).toHaveBeenCalledTimes(1))
+    expect(saveFileAs.mock.calls[0][0]).toBe('novel_setting.md')
+    expect(saveFileAs.mock.calls[0][1]).toBe(b64Of('# 蒸汽纪元'))
+  })
+
+  it('壳内导入：PickFiles → ReadFileB64 还原 File 喂原 FileReader 管线', async () => {
+    stubShell(
+      [{ path: 'C:/novel/新设定.md', name: '新设定.md', type: 'file', size: 5 }],
+      b64Of('# 导入的设定'),
+    )
+    render(<NovelSettingPage />)
+    const editor = (await screen.findByPlaceholderText(/在此撰写或粘贴小说设定/)) as HTMLTextAreaElement
+    expect(editor.value).toContain('架空中世纪')
+    fireEvent.click(screen.getByRole('button', { name: /导入/ }))
+    await waitFor(() => expect(readFileB64).toHaveBeenCalledWith('C:/novel/新设定.md'))
+    await waitFor(() => expect(editor.value).toContain('# 导入的设定'))
+    expect(await screen.findByText(/已导入「新设定.md」/)).toBeTruthy()
+  })
+
+  it('浏览器导入：回退隐藏 input.click（jsdom 无 window.go，既有口径不变）', async () => {
+    const inputClick = vi.spyOn(HTMLInputElement.prototype, 'click').mockImplementation(() => {})
+    render(<NovelSettingPage />)
+    await screen.findByPlaceholderText(/在此撰写或粘贴小说设定/)
+    fireEvent.click(screen.getByRole('button', { name: /导入/ }))
+    expect(inputClick).toHaveBeenCalledTimes(1)
+    inputClick.mockRestore()
   })
 })

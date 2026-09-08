@@ -6,6 +6,7 @@ import {
 } from '@ant-design/icons'
 
 import { C } from '../utils/theme'
+import { inShellEnv, pickFileAsFile } from '../gaea/lib/pickFile'
 
 interface SkillInfo {
   name: string
@@ -37,18 +38,35 @@ const SkillModal: React.FC<SkillModalProps> = ({ open, onClose }) => {
     } catch (_) {}
   }
 
-  const handleImport = () => {
+  // 引导性半桩（诚实 parity）：只识别并展示文件名，真导入=手动把 SKILL.md
+  // 放入 skills/ 目录（后端无导入绑定，不做落盘——禁止过度设计）。
+  const acceptSkillFile = (file: File) => {
+    const name = file.name.replace(/\.md$/i, '')
+    setImportName(name)
+    message.info(`Skill「${name}」已识别。将 SKILL.md 放入 skills/ 目录即可使用。`)
+  }
+
+  // 审计刀C-3（v4.162 实证）：壳内动态 input.click() 不弹文件对话框，改走
+  // GaeaPickFiles 系统对话框还原 File 后维持同款「仅展示文件名」半桩语义；
+  // 浏览器回退原动态 input。扩展名不合法由 pickFileAsFile 后置校验抛错，
+  // message 提示（fail-closed）；取消=null 静默返回。
+  const handleImport = async () => {
+    if (inShellEnv()) {
+      try {
+        const file = await pickFileAsFile(['md'])
+        if (file) acceptSkillFile(file)
+      } catch (e) {
+        message.error(e instanceof Error ? e.message : String(e))
+      }
+      return
+    }
     const input = document.createElement('input')
     input.type = 'file'
     input.accept = '.md'
     input.onchange = async (e: Event) => {
       const file = (e.target as HTMLInputElement).files?.[0]
       if (!file) return
-      const name = file.name.replace(/\.md$/i, '')
-      setImportName(name)
-      // 读取文件内容——需要后端支持复制到 skills/ 目录
-      // 当前版本仅在前端展示文件名，后端复制需额外 API
-      message.info(`Skill「${name}」已识别。将 SKILL.md 放入 skills/ 目录即可使用。`)
+      acceptSkillFile(file)
     }
     input.click()
   }

@@ -7,6 +7,7 @@ import { createPortal } from 'react-dom'
 import { Typography, Modal, message, Input } from 'antd'
 import { DownOutlined } from '@ant-design/icons'
 import * as App from '../../src/wailsjsCompat'
+import { b64ToBytes } from '../gaea/lib/bytes'
 import { C } from '../utils/theme'
 import { shouldSubmitOnEnter } from '../utils/chatComposer'
 import { isNearBottom } from '../utils/scroll'
@@ -277,8 +278,7 @@ const ChatPage: React.FC = () => {
         ? await App.TTSSpeakBase64WithParams(content, { Speed: 0, Pitch: 0, Style: '', Emotion: effectiveSpeakEmotion })
         : await App.TTSSpeakBase64(content)
       if (result?.base64) {
-        const b = atob(result.base64); const bytes = new Uint8Array(b.length)
-        for (let i = 0; i < b.length; i++) bytes[i] = b.charCodeAt(i)
+        const bytes = b64ToBytes(result.base64)
         // T6-3.3：blob URL 登记到 ref，播放结束/失败/卸载时 revokeObjectURL
         speakUrlRef.current = URL.createObjectURL(new Blob([bytes], { type: result.mimeType || 'audio/mp3' }))
         const audio = new Audio(speakUrlRef.current)
