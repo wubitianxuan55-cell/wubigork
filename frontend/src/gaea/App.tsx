@@ -9,16 +9,14 @@ import { Sidebar } from "./components/Sidebar";
 import { useT } from "./lib/i18n";
 import { sessionTitle, sessionTime } from "./lib/session";
 import { relativeTime } from "./lib/time";
-import { useController, usePreviewStore } from "./lib/store";
-import { app, onTaskEvent } from "./lib/bridge";
+import { useController, useUpdatedFilesStore } from "./lib/store";
+import { app } from "./lib/bridge";
 import { GenuiActionProvider } from "../genui/GenuiActionContext";
 import { GenuiScopeProvider } from "../genui/scope";
-import { notifyScheduleFileChanged } from "../schedule/store";
 import { scheduleApplyArgsOf } from "../schedule/applyDiff";
 import { emitFrontendEvent, FRONTEND_EVENTS } from "../events";
 import { setGenuiActionHandler } from "./lib/genuiHost";
-import { clearGenuiPanel, sanitizeSessionKey } from "./lib/genuiPanel";
-import { clearBlockStatesForSession } from "../genui/interaction";
+import { clearGenuiPanel } from "./lib/genuiPanel";
 import { Transcript } from "./components/Transcript";
 import { JumpBar } from "./components/JumpBar";
 import { useToast } from "./components/Toast";
@@ -38,10 +36,9 @@ import { ChatTabs, type ChatTabId } from "./components/ChatTabs";
 import { ContextView } from "./components/ContextView";
 import { ContextModal, ContextPill } from "./components/ContextModal";
 import { TrajectoryView } from "./components/TrajectoryView";
-import { SubagentThread, type SubagentThreadStatus } from "./components/SubagentThread";
+import { SubagentThread } from "./components/SubagentThread";
 import { FilePreview } from "./components/FilePreview";
 import { PreviewNavBar } from "./components/PreviewNavBar";
-import type { SessionDeliverable } from "./components/DeliverablesPanel";
 import { CommandPalette, type PaletteItem } from "./components/CommandPalette";
 import { useRunningBadge } from "./hooks/useRunningBadge";
 import { Skeleton } from "./components/Skeleton";
@@ -50,7 +47,7 @@ import { SelectionToComposer } from "./components/SelectionToComposer";
 import { NewSessionToast, JobDoneNotifier, RunStatus } from "./components/AppStatus";
 
 import { exportAsMarkdown } from "./lib/export";
-import type { MemorySuggestion, MemorySuggestionsView, MemoryView, SessionMeta, SkillSuggestion, SubagentRunView } from "./lib/types";
+import type { MemoryView, SessionMeta, TaskTemplate } from "./lib/types";
 import { useTodoExtractor } from "./hooks/useTodoExtractor";
 import { useModeManager } from "./hooks/useModeManager";
 import { useSessionManager } from "./hooks/useSessionManager";
@@ -58,61 +55,36 @@ import { useBridgeWatch } from "./hooks/useBridgeWatch";
 import { useDrawers } from "./hooks/useDrawers";
 import { useToolStats } from "./hooks/useToolStats";
 import { useSidebar } from "./hooks/useSidebar";
+import CompactContext from "./hooks/useCompact";
 import { readWorkbenchValue, writeWorkbenchValue } from "./lib/workbenchStorage";
 
 import {
   SIDEBAR_DEFAULT_WIDTH, SIDEBAR_MIN_WIDTH, SIDEBAR_MAX_WIDTH,
 } from "./hooks/useLayoutSizes";
-import {
-  PREVIEW_MAX_WIDTH, PREVIEW_MIN_WIDTH, clampPreviewWidth,
-  loadPreviewWidth, savePreviewWidth,
-  loadPreviewMaximized, savePreviewMaximized,
-} from "./lib/layoutPreferences";
-import { shouldAutoOpenDeliverables } from "./lib/deliverablePrefs";
-import CompactContext from "./hooks/useCompact";
-import { DELIVERABLE_EXT_RE, deliverableMentions } from "./lib/fileLinks";
-import { recordRecentFile } from "./lib/recentFiles";
-import { useUpdatedFilesStore } from "./lib/store";
-import { buildSessionChanges, extractDeliverablePaths, WRITE_TOOL_NAMES, type SessionChange } from "./lib/changes";
-import {
-  createPreviewRefreshScheduler,
-  initialPreviewAutoFrontState,
-  isOfficeDeliverablePath,
-  normalizePreviewPath,
-  OFFICE_WRITE_TOOLS,
-  previewAutoFrontReduce,
-  extractOfficeWritePaths,
-  type PreviewAutoFrontEvent,
-} from "./lib/officeTurnProjection";
-import { usePaneTabsStore } from "./lib/paneTabs";
-import { setPaneFileOpenHandler, openPaneFileOrPreview } from "./lib/paneFileOpen";
-import { parseSidebarOpenResult } from "./lib/sidebarOpen";
-import { setEventSyncFetcher } from "./lib/eventSync";
+import { loadPersistedRightPanelState, type WorkspaceTabId } from "./lib/workspaceTabs";
 import { shouldAutoOpenBrowser } from "./lib/browserPrefs";
-import { matchRunningCandidates, matchRunningRun, setTaskCardActivityProvider, setTaskCardAmbiguityHandler, setTaskCardAmbiguityResolver, setTaskCardOpenHandler, setTaskCardOpenTarget } from "./lib/taskActivity";
-import { detectNewRunRefs, subscribeSubagentRuns } from "./lib/subagentRunsStore";
+import { setEventSyncFetcher } from "./lib/eventSync";
+import { parseSidebarOpenResult } from "./lib/sidebarOpen";
 import { classifyComposerCommand } from "./lib/command";
 import { rankPaletteItems } from "./lib/paletteRank";
-import {
-  WORKSPACE_MIN_WIDTH, clampWorkspaceWidth,
-  loadPersistedRightPanelState, loadWorkspaceWidth,
-  savePersistedRightPanelState, saveWorkspaceWidth,
-  type WorkspaceTabId,
-} from "./lib/workspaceTabs";
+import { usePaneTabsStore } from "./lib/paneTabs";
+import { normalizePreviewPath } from "./lib/officeTurnProjection";
 import { SIDEBAR_REGISTRY, type WorkspacePanelContext } from "./lib/sidebarRegistry";
 import { loadTemplates, FALLBACK_TEMPLATES } from "./components/Welcome";
-import type { TaskTemplate } from "./lib/types";
 
-/** 右栏拖宽时保留的对话区最小宽度（Codex 式：面板可拉很宽，但聊天不能消失）。 */
-const CHAT_MIN_WIDTH = 400;
-
-// 会话删除成功后的 GenUI 状态清理（审计 2026-09 #7）：localStorage 交互状态
-// 按 stateKey 前缀清理，内存面板内容按会话键清除。幂等；只应在删除成功路径
-// 调用（删除失败时保留现场，交互状态丢失只会退化为干净默认渲染）。
-function purgeDeletedSessionGenui(path: string): void {
-  clearBlockStatesForSession(sanitizeSessionKey(path));
-  clearGenuiPanel(path);
-}
+// 瘦身 P3（巨文件拆分）：1) 会话/布局/命令等按域拆入 app/ 下 hooks，App.tsx
+// 保留为主壳——default export App 与导出面不变；2) palette 命令项、JSX 布局、
+// 交付导出 onPick 与既有源级回归锁耦合，原样留在本文件（App.export.test/
+// App.palette.test 的 src 级断言即如）。
+import { useSubagentTabs } from "./app/useSubagentTabs";
+import { useTaskCards } from "./app/useTaskCards";
+import { usePreviewAutoFront } from "./app/usePreviewAutoFront";
+import { useDeliverables } from "./app/useDeliverables";
+import { useWorkspaceLayout } from "./app/useWorkspaceLayout";
+import { usePreviewPanel } from "./app/usePreviewPanel";
+import { useSessionHandlers } from "./app/useSessionHandlers";
+import { useAppKeyboard } from "./app/useAppKeyboard";
+import { useTasksAutoOpen } from "./app/useTasksAutoOpen";
 
 export default function App() {
   const toast = useToast();
@@ -201,102 +173,12 @@ export default function App() {
   useEffect(() => {
     usePaneTabsStore.getState().setSessionKey(currentSessionKey);
   }, [currentSessionKey]);
-  // 独立子代理会话 tabs（better-sidebar openSubagent 语义）：点击任务页里的
-  // 子代理节点 → 主对话区上方新增一个独立会话 tab（可关闭、可并行切换），
-  // 不替换主会话、也不在右栏开轨迹式全面板。
-  const subRunsCacheRef = useRef<SubagentRunView[]>([]);
-  const [subagentTabs, setSubagentTabs] = useState<
-    Array<{
-      id: string;
-      sessionPath: string;
-      ref: string;
-      task?: string;
-      model?: string;
-      kind?: "subagent" | "model_tool";
-      tool?: string;
-      status: SubagentThreadStatus;
-    }>
-  >([]);
-  const [subagentTabId, setSubagentTabId] = useState<string | null>(null);
-  useEffect(() => {
-    setSubagentTabs([]);
-    setSubagentTabId(null);
-  }, [currentSessionKey]);
-  const openSubagentThread = useCallback(
-    (p: {
-      sessionPath: string;
-      ref: string;
-      task?: string;
-      model?: string;
-      status: SubagentThreadStatus;
-    }) => {
-      const id = `sub:${p.ref}`;
-      setSubagentTabs((prev) => (
-        prev.some((x) => x.id === id)
-          ? prev
-          : [...prev, { ...p, id, kind: p.ref.startsWith("mt_") ? "model_tool" as const : undefined }]
-      ));
-      setSubagentTabId(id);
-      setChatTab("chat");
-    },
-    [],
-  );
-  const closeSubagentTab = useCallback(
-    (id: string) => {
-      const next = subagentTabs.filter((x) => x.id !== id);
-      setSubagentTabs(next);
-      setSubagentTabId((cur) => (cur === id ? (next[next.length - 1]?.id ?? null) : cur));
-    },
-    [subagentTabs],
-  );
-  // v4.68 task 卡多候选歧义选择器：空 ref 命中 ≥2 个 running 时点击弹此
-  // 轻量选择器，人工挑一个跳转（宁缺勿错：选择器只由用户点击触发，绝不
-  // 自动跳转；0/1 候选走原「唯一 running 命中」直跳链路，行为不变）。
-  // state 只存点击瞬间的候选快照（SubagentRunView 原样引用），App 本地即可。
-  const [taskPickCandidates, setTaskPickCandidates] = useState<SubagentRunView[] | null>(null);
-  // 独立子代理 tab 实时状态同步（v4.63 换共享单轮询 store）：打开后运行/
-  // 完成/失败与模型随 GaeaSubagentRuns 刷新——tab 状态点与 SubagentThread
-  // 头部的状态徽标不再停留在点击瞬间的快照。轮询本身由 subagentRunsStore
-  // 收敛为每会话单定时器（与 task 卡活动/任务树同源），App 只做派生合并。
-  const [subagentRuns, setSubagentRuns] = useState<SubagentRunView[]>([]);
-  useEffect(() => {
-    if (!currentSessionPath) {
-      setSubagentRuns([]);
-      return;
-    }
-    return subscribeSubagentRuns(currentSessionPath, setSubagentRuns);
-  }, [currentSessionPath]);
-  useEffect(() => {
-    subRunsCacheRef.current = subagentRuns;
-    setSubagentTabs((prev) => {
-      if (prev.length === 0 || subagentRuns.length === 0) return prev;
-      let changed = false;
-      const next = prev.map((tab) => {
-        const run = subagentRuns.find((r) => r.ref === tab.ref);
-        if (!run) return tab;
-        const model = run.model ?? tab.model;
-        const task = run.task || tab.task;
-        const kind = run.kind ?? tab.kind;
-        const tool = run.tool ?? tab.tool;
-        if (run.status === tab.status && model === tab.model && task === tab.task &&
-            kind === tab.kind && tool === tab.tool) {
-          return tab;
-        }
-        changed = true;
-        return { ...tab, status: run.status, model, task, kind, tool };
-      });
-      return changed ? next : prev;
-    });
-  }, [subagentRuns]);
-  const handleChatTabSelect = useCallback((id: string) => {
-    if (id === "chat" || id === "trajectory" || id === "context" || id === "memory") {
-      setSubagentTabId(null);
-      setChatTab(id);
-    } else {
-      setSubagentTabId(id);
-      setChatTab("chat");
-    }
-  }, []);
+  // 独立子代理会话 tabs + task 卡歧义选择器候选 → app/useSubagentTabs
+  const {
+    subRunsCacheRef, subagentTabs, subagentTabId, openSubagentThread,
+    closeSubagentTab, taskPickCandidates, setTaskPickCandidates,
+    subagentRuns, handleChatTabSelect,
+  } = useSubagentTabs({ currentSessionKey, currentSessionPath, setChatTab });
   // 会话隔离（蒸馏 dsh-better-sidebar）：右侧面板子 Tab 按会话记忆（C3）——
   // 切会话/新建/恢复时恢复该会话上次选中的子面板；显式切换（如点文件回
   // 「文件」面板）照常覆盖当前会话记忆。无会话路径（未保存草稿）回退全局 key。
@@ -311,47 +193,11 @@ export default function App() {
     toggleSidebar, setExpandedSidebarWidth, startSidebarResize,
     resizeSidebarWithKeyboard, handleWorkspacePreviewModeChange,
   } = useSidebar();
-  // v4.23 右栏宽度：全局键（最后一次拖拽胜出、跨会话即时跟随）；全局缺省时
-  // 用会话快照兜底（学 better-sidebar：session state 自带 width，全局键读档胜出）。
-  const [workspaceWidth, setWorkspaceWidth] = useState<number>(() => loadWorkspaceWidth(initialPanelState.width));
-  const [workspaceResizing, setWorkspaceResizing] = useState(false);
-  // ref镜像：会话记录写宽度快照用，拖拽中不触发记录 effect 逐帧写 localStorage
-  const workspaceWidthRef = useRef(workspaceWidth);
-  useEffect(() => { workspaceWidthRef.current = workspaceWidth; }, [workspaceWidth]);
-  // v4.27 视口感知：窗口尺寸变化时按「视口 − 侧栏 − 对话区最小宽度」重钳右栏，
-  // 避免持久化的宽面板在小窗口/放大窗口下挤出聊天区（学 ResizableDrawer 的 viewport 追踪）。
-  const [viewportWidth, setViewportWidth] = useState(() => (typeof window === "undefined" ? 1440 : window.innerWidth));
-  useEffect(() => {
-    const onResize = () => setViewportWidth(window.innerWidth);
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
-  }, []);
-  const maxWorkspaceByViewport = useMemo(
-    () => Math.max(WORKSPACE_MIN_WIDTH, viewportWidth - effectiveSidebarWidth - CHAT_MIN_WIDTH),
-    [viewportWidth, effectiveSidebarWidth],
-  );
-  // 渲染用有效宽度：读档/拖拽值与视口上限取小后钳制（CSS grid 不会溢出聊天区）
-  const effectiveWorkspaceWidth = useMemo(
-    () => clampWorkspaceWidth(Math.min(workspaceWidth, maxWorkspaceByViewport)),
-    [workspaceWidth, maxWorkspaceByViewport],
-  );
-  // v4.27 首次打开文件时自动加宽右栏到舒适阅读宽度（Codex 式：点文件即铺开）。
-  // 仅当当前宽度低于阈值时抬升，不覆盖用户已拖宽的偏好，且不越过视口上限；
-  // 同步写全局键（与拖拽松手语义一致：最后一次宽度胜出、跨会话跟随）。
-  const handleAutoWidenWorkspace = useCallback(() => {
-    const target = Math.min(560, maxWorkspaceByViewport);
-    if (workspaceWidthRef.current >= target) return;
-    workspaceWidthRef.current = target;
-    setWorkspaceWidth(target);
-    saveWorkspaceWidth(target);
-  }, [maxWorkspaceByViewport]);
-  // 会话记录持久化：激活 tab / 启用集变化时随存宽度快照（学 better-sidebar 每次持久化同步全局宽度）
-  useEffect(() => {
-    savePersistedRightPanelState(
-      { v: 1, tab: rightTab ?? "files", enabled: null, width: workspaceWidthRef.current },
-      currentSessionKey,
-    );
-  }, [rightTab, currentSessionKey]);
+  // v4.23 右栏宽度/视口钳制/持久化 → app/useWorkspaceLayout
+  const {
+    workspaceResizing, effectiveWorkspaceWidth,
+    handleAutoWidenWorkspace, startWorkspaceResize,
+  } = useWorkspaceLayout({ initialPanelState, rightTab, currentSessionKey, effectiveSidebarWidth });
   // C6 运行域活动角标：活跃任务数（queued/running）；任务面板激活时视为已读
   // 不显示。v4.53 分工并入任务：运行计数角标挂在「任务」单键上，任务面板
   // （含分工段）激活即视为已读。
@@ -362,195 +208,18 @@ export default function App() {
   const [scrollToTurn, setScrollToTurn] = useState<((turn: number) => void) | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
-
-  const [workspacePanelOpen, setWorkspacePanel] = useState(false);
-  const [previewWidth, setPreviewWidth] = useState(loadPreviewWidth);
-  // v4.30 预览两档占幅（VS Code Toggle Maximized Panel 式）：最大化 = 占满
-  // 可用宽度（视口 − 侧栏 − 聊天最小 360，与拖拽上限同源）；还原回到进入
-  // 最大化前的半幅宽度（previewHalfWidthRef 记忆）。拖拽分割条自动退出最大化。
-  // v4.32：最大化状态持久化（gaea.previewMaximized），半幅宽度本就落盘，
-  // 恢复会话后还原仍回到上次的半幅宽度。
-  const [previewMaximized, setPreviewMaximized] = useState(loadPreviewMaximized);
-  const previewHalfWidthRef = useRef(previewWidth);
-  const [previewResizing, setPreviewResizing] = useState(false);
-  const [workspaceRefreshKey, setWorkspaceRefreshKey] = useState(0);
-  // P1-1 多文件预览队列：previewFile 与队列全部由全局 store 驱动（单一数据源），
-  // 局部不再持有一份副本；openFilePreview 入队、navPreview ←/→ 切换。
-  const previewFile = usePreviewStore((s) => s.previewFile);
-  const previewIndex = usePreviewStore((s) => s.previewIndex);
-  const previewList = usePreviewStore((s) => s.previewList);
-  const closeFilePreview = usePreviewStore((s) => s.closeFilePreview);
-  const navTo = usePreviewStore((s) => s.navTo);
-  const closePreviewAt = usePreviewStore((s) => s.closePreviewAt);
-  // U4 写后预览实时跟随：主区大预览与 pane 文件 tab 共用 reloadTicks 刷新总线
-  const previewReloadTicks = usePaneTabsStore((s) => s.reloadTicks);
-
-  // ── 专注模式（Kun 精华）：一键收起侧栏与右侧面板，只留对话和输入区 ──
-  const [focusMode, setFocusMode] = useState(() => {
-    return readWorkbenchValue("gaea.focusMode") === "1";
-  });
-  const applyFocus = useCallback((active: boolean) => {
-    handleWorkspacePreviewModeChange(active);
-    if (active) {
-      setWorkspacePanel(false);
-      closeFilePreview();
-    }
-  }, [handleWorkspacePreviewModeChange, closeFilePreview]);
-  const toggleFocus = useCallback(() => {
-    const next = !focusMode;
-    setFocusMode(next);
-    writeWorkbenchValue("gaea.focusMode", next ? "1" : "0");
-    applyFocus(next);
-  }, [focusMode, applyFocus]);
-  useEffect(() => {
-    if (focusMode) {
-      handleWorkspacePreviewModeChange(true);
-      setWorkspacePanel(false);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- 仅启动时收敛一次
-  }, []);
-
-  // 点文件 → 收起右侧树，在主区域展开可拖宽的预览（Codex 式）
-  // P0-3：预览过的文件同步进「最近文件」快捷区（lib/recentFiles 单源）
-  // P1-1：经全局 store 入队，支持 ←/→ 多文件切换
-  const openFilePreview = useCallback((rel: string) => {
-    recordRecentFile(rel);
-    setRightTab("files");
-    setWorkspacePanel(false);
-    usePreviewStore.getState().openFilePreview(rel);
-  }, []);
-
-  // 对话内「交付文件」卡片与正文文件链接走 usePreviewStore（弹窗通道）。
-  // 本页有嵌入式预览容器，把这类请求重定向为嵌入预览（弹窗仅保留给
-  // 记忆中枢等没有嵌入容器的页面）。P1-1：重定向时保留队列（不清空），
-  // 直接入队即可由预览容器渲染，无需再转发局部状态。
-  useEffect(() => {
-    return usePreviewStore.subscribe((s, prev) => {
-      if (s.previewFile && s.previewFile !== prev.previewFile) {
-        setRightTab("files");
-        setWorkspacePanel(false);
-      }
-    });
-  }, []);
-
-  // ── pane 视图/文件打开辅助（对标 better-sidebar：卡片/事件只开 tab）──
-  const openPaneView = useCallback((viewId: WorkspaceTabId) => {
-    closeFilePreview();
-    setWorkspacePanel(true);
-    const reg = SIDEBAR_REGISTRY.find((r) => r.id === viewId);
-    usePaneTabsStore.getState().openView(viewId, reg?.label ?? viewId);
-  }, [closeFilePreview]);
-  const openPaneFile = useCallback((rel: string) => {
-    if (!rel) return;
-    closeFilePreview();
-    setWorkspacePanel(true);
-    const name = rel.split(/[\\/]/).pop() || rel;
-    usePaneTabsStore.getState().openFile(rel, name);
-  }, [closeFilePreview]);
-
-  // 正文交付卡 / 行内附件 / 工具输出文件引用 → 统一开 pane 文件 tab
-  // （组件深处无法下钻回调，经模块级注入；未注册页面回落大预览）。
-  useEffect(() => {
-    setPaneFileOpenHandler(openPaneFile);
-    return () => setPaneFileOpenHandler(null);
-  }, [openPaneFile]);
-
-  // 预览头部“文件”按钮 → 回到资源管理器视图 tab
-  const backToFiles = useCallback(() => {
-    closeFilePreview();
-    openPaneView("files");
-  }, [closeFilePreview, openPaneView]);
-
-  // 面板开关：预览打开时先收起预览再展开树
-  const toggleWorkspacePanel = useCallback(() => {
-    if (previewFile !== null) {
-      closeFilePreview();
-      setWorkspacePanel(true);
-      return;
-    }
-    setWorkspacePanel((o) => !o);
-  }, [previewFile, closeFilePreview]);
-
-  // 预览最大化可用宽度：与拖拽上限同源（视口 − 侧栏 − 聊天最小 360）。
-  const previewMaxWidth = useMemo(
-    () => Math.min(PREVIEW_MAX_WIDTH, Math.max(PREVIEW_MIN_WIDTH, window.innerWidth - effectiveSidebarWidth - 360)),
-    [effectiveSidebarWidth],
-  );
-  // 半幅 ↔ 最大化 切换：进入最大化时记忆当前半幅宽度；还原时写回并持久化。
-  const togglePreviewMaximize = useCallback(() => {
-    if (previewMaximized) {
-      setPreviewMaximized(false);
-      savePreviewMaximized(false);
-      setPreviewWidth(previewHalfWidthRef.current);
-      savePreviewWidth(previewHalfWidthRef.current);
-    } else {
-      previewHalfWidthRef.current = previewWidth;
-      setPreviewMaximized(true);
-      savePreviewMaximized(true);
-    }
-  }, [previewMaximized, previewWidth]);
-
-  // 拖拽分割条调整预览宽度
-  const startPreviewResize = useCallback((e: React.PointerEvent) => {
-    e.preventDefault();
-    // 用户手动拖拽 = 放弃最大化，回到半幅拖拽模式
-    setPreviewMaximized(false);
-    savePreviewMaximized(false);
-    setPreviewResizing(true);
-    let next = previewWidth;
-    // 预览最小 320px；最大不超过窗口减侧栏后再留 360px 给聊天区
-    const minW = PREVIEW_MIN_WIDTH;
-    const maxW = Math.min(PREVIEW_MAX_WIDTH, window.innerWidth - effectiveSidebarWidth - 360);
-    const onMove = (me: PointerEvent) => {
-      next = clampPreviewWidth(Math.max(minW, Math.min(maxW, window.innerWidth - me.clientX)));
-      setPreviewWidth(next);
-    };
-    const onDone = () => {
-      setPreviewWidth(next);
-      savePreviewWidth(next);
-      setPreviewResizing(false);
-      window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("pointerup", onDone);
-      window.removeEventListener("pointercancel", onDone);
-      document.body.style.cursor = "";
-      document.body.style.userSelect = "";
-    };
-    document.body.style.cursor = "col-resize";
-    document.body.style.userSelect = "none";
-    window.addEventListener("pointermove", onMove);
-    window.addEventListener("pointerup", onDone);
-    window.addEventListener("pointercancel", onDone);
-  }, [previewWidth, effectiveSidebarWidth]);
-
-  // v4.23 工作台宽度拖拽：右栏左缘手柄（指针拖拽形状同 preview-resizer）。
-  // v4.27 上限放开：280–1600 钳制之上再按视口收敛（视口 − 侧栏 − 400 对话区），
-  // 面板可拉到很宽但聊天区始终保留（Codex 式右侧面板体验）。
-  // 宽度是布局偏好而非会话内容：拖拽中实时跟手，松手写全局键（最后一次拖拽胜出，
-  // 跨会话即时跟随——蒸馏 dsh-better-sidebar 全局宽度键语义）。
-  const startWorkspaceResize = useCallback((e: React.PointerEvent) => {
-    e.preventDefault();
-    setWorkspaceResizing(true);
-    const onMove = (me: PointerEvent) => {
-      const maxW = Math.max(WORKSPACE_MIN_WIDTH, window.innerWidth - effectiveSidebarWidth - CHAT_MIN_WIDTH);
-      const next = clampWorkspaceWidth(Math.min(maxW, window.innerWidth - me.clientX));
-      workspaceWidthRef.current = next;
-      setWorkspaceWidth(next);
-    };
-    const onDone = () => {
-      saveWorkspaceWidth(workspaceWidthRef.current);
-      setWorkspaceResizing(false);
-      window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("pointerup", onDone);
-      window.removeEventListener("pointercancel", onDone);
-      document.body.style.cursor = "";
-      document.body.style.userSelect = "";
-    };
-    document.body.style.cursor = "col-resize";
-    document.body.style.userSelect = "none";
-    window.addEventListener("pointermove", onMove);
-    window.addEventListener("pointerup", onDone);
-    window.addEventListener("pointercancel", onDone);
-  }, [effectiveSidebarWidth]);
+  // 主区大预览 + 右侧工作台交互编排（预览队列/专注模式/pane 打开/拖拽）→ app/usePreviewPanel
+  const {
+    workspacePanelOpen, setWorkspacePanel,
+    workspaceRefreshKey, setWorkspaceRefreshKey,
+    previewFile, previewList, previewIndex, closeFilePreview, navTo, closePreviewAt,
+    previewReloadTicks,
+    focusMode, toggleFocus,
+    openFilePreview, openPaneView, openPaneFile, backToFiles,
+    toggleWorkspacePanel,
+    previewWidth, previewMaximized, previewResizing, previewMaxWidth,
+    togglePreviewMaximize, startPreviewResize,
+  } = usePreviewPanel({ effectiveSidebarWidth, setRightTab, handleWorkspacePreviewModeChange });
 
   // 统一交付出口：会话成果一键导出（docx/pptx/xlsx/md/pdf 同管线；
   // pdf 经 docx 中转 + LibreOffice 转换）。
@@ -635,503 +304,37 @@ export default function App() {
     [switchModel, send, setChatTab, openPaneView, currentSessionPath],
   );
 
-  // History drawer: opening fetches the saved-session list; picking one resumes it
-  // (the transcript swaps in; the model/folder are unchanged).
-  const openHistory = useCallback(async () => {
-    setHistView(await refreshSessions());
-  }, [refreshSessions, setHistView]);
-  const closeHistory = useCallback(() => setHistView(null), [setHistView]);
-  const onResumeSession = useCallback(
-    async (path: string) => { setHistView(null); await handleResumeSession(path); },
-    [handleResumeSession, setHistView],
-  );
-  const onDeleteSession = useCallback(
-    async (path: string) => {
-      await handleDeleteSession(path);
-      const sessions = await refreshSessions();
-      setHistView(sessions);
-      // 审计 2026-09 #7：列表中已无该会话（删除成功）才清理其 GenUI 交互状态。
-      // handleDeleteSession 内部吞错（toast + 列表回滚），据此区分成败。
-      if (!sessions.some((s) => s.path === path)) purgeDeletedSessionGenui(path);
-    },
-    [handleDeleteSession, refreshSessions, setHistView],
-  );
-  const onRenameSession = useCallback(
-    async (path: string, title: string) => { await handleRenameSession(path, title); setHistView(await refreshSessions()); },
-    [handleRenameSession, refreshSessions, setHistView],
-  );
-
-  // 删除当前会话：无需打开侧边栏，顶栏直接操作；删除后自动开启新会话
-  const confirmDeleteCurrent = useCallback(async () => {
-    setDeleteConfirm(false);
-    try {
-      const all = await refreshSessions();
-      const cur = all.find((s) => s.current);
-      if (cur) {
-        await deleteSession(cur.path);
-        // 审计 2026-09 #7：删除成功路径清理该会话的 GenUI 交互状态与面板内容。
-        purgeDeletedSessionGenui(cur.path);
-      }
-    } catch {
-      // 删除失败不阻塞新建会话
-    }
-    await newSessionAndReset();
-  }, [refreshSessions, deleteSession, newSessionAndReset]);
-
-  // Workspace: open the folder chooser and switch projects. The hook resets the
-  // transcript and refreshes meta on a pick; refresh the sidebar sessions too so
-  // the recent list belongs to the newly selected workspace. A cancel is a no-op.
-  const switchFolder = useCallback(async (path?: string) => {
-    const picked = path === undefined ? await pickWorkspace() : await switchWorkspace(path);
-    if (picked) {
-      closeFilePreview();
-      setWorkspacePanel(false);
-      await refreshSessions();
-    }
-    return picked;
-  }, [pickWorkspace, switchWorkspace, refreshSessions, closeFilePreview]);
-
-  // 从侧边栏点其他项目的会话：先切换到该项目工作区，再恢复该会话。
-  const currentProjectPath = projectGroups.find((g) => g.current)?.path;
-  const resumeSessionInProject = useCallback(
-    async (path: string, projectPath: string) => {
-      if (currentProjectPath && projectPath && currentProjectPath !== projectPath) {
-        await switchFolder(projectPath);
-      }
-      await handleResumeSession(path);
-    },
-    [currentProjectPath, switchFolder, handleResumeSession],
-  );
-
-  // 欢迎页「最近会话」：从项目分组派生跨项目最近会话（去重、按最近排序），
-  // 不再沿用旧扁平列表（旧列表仅当前工作区且被分页截断）。
-  const recentSessions = useMemo(() => {
-    const out: SessionMeta[] = [];
-    const seen = new Set<string>();
-    for (const g of projectGroups) {
-      for (const s of g.sessions) {
-        if (s.current || seen.has(s.path)) continue;
-        seen.add(s.path);
-        out.push(s);
-      }
-    }
-    out.sort((a, b) => b.modTime - a.modTime);
-    return out.slice(0, 6);
-  }, [projectGroups]);
-
-  const resumeRecentSession = useCallback(
-    async (path: string) => {
-      const group = projectGroups.find((g) => g.sessions.some((s) => s.path === path));
-      await resumeSessionInProject(path, group?.path ?? currentProjectPath ?? "");
-    },
-    [projectGroups, currentProjectPath, resumeSessionInProject],
-  );
-
-  // 会话管理（Kun/Codex 优点蒸馏）：置顶、归档、恢复
-  const onArchiveSession = useCallback(async (path: string) => {
-    try {
-      await archiveSession(path);
-      await refreshSessions();
-    } catch (e) {
-      toast.show(t("toast.archiveFailed", { msg: e instanceof Error ? e.message : String(e) }), "warn");
-    }
-  }, [archiveSession, refreshSessions, toast, t]);
-
-  const onPinSession = useCallback(async (path: string, pinned: boolean) => {
-    try {
-      await pinSession(path, pinned);
-      await refreshSessions();
-    } catch (e) {
-      toast.show(`置顶操作失败：${e instanceof Error ? e.message : String(e)}`, "warn");
-    }
-  }, [pinSession, refreshSessions, toast]);
-
-  const onRestoreSession = useCallback(
-    async (path: string, projectPath: string) => {
-      try {
-        const restored = await unarchiveSession(path);
-        if (restored) await resumeSessionInProject(restored, projectPath);
-      } catch (e) {
-        toast.show(`恢复失败：${e instanceof Error ? e.message : String(e)}`, "warn");
-      }
-    },
-    [unarchiveSession, resumeSessionInProject, toast],
-  );
-
-  const onRemember = useCallback(
-    async (scope: string, note: string) => {
-      await remember(scope, note);
-      setMemView(await fetchMemory());
-    },
-    [remember, fetchMemory, setMemView],
-  );
-
-  const onForget = useCallback(
-    async (name: string) => {
-      await forget(name);
-      setMemView(await fetchMemory());
-    },
-    [forget, fetchMemory, setMemView],
-  );
-
-  const onSaveDoc = useCallback(
-    async (path: string, body: string) => {
-      await saveDoc(path, body);
-      setMemView(await fetchMemory());
-    },
-    [saveDoc, fetchMemory, setMemView],
-  );
-
-  const onSaveFact = useCallback(
-    async (name: string, body: string) => {
-      await updateFact(name, body);
-      setMemView(await fetchMemory());
-    },
-    [updateFact, fetchMemory, setMemView],
-  );
-
-  const onAcceptMemorySuggestion = useCallback(
-    async (candidate: MemorySuggestion) => {
-      await app.AcceptMemorySuggestion(candidate);
-      setMemView(await fetchMemory());
-    },
-    [fetchMemory, setMemView],
-  );
-
-  const onAcceptSkillSuggestion = useCallback(
-    async (candidate: SkillSuggestion) => {
-      await app.AcceptSkillSuggestion(candidate);
-    },
-    [],
-  );
-
-  // 蒸馏合并（做梦 2.0）：批准后归档较旧条，刷新记忆视图。
-  const onAcceptMergeSuggestion = useCallback(
-    async (keep: string, archive: string) => {
-      await app.AcceptMergeSuggestion(keep, archive);
-      setMemView(await fetchMemory());
-    },
-    [fetchMemory, setMemView],
-  );
-
-  const onRefreshSuggestions = useCallback(async (): Promise<MemorySuggestionsView | null> => {
-    try {
-      return await app.MemorySuggestions();
-    } catch {
-      return null;
-    }
-  }, []);
+  // 会话/历史/记忆操作回调集 → app/useSessionHandlers
+  const {
+    openHistory, closeHistory, onResumeSession, onDeleteSession, onRenameSession,
+    confirmDeleteCurrent, switchFolder, resumeSessionInProject, recentSessions,
+    resumeRecentSession, onArchiveSession, onPinSession, onRestoreSession,
+    onRemember, onForget, onSaveDoc, onSaveFact, onAcceptMemorySuggestion,
+    onAcceptSkillSuggestion, onAcceptMergeSuggestion, onRefreshSuggestions,
+  } = useSessionHandlers({
+    t, toast, refreshSessions, deleteSession, newSessionAndReset, pickWorkspace,
+    switchWorkspace, handleResumeSession, handleDeleteSession, handleRenameSession,
+    projectGroups, archiveSession, unarchiveSession, pinSession, remember, forget,
+    saveDoc, updateFact, fetchMemory, setMemView, setHistView, setDeleteConfirm,
+    closeFilePreview, setWorkspacePanel,
+  });
 
   useEffect(() => { void refreshSessions(); }, [cwd, refreshSessions]);
 
-  // 全局快捷键
-  useEffect(() => {
-    const onKey = (e: Event) => {
-      const ke = e as globalThis.KeyboardEvent;
-      const mod = ke.ctrlKey || ke.metaKey, t = ke.target as HTMLElement;
-      const inInput = t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable;
-      if (ke.key === "Escape" && !inInput && !state.running) {
-        if (previewFile !== null) { ke.preventDefault(); closeFilePreview(); return; }
-        if (closeTopmost()) { ke.preventDefault(); return; }
-      }
-      if (!mod) return;
-      if (ke.key === "n" && !state.running) { ke.preventDefault(); void newSessionAndReset(); return; }
-      if (ke.key === "k") { ke.preventDefault(); setPaletteOpen(true); return; }
-      if (ke.key === "H" && ke.shiftKey) { ke.preventDefault(); void openHistory(); return; }
-      if (ke.key === "K" && ke.shiftKey) { ke.preventDefault(); void openKnowledge(); return; }
-      if (ke.key === "b") { ke.preventDefault(); toggleSidebar(); return; }
-      if (ke.key === "j") { ke.preventDefault(); toggleWorkspacePanel(); return; }
-      if (ke.key === "F" && ke.shiftKey) { ke.preventDefault(); toggleFocus(); return; }
-    };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [state.running, closeTopmost, workspacePanelOpen, previewFile, toggleFocus, closeFilePreview, newSessionAndReset, openHistory, openKnowledge, toggleSidebar, toggleWorkspacePanel]);
+  // 全局快捷键 → app/useAppKeyboard（deps 原样）
+  useAppKeyboard({
+    state, closeTopmost, workspacePanelOpen, previewFile, toggleFocus,
+    closeFilePreview, newSessionAndReset, openHistory, openKnowledge,
+    toggleSidebar, toggleWorkspacePanel, setPaletteOpen,
+  });
 
   const { toolCounts, skillCounts } = useToolStats(state.items);
-  // 会话产物：从会话消息文本中提取交付文件 + 写类工具落盘的显式登记
-  // （保留首现顺序；同一文件多次出现计入 versions 次数——产物版本时间线
-  // 数据源，对标 Hermes 版本步进器）。显式登记修复：Agent 未在正文提及
-  // 路径时成果面板漏登记的启发式缺陷。
-  const sessionDeliverables = useMemo<SessionDeliverable[]>(() => {
-    const order = new Map<string, { sourceId: string; turn: number; versions: number }>();
-    let turn = -1;
-    const register = (p: string, sourceId: string) => {
-      const rec = order.get(p);
-      if (rec) {
-        rec.versions++;
-      } else {
-        order.set(p, { sourceId, turn: Math.max(0, turn), versions: 1 });
-      }
-    };
-    for (const it of state.items) {
-      if (it.kind === "user") {
-        turn++;
-        continue;
-      }
-      // 写类工具落盘 = 显式登记：工具参数里的路径是真实写入，不依赖正文提及
-      if (it.kind === "tool" && WRITE_TOOL_NAMES.has(it.name)) {
-        for (const p of extractDeliverablePaths(it.args || "")) {
-          if (DELIVERABLE_EXT_RE.test(p)) register(p, it.id);
-        }
-        continue;
-      }
-      if (it.kind !== "assistant" || !it.text) continue;
-      for (const p of deliverableMentions(it.text)) {
-        register(p, it.id);
-      }
-    }
-    const out: SessionDeliverable[] = [];
-    for (const [path, rec] of order) {
-      out.push({ path, sourceId: rec.sourceId, turn: rec.turn, versions: rec.versions });
-    }
-    return out;
-  }, [state.items]);
-
-  // 文件变更（Kun 可观察性精华）：汇总本会话写/改过的文件及次数
-  const sessionChanges = useMemo<SessionChange[]>(() => buildSessionChanges(state.items), [state.items]);
-
-  // ── v4.30 产物自动置前/角标（Devin Auto-open 式）────────────────────────
-  // 本会话内新出现的产物路径：diff sessionDeliverables（首现即新），产物 tab
-  // 角标显示未读数、产物面板对应行显示「新」徽标+高亮；激活产物 tab（查看）
-  // 即清零（与运行角标「激活即已读」语义一致）。
-  // 会话切换：重置为「当前产物全集」基线（恢复会话不误标新），并清空角标。
-  const [freshDeliverablePaths, setFreshDeliverablePaths] = useState<string[]>([]);
-  const seenDeliverablePathsRef = useRef<Set<string>>(new Set());
-  const baselinePendingRef = useRef(true);
-  useEffect(() => {
-    baselinePendingRef.current = true;
-    seenDeliverablePathsRef.current = new Set(sessionDeliverables.map((d) => d.path));
-    setFreshDeliverablePaths([]);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- 仅会话切换时重置基线，快照取当前值
-  }, [currentSessionKey]);
-  useEffect(() => {
-    // 切换后的首次运行：把当前会话产物全量预填为基线（不算新），之后流式
-    // 增长中出现的路径才标新。
-    if (baselinePendingRef.current) {
-      baselinePendingRef.current = false;
-      seenDeliverablePathsRef.current = new Set(sessionDeliverables.map((d) => d.path));
-      return;
-    }
-    const seen = seenDeliverablePathsRef.current;
-    const added: string[] = [];
-    for (const d of sessionDeliverables) {
-      if (!seen.has(d.path)) {
-        seen.add(d.path);
-        added.push(d.path);
-      }
-    }
-    if (added.length > 0) {
-      setFreshDeliverablePaths((prev) => [...prev, ...added]);
-      // v4.32 产物自动弹出：偏好开 → 亮右栏并开「产物」视图 tab（pane 语义；
-      // 激活即清零角标，自动弹出 = 已查看）。不动 FilePreview——产物 tab 与
-      // 主区预览不冲突。
-      if (shouldAutoOpenDeliverables() && rightTab !== "deliverables") {
-        openPaneView("deliverables");
-      }
-    }
-  }, [sessionDeliverables, rightTab, openPaneView]);
-  // 激活产物 tab = 已查看 → 清零角标与「新」徽标
-  useEffect(() => {
-    if (rightTab === "deliverables") setFreshDeliverablePaths([]);
-  }, [rightTab]);
-  // v4.30 产物自动置前：未查看的新产物数角标（激活产物 tab 即清零，见上方 effect）
-  const freshDeliverableCount = rightTab === "deliverables" ? 0 : freshDeliverablePaths.length;
-
-  // ── U2 预览浮窗语义状态机接线（docs/gaea-dsh-univer-office-distill-plan-2026-09.md
-  // §4.2-5）：写弹读不弹（office 写类工具成功回执才自动置前预览）、关闭优先（用户
-  // 手动关闭清除打开意图，同回合读取不复活）、意图跨回合（写意图未兑现跨 turnEnd
-  // 保持）、终态清理（回合终结复位回合级状态）。状态迁移全部在 lib/
-  // officeTurnProjection.previewAutoFrontReduce（纯函数，单测钉死），此处只做
-  // 事件喂入与 open 动作执行（经 paneFileOpen 统一入口：工作台开 pane 文件 tab，
-  // 未注册页面回落大预览）。置前范围收窄在 Office 文档路径，bash/脚本写盘不打扰。
-  const previewAutoRef = useRef(initialPreviewAutoFrontState);
-  // 工具卡状态基线：挂载/会话恢复/补拉快照只建基线不触发（与 v4.30 freshDeliverablePaths
-  // 的 baselinePending 同式），此后状态跃迁才产生 dispatch/result 事件。
-  const previewAutoToolSeenRef = useRef<Map<string, string>>(new Map());
-  const previewAutoBaselineRef = useRef(true);
-  const focusModeRef = useRef(focusMode);
-  useEffect(() => { focusModeRef.current = focusMode; }, [focusMode]);
-
-  // 返回值 = 状态机给出 open 且本机真的执行了置前（U4 刷新信号用它跳过刚
-  // 置前的文件——挂载即加载最新）；专注模式/窄屏守卫拦下时返回 false（此时
-  // 预览并未打开，isOpen 判定天然为假，刷新信号会被调度器丢弃）。
-  const applyPreviewAutoEvent = useCallback((event: PreviewAutoFrontEvent): boolean => {
-    const next = previewAutoFrontReduce(previewAutoRef.current, event);
-    previewAutoRef.current = next.state;
-    if (next.action.type !== "open") return false;
-    // 专注模式 = 用户明确只要对话；窄屏（<1240）工作台 pane 被 CSS 隐藏——
-    // 两种场景都不自动置前（与 openTasksAuto 的窄屏守卫同口径）。
-    if (focusModeRef.current || window.innerWidth < 1240) return false;
-    if (!isOfficeDeliverablePath(next.action.path)) return false;
-    openPaneFileOrPreview(next.action.path);
-    return true;
-  }, []);
-
-  // ── U4 写后预览实时跟随接线（docs/gaea-u4-render-evidence-inventory-2026-09.md
-  // §3 推荐组合：GaeaPreview 直读刷新，零绑定）──写类工具成功回执 → 刷新调度器
-  // （800ms 防抖合并连写，纯逻辑在 lib/officeTurnProjection.createPreviewRefresh
-  // Scheduler，单测钉死触发/合并/关闭抑制）→ 目标文件此刻正打开在预览面才递增
-  // paneTabs.reloadTicks → FilePreview 静默重读（不进 loading、不重挂、滚动位保持）。
-  // 刷新≠置前：绝不打开已关闭的预览（U2 关闭优先/读不弹语义不变）；专注模式/
-  // 窄屏下工作台面板本就关闭，isOpen 天然为假。主区大预览（previewFile）与 pane
-  // 活动文件 tab 共用同一刷新总线。
-  const previewRefreshCtxRef = useRef<{ panelOpen: boolean; previewFile: string | null }>({
-    panelOpen: false,
-    previewFile: null,
-  });
-  useEffect(() => {
-    previewRefreshCtxRef.current = { panelOpen: workspacePanelOpen, previewFile };
-  }, [workspacePanelOpen, previewFile]);
-  const previewRefreshRef = useRef<ReturnType<typeof createPreviewRefreshScheduler> | null>(null);
-  if (previewRefreshRef.current === null) {
-    previewRefreshRef.current = createPreviewRefreshScheduler({
-      isOpen: (path) => {
-        const key = normalizePreviewPath(path);
-        if (!key) return false;
-        const ctx = previewRefreshCtxRef.current;
-        // 主区大预览正开着该文件 → 刷新
-        if (ctx.previewFile && normalizePreviewPath(ctx.previewFile) === key) return true;
-        // 工作台面板未打开（含专注模式/窄屏）→ pane 文件 tab 不可见，不刷
-        if (!ctx.panelOpen) return false;
-        const pane = usePaneTabsStore.getState();
-        const active = pane.tabs.find((tb) => tb.id === pane.active);
-        // 仅活动文件 tab 算「正在看」：后台 tab 未挂载 FilePreview，重开即最新
-        return active?.kind === "file" && !!active.path && normalizePreviewPath(active.path) === key;
-      },
-      refresh: (path) => {
-        usePaneTabsStore.getState().requestReload(path);
-      },
-    });
-  }
-
-  // 会话切换：状态机整体复位 + 重建工具状态基线（恢复会话绝不弹预览）；
-  // U4 刷新调度器同步清空待刷新计时（新会话文件 tab 全新挂载，无需跟随）。
-  useEffect(() => {
-    previewAutoRef.current = initialPreviewAutoFrontState;
-    previewAutoToolSeenRef.current = new Map();
-    previewAutoBaselineRef.current = true;
-    previewRefreshRef.current?.cancelAll();
-  }, [currentSessionKey]);
-
-  // 工具事件喂入：写类工具卡（状态 running→done/error 跃迁）→ writeDispatch /
-  // writeResult。读取事件对状态机是恒 no-op（读不弹），不喂、省一次路径提取。
-  useEffect(() => {
-    const seen = previewAutoToolSeenRef.current;
-    const baseline = previewAutoBaselineRef.current;
-    if (baseline) previewAutoBaselineRef.current = false;
-    for (const it of state.items) {
-      if (it.kind !== "tool") continue;
-      const prev = seen.get(it.id);
-      if (prev === it.status) continue;
-      seen.set(it.id, it.status);
-      if (baseline && prev === undefined) continue; // 基线期只登记
-      // 进度计划（v4.114 刀5）：agent schedule_apply 成功 → 板块即时回读
-      //（绕过 15s 轻扫等待；防抖/未保存守卫在 store 侧，宁守勿冲）。
-      if (it.name === "schedule_apply" && it.status === "done") {
-        notifyScheduleFileChanged();
-        continue;
-      }
-      if (!OFFICE_WRITE_TOOLS.has(it.name)) continue;
-      const paths = extractOfficeWritePaths(it.name, it.args).filter(isOfficeDeliverablePath);
-      if (paths.length === 0) continue;
-      const path = paths[0]; // 同回合多文件取首个：同文件同回合至多一窗（纯函数层守卫）
-      let openedNow = false;
-      if (prev === undefined) {
-        applyPreviewAutoEvent({ type: "writeDispatch", path });
-        if (it.status === "done") {
-          openedNow = applyPreviewAutoEvent({ type: "writeResult", path, ok: true });
-        } else if (it.status === "error") {
-          applyPreviewAutoEvent({ type: "writeResult", path, ok: false });
-        }
-      } else if (it.status === "done") {
-        openedNow = applyPreviewAutoEvent({ type: "writeResult", path, ok: true });
-      } else if (it.status === "error" || it.status === "stopped") {
-        applyPreviewAutoEvent({ type: "writeResult", path, ok: false });
-      }
-      // U4 写后预览实时跟随：成功落盘 → 逐路径喂刷新调度器（失败/中断不派：
-      // 内容未变或无回执，刷新也是旧内容；打开判定在计时到点进行，已关闭的
-      // 文件不会被刷新也不会被弹）。刚被本回执自动置前的路径跳过——挂载即
-      // 加载最新，无需二次静默重读。
-      if (it.status === "done") {
-        for (const p of paths) {
-          if (openedNow && normalizePreviewPath(p) === normalizePreviewPath(path)) continue;
-          previewRefreshRef.current?.notify(p);
-        }
-      }
-    }
-  }, [state.items, applyPreviewAutoEvent]);
-
-  // 终态清理：回合终结（running 熄灭）复位回合级状态；写意图跨回合保持。
-  const prevRunningRef = useRef(state.running);
-  useEffect(() => {
-    if (prevRunningRef.current && !state.running) {
-      applyPreviewAutoEvent({ type: "turnEnd" });
-    }
-    prevRunningRef.current = state.running;
-  }, [state.running, applyPreviewAutoEvent]);
-
-  // 关闭优先：预览从有到无（Esc/×/切 pane/专注模式）= 用户手动关闭 → 喂
-  // userClose，清除该路径的打开意图；同回合后续读取/回执不再复活浮窗。
-  useEffect(() => {
-    return usePreviewStore.subscribe((s, prev) => {
-      if (prev.previewFile != null && s.previewFile == null) {
-        applyPreviewAutoEvent({ type: "userClose", path: prev.previewFile });
-      }
-    });
-  }, [applyPreviewAutoEvent]);
-  // v4.63 自动展开（对标 dsh better-sidebar 的 0→N 触发 + 500ms 去抖重臂 +
-  // 偏好开关）：当前会话出现新子代理/本地模型工具运行 → 自动切右栏「任务」
-  // 视图（已在任务视图则只记角标语义，不打扰）。去抖的 Why 与 dsh #314 同源：
-  // 派发帧与标题/状态帧分帧到达，立即判定会误触发/漏触发，等快照稳定后重评。
-  // 偏好走 localStorage（默认开）；会话切换的首个快照只建立基线不触发。
-  // v4.77 窄屏不强制展开：桌面宽度 < 1240 时 workspace-pane 被 CSS 隐藏，
-  // 自动激活不切右栏（用户可手动打开，设置开关仍可整体关闭）。
-  const openTasksAuto = useCallback(() => {
-    try {
-      if (localStorage.getItem("gaea.tasks.autoOpenSubagent") === "0") return;
-    } catch { /* 私有模式：按默认开处理 */ }
-    if (window.innerWidth < 1240) return;
-    if (rightTab !== "tasks") openPaneView("tasks");
-  }, [rightTab, openPaneView]);
-
-  // 新后台任务（queued/running/stopping 事件）→ 自动激活任务页（宽屏；可关）
-  const seenTaskIdsRef = useRef<Set<string>>(new Set());
-  useEffect(() => {
-    return onTaskEvent((t) => {
-      if (t.status !== "queued" && t.status !== "running" && t.status !== "stopping") return;
-      if (seenTaskIdsRef.current.has(t.id)) return;
-      seenTaskIdsRef.current.add(t.id);
-      openTasksAuto();
-    }, "work");
-  }, [openTasksAuto]);
-
-  const seenSubagentRefsRef = useRef<{ path: string; initialized: boolean; refs: Set<string> }>({
-    path: "", initialized: false, refs: new Set(),
-  });
-  const autoOpenTasksTimerRef = useRef(0);
-  const subagentRunsRef = useRef<SubagentRunView[]>([]);
-  useEffect(() => { subagentRunsRef.current = subagentRuns; }, [subagentRuns]);
-  useEffect(() => {
-    const path = currentSessionPath ?? "";
-    const seen = seenSubagentRefsRef.current;
-    if (seen.path !== path) {
-      // 会话切换：以当前快照建立基线，绝不把历史子代理当「新」触发
-      seen.path = path;
-      seen.initialized = true;
-      seen.refs = new Set(subagentRunsRef.current.map((r) => r.ref));
-      window.clearTimeout(autoOpenTasksTimerRef.current);
-      return;
-    }
-    const fresh = detectNewRunRefs(seen.refs, subagentRunsRef.current);
-    if (fresh.length === 0) return;
-    window.clearTimeout(autoOpenTasksTimerRef.current);
-    autoOpenTasksTimerRef.current = window.setTimeout(() => {
-      const still = detectNewRunRefs(seen.refs, subagentRunsRef.current);
-      if (still.length === 0) return;
-      for (const ref of still) seen.refs.add(ref);
-      openTasksAuto();
-    }, 500);
-  }, [subagentRuns, currentSessionPath, openTasksAuto]);
+  // 会话产物/文件变更派生 + 新产物角标自动置前 → app/useDeliverables
+  const { sessionDeliverables, sessionChanges, freshDeliverablePaths, freshDeliverableCount } = useDeliverables({ state, currentSessionKey, rightTab, openPaneView });
+  // 预览浮窗状态机（U2）+ 写后预览实时跟随（U4）→ app/usePreviewAutoFront
+  usePreviewAutoFront({ state, currentSessionKey, workspacePanelOpen, previewFile, focusMode });
+  // 新后台任务/子代理运行自动激活任务页 → app/useTasksAutoOpen
+  const { openTasksAuto } = useTasksAutoOpen({ rightTab, openPaneView, currentSessionPath, subagentRuns });
 
   const tabBadges = runningBadge
     ? { ...runningBadge, ...(freshDeliverableCount > 0 ? { deliverables: freshDeliverableCount } : {}) }
@@ -1142,6 +345,7 @@ export default function App() {
   useEffect(() => {
     if (Object.keys(updatedAt).length === 0) return;
     setWorkspaceRefreshKey((k) => k + 1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- setWorkspaceRefreshKey 为 hook 返回的稳定 dispatch，deps 原样保留
   }, [updatedAt]);
 
   // 会话切换（启动装载/新建/恢复/切换工作区）后拉取会话级派生统计，
@@ -1153,10 +357,12 @@ export default function App() {
 
   // ── v4.23 注册表渲染上下文：右栏面板公共依赖一次性组装 ──
   // （学 better-sidebar 框架/内容解耦：面板 props 与旧渲染分支逐一对应，行为不变）
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- setWorkspaceRefreshKey 为 hook 返回的稳定 dispatch，deps 原样保留
   const refreshWorkspacePanel = useCallback(() => setWorkspaceRefreshKey((k) => k + 1), []);
   const locateDeliverableSource = useCallback((turn: number) => {
     setWorkspacePanel(false);
     scrollToTurn?.(turn);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- setWorkspacePanel 为 hook 返回的稳定 dispatch，deps 原样保留
   }, [scrollToTurn]);
   // v4.24 A1 新子代理自动展开：分工面板检测到新子代理出现（且用户偏好开启）
   // 时回调——亮出右栏并切到「任务」面板（v4.53 分工并入任务同屏展示；
@@ -1220,70 +426,9 @@ export default function App() {
     setEventSyncFetcher((afterSeq) => app.ResyncEvents(afterSeq));
     return () => setEventSyncFetcher(null);
   }, []);
-  // ② 子代理 task 卡 live 预览——运行期间 5s 轮询 GaeaSubagentRuns 喂
-  //    taskActivity 注入点；派发期 args 不带 ref（ref 只在 tool_result 出现）。
-  //    空 ref 回退：单个 running 直接绑定（原逻辑不变）；并行多个 running 时
-  //    用 ToolCard 透传的 args 任务描述文本与各 run.task 做唯一命中匹配——
-  //    0 或 ≥2 命中都返回 undefined（宁缺勿错，绝不把别的子代理动态安到
-  //    错误卡片上）（taskActivity 头注释契约）。
+  // 子代理 task 卡 live 预览/跳转/歧义选择器注入 → app/useTaskCards
+  useTaskCards({ subRunsCacheRef, setTaskPickCandidates, currentSessionPath, openSubagentThread });
 
-  useEffect(() => {
-    setTaskCardActivityProvider((ref, args) => {
-      const runs = subRunsCacheRef.current;
-      const pick = (r: SubagentRunView) =>
-        r ? { lastText: r.lastText, lastTool: r.lastTool, state: r.status } : undefined;
-      if (ref) {
-        const hit = runs.find((r) => r.ref === ref);
-        return hit ? pick(hit) : undefined;
-      }
-      const runningRuns = runs.filter((r) => r.status === "running");
-      if (runningRuns.length !== 1) {
-        // 并行多子代理同时 running：文本唯一命中才绑定，其余情形维持现状（undefined）
-        const m = matchRunningRun(args, runningRuns);
-        return m ? pick(m) : undefined;
-      }
-      return pick(runningRuns[0]);
-    });
-    // v4.63：task/run_skill 卡整卡可点 → 打开对应子代理会话 tab（与右栏
-    // 任务树同款跳转）。目标解析：args/output 已带 ref 直接放行；空 ref 回退
-    // 「唯一 running 命中」（宁缺勿错，历史完成卡无 ref 不可点，如实）。
-    // tab 的 task/status/model 由 runs 缓存预填，打开后 5s 轮询自校正。
-    setTaskCardOpenTarget((ref, args) => {
-      if (ref) return ref;
-      const running = subRunsCacheRef.current.filter((r) => r.status === "running");
-      return matchRunningRun(args, running)?.ref ?? "";
-    });
-    // v4.68：空 ref 多候选（≥2 文本匹配 running）时 matchRunningRun 按宁缺
-    // 勿错返回 ""，卡此前不可点、用户没有入口。歧义两槽位补上：渲染期判定
-    // （仅 ≥2 候选为真，0/1 候选维持现状）+ 点击弹选择器人工挑（候选在点击
-    // 瞬间现算，数据最新鲜；0 候选不弹，绝不自动跳转）。
-    setTaskCardAmbiguityResolver((ref, args) => {
-      if (ref) return false; // 已有唯一目标：不歧义
-      const running = subRunsCacheRef.current.filter((r) => r.status === "running");
-      return matchRunningCandidates(args, running).length > 1;
-    });
-    setTaskCardAmbiguityHandler((args) => {
-      const cands = matchRunningCandidates(
-        args,
-        subRunsCacheRef.current.filter((r) => r.status === "running"),
-      );
-      if (cands.length === 0) return; // 点击瞬间已无候选：维持现状，不弹空壳
-      setTaskPickCandidates(cands);
-    });
-    setTaskCardOpenHandler((ref) => {
-      const hit = subRunsCacheRef.current.find((r) => r.ref === ref);
-      openSubagentThread({ sessionPath: currentSessionPath ?? "", ref, task: hit?.task, status: hit?.status ?? "running", model: hit?.model });
-    });
-    return () => {
-      setTaskCardActivityProvider(null);
-      setTaskCardOpenTarget(null);
-      setTaskCardOpenHandler(null);
-      setTaskCardAmbiguityResolver(null);
-      setTaskCardAmbiguityHandler(null);
-    };
-  }, [currentSessionPath, openSubagentThread]);
-  // v4.63：task 卡 live 活动的数据源并入共享单轮询（上方 subagentRuns 订阅
-  // 已把快照写进 subRunsCacheRef），此处不再各自轮询。
   const panelContext = useMemo<WorkspacePanelContext>(
     () => ({
       cwd: state.meta?.cwd,
@@ -1305,6 +450,7 @@ export default function App() {
         openSubagentThread(p);
       },
     }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- setWorkspacePanel 为 hook 返回的稳定 dispatch（onClosePanel 内引用），deps 原样保留
     [
       state.meta?.cwd, previewFile, workspaceRefreshKey, currentSessionPath,
       sessionDeliverables, sessionChanges, freshDeliverablePaths,
@@ -1379,6 +525,7 @@ export default function App() {
       [...cmds, ...templateItems, ...sessionItems],
       { chatTab, rightTab: rightTab ?? "files" },
     );
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- setWorkspacePanel 为 hook 返回的稳定 dispatch（模板 run 内引用），deps 原样保留
   }, [t, sidebarSessions, openMemory, openHistory, openKnowledge, onResumeSession, openPaneView, closeFilePreview, templates, send, newSessionAndReset, chatTab, rightTab]);
 
   const layoutStyle = useMemo(

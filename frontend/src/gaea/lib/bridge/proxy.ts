@@ -1,0 +1,166 @@
+// proxy.ts — 调用时路由代理层（S2.3「App 绑定面拆分」）：app/workApp/playApp/
+// sharedApp 按方法名路由到 window.go.app 各板块门面（live binding）或 dev mock；
+// resolveBinding 统一走 invoke 错误归一（BridgeError）。
+// realApp 为 events 模块共享的内部接缝（非入口公开面，bridge.ts 不 re-export）。
+import type { AppBindings } from "./appBindings";
+import { gaeaToGaea } from "./mappings";
+import { makeMockApp } from "../mock";
+import {
+  isBindingAllowedInSpace,
+  isSharedBinding,
+  type GaeaFacetBySpace,
+} from "../spaceBindings";
+
+// Resolve the Wails binding at CALL time, not module-load time: in dev the Wails
+// runtime can inject window.go AFTER this module first evaluates, so snapshotting
+// once would pin the browser mock for the whole session (and show fake data — the
+// dev mock's model list leaking into the real app was exactly this bug).
+//
+// S2-3「App 绑定面拆分」：后端绑定面已从单一 window.go.app.App 拆为多个板块
+// 门面（go.app.CoreB/OfficeB/MemoryB/CostB/ModelB/VoiceB/ChatB/NovelB/
+// ImageB/CharLibB）。这里返回一个按方法名路由到对应门面的代理，前端调用点
+// （app.Submit 等）零改动。
+export function realApp(): AppBindings | undefined {
+  if (typeof window === "undefined") return undefined;
+  const goApp = (window as unknown as { go?: { app?: Record<string, unknown> } }).go?.app;
+  if (!goApp || typeof goApp !== "object") return undefined;
+  return new Proxy({} as AppBindings, {
+    get(_t, prop) {
+      const key = (gaeaToGaea as Record<string, string>)[String(prop)] ?? String(prop);
+      for (const ns of Object.values(goApp)) {
+        if (ns === null || typeof ns !== "object") continue;
+        const rec = ns as Record<string, unknown>;
+        const v = rec[key];
+        if (typeof v === "function") return (v as (...a: unknown[]) => unknown).bind(rec);
+      }
+      return undefined;
+    },
+  });
+}
+
+let mockSingleton: AppBindings | null = null;
+function getMock(): AppBindings {
+  if (!mockSingleton) mockSingleton = makeMockApp();
+  return mockSingleton;
+}
+
+// ── 错误归一化层（T6-1.2 前端错误可见性）────────────────────────────
+// BridgeError 是所有绑定调用失败时归一出的结构化错误：code 机器可读
+// （后端已带 code 时透传，否则 "<方法名>Error"），message 为人类可读原因
+// （后端错误信息原文）。继承 Error 保证既有调用方的 e instanceof Error /
+// e.message 判定不受影响（message 保留后端原文）。
+export class BridgeError extends Error {
+  code: string;
+  constructor(code: string, message: string) {
+    super(message);
+    this.name = "BridgeError";
+    this.code = code;
+    // Error.message 默认不可枚举（JSON 序列化/结构化断言拿不到），显式
+    // 重设为可枚举 own 属性，保证 { code, message } 结构对外稳定。
+    Object.defineProperty(this, "message", { value: message, enumerable: true, writable: true, configurable: true });
+  }
+}
+
+// normalizeError 把任意拒绝值归一为 BridgeError：已结构化（code/message）
+// 的错误透传，Error 取 message，其余兜底字符串化。
+function normalizeError(method: string, err: unknown): BridgeError {
+  if (err instanceof BridgeError) return err;
+  if (err && typeof err === "object") {
+    const cand = err as { code?: unknown; message?: unknown };
+    if (typeof cand.code === "string" && typeof cand.message === "string") {
+      return new BridgeError(cand.code, cand.message);
+    }
+  }
+  if (err instanceof Error) {
+    return new BridgeError(`${method}Error`, err.message || String(err));
+  }
+  return new BridgeError(`${method}Error`, String(err ?? "unknown error"));
+}
+
+// invoke 是所有绑定调用的统一入口：失败时把错误归一为 BridgeError 并记录
+// 到 gaea.log（LogFrontendError），再以同样的拒绝语义抛给调用方——调用方
+// 原有的 .catch 行为契约不变（仍拿到 rejected promise + 错误值）。
+function invoke(method: string, fn: (...args: unknown[]) => unknown, args: unknown[]): Promise<unknown> {
+  return Promise.resolve()
+    .then(() => fn(...args))
+    .catch((err: unknown) => {
+      const normalized = normalizeError(method, err);
+      // 记录到 gaea.log；日志通道自身故障不向上抛，避免掩盖原始错误。
+      // LogFrontendError 在 app proxy 里不套本层（见下），不会递归。
+      logFrontendError(`[${normalized.code}] ${method} 失败: ${normalized.message}`);
+      throw normalized;
+    });
+}
+
+// logFrontendError 上报错误到 gaea.log；日志通道不可用（dev mock 外未注入
+// 绑定）或自身失败时静默降级，绝不掩盖原始错误。
+function logFrontendError(message: string): void {
+  const lfe = app.LogFrontendError;
+  if (typeof lfe !== "function") return;
+  void Promise.resolve(lfe(message)).catch(() => {});
+}
+
+/** 解析单个绑定：按方法名路由到 live binding 或 dev mock（无空间门控的通用解析）。 */
+function resolveBinding(prop: string | symbol): unknown {
+  const target = realApp() ?? getMock();
+  const key = (gaeaToGaea as Record<string, string>)[String(prop)] ?? String(prop);
+  const rec = target as unknown as Record<string, unknown>;
+  // 真实绑定按 Gaea 前缀查找；浏览器 mock 直接暴露同名字段，需回退。
+  const v = rec[key] ?? rec[String(prop)];
+  if (typeof v !== "function") return v;
+  const bound = (v as (...a: unknown[]) => unknown).bind(target);
+  // LogFrontendError 是错误上报通道自身，不套 invoke 归一化层，避免日志
+  // 通道故障时无限递归；其余方法统一走 invoke。
+  if (String(prop) === "LogFrontendError") return bound;
+  return (...args: unknown[]) => invoke(String(prop), bound, args);
+}
+
+// app proxies each call to the live binding (or the dev mock only when truly
+// outside the shell), so a late-injected window.go is picked up transparently.
+export const app: AppBindings = new Proxy({} as AppBindings, {
+  get(_t, prop) {
+    return resolveBinding(prop);
+  },
+});
+
+// ── S2.3 bridge 分面（docs/gaea-space-shell-design.md §7）────────────────
+// 类型级门面：work/play 各自只暴露「所属空间 + shared + independent」的方法，
+// play 页面引用 work 专属方法会 tsc 报错；运行时同样按 spaceBindings 门控
+// （越界方法返回 undefined → TypeError，双保险）。sharedApp 只暴露 shared。
+function createSpaceFacade<S extends "work" | "play">(space: S): GaeaFacetBySpace[S] {
+  return new Proxy({} as GaeaFacetBySpace[S], {
+    get(_t, prop) {
+      if (prop === "then") return undefined; // 避免被误判为 Promise
+      if (!isBindingAllowedInSpace(String(prop), space)) return undefined;
+      return resolveBinding(prop);
+    },
+  });
+}
+
+/** 工位门面（work + shared + independent）——办公工作台专用。 */
+export const workApp = createSpaceFacade("work");
+/** 乐园门面（play + shared + independent）——轻语/小说/绘梦等页面专用。 */
+export const playApp = createSpaceFacade("play");
+/** 共用门面（仅 shared）——壳层/设置等两空间共用代码专用。 */
+export const sharedApp: GaeaFacetBySpace["work"] & GaeaFacetBySpace["play"] = new Proxy(
+  {} as GaeaFacetBySpace["work"] & GaeaFacetBySpace["play"],
+  {
+    get(_t, prop) {
+      if (prop === "then") return undefined;
+      if (!isSharedBinding(String(prop))) return undefined;
+      return resolveBinding(prop);
+    },
+  },
+);
+
+// openExternal opens a URL in the system browser (so links in rendered markdown
+// don't navigate the webview away from the app). Falls back to window.open in the
+// browser dev mock.
+export function openExternal(url: string): void {
+  if (typeof window !== "undefined" && window.runtime?.BrowserOpenURL) {
+    window.runtime.BrowserOpenURL(url);
+  } else if (typeof window !== "undefined") {
+    window.open(url, "_blank", "noopener");
+  }
+}
+

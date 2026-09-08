@@ -1,5 +1,15 @@
 # 任务进度
 
+## 最新发布：v4.170.0（2026-09-09）「瘦身 P3 结构版1：巨文件首批 4 拆（App/bridge/types/GanttView）」
+
+- **线B App.tsx 拆分**（子代理）：87.3KB→46.6KB（<50KB）；palette 构建/exportConversation/JSX 布局因 App.export.test/App.palette.test 的 src 级断言（readFileSync 行级断言）刻意留壳内；11 组逻辑迁新 `gaea/app/`（useSubagentTabs/useTaskCards/usePreviewAutoFront/useDeliverables/useWorkspaceLayout/usePreviewPanel/useSessionHandlers/useAppKeyboard/useTasksAutoOpen/sessionCleanup/layout）——**deps 数组与执行顺序逐项原样**（35→16 组 effect，原 2 处 eslint-disable 保留），JSX 区与基线逐字节一致；hook 参数化后 exhaustive-deps 降级 warn，按仓库既有风格加带理由的 disable 注释（0 error 0 warning）。
+- **线C bridge.ts 拆分**（子代理）：85.1KB→1.3KB；按 bindingNames 域切新 `gaea/lib/bridge/` 16 文件（10 分域接口 + `interface AppBindings extends CoreBindings, …, CharLibBindings {}` 组合 + mappings/proxy/events/http/drift）——**Proxy/懒探测/mock 回退/事件时序原样**（PowerShell 脚本按内容锚点切片非手抄，方法名 parity old=315=new 与 spaceBindings.test 锁一致）；**bindingNames 602 零变更=drift 锁不动**；公开导出 17 名 re-export 逐一同。
+- **线D types.ts 拆分**（子代理）：66.4KB→1.2KB；纯类型按域拆 `gaea/lib/types/` 24 文件（shared/wire/session/context/git/trajectory/agent/shell/files/office/subagent/deliverables/resync/capabilities/memory/knowledge/settings/updater/whisper/weixin/cost/search/tasks/programming）——**220 声明零增减零重名**（列 0 锚定 155+63 与原始一致；CostSummary 成员/CostEntry/CostComponent 两条缩进接口为 +2 真值），入口纯 type re-export，135 处消费方 import 零改动。
+- **线E GanttView.tsx 拆分**（子代理）：64.8KB→25.2KB；纯函数/常量/子组件拆 `schedule/gantt/` 8 文件（ganttUtil+PredEditor+CustomFieldCell+GanttToolbar+GanttTable+GanttTimeline+GanttBars+GanttOverlay），classNames/data-testid 逐字节照搬；GanttView 保留全部 state/memo/handler 组合层（深拆需 context/reducer，超「行为零变化」红线）。
+- **主代理收口**：四线足迹互斥核验（git status 仅 4 M + 4 新目录）；拆分池口径 >50KB 9→5 出口判据达成；版本三处 4.170.0（sync-version.ps1）。
+- **门禁**：Go 127 包 0 FAIL、vitest 2737（313 文件全绿，纯拆分零新增测试）、tsc 0（全项目）、eslint 0（全量 313+）、drift PASS@602（零绑定）、locale 0 死。
+- **欠账**：P3 版2 待续=office 抽核（journal/evidence/文件读写→internal/core；office 树 29 处 import 集中 internal/AI 22 文件+根包 3 处已盘点）+ bridge 双轨退役启动（wailsjsCompat 单 shim 被 57 文件引用）+ 次批 5 巨文件（按实测 KnowledgePanel 62.2/DeliverablesPanel 57.4/XlsxPreview 56.4/ChapterPage 55.9/herdsmanTemplates 55.7）；壳内真机池/审计刀D 不变。
+
 ## 最新发布：v4.169.0（2026-09-09）「瘦身 P2 主干：双空间并列落地 + home 空间感知化 + 走查待证项收口」
 
 - **线A rail 双空间分域+切换器**（子代理）：CommandRail 新增 space/onSwitchSpace props + rail 顶部**工位/乐园切换器**（SHELL_SPACES 驱动、labelKey/titleKey 三语、aria-pressed 激活态）；rail 主体改 getActiveMenuBoardsForSpace（shared 恒在/independent 剔除/settings inMenu:false 不在 rail）——**基线 §3.1 rail code 双入口缺陷闭合**（independent 仅 foot 单列，CommandRail.test 断言全 rail 编程入口=1）；manifests.test +4 钉 work/play 派生序、新 CommandRail.test 5 例。
