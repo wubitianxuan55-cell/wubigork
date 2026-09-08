@@ -1,5 +1,5 @@
-// Package office — job_routing.go
-package office
+// Package core — 任务文本判定（自 internal/office/job_routing.go 平迁，逐行等价）。
+package core
 
 import "strings"
 

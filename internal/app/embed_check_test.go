@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/gaea/gaea/internal/modelengine"
-	"github.com/gaea/gaea/internal/office"
+	officecore "github.com/gaea/gaea/internal/core"
 )
 
 // 编译期验证：各子服务方法经 App 嵌入提升（前端 window.go.app.* 绑定不变）。
@@ -17,7 +17,7 @@ func TestEmbeddingPromotion(t *testing.T) {
 		// whisperState
 		WhisperChat(userMsg string, personalityID string, thinking bool) (map[string]interface{}, error)
 		// officeState
-		OfficeExecute(act, path, tgt, q, url, content string) office.ExecResult
+		OfficeExecute(act, path, tgt, q, url, content string) officecore.ExecResult
 		// core
 		GetEngines() []modelengine.EngineConfig
 	} = New()

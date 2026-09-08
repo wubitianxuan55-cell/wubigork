@@ -1,4 +1,5 @@
-package office
+// Package core — 会话模式持久化测试（自 internal/office/desktop_session_test.go 平迁，逐行等价）。
+package core
 
 import (
 	"os"

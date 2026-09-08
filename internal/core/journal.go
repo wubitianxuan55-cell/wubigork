@@ -1,5 +1,5 @@
-// Package office — audit_log.go
-package office
+// Package core — 变更留痕 journal（自 internal/office/audit_log.go 平迁，逐行等价）。
+package core
 
 import (
 	"encoding/json"

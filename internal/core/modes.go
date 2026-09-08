@@ -1,5 +1,5 @@
-// Package office — desktop_session.go
-package office
+// Package core — 会话模式小配置持久化（自 internal/office/desktop_session.go 平迁，逐行等价）。
+package core
 
 import (
 	"encoding/json"

@@ -1,5 +1,5 @@
-// Package office — session_mode.go
-package office
+// Package core — 会话模式内存态（自 internal/office/session_mode.go 平迁，逐行等价）。
+package core
 
 import "sync"
 

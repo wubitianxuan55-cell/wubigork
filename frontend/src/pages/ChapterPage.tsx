@@ -1,27 +1,22 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react'
 import {
-  Button, message, Modal, Tabs, Tooltip, Popover, Input,
+  message, Modal,
 } from 'antd'
 import type { TabsProps } from 'antd'
 import {
-  SaveOutlined, LeftOutlined, RightOutlined,
-  BookOutlined, EditOutlined, ReadOutlined, ExpandOutlined, ShrinkOutlined, FontSizeOutlined,
-  PushpinOutlined, PushpinFilled, PlayCircleOutlined, PauseCircleOutlined, CloseOutlined,
-  HighlightOutlined, CommentOutlined, ThunderboltOutlined, DownOutlined, LoadingOutlined, SearchOutlined,
-  ExportOutlined, PictureOutlined,
+  BookOutlined, ReadOutlined,
 } from '@ant-design/icons'
 import {
   GetChapter, GetChapterBranch, SaveChapterContent, SaveChapterBranchContent,
 } from '../../src/wailsjsCompat'
 import { useAppStore } from '../stores/appStore'
-import TTSPlayer from '../components/TTSPlayer'
 import ChapterEditor from '../components/novel/ChapterEditor'
 import { findAllLeaves, sortNodes } from '../utils/outline'
 import { useOutlineStore } from '../stores/outlineStore'
 import { countTextChars } from '../utils/text'
 import { readReadingProgress, writeReadingProgress } from '../utils/readingProgress'
 import {
-  readReadingSettings, writeReadingSettings, READING_COLUMN_WIDTH,
+  readReadingSettings, writeReadingSettings,
   type ReadingSettings,
 } from '../utils/readingSettings'
 import {
@@ -29,7 +24,7 @@ import {
   type ReadingBookmark,
 } from '../utils/readingBookmarks'
 import {
-  readAnnotations, writeAnnotations, ANNOTATION_COLORS,
+  readAnnotations, writeAnnotations,
   type ReadingAnnotation, type AnnotationColor,
 } from '../utils/readingAnnotations'
 import { askReadingAssistant } from '../components/novel/api/readingAssistant'
@@ -37,7 +32,7 @@ import {
   buildAskHistory, rollbackLastUserMessage, type ReadingAskMessage,
 } from './chapter/readingAskSession'
 import {
-  searchNovelAll, splitSnippet, summarizeSearch,
+  searchNovelAll, summarizeSearch,
   type NovelSearchHitData,
 } from './chapter/novelSearchUtils'
 import {
@@ -55,15 +50,18 @@ import {
   readSavedScrollTop, saveScrollTop, scrollPct,
 } from './chapter/readingScrollMemory'
 import { createTabData, needsCloseConfirm } from './chapter/chapterTabData'
-import ReadingPrefsPanel from './chapter/ReadingPrefsPanel'
 import ExportPanel from '../components/novel/ExportPanel'
 import { ChapterIllustration } from './chapter/ChapterIllustration'
 import type { OutlineNode, ChapterTabData } from '../types'
 import { C } from '../utils/theme'
-
-function errText(err: unknown, fallback: string): string {
-  return (err instanceof Error && err.message) || fallback
-}
+// 瘦身 P3 拆分（沿用 v4.170 分批搬移先例）：阅读/编辑 chrome、阅读正文面板、
+// 划词工具条与想法/问书弹窗、errText 均已抽至 pages/chapter/ 子目录（纯受控展示
+// 组件，状态与回调经 props 传入），主文件仅保留状态/接线与空态等骨架 JSX。
+import { errText } from './chapter/errText'
+import ReadingChrome from './chapter/readingChrome'
+import EditChrome from './chapter/editChrome'
+import ReadingPanel from './chapter/readingPanel'
+import ReadingOverlays from './chapter/readingOverlays'
 
 const ChapterPage: React.FC = () => {
   const outlines = useOutlineStore((s) => s.outlines)
@@ -709,355 +707,89 @@ const ChapterPage: React.FC = () => {
             {!focusMode && (
               <div className="novel-chrome">
                 {readMode ? (
-                  <>
-                    <span className="novel-chrome-title">
-                      <ReadOutlined aria-hidden />{activeTab.node.title || '未命名章节'}
-                    </span>
-                    <span className="novel-chrome-sub">· {totalWords.toLocaleString()} 字</span>
-                    <span className="novel-chrome-spacer" />
-                    <span className="novel-chrome-save-state">
-                      <i className={`novel-dot ${activeTab.saved ? 'ok' : 'dirty'}`} aria-hidden />
-                      <span style={{ color: activeTab.saved ? 'var(--color-success)' : 'var(--color-warning)' }}>
-                        {activeTab.saved ? '已保存' : '未保存'}
-                      </span>
-                    </span>
-                    <div className="novel-chrome-nav">
-                      <Tooltip title="上一章"><Button size="small" icon={<LeftOutlined />} onClick={handlePrevChapter} type="text" disabled={atFirst} aria-label="上一章" /></Tooltip>
-                      <Tooltip title="下一章"><Button size="small" icon={<RightOutlined />} onClick={handleNextChapter} type="text" disabled={atLast} aria-label="下一章" /></Tooltip>
-                    </div>
-                    <Popover
-                      trigger="click"
-                      placement="bottomRight"
-                      open={bookmarkOpen}
-                      onOpenChange={setBookmarkOpen}
-                      content={(
-                        <div className="novel-read-bookmarks">
-                          <div className="novel-read-bookmarks-head">
-                            <span>本章书签（{bookmarks.length}）</span>
-                            <Button size="small" type="text" onClick={toggleBookmark} aria-label="在当前位置添加书签">＋ 此处</Button>
-                          </div>
-                          {bookmarks.length === 0 ? (
-                            <div className="novel-read-bookmarks-empty">滚动到想记住的位置，点「＋ 此处」添加书签</div>
-                          ) : (
-                            <div className="novel-read-bookmarks-list">
-                              {bookmarks.map((b) => (
-                                <div
-                                  key={b.createdAt}
-                                  className="novel-read-bookmark"
-                                  role="button"
-                                  tabIndex={0}
-                                  onClick={() => jumpBookmark(b)}
-                                  onKeyDown={(e) => { if (e.key === 'Enter') jumpBookmark(b) }}
-                                >
-                                  <span className="novel-read-bookmark-pct">{b.pct}%</span>
-                                  <span className="novel-read-bookmark-text">{b.text || '（无摘录）'}</span>
-                                  <Button
-                                    size="small"
-                                    type="text"
-                                    icon={<CloseOutlined />}
-                                    aria-label="删除书签"
-                                    onClick={(e) => { e.stopPropagation(); removeBookmark(b) }}
-                                  />
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    >
-                      <Tooltip title={bookmarks.length > 0 ? `书签（${bookmarks.length}）` : '书签'}>
-                        <Button
-                          size="small"
-                          type="text"
-                          icon={bookmarks.length > 0 ? <PushpinFilled /> : <PushpinOutlined />}
-                          className={bookmarks.length > 0 ? 'is-active' : ''}
-                          aria-label="书签"
-                        />
-                      </Tooltip>
-                    </Popover>
-                    <Tooltip title={autoScrolling ? '停止自动滚屏' : '自动滚屏'}>
-                      <Button
-                        size="small"
-                        type="text"
-                        icon={autoScrolling ? <PauseCircleOutlined /> : <PlayCircleOutlined />}
-                        className={autoScrolling ? 'is-active' : ''}
-                        aria-label="自动滚屏"
-                        onClick={() => (autoScrolling ? stopAutoScroll() : startAutoScroll())}
-                      />
-                    </Tooltip>
-                    <Popover
-                      trigger="click"
-                      placement="bottomRight"
-                      content={(
-                        <div className="novel-read-anns">
-                          <div className="novel-read-anns-head">
-                            <span>本章划线 / 想法（{chapterAnns.length}）</span>
-                            <span className="novel-read-anns-hint">选中文字即可划线</span>
-                          </div>
-                          {chapterAnns.length === 0 ? (
-                            <div className="novel-read-anns-empty">拖动选中正文 → 高亮或写想法</div>
-                          ) : (
-                            <div className="novel-read-anns-list">
-                              {chapterAnns.map((a) => (
-                                <div
-                                  key={a.id}
-                                  className="novel-read-ann"
-                                  role="button"
-                                  tabIndex={0}
-                                  onClick={() => jumpToAnnotation(a)}
-                                  onKeyDown={(e) => { if (e.key === 'Enter') jumpToAnnotation(a) }}
-                                >
-                                  <i className="novel-read-ann-dot" style={{ background: ANNOTATION_COLORS[a.color] }} />
-                                  <span className="novel-read-ann-text">{a.text}</span>
-                                  {a.note && <CommentOutlined className="novel-read-ann-note" />}
-                                  <Button
-                                    size="small"
-                                    type="text"
-                                    icon={<CloseOutlined />}
-                                    aria-label="删除划线"
-                                    onClick={(e) => { e.stopPropagation(); deleteAnnotation(a.id) }}
-                                  />
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    >
-                      <Tooltip title={chapterAnns.length > 0 ? `划线 / 想法（${chapterAnns.length}）` : '划线 / 想法'}>
-                        <Button
-                          size="small"
-                          type="text"
-                          icon={<HighlightOutlined />}
-                          className={chapterAnns.length > 0 ? 'is-active' : ''}
-                          aria-label="划线 / 想法"
-                        />
-                      </Tooltip>
-                    </Popover>
-                    <Popover
-                      trigger="click"
-                      placement="bottomRight"
-                      open={searchOpen}
-                      onOpenChange={(v) => { setSearchOpen(v); if (!v) { setSearchHits([]); setSearchError(null) } }}
-                      content={(
-                        <div className="novel-read-search">
-                          <Input
-                            size="small"
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); runSearchRef.current() } }}
-                            placeholder="搜索全书（标题 + 正文）"
-                            allowClear
-                          />
-                          {searchHits.length > 0 && (
-                            <div className="novel-read-search-hint">
-                              共 {searchSummary.total} 处 · {searchSummary.chapters} 章
-                              {searchSummary.shown < searchSummary.total ? `（显示前 ${searchSummary.shown} 条）` : ''}
-                            </div>
-                          )}
-                          <div className="novel-read-search-body">
-                            {searchLoading ? (
-                              <div className="novel-read-search-hint"><LoadingOutlined spin /> 搜索中…</div>
-                            ) : searchError ? (
-                              <div className="novel-read-search-hint">{searchError}</div>
-                            ) : searchQuery.trim() && searchHits.length === 0 ? (
-                              <div className="novel-read-search-hint">没有找到「{searchQuery.trim()}」</div>
-                            ) : (
-                              <div className="novel-read-search-list">
-                                {searchHits.map((h) => (
-                                  <div
-                                    key={`${h.node_id}:${h.match_index}`}
-                                    className="novel-read-search-hit-row"
-                                    role="button"
-                                    tabIndex={0}
-                                    onClick={() => openSearchHit(h)}
-                                    onKeyDown={(e) => { if (e.key === 'Enter') openSearchHit(h) }}
-                                  >
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                                      <span className="novel-read-search-hit-title" style={{ flex: 1, minWidth: 0 }}>
-                                        {h.title}{h.paragraph_index >= 0 ? ` · 第${h.paragraph_index + 1}段` : ''}
-                                      </span>
-                                      <Tooltip title={h.paragraph_index >= 0 ? '把该命中文本写为永久划线标注' : '标题命中无法落为正文划线'}>
-                                        <Button
-                                          size="small"
-                                          type="text"
-                                          icon={<HighlightOutlined />}
-                                          disabled={h.paragraph_index < 0}
-                                          aria-label="落为划线"
-                                          onClick={(e) => { e.stopPropagation(); addSearchHitHighlight(h) }}
-                                          // 键盘 Enter 落划线时不冒泡触发行自身的定位跳转
-                                          onKeyDown={(e) => e.stopPropagation()}
-                                        >
-                                          落为划线
-                                        </Button>
-                                      </Tooltip>
-                                    </div>
-                                    <span className="novel-read-search-hit-snippet">
-                                      {splitSnippet(h.snippet, searchQuery.trim()).map((seg, i) => (
-                                        seg.match
-                                          ? <mark key={i}>{seg.text}</mark>
-                                          : <React.Fragment key={i}>{seg.text}</React.Fragment>
-                                      ))}
-                                    </span>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      )}
-                    >
-                      <Tooltip title="全文搜索">
-                        <Button size="small" type="text" icon={<SearchOutlined />} aria-label="全文搜索" />
-                      </Tooltip>
-                    </Popover>
-                    <Popover
-                      trigger="click"
-                      placement="bottomRight"
-                      content={<ReadingPrefsPanel prefs={readPrefs} onChange={patchReadPrefs} />}
-                    >
-                      <Tooltip title="排版 / 主题 / 亮度 / 滚屏">
-                        <Button size="small" type="text" icon={<FontSizeOutlined />} aria-label="阅读排版" />
-                      </Tooltip>
-                    </Popover>
-                    <Tooltip title="返回编辑">
-                      <Button size="small" icon={<EditOutlined />} onClick={() => setReadMode(false)}>编辑</Button>
-                    </Tooltip>
-                  </>
+                  <ReadingChrome
+                    title={activeTab.node.title}
+                    totalWords={totalWords}
+                    saved={activeTab.saved}
+                    atFirst={atFirst}
+                    atLast={atLast}
+                    onPrev={handlePrevChapter}
+                    onNext={handleNextChapter}
+                    bookmarks={bookmarks}
+                    bookmarkOpen={bookmarkOpen}
+                    onBookmarkOpenChange={setBookmarkOpen}
+                    onToggleBookmark={toggleBookmark}
+                    onJumpBookmark={jumpBookmark}
+                    onRemoveBookmark={removeBookmark}
+                    autoScrolling={autoScrolling}
+                    onToggleAutoScroll={() => (autoScrolling ? stopAutoScroll() : startAutoScroll())}
+                    anns={chapterAnns}
+                    onJumpAnn={jumpToAnnotation}
+                    onDeleteAnn={deleteAnnotation}
+                    searchOpen={searchOpen}
+                    onSearchOpenChange={(v) => { setSearchOpen(v); if (!v) { setSearchHits([]); setSearchError(null) } }}
+                    searchQuery={searchQuery}
+                    onSearchQueryChange={setSearchQuery}
+                    onSearchSubmit={() => runSearchRef.current()}
+                    searchSummary={searchSummary}
+                    searchHits={searchHits}
+                    searchLoading={searchLoading}
+                    searchError={searchError}
+                    onOpenSearchHit={openSearchHit}
+                    onAddSearchHitHighlight={addSearchHitHighlight}
+                    prefs={readPrefs}
+                    onPrefsChange={patchReadPrefs}
+                    onEdit={() => setReadMode(false)}
+                  />
                 ) : (
-                  <>
-                    <Tabs
-                      className="novel-editor-tabs"
-                      activeKey={activeKey}
-                      onChange={setActiveKey}
-                      onEdit={(key, action) => { if (action === 'remove' && typeof key === 'string') requestCloseTab(key) }}
-                      items={tabItems}
-                      type="editable-card"
-                      size="small"
-                      hideAdd
-                      style={{ flex: 1, minWidth: 0, marginBottom: 0 }}
-                      tabBarStyle={{ marginBottom: 0 }}
-                    />
-                    <span className="novel-chrome-spacer" />
-                    <span className="novel-chrome-save-state">
-                      <i className={`novel-dot ${activeTab.saved ? 'ok' : 'dirty'}`} aria-hidden />
-                      <span style={{ color: activeTab.saved ? 'var(--color-success)' : 'var(--color-warning)', fontSize: 11 }}>
-                        {activeTab.saved ? '已保存' : '未保存'}
-                      </span>
-                    </span>
-                    <div className="novel-chrome-nav">
-                      <Tooltip title="上一章"><Button size="small" icon={<LeftOutlined />} onClick={handlePrevChapter} type="text" disabled={atFirst} aria-label="上一章" /></Tooltip>
-                      <Tooltip title="下一章"><Button size="small" icon={<RightOutlined />} onClick={handleNextChapter} type="text" disabled={atLast} aria-label="下一章" /></Tooltip>
-                    </div>
-                    <TTSPlayer getText={() => activeTab?.scenes?.join('\n\n') || ''} />
-                    <Tooltip title="阅读模式（沉浸排版）">
-                      <Button size="small" icon={<ReadOutlined />} onClick={() => setReadMode(true)} className="is-readmode" aria-label="进入阅读模式" />
-                    </Tooltip>
-                    <Tooltip title={focusMode ? '退出专注模式' : '专注模式 F11'}>
-                      <Button size="small" icon={focusMode ? <ShrinkOutlined /> : <ExpandOutlined />} onClick={() => setFocusMode((p) => !p)} type="text" aria-label="专注模式" />
-                    </Tooltip>
-                    <Tooltip title="为当前章节生成配图">
-                      <Button
-                        size="small"
-                        icon={<PictureOutlined />}
-                        onClick={() => setIllusOpen(true)}
-                        disabled={!activeTab || activeTab.chapterNum < 1}
-                        aria-label="生成配图"
-                      >
-                        配图
-                      </Button>
-                    </Tooltip>
-                    <Tooltip title="Ctrl+S">
-                      <Button size="small" icon={<SaveOutlined />} onClick={handleSave} disabled={!totalWords}>保存</Button>
-                    </Tooltip>
-                  </>
+                  <EditChrome
+                    tabItems={tabItems}
+                    activeKey={activeKey}
+                    onTabChange={setActiveKey}
+                    onTabRemove={requestCloseTab}
+                    saved={activeTab.saved}
+                    onPrev={handlePrevChapter}
+                    onNext={handleNextChapter}
+                    atFirst={atFirst}
+                    atLast={atLast}
+                    getText={() => activeTab?.scenes?.join('\n\n') || ''}
+                    onRead={() => setReadMode(true)}
+                    focusMode={focusMode}
+                    onToggleFocus={() => setFocusMode((p) => !p)}
+                    canIllustrate={activeTab.chapterNum >= 1}
+                    onIllustrate={() => setIllusOpen(true)}
+                    onSave={handleSave}
+                    canSave={totalWords > 0}
+                  />
                 )}
               </div>
             )}
 
             {/* ── 阅读模式：居中限宽衬线排版 ── */}
             {readMode ? (
-              <>
-                <div className="novel-reading-progress" aria-hidden>
-                  <i style={{ width: `${readProgress}%` }} />
-                </div>
-                <div
-                  className="novel-reading-scroll"
-                  ref={readingScrollRef}
-                  onScroll={handleReadScroll}
-                  onMouseUp={handleReadingMouseUp}
-                  data-read-theme={readPrefs.theme}
-                  style={{ filter: `brightness(${readPrefs.brightness}%)` }}
-                >
-                  <div
-                    className="novel-reading-column"
-                    style={{
-                      fontSize: readPrefs.fontSize,
-                      lineHeight: readPrefs.lineHeight,
-                      maxWidth: READING_COLUMN_WIDTH[readPrefs.column],
-                    }}
-                  >
-                    <h2 className="novel-reading-title">{activeTab.node.title || '未命名章节'}</h2>
-                    <div className="novel-read-summary">
-                      <button
-                        type="button"
-                        className="novel-read-summary-head"
-                        onClick={toggleSummary}
-                        aria-expanded={summaryOpen}
-                      >
-                        <ThunderboltOutlined className="novel-read-summary-ic" />
-                        <span>AI 摘要</span>
-                        {summaryLoading
-                          ? <LoadingOutlined className="novel-read-summary-loading" />
-                          : <DownOutlined className={`novel-read-summary-chev${summaryOpen ? ' is-open' : ''}`} />}
-                      </button>
-                      {summaryOpen && (
-                        <div className="novel-read-summary-body">
-                          {summaryLoading ? (
-                            <span className="novel-read-summary-hint">AI 正在阅读本章…</span>
-                          ) : summaryText ? (
-                            <div className="novel-read-summary-text">{summaryText}</div>
-                          ) : summaryError ? (
-                            <div className="novel-read-summary-error">
-                              <span>{summaryError}</span>
-                              <Button size="small" type="text" onClick={() => void runSummary()}>重试</Button>
-                            </div>
-                          ) : (
-                            <span className="novel-read-summary-hint">展开即生成，仅使用本章本地文本</span>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                    {activeTab.scenes.map((scene, i) => {
-                      const paras = scene.split(/\n\s*\n/).map((s) => s.trim()).filter(Boolean)
-                      return (
-                        <React.Fragment key={i}>
-                          {i > 0 && <div className="novel-reading-scene-sep" aria-hidden>＊ ＊ ＊</div>}
-                          {paras.length === 0
-                            ? <p className="novel-reading-p">{scene || '（本章暂无内容）'}</p>
-                            : paras.map((p, j) => <p key={j} className="novel-reading-p">{p}</p>)}
-                        </React.Fragment>
-                      )
-                    })}
-                  </div>
-                </div>
-                {/* 阅读页脚：章节导航 */}
-                <div className="novel-reading-foot">
-                  <TTSPlayer
-                    getText={() => activeTab?.scenes?.join('\n\n') || ''}
-                    onSentence={handleTtsSentence}
-                    onClear={handleTtsClear}
-                  />
-                  <Button size="small" icon={<LeftOutlined />} onClick={handlePrevChapter} disabled={atFirst}>上一章</Button>
-                  <span style={{ fontSize: 11, color: 'var(--color-text-secondary)', fontVariantNumeric: 'tabular-nums' }}>
-                    {activeTab.node.title || '未命名章节'} · {totalWords.toLocaleString()} 字
-                  </span>
-                  <Button size="small" onClick={handleNextChapter} disabled={atLast}>下一章<RightOutlined /></Button>
-                  <Tooltip title="导出全部格式">
-                    <Button size="small" type="text" icon={<ExportOutlined />} aria-label="导出小说" onClick={() => setExportOpen(true)} />
-                  </Tooltip>
-                </div>
-              </>
+              <ReadingPanel
+                scrollRef={readingScrollRef}
+                onScroll={handleReadScroll}
+                onMouseUp={handleReadingMouseUp}
+                progress={readProgress}
+                prefs={readPrefs}
+                title={activeTab.node.title}
+                scenes={activeTab.scenes}
+                summaryOpen={summaryOpen}
+                onToggleSummary={toggleSummary}
+                summaryLoading={summaryLoading}
+                summaryText={summaryText}
+                summaryError={summaryError}
+                onRetrySummary={runSummary}
+                onTtsSentence={handleTtsSentence}
+                onTtsClear={handleTtsClear}
+                atFirst={atFirst}
+                atLast={atLast}
+                onPrev={handlePrevChapter}
+                onNext={handleNextChapter}
+                totalWords={totalWords}
+                onExport={() => setExportOpen(true)}
+              />
             ) : (
               /* ── 编辑模式：场景多文本框 ── */
               <>
@@ -1092,125 +824,31 @@ const ChapterPage: React.FC = () => {
         </div>
       )}
 
-      {/* 划词工具条：选中文字后浮动在选区上方 */}
-      {readMode && selToolbar && (
-        <div
-          className="novel-read-selbar"
-          style={{ left: selToolbar.x, top: selToolbar.y }}
-          role="toolbar"
-          aria-label="划词工具"
-        >
-          {(Object.keys(ANNOTATION_COLORS) as AnnotationColor[]).map((c) => (
-            <button
-              key={c}
-              type="button"
-              className="novel-read-selbar-swatch"
-              style={{ background: ANNOTATION_COLORS[c] }}
-              title={`高亮（${c}）`}
-              aria-label={`高亮（${c}）`}
-              onClick={() => addHighlight(c, false, selText)}
-            />
-          ))}
-          <span className="novel-read-selbar-divider" aria-hidden />
-          <button type="button" className="novel-read-selbar-note" onClick={() => addHighlight('yellow', true, selText)}>
-            <CommentOutlined /> 想法
-          </button>
-          <span className="novel-read-selbar-divider" aria-hidden />
-          <button
-            type="button"
-            className="novel-read-selbar-note"
-            onClick={() => { window.getSelection()?.removeAllRanges(); setSelToolbar(null); openAsk(selText) }}
-          >
-            <ThunderboltOutlined /> 问书
-          </button>
-        </div>
-      )}
-
-      {/* 想法编辑弹窗 */}
-      <Modal
-        open={!!noteTarget}
-        onCancel={() => setNoteTarget(null)}
-        title={noteTarget ? `想法 · ${noteTarget.title}` : '想法'}
-        footer={null}
-        width={420}
-      >
-        {noteTarget && (
-          <div className="novel-read-note">
-            <blockquote className="novel-read-note-quote">{noteTarget.text}</blockquote>
-            <Input.TextArea
-              rows={4}
-              value={noteDraft}
-              onChange={(e) => setNoteDraft(e.target.value)}
-              placeholder="写点什么…（保存后随高亮展示）"
-            />
-            <div className="novel-read-note-actions">
-              <Button danger size="small" onClick={() => deleteAnnotation(noteTarget.id)}>删除高亮</Button>
-              <div style={{ flex: 1 }} />
-              <Button size="small" onClick={() => setNoteTarget(null)}>取消</Button>
-              <Button type="primary" size="small" onClick={saveNote}>保存想法</Button>
-            </div>
-          </div>
-        )}
-      </Modal>
-
-      {/* AI 问书弹窗（会话式：同一章内连续追问，历史随请求回传） */}
-      <Modal
-        open={!!askTarget}
-        onCancel={() => setAskTarget(null)}
-        title="AI 问书"
-        footer={null}
-        width={560}
-      >
-        {askTarget && (
-          <div className="novel-read-ask">
-            <blockquote className="novel-read-note-quote">{askTarget.selection}</blockquote>
-            {askMessages.length > 0 && (
-              <div className="novel-read-ask-thread" ref={askThreadRef}>
-                {askMessages.map((m, i) => (
-                  <div key={i} className={`novel-read-ask-msg is-${m.role}`}>
-                    <span className="novel-read-ask-msg-role">{m.role === 'user' ? '我' : 'AI'}</span>
-                    <div className="novel-read-ask-msg-body">{m.content}</div>
-                  </div>
-                ))}
-                {askLoading && (
-                  <div className="novel-read-ask-msg is-assistant is-pending">
-                    <span className="novel-read-ask-msg-role">AI</span>
-                    <div className="novel-read-ask-msg-body">正在思考…</div>
-                  </div>
-                )}
-              </div>
-            )}
-            {askError && (
-              <div className="novel-read-ask-error">
-                <span>{askError}</span>
-                <Button size="small" type="text" onClick={() => void runAsk()}>重试</Button>
-              </div>
-            )}
-            <Input.TextArea
-              rows={2}
-              value={askQuestion}
-              onChange={(e) => setAskQuestion(e.target.value)}
-              placeholder={askMessages.length > 0 ? '继续追问，例如：那他后来呢？' : '针对摘选内容提问，例如：这句话暗示了什么？'}
-            />
-            <div className="novel-read-ask-actions">
-              {askMessages.length > 0 && (
-                <Button size="small" type="text" onClick={clearAskSession}>清空会话</Button>
-              )}
-              <div style={{ flex: 1 }} />
-              <Button size="small" onClick={() => setAskTarget(null)}>关闭</Button>
-              <Button
-                type="primary"
-                size="small"
-                loading={askLoading}
-                disabled={!askQuestion.trim()}
-                onClick={() => void runAsk()}
-              >
-                {askMessages.length > 0 ? '追问' : '提问'}
-              </Button>
-            </div>
-          </div>
-        )}
-      </Modal>
+      {/* 划词工具条 / 想法编辑弹窗 / AI 问书弹窗（自 ChapterPage 拆出为受控组件） */}
+      <ReadingOverlays
+        readMode={readMode}
+        selToolbar={selToolbar}
+        selText={selText}
+        onClearSel={() => setSelToolbar(null)}
+        onHighlight={addHighlight}
+        onAskSelection={(sel) => openAsk(sel)}
+        noteTarget={noteTarget}
+        onNoteClose={() => setNoteTarget(null)}
+        noteDraft={noteDraft}
+        onNoteDraftChange={setNoteDraft}
+        onSaveNote={saveNote}
+        onDeleteAnnotation={deleteAnnotation}
+        askTarget={askTarget}
+        onAskClose={() => setAskTarget(null)}
+        askMessages={askMessages}
+        askLoading={askLoading}
+        askError={askError}
+        askQuestion={askQuestion}
+        onAskQuestionChange={setAskQuestion}
+        onRunAsk={runAsk}
+        onClearAsk={clearAskSession}
+        askThreadRef={askThreadRef}
+      />
 
       {/* 导出弹窗（原「导出」标签页合并进阅读面板） */}
       <Modal

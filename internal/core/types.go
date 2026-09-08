@@ -1,5 +1,5 @@
-// Package office — 办公模块共享类型
-package office
+// Package core — 内核：桌面 agent 文件读写、会话持久化、证据链共用类型。平迁自 internal/office/types.go（逐行等价，语义零变化）。
+package core
 
 // TaskPlan 任务计划
 type TaskPlan struct {

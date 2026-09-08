@@ -1,5 +1,5 @@
-// Package office — executor_test.go
-package office
+// Package core — 桌面 agent 文件读写执行器测试（自 internal/office/executor_test.go 平迁，逐行等价）。
+package core
 
 import (
 	"os"

@@ -1,5 +1,5 @@
-// Package office — job_manager.go
-package office
+// Package core — 会话任务并发管理（自 internal/office/job_manager.go 平迁，逐行等价）。
+package core
 
 import (
 	"context"

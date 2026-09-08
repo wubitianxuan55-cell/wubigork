@@ -1,20 +1,18 @@
-import { AlertCircle, BookOpen, Check, ChevronRight, Clock, CloudUpload, FileText, PanelRightOpen, Pencil, Plus, Save, ScrollText, Search, Trash2, X, X as XIcon } from "../icons";
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { Modal } from "antd";
+import { BookOpen, Check, ChevronRight, Clock, CloudUpload, PanelRightOpen, Pencil, Plus, Save, ScrollText, Search, Trash2, X, X as XIcon } from "../icons";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { FilePickResult, KnowledgeEntry, KnowledgeHistoryView, KnowledgeSaveRequest, KnowledgeSummary, SimilarView } from "../lib/types";
 import { app } from "../lib/bridge";
-import { useT, type Translator } from "../lib/i18n";
+import { useT } from "../lib/i18n";
 import { EmptyState } from "./EmptyState";
 import { KnowledgeImportModal } from "./memoryhub/KnowledgeImportModal";
-import { Markdown } from "./Markdown";
-
-const CATEGORIES = ["all", "规范标准", "工程案例", "经验总结", "材料工艺", "法规政策", "调查报告", "设计方案", "其他"];
-const PHASES = ["all", "调查", "设计", "施工", "验收", "运维", "全程"];
-const STATUSES = ["all", "现行", "已归档", "常用", "草稿"];
-
-// 可见焦点环（v3 规范：--gaea-glow 描边）。全局样式会把 :focus-visible 的
-// outline 置 none，这里用 Tailwind 工具类显式恢复，保证键盘可达。
-const FOCUS_RING = "focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--gaea-glow)]";
+import { CenterView } from "./knowledge/CenterView";
+import { EntryRow } from "./knowledge/EntryRow";
+import { Inspector } from "./knowledge/Inspector";
+import { EditForm } from "./knowledge/EditForm";
+import { HistoryModal } from "./knowledge/HistoryModal";
+import { MergeModal } from "./knowledge/MergeModal";
+import { BATCH_STATUS_OPTIONS, CATEGORIES, FOCUS_RING, PHASES, STATUSES } from "./knowledge/constants";
+import { highlightText } from "./knowledge/utils";
 
 export function KnowledgePanel(p: { onClose: () => void; variant?: "modal" | "page" }) {
   const { onClose, variant = "modal" } = p;
@@ -179,6 +177,15 @@ export function KnowledgePanel(p: { onClose: () => void; variant?: "modal" | "pa
     loadList();
   }, [mergeSelected, mergeTarget, loadList]);
 
+  const toggleMergeCandidate = useCallback((name: string) => {
+    setMergeSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
+  }, []);
+
   // 全文检索：query 非空时走后端全文搜索（含正文），否则走 List + 前端分类过滤。
   const doSearch = useCallback(async (q: string, cat: string, ph: string, st: string) => {
     setLoading(true);
@@ -226,16 +233,6 @@ export function KnowledgePanel(p: { onClose: () => void; variant?: "modal" | "pa
     for (const e of entries) m.set(e.category, (m.get(e.category) ?? 0) + 1);
     return m;
   }, [entries]);
-
-  // Highlight matching text
-  const highlightText = (text: string): string | React.ReactNode => {
-    if (!normalizedQuery) return text;
-    const regex = new RegExp(`(${normalizedQuery.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`, "gi");
-    const parts = text.split(regex);
-    return parts.map((part, i) =>
-      regex.test(part) ? <mark key={i} className="bg-yellow-300/30 text-fg rounded px-0.5">{part}</mark> : part
-    );
-  };
 
   const handleToggle = useCallback(async (name: string) => {
     if (isEditing) { setIsEditing(false); return; }
@@ -290,183 +287,6 @@ export function KnowledgePanel(p: { onClose: () => void; variant?: "modal" | "pa
     }
   };
 
-  // ── page variant 渲染助手 ──────────────────────────────────────
-  // 列表摘要里后端会返回 phase/source 等扩展字段（TS 类型未声明），沿用原逻辑的强转。
-  const phaseOf = (e: KnowledgeSummary): string => (e as unknown as Record<string, string>).phase;
-  const sourceOf = (e: KnowledgeSummary): string => (e as unknown as Record<string, string>).source;
-
-  // 状态徽标配色：草稿=warning、已归档=中性、其余=accent（全部走令牌）。
-  const statusBadgeStyle = (st: string): CSSProperties => {
-    const warn = "var(--color-warning, var(--md-sys-color-warning))";
-    const accent = "var(--accent, var(--md-sys-color-primary))";
-    if (st === "草稿") return {
-      background: `color-mix(in srgb, ${warn} 12%, transparent)`,
-      color: warn,
-      borderColor: `color-mix(in srgb, ${warn} 30%, transparent)`,
-    };
-    if (st === "已归档") return {
-      background: "var(--bg-soft, var(--md-sys-color-surface-container))",
-      color: "var(--fg-faint, var(--md-sys-color-text-secondary))",
-      borderColor: "var(--border-soft, var(--md-sys-color-outline-variant))",
-    };
-    return {
-      background: `color-mix(in srgb, ${accent} 12%, transparent)`,
-      color: accent,
-      borderColor: `color-mix(in srgb, ${accent} 30%, transparent)`,
-    };
-  };
-
-  // 中区：详情 / 编辑
-  const renderCenter = () => {
-    if (isAdding) {
-      return (
-        <div className="flex-1 min-h-0 overflow-y-auto p-4">
-          <EditForm form={form} setForm={setForm} t={t} similar={similar} />
-          <div className="flex gap-2 mt-3 justify-end">
-            <button className="flex items-center gap-1 px-2.5 py-1 rounded-md bg-green-600 text-white text-[12px] cursor-pointer" onClick={handleSave} type="button"><Save size={13} aria-hidden="true" />{t("knowledge.save")}</button>
-            <button className="px-2.5 py-1 rounded-md bg-bg-soft text-fg text-[12px] cursor-pointer" onClick={cancelEdit} type="button">{t("common.cancel")}</button>
-          </div>
-        </div>
-      );
-    }
-    if (!expanded) {
-      return (
-        <div className="flex-1 flex flex-col items-center justify-center gap-3 p-6 text-center">
-          <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-fg-faint" style={{ background: "var(--bg-soft, var(--md-sys-color-surface-container))" }}>
-            <BookOpen size={22} aria-hidden="true" />
-          </div>
-          <p className="text-fg-faint text-[12.5px] max-w-[38ch] leading-relaxed">从左侧选择一条知识条目查看详情，或点击「新建」录入规范、案例与经验。</p>
-          <button className={`flex items-center gap-1 px-3 h-8 rounded-lg bg-accent text-accent-fg text-[12px] font-medium cursor-pointer hover:opacity-90 transition-opacity ${FOCUS_RING}`} onClick={startAdd} type="button"><Plus size={13} aria-hidden="true" />{t("knowledge.new")}</button>
-        </div>
-      );
-    }
-    if (detailLoading) {
-      return <div className="flex-1 flex items-center justify-center text-fg-faint text-[13px]">{t("common.loading")}</div>;
-    }
-    if (detailError) {
-      return <div className="flex-1 flex items-center justify-center text-red-500 text-[13px] p-6 text-center">{detailError}</div>;
-    }
-    if (expandedEntry) {
-      if (isEditing) {
-        return (
-          <div className="flex-1 min-h-0 overflow-y-auto p-4">
-            <EditForm form={form} setForm={setForm} t={t} similar={similar} />
-            <div className="flex gap-2 mt-3 justify-end">
-              <button className="flex items-center gap-1 px-2.5 py-1 rounded-md bg-green-600 text-white text-[12px] cursor-pointer" onClick={handleSave} type="button"><Save size={13} aria-hidden="true" />{t("knowledge.save")}</button>
-              <button className="px-2.5 py-1 rounded-md bg-bg-soft text-fg text-[12px] cursor-pointer" onClick={cancelEdit} type="button">{t("common.cancel")}</button>
-            </div>
-          </div>
-        );
-      }
-      return (
-        <>
-          {/* 头部：标题 + 状态徽标 + 元数据 */}
-          <div className="shrink-0 flex items-start gap-2 px-4 py-3 border-b border-border-soft">
-            <div className="flex-1 min-w-0">
-              <h3 className="text-[15px] font-semibold text-fg leading-snug break-words">{expandedEntry.title}</h3>
-              <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[10.5px] text-fg-faint">
-                {expandedEntry.author && <span>作者: {expandedEntry.author}</span>}
-                {expandedEntry.phase && <span>阶段: {expandedEntry.phase}</span>}
-                {expandedEntry.discipline && <span>专业: {expandedEntry.discipline}</span>}
-                {expandedEntry.version > 0 && <span>版本: v{expandedEntry.version}</span>}
-                {expandedEntry.reviewer && <span>审核: {expandedEntry.reviewer}</span>}
-                {expandedEntry.createdAt && <span>创建: {new Date(expandedEntry.createdAt).toLocaleDateString()}</span>}
-                {expandedEntry.updatedAt && <span>更新: {new Date(expandedEntry.updatedAt).toLocaleDateString()}</span>}
-              </div>
-            </div>
-            <span className="shrink-0 text-[10.5px] font-medium px-2 py-0.5 rounded-full border" style={statusBadgeStyle(expandedEntry.status)}>{expandedEntry.status}</span>
-          </div>
-          {/* 正文：Markdown 渲染 */}
-          <div className="flex-1 min-h-0 overflow-y-auto px-4 py-3">
-            {expandedEntry.body.trim() ? (
-              <Markdown text={expandedEntry.body} />
-            ) : (
-              <p className="text-fg-faint text-[12px]">（无正文）</p>
-            )}
-          </div>
-          {/* 操作条 */}
-          <div className="shrink-0 flex flex-wrap items-center gap-1.5 px-4 py-2.5 border-t border-border-soft">
-            <button className={`flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-bg-soft text-fg text-[11.5px] cursor-pointer hover:bg-sidebar-hover transition-colors ${FOCUS_RING}`} onClick={() => startEdit(expandedEntry)} type="button"><Pencil size={12} aria-hidden="true" />{t("common.edit")}</button>
-            <button className={`flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-bg-soft text-fg text-[11.5px] cursor-pointer hover:bg-sidebar-hover transition-colors ${FOCUS_RING}`} onClick={() => void openHistory(expandedEntry.name)} type="button"><Clock size={12} aria-hidden="true" />版本历史</button>
-            {expandedEntry.status === "草稿" && (
-              <button className={`flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-green-600/15 text-green-500 text-[11.5px] cursor-pointer hover:bg-green-600/25 transition-colors ${FOCUS_RING}`} onClick={() => void doReview(expandedEntry)} type="button"><Check size={12} aria-hidden="true" />审核通过</button>
-            )}
-            <button className={`flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-bg-soft text-fg text-[11.5px] cursor-pointer hover:bg-sidebar-hover transition-colors ${FOCUS_RING}`} onClick={() => void openMerge(expandedEntry)} type="button" title="把相似条目合并进本条（标签并集、来源合并、旧条目留档删除）">合并相似…</button>
-            {deleteConfirm === expandedEntry.name ? (
-              <span className="flex items-center gap-1">
-                <button className={`flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-red-600 text-white text-[11.5px] cursor-pointer ${FOCUS_RING}`} onClick={handleDeleteConfirm} type="button"><Check size={12} aria-hidden="true" />{t("common.confirm")}</button>
-                <button className={`px-2.5 py-1.5 rounded-md bg-bg-soft text-fg text-[11.5px] cursor-pointer ${FOCUS_RING}`} onClick={() => setDeleteConfirm(null)} type="button"><XIcon size={12} aria-hidden="true" /></button>
-              </span>
-            ) : (
-              <button className={`flex items-center gap-1 px-2.5 py-1.5 rounded-md text-red-500 text-[11.5px] cursor-pointer hover:bg-red-500/10 transition-colors ${FOCUS_RING}`} onClick={() => setDeleteConfirm(expandedEntry.name)} type="button"><Trash2 size={12} aria-hidden="true" />{t("knowledge.delete")}</button>
-            )}
-          </div>
-        </>
-      );
-    }
-    return null;
-  };
-
-  // 左栏：单条知识条目（page variant 紧凑行；激活 = 主色容器 + 左缘光条）
-  const renderEntryRow = (entry: KnowledgeSummary) => {
-    const isActive = expanded === entry.name;
-    const phaseVal = phaseOf(entry);
-    return (
-      <div key={entry.name} className="relative">
-        <div
-          className={`flex items-start gap-1.5 px-2 py-1.5 rounded-lg transition-colors ${isActive ? "" : "hover:bg-bg-soft"}`}
-          style={isActive ? {
-            background: "var(--color-primary-container, var(--md-sys-color-primary-container))",
-            boxShadow: "var(--v3-glow-faint)",
-          } : undefined}
-        >
-          {isActive && (
-            <span aria-hidden="true" className="absolute left-0 top-2 bottom-2 w-[3px] rounded-r" style={{ background: "var(--gaea-glow)", boxShadow: "0 0 8px var(--gaea-glow)" }} />
-          )}
-          <input
-            type="checkbox"
-            checked={selected.has(entry.name)}
-            onChange={() => toggleSelect(entry.name)}
-            title="多选（批量删除/改状态）"
-            aria-label={`选择 ${entry.title}`}
-            className="mt-1.5 shrink-0 cursor-pointer"
-          />
-          <button type="button" onClick={() => void handleToggle(entry.name)} aria-expanded={isActive}
-            className="flex-1 min-w-0 text-left flex flex-col gap-0.5 cursor-pointer">
-            <span className="flex items-start gap-1.5">
-              <span className="flex-1 text-[12.5px] font-medium leading-snug truncate text-fg">
-                {normalizedQuery ? highlightText(entry.title) : entry.title}
-              </span>
-              <span className="shrink-0 text-[9.5px] font-medium px-1.5 py-0.5 rounded-full"
-                style={{
-                  background: "var(--accent-soft, color-mix(in srgb, var(--accent, var(--md-sys-color-primary)) 12%, transparent))",
-                  color: "var(--accent, var(--md-sys-color-primary))",
-                }}>
-                {entry.category}
-              </span>
-            </span>
-            <span className="flex items-center gap-1.5 text-[10px] text-fg-faint">
-              {phaseVal && <span>{phaseVal}</span>}
-              {phaseVal && <span aria-hidden="true">·</span>}
-              {entry.status && <span>{entry.status}</span>}
-              {entry.updatedAt && <span className="ml-auto tabular-nums">{new Date(entry.updatedAt).toLocaleDateString()}</span>}
-            </span>
-            {entry.tags.length > 0 && (
-              <span className="flex flex-wrap gap-1">
-                {entry.tags.slice(0, 3).map((tag) => (
-                  <span key={tag} className="text-[9.5px] text-fg-faint px-1.5 py-0.5 rounded-full bg-bg-soft">
-                    {normalizedQuery ? highlightText(tag) : tag}
-                  </span>
-                ))}
-                {entry.tags.length > 3 && <span className="text-[9.5px] text-fg-faint">+{entry.tags.length - 3}</span>}
-              </span>
-            )}
-          </button>
-        </div>
-      </div>
-    );
-  };
-
   // 左栏：列表主体（loading / 错误重试 / 空 / 无匹配 / 条目）
   const renderListBody = () => {
     if (loading) {
@@ -498,89 +318,18 @@ export function KnowledgePanel(p: { onClose: () => void; variant?: "modal" | "pa
     }
     return (
       <div className="flex flex-col gap-1 pt-1.5">
-        {filtered.map(renderEntryRow)}
+        {filtered.map((entry) => (
+          <EntryRow
+            key={entry.name}
+            entry={entry}
+            active={expanded === entry.name}
+            selected={selected.has(entry.name)}
+            normalizedQuery={normalizedQuery}
+            onToggle={(name) => void handleToggle(name)}
+            onSelect={toggleSelect}
+          />
+        ))}
       </div>
-    );
-  };
-
-  // 右栏：检索结果 / 引用 inspector
-  const renderInspector = () => {
-    const hits = query.trim() ? filtered : [];
-    return (
-      <>
-        {/* 检索命中 */}
-        <section aria-label="检索命中">
-          <h4 className="flex items-center gap-1.5 text-[10.5px] font-semibold tracking-wide text-fg-faint uppercase">
-            <Search size={11} aria-hidden="true" /> 检索命中
-            {query.trim() ? <span className="tabular-nums">· {hits.length}</span> : null}
-          </h4>
-          {query.trim() ? (
-            hits.length === 0 ? (
-              <p className="mt-1.5 text-[11px] text-fg-faint">无命中条目</p>
-            ) : (
-              <ul className="mt-1.5 flex flex-col gap-1">
-                {hits.slice(0, 8).map((h) => (
-                  <li key={h.name}>
-                    <button type="button" onClick={() => void handleToggle(h.name)} aria-expanded={expanded === h.name}
-                      className={`w-full text-left px-2 py-1.5 rounded-md transition-colors cursor-pointer ${expanded === h.name ? "bg-bg-soft" : "hover:bg-bg-soft"} ${FOCUS_RING}`}>
-                      <span className="block text-[11.5px] text-fg truncate">{highlightText(h.title)}</span>
-                      <span className="block text-[10px] text-fg-faint truncate">
-                        {sourceOf(h) || h.category}
-                        {h.updatedAt ? ` · ${new Date(h.updatedAt).toLocaleDateString()}` : ""}
-                      </span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )
-          ) : (
-            <p className="mt-1.5 text-[11px] text-fg-faint leading-relaxed">在中区搜索框输入关键词，命中的条目与其来源将在此汇总。</p>
-          )}
-        </section>
-
-        <div className="v3-split-h" aria-hidden="true" />
-
-        {/* 当前条目引用信息 */}
-        <section aria-label="条目引用信息">
-          <h4 className="flex items-center gap-1.5 text-[10.5px] font-semibold tracking-wide text-fg-faint uppercase">
-            <FileText size={11} aria-hidden="true" /> 条目引用
-          </h4>
-          {expandedEntry ? (
-            <dl className="mt-2 flex flex-col gap-1.5 text-[11px]">
-              <div className="flex items-baseline justify-between gap-2"><dt className="text-fg-faint shrink-0">来源</dt><dd className="text-fg text-right break-all">{expandedEntry.source || "未标注"}</dd></div>
-              <div className="flex items-baseline justify-between gap-2"><dt className="text-fg-faint shrink-0">作者</dt><dd className="text-fg text-right">{expandedEntry.author || "—"}</dd></div>
-              <div className="flex items-baseline justify-between gap-2"><dt className="text-fg-faint shrink-0">审核</dt><dd className="text-fg text-right">{expandedEntry.reviewer || "—"}</dd></div>
-              <div className="flex items-baseline justify-between gap-2"><dt className="text-fg-faint shrink-0">版本</dt><dd className="text-fg text-right">v{expandedEntry.version > 0 ? expandedEntry.version : 1}</dd></div>
-              <div className="flex items-baseline justify-between gap-2"><dt className="text-fg-faint shrink-0">阶段</dt><dd className="text-fg text-right">{expandedEntry.phase || "—"}</dd></div>
-              <div className="flex items-baseline justify-between gap-2"><dt className="text-fg-faint shrink-0">专业</dt><dd className="text-fg text-right">{expandedEntry.discipline || "—"}</dd></div>
-              <div className="flex items-baseline justify-between gap-2"><dt className="text-fg-faint shrink-0">创建</dt><dd className="text-fg text-right tabular-nums">{expandedEntry.createdAt ? new Date(expandedEntry.createdAt).toLocaleDateString() : "—"}</dd></div>
-              <div className="flex items-baseline justify-between gap-2"><dt className="text-fg-faint shrink-0">更新</dt><dd className="text-fg text-right tabular-nums">{expandedEntry.updatedAt ? new Date(expandedEntry.updatedAt).toLocaleDateString() : "—"}</dd></div>
-            </dl>
-          ) : (
-            <p className="mt-1.5 text-[11px] text-fg-faint leading-relaxed">从左侧选择条目后，此处显示其来源与元数据引用。</p>
-          )}
-        </section>
-
-        {/* 疑似重复（新建/编辑中） */}
-        {similar.length > 0 && (
-          <>
-            <div className="v3-split-h" aria-hidden="true" />
-            <section aria-label="疑似重复">
-              <h4 className="flex items-center gap-1.5 text-[10.5px] font-semibold tracking-wide text-fg-faint uppercase">
-                <AlertCircle size={11} aria-hidden="true" /> 疑似重复
-              </h4>
-              <ul className="mt-1.5 flex flex-col gap-1">
-                {similar.slice(0, 3).map((s) => (
-                  <li key={s.name} className="px-2 py-1.5 rounded-md bg-bg-soft/60 text-[11px]">
-                    <span className="block text-fg truncate">{s.title}</span>
-                    <span className="block text-[10px] text-fg-faint tabular-nums">{Math.round(s.score * 100)}% 相似</span>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          </>
-        )}
-      </>
     );
   };
 
@@ -627,7 +376,7 @@ export function KnowledgePanel(p: { onClose: () => void; variant?: "modal" | "pa
                     aria-label="批量改状态"
                   >
                     <option value="" disabled>改状态…</option>
-                    {["现行", "草稿", "常用", "已归档"].map((s) => <option key={s} value={s}>{s}</option>)}
+                    {BATCH_STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
                   </select>
                   <button className={`px-2 h-6 rounded-md bg-red-500/15 text-red-400 text-[11px] cursor-pointer hover:bg-red-500/25 ${FOCUS_RING}`} onClick={() => void batchDelete()} type="button">批量删除</button>
                 </div>
@@ -698,7 +447,28 @@ export function KnowledgePanel(p: { onClose: () => void; variant?: "modal" | "pa
               </div>
               {/* 详情 / 编辑卡 */}
               <div className="v3-card flex-1 min-h-0 flex flex-col overflow-hidden">
-                {renderCenter()}
+                <CenterView
+                  t={t}
+                  isAdding={isAdding}
+                  isEditing={isEditing}
+                  expanded={expanded}
+                  detailLoading={detailLoading}
+                  detailError={detailError}
+                  expandedEntry={expandedEntry}
+                  form={form}
+                  setForm={setForm}
+                  similar={similar}
+                  deleteConfirm={deleteConfirm}
+                  onStartAdd={startAdd}
+                  onStartEdit={startEdit}
+                  onCancelEdit={cancelEdit}
+                  onSave={() => void handleSave()}
+                  onDeleteConfirm={() => void handleDeleteConfirm()}
+                  onSetDeleteConfirm={setDeleteConfirm}
+                  onOpenHistory={(n) => void openHistory(n)}
+                  onDoReview={(e) => void doReview(e)}
+                  onOpenMerge={(e) => void openMerge(e)}
+                />
               </div>
             </section>
 
@@ -715,7 +485,15 @@ export function KnowledgePanel(p: { onClose: () => void; variant?: "modal" | "pa
                   </button>
                 </div>
                 <div className="flex-1 min-h-0 overflow-y-auto px-3 py-2.5 space-y-4">
-                  {renderInspector()}
+                  <Inspector
+                    query={query}
+                    filtered={filtered}
+                    expandedName={expanded}
+                    expandedEntry={expandedEntry}
+                    similar={similar}
+                    normalizedQuery={normalizedQuery}
+                    onToggle={(n) => void handleToggle(n)}
+                  />
                 </div>
               </aside>
             ) : (
@@ -781,7 +559,7 @@ export function KnowledgePanel(p: { onClose: () => void; variant?: "modal" | "pa
                   className="px-1.5 h-6 rounded-md bg-bg-soft text-fg-dim text-[11px] border border-border outline-none"
                 >
                   <option value="" disabled>改状态…</option>
-                  {["现行", "草稿", "常用", "已归档"].map((s) => <option key={s} value={s}>{s}</option>)}
+                  {BATCH_STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
                 </select>
                 <button className="px-2 h-6 rounded-md bg-red-500/15 text-red-400 text-[11px] cursor-pointer hover:bg-red-500/25" onClick={() => void batchDelete()} type="button">批量删除</button>
               </div>
@@ -823,7 +601,7 @@ export function KnowledgePanel(p: { onClose: () => void; variant?: "modal" | "pa
                   <div className="p-3 rounded-lg border border-accent bg-sidebar-active">
                     <EditForm form={form} setForm={setForm} t={t} similar={similar} />
                     <div className="flex gap-2 mt-2 justify-end">
-                      <button className="flex items-center gap-1 px-2.5 py-1 rounded-md bg-green-600 text-white text-[12px]" onClick={handleSave} type="button"><Save size={13} />{t("knowledge.save")}</button>
+                      <button className="flex items-center gap-1 px-2.5 py-1 rounded-md bg-green-600 text-white text-[12px]" onClick={() => void handleSave()} type="button"><Save size={13} />{t("knowledge.save")}</button>
                       <button className="px-2.5 py-1 rounded-md bg-bg-soft text-fg text-[12px]" onClick={cancelEdit} type="button">{t("common.cancel")}</button>
                     </div>
                   </div>
@@ -844,7 +622,7 @@ export function KnowledgePanel(p: { onClose: () => void; variant?: "modal" | "pa
                         onClick={() => void handleToggle(entry.name)} type="button">
                         <div className="flex items-start gap-2">
                           <span className="flex-1 text-fg text-[13px] font-medium leading-snug">
-                            {normalizedQuery ? highlightText(entry.title) : entry.title}
+                            {normalizedQuery ? highlightText(entry.title, normalizedQuery) : entry.title}
                           </span>
                           <span className="shrink-0 text-[10.5px] text-accent font-medium px-1.5 py-0.5 rounded-full bg-accent/10">{entry.category}</span>
                         </div>
@@ -857,7 +635,7 @@ export function KnowledgePanel(p: { onClose: () => void; variant?: "modal" | "pa
                           <div className="flex flex-wrap gap-1">
                             {entry.tags.map((tag) => (
                               <span key={tag} className="text-[10px] text-fg-faint px-1.5 py-0.5 rounded-full bg-bg-soft">
-                                {normalizedQuery ? highlightText(tag) : tag}
+                                {normalizedQuery ? highlightText(tag, normalizedQuery) : tag}
                               </span>
                             ))}
                           </div>
@@ -878,7 +656,7 @@ export function KnowledgePanel(p: { onClose: () => void; variant?: "modal" | "pa
                             <div>
                               <EditForm form={form} setForm={setForm} t={t} similar={similar} />
                               <div className="flex gap-2 mt-3 justify-end">
-                                <button className="flex items-center gap-1 px-2.5 py-1 rounded-md bg-green-600 text-white text-[12px]" onClick={handleSave} type="button"><Save size={13} />{t("knowledge.save")}</button>
+                                <button className="flex items-center gap-1 px-2.5 py-1 rounded-md bg-green-600 text-white text-[12px]" onClick={() => void handleSave()} type="button"><Save size={13} />{t("knowledge.save")}</button>
                                 <button className="px-2.5 py-1 rounded-md bg-bg-soft text-fg text-[12px]" onClick={cancelEdit} type="button">{t("common.cancel")}</button>
                               </div>
                             </div>
@@ -903,7 +681,7 @@ export function KnowledgePanel(p: { onClose: () => void; variant?: "modal" | "pa
                                 <button className="flex items-center gap-1 px-2 py-1 rounded-md bg-bg-soft text-fg text-[11px] hover:bg-sidebar-hover" onClick={() => void openMerge(expandedEntry)} type="button" title="把相似条目合并进本条（标签并集、来源合并、旧条目留档删除）">合并相似…</button>
                                 {deleteConfirm === entry.name ? (
                                   <div className="flex items-center gap-1">
-                                    <button className="flex items-center gap-1 px-2 py-1 rounded-md bg-red-600 text-white text-[11px]" onClick={handleDeleteConfirm} type="button"><Check size={12} />{t("common.confirm")}</button>
+                                    <button className="flex items-center gap-1 px-2 py-1 rounded-md bg-red-600 text-white text-[11px]" onClick={() => void handleDeleteConfirm()} type="button"><Check size={12} />{t("common.confirm")}</button>
                                     <button className="px-2 py-1 rounded-md bg-bg-soft text-fg text-[11px]" onClick={() => setDeleteConfirm(null)} type="button"><XIcon size={12} /></button>
                                   </div>
                                 ) : (
@@ -922,78 +700,21 @@ export function KnowledgePanel(p: { onClose: () => void; variant?: "modal" | "pa
           </div>
         </div>
       )}
-      <Modal
-        title={`版本历史：${historyName}`}
+      <HistoryModal
         open={historyOpen}
-        onCancel={() => setHistoryOpen(false)}
-        footer={null}
-        width={560}
-        destroyOnHidden
-        transitionName=""
-        maskTransitionName=""
-      >
-        <div className="space-y-2 max-h-[46vh] overflow-auto">
-          {historyRows.length === 0 ? (
-            <div className="py-6 text-center text-fg-faint text-[12px]">暂无版本历史（保存时内容变化会自动留档）</div>
-          ) : (
-            historyRows.map((h, i) => (
-              <div key={i} className="p-2 rounded-lg bg-bg-soft/40 text-[12px]">
-                <div className="flex items-center gap-2">
-                  <span className="font-semibold text-fg">v{h.version}</span>
-                  <span className="text-fg-faint">{h.note}</span>
-                  <span className="ml-auto text-fg-faint text-[10.5px]">{h.changedAt ? new Date(h.changedAt).toLocaleString("zh-CN", { hour12: false }) : ""}</span>
-                </div>
-                <div className="mt-1 text-fg-dim whitespace-pre-wrap break-words max-h-[120px] overflow-y-auto">{h.body}</div>
-              </div>
-            ))
-          )}
-        </div>
-      </Modal>
-      <Modal
-        title={`合并相似条目到「${mergeTarget}」`}
+        name={historyName}
+        rows={historyRows}
+        onClose={() => setHistoryOpen(false)}
+      />
+      <MergeModal
         open={mergeOpen}
-        onCancel={() => setMergeOpen(false)}
-        destroyOnHidden
-        transitionName=""
-        maskTransitionName=""
-        footer={
-          <div className="flex items-center justify-end gap-2">
-            <button className="px-3 h-8 rounded-lg border border-border text-fg-faint hover:text-fg hover:bg-bg-soft text-[12px]" onClick={() => setMergeOpen(false)} type="button">取消</button>
-            <button
-              className="px-3 h-8 rounded-lg bg-accent text-white text-[12px] hover:opacity-90 disabled:opacity-50"
-              onClick={() => void doMerge()}
-              disabled={mergeSelected.size === 0}
-              type="button"
-            >
-              合并 {mergeSelected.size} 条
-            </button>
-          </div>
-        }
-        width={520}
-      >
-        {mergeCandidates.length === 0 ? (
-          <div className="py-6 text-center text-fg-faint text-[12px]">暂无相似条目</div>
-        ) : (
-          <div className="space-y-1.5 max-h-[40vh] overflow-auto">
-            {mergeCandidates.map((s) => (
-              <label key={s.name} className="flex items-center gap-2 px-2 py-1.5 rounded-lg bg-bg-soft/40 text-[12px] cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={mergeSelected.has(s.name)}
-                  onChange={() => setMergeSelected((prev) => {
-                    const next = new Set(prev);
-                    if (next.has(s.name)) next.delete(s.name);
-                    else next.add(s.name);
-                    return next;
-                  })}
-                />
-                <span className="flex-1 truncate">{s.title}</span>
-                <span className="shrink-0 text-fg-faint text-[10.5px]">{Math.round(s.score * 100)}% 相似</span>
-              </label>
-            ))}
-          </div>
-        )}
-      </Modal>
+        target={mergeTarget}
+        candidates={mergeCandidates}
+        selected={mergeSelected}
+        onClose={() => setMergeOpen(false)}
+        onToggle={toggleMergeCandidate}
+        onMerge={() => void doMerge()}
+      />
       <KnowledgeImportModal
         open={!!importFile}
         path={importFile?.path ?? ""}
@@ -1001,49 +722,6 @@ export function KnowledgePanel(p: { onClose: () => void; variant?: "modal" | "pa
         onClose={() => setImportFile(null)}
         onImported={loadList}
       />
-    </div>
-  );
-}
-
-/** Inline edit form for knowledge entry fields */
-function EditForm({ form, setForm, t, similar }: {
-  form: KnowledgeSaveRequest;
-  setForm: (f: KnowledgeSaveRequest) => void;
-  t: Translator;
-  similar?: SimilarView[];
-}) {
-  const update = (partial: Partial<KnowledgeSaveRequest>) => setForm({ ...form, ...partial });
-
-  return (
-    <div className="space-y-2">
-      {similar && similar.length > 0 && (
-        <div className="px-2 py-1.5 rounded-md bg-amber-500/10 text-amber-400 text-[11px]">
-          疑似重复：{similar.slice(0, 3).map((s) => `${s.title}（${Math.round(s.score * 100)}%）`).join("、")}
-        </div>
-      )}
-      <div className="flex gap-2">
-        <input className="flex-1 px-2 py-1 rounded bg-bg border border-border text-[12px] text-fg outline-none focus:border-accent" placeholder={t("knowledge.namePlaceholder")} value={form.name} onChange={(e) => update({ name: e.target.value })} disabled={!!(form.updatedAt && form.updatedAt !== "")} />
-        <select className="px-2 py-1 rounded bg-bg border border-border text-[12px] text-fg outline-none" value={form.category} onChange={(e) => update({ category: e.target.value })}>
-          {CATEGORIES.filter((c) => c !== "all").map((c) => (<option key={c} value={c}>{c}</option>))}
-        </select>
-      </div>
-      <input className="w-full px-2 py-1 rounded bg-bg border border-border text-[12px] text-fg outline-none focus:border-accent" placeholder={t("knowledge.title")} value={form.title} onChange={(e) => update({ title: e.target.value })} />
-      <div className="flex gap-2">
-        <input className="flex-1 px-2 py-1 rounded bg-bg border border-border text-[12px] text-fg outline-none" placeholder={t("knowledge.phase")} value={form.phase} onChange={(e) => update({ phase: e.target.value })} />
-        <input className="flex-1 px-2 py-1 rounded bg-bg border border-border text-[12px] text-fg outline-none" placeholder="专业" value={form.discipline} onChange={(e) => update({ discipline: e.target.value })} />
-      </div>
-      <div className="flex gap-2">
-        <input className="flex-1 px-2 py-1 rounded bg-bg border border-border text-[12px] text-fg outline-none" placeholder={t("knowledge.tags")} value={form.tags.join(", ")} onChange={(e) => update({ tags: e.target.value.split(",").map((s) => s.trim()).filter(Boolean) })} />
-        <select className="px-2 py-1 rounded bg-bg border border-border text-[12px] text-fg outline-none" value={form.status} onChange={(e) => update({ status: e.target.value })}>
-          {STATUSES.filter((s) => s !== "all").map((s) => (<option key={s} value={s}>{s}</option>))}
-        </select>
-      </div>
-      <div className="flex gap-2">
-        <input className="flex-1 px-2 py-1 rounded bg-bg border border-border text-[12px] text-fg outline-none" placeholder={t("knowledge.author")} value={form.author} onChange={(e) => update({ author: e.target.value })} />
-        <input className="flex-1 px-2 py-1 rounded bg-bg border border-border text-[12px] text-fg outline-none" placeholder="审核人" value={form.reviewer} onChange={(e) => update({ reviewer: e.target.value })} />
-        <input className="flex-1 px-2 py-1 rounded bg-bg border border-border text-[12px] text-fg outline-none" placeholder={t("knowledge.source")} value={form.source} onChange={(e) => update({ source: e.target.value })} />
-      </div>
-      <textarea className="w-full min-h-[150px] px-2 py-1 rounded bg-bg border border-border text-[12px] text-fg outline-none focus:border-accent font-mono" placeholder={t("knowledge.body")} value={form.body} onChange={(e) => update({ body: e.target.value })} />
     </div>
   );
 }

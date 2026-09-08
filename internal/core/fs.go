@@ -1,5 +1,5 @@
-// Package office — executor.go
-package office
+// Package core — 桌面 agent 文件读写执行器（自 internal/office/executor.go 平迁，逐行等价）。
+package core
 
 import (
 	"fmt"

@@ -92,6 +92,7 @@ gaea/
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| **v4.171.0** | 2026-09-09 | 瘦身 P3 结构版2：office 抽核 + 次批巨文件拆分（>50KB 首拆池 9→0）——office 树 journal/evidence/文件读写下沉 internal/core（类型别名保绑定面签名，602 绑定零变更）+ 次批 5 巨文件拆（KnowledgePanel/DeliverablesPanel/XlsxPreview/ChapterPage/herdsmanTemplates + SchedulePage 超额），纯结构拆分行为零变化。零绑定 602；vitest 2737；Go 128 包全绿；locale 0 死。详见 releases/v4.171.0.md |
 | **v4.170.0** | 2026-09-09 | 瘦身 P3 结构版1：巨文件首批 4 拆（App 87→47/bridge 85→1.3/types 66→1.2/GanttView 65→25，拆分池 >50KB 9→5）——四线并发子代理纯结构拆分零行为变化：App 11 组逻辑迁 gaea/app/、bridge 按 bindingNames 域切 16 文件（602 绑定零变更）、types 域拆 24 文件、GanttView 拆 schedule/gantt/ 8 文件，公开导出面逐一同。零绑定 602；vitest 2737；Go 127 包全绿；locale 0 死。详见 releases/v4.170.0.md |
 | **v4.169.0** | 2026-09-09 | 瘦身 P2 主干：双空间并列落地——rail 顶部工位/乐园切换器 + rail 主体按空间分域导航（shared 恒在/independent 编程仅 foot 单列，基线 rail code 双入口缺陷闭合）+ home 空间感知化（Bento 按空间过滤+每空间旗舰 work=gaea/play=chat+hero 空间 chip+工位「最近文档」面板，零新绑定）+ 走查待证项收口（knowledge 孤儿页删除/刀2 G-2 基线数「基线 N」chip/后端 nav 差异=有意的双源回退落档）。零绑定 602；vitest 2720→2737；Go 127 包全绿；locale 1448 键 0 死。详见 releases/v4.169.0.md |
 | **v4.168.0** | 2026-09-09 | 瘦身 P2 刀1：schedule 并入办公文档面——inMenu:false 藏出顶栏菜单/启动器（前端 manifests+后端 builtins 同步翻，白名单刀0 已解耦注册即可导航）+ 办公「进度计划」入口（命令面板 cmd-schedule Ctrl+K 直达 + 办公文件面 .gsched 摘要卡既有链路）+ 刀2 补验审计落档（docs/gaea-slim-knife2-audit-2026-09.md）+ DataPanel 绑定签名修复。零绑定 602；vitest 2715→2720；Go 115 包全绿。详见 releases/v4.168.0.md |
