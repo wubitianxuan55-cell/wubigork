@@ -7,6 +7,7 @@
 | 文档 | 一句话 |
 |---|---|
 | gaea-nextgen-roadmap-2026.md | 全域路线图（权威；§16 调研回填后近期落地项见 v4.88/4.89） |
+| gaea-convergence-plan-2026-09.md | 🔄 **收敛期叠加层（活跃）**：30 天卫生/外化/止血刀 + 节奏改革；冲突时以「不加新板块」为先 |
 | gaea-competitive-landscape-2026.md | 竞品格局与差异化定位（参考基线 2026-08-29，注意时效） |
 | gaea-cost-domain-survey-2026-09.md | 造价域现状基线（file:line；**校正 roadmap §15 过时欠账描述**：AI 组价 v4.2 已在产）+ 造价刀路池 |
 

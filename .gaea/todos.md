@@ -14,7 +14,16 @@
 | ⬜ | genui 审计唯一开放项：resume 槽位口径统一（明确不做，另行排期） |
 | ⬜ | 小说域：GenerationGate 闭环/刀7 续/刀8（v4.77 批次后未推进） |
 | ⬜ | 图域：T1+（T0 契约 v4.98 已落地） |
-| ⬜ | 已知潜伏 bug：DeliverablesPanel {page:'office'} 过期 id（v4.121 走查，细节待复现钉死） |
+
+## 收敛计划 W1（2026-09-08 立项，权威= docs/gaea-convergence-plan-2026-09.md）
+
+| 状态 | 任务 |
+|------|------|
+| 🔄 | 1.1 package-lock 入库 + CI npm ci（供应链可复现） |
+| 🔄 | 1.2 vitest 抗抖：testTimeout 15s + CI 前端 flaky retry（对齐 Go job） |
+| 🔄 | 1.3 DeliverablesPanel 过期 id 潜伏 bug 复现钉死（原「已知潜伏 bug」行转入本表） |
+| 🔄 | 1.4 WebView2 壳内残留面扫描（input[file]/a[download]/print → 风险表+刀序，修复另立刀） |
+| ⬜ | 拍板：性质路线 A/B + LICENSE 选择（阻塞 W2 起的产品期权项） |
 
 ## 文档整理（2026-09-09）✅
 
