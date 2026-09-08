@@ -12,6 +12,8 @@
 import { app } from '../gaea/lib/bridge'
 import type { SchedProject } from './types'
 import { normalizeProject } from './store'
+import { saveExportBlob } from './exportArtifact'
+import { bytesToBlob } from './imgPdf'
 
 export interface ScheduleLoadOk {
   exists: boolean
@@ -144,18 +146,14 @@ async function fileToBase64(file: File): Promise<string> {
   return btoa(bin)
 }
 
-/** 导出上报 Excel：Go excelize 渲染（CPM fail-closed）→ base64 → Blob 下载 */
+/** 导出上报 Excel：Go excelize 渲染（CPM fail-closed）→ base64 → 保存
+ *  （v4.162：壳内 <a download> 下载不落盘，走 saveExportBlob 系统另存为） */
 export async function exportScheduleXlsx(p: SchedProject): Promise<void> {
   const b64 = await app.ScheduleExportXlsx(JSON.stringify(normalizeProject(p)))
   const bin = atob(b64)
   const bytes = new Uint8Array(bin.length)
   for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
-  const url = URL.createObjectURL(new Blob([bytes], { type: XLSX_MIME }))
-  const a = document.createElement('a')
-  a.href = url
-  a.download = `${p.name || '进度计划'}.xlsx`
-  a.click()
-  URL.revokeObjectURL(url)
+  await saveExportBlob(bytesToBlob(bytes, XLSX_MIME), `${p.name || '进度计划'}.xlsx`)
 }
 
 /** 导入上报 Excel：文件 → base64 → Go 解析 → 计划（排程交回 CPM 重算） */

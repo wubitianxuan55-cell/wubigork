@@ -257,6 +257,7 @@ export const bindingNames = [
 	"GaeaProfileSave",
 	"GaeaPromoteSubagent",
 	"GaeaReadFile",
+	"GaeaReadFileB64",
 	"GaeaRecognizeImage",
 	"GaeaReload",
 	"GaeaRemember",
@@ -274,6 +275,7 @@ export const bindingNames = [
 	"GaeaRunning",
 	"GaeaSaveAttachmentFile",
 	"GaeaSaveDoc",
+	"GaeaSaveFileAs",
 	"GaeaSavePastedImage",
 	"GaeaSaveProvider",
 	"GaeaSaveSettings",
@@ -598,7 +600,7 @@ export const bindingNames = [
 	"WhisperWeixinGetQR",
 	"WhisperWeixinQRStatus",
 	"WhisperWeixinQRStatusWithCode",
-	"WhisperWeixinStatus"
+	"WhisperWeixinStatus",
 ] as const
 
 export default bindingNames

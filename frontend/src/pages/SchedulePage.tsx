@@ -35,9 +35,10 @@ import { TaskInspector, type InspectorDepRow } from '../schedule/TaskInspector'
 import { wbsOf } from '../schedule/ganttGroup'
 import { buildGanttExportSvg } from '../schedule/ganttExport'
 import { buildAoaExportSvg, buildPdmExportSvg } from '../schedule/networkExport'
-import { svgToPngBlob, svgToPdfBlob, downloadBlob, printSvg, svgWithViewBox } from '../schedule/exportArtifact'
+import { svgToPngBlob, svgToPdfBlob, saveExportBlob, inShell, printSvg, svgWithViewBox } from '../schedule/exportArtifact'
 import { loadExportMeta, saveExportMeta, todayIso, type ExportMetaPrefs } from '../schedule/exportMeta'
 import { exportScheduleXlsx, importScheduleXlsx, importScheduleMpp } from '../schedule/api'
+import { app } from '../gaea/lib/bridge'
 import type { ScheduleProjectSummary } from '../schedule/api'
 import { ResourcePanel } from '../schedule/ResourcePanel'
 import { UsageView } from '../schedule/UsageView'
@@ -185,8 +186,8 @@ const ExportDialog: React.FC<{
           : buildPdmExportSvg(project, cpm, m)
       const base = `${project.name || '进度计划'}-${EXPORT_KIND_FILE[kind]}`
       if (out === 'print') printSvg(art.svg)
-      else if (out === 'png') downloadBlob(await svgToPngBlob(art.svg), `${base}.png`)
-      else downloadBlob(await svgToPdfBlob(art.svg), `${base}.pdf`)
+      else if (out === 'png') await saveExportBlob(await svgToPngBlob(art.svg), `${base}.png`)
+      else await saveExportBlob(await svgToPdfBlob(art.svg), `${base}.pdf`)
       saveExportMeta(meta)
       setMsg(out === 'print' ? '已唤起系统打印（目标选「另存为 PDF」可得 PDF 文件）' : '已导出')
     } catch (e) {
@@ -502,15 +503,10 @@ const SchedulePage: React.FC = () => {
   }, [inspectTask, project.tasks, project.links, cpm])
   const select = useScheduleStore((s) => s.select)
 
-  const exportXml = () => {
+  const exportXml = async () => {
     const xml = buildProjectXml(project, cpm.rows)
     const blob = new Blob([xml], { type: 'application/xml;charset=utf-8' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `${project.name || '进度计划'}.xml`
-    a.click()
-    URL.revokeObjectURL(url)
+    await saveExportBlob(blob, `${project.name || '进度计划'}.xml`)
   }
 
   const onImportFile = async (file: File) => {
@@ -614,6 +610,30 @@ const SchedulePage: React.FC = () => {
     }
   }
 
+  /**
+   * 导入选文件（v4.162）：Wails 壳内 <input type=file>.click() 不弹文件对话框
+   * （用户实测「导入点击没有反应」），壳内改走 GaeaPickFiles 系统对话框 +
+   * GaeaReadFileB64 读内容还原 File 喂原解析器；浏览器回退原 input.click()
+   * （浏览器原生弹框，jsdom/浏览器用例口径不变）。picked=空（取消）静默返回。
+   */
+  const pickImport = async (kind: 'new' | 'xml' | 'xlsx' | 'mpp', fallback: () => void) => {
+    if (!inShell()) { fallback(); return }
+    try {
+      const picked = await app.PickFiles()
+      if (!picked?.length) return
+      const f = picked[0]
+      const b64 = await app.ReadFileB64(f.path)
+      const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0))
+      const file = new File([bytes], f.name)
+      if (kind === 'xml') void onImportFile(file)
+      else if (kind === 'xlsx') void onImportXlsx(file)
+      else if (kind === 'mpp') void onImportMpp(file)
+      else void onImportNewFile(file)
+    } catch (e) {
+      setImportMsg({ type: 'error', text: e instanceof Error ? e.message : String(e) })
+    }
+  }
+
   // ── 菜单栏（v4.140）：命令按 文件/编辑/视图/任务 归属；导入/导出项与工具栏下拉共用 ──
   // v4.144 导入重组：「导入为新工程」=安全默认主入口（独立文件入索引）；
   // 三路「替换当前工程」降为显式标注项（模板/签证调整覆盖场景，可撤销）。
@@ -630,10 +650,10 @@ const SchedulePage: React.FC = () => {
   ]
   const runMenu = (key: string) => {
     if (key === 'sample') { loadSample(); setImportMsg(null) }
-    else if (key === 'importNew') newRef.current?.click()
-    else if (key === 'importXml') fileRef.current?.click()
-    else if (key === 'importXlsx') xlsxRef.current?.click()
-    else if (key === 'importMpp') mppRef.current?.click()
+    else if (key === 'importNew') pickImport('new', () => newRef.current?.click())
+    else if (key === 'importXml') pickImport('xml', () => fileRef.current?.click())
+    else if (key === 'importXlsx') pickImport('xlsx', () => xlsxRef.current?.click())
+    else if (key === 'importMpp') pickImport('mpp', () => mppRef.current?.click())
     else if (key === 'exportXml') exportXml()
     else if (key === 'exportXlsx') void exportXlsx()
     else if (key === 'exportArt') setExportOpen(true)

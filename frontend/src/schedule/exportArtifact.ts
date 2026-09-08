@@ -89,6 +89,38 @@ export function downloadBlob(blob: Blob, name: string): void {
   URL.revokeObjectURL(url)
 }
 
+/** 是否运行在 Wails 壳内（v4.162）：壳内 <a download> 下载不落盘、
+ *  <input type=file> 不弹框——导出/导入必须走系统对话框绑定。 */
+export function inShell(): boolean {
+  return typeof window !== 'undefined' && 'go' in window
+}
+
+/**
+ * 保存导出文件（v4.162）：壳内走系统「另存为」对话框（GaeaSaveFileAs，
+ * <a download> 在 WebView2 壳内不落盘——用户实测「导出点击没有反应」）；
+ * 浏览器回退 <a download> 原机制。返回 true=已保存，false=用户取消。
+ */
+export async function saveExportBlob(blob: Blob, name: string): Promise<boolean> {
+  if (inShell()) {
+    const { app } = await import('../gaea/lib/bridge')
+    const b64 = await blobToB64(blob)
+    const path = await app.SaveFileAs(name, b64)
+    return path !== ''
+  }
+  downloadBlob(blob, name)
+  return true
+}
+
+/** Blob → base64（FileReader dataURL，去掉 dataURL 头部） */
+function blobToB64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const fr = new FileReader()
+    fr.onload = () => resolve(String(fr.result).slice(String(fr.result).indexOf(',') + 1))
+    fr.onerror = () => reject(new Error('读取导出内容失败'))
+    fr.readAsDataURL(blob)
+  })
+}
+
 /** 图面打印：隐藏 iframe 载入 SVG，唤起系统打印（另存为 PDF 可得 PDF） */
 export function printSvg(svg: string): void {
   const frame = document.createElement('iframe')

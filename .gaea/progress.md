@@ -1,5 +1,12 @@
 # 任务进度
 
+## 最新发布：v4.162.0（2026-09-08）「进度计划导入导出壳内修复：原生对话框链路」
+
+- **根因**：Wails 壳内 input[file] 不弹框、`<a download>` 不落盘（浏览器正常故测试不可见）；菜单/下拉正常。分层排除（浏览器 dev/prod ✓ 壳 ✗）+ CDP 受信任点击 + EnumWindows 探测定位。
+- **修复**：新绑定 GaeaReadFileB64+GaeaSaveFileAs（599→601）；导入四路=PickFiles+ReadFileB64 还原 File 喂原解析器；导出五路=saveExportBlob 统一另存为；浏览器全回退原机制。
+- **门禁**：vitest 2671→2677、tsc/eslint 0、drift PASS@601、build+冒烟过；壳内实测原生「选择文件」对话框弹出 ✓。
+- **欠账**：window.print 壳内行为未走查；全 app input[file]/a[download] 残留扫尾。
+
 ## 最新发布：v4.161.0（2026-09-08）「双代号对齐标杆二期：工程标尺 + 图面语言」
 
 - **内容**：①时间坐标框架进视图（aoaRuler.ts 纯函数：工程日/月/日+星期/工程周,月界竖线贯通;手动布局不画）②波形拆独立路径着绿（segsToPathSplit,segsToPath 兼容包装,视图/导出同口径）③关键红圈/名称工期蓝/非关键加深④修 v4.160 打包阶梯化（改按重心行道 gRow 打包）。

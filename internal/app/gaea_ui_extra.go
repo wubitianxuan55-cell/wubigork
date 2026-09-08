@@ -779,6 +779,61 @@ func (a *App) GaeaSaveAttachmentFile(fileName, base64Data string) (string, error
 	return path, nil
 }
 
+// GaeaReadFileB64 读取本地文件为 base64（v4.162 进度计划导入链路专用）。
+// 背景：WebView2 壳内 <input type=file>.click() 不弹文件对话框，导入必须走
+// GaeaPickFiles 系统对话框拿路径，再经本绑定取内容喂给 Go 解析器。
+// 用户显式选择的文件视为用户意图；上限 64MB（进度计划文件远小于此，防误用）。
+func (a *App) GaeaReadFileB64(path string) (string, error) {
+	if strings.TrimSpace(path) == "" {
+		return "", fmt.Errorf("路径为空")
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		return "", fmt.Errorf("文件不可读: %w", err)
+	}
+	if info.IsDir() {
+		return "", fmt.Errorf("路径是目录: %s", path)
+	}
+	if info.Size() > 64<<20 {
+		return "", fmt.Errorf("文件过大（上限 64MB）")
+	}
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return "", fmt.Errorf("读取失败: %w", err)
+	}
+	return base64.StdEncoding.EncodeToString(b), nil
+}
+
+// GaeaSaveFileAs 弹出系统「另存为」对话框并把 base64 内容写入所选路径
+// （v4.162 进度计划导出链路专用：WebView2 壳内 <a download> 下载不落盘）。
+// 返回实际写入路径；用户取消返回空串。base64Data 为空时只选路径不写盘。
+func (a *App) GaeaSaveFileAs(defaultName string, base64Data string) (string, error) {
+	if a.ctx == nil {
+		return "", fmt.Errorf("应用未就绪")
+	}
+	path, err := runtime.SaveFileDialog(a.ctx, runtime.SaveDialogOptions{
+		Title:           "保存文件",
+		DefaultFilename: filepath.Base(defaultName),
+	})
+	if err != nil {
+		return "", err
+	}
+	if path == "" {
+		return "", nil // 用户取消
+	}
+	if base64Data == "" {
+		return path, nil
+	}
+	b, err := base64.StdEncoding.DecodeString(base64Data)
+	if err != nil {
+		return "", fmt.Errorf("内容解码失败: %w", err)
+	}
+	if err := os.WriteFile(path, b, 0o644); err != nil {
+		return "", fmt.Errorf("写入失败: %w", err)
+	}
+	return path, nil
+}
+
 // GaeaAttachmentDataURL 读取附件为 dataURL。
 func (a *App) GaeaAttachmentDataURL(path string) (string, error) {
 	b, err := os.ReadFile(path)

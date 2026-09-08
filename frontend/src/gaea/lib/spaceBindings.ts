@@ -336,6 +336,8 @@ export const GAEA_METHOD_FACETS = {
   KnowledgeSave: "work",
   KnowledgeDelete: "work",
   PickFiles: "work",
+  ReadFileB64: "work",
+  SaveFileAs: "work",
   TaskList: "work",
   TaskCancel: "work",
   TaskKill: "work",
