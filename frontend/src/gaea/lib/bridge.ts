@@ -687,6 +687,8 @@ export interface AppBindings {
   // SaveFileAs 系统「另存为」对话框 + 写入 base64 内容（进度计划导出链路，v4.162）。
   // 返回实际写入路径；用户取消返回空串。
   SaveFileAs(defaultName: string, base64Data: string): Promise<string>;
+  // OpenLogsDir 在文件管理器中打开长期日志目录（<DataRoot>/logs/，v4.163）。
+  OpenLogsDir(): Promise<void>;
   // ── 阶段 5 T5-1 任务中心 ──
   // TaskList 返回最近任务（新→旧）；TaskCancel 取消（running 中断/queued 取消）；
   // TaskKill 强制终止（v4.78：协作取消 + 击杀任务自有 OS 进程树；纯函数任务
@@ -938,6 +940,7 @@ const gaeaToGaea = {
   ReadFile: "GaeaReadFile",
   ReadFileB64: "GaeaReadFileB64",
   SaveFileAs: "GaeaSaveFileAs",
+  OpenLogsDir: "GaeaOpenLogsDir",
   Preview: "GaeaPreview",
   PptxOutline: "GaeaPptxOutline",
   PromoteSubagent: "GaeaPromoteSubagent",

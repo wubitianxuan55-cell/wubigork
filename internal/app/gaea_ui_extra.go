@@ -13,6 +13,7 @@ import (
 
 	"github.com/gaea/gaea/internal/ai"
 	"github.com/gaea/gaea/internal/auth"
+	"github.com/gaea/gaea/internal/config"
 	gaeaConfig "github.com/gaea/gaea/internal/gaea/config"
 	"github.com/gaea/gaea/internal/modelengine"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
@@ -671,6 +672,16 @@ func withinWriteRoots(abs string) bool {
 func (a *App) GaeaOpenWorkspacePath(rel string) error {
 	path, _ := resolvePreviewPath(rel)
 	return exec.Command("explorer", path).Start()
+}
+
+// GaeaOpenLogsDir 在文件管理器中打开长期日志目录（v4.163：<DataRoot>/logs/，
+// 按日分文件 gaea-YYYYMMDD.log + gaea-legacy.log）。
+func (a *App) GaeaOpenLogsDir() error {
+	dir := filepath.Join(config.DataRoot(), "logs")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+	return exec.Command("explorer", dir).Start()
 }
 func (a *App) GaeaRevealWorkspacePath(rel string) error {
 	path, _ := resolvePreviewPath(rel)

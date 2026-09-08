@@ -1,3 +1,6 @@
+## v4.163.0 · gaea 长期日志机制（2026-09-08）
+> 此前日志=单文件 whisper_data/gaea.log（目录误植/无轮转/无上限），排障无从下手。长期机制：①按日分文件 <DataRoot>/logs/gaea-YYYYMMDD.log（天然轮转+归档友好）；②启动清理过期（保留 365 天）+总量兜底（>1GB 从最旧删）；③旧 gaea.log 一次性迁入 logs/gaea-legacy.log；④启动头写版本+Go 版本、Shutdown 记运行时长；⑤新绑定 GaeaOpenLogsDir（599→603 系），设置→数据加「打开日志目录」按钮。**附带修复 v4.162 缺陷：GaeaReadFileB64/GaeaSaveFileAs 漏加 facade 委托行致运行时不可达（只有 bindings_*.go 门面方法才被 Wails 暴露；gen_bindings -names 只扫 Go 方法名，两层面不同步）——OfficeB 补三行委托，壳内 CDP 实测通过。**绑定 601→603；vitest 2677、tsc/eslint 0、build+冒烟过。详见 releases/v4.163.0.md。
+
 ## v4.162.0 · 进度计划导入导出壳内修复：原生对话框链路（2026-09-08）
 > 用户实测：进度计划「导入导出点击没有反应，包括菜单栏这些也是」。CDP 挂 WebView2 远程调试逐层实测定位：菜单/下拉/点击全部正常，断点在文件通道——Wails 壳内 `<input type=file>.click()` 不弹文件对话框、`<a download>` 下载不落盘（浏览器 dev/prod 均正常，故此前测试全绿不可见）。修复：新绑定 `GaeaReadFileB64`（读所选文件）+ `GaeaSaveFileAs`（系统另存为对话框+写盘），导入四路（XML/Excel/MPP/新工程）改走 `GaeaPickFiles` 系统对话框+路径读取还原 File 喂原解析器（浏览器回退原 input.click 通路，jsdom 用例口径不变）；导出五路（XML/Excel/PNG/PDF）统一 saveExportBlob（壳内另存为/浏览器下载）。绑定 599→601；vitest 2671→2677、tsc/eslint 0、build+冒烟过；壳内 CDP 受信任点击实测=原生「选择文件」对话框正常弹出。详见 releases/v4.162.0.md。
 

@@ -123,6 +123,9 @@ func (b *OfficeB) GaeaRollbackRecord(id string) error { return b.a.GaeaRollbackR
 func (b *OfficeB) GaeaRouteIntent(text string, dryRun bool) IntentResult { return b.a.GaeaRouteIntent(text, dryRun) }
 func (b *OfficeB) GaeaRunning() bool { return b.a.GaeaRunning() }
 func (b *OfficeB) GaeaSaveAttachmentFile(fileName string, base64Data string) (string, error) { return b.a.GaeaSaveAttachmentFile(fileName, base64Data) }
+func (b *OfficeB) GaeaReadFileB64(path string) (string, error) { return b.a.GaeaReadFileB64(path) }
+func (b *OfficeB) GaeaSaveFileAs(defaultName string, base64Data string) (string, error) { return b.a.GaeaSaveFileAs(defaultName, base64Data) }
+func (b *OfficeB) GaeaOpenLogsDir() error { return b.a.GaeaOpenLogsDir() }
 func (b *OfficeB) GaeaSaveDoc(path string, body string) (string, error) { return b.a.GaeaSaveDoc(path, body) }
 func (b *OfficeB) GaeaSavePastedImage(dataURL string) (string, error) { return b.a.GaeaSavePastedImage(dataURL) }
 func (b *OfficeB) GaeaSaveProvider(p ProviderView) error { return b.a.GaeaSaveProvider(p) }

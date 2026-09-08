@@ -184,7 +184,7 @@ type OfficeMethods = Pick<
   | "SavePastedImage" | "SaveAttachmentFile" | "AttachmentDataURL"
   | "CaptureScreen" | "RecognizeImage" | "OCRText"
   | "HerdsmanDigitalLife" | "HerdsmanOperations"
-  | "PickFiles" | "PickDirectory" | "ReadFileB64" | "SaveFileAs"
+  | "PickFiles" | "PickDirectory" | "ReadFileB64" | "SaveFileAs" | "OpenLogsDir"
   | "TaskList" | "TaskCancel" | "TaskKill" | "TaskRetry" | "TaskOutput"
   | "GaeaJournalList" | "VerifyRecord" | "RollbackRecord"
   | "GaeaGitStatus" | "GaeaGitDiff" | "GaeaGitStage" | "GaeaGitUnstage" | "GaeaGitDiscard" | "GaeaGitCommit" | "GaeaGitLog"
@@ -903,6 +903,9 @@ export function buildOffice(_s: MakeMockState): OfficeMethods {
     async SaveFileAs(defaultName: string, _base64Data: string): Promise<string> {
       // In dev mode there is no native dialog -- report the default name as saved.
       return defaultName;
+    },
+    async OpenLogsDir(): Promise<void> {
+      // In dev mode there is no native file manager bridge -- no-op.
     },
     async PickDirectory(): Promise<string> {
       // mock: no native dialog

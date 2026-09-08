@@ -338,6 +338,7 @@ export const GAEA_METHOD_FACETS = {
   PickFiles: "work",
   ReadFileB64: "work",
   SaveFileAs: "work",
+  OpenLogsDir: "work",
   TaskList: "work",
   TaskCancel: "work",
   TaskKill: "work",

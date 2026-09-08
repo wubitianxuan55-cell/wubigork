@@ -229,6 +229,7 @@ export const bindingNames = [
 	"GaeaOCRText",
 	"GaeaOfficeEditText",
 	"GaeaOpenDownloadPage",
+	"GaeaOpenLogsDir",
 	"GaeaOpenWorkspacePath",
 	"GaeaPermLevel",
 	"GaeaPickDirectory",

@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import { Button, Space, Tag, Typography, message, Alert, Popconfirm } from 'antd'
-import { DatabaseOutlined, CloudUploadOutlined, CloudDownloadOutlined, UndoOutlined, InboxOutlined, CheckCircleOutlined } from '@ant-design/icons'
+import { DatabaseOutlined, CloudUploadOutlined, CloudDownloadOutlined, UndoOutlined, InboxOutlined, CheckCircleOutlined, FolderOpenOutlined } from '@ant-design/icons'
 import SettingsSection from './SettingsSection'
 import * as App from '../../../src/wailsjsCompat'
 
@@ -198,6 +198,9 @@ export const DataPanel: React.FC = () => {
           <Space wrap>
             <Button type="primary" icon={<CloudUploadOutlined />} loading={creating} onClick={handleBackup}>
               一键备份…
+            </Button>
+            <Button icon={<FolderOpenOutlined />} onClick={() => void App.GaeaOpenLogsDir().catch(() => message.error('打开日志目录失败'))} data-testid="settings-open-logs">
+              打开日志目录
             </Button>
             <Popconfirm
               title="从备份恢复？"

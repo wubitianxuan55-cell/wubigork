@@ -12,6 +12,7 @@ import (
 	goruntime "runtime"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
@@ -145,6 +146,10 @@ type whisperState struct {
 
 	// 轻语模块数据根目录（SQLite 持久化）
 	whisperDataRoot string
+
+	// 长期日志（v4.163）：启动时刻（Shutdown 记运行时长）与日志文件关闭钩子
+	startedAt time.Time
+	logClose  func()
 
 	// 虚拟助手管理器
 	assistantMgr *assistant.Manager
@@ -302,12 +307,14 @@ func (a *App) Startup(ctx context.Context) {
 	// P4-3 数据可迁移：应用待恢复数据（恢复前先备份当前数据；必须在打开任何数据库/日志前执行）
 	a.applyPendingRestore()
 
-	// 将 slog 输出到文件（GUI 应用无控制台）
-	logFile, err := os.OpenFile(filepath.Join(a.whisperDataRoot, "gaea.log"),
-		os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
-	if err == nil {
-		slog.SetDefault(slog.New(slog.NewTextHandler(logFile, &slog.HandlerOptions{Level: slog.LevelInfo})))
-		slog.Info("=== gaea startup ===")
+	// 长期日志机制（v4.163）：按日分文件 <DataRoot>/logs/gaea-YYYYMMDD.log，
+	// 启动清理过期（保留 365 天）+ 总量兜底 + 一次性迁移旧 whisper_data/gaea.log；
+	// 前端诊断（GaeaLogFrontendError → slog）自动落同一文件。
+	a.startedAt = time.Now()
+	if closeLog, err := setupLogging(config.DataRoot(), AppVersion); err == nil {
+		a.logClose = closeLog
+	} else {
+		fmt.Fprintf(os.Stderr, "[gaea] 日志初始化失败: %v\n", err)
 	}
 	// 创建 AI client（仅此一次；token 由 GetToken 懒加载）
 	a.client = ai.NewClient(a.cfg)
@@ -535,6 +542,13 @@ func (a *App) initImageBackend() {
 
 // Shutdown Wails 关闭回调
 func (a *App) Shutdown(ctx context.Context) {
+	slog.Info("=== gaea shutdown ===", "uptime", time.Since(a.startedAt).Round(time.Second).String())
+	defer func() {
+		if a.logClose != nil {
+			a.logClose()
+		}
+	}()
+
 	// 停止 GLM 目录远程拉取循环（B 刀；engineMgr 未初始化时为空操作兜底）。
 	if a.engineMgr != nil {
 		a.engineMgr.StopGLMCatalogRemote()

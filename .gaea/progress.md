@@ -1,5 +1,11 @@
 # 任务进度
 
+## 最新发布：v4.163.0（2026-09-08）「gaea 长期日志机制」
+
+- **机制**：按日分文件 <DataRoot>/logs/gaea-YYYYMMDD.log（保留 365 天+1GB 兜底+启动清理）；旧 gaea.log 迁入 legacy；启动头带版本、Shutdown 记时长；前端诊断自动汇入；GaeaOpenLogsDir 绑定+设置→数据「打开日志目录」按钮。
+- **附带**：修 v4.162 缺陷——ReadFileB64/SaveFileAs 漏 facade 委托运行时不可达（OfficeB 补委托）；规约=App 新增绑定必须加门面委托+壳内实测可达。
+- **门禁**：Go logging_test ×3、app 包绿；vitest 2677、tsc/eslint 0、drift PASS@603、build+冒烟过。
+
 ## 最新发布：v4.162.0（2026-09-08）「进度计划导入导出壳内修复：原生对话框链路」
 
 - **根因**：Wails 壳内 input[file] 不弹框、`<a download>` 不落盘（浏览器正常故测试不可见）；菜单/下拉正常。分层排除（浏览器 dev/prod ✓ 壳 ✗）+ CDP 受信任点击 + EnumWindows 探测定位。
