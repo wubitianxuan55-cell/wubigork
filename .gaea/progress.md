@@ -1,5 +1,14 @@
 # 任务进度
 
+## 最新发布：v4.169.0（2026-09-09）「瘦身 P2 主干：双空间并列落地 + home 空间感知化 + 走查待证项收口」
+
+- **线A rail 双空间分域+切换器**（子代理）：CommandRail 新增 space/onSwitchSpace props + rail 顶部**工位/乐园切换器**（SHELL_SPACES 驱动、labelKey/titleKey 三语、aria-pressed 激活态）；rail 主体改 getActiveMenuBoardsForSpace（shared 恒在/independent 剔除/settings inMenu:false 不在 rail）——**基线 §3.1 rail code 双入口缺陷闭合**（independent 仅 foot 单列，CommandRail.test 断言全 rail 编程入口=1）；manifests.test +4 钉 work/play 派生序、新 CommandRail.test 5 例。
+- **线B home 空间感知化**（子代理）：Bento 按当前空间过滤（deriveLauncherModules(…, space)：shared 保留/编程不再上首页/settings 两空间皆在）+ 新 LAUNCHER_FEATURED（work=gaea 办公旗舰/play=chat 会客厅旗舰，bento 动态排除 featured 键防 chat 双卡）+ hero 空间 chip（ml-space-chip）+ **工位右舷「最近文档」面板**（loadRecentFiles localStorage 单源前 5、点击/Enter/空格→办公、零新 binding）；launcher.test +3。
+- **线C 走查项收口**（子代理）：**knowledge 孤儿页处置**（main.tsx 移除注册+删除 pages/KnowledgePage.tsx，全仓 grep 零引用实证，tsc 全项目过=佐证；知识库=记忆中枢 KnowledgePanel 子面等价，后端 D7 保留导航侧过滤）；**刀2 G-2 基线数关闭**（GschedSummary 增 baselineCount + ScheduleFileCard「基线 N」StatChip，测试 +5）；**后端 nav 子项差异取证**（cost 后端 7 vs 前端静态 4、novel 后端 6 vs 5=有意的双源回退：normalizeManifests nav 后端优先，运行时以后端为准不改码）。
+- **主代理收口**：三语字典契约键统一（shell.space.* 书房/庭院→工位/乐园、home.recentDocs×3、schedCard.baselineCount；progEntry 死键随编程瓦片移除三语删，1448 键 0 死零重复）；审计文档 docs/gaea-slim-p2-dualspace-2026-09.md 落档+基线文档 §3 重走查标注+刀2 审计 G-2/G-3 状态回写；**Go 测试加固** TestGaeaGitNotARepo（test-all.ps1 的 TMP=.tmp 仓库内→git 向上寻根误命中外层仓库的确定性假红；加固=沙箱选址检测 gitTopLevelOf 命中即改系统用户缓存区另建，双配置全绿）；版本三处 4.169.0。
+- **门禁**：Go 127 包 0 FAIL、vitest 2720→**2737**（313 文件全绿 exit 0）、tsc 0、eslint 0、drift PASS@602（零绑定）、locale 0 死。
+- **欠账**：壳内真机走查（rail 切换器与分域渲染/home 最近文档面板/.gsched「基线 N」布局/knowledge 无残留入口）、审计刀D 真机取证（printSvg print/拖拽/粘贴）、观察池刀3（工作台内嵌办公）待一周评估、P4 性能版随阶段推进。
+
 ## 最新发布：v4.168.0（2026-09-09）「瘦身 P2 刀1：schedule 并入办公文档面 + 命令面板入口 + 刀2 补验落档」
 
 - **线A 刀1a**（子代理）：前端 manifests.ts schedule inMenu:true→false（藏出顶栏菜单，白名单仍含=注册即可导航）；manifests.test 菜单断言 12→11 项+not.toContain('schedule') 锁、navigateWhitelist 保持 12 项；launcher.test 静态清单 12→11 卡同步（主代理收口）。

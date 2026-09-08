@@ -1,8 +1,8 @@
 # gaea 瘦身 P2 刀2 补验审计（2026-09-09）
 
-> **状态=审计证据（2026-09-09）**
-> **关系=masterplan 执行层/本文=刀2 证据层**（权威=docs/gaea-slim-masterplan-2026-09.md §轨道一·1 刀2）
-> 只读审计线：本文件是新增的唯一产物，未改任何产品代码。
+> **状态=审计证据（2026-09-09）**——**G-2 已关闭（v4.169.0）**：`gschedSummary.ts` 增 `baselineCount`（project.baselines 长度），
+> ScheduleFileCard 增「基线 N」StatChip（summary.baselineCount>0 时）——「基线数=N」计数口径落地，测试 +5（gschedSummary 3 + ScheduleFileCard 2）。
+> G-3 真机走查仍挂真机池（.gsched kind:text 前置：v4.169 摘要卡「基线 N」chip 一并真机核）。
 > 审计时点仓库状态：HEAD=v4.167.0（P2 刀0 已随版落档）；工作树含刀1a/刀1b 未提交改动（见 §6 与缺口清单 G-1/G-4）。
 
 ## 0. 审计口径
@@ -42,7 +42,7 @@
 | # | 缺口 | 证据 | 处置建议（供主代理裁决） |
 |---|---|---|---|
 | G-1 | **后端 InMenu 未翻 → 前后端分裂**：前端 manifests.ts 工作树已 inMenu:false（刀1a 未提交），后端 builtins.go:160 仍 Bool(true)；生效清单以后端为准 → 真机顶栏菜单/启动器仍显示 schedule，浏览器 dev（静态 fallback）不显示 | builtins.go:157-163 vs manifests.ts:138-144；manifests.ts:266 | 刀1a 收口时同步翻后端 builtins.go（与 settings 先例对齐 builtins.go:128），否则真机/浏览器行为不一致（P2 红线：壳内真机走查） |
-| G-2 | **「基线数」计数口径缺失**：摘要卡只显示活跃基线快照+漂移，baselines 列表条数（v4.137 #11 多基线 max3）不上卡 | ScheduleFileCard.tsx:126-140；gschedSummary.ts:42,72-74（baseline 单槽）；baseline.ts:130-145 | 若验收要求「基线数=N」计数 → gschedSummary 增加 baselines.length 上卡（小改动，引擎零改动满足）；亦可视「活跃基线+漂移」为近似达成而关闭 |
+| G-2 | **「基线数」计数口径缺失**：摘要卡只显示活跃基线快照+漂移，baselines 列表条数（v4.137 #11 多基线 max3）不上卡 | ScheduleFileCard.tsx:126-140；gschedSummary.ts:42,72-74（baseline 单槽）；baseline.ts:130-145 | **已关闭（v4.169.0）**：gschedSummary 增 baselineCount（project.baselines?.length）+ ScheduleFileCard 「基线 N」StatChip；测试 +5 |
 | G-3 | .gsched 分发位于 kind==="text" 分支内（FilePreview.tsx:618），要求 Go Preview 对 .gsched.json 返回 text kind；未见 Go 侧 .json→text 映射证据（低风险，JSON 惯例 text） | FilePreview.tsx:618-627 | 壳内真机走查时点开 .gsched.json 验证一次即可（P2 走查项） |
 | G-4 | 命令面板进度计划项：HEAD 无（刀1b 进行中，见 §2-d） | App.tsx paletteItems | 刀1b 收口后复验；非刀2 缺口 |
 | G-5 | 补验测试缺口（只读审计不写）：FilePreview.test.tsx 无 .gsched 分发断言（覆盖仅 ScheduleFileCard.test.tsx + gschedSummary.test.ts） | 见 §4 证据注 | 刀2 收口时可补一个分发用例（纳入等价验收表） |

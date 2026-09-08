@@ -74,6 +74,27 @@ describe('parseSchedSummary 摘要解析', () => {
     expect(s!.deadline).toMatchObject({ date: '2026-01-08', targetWorkdays: 4, feasible: false, overrun: 1 })
   })
 
+  it('多基线槽位计数：baselines 数组 N → baselineCount N（v4.137 #11 多基线 max3）', () => {
+    const s = parseSchedSummary(JSON.stringify(project({
+      baselines: [
+        { name: '基线一', savedAt: '2026-01-05 08:00', duration: 4, rows: { A: { name: 'A', es: 0, ef: 3, dur: 3, critical: true } } },
+        { name: '基线二', savedAt: '2026-01-06 08:00', duration: 4, rows: { A: { name: 'A', es: 0, ef: 3, dur: 3, critical: true } } },
+      ],
+    })))
+    expect(s!.baselineCount).toBe(2)
+    // 漂移字段仅按活跃 baseline 槽生效：多槽未激活时 baseline 仍为 null
+    expect(s!.baseline).toBeNull()
+  })
+
+  it('无 baselines 字段 / 空数组 → baselineCount 0（旧文件零迁移）', () => {
+    expect(parseSchedSummary(JSON.stringify(project()))!.baselineCount).toBe(0)
+    expect(parseSchedSummary(JSON.stringify(project({ baselines: [] })))!.baselineCount).toBe(0)
+  })
+
+  it('非工程形状（缺 tasks）→ 摘要 null，baselineCount 无从解析', () => {
+    expect(parseSchedSummary(JSON.stringify({ baselines: [{ name: 'x', savedAt: '2026-01-05 08:00', duration: 1, rows: {} }] }))).toBeNull()
+  })
+
   it('坏 JSON / 非工程形状返回 null（预览回落文本视图）', () => {
     expect(parseSchedSummary('not json{')).toBeNull()
     expect(parseSchedSummary('["数组"]')).toBeNull()

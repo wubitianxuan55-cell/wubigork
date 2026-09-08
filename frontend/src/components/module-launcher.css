@@ -1,7 +1,7 @@
-/* 首页 ·「星枢港 · 双舷驾驶舱」（v4 重构；v4.52 能力矩阵末行收整）
-   左舷 = 紧凑 Hero + 命令条 + 能力矩阵 Bento（板块瓦片化 + 编程 span 4×1
-   宽瓦片 + 设置瓦片：6 列 8+16+4+2=30 单位 = 5 行整除，末行无空位）；
-   右舷 = 内核遥测 + 写作进度环 + 最近会话 + 记忆脉搏 +（work）晨报。
+/* 首页 ·「星枢港 · 双舷驾驶舱」（v4 重构；瘦身 P2 双空间并列）
+   左舷 = 紧凑 Hero（公告 pill + 空间 chip）+ 命令条 + 能力矩阵 Bento
+   （空间过滤：空间旗舰 + 板块瓦片 + 设置瓦片；编程 independent 不渲染）；
+   右舷 = 内核遥测 + 写作进度环 + 最近会话 + 记忆脉搏 +（work）晨报/最近文档。
    令牌纪律：零硬编码色值，全部走 --md-sys-* / --gaea-* / --color-* / --v3-*；
    动效只用 transform/opacity，reduced-motion / gaea-raf-degraded 全降级。 */
 
@@ -59,6 +59,25 @@
   gap: 8px;
 }
 
+/* 英雄头行：公告 pill + 空间 chip（工位/乐园）同排（S2.1 双空间并列标识） */
+.ml-hero-tags {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  flex-shrink: 0;
+}
+.ml-space-chip {
+  display: inline-flex;
+  align-items: center;
+  align-self: center;
+  padding: 2px 10px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--gaea-glow) 40%, transparent);
+  color: var(--color-text-secondary);
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
 .ml-pill {
   display: inline-flex;
   align-items: center;
@@ -354,8 +373,10 @@
 }
 
 /* ════════════════════════════════════════════════════════════════
-   能力矩阵（Bento：办公旗舰 4×2 + 板块瓦片 + 编程宽瓦片 4×1 + 设置瓦片）
-   6 列单位数：旗舰 8 + 板块×8 16 + 编程 4 + 设置 2 = 30 = 5 行整除。
+   能力矩阵（Bento：空间旗舰 4×2 + 板块瓦片 + 设置瓦片）
+   瘦身 P2（双空间并列）：清单按当前空间过滤（shared + 当前空间），
+   independent 编程不渲染（独立入口居 rail 脚）——两空间瓦片数相同：
+   旗舰 8 + 板块×4 8 + 设置 2 = 18 单位 = 3 行整除，末行无空位。
    ════════════════════════════════════════════════════════════════ */
 .ml-cap {
   display: flex;
@@ -472,12 +493,15 @@
   margin-left: auto;
 }
 
-/* ── 宽瓦片（编程 · span 4 × 1 行，v4.52 收整能力矩阵末行空位）──
-   横向门廊条形态：图标 + 名称/描述 + 独立窗口徽标 + 悬浮箭头一行排开。
-   桌面档（>1180，6 列）单位数核算：旗舰 4×2=8 + 板块瓦片 2×8=16 + 编程 4
-   + 设置 2 = 30 = 5 行整除，末行（编程 4 + 设置 2）恰好填满无空位。
+/* ── 宽瓦片（span 4 × 1 行；v4.52 收整能力矩阵末行空位）──
+   横向门廊条形态：图标 + 名称/描述 + 徽标 + 悬浮箭头一行排开。
+   瘦身 P2 注：当前无调用方——编程为 independent 板块，随空间过滤移出
+   双首页 Bento（独立入口居 rail 脚）；规则保留供今后非 independent
+   宽板块复用（BentoCard wide 能力仍在，见 ModuleLauncher.tsx 注释）。
+   桌面档（>1180，6 列）单位数核算（若复用）：旗舰 8 + 板块×4 8 +
+   宽 4 + 设置 2 = 22 = 4 行余 4；具体行数随实际瓦片面变化。
    窄档降级（grid areas 还原纵向两行，DOM 不变）见下方媒体查询：
-   ≤1180（4 列）span 2 → 4+16+2+2=24=6 行整除；≤640（2 列）span 1 → 12=6 行。 */
+   ≤1180（4 列）span 2；≤640（2 列）span 1。 */
 .ml-bento.ml-bento--wide {
   grid-column: span 4;
   display: grid;
@@ -879,6 +903,24 @@
   text-overflow: ellipsis;
 }
 
+/* ── 最近文档行（work 空间右舷：点击 → 办公，标题提示「在办公中打开」）──
+   复用 .ml-sess-item/.ml-sess-name/.ml-sess-meta 两行形态，仅加可点反馈 */
+.ml-recent-item {
+  cursor: pointer;
+  border-radius: 8px;
+  padding: 3px 6px;
+  margin: 0 -6px;
+  transition: background var(--md-sys-transition-fast, 200ms);
+}
+.ml-recent-item:hover,
+.ml-recent-item:focus-visible {
+  background: color-mix(in srgb, var(--gaea-glow) 8%, transparent);
+}
+.ml-recent-item:focus-visible {
+  outline: 2px solid var(--gaea-glow);
+  outline-offset: 1px;
+}
+
 /* ── 记忆脉搏 ── */
 .ml-memory {
   display: flex;
@@ -907,8 +949,7 @@
     min-height: 160px;
     padding-left: 78px;
   }
-  /* 编程宽瓦片降级：span 回 2（4 列档核算 4+16+2+2=24=6 行整除，无空位；
-     若保持 span 4 则 26 不整除，末行设置右侧会留 2 格空位），
+  /* 宽瓦片降级（当前无调用方，规则保留）：span 回 2（4 列档），
      形态同步还原纵向两行（图标/徽标/箭头行 + 名称/描述行），与兄弟瓦片一致 */
   .ml-bento.ml-bento--wide {
     grid-column: span 2;
@@ -932,7 +973,7 @@
   .ml-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .ml-bento { grid-column: span 1; min-height: 112px; }
   .ml-bento.ml-bento--featured { grid-column: span 2; min-height: 136px; }
-  /* 宽瓦片再降为单瓦片跨度（2 列档核算 2+8+1+1=12=6 行整除，无空位）；
+  /* 宽瓦片再降为单瓦片跨度（2 列档；规则保留，当前无调用方）；
      grid areas 沿用 ≤1180 两行纵向形态（单列宽度放不下横排一行） */
   .ml-bento.ml-bento--wide { grid-column: span 1; }
   .ml-featured-name { font-size: 17px; }

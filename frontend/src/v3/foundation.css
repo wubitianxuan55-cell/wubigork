@@ -113,8 +113,51 @@
   filter: drop-shadow(0 0 9px var(--gaea-glow));
 }
 
-/* v4.3.2c：空间切换按钮已从 rail 移除（首页三栏即空间入口，导航按板块自动切空间）——
-   保留 .v3-rail-head 头图即可，rail 高度与布局不再需要空间切换区块。 */
+/* v4.169：双空间并列——工位/乐园切换器回归 rail 顶部（SHELL_SPACES 驱动，
+   置于 rail-head 与 rail-nav 之间）；rail 主体按当前空间分域导航
+   （getActiveMenuBoardsForSpace：shared 恒在 / independent 剔除 /
+   settings inMenu:false 不在 rail），独立窗口（编程 DSH）仅经 foot 单列，
+   rail 全量 code 入口 = 1（基线 §3.1 双入口缺陷闭合）。 */
+.v3-rail-space {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 4px 5px 5px;
+  flex-shrink: 0;
+  width: 100%;
+}
+/* 切换器选项：紧凑两态胶囊（纯文字 11px）；激活 = 主色容器 + 辉光强调文字 + 柔光 */
+.v3-rail-space-opt {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 22px;
+  margin: 0;
+  padding: 0 4px;
+  border: none;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background var(--md-sys-transition-fast, 200ms), color var(--md-sys-transition-fast, 200ms), transform var(--md-sys-transition-fast, 200ms), box-shadow var(--md-sys-transition-fast, 200ms);
+}
+.v3-rail-space-opt:hover {
+  transform: scale(1.06);
+  background: var(--color-surface-container-high);
+  color: var(--color-text);
+}
+.v3-rail-space-opt:focus-visible {
+  outline: 1px solid var(--gaea-glow);
+  outline-offset: -1px;
+}
+.v3-rail-space-opt.is-active {
+  background: var(--color-primary-container);
+  color: var(--gaea-glow);
+  box-shadow: var(--v3-glow-faint);
+  transform: none;
+}
 
 .v3-rail-nav {
   flex: 1;

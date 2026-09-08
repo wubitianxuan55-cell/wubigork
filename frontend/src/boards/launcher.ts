@@ -19,6 +19,14 @@ export interface LauncherModule {
   icon: string
 }
 
+/**
+ * 每空间旗舰卡（Bento 能力矩阵锚点，瘦身 P2：双空间并列落地）：
+ *   work = 办公工作台（gaea，旗舰锚点同旧版），play = 聊天（chat，
+ *   「乐园=会客厅」沉浸对话语义）。渲染层按当前壳层空间查表取旗舰；
+ *   板块不在当前空间可达清单时自然查不到（undefined）→ 走既有条件渲染兜底。
+ */
+export const LAUNCHER_FEATURED: Record<ShellSpace, string> = { work: 'gaea', play: 'chat' }
+
 // 卡片描述为 UI 文案（manifest 契约不含 desc），按板块 id 本地维护；
 // 名称/图标/顺序全部由 manifest 派生（3.0 §5.2，顺带补 memoryhub/characterlib 缺失入口）。
 export const LAUNCHER_DESC: Record<string, string> = {

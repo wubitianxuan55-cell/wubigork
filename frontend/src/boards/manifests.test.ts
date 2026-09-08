@@ -5,7 +5,7 @@ import {
   normalizeManifests, deriveMenuBoards, deriveNavigateWhitelist,
   deriveShortcutMap, deriveHomeBoard, deriveBoard, deriveProjectAnchorId,
   loadBoardManifests, subscribeBoards, getActiveBoards,
-  getActiveMenuBoards, getActiveNavigateWhitelist, getActiveShortcutMap,
+  getActiveMenuBoards, getActiveMenuBoardsForSpace, getActiveNavigateWhitelist, getActiveShortcutMap,
   getActiveHomeBoard, getActiveBoard,
   resetActiveBoardsForTest,
 } from './manifests'
@@ -72,6 +72,38 @@ describe('menuBoards（附 B #4：filter(inMenu) + sort(menuOrder)）', () => {
     expect(menuBoards.map((b) => b.id)).not.toContain('settings')
     expect(menuBoards.map((b) => b.id)).toContain('weixin')
     expect(menuBoards.map((b) => b.id)).not.toContain('schedule')
+  })
+})
+
+describe('getActiveMenuBoardsForSpace（S2.1 双空间分域：shared 恒在 / independent 剔除 / inMenu 过滤）', () => {
+  it('work → 共享 + 工位板块（menuOrder 派生序；shared 不置顶——切换器在 rail 顶部承担空间定位）', () => {
+    expect(getActiveMenuBoardsForSpace('work').map((b) => b.id)).toEqual([
+      'home', 'gaea', 'cost', 'memoryhub', 'modelcenter', 'weixin',
+    ])
+  })
+
+  it('play → 共享 + 乐园板块（menuOrder 派生序）', () => {
+    expect(getActiveMenuBoardsForSpace('play').map((b) => b.id)).toEqual([
+      'home', 'chat', 'novel', 'imagegen', 'modelcenter', 'characterlib',
+    ])
+  })
+
+  it('两空间均剔除 code（independent 仅 foot 单列，rail 全量入口=1）、settings（inMenu=false 隐式入口）、schedule（并入办公文档面）', () => {
+    for (const space of ['work', 'play'] as const) {
+      const ids = getActiveMenuBoardsForSpace(space).map((b) => b.id)
+      expect(ids, space).not.toContain('code')
+      expect(ids, space).not.toContain('settings')
+      expect(ids, space).not.toContain('schedule')
+    }
+  })
+
+  it('两空间板块数相等（各 6，含 home 与共享的 modelcenter）且文案为中文便签', () => {
+    const work = getActiveMenuBoardsForSpace('work')
+    const play = getActiveMenuBoardsForSpace('play')
+    expect(work).toHaveLength(6)
+    expect(play).toHaveLength(6)
+    expect(work.map((b) => b.label)).toEqual(['首页', '办公', '造价数据库', '记忆中枢', '模型中心', '青鸟'])
+    expect(play.map((b) => b.label)).toEqual(['首页', '聊天', '小说', '绘梦', '模型中心', '角色库'])
   })
 })
 

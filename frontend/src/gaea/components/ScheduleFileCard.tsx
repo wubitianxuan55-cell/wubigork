@@ -113,6 +113,9 @@ export function ScheduleFileCard({ relPath, summary, raw }: { relPath: string; s
               <StatChip label={t("schedCard.work")} value={summary.taskCount} />
               <StatChip label={t("schedCard.critical")} value={summary.criticalCount} tone="crit" />
               <StatChip label={t("schedCard.links")} value={summary.linkCount} />
+              {summary.baselineCount > 0 && (
+                <StatChip label={t("schedCard.baselineCount")} value={summary.baselineCount} />
+              )}
               {summary.milestoneCount > 0 && (
                 <StatChip label={t("schedCard.milestones")} value={summary.milestoneCount} />
               )}

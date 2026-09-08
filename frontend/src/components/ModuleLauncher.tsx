@@ -2,15 +2,16 @@
  * ModuleLauncher — 首页「星枢港 · 双舷驾驶舱」（v4 重构）
  *
  * 设计概念（遵循 ui-ux-pro-max AI-Native UI 范式 + design-system/gaea 星枢令牌）：
- *   · 左舷主工作台：紧凑 Hero（公告 pill + 标题 + 副标题）+ 中央命令条
+ *   · 左舷主工作台：紧凑 Hero（公告 pill + 空间 chip + 标题 + 副标题）+ 中央命令条
  *     （AI 内核 orb / 打字 / 语音 / 发送 / ⌘K）+ 能力矩阵 Bento——
- *     办公为 4×2 旗舰大卡，其余板块瓦片化；编程为 span 4×1 宽瓦片
- *     （横向门廊条形态 + 独立窗口徽标）+ 设置瓦片收尾：
- *     6 列 8+16+4+2=30 单位 = 5 行整除，末行无空位（v4.52 收整）；
+ *     瘦身 P2 双空间并列（§1 轨道一·3）：Bento 按当前壳层空间过滤，
+ *     旗舰经 LAUNCHER_FEATURED 查表（work=办公 4×2 旗舰大卡，play=聊天旗舰），
+ *     其余板块瓦片化 + 设置瓦片收尾：6 列 8+8+2=18 单位 = 3 行整除；
+ *     编程为 independent 板块，两空间 Bento 均不渲染（独立入口居 rail 脚）；
  *     v3 的快捷 chips 与门廊条是同目标二级入口，收敛进 Bento 一级面（零功能删除）；
  *   · 右舷状态栏：内核遥测（模型 / 引擎 / CPU·内存·GPU 三表）+ 写作进度环
- *     + 最近会话 + 记忆脉搏 + 做梦晨报（work 空间）——v3 的状态细条与
- *     底部信息条合并至此，一屏尽收；
+ *     + 最近文档（work 空间，localStorage 单源）+ 最近会话 + 记忆脉搏
+ *     + 做梦晨报（work 空间）——v3 的状态细条与底部信息条合并至此，一屏尽收；
  *   · 动效：v3-rise 分阶入场 + hover 位移 ≤2px（compositor-only），
  *     reduced-motion / ui-reduced-motion / gaea-raf-degraded 全降级。
  * 令牌纪律：零硬编码色值，全部走 --md-sys-* / --gaea-* / --color-* / --v3-*。
@@ -23,8 +24,10 @@ import {
 } from '@ant-design/icons'
 // 板块清单：活动清单（静态 fallback / 后端合并）订阅驱动；图标由 manifest 图标注册表解析（3.0 §5.2）
 import { getActiveBoards, subscribeBoards, resolveBoardIcon } from '../boards/manifests'
-import { deriveLauncherModules, LAUNCHER_DESC, type LauncherModule } from '../boards/launcher'
-import type { ShellSpace } from '../boards/space'
+import { deriveLauncherModules, LAUNCHER_DESC, LAUNCHER_FEATURED, type LauncherModule } from '../boards/launcher'
+import { SHELL_SPACES, type ShellSpace } from '../boards/space'
+import { loadRecentFiles } from '../gaea/lib/recentFiles'
+import type { AtEntry } from '../gaea/lib/types'
 import { Input } from 'antd'
 import { useVoiceChat } from '../hooks/useVoiceChat'
 import { useAppStore } from '../stores/appStore'
@@ -189,6 +192,9 @@ const ChatBubble: React.FC<{ role: 'user' | 'assistant'; text: string }> = ({ ro
  * 徽标 + 箭头横向一行排开（v3 门廊条形态回归，v4.52 收整末行空位）；
  * 窄档由 CSS（媒体查询内 grid-template-areas 降级）还原纵向两行形态，
  * DOM 结构不变，role/tabIndex/键盘逻辑两态共用。
+ * 瘦身 P2 注：当前无调用方传 wide——编程为 independent 板块，随空间过滤
+ * 移出双首页 Bento（独立入口居 rail 脚）；宽瓦片/徽标能力保留供今后
+ * 非 independent 宽板块复用。
  */
 const BentoCard: React.FC<{
   m: LauncherModule
@@ -281,21 +287,25 @@ const FeaturedCard: React.FC<{
 
 /**
  * ModuleLauncher — 首页「星枢港 · 双舷驾驶舱」。
- * 布局：左舷 = 紧凑 Hero（pill / 标题 / 副标题 / 命令条 / 语音状态）
- *       + 能力矩阵 Bento（办公旗舰 4×2 + 板块/编程/设置瓦片）；
- *       右舷 = 内核遥测 + 写作进度环 + 最近会话 + 记忆脉搏 +（work）晨报。
+ * 布局：左舷 = 紧凑 Hero（pill / 空间 chip / 标题 / 副标题 / 命令条 / 语音状态）
+ *       + 能力矩阵 Bento（按当前空间过滤：旗舰 + 板块瓦片 + 设置瓦片，无编程宽瓦片）；
+ *       右舷 = 内核遥测 + 写作进度环 +（work）最近文档 + 最近会话 + 记忆脉搏
+ *       +（work）晨报。
  * 中庭输入：打字 → VoiceChatText；语音 → 本页直启麦克风；共用同一对话流。
  */
 const ModuleLauncher: React.FC<ModuleLauncherProps> = ({ onNavigate, activeModel, space }) => {
   // ── 板块清单 ──
   const activeBoards = useSyncExternalStore(subscribeBoards, getActiveBoards)
-  // 全量启动器模块（manifest 驱动）；gaea 为旗舰大卡，code 以 span 4×1 宽瓦片、
-  // settings 以瓦片编入矩阵尾部（6 列末行 编程4 + 设置2 恰好填满，v4.52 收整）
-  const allModules = deriveLauncherModules(activeBoards, LAUNCHER_DESC)
-  const featuredModule = allModules.find((m) => m.key === 'gaea')
-  const bentoModules = allModules.filter((m) => m.key !== 'gaea' && m.key !== 'code' && m.key !== 'settings')
-  const codeModule = allModules.find((m) => m.key === 'code')
+  // 空间过滤后的启动器模块（manifest 驱动）：shared + 当前空间，independent 编程
+  // 自动排除（两空间 Bento 均不渲染，入口居 rail 脚）；settings 两空间均保留。
+  const allModules = deriveLauncherModules(activeBoards, LAUNCHER_DESC, space)
+  // 旗舰按空间查表（work=gaea 办公 / play=chat 会客厅）；板块不在空间清单时
+  // 为 undefined → 走既有条件渲染兜底（不渲染旗舰卡）。
+  const featuredModule = allModules.find((m) => m.key === LAUNCHER_FEATURED[space])
+  const bentoModules = allModules.filter((m) => m.key !== LAUNCHER_FEATURED[space] && m.key !== 'settings')
   const settingsModule = allModules.find((m) => m.key === 'settings')
+  // 空间 chip 标签（工位/乐园）：字典优先，缺失兜底 space.ts 的 zh label
+  const spaceEntry = SHELL_SPACES.find((s) => s.id === space)
   const t = useT()
 
   // ── 项目统计 ──
@@ -318,6 +328,13 @@ const ModuleLauncher: React.FC<ModuleLauncherProps> = ({ onNavigate, activeModel
     const timer = window.setInterval(load, 3000)
     return () => { alive = false; window.clearInterval(timer) }
   }, [pollable])
+
+  // ── 最近文档（work 空间右舷；localStorage 单源，零新 binding）──
+  const [recentFiles, setRecentFiles] = useState<AtEntry[]>([])
+  useEffect(() => {
+    // loadRecentFiles 已按时间倒序，取最近 5 条
+    setRecentFiles(loadRecentFiles().slice(0, 5))
+  }, [])
 
   // ── 最近会话 ──
   const [sessions, setSessions] = useState<SessionLite[]>([])
@@ -426,10 +443,18 @@ const ModuleLauncher: React.FC<ModuleLauncherProps> = ({ onNavigate, activeModel
         <div className="ml-main">
           <section className="ml-hero" aria-label={t('shell.launcher.heroAria')}>
             <div className="ml-hero-head v3-rise v3-rise-1">
-              <div className="ml-pill">
-                <span className="ml-pill-dot" aria-hidden="true" />
-                <span>{t('home.pill')}</span>
-                <ArrowRightOutlined className="ml-pill-arrow" aria-hidden="true" />
+              <div className="ml-hero-tags">
+                <div className="ml-pill">
+                  <span className="ml-pill-dot" aria-hidden="true" />
+                  <span>{t('home.pill')}</span>
+                  <ArrowRightOutlined className="ml-pill-arrow" aria-hidden="true" />
+                </div>
+                {/* 当前壳层空间 chip（工位/乐园；S2.1 双空间并列标识） */}
+                {spaceEntry && (
+                  <span className="ml-space-chip" data-testid="ml-space-chip">
+                    {t(spaceEntry.labelKey) || spaceEntry.label}
+                  </span>
+                )}
               </div>
               <h1 className="ml-title">{t('home.title')}</h1>
               <p className="ml-sub">{t('home.sub')}</p>
@@ -503,7 +528,9 @@ const ModuleLauncher: React.FC<ModuleLauncherProps> = ({ onNavigate, activeModel
             </div>
           </section>
 
-          {/* ═══ 能力矩阵（Bento：办公旗舰 4×2 + 板块瓦片 + 编程宽瓦片 + 设置）═══ */}
+          {/* ═══ 能力矩阵（Bento：空间旗舰 4×2 + 板块瓦片 + 设置瓦片）═══
+              瘦身 P2：空间过滤后无编程宽瓦片——编程为 independent 板块，
+              两空间 Bento 均不渲染（独立入口居 rail 脚，见 space.ts 语义）。 */}
           <section className="ml-cap" aria-label={t('home.capTitle')}>
             <div className="ml-cap-head v3-rise v3-rise-3">
               <span className="ml-cap-title">{t('home.capTitle')}</span>
@@ -516,33 +543,22 @@ const ModuleLauncher: React.FC<ModuleLauncherProps> = ({ onNavigate, activeModel
               {bentoModules.map((m, i) => (
                 <BentoCard key={m.key} m={m} idx={i} onOpen={() => onNavigate(m.key)} />
               ))}
-              {codeModule && (
-                <BentoCard
-                  key={codeModule.key}
-                  m={codeModule}
-                  idx={bentoModules.length}
-                  wide
-                  badge={<span className="ml-bento-badge">{t('shell.rail.independentWindow')}</span>}
-                  ariaLabel={t('shell.launcher.progEntry', { name: codeModule.name })}
-                  onOpen={() => onNavigate(codeModule.key)}
-                />
-              )}
               {settingsModule && (
                 <BentoCard
                   key={settingsModule.key}
                   m={settingsModule}
-                  idx={bentoModules.length + 1}
+                  idx={bentoModules.length}
                   onOpen={() => onNavigate(settingsModule.key)}
                 />
               )}
-              {bentoModules.length === 0 && !featuredModule && !codeModule && !settingsModule && (
+              {bentoModules.length === 0 && !featuredModule && !settingsModule && (
                 <div className="ml-col-empty v3-rise">{t('shell.launcher.noModules')}</div>
               )}
             </div>
           </section>
         </div>
 
-        {/* ═══ 右舷：状态侧栏（内核遥测 / 写作进度 / 会话 / 记忆 / 晨报）═══ */}
+        {/* ═══ 右舷：状态侧栏（内核遥测 / 写作进度 /（work）最近文档 / 会话 / 记忆 / 晨报）═══ */}
         <aside className="ml-side v3-rise v3-rise-3" aria-label={t('home.sideAria')}>
           <SidePanel icon={<ApiOutlined />} title={t('home.kernel')}>
             <div className="ml-panel-body">
@@ -596,6 +612,39 @@ const ModuleLauncher: React.FC<ModuleLauncherProps> = ({ onNavigate, activeModel
               </div>
             </div>
           </SidePanel>
+
+          {/* 最近文档（localStorage 单源，零新 binding）：仅 work 空间渲染——
+              工位语境复用最近引用文件；点击行 → 办公（gaea），title 提示「在办公中打开」 */}
+          {space === 'work' && (
+            <SidePanel icon={<FileTextOutlined />} title={t('home.recentDocs')}>
+              {recentFiles.length > 0 ? (
+                <ul className="ml-sess">
+                  {recentFiles.map((f, i) => (
+                    <li
+                      key={`${f.path}:${i}`}
+                      className="ml-sess-item ml-recent-item"
+                      role="button"
+                      tabIndex={0}
+                      title={t('home.recentDocsHint')}
+                      aria-label={t('home.recentDocsHint')}
+                      onClick={() => onNavigate('gaea')}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault()
+                          onNavigate('gaea')
+                        }
+                      }}
+                    >
+                      <span className="ml-sess-name">{f.name || f.path}</span>
+                      <span className="ml-sess-meta">{f.path}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <div className="ml-panel-empty">{t('home.recentDocsEmpty')}</div>
+              )}
+            </SidePanel>
+          )}
 
           <SidePanel icon={<ClockCircleOutlined />} title={t('shell.launcher.sessions')}>
             {sessions.length > 0 ? (

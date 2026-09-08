@@ -92,6 +92,7 @@ gaea/
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| **v4.169.0** | 2026-09-09 | 瘦身 P2 主干：双空间并列落地——rail 顶部工位/乐园切换器 + rail 主体按空间分域导航（shared 恒在/independent 编程仅 foot 单列，基线 rail code 双入口缺陷闭合）+ home 空间感知化（Bento 按空间过滤+每空间旗舰 work=gaea/play=chat+hero 空间 chip+工位「最近文档」面板，零新绑定）+ 走查待证项收口（knowledge 孤儿页删除/刀2 G-2 基线数「基线 N」chip/后端 nav 差异=有意的双源回退落档）。零绑定 602；vitest 2720→2737；Go 127 包全绿；locale 1448 键 0 死。详见 releases/v4.169.0.md |
 | **v4.168.0** | 2026-09-09 | 瘦身 P2 刀1：schedule 并入办公文档面——inMenu:false 藏出顶栏菜单/启动器（前端 manifests+后端 builtins 同步翻，白名单刀0 已解耦注册即可导航）+ 办公「进度计划」入口（命令面板 cmd-schedule Ctrl+K 直达 + 办公文件面 .gsched 摘要卡既有链路）+ 刀2 补验审计落档（docs/gaea-slim-knife2-audit-2026-09.md）+ DataPanel 绑定签名修复。零绑定 602；vitest 2715→2720；Go 115 包全绿。详见 releases/v4.168.0.md |
 | **v4.167.0** | 2026-09-09 | 瘦身 P2 刀0（白名单解耦：注册即可导航，inMenu 只控菜单，settings 进白名单）+ P0 基线落档 docs/gaea-slim-baseline-2026-09.md（七面四表实测+13 板块等价快照+IA 走查）+ 审计刀D Filters（GaeaPickFiles 可选扩展名过滤，系统对话框前置）+ nanoid 3.3.17→3.3.18（GHSA 清零）+ downloadMarkdown 死代码清理。零绑定 602；vitest 2684→2715；Go 115 包全绿。详见 releases/v4.167.0.md |
 | **v4.166.0** | 2026-09-09 | 瘦身 P1 快赢：轮子四刀全收（W1 b64 收口 ~20 处+inShell 合一 / W2 slug×5 收敛 strutil.TitleSlug / W3 novel diff 迁 lib/diff LCS）+ 审计刀B（下载类×4：ImageGen×2/NovelSetting/办公 md 统一交付管线）+ 刀C（上传类×3：ControlPanel/VisionTrial/SkillModal 壳内系统对话框）+ locale 死键清零（1445 键 0 死）+ 依赖验活（26 直依赖逐个计数，codemirror 顶包死重移除、@codemirror/* 四子包显式化）。零绑定 602；vitest 2684→2712；Go 115 包全绿。详见 releases/v4.166.0.md |

@@ -3,7 +3,7 @@ import {
   canonicalBoards, normalizeManifests, resolveBoardIcon,
   loadBoardManifests, subscribeBoards, getActiveBoards, resetActiveBoardsForTest,
 } from './manifests'
-import { deriveLauncherModules, LAUNCHER_DESC } from './launcher'
+import { deriveLauncherModules, LAUNCHER_DESC, LAUNCHER_FEATURED } from './launcher'
 import { GetBoardManifests } from '../wailsjsCompat'
 
 // 数据源 seam（§5.3 前端侧）：mock 掉 wailsjsCompat 的 GetBoardManifests，
@@ -116,6 +116,41 @@ describe('deriveLauncherModules（启动器清单纯函数）', () => {
     const all = deriveLauncherModules(canonicalBoards, LAUNCHER_DESC)
     expect(all.map((m) => m.key)).toContain('novel')
     expect(all.map((m) => m.key)).toContain('gaea')
+  })
+
+  it('瘦身 P2：LAUNCHER_FEATURED 每空间旗舰（work=gaea 办公 / play=chat 会客厅）', () => {
+    expect(LAUNCHER_FEATURED.work).toBe('gaea')
+    expect(LAUNCHER_FEATURED.play).toBe('chat')
+    // 键覆盖双空间全集：每个壳层空间必有旗舰
+    expect(Object.keys(LAUNCHER_FEATURED).sort()).toEqual(['play', 'work'])
+  })
+
+  it('瘦身 P2：工位 Bento = shared（模型/设置）+ work（办公/造价/记忆/青鸟），排除乐园与编程', () => {
+    const work = deriveLauncherModules(canonicalBoards, LAUNCHER_DESC, 'work')
+    const keys = work.map((m) => m.key)
+    // 可达：当前空间 work 板块 + shared 板块
+    for (const k of ['gaea', 'cost', 'memoryhub', 'weixin', 'modelcenter', 'settings']) {
+      expect(keys, k).toContain(k)
+    }
+    // 不可达：play 板块 + 编程 independent
+    for (const k of ['chat', 'novel', 'imagegen', 'characterlib', 'code']) {
+      expect(keys, k).not.toContain(k)
+    }
+    expect(keys.filter((k) => k === 'settings')).toHaveLength(1)
+  })
+
+  it('瘦身 P2：乐园 Bento = shared（模型/设置）+ play（聊天/小说/绘梦/角色），排除工位与编程', () => {
+    const play = deriveLauncherModules(canonicalBoards, LAUNCHER_DESC, 'play')
+    const keys = play.map((m) => m.key)
+    // 可达：当前空间 play 板块 + shared 板块
+    for (const k of ['chat', 'novel', 'imagegen', 'characterlib', 'modelcenter', 'settings']) {
+      expect(keys, k).toContain(k)
+    }
+    // 不可达：work 板块（含青鸟）+ 编程 independent
+    for (const k of ['gaea', 'cost', 'memoryhub', 'weixin', 'code']) {
+      expect(keys, k).not.toContain(k)
+    }
+    expect(keys.filter((k) => k === 'settings')).toHaveLength(1)
   })
 })
 

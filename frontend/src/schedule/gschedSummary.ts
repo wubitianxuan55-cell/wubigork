@@ -40,6 +40,8 @@ export interface GschedSummary {
   finishDate: string | null
   /** 基线漂移摘要（未保存基线时 null） */
   baseline: { name: string; savedAt: string; duration: number; drift: number } | null
+  /** 保存的基线槽位数（v4.137 #11 多基线 max3；未保存=0） */
+  baselineCount: number
   /** 倒排校核（未设目标竣工或 CPM 未通过时 null） */
   deadline: { date: string; targetWorkdays: number; feasible: boolean; overrun: number } | null
 }
@@ -72,6 +74,7 @@ export function parseSchedSummary(raw: string): GschedSummary | null {
     baseline: drift
       ? { name: drift.baselineName, savedAt: drift.baselineSavedAt, duration: drift.baselineDuration, drift: drift.durationDrift }
       : null,
+    baselineCount: project.baselines?.length ?? 0,
     deadline: dl ? { date: dl.deadline, targetWorkdays: dl.targetWorkdays, feasible: dl.feasible, overrun: dl.overrun } : null,
   }
 }

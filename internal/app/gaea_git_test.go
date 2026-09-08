@@ -136,11 +136,37 @@ func TestGaeaGitCommitLogDiscard(t *testing.T) {
 	}
 }
 
+// gitTopLevelOf 返回 dir 所在 git 仓库根（git 向上寻根语义）；非仓库返回 ""。
+func gitTopLevelOf(dir string) string {
+	out, err := exec.Command("git", "-C", dir, "rev-parse", "--show-toplevel").Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
+}
+
 func TestGaeaGitNotARepo(t *testing.T) {
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("环境无 git CLI")
 	}
-	t.Chdir(t.TempDir())
+	dir := t.TempDir()
+	// 沙箱选址防「外层仓库」假红：test-all.ps1 为规避沙箱 SAC/AV 扫描把 TMP/TEMP
+	// 重定向到仓库内 .tmp（build.bat 同款），t.TempDir() 随之落在外层 git 仓库内——
+	// git status 向上寻根会命中外层仓库，「非仓库」测试前提被环境破坏（无论产品代码
+	// 是否改动都确定性失败）。此时改在系统用户缓存区（天然在仓库外）另建沙箱；
+	// 仍不可得时诚实跳过（前提不可满足，不假装断言）。
+	if gitTopLevelOf(dir) != "" {
+		if cache, err := os.UserCacheDir(); err == nil {
+			if d, err2 := os.MkdirTemp(cache, "gaea-git-nonrepo-"); err2 == nil {
+				dir = d
+				t.Cleanup(func() { _ = os.RemoveAll(d) })
+			}
+		}
+		if gitTopLevelOf(dir) != "" {
+			t.Skip("TMP 落入 git 仓库内且无法选址仓库外沙箱：非仓库断言前提不可满足")
+		}
+	}
+	t.Chdir(dir)
 	a := &App{}
 	st := a.GaeaGitStatus()
 	if st.IsRepo || st.Error == "" {

@@ -73,6 +73,28 @@ describe("ScheduleFileCard 办公侧计划摘要卡", () => {
     expect(screen.getByText(/竣工 2026-01-12/)).toBeTruthy();
   });
 
+  // knife-2 G-2（v4.169.0）：多基线槽位计数进摘要卡（v4.137 #11 多基线 max3）
+  it("保存了基线槽位：渲染「基线 N」chip（文本=标签+计数）", () => {
+    const p = project();
+    p.baselines = [
+      { name: "基线一", savedAt: "2026-01-05 08:00", duration: 4, rows: { A: { name: "A", es: 0, ef: 3, dur: 3, critical: true } } },
+      { name: "基线二", savedAt: "2026-01-06 08:00", duration: 4, rows: { A: { name: "A", es: 0, ef: 3, dur: 3, critical: true } } },
+    ];
+    const s = parseSchedSummary(JSON.stringify(p))!;
+    render(wrap(<ScheduleFileCard relPath={CURRENT} summary={s} raw="{}" />));
+    expect(s.baselineCount).toBe(2);
+    const label = screen.getByText("基线");
+    expect(label).toBeTruthy();
+    expect(label.parentElement?.textContent).toBe("基线2");
+  });
+
+  it("未保存基线槽位：不渲染「基线」chip（baselineCount=0）", () => {
+    const s = parseSchedSummary(JSON.stringify(project()))!;
+    expect(s.baselineCount).toBe(0);
+    render(wrap(<ScheduleFileCard relPath={CURRENT} summary={s} raw="{}" />));
+    expect(screen.queryByText("基线")).toBeNull();
+  });
+
   it("当前计划文件：跳转按钮派发 navigate 事件到 schedule 板块", () => {
     const s = parseSchedSummary(JSON.stringify(project()))!;
     const seen: unknown[] = [];
