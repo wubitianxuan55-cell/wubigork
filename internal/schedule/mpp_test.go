@@ -453,3 +453,57 @@ func TestMppRealSamples(t *testing.T) {
 		t.Skip("真实 MPP 样本不存在(clones/projectlibre 样例目录未就位)")
 	}
 }
+
+// TestMppRealSamples2013 Project 2013+ 变体门控测试（v4.154）:新版 Project
+// 不再写 CompObj（工程目录编号判版回退）、任务行工期 @84/var 键=ID/大纲层级
+// @172（键位与 2010 漂移,真机样本实证）。样本在 git-ignored clones/mpp2013,
+// 缺失即 Skip。资源/分配行 2013+ 键位未钉死,暂不解析（宁缺勿错）。
+func TestMppRealSamples2013(t *testing.T) {
+	samples := []string{
+		"../../clones/mpp2013/重庆干休所总进度计划1（开工）.mpp",
+	}
+	any := false
+	for _, path := range samples {
+		data, err := os.ReadFile(filepath.FromSlash(path))
+		if err != nil {
+			continue
+		}
+		any = true
+		p, err := ParseMpp(data)
+		if err != nil {
+			t.Errorf("%s:ParseMpp 失败:%v", filepath.Base(path), err)
+			continue
+		}
+		if len(p.Tasks) != 38 {
+			t.Errorf("%s:任务 %d, want 38（含 8 分组）", filepath.Base(path), len(p.Tasks))
+		}
+		named := 0
+		groups := 0
+		for _, task := range p.Tasks {
+			if task.Name != "" {
+				named++
+			}
+			if task.Level == 0 {
+				groups++
+			}
+		}
+		if named != len(p.Tasks) {
+			t.Errorf("%s:任务名不全（%d/%d）——2013+ var 键=ID 口径破坏", filepath.Base(path), named, len(p.Tasks))
+		}
+		if groups != 8 {
+			t.Errorf("%s:分组 %d, want 8（层级栈重建口径）", filepath.Base(path), groups)
+		}
+		if len(p.Links) != 42 {
+			t.Errorf("%s:搭接 %d, want 42（ID 键空间回链）", filepath.Base(path), len(p.Links))
+		}
+		r := ComputeCpm(p.Tasks, p.Links)
+		if !r.OK || r.Duration != 136 {
+			t.Errorf("%s:CPM ok=%v 总工期=%d, want 136（总平施工 136d 主链）", filepath.Base(path), r.OK, r.Duration)
+		}
+		t.Logf("%s:任务 %d/分组 %d/搭接 %d/总工期 %d 天/开工 %s",
+			filepath.Base(path), len(p.Tasks), groups, len(p.Links), r.Duration, p.StartDate)
+	}
+	if !any {
+		t.Skip("2013+ 真机样本不存在(clones/mpp2013 未就位)")
+	}
+}

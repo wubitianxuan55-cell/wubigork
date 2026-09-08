@@ -60,19 +60,46 @@ const (
 
 // ParseMpp 解析 .mpp 二进制(OLE2/CFB)为进度计划模型。
 func ParseMpp(data []byte) (Project, error) {
-	streams, err := mppOpenStreams(data)
+	streams, projDir, err := mppOpenStreams(data)
 	if err != nil {
 		return Project{}, err
 	}
-	format, appVer, err := mppDetectFormat(streams["\x01CompObj"])
-	if err != nil {
-		return Project{}, err
-	}
-	v := mppVersionOfFormat(format)
-	if v == 0 {
-		return Project{}, fmt.Errorf("不支持的 MPP 格式(%s):请另存为 MS Project XML 或 Project 2003 格式后再导入", format)
+	// 版本探测：老文件读 CompObj 应用名；新版 Project（2013+）不再写 CompObj，
+	// 回退按工程目录编号判版（"   19"=9/"   112"=12/"   114"=14）。无 CompObj
+	// ⇒ 2013+（appVer≥15：TBkndCons lag 偏移 @14 口径）。
+	var v mppVersion
+	var appVer int
+	if comp, ok := streams["\x01CompObj"]; ok {
+		format, av, err := mppDetectFormat(comp)
+		if err != nil {
+			return Project{}, err
+		}
+		v = mppVersionOfFormat(format)
+		if v == 0 {
+			return Project{}, fmt.Errorf("不支持的 MPP 格式(%s):请另存为 MS Project XML 或 Project 2003 格式后再导入", format)
+		}
+		appVer = av
+	} else {
+		v = mppVersionOfDir(projDir)
+		if v == 0 {
+			return Project{}, fmt.Errorf("不是有效的 MPP 文件(缺 CompObj 且未识别工程目录):请另存为 MS Project XML 后再导入")
+		}
+		appVer = 15
 	}
 	return mppParseFromStreams(streams, v, appVer)
+}
+
+// mppVersionOfDir 工程目录编号 → MPP 版本（CompObj 缺失时的回退探测，MPXJ 同款启发式）。
+func mppVersionOfDir(dir string) mppVersion {
+	switch dir {
+	case "   19":
+		return mpp9
+	case "   112":
+		return mpp12
+	case "   114":
+		return mpp14
+	}
+	return 0
 }
 
 func mppVersionOfFormat(format string) mppVersion {
@@ -93,9 +120,15 @@ func mppParseFromStreams(streams map[string][]byte, v mppVersion, appVer int) (P
 	rootPropsName := map[mppVersion]string{mpp9: "Props9", mpp12: "Props12", mpp14: "Props14"}[v]
 	projDir := map[mppVersion]string{mpp9: "   19", mpp12: "   112", mpp14: "   114"}[v]
 
-	rootProps, err := mppParseProps(streams[rootPropsName], 0)
-	if err != nil {
-		return Project{}, fmt.Errorf("MPP 工程属性读取失败:%w", err)
+	// 根 Props 块只承载口令位与加密掩码；新版 Project（2013+）不再写根 Props，
+	// 缺流=未保护，按空表处理（工程属性一律读 projDir/Props）。
+	var rootProps map[int64][]byte
+	if len(streams[rootPropsName]) > 0 {
+		var err error
+		rootProps, err = mppParseProps(streams[rootPropsName], 0)
+		if err != nil {
+			return Project{}, fmt.Errorf("MPP 工程属性读取失败:%w", err)
+		}
 	}
 	if mppPropsByte(rootProps, 893386752)&0x01 != 0 {
 		return Project{}, fmt.Errorf("MPP 文件受打开口令保护:请先在 Project 中取消口令并另存,再导入")
@@ -125,7 +158,7 @@ func mppParseFromStreams(streams map[string][]byte, v mppVersion, appVer int) (P
 	}
 
 	// ── 任务 ────────────────────────────────────────────────────────
-	tasks, err := mppParseTasks(streams, projDir, v, mask)
+	tasks, err := mppParseTasks(streams, projDir, v, appVer, mask)
 	if err != nil {
 		return Project{}, err
 	}
@@ -137,42 +170,47 @@ func mppParseFromStreams(streams map[string][]byte, v mppVersion, appVer int) (P
 	}
 
 	// ── 资源(名称在 Var2Data 键 1,各版本一致)──────────────────────
-	resVar, _ := mppParseVarData(streams[projDir+"/TBkndRsc/VarMeta"], streams[projDir+"/TBkndRsc/Var2Data"], v)
-	resRows, _ := mppFixedRows(streams[projDir+"/TBkndRsc/FixedMeta"], streams[projDir+"/TBkndRsc/FixedData"], mppResMetaItem, 256, mask)
+	// Project 2013+（appVer≥15）资源/分配行的键位与偏移尚未钉死（真机样本
+	// 实证与 2010 口径漂移）——宁缺勿错,不解析（诚实降级,任务/搭接/日历不受影响）。
+	is2013 := v == mpp14 && appVer >= 15
 	resources := []mppRawRes{}
-	for _, r := range resRows {
-		if len(r.data) < 48 {
-			continue
-		}
-		uid := int64(mppI16(r.data, 0)) // createResourceMap 口径:short@0
-		resources = append(resources, mppRawRes{
-			uid:      uid,
-			name:     resVar.unicode(uid, 1),
-			label:    resVar.unicode(uid, 8), // 材料计量单位(有=材料资源)
-			maxUnits: mppF64(r.data, 44),
-		})
-	}
-
-	// ── 分配(MPP9 定长 142/计数不符回退 meta;MPP12 meta 定位;MPP14 定长 110)──
 	rawAsgs := []mppRawAsg{}
-	if asgMeta, ok := streams[projDir+"/TBkndAssn/FixedMeta"]; ok {
-		asgRows, err2 := mppAssignRows(asgMeta, streams[projDir+"/TBkndAssn/FixedData"], v, mask)
-		if err2 != nil {
-			return Project{}, fmt.Errorf("MPP 分配表读取失败:%w", err2)
-		}
-		unitsOff := 54 // MPP9/12:Units double@54(÷100,1.0=100%)
-		if v == mpp14 {
-			unitsOff = 46
-		}
-		for _, r := range asgRows {
-			if r.flags&0xFF != 0 || len(r.data) < unitsOff+8 {
-				continue // meta 首字节非 0=已删除分配(MPXJ meta[0]!=0 口径)
+	if !is2013 {
+		resVar, _ := mppParseVarData(streams[projDir+"/TBkndRsc/VarMeta"], streams[projDir+"/TBkndRsc/Var2Data"], v)
+		resRows, _ := mppFixedRows(streams[projDir+"/TBkndRsc/FixedMeta"], streams[projDir+"/TBkndRsc/FixedData"], mppResMetaItem, 256, mask)
+		for _, r := range resRows {
+			if len(r.data) < 48 {
+				continue
 			}
-			rawAsgs = append(rawAsgs, mppRawAsg{
-				taskUID: int64(mppI32(r.data, 4)),
-				resUID:  int64(mppI32(r.data, 8)),
-				units:   mppF64(r.data, unitsOff) / 100,
+			uid := int64(mppI16(r.data, 0)) // createResourceMap 口径:short@0
+			resources = append(resources, mppRawRes{
+				uid:      uid,
+				name:     resVar.unicode(uid, 1),
+				label:    resVar.unicode(uid, 8), // 材料计量单位(有=材料资源)
+				maxUnits: mppF64(r.data, 44),
 			})
+		}
+
+		// ── 分配(MPP9 定长 142/计数不符回退 meta;MPP12 meta 定位;MPP14 定长 110)──
+		if asgMeta, ok := streams[projDir+"/TBkndAssn/FixedMeta"]; ok {
+			asgRows, err2 := mppAssignRows(asgMeta, streams[projDir+"/TBkndAssn/FixedData"], v, mask)
+			if err2 != nil {
+				return Project{}, fmt.Errorf("MPP 分配表读取失败:%w", err2)
+			}
+			unitsOff := 54 // MPP9/12:Units double@54(÷100,1.0=100%)
+			if v == mpp14 {
+				unitsOff = 46
+			}
+			for _, r := range asgRows {
+				if r.flags&0xFF != 0 || len(r.data) < unitsOff+8 {
+					continue // meta 首字节非 0=已删除分配(MPXJ meta[0]!=0 口径)
+				}
+				rawAsgs = append(rawAsgs, mppRawAsg{
+					taskUID: int64(mppI32(r.data, 4)),
+					resUID:  int64(mppI32(r.data, 8)),
+					units:   mppF64(r.data, unitsOff) / 100,
+				})
+			}
 		}
 	}
 
@@ -208,6 +246,7 @@ type mppTask struct {
 	pct            int
 	milestone      bool
 	deleted        bool
+	outline        int // 2013+ 大纲层级（0=项目标题行，逐级 +1；父链由层级栈重建）
 }
 
 type mppRawLink struct {
@@ -226,8 +265,10 @@ type mppRawAsg struct {
 }
 
 // mppParseTasks 任务表:跳过前 3 条 meta;flags bit0x02=删除(uid 占位防误挂);
-// 8 字节行=null 占位;<75% 满=幻影行。字段偏移 MPP9/12 相同,MPP14 自成一套。
-func mppParseTasks(streams map[string][]byte, projDir string, v mppVersion, mask byte) ([]*mppTask, error) {
+// 8 字节行=null 占位;<75% 满=幻影行。字段偏移 MPP9/12 相同,MPP14 自成一套;
+// Project 2013+（appVer≥15）MPP14 再变体:工期 @84、var 数据键=ID（uid@0 变
+// 陈旧键,真机样本实证）、大纲层级 @172、里程碑=零工期,父链由层级栈重建。
+func mppParseTasks(streams map[string][]byte, projDir string, v mppVersion, appVer int, mask byte) ([]*mppTask, error) {
 	taskVar, err := mppParseVarData(streams[projDir+"/TBkndTask/VarMeta"], streams[projDir+"/TBkndTask/Var2Data"], v)
 	if err != nil {
 		return nil, fmt.Errorf("MPP 任务数据读取失败:%w", err)
@@ -244,6 +285,7 @@ func mppParseTasks(streams map[string][]byte, projDir string, v mppVersion, mask
 	if v != mpp9 {
 		nameKey, wbsKey = 14, 16 // MPP12/14 键=字段 ID 低 16 位
 	}
+	is2013 := v == mpp14 && appVer >= 15
 	tasks := []*mppTask{}
 	for i := 3; i < len(rows); i++ {
 		row, meta := rows[i].data, rows[i]
@@ -265,13 +307,23 @@ func mppParseTasks(streams map[string][]byte, projDir string, v mppVersion, mask
 			continue
 		}
 		t := &mppTask{uid: int64(mppI32(row, 0)), id: int64(mppI32(row, 4))}
-		t.parentUID = int64(mppI32(row, 36))
-		t.milestone = meta.byte8&0x20 != 0
-		switch v {
-		case mpp14:
+		switch {
+		case is2013:
+			// 2013+ 变体:行内 var 键整体换 ID 键空间（uid@0 是陈旧键,与名字
+			// 表大面积错位——真机样本实证），统一取 ID 为回链键。
+			t.uid = t.id
+			t.durationTenths = int64(mppI32(row, 84))
+			t.pct = mppPct(mppI16(row, 90))
+			t.milestone = t.durationTenths == 0 // 零工期=里程碑(2013+ meta 无独立位)
+			t.outline = int(mppI16(row, 172))
+		case v == mpp14:
+			t.parentUID = int64(mppI32(row, 36))
+			t.milestone = meta.byte8&0x20 != 0
 			t.durationTenths = int64(mppI32(row, 42))
 			t.pct = mppPct(mppI16(row, 90))
 		default: // MPP9/12 偏移一致
+			t.parentUID = int64(mppI32(row, 36))
+			t.milestone = meta.byte8&0x20 != 0
 			t.durationTenths = int64(mppI32(row, 60))
 			t.pct = mppPct(mppI16(row, 122))
 		}
@@ -281,6 +333,23 @@ func mppParseTasks(streams map[string][]byte, projDir string, v mppVersion, mask
 		}
 		t.wbs = taskVar.unicode(t.uid, wbsKey)
 		tasks = append(tasks, t)
+	}
+	if is2013 {
+		// 父链重建:文件行序即 ID 升序（真机样本实证），层级栈配对——
+		// 每行的父=其前最近的更浅层级行（parentUID@36 在 2013+ 失效恒 0）。
+		stack := []*mppTask{}
+		for _, t := range tasks {
+			if t.deleted {
+				continue
+			}
+			for len(stack) > 0 && stack[len(stack)-1].outline >= t.outline {
+				stack = stack[:len(stack)-1]
+			}
+			if len(stack) > 0 {
+				t.parentUID = stack[len(stack)-1].uid
+			}
+			stack = append(stack, t)
+		}
 	}
 	return tasks, nil
 }
@@ -743,13 +812,14 @@ func mppDetectFormat(compObj []byte) (format string, appVer int, err error) {
 
 // mppOpenStreams 读出解析所需流,键为语义名:"\x01CompObj"、"Props9/12/14"、
 // "<工程目录>/Props"、"<工程目录>/TBknd*/<流名>"。mscfb Name 不含前导 \x01。
-func mppOpenStreams(data []byte) (map[string][]byte, error) {
+func mppOpenStreams(data []byte) (map[string][]byte, string, error) {
 	r, err := mscfb.New(bytes.NewReader(data))
 	if err != nil {
-		return nil, fmt.Errorf("不是有效的 MPP 文件(OLE2 打开失败):%w", err)
+		return nil, "", fmt.Errorf("不是有效的 MPP 文件(OLE2 打开失败):%w", err)
 	}
 	out := map[string][]byte{}
 	projDir := "" // 当前工程/视图目录("   19"/"   112"/"   114"/"   29")
+	foundDir := "" // 首个工程目录（版本回退探测用）
 	tb := ""      // 当前 TBknd* 存储
 	awaitProps := false
 	for {
@@ -761,6 +831,9 @@ func mppOpenStreams(data []byte) (map[string][]byte, error) {
 		if entry.FileInfo().IsDir() {
 			switch {
 			case name == "   19" || name == "   112" || name == "   114":
+				if foundDir == "" {
+					foundDir = name
+				}
 				projDir, tb, awaitProps = name, "", true
 			case name == "   29": // 视图目录:离开工程目录子树
 				tb, awaitProps = "", false
@@ -786,11 +859,11 @@ func mppOpenStreams(data []byte) (map[string][]byte, error) {
 		}
 		var buf bytes.Buffer
 		if _, err := buf.ReadFrom(entry); err != nil {
-			return nil, fmt.Errorf("MPP 流 %s 读取失败:%w", name, err)
+			return nil, "", fmt.Errorf("MPP 流 %s 读取失败:%w", name, err)
 		}
 		out[key] = buf.Bytes()
 	}
-	return out, nil
+	return out, foundDir, nil
 }
 
 // ── 字节原语(全小端;时间戳/百分比口径蒸馏自 MPPUtility) ────────────
