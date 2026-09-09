@@ -53,6 +53,10 @@ const App: React.FC = () => {
     set('--md-sys-color-primary-container', effTokens.primaryContainer)
     set('--md-sys-color-on-primary-container', effTokens.onPrimaryContainer)
 
+    // M3 Tertiary（v4.183：暖伴侣色，闲庭首页母题与书斋冷色区分）
+    set('--md-sys-color-tertiary-container', effTokens.tertiaryContainer)
+    set('--md-sys-color-on-tertiary-container', effTokens.onTertiaryContainer)
+
     // M3 Surface
     set('--md-sys-color-surface', effTokens.surface)
     set('--md-sys-color-on-surface', effTokens.onSurface)

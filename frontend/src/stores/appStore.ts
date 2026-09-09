@@ -59,6 +59,9 @@ export interface ThemeTokens {
   glow: string            // 霓虹光晕色（比 primary 更亮，用于 box-shadow / 文字发光）
   glassBg: string         // 玻璃拟态表面（半透明）
   auroraBg: string        // 深空星云渐变背景（完整 background 值）
+  // ── M3 tertiary 角色（v4.183：闲庭暖伴侣色母题，与 primary 冷暖区分）──
+  tertiaryContainer: string
+  onTertiaryContainer: string
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -108,7 +111,26 @@ const nightSlateL = (): Partial<ThemeTokens> => ({ surface:'#f8fafc',surfaceDim:
 const darkFn: Record<ThemePreset, () => Partial<ThemeTokens>> = { nightJade:nightJadeD, nightViolet:nightVioletD, nightRose:nightRoseD, nightAmber:nightAmberD, nightMoss:nightMossD, nightSlate:nightSlateD }
 const lightFn: Record<ThemePreset, () => Partial<ThemeTokens>> = { nightJade:nightJadeL, nightViolet:nightVioletL, nightRose:nightRoseL, nightAmber:nightAmberL, nightMoss:nightMossL, nightSlate:nightSlateL }
 
-export function getThemeTokens(base: ThemePreset, darkMode: boolean): ThemeTokens { const fn = darkMode ? darkFn[base] : lightFn[base]; return fn() as ThemeTokens }
+/**
+ * M3 tertiary 角色表（v4.183）：每预设 × 明暗的「暖伴侣色」对
+ * [tertiaryContainer, onTertiaryContainer]，getThemeTokens 合并注入、
+ * App.tsx 下发 CSS 变量；闲庭（play）首页暖色母题与书斋工作蓝绿区分。
+ * 深色档 = 深哑容器 + 亮 on 色；浅色档 = 浅粉彩容器 + 深 on 色（对齐 M3 明度关系）。
+ */
+const TERTIARY: Record<ThemePreset, { dark: [string, string]; light: [string, string] }> = {
+  nightJade:   { dark: ['#4a3b16', '#fde68a'], light: ['#fef3c7', '#92400e'] },
+  nightViolet: { dark: ['#432243', '#f0abfc'], light: ['#fce7f3', '#9d174d'] },
+  nightRose:   { dark: ['#4d2b1a', '#fdba74'], light: ['#ffedd5', '#9a3412'] },
+  nightAmber:  { dark: ['#4d2033', '#fda4af'], light: ['#ffe4e6', '#9f1239'] },
+  nightMoss:   { dark: ['#46350f', '#fcd34d'], light: ['#fef9c3', '#854d0e'] },
+  nightSlate:  { dark: ['#3f3540', '#d8b4fe'], light: ['#f3e8ff', '#6b21a8'] },
+}
+
+export function getThemeTokens(base: ThemePreset, darkMode: boolean): ThemeTokens {
+  const fn = darkMode ? darkFn[base] : lightFn[base]
+  const [tertiaryContainer, onTertiaryContainer] = TERTIARY[base][darkMode ? 'dark' : 'light']
+  return { ...fn(), tertiaryContainer, onTertiaryContainer } as ThemeTokens
+}
 
 const THEME_KEY = 'gaea-theme'
 const LEGACY_THEME_KEY = 'wubigork-theme'

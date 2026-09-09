@@ -1,7 +1,10 @@
-/* 首页 ·「星枢港 · 双舷驾驶舱」（v4 重构；瘦身 P2 双空间并列）
-   左舷 = 紧凑 Hero（公告 pill + 空间 chip）+ 命令条 + 能力矩阵 Bento
-   （空间过滤：空间旗舰 + 板块瓦片 + 设置瓦片；编程 independent 不渲染）；
-   右舷 = 内核遥测 + 写作进度环 + 最近会话 + 记忆脉搏 +（work）晨报/最近文档。
+/* 首页 · 双空间重排版（v6：书斋「文书台」/ 闲庭「游园画廊」）
+   v4.183 用户反馈等大 Bento 卡片海 + 右舷五连盒「太 low」——重排版式：
+   · 书斋 = 编辑部/文房方向：竖排书脊 masthead + 大字渐变标题 + 命令条 +
+     卷宗流水（hairline 报表行）+ 旗舰横带 + 目录式索引行 + 单一仪表右栏
+     （遥测/写作/会话/记忆/晨报 hairline 分节，不再五连盒）。
+   · 闲庭 = 画廊方向（variance 8 / density 3）：居中大字 + 月洞门圆环旗舰
+     横幅 + 竖版海报大卡（圆徽记 + hover 环形箭头）+ 园底单条信息带。
    令牌纪律：零硬编码色值，全部走 --md-sys-* / --gaea-* / --color-* / --v3-*；
    动效只用 transform/opacity，reduced-motion / gaea-raf-degraded 全降级。 */
 
@@ -12,17 +15,17 @@
   display: flex;
   flex-direction: column;
   overflow-y: auto;
-  padding: 14px 22px 22px;
+  padding: 18px 26px 28px;
 }
 
-/* 双舷骨架：左主工作台 + 右状态侧栏（≥1181px 一屏尽收） */
+/* 双舷骨架：左主工作台 + 右仪表纵栏（≥1181px 一屏尽收） */
 .ml-dock {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 300px;
-  gap: 20px;
+  grid-template-columns: minmax(0, 1fr) 296px;
+  gap: 26px;
   align-items: start;
   width: 100%;
-  max-width: 1280px;
+  max-width: 1320px;
   margin: 0 auto;
   min-height: 0;
 }
@@ -30,36 +33,114 @@
 .ml-main {
   display: flex;
   flex-direction: column;
-  gap: 18px;
-  min-width: 0;
-}
-
-.ml-side {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+  gap: 24px;
   min-width: 0;
 }
 
 /* ════════════════════════════════════════════════════════════════
-   左舷 Hero（公告 pill + 标题 + 副标题 + 命令条 + 语音状态，左对齐紧凑化）
+   编辑部式节眉：图标 + 宽字距小标 + 渐隐细线 + 副题（书斋两节共用）
    ════════════════════════════════════════════════════════════════ */
-.ml-hero {
+.ml-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+  min-width: 0;
+}
+.ml-eyebrow-icon {
+  display: inline-flex;
+  font-size: 12px;
+  color: var(--gaea-glow);
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--gaea-glow) 45%, transparent));
+}
+.ml-eyebrow-title {
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.3em;
+  color: color-mix(in srgb, var(--color-text) 78%, transparent);
+  white-space: nowrap;
+}
+.ml-eyebrow-rule {
+  flex: 1;
+  height: 1px;
+  min-width: 16px;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--color-border) 95%, transparent), transparent);
+}
+.ml-eyebrow-sub {
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 40%;
+}
+
+/* ── 右栏/信息带分节头（小号节眉，不带渐隐线）── */
+.ml-sec-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 10px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.24em;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+.ml-sec-icon {
+  display: inline-flex;
+  font-size: 12px;
+  color: var(--gaea-glow);
+}
+.ml-sec-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   书斋 masthead：竖排书脊 + 标题群 + 命令条
+   ════════════════════════════════════════════════════════════════ */
+.desk-mast {
+  display: flex;
+  align-items: stretch;
+  gap: 22px;
+  min-width: 0;
+}
+.desk-spine {
   display: flex;
   flex-direction: column;
-  align-items: stretch;
-  gap: 12px;
-  padding: 6px 2px 0;
+  align-items: center;
+  gap: 14px;
+  padding: 8px 16px 4px 2px;
   flex-shrink: 0;
 }
-.ml-hero-head {
+.desk-spine-text {
+  writing-mode: vertical-rl;
+  font-size: 23px;
+  font-weight: 800;
+  letter-spacing: 0.42em;
+  line-height: 1;
+  color: color-mix(in srgb, var(--gaea-glow) 72%, var(--color-text));
+  text-shadow: 0 0 22px color-mix(in srgb, var(--gaea-glow) 26%, transparent);
+  user-select: none;
+}
+.desk-spine-rule {
+  width: 1px;
+  flex: 1;
+  min-height: 28px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--gaea-glow) 42%, transparent), transparent);
+}
+.desk-mast-body {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 8px;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
 }
 
-/* 英雄头行：公告 pill + 空间 chip（工位/乐园）同排（S2.1 双空间并列标识） */
+/* 英雄头行：公告 pill + 空间 chip 同排 */
 .ml-hero-tags {
   display: inline-flex;
   align-items: center;
@@ -75,7 +156,7 @@
   border: 1px solid color-mix(in srgb, var(--gaea-glow) 40%, transparent);
   color: var(--color-text-secondary);
   font-size: 11px;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.16em;
   white-space: nowrap;
 }
 .ml-pill {
@@ -108,18 +189,24 @@
   opacity: 0.85;
 }
 
+/* 大字标题：正文色 → glow 渐变（排印主 moment） */
 .ml-title {
   margin: 0;
-  font-size: 27px;
+  font-size: 30px;
   font-weight: 800;
-  letter-spacing: -0.02em;
-  line-height: 1.2;
+  letter-spacing: -0.015em;
+  line-height: 1.22;
+  background: linear-gradient(105deg,
+    var(--color-text) 38%,
+    color-mix(in srgb, var(--gaea-glow) 58%, var(--color-text)) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
   color: var(--color-text);
-  text-shadow: 0 0 30px color-mix(in srgb, var(--gaea-glow) 22%, transparent);
 }
 .ml-sub {
   margin: 0;
-  max-width: 72ch;
+  max-width: 66ch;
   font-size: 13px;
   line-height: 1.65;
   color: var(--color-text-secondary);
@@ -183,7 +270,7 @@
   border: 1px solid var(--color-border);
 }
 
-/* ── 中央命令条：AI 内核 orb + 打字 + 语音 + 发送 + ⌘K（撑满左舷）── */
+/* ── 命令条：AI 内核 orb + 打字 + 语音 + 发送 + ⌘K ── */
 .ml-command {
   position: relative;
   width: 100%;
@@ -191,23 +278,30 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 8px 10px 8px 16px;
-  border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--gaea-glow) 32%, var(--color-border));
-  background: color-mix(in srgb, var(--color-surface-container) 66%, transparent);
+  padding: 9px 12px 9px 18px;
+  border-radius: 18px;
+  border: 1px solid color-mix(in srgb, var(--gaea-glow) 30%, var(--color-border));
+  background: color-mix(in srgb, var(--color-surface-container) 62%, transparent);
   -webkit-backdrop-filter: blur(16px) saturate(150%);
   backdrop-filter: blur(16px) saturate(150%);
   box-shadow:
-    0 12px 40px color-mix(in srgb, var(--gaea-glow) 12%, transparent),
+    0 14px 44px color-mix(in srgb, var(--gaea-glow) 10%, transparent),
     inset 0 1px 0 color-mix(in srgb, var(--color-text) 9%, transparent);
   flex-shrink: 0;
+  transition: border-color var(--md-sys-transition-fast, 200ms), box-shadow var(--md-sys-transition-fast, 200ms);
+}
+.ml-command:focus-within {
+  border-color: color-mix(in srgb, var(--gaea-glow) 52%, var(--color-border));
+  box-shadow:
+    0 14px 48px color-mix(in srgb, var(--gaea-glow) 16%, transparent),
+    inset 0 1px 0 color-mix(in srgb, var(--color-text) 9%, transparent);
 }
 .ml-command::before {
   content: '';
   position: absolute;
   inset: 0 0 auto 0;
   height: 1px;
-  border-radius: 999px;
+  border-radius: 18px 18px 0 0;
   background: var(--v3-edge);
   pointer-events: none;
 }
@@ -373,181 +467,133 @@
 }
 
 /* ════════════════════════════════════════════════════════════════
-   能力矩阵（Bento：空间旗舰 4×2 + 板块瓦片 + 设置瓦片）
-   瘦身 P2（双空间并列）：清单按当前空间过滤（shared + 当前空间），
-   independent 编程不渲染（独立入口居 rail 脚）——两空间瓦片数相同：
-   旗舰 8 + 板块×4 8 + 设置 2 = 18 单位 = 3 行整除，末行无空位。
+   书斋 · 最近文档卷宗（hairline 报表行，无盒）
    ════════════════════════════════════════════════════════════════ */
-.ml-cap {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+.desk-docs {
   min-width: 0;
 }
-.ml-cap-head {
+.ml-docs-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
   display: flex;
-  align-items: baseline;
-  gap: 10px;
-  padding: 0 4px;
+  flex-direction: column;
+}
+.ml-docs-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 8px;
+  cursor: pointer;
+  border-top: 1px solid color-mix(in srgb, var(--color-border) 72%, transparent);
+  transition: background var(--md-sys-transition-fast, 200ms);
+}
+.ml-docs-list .ml-docs-row:first-child { border-top: none; }
+.ml-docs-row:hover { background: color-mix(in srgb, var(--gaea-glow) 6%, transparent); }
+.ml-docs-row:focus-visible { outline: 2px solid var(--gaea-glow); outline-offset: -2px; }
+.ml-docs-idx {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  font-weight: 600;
+  color: color-mix(in srgb, var(--color-text) 36%, transparent);
+  width: 24px;
+  flex-shrink: 0;
+  transition: color var(--md-sys-transition-fast, 200ms);
+}
+.ml-docs-row:hover .ml-docs-idx { color: var(--gaea-glow); }
+.ml-docs-name {
+  font-size: 13.5px;
+  font-weight: 550;
+  color: var(--color-text);
+  max-width: 34%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   flex-shrink: 0;
 }
-.ml-cap-title {
-  font-size: 15px;
-  font-weight: 700;
-  letter-spacing: -0.01em;
-  color: var(--color-text);
-}
-.ml-cap-sub {
+.ml-docs-path {
+  flex: 1;
+  min-width: 0;
   font-size: 11.5px;
   color: var(--color-text-secondary);
-  letter-spacing: 0.02em;
-}
-
-.ml-grid {
-  display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 10px;
-  min-width: 0;
-}
-
-/* ── 普通瓦片（span 2）── */
-.ml-bento {
-  position: relative;
-  grid-column: span 2;
-  min-height: 106px;
-  padding: 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+  white-space: nowrap;
   overflow: hidden;
-  isolation: isolate;
+  text-overflow: ellipsis;
+  direction: rtl;
+  text-align: left;
 }
-.ml-bento-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-.ml-bento-icon {
-  width: 36px;
-  height: 36px;
-  border-radius: 11px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 16px;
+.ml-docs-arrow {
   color: var(--gaea-glow);
-  background: color-mix(in srgb, var(--gaea-glow) 11%, transparent);
-  border: 1px solid color-mix(in srgb, var(--gaea-glow) 22%, transparent);
-  flex-shrink: 0;
-  transition: transform var(--md-sys-transition-fast, 200ms), box-shadow var(--md-sys-transition-fast, 200ms);
-}
-.ml-bento-arrow {
-  font-size: 13px;
-  color: var(--gaea-glow);
+  font-size: 12px;
   opacity: 0;
-  transform: translateX(-6px);
+  transform: translateX(-5px);
   transition: opacity var(--md-sys-transition-fast, 200ms), transform var(--md-sys-transition-fast, 200ms);
-  flex-shrink: 0;
 }
-.ml-bento:hover .ml-bento-arrow,
-.ml-bento:focus-visible .ml-bento-arrow {
+.ml-docs-row:hover .ml-docs-arrow,
+.ml-docs-row:focus-visible .ml-docs-arrow {
   opacity: 1;
   transform: translateX(0);
 }
-.ml-bento:hover .ml-bento-icon,
-.ml-bento:focus-visible .ml-bento-icon {
-  box-shadow: 0 0 14px color-mix(in srgb, var(--gaea-glow) 30%, transparent);
-}
-.ml-bento-name {
-  font-size: 14px;
-  font-weight: 700;
-  letter-spacing: -0.01em;
-  color: var(--color-text);
-  line-height: 1.3;
-}
-.ml-bento-desc {
-  font-size: 11.5px;
-  line-height: 1.5;
+.ml-desk-docs-empty {
+  padding: 14px 8px;
+  border-top: 1px solid color-mix(in srgb, var(--color-border) 72%, transparent);
+  font-size: 12px;
   color: var(--color-text-secondary);
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-/* 瓦片徽标（编程 = 独立窗口） */
-.ml-bento-badge {
-  height: 20px;
-  padding: 0 9px;
-  border-radius: 999px;
-  border: 1px solid var(--color-border);
-  background: color-mix(in srgb, var(--color-surface) 70%, transparent);
-  color: var(--color-text-secondary);
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  display: inline-flex;
-  align-items: center;
-  white-space: nowrap;
-  flex-shrink: 0;
-  margin-left: auto;
 }
 
-/* ── 宽瓦片（span 4 × 1 行；v4.52 收整能力矩阵末行空位）──
-   横向门廊条形态：图标 + 名称/描述 + 徽标 + 悬浮箭头一行排开。
-   瘦身 P2 注：当前无调用方——编程为 independent 板块，随空间过滤移出
-   双首页 Bento（独立入口居 rail 脚）；规则保留供今后非 independent
-   宽板块复用（BentoCard wide 能力仍在，见 ModuleLauncher.tsx 注释）。
-   桌面档（>1180，6 列）单位数核算（若复用）：旗舰 8 + 板块×4 8 +
-   宽 4 + 设置 2 = 22 = 4 行余 4；具体行数随实际瓦片面变化。
-   窄档降级（grid areas 还原纵向两行，DOM 不变）见下方媒体查询：
-   ≤1180（4 列）span 2；≤640（2 列）span 1。 */
-.ml-bento.ml-bento--wide {
-  grid-column: span 4;
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto auto;
-  grid-template-areas: 'icon body badge arrow';
-  align-items: center;
-  gap: 8px 14px;
-}
-.ml-bento--wide .ml-bento-icon { grid-area: icon; }
-.ml-bento--wide .ml-bento-wide-body {
-  grid-area: body;
+/* ════════════════════════════════════════════════════════════════
+   书斋 · 能力目录：旗舰横带 + 目录式索引行
+   ════════════════════════════════════════════════════════════════ */
+.desk-index {
   display: flex;
   flex-direction: column;
-  gap: 2px;
   min-width: 0;
 }
-.ml-bento--wide .ml-bento-badge { grid-area: badge; }
-.ml-bento--wide .ml-bento-arrow { grid-area: arrow; }
 
-/* ── 旗舰大卡（办公 · span 4 × 2 行，能力矩阵锚点）── */
-/* 注意：.ml-bento.ml-bento--featured 双类提升特异性（0,2,0），
-   否则与 .ml-bento 单类（0,1,0）同特异性时按源码顺序后者胜出，
-   会令旗舰卡在媒体查询内被降级为普通瓦片宽度。 */
-.ml-bento.ml-bento--featured {
-  grid-column: span 4;
-  grid-row: span 2;
-  min-height: 0;
-  justify-content: flex-end;
-  padding: 18px 20px;
+/* ── 旗舰横带（办公 · accent 竖条 + 徽记 + 名称/描述 + 进入）── */
+.desk-featured {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin: 14px 0 6px;
+  padding: 20px 22px;
+  border-radius: 18px;
+  overflow: hidden;
+  isolation: isolate;
+  min-height: 112px;
+}
+.desk-featured::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 14px;
+  bottom: 14px;
+  width: 3px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, var(--gaea-glow), color-mix(in srgb, var(--gaea-glow) 25%, transparent));
+  box-shadow: 0 0 14px color-mix(in srgb, var(--gaea-glow) 45%, transparent);
+  pointer-events: none;
+}
+.desk-featured {
   background:
-    radial-gradient(ellipse 90% 80% at 88% -10%, color-mix(in srgb, var(--gaea-glow) 30%, transparent), transparent 55%),
-    radial-gradient(ellipse 80% 75% at 5% 115%, color-mix(in srgb, var(--color-primary) 26%, transparent), transparent 60%),
+    radial-gradient(ellipse 85% 90% at 92% -20%, color-mix(in srgb, var(--gaea-glow) 26%, transparent), transparent 58%),
+    radial-gradient(ellipse 70% 80% at 0% 120%, color-mix(in srgb, var(--color-primary) 22%, transparent), transparent 62%),
     linear-gradient(150deg,
-      color-mix(in srgb, var(--color-primary) 40%, var(--color-surface-container)) 0%,
-      color-mix(in srgb, var(--color-primary) 18%, var(--color-surface-container)) 55%,
+      color-mix(in srgb, var(--color-primary) 30%, var(--color-surface-container)) 0%,
+      var(--color-surface-container) 62%,
       var(--color-surface-container) 100%);
-  border-color: color-mix(in srgb, var(--gaea-glow) 24%, var(--color-border));
+  border-color: color-mix(in srgb, var(--gaea-glow) 22%, var(--color-border));
   box-shadow:
-    0 18px 44px color-mix(in srgb, var(--gaea-glow) 14%, transparent),
-    inset 0 1px 0 color-mix(in srgb, var(--color-text) 10%, transparent);
+    0 16px 40px color-mix(in srgb, var(--gaea-glow) 10%, transparent),
+    inset 0 1px 0 color-mix(in srgb, var(--color-text) 8%, transparent);
 }
-.ml-bento.ml-bento--featured:hover {
-  border-color: color-mix(in srgb, var(--gaea-glow) 42%, var(--color-border));
+.desk-featured:hover {
+  border-color: color-mix(in srgb, var(--gaea-glow) 40%, var(--color-border));
 }
-/* 旗舰卡内部细网格纹理 */
-.ml-featured-grid {
+/* 旗舰横带内部细网格纹理 */
+.desk-featured-grid {
   position: absolute;
   inset: 0;
   z-index: -1;
@@ -560,95 +606,152 @@
   -webkit-mask-image: radial-gradient(ellipse 100% 100% at 50% 0%, #000 30%, transparent 78%);
   mask-image: radial-gradient(ellipse 100% 100% at 50% 0%, #000 30%, transparent 78%);
 }
-.ml-featured-badge {
-  position: absolute;
-  top: 16px;
-  right: 16px;
-  height: 24px;
-  padding: 0 12px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--gaea-glow) 16%, transparent);
-  border: 1px solid color-mix(in srgb, var(--gaea-glow) 34%, transparent);
-  color: var(--gaea-glow);
-  font-size: 10.5px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  display: inline-flex;
-  align-items: center;
-  white-space: nowrap;
-}
-.ml-featured-icon {
-  position: absolute;
-  top: 16px;
-  left: 18px;
-  width: 44px;
-  height: 44px;
-  border-radius: 13px;
+.desk-featured-icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 15px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 20px;
+  font-size: 23px;
   color: var(--gaea-glow);
-  background: color-mix(in srgb, var(--gaea-glow) 14%, transparent);
-  border: 1px solid color-mix(in srgb, var(--gaea-glow) 30%, transparent);
-  box-shadow: 0 0 18px color-mix(in srgb, var(--gaea-glow) 26%, transparent);
+  background: color-mix(in srgb, var(--gaea-glow) 13%, transparent);
+  border: 1px solid color-mix(in srgb, var(--gaea-glow) 28%, transparent);
+  box-shadow: 0 0 18px color-mix(in srgb, var(--gaea-glow) 22%, transparent);
+  flex-shrink: 0;
 }
-.ml-featured-name {
-  font-size: 20px;
+.desk-featured-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.desk-featured-badge {
+  align-self: flex-start;
+  font-family: var(--font-mono, ui-monospace, 'Cascadia Mono', 'Consolas', monospace);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.24em;
+  color: var(--gaea-glow);
+  white-space: nowrap;
+}
+.desk-featured-name {
+  font-size: 21px;
   font-weight: 800;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.015em;
   color: var(--color-text);
   line-height: 1.25;
 }
-.ml-featured-desc {
-  max-width: 38ch;
-  font-size: 12px;
+.desk-featured-desc {
+  font-size: 12.5px;
   line-height: 1.55;
   color: var(--color-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.ml-featured-foot {
-  margin-top: 10px;
-  display: flex;
-  align-items: center;
-}
-.ml-featured-enter {
+.desk-featured-enter {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  height: 32px;
-  padding: 0 15px;
+  height: 34px;
+  padding: 0 17px;
   border-radius: 999px;
   background: var(--gaea-glow);
   color: var(--color-on-primary, #04121a);
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.03em;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
-.ml-featured-arrow {
+.desk-featured-arrow {
   font-size: 12px;
   transition: transform var(--md-sys-transition-fast, 200ms);
 }
-.ml-bento.ml-bento--featured:hover .ml-featured-arrow,
-.ml-bento.ml-bento--featured:focus-visible .ml-featured-arrow {
+.desk-featured:hover .desk-featured-arrow,
+.desk-featured:focus-visible .desk-featured-arrow {
   transform: translateX(3px);
 }
 
-/* 卡片 aurora 水印（hover 时浮现） */
-.ml-card-aurora {
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 300ms ease;
-  background:
-    radial-gradient(ellipse 70% 60% at 85% -15%, color-mix(in srgb, var(--gaea-glow) 16%, transparent), transparent 60%),
-    radial-gradient(ellipse 65% 55% at 10% 115%, color-mix(in srgb, var(--color-primary) 12%, transparent), transparent 60%);
+/* ── 目录式索引行（序号 + 徽记 + 名称 + 描述 + 悬浮箭头；两列报表）── */
+.desk-index-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 32px;
 }
-.ml-bento:hover .ml-card-aurora,
-.ml-bento:focus-visible .ml-card-aurora,
-.ml-bento.ml-bento--featured .ml-card-aurora {
+.desk-row {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding: 13px 8px;
+  border-top: 1px solid color-mix(in srgb, var(--color-border) 72%, transparent);
+  cursor: pointer;
+  min-width: 0;
+  transition: background var(--md-sys-transition-fast, 200ms);
+}
+.desk-index-list .desk-row:nth-child(-n+2) { border-top: none; }
+.desk-row:hover { background: color-mix(in srgb, var(--gaea-glow) 6%, transparent); }
+.desk-row-num {
+  font-family: var(--font-mono, ui-monospace, 'Cascadia Mono', 'Consolas', monospace);
+  font-variant-numeric: tabular-nums;
+  font-size: 15px;
+  font-weight: 600;
+  width: 30px;
+  flex-shrink: 0;
+  color: color-mix(in srgb, var(--color-text) 34%, transparent);
+  transition: color var(--md-sys-transition-fast, 200ms);
+}
+.desk-row:hover .desk-row-num,
+.desk-row:focus-visible .desk-row-num { color: var(--gaea-glow); }
+.desk-row-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  color: var(--gaea-glow);
+  background: color-mix(in srgb, var(--gaea-glow) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--gaea-glow) 20%, transparent);
+  flex-shrink: 0;
+  transition: box-shadow var(--md-sys-transition-fast, 200ms), background var(--md-sys-transition-fast, 200ms);
+}
+.desk-row:hover .desk-row-icon {
+  background: color-mix(in srgb, var(--gaea-glow) 18%, transparent);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--gaea-glow) 26%, transparent);
+}
+.desk-row-name {
+  font-size: 14.5px;
+  font-weight: 650;
+  letter-spacing: -0.005em;
+  color: var(--color-text);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.desk-row-desc {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.desk-row-arrow {
+  font-size: 13px;
+  color: var(--gaea-glow);
+  opacity: 0;
+  transform: translateX(-6px);
+  transition: opacity var(--md-sys-transition-fast, 200ms), transform var(--md-sys-transition-fast, 200ms);
+  flex-shrink: 0;
+}
+.desk-row:hover .desk-row-arrow,
+.desk-row:focus-visible .desk-row-arrow {
   opacity: 1;
+  transform: translateX(0);
 }
 
 .ml-col-empty {
@@ -662,33 +765,39 @@
 }
 
 /* ════════════════════════════════════════════════════════════════
-   右舷状态侧栏（玻璃面板容器 + 实底信息行）
+   书斋 · 右栏单一仪表纵栏（玻璃面板 + hairline 分节）
    ════════════════════════════════════════════════════════════════ */
-.ml-panel {
-  padding: 12px 14px 13px;
+.ml-rail {
+  background: var(--gaea-glass-bg, var(--md-sys-color-surface-container));
+  -webkit-backdrop-filter: blur(24px) saturate(150%);
+  backdrop-filter: blur(24px) saturate(150%);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg, 16px);
+  position: relative;
+  padding: 2px 16px;
   display: flex;
   flex-direction: column;
-  gap: 9px;
   min-width: 0;
 }
-.ml-panel-head {
+.ml-rail::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 1px;
+  background: var(--v3-edge);
+  border-radius: var(--radius-lg, 16px) var(--radius-lg, 16px) 0 0;
+  pointer-events: none;
+}
+.ml-sec {
+  padding: 14px 0;
   display: flex;
-  align-items: center;
-  gap: 7px;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  color: var(--color-text-secondary);
-  white-space: nowrap;
+  flex-direction: column;
+  min-width: 0;
 }
-.ml-panel-icon {
-  font-size: 12px;
-  color: var(--gaea-glow);
-  display: inline-flex;
-}
-.ml-panel-title {
-  overflow: hidden;
-  text-overflow: ellipsis;
+.ml-sec + .ml-sec {
+  border-top: 1px solid color-mix(in srgb, var(--color-border) 72%, transparent);
 }
 .ml-panel-body {
   display: flex;
@@ -840,8 +949,8 @@
   min-width: 0;
 }
 .ml-ring {
-  width: 58px;
-  height: 58px;
+  width: 54px;
+  height: 54px;
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -849,8 +958,8 @@
   flex-shrink: 0;
 }
 .ml-ring-hole {
-  width: 46px;
-  height: 46px;
+  width: 43px;
+  height: 43px;
   border-radius: 50%;
   background: var(--color-surface-container);
   display: flex;
@@ -860,7 +969,7 @@
 .ml-ring-num {
   font-family: var(--font-mono, ui-monospace, 'Cascadia Mono', 'Consolas', monospace);
   font-variant-numeric: tabular-nums;
-  font-size: 12.5px;
+  font-size: 12px;
   font-weight: 700;
   color: var(--color-text);
 }
@@ -903,24 +1012,6 @@
   text-overflow: ellipsis;
 }
 
-/* ── 最近文档行（work 空间右舷：点击 → 办公，标题提示「在办公中打开」）──
-   复用 .ml-sess-item/.ml-sess-name/.ml-sess-meta 两行形态，仅加可点反馈 */
-.ml-recent-item {
-  cursor: pointer;
-  border-radius: 8px;
-  padding: 3px 6px;
-  margin: 0 -6px;
-  transition: background var(--md-sys-transition-fast, 200ms);
-}
-.ml-recent-item:hover,
-.ml-recent-item:focus-visible {
-  background: color-mix(in srgb, var(--gaea-glow) 8%, transparent);
-}
-.ml-recent-item:focus-visible {
-  outline: 2px solid var(--gaea-glow);
-  outline-offset: 1px;
-}
-
 /* ── 记忆脉搏 ── */
 .ml-memory {
   display: flex;
@@ -929,156 +1020,28 @@
   min-width: 0;
 }
 
-/* ════════════════════════════════════════════════════════════════
-   响应式
-   ════════════════════════════════════════════════════════════════ */
-@media (max-width: 1180px) {
-  /* 侧栏落到底部，面板双列铺开 */
-  .ml-dock { grid-template-columns: minmax(0, 1fr); }
-  .ml-side {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 12px;
-  }
-  .ml-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-  .ml-bento { grid-column: span 2; }
-  /* 旗舰卡降为单行后改横向排布：内容左缩进避开左上图标（图标底缘 ~60px） */
-  .ml-bento.ml-bento--featured {
-    grid-column: span 4;
-    grid-row: span 1;
-    min-height: 160px;
-    padding-left: 78px;
-  }
-  /* 宽瓦片降级（当前无调用方，规则保留）：span 回 2（4 列档），
-     形态同步还原纵向两行（图标/徽标/箭头行 + 名称/描述行），与兄弟瓦片一致 */
-  .ml-bento.ml-bento--wide {
-    grid-column: span 2;
-    grid-template-columns: auto minmax(0, 1fr) auto;
-    grid-template-areas:
-      'icon badge arrow'
-      'body body body';
-  }
-}
-
-@media (max-width: 900px) {
-  .ml-title { font-size: 23px; }
-}
-
-@media (max-width: 640px) {
-  .ml { padding: 12px 14px 18px; }
-  .ml-title { font-size: 21px; }
-  .ml-voice-btn-label { display: none; }
-  .ml-voice-btn { padding: 0 13px; }
-  .ml-cmdk { display: none; }
-  .ml-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .ml-bento { grid-column: span 1; min-height: 112px; }
-  .ml-bento.ml-bento--featured { grid-column: span 2; min-height: 136px; }
-  /* 宽瓦片再降为单瓦片跨度（2 列档；规则保留，当前无调用方）；
-     grid areas 沿用 ≤1180 两行纵向形态（单列宽度放不下横排一行） */
-  .ml-bento.ml-bento--wide { grid-column: span 1; }
-  .ml-featured-name { font-size: 17px; }
-  .ml-featured-desc { display: none; }
-  .ml-side { grid-template-columns: 1fr; }
-  .ml-hero-chat { max-height: 150px; }
-}
-
-@media (max-width: 480px) {
-  /* 单列档：旗舰/宽瓦片同回 span 1（11 卡纵排恒整除）；
-     宽瓦片 grid areas 沿用 ≤1180 两行纵向形态 */
-  .ml-grid { grid-template-columns: 1fr; }
-  .ml-bento.ml-bento--featured,
-  .ml-bento { grid-column: span 1; }
+/* 晨报卡融入右栏：去盒、hairline 分节对齐 */
+.ml-rail .mbc {
+  border: none;
+  border-top: 1px solid color-mix(in srgb, var(--color-border) 72%, transparent);
+  border-radius: 0;
+  background: transparent;
+  padding: 14px 0 6px;
 }
 
 /* ════════════════════════════════════════════════════════════════
-   键盘可达性：统一焦点环（与 v3 壳层约定一致，仅键盘可见）
+   首页顶栏：空间切换器 + 当前模型（两变体共用）
    ════════════════════════════════════════════════════════════════ */
-.ml-bento:focus-visible,
-.ml-bento.ml-bento--featured:focus-visible,
-.ml-voice-btn:focus-visible,
-.ml-command-send:focus-visible,
-.ml-interrupt-btn:focus-visible {
-  outline: 2px solid var(--gaea-glow);
-  outline-offset: 2px;
-}
-.ml-bento:focus-visible,
-.ml-bento.ml-bento--featured:focus-visible {
-  transform: translateY(-2px);
-  border-color: color-mix(in srgb, var(--gaea-glow) 42%, var(--color-border));
-}
-
-/* ════════════════════════════════════════════════════════════════
-   动效 keyframes + reduced-motion / gaea-raf-degraded 降级
-   ════════════════════════════════════════════════════════════════ */
-@keyframes ml-pulse {
-  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--md-sys-color-success, #34d399) 55%, transparent); }
-  70% { box-shadow: 0 0 0 7px transparent; }
-  100% { box-shadow: 0 0 0 0 transparent; }
-}
-@keyframes ml-ripple {
-  0% { transform: scale(1); opacity: 0.9; }
-  100% { transform: scale(2.1); opacity: 0; }
-}
-@keyframes ml-breathe {
-  0%, 100% { transform: scale(1); opacity: 1; }
-  50% { transform: scale(0.86); opacity: 0.82; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .ml-pill-dot,
-  .ml-command-orb-core,
-  .ml-command-orb-ring,
-  .ml-voice-status-dot { animation: none; opacity: 1; }
-  .ml-bento-arrow,
-  .ml-featured-arrow,
-  .ml-card-aurora,
-  .ml-meter-fill { transition: none; }
-  .ml-bento:hover .ml-bento-arrow,
-  .ml-bento:focus-visible .ml-bento-arrow,
-  .ml-bento.ml-bento--featured:hover .ml-featured-arrow { transform: none; }
-  .ml-voice-btn, .ml-command-send { transition: none; }
-}
-.ui-reduced-motion .ml-pill-dot,
-.ui-reduced-motion .ml-command-orb-core,
-.ui-reduced-motion .ml-command-orb-ring,
-.ui-reduced-motion .ml-voice-status-dot { animation: none; opacity: 1; }
-.ui-reduced-motion .ml-bento-arrow,
-.ui-reduced-motion .ml-featured-arrow,
-.ui-reduced-motion .ml-card-aurora,
-.ui-reduced-motion .ml-meter-fill { transition: none; }
-.ui-reduced-motion .ml-bento:hover .ml-bento-arrow,
-.ui-reduced-motion .ml-bento:focus-visible .ml-bento-arrow,
-.ui-reduced-motion .ml-bento.ml-bento--featured:hover .ml-featured-arrow { transform: none; }
-.ui-reduced-motion .ml-voice-btn,
-.ui-reduced-motion .ml-command-send { transition: none; }
-
-/* WebView2 rAF 节流降级：v3-rise 入场动画禁用后显式恢复可见态，
-   避免卡片停在 opacity:0（index.css 只处理了 .ml-card 的 animation） */
-html.gaea-raf-degraded .ml .v3-rise {
-  opacity: 1 !important;
-  transform: none !important;
-  animation: none !important;
-}
-html.gaea-raf-degraded .ml-pill-dot,
-html.gaea-raf-degraded .ml-command-orb-ring,
-html.gaea-raf-degraded .ml-command-orb-core,
-html.gaea-raf-degraded .ml-voice-status-dot { animation: none !important; opacity: 0.9; }
-
-/* ═══════════════════════════════════════════════════════════════
-   v4.182 双空间首页分版：顶栏切换器 + 书斋「文书台」+ 闲庭「游园画廊」
-   ——切换器从 rail 迁入首页顶栏；两空间各有版式（信息零删除，形态分化）。
-   令牌纪律不变：零硬编码色值，全部走 --md-sys-* / --gaea-* / --color-* / --v3-*。 */
-
-/* ── 首页顶栏：空间切换器 + 当前模型（两变体共用）── */
 .ml-topbar {
   display: flex;
   align-items: center;
   gap: 10px;
   width: 100%;
-  max-width: 1280px;
-  margin: 0 auto 12px;
+  max-width: 1320px;
+  margin: 0 auto 14px;
   min-height: 34px;
 }
+.ml-garden .ml-topbar { max-width: 1180px; }
 .ml-topbar-spacer { flex: 1; }
 .ml-space-switch {
   display: inline-flex;
@@ -1089,15 +1052,16 @@ html.gaea-raf-degraded .ml-voice-status-dot { animation: none !important; opacit
   border: 1px solid var(--color-border);
 }
 .ml-space-btn {
-  min-width: 64px;
+  min-width: 66px;
   height: 28px;
-  padding: 0 14px;
+  padding: 0 15px;
   border: none;
   border-radius: 9px;
   background: transparent;
   color: var(--color-text-secondary);
-  font-size: 13px;
-  letter-spacing: 0.12em;
+  font-size: 12.5px;
+  letter-spacing: 0.22em;
+  text-indent: 0.22em; /* 视觉居中补偿宽字距 */
   cursor: pointer;
   transition: background var(--md-sys-transition-fast, 200ms), color var(--md-sys-transition-fast, 200ms), box-shadow var(--md-sys-transition-fast, 200ms);
 }
@@ -1129,129 +1093,120 @@ html.gaea-raf-degraded .ml-voice-status-dot { animation: none !important; opacit
   text-overflow: ellipsis;
 }
 
-/* ── 书斋（work）：最近文档流水（主角面板）── */
-.ml-desk-docs {
-  width: 100%;
-  max-width: 1280px;
-  margin: 0 auto 18px;
-  border-radius: var(--v3-radius, 16px);
-  border: 1px solid var(--color-border);
-  background: var(--color-surface-container-low, var(--color-card));
-  padding: 12px 14px 10px;
-}
-.ml-desk-docs-head {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  margin-bottom: 8px;
-}
-.ml-desk-docs-icon { color: var(--gaea-glow); font-size: 13px; }
-.ml-desk-docs-title { font-size: 13.5px; font-weight: 600; color: var(--color-text); }
-.ml-desk-docs-sub {
-  flex: 1;
-  min-width: 0;
-  font-size: 11px;
-  color: var(--color-text-secondary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.ml-docs-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-}
-.ml-docs-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 8px;
-  border-radius: 10px;
-  cursor: pointer;
-  transition: background var(--md-sys-transition-fast, 200ms);
-}
-.ml-docs-row + .ml-docs-row { border-top: 1px solid var(--color-border); }
-.ml-docs-row:hover { background: var(--color-surface-container-high); }
-.ml-docs-row:focus-visible { outline: 2px solid var(--gaea-glow); outline-offset: -2px; }
-.ml-docs-idx {
-  font-family: var(--font-mono, ui-monospace, monospace);
-  font-size: 11px;
-  color: var(--color-text-secondary);
-  width: 20px;
-  flex-shrink: 0;
-}
-.ml-docs-name {
-  font-size: 13px;
-  color: var(--color-text);
-  max-width: 34%;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  flex-shrink: 0;
-}
-.ml-docs-path {
-  flex: 1;
-  min-width: 0;
-  font-size: 11px;
-  color: var(--color-text-secondary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  direction: rtl;
-  text-align: left;
-}
-.ml-docs-arrow { color: var(--color-text-secondary); opacity: 0; transition: opacity var(--md-sys-transition-fast, 200ms); }
-.ml-docs-row:hover .ml-docs-arrow { opacity: 1; }
-.ml-desk-docs-empty {
-  padding: 14px 8px;
-  font-size: 12px;
-  color: var(--color-text-secondary);
-}
-
-/* ── 闲庭（play）：游园画廊（全幅、无右舷）── */
+/* ════════════════════════════════════════════════════════════════
+   闲庭（play）：游园画廊（全幅、无右栏）
+   ════════════════════════════════════════════════════════════════ */
 .ml-garden {
   max-width: 1180px;
   margin: 0 auto;
+  width: 100%;
 }
 .garden-hero {
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  margin-bottom: 20px;
+  gap: 18px;
+  margin-bottom: 24px;
 }
-.garden-hero-head { text-align: center; padding: 10px 0 2px; }
-.garden-hero-head .ml-title { font-size: clamp(26px, 3.2vw, 34px); }
-.garden-hero-head .ml-sub { margin-top: 6px; }
+.garden-hero-head {
+  text-align: center;
+  padding: 22px 0 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+/* 空间名小签：两侧渐隐短线（画廊签名） */
+.garden-hero-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.5em;
+  text-indent: 0.5em;
+  color: var(--md-sys-color-on-tertiary-container, var(--gaea-glow));
+  filter: drop-shadow(0 0 10px color-mix(in srgb, var(--md-sys-color-tertiary-container, var(--gaea-glow)) 30%, transparent));
+}
+.garden-hero-tag::before,
+.garden-hero-tag::after {
+  content: '';
+  width: 30px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--md-sys-color-tertiary-container, var(--gaea-glow)) 45%, transparent));
+}
+.garden-hero-tag::after {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--md-sys-color-tertiary-container, var(--gaea-glow)) 45%, transparent), transparent);
+}
+.garden-hero-head .ml-title {
+  font-size: clamp(30px, 3.6vw, 42px);
+  letter-spacing: 0.04em;
+  background: linear-gradient(115deg,
+    var(--color-text) 30%,
+    color-mix(in srgb, var(--md-sys-color-tertiary-container, var(--gaea-glow)) 55%, var(--color-text)) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.garden-hero-head .ml-sub {
+  margin-top: 0;
+  max-width: 56ch;
+  text-align: center;
+}
 
-/* 会客厅旗舰横幅：全宽渐变大卡 */
+/* 会客厅旗舰横幅：月洞门圆环母题 + 渐变大卡 */
 .garden-banner {
   position: relative;
   display: flex;
   align-items: center;
-  gap: 22px;
-  padding: 26px 30px;
-  border-radius: 22px;
+  gap: 26px;
+  padding: 30px 34px;
+  border-radius: 24px;
   overflow: hidden;
+  isolation: isolate;
   cursor: pointer;
-  border: 1px solid var(--color-border);
-  background: var(--color-surface-container-low, var(--color-card));
-  transition: transform var(--md-sys-transition-fast, 200ms), box-shadow var(--md-sys-transition-fast, 200ms);
+  border: 1px solid color-mix(in srgb, var(--md-sys-color-tertiary-container, var(--gaea-glow)) 22%, var(--color-border));
+  background:
+    radial-gradient(ellipse 80% 110% at 96% 50%, color-mix(in srgb, var(--md-sys-color-tertiary-container, var(--gaea-glow)) 20%, transparent), transparent 55%),
+    radial-gradient(ellipse 70% 90% at 0% 0%, color-mix(in srgb, var(--color-primary) 14%, transparent), transparent 60%),
+    var(--color-surface-container-low, var(--color-card));
+  transition: transform var(--md-sys-transition-fast, 200ms), box-shadow var(--md-sys-transition-fast, 200ms), border-color var(--md-sys-transition-fast, 200ms);
 }
-.garden-banner:hover { transform: translateY(-2px); box-shadow: var(--v3-glow-faint); }
+.garden-banner:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--md-sys-color-tertiary-container, var(--gaea-glow)) 40%, var(--color-border));
+  box-shadow: var(--v3-glow-soft);
+}
 .garden-banner:focus-visible { outline: 2px solid var(--gaea-glow); outline-offset: 2px; }
 .garden-banner .ml-card-aurora { opacity: 1.35; }
+/* 月洞门：右侧大圆环 + 光晕（被容器裁切出月洞意象） */
+.garden-banner-gate {
+  position: absolute;
+  right: -84px;
+  top: 50%;
+  width: 320px;
+  height: 320px;
+  transform: translateY(-50%);
+  border-radius: 50%;
+  border: 1.5px solid color-mix(in srgb, var(--md-sys-color-tertiary-container, var(--gaea-glow)) 34%, transparent);
+  box-shadow:
+    0 0 0 30px color-mix(in srgb, var(--md-sys-color-tertiary-container, var(--gaea-glow)) 7%, transparent),
+    inset 0 0 40px color-mix(in srgb, var(--md-sys-color-tertiary-container, var(--gaea-glow)) 10%, transparent);
+  pointer-events: none;
+  z-index: -1;
+}
 .garden-banner-icon {
-  width: 76px;
-  height: 76px;
-  border-radius: 22px;
+  width: 84px;
+  height: 84px;
+  border-radius: 999px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 34px;
-  color: var(--gaea-glow);
-  background: var(--color-primary-container);
+  font-size: 36px;
+  color: var(--md-sys-color-on-tertiary-container, var(--gaea-glow));
+  background:
+    radial-gradient(circle at 32% 28%, color-mix(in srgb, var(--md-sys-color-tertiary-container, var(--gaea-glow)) 34%, transparent), color-mix(in srgb, var(--md-sys-color-tertiary-container, var(--gaea-glow)) 12%, transparent));
+  border: 1px solid color-mix(in srgb, var(--md-sys-color-tertiary-container, var(--gaea-glow)) 36%, transparent);
+  box-shadow: 0 0 26px color-mix(in srgb, var(--md-sys-color-tertiary-container, var(--gaea-glow)) 22%, transparent);
   flex-shrink: 0;
 }
 .garden-banner-body { flex: 1; min-width: 0; }
@@ -1260,91 +1215,183 @@ html.gaea-raf-degraded .ml-voice-status-dot { animation: none !important; opacit
   padding: 2px 10px;
   border-radius: 999px;
   font-size: 10.5px;
-  letter-spacing: 0.18em;
-  color: var(--gaea-glow);
-  background: var(--color-primary-container);
-  margin-bottom: 8px;
+  letter-spacing: 0.28em;
+  text-indent: 0.28em;
+  color: var(--md-sys-color-on-tertiary-container, var(--gaea-glow));
+  background: color-mix(in srgb, var(--md-sys-color-tertiary-container, var(--gaea-glow)) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--md-sys-color-tertiary-container, var(--gaea-glow)) 26%, transparent);
+  margin-bottom: 10px;
 }
-.garden-banner-name { font-size: 24px; font-weight: 700; color: var(--color-text); }
-.garden-banner-desc { margin-top: 4px; font-size: 13px; color: var(--color-text-secondary); }
+.garden-banner-name { font-size: 26px; font-weight: 750; letter-spacing: -0.01em; color: var(--color-text); }
+.garden-banner-desc { margin-top: 5px; font-size: 13px; color: var(--color-text-secondary); }
 .garden-banner-cta {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  font-size: 13px;
-  color: var(--gaea-glow);
+  height: 36px;
+  padding: 0 18px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 650;
+  color: var(--md-sys-color-on-tertiary-container, var(--gaea-glow));
+  background: color-mix(in srgb, var(--md-sys-color-tertiary-container, var(--gaea-glow)) 18%, transparent);
+  border: 1px solid color-mix(in srgb, var(--md-sys-color-tertiary-container, var(--gaea-glow)) 32%, transparent);
+  white-space: nowrap;
   flex-shrink: 0;
+  transition: background var(--md-sys-transition-fast, 200ms), box-shadow var(--md-sys-transition-fast, 200ms);
+}
+.garden-banner:hover .garden-banner-cta {
+  background: color-mix(in srgb, var(--md-sys-color-tertiary-container, var(--gaea-glow)) 30%, transparent);
+  box-shadow: 0 0 18px color-mix(in srgb, var(--md-sys-color-tertiary-container, var(--gaea-glow)) 24%, transparent);
 }
 
-/* 画廊两列大卡 */
+/* 画廊两列海报大卡（竖版：圆徽记 + 大标题 + 描述 + 底部环形箭头） */
 .garden-gallery {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 18px;
-  margin-bottom: 20px;
+  gap: 20px;
+  margin-bottom: 24px;
 }
 .garden-card {
   position: relative;
   display: flex;
-  align-items: center;
-  gap: 18px;
-  padding: 24px 26px;
-  border-radius: 20px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 26px 28px 20px;
+  border-radius: 22px;
   overflow: hidden;
+  isolation: isolate;
   cursor: pointer;
+  min-height: 186px;
   border: 1px solid var(--color-border);
   background: var(--color-surface-container-low, var(--color-card));
-  transition: transform var(--md-sys-transition-fast, 200ms), box-shadow var(--md-sys-transition-fast, 200ms);
+  transition: transform var(--md-sys-transition-fast, 200ms), box-shadow var(--md-sys-transition-fast, 200ms), border-color var(--md-sys-transition-fast, 200ms);
 }
-.garden-card:hover { transform: translateY(-2px); box-shadow: var(--v3-glow-faint); }
+.garden-card:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--md-sys-color-tertiary-container, var(--gaea-glow)) 34%, var(--color-border));
+  box-shadow: var(--v3-glow-soft);
+}
 .garden-card:focus-visible { outline: 2px solid var(--gaea-glow); outline-offset: 2px; }
 .garden-card-icon {
-  width: 56px;
-  height: 56px;
-  border-radius: 16px;
+  width: 62px;
+  height: 62px;
+  border-radius: 999px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 26px;
-  color: var(--gaea-glow);
-  background: var(--color-primary-container);
+  font-size: 27px;
+  color: var(--md-sys-color-on-tertiary-container, var(--gaea-glow));
+  background:
+    radial-gradient(circle at 32% 28%, color-mix(in srgb, var(--md-sys-color-tertiary-container, var(--gaea-glow)) 30%, transparent), color-mix(in srgb, var(--md-sys-color-tertiary-container, var(--gaea-glow)) 10%, transparent));
+  border: 1px solid color-mix(in srgb, var(--md-sys-color-tertiary-container, var(--gaea-glow)) 30%, transparent);
   flex-shrink: 0;
+  transition: box-shadow var(--md-sys-transition-fast, 200ms), transform var(--md-sys-transition-fast, 200ms);
 }
-.garden-card-body { flex: 1; min-width: 0; }
-.garden-card-name { font-size: 18px; font-weight: 650; color: var(--color-text); }
-.garden-card-desc { margin-top: 4px; font-size: 12.5px; color: var(--color-text-secondary); }
-.garden-card-arrow { color: var(--color-text-secondary); flex-shrink: 0; }
+.garden-card:hover .garden-card-icon {
+  box-shadow: 0 0 22px color-mix(in srgb, var(--md-sys-color-tertiary-container, var(--gaea-glow)) 26%, transparent);
+  transform: scale(1.04);
+}
+.garden-card-name { font-size: 19px; font-weight: 700; letter-spacing: -0.01em; color: var(--color-text); }
+.garden-card-desc {
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--color-text-secondary);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.garden-card-foot {
+  margin-top: auto;
+  padding-top: 12px;
+  width: 100%;
+  display: flex;
+  justify-content: flex-end;
+  border-top: 1px solid color-mix(in srgb, var(--color-border) 72%, transparent);
+}
+.garden-card-go {
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  color: var(--md-sys-color-on-tertiary-container, var(--gaea-glow));
+  background: color-mix(in srgb, var(--md-sys-color-tertiary-container, var(--gaea-glow)) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--md-sys-color-tertiary-container, var(--gaea-glow)) 26%, transparent);
+  opacity: 0.6;
+  transform: translateX(-4px);
+  transition: opacity var(--md-sys-transition-fast, 200ms), transform var(--md-sys-transition-fast, 200ms), background var(--md-sys-transition-fast, 200ms);
+}
+.garden-card:hover .garden-card-go,
+.garden-card:focus-visible .garden-card-go {
+  opacity: 1;
+  transform: translateX(0);
+  background: color-mix(in srgb, var(--md-sys-color-tertiary-container, var(--gaea-glow)) 24%, transparent);
+}
+/* 行形态（设置等次级入口） */
 .garden-card--compact {
-  padding: 14px 18px;
-  border-radius: 14px;
-  gap: 12px;
-}
-.garden-card--compact .garden-card-icon { width: 36px; height: 36px; border-radius: 10px; font-size: 17px; }
-.garden-card--compact .garden-card-name { font-size: 13.5px; font-weight: 600; }
-
-/* 园底信息带：进度 / 继续话题 / 记忆 / 遥测细条（信息全保留，单行化） */
-.garden-foot {
-  display: grid;
-  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
-  gap: 14px;
-  align-items: stretch;
-}
-.garden-foot-card {
+  flex-direction: row;
+  align-items: center;
+  gap: 13px;
+  min-height: 0;
+  padding: 15px 20px;
   border-radius: 16px;
+}
+.garden-card--compact .garden-card-icon { width: 38px; height: 38px; font-size: 17px; }
+.garden-card--compact .garden-card-name { font-size: 14px; font-weight: 600; }
+.garden-card-arrow {
+  margin-left: auto;
+  color: var(--color-text-secondary);
+  flex-shrink: 0;
+  transition: color var(--md-sys-transition-fast, 200ms), transform var(--md-sys-transition-fast, 200ms);
+}
+.garden-card--compact:hover .garden-card-arrow { color: var(--gaea-glow); transform: translateX(2px); }
+
+/* 卡片 aurora 水印（hover 时浮现） */
+.ml-card-aurora {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 300ms ease;
+  background:
+    radial-gradient(ellipse 70% 60% at 85% -15%, color-mix(in srgb, var(--md-sys-color-tertiary-container, var(--gaea-glow)) 16%, transparent), transparent 60%),
+    radial-gradient(ellipse 65% 55% at 10% 115%, color-mix(in srgb, var(--color-primary) 12%, transparent), transparent 60%);
+}
+.garden-card:hover .ml-card-aurora,
+.garden-card:focus-visible .ml-card-aurora,
+.garden-banner .ml-card-aurora {
+  opacity: 1;
+}
+.desk-featured .ml-card-aurora { opacity: 1; }
+
+/* 园底单条信息带：进度 / 继续话题 / 记忆 / 遥测（hairline 分节） */
+.garden-foot { min-width: 0; }
+.garden-strip {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr) minmax(0, 5fr) minmax(0, 7fr);
+  border-radius: var(--radius-lg, 16px);
   border: 1px solid var(--color-border);
   background: var(--color-surface-container-low, var(--color-card));
-  padding: 14px 16px;
+  overflow: hidden;
+}
+.garden-strip-sec {
+  padding: 16px 20px;
   min-width: 0;
-}
-.garden-foot-wide { grid-column: span 1; }
-.garden-foot-head {
   display: flex;
-  align-items: center;
-  gap: 7px;
-  font-size: 12px;
-  color: var(--color-text-secondary);
-  margin-bottom: 8px;
+  flex-direction: column;
 }
+.garden-strip-sec + .garden-strip-sec {
+  border-left: 1px solid color-mix(in srgb, var(--color-border) 72%, transparent);
+}
+.garden-strip-sec .ml-panel-body { gap: 8px; }
+.garden-strip-sec .ml-meters { padding-left: 24px; }
+
 .garden-chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .garden-chip {
   display: inline-flex;
@@ -1370,10 +1417,167 @@ html.gaea-raf-degraded .ml-voice-status-dot { animation: none !important; opacit
   text-overflow: ellipsis;
 }
 .garden-chip-meta { font-size: 10.5px; color: var(--color-text-secondary); }
-.garden-meters { display: flex; flex-direction: column; gap: 6px; }
+
+/* ════════════════════════════════════════════════════════════════
+   响应式
+   ════════════════════════════════════════════════════════════════ */
+@media (max-width: 1180px) {
+  /* 书斋：右栏落到底部，分节双列铺开 */
+  .ml-dock { grid-template-columns: minmax(0, 1fr); }
+  .ml-rail {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 24px;
+    padding: 2px 18px;
+  }
+  .ml-rail .ml-sec + .ml-sec { border-top: none; }
+  .ml-rail .ml-sec:nth-child(n+3) { border-top: 1px solid color-mix(in srgb, var(--color-border) 72%, transparent); }
+  .ml-rail .ml-sec:nth-child(even) { border-left: 1px solid color-mix(in srgb, var(--color-border) 72%, transparent); padding-left: 20px; }
+  .ml-rail .ml-sec:nth-child(odd) { padding-right: 20px; }
+  .ml-rail .mbc { grid-column: 1 / -1; }
+  .desk-index-list { grid-template-columns: 1fr; }
+  .desk-index-list .desk-row:nth-child(-n+2) { border-top: 1px solid color-mix(in srgb, var(--color-border) 72%, transparent); }
+  .desk-index-list .desk-row:first-child { border-top: none; }
+}
 
 @media (max-width: 1100px) {
   .garden-gallery { grid-template-columns: 1fr; }
-  .garden-foot { grid-template-columns: 1fr; }
-  .garden-banner { flex-direction: column; align-items: flex-start; }
+  .garden-strip { grid-template-columns: 1fr 1fr; }
+  .garden-strip-sec + .garden-strip-sec { border-left: none; }
+  .garden-strip-sec:nth-child(even) { border-left: 1px solid color-mix(in srgb, var(--color-border) 72%, transparent); }
+  .garden-strip-sec:nth-child(n+3) { border-top: 1px solid color-mix(in srgb, var(--color-border) 72%, transparent); }
+  .garden-banner { flex-direction: column; align-items: flex-start; gap: 18px; }
+  .garden-banner-gate { right: -140px; opacity: 0.7; }
 }
+
+@media (max-width: 900px) {
+  .ml { padding: 14px 18px 22px; }
+  .ml-title { font-size: 25px; }
+  .desk-spine { display: none; }
+  .desk-featured { flex-wrap: wrap; }
+}
+
+@media (max-width: 640px) {
+  .ml { padding: 12px 14px 18px; }
+  .ml-title { font-size: 22px; }
+  .ml-voice-btn-label { display: none; }
+  .ml-voice-btn { padding: 0 13px; }
+  .ml-cmdk { display: none; }
+  .ml-docs-path { display: none; }
+  .ml-docs-name { max-width: 70%; }
+  .ml-rail { grid-template-columns: 1fr; }
+  .ml-rail .ml-sec:nth-child(even) { border-left: none; padding-left: 0; }
+  .ml-rail .ml-sec:nth-child(odd) { padding-right: 0; }
+  .ml-rail .ml-sec + .ml-sec,
+  .ml-rail .ml-sec:nth-child(n+2) { border-top: 1px solid color-mix(in srgb, var(--color-border) 72%, transparent); }
+  .ml-hero-chat { max-height: 150px; }
+  .desk-row-desc { display: none; }
+  .desk-featured-desc { white-space: normal; }
+  .desk-featured-enter { display: none; }
+  .garden-strip { grid-template-columns: 1fr; }
+  .garden-strip-sec:nth-child(even) { border-left: none; }
+  .garden-strip-sec + .garden-strip-sec { border-top: 1px solid color-mix(in srgb, var(--color-border) 72%, transparent); }
+  .garden-card { min-height: 0; padding: 20px 20px 16px; }
+  .garden-card-desc { -webkit-line-clamp: 2; }
+  .garden-banner-name { font-size: 21px; }
+  .garden-hero-tag { letter-spacing: 0.3em; text-indent: 0.3em; }
+}
+
+@media (max-width: 480px) {
+  .garden-banner { padding: 22px 20px; }
+  .garden-banner-icon { width: 64px; height: 64px; font-size: 28px; }
+  .desk-featured { padding: 16px 16px; }
+  .desk-featured-icon { width: 42px; height: 42px; font-size: 19px; }
+  .desk-featured-name { font-size: 17px; }
+}
+
+/* ════════════════════════════════════════════════════════════════
+   键盘可达性：统一焦点环（与 v3 壳层约定一致，仅键盘可见）
+   ════════════════════════════════════════════════════════════════ */
+.desk-featured:focus-visible,
+.desk-row:focus-visible,
+.ml-docs-row:focus-visible,
+.garden-banner:focus-visible,
+.garden-card:focus-visible,
+.ml-voice-btn:focus-visible,
+.ml-command-send:focus-visible,
+.ml-interrupt-btn:focus-visible {
+  outline: 2px solid var(--gaea-glow);
+  outline-offset: 2px;
+}
+.desk-featured:focus-visible,
+.desk-row:focus-visible {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--gaea-glow) 42%, var(--color-border));
+}
+
+/* ════════════════════════════════════════════════════════════════
+   动效 keyframes + reduced-motion / gaea-raf-degraded 降级
+   ════════════════════════════════════════════════════════════════ */
+@keyframes ml-pulse {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--md-sys-color-success, #34d399) 55%, transparent); }
+  70% { box-shadow: 0 0 0 7px transparent; }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+@keyframes ml-ripple {
+  0% { transform: scale(1); opacity: 0.9; }
+  100% { transform: scale(2.1); opacity: 0; }
+}
+@keyframes ml-breathe {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(0.86); opacity: 0.82; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ml-pill-dot,
+  .ml-command-orb-core,
+  .ml-command-orb-ring,
+  .ml-voice-status-dot { animation: none; opacity: 1; }
+  .desk-row-arrow,
+  .desk-featured-arrow,
+  .ml-docs-arrow,
+  .garden-card-go,
+  .garden-card-arrow,
+  .ml-card-aurora,
+  .ml-meter-fill { transition: none; }
+  .desk-row:hover .desk-row-arrow,
+  .desk-row:focus-visible .desk-row-arrow,
+  .desk-featured:hover .desk-featured-arrow,
+  .desk-featured:focus-visible .desk-featured-arrow,
+  .ml-docs-row:hover .ml-docs-arrow,
+  .garden-card:hover .garden-card-go,
+  .garden-card--compact:hover .garden-card-arrow { transform: none; }
+  .ml-voice-btn, .ml-command-send { transition: none; }
+  .garden-card-icon { transition: none; }
+}
+.ui-reduced-motion .ml-pill-dot,
+.ui-reduced-motion .ml-command-orb-core,
+.ui-reduced-motion .ml-command-orb-ring,
+.ui-reduced-motion .ml-voice-status-dot { animation: none; opacity: 1; }
+.ui-reduced-motion .desk-row-arrow,
+.ui-reduced-motion .desk-featured-arrow,
+.ui-reduced-motion .ml-docs-arrow,
+.ui-reduced-motion .garden-card-go,
+.ui-reduced-motion .garden-card-arrow,
+.ui-reduced-motion .ml-card-aurora,
+.ui-reduced-motion .ml-meter-fill { transition: none; }
+.ui-reduced-motion .desk-row:hover .desk-row-arrow,
+.ui-reduced-motion .desk-row:focus-visible .desk-row-arrow,
+.ui-reduced-motion .desk-featured:hover .desk-featured-arrow,
+.ui-reduced-motion .ml-docs-row:hover .ml-docs-arrow,
+.ui-reduced-motion .garden-card:hover .garden-card-go,
+.ui-reduced-motion .garden-card--compact:hover .garden-card-arrow { transform: none; }
+.ui-reduced-motion .ml-voice-btn,
+.ui-reduced-motion .ml-command-send { transition: none; }
+
+/* WebView2 rAF 节流降级：v3-rise 入场动画禁用后显式恢复可见态，
+   避免卡片停在 opacity:0（index.css 只处理了 .ml-card 的 animation） */
+html.gaea-raf-degraded .ml .v3-rise {
+  opacity: 1 !important;
+  transform: none !important;
+  animation: none !important;
+}
+html.gaea-raf-degraded .ml-pill-dot,
+html.gaea-raf-degraded .ml-command-orb-ring,
+html.gaea-raf-degraded .ml-command-orb-core,
+html.gaea-raf-degraded .ml-voice-status-dot { animation: none !important; opacity: 0.9; }

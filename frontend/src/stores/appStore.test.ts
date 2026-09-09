@@ -29,6 +29,17 @@ describe('getThemeTokens（3.0 设计系统 Wave 1 令牌契约）', () => {
     }
   })
 
+  it('M3 tertiary 暖伴侣色对存在且 container ≠ on（v4.183 闲庭母题契约）', () => {
+    for (const preset of PRESETS) {
+      for (const dark of [true, false]) {
+        const t = getThemeTokens(preset, dark)
+        expect(t.tertiaryContainer, `${preset}${dark ? 'D' : 'L'}.tertiaryContainer`).toMatch(HEX)
+        expect(t.onTertiaryContainer, `${preset}${dark ? 'D' : 'L'}.onTertiaryContainer`).toMatch(HEX)
+        expect(t.onTertiaryContainer).not.toBe(t.tertiaryContainer)
+      }
+    }
+  })
+
   it('明暗阴影/圆角/动效共享常量保持一致', () => {
     const dark = getThemeTokens('nightJade', true)
     const light = getThemeTokens('nightJade', false)
