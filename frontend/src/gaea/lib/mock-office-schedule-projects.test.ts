@@ -8,8 +8,14 @@
 // 走 bridge mock 单例（jsdom 无 window.go 即 mock），文件态经
 // window.__mockScheduleFile 钩子核验（与 store.sync.test.ts 同范式）。
 
-import { describe, expect, it } from "vitest";
-import { app } from "./bridge";
+import { describe, expect, it, beforeAll } from "vitest";
+import { app, waitMockReady } from "./bridge";
+
+// H6（P4 entry 懒加载）：mock 为异步 chunk，window.__mockScheduleFile 钩子
+// 在 chunk 加载后才赋值——先等 mock 就绪再取钩子（与 bridge.test.ts 同范式）。
+beforeAll(async () => {
+  await waitMockReady();
+});
 
 interface HookSummary {
   rel: string;

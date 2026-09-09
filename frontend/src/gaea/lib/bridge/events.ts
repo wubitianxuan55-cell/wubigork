@@ -2,8 +2,7 @@
 // onReady）：真实运行时走 window.runtime 通道，浏览器 dev 回退 mock 订阅流。
 import type { TaskView, UpdateProgress, WireEvent } from "../types";
 import { subscribeWailsEvent } from "../wailsEvents";
-import { realApp } from "./proxy";
-import { mockSubscribe, mockTaskSubscribe, updaterListeners } from "../mock";
+import { realApp, mockEventSharedSync, waitMockReady } from "./proxy";
 
 // Window 类型由 gaea 的 src/types/wails.d.ts 统一声明（go.app.App + runtime）。
 // gaeaW 在此不重复声明，避免覆盖 gaea 的 runtime（EventsOff）类型。
@@ -12,11 +11,22 @@ import { mockSubscribe, mockTaskSubscribe, updaterListeners } from "../mock";
 // 清理函数只摘除本监听者（v4.62.2）：此前用 EventsOff(channel) 全清——
 // SubagentThread 卸载时把主对话 store 的订阅连带炸掉，对话标签页实时输出
 // 全灭（轮询类面板正常），见 lib/wailsEvents.ts 的事故注记。
+// H6（entry 懒加载）：mock 事件回退面改走 proxy.ts 持有的 mock 独立 chunk
+// （不再静态 import "../mock"，避免 mock ~150-190KB 进入 entry）。chunk 就绪
+// 后 mockEventSharedSync() 恒非空 → 与旧实现完全同步等价；名义上的冷路径
+// （dev 首帧/测试时序竞态）等 chunk 就绪后补订，订阅不被丢失，功能等价。
 export function onEvent(cb: (e: WireEvent) => void): () => void {
   if (realApp() && typeof window !== "undefined" && window.runtime) {
     return subscribeWailsEvent(window.runtime, EVENT_CHANNEL, (payload) => cb(payload as WireEvent));
   }
-  return mockSubscribe(cb);
+  const shared = mockEventSharedSync();
+  if (shared) return shared.mockSubscribe(cb);
+  let off: (() => void) | null = null;
+  void waitMockReady().then(() => {
+    const s = mockEventSharedSync();
+    if (s) off = s.mockSubscribe(cb);
+  });
+  return () => { off?.(); };
 }
 
 // Must match desktop/app.go's eventChannel constant.
@@ -45,7 +55,16 @@ export function onSubagentText(cb: (e: SubagentTextEvent) => void): () => void {
       (payload) => cb(payload as SubagentTextEvent),
     );
   }
-  return mockSubscribe(cb as unknown as (e: WireEvent) => void);
+  const shared = mockEventSharedSync();
+  if (!shared) {
+    let off: (() => void) | null = null;
+    void waitMockReady().then(() => {
+      const s = mockEventSharedSync();
+      if (s) off = s.mockSubscribe(cb as unknown as (e: WireEvent) => void);
+    });
+    return () => { off?.(); };
+  }
+  return shared.mockSubscribe(cb as unknown as (e: WireEvent) => void);
 }
 
 
@@ -55,9 +74,21 @@ export function onUpdaterProgress(cb: (p: UpdateProgress) => void): () => void {
     window.runtime.EventsOn("updater:progress", (p) => cb(p as UpdateProgress));
     return () => window.runtime?.EventsOff?.("updater:progress");
   }
-  updaterListeners.add(cb);
+  const shared = mockEventSharedSync();
+  if (!shared) {
+    let off: (() => void) | null = null;
+    void waitMockReady().then(() => {
+      const s = mockEventSharedSync();
+      if (s) {
+        s.updaterListeners.add(cb);
+        off = () => s.updaterListeners.delete(cb);
+      }
+    });
+    return () => { off?.(); };
+  }
+  shared.updaterListeners.add(cb);
   return () => {
-    updaterListeners.delete(cb);
+    shared.updaterListeners.delete(cb);
   };
 }
 
@@ -76,7 +107,16 @@ export function onTaskEvent(cb: (t: TaskView) => void, space?: string): () => vo
     window.runtime.EventsOn("gaea-task", (payload) => handler(payload as TaskView));
     return () => window.runtime?.EventsOff?.("gaea-task");
   }
-  return mockTaskSubscribe(handler);
+  const shared = mockEventSharedSync();
+  if (!shared) {
+    let off: (() => void) | null = null;
+    void waitMockReady().then(() => {
+      const s = mockEventSharedSync();
+      if (s) off = s.mockTaskSubscribe(handler);
+    });
+    return () => { off?.(); };
+  }
+  return shared.mockTaskSubscribe(handler);
 }
 
 // onReady subscribes to the agent:ready event fired when boot.Build completes.

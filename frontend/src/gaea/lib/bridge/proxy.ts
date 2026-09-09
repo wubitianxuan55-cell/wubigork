@@ -4,7 +4,6 @@
 // realApp 为 events 模块共享的内部接缝（非入口公开面，bridge.ts 不 re-export）。
 import type { AppBindings } from "./appBindings";
 import { gaeaToGaea } from "./mappings";
-import { makeMockApp } from "../mock";
 import {
   isBindingAllowedInSpace,
   isSharedBinding,
@@ -38,10 +37,54 @@ export function realApp(): AppBindings | undefined {
   });
 }
 
+// ── H6（entry 懒加载）：dev mock 独立异步 chunk ──────────────────────────
+// mock 实现（约 150-190KB）不再静态导入 entry：模块顶层即触发 import()，Vite
+// 会把 mock 拆为独立 chunk 异步加载，首帧 entry 主解析不阻塞。真机（Wails，
+// window.go.app 存在）路径由 realApp() 恒命中，永不加载 mock chunk（预取有
+// 启动探测门控）；浏览器 dev 首个绑定调用发生在 UI 挂载之后，chunk 早已就绪
+// （同步 fast path）。首个调用过早的极端情形由冷路径兜底：resolveBinding 与
+// events.ts 订阅在 chunk 就绪前返回「等就绪再分发」的异步 thunk，功能等价。
+export type MockEventShared = Pick<
+  typeof import("../mock"),
+  "mockSubscribe" | "mockTaskSubscribe" | "updaterListeners"
+>;
+
 let mockSingleton: AppBindings | null = null;
-function getMock(): AppBindings {
-  if (!mockSingleton) mockSingleton = makeMockApp();
-  return mockSingleton;
+let mockEventShared: MockEventShared | null = null;
+let mockChunkPromise: Promise<typeof import("../mock")> | null = null;
+
+function startMockChunk(): Promise<typeof import("../mock")> {
+  if (!mockChunkPromise) {
+    mockChunkPromise = import("../mock").then((m) => {
+      mockSingleton = m.makeMockApp();
+      mockEventShared = {
+        mockSubscribe: m.mockSubscribe,
+        mockTaskSubscribe: m.mockTaskSubscribe,
+        updaterListeners: m.updaterListeners,
+      };
+      return m;
+    });
+  }
+  return mockChunkPromise;
+}
+
+// 启动探测门控：仅当此刻探测不到 live 绑定才预取。Wails 真机 window.go.app
+// 已注入 → 不触发加载（零额外开销）；浏览器 dev / vitest → 尽早拉取。
+if (
+  typeof window === "undefined" ||
+  !(window as unknown as { go?: { app?: unknown } }).go?.app
+) {
+  void startMockChunk();
+}
+
+/** 事件订阅的 mock 回退面（chunk 未就绪时为 null；events.ts 冷路径等就绪后取用）。 */
+export function mockEventSharedSync(): MockEventShared | null {
+  return mockEventShared;
+}
+
+/** 测试/调试用：mock chunk 就绪 Promise（真机调用 resolve 且不加载 mock）。 */
+export function waitMockReady(): Promise<unknown> {
+  return startMockChunk();
 }
 
 // ── 错误归一化层（T6-1.2 前端错误可见性）────────────────────────────
@@ -102,17 +145,33 @@ function logFrontendError(message: string): void {
 
 /** 解析单个绑定：按方法名路由到 live binding 或 dev mock（无空间门控的通用解析）。 */
 function resolveBinding(prop: string | symbol): unknown {
-  const target = realApp() ?? getMock();
   const key = (gaeaToGaea as Record<string, string>)[String(prop)] ?? String(prop);
-  const rec = target as unknown as Record<string, unknown>;
-  // 真实绑定按 Gaea 前缀查找；浏览器 mock 直接暴露同名字段，需回退。
-  const v = rec[key] ?? rec[String(prop)];
-  if (typeof v !== "function") return v;
-  const bound = (v as (...a: unknown[]) => unknown).bind(target);
-  // LogFrontendError 是错误上报通道自身，不套 invoke 归一化层，避免日志
-  // 通道故障时无限递归；其余方法统一走 invoke。
-  if (String(prop) === "LogFrontendError") return bound;
-  return (...args: unknown[]) => invoke(String(prop), bound, args);
+  const target = realApp() ?? mockSingleton;
+  if (target) {
+    const rec = target as unknown as Record<string, unknown>;
+    // 真实绑定按 Gaea 前缀查找；浏览器 mock 直接暴露同名字段，需回退。
+    const v = rec[key] ?? rec[String(prop)];
+    if (typeof v !== "function") return v;
+    const bound = (v as (...a: unknown[]) => unknown).bind(target);
+    // LogFrontendError 是错误上报通道自身，不套 invoke 归一化层，避免日志
+    // 通道故障时无限递归；其余方法统一走 invoke。
+    if (String(prop) === "LogFrontendError") return bound;
+    return (...args: unknown[]) => invoke(String(prop), bound, args);
+  }
+  // 冷路径（纯 dev/测试时序竞态：mock chunk 尚未就绪；真机不可达——realApp 恒命中）：
+  // 返回异步兜底 thunk，等 chunk 就绪后按同一路由分发，功能等价（仅首次微异步）。
+  // 注意：必须复用 mockSingleton（chunk 的 .then 在本 Promise resolve 前已赋值），
+  // 不能把模块命名空间当 app 用——否则拿到 makeMockApp 而非绑定方法。
+  return async (...args: unknown[]) => {
+    await startMockChunk();
+    if (!mockSingleton) return undefined;
+    const rec = mockSingleton as unknown as Record<string, unknown>;
+    const v = rec[key] ?? rec[String(prop)];
+    if (typeof v !== "function") return v;
+    const bound = (v as (...a: unknown[]) => unknown).bind(mockSingleton);
+    if (String(prop) === "LogFrontendError") return bound;
+    return invoke(String(prop), bound, args);
+  };
 }
 
 // app proxies each call to the live binding (or the dev mock only when truly

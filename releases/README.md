@@ -17,6 +17,7 @@
 
 <!-- V4_RECENT:start -->
 
+- [v4.176.0.md](./v4.176.0.md) — v4.176.0「瘦身 P4 结构刀2 + entry 懒加载（mock/office 拆分 + MemoryHubPage 全 tab lazy + mock 异步 chunk）」
 - [v4.175.0.md](./v4.175.0.md) — v4.175.0「瘦身 P4 结构刀1：三巨文件拆分（config.go/engine.go/store.ts，Go >50KB 2→0）」
 - [v4.174.0.md](./v4.174.0.md) — v4.174.0「瘦身 P3 版3终局：bridge 双轨退役收官（wailsjsCompat.ts shim 删除，生产零引用）」
 - [v4.173.0.md](./v4.173.0.md) — v4.173.0「瘦身 P3 版3：bridge 双轨退役批次二（chat/novel/settings 三族 22 文件迁 bridge + 元组契约修正）」

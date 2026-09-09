@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { app } from "./bridge";
 import { onTaskEvent } from "./bridge";
 import { mockTaskListeners } from "./mock/shared";
+import { waitMockReady } from "./bridge/proxy";
 
 // 安装假 Wails 门面：让 realApp() 命中 CoreB 板块，绕过 dev mock。
 // 返回门面对象供 vi.spyOn / 断言使用。
@@ -61,8 +62,11 @@ describe("bridge invoke 错误归一化", () => {
 
 // v4.5.1a 红线补课：onTaskEvent 订阅层空间过滤——传 "work" 时 play 任务事件
 // （payload.spaceId="play"）被丢弃，work/缺省 spaceId 事件照常放行。
+// H6 适配：mock 已独立为异步 chunk，onTaskEvent 的 mock 回退订阅需等
+// waitMockReady()（chunk 就绪）后同步注册，用例先 await 再断言。
 describe("onTaskEvent 空间过滤", () => {
-  it("work 订阅丢弃 play 任务事件、放行 work/缺省 spaceId 事件", () => {
+  it("work 订阅丢弃 play 任务事件、放行 work/缺省 spaceId 事件", async () => {
+    await waitMockReady();
     const got: string[] = [];
     const off = onTaskEvent((t) => got.push(t.id), "work");
     try {
@@ -89,7 +93,8 @@ describe("onTaskEvent 空间过滤", () => {
     expect(got).toEqual(["work-task", "legacy-task"]);
   });
 
-  it("不传 space 时不过滤（旧行为）", () => {
+  it("不传 space 时不过滤（旧行为）", async () => {
+    await waitMockReady();
     const got: string[] = [];
     const off = onTaskEvent((t) => got.push(t.id));
     try {

@@ -2,10 +2,17 @@
 // UI 契约：dry-run 命中出「指令」卡、点「执行」才真跑（回执内联）、未命中检索行为零变化。
 // 后端语义（宁漏勿误 / dry-run 零副作用 / 执行层一致性）由 Go TestGaeaRouteIntent* 覆盖；
 // 这里走真实 mock 层（mock/retrieval.ts 的 RouteIntent 演示规则与 internal/intent 同向）。
-import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";
+import { describe, expect, it, beforeEach, afterEach, beforeAll, vi } from "vitest";
 import { render, screen, fireEvent, act } from "@testing-library/react";
 import SearchModal from "./SearchModal";
 import { LocaleProvider } from "../gaea/lib/i18n";
+import { waitMockReady } from "../gaea/lib/bridge";
+
+// H6（P4 entry 懒加载）：mock 为异步 chunk，RouteIntent/UnifiedSearch 演示规则在
+// chunk 加载后才可用——先等 mock 就绪再渲染（否则断言打到空结果）。
+beforeAll(async () => {
+  await waitMockReady();
+});
 
 const wrap = (node: React.ReactNode) => <LocaleProvider>{node}</LocaleProvider>;
 

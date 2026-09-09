@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { Suspense, useEffect, useRef, useState } from "react";
 import {
   CloseOutlined,
   FileSearchOutlined,
@@ -15,17 +15,50 @@ import { app } from "../gaea/lib/bridge";
 import { SCOPE_OPTIONS, useSpaceScope } from "../gaea/lib/useSpaceScope";
 import { useComposerInsertStore, usePreviewStore } from "../gaea/lib/store";
 import type { GraphNode, MemoryHubOverview, SearchScope } from "../gaea/lib/types";
-import { KnowledgePanel } from "../gaea/components/KnowledgePanel";
-import { ProfileLibrary } from "../gaea/components/memoryhub/ProfileLibrary";
-import { OfficeMemoryLibrary } from "../gaea/components/memoryhub/OfficeMemoryLibrary";
-import { WhisperMemoryLibrary } from "../gaea/components/memoryhub/WhisperMemoryLibrary";
-import { GraphView } from "../gaea/components/memoryhub/GraphView";
-import { MaterialsLibrary } from "../gaea/components/memoryhub/MaterialsLibrary";
-import { DigitalLifeLibrary } from "../gaea/components/memoryhub/DigitalLifeLibrary";
-import { FilePreviewModal } from "../gaea/components/FilePreviewModal";
 import "../gaea/styles.css";
 import "../gaea/tailwind.css";
 import "../gaea/components/memoryhub/hub.css";
+
+// ── H2/H3/H4/H5（entry 懒加载）：页内各视图/面板全部 React.lazy ──────────
+// KnowledgePanel 链含 eager Markdown/katex/mermaid.core（~1.1MB），GraphView
+// 含 3d-force-graph/three.js（大头），其余库面板同样按需拆 chunk——Vite 会把
+// 每个动态 import 拆为独立 chunk，MemoryHubPage 主 chunk 显著变小，各 tab
+// 首次激活才拉取对应 chunk（默认 home tab 首次打开仍拉一次 GraphView，与
+// 现状等效，但 chunk 已分离、其它页面/入口不摊这份成本）。
+const KnowledgePanel = React.lazy(() =>
+  import("../gaea/components/KnowledgePanel").then((m) => ({ default: m.KnowledgePanel })),
+);
+const ProfileLibrary = React.lazy(() =>
+  import("../gaea/components/memoryhub/ProfileLibrary").then((m) => ({ default: m.ProfileLibrary })),
+);
+const OfficeMemoryLibrary = React.lazy(() =>
+  import("../gaea/components/memoryhub/OfficeMemoryLibrary").then((m) => ({ default: m.OfficeMemoryLibrary })),
+);
+const WhisperMemoryLibrary = React.lazy(() =>
+  import("../gaea/components/memoryhub/WhisperMemoryLibrary").then((m) => ({ default: m.WhisperMemoryLibrary })),
+);
+const GraphView = React.lazy(() =>
+  import("../gaea/components/memoryhub/GraphView").then((m) => ({ default: m.GraphView })),
+);
+const MaterialsLibrary = React.lazy(() =>
+  import("../gaea/components/memoryhub/MaterialsLibrary").then((m) => ({ default: m.MaterialsLibrary })),
+);
+const DigitalLifeLibrary = React.lazy(() =>
+  import("../gaea/components/memoryhub/DigitalLifeLibrary").then((m) => ({ default: m.DigitalLifeLibrary })),
+);
+const FilePreviewModal = React.lazy(() =>
+  import("../gaea/components/FilePreviewModal").then((m) => ({ default: m.FilePreviewModal })),
+);
+
+// lazy fallback：主区视图轻量骨架（不引入额外依赖，直接用 hub 既有空态样式）。
+function HubViewFallback() {
+  return (
+    <div className="hub-empty" role="status" aria-label="视图加载中">
+      <div className="hub-empty-icon" aria-hidden="true" style={{ fontSize: 18 }}>···</div>
+      <div className="hub-empty-title">视图加载中…</div>
+    </div>
+  );
+}
 
 type LibraryKey = "knowledge" | "profile" | "office" | "materials" | "whisper" | "graph" | "digitallife";
 
@@ -392,26 +425,28 @@ function MemoryHubPage() {
 
         {/* 中：主区视图（总览/图谱保持 GraphView 沉浸感；分类 = 各库列表） */}
         <main className="hub-main" aria-label="主区视图">
-          {active === "home" ? (
-            <GraphView variant="home" onSelect={handleGraphSelect} />
-          ) : active === "graph" ? (
-            <GraphView variant="page" onSelect={handleGraphSelect} />
-          ) : (
-            <div className="hub-library-zone">
-              <LocaleProvider>
-                {active === "knowledge" && (
-                  <div className="h-full">
-                    <KnowledgePanel variant="page" onClose={() => {}} />
-                  </div>
-                )}
-                {active === "profile" && <ProfileLibrary />}
-                {active === "office" && <OfficeMemoryLibrary />}
-                {active === "materials" && <MaterialsLibrary />}
-                {active === "whisper" && <WhisperMemoryLibrary />}
-                {active === "digitallife" && <DigitalLifeLibrary />}
-              </LocaleProvider>
-            </div>
-          )}
+          <Suspense fallback={<HubViewFallback />}>
+            {active === "home" ? (
+              <GraphView variant="home" onSelect={handleGraphSelect} />
+            ) : active === "graph" ? (
+              <GraphView variant="page" onSelect={handleGraphSelect} />
+            ) : (
+              <div className="hub-library-zone">
+                <LocaleProvider>
+                  {active === "knowledge" && (
+                    <div className="h-full">
+                      <KnowledgePanel variant="page" onClose={() => {}} />
+                    </div>
+                  )}
+                  {active === "profile" && <ProfileLibrary />}
+                  {active === "office" && <OfficeMemoryLibrary />}
+                  {active === "materials" && <MaterialsLibrary />}
+                  {active === "whisper" && <WhisperMemoryLibrary />}
+                  {active === "digitallife" && <DigitalLifeLibrary />}
+                </LocaleProvider>
+              </div>
+            )}
+          </Suspense>
         </main>
 
         {/* 右：详情 inspector（仅总览/图谱 tab 显示——它只联动图谱节点与检索命中；
@@ -522,8 +557,10 @@ function MemoryHubPage() {
         )}
       </div>
 
-      {/* 文件预览弹层：项目资料 / 检索命中共用 */}
-      <FilePreviewModal />
+      {/* 文件预览弹层：项目资料 / 检索命中共用（lazy：仅打开预览时拉取） */}
+      <Suspense fallback={null}>
+        <FilePreviewModal />
+      </Suspense>
     </div>
   );
 }

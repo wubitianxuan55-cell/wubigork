@@ -27,6 +27,7 @@ export {
   playApp,
   sharedApp,
   openExternal,
+  waitMockReady,
 } from "./bridge/proxy";
 export { initBridge } from "./bridge/http";
 export type {
