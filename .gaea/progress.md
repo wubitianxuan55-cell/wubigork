@@ -1,5 +1,17 @@
 # 任务进度
 
+## 最新发布：v4.174.0（2026-09-09）「瘦身 P3 版3终局：bridge 双轨退役收官（wailsjsCompat.ts shim 删除，全仓生产代码零引用）」
+
+- **里程碑**：全仓生产代码 wailsjsCompat import **清零**；LegacySurfaceNames 292→**184**（累计转正 108 方法）；spaceBindings 423。
+- **契约扩展批次三（四线共 42 方法）**：3a +18（VoiceBindings 9 + ImageBindings 2（GetTTSSpeakers/GetVoicePipelineConfig 实挂 ImageB）+ OfficeBindings 6 DataBackup* + Core 1 ListProjects）；3b +38（CharLibBindings 16 角色库族 + NovelBindings 22 章节/叙事状态/场景/项目角色族）；3c +3（QuickBrainstormBranches/CreateChapter 8 参/DeleteOutlineNode）；3d +4（SetActiveASR/TTSModel/SetChatVoiceModel + VoiceHealth）。
+- **业务迁移 8 线并发**：组1 语音族（useVoiceChat 8 方法 **VoicePushAudio Array→base64 对齐 Go []byte 契约** + VoiceSettingsPanel + ChatPage 5 直调——22/22）；组2 cast 族（CreatePage/ChapterEditor **删 App as unknown as cast 对象**——绑定再生成后 cast 编译期冗余，走 NovelB 门面具名——9/9）；组3 角色库（api/characterlib 18 方法——44/44）；组4 章节/小说角色（ChapterPage 4 + novel/api/character 9——7/7）；组5 收尾（useBindState + DataPanel 9）；CreatePage 收尾（7 处+3c——9/9）；终局 3d（useVoiceState 5 + VoiceHealth + ChatPanel 4 保留整体 try/catch——47/47）。
+- **主代理收尾**：ChatPage/ChapterPage.test 的 wailsjsCompat 别名引用改 bindingsBridge 直取；SettingsPage.test 死 vi.mock 改 bridge；**wailsjsCompat.ts shim 删除**。
+- **GetCharacters 同名裁定**：charlib.ts 已有与 Go NovelB 同签名（角色页 via bridge，项目角色 via NovelB），直接可用零重复。
+- **CharacterList 分类遗留裁定**：role 库族归 play 但 CharacterList=work（v4.48 微信触点先例）有意保留不追改。
+- **门禁**：vitest 2737/2737 首跑全绿（shim 删除后零回归）、tsc 0、eslint 0、drift PASS@602（零绑定）、locale 0 死、Go 回归绿、冒烟 200、SHA256=AD7C7CED1066F7BFF077B2416D41145BEE207619868D411F9A39FDF518737E2C。
+- **收官意义**：S2-3 兼容层退役，全部前端调用统一 gaea/lib/bridge 代理（?mock=1 dev mock 回退 + BridgeError 错误归一）；masterplan 轨道四「双轨」目标达成。
+- **后续**：P4（config.go 58.7/engine.go 55.2/store.ts 54.3 拆分、entry 懒加载、exe strip）；壳内真机池（rail 切换器/home 最近文档/.gsched）、审计刀D 真机取证不变。
+
 ## 最新发布：v4.173.0（2026-09-09）「瘦身 P3 版3：bridge 双轨退役批次二（chat/novel/settings 三族 22 文件迁 bridge + 元组契约修正）」
 
 - **六线并发**（1 契约扩展 + 1 契约修正 + 4 业务线，足迹互斥）+ 主代理收口；wailsjsCompat 引用 45→35、LegacySurfaceNames 276→247。
