@@ -187,3 +187,21 @@ createRoot(document.getElementById('root')!).render(
     </ErrorBoundary>
   </StrictMode>,
 )
+
+// ═══ 冷启动可交互打点（瘦身轨道五基线，零行为变化）═════════════════
+// 口径：index.html 解析（gaea:boot mark）→ React 挂载后第二个 rAF（壳层
+// 可交互近似）。真机基线经壳内 CDP 读 performance.getEntriesByName；
+// dev 控制台同步打印。不落 gaea.log（日志通道为 Error 级，避免污染错误信号）。
+;(function bootInteractive() {
+  if (typeof window === 'undefined' || !window.requestAnimationFrame) return
+  window.requestAnimationFrame(() => {
+    window.requestAnimationFrame(() => {
+      try {
+        performance.mark('gaea:interactive')
+        performance.measure('gaea:cold-boot', 'gaea:boot', 'gaea:interactive')
+        const m = performance.getEntriesByName('gaea:cold-boot').pop()
+        console.info(`[gaea:boot] interactive=${Math.round(m?.duration ?? 0)}ms`)
+      } catch { /* 忽略 */ }
+    })
+  })
+})()

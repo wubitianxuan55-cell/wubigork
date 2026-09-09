@@ -1,8 +1,17 @@
 # 任务进度
 
-> 本文件为**最近发布速览**：仅保留最近 7 条版本记录（v4.172.0 ~ v4.178.0）。
-> v4.170.0 及之前的完整历史磁带（90 条记录 + 历史期章节）已于 2026-09-09 瘦身归档至
+> 本文件为**最近发布速览**：仅保留最近 7 条版本记录（v4.173.0 ~ v4.179.0）。
+> v4.172.0 及之前的完整历史磁带（90 条记录 + 历史期章节）已于 2026-09-09 瘦身归档至
 > `docs/archive/progress-history-2026-09.md`；历史详情请读归档文件。
+
+## 最新发布：v4.179.0（2026-09-09）「瘦身清点刀：knip 死代码清除 + 依赖显式化 + 冷启动基线打点」
+
+- **knip 首扫三发现三处置**：①死文件 13 全删（App/AppBar/MobileSheet/SettingsMobile/SettingsUpdates/自制 Tooltip/PromptShelf/office 死链对/memoryhub 两件/typesGenerationCheck/m3-palette，全仓零 import 甄别含 scripts 层；连带清 zIndex.ts 过时注释）；②幽灵依赖 13 包显式化（jszip×8 处/katex/dayjs/unified/hast-util-sanitize/@lezer×8 共 20 处 import 靠传递依赖侥幸工作，按 lock 现版本钉死）；③顺带清死传递依赖 @codemirror/search@6.7.2（零引用）。三存疑依赖验活结案：gsap/docx-preview/unist-util-visit 全部在用保留。
+- **冷启动基线打点（轨道五先测量后优化）**：Go app.New 一条+Startup 七段（migrate/logging/engine/voice+weixin/charlib+stores/tts-kickoff/schedulers）+total 落长期日志——日常启动自动积累真机基线；前端 gaea:boot mark→两 rAF gaea:interactive measure（CDP 可读；有意不落 gaea.log 避免污染 Error 级日志通道）。
+- **初始化链审计结案**：TTS/价格/索引/模型刷新/预载/巡检全部已异步化，同步链只剩轻量磁盘活——懒初始化改造无需立项，轨道五收敛为真机采集（与壳内真机池同窗口）。
+- **门禁**：vitest 2738/2738（5 例并发 flaky 单独复跑全绿）、tsc 0、eslint 0、drift **PASS@602**（零绑定）、e-check OK、Go 116 包 0 FAIL、build strip+冒烟 200、SHA256=3FCB187F496AF2B1A89884D860F675D1E56A92B6B50AA932E0655A65521D320F。
+- **度量**：exe 46.16MB 持平（死文件本就不进 bundle，收益在仓库卫生与依赖正确性）；knip 复扫死文件/幽灵依赖双清零。
+- **欠账**：knip Unused exports 169 项挂下版（测试专用/预留面/真死三态甄别）；壳内真机池/审计刀D 真机取证不变。
 
 ## 最新发布：v4.178.0（2026-09-09）「造价·条目匹配键刀：定额编码贯通存储→导入→匹配→工具面→UI」
 
@@ -70,18 +79,9 @@
 - **门禁**：vitest **2737/2737 首跑全绿**（批次一曾 5 例连带失败本次零失败）、tsc 0、eslint 0、drift PASS@602（零绑定）、locale 0 死、Go 回归绿、冒烟 200、SHA256=C3DFA08F1A56C2389C2E4D5515A0E7F09D017B0DFB763DD0CDC459EBE66750CE。
 - **欠账=批次三**：语音族（useVoiceChat 8 直调+VoiceSettingsPanel，VoiceStart/VoiceStop/VoicePlaybackDone/VoiceCancelTTS/VoicePushAudio/VoiceSetPTTActive 6 方法转正+**直调同步 throw 语义重评**）、ChatPage 五直调（TTSSpeakBase64WithParams/TTSSpeakBase64/ChatTopicClear/ChatTopicExportMarkdown 后两者契约已转正可先迁）、WhisperClearSession/GetVoicePipelineConfig/GetTTSSpeakers 转正解锁 ChatPanel/VoiceSettingsPanel、DataPanel GaeaDataBackup×6、cast 族 CreatePage/ChapterEditor、角色库族 api/characterlib+novel/api/character、ChapterPage 四直调、useBindState、**wailsjsCompat.ts 退役+悬空注释清理**（api/engines.ts:362 等）。
 
-## 最新发布：v4.172.0（2026-09-09）「瘦身 P3 版3：bridge 双轨退役批次一（wailsjsCompat 首批 12 文件迁 bridge）」
+## 历史发布（v4.172.0 及之前，已归档）
 
-- **调研先行**（子代理）：39 个非测试文件三分类（2A 全命中零扩展 / 24B ≤3 缺失 / 13C 语音·角色库·cast 族暂缓）；权威「③ 不在 bridge」=drift.ts LegacySurfaceNames 292 项（扩 bridge 必经 _CheckAppBindingsCoversAll 编译期钉死+同步摘除）；排除项=api/engines.ts、api/image.ts 已走 `window.go?.app?.App ?? bridgeApp` 混合回退（迁移样板）、GitPanel 已用 bridge。
-- **线1 契约扩展 16 新方法**：CoreBindings+4（GetAppInfo/GetBoardManifests/GetFeatureModel(feature)/GetFeatureModelEnabled(feature)）/ModelBindings+3（SetFeatureModel 3 参/SetFeatureModelEnabled/GetActiveModel）/ImageBindings+1（StartLocalTTSService）/VoiceBindings+6（VoiceApplySettings+Whisper 读写族 5——**Go 侧实挂 VoiceB 非 MemoryB**，WhisperUpdateFact 3 参）/NovelBindings+1（NovelSearch 单参）/OfficeBindings+1（SaveSettings+mappings）；drift 摘除 16 名、spaceBindings +16 分类（9 shared+7 play）锁 315→331、mock 补齐（新建 mock/voice.ts+mock/novel.ts）。
-- **线2A 零依赖直迁**：PersonaPicker（CharacterList）/CharacterCard（WhisperAssistantSave——assistant.Assistant 结构直接满足 Partial 零断言）。
-- **线2B 10 文件 4 路并发**（足迹互斥）：CharacterMemoryModal/WhisperMemoryModal（as unknown as 类型适配）/manifests(+2 tests)/AboutPanel/useChatVoice（去 `?.`）/useFeatureModel/BindSection/useEngineState(+test)/novelSearchUtils/OfficePanel（gaeaApp.SaveSettings+Reload）。
-- **主代理收口=连带测试修复×2**：ChatPage/ChapterPage（C 类本体未迁）消费迁移过的 hook/util → 测试原 vi.mock 仅 wailsjsCompat 断言打空（首跑 5 例失败）→ 补 bridge vi.mock 与 wailsjsCompat mock **共享同一 vi.fn 引用**（bindingsBridge via vi.hoisted + Proxy 转发），22/22 转绿。
-- **坑=vi.mock 相对路径必须与真实 import 绝对解析一致**：src/pages/ 下 bridge 是 `'../gaea/lib/bridge'` 非 `'../../gaea/lib/bridge'`（错路径解析到不存在模块、vi.mock 静默不生效、断言 calls=0 且 tsc 不报——诊断文件实锤后修正）。
-- **门禁**：vitest 2737/2737（313 文件）、tsc/eslint 0、drift PASS@602（零绑定）、locale 0 死、Go 回归绿（零 Go 改动）、冒烟 200、SHA256=C9B020CE9B0257FDC21FE00D9C0417D0CCE4D47767BBE1BF2310B9AB1799AFE1。度量=wailsjsCompat 引用 57→45；LegacySurfaceNames 292→276。
-- **欠账**：批次二（api/settings.ts 一次扩 GetConfig/SaveConfig/GetActiveModel/SetImageBackend/Voice* 解锁 DataPanel/ChatPanel/VoiceSettingsPanel/OfficePanel 四面板、useChatTopics ChatTopic* 簇+**元组重构**、useChatStream ChatSend/ChatStreamPlain+mock 事件发射、NovelPage/NovelSettingPage/novel 面板族、ModuleLauncher/pages/chat/utils）+批次三（语音族 useVoiceChat/VoiceSettingsPanel/useVoiceState 依赖直调同步 throw 需重评、ChatPage 五直调、cast 族 CreatePage/ChapterEditor 需先入 AppBindings 类型、角色库族 api/characterlib+novel/api/character、ChapterPage 四直调、useBindState/DataPanel）+ 全部完成后 wailsjsCompat.ts 退役（shim 删除）；壳内真机池/审计刀D 不变。
-
-## 历史发布（v4.170.0 及之前，已归档）
+- **v4.172** 瘦身 P3 版3 批次一：wailsjsCompat 首批 12 文件迁 bridge（契约扩展 16 方法+2A/2B 迁移；LegacySurfaceNames 292→276）
 
 - **v4.170** 瘦身 P3 结构版1：巨文件首批 4 拆（App/bridge/types/GanttView，>50KB 9→5；逐字节/绑定零变更纪律）
 - **v4.169** 瘦身 P2 主干：双空间并列落地 + home 空间感知化 + 走查待证项收口

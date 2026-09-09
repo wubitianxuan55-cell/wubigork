@@ -262,6 +262,7 @@ func (c *core) emit(eventName string, data map[string]interface{}) {
 
 // New 创建 App 实例
 func New() *App {
+	t0 := time.Now()
 	cfg := config.Load()
 	c := &core{cfg: cfg, client: ai.NewClient(cfg)}
 	a := &App{core: c}
@@ -279,10 +280,22 @@ func New() *App {
 		weixinServers:   map[string]*weixin.Server{},
 	}
 	a.officeState = &officeState{core: c, app: a}
+	// 冷启动基线（瘦身轨道五）：构造链耗时（config.Load 磁盘 IO + prompt 引擎加载）。
+	slog.Info("app.New 完成", "cost", time.Since(t0).Round(time.Millisecond).String())
 	return a
 }
 func (a *App) Startup(ctx context.Context) {
 	a.ctx = ctx
+
+	// 冷启动基线打点（瘦身轨道五）：各阶段耗时落长期日志，真机数据随日常
+	// 启动自然积累；零行为变化，仅观测。
+	stageAt := time.Now()
+	startupBegin := stageAt
+	var stages []string
+	stage := func(name string) {
+		stages = append(stages, name+"="+time.Since(stageAt).Round(time.Millisecond).String())
+		stageAt = time.Now()
+	}
 
 	// 图像域登记运行态武装（image_domain.go）：仅真实 App 生命周期置位，
 	// 测试进程不调用 Startup，登记永不落盘。
@@ -306,6 +319,7 @@ func (a *App) Startup(ctx context.Context) {
 
 	// P4-3 数据可迁移：应用待恢复数据（恢复前先备份当前数据；必须在打开任何数据库/日志前执行）
 	a.applyPendingRestore()
+	stage("migrate")
 
 	// 长期日志机制（v4.163）：按日分文件 <DataRoot>/logs/gaea-YYYYMMDD.log，
 	// 启动清理过期（保留 365 天）+ 总量兜底 + 一次性迁移旧 whisper_data/gaea.log；
@@ -316,6 +330,7 @@ func (a *App) Startup(ctx context.Context) {
 	} else {
 		fmt.Fprintf(os.Stderr, "[gaea] 日志初始化失败: %v\n", err)
 	}
+	stage("logging")
 	// 创建 AI client（仅此一次；token 由 GetToken 懒加载）
 	a.client = ai.NewClient(a.cfg)
 
@@ -372,6 +387,7 @@ func (a *App) Startup(ctx context.Context) {
 	}
 	a.configureClient()
 	a.initImageBackend()
+	stage("engine")
 
 	// 恢复模型中心语音模型选择（持久化自 ~/.gaea_config.json）
 	a.activeASREngine = a.cfg.ActiveASREngine
@@ -387,6 +403,7 @@ func (a *App) Startup(ctx context.Context) {
 
 	a.initVoice()
 	a.initWeixin()
+	stage("voice+weixin")
 
 	// 全局角色库：内置人格 + 助手全部种子化为统一角色
 	a.charLib = characterlib.NewStore(filepath.Join(a.whisperDataRoot, "characterlib"))
@@ -424,9 +441,11 @@ func (a *App) Startup(ctx context.Context) {
 	a.chatStore = chat.NewStore(filepath.Join(a.whisperDataRoot, "chat"))
 	a.initBrain()
 	a.initModules()
+	stage("charlib+stores")
 
 	// 本地 TTS 服务保活：模型中心内置 CosyVoice2，gaea 启动即自动拉起（幂等，已就绪零开销）
 	a.ensureLocalTTSService("cosyvoice")
+	stage("tts-kickoff")
 
 	// 阶段 5 T5-1：通用任务调度器（价格抓取/文件索引等长任务统一异步化）。
 	a.startTaskScheduler()
@@ -444,6 +463,11 @@ func (a *App) Startup(ctx context.Context) {
 	a.startFileIndexCron()
 	// 阶段 5 T5-2：工作区实时文件监听（fsnotify 增量索引，秒级可搜）。
 	a.startFileWatch()
+	stage("schedulers")
+
+	slog.Info("startup 阶段耗时（冷启动基线，总=Synchronous Startup 链；模型刷新/预载/巡检为异步不计）",
+		"total", time.Since(startupBegin).Round(time.Millisecond).String(),
+		"stages", strings.Join(stages, " "))
 
 	// 后台刷新所有引擎模型列表
 	for _, eid := range []string{"xai", "herdsman", "ollama", "deepseek"} {

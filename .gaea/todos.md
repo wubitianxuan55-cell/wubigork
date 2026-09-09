@@ -1,6 +1,6 @@
 # 任务进度
 
-> 最后更新: 2026-09-09（v4.178.0 造价·条目匹配键刀落地：§缺口1 编码主链贯通；e-check 三处陈旧守卫修复。本表只留**仍开放**项；已完成历史见 .gaea/AGENTS.md 版本速览与 progress.md）
+> 最后更新: 2026-09-09（v4.179.0 瘦身清点刀落地：knip 死文件 13 全删+幽灵依赖 13 包显式化+冷启动基线打点+初始化链审计结案。本表只留**仍开放**项；已完成历史见 .gaea/AGENTS.md 版本速览与 progress.md）
 
 ## 当前开放（按域）
 
@@ -49,10 +49,10 @@
 | ✅ | P4 结构刀2 + entry 懒加载（v4.176.0）：mock/office.ts 51.2→1.1KB 入口（6 文件）+ MemoryHubPage 8 组件全 tab React.lazy（1402.5→15.95KB 页壳）+ mock 异步 chunk（index 1149→967.23KB −182KB）；H6 连带测试时序修复×2（waitMockReady） |
 | ✅ | P4 懒加载三刀收官（v4.177.0）：mermaid 动态化 H1（全仓静态 import 清零）+ locales 按需 H7（zh 静态+en/zh-TW 动态，zh 兜底回退链）+ SearchModal lazy H8；**entry 1193→755.48KB（−37%）**；exe strip build.bat 固化（-ldflags -s -w -trimpath） |
 | ✅ | **P4 性能和结构刀全部收官**（v4.171-v4.177）：Go >50KB 0；entry −37%；MemoryHubPage 页壳 15.95KB；mock/office 1.1KB；wailsjsCompat 退役；bridge 双轨达成；office 抽核 |
-| 🔄 | 壳内真机池：rail 切换器/dock/knowledge 残留/home 最近文档空态 已销账（2026-09-09 v4.177.0 CDP 走查，p2-dualspace §6+webview2-shell-audit §6b）；剩 .gsched「基线 N」chips 布局+最近文档 localStorage 写路径（待协作/闲置时间窗） |
+| ✅ | 瘦身清点刀（v4.179.0）：knip 死文件 13 全删（全仓零 import 甄别）+ 幽灵依赖 13 包显式化（jszip/katex/dayjs/unified/hast-util-sanitize/@lezer×8，20 处 import 幽灵引用）+ 死传递依赖 @codemirror/search 清除 + 三存疑依赖验活结案（gsap/docx-preview/unist-util-visit 在用保留）+ 冷启动基线打点（Go New+Startup 七段落长期日志+前端 gaea:boot→gaea:interactive CDP 口径）+ 初始化链审计结案（重活均已异步，懒初始化无需立项） |
+| 🔄 | 壳内真机池：rail 切换器/dock/knowledge 残留/home 最近文档空态 已销账（2026-09-09 v4.177.0 CDP 走查，p2-dualspace §6+webview2-shell-audit §6b）；剩 .gsched「基线 N」chips 布局+最近文档 localStorage 写路径（待协作/闲置时间窗）；真机窗口顺带采集冷启动基线（gaea:interactive 口径 v4.179.0 已就绪） |
+| ⬜ | knip Unused exports 169 项下版甄别（测试专用/预留面/真死三态；可配「新导出须有消费方」防复发门禁） |
 | ⬜ | 观察池刀3（工作台内嵌办公）待评估——观察池审判归 P5 |
-| ⬜ | P3 版3 结构余项：Go 侧 config.go 58.7/engine.go 55.2 + frontend store.ts 54.3 二次拆分 + entry/页面级懒加载 |
-| ⬜ | P4 性能（1版）：懒初始化+exe strip+MemoryHub chunk+entry 拆解 |
 | ⬜ | P5 维持：季度复测+观察池审判（cost 文档化/虚拟滚动/内嵌） |
 
 ## 文档整理（2026-09-09）✅

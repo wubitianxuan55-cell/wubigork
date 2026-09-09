@@ -3,7 +3,7 @@
  *
  * 层级分配：
  *   0-49:    普通内容
- *   50-99:   Sticky 导航 (AppBar)
+ *   50-99:   Sticky 导航
  *   100-149: TabBar / FAB 浮动元素
  *   200-299: Sheet / Drawer 覆盖层
  *   300-399: 桌面端侧边栏控制台
@@ -15,7 +15,7 @@ export const Z_INDEX = {
   BASE: 0,
 
   /* ─── 导航层 (50-99) ─── */
-  /** AppBar sticky 顶栏 */
+  /** sticky 顶栏 */
   APP_BAR: 99,
 
   /* ─── 浮动元素层 (100-149) ─── */
@@ -27,9 +27,9 @@ export const Z_INDEX = {
   CONSOLE_BUTTON: 100,
 
   /* ─── 覆盖层 (200-299) ─── */
-  /** MobileSheet 蒙版 */
+  /** Sheet 蒙版 */
   SHEET_BACKDROP: 200,
-  /** MobileSheet 内容面板 */
+  /** Sheet 内容面板 */
   SHEET_CONTENT: 210,
 
   /* ─── 侧边栏 ─── */
