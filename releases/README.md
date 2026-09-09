@@ -17,6 +17,7 @@
 
 <!-- V4_RECENT:start -->
 
+- [v4.173.0.md](./v4.173.0.md) — v4.173.0「瘦身 P3 版3：bridge 双轨退役批次二（chat/novel/settings 三族 22 文件迁 bridge + 元组契约修正）」
 - [v4.172.0.md](./v4.172.0.md) — v4.172.0「瘦身 P3 版3：bridge 双轨退役批次一（wailsjsCompat 首批 12 文件迁 bridge，16 新方法入 AppBindings）」
 - [v4.171.0.md](./v4.171.0.md) — v4.171.0「瘦身 P3 结构版2：office 抽核 + 次批巨文件拆分（>50KB 首拆池 9→0）」
 - [v4.170.0.md](./v4.170.0.md) — v4.170.0「瘦身 P3 结构版1：巨文件首批 4 拆（App/bridge/types/GanttView，>50KB 9→5）」

@@ -6,7 +6,7 @@ import {
   MenuFoldOutlined, MenuUnfoldOutlined,
 } from '@ant-design/icons'
 import { C } from '../../../utils/theme'
-import * as App from '../../../../src/wailsjsCompat'
+import { app } from '../../../gaea/lib/bridge'
 
 interface Skill { name: string; description: string; appliesTo?: string[] }
 
@@ -45,8 +45,8 @@ const CreateInspector: React.FC<CreateInspectorProps> = ({
   useEffect(() => {
     (async () => {
       try {
-        const list = await App.ListSkills()
-        setSkills((list || []) as Skill[])
+        const list = await app.ListSkills()
+        setSkills(((list || []) as unknown) as Skill[])
       } catch {
         // 技能列表加载失败：右侧仅展示空技能提示，不阻塞创作
       }

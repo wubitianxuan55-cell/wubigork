@@ -1,5 +1,5 @@
 // ChatPage 拆分产物：纯工具函数（行为零变化，T6-10.1）
-import * as App from '../../wailsjsCompat'
+import { app } from '../../gaea/lib/bridge'
 import {
   STORAGE_KEY, LEGACY_STORAGE_KEY, WHISPER_TOPICS_KEY, LEGACY_WHISPER_TOPICS_KEY,
   PERSONALITY_KEY, LEGACY_PERSONALITY_KEY, COMPANION_SETTINGS_KEY, LEGACY_COMPANION_SETTINGS_KEY,
@@ -44,9 +44,11 @@ export function loadCompanionName(personalityLabel: string): string {
 
 // T6-3：前端错误统一上报 gaea.log（GaeaLogFrontendError，T6-1.2 通道）。
 // 日志通道自身异常时静默降级，绝不掩盖原始错误。
+// 批次二：wailsjsCompat 直调转正 → bridge 短名 LogFrontendError（mappings 映射
+// GaeaLogFrontendError，core.ts CoreBindings 已声明）。
 export function logFrontendError(message: string): void {
   try {
-    App.GaeaLogFrontendError?.(message)?.catch(() => {})
+    app.LogFrontendError?.(message)?.catch(() => {})
   } catch (_) {
     // 日志通道未注入（dev 等）时忽略
   }
@@ -78,7 +80,7 @@ export async function migrateLegacyTopics(): Promise<boolean> {
       .filter(m => m.role === 'user' || m.role === 'assistant')
       .map(m => ({ Role: m.role, Content: typeof m.content === 'string' ? m.content : '', Extra: '' }))
     try {
-      await App.ChatImportTopic(t.title, t.mode, msgs)
+      await app.ChatImportTopic(t.title, t.mode, msgs)
     } catch (err: unknown) {
       // T6-3.4：导入失败不再静默吞掉——记录日志；失败不写迁移标记
       // （下次启动可重试）。本次会话内仅尝试一次（initRef 守卫），不无限重试。

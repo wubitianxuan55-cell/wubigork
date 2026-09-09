@@ -20,4 +20,10 @@ export interface VoiceBindings {
   WhisperDeleteFact(personalityID: string, factID: string): Promise<void>;
   // WhisperUpdateFact 对既有事实做字段级部分更新（updates 只写给定键）。
   WhisperUpdateFact(personalityID: string, factID: string, updates: Record<string, unknown>): Promise<void>;
+  // ── 批次二 wailsjsCompat 双轨退役转正（Go VoiceB 门面，同名前缀）──
+  // VoiceGetSettings 读取语音设置快照（与 VoiceApplySettings patch 写配对）；
+  // VoiceChatText 把文本送入语音对话管线（Voice 域发消息入口，no-op 语义
+  // 由调用方结合事件流理解）。
+  VoiceGetSettings(): Promise<Record<string, unknown>>;
+  VoiceChatText(text: string): Promise<void>;
 }

@@ -286,4 +286,14 @@ export interface CoreBindings {
   ProgrammingWebLogTail(n?: number): Promise<ProgrammingWebLogTail>;
   // LogFrontendError 记录前端错误/主线程卡死诊断到 gaea.log。
   LogFrontendError(message: string): Promise<void>;
+  // ── 批次二 wailsjsCompat 双轨退役转正（Go CoreB 门面，同名前缀无需映射）──
+  // GetConfig/SaveConfig 会话/工作区全局配置读写（Record<string,string>）；
+  // GetStats 会话运行统计（NovelPage 消费）；ListSkills 技能清单
+  // （CreateInspector 消费）；ExportAll 全量导出（ExportPanel 消费，
+  // 只导出主线时传 onlyMainline=true，返回文件名 → 内容映射）。
+  GetConfig(): Promise<Record<string, string>>;
+  SaveConfig(key: string, value: string): Promise<void>;
+  GetStats(): Promise<Record<string, unknown>>;
+  ListSkills(): Promise<Array<Record<string, unknown>>>;
+  ExportAll(onlyMainline: boolean): Promise<Record<string, string>>;
 }

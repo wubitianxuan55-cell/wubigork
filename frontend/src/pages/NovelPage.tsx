@@ -10,7 +10,6 @@ import {
 import { useAppStore } from '../stores/appStore'
 import { useOutlineStore } from '../stores/outlineStore'
 import { sortNodes } from '../utils/outline'
-import * as App from '../../src/wailsjsCompat'
 import { app } from '../gaea/lib/bridge'
 import { PortraitImg } from '../components/characterlib/PortraitImg'
 import '../novel-workspace.css'
@@ -91,7 +90,7 @@ const NovelPage: React.FC = () => {
   useEffect(() => {
     if (!projectPath) { setStats(null); return }
     void loadOutlines()
-    App.GetStats().then((s) => {
+    app.GetStats().then((s) => {
       if (s && useAppStore.getState().projectPath === projectPath) {
         setStats(s as { totalWords: number; chapterCount: number })
       }

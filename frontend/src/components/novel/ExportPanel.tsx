@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import { Typography, Button, Space, Tag, Empty, Checkbox, message } from 'antd'
 import { FileTextOutlined, FileMarkdownOutlined, BookOutlined, FileWordOutlined } from '@ant-design/icons'
 import { C } from '../../utils/theme'
-import * as App from '../../../src/wailsjsCompat'
+import { app } from '../../gaea/lib/bridge'
 
 /**
  * 小说导出面板（原 ExportPage 内容，合并进阅读面板后复用）：
@@ -19,7 +19,7 @@ const ExportPanel: React.FC = () => {
     setExporting(true)
     setExported(false)
     try {
-      const res = await App.ExportAll(onlyMainline)
+      const res = await app.ExportAll(onlyMainline)
       const next = res || {}
       setResults(next)
       setExported(true)

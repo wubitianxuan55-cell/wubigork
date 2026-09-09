@@ -33,7 +33,7 @@ import { useVoiceChat } from '../hooks/useVoiceChat'
 import { useAppStore } from '../stores/appStore'
 import { usePollingGate } from '../hooks/usePollingGate'
 import { useT, type Translator } from '../gaea/lib/i18n'
-import * as App from '../../src/wailsjsCompat'
+import { app } from '../gaea/lib/bridge'
 import { getModelMonitor } from '../api/engines'
 import MorningBriefCard from '../gaea/components/MorningBriefCard'
 import './module-launcher.css'
@@ -342,7 +342,7 @@ const ModuleLauncher: React.FC<ModuleLauncherProps> = ({ onNavigate, activeModel
     let alive = true
     const load = async () => {
       try {
-        const list = await App.GaeaListSessions()
+        const list = await app.ListSessions()
         if (!alive) return
         const rows = (list || [])
           .filter((s) => !s.current)
@@ -361,7 +361,7 @@ const ModuleLauncher: React.FC<ModuleLauncherProps> = ({ onNavigate, activeModel
     let alive = true
     const load = async () => {
       try {
-        const o = await App.GaeaMemoryHubOverview()
+        const o = await app.MemoryHubOverview()
         if (alive) setMemoryHub(o as MemoryHubLite)
       } catch (_) { /* 静默 */ }
     }
@@ -380,7 +380,7 @@ const ModuleLauncher: React.FC<ModuleLauncherProps> = ({ onNavigate, activeModel
 
   const toggleVoice = useCallback(async () => {
     if (voice.active) { stop(); return }
-    try { await App.VoiceApplySettings?.({ personalityPresetId: 'gaea' }) } catch (_) {}
+    try { await app.VoiceApplySettings({ personalityPresetId: 'gaea' }) } catch (_) {}
     setUserText('')
     setAiReply('')
     await start()
@@ -394,7 +394,7 @@ const ModuleLauncher: React.FC<ModuleLauncherProps> = ({ onNavigate, activeModel
     setAiReply('')
     setTypedText('')
     try {
-      App.VoiceChatText(text).catch(() => {})
+      app.VoiceChatText(text).catch(() => {})
     } catch { /* 后端未就绪 */ }
   }, [typedText])
 

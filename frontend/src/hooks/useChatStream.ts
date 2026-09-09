@@ -4,7 +4,7 @@
 // 取消循环）原样搬入；外部仅注入消息更新回调与最终态回调。
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { EventsOn } from '../../wailsjs/runtime/runtime'
-import * as App from '../wailsjsCompat'
+import { app } from '../gaea/lib/bridge'
 import { STREAM_SILENCE_TIMEOUT_MS } from '../pages/chat/constants'
 import { nextMsgKey, nowStr } from '../pages/chat/utils'
 import type { ChatMsg } from '../pages/chat/types'
@@ -120,7 +120,7 @@ export function useChatStream(opts: UseChatStreamOptions) {
             updateMessage(am.key, { content: `请求超时：${STREAM_SILENCE_TIMEOUT_MS / 1000} 秒内未收到回复，请重试`, streaming: false, error: true })
             finish(false)
           }, STREAM_SILENCE_TIMEOUT_MS)
-          App.ChatStreamPlain(active, trimmed, search, thinking, force)
+          app.ChatStreamPlain(active, trimmed, search, thinking, force)
             .then((runID: string) => {
               // 订阅注册紧跟 runID 解析：同一微任务内完成，先订阅后收帧，首帧不丢
               unsub = EventsOn(`chat-stream:${runID}`, (payload: ChatStreamPayload) => {
@@ -170,7 +170,7 @@ export function useChatStream(opts: UseChatStreamOptions) {
 
     // 角色模式：整段返回 + 前端模拟打字流。
     try {
-      const res = await App.ChatSend(active, trimmed, mode, search, thinking, force)
+      const res = await app.ChatSend(active, trimmed, mode, search, thinking, force)
       const reply = typeof res?.reply === 'string' ? res.reply : ''
       const reasoning = typeof res?.reasoning === 'string' ? res.reasoning : ''
       const reduced = typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
@@ -190,13 +190,15 @@ export function useChatStream(opts: UseChatStreamOptions) {
       const extra: Record<string, unknown> = {}
       if (res.emotion) extra.emotion = res.emotion
       if (reasoning) extra.reasoning = reasoning
-      // v4.15：ChatSend 返回可选字段 answered_by（旧后端无此字段 → 静默跳过）
-      const ab = res.answered_by
+      // v4.15：ChatSend 返回可选字段 answered_by（旧后端无此字段 → 静默跳过）。
+      // bridge 契约为 Record<string, unknown>，局部收窄为可选 object 后再做型别判断
+      // （运行期行为与旧 Record<string, any> 一致：truthy + object + engine/model 均为 string）。
+      const ab = res.answered_by as { engine?: unknown; model?: unknown } | undefined
       if (ab && typeof ab === 'object' && typeof ab.engine === 'string' && typeof ab.model === 'string') {
         extra.answered_by = ab
       }
       updateMessage(am.key, { content: reply, streaming: false, reasoning, extra })
-      if (res.emotion) setEmotion(res.emotion)
+      if (res.emotion) setEmotion(res.emotion as string)
       if (typeof res.aff === 'number') setAff(Math.round(res.aff))
       if (typeof res.aro === 'number') setAro(Math.round(res.aro))
       await finalizeTopicAfterSend(active, trimmed)

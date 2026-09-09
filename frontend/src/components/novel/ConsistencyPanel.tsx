@@ -10,7 +10,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { Alert, Button, Empty, InputNumber, Spin, Tag } from 'antd'
 import { CheckCircleOutlined, CloseOutlined, ReloadOutlined, SafetyCertificateOutlined, ThunderboltOutlined } from '@ant-design/icons'
-import * as App from '../../../src/wailsjsCompat'
+import { app } from '../../gaea/lib/bridge'
 // 注意：用 i18n 模块的非响应式 t（根级 LocaleProvider 每次渲染同步 currentLocale
 // 镜像），而非 useT —— NovelSettingPage 测试直接渲染本组件且外层无 Provider，
 // useI18n 会抛错；非响应式 t 无 Provider 依赖，测试环境安全回退英文。
@@ -91,7 +91,7 @@ const ConsistencyPanel: React.FC<ConsistencyPanelProps> = ({ disabled }) => {
     }
     setLoading(true)
     try {
-      const res = await App.CheckConsistency()
+      const res = await app.CheckConsistency()
       if (token !== loadToken.current) return
       setReport(normalizeReport(res))
     } catch {
@@ -112,7 +112,7 @@ const ConsistencyPanel: React.FC<ConsistencyPanelProps> = ({ disabled }) => {
     setDeepError('')
     const maxChapters = clampDeepChapters(deepChapters)
     try {
-      const res = await App.CheckConsistencyDeep(maxChapters)
+      const res = await app.CheckConsistencyDeep(maxChapters)
       if (token !== loadToken.current) return
       const normalized = normalizeDeepResult(res)
       if (!normalized) {

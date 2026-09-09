@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { Button, Checkbox, Input, Modal, Tag, Typography, message } from 'antd'
-import * as App from '../../../../src/wailsjsCompat'
+import { app } from '../../../gaea/lib/bridge'
 import { associateToProject, syncProjectCharacters } from '../../../api/characterlib'
 
 // 新角色条目（可编辑名称 + 可选择）
@@ -81,7 +81,7 @@ const NewCharactersModal: React.FC = () => {
         setAdding(true)
         try {
           if (selected.length > 0) {
-            await App.SaveCharactersBatch(JSON.stringify(selected))
+            await app.SaveCharactersBatch(JSON.stringify(selected))
             message.success(`已添加 ${selected.length} 个新角色（含 AI 完整档案）`)
           }
           if (libSelected.length > 0) {

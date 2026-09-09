@@ -2,7 +2,7 @@
  * 阅读伴读 API（章节摘要 / 划线提问），只读当前章节本地文本，不写文件。
  * ask 支持多轮连续追问：history 非空时后端结合此前问答作答（空数组 = 单轮，兼容旧行为）。
  */
-import * as App from '../../../../src/wailsjsCompat'
+import { app } from '../../../gaea/lib/bridge'
 
 export type ReadingAssistantKind = 'summary' | 'ask'
 
@@ -23,5 +23,5 @@ export async function askReadingAssistant(
 ): Promise<string> {
   // 空历史发空串：后端解析失败/空串一律按单轮走，与旧签名行为完全兼容
   const historyJSON = history.length > 0 ? JSON.stringify(history) : ''
-  return App.NovelReadingAsk(kind, title, chapterText, selection, question, historyJSON)
+  return app.NovelReadingAsk(kind, title, chapterText, selection, question, historyJSON)
 }

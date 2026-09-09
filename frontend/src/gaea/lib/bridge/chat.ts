@@ -4,12 +4,28 @@ import type { app as AppModels, chat } from "../../../../wailsjs/go/models";
 
 export interface ChatBindings {
   // ── 对话 chat（T6-3 契约同步）────────────────────────────
-  // ChatTopicsList/ChatMessagesList Go 侧签名变为 ([]T, error)（T6-3.2 读错
-  // 返回 error），Wails 绑定后失败为 rejected promise；这里以 [T[], unknown]
-  // 元组形态标注「成功数据 + 失败错误」，调用点必须 try/catch，不能再 || [] 吞错。
-  ChatTopicsList(): Promise<[chat.Topic[], unknown]>;
-  ChatMessagesList(topicID: string): Promise<[chat.Message[], unknown]>;
+  // ChatTopicsList/ChatMessagesList Go 侧签名为 ([]T, error)：Wails 绑定成功
+  // 返回 T[]、失败为 rejected promise；历史曾有 [T[], unknown] 元组误标，
+  // 已修正为数组（调用点用 try/catch 防失败，不能 || [] 吞错）。
+  ChatTopicsList(): Promise<chat.Topic[]>;
+  ChatMessagesList(topicID: string): Promise<chat.Message[]>;
   // ChatAppendMessages 语音消息持久化（T6-3.3）：单事务批量追加，
   // role 仅接受 user/assistant（其余后端跳过）。
   ChatAppendMessages(topicID: string, messages: AppModels.ChatMessageInput[]): Promise<void>;
+  // ── 批次二 wailsjsCompat 双轨退役转正（Go ChatB 门面，同名前缀）──
+  // 对话板块话题管理 + 发送：ChatTopicCreate 新建话题（title/mode，mode 如
+  // "chat"/"novel" 等）；Delete/Rename/SetMode/Clear 话题生命周期操作；
+  // ChatImportTopic 批量导入消息建话题（返回 chat.Topic 形状 Record）；
+  // ChatSend 发送消息（mode + 搜索/思考/强搜开关，返回结构化结果）；
+  // ChatStreamPlain 无流式纯文本通道（返回最终文本）；
+  // ChatTopicExportMarkdown 导出话题为 Markdown 文本。
+  ChatTopicCreate(title: string, mode: string): Promise<{ id: string; title: string; mode: string; [k: string]: unknown }>;
+  ChatTopicDelete(id: string): Promise<void>;
+  ChatTopicRename(id: string, title: string): Promise<void>;
+  ChatTopicSetMode(id: string, mode: string): Promise<void>;
+  ChatImportTopic(title: string, mode: string, messages: Array<Record<string, unknown>>): Promise<Record<string, unknown>>;
+  ChatSend(topicID: string, message: string, mode: string, searchEnabled: boolean, thinking: boolean, forceSearch: boolean): Promise<Record<string, unknown>>;
+  ChatStreamPlain(topicID: string, message: string, searchEnabled: boolean, thinking: boolean, forceSearch: boolean): Promise<string>;
+  ChatTopicClear(id: string): Promise<void>;
+  ChatTopicExportMarkdown(topicID: string): Promise<string>;
 }

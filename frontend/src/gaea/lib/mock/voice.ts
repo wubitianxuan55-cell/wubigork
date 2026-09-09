@@ -11,6 +11,8 @@ type VoiceMethods = Pick<
   | "VoiceApplySettings"
   | "WhisperGetState" | "WhisperGetFacts" | "WhisperGetTraces"
   | "WhisperDeleteFact" | "WhisperUpdateFact"
+  // 批次二 legacy 直调转正（VoiceB 门面）：设置读 + 语音对话文本。
+  | "VoiceGetSettings" | "VoiceChatText"
 >;
 
 export function buildVoice(): VoiceMethods {
@@ -35,6 +37,14 @@ export function buildVoice(): VoiceMethods {
     },
     async WhisperUpdateFact(_personalityID: string, _factID: string, _updates: Record<string, unknown>) {
       // mock: no-op——同上，无事实可更新。
+    },
+    // ── 批次二 legacy 直调转正（Go VoiceB，同名前缀）────────────────
+    async VoiceGetSettings() {
+      // 未配置语音设置：空对象（消费方 ?? 兜底，不编造引擎/参数）。
+      return {};
+    },
+    async VoiceChatText(_text: string) {
+      // mock: no-op——浏览器开发无语音服务实例（真实实现把文本送入语音对话管线）。
     },
   };
 }

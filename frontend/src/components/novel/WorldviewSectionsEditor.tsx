@@ -8,7 +8,7 @@ import {
 } from 'antd'
 import { CaretRightOutlined, SaveOutlined, ReloadOutlined, AppstoreOutlined } from '@ant-design/icons'
 import { countTextChars } from '../../utils/text'
-import * as App from '../../../src/wailsjsCompat'
+import { app } from '../../gaea/lib/bridge'
 import type { WorldviewSectionData } from '../../types'
 
 /** 后端缺省 6 维度（对齐 internal/worldview GetSections 兜底） */
@@ -60,7 +60,7 @@ const WorldviewSectionsEditor: React.FC<WorldviewSectionsEditorProps> = ({ disab
     setLoading(true)
     setLoadError('')
     try {
-      const res = await App.GetWorldviewSections()
+      const res = await app.GetWorldviewSections()
       if (token !== loadToken.current) return
       const list = normalizeSections(res)
       setSections(list)
@@ -89,7 +89,7 @@ const WorldviewSectionsEditor: React.FC<WorldviewSectionsEditorProps> = ({ disab
   const handleSave = useCallback(async () => {
     setSaving(true)
     try {
-      await App.SaveAllWorldviewSections(JSON.stringify(sections))
+      await app.SaveAllWorldviewSections(JSON.stringify(sections))
       setSavedSnapshot(JSON.stringify(sections))
       setSavedAt(new Date().toLocaleTimeString())
       message.success('世界观维度已保存')

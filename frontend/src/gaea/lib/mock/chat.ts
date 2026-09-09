@@ -16,7 +16,14 @@ type ChatMethods = Pick<
   | "PinSession" | "ResumeSession" | "DeleteSession" | "RenameSession"
   | "SessionStats"
   | "ChatTopicsList" | "ChatMessagesList" | "ChatAppendMessages"
+  // 批次二 legacy 直调转正（ChatB 门面）：话题管理 + 发送 + 导出。
+  | "ChatTopicCreate" | "ChatTopicDelete" | "ChatTopicRename" | "ChatTopicSetMode"
+  | "ChatImportTopic" | "ChatSend" | "ChatStreamPlain"
+  | "ChatTopicClear" | "ChatTopicExportMarkdown"
 >;
+
+// 话题 mock 计数器（会话内自增 ID；真实实现 = 后端 chat 库自增主键）。
+let mockTopicSeq = 0;
 
 // 完整一轮「普通」对话模拟（demo 默认路径）：turn_started → reasoning 逐字
 // → 3 个工具（ls/write_file/edit_file）→ 正文逐字 → usage ×2 → turn_done。
@@ -299,17 +306,52 @@ export function buildChat(s: MakeMockState): ChatMethods {
       const s = sessions.find((x) => x.path === path);
       if (s) s.title = title.trim() || undefined;
     },
-    // ── 对话 chat（T6-3 契约同步：ChatTopicsList/ChatMessagesList 返回
-    // [数据, 错误] 元组形态；ChatAppendMessages 语音消息持久化 no-op）──
-    async ChatTopicsList(): Promise<[chat.Topic[], unknown]> {
-      return [[], null];
+    // ── 对话 chat（T6-3 契约同步：ChatTopicsList/ChatMessagesList 成功返回
+    // T[] 数组（失败 rejected promise）；ChatAppendMessages 语音消息持久化 no-op）──
+    async ChatTopicsList(): Promise<chat.Topic[]> {
+      return [];
     },
-    async ChatMessagesList(_topicID: string): Promise<[chat.Message[], unknown]> {
-      return [[], null];
+    async ChatMessagesList(_topicID: string): Promise<chat.Message[]> {
+      return [];
     },
     async ChatAppendMessages(_topicID: string, _messages: AppModels.ChatMessageInput[]) {
       // mock: 浏览器开发环境不落库（no-op）——无真实 whisper 库，语义与
       // Go 侧「未初始化聊天库时静默丢弃」一致。
+    },
+    // ── 批次二 legacy 直调转正（Go ChatB，同名前缀）────────────────
+    async ChatTopicCreate(title: string, mode: string) {
+      // 诚实最小样例：返回含 id/title/mode 的话题形状（chat.Topic 扁平视图）。
+      mockTopicSeq += 1;
+      return { id: `t-${mockTopicSeq}`, title, mode, updated_at: 0, preview: "" };
+    },
+    async ChatTopicDelete(_id: string) {
+      // mock: 无真实话题库可删（no-op）。
+    },
+    async ChatTopicRename(_id: string, _title: string) {
+      // mock: no-op（真实实现改名并刷新 updated_at）。
+    },
+    async ChatTopicSetMode(_id: string, _mode: string) {
+      // mock: no-op（真实实现切换话题模式并更新 updated_at）。
+    },
+    async ChatImportTopic(title: string, mode: string, messages: Array<Record<string, unknown>>) {
+      // 批量导入：返回话题形状（真实后端建库返回 chat.Topic）。
+      mockTopicSeq += 1;
+      return { id: `t-${mockTopicSeq}`, title, mode, messages: messages.length, updated_at: 0, preview: "" };
+    },
+    async ChatSend(_topicID: string, _message: string, _mode: string, _searchEnabled: boolean, _thinking: boolean, _forceSearch: boolean) {
+      // mock: 浏览器无对话内核，返回空结果（调用方对空值兜底渲染）。
+      return {};
+    },
+    async ChatStreamPlain(_topicID: string, _message: string, _searchEnabled: boolean, _thinking: boolean, _forceSearch: boolean) {
+      // mock: 纯文本通道返回空串（真实实现经流式聚合返回最终文本）。
+      return "";
+    },
+    async ChatTopicClear(_id: string) {
+      // mock: no-op（真实实现清空话题消息并保留话题）。
+    },
+    async ChatTopicExportMarkdown(_topicID: string) {
+      // mock 导出样例：固定 Markdown 骨架（真实实现 = 话题消息逐条渲染）。
+      return "# 对话导出\n\n（浏览器 dev mock：无真实话题内容可导出）";
     },
   };
 }

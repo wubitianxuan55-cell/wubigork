@@ -1,40 +1,53 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 
-// 屏蔽 Wails 绑定：jsdom 中没有 window.go
-vi.mock('../../src/wailsjsCompat', () => ({
-  GetWorldview: vi.fn().mockResolvedValue('# 世界观\n\n架空中世纪'),
-  SaveWorldview: vi.fn().mockResolvedValue(undefined),
-  ChatWorldview: vi.fn().mockResolvedValue({ reply: 'ok', worldview: '# 新设定' }),
-  GetWorldviewSections: vi.fn().mockResolvedValue({
-    sections: [
-      { id: 'era', title: '时代背景', content: '架空中世纪', order: 1 },
-      { id: 'geography', title: '地理风貌', content: '', order: 2 },
-      { id: 'factions', title: '势力格局', content: '', order: 3 },
-      { id: 'rules', title: '规则体系', content: '', order: 4 },
-      { id: 'culture', title: '文化习俗', content: '', order: 5 },
-      { id: 'history', title: '历史事件', content: '', order: 6 },
-    ],
-  }),
-  SaveAllWorldviewSections: vi.fn().mockResolvedValue(undefined),
-  GetForeshadows: vi.fn().mockResolvedValue({ items: [] }),
-  CheckConsistency: vi.fn().mockResolvedValue({ issues: [], total_issues: 0, summary: '✅ 未发现一致性问题' }),
-}))
+// 屏蔽 Wails 绑定：jsdom 中没有 window.go。页面及其子面板（WorldviewSectionsEditor/
+// ForeshadowPanel/ConsistencyPanel）经 gaea/lib/bridge 的 app 调用 NovelBindings。
+// 用 importOriginal 保留原模块、仅替换 app 的 Novel 域方法；未 mock 的方法
+// （SaveFileAs/PickFiles/ReadFileB64…）经 Proxy 在**每次属性访问时**回落真实代理
+// （保持「调用时解析」），壳内导入/导出用例（window.go stub + gaeaToGaea 路由）不受影响。
+vi.mock('../gaea/lib/bridge', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../gaea/lib/bridge')>()
+  const novelStubs = {
+    GetWorldview: vi.fn().mockResolvedValue('# 世界观\n\n架空中世纪'),
+    SaveWorldview: vi.fn().mockResolvedValue(undefined),
+    ChatWorldview: vi.fn().mockResolvedValue({ reply: 'ok', worldview: '# 新设定' }),
+    GetWorldviewSections: vi.fn().mockResolvedValue({
+      sections: [
+        { id: 'era', title: '时代背景', content: '架空中世纪', order: 1 },
+        { id: 'geography', title: '地理风貌', content: '', order: 2 },
+        { id: 'factions', title: '势力格局', content: '', order: 3 },
+        { id: 'rules', title: '规则体系', content: '', order: 4 },
+        { id: 'culture', title: '文化习俗', content: '', order: 5 },
+        { id: 'history', title: '历史事件', content: '', order: 6 },
+      ],
+    }),
+    SaveAllWorldviewSections: vi.fn().mockResolvedValue(undefined),
+    GetForeshadows: vi.fn().mockResolvedValue({ items: [] }),
+    CheckConsistency: vi.fn().mockResolvedValue({ issues: [], total_issues: 0, summary: '✅ 未发现一致性问题' }),
+  }
+  return {
+    ...actual,
+    app: new Proxy(novelStubs, {
+      get(target, prop) {
+        if (prop in target) return Reflect.get(target, prop)
+        return (actual.app as unknown as Record<string, unknown>)[String(prop)]
+      },
+    }),
+  }
+})
 
 import NovelSettingPage from './NovelSettingPage'
 import { useAppStore } from '../stores/appStore'
-import {
-  GetWorldview, SaveWorldview, ChatWorldview,
-  GetWorldviewSections, SaveAllWorldviewSections, GetForeshadows, CheckConsistency,
-} from '../../src/wailsjsCompat'
+import { app } from '../gaea/lib/bridge'
 
 describe('NovelSettingPage 纯文本设定编辑', () => {
   beforeEach(() => {
     useAppStore.setState({ projectOpen: true, projectPath: 'C:/novel/test' })
     vi.clearAllMocks()
-    vi.mocked(GetWorldview).mockResolvedValue('# 世界观\n\n架空中世纪')
-    vi.mocked(GetForeshadows).mockResolvedValue({ items: [] })
-    vi.mocked(CheckConsistency).mockResolvedValue({ issues: [], total_issues: 0, summary: '✅ 未发现一致性问题' })
+    vi.mocked(app.GetWorldview).mockResolvedValue('# 世界观\n\n架空中世纪')
+    vi.mocked(app.GetForeshadows).mockResolvedValue({ items: [] })
+    vi.mocked(app.CheckConsistency).mockResolvedValue({ issues: [], total_issues: 0, summary: '✅ 未发现一致性问题' })
   })
 
   it('加载已有设定并在编辑区显示', async () => {
@@ -50,7 +63,7 @@ describe('NovelSettingPage 纯文本设定编辑', () => {
     expect(screen.getByText('有未保存修改')).toBeTruthy()
 
     fireEvent.click(screen.getByRole('button', { name: /保存/ }))
-    expect(SaveWorldview).toHaveBeenCalledWith('蒸汽纪元')
+    expect(vi.mocked(app.SaveWorldview)).toHaveBeenCalledWith('蒸汽纪元')
   })
 
   it('切换到渲染模式直接渲染设定文本', async () => {
@@ -61,7 +74,7 @@ describe('NovelSettingPage 纯文本设定编辑', () => {
   })
 
   it('AI 回复未自动解析时，可手动点击「应用到设定」覆盖编辑器', async () => {
-    vi.mocked(ChatWorldview).mockResolvedValue({
+    vi.mocked(app.ChatWorldview).mockResolvedValue({
       reply: '这是新的设定：\n```markdown\n# 新世界观\n\n末日废土，蒸汽朋克\n```',
       worldview: '',
     })
@@ -92,8 +105,8 @@ describe('NovelSettingPage 维度化编辑器（v4.3e）', () => {
   beforeEach(() => {
     useAppStore.setState({ projectOpen: true, projectPath: 'C:/novel/test' })
     vi.clearAllMocks()
-    vi.mocked(GetWorldview).mockResolvedValue('# 世界观\n\n架空中世纪')
-    vi.mocked(GetWorldviewSections).mockResolvedValue({
+    vi.mocked(app.GetWorldview).mockResolvedValue('# 世界观\n\n架空中世纪')
+    vi.mocked(app.GetWorldviewSections).mockResolvedValue({
       sections: [
         { id: 'era', title: '时代背景', content: '架空中世纪', order: 1 },
         { id: 'geography', title: '地理风貌', content: '', order: 2 },
@@ -103,8 +116,8 @@ describe('NovelSettingPage 维度化编辑器（v4.3e）', () => {
         { id: 'history', title: '历史事件', content: '', order: 6 },
       ],
     })
-    vi.mocked(GetForeshadows).mockResolvedValue({ items: [] })
-    vi.mocked(CheckConsistency).mockResolvedValue({ issues: [], total_issues: 0, summary: '✅ 未发现一致性问题' })
+    vi.mocked(app.GetForeshadows).mockResolvedValue({ items: [] })
+    vi.mocked(app.CheckConsistency).mockResolvedValue({ issues: [], total_issues: 0, summary: '✅ 未发现一致性问题' })
   })
 
   it('切换到「维度化」显示 6 个维度卡片并可展开收起', async () => {
@@ -131,14 +144,14 @@ describe('NovelSettingPage 维度化编辑器（v4.3e）', () => {
     expect(screen.getByText('维度有未保存修改')).toBeTruthy()
 
     fireEvent.click(screen.getByRole('button', { name: /保存全部维度/ }))
-    await waitFor(() => expect(SaveAllWorldviewSections).toHaveBeenCalledTimes(1))
-    const payload = JSON.parse(vi.mocked(SaveAllWorldviewSections).mock.calls[0][0] as string) as Array<{ id: string; content: string }>
+    await waitFor(() => expect(vi.mocked(app.SaveAllWorldviewSections)).toHaveBeenCalledTimes(1))
+    const payload = JSON.parse(vi.mocked(app.SaveAllWorldviewSections).mock.calls[0][0] as string) as Array<{ id: string; content: string }>
     expect(payload).toHaveLength(6)
     expect(payload.find((s) => s.id === 'era')?.content).toBe('蒸汽纪元，机械飞升')
   })
 
   it('维度加载失败降级提示且不崩溃', async () => {
-    vi.mocked(GetWorldviewSections).mockRejectedValue(new Error('项目数据损坏'))
+    vi.mocked(app.GetWorldviewSections).mockRejectedValue(new Error('项目数据损坏'))
     render(<NovelSettingPage />)
     await screen.findByPlaceholderText(/在此撰写或粘贴小说设定/)
     fireEvent.click(screen.getByRole('radio', { name: /维度化/ }))
@@ -155,13 +168,13 @@ describe('NovelSettingPage 伏笔登记表面板（v4.3f）', () => {
   beforeEach(() => {
     useAppStore.setState({ projectOpen: true, projectPath: 'C:/novel/test' })
     vi.clearAllMocks()
-    vi.mocked(GetWorldview).mockResolvedValue('# 世界观\n\n架空中世纪')
-    vi.mocked(GetForeshadows).mockResolvedValue({ items: [] })
-    vi.mocked(CheckConsistency).mockResolvedValue({ issues: [], total_issues: 0, summary: '✅ 未发现一致性问题' })
+    vi.mocked(app.GetWorldview).mockResolvedValue('# 世界观\n\n架空中世纪')
+    vi.mocked(app.GetForeshadows).mockResolvedValue({ items: [] })
+    vi.mocked(app.CheckConsistency).mockResolvedValue({ issues: [], total_issues: 0, summary: '✅ 未发现一致性问题' })
   })
 
   it('展示伏笔列表：内容/章节/状态徽标 + 回收率统计', async () => {
-    vi.mocked(GetForeshadows).mockResolvedValue({
+    vi.mocked(app.GetForeshadows).mockResolvedValue({
       items: [
         { id: 'f1', category: 'character', description: '主角左臂的旧伤', planted_in: '001.md', status: 'planted', is_long_term: true },
         { id: 'f2', category: 'plot', description: '神秘铜匣', planted_in: '002.md', status: 'hinted', is_long_term: false },
@@ -191,13 +204,13 @@ describe('NovelSettingPage 一致性检查面板（v4.3f）', () => {
   beforeEach(() => {
     useAppStore.setState({ projectOpen: true, projectPath: 'C:/novel/test' })
     vi.clearAllMocks()
-    vi.mocked(GetWorldview).mockResolvedValue('# 世界观\n\n架空中世纪')
-    vi.mocked(GetForeshadows).mockResolvedValue({ items: [] })
-    vi.mocked(CheckConsistency).mockResolvedValue({ issues: [], total_issues: 0, summary: '✅ 未发现一致性问题' })
+    vi.mocked(app.GetWorldview).mockResolvedValue('# 世界观\n\n架空中世纪')
+    vi.mocked(app.GetForeshadows).mockResolvedValue({ items: [] })
+    vi.mocked(app.CheckConsistency).mockResolvedValue({ issues: [], total_issues: 0, summary: '✅ 未发现一致性问题' })
   })
 
   it('展示三类规则告警（严重度/描述）并可「重新检查」', async () => {
-    vi.mocked(CheckConsistency).mockResolvedValue({
+    vi.mocked(app.CheckConsistency).mockResolvedValue({
       total_issues: 2,
       summary: '发现 2 个问题（1 错误, 1 警告, 0 提示）',
       issues: [
@@ -217,7 +230,7 @@ describe('NovelSettingPage 一致性检查面板（v4.3f）', () => {
     expect(screen.getByText(/发现 2 个问题/)).toBeTruthy()
 
     fireEvent.click(screen.getByRole('button', { name: /重新检查/ }))
-    await waitFor(() => expect(CheckConsistency).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(vi.mocked(app.CheckConsistency)).toHaveBeenCalledTimes(2))
   })
 
   it('全部通过时显示成功空态', async () => {
@@ -254,9 +267,9 @@ describe('NovelSettingPage 导入/导出双门（审计刀B b）', () => {
   beforeEach(() => {
     useAppStore.setState({ projectOpen: true, projectPath: 'C:/novel/test' })
     vi.clearAllMocks()
-    vi.mocked(GetWorldview).mockResolvedValue('# 世界观\n\n架空中世纪')
-    vi.mocked(GetForeshadows).mockResolvedValue({ items: [] })
-    vi.mocked(CheckConsistency).mockResolvedValue({ issues: [], total_issues: 0, summary: '✅ 未发现一致性问题' })
+    vi.mocked(app.GetWorldview).mockResolvedValue('# 世界观\n\n架空中世纪')
+    vi.mocked(app.GetForeshadows).mockResolvedValue({ items: [] })
+    vi.mocked(app.CheckConsistency).mockResolvedValue({ issues: [], total_issues: 0, summary: '✅ 未发现一致性问题' })
   })
 
   afterEach(() => {

@@ -3,14 +3,21 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 
-// 屏蔽 Wails 绑定：jsdom 中没有 window.go
-vi.mock('../../../src/wailsjsCompat', () => ({
-  GetForeshadows: vi.fn().mockResolvedValue({ items: [] }),
-  SaveForeshadows: vi.fn().mockResolvedValue(undefined),
-}))
+// 屏蔽 Wails 绑定：jsdom 中没有 window.go。
+// 组件经 gaea/lib/bridge 的 app 调用 GetForeshadows / SaveForeshadows。
+vi.mock('../../gaea/lib/bridge', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../gaea/lib/bridge')>()
+  return {
+    ...actual,
+    app: {
+      GetForeshadows: vi.fn().mockResolvedValue({ items: [] }),
+      SaveForeshadows: vi.fn().mockResolvedValue(undefined),
+    },
+  }
+})
 
 import ForeshadowPanel from './ForeshadowPanel'
-import { GetForeshadows, SaveForeshadows } from '../../../src/wailsjsCompat'
+import { app } from '../../gaea/lib/bridge'
 import type { ForeshadowItemData } from '../../types'
 
 const EXISTING: ForeshadowItemData = {
@@ -25,8 +32,8 @@ const EXISTING: ForeshadowItemData = {
 describe('ForeshadowPanel 手工登记闭环', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    vi.mocked(GetForeshadows).mockResolvedValue({ items: [EXISTING] })
-    vi.mocked(SaveForeshadows).mockResolvedValue(undefined)
+    vi.mocked(app.GetForeshadows).mockResolvedValue({ items: [EXISTING] })
+    vi.mocked(app.SaveForeshadows).mockResolvedValue(undefined)
   })
 
   it('登记伏笔：提交后 SaveForeshadows 全量写回（保留既有条目 + manual_ 新条目），列表出现', async () => {
@@ -37,8 +44,8 @@ describe('ForeshadowPanel 手工登记闭环', () => {
     fireEvent.change(screen.getByPlaceholderText(/伏笔描述/), { target: { value: '神秘铜匣的钥匙' } })
     fireEvent.click(screen.getByRole('button', { name: /登记$/ }))
 
-    await waitFor(() => expect(SaveForeshadows).toHaveBeenCalledTimes(1))
-    const payload = JSON.parse(vi.mocked(SaveForeshadows).mock.calls[0][0] as string) as ForeshadowItemData[]
+    await waitFor(() => expect(vi.mocked(app.SaveForeshadows)).toHaveBeenCalledTimes(1))
+    const payload = JSON.parse(vi.mocked(app.SaveForeshadows).mock.calls[0][0] as string) as ForeshadowItemData[]
     expect(payload).toHaveLength(2)
     // 既有 AI 条目原样保留（全量写回不丢数据）
     expect(payload[0]).toEqual(EXISTING)
@@ -61,7 +68,7 @@ describe('ForeshadowPanel 手工登记闭环', () => {
     fireEvent.click(screen.getByRole('button', { name: /登记伏笔/ }))
     fireEvent.click(screen.getByRole('button', { name: /登记$/ }))
     expect(await screen.findByText('请填写伏笔描述')).toBeTruthy()
-    expect(SaveForeshadows).not.toHaveBeenCalled()
+    expect(vi.mocked(app.SaveForeshadows)).not.toHaveBeenCalled()
   })
 
   it('状态流转：标记暗示 → 乐观更新徽标并写回 hinted', async () => {
@@ -71,14 +78,14 @@ describe('ForeshadowPanel 手工登记闭环', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '标记暗示' }))
 
-    await waitFor(() => expect(SaveForeshadows).toHaveBeenCalledTimes(1))
-    const payload = JSON.parse(vi.mocked(SaveForeshadows).mock.calls[0][0] as string) as ForeshadowItemData[]
+    await waitFor(() => expect(vi.mocked(app.SaveForeshadows)).toHaveBeenCalledTimes(1))
+    const payload = JSON.parse(vi.mocked(app.SaveForeshadows).mock.calls[0][0] as string) as ForeshadowItemData[]
     expect(payload[0].status).toBe('hinted')
     expect(await screen.findByText('已暗示')).toBeTruthy()
   })
 
   it('保存失败：回滚列表并提示', async () => {
-    vi.mocked(SaveForeshadows).mockRejectedValueOnce(new Error('磁盘已满'))
+    vi.mocked(app.SaveForeshadows).mockRejectedValueOnce(new Error('磁盘已满'))
     render(<ForeshadowPanel />)
     await screen.findByText('主角左臂旧伤')
 
@@ -97,8 +104,8 @@ describe('ForeshadowPanel 手工登记闭环', () => {
     // antd Popconfirm 双字按钮会插空格（「删 除」）
     fireEvent.click(await screen.findByRole('button', { name: /^删\s*除$/ }))
 
-    await waitFor(() => expect(SaveForeshadows).toHaveBeenCalledTimes(1))
-    const payload = JSON.parse(vi.mocked(SaveForeshadows).mock.calls[0][0] as string) as ForeshadowItemData[]
+    await waitFor(() => expect(vi.mocked(app.SaveForeshadows)).toHaveBeenCalledTimes(1))
+    const payload = JSON.parse(vi.mocked(app.SaveForeshadows).mock.calls[0][0] as string) as ForeshadowItemData[]
     expect(payload).toEqual([])
     expect(await screen.findByText(/还没有伏笔登记/)).toBeTruthy()
   })

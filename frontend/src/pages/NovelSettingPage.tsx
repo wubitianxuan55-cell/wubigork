@@ -18,7 +18,7 @@ import ForeshadowPanel from '../components/novel/ForeshadowPanel'
 import ConsistencyPanel from '../components/novel/ConsistencyPanel'
 import { useAppStore } from '../stores/appStore'
 import { countTextChars, extractSettingText } from '../utils/text'
-import * as App from '../../src/wailsjsCompat'
+import { app } from '../gaea/lib/bridge'
 import { inShellEnv, pickFileAsFile } from '../gaea/lib/pickFile'
 import { saveExportBlob } from '../gaea/lib/saveFile'
 
@@ -48,7 +48,7 @@ const NovelSettingPage: React.FC = () => {
     }
     setLoading(true)
     try {
-      const text = await App.GetWorldview()
+      const text = await app.GetWorldview()
       if (token !== loadToken.current) return
       setContent(text || '')
       setSavedSnapshot(text || '')
@@ -74,7 +74,7 @@ const NovelSettingPage: React.FC = () => {
   const handleSave = useCallback(async () => {
     setSaving(true)
     try {
-      await App.SaveWorldview(content)
+      await app.SaveWorldview(content)
       setSavedSnapshot(content)
       setLastSavedAt(new Date().toLocaleTimeString())
       message.success('设定已保存')
@@ -137,8 +137,10 @@ const NovelSettingPage: React.FC = () => {
 
   const handleChatSend = async (userMsg: string): Promise<string> => {
     try {
-      const result = await App.ChatWorldview(userMsg, content)
-      const reply = result?.reply || ''
+      const result = await app.ChatWorldview(userMsg, content)
+      // ChatWorldview 返回结构化 Record（reply/worldview 均为未知字段）——
+      // reply 按 string 收窄取用，worldview 非空 string 时回填编辑器
+      const reply = typeof result?.reply === 'string' ? result.reply : ''
       // AI 返回更新后的设定文本，直接回填编辑器（不解析、不拆分）
       if (typeof result?.worldview === 'string' && result.worldview) {
         setContent(result.worldview)

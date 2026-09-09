@@ -9,7 +9,7 @@ import {
   Alert, Button, Checkbox, Empty, Input, InputNumber, message, Popconfirm, Select, Spin, Tag, Tooltip,
 } from 'antd'
 import { DeleteOutlined, EditOutlined, FlagOutlined, PlusOutlined, ReloadOutlined } from '@ant-design/icons'
-import * as App from '../../../src/wailsjsCompat'
+import { app } from '../../gaea/lib/bridge'
 import type { ForeshadowItemData, ForeshadowStatus } from '../../types'
 import {
   advanceForeshadowStatus,
@@ -64,7 +64,7 @@ const ForeshadowPanel: React.FC<ForeshadowPanelProps> = ({ disabled }) => {
     setLoading(true)
     setError('')
     try {
-      const res = await App.GetForeshadows()
+      const res = await app.GetForeshadows()
       if (token !== loadToken.current) return
       setItems(normalizeForeshadowItems(res))
     } catch (err: unknown) {
@@ -81,7 +81,7 @@ const ForeshadowPanel: React.FC<ForeshadowPanelProps> = ({ disabled }) => {
   const persist = useCallback(async (prev: ForeshadowItemData[], next: ForeshadowItemData[]) => {
     setItems(next)
     try {
-      await App.SaveForeshadows(JSON.stringify(next))
+      await app.SaveForeshadows(JSON.stringify(next))
       return true
     } catch (err: unknown) {
       setItems(prev)

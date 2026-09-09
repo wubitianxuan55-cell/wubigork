@@ -22,6 +22,8 @@ type CoreMethods = Pick<
   | "GetProgrammingWebPreflight" | "ProgrammingWebLogTail"
   // v4.171 批次一 legacy 直调转正（CoreB 门面）：应用信息/板块清单/功能级模型读。
   | "GetAppInfo" | "GetBoardManifests" | "GetFeatureModel" | "GetFeatureModelEnabled"
+  // 批次二 legacy 直调转正（CoreB 门面）：配置读写/统计/技能/全量导出。
+  | "GetConfig" | "SaveConfig" | "GetStats" | "ListSkills" | "ExportAll"
 >;
 
 export function buildCore(s: MakeMockState): CoreMethods {
@@ -493,6 +495,31 @@ export function buildCore(s: MakeMockState): CoreMethods {
     async GetFeatureModelEnabled(_feature: string) {
       // 功能级启停默认 false（对齐 Go 未配置返回 false；消费方 catch 兜底 true）。
       return false;
+    },
+    // ── 批次二 legacy 直调转正（Go CoreB，同名前缀）────────────────
+    async GetConfig() {
+      // 浏览器开发无可持久化配置：空 map（消费方 ?? 兜底，不编造键值）。
+      return {};
+    },
+    async SaveConfig(_key: string, _value: string) {
+      // mock：浏览器开发环境不落盘（no-op；真实实现写入 ~/.gaea_config.json）。
+    },
+    async GetStats() {
+      // 最小样例：会话运行统计（NovelPage 消费；字段形状按 Go map 直通）。
+      return { turns: 0, messages: 0, startedAt: 0 };
+    },
+    async ListSkills() {
+      // 技能清单样例（CreateInspector 消费；浏览器无真实技能注册 → 空数组
+      // 为诚实口径，给出单条样例便于面板走查）。
+      return [
+        { id: "research", name: "调研", description: "联网检索与资料整理" },
+        { id: "review", name: "复核", description: "结构/引用/视觉双通道复核" },
+      ];
+    },
+    async ExportAll(onlyMainline: boolean) {
+      // mock：无可导出内容 → 空映射（ExportPanel 对空结果渲染空态）。
+      void onlyMainline;
+      return {};
     },
     // 双空间（S4）：mock 会话内可切换（真实后端 Activate 只写配置，重启后生效）。
     async GaeaSpaceList() {

@@ -4,7 +4,7 @@
 // 仅把需要外部 state（messages/personalities）的地方改为注入回调。
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { message } from 'antd'
-import * as App from '../wailsjsCompat'
+import { app } from '../gaea/lib/bridge'
 import { sortByUpdatedAtDesc, autoTopicTitle } from '../utils/chatTopics'
 import { ACTIVE_TOPIC_KEY, PERSONALITY_KEY } from '../pages/chat/constants'
 import { toUpdatedAt, migrateLegacyTopics, logFrontendError, parseExtra } from '../pages/chat/utils'
@@ -44,7 +44,7 @@ export function useChatTopics({ setMessages, setPersonalities }: UseChatTopicsOp
     const seq = ++topicLoadSeqRef.current
     let ms: chat.Message[] = []
     try {
-      ms = (await App.ChatMessagesList(id)) || []
+      ms = (await app.ChatMessagesList(id)) || []
     } catch (err: unknown) {
       // T6-3.2：消息列表读取失败不再静默——记录后按空消息继续（不打断页面功能）
       logFrontendError('话题消息读取失败: ' + (err instanceof Error ? err.message : String(err)))
@@ -73,20 +73,20 @@ export function useChatTopics({ setMessages, setPersonalities }: UseChatTopicsOp
     ;(async () => {
       let list: chat.Topic[] = []
       const errText = (err: unknown) => err instanceof Error ? err.message : String(err)
-      try { list = (await App.ChatTopicsList()) || [] } catch (err: unknown) {
+      try { list = (await app.ChatTopicsList()) || [] } catch (err: unknown) {
         // T6-3.2：话题列表读取失败不再静默——记录后按空列表继续初始化
         logFrontendError('话题列表读取失败: ' + errText(err))
       }
       if (list.length === 0) {
         const imported = await migrateLegacyTopics()
-        try { list = (await App.ChatTopicsList()) || [] } catch (err: unknown) {
+        try { list = (await app.ChatTopicsList()) || [] } catch (err: unknown) {
           logFrontendError('话题列表读取失败（迁移后）: ' + errText(err))
         }
         if (!imported && list.length === 0) {
-          try { await App.ChatTopicCreate('新对话', 'plain') } catch (err: unknown) {
+          try { await app.ChatTopicCreate('新对话', 'plain') } catch (err: unknown) {
             logFrontendError('话题创建失败: ' + errText(err))
           }
-          try { list = (await App.ChatTopicsList()) || [] } catch (err: unknown) {
+          try { list = (await app.ChatTopicsList()) || [] } catch (err: unknown) {
             logFrontendError('话题列表读取失败（创建后）: ' + errText(err))
           }
         }
@@ -106,7 +106,7 @@ export function useChatTopics({ setMessages, setPersonalities }: UseChatTopicsOp
       setInitializing(false)
     })()
     try {
-      App.WhisperGetPersonalities().then((ps: whisper.PersonalityPreset[]) => setPersonalities(ps || [])).catch((err: unknown) => {
+      app.WhisperGetPersonalities().then((ps: whisper.PersonalityPreset[]) => setPersonalities(ps || [])).catch((err: unknown) => {
         logFrontendError('人格列表读取失败: ' + (err instanceof Error ? err.message : String(err)))
       })
     } catch (_) {}
@@ -123,7 +123,9 @@ export function useChatTopics({ setMessages, setPersonalities }: UseChatTopicsOp
 
   const createTopic = useCallback(async () => {
     try {
-      const t = await App.ChatTopicCreate('新对话', modeRef.current)
+      // 契约返回 Record 形状（含 id），转正时限定为 chat.Topic 供 state 使用；
+      // 运行期数据即后端 chat.Topic JSON，逐字段类型一致。
+      const t = (await app.ChatTopicCreate('新对话', modeRef.current)) as unknown as chat.Topic
       setTopics(prev => [t, ...prev])
       setActiveId(t.id)
       try { localStorage.setItem(ACTIVE_TOPIC_KEY, t.id) } catch (_) {}
@@ -137,7 +139,7 @@ export function useChatTopics({ setMessages, setPersonalities }: UseChatTopicsOp
   }, [resetPersonaMeta, setMessages])
 
   const deleteTopic = useCallback(async (id: string) => {
-    try { await App.ChatTopicDelete(id) } catch (err: unknown) { message.error(`删除失败：${err instanceof Error ? err.message : String(err)}`); return }
+    try { await app.ChatTopicDelete(id) } catch (err: unknown) { message.error(`删除失败：${err instanceof Error ? err.message : String(err)}`); return }
     const remaining = topicsRef.current.filter(t => t.id !== id)
     if (remaining.length === 0) {
       await createTopic()
@@ -152,7 +154,7 @@ export function useChatTopics({ setMessages, setPersonalities }: UseChatTopicsOp
   }, [createTopic, selectTopic])
 
   const renameTopic = useCallback(async (id: string, title: string) => {
-    try { await App.ChatTopicRename(id, title) } catch (err: unknown) {
+    try { await app.ChatTopicRename(id, title) } catch (err: unknown) {
       message.error(`重命名失败：${err instanceof Error ? err.message : String(err)}`)
       return
     }
@@ -168,7 +170,7 @@ export function useChatTopics({ setMessages, setPersonalities }: UseChatTopicsOp
       try { localStorage.setItem(PERSONALITY_KEY, next) } catch (_) {}
     }
     if (activeIdRef.current) {
-      try { await App.ChatTopicSetMode(activeIdRef.current, next) } catch (_) {}
+      try { await app.ChatTopicSetMode(activeIdRef.current, next) } catch (_) {}
       setTopics(prev => prev.map(t => t.id === activeIdRef.current ? { ...t, mode: next } : t))
     }
   }, [resetPersonaMeta])
@@ -180,7 +182,7 @@ export function useChatTopics({ setMessages, setPersonalities }: UseChatTopicsOp
       ? autoTopicTitle(firstUserText)
       : undefined
     if (title) {
-      try { await App.ChatTopicRename(topicId, title) } catch (_) {}
+      try { await app.ChatTopicRename(topicId, title) } catch (_) {}
     }
     setTopics(prev => {
       const item = prev.find(t => t.id === topicId)

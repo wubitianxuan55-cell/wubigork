@@ -1,15 +1,15 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Button, Modal, Spin } from 'antd'
 import { ReloadOutlined } from '@ant-design/icons'
-import { GenerateSceneIllustration } from '../../wailsjsCompat'
+import { app } from '../../gaea/lib/bridge'
 import { PortraitImg } from '../../components/characterlib/PortraitImg'
 import { chapterArtList, readFileAsDataURL } from '../../api/image'
 
 /**
  * 章节配图（v4.3g 图文联动前端）：为指定章节生成场景插图。
  *
- * 调用层：复用既有死绑定 GenerateSceneIllustration —— wails 生成物 NovelB 门面
- * 已含该方法（wailsjsCompat 直调 window.go.app.NovelB.GenerateSceneIllustration），
+ * 调用层：经 gaea/lib/bridge 的 app.GenerateSceneIllustration（Go NovelB 门面，
+ * 代理路由 window.go.app.NovelB.GenerateSceneIllustration），
  * 后端返回契约 { url, revised_prompt }。
  * url 可能是远端地址 / data URL / 本地路径，统一经 PortraitImg 预览
  * （本地路径走 bridge 的 AttachmentDataURL 读取兜底）。
@@ -63,7 +63,7 @@ export function ChapterIllustration({ chapterNum, onClose }: ChapterIllustration
     setError(null)
     setResult(null)
     try {
-      const data = (await GenerateSceneIllustration(chapterNum)) as SceneIllustrationResult
+      const data = (await app.GenerateSceneIllustration(chapterNum)) as SceneIllustrationResult
       const url = typeof data.url === 'string' ? data.url : ''
       if (!url) throw new Error('未生成图片')
       const revisedPrompt = typeof data.revised_prompt === 'string' ? data.revised_prompt : ''

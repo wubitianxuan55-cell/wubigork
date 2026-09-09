@@ -3,15 +3,22 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 
-// 屏蔽 Wails 绑定：jsdom 中没有 window.go
-vi.mock('../../../src/wailsjsCompat', () => ({
-  CheckConsistency: vi.fn().mockResolvedValue({ issues: [], total_issues: 0, summary: '✅ 未发现一致性问题' }),
-  CheckConsistencyDeep: vi.fn(),
-}))
+// 屏蔽 Wails 绑定：jsdom 中没有 window.go。
+// 组件经 gaea/lib/bridge 的 app 调用 CheckConsistency / CheckConsistencyDeep。
+vi.mock('../../gaea/lib/bridge', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../gaea/lib/bridge')>()
+  return {
+    ...actual,
+    app: {
+      CheckConsistency: vi.fn().mockResolvedValue({ issues: [], total_issues: 0, summary: '✅ 未发现一致性问题' }),
+      CheckConsistencyDeep: vi.fn(),
+    },
+  }
+})
 
 import ConsistencyPanel from './ConsistencyPanel'
 import { useAppStore } from '../../stores/appStore'
-import { CheckConsistencyDeep } from '../../../src/wailsjsCompat'
+import { app } from '../../gaea/lib/bridge'
 import { clearIgnoredIssues, loadIgnoredFingerprints } from './consistencyIgnore'
 
 const projPath = 'C:/books/深检项目'
@@ -35,12 +42,12 @@ beforeEach(() => {
   localStorage.clear()
   clearIgnoredIssues(projPath)
   useAppStore.setState({ projectOpen: true, projectPath: projPath })
-  vi.mocked(CheckConsistencyDeep).mockReset()
+  vi.mocked(app.CheckConsistencyDeep).mockReset()
 })
 
 describe('深检模式三档分级', () => {
   it('分级标签冲突/疑似/提示 + 原因徽标按 reason 渲染', async () => {
-    vi.mocked(CheckConsistencyDeep).mockResolvedValue({
+    vi.mocked(app.CheckConsistencyDeep).mockResolvedValue({
       issues: [
         issueOf({}), // error 无标注 → 冲突
         issueOf({ entity_name: '玄铁剑', category: 'item', severity: 'warning', description: '物品去留不明', reason: 'unexplained' }), // → 疑似 + 缺交代
@@ -68,7 +75,7 @@ describe('深检模式三档分级', () => {
   })
 
   it('被忽略告警从列表消失但以计数横幅保持可见，可一键恢复', async () => {
-    vi.mocked(CheckConsistencyDeep).mockResolvedValue({
+    vi.mocked(app.CheckConsistencyDeep).mockResolvedValue({
       issues: [issueOf({}), issueOf({ entity_name: '玄铁剑', category: 'item', severity: 'warning', description: '物品去留不明', reason: 'unexplained' })],
       total_issues: 2,
       summary: '发现 2 个问题',
@@ -99,7 +106,7 @@ describe('深检模式三档分级', () => {
   })
 
   it('全部忽略时显示可恢复空态（不伪装「全部通过」）', async () => {
-    vi.mocked(CheckConsistencyDeep).mockResolvedValue({
+    vi.mocked(app.CheckConsistencyDeep).mockResolvedValue({
       issues: [issueOf({})],
       total_issues: 1,
       summary: '发现 1 个问题',

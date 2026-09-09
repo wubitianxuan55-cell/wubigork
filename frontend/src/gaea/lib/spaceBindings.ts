@@ -130,12 +130,34 @@ export const GAEA_METHOD_FACETS = {
   GenerateBookCover: "play",
   // NovelSearch 章内全文检索（ChapterPage 小说创作间消费，同书封归 play）。
   NovelSearch: "play",
+  // 批次二 legacy 直调转正（NovelB 门面）：世界观读写/一致性检查/伏笔读写/
+  // 批量角色/阅读助手/场景插图——小说创作间数据面，同书封/NovelSearch 归 play。
+  GetWorldview: "play",
+  SaveWorldview: "play",
+  ChatWorldview: "play",
+  GetWorldviewSections: "play",
+  SaveAllWorldviewSections: "play",
+  CheckConsistency: "play",
+  CheckConsistencyDeep: "play",
+  GetForeshadows: "play",
+  SaveForeshadows: "play",
+  SaveCharactersBatch: "play",
+  NovelReadingAsk: "play",
+  GenerateSceneIllustration: "play",
+  // 批次二：语音对话文本入口（VoiceB 门面），轻语/语音聊天 play 数据面。
+  VoiceChatText: "play",
+  // 批次二：绘梦后端配置（SetImageBackend），同 GetImageBackendInfo/
+  // SetPortraitConfig 归 play。
+  SetImageBackend: "play",
   // v4.3 情感语音：TTS 参数预览为 shared（语音朗读两空间共用）
   TTSVoiceParams: "shared",
   // v4.171 批次一 legacy 直调转正：语音设置应用（useChatVoice/语音设置面板/
   // 模型中心 BindSection）+ 本地 TTS 服务启动（模型中心「启动」按钮）——
   // 语音朗读/模型设置两空间共用，同 TTSVoiceParams 归 shared。
   VoiceApplySettings: "shared",
+  // 批次二 legacy 直调转正：语音设置读取（VoiceGetSettings）与
+  // VoiceApplySettings patch 写配对，同归 shared（语音设置面板/模型中心两空间共用）。
+  VoiceGetSettings: "shared",
   StartLocalTTSService: "shared",
 
   // ── independent：编程 DSH 独立窗口 ──────────────────────────
@@ -162,6 +184,24 @@ export const GAEA_METHOD_FACETS = {
   WeixinReminderDelete: "work",
   WeixinReminderConfig: "work",
   WeixinReminderSetConfig: "work",
+  // 批次二 wailsjsCompat 双轨退役转正（CoreB/ChatB 门面）：配置/统计/技能/
+  // 导出归工位数据面；对话板块话题管理（create/delete/rename/setmode/import/
+  // send/stream/clear/export-markdown）同批转正归 work（现有唯读三列
+  // ChatTopicsList/MessagesList/AppendMessages 为 shared 基础设施，如需对齐随后续批次调整）。
+  GetConfig: "work",
+  SaveConfig: "work",
+  GetStats: "work",
+  ListSkills: "work",
+  ExportAll: "work",
+  ChatTopicCreate: "work",
+  ChatTopicDelete: "work",
+  ChatTopicRename: "work",
+  ChatTopicSetMode: "work",
+  ChatImportTopic: "work",
+  ChatSend: "work",
+  ChatStreamPlain: "work",
+  ChatTopicClear: "work",
+  ChatTopicExportMarkdown: "work",
   Submit: "work",
   SubmitDisplay: "work",
   Cancel: "work",

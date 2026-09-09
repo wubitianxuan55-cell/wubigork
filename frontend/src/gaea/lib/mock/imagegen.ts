@@ -13,6 +13,8 @@ type ImagegenMethods = Pick<
   | "OpenImageSaveDir" | "OpenNovelImagesDir" | "GetCharacters" | "SetCharacterPortrait"
   // v4.171 批次一 legacy 直调转正（ImageB 门面，与图像域同门面就近）。
   | "StartLocalTTSService"
+  // 批次二 legacy 直调转正（ImageB 门面）：绘梦后端配置。
+  | "SetImageBackend"
 >;
 
 export function buildImagegenTools(): ImagegenMethods {
@@ -81,6 +83,10 @@ export function buildImagegenTools(): ImagegenMethods {
       // 服务，按「正在启动」形状返回——useEngineState 的 res?.ready 分支走
       // 「正在启动」提示，不谎报已就绪。
       return { engine: engineID, ready: false, starting: true };
+    },
+    // ── 批次二 legacy 直调转正（Go ImageB，同名前缀）────────────────
+    async SetImageBackend(_backend: string, _comfyUIURL: string, _imageModel: string, _imageSaveDir: string) {
+      // mock: 浏览器内存 no-op——无后端可配置（与 SetPortraitConfig 同口径）。
     },
   };
 }

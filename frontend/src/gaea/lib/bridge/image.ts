@@ -34,4 +34,7 @@ export interface ImageBindings {
   // StartLocalTTSService 启动本地 TTS 服务（模型中心「启动」按钮；Go ImageB
   // 门面同名幂等启动，返回 {engine, ready, starting}；wailsjsCompat 直调转正）。
   StartLocalTTSService(engineID: string): Promise<Record<string, unknown>>;
+  // SetImageBackend 设置图像生成后端（backend/comfyUIURL/imageModel/imageSaveDir
+  // 四参；Go ImageB 同名，批次二直调转正；绘梦域配置写入口）。
+  SetImageBackend(backend: string, comfyUIURL: string, imageModel: string, imageSaveDir: string): Promise<void>;
 }

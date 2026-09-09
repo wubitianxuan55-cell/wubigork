@@ -3,18 +3,17 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ChapterIllustration } from './ChapterIllustration'
 
 // ── 调用层 mock ─────────────────────────────────────────────────────────
-// GenerateSceneIllustration 经 wailsjsCompat（NovelB 门面）调用；
+// GenerateSceneIllustration 经 gaea/lib/bridge 的 app 调用（NovelB 门面代理）；
 // 组件内 PortraitImg 依赖 bridge 的 AttachmentDataURL（本地路径兜底），一并 mock。
 const { generateSceneIllustrationMock } = vi.hoisted(() => ({
   generateSceneIllustrationMock: vi.fn(),
 }))
 
-vi.mock('../../wailsjsCompat', () => ({
-  GenerateSceneIllustration: generateSceneIllustrationMock,
-}))
-
 vi.mock('../../gaea/lib/bridge', () => ({
-  app: { AttachmentDataURL: vi.fn() },
+  app: {
+    AttachmentDataURL: vi.fn(),
+    GenerateSceneIllustration: generateSceneIllustrationMock,
+  },
 }))
 
 describe('ChapterIllustration 章节配图', () => {
