@@ -32,7 +32,7 @@
 | 🔄 | 审计刀A（P0×2）：基线台账 CSV+角色库参考图壳内修复（v4.165.0 ✅） |
 | ✅ | 审计刀B（下载类×4）：ImageGen 两处下载 / NovelSetting 导入导出 / 办公 md 分支（瘦身 P1 v4.166.0） |
 | ✅ | 审计刀C（上传类×3）：ControlPanel / VisionTrial / SkillModal 接 pickFile util（瘦身 P1 v4.166.0） |
-| ⬜ | 审计刀D（真机取证）：printSvg iframe print / 拖拽 / 粘贴（Filters 可选参数已代码化完成 = v4.167.0） |
+| ⬜ | 审计刀D（真机取证）：printSvg iframe print / 拖拽 / 粘贴（Filters 代码化=v4.167.0；**2026-09-09 配方+工具已就绪 scripts/cdp-walk.mjs，壳实例遭手动关闭×2=桌面使用中弹窗走查暂停，需用户协作/闲置时间窗续**，已取证部分见 webview2-shell-audit §6b） |
 | ✅ | W2 知识外化三件齐（2026-09-09）：30 分钟上手文档 docs/gaea-getting-started-30min-2026-09.md / progress.md 244KB 瘦身归档至 docs/archive/progress-history-2026-09.md / 个人路径清洗 4 活跃文档 5 处（archive 历史证据不清洗） |
 
 ## 瘦身长期总规划（2026-09-08 立项，权威= docs/gaea-slim-masterplan-2026-09.md）
@@ -49,7 +49,8 @@
 | ✅ | P4 结构刀2 + entry 懒加载（v4.176.0）：mock/office.ts 51.2→1.1KB 入口（6 文件）+ MemoryHubPage 8 组件全 tab React.lazy（1402.5→15.95KB 页壳）+ mock 异步 chunk（index 1149→967.23KB −182KB）；H6 连带测试时序修复×2（waitMockReady） |
 | ✅ | P4 懒加载三刀收官（v4.177.0）：mermaid 动态化 H1（全仓静态 import 清零）+ locales 按需 H7（zh 静态+en/zh-TW 动态，zh 兜底回退链）+ SearchModal lazy H8；**entry 1193→755.48KB（−37%）**；exe strip build.bat 固化（-ldflags -s -w -trimpath） |
 | ✅ | **P4 性能和结构刀全部收官**（v4.171-v4.177）：Go >50KB 0；entry −37%；MemoryHubPage 页壳 15.95KB；mock/office 1.1KB；wailsjsCompat 退役；bridge 双轨达成；office 抽核 |
-| ⬜ | 壳内真机池（rail 切换器/home 最近文档/.gsched）、审计刀D 真机取证（printSvg print/拖拽/粘贴）、观察池刀3（工作台内嵌办公）待评估——全真机绑定 |
+| 🔄 | 壳内真机池：rail 切换器/dock/knowledge 残留/home 最近文档空态 已销账（2026-09-09 v4.177.0 CDP 走查，p2-dualspace §6+webview2-shell-audit §6b）；剩 .gsched「基线 N」chips 布局+最近文档 localStorage 写路径（待协作/闲置时间窗） |
+| ⬜ | 观察池刀3（工作台内嵌办公）待评估——观察池审判归 P5 |
 | ⬜ | P3 版3 结构余项：Go 侧 config.go 58.7/engine.go 55.2 + frontend store.ts 54.3 二次拆分 + entry/页面级懒加载 |
 | ⬜ | P4 性能（1版）：懒初始化+exe strip+MemoryHub chunk+entry 拆解 |
 | ⬜ | P5 维持：季度复测+观察池审判（cost 文档化/虚拟滚动/内嵌） |

@@ -65,6 +65,27 @@ createObjectURL（音频播放非落盘）· 各 `.test.tsx` 同款（测试桩�
   FileSystemHandle / msSaveBlob 全库零命中，无此类残留；无 blob: 导航下载变体；
   现存 window.open 均走 BrowserOpenURL 优先，符合 Wails 正确姿势。
 
+## 6b. 刀D 取证进展（2026-09-09，v4.177.0 真机首走）
+
+**配方实证可用**：`WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9333`
+启动发布版壳 + CDP（`Input.dispatchMouseEvent` 受信任 hover/click、`Runtime.evaluate`
+DOM 断言、`Page.captureScreenshot`）。工具沉淀 `scripts/cdp-walk.mjs`（node 25 原生
+WebSocket，无依赖）。
+
+本轮实锤（与 gaea-slim-p2-dualspace §6 真机清单合并走查）：
+
+| 项 | 结论 |
+|---|---|
+| rail 自动隐藏 dock | ✅ 默认 `translateX(-112%)+opacity:0` 滑出屏外；左缘 10px 热区受信任 hover 滑出（280ms），`translateX(0)` 实测 x:-43.5→8；悬浮覆盖内容符合 CSS 设计（foundation.css:41-69） |
+| rail 切换器/分域导航 | ✅ 工位/乐园两态切换器（work 默认激活、高 57px）+ 主体 8 项分域（首页/办公/造价数据库/记忆中枢/模型中心/青鸟/编程+主题）+ foot 单列；图标渲染零破图；受信任点击「办公」导航成功（aria-current 实锚） |
+| knowledge 孤儿页残留 | ✅ rail 8 项与全屏可见交互元素均无「知识库/knowledge」入口（导航侧过滤生效） |
+| home「最近文档」面板 | ✅ 空态渲染正常（「还没有打开过文档」）；localStorage 写路径需经原生对话框打开文档，待人工配合复验 |
+| .gsched 摘要卡 chips / printSvg print / ControlPanel 拖拽 / VisionTrial 粘贴 | ⏸ 未取证——壳实例两次被手动关闭（桌面使用中，弹窗走查打扰），改挂「需用户协作或闲置时间窗」；配方与脚本已就绪，随时可续 |
+
+**旁证实锤**：办公板块会话视图壳内渲染正常（真实项目会话含 schedule_* 工具调用轨迹与
+`.gsched` read_file 记录）=进度计划 agent 通道真机可用的在案旁证。
+
+
 ## 7. 扫描方法（ripgrep PCRE2，排除 *.test.*）
 
 `type=["']file` · `\.click\(`（穷举编程式点击，覆盖动态 createElement input）·

@@ -84,12 +84,14 @@
 > - entry gz **375.96 kB**（基线 375.36，净 +0.6：rail 切换器+home 空间 chip/最近文档面板；vite build 27.93s 实测）
 > - 冷启动/常驻内存待 P4 建基线（真机）；exe 46.2MB 系（strip 属 P4）；>50KB 源文件 16（本版未触结构面）
 
-## 6. 真机待走查清单（本版不做，如实挂账）
+## 6. 真机待走查清单（2026-09-09 v4.177.0 真机首走，部分销账）
 
-- rail 切换器/分域导航壳内渲染实态（WebView2：图标/切换器高度/自动隐藏 dock）；
-- .gsched 摘要卡「基线 N」chips 壳内布局；
-- knowledge 孤儿页删除后无残留入口（后端 GetBoardManifests 仍含 knowledge，导航侧过滤）；
-- home 右舷「最近文档」面板壳内渲染（localStorage 生效性）。
+- ✅ rail 切换器/分域导航壳内渲染实态：自动隐藏 dock（左缘 10px 热区 hover 滑出 280ms）、
+  工位/乐园两态（work 默认激活、切换器高 57px）、8 项分域+foot 单列、图标零破图——
+  取证详情见 docs/webview2-shell-audit-2026-09.md §6b；
+- ✅ knowledge 孤儿页删除后无残留入口（rail 与可见交互元素双断言零命中）；
+- ✅（空态）home 右舷「最近文档」面板壳内渲染正常；localStorage 写路径待人工打开文档复验；
+- ⏸ .gsched 摘要卡「基线 N」chips 壳内布局：壳实例被关闭（桌面使用中）未取证，配方就绪待续。
 
 ## 7. 审计边界
 
