@@ -5,6 +5,8 @@
 export interface CostSummary {
   name: string;
   title: string;
+  // 定额编码/清单编码（归一化：半角大写、去空白；空=未录入）。
+  code?: string;
   category: string;
   // 完整分类路径：一级/二级/…/叶子（多级分类保存与树形过滤依据）。
   categoryPath: string;
@@ -92,6 +94,7 @@ export interface CostEstimateItem {
   title: string;
   categoryPath: string;
   unit: string;
+  code?: string; // 定额编码/清单编码（归因对标/组价检索锚点）
   quantity: number;
   price: number;
   amount?: number;
@@ -217,6 +220,7 @@ export interface CostGraphView {
 export interface CostImportRow {
   name: string;
   title: string;
+  code?: string;
   category: string;
   unit: string;
   price: number;

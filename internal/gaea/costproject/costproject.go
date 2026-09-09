@@ -14,6 +14,8 @@ import (
 	"strings"
 	"sync/atomic"
 	"time"
+
+	"github.com/gaea/gaea/internal/gaea/cost"
 )
 
 // idSeq 项目 id 生成用的进程内序号：与纳秒时间戳组合，保证同进程内不碰撞
@@ -49,6 +51,7 @@ type Item struct {
 	Title        string
 	CategoryPath string
 	Unit         string
+	Code         string // 定额编码/清单编码（归一化；空=未录入；组价检索/归因对标锚点）
 	Quantity     float64
 	Price        float64
 	Amount       float64 // 数量×单价（保存时自动计算）
@@ -201,14 +204,15 @@ func (s *Store) SaveItem(i Item) (int64, error) {
 		return 0, fmt.Errorf("明细行需要标题")
 	}
 	i.Amount = i.Quantity * i.Price
+	i.Code = cost.NormalizeCode(i.Code)
 	now := time.Now().UTC()
 	i.UpdatedAt = now
 	if i.ID <= 0 {
 		i.CreatedAt = now
 		res, err := s.db.Exec(`
-INSERT INTO cost_estimate_items(project_id, name, title, category_path, unit, quantity, price, amount, entry_name, source, note, sort, created_at, updated_at)
-VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-			i.ProjectID, i.Name, i.Title, i.CategoryPath, i.Unit, i.Quantity, i.Price, i.Amount,
+INSERT INTO cost_estimate_items(project_id, name, title, category_path, unit, code, quantity, price, amount, entry_name, source, note, sort, created_at, updated_at)
+VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+			i.ProjectID, i.Name, i.Title, i.CategoryPath, i.Unit, i.Code, i.Quantity, i.Price, i.Amount,
 			i.EntryName, i.Source, i.Note, i.Sort,
 			i.CreatedAt.Format(time.RFC3339), i.UpdatedAt.Format(time.RFC3339))
 		if err != nil {
@@ -222,9 +226,9 @@ VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		return id, nil
 	}
 	_, err := s.db.Exec(`
-UPDATE cost_estimate_items SET name=?, title=?, category_path=?, unit=?, quantity=?, price=?, amount=?, entry_name=?, source=?, note=?, sort=?, updated_at=?
+UPDATE cost_estimate_items SET name=?, title=?, category_path=?, unit=?, code=?, quantity=?, price=?, amount=?, entry_name=?, source=?, note=?, sort=?, updated_at=?
 WHERE id=?`,
-		i.Name, i.Title, i.CategoryPath, i.Unit, i.Quantity, i.Price, i.Amount,
+		i.Name, i.Title, i.CategoryPath, i.Unit, i.Code, i.Quantity, i.Price, i.Amount,
 		i.EntryName, i.Source, i.Note, i.Sort, i.UpdatedAt.Format(time.RFC3339), i.ID)
 	return i.ID, err
 }
@@ -235,7 +239,7 @@ func (s *Store) ListItems(projectID string) []Item {
 		return nil
 	}
 	rows, err := s.db.Query(`
-SELECT id, project_id, name, title, category_path, unit, quantity, price, amount, entry_name, source, note, sort, created_at, updated_at
+SELECT id, project_id, name, title, category_path, unit, code, quantity, price, amount, entry_name, source, note, sort, created_at, updated_at
 FROM cost_estimate_items WHERE project_id=? ORDER BY sort, id`, projectID)
 	if err != nil {
 		return nil
@@ -245,7 +249,7 @@ FROM cost_estimate_items WHERE project_id=? ORDER BY sort, id`, projectID)
 	for rows.Next() {
 		var i Item
 		var created, updated string
-		if err := rows.Scan(&i.ID, &i.ProjectID, &i.Name, &i.Title, &i.CategoryPath, &i.Unit,
+		if err := rows.Scan(&i.ID, &i.ProjectID, &i.Name, &i.Title, &i.CategoryPath, &i.Unit, &i.Code,
 			&i.Quantity, &i.Price, &i.Amount, &i.EntryName, &i.Source, &i.Note, &i.Sort,
 			&created, &updated); err != nil {
 			continue

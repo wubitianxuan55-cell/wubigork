@@ -96,6 +96,7 @@ export function CostEntryModal({
     const entry: CostEntry = {
       name: editing?.name ?? v.name,
       title: v.title,
+      code: (v.code ?? "").trim() || undefined,
       category: leafOf(categoryPath) || "其他",
       categoryPath,
       unit: v.unit ?? "",
@@ -144,6 +145,9 @@ export function CostEntryModal({
         )}
         <Form.Item label="标题" name="title" rules={[{ required: true, message: "请输入标题" }]}>
           <Input placeholder="如：HP300 高频液压振动锤" />
+        </Form.Item>
+        <Form.Item label="定额/清单编码" name="code" extra="可选；组价检索与归因对标的精确锚点（同名不同地区/口径靠编码区分）">
+          <Input placeholder="如：A1-12 / 040101001" />
         </Form.Item>
         <div className="grid grid-cols-3 gap-3">
           <Form.Item label="分类（多级）" name="categoryId">

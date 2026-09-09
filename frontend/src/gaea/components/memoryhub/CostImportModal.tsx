@@ -216,6 +216,7 @@ export function CostImportModal({
             <tr>
               <th className="px-2 py-1.5 w-8">选</th>
               <th className="px-2 py-1.5 min-w-[160px]">名称</th>
+              <th className="px-2 py-1.5 w-24">编码</th>
               <th className="px-2 py-1.5 w-20">分类</th>
               <th className="px-2 py-1.5 w-20">单位</th>
               <th className="px-2 py-1.5 w-24">单价(元)</th>
@@ -256,6 +257,14 @@ export function CostImportModal({
                         {r.matchNote}
                       </span>
                     )}
+                  </td>
+                  <td className="px-2 py-1">
+                    <input
+                      value={r.code ?? ""}
+                      onChange={(e) => patchRow(i, { code: e.target.value })}
+                      placeholder="A1-12"
+                      className="w-20 bg-transparent outline-none border-b border-transparent focus:border-accent text-fg-dim text-[11px] font-mono"
+                    />
                   </td>
                   <td className="px-2 py-1">
                     <input

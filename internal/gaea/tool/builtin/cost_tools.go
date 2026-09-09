@@ -59,7 +59,7 @@ func (costSearch) Schema() json.RawMessage {
 	return json.RawMessage(`{
 "type":"object",
 "properties":{
-  "query":{"type":"string","description":"搜索关键词（标题/规格/来源/正文，可选）"},
+  "query":{"type":"string","description":"搜索关键词（标题/规格/来源/正文/定额编码，可选）"},
   "category":{"type":"string","description":"分类过滤（可选）：完整路径如「材料/钢材」（含子分类），或一级分类名 机械/材料/人工/运输/检测/综合单价/其他"},
   "status":{"type":"string","description":"状态过滤（可选）：现行/草稿/已归档"},
   "limit":{"type":"integer","description":"返回条数上限（默认20，最大50）"}
@@ -122,12 +122,12 @@ func (costSearch) Execute(ctx context.Context, args json.RawMessage) (string, er
 
 	var b strings.Builder
 	fmt.Fprintf(&b, "## 成本库搜索结果（%d 条）\n\n", len(list))
-	b.WriteString("| 名称 | 标题 | 分类 | 单价(元) | 单位 | 规格 | 地区 | 期数 | 口径 | 来源 | 状态 |\n")
-	b.WriteString("|---|---|---|---|---|---|---|---|---|---|---|\n")
+	b.WriteString("| 名称 | 标题 | 编码 | 分类 | 单价(元) | 单位 | 规格 | 地区 | 期数 | 口径 | 来源 | 状态 |\n")
+	b.WriteString("|---|---|---|---|---|---|---|---|---|---|---|---|\n")
 	for _, e := range list {
 		price := fmt.Sprintf("%.2f", e.Price)
-		fmt.Fprintf(&b, "| %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s |\n",
-			cell(e.Name), cell(e.Title), cell(e.Category), price, cell(e.Unit),
+		fmt.Fprintf(&b, "| %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s |\n",
+			cell(e.Name), cell(e.Title), cell(e.Code), cell(e.Category), price, cell(e.Unit),
 			cell(e.Spec), cell(e.Region), cell(e.PriceDate), cell(e.PriceType),
 			cell(e.Source), cell(e.Status))
 	}
@@ -369,6 +369,7 @@ func (costSave) Schema() json.RawMessage {
 "properties":{
   "name":{"type":"string","description":"条目名称（唯一键，可选；不填自动从标题生成）"},
   "title":{"type":"string","description":"标题，如 HP300 高频液压振动锤"},
+  "code":{"type":"string","description":"定额编码/清单编码（可选，如 A1-12；归一化后存储，组价检索/归因对标的精确锚点）"},
   "category":{"type":"string","description":"分类（叶子名）：机械/材料/人工/运输/检测/综合单价/其他（默认其他）"},
   "categoryPath":{"type":"string","description":"完整分类路径，如 材料/钢材（可选；不填则取 category）"},
   "unit":{"type":"string","description":"单位：台班/吨/m³/工日等"},
@@ -391,6 +392,7 @@ func (costSave) Execute(_ context.Context, args json.RawMessage) (string, error)
 	var p struct {
 		Name         string  `json:"name,omitempty"`
 		Title        string  `json:"title"`
+		Code         string  `json:"code,omitempty"`
 		Category     string  `json:"category,omitempty"`
 		CategoryPath string  `json:"categoryPath,omitempty"`
 		Unit         string  `json:"unit,omitempty"`
@@ -444,13 +446,16 @@ func (costSave) Execute(_ context.Context, args json.RawMessage) (string, error)
 
 	action := "新增"
 	e := cost.Entry{
-		Name: name, Title: strings.TrimSpace(p.Title), Category: category,
+		Name: name, Title: strings.TrimSpace(p.Title), Code: cost.NormalizeCode(p.Code), Category: category,
 		CategoryPath: strings.TrimSpace(p.CategoryPath), Unit: strings.TrimSpace(p.Unit),
 		Price: p.Price, Spec: strings.TrimSpace(p.Spec), Source: strings.TrimSpace(p.Source),
 		Tags: tags, Status: status, Body: strings.TrimSpace(p.Body),
 	}
 	if existing, _ := store.Get(name); existing != nil {
 		action = "覆盖更新"
+		if e.Code == "" {
+			e.Code = existing.Code // 更新未传编码时保留原编码
+		}
 		// 工具不管理人材机二级组成/费率：更新时保留，避免改价抹掉子目明细。
 		e.Components = existing.Components
 		e.LaborFee, e.MaterialFee, e.MachineFee = existing.LaborFee, existing.MaterialFee, existing.MachineFee

@@ -29,6 +29,7 @@ const MaxRows = 500
 type Row struct {
 	Name         string
 	Title        string
+	Code         string // 定额编码/清单编码（表头「编码/定额编号/清单编码」等列）
 	Category     string
 	Unit         string
 	Price        float64
@@ -70,6 +71,7 @@ type columnField int
 const (
 	fieldNone columnField = iota
 	fieldTitle
+	fieldCode
 	fieldSpec
 	fieldUnit
 	fieldPrice
@@ -86,6 +88,7 @@ const (
 
 var fieldKeywords = map[columnField][]string{
 	fieldTitle:    {"材料名称", "项目名称", "名称规格", "品名", "材料", "物资", "项目", "科目", "设备", "机械", "名称", "内容", "子目"},
+	fieldCode:     {"清单项目编码", "定额编号", "清单编码", "项目编码", "定额编码", "定额号", "清单号", "编码"},
 	fieldSpec:     {"规格型号", "规格", "型号", "材质", "参数"},
 	fieldUnit:     {"单位"},
 	fieldPrice:    {"含税单价", "不含税单价", "市场价", "信息价", "报价", "单价", "价格", "金额"},
@@ -279,13 +282,19 @@ func isNumeric(s string) bool {
 	return err == nil
 }
 
-// MatchRows 对候选行做既有条目匹配（按标题/名称精确匹配），补全
-// Name/Status/MatchNote/Existing* 字段；缺少名称或有效单价的行标记 Skip。
+// MatchRows 对候选行做既有条目匹配（编码优先，未录编码回退标题/名称精确
+// 匹配），补全 Name/Status/MatchNote/Existing* 字段；缺少名称或有效单价的
+// 行标记 Skip。带编码的行命中即覆盖、未命中即新增（同标题不同编码=不同
+// 子目，不做标题兜底，避免误覆盖）。
 func MatchRows(rows []Row, store *cost.Store) []Row {
 	byTitle := map[string]cost.Summary{}
 	byName := map[string]cost.Summary{}
+	byCode := map[string]cost.Summary{}
 	if store != nil && store.Available() {
 		for _, s := range store.List() {
+			if c := cost.NormalizeCode(s.Code); c != "" {
+				byCode[c] = s
+			}
 			if t := strings.ToLower(strings.TrimSpace(s.Title)); t != "" {
 				byTitle[t] = s
 			}
@@ -309,7 +318,15 @@ func MatchRows(rows []Row, store *cost.Store) []Row {
 		} else {
 			row.Name = cost.SlugName(row.Title)
 			row.Status = "现行"
-			if existing, ok := byTitle[strings.ToLower(strings.TrimSpace(row.Title))]; ok {
+			if code := cost.NormalizeCode(row.Code); code != "" {
+				if existing, ok := byCode[code]; ok {
+					row.ExistingName = existing.Name
+					row.ExistingPrice = existing.Price
+					row.MatchNote = fmt.Sprintf("编码命中，将覆盖更新（现价 ¥%s）", fmtPrice(existing.Price))
+				} else {
+					row.MatchNote = "新增"
+				}
+			} else if existing, ok := byTitle[strings.ToLower(strings.TrimSpace(row.Title))]; ok {
 				row.ExistingName = existing.Name
 				row.ExistingPrice = existing.Price
 				row.MatchNote = fmt.Sprintf("将覆盖更新（现价 ¥%s）", fmtPrice(existing.Price))
@@ -516,6 +533,10 @@ func buildRow(r []string, colMap map[int]columnField) Row {
 		case fieldTitle:
 			if row.Title == "" {
 				row.Title = v
+			}
+		case fieldCode:
+			if row.Code == "" {
+				row.Code = v
 			}
 		case fieldSpec:
 			if row.Spec == "" {

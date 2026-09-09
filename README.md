@@ -92,6 +92,7 @@ gaea/
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| **v4.178.0** | 2026-09-09 | 造价·条目匹配键刀：定额编码贯通——SchemaV17 cost_entries/cost_estimate_items 增 code 列+索引；cost.NormalizeCode 归一化（全角/空白/大小写）；导入表头「定额编号/清单编码」列映射 + 编码优先匹配（带码未命中即新增，同标题不同编码不误覆盖）；costref 归因对标 matchEntry 编码精确优先（matchedBy=code）；沉淀/引用继承编码；cost_save/cost_search 工具面 + EntryModal/LibraryView/ImportModal/ProjectsView 四组件 UI 贯通。零绑定 602；附带修复 e-check 三处陈旧守卫（v4.174 bridge/v4.176 lazy 甩下）。vitest 2738；Go 绿；smoke 200。详见 releases/v4.178.0.md |
 | **v4.177.0** | 2026-09-09 | 瘦身 P4 懒加载三刀收官：mermaid 动态化（Markdown/mermaidPng，全仓静态 import 清零，mermaid.core 独立按需）+ locales 按需（zh 静态保留 + en/zh-TW 动态 chunk，zh 兜底回退链修复）+ SearchModal lazy。entry 1193→755.48KB（−37%）；测试补 beforeAll loadLocale 适配×7。vitest 2737；Go 绿；smoke 200。详见 releases/v4.177.0.md |
 | **v4.176.0** | 2026-09-09 | 瘦身 P4 结构刀2 + entry 懒加载：mock/office.ts 51.2→1.1KB 入口（6 文件，TS2632 schedule 状态方法同文件）+ MemoryHubPage 8 组件页内 React.lazy（1402.5→15.95KB 页壳，GraphView/three.js 1,355KB 独立 chunk）+ mock 异步 chunk（index 1149→967.23KB −182KB）。连带测试时序修复×2（waitMockReady beforeAll）；H1 mermaid 动态 import 递下一轮。vitest 2737；tsc/eslint 0；drift PASS@602。详见 releases/v4.176.0.md |
 | **v4.175.0** | 2026-09-09 | 瘦身 P4 结构刀1：三巨文件拆分（config.go 58.7→16.1/engine.go 56.5→13.3/store.ts 54.3→0.4 聚合入口）——三线并发纯结构拆分行为零变化：config 同包 7 文件（keys/types/features/prefs/realtime/save）、modelengine 同包 8 文件（keys/custom/crud/connect/models/modelhub/state）、store 3 域文件（controller 50.2/preview 3.3/commonts 1.5，18 导出面逐一同 63 消费方零改动）。Go >50KB 源文件 2→0；vitest 2737；Go 128 包全绿；drift PASS@602。详见 releases/v4.175.0.md |

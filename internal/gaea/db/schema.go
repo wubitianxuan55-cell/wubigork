@@ -396,3 +396,14 @@ CREATE TABLE IF NOT EXISTS cost_compose_records (
 );
 CREATE INDEX IF NOT EXISTS idx_cost_compose_records_entry ON cost_compose_records(entry_name, created_at);
 `
+
+// SchemaV17 造价条目匹配键 v4.178.0:cost_entries 增加 code（定额编码/清单编码）
+// + cost_estimate_items 增加 code（测算明细行可携带清单编码）。此前条目匹配
+// 全靠标题字符串精确/子串匹配（docs/gaea-cost-domain-survey-2026-09.md §缺口 1），
+// 无编码体系；编码是组价检索与归因对标的共同上游——同名不同地区/口径的条目
+// 靠编码才可精确锚定。code 归一化存储（半角大写、去空白），空串=未录入。
+const SchemaV17 = `
+ALTER TABLE cost_entries ADD COLUMN code TEXT NOT NULL DEFAULT '';
+ALTER TABLE cost_estimate_items ADD COLUMN code TEXT NOT NULL DEFAULT '';
+CREATE INDEX IF NOT EXISTS idx_cost_code ON cost_entries(code);
+`

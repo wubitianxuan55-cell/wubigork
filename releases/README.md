@@ -13,10 +13,11 @@
 
 ## 当前版本线（v4，2026-08 起）
 
-172 个发布说明，最近 33 版（2026-09-08 补记：v4.159~v4.163 五版此前漏更本区块，一并补齐）：
+173 个发布说明，最近 34 版：
 
 <!-- V4_RECENT:start -->
 
+- [v4.178.0.md](./v4.178.0.md) — v4.178.0「造价·条目匹配键刀：定额编码贯通存储→导入→匹配→工具面→UI」
 - [v4.177.0.md](./v4.177.0.md) — v4.177.0「瘦身 P4 懒加载三刀收官（mermaid 动态化 + locales 按需 + SearchModal lazy，entry −37%）」
 - [v4.176.0.md](./v4.176.0.md) — v4.176.0「瘦身 P4 结构刀2 + entry 懒加载（mock/office 拆分 + MemoryHubPage 全 tab lazy + mock 异步 chunk）」
 - [v4.175.0.md](./v4.175.0.md) — v4.175.0「瘦身 P4 结构刀1：三巨文件拆分（config.go/engine.go/store.ts，Go >50KB 2→0）」

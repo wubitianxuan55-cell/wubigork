@@ -461,6 +461,7 @@ func displayName(title, name string) string {
 type CostSummary struct {
 	Name         string    `json:"name"`
 	Title        string    `json:"title"`
+	Code         string    `json:"code,omitempty"` // 定额编码/清单编码（归一化；空=未录入）
 	Category     string    `json:"category"`
 	CategoryPath string    `json:"categoryPath"`
 	Unit         string    `json:"unit"`
@@ -580,7 +581,7 @@ func (a *App) GaeaCostGet(name string) *CostEntry {
 	}
 	return &CostEntry{
 		CostSummary: toCostSummary(cost.Summary{
-			Name: e.Name, Title: e.Title, Category: e.Category, CategoryPath: e.CategoryPath,
+			Name: e.Name, Title: e.Title, Code: e.Code, Category: e.Category, CategoryPath: e.CategoryPath,
 			Unit: e.Unit, Price: e.Price,
 			LaborFee: e.LaborFee, MaterialFee: e.MaterialFee, MachineFee: e.MachineFee,
 			Spec: e.Spec, Source: e.Source,
@@ -598,7 +599,7 @@ func (a *App) GaeaCostGet(name string) *CostEntry {
 // GaeaCostSave 保存成本条目。
 func (a *App) GaeaCostSave(e CostEntry) error {
 	return a.hubCostStore().Save(cost.Entry{
-		Name: e.Name, Title: e.Title, Category: e.Category, CategoryPath: e.CategoryPath,
+		Name: e.Name, Title: e.Title, Code: e.Code, Category: e.Category, CategoryPath: e.CategoryPath,
 		Unit: e.Unit, Price: e.Price,
 		LaborFee: e.LaborFee, MaterialFee: e.MaterialFee, MachineFee: e.MachineFee,
 		ManagementFee: e.ManagementFee, ProfitFee: e.ProfitFee,
@@ -638,7 +639,7 @@ func (a *App) GaeaCostCategoryDelete(id int) error {
 
 func toCostSummary(s cost.Summary) CostSummary {
 	return CostSummary{
-		Name: s.Name, Title: s.Title, Category: s.Category, CategoryPath: s.CategoryPath,
+		Name: s.Name, Title: s.Title, Code: s.Code, Category: s.Category, CategoryPath: s.CategoryPath,
 		Unit: s.Unit, Price: s.Price,
 		LaborFee: s.LaborFee, MaterialFee: s.MaterialFee, MachineFee: s.MachineFee,
 		ComponentCount: s.ComponentCount,

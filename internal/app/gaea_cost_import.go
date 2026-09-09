@@ -23,6 +23,7 @@ import (
 type CostImportRowView struct {
 	Name          string  `json:"name"`
 	Title         string  `json:"title"`
+	Code          string  `json:"code"` // 定额编码/清单编码（归一化；空=未录入）
 	Category      string  `json:"category"`
 	Unit          string  `json:"unit"`
 	Price         float64 `json:"price"`
@@ -148,6 +149,7 @@ func (a *App) GaeaCostImportAIParse(path string) (CostImportPreview, error) {
 
 	const sysPrompt = "你是成本数据提取助手。把报价/成本表格的每一行归一化为成本条目 JSON 数组，规则：\n" +
 		"title=材料/设备/项目名称（去掉序号前缀）；spec=规格型号（无则空串）；unit=单位（台班/吨/m³/工日等，无则空串）；\n" +
+		"code=定额编码/清单编码（表格出现「编码/定额编号/清单编码」等列时提取，原样保留，无则空串）；\n" +
 		"price=数字单价（元，去掉货币符号与千分位，无法识别填 0）；source=来源（取文件中的供应商/产地/备注，无则\"导入文件\"）；\n" +
 		"category=分类：综合单价子目用完整路径（如 综合单价/道路工程/土方工程），否则用 机械/材料/人工/运输/检测/综合单价/其他；\n" +
 		"综合单价行可附 laborFee/materialFee/machineFee（人材机金额，元）与 managementFee/profitFee/advanceFee/taxRate（费率，仅展示追溯）。\n" +
@@ -202,6 +204,7 @@ func (a *App) finishAIParse(abs string, columns []string, raw string) (CostImpor
 	}
 	var aiRows []struct {
 		Title         string  `json:"title"`
+		Code          string  `json:"code,omitempty"`
 		Spec          string  `json:"spec"`
 		Unit          string  `json:"unit"`
 		Price         float64 `json:"price"`
@@ -223,6 +226,7 @@ func (a *App) finishAIParse(abs string, columns []string, raw string) (CostImpor
 	for _, r := range aiRows {
 		rows = append(rows, costimport.Row{
 			Title:    strings.TrimSpace(r.Title),
+			Code:     strings.TrimSpace(r.Code),
 			Spec:     strings.TrimSpace(r.Spec),
 			Unit:     strings.TrimSpace(r.Unit),
 			Price:    r.Price,
@@ -246,10 +250,10 @@ func (a *App) finishAIParse(abs string, columns []string, raw string) (CostImpor
 // costEntryUpsertSQL 与 cost.Store.Save 同构的 UPSERT（整批事务内逐条执行，
 // 保证事务内写入与常规 Save 的落盘形态完全一致）。
 const costEntryUpsertSQL = `
-INSERT INTO cost_entries(name, title, category, category_path, unit, price, labor_fee, material_fee, machine_fee, management_fee, profit_fee, advance_fee, tax_rate, spec, source, region, price_date, price_type, valid_until, source_row, tags, status, body, created_at, updated_at)
-VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+INSERT INTO cost_entries(name, title, code, category, category_path, unit, price, labor_fee, material_fee, machine_fee, management_fee, profit_fee, advance_fee, tax_rate, spec, source, region, price_date, price_type, valid_until, source_row, tags, status, body, created_at, updated_at)
+VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 ON CONFLICT(name) DO UPDATE SET
-  title=excluded.title, category=excluded.category, category_path=excluded.category_path, unit=excluded.unit,
+  title=excluded.title, code=excluded.code, category=excluded.category, category_path=excluded.category_path, unit=excluded.unit,
   price=excluded.price, labor_fee=excluded.labor_fee, material_fee=excluded.material_fee,
   machine_fee=excluded.machine_fee, management_fee=excluded.management_fee,
   profit_fee=excluded.profit_fee, advance_fee=excluded.advance_fee, tax_rate=excluded.tax_rate,
@@ -294,7 +298,7 @@ func normalizeCostEntryForTx(e CostEntry) (cost.Entry, error) {
 	}
 	now := time.Now().UTC()
 	return cost.Entry{
-		Name: e.Name, Title: strings.TrimSpace(e.Title), Category: e.Category,
+		Name: e.Name, Title: strings.TrimSpace(e.Title), Code: cost.NormalizeCode(e.Code), Category: e.Category,
 		CategoryPath: e.CategoryPath, Unit: e.Unit, Price: e.Price,
 		LaborFee: e.LaborFee, MaterialFee: e.MaterialFee, MachineFee: e.MachineFee,
 		ManagementFee: e.ManagementFee, ProfitFee: e.ProfitFee,
@@ -335,7 +339,7 @@ func (a *App) GaeaCostImportApply(rows []CostEntry, inquirySource ...string) (in
 	if err := db.WithTransaction(gconfig.MemoryUserDir(), func(tx *sql.Tx) error {
 		for i, e := range entries {
 			if _, err := tx.Exec(costEntryUpsertSQL,
-				e.Name, e.Title, e.Category, e.CategoryPath, e.Unit, e.Price,
+				e.Name, e.Title, e.Code, e.Category, e.CategoryPath, e.Unit, e.Price,
 				e.LaborFee, e.MaterialFee, e.MachineFee,
 				e.ManagementFee, e.ProfitFee, e.AdvanceFee, e.TaxRate,
 				e.Spec, e.Source,
@@ -419,7 +423,7 @@ func toCostImportPreview(pv *costimport.Preview, aiUsed bool) CostImportPreview 
 	}
 	for _, r := range pv.Rows {
 		out.Rows = append(out.Rows, CostImportRowView{
-			Name: r.Name, Title: r.Title, Category: r.Category, Unit: r.Unit,
+			Name: r.Name, Title: r.Title, Code: r.Code, Category: r.Category, Unit: r.Unit,
 			Price: r.Price, LaborFee: r.LaborFee, MaterialFee: r.MaterialFee, MachineFee: r.MachineFee,
 			ManagementFee: r.ManagementFee, ProfitFee: r.ProfitFee, AdvanceFee: r.AdvanceFee,
 			TaxRate: r.TaxRate, Components: toCostComponentViews(r.Components), Body: r.Body,

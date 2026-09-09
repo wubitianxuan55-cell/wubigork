@@ -8,8 +8,8 @@
 //
 // 匹配口径：
 //   - 条目→分类：CategoryPath 前缀（a/b/c 归入 a、a/b、a/b/c 三级）；
-//   - 明细→条目：EntryName 精确优先，标题归一化（costinquiry.MatchTitle）兜底，
-//     边 Meta 记 matchedBy=entry_name|title；
+//   - 明细→条目：编码精确优先，EntryName 精确次之，标题归一化（costinquiry.MatchTitle）
+//     兜底，边 Meta 记 matchedBy=code|entry_name|title；
 //   - 明细→指标：指标由参考池（有版本留痕的项目明细）实时聚合（ComputeIndicators，
 //     不落表，与 GaeaCostIndicators 同口径），按科目标题精确→归一化匹配；
 //   - 询价→条目：标题精确→归一化匹配（suggests）；
@@ -68,7 +68,7 @@ type GraphNode struct {
 	Meta map[string]string `json:"meta,omitempty"`
 }
 
-// GraphEdge 图边。Meta 携带匹配方式（matchedBy=entry_name|title）等溯源信息。
+// GraphEdge 图边。Meta 携带匹配方式（matchedBy=code|entry_name|title）等溯源信息。
 type GraphEdge struct {
 	Source string            `json:"source"`
 	Target string            `json:"target"`
@@ -227,17 +227,17 @@ func (b *graphBuilder) buildEntry(
 	for _, p := range projects {
 		projByID[p.ID] = p
 	}
-	entryByName, entryByTitle := entryIndexes(entries)
+	entryByName, entryByCode, entryByTitle := entryIndexes(entries)
 	indByKey, indByTitle := indicatorIndexes(projects, itemsByProject)
 	inqExact, inqByTitle := inquiryIndexes(inquiries)
 
 	// 项目 focus：项目→明细→条目（含指标/询价/笔记）。
 	if p, ok := projByID[focusKey]; ok {
-		b.expandProject(p, itemsByProject, entryByName, entryByTitle, indByKey, indByTitle, inqExact, inqByTitle, notes)
+		b.expandProject(p, itemsByProject, entryByName, entryByCode, entryByTitle, indByKey, indByTitle, inqExact, inqByTitle, notes)
 		return
 	}
 	// 分类 focus：子树分类+条目→引用明细（全项目）→指标/询价/笔记。
-	b.expandCategory(focusKey, projects, itemsByProject, entries, entryByName, entryByTitle, indByKey, indByTitle, inqExact, inqByTitle, notes)
+	b.expandCategory(focusKey, projects, itemsByProject, entries, entryByName, entryByCode, entryByTitle, indByKey, indByTitle, inqExact, inqByTitle, notes)
 }
 
 // expandProject 项目 focus 展开：contains/references/benchmarks/suggests/notes 五类边。
@@ -245,6 +245,7 @@ func (b *graphBuilder) expandProject(
 	p costproject.ProjectSummary,
 	itemsByProject map[string][]costproject.Item,
 	entryByName map[string]cost.Summary,
+	entryByCode map[string]cost.Summary,
 	entryByTitle map[string]cost.Summary,
 	indByKey, indByTitle map[string]Indicator,
 	inqExact map[string][]costinquiry.Record,
@@ -267,7 +268,7 @@ func (b *graphBuilder) expandProject(
 			continue
 		}
 		b.addEdge(GraphEdge{Source: projectNodeID(p.ID), Target: itemNodeID(p.ID, it), Type: GraphEdgeContains})
-		if e, matchedBy, ok := matchEntry(it, entryByName, entryByTitle); ok {
+		if e, matchedBy, ok := matchEntry(it, entryByName, entryByCode, entryByTitle); ok {
 			if b.addNode(entryNode(e)) {
 				b.addEdge(GraphEdge{
 					Source: itemNodeID(p.ID, it),
@@ -306,6 +307,7 @@ func (b *graphBuilder) expandCategory(
 	itemsByProject map[string][]costproject.Item,
 	entries []cost.Summary,
 	entryByName map[string]cost.Summary,
+	entryByCode map[string]cost.Summary,
 	entryByTitle map[string]cost.Summary,
 	indByKey, indByTitle map[string]Indicator,
 	inqExact map[string][]costinquiry.Record,
@@ -350,7 +352,7 @@ func (b *graphBuilder) expandCategory(
 				b.truncated = true
 				break
 			}
-			e, matchedBy, matched := matchEntry(it, entryByName, entryByTitle)
+			e, matchedBy, matched := matchEntry(it, entryByName, entryByCode, entryByTitle)
 			ownCat := underPath(normPath(it.CategoryPath), focusPath)
 			if (!matched || !subtreeEntries[e.Name]) && !ownCat {
 				continue
@@ -688,13 +690,17 @@ func noteNode(n Note) GraphNode {
 
 // ── 匹配索引 ────────────────────────────────────────────────────────────
 
-// entryIndexes 条目双索引：name 精确 + 标题归一化（输入已按 Name 排序，同键取首）。
-func entryIndexes(entries []cost.Summary) (map[string]cost.Summary, map[string]cost.Summary) {
+// entryIndexes 条目三索引：name 精确 + 编码归一化 + 标题归一化（输入已按 Name 排序，同键取首）。
+func entryIndexes(entries []cost.Summary) (map[string]cost.Summary, map[string]cost.Summary, map[string]cost.Summary) {
 	byName := map[string]cost.Summary{}
+	byCode := map[string]cost.Summary{}
 	byTitle := map[string]cost.Summary{}
 	for _, e := range entries {
 		if name := strings.TrimSpace(e.Name); name != "" {
 			byName[name] = e
+		}
+		if code := cost.NormalizeCode(e.Code); code != "" {
+			byCode[code] = e
 		}
 		if key := costinquiry.MatchTitle(e.Title); key != "" {
 			if _, dup := byTitle[key]; !dup {
@@ -702,7 +708,7 @@ func entryIndexes(entries []cost.Summary) (map[string]cost.Summary, map[string]c
 			}
 		}
 	}
-	return byName, byTitle
+	return byName, byCode, byTitle
 }
 
 // indicatorIndexes 指标双索引：参考池（有版本留痕的项目）明细实时聚合，
@@ -746,9 +752,16 @@ func inquiryIndexes(inquiries []costinquiry.Record) (map[string][]costinquiry.Re
 	return exact, byTitle
 }
 
-// matchEntry 明细→条目匹配：EntryName 精确优先，标题归一化兜底；
-// matchedBy ∈ entry_name|title。
-func matchEntry(it costproject.Item, byName map[string]cost.Summary, byTitle map[string]cost.Summary) (cost.Summary, string, bool) {
+// matchEntry 明细→条目匹配：编码精确优先（同码不同标题/地区可精确锚定），
+// 带码未命中即不匹配（同标题不同编码=不同子目，宁漏勿误配）；无码回退
+// EntryName 精确 → 标题归一化；matchedBy ∈ code|entry_name|title。
+func matchEntry(it costproject.Item, byName, byCode, byTitle map[string]cost.Summary) (cost.Summary, string, bool) {
+	if code := cost.NormalizeCode(it.Code); code != "" {
+		if e, ok := byCode[code]; ok {
+			return e, "code", true
+		}
+		return cost.Summary{}, "", false
+	}
 	if name := strings.TrimSpace(it.EntryName); name != "" {
 		if e, ok := byName[name]; ok {
 			return e, "entry_name", true

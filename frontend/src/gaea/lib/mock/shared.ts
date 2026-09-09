@@ -26,7 +26,7 @@ export function setPinnedMock(v: string[]) {
 export const costMock: CostSummary[] = [
   {
     name: "hp300", title: "HP300 高频液压振动锤", category: "机械", categoryPath: "机械/桩基机械", unit: "台班",
-    price: 3200, spec: "300kW", source: "市场询价", tags: ["振动锤", "桩基"], status: "现行", updatedAt: "",
+    code: "A1-12", price: 3200, spec: "300kW", source: "市场询价", tags: ["振动锤", "桩基"], status: "现行", updatedAt: "",
   },
   {
     name: "cement", title: "P.O 42.5 水泥", category: "水泥", categoryPath: "材料/土建材料/水泥及水泥制品", unit: "吨",

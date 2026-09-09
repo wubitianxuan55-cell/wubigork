@@ -22,6 +22,7 @@ import (
 type Entry struct {
 	Name         string
 	Title        string
+	Code         string // 定额编码/清单编码（归一化：半角大写、去空白；空=未录入）
 	Category     string // 叶子分类名（兼容旧工具/展示）
 	CategoryPath string // 完整分类路径：一级/二级/…/叶子（树形过滤与分组依据）
 	Unit         string // 台班/吨/m³/工日…
@@ -69,6 +70,7 @@ type Component struct {
 type Summary struct {
 	Name           string
 	Title          string
+	Code           string // 定额编码/清单编码（归一化；空=未录入）
 	Category       string
 	CategoryPath   string
 	Unit           string
@@ -123,6 +125,27 @@ func Open(gdb *sql.DB) *Store {
 	return s
 }
 
+// NormalizeCode 归一化条目编码：全角转半角、去全部空白、转大写。
+// 定额/清单编码在不同表格中写作「A-1-12」「ａ1 12」「a1-12」等形态，
+// 归一化后同码可精确命中；空串原样返回（未录入语义不变）。
+func NormalizeCode(s string) string {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return ""
+	}
+	var b strings.Builder
+	for _, r := range s {
+		switch {
+		case r == ' ' || r == '\u00a0' || r == '\u3000' || r == '\t':
+			continue // 去空白（含全角空格/nbsp）
+		case r >= '！' && r <= '～': // 全角 ASCII 区 → 半角
+			r -= 0xFEE0
+		}
+		b.WriteRune(unicode.ToUpper(r))
+	}
+	return b.String()
+}
+
 // Available 报告存储是否可用。
 func (s *Store) Available() bool { return s.db != nil }
 
@@ -146,6 +169,7 @@ func (s *Store) Save(e Entry) error {
 	if strings.TrimSpace(e.Category) == "" {
 		e.Category = leafOfPath(e.CategoryPath)
 	}
+	e.Code = NormalizeCode(e.Code)
 	now := time.Now().UTC()
 	if e.CreatedAt.IsZero() {
 		e.CreatedAt = now
@@ -163,10 +187,10 @@ func (s *Store) Save(e Entry) error {
 	}
 	defer tx.Rollback()
 	_, err = tx.Exec(`
-INSERT INTO cost_entries(name, title, category, category_path, unit, price, labor_fee, material_fee, machine_fee, management_fee, profit_fee, advance_fee, tax_rate, spec, source, region, price_date, price_type, valid_until, source_row, tags, status, body, created_at, updated_at)
-VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+INSERT INTO cost_entries(name, title, code, category, category_path, unit, price, labor_fee, material_fee, machine_fee, management_fee, profit_fee, advance_fee, tax_rate, spec, source, region, price_date, price_type, valid_until, source_row, tags, status, body, created_at, updated_at)
+VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 ON CONFLICT(name) DO UPDATE SET
-  title=excluded.title, category=excluded.category, category_path=excluded.category_path, unit=excluded.unit,
+  title=excluded.title, code=excluded.code, category=excluded.category, category_path=excluded.category_path, unit=excluded.unit,
   price=excluded.price, labor_fee=excluded.labor_fee, material_fee=excluded.material_fee,
   machine_fee=excluded.machine_fee, management_fee=excluded.management_fee,
   profit_fee=excluded.profit_fee, advance_fee=excluded.advance_fee, tax_rate=excluded.tax_rate,
@@ -175,7 +199,7 @@ ON CONFLICT(name) DO UPDATE SET
   valid_until=excluded.valid_until, source_row=excluded.source_row,
   tags=excluded.tags, status=excluded.status, body=excluded.body,
   updated_at=excluded.updated_at`,
-		e.Name, e.Title, e.Category, e.CategoryPath, e.Unit, e.Price,
+		e.Name, e.Title, e.Code, e.Category, e.CategoryPath, e.Unit, e.Price,
 		e.LaborFee, e.MaterialFee, e.MachineFee,
 		e.ManagementFee, e.ProfitFee, e.AdvanceFee, e.TaxRate,
 		e.Spec, e.Source,
@@ -211,9 +235,9 @@ func (s *Store) Get(name string) (*Entry, error) {
 	var e Entry
 	var tags, created, updated string
 	err := s.db.QueryRow(`
-SELECT name, title, category, category_path, unit, price, labor_fee, material_fee, machine_fee, management_fee, profit_fee, advance_fee, tax_rate, spec, source, region, price_date, price_type, valid_until, source_row, tags, status, body, created_at, updated_at
+SELECT name, title, code, category, category_path, unit, price, labor_fee, material_fee, machine_fee, management_fee, profit_fee, advance_fee, tax_rate, spec, source, region, price_date, price_type, valid_until, source_row, tags, status, body, created_at, updated_at
 FROM cost_entries WHERE name=?`, name).Scan(
-		&e.Name, &e.Title, &e.Category, &e.CategoryPath, &e.Unit, &e.Price,
+		&e.Name, &e.Title, &e.Code, &e.Category, &e.CategoryPath, &e.Unit, &e.Price,
 		&e.LaborFee, &e.MaterialFee, &e.MachineFee,
 		&e.ManagementFee, &e.ProfitFee, &e.AdvanceFee, &e.TaxRate,
 		&e.Spec, &e.Source,
@@ -295,7 +319,7 @@ func (s *Store) Search(query, category, status string) []Summary {
 		conds = append(conds, "status = ?")
 		args = append(args, status)
 	}
-	sqlText := "SELECT name, title, category, category_path, unit, price, labor_fee, material_fee, machine_fee, (SELECT COUNT(*) FROM cost_entry_components c WHERE c.entry_name = cost_entries.name), spec, source, region, price_date, price_type, valid_until, source_row, tags, status, updated_at FROM cost_entries"
+	sqlText := "SELECT name, title, code, category, category_path, unit, price, labor_fee, material_fee, machine_fee, (SELECT COUNT(*) FROM cost_entry_components c WHERE c.entry_name = cost_entries.name), spec, source, region, price_date, price_type, valid_until, source_row, tags, status, updated_at FROM cost_entries"
 	if len(conds) > 0 {
 		sqlText += " WHERE " + strings.Join(conds, " AND ")
 	}
@@ -310,7 +334,7 @@ func (s *Store) Search(query, category, status string) []Summary {
 	for rows.Next() {
 		var sm Summary
 		var tags, updated string
-		if err := rows.Scan(&sm.Name, &sm.Title, &sm.Category, &sm.CategoryPath, &sm.Unit, &sm.Price,
+		if err := rows.Scan(&sm.Name, &sm.Title, &sm.Code, &sm.Category, &sm.CategoryPath, &sm.Unit, &sm.Price,
 			&sm.LaborFee, &sm.MaterialFee, &sm.MachineFee, &sm.ComponentCount, &sm.Spec, &sm.Source,
 			&sm.Region, &sm.PriceDate, &sm.PriceType, &sm.ValidUntil, &sm.SourceRow, &tags, &sm.Status, &updated); err != nil {
 			continue
@@ -327,7 +351,7 @@ func (s *Store) Search(query, category, status string) []Summary {
 		terms := strings.Fields(q)
 		filtered := out[:0]
 		for _, e := range out {
-			hay := strings.ToLower(e.Name + "\x00" + e.Title + "\x00" + e.Category + "\x00" + e.CategoryPath + "\x00" + e.Unit + "\x00" + e.Spec + "\x00" + e.Source + "\x00" + e.Region + "\x00" + e.PriceType + "\x00" + e.PriceDate + "\x00" + strings.Join(e.Tags, " "))
+			hay := strings.ToLower(e.Name + "\x00" + e.Title + "\x00" + e.Code + "\x00" + e.Category + "\x00" + e.CategoryPath + "\x00" + e.Unit + "\x00" + e.Spec + "\x00" + e.Source + "\x00" + e.Region + "\x00" + e.PriceType + "\x00" + e.PriceDate + "\x00" + strings.Join(e.Tags, " "))
 			ok := true
 			for _, term := range terms {
 				if !strings.Contains(hay, term) {
@@ -345,7 +369,7 @@ func (s *Store) Search(query, category, status string) []Summary {
 		if len(out) > 1 {
 			docs := make([]bm25.Doc, len(out))
 			for i, e := range out {
-				docs[i] = bm25.Doc{ID: i, Text: e.Name + " " + e.Title + " " + e.Unit + " " + e.Spec + " " + e.Source + " " + e.Region + " " + e.PriceType + " " + e.PriceDate + " " + strings.Join(e.Tags, " ")}
+				docs[i] = bm25.Doc{ID: i, Text: e.Name + " " + e.Title + " " + e.Code + " " + e.Unit + " " + e.Spec + " " + e.Source + " " + e.Region + " " + e.PriceType + " " + e.PriceDate + " " + strings.Join(e.Tags, " ")}
 			}
 			scored := bm25.NewRanker(docs).Rank(query)
 			if len(scored) > 0 {

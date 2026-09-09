@@ -140,7 +140,7 @@ export function buildCost(_s: MakeMockState): CostMethods {
         if (category && category !== "all" && path !== category && !path.startsWith(category + "/")) return false;
         if (status && status !== "all" && e.status !== status) return false;
         if (!q) return true;
-        return [e.name, e.title, e.spec, e.source].some((s) => (s ?? "").toLowerCase().includes(q));
+        return [e.name, e.title, e.code, e.spec, e.source].some((s) => (s ?? "").toLowerCase().includes(q));
       });
     },
     async CostCategories() {
@@ -210,7 +210,7 @@ export function buildCost(_s: MakeMockState): CostMethods {
         unmapped: ["备注"],
         rows: [
           {
-            name: "hp300", title: "HP300 高频液压振动锤", category: "机械", unit: "台班",
+            name: "hp300", title: "HP300 高频液压振动锤", code: "A1-12", category: "机械", unit: "台班",
             price: 3200, spec: "300kW", source: "XX租赁", status: "现行",
             existingName: "hp300", existingPrice: 3000, matchNote: "将覆盖更新（现价 ¥3,000）",
             raw: "HP300 高频液压振动锤 | 300kW | 台班 | 3200 | XX租赁", skip: false, skipReason: "",

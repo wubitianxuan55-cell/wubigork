@@ -1,3 +1,6 @@
+## v4.178.0 · 造价·条目匹配键刀：定额编码贯通存储→导入→匹配→工具面→UI（2026-09-09）
+> 造价域缺口 §1 首刀销账：SchemaV17 cost_entries/cost_estimate_items 增 code 列+索引；cost.NormalizeCode 全角/空白/大小写归一化；导入表头「定额编号/清单编码」列映射+编码优先匹配（带码未命中即新增，同标题不同编码不误覆盖）；costref 归因对标 matchEntry 编码精确优先（matchedBy=code 溯源，宁漏勿误配）；沉淀/引用继承编码；cost_save/cost_search 工具面+四组件 UI 贯通。零绑定 602；附带修复 e-check 三处陈旧守卫（v4.174 bridge/v4.176 lazy 甩下的直调/静态 import 断言）。Go 全量绿 +9、vitest 2738、tsc/eslint 0、build strip+冒烟过。详见 releases/v4.178.0.md。
+
 ## v4.163.0 · gaea 长期日志机制（2026-09-08）
 > 此前日志=单文件 whisper_data/gaea.log（目录误植/无轮转/无上限），排障无从下手。长期机制：①按日分文件 <DataRoot>/logs/gaea-YYYYMMDD.log（天然轮转+归档友好）；②启动清理过期（保留 365 天）+总量兜底（>1GB 从最旧删）；③旧 gaea.log 一次性迁入 logs/gaea-legacy.log；④启动头写版本+Go 版本、Shutdown 记运行时长；⑤新绑定 GaeaOpenLogsDir（599→603 系），设置→数据加「打开日志目录」按钮。**附带修复 v4.162 缺陷：GaeaReadFileB64/GaeaSaveFileAs 漏加 facade 委托行致运行时不可达（只有 bindings_*.go 门面方法才被 Wails 暴露；gen_bindings -names 只扫 Go 方法名，两层面不同步）——OfficeB 补三行委托，壳内 CDP 实测通过。**绑定 601→603；vitest 2677、tsc/eslint 0、build+冒烟过。详见 releases/v4.163.0.md。
 

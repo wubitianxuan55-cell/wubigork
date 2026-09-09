@@ -739,6 +739,11 @@ export const CostRow = memo(function CostRow({
           <BarChart3 size={11} />
         </button>
         {e.spec && <span className="text-fg-faint text-[11px] shrink-0 truncate max-w-[140px]">{e.spec}</span>}
+        {e.code && (
+          <span className="px-1.5 py-0.5 rounded bg-bg-elev text-fg-faint text-[10px] font-mono shrink-0" title="定额/清单编码">
+            {e.code}
+          </span>
+        )}
         {e.categoryPath && (
           <span className="px-1.5 py-0.5 rounded bg-bg-elev text-fg-faint text-[10px] shrink-0 truncate max-w-[160px]" title={e.categoryPath}>
             {e.categoryPath}
@@ -863,7 +868,7 @@ export const TableRow = memo(function TableRow({
       </td>
       <td className="px-3 py-1.5">
         <div className="text-fg font-medium truncate max-w-[220px]">{e.title}</div>
-        <div className="text-fg-faint text-[10px] font-mono truncate max-w-[220px]">{e.name}</div>
+        <div className="text-fg-faint text-[10px] font-mono truncate max-w-[220px]">{e.code ? `${e.code} · ` : ""}{e.name}</div>
       </td>
       <td className="px-3 py-1.5 text-fg-dim whitespace-nowrap max-w-[180px] truncate" title={e.categoryPath}>
         {e.categoryPath || e.category || "—"}

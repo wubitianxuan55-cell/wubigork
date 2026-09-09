@@ -128,6 +128,7 @@ func (a *App) GaeaCostEstimateSediment(projectID string, itemIDs []int64) (int, 
 		}
 		entry := cost.Entry{
 			Name: name, Title: item.Title,
+			Code:         item.Code,
 			Category:     leafCategory(item.CategoryPath),
 			CategoryPath: item.CategoryPath,
 			Unit:         item.Unit, Price: item.Price, Status: "现行",
@@ -136,6 +137,9 @@ func (a *App) GaeaCostEstimateSediment(projectID string, itemIDs []int64) (int, 
 		}
 		if item.EntryName != "" {
 			if existing, e := costStore.Get(item.EntryName); e == nil && existing != nil {
+				if entry.Code == "" {
+					entry.Code = existing.Code // 沉淀引用条目时继承其编码
+				}
 				entry.Spec = existing.Spec
 				entry.Region = existing.Region
 				entry.PriceType = existing.PriceType

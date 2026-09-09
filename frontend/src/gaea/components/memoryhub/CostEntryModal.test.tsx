@@ -154,4 +154,28 @@ describe("CostEntryModal 组价依据回看（v4.158 复核闭环）", () => {
     expect(screen.getByText("标题")).toBeTruthy();
     expect(await screen.findByText("组价依据（2 次）")).toBeTruthy();
   });
+
+  it("定额/清单编码（v4.178 匹配键刀）：编辑回显 + 保存随条目提交", async () => {
+    const { app } = await import("../../lib/bridge");
+    const saveSpy = app.CostSave as ReturnType<typeof vi.fn>;
+    costGetSpy.mockResolvedValue({
+      ...ENTRY,
+      code: "A1-12",
+      body: "",
+      createdAt: "2026-09-01T00:00:00Z",
+      updatedAt: "2026-09-01T00:00:00Z",
+    });
+    recordsSpy.mockResolvedValue([]);
+    const { container } = renderModal();
+    // 编辑回显：CostGet 返回的编码进入表单。
+    const codeInput = (await screen.findByPlaceholderText("如：A1-12 / 040101001")) as HTMLInputElement;
+    await waitFor(() => expect(codeInput.value).toBe("A1-12"));
+    // 保存：编码随条目提交（antd 受控表单在 jsdom 下 DOM change 不同步
+    // rc-field-form store，此处锁「编辑值进表单→随 CostSave 提交」链路）。
+    fireEvent.click(screen.getByRole("button", { name: /保\s*存/ }));
+    await waitFor(() => expect(saveSpy).toHaveBeenCalled());
+    const payload = saveSpy.mock.calls[0][0] as { code?: string };
+    expect(payload.code).toBe("A1-12");
+    expect(container).toBeTruthy();
+  });
 });

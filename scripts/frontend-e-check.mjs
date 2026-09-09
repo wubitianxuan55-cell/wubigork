@@ -89,7 +89,8 @@ section("E24 记忆中枢 3D 图谱");
   } else {
     bad("ForceGraph3D 初始化写法异常");
   }
-  if (mhp.includes('from "../gaea/components/memoryhub/GraphView"')) ok("MemoryHubPage 已挂载 GraphView");
+  // v4.176 起 GraphView 为页内 React.lazy 挂载（动态 import，无 from 静态形态）。
+  if (mhp.includes('import("../gaea/components/memoryhub/GraphView")') || mhp.includes('from "../gaea/components/memoryhub/GraphView"')) ok("MemoryHubPage 已挂载 GraphView");
   else bad("MemoryHubPage 未引用 GraphView");
   if (pkg.includes('"3d-force-graph"')) ok("package.json 声明 3d-force-graph 依赖");
   else bad("package.json 缺少 3d-force-graph 依赖");
@@ -105,11 +106,12 @@ section("E25 聊天×轻语合并");
   const models = read("frontend/wailsjs/go/models.ts");
   const bindings = read("frontend/wailsjs/go/app/ChatB.d.ts");
 
-  if (stream.includes("App.ChatSend(")) ok("useChatStream 使用统一入口 ChatSend");
+  // v4.174 bridge 双轨退役后生产代码走 bridge（app.ChatSend），直调 wailsjs 形态一并兼容。
+  if (stream.includes("app.ChatSend(") || stream.includes("App.ChatSend(")) ok("useChatStream 使用统一入口 ChatSend");
   else bad("useChatStream 未使用 ChatSend（应走统一聊天入口）");
 
   if (
-    utils.includes("App.ChatImportTopic(") &&
+    (utils.includes("app.ChatImportTopic(") || utils.includes("App.ChatImportTopic(")) &&
     utils.includes("localStorage.removeItem(")
   ) {
     ok("旧 localStorage 话题迁移 chat.db 存在且清理本地键");

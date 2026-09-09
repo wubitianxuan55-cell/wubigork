@@ -632,6 +632,7 @@ function ItemRow({
                 onPatch({
                   title: e.title,
                   name: e.name,
+                  code: e.code,
                   unit: e.unit,
                   price: e.price,
                   categoryPath: e.categoryPath || e.category || "",
@@ -644,6 +645,13 @@ function ItemRow({
             />
           )}
         </div>
+        <input
+          className={`${fieldCls} !text-[10.5px] mt-1 font-mono`}
+          value={item.code || ""}
+          placeholder="定额/清单编码（可选）"
+          onChange={(e) => onPatch({ code: e.target.value })}
+          onBlur={onSave}
+        />
       </td>
       <td className="py-1 px-2">
         <input className={fieldCls} value={item.unit} placeholder="单位" onChange={(e) => onPatch({ unit: e.target.value })} onBlur={onSave} />
