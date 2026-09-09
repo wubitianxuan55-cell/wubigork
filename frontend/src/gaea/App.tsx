@@ -701,7 +701,7 @@ export default function App() {
                         </GenuiActionProvider>
                       </GenuiScopeProvider>
                     )}
-                    {chatTab === "trajectory" && <TrajectoryView running={state.running} />}
+                    {chatTab === "trajectory" && <TrajectoryView running={state.running} sessionPath={currentSessionPath ?? undefined} />}
                     {chatTab === "context" && (
                       <ContextView
                         running={state.running}

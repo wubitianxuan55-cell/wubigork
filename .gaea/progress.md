@@ -1,8 +1,16 @@
 # 任务进度
 
-> 本文件为**最近发布速览**：仅保留最近 7 条版本记录（v4.174.0 ~ v4.180.0）。
+> 本文件为**最近发布速览**：仅保留最近 7 条版本记录（v4.175.0 ~ v4.181.0）。
 > v4.173.0 及之前的完整历史磁带（90 条记录 + 历史期章节）已于 2026-09-09 瘦身归档至
 > `docs/archive/progress-history-2026-09.md`；历史详情请读归档文件。
+
+## 最新发布：v4.181.0（2026-09-09）「上下文/轨迹按会话读取 + GLM Coding Plan 429 分诊」
+
+- **根因**：Agent 网络不按当前会话=GaeaTrajectory/GaeaAgentNetwork 无参绑定恒读内核 ga.ctrl 单例会话，UI 切历史会话后不跟（「UI 会话≠内核会话」根因家族，其余无参绑定待审计）。
+- **修复**：两绑定变参 sessionPath（显式优先/缺省回落内核兼容）+resolveGaeaSessionPath；bridge 契约数组形态+mock+agentNetworkStore 路径声明（跨会话清快照宁空勿错）+六消费方接线；BrowserPanel 保持内核兜底。
+- **附带 GLM 429 分诊**：Coding Plan 资源包挂 coding 端点计费域，标准端点 429=端点未切（非 Key 坏）；glmPing 429 时提示切换「编码套餐」端点。
+- **门禁**：Go 全量 0 FAIL（+1 显式路径用例）、vitest 2742（+3；flaky 族单独复跑绿）、tsc/eslint 0、drift PASS@602（零绑定名）、build strip+冒烟 200、SHA256=D3BD8386862D5F74EC2BC63F8CA5B35394FA812588376DA306ECAC078AA62D55。
+- **欠账**：TaskCenter session 维度结构刀；无参绑定「内核会话」语义逐个审计。
 
 ## 最新发布：v4.180.0（2026-09-09）「办公任务管理会话关联刀：会话待办区入任务管理页」
 

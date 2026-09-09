@@ -114,10 +114,13 @@ export interface CoreBindings {
   // ContextView 返回当前会话的上下文构成快照（dsh-context Go 移植 Phase A）：
   // 六分类当前组成、逐请求趋势、上下文事件、模型可见节点与归档。
   ContextView(): Promise<ContextTimeline>;
-  // Trajectory 返回当前会话的轨迹时间线（轮次→步骤→工具调用）。
-  Trajectory(): Promise<Trajectory>;
-  // AgentNetwork 返回当前会话的 Agent 网络（主 agent 根 + 子代理树）。
-  AgentNetwork(): Promise<AgentNetwork>;
+  // Trajectory 返回会话的轨迹时间线（轮次→步骤→工具调用）。sessionPath
+  // 单元素数组可选（Go 变参 → JS 数组，与 TaskList 同形态）：[path]=按该
+  // 会话读取（UI 会话切换语义）；缺省/[]=内核当前会话。
+  Trajectory(sessionPath?: string[]): Promise<Trajectory>;
+  // AgentNetwork 返回会话的 Agent 网络（主 agent 根 + 子代理树）。sessionPath
+  // 语义同 Trajectory。
+  AgentNetwork(sessionPath?: string[]): Promise<AgentNetwork>;
   // TCCA 缓存报告（V3.0）— 返回 CacheReport JSON 字符串
   TCCAReport(): Promise<string>;
   // Balance queries the active provider's wallet balance (a network call);

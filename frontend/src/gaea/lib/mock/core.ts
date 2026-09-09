@@ -187,8 +187,9 @@ export function buildCore(s: MakeMockState): CoreMethods {
       }
       throw new Error("mock: 未找到 seq=" + seq + " 的可展开节点");
     },
-    async Trajectory() {
+    async Trajectory(_sessionPath?: string[]) {
       // 浏览器开发 mock：固定一份与后端折叠形态一致的轨迹快照。
+      // sessionPath（Go 变参数组）在 mock 演示数据中不区分会话，签名对齐真绑定。
       return {
         ok: true,
         turns: [
@@ -230,10 +231,11 @@ export function buildCore(s: MakeMockState): CoreMethods {
         ],
       };
     },
-    async AgentNetwork() {
+    async AgentNetwork(_sessionPath?: string[]) {
       // 浏览器开发 mock：主 agent + 两个子代理（一完成一运行），运行中的
       // 子代理带嵌套孙节点（AgentTree 深层展开/收起用）。节点 id 与
       // SubagentRuns 的 ref 对齐（ref 直等匹配，面板富化运行预览）。
+      // sessionPath（Go 变参数组）mock 不区分会话，签名对齐真绑定。
       return {
         ok: true,
         window: 1_000_000,

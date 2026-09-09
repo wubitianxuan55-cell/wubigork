@@ -1,3 +1,6 @@
+## v4.181.0 · 上下文/轨迹按会话读取 + GLM Coding Plan 429 分诊（2026-09-09）
+> 用户反馈 Agent 网络不按当前会话。根因=GaeaTrajectory/GaeaAgentNetwork 无参绑定恒读内核 ga.ctrl 单例会话，UI 切历史会话后不跟。修复=两绑定变参 sessionPath（显式路径优先/缺省回落内核兼容），新 resolveGaeaSessionPath；前端 bridge 契约（JS 数组形态）+mock+agentNetworkStore 路径声明（跨会话清快照宁空勿错/同会话宁旧勿断）+六消费方接线（ContextView/SubagentsPanel/TasksWorkbench/TrajectoryView 新 prop/AgentNetworkCard；BrowserPanel 保持内核兜底）。附带 GLM 429 分诊：编码套餐资源包挂 coding 端点计费域，标准端点 429 时提示切换「编码套餐」端点（用户实测根因）。绑定名 602 零变更；Go 全量绿（+1 显式路径用例）、vitest 2742、tsc/eslint 0、build strip+冒烟 200。详见 releases/v4.181.0.md。
+
 ## v4.180.0 · 办公任务管理会话关联刀：会话待办区入任务管理页（2026-09-09）
 > 用户反馈任务管理「没与当前会话关联、全是固定内容」。定位=页面主体是 TaskCenter 全局后台任务表（价格抓取/语义索引 cron 持续在列，天然会话无关），而会话真任务（todo_write 待办）无入口。修复=TasksWorkbench 首区新增「会话待办」：直订全局 controller store items（随会话切换，零 props 穿层，ContextModal 弹层同源正确），复用 useTodoExtractor 提取最新 todo_write（与聊天流待办卡同规则），三态条目+进度 n/m，无待办不占位；页面四区语义=会话待办/子代理/本地模型工具（均会话）+任务中心（全局）。零绑定 602、TaskCenter 本体零改动。vitest 2739 首跑全绿（+1）、tsc/eslint 0、e-check OK、零 Go 改动、build strip+冒烟 200。欠账=TaskCenter 会话关联需任务表加 session 维度（结构刀另立版本）。详见 releases/v4.180.0.md。
 

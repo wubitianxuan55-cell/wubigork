@@ -113,7 +113,7 @@ export function TasksWorkbench({
     return subscribeAgentNetwork((nextNet, meta) => {
       setNet(nextNet);
       setNetMeta(meta);
-    });
+    }, { path: sessionPath });
   }, [sessionPath]);
 
   // 会话切换立即重拉树：单例轮询器不随路径重建（无参绑定），显式 reload 补
@@ -123,12 +123,12 @@ export function TasksWorkbench({
   useEffect(() => {
     const prev = prevPathRef.current;
     prevPathRef.current = sessionPath;
-    if (sessionPath && prev && prev !== sessionPath) reloadAgentNetwork();
+    if (sessionPath && prev && prev !== sessionPath) reloadAgentNetwork(sessionPath);
   }, [sessionPath]);
 
   // 手动刷新 / 事件流刷新：双 store 显式重拉（各自在途合并为一次）。
   const refresh = useCallback(() => {
-    reloadAgentNetwork();
+    reloadAgentNetwork(sessionPath);
     if (sessionPath) reloadSubagentRuns(sessionPath);
   }, [sessionPath]);
 
@@ -155,7 +155,7 @@ export function TasksWorkbench({
   const loadError = runsError || netError;
   const retryError = useCallback(() => {
     if (runsError) reloadSubagentRuns(sessionPath ?? "");
-    else reloadAgentNetwork();
+    else reloadAgentNetwork(sessionPath);
   }, [runsError, sessionPath]);
   const hasContent =
     (net !== null && (net.root.children?.length ?? 0) > 0) || runs.length > 0;

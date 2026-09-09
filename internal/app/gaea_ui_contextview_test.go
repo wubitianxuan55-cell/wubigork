@@ -1,9 +1,13 @@
 package app
 
 import (
+	"encoding/json"
+	"path/filepath"
 	"testing"
 	"time"
 
+	gaeaConfig "github.com/gaea/gaea/internal/gaea/config"
+	"github.com/gaea/gaea/internal/gaea/agent/session"
 	"github.com/gaea/gaea/internal/gaea/trajectory"
 )
 
@@ -70,4 +74,68 @@ func TestEnrichAgentNetwork_SkipsModelToolAndRefMatched(t *testing.T) {
 	if n := net.Root.Children[0]; n.Status != "completed" || n.Task != "有树节点的运行" {
 		t.Fatalf("ref-matched node not enriched: %+v", n)
 	}
+}
+
+// TestGaeaTrajectoryAndNetworkExplicitSessionPath 真实接线：磁盘事件日志 +
+// 显式会话路径（v4.181）。内核 ctrl=nil（缺省=空快照）时，显式路径仍按传入
+// 会话读取——证明路径优先级与「UI 查看会话 ≠ 内核活跃会话」解耦。
+func TestGaeaTrajectoryAndNetworkExplicitSessionPath(t *testing.T) {
+	restore := workspaceTestIsolate(t)
+	defer restore()
+	oldCfg, oldCtrl := ga.cfg, ga.ctrl
+	defer func() { ga.cfg, ga.ctrl = oldCfg, oldCtrl }()
+	ga.cfg = &gaeaConfig.Config{Workspace: t.TempDir()}
+	ga.ctrl = nil
+
+	// 轨迹/网络绑定只用 gaeaCtrl 与会话日志路径，不依赖 App 配置。
+	a := &App{core: &core{}}
+
+	// 缺省（内核 nil）→ 空快照不报错
+	if tr, err := a.GaeaTrajectory(); err != nil || len(tr.Turns) != 0 {
+		t.Fatalf("缺省 Trajectory 应为空快照: turns=%d err=%v", len(tr.Turns), err)
+	}
+	if net, err := a.GaeaAgentNetwork(); err != nil || len(net.Root.Children) != 0 {
+		t.Fatalf("缺省 AgentNetwork 应为空快照: children=%d err=%v", len(net.Root.Children), err)
+	}
+
+	// 磁盘事件日志：一轮 user + assistant（Kind 与运行期事件序一致）。
+	p := filepath.Join(t.TempDir(), "hist-session.jsonl")
+	w, err := session.OpenLog(session.LogPathFor(p), "", "")
+	if err != nil {
+		t.Fatalf("OpenLog: %v", err)
+	}
+	entries := []session.LogEntry{
+		{Kind: "turn_started", Payload: mustRaw(t, map[string]string{})},
+		{Kind: session.KindUserMessage, Payload: mustRaw(t, map[string]string{"content": "历史会话的提问"})},
+		{Kind: session.KindAssistantMessage, Payload: mustRaw(t, map[string]any{"id": "a1", "text": "历史会话的答复"})},
+	}
+	for i, e := range entries {
+		if _, err := w.AppendRaw(e.Kind, e.Payload); err != nil {
+			t.Fatalf("append entry %d: %v", i, err)
+		}
+	}
+	if err := w.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+
+	// 显式路径 → 按该会话读取（非空）。
+	tr, err := a.GaeaTrajectory(p)
+	if err != nil {
+		t.Fatalf("显式路径 Trajectory: %v", err)
+	}
+	if len(tr.Turns) == 0 {
+		t.Fatal("显式路径 Trajectory 应折叠出轮次")
+	}
+	net, err := a.GaeaAgentNetwork(p)
+	if err != nil {
+		t.Fatalf("显式路径 AgentNetwork: %v", err)
+	}
+	if !net.Ok {
+		t.Fatal("显式路径 AgentNetwork 应 ok=true")
+	}
+	// 空串参数 = 缺省语义（内核 nil → 空），不误读显式路径残留
+	if tr2, err := a.GaeaTrajectory(""); err != nil || len(tr2.Turns) != 0 {
+		t.Fatalf("空串参数应回落缺省（内核 nil → 空）: turns=%d err=%v", len(tr2.Turns), err)
+	}
+	_ = json.Marshal
 }

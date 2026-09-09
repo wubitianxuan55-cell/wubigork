@@ -179,3 +179,54 @@ describe("状态广播 / 错误保留 / 显式重拉", () => {
     expect(getAgentNetworkSnapshot()).toBeNull(); // 弃册即清
   });
 });
+
+// ── 路径声明（v4.181：绑定按会话读取）──
+describe("subscribeAgentNetwork 路径声明", () => {
+  it("订阅带 path → 拉取携带 [path]（UI 会话语义）；无 path → 内核会话（undefined）", () => {
+    const off1 = subscribeAgentNetwork(() => {}, { path: "s1.jsonl" });
+    expect(mocks.AgentNetwork).toHaveBeenCalledWith(["s1.jsonl"]);
+    off1();
+    const off2 = subscribeAgentNetwork(() => {});
+    expect(mocks.AgentNetwork).toHaveBeenCalledWith(undefined);
+    off2();
+  });
+
+  it("同一 poller 跨会话切换：清空旧快照置 loading 并立即以新路径重拉，不串会话", async () => {
+    const seen: string[] = [];
+    let resolve2: (n: AgentNetwork) => void = () => {};
+    mocks.AgentNetwork.mockImplementationOnce(() => Promise.resolve(net(111)));
+    const off1 = subscribeAgentNetwork(
+      (n, m) => seen.push(`${n?.root.tokens ?? -1}:${m.status}`),
+      { path: "s1.jsonl" },
+    );
+    await new Promise((r) => setTimeout(r, 0));
+    expect(seen).toEqual(["111:ready"]);
+    // 订阅2 带新 path 加入同一 poller → declarePath 清快照 notify loading + 立即拉 s2
+    mocks.AgentNetwork.mockImplementationOnce(
+      () => new Promise<AgentNetwork>((r) => { resolve2 = r; }),
+    );
+    const off2 = subscribeAgentNetwork(
+      (n, m) => seen.push(`${n?.root.tokens ?? -1}:${m.status}`),
+      { path: "s2.jsonl" },
+    );
+    expect(seen.at(-1)).toBe("-1:loading"); // 旧会话树不转售
+    expect(mocks.AgentNetwork).toHaveBeenLastCalledWith(["s2.jsonl"]);
+    resolve2(net(222));
+    await new Promise((r) => setTimeout(r, 0));
+    expect(seen.at(-1)).toBe("222:ready");
+    off1();
+    off2();
+  });
+
+  it("reloadAgentNetwork(path)：同路径走原重拉语义；跨路径立即切换", async () => {
+    const off = subscribeAgentNetwork(() => {}, { path: "s1.jsonl" });
+    await new Promise((r) => setTimeout(r, 0));
+    mocks.AgentNetwork.mockClear();
+    reloadAgentNetwork("s1.jsonl"); // 同路径：原语义重拉
+    expect(mocks.AgentNetwork).toHaveBeenLastCalledWith(["s1.jsonl"]);
+    await new Promise((r) => setTimeout(r, 0));
+    reloadAgentNetwork("s3.jsonl"); // 跨路径：立即以新路径拉取
+    expect(mocks.AgentNetwork).toHaveBeenLastCalledWith(["s3.jsonl"]);
+    off();
+  });
+});

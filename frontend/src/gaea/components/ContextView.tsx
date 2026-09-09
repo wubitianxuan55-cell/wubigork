@@ -603,8 +603,12 @@ export function ContextView({
   }, []);
 
   const [net, setNet] = useState<AgentNetwork | null>(null);
-  // Agent 网络：订阅共享 store；running 时 useLiveReload 驱动的 load() 顺带 reload。
-  useEffect(() => subscribeAgentNetwork((n) => setNet(n)), []);
+  // Agent 网络：订阅共享 store（按 UI 会话读取，v4.181）；running 时
+  // useLiveReload 驱动的 load() 顺带 reload。会话切换由依赖重建触发 declarePath。
+  useEffect(
+    () => subscribeAgentNetwork((n) => setNet(n), { path: sessionPath }),
+    [sessionPath],
+  );
   const sessionName = useMemo(() => {
     if (sessionNameProp) return sessionNameProp;
     if (!sessionPath) return "—";
@@ -614,7 +618,7 @@ export function ContextView({
   const space = (sessionPath ?? "").includes("/play/") ? t("contextview.spacePlay") : t("contextview.spaceWork");
 
   const load = useCallback(() => {
-    void reloadAgentNetwork();
+    void reloadAgentNetwork(sessionPath);
     const p = fetchTimeline
       ? fetchTimeline()
       : app.ContextView();
@@ -633,7 +637,7 @@ export function ContextView({
       })
       .catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)))
       .finally(() => {});
-  }, [fetchTimeline]);
+  }, [fetchTimeline, sessionPath]);
 
   useEffect(() => {
     load();

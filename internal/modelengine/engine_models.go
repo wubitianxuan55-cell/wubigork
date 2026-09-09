@@ -247,6 +247,11 @@ func (m *Manager) glmPing(ctx context.Context, engine *EngineConfig) error {
 		return nil
 	}
 	if msg := zhipuErrorMessage(body); msg != "" {
+		// Coding Plan 分诊：订阅资源包挂在 coding 专用端点的计费域，标准端点
+		// 查不到即报 429「无可用资源包」——不是 Key 坏，是端点没切。
+		if resp.StatusCode == http.StatusTooManyRequests && engine.BaseURL != GLMBaseURLCoding {
+			msg += "（提示：若您订阅的是 GLM Coding Plan 编码套餐，请在模型中心 GLM 卡片将端点切换为「编码套餐」后重连）"
+		}
 		return fmt.Errorf("GLM Key 校验失败（HTTP %d）：%s", resp.StatusCode, msg)
 	}
 	return fmt.Errorf("GLM Key 校验失败：HTTP %d", resp.StatusCode)

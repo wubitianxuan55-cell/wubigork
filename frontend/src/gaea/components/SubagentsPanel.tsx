@@ -173,22 +173,22 @@ export function SubagentsPanel({ sessionPath, onSubagentStarted }: {
     return subscribeAgentNetwork((nextNet, meta) => {
       setNet(nextNet);
       setNetMeta(meta);
-    });
+    }, { path: sessionPath });
   }, [sessionPath]);
 
-  // 会话切换立即重拉树：单例轮询器不随路径重建（无参绑定），显式 reload 补
-  // 即时性；与订阅重建触发的重拉在途合并，至多一次请求。runs 按路径建册天然
-  // 重建，无需此处接线。
+  // 会话切换立即重拉树：订阅重建携带新路径（declarePath 清旧会话快照立即重拉），
+  // 显式 reload 补即时性；与订阅重建触发的重拉在途合并，至多一次请求。runs 按
+  // 路径建册天然重建，无需此处接线。
   const prevPathRef = useRef<string | undefined>(undefined);
   useEffect(() => {
     const prev = prevPathRef.current;
     prevPathRef.current = sessionPath;
-    if (sessionPath && prev && prev !== sessionPath) reloadAgentNetwork();
+    if (sessionPath && prev && prev !== sessionPath) reloadAgentNetwork(sessionPath);
   }, [sessionPath]);
 
   // 手动刷新 / 事件流刷新：双 store 显式重拉（各自在途合并为一次）。
   const refresh = useCallback(() => {
-    reloadAgentNetwork();
+    reloadAgentNetwork(sessionPath);
     if (sessionPath) reloadSubagentRuns(sessionPath);
   }, [sessionPath]);
 
@@ -211,7 +211,7 @@ export function SubagentsPanel({ sessionPath, onSubagentStarted }: {
   const loadError = runsError || netError;
   const retryError = useCallback(() => {
     if (runsError) reloadSubagentRuns(sessionPath ?? "");
-    else reloadAgentNetwork();
+    else reloadAgentNetwork(sessionPath);
   }, [runsError, sessionPath]);
   const runningRuns = useMemo(() => runs.filter((r) => r.status === "running"), [runs]);
   const runningCount = runsMeta?.running || runningRuns.length;

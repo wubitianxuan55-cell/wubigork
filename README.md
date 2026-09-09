@@ -92,6 +92,7 @@ gaea/
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| **v4.181.0** | 2026-09-09 | 上下文/轨迹按会话读取：GaeaTrajectory/GaeaAgentNetwork 变参 sessionPath（显式路径优先/缺省回落内核），agentNetworkStore 路径声明（跨会话清快照+立即重拉），六消费方接线——UI 切历史会话后 Agent 网络/轨迹不再显示内核会话固定内容。附带 GLM 429 分诊提示（Coding Plan 端点未切场景）。零绑定名变更；Go 全量绿（+1）、vitest 2742；smoke 200。详见 releases/v4.181.0.md |
 | **v4.180.0** | 2026-09-09 | 办公任务管理会话关联刀：任务管理页首区新增「会话待办」——TasksWorkbench 直订全局 store items（随会话切换，零 props 穿层）+ 复用 useTodoExtractor 提取最新 todo_write 清单（三态条目+进度，无待办不占位）；此前页面主体是全局后台任务表（cron 周期任务持续在列=用户看到的"固定内容"），会话真任务无入口。四区语义=会话待办/子代理/本地模型工具（会话）+任务中心（全局）。零绑定；vitest 2739；smoke 200。详见 releases/v4.180.0.md |
 | **v4.179.0** | 2026-09-09 | 瘦身清点刀：knip 死文件 13 全删（全仓零 import 甄别）+ 幽灵依赖 13 包显式化（jszip/katex/dayjs/unified/hast-util-sanitize/@lezer×8，20 处 import 靠传递依赖侥幸工作）+ 死传递依赖 @codemirror/search 顺带清除；三存疑依赖验活结案（gsap/docx-preview/unist-util-visit 在用保留）。冷启动基线打点：Go New+Startup 七段耗时落长期日志 + 前端 gaea:boot→gaea:interactive 两 rAF 口径（CDP 可读）；初始化链审计结案=重活均已异步，懒初始化无需立项。零绑定 602、零行为变化。vitest 2738；Go 绿；smoke 200；knip 复扫死文件/幽灵依赖双清零。详见 releases/v4.179.0.md |
 | **v4.178.0** | 2026-09-09 | 造价·条目匹配键刀：定额编码贯通——SchemaV17 cost_entries/cost_estimate_items 增 code 列+索引；cost.NormalizeCode 归一化（全角/空白/大小写）；导入表头「定额编号/清单编码」列映射 + 编码优先匹配（带码未命中即新增，同标题不同编码不误覆盖）；costref 归因对标 matchEntry 编码精确优先（matchedBy=code）；沉淀/引用继承编码；cost_save/cost_search 工具面 + EntryModal/LibraryView/ImportModal/ProjectsView 四组件 UI 贯通。零绑定 602；附带修复 e-check 三处陈旧守卫（v4.174 bridge/v4.176 lazy 甩下）。vitest 2738；Go 绿；smoke 200。详见 releases/v4.178.0.md |

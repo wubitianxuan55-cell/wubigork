@@ -98,16 +98,33 @@ func resolveNodeImages(d *contextview.NodeDetail, cwd string) {
 	d.Images = images
 }
 
-// GaeaTrajectory 返回当前会话的轨迹时间线（dsh 轨迹标签的 Go 移植）：
+// resolveGaeaSessionPath 归一会话路径：显式传入（UI 正在查看的会话）优先，
+// 空/缺省回退内核当前会话（兼容旧调用）。UI 会话切换后内核 ctrl 仍指向最近
+// 活跃会话——上下文/轨迹/网络按 UI 会话展示必须显式传路径，否则切到历史
+// 会话时看到的是内核会话的固定内容。
+func resolveGaeaSessionPath(args []string) string {
+	for _, p := range args {
+		if s := strings.TrimSpace(p); s != "" {
+			return s
+		}
+	}
+	if c := gaeaCtrl(); c != nil {
+		return c.SessionPath()
+	}
+	return ""
+}
+
+// GaeaTrajectory 返回会话的轨迹时间线（dsh 轨迹标签的 Go 移植）：
 // 按 轮次 → 步骤 组织用户输入、推理、回复、工具调用与过程事件。
-// 会话或日志不存在时返回空快照（ok=true），不报错。
+// sessionPath 可选：显式传入=按该会话读取（UI 会话切换语义）；缺省=内核
+// 当前会话（兼容旧调用）。会话或日志不存在时返回空快照（ok=true），不报错。
 // 事件日志缺失时回退 legacy 会话投影（旧会话仍可看板，见 session.ReadEntriesFor）。
-func (a *App) GaeaTrajectory() (trajectory.Trajectory, error) {
-	c := gaeaCtrl()
-	if c == nil {
+func (a *App) GaeaTrajectory(sessionPath ...string) (trajectory.Trajectory, error) {
+	path := resolveGaeaSessionPath(sessionPath)
+	if path == "" {
 		return trajectory.EmptyTrajectory(), nil
 	}
-	entries, err := session.ReadEntriesFor(c.SessionPath())
+	entries, err := session.ReadEntriesFor(path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return trajectory.EmptyTrajectory(), nil
@@ -117,15 +134,15 @@ func (a *App) GaeaTrajectory() (trajectory.Trajectory, error) {
 	return trajectory.FoldTrajectory(entries), nil
 }
 
-// GaeaAgentNetwork 返回当前会话的 Agent 网络（主 agent 根 + 子代理树），
-// 并用 subagents/ meta 富化子代理节点的任务摘要/状态/模型。
+// GaeaAgentNetwork 返回会话的 Agent 网络（主 agent 根 + 子代理树），并用
+// subagents/ meta 富化子代理节点的任务摘要/状态/模型。sessionPath 可选：
+// 显式传入=按该会话读取（UI 会话切换语义）；缺省=内核当前会话（兼容旧调用）。
 // 事件日志缺失时回退 legacy 会话投影（见 session.ReadEntriesFor）。
-func (a *App) GaeaAgentNetwork() (trajectory.AgentNetwork, error) {
-	c := gaeaCtrl()
-	if c == nil {
+func (a *App) GaeaAgentNetwork(sessionPath ...string) (trajectory.AgentNetwork, error) {
+	path := resolveGaeaSessionPath(sessionPath)
+	if path == "" {
 		return trajectory.EmptyAgentNetwork(), nil
 	}
-	path := c.SessionPath()
 	entries, err := session.ReadEntriesFor(path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
@@ -133,10 +150,21 @@ func (a *App) GaeaAgentNetwork() (trajectory.AgentNetwork, error) {
 		}
 		return trajectory.EmptyAgentNetwork(), err
 	}
-	_, window := c.ContextSnapshot()
+	window := gaeaContextWindow()
 	net := trajectory.FoldAgentNetwork(entries, int64(window))
 	enrichAgentNetwork(&net, a.GaeaSubagentRuns(path))
 	return net, nil
+}
+
+// gaeaContextWindow 取内核上下文窗口大小（窗口属内核配置与会话无关；内核
+// 未初始化时返回 0，折叠管线自行兜底）。
+func gaeaContextWindow() int {
+	c := gaeaCtrl()
+	if c == nil {
+		return 0
+	}
+	_, window := c.ContextSnapshot()
+	return window
 }
 
 // runMatchesNode 判定一个已落盘 run 是否已被树上的节点承载：

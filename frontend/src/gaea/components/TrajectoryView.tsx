@@ -310,7 +310,7 @@ function OverviewBar({ turns, onJump }: { turns: TrajectoryTurn[]; onJump: (turn
 }
 
 // ─── 容器：拉取 + 搜索 + 统计 + 布局 ────────────────────────
-export function TrajectoryView({ running }: { running: boolean }) {
+export function TrajectoryView({ running, sessionPath }: { running: boolean; sessionPath?: string }) {
   const t = useT();
   const [trajectory, setTrajectory] = useState<Trajectory>(EMPTY);
   const [query, setQuery] = useState("");
@@ -322,7 +322,8 @@ export function TrajectoryView({ running }: { running: boolean }) {
   const rowHeights = useDynamicRowHeight({ defaultRowHeight: 29, key: "trajectory" });
 
   const load = useCallback(() => {
-    app.Trajectory()
+    // 按 UI 会话读取（v4.181）：缺省=内核当前会话。会话切换经 load 依赖重建触发。
+    app.Trajectory(sessionPath ? [sessionPath] : undefined)
       // 老后端可能把空切片序列化成 null，按数组消费前统一归一化
       .then((t) => {
         setTrajectory({
@@ -333,7 +334,7 @@ export function TrajectoryView({ running }: { running: boolean }) {
         setError(null);
       })
       .catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)));
-  }, []);
+  }, [sessionPath]);
 
   useEffect(() => { load(); }, [load]);
   // 运行中随事件流节流刷新 + 回合结束立即刷新（useLiveReload）。
