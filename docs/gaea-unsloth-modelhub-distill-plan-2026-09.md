@@ -83,7 +83,7 @@ MH1 → MH2 → MH3（两把小刀可并行，均零绑定）→ MH4（依赖 MH
 
 ## 七、实测：herdsman vs unsloth 同模型同文件 A/B（2026-09-05，用户要求「别猜，测」）
 
-**条件**：同一 GGUF 文件 `D:\模型\Qwen\Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive-Q4_K_P.gguf`（23.4GB）分别由 herdsman（8080）与 unsloth Studio（8888，`/api/inference/load` 直加载本地路径成功）加载；AMD Radeon 8060S 统一内存 63.6GB；同 prompt（约 300 字中文说明）、流式、`include_usage` 取服务端真实 completion_tokens、**双方均关思考**（unsloth 需显式 `chat_template_kwargs.enable_thinking=false`）、自然 stop。
+**条件**：同一本地 GGUF 文件（Qwen3.6-35B-A3B-Aggressive-Q4_K_P 量化版，23.4GB，存于本机模型目录）分别由 herdsman（8080）与 unsloth Studio（8888，`/api/inference/load` 直加载本地路径成功）加载；AMD Radeon 8060S 统一内存 63.6GB；同 prompt（约 300 字中文说明）、流式、`include_usage` 取服务端真实 completion_tokens、**双方均关思考**（unsloth 需显式 `chat_template_kwargs.enable_thinking=false`）、自然 stop。
 
 | 指标 | herdsman | unsloth | 结论 |
 |---|---|---|---|

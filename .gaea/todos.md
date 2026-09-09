@@ -33,7 +33,7 @@
 | ✅ | 审计刀B（下载类×4）：ImageGen 两处下载 / NovelSetting 导入导出 / 办公 md 分支（瘦身 P1 v4.166.0） |
 | ✅ | 审计刀C（上传类×3）：ControlPanel / VisionTrial / SkillModal 接 pickFile util（瘦身 P1 v4.166.0） |
 | ⬜ | 审计刀D（真机取证）：printSvg iframe print / 拖拽 / 粘贴（Filters 可选参数已代码化完成 = v4.167.0） |
-| ⬜ | W2 知识外化：30 分钟上手文档 / progress.md 瘦身归档 / 个人路径清洗 |
+| ✅ | W2 知识外化三件齐（2026-09-09）：30 分钟上手文档 docs/gaea-getting-started-30min-2026-09.md / progress.md 244KB 瘦身归档至 docs/archive/progress-history-2026-09.md / 个人路径清洗 4 活跃文档 5 处（archive 历史证据不清洗） |
 
 ## 瘦身长期总规划（2026-09-08 立项，权威= docs/gaea-slim-masterplan-2026-09.md）
 

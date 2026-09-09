@@ -17,7 +17,7 @@
 
 ### 1. Go 构建缓存与遥测写入
 
-- **症状**：`go test` 报 `open C:\Users\wubi\AppData\Local\go-build\...: Access is denied`；
+- **症状**：`go test` 报 `open C:\Users\<user>\AppData\Local\go-build\...: Access is denied`；
   stderr 报 `error acquiring upload token: creating token file: ...\go\telemetry\local\upload.token: Access is denied`。
 - **成因**：旧策略（workspace-write）禁止写用户 AppData；Go 构建缓存与遥测 token 都在那里。
 - **解法（双管齐下，都已验证）**：
