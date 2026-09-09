@@ -57,6 +57,52 @@ func ensureBlobChapterScene(pm *project.Manager, chapterNum int) {
 	slog.Info("blob 章已物化为首场景", "chapter", chapterNum, "sceneId", sc.Meta.ID)
 }
 
+// syncBlobFromScenes 把场景库回写为整章 blob 投影（V4 且有场景时）：
+// blob = 各场景正文按空段拼接（无分隔线，保导出/搜索/统计可读）。
+// 场景写路径（逐场景保存/逐场景生成/重排/快照恢复）之后调用，保证 blob
+// 消费方读到与场景一致的正文。失败只 warn 不阻断——blob 滞后可由下一次
+// 场景写自愈。
+func syncBlobFromScenes(pm *project.Manager, chapterNum int) {
+	sm := pm.SceneManager(chapterNum)
+	metas, err := sm.List()
+	if err != nil || len(metas) == 0 {
+		return
+	}
+	parts := make([]string, 0, len(metas))
+	for _, meta := range metas {
+		sc, rerr := sm.Read(meta.ID)
+		if rerr != nil {
+			continue
+		}
+		parts = append(parts, sc.Content)
+	}
+	if len(parts) == 0 {
+		return
+	}
+	if werr := pm.WriteChapter(chapterNum, strings.Join(parts, "\n\n")); werr != nil {
+		slog.Warn("场景回写 blob 投影失败（继续）", "chapter", chapterNum, "error", werr)
+	}
+}
+
+// rebuildScenesFromBlob 整章重写（CreateChapter 主线完成点）后的场景对齐：
+// 已有场景全部删除，再从新 blob 物化单场景。整章重写后旧拆分与旧 POV 元数据
+// 不再对应新正文，重置=诚实可预期（blob 章物化规则与 ensureBlobChapterScene
+// 一致）；无场景的章 no-op（交给惰性物化）。
+func rebuildScenesFromBlob(pm *project.Manager, chapterNum int) {
+	sm := pm.SceneManager(chapterNum)
+	metas, err := sm.List()
+	if err != nil || len(metas) == 0 {
+		return
+	}
+	for _, meta := range metas {
+		if derr := sm.Delete(meta.ID); derr != nil {
+			slog.Warn("场景重置删除失败（继续）", "chapter", chapterNum, "scene", meta.ID, "error", derr)
+		}
+	}
+	ensureBlobChapterScene(pm, chapterNum)
+	slog.Info("整章重写后场景已重置", "chapter", chapterNum)
+}
+
 // CreateScene 在指定章节下创建一个 v4 场景。
 // 若该章还是「纯 blob、无场景」状态，先物化首场景再建新场景（1A 接通）。
 func (a *writingState) CreateScene(chapterNum int, slug string, title string) (map[string]interface{}, error) {
@@ -135,6 +181,7 @@ func (a *writingState) GenerateScene(chapterNum int, sceneID string, plotReq str
 	if err := sm.Write(scene); err != nil {
 		return nil, fmt.Errorf("保存场景失败: %w", err)
 	}
+	syncBlobFromScenes(pm, chapterNum)
 	a.markOutlineDone(pm, chapterNum, "")
 
 	score := 0

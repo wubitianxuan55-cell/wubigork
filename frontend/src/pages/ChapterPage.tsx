@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react'
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import {
   message, Modal,
 } from 'antd'
@@ -48,6 +48,7 @@ import {
   readSavedScrollTop, saveScrollTop, scrollPct,
 } from './chapter/readingScrollMemory'
 import { createTabData, needsCloseConfirm } from './chapter/chapterTabData'
+import { IsProjectV4, GetChapterScenes, SaveScene, CreateScene } from '../../wailsjs/go/app/NovelB'
 import ExportPanel from '../components/novel/ExportPanel'
 import { ChapterIllustration } from './chapter/ChapterIllustration'
 import type { OutlineNode, ChapterTabData } from '../types'
@@ -166,32 +167,76 @@ const ChapterPage: React.FC = () => {
   }, [focusMode, readMode])
 
   const projectPath = useAppStore((s) => s.projectPath)
+  // V4 场景制探测（每项目一次）：浏览器 mock/旧壳无此绑定 → 保持 blob 模式。
+  // ref 承载结论：检测完成前打开章节也拿到最新值（避免竞态落到 blob 模式）。
+  const projectV4Ref = useRef(false)
+  useEffect(() => {
+    projectV4Ref.current = false
+    if (!projectPath) return
+    let alive = true
+    try {
+      IsProjectV4().then((v) => {
+        if (!alive) return
+        projectV4Ref.current = !!v
+      }).catch(() => { /* blob 模式 */ })
+    } catch { /* 浏览器/mock 下 window.go 不存在：同步抛 → blob 模式 */ }
+    return () => { alive = false }
+  }, [projectPath])
+
+  // 章节载入：V4 主线章读场景拼装（逐场景框 + id 按索引对齐，blob 已是 Go 侧投影）；
+  // 分支/V3/未知/场景读取失败 → 整章 blob 单框（宁显示勿空白）。
+  const loadChapterIntoTab = useCallback(async (key: string, node: OutlineNode, chNum: number, sceneMode: boolean) => {
+    const requestedPath = useAppStore.getState().projectPath
+    if (sceneMode) {
+      try {
+        const scenes = await GetChapterScenes(chNum)
+        if (useAppStore.getState().projectPath !== requestedPath) return
+        const list = Array.isArray(scenes) ? scenes : []
+        const boxes = list.map((s) => {
+          const c = (s as Record<string, unknown>)?.content
+          return typeof c === 'string' ? c : ''
+        })
+        const ids = list.map((s) => {
+          const v = (s as Record<string, unknown>)?.id
+          return typeof v === 'string' ? v : ''
+        })
+        updateTabByKey(key, 'scenes', boxes.length > 0 ? boxes : [''])
+        updateTabByKey(key, 'sceneIds', ids)
+        updateTabByKey(key, 'sceneBacked', boxes.length > 0)
+        updateTabByKey(key, 'saved', true)
+        return
+      } catch { /* 落回整章 blob */ }
+    }
+    try {
+      const result = node.branch ? await app.GetChapterBranch(chNum, node.branch) : await app.GetChapter(chNum)
+      if (useAppStore.getState().projectPath !== requestedPath || !result?.content) return
+      const content = typeof result.content === 'string' ? result.content : ''
+      updateTabByKey(key, 'scenes', [content])
+      updateTabByKey(key, 'sceneIds', [])
+      updateTabByKey(key, 'sceneBacked', false)
+      updateTabByKey(key, 'saved', true)
+    } catch (e) { console.error('load chapter failed:', e) }
+  }, [])
+
   useEffect(() => {
     setTabs([]); setActiveKey(''); setReadMode(false)
-    if (projectPath) {
-      void loadOutlines()
-        .then(() => {
-          const progress = readReadingProgress(projectPath)
-          if (!progress) return
-          const node = findAllLeaves(sortNodes(useOutlineStore.getState().outlines))
-            .find((n) => n.id === progress.nodeId)
-          if (!node) return
-          setActiveKey(node.id)
-          setTabs([createTabData(node)])
-          const chNum = node.order_index || 0
-          if (chNum > 0) {
-            const load = node.branch ? app.GetChapterBranch(chNum, node.branch) : app.GetChapter(chNum)
-            load.then((result) => {
-              if (useAppStore.getState().projectPath !== projectPath || !result?.content) return
-              const content = typeof result.content === 'string' ? result.content : ''
-              updateTabByKey(node.id, 'scenes', [content])
-              updateTabByKey(node.id, 'saved', true)
-            }).catch((e) => console.error('GetChapter failed:', e))
-          }
-        })
-        .catch((e) => console.error('loadOutlines failed:', e))
-    }
-  }, [projectPath, loadOutlines])
+    if (!projectPath) return
+    void (async () => {
+      let v4 = false
+      try { v4 = await IsProjectV4() } catch { v4 = false }
+      projectV4Ref.current = v4
+      await loadOutlines()
+      const progress = readReadingProgress(projectPath)
+      if (!progress) return
+      const node = findAllLeaves(sortNodes(useOutlineStore.getState().outlines))
+        .find((n) => n.id === progress.nodeId)
+      if (!node) return
+      setActiveKey(node.id)
+      setTabs([createTabData(node)])
+      const chNum = node.order_index || 0
+      if (chNum > 0) await loadChapterIntoTab(node.id, node, chNum, v4 && !node.branch)
+    })().catch((e) => console.error('load project failed:', e))
+  }, [projectPath, loadOutlines, loadChapterIntoTab])
 
   // 记住当前项目最后阅读的章节，下一次切回该书时自动恢复
   useEffect(() => {
@@ -215,18 +260,7 @@ const ChapterPage: React.FC = () => {
     if (tabs.some((t) => t.node.id === key)) return
     const newTab = createTabData(node)
     setTabs((prev) => [...prev, newTab])
-    if (chNum > 0) {
-      const requestedPath = projectPath
-      try {
-        const result = node.branch ? await app.GetChapterBranch(chNum, node.branch) : await app.GetChapter(chNum)
-        if (requestedPath !== useAppStore.getState().projectPath) return
-        if (result?.content) {
-          const content = typeof result.content === 'string' ? result.content : ''
-          updateTabByKey(key, 'scenes', [content])
-          updateTabByKey(key, 'saved', true)
-        }
-      } catch (e) { console.error('GetChapter failed:', e) }
-    }
+    if (chNum > 0) await loadChapterIntoTab(key, node, chNum, projectV4Ref.current && !node.branch)
   }
 
   function updateTabByKey<K extends keyof ChapterTabData>(key: string, field: K, value: ChapterTabData[K]) {
@@ -278,6 +312,21 @@ const ChapterPage: React.FC = () => {
     try {
       if (activeTab.node.branch) {
         await app.SaveChapterBranchContent(activeTab.chapterNum, activeTab.node.branch, c)
+      } else if (activeTab.sceneBacked) {
+        // V4 场景制：逐场景 SaveScene（blob 投影由 Go 侧同一调用内同步）；
+        // 无 id 的框（罕见兜底）先 CreateScene 补建再存。
+        const ids = [...(activeTab.sceneIds ?? [])]
+        for (let i = 0; i < activeTab.scenes.length; i++) {
+          let id = ids[i]
+          if (!id) {
+            const created = await CreateScene(activeTab.chapterNum, `scene-${i + 1}`, `场景 ${i + 1}`)
+            const cid = (created as Record<string, unknown> | null)?.id
+            if (typeof cid === 'string' && cid) { id = cid; ids[i] = id }
+          }
+          if (!id) throw new Error(`场景 ${i + 1} 缺少 id`)
+          await SaveScene(activeTab.chapterNum, id, activeTab.scenes[i])
+        }
+        updateTab('sceneIds', ids)
       } else {
         await app.SaveChapterContent(activeTab.chapterNum, c)
       }

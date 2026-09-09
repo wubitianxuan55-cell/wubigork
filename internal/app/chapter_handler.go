@@ -278,7 +278,11 @@ func (a *writingState) SaveScene(chapterNum int, sceneID string, content string)
 		return err
 	}
 	scene.Content = content
-	return sm.Write(scene)
+	if err := sm.Write(scene); err != nil {
+		return err
+	}
+	syncBlobFromScenes(pm, chapterNum)
+	return nil
 }
 
 // ReorderScenes 重排场景顺序
@@ -290,7 +294,11 @@ func (a *writingState) ReorderScenes(chapterNum int, sceneIDs []string) error {
 	if !pm.IsV4() {
 		return nil // v3 项目无场景可排
 	}
-	return pm.SceneManager(chapterNum).Reorder(sceneIDs)
+	if err := pm.SceneManager(chapterNum).Reorder(sceneIDs); err != nil {
+		return err
+	}
+	syncBlobFromScenes(pm, chapterNum)
+	return nil
 }
 
 // CreateSnapshot 手动创建场景快照
@@ -374,7 +382,11 @@ func (a *writingState) RestoreSnapshot(snapshotID string, sceneID string, chapte
 			return err
 		}
 		scene.Content = content
-		return pm.SceneManager(chapterNum).Write(scene)
+		if werr := pm.SceneManager(chapterNum).Write(scene); werr != nil {
+			return werr
+		}
+		syncBlobFromScenes(pm, chapterNum)
+		return nil
 	}
 
 	return pm.WriteChapter(chapterNum, content)

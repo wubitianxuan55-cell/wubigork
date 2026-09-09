@@ -145,6 +145,10 @@ export interface ChapterTabData {
   node: OutlineNode
   chapterNum: number
   scenes: string[]
+  /** V4 场景制：与 scenes 按索引对齐的场景 id（空数组=非场景制/未知） */
+  sceneIds?: string[]
+  /** V4 主线章：读场景拼装、逐场景保存（blob 为 Go 侧投影） */
+  sceneBacked?: boolean
   summary: string
   keyEvents: string[]
   emotionTone: string

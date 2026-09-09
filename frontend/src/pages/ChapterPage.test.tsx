@@ -5,7 +5,7 @@
 // 另锁搜索定位接线（第三批）：阅读模式内点命中可定位、同章再点仍能重新定位（回归修复）。
 // 第四批补锁：搜索命中「落为划线」→ 划线 state/持久化/正文回渲染，标题命中按钮禁用。
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { message } from 'antd'
 
 // 屏蔽 Wails 绑定：jsdom 中没有 window.go，章节读写全部给确定性返回。
@@ -18,6 +18,20 @@ const bindingsBridge = vi.hoisted(() => ({
   GetChapterBranch: vi.fn().mockResolvedValue({ content: '' }),
   SaveChapterContent: vi.fn().mockResolvedValue(undefined),
   SaveChapterBranchContent: vi.fn().mockResolvedValue(undefined),
+}))
+// NovelB 场景族直调（阅读页场景化）：默认 IsProjectV4=false → 既有用例全走
+// blob 模式；场景制用例在各自 it 内覆写为 true 并给 GetChapterScenes/SaveScene 桩。
+const novelB = vi.hoisted(() => ({
+  IsProjectV4: vi.fn().mockResolvedValue(false),
+  GetChapterScenes: vi.fn().mockResolvedValue([]),
+  SaveScene: vi.fn().mockResolvedValue(undefined),
+  CreateScene: vi.fn().mockResolvedValue({ id: '009-scene-n' }),
+}))
+vi.mock('../../wailsjs/go/app/NovelB', () => ({
+  IsProjectV4: novelB.IsProjectV4,
+  GetChapterScenes: novelB.GetChapterScenes,
+  SaveScene: novelB.SaveScene,
+  CreateScene: novelB.CreateScene,
 }))
 vi.mock('../gaea/lib/bridge', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../gaea/lib/bridge')>()
@@ -61,6 +75,11 @@ beforeEach(() => {
   // 真实 zustand store：与 NovelSettingPage.test 同款 setState 注入，测试间复位
   useAppStore.setState({ projectPath: '' })
   useOutlineStore.setState({ outlines: [], loading: false, error: null })
+  // vi.clearAllMocks 会清掉工厂默认返回值：恢复（默认 blob 模式）
+  novelB.IsProjectV4.mockResolvedValue(false)
+  novelB.GetChapterScenes.mockResolvedValue([])
+  novelB.SaveScene.mockResolvedValue(undefined)
+  novelB.CreateScene.mockResolvedValue({ id: '009-scene-n' })
 })
 
 afterEach(() => {
@@ -226,5 +245,51 @@ describe('搜索命中「落为划线」', () => {
     expect(msgSpy).not.toHaveBeenCalled()
     expect(localStorage.getItem(annKey)).toBeNull()
     msgSpy.mockRestore()
+  })
+})
+
+describe('ChapterPage 阅读页场景化（V4 主线章读场景、逐场景保存）', () => {
+  async function mountSceneChapter() {
+    novelB.IsProjectV4.mockResolvedValue(true)
+    novelB.GetChapterScenes.mockResolvedValue([
+      { id: '001-chapter', content: '第一场正文。' },
+      { id: '002-scene-2', content: '第二场正文。' },
+    ])
+    useOutlineStore.setState({ outlines: [leaf] })
+    useAppStore.setState({ projectPath: 'C:/proj/novel' })
+    render(<ChapterPage />)
+    // 等 V4 探测完成并 flush 微任务（ref 镜像写入），再派发开章事件
+    await waitFor(() => expect(novelB.IsProjectV4).toHaveBeenCalled())
+    await act(async () => {})
+    window.dispatchEvent(new CustomEvent('novel:open-chapter', { detail: { node: leaf } }))
+    await screen.findByTestId('chapter-editor-stub')
+    // 场景载入完成后 saved 翻转
+    await screen.findByText('已保存')
+  }
+
+  it('V4 主线章：载入走 GetChapterScenes（不走 GetChapter），保存逐场景 SaveScene', async () => {
+    await mountSceneChapter()
+    // 载入：场景制下不读整章 blob
+    expect(novelB.GetChapterScenes).toHaveBeenCalledWith(1)
+    expect(bindingsBridge.GetChapter).not.toHaveBeenCalled()
+    // Ctrl+S 保存 → 每场景一次 SaveScene，blob 投影由 Go 侧同步
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 's', ctrlKey: true }))
+    await waitFor(() => expect(novelB.SaveScene).toHaveBeenCalledTimes(2))
+    expect(novelB.SaveScene).toHaveBeenNthCalledWith(1, 1, '001-chapter', '第一场正文。')
+    expect(novelB.SaveScene).toHaveBeenNthCalledWith(2, 1, '002-scene-2', '第二场正文。')
+    expect(bindingsBridge.SaveChapterContent).not.toHaveBeenCalled()
+  })
+
+  it('V3/blob 章（IsProjectV4=false）：仍整章读存，行为不变', async () => {
+    useOutlineStore.setState({ outlines: [leaf] })
+    useAppStore.setState({ projectPath: 'C:/proj/novel' })
+    render(<ChapterPage />)
+    window.dispatchEvent(new CustomEvent('novel:open-chapter', { detail: { node: leaf } }))
+    await screen.findByTestId('chapter-editor-stub')
+    await screen.findByText('已保存')
+    expect(bindingsBridge.GetChapter).toHaveBeenCalledWith(1)
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 's', ctrlKey: true }))
+    await waitFor(() => expect(bindingsBridge.SaveChapterContent).toHaveBeenCalledWith(1, '夜色沉沉，雨落在窗台上。\n\n他推门而入，灯还亮着。'))
+    expect(novelB.GetChapterScenes).not.toHaveBeenCalled()
   })
 })

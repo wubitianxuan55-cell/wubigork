@@ -450,6 +450,9 @@ func (a *writingState) streamCreateChapter(ctx context.Context, pm *project.Mana
 			a.emit("create-chapter-stream", map[string]interface{}{"type": "error", "error": fmt.Sprintf("save chapter: %v", err)})
 			return
 		}
+		// 整章重写=场景重置：旧拆分/旧 POV 元数据不再对应新正文，
+		// 删除既有场景并从新 blob 物化单场景（无场景的章 no-op）。
+		rebuildScenesFromBlob(pm, targetNum)
 	}
 
 	// AI 控制台响应日志

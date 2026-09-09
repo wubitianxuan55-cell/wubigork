@@ -9,7 +9,8 @@ import type { OutlineNode, ChapterTabData } from '../../types'
 export function createTabData(node: OutlineNode): ChapterTabData {
   return {
     node, chapterNum: node.order_index || 0,
-    scenes: [''], summary: '', keyEvents: [],
+    scenes: [''], sceneIds: [], sceneBacked: false,
+    summary: '', keyEvents: [],
     emotionTone: '', saved: false, generating: false,
     streamSpeed: 0, messages: [], targetWords: 3000,
     skillName: '', retryStatus: null,

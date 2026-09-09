@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useState } from 'react'
 import { Button, Space, Tag, Input, Typography, message } from 'antd'
 import { PlusOutlined, DeleteOutlined, EditOutlined, ColumnWidthOutlined, RedoOutlined, ThunderboltOutlined } from '@ant-design/icons'
 import { GetChapterScenes, GenerateScene, CreateScene } from '../../../wailsjs/go/app/NovelB'
@@ -62,8 +62,9 @@ const ChapterEditor: React.FC<ChapterEditorProps> = ({ tab, onUpdate, sceneTexta
   const [cmdKVisible, setCmdKVisible] = useState(false)
   const [cmdKText, setCmdKText] = useState('')
   const lastSelectedText = React.useRef('')
-  // 逐场景 AI 生成：sceneIds 与 tab.scenes 按索引对齐（无 id 的场景按钮禁用）
-  const [sceneIds, setSceneIds] = useState<string[]>([])
+  // 逐场景 AI 生成：sceneIds 与 tab.scenes 按索引对齐（V4 场景制由 ChapterPage
+  // 载入时随场景正文一并读入；无 id 的场景按钮禁用）
+  const sceneIds = tab.sceneIds ?? []
   const [scenePlots, setScenePlots] = useState<string[]>([])
   const [sceneGen, setSceneGen] = useState<Record<number, { loading: boolean; aiTaste?: number; beforeScore?: number; afterScore?: number; changes?: number }>>({})
   const [addingScene, setAddingScene] = useState(false)
@@ -75,25 +76,9 @@ const ChapterEditor: React.FC<ChapterEditorProps> = ({ tab, onUpdate, sceneTexta
     return () => document.removeEventListener('click', close)
   }, [])
 
-  // 切换章节：复位 AI 状态并按索引拉取该章场景 id（GetChapterScenes）。
-  useEffect(() => {
-    setSceneIds([])
-    setScenePlots([])
-    setSceneGen({})
-    let alive = true
-    if (tab.chapterNum >= 1) {
-      GetChapterScenes(tab.chapterNum)
-        .then((value) => {
-          if (!alive) return
-          setSceneIds(Array.isArray(value) ? value.map((s) => sceneIdOf(s) || '') : [])
-        })
-        .catch(() => { if (alive) setSceneIds([]) })
-    }
-    return () => { alive = false }
-  }, [tab.node.id, tab.chapterNum])
-
   // 加场景：走 CreateScene 真落盘（后端会把纯 blob 章先物化出首场景），
-  // 然后重拉 id 序并对齐文本框数；分支章无场景 API 语义，降级为本地加框。
+  // 然后重拉权威 id 序、对齐文本框与 id（经 onUpdate 回喂父层）；
+  // 分支章无场景 API 语义，降级为本地加框。
   const addScene = async () => {
     if (addingScene) return
     if (tab.chapterNum < 1 || tab.node.branch) {
@@ -111,7 +96,8 @@ const ChapterEditor: React.FC<ChapterEditorProps> = ({ tab, onUpdate, sceneTexta
       } catch { idList = [] }
       const boxes = Math.max(tab.scenes.length, idList.length)
       onUpdate('scenes', Array.from({ length: boxes }, (_v, i) => tab.scenes[i] ?? ''))
-      setSceneIds(idList)
+      onUpdate('sceneIds', idList)
+      onUpdate('sceneBacked', true)
     } catch {
       message.error('创建场景失败，已本地添加（不会落盘）')
       onUpdate('scenes', [...tab.scenes, ''])
