@@ -46,7 +46,8 @@
 | ✅ | P3 版2（v4.171.0）：office 抽核（journal/evidence/文件读写→internal/core，aliases.go 类型别名保绑定面，602 零变更）+ 次批 5+1 巨文件拆（KnowledgePanel/DeliverablesPanel/XlsxPreview/ChapterPage/herdsmanTemplates/SchedulePage，>50KB 首拆池 9→0） |
 | ✅ | P3 版3 bridge 双轨退役**收官**（批次一 v4.172.0 / 批次二 v4.173.0 / **终局 v4.174.0**：契约累计转正 108 方法 + 各业务族全部迁移 + **wailsjsCompat.ts shim 删除**，全仓生产零引用；LegacySurfaceNames 292→184；masterplan 轨道四「双轨」达成） |
 | ✅ | P4 结构刀1（v4.175.0）：三巨文件拆分（config.go 58.7→16.1KB/engine.go 56.5→13.3KB/store.ts 54.3→0.4KB 聚合入口，Go >50KB 源文件 2→0） |
-| ⬜ | P4 续：mock/office.ts 51.2KB 拆分 + entry 懒加载（MemoryHubPage 1.4MB/GaeaPage 622KB/cynefin 690KB 按 tab 动态 import）+ exe strip（-ldflags -s -w 对靶） |
+| ✅ | P4 结构刀2 + entry 懒加载（v4.176.0）：mock/office.ts 51.2→1.1KB 入口（6 文件）+ MemoryHubPage 8 组件全 tab React.lazy（1402.5→15.95KB 页壳）+ mock 异步 chunk（index 1149→967.23KB −182KB）；H6 连带测试时序修复×2（waitMockReady） |
+| ⬜ | P4 续：H1 mermaid 动态 import（Markdown.tsx + mermaidPng.ts 一起）、H7 locales 按需（−160~200KB）、H8 SearchModal lazy、exe strip（wails build -ldflags "-s -w" -trimpath 发布版） |
 | ⬜ | P3 版3 结构余项：Go 侧 config.go 58.7/engine.go 55.2 + frontend store.ts 54.3 二次拆分 + entry/页面级懒加载 |
 | ⬜ | P4 性能（1版）：懒初始化+exe strip+MemoryHub chunk+entry 拆解 |
 | ⬜ | P5 维持：季度复测+观察池审判（cost 文档化/虚拟滚动/内嵌） |
