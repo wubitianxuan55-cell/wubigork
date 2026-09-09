@@ -31,4 +31,7 @@ export interface ImageBindings {
   RecognizeImage(imagePath: string, prompt: string): Promise<string>;
   // OCRText 用本地 OvisOCR2 常驻服务提取图片中的文字（办公「提取文字」入口）。
   OCRText(imagePath: string): Promise<string>;
+  // StartLocalTTSService 启动本地 TTS 服务（模型中心「启动」按钮；Go ImageB
+  // 门面同名幂等启动，返回 {engine, ready, starting}；wailsjsCompat 直调转正）。
+  StartLocalTTSService(engineID: string): Promise<Record<string, unknown>>;
 }

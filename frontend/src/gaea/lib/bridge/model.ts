@@ -54,4 +54,12 @@ export interface ModelBindings {
   // 按目标模型口径覆盖全部本地引擎（herdsman/ollama/modelhub）；model 省略
   // 时后端回退引擎默认模型。
   ModelSwitchEstimate(engineID: string, model?: string): Promise<ModelSwitchEstimate>;
+  // Feature Model 功能级模型绑定（写侧，Go ModelB.SetFeatureModel 3 参 /
+  // SetFeatureModelEnabled 2 参，wailsjsCompat 直调转正；useBindState 消费，
+  // feature 取值 chat/whisper/novel/office/gaea/characterlib）。
+  SetFeatureModel(feature: string, engineID: string, modelName: string): Promise<void>;
+  SetFeatureModelEnabled(feature: string, enabled: boolean): Promise<void>;
+  // GetActiveModel 当前活跃模型名（空=无可用引擎，Go ModelB.GetActiveModel，
+  // 同批转正；api/settings.ts getActiveModel / 模型中心 / MainLayout 消费）。
+  GetActiveModel(): Promise<string>;
 }

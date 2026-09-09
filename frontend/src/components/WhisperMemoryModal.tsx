@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useCallback } from 'react'
 import { Input, Button, Modal, Tag, Select, Tooltip, message, Popconfirm } from 'antd'
 import { SearchOutlined, DeleteOutlined, EditOutlined, CloseOutlined, CheckOutlined, StarFilled } from '@ant-design/icons'
-import * as App from '../../src/wailsjsCompat'
+import { app } from '../gaea/lib/bridge'
 
 export interface EmotionalCtx { valence?: number; intensity?: number; trust?: number; relStage?: string }
 export interface MemoryFact {
@@ -70,13 +70,13 @@ export default function WhisperMemoryModal({ facts, personalityID, onFactsChange
   const coreCount = facts.filter(f => f.tier === 'core').length
 
   const handleDelete = useCallback(async (id: string) => {
-    try { await App.WhisperDeleteFact(personalityID, id); message.success('Deleted'); if(onFactsChange) onFactsChange(facts.filter(f=>f.id!==id)) } catch(e:unknown){ message.error('Failed: ' + (e instanceof Error ? e.message : String(e))) }
+    try { await app.WhisperDeleteFact(personalityID, id); message.success('Deleted'); if(onFactsChange) onFactsChange(facts.filter(f=>f.id!==id)) } catch(e:unknown){ message.error('Failed: ' + (e instanceof Error ? e.message : String(e))) }
   }, [personalityID, facts, onFactsChange])
 
   const startEdit = useCallback((f: MemoryFact) => { setEditingId(f.id); setEditText(f.summary) }, [])
   const confirmEdit = useCallback(async () => {
     if (!editingId || !editText.trim()) return
-    try { await App.WhisperUpdateFact(personalityID, editingId, { summary: editText.trim() } as Partial<MemoryFact>); message.success('Updated'); if(onFactsChange) onFactsChange(facts.map(f=>f.id===editingId?{...f,summary:editText.trim()}:f)) } catch(e:unknown){ message.error('Failed: ' + (e instanceof Error ? e.message : String(e))) }
+    try { await app.WhisperUpdateFact(personalityID, editingId, { summary: editText.trim() }); message.success('Updated'); if(onFactsChange) onFactsChange(facts.map(f=>f.id===editingId?{...f,summary:editText.trim()}:f)) } catch(e:unknown){ message.error('Failed: ' + (e instanceof Error ? e.message : String(e))) }
     setEditingId(null)
   }, [editingId, editText, personalityID, facts, onFactsChange])
 

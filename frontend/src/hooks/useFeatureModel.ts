@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import * as App from '../../src/wailsjsCompat'
+import { app } from '../gaea/lib/bridge'
 import { EventsOn } from '../../wailsjs/runtime/runtime'
 
 /** feature-model-changed 事件动态载荷（最小消费面） */
@@ -20,9 +20,9 @@ export function useFeatureModel(feature: string): { engine: string; model: strin
 
   const refresh = useCallback(async () => {
     try {
-      const r = await App.GetFeatureModel(feature)
+      const r = await app.GetFeatureModel(feature)
       let enabled = true
-      try { enabled = !!(await App.GetFeatureModelEnabled(feature)) } catch (_) {}
+      try { enabled = !!(await app.GetFeatureModelEnabled(feature)) } catch (_) {}
       setM({ engine: r?.engine || '', model: r?.model || '', enabled })
     } catch (_) {}
   }, [feature])

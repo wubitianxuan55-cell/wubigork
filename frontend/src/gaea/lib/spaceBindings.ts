@@ -30,11 +30,24 @@ export const GAEA_METHOD_FACETS = {
   GaeaSpaceList: "shared",
   GaeaSpaceActive: "shared",
   GaeaSpaceActivate: "shared",
+  // v4.171 批次一 legacy 直调转正：应用信息/板块清单（壳层元信息，两空间共用，
+  // AboutPanel/主页 launcher 消费）。
+  GetAppInfo: "shared",
+  GetBoardManifests: "shared",
   Models: "shared",
   SetModel: "shared",
   ModelSwitchEstimate: "shared",
+  // v4.171 批次一 legacy 直调转正：功能级模型绑定读写 + 活跃模型（模型与设置域，
+  // useFeatureModel / useBindState / 模型中心 / api/settings.ts 两空间共用）。
+  GetFeatureModel: "shared",
+  GetFeatureModelEnabled: "shared",
+  SetFeatureModel: "shared",
+  SetFeatureModelEnabled: "shared",
+  GetActiveModel: "shared",
   Settings: "shared",
   SetDefaultModel: "shared",
+  // v4.171 批次一：办公引擎设置整体写回（OfficePanel「保存」，同 Settings 归 shared）。
+  SaveSettings: "shared",
   SaveProvider: "shared",
   DeleteProvider: "shared",
   LoginProvider: "shared",
@@ -107,9 +120,23 @@ export const GAEA_METHOD_FACETS = {
   // v4.3c 后续小步：主动关心定时推送配置（频控/时窗，play 数据面）
   WhisperProactiveConfig: "play",
   WhisperProactiveSetConfig: "play",
+  // v4.171 批次一 legacy 直调转正：轻语读取/写入族（角色记忆面板 CharacterMemoryModal
+  // 与轻语记忆 WhisperMemoryModal 消费，同 WhisperMemories 归 play 数据面）。
+  WhisperGetState: "play",
+  WhisperGetFacts: "play",
+  WhisperGetTraces: "play",
+  WhisperDeleteFact: "play",
+  WhisperUpdateFact: "play",
   GenerateBookCover: "play",
+  // NovelSearch 章内全文检索（ChapterPage 小说创作间消费，同书封归 play）。
+  NovelSearch: "play",
   // v4.3 情感语音：TTS 参数预览为 shared（语音朗读两空间共用）
   TTSVoiceParams: "shared",
+  // v4.171 批次一 legacy 直调转正：语音设置应用（useChatVoice/语音设置面板/
+  // 模型中心 BindSection）+ 本地 TTS 服务启动（模型中心「启动」按钮）——
+  // 语音朗读/模型设置两空间共用，同 TTSVoiceParams 归 shared。
+  VoiceApplySettings: "shared",
+  StartLocalTTSService: "shared",
 
   // ── independent：编程 DSH 独立窗口 ──────────────────────────
   GetProgrammingWebStatus: "independent",

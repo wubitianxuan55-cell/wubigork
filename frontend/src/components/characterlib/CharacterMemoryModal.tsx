@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import { Modal, Tabs, Tag, Button } from 'antd'
 import { HeartOutlined, InboxOutlined, RadarChartOutlined } from '@ant-design/icons'
-import * as App from '../../../src/wailsjsCompat'
+import { app } from '../../gaea/lib/bridge'
 import type { characterlib, whisper } from '../../../wailsjs/go/models'
 import { C } from '../../utils/theme'
 import { WhisperEmotionPanel } from '../WhisperEmotionPanel'
@@ -29,16 +29,16 @@ const CharacterMemoryModal: React.FC<Props> = ({ open, character, onClose }) => 
     if (!character) return
     setState({}); setFacts([]); setTraces([])
     try {
-      const s = await App.WhisperGetState(character.id)
+      const s = await app.WhisperGetState(character.id)
       setState((s as Record<string, unknown>) || {})
     } catch (_) {}
     try {
-      const f = await App.WhisperGetFacts(character.id)
-      setFacts((Array.isArray(f) ? f : []) as MemoryFact[])
+      const f = await app.WhisperGetFacts(character.id)
+      setFacts((Array.isArray(f) ? f : []) as unknown as MemoryFact[])
     } catch (_) {}
     try {
-      const t = await App.WhisperGetTraces(character.id)
-      setTraces(Array.isArray(t) ? t : [])
+      const t = await app.WhisperGetTraces(character.id)
+      setTraces((Array.isArray(t) ? t : []) as unknown as whisper.TurnTrace[])
     } catch (_) {}
   }, [character])
 

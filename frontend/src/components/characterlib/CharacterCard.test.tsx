@@ -6,13 +6,16 @@ import type { LibraryCharacter } from '../../api/characterlib'
 import { FRONTEND_EVENTS } from '../../events'
 import { WX_FOCUS_KEY } from '../../pages/wxFocus'
 
-vi.mock('../../../src/wailsjsCompat', () => ({
-  WhisperAssistantSave: vi.fn(),
-}))
+// bridge 代理：组件经 gaea/lib/bridge 的 app 调用 WhisperAssistantSave；
+// 其它导出（BridgeError/onEvent 等）用 importOriginal 原样保留，仅替换 app。
+vi.mock('../../gaea/lib/bridge', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../gaea/lib/bridge')>()
+  return { ...actual, app: { WhisperAssistantSave: vi.fn() } }
+})
 
-import { WhisperAssistantSave } from '../../../src/wailsjsCompat'
+import { app } from '../../gaea/lib/bridge'
 
-const mockedSave = vi.mocked(WhisperAssistantSave)
+const mockedSave = vi.mocked(app.WhisperAssistantSave)
 
 function makeCharacter(overrides: Partial<LibraryCharacter> = {}): LibraryCharacter {
   return {

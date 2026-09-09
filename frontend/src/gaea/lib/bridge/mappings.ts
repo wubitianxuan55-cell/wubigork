@@ -126,6 +126,9 @@ export const gaeaToGaea = {
   AcceptMergeSuggestion: "GaeaAcceptMergeSuggestion",
   AcceptSkillSuggestion: "GaeaAcceptSkillSuggestion",
   Settings: "GaeaSettings",
+  // SaveSettings 短名 → Go OfficeB.GaeaSaveSettings（office 设置面板整体写回，
+  // v4.171 批次一 wailsjsCompat 直调转正）。
+  SaveSettings: "GaeaSaveSettings",
   SetDefaultModel: "GaeaSetDefaultModel",
   SaveProvider: "GaeaSaveProvider",
   DeleteProvider: "GaeaDeleteProvider",

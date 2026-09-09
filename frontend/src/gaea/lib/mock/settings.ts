@@ -12,6 +12,8 @@ type SettingsMethods = Pick<
   | "SetSandbox" | "SetAgentParams"
   | "SetSubagentModel" | "SetSubagentModelForSkill" | "SetSubagentTemperature"
   | "SetEffort" | "SetSubagentEffort" | "SetPermLevel"
+  // v4.171 批次一 legacy 直调转正（Go OfficeB.GaeaSaveSettings）：设置整体写回。
+  | "SaveSettings"
 >;
 
 export function buildSettings(s: MakeMockState): SettingsMethods {
@@ -79,6 +81,24 @@ export function buildSettings(s: MakeMockState): SettingsMethods {
     },
     async SetPermLevel(level: string) {
       settings.permLevel = level;
+    },
+    async SaveSettings(view: SettingsView) {
+      // 契约对齐 Go GaeaSaveSettings（整体写回设置视图；v4.171 批次一转正）。
+      // mock 合并进内存态 settings（同一引用，Settings() 立即可读回）：
+      // agent/permissions/sandbox 与后端同构的部分更新合并，其余字段按显式赋值。
+      if (view.defaultModel !== undefined) settings.defaultModel = view.defaultModel;
+      if (view.subagentModel !== undefined) settings.subagentModel = view.subagentModel;
+      if (view.agent) settings.agent = { ...settings.agent, ...view.agent };
+      if (view.permissions) {
+        settings.permissions = {
+          ...settings.permissions,
+          ...view.permissions,
+          allow: view.permissions.allow ?? settings.permissions.allow,
+          ask: view.permissions.ask ?? settings.permissions.ask,
+          deny: view.permissions.deny ?? settings.permissions.deny,
+        };
+      }
+      if (view.sandbox) settings.sandbox = { ...settings.sandbox, ...view.sandbox };
     },
   };
 }

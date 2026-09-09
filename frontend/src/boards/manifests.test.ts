@@ -9,18 +9,20 @@ import {
   getActiveHomeBoard, getActiveBoard,
   resetActiveBoardsForTest,
 } from './manifests'
-import { GetBoardManifests } from '../wailsjsCompat'
+import { app } from '../gaea/lib/bridge'
 import { registerPage, getPageComponent, listRegisteredPages, clearPageRegistry } from './pageRegistry'
 
-// 数据源 seam（§5.3 前端侧）：mock 掉 wailsjsCompat 的 GetBoardManifests，
-// 隔离后端提供者，验证「后端优先 / 失败回退静态 / 差集归一」。
-vi.mock('../wailsjsCompat', () => ({
-  GetBoardManifests: vi.fn(),
+// 数据源 seam（§5.3 前端侧）：mock 掉 gaea/lib/bridge 的 app.GetBoardManifests，
+// 隔离后端提供者，验证「后端优先 / 失败回退静态 / 差集归一」。其它桥接导出
+// （BridgeError/onEvent 等）经 importOriginal 原样保留，仅替换 app。
+vi.mock('../gaea/lib/bridge', async (importOriginal) => ({
+  ...(await importOriginal()),
+  app: { GetBoardManifests: vi.fn() },
 }))
 
-// vi.mock 不改 TS 静态类型（GetBoardManifests 仍是 board.Manifest[]），
+// vi.mock 不改 TS 静态类型（GetBoardManifests 仍是 Record<string, unknown>[]），
 // 用 loosely typed 引用以便测试注入纯对象 fixture。
-const getBoardManifestsMock = GetBoardManifests as unknown as {
+const getBoardManifestsMock = app.GetBoardManifests as unknown as {
   mockResolvedValue(v: unknown): void
   mockRejectedValue(e: unknown): void
   mockReset(): void

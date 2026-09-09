@@ -4,7 +4,7 @@ import {
   CommentOutlined, EditOutlined, LinkOutlined, PictureOutlined,
   RobotOutlined, SoundOutlined, ToolOutlined, UserOutlined,
 } from '@ant-design/icons'
-import * as App from '../../../src/wailsjsCompat'
+import { app } from '../../gaea/lib/bridge'
 import { SectionHead, StatusChip, type StatusTone } from './ui'
 import {
   engineLabel, FEATURES, featureState, featureStateMeta,
@@ -189,7 +189,7 @@ export function BindSection() {
                 getPopupContainer={popupContainer}
                 onChange={async (v: string) => {
                   try {
-                    await App.VoiceApplySettings?.({ ttsVoice: v })
+                    await app.VoiceApplySettings({ ttsVoice: v })
                     message.success('音色已更新：' + v)
                   } catch (err: unknown) {
                     message.error(err instanceof Error ? err.message : '音色更新失败')

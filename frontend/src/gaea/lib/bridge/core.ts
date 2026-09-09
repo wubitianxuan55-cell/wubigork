@@ -197,6 +197,17 @@ export interface CoreBindings {
   CheckUpdate(): Promise<UpdateInfo | null>;
   ApplyUpdate(): Promise<void>;
   OpenDownloadPage(): Promise<void>;
+  // GetAppInfo 应用信息（name/version/tagline/releases），设置中心「更新信息」
+  // 展示；wailsjsCompat 直调转正（Go CoreB.GetAppInfo，同名前缀无需映射）。
+  GetAppInfo(): Promise<Record<string, unknown>>;
+  // GetBoardManifests 板块清单（壳层首页 launcher manifest 驱动）；空/失败由
+  // 调用方 loadBoardManifests fail-closed 回退静态 canonicalBoards。同批转正。
+  GetBoardManifests(): Promise<Array<Record<string, unknown>>>;
+  // Feature Model 功能级模型绑定（读侧，Go CoreB.GetFeatureModel/GetFeatureModelEnabled，
+  // wailsjsCompat 直调转正；useFeatureModel / useBindState 共用；feature 取值
+  // chat/whisper/novel/office/gaea/characterlib）。
+  GetFeatureModel(feature: string): Promise<Record<string, string>>;
+  GetFeatureModelEnabled(feature: string): Promise<boolean>;
   // Window state persistence.
   SaveWindowState(state: {width:number;height:number;x:number;y:number;maximised:boolean}): Promise<void>;
   // UnifiedSearch 跨库统一检索一次调用：工作区关键词命中（topN 条）+ 语义跨库命中。

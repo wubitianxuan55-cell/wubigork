@@ -1,8 +1,8 @@
 /**
  * boards/manifests.ts — 板块 manifest 数据源（3.0 架构 §5.2 / 附 B）
  *
- * 数据源 seam（§5.3 前端侧）：提供者 = CoreB.GetBoardManifests()（经 wailsjsCompat
- * 直调，见 gaea/lib/bridge.ts LegacySurfaceNames 注记）；消费者 = 菜单/白名单/快捷键/
+ * 数据源 seam（§5.3 前端侧）：提供者 = CoreB.GetBoardManifests()（经 gaea/lib/bridge
+ * 代理，见 gaea/lib/bridge.ts LegacySurfaceNames 注记）；消费者 = 菜单/白名单/快捷键/
  * 布局派生视图（MainLayout 经 subscribeBoards 订阅）。加载失败/未就绪时 fail-closed
  * 回退内置静态 canonicalBoards，壳层永远可用。
  * 板块差集归一（normalizeManifests）：后端清单为准 + 前端 home 壳层补位——
@@ -22,7 +22,7 @@ import {
 } from '@ant-design/icons'
 import type { ComponentType } from 'react'
 import type { BoardManifest, BoardNavChild } from './types'
-import { GetBoardManifests } from '../wailsjsCompat'
+import { app } from '../gaea/lib/bridge'
 import { filterBoardsForSpace, isIndependentBoard, type BoardSpace, type ShellSpace } from './space'
 
 // ─── 图标注册表：manifest.icon 名（antd 图标名）→ 组件查表解析 ───────────────
@@ -208,7 +208,7 @@ export function boardLabel(id: string): string {
 }
 
 // ─── 后端 GetBoardManifests 接线（§5.3 seam 前端侧）──────────────────────
-// 提供者 = CoreB.GetBoardManifests()（经 wailsjsCompat 直调）；消费者 = 下方
+// 提供者 = CoreB.GetBoardManifests()（经 gaea/lib/bridge 代理）；消费者 = 下方
 // getActive* 派生视图（MainLayout 订阅）。加载前活动清单 = 静态 canonicalBoards。
 
 /** 后端 manifest 原始形态（wailsjs board.Manifest 字段子集，结构兼容） */
@@ -323,7 +323,7 @@ export function resetActiveBoardsForTest(): void {
 
 /**
  * 后端 GetBoardManifests 绑定的接入点（§5.3 seam 提供者调用）：
- *  1. 优先 CoreB.GetBoardManifests()（经 wailsjsCompat 直调）；
+ *  1. 优先 CoreB.GetBoardManifests()（经 gaea/lib/bridge 代理）；
  *  2. 成功 → normalizeManifests 合并（后端清单 + home 壳层）并替换活动清单；
  *  3. 失败/空/未就绪（浏览器 dev mock 无 window.go）→ fail-closed 回退静态
  *     canonicalBoards，壳层保持可用。
@@ -332,9 +332,9 @@ export function resetActiveBoardsForTest(): void {
 export async function loadBoardManifests(): Promise<BoardManifest[]> {
   let merged: BoardManifest[] = []
   try {
-    const remote = await GetBoardManifests()
+    const remote = await app.GetBoardManifests()
     if (Array.isArray(remote)) {
-      merged = normalizeManifests(remote)
+      merged = normalizeManifests(remote as unknown as RemoteBoardManifest[])
     }
   } catch {
     merged = []

@@ -12,7 +12,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Dispatch, SetStateAction } from 'react'
 import { message } from 'antd'
-import * as App from '../../../wailsjsCompat'
+import { app } from '../../../gaea/lib/bridge'
 import {
   getEngines, saveEngine, testEngineConnection, refreshEngineModels, setEngineDefaultModel,
   setActiveEngine, getActiveEngine, setDeepseekKey, getDeepseekKeyStatus,
@@ -130,7 +130,7 @@ export function useEngineState(category: Category): EngineState {
       list.forEach(e => { urls[e.id] = e.base_url || '' })
       try { const ae = await getActiveEngine(); if (ae) setActiveEngineState(ae) } catch (_) {}
       try {
-        const am = await App.GetActiveModel()
+        const am = await app.GetActiveModel()
         if (am) setActiveModel(String(am))
       } catch (_) {}
       try {
@@ -208,7 +208,7 @@ export function useEngineState(category: Category): EngineState {
     if (kind === 'tts') {
       // 本地 TTS 模型：启动对应本地服务（CosyVoice2 8010，幂等）
       try {
-        const res = await App.StartLocalTTSService(card.engineId)
+        const res = await app.StartLocalTTSService(card.engineId)
         if (res?.ready) message.success(`本地 TTS 服务已就绪：${card.engineName}`)
         else message.success(`正在启动本地 TTS 服务：${card.engineName}（首次约 1–2 分钟）`)
         loadAll()

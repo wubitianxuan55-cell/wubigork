@@ -142,6 +142,8 @@ type ModelMethods = Pick<
   | "Models" | "SetModel"
   | "KeepWarmGet" | "KeepWarmSet" | "PreloadPlanGet" | "PreloadPlanSet"
   | "ModelSwitchEstimate" | "Balance"
+  // v4.171 批次一 legacy 直调转正（ModelB 门面）：功能级模型绑定写 + 活跃模型读。
+  | "SetFeatureModel" | "SetFeatureModelEnabled" | "GetActiveModel"
 > & LegacyModelMethods & LegacyHerdsmanMethods & LegacyBenchmarkMethods &
   LegacyModelHubMethods & LegacyOpencodeKeyMethods;
 
@@ -344,6 +346,20 @@ export function buildModel(s: MakeMockState): ModelMethods {
       const p = s.settings.providers.find((x) => x.name === s.settings.defaultModel);
       if (!p?.balanceUrl) return { available: false, display: "" };
       return { available: true, display: "¥128.50" };
+    },
+    // ── v4.171 批次一 legacy 直调转正（Go ModelB）──────────────────────
+    async SetFeatureModel(_feature: string, _engineID: string, _modelName: string) {
+      // mock: no-op——浏览器开发无持久化功能级绑定（真实实现写 config 并生效；
+      // 与 feature-model-changed 事件的联动在消费侧，mock 不编造事件）。
+    },
+    async SetFeatureModelEnabled(_feature: string, _enabled: boolean) {
+      // mock: no-op——同上，无配置可写。
+    },
+    async GetActiveModel() {
+      // 对齐 Go GetActiveModel 未初始化（engineMgr/client 为空）返回空串；
+      // mock 无活跃引擎，不编造模型名（api/settings.ts getActiveModel
+      // 与 useEngineState 均有空串兜底）。
+      return "";
     },
 
     // ── Herdsman 方法族（B 线欠账，v4.55 走查）─────────────────

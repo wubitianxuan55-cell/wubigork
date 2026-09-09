@@ -4,7 +4,7 @@ import { GlobalOutlined, FolderOutlined, FileTextOutlined } from '@ant-design/ic
 import { getConfig } from '../../api/settings'
 import SettingsSection from './SettingsSection'
 import { useT } from '../../gaea/lib/i18n'
-import * as App from '../../../src/wailsjsCompat'
+import { app } from '../../gaea/lib/bridge'
 
 interface ReleaseInfo {
   version: string
@@ -23,7 +23,7 @@ const AboutPanel: React.FC = () => {
   useEffect(() => {
     getConfig().then(setConfig).catch(() => {})
     try {
-      App.GetAppInfo().then((r) => setAppInfo(r as { name: string; version: string; tagline: string; releases: ReleaseInfo[] })).catch(() => {})
+      app.GetAppInfo().then((r) => setAppInfo(r as { name: string; version: string; tagline: string; releases: ReleaseInfo[] })).catch(() => {})
     } catch (_) { /* 忽略 */ }
   }, [])
 

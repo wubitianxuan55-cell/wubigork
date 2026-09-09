@@ -4,16 +4,18 @@ import {
   loadBoardManifests, subscribeBoards, getActiveBoards, resetActiveBoardsForTest,
 } from './manifests'
 import { deriveLauncherModules, LAUNCHER_DESC, LAUNCHER_FEATURED } from './launcher'
-import { GetBoardManifests } from '../wailsjsCompat'
+import { app } from '../gaea/lib/bridge'
 
-// 数据源 seam（§5.3 前端侧）：mock 掉 wailsjsCompat 的 GetBoardManifests，
+// 数据源 seam（§5.3 前端侧）：mock 掉 gaea/lib/bridge 的 app.GetBoardManifests，
 // 隔离后端提供者，验证「启动器卡清单随 manifest 派生（v4.4 起 11 卡，含 weixin；knowledge 过滤）」。
-vi.mock('../wailsjsCompat', () => ({
-  GetBoardManifests: vi.fn(),
+// 其它桥接导出经 importOriginal 原样保留，仅替换 app。
+vi.mock('../gaea/lib/bridge', async (importOriginal) => ({
+  ...(await importOriginal()),
+  app: { GetBoardManifests: vi.fn() },
 }))
 
 // vi.mock 不改 TS 静态类型，用 loosely typed 引用以便测试注入纯对象 fixture。
-const getBoardManifestsMock = GetBoardManifests as unknown as {
+const getBoardManifestsMock = app.GetBoardManifests as unknown as {
   mockResolvedValue(v: unknown): void
   mockReset(): void
 }

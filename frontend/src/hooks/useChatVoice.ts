@@ -2,7 +2,7 @@
 // T6-3.3：语音消息持久化。识别文本/回复经 ChatAppendMessages 落库（单事务），
 // 与正常 ChatSend 的落库互不重复（语音管道不走 ChatSend）；无活跃话题时仅内存展示。
 import { useCallback, useEffect, useState } from 'react'
-import * as App from '../wailsjsCompat'
+import { app } from '../gaea/lib/bridge'
 import { useVoiceChat } from './useVoiceChat'
 import { VOICE_LAUNCH_FLAG } from '../components/ModuleLauncher'
 import { logFrontendError, nextMsgKey, nowStr } from '../pages/chat/utils'
@@ -22,7 +22,7 @@ export function useChatVoice({ setMessages, getActiveId, getMode }: UseChatVoice
     if (!topicID) return
     // ChatAppendMessages 为 T6-3 新绑定：wailsjs/go 生成物由 wails build 再生成，
     // 绑定已声明（Array<app.ChatMessageInput>），直接调用。
-    App.ChatAppendMessages(topicID, msgs).catch((err: unknown) => {
+    app.ChatAppendMessages(topicID, msgs).catch((err: unknown) => {
       // 落库失败不静默：记录到 gaea.log（界面不受影响，内存消息已展示）
       logFrontendError('语音消息落库失败: ' + (err instanceof Error ? err.message : String(err)))
     })
@@ -44,7 +44,7 @@ export function useChatVoice({ setMessages, getActiveId, getMode }: UseChatVoice
 
   const toggleVoice = useCallback(async () => {
     if (voiceOn) { stopVoice(); setVoiceOn(false); return }
-    try { await App.VoiceApplySettings?.({ personalityPresetId: getMode() }) } catch (_) {}
+    try { await app.VoiceApplySettings({ personalityPresetId: getMode() }) } catch (_) {}
     setVoiceOn(true)
     await startVoice()
   }, [voiceOn, getMode, startVoice, stopVoice])

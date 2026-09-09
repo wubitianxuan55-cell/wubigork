@@ -7,7 +7,7 @@ import {
 } from '@ant-design/icons'
 import TisorRadar from '../TisorRadar'
 import type { LibraryCharacter } from '../../api/characterlib'
-import * as App from '../../../src/wailsjsCompat'
+import { app } from '../../gaea/lib/bridge'
 import { assistant } from '../../../wailsjs/go/models'
 import { FRONTEND_EVENTS, emitFrontendEvent } from '../../events'
 import { setWxFocusAssistant } from '../../pages/wxFocus'
@@ -80,7 +80,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
   const handleCreateAssistant = async () => {
     const id = `wx_${Date.now().toString(36)}`
     try {
-      await App.WhisperAssistantSave(new assistant.Assistant({
+      await app.WhisperAssistantSave(new assistant.Assistant({
         id,
         name: c.name,
         personalityId: c.id,

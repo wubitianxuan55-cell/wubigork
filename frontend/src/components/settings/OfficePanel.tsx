@@ -4,10 +4,8 @@ import { SaveOutlined, ReloadOutlined, FileTextOutlined } from '@ant-design/icon
 import { gaeaSettings } from '../../api/settings'
 import SettingsSection from './SettingsSection'
 import { useT } from '../../gaea/lib/i18n'
-import * as App from '../../../src/wailsjsCompat'
 import { app as gaeaApp } from '../../gaea/lib/bridge'
-import type { app as AppModels } from '../../../wailsjs/go/models'
-import type { LintReportView } from '../../gaea/lib/types'
+import type { LintReportView, SettingsView } from '../../gaea/lib/types'
 
 interface DraftView {
   defaultModel: string
@@ -97,7 +95,7 @@ const OfficePanel: React.FC = () => {
   const handleSave = async () => {
     setSaving(true)
     try {
-      await App.GaeaSaveSettings({
+      await gaeaApp.SaveSettings({
         defaultModel: draft.defaultModel,
         subagentModel: draft.subagentModel,
         agent: {
@@ -120,7 +118,7 @@ const OfficePanel: React.FC = () => {
           workspaceRoot: draft.workspaceRoot,
           allowWrite: ((view.sandbox as { allowWrite?: string[] } | undefined)?.allowWrite) || [],
         },
-      } as AppModels.SettingsView)
+      } as SettingsView)
       message.success(t('settings.office.saved'))
     } catch (err: unknown) {
       message.error(err instanceof Error ? err.message : t('settings.saveFailed'))
@@ -134,7 +132,7 @@ const OfficePanel: React.FC = () => {
   const handleReload = async () => {
     setReloading(true)
     try {
-      const res = await App.GaeaReload()
+      const res = await gaeaApp.Reload()
       message.success(t('caps.reloaded', { tools: res.tools, skills: res.skills }))
     } catch (err: unknown) {
       message.error(err instanceof Error ? err.message : t('settings.office.reloadFailed'))

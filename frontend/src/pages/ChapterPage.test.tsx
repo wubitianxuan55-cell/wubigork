@@ -9,13 +9,33 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { message } from 'antd'
 
 // 屏蔽 Wails 绑定：jsdom 中没有 window.go，章节读写全部给确定性返回。
+// P3 版3 双轨退役：novelSearchUtils 已改走 gaea/lib/bridge 的 app 代理——
+// NovelSearch 与 wailsjsCompat mock 共享同一 vi.fn（bindingsBridge.NovelSearch），
+// 断言两端皆命中；ChapterPage 本体直调的章节方法维持原 mock。
+const bindingsBridge = vi.hoisted(() => ({
+  NovelSearch: vi.fn(),
+}))
 vi.mock('../../src/wailsjsCompat', () => ({
   GetChapter: vi.fn().mockResolvedValue({ content: '夜色沉沉，雨落在窗台上。\n\n他推门而入，灯还亮着。' }),
   GetChapterBranch: vi.fn().mockResolvedValue({ content: '' }),
   SaveChapterContent: vi.fn().mockResolvedValue(undefined),
   SaveChapterBranchContent: vi.fn().mockResolvedValue(undefined),
-  NovelSearch: vi.fn(),
+  NovelSearch: bindingsBridge.NovelSearch,
 }))
+vi.mock('../gaea/lib/bridge', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../gaea/lib/bridge')>()
+  return {
+    ...actual,
+    app: new Proxy({} as typeof actual.app, {
+      get(_t, prop: string) {
+        if (prop === 'NovelSearch') return bindingsBridge.NovelSearch
+        const fallback = (actual.app as unknown as Record<string, unknown>)[prop]
+        if (typeof fallback === 'function') return fallback.bind(actual.app)
+        return undefined
+      },
+    }),
+  }
+})
 
 // 重型子组件桩：冒烟只关心 ChapterPage 自身的装配与状态流转
 vi.mock('../components/TTSPlayer', () => ({ default: () => <div data-testid="tts-player-stub" /> }))

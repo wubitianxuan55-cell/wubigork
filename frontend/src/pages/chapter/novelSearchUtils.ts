@@ -5,7 +5,7 @@
  * - snippet 命中词切分（列表高亮）；
  * - 段内命中定位（rune 偏移 → JS UTF-16 偏移，供阅读页 scrollIntoView + 短暂高亮）。
  */
-import * as App from '../../wailsjsCompat'
+import { app } from '../../gaea/lib/bridge'
 import type { NovelSearchHitData } from '../../types/wails'
 
 export type { NovelSearchHitData }
@@ -15,7 +15,7 @@ export async function searchNovelAll(query: string): Promise<NovelSearchHitData[
   const q = query.trim()
   if (!q) return []
   // 生成的 wailsjs 模型尚未包含新增字段，经 unknown 收窄到最新载荷类型。
-  const hits = (await App.NovelSearch(q)) as unknown as NovelSearchHitData[] | null
+  const hits = (await app.NovelSearch(q)) as unknown as NovelSearchHitData[] | null
   return hits ?? []
 }
 

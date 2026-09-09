@@ -27,9 +27,12 @@ vi.mock('../../../api/engines', () => ({
   removeCustomEngine: vi.fn(),
 }))
 
-vi.mock('../../../wailsjsCompat', () => ({
-  GetActiveModel: vi.fn(),
-  StartLocalTTSService: vi.fn(),
+vi.mock('../../../gaea/lib/bridge', async (importOriginal) => ({
+  ...(await importOriginal()),
+  app: {
+    GetActiveModel: vi.fn(async () => ''),
+    StartLocalTTSService: vi.fn(async () => ({})),
+  },
 }))
 
 import {
@@ -38,7 +41,7 @@ import {
   addCustomEngine, updateCustomEngine, removeCustomEngine,
   type EngineConfig,
 } from '../../../api/engines'
-import { GetActiveModel } from '../../../wailsjsCompat'
+import { app } from '../../../gaea/lib/bridge'
 import { useEngineState } from './useEngineState'
 
 const mGetEngines = vi.mocked(getEngines)
@@ -55,7 +58,7 @@ beforeEach(() => {
   vi.mocked(getOpencodeGoKeyStatus).mockResolvedValue({ configured: false, masked: '' })
   vi.mocked(getOpencodeZenKeyStatus).mockResolvedValue({ configured: false, masked: '' })
   mRefresh.mockResolvedValue([])
-  vi.mocked(GetActiveModel).mockResolvedValue('')
+  vi.mocked(app.GetActiveModel).mockResolvedValue('')
 })
 
 describe('useEngineState · T6-6.5 竞态守卫', () => {

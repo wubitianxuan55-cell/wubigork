@@ -20,6 +20,8 @@ type CoreMethods = Pick<
   // 编程板块：DeepSeek Harness Web 进程管理（浏览器 mock 恒为未运行）。
   | "GetProgrammingWebStatus" | "StartProgrammingWeb" | "StopProgrammingWeb"
   | "GetProgrammingWebPreflight" | "ProgrammingWebLogTail"
+  // v4.171 批次一 legacy 直调转正（CoreB 门面）：应用信息/板块清单/功能级模型读。
+  | "GetAppInfo" | "GetBoardManifests" | "GetFeatureModel" | "GetFeatureModelEnabled"
 >;
 
 export function buildCore(s: MakeMockState): CoreMethods {
@@ -466,6 +468,31 @@ export function buildCore(s: MakeMockState): CoreMethods {
     },
     async StopProgrammingWeb() {
       throw new Error("浏览器开发模式无 gaea 自启进程");
+    },
+    // ── v4.171 批次一 legacy 直调转正（Go CoreB，同名前缀）────────────────
+    async GetAppInfo() {
+      // 契约对齐 Go GetAppInfo（internal/app/app_info.go）：name/version/tagline/
+      // releases（版本串与 Go AppVersion 同源，updater 面板走查可读）。
+      return {
+        name: "gaea",
+        version: "4.171.0",
+        tagline: "多功能 AI 助手 · 本机单用户",
+        releases: [],
+      };
+    },
+    async GetBoardManifests() {
+      // mock 空清单：调用方 loadBoardManifests 已 fail-closed 兜底静态
+      // canonicalBoards（boards/manifests.ts），空数组即可。
+      return [];
+    },
+    async GetFeatureModel(_feature: string) {
+      // 未配置任何功能级绑定（对齐 Go 未绑定返回空 map；useFeatureModel 的
+      // r?.engine || '' 兜底为空串，不编造模型）。
+      return {};
+    },
+    async GetFeatureModelEnabled(_feature: string) {
+      // 功能级启停默认 false（对齐 Go 未配置返回 false；消费方 catch 兜底 true）。
+      return false;
     },
     // 双空间（S4）：mock 会话内可切换（真实后端 Activate 只写配置，重启后生效）。
     async GaeaSpaceList() {

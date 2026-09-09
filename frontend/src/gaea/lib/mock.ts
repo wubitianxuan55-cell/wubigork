@@ -25,9 +25,11 @@ import { buildImagegenTools } from "./mock/imagegen";
 import { buildImagehub } from "./mock/imagehub";
 import { buildMemory } from "./mock/memory";
 import { buildModel } from "./mock/model";
+import { buildNovel } from "./mock/novel";
 import { buildOffice } from "./mock/office";
 import { buildRetrieval } from "./mock/retrieval";
 import { buildSettings } from "./mock/settings";
+import { buildVoice } from "./mock/voice";
 import { buildWeixin } from "./mock/weixin";
 import { createMockState } from "./mock/state";
 
@@ -57,6 +59,8 @@ export function makeMockApp(): AppBindings {
     buildRetrieval(state),
     buildModel(state),
     buildSettings(state),
+    buildVoice(),
+    buildNovel(),
     buildWeixin(),
     buildImagehub(),
     buildImagegenTools(),

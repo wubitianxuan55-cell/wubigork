@@ -14,6 +14,7 @@ import type {
   ScheduleProjectOpenResult,
   ScheduleProjectsResult,
   ScheduleSaveResult,
+  SettingsView,
   XlsxChartInput,
   XlsxChartResult,
   XlsxEditResult,
@@ -97,4 +98,7 @@ export interface OfficeBindings {
   ConvertToPdf(rel: string): Promise<ConvertPdfResult>;
   // CrossEmbed 跨应用联动：xlsx 数据 → 图表 → 嵌入 docx/pptx。
   CrossEmbed(input: CrossEmbedInput): Promise<CrossEmbedResult>;
+  // SaveSettings 整体写回办公引擎设置视图（Go OfficeB.GaeaSaveSettings，wailsjsCompat
+  // 直调转正；OfficePanel「保存」消费；读侧见 ModelBindings.Settings → GaeaSettings）。
+  SaveSettings(view: SettingsView): Promise<void>;
 }

@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import { Popover, Input, Tag, Typography, Button, Empty } from 'antd'
 import { SearchOutlined, SwapOutlined, TeamOutlined, UserOutlined } from '@ant-design/icons'
-import * as App from '../../src/wailsjsCompat'
+import { app } from '../gaea/lib/bridge'
 import type { characterlib } from '../../wailsjs/go/models'
 import { C } from '../utils/theme'
 
@@ -30,7 +30,7 @@ const PersonaPicker: React.FC<Props> = ({ children, activeId, onSelect, onManage
 
   const load = useCallback(async () => {
     try {
-      const res = await App.CharacterList('', '', true, 1, 500)
+      const res = await app.CharacterList('', '', true, 1, 500)
       const data = res as unknown as { items?: LibraryCharacter[] }
       setItems(data.items || [])
     } catch (_) { setItems([]) }

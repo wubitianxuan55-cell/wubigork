@@ -55,10 +55,18 @@ vi.mock('../hooks/useVoiceChat', () => ({
 }))
 
 // ── Wails 绑定 mock（ChatPage 经 wailsjsCompat 调用）───────────────────────
+// P3 版3 双轨退役：useChatVoice 已改走 gaea/lib/bridge 的 app 代理——它用到的
+// ChatAppendMessages/VoiceApplySettings 与 wailsjsCompat mock 共享同一 vi.fn
+// 引用（bindingsBridge.xxx），测试断言两端皆命中；ChatPage 本体直调的其他
+// wailsjsCompat 方法维持原 mock。
+const bindingsBridge = vi.hoisted(() => ({
+  ChatAppendMessages: vi.fn(),
+  VoiceApplySettings: vi.fn(),
+}))
 vi.mock('../../src/wailsjsCompat', () => ({
   ChatTopicsList: vi.fn(),
   ChatMessagesList: vi.fn(),
-  ChatAppendMessages: vi.fn(),
+  ChatAppendMessages: bindingsBridge.ChatAppendMessages,
   ChatStreamPlain: vi.fn(),
   ChatSend: vi.fn(),
   ChatImportTopic: vi.fn(),
@@ -70,11 +78,26 @@ vi.mock('../../src/wailsjsCompat', () => ({
   ChatTopicExportMarkdown: vi.fn(),
   WhisperGetPersonalities: vi.fn(),
   WhisperClearSession: vi.fn(),
-  VoiceApplySettings: vi.fn(),
+  VoiceApplySettings: bindingsBridge.VoiceApplySettings,
   TTSSpeakBase64: vi.fn(),
   TTSSpeakBase64WithParams: vi.fn(),
   GaeaLogFrontendError: vi.fn(),
 }))
+vi.mock('../gaea/lib/bridge', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../gaea/lib/bridge')>()
+  return {
+    ...actual,
+    app: new Proxy({} as typeof actual.app, {
+      get(_t, prop: string) {
+        if (prop === 'ChatAppendMessages') return bindingsBridge.ChatAppendMessages
+        if (prop === 'VoiceApplySettings') return bindingsBridge.VoiceApplySettings
+        const fallback = (actual.app as unknown as Record<string, unknown>)[prop]
+        if (typeof fallback === 'function') return fallback.bind(actual.app)
+        return undefined
+      },
+    }),
+  }
+})
 
 // ── 纯视觉/重依赖组件：测试聚焦 ChatPage 逻辑，全部替换为轻量桩 ────────────
 vi.mock('../components/VoiceChatOrb', () => ({ default: () => <div data-testid="voice-orb" /> }))

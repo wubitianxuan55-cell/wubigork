@@ -11,6 +11,8 @@ type ImagegenMethods = Pick<
   | "GetComfyUIStatus" | "GetComfyUILoras" | "GetComfyUITaskProgress"
   | "StartComfyUI" | "StopComfyUI" | "GetSystemStats"
   | "OpenImageSaveDir" | "OpenNovelImagesDir" | "GetCharacters" | "SetCharacterPortrait"
+  // v4.171 批次一 legacy 直调转正（ImageB 门面，与图像域同门面就近）。
+  | "StartLocalTTSService"
 >;
 
 export function buildImagegenTools(): ImagegenMethods {
@@ -72,6 +74,13 @@ export function buildImagegenTools(): ImagegenMethods {
     },
     async SetCharacterPortrait(_characterId: string, _portraitPath: string): Promise<void> {
       // 内存 no-op（同 SetPortraitConfig）。
+    },
+    async StartLocalTTSService(engineID: string) {
+      // 契约对齐 Go ensureLocalTTSService（internal/app/tts_service.go）：幂等
+      // 启动返回 {engine, ready:false, starting:true}。浏览器开发无真实本地 TTS
+      // 服务，按「正在启动」形状返回——useEngineState 的 res?.ready 分支走
+      // 「正在启动」提示，不谎报已就绪。
+      return { engine: engineID, ready: false, starting: true };
     },
   };
 }
