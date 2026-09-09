@@ -44,7 +44,7 @@
 | ✅ | P2 形态（v4.169.0 收官）：白名单解耦刀0（v4.167）→schedule 并入办公刀1/刀2（v4.168）→**双空间并列落地**（rail 顶部工位/乐园切换器+rail 主体按空间分域，code 独立仅 foot 单列=基线双入口闭合；审计 docs/gaea-slim-p2-dualspace-2026-09.md）→**home 空间感知化**（Bento 按空间过滤+每空间旗舰 work=gaea/play=chat+hero 空间 chip+工位「最近文档」面板）→走查待证项收口（rail code 双入口✅/后端 nav 子项差异=有意的双源回退落档✅/knowledge 孤儿页删除✅/刀2 G-2 基线数✅）→壳内真机走查（待真机清单见审计文档 §6） |
 | ✅ | P3 版1（v4.170.0）：巨文件首批 4 拆（App/bridge/types/GanttView，拆分池 >50KB 9→5 达成，零行为变化+公开导出面逐一同） |
 | ✅ | P3 版2（v4.171.0）：office 抽核（journal/evidence/文件读写→internal/core，aliases.go 类型别名保绑定面，602 零变更）+ 次批 5+1 巨文件拆（KnowledgePanel/DeliverablesPanel/XlsxPreview/ChapterPage/herdsmanTemplates/SchedulePage，>50KB 首拆池 9→0） |
-| 🔄 | P3 版3 bridge 双轨退役（**批次一 v4.172.0 ✅**：调研三分类 2A/24B/13C + 契约扩展 16 方法 + 12 文件迁 bridge，wailsjsCompat 引用 57→45；**批次二/三待续**：api/settings 解锁四面板、useChatTopics 元组重构、useChatStream mock 事件、Novel 面板族、语音族直调语义重评、cast 族先入类型、角色库族、ChatPage/ChapterPage 直调、wailsjsCompat.ts 退役） |
+| 🔄 | P3 版3 bridge 双轨退役（批次一 v4.172.0 ✅ / **批次二 v4.173.0 ✅**：chat/novel/settings 三族 22 文件 + 29 方法转正 + 元组契约修正，wailsjsCompat 引用 45→35；**批次三待续**：语音族 6 方法+直调同步 throw 语义重评、ChatPage 五直调、WhisperClearSession/GetVoicePipelineConfig/GetTTSSpeakers 解锁 ChatPanel、DataPanel GaeaDataBackup×6、cast 族 CreatePage/ChapterEditor、角色库族 api/characterlib+novel/api/character、ChapterPage 四直调、useBindState、wailsjsCompat.ts 退役+悬空注释清理） |
 | ⬜ | P3 版3 结构余项：Go 侧 config.go 58.7/engine.go 55.2 + frontend store.ts 54.3 二次拆分 + entry/页面级懒加载 |
 | ⬜ | P4 性能（1版）：懒初始化+exe strip+MemoryHub chunk+entry 拆解 |
 | ⬜ | P5 维持：季度复测+观察池审判（cost 文档化/虚拟滚动/内嵌） |

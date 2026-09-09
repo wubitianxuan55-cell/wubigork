@@ -1,5 +1,17 @@
 # 任务进度
 
+## 最新发布：v4.173.0（2026-09-09）「瘦身 P3 版3：bridge 双轨退役批次二（chat/novel/settings 三族 22 文件迁 bridge + 元组契约修正）」
+
+- **六线并发**（1 契约扩展 + 1 契约修正 + 4 业务线，足迹互斥）+ 主代理收口；wailsjsCompat 引用 45→35、LegacySurfaceNames 276→247。
+- **线1 契约扩展 29 新方法**：CoreBindings+5（GetConfig/SaveConfig/GetStats/ListSkills/ExportAll——**ExportAll 实测在 bindings_core.go:23 非 NovelB**）/ChatBindings+9（ChatTopicCreate/Delete/Rename/SetMode/Clear/ImportTopic/Send 6 参/StreamPlain 5 参/ExportMarkdown）/NovelBindings+12（含 **ChatWorldview 契约纠偏=bindings_chat.go:35 返回 map 非 string**）/VoiceBindings+2/ImageBindings+1（SetImageBackend 4 参）；已核实跳过 3（WhisperGetPersonalities/ListSessions/MemoryHubOverview）；drift 摘除 29（误删 MigrateProjectToV4 恢复）、spaceBindings +29 锁 331→360、mock 补齐。
+- **线1b 元组契约错位修正（重要发现）**：bridge/chat.ts 原声明 `[T[],unknown]` 元组系 **T6-3.2 历史误读**（注释自认「读错返回 error」）——真实 Wails 对 Go ([]T,error) 成功返回数组失败 reject；修正为数组契约+mock 返回 []+mock-contract-t63 断言 Array.isArray；**下游零消费者**（tsc 全绿）——useChatTopics 迁移免去调研预测的元组解构。**教训：契约以真实 Wails 行为为权威，勿信 mock 自造形态；发现 bridge 注释自认「读错」时先验证真实返回再定迁移方案**。
+- **chat 组**（22/22 绿）：useChatTopics 11 处 + ChatTopicCreate 返回 `{id;title;mode;[k]:unknown}` 进 `chat.Topic[]` state 需 as unknown as 双断言；useChatStream Record any→unknown 触发 answered_by/emotion 两处最小 cast；chat/utils `App.GaeaLogFrontendError`→`app.LogFrontendError`（core.ts 短名+mappings）；ChatPage.test bindingsBridge 扩展 11 共享 vi.fn。
+- **novel 组**（25/25 绿）：10 源+4 测试；**NovelSettingPage.test 关键决策=app 用 Proxy 回落真代理**（审计刀B b 壳内导入导出用例的 SaveFileAs/PickFiles/ReadFileB64 必须走真实代理路由 window.go stub，纯对象 mock 打挂 3 例）；ChatWorldview 返回值 `unknown` 收窄 `typeof result?.reply === 'string'`。
+- **settings 组**：api/settings.ts 8 调用全命中迁移；ChatPanel/DataPanel/VoiceSettingsPanel/useVoiceChat **宁少勿多递批次三**（WhisperClearSession/GetVoicePipelineConfig/GetTTSSpeakers/GaeaDataBackup×6/语音族 6 方法未转正）。
+- **ModuleLauncher**：4 处迁移无遗留。
+- **门禁**：vitest **2737/2737 首跑全绿**（批次一曾 5 例连带失败本次零失败）、tsc 0、eslint 0、drift PASS@602（零绑定）、locale 0 死、Go 回归绿、冒烟 200、SHA256=C3DFA08F1A56C2389C2E4D5515A0E7F09D017B0DFB763DD0CDC459EBE66750CE。
+- **欠账=批次三**：语音族（useVoiceChat 8 直调+VoiceSettingsPanel，VoiceStart/VoiceStop/VoicePlaybackDone/VoiceCancelTTS/VoicePushAudio/VoiceSetPTTActive 6 方法转正+**直调同步 throw 语义重评**）、ChatPage 五直调（TTSSpeakBase64WithParams/TTSSpeakBase64/ChatTopicClear/ChatTopicExportMarkdown 后两者契约已转正可先迁）、WhisperClearSession/GetVoicePipelineConfig/GetTTSSpeakers 转正解锁 ChatPanel/VoiceSettingsPanel、DataPanel GaeaDataBackup×6、cast 族 CreatePage/ChapterEditor、角色库族 api/characterlib+novel/api/character、ChapterPage 四直调、useBindState、**wailsjsCompat.ts 退役+悬空注释清理**（api/engines.ts:362 等）。
+
 ## 最新发布：v4.172.0（2026-09-09）「瘦身 P3 版3：bridge 双轨退役批次一（wailsjsCompat 首批 12 文件迁 bridge）」
 
 - **调研先行**（子代理）：39 个非测试文件三分类（2A 全命中零扩展 / 24B ≤3 缺失 / 13C 语音·角色库·cast 族暂缓）；权威「③ 不在 bridge」=drift.ts LegacySurfaceNames 292 项（扩 bridge 必经 _CheckAppBindingsCoversAll 编译期钉死+同步摘除）；排除项=api/engines.ts、api/image.ts 已走 `window.go?.app?.App ?? bridgeApp` 混合回退（迁移样板）、GitPanel 已用 bridge。
