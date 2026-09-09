@@ -1,5 +1,15 @@
 # 任务进度
 
+## 最新发布：v4.175.0（2026-09-09）「瘦身 P4 结构刀1：三巨文件拆分（config.go/engine.go/store.ts，Go >50KB 2→0）」
+
+- **三线并发**（config/engine/store，足迹互斥）+ 主代理收口；行为零变化（导出面/签名/JSON tag/默认值逐字节保留）。
+- **线A config.go 58.7→16.1KB**（7 文件同包）：config.go 核心骨架 + config_keys 8.6/config_types 14.7/config_features 2.7/config_prefs 4.9/config_realtime 0.9/config_save 12.5；逐段 Contains 断言 8 区逐字节命中。
+- **线B engine.go 56.5→13.3KB**（8 文件同包）：engine.go 核心 + engine_keys 3.0/engine_custom 7.0/engine_crud 3.7/engine_connect 3.8/engine_models 12.6/engine_modelhub 10.9/engine_state 4.0；核实无 herdsman 专属函数；45 func 无重复无丢失。
+- **线C store.ts 54.3→0.4KB**（聚合入口 export *×3）：store/controller 50.2 + store/preview 3.3 + store/commonts 1.5；18 导出面逐一同 63 消费方零改动；963/963 行逐字节对账；controller 相对 import 深度调整（./bridge→../bridge 等 4 行）。
+- **主代理收口**：足迹 17 项零越界；Go >50KB 源文件 2→0；**mock/office.ts 51.2KB 浮现**（下轮目标）；store/controller.ts 50.2KB 裁定=单 store 自然边界保留（再拆需深拆 reducer 超红线）；entry chunk 1190.55→1176.62kB。
+- **门禁**：Go 128/128 包 0 FAIL、vitest 2737/2737 首跑全绿、tsc/eslint 0、drift PASS@602（零绑定）、locale 0 死、冒烟 200、SHA256=729C942B1A21B4FE0DB242565808B8CE86DB6F5B812810C836DDEBE4065F9DB8。
+- **欠账=P4 续**：mock/office.ts 51.2 拆分；entry 懒加载（MemoryHubPage 1.4MB/GaeaPage 622KB/cynefin 690KB 按 tab 动态 import——P0 基线 §1 解剖建议）；exe strip（-ldflags "-s -w" 实测对靶 46.22MB）；壳内真机池/审计刀D 不变。
+
 ## 最新发布：v4.174.0（2026-09-09）「瘦身 P3 版3终局：bridge 双轨退役收官（wailsjsCompat.ts shim 删除，全仓生产代码零引用）」
 
 - **里程碑**：全仓生产代码 wailsjsCompat import **清零**；LegacySurfaceNames 292→**184**（累计转正 108 方法）；spaceBindings 423。

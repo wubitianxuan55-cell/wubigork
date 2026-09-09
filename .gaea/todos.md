@@ -45,7 +45,8 @@
 | ✅ | P3 版1（v4.170.0）：巨文件首批 4 拆（App/bridge/types/GanttView，拆分池 >50KB 9→5 达成，零行为变化+公开导出面逐一同） |
 | ✅ | P3 版2（v4.171.0）：office 抽核（journal/evidence/文件读写→internal/core，aliases.go 类型别名保绑定面，602 零变更）+ 次批 5+1 巨文件拆（KnowledgePanel/DeliverablesPanel/XlsxPreview/ChapterPage/herdsmanTemplates/SchedulePage，>50KB 首拆池 9→0） |
 | ✅ | P3 版3 bridge 双轨退役**收官**（批次一 v4.172.0 / 批次二 v4.173.0 / **终局 v4.174.0**：契约累计转正 108 方法 + 各业务族全部迁移 + **wailsjsCompat.ts shim 删除**，全仓生产零引用；LegacySurfaceNames 292→184；masterplan 轨道四「双轨」达成） |
-| ⬜ | P3 结构余项：Go 侧 config.go 58.7/engine.go 55.2 + frontend store.ts 54.3 二次拆分 + entry/页面级懒加载 |
+| ✅ | P4 结构刀1（v4.175.0）：三巨文件拆分（config.go 58.7→16.1KB/engine.go 56.5→13.3KB/store.ts 54.3→0.4KB 聚合入口，Go >50KB 源文件 2→0） |
+| ⬜ | P4 续：mock/office.ts 51.2KB 拆分 + entry 懒加载（MemoryHubPage 1.4MB/GaeaPage 622KB/cynefin 690KB 按 tab 动态 import）+ exe strip（-ldflags -s -w 对靶） |
 | ⬜ | P3 版3 结构余项：Go 侧 config.go 58.7/engine.go 55.2 + frontend store.ts 54.3 二次拆分 + entry/页面级懒加载 |
 | ⬜ | P4 性能（1版）：懒初始化+exe strip+MemoryHub chunk+entry 拆解 |
 | ⬜ | P5 维持：季度复测+观察池审判（cost 文档化/虚拟滚动/内嵌） |
