@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { Button, Space, Tag, Input, Typography, message } from 'antd'
-import { PlusOutlined, DeleteOutlined, EditOutlined, ColumnWidthOutlined, RedoOutlined, ThunderboltOutlined } from '@ant-design/icons'
-import { GetChapterScenes, GenerateScene, CreateScene } from '../../../wailsjs/go/app/NovelB'
+import { ArrowUpOutlined, ArrowDownOutlined, PlusOutlined, DeleteOutlined, EditOutlined, ColumnWidthOutlined, RedoOutlined, ThunderboltOutlined } from '@ant-design/icons'
+import { GetChapterScenes, GenerateScene, CreateScene, ReorderScenes } from '../../../wailsjs/go/app/NovelB'
 import type { ChapterTabData } from '../../types'
 import GhostText from './editor/GhostText'
 import CommandBar from './editor/CommandBar'
@@ -68,6 +68,31 @@ const ChapterEditor: React.FC<ChapterEditorProps> = ({ tab, onUpdate, sceneTexta
   const [scenePlots, setScenePlots] = useState<string[]>([])
   const [sceneGen, setSceneGen] = useState<Record<number, { loading: boolean; aiTaste?: number; beforeScore?: number; afterScore?: number; changes?: number }>>({})
   const [addingScene, setAddingScene] = useState(false)
+  const [moving, setMoving] = useState(false)
+
+  // 场景重排：本地框/id 同步换位 + ReorderScenes 落盘（blob 投影由 Go 侧同调用同步）。
+  // 乐观换位，失败回滚还原；任一框缺 id（本地降级态/分支章）只换本地不调绑定。
+  const moveScene = async (i: number, dir: -1 | 1) => {
+    if (moving || tab.sceneBacked !== true) return
+    const j = i + dir
+    if (j < 0 || j >= tab.scenes.length) return
+    const swap = <T,>(arr: T[]): T[] => { const c = [...arr]; c[i] = c[j]; c[j] = arr[i]; return c }
+    const ids = tab.sceneIds ?? []
+    const canPersist = ids.length === tab.scenes.length && !!ids[i] && !!ids[j]
+    onUpdate('scenes', swap(tab.scenes))
+    if (ids.length > 0) onUpdate('sceneIds', swap(ids))
+    if (!canPersist) return
+    setMoving(true)
+    try {
+      await ReorderScenes(tab.chapterNum, swap(ids))
+    } catch {
+      onUpdate('scenes', tab.scenes)
+      onUpdate('sceneIds', ids)
+      message.error('场景排序失败，已还原')
+    } finally {
+      setMoving(false)
+    }
+  }
 
   // 全局点击关闭右键菜单
   React.useEffect(() => {
@@ -213,6 +238,12 @@ const ChapterEditor: React.FC<ChapterEditorProps> = ({ tab, onUpdate, sceneTexta
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
                     <Tag style={{ fontSize: 10 }}>场景 {i + 1}</Tag>
                     <Space size={2}>
+                      <Button type="text" size="small" icon={<ArrowUpOutlined />} style={{ color: C('color-text-secondary'), fontSize: 10, padding: '0 4px' }}
+                        disabled={i === 0 || tab.sceneBacked !== true || moving}
+                        onClick={() => void moveScene(i, -1)} aria-label={`场景 ${i + 1} 上移`} title="上移场景" />
+                      <Button type="text" size="small" icon={<ArrowDownOutlined />} style={{ color: C('color-text-secondary'), fontSize: 10, padding: '0 4px' }}
+                        disabled={i === tab.scenes.length - 1 || tab.sceneBacked !== true || moving}
+                        onClick={() => void moveScene(i, 1)} aria-label={`场景 ${i + 1} 下移`} title="下移场景" />
                       <Button type="text" size="small" icon={<PlusOutlined />} style={{ color: C('color-text-secondary'), fontSize: 10, padding: '0 4px' }} loading={addingScene} onClick={() => void addScene()} />
                       <Button type="text" size="small" danger icon={<DeleteOutlined />} style={{ fontSize: 10, padding: '0 4px' }} onClick={() => removeScene(i)} disabled={tab.scenes.length <= 1} />
                     </Space>

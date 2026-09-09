@@ -1,3 +1,6 @@
+## v4.186.0 · 场景重排接 UI：上移/下移 + ReorderScenes 落盘（2026-09-10）
+> v4.185 欠账收刀：场景化后场景顺序=阅读顺序与 blob 投影顺序，ReorderScenes 绑定此前零消费方。ChapterEditor 场景框头部增上移/下移（aria-label 键盘可达，首位/末位/非场景制章禁用）；moveScene 乐观换位（scenes/sceneIds 同步 swap 经 onUpdate 回喂）+ ReorderScenes 落盘（blob 投影 Go 侧同调用同步），失败回滚还原诚实提示；缺 id 框只换本地不调绑定防错位。零新绑定 602、零 Go 改动（版本三处外）。vitest +3、tsc/eslint 0、e-check OK、drift PASS@602。详见 releases/v4.186.0.md。
+
 ## v4.185.0 · 阅读页场景化：读场景拼装 + 逐场景保存 + blob 双向同步（2026-09-09）
 > v4.184 阶段一 1A 欠账收刀，展望验收面「小说新章在阅读页是场景」落地。**Go 双向同步**：`syncBlobFromScenes` 把场景库投影回整章 blob（空段拼接，导出/搜索/统计口径不变），挂 SaveScene/ReorderScenes/RestoreSnapshot/GenerateScene 四条场景写路径；`rebuildScenesFromBlob` 在 CreateChapter 主线完成点把整章重写后的场景重置为单场景（旧拆分/POV 元数据不再对应新正文，诚实可预期）。**前端**：V4 主线章载入走 GetChapterScenes 逐场景框（sceneIds/sceneBacked 进 tab，IsProjectV4 ref 探测无竞态；分支/V3/mock 保持 blob 模式），保存逐场景 SaveScene（blob 同调用内同步），ChapterEditor ids 改由 tab 携带。绑定面 602 零变更。去味/重写经核查本就场景感知。Go 全量 0 FAIL（+3）、vitest +2、tsc/eslint 0、e-check OK、drift PASS@602。详见 releases/v4.185.0.md。
 

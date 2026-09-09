@@ -7,11 +7,13 @@ const mocks = vi.hoisted(() => ({
   GetChapterScenes: vi.fn(),
   GenerateScene: vi.fn(),
   CreateScene: vi.fn(),
+  ReorderScenes: vi.fn().mockResolvedValue(undefined),
 }))
 vi.mock('../../../wailsjs/go/app/NovelB', () => ({
   GetChapterScenes: mocks.GetChapterScenes,
   GenerateScene: mocks.GenerateScene,
   CreateScene: mocks.CreateScene,
+  ReorderScenes: mocks.ReorderScenes,
 }))
 
 import ChapterEditor from './ChapterEditor'
@@ -60,8 +62,12 @@ function renderEditor(initial: ChapterTabData) {
     return (icon?.closest('button') ?? null) as HTMLButtonElement | null
   }
   const genBtns = () => screen.getAllByRole('button', { name: /AI 生成/ }) as HTMLButtonElement[]
+  const moveBtns = (i: number) => ({
+    up: container.querySelector(`button[aria-label="场景 ${i + 1} 上移"]`) as HTMLButtonElement | null,
+    down: container.querySelector(`button[aria-label="场景 ${i + 1} 下移"]`) as HTMLButtonElement | null,
+  })
   const disabledOf = (b: HTMLButtonElement | null) => (b ? b.disabled : true)
-  return { onUpdate, addBtn, genBtns, disabledOf }
+  return { onUpdate, addBtn, genBtns, moveBtns, disabledOf }
 }
 
 beforeEach(() => {
@@ -111,5 +117,43 @@ describe('ChapterEditor 逐场景生成（阅读页场景化）', () => {
       expect(onUpdate).toHaveBeenCalledWith('scenes', ['生成的新正文。'])
       expect(onUpdate).toHaveBeenCalledWith('saved', false)
     })
+  })
+
+  it('场景重排：上移换位本地两序并 ReorderScenes 落盘新 id 序', async () => {
+    const { onUpdate, moveBtns } = renderEditor(makeTab({
+      scenes: ['一', '二', '三'],
+      sceneIds: ['001-a', '002-b', '003-c'],
+    }))
+    fireEvent.click(moveBtns(1).up!) // 第二个场景上移
+    await waitFor(() => expect(mocks.ReorderScenes).toHaveBeenCalledWith(3, ['002-b', '001-a', '003-c']))
+    expect(onUpdate).toHaveBeenCalledWith('scenes', ['二', '一', '三'])
+    expect(onUpdate).toHaveBeenCalledWith('sceneIds', ['002-b', '001-a', '003-c'])
+  })
+
+  it('场景重排失败：回滚本地换位并提示', async () => {
+    mocks.ReorderScenes.mockRejectedValueOnce(new Error('boom'))
+    const { onUpdate, moveBtns } = renderEditor(makeTab({
+      scenes: ['一', '二'],
+      sceneIds: ['001-a', '002-b'],
+    }))
+    fireEvent.click(moveBtns(0).down!)
+    await waitFor(() => expect(mocks.ReorderScenes).toHaveBeenCalled())
+    // 乐观换位后被回滚还原
+    await waitFor(() => expect(onUpdate).toHaveBeenLastCalledWith('sceneIds', ['001-a', '002-b']))
+    expect(onUpdate).toHaveBeenCalledWith('scenes', ['一', '二'])
+  })
+
+  it('重排边界与 blob 模式：首行无上移/末行无下移；非场景制章禁用', async () => {
+    const { moveBtns, disabledOf } = renderEditor(makeTab({
+      scenes: ['一', '二'],
+      sceneIds: ['001-a', '002-b'],
+    }))
+    expect(disabledOf(moveBtns(0).up)).toBe(true)
+    expect(disabledOf(moveBtns(0).down)).toBe(false)
+    expect(disabledOf(moveBtns(1).up)).toBe(false)
+    expect(disabledOf(moveBtns(1).down)).toBe(true)
+    // blob/分支章：无场景 API 语义，重排禁用
+    const blob = renderEditor(makeTab({ sceneBacked: false, scenes: ['一', '二'], sceneIds: [] }))
+    expect(disabledOf(blob.moveBtns(0).down)).toBe(true)
   })
 })
