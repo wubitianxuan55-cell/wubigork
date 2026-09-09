@@ -129,6 +129,14 @@ export const gaeaToGaea = {
   // SaveSettings 短名 → Go OfficeB.GaeaSaveSettings（office 设置面板整体写回，
   // v4.171 批次一 wailsjsCompat 直调转正）。
   SaveSettings: "GaeaSaveSettings",
+  // 批次三a：数据备份/恢复短名 → Go OfficeB.GaeaDataBackup*（DataPanel 消费，
+  // wailsjsCompat 直调转正；Gaea 前缀需映射）。
+  DataBackupInfo: "GaeaDataBackupInfo",
+  DataBackupCreate: "GaeaDataBackupCreate",
+  DataBackupRestore: "GaeaDataBackupRestore",
+  DataBackupCancel: "GaeaDataBackupCancel",
+  DataBackupRollback: "GaeaDataBackupRollback",
+  DataBackupRestoreResult: "GaeaDataBackupRestoreResult",
   SetDefaultModel: "GaeaSetDefaultModel",
   SaveProvider: "GaeaSaveProvider",
   DeleteProvider: "GaeaDeleteProvider",

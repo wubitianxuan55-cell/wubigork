@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react'
 import { Button, Space, Tag, Typography, message, Alert, Popconfirm } from 'antd'
 import { DatabaseOutlined, CloudUploadOutlined, CloudDownloadOutlined, UndoOutlined, InboxOutlined, CheckCircleOutlined, FolderOpenOutlined } from '@ant-design/icons'
 import SettingsSection from './SettingsSection'
-import * as App from '../../../src/wailsjsCompat'
+import { app } from '../../gaea/lib/bridge'
 
 /**
  * DataPanel — 数据可迁移（P4-3，个人使用收口 v2.20.0）
@@ -46,16 +46,16 @@ export const DataPanel: React.FC = () => {
 
   const load = useCallback(async () => {
     try {
-      const res = await App.GaeaDataBackupInfo()
+      const res = await app.DataBackupInfo()
       // #17：entries 必须为数组，否则渲染 .some 会崩溃
       if (res && typeof res.data_root === 'string' && Array.isArray(res.entries)) {
-        setInfo(res as BackupInfo)
+        setInfo(res as unknown as BackupInfo)
       } else if (res) {
         setInfo({ ...res, entries: [] } as unknown as BackupInfo)
       }
     } catch { /* 后端未就绪 */ }
     try {
-      const rr = await App.GaeaDataBackupRestoreResult()
+      const rr = await app.DataBackupRestoreResult()
       if (rr?.has_result) setRestoreResult(rr)
     } catch { /* 忽略 */ }
   }, [])
@@ -65,10 +65,10 @@ export const DataPanel: React.FC = () => {
   const handleBackup = async () => {
     setCreating(true)
     try {
-      const destDir: string = await App.GaeaPickDirectory()
+      const destDir: string = await app.PickDirectory()
       if (!destDir) return // 用户取消
-      const res = await App.GaeaDataBackupCreate(destDir)
-      message.success(`备份完成：${res.zip_path}（${fmtSize(res.total_bytes)}）`)
+      const res = await app.DataBackupCreate(destDir)
+      message.success(`备份完成：${res.zip_path}（${fmtSize(res.total_bytes as number)}）`)
       await load()
     } catch (err: unknown) {
       message.error(err instanceof Error ? err.message : '备份失败')
@@ -82,7 +82,7 @@ export const DataPanel: React.FC = () => {
     try {
       // 审计刀D Filters（v4.167.0）：恢复只接受 .zip → 系统对话框前置过滤，
       // 选错概率趋零；后置校验（#9）保留为 fail-closed 双保险。
-      const files: { path: string; name: string; size: number }[] = await App.GaeaPickFiles('zip')
+      const files = await app.PickFiles('zip')
       if (!files || files.length === 0) return
       // #9：只接受 .zip；选到非 zip 直接提示
       const zip = files.find((f) => f.name.toLowerCase().endsWith('.zip'))
@@ -90,7 +90,7 @@ export const DataPanel: React.FC = () => {
         message.warning('请选择 gaea 备份文件（.zip）')
         return
       }
-      const res = await App.GaeaDataBackupRestore(zip.path)
+      const res = await app.DataBackupRestore(zip.path)
       message.success(`恢复包已就绪（${res.zip_name}）。请重启 gaea 完成恢复——重启时会先自动备份当前数据。`)
       await load()
     } catch (err: unknown) {
@@ -102,7 +102,7 @@ export const DataPanel: React.FC = () => {
 
   const handleCancelPending = async () => {
     try {
-      await App.GaeaDataBackupCancel()
+      await app.DataBackupCancel()
       message.success('已取消待应用恢复')
       await load()
     } catch (err: unknown) {
@@ -112,7 +112,7 @@ export const DataPanel: React.FC = () => {
 
   const handleRollback = async () => {
     try {
-      const done: boolean = await App.GaeaDataBackupRollback()
+      const done: boolean = await app.DataBackupRollback()
       message.success(done ? '已回滚到恢复前数据' : '没有可回滚的恢复前备份')
       await load()
     } catch (err: unknown) {
@@ -201,7 +201,7 @@ export const DataPanel: React.FC = () => {
             <Button type="primary" icon={<CloudUploadOutlined />} loading={creating} onClick={handleBackup}>
               一键备份…
             </Button>
-            <Button icon={<FolderOpenOutlined />} onClick={() => void App.GaeaOpenLogsDir().catch(() => message.error('打开日志目录失败'))} data-testid="settings-open-logs">
+            <Button icon={<FolderOpenOutlined />} onClick={() => void app.OpenLogsDir().catch(() => message.error('打开日志目录失败'))} data-testid="settings-open-logs">
               打开日志目录
             </Button>
             <Popconfirm

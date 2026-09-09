@@ -8,7 +8,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { Dispatch, SetStateAction } from 'react'
 import { message } from 'antd'
-import * as App from '../../../wailsjsCompat'
+import { app } from '../../../gaea/lib/bridge'
 import { getPortraitConfig, setPortraitConfig } from '../../../api/image'
 import { FEATURES, imageModelOptionsFor } from '../utils'
 import type { EngineConfig } from '../../../api/engines'
@@ -69,10 +69,10 @@ export function useBindState(engines: EngineConfig[]): BindState {
         let model = ''
         let on = true
         for (const k of keys) {
-          const r = await App.GetFeatureModel(k)
+          const r = await app.GetFeatureModel(k)
           if (!engine && r?.engine) { engine = r.engine; model = r.model || '' }
           let e = true
-          try { e = !!(await App.GetFeatureModelEnabled(k)) } catch (_) { e = true }
+          try { e = !!(await app.GetFeatureModelEnabled(k)) } catch (_) { e = true }
           on = on && e
         }
         cfg[f.key] = { engine, model }
@@ -105,9 +105,9 @@ export function useBindState(engines: EngineConfig[]): BindState {
     if (!d?.engine || !d?.model) { message.warning('请先选择引擎和模型'); return }
     const f = FEATURES.find(x => x.key === key)
     try {
-      await App.SetFeatureModel(key, d.engine, d.model)
+      await app.SetFeatureModel(key, d.engine, d.model)
       for (const k of f?.mergeKeys || []) {
-        await App.SetFeatureModel(k, d.engine, d.model)
+        await app.SetFeatureModel(k, d.engine, d.model)
       }
       message.success(`${f?.label || key}模型已绑定并持久化`)
       loadFeatureCfg()
@@ -120,9 +120,9 @@ export function useBindState(engines: EngineConfig[]): BindState {
   const handleToggleFeatureEnabled = async (key: string, enabled: boolean) => {
     const f = FEATURES.find(x => x.key === key)
     try {
-      await App.SetFeatureModelEnabled(key, enabled)
+      await app.SetFeatureModelEnabled(key, enabled)
       for (const k of f?.mergeKeys || []) {
-        await App.SetFeatureModelEnabled(k, enabled)
+        await app.SetFeatureModelEnabled(k, enabled)
       }
       message.success(`${f?.label || key}功能模型已${enabled ? '启用' : '停用'}`)
       setFeatureEnabled(prev => ({ ...prev, [key]: enabled }))

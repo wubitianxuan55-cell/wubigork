@@ -6,4 +6,25 @@ export interface CharLibBindings {
   SetCharacterPortrait(characterId: string, portraitPath: string): Promise<void>;
   // CharacterList 角色库分页查询（chatOnly 过滤可聊天角色，返回 {items,total}）。
   CharacterList(query: string, kind: string, chatOnly: boolean, page: number, pageSize: number): Promise<Record<string, unknown>>;
+  // ── 批次三b wailsjsCompat 双轨退役转正（Go CharlibB 门面 bindings_charlib.go，
+  // 同名前缀；api/characterlib.ts 消费面=角色库档案/加入项目/抽卡/补全/剧照，
+  // 角色库板块 characterlib 归 play 空间）──
+  // CharacterSave 保存/新建统一角色（Go 返回 characterlib.Character；Bridge 返回
+  // Record 让调用方 cast，api/characterlib.saveCharacter 直接透传）。
+  CharacterSave(cJSON: string): Promise<Record<string, unknown>>;
+  CharacterGet(id: string): Promise<Record<string, unknown>>;
+  CharacterDelete(id: string): Promise<void>;
+  CharacterImportProject(): Promise<number>;
+  CharacterListByProject(): Promise<Array<Record<string, unknown>>>;
+  CharacterAssociate(charID: string, role: string): Promise<void>;
+  CharacterAssociateTo(projectDir: string, charID: string, role: string): Promise<void>;
+  CharacterSetProjectState(charID: string, role: string, arcState: string, status: string): Promise<void>;
+  CharacterDissociate(charID: string): Promise<void>;
+  CharacterSyncProject(): Promise<void>;
+  CharacterDrawRandom(count: number, gender: string, tags: string, chatOnly: boolean): Promise<Array<Record<string, unknown>>>;
+  CharacterGenerateFill(chJSON: string): Promise<string>;
+  CharacterGenerateRandom(chJSON: string, fields: string): Promise<string>;
+  CharacterFillAll(): Promise<Record<string, unknown>>;
+  CharacterGeneratePortrait(chJSON: string, model: string): Promise<string>;
+  CharacterGeneratePortraitWithRef(chJSON: string, model: string, refImageDataURL: string): Promise<string>;
 }

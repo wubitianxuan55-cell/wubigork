@@ -149,8 +149,34 @@ export const GAEA_METHOD_FACETS = {
   // 批次二：绘梦后端配置（SetImageBackend），同 GetImageBackendInfo/
   // SetPortraitConfig 归 play。
   SetImageBackend: "play",
+  // 批次三a legacy 直调转正（Go ImageB bindings_image.go:30/32）：TTS 音色列表/
+  // 语音管线配置读取——模型配置读，模型中心/语音设置两空间共用 → shared。
+  GetTTSSpeakers: "shared",
+  GetVoicePipelineConfig: "shared",
+  // 批次四 bridge 双轨退役终局（Go ImageB bindings_image.go:37/38/40）：语音模型
+  // 设置写口（SetActiveASRModel/SetActiveTTSModel 激活识别/合成模型、
+  // SetChatVoiceModel 功能绑定聊天语音）——同 GetTTSSpeakers/GetVoicePipelineConfig
+  // 模型配置读写面，模型中心/语音设置两空间共用 → shared。
+  SetActiveASRModel: "shared",
+  SetActiveTTSModel: "shared",
+  SetChatVoiceModel: "shared",
   // v4.3 情感语音：TTS 参数预览为 shared（语音朗读两空间共用）
   TTSVoiceParams: "shared",
+  // 批次三a legacy 直调转正：TTS base64 合成入口同 TTSVoiceParams 归 shared
+  // （语音朗读两空间共用；WhisperClearSession 是轻语会话运行时清空，
+  // 同 WhisperGetState/GetFacts 等轻语数据面归 play；语音运行时启停族归 play）。
+  TTSSpeakBase64: "shared",
+  TTSSpeakBase64WithParams: "shared",
+  WhisperClearSession: "play",
+  VoiceStart: "play",
+  VoiceStop: "play",
+  VoicePlaybackDone: "play",
+  VoiceCancelTTS: "play",
+  VoicePushAudio: "play",
+  VoiceSetPTTActive: "play",
+  // 批次四 bridge 双轨退役终局（Go VoiceB bindings_voice.go:27）：语音服务健康
+  // 状态（语音设置面板「检测」按钮消费）——语音运行时状态面，同启停族归 play。
+  VoiceHealth: "play",
   // v4.171 批次一 legacy 直调转正：语音设置应用（useChatVoice/语音设置面板/
   // 模型中心 BindSection）+ 本地 TTS 服务启动（模型中心「启动」按钮）——
   // 语音朗读/模型设置两空间共用，同 TTSVoiceParams 归 shared。
@@ -426,6 +452,67 @@ export const GAEA_METHOD_FACETS = {
   VerifyRecord: "work",
   RollbackRecord: "work",
   DocumentLint: "work",
+  // 批次三a legacy 直调转正（Go OfficeB.GaeaDataBackup*）：数据备份/恢复属
+  // 设置域（DataPanel 工位消费；同 SaveSettings 归属精神但落盘是工作台动作）→ work。
+  DataBackupInfo: "work",
+  DataBackupCreate: "work",
+  DataBackupRestore: "work",
+  DataBackupCancel: "work",
+  DataBackupRollback: "work",
+  DataBackupRestoreResult: "work",
+  // 批次三a legacy 直调转正（Go CoreB.ListProjects）：书架工程卡片清单
+  // （api/characterlib.listShelfProjects 消费面=创作间书架/角色库）→ play。
+  ListProjects: "play",
+  // 批次三b legacy 直调转正（Go CharlibB/NovelB 门面，同名前缀）：角色库档案/
+  // 加入项目/抽卡/补全/剧照族（角色库板块 characterlib 归 play 空间，消费面=
+  // CharacterLibraryPage/NewCharactersModal/小说角色面板）→ play。
+  CharacterSave: "play",
+  CharacterGet: "play",
+  CharacterDelete: "play",
+  CharacterImportProject: "play",
+  CharacterListByProject: "play",
+  CharacterAssociate: "play",
+  CharacterAssociateTo: "play",
+  CharacterSetProjectState: "play",
+  CharacterDissociate: "play",
+  CharacterSyncProject: "play",
+  CharacterDrawRandom: "play",
+  CharacterGenerateFill: "play",
+  CharacterGenerateRandom: "play",
+  CharacterFillAll: "play",
+  CharacterGeneratePortrait: "play",
+  CharacterGeneratePortraitWithRef: "play",
+  // 批次三b legacy 直调转正（Go NovelB 门面，同名前缀）：章节族/叙事状态族/
+  // 场景族/项目角色族——小说创作间数据面（ChapterPage/CreatePage/小说角色面板
+  // 消费），同书封/NovelSearch/批次二 NovelB 族归 play。
+  GetChapter: "play",
+  GetChapterBranch: "play",
+  SaveChapterContent: "play",
+  SaveChapterBranchContent: "play",
+  // 批次三c legacy 直调转正（CreatePage 收尾）：分支构思/创建章节/大纲节点删除
+  // （Go NovelB.QuickBrainstormBranches/CreateChapter/DeleteOutlineNode）——
+  // 创作间消费面，同章节族归 play。
+  QuickBrainstormBranches: "play",
+  CreateChapter: "play",
+  DeleteOutlineNode: "play",
+  GetNovelState: "play",
+  BuildNovelStatePatch: "play",
+  SettleNovelState: "play",
+  DeSlopChapterAiTaste: "play",
+  RewriteChapterAiTaste: "play",
+  GetEntityRelations: "play",
+  GetChapterScenes: "play",
+  GenerateScene: "play",
+  CreateScene: "play",
+  CancelCreateChapter: "play",
+  GenerateProjectCharacterFill: "play",
+  GenerateCharacterPortrait: "play",
+  MergeCharacters: "play",
+  SaveOrganization: "play",
+  DeleteOrganization: "play",
+  ToggleOrgMember: "play",
+  SaveRelationship: "play",
+  DeleteRelationship: "play",
 } as const satisfies Record<keyof AppBindings, BindingSpace>;
 
 /** 编译期双向断言（与 bridge 绑定面漂移检查同范式）：分类表不得出现

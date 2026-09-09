@@ -8,10 +8,18 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { Dispatch, SetStateAction } from 'react'
 import { message } from 'antd'
-import * as App from '../../../wailsjsCompat'
+import { app } from '../../../gaea/lib/bridge'
 import { setActiveOCRModel, getActiveOCRModel } from '../../../api/engines'
 import { XAI_VOICES, localTTSDefaultVoice, localTTSFallbackVoices } from '../utils'
 import { type VoiceCfg } from '../context'
+
+/** GetVoicePipelineConfig 动态载荷读取面（bridge Record<string, unknown> 收窄） */
+interface VoicePipelineCfg {
+  stt?: { engine?: string; model?: string }
+  llm?: { engine?: string; model?: string }
+  tts?: { engine?: string; model?: string; voice?: string }
+  chatTts?: { engine?: string; model?: string }
+}
 
 /** 提取错误消息（unknown 收窄；无 message 用 fallback） */
 function errText(err: unknown, fallback: string): string {
@@ -50,7 +58,7 @@ export function useVoiceState(): VoiceState {
   // 加载语音管道三段激活模型
   const loadVoiceCfg = useCallback(async () => {
     try {
-      const cfg = await App.GetVoicePipelineConfig()
+      const cfg = (await app.GetVoicePipelineConfig()) as VoicePipelineCfg | undefined
       if (cfg) {
         setVoiceCfg({
           stt: { engine: cfg.stt?.engine || '', model: cfg.stt?.model || '' },
@@ -75,8 +83,8 @@ export function useVoiceState(): VoiceState {
   // 设为语音识别/合成（模型中心 → 语音管道）
   const handleSetVoiceModel = async (kind: 'asr' | 'tts', engineId: string, modelId: string) => {
     try {
-      if (kind === 'asr') await App.SetActiveASRModel(engineId, modelId)
-      else await App.SetActiveTTSModel(engineId, modelId)
+      if (kind === 'asr') await app.SetActiveASRModel(engineId, modelId)
+      else await app.SetActiveTTSModel(engineId, modelId)
       message.success(`已设为${kind === 'asr' ? '语音识别' : '语音合成'}：${modelId}`)
       loadVoiceCfg()
     } catch (err: unknown) {
@@ -103,7 +111,7 @@ export function useVoiceState(): VoiceState {
     }
     setChatVoiceSaving(true)
     try {
-      await App.SetChatVoiceModel(d.engine, d.model)
+      await app.SetChatVoiceModel(d.engine, d.model)
       message.success(`聊天语音已绑定：${d.model}`)
       loadVoiceCfg()
     } catch (err: unknown) {
@@ -116,7 +124,7 @@ export function useVoiceState(): VoiceState {
   const handleClearChatVoice = async () => {
     setChatVoiceSaving(true)
     try {
-      await App.SetChatVoiceModel('', '')
+      await app.SetChatVoiceModel('', '')
       message.success('已清除聊天语音绑定（回退全局 TTS）')
       setChatVoiceDraft({ engine: '', model: '' })
       loadVoiceCfg()
@@ -133,7 +141,7 @@ export function useVoiceState(): VoiceState {
       setChatVoiceSpeakers([])
       return
     }
-    App.GetTTSSpeakers?.(model)
+    app.GetTTSSpeakers(model)
       .then((sp: string[]) => setChatVoiceSpeakers(Array.isArray(sp) ? sp : []))
       .catch(() => setChatVoiceSpeakers([]))
   }, [chatVoiceDraft])

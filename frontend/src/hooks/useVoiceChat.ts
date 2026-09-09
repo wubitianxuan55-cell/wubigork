@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
-import * as App from '../../src/wailsjsCompat'
+import { app } from '../gaea/lib/bridge'
 import { EventsOn } from '../../wailsjs/runtime/runtime'
 // W1 b64 收口：壳内事件 []byte 以 base64 字符串传输，解码一律走中立层
 import { b64ToBytes } from '../gaea/lib/bytes'
@@ -118,7 +118,7 @@ export function useVoiceChat({ onTranscript, onReply }: Options = {}) {
     if (!audioData) {
       pendingSpeechRef.current = Math.max(0, pendingSpeechRef.current - 1)
       if (pendingSpeechRef.current === 0) setState2({ aiSpeaking: false })
-      App.VoicePlaybackDone().catch(() => {})
+      app.VoicePlaybackDone().catch(() => {})
       return
     }
 
@@ -145,7 +145,7 @@ export function useVoiceChat({ onTranscript, onReply }: Options = {}) {
     if (bytes.length === 0) {
       pendingSpeechRef.current = Math.max(0, pendingSpeechRef.current - 1)
       if (pendingSpeechRef.current === 0) setState2({ aiSpeaking: false })
-      App.VoicePlaybackDone().catch(() => {})
+      app.VoicePlaybackDone().catch(() => {})
       return
     }
     const buffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.length) as ArrayBuffer
@@ -158,7 +158,7 @@ export function useVoiceChat({ onTranscript, onReply }: Options = {}) {
       source.onended = () => {
         pendingSpeechRef.current = Math.max(0, pendingSpeechRef.current - 1)
         if (pendingSpeechRef.current === 0) setState2({ aiSpeaking: false })
-        App.VoicePlaybackDone().catch(() => {})
+        app.VoicePlaybackDone().catch(() => {})
       }
       source.start(0)
     } catch {
@@ -170,13 +170,13 @@ export function useVoiceChat({ onTranscript, onReply }: Options = {}) {
         URL.revokeObjectURL(url)
         pendingSpeechRef.current = Math.max(0, pendingSpeechRef.current - 1)
         if (pendingSpeechRef.current === 0) setState2({ aiSpeaking: false })
-        App.VoicePlaybackDone().catch(() => {})
+        app.VoicePlaybackDone().catch(() => {})
       }
       audio.onerror = () => {
         URL.revokeObjectURL(url)
         pendingSpeechRef.current = Math.max(0, pendingSpeechRef.current - 1)
         if (pendingSpeechRef.current === 0) setState2({ aiSpeaking: false })
-        App.VoicePlaybackDone().catch(() => {})
+        app.VoicePlaybackDone().catch(() => {})
       }
       try {
         await audio.play()
@@ -185,7 +185,7 @@ export function useVoiceChat({ onTranscript, onReply }: Options = {}) {
         URL.revokeObjectURL(url)
         pendingSpeechRef.current = Math.max(0, pendingSpeechRef.current - 1)
         if (pendingSpeechRef.current === 0) setState2({ aiSpeaking: false })
-        App.VoicePlaybackDone().catch(() => {})
+        app.VoicePlaybackDone().catch(() => {})
       }
     }
   }, [setState2])
@@ -199,8 +199,8 @@ export function useVoiceChat({ onTranscript, onReply }: Options = {}) {
     playbackCtxRef.current = null
     gainRef.current = null
     speechSynthesis.cancel()
-    App.VoiceCancelTTS().catch(() => {})
-    App.VoicePlaybackDone().catch(() => {})
+    app.VoiceCancelTTS().catch(() => {})
+    app.VoicePlaybackDone().catch(() => {})
   }, [setState2])
 
   // ── 事件监听 ──
@@ -269,12 +269,12 @@ export function useVoiceChat({ onTranscript, onReply }: Options = {}) {
         u.onend = () => {
           pendingSpeechRef.current = Math.max(0, pendingSpeechRef.current - 1)
           if (pendingSpeechRef.current === 0) setState2({ aiSpeaking: false })
-          App.VoicePlaybackDone().catch(() => {})
+          app.VoicePlaybackDone().catch(() => {})
         }
         u.onerror = () => {
           pendingSpeechRef.current = Math.max(0, pendingSpeechRef.current - 1)
           if (pendingSpeechRef.current === 0) setState2({ aiSpeaking: false })
-          App.VoicePlaybackDone().catch(() => {})
+          app.VoicePlaybackDone().catch(() => {})
         }
         speechSynthesis.cancel()
         speechSynthesis.speak(u)
@@ -309,7 +309,7 @@ export function useVoiceChat({ onTranscript, onReply }: Options = {}) {
   // 读取失败（后端未就绪/mock 环境）按非 realtime 处理，行为与现状一致。
   const refreshRealtimeMode = useCallback(async () => {
     try {
-      const settings = (await App.VoiceGetSettings?.()) as { realtimeProvider?: string } | undefined
+      const settings = (await app.VoiceGetSettings()) as { realtimeProvider?: string } | undefined
       realtimeModeRef.current = !!settings?.realtimeProvider
     } catch {
       realtimeModeRef.current = false
@@ -368,7 +368,9 @@ export function useVoiceChat({ onTranscript, onReply }: Options = {}) {
         if ((realtimeForce || !browserASRAvailable) && (pttRef.current || stateRef.current.mode === 'vad')) {
           const input = event.inputBuffer.getChannelData(0)
           const int16 = float32ToInt16(input)
-          App.VoicePushAudio(Array.from(new Uint8Array(int16.buffer))).catch(() => {})
+          // VoicePushAudio 契约：Go []byte 经 bridge 以 base64 字符串传输（对齐
+          // b64ToBytes 解码规范的反向编码）；PCM 块内联编码，块小无大数组展开问题。
+          app.VoicePushAudio(btoa(String.fromCharCode(...new Uint8Array(int16.buffer)))).catch(() => {})
         }
       }
 
@@ -413,7 +415,7 @@ export function useVoiceChat({ onTranscript, onReply }: Options = {}) {
         if (res.isFinal) {
           setState2(s => ({ ...s, transcript: '', finalTranscript: s.finalTranscript + text }))
           // 直接进入后端对话管道（跳过 ASR 模型，识别更快）
-          App.VoiceChatText(text).catch(() => {})
+          app.VoiceChatText(text).catch(() => {})
         } else {
           interim += text
         }
@@ -463,7 +465,7 @@ export function useVoiceChat({ onTranscript, onReply }: Options = {}) {
 
     // 启动后端语音管道（浏览器识别模式下后端仅负责对话与 TTS）
     try {
-      await App.VoiceStart(browserASRAvailable)
+      await app.VoiceStart(browserASRAvailable)
     } catch (err: unknown) {
       setState2({ error: `语音启动失败: ${err instanceof Error ? err.message : String(err)}` })
       return
@@ -486,7 +488,7 @@ export function useVoiceChat({ onTranscript, onReply }: Options = {}) {
     stopBrowserRecognition()
 
     // 停止后端（wailsjsCompat 直调在 mock/未就绪时同步 throw，需 try/catch 防 cleanup 崩溃）
-    try { App.VoiceStop().catch(() => {}) } catch { /* 后端未就绪 */ }
+    try { app.VoiceStop().catch(() => {}) } catch { /* 后端未就绪 */ }
 
     // 停止采集
     volSmoothRef.current = 0
@@ -519,13 +521,13 @@ export function useVoiceChat({ onTranscript, onReply }: Options = {}) {
 
   const setPTT = useCallback((active: boolean) => {
     pttRef.current = active
-    App.VoiceSetPTTActive(active).catch(() => {})
+    app.VoiceSetPTTActive(active).catch(() => {})
   }, [])
 
   // ── 打断 ──
 
   const interrupt = useCallback(() => {
-    App.VoiceCancelTTS().catch(() => {})
+    app.VoiceCancelTTS().catch(() => {})
     stopPlayback()
     setState2({ aiSpeaking: false })
   }, [stopPlayback, setState2])
@@ -548,7 +550,7 @@ export function useVoiceChat({ onTranscript, onReply }: Options = {}) {
       if (streamRef.current) { streamRef.current.getTracks().forEach(t => t.stop()) }
       speechSynthesis.cancel()
       // wailsjsCompat 直调在 mock/未就绪时同步 throw，需 try/catch 防 cleanup 崩溃
-      try { App.VoiceStop().catch(() => {}) } catch { /* 后端未就绪 */ }
+      try { app.VoiceStop().catch(() => {}) } catch { /* 后端未就绪 */ }
     }
   }, [])
 

@@ -188,6 +188,9 @@ type OfficeMethods = Pick<
   | "TaskList" | "TaskCancel" | "TaskKill" | "TaskRetry" | "TaskOutput"
   | "GaeaJournalList" | "VerifyRecord" | "RollbackRecord"
   | "GaeaGitStatus" | "GaeaGitDiff" | "GaeaGitStage" | "GaeaGitUnstage" | "GaeaGitDiscard" | "GaeaGitCommit" | "GaeaGitLog"
+  // 批次三a legacy 直调转正（Go OfficeB.GaeaDataBackup*，Gaea 前缀经 mappings 映射）。
+  | "DataBackupInfo" | "DataBackupCreate" | "DataBackupRestore"
+  | "DataBackupCancel" | "DataBackupRollback" | "DataBackupRestoreResult"
 >;
 
 export function buildOffice(_s: MakeMockState): OfficeMethods {
@@ -1071,6 +1074,30 @@ export function buildOffice(_s: MakeMockState): OfficeMethods {
       // mock：浏览器开发环境不落盘（真实实现 = GaeaWriteFile 原子写回工作区）。
       // 走查态：会话内记忆（导图编辑 Ctrl+S 后预览回读可见，刷新即复位）。
       mockFileBodies[rel] = content;
+    },
+    // ── 批次三a legacy 直调转正（Go OfficeB.GaeaDataBackup*，Gaea 前缀经 mappings）──
+    async DataBackupInfo() {
+      // 未做过备份：中性空态（DataPanel 初始状态；不编造 lastBackup 时间）。
+      return { lastBackup: null, status: "idle" };
+    },
+    async DataBackupCreate(destDir: string) {
+      // mock：会话内成功形状（ok:true），不真实落备份文件（path 回显目标目录）。
+      return { ok: true, path: destDir };
+    },
+    async DataBackupRestore(_zipPath: string) {
+      // mock：声明成功（ok:true），不真实写盘；回滚语义见 DataBackupRollback。
+      return { ok: true };
+    },
+    async DataBackupCancel() {
+      // mock: no-op——无进行中的备份/恢复可取消。
+    },
+    async DataBackupRollback() {
+      // mock：从未真实恢复过 → 无可回滚（false）。
+      return false;
+    },
+    async DataBackupRestoreResult() {
+      // 从未执行恢复：status:none（DataPanel 轮询空态）。
+      return { status: "none" };
     },
   };
 }

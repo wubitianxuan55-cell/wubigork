@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { Button, Space, Tag, Input, Typography, message } from 'antd'
 import { PlusOutlined, DeleteOutlined, EditOutlined, ColumnWidthOutlined, RedoOutlined, ThunderboltOutlined } from '@ant-design/icons'
-import * as App from '../../wailsjsCompat'
+import { GetChapterScenes, GenerateScene } from '../../../wailsjs/go/app/NovelB'
 import type { ChapterTabData } from '../../types'
 import GhostText from './editor/GhostText'
 import CommandBar from './editor/CommandBar'
@@ -14,13 +14,6 @@ interface ChapterEditorProps {
   onUpdate: <K extends keyof ChapterTabData>(field: K, value: ChapterTabData[K]) => void
   sceneTextareaRefs: React.MutableRefObject<Map<number, HTMLTextAreaElement>>
   ghostEnabled: boolean
-}
-
-// 逐场景 AI 生成：GetChapterScenes/GenerateScene 尚未进 wailsjsCompat 类型，
-// 用桥接对象宣称签名（no-explicit-any 门禁，用 as unknown as {...}）。
-const sceneBridge = App as unknown as {
-  GetChapterScenes: (chapterNum: number) => Promise<unknown>
-  GenerateScene: (chapterNum: number, sceneId: string, plotReq: string, minWords: number) => Promise<unknown>
 }
 
 /** 窄化场景未知负载 → 取其 id（非对象/缺 id → undefined）。 */
@@ -88,7 +81,7 @@ const ChapterEditor: React.FC<ChapterEditorProps> = ({ tab, onUpdate, sceneTexta
     setSceneGen({})
     let alive = true
     if (tab.chapterNum >= 1) {
-      sceneBridge.GetChapterScenes(tab.chapterNum)
+      GetChapterScenes(tab.chapterNum)
         .then((value) => {
           if (!alive) return
           setSceneIds(Array.isArray(value) ? value.map((s) => sceneIdOf(s) || '') : [])
@@ -132,7 +125,7 @@ const ChapterEditor: React.FC<ChapterEditorProps> = ({ tab, onUpdate, sceneTexta
     const minWords = tab.targetWords || 800
     setSceneGen((prev) => ({ ...prev, [i]: { loading: true } }))
     try {
-      const value = await sceneBridge.GenerateScene(tab.chapterNum, sceneId, plot, minWords)
+      const value = await GenerateScene(tab.chapterNum, sceneId, plot, minWords)
       const content = sceneContentOf(value)
       if (content) {
         const s = [...tab.scenes]

@@ -101,4 +101,16 @@ export interface OfficeBindings {
   // SaveSettings 整体写回办公引擎设置视图（Go OfficeB.GaeaSaveSettings，wailsjsCompat
   // 直调转正；OfficePanel「保存」消费；读侧见 ModelBindings.Settings → GaeaSettings）。
   SaveSettings(view: SettingsView): Promise<void>;
+  // ── 批次三a legacy 直调转正（Go OfficeB.GaeaDataBackup*，Gaea 前缀经 mappings 映射；
+  // DataPanel 数据备份/恢复面板消费）──
+  // DataBackupInfo 备份概览（lastBackup/status 等）；DataBackupCreate 备份到目标目录；
+  // DataBackupRestore 从 zip 包恢复；DataBackupCancel 取消进行中的备份/恢复；
+  // DataBackupRollback 回滚最近一次恢复（bool 是否已回滚）；
+  // DataBackupRestoreResult 恢复结果（DataPanel 轮询用）。
+  DataBackupInfo(): Promise<Record<string, unknown>>;
+  DataBackupCreate(destDir: string): Promise<Record<string, unknown>>;
+  DataBackupRestore(zipPath: string): Promise<Record<string, unknown>>;
+  DataBackupCancel(): Promise<void>;
+  DataBackupRollback(): Promise<boolean>;
+  DataBackupRestoreResult(): Promise<Record<string, unknown>>;
 }

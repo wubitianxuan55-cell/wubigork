@@ -37,4 +37,17 @@ export interface ImageBindings {
   // SetImageBackend 设置图像生成后端（backend/comfyUIURL/imageModel/imageSaveDir
   // 四参；Go ImageB 同名，批次二直调转正；绘梦域配置写入口）。
   SetImageBackend(backend: string, comfyUIURL: string, imageModel: string, imageSaveDir: string): Promise<void>;
+  // ── 批次三a legacy 直调转正（Go ImageB 门面 bindings_image.go:30/32，同名前缀）──
+  // GetTTSSpeakers 查询指定 TTS 模型的可用音色列表；GetVoicePipelineConfig 读取
+  // 语音管线配置快照（采样率/编码等）——模型中心/语音设置两空间共用。
+  GetTTSSpeakers(model: string): Promise<Array<string>>;
+  GetVoicePipelineConfig(): Promise<Record<string, unknown>>;
+  // ── 批次四 bridge 双轨退役终局（Go ImageB 门面 bindings_image.go:37/38/40，
+  // 同名前缀）──语音模型设置写口：SetActiveASRModel/SetActiveTTSModel 设置
+  // 语音管道激活的识别/合成模型；SetChatVoiceModel 设置功能绑定「聊天语音」
+  // （空串=清除绑定回退全局 TTS）。模型中心 useVoiceState 消费，
+  // 同 GetTTSSpeakers 模型配置读写面归 shared。
+  SetActiveASRModel(engineID: string, modelID: string): Promise<void>;
+  SetActiveTTSModel(engineID: string, modelID: string): Promise<void>;
+  SetChatVoiceModel(engineID: string, modelID: string): Promise<void>;
 }

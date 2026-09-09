@@ -13,6 +13,13 @@ type VoiceMethods = Pick<
   | "WhisperDeleteFact" | "WhisperUpdateFact"
   // 批次二 legacy 直调转正（VoiceB 门面）：设置读 + 语音对话文本。
   | "VoiceGetSettings" | "VoiceChatText"
+  // 批次三a legacy 直调转正（VoiceB 门面）：语音运行时族 + 轻语清会话 + TTS base64 合成。
+  | "VoiceStart" | "VoiceStop" | "VoicePlaybackDone" | "VoiceCancelTTS"
+  | "VoicePushAudio" | "VoiceSetPTTActive" | "WhisperClearSession"
+  | "TTSSpeakBase64" | "TTSSpeakBase64WithParams"
+  // 批次四 bridge 双轨退役终局（VoiceB 门面 bindings_voice.go:27）：语音服务
+  // 健康状态（语音设置面板「检测」按钮消费，同 Voice 运行时族就近）。
+  | "VoiceHealth"
 >;
 
 export function buildVoice(): VoiceMethods {
@@ -45,6 +52,41 @@ export function buildVoice(): VoiceMethods {
     },
     async VoiceChatText(_text: string) {
       // mock: no-op——浏览器开发无语音服务实例（真实实现把文本送入语音对话管线）。
+    },
+    // ── 批次三a legacy 直调转正（Go VoiceB，同名前缀）────────────────
+    async VoiceStart(_browserASR: boolean) {
+      // mock: no-op——浏览器开发无语音会话实例可启动（真实实现按 browserASR 启停）。
+    },
+    async VoiceStop() {
+      // mock: no-op——同 VoiceStart，无会话可停。
+    },
+    async VoicePlaybackDone() {
+      // mock: no-op——无播放中的 TTS 音频，回执空转。
+    },
+    async VoiceCancelTTS() {
+      // mock: no-op——无待合成队列可取消。
+    },
+    async VoicePushAudio(_chunk: string) {
+      // mock: no-op——无语音服务接收音频块（真实实现把 base64 解码 []byte 推送）。
+    },
+    async VoiceSetPTTActive(_active: boolean) {
+      // mock: no-op——无 PTT 会话态可设置。
+    },
+    async WhisperClearSession(_personalityID: string) {
+      // mock: no-op——无真实轻语会话可清空（消费方按成功语义继续，不编造记忆）。
+    },
+    async TTSSpeakBase64(_text: string) {
+      // 无本地 TTS 服务：返回空合成结果（消费方对空 base64 兜底，不编造音频）。
+      return { base64: "", mimeType: "" };
+    },
+    async TTSSpeakBase64WithParams(_text: string, _params: Record<string, unknown>) {
+      // 同上：参数透传但无服务可合成 → 空 base64。
+      return { base64: "", mimeType: "" };
+    },
+    // ── 批次四 bridge 双轨退役终局（Go VoiceB，同名前缀）────────────────
+    async VoiceHealth() {
+      // 浏览器开发无语音服务实例：按「未就绪/空闲」形状返回，面板图标不谎报就绪。
+      return { asrReady: false, ttsReady: false, state: "idle", error: "" };
     },
   };
 }

@@ -26,4 +26,25 @@ export interface VoiceBindings {
   // 由调用方结合事件流理解）。
   VoiceGetSettings(): Promise<Record<string, unknown>>;
   VoiceChatText(text: string): Promise<void>;
+  // ── 批次三a legacy 直调转正（Go VoiceB 门面，同名前缀无需映射）──
+  // 语音运行时族：VoiceStart 带 browserASR 启停语音会话；VoiceStop 停止；
+  // VoicePlaybackDone 播放完成回执；VoiceCancelTTS 取消待合成队列；
+  // VoicePushAudio 推送音频块（Go []byte，前端传 base64 字符串）；
+  // VoiceSetPTTActive 设置按键说话（PTT）激活态。
+  VoiceStart(browserASR: boolean): Promise<void>;
+  VoiceStop(): Promise<void>;
+  VoicePlaybackDone(): Promise<void>;
+  VoiceCancelTTS(): Promise<void>;
+  VoicePushAudio(chunk: string): Promise<void>;
+  VoiceSetPTTActive(active: boolean): Promise<void>;
+  // WhisperClearSession 清空指定人格的轻语会话（重开一段干净对话）。
+  WhisperClearSession(personalityID: string): Promise<void>;
+  // TTSSpeakBase64 合成 TTS 音频并返回 base64（text → {base64, mimeType}）；
+  // TTSSpeakBase64WithParams 带 TTS 参数（tts.TTSParams，前端用 Record 透传）合成。
+  TTSSpeakBase64(text: string): Promise<Record<string, unknown>>;
+  TTSSpeakBase64WithParams(text: string, params: Record<string, unknown>): Promise<Record<string, unknown>>;
+  // ── 批次四 bridge 双轨退役终局（Go VoiceB 门面 bindings_voice.go:27）──
+  // VoiceHealth 语音服务健康状态（返回 {asrReady,ttsReady,state,error}；
+  // 语音设置面板「检测」按钮 VoiceHealth 直调转正）。
+  VoiceHealth(): Promise<Record<string, unknown>>;
 }

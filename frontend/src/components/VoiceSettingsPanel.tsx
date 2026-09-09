@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { Card, Switch, Select, Slider, Button, Typography, Tag, Input, message } from 'antd'
 import { AudioOutlined, ReloadOutlined, CheckCircleOutlined, CloseCircleOutlined } from '@ant-design/icons'
-import * as App from '../../src/wailsjsCompat'
+import { app } from '../gaea/lib/bridge'
 
 const { Text } = Typography
 
@@ -13,6 +13,24 @@ interface VoiceHealthInfo {
   ttsReady?: boolean
   state?: string
   error?: string
+}
+
+/** VoiceGetSettings 动态载荷（bridge Record<string, unknown>）在本面板的消费面 */
+interface VoiceSettingsInfo {
+  ttsEnabled?: boolean
+  ttsVoice?: string
+  voiceMode?: string
+  interruptThresholdMs?: number
+  silenceThresholdMs?: number
+  realtimeProvider?: string
+  realtimeModel?: string
+  realtimeHasKey?: boolean
+}
+
+/** GetVoicePipelineConfig 动态载荷中 TTS 模型读取面 */
+interface VoicePipelineInfo {
+  chatTts?: { model?: string }
+  tts?: { model?: string }
 }
 
 // Edge TTS 音色（在线免费，zh-CN）
@@ -69,7 +87,7 @@ export default function VoiceSettingsPanel() {
   const checkHealth = async () => {
     setChecking(true)
     try {
-      const h = await App.VoiceHealth?.()
+      const h = (await app.VoiceHealth()) as VoiceHealthInfo
       setHealth(h || { asrReady: false, ttsReady: false })
     } catch (_) {
       setHealth({ asrReady: false, ttsReady: false, error: '无法获取语音服务状态' })
@@ -80,10 +98,10 @@ export default function VoiceSettingsPanel() {
   const loadSettings = async () => {
     try {
       const [v, pipeline] = await Promise.all([
-        App.VoiceGetSettings?.(),
-        App.GetVoicePipelineConfig?.(),
+        app.VoiceGetSettings(),
+        app.GetVoicePipelineConfig(),
       ])
-      const settings = v || {}
+      const settings = (v || {}) as VoiceSettingsInfo
       if (settings.ttsEnabled !== undefined) setTtsEnabled(!!settings.ttsEnabled)
       if (settings.ttsVoice) setTtsVoice(settings.ttsVoice)
       if (settings.voiceMode) setVoiceMode(settings.voiceMode === 'ptt' ? 'ptt' : 'vad')
@@ -93,19 +111,21 @@ export default function VoiceSettingsPanel() {
       if (settings.realtimeModel !== undefined) setRtModel(String(settings.realtimeModel || ''))
       if (settings.realtimeHasKey !== undefined) setRtHasKey(!!settings.realtimeHasKey)
 
-      const model = pipeline?.chatTts?.model || pipeline?.tts?.model || ''
+      const model = (pipeline as VoicePipelineInfo | undefined)?.chatTts?.model
+        || (pipeline as VoicePipelineInfo | undefined)?.tts?.model
+        || ''
       setTtsModel(model)
       const lower = model.toLowerCase()
       if (lower.includes('qwen3') || lower.includes('customvoice') || lower.includes('cosyvoice')) {
         try {
-          const speakers = (await App.GetTTSSpeakers?.(model)) || []
+          const speakers = (await app.GetTTSSpeakers(model)) || []
           if (Array.isArray(speakers) && speakers.length > 0) {
             setHerdsmanVoices(speakers)
             // 当前音色不在支持列表时自动对齐到默认音色
             if (settings.ttsVoice && !speakers.includes(settings.ttsVoice)) {
               const fallback = speakers.includes('serena') ? 'serena' : speakers[0]
               setTtsVoice(fallback)
-              App.VoiceApplySettings?.({ ttsVoice: fallback }).catch(() => {})
+              app.VoiceApplySettings({ ttsVoice: fallback }).catch(() => {})
             }
           }
         } catch (_) { /* 查询失败使用兜底列表 */ }
@@ -116,7 +136,7 @@ export default function VoiceSettingsPanel() {
   useEffect(() => { checkHealth(); loadSettings() }, [])
 
   const applyVoiceSettings = (patch: Record<string, unknown>) => {
-    App.VoiceApplySettings?.(patch).catch(() => {})
+    app.VoiceApplySettings(patch).catch(() => {})
   }
 
   // 保存实时语音配置（S1）：key 只在用户填了新值时下发（空=不改动；填空格并
@@ -127,9 +147,9 @@ export default function VoiceSettingsPanel() {
       const patch: Record<string, unknown> = { realtimeProvider: rtProvider, realtimeModel: rtModel }
       const key = rtKey.trim()
       if (rtKey !== '') patch.realtimeAPIKey = key // 未输入=不改动已存 key
-      await App.VoiceApplySettings?.(patch)
+      await app.VoiceApplySettings(patch)
       setRtKey('')
-      const v = await App.VoiceGetSettings?.()
+      const v = await app.VoiceGetSettings()
       if (v) setRtHasKey(!!v.realtimeHasKey)
       message.success(rtProvider ? '实时语音配置已保存' : '实时语音已关闭')
     } catch (_) {

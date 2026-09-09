@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { Alert, Button, message, Modal } from 'antd'
-import * as App from '../../src/wailsjsCompat'
+import { app } from '../gaea/lib/bridge'
+import { GetNovelState, BuildNovelStatePatch, SettleNovelState, DeSlopChapterAiTaste, RewriteChapterAiTaste, GetEntityRelations, CancelCreateChapter } from '../../wailsjs/go/app/NovelB'
 import { useOutlineStore } from '../stores/outlineStore'
 import { useAppStore } from '../stores/appStore'
 import type { OutlineNode } from '../types'
@@ -136,21 +137,12 @@ const CreatePage: React.FC = () => {
   const [graphData, setGraphData] = useState<EntityGraph | null>(null)
   const [graphMsg, setGraphMsg] = useState('')
 
-  // 新绑定尚未进 wailsjsCompat 类型；用桥接对象宣称签名（与 novelBridge 同款 cast）。
-  const stateBridge = App as unknown as {
-    GetNovelState: () => Promise<unknown>
-    BuildNovelStatePatch: (chapterNum: number) => Promise<unknown>
-    SettleNovelState: (patchJSON: string, approved: boolean) => Promise<unknown>
-    DeSlopChapterAiTaste: (chapterNum: number) => Promise<unknown>
-    RewriteChapterAiTaste: (chapterNum: number) => Promise<unknown>
-  }
-  const entityBridge = App as unknown as { GetEntityRelations: () => Promise<unknown> }
   const openGraph = async () => {
     setGraphOpen(true)
     setGraphBusy(true)
     setGraphMsg('')
     try {
-      const g = toEntityGraph(await entityBridge.GetEntityRelations())
+      const g = toEntityGraph(await GetEntityRelations())
       setGraphData(g)
       setGraphMsg(g.nodes.length > 0 ? `共 ${g.nodes.length} 个实体 · ${g.edges.length} 条关系` : '')
     } catch (err: unknown) {
@@ -190,7 +182,7 @@ const CreatePage: React.FC = () => {
     const token = ++settingLoadToken.current
     const requestedPath = useAppStore.getState().projectPath
     let fresh = ''
-    try { fresh = await App.GetWorldview() || '' } catch { /* 设定拉取失败按空处理 */ }
+    try { fresh = await app.GetWorldview() || '' } catch { /* 设定拉取失败按空处理 */ }
     if (token !== settingLoadToken.current || requestedPath !== useAppStore.getState().projectPath) return ''
     setSetting(fresh)
     return fresh
@@ -199,7 +191,7 @@ const CreatePage: React.FC = () => {
   // 创作统计（章节数 / 总字数）
   const refreshStats = useCallback(async () => {
     try {
-      const s = await App.GetStats()
+      const s = await app.GetStats()
       if (s) setStats(s as { totalWords: number; chapterCount: number })
     } catch { /* 统计失败不阻塞创作 */ }
   }, [])
@@ -217,8 +209,8 @@ const CreatePage: React.FC = () => {
     setActiveId(node.id); setChapterLoading(true)
     try {
       const branch = node.branch || ''
-      const result = await App.GetChapterBranch(node.order_index || 1, branch)
-      if (token === chapterLoadToken.current && requestedPath === useAppStore.getState().projectPath) setContent(result?.content || '')
+      const result = await app.GetChapterBranch(node.order_index || 1, branch)
+      if (token === chapterLoadToken.current && requestedPath === useAppStore.getState().projectPath) setContent((result?.content as string) || '')
     } catch {
       if (token === chapterLoadToken.current && requestedPath === useAppStore.getState().projectPath) setContent('')
     } finally {
@@ -230,7 +222,7 @@ const CreatePage: React.FC = () => {
   const fetchWizardBranches = useCallback(async (prevChapter: number): Promise<Branch[]> => {
     const freshSetting = await refreshSetting()
     const prevSummary = prevChapter > 0 ? buildPrevSummary(outlines, prevChapter) : ''
-    const res = await App.QuickBrainstormBranches(freshSetting, prevSummary || '')
+    const res = (await app.QuickBrainstormBranches(freshSetting, prevSummary || '')) as { branches?: Array<{ title?: string; summary?: string }> }
     const list = res?.branches || []
     return list.map((b: { title?: string; summary?: string }) => ({ title: b.title ?? '', pitch: b.summary ?? '' }))
   }, [refreshSetting, outlines])
@@ -323,7 +315,7 @@ const CreatePage: React.FC = () => {
       // 生成前再读一次最新设定，确保正文提示词注入当前小说设定
       const freshSetting = await refreshSetting()
       if (!freshSetting.trim()) { throw new Error('小说设定为空，请先在「设定」页填写世界观') }
-      const result = await App.CreateChapter(freshSetting, '', plotReq, overwriteChapter, branchFromID, selectedSkill || '', minWords, temperature)
+      const result = (await app.CreateChapter(freshSetting, '', plotReq, overwriteChapter, branchFromID, selectedSkill || '', minWords, temperature)) as { nodeId?: string; chapterNum?: number; branch?: string }
       // 预创建节点已由后端同步完成，立即激活；记录章节号供停止按钮
       const nodeId = result?.nodeId
       const chapNum = result?.chapterNum
@@ -342,9 +334,7 @@ const CreatePage: React.FC = () => {
     }
   }
 
-  // CancelCreateChapter 契约（后端批 1）：wails build 重新生成 NovelB.d.ts 后自动可用，
-  // 再生成前先用本地类型桥接，避免 tsc 报错（运行时不经过 bridge/mock，直调 window.go.app.NovelB）。
-  const novelBridge = App as unknown as { CancelCreateChapter: (chapterNum: number, branch: string) => Promise<boolean> }
+  // CancelCreateChapter 契约（后端批 1）：wails 再生成的 NovelB 绑定已提供类型化签名，直接调用。
 
   // 停止生成：取 CreateChapter 返回值中的章节号 + 主线分支 ''（T6-7.2）
   const handleStop = async () => {
@@ -352,7 +342,7 @@ const CreatePage: React.FC = () => {
     if (!chapterNum) { message.warning('暂无进行中的生成任务'); return }
     setStopping(true)
     try {
-      const cancelled = await novelBridge.CancelCreateChapter(chapterNum, branch)
+      const cancelled = await CancelCreateChapter(chapterNum, branch)
       if (cancelled) { setGenPhase('正在停止…') } // 随后收到 cancelled 事件收尾（保留部分正文）
       else { finishStream(); message.info('生成已结束') } // 幂等 false：本地兜底，避免 UI 悬挂
     } catch (err: unknown) {
@@ -378,7 +368,7 @@ const CreatePage: React.FC = () => {
 
   const handleDelete = async (node: OutlineNode) => {
     try {
-      await App.DeleteOutlineNode(node.id)
+      await app.DeleteOutlineNode(node.id)
       if (activeId === node.id) { setActiveId(''); setContent('') }
       await loadOutlines(); refreshStats()
       message.success('已删除')
@@ -393,7 +383,7 @@ const CreatePage: React.FC = () => {
     setSaving(true)
     try {
       const branch = node.branch || ''
-      await App.SaveChapterBranchContent(node.order_index || 1, branch, content)
+      await app.SaveChapterBranchContent(node.order_index || 1, branch, content)
       message.success('已保存')
     } catch (err: unknown) { message.error(err instanceof Error ? err.message : '失败') }
     finally { setSaving(false) }
@@ -423,47 +413,47 @@ const CreatePage: React.FC = () => {
   const loadState = useCallback(async () => {
     setStateBusy(true); setStateMsg('')
     try {
-      const s = (await stateBridge.GetNovelState()) as { version?: number; entities?: Record<string, { name?: string; type?: string; status?: string }> }
+      const s = (await GetNovelState()) as { version?: number; entities?: Record<string, { name?: string; type?: string; status?: string }> }
       setNovelState(s); setStateMsg('已加载叙事状态账本')
     } catch (err: unknown) { setStateMsg(err instanceof Error ? err.message : '加载失败') }
     finally { setStateBusy(false) }
-  }, [stateBridge])
+  }, [])
   const proposeState = useCallback(async () => {
     setStateBusy(true); setStateMsg('')
     try {
-      const p = await stateBridge.BuildNovelStatePatch(activeChapterNum)
+      const p = await BuildNovelStatePatch(activeChapterNum)
       setStatePatch(p); setStateMsg(`AI 已生成第 ${activeChapterNum} 章状态建议，等待你审批`)
     } catch (err: unknown) { setStateMsg(err instanceof Error ? err.message : '生成建议失败') }
     finally { setStateBusy(false) }
-  }, [stateBridge, activeChapterNum])
+  }, [activeChapterNum])
   const approveState = useCallback(async () => {
     if (statePatch === null || statePatch === undefined) { setStateMsg('请先生成 AI 状态建议'); return }
     setStateBusy(true); setStateMsg('')
     try {
-      const r = (await stateBridge.SettleNovelState(JSON.stringify(statePatch), true)) as { version?: number }
+      const r = (await SettleNovelState(JSON.stringify(statePatch), true)) as { version?: number }
       setStateMsg(`已审批结算，状态账本版本 → ${r?.version ?? '?'}`)
       await loadState()
     } catch (err: unknown) { setStateMsg(err instanceof Error ? err.message : '结算失败') }
     finally { setStateBusy(false) }
-  }, [statePatch, stateBridge, loadState])
+  }, [statePatch, loadState])
   // 手动「一键去味」：对当前章节跑确定性 DeSlopRewrite（任意章节可用，不只生成时）。
   const deslopChapter = useCallback(async () => {
     setStateBusy(true); setStateMsg('')
     try {
-      const r = (await stateBridge.DeSlopChapterAiTaste(activeChapterNum)) as { changes?: number; beforeScore?: number; afterScore?: number; done?: boolean }
+      const r = (await DeSlopChapterAiTaste(activeChapterNum)) as { changes?: number; beforeScore?: number; afterScore?: number; done?: boolean }
       setStateMsg(r?.done ? `已去味 ${r.changes} 处，分数 ${r.beforeScore}→${r.afterScore}` : '未命中 AI 套路，无需去味')
     } catch (err: unknown) { setStateMsg(err instanceof Error ? err.message : '去味失败') }
     finally { setStateBusy(false) }
-  }, [stateBridge, activeChapterNum])
+  }, [activeChapterNum])
   // 高级去味：LLM 受限重写命中句（质量更高，需模型调用）。
   const llmDeslop = useCallback(async () => {
     setStateBusy(true); setStateMsg('')
     try {
-      const r = (await stateBridge.RewriteChapterAiTaste(activeChapterNum)) as { done?: boolean; rewritten?: number; beforeScore?: number; afterScore?: number; reason?: string }
+      const r = (await RewriteChapterAiTaste(activeChapterNum)) as { done?: boolean; rewritten?: number; beforeScore?: number; afterScore?: number; reason?: string }
       setStateMsg(r?.done ? `已高级去味 ${r.rewritten} 句，分数 ${r.beforeScore}→${r.afterScore}` : (r?.reason ?? '无命中句'))
     } catch (err: unknown) { setStateMsg(err instanceof Error ? err.message : '高级去味失败') }
     finally { setStateBusy(false) }
-  }, [stateBridge, activeChapterNum])
+  }, [activeChapterNum])
 
   return (
     <div className="novel-workspace">

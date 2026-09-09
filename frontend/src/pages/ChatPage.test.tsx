@@ -54,15 +54,19 @@ vi.mock('../hooks/useVoiceChat', () => ({
   },
 }))
 
-// ── Wails 绑定 mock（ChatPage 经 wailsjsCompat 调用）───────────────────────
-// P3 版3 双轨退役：批次一 useChatVoice（ChatAppendMessages/VoiceApplySettings）
-// 与批次二 useChatTopics/useChatStream/pages/chat/utils（chat 组方法 +
-// LogFrontendError）均已改走 gaea/lib/bridge 的 app 代理——它们用到的绑定与
-// wailsjsCompat mock 共享同一 vi.fn 引用（bindingsBridge.xxx），测试断言两端
-// 皆命中；ChatPage 本体直调的其他 wailsjsCompat 方法维持原 mock。
+// ── Wails 绑定 mock（ChatPage 经 gaea/lib/bridge app 代理调用）────────────────
+// P3 版3 双轨退役：批次一 useChatVoice（ChatAppendMessages/VoiceApplySettings）、
+// 批次二 useChatTopics/useChatStream/pages/chat/utils（chat 组方法 +
+// LogFrontendError）与批次三a 语音族（ChatPage 本体 WhisperClearSession/
+// TTSSpeakBase64/TTSSpeakBase64WithParams/ChatTopicClear/ChatTopicExportMarkdown +
+// useVoiceChat VoiceStart/VoiceStop）均已改走 gaea/lib/bridge 的 app 代理——它们
+// 用到的绑定与 wailsjsCompat mock 共享同一 vi.fn 引用（bindingsBridge.xxx），
+// 测试断言两端皆命中（wailsjsCompat mock 的这些 key 现指向 bindingsBridge 同一 fn）。
 const bindingsBridge = vi.hoisted(() => ({
   ChatAppendMessages: vi.fn(),
   VoiceApplySettings: vi.fn(),
+  VoiceStart: vi.fn(),
+  VoiceStop: vi.fn(),
   ChatTopicsList: vi.fn(),
   ChatMessagesList: vi.fn(),
   ChatStreamPlain: vi.fn(),
@@ -72,9 +76,14 @@ const bindingsBridge = vi.hoisted(() => ({
   ChatTopicDelete: vi.fn(),
   ChatTopicRename: vi.fn(),
   ChatTopicSetMode: vi.fn(),
+  ChatTopicClear: vi.fn(),
+  ChatTopicExportMarkdown: vi.fn(),
   WhisperGetPersonalities: vi.fn(),
+  WhisperClearSession: vi.fn(),
   // bridge 短名 LogFrontendError ↔ wailsjsCompat 直名 GaeaLogFrontendError
   LogFrontendError: vi.fn(),
+  TTSSpeakBase64: vi.fn(),
+  TTSSpeakBase64WithParams: vi.fn(),
 }))
 vi.mock('../../src/wailsjsCompat', () => ({
   ChatTopicsList: bindingsBridge.ChatTopicsList,
@@ -87,13 +96,13 @@ vi.mock('../../src/wailsjsCompat', () => ({
   ChatTopicDelete: bindingsBridge.ChatTopicDelete,
   ChatTopicRename: bindingsBridge.ChatTopicRename,
   ChatTopicSetMode: bindingsBridge.ChatTopicSetMode,
-  ChatTopicClear: vi.fn(),
-  ChatTopicExportMarkdown: vi.fn(),
+  ChatTopicClear: bindingsBridge.ChatTopicClear,
+  ChatTopicExportMarkdown: bindingsBridge.ChatTopicExportMarkdown,
   WhisperGetPersonalities: bindingsBridge.WhisperGetPersonalities,
-  WhisperClearSession: vi.fn(),
+  WhisperClearSession: bindingsBridge.WhisperClearSession,
   VoiceApplySettings: bindingsBridge.VoiceApplySettings,
-  TTSSpeakBase64: vi.fn(),
-  TTSSpeakBase64WithParams: vi.fn(),
+  TTSSpeakBase64: bindingsBridge.TTSSpeakBase64,
+  TTSSpeakBase64WithParams: bindingsBridge.TTSSpeakBase64WithParams,
   GaeaLogFrontendError: bindingsBridge.LogFrontendError,
 }))
 vi.mock('../gaea/lib/bridge', async (importOriginal) => {
@@ -104,6 +113,8 @@ vi.mock('../gaea/lib/bridge', async (importOriginal) => {
       get(_t, prop: string) {
         if (prop === 'ChatAppendMessages') return bindingsBridge.ChatAppendMessages
         if (prop === 'VoiceApplySettings') return bindingsBridge.VoiceApplySettings
+        if (prop === 'VoiceStart') return bindingsBridge.VoiceStart
+        if (prop === 'VoiceStop') return bindingsBridge.VoiceStop
         if (prop === 'ChatTopicsList') return bindingsBridge.ChatTopicsList
         if (prop === 'ChatMessagesList') return bindingsBridge.ChatMessagesList
         if (prop === 'ChatStreamPlain') return bindingsBridge.ChatStreamPlain
@@ -113,7 +124,12 @@ vi.mock('../gaea/lib/bridge', async (importOriginal) => {
         if (prop === 'ChatTopicDelete') return bindingsBridge.ChatTopicDelete
         if (prop === 'ChatTopicRename') return bindingsBridge.ChatTopicRename
         if (prop === 'ChatTopicSetMode') return bindingsBridge.ChatTopicSetMode
+        if (prop === 'ChatTopicClear') return bindingsBridge.ChatTopicClear
+        if (prop === 'ChatTopicExportMarkdown') return bindingsBridge.ChatTopicExportMarkdown
         if (prop === 'WhisperGetPersonalities') return bindingsBridge.WhisperGetPersonalities
+        if (prop === 'WhisperClearSession') return bindingsBridge.WhisperClearSession
+        if (prop === 'TTSSpeakBase64') return bindingsBridge.TTSSpeakBase64
+        if (prop === 'TTSSpeakBase64WithParams') return bindingsBridge.TTSSpeakBase64WithParams
         if (prop === 'LogFrontendError') return bindingsBridge.LogFrontendError
         const fallback = (actual.app as unknown as Record<string, unknown>)[prop]
         if (typeof fallback === 'function') return fallback.bind(actual.app)
@@ -133,16 +149,17 @@ vi.mock('../components/VoiceSettingsPanel', () => ({ default: () => null }))
 
 import ChatPage, { STREAM_SILENCE_TIMEOUT_MS } from './ChatPage'
 import { EventsOn } from '../../wailsjs/runtime/runtime'
-import * as AppCompat from '../../src/wailsjsCompat'
-import {
+// P3 版3 终局：wailsjsCompat shim 已退役——测试经 bindingsBridge 共享 vi.fn 直取。
+const {
   ChatTopicsList, ChatMessagesList, ChatStreamPlain,
   ChatSend, ChatImportTopic, ChatTopicCreate, TTSSpeakBase64,
-  TTSSpeakBase64WithParams, GaeaLogFrontendError,
-} from '../../src/wailsjsCompat'
+  TTSSpeakBase64WithParams,
+} = bindingsBridge
+// bridge 短名 LogFrontendError ↔ 旧直名 GaeaLogFrontendError（断言用直名）
+const GaeaLogFrontendError = bindingsBridge.LogFrontendError
 
-// ChatAppendMessages 为 T6-3 新绑定：wailsjs/go 生成物待 wails build 再生成，
-// 测试侧经兼容层命名空间取用（与 ChatPage 内 (App as any) 逃生口一致）。
-const ChatAppendMessages = (AppCompat as unknown as Record<string, unknown>).ChatAppendMessages as ReturnType<typeof vi.fn>
+// ChatAppendMessages 为 T6-3 新绑定：测试侧经 bindingsBridge 共享 vi.fn 取用。
+const ChatAppendMessages = bindingsBridge.ChatAppendMessages as ReturnType<typeof vi.fn>
 
 const TOPIC_PLAIN = { id: 't1', title: '新对话', mode: 'plain', created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z' }
 const LONG_REPLY = '这是一段足够长的模拟角色回复内容，专门用于触发前端模拟打字流以验证取消逻辑的正确性。'

@@ -2,17 +2,13 @@ import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { LocaleProvider } from '../gaea/lib/i18n'
 
-// 屏蔽 Wails 绑定：jsdom 中没有 window.go，面板里的数据请求全部 mock 为空。
-vi.mock('../../src/wailsjsCompat', () => ({
-  GetAppInfo: vi.fn().mockResolvedValue({ name: 'gaea', version: '2.4.0', tagline: '测试', releases: [] }),
-  GetConfig: vi.fn().mockResolvedValue({}),
-  WhisperGetPersonalities: vi.fn().mockResolvedValue([]),
-  GaeaSettings: vi.fn().mockResolvedValue({}),
-  GetActiveModel: vi.fn().mockResolvedValue(''),
-  GetImageBackendInfo: vi.fn().mockResolvedValue({}),
-  GaeaDataBackupInfo: vi.fn().mockResolvedValue({ data_root: 'C:\\data', entries: [], total_bytes: 0, pending: false, app_version: '2.20.0' }),
-  GaeaDataBackupRestoreResult: vi.fn().mockResolvedValue({ has_result: false }),
-}))
+// 屏蔽 Wails 绑定：jsdom 中没有 window.go，面板里的数据请求经 gaea/lib/bridge
+// 的 dev mock 兜底（SettingsPage 全链路已走 bridge app；无需再 mock 具体绑定，仅
+// 确保 bridge 模块可解析——importOriginal 保留原模块，app 复用真实 dev mock）。
+vi.mock('../gaea/lib/bridge', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../gaea/lib/bridge')>()
+  return { ...actual }
+})
 
 import SettingsPage from './SettingsPage'
 

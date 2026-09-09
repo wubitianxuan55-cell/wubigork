@@ -6,9 +6,7 @@ import type { TabsProps } from 'antd'
 import {
   BookOutlined, ReadOutlined,
 } from '@ant-design/icons'
-import {
-  GetChapter, GetChapterBranch, SaveChapterContent, SaveChapterBranchContent,
-} from '../../src/wailsjsCompat'
+import { app } from '../gaea/lib/bridge'
 import { useAppStore } from '../stores/appStore'
 import ChapterEditor from '../components/novel/ChapterEditor'
 import { findAllLeaves, sortNodes } from '../utils/outline'
@@ -181,10 +179,11 @@ const ChapterPage: React.FC = () => {
           setTabs([createTabData(node)])
           const chNum = node.order_index || 0
           if (chNum > 0) {
-            const load = node.branch ? GetChapterBranch(chNum, node.branch) : GetChapter(chNum)
+            const load = node.branch ? app.GetChapterBranch(chNum, node.branch) : app.GetChapter(chNum)
             load.then((result) => {
               if (useAppStore.getState().projectPath !== projectPath || !result?.content) return
-              updateTabByKey(node.id, 'scenes', [result.content])
+              const content = typeof result.content === 'string' ? result.content : ''
+              updateTabByKey(node.id, 'scenes', [content])
               updateTabByKey(node.id, 'saved', true)
             }).catch((e) => console.error('GetChapter failed:', e))
           }
@@ -218,10 +217,11 @@ const ChapterPage: React.FC = () => {
     if (chNum > 0) {
       const requestedPath = projectPath
       try {
-        const result = node.branch ? await GetChapterBranch(chNum, node.branch) : await GetChapter(chNum)
+        const result = node.branch ? await app.GetChapterBranch(chNum, node.branch) : await app.GetChapter(chNum)
         if (requestedPath !== useAppStore.getState().projectPath) return
         if (result?.content) {
-          updateTabByKey(key, 'scenes', [result.content])
+          const content = typeof result.content === 'string' ? result.content : ''
+          updateTabByKey(key, 'scenes', [content])
           updateTabByKey(key, 'saved', true)
         }
       } catch (e) { console.error('GetChapter failed:', e) }
@@ -276,9 +276,9 @@ const ChapterPage: React.FC = () => {
     if (!c) return
     try {
       if (activeTab.node.branch) {
-        await SaveChapterBranchContent(activeTab.chapterNum, activeTab.node.branch, c)
+        await app.SaveChapterBranchContent(activeTab.chapterNum, activeTab.node.branch, c)
       } else {
-        await SaveChapterContent(activeTab.chapterNum, c)
+        await app.SaveChapterContent(activeTab.chapterNum, c)
       }
       updateTab('saved', true)
       message.success('已保存')

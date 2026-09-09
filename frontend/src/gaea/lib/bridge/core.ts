@@ -296,4 +296,8 @@ export interface CoreBindings {
   GetStats(): Promise<Record<string, unknown>>;
   ListSkills(): Promise<Array<Record<string, unknown>>>;
   ExportAll(onlyMainline: boolean): Promise<Record<string, string>>;
+  // ── 批次三a legacy 直调转正（Go CoreB.ListProjects，同名前缀无需映射）──
+  // ListProjects 书架工程卡片列表（api/characterlib.listShelfProjects 消费；
+  // Go 返回 []ProjectCard，前端投影为 Record）。
+  ListProjects(): Promise<Array<Record<string, unknown>>>;
 }

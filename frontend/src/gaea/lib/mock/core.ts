@@ -24,6 +24,8 @@ type CoreMethods = Pick<
   | "GetAppInfo" | "GetBoardManifests" | "GetFeatureModel" | "GetFeatureModelEnabled"
   // 批次二 legacy 直调转正（CoreB 门面）：配置读写/统计/技能/全量导出。
   | "GetConfig" | "SaveConfig" | "GetStats" | "ListSkills" | "ExportAll"
+  // 批次三a legacy 直调转正（CoreB 门面）：书架工程卡片列表。
+  | "ListProjects"
 >;
 
 export function buildCore(s: MakeMockState): CoreMethods {
@@ -541,6 +543,11 @@ export function buildCore(s: MakeMockState): CoreMethods {
       return space === "play"
         ? { space, modeOn: true, exportsDir: ".gaea/play/exports", workDir: ".gaea/play/work" }
         : { space, modeOn: true, exportsDir: ".gaea/exports", workDir: ".gaea/work" };
+    },
+    // ── 批次三a legacy 直调转正（Go CoreB，同名前缀）────────────────
+    async ListProjects() {
+      // 书架工程卡片：mock 无真实工程 → 空清单（listShelfProjects 空态，不编造）。
+      return [];
     },
   };
 }

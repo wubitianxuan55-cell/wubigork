@@ -1,8 +1,12 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 
-// Wails 绑定 mock（CreatePage 及子组件经 wailsjsCompat 调用；
-// CancelCreateChapter 为 T6-7.2 新增契约，wails build 再生成 NovelB.d.ts 前由页面局部桥接调用）
+// Wails 绑定 mock：7 个 wailsjsCompat 直调（GetWorldview/GetStats/GetChapterBranch/
+// QuickBrainstormBranches/CreateChapter/DeleteOutlineNode/SaveChapterBranchContent）
+// 已迁为 bridge app 调用；cast 族方法（GetNovelState/BuildNovelStatePatch/
+// SettleNovelState/DeSlop/Rewrite/GetEntityRelations/CancelCreateChapter）走 NovelB
+// 门面具名导入，故分别 mock bridge 与 NovelB 两个模块。bridge mock 用 importOriginal
+// 保留原模块、仅替换 app 的上述方法；未 mock 的方法回落真实代理（dev mock）。
 const mocks = vi.hoisted(() => ({
   GetWorldview: vi.fn().mockResolvedValue('# 世界观\n\n架空中世纪'),
   GetStats: vi.fn().mockResolvedValue({ totalWords: 1200, chapterCount: 2 }),
@@ -13,9 +17,47 @@ const mocks = vi.hoisted(() => ({
   DeleteOutlineNode: vi.fn().mockResolvedValue(undefined),
   SaveChapterBranchContent: vi.fn().mockResolvedValue(undefined),
   SaveCharactersBatch: vi.fn().mockResolvedValue({}),
+  // NovelB 门面具名导入（批次三组2 cast 族）
+  GetNovelState: vi.fn().mockResolvedValue({ version: 1, entities: {} }),
+  BuildNovelStatePatch: vi.fn().mockResolvedValue({ patch: 'ok' }),
+  SettleNovelState: vi.fn().mockResolvedValue({ version: 2 }),
+  DeSlopChapterAiTaste: vi.fn().mockResolvedValue({ done: false }),
+  RewriteChapterAiTaste: vi.fn().mockResolvedValue({ done: false, reason: '无命中句' }),
+  GetEntityRelations: vi.fn().mockResolvedValue({ nodes: [], edges: [] }),
   CancelCreateChapter: vi.fn().mockResolvedValue(true),
 }))
-vi.mock('../../src/wailsjsCompat', () => mocks)
+vi.mock('../gaea/lib/bridge', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../gaea/lib/bridge')>()
+  const appStubs = {
+    GetWorldview: mocks.GetWorldview,
+    GetStats: mocks.GetStats,
+    ListSkills: mocks.ListSkills,
+    GetChapterBranch: mocks.GetChapterBranch,
+    QuickBrainstormBranches: mocks.QuickBrainstormBranches,
+    CreateChapter: mocks.CreateChapter,
+    DeleteOutlineNode: mocks.DeleteOutlineNode,
+    SaveChapterBranchContent: mocks.SaveChapterBranchContent,
+    SaveCharactersBatch: mocks.SaveCharactersBatch,
+  }
+  return {
+    ...actual,
+    app: new Proxy(appStubs, {
+      get(target, prop) {
+        if (prop in target) return Reflect.get(target, prop)
+        return (actual.app as unknown as Record<string, unknown>)[String(prop)]
+      },
+    }),
+  }
+})
+vi.mock('../../wailsjs/go/app/NovelB', () => ({
+  GetNovelState: mocks.GetNovelState,
+  BuildNovelStatePatch: mocks.BuildNovelStatePatch,
+  SettleNovelState: mocks.SettleNovelState,
+  DeSlopChapterAiTaste: mocks.DeSlopChapterAiTaste,
+  RewriteChapterAiTaste: mocks.RewriteChapterAiTaste,
+  GetEntityRelations: mocks.GetEntityRelations,
+  CancelCreateChapter: mocks.CancelCreateChapter,
+}))
 
 import CreatePage from './CreatePage'
 import { useOutlineStore } from '../stores/outlineStore'

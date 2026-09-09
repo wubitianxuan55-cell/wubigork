@@ -9,18 +9,15 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { message } from 'antd'
 
 // 屏蔽 Wails 绑定：jsdom 中没有 window.go，章节读写全部给确定性返回。
-// P3 版3 双轨退役：novelSearchUtils 已改走 gaea/lib/bridge 的 app 代理——
-// NovelSearch 与 wailsjsCompat mock 共享同一 vi.fn（bindingsBridge.NovelSearch），
-// 断言两端皆命中；ChapterPage 本体直调的章节方法维持原 mock。
+// P3 版3 双轨退役（终局）：wailsjsCompat shim 已退役——NovelSearch/章节族全部
+// 并入 bindingsBridge 共享 vi.fn，bridge Proxy 统一从 bindingsBridge 取函数，
+// 断言两端皆命中。
 const bindingsBridge = vi.hoisted(() => ({
   NovelSearch: vi.fn(),
-}))
-vi.mock('../../src/wailsjsCompat', () => ({
   GetChapter: vi.fn().mockResolvedValue({ content: '夜色沉沉，雨落在窗台上。\n\n他推门而入，灯还亮着。' }),
   GetChapterBranch: vi.fn().mockResolvedValue({ content: '' }),
   SaveChapterContent: vi.fn().mockResolvedValue(undefined),
   SaveChapterBranchContent: vi.fn().mockResolvedValue(undefined),
-  NovelSearch: bindingsBridge.NovelSearch,
 }))
 vi.mock('../gaea/lib/bridge', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../gaea/lib/bridge')>()
@@ -28,7 +25,8 @@ vi.mock('../gaea/lib/bridge', async (importOriginal) => {
     ...actual,
     app: new Proxy({} as typeof actual.app, {
       get(_t, prop: string) {
-        if (prop === 'NovelSearch') return bindingsBridge.NovelSearch
+        const bridgeMock = (bindingsBridge as unknown as Record<string, unknown>)[prop]
+        if (typeof bridgeMock === 'function') return bridgeMock
         const fallback = (actual.app as unknown as Record<string, unknown>)[prop]
         if (typeof fallback === 'function') return fallback.bind(actual.app)
         return undefined
@@ -44,10 +42,12 @@ vi.mock('../components/novel/ExportPanel', () => ({ default: () => <div /> }))
 vi.mock('./chapter/ChapterIllustration', () => ({ default: () => <div /> }))
 
 import ChapterPage from './ChapterPage'
-import { NovelSearch } from '../../src/wailsjsCompat'
 import { useAppStore } from '../stores/appStore'
 import { useOutlineStore } from '../stores/outlineStore'
 import type { OutlineNode } from '../types'
+
+// NovelSearch 断言引用 = bindingsBridge 共享 vi.fn（shim 已退役）
+const NovelSearch = bindingsBridge.NovelSearch
 
 // 最小消费面的大纲叶子节点（章节打开走 order_index → GetChapter）
 const leaf = {

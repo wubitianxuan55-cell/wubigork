@@ -6,7 +6,7 @@ import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { Typography, Modal, message, Input } from 'antd'
 import { DownOutlined } from '@ant-design/icons'
-import * as App from '../../src/wailsjsCompat'
+import { app } from '../gaea/lib/bridge'
 import { b64ToBytes } from '../gaea/lib/bytes'
 import { C } from '../utils/theme'
 import { shouldSubmitOnEnter } from '../utils/chatComposer'
@@ -198,7 +198,7 @@ const ChatPage: React.FC = () => {
   }, [deleteTopic])
 
   const handleSwitchPersonality = useCallback(async (id: string) => {
-    try { await App.WhisperClearSession(activePersonality) } catch (_) {}
+    try { await app.WhisperClearSession(activePersonality) } catch (_) {}
     setActivePersonality(id)
     await switchMode(id)
   }, [activePersonality, switchMode])
@@ -275,12 +275,12 @@ const ChatPage: React.FC = () => {
       // v4.3d：朗读携带当前生效情绪（TTSParams.Emotion 透传，后端按标签映射
       // 语速/音高/风格）；无情绪时回退无参数版 TTSSpeakBase64（引擎默认）。
       const result = effectiveSpeakEmotion
-        ? await App.TTSSpeakBase64WithParams(content, { Speed: 0, Pitch: 0, Style: '', Emotion: effectiveSpeakEmotion })
-        : await App.TTSSpeakBase64(content)
+        ? await app.TTSSpeakBase64WithParams(content, { Speed: 0, Pitch: 0, Style: '', Emotion: effectiveSpeakEmotion })
+        : await app.TTSSpeakBase64(content)
       if (result?.base64) {
-        const bytes = b64ToBytes(result.base64)
+        const bytes = b64ToBytes(result.base64 as string)
         // T6-3.3：blob URL 登记到 ref，播放结束/失败/卸载时 revokeObjectURL
-        speakUrlRef.current = URL.createObjectURL(new Blob([bytes], { type: result.mimeType || 'audio/mp3' }))
+        speakUrlRef.current = URL.createObjectURL(new Blob([bytes], { type: (result.mimeType as string) || 'audio/mp3' }))
         const audio = new Audio(speakUrlRef.current)
         audio.onended = () => { revokeSpeakUrl(); setSpeakingId(null) }
         audio.onerror = () => { revokeSpeakUrl(); setSpeakingId(null); message.error('播放失败') }
@@ -301,18 +301,18 @@ const ChatPage: React.FC = () => {
     setAtBottom(true)
     setMessages([]); resetPersonaMeta()
     if (activeIdRef.current) {
-      try { await App.ChatTopicClear(activeIdRef.current) } catch (_) {}
+      try { await app.ChatTopicClear(activeIdRef.current) } catch (_) {}
     }
     setTopics(prev => prev.map(t => t.id === activeIdRef.current ? { ...t, preview: '' } : t))
     if (modeRef.current !== 'plain') {
-      try { await App.WhisperClearSession(modeRef.current) } catch (_) {}
+      try { await app.WhisperClearSession(modeRef.current) } catch (_) {}
     }
   }, [resetPersonaMeta, activeIdRef, modeRef, setTopics])
 
   const handleExport = useCallback(async () => {
     if (!activeIdRef.current) return
     try {
-      const path: string = await App.ChatTopicExportMarkdown(activeIdRef.current)
+      const path: string = await app.ChatTopicExportMarkdown(activeIdRef.current)
       message.success(`已导出会话：${path}`)
       try { await navigator.clipboard.writeText(path) } catch (_) {}
     } catch (err: unknown) {

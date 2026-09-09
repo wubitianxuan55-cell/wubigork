@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import { Input, Radio, Select, Switch, Typography, message } from 'antd'
 import { TeamOutlined, SmileOutlined, AudioOutlined } from '@ant-design/icons'
-import * as App from '../../../src/wailsjsCompat'
+import { app } from '../../gaea/lib/bridge'
 import { applyVoiceSettings, getVoiceSettings } from '../../api/settings'
 import SettingsSection from './SettingsSection'
 import { useT } from '../../gaea/lib/i18n'
@@ -21,6 +21,12 @@ interface Personality {
 interface CompanionSettings {
   companionName: string
   companionGender: 'male' | 'female'
+}
+
+/** GetVoicePipelineConfig 动态载荷中 TTS 模型读取面（bridge Record<string, unknown> 收窄） */
+interface VoicePipelineInfo {
+  chatTts?: { model?: string }
+  tts?: { model?: string }
 }
 
 // 微软 Edge TTS 中文音色（label 经 i18n，组件内派生；value 为服务端标识不变）
@@ -71,19 +77,20 @@ const ChatPanel: React.FC = () => {
 
   useEffect(() => {
     try {
-      App.WhisperGetPersonalities().then((p) => setPersonalities(p || [])).catch(() => {})
+      app.WhisperGetPersonalities().then((p) => setPersonalities(p || [])).catch(() => {})
     } catch (_) { /* 未初始化时静默 */ }
     getVoiceSettings().then((v) => setVoice(v || {})).catch(() => {})
-    // wailsjsCompat 直调在浏览器/?mock=1 下（window.go 为空）会同步抛——
-    // `?.` 只防「导出缺失」，生成函数存在即会执行，必须整体 try 兜底，
-    // 否则一处直调失败会被 ErrorBoundary 兜成整个设置板块白屏。
+    // bridge 调用在浏览器/?mock=1 下走 dev mock（空态返回、不同步抛），`?.` 去
+    // （类型已保证存在）；保留整体 try/catch 兜底——chat 管道防 ErrorBoundary
+    // 白屏的既有防御原样，一处异常不会被兜成整个设置板块白屏。
     try {
-      App.GetVoicePipelineConfig?.().then((p) => {
-        const model = p?.chatTts?.model || p?.tts?.model || ''
+      app.GetVoicePipelineConfig().then((p) => {
+        const pipeline = p as VoicePipelineInfo | undefined
+        const model = pipeline?.chatTts?.model || pipeline?.tts?.model || ''
         setTtsModel(model)
         const lower = model.toLowerCase()
         if (lower.includes('qwen3') || lower.includes('customvoice') || lower.includes('cosyvoice')) {
-          App.GetTTSSpeakers?.(model).then((speakers: string[]) => {
+          app.GetTTSSpeakers(model).then((speakers: string[]) => {
             if (Array.isArray(speakers) && speakers.length > 0) setHerdsmanVoices(speakers)
           }).catch(() => {})
         }
@@ -138,7 +145,7 @@ const ChatPanel: React.FC = () => {
   }
 
   const handleSwitchPersonality = async (id: string) => {
-    try { await App.WhisperClearSession(activePersonality) } catch (_) { /* 忽略 */ }
+    try { await app.WhisperClearSession(activePersonality) } catch (_) { /* 忽略 */ }
     setActivePersonality(id)
     try { localStorage.setItem(PERSONALITY_KEY, id) } catch (_) { /* 忽略 */ }
     message.success(t('settings.chat.personaSwitched', { name: personalities.find((p) => p.id === id)?.label || id }))

@@ -1,7 +1,7 @@
 /**
  * 全局角色库 API（统一角色资产：小说 × 聊天）
  */
-import * as App from '../../src/wailsjsCompat'
+import { app } from '../gaea/lib/bridge'
 import type { characterlib } from '../../wailsjs/go/models'
 
 export type LibraryCharacter = characterlib.Character
@@ -32,7 +32,7 @@ export interface ShelfProject {
 
 /** 书架全部小说项目（角色库「加入项目」时供用户选择目标小说） */
 export async function listShelfProjects(): Promise<ShelfProject[]> {
-  return App.ListProjects() as unknown as ShelfProject[]
+  return app.ListProjects() as unknown as ShelfProject[]
 }
 
 /** 分页查询全局角色库 */
@@ -43,69 +43,72 @@ export async function listCharacters(
   page: number,
   pageSize: number,
 ): Promise<CharacterListResult> {
-  const res = await App.CharacterList(query, kind, chatOnly, page, pageSize)
+  const res = await app.CharacterList(query, kind, chatOnly, page, pageSize)
   return res as unknown as CharacterListResult
 }
 
 /** 读取单个角色（含引用它的项目列表） */
 export async function getCharacter(id: string): Promise<CharacterDetail> {
-  const res = await App.CharacterGet(id)
+  const res = await app.CharacterGet(id)
   return res as unknown as CharacterDetail
 }
 
 /** 保存/新建统一角色 */
 export async function saveCharacter(c: Partial<LibraryCharacter>): Promise<LibraryCharacter> {
-  return App.CharacterSave(JSON.stringify(c))
+  const res = await app.CharacterSave(JSON.stringify(c))
+  return res as unknown as LibraryCharacter
 }
 
 /** 删除角色（内置软隐藏，其余硬删） */
 export async function deleteCharacter(id: string): Promise<void> {
-  return App.CharacterDelete(id)
+  return app.CharacterDelete(id)
 }
 
 /** 把当前小说项目 characters.json 导入全局库并建立引用 */
 export async function importProjectCharacters(): Promise<number> {
-  return App.CharacterImportProject()
+  return app.CharacterImportProject()
 }
 
 /** 当前项目已引用的角色 */
 export async function listProjectCharacters(): Promise<ProjectCharacter[]> {
-  return App.CharacterListByProject()
+  const res = await app.CharacterListByProject()
+  return res as unknown as ProjectCharacter[]
 }
 
 /** 把库内角色加入当前项目 */
 export async function associateToProject(charID: string, role: string): Promise<void> {
-  return App.CharacterAssociate(charID, role)
+  return app.CharacterAssociate(charID, role)
 }
 
 /** 把库内角色加入指定小说项目（不改变当前打开的项目） */
 export async function associateToProjectDir(projectDir: string, charID: string, role: string): Promise<void> {
-  return App.CharacterAssociateTo(projectDir, charID, role)
+  return app.CharacterAssociateTo(projectDir, charID, role)
 }
 
 /** 更新角色在当前项目的状态（定位/弧线/状态，仅项目内覆盖，不影响全局角色） */
 export async function setProjectState(charID: string, role: string, arcState: string, status: string): Promise<void> {
-  return App.CharacterSetProjectState(charID, role, arcState, status)
+  return app.CharacterSetProjectState(charID, role, arcState, status)
 }
 
 /** 把角色从当前项目移除（角色保留在全局库） */
 export async function dissociateFromProject(charID: string): Promise<void> {
-  return App.CharacterDissociate(charID)
+  return app.CharacterDissociate(charID)
 }
 
 /** 把项目引用物化回 characters.json（小说 Agent 消费） */
 export async function syncProjectCharacters(): Promise<void> {
-  return App.CharacterSyncProject()
+  return app.CharacterSyncProject()
 }
 
 /** 从角色库随机抽卡（小说角色面板不再自行生成角色） */
 export async function drawRandom(count: number, gender: string, tags: string, chatOnly: boolean): Promise<LibraryCharacter[]> {
-  return App.CharacterDrawRandom(count, gender, tags, chatOnly)
+  const res = await app.CharacterDrawRandom(count, gender, tags, chatOnly)
+  return res as unknown as LibraryCharacter[]
 }
 
 /** 一键随机补齐角色空缺内容：只填充空字段、保留已有内容，不依赖小说项目 */
 export async function generateFill(c: Partial<LibraryCharacter>): Promise<LibraryCharacter> {
-  const json = await App.CharacterGenerateFill(JSON.stringify(c))
+  const json = await app.CharacterGenerateFill(JSON.stringify(c))
   return JSON.parse(json) as LibraryCharacter
 }
 
@@ -114,7 +117,7 @@ export async function generateFill(c: Partial<LibraryCharacter>): Promise<Librar
  * fields: 'all' 全部字段重新随机（含性格，姓名不变）；单个/多个字段用逗号分隔（如 'personality,appearance'）
  */
 export async function generateRandom(c: Partial<LibraryCharacter>, fields: string): Promise<LibraryCharacter> {
-  const json = await App.CharacterGenerateRandom(JSON.stringify(c), fields)
+  const json = await app.CharacterGenerateRandom(JSON.stringify(c), fields)
   return JSON.parse(json) as LibraryCharacter
 }
 
@@ -128,13 +131,13 @@ export interface FillAllResult {
 
 /** 一键补齐全局角色库所有可见角色的空缺字段（只填空缺，保留已有内容） */
 export async function fillAllCharacters(): Promise<FillAllResult> {
-  const res = await App.CharacterFillAll()
+  const res = await app.CharacterFillAll()
   return res as unknown as FillAllResult
 }
 
 /** 生成角色剧照：按角色字段构建智能 prompt，返回图片 data URL / 远程 URL（不自动保存） */
 export async function generatePortrait(c: Partial<LibraryCharacter>, model = ''): Promise<string> {
-  return App.CharacterGeneratePortrait(JSON.stringify(c), model)
+  return app.CharacterGeneratePortrait(JSON.stringify(c), model)
 }
 
 /**
@@ -148,5 +151,5 @@ export async function generatePortraitWithRef(
   model = '',
   refImageDataURL: string,
 ): Promise<string> {
-  return App.CharacterGeneratePortraitWithRef(JSON.stringify(c), model, refImageDataURL)
+  return app.CharacterGeneratePortraitWithRef(JSON.stringify(c), model, refImageDataURL)
 }

@@ -18,6 +18,7 @@
 // 缓存安全: 纯前端 mock，不触及 Go 内核。
 
 import type { AppBindings } from "./bridge";
+import { buildCharlib } from "./mock/charlib";
 import { buildChat } from "./mock/chat";
 import { buildCore } from "./mock/core";
 import { buildCost } from "./mock/cost";
@@ -61,6 +62,7 @@ export function makeMockApp(): AppBindings {
     buildSettings(state),
     buildVoice(),
     buildNovel(),
+    buildCharlib(),
     buildWeixin(),
     buildImagehub(),
     buildImagegenTools(),

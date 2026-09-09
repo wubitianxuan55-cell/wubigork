@@ -15,6 +15,12 @@ type ImagegenMethods = Pick<
   | "StartLocalTTSService"
   // 批次二 legacy 直调转正（ImageB 门面）：绘梦后端配置。
   | "SetImageBackend"
+  // 批次三a legacy 直调转正（ImageB 门面 bindings_image.go:30/32）：TTS 音色/
+  // 语音管线配置读取（模型中心/语音设置消费，同 StartLocalTTSService 就近）。
+  | "GetTTSSpeakers" | "GetVoicePipelineConfig"
+  // 批次四 bridge 双轨退役终局（ImageB 门面 bindings_image.go:37/38/40）：
+  // 语音模型设置写口（激活识别/合成模型 + 功能绑定聊天语音），同批转正。
+  | "SetActiveASRModel" | "SetActiveTTSModel" | "SetChatVoiceModel"
 >;
 
 export function buildImagegenTools(): ImagegenMethods {
@@ -87,6 +93,25 @@ export function buildImagegenTools(): ImagegenMethods {
     // ── 批次二 legacy 直调转正（Go ImageB，同名前缀）────────────────
     async SetImageBackend(_backend: string, _comfyUIURL: string, _imageModel: string, _imageSaveDir: string) {
       // mock: 浏览器内存 no-op——无后端可配置（与 SetPortraitConfig 同口径）。
+    },
+    // ── 批次三a legacy 直调转正（Go ImageB，同名前缀）────────────────
+    async GetTTSSpeakers(_model: string) {
+      // 浏览器开发无本地 TTS 引擎：空音色列表（模型中心音色下拉空态，不编造）。
+      return [];
+    },
+    async GetVoicePipelineConfig() {
+      // 最小样例：无语音管线实例 → 仅 samples 键（消费方按空态兜底渲染）。
+      return { samples: [] };
+    },
+    // ── 批次四 bridge 双轨退役终局（Go ImageB，同名前缀）────────────────
+    async SetActiveASRModel(_engineID: string, _modelID: string) {
+      // mock: 浏览器内存 no-op——无语音管道实例可设置（与 SetPortraitConfig 同口径）。
+    },
+    async SetActiveTTSModel(_engineID: string, _modelID: string) {
+      // mock: 同上 no-op（合成模型设置空转）。
+    },
+    async SetChatVoiceModel(_engineID: string, _modelID: string) {
+      // mock: 同上 no-op（功能绑定「聊天语音」设置/清除均空转，不编造落盘）。
     },
   };
 }

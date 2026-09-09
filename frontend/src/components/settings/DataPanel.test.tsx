@@ -1,17 +1,21 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 
-// 屏蔽 Wails 绑定（vi.hoisted 避免 mock 提升导致的初始化顺序问题）
+// 屏蔽 bridge 绑定（vi.hoisted 避免 mock 提升导致的初始化顺序问题）；
+// DataPanel 经 ../../gaea/lib/bridge 的 app 调用，importOriginal 保全集 + 覆写 app。
 const mocks = vi.hoisted(() => ({
-  GaeaDataBackupInfo: vi.fn(),
-  GaeaDataBackupRestoreResult: vi.fn(),
-  GaeaDataBackupCreate: vi.fn(),
-  GaeaDataBackupRestore: vi.fn(),
-  GaeaDataBackupCancel: vi.fn(),
-  GaeaPickDirectory: vi.fn(),
-  GaeaPickFiles: vi.fn(),
+  DataBackupInfo: vi.fn(),
+  DataBackupRestoreResult: vi.fn(),
+  DataBackupCreate: vi.fn(),
+  DataBackupRestore: vi.fn(),
+  DataBackupCancel: vi.fn(),
+  PickDirectory: vi.fn(),
+  PickFiles: vi.fn(),
 }))
-vi.mock('../../../src/wailsjsCompat', () => mocks)
+vi.mock('../../gaea/lib/bridge', async (importOriginal) => ({
+  ...(await importOriginal()),
+  app: mocks,
+}))
 
 import DataPanel from './DataPanel'
 import { LocaleProvider } from '../../gaea/lib/i18n'
@@ -33,8 +37,8 @@ const baseInfo = {
 describe('DataPanel 数据备份/恢复', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.GaeaDataBackupInfo.mockResolvedValue(baseInfo)
-    mocks.GaeaDataBackupRestoreResult.mockResolvedValue({ has_result: false })
+    mocks.DataBackupInfo.mockResolvedValue(baseInfo)
+    mocks.DataBackupRestoreResult.mockResolvedValue({ has_result: false })
     // 断言为中文文案：固定 zh 语言（jsdom 默认 en-US）
     Object.defineProperty(navigator, 'language', { value: 'zh-CN', configurable: true })
   })
@@ -50,31 +54,31 @@ describe('DataPanel 数据备份/恢复', () => {
   })
 
   it('点击一键备份：选目录 → 创建 → 成功提示', async () => {
-    mocks.GaeaPickDirectory.mockResolvedValue('D:\\backups')
-    mocks.GaeaDataBackupCreate.mockResolvedValue({ zip_path: 'D:\\backups\\gaea-backup-2.20.0-20260814.zip', total_bytes: 3072 })
+    mocks.PickDirectory.mockResolvedValue('D:\\backups')
+    mocks.DataBackupCreate.mockResolvedValue({ zip_path: 'D:\\backups\\gaea-backup-2.20.0-20260814.zip', total_bytes: 3072 })
     render(wrap(<DataPanel />))
     fireEvent.click(await screen.findByRole('button', { name: /一键备份/ }))
     await waitFor(() => {
-      expect(mocks.GaeaDataBackupCreate).toHaveBeenCalledWith('D:\\backups')
+      expect(mocks.DataBackupCreate).toHaveBeenCalledWith('D:\\backups')
     })
     expect(await screen.findByText(/备份完成：D:\\backups\\gaea-backup/)).toBeTruthy()
   })
 
   it('从备份恢复：选 zip → 校验 → 提示重启', async () => {
-    mocks.GaeaPickFiles.mockResolvedValue([{ path: 'D:\\bk\\a.zip', name: 'a.zip', size: 1000 }])
-    mocks.GaeaDataBackupRestore.mockResolvedValue({ restart_required: true, zip_name: 'a.zip', backup_version: '2.20.0' })
+    mocks.PickFiles.mockResolvedValue([{ path: 'D:\\bk\\a.zip', name: 'a.zip', size: 1000 }])
+    mocks.DataBackupRestore.mockResolvedValue({ restart_required: true, zip_name: 'a.zip', backup_version: '2.20.0' })
     render(wrap(<DataPanel />))
     // Popconfirm 二次确认：先点「从备份恢复」打开确认，再点「选择备份文件」确认
     fireEvent.click(await screen.findByRole('button', { name: /从备份恢复/ }))
     fireEvent.click(await screen.findByRole('button', { name: /选择备份文件/ }))
     await waitFor(() => {
-      expect(mocks.GaeaDataBackupRestore).toHaveBeenCalledWith('D:\\bk\\a.zip')
+      expect(mocks.DataBackupRestore).toHaveBeenCalledWith('D:\\bk\\a.zip')
     })
     expect(await screen.findByText(/请重启 gaea 完成恢复/)).toBeTruthy()
   })
 
   it('有待应用恢复时显示告警与取消按钮', async () => {
-    mocks.GaeaDataBackupInfo.mockResolvedValue({ ...baseInfo, pending: true, pending_zip: 'a.zip', pending_at: '2026-08-14 08:00:00' })
+    mocks.DataBackupInfo.mockResolvedValue({ ...baseInfo, pending: true, pending_zip: 'a.zip', pending_at: '2026-08-14 08:00:00' })
     render(wrap(<DataPanel />))
     expect(await screen.findByText(/有待应用的恢复/)).toBeTruthy()
     expect(screen.getByRole('button', { name: /取消恢复/ })).toBeTruthy()
