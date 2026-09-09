@@ -16,6 +16,8 @@ import { loadSubagentAutoOpen } from "../lib/subagentPrefs";
 import { AgentTree } from "./AgentTree";
 import { TaskCenter } from "./TaskCenter";
 import { useT } from "../lib/i18n";
+import { useStore } from "../lib/store";
+import { useTodoExtractor } from "../hooks/useTodoExtractor";
 
 // TasksWorkbench — 任务视图（对标 dsh-better-sidebar 的 SubagentView 同构页）。
 //
@@ -54,6 +56,11 @@ export function TasksWorkbench({
   const [netMeta, setNetMeta] = useState<AgentNetworkMeta | null>(null);
   const [runs, setRuns] = useState<SubagentRunView[]>([]);
   const [runsMeta, setRunsMeta] = useState<SubagentRunsMeta | null>(null);
+  // 会话待办（todo_write 最新清单）：与子代理同源——当前会话活动流（全局
+  // controller store 的 items，随会话切换自然更替），非全局任务表。
+  const items = useStore((s) => s.items);
+  const { todos } = useTodoExtractor(items);
+  const todoDone = todos.filter((x) => x.status === "completed").length;
   const autoOpen = loadSubagentAutoOpen();
   const autoOpenRef = useRef(autoOpen);
   autoOpenRef.current = autoOpen;
@@ -224,6 +231,45 @@ export function TasksWorkbench({
             >
               {t("subagent.retry")}
             </button>
+          </div>
+        )}
+        {/* ⓪ 会话待办（todo_write 最新清单）：当前会话的任务视图，随会话切换；
+            无待办不占位（会话没派任务时不噪音）。 */}
+        {todos.length > 0 && (
+          <div data-testid="session-todos">
+            <div
+              className="flex w-full items-center gap-1.5 px-2 pt-2 pb-1 text-[10px] uppercase tracking-wider"
+              style={{ color: "var(--md-sys-color-text-secondary)" }}
+            >
+              <ClipboardList size={10} aria-hidden />
+              会话待办
+              <span className="ml-auto normal-case font-mono">
+                {todoDone}/{todos.length}
+              </span>
+            </div>
+            <div className="flex flex-col gap-0.5 px-2 pb-1">
+              {todos.map((td, i) => {
+                const done = td.status === "completed";
+                const active = td.status === "in_progress";
+                return (
+                  <div
+                    key={`${i}:${td.content}`}
+                    className={`flex items-start gap-2 rounded-md px-1.5 py-1${td.level ? " ml-4" : ""}`}
+                  >
+                    <span
+                      className={`mt-[5px] h-2 w-2 shrink-0 rounded-full ${active ? "bg-accent animate-pulse" : done ? "bg-ok" : ""}`}
+                      style={done || active ? undefined : { background: "var(--md-sys-color-outline-variant)" }}
+                    />
+                    <span
+                      className={`min-w-0 flex-1 text-[12px] leading-snug${done ? " line-through" : ""}`}
+                      style={{ color: done ? "var(--md-sys-color-text-secondary)" : "var(--md-sys-color-text)" }}
+                    >
+                      {td.content}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
         {/* ① 子代理区块（v4.76：分组头点击 = 整棵折叠/展开） */}

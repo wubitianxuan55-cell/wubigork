@@ -1,3 +1,6 @@
+## v4.180.0 · 办公任务管理会话关联刀：会话待办区入任务管理页（2026-09-09）
+> 用户反馈任务管理「没与当前会话关联、全是固定内容」。定位=页面主体是 TaskCenter 全局后台任务表（价格抓取/语义索引 cron 持续在列，天然会话无关），而会话真任务（todo_write 待办）无入口。修复=TasksWorkbench 首区新增「会话待办」：直订全局 controller store items（随会话切换，零 props 穿层，ContextModal 弹层同源正确），复用 useTodoExtractor 提取最新 todo_write（与聊天流待办卡同规则），三态条目+进度 n/m，无待办不占位；页面四区语义=会话待办/子代理/本地模型工具（均会话）+任务中心（全局）。零绑定 602、TaskCenter 本体零改动。vitest 2739 首跑全绿（+1）、tsc/eslint 0、e-check OK、零 Go 改动、build strip+冒烟 200。欠账=TaskCenter 会话关联需任务表加 session 维度（结构刀另立版本）。详见 releases/v4.180.0.md。
+
 ## v4.179.0 · 瘦身清点刀：knip 死代码清除 + 依赖显式化 + 冷启动基线打点（2026-09-09）
 > P0-P4 收官后清点刀：①knip 首扫三发现——死文件 13 全删（App/AppBar/MobileSheet/SettingsMobile/SettingsUpdates/自制 Tooltip/PromptShelf/office 死链对/memoryhub 两件/typesGenerationCheck/m3-palette，全仓零 import 甄别）、幽灵依赖 13 包显式化（jszip×8 处/katex/dayjs/unified/hast-util-sanitize/@lezer×8 共 20 处 import 靠传递依赖侥幸工作，按 lock 现版本钉死）、顺带清死传递依赖 @codemirror/search；三存疑依赖（gsap/docx-preview/unist-util-visit）验活全部在用结案。②冷启动基线打点：Go New+Startup 七段耗时落长期日志（日常启动自动积累）+前端 gaea:boot→gaea:interactive 两 rAF 口径（CDP 可读）；初始化链审计结案=重活均已异步，懒初始化无需立项。零绑定 602、零行为变化。vitest 2738（5 例并发 flaky 单独复跑绿）、Go 116 包 0 FAIL、tsc/eslint 0、build strip+冒烟 200、exe 46.16MB 持平、knip 复扫死文件/幽灵依赖双清零。欠账=Unused exports 169 项挂下版+壳内真机池不变。详见 releases/v4.179.0.md。
 

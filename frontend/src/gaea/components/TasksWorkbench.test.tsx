@@ -3,6 +3,7 @@ import { render, screen, fireEvent, act } from "@testing-library/react";
 import type { ReactElement } from "react";
 import { TasksWorkbench } from "./TasksWorkbench";
 import { LocaleProvider } from "../lib/i18n";
+import { useStore } from "../lib/store";
 import type { AgentNetwork, SubagentRunView } from "../lib/types";
 import type { AgentNetworkMeta } from "../lib/agentNetworkStore";
 import type { SubagentRunsMeta } from "../lib/subagentRunsStore";
@@ -142,6 +143,8 @@ beforeEach(() => {
     return unsubNet;
   });
   window.localStorage.removeItem("gaea.subagentAutoOpen");
+  // 会话待办走全局 controller store：用例间清 items 防泄漏
+  act(() => useStore.setState({ items: [] }));
 });
 
 describe("TasksWorkbench 任务视图（双源入共享 store）", () => {
@@ -297,5 +300,64 @@ describe("TasksWorkbench 任务视图（双源入共享 store）", () => {
       task: "总结界面截图",
       status: "running",
     });
+  });
+});
+
+// ── 会话待办区（todo_write 提取，随当前会话活动流；任务管理会话关联刀） ──
+const todoItemOf = (todos: unknown, id: string) => ({
+  kind: "tool" as const,
+  id,
+  name: "todo_write",
+  args: JSON.stringify({ todos }),
+  readOnly: false,
+  status: "done" as const,
+});
+
+describe("TasksWorkbench 会话待办区（当前会话任务）", () => {
+  it("todo_write 最新清单渲染为待办区：进度 n/m + 三态条目；随 store.items 实时更替", () => {
+    renderT(<TasksWorkbench sessionPath="s1.jsonl" />);
+    // 初始无待办 → 区块不渲染
+    expect(screen.queryByTestId("session-todos")).toBeNull();
+    // 会话流出现 todo_write → 待办区渲染
+    act(() =>
+      useStore.setState({
+        items: [
+          { kind: "user", id: "u1", text: "开始" },
+          todoItemOf(
+            [
+              { content: "调研竞品", status: "completed" },
+              { content: "整理报价单", status: "in_progress" },
+              { content: "写周报", status: "pending" },
+            ],
+            "t1",
+          ),
+        ],
+      }),
+    );
+    expect(screen.getByTestId("session-todos")).toBeTruthy();
+    expect(screen.getByText("会话待办")).toBeTruthy();
+    expect(screen.getByText("1/3")).toBeTruthy();
+    expect(screen.getByText("调研竞品")).toBeTruthy();
+    expect(screen.getByText("整理报价单")).toBeTruthy();
+    expect(screen.getByText("写周报")).toBeTruthy();
+    // 清单更新（todo_write 再次写入）→ 以最新为准
+    act(() =>
+      useStore.setState({
+        items: [
+          { kind: "user", id: "u1", text: "开始" },
+          todoItemOf([{ content: "调研竞品", status: "completed" }], "t1"),
+          todoItemOf(
+            [
+              { content: "调研竞品", status: "completed" },
+              { content: "修订稿", status: "in_progress" },
+            ],
+            "t2",
+          ),
+        ],
+      }),
+    );
+    expect(screen.getByText("1/2")).toBeTruthy();
+    expect(screen.getByText("修订稿")).toBeTruthy();
+    expect(screen.queryByText("写周报")).toBeNull();
   });
 });

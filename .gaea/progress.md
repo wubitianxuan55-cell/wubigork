@@ -1,8 +1,15 @@
 # 任务进度
 
-> 本文件为**最近发布速览**：仅保留最近 7 条版本记录（v4.173.0 ~ v4.179.0）。
-> v4.172.0 及之前的完整历史磁带（90 条记录 + 历史期章节）已于 2026-09-09 瘦身归档至
+> 本文件为**最近发布速览**：仅保留最近 7 条版本记录（v4.174.0 ~ v4.180.0）。
+> v4.173.0 及之前的完整历史磁带（90 条记录 + 历史期章节）已于 2026-09-09 瘦身归档至
 > `docs/archive/progress-history-2026-09.md`；历史详情请读归档文件。
+
+## 最新发布：v4.180.0（2026-09-09）「办公任务管理会话关联刀：会话待办区入任务管理页」
+
+- **定位**：用户反馈任务管理「没与当前会话关联、全是固定内容」——页面主体 TaskCenter 数据源 `GaeaTaskList`=全局后台任务表（cron 周期任务持续在列，天然会话无关），而会话真任务（todo_write 待办）无入口；子代理/本地模型工具两区本就按会话建册。
+- **修复**：TasksWorkbench 首区新增「会话待办」——直订全局 controller store items（零 props 穿层，会话切换自然更替，ContextModal 弹层同源正确）+ 复用 useTodoExtractor 提取最新 todo_write；三态条目+进度 n/m，无待办不占位。页面四区=会话待办/子代理/本地模型工具（会话）+任务中心（全局）。
+- **门禁**：vitest **2739/2739 首跑全绿**（+1）、tsc 0、eslint 0、e-check OK、drift **PASS@602**（零绑定）、零 Go 改动、build strip+冒烟 200、SHA256=69C89001048CB8BFD99BCE7122C69AB92A8C01A85CB4E34D23BAA45A1A71C0DD。
+- **欠账**：TaskCenter 会话关联需 Go 任务表加 session 维度（结构刀另立版本）；「会话后台任务」过滤视图等该维度就位再评估。
 
 ## 最新发布：v4.179.0（2026-09-09）「瘦身清点刀：knip 死代码清除 + 依赖显式化 + 冷启动基线打点」
 
@@ -67,20 +74,9 @@
 - **收官意义**：S2-3 兼容层退役，全部前端调用统一 gaea/lib/bridge 代理（?mock=1 dev mock 回退 + BridgeError 错误归一）；masterplan 轨道四「双轨」目标达成。
 - **后续**：P4（config.go 58.7/engine.go 55.2/store.ts 54.3 拆分、entry 懒加载、exe strip）；壳内真机池（rail 切换器/home 最近文档/.gsched）、审计刀D 真机取证不变。
 
-## 最新发布：v4.173.0（2026-09-09）「瘦身 P3 版3：bridge 双轨退役批次二（chat/novel/settings 三族 22 文件迁 bridge + 元组契约修正）」
+## 历史发布（v4.173.0 及之前，已归档）
 
-- **六线并发**（1 契约扩展 + 1 契约修正 + 4 业务线，足迹互斥）+ 主代理收口；wailsjsCompat 引用 45→35、LegacySurfaceNames 276→247。
-- **线1 契约扩展 29 新方法**：CoreBindings+5（GetConfig/SaveConfig/GetStats/ListSkills/ExportAll——**ExportAll 实测在 bindings_core.go:23 非 NovelB**）/ChatBindings+9（ChatTopicCreate/Delete/Rename/SetMode/Clear/ImportTopic/Send 6 参/StreamPlain 5 参/ExportMarkdown）/NovelBindings+12（含 **ChatWorldview 契约纠偏=bindings_chat.go:35 返回 map 非 string**）/VoiceBindings+2/ImageBindings+1（SetImageBackend 4 参）；已核实跳过 3（WhisperGetPersonalities/ListSessions/MemoryHubOverview）；drift 摘除 29（误删 MigrateProjectToV4 恢复）、spaceBindings +29 锁 331→360、mock 补齐。
-- **线1b 元组契约错位修正（重要发现）**：bridge/chat.ts 原声明 `[T[],unknown]` 元组系 **T6-3.2 历史误读**（注释自认「读错返回 error」）——真实 Wails 对 Go ([]T,error) 成功返回数组失败 reject；修正为数组契约+mock 返回 []+mock-contract-t63 断言 Array.isArray；**下游零消费者**（tsc 全绿）——useChatTopics 迁移免去调研预测的元组解构。**教训：契约以真实 Wails 行为为权威，勿信 mock 自造形态；发现 bridge 注释自认「读错」时先验证真实返回再定迁移方案**。
-- **chat 组**（22/22 绿）：useChatTopics 11 处 + ChatTopicCreate 返回 `{id;title;mode;[k]:unknown}` 进 `chat.Topic[]` state 需 as unknown as 双断言；useChatStream Record any→unknown 触发 answered_by/emotion 两处最小 cast；chat/utils `App.GaeaLogFrontendError`→`app.LogFrontendError`（core.ts 短名+mappings）；ChatPage.test bindingsBridge 扩展 11 共享 vi.fn。
-- **novel 组**（25/25 绿）：10 源+4 测试；**NovelSettingPage.test 关键决策=app 用 Proxy 回落真代理**（审计刀B b 壳内导入导出用例的 SaveFileAs/PickFiles/ReadFileB64 必须走真实代理路由 window.go stub，纯对象 mock 打挂 3 例）；ChatWorldview 返回值 `unknown` 收窄 `typeof result?.reply === 'string'`。
-- **settings 组**：api/settings.ts 8 调用全命中迁移；ChatPanel/DataPanel/VoiceSettingsPanel/useVoiceChat **宁少勿多递批次三**（WhisperClearSession/GetVoicePipelineConfig/GetTTSSpeakers/GaeaDataBackup×6/语音族 6 方法未转正）。
-- **ModuleLauncher**：4 处迁移无遗留。
-- **门禁**：vitest **2737/2737 首跑全绿**（批次一曾 5 例连带失败本次零失败）、tsc 0、eslint 0、drift PASS@602（零绑定）、locale 0 死、Go 回归绿、冒烟 200、SHA256=C3DFA08F1A56C2389C2E4D5515A0E7F09D017B0DFB763DD0CDC459EBE66750CE。
-- **欠账=批次三**：语音族（useVoiceChat 8 直调+VoiceSettingsPanel，VoiceStart/VoiceStop/VoicePlaybackDone/VoiceCancelTTS/VoicePushAudio/VoiceSetPTTActive 6 方法转正+**直调同步 throw 语义重评**）、ChatPage 五直调（TTSSpeakBase64WithParams/TTSSpeakBase64/ChatTopicClear/ChatTopicExportMarkdown 后两者契约已转正可先迁）、WhisperClearSession/GetVoicePipelineConfig/GetTTSSpeakers 转正解锁 ChatPanel/VoiceSettingsPanel、DataPanel GaeaDataBackup×6、cast 族 CreatePage/ChapterEditor、角色库族 api/characterlib+novel/api/character、ChapterPage 四直调、useBindState、**wailsjsCompat.ts 退役+悬空注释清理**（api/engines.ts:362 等）。
-
-## 历史发布（v4.172.0 及之前，已归档）
-
+- **v4.173** 瘦身 P3 版3 批次二：chat/novel/settings 三族 22 文件迁 bridge（契约扩展 29 方法+元组契约错位修正）
 - **v4.172** 瘦身 P3 版3 批次一：wailsjsCompat 首批 12 文件迁 bridge（契约扩展 16 方法+2A/2B 迁移；LegacySurfaceNames 292→276）
 
 - **v4.170** 瘦身 P3 结构版1：巨文件首批 4 拆（App/bridge/types/GanttView，>50KB 9→5；逐字节/绑定零变更纪律）
