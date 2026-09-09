@@ -1,7 +1,9 @@
 // T7-4（v2.37.0）Transcript 轮级 memo：TurnBlock/ProcessCard 稳定化验证。
 // 子组件（UserMessage/AssistantMessage/ToolCard）用 vi.mock 换成计数函数，
 // 从而验证「同 props 重渲染不调用子组件、内容变化才调用」的 memo 语义。
-import { describe, expect, it, vi } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
+// P4-H7：en 字典按需加载后，默认 locale=en 的模块级 t() 需先等 chunk 就绪
+import { loadLocale } from "../lib/i18n";
 import { render } from "@testing-library/react";
 import { ProcessCard, TurnBlock } from "./Transcript";
 import type { Item } from "../lib/store";
@@ -26,6 +28,9 @@ const turnElsRef = { current: new Map<number, HTMLElement>() };
 const noSubcalls = new Map<string, never>();
 
 describe("TurnBlock 轮级 memo（T7-4）", () => {
+  beforeAll(() => loadLocale("en"));
+
+
   it("props 引用不变时 rerender 不重渲染子消息；段内容变化才重渲染", () => {
     const userMock = vi.mocked(MessageModule.UserMessage);
     userMock.mockClear();

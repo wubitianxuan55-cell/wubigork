@@ -24,7 +24,6 @@ import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import rehypeRaw from "rehype-raw";
-import mermaid from "mermaid";
 import { Check, Copy, FileText, Loader } from "../icons";
 
 import { app, openExternal } from "../lib/bridge";
@@ -99,15 +98,23 @@ function mermaidTheme(): "default" | "dark" {
   return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "default";
 }
 
-function ensureMermaid(theme: "default" | "dark") {
-  if (mermaidInitedTheme === theme) return;
-  mermaidInitedTheme = theme;
-  mermaid.initialize({
+// P4-H1：mermaid 由静态 import 改为运行时动态 import——只在首次实际渲染图表时
+// 才加载模块（Vite 将 mermaid.core 拆为独立 async chunk，不再进入页面急切包）。
+// 初始化配置对象与原本一致（startOnLoad/theme/securityLevel/fontFamily 原样保留）。
+let mermaidMod: typeof import("mermaid") | null = null;
+
+async function ensureMermaid(theme: "default" | "dark") {
+  if (mermaidInitedTheme === theme && mermaidMod) return mermaidMod.default;
+  mermaidMod = mermaidMod ?? (await import("mermaid"));
+  const mm = mermaidMod.default;
+  mm.initialize({
     startOnLoad: false,
     theme,
     securityLevel: "strict",
     fontFamily: "system-ui, -apple-system, 'Segoe UI', sans-serif",
   });
+  mermaidInitedTheme = theme;
+  return mm;
 }
 
 const MermaidBlock = memo(function MermaidBlock({ code, autoExport = true }: { code: string; autoExport?: boolean }) {
@@ -163,11 +170,14 @@ const MermaidBlock = memo(function MermaidBlock({ code, autoExport = true }: { c
   useEffect(() => {
     let cancelled = false;
     setError(null);
-    ensureMermaid(mermaidTheme());
-    const id = `gm-${Date.now()}-${idRef.current++}`;
-    mermaid
-      .render(id, code)
-      .then(({ svg }) => {
+    // P4-H1：ensureMermaid 为异步（首次触发 mermaid 动态 import），渲染改在
+    // await 之后进行；取消/失败语义与原同步路径一致（卸载丢弃、失败显示源码）。
+    void (async () => {
+      try {
+        const mm = await ensureMermaid(mermaidTheme());
+        if (cancelled) return;
+        const id = `gm-${Date.now()}-${idRef.current++}`;
+        const { svg } = await mm.render(id, code);
         if (cancelled || !ref.current) return;
         htmlDocRef.current = standaloneHtmlFromSvg(svg);
         // 注：SVG 不做外层 DOMPurify 再消毒——mermaid strict 已内置消毒，
@@ -193,10 +203,10 @@ const MermaidBlock = memo(function MermaidBlock({ code, autoExport = true }: { c
             });
           }
         }
-      })
-      .catch((e: unknown) => {
+      } catch (e: unknown) {
         if (!cancelled) setError(String((e as Error)?.message ?? e));
-      });
+      }
+    })();
     return () => { cancelled = true; };
   }, [code, autoExport, toPngDataUrl]);
 

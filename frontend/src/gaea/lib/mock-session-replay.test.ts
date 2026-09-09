@@ -3,8 +3,9 @@
 // 格式串与 lib/tools.ts summarize/subjectOf 的解析口径逐字对齐（信封 message、
 // 全角括号「（31409 字节，类型: …）」、knowledge_search「### 」行首小节、
 // diagram_gen 裸 JSON、multi_edit diffstat）。防止 mock 样例与前端解析器漂移。
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import { makeMockApp } from "./mock";
+import { loadLocale } from "./i18n";
 import { rebuildHistoryItems } from "./store";
 import type { Item } from "./store";
 import { diffStatFor, subjectOf, summarize } from "./tools";
@@ -27,6 +28,9 @@ async function toolByName(name: string): Promise<ToolItem> {
 }
 
 describe("mock 恢复回放 · 季度报告会话（a.jsonl）", () => {
+  // P4-H7：en 字典按需加载后，模块镜像默认 locale=en 的 t() 需先等 chunk 就绪
+  beforeAll(() => loadLocale("en"));
+
   it("六个工具 dispatch/result 一一配对：全部完成态且输出就位（顺序即叙事）", async () => {
     const items = await toolItems();
     expect(items.map((t) => t.name)).toEqual([

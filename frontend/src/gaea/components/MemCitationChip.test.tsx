@@ -1,7 +1,7 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { beforeAll, describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { Markdown } from "./Markdown";
-import { LocaleProvider } from "../lib/i18n";
+import { LocaleProvider, loadLocale } from "../lib/i18n";
 
 const { memoryMock } = vi.hoisted(() => ({ memoryMock: vi.fn() }));
 
@@ -15,6 +15,10 @@ function wrap(ui: React.ReactNode) {
 }
 
 describe("Markdown 记忆引用徽标（C2 引用可追溯）", () => {
+  // P4-H7：en 字典按需加载后，未包 Provider 的渲染走模块镜像默认 en，需先等 chunk
+  beforeAll(() => loadLocale("en"));
+
+
   beforeEach(() => {
     memoryMock.mockReset();
   });

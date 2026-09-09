@@ -1,6 +1,8 @@
 // ConsistencyPanel.test.tsx — 深检模式误报缓解 UI 单测：三档分级标签 / 原因徽标 /
 // 单条忽略与恢复（localStorage 按项目记忆）
-import { describe, expect, it, vi, beforeEach } from 'vitest'
+import { beforeAll, describe, expect, it, vi, beforeEach } from 'vitest'
+// P4-H7：en 字典按需加载后，默认 locale=en 的模块级 t() 需先等 chunk 就绪
+import { loadLocale } from '../../gaea/lib/i18n'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 // 屏蔽 Wails 绑定：jsdom 中没有 window.go。
@@ -46,6 +48,8 @@ beforeEach(() => {
 })
 
 describe('深检模式三档分级', () => {
+  beforeAll(() => loadLocale('en'))
+
   it('分级标签冲突/疑似/提示 + 原因徽标按 reason 渲染', async () => {
     vi.mocked(app.CheckConsistencyDeep).mockResolvedValue({
       issues: [

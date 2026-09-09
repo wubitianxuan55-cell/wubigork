@@ -2,20 +2,24 @@
  * 把 Mermaid 代码渲染为 PNG data URL（绘梦「流程图/框架图」模式使用）。
  * 渲染在浏览器本地完成，中文使用系统字体，清晰无乱码。
  */
-import mermaid from 'mermaid'
 
+let mermaidMod: typeof import('mermaid') | null = null
 let mermaidReady = false
 
-function ensureMermaid() {
-  if (mermaidReady) return
-  mermaidReady = true
-  mermaid.initialize({
+// P4-H1：mermaid 由静态 import 改为运行时动态 import——只在首次实际渲染时加载。
+async function ensureMermaid() {
+  if (mermaidReady && mermaidMod) return mermaidMod.default
+  mermaidMod = mermaidMod ?? (await import('mermaid'))
+  const mm = mermaidMod.default
+  mm.initialize({
     startOnLoad: false,
     securityLevel: 'loose',
     theme: 'default',
     fontFamily: 'system-ui, "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", sans-serif',
     themeVariables: { fontFamily: 'system-ui, "Microsoft YaHei", "PingFang SC", sans-serif' },
   })
+  mermaidReady = true
+  return mm
 }
 
 export interface RenderedPng {
@@ -26,11 +30,11 @@ export interface RenderedPng {
 
 /** 渲染 Mermaid 代码并导出 PNG；失败返回 null。 */
 export async function renderMermaidToPng(code: string): Promise<RenderedPng | null> {
-  ensureMermaid()
   const id = `ig-mermaid-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
   let svg = ''
   try {
-    const r = await mermaid.render(id, code)
+    const mm = await ensureMermaid()
+    const r = await mm.render(id, code)
     svg = r.svg
   } catch (e) {
     console.error('[mermaidPng] render failed:', e)

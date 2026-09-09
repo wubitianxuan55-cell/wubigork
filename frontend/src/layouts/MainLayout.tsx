@@ -5,7 +5,6 @@ import {
   SunOutlined, MoonOutlined, SearchOutlined, SettingOutlined, LoginOutlined,
   HomeOutlined, FileTextOutlined, UpOutlined, DownOutlined, ThunderboltOutlined,
 } from '@ant-design/icons'
-import SearchModal from '../components/SearchModal'
 import SecurityBanner from '../components/SecurityBanner'
 import { ErrorBoundary } from '../components/ErrorBoundary'
 import { useAppStore, THEME_PRESETS, THEME_PRESET_COLORS, THEME_PRESET_LABELS, type StatsData, type ProjectInfo } from '../stores/appStore'
@@ -29,6 +28,11 @@ import { usePollingGate } from '../hooks/usePollingGate'
 import { useT, type Translator } from '../gaea/lib/i18n'
 
 const { Content } = Layout
+
+// P4-H8：SearchModal 命令面板非首屏必需——React.lazy 拆独立 chunk，Ctrl+K /
+// 搜索按钮首次打开时才拉取；渲染侧 <Suspense fallback={null}> 包裹，首开微秒级
+// 加载不可感知（fallback null 不闪占位）。
+const SearchModal = React.lazy(() => import('../components/SearchModal'))
 
 // ─── S2.1 每空间最后页面持久化（docs/gaea-space-shell-design.md §4.3）───────
 const SHELL_PAGE_PREFIX = 'gaea.shell.page.'
@@ -791,8 +795,10 @@ const MainLayout: React.FC = () => {
         </div>
       </div>
 
-      {/* 搜索 */}
-      <SearchModal open={searchOpen} onClose={() => setSearchOpen(false)} space={space} />
+      {/* 搜索（P4-H8：React.lazy 懒加载；fallback null——Ctrl+K 首开微秒级加载） */}
+      <Suspense fallback={null}>
+        <SearchModal open={searchOpen} onClose={() => setSearchOpen(false)} space={space} />
+      </Suspense>
     </Layout>
   )
 }

@@ -1,12 +1,17 @@
 // v4.57 i18n 收尾冒烟：composer 家族（Composer/输入行/工具栏/拖放指示器）
 // 的三语字典接线。钉住 zh 断言原硬编码文案；en 抽查一条验证键值生效。
-import { describe, expect, it, vi, afterEach } from "vitest";
+import { beforeAll, describe, expect, it, vi, afterEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
 import { Composer } from "../Composer";
 import { ComposerInputRow } from "./ComposerInputRow";
 import { ComposerToolbar } from "./ComposerToolbar";
 import { ComposerDragOverlay } from "./ComposerDragOverlay";
-import { LocaleProvider } from "../../lib/i18n";
+import { LocaleProvider, loadLocale } from "../../lib/i18n";
+
+// P4-H7：en 字典按需加载——切换/渲染 en 断言前先等 chunk 就绪
+beforeAll(() => loadLocale("en"));
+
+
 import { ToastProvider } from "../Toast";
 
 // Composer 编排层经 hooks 触达 bridge（Commands/SlashArgs/ListDir/ListWorkspaces…）：

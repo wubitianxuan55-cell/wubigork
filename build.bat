@@ -24,7 +24,9 @@ if exist build\bin\gaea.exe (
     )
 )
 
-call wails build
+REM Release strip: -s -w drops symbol/DWARF tables, -trimpath drops local paths.
+REM Dev iteration needing symbols can run plain `wails build` directly.
+call wails build -ldflags "-s -w" -trimpath
 if errorlevel 1 (
     echo [FAIL] wails build failed
     exit /b 1

@@ -19,7 +19,11 @@ vi.mock("../lib/bridge", () => ({
   onReady: vi.fn(() => () => {}),
 }));
 
-const renderT = (ui: React.ReactNode, lang: "zh" | "en" = "zh") => {
+// P4-H7：en 字典按需异步加载——en 用例须先 await loadLocale('en') 再渲染，
+// 否则 DICTS.en 未就绪、译文回退 zh（断言英文必失败）。
+import { loadLocale } from "../lib/i18n";
+const renderT = async (ui: React.ReactNode, lang: "zh" | "en" = "zh") => {
+  if (lang === "en") await loadLocale("en");
   localStorage.setItem("gaea-lang", lang);
   return render(<LocaleProvider>{ui}</LocaleProvider>);
 };
@@ -75,7 +79,7 @@ describe("ModelSwitcher i18n 冒烟", () => {
     mocks.Models.mockResolvedValue([{ ref: "herdsman/qwen3-32b", model: "qwen3-32b", local: true, current: false }]);
     mocks.ModelSwitchEstimate.mockResolvedValue({ status: "cold", waitSeconds: 0, note: "" });
     const onPick = vi.fn();
-    renderT(<ModelSwitcher label="" onPick={onPick} />, "en");
+    await renderT(<ModelSwitcher label="" onPick={onPick} />, "en");
     fireEvent.click(screen.getByTitle("Switch model"));
     fireEvent.click(await screen.findByText("qwen3-32b"));
     await vi.waitFor(() => expect(confirmCalls).toHaveLength(1));

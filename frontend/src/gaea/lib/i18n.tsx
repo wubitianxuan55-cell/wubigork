@@ -10,17 +10,37 @@
 // have its own `language` config for prompts and terminal text, but switching the
 // desktop setting must not rewrite config or rebuild the model controller.
 
-import { createContext, useCallback, useContext, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useReducer, useState } from "react";
 import type { ReactNode } from "react";
-import { en, type DictKey } from "../locales/en";
 import { zh } from "../locales/zh";
-import { zhTW } from "../locales/zh-TW";
+import type { DictKey } from "../locales/en";
 
 export type Locale = "en" | "zh" | "zh-TW";
 // LangPref is the stored preference: "" means auto-detect from the OS.
 export type LangPref = "" | "en" | "zh" | "zh-TW";
 
-const DICTS: Record<Locale, Record<DictKey, string>> = { en, zh, "zh-TW": zhTW };
+// P4-H7：locale 按需加载。DICTS 初始只含静态默认语言 zh（运行时绝大多数会话，
+// 首帧零异步零回退）；en / zh-TW 由 loadLocale() 首次需要时动态导入独立 chunk。
+// Partial + ?.[key] 保证未加载语言的 translate 安全回退（已加载字典 → 裸键），
+// useT/语言切换的同步 API 签名完全不变，只是切换瞬间多一次 chunk 加载。
+const DICTS: Partial<Record<Locale, Record<DictKey, string>>> = { zh };
+const loadedLocales = new Set<Locale>(["zh"]);
+
+// 按需加载语言字典并注入 DICTS（幂等：已加载语言直接返回）。显式分支而非
+// `import('../locales/' + lang)` 模板拼接——让 Vite/Rollup 静态解析出 en 与
+// zh-TW 两个独立 chunk（模板拼接会因无法静态解析而构建失败）。
+// 导出供测试在断言 en/zh-TW 译文前 await（H7 动态化后 chunk 异步就绪）。
+export async function loadLocale(lang: Locale): Promise<void> {
+  if (lang === "zh" || loadedLocales.has(lang)) return;
+  if (lang === "en") {
+    const mod = await import("../locales/en");
+    DICTS.en = mod.en;
+  } else {
+    const mod = await import("../locales/zh-TW");
+    DICTS["zh-TW"] = mod.zhTW;
+  }
+  loadedLocales.add(lang);
+}
 const STORAGE_KEY = "gaea-lang";
 
 // currentLocale mirrors the active locale for callers outside React (lib/tools.ts).
@@ -73,7 +93,10 @@ function writePref(pref: LangPref): void {
 // translate resolves a key for a locale and fills {placeholders}. Missing keys fall
 // back to English, then to the raw key, so the UI never renders blank.
 function translate(locale: Locale, key: DictKey, vars?: Record<string, string | number>): string {
-  const s = DICTS[locale][key] ?? DICTS.en[key] ?? key;
+  // zh 是静态恒可用字典（P4-H7 后 en/zh-TW 按需加载）。非 React 调用方
+  // （lib/tools.ts 摘要口述）可能在任何 en chunk 就绪前触达——zh 兜底保证
+  // 裸键永不外泄；已加载语言优先取自身译文，其次 zh，最后裸键。
+  const s = DICTS[locale]?.[key] ?? DICTS.zh?.[key] ?? DICTS.en?.[key] ?? key;
   if (!vars) return s;
   return s.replace(/\{(\w+)\}/g, (_, k) => (vars[k] !== undefined ? String(vars[k]) : `{${k}}`));
 }
@@ -103,6 +126,20 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
   const [pref, setPrefState] = useState<LangPref>(() => readPref());
   const locale = detectLocale(pref);
   currentLocale = locale; // keep the mirror fresh for non-React callers
+  const [, forceRender] = useReducer((c: number) => c + 1, 0);
+
+  // P4-H7：动态语言（en/zh-TW）首次生效时字典尚未就绪——先按 detectLocale
+  // 渲染（translate 回退到已加载字典/裸键，同步 API 不阻塞渲染），chunk 就绪
+  // 后 force re-render 整树引入真译文。zh 为静态，首帧零异步。alive 标志防
+  // 语言再切换后旧 chunk 落地时的过期重渲染（加载本身幂等）。
+  useEffect(() => {
+    if (locale === "zh") return;
+    let alive = true;
+    void loadLocale(locale).then(() => {
+      if (alive) forceRender();
+    });
+    return () => { alive = false; };
+  }, [locale]);
 
   // setPref updates only the live UI and the browser cache.
   const setPref = useCallback((next: LangPref) => {

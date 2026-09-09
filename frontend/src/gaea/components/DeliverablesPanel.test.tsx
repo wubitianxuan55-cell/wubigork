@@ -1,9 +1,9 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import type { ReactElement } from "react";
 import { DeliverablesPanel } from "./DeliverablesPanel";
 import { ToastProvider } from "./Toast";
-import { LocaleProvider } from "../lib/i18n";
+import { LocaleProvider, loadLocale } from "../lib/i18n";
 import { useComposerInsertStore, usePreviewStore, useUpdatedFilesStore } from "../lib/store";
 import type { JournalChangeRecord, VerdictView } from "../lib/types";
 import { canonicalBoards } from "../../boards/manifests";
@@ -15,6 +15,9 @@ const renderT = (ui: ReactElement, lang: "zh" | "en" | "zh-TW" = "zh") => {
   localStorage.setItem("gaea-lang", lang);
   return render(<LocaleProvider>{ui}</LocaleProvider>);
 };
+
+// P4-H7：en 字典按需加载——i18n describe 的 en 断言前先等 chunk 就绪（其余 describe 不受影响）
+beforeAll(() => loadLocale("en"));
 
 describe("DeliverablesPanel 会话产物面板", () => {
   it("展示会话交付文件，点击打开预览", () => {
