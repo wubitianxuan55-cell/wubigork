@@ -1,5 +1,16 @@
 # 任务进度
 
+## 最新发布：v4.172.0（2026-09-09）「瘦身 P3 版3：bridge 双轨退役批次一（wailsjsCompat 首批 12 文件迁 bridge）」
+
+- **调研先行**（子代理）：39 个非测试文件三分类（2A 全命中零扩展 / 24B ≤3 缺失 / 13C 语音·角色库·cast 族暂缓）；权威「③ 不在 bridge」=drift.ts LegacySurfaceNames 292 项（扩 bridge 必经 _CheckAppBindingsCoversAll 编译期钉死+同步摘除）；排除项=api/engines.ts、api/image.ts 已走 `window.go?.app?.App ?? bridgeApp` 混合回退（迁移样板）、GitPanel 已用 bridge。
+- **线1 契约扩展 16 新方法**：CoreBindings+4（GetAppInfo/GetBoardManifests/GetFeatureModel(feature)/GetFeatureModelEnabled(feature)）/ModelBindings+3（SetFeatureModel 3 参/SetFeatureModelEnabled/GetActiveModel）/ImageBindings+1（StartLocalTTSService）/VoiceBindings+6（VoiceApplySettings+Whisper 读写族 5——**Go 侧实挂 VoiceB 非 MemoryB**，WhisperUpdateFact 3 参）/NovelBindings+1（NovelSearch 单参）/OfficeBindings+1（SaveSettings+mappings）；drift 摘除 16 名、spaceBindings +16 分类（9 shared+7 play）锁 315→331、mock 补齐（新建 mock/voice.ts+mock/novel.ts）。
+- **线2A 零依赖直迁**：PersonaPicker（CharacterList）/CharacterCard（WhisperAssistantSave——assistant.Assistant 结构直接满足 Partial 零断言）。
+- **线2B 10 文件 4 路并发**（足迹互斥）：CharacterMemoryModal/WhisperMemoryModal（as unknown as 类型适配）/manifests(+2 tests)/AboutPanel/useChatVoice（去 `?.`）/useFeatureModel/BindSection/useEngineState(+test)/novelSearchUtils/OfficePanel（gaeaApp.SaveSettings+Reload）。
+- **主代理收口=连带测试修复×2**：ChatPage/ChapterPage（C 类本体未迁）消费迁移过的 hook/util → 测试原 vi.mock 仅 wailsjsCompat 断言打空（首跑 5 例失败）→ 补 bridge vi.mock 与 wailsjsCompat mock **共享同一 vi.fn 引用**（bindingsBridge via vi.hoisted + Proxy 转发），22/22 转绿。
+- **坑=vi.mock 相对路径必须与真实 import 绝对解析一致**：src/pages/ 下 bridge 是 `'../gaea/lib/bridge'` 非 `'../../gaea/lib/bridge'`（错路径解析到不存在模块、vi.mock 静默不生效、断言 calls=0 且 tsc 不报——诊断文件实锤后修正）。
+- **门禁**：vitest 2737/2737（313 文件）、tsc/eslint 0、drift PASS@602（零绑定）、locale 0 死、Go 回归绿（零 Go 改动）、冒烟 200、SHA256=C9B020CE9B0257FDC21FE00D9C0417D0CCE4D47767BBE1BF2310B9AB1799AFE1。度量=wailsjsCompat 引用 57→45；LegacySurfaceNames 292→276。
+- **欠账**：批次二（api/settings.ts 一次扩 GetConfig/SaveConfig/GetActiveModel/SetImageBackend/Voice* 解锁 DataPanel/ChatPanel/VoiceSettingsPanel/OfficePanel 四面板、useChatTopics ChatTopic* 簇+**元组重构**、useChatStream ChatSend/ChatStreamPlain+mock 事件发射、NovelPage/NovelSettingPage/novel 面板族、ModuleLauncher/pages/chat/utils）+批次三（语音族 useVoiceChat/VoiceSettingsPanel/useVoiceState 依赖直调同步 throw 需重评、ChatPage 五直调、cast 族 CreatePage/ChapterEditor 需先入 AppBindings 类型、角色库族 api/characterlib+novel/api/character、ChapterPage 四直调、useBindState/DataPanel）+ 全部完成后 wailsjsCompat.ts 退役（shim 删除）；壳内真机池/审计刀D 不变。
+
 ## 最新发布：v4.171.0（2026-09-09）「瘦身 P3 结构版2：office 抽核 + 次批巨文件拆分（>50KB 首拆池 9→0）」
 
 - **接手会话收口**：工作树由前一会话（02:04–02:20）完成遗留未提交（office 抽核 + 次批拆分），本会话全量门禁核验+修 1 处 lint（ExportDialog react-refresh）+补齐发布流程。
