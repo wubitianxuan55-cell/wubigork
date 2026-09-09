@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { Button, Space, Tag, Input, Typography, message } from 'antd'
 import { PlusOutlined, DeleteOutlined, EditOutlined, ColumnWidthOutlined, RedoOutlined, ThunderboltOutlined } from '@ant-design/icons'
-import { GetChapterScenes, GenerateScene } from '../../../wailsjs/go/app/NovelB'
+import { GetChapterScenes, GenerateScene, CreateScene } from '../../../wailsjs/go/app/NovelB'
 import type { ChapterTabData } from '../../types'
 import GhostText from './editor/GhostText'
 import CommandBar from './editor/CommandBar'
@@ -66,6 +66,7 @@ const ChapterEditor: React.FC<ChapterEditorProps> = ({ tab, onUpdate, sceneTexta
   const [sceneIds, setSceneIds] = useState<string[]>([])
   const [scenePlots, setScenePlots] = useState<string[]>([])
   const [sceneGen, setSceneGen] = useState<Record<number, { loading: boolean; aiTaste?: number; beforeScore?: number; afterScore?: number; changes?: number }>>({})
+  const [addingScene, setAddingScene] = useState(false)
 
   // 全局点击关闭右键菜单
   React.useEffect(() => {
@@ -91,8 +92,32 @@ const ChapterEditor: React.FC<ChapterEditorProps> = ({ tab, onUpdate, sceneTexta
     return () => { alive = false }
   }, [tab.node.id, tab.chapterNum])
 
-  const addScene = () => {
-    onUpdate('scenes', [...tab.scenes, ''])
+  // 加场景：走 CreateScene 真落盘（后端会把纯 blob 章先物化出首场景），
+  // 然后重拉 id 序并对齐文本框数；分支章无场景 API 语义，降级为本地加框。
+  const addScene = async () => {
+    if (addingScene) return
+    if (tab.chapterNum < 1 || tab.node.branch) {
+      onUpdate('scenes', [...tab.scenes, ''])
+      return
+    }
+    setAddingScene(true)
+    try {
+      const n = tab.scenes.length + 1
+      await CreateScene(tab.chapterNum, `scene-${n}`, `场景 ${n}`)
+      let idList: string[] = []
+      try {
+        const value = await GetChapterScenes(tab.chapterNum)
+        idList = Array.isArray(value) ? value.map((s: unknown) => sceneIdOf(s) || '') : []
+      } catch { idList = [] }
+      const boxes = Math.max(tab.scenes.length, idList.length)
+      onUpdate('scenes', Array.from({ length: boxes }, (_v, i) => tab.scenes[i] ?? ''))
+      setSceneIds(idList)
+    } catch {
+      message.error('创建场景失败，已本地添加（不会落盘）')
+      onUpdate('scenes', [...tab.scenes, ''])
+    } finally {
+      setAddingScene(false)
+    }
   }
 
   const removeScene = (i: number) => {
@@ -202,7 +227,7 @@ const ChapterEditor: React.FC<ChapterEditorProps> = ({ tab, onUpdate, sceneTexta
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
                     <Tag style={{ fontSize: 10 }}>场景 {i + 1}</Tag>
                     <Space size={2}>
-                      <Button type="text" size="small" icon={<PlusOutlined />} style={{ color: C('color-text-secondary'), fontSize: 10, padding: '0 4px' }} onClick={addScene} />
+                      <Button type="text" size="small" icon={<PlusOutlined />} style={{ color: C('color-text-secondary'), fontSize: 10, padding: '0 4px' }} loading={addingScene} onClick={() => void addScene()} />
                       <Button type="text" size="small" danger icon={<DeleteOutlined />} style={{ fontSize: 10, padding: '0 4px' }} onClick={() => removeScene(i)} disabled={tab.scenes.length <= 1} />
                     </Space>
                   </div>

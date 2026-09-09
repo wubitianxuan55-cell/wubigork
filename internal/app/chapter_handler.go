@@ -229,6 +229,8 @@ func (a *writingState) GetChapterScenes(chapterNum int) ([]map[string]interface{
 	}
 
 	sm := pm.SceneManager(chapterNum)
+	// 1A 接通：纯 blob 章首次读场景时物化为首场景，逐场景生成由此拿到真实 id。
+	ensureBlobChapterScene(pm, chapterNum)
 	scenes, err := sm.List()
 	if err != nil {
 		return nil, err

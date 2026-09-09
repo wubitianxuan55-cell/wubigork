@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"github.com/gaea/gaea/internal/ai"
@@ -20,8 +21,44 @@ import (
 // 编译的「场景圣经」逐场景生成正文（POV 感知）并落盘到 scene.Manager。
 // 前端 ChapterEditor（场景多文本框）可逐场景调用，把「整章 blob」升维成
 // 真正由场景驱动的生成。不改动既有 CreateChapter（保持兼容），新增路径。
+//
+// 1A 接通：blob 章首次触碰场景 API 时物化为第 1 个场景（ensureBlobChapterScene），
+// 阅读页逐场景生成从「无绑定 ID」变为可用；加场景走 CreateScene 真落盘。
+
+// ensureBlobChapterScene 把「整章 blob 但一个场景都没有」的章节接进场景制：
+// 幂等（已有场景或无 blob 正文时不动盘）；物化 = blob 全文成为 slug=chapter 的
+// 首场景（status=done），标题取大纲章标题、缺省「第N章」。失败只降级不阻断——
+// 调用方（GetChapterScenes/CreateScene）照常走原有流程。
+func ensureBlobChapterScene(pm *project.Manager, chapterNum int) {
+	sm := pm.SceneManager(chapterNum)
+	metas, err := sm.List()
+	if err != nil || len(metas) > 0 {
+		return
+	}
+	blob, err := pm.ReadChapter(chapterNum)
+	if err != nil || strings.TrimSpace(blob) == "" {
+		return
+	}
+	title := gateOutlineTitle(pm, chapterNum)
+	if title == "" {
+		title = fmt.Sprintf("第%d章", chapterNum)
+	}
+	sc, err := sm.Create("chapter", title)
+	if err != nil {
+		slog.Warn("blob 章物化场景失败（继续）", "chapter", chapterNum, "error", err)
+		return
+	}
+	sc.Content = blob
+	sc.Meta.Status = types.SceneDone
+	if err := sm.Write(sc); err != nil {
+		slog.Warn("blob 章物化场景写盘失败（继续）", "chapter", chapterNum, "error", err)
+		return
+	}
+	slog.Info("blob 章已物化为首场景", "chapter", chapterNum, "sceneId", sc.Meta.ID)
+}
 
 // CreateScene 在指定章节下创建一个 v4 场景。
+// 若该章还是「纯 blob、无场景」状态，先物化首场景再建新场景（1A 接通）。
 func (a *writingState) CreateScene(chapterNum int, slug string, title string) (map[string]interface{}, error) {
 	pm := a.getPM()
 	if pm == nil {
@@ -36,6 +73,7 @@ func (a *writingState) CreateScene(chapterNum int, slug string, title string) (m
 	if title == "" {
 		title = "新场景"
 	}
+	ensureBlobChapterScene(pm, chapterNum)
 	sm := pm.SceneManager(chapterNum)
 	sc, err := sm.Create(slug, title)
 	if err != nil {

@@ -134,6 +134,7 @@ const ChapterPage: React.FC = () => {
         words: countTextChars(activeTab.scenes.join('\n')),
         saved: activeTab.saved,
         status: activeTab.node.status,
+        chapterNum: activeTab.chapterNum,
       },
     }))
   }, [activeTab])
