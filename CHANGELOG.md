@@ -1,3 +1,6 @@
+## v4.182.0 · 双空间首页分版：书斋/闲庭定名 + 切换器迁首页顶栏（2026-09-09）
+> 用户拍板：切换按钮迁首页顶栏；两首页重设计各有特色。定名=书斋（work，Study）/闲庭（play，Lounge）三语覆盖 shell.space.*/shell.search.scope.*。切换器=首页顶栏 SpaceSwitch 胶囊组（aria-pressed+模型徽标，MainLayout.switchSpace 直连），rail 顶部改竖排空间指示徽标（非交互，分域导航不变）。书斋「文书台」=三栏效率台（Hero 命令条+最近文档流水主角面板+能力矩阵+右舷遥测/写作/会话/记忆/晨报）；闲庭「游园画廊」=全幅画廊（会客厅旗舰横幅+板块大卡两列+园底信息带：进度环/继续话题 chips/记忆/遥测细条）——信息零删除形态分化。ui-ux-pro-max 双查询定 dial（书斋密度7/Flat，闲庭密度4/Showcase）。新增 ModuleLauncher.test 3 例、CommandRail.test 更新、space.test 断言同步。vitest 2745、tsc/eslint 0、e-check OK、零绑定、build strip+冒烟 200。详见 releases/v4.182.0.md。
+
 ## v4.181.0 · 上下文/轨迹按会话读取 + GLM Coding Plan 429 分诊（2026-09-09）
 > 用户反馈 Agent 网络不按当前会话。根因=GaeaTrajectory/GaeaAgentNetwork 无参绑定恒读内核 ga.ctrl 单例会话，UI 切历史会话后不跟。修复=两绑定变参 sessionPath（显式路径优先/缺省回落内核兼容），新 resolveGaeaSessionPath；前端 bridge 契约（JS 数组形态）+mock+agentNetworkStore 路径声明（跨会话清快照宁空勿错/同会话宁旧勿断）+六消费方接线（ContextView/SubagentsPanel/TasksWorkbench/TrajectoryView 新 prop/AgentNetworkCard；BrowserPanel 保持内核兜底）。附带 GLM 429 分诊：编码套餐资源包挂 coding 端点计费域，标准端点 429 时提示切换「编码套餐」端点（用户实测根因）。绑定名 602 零变更；Go 全量绿（+1 显式路径用例）、vitest 2742、tsc/eslint 0、build strip+冒烟 200。详见 releases/v4.181.0.md。
 

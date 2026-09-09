@@ -31,8 +31,8 @@ export const SHELL_SPACES: {
   labelKey: DictKey
   titleKey: DictKey
 }[] = [
-  { id: 'work', label: '工位', title: '工位（办公/造价/记忆）——工作空间', labelKey: 'shell.space.work', titleKey: 'shell.space.workTitle' },
-  { id: 'play', label: '乐园', title: '乐园（轻语/小说/绘梦）——娱乐空间', labelKey: 'shell.space.play', titleKey: 'shell.space.playTitle' },
+  { id: 'work', label: '书斋', title: '书斋（办公/造价/记忆）——工作空间', labelKey: 'shell.space.work', titleKey: 'shell.space.workTitle' },
+  { id: 'play', label: '闲庭', title: '闲庭（轻语/小说/绘梦）——娱乐空间', labelKey: 'shell.space.play', titleKey: 'shell.space.playTitle' },
 ]
 
 /** 类型守卫：仅 work/play 是合法壳层空间（localStorage 读取/后端回包用） */

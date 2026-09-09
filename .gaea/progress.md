@@ -1,8 +1,16 @@
 # 任务进度
 
-> 本文件为**最近发布速览**：仅保留最近 7 条版本记录（v4.175.0 ~ v4.181.0）。
+> 本文件为**最近发布速览**：仅保留最近 7 条版本记录（v4.176.0 ~ v4.182.0）。
 > v4.173.0 及之前的完整历史磁带（90 条记录 + 历史期章节）已于 2026-09-09 瘦身归档至
 > `docs/archive/progress-history-2026-09.md`；历史详情请读归档文件。
+
+## 最新发布：v4.182.0（2026-09-09）「双空间首页分版：书斋/闲庭定名 + 切换器迁首页顶栏」
+
+- **定名**：书斋（work，Study）/闲庭（play，Lounge）三语（shell.space.*/shell.search.scope.*+space.ts 兜底）。
+- **切换器迁移**：首页顶栏 SpaceSwitch（胶囊组 aria-pressed+模型徽标，直连 switchSpace）；rail 顶部改竖排空间指示徽标（非交互），分域导航不变。
+- **两首页分版**：书斋「文书台」三栏效率台（Hero 命令条+最近文档流水主角面板+能力矩阵+右舷状态栏）；闲庭「游园画廊」全幅画廊（旗舰横幅+大卡两列+园底信息带：进度/继续话题 chips/记忆/遥测细条）——信息零删除形态分化（ui-ux-pro-max 定 dial）。
+- **门禁**：vitest 2745（+3 ModuleLauncher.test；flaky 族单独复跑绿）、tsc/eslint 0、e-check OK、locale 0 死键、零绑定 drift PASS@602、零 Go 改动、build strip+冒烟 200、SHA256=F8B238863236F53803AB07822A1136366EEC92E97403BC5B592C1C04214E1337。
+- **欠账**：壳内真机走查两首页观感/切换手感（真机池）；改名再调=纯 locale 三文件。
 
 ## 最新发布：v4.181.0（2026-09-09）「上下文/轨迹按会话读取 + GLM Coding Plan 429 分诊」
 
@@ -60,30 +68,10 @@
 - **门禁**：vitest 2737/2737 全绿、tsc 0、eslint 0、drift PASS@602、locale 0 死、Go 回归绿、冒烟 200、SHA256=402A1B1A937CF6690E435C1F4E61AA6BB6D72487543A6B078E0F9F5F132DBD2F。
 - **欠账=P4 续**：H1 mermaid 动态 import（+mermaidPng.ts）、H7 locales 按需（−160~200KB）、H8 SearchModal lazy（−20~40KB）、**exe strip**（wails build -ldflags "-s -w" -trimpath 发布版，dev 保留符号）；壳内真机池/审计刀D 不变。
 
-## 最新发布：v4.175.0（2026-09-09）「瘦身 P4 结构刀1：三巨文件拆分（config.go/engine.go/store.ts，Go >50KB 2→0）」
+## 历史发布（v4.176.0 及之前，已归档）
 
-- **三线并发**（config/engine/store，足迹互斥）+ 主代理收口；行为零变化（导出面/签名/JSON tag/默认值逐字节保留）。
-- **线A config.go 58.7→16.1KB**（7 文件同包）：config.go 核心骨架 + config_keys 8.6/config_types 14.7/config_features 2.7/config_prefs 4.9/config_realtime 0.9/config_save 12.5；逐段 Contains 断言 8 区逐字节命中。
-- **线B engine.go 56.5→13.3KB**（8 文件同包）：engine.go 核心 + engine_keys 3.0/engine_custom 7.0/engine_crud 3.7/engine_connect 3.8/engine_models 12.6/engine_modelhub 10.9/engine_state 4.0；核实无 herdsman 专属函数；45 func 无重复无丢失。
-- **线C store.ts 54.3→0.4KB**（聚合入口 export *×3）：store/controller 50.2 + store/preview 3.3 + store/commonts 1.5；18 导出面逐一同 63 消费方零改动；963/963 行逐字节对账；controller 相对 import 深度调整（./bridge→../bridge 等 4 行）。
-- **主代理收口**：足迹 17 项零越界；Go >50KB 源文件 2→0；**mock/office.ts 51.2KB 浮现**（下轮目标）；store/controller.ts 50.2KB 裁定=单 store 自然边界保留（再拆需深拆 reducer 超红线）；entry chunk 1190.55→1176.62kB。
-- **门禁**：Go 128/128 包 0 FAIL、vitest 2737/2737 首跑全绿、tsc/eslint 0、drift PASS@602（零绑定）、locale 0 死、冒烟 200、SHA256=729C942B1A21B4FE0DB242565808B8CE86DB6F5B812810C836DDEBE4065F9DB8。
-- **欠账=P4 续**：mock/office.ts 51.2 拆分；entry 懒加载（MemoryHubPage 1.4MB/GaeaPage 622KB/cynefin 690KB 按 tab 动态 import——P0 基线 §1 解剖建议）；exe strip（-ldflags "-s -w" 实测对靶 46.22MB）；壳内真机池/审计刀D 不变。
-
-## 最新发布：v4.174.0（2026-09-09）「瘦身 P3 版3终局：bridge 双轨退役收官（wailsjsCompat.ts shim 删除，全仓生产代码零引用）」
-
-- **里程碑**：全仓生产代码 wailsjsCompat import **清零**；LegacySurfaceNames 292→**184**（累计转正 108 方法）；spaceBindings 423。
-- **契约扩展批次三（四线共 42 方法）**：3a +18（VoiceBindings 9 + ImageBindings 2（GetTTSSpeakers/GetVoicePipelineConfig 实挂 ImageB）+ OfficeBindings 6 DataBackup* + Core 1 ListProjects）；3b +38（CharLibBindings 16 角色库族 + NovelBindings 22 章节/叙事状态/场景/项目角色族）；3c +3（QuickBrainstormBranches/CreateChapter 8 参/DeleteOutlineNode）；3d +4（SetActiveASR/TTSModel/SetChatVoiceModel + VoiceHealth）。
-- **业务迁移 8 线并发**：组1 语音族（useVoiceChat 8 方法 **VoicePushAudio Array→base64 对齐 Go []byte 契约** + VoiceSettingsPanel + ChatPage 5 直调——22/22）；组2 cast 族（CreatePage/ChapterEditor **删 App as unknown as cast 对象**——绑定再生成后 cast 编译期冗余，走 NovelB 门面具名——9/9）；组3 角色库（api/characterlib 18 方法——44/44）；组4 章节/小说角色（ChapterPage 4 + novel/api/character 9——7/7）；组5 收尾（useBindState + DataPanel 9）；CreatePage 收尾（7 处+3c——9/9）；终局 3d（useVoiceState 5 + VoiceHealth + ChatPanel 4 保留整体 try/catch——47/47）。
-- **主代理收尾**：ChatPage/ChapterPage.test 的 wailsjsCompat 别名引用改 bindingsBridge 直取；SettingsPage.test 死 vi.mock 改 bridge；**wailsjsCompat.ts shim 删除**。
-- **GetCharacters 同名裁定**：charlib.ts 已有与 Go NovelB 同签名（角色页 via bridge，项目角色 via NovelB），直接可用零重复。
-- **CharacterList 分类遗留裁定**：role 库族归 play 但 CharacterList=work（v4.48 微信触点先例）有意保留不追改。
-- **门禁**：vitest 2737/2737 首跑全绿（shim 删除后零回归）、tsc 0、eslint 0、drift PASS@602（零绑定）、locale 0 死、Go 回归绿、冒烟 200、SHA256=AD7C7CED1066F7BFF077B2416D41145BEE207619868D411F9A39FDF518737E2C。
-- **收官意义**：S2-3 兼容层退役，全部前端调用统一 gaea/lib/bridge 代理（?mock=1 dev mock 回退 + BridgeError 错误归一）；masterplan 轨道四「双轨」目标达成。
-- **后续**：P4（config.go 58.7/engine.go 55.2/store.ts 54.3 拆分、entry 懒加载、exe strip）；壳内真机池（rail 切换器/home 最近文档/.gsched）、审计刀D 真机取证不变。
-
-## 历史发布（v4.173.0 及之前，已归档）
-
+- **v4.175** 瘦身 P4 结构刀1：三巨文件拆分（config.go/engine.go/store.ts，Go >50KB 2→0）
+- **v4.174** 瘦身 P3 版3终局：bridge 双轨退役收官（wailsjsCompat shim 删除，LegacySurfaceNames 292→184）
 - **v4.173** 瘦身 P3 版3 批次二：chat/novel/settings 三族 22 文件迁 bridge（契约扩展 29 方法+元组契约错位修正）
 - **v4.172** 瘦身 P3 版3 批次一：wailsjsCompat 首批 12 文件迁 bridge（契约扩展 16 方法+2A/2B 迁移；LegacySurfaceNames 292→276）
 

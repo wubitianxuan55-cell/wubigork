@@ -37,19 +37,18 @@ beforeEach(() => {
   localStorage.setItem('gaea-lang', 'zh')
 })
 
-describe('CommandRail 工位/乐园双空间分域导航（v4.169）', () => {
-  it('rail 顶部渲染工位/乐园切换器（SHELL_SPACES 驱动：zh label + 激活态 aria-pressed）', () => {
+describe('CommandRail 书斋/闲庭双空间分域导航（v4.169）', () => {
+  it('rail 顶部渲染当前空间指示徽标（v4.182 切换器迁首页顶栏：非交互、label 走字典）', () => {
     renderRail()
-    expect(screen.getByTestId('v3-rail-space-switch')).toBeTruthy()
-    const work = screen.getByTestId('v3-rail-space-work')
-    const play = screen.getByTestId('v3-rail-space-play')
-    expect(work.textContent).toBe('工位')
-    expect(play.textContent).toBe('乐园')
-    expect(work.getAttribute('aria-pressed')).toBe('true')
-    expect(play.getAttribute('aria-pressed')).toBe('false')
+    const ind = screen.getByTestId('v3-rail-space-indicator')
+    expect(ind.textContent).toBe('书斋')
+    expect(ind.getAttribute('aria-pressed')).toBeNull()
+    // 切换器移除：rail 不再渲染空间切换按钮
+    expect(screen.queryByTestId('v3-rail-space-switch')).toBeNull()
+    expect(screen.queryByTestId('v3-rail-space-play')).toBeNull()
   })
 
-  it('work 空间：主体 = 共享 + 工位板块（首页/办公/造价数据库/记忆中枢/模型中心/青鸟）', () => {
+  it('work 空间：主体 = 共享 + 书斋板块（首页/办公/造价数据库/记忆中枢/模型中心/青鸟）', () => {
     renderRail()
     expect(navLabels()).toEqual(['首页', '办公', '造价数据库', '记忆中枢', '模型中心', '青鸟'])
   })
@@ -60,7 +59,7 @@ describe('CommandRail 工位/乐园双空间分域导航（v4.169）', () => {
     expect(screen.getByLabelText('编程').closest('.v3-rail-foot')).not.toBeNull()
   })
 
-  it('play 空间：主体 = 共享 + 乐园板块（聊天/小说/绘梦/模型中心/角色库），切换器激活态跟随', () => {
+  it('play 空间：主体 = 共享 + 闲庭板块（聊天/小说/绘梦/模型中心/角色库），空间标识激活态跟随', () => {
     const { rerender } = renderRail()
     rerender(wrap(
       <CommandRail
@@ -73,15 +72,12 @@ describe('CommandRail 工位/乐园双空间分域导航（v4.169）', () => {
       />,
     ))
     expect(navLabels()).toEqual(['首页', '聊天', '小说', '绘梦', '模型中心', '角色库'])
-    expect(screen.getByTestId('v3-rail-space-play').getAttribute('aria-pressed')).toBe('true')
-    expect(screen.getByTestId('v3-rail-space-work').getAttribute('aria-pressed')).toBe('false')
+    expect(screen.getByTestId('v3-rail-space-indicator').textContent).toBe('闲庭')
     expect(screen.getAllByLabelText(/编程/)).toHaveLength(1)
   })
 
-  it('点击乐园 → onSwitchSpace("play")；点击办公 → onNavigate("gaea")；点击编程(foot) → onNavigate("code")', () => {
-    const { onNavigate, onSwitchSpace } = renderRail()
-    fireEvent.click(screen.getByTestId('v3-rail-space-play'))
-    expect(onSwitchSpace).toHaveBeenCalledWith('play')
+  it('点击办公 → onNavigate("gaea")；点击编程(foot) → onNavigate("code")；空间切换点击语义已迁首页顶栏（ModuleLauncher SpaceSwitch）', () => {
+    const { onNavigate } = renderRail()
     fireEvent.click(screen.getByLabelText('办公'))
     expect(onNavigate).toHaveBeenCalledWith('gaea')
     fireEvent.click(screen.getByLabelText('编程'))

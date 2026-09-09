@@ -1063,3 +1063,317 @@ html.gaea-raf-degraded .ml-pill-dot,
 html.gaea-raf-degraded .ml-command-orb-ring,
 html.gaea-raf-degraded .ml-command-orb-core,
 html.gaea-raf-degraded .ml-voice-status-dot { animation: none !important; opacity: 0.9; }
+
+/* ═══════════════════════════════════════════════════════════════
+   v4.182 双空间首页分版：顶栏切换器 + 书斋「文书台」+ 闲庭「游园画廊」
+   ——切换器从 rail 迁入首页顶栏；两空间各有版式（信息零删除，形态分化）。
+   令牌纪律不变：零硬编码色值，全部走 --md-sys-* / --gaea-* / --color-* / --v3-*。 */
+
+/* ── 首页顶栏：空间切换器 + 当前模型（两变体共用）── */
+.ml-topbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  max-width: 1280px;
+  margin: 0 auto 12px;
+  min-height: 34px;
+}
+.ml-topbar-spacer { flex: 1; }
+.ml-space-switch {
+  display: inline-flex;
+  gap: 3px;
+  padding: 3px;
+  border-radius: 12px;
+  background: var(--color-surface-container);
+  border: 1px solid var(--color-border);
+}
+.ml-space-btn {
+  min-width: 64px;
+  height: 28px;
+  padding: 0 14px;
+  border: none;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  letter-spacing: 0.12em;
+  cursor: pointer;
+  transition: background var(--md-sys-transition-fast, 200ms), color var(--md-sys-transition-fast, 200ms), box-shadow var(--md-sys-transition-fast, 200ms);
+}
+.ml-space-btn:hover { background: var(--color-surface-container-high); color: var(--color-text); }
+.ml-space-btn:focus-visible { outline: 2px solid var(--gaea-glow); outline-offset: 1px; }
+.ml-space-btn.is-active {
+  background: var(--color-primary-container);
+  color: var(--gaea-glow);
+  box-shadow: var(--v3-glow-faint);
+}
+/* 闲庭激活态：暖紫罗兰容器（娱乐语义与书斋工作蓝绿区分；仍走既有令牌） */
+.ml-space-btn.is-play.is-active {
+  background: var(--md-sys-color-tertiary-container, var(--color-primary-container));
+  color: var(--md-sys-color-on-tertiary-container, var(--gaea-glow));
+}
+.ml-topbar-model {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 10px;
+  background: var(--color-surface-container);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-secondary);
+  font-size: 11px;
+  max-width: 220px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* ── 书斋（work）：最近文档流水（主角面板）── */
+.ml-desk-docs {
+  width: 100%;
+  max-width: 1280px;
+  margin: 0 auto 18px;
+  border-radius: var(--v3-radius, 16px);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-container-low, var(--color-card));
+  padding: 12px 14px 10px;
+}
+.ml-desk-docs-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.ml-desk-docs-icon { color: var(--gaea-glow); font-size: 13px; }
+.ml-desk-docs-title { font-size: 13.5px; font-weight: 600; color: var(--color-text); }
+.ml-desk-docs-sub {
+  flex: 1;
+  min-width: 0;
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ml-docs-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.ml-docs-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 8px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background var(--md-sys-transition-fast, 200ms);
+}
+.ml-docs-row + .ml-docs-row { border-top: 1px solid var(--color-border); }
+.ml-docs-row:hover { background: var(--color-surface-container-high); }
+.ml-docs-row:focus-visible { outline: 2px solid var(--gaea-glow); outline-offset: -2px; }
+.ml-docs-idx {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  width: 20px;
+  flex-shrink: 0;
+}
+.ml-docs-name {
+  font-size: 13px;
+  color: var(--color-text);
+  max-width: 34%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 0;
+}
+.ml-docs-path {
+  flex: 1;
+  min-width: 0;
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  direction: rtl;
+  text-align: left;
+}
+.ml-docs-arrow { color: var(--color-text-secondary); opacity: 0; transition: opacity var(--md-sys-transition-fast, 200ms); }
+.ml-docs-row:hover .ml-docs-arrow { opacity: 1; }
+.ml-desk-docs-empty {
+  padding: 14px 8px;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+/* ── 闲庭（play）：游园画廊（全幅、无右舷）── */
+.ml-garden {
+  max-width: 1180px;
+  margin: 0 auto;
+}
+.garden-hero {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-bottom: 20px;
+}
+.garden-hero-head { text-align: center; padding: 10px 0 2px; }
+.garden-hero-head .ml-title { font-size: clamp(26px, 3.2vw, 34px); }
+.garden-hero-head .ml-sub { margin-top: 6px; }
+
+/* 会客厅旗舰横幅：全宽渐变大卡 */
+.garden-banner {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  padding: 26px 30px;
+  border-radius: 22px;
+  overflow: hidden;
+  cursor: pointer;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-container-low, var(--color-card));
+  transition: transform var(--md-sys-transition-fast, 200ms), box-shadow var(--md-sys-transition-fast, 200ms);
+}
+.garden-banner:hover { transform: translateY(-2px); box-shadow: var(--v3-glow-faint); }
+.garden-banner:focus-visible { outline: 2px solid var(--gaea-glow); outline-offset: 2px; }
+.garden-banner .ml-card-aurora { opacity: 1.35; }
+.garden-banner-icon {
+  width: 76px;
+  height: 76px;
+  border-radius: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 34px;
+  color: var(--gaea-glow);
+  background: var(--color-primary-container);
+  flex-shrink: 0;
+}
+.garden-banner-body { flex: 1; min-width: 0; }
+.garden-banner-badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  letter-spacing: 0.18em;
+  color: var(--gaea-glow);
+  background: var(--color-primary-container);
+  margin-bottom: 8px;
+}
+.garden-banner-name { font-size: 24px; font-weight: 700; color: var(--color-text); }
+.garden-banner-desc { margin-top: 4px; font-size: 13px; color: var(--color-text-secondary); }
+.garden-banner-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--gaea-glow);
+  flex-shrink: 0;
+}
+
+/* 画廊两列大卡 */
+.garden-gallery {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  margin-bottom: 20px;
+}
+.garden-card {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 24px 26px;
+  border-radius: 20px;
+  overflow: hidden;
+  cursor: pointer;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-container-low, var(--color-card));
+  transition: transform var(--md-sys-transition-fast, 200ms), box-shadow var(--md-sys-transition-fast, 200ms);
+}
+.garden-card:hover { transform: translateY(-2px); box-shadow: var(--v3-glow-faint); }
+.garden-card:focus-visible { outline: 2px solid var(--gaea-glow); outline-offset: 2px; }
+.garden-card-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26px;
+  color: var(--gaea-glow);
+  background: var(--color-primary-container);
+  flex-shrink: 0;
+}
+.garden-card-body { flex: 1; min-width: 0; }
+.garden-card-name { font-size: 18px; font-weight: 650; color: var(--color-text); }
+.garden-card-desc { margin-top: 4px; font-size: 12.5px; color: var(--color-text-secondary); }
+.garden-card-arrow { color: var(--color-text-secondary); flex-shrink: 0; }
+.garden-card--compact {
+  padding: 14px 18px;
+  border-radius: 14px;
+  gap: 12px;
+}
+.garden-card--compact .garden-card-icon { width: 36px; height: 36px; border-radius: 10px; font-size: 17px; }
+.garden-card--compact .garden-card-name { font-size: 13.5px; font-weight: 600; }
+
+/* 园底信息带：进度 / 继续话题 / 记忆 / 遥测细条（信息全保留，单行化） */
+.garden-foot {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+  gap: 14px;
+  align-items: stretch;
+}
+.garden-foot-card {
+  border-radius: 16px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-container-low, var(--color-card));
+  padding: 14px 16px;
+  min-width: 0;
+}
+.garden-foot-wide { grid-column: span 1; }
+.garden-foot-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  margin-bottom: 8px;
+}
+.garden-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.garden-chip {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  max-width: 260px;
+  padding: 7px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-surface-container);
+  cursor: pointer;
+  transition: background var(--md-sys-transition-fast, 200ms), border-color var(--md-sys-transition-fast, 200ms);
+}
+.garden-chip:hover { background: var(--color-surface-container-high); border-color: var(--gaea-glow); }
+.garden-chip:focus-visible { outline: 2px solid var(--gaea-glow); outline-offset: 1px; }
+.garden-chip-name {
+  font-size: 12.5px;
+  color: var(--color-text);
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.garden-chip-meta { font-size: 10.5px; color: var(--color-text-secondary); }
+.garden-meters { display: flex; flex-direction: column; gap: 6px; }
+
+@media (max-width: 1100px) {
+  .garden-gallery { grid-template-columns: 1fr; }
+  .garden-foot { grid-template-columns: 1fr; }
+  .garden-banner { flex-direction: column; align-items: flex-start; }
+}

@@ -289,10 +289,11 @@ const TelemetryRail: React.FC<{ stats: StatsData | null; info: ProjectInfo | nul
 
 // ─── 指挥轨道（左侧 · OS 极简窄条）────────────────────────────────
 // 固定窄栏、纯图标、hover 微缩放 + 原生 tooltip（title）、激活 = 主色容器 + 底部指示光条。
-// v4.169 双空间并列落地：rail 顶部为工位/乐园切换器（SHELL_SPACES 驱动，onSwitchSpace 直连
-// MainLayout.switchSpace）；rail 主体按当前空间分域（getActiveMenuBoardsForSpace——
-// shared 恒在 / independent 剔除 / settings inMenu:false 不在 rail）；independent（编程 DSH）
-// 仅经 foot 单列 ⇒ rail 全量 code 入口 = 1（基线 §3.1「code 主体+foot 双入口」缺陷闭合）。
+// v4.182 空间切换器迁移首页顶栏（ModuleLauncher SpaceSwitch——用户拍板：切换在首页更顺手）；
+// rail 顶部改为当前空间指示徽标（非交互，title 提示切换入口在首页顶栏）。
+// rail 主体按当前空间分域（getActiveMenuBoardsForSpace——shared 恒在 / independent
+// 剔除 / settings inMenu:false 不在 rail）；independent（编程 DSH）仅经 foot 单列
+// ⇒ rail 全量 code 入口 = 1（基线 §3.1「code 主体+foot 双入口」缺陷闭合）。
 export const CommandRail: React.FC<{
   page: Page
   onNavigate: (p: Page) => void
@@ -300,7 +301,7 @@ export const CommandRail: React.FC<{
   onSwitchSpace: (s: ShellSpace) => void
   darkMode: boolean
   toggleDarkMode: () => void
-}> = ({ page, onNavigate, space, onSwitchSpace, darkMode, toggleDarkMode }) => {
+}> = ({ page, onNavigate, space, darkMode, toggleDarkMode }) => {
   // 双空间分域：当前空间菜单（shared 恒在、independent 剔除、inMenu 过滤），
   // 键盘 roving/focus 逻辑不变，仅数据源按空间过滤。
   const boards = getActiveMenuBoardsForSpace(space)
@@ -314,6 +315,8 @@ export const CommandRail: React.FC<{
     itemRefs.current[next]?.focus()
   }
 
+  const spaceEntry = SHELL_SPACES.find((s) => s.id === space)
+
   return (
     <nav
       className="v3-rail"
@@ -322,24 +325,13 @@ export const CommandRail: React.FC<{
       <div className="v3-rail-head">
         <img src="/favicon.svg" alt="gaea" />
       </div>
-      {/* v4.169：工位/乐园空间切换器（SHELL_SPACES 驱动；label=t(labelKey)、tooltip=title；两态激活） */}
-      <div className="v3-rail-space" data-testid="v3-rail-space-switch">
-        {SHELL_SPACES.map((s) => {
-          const active = s.id === space
-          return (
-            <button
-              key={s.id}
-              type="button"
-              data-testid={`v3-rail-space-${s.id}`}
-              aria-pressed={active}
-              title={t(s.titleKey) || s.title}
-              className={`v3-rail-space-opt${active ? ' is-active' : ''}`}
-              onClick={() => onSwitchSpace(s.id)}
-            >
-              {t(s.labelKey) || s.label}
-            </button>
-          )
-        })}
+      {/* v4.182：当前空间指示徽标（非交互；切换入口迁至首页顶栏 SpaceSwitch） */}
+      <div
+        className="v3-rail-space is-indicator"
+        data-testid="v3-rail-space-indicator"
+        title={spaceEntry ? (t(spaceEntry.titleKey) || spaceEntry.title) : undefined}
+      >
+        {spaceEntry && <span aria-hidden="true">{t(spaceEntry.labelKey) || spaceEntry.label}</span>}
       </div>
       <div className="v3-rail-nav" role="menubar" aria-label={t('shell.rail.nav')}>
         {boards.map((b, i) => {
@@ -779,6 +771,7 @@ const MainLayout: React.FC = () => {
                                 onNavigate={(target: LauncherTarget) => navigateBoard(target as Page)}
                                 activeModel={activeModel || undefined}
                                 space={space}
+                                onSwitchSpace={switchSpace}
                               />
                             : Comp ? <Comp /> : null}
                         </div>
