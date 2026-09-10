@@ -6,6 +6,8 @@ package app
 // GaeaCostComposeRecords 回读快照验证证据链没有当场即丢。
 
 import (
+	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/gaea/gaea/internal/gaea/cost"
@@ -191,5 +193,61 @@ func TestGaeaCostComposeRecordsUnavailable(t *testing.T) {
 	a := &App{}
 	if _, err := a.GaeaCostComposeRecords("c30"); err == nil {
 		t.Fatal("不可用库应返回错误")
+	}
+}
+
+// TestComposeChecksContentBaseline v4.209.0 含量对照接线:池=相似条目组件明细,
+// 拆解含量带外时 Checks 追加含量 warn(与金额自洽结论同列,零新结构零新绑定);
+// 带内/池空静默。不真调 LLM——直接单测汇总函数。
+func TestComposeChecksContentBaseline(t *testing.T) {
+	a := newComposeRecordApp(t)
+	store := a.hubCostStore()
+	// 池:3 条同类条目,同名资源「C30 混凝土」含量 1.00~1.02(P25=P75 同值带)。
+	for i, q := range []float64{1.00, 1.01, 1.02} {
+		name := fmt.Sprintf("pool-entry-%d", i)
+		err := store.Save(cost.Entry{
+			Name: name, Title: name, Category: "路面", CategoryPath: "市政/道路/路面",
+			Unit: "m²", Price: 480, Status: "现行",
+			Components: []cost.Component{
+				{Kind: "材料", Title: "C30 混凝土", Unit: "m³", Quantity: q, Price: 380, Amount: q * 380},
+			},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	similar := []cost.Summary{{Name: "pool-entry-0"}, {Name: "pool-entry-1"}, {Name: "pool-entry-2"}}
+
+	// 带外:含量 1.5(同值带 1.01±5% 之外)→ 含量偏高 warn;同时人材机合计
+	// 570 > 480×1.05 → R3 全局 warn,共 2 条。
+	outBand := []cost.Component{
+		{Kind: "材料", Title: "C30 混凝土", Unit: "m³", Quantity: 1.5, Price: 380, Amount: 570},
+	}
+	checks := a.composeChecks(similar, outBand, 480)
+	if len(checks) != 2 {
+		t.Fatalf("want R3+含量共 2 条, got %+v", checks)
+	}
+	var content *cost.ComposeCheck
+	for i := range checks {
+		if checks[i].Row == 0 {
+			content = &checks[i]
+		}
+	}
+	if content == nil || !strings.Contains(content.Msg, "高") {
+		t.Fatalf("row0 应有含量偏高 warn, got %+v", checks)
+	}
+
+	// 带内:含量 1.01、金额 383.8 在 (240,504) 内 → 金额自洽与含量对照双静默。
+	inBand := []cost.Component{
+		{Kind: "材料", Title: "C30 混凝土", Unit: "m³", Quantity: 1.01, Price: 380, Amount: 383.8},
+	}
+	if got := a.composeChecks(similar, inBand, 480); len(got) != 0 {
+		t.Fatalf("带内应双静默, got %+v", got)
+	}
+
+	// 池空(相似条目无组件明细)→ 含量对照层静默,只剩金额自洽结论。
+	empty := []cost.Summary{{Name: "pool-entry-miss"}}
+	if got := a.composeChecks(empty, outBand, 480); len(got) != 1 || got[0].Row != -1 {
+		t.Fatalf("池空应只剩 R3 全局一条, got %+v", got)
 	}
 }

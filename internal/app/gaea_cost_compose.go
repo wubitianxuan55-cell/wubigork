@@ -97,8 +97,32 @@ func (a *App) GaeaCostCompose(desc, unit string) (CostComposeView, error) {
 		LLMUsed: llmUsed, Evidence: evidence,
 		// 5. 拆解结果合理性校验(纯函数):金额一致性/非正值/合计口径,
 		// 随视图一并展示,确认前把可疑行摆到人眼前。
-		Checks: cost.CheckComposeComponents(comps, rec),
+		Checks: a.composeChecks(similar, comps, rec),
 	}, nil
+}
+
+// composeChecks 组价校验结论汇总:金额自洽(CheckComposeComponents) + 含量
+// 对照(CheckContentBaseline,v4.209.0 刀路池 §6)。含量对照池=相似条目本身的
+// 组件明细——检索相似条目就是「同类」的口径,与价格带同池;载入失败/无组件
+// 的条目跳过,池空时该层静默(宁缺勿误,不装对照)。
+func (a *App) composeChecks(similar []cost.Summary, comps []cost.Component, recommended float64) []cost.ComposeCheck {
+	checks := cost.CheckComposeComponents(comps, recommended)
+	if len(comps) == 0 {
+		return checks
+	}
+	store := a.hubCostStore()
+	pool := make([][]cost.Component, 0, len(similar))
+	seen := make(map[string]bool, len(similar))
+	for _, s := range similar {
+		if seen[s.Name] {
+			continue
+		}
+		seen[s.Name] = true
+		if e, err := store.Get(s.Name); err == nil && e != nil && len(e.Components) > 0 {
+			pool = append(pool, e.Components)
+		}
+	}
+	return append(checks, cost.CheckContentBaseline(comps, pool)...)
 }
 
 // GaeaCostComposeApply 确认组价建议并回写成本库(UPSERT):
