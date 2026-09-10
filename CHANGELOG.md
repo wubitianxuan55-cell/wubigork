@@ -1,3 +1,6 @@
+## v4.214.0 · 阶段六 6.1 首刀：可审计默认化——文件预览默认版本条（2026-09-11）
+> 阶段旗交阶段六（书斋纵深·办公主角），6.1「Verify→Journal→一键回滚从能力升为文件工作台默认 UI」首刀。纯前端、零新绑定、零 Go 改动。缺口：VersionTimeline（v4.28 B1 逐版本预览/恢复）此前只藏在交付面板的 vN 徽标里。落地=FileVersionStrip 新组件默认可见地挂进文件预览标题栏下（三件套通用）：版本数+最近 AI 改动时间+复核状态+「可恢复」标注，无版本时显示「AI 改动会自动成为版本点」说明条；展开为该文件的逐版本时间线（按路径过滤的 VersionTimeline：预览基线/一键恢复，恢复=新版本不丢历史，恢复后父级静默重读预览）。pptx 页码归因来自证据卡摘要（p3 格式）。「AI 改动自动成版本点」=证据链既有能力（v4.1 起 Apply→Journal+基线快照）。测试 vitest +4（默认可见/展开时间线/恢复贯通 RollbackRecord+onRestored/空态与降级）。6.1 判据满足。
+
 ## v4.213.0 · 5.3 首刀：记忆生命周期三态（固化/衰减/归档）（2026-09-11）
 > 阶段五 5.3 首刀。「90 天一刀切」的替代：固化（SchemaV19 facts.pinned）=用户明示保留——免疫衰减归档、**豁免保留期硬删**（CleanupArchived 跳过 pinned，替代核心）、晨报/预载排序加权，与 archived 正交、Save 覆盖不丢；衰减=纯函数评分（DecayScore 半衰期 30 天指数、下限 0.01、固化恒 1、无时间戳不造数；LifecycleOf 阈值 60 天），评分输入（save/touch）自 v4.210 全在 memory_events、状态动作（pin/unpin）同日志留痕；归档=既有保留期+purge-audit。三态可查=GaeaMemoryLifecycle 总览（固化/衰减列表带评分与闲置天数）+ GaeaMemoryPin 切换；前端 OfficeMemoryLibrary 统计行 + FactCard 固化锁/「固化」徽标。「蒸馏 no-op 转真实合并」（DistillMerge 做梦 2.0）与「预取可关闭」（晨报预载开关）此前已落地不重建。绑定 609→611。测试 Go +5 / vitest +1。**5.3 出口判据全满足**。
 

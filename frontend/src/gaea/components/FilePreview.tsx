@@ -20,6 +20,7 @@ import { MdViewToggle, MindMapView } from "./MindMapView";
 import { readMdViewPref, writeMdViewPref, type MdViewMode } from "../lib/mdViewPref";
 import { PptxOutline } from "./PptxOutline";
 import { PptxEditPanel } from "./PptxEditPanel";
+import { FileVersionStrip } from "./FileVersionStrip";
 import { XlsxPreview } from "./XlsxPreview";
 import { ScheduleFileCard } from "./ScheduleFileCard";
 import { isScheduleFilePath, parseSchedSummary } from "../../schedule/gschedSummary";
@@ -436,6 +437,20 @@ export function FilePreview({
           <X size={13} />
         </button>
       </div>
+
+      {/* 6.1 可审计默认化：文件版本时间线一级入口（默认可见，三件套通用）——
+          AI 改动自动成版本点（证据链基线快照），点开逐版本预览/一键恢复。 */}
+      {relPath && !editing && (
+        <FileVersionStrip
+          relPath={relPath}
+          onRestored={() => {
+            if (editing || dirty || !relPath) return;
+            app.Preview(relPath)
+              .then((r) => { if (r) setPreview(r); })
+              .catch(() => { /* 目标可能已被移走，静默 */ });
+          }}
+        />
+      )}
 
       {/* 预览内容 / 编辑区 */}
       <div className="flex-1 overflow-auto">
