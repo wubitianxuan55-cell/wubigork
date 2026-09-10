@@ -180,7 +180,7 @@ func TestProjectCharactersForNovel_MergesPerProjectState(t *testing.T) {
 	chars := []types.Character{
 		{ID: "ch_1", Name: "林晚", RoleType: "protagonist", Arc: "崛起", Status: "Alive", Personality: "清冷"},
 	}
-	_, _, _ = s.ImportProjectCharacters("projA", chars, nil)
+	_, _, _, _ = s.ImportProjectCharacters("projA", chars, nil)
 	// 项目 A 内弧线推进
 	_ = s.Associate("projA", "ch_1", "protagonist", "黑化", "Alive")
 	out, err := s.ProjectCharactersForNovel("projA")
@@ -567,8 +567,9 @@ func TestPreviewImport_ReadOnlyConflicts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if pv.Import != 2 || pv.Fill != 1 {
-		t.Fatalf("预览计数 = import %d / fill %d（应 2/1）: %+v", pv.Import, pv.Fill, pv)
+	// 新建 3 个：ch_new / ch_p2 / ch_p3（ID 均未命中；ch_p3 空白副本值不算可补）。
+	if pv.Import != 3 || pv.Fill != 1 {
+		t.Fatalf("预览计数 = import %d / fill %d（应 3/1）: %+v", pv.Import, pv.Fill, pv)
 	}
 	if len(pv.Conflicts) != 1 {
 		t.Fatalf("冲突应恰 1 条（空白副本值不算）: %+v", pv.Conflicts)

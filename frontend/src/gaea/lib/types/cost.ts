@@ -412,6 +412,15 @@ export interface CostInquiryRecord {
   updatedAt: string;
 }
 // CostAdjustSuggestion 调差建议：成本库条目 vs 最新询价数据点（|差幅|>2%）。
+// CostInquiryScanFinding 库级异常扫描发现（询价库内部自洽体检，与调差建议互补）。
+export interface CostInquiryScanFinding {
+  kind: string; // 离散/跳变/过期/陈旧
+  severity: string; // 关注/异常
+  title: string; // 涉及标题（组=归一化标题，单条=原标题）
+  detail: string; // 人话描述（含关键数值）
+  refIds: number[]; // 涉及记录 id
+}
+
 export interface CostAdjustSuggestion {
   entryName: string;
   entryTitle: string;

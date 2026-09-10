@@ -1,3 +1,6 @@
+## v4.195.0 · 造价询价库级异常扫描（2026-09-10）
+> 刀路池第 4 项（survey：异常检测只作用于单点调差建议）。**Go costinquiry/scan.go（只读）**：ScanAnomalies 四类体检全量扫+内存检查，复用既有 MatchTitle/sortableDate/parsePriceDate 零新建基建——①同标题离散（max/min≥1.5 关注/≥2.0 异常）②相邻期跳变（≥30% 关注/≥50% 异常）③有效期已过仍「现行」（逐条）④最新期数超一年（陈旧）；异常优先排序，每条带 severity/人话 detail/refIds。**绑定面 605→606**（+GaeaCostInquiryScan，CostB work）七处接线全同步——v4.195 新踩第七处=bridge mappings.ts gaeaToGaea 映射（drift.ts 双向断言抓的，历史刀只记六处）。**前端 CostInquiryPanel**「⑥ 库级扫描」折叠区：挂载随元数据一并扫+重扫钮+severity 徽标+空态诚实自洽。Go 全量 0 FAIL（scan_test +3）、vitest 316 文件 2766 例全绿（+2）、tsc/eslint 0、e-check OK、drift PASS@606。详见 releases/v4.195.0.md。
+
 ## v4.194.0 · 造价五算贯通：阶段值从版本快照带入（2026-09-10）
 > 造价刀路池第 3 项（survey：阶段值手填，不从预算版快照带入；规划明确「五算贯通可以」）。**零新绑定**：带入三件套 GaeaCostProjectList/GaeaCostEstimateVersions/GaeaCostStageSave 全部既有，纯前端贯通。FiveCalcPanel 每阶段行新增「带入」钮：选择器项目下拉默认当前项目（五算 projectId 与测算项目同域）可切参照项目，版本列表新→旧（v 号+合计+备注+日期）；确认带入=快照合计走 CostStageSave UPSERT 该阶段+备注自动写溯源「带入:〈项目名〉v〈n〉」+草稿回填+三路刷新+诚实 toast，阶段日期不代填（业务口径≠快照时间）；空态诚实引导（无项目/无版本两态确认禁用）。不做后台自动同步（显式动作，带入后仍可手改）。组价结果带入不做：单条目单价与阶段总量不同量纲，进项目走既有明细引用链路。vitest 316 文件 2764 例全绿（+带入全链/+空态）、tsc/eslint 0、e-check OK、drift PASS@605、Go 零改动。详见 releases/v4.194.0.md。
 

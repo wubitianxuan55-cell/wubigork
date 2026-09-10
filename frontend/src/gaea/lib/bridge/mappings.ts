@@ -232,6 +232,7 @@ export const gaeaToGaea = {
   CostInquiryDelete: "GaeaCostInquiryDelete",
   CostInquiryExpiring: "GaeaCostInquiryExpiring",
   CostInquiryAdjust: "GaeaCostInquiryAdjust",
+  CostInquiryScan: "GaeaCostInquiryScan",
   CostStageSave: "GaeaCostStageSave",
   CostStages: "GaeaCostStages",
   CostStageCompare: "GaeaCostStageCompare",

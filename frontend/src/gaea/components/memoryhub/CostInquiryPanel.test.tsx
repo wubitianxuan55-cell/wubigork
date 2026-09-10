@@ -2,9 +2,9 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { CostInquiryPanel } from "./CostInquiryPanel";
 import { ToastProvider } from "../Toast";
-import type { CostAdjustSuggestion, CostEntry, CostInquiryRecord } from "../../lib/types";
+import type { CostAdjustSuggestion, CostEntry, CostInquiryRecord, CostInquiryScanFinding } from "../../lib/types";
 
-const { listSpy, expiringSpy, saveSpy, deleteSpy, adjustSpy, getSpy, costSaveSpy } = vi.hoisted(() => ({
+const { listSpy, expiringSpy, saveSpy, deleteSpy, adjustSpy, getSpy, costSaveSpy, scanSpy } = vi.hoisted(() => ({
   listSpy: vi.fn(),
   expiringSpy: vi.fn(),
   saveSpy: vi.fn(),
@@ -12,6 +12,7 @@ const { listSpy, expiringSpy, saveSpy, deleteSpy, adjustSpy, getSpy, costSaveSpy
   adjustSpy: vi.fn(),
   getSpy: vi.fn(),
   costSaveSpy: vi.fn(),
+  scanSpy: vi.fn(),
 }));
 
 vi.mock("../../lib/bridge", () => ({
@@ -21,6 +22,7 @@ vi.mock("../../lib/bridge", () => ({
     CostInquirySave: (...args: unknown[]) => saveSpy(...args),
     CostInquiryDelete: (...args: unknown[]) => deleteSpy(...args),
     CostInquiryAdjust: (...args: unknown[]) => adjustSpy(...args),
+    CostInquiryScan: (...args: unknown[]) => scanSpy(...args),
     CostGet: (...args: unknown[]) => getSpy(...args),
     CostSave: (...args: unknown[]) => costSaveSpy(...args),
   },
@@ -79,6 +81,7 @@ describe("CostInquiryPanel 询价飞轮", () => {
     listSpy.mockResolvedValue(RECORDS);
     expiringSpy.mockResolvedValue([]);
     adjustSpy.mockResolvedValue([]);
+    scanSpy.mockResolvedValue([]);
   });
 
   it("渲染到期预警横幅：列出 30 天内到期的数据点（品名/有效期/价格）", async () => {
@@ -217,6 +220,35 @@ describe("CostInquiryPanel 询价飞轮", () => {
     expect(await screen.findByText(/已更新成本库/)).toBeTruthy();
     // 建议区刷新。
     await waitFor(() => expect(adjustSpy).toHaveBeenCalledTimes(2));
+  });
+
+  it("库级扫描：发现按 severity 徽标展示，重新扫描可手动触发", async () => {
+    const FINDINGS: CostInquiryScanFinding[] = [
+      { kind: "跳变", severity: "异常", title: "c25混凝土", detail: "2026-01 ¥100.00 → 2026-03 ¥160.00，相邻期跳变 +60%——行情剧变或录入错误", refIds: [1, 2] },
+      { kind: "离散", severity: "关注", title: "c25混凝土", detail: "2 个数据点价差 1.6 倍（最低 ¥100.00 ～ 最高 ¥160.00）——同名可能不同规格或录入有误", refIds: [1, 2] },
+      { kind: "过期", severity: "关注", title: "木材", detail: "有效期至 2020-01-01 已过，状态仍为「现行」，调差比价时会被当成有效价", refIds: [9] },
+    ];
+    scanSpy.mockResolvedValue(FINDINGS);
+    render(wrap(<CostInquiryPanel />));
+
+    // 挂载即随元数据扫描；折叠区默认收起，展开后可见三条发现。
+    await waitFor(() => expect(scanSpy).toHaveBeenCalled());
+    fireEvent.click(screen.getByRole("button", { name: /库级扫描/ }));
+    expect(screen.getByTestId("scan-finding-0").textContent).toContain("跳变");
+    expect(screen.getByTestId("scan-finding-0").textContent).toContain("异常");
+    expect(screen.getByTestId("scan-finding-2").textContent).toContain("木材");
+
+    // 重新扫描按钮（阻止折叠切换；scanSpy 计数跨用例累计，只断言增量）。
+    const before = scanSpy.mock.calls.length;
+    fireEvent.click(screen.getByText("重新扫描"));
+    await waitFor(() => expect(scanSpy.mock.calls.length).toBeGreaterThan(before));
+  });
+
+  it("库级扫描空态：无发现提示自洽", async () => {
+    render(wrap(<CostInquiryPanel />));
+    await waitFor(() => expect(scanSpy).toHaveBeenCalled());
+    fireEvent.click(screen.getByRole("button", { name: /库级扫描/ }));
+    expect(await screen.findByText("扫描完成，未发现异常——询价库内部自洽")).toBeTruthy();
   });
 
   it("无数据时展示空态提示", async () => {

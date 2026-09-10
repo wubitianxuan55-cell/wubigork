@@ -1,6 +1,6 @@
 // mock/cost.ts — 成本库/价格域（T6-10.1 拆分自 lib/mock.ts，方法体零改动）。
 import type { AppBindings } from "../bridge";
-import type { CostCategory, CostEntry, CostEstimateItem, CostEstimateVersion, CostGraphView, CostIndicator, CostProject, CostProjectSummary, CostReviewNote, CostInquiryRecord, CostAdjustSuggestion, CostStageValue, CostStageCompareRow, CostStageDeviation, PriceFetchRecord, PriceSource } from "../types";
+import type { CostCategory, CostEntry, CostEstimateItem, CostEstimateVersion, CostGraphView, CostIndicator, CostProject, CostProjectSummary, CostReviewNote, CostInquiryRecord, CostAdjustSuggestion, CostInquiryScanFinding, CostStageValue, CostStageCompareRow, CostStageDeviation, PriceFetchRecord, PriceSource } from "../types";
 import {
   costCategoriesMock,
   costMock,
@@ -30,6 +30,7 @@ type CostMethods = Pick<
   | "CostComposeRecords"
   // v4.50 询价飞轮 + 五算对比域补 mock（此前缺失，询价库视图在浏览器 dev 直接崩）
   | "CostInquirySave" | "CostInquiryList" | "CostInquiryDelete" | "CostInquiryExpiring" | "CostInquiryAdjust"
+  | "CostInquiryScan"
   | "CostStageSave" | "CostStages" | "CostStageCompare" | "CostStageDeviations"
 >;
 
@@ -477,6 +478,38 @@ export function buildCost(_s: MakeMockState): CostMethods {
         if (Number.isNaN(until.getTime())) return false;
         return until >= today && until <= horizon;
       });
+    },
+    async CostInquiryScan(): Promise<CostInquiryScanFinding[]> {
+      // 浏览器演示态：样例数据点亮两条发现（离散 + 过期），其余检查静默。
+      seedInquiries();
+      const rows: CostInquiryScanFinding[] = [];
+      const byTitle = new Map<string, CostInquiryRecord[]>();
+      for (const r of mockInquiries) {
+        if ((r.price ?? 0) <= 0) continue;
+        const list = byTitle.get(r.title) ?? [];
+        list.push(r);
+        byTitle.set(r.title, list);
+      }
+      for (const [title, recs] of byTitle) {
+        if (recs.length < 2) continue;
+        const prices = recs.map((r) => r.price ?? 0);
+        const min = Math.min(...prices);
+        const max = Math.max(...prices);
+        if (min > 0 && max / min >= 1.5) {
+          rows.push({
+            kind: "离散", severity: max / min >= 2 ? "异常" : "关注", title,
+            detail: `${recs.length} 个数据点价差 ${(max / min).toFixed(1)} 倍——同名可能不同规格或录入有误`,
+            refIds: recs.map((r) => r.id),
+          });
+        }
+      }
+      const today = new Date().toISOString().slice(0, 10);
+      for (const r of mockInquiries) {
+        if (r.validUntil && r.validUntil < today && (r.status ?? "现行") === "现行") {
+          rows.push({ kind: "过期", severity: "关注", title: r.title, detail: `有效期至 ${r.validUntil} 已过，状态仍为「现行」`, refIds: [r.id] });
+        }
+      }
+      return rows;
     },
     async CostInquiryAdjust(): Promise<CostAdjustSuggestion[]> {
       seedInquiries();

@@ -59,3 +59,9 @@ func (a *App) GaeaCostInquiryAdjust() []costinquiry.AdjustSuggestion {
 	}
 	return a.hubCostInquiryStore().SuggestAdjustments(store.List())
 }
+
+// GaeaCostInquiryScan 库级异常扫描（只读）：询价库内部自洽体检——
+// 离散/跳变/过期未标记/陈旧四类发现，与调差建议的单点比对互补。
+func (a *App) GaeaCostInquiryScan() []costinquiry.ScanFinding {
+	return a.hubCostInquiryStore().ScanAnomalies()
+}

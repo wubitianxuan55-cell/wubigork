@@ -135,6 +135,7 @@ export const bindingNames = [
 	"GaeaCostInquiryDelete",
 	"GaeaCostInquiryExpiring",
 	"GaeaCostInquiryList",
+	"GaeaCostInquiryScan",
 	"GaeaCostInquirySave",
 	"GaeaCostList",
 	"GaeaCostNoteBumpRef",

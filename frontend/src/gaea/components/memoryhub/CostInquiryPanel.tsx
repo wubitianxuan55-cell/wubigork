@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { Modal } from "antd";
 import {
-  AlertCircle, ChevronDown, ChevronRight, Pencil, Plus, Save, Search, Trash2, TrendingUp,
+  AlertCircle, ChevronDown, ChevronRight, ClipboardList, Pencil, Plus, RefreshCw, Save, Search, Trash2, TrendingUp,
 } from "../../icons";
 import { app } from "../../lib/bridge";
-import type { CostAdjustSuggestion, CostInquiryRecord } from "../../lib/types";
+import type { CostAdjustSuggestion, CostInquiryRecord, CostInquiryScanFinding } from "../../lib/types";
 import { useToast } from "../Toast";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import { EmptyState } from "../EmptyState";
@@ -78,6 +78,10 @@ export function CostInquiryPanel() {
   const [editing, setEditing] = useState<CostInquiryRecord | null>(null);
   const [form, setForm] = useState<CostInquiryRecord>(blankRecord);
   const [adjustOpen, setAdjustOpen] = useState(true);
+  // v4.195 库级异常扫描：询价库内部自洽体检（离散/跳变/过期/陈旧），与调差建议互补。
+  const [scan, setScan] = useState<CostInquiryScanFinding[]>([]);
+  const [scanOpen, setScanOpen] = useState(false);
+  const [scanning, setScanning] = useState(false);
 
   // 搜索防抖 250ms（与成本库一致：清空即时生效）。
   const debouncedQuery = useDebouncedValue(query, 250);
@@ -94,7 +98,17 @@ export function CostInquiryPanel() {
     }
   }, []);
 
-  // 到期预警 + 调差建议一并刷新（保存/删除/更新成本库后调用）。
+  // 库级扫描（只读，SQL 全量扫 + 内存检查，随元数据一并刷新）。
+  const runScan = useCallback(() => {
+    setScanning(true);
+    app
+      .CostInquiryScan()
+      .then((r) => setScan(r ?? []))
+      .catch(() => setScan([]))
+      .finally(() => setScanning(false));
+  }, []);
+
+  // 到期预警 + 调差建议 + 库级扫描一并刷新（保存/删除/更新成本库后调用）。
   const reloadMeta = useCallback(() => {
     app
       .CostInquiryExpiring(30)
@@ -104,7 +118,8 @@ export function CostInquiryPanel() {
       .CostInquiryAdjust()
       .then((r) => setAdjust(r ?? []))
       .catch(() => setAdjust([]));
-  }, []);
+    runScan();
+  }, [runScan]);
 
   const reloadAll = useCallback(() => {
     void reloadRecords(debouncedQuery);
@@ -362,6 +377,72 @@ export function CostInquiryPanel() {
                   >
                     <Save size={11} /> 更新成本库
                   </button>
+                </div>
+              ))
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ⑥ 库级异常扫描（折叠面板）：询价库内部自洽体检 */}
+      <div className="shrink-0 border-t border-border-soft/70">
+        <button
+          type="button"
+          className="flex w-full items-center gap-1.5 px-3 py-2 text-left hover:bg-bg-soft/50 transition-colors"
+          onClick={() => setScanOpen((o) => !o)}
+          aria-expanded={scanOpen}
+        >
+          {scanOpen ? (
+            <ChevronDown size={12} className="text-fg-faint shrink-0" />
+          ) : (
+            <ChevronRight size={12} className="text-fg-faint shrink-0" />
+          )}
+          <ClipboardList size={12} className="text-violet-400 shrink-0" />
+          <span className="text-fg font-medium text-[12px]">库级扫描</span>
+          <span className="text-fg-faint text-[10.5px]">离散 / 跳变 / 过期 / 陈旧</span>
+          <button
+            type="button"
+            className="ml-auto shrink-0 inline-flex items-center gap-1 px-2 h-6 rounded-md border border-border text-fg-faint hover:text-fg hover:bg-bg-soft text-[10.5px] transition-colors"
+            onClick={(e) => {
+              e.stopPropagation();
+              runScan();
+            }}
+          >
+            <RefreshCw size={11} className={scanning ? "animate-spin" : ""} /> 重新扫描
+          </button>
+          {scan.length > 0 && (
+            <span className="shrink-0 px-1.5 py-px rounded-full bg-red-500/15 text-red-400 text-[10px] tabular-nums">
+              {scan.length}
+            </span>
+          )}
+        </button>
+        {scanOpen && (
+          <div className="px-3 pb-2 space-y-1.5 max-h-[32vh] overflow-y-auto">
+            {scan.length === 0 ? (
+              <div className="py-2 text-center text-fg-faint text-[11px]">
+                {scanning ? "扫描中…" : "扫描完成，未发现异常——询价库内部自洽"}
+              </div>
+            ) : (
+              scan.map((f, i) => (
+                <div
+                  key={`${f.kind}-${f.title}-${i}`}
+                  data-testid={`scan-finding-${i}`}
+                  className="flex items-center gap-2 rounded-lg border border-border/70 bg-bg-soft/40 px-2.5 py-1.5"
+                >
+                  <span
+                    className={`shrink-0 px-1.5 py-px rounded text-[9.5px] font-medium ${
+                      f.severity === "异常" ? "bg-red-500/15 text-red-400" : "bg-amber-400/15 text-amber-300"
+                    }`}
+                  >
+                    {f.severity}
+                  </span>
+                  <span className="shrink-0 px-1.5 py-px rounded bg-bg-elev text-fg-dim text-[9.5px]">{f.kind}</span>
+                  <span className="min-w-0 truncate text-fg text-[11.5px] font-medium" title={f.title}>
+                    {f.title}
+                  </span>
+                  <span className="min-w-0 flex-1 truncate text-fg-faint text-[10.5px]" title={f.detail}>
+                    {f.detail}
+                  </span>
                 </div>
               ))
             )}

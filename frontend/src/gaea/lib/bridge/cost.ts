@@ -13,6 +13,7 @@ import type {
   CostImportPreview,
   CostIndicator,
   CostInquiryRecord,
+  CostInquiryScanFinding,
   CostProject,
   CostProjectSummary,
   CostReviewNote,
@@ -107,6 +108,8 @@ export interface CostBindings {
   // 组价时的完整视图（含 band/recommendedPrice/components/evidence/checks）。
   CostComposeRecords(entryName: string): Promise<CostComposeRecord[]>;
   // ── 询价飞轮（四源归一数据点：信息价/OCR报价/供应商比价/手动询价）──
+  // CostInquiryScan 库级异常扫描（只读）：离散/跳变/过期未标记/陈旧四类发现。
+  CostInquiryScan(): Promise<CostInquiryScanFinding[]>;
   CostInquirySave(r: CostInquiryRecord): Promise<number>;
   CostInquiryList(query: string, limit: number): Promise<CostInquiryRecord[]>;
   CostInquiryDelete(id: number): Promise<void>;

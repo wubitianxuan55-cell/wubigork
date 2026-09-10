@@ -42,6 +42,7 @@ func (b *CostB) GaeaCostInquiryDelete(id int64) error { return b.a.GaeaCostInqui
 func (b *CostB) GaeaCostInquiryExpiring(days int) []costinquiry.Record { return b.a.GaeaCostInquiryExpiring(days) }
 func (b *CostB) GaeaCostInquiryList(query string, limit int) []costinquiry.Record { return b.a.GaeaCostInquiryList(query, limit) }
 func (b *CostB) GaeaCostInquirySave(r costinquiry.Record) (int64, error) { return b.a.GaeaCostInquirySave(r) }
+func (b *CostB) GaeaCostInquiryScan() []costinquiry.ScanFinding { return b.a.GaeaCostInquiryScan() }
 func (b *CostB) GaeaCostList() []CostSummary { return b.a.GaeaCostList() }
 func (b *CostB) GaeaCostNoteBumpRef(id int64) error { return b.a.GaeaCostNoteBumpRef(id) }
 func (b *CostB) GaeaCostNoteDelete(id int64) error { return b.a.GaeaCostNoteDelete(id) }

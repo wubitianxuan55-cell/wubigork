@@ -106,7 +106,7 @@ func TestCharacterImportAssociateSyncProject(t *testing.T) {
 		t.Fatalf("写角色文件: %v", err)
 	}
 
-	report, err := a.CharacterImportProject()
+	report, err := a.CharacterImportProject("")
 	if err != nil || report["imported"] != 1 {
 		t.Fatalf("导入项目 = %v, %v", report, err)
 	}
@@ -335,7 +335,7 @@ func TestSaveCharactersBatchStaysInProject(t *testing.T) {
 	}
 
 	// 3. 手动「一次性迁移」后：全局库可查 + 项目建立引用
-	report, err := a.CharacterImportProject()
+	report, err := a.CharacterImportProject("")
 	if err != nil || report["imported"] != 2 {
 		t.Fatalf("手动迁移 = %v, want imported 2 (err=%v)", report, err)
 	}
