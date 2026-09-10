@@ -1,3 +1,6 @@
+## v4.198.0 · 小说工作台「书房工坊」改版 + 规划文档入库（2026-09-10，代收批次）
+> 代收发布:DSH 停机确认后由本会话验收其在途批次,门禁独立全跑(tsc/eslint/vitest 316 文件 2768 例 exit 0/e-check 全绿)。**小说工作台改版**:「世界构建工作台」→「书房工坊」——NovelPage 身份头栏(书房 kicker+书名+「N 章·M 字」meta)+模式轨+分区按页显隐;NovelSidebar「世界大纲」收敛为「目录」(图标语义化);CreatePage 动作轨语义 class 化去内联;novel-workspace.css +503 行承载新视觉语言。**品牌资产**四件刷新(appicon/favicon/logo/logo-light)。**规划文档入库**:未来展望契约(含 09-10「两套空间拆开」拍板)+长期规划两份治理权威落库,docs/README 注册,design-system 规范页随更。绑定面 607 零变更、Go 零改动。详见 releases/v4.198.0.md。
+
 ## v4.197.0 · office 枢纽解耦：审计收刀（2026-09-10）
 > 收敛计划 W3-4 优先刀。**读档修正**：并行子代理全量盘点实证 whisper→office 与 modelengine→office 两条边在 import 层面均为 0（internal/whisper 零 office 引用且间接边 0；internal/modelengine 依赖仅 fileutil/strutil/netclient）——「272 入/70 出枢纽」度量口径过时（疑似把 app 接线层与 gaea 侧误计入 whisper，且内核能力早经 internal/core 下沉、office 根包已是别名门面）。**内核侧真耦合仅 docmd 一族**：6 文件 9 处 100% 文件工具类（refs@引用/fileindex/知识导入/大文件摘要/format_convert/wssearch），零会话记忆、零误用。**收刀**：`internal/office/docmd → internal/docmd` 纯路径搬迁（包名不变，20 行 import 更新零逻辑改动；docmd 仅依赖 proc 无环），internal/gaea 内核对 office import 边清零，office 剩余消费面全部在 app 绑定层（编辑/预览/检查/联动本体）。遗留候选挂观察池：别名门面删除（需动生成签名）、archive.go 死代码候选、依赖度度量应排除 app 层。Go 全量 exit 0（116 包零 FAIL，纯 Go 搬迁前端零改动）。详见 docs/gaea-office-hub-decouple-audit-2026-09.md。
 

@@ -13,7 +13,7 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 2px 4px 8px;
+  padding: 12px 16px 16px;
 }
 
 /* ── 头部信息栏（收敛为轨道式细条：统计 + 操作，无重复板块标题） ── */
@@ -50,8 +50,7 @@
   width: 3px;
   height: 16px;
   border-radius: 2px;
-  background: var(--gaea-glow);
-  box-shadow: 0 0 10px var(--gaea-glow);
+  background: var(--color-primary);
   flex-shrink: 0;
 }
 
@@ -67,7 +66,7 @@
 }
 
 .char-panel-title .anticon {
-  color: var(--gaea-glow);
+  color: var(--color-primary);
 }
 
 .char-panel-stats {
@@ -84,8 +83,8 @@
   padding: 3px 11px;
   border-radius: 999px;
   border: 1px solid var(--md-sys-color-outline-variant);
-  background: color-mix(in srgb, var(--gaea-glow) 8%, transparent);
-  font-size: 11px;
+  background: var(--color-surface-container-high, var(--md-sys-color-surface-container-high));
+  font-size: 12px;
   color: var(--md-sys-color-text-secondary);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;

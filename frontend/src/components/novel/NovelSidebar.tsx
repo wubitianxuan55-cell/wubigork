@@ -1,8 +1,8 @@
 import React from 'react'
 import { Button, Tooltip } from 'antd'
 import {
-  GlobalOutlined, MenuFoldOutlined,
-  ReadOutlined, BookOutlined, BarChartOutlined,
+  MenuFoldOutlined, MenuUnfoldOutlined,
+  BookOutlined,
 } from '@ant-design/icons'
 import OutlinePanel from './OutlinePanel'
 import { C } from '../../utils/theme'
@@ -26,8 +26,8 @@ interface NovelSidebarProps {
 }
 
 /**
- * NovelSidebar — 世界构建工作台「左 = 侧栏 zone」
- * 当前书目卡（书架/大纲树上下文）+ 可交互大纲树导航。
+ * NovelSidebar — 书房工坊「左 = 目录 zone」
+ * 当前书目卡 + 可交互大纲树。仅在阅读页展开（外壳按 tab 显隐）。
  */
 const NovelSidebar: React.FC<NovelSidebarProps> = ({
   outlines, activeKey, collapsed, onToggleCollapse,
@@ -35,10 +35,10 @@ const NovelSidebar: React.FC<NovelSidebarProps> = ({
 }) => {
   if (collapsed) {
     return (
-      <aside className="v3-panel novel-zone novel-side-zone is-collapsed" aria-label="世界侧栏（已折叠）">
+      <aside className="v3-panel novel-zone novel-side-zone is-collapsed" aria-label="目录（已折叠）">
         <div className="novel-zone-head">
-          <Button type="text" size="small" icon={<GlobalOutlined />}
-            onClick={onToggleCollapse} aria-label="展开世界侧栏" title="展开世界侧栏"
+          <Button type="text" size="small" icon={<MenuUnfoldOutlined />}
+            onClick={onToggleCollapse} aria-label="展开目录" title="展开目录"
             style={{ color: C('color-text-secondary') }} />
         </div>
       </aside>
@@ -46,39 +46,37 @@ const NovelSidebar: React.FC<NovelSidebarProps> = ({
   }
 
   return (
-    <aside className="v3-panel novel-zone novel-side-zone" aria-label="世界侧栏">
+    <aside className="v3-panel novel-zone novel-side-zone" aria-label="目录">
       <div className="novel-zone-head">
-        <span className="novel-zone-title"><GlobalOutlined />世界大纲</span>
+        <span className="novel-zone-title">目录</span>
         <div className="novel-zone-spacer" />
-        <Tooltip title="折叠侧栏">
+        <Tooltip title="折叠目录">
           <Button type="text" size="small" icon={<MenuFoldOutlined />}
-            onClick={onToggleCollapse} aria-label="折叠世界侧栏"
-            style={{ color: C('color-text-secondary'), fontSize: 11 }} />
+            onClick={onToggleCollapse} aria-label="折叠目录"
+            style={{ color: C('color-text-secondary') }} />
         </Tooltip>
       </div>
 
       <div className="novel-zone-body">
-        {/* 当前书目卡 */}
         {projectPath ? (
-          <div className="novel-book-card">
-            <span className="novel-book-title"><ReadOutlined aria-hidden style={{ marginRight: 4 }} />{projectTitle || '未命名小说'}</span>
-            <span className="novel-book-path" title={projectPath}>{projectPath}</span>
+          <div className="novel-book-card" title={projectPath}>
+            <span className="novel-book-kicker">当前小说</span>
+            <span className="novel-book-title">{projectTitle || '未命名小说'}</span>
             <span className="novel-book-meta">
-              <span>章节 <b>{stats?.chapterCount ?? 0}</b></span>
-              <span>字数 <b>{(stats?.totalWords ?? 0).toLocaleString()}</b></span>
+              <span><b>{stats?.chapterCount ?? 0}</b> 章</span>
+              <span><b>{(stats?.totalWords ?? 0).toLocaleString()}</b> 字</span>
             </span>
           </div>
         ) : (
           <div className="novel-book-card">
-            <span className="novel-book-title"><BookOutlined aria-hidden style={{ marginRight: 4 }} />未打开小说</span>
-            <span className="novel-book-path">去书架打开或新建一部小说</span>
+            <span className="novel-book-kicker">尚未打开</span>
+            <span className="novel-book-title">去书架选一本书</span>
             <Button size="small" type="primary" ghost icon={<BookOutlined />} onClick={onGoBookshelf}>
               去书架
             </Button>
           </div>
         )}
 
-        {/* 大纲树导航（内部折叠按钮在 shell 中隐藏，由 zone 折叠接管） */}
         <div className="novel-outline-shell">
           <OutlinePanel
             outlines={outlines}
@@ -88,14 +86,6 @@ const NovelSidebar: React.FC<NovelSidebarProps> = ({
             onToggleCollapse={() => {}}
           />
         </div>
-
-        {outlines.length > 0 && (
-          <div className="novel-action-row">
-            <Button size="small" icon={<BarChartOutlined />} onClick={onGoBookshelf} style={{ fontSize: 11 }}>
-              书架
-            </Button>
-          </div>
-        )}
       </div>
     </aside>
   )

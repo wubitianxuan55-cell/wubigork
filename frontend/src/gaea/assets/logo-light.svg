@@ -1,26 +1,26 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="gaea">
-  <title>gaea — 大地女神</title>
+  <title>gaea — 地核 G</title>
   <defs>
-    <radialGradient id="gaea-grad-light" cx="35%" cy="30%" r="75%">
-      <stop offset="0%" stop-color="#a7f3d0"/>
-      <stop offset="45%" stop-color="#6ee7b7"/>
-      <stop offset="100%" stop-color="#059669"/>
-    </radialGradient>
-    <linearGradient id="leaf-grad-light" x1="0%" y1="100%" x2="100%" y2="0%">
-      <stop offset="0%" stop-color="#ecfdf5"/>
-      <stop offset="100%" stop-color="#6ee7b7"/>
+    <linearGradient id="gaea-logo-light-ring" x1="18%" y1="8%" x2="88%" y2="92%">
+      <stop offset="0%" stop-color="#A7F3D0"/>
+      <stop offset="50%" stop-color="#5EEAD4"/>
+      <stop offset="100%" stop-color="#14B8A6"/>
     </linearGradient>
+    <radialGradient id="gaea-logo-light-core" cx="38%" cy="32%" r="68%">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="40%" stop-color="#F8F1D8"/>
+      <stop offset="100%" stop-color="#E7D3A4"/>
+    </radialGradient>
+    <radialGradient id="gaea-logo-light-halo" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#CCFBF1" stop-opacity="0.55"/>
+      <stop offset="70%" stop-color="#5EEAD4" stop-opacity="0.16"/>
+      <stop offset="100%" stop-color="#5EEAD4" stop-opacity="0"/>
+    </radialGradient>
   </defs>
-  <!-- 深色圆角底板 -->
-  <rect width="512" height="512" rx="104" fill="#0f172a"/>
-  <!-- 大地球体 -->
-  <circle cx="256" cy="280" r="165" fill="url(#gaea-grad-light)"/>
-  <ellipse cx="180" cy="210" rx="60" ry="34" fill="#f0fdf4" opacity="0.45" transform="rotate(-20 180 210)"/>
-  <!-- 破土嫩芽：茎 + 两片叶 -->
-  <line x1="256" y1="420" x2="256" y2="250" stroke="url(#leaf-grad-light)" stroke-width="19" stroke-linecap="round"/>
-  <ellipse cx="200" cy="320" rx="52" ry="28" fill="url(#leaf-grad-light)" transform="rotate(-35 200 320)"/>
-  <ellipse cx="316" cy="240" rx="55" ry="30" fill="#ecfdf5" transform="rotate(25 316 240)"/>
-  <!-- 灵感核心 -->
-  <circle cx="360" cy="125" r="21" fill="#ffffff"/>
-  <circle cx="360" cy="125" r="45" fill="#ecfdf5" opacity="0.35"/>
+  <rect width="512" height="512" rx="104" fill="#0B1210"/>
+  <path d="M319 142.4 A134 134 0 1 0 382 256" fill="none" stroke="url(#gaea-logo-light-ring)" stroke-width="48" stroke-linecap="round"/>
+  <path d="M268 256 H382" fill="none" stroke="url(#gaea-logo-light-ring)" stroke-width="48" stroke-linecap="round"/>
+  <circle cx="270" cy="256" r="78" fill="url(#gaea-logo-light-halo)"/>
+  <circle cx="270" cy="256" r="50" fill="url(#gaea-logo-light-core)"/>
+  <ellipse cx="256" cy="240" rx="16" ry="10" fill="#FFFFFF" opacity="0.65"/>
 </svg>

@@ -11,6 +11,8 @@
 | gaea-convergence-plan-2026-09.md | 🔄 **收敛期叠加层（活跃）**：30 天卫生/外化/止血刀 + 节奏改革；冲突时以「不加新板块」为先 |
 | gaea-competitive-landscape-2026.md | 竞品格局与差异化定位（参考基线 2026-08-29，注意时效） |
 | gaea-cost-domain-survey-2026-09.md | 造价域现状基线（file:line；**校正 roadmap §15 过时欠账描述**：AI 组价 v4.2 已在产）+ 造价刀路池 |
+| gaea-board-outlook-agent-contract-2026-09.md | 🔄 **未来展望（迭代方向）**：本地把活干完+造价私人记忆+书斋/闲庭隔离；对话无审阅制；模型中心=云×本地一级总闸（覆盖 roadmap §10.3 降设置） |
+| gaea-outlook-longterm-plan-2026-09.md | 🔄 **长期规划（阶段性）**：接通已有→总闸画面→造价开口→闲庭同一人设；主路径读过才写出口；与 nextgen 冲突时以展望+本文为准 |
 
 ## 域方案
 

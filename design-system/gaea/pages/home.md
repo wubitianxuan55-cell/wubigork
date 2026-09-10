@@ -1,10 +1,13 @@
-# gaea 板块蓝图 · home 首页启动器（v4「星枢港 · 双舷驾驶舱」；v4.52 能力矩阵收整）
+# gaea 板块蓝图 · home 首页启动器（书斋案头 / 闲庭园庭）
 
 > 覆盖 MASTER（页面级优先）。实施参考 docs/2026-08-15-gaea3-ui-design-system.md §3/§4。
-> v4（2026-09-03 重构，ui-ux-pro-max AI-Native UI 范式）：从 v3「五段纵排中庭」
-> 升级为**双舷驾驶舱**——左舷主工作台一屏尽收，右舷状态侧栏聚合全部遥测。
-> v4.52（2026-09-03 收整）：编程瓦片升级为 span 4×1 宽瓦片（门廊条形态回归），
-> 能力矩阵 6 列 30 单位 = 5 行整除，清偿 judge 非阻塞欠账（末行右侧空位）。
+>
+> **当前态**：`ModuleLauncher` 按 `space` 分发两套首页。
+> - 书斋（work）案头：命令条是工具，最近文档是主角，旗舰+目录是索引，右栏仪表。
+> - 闲庭（play）园庭：左问候/续聊，右会客厅横幅，房间不对称，园底进度/记忆/遥测。
+> 契约：`ml-space-*` / `desk-recent-docs` / `ml-space-chip` / `.garden-banner`。
+>
+> 下文保留 v4「星枢港」历史骨架（能力矩阵单位核算），与当前渲染不完全一致。
 
 ## 现状（facts）
 - 组件：`frontend/src/components/ModuleLauncher.tsx`（ml-dock 双舷网格）

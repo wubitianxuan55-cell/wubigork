@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react'
-import { Button, Modal, message } from 'antd'
+import { Modal, message } from 'antd'
 import { AIConsole } from '../components/novel/AIConsole'
 import NovelSidebar from '../components/novel/NovelSidebar'
 import NovelInspector from '../components/novel/NovelInspector'
@@ -48,7 +48,7 @@ const tabItems = [
   { key: 'chapter', icon: <BookOutlined />, label: '阅读', component: ChapterPage },
 ] as const
 
-/** 世界构建工作台：轨道式细条子导航 + 3 分区（侧栏 / 主视图 / 属性 inspector） */
+/** 书房工坊：身份头栏 + 模式轨 + 按页显隐的分区工作台 */
 const NovelPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<NovelTab>(loadActiveTab)
   const [sideCollapsed, setSideCollapsed] = useState<boolean>(() => loadCollapsed(NOVEL_SIDE_KEY))
@@ -56,7 +56,6 @@ const NovelPage: React.FC = () => {
   const [activeChapterId, setActiveChapterId] = useState('')
   const [stats, setStats] = useState<{ totalWords: number; chapterCount: number } | null>(null)
   const [focusMode, setFocusMode] = useState(false)
-  // v4.3g 书封生成：生成中 / 最近一次封面路径 / 预览弹窗
   const [coverBusy, setCoverBusy] = useState(false)
   const [coverPath, setCoverPath] = useState('')
   const [coverPreviewOpen, setCoverPreviewOpen] = useState(false)
@@ -86,7 +85,6 @@ const NovelPage: React.FC = () => {
     })
   }
 
-  // 项目/大纲变化：刷新大纲与创作统计（侧栏与检查器共用）
   useEffect(() => {
     if (!projectPath) { setStats(null); return }
     void loadOutlines()
@@ -97,7 +95,6 @@ const NovelPage: React.FC = () => {
     }).catch(() => { /* 统计失败不阻塞 */ })
   }, [projectPath, loadOutlines])
 
-  // 阅读页上报当前章节 → 大纲树激活项同步（空 detail 清空激活）
   useEffect(() => {
     const handler = (e: Event) => {
       const id = (e as CustomEvent<{ id?: string }>).detail?.id
@@ -107,7 +104,6 @@ const NovelPage: React.FC = () => {
     return () => window.removeEventListener('novel:chapter-active', handler)
   }, [])
 
-  // 阅读页专注模式 → 壳层收起左右 zone（沉浸书写）
   useEffect(() => {
     const handler = (e: Event) => {
       const active = (e as CustomEvent<{ active?: boolean }>).detail?.active
@@ -117,7 +113,6 @@ const NovelPage: React.FC = () => {
     return () => window.removeEventListener('novel:focus-mode', handler)
   }, [])
 
-  // 书架卡「继续阅读」→ 切到阅读 tab（HomePage 派发 novel:goto-tab）
   useEffect(() => {
     const handler = (e: Event) => {
       const tab = (e as CustomEvent<{ tab?: NovelTab }>).detail?.tab
@@ -127,7 +122,6 @@ const NovelPage: React.FC = () => {
     return () => window.removeEventListener('novel:goto-tab', handler)
   }, [])
 
-  // 侧栏大纲点击 → 切到阅读 tab 并定位章节（ChapterPage 监听 novel:open-chapter）
   const handleOpenChapter = useCallback((node: OutlineNode) => {
     changeTab('chapter')
     window.dispatchEvent(new CustomEvent('novel:open-chapter', { detail: { node } }))
@@ -135,8 +129,6 @@ const NovelPage: React.FC = () => {
 
   const sortedOutlines = React.useMemo(() => sortNodes(outlines), [outlines])
 
-  // ── v4.3g 书封生成：调 bridge 的 GenerateBookCover（play 空间 GaeaGenerateBookCover），
-  // 返回本地封面路径；成功后 toast 并打开预览弹窗（本地路径经 PortraitImg/AttachmentDataURL 预览）。 ──
   const handleGenerateCover = async () => {
     if (!projectPath || coverBusy) return
     setCoverBusy(true)
@@ -154,34 +146,51 @@ const NovelPage: React.FC = () => {
 
   return (
     <div className="novel-hub" data-novel-tab={activeTab} data-novel-focus={focusMode ? '1' : '0'}>
-      {/* 轨道式细条子导航（对齐 v3 轨道语言：激活 = 主色容器 + 光条） */}
-      <nav className="novel-subnav" aria-label="小说板块">
-        {tabItems.map((t) => (
-          <button
-            key={t.key}
-            type="button"
-            className={`novel-subnav-item${activeTab === t.key ? ' is-active' : ''}`}
-            onClick={() => changeTab(t.key)}
-            aria-current={activeTab === t.key ? 'page' : undefined}
-          >
-            {t.icon}
-            {t.label}
-          </button>
-        ))}
-        <span style={{ flex: 1 }} />
-        <Button
-          size="small"
-          icon={<PictureOutlined />}
-          loading={coverBusy}
-          disabled={!projectPath}
-          onClick={() => void handleGenerateCover()}
-          title="为当前项目生成书封（3:4 竖版）"
-        >
-          生成封面
-        </Button>
-      </nav>
+      <header className="novel-atelier-bar">
+        <div className="novel-atelier-identity">
+          <span className="novel-atelier-kicker">书房</span>
+          <span className="novel-atelier-title">
+            {projectTitle || '未打开小说'}
+          </span>
+          {projectPath && stats ? (
+            <span className="novel-atelier-meta">
+              {stats.chapterCount} 章 · {stats.totalWords.toLocaleString()} 字
+            </span>
+          ) : (
+            <span className="novel-atelier-meta">打开或新建一部小说</span>
+          )}
+        </div>
 
-      {/* 3 分区工作台：侧栏 zone | 主视图 zone | 属性 inspector zone */}
+        <nav className="novel-subnav" aria-label="小说板块">
+          {tabItems.map((t) => (
+            <button
+              key={t.key}
+              type="button"
+              className={`novel-subnav-item${activeTab === t.key ? ' is-active' : ''}`}
+              onClick={() => changeTab(t.key)}
+              aria-current={activeTab === t.key ? 'page' : undefined}
+            >
+              {t.icon}
+              {t.label}
+            </button>
+          ))}
+        </nav>
+
+        <div className="novel-atelier-actions">
+          <button
+            type="button"
+            className="novel-atelier-iconbtn"
+            disabled={!projectPath || coverBusy}
+            onClick={() => void handleGenerateCover()}
+            aria-label="为当前项目生成书封"
+            title="为当前项目生成书封（3:4 竖版）"
+          >
+            <PictureOutlined aria-hidden />
+            {coverBusy ? '生成中' : '封面'}
+          </button>
+        </div>
+      </header>
+
       <div className="novel-workspace">
         <NovelSidebar
           outlines={sortedOutlines}
@@ -194,18 +203,22 @@ const NovelPage: React.FC = () => {
           projectPath={projectPath}
           stats={stats}
         />
-        <div className="v3-grip" aria-hidden="true" />
+        <div className="v3-grip novel-grip-side" aria-hidden="true" />
 
         <main className="v3-zone novel-main-zone">
-          {/* 各子页保持挂载，按需显示（切换不丢失状态） */}
           {tabItems.map((t) => (
-            <div key={t.key} style={{ display: activeTab === t.key ? 'flex' : 'none', flex: 1, minWidth: 0, minHeight: 0 }}>
-              <React.Suspense fallback={null}><t.component /></React.Suspense>
+            <div
+              key={t.key}
+              className={`novel-tab-pane${activeTab === t.key ? ' is-active' : ''}`}
+            >
+              <React.Suspense fallback={<div className="novel-tab-skeleton" aria-hidden />}>
+                <t.component />
+              </React.Suspense>
             </div>
           ))}
         </main>
 
-        <div className="v3-grip" aria-hidden="true" />
+        <div className="v3-grip novel-grip-inspector" aria-hidden="true" />
         <NovelInspector
           activeTab={activeTab}
           collapsed={inspectorCollapsed}
@@ -215,10 +228,8 @@ const NovelPage: React.FC = () => {
         />
       </div>
 
-      {/* 小说专属：AI 控制台（右上角悬浮） */}
       <AIConsole />
 
-      {/* 书封预览（v4.3g 生成封面）：展示缩略图 + 本地路径 */}
       <Modal
         open={coverPreviewOpen}
         onCancel={() => setCoverPreviewOpen(false)}
@@ -227,23 +238,13 @@ const NovelPage: React.FC = () => {
         width={420}
       >
         {coverPath ? (
-          <div style={{ textAlign: 'center' }}>
+          <div className="novel-cover-preview">
             <PortraitImg
               src={coverPath}
               alt="书封"
-              style={{ maxWidth: 300, width: '100%', borderRadius: 8 }}
+              className="novel-cover-preview-img"
             />
-            <div
-              style={{
-                marginTop: 12,
-                fontSize: 11,
-                color: 'var(--color-text-secondary)',
-                textAlign: 'left',
-                wordBreak: 'break-all',
-              }}
-            >
-              {coverPath}
-            </div>
+            <div className="novel-cover-preview-path">{coverPath}</div>
           </div>
         ) : null}
       </Modal>

@@ -456,9 +456,9 @@ const CreatePage: React.FC = () => {
   }, [activeChapterNum])
 
   return (
-    <div className="novel-workspace">
+    <div className="novel-create-root">
       {aiTaste && (
-        <div style={{ marginBottom: 8 }}>
+        <div className="novel-create-alert">
           <Alert
             type={aiTaste.score >= 60 ? 'warning' : aiTaste.score >= 35 ? 'info' : 'success'}
             showIcon
@@ -471,13 +471,14 @@ const CreatePage: React.FC = () => {
           />
         </div>
       )}
-      <div style={{ marginBottom: 8 }}>
+      <div className="novel-create-rail">
         <Button size="small" onClick={() => { setStateOpen(true); void loadState() }}>叙事状态</Button>
-        <Button size="small" style={{ marginLeft: 8 }} loading={stateBusy} onClick={() => void deslopChapter()}>一键去味</Button>
-        <Button size="small" style={{ marginLeft: 8 }} loading={stateBusy} onClick={() => void llmDeslop()}>高级去味</Button>
-        <Button size="small" style={{ marginLeft: 8 }} loading={graphBusy} onClick={() => void openGraph()}>全文脑图</Button>
-        <span style={{ marginLeft: 8, fontSize: 12, color: 'var(--color-text-secondary)' }}>{stateMsg}</span>
+        <Button size="small" loading={stateBusy} onClick={() => void deslopChapter()}>一键去味</Button>
+        <Button size="small" loading={stateBusy} onClick={() => void llmDeslop()}>高级去味</Button>
+        <Button size="small" loading={graphBusy} onClick={() => void openGraph()}>全文脑图</Button>
+        {stateMsg ? <span className="novel-create-rail-msg">{stateMsg}</span> : null}
       </div>
+      <div className="novel-workspace">
       <ChapterTreePanel flatNodes={flatNodes} activeId={activeId} nextChapterNum={nextMainChapterNum}
         onSelect={selectChapter} onRegenerate={handleRegenerate} onDelete={handleDelete}
         onAddNext={handleAddNext} onGenerateNext={() => openWizard(lastMainChapter)} />
@@ -497,6 +498,7 @@ const CreatePage: React.FC = () => {
         onDirectGenerate={handleDirectGenerate} onOpenWizard={openWizard}
         prevChapterHint={activeNode?.order_index || lastMainChapter}
         stats={stats} chapterCount={flatNodes.length} />
+      </div>
       <NewCharactersModal />
       <BranchWizardModal open={!!wizard && wizardBranches.length > 0}
         prevChapter={wizard?.prevChapter ?? 0} overwriteChapter={wizard?.overwriteChapter ?? 0}
