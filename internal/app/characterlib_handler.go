@@ -153,20 +153,26 @@ func (a *App) CharacterDelete(id string) error {
 	return a.charLib.Delete(id)
 }
 
-// CharacterImportProject 把当前小说项目的 characters.json 导入全局库并建立引用（幂等）。
-func (a *App) CharacterImportProject() (int, error) {
+// CharacterImportProject 把当前小说项目的 characters.json 导入全局库并建立引用
+// （幂等；已有角色只做描述性空字段补全，不覆盖）。返回 {imported, filled} 供
+// UI 诚实回执——阶段四出口②的显式回写通道。
+func (a *App) CharacterImportProject() (map[string]interface{}, error) {
 	pm := a.getPM()
 	if pm == nil {
-		return 0, fmt.Errorf("请先打开小说项目")
+		return nil, fmt.Errorf("请先打开小说项目")
 	}
 	if a.charLib == nil {
-		return 0, fmt.Errorf("角色库未初始化")
+		return nil, fmt.Errorf("角色库未初始化")
 	}
 	cf, err := pm.ReadCharacters()
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
-	return a.charLib.ImportProjectCharacters(pm.Dir, cf.Characters)
+	imported, filled, err := a.charLib.ImportProjectCharacters(pm.Dir, cf.Characters)
+	if err != nil {
+		return nil, err
+	}
+	return map[string]interface{}{"imported": imported, "filled": filled}, nil
 }
 
 // CharacterListByProject 当前项目已引用的角色。

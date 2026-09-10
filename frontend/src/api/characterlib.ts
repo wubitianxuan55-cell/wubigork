@@ -64,8 +64,8 @@ export async function deleteCharacter(id: string): Promise<void> {
   return app.CharacterDelete(id)
 }
 
-/** 把当前小说项目 characters.json 导入全局库并建立引用 */
-export async function importProjectCharacters(): Promise<number> {
+/** 把当前小说项目 characters.json 导入全局库并建立引用（已有角色只补空字段） */
+export async function importProjectCharacters(): Promise<{ imported: number; filled: number }> {
   return app.CharacterImportProject()
 }
 

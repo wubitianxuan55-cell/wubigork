@@ -106,9 +106,9 @@ func TestCharacterImportAssociateSyncProject(t *testing.T) {
 		t.Fatalf("写角色文件: %v", err)
 	}
 
-	n, err := a.CharacterImportProject()
-	if err != nil || n != 1 {
-		t.Fatalf("导入项目 = %d, %v", n, err)
+	report, err := a.CharacterImportProject()
+	if err != nil || report["imported"] != 1 {
+		t.Fatalf("导入项目 = %v, %v", report, err)
 	}
 	// 同一角色可被第二个项目引用
 	dir2 := filepath.Join(t.TempDir(), "novelB")
@@ -335,9 +335,9 @@ func TestSaveCharactersBatchStaysInProject(t *testing.T) {
 	}
 
 	// 3. 手动「一次性迁移」后：全局库可查 + 项目建立引用
-	n, err := a.CharacterImportProject()
-	if err != nil || n != 2 {
-		t.Fatalf("手动迁移 = %d, want 2 (err=%v)", n, err)
+	report, err := a.CharacterImportProject()
+	if err != nil || report["imported"] != 2 {
+		t.Fatalf("手动迁移 = %v, want imported 2 (err=%v)", report, err)
 	}
 	for _, ch := range created {
 		lib, err := a.charLib.Get(ch.ID)

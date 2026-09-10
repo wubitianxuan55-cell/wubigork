@@ -211,12 +211,21 @@ export function useImageGenConfig() {
   }, [backend, pollable])
 
   // T2 角色参考槽 v0：选定角色 → 取第一张参考图 → 自动切图生图载入（ComfyUI/Herdsman）。
+  // 阶段四出口①（外观锚点单一来源，docs/gaea-character-domain-survey-2026-09.md）：
+  // 库内参考图为空时回退读 Appearance 文案并入提示词——不静默空槽，无图也不硬切图生图。
   const applyRefCharacter = useCallback(async (id: string) => {
     try {
       const detail = await getCharacter(id)
       const refs = detail?.character?.referenceImages || []
       if (refs.length === 0) {
-        message.warning('该角色暂无参考图，请先在角色库添加')
+        const appearance = String(detail?.character?.appearance || '').trim()
+        if (appearance) {
+          const text = `${detail?.character?.name || ''}：${appearance}`
+          setPrompt((p) => (p ? `${p}，${text}` : text))
+          message.info(`「${detail?.character?.name || '该角色'}」暂无参考图，已把文字设定并入提示词（角色库补参考图后可用图生图）`)
+          return
+        }
+        message.warning('该角色暂无参考图与文字设定，请先在角色库补全')
         return
       }
       const resolved: string[] = []

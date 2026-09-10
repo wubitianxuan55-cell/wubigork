@@ -278,11 +278,13 @@ const CharacterPage: React.FC = () => {
 
   const handleImportLegacy = async () => {
     try {
-      const n = await importProjectCharacters()
+      const { imported, filled } = await importProjectCharacters()
       await loadRefs()
-      message.success(`已将 ${n} 个旧项目角色一次性迁入角色库（后续本书只引用角色库）`)
+      const parts = [`新迁入 ${imported} 个`]
+      if (filled > 0) parts.push(`补全 ${filled} 个角色的空缺设定（已有设定未覆盖）`)
+      message.success(`回写完成：${parts.join('，')}（本书此后只引用角色库）`)
     } catch (err: unknown) {
-      message.error(errText(err, '迁移失败'))
+      message.error(errText(err, '回写失败'))
     }
   }
 
@@ -483,7 +485,8 @@ const CharacterPage: React.FC = () => {
             <section className="char-detail-col char-detail-col--local">
               <div className="char-detail-section-title">
                 <BookOutlined />本书局部设定
-                <Tag className="char-detail-section-tag">仅本小说生效</Tag>
+                {/* 阶段四出口③：关联即快照——项目内弧线/状态以本书为准 */}
+                <Tag className="char-detail-section-tag">仅本小说生效 · 与角色库互不影响</Tag>
               </div>
               <div className="char-detail-form">
                 <div className="char-detail-form-item">

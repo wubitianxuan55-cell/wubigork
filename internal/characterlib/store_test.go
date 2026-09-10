@@ -135,14 +135,14 @@ func TestImportProjectCharacters_IdempotentAndOneWay(t *testing.T) {
 		{ID: "ch_1", Name: "林晚", RoleType: "protagonist", Arc: "崛起", Status: "Alive", Background: "孤儿"},
 		{ID: "ch_2", Name: "顾长风", RoleType: "antagonist", Arc: "堕落", Status: "Alive"},
 	}
-	n, err := s.ImportProjectCharacters("projA", chars)
-	if err != nil || n != 2 {
-		t.Fatalf("首次导入 = %d, %v", n, err)
+	imported, filled, err := s.ImportProjectCharacters("projA", chars)
+	if err != nil || imported != 2 || filled != 0 {
+		t.Fatalf("首次导入 = %d/%d, %v", imported, filled, err)
 	}
-	// 幂等重复导入
-	n, err = s.ImportProjectCharacters("projA", chars)
-	if err != nil || n != 2 {
-		t.Fatalf("重复导入 = %d, %v", n, err)
+	// 幂等重复导入：不新增不补全
+	imported, filled, err = s.ImportProjectCharacters("projA", chars)
+	if err != nil || imported != 0 || filled != 0 {
+		t.Fatalf("重复导入 = %d/%d, %v", imported, filled, err)
 	}
 
 	// 单向约束：已存在的库内角色绝不被项目数据覆盖
@@ -150,9 +150,9 @@ func TestImportProjectCharacters_IdempotentAndOneWay(t *testing.T) {
 		t.Fatalf("预置库内角色失败: %v", err)
 	}
 	reimport := []types.Character{{ID: "ch_1", Name: "林晚", RoleType: "supporting", Arc: "黑化", Background: "项目薄记录"}}
-	n, err = s.ImportProjectCharacters("projA", reimport)
-	if err != nil || n != 1 {
-		t.Fatalf("再次导入 = %d, %v", n, err)
+	imported, filled, err = s.ImportProjectCharacters("projA", reimport)
+	if err != nil || imported != 0 || filled != 0 {
+		t.Fatalf("再次导入 = %d/%d, %v", imported, filled, err)
 	}
 	c, _ := s.Get("ch_1")
 	if c.Background != "库内丰富背景" || c.Arc != "崛起" {
@@ -165,9 +165,9 @@ func TestImportProjectCharacters_IdempotentAndOneWay(t *testing.T) {
 	}
 	// 另一项目同名角色：不合并（避免 ID 重映射破坏项目内关系引用）
 	other := []types.Character{{ID: "ch_99", Name: "林晚", RoleType: "supporting"}}
-	n, err = s.ImportProjectCharacters("projB", other)
-	if err != nil || n != 1 {
-		t.Fatalf("跨项目导入 = %d, %v", n, err)
+	imported, filled, err = s.ImportProjectCharacters("projB", other)
+	if err != nil || imported != 1 || filled != 0 {
+		t.Fatalf("跨项目导入 = %d/%d, %v", imported, filled, err)
 	}
 	c99, _ := s.Get("ch_99")
 	if c99 == nil || c99.Name != "林晚" {
@@ -180,7 +180,7 @@ func TestProjectCharactersForNovel_MergesPerProjectState(t *testing.T) {
 	chars := []types.Character{
 		{ID: "ch_1", Name: "林晚", RoleType: "protagonist", Arc: "崛起", Status: "Alive", Personality: "清冷"},
 	}
-	_, _ = s.ImportProjectCharacters("projA", chars)
+	_, _, _ = s.ImportProjectCharacters("projA", chars)
 	// 项目 A 内弧线推进
 	_ = s.Associate("projA", "ch_1", "protagonist", "黑化", "Alive")
 	out, err := s.ProjectCharactersForNovel("projA")
@@ -470,5 +470,35 @@ func TestMigrateRemotePortraits(t *testing.T) {
 	}
 	if _, err := os.Stat(got.PortraitURL); err != nil {
 		t.Fatalf("迁移文件不存在: %v", err)
+	}
+}
+
+// TestImportProjectCharacters_EmptyFill 阶段四出口②：ID 命中时只补描述性空
+// 字段（非空不覆盖；RoleType/Arc/Status 不补=关联即快照），补全计数诚实。
+func TestImportProjectCharacters_EmptyFill(t *testing.T) {
+	s := newTestStore(t)
+	if err := s.Upsert(&Character{ID: "ch_e", Name: "沈青", Kind: KindCustom, Background: "库内背景", Appearance: "库内外貌"}); err != nil {
+		t.Fatal(err)
+	}
+	imported, filled, err := s.ImportProjectCharacters("projE", []types.Character{
+		{ID: "ch_e", Name: "沈青", Personality: "项目补的性格", Appearance: "项目外貌（应被拒）", Arc: "项目弧（不应进库）"},
+	})
+	if err != nil || imported != 0 || filled != 1 {
+		t.Fatalf("补全 = %d/%d, %v", imported, filled, err)
+	}
+	c, _ := s.Get("ch_e")
+	if c == nil || c.Personality != "项目补的性格" {
+		t.Fatalf("空字段应被补全: %+v", c)
+	}
+	if c.Appearance != "库内外貌" {
+		t.Errorf("非空字段不得覆盖: %+v", c)
+	}
+	if c.Arc != "" {
+		t.Errorf("状态字段不补（关联即快照）: %+v", c)
+	}
+	// 再跑一次：无空可补，filled=0（幂等）
+	imported, filled, err = s.ImportProjectCharacters("projE", []types.Character{{ID: "ch_e", Name: "沈青", Personality: "再补一次"}})
+	if err != nil || imported != 0 || filled != 0 {
+		t.Fatalf("重复补全 = %d/%d, %v", imported, filled, err)
 	}
 }

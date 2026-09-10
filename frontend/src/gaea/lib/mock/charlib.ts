@@ -30,7 +30,7 @@ export function buildCharlib(): CharlibMethods {
       // mock: no-op（浏览器开发无角色库可写）。
     },
     async CharacterImportProject() {
-      return 0;
+      return { imported: 0, filled: 0 };
     },
     async CharacterListByProject() {
       return [];

@@ -416,15 +416,18 @@ func (s *Store) ProjectIDsForCharacter(charID string) ([]string, error) {
 // ImportProjectCharacters 把项目 characters.json 的角色导入全局库并建立关联（幂等，单向）。
 // 约束：小说只是引用方——库内已存在的角色绝不被项目数据覆盖（只增不改）；
 // ID 命中 → 仅补关联；ID 不存在 → 以项目 ID 新建；不做名称合并，避免项目内 ID 重映射破坏关系引用。
-func (s *Store) ImportProjectCharacters(projectID string, chars []types.Character) (int, error) {
+// 阶段四出口②（docs/gaea-character-domain-survey-2026-09.md）：ID 命中时追加
+// **描述性空字段补全**（库内为空而副本有值才写；非空一律不动，身份/状态字段
+// RoleType/Arc/Status 不补——项目内弧线以项目为准=关联即快照），返回
+// 新导入/补全 计数供 UI 诚实回执。回写走本显式调用，不做后台自动同步。
+func (s *Store) ImportProjectCharacters(projectID string, chars []types.Character) (imported, filled int, err error) {
 	if s == nil || s.db == nil {
-		return 0, fmt.Errorf("角色库未初始化")
+		return 0, 0, fmt.Errorf("角色库未初始化")
 	}
-	count := 0
 	for _, ch := range chars {
 		target, err := s.Get(ch.ID)
 		if err != nil {
-			return count, err
+			return imported, filled, err
 		}
 		if target == nil {
 			target = &Character{ID: ch.ID, Kind: KindCustom}
@@ -442,15 +445,38 @@ func (s *Store) ImportProjectCharacters(projectID string, chars []types.Characte
 			target.Status = ch.Status
 			target.Notes = ch.Notes
 			if err := s.Upsert(target); err != nil {
-				return count, err
+				return imported, filled, err
+			}
+			imported++
+		} else {
+			// 空字段补全（仅描述性字段；非空不覆盖，单向约束不破）
+			merged := false
+			fill := func(dst *string, v string) {
+				if *dst == "" && strings.TrimSpace(v) != "" {
+					*dst = strings.TrimSpace(v)
+					merged = true
+				}
+			}
+			fill(&target.Gender, ch.Gender)
+			fill(&target.Age, ch.Age)
+			fill(&target.Personality, ch.Personality)
+			fill(&target.Background, ch.Background)
+			fill(&target.Appearance, ch.Appearance)
+			fill(&target.Figure, ch.Figure)
+			fill(&target.Motivation, ch.Motivation)
+			fill(&target.Notes, ch.Notes)
+			if merged {
+				if err := s.Upsert(target); err != nil {
+					return imported, filled, err
+				}
+				filled++
 			}
 		}
 		if err := s.Associate(projectID, target.ID, ch.RoleType, ch.Arc, ch.Status); err != nil {
-			return count, err
+			return imported, filled, err
 		}
-		count++
 	}
-	return count, nil
+	return imported, filled, nil
 }
 
 // DrawRandom 从全局库随机抽卡（小说角色面板用）。
