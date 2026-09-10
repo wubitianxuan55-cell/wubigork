@@ -378,9 +378,10 @@ function useLauncherData(): LauncherData {
 }
 
 // ─── 顶栏：空间切换器（v4.182 从 rail 迁入首页）──────────────────
-// 1B 未拍板前置（长期规划阶段一）：壳层开关=界面导航，与办公引擎空间
-// （办公侧栏 SpaceChip，写 session.space）是两回事——title 说清楚，防
-// 「切了闲庭办公工具就没了」的误解；行为变更待拍板。
+// 1B 已拍板（2026-09-10，拆开）：壳层开关=界面导航，与办公引擎空间
+// （办公侧栏 SpaceChip，写 session.space）两套是定局；切换零扰在跑的活
+// （e-check E26 锁 switchSpace 零桥接）。title 说清楚防「切了闲庭办公
+// 工具就没了」的误解。
 const SpaceSwitch: React.FC<{
   space: ShellSpace
   onSwitchSpace: (s: ShellSpace) => void

@@ -1,3 +1,6 @@
+## v4.188.0 · 1B 出口：拍板「拆开」落档 + 切换零扰契约锁（2026-09-10）
+> 用户拍板：切换时不影响现在的工作——办公板块在跑时切到小说，办公照常。即两套空间开关**拆开定局**：壳层=导航，引擎空间=办公侧栏另一件事；合并方案（切空间写 session.space+安全点重建）作废，「一年后是一个开关」画面从展望删除。**实证链**：switchSpace 纯 localStorage+React 态零桥接；keepAlive 剪枝卸载只退订流不 cancel（useChatStream 卸载收尾仅解订阅/收尾 Promise/停打字机）；GaeaCancel 只挂显式停止按钮（controller.ts）——切换对后端回合零影响，行为本就满足拍板，零行为变更。**落档**：展望契约修订（书斋「同一场活、同一套空间」句改写/迭代清单该条收口/「机器现在」注明两套是定局）、长期规划 1B 标记出口、一年后验句改为「切的是导航，管家与在跑的活不受打扰」。**守卫**：e-check 新增 E26——switchSpace 函数体零桥接调用（app./wailsApp(/GaeaSpaceActivate/noteSpaceActivated/.Cancel(/GaeaSend），违反即红。零绑定 602、零 Go 改动（版本三处外）、零 locale 变更。vitest 目标 10/10、tsc/eslint 0、e-check OK（E26 PASS）、drift PASS@602。详见 releases/v4.188.0.md。
+
 ## v4.187.0 · 1B 前置：两套空间开关 UI 说清楚（2026-09-10）
 > 长期规划阶段一 1B：合并 vs 拆开待拍板，未拍板前不改行为，唯一许可动工=把两套开关在 UI 上说清楚。首页顶栏 SpaceSwitch 两钮 title 追加「仅切换界面与导航，不影响办公引擎空间」（新增 home.spaceSwitchHint×3 语，aria 精化为「界面空间切换（书斋/闲庭）」），书斋 masthead 空间 chip 同 title；办公侧栏 SpaceChip 的 sidebar.spaceHint 开头点名「办公引擎空间（区别于首页顶栏的书斋/闲庭界面切换）」。壳层=导航（switchSpace 只改 appStore.space），引擎=GaeaSpaceActivate 写 session.space 下次重建生效——两开关同名同值正是 1B 点名混淆源。零绑定 602、零行为变更、零 Go 改动（版本三处外）。vitest +1、tsc/eslint 0、e-check OK、drift PASS@602。详见 releases/v4.187.0.md。
 

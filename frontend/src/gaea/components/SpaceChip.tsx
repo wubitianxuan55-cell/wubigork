@@ -1,7 +1,8 @@
 // SpaceChip.tsx — S4 双空间最小接线（设计 docs/gaea-space-dimension-design.md §6）：
-// 侧边栏显示当前生效空间 + 切换入口。GaeaSpaceActivate 只写配置（非法 space
-// 由 Go 侧拒绝），生效时机为下次引擎重建/重启；绑定不可用（旧后端）时整块
-// 不渲染，不影响侧边栏其余功能。
+// 侧边栏显示当前生效空间 + 切换入口。1B 已拍板（2026-09-10，拆开）：本 chip 的
+// 引擎空间与首页顶栏书斋/闲庭壳层开关是两套（壳层=导航，切换零扰在跑的活），
+// GaeaSpaceActivate 只写配置（非法 space 由 Go 侧拒绝），生效时机为下次引擎
+// 重建/重启；绑定不可用（旧后端）时整块不渲染，不影响侧边栏其余功能。
 import { useEffect, useState } from "react";
 import { Layers } from "../icons";
 import { useT } from "../lib/i18n";
