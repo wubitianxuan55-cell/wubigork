@@ -20,18 +20,16 @@ interface NovelSidebarProps {
   onOpenChapter: (node: OutlineNode) => void
   /** 跳回书架 tab */
   onGoBookshelf: () => void
-  projectTitle: string
   projectPath: string
-  stats: { totalWords: number; chapterCount: number } | null
 }
 
 /**
  * NovelSidebar — 书房工坊「左 = 目录 zone」
- * 当前书目卡 + 可交互大纲树。仅在阅读页展开（外壳按 tab 显隐）。
+ * 可交互大纲树；未开书时给去书架引导。仅在阅读页展开（外壳按 tab 显隐）。
  */
 const NovelSidebar: React.FC<NovelSidebarProps> = ({
   outlines, activeKey, collapsed, onToggleCollapse,
-  onOpenChapter, onGoBookshelf, projectTitle, projectPath, stats,
+  onOpenChapter, onGoBookshelf, projectPath,
 }) => {
   if (collapsed) {
     return (
@@ -58,20 +56,11 @@ const NovelSidebar: React.FC<NovelSidebarProps> = ({
       </div>
 
       <div className="novel-zone-body">
-        {projectPath ? (
-          <div className="novel-book-card" title={projectPath}>
-            <span className="novel-book-kicker">当前小说</span>
-            <span className="novel-book-title">{projectTitle || '未命名小说'}</span>
-            <span className="novel-book-meta">
-              <span><b>{stats?.chapterCount ?? 0}</b> 章</span>
-              <span><b>{(stats?.totalWords ?? 0).toLocaleString()}</b> 字</span>
-            </span>
-          </div>
-        ) : (
+        {projectPath ? null : (
           <div className="novel-book-card">
             <span className="novel-book-kicker">尚未打开</span>
             <span className="novel-book-title">去书架选一本书</span>
-            <Button size="small" type="primary" ghost icon={<BookOutlined />} onClick={onGoBookshelf}>
+            <Button size="small" type="primary" ghost icon={<BookOutlined aria-hidden />} onClick={onGoBookshelf}>
               去书架
             </Button>
           </div>

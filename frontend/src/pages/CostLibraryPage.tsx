@@ -98,7 +98,7 @@ function SegChip({ active, onClick, children }: { active: boolean; onClick: () =
       onClick={onClick}
       aria-current={active ? "true" : undefined}
       className={`px-2.5 h-6 rounded-full text-[11px] transition-colors ${
-        active ? "bg-accent text-white" : "bg-bg-elev text-fg-faint hover:text-fg border border-border"
+        active ? "bg-accent text-accent-fg" : "bg-bg-elev text-fg-faint hover:text-fg border border-border"
       }`}
     >
       {children}
@@ -210,7 +210,7 @@ export function CostLibraryPage() {
           </button>
           <button
             type="button"
-            className="inline-flex items-center gap-1.5 px-3 h-7 rounded-lg bg-accent text-white hover:opacity-90 hover:brightness-110 active:scale-[0.98] transition-all"
+            className="inline-flex items-center gap-1.5 px-3 h-7 rounded-lg bg-accent text-accent-fg hover:opacity-90 hover:brightness-110 active:scale-[0.98] transition-all"
             onClick={() => setEntryOpen(true)}
             title="新建一条综合单价子目"
           >

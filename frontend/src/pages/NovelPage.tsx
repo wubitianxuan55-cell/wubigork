@@ -36,8 +36,13 @@ function loadActiveTab(): NovelTab {
   return 'home'
 }
 
-function loadCollapsed(key: string): boolean {
-  try { return localStorage.getItem(key) === '1' } catch { return false }
+function loadCollapsed(key: string, fallback = false): boolean {
+  try {
+    const v = localStorage.getItem(key)
+    if (v === '1') return true
+    if (v === '0') return false
+  } catch { /* ignore */ }
+  return fallback
 }
 
 const tabItems = [
@@ -52,7 +57,7 @@ const tabItems = [
 const NovelPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<NovelTab>(loadActiveTab)
   const [sideCollapsed, setSideCollapsed] = useState<boolean>(() => loadCollapsed(NOVEL_SIDE_KEY))
-  const [inspectorCollapsed, setInspectorCollapsed] = useState<boolean>(() => loadCollapsed(NOVEL_INSPECTOR_KEY))
+  const [inspectorCollapsed, setInspectorCollapsed] = useState<boolean>(() => loadCollapsed(NOVEL_INSPECTOR_KEY, true))
   const [activeChapterId, setActiveChapterId] = useState('')
   const [stats, setStats] = useState<{ totalWords: number; chapterCount: number } | null>(null)
   const [focusMode, setFocusMode] = useState(false)
@@ -199,9 +204,7 @@ const NovelPage: React.FC = () => {
           onToggleCollapse={toggleSide}
           onOpenChapter={handleOpenChapter}
           onGoBookshelf={() => changeTab('home')}
-          projectTitle={projectTitle}
           projectPath={projectPath}
-          stats={stats}
         />
         <div className="v3-grip novel-grip-side" aria-hidden="true" />
 
@@ -244,7 +247,7 @@ const NovelPage: React.FC = () => {
               alt="书封"
               className="novel-cover-preview-img"
             />
-            <div className="novel-cover-preview-path">{coverPath}</div>
+            <div className="novel-cover-preview-path" title={coverPath}>已保存到小说目录</div>
           </div>
         ) : null}
       </Modal>

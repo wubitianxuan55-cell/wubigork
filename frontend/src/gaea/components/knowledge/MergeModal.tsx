@@ -25,7 +25,7 @@ export function MergeModal({ open, target, candidates, selected, onClose, onTogg
         <div className="flex items-center justify-end gap-2">
           <button className="px-3 h-8 rounded-lg border border-border text-fg-faint hover:text-fg hover:bg-bg-soft text-[12px]" onClick={onClose} type="button">取消</button>
           <button
-            className="px-3 h-8 rounded-lg bg-accent text-white text-[12px] hover:opacity-90 disabled:opacity-50"
+            className="px-3 h-8 rounded-lg bg-accent text-accent-fg text-[12px] hover:opacity-90 disabled:opacity-50"
             onClick={onMerge}
             disabled={selected.size === 0}
             type="button"

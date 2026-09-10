@@ -389,14 +389,14 @@
   width: 12px;
   height: 12px;
   transform: translate(0, -50%) rotate(45deg);
-  background: #1f2937;
-  border: 1px solid #111827;
+  background: var(--md-sys-color-on-surface, var(--color-text));
+  border: 1px solid var(--md-sys-color-on-surface, var(--color-text));
   z-index: 12;
 }
 .sched-milestone-tag {
   font-size: 10px;
-  color: #374151;
-  border: 1px solid #6b7280;
+  color: var(--md-sys-color-on-surface-variant, var(--color-text-secondary));
+  border: 1px solid var(--md-sys-color-outline, var(--color-border));
   border-radius: 4px;
   padding: 0 3px;
   flex-shrink: 0;

@@ -49,6 +49,8 @@ export default defineConfig([
           'appStore.ts',
           'appStore.test.ts',
           'domainColors.test.ts',
+          // 守卫测试：断言「这些硬编码 hex 已从源码消失」，hex 字面量就是判据
+          'contrast-hex.test.ts',
           // 模板/常量数据（herdsman 提示词模板、绘梦模板、聊天人格色）
           'herdsmanTemplates.ts',
           'imageTemplates.ts',

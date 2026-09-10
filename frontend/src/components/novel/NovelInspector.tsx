@@ -194,7 +194,7 @@ const NovelInspector: React.FC<NovelInspectorProps> = ({
       <div className="novel-zone-body">
         {/* 项目统计（全 tab 通用） */}
         <section className="novel-inspector-section">
-          <div className="novel-inspector-section-title"><BookOutlined />世界统计</div>
+          <div className="novel-inspector-section-title"><BookOutlined />本书</div>
           <div className="novel-inspector-item">
             <span className="novel-inspector-item-label">当前小说</span>
             <span className="novel-inspector-item-value">{projectTitle || '（未打开）'}</span>

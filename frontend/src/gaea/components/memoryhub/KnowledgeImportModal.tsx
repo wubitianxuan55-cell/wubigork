@@ -145,7 +145,7 @@ export function KnowledgeImportModal({
             取消
           </button>
           <button
-            className="inline-flex items-center gap-1 px-3 h-8 rounded-lg bg-accent text-white text-[12px] hover:opacity-90 transition-opacity disabled:opacity-50"
+            className="inline-flex items-center gap-1 px-3 h-8 rounded-lg bg-accent text-accent-fg text-[12px] hover:opacity-90 transition-opacity disabled:opacity-50"
             onClick={() => void doApply()}
             disabled={saving || confirmRows.length === 0}
           >

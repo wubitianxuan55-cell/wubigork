@@ -342,7 +342,7 @@ const RelationGraph: React.FC<RelationGraphProps> = ({
 
   if (charNodes.length === 0 && orgNodes.length === 0) {
     return (
-      <div style={{ width: '100%', height: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9ca3af', fontSize: 13 }}>
+      <div style={{ width: '100%', height: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-text-secondary)', fontSize: 13 }}>
         无数据
       </div>
     )
@@ -367,15 +367,15 @@ const RelationGraph: React.FC<RelationGraphProps> = ({
         position: 'absolute', top: 8, left: 12,
         display: 'flex', gap: 6, alignItems: 'center',
       }}>
-        <span style={{ fontSize: 10, color: '#555', pointerEvents: 'none' }}>
+        <span style={{ fontSize: 10, color: 'var(--color-text-secondary)', pointerEvents: 'none' }}>
           {Math.round(scale * 100)}%
         </span>
         {scale !== 1 && (
           <button
             onClick={handleReset}
             style={{
-              background: 'rgba(255,255,255,0.08)', border: '1px solid #333',
-              borderRadius: 4, color: '#aaa', fontSize: 10, cursor: 'pointer',
+              background: 'var(--color-surface-container)', border: '1px solid var(--color-border)',
+              borderRadius: 4, color: 'var(--color-text)', fontSize: 10, cursor: 'pointer',
               padding: '2px 6px',
             }}
           >
@@ -383,7 +383,7 @@ const RelationGraph: React.FC<RelationGraphProps> = ({
           </button>
         )}
       </div>
-      <div style={{ position: 'absolute', top: 8, right: 12, fontSize: 10, color: '#555', pointerEvents: 'none' }}>
+      <div style={{ position: 'absolute', top: 8, right: 12, fontSize: 10, color: 'var(--color-text-secondary)', pointerEvents: 'none' }}>
         🖱 拖拽平移 · 滚轮缩放 · 悬停高亮
       </div>
       {/* 图例 */}
@@ -405,14 +405,14 @@ function lighten(hex: string, percent: number): string {
 const Legend: React.FC = () => (
   <div style={{
     position: 'absolute', bottom: 12, right: 12,
-    background: 'rgba(10,10,10,0.85)', borderRadius: 8,
-    border: '1px solid #333', padding: '10px 14px',
-    fontSize: 11, color: '#9ca3af', fontFamily: 'sans-serif',
+    background: 'var(--color-surface-container-high)', borderRadius: 8,
+    border: '1px solid var(--color-border)', padding: '10px 14px',
+    fontSize: 11, color: 'var(--color-text-secondary)', fontFamily: 'sans-serif',
     pointerEvents: 'none', userSelect: 'none',
     display: 'flex', gap: 24,
   }}>
     <div>
-      <div style={{ color: '#ddd', fontWeight: 600, marginBottom: 4, fontSize: 11 }}>角色</div>
+      <div style={{ color: 'var(--color-text)', fontWeight: 600, marginBottom: 4, fontSize: 11 }}>角色</div>
       {Object.entries(roleCN).map(([k, v]) => (
         <div key={k} style={{ display: 'flex', alignItems: 'center', gap: 6, lineHeight: '18px' }}>
           <span style={{ width: 8, height: 8, borderRadius: '50%', background: roleColors[k], flexShrink: 0 }} />
@@ -421,12 +421,12 @@ const Legend: React.FC = () => (
       ))}
     </div>
     <div>
-      <div style={{ color: '#ddd', fontWeight: 600, marginBottom: 4, fontSize: 11 }}>组织</div>
+      <div style={{ color: 'var(--color-text)', fontWeight: 600, marginBottom: 4, fontSize: 11 }}>组织</div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, lineHeight: '18px' }}>
         <span style={{ width: 10, height: 10, borderRadius: '50%', background: orgColor, flexShrink: 0 }} />
         <span>势力/组织</span>
       </div>
-      <div style={{ marginTop: 6, color: '#ddd', fontWeight: 600, marginBottom: 4 }}>关系</div>
+      <div style={{ marginTop: 6, color: 'var(--color-text)', fontWeight: 600, marginBottom: 4 }}>关系</div>
       {Object.entries(relCN).map(([k, v]) => (
         <div key={k} style={{ display: 'flex', alignItems: 'center', gap: 6, lineHeight: '18px' }}>
           <span style={{ width: 12, height: 2, background: relColors[k], flexShrink: 0, borderRadius: 1 }} />

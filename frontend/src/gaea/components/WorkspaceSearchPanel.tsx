@@ -239,7 +239,7 @@ export const WorkspaceSearchPanel = memo(function WorkspaceSearchPanel({
                 aria-checked={scope === o.value}
                 className={`px-1.5 h-6 text-[10.5px] border-0 cursor-pointer transition-colors ${
                   scope === o.value
-                    ? "bg-accent text-white"
+                    ? "bg-accent text-accent-fg"
                     : "bg-bg-elev text-fg-faint hover:text-fg"
                 }`}
                 onClick={() => { scopeTouched.current = true; setScope(o.value); }}
@@ -251,7 +251,7 @@ export const WorkspaceSearchPanel = memo(function WorkspaceSearchPanel({
           </div>
           <button
             type="button"
-            className={`px-2 h-6 rounded-full text-[10.5px] transition-colors ${semantic ? "bg-accent text-white" : "bg-bg-elev text-fg-faint hover:text-fg border border-border"}`}
+            className={`px-2 h-6 rounded-full text-[10.5px] transition-colors ${semantic ? "bg-accent text-accent-fg" : "bg-bg-elev text-fg-faint hover:text-fg border border-border"}`}
             onClick={() => setSemantic((s) => !s)}
             disabled={cross}
             title="语义检索（本地 bge-m3，需先重建索引）"
@@ -260,7 +260,7 @@ export const WorkspaceSearchPanel = memo(function WorkspaceSearchPanel({
           </button>
           <button
             type="button"
-            className={`px-2 h-6 rounded-full text-[10.5px] transition-colors ${cross ? "bg-accent text-white" : "bg-bg-elev text-fg-faint hover:text-fg border border-border"}`}
+            className={`px-2 h-6 rounded-full text-[10.5px] transition-colors ${cross ? "bg-accent text-accent-fg" : "bg-bg-elev text-fg-faint hover:text-fg border border-border"}`}
             onClick={() => setCross((c) => !c)}
             title="跨库统一检索：关键词命中 + 语义跨库命中（成本/知识/办公）一次调用"
           >

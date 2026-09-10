@@ -51,8 +51,9 @@ const ProjectCardItem: React.FC<ProjectCardItemProps> = ({
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(card) } }}
       aria-label={`打开小说「${card.title}」`}
     >
-      {/* 封面渐变条 */}
       <div className={`novel-cover ${tone}`}>
+        <span className="novel-cover-spine" aria-hidden />
+        {isActive ? <span className="novel-cover-now">正在编辑</span> : null}
         <BookOutlined aria-hidden className="novel-cover-icon" />
         <span className="novel-cover-title">{card.title}</span>
       </div>
@@ -73,14 +74,14 @@ const ProjectCardItem: React.FC<ProjectCardItemProps> = ({
           <span>{card.chapter_count > 0
             ? <><b>{card.word_count.toLocaleString()}</b> 字 · <b>{card.chapter_count}</b> 章</>
             : '尚未开始写作'}</span>
-          <span aria-hidden style={{ opacity: 0.6 }}>·</span>
+          <span className="novel-shelf-meta-sep" aria-hidden>·</span>
           <span><ClockCircleOutlined aria-hidden /> {formatRelativeTime(card.last_opened_at)}</span>
         </div>
 
         {readingChapter && (
           <div className="novel-shelf-continue" title={readingChapter}>
             <ReadOutlined aria-hidden />
-            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{readingChapter}</span>
+            <span className="novel-shelf-continue-text">{readingChapter}</span>
           </div>
         )}
 
@@ -95,7 +96,7 @@ const ProjectCardItem: React.FC<ProjectCardItemProps> = ({
         <div className="novel-shelf-actions">
           {readingChapter ? (
             <Tooltip title="跳转到阅读页继续上次章节">
-              <Button size="small" type="primary" icon={<ReadOutlined />} onClick={(e) => { e.stopPropagation(); if (onContinueReading) onContinueReading(card); else onOpen(card) }}>
+              <Button size="small" type="primary" icon={<ReadOutlined aria-hidden />} onClick={(e) => { e.stopPropagation(); if (onContinueReading) onContinueReading(card); else onOpen(card) }}>
                 继续阅读
               </Button>
             </Tooltip>

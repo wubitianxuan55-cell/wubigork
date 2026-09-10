@@ -1,19 +1,25 @@
 /**
- * ModuleLauncher — 双空间首页（v6 重排版：书斋 / 闲庭，编辑部级排印）
+ * ModuleLauncher — 双空间首页（v7 重设计：书斋「文书台」/ 闲庭「游园画廊」）
  *
- * v4.183 用户反馈 v4.182 版式「太 low」——同质卡片海（8 等大 Bento 瓦片 +
- * 右舷五连盒）是模板感/廉价感的根源。重排版式（信息零删除，仅形态分化）：
- *   · 书斋（work）「文书台」：文房编辑部方向——竖排空间名书脊 + 大字 masthead
- *     + Hero 命令条（AI 打字/语音直启）+ 最近文档卷宗流水（报表式 hairline 行）
- *     + 旗舰横带 + 目录式索引清单（序号大字 + 行 hover 辉光，替代等大瓦片）
- *     + 右栏单一仪表纵栏（遥测/写作/会话/记忆/晨报 hairline 分节，不再五连盒）。
- *   · 闲庭（play）「游园画廊」：画廊展示方向（variance 8 / density 3）——居中大字标题 +
- *     会客厅旗舰横幅（月洞门圆环母题）+ 竖版海报画廊大卡（圆形徽记章 +
- *     hover 环形箭头）+ 园底单条信息带（进度/继续话题/记忆/遥测 hairline 分节）。
- * 零功能删除：遥测/写作/会话/记忆两空间均可达；晨报仍仅书斋（work 记忆红线）、
- * 最近文档仅书斋（work 语义）。数据层单源：useLauncherData 一次拉取。
- * 动效沿用 v3-rise 分阶 + hover ≤2px；reduced-motion / rAF 降级全兼容。
- * 令牌纪律：零硬编码色值，全部走 --md-sys-* / --gaea-* / --color-* / --v3-*。
+ * 设计判据（为什么 v6 仍显廉价，v7 逐条改）：
+ *   1. 到处都是「等大圆角卡片 + 描边」= 模板感源头 → v7 结构只用三种形态：
+ *      仪表条（hairline 分隔的行）、账页（表格式行 + 等宽序号）、海报墙（真正的
+ *      大小跨格，不是等大瓦片）。
+ *   2. 层级只靠字号 13/14 的微差 → v7 建立 display/lede/label/caption 四档，
+ *      display 走 clamp + 负字距，label 走宽字距，数据一律等宽数字。
+ *   3. 深度靠描边平铺 → v7 用三级色调面（surface / container / container-high）
+ *      + 精准投影（只在交互态出现），描边降到 hairline。
+ *   4. 装饰用极光斑（aurora blob）= 典型 AI 味 → v7 删除，改用色调渐变 + 序号水印
+ *      + 月洞门细环这类「版式记号」。
+ *   5. 动效只有一次性 rise → v7 保留分阶入场，补 hover 位移/描边生长（只动
+ *      transform/opacity），并给 reduced-motion 与 gaea-raf-degraded 全降级。
+ *
+ * 契约保持（测试与壳层依赖，勿改）：
+ *   ml-space-switch / ml-space-work / ml-space-play（aria-pressed + 不影响办公引擎空间
+ *   的 title）、ml-space-chip、desk-recent-docs、.garden-banner、garden-progress /
+ *   garden-sessions / garden-memory / garden-meters。数据层单源 useLauncherData，
+ *   零功能删除：遥测/写作/会话/记忆两空间均可达（晨报仅书斋=work 记忆红线）。
+ *   令牌纪律：零硬编码色值，全部走 --color-* / --md-sys-* / --gaea-* / --v3-*。
  */
 import React, { useState, useCallback, useEffect, useSyncExternalStore } from 'react'
 import {
@@ -114,8 +120,15 @@ function fmtRel(ms: number, t: Translator): string {
   return new Date(ms).toLocaleDateString()
 }
 
-/** 编辑部式节眉：图标 + 宽字距小标 + 渐隐细线 +（可选）副题 */
-const Eyebrow: React.FC<{
+/** 两位序号（水印/账页序号共用） */
+const pad2 = (n: number) => String(n).padStart(2, '0')
+
+// ════════════════════════════════════════════════════════════════════
+//  排版原语：节标 / 仪表行 / 细轨 / 气泡
+// ════════════════════════════════════════════════════════════════════
+
+/** 节标：宽字距小标 + 渐隐细线（仪器面板式节眉，不带卡片） */
+const SectionLabel: React.FC<{
   icon: React.ReactNode
   title: string
   sub?: string
@@ -128,7 +141,7 @@ const Eyebrow: React.FC<{
   </header>
 )
 
-/** 内核遥测单行（图标 + 标签/数值/副文） */
+/** 仪表行：图标 + 标签 + 数值（等宽）+ 副文 */
 const KernelRow: React.FC<{
   icon: React.ReactNode
   label: string
@@ -145,7 +158,7 @@ const KernelRow: React.FC<{
   </div>
 )
 
-/** 资源三表单行（标签 + 细轨 + 数值；≥85% 转 warning 色，色/值双传达） */
+/** 资源细轨（≥85% 转 warning 色：色 + 数值双传达） */
 const Meter: React.FC<{ label: string; pct: number | null }> = ({ label, pct }) => {
   const hot = pct != null && pct >= 85
   return (
@@ -198,7 +211,7 @@ const WritingRing: React.FC<{
       <div
         className="ml-ring"
         aria-hidden="true"
-        style={{ background: `conic-gradient(var(--gaea-glow) ${progressPercent}%, var(--color-border) 0)` }}
+        style={{ background: `conic-gradient(var(--gaea-glow) ${progressPercent}%, color-mix(in srgb, var(--color-border) 70%, transparent) 0)` }}
       >
         <div className="ml-ring-hole">
           <span className="ml-ring-num">{data.stats ? `${progressPercent}%` : '—'}</span>
@@ -270,7 +283,7 @@ const TelemetryBody: React.FC<{ data: LauncherData }> = ({ data }) => {
   )
 }
 
-/** 会话列表内容（书斋右栏行式 / 闲庭信息带 chips 式由外层形态类切换） */
+/** 会话列表内容（书斋=账页行式 / 闲庭=软胶囊 chips，由 chips 切换） */
 const SessionList: React.FC<{ sessions: SessionLite[]; onOpen: () => void; chips?: boolean }> = ({ sessions, onOpen, chips }) => {
   const t = useT()
   if (sessions.length === 0) return <div className="ml-panel-empty">{t('shell.launcher.noSessions')}</div>
@@ -377,7 +390,7 @@ function useLauncherData(): LauncherData {
   return { stats, projectOpen, monitor, recentFiles, sessions, memoryHub }
 }
 
-// ─── 顶栏：空间切换器（v4.182 从 rail 迁入首页）──────────────────
+// ─── 顶栏仪表条：空间切换器（v4.182 从 rail 迁入首页）────────────────
 // 1B 已拍板（2026-09-10，拆开）：壳层开关=界面导航，与办公引擎空间
 // （办公侧栏 SpaceChip，写 session.space）两套是定局；切换零扰在跑的活
 // （e-check E26 锁 switchSpace 零桥接）。title 说清楚防「切了闲庭办公
@@ -389,7 +402,7 @@ const SpaceSwitch: React.FC<{
 }> = ({ space, onSwitchSpace, activeModel }) => {
   const t = useT()
   return (
-    <div className="ml-topbar v3-rise v3-rise-1">
+    <div className="ml-strip v3-rise v3-rise-1">
       <div className="ml-space-switch" role="group" data-testid="ml-space-switch" aria-label={t('home.spaceSwitchAria')}>
         {SHELL_SPACES.map((s) => {
           const active = s.id === space
@@ -408,19 +421,23 @@ const SpaceSwitch: React.FC<{
           )
         })}
       </div>
-      <span className="ml-topbar-spacer" aria-hidden="true" />
+      <span className="ml-strip-rule" aria-hidden="true" />
+      <span className="ml-strip-date" aria-hidden="true">{new Date().toLocaleDateString()}</span>
+      <span className="ml-strip-spacer" aria-hidden="true" />
       {activeModel && (
-        <span className="ml-topbar-model" title={t('shell.launcher.statModel')}>
-          <RobotOutlined aria-hidden="true" /> {activeModel}
+        <span className="ml-model-chip" title={t('shell.launcher.statModel')}>
+          <span className="ml-model-dot" aria-hidden="true" />
+          <RobotOutlined aria-hidden="true" />
+          <span className="ml-model-name">{activeModel}</span>
         </span>
       )}
     </div>
   )
 }
 
-// ─── 书斋（work）：文书台 ────────────────────────────────────────
-// 竖排书脊 masthead + Hero 命令条 + 卷宗流水 + 旗舰横带 + 目录式索引 ｜
-// 右栏单一仪表纵栏（遥测/写作/会话/记忆/晨报 hairline 分节）。
+// ════════════════════════════════════════════════════════════════════
+//  书斋（work）·「文书台」——仪表条 + 版式标题 + 命令条 + 账页 + 目录 + 仪表栏
+// ════════════════════════════════════════════════════════════════════
 const DeskHome: React.FC<{
   data: LauncherData
   onNavigate: (t: LauncherTarget) => void
@@ -483,45 +500,43 @@ const DeskHome: React.FC<{
   const hasChat = !!userText || !!aiReply
 
   return (
-    <div className="ml ml-desk">
-      <div className="ml-dock">
-        {/* ═══ 左舷：顶栏 + masthead + 卷宗流水 + 索引 ═══ */}
-        <div className="ml-main">
+    <div className="ml ml-work">
+      <div className="w-dock">
+        {/* ═══ 左舷：仪表条 + 版式标题 + 命令条 + 账页 + 目录 ═══ */}
+        <div className="w-main">
           <SpaceSwitch space={space} onSwitchSpace={onSwitchSpace} activeModel={activeModel} />
 
-          <section className="desk-mast" aria-label={t('shell.launcher.heroAria')}>
-            {/* 竖排空间名书脊（编辑部签名；信息与切换器重复，aria-hidden） */}
-            <div className="desk-spine" aria-hidden="true">
-              <span className="desk-spine-text">{spaceLabel}</span>
-              <span className="desk-spine-rule" />
-            </div>
-            <div className="desk-mast-body">
-              <div className="ml-hero-tags v3-rise v3-rise-1">
-                <div className="ml-pill">
-                  <span className="ml-pill-dot" aria-hidden="true" />
-                  <span>{t('home.pill')}</span>
-                  <ArrowRightOutlined className="ml-pill-arrow" aria-hidden="true" />
-                </div>
+          <section className="w-mast" aria-label={t('shell.launcher.heroAria')}>
+            {/* 版式标题（左）+ 命令控制台（右）：非对称两栏，命令条即页面焦点 */}
+            <div className="w-mast-lead">
+              <div className="w-mast-kicker v3-rise v3-rise-1">
+                <span className="w-kicker-mark" aria-hidden="true" />
                 {spaceEntry && (
                   <span className="ml-space-chip" data-testid="ml-space-chip" title={t('home.spaceSwitchHint')}>
                     {spaceLabel}
                   </span>
                 )}
+                <span className="w-kicker-rule" aria-hidden="true" />
+                <span className="w-kicker-pill">{t('home.pill')}</span>
               </div>
-              <h1 className="ml-title v3-rise v3-rise-1">{t('home.title')}</h1>
-              <p className="ml-sub v3-rise v3-rise-1">{t('home.sub')}</p>
 
+              <h1 className="w-display v3-rise v3-rise-1">{t('home.title')}</h1>
+              <p className="w-lede v3-rise v3-rise-1">{t('home.sub')}</p>
+            </div>
+
+            <div className="w-mast-console">
               {hasChat && (
-                <div className="ml-hero-chat" aria-live="polite">
+                <div className="w-hero-chat" aria-live="polite">
                   {userText && <ChatBubble role="user" text={userText} />}
                   {aiReply && <ChatBubble role="assistant" text={aiReply} />}
                 </div>
               )}
 
-              <div className={`ml-command v3-rise v3-rise-2 ${voiceTone}`}>
-                <span className="ml-command-orb" aria-hidden="true">
-                  <span className="ml-command-orb-core" />
-                  <span className="ml-command-orb-ring" />
+              {/* 命令条：单一抬升面 + focus-within 描边（键盘可达，⌘K 提示） */}
+              <div className={`w-cmd v3-rise v3-rise-2 ${voiceTone}`}>
+                <span className="w-cmd-orb" aria-hidden="true">
+                  <span className="w-cmd-orb-core" />
+                  <span className="w-cmd-orb-ring" />
                 </span>
                 <Input
                   value={typedText}
@@ -530,46 +545,46 @@ const DeskHome: React.FC<{
                   placeholder={t('home.placeholder')}
                   aria-label={t('home.placeholder')}
                   variant="borderless"
-                  className="ml-command-input"
+                  className="w-cmd-input"
                   disabled={voice.active}
                 />
                 {voice.active ? (
                   <button
                     type="button"
-                    className="ml-voice-btn is-active"
+                    className="w-cmd-btn is-voice is-on"
                     onClick={toggleVoice}
                     aria-label={t('shell.launcher.voiceAriaEnd')}
                   >
-                    <StopOutlined /> <span className="ml-voice-btn-label">{t('shell.launcher.voiceEnd')}</span>
+                    <StopOutlined /> <span className="w-cmd-btn-label">{t('shell.launcher.voiceEnd')}</span>
                   </button>
                 ) : (
                   <button
                     type="button"
-                    className="ml-voice-btn"
+                    className="w-cmd-btn is-voice"
                     onClick={toggleVoice}
                     aria-label={t('shell.launcher.voiceAriaStart')}
                   >
-                    <AudioOutlined /> <span className="ml-voice-btn-label">{t('shell.launcher.voiceStart')}</span>
+                    <AudioOutlined /> <span className="w-cmd-btn-label">{t('shell.launcher.voiceStart')}</span>
                   </button>
                 )}
                 <button
                   type="button"
-                  className="ml-command-send"
+                  className="w-cmd-btn is-send"
                   onClick={sendTyped}
                   disabled={!typedText.trim() || voice.active}
                   aria-label={t('shell.launcher.courtyardSend')}
                 >
                   <SendOutlined />
                 </button>
-                <kbd className="ml-cmdk" title={t('home.cmdk')} aria-label={t('home.cmdk')}>⌘K</kbd>
+                <kbd className="w-kbd" title={t('home.cmdk')} aria-label={t('home.cmdk')}>⌘K</kbd>
               </div>
 
-              <div className="ml-voice-status v3-rise v3-rise-2" aria-label={t('home.voiceStatusAria', { state: voiceStateLabel })}>
-                <span className={`ml-voice-status-dot${voiceTone ? ` ${voiceTone}` : ''}`} aria-hidden="true" />
-                <span className="ml-voice-status-label">{voiceStateLabel}</span>
-                {voice.error && <span className="ml-voice-err" role="alert">{voice.error}</span>}
+              <div className="w-voice-status v3-rise v3-rise-2" aria-label={t('home.voiceStatusAria', { state: voiceStateLabel })}>
+                <span className={`w-status-dot${voiceTone ? ` ${voiceTone}` : ''}`} aria-hidden="true" />
+                <span className="w-status-label">{voiceStateLabel}</span>
+                {voice.error && <span className="w-voice-err" role="alert">{voice.error}</span>}
                 {voice.active && voice.aiSpeaking && (
-                  <button className="ml-interrupt-btn" onClick={interrupt} type="button">
+                  <button className="w-interrupt-btn" onClick={interrupt} type="button">
                     <StopOutlined /> {t('shell.launcher.voiceInterrupt')}
                   </button>
                 )}
@@ -577,53 +592,54 @@ const DeskHome: React.FC<{
             </div>
           </section>
 
-          {/* ═══ 最近文档卷宗（书斋主角：文档驱动；localStorage 单源，零新 binding）═══ */}
-          <section className="desk-docs v3-rise v3-rise-2" aria-label={t('home.recentDocs')} data-testid="desk-recent-docs">
-            <Eyebrow icon={<FileTextOutlined />} title={t('home.recentDocs')} sub={t('home.recentDocsHint')} />
+          {/* ═══ 最近文档账页（书斋主角：文档驱动；localStorage 单源，零新 binding）═══ */}
+          <section className="w-ledger v3-rise v3-rise-2" aria-label={t('home.recentDocs')} data-testid="desk-recent-docs">
+            <SectionLabel icon={<FileTextOutlined />} title={t('home.recentDocs')} />
             {data.recentFiles.length > 0 ? (
-              <ul className="ml-docs-list">
+              <ul className="w-ledger-list">
                 {data.recentFiles.map((f, i) => (
-                  <li
-                    key={`${f.path}:${i}`}
-                    className="ml-docs-row"
-                    role="button"
-                    tabIndex={0}
-                    title={t('home.recentDocsHint')}
-                    aria-label={`${f.name || f.path} — ${t('home.recentDocsHint')}`}
-                    onClick={() => onNavigate('gaea')}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault()
-                        onNavigate('gaea')
-                      }
-                    }}
-                  >
-                    <span className="ml-docs-idx" aria-hidden="true">{String(i + 1).padStart(2, '0')}</span>
-                    <span className="ml-docs-name">{f.name || f.path}</span>
-                    <span className="ml-docs-path">{f.path}</span>
-                    <ArrowRightOutlined className="ml-docs-arrow" aria-hidden="true" />
+                  <li key={`${f.path}:${i}`} className="w-ledger-row">
+                    <button
+                      type="button"
+                      className="w-ledger-btn"
+                      title={t('home.recentDocsHint')}
+                      aria-label={`${f.name || f.path} — ${t('home.recentDocsHint')}`}
+                      onClick={() => onNavigate('gaea')}
+                    >
+                      <span className="w-ledger-idx" aria-hidden="true">{pad2(i + 1)}</span>
+                      <span className="w-ledger-name">{f.name || f.path}</span>
+                      <span className="w-ledger-path">{f.path}</span>
+                      <ArrowRightOutlined className="w-ledger-arrow" aria-hidden="true" />
+                    </button>
                   </li>
                 ))}
               </ul>
             ) : (
-              <div className="ml-desk-docs-empty">{t('home.recentDocsEmpty')}</div>
+              <div className="w-empty">
+                <FileTextOutlined className="w-empty-icon" aria-hidden="true" />
+                <span className="w-empty-text">{t('home.recentDocsEmpty')}</span>
+              </div>
             )}
           </section>
 
-          {/* ═══ 能力目录：旗舰横带 + 目录式索引（序号行替代等大瓦片）═══ */}
-          <section className="desk-index" aria-label={t('home.capTitle')}>
+          {/* ═══ 能力目录：旗舰横带（序号水印）+ 双列目录（序号行替代等大瓦片）═══ */}
+          <section className="w-cap" aria-label={t('home.capTitle')}>
             <div className="v3-rise v3-rise-3">
-              <Eyebrow icon={<ThunderboltOutlined />} title={t('home.capTitle')} sub={t('home.capSub')} />
+              <SectionLabel icon={<ThunderboltOutlined />} title={t('home.capTitle')} sub={t('home.capSub')} />
             </div>
             {featuredModule && (
-              <FeaturedCard m={featuredModule} onOpen={() => onNavigate(featuredModule.key)} />
+              <FeaturedBand
+                m={featuredModule}
+                watermark={pad2(1)}
+                onOpen={() => onNavigate(featuredModule.key)}
+              />
             )}
-            <div className="desk-index-list">
+            <div className="w-index">
               {indexModules.map((m, i) => (
-                <IndexRow key={m.key} m={m} idx={i} onOpen={() => onNavigate(m.key)} />
+                <IndexItem key={m.key} m={m} idx={i + 2} onOpen={() => onNavigate(m.key)} />
               ))}
               {settingsModule && (
-                <IndexRow key={settingsModule.key} m={settingsModule} idx={indexModules.length} onOpen={() => onNavigate(settingsModule.key)} />
+                <IndexItem key={settingsModule.key} m={settingsModule} idx={indexModules.length + 2} onOpen={() => onNavigate(settingsModule.key)} />
               )}
               {indexModules.length === 0 && !featuredModule && !settingsModule && (
                 <div className="ml-col-empty v3-rise">{t('shell.launcher.noModules')}</div>
@@ -632,10 +648,10 @@ const DeskHome: React.FC<{
           </section>
         </div>
 
-        {/* ═══ 右栏：单一仪表纵栏（遥测 / 写作 / 会话 / 记忆 / 晨报，hairline 分节）═══ */}
-        <aside className="ml-side v3-rise v3-rise-3" aria-label={t('home.sideAria')}>
-          <div className="ml-rail">
-            <section className="ml-sec" aria-label={t('home.kernel')}>
+        {/* ═══ 右舷：单一仪表纵栏（遥测 / 写作 / 会话 / 记忆 / 晨报，hairline 分节）═══ */}
+        <aside className="w-rail v3-rise v3-rise-3" aria-label={t('home.sideAria')}>
+          <div className="w-rail-panel">
+            <section className="w-sec" aria-label={t('home.kernel')}>
               <div className="ml-sec-head">
                 <span className="ml-sec-icon" aria-hidden="true"><ApiOutlined /></span>
                 <span className="ml-sec-title">{t('home.kernel')}</span>
@@ -643,7 +659,7 @@ const DeskHome: React.FC<{
               <TelemetryBody data={data} />
             </section>
 
-            <section className="ml-sec" aria-label={t('shell.launcher.statWriting')}>
+            <section className="w-sec" aria-label={t('shell.launcher.statWriting')}>
               <div className="ml-sec-head">
                 <span className="ml-sec-icon" aria-hidden="true"><FileTextOutlined /></span>
                 <span className="ml-sec-title">{t('shell.launcher.statWriting')}</span>
@@ -651,7 +667,7 @@ const DeskHome: React.FC<{
               <WritingRing data={data} />
             </section>
 
-            <section className="ml-sec" aria-label={t('shell.launcher.sessions')}>
+            <section className="w-sec" aria-label={t('shell.launcher.sessions')}>
               <div className="ml-sec-head">
                 <span className="ml-sec-icon" aria-hidden="true"><ClockCircleOutlined /></span>
                 <span className="ml-sec-title">{t('shell.launcher.sessions')}</span>
@@ -659,62 +675,56 @@ const DeskHome: React.FC<{
               <SessionList sessions={data.sessions} onOpen={() => onNavigate('chat')} />
             </section>
 
-            <section className="ml-sec" aria-label={t('shell.launcher.memoryPulse')}>
+            <section className="w-sec" aria-label={t('shell.launcher.memoryPulse')}>
               <div className="ml-sec-head">
                 <span className="ml-sec-icon" aria-hidden="true"><HeartOutlined /></span>
                 <span className="ml-sec-title">{t('shell.launcher.memoryPulse')}</span>
               </div>
               <MemoryPulse memoryHub={data.memoryHub} />
             </section>
-
-            {/* 做梦 2.0 晨报（纯本地主动预取）：仅书斋渲染（只读 work 空间记忆）。 */}
-            <MorningBriefCard />
           </div>
+
+          {/* 做梦 2.0 晨报（纯本地主动预取）：仅书斋渲染（只读 work 空间记忆）。 */}
+          <MorningBriefCard />
         </aside>
       </div>
     </div>
   )
 }
 
-/** 旗舰横带（办公 · 能力目录锚点：accent 竖条 + 徽记 + 名称/描述 + 进入） */
-const FeaturedCard: React.FC<{
+/** 旗舰横带（书斋：序号水印 + 徽记 + 名称/描述 + 进入；横带而非卡片海） */
+const FeaturedBand: React.FC<{
   m: LauncherModule
+  watermark: string
   onOpen: () => void
-}> = ({ m, onOpen }) => {
+}> = ({ m, watermark, onOpen }) => {
   const Icon = resolveBoardIcon(m.icon)
   const t = useT()
   return (
-    <div
-      role="button"
-      tabIndex={0}
+    <button
+      type="button"
       aria-label={t('shell.launcher.enterWorkbench', { name: m.name })}
-      className={`desk-featured v3-card is-interactive v3-rise`}
+      className="w-flagship v3-rise"
       onClick={onOpen}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault()
-          onOpen()
-        }
-      }}
     >
-      <span className="ml-card-aurora" aria-hidden="true" />
-      <span className="desk-featured-grid" aria-hidden="true" />
-      <div className="desk-featured-icon">{Icon ? <Icon /> : null}</div>
-      <div className="desk-featured-body">
-        <div className="desk-featured-badge">{t('home.featured')}</div>
-        <div className="desk-featured-name">{m.name}</div>
-        <div className="desk-featured-desc">{m.desc}</div>
-      </div>
-      <span className="desk-featured-enter">
-        {t('shell.launcher.enterWorkbench', { name: m.name })}
-        <ArrowRightOutlined className="desk-featured-arrow" />
+      <span className="w-flagship-num" aria-hidden="true">{watermark}</span>
+      <span className="w-flagship-seam" aria-hidden="true" />
+      <span className="w-flagship-icon" aria-hidden="true">{Icon ? <Icon /> : null}</span>
+      <span className="w-flagship-body">
+        <span className="w-flagship-badge">{t('home.featured')}</span>
+        <span className="w-flagship-name">{m.name}</span>
+        <span className="w-flagship-desc">{m.desc}</span>
       </span>
-    </div>
+      <span className="w-flagship-cta">
+        {t('shell.launcher.enterWorkbench', { name: m.name })}
+        <ArrowRightOutlined className="w-flagship-arrow" aria-hidden="true" />
+      </span>
+    </button>
   )
 }
 
-/** 目录式索引行（书斋：序号 + 徽记 + 名称 + 描述 + 悬浮箭头；替代等大瓦片） */
-const IndexRow: React.FC<{
+/** 目录式索引项（书斋：序号 + 徽记 + 名称 + 描述；hover 描边生长 + 位移） */
+const IndexItem: React.FC<{
   m: LauncherModule
   idx: number
   onOpen: () => void
@@ -722,32 +732,29 @@ const IndexRow: React.FC<{
   const Icon = resolveBoardIcon(m.icon)
   const t = useT()
   return (
-    <div
-      role="button"
-      tabIndex={0}
+    <button
+      type="button"
       aria-label={t('shell.launcher.enterModule', { name: m.name })}
-      className="desk-row v3-rise"
-      style={{ animationDelay: `${220 + idx * 45}ms` } as React.CSSProperties}
+      className="w-index-item v3-rise"
+      style={{ animationDelay: `${200 + (idx - 2) * 40}ms` } as React.CSSProperties}
       onClick={onOpen}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault()
-          onOpen()
-        }
-      }}
     >
-      <span className="desk-row-num" aria-hidden="true">{String(idx + 1).padStart(2, '0')}</span>
-      <span className="desk-row-icon" aria-hidden="true">{Icon ? <Icon /> : null}</span>
-      <span className="desk-row-name">{m.name}</span>
-      <span className="desk-row-desc">{m.desc}</span>
-      <ArrowRightOutlined className="desk-row-arrow" aria-hidden="true" />
-    </div>
+      <span className="w-index-num" aria-hidden="true">{pad2(idx)}</span>
+      <span className="w-index-body">
+        <span className="w-index-head">
+          <span className="w-index-icon" aria-hidden="true">{Icon ? <Icon /> : null}</span>
+          <span className="w-index-name">{m.name}</span>
+        </span>
+        <span className="w-index-desc">{m.desc}</span>
+      </span>
+      <ArrowRightOutlined className="w-index-arrow" aria-hidden="true" />
+    </button>
   )
 }
 
-// ─── 闲庭（play）：游园画廊 ──────────────────────────────────────
-// 居中大字 + 月洞门旗舰横幅 + 竖版海报画廊 + 园底单条信息带。
-// 无右栏无命令条——场景由画廊选择进入，信息单行化收于园底。
+// ════════════════════════════════════════════════════════════════════
+//  闲庭（play）·「游园画廊」——月洞门标题区 + 旗舰横幅 + 海报墙 + 园底信息带
+// ════════════════════════════════════════════════════════════════════
 const GardenHome: React.FC<{
   data: LauncherData
   onNavigate: (t: LauncherTarget) => void
@@ -759,47 +766,51 @@ const GardenHome: React.FC<{
   const activeBoards = useSyncExternalStore(subscribeBoards, getActiveBoards)
   const allModules = deriveLauncherModules(activeBoards, LAUNCHER_DESC, space)
   const featuredModule = allModules.find((m) => m.key === LAUNCHER_FEATURED[space])
-  const gardenCards = allModules.filter((m) => m.key !== LAUNCHER_FEATURED[space] && m.key !== 'settings')
+  const galleryModules = allModules.filter((m) => m.key !== LAUNCHER_FEATURED[space] && m.key !== 'settings')
   const settingsModule = allModules.find((m) => m.key === 'settings')
   const spaceEntry = SHELL_SPACES.find((s) => s.id === space)
 
   return (
-    <div className="ml ml-garden">
-      <SpaceSwitch space={space} onSwitchSpace={onSwitchSpace} activeModel={activeModel} />
+    <div className="ml ml-play">
+      <div className="p-wrap">
+        <SpaceSwitch space={space} onSwitchSpace={onSwitchSpace} activeModel={activeModel} />
 
-      {/* 画廊英雄区：空间名小签 + 居中大字 + 月洞门旗舰横幅 */}
-      <section className="garden-hero" aria-label={t('home.title')}>
-        <div className="garden-hero-head v3-rise v3-rise-1">
-          {spaceEntry && (
-            <span className="garden-hero-tag" aria-hidden="true">{t(spaceEntry.labelKey) || spaceEntry.label}</span>
-          )}
-          <h1 className="ml-title">{t('home.title')}</h1>
-          <p className="ml-sub">{t('home.sub')}</p>
-        </div>
+        {/* 标题区：月洞门细环 + 居中标尺 + 大字（画廊入口感，不靠卡片堆） */}
+        <section className="p-hero" aria-label={t('home.title')}>
+          <span className="p-gate" aria-hidden="true">
+            <span className="p-gate-inner" />
+          </span>
+          <div className="p-kicker v3-rise v3-rise-1">
+            <span className="p-kicker-rule" aria-hidden="true" />
+            <span className="p-kicker-text">{spaceEntry ? (t(spaceEntry.labelKey) || spaceEntry.label) : ''}</span>
+            <span className="p-kicker-rule" aria-hidden="true" />
+          </div>
+          <h1 className="p-display v3-rise v3-rise-1">{t('home.playTitle')}</h1>
+          <p className="p-lede v3-rise v3-rise-1">{t('home.playSub')}</p>
+        </section>
+
         {featuredModule && <GardenBanner m={featuredModule} onOpen={() => onNavigate(featuredModule.key)} />}
-      </section>
 
-      {/* 画廊两列海报大卡（松密度：圆徽记 + 大标题 + 描述 + hover 环形箭头） */}
-      <section className="garden-gallery" aria-label={t('home.capTitle')}>
-        {gardenCards.map((m, i) => (
-          <GardenCard key={m.key} m={m} idx={i} onOpen={() => onNavigate(m.key)} />
-        ))}
-        {settingsModule && (
-          <GardenCard m={settingsModule} idx={gardenCards.length} onOpen={() => onNavigate(settingsModule.key)} compact />
-        )}
-        {gardenCards.length === 0 && !featuredModule && (
-          <div className="ml-col-empty v3-rise">{t('shell.launcher.noModules')}</div>
-        )}
-      </section>
+        {/* 海报墙：首张跨格大样（2×2），其余单格；<1180px 降两列，<760px 单列 */}
+        <section className="p-wall" aria-label={t('home.capTitle')}>
+          {galleryModules.map((m, i) => (
+            <GardenPoster key={m.key} m={m} idx={i} onOpen={() => onNavigate(m.key)} />
+          ))}
+          {settingsModule && (
+            <GardenPoster m={settingsModule} idx={galleryModules.length} onOpen={() => onNavigate(settingsModule.key)} compact />
+          )}
+          {galleryModules.length === 0 && !featuredModule && (
+            <div className="ml-col-empty v3-rise">{t('shell.launcher.noModules')}</div>
+          )}
+        </section>
 
-      {/* 园底单条信息带：创作进度 + 继续话题 + 记忆 + 遥测细条（hairline 分节，信息全保留） */}
-      <section className="garden-foot v3-rise v3-rise-3" aria-label={t('home.sideAria')}>
-        <div className="garden-strip">
-          <div className="garden-strip-sec" data-testid="garden-progress" aria-label={t('shell.launcher.statWriting')}>
+        {/* 园底单条信息带：创作进度 + 继续话题 + 记忆 + 遥测（hairline 分节，信息全保留） */}
+        <section className="p-foot v3-rise v3-rise-3" aria-label={t('home.sideAria')}>
+          <div className="p-foot-sec" data-testid="garden-progress" aria-label={t('shell.launcher.statWriting')}>
             <WritingRing data={data} />
           </div>
 
-          <div className="garden-strip-sec garden-strip-wide" data-testid="garden-sessions" aria-label={t('shell.launcher.sessions')}>
+          <div className="p-foot-sec" data-testid="garden-sessions" aria-label={t('shell.launcher.sessions')}>
             <div className="ml-sec-head">
               <span className="ml-sec-icon" aria-hidden="true"><ClockCircleOutlined /></span>
               <span className="ml-sec-title">{t('shell.launcher.sessions')}</span>
@@ -807,7 +818,7 @@ const GardenHome: React.FC<{
             <SessionList sessions={data.sessions} onOpen={() => onNavigate('chat')} chips />
           </div>
 
-          <div className="garden-strip-sec" data-testid="garden-memory" aria-label={t('shell.launcher.memoryPulse')}>
+          <div className="p-foot-sec" data-testid="garden-memory" aria-label={t('shell.launcher.memoryPulse')}>
             <div className="ml-sec-head">
               <span className="ml-sec-icon" aria-hidden="true"><HeartOutlined /></span>
               <span className="ml-sec-title">{t('shell.launcher.memoryPulse')}</span>
@@ -815,55 +826,47 @@ const GardenHome: React.FC<{
             <MemoryPulse memoryHub={data.memoryHub} />
           </div>
 
-          <div className="garden-strip-sec garden-strip-wide" data-testid="garden-meters" aria-label={t('home.kernel')}>
+          <div className="p-foot-sec" data-testid="garden-meters" aria-label={t('home.kernel')}>
             <div className="ml-sec-head">
               <span className="ml-sec-icon" aria-hidden="true"><ApiOutlined /></span>
               <span className="ml-sec-title">{t('home.kernel')}</span>
             </div>
             <TelemetryBody data={data} />
           </div>
-        </div>
-      </section>
+        </section>
+      </div>
     </div>
   )
 }
 
-/** 闲庭旗舰横幅（会客厅：月洞门圆环母题 + 渐变大卡 + 超大徽记 + 进入箭头） */
+/** 闲庭旗舰横幅（会客厅：层叠色调 + 巨型徽记水印 + 大标题 + 进入胶囊） */
 const GardenBanner: React.FC<{ m: LauncherModule; onOpen: () => void }> = ({ m, onOpen }) => {
   const Icon = resolveBoardIcon(m.icon)
   const t = useT()
   return (
-    <div
-      role="button"
-      tabIndex={0}
+    <button
+      type="button"
       aria-label={t('shell.launcher.enterWorkbench', { name: m.name })}
-      className="garden-banner v3-card is-interactive v3-rise v3-rise-2"
+      className="garden-banner v3-rise v3-rise-2"
       onClick={onOpen}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault()
-          onOpen()
-        }
-      }}
     >
-      <span className="ml-card-aurora" aria-hidden="true" />
-      <span className="garden-banner-gate" aria-hidden="true" />
-      <div className="garden-banner-icon">{Icon ? <Icon /> : null}</div>
-      <div className="garden-banner-body">
-        <div className="garden-banner-badge">{t('home.featured')}</div>
-        <div className="garden-banner-name">{m.name}</div>
-        <div className="garden-banner-desc">{m.desc}</div>
-      </div>
+      <span className="garden-banner-wash" aria-hidden="true" />
+      <span className="garden-banner-mark" aria-hidden="true">{Icon ? <Icon /> : null}</span>
+      <span className="garden-banner-body">
+        <span className="garden-banner-badge">{t('home.featured')}</span>
+        <span className="garden-banner-name">{m.name}</span>
+        <span className="garden-banner-desc">{m.desc}</span>
+      </span>
       <span className="garden-banner-cta">
         {t('shell.launcher.enterWorkbench', { name: m.name })}
-        <ArrowRightOutlined />
+        <ArrowRightOutlined className="garden-banner-arrow" aria-hidden="true" />
       </span>
-    </div>
+    </button>
   )
 }
 
-/** 闲庭海报大卡（竖版：圆徽记 + 名称 + 描述 + 底部环形箭头；compact = 行形态） */
-const GardenCard: React.FC<{
+/** 闲庭海报（竖版：色调底板 + 圆徽记 + 名称 + 描述 + hover 环形箭头；首张跨格） */
+const GardenPoster: React.FC<{
   m: LauncherModule
   idx: number
   onOpen: () => void
@@ -871,32 +874,34 @@ const GardenCard: React.FC<{
 }> = ({ m, idx, onOpen, compact }) => {
   const Icon = resolveBoardIcon(m.icon)
   const t = useT()
+  const hero = !compact && idx === 0
   return (
-    <div
-      role="button"
-      tabIndex={0}
+    <button
+      type="button"
       aria-label={t('shell.launcher.enterModule', { name: m.name })}
-      className={`garden-card v3-card is-interactive v3-rise${compact ? ' garden-card--compact' : ''}`}
-      style={{ animationDelay: `${180 + idx * 60}ms` } as React.CSSProperties}
+      className={`p-poster v3-rise${hero ? ' is-hero' : ''}${compact ? ' is-compact' : ''}`}
+      style={{ animationDelay: `${140 + idx * 55}ms` } as React.CSSProperties}
       onClick={onOpen}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault()
-          onOpen()
-        }
-      }}
     >
-      <span className="ml-card-aurora" aria-hidden="true" />
-      <div className="garden-card-icon">{Icon ? <Icon /> : null}</div>
-      <div className="garden-card-name">{m.name}</div>
-      {!compact && <div className="garden-card-desc">{m.desc}</div>}
-      {!compact && (
-        <div className="garden-card-foot" aria-hidden="true">
-          <span className="garden-card-go"><ArrowRightOutlined /></span>
-        </div>
+      {compact ? (
+        <>
+          <span className="p-poster-seal is-small" aria-hidden="true">{Icon ? <Icon /> : null}</span>
+          <span className="p-poster-name">{m.name}</span>
+          <span className="p-poster-desc">{m.desc}</span>
+          <ArrowRightOutlined className="p-poster-arrow" aria-hidden="true" />
+        </>
+      ) : (
+        <>
+          <span className="p-poster-plate" aria-hidden="true" />
+          <span className="p-poster-seal" aria-hidden="true">{Icon ? <Icon /> : null}</span>
+          <span className="p-poster-body">
+            <span className="p-poster-name">{m.name}</span>
+            <span className="p-poster-desc">{m.desc}</span>
+          </span>
+          <span className="p-poster-go" aria-hidden="true"><ArrowRightOutlined /></span>
+        </>
       )}
-      {compact && <ArrowRightOutlined className="garden-card-arrow" aria-hidden="true" />}
-    </div>
+    </button>
   )
 }
 

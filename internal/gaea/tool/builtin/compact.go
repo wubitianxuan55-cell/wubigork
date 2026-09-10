@@ -102,7 +102,7 @@ var compactSchema = map[string]json.RawMessage{
 	"cost_save": json.RawMessage(
 		`{"type":"object","properties":{"name":{"type":"string"},"title":{"type":"string"},"category":{"type":"string"},"unit":{"type":"string"},"price":{"type":"number"},"spec":{"type":"string"},"source":{"type":"string"},"tags":{"type":"string"},"status":{"type":"string"},"body":{"type":"string"}},"required":["title","price"]}`),
 	"cost_compose": json.RawMessage(
-		`{"type":"object","properties":{"description":{"type":"string"},"unit":{"type":"string"},"limit":{"type":"integer"}},"required":["description"]}`),
+		`{"type":"object","properties":{"description":{"type":"string"},"unit":{"type":"string"},"limit":{"type":"integer"},"mode":{"type":"string"}},"required":["description"]}`),
 	"screen_capture": json.RawMessage(
 		`{"type":"object","properties":{"region":{"type":"object","properties":{"x":{"type":"integer"},"y":{"type":"integer"},"width":{"type":"integer"},"height":{"type":"integer"}}}}}`),
 	"vision": json.RawMessage(

@@ -33,7 +33,8 @@ func (costCompose) Schema() json.RawMessage {
 "properties":{
   "description":{"type":"string","description":"清单描述，如「HP300 高频液压振动锤 300kW 履带式」"},
   "unit":{"type":"string","description":"单位（可选）：台班/吨/m³/工日等；提供时只统计同单位样本"},
-  "limit":{"type":"integer","description":"证据链条数上限（默认 8，最大 20）"}
+  "limit":{"type":"integer","description":"证据链条数上限（默认 8，最大 20）"},
+   "mode":{"type":"string","description":"推荐档：median（默认）/p25/p75/mean/conservative；未知按中位数"}
 },
 "required":["description"]
 }`)
@@ -47,6 +48,7 @@ func (costCompose) Execute(ctx context.Context, args json.RawMessage) (string, e
 		Description string `json:"description"`
 		Unit        string `json:"unit,omitempty"`
 		Limit       int    `json:"limit,omitempty"`
+		Mode        string `json:"mode,omitempty"`
 	}
 	if err := json.Unmarshal(args, &p); err != nil {
 		return "", fmt.Errorf("参数无效: %w", err)
@@ -82,7 +84,7 @@ func (costCompose) Execute(ctx context.Context, args json.RawMessage) (string, e
 		// 单位过滤把样本全排除时 band 为 nil：提示去掉 unit 重试。
 		return fmt.Sprintf("「%s」的相似条目在单位 %q 下无样本。去掉 unit 参数重试可跨单位参考。", desc, p.Unit), nil
 	}
-	rec, reason := cost.RecommendPrice(band, "median")
+	rec, reason := cost.RecommendPrice(band, strings.ToLower(strings.TrimSpace(p.Mode)))
 
 	limit := p.Limit
 	if limit <= 0 {
@@ -103,6 +105,7 @@ func (costCompose) Execute(ctx context.Context, args json.RawMessage) (string, e
 	fmt.Fprintf(&b, "| %.2f | %.2f | %.2f | %.2f | %.2f | %.2f | %d | %.1f%% | %d | %s |\n\n",
 		band.P25, band.Median, band.P75, band.Mean, band.Min, band.Max,
 		band.Samples, band.SpreadPct, band.Outliers, band.Confidence)
+	fmt.Fprintf(&b, "**三档对照**：P25 %.2f · 中位 %.2f · P75 %.2f\n\n", band.P25, band.Median, band.P75)
 	fmt.Fprintf(&b, "**推荐价**: %.2f 元（%s）\n\n", rec, reason)
 	b.WriteString("**证据链**（溯源五元组，含离群样本——定价时注意甄别）\n\n")
 	b.WriteString("| 标题 | 分类 | 单价(元) | 单位 | 来源 | 地区 | 期数 | 口径 |\n")

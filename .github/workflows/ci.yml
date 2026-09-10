@@ -75,13 +75,25 @@ jobs:
 
       - run: npm run build
 
-      # vitest 全量用例（此前未进 CI；E1-1 补齐）
-      # flaky 治理（2026-09-08）：双测试套件同机满并发时偶发 5s 超时假红，
-      # 隔离复跑即绿；整体失败后重试一次，二次仍失败则正常红。
-      - name: Frontend tests (with flaky retry)
+      # 假红治理（2026-09-10 收口）：原先对全量套件无条件「失败重试一次」——
+      # 真回归会被复跑洗白，红灯因此不可信。现在只允许**在册 flaky 文件**
+      # 隔离复跑，判据在 frontend/known-flaky.txt（当前为空）：
+      #   失败集合 ⊆ 清单 → 只复跑这些文件（绿则过、红则红）；
+      #   出现清单外失败 → 直接红，不重试。
+      # 分类器：frontend/scripts/classify-vitest-failures.mjs（含 4 组夹具自测）。
+      - name: Frontend tests (registered flaky only)
         shell: bash
         run: |
-          if ! npm run test; then
-            echo "first run failed (possibly flaky), retrying once..."
-            npm run test
+          set +e
+          npm run test -- --reporter=json --outputFile=vitest-report.json
+          code=$?
+          set -e
+          if [ $code -eq 0 ]; then
+            echo "vitest 全绿"
+            exit 0
           fi
+          node scripts/classify-vitest-failures.mjs vitest-report.json known-flaky.txt || exit 1
+          echo "在册 flaky 隔离复跑："
+          cat vitest-retry-files.txt
+          # shellcheck disable=SC2046
+          npx vitest run $(tr '\n' ' ' < vitest-retry-files.txt)

@@ -86,7 +86,7 @@ export function SelectionToComposer() {
       <button
         ref={btnRef}
         type="button"
-        className="inline-flex items-center gap-1 px-2 h-6 rounded-md bg-accent text-white text-[11px] hover:opacity-90 transition-opacity"
+        className="inline-flex items-center gap-1 px-2 h-6 rounded-md bg-accent text-accent-fg text-[11px] hover:opacity-90 transition-opacity"
         onClick={insert}
         title="把选中文本以引用块插入输入框，可编辑后发送"
       >

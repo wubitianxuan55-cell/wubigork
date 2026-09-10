@@ -1,8 +1,16 @@
-// 临时真机走查工具：CDP 9333 → Runtime.evaluate / Page.captureScreenshot
+﻿// 临时真机走查工具：CDP 9333 → Runtime.evaluate / Page.captureScreenshot
 // 用法：node .tmp/cdp-walk.mjs "<js 表达式>" [--shot out.png] [--await]
+//      [--target <url 片段>]  # 多标签时选定目标页（缺省取第一个 page）
 const list = await (await fetch("http://127.0.0.1:9333/json")).json();
-const page = list.find((t) => t.type === "page");
-if (!page) throw new Error("no page target");
+const targetIdx = process.argv.indexOf("--target");
+const targetHint = targetIdx > 0 ? process.argv[targetIdx + 1] : "";
+const pages = list.filter((t) => t.type === "page");
+const page = targetHint
+  ? pages.find((t) => (t.url ?? "").includes(targetHint))
+  : pages[0];
+if (!page) {
+  throw new Error(`no page target${targetHint ? ` matching ${targetHint}` : ""}（现有：${pages.map((p) => p.url).join(", ")}）`);
+}
 const ws = new WebSocket(page.webSocketDebuggerUrl);
 let id = 0;
 const pending = new Map();
@@ -24,6 +32,11 @@ ws.onmessage = (ev) => {
 await new Promise((res, rej) => { ws.onopen = res; ws.onerror = rej; });
 
 const arg = process.argv[2] ?? "";
+// 以 @ 开头 = 从文件读取表达式（PowerShell 5.1 传原生命令参数会吃掉内层引号，
+// 长表达式一律写文件再用 @路径 传入，避免被 shell 重写）
+const expr = arg.startsWith("@")
+  ? (await import("node:fs")).readFileSync(arg.slice(1), "utf8")
+  : arg;
 const shotIdx = process.argv.indexOf("--shot");
 const awaitMode = process.argv.includes("--await");
 const mouseIdx = process.argv.indexOf("--mouse");
@@ -60,7 +73,7 @@ if (mouseIdx > 0 || clickIdx > 0) {
   console.log(`saved ${out}`);
 } else if (arg) {
   const r = await send("Runtime.evaluate", {
-    expression: arg,
+    expression: expr,
     returnByValue: true,
     awaitPromise: awaitMode,
   });

@@ -46,7 +46,7 @@ export function CostIndicatorsView() {
           <div className="flex items-center rounded-lg border border-border bg-bg p-0.5 text-[11px]">
             <button
               type="button"
-              className={`px-2.5 h-6 rounded-md transition-colors ${group === "title" ? "bg-accent text-white" : "text-fg-faint hover:text-fg"}`}
+              className={`px-2.5 h-6 rounded-md transition-colors ${group === "title" ? "bg-accent text-accent-fg" : "text-fg-faint hover:text-fg"}`}
               onClick={() => setGroup("title")}
               title="按科目标题聚合"
             >
@@ -54,7 +54,7 @@ export function CostIndicatorsView() {
             </button>
             <button
               type="button"
-              className={`px-2.5 h-6 rounded-md transition-colors ${group === "category" ? "bg-accent text-white" : "text-fg-faint hover:text-fg"}`}
+              className={`px-2.5 h-6 rounded-md transition-colors ${group === "category" ? "bg-accent text-accent-fg" : "text-fg-faint hover:text-fg"}`}
               onClick={() => setGroup("category")}
               title="按一级分类聚合"
             >

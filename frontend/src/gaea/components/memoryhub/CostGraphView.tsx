@@ -321,7 +321,7 @@ export function CostGraphView() {
           <div className="flex items-center rounded-lg border border-border bg-bg p-0.5 text-[11px]">
             <button
               type="button"
-              className={`px-2.5 h-6 rounded-md transition-colors ${scope === "tree" ? "bg-accent text-white" : "text-fg-faint hover:text-fg"}`}
+              className={`px-2.5 h-6 rounded-md transition-colors ${scope === "tree" ? "bg-accent text-accent-fg" : "text-fg-faint hover:text-fg"}`}
               onClick={() => setScope("tree")}
               title="分类树聚合总览（每分类一个节点，金额=子树合计）"
             >
@@ -329,7 +329,7 @@ export function CostGraphView() {
             </button>
             <button
               type="button"
-              className={`px-2.5 h-6 rounded-md transition-colors ${scope === "entry" ? "bg-accent text-white" : "text-fg-faint hover:text-fg"}`}
+              className={`px-2.5 h-6 rounded-md transition-colors ${scope === "entry" ? "bg-accent text-accent-fg" : "text-fg-faint hover:text-fg"}`}
               onClick={() => setScope("entry")}
               title="以分类/项目为中心展开条目与关联"
             >

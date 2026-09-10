@@ -418,7 +418,7 @@ export function FilePreview({
               取消
             </button>
             <button
-              className="flex items-center gap-1 px-1.5 py-0.5 border-0 rounded bg-accent text-white text-[10px] cursor-pointer hover:opacity-90 disabled:opacity-50"
+              className="flex items-center gap-1 px-1.5 py-0.5 border-0 rounded bg-accent text-accent-fg text-[10px] cursor-pointer hover:opacity-90 disabled:opacity-50"
               onClick={() => void save()}
               disabled={!dirty || saveState === "saving"}
               title="保存（Ctrl+S）"

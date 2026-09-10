@@ -1,5 +1,10 @@
 import { afterEach } from 'vitest'
-import { cleanup } from '@testing-library/react'
+import { cleanup, configure } from '@testing-library/react'
+
+// 门禁可信化（2026-09-10）：@testing-library/dom 的等待预算默认 1000ms，
+// 满负载下查询会被饿死而假红。放宽到 5s（仍有上界，真回归照样红）；
+// 各用例里显式传的 { timeout: 5000 } 语义与此一致，保持不动。
+configure({ asyncUtilTimeout: 5000 })
 
 // react-window v2 的 List/Grid 内部用 ResizeObserver 测量容器与动态行高，
 // jsdom 未实现 → 空实现 polyfill（不触发回调，组件回落 defaultHeight/
@@ -67,4 +72,10 @@ if (typeof window !== 'undefined' && typeof Element !== 'undefined' && typeof (E
 
 afterEach(() => {
   cleanup()
+  // 注意（2026-09-10 实测）：不要在这里 document.body.innerHTML = ''。
+  // 用例超时后迟到的 render 确实会残留到下一个用例（表现为
+  // Found multiple elements ...），但 antd message/notification 的容器是
+  // 模块级单例：清空 body 会让后续所有 toast 落进游离节点，
+  // 一次清空实测造成 14 例「找不到提示文案」假红。残留问题改由
+  // vite.config.ts 的 maxWorkers/预算收紧从源头消除（超时不再发生）。
 })

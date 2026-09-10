@@ -5,6 +5,14 @@
 
 ## 版本状态（顶部速览）
 
+- **最新发布：v4.208.0（2026-09-10）「首页 v7 重设计：书斋「文书台」/ 闲庭「游园画廊」」**——v6 版式廉价感定位=「等大圆角卡片+描边」一种形态重复到底。**v7 结构三形态**（仪表条 hairline 行 / 账页等宽序号行 / 海报墙真大小跨格）+ **四档排印**（display clamp 负字距 / lede / body / label 宽字距，数据等宽）+ **三级色调面**（surface→container→container-high，描边退 hairline）+ 版式记号（序号水印 / 月洞门细环）取代极光斑；信息零删除，契约 testid（ml-space-* / desk-recent-docs / garden-*）全保留。**坑：CSS 重写会静默吃掉「同名 class 的规则」**——`.ml-avatar-ai` / `.ml-avatar-user` 在 HEAD 有规则、v7 新版没有（TSX 仍在用），两个头像退化为同底色；**检查配方=脚本双向比对「TSX className 集合 vs CSS 选择器集合」**，本刀跑出 3 处 TSX 无规则（2 真丢 + 1 空挂 `.p-foot-wide`）后修正。附带**门禁可信化**：CI「无条件重试一次」→「只在册 flaky 隔离复跑」（`known-flaky.txt` 现为空 + 分类器自测）、`maxWorkers` 按物理核夹 [4,8]（原按逻辑核开 ~31 worker→重组件首个 `await import` 撞超时假红）、testTimeout 30s、RTL `asyncUtilTimeout` 5s；**教训=afterEach 清 body 会打挂 antd 模块级 message 容器（实测一次 14 例假红）**，残留改由并发上限从源头消除。门禁=tsc/eslint 0 / e-check OK / drift PASS@608（零绑定）/ Go 全量 / vitest 324 文件 2799 例 / 版本三处 4.208.0 / 目检=dev(`?mock=1`)+无头 Edge CDP 两空间 ×4 档共 10 张（无横向溢出）。欠账=海报墙首张（小说）大样中段留白偏多（观感待定）；浅色主题两首页未目检；壳内真机池不变。
+
+- **v4.207.0 / v4.206.0 / v4.205.0（2026-09-10）主题令牌收口 + 小说书房工坊接线**——v4.207 深色主题硬编码深灰（RelationGraph 图例/提示、进度里程碑菱形与标签）改走 --color-text / on-surface；v4.206 33 处 `bg-accent text-white`→`text-accent-fg`（= on-primary）+ App 注入 --color-on-primary / --color-surface；v4.205 小说书架画廊接线（画廊头 + 正在编辑横条 + 书脊/角标）+ 阅读页属性检查器由 display:none 改默认可折叠（章节体检入口回来）。三刀均纯前端、绑定 608 零变更、Go 零改动。
+
+- **最新发布：v4.204.0（2026-09-10）「组价多方案对照：P25/中位/P75 当场切」**——造价刀路池 §2 半刀。价格带三档数字早就在，推荐价钉死中位数。本刀不拆逐步盖章：ComposeModal 三档格可点（aria-pressed，应用价随档，默认中位数既有用例不动）；cost_compose 增 mode 参数（未知回落中位数）+输出「三档对照」一行。绑定 608 零变更。门禁=ComposeModal 11/11（+1）/Go TestCostCompose 绿/tsc 0/eslint 0/版本三处 4.204.0。欠账=流式打字机/费率政策对照不做；含量基线等样本；壳内真机走查池不变。
+
+- **最新发布：v4.203.0（2026-09-10）「空间策略其余功能域键：总闸当场切」**——v4.190 欠账收刀：七键写路径早已通，编辑 UI 却只放 gaea 主控。本刀纯前端（绑定 608 零变更）把 chat/whisper/novel/office/characterlib/routine 拉进同一张空间策略卡：六键常显（空键灰字「未配置（维持现状）」），行级编辑闭环与 gaea 同款（带出当前值 → GaeaSpaceProfileSet(space, key, ref) → 视图随返回刷新；空串=清除；后端校验失败原样 message.error）。gaea 主控行与既有 testid 不动。阶段二总闸画面出口补齐「书斋和闲庭可以各绑各的」。门禁=StrategySection 8/8（+2）/tsc 0/eslint 0/版本三处 4.203.0。欠账=功能域×空间交叉矩阵按需另刀；壳内真机走查池不变。
+
 - **最新发布：v4.183.0（2026-09-09）「双空间首页重排版：书斋文书台/闲庭游园画廊 编辑部级排印」**——用户反馈 v4.182 版式「太 low」，定位=同质卡片海（8 等大 Bento 瓦片+右舷五连盒）是模板感根源；重排版信息零删除只动形态，ui-ux-pro-max 双查询定方向（书斋=Premium refined，闲庭=Bold gallery variance8/density3）。**书斋「文书台」**=编辑部排印：竖排空间名书脊 masthead（vertical-rl，≤900 收起）+30px 大字渐变标题（background-clip:text）+命令条（focus-within 辉光）+最近文档卷宗流水（hairline 报表行+等宽序号 hover 点亮）+旗舰横带（accent 竖条+细网格纹）+**目录式索引行**（等宽序号 01-05 两列报表 hover 辉光，替代等大瓦片）+右栏单一仪表纵栏（遥测/写作/会话/记忆/晨报 hairline 分节，去五连盒；≤1180 落底双列）。**闲庭「游园画廊」**=画廊排印：居中大字 clamp42+宽字距+空间名小签两侧渐隐线+会客厅旗舰横幅（**月洞门圆环母题**+84px 圆徽记+CTA 胶囊）+**竖版海报大卡**（62px 圆徽记+底部环形箭头 hover 滑入；设置=行形态）+园底单条信息带（进度环/继续话题 chips/记忆/遥测 hairline 四节，≤1100 折 2×2）。**结构修复（v4.182 遗留缺陷）**=M3 tertiary 角色全仓从未定义（切换器暖色恒走 fallback，闲庭与书斋实际同色）——appStore ThemeTokens 增 tertiaryContainer/onTertiaryContainer+TERTIARY 暖伴侣色表（6 预设×明暗）+getThemeTokens 合并+App.tsx 注入两 CSS 变量，契约测试锁定（12 套 tertiary 对存在且不等）。**坑**：bridge 浏览器 dev mock 优先于 window.go.main.App 桩（隔离目检须打 window.go.app+Gaea* 映射键名才走 realApp 真机路径）；晨报绑定回 JSON 字符串非对象。locale 零新增键；testid/aria 全保留（ModuleLauncher.test 3 例原样绿）。**门禁**=vitest **2746**（+1 tertiary 契约）首跑全绿/tsc 0/eslint 0/e-check OK/locale 0 死键/drift PASS@602/零 Go 改动（版本三处 sync 4.183.0 外）/build strip+冒烟 200/SHA256=a5f54c93af96605c89cec94f22cc31835f684d124552e82e360355d0ead93a09（exe 46.2MB）。目检=esbuild 隔离挂载+Edge 无头截图（书斋满数据/闲庭满数据/书斋 1000px 窄档三张）。欠账=壳内真机走查两首页观感/切换手感（真机池，含 v4.182 欠账）；浅色主题首页观感未目检。
 
 - **v4.182.0（2026-09-09）「双空间首页分版：书斋/闲庭定名 + 切换器迁首页顶栏」**——用户拍板切换按钮迁首页顶栏+两首页各有特色不要长得一样。**定名**=书斋（work，zh-TW 書齋，en Study）/闲庭（play，zh-TW 閒庭，en Lounge），三语覆盖 shell.space.*/shell.search.scope.*+space.ts 兜底 label；组件无运行时硬编码（仅注释）。**切换器迁移**=首页顶栏 SpaceSwitch（SHELL_SPACES 驱动胶囊组 aria-pressed+当前空间点击防抖+闲庭激活 tertiary 暖色令牌+右侧模型徽标，直连 MainLayout.switchSpace）；rail 顶部改竖排空间指示徽标（非交互 div+title，空间感知保留切换动作归一首页），rail 分域导航不变。**书斋「文书台」**=三栏效率台（顶栏+Hero 命令条 AI 直启+最近文档流水主角面板+能力矩阵 Bento+右舷遥测/写作/会话/记忆/晨报；density7/Flat）。**闲庭「游园画廊」**=全幅无右舷无命令条（居中标题+会客厅旗舰横幅全宽渐变大卡+板块大卡两列画廊+园底信息带；density4/Showcase）——信息零删除形态分化。ModuleLauncher 重构=useLauncherData 顶层一次拉取+DeskHome/GardenHome 两变体分发。测试=ModuleLauncher.test 3 例+CommandRail.test 更新+space.test 同步；vitest 2745/tsc 0/eslint 0/drift PASS@602/SHA256=F8B238863236F53803AB07822A1136366EEC92E97403BC5B592C1C04214E1337。欠账=壳内真机走查两首页（v4.183 重排版后合并走查）。
@@ -80,6 +88,41 @@
    所有后端子代理完成后统一执行，防止并发写覆盖。
 4. **每刀回写**：刀末把本次分线/收口经验（含教训）写回本文件与 `.gaea/progress.md`，
    让习惯持续强化；若某刀必须串行，收口时说明原因。
+
+## 交互纪律：不许用「等待」换时间（2026-09-10 用户拍板）
+
+用户原话（对上一轮执行的批评）：「后台运行的东西你为什么要等待」「在浪费我的时间」。
+耗时本身不可怕，**干等与重复**才是浪费。后续每一轮工作按下办：
+
+1. **后台任务不阻塞**：起后台任务后立刻去做别的事（改码/读文档/跑定向用例/写文档），
+   收到完成通知再取结果。**禁止起完就守着等**——那几分钟是白扔的。
+2. **重活先报 ETA 再跑**：实测耗时——全量 vitest ≈ **140s**（324 文件 2799 例）、
+   `scripts/ci.ps1` 全门禁 ≈ **5–7 分钟**（Go 全量 + 前端 lint/build/vitest）、
+   `go test ./...` ≈ **2–4 分钟**。开跑前一句话说清「跑什么、约多久」，用户可否决。
+3. **定向优先，全量收尾**：改动后先跑目标文件（3–10s）确认；全量只在交付前跑一次。
+   一轮改动 = 中间定向 + 收尾全量，**同一验证不重复跑**（上一轮全量跑了 4 遍=反例）。
+4. **超时上限按实际需要写**：不要写 900s 这种夸张数字——那是上限不是耗时，
+   只会造成「要卡你十几分钟」的观感。
+5. **不把「等待」当进度表达**：进度由已完成的具体产出说话，不由轮询次数说话。
+   用户催问时先答「在跑什么、还要多久」，再继续。
+6. **能并行就并行**：长任务是可并行的（截图取证 / 读码 / 单测互不依赖），
+   串行排队本身就是一种浪费。
+
+> 与上一节的关系：并发是**手段**（把时间省下来），本节是**约束**（别把省下的时间又等回去）。
+
+## 工装：CDP 走查与前端调试（2026-09-10 增补）
+
+- `scripts/cdp-walk.mjs` 支持 **`--target <url 片段>`**（多标签时选定目标页，缺省取第一个
+  page）与 **`@文件路径` 传入 JS 表达式**（PowerShell 5.1 传原生命令参数会吃掉内层引号，
+  长表达式一律写文件再 `@` 传入）。真机走查配方：无头 Edge
+  `--headless=new --remote-debugging-port=9333 --window-size=1440,920 --user-data-dir=<tmp>`
+  + Vite dev（`?mock=1`）→ 本脚本 eval/截图。
+- **Vite dev 缓存坑**：同一 CSS/源文件在**同一秒内的两次编辑**，mtime 粒度相同会让
+  HMR/转换缓存认不出改动（表现为浏览器仍跑旧样式，reload 也无用）。处置=改完
+  `(Get-Item file).LastWriteTime = Get-Date` 再 reload。
+- **`vitest` worker 上限**：`maxWorkers` 必须按**物理核**（≈逻辑核/2，夹 [4,8]）而不是
+  逻辑核——超配会把单用例墙钟拉到 CPU 时间的数倍，重组件首个 `await import` 直接
+  撞 `testTimeout` 假红（详见 `frontend/vite.config.ts` 注释）。
 
 ## 长期规划（权威，2026 定稿）
 

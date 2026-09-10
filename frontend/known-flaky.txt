@@ -1,0 +1,10 @@
+# 在册 flaky 测试清单（一行一个路径片段，# 注释）
+#
+# 规则：只有 vitest 全量失败集合**全部**落在此清单内，CI 才允许隔离复跑；
+# 出现任何一个清单外的失败文件即按真回归红（见 scripts/classify-vitest-failures.mjs）。
+# 登记要有理由，并附「为什么不能直接修」——能修的就修掉，不要登记。
+#
+# 当前为空：2026-09-10 收口后（vite.config.ts 的 worker 上限跟物理核走 +
+# testTimeout 30s + RTL asyncUtilTimeout 5s），连续 3 轮全量 2799/2799 通过，
+# 原 ContextView / TrajectoryView / MemoryPanel / FilePreviewModal 超时族已消除，
+# 不再需要无条件重试。

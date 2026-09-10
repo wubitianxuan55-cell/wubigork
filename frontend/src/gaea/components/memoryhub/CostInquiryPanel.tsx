@@ -36,7 +36,7 @@ const diffClass = (p: number) => {
 const fieldCls =
   "w-full bg-bg border border-border-soft rounded-md text-fg text-[12px] px-2.5 py-1.5 outline-none focus:border-accent transition-colors placeholder:text-fg-faint/50";
 const solidBtn =
-  "inline-flex items-center gap-1 px-2.5 h-7 rounded-lg bg-accent text-white text-[11.5px] hover:opacity-90 transition-opacity";
+  "inline-flex items-center gap-1 px-2.5 h-7 rounded-lg bg-accent text-accent-fg text-[11.5px] hover:opacity-90 transition-opacity";
 const iconMini =
   "inline-flex items-center justify-center w-6 h-6 rounded-md text-fg-faint hover:text-fg hover:bg-bg-soft transition-colors";
 
@@ -372,7 +372,7 @@ export function CostInquiryPanel() {
                   )}
                   <button
                     type="button"
-                    className="ml-auto shrink-0 inline-flex items-center gap-1 px-2 h-6 rounded-md bg-accent text-white text-[10.5px] hover:opacity-90 transition-opacity"
+                    className="ml-auto shrink-0 inline-flex items-center gap-1 px-2 h-6 rounded-md bg-accent text-accent-fg text-[10.5px] hover:opacity-90 transition-opacity"
                     onClick={() => void applyAdjust(s)}
                   >
                     <Save size={11} /> 更新成本库

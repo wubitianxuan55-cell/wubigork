@@ -192,12 +192,26 @@ describe("ComposeModal AI 组价", () => {
     const r = onApply.mock.calls[0][0] as ApplyResult;
     expect(r.desc).toBe("C30 混凝土浇筑");
     expect(r.unit).toBe("m³");
-    expect(r.price).toBe(1200);
+    expect(r.price).toBe(1200); // 默认中位数
     expect(r.components).toHaveLength(2);
     expect(r.components[0].title).toBe("混凝土浇筑人工");
     expect(r.evidence).toHaveLength(2);
     expect(r.evidence[0].source).toBe("四川造价信息网");
     expect(onClose).toHaveBeenCalled();
+  });
+
+  it("多方案对照：点 P25 后应用价走 P25（默认中位数不变）", async () => {
+    composeSpy.mockResolvedValue(VIEW);
+    const { onApply } = renderModal();
+    compose();
+    await screen.findByText("价格带推荐");
+    // 默认中位数档 aria-pressed
+    expect(screen.getByTestId("compose-band-median").getAttribute("aria-pressed")).toBe("true");
+    fireEvent.click(screen.getByTestId("compose-band-p25"));
+    expect(screen.getByTestId("compose-band-p25").getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getByTestId("compose-band-median").getAttribute("aria-pressed")).toBe("false");
+    fireEvent.click(screen.getByText("应用"));
+    expect((onApply.mock.calls[0][0] as ApplyResult).price).toBe(1000);
   });
 
   it("组价失败：toast warn + 弹窗内持久错误展示（可修改重试）", async () => {

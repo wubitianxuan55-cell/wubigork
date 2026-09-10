@@ -186,6 +186,12 @@ const HomePage: React.FC = () => {
     return sorted
   }, [projects, query, sortKey])
 
+  const currentCard = useMemo(
+    () => projects.find((p) => p.path === projectPath) ?? null,
+    [projects, projectPath],
+  )
+  const currentProgress = projectPath ? readReadingProgress(projectPath) : null
+
   // --- 未登录：品牌欢迎页 ---
   if (!loggedIn) {
     return <WelcomePage onLogin={login} />
@@ -193,8 +199,45 @@ const HomePage: React.FC = () => {
 
   // --- 书架视图 ---
   return (
-    <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-      {/* 工具条：搜索 / 排序 / 新建 */}
+    <div className="novel-shelf">
+      <div className="novel-shelf-head">
+        <div className="novel-shelf-identity">
+          <h1 className="novel-shelf-title">书架</h1>
+          <span className="novel-shelf-count">
+            {loadingProjects ? '…' : `${projects.length} 部`}
+          </span>
+        </div>
+      </div>
+
+      {projectOpen && (
+        <section className="novel-now-reading" aria-label="正在编辑">
+          <div>
+            <span className="novel-now-reading-kicker">正在编辑</span>
+            <h2 className="novel-now-reading-title">{projectTitle || '未命名小说'}</h2>
+            <p className="novel-now-reading-meta">
+              {currentCard
+                ? `${currentCard.chapter_count} 章 · ${currentCard.word_count.toLocaleString()} 字`
+                : '打开后可继续阅读或去创作'}
+              {currentProgress ? ` · 读到第${currentProgress.chapterNum}章` : ''}
+            </p>
+          </div>
+          <div className="novel-now-reading-actions">
+            <Button
+              type="primary"
+              icon={<ReadOutlined aria-hidden />}
+              onClick={() => window.dispatchEvent(new CustomEvent('novel:goto-tab', { detail: { tab: 'chapter' } }))}
+            >
+              继续阅读
+            </Button>
+            <Button
+              onClick={() => window.dispatchEvent(new CustomEvent('novel:goto-tab', { detail: { tab: 'create' } }))}
+            >
+              去创作
+            </Button>
+          </div>
+        </section>
+      )}
+
       <div className="novel-shelf-toolbar">
         <Input
           allowClear
@@ -212,73 +255,60 @@ const HomePage: React.FC = () => {
           size="middle"
           suffixIcon={<SortAscendingOutlined style={{ color: 'var(--color-text-secondary)' }} />}
           popupMatchSelectWidth={false}
-          style={{ width: 128 }}
+          className="novel-shelf-sort"
           aria-label="书架排序"
         />
-        {projectOpen && (
-          <span className="novel-tag-tone is-success" style={{ height: 24 }}>
-            正在编辑：{projectTitle}
-          </span>
-        )}
-        <span style={{ flex: 1 }} />
+        <span className="novel-shelf-toolbar-spacer" />
         <Button
-          icon={<UploadOutlined />}
+          icon={<UploadOutlined aria-hidden />}
           onClick={handlePickImport}
-          style={{
-            color: 'var(--color-primary)',
-            borderColor: 'var(--color-primary)',
-            borderRadius: 'var(--radius-md)',
-          }}
+          className="novel-shelf-btn"
         >
           导入小说
         </Button>
         <Button
-          type="primary" icon={<PlusOutlined />}
+          type="primary"
+          icon={<PlusOutlined aria-hidden />}
           onClick={() => { resetForm(); setNewModal(true) }}
-          style={{
-            background: 'var(--color-primary)', borderColor: 'var(--color-primary)',
-            boxShadow: 'var(--v3-glow-faint)', borderRadius: 'var(--radius-md)',
-          }}
+          className="novel-shelf-btn is-primary"
         >
           新建小说
         </Button>
       </div>
 
-      {/* 书架主区域 */}
       {loadingProjects ? (
         <div className="novel-shelf-grid">
           {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="novel-shelf-card" style={{ pointerEvents: 'none' }}>
-              <Skeleton active paragraph={{ rows: 3 }} style={{ padding: 16 }} />
+            <div key={i} className="novel-shelf-card is-skeleton" aria-hidden>
+              <Skeleton active paragraph={{ rows: 3 }} />
             </div>
           ))}
         </div>
       ) : visibleProjects.length === 0 ? (
         query.trim() ? (
-          /* 搜索无结果 */
           <div className="novel-shelf-empty">
             <SearchOutlined aria-hidden />
             <div className="novel-shelf-empty-title">没有匹配的书</div>
             <div className="novel-shelf-empty-hint">换个关键词试试</div>
           </div>
         ) : projects.length === 0 ? (
-          /* 空书架 */
           <div className="novel-shelf-empty">
             <ReadOutlined aria-hidden />
             <div className="novel-shelf-empty-title">书架空空如也</div>
             <div className="novel-shelf-empty-hint">Ctrl+N 新建你的第一本小说</div>
-            <Button type="primary" icon={<PlusOutlined />} onClick={() => { resetForm(); setNewModal(true) }}>
-              新建小说
-            </Button>
-            <Button icon={<UploadOutlined />} onClick={handlePickImport}>
-              导入成品小说
-            </Button>
+            <div className="novel-shelf-empty-actions">
+              <Button type="primary" icon={<PlusOutlined aria-hidden />} onClick={() => { resetForm(); setNewModal(true) }}>
+                新建小说
+              </Button>
+              <Button icon={<UploadOutlined aria-hidden />} onClick={handlePickImport}>
+                导入成品小说
+              </Button>
+            </div>
           </div>
         ) : (
-          <Empty description="没有可显示的小说" style={{ marginTop: 80 }} />
+          <Empty description="没有可显示的小说" className="novel-shelf-antd-empty" />
         )
       ) : (
-        /* 书架栅格 */
         <div className="novel-shelf-grid">
           {visibleProjects.map((card) => {
             const progress = readReadingProgress(card.path)

@@ -270,7 +270,7 @@ export function OfficeMemoryLibrary() {
             onClick={() => setTab(t.key)}
             className={`px-3 h-7 rounded-full text-[12px] transition-colors ${
               tab === t.key
-                ? "bg-accent text-white"
+                ? "bg-accent text-accent-fg"
                 : "text-fg-faint hover:text-fg hover:bg-bg-soft"
             }`}
           >
@@ -295,7 +295,7 @@ export function OfficeMemoryLibrary() {
                 onClick={() => setTypeFilter(t)}
                 className={`px-2.5 h-7 rounded-full text-[11.5px] transition-colors ${
                   typeFilter === t
-                    ? "bg-accent text-white"
+                    ? "bg-accent text-accent-fg"
                     : "bg-bg-elev text-fg-faint hover:text-fg border border-border"
                 }`}
               >
@@ -508,7 +508,7 @@ export function OfficeMemoryLibrary() {
             <button className="px-3 h-8 rounded-lg border border-border text-fg-faint hover:text-fg hover:bg-bg-soft text-[12px]" onClick={() => setDupOpen(false)} type="button">关闭</button>
             {dups.length > 0 && (
               <button
-                className="px-3 h-8 rounded-lg bg-accent text-white text-[12px] hover:opacity-90 disabled:opacity-50"
+                className="px-3 h-8 rounded-lg bg-accent text-accent-fg text-[12px] hover:opacity-90 disabled:opacity-50"
                 onClick={() => void doMergeAll()}
                 disabled={merging !== null}
                 type="button"

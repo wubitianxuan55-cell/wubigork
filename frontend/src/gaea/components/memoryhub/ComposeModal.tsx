@@ -13,7 +13,7 @@ const fmtPct = new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 1 });
 const fieldCls =
   "w-full bg-bg border border-border-soft rounded-md text-fg text-[12px] px-2.5 py-1.5 outline-none focus:border-accent transition-colors placeholder:text-fg-faint/50";
 const solidBtn =
-  "inline-flex items-center gap-1 px-2.5 h-7 rounded-lg bg-accent text-white text-[11.5px] hover:opacity-90 transition-opacity disabled:opacity-50";
+  "inline-flex items-center gap-1 px-2.5 h-7 rounded-lg bg-accent text-accent-fg text-[11.5px] hover:opacity-90 transition-opacity disabled:opacity-50";
 const ghostBtn =
   "inline-flex items-center gap-1 px-2.5 h-7 rounded-lg border border-border text-fg-faint hover:text-fg hover:bg-bg-soft transition-colors text-[11.5px]";
 const iconBtn =
@@ -24,6 +24,21 @@ const cellInputCls =
 
 // 人材机类别（与 CostEntryModal 的 kind 契约一致）。
 const KIND_OPTIONS = ["人工", "材料", "机械", "人工+机械"];
+
+/** 价格带三档（与 Go RecommendPrice median/p25/p75 同口径）。 */
+type BandPick = "p25" | "median" | "p75";
+
+function pickPrice(band: { p25: number; median: number; p75: number }, mode: BandPick): number {
+  if (mode === "p25") return band.p25;
+  if (mode === "p75") return band.p75;
+  return band.median;
+}
+
+function pickWord(mode: BandPick): string {
+  if (mode === "p25") return "P25 分位";
+  if (mode === "p75") return "P75 分位";
+  return "中位数";
+}
 
 // 置信度徽标配色（高/中/低，其余降级为灰）。
 const confidenceClass = (c: string) => {
@@ -61,7 +76,7 @@ function groupRowChecks(checks: { level: "warn" | "info"; row: number; msg: stri
  * 价格带推荐（P25/P50/P75/均值/离散度/离群数 + 推荐价与理由）+ 证据链相似条目表
  * + 人材机拆解（可增删改行，金额=含量×单价自动算）→ 「应用」回调父级（应用为
  * 明细行或沉淀成本库）。band=null 展示空态，失败持久展示错误可修改重试。
- * 组件行编辑不影响推荐价（推荐价来自价格带，组件是拆解明细）。
+ * 组件行编辑不影响推荐价（推荐价来自价格带三档点选，默认中位数；组件是拆解明细）。
  * v4.158 复核闭环：渲染合理性校验 checks——全局（row=-1）在拆解区上方出提示行
  * （warn 红字/info 灰字），行级按组件行下标挂徽标（warn 红点/info 灰点，title=msg）；
  * 旧响应无 checks 字段时渲染零变化。
@@ -95,6 +110,9 @@ export function ComposeModal({
   const [error, setError] = useState<string | null>(null);
   const [view, setView] = useState<CostComposeView | null>(null);
   const [components, setComponents] = useState<CostComponent[]>([]);
+  // 多方案对照（survey §2）：P25/中位/P75 点选推荐档，应用价随档走。
+  // 不拆逐步盖章——一次组价、三档对照、当场切。
+  const [bandPick, setBandPick] = useState<BandPick>("median");
 
   // 打开/换预填时重置为初始输入，清空上一次结果与错误。
   useEffect(() => {
@@ -103,6 +121,7 @@ export function ComposeModal({
     setUnit(initialUnit);
     setView(null);
     setComponents([]);
+    setBandPick("median");
     setError(null);
     setLoading(false);
   }, [open, initialDesc, initialUnit]);
@@ -116,6 +135,7 @@ export function ComposeModal({
       const v = await app.CostCompose(desc.trim(), unit.trim());
       setView(v);
       setComponents(v.components ?? []);
+      setBandPick("median");
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       setError(msg);
@@ -152,7 +172,7 @@ export function ComposeModal({
     onApply({
       desc: desc.trim(),
       unit: unit.trim(),
-      price: view.recommendedPrice,
+      price: pickPrice(view.band, bandPick),
       components,
       evidence: view.evidence,
     });
@@ -246,20 +266,45 @@ export function ComposeModal({
               </span>
             </div>
             <div className="grid grid-cols-3 gap-1.5 text-[11px]">
-              <BandStat label="P25" value={`¥${fmtPrice.format(band.p25)}`} />
-              <BandStat label="中位数 P50" value={`¥${fmtPrice.format(band.median)}`} />
-              <BandStat label="P75" value={`¥${fmtPrice.format(band.p75)}`} />
+              <BandStat
+                label="P25"
+                value={`¥${fmtPrice.format(band.p25)}`}
+                pickable
+                active={bandPick === "p25"}
+                testId="compose-band-p25"
+                onPick={() => setBandPick("p25")}
+              />
+              <BandStat
+                label="中位数 P50"
+                value={`¥${fmtPrice.format(band.median)}`}
+                pickable
+                active={bandPick === "median"}
+                testId="compose-band-median"
+                onPick={() => setBandPick("median")}
+              />
+              <BandStat
+                label="P75"
+                value={`¥${fmtPrice.format(band.p75)}`}
+                pickable
+                active={bandPick === "p75"}
+                testId="compose-band-p75"
+                onPick={() => setBandPick("p75")}
+              />
               <BandStat label="均值" value={`¥${fmtPrice.format(band.mean)}`} />
               <BandStat label="离散度" value={`${fmtPct.format(band.spreadPct)}%`} />
               <BandStat label="离群数" value={`${band.outliers} 个`} />
             </div>
             <div className="mt-2.5 flex items-baseline gap-2">
-              <span className="text-[10.5px] text-fg-faint">推荐价</span>
+              <span className="text-[10.5px] text-fg-faint">推荐价 · {pickWord(bandPick)}</span>
               <span className="text-[22px] leading-none font-bold text-amber-300 tabular-nums">
-                ¥{fmtPrice.format(view.recommendedPrice)}
+                ¥{fmtPrice.format(pickPrice(band, bandPick))}
               </span>
             </div>
-            <div className="mt-1.5 text-[10.5px] text-fg-dim leading-relaxed">{view.reason || "—"}</div>
+            <div className="mt-1.5 text-[10.5px] text-fg-dim leading-relaxed">
+              {bandPick === "median"
+                ? (view.reason || "—")
+                : `基于 ${band.samples} 条相似条目，${pickWord(bandPick)} ¥${fmtPrice.format(pickPrice(band, bandPick))}，置信度 ${band.confidence || "—"}。点分位格切换档位。`}
+            </div>
           </div>
 
           {/* 证据链 */}
@@ -436,11 +481,43 @@ function ComposeForm({
 }
 
 // ── 价格带统计格 ─────────────────────────────────────────────
-function BandStat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-md bg-bg-elev/60 px-2 py-1">
+function BandStat({
+  label,
+  value,
+  pickable,
+  active,
+  testId,
+  onPick,
+}: {
+  label: string;
+  value: string;
+  pickable?: boolean;
+  active?: boolean;
+  testId?: string;
+  onPick?: () => void;
+}) {
+  const cls = `rounded-md px-2 py-1 text-left ${
+    active ? "bg-accent/15 ring-1 ring-accent/40" : "bg-bg-elev/60"
+  }`;
+  const body = (
+    <>
       <div className="text-[9.5px] text-fg-faint">{label}</div>
       <div className="tabular-nums text-fg">{value}</div>
-    </div>
+    </>
   );
+  if (pickable && onPick) {
+    return (
+      <button
+        type="button"
+        className={`${cls} w-full`}
+        aria-pressed={active}
+        aria-label={`选用${label}作为推荐价`}
+        data-testid={testId}
+        onClick={onPick}
+      >
+        {body}
+      </button>
+    );
+  }
+  return <div className={cls}>{body}</div>;
 }

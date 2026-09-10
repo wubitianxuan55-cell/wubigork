@@ -350,7 +350,7 @@ export function CostLibraryView() {
             <div className="flex items-center rounded-lg border border-border overflow-hidden">
               <button
                 className={`inline-flex items-center gap-1 px-2 h-7 text-[11px] transition-colors ${
-                  view === "list" ? "bg-accent text-white" : "text-fg-faint hover:text-fg"
+                  view === "list" ? "bg-accent text-accent-fg" : "text-fg-faint hover:text-fg"
                 }`}
                 onClick={() => setView("list")}
                 title="列表视图"
@@ -359,7 +359,7 @@ export function CostLibraryView() {
               </button>
               <button
                 className={`inline-flex items-center gap-1 px-2 h-7 text-[11px] transition-colors ${
-                  view === "table" ? "bg-accent text-white" : "text-fg-faint hover:text-fg"
+                  view === "table" ? "bg-accent text-accent-fg" : "text-fg-faint hover:text-fg"
                 }`}
                 onClick={() => setView("table")}
                 title="表格视图"
@@ -388,7 +388,7 @@ export function CostLibraryView() {
               <CloudUpload size={12} />
             </button>
             <button
-              className="inline-flex items-center gap-1 px-2.5 h-7 rounded-lg bg-accent text-white text-[11.5px] hover:opacity-90 transition-opacity"
+              className="inline-flex items-center gap-1 px-2.5 h-7 rounded-lg bg-accent text-accent-fg text-[11.5px] hover:opacity-90 transition-opacity"
               onClick={openCreate}
             >
               <Plus size={12} /> 新建
@@ -401,7 +401,7 @@ export function CostLibraryView() {
           <div className="flex items-center gap-1 min-w-0">
             <span
               className={`px-2 h-6 rounded-full text-[11px] transition-colors cursor-pointer ${
-                selectedPath === "" ? "bg-accent text-white" : "bg-bg-elev text-fg-faint hover:text-fg border border-border"
+                selectedPath === "" ? "bg-accent text-accent-fg" : "bg-bg-elev text-fg-faint hover:text-fg border border-border"
               }`}
               onClick={() => setSelectedPath("")}
             >
@@ -413,7 +413,7 @@ export function CostLibraryView() {
                 <span
                   key={path}
                   className={`px-2 h-6 rounded-full text-[11px] transition-colors cursor-pointer ${
-                    selectedPath === path ? "bg-accent text-white" : "bg-bg-elev text-fg-faint hover:text-fg border border-border"
+                    selectedPath === path ? "bg-accent text-accent-fg" : "bg-bg-elev text-fg-faint hover:text-fg border border-border"
                   }`}
                   onClick={() => setSelectedPath(path)}
                 >
@@ -428,7 +428,7 @@ export function CostLibraryView() {
                 key={s}
                 onClick={() => setStatus(status === s ? "all" : s)}
                 className={`px-2 h-6 rounded-full text-[11px] transition-colors ${
-                  status === s ? "bg-accent text-white" : "bg-bg-elev text-fg-faint hover:text-fg border border-border"
+                  status === s ? "bg-accent text-accent-fg" : "bg-bg-elev text-fg-faint hover:text-fg border border-border"
                 }`}
               >
                 {s}

@@ -40,6 +40,17 @@ describe('getThemeTokens（3.0 设计系统 Wave 1 令牌契约）', () => {
     }
   })
 
+  it('onPrimary 与 primary 成对：暗色主色浅，字必须深，不能硬编码白', () => {
+    for (const preset of PRESETS) {
+      const dark = getThemeTokens(preset, true)
+      const light = getThemeTokens(preset, false)
+      expect(dark.onPrimary).not.toBe(dark.colorPrimary)
+      expect(light.onPrimary).not.toBe(light.colorPrimary)
+      expect(dark.onPrimary.toLowerCase()).not.toMatch(/^#fff(fff)?$/)
+      expect(light.onPrimary.toLowerCase()).toMatch(/^#fff(fff)?$/)
+    }
+  })
+
   it('明暗阴影/圆角/动效共享常量保持一致', () => {
     const dark = getThemeTokens('nightJade', true)
     const light = getThemeTokens('nightJade', false)

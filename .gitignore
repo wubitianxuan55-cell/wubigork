@@ -18,6 +18,9 @@ node_modules/
 /package.json
 *.tsbuildinfo
 frontend/package.json.md5
+# vitest 门禁产物（CI 分类器读写，复跑清单同目录）
+frontend/vitest-report.json
+frontend/vitest-retry-files.txt
 dist/
 
 # Token
@@ -80,3 +83,6 @@ whisper_data/
 
 # 备份产物
 backups/
+
+# 根目录误落的发布二进制（v4.178 曾入库 46MB）
+gaea-v*.exe

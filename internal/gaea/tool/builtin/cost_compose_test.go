@@ -55,7 +55,7 @@ func TestCostComposeBandAndEvidence(t *testing.T) {
 	}
 	for _, want := range []string{
 		"AI 组价", "价格带", "推荐价", "证据链", "置信度", "中位数",
-		"历史项目", "cost_save",
+		"三档对照", "历史项目", "cost_save",
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("output 缺 %q: %s", want, out)
@@ -110,5 +110,50 @@ func TestCostComposeEmptyAndEdge(t *testing.T) {
 	}
 	if !strings.Contains(out, "去掉 unit") {
 		t.Errorf("单位全排除应提示重试: %s", out)
+	}
+}
+
+// TestCostComposeMode 多方案对照：mode=p25 推荐走 P25；未知 mode 回落中位数。
+func TestCostComposeMode(t *testing.T) {
+	dir := t.TempDir()
+	gdb := db.GetDatabase(dir)
+	if gdb == nil {
+		t.Fatal("GetDatabase nil")
+	}
+	defer db.CloseDatabase(dir)
+	store := cost.Open(gdb)
+	SetCostStoreForTest(store)
+	defer SetCostStoreForTest(nil)
+
+	for i, price := range []float64{1000, 1200, 1400, 1600} {
+		if err := store.Save(cost.Entry{
+			Name:  fmt.Sprintf("c30-%d", i),
+			Title: "C30 混凝土", Category: "材料", Unit: "m³",
+			Price: price, Status: "现行",
+			Body: strings.Repeat("x", i+1),
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	cc := costCompose{}
+	p25Out, err := cc.Execute(context.Background(), composeToJSON(t, map[string]interface{}{
+		"description": "C30 混凝土", "unit": "m³", "mode": "p25",
+	}))
+	if err != nil {
+		t.Fatalf("mode=p25: %v", err)
+	}
+	if !strings.Contains(p25Out, "P25 分位") {
+		t.Errorf("mode=p25 推荐理由应含 P25 分位: %s", p25Out)
+	}
+
+	unk, err := cc.Execute(context.Background(), composeToJSON(t, map[string]interface{}{
+		"description": "C30 混凝土", "unit": "m³", "mode": "nope",
+	}))
+	if err != nil {
+		t.Fatalf("mode=nope: %v", err)
+	}
+	if !strings.Contains(unk, "中位数") {
+		t.Errorf("未知 mode 应回落中位数: %s", unk)
 	}
 }

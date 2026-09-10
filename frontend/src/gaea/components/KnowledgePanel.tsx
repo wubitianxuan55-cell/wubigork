@@ -297,7 +297,7 @@ export function KnowledgePanel(p: { onClose: () => void; variant?: "modal" | "pa
       return (
         <div className="py-10 text-center">
           <div className="text-red-500 text-[13px] mb-3">加载失败：{listError}</div>
-          <button className={`px-3 h-8 rounded-lg bg-accent text-white text-[12px] hover:opacity-90 cursor-pointer ${FOCUS_RING}`} onClick={() => void loadList()} type="button">重试</button>
+          <button className={`px-3 h-8 rounded-lg bg-accent text-accent-fg text-[12px] hover:opacity-90 cursor-pointer ${FOCUS_RING}`} onClick={() => void loadList()} type="button">重试</button>
         </div>
       );
     }
@@ -546,7 +546,7 @@ export function KnowledgePanel(p: { onClose: () => void; variant?: "modal" | "pa
               <button className="flex items-center gap-1 px-2 py-1 rounded-md bg-bg-soft text-fg text-[12px] hover:bg-sidebar-hover" onClick={() => void doExport()} type="button" title="批量导出为 Markdown">
                 <Save size={13} />导出
               </button>
-              <button className="flex items-center gap-1 px-2 py-1 rounded-md bg-accent text-white text-[12px] hover:opacity-90" onClick={startAdd} type="button"><Plus size={13} />{t("knowledge.new")}</button>
+              <button className="flex items-center gap-1 px-2 py-1 rounded-md bg-accent text-accent-fg text-[12px] hover:opacity-90" onClick={startAdd} type="button"><Plus size={13} />{t("knowledge.new")}</button>
             </div>
             {exportMsg && <div className="text-[11px] text-accent">{exportMsg}</div>}
             {mergeMsg && <div className="text-[11px] text-amber-400">{mergeMsg}</div>}
@@ -576,7 +576,7 @@ export function KnowledgePanel(p: { onClose: () => void; variant?: "modal" | "pa
               <div className="py-10 text-center">
                 <div className="text-red-500 text-[13px] mb-3">加载失败：{listError}</div>
                 <button
-                  className="px-3 h-8 rounded-lg bg-accent text-white text-[12px] hover:opacity-90 cursor-pointer"
+                  className="px-3 h-8 rounded-lg bg-accent text-accent-fg text-[12px] hover:opacity-90 cursor-pointer"
                   onClick={() => void loadList()}
                   type="button"
                 >

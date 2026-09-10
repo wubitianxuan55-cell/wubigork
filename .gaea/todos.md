@@ -1,6 +1,6 @@
 # 任务进度
 
-> 最后更新: 2026-09-09（v4.182.0 双空间首页分版：书斋/闲庭定名+切换器迁首页顶栏+两首页差异化版式。本表只留**仍开放**项；已完成历史见 .gaea/AGENTS.md 版本速览与 progress.md）
+> 最后更新: 2026-09-10（v4.204.0 组价多方案对照。本表只留**仍开放**项；已完成历史见 .gaea/AGENTS.md 版本速览与 progress.md）
 
 ## 当前开放（按域）
 
@@ -11,7 +11,7 @@
 | ⬜ | 办公·思维导图/多维表：B2 后半（字段类型面板/画廊视图/可选 validate 工具）待拍板（M2 已于 v4.108 落地） |
 | ⬜ | 办公·无参绑定审计：「UI 会话≠内核会话」根因家族——GaeaHistory/ContextView 等其余恒读 ga.ctrl 的绑定逐个审计是否需要变参会话路径（v4.181 已修 GaeaTrajectory/GaeaAgentNetwork） |
 | ⬜ | 办公·任务管理：TaskCenter 会话关联结构刀（Go 任务表加 session 维度：Schema+提交链路，另立版本）；「会话后台任务」过滤视图等该维度就位再评估（v4.180.0 已以区块语义区隔过渡） |
-| 🔄 | 造价·刀路池（docs/gaea-cost-domain-survey-2026-09.md §缺口）：**§1 条目匹配键/定额编码已落地 v4.178.0**（存储/导入/归因/工具面/UI 贯通；存量回填等带码样本）→ 组价流式分步+多方案 → 五算与版本快照贯通 → 询价库级异常扫描 → 检索索引主动维护+清单级测评集 → 行业含量对照基线；组价依据区 mock 恒空真机走查挂池 |
+| 🔄 | 造价·刀路池（docs/gaea-cost-domain-survey-2026-09.md §缺口）：§1 编码 v4.178 / §2 多方案对照 v4.204（流式打字机/费率政策不做）/ §3 五算 v4.194 / §4 询价扫描 v4.195 / §5 索引补齐 v4.196 → 剩 §6 行业含量对照基线（等真实样本）；组价依据区 mock 恒空真机走查挂池 |
 | ⬜ | DSH 蒸馏：3c 沙箱浏览器多开、阶段四真实终端、阶段五侧边对话——全部「拍板后/若做」门控 |
 | ⬜ | genui 审计唯一开放项：resume 槽位口径统一（明确不做，另行排期） |
 | ⬜ | 小说域：GenerationGate 闭环/刀7 续/刀8（v4.77 批次后未推进） |
@@ -52,7 +52,8 @@
 | ✅ | P4 懒加载三刀收官（v4.177.0）：mermaid 动态化 H1（全仓静态 import 清零）+ locales 按需 H7（zh 静态+en/zh-TW 动态，zh 兜底回退链）+ SearchModal lazy H8；**entry 1193→755.48KB（−37%）**；exe strip build.bat 固化（-ldflags -s -w -trimpath） |
 | ✅ | **P4 性能和结构刀全部收官**（v4.171-v4.177）：Go >50KB 0；entry −37%；MemoryHubPage 页壳 15.95KB；mock/office 1.1KB；wailsjsCompat 退役；bridge 双轨达成；office 抽核 |
 | ✅ | 瘦身清点刀（v4.179.0）：knip 死文件 13 全删（全仓零 import 甄别）+ 幽灵依赖 13 包显式化（jszip/katex/dayjs/unified/hast-util-sanitize/@lezer×8，20 处 import 幽灵引用）+ 死传递依赖 @codemirror/search 清除 + 三存疑依赖验活结案（gsap/docx-preview/unist-util-visit 在用保留）+ 冷启动基线打点（Go New+Startup 七段落长期日志+前端 gaea:boot→gaea:interactive CDP 口径）+ 初始化链审计结案（重活均已异步，懒初始化无需立项） |
-| 🔄 | 壳内真机池：rail 切换器/dock/knowledge 残留/home 最近文档空态 已销账（2026-09-09 v4.177.0 CDP 走查）；剩 .gsched「基线 N」chips 布局+最近文档 localStorage 写路径+**v4.182 两首页观感/顶栏切换手感/rail 竖排徽标可读性**（待协作/闲置时间窗）；真机窗口顺带采集冷启动基线（gaea:interactive 口径 v4.179.0 已就绪） |
+| 🔄 | 壳内真机池：rail 切换器/dock/knowledge 残留/home 最近文档空态 已销账（2026-09-09 v4.177.0 CDP 走查）；**两首页 v7 观感已在浏览器目检（2026-09-10 v4.208.0：dev ?mock=1 + 无头 Edge，两空间 ×1440/1440 高/1100/880 共 10 张，无横向溢出）**；剩 .gsched「基线 N」chips 布局+最近文档 localStorage 写路径+**壳内真机观感（书斋/闲庭/顶栏切换手感/rail 竖排徽标）**（待协作/闲置时间窗）；真机窗口顺带采集冷启动基线（gaea:interactive 口径 v4.179.0 已就绪） |
+| ⬜ | 首页 v4.208 欠账：海报墙首张（小说）大样中段留白偏多（「徽记置顶 / 文案置底」是刻意解剖，是否补内容按观感定夺）；浅色主题两首页未目检 |
 | ⬜ | knip Unused exports 169 项下版甄别（测试专用/预留面/真死三态；可配「新导出须有消费方」防复发门禁） |
 | ⬜ | 观察池刀3（工作台内嵌办公）待评估——观察池审判归 P5 |
 | ⬜ | P5 维持：季度复测+观察池审判（cost 文档化/虚拟滚动/内嵌） |

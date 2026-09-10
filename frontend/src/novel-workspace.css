@@ -281,11 +281,7 @@
   display: none;
 }
 
-/* 阅读：保留目录，收起属性（章节属性已在 chrome） */
-.novel-hub[data-novel-tab='chapter'] > .novel-workspace > .novel-inspector-zone,
-.novel-hub[data-novel-tab='chapter'] > .novel-workspace > .novel-grip-inspector {
-  display: none;
-}
+/* 阅读：保留目录；属性检查器默认可折叠（章节体检在此，勿 display:none） */
 
 /* 创作页自带 3 栏工作台：外壳左右 zone 与分隔条收敛（避免双树/双检查器） */
 .novel-hub[data-novel-tab='create'] > .novel-workspace > .novel-side-zone,
@@ -1061,6 +1057,11 @@
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+.novel-shelf-toolbar-spacer {
+  flex: 1;
+  min-width: 8px;
 }
 .novel-shelf-toolbar .novel-shelf-search {
   flex: 1;

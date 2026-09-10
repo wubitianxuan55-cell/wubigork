@@ -28,7 +28,7 @@ const dateInputCls =
 const ghostBtn =
   "inline-flex items-center gap-1 px-2.5 h-7 rounded-lg border border-border text-fg-faint hover:text-fg hover:bg-bg-soft transition-colors text-[11.5px]";
 const solidBtn =
-  "inline-flex items-center gap-1 px-2.5 h-7 rounded-lg bg-accent text-white text-[11.5px] hover:opacity-90 transition-opacity disabled:opacity-50";
+  "inline-flex items-center gap-1 px-2.5 h-7 rounded-lg bg-accent text-accent-fg text-[11.5px] hover:opacity-90 transition-opacity disabled:opacity-50";
 const chipCls = "px-1.5 h-[18px] rounded text-[9.5px] font-semibold leading-[18px] shrink-0";
 
 const fmtPrice = (v: number) =>
