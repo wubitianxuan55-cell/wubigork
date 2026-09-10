@@ -1,27 +1,30 @@
 # docs/ 文档索引
 
-> 2026-09-09 整理立此索引（同日状态大清算：已完成文档的状态行全部修正为终态，原始调研目录归档）。**归档件在 `docs/archive/`**（已实施设计、一次性调研/审计、版本历史存档与 8 个 research-2026-09-* 原始稿目录）；发布物全文在 `releases/`；版本动态速览在 `.gaea/AGENTS.md`。**引用某文档前先看其头部状态行——状态与 git log 逐版核对过。**
+> 2026-09-09 立索引（同日状态大清算）；**2026-09-10 复核重建**——45 份顶层文档 + 2 个子目录**全部登记**（补回 7 份漏登记件），状态行与 git log 逐版核对。**归档件在 `docs/archive/`**；发布物全文在 `releases/`；版本动态速览在 `.gaea/AGENTS.md`（其历史版本段已分流至 `docs/archive/agents-version-history-2026-09.md`）。
+>
+> **维护规则（防孤儿）**：新增/移动文档必须同步本索引；**未登记文档视同孤儿**，下一轮整理按「未登记 = 待归档或待登记」处理。引用任文档前先读其头部状态行。**守卫**：`node scripts/check-docs.mjs`（孤儿登记 / `docs/` 悬空引用 / `.gaea/AGENTS.md` 指令预算 / **含非 ASCII 的 .ps1 必须带 BOM** 四查），已接入 `scripts/ci.ps1` 全门禁。
 
 ## 总纲（权威排序依据）
 
 | 文档 | 一句话 |
 |---|---|
 | gaea-nextgen-roadmap-2026.md | 全域路线图（权威；§16 调研回填后近期落地项见 v4.88/4.89） |
-| gaea-slim-masterplan-2026-09.md | 🔄 **瘦身长期总规划（活跃权威）**：七面体检×七轨道×六阶段（P0 基线→P5 维持）+防复发门禁；治理规则仍在收敛计划 |
-| gaea-convergence-plan-2026-09.md | 🔄 **收敛期叠加层（活跃）**：30 天卫生/外化/止血刀 + 节奏改革；冲突时以「不加新板块」为先 |
+| gaea-slim-masterplan-2026-09.md | 🔄 **瘦身长期总规划（活跃权威）**：七面体检×七轨道×六阶段；**P0–P4 已收官**（v4.167–v4.177）+ 清点刀 v4.179；余 P5 维持与观察池审判 |
+| gaea-convergence-plan-2026-09.md | 🔄 **收敛期叠加层**：W1 卫生刀 ✅（v4.164/165）、W2 知识外化三件 ✅、W3-4 office 枢纽解耦 ✅（v4.197）；冲突时以「不加新板块」为先 |
 | gaea-competitive-landscape-2026.md | 竞品格局与差异化定位（参考基线 2026-08-29，注意时效） |
-| gaea-cost-domain-survey-2026-09.md | 造价域现状基线（file:line；**校正 roadmap §15 过时欠账描述**：AI 组价 v4.2 已在产）+ 造价刀路池 |
-| gaea-board-outlook-agent-contract-2026-09.md | 🔄 **未来展望（迭代方向）**：本地把活干完+造价私人记忆+书斋/闲庭隔离；对话无审阅制；模型中心=云×本地一级总闸（覆盖 roadmap §10.3 降设置） |
-| gaea-outlook-longterm-plan-2026-09.md | 🔄 **长期规划（阶段性）**：接通已有→总闸画面→造价开口→闲庭同一人设；主路径读过才写出口；与 nextgen 冲突时以展望+本文为准 |
+| gaea-cost-domain-survey-2026-09.md | 造价域现状基线（file:line；**校正 roadmap §15 过时欠账**）+ 造价刀路池：§1 编码 v4.178 / §2 多方案 v4.204 / §3 五算 v4.194 / §4 询价扫描 v4.195 / §5 索引补齐 v4.196；**剩 §6 行业含量基线（等真实样本）** |
+| gaea-board-outlook-agent-contract-2026-09.md | 🔄 **未来展望（迭代方向）**：本地把活干完 + 造价私人记忆 + 书斋/闲庭硬隔离 + 模型中心一级总闸（覆盖 roadmap §10.3 降设置） |
+| gaea-outlook-longterm-plan-2026-09.md | 🔄 **长期规划（阶段性）**：接通已有→总闸画面→造价开口→闲庭同一人设；**阶段一~四出口已于 v4.184~v4.196 全数满足**，1B「两套空间拆开」已拍板落档 |
 
-## 域方案
+## 域方案与域盘点
 
 | 文档 | 状态 |
 |---|---|
-| gaea-office-upgrade-plan-2026-09.md | ✅ 主体已落地（分期 v4.23–v4.31 全数发布）；「远期」行（终端 tab/双工作台/侧边对话等）维持拍板门控 |
-| gaea-office-mindmap-base-design-2026-09.md | 🔄 活跃：M1/B1/B2 看板/M2 画布编辑（v4.108.0）均已落地；**B2 后半（字段面板/画廊）待拍板** |
-| gaea-pptx-edit-design-2026-09.md | ✅ 刀1 v4.109 / 刀2+刀3 v4.156 已交付（三件套编辑闭环）；刀4 待反馈；真机走查挂池 |
-| gaea-novel-revolution-2026.md | 🔄 刀1–6 已落地（v4.77 批次）；GenerationGate 闭环/刀7 续/刀8 未落地；兼材料汇编 |
+| gaea-office-upgrade-plan-2026-09.md | ✅ 主体已落地（分期 v4.23–v4.31）；「远期」行（终端 tab/双工作台/侧边对话）维持拍板门控 |
+| gaea-office-mindmap-base-design-2026-09.md | 🔄 M1/B1/B2 看板/M2 画布编辑（v4.108.0）已落地；**B2 后半（字段面板/画廊）待拍板** |
+| gaea-pptx-edit-design-2026-09.md | ✅ 刀1 v4.109 / 刀2+刀3 v4.156 已交付；刀4 待反馈；真机走查挂池 |
+| gaea-novel-revolution-2026.md | 🔄 刀1–6 已落地（v4.77 批次）+ v4 场景制续刀（场景元数据 v4.199）；GenerationGate 闭环/刀7 续/刀8 未落地 |
+| gaea-character-domain-survey-2026-09.md | ✅ 阶段四读档（**结论=一套资产 + 项目工作副本**，非三套人）；出口三小刀已落地（外观锚点 v4.192 / 副本回写 v4.193 / 关联即快照 UI） |
 | gaea-dream-studio-nextgen-2026-09.md | 材料汇编+下一代草案，不承诺版本（§0.5 已被图域 longterm-plan 吸收） |
 | gaea-image-domain-longterm-plan-2026.md | 长期路线：T0 契约已落地（v4.98.0）；T1+ 未启动 |
 | gaea-image-domain-t0-contract-design-2026-09.md | ✅ 已落地随 v4.98.0 |
@@ -32,7 +35,7 @@
 |---|---|
 | gaea-dsh-univer-office-distill-plan-2026-09.md | ✅ 已蒸馏收官（U 系落地 v4.97~v4.109；Univer 零引入） |
 | gaea-dsh-genui-distill-plan-2026-09.md | ✅ 已收官（P0–P5 全部发布，止于 v4.97.0） |
-| gaea-dsh-better-sidebar-long-term-distill-plan-2026.md | 🔄 滚动权威：阶段一/二/二.5/三(3a/3b)已全销账；3c 与阶段四/五维持「拍板后/若做」 |
+| gaea-dsh-better-sidebar-long-term-distill-plan-2026.md | 🔄 滚动权威：阶段一/二/二.5/三(3a/3b) 已全销账；3c 与阶段四/五维持「拍板后/若做」 |
 | gaea-unsloth-modelhub-distill-plan-2026-09.md | ✅ 主体已落地（v4.102~106）；仅真机补验池观察项（CU1 收益/CU3 /free） |
 
 > dsh-better-sidebar-go-port-plan-2026-09.md（整包 Go 化方案）已归档至 docs/archive/——路线未采纳，被滚动蒸馏规划取代。
@@ -49,10 +52,32 @@
 
 > 已实施设计（多工程/资源成本/AOA 手动布局）与 2026-09 市场调研合成版已移入 docs/archive/。
 
+## 审计与基线证据层（读档刀的证据物；结论已进 AGENTS，此处留证）
+
+| 文档 | 状态 |
+|---|---|
+| gaea-slim-baseline-2026-09.md | ✅ P0 基线证据层：七面四表实测（dist/entry/MemoryHub/exe/依赖/>50KB 源文件）+ 功能等价快照 + IA 走查 |
+| gaea-slim-knife2-audit-2026-09.md | ✅ 审计证据：**G-2 已关**（v4.169「基线 N」chip）；G-3 真机走查挂池 |
+| gaea-slim-p2-dualspace-2026-09.md | ✅ 审计证据（P2 双空间并列）；权威=masterplan §轨道一·2/3 |
+| webview2-shell-audit-2026-09.md | ✅ 审计完成（P0×2/P1×7 + 刀序 A–D）；**刀 A–C 已修**（v4.165/166）；刀 D（printSvg print/拖拽/粘贴）真机取证挂池 |
+| gaea-office-hub-decouple-audit-2026-09.md | ✅ 已收刀（v4.197：`office/docmd → internal/docmd`，内核内边清零）；遗留候选（别名门面/archive.go 死码候选/度量口径）挂观察池 |
+
+## 上手与工装
+
+| 文档 | 状态 |
+|---|---|
+| gaea-getting-started-30min-2026-09.md | ✅ 30 分钟上手（2026-09 定稿）：从零到「能安全改代码并发布」的每日动作，权威细节指向 AGENTS + masterplan |
+| 2026-08-14-sandbox-environment-notes.md | 沙箱环境备忘（详细版；AGENTS 中为四条铁律摘要） |
+| snapshots/ | 目检截图 12 张（侧边栏/浏览器面板证据，2026-09-03；正文引用见 webview2-shell-audit 与 releases/v4.101~105） |
+
 ## 已收官历史设计（留原位：代码注释仍引用为设计出处）
 
 gaea-space-shell-design.md（S2.1，v3.9.0）· gaea-space-dimension-design.md（v3.8.0）· gaea-space-assembly-design.md（v3.8.0）· gaea-memory-isolation-design.md（S1.2，v3.8.0）· gaea-page-migration-design.md（P1，v3.9.0；挂账项以 roadmap 为权威）· gaea-edit-tools-design.md（五工具在产，S0.6 起）· gaea-genui-memoryfence-audit-2026-09.md（审计存档；6/7 项 v4.101 收口，resume 槽位口径=唯一开放项）
 
 ## 政策 / 约定 / 数据集
 
-ADULT_MODE.md · DREAM_WRITE_POLICY.md · MEMORY_ARCHITECTURE.md · evaluation-set.md · retrieval-eval-set.md（12 条查询集，代码运行时直接解析）· ilink-non-text-protocol.md · 2026-08-14-sandbox-environment-notes.md · 2026-08-15-gaea3-architecture-design.md（历史基准）
+ADULT_MODE.md · DREAM_WRITE_POLICY.md · MEMORY_ARCHITECTURE.md · evaluation-set.md · retrieval-eval-set.md（12 条查询集，代码运行时直接解析）· ilink-non-text-protocol.md · 2026-08-15-gaea3-architecture-design.md（历史基准：内核架构事件日志/Manifest/Seam，仍有效）
+
+## 归档区（不在此处展开）
+
+`docs/archive/` 收录历史调研、已落地计划、被后续结论取代的文档（含 8 个 research-2026-09-* 原始稿目录、market-research 系列、superpowers 计划/规格、gaea2/gaea3 时代文档、`agents-version-history-2026-09.md` 版本磁带与 `progress-history-2026-09.md` 进度磁带）。**索引见 `docs/archive/README.md`**——引用归档结论前先确认未被现行权威取代。

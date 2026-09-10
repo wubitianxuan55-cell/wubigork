@@ -1,7 +1,7 @@
 # Gaea pptx 真编辑设计：大纲驱动文本框改写 + 快照回滚 + 结构化对比（刀1 v4.109.0 / 刀2+刀3 v4.156.0 已交付）
 
 > 2026-09-05 设计文档。**进度（2026-09-08 回写）**：刀1 数据层=v4.109.0；刀2 编辑面+刀3 结构化对比=v4.156.0（三线并行：Go 绑定 GaeaPptxSlideText+PptxOutline 两级导航+PptxEditPanel；pptxTextDiff+versionCompare kind:"pptx"+VersionTimeline）。拍板项按推荐全采纳（路径 A/范式 P1/表格组内包含/备注页边界外/刀4 待反馈）。欠账见 releases/v4.156.0.md。背景：战略层已拍板「Office 真编辑是全场空白，
-> 招牌场景=框选→改→落盘回写」（docs/market-research-2026-09-05.md）；docx（框选即改+修订制）与
+> 招牌场景=框选→改→落盘回写」（docs/archive/market-research-2026-09-05.md）；docx（框选即改+修订制）与
 > xlsx（Plan→Apply+直编）均已落地，**pptx 是三件套中唯一没有编辑能力的缺口**。红线沿用：简化界面
 > ≠删除功能；Word/Excel 编辑能力全量保留换壳不换芯（本文不动 docx/xlsx 通道，只在 pptx 侧补齐）。
 > 原始调研稿：docs/archive/research-2026-09-05b/pptx-edit-survey.md（源码事实逐文件核实 + 外部库快照）。
@@ -158,8 +158,8 @@ w:ins/w:del 无对应物）。因此 docx 的「修订写入→预览可见→�
 ## 7. 参考资料
 
 - 原始调研稿：docs/archive/research-2026-09-05b/pptx-edit-survey.md（源码事实 + 外部库快照 + 引用链接）
-- 战略依据：docs/market-research-2026-09-05.md（Office 真编辑全场空白、招牌场景口径）、
-  docs/market-research-2026-09-03c.md（文件交付调研）
+- 战略依据：docs/archive/market-research-2026-09-05.md（Office 真编辑全场空白、招牌场景口径）、
+  docs/archive/market-research-2026-09-03c.md（文件交付调研）
 - 既有设计：docs/gaea-office-upgrade-plan-2026-09.md（B2 pptx 最小交互来源）、
   docs/gaea-edit-tools-design.md（工具层设计口吻先例）
 - 关键源码：internal/office/docxedit/docxedit.go、internal/office/xlsxedit/xlsxedit.go、

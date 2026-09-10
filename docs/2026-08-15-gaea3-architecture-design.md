@@ -408,7 +408,7 @@ interface BoardManifest {
 
 ## 8. 版本与发布计划
 
-- **前置：阶段 7 正确性纵深（v2.34.0–v2.37.0）**：2026-08-14 定稿的阶段 7 计划（docs/superpowers/plans/2026-08-14-gaea长期规划-阶段7-正确性纵深.md）四刀（T7-1 并发正确性 → T7-2 可见性收口 → T7-3 名实相符 → T7-4 前端性能收尾）先行，不改其节奏；其依据是 .gaea/reviews/ 下 5 份既有审查报告（backend-core/frontend/model-cost/office-memory/whisper-chat），本设计的 9 份分域评审报告与之互补（阶段 7 报告定位"正确性短板"，本设计报告定位"架构改造面"）。
+- **前置：阶段 7 正确性纵深（v2.34.0–v2.37.0）**：2026-08-14 定稿的阶段 7 计划（docs/archive/superpowers-plans/2026-08-14-gaea长期规划-阶段7-正确性纵深.md）四刀（T7-1 并发正确性 → T7-2 可见性收口 → T7-3 名实相符 → T7-4 前端性能收尾）先行，不改其节奏；其依据是 .gaea/reviews/ 下 5 份既有审查报告（backend-core/frontend/model-cost/office-memory/whisper-chat），本设计的 9 份分域评审报告与之互补（阶段 7 报告定位"正确性短板"，本设计报告定位"架构改造面"）。
 - **3.0 架构主线启动时机**：v2.37.0 发布后启动 Step 0-3。理由（文件级冲突分析）：Step 3（Provider Seam）与 T7-1.4（internal/ai/client.go 加锁/重试）同文件，Step 2（app 层 manifest）与 T7-2（gaea_*.go 吞错收口）同文件——先正确性后架构，避免返工；Step 1（internal/gaea/agent/session 事件日志）与 T7 无文件冲突，若带宽允许可与阶段 7 并行开发（独立分支）。
 - **Step 0 例外**：office 模块补注册 + 版本常量对齐是小改，可搭阶段 7 任一刀的车（piggyback），无需等 3.0。
 - **2.x 线**：阶段 7 四刀 v2.34.0–v2.37.0 照常独立发布；3.0.0 = Step 0-3 全部落地后的首个发布（预计阶段 7 收官后 2-3 周）。

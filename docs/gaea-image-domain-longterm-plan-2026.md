@@ -313,7 +313,7 @@ LoRA 向导可完整走通一次（12GB+ 卡）。
 - `docs/gaea-office-mindmap-base-design-2026-09.md`：办公思维导图设计（保持办公原生，
   只把导出图资产交域登记）。
 - `docs/gaea-novel-revolution-2026.md`：小说板块路线（章节/场景/角色库联动）。
-- `docs/gaea-v43-play-deepen-design.md`：乐园红线与图文联动基线。
+- `docs/archive/gaea-v43-play-deepen-design.md`：乐园红线与图文联动基线。
 
 ---
 

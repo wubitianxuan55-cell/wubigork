@@ -36,6 +36,7 @@ Invoke-Native 'frontend tests (vitest)' 'npm.cmd' @('run', 'test')
 Pop-Location
 
 Invoke-Native 'frontend E-series regression guard' 'node' @('scripts\frontend-e-check.mjs')
+Invoke-Native 'repo hygiene guard (docs + script encoding)' 'node' @('scripts\check-docs.mjs')
 
 if (-not (Test-Path (Join-Path $root 'dist\index.html'))) { throw 'dist/index.html missing' }
 Write-Host 'CI OK'

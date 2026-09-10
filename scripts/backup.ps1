@@ -1,4 +1,4 @@
-# gaea 2.0.1 数据备份：whisper_data / novels / office / 用户配置 → 时间戳目录
+﻿# gaea 2.0.1 数据备份：whisper_data / novels / office / 用户配置 → 时间戳目录
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
