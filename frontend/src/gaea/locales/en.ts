@@ -979,6 +979,13 @@ export const en = {
   "composer.queueEditHint": "· click to withdraw and edit",
   "composer.queueWithdrawTitle": "Withdraw to the input box for editing",
   "composer.queueCancelTitle": "Cancel queue item",
+  "composer.queueSending": "Sending",
+  "composer.queueSteerTitle": "Steer this item into the current turn",
+  "composer.queueSteerAll": "Steer all",
+  "composer.queueSteerAllTitle": "Steer every queued item into the current turn",
+  "composer.queueCancelAll": "Cancel all",
+  "composer.queueCancelAllTitle": "Cancel all queued items (current turn keeps running)",
+  "composer.queueLockedHint": "Sending — edit, delete, and steer are paused",
   "composer.dropToAdd": "Release to add files",
 
   // ── v4.57 i18n 收尾：ToolCard ──

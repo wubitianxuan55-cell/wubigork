@@ -980,6 +980,13 @@ export const zh: Record<DictKey, string> = {
   "composer.queueEditHint": "· 点击可撤回编辑",
   "composer.queueWithdrawTitle": "撤回输入框编辑",
   "composer.queueCancelTitle": "取消排队",
+  "composer.queueSending": "发送中",
+  "composer.queueSteerTitle": "插话本条（注入当前回合，不打断）",
+  "composer.queueSteerAll": "全部插话",
+  "composer.queueSteerAllTitle": "把排队项全部注入当前回合",
+  "composer.queueCancelAll": "全部取消",
+  "composer.queueCancelAllTitle": "取消全部排队（不影响当前回合）",
+  "composer.queueLockedHint": "发送中，暂不可编辑、删除或插话",
   "composer.dropToAdd": "释放以添加文件",
 
   // ── v4.57 i18n 收尾：ToolCard ──

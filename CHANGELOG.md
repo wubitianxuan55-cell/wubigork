@@ -1,3 +1,6 @@
+## v4.200.0 · 办公会话排队：单条/全部插话与停止 + 发送中锁定（2026-09-10）
+> 排队项补齐单条/全部 Steer 与全部取消；队首派出显示「发送中」，期间整列不可编辑、删除、插话。队列升级为 id+pending/sending 状态（composerQueue 纯函数）。Esc/停止仍停当前回合并清队列。纯前端，绑定面 608 零变更。vitest 318 文件 2777 例 exit 0、tsc/eslint 0、e-check OK。详见 releases/v4.200.0.md。
+
 ## v4.199.0 · 场景元数据编辑面：POV/地点/时间/情感（2026-09-10，DSH 代收后解锁首刀）
 > 小说域最后一个有名欠账。SceneMeta 的 POV/地点/时间/情感/标签字段从 v4 场景制起就在、GetChapterScenes 也早回传——唯独没有写路径（SaveScene 只存正文）。**Go SaveSceneMeta**（writingState，play）：线格式与读侧同构（camelCase）、身份字段 ID/Slug/Order 不可变、非法状态整单拒绝、标题空串保持原值、元数据不触发 blob 同步（投影不变有测试锁）。**绑定面 607→608** 七处接线。**前端 ChapterEditor** 每场景 ⓘ 钮 → 元数据弹窗：POV 下拉=本书角色（与 POV 圣经同源，作者显式指定「这一场用谁的眼睛看」）、时间六档、标签逗号分隔、状态三档。Go 全量 exit 0（+TestSaveSceneMeta 五段）、vitest 316 文件 2768 例 exit 0、tsc/eslint 0、e-check OK、drift PASS@608。详见 releases/v4.199.0.md。
 

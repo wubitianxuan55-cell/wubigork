@@ -19,6 +19,10 @@ import { ComposerDragOverlay } from "./composer/ComposerDragOverlay";
 import { ComposerWorkspaceMenu } from "./composer/ComposerWorkspaceMenu";
 import { ComposerAttachmentBar } from "./composer/ComposerAttachmentBar";
 import { ComposerQueueList } from "./composer/ComposerQueueList";
+import {
+  dropSending, firstPending, insertAt, isQueueBusy, makeQueueItem,
+  markSending, pendingItems, removeAt, revertSending, type ComposerQueueItem,
+} from "./composer/composerQueue";
 import { ComposerTableBanner } from "./composer/ComposerTableBanner";
 import { ComposerInputRow } from "./composer/ComposerInputRow";
 import { ComposerToolbar } from "./composer/ComposerToolbar";
@@ -94,13 +98,19 @@ export function Composer({
     active, setActive, setDismissed, pickCommand, pickArg, pickEntry, pickActive,
   } = menus;
 
-  // 排队
-  const queueRef = useRef<string[]>([]);
-  const [queueLen, setQueueLen] = useState(0);
-  const [queueDisplay, setQueueDisplay] = useState<string[]>([]); // 可视化队列列表
+  // 排队（pending 可编辑/删除/插话；sending = 已派出等回合接手，整列锁定）
+  const queueRef = useRef<ComposerQueueItem[]>([]);
+  const [queue, setQueue] = useState<ComposerQueueItem[]>([]);
+  const syncQueue = (next: ComposerQueueItem[]) => {
+    queueRef.current = next;
+    setQueue(next);
+  };
+  const queueLen = queue.length;
   const correctionRef = useRef<string | null>(null);               // 纠正模式待发送文本
   const onSendRef = useRef(onSend);
   onSendRef.current = onSend;
+  const onSteerRef = useRef(onSteer);
+  onSteerRef.current = onSteer;
   // Shift 键追踪（用于发送按钮提示 / 纠正发送）
   const [shiftHeld, setShiftHeld] = useState(false);
   useEffect(() => {
@@ -118,15 +128,23 @@ export function Composer({
       onSendRef.current(correction, correction);
       return;
     }
-    if (!running && queueRef.current.length > 0) {
-      const timer = setTimeout(() => {
-        const next = queueRef.current.shift()!;
-        setQueueLen(queueRef.current.length);
-        setQueueDisplay([...queueRef.current]);
-        onSendRef.current(next, next);
-      }, 50);
-      return () => clearTimeout(timer);
+    if (running) {
+      if (isQueueBusy(queueRef.current)) syncQueue(dropSending(queueRef.current));
+      return;
     }
+    if (isQueueBusy(queueRef.current)) return;
+    const next = firstPending(queueRef.current);
+    if (!next) return;
+    syncQueue(markSending(queueRef.current, next.id));
+    let dispatched = false;
+    const timer = setTimeout(() => {
+      dispatched = true;
+      onSendRef.current(next.text, next.text);
+    }, 50);
+    return () => {
+      clearTimeout(timer);
+      if (!dispatched) syncQueue(revertSending(queueRef.current, next.id));
+    };
   }, [running]);
 
   useEffect(() => {
@@ -229,45 +247,62 @@ export function Composer({
     const refs = attachments.map((a) => `@${a.path}`).join(" ");
     const submitText = [paste.expandBlocks(tTrim), refs].filter(Boolean).join(tTrim && refs ? " " : "");
     if (!submitText.trim()) return;
-    queueRef.current.push(submitText);
-    setQueueLen(queueRef.current.length);
-    setQueueDisplay([...queueRef.current]);
+    syncQueue([...queueRef.current, makeQueueItem(submitText)]);
     setText("");
     setAttachments([]);
   };
 
   const handleCancel = () => {
-    queueRef.current = [];
-    setQueueLen(0);
-    setQueueDisplay([]);
+    syncQueue([]);
     const restored = onCancel();
     if (typeof restored === "string") setTextCaretEnd(restored);
   };
 
-  // 逐条取消排队
+  // 发送中整列锁定：不可编辑、删除、Steer（停止当前回合仍走 handleCancel）。
   const cancelQueueItem = (index: number) => {
-    queueRef.current.splice(index, 1);
-    setQueueLen(queueRef.current.length);
-    setQueueDisplay([...queueRef.current]);
+    if (isQueueBusy(queueRef.current)) return;
+    const item = queueRef.current[index];
+    if (!item || item.status !== "pending") return;
+    syncQueue(removeAt(queueRef.current, index));
+  };
+
+  const cancelAllQueue = () => {
+    if (isQueueBusy(queueRef.current)) return;
+    syncQueue([]);
+  };
+
+  const steerQueueItem = (index: number) => {
+    if (!running || isQueueBusy(queueRef.current)) return;
+    const item = queueRef.current[index];
+    if (!item || item.status !== "pending") return;
+    onSteerRef.current?.(item.text);
+    syncQueue(removeAt(queueRef.current, index));
+  };
+
+  const steerAllQueue = () => {
+    if (!running || isQueueBusy(queueRef.current)) return;
+    const pending = pendingItems(queueRef.current);
+    if (pending.length === 0) return;
+    for (const item of pending) onSteerRef.current?.(item.text);
+    syncQueue(queueRef.current.filter((q) => q.status === "sending"));
   };
 
   // 撤回排队项到输入框编辑（对齐 agentsroom 消息队列 / vm0 withdraw）：
   // 点击排队卡片 → 该项从队列移除、文本回填输入框；输入框已有草稿先暂存
   // 回队列原位（保持顺序），避免输入内容丢失。改完 Enter 重新入队/发送。
   const editQueueItem = (index: number) => {
+    if (isQueueBusy(queueRef.current)) return;
     const target = queueRef.current[index];
-    if (target == null) return;
+    if (target == null || target.status !== "pending") return;
     const draft = text.trim();
-    queueRef.current.splice(index, 1);
-    if (draft && draft !== target) {
-      // 草稿插回被编辑项原位置，保持用户排队的相对顺序
-      queueRef.current.splice(Math.min(index, queueRef.current.length), 0, draft);
+    let next = removeAt(queueRef.current, index);
+    if (draft && draft !== target.text) {
+      next = insertAt(next, Math.min(index, next.length), makeQueueItem(draft));
     }
-    setQueueLen(queueRef.current.length);
-    setQueueDisplay([...queueRef.current]);
-    setText(target);
+    syncQueue(next);
+    setText(target.text);
     setAttachments([]);
-    requestAnimationFrame(() => { const ta = taRef.current; if (ta) { ta.focus(); ta.selectionStart = ta.selectionEnd = target.length; } });
+    requestAnimationFrame(() => { const ta = taRef.current; if (ta) { ta.focus(); ta.selectionStart = ta.selectionEnd = target.text.length; } });
   };
 
   // ── 高度调整 ──
@@ -338,9 +373,7 @@ export function Composer({
         } catch {}
       }
       setHistoryIndex(-1);
-      queueRef.current = [];
-      setQueueLen(0);
-      setQueueDisplay([]);
+      syncQueue([]);
       onCancel();
       correctionRef.current = submitText;
       setText("");
@@ -356,11 +389,12 @@ export function Composer({
   // ── 项目感知 placeholder ──
   const placeholderText = useMemo(() => {
     if (disabled) return t("common.loading");
+    if (isQueueBusy(queue)) return t("composer.queueSending");
     if (running && queueLen > 0) return t("composer.queuePending", { n: queueLen });
     if (running) return t("composer.runningHint");
     if (cwd && workspaceName) return t("composer.askIn", { name: workspaceName });
     return t("composer.placeholder");
-  }, [disabled, running, queueLen, cwd, workspaceName, t]);
+  }, [disabled, running, queueLen, queue, cwd, workspaceName, t]);
 
   return (
     <div className="relative max-w-(--maxw) mx-auto">
@@ -405,7 +439,17 @@ export function Composer({
       />
 
       {/* ── 排队列表 ── */}
-      {running && <ComposerQueueList queueDisplay={queueDisplay} onCancelItem={cancelQueueItem} onEditItem={editQueueItem} />}
+      {queue.length > 0 && (
+        <ComposerQueueList
+          items={queue}
+          running={running}
+          onCancelItem={cancelQueueItem}
+          onEditItem={editQueueItem}
+          onSteerItem={steerQueueItem}
+          onSteerAll={steerAllQueue}
+          onCancelAll={cancelAllQueue}
+        />
+      )}
 
       {/* ── 输入卡片（Luminous Glass：玻璃底 + 顶部 1px 高光线 + 聚焦收敛光晕） ── */}
       <div

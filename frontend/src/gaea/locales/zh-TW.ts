@@ -984,6 +984,13 @@ export const zhTW: Record<DictKey, string> = {
   "composer.queueEditHint": "· 點擊可撤回編輯",
   "composer.queueWithdrawTitle": "撤回輸入框編輯",
   "composer.queueCancelTitle": "取消排隊",
+  "composer.queueSending": "發送中",
+  "composer.queueSteerTitle": "插話本條（注入目前回合，不打斷）",
+  "composer.queueSteerAll": "全部插話",
+  "composer.queueSteerAllTitle": "把排隊項全部注入目前回合",
+  "composer.queueCancelAll": "全部取消",
+  "composer.queueCancelAllTitle": "取消全部排隊（不影響目前回合）",
+  "composer.queueLockedHint": "發送中，暫不可編輯、刪除或插話",
   "composer.dropToAdd": "放開以加入檔案",
 
   // ── v4.57 i18n 收尾：ToolCard ──

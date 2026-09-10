@@ -1,45 +1,126 @@
-// Composer 拆分产物：排队列表 —— 排队项可点击撤回输入框编辑（对齐
-// agentsroom 消息队列 / vm0 withdraw：点卡片调回输入框改完重新入队），
-// 也保留逐条取消。
-import { Pencil, X } from "../../icons";
+// Composer 拆分产物：排队列表 —— 排队项可撤回编辑、逐条/全部取消、
+// 逐条/全部插话（Steer）。发送中整列锁定（不可编辑、删除、Steer）。
+import { Ban, Loader2, Pencil, X, Zap } from "../../icons";
 import { useT } from "../../lib/i18n";
+import type { ComposerQueueItem } from "./composerQueue";
+import { isQueueBusy, pendingItems } from "./composerQueue";
 
 export interface ComposerQueueListProps {
-  queueDisplay: string[]
+  items: ComposerQueueItem[]
+  running: boolean
   onCancelItem: (index: number) => void
   onEditItem: (index: number) => void
+  onSteerItem: (index: number) => void
+  onSteerAll: () => void
+  onCancelAll: () => void
 }
 
-export function ComposerQueueList({ queueDisplay, onCancelItem, onEditItem }: ComposerQueueListProps) {
+export function ComposerQueueList({
+  items, running, onCancelItem, onEditItem, onSteerItem, onSteerAll, onCancelAll,
+}: ComposerQueueListProps) {
   const t = useT()
-  if (queueDisplay.length === 0) return null
+  if (items.length === 0) return null
+  const busy = isQueueBusy(items)
+  const pending = pendingItems(items)
+  const bulkDisabled = busy || pending.length === 0
   return (
-    <div className="mb-2 max-h-[120px] overflow-y-auto rounded-xl border border-border-soft bg-bg-elev/90 backdrop-blur-md px-2 py-1.5 shadow-[inset_0_1px_0_color-mix(in_srgb,var(--fg)_5%,transparent)]">
+    <div
+      data-testid="composer-queue"
+      className="mb-2 max-h-[140px] overflow-y-auto rounded-xl border border-border-soft bg-bg-elev/90 backdrop-blur-md px-2 py-1.5 shadow-[inset_0_1px_0_color-mix(in_srgb,var(--fg)_5%,transparent)]"
+    >
       <div className="flex items-center gap-1.5 text-fg-faint/50 text-[10px] font-medium px-2 pb-1 select-none">
-        <span>{t("composer.queueBadge", { n: queueDisplay.length })}</span>
-        <span className="text-fg-faint/40">{t("composer.queueEditHint")}</span>
-      </div>
-      {queueDisplay.map((item, i) => (
-        <div key={i} className="group flex items-center gap-1.5 py-1 pl-2 pr-1 rounded-md hover:bg-bg-soft transition-colors duration-100">
-          <span className="shrink-0 text-[9px] font-mono text-fg-faint/40 tabular-nums select-none">{i + 1}</span>
+        <span>{t("composer.queueBadge", { n: items.length })}</span>
+        {busy ? (
+          <span data-testid="composer-queue-sending" className="text-accent/80">{t("composer.queueSending")}</span>
+        ) : (
+          <span className="text-fg-faint/40">{t("composer.queueEditHint")}</span>
+        )}
+        <span className="ml-auto inline-flex items-center gap-0.5">
+          {running && (
+            <button
+              type="button"
+              data-testid="composer-queue-steer-all"
+              className="inline-flex items-center gap-0.5 h-5 px-1.5 rounded border-0 bg-transparent text-[10px] text-fg-faint hover:text-accent hover:bg-accent/10 cursor-pointer disabled:opacity-40 disabled:cursor-default disabled:hover:text-fg-faint disabled:hover:bg-transparent"
+              disabled={bulkDisabled}
+              onClick={onSteerAll}
+              title={busy ? t("composer.queueLockedHint") : t("composer.queueSteerAllTitle")}
+            >
+              <Zap size={10} />
+              {t("composer.queueSteerAll")}
+            </button>
+          )}
           <button
             type="button"
-            className="flex items-center gap-1.5 flex-1 min-w-0 text-left cursor-pointer rounded px-1 py-0.5 -mx-1 hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(color:--gaea-glow)/40"
-            onClick={() => onEditItem(i)}
-            title={t("composer.queueWithdrawTitle")}
+            data-testid="composer-queue-cancel-all"
+            className="inline-flex items-center gap-0.5 h-5 px-1.5 rounded border-0 bg-transparent text-[10px] text-fg-faint hover:text-err hover:bg-err/10 cursor-pointer disabled:opacity-40 disabled:cursor-default disabled:hover:text-fg-faint disabled:hover:bg-transparent"
+            disabled={bulkDisabled}
+            onClick={onCancelAll}
+            title={busy ? t("composer.queueLockedHint") : t("composer.queueCancelAllTitle")}
           >
-            <span className="text-xs text-fg-dim flex-1 truncate">{item.slice(0, 80)}</span>
-            <Pencil size={11} className="shrink-0 opacity-0 group-hover:opacity-100 text-fg-faint/60 transition-opacity" />
+            <Ban size={10} />
+            {t("composer.queueCancelAll")}
           </button>
-          <button
-            className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 inline-flex items-center justify-center w-5 h-5 border-0 rounded bg-transparent text-fg-faint hover:text-err hover:bg-err/10 cursor-pointer transition-all duration-150"
-            onClick={() => onCancelItem(i)}
-            title={t("composer.queueCancelTitle")}
+        </span>
+      </div>
+      {items.map((item, i) => {
+        const sending = item.status === "sending"
+        const locked = busy
+        return (
+          <div
+            key={item.id}
+            data-testid={`composer-queue-item-${i}`}
+            data-status={item.status}
+            className={`group flex items-center gap-1.5 py-1 pl-2 pr-1 rounded-md transition-colors duration-100 ${sending ? "bg-accent/[0.06]" : "hover:bg-bg-soft"}`}
           >
-            <X size={12} />
-          </button>
-        </div>
-      ))}
+            <span className="shrink-0 text-[9px] font-mono text-fg-faint/40 tabular-nums select-none">{i + 1}</span>
+            <button
+              type="button"
+              className="flex items-center gap-1.5 flex-1 min-w-0 text-left cursor-pointer rounded px-1 py-0.5 -mx-1 hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(color:--gaea-glow)/40 disabled:cursor-default disabled:hover:text-inherit"
+              onClick={() => { if (!locked) onEditItem(i) }}
+              disabled={locked}
+              title={locked ? t("composer.queueLockedHint") : t("composer.queueWithdrawTitle")}
+            >
+              <span className="text-xs text-fg-dim flex-1 truncate">{item.text.slice(0, 80)}</span>
+              {sending ? (
+                <span className="inline-flex items-center gap-0.5 shrink-0 text-[10px] text-accent">
+                  <Loader2 size={11} className="composer-queue-spin" />
+                  {t("composer.queueSending")}
+                </span>
+              ) : (
+                <Pencil size={11} className="shrink-0 opacity-0 group-hover:opacity-100 text-fg-faint/60 transition-opacity" />
+              )}
+            </button>
+            {running && !sending && (
+              <button
+                type="button"
+                data-testid={`composer-queue-steer-${i}`}
+                className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 inline-flex items-center justify-center w-5 h-5 border-0 rounded bg-transparent text-fg-faint hover:text-accent hover:bg-accent/10 cursor-pointer transition-all duration-150 disabled:opacity-40 disabled:cursor-default disabled:hover:text-fg-faint disabled:hover:bg-transparent"
+                disabled={locked}
+                onClick={() => onSteerItem(i)}
+                title={locked ? t("composer.queueLockedHint") : t("composer.queueSteerTitle")}
+              >
+                <Zap size={12} />
+              </button>
+            )}
+            <button
+              type="button"
+              className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 inline-flex items-center justify-center w-5 h-5 border-0 rounded bg-transparent text-fg-faint hover:text-err hover:bg-err/10 cursor-pointer transition-all duration-150 disabled:opacity-40 disabled:cursor-default disabled:hover:text-fg-faint disabled:hover:bg-transparent"
+              disabled={locked}
+              onClick={() => onCancelItem(i)}
+              title={locked ? t("composer.queueLockedHint") : t("composer.queueCancelTitle")}
+            >
+              <X size={12} />
+            </button>
+          </div>
+        )
+      })}
+      <style>{`
+        @keyframes composer-queue-spin { to { transform: rotate(360deg); } }
+        .composer-queue-spin { animation: composer-queue-spin 0.9s linear infinite; }
+        @media (prefers-reduced-motion: reduce) {
+          .composer-queue-spin { animation: none; }
+        }
+      `}</style>
     </div>
   )
 }
