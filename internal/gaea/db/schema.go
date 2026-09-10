@@ -459,3 +459,14 @@ CREATE TABLE IF NOT EXISTS mem_graph_meta (
   value TEXT NOT NULL
 );
 `
+
+// SchemaV19 记忆生命周期三态 v4.213.0（阶段五 5.3 首刀）：facts 增加 pinned
+// 列（固化态）。固化=用户明示「这条要长期保留」：免疫衰减归档、豁免归档
+// 保留期硬删（CleanupArchived 跳过 pinned=1）、晨报预载/高频排序加权。
+// 与 archived 正交：手动归档仍可作用于固化条（用户是老板），但清理不再
+// 「90 天一刀切」地吃掉它。衰减不是存储列——衰减是纯函数评分
+// （memory.DecayScore，吃 last_used_at/updated_at），三态可查走
+// GaeaMemoryLifecycle；状态动作全部落 memory_events（op=pin/unpin/archive）。
+const SchemaV19 = `
+ALTER TABLE facts ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0;
+`

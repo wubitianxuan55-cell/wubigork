@@ -24,7 +24,7 @@ type MemoryMethods = Pick<
   | "KnowledgeList" | "KnowledgeSearch" | "KnowledgeGet" | "KnowledgeSave" | "KnowledgeDelete"
   | "KnowledgeImportPreview" | "KnowledgeImportAIParse" | "KnowledgeImportApply"
   | "KnowledgeHistory" | "KnowledgeFindSimilar" | "KnowledgeExport" | "KnowledgeReview" | "KnowledgeMerge"
-  | "MemoryDuplicates" | "MemoryMerge" | "SemanticGraph"
+  | "MemoryDuplicates" | "MemoryMerge" | "SemanticGraph" | "MemoryPin" | "MemoryLifecycle"
   | "MemoryMorningBrief"
 >;
 
@@ -55,6 +55,7 @@ export function buildMemory(_s: MakeMockState): MemoryMethods {
             lastUsedAt: new Date(Date.now() - 3 * 86400000).toISOString(),
             sourceSession: "session-mock-demo.jsonl",
             sourceMessage: "turn 2",
+            pinned: true,
           },
         ],
         enabled: true,
@@ -205,6 +206,23 @@ export function buildMemory(_s: MakeMockState): MemoryMethods {
     },
     async MemoryGraph() {
       return { nodes: [], links: [] };
+    },
+    async MemoryPin() {
+      // mock：固化切换成功即回（面板 reload 后 pinned 徽标随 mock 数据展示）。
+    },
+    async MemoryLifecycle() {
+      return {
+        pinned: [
+          { name: "cost-rule", title: "造价规则", description: "组价先查历史价", kind: "semantic", type: "feedback", space: "work", score: 1, daysIdle: 0, lastUsedAt: "" },
+        ],
+        decaying: [
+          { name: "old-note", title: "旧偏好", description: "很久没被引用的项目笔记", kind: "episodic", type: "project", space: "work", score: 0.12, daysIdle: 118, lastUsedAt: "" },
+        ],
+        activeCount: 5,
+        archivedCount: 2,
+        retentionDays: 90,
+        staleAfterDays: 60,
+      };
     },
     async SemanticGraph() {
       // mock：entity/event/source 三向边的小样例（事件日志投影形态，节点只带

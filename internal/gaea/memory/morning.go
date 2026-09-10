@@ -67,6 +67,11 @@ func truncateMorningDesc(s string) string {
 // Name 升序兜底（与 ProfileBlock 排序口径一致，保证输出确定、可测）。
 func morningRecencySort(mems []Memory) {
 	sort.SliceStable(mems, func(i, j int) bool {
+		// 固化（5.3）优先于时间序：用户明示「长期保留」的事实先入晨报/预载。
+		pi, pj := mems[i].Pinned, mems[j].Pinned
+		if pi != pj {
+			return pi
+		}
 		ti, tj := morningRankTime(mems[i]), morningRankTime(mems[j])
 		if !ti.Equal(tj) {
 			return ti.After(tj)

@@ -31,6 +31,12 @@ export interface MemoryArchive {
 // 归档超过 90 天的事实为硬删除候选（GaeaMemoryCleanupArchived 清理）。
 export type MemoryArchivedView = WireShape<AppModels.MemoryArchivedView>;
 
+// MemoryLifecycleItem / MemoryLifecycleView 是三态生命周期视图
+// （GaeaMemoryLifecycle：固化/衰减/归档，5.3）。
+export type MemoryLifecycleItem = WireShape<AppModels.MemoryLifecycleItem>;
+
+export type MemoryLifecycleView = WireShape<AppModels.MemoryLifecycleView>;
+
 // MemoryArchivedPage 是归档列表分页结果（GaeaMemoryArchivedList）。
 export interface MemoryArchivedPage {
   items: MemoryArchivedView[];

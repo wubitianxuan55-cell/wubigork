@@ -171,6 +171,16 @@ func (b *fileBackend) ChangeType(name string, newType Type) error {
 // Touch 是 file 后端的生命周期 no-op：文件记忆不记录使用时间。
 func (b *fileBackend) Touch(string) error { return nil }
 
+// Pin/Unpin 固化态（5.3）：文件后端不落盘（对齐 space_id 先例——生产路径是
+// SQLite 后端），明确报错由调用方诚实展示，绝不静默假成功。
+func (b *fileBackend) Pin(string) error {
+	return fmt.Errorf("文件后端不支持固化（SQLite 后端可用）")
+}
+
+func (b *fileBackend) Unpin(string) error {
+	return fmt.Errorf("文件后端不支持固化（SQLite 后端可用）")
+}
+
 // List returns the saved memories parsed from their files, sorted by name. Used
 // by `/memory` and the desktop memory panel. Files that fail to parse are
 // skipped so one bad file never hides the rest.

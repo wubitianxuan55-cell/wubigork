@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Pencil, Trash2 } from "../icons";
+import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Pencil, Pin, Trash2 } from "../icons";
 import { useT } from "../lib/i18n";
 import { useState, type ReactNode } from "react";
 import type { MemoryFact } from "../lib/types";
@@ -67,8 +67,9 @@ export function FactCard(p: {
   onSave: (name: string, body: string) => void;
   onForget: () => void;
   onChangeType: (name: string, newType: string) => void;
+  onPin?: (name: string, pinned: boolean) => void;
 }) {
-  const { fact, factNames, expanded, highlight, onToggle, onJump, onSave, onForget, onChangeType } = p;
+  const { fact, factNames, expanded, highlight, onToggle, onJump, onSave, onForget, onChangeType, onPin } = p;
   const t = useT();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(fact.body);
@@ -97,6 +98,11 @@ export function FactCard(p: {
               {fact.title || fact.name}
             </span>
             <span className="badge badge--muted shrink-0">{fact.type}</span>
+            {fact.pinned && (
+              <span className="badge shrink-0 text-accent border border-accent/40" title="固化：免疫衰减归档、豁免保留期清理">
+                固化
+              </span>
+            )}
           </div>
           {fact.description && (
             <div className="text-fg-faint text-[11.5px] leading-relaxed mt-0.5 line-clamp-2">
@@ -120,6 +126,21 @@ export function FactCard(p: {
           )}
         </div>
         <div className="flex items-center gap-0.5 shrink-0" onClick={(e) => e.stopPropagation()}>
+          {onPin && (
+            <button
+              className={`w-6 h-6 flex items-center justify-center border-0 rounded bg-transparent cursor-pointer transition-colors ${
+                fact.pinned
+                  ? "text-accent"
+                  : "text-fg-faint/50 hover:text-fg hover:bg-bg-soft"
+              }`}
+              onClick={() => onPin(fact.name, !fact.pinned)}
+              title={fact.pinned ? "解除固化（回落普通衰减生命周期）" : "固化：免疫衰减归档、豁免保留期清理，注入排序加权"}
+              aria-pressed={fact.pinned}
+              type="button"
+            >
+              <Pin size={13} />
+            </button>
+          )}
           <button
             className="w-6 h-6 flex items-center justify-center border-0 rounded bg-transparent text-fg-faint/50 cursor-pointer hover:text-fg hover:bg-bg-soft transition-colors"
             onClick={() => {

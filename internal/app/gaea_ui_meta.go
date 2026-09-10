@@ -311,6 +311,7 @@ type MemoryFact struct {
 	LastUsedAt    string `json:"lastUsedAt,omitempty"`    // 最近使用（RFC3339，溯源/高频展示）
 	SourceSession string `json:"sourceSession,omitempty"` // 沉淀来源会话
 	SourceMessage string `json:"sourceMessage,omitempty"` // 沉淀来源消息/轮次
+	Pinned        bool   `json:"pinned,omitempty"`        // 固化（5.3 三态生命周期：免疫衰减/豁免清理）
 }
 
 // MemoryScope 是一个可写快捷添加目标。
@@ -354,6 +355,7 @@ func (a *App) GaeaMemory() MemoryView {
 			LastUsedAt:    fmtTimeOrEmpty(f.LastUsedAt),
 			SourceSession: f.SourceSession,
 			SourceMessage: f.SourceMessage,
+			Pinned:        f.Pinned,
 		})
 	}
 	for _, sc := range writableScopes {

@@ -61,6 +61,10 @@ func (v spaceView) GetInSpace(name, space string) (Memory, bool) {
 
 func (v spaceView) Touch(name string) error { return v.inner.TouchInSpace(name, v.space) }
 
+// Pin/Unpin 固化态委托内层（5.3）：固化是写路径全局属性，不随视图空间收窄。
+func (v spaceView) Pin(name string) error   { return v.inner.Pin(name) }
+func (v spaceView) Unpin(name string) error { return v.inner.Unpin(name) }
+
 func (v spaceView) TouchInSpace(name, space string) error {
 	if space == "" {
 		return v.inner.TouchInSpace(name, v.space)

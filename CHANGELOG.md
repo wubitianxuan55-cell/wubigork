@@ -1,3 +1,6 @@
+## v4.213.0 · 5.3 首刀：记忆生命周期三态（固化/衰减/归档）（2026-09-11）
+> 阶段五 5.3 首刀。「90 天一刀切」的替代：固化（SchemaV19 facts.pinned）=用户明示保留——免疫衰减归档、**豁免保留期硬删**（CleanupArchived 跳过 pinned，替代核心）、晨报/预载排序加权，与 archived 正交、Save 覆盖不丢；衰减=纯函数评分（DecayScore 半衰期 30 天指数、下限 0.01、固化恒 1、无时间戳不造数；LifecycleOf 阈值 60 天），评分输入（save/touch）自 v4.210 全在 memory_events、状态动作（pin/unpin）同日志留痕；归档=既有保留期+purge-audit。三态可查=GaeaMemoryLifecycle 总览（固化/衰减列表带评分与闲置天数）+ GaeaMemoryPin 切换；前端 OfficeMemoryLibrary 统计行 + FactCard 固化锁/「固化」徽标。「蒸馏 no-op 转真实合并」（DistillMerge 做梦 2.0）与「预取可关闭」（晨报预载开关）此前已落地不重建。绑定 609→611。测试 Go +5 / vitest +1。**5.3 出口判据全满足**。
+
 ## v4.212.0 · 5.2 首刀：上下文编译 dump/diff + 前缀稳定证明（2026-09-11）
 > 阶段五 5.2 首刀（纯 Go，零绑定，前端零改动）。意图分类与预算调度底座已有（TCCA 四层内核 L3 SkillLayer.Route=意图分类；doc 预算/compaction/tail 注入=预算调度），本刀补**证据链**缺口：CacheShape（V5.10）只看 system+tools 头部，消息历史的前缀稳定性无人判定。新增 agent 消息级编译摘要（canonical role+长度前缀+content+toolcalls 的逐消息 SHA256 链）+ DiffMessages 相邻请求判定（Stable/PrefixBytes/AppendCount/RewriteCount，>0=压缩/rewind 归因）；判定随 RequestHeader 事件落会话日志（追加列）——日志即装配 dump、相邻记录即 diff、ReadEntriesFor 即回放；contextview 趋势柱携带 RequestRecord.Prefix 与 CacheHitTokens 配对=「相邻两轮前缀字节级稳定（缓存命中可证）」完整证据链。测试 Go +4（纯函数五形态+拼接歧义防护/同会话 4 请求跨 2 回合全稳定+摘要链接续/改写诚实判漂移+RewriteCount 归因/contextview 折叠贯通+旧日志 nil）。前端渲染判定按需另刀。
 

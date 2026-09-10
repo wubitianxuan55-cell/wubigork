@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Modal, message } from "antd";
 import { RefreshCw, Rollback, Sparkles, Trash2 } from "../../icons";
 import { app } from "../../lib/bridge";
-import type { MemoryArchivedView, MemoryDuplicateView, MemoryFact, MemoryView } from "../../lib/types";
+import type { MemoryArchivedView, MemoryDuplicateView, MemoryFact, MemoryLifecycleView, MemoryView } from "../../lib/types";
 import { FactCard } from "../FactCard";
 import { DocEditor } from "../DocEditor";
 import { EmptyState } from "../EmptyState";
@@ -26,6 +26,8 @@ export function OfficeMemoryLibrary() {
   const [tab, setTab] = useState<TabKey>("facts");
   const [query, setQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState<string>("all");
+  // 三态生命周期（5.3）：固化/衰减/归档总览（facts tab 统计行数据源）。
+  const [lifecycle, setLifecycle] = useState<MemoryLifecycleView | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [highlight, setHighlight] = useState<string | null>(null);
   const [dupOpen, setDupOpen] = useState(false);
@@ -54,6 +56,8 @@ export function OfficeMemoryLibrary() {
         setLoading(false);
       })
       .catch(() => setLoading(false));
+    // 三态总览尽力而为（后端未就绪/旧后端不阻塞记忆列表）。
+    app.MemoryLifecycle().then(setLifecycle).catch(() => {});
   }, []);
 
   // 归档分页加载：切到归档 tab 或「加载更多」时读取下一页。
@@ -116,6 +120,10 @@ export function OfficeMemoryLibrary() {
   };
   const handleForget = async (name: string) => {
     await app.Forget(name);
+    await refresh();
+  };
+  const handlePin = async (name: string, pinned: boolean) => {
+    await app.MemoryPin(name, pinned);
     await refresh();
   };
   const handleChangeType = async (name: string, newType: string) => {
@@ -288,6 +296,20 @@ export function OfficeMemoryLibrary() {
       {/* facts tab */}
       {tab === "facts" && (
         <>
+          {lifecycle && (
+            <div className="shrink-0 flex items-center gap-3 px-4 pb-1 pt-1 text-[11px] text-fg-faint flex-wrap" aria-label="记忆生命周期">
+              <span className="text-accent">固化 {lifecycle.pinned.length}</span>
+              <span>衰减中 {lifecycle.decaying.length}</span>
+              <span>活跃 {lifecycle.activeCount}</span>
+              <span>归档 {lifecycle.archivedCount}</span>
+              <span className="text-fg-faint/70">保留 {lifecycle.retentionDays} 天 · 衰减阈值 {lifecycle.staleAfterDays} 天未用</span>
+              {lifecycle.decaying.length > 0 && (
+                <span title={lifecycle.decaying.slice(0, 5).map((d) => d.title || d.name).join("、") + (lifecycle.decaying.length > 5 ? " 等" : "")}>
+                  最久未用：{(lifecycle.decaying[0].title || lifecycle.decaying[0].name)}
+                </span>
+              )}
+            </div>
+          )}
           <div className="shrink-0 flex items-center gap-1.5 px-4 pb-2 flex-wrap">
             {TYPE_FILTERS.map((t) => (
               <button
@@ -325,6 +347,7 @@ export function OfficeMemoryLibrary() {
                   onSave={handleSave}
                   onForget={() => handleForget(f.name)}
                   onChangeType={handleChangeType}
+                  onPin={handlePin}
                 />
               ))
             )}

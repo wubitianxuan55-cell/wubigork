@@ -64,6 +64,28 @@
 - **contextview 折叠**：RequestRecord.Prefix（PrefixVerdict）随趋势柱下发，与 CacheHitTokens 配对=「前缀字节级稳定+缓存命中可证」完整证据链；前端渲染按需另刀。
 - 测试：纯函数五形态（全等/追加/改写/混合/首请求+拼接歧义防护）+ agent 端到端（同会话 4 请求跨 2 回合全稳定+摘要链接续；外部改写历史→Stable=false+RewriteCount 归因）+ contextview 折叠（判定贯通/旧日志 nil）。
 
+## 5.3 记忆生命周期·首刀（v4.213.0）：固化/衰减/归档三态
+
+出口判据「三态可查、衰减有留痕；预取可关闭」的落点（「蒸馏 no-op 转真实合并」
+已由做梦 2.0 DistillMerge 落地、「预取可关闭」已由晨报预载开关落地——本刀
+不重复建设）：
+
+- **固化（SchemaV19 facts.pinned）**：用户明示「长期保留」。免疫衰减归档、
+  **豁免保留期硬删**（CleanupArchived 跳过 pinned=1——「90 天一刀切」的
+  替代核心）、晨报/预载排序加权（morningRecencySort 固化组优先）。与
+  archived 正交：手动归档仍可作用于固化条，pinned 保留。Save 覆盖
+  （remember 工具重写）不丢固化态（ON CONFLICT 不触 pinned 列）。
+- **衰减（纯函数，非存储列）**：`memory.DecayScore`（半衰期 30 天指数衰减，
+  下限 0.01；固化恒 1；无时间戳=无衰减证据=满分，不造数）+ `LifecycleOf`
+  （固化/活跃/衰减，缺省阈值 60 天）。评分输入（save/touch 事件）自
+  v4.210 起全部落 memory_events，状态动作（pin/unpin/archive）同日志留痕
+  ——「衰减有留痕」。
+- **三态可查**：`GaeaMemoryLifecycle` 绑定返回固化列表/衰减列表（评分升序）
+  /活跃计数/归档计数/保留期/衰减阈值；`GaeaMemoryPin` 切换固化。前端
+  OfficeMemoryLibrary 事实 tab 统计行 + FactCard 固化锁与「固化」徽标。
+- 测试：Go +5（pin/unpin 闭环+事件留痕+归档不可 pin/固化豁免清理/评分
+  半衰-下限-固化-零值/三态分类/晨报固化加权）、vitest +1（统计行+徽标+解除）。
+
 ## 6. 5.1 余项与后续刀
 
 - ~~**真·「回复发出前」闸**~~ ✅ **v4.211.0 已收口**：闸点=stream() 收尾（Message 全文事件发出前+返回值进 session 前），`memory.Store.StripDanglingCitations` 纯函数剥离（不 Touch，触达职责仍在回合收尾），boot 装配闭包（记忆开关闭/库不可用=不注入，子代理 nil 不改写），剥离键落 dangling cite 事件。流式增量原样透传、由 Message 重渲染收敛——前端零改动。测试：memory 三例（命中保留/悬空剥离+空间隔离/不触达+零值 Store 跳过）+ agent 两例（Message/Summary/session 三路改写、nil no-op）。

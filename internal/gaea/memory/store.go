@@ -77,6 +77,9 @@ type Memory struct {
 	LastUsedAt    time.Time // 最近一次被模型读取/检索的时间（高频排序用）
 	SourceSession string    // 沉淀来源会话（如 session-20260810-xxx.jsonl）
 	SourceMessage string    // 沉淀来源消息/轮次（如 turn 3 或消息摘要）
+	// Pinned 固化态（5.3 三态生命周期，SchemaV19）：免疫衰减归档、豁免归档
+	// 保留期硬删、注入排序加权。与 Archived 正交（手动归档仍可作用于固化条）。
+	Pinned bool
 }
 
 // ArchivedMemory is a saved fact that has been removed from active memory but
@@ -102,6 +105,10 @@ type backend interface {
 	Delete(name string) error
 	ChangeType(name string, newType Type) error
 	Touch(name string) error
+	// Pin/Unpin 固化态切换（5.3）：SQLite 后端落 pinned 列并落事件；不支持
+	// 的后端（file）返回明确错误，由调用方诚实展示。
+	Pin(name string) error
+	Unpin(name string) error
 	List() []Memory
 	// ListInSpace 按空间过滤活跃事实（S1 双空间读谓词）：space 为空不过滤
 	// （与 List 等价，既有调用零变化），非空时仅返回该 space_id 下的行。
@@ -252,6 +259,13 @@ func (s Store) GetInSpace(name, space string) (Memory, bool) { return s.engine()
 // TouchInSpace 是 Touch 的空间谓词版：space 为空 = 旧行为；非空时仅触达该
 // 空间的活跃事实——跨空间键不命中、不动行。
 func (s Store) TouchInSpace(name, space string) error { return s.engine().TouchInSpace(name, space) }
+
+// Pin 固化一条记忆（5.3 三态生命周期）：免疫衰减归档与保留期硬删，注入
+// 排序加权。落 pin 事件（memory_events 留痕）。
+func (s Store) Pin(name string) error { return s.engine().Pin(name) }
+
+// Unpin 解除固化，回落普通衰减生命周期。
+func (s Store) Unpin(name string) error { return s.engine().Unpin(name) }
 
 // InSpace 返回按空间收窄**读路径**的 Store 视图（S1.2 B「spaceList 风格单点」
 // 的视图形态）：space 非空时 List/Index/Get/Touch 只作用于该空间（SQLite 走

@@ -182,6 +182,8 @@ export const gaeaToGaea = {
   PickDirectory: "GaeaPickDirectory",
   MemoryGraph: "GaeaMemoryGraph",
   SemanticGraph: "GaeaMemorySemanticGraph",
+  MemoryPin: "GaeaMemoryPin",
+  MemoryLifecycle: "GaeaMemoryLifecycle",
   MemoryMorningBrief: "GaeaMemoryMorningBrief",
   CostList: "GaeaCostList",
   CostSearch: "GaeaCostSearch",

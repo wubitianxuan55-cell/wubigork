@@ -214,6 +214,42 @@ func (b *sqliteBackend) touchInSpace(name, space string) error {
 	return nil
 }
 
+// Pin 固化一条记忆（5.3 三态生命周期）：免疫衰减归档、豁免保留期硬删、
+// 注入排序加权。落 pin 事件（尽力而为）。未命中（不存在/已归档）报错。
+func (b *sqliteBackend) Pin(name string) error {
+	return b.setPinned(name, true)
+}
+
+// Unpin 解除固化，回落普通衰减生命周期。落 unpin 事件。
+func (b *sqliteBackend) Unpin(name string) error {
+	return b.setPinned(name, false)
+}
+
+func (b *sqliteBackend) setPinned(name string, pinned bool) error {
+	name = slug(name)
+	if name == "" {
+		return fmt.Errorf("memory needs a name")
+	}
+	flag := 0
+	op := OpUnpin
+	if pinned {
+		flag, op = 1, OpPin
+	}
+	res, err := b.db.Exec(
+		`UPDATE facts SET pinned=? WHERE project=? AND name=? AND archived=0`,
+		flag, b.project, name)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return fmt.Errorf("memory %q not found", name)
+	}
+	_ = (&EventLog{DB: b.db}).AppendEvent(Event{
+		At: time.Now().UnixMilli(), Op: op, Name: name, Project: b.project,
+	})
+	return nil
+}
+
 func (b *sqliteBackend) List() []Memory {
 	return b.listInSpace("")
 }
@@ -227,7 +263,7 @@ func (b *sqliteBackend) ListInSpace(space string) []Memory {
 func (b *sqliteBackend) listInSpace(space string) []Memory {
 	// S1.2 B：SELECT 补回 space_id 列并回填 m.Space（供展示/调试与跨空间
 	// 冲突审计读取）；空间谓词语义不变——space 为空不过滤（旧行为恒真）。
-	query := `SELECT name, title, description, type, kind, tags, body, space_id, created_at, updated_at, last_used_at, source_session, source_message
+	query := `SELECT name, title, description, type, kind, tags, body, space_id, created_at, updated_at, last_used_at, source_session, source_message, pinned
 		 FROM facts WHERE project=? AND archived=0`
 	args := []any{b.project}
 	if space != "" {
@@ -244,10 +280,12 @@ func (b *sqliteBackend) listInSpace(space string) []Memory {
 	for rows.Next() {
 		var m Memory
 		var typ, kind, tags, created, updated, lastUsed, srcSession, srcMessage string
+		var pinned int
 		if err := rows.Scan(&m.Name, &m.Title, &m.Description, &typ, &kind, &tags, &m.Body, &m.Space,
-			&created, &updated, &lastUsed, &srcSession, &srcMessage); err != nil {
+			&created, &updated, &lastUsed, &srcSession, &srcMessage, &pinned); err != nil {
 			continue
 		}
+		m.Pinned = pinned != 0
 		m.Type = NormalizeType(typ)
 		m.Kind = NormalizeKind(kind)
 		m.Tags = parseTags(tags)
@@ -337,7 +375,7 @@ func (b *sqliteBackend) ListArchivedPaged(limit, offset int) ([]ArchivedMemory, 
 func (b *sqliteBackend) CleanupArchived(cutoff time.Time) ([]ArchivedMemory, error) {
 	cut := cutoff.UTC().Format(time.RFC3339)
 	rows, err := b.db.Query(
-		`SELECT name, title, description, type, kind, tags, body, updated_at, source_session, source_message FROM facts WHERE project=? AND archived=1 AND updated_at != '' AND updated_at < ?`,
+		`SELECT name, title, description, type, kind, tags, body, updated_at, source_session, source_message FROM facts WHERE project=? AND archived=1 AND pinned=0 AND updated_at != '' AND updated_at < ?`,
 		b.project, cut)
 	if err != nil {
 		return nil, err
@@ -396,18 +434,20 @@ func (b *sqliteBackend) getInSpace(name, space string) (Memory, bool) {
 	var m Memory
 	var typ, kind, tags, lastUsed, srcSession, srcMessage string
 	// space_id 一并回填（S1.2 B，供跨空间同名冲突审计读取归属）。
-	query := `SELECT name, title, description, type, kind, tags, body, space_id, last_used_at, source_session, source_message
+	query := `SELECT name, title, description, type, kind, tags, body, space_id, last_used_at, source_session, source_message, pinned
 		 FROM facts WHERE project=? AND name=? AND archived=0`
 	args := []any{b.project, name}
 	if space != "" {
 		query += ` AND space_id=?`
 		args = append(args, space)
 	}
+	var pinned int
 	err := b.db.QueryRow(query, args...).Scan(&m.Name, &m.Title, &m.Description, &typ, &kind, &tags, &m.Body,
-		&m.Space, &lastUsed, &srcSession, &srcMessage)
+		&m.Space, &lastUsed, &srcSession, &srcMessage, &pinned)
 	if err != nil {
 		return Memory{}, false
 	}
+	m.Pinned = pinned != 0
 	m.Type = NormalizeType(typ)
 	m.Kind = NormalizeKind(kind)
 	m.Tags = parseTags(tags)

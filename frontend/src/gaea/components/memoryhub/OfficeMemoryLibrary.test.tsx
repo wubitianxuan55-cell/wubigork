@@ -6,6 +6,23 @@ import { LocaleProvider } from "../../lib/i18n";
 const wrap = (node: React.ReactNode) => <LocaleProvider>{node}</LocaleProvider>;
 
 describe("OfficeMemoryLibrary 办公记忆", () => {
+  it("三态生命周期：统计行显示 固化/衰减/活跃/归档，固化事实带徽标并可解除", async () => {
+    render(wrap(<OfficeMemoryLibrary />));
+
+    // 生命周期统计行（mock：固化1/衰减1/活跃5/归档2/保留90天）
+    expect(await screen.findByText(/固化 1/)).toBeTruthy();
+    expect(screen.getByText(/衰减中 1/)).toBeTruthy();
+    expect(screen.getByText(/活跃 5/)).toBeTruthy();
+    expect(screen.getByText(/归档 2/)).toBeTruthy();
+    expect(screen.getByText(/保留 90 天/)).toBeTruthy();
+    // mock 事实 pinned=true → 固化徽标 + 解除按钮（aria-pressed）
+    expect(await screen.findByText("固化")).toBeTruthy();
+    const unpin = screen.getByTitle(/解除固化/);
+    fireEvent.click(unpin);
+    // 解除后走 reload（mock Memory 不变，仅断言调用不抛错即可）
+    await waitFor(() => expect(screen.getByTitle(/固化：/)).toBeTruthy());
+  });
+
   it("查重合并：列出疑似重复并一键合并", async () => {
     render(wrap(<OfficeMemoryLibrary />));
 

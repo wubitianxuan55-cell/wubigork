@@ -21,6 +21,8 @@ import (
 
 	gaeaConfig "github.com/gaea/gaea/internal/gaea/config"
 	"github.com/gaea/gaea/internal/gaea/db"
+	"github.com/gaea/gaea/internal/gaea/memory"
+	"sort"
 )
 
 // MemoryArchivedView 是归档记忆的前端视图（分页条目）。
@@ -246,4 +248,109 @@ func (a *App) GaeaMemoryCleanupArchived() (int, error) {
 		_ = db.GetDatabase(userDir)
 	}
 	return len(removed), nil
+}
+
+// ── 三态生命周期（阶段五 5.3 首刀）────────────────────────────────
+// 固化/衰减/归档替代「90 天一刀切」：固化=用户明示保留（免衰减、豁免清理）；
+// 衰减=活跃但久未触达（纯函数评分，非存储列，评分输入自 v4.210 起全部在
+// memory_events 留痕）；归档=既有 archived+保留期清理，固化条豁免。
+// 蒸馏真实合并（DistillMerge）与预取开关（morning_preload）此前已落地——
+// 5.3 出口判据中「蒸馏 no-op 转真实合并」「预取可关闭」两件不重复建设。
+
+// MemoryLifecycleItem 是生命周期视图里的一条记忆（固化/衰减列表共用）。
+type MemoryLifecycleItem struct {
+	Name        string  `json:"name"`
+	Title       string  `json:"title,omitempty"`
+	Description string  `json:"description,omitempty"`
+	Kind        string  `json:"kind"`
+	Type        string  `json:"type"`
+	Space       string  `json:"space,omitempty"`
+	Score       float64 `json:"score"`    // 衰减评分（1.0 新鲜 → 0.01 下限；固化恒 1）
+	DaysIdle    int     `json:"daysIdle"` // 距最近活动（触达/写入）的天数
+	LastUsedAt  string  `json:"lastUsedAt,omitempty"`
+}
+
+// MemoryLifecycleView 是三态生命周期总览（GaeaMemoryLifecycle）。
+type MemoryLifecycleView struct {
+	Pinned   []MemoryLifecycleItem `json:"pinned"`   // 固化（评分恒 1）
+	Decaying []MemoryLifecycleItem `json:"decaying"` // 衰减中（按评分升序=最久未用在前）
+	// ActiveCount 是新鲜活跃条数（非固化非衰减非归档）。
+	ActiveCount int `json:"activeCount"`
+	// ArchivedCount 是归档条数（保留期内可恢复；超期硬删走 CleanupArchived，
+	// 固化条豁免）。
+	ArchivedCount int `json:"archivedCount"`
+	// RetentionDays 是归档保留期（天），与归档页同一口径。
+	RetentionDays int `json:"retentionDays"`
+	// StaleAfterDays 是衰减判定阈值（天），诚实下发口径。
+	StaleAfterDays int `json:"staleAfterDays"`
+}
+
+// GaeaMemoryLifecycle 返回三态生命周期总览（三态可查出口判据）。
+func (a *App) GaeaMemoryLifecycle() MemoryLifecycleView {
+	view := MemoryLifecycleView{
+		Pinned:         []MemoryLifecycleItem{},
+		Decaying:       []MemoryLifecycleItem{},
+		RetentionDays:  memoryRetentionDays(),
+		StaleAfterDays: memory.DefaultStaleAfterDays,
+	}
+	store := a.hubOfficeStore()
+	now := time.Now()
+	for _, m := range store.List() {
+		item := MemoryLifecycleItem{
+			Name:        m.Name,
+			Title:       m.Title,
+			Description: m.Description,
+			Kind:        string(m.Kind),
+			Type:        string(m.Type),
+			Space:       m.Space,
+			Score:       memory.DecayScore(m, now),
+			LastUsedAt:  fmtTimeOrEmpty(m.LastUsedAt),
+		}
+		if last := memoryDecayTime(m); !last.IsZero() {
+			item.DaysIdle = int(now.Sub(last).Hours() / 24)
+		}
+		switch memory.LifecycleOf(m, now, view.StaleAfterDays) {
+		case memory.LifecyclePinned:
+			view.Pinned = append(view.Pinned, item)
+		case memory.LifecycleDecaying:
+			view.Decaying = append(view.Decaying, item)
+		default:
+			view.ActiveCount++
+		}
+	}
+	// 衰减列表按评分升序（最久未用在前）。
+	sort.Slice(view.Decaying, func(i, j int) bool {
+		if view.Decaying[i].Score != view.Decaying[j].Score {
+			return view.Decaying[i].Score < view.Decaying[j].Score
+		}
+		return view.Decaying[i].Name < view.Decaying[j].Name
+	})
+	if _, total, err := store.ListArchivedPaged(1, 0); err == nil {
+		view.ArchivedCount = total
+	}
+	return view
+}
+
+// memoryDecayTime 回填 DaysIdle 用的最近活动时间（与 memory 包同口径）。
+func memoryDecayTime(m memory.Memory) time.Time {
+	if !m.LastUsedAt.IsZero() {
+		return m.LastUsedAt
+	}
+	return m.UpdatedAt
+}
+
+// GaeaMemoryPin 固化/解除固化一条办公记忆（固化动作落 pin/unpin 事件留痕）。
+func (a *App) GaeaMemoryPin(name string, pinned bool) error {
+	store := a.hubOfficeStore()
+	var err error
+	if pinned {
+		err = store.Pin(name)
+	} else {
+		err = store.Unpin(name)
+	}
+	if err != nil {
+		return fmt.Errorf("固化切换: %w", err)
+	}
+	slog.Info("记忆固化切换", "name", name, "pinned", pinned)
+	return nil
 }

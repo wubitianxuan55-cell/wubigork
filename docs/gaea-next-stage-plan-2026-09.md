@@ -43,6 +43,7 @@
 - 5.2 同会话相邻两轮请求前缀字节级稳定（缓存命中可证）；上下文装配可 dump 且 diff 出每次变化。
   - 进度（2026-09-11，v4.212.0 首刀）：消息级编译摘要+相邻请求前缀稳定判定随 RequestHeader 落会话日志（dump/diff/回放一体），contextview 趋势柱携带判定与 CacheHitTokens 配对成证据链；意图分类/预算调度底座已有（TCCA L3/doc 预算/compaction），深化按需另刀。
 - 5.3 三态可查、衰减有留痕；预取可关闭。
+  - 进度（2026-09-11，v4.213.0 首刀）：固化（pinned+豁免清理+排序加权）/衰减（纯函数评分，输入与动作全在 memory_events 留痕）/归档（既有保留期+purge-audit）三态可查（GaeaMemoryLifecycle/GaeaMemoryPin）；蒸馏真实合并（DistillMerge）与预取开关（晨报预载）此前已落地——**5.3 出口判据全满足**。
 
 ## 3. 阶段六 · 书斋纵深：办公主角，进度与造价为两翼（旗舰旗）
 

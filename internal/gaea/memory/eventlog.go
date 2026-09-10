@@ -49,6 +49,8 @@ const (
 	OpTouch      = "touch"
 	OpChangeType = "change_type"
 	OpCite       = "cite"
+	OpPin        = "pin"   // 固化（5.3 三态生命周期）
+	OpUnpin      = "unpin" // 解除固化
 )
 
 // wikiRefRe 匹配 body 中的 wiki 式互引：[[name]] / [[name|别名]]。与 app 层

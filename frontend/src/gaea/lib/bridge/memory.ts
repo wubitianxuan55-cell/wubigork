@@ -7,6 +7,7 @@ import type {
   KnowledgeSaveRequest,
   KnowledgeSummary,
   MemoryArchivedPage,
+  MemoryLifecycleView,
   MemoryDuplicateView,
   MemoryGraphView,
   SemanticGraphView,
@@ -46,6 +47,10 @@ export interface MemoryBindings {
   // SetMemoryEnabled 记忆开关（记忆可控性）：关闭后不再注入画像/规则/事实，
   // 持久化并重建办公引擎立即生效。
   SetMemoryEnabled(enabled: boolean): Promise<void>;
+  // MemoryPin 固化/解除固化一条办公记忆（5.3 三态生命周期）。
+  MemoryPin(name: string, pinned: boolean): Promise<void>;
+  // MemoryLifecycle 三态生命周期总览（固化/衰减/归档 + 衰减评分）。
+  MemoryLifecycle(): Promise<MemoryLifecycleView>;
   // MorningPreload 读/写晨报预载开关（~/.gaea_config.json，默认开）：work
   // 空间新会话装配时预装配高频工作记忆；写后重建引擎即时生效。
   MorningPreload(): Promise<boolean>;
