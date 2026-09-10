@@ -2,7 +2,7 @@
 
 > **状态：🔄 活跃指导** — 有阶段门，不锁周历和版本号。
 >
-> 画面 = `gaea-board-outlook-agent-contract-2026-09.md`。
+> 画面文档（原 `gaea-board-outlook-agent-contract-2026-09.md`）已于 2026-09-10 用户拍板删除。
 > 治理 = 收敛计划（不加新板块、周度 train、拍板池过期）。
 > 瘦身 = **仅 P5 维持**。
 > 与 `gaea-nextgen-roadmap-2026.md` 冲突：展望 + 本文为准。
