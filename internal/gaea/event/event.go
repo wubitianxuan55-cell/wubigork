@@ -239,6 +239,19 @@ type RequestHeaderInfo struct {
 	System string           `json:"system,omitempty"`
 	Tools  []ToolSchemaInfo `json:"tools,omitempty"`
 	Window int              `json:"window,omitempty"`
+	// ── v4.212 上下文编译 dump/diff（5.2）────────────────────────────
+	// CompileHash 是本请求消息序列（canonical role+content 串接）的 SHA256
+	// 前 16 hex；PrevCompileHash 是上一请求的整体摘要（空=会话首请求）。
+	// PrefixStable 判定「上一请求消息序列 = 本请求的无改写字节前缀」
+	// （append-only 不变量；压缩/rewind/重排会翻 false）。三态指针：nil=
+	// 未计算（首请求/旧日志），false=前缀漂移，true=字节级稳定——与 usage
+	// 的 CacheHitTokens 配对即「缓存命中可证」。
+	CompileHash     string `json:"compileHash,omitempty"`
+	PrevCompileHash string `json:"prevCompileHash,omitempty"`
+	PrefixStable    *bool  `json:"prefixStable,omitempty"`
+	PrefixBytes     int64  `json:"prefixBytes,omitempty"`
+	AppendCount     int    `json:"appendCount,omitempty"`
+	RewriteCount    int    `json:"rewriteCount,omitempty"`
 }
 
 // ToolSchemaInfo is one tool schema as sent to the provider. Schema is the

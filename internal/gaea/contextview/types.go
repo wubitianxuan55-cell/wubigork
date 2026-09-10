@@ -62,6 +62,21 @@ type RequestRecord struct {
 	// 快照点与 Category 同拍（request_header 组装时；旧日志退化在 usage 关闭
 	// 时），保证 delta 与分类构成永远自洽。
 	Delta *RequestDelta `json:"delta,omitempty"`
+
+	// Prefix 是相邻请求的前缀稳定判定（v4.212，5.2 出口判据「相邻两轮请求
+	// 前缀字节级稳定（缓存命中可证）」）：nil=未计算（首请求/旧日志）。
+	// 与 CacheHitTokens（本记录已有字段）配对即完整证据链。
+	Prefix *PrefixVerdict `json:"prefix,omitempty"`
+}
+
+// PrefixVerdict 是一次相邻请求的前缀稳定判定（request_header 编译摘要折叠）。
+type PrefixVerdict struct {
+	Stable       bool   `json:"stable"`
+	PrefixBytes  int64  `json:"prefixBytes,omitempty"`
+	AppendCount  int    `json:"appendCount,omitempty"`
+	RewriteCount int    `json:"rewriteCount,omitempty"` // >0=前缀被改写（压缩/rewind/重排），缓存必然失效
+	Hash         string `json:"hash,omitempty"`         // 本请求消息序列整体摘要
+	PrevHash     string `json:"prevHash,omitempty"`
 }
 
 // CatDelta 是单个分类在「对比上一步」中的净变化（有变化才进 ByCat）。

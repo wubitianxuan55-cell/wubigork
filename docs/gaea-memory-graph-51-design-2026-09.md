@@ -55,6 +55,15 @@
 - Go：投影确定性 / 三向边 / 悬空不入图+Dangling / 实体 fold（末态 archived）/ 删库重建自愈（物化=投影）/ BFS 遍历（跳数、经边、[MEM:] 键解析、未知起点）/ 事件日志读写 / 写路径逐 op 挂钩（未命中触达不落事件）/ cite 事件形态。
 - 前端：GraphView `source="semantic"` 数据源切换 + 标题切换；既有 8 例零变更全绿。
 
+## 5.2 上下文编译·首刀（v4.212.0）：前缀稳定证明 + 装配 dump/diff
+
+5.2 出口判据两条的承担者（意图分类与预算调度已有底座：TCCA 四层内核 L3 SkillLayer.Route 即意图分类，预算调度走 doc 预算/compaction/tail 注入——本刀不重建，只补**证据链**缺口）：
+
+- **消息级编译摘要**：`agent.DigestMessages` 把每条消息规约为 canonical 字节串（role+长度前缀+content+toolcalls）取 SHA256；`DiffMessages(prev, curr)` 得相邻请求判定——`Stable`（上一请求消息序列=本请求无改写前缀）/ `PrefixBytes` / `AppendCount` / `RewriteCount`（>0=压缩/rewind/重排，缓存必然失效）。CacheShape（V5.10）只看 system+tools 头部，本刀补齐消息历史这半边。
+- **随 RequestHeader 落日志（dump/diff/回放一体）**：RequestHeaderInfo 追加 compileHash/prevCompileHash/prefixStable/prefixBytes/appendCount/rewriteCount（追加列，旧日志零值=未计算）——session 事件日志即装配 dump，相邻记录即 diff，session.ReadEntriesFor 即回放。
+- **contextview 折叠**：RequestRecord.Prefix（PrefixVerdict）随趋势柱下发，与 CacheHitTokens 配对=「前缀字节级稳定+缓存命中可证」完整证据链；前端渲染按需另刀。
+- 测试：纯函数五形态（全等/追加/改写/混合/首请求+拼接歧义防护）+ agent 端到端（同会话 4 请求跨 2 回合全稳定+摘要链接续；外部改写历史→Stable=false+RewriteCount 归因）+ contextview 折叠（判定贯通/旧日志 nil）。
+
 ## 6. 5.1 余项与后续刀
 
 - ~~**真·「回复发出前」闸**~~ ✅ **v4.211.0 已收口**：闸点=stream() 收尾（Message 全文事件发出前+返回值进 session 前），`memory.Store.StripDanglingCitations` 纯函数剥离（不 Touch，触达职责仍在回合收尾），boot 装配闭包（记忆开关闭/库不可用=不注入，子代理 nil 不改写），剥离键落 dangling cite 事件。流式增量原样透传、由 Message 重渲染收敛——前端零改动。测试：memory 三例（命中保留/悬空剥离+空间隔离/不触达+零值 Store 跳过）+ agent 两例（Message/Summary/session 三路改写、nil no-op）。

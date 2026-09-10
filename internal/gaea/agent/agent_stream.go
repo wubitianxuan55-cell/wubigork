@@ -26,11 +26,33 @@ func (a *AgentRunner) stream(ctx context.Context, turn int) (string, string, str
 	// V3.4: request header 事件——把本次请求实际发给模型的 system prompt 与
 	// 工具 schema 入日志（context-view 折叠的数据源，也是「模型可见必入日志」
 	// 不变量在请求头这一层的落点）。
-	a.sink.Emit(event.Event{Kind: event.RequestHeader, Header: event.RequestHeaderInfo{
-		System: systemPromptFromMessages(msgs),
-		Tools:  headerToolsFromSchemas(tools),
-		Window: a.ContextWindow(),
-	}})
+	// v4.212（5.2）：随事件携带消息级编译摘要与相邻请求前缀稳定判定——
+	// 装配 dump/diff 落日志可回放，与 usage 的 CacheHitTokens 配对即
+	// 「前缀字节级稳定 + 缓存命中可证」。首请求无 prev，判定字段缺省。
+	digests := DigestMessages(msgs)
+	hadPrev := len(a.lastDigests) > 0
+	compileDiff := CompileDiff{Hash: SequenceHash(digests)}
+	if hadPrev {
+		compileDiff = DiffMessages(a.lastDigests, digests)
+		compileDiff.Hash = SequenceHash(digests)
+		compileDiff.PrevHash = SequenceHash(a.lastDigests)
+	}
+	a.lastDigests = digests
+	header := event.RequestHeaderInfo{
+		System:      systemPromptFromMessages(msgs),
+		Tools:       headerToolsFromSchemas(tools),
+		Window:      a.ContextWindow(),
+		CompileHash: compileDiff.Hash,
+	}
+	if hadPrev {
+		stable := compileDiff.Stable
+		header.PrevCompileHash = compileDiff.PrevHash
+		header.PrefixStable = &stable
+		header.PrefixBytes = compileDiff.PrefixBytes
+		header.AppendCount = compileDiff.AppendCount
+		header.RewriteCount = compileDiff.RewriteCount
+	}
+	a.sink.Emit(event.Event{Kind: event.RequestHeader, Header: header})
 
 	// V5.10: ImmutablePrefix guard — capture prefix shape before API call,
 	// compare against session baseline; emit Notice on drift (not panic).

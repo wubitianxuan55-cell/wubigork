@@ -282,6 +282,17 @@ func (f *folding) applyHeader(e session.LogEntry) {
 	}
 	// 对比上一步：快照点与 Category 同拍（header 组装时），delta 与分类构成自洽。
 	f.attachRequestDelta(&rec)
+	// v4.212：前缀稳定判定（request_header 编译摘要 → 趋势柱证据链）。
+	if h.PrefixStable != nil {
+		rec.Prefix = &PrefixVerdict{
+			Stable:       *h.PrefixStable,
+			PrefixBytes:  h.PrefixBytes,
+			AppendCount:  h.AppendCount,
+			RewriteCount: h.RewriteCount,
+			Hash:         h.CompileHash,
+			PrevHash:     h.PrevCompileHash,
+		}
+	}
 	f.pending = &rec
 }
 
@@ -1020,4 +1031,11 @@ type requestHeaderPayload struct {
 		Schema string `json:"schema,omitempty"`
 	} `json:"tools,omitempty"`
 	Window int `json:"window,omitempty"`
+	// v4.212（5.2）前缀稳定判定（追加列，旧日志零值=未计算不折叠）。
+	CompileHash     string `json:"compileHash,omitempty"`
+	PrevCompileHash string `json:"prevCompileHash,omitempty"`
+	PrefixStable    *bool  `json:"prefixStable,omitempty"`
+	PrefixBytes     int64  `json:"prefixBytes,omitempty"`
+	AppendCount     int    `json:"appendCount,omitempty"`
+	RewriteCount    int    `json:"rewriteCount,omitempty"`
 }

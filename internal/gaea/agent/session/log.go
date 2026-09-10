@@ -112,6 +112,14 @@ type requestHeaderLogPayload struct {
 	System string                  `json:"system,omitempty"`
 	Tools  []requestToolLogPayload `json:"tools,omitempty"`
 	Window int                     `json:"window,omitempty"`
+	// v4.212（5.2）上下文编译 dump/diff：消息级摘要链与相邻请求前缀稳定
+	// 判定（追加列，旧日志读端零值缺省=未计算）。
+	CompileHash     string `json:"compileHash,omitempty"`
+	PrevCompileHash string `json:"prevCompileHash,omitempty"`
+	PrefixStable    *bool  `json:"prefixStable,omitempty"`
+	PrefixBytes     int64  `json:"prefixBytes,omitempty"`
+	AppendCount     int    `json:"appendCount,omitempty"`
+	RewriteCount    int    `json:"rewriteCount,omitempty"`
 }
 
 // requestToolLogPayload 是 request_header 中单个工具 schema。
@@ -506,6 +514,13 @@ func EntryFromEvent(e event.Event, ts int64) (LogEntry, error) {
 			System: e.Header.System,
 			Tools:  tools,
 			Window: e.Header.Window,
+
+			CompileHash:     e.Header.CompileHash,
+			PrevCompileHash: e.Header.PrevCompileHash,
+			PrefixStable:    e.Header.PrefixStable,
+			PrefixBytes:     e.Header.PrefixBytes,
+			AppendCount:     e.Header.AppendCount,
+			RewriteCount:    e.Header.RewriteCount,
 		}
 	case event.Retrying:
 		payload = map[string]int{"attempt": e.RetryAttempt, "max": e.RetryMax}

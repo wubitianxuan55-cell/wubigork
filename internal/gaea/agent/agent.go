@@ -257,6 +257,11 @@ type AgentRunner struct {
 	lastPrefixShape      PrefixShape
 	prefixFingerprintSet bool
 
+	// lastDigests 是上一请求的消息摘要链（v4.212 上下文编译 dump/diff）：
+	// stream() 组装时与本次摘要链一比，前缀稳定判定随 RequestHeader 落日志。
+	// stream 在单个 Run 内顺序调用，无需加锁。
+	lastDigests []MsgDigest
+
 	// V5.31: ����������Ƚضϼ�����output_continue.go��
 	lenContCount    int
 	invalidOutCount int

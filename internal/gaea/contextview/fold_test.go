@@ -626,3 +626,52 @@ func TestFoldCostRate(t *testing.T) {
 		t.Fatalf("无定价时 Rate 应为 nil: %+v", tl2.Rate)
 	}
 }
+
+// v4.212（5.2）：request_header 编译摘要折叠为 RequestRecord.Prefix——
+// 判定字段贯通；旧日志（无判定字段）保持 nil 不伪造。
+func TestFoldPrefixVerdict(t *testing.T) {
+	trueVal := true
+	falseVal := false
+	entries := []session.LogEntry{
+		entry(1, "turn_started", map[string]any{}),
+		// 首请求：有 compileHash、无判定字段 → Prefix=nil。
+		entry(2, "request_header", map[string]any{
+			"system": "sys", "tools": []any{}, "window": 1_000_000,
+			"compileHash": "aa",
+		}),
+		entry(3, "usage", map[string]any{"promptTokens": 100}),
+		// 第二请求：稳定（判定字段齐全）。
+		entry(4, "request_header", map[string]any{
+			"system": "sys", "tools": []any{}, "window": 1_000_000,
+			"compileHash": "bb", "prevCompileHash": "aa", "prefixStable": trueVal,
+			"prefixBytes": 4096, "appendCount": 2,
+		}),
+		entry(5, "usage", map[string]any{"promptTokens": 100}),
+		// 第三请求：压缩改写（stable=false + rewriteCount>0）。
+		entry(6, "request_header", map[string]any{
+			"system": "sys", "tools": []any{}, "window": 1_000_000,
+			"compileHash": "cc", "prevCompileHash": "bb", "prefixStable": falseVal,
+			"rewriteCount": 3,
+		}),
+		entry(7, "usage", map[string]any{"promptTokens": 100}),
+		entry(8, "turn_done", map[string]any{}),
+	}
+	tl := FoldTimeline(entries, 1_000_000, 0)
+	if len(tl.Requests) != 3 {
+		t.Fatalf("requests = %d, want 3", len(tl.Requests))
+	}
+	if tl.Requests[0].Prefix != nil {
+		t.Fatalf("首请求 Prefix 应为 nil: %+v", tl.Requests[0].Prefix)
+	}
+	p1 := tl.Requests[1].Prefix
+	if p1 == nil || !p1.Stable || p1.PrefixBytes != 4096 || p1.AppendCount != 2 || p1.RewriteCount != 0 {
+		t.Fatalf("稳定请求折叠不符: %+v", p1)
+	}
+	if p1.Hash != "bb" || p1.PrevHash != "aa" {
+		t.Fatalf("摘要链不符: %+v", p1)
+	}
+	p2 := tl.Requests[2].Prefix
+	if p2 == nil || p2.Stable || p2.RewriteCount != 3 {
+		t.Fatalf("改写请求折叠不符: %+v", p2)
+	}
+}

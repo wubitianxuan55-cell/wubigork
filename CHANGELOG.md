@@ -1,3 +1,6 @@
+## v4.212.0 · 5.2 首刀：上下文编译 dump/diff + 前缀稳定证明（2026-09-11）
+> 阶段五 5.2 首刀（纯 Go，零绑定，前端零改动）。意图分类与预算调度底座已有（TCCA 四层内核 L3 SkillLayer.Route=意图分类；doc 预算/compaction/tail 注入=预算调度），本刀补**证据链**缺口：CacheShape（V5.10）只看 system+tools 头部，消息历史的前缀稳定性无人判定。新增 agent 消息级编译摘要（canonical role+长度前缀+content+toolcalls 的逐消息 SHA256 链）+ DiffMessages 相邻请求判定（Stable/PrefixBytes/AppendCount/RewriteCount，>0=压缩/rewind 归因）；判定随 RequestHeader 事件落会话日志（追加列）——日志即装配 dump、相邻记录即 diff、ReadEntriesFor 即回放；contextview 趋势柱携带 RequestRecord.Prefix 与 CacheHitTokens 配对=「相邻两轮前缀字节级稳定（缓存命中可证）」完整证据链。测试 Go +4（纯函数五形态+拼接歧义防护/同会话 4 请求跨 2 回合全稳定+摘要链接续/改写诚实判漂移+RewriteCount 归因/contextview 折叠贯通+旧日志 nil）。前端渲染判定按需另刀。
+
 ## v4.211.0 · 5.1 收口：回复发出前剥离悬空 [MEM:] 引用（2026-09-11）
 > v4.210.0 的 5.1 余项收口刀（纯 Go，前端零改动）。闸点=agent stream() 收尾：`Options.FinalizeText`/`SetFinalizeText` 定稿钩子在 Message 全文事件发出前改写答案文本，改写值同时进 session 历史与 TurnResult 摘要——模型幻觉的引用键到不了持久层，前端收 Message 事件整泡替换（既有语义），流式增量原样透传由重渲染收敛。boot 按记忆总闸+库可用性注入剥离闭包（`memory.Store.StripDanglingCitations` 纯函数：命中键保留、悬空键含紧邻空白整处剥离、**不 Touch**——触达职责仍在回合收尾 touchMemoryCitations；被剥离键当场落 dangling cite 事件，v4.210 的悬空可观测性不丢）。子代理/headless executor nil=不改写。空间语义同读端隔离器（work 会话剥 play 键）。测试 Go +5（memory 三例：命中保留+悬空剥离+空间隔离/不触达+零值 Store 跳过；agent 两例：Message/Summary/session 三路改写+nil no-op）。**5.1 出口判据至此全满足**，阶段五下一刀=5.2 上下文编译。
 
