@@ -412,6 +412,14 @@ export interface CostInquiryRecord {
   updatedAt: string;
 }
 // CostAdjustSuggestion 调差建议：成本库条目 vs 最新询价数据点（|差幅|>2%）。
+// SemanticIndexStatus 语义索引覆盖状态（成本条目 vs 向量库，与 Ensure 同口径）。
+export interface SemanticIndexStatus {
+  total: number;
+  indexed: number;
+  modelOk: boolean;
+  modelNote: string; // 模型不可用时的人话说明
+}
+
 // CostInquiryScanFinding 库级异常扫描发现（询价库内部自洽体检，与调差建议互补）。
 export interface CostInquiryScanFinding {
   kind: string; // 离散/跳变/过期/陈旧

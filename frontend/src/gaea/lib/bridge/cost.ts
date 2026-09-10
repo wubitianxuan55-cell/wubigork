@@ -25,6 +25,7 @@ import type {
   PriceHistory,
   PriceSource,
   SemanticHitView,
+  SemanticIndexStatus,
   TaskView,
 } from "../types";
 
@@ -67,6 +68,10 @@ export interface CostBindings {
   // PriceHistory 返回某成本条目的价格历史（新→旧）。
   PriceHistory(name: string): Promise<PriceHistory[]>;
   // SemanticSearch 跨库统一语义检索（成本/知识/办公记忆，本地 bge-m3）。
+  // SemanticIndexStatus 语义索引覆盖状态（成本条目总数/已覆盖/模型可用性）。
+  SemanticIndexStatus(): Promise<SemanticIndexStatus>;
+  // SemanticIndexBackfill 显式补齐：缺失或正文变化才重嵌（幂等）。
+  SemanticIndexBackfill(): Promise<{ total: number; updated: number; indexed: number; missing: number }>;
   SemanticSearch(query: string): Promise<SemanticHitView[]>;
   // CostCompare 返回某成本条目的多来源比价明细（现价/历史/价格源抓取候选）。
   CostCompare(name: string): Promise<CostCompareRow[]>;

@@ -68,6 +68,29 @@ func (s *Store) Counts() (map[string]int, error) {
 	return out, rows.Err()
 }
 
+// Coverage 索引覆盖统计（D3-1 显形的判定内核）：docs 中「已有向量且正文
+// 快照一致」的数量——与 Ensure 的缺失判定完全同口径（正文变了算未覆盖），
+// 保证状态数字与补齐行为不会各说各话。
+func (s *Store) Coverage(kind string, docs []Doc) (int, error) {
+	if s.db == nil {
+		return 0, nil
+	}
+	have, err := s.vectorDocs(kind)
+	if err != nil {
+		return 0, err
+	}
+	indexed := 0
+	for _, d := range docs {
+		if d.ID == "" || strings.TrimSpace(d.Text) == "" {
+			continue
+		}
+		if doc, ok := have[d.ID]; ok && doc == d.Text {
+			indexed++
+		}
+	}
+	return indexed, nil
+}
+
 // Ensure 增量向量化：缺失向量或正文快照变化的文档重新向量化（分批），
 // 返回新增/更新条数。正文快照比对保证「内容变更自动重嵌」，编辑过的
 // 条目不会被陈旧向量命中。

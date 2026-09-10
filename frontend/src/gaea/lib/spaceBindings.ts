@@ -377,6 +377,8 @@ export const GAEA_METHOD_FACETS = {
   PriceFetchApply: "work",
   PriceFetchIgnore: "work",
   PriceHistory: "work",
+  SemanticIndexBackfill: "work",
+  SemanticIndexStatus: "work",
   SemanticSearch: "work",
   CostCompare: "work",
   CostCompose: "work",

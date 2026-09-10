@@ -1,3 +1,6 @@
+## v4.196.0 · 语义索引显形与显式补齐（2026-09-10）
+> 刀路池第 5 项，读档修正刀型：GaeaSemanticIndexStatus（D3-1，v2.18）早已显形各 kind 向量条数，真缺口=覆盖无内容口径+成本类无显式补齐。**Go**：semantic.Store.Coverage（与 Ensure 缺失判定同口径，正文变了算未覆盖）；SemanticIndexStatus 扩展 costTotal/costIndexed（omitempty 旧消费零破坏）；新绑定 GaeaSemanticIndexBackfill（MemoryB，共用 Ensure 幂等，模型未配置拒绝并说人话，10 分钟预算）。**绑定面 606→607** 七处接线。**前端 CostLibraryView** 索引 chip 三态：全覆盖绿禁用/部分覆盖琥珀可点补齐/模型未配置灰「未启用」。**测评集**补 13-15 清单级综合单价查询（表+JSON 同步，零新种子）。Go 全量 exit 0（+2）、vitest 316 文件 2768 例 exit 0（+2）、tsc/eslint 0、e-check OK、drift PASS@607。详见 releases/v4.196.0.md。
+
 ## v4.195.0 · 造价询价库级异常扫描（2026-09-10）
 > 刀路池第 4 项（survey：异常检测只作用于单点调差建议）。**Go costinquiry/scan.go（只读）**：ScanAnomalies 四类体检全量扫+内存检查，复用既有 MatchTitle/sortableDate/parsePriceDate 零新建基建——①同标题离散（max/min≥1.5 关注/≥2.0 异常）②相邻期跳变（≥30% 关注/≥50% 异常）③有效期已过仍「现行」（逐条）④最新期数超一年（陈旧）；异常优先排序，每条带 severity/人话 detail/refIds。**绑定面 605→606**（+GaeaCostInquiryScan，CostB work）七处接线全同步——v4.195 新踩第七处=bridge mappings.ts gaeaToGaea 映射（drift.ts 双向断言抓的，历史刀只记六处）。**前端 CostInquiryPanel**「⑥ 库级扫描」折叠区：挂载随元数据一并扫+重扫钮+severity 徽标+空态诚实自洽。Go 全量 0 FAIL（scan_test +3）、vitest 316 文件 2766 例全绿（+2）、tsc/eslint 0、e-check OK、drift PASS@606。详见 releases/v4.195.0.md。
 

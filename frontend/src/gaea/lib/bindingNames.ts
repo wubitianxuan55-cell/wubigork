@@ -294,6 +294,7 @@ export const bindingNames = [
 	"GaeaScheduleProjectOpen",
 	"GaeaScheduleProjects",
 	"GaeaScheduleSave",
+	"GaeaSemanticIndexBackfill",
 	"GaeaSemanticIndexStatus",
 	"GaeaSemanticSearch",
 	"GaeaSend",

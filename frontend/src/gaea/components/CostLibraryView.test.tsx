@@ -31,7 +31,11 @@ const ENTRIES = [
   },
 ];
 
-const { searchSpy } = vi.hoisted(() => ({ searchSpy: vi.fn() }));
+const { searchSpy, statusSpy, backfillSpy } = vi.hoisted(() => ({
+  searchSpy: vi.fn(),
+  statusSpy: vi.fn(),
+  backfillSpy: vi.fn(),
+}));
 
 // 比价弹层 mock 数据（CostCompareRow 契约样例）。
 const COMPARE_ROWS = [
@@ -42,6 +46,8 @@ const COMPARE_ROWS = [
 vi.mock("../lib/bridge", () => ({
   app: {
     CostSearch: (...args: unknown[]) => searchSpy(...args),
+    SemanticIndexStatus: (...args: unknown[]) => statusSpy(...args),
+    SemanticIndexBackfill: (...args: unknown[]) => backfillSpy(...args),
     CostCategories: async () => CAT_TREE,
     CostGet: async () => null,
     CostSave: async () => {},
@@ -59,6 +65,8 @@ vi.mock("../lib/bridge", () => ({
 
 describe("CostLibraryView 多级分类 + 列表/表格", () => {
   beforeEach(() => {
+  statusSpy.mockResolvedValue({ total: 2, indexed: 1, modelOk: true, modelNote: "" });
+  backfillSpy.mockResolvedValue({ total: 2, updated: 1, indexed: 2, missing: 0 });
     searchSpy.mockReset();
     searchSpy.mockResolvedValue(ENTRIES);
   });
@@ -159,5 +167,31 @@ describe("CostLibraryView 多级分类 + 列表/表格", () => {
     // 选中集变化 → 对应行重渲染
     rerender(<ListView {...props} selected={new Set([ENTRIES[0].name])} />);
     expect(priceSpy.mock.calls.length).toBeGreaterThan(base);
+  });
+
+  it("语义索引 chip：部分覆盖可点击补齐，全覆盖禁用", async () => {
+    // 首次状态=部分覆盖；补齐后 loadIndex 刷新为全覆盖。
+    statusSpy.mockResolvedValueOnce({ total: 2, indexed: 1, modelOk: true, modelNote: "" });
+    statusSpy.mockResolvedValue({ total: 2, indexed: 2, modelOk: true, modelNote: "" });
+    render(<CostLibraryView />);
+    const chip = await screen.findByTestId("semantic-index-chip");
+    await waitFor(() => expect(chip.textContent).toContain("1/2"));
+    expect((chip as HTMLButtonElement).disabled).toBe(false);
+    const callsBefore = backfillSpy.mock.calls.length; // spy 计数跨用例累计，只断言增量
+    fireEvent.click(chip);
+    await waitFor(() => expect(backfillSpy.mock.calls.length).toBeGreaterThan(callsBefore));
+    // 补齐后刷新状态 → 全覆盖 → 禁用。
+    await waitFor(() => expect(chip.textContent).toContain("2/2"));
+    expect((chip as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("语义索引 chip：模型未配置显示未启用且不可点", async () => {
+    statusSpy.mockResolvedValue({ total: 2, indexed: 0, modelOk: false, modelNote: "本地语义模型未配置" });
+    const callsBefore = backfillSpy.mock.calls.length;
+    render(<CostLibraryView />);
+    const chip = await screen.findByTestId("semantic-index-chip");
+    expect(chip.textContent).toContain("未启用");
+    expect(chip.tagName).toBe("SPAN");
+    expect(backfillSpy.mock.calls.length).toBe(callsBefore);
   });
 });

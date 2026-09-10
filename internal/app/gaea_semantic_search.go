@@ -25,6 +25,10 @@ type SemanticIndexStatus struct {
 	Counts    map[string]int    `json:"counts"` // kind → 向量条数
 	Detail    map[string]string `json:"detail,omitempty"`
 	Error     string            `json:"error,omitempty"`
+	// v4.196 成本类覆盖细化：total=正文非空的成本条目数；indexed=「向量在且
+	// 正文快照一致」的数量（与 Ensure 缺失判定同口径，正文变了算未覆盖）。
+	CostTotal   int `json:"costTotal,omitempty"`
+	CostIndexed int `json:"costIndexed,omitempty"`
 }
 
 // GaeaSemanticIndexStatus 返回向量索引（semantic_vectors）各 kind 的条数，
@@ -42,7 +46,11 @@ func (a *App) GaeaSemanticIndexStatus() SemanticIndexStatus {
 	if err != nil {
 		return SemanticIndexStatus{Available: false, Error: err.Error()}
 	}
-	return SemanticIndexStatus{Available: true, Counts: counts}
+	view := SemanticIndexStatus{Available: true, Counts: counts}
+	if cov, err := a.costIndexCoverage(); err == nil {
+		view.CostTotal, view.CostIndexed = cov.Total, cov.Indexed
+	}
+	return view
 }
 
 // GaeaSemanticSearch 跨库统一语义检索（成本/知识/办公记忆/工作区资料），本地

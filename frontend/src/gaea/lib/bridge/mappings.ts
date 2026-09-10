@@ -222,6 +222,8 @@ export const gaeaToGaea = {
   PriceFetchApply: "GaeaPriceFetchApply",
   PriceFetchIgnore: "GaeaPriceFetchIgnore",
   PriceHistory: "GaeaPriceHistory",
+  SemanticIndexBackfill: "GaeaSemanticIndexBackfill",
+  SemanticIndexStatus: "GaeaSemanticIndexStatus",
   SemanticSearch: "GaeaSemanticSearch",
   CostCompare: "GaeaCostCompare",
   CostCompose: "GaeaCostCompose",

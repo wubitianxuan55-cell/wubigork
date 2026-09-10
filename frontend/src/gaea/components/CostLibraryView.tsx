@@ -6,7 +6,7 @@ import {
   Pencil, Plus, RefreshCw, Table, Trash2,
 } from "../icons";
 import { app } from "../lib/bridge";
-import type { CostCategory, CostSummary, FilePickResult, PriceHistory } from "../lib/types";
+import type { CostCategory, CostSummary, FilePickResult, PriceHistory, SemanticIndexStatus } from "../lib/types";
 import { EmptyState } from "./EmptyState";
 import { CostEntryModal } from "./memoryhub/CostEntryModal";
 import { CostImportModal } from "./memoryhub/CostImportModal";
@@ -80,6 +80,30 @@ export function CostLibraryView() {
       .catch(() => setEntries([]))
       .finally(() => setLoading(false));
   }, [debouncedQuery, selectedPath, status]);
+
+  // v4.196 语义索引显形+显式补齐（成本条目向量覆盖；不做后台守护协程）。
+  const [index, setIndex] = useState<SemanticIndexStatus | null>(null);
+  const [indexBusy, setIndexBusy] = useState(false);
+  const loadIndex = useCallback(() => {
+    app.SemanticIndexStatus()
+      .then((r) => setIndex(r ?? null))
+      .catch(() => setIndex(null));
+  }, []);
+  useEffect(() => {
+    loadIndex();
+  }, [loadIndex]);
+  const backfillIndex = useCallback(async () => {
+    setIndexBusy(true);
+    try {
+      const r = await app.SemanticIndexBackfill();
+      message.success(`语义索引已补齐：新增/更新 ${r.updated} 条，覆盖 ${r.indexed}/${r.total}`);
+      loadIndex();
+    } catch (e) {
+      message.warning(String(e));
+    } finally {
+      setIndexBusy(false);
+    }
+  }, [loadIndex]);
 
   const loadCategories = useCallback(() => {
     app
@@ -294,6 +318,34 @@ export function CostLibraryView() {
         <div className="shrink-0 flex items-center gap-2 px-4 pt-2.5 pb-1.5">
           <div className="text-fg text-[13px] font-medium">成本库</div>
           <span className="text-fg-faint text-[11px]">综合单价一级 · 人材机二级 · 按专业/分部分类</span>
+          {index && (index.modelOk ? (
+            <button
+              type="button"
+              data-testid="semantic-index-chip"
+              disabled={indexBusy || index.indexed >= index.total}
+              className={`shrink-0 px-1.5 h-[18px] rounded text-[9.5px] font-semibold leading-[18px] tabular-nums transition-opacity ${
+                index.indexed >= index.total
+                  ? "bg-emerald-500/15 text-emerald-400"
+                  : "bg-amber-400/15 text-amber-300 hover:opacity-80"
+              } disabled:opacity-70`}
+              title={
+                index.indexed >= index.total
+                  ? "语义索引已全覆盖（正文变更会自动重嵌）"
+                  : "部分条目未向量化——点击补齐（首次检索更快、语义召回更全）"
+              }
+              onClick={() => void backfillIndex()}
+            >
+              语义索引 {index.indexed}/{index.total}
+            </button>
+          ) : (
+            <span
+              className="shrink-0 px-1.5 h-[18px] rounded text-[9.5px] leading-[18px] bg-bg-elev text-fg-faint"
+              title={index.modelNote || "本地语义模型未配置——语义召回停用，检索退化为关键词"}
+              data-testid="semantic-index-chip"
+            >
+              语义索引 未启用
+            </span>
+          ))}
           <div className="ml-auto flex items-center gap-1.5">
             <div className="flex items-center rounded-lg border border-border overflow-hidden">
               <button

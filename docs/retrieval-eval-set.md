@@ -32,6 +32,12 @@
 | 10 | C30 泵送混凝土 单价 | cost:泵送商品混凝土 C30 |
 | 11 | 清单计价 综合单价 组成 | knowledge:综合单价组成 |
 | 12 | 土方开挖 放坡 安全要求 | knowledge:土方开挖放坡要求；office:项目-土方开挖方案 |
+| 13 | 清单 C30 商品混凝土 综合单价 分析 | cost:泵送商品混凝土 C30 |
+| 14 | 螺纹钢 清单综合单价 组价调差 | cost:螺纹钢 HRB400 |
+| 15 | 挖掘机 台班 清单组价 询价 | cost:挖掘机 220 台班 |
+
+> v4.196 补 13-15：清单级综合单价描述类查询（survey：原 12 条偏材料/台班，
+> 清单级覆盖少）。expected 复用既有条目名，零新种子。
 
 ```json
 [
@@ -46,6 +52,9 @@
   {"query": "螺纹钢 HRB400 价格", "expected": [{"kind": "cost", "name": "螺纹钢 HRB400"}]},
   {"query": "C30 泵送混凝土 单价", "expected": [{"kind": "cost", "name": "泵送商品混凝土 C30"}]},
   {"query": "清单计价 综合单价 组成", "expected": [{"kind": "knowledge", "name": "综合单价组成"}]},
-  {"query": "土方开挖 放坡 安全要求", "expected": [{"kind": "knowledge", "name": "土方开挖放坡要求"}, {"kind": "office", "name": "项目-土方开挖方案"}]}
+  {"query": "土方开挖 放坡 安全要求", "expected": [{"kind": "knowledge", "name": "土方开挖放坡要求"}, {"kind": "office", "name": "项目-土方开挖方案"}]},
+  {"query": "清单 C30 商品混凝土 综合单价 分析", "expected": [{"kind": "cost", "name": "泵送商品混凝土 C30"}]},
+  {"query": "螺纹钢 清单综合单价 组价调差", "expected": [{"kind": "cost", "name": "螺纹钢 HRB400"}]},
+  {"query": "挖掘机 台班 清单组价 询价", "expected": [{"kind": "cost", "name": "挖掘机 220 台班"}]}
 ]
 ```

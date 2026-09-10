@@ -16,6 +16,7 @@ import type { MakeMockState } from "./state";
 type CostMethods = Pick<
   AppBindings,
   | "CostList" | "CostSearch" | "CostCategories" | "CostCategorySave" | "CostCategoryDelete"
+  | "SemanticIndexStatus" | "SemanticIndexBackfill"
   | "CostGet" | "CostSave" | "CostDelete"
   | "CostImportPreview" | "CostImportAIParse" | "CostImportVisionPreview" | "CostImportApply"
   | "PriceSources" | "PriceSourceSave" | "PriceSourceDelete"
@@ -133,6 +134,13 @@ export function buildCost(_s: MakeMockState): CostMethods {
   return {
     async CostList() {
       return costMock;
+    },
+    async SemanticIndexStatus() {
+      // 浏览器演示态：模型不可用（无本地引擎），诚实提示。
+      return { total: costMock.length, indexed: costMock.length, modelOk: false, modelNote: "浏览器演示态无本地语义模型——真机启用 Herdsman bge-m3 后可用" };
+    },
+    async SemanticIndexBackfill() {
+      return { total: costMock.length, updated: 0, indexed: costMock.length, missing: 0 };
     },
     async CostSearch(query: string, category: string, status: string) {
       const q = (query ?? "").toLowerCase();
