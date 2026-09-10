@@ -368,7 +368,7 @@ describe("ContextView 上下文页卡片墙（v4.71 卡片化）", () => {
     fireEvent.click(opBtns[0]);
     const panel = await screen.findByTestId("ctx-node-detail");
     expect(panel.textContent).toContain("grep");
-    expect(contextNodeDetailMock).toHaveBeenCalledWith(21); // 跳转落到对应操作 seq
+    expect(contextNodeDetailMock).toHaveBeenCalledWith(21, undefined); // 无 sessionPath 回落内核；跳转落到对应操作 seq
   });
 
   it("文件活动：按文件聚合 + 读写徽标 + 点击预览", async () => {
@@ -574,5 +574,12 @@ describe("ContextView 2.5b 后半：工具结果图片缩略卡 + token 估算",
     expect(await screen.findByTestId("ctx-node-images")).toBeTruthy();
     expect(screen.getByText("尺寸未知")).toBeTruthy();
     expect(screen.queryByText(/tok · 标准档/)).toBeNull();
+  });
+
+  it("按 sessionPath 拉取时间线（v4.181 欠账：切会话不跟内核单例）", async () => {
+    const { ContextView } = await import("./ContextView");
+    renderT(<ContextView running={false} sessionPath="/sessions/hist.jsonl" />);
+    expect(await screen.findByText("工具调用")).toBeTruthy();
+    expect(contextViewMock).toHaveBeenCalledWith(["/sessions/hist.jsonl"]);
   });
 });

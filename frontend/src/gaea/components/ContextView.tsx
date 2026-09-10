@@ -621,7 +621,7 @@ export function ContextView({
     void reloadAgentNetwork(sessionPath);
     const p = fetchTimeline
       ? fetchTimeline()
-      : app.ContextView();
+      : app.ContextView(sessionPath ? [sessionPath] : undefined);
     p
       // 老后端可能把空切片序列化成 null，按数组消费前统一归一化
       .then((tl) => {
@@ -702,7 +702,7 @@ export function ContextView({
           {/* 行3：当前上下文 + 上下文浏览器 */}
           <div className="grid grid-cols-1 gap-3 min-[1100px]:grid-cols-[3fr_2fr]">
             <CurrentContextCard used={catTotal(timeline.current)} window={timeline.window} current={timeline.current} />
-            <ContextBrowserTree nodes={timeline.nodes} archive={timeline.archive} focus={focusNode} />
+            <ContextBrowserTree nodes={timeline.nodes} archive={timeline.archive} focus={focusNode} sessionPath={sessionPath} />
           </div>
           {/* 行4：趋势卡（master-detail 单元——请求详情内联卡内，点柱/悬停联动；
               focus=Token 卡锚点，仅定位+强调） */}
@@ -716,7 +716,7 @@ export function ContextView({
           {/* 行5：事件流 + 文件活动 */}
           <div className="grid grid-cols-1 gap-3 min-[1100px]:grid-cols-2">
             <EventsList events={timeline.events} />
-            <FileActivityTree files={timeline.files} />
+            <FileActivityTree files={timeline.files} sessionPath={sessionPath} />
           </div>
           {/* 行6：Agent 网络径向图 */}
           {net && (

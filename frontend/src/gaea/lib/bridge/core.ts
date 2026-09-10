@@ -116,9 +116,11 @@ export interface CoreBindings {
   GaeaSpaceProfileSet(space: string, key: string, ref: string): Promise<SpaceProfileView[]>;
   GaeaSpaceActivate(space: string): Promise<SpaceActiveView>;
   ContextUsage(): Promise<ContextInfo>;
-  // ContextView 返回当前会话的上下文构成快照（dsh-context Go 移植 Phase A）：
-  // 六分类当前组成、逐请求趋势、上下文事件、模型可见节点与归档。
-  ContextView(): Promise<ContextTimeline>;
+  // ContextView 返回会话的上下文构成快照（dsh-context Go 移植 Phase A）：
+  // 六分类当前组成、逐请求趋势、上下文事件、模型可见节点与归档。sessionPath
+  // 单元素数组可选（Go 变参 → JS 数组，与 Trajectory 同形态）：[path]=按该
+  // 会话读取（UI 会话切换语义）；缺省/[]=内核当前会话。
+  ContextView(sessionPath?: string[]): Promise<ContextTimeline>;
   // Trajectory 返回会话的轨迹时间线（轮次→步骤→工具调用）。sessionPath
   // 单元素数组可选（Go 变参 → JS 数组，与 TaskList 同形态）：[path]=按该
   // 会话读取（UI 会话切换语义）；缺省/[]=内核当前会话。
@@ -259,9 +261,10 @@ export interface CoreBindings {
   TaskKill(id: string): Promise<void>;
   TaskRetry(id: string): Promise<void>;
   TaskOutput(id: string): Promise<TaskOutputView>;
-  // v4.80 上下文浏览器：懒加载节点「完整调用」详情（按 seq 回读当前会话日志；
-  // tool_result 配对 dispatch 取参数，user/assistant 取全文）。
-  ContextNodeDetail(seq: number): Promise<ContextNodeDetailView>;
+  // v4.80 上下文浏览器：懒加载节点「完整调用」详情（按 seq 回读会话日志；
+  // tool_result 配对 dispatch 取参数，user/assistant 取全文）。sessionPath
+  // 语义同 ContextView。
+  ContextNodeDetail(seq: number, sessionPath?: string[]): Promise<ContextNodeDetailView>;
   // v4.1 证据链：Journal 最近证据卡（跨会话聚合，时间倒序；前端「证据」入口）。
   GaeaJournalList(limit: number): Promise<JournalChangeRecord[]>;
   // 2b Git 面板最小集（D3：单仓库 status/diff/stage/unstage/discard/commit/log，无 push）。

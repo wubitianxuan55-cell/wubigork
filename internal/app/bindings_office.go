@@ -42,8 +42,8 @@ func (b *OfficeB) GaeaCheckUpdate() (*UpdateInfo, error) { return b.a.GaeaCheckU
 func (b *OfficeB) GaeaCheckpoints() []CheckpointMeta { return b.a.GaeaCheckpoints() }
 func (b *OfficeB) GaeaCommands() []CommandInfo { return b.a.GaeaCommands() }
 func (b *OfficeB) GaeaContext() ContextInfo { return b.a.GaeaContext() }
-func (b *OfficeB) GaeaContextNodeDetail(seq int64) (contextview.NodeDetail, error) { return b.a.GaeaContextNodeDetail(seq) }
-func (b *OfficeB) GaeaContextView() (contextview.ContextTimeline, error) { return b.a.GaeaContextView() }
+func (b *OfficeB) GaeaContextNodeDetail(seq int64, sessionPath ...string) (contextview.NodeDetail, error) { return b.a.GaeaContextNodeDetail(seq, sessionPath...) }
+func (b *OfficeB) GaeaContextView(sessionPath ...string) (contextview.ContextTimeline, error) { return b.a.GaeaContextView(sessionPath...) }
 func (b *OfficeB) GaeaConvertToPdf(rel string) (ConvertPdfResult, error) { return b.a.GaeaConvertToPdf(rel) }
 func (b *OfficeB) GaeaCrossEmbed(in CrossEmbedInput) (CrossEmbedResult, error) { return b.a.GaeaCrossEmbed(in) }
 func (b *OfficeB) GaeaDataBackupCancel() error { return b.a.GaeaDataBackupCancel() }

@@ -139,3 +139,60 @@ func TestGaeaTrajectoryAndNetworkExplicitSessionPath(t *testing.T) {
 	}
 	_ = json.Marshal
 }
+
+// TestGaeaContextViewAndNodeDetailExplicitSessionPath 是 v4.181 欠账收刀：
+// 时间线/节点详情此前恒读内核 ctrl，UI 切历史会话后不跟。显式路径优先，
+// 内核 nil 时缺省仍空快照（ContextView）/报会话未就绪（NodeDetail）。
+func TestGaeaContextViewAndNodeDetailExplicitSessionPath(t *testing.T) {
+	restore := workspaceTestIsolate(t)
+	defer restore()
+	oldCfg, oldCtrl := ga.cfg, ga.ctrl
+	defer func() { ga.cfg, ga.ctrl = oldCfg, oldCtrl }()
+	ga.cfg = &gaeaConfig.Config{Workspace: t.TempDir()}
+	ga.ctrl = nil
+
+	a := &App{core: &core{}}
+
+	if tl, err := a.GaeaContextView(); err != nil || !tl.Ok {
+		t.Fatalf("缺省 ContextView 应为空快照: ok=%v err=%v", tl.Ok, err)
+	}
+	if _, err := a.GaeaContextNodeDetail(1); err == nil {
+		t.Fatal("内核 nil 时 NodeDetail 缺省应报会话未就绪")
+	}
+
+	p := filepath.Join(t.TempDir(), "hist-session.jsonl")
+	w, err := session.OpenLog(session.LogPathFor(p), "", "")
+	if err != nil {
+		t.Fatalf("OpenLog: %v", err)
+	}
+	entries := []session.LogEntry{
+		{Kind: "turn_started", Payload: mustRaw(t, map[string]string{})},
+		{Kind: session.KindUserMessage, Payload: mustRaw(t, map[string]string{"content": "历史会话的提问"})},
+		{Kind: session.KindAssistantMessage, Payload: mustRaw(t, map[string]any{"id": "a1", "text": "历史会话的答复"})},
+	}
+	for i, e := range entries {
+		if _, err := w.AppendRaw(e.Kind, e.Payload); err != nil {
+			t.Fatalf("append entry %d: %v", i, err)
+		}
+	}
+	if err := w.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+
+	tl, err := a.GaeaContextView(p)
+	if err != nil {
+		t.Fatalf("显式路径 ContextView: %v", err)
+	}
+	if !tl.Ok {
+		t.Fatal("显式路径 ContextView 应 ok=true")
+	}
+	if tl.Stats.Turns == 0 && len(tl.Nodes) == 0 && len(tl.Requests) == 0 {
+		t.Fatal("显式路径 ContextView 应折叠出内容")
+	}
+	if _, err := a.GaeaContextNodeDetail(99999, p); err == nil {
+		t.Fatal("显式路径上不存在的 seq 应报错（证明读的是该会话而非内核）")
+	}
+	if tl2, err := a.GaeaContextView(""); err != nil || tl2.Stats.Turns != 0 {
+		t.Fatalf("空串参数应回落缺省（内核 nil → 空）: turns=%d err=%v", tl2.Stats.Turns, err)
+	}
+}

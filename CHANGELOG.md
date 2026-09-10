@@ -1,3 +1,6 @@
+## v4.202.0 · 上下文页按会话读取：时间线/节点详情跟 UI 会话（2026-09-10）
+> v4.181 欠账收刀。GaeaContextView/GaeaContextNodeDetail 变参 sessionPath（显式优先/缺省回落内核），ContextView 时间线与 inspector 节点详情按当前 UI 会话读；切会话清详情缓存。绑定名 608 零变更。Go +1、vitest 318 文件 2782 例、tsc/eslint 0。详见 releases/v4.202.0.md。
+
 ## v4.201.0 · 办公会话排队：拖拽排序（2026-09-10）
 > v4.200 欠账：排队顺序只能入队先后。行左握把 HTML5 拖拽重排发送顺序；sending 钉住不可拖出，pending 可拖到任意槽。点握把不触发撤回编辑。纯前端，绑定 608 零变更。vitest 318 文件 2781 例、tsc/eslint 0。详见 releases/v4.201.0.md。
 

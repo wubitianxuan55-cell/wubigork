@@ -20,35 +20,36 @@ import (
 	_ "golang.org/x/image/webp"
 )
 
-// GaeaContextView 返回当前会话的上下文构成快照（dsh-context Go 移植 Phase A）：
+// GaeaContextView 返回会话的上下文构成快照（dsh-context Go 移植 Phase A）：
 // 六分类当前组成、逐请求趋势、上下文事件、模型可见节点与归档。
-// 会话或日志不存在时返回空快照（ok=true），不报错——前端空态渲染。
+// sessionPath 可选：显式传入=按该会话读取（UI 会话切换语义）；缺省=内核
+// 当前会话（兼容旧调用）。会话或日志不存在时返回空快照（ok=true），不报错。
 // 事件日志缺失时回退 legacy 会话投影（旧会话仍可看板，见 session.ReadEntriesFor）。
-func (a *App) GaeaContextView() (contextview.ContextTimeline, error) {
-	c := gaeaCtrl()
-	if c == nil {
+func (a *App) GaeaContextView(sessionPath ...string) (contextview.ContextTimeline, error) {
+	path := resolveGaeaSessionPath(sessionPath)
+	if path == "" {
 		return contextview.EmptyTimeline(), nil
 	}
-	entries, err := session.ReadEntriesFor(c.SessionPath())
+	entries, err := session.ReadEntriesFor(path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return contextview.EmptyTimeline(), nil
 		}
 		return contextview.EmptyTimeline(), err
 	}
-	_, window := c.ContextSnapshot()
+	window := gaeaContextWindow()
 	return contextview.FoldTimeline(entries, int64(window), 0), nil
 }
 
 // GaeaContextNodeDetail 懒加载浏览器节点的「完整调用」详情（v4.80）：按 seq
-// 回读当前会话日志（tool_result 配对 dispatch 取参数；user/assistant 取全文），
-// 不随节点列表整包下发。仅当前会话有效（与 GaeaContextView 同源）。
-func (a *App) GaeaContextNodeDetail(seq int64) (contextview.NodeDetail, error) {
-	c := gaeaCtrl()
-	if c == nil {
+// 回读会话日志（tool_result 配对 dispatch 取参数；user/assistant 取全文），
+// 不随节点列表整包下发。sessionPath 可选，语义同 GaeaContextView。
+func (a *App) GaeaContextNodeDetail(seq int64, sessionPath ...string) (contextview.NodeDetail, error) {
+	path := resolveGaeaSessionPath(sessionPath)
+	if path == "" {
 		return contextview.NodeDetail{}, fmt.Errorf("会话未就绪")
 	}
-	entries, err := session.ReadEntriesFor(c.SessionPath())
+	entries, err := session.ReadEntriesFor(path)
 	if err != nil {
 		return contextview.NodeDetail{}, err
 	}

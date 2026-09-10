@@ -51,9 +51,13 @@ const ROW_LABELS: Record<ContextSurfaceNode["cat"], DictKey> = {
 
 // v4.81 节点详情懒加载 hook（浏览器与文件活动共用）：按 seq 懒加载 +
 // 缓存（Map 状态机 loading/ok/error）+ 开合集合。
-function useNodeDetails() {
+function useNodeDetails(sessionPath?: string) {
   const [details, setDetails] = useState<Map<number, NodeDetailState>>(() => new Map());
   const [open, setOpen] = useState<Set<number>>(() => new Set());
+  useEffect(() => {
+    setDetails(new Map());
+    setOpen(new Set());
+  }, [sessionPath]);
   const toggle = (seq: number) => {
     setOpen((cur) => {
       const next = new Set(cur);
@@ -63,7 +67,7 @@ function useNodeDetails() {
     });
     if (!details.has(seq)) {
       setDetails((cur) => new Map(cur).set(seq, { s: "loading" }));
-      app.ContextNodeDetail(seq)
+      app.ContextNodeDetail(seq, sessionPath ? [sessionPath] : undefined)
         .then((d) => setDetails((cur) => new Map(cur).set(seq, { s: "ok", d })))
         .catch(() => setDetails((cur) => new Map(cur).set(seq, { s: "error" })));
     }
@@ -288,10 +292,12 @@ export function ContextBrowserTree({
   nodes,
   archive,
   focus,
+  sessionPath,
 }: {
   nodes: ContextSurfaceNode[];
   archive: ContextSurfaceNode[];
   focus?: { seq: number; tick: number } | null;
+  sessionPath?: string;
 }) {
   const t = useT();
   const [query, setQuery] = useState("");
@@ -300,7 +306,7 @@ export function ContextBrowserTree({
   const [openText, setOpenText] = useState<Set<number>>(() => new Set());
   const [showAll, setShowAll] = useState<Set<string>>(() => new Set());
   const [sort, setSort] = useState<CtxBrowserSort>(() => loadContextPrefs().browserSort);
-  const { details, open: openDetails, toggle: toggleDetail } = useNodeDetails();
+  const { details, open: openDetails, toggle: toggleDetail } = useNodeDetails(sessionPath);
   // focus 跳转状态：handledFocus 去重（同一 tick 只处理一次）；focusedSeq
   // 高亮当前目标节点，3s 后自动清除。
   const listRef = useRef<HTMLDivElement | null>(null);
@@ -609,7 +615,7 @@ const SORT_CMP: Record<FileSort, (a: FileAgg, b: FileAgg) => number> = {
   path: (a, b) => a.path.localeCompare(b.path),
 };
 
-export function FileActivityTree({ files, onOpenFile }: { files: FileActivity[]; onOpenFile?: (path: string) => void }) {
+export function FileActivityTree({ files, onOpenFile, sessionPath }: { files: FileActivity[]; onOpenFile?: (path: string) => void; sessionPath?: string }) {
   const t = useT();
   // 预览打开二选一：默认内部走 usePreviewStore（与现有 FileActivityCard 同款链路），
   // onOpenFile 作为可选注入覆盖（契约签名保持兼容：传或不传均可）。
@@ -619,7 +625,7 @@ export function FileActivityTree({ files, onOpenFile }: { files: FileActivity[];
   const [query, setQuery] = useState("");
   // 2.5d：排序初值读设置中心偏好、变更写回（与浏览器分类内排序同模式）。
   const [sort, setSort] = useState<CtxFileSort>(() => loadContextPrefs().fileSort);
-  const { details, open: openDetails, toggle: toggleDetail } = useNodeDetails();
+  const { details, open: openDetails, toggle: toggleDetail } = useNodeDetails(sessionPath);
   // v4.81 操作日志展开（dsh「展开完整操作日志」同款）：按路径展开逐次操作行。
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(() => new Set());
 
