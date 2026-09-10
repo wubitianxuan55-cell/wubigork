@@ -1,3 +1,6 @@
+## v4.199.0 · 场景元数据编辑面：POV/地点/时间/情感（2026-09-10，DSH 代收后解锁首刀）
+> 小说域最后一个有名欠账。SceneMeta 的 POV/地点/时间/情感/标签字段从 v4 场景制起就在、GetChapterScenes 也早回传——唯独没有写路径（SaveScene 只存正文）。**Go SaveSceneMeta**（writingState，play）：线格式与读侧同构（camelCase）、身份字段 ID/Slug/Order 不可变、非法状态整单拒绝、标题空串保持原值、元数据不触发 blob 同步（投影不变有测试锁）。**绑定面 607→608** 七处接线。**前端 ChapterEditor** 每场景 ⓘ 钮 → 元数据弹窗：POV 下拉=本书角色（与 POV 圣经同源，作者显式指定「这一场用谁的眼睛看」）、时间六档、标签逗号分隔、状态三档。Go 全量 exit 0（+TestSaveSceneMeta 五段）、vitest 316 文件 2768 例 exit 0、tsc/eslint 0、e-check OK、drift PASS@608。详见 releases/v4.199.0.md。
+
 ## v4.198.0 · 小说工作台「书房工坊」改版 + 规划文档入库（2026-09-10，代收批次）
 > 代收发布:DSH 停机确认后由本会话验收其在途批次,门禁独立全跑(tsc/eslint/vitest 316 文件 2768 例 exit 0/e-check 全绿)。**小说工作台改版**:「世界构建工作台」→「书房工坊」——NovelPage 身份头栏(书房 kicker+书名+「N 章·M 字」meta)+模式轨+分区按页显隐;NovelSidebar「世界大纲」收敛为「目录」(图标语义化);CreatePage 动作轨语义 class 化去内联;novel-workspace.css +503 行承载新视觉语言。**品牌资产**四件刷新(appicon/favicon/logo/logo-light)。**规划文档入库**:未来展望契约(含 09-10「两套空间拆开」拍板)+长期规划两份治理权威落库,docs/README 注册,design-system 规范页随更。绑定面 607 零变更、Go 零改动。详见 releases/v4.198.0.md。
 

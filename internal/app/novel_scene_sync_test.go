@@ -101,3 +101,60 @@ func TestRebuildScenesFromBlob_ResetsScenes(t *testing.T) {
 		t.Fatalf("重建场景 id 应为物化规则 -chapter，得到 %q", id)
 	}
 }
+
+// TestSaveSceneMeta 元数据专职写路径：字段落盘 + 身份字段不可变 +
+// 非法状态整单拒绝 + 标题空串保持原值 + blob 投影不受元数据影响。
+func TestSaveSceneMeta(t *testing.T) {
+	a, id := mustMaterializedChapter(t, "旧稿第一段。")
+
+	meta := `{"title":"雨夜码头","summary":"交接失败","povCharId":"ch_lin","location":"码头仓库","timeOfDay":"深夜","emotion":"紧张","tags":["climax","action"],"status":"revising"}`
+	if err := a.SaveSceneMeta(3, id, meta); err != nil {
+		t.Fatalf("SaveSceneMeta 失败: %v", err)
+	}
+	scenes, err := a.GetChapterScenes(3)
+	if err != nil || len(scenes) != 1 {
+		t.Fatalf("读回失败: %v", err)
+	}
+	got := scenes[0]
+	for k, want := range map[string]string{
+		"title": "雨夜码头", "summary": "交接失败", "povCharId": "ch_lin",
+		"location": "码头仓库", "timeOfDay": "深夜", "emotion": "紧张", "status": "revising",
+	} {
+		if got[k] != want {
+			t.Fatalf("%s = %v, want %q", k, got[k], want)
+		}
+	}
+	tags, _ := got["tags"].([]string)
+	if len(tags) != 2 || tags[0] != "climax" {
+		t.Fatalf("tags 应落盘: %v", got["tags"])
+	}
+
+	// 身份字段不可变：ID/Slug/Order 原样；标题空串=保持原标题。
+	if err := a.SaveSceneMeta(3, id, `{"title":"   ","slug":"hacked","order":99,"wordCount":1}`); err != nil {
+		t.Fatalf("空标题保存应成功: %v", err)
+	}
+	scenes2, _ := a.GetChapterScenes(3)
+	if scenes2[0]["title"] != "雨夜码头" || scenes2[0]["slug"] == "hacked" {
+		t.Fatalf("身份字段被改写: %+v", scenes2[0])
+	}
+
+	// 非法状态整单拒绝（本次的 summary 也不落）。
+	if err := a.SaveSceneMeta(3, id, `{"summary":"不该落盘","status":"published"}`); err == nil {
+		t.Fatal("非法状态应拒绝")
+	}
+	scenes3, _ := a.GetChapterScenes(3)
+	if scenes3[0]["summary"] == "不该落盘" {
+		t.Fatalf("拒绝路径不应部分落盘: %+v", scenes3[0])
+	}
+
+	// 元数据保存不触发 blob 变化。
+	blob, _ := a.GetChapter(3)
+	if got, _ := blob["content"].(string); got != "旧稿第一段。" {
+		t.Fatalf("元数据保存不应改 blob: %q", got)
+	}
+
+	// 不存在的场景报错。
+	if err := a.SaveSceneMeta(3, "nope", `{"title":"x"}`); err == nil {
+		t.Fatal("不存在场景应报错")
+	}
+}

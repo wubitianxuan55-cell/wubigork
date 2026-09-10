@@ -1,8 +1,10 @@
 package app
 
 import (
+	"encoding/json"
 	"fmt"
 	"log/slog"
+	"strings"
 
 	"github.com/gaea/gaea/internal/types"
 )
@@ -299,6 +301,58 @@ func (a *writingState) ReorderScenes(chapterNum int, sceneIDs []string) error {
 	}
 	syncBlobFromScenes(pm, chapterNum)
 	return nil
+}
+
+// SaveSceneMeta 保存场景元数据（标题/概要/POV/地点/时间/情感基调/标签/状态）。
+// 正文不经此路（SaveScene 专职）；元数据不影响 blob 投影内容，故不触发
+// syncBlobFromScenes。身份字段 ID/Slug/Order/WordCount 以存储为准不可改；
+// 状态仅接受 draft/revising/done（非法值整单拒绝，不静默吞）；标题 trim 后
+// 为空视为「保持原标题」。
+func (a *writingState) SaveSceneMeta(chapterNum int, sceneID string, metaJSON string) error {
+	pm := a.getPM()
+	if pm == nil {
+		return fmt.Errorf("请先打开项目")
+	}
+	if !pm.IsV4() {
+		return fmt.Errorf("v3 项目无场景元数据")
+	}
+	var patch struct {
+		Title     string   `json:"title"`
+		Summary   string   `json:"summary"`
+		POVCharID string   `json:"povCharId"`
+		Location  string   `json:"location"`
+		TimeOfDay string   `json:"timeOfDay"`
+		Emotion   string   `json:"emotion"`
+		Tags      []string `json:"tags"`
+		Status    string   `json:"status"`
+	}
+	if err := json.Unmarshal([]byte(metaJSON), &patch); err != nil {
+		return fmt.Errorf("元数据解析失败: %w", err)
+	}
+	if patch.Status != "" && types.SceneStatus(patch.Status) != types.SceneDraft &&
+		types.SceneStatus(patch.Status) != types.SceneRevising && types.SceneStatus(patch.Status) != types.SceneDone {
+		return fmt.Errorf("非法场景状态 %q（仅 draft/revising/done）", patch.Status)
+	}
+	sm := pm.SceneManager(chapterNum)
+	scene, err := sm.Read(sceneID)
+	if err != nil {
+		return err
+	}
+	if t := strings.TrimSpace(patch.Title); t != "" {
+		scene.Meta.Title = t
+	}
+	scene.Meta.Summary = patch.Summary
+	scene.Meta.POVCharID = strings.TrimSpace(patch.POVCharID)
+	scene.Meta.Location = strings.TrimSpace(patch.Location)
+	scene.Meta.TimeOfDay = strings.TrimSpace(patch.TimeOfDay)
+	scene.Meta.Emotion = strings.TrimSpace(patch.Emotion)
+	if patch.Tags != nil {
+		scene.Meta.Tags = patch.Tags
+	}
+	if patch.Status != "" {
+		scene.Meta.Status = types.SceneStatus(patch.Status)
+	}
+	return sm.Write(scene)
 }
 
 // CreateSnapshot 手动创建场景快照

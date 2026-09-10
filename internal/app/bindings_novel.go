@@ -81,6 +81,7 @@ func (b *NovelB) SaveOrganization(orgJSON string) error { return b.a.SaveOrganiz
 func (b *NovelB) SaveOutlineNode(nodeJSON string) error { return b.a.SaveOutlineNode(nodeJSON) }
 func (b *NovelB) SaveRelationship(relJSON string) error { return b.a.SaveRelationship(relJSON) }
 func (b *NovelB) SaveScene(chapterNum int, sceneID string, content string) error { return b.a.SaveScene(chapterNum, sceneID, content) }
+func (b *NovelB) SaveSceneMeta(chapterNum int, sceneID string, metaJSON string) error { return b.a.SaveSceneMeta(chapterNum, sceneID, metaJSON) }
 func (b *NovelB) SaveWorldMapImage(imageData string) error { return b.a.SaveWorldMapImage(imageData) }
 func (b *NovelB) SaveWorldview(content string) error { return b.a.SaveWorldview(content) }
 func (b *NovelB) SaveWorldviewSection(sectionID string, content string) error { return b.a.SaveWorldviewSection(sectionID, content) }

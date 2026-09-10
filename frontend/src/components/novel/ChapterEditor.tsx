@@ -1,7 +1,8 @@
 import React, { useState } from 'react'
-import { Button, Space, Tag, Input, Typography, message } from 'antd'
-import { ArrowUpOutlined, ArrowDownOutlined, PlusOutlined, DeleteOutlined, EditOutlined, ColumnWidthOutlined, RedoOutlined, ThunderboltOutlined } from '@ant-design/icons'
-import { GetChapterScenes, GenerateScene, CreateScene, ReorderScenes } from '../../../wailsjs/go/app/NovelB'
+import { Button, Space, Tag, Input, Select, Modal, Typography, message } from 'antd'
+import { ArrowUpOutlined, ArrowDownOutlined, PlusOutlined, DeleteOutlined, EditOutlined, ColumnWidthOutlined, RedoOutlined, ThunderboltOutlined, InfoCircleOutlined } from '@ant-design/icons'
+import { GetChapterScenes, GenerateScene, CreateScene, SaveSceneMeta, ReorderScenes } from '../../../wailsjs/go/app/NovelB'
+import { getCharacters } from './api/character'
 import type { ChapterTabData } from '../../types'
 import GhostText from './editor/GhostText'
 import CommandBar from './editor/CommandBar'
@@ -69,6 +70,75 @@ const ChapterEditor: React.FC<ChapterEditorProps> = ({ tab, onUpdate, sceneTexta
   const [sceneGen, setSceneGen] = useState<Record<number, { loading: boolean; aiTaste?: number; beforeScore?: number; afterScore?: number; changes?: number }>>({})
   const [addingScene, setAddingScene] = useState(false)
   const [moving, setMoving] = useState(false)
+
+  // ── v4.199 场景元数据（POV/地点/时间/情感）编辑面：每场景 ⓘ 钮 → 弹窗 ──
+  interface SceneMetaDraft { title: string; summary: string; povCharId: string; location: string; timeOfDay: string; emotion: string; tags: string; status: string }
+  const emptyMeta: SceneMetaDraft = { title: '', summary: '', povCharId: '', location: '', timeOfDay: '', emotion: '', tags: '', status: 'draft' }
+  const [metaTarget, setMetaTarget] = useState<{ index: number; sceneId: string } | null>(null)
+  const [metaDraft, setMetaDraft] = useState<SceneMetaDraft>(emptyMeta)
+  const [metaLoading, setMetaLoading] = useState(false)
+  const [metaSaving, setMetaSaving] = useState(false)
+  const [povOptions, setPovOptions] = useState<{ value: string; label: string }[]>([])
+
+  const openMeta = async (i: number) => {
+    const sceneId = sceneIds[i]
+    if (!sceneId) return
+    setMetaTarget({ index: i, sceneId })
+    setMetaLoading(true)
+    setMetaDraft(emptyMeta)
+    try {
+      const scenes = (await GetChapterScenes(tab.chapterNum)) as Array<Record<string, unknown>>
+      const cur = scenes.find((sc) => sc.id === sceneId)
+      if (cur) {
+        setMetaDraft({
+          title: typeof cur.title === 'string' ? cur.title : '',
+          summary: typeof cur.summary === 'string' ? cur.summary : '',
+          povCharId: typeof cur.povCharId === 'string' ? cur.povCharId : '',
+          location: typeof cur.location === 'string' ? cur.location : '',
+          timeOfDay: typeof cur.timeOfDay === 'string' ? cur.timeOfDay : '',
+          emotion: typeof cur.emotion === 'string' ? cur.emotion : '',
+          tags: Array.isArray(cur.tags) ? (cur.tags as string[]).join(',') : '',
+          status: typeof cur.status === 'string' ? cur.status : 'draft',
+        })
+      }
+    } catch {
+      message.error('场景信息读取失败')
+    } finally {
+      setMetaLoading(false)
+    }
+    // POV 候选 = 本书角色（characters.json；POV 圣经同源）。
+    try {
+      const page = await getCharacters()
+      setPovOptions((page.characters ?? []).map((c) => ({ value: c.id, label: c.name })))
+    } catch {
+      setPovOptions([])
+    }
+  }
+
+  const saveMeta = async () => {
+    if (!metaTarget) return
+    setMetaSaving(true)
+    try {
+      const d = metaDraft
+      const payload = {
+        title: d.title,
+        summary: d.summary,
+        povCharId: d.povCharId,
+        location: d.location,
+        timeOfDay: d.timeOfDay,
+        emotion: d.emotion,
+        tags: d.tags.split(/[,，]/).map((t) => t.trim()).filter(Boolean),
+        status: d.status,
+      }
+      await SaveSceneMeta(tab.chapterNum, metaTarget.sceneId, JSON.stringify(payload))
+      message.success('场景信息已保存（POV 将影响本场景的 AI 生成视角）')
+      setMetaTarget(null)
+    } catch (e) {
+      message.error(String(e))
+    } finally {
+      setMetaSaving(false)
+    }
+  }
 
   // 场景重排：本地框/id 同步换位 + ReorderScenes 落盘（blob 投影由 Go 侧同调用同步）。
   // 乐观换位，失败回滚还原；任一框缺 id（本地降级态/分支章）只换本地不调绑定。
@@ -238,6 +308,9 @@ const ChapterEditor: React.FC<ChapterEditorProps> = ({ tab, onUpdate, sceneTexta
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
                     <Tag style={{ fontSize: 10 }}>场景 {i + 1}</Tag>
                     <Space size={2}>
+                      <Button type="text" size="small" icon={<InfoCircleOutlined />} style={{ color: C('color-text-secondary'), fontSize: 10, padding: '0 4px' }}
+                        disabled={tab.sceneBacked !== true}
+                        onClick={() => void openMeta(i)} aria-label={`场景 ${i + 1} 信息`} title="场景信息：标题 / 概要 / POV / 地点 / 时间 / 情感 / 标签 / 状态" />
                       <Button type="text" size="small" icon={<ArrowUpOutlined />} style={{ color: C('color-text-secondary'), fontSize: 10, padding: '0 4px' }}
                         disabled={i === 0 || tab.sceneBacked !== true || moving}
                         onClick={() => void moveScene(i, -1)} aria-label={`场景 ${i + 1} 上移`} title="上移场景" />
@@ -363,6 +436,70 @@ const ChapterEditor: React.FC<ChapterEditorProps> = ({ tab, onUpdate, sceneTexta
           </div>
         </div>
       )}
+
+      {/* v4.199 场景元数据弹窗：POV/地点/时间/情感（元数据不进正文投影） */}
+      <Modal
+        open={!!metaTarget}
+        title={`场景 ${metaTarget ? metaTarget.index + 1 : ''} 信息`}
+        onCancel={() => setMetaTarget(null)}
+        onOk={() => void saveMeta()}
+        okText="保存"
+        cancelText="取消"
+        confirmLoading={metaSaving}
+        destroyOnHidden
+        transitionName=""
+        maskTransitionName=""
+        width={520}
+      >
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12 }}>
+            标题
+            <Input size="small" value={metaDraft.title} disabled={metaLoading}
+              onChange={(e) => setMetaDraft((d) => ({ ...d, title: e.target.value }))} placeholder="保持原题可留空" />
+          </label>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12 }}>
+            POV 角色（影响 AI 生成视角）
+            <Select size="small" showSearch allowClear placeholder="选择本书角色" loading={metaLoading}
+              value={metaDraft.povCharId || undefined}
+              options={povOptions}
+              onChange={(v) => setMetaDraft((d) => ({ ...d, povCharId: v ?? '' }))} />
+          </label>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12 }}>
+            地点
+            <Input size="small" value={metaDraft.location} disabled={metaLoading}
+              onChange={(e) => setMetaDraft((d) => ({ ...d, location: e.target.value }))} placeholder="如：码头仓库" />
+          </label>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12 }}>
+            时间
+            <Select size="small" allowClear placeholder="选择时间段" disabled={metaLoading}
+              value={metaDraft.timeOfDay || undefined}
+              options={['黎明', '早晨', '下午', '黄昏', '夜晚', '深夜'].map((t) => ({ value: t, label: t }))}
+              onChange={(v) => setMetaDraft((d) => ({ ...d, timeOfDay: v ?? '' }))} />
+          </label>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12 }}>
+            情感基调
+            <Input size="small" value={metaDraft.emotion} disabled={metaLoading}
+              onChange={(e) => setMetaDraft((d) => ({ ...d, emotion: e.target.value }))} placeholder="如：紧张 / 温情" />
+          </label>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12 }}>
+            状态
+            <Select size="small" disabled={metaLoading}
+              value={metaDraft.status || 'draft'}
+              options={[{ value: 'draft', label: '草稿' }, { value: 'revising', label: '修改中' }, { value: 'done', label: '完成' }]}
+              onChange={(v) => setMetaDraft((d) => ({ ...d, status: v }))} />
+          </label>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, gridColumn: '1 / -1' }}>
+            概要
+            <Input size="small" value={metaDraft.summary} disabled={metaLoading}
+              onChange={(e) => setMetaDraft((d) => ({ ...d, summary: e.target.value }))} placeholder="一句话概要" />
+          </label>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, gridColumn: '1 / -1' }}>
+            标签（逗号分隔，如：climax, action）
+            <Input size="small" value={metaDraft.tags} disabled={metaLoading}
+              onChange={(e) => setMetaDraft((d) => ({ ...d, tags: e.target.value }))} placeholder="climax, action" />
+          </label>
+        </div>
+      </Modal>
     </>
   )
 }

@@ -23,7 +23,7 @@ type NovelMethods = Pick<
   | "QuickBrainstormBranches" | "CreateChapter" | "DeleteOutlineNode"
   | "GetNovelState" | "BuildNovelStatePatch" | "SettleNovelState"
   | "DeSlopChapterAiTaste" | "RewriteChapterAiTaste" | "GetEntityRelations"
-  | "GetChapterScenes" | "GenerateScene" | "CreateScene" | "CancelCreateChapter"
+  | "GetChapterScenes" | "GenerateScene" | "CreateScene" | "SaveSceneMeta" | "CancelCreateChapter"
   | "GenerateProjectCharacterFill" | "GenerateCharacterPortrait" | "MergeCharacters"
   | "SaveOrganization" | "DeleteOrganization" | "ToggleOrgMember"
   | "SaveRelationship" | "DeleteRelationship"
@@ -129,6 +129,9 @@ export function buildNovel(): NovelMethods {
     },
     async CreateScene(_chapterNum: number, _slug: string, _title: string) {
       return {};
+    },
+    async SaveSceneMeta(_chapterNum: number, _sceneID: string, _metaJSON: string) {
+      // 浏览器演示态无场景落盘：no-op。
     },
     async CancelCreateChapter(_chapterNum: number, _branch: string) {
       return false;

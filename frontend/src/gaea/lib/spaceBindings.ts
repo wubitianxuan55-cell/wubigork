@@ -510,6 +510,7 @@ export const GAEA_METHOD_FACETS = {
   GetChapterScenes: "play",
   GenerateScene: "play",
   CreateScene: "play",
+  SaveSceneMeta: "play",
   CancelCreateChapter: "play",
   GenerateProjectCharacterFill: "play",
   GenerateCharacterPortrait: "play",

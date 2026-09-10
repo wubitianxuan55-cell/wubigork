@@ -61,6 +61,8 @@ export interface NovelBindings {
   GetChapterScenes(chapterNum: number): Promise<Array<Record<string, unknown>>>;
   GenerateScene(chapterNum: number, sceneID: string, plotReq: string, minWords: number): Promise<Record<string, unknown>>;
   CreateScene(chapterNum: number, slug: string, title: string): Promise<Record<string, unknown>>;
+  // SaveSceneMeta 保存场景元数据（标题/概要/POV/地点/时间/情感/标签/状态；正文走 SaveScene）。
+  SaveSceneMeta(chapterNum: number, sceneID: string, metaJSON: string): Promise<void>;
   CancelCreateChapter(chapterNum: number, branch: string): Promise<boolean>;
   // 项目角色族（novel/api/character.ts 消费；GetCharacters 同名已在 charlib.ts
   // 覆盖——同 Go NovelB.GetCharacters（map），无需重复）：AI 补全/剧照/合并/

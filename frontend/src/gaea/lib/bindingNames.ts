@@ -509,6 +509,7 @@ export const bindingNames = [
 	"SaveOutlineNode",
 	"SaveRelationship",
 	"SaveScene",
+	"SaveSceneMeta",
 	"SaveTTSConfig",
 	"SaveToken",
 	"SaveWorldMapImage",
