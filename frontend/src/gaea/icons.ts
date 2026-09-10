@@ -191,6 +191,7 @@ export const Maximize2: Icon = wrap(FullscreenOutlined);
 export const Minimize2: Icon = wrap(FullscreenExitOutlined);
 export const PanelRightOpen: Icon = wrap(HolderOutlined);
 export const PanelRightClose: Icon = wrap(HolderOutlined);
+export const GripVertical: Icon = wrap(HolderOutlined);
 export const Settings: Icon = wrap(SettingOutlined);
 
 export const Blocks: Icon = wrap(ApartmentOutlined);

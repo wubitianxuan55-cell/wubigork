@@ -29,6 +29,7 @@ describe("ComposerQueueList 排队列表", () => {
         onSteerItem={() => {}}
         onSteerAll={() => {}}
         onCancelAll={() => {}}
+        onReorder={() => {}}
       />,
     );
     expect(screen.getByText(/排队中 \(2\)/)).toBeTruthy();
@@ -52,6 +53,7 @@ describe("ComposerQueueList 排队列表", () => {
         onSteerItem={() => {}}
         onSteerAll={() => {}}
         onCancelAll={() => {}}
+        onReorder={() => {}}
       />,
     );
     const cancelButtons = screen.getAllByTitle("取消排队");
@@ -71,6 +73,7 @@ describe("ComposerQueueList 排队列表", () => {
         onSteerItem={() => {}}
         onSteerAll={() => {}}
         onCancelAll={() => {}}
+        onReorder={() => {}}
       />,
     );
     expect(container.childNodes).toHaveLength(0);
@@ -89,6 +92,7 @@ describe("ComposerQueueList 排队列表", () => {
         onSteerItem={onSteer}
         onSteerAll={onSteerAll}
         onCancelAll={onCancelAll}
+        onReorder={() => {}}
       />,
     );
     fireEvent.click(screen.getByTestId("composer-queue-steer-0"));
@@ -114,6 +118,7 @@ describe("ComposerQueueList 排队列表", () => {
         onSteerItem={onSteer}
         onSteerAll={onSteerAll}
         onCancelAll={onCancelAll}
+        onReorder={() => {}}
       />,
     );
     expect(screen.getByTestId("composer-queue-sending").textContent).toContain("发送中");
@@ -130,5 +135,51 @@ describe("ComposerQueueList 排队列表", () => {
     expect(onSteer).not.toHaveBeenCalled();
     expect(onSteerAll).not.toHaveBeenCalled();
     expect(onCancelAll).not.toHaveBeenCalled();
+  });
+
+  it("拖拽 pending 项回调 onReorder；点握把不触发编辑", () => {
+    const onReorder = vi.fn();
+    const onEdit = vi.fn();
+    const three = [
+      item("甲", "pending", "a"),
+      item("乙", "pending", "b"),
+      item("丙", "pending", "c"),
+    ];
+    renderT(
+      <ComposerQueueList
+        items={three}
+        running
+        onEditItem={onEdit}
+        onCancelItem={() => {}}
+        onSteerItem={() => {}}
+        onSteerAll={() => {}}
+        onCancelAll={() => {}}
+        onReorder={onReorder}
+      />,
+    );
+    const dt = { setData: vi.fn(), getData: vi.fn(), effectAllowed: "move", dropEffect: "move" };
+    fireEvent.click(screen.getByTestId("composer-queue-grip-2"));
+    expect(onEdit).not.toHaveBeenCalled();
+    fireEvent.dragStart(screen.getByTestId("composer-queue-grip-2"), { dataTransfer: dt });
+    fireEvent.dragOver(screen.getByTestId("composer-queue-item-0"), { dataTransfer: dt });
+    fireEvent.drop(screen.getByTestId("composer-queue-item-0"), { dataTransfer: dt });
+    expect(onReorder).toHaveBeenCalledWith(2, 0);
+  });
+
+  it("sending 项没有握把，不可拖出", () => {
+    renderT(
+      <ComposerQueueList
+        items={[item("正在发出的问题", "sending", "s"), item("下一条", "pending", "p")]}
+        running
+        onEditItem={() => {}}
+        onCancelItem={() => {}}
+        onSteerItem={() => {}}
+        onSteerAll={() => {}}
+        onCancelAll={() => {}}
+        onReorder={() => {}}
+      />,
+    );
+    expect(screen.queryByTestId("composer-queue-grip-0")).toBeNull();
+    expect(screen.getByTestId("composer-queue-grip-1")).toBeTruthy();
   });
 });

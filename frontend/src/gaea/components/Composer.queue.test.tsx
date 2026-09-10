@@ -67,6 +67,24 @@ describe("Composer 发送队列", () => {
     expect(screen.queryByTestId("composer-queue")).toBeNull();
   });
 
+  it("拖拽握把调整发送顺序", () => {
+    const { onSend } = renderQueue(true);
+    const ta = screen.getByPlaceholderText(/任务执行中/);
+    fireEvent.change(ta, { target: { value: "先发这条" } });
+    fireEvent.click(screen.getByTitle(/排队发送（当前回合结束后执行/));
+    fireEvent.change(screen.getByPlaceholderText(/排队中/), { target: { value: "后发这条" } });
+    fireEvent.click(screen.getByTitle(/排队发送（当前回合结束后执行/));
+    expect(screen.getByTestId("composer-queue-item-0").textContent).toContain("先发这条");
+    expect(screen.getByTestId("composer-queue-item-1").textContent).toContain("后发这条");
+    const dt = { setData: vi.fn(), getData: vi.fn(), effectAllowed: "move", dropEffect: "move" };
+    fireEvent.dragStart(screen.getByTestId("composer-queue-grip-1"), { dataTransfer: dt });
+    fireEvent.dragOver(screen.getByTestId("composer-queue-item-0"), { dataTransfer: dt });
+    fireEvent.drop(screen.getByTestId("composer-queue-item-0"), { dataTransfer: dt });
+    expect(screen.getByTestId("composer-queue-item-0").textContent).toContain("后发这条");
+    expect(screen.getByTestId("composer-queue-item-1").textContent).toContain("先发这条");
+    expect(onSend).not.toHaveBeenCalled();
+  });
+
   it("全部取消只清队列，不调用 onCancel", () => {
     const { onCancel } = renderQueue(true);
     const ta = screen.getByPlaceholderText(/任务执行中/);

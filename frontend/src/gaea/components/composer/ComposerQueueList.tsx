@@ -1,6 +1,7 @@
 // Composer 拆分产物：排队列表 —— 排队项可撤回编辑、逐条/全部取消、
-// 逐条/全部插话（Steer）。发送中整列锁定（不可编辑、删除、Steer）。
-import { Ban, Loader2, Pencil, X, Zap } from "../../icons";
+// 逐条/全部插话（Steer）、拖拽排序。发送中那条钉住；编辑/删除/Steer 整列锁定。
+import { useState } from "react";
+import { Ban, GripVertical, Loader2, Pencil, X, Zap } from "../../icons";
 import { useT } from "../../lib/i18n";
 import type { ComposerQueueItem } from "./composerQueue";
 import { isQueueBusy, pendingItems } from "./composerQueue";
@@ -13,16 +14,20 @@ export interface ComposerQueueListProps {
   onSteerItem: (index: number) => void
   onSteerAll: () => void
   onCancelAll: () => void
+  onReorder: (from: number, to: number) => void
 }
 
 export function ComposerQueueList({
-  items, running, onCancelItem, onEditItem, onSteerItem, onSteerAll, onCancelAll,
+  items, running, onCancelItem, onEditItem, onSteerItem, onSteerAll, onCancelAll, onReorder,
 }: ComposerQueueListProps) {
   const t = useT()
+  const [dragFrom, setDragFrom] = useState<number | null>(null)
+  const [dragOver, setDragOver] = useState<number | null>(null)
   if (items.length === 0) return null
   const busy = isQueueBusy(items)
   const pending = pendingItems(items)
   const bulkDisabled = busy || pending.length === 0
+  const clearDrag = () => { setDragFrom(null); setDragOver(null) }
   return (
     <div
       data-testid="composer-queue"
@@ -65,13 +70,46 @@ export function ComposerQueueList({
       {items.map((item, i) => {
         const sending = item.status === "sending"
         const locked = busy
+        const dragging = dragFrom === i
+        const over = dragOver === i && dragFrom !== null && dragFrom !== i
         return (
           <div
             key={item.id}
             data-testid={`composer-queue-item-${i}`}
             data-status={item.status}
-            className={`group flex items-center gap-1.5 py-1 pl-2 pr-1 rounded-md transition-colors duration-100 ${sending ? "bg-accent/[0.06]" : "hover:bg-bg-soft"}`}
+            onDragOver={(e) => {
+              if (dragFrom === null) return
+              e.preventDefault()
+              e.dataTransfer.dropEffect = "move"
+              if (dragOver !== i) setDragOver(i)
+            }}
+            onDrop={(e) => {
+              e.preventDefault()
+              if (dragFrom !== null && dragFrom !== i) onReorder(dragFrom, i)
+              clearDrag()
+            }}
+            onDragEnd={clearDrag}
+            className={`group flex items-center gap-1.5 py-1 pl-2 pr-1 rounded-md transition-[opacity,background-color,box-shadow] duration-100 ${sending ? "bg-accent/[0.06]" : "hover:bg-bg-soft"} ${dragging ? "opacity-40" : ""} ${over ? "shadow-[inset_0_0_0_1px_var(--accent)]" : ""}`}
           >
+            {sending ? (
+              <span className="shrink-0 w-4" />
+            ) : (
+              <button
+                type="button"
+                draggable
+                data-testid={`composer-queue-grip-${i}`}
+                className="shrink-0 inline-flex items-center justify-center w-4 h-5 border-0 rounded bg-transparent text-fg-faint/50 hover:text-fg-dim cursor-grab active:cursor-grabbing"
+                title={t("composer.queueDragTitle")}
+                onDragStart={(e) => {
+                  e.dataTransfer.setData("text/plain", String(i))
+                  e.dataTransfer.effectAllowed = "move"
+                  setDragFrom(i)
+                }}
+                onClick={(e) => e.preventDefault()}
+              >
+                <GripVertical size={12} />
+              </button>
+            )}
             <span className="shrink-0 text-[9px] font-mono text-fg-faint/40 tabular-nums select-none">{i + 1}</span>
             <button
               type="button"

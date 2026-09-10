@@ -21,7 +21,7 @@ import { ComposerAttachmentBar } from "./composer/ComposerAttachmentBar";
 import { ComposerQueueList } from "./composer/ComposerQueueList";
 import {
   dropSending, firstPending, insertAt, isQueueBusy, makeQueueItem,
-  markSending, pendingItems, removeAt, revertSending, type ComposerQueueItem,
+  markSending, moveItem, pendingItems, removeAt, revertSending, type ComposerQueueItem,
 } from "./composer/composerQueue";
 import { ComposerTableBanner } from "./composer/ComposerTableBanner";
 import { ComposerInputRow } from "./composer/ComposerInputRow";
@@ -287,6 +287,10 @@ export function Composer({
     syncQueue(queueRef.current.filter((q) => q.status === "sending"));
   };
 
+  const reorderQueue = (from: number, to: number) => {
+    syncQueue(moveItem(queueRef.current, from, to));
+  };
+
   // 撤回排队项到输入框编辑（对齐 agentsroom 消息队列 / vm0 withdraw）：
   // 点击排队卡片 → 该项从队列移除、文本回填输入框；输入框已有草稿先暂存
   // 回队列原位（保持顺序），避免输入内容丢失。改完 Enter 重新入队/发送。
@@ -448,6 +452,7 @@ export function Composer({
           onSteerItem={steerQueueItem}
           onSteerAll={steerAllQueue}
           onCancelAll={cancelAllQueue}
+          onReorder={reorderQueue}
         />
       )}
 

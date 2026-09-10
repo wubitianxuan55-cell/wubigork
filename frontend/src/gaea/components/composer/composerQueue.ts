@@ -50,3 +50,15 @@ export function insertAt(items: readonly ComposerQueueItem[], index: number, ite
   next.splice(Math.max(0, Math.min(index, next.length)), 0, item);
   return next;
 }
+
+// moveItem 把 from 挪到 to（插入到目标下标）。sending 项钉住不可拖；
+// 越界/同下标/空挪动都原样返回新数组。
+export function moveItem(items: readonly ComposerQueueItem[], from: number, to: number): ComposerQueueItem[] {
+  if (from === to) return [...items];
+  if (from < 0 || to < 0 || from >= items.length || to >= items.length) return [...items];
+  if (items[from].status === "sending") return [...items];
+  const next = [...items];
+  const [it] = next.splice(from, 1);
+  next.splice(to, 0, it);
+  return next;
+}

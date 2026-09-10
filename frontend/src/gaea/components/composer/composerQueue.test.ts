@@ -6,6 +6,7 @@ import {
   isQueueBusy,
   makeQueueItem,
   markSending,
+  moveItem,
   pendingItems,
   removeAt,
   revertSending,
@@ -50,5 +51,17 @@ describe("composerQueue 纯函数", () => {
     const extra = makeQueueItem("插");
     expect(insertAt(items, 1, extra).map((q) => q.text)).toEqual(["一", "插", "二", "三"]);
     expect(insertAt(items, 99, extra).at(-1)?.text).toBe("插");
+  });
+
+  it("moveItem 保序挪动；sending 钉住；越界/同下标原样", () => {
+    const items = [makeQueueItem("一"), makeQueueItem("二"), makeQueueItem("三")];
+    expect(moveItem(items, 2, 0).map((q) => q.text)).toEqual(["三", "一", "二"]);
+    expect(moveItem(items, 0, 2).map((q) => q.text)).toEqual(["二", "三", "一"]);
+    expect(moveItem(items, 1, 1).map((q) => q.text)).toEqual(["一", "二", "三"]);
+    expect(moveItem(items, -1, 0)).toHaveLength(3);
+    expect(moveItem(items, 0, 9)).toHaveLength(3);
+    const sending = markSending(items, items[0].id);
+    expect(moveItem(sending, 0, 2).map((q) => q.text)).toEqual(["一", "二", "三"]);
+    expect(moveItem(sending, 2, 0).map((q) => q.text)).toEqual(["三", "一", "二"]);
   });
 });
