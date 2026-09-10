@@ -378,6 +378,9 @@ function useLauncherData(): LauncherData {
 }
 
 // ─── 顶栏：空间切换器（v4.182 从 rail 迁入首页）──────────────────
+// 1B 未拍板前置（长期规划阶段一）：壳层开关=界面导航，与办公引擎空间
+// （办公侧栏 SpaceChip，写 session.space）是两回事——title 说清楚，防
+// 「切了闲庭办公工具就没了」的误解；行为变更待拍板。
 const SpaceSwitch: React.FC<{
   space: ShellSpace
   onSwitchSpace: (s: ShellSpace) => void
@@ -395,7 +398,7 @@ const SpaceSwitch: React.FC<{
               type="button"
               data-testid={`ml-space-${s.id}`}
               aria-pressed={active}
-              title={t(s.titleKey) || s.title}
+              title={`${t(s.titleKey) || s.title}；${t('home.spaceSwitchHint')}`}
               className={`ml-space-btn${active ? ' is-active' : ''}${s.id === 'play' ? ' is-play' : ''}`}
               onClick={() => { if (!active) onSwitchSpace(s.id) }}
             >
@@ -499,7 +502,7 @@ const DeskHome: React.FC<{
                   <ArrowRightOutlined className="ml-pill-arrow" aria-hidden="true" />
                 </div>
                 {spaceEntry && (
-                  <span className="ml-space-chip" data-testid="ml-space-chip">
+                  <span className="ml-space-chip" data-testid="ml-space-chip" title={t('home.spaceSwitchHint')}>
                     {spaceLabel}
                   </span>
                 )}

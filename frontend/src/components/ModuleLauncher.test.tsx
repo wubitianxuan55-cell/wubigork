@@ -56,6 +56,14 @@ describe('ModuleLauncher 双空间首页（v4.182 书斋/闲庭）', () => {
     expect(onSwitch).toHaveBeenCalledTimes(1)
   })
 
+  it('1B 前置：切换钮与空间 chip 的 title 说明「仅导航，不影响办公引擎空间」', () => {
+    render(wrap(<ModuleLauncher onNavigate={vi.fn()} space="work" onSwitchSpace={vi.fn()} />))
+    const hint = '不影响办公引擎空间'
+    expect(screen.getByTestId('ml-space-work').getAttribute('title')).toContain(hint)
+    expect(screen.getByTestId('ml-space-play').getAttribute('title')).toContain(hint)
+    expect(screen.getByTestId('ml-space-chip').getAttribute('title')).toContain(hint)
+  })
+
   it('书斋（work）：文档流水面板为主角 + 空间 chip；闲庭板块卡不出现', () => {
     render(wrap(<ModuleLauncher onNavigate={vi.fn()} space="work" onSwitchSpace={vi.fn()} />))
     expect(screen.getByTestId('desk-recent-docs')).toBeTruthy()

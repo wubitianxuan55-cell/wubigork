@@ -1,3 +1,6 @@
+## v4.187.0 · 1B 前置：两套空间开关 UI 说清楚（2026-09-10）
+> 长期规划阶段一 1B：合并 vs 拆开待拍板，未拍板前不改行为，唯一许可动工=把两套开关在 UI 上说清楚。首页顶栏 SpaceSwitch 两钮 title 追加「仅切换界面与导航，不影响办公引擎空间」（新增 home.spaceSwitchHint×3 语，aria 精化为「界面空间切换（书斋/闲庭）」），书斋 masthead 空间 chip 同 title；办公侧栏 SpaceChip 的 sidebar.spaceHint 开头点名「办公引擎空间（区别于首页顶栏的书斋/闲庭界面切换）」。壳层=导航（switchSpace 只改 appStore.space），引擎=GaeaSpaceActivate 写 session.space 下次重建生效——两开关同名同值正是 1B 点名混淆源。零绑定 602、零行为变更、零 Go 改动（版本三处外）。vitest +1、tsc/eslint 0、e-check OK、drift PASS@602。详见 releases/v4.187.0.md。
+
 ## v4.186.0 · 场景重排接 UI：上移/下移 + ReorderScenes 落盘（2026-09-10）
 > v4.185 欠账收刀：场景化后场景顺序=阅读顺序与 blob 投影顺序，ReorderScenes 绑定此前零消费方。ChapterEditor 场景框头部增上移/下移（aria-label 键盘可达，首位/末位/非场景制章禁用）；moveScene 乐观换位（scenes/sceneIds 同步 swap 经 onUpdate 回喂）+ ReorderScenes 落盘（blob 投影 Go 侧同调用同步），失败回滚还原诚实提示；缺 id 框只换本地不调绑定防错位。零新绑定 602、零 Go 改动（版本三处外）。vitest +3、tsc/eslint 0、e-check OK、drift PASS@602。详见 releases/v4.186.0.md。
 
