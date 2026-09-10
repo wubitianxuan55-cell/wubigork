@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gaea/gaea/internal/office/docmd"
+	"github.com/gaea/gaea/internal/docmd"
 	"github.com/xuri/excelize/v2"
 )
 

@@ -11,7 +11,7 @@ import (
 	"strings"
 
 	"github.com/gaea/gaea/internal/gaea/tool"
-	"github.com/gaea/gaea/internal/office/docmd"
+	"github.com/gaea/gaea/internal/docmd"
 )
 
 func init() { tool.RegisterBuiltin(formatConvert{}) }

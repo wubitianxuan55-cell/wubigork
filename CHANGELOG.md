@@ -1,3 +1,6 @@
+## v4.197.0 · office 枢纽解耦：审计收刀（2026-09-10）
+> 收敛计划 W3-4 优先刀。**读档修正**：并行子代理全量盘点实证 whisper→office 与 modelengine→office 两条边在 import 层面均为 0（internal/whisper 零 office 引用且间接边 0；internal/modelengine 依赖仅 fileutil/strutil/netclient）——「272 入/70 出枢纽」度量口径过时（疑似把 app 接线层与 gaea 侧误计入 whisper，且内核能力早经 internal/core 下沉、office 根包已是别名门面）。**内核侧真耦合仅 docmd 一族**：6 文件 9 处 100% 文件工具类（refs@引用/fileindex/知识导入/大文件摘要/format_convert/wssearch），零会话记忆、零误用。**收刀**：`internal/office/docmd → internal/docmd` 纯路径搬迁（包名不变，20 行 import 更新零逻辑改动；docmd 仅依赖 proc 无环），internal/gaea 内核对 office import 边清零，office 剩余消费面全部在 app 绑定层（编辑/预览/检查/联动本体）。遗留候选挂观察池：别名门面删除（需动生成签名）、archive.go 死代码候选、依赖度度量应排除 app 层。Go 全量 exit 0（116 包零 FAIL，纯 Go 搬迁前端零改动）。详见 docs/gaea-office-hub-decouple-audit-2026-09.md。
+
 ## v4.196.0 · 语义索引显形与显式补齐（2026-09-10）
 > 刀路池第 5 项，读档修正刀型：GaeaSemanticIndexStatus（D3-1，v2.18）早已显形各 kind 向量条数，真缺口=覆盖无内容口径+成本类无显式补齐。**Go**：semantic.Store.Coverage（与 Ensure 缺失判定同口径，正文变了算未覆盖）；SemanticIndexStatus 扩展 costTotal/costIndexed（omitempty 旧消费零破坏）；新绑定 GaeaSemanticIndexBackfill（MemoryB，共用 Ensure 幂等，模型未配置拒绝并说人话，10 分钟预算）。**绑定面 606→607** 七处接线。**前端 CostLibraryView** 索引 chip 三态：全覆盖绿禁用/部分覆盖琥珀可点补齐/模型未配置灰「未启用」。**测评集**补 13-15 清单级综合单价查询（表+JSON 同步，零新种子）。Go 全量 exit 0（+2）、vitest 316 文件 2768 例 exit 0（+2）、tsc/eslint 0、e-check OK、drift PASS@607。详见 releases/v4.196.0.md。
 

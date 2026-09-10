@@ -12,7 +12,7 @@ import (
 	"strings"
 
 	"github.com/gaea/gaea/internal/gaea/semantic"
-	"github.com/gaea/gaea/internal/office/docmd"
+	"github.com/gaea/gaea/internal/docmd"
 )
 
 const (

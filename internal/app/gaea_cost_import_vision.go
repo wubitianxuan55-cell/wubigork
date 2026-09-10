@@ -25,7 +25,7 @@ import (
 	"github.com/gaea/gaea/internal/gaea/cost"
 	"github.com/gaea/gaea/internal/gaea/costimport"
 	"github.com/gaea/gaea/internal/gaea/provider"
-	"github.com/gaea/gaea/internal/office/docmd"
+	"github.com/gaea/gaea/internal/docmd"
 )
 
 // 报价单识别来源标记（CostImportPreview.Source 的 json 取值）。

@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/gaea/gaea/internal/office/docmd"
+	"github.com/gaea/gaea/internal/docmd"
 	"github.com/gaea/gaea/internal/office/standard"
 )
 

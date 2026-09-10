@@ -1,7 +1,7 @@
 package session
 
 // 3.0 Step 1 兼容红线：GaeaHistory 输出必须逐字节不变。
-// internal/app 当前被阶段 7 在途改动阻断编译（internal/office/docmd/pdf.go
+// internal/app 当前被阶段 7 在途改动阻断编译（internal/docmd/pdf.go
 // 语法错误，非本任务引入），故本包以「逐字节同构副本」复算 GaeaHistory 输出
 // 并钉死 golden 字节；internal/app/gaea_history_golden_test.go 使用同一
 // fixture 断言真实实现，二者产出必须一致。

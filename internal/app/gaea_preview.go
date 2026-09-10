@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gaea/gaea/internal/office/docmd"
+	"github.com/gaea/gaea/internal/docmd"
 	"github.com/gaea/gaea/internal/office/xlsxedit"
 	"github.com/gaea/gaea/internal/office/xlsxpreview"
 )

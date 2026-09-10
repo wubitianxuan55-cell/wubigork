@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/gaea/gaea/internal/gaea/evidence"
-	"github.com/gaea/gaea/internal/office/docmd"
+	"github.com/gaea/gaea/internal/docmd"
 	"github.com/gaea/gaea/internal/office/xlsxedit"
 	"github.com/xuri/excelize/v2"
 )

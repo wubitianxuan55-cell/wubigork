@@ -14,7 +14,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/gaea/gaea/internal/gaea/search"
-	"github.com/gaea/gaea/internal/office/docmd"
+	"github.com/gaea/gaea/internal/docmd"
 )
 
 // Hit 是工作区全文搜索的一条命中。

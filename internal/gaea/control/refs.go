@@ -13,7 +13,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/gaea/gaea/internal/gaea/vision"
-	"github.com/gaea/gaea/internal/office/docmd"
+	"github.com/gaea/gaea/internal/docmd"
 )
 
 // maxFileRefBytes caps how much of an @-referenced file is injected into a

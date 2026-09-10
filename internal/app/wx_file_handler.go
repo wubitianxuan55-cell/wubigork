@@ -13,7 +13,7 @@ package app
 //     whisperDataRoot/wx_files/（FNV 哈希名防路径注入 + 纳秒序号防同名覆盖，
 //     保留扩展名），单文件 50MiB 二次防线（通道线自有上限之外的最后闸）。
 //  2. 提取：内容文本提取尽量复用仓内现有解析器——docx/doc/xlsx/xls/pptx/ppt/
-//     pdf 走 internal/office/docmd.Convert（format_convert 工具与桌面预览面板
+//     pdf 走 internal/docmd.Convert（format_convert 工具与桌面预览面板
 //     同源管线），txt/md/csv 等纯文本直读；不支持的格式诚实告知路径。
 //  3. 注入行：格式「[用户发来文件 X（424 KB）]\n<提取内容前 6000 字符>」，
 //     超限标注截断；提取失败降级为带自持路径的诚实文案——任何一路失败都不
@@ -38,7 +38,7 @@ import (
 	"time"
 
 	"github.com/gaea/gaea/internal/channels/weixin"
-	"github.com/gaea/gaea/internal/office/docmd"
+	"github.com/gaea/gaea/internal/docmd"
 )
 
 // 自持目录参数：单文件上限 / 注入截断字符数 / 清理双阈值。

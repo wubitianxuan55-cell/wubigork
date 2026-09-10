@@ -7,7 +7,7 @@ import (
 
 	"github.com/gaea/gaea/internal/modelengine"
 	"github.com/gaea/gaea/internal/ocr"
-	"github.com/gaea/gaea/internal/office/docmd"
+	"github.com/gaea/gaea/internal/docmd"
 )
 
 // GaeaOCRText 提取图片中的文字（办公板块「提取文字」用）。

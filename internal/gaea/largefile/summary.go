@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/gaea/gaea/internal/gaea/provider"
-	"github.com/gaea/gaea/internal/office/docmd"
+	"github.com/gaea/gaea/internal/docmd"
 )
 
 const (

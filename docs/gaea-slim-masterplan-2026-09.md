@@ -17,6 +17,13 @@
 > 轨道五冷启动基线打点就位（Go 七段+前端两 rAF 口径，数据随日常启动积累）+
 > 初始化链审计结案（重活均已异步，懒初始化无需立项——轨道五余项收敛为真机采集）。
 
+> **巨文件四件套复核（2026-09-10 第六会话）**：轨道三「9 个 >50KB 巨文件」
+> 现状已变——W3-4 四件套实质完成：bridge.ts 已拆为 lib/bridge/*（index 仅
+> 1.4KB）、GanttView 25KB（aoaRuler 先例拆分）、config.go 16.5KB、App.tsx
+> 降至 47.8KB。当前 >50KB 源文件仅剩：locales en/zh-TW/zh 三件（纯数据，
+> 拆分=低价值churn，挂起）+ gaea/lib/store/controller.ts 51KB +
+> gaea/control/controller.go 51KB（两件新挂账，拆分刀序待排）。
+
 ## 0. 臃肿全景（七面体检，2026-09-08 实测）
 
 | # | 面 | 现状实测 | 目标态（6 周） | 长期态 |
