@@ -135,12 +135,12 @@ func TestImportProjectCharacters_IdempotentAndOneWay(t *testing.T) {
 		{ID: "ch_1", Name: "林晚", RoleType: "protagonist", Arc: "崛起", Status: "Alive", Background: "孤儿"},
 		{ID: "ch_2", Name: "顾长风", RoleType: "antagonist", Arc: "堕落", Status: "Alive"},
 	}
-	imported, filled, err := s.ImportProjectCharacters("projA", chars)
+	imported, filled, _, err := s.ImportProjectCharacters("projA", chars, nil)
 	if err != nil || imported != 2 || filled != 0 {
 		t.Fatalf("首次导入 = %d/%d, %v", imported, filled, err)
 	}
 	// 幂等重复导入：不新增不补全
-	imported, filled, err = s.ImportProjectCharacters("projA", chars)
+	imported, filled, _, err = s.ImportProjectCharacters("projA", chars, nil)
 	if err != nil || imported != 0 || filled != 0 {
 		t.Fatalf("重复导入 = %d/%d, %v", imported, filled, err)
 	}
@@ -150,7 +150,7 @@ func TestImportProjectCharacters_IdempotentAndOneWay(t *testing.T) {
 		t.Fatalf("预置库内角色失败: %v", err)
 	}
 	reimport := []types.Character{{ID: "ch_1", Name: "林晚", RoleType: "supporting", Arc: "黑化", Background: "项目薄记录"}}
-	imported, filled, err = s.ImportProjectCharacters("projA", reimport)
+	imported, filled, _, err = s.ImportProjectCharacters("projA", reimport, nil)
 	if err != nil || imported != 0 || filled != 0 {
 		t.Fatalf("再次导入 = %d/%d, %v", imported, filled, err)
 	}
@@ -165,7 +165,7 @@ func TestImportProjectCharacters_IdempotentAndOneWay(t *testing.T) {
 	}
 	// 另一项目同名角色：不合并（避免 ID 重映射破坏项目内关系引用）
 	other := []types.Character{{ID: "ch_99", Name: "林晚", RoleType: "supporting"}}
-	imported, filled, err = s.ImportProjectCharacters("projB", other)
+	imported, filled, _, err = s.ImportProjectCharacters("projB", other, nil)
 	if err != nil || imported != 1 || filled != 0 {
 		t.Fatalf("跨项目导入 = %d/%d, %v", imported, filled, err)
 	}
@@ -180,7 +180,7 @@ func TestProjectCharactersForNovel_MergesPerProjectState(t *testing.T) {
 	chars := []types.Character{
 		{ID: "ch_1", Name: "林晚", RoleType: "protagonist", Arc: "崛起", Status: "Alive", Personality: "清冷"},
 	}
-	_, _, _ = s.ImportProjectCharacters("projA", chars)
+	_, _, _ = s.ImportProjectCharacters("projA", chars, nil)
 	// 项目 A 内弧线推进
 	_ = s.Associate("projA", "ch_1", "protagonist", "黑化", "Alive")
 	out, err := s.ProjectCharactersForNovel("projA")
@@ -480,9 +480,9 @@ func TestImportProjectCharacters_EmptyFill(t *testing.T) {
 	if err := s.Upsert(&Character{ID: "ch_e", Name: "沈青", Kind: KindCustom, Background: "库内背景", Appearance: "库内外貌"}); err != nil {
 		t.Fatal(err)
 	}
-	imported, filled, err := s.ImportProjectCharacters("projE", []types.Character{
+	imported, filled, _, err := s.ImportProjectCharacters("projE", []types.Character{
 		{ID: "ch_e", Name: "沈青", Personality: "项目补的性格", Appearance: "项目外貌（应被拒）", Arc: "项目弧（不应进库）"},
-	})
+	}, nil)
 	if err != nil || imported != 0 || filled != 1 {
 		t.Fatalf("补全 = %d/%d, %v", imported, filled, err)
 	}
@@ -497,8 +497,93 @@ func TestImportProjectCharacters_EmptyFill(t *testing.T) {
 		t.Errorf("状态字段不补（关联即快照）: %+v", c)
 	}
 	// 再跑一次：无空可补，filled=0（幂等）
-	imported, filled, err = s.ImportProjectCharacters("projE", []types.Character{{ID: "ch_e", Name: "沈青", Personality: "再补一次"}})
+	imported, filled, _, err = s.ImportProjectCharacters("projE", []types.Character{{ID: "ch_e", Name: "沈青", Personality: "再补一次"}}, nil)
 	if err != nil || imported != 0 || filled != 0 {
 		t.Fatalf("重复补全 = %d/%d, %v", imported, filled, err)
+	}
+}
+
+// TestImportProjectCharacters_OverwriteConfirmed 欠账刀：非空字段仅在用户逐字段
+// 勾选确认（overwrites）时才被副本覆盖——未勾选/不在表内的键不生效，副本值 trim
+// 后为空不写（清空走角色库编辑），值相同不算覆盖；RoleType/Arc/Status 任何路径
+// 都不进库（关联即快照）。
+func TestImportProjectCharacters_OverwriteConfirmed(t *testing.T) {
+	s := newTestStore(t)
+	if err := s.Upsert(&Character{ID: "ch_o", Name: "沈青", Kind: KindCustom, Appearance: "库内外貌", Background: "库内背景"}); err != nil {
+		t.Fatal(err)
+	}
+	proj := []types.Character{{
+		ID: "ch_o", Name: "沈青", Personality: "项目性格（空补）", Appearance: "项目演化后的新外貌",
+		Notes: "   ", Arc: "项目弧（不应进库）", Status: "Dead",
+	}}
+	// 未确认：空补生效（Personality），非空不覆盖
+	imported, filled, overwritten, err := s.ImportProjectCharacters("projO", proj, nil)
+	if err != nil || imported != 0 || filled != 1 || overwritten != 0 {
+		t.Fatalf("未确认导入 = %d/%d/%d, %v", imported, filled, overwritten, err)
+	}
+	// 勾选 appearance + notes + 表外键：仅 appearance 生效
+	_, filled, overwritten, err = s.ImportProjectCharacters("projO", proj, map[string][]string{"ch_o": {"appearance", "notes", "role_type"}})
+	if err != nil || filled != 0 || overwritten != 1 {
+		t.Fatalf("确认覆盖 = filled %d / overwritten %d, %v", filled, overwritten, err)
+	}
+	c, _ := s.Get("ch_o")
+	if c == nil || c.Appearance != "项目演化后的新外貌" {
+		t.Fatalf("勾选字段应被副本覆盖: %+v", c)
+	}
+	if c.Notes != "" || c.RoleType != "" || c.Arc != "" || c.Status != "" {
+		t.Fatalf("空值不清写/表外键与状态字段不进库: %+v", c)
+	}
+	if c.Personality != "项目性格（空补）" {
+		t.Fatalf("首跑空补结果不应被二跑改写: %+v", c)
+	}
+	if c.Background != "库内背景" {
+		t.Fatalf("未勾选的非空字段维持原值: %+v", c)
+	}
+	// 幂等：值已相同，再确认也不计覆盖
+	_, _, overwritten, err = s.ImportProjectCharacters("projO", proj, map[string][]string{"ch_o": {"appearance"}})
+	if err != nil || overwritten != 0 {
+		t.Fatalf("重复确认应零覆盖 = %d, %v", overwritten, err)
+	}
+	// 未知角色 ID 的勾选清单：无害
+	_, _, overwritten, err = s.ImportProjectCharacters("projO", proj, map[string][]string{"ch_none": {"appearance"}})
+	if err != nil || overwritten != 0 {
+		t.Fatalf("未知角色勾选应被忽略 = %d, %v", overwritten, err)
+	}
+}
+
+// TestPreviewImport_ReadOnlyConflicts 预览只读：冲突=库内与副本都非空且不同；
+// 空补与新建只计数；空串/纯空白副本值既不算冲突也不算可补；预览后库内零变化。
+func TestPreviewImport_ReadOnlyConflicts(t *testing.T) {
+	s := newTestStore(t)
+	if err := s.Upsert(&Character{ID: "ch_p", Name: "沈青", Kind: KindCustom, Appearance: "库内外貌"}); err != nil {
+		t.Fatal(err)
+	}
+	pv, err := s.PreviewImport([]types.Character{
+		{ID: "ch_p", Name: "沈青", Appearance: "项目新外貌", Personality: "项目性格（可补）"},
+		{ID: "ch_new", Name: "新角色", Appearance: "全新"},
+		{ID: "ch_p2", Name: "同名新角色（ID 未命中 → 新建）"},
+		{ID: "ch_p3", Name: "空白副本值", Appearance: "   "},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pv.Import != 2 || pv.Fill != 1 {
+		t.Fatalf("预览计数 = import %d / fill %d（应 2/1）: %+v", pv.Import, pv.Fill, pv)
+	}
+	if len(pv.Conflicts) != 1 {
+		t.Fatalf("冲突应恰 1 条（空白副本值不算）: %+v", pv.Conflicts)
+	}
+	cf := pv.Conflicts[0]
+	if cf.CharacterID != "ch_p" || cf.Field != "appearance" || cf.FieldLabel != "外貌" ||
+		cf.LibraryValue != "库内外貌" || cf.ProjectValue != "项目新外貌" {
+		t.Fatalf("冲突字段内容不符: %+v", cf)
+	}
+	// 只读：预览不写库不改关联
+	c, _ := s.Get("ch_p")
+	if c == nil || c.Appearance != "库内外貌" || c.Personality != "" {
+		t.Fatalf("预览污染了库内角色: %+v", c)
+	}
+	if _, err := s.Get("ch_new"); err != nil {
+		t.Fatalf("预览不应新建: %v", err)
 	}
 }

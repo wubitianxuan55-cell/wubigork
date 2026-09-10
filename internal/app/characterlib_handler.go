@@ -153,10 +153,10 @@ func (a *App) CharacterDelete(id string) error {
 	return a.charLib.Delete(id)
 }
 
-// CharacterImportProject 把当前小说项目的 characters.json 导入全局库并建立引用
-// （幂等；已有角色只做描述性空字段补全，不覆盖）。返回 {imported, filled} 供
-// UI 诚实回执——阶段四出口②的显式回写通道。
-func (a *App) CharacterImportProject() (map[string]interface{}, error) {
+// CharacterImportPreview 回写预览（只读）：返回将新建/将补空缺的数量，以及
+// 「库内 vs 副本」非空冲突清单——覆盖与否由用户在 UI 逐字段勾选确认，
+// 无后台自动同步。
+func (a *App) CharacterImportPreview() (*characterlib.ImportPreview, error) {
 	pm := a.getPM()
 	if pm == nil {
 		return nil, fmt.Errorf("请先打开小说项目")
@@ -168,11 +168,37 @@ func (a *App) CharacterImportProject() (map[string]interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
-	imported, filled, err := a.charLib.ImportProjectCharacters(pm.Dir, cf.Characters)
+	return a.charLib.PreviewImport(cf.Characters)
+}
+
+// CharacterImportProject 把当前小说项目的 characters.json 导入全局库并建立引用
+// （幂等；已有角色补描述性空字段，非空默认不覆盖）。overwritesJSON 为
+// {"<角色ID>":["appearance",...]}——仅用户在 CharacterImportPreview 冲突清单里
+// 勾选确认的非空字段才被副本值覆盖；空串=不覆盖任何非空字段。返回
+// {imported, filled, overwritten} 供 UI 诚实回执——阶段四出口②的显式回写通道。
+func (a *App) CharacterImportProject(overwritesJSON string) (map[string]interface{}, error) {
+	pm := a.getPM()
+	if pm == nil {
+		return nil, fmt.Errorf("请先打开小说项目")
+	}
+	if a.charLib == nil {
+		return nil, fmt.Errorf("角色库未初始化")
+	}
+	cf, err := pm.ReadCharacters()
 	if err != nil {
 		return nil, err
 	}
-	return map[string]interface{}{"imported": imported, "filled": filled}, nil
+	overwrites := map[string][]string{}
+	if s := strings.TrimSpace(overwritesJSON); s != "" {
+		if err := json.Unmarshal([]byte(s), &overwrites); err != nil {
+			return nil, fmt.Errorf("覆盖清单解析失败: %w", err)
+		}
+	}
+	imported, filled, overwritten, err := a.charLib.ImportProjectCharacters(pm.Dir, cf.Characters, overwrites)
+	if err != nil {
+		return nil, err
+	}
+	return map[string]interface{}{"imported": imported, "filled": filled, "overwritten": overwritten}, nil
 }
 
 // CharacterListByProject 当前项目已引用的角色。

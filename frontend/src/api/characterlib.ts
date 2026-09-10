@@ -64,9 +64,38 @@ export async function deleteCharacter(id: string): Promise<void> {
   return app.CharacterDelete(id)
 }
 
-/** 把当前小说项目 characters.json 导入全局库并建立引用（已有角色只补空字段） */
-export async function importProjectCharacters(): Promise<{ imported: number; filled: number }> {
-  return app.CharacterImportProject()
+/** 回写预览中的一条非空冲突：库内与副本都有内容且不同，覆盖与否由用户逐条勾选 */
+export interface ImportFieldConflict {
+  characterId: string
+  characterName: string
+  field: string
+  fieldLabel: string
+  libraryValue: string
+  projectValue: string
+}
+
+/** 回写预览（只读）：import/fill 按既有规则必然发生；conflicts 默认不覆盖 */
+export interface ImportPreview {
+  import: number
+  fill: number
+  conflicts: ImportFieldConflict[]
+}
+
+/** 回写预览：返回将新建/将补空缺的数量与「库内 vs 副本」非空冲突清单 */
+export async function previewProjectImport(): Promise<ImportPreview> {
+  const res = await app.CharacterImportPreview()
+  return res as unknown as ImportPreview
+}
+
+/** 把当前小说项目 characters.json 导入全局库并建立引用（已有角色补空字段）。
+ *  overwrites 为用户在预览里逐字段勾选确认的覆盖清单（{角色ID: [字段键]}）；
+ *  缺省不覆盖任何非空字段（单向约束）。overwritten=确认覆盖的字段数。 */
+export async function importProjectCharacters(
+  overwrites: Record<string, string[]> = {},
+): Promise<{ imported: number; filled: number; overwritten: number }> {
+  const json = Object.keys(overwrites).length > 0 ? JSON.stringify(overwrites) : ''
+  const res = await app.CharacterImportProject(json)
+  return res as unknown as { imported: number; filled: number; overwritten: number }
 }
 
 /** 当前项目已引用的角色 */

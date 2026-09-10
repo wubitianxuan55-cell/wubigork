@@ -199,8 +199,10 @@ const CharacterLibraryPage: React.FC = () => {
   const handleImportProject = async () => {
     if (!projectPath) { message.warning('请先打开小说项目'); return }
     try {
-      const n = await importProjectCharacters()
-      message.success(`已从项目导入 ${n} 个角色到全局库`)
+      const r = await importProjectCharacters()
+      const parts = [`新迁入 ${r.imported} 个`]
+      if (r.filled > 0) parts.push(`补全 ${r.filled} 个角色的空缺设定（已有设定未覆盖）`)
+      message.success(`已从项目回写角色库：${parts.join('，')}`)
       load()
       loadProjectRefs()
     } catch (err: unknown) {

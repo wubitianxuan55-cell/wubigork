@@ -4,7 +4,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Typography, Empty, Button, Input, Modal, InputNumber, Drawer,
-  Select, message, Tabs, Tag, Switch, Popconfirm,
+  Select, message, Tabs, Tag, Switch, Popconfirm, Checkbox,
 } from 'antd'
 import {
   ThunderboltOutlined, PlusOutlined, ExperimentOutlined, CameraOutlined, MergeCellsOutlined,
@@ -35,8 +35,9 @@ import {
 } from '../components/novel/api/character'
 import {
   listProjectCharacters, associateToProject, dissociateFromProject,
-  syncProjectCharacters, importProjectCharacters, drawRandom, setProjectState,
-  type LibraryCharacter,
+  syncProjectCharacters, importProjectCharacters, previewProjectImport,
+  drawRandom, setProjectState,
+  type LibraryCharacter, type ImportPreview, type ImportFieldConflict,
 } from '../api/characterlib'
 import './character-page.css'
 
@@ -105,6 +106,12 @@ const CharacterPage: React.FC = () => {
   const [drawResult, setDrawResult] = useState<LibraryCharacter[]>([])
   const [drawLoading, setDrawLoading] = useState(false)
   const [syncing, setSyncing] = useState(false)
+
+  // 副本→库回写：非空冲突逐字段确认（预览只读；不勾选=保持库内原值）
+  const [wbOpen, setWbOpen] = useState(false)
+  const [wbBusy, setWbBusy] = useState(false)
+  const [wbPreview, setWbPreview] = useState<ImportPreview | null>(null)
+  const [wbChecked, setWbChecked] = useState<Record<string, true>>({})
 
   // 项目内状态编辑（唯一允许的小说侧写入）
   const [projectEdit, setProjectEdit] = useState<CharacterData | null>(null)
@@ -277,15 +284,51 @@ const CharacterPage: React.FC = () => {
   }
 
   const handleImportLegacy = async () => {
+    setWbBusy(true)
     try {
-      const { imported, filled } = await importProjectCharacters()
+      // 两段式回写：先只读预览——有非空冲突才弹逐字段确认，否则直接安全回写
+      const pv = await previewProjectImport()
+      if (pv.conflicts.length === 0) {
+        await doWriteBack({})
+        return
+      }
+      setWbChecked({})
+      setWbPreview(pv)
+      setWbOpen(true)
+    } catch (err: unknown) {
+      message.error(errText(err, '回写预览失败'))
+    } finally {
+      setWbBusy(false)
+    }
+  }
+
+  const doWriteBack = async (overwrites: Record<string, string[]>) => {
+    try {
+      const { imported, filled, overwritten } = await importProjectCharacters(overwrites)
       await loadRefs()
+      if (imported === 0 && filled === 0 && overwritten === 0) {
+        message.info('本书角色与角色库已一致，无需回写')
+        return
+      }
       const parts = [`新迁入 ${imported} 个`]
-      if (filled > 0) parts.push(`补全 ${filled} 个角色的空缺设定（已有设定未覆盖）`)
+      if (filled > 0) parts.push(`补全 ${filled} 个角色的空缺设定`)
+      if (overwritten > 0) parts.push(`按确认覆盖 ${overwritten} 处已有设定`)
       message.success(`回写完成：${parts.join('，')}（本书此后只引用角色库）`)
     } catch (err: unknown) {
       message.error(errText(err, '回写失败'))
     }
+  }
+
+  /** 弹窗里逐字段勾选 → 覆盖清单；只统计勾选键，未勾选一律保持库内原值 */
+  const collectOverwrites = (): Record<string, string[]> => {
+    const ov: Record<string, string[]> = {}
+    for (const c of wbPreview?.conflicts ?? []) {
+      if (wbChecked[`${c.characterId}::${c.field}`]) {
+        if (!ov[c.characterId]) ov[c.characterId] = []
+        ov[c.characterId].push(c.field)
+      }
+    }
+    return ov
   }
 
   // ── 章节捕获角色的补齐 / 剧照 / 合并（未入库时可用，只写本书） ──
@@ -729,6 +772,8 @@ const CharacterPage: React.FC = () => {
         </div>
         <div className="char-panel-actions">
           <Button size="small" icon={<TeamOutlined />} onClick={navigateToCharacterLib}>去角色库</Button>
+          <Button size="small" icon={<ImportOutlined />} onClick={handleImportLegacy} loading={wbBusy}
+            title="把本书副本的设定回写到角色库：空缺自动补全，非空冲突逐字段确认后才覆盖">回写</Button>
           <Button size="small" icon={<SyncOutlined />} onClick={handleSync} loading={syncing} disabled={unimported.length > 0}>同步</Button>
           <Button size="small" type="primary" icon={<ThunderboltOutlined />} onClick={() => setDrawOpen(true)}>抽卡</Button>
         </div>
@@ -772,6 +817,59 @@ const CharacterPage: React.FC = () => {
       {portraitFullscreen && (
         <PortraitLightbox imageUrl={portraitFullscreen} onClose={() => setPortraitFullscreen('')} />
       )}
+
+      {/* 副本→库回写确认：非空冲突逐字段勾选，不勾选=保持角色库原值（关联即快照：定位/弧线/状态始终以本书为准） */}
+      <Modal
+        open={wbOpen}
+        title="回写角色库：确认要覆盖的设定"
+        width={640}
+        onCancel={() => setWbOpen(false)}
+        footer={[
+          <Button key="cancel" onClick={() => setWbOpen(false)}>取消</Button>,
+          <Button key="fill" onClick={() => { setWbOpen(false); void doWriteBack({}) }}>不覆盖，仅补全空缺</Button>,
+          <Button key="ok" type="primary" disabled={Object.keys(wbChecked).length === 0}
+            onClick={() => { const ov = collectOverwrites(); setWbOpen(false); void doWriteBack(ov) }}>
+            覆盖勾选项并回写
+          </Button>,
+        ]}
+      >
+        <Typography.Paragraph type="secondary" style={{ fontSize: 12, marginTop: 0 }}>
+          以下字段角色库与本书副本都有内容且不同。只有勾选的字段才会被副本值覆盖，未勾选的保持角色库原值；
+          空缺字段无论如何都会补全。定位/弧线/状态始终以本书为准，不进角色库。
+        </Typography.Paragraph>
+        <div style={{ maxHeight: 400, overflow: 'auto' }}>
+          {(Object.entries(wbPreview?.conflicts.reduce<Record<string, ImportFieldConflict[]>>((acc, c) => {
+            (acc[`${c.characterId}::${c.characterName}`] ||= []).push(c)
+            return acc
+          }, {}) ?? []).map(([key, items]) => (
+            <div key={key} style={{ marginBottom: 12 }}>
+              <div style={{ fontWeight: 600, marginBottom: 4 }}>{items[0].characterName}</div>
+              {items.map(c => {
+                const ck = `${c.characterId}::${c.field}`
+                return (
+                  <label key={ck} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', padding: '3px 0', cursor: 'pointer' }}>
+                    <Checkbox
+                      checked={!!wbChecked[ck]}
+                      onChange={e => setWbChecked(prev => {
+                        const next = { ...prev }
+                        if (e.target.checked) next[ck] = true
+                        else delete next[ck]
+                        return next
+                      })}
+                      style={{ marginTop: 2 }}
+                    />
+                    <span style={{ flexShrink: 0, width: 44 }}>{c.fieldLabel}</span>
+                    <span style={{ flex: 1, minWidth: 0 }}>
+                      <span style={{ display: 'block', color: C('color-text-tertiary'), wordBreak: 'break-all' }}>库内：{c.libraryValue}</span>
+                      <span style={{ display: 'block', wordBreak: 'break-all' }}>副本：{c.projectValue}</span>
+                    </span>
+                  </label>
+                )
+              })}
+            </div>
+          )))}
+        </div>
+      </Modal>
     </div>
   )
 }

@@ -9,7 +9,8 @@ import type { AppBindings } from "../bridge";
 
 type CharlibMethods = Pick<
   AppBindings,
-  | "CharacterSave" | "CharacterGet" | "CharacterDelete" | "CharacterImportProject"
+  | "CharacterSave" | "CharacterGet" | "CharacterDelete" | "CharacterImportPreview"
+  | "CharacterImportProject"
   | "CharacterListByProject" | "CharacterAssociate" | "CharacterAssociateTo"
   | "CharacterSetProjectState" | "CharacterDissociate" | "CharacterSyncProject"
   | "CharacterDrawRandom" | "CharacterGenerateFill" | "CharacterGenerateRandom"
@@ -29,8 +30,12 @@ export function buildCharlib(): CharlibMethods {
     async CharacterDelete(_id: string) {
       // mock: no-op（浏览器开发无角色库可写）。
     },
-    async CharacterImportProject() {
-      return { imported: 0, filled: 0 };
+    async CharacterImportPreview() {
+      // 无角色库数据：空冲突清单（消费方空态兜底）。
+      return { import: 0, fill: 0, conflicts: [] };
+    },
+    async CharacterImportProject(_overwritesJSON: string) {
+      return { imported: 0, filled: 0, overwritten: 0 };
     },
     async CharacterListByProject() {
       return [];

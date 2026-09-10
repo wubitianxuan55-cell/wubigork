@@ -471,6 +471,7 @@ export const GAEA_METHOD_FACETS = {
   CharacterSave: "play",
   CharacterGet: "play",
   CharacterDelete: "play",
+  CharacterImportPreview: "play",
   CharacterImportProject: "play",
   CharacterListByProject: "play",
   CharacterAssociate: "play",

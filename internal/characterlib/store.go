@@ -414,20 +414,24 @@ func (s *Store) ProjectIDsForCharacter(charID string) ([]string, error) {
 }
 
 // ImportProjectCharacters 把项目 characters.json 的角色导入全局库并建立关联（幂等，单向）。
-// 约束：小说只是引用方——库内已存在的角色绝不被项目数据覆盖（只增不改）；
+// 约束：小说只是引用方——库内已存在的角色默认绝不被项目数据覆盖（只增不改）；
 // ID 命中 → 仅补关联；ID 不存在 → 以项目 ID 新建；不做名称合并，避免项目内 ID 重映射破坏关系引用。
 // 阶段四出口②（docs/gaea-character-domain-survey-2026-09.md）：ID 命中时追加
 // **描述性空字段补全**（库内为空而副本有值才写；非空一律不动，身份/状态字段
-// RoleType/Arc/Status 不补——项目内弧线以项目为准=关联即快照），返回
-// 新导入/补全 计数供 UI 诚实回执。回写走本显式调用，不做后台自动同步。
-func (s *Store) ImportProjectCharacters(projectID string, chars []types.Character) (imported, filled int, err error) {
+// RoleType/Arc/Status 不补——项目内弧线以项目为准=关联即快照）。
+// overwrites 是用户在 PreviewImport 冲突清单里逐字段勾选确认的覆盖清单
+// （{角色ID: [字段键,...]}，键见 descFields；不在表内的键忽略；副本值 trim 后
+// 为空不写=不清空，清空走角色库编辑）：只有勾选过的非空字段才被副本值覆盖，
+// 其余非空字段维持单向约束原样。返回 新导入/补空缺/覆盖字段数 计数供 UI 诚实回执。
+// 回写走本显式调用，不做后台自动同步。
+func (s *Store) ImportProjectCharacters(projectID string, chars []types.Character, overwrites map[string][]string) (imported, filled, overwritten int, err error) {
 	if s == nil || s.db == nil {
-		return 0, 0, fmt.Errorf("角色库未初始化")
+		return 0, 0, 0, fmt.Errorf("角色库未初始化")
 	}
 	for _, ch := range chars {
 		target, err := s.Get(ch.ID)
 		if err != nil {
-			return imported, filled, err
+			return imported, filled, overwritten, err
 		}
 		if target == nil {
 			target = &Character{ID: ch.ID, Kind: KindCustom}
@@ -445,16 +449,17 @@ func (s *Store) ImportProjectCharacters(projectID string, chars []types.Characte
 			target.Status = ch.Status
 			target.Notes = ch.Notes
 			if err := s.Upsert(target); err != nil {
-				return imported, filled, err
+				return imported, filled, overwritten, err
 			}
 			imported++
 		} else {
-			// 空字段补全（仅描述性字段；非空不覆盖，单向约束不破）
-			merged := false
+			// 空字段补全（仅描述性字段；非空默认不覆盖，单向约束不破）
+			didFill, didChange := false, false
 			fill := func(dst *string, v string) {
 				if *dst == "" && strings.TrimSpace(v) != "" {
 					*dst = strings.TrimSpace(v)
-					merged = true
+					didFill = true
+					didChange = true
 				}
 			}
 			fill(&target.Gender, ch.Gender)
@@ -465,18 +470,34 @@ func (s *Store) ImportProjectCharacters(projectID string, chars []types.Characte
 			fill(&target.Figure, ch.Figure)
 			fill(&target.Motivation, ch.Motivation)
 			fill(&target.Notes, ch.Notes)
-			if merged {
-				if err := s.Upsert(target); err != nil {
-					return imported, filled, err
+			// 用户逐字段确认的非空覆盖：仅勾选过的描述性字段生效；
+			// 副本值 trim 后为空不写（清空走角色库编辑），值相同不算覆盖。
+			for _, f := range descFields {
+				if !confirmedField(overwrites, ch.ID, f.Key) {
+					continue
 				}
+				v := strings.TrimSpace(f.Proj(&ch))
+				if v == "" || v == f.Lib(target) {
+					continue
+				}
+				f.SetLib(target, v)
+				didChange = true
+				overwritten++
+			}
+			if didChange {
+				if err := s.Upsert(target); err != nil {
+					return imported, filled, overwritten, err
+				}
+			}
+			if didFill {
 				filled++
 			}
 		}
 		if err := s.Associate(projectID, target.ID, ch.RoleType, ch.Arc, ch.Status); err != nil {
-			return imported, filled, err
+			return imported, filled, overwritten, err
 		}
 	}
-	return imported, filled, nil
+	return imported, filled, overwritten, nil
 }
 
 // DrawRandom 从全局库随机抽卡（小说角色面板用）。

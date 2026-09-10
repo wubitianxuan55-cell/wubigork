@@ -14,8 +14,10 @@ export interface CharLibBindings {
   CharacterSave(cJSON: string): Promise<Record<string, unknown>>;
   CharacterGet(id: string): Promise<Record<string, unknown>>;
   CharacterDelete(id: string): Promise<void>;
-  // 回写：characters.json → 全局库（新导入/补全 计数回执）
-  CharacterImportProject(): Promise<{ imported: number; filled: number }>;
+  // 回写：characters.json → 全局库（新导入/补空缺/确认覆盖 计数回执；
+  // overwritesJSON 为预览勾选清单 {"<角色ID>":["appearance",...]}，空串=不覆盖非空字段）
+  CharacterImportPreview(): Promise<Record<string, unknown>>;
+  CharacterImportProject(overwritesJSON: string): Promise<{ imported: number; filled: number; overwritten: number }>;
   CharacterListByProject(): Promise<Array<Record<string, unknown>>>;
   CharacterAssociate(charID: string, role: string): Promise<void>;
   CharacterAssociateTo(projectDir: string, charID: string, role: string): Promise<void>;

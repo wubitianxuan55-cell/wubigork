@@ -21,7 +21,8 @@ func (b *CharlibB) CharacterGeneratePortrait(chJSON string, model string) (strin
 func (b *CharlibB) CharacterGeneratePortraitWithRef(chJSON string, model string, refImageDataURL string) (string, error) { return b.a.CharacterGeneratePortraitWithRef(chJSON, model, refImageDataURL) }
 func (b *CharlibB) CharacterGenerateRandom(chJSON string, fields string) (string, error) { return b.a.CharacterGenerateRandom(chJSON, fields) }
 func (b *CharlibB) CharacterGet(id string) (map[string]interface{}, error) { return b.a.CharacterGet(id) }
-func (b *CharlibB) CharacterImportProject() (map[string]interface{}, error) { return b.a.CharacterImportProject() }
+func (b *CharlibB) CharacterImportPreview() (*characterlib.ImportPreview, error) { return b.a.CharacterImportPreview() }
+func (b *CharlibB) CharacterImportProject(overwritesJSON string) (map[string]interface{}, error) { return b.a.CharacterImportProject(overwritesJSON) }
 func (b *CharlibB) CharacterList(query string, kind string, chatOnly bool, page int, pageSize int) map[string]interface{} { return b.a.CharacterList(query, kind, chatOnly, page, pageSize) }
 func (b *CharlibB) CharacterListByProject() []characterlib.ProjectCharacter { return b.a.CharacterListByProject() }
 func (b *CharlibB) CharacterSave(cJSON string) (characterlib.Character, error) { return b.a.CharacterSave(cJSON) }
