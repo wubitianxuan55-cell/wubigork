@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
-import { AlertCircle, BarChart3, Calculator, Layers, RefreshCw, Save, TrendingUp } from "../../icons";
+import { AlertCircle, BarChart3, Calculator, Download, Layers, RefreshCw, Save, TrendingUp } from "../../icons";
 import { app } from "../../lib/bridge";
 import { useToast } from "../Toast";
-import type { CostAttribution, CostStageCompareRow, CostStageDeviation, CostStageValue } from "../../lib/types";
+import type { CostAttribution, CostEstimateVersion, CostProjectSummary, CostStageCompareRow, CostStageDeviation, CostStageValue } from "../../lib/types";
 
 // 五算阶段固定顺序（对齐后端 coststage.StageOrder：投资估算/设计概算/
 // 施工图预算/竣工结算/竣工决算）。
@@ -91,6 +91,17 @@ export function FiveCalcPanel({ projectId, onChanged }: { projectId: string; onC
   const [dates, setDates] = useState<Record<string, string>>({});
   const [savingStage, setSavingStage] = useState<string | null>(null);
 
+  // v4.194 版本快照带入：阶段值不再只能手填——从测算项目不可变版本快照合计
+  // 一键带入（确认制、带溯源 Note，不做后台自动同步）。
+  const [bringOpen, setBringOpen] = useState(false);
+  const [bringStage, setBringStage] = useState<string | null>(null);
+  const [bringProjects, setBringProjects] = useState<CostProjectSummary[]>([]);
+  const [bringProjectId, setBringProjectId] = useState("");
+  const [bringVersions, setBringVersions] = useState<CostEstimateVersion[]>([]);
+  const [bringLoading, setBringLoading] = useState(false);
+  const [pickedVersion, setPickedVersion] = useState<CostEstimateVersion | null>(null);
+  const [bringing, setBringing] = useState(false);
+
   const loadAll = useCallback(async () => {
     const [sv, cmp, dev] = await Promise.all([
       app.CostStages(projectId).catch(() => [] as CostStageValue[]),
@@ -165,6 +176,79 @@ export function FiveCalcPanel({ projectId, onChanged }: { projectId: string; onC
   const stageById = new Map(stages.map((v) => [v.stage, v]));
   const empty = stages.length === 0;
 
+  // ── 版本快照带入：打开选择器（默认当前项目），按项目拉版本列表 ──
+  const openBring = useCallback(
+    async (stage: string) => {
+      setBringStage(stage);
+      setPickedVersion(null);
+      setBringVersions([]);
+      setBringProjectId(projectId);
+      setBringProjects([]);
+      setBringOpen(true);
+      setBringLoading(true);
+      try {
+        const list = (await app.CostProjectList().catch(() => [])) as CostProjectSummary[];
+        setBringProjects(list ?? []);
+      } finally {
+        setBringLoading(false);
+      }
+    },
+    [projectId],
+  );
+
+  useEffect(() => {
+    if (!bringOpen || !bringProjectId) {
+      setBringVersions([]);
+      return;
+    }
+    let alive = true;
+    setBringLoading(true);
+    app
+      .CostEstimateVersions(bringProjectId)
+      .then((vs) => {
+        if (alive) setBringVersions(vs ?? []);
+      })
+      .catch(() => {
+        if (alive) setBringVersions([]);
+      })
+      .finally(() => {
+        if (alive) setBringLoading(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [bringOpen, bringProjectId]);
+
+  // 确认带入：快照合计写入该阶段（带溯源 Note），一次动作=用户已确认；
+  // 日期不代填（阶段日期是业务口径，与快照时间不是一回事）。
+  const confirmBring = useCallback(async () => {
+    if (!bringStage || !pickedVersion) return;
+    setBringing(true);
+    try {
+      const proj = bringProjects.find((p) => p.id === bringProjectId);
+      const payload: CostStageValue = {
+        id: 0, // 后端 SaveStage 按 (project_id, stage) UPSERT，id/时间戳忽略
+        projectId,
+        stage: bringStage,
+        amount: pickedVersion.total,
+        date: dates[bringStage] ?? "",
+        note: `带入:${proj?.name ?? bringProjectId} v${pickedVersion.version}`,
+        createdAt: "",
+        updatedAt: "",
+      };
+      await app.CostStageSave(payload);
+      setDrafts((p) => ({ ...p, [bringStage]: String(pickedVersion.total) }));
+      toast.show(`已带入「${proj?.name ?? "项目"}」v${pickedVersion.version} 快照合计到${bringStage}`, "info");
+      setBringOpen(false);
+      await loadAll();
+      onChanged?.();
+    } catch (e) {
+      toast.show(String(e), "error");
+    } finally {
+      setBringing(false);
+    }
+  }, [bringStage, pickedVersion, bringProjects, bringProjectId, projectId, dates, loadAll, toast, onChanged]);
+
   return (
     <div className={panelCls}>
       <div className="shrink-0 flex items-center gap-2 px-4 h-10 border-b border-border-soft/50">
@@ -219,6 +303,15 @@ export function FiveCalcPanel({ projectId, onChanged }: { projectId: string; onC
                     title="阶段日期（可选）"
                     onChange={(e) => setDates((p) => ({ ...p, [stage]: e.target.value }))}
                   />
+                  <button
+                    type="button"
+                    className={ghostBtn}
+                    aria-label={`带入${stage}`}
+                    title={`从测算项目版本快照合计带入${STAGE_FULL[stage]}金额`}
+                    onClick={() => void openBring(stage)}
+                  >
+                    <Download size={12} /> 带入
+                  </button>
                   <button
                     type="button"
                     className={solidBtn}
@@ -352,6 +445,91 @@ export function FiveCalcPanel({ projectId, onChanged }: { projectId: string; onC
               )}
             </div>
           )}
+        </div>
+      )}
+
+      {/* 版本快照带入选择器：项目（默认本项目）→ 版本 → 确认带入 */}
+      {bringOpen && bringStage && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setBringOpen(false)}>
+          <div
+            className="v3-panel rounded-xl w-[440px] max-h-[70vh] flex flex-col"
+            data-testid="bring-modal"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-4 py-3 border-b border-border-soft/50 text-[12.5px] font-semibold text-fg">
+              带入{STAGE_FULL[bringStage]}金额
+            </div>
+            <div className="px-4 py-2 text-[11px] text-fg-faint">
+              选择测算项目与版本快照，以其合计带入该阶段（可再手改保存）。项目：
+            </div>
+            <div className="px-4 pb-2">
+              <select
+                className="w-full bg-bg border border-border-soft rounded-md text-fg text-[12px] px-2 py-1.5 outline-none focus:border-accent"
+                data-testid="bring-project-select"
+                value={bringProjectId}
+                onChange={(e) => {
+                  setPickedVersion(null);
+                  setBringProjectId(e.target.value);
+                }}
+              >
+                {bringProjects.length === 0 && <option value="">（无测算项目）</option>}
+                {bringProjects.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                    {p.id === projectId ? "（本项目）" : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-3 space-y-1">
+              {bringLoading ? (
+                <div className="py-6 text-center text-[11.5px] text-fg-faint">加载中…</div>
+              ) : !bringProjectId || bringProjects.length === 0 ? (
+                <div className="py-6 text-center text-[11.5px] text-fg-faint">
+                  还没有测算项目——先建测算项目、录明细并保存版本
+                </div>
+              ) : bringVersions.length === 0 ? (
+                <div className="py-6 text-center text-[11.5px] text-fg-faint">
+                  该项目还没有版本快照——先在明细页保存版本
+                </div>
+              ) : (
+                bringVersions.map((v) => (
+                  <button
+                    key={v.id}
+                    type="button"
+                    data-testid={`bring-version-${v.version}`}
+                    className={`w-full text-left px-3 py-2 rounded-lg border transition-colors ${
+                      pickedVersion?.id === v.id
+                        ? "border-accent bg-accent/5"
+                        : "border-border-soft hover:bg-bg-soft"
+                    }`}
+                    onClick={() => setPickedVersion(v)}
+                  >
+                    <span className="text-[12px] font-medium text-fg">v{v.version}</span>
+                    <span className="ml-2 text-[12px] tabular-nums text-fg">{fmtPrice(v.total)}</span>
+                    <span className="ml-2 text-[10.5px] text-fg-faint">
+                      {v.note || "无备注"} · {v.createdAt?.slice(0, 10)}
+                    </span>
+                  </button>
+                ))
+              )}
+            </div>
+            <div className="px-4 py-3 border-t border-border-soft/50 flex items-center gap-2">
+              <span className="flex-1 text-[10.5px] text-fg-faint">带入后来源写入备注，可随时手改</span>
+              <button type="button" className={ghostBtn} onClick={() => setBringOpen(false)}>
+                取消
+              </button>
+              <button
+                type="button"
+                className={solidBtn}
+                data-testid="bring-confirm"
+                disabled={!pickedVersion || bringing}
+                onClick={() => void confirmBring()}
+              >
+                <Download size={12} /> 带入到{bringStage}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

@@ -2,14 +2,16 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { FiveCalcPanel } from "./FiveCalcPanel";
 import { ToastProvider } from "../Toast";
-import type { CostStageCompareRow, CostStageDeviation, CostStageValue } from "../../lib/types";
+import type { CostEstimateVersion, CostStageCompareRow, CostStageDeviation, CostStageValue } from "../../lib/types";
 
 // ── bridge mock（对齐 CostCompareModal.test 的 spy 模式）──
-const { stagesSpy, compareSpy, devsSpy, saveSpy } = vi.hoisted(() => ({
+const { stagesSpy, compareSpy, devsSpy, saveSpy, projectsSpy, versionsSpy } = vi.hoisted(() => ({
   stagesSpy: vi.fn(),
   compareSpy: vi.fn(),
   devsSpy: vi.fn(),
   saveSpy: vi.fn(),
+  projectsSpy: vi.fn(),
+  versionsSpy: vi.fn(),
 }));
 
 vi.mock("../../lib/bridge", () => ({
@@ -18,6 +20,8 @@ vi.mock("../../lib/bridge", () => ({
     CostStageCompare: (...args: unknown[]) => compareSpy(...args),
     CostStageDeviations: (...args: unknown[]) => devsSpy(...args),
     CostStageSave: (...args: unknown[]) => saveSpy(...args),
+    CostProjectList: (...args: unknown[]) => projectsSpy(...args),
+    CostEstimateVersions: (...args: unknown[]) => versionsSpy(...args),
   },
 }));
 
@@ -64,10 +68,14 @@ beforeEach(() => {
   compareSpy.mockReset();
   devsSpy.mockReset();
   saveSpy.mockReset();
+  projectsSpy.mockReset();
+  versionsSpy.mockReset();
   stagesSpy.mockResolvedValue([]);
   compareSpy.mockResolvedValue([]);
   devsSpy.mockResolvedValue([]);
   saveSpy.mockResolvedValue(undefined);
+  projectsSpy.mockResolvedValue([]);
+  versionsSpy.mockResolvedValue([]);
 });
 
 describe("FiveCalcPanel 五算对比", () => {
@@ -227,5 +235,74 @@ describe("FiveCalcPanel 五算对比", () => {
     expect(screen.queryByText("偏差诊断")).toBeNull();
     // 输入行仍渲染，可开始录入。
     expect(screen.getAllByTestId(/^stage-input-/)).toHaveLength(5);
+  });
+
+  // ── v4.194 版本快照带入 ──
+  const BRING_PROJECTS = [
+    { id: PROJECT_ID, name: "某住宅楼", projectType: "房建", scale: "", craft: "", status: "已保存版本", note: "", itemCount: 3, total: 2345678, versionCount: 2, createdAt: "", updatedAt: "" },
+    { id: "p2", name: "参照项目", projectType: "房建", scale: "", craft: "", status: "编制中", note: "", itemCount: 1, total: 100, versionCount: 0, createdAt: "", updatedAt: "" },
+  ];
+  const BRING_VERSIONS: CostEstimateVersion[] = [
+    { id: 12, projectId: PROJECT_ID, version: 2, total: 2345678, snapshot: "[]", note: "调价后", createdAt: "2026-09-01T10:00:00Z" },
+    { id: 11, projectId: PROJECT_ID, version: 1, total: 2100000, snapshot: "[]", note: "", createdAt: "2026-08-01T10:00:00Z" },
+  ];
+
+  it("带入：项目默认本项目→选版本→确认后按快照合计保存并带溯源备注", async () => {
+    projectsSpy.mockResolvedValue(BRING_PROJECTS);
+    versionsSpy.mockResolvedValue(BRING_VERSIONS);
+    // 首次挂载无阶段值；带入保存后刷新返回已存的预算值（loadAll 回填草稿）。
+    stagesSpy.mockResolvedValueOnce([]);
+    stagesSpy.mockResolvedValueOnce([
+      { id: 3, projectId: PROJECT_ID, stage: "预算", amount: 2345678, date: "", note: "带入:某住宅楼 v2", createdAt: "", updatedAt: "" },
+    ] as CostStageValue[]);
+    render(wrap(<FiveCalcPanel projectId={PROJECT_ID} />));
+
+    // 打开预算行的带入选择器。
+    await screen.findByTestId("stage-input-预算");
+    fireEvent.click(within(screen.getByTestId("stage-input-预算")).getByRole("button", { name: "带入预算" }));
+
+    // 项目下拉默认当前项目，版本列表自动加载。
+    const modal = await screen.findByTestId("bring-modal");
+    await waitFor(() => expect(versionsSpy).toHaveBeenCalledWith(PROJECT_ID));
+    expect((modal.querySelector<HTMLSelectElement>('[data-testid="bring-project-select"]') as HTMLSelectElement).value).toBe(PROJECT_ID);
+    expect(screen.getByTestId("bring-version-2").textContent).toContain("¥2,345,678");
+    expect(screen.getByTestId("bring-version-2").textContent).toContain("调价后");
+
+    // 未选版本时确认禁用；选中 v2 后可带入。
+    expect((screen.getByTestId("bring-confirm") as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(screen.getByTestId("bring-version-2"));
+    expect((screen.getByTestId("bring-confirm") as HTMLButtonElement).disabled).toBe(false);
+    fireEvent.click(screen.getByTestId("bring-confirm"));
+
+    // 快照合计作为阶段金额保存，备注带来源，草稿回填。
+    await waitFor(() => expect(saveSpy).toHaveBeenCalledTimes(1));
+    expect(saveSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        projectId: PROJECT_ID,
+        stage: "预算",
+        amount: 2345678,
+        note: "带入:某住宅楼 v2",
+      }),
+    );
+    expect(await screen.findByText("已带入「某住宅楼」v2 快照合计到预算")).toBeTruthy();
+    const row = screen.getByTestId("stage-input-预算");
+    expect((within(row).getByPlaceholderText("金额（元）") as HTMLInputElement).value).toBe("2345678");
+    // 保存后刷新三路数据。
+    await waitFor(() => expect(stagesSpy).toHaveBeenCalledTimes(2));
+  });
+
+  it("带入空态：项目无版本快照时诚实提示，不出现可带入行", async () => {
+    projectsSpy.mockResolvedValue(BRING_PROJECTS);
+    versionsSpy.mockResolvedValue([]); // 参照项目 p2 无版本
+    render(wrap(<FiveCalcPanel projectId={PROJECT_ID} />));
+
+    await screen.findByTestId("stage-input-估算");
+    fireEvent.click(within(screen.getByTestId("stage-input-估算")).getByRole("button", { name: "带入估算" }));
+    await screen.findByTestId("bring-modal");
+    // 切到无版本项目。
+    fireEvent.change(screen.getByTestId("bring-project-select"), { target: { value: "p2" } });
+    expect(await screen.findByText("该项目还没有版本快照——先在明细页保存版本")).toBeTruthy();
+    expect(screen.queryByTestId("bring-confirm")?.hasAttribute("disabled")).toBe(true);
+    expect(saveSpy).not.toHaveBeenCalled();
   });
 });
