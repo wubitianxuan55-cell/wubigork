@@ -49,6 +49,7 @@ var spaceTags = map[string]string{
 	"ocr":              spaces.SpaceWork,
 	"cost_search":      spaces.SpaceWork,
 	"cost_save":        spaces.SpaceWork,
+	"cost_compose":     spaces.SpaceWork,
 	"cost_indicators":  spaces.SpaceWork,
 	"knowledge_add":    spaces.SpaceWork,
 	"knowledge_search": spaces.SpaceWork,
