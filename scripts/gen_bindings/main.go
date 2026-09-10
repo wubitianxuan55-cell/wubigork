@@ -34,12 +34,12 @@ var receiverTypes = map[string]bool{
 var facadeOrder = []string{"core", "office", "memory", "cost", "model", "voice", "chat", "novel", "image", "charlib"}
 
 type method struct {
-	Name   string
-	Params string // "(a1 T1, a2 T2)" 含括号，用于签名与调用
-	ArgNames string // "a1, a2"
-	Results string // "" | "R" | "R, error" 等（不含括号）… 见下
-	HasParens bool // 结果是否有括号（多返回值）
-	Receiver string
+	Name      string
+	Params    string // "(a1 T1, a2 T2)" 含括号，用于签名与调用
+	ArgNames  string // "a1, a2"
+	Results   string // "" | "R" | "R, error" 等（不含括号）… 见下
+	HasParens bool   // 结果是否有括号（多返回值）
+	Receiver  string
 }
 
 // mapMethod 方法 → 板块。规则按优先级：显式覆盖表 → 前缀规则 → 接收者默认。
@@ -102,56 +102,56 @@ func mapGaea(n string) string {
 
 // explicitOverrides 无法用前缀表达的映射。
 var explicitOverrides = map[string]string{
-	"GetModelRoute":      "model",
-	"GetSensitiveLocal":  "model",
-	"GetOfficeLocal":     "model",
-	"GetOfflineMode":     "model",
-	"SetOfflineMode":     "model",
-	"SetSensitiveLocal":  "model",
-	"SetOfficeLocal":     "model",
-	"GetModelMonitor":    "model",
-	"SetFeatureModel":    "model",
-	"SetFeatureModelEnabled": "model",
-	"GetEngines":         "model",
-	"GetEngineFailover":  "model",
-	"SetEngineFailover":  "model",
-	"GetActiveEngine":    "model",
-	"GetActiveModel":     "model",
-	"GetEngineStatus":    "model",
-	"GetModelCatalog":    "model",
-	"Startup":            "core",
-	"Shutdown":           "core",
-	"SetDistFS":          "core",
-	"SetPromptFS":        "core",
-	"Login":              "core",
-	"GetLoginStatus":     "core",
-	"Logout":             "core",
-	"SaveToken":          "core",
+	"GetModelRoute":             "model",
+	"GetSensitiveLocal":         "model",
+	"GetOfficeLocal":            "model",
+	"GetOfflineMode":            "model",
+	"SetOfflineMode":            "model",
+	"SetSensitiveLocal":         "model",
+	"SetOfficeLocal":            "model",
+	"GetModelMonitor":           "model",
+	"SetFeatureModel":           "model",
+	"SetFeatureModelEnabled":    "model",
+	"GetEngines":                "model",
+	"GetEngineFailover":         "model",
+	"SetEngineFailover":         "model",
+	"GetActiveEngine":           "model",
+	"GetActiveModel":            "model",
+	"GetEngineStatus":           "model",
+	"GetModelCatalog":           "model",
+	"Startup":                   "core",
+	"Shutdown":                  "core",
+	"SetDistFS":                 "core",
+	"SetPromptFS":               "core",
+	"Login":                     "core",
+	"GetLoginStatus":            "core",
+	"Logout":                    "core",
+	"SaveToken":                 "core",
 	"GenerateCharacterPortrait": "image",
 	"SetCharacterPortrait":      "image",
-	"CmdKEdit":           "novel",
-	"LocalTranslate":     "office",
-	"Search":             "core",
-	"ExportAll":          "core",
-	"GetConfig":          "core",
-	"SaveConfig":         "core",
-	"ListSkills":         "core",
-	"GetStats":           "core",
-	"CreateProject":      "core",
-	"OpenProject":        "core",
-	"CloseProject":       "core",
-	"GetProjectInfo":     "core",
-	"GetNovelsDir":       "core",
-	"ListProjects":       "core",
-	"DeleteProject":      "core",
-	"GetCompileTemplates": "core",
-	"ExportHTML":         "core",
-	"GetDashboard":       "core",
-	"AnalyzeStyle":       "core",
-	"GetStyleProfile":    "core",
-	"ImportStyleProfile": "core",
-	"ChatGeneral":        "chat",
-	"MainBrainChat":      "chat",
+	"CmdKEdit":                  "novel",
+	"LocalTranslate":            "office",
+	"Search":                    "core",
+	"ExportAll":                 "core",
+	"GetConfig":                 "core",
+	"SaveConfig":                "core",
+	"ListSkills":                "core",
+	"GetStats":                  "core",
+	"CreateProject":             "core",
+	"OpenProject":               "core",
+	"CloseProject":              "core",
+	"GetProjectInfo":            "core",
+	"GetNovelsDir":              "core",
+	"ListProjects":              "core",
+	"DeleteProject":             "core",
+	"GetCompileTemplates":       "core",
+	"ExportHTML":                "core",
+	"GetDashboard":              "core",
+	"AnalyzeStyle":              "core",
+	"GetStyleProfile":           "core",
+	"ImportStyleProfile":        "core",
+	"ChatGeneral":               "chat",
+	"MainBrainChat":             "chat",
 	// 阶段 3（D3）：分流统计/索引状态/受控测评归属模型中心与记忆中枢
 	"GaeaUsageOverview":       "model",
 	"GaeaGetUsdCnyRate":       "model", // T6-6.2 汇率配置（模型中心）
@@ -167,8 +167,9 @@ var explicitOverrides = map[string]string{
 	"GaeaSpaceList":     "core",
 	"GaeaSpaceActive":   "core",
 	"GaeaSpaceActivate": "core",
+	"GaeaSpaceProfiles": "core",
 	// v4.3：TTS 参数预览归 voice 板块；书封生成归 novel 板块（前缀规则会落 office）
-	"GaeaTTSVoiceParams":  "voice",
+	"GaeaTTSVoiceParams":    "voice",
 	"GaeaGenerateBookCover": "novel",
 	// v4.113.0 刀4：进度计划文件持久化（前缀规则本就落 office，显式声明对齐登记惯例）
 	"GaeaScheduleLoad": "office",

@@ -10,6 +10,7 @@ package app
 import (
 	"fmt"
 	"path/filepath"
+	"strings"
 
 	gaeaConfig "github.com/gaea/gaea/internal/gaea/config"
 	"github.com/gaea/gaea/internal/gaea/spaces"
@@ -124,4 +125,92 @@ func (a *App) GaeaSpaceActivate(space string) (SpaceActiveView, error) {
 		return SpaceActiveView{}, fmt.Errorf("持久化空间配置失败: %w", err)
 	}
 	return gaeaSpaceActiveView(), nil
+}
+
+// SpaceProfileView 是单个空间的装配 profile 视图（GaeaSpaceProfiles 返回，模型
+// 中心「总闸/空间策略」分区只读消费，长期规划阶段二）：只汇报 gaea.toml 里
+// 配了什么、经既有链生效成什么，不提供写路径——写仍归配置文件（boot 装配
+// 世界，S1.3-A）。
+type SpaceProfileView struct {
+	Space string `json:"space"` // "work" | "play"
+	// Gaea 是办公 agent 功能域模型覆写原值（space_profiles.<space>.gaea，引用
+	// GetFeatureModel 键体系；""=未配置=现状模型）。
+	Gaea string `json:"gaea"`
+	// GaeaResolved / GaeaOk 是覆写解析结果：Ok=true 时 Resolved 形如
+	// "provider · model"；Gaea 非空且 Ok=false = 引用无法解析（boot 告警后
+	// 现状模型继续生效——失败说人话，不让用户猜）。
+	GaeaResolved string `json:"gaeaResolved"`
+	GaeaOk       bool   `json:"gaeaOk"`
+	// Models 是其余功能域覆写（仅非空项；键=chat/whisper/novel/office/
+	// characterlib/routine）。
+	Models map[string]string `json:"models"`
+	// PermMode 是生效权限模式（PermissionsForSpace 既有链：顶层策略+空间段，
+	// play 未配置段=产品默认 allow）。
+	PermMode string `json:"permMode"`
+	// PermHardAskCount / PermHardAskBySpace：生效强制审批工具数；BySpace=false
+	// = 未按空间配置（control 用包级默认集）。
+	PermHardAskCount   int  `json:"permHardAskCount"`
+	PermHardAskBySpace bool `json:"permHardAskBySpace"`
+	// GuardrailsOn 是 play 内容护栏生效态（PlayGuardrails 既有链，false=零钳制）。
+	GuardrailsOn bool `json:"guardrailsOn"`
+	// ModeOn 报告 space.mode 分区开关（false=空间维度整体关闭，策略不生效，
+	// 全域回退 work 现状）。
+	ModeOn bool `json:"modeOn"`
+}
+
+// buildSpaceProfileViews 组装双空间 profile 视图（纯函数，便于测试；顺序恒
+// work→play）。cfg 为 nil 时返回零配置视图（modeOn=true 与 gaeaSpaceActiveView
+// 未初始化口径一致）。
+func buildSpaceProfileViews(cfg *gaeaConfig.Config) []SpaceProfileView {
+	out := make([]SpaceProfileView, 0, 2)
+	modeOn := cfg == nil || cfg.SpaceModeIsOn()
+	for _, space := range []string{spaces.SpaceWork, spaces.SpacePlay} {
+		v := SpaceProfileView{Space: space, ModeOn: modeOn}
+		if cfg != nil {
+			perm := cfg.PermissionsForSpace(space)
+			v.PermMode = perm.Mode
+			v.PermHardAskCount = len(perm.HardAsk)
+			v.PermHardAskBySpace = perm.HardAsk != nil
+			if prof, err := cfg.SpaceProfile(space); err == nil {
+				v.Gaea = strings.TrimSpace(prof.Gaea)
+				if v.Gaea != "" {
+					if e, ok := cfg.ResolveModel(v.Gaea); ok && e != nil {
+						v.GaeaOk = true
+						v.GaeaResolved = strings.TrimSpace(e.Name) + " · " + strings.TrimSpace(e.Model)
+					}
+				}
+				rest := map[string]string{}
+				for k, ref := range map[string]string{
+					"chat":         prof.Chat,
+					"whisper":      prof.Whisper,
+					"novel":        prof.Novel,
+					"office":       prof.Office,
+					"characterlib": prof.CharacterLib,
+					"routine":      prof.Routine,
+				} {
+					if s := strings.TrimSpace(ref); s != "" {
+						rest[k] = s
+					}
+				}
+				if len(rest) > 0 {
+					v.Models = rest
+				}
+			}
+			v.GuardrailsOn = cfg.PlayGuardrails(space).Enabled
+		}
+		out = append(out, v)
+	}
+	return out
+}
+
+// GaeaSpaceProfiles 返回双空间装配 profile 视图（只读；引擎未初始化时读盘
+// 兜底，gaeaSpaceActiveView 同款，避免「配置了但重启前查不到」的假空）。
+func (a *App) GaeaSpaceProfiles() []SpaceProfileView {
+	cfg := gaeaCfgSnapshot()
+	if cfg == nil {
+		if loaded, err := gaeaLoadConfig(); err == nil {
+			cfg = loaded
+		}
+	}
+	return buildSpaceProfileViews(cfg)
 }

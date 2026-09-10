@@ -181,3 +181,61 @@ func TestSpaceModeOffFlatFallback(t *testing.T) {
 		t.Fatalf("mode=off 下 play 分区存量会话应仍可读: %+v", infos)
 	}
 }
+
+// TestBuildSpaceProfileViews 总闸策略视图（长期规划阶段二）：配了什么、生效成
+// 什么、坏引用诚实报未解析（Ok=false 而非报错，boot 告警后现状继续）、
+// mode=off 整体降级、nil 配置不炸。
+func TestBuildSpaceProfileViews(t *testing.T) {
+	cfg := &gaeaConfig.Config{
+		Providers: []gaeaConfig.ProviderEntry{{Name: "prov", Models: []string{"m1"}}},
+		SpaceProfiles: map[string]gaeaConfig.SpaceProfile{
+			"play": {
+				Gaea:        "prov/m1",
+				Chat:        "  ", // 空白=未配置，不进 Models
+				Permissions: &gaeaConfig.SpacePermissionsConfig{Mode: "allow", HardAsk: []string{}},
+				Guardrails:  &gaeaConfig.PlayGuardrails{Enabled: true},
+			},
+		},
+	}
+	views := buildSpaceProfileViews(cfg)
+	if len(views) != 2 || views[0].Space != "work" || views[1].Space != "play" {
+		t.Fatalf("视图顺序应恒 work→play: %+v", views)
+	}
+	w, p := views[0], views[1]
+	if w.Gaea != "" || w.GaeaOk || w.Models != nil || w.GuardrailsOn || w.PermHardAskBySpace {
+		t.Errorf("work 零配置视图应全零: %+v", w)
+	}
+	if !p.GaeaOk || p.GaeaResolved != "prov · m1" {
+		t.Errorf("play gaea 覆写应解析: ok=%v resolved=%q", p.GaeaOk, p.GaeaResolved)
+	}
+	if p.PermMode != "allow" || !p.PermHardAskBySpace || p.PermHardAskCount != 0 {
+		t.Errorf("play 权限应=产品默认 allow+显式空集: %+v", p)
+	}
+	if !p.GuardrailsOn {
+		t.Error("play 护栏应报生效")
+	}
+	if !w.ModeOn || !p.ModeOn {
+		t.Error("space.mode 缺省 on")
+	}
+
+	bad := &gaeaConfig.Config{SpaceProfiles: map[string]gaeaConfig.SpaceProfile{
+		"work": {Gaea: "nope/none"},
+	}}
+	bw := buildSpaceProfileViews(bad)[0]
+	if bw.Gaea != "nope/none" || bw.GaeaOk || bw.GaeaResolved != "" {
+		t.Errorf("坏引用应诚实报未解析: %+v", bw)
+	}
+
+	off := &gaeaConfig.Config{}
+	off.Space.Mode = "off"
+	for _, v := range buildSpaceProfileViews(off) {
+		if v.ModeOn {
+			t.Errorf("mode=off 应报 ModeOn=false: %+v", v)
+		}
+	}
+
+	nilViews := buildSpaceProfileViews(nil)
+	if len(nilViews) != 2 || nilViews[0].PermMode != "" || !nilViews[0].ModeOn {
+		t.Errorf("nil 配置应零视图+modeOn=true: %+v", nilViews)
+	}
+}

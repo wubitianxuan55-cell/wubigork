@@ -43,6 +43,7 @@ import type {
   SlashArgsResult,
   SpaceActiveView,
   SpaceOption,
+  SpaceProfileView,
   SubagentRunsView,
   SubagentTranscriptView,
   TaskOutputView,
@@ -109,6 +110,8 @@ export interface CoreBindings {
   // Activate 只写配置（非法 space 拒绝）；生效时机为下次引擎重建/重启。
   GaeaSpaceList(): Promise<SpaceOption[]>;
   GaeaSpaceActive(): Promise<SpaceActiveView>;
+  // 双空间装配 profile 视图（只读；模型中心「总闸/空间策略」分区）。
+  GaeaSpaceProfiles(): Promise<SpaceProfileView[]>;
   GaeaSpaceActivate(space: string): Promise<SpaceActiveView>;
   ContextUsage(): Promise<ContextInfo>;
   // ContextView 返回当前会话的上下文构成快照（dsh-context Go 移植 Phase A）：

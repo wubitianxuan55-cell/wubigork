@@ -316,6 +316,7 @@ export const bindingNames = [
 	"GaeaSpaceActivate",
 	"GaeaSpaceActive",
 	"GaeaSpaceList",
+	"GaeaSpaceProfiles",
 	"GaeaSteer",
 	"GaeaSubagentContextView",
 	"GaeaSubagentFollowUp",

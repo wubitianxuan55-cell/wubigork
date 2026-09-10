@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { CloudOutlined, DesktopOutlined, GlobalOutlined, KeyOutlined, RocketOutlined } from '@ant-design/icons'
 import type { EngineConfig, ModelInfo } from '../../api/engines'
 
-export type Category = 'overview' | 'llm' | 'image' | 'tts' | 'specialty' | 'catalog' | 'engine' | 'bind' | 'stats' | 'benchmark' | 'retrieval'
+export type Category = 'overview' | 'llm' | 'image' | 'tts' | 'specialty' | 'catalog' | 'engine' | 'bind' | 'strategy' | 'stats' | 'benchmark' | 'retrieval'
 
 /** 模型元数据（B 刀）：后端 ModelInfo 目录字段的展示子集，全可选 */
 export interface ModelMeta {

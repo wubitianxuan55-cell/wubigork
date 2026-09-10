@@ -2,7 +2,7 @@
 // 说明：capServers 会被整体重绑（Remove/Retry/SetEnabled），必须经 s.capServers
 // 读写（经 setCapServers 重绑），不能解构快照，否则 Capabilities 读到旧数组。
 import type { AppBindings } from "../bridge";
-import type { MCPServerInput } from "../types";
+import type { MCPServerInput, SpaceProfileView } from "../types";
 import { delay, emitUpdater } from "./shared";
 import { switchWorkspace } from "./state";
 import type { MakeMockState } from "./state";
@@ -10,7 +10,7 @@ import type { MakeMockState } from "./state";
 type CoreMethods = Pick<
   AppBindings,
   | "ListWorkspaces" | "PickWorkspace" | "SwitchWorkspace"
-  | "GaeaSpaceList" | "GaeaSpaceActive" | "GaeaSpaceActivate"
+  | "GaeaSpaceList" | "GaeaSpaceActive" | "GaeaSpaceActivate" | "GaeaSpaceProfiles"
   | "ContextUsage" | "ContextView" | "ContextNodeDetail" | "Trajectory" | "AgentNetwork" | "TCCAReport" | "Jobs"
   | "Meta" | "Commands" | "Capabilities"
   | "AddMCPServer" | "RemoveMCPServer" | "RetryMCPServer" | "SetMCPServerEnabled"
@@ -536,6 +536,13 @@ export function buildCore(s: MakeMockState): CoreMethods {
     async GaeaSpaceActive() {
       await delay(80);
       return { space: "work", modeOn: true, exportsDir: ".gaea/exports", workDir: ".gaea/work" };
+    },
+    async GaeaSpaceProfiles(): Promise<SpaceProfileView[]> {
+      await delay(90);
+      return [
+        { space: "work", gaea: "", gaeaResolved: "", gaeaOk: false, models: {}, permMode: "ask", permHardAskCount: 0, permHardAskBySpace: false, guardrailsOn: false, modeOn: true },
+        { space: "play", gaea: "glm/glm-5.3", gaeaResolved: "glm · glm-5.3", gaeaOk: true, models: { novel: "glm/glm-5.3-air" }, permMode: "allow", permHardAskCount: 0, permHardAskBySpace: true, guardrailsOn: true, modeOn: true },
+      ];
     },
     async GaeaSpaceActivate(space: string) {
       await delay(120);

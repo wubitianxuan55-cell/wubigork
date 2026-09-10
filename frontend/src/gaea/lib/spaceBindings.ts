@@ -30,6 +30,7 @@ export const GAEA_METHOD_FACETS = {
   GaeaSpaceList: "shared",
   GaeaSpaceActive: "shared",
   GaeaSpaceActivate: "shared",
+  GaeaSpaceProfiles: "shared",
   // v4.171 批次一 legacy 直调转正：应用信息/板块清单（壳层元信息，两空间共用，
   // AboutPanel/主页 launcher 消费）。
   GetAppInfo: "shared",

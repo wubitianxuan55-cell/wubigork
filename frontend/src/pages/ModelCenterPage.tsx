@@ -3,12 +3,13 @@ import { Button, Drawer, message } from 'antd'
 import {
   ThunderboltOutlined, PictureOutlined, SoundOutlined, SettingOutlined, LinkOutlined,
   CheckCircleOutlined, LoginOutlined, LogoutOutlined, DatabaseOutlined, DashboardOutlined, ReloadOutlined, BarChartOutlined,
-  AppstoreOutlined, ExperimentOutlined, SearchOutlined,
+  AppstoreOutlined, ExperimentOutlined, SearchOutlined, ControlOutlined,
 } from '@ant-design/icons'
 import { useAppStore } from '../stores/appStore'
 import { ModelCenterContext, type ModelCenterContextValue } from './modelcenter/context'
 import { LLMSection } from './modelcenter/LLMSection'
 import { BindSection } from './modelcenter/BindSection'
+import { StrategySection } from './modelcenter/StrategySection'
 import { StatsSection } from './modelcenter/StatsSection'
 import { ImageSection } from './modelcenter/ImageSection'
 import { VoiceSection } from './modelcenter/VoiceSection'
@@ -192,6 +193,7 @@ const ModelCenterPage: React.FC = () => {
     { key: 'benchmark', icon: <ExperimentOutlined />, label: '受控测评' },
     { key: 'retrieval', icon: <SearchOutlined />, label: '检索质量' },
     { key: 'bind', icon: <LinkOutlined />, label: '功能绑定' },
+    { key: 'strategy', icon: <ControlOutlined />, label: '空间策略' },
     { key: 'engine', icon: <SettingOutlined />, label: '引擎管理' },
   ]
 
@@ -310,6 +312,7 @@ const ModelCenterPage: React.FC = () => {
               </>
             )}
             {category === 'bind' && <BindSection />}
+            {category === 'strategy' && <StrategySection />}
             <Drawer
               title="模型调用统计"
               open={statsOpen}

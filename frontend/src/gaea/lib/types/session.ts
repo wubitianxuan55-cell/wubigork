@@ -37,3 +37,7 @@ export type SpaceOption = WireShape<AppModels.SpaceOption>;
 // SpaceActiveView 是当前生效空间视图（GaeaSpaceActive / GaeaSpaceActivate）。
 // space.mode=off 时分区整体关闭，space 恒报 work（modeOn=false 标记关闭态）。
 export type SpaceActiveView = WireShape<AppModels.SpaceActiveView>;
+
+// SpaceProfileView 是单个空间装配 profile 视图（GaeaSpaceProfiles，模型中心
+// 「总闸/空间策略」分区只读消费；gaea 非空且 gaeaOk=false = 引用无法解析）。
+export type SpaceProfileView = WireShape<AppModels.SpaceProfileView>;
