@@ -1,3 +1,6 @@
+## v4.210.0 · 记忆语义图谱：事件日志投影出图（2026-09-11）
+> 阶段五「记忆OS+上下文编译」首刀（规划 gaea-next-stage-plan-2026-09 §2，底座#1）。记忆此前只有存储没有结构：新增 memory_events 事件日志（SchemaV18，追加式，一切记忆写路径——remember 工具/桌面面板/做梦/蒸馏合并/引用触达——落库成功即留痕），ProjectEvents 纯函数投影出实体/事件/来源三向图（produces/affects/references），物化进 mem_graph_*（含 embedding 向量占位列，5.2 启用）。日志即真相：图可删可重建（读前水位对账懒重建，物化=投影逐字段一致有测试锁死）。[MEM:name] 图节点寻址；悬空互引不入图但 Dangling 留痕不静默；回合收尾引用解析（命中+悬空）落 cite 事件。绑定 608→609（GaeaMemorySemanticGraph）；MemoryHub 图谱页新增「关联图/事件图谱」切换（GraphView source prop，默认 cloud 旧行为零变化）。Go +9 用例（确定性/三向边/悬空拒写/删库重建/BFS 遍历/写路径挂钩/cite 事件），vitest +1（semantic 数据源切换）。设计基线：docs/gaea-memory-graph-51-design-2026-09.md（5.1 余项=真·发送前悬空引用剥离，需流式层另刀）。
+
 ## v4.209.0 · 组价含量对照：拆解含量 vs 同类条目分位带（2026-09-10）
 > 造价刀路池 §6 收官（survey 六项全清）。AI 拆解的人材机含量此前只有金额自洽校验，含量本身离不离谱没人管——含量 420kg 对同类 300kg 也照样过。新增 `cost.CheckContentBaseline` 纯函数：以相似条目池的同一资源含量分布（标题+单位归一精确匹配）做 P25/P75 分位带对照，带外 warn（同值退化带 ±5% 容差）、带内静默、样本 <3 不比对、单位一方缺失宁缺勿误。接进 `GaeaCostCompose` Checks 与金额自洽结论同列，留痕自动承载。零新结构零新绑定（608 不变）、纯 Go、前端零改动。外部「行业含量区间」数据源明确不引入——基线源=用户自己的库。Go 全量 116 包 0 FAIL（+5 用例）。详见 releases/v4.209.0.md。
 

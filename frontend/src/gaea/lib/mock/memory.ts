@@ -24,7 +24,7 @@ type MemoryMethods = Pick<
   | "KnowledgeList" | "KnowledgeSearch" | "KnowledgeGet" | "KnowledgeSave" | "KnowledgeDelete"
   | "KnowledgeImportPreview" | "KnowledgeImportAIParse" | "KnowledgeImportApply"
   | "KnowledgeHistory" | "KnowledgeFindSimilar" | "KnowledgeExport" | "KnowledgeReview" | "KnowledgeMerge"
-  | "MemoryDuplicates" | "MemoryMerge"
+  | "MemoryDuplicates" | "MemoryMerge" | "SemanticGraph"
   | "MemoryMorningBrief"
 >;
 
@@ -205,6 +205,30 @@ export function buildMemory(_s: MakeMockState): MemoryMethods {
     },
     async MemoryGraph() {
       return { nodes: [], links: [] };
+    },
+    async SemanticGraph() {
+      // mock：entity/event/source 三向边的小样例（事件日志投影形态，节点只带
+      // 视图五字段 id/name/type/desc/val，状态/口径文案进 desc）。
+      const nodes = [
+        { id: "mem:mock/cost-rule", type: "entity", name: "造价规则", desc: "active · feedback · work · 组价先查历史价", val: 1 },
+        { id: "mem:mock/price-band", type: "entity", name: "价格带", desc: "active · project · work · P25/中位/P75", val: 1 },
+        { id: "mem:mock/style-note", type: "entity", name: "文风偏好", desc: "archived · project · play", val: 1 },
+        { id: "ev:1", type: "event", name: "save · 造价规则", desc: "组价先查历史价", val: 0.5 },
+        { id: "ev:2", type: "event", name: "cite · 价格带", desc: "", val: 0.5 },
+        { id: "ev:3", type: "event", name: "archive · 文风偏好", desc: "", val: 0.5 },
+        { id: "src:mock/local", type: "source", name: "本机写入", desc: "", val: 0.8 },
+        { id: "src:mock/session-x", type: "source", name: "session-x", desc: "", val: 0.8 },
+      ];
+      const links = [
+        { source: "src:mock/local", target: "ev:1", type: "produces" },
+        { source: "ev:1", target: "mem:mock/cost-rule", type: "affects" },
+        { source: "src:mock/session-x", target: "ev:2", type: "produces" },
+        { source: "ev:2", target: "mem:mock/price-band", type: "affects" },
+        { source: "mem:mock/cost-rule", target: "mem:mock/price-band", type: "references" },
+        { source: "src:mock/local", target: "ev:3", type: "produces" },
+        { source: "ev:3", target: "mem:mock/style-note", type: "affects" },
+      ];
+      return { nodes, links, eventCount: 3, entityCount: 3, danglingRefs: ["ghost-key"], projectedSeq: 3 };
     },
     async KnowledgeList(): Promise<KnowledgeSummary[]> {
       return [

@@ -135,8 +135,8 @@ export const bindingNames = [
 	"GaeaCostInquiryDelete",
 	"GaeaCostInquiryExpiring",
 	"GaeaCostInquiryList",
-	"GaeaCostInquiryScan",
 	"GaeaCostInquirySave",
+	"GaeaCostInquiryScan",
 	"GaeaCostList",
 	"GaeaCostNoteBumpRef",
 	"GaeaCostNoteDelete",
@@ -218,6 +218,7 @@ export const bindingNames = [
 	"GaeaMemoryHubOverview",
 	"GaeaMemoryMerge",
 	"GaeaMemoryMorningBrief",
+	"GaeaMemorySemanticGraph",
 	"GaeaMemorySetRetentionDays",
 	"GaeaMemorySuggestions",
 	"GaeaMemoryUnarchive",
@@ -608,6 +609,4 @@ export const bindingNames = [
 	"WhisperWeixinQRStatus",
 	"WhisperWeixinQRStatusWithCode",
 	"WhisperWeixinStatus",
-] as const
-
-export default bindingNames
+] as const;

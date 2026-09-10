@@ -237,6 +237,25 @@ function MemoryHubPage() {
     setTimeout(() => setReferenced((p) => (p === path ? null : p)), 1500);
   };
 
+  // 图谱事实源切换（5.1）：关联图=标签/分类聚合（旧）；事件图谱=memory_events
+  // 日志投影的语义图（entity/event/source 三向边，悬空互引有统计）。
+  const [graphSource, setGraphSource] = useState<"cloud" | "semantic">("cloud");
+  const graphSourceSwitch = (
+    <div className="flex items-center rounded-full border border-border overflow-hidden text-[11px] shrink-0" role="group" aria-label="图谱事实源">
+      {([["cloud", "关联图"], ["semantic", "事件图谱"]] as const).map(([v, label]) => (
+        <button
+          key={v}
+          type="button"
+          aria-pressed={graphSource === v}
+          onClick={() => setGraphSource(v)}
+          className={`px-2.5 h-7 transition-colors ${graphSource === v ? "bg-accent-soft text-accent" : "text-fg-faint hover:text-fg"}`}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+
   // 图谱节点 → 详情 inspector
   const handleGraphSelect = (node: GraphNode | null) => {
     if (!node) {
@@ -429,7 +448,12 @@ function MemoryHubPage() {
             {active === "home" ? (
               <GraphView variant="home" onSelect={handleGraphSelect} />
             ) : active === "graph" ? (
-              <GraphView variant="page" onSelect={handleGraphSelect} />
+              <GraphView
+                variant="page"
+                onSelect={handleGraphSelect}
+                source={graphSource}
+                sourceSwitch={graphSourceSwitch}
+              />
             ) : (
               <div className="hub-library-zone">
                 <LocaleProvider>

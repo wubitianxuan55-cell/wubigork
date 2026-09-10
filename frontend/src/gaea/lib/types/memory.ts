@@ -77,5 +77,10 @@ export type MemoryHubOverview = WireShape<AppModels.MemoryHubOverview>;
 export type GraphNode = WireShape<AppModels.GraphNode>;
 export type GraphLink = WireShape<AppModels.GraphLink>;
 export type MemoryGraphView = WireShape<AppModels.MemoryGraphView>;
+
+// SemanticGraphView 是记忆语义图谱（事件日志投影，GaeaMemorySemanticGraph）：
+// 与 MemoryGraphView 同渲染面（GraphView source="semantic"），节点 type 取
+// entity/event/source，另带日志/悬空统计。
+export type SemanticGraphView = WireShape<AppModels.SemanticGraphView>;
 // 办公记忆疑似重复对（keep 为建议保留项）。
 export type MemoryDuplicateView = WireShape<AppModels.MemoryDuplicateView>;

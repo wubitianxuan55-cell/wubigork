@@ -85,6 +85,17 @@ ON CONFLICT(project, name) DO UPDATE SET
 	if err != nil {
 		return "", err
 	}
+	// 事件日志（5.1）：落库成功即追加 save 事件（尽力而为，失败不阻断写入）。
+	// 事件带投影所需元数据（kind/type/title/desc/tags/space/互引 refs），
+	// body 只留摘要——内容真相在 facts 表，日志是事件真相。
+	_ = (&EventLog{DB: b.db}).AppendEvent(Event{
+		At: time.Now().UnixMilli(), Op: OpSave, Name: name, Project: b.project, Space: space,
+		Kind: string(NormalizeKind(string(m.Kind))), Type: string(NormalizeType(string(m.Type))),
+		Title: m.Title, Desc: m.Description, Tags: m.Tags,
+		Refs:   ExtractRefNames(m.Body),
+		Excerpt: m.Body,
+		SourceSession: m.SourceSession, SourceMessage: m.SourceMessage,
+	})
 	return b.Path(name), nil
 }
 
@@ -105,6 +116,10 @@ func (b *sqliteBackend) Archive(name string) (string, error) {
 	if n, _ := res.RowsAffected(); n == 0 {
 		return "", nil
 	}
+	// 事件日志（5.1）：归档留痕（尽力而为）。
+	_ = (&EventLog{DB: b.db}).AppendEvent(Event{
+		At: time.Now().UnixMilli(), Op: OpArchive, Name: name, Project: b.project,
+	})
 	return b.Path(name), nil
 }
 
@@ -132,6 +147,10 @@ func (b *sqliteBackend) Unarchive(name string) error {
 	if n, _ := res.RowsAffected(); n == 0 {
 		return fmt.Errorf("memory %q 未归档或已被清理", name)
 	}
+	// 事件日志（5.1）：恢复留痕（尽力而为）。
+	_ = (&EventLog{DB: b.db}).AppendEvent(Event{
+		At: time.Now().UnixMilli(), Op: OpUnarchive, Name: name, Project: b.project,
+	})
 	return nil
 }
 
@@ -149,6 +168,12 @@ func (b *sqliteBackend) ChangeType(name string, newType Type) error {
 	if n, _ := res.RowsAffected(); n == 0 {
 		return fmt.Errorf("memory %q not found", name)
 	}
+	// 事件日志（5.1）：类型变更留痕（尽力而为；投影不据此改实体元数据，
+	// 元数据一律以最新 save 事件为准）。
+	_ = (&EventLog{DB: b.db}).AppendEvent(Event{
+		At: time.Now().UnixMilli(), Op: OpChangeType, Name: name, Project: b.project,
+		Type: string(NormalizeType(string(newType))),
+	})
 	return nil
 }
 
@@ -175,8 +200,18 @@ func (b *sqliteBackend) touchInSpace(name, space string) error {
 		query += ` AND space_id=?`
 		args = append(args, space)
 	}
-	_, err := b.db.Exec(query, args...)
-	return err
+	res, err := b.db.Exec(query, args...)
+	if err != nil {
+		return err
+	}
+	// 事件日志（5.1）：触达留痕（尽力而为）。触达是生命周期衰减（5.3）的
+	// 事实依据，高频但单行极小；只记未命中过的行（RowsAffected>0）。
+	if n, _ := res.RowsAffected(); n > 0 {
+		_ = (&EventLog{DB: b.db}).AppendEvent(Event{
+			At: time.Now().UnixMilli(), Op: OpTouch, Name: name, Project: b.project, Space: space,
+		})
+	}
+	return nil
 }
 
 func (b *sqliteBackend) List() []Memory {

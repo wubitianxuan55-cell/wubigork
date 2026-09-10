@@ -38,6 +38,38 @@ func ExtractCitationNames(text string) []string {
 	return out
 }
 
+// CitationResult 是一次引用解析的两侧结果：命中的键 Touch 触达；悬空键
+// （幻觉/已删）不触达、不进图，但留痕可查——「悬空拒写」的可观测侧。
+type CitationResult struct {
+	Resolved []string
+	Dangling []string
+}
+
+// ResolveCitationsDetailed 是 ResolveCitations 的全量版：命中照旧 Touch（更新
+// last_used_at），悬空键返回而非静默丢——调用方（controller 回合收尾）拿去落
+// cite 事件。空间语义与 ResolveCitations 一致：space 非空时限定本空间，跨空间
+// 键等同未知键。
+func (s *Set) ResolveCitationsDetailed(text, space string) CitationResult {
+	if s == nil || text == "" {
+		return CitationResult{}
+	}
+	names := ExtractCitationNames(text)
+	if len(names) == 0 {
+		return CitationResult{}
+	}
+	var out CitationResult
+	for _, name := range names {
+		if _, ok := s.Store.GetInSpace(name, space); !ok {
+			out.Dangling = append(out.Dangling, name)
+			continue
+		}
+		if err := s.Store.TouchInSpace(name, space); err == nil {
+			out.Resolved = append(out.Resolved, name)
+		}
+	}
+	return out
+}
+
 // ResolveCitations 解析最终回复中的引用键：只保留真实存在的记忆（未知键静默
 // 丢弃——模型可能幻觉出不存在的键，不应报错也不应触达），并对每条命中的记忆
 // Touch（更新 last_used_at）。返回命中的记忆名（按出现顺序）。
@@ -46,24 +78,9 @@ func ExtractCitationNames(text string) []string {
 // TouchInSpace，跨空间键等同未知键静默不命中不 Touch（工位回合不触达乐园
 // 记忆，反之亦然；验收红线）；space 为空 = 旧行为（全空间，既有调用语义）。
 func (s *Set) ResolveCitations(text, space string) []string {
-	if s == nil || text == "" {
+	r := s.ResolveCitationsDetailed(text, space)
+	if len(r.Resolved) == 0 {
 		return nil
 	}
-	names := ExtractCitationNames(text)
-	if len(names) == 0 {
-		return nil
-	}
-	resolved := make([]string, 0, len(names))
-	for _, name := range names {
-		if _, ok := s.Store.GetInSpace(name, space); !ok {
-			continue
-		}
-		if err := s.Store.TouchInSpace(name, space); err == nil {
-			resolved = append(resolved, name)
-		}
-	}
-	if len(resolved) == 0 {
-		return nil
-	}
-	return resolved
+	return r.Resolved
 }

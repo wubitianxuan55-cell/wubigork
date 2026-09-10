@@ -16,6 +16,9 @@ export const DOMAIN_COLORS: Record<string, string> = {
   whisper: "#f472b6", // pink：聊天/情节记忆
   material: "#38bdf8", // sky：项目资料（固定常用文件）
   cost: "#fbbf24", // amber：成本条目
+  entity: "#5eead4", // teal：语义图谱·记忆实体（事件日志投影）
+  event: "#94a3b8", // slate：语义图谱·记忆事件
+  source: "#fb923c", // orange：语义图谱·来源（沉淀会话）
 };
 
 /** 领域分类 → 中文标签（图谱图例/库徽标共用）。 */
@@ -26,7 +29,10 @@ export const DOMAIN_LABELS: Record<string, string> = {
   whisper: "聊天记忆",
   material: "项目资料",
   cost: "成本",
+  entity: "记忆实体",
+  event: "记忆事件",
+  source: "来源",
 };
 
 /** 领域分类 key 清单（图谱图例/筛选用，稳定顺序）。 */
-export const DOMAIN_KEYS = ["knowledge", "profile", "office", "whisper", "material", "cost"] as const;
+export const DOMAIN_KEYS = ["knowledge", "profile", "office", "whisper", "material", "cost", "entity", "event", "source"] as const;

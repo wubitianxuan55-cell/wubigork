@@ -407,3 +407,55 @@ ALTER TABLE cost_entries ADD COLUMN code TEXT NOT NULL DEFAULT '';
 ALTER TABLE cost_estimate_items ADD COLUMN code TEXT NOT NULL DEFAULT '';
 CREATE INDEX IF NOT EXISTS idx_cost_code ON cost_entries(code);
 `
+
+// SchemaV18 记忆语义图谱 v4.210.0（阶段五 5.1 首刀，docs/gaea-memory-graph-51-design-2026-09.md）：
+// memory_events 记忆事件日志（唯一事实源，追加式 INSERT，绝不 UPDATE/DELETE）+
+// mem_graph_nodes/edges/meta 投影物化（可整表 DROP 后由日志重建，「日志即真相，
+// 删库可重建」）。实体/事件/来源三向边：source -produces→ event -affects→ entity，
+// entity -references→ entity（互引）。nodes.embedding 为向量占位列（BLOB，本刀
+// 恒 NULL）——5.2 上下文编译的语义检索从这里起步，不先上 Neo4j。
+const SchemaV18 = `
+CREATE TABLE IF NOT EXISTS memory_events (
+  seq INTEGER PRIMARY KEY AUTOINCREMENT,
+  at INTEGER NOT NULL,
+  op TEXT NOT NULL,
+  name TEXT NOT NULL,
+  project TEXT NOT NULL DEFAULT '',
+  space TEXT NOT NULL DEFAULT '',
+  kind TEXT NOT NULL DEFAULT '',
+  type TEXT NOT NULL DEFAULT '',
+  title TEXT NOT NULL DEFAULT '',
+  description TEXT NOT NULL DEFAULT '',
+  tags TEXT NOT NULL DEFAULT '[]',
+  refs TEXT NOT NULL DEFAULT '[]',
+  excerpt TEXT NOT NULL DEFAULT '',
+  source_session TEXT NOT NULL DEFAULT '',
+  source_message TEXT NOT NULL DEFAULT '',
+  actor TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_memory_events_name ON memory_events(project, name);
+CREATE TABLE IF NOT EXISTS mem_graph_nodes (
+  id TEXT PRIMARY KEY,
+  ntype TEXT NOT NULL,
+  name TEXT NOT NULL DEFAULT '',
+  desc TEXT NOT NULL DEFAULT '',
+  weight REAL NOT NULL DEFAULT 1,
+  state TEXT NOT NULL DEFAULT '',
+  kind TEXT NOT NULL DEFAULT '',
+  mtype TEXT NOT NULL DEFAULT '',
+  tags TEXT NOT NULL DEFAULT '[]',
+  space TEXT NOT NULL DEFAULT '',
+  project TEXT NOT NULL DEFAULT '',
+  embedding BLOB
+);
+CREATE TABLE IF NOT EXISTS mem_graph_edges (
+  src TEXT NOT NULL,
+  tgt TEXT NOT NULL,
+  etype TEXT NOT NULL,
+  PRIMARY KEY (src, tgt, etype)
+);
+CREATE TABLE IF NOT EXISTS mem_graph_meta (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+`

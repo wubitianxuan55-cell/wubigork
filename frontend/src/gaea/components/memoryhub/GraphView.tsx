@@ -4,7 +4,7 @@ import type { ForceGraph3DInstance } from "3d-force-graph";
 import { Modal, Spin } from "antd";
 import { app } from "../../lib/bridge";
 import { DOMAIN_COLORS, DOMAIN_KEYS, DOMAIN_LABELS } from "../../lib/domainColors";
-import type { GraphLink, GraphNode, MemoryGraphView } from "../../lib/types";
+import type { GraphLink, GraphNode, MemoryGraphView, SemanticGraphView } from "../../lib/types";
 
 const TYPE_COLORS = DOMAIN_COLORS;
 const TYPE_LABELS = DOMAIN_LABELS;
@@ -13,6 +13,10 @@ const LINK_COLORS: Record<string, string> = {
   "same-tag": "rgba(129,140,248,0.30)",
   "same-category": "rgba(52,211,153,0.30)",
   reference: "rgba(244,114,182,0.40)",
+  // 语义图谱（source="semantic"）三向边：来源→事件→实体 + 实体互引。
+  produces: "rgba(251,146,60,0.30)",
+  affects: "rgba(148,163,184,0.25)",
+  references: "rgba(94,234,212,0.45)",
 };
 
 // 3d-force-graph 运行时导出是可调用 kapsule 工厂：ForceGraph3D()(domEl) → 链式实例；
@@ -21,25 +25,34 @@ const LINK_COLORS: Record<string, string> = {
 type ForceGraph = ForceGraph3DInstance<GraphNode, GraphLink>;
 const createGraph = ForceGraph3D as unknown as () => (element: HTMLElement) => ForceGraph;
 
+type GraphData = MemoryGraphView | SemanticGraphView;
+
 /** GraphView 记忆 3D 图谱：节点=记忆实体，边=同标签/同分类/[[引用]]。
  *  variant="page" 带工具条（库面板内）；variant="home" 纯净展示（首页中央）。
- *  onSelect 可选回调：节点被点击 / 详情关闭时通知外层（详情 inspector 联动，不影响原有 Modal）。 */
-export function GraphView(p: { variant?: "page" | "home"; onSelect?: (node: GraphNode | null) => void }) {
-  const { variant = "page", onSelect } = p;
+ *  onSelect 可选回调：节点被点击 / 详情关闭时通知外层（详情 inspector 联动，不影响原有 Modal）。
+ *  source="cloud"（默认）按标签/分类拼关联图；source="semantic" 读事件日志投影
+ *  的语义图谱（entity/event/source 三向边，GaeaMemorySemanticGraph）。 */
+export function GraphView(p: {
+  variant?: "page" | "home";
+  onSelect?: (node: GraphNode | null) => void;
+  source?: "cloud" | "semantic";
+  sourceSwitch?: React.ReactNode;
+}) {
+  const { variant = "page", onSelect, source = "cloud", sourceSwitch } = p;
   const containerRef = useRef<HTMLDivElement>(null);
   const graphRef = useRef<ForceGraph | null>(null);
-  const dataRef = useRef<MemoryGraphView | null>(null);
+  const dataRef = useRef<GraphData | null>(null);
   const [loading, setLoading] = useState(true);
   const [typeFilter, setTypeFilter] = useState<Set<string>>(new Set([...TYPE_KEYS]));
   const [selected, setSelected] = useState<GraphNode | null>(null);
   const [nodeCount, setNodeCount] = useState(0);
   const [linkCount, setLinkCount] = useState(0);
 
-  // 拉取图谱数据
+  // 拉取图谱数据（cloud=关联图聚合；semantic=事件日志投影语义图）
   useEffect(() => {
-    app
-      .MemoryGraph()
-      .then((g) => {
+    const fetchGraph = source === "semantic" ? app.SemanticGraph() : app.MemoryGraph();
+    fetchGraph
+      .then((g: GraphData) => {
         dataRef.current = g;
         setNodeCount((g.nodes ?? []).length);
         setLinkCount((g.links ?? []).length);
@@ -51,7 +64,7 @@ export function GraphView(p: { variant?: "page" | "home"; onSelect?: (node: Grap
       })
       .catch(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [source]);
 
   // 初始化 ForceGraph3D（once）
   useEffect(() => {
@@ -118,7 +131,7 @@ export function GraphView(p: { variant?: "page" | "home"; onSelect?: (node: Grap
     }
   }, [typeFilter]);
 
-  function applyFilter(fg: ForceGraph, data: MemoryGraphView, filter: Set<string>) {
+  function applyFilter(fg: ForceGraph, data: GraphData, filter: Set<string>) {
     const nodes = (data.nodes ?? []).filter((n) => filter.has(n.type));
     const ids = new Set(nodes.map((n) => n.id));
     const links = (data.links ?? []).filter((l) => ids.has(l.source) && ids.has(l.target));
@@ -141,10 +154,11 @@ export function GraphView(p: { variant?: "page" | "home"; onSelect?: (node: Grap
       {/* 工具条（home 模式隐藏，纯净展示） */}
       {variant === "page" && (
       <div className="shrink-0 flex items-center gap-2 px-4 pt-3 pb-2">
-        <div className="text-fg text-[13px] font-medium">记忆 3D 图谱</div>
+        <div className="text-fg text-[13px] font-medium">{source === "semantic" ? "记忆事件图谱" : "记忆 3D 图谱"}</div>
         <span className="text-fg-faint text-[11px]">
           {nodeCount} 节点 · {linkCount} 边
         </span>
+        {sourceSwitch}
         <div className="ml-auto flex items-center gap-1.5">
           {TYPE_KEYS.map((t) => (
             <button

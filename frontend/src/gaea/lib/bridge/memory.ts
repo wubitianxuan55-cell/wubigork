@@ -9,6 +9,7 @@ import type {
   MemoryArchivedPage,
   MemoryDuplicateView,
   MemoryGraphView,
+  SemanticGraphView,
   MemoryHubOverview,
   MemorySuggestion,
   MemorySuggestionsView,
@@ -117,6 +118,9 @@ export interface MemoryBindings {
   // PickDirectory 系统目录选择对话框，返回所选目录（取消返回空串）。
   PickDirectory(): Promise<string>;
   MemoryGraph(): Promise<MemoryGraphView>;
+  // SemanticGraph 记忆语义图谱：事件日志投影（entity/event/source 三向边），
+  // 与 MemoryGraph（标签/分类关联图）同一渲染面、不同事实源。
+  SemanticGraph(): Promise<SemanticGraphView>;
   // ── 做梦 2.0 晨报（纯本地主动预取）──
   // MemoryMorningBrief 返回「今日晨报」JSON 串（前端 JSON.parse 后渲染）：
   // work 空间记忆 top5 + 常驻规则 + 近 24h dream 沉淀计数。零 LLM、只读。

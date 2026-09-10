@@ -29,7 +29,7 @@ interface ChainableGraph {
   onNodeClick: (cb: (d: GraphNode) => void) => ChainableGraph;
 }
 
-const { graphStub, forceGraphFactory, memoryGraphMock } = vi.hoisted(() => {
+const { graphStub, forceGraphFactory, memoryGraphMock, semanticGraphMock } = vi.hoisted(() => {
   const graphStub: GraphStub = { calls: [], nodeClickCb: null };
   const chainable = {} as ChainableGraph;
   for (const m of [
@@ -56,12 +56,12 @@ const { graphStub, forceGraphFactory, memoryGraphMock } = vi.hoisted(() => {
   });
   // 组件用法：ForceGraph3D()(containerRef.current) → chainable
   const forceGraphFactory = vi.fn(() => vi.fn(() => chainable));
-  return { graphStub, forceGraphFactory, memoryGraphMock: vi.fn() };
+  return { graphStub, forceGraphFactory, memoryGraphMock: vi.fn(), semanticGraphMock: vi.fn() };
 });
 
 vi.mock("3d-force-graph", () => ({ default: forceGraphFactory }));
 vi.mock("../../lib/bridge", () => ({
-  app: { MemoryGraph: memoryGraphMock },
+  app: { MemoryGraph: memoryGraphMock, SemanticGraph: semanticGraphMock },
   openExternal: vi.fn(),
 }));
 
@@ -81,6 +81,7 @@ const GRAPH: MemoryGraphView = {
 describe("GraphView 记忆 3D 图谱", () => {
   beforeEach(() => {
     memoryGraphMock.mockReset();
+    semanticGraphMock.mockReset();
     graphStub.calls = [];
     graphStub.nodeClickCb = null;
   });
@@ -153,5 +154,30 @@ describe("GraphView 记忆 3D 图谱", () => {
 
     await waitFor(() => expect(graphStub.calls.length).toBeGreaterThan(0));
     expect(screen.queryByText("记忆 3D 图谱")).toBeNull();
+  });
+
+  it("source=\"semantic\" 走 SemanticGraph 数据源，标题切换为记忆事件图谱", async () => {
+    semanticGraphMock.mockResolvedValue({
+      nodes: [
+        { id: "mem:p/alpha", ntype: "entity", name: "甲", type: "entity", desc: "active · project", val: 1 },
+        { id: "ev:1", ntype: "event", name: "save · 甲", type: "event", desc: "", val: 0.5 },
+        { id: "src:p/local", ntype: "source", name: "本机写入", type: "source", desc: "", val: 0.8 },
+      ],
+      links: [
+        { source: "src:p/local", target: "ev:1", type: "produces" },
+        { source: "ev:1", target: "mem:p/alpha", type: "affects" },
+      ],
+      eventCount: 1,
+      entityCount: 1,
+      danglingRefs: [],
+      projectedSeq: 1,
+    });
+    render(<GraphView source="semantic" />);
+
+    expect(await screen.findByText("记忆事件图谱")).toBeTruthy();
+    expect(semanticGraphMock).toHaveBeenCalled();
+    expect(memoryGraphMock).not.toHaveBeenCalled();
+    expect(screen.getByText(/3 节点 · 2 边/)).toBeTruthy();
+    await waitFor(() => expect(graphStub.calls.at(-1)!.nodes.map((n) => n.type).sort()).toEqual(["entity", "event", "source"]));
   });
 });

@@ -542,11 +542,20 @@ func (c *Controller) runTurnWithRaw(ctx context.Context, input, raw string) erro
 // S1.2 B 读端隔离器：解析限定当前会话空间——c.SessionSpace() 是会话路径归属
 // 的写入侧空间自描述（"work"/"play"；space.mode=off 时 ""=不过滤=旧行为，
 // 不强行归一 work 以免 off 模式旧数据不可见）。跨空间键不命中不 Touch。
+//
+// 5.1 记忆事件日志：解析结果（命中+悬空）落 cite 事件（尽力而为，DB 不可用
+// 自动跳过）——命中键成图上「回复引用了它」的事件事实；悬空键（模型幻觉/已删）
+// 不触达不进实体，但留痕可查，即 [MEM:] 图寻址「悬空拒写」的观测侧。
 func (c *Controller) touchMemoryCitations() {
 	if c.mem == nil || !c.memoryEnabled {
 		return
 	}
-	c.mem.ResolveCitations(lastAssistantText(c.History()), c.SessionSpace())
+	space := c.SessionSpace()
+	r := c.mem.ResolveCitationsDetailed(lastAssistantText(c.History()), space)
+	if len(r.Resolved) == 0 && len(r.Dangling) == 0 {
+		return
+	}
+	(&memory.EventLog{DB: c.mem.DB}).AppendCiteEvents(r.Resolved, r.Dangling, space)
 }
 
 // lastAssistantText returns the content of the most recent assistant message with

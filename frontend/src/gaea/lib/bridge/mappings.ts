@@ -181,6 +181,7 @@ export const gaeaToGaea = {
   WhisperExportArchive: "GaeaWhisperExportArchive",
   PickDirectory: "GaeaPickDirectory",
   MemoryGraph: "GaeaMemoryGraph",
+  SemanticGraph: "GaeaMemorySemanticGraph",
   MemoryMorningBrief: "GaeaMemoryMorningBrief",
   CostList: "GaeaCostList",
   CostSearch: "GaeaCostSearch",
