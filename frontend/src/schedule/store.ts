@@ -42,7 +42,7 @@ import { normalizeAoaLayout } from './aoaLayout'
  */
 export const DEFAULT_SCHEDULE_PATH = '进度计划/当前计划.gsched.json'
 
-export type ScheduleView = 'gantt' | 'pdm' | 'aoa' | 'usage' | 'dcma' | 'monte'
+export type ScheduleView = 'gantt' | 'pdm' | 'aoa' | 'usage' | 'dcma' | 'monte' | 'evm'
 
 /** 文件同步状态（工具栏指示器） */
 export type ScheduleSyncState = 'idle' | 'dirty' | 'saving' | 'saved' | 'error'

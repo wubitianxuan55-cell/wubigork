@@ -19,7 +19,7 @@ import { Alert, Button, Dropdown, Input, Modal, Popconfirm, Popover, Segmented, 
 import type { MenuProps } from 'antd'
 import {
   AimOutlined, AppstoreOutlined, CalendarOutlined, CheckOutlined, ClearOutlined, ClusterOutlined, DeleteOutlined, DownOutlined, ExportOutlined, FileExcelOutlined, FileImageOutlined, FileOutlined, FundOutlined, ImportOutlined, InfoCircleOutlined,
-  MessageOutlined, NodeIndexOutlined, PlusOutlined, RedoOutlined, SafetyOutlined, SettingOutlined, TableOutlined, TeamOutlined, ThunderboltOutlined, PartitionOutlined, ToolOutlined, UndoOutlined,
+  MessageOutlined, NodeIndexOutlined, PlusOutlined, RedoOutlined, RiseOutlined, SafetyOutlined, SettingOutlined, TableOutlined, TeamOutlined, ThunderboltOutlined, PartitionOutlined, ToolOutlined, UndoOutlined,
 } from '@ant-design/icons'
 import { computeCpm } from '../schedule/cpm'
 import { computeCosts } from '../schedule/cost'
@@ -50,6 +50,7 @@ import { clampChatWidth, loadChatPrefs, saveChatPrefs, CHAT_WIDTH_DEFAULT } from
 import { GanttView } from '../schedule/GanttView'
 import { DcmaView } from '../schedule/DcmaView'
 import { MonteView } from '../schedule/MonteView'
+import { EvmView } from '../schedule/EvmView'
 import { PdmView } from '../schedule/PdmView'
 import { AoaView } from '../schedule/AoaView'
 // 瘦身 P3：页面内子区块分片至此目录（正文零改动，仅迁移）
@@ -358,7 +359,7 @@ const SchedulePage: React.FC = () => {
       })
     } else if (key === 'clear') {
       Modal.confirm({ title: '清空全部任务与搭接？', onOk: () => { clearAll(); setImportMsg(null) } })
-    } else if (key === 'gantt' || key === 'pdm' || key === 'aoa' || key === 'usage' || key === 'dcma' || key === 'monte') {
+    } else if (key === 'gantt' || key === 'pdm' || key === 'aoa' || key === 'usage' || key === 'dcma' || key === 'monte' || key === 'evm') {
       setView(key)
     }
   }
@@ -391,6 +392,7 @@ const SchedulePage: React.FC = () => {
     { key: 'usage', label: '资源使用', icon: <TeamOutlined /> },
     { key: 'dcma', label: '质量体检', icon: <SafetyOutlined /> },
     { key: 'monte', label: '工期模拟', icon: <FundOutlined /> },
+    { key: 'evm', label: '挣值分析', icon: <RiseOutlined /> },
   ]
   const viewMenuCfg: MenuProps = {
     items: VIEW_MENU.map((v) => ({
@@ -659,6 +661,7 @@ const SchedulePage: React.FC = () => {
             { value: 'usage', label: <span><TeamOutlined /> 资源使用</span> },
             { value: 'dcma', label: <span><SafetyOutlined /> 质量体检</span> },
             { value: 'monte', label: <span><FundOutlined /> 工期模拟</span> },
+            { value: 'evm', label: <span><RiseOutlined /> 挣值分析</span> },
           ]}
         />
       </div>
@@ -672,13 +675,14 @@ const SchedulePage: React.FC = () => {
           onClose={() => setImportMsg(null)}
         />
       )}
-      <ExportDialog open={exportOpen} onClose={() => setExportOpen(false)} project={project} cpm={cpm} aoa={aoa} defaultView={view === 'usage' || view === 'dcma' || view === 'monte' ? 'gantt' : view} />
+      <ExportDialog open={exportOpen} onClose={() => setExportOpen(false)} project={project} cpm={cpm} aoa={aoa} defaultView={view === 'usage' || view === 'dcma' || view === 'monte' || view === 'evm' ? 'gantt' : view} />
       {!cpm.ok && cpm.error && (
         <Alert type="error" showIcon message={cpm.error} description="请修正搭接关系后重试；网络图视图在循环解除前不可用。" />
       )}
 
       {view === 'dcma' && <DcmaView project={project} cpm={cpm} />}
       {view === 'monte' && <MonteView project={project} cpm={cpm} />}
+      {view === 'evm' && <EvmView project={project} cpm={cpm} />}
       {view === 'gantt' && <GanttView project={project} cpm={cpm} onInspect={setInspectId} />}
       {view === 'pdm' && <PdmView project={project} cpm={cpm} />}
       {view === 'aoa' && <AoaView graph={aoa} tasks={project.tasks} />}
@@ -700,7 +704,7 @@ const SchedulePage: React.FC = () => {
 
       {/* 底部状态栏（斑马口径：共 N 项工作总工期 N 天 + 关键/工作制常驻） */}
       <div className="sched-statusbar">
-        <span>视图：<span className="sched-sb-strong">{view === 'gantt' ? '横道图' : view === 'pdm' ? '单代号网络图' : view === 'usage' ? '资源使用视图' : view === 'dcma' ? '质量体检' : view === 'monte' ? '蒙特卡洛工期模拟' : '双代号网络图'}</span></span>
+        <span>视图：<span className="sched-sb-strong">{view === 'gantt' ? '横道图' : view === 'pdm' ? '单代号网络图' : view === 'usage' ? '资源使用视图' : view === 'dcma' ? '质量体检' : view === 'monte' ? '蒙特卡洛工期模拟' : view === 'evm' ? '挣值分析' : '双代号网络图'}</span></span>
         <span>共 <span className="sched-sb-strong">{project.tasks.filter((t) => t.level > 0).length}</span> 项工作，总工期 <span className="sched-sb-strong">{cpm.duration}</span> 天（工作日）</span>
         <span>关键工作 <span className="sched-sb-crit">{project.tasks.filter((t) => t.level > 0 && cpm.rows[t.id]?.critical).length}</span> 项</span>
         {showCost && (
