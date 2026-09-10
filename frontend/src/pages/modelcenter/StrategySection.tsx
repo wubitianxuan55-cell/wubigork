@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Button } from 'antd'
-import { ControlOutlined, ReloadOutlined } from '@ant-design/icons'
+import { Button, Input, message } from 'antd'
+import { ControlOutlined, ReloadOutlined, SaveOutlined } from '@ant-design/icons'
 import { app } from '../../gaea/lib/bridge'
 import type { SpaceProfileView } from '../../gaea/lib/types'
 import { SectionHead, StatusChip } from './ui'
@@ -44,6 +44,10 @@ export function StrategySection() {
   const [activeSpace, setActiveSpace] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  // gaea 覆写编辑态（总闸当场切；生效=下次引擎重建/重启，与激活空间同口径）
+  const [editingSpace, setEditingSpace] = useState<string | null>(null)
+  const [draft, setDraft] = useState('')
+  const [saving, setSaving] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -64,6 +68,25 @@ export function StrategySection() {
   }, [])
 
   useEffect(() => { void load() }, [load])
+
+  const startEdit = (space: string, current: string) => {
+    setEditingSpace(space)
+    setDraft(current)
+  }
+
+  const saveEdit = async (space: string) => {
+    setSaving(true)
+    try {
+      const views = await app.GaeaSpaceProfileSet(space, 'gaea', draft)
+      setProfiles(views)
+      setEditingSpace(null)
+      message.success(draft.trim() ? '已写入，下次引擎重建/重启生效' : '已清除，回退现状模型（下次引擎重建/重启生效）')
+    } catch (e: unknown) {
+      message.error(e instanceof Error ? e.message : '写入失败')
+    } finally {
+      setSaving(false)
+    }
+  }
 
   const modeOn = profiles?.[0]?.modeOn ?? true
 
@@ -104,6 +127,26 @@ export function StrategySection() {
             <div className="mc-bind-desc">{SPACE_META[p.space]?.desc ?? ''}</div>
             <div className="mc-bind-row">
               <span className="mc-bind-title" style={{ fontSize: 12 }}>办公 Agent 模型</span>
+              {editingSpace === p.space ? (
+                <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
+                  <Input
+                    size="small"
+                    value={draft}
+                    onChange={(e) => setDraft(e.target.value)}
+                    placeholder="provider/model（留空=维持现状）"
+                    style={{ width: 260 }}
+                    data-testid={`mc-strategy-${p.space}-input`}
+                    disabled={saving}
+                  />
+                  <Button size="small" type="primary" icon={<SaveOutlined />}
+                    loading={saving} onClick={() => void saveEdit(p.space)}
+                    data-testid={`mc-strategy-${p.space}-save`}>保存</Button>
+                  <Button size="small" disabled={saving} onClick={() => setEditingSpace(null)}>取消</Button>
+                </span>
+              ) : (
+                <Button size="small" type="text" onClick={() => startEdit(p.space, p.gaea)}
+                  data-testid={`mc-strategy-${p.space}-edit`}>编辑</Button>
+              )}
             </div>
             <div className="mc-bind-row" data-testid={`mc-strategy-${p.space}-gaea`}>
               <ModelOverride override={p.gaea} ok={p.gaeaOk} resolved={p.gaeaResolved} />

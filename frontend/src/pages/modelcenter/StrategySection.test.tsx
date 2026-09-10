@@ -12,12 +12,14 @@ import { StrategySection } from './StrategySection'
 const mocks = vi.hoisted(() => ({
   GaeaSpaceProfiles: vi.fn(),
   GaeaSpaceActive: vi.fn(),
+  GaeaSpaceProfileSet: vi.fn(),
 }))
 
 vi.mock('../../gaea/lib/bridge', () => ({
   app: {
     GaeaSpaceProfiles: mocks.GaeaSpaceProfiles,
     GaeaSpaceActive: mocks.GaeaSpaceActive,
+    GaeaSpaceProfileSet: mocks.GaeaSpaceProfileSet,
   },
 }))
 
@@ -72,6 +74,39 @@ describe('模型中心「空间策略」分区（总闸画面）', () => {
     mocks.GaeaSpaceProfiles.mockResolvedValue([{ ...workView, modeOn: false }])
     render(<StrategySection />)
     await waitFor(() => expect(screen.getByText(/space.mode=off/)).toBeTruthy())
+  })
+
+  it('编辑闭环：点编辑带出当前值 → 保存调 GaeaSpaceProfileSet → 视图随返回刷新', async () => {
+    mocks.GaeaSpaceProfiles.mockResolvedValue([workView, playView])
+    mocks.GaeaSpaceProfileSet.mockResolvedValue([
+      workView,
+      { ...playView, gaea: 'prov/m2', gaeaResolved: 'prov · m2' },
+    ])
+    render(<StrategySection />)
+    await waitFor(() => expect(screen.getByTestId('mc-strategy-play')).toBeTruthy())
+
+    fireEvent.click(screen.getByTestId('mc-strategy-play-edit'))
+    const input = screen.getByTestId('mc-strategy-play-input') as HTMLInputElement
+    expect(input.value).toBe('glm/glm-5.3') // 带出当前值
+    fireEvent.change(input, { target: { value: 'prov/m2' } })
+    fireEvent.click(screen.getByTestId('mc-strategy-play-save'))
+
+    await waitFor(() => expect(mocks.GaeaSpaceProfileSet).toHaveBeenCalledWith('play', 'gaea', 'prov/m2'))
+    await waitFor(() => expect(screen.getByTestId('mc-strategy-play-gaea').textContent).toContain('prov · m2'))
+    await waitFor(() => expect(screen.getByText('已写入，下次引擎重建/重启生效')).toBeTruthy())
+  })
+
+  it('写入失败说人话：后端校验错误原样 message.error，不吞', async () => {
+    mocks.GaeaSpaceProfiles.mockResolvedValue([workView, playView])
+    mocks.GaeaSpaceProfileSet.mockRejectedValue(new Error('无法解析 "nope/x"——已配置 provider: prov'))
+    render(<StrategySection />)
+    await waitFor(() => expect(screen.getByTestId('mc-strategy-work-edit')).toBeTruthy())
+
+    fireEvent.click(screen.getByTestId('mc-strategy-work-edit'))
+    fireEvent.change(screen.getByTestId('mc-strategy-work-input'), { target: { value: 'nope/x' } })
+    fireEvent.click(screen.getByTestId('mc-strategy-work-save'))
+
+    await waitFor(() => expect(screen.getByText(/无法解析 "nope.x"/)).toBeTruthy())
   })
 
   it('读取失败 → 诚实错误卡，重试成功后恢复', async () => {

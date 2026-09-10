@@ -8,6 +8,7 @@ package app
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -237,5 +238,51 @@ func TestBuildSpaceProfileViews(t *testing.T) {
 	nilViews := buildSpaceProfileViews(nil)
 	if len(nilViews) != 2 || nilViews[0].PermMode != "" || !nilViews[0].ModeOn {
 		t.Errorf("nil 配置应零视图+modeOn=true: %+v", nilViews)
+	}
+}
+
+// TestApplySpaceProfileEdit 空间 profile 写路径（总闸当场切）：合法写入即视图
+// 可见、清除还原零值段、坏引用宁拒不写且错误带 provider 清单、非法空间/键拒绝。
+func TestApplySpaceProfileEdit(t *testing.T) {
+	cfg := &gaeaConfig.Config{
+		Providers: []gaeaConfig.ProviderEntry{{Name: "prov", Models: []string{"m1"}}},
+	}
+	if err := applySpaceProfileEdit(cfg, "play", "gaea", "prov/m1"); err != nil {
+		t.Fatalf("合法写入不应报错: %v", err)
+	}
+	p := buildSpaceProfileViews(cfg)[1]
+	if !p.GaeaOk || p.GaeaResolved != "prov · m1" {
+		t.Errorf("写入后 play 视图应可见: %+v", p)
+	}
+
+	// 清除：全空段应被删掉不留噪音
+	if err := applySpaceProfileEdit(cfg, "play", "gaea", ""); err != nil {
+		t.Fatalf("清除不应报错: %v", err)
+	}
+	if _, has := cfg.SpaceProfiles["play"]; has {
+		t.Error("全空 profile 段应删除而非留空段")
+	}
+	if buildSpaceProfileViews(cfg)[1].Gaea != "" {
+		t.Error("清除后视图应回未配置")
+	}
+
+	// 坏引用：宁拒不写，错误带已配置 provider 清单（说人话）
+	err := applySpaceProfileEdit(cfg, "work", "gaea", "nope/none")
+	if err == nil {
+		t.Fatal("坏引用应拒绝")
+	}
+	if !strings.Contains(err.Error(), "prov") {
+		t.Errorf("错误应带 provider 清单: %v", err)
+	}
+	if _, has := cfg.SpaceProfiles["work"]; has {
+		t.Error("被拒写入不应落段")
+	}
+
+	// 非法空间/未知键
+	if err := applySpaceProfileEdit(cfg, "elsewhere", "gaea", ""); err == nil {
+		t.Error("非法空间应拒绝")
+	}
+	if err := applySpaceProfileEdit(cfg, "work", "brain", ""); err == nil {
+		t.Error("未知键应拒绝")
 	}
 }

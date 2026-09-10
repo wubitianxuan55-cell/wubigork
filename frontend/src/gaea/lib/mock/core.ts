@@ -7,10 +7,18 @@ import { delay, emitUpdater } from "./shared";
 import { switchWorkspace } from "./state";
 import type { MakeMockState } from "./state";
 
+// mock 空间 profile（浏览器演示态）：模块级状态支撑 GaeaSpaceProfileSet 编辑
+// 闭环；真机的 ResolveModel 校验在 Go 侧，演示态非空即收。
+const mockSpaceProfilesInit: SpaceProfileView[] = [
+  { space: "work", gaea: "", gaeaResolved: "", gaeaOk: false, models: {}, permMode: "ask", permHardAskCount: 0, permHardAskBySpace: false, guardrailsOn: false, modeOn: true },
+  { space: "play", gaea: "glm/glm-5.3", gaeaResolved: "glm · glm-5.3", gaeaOk: true, models: { novel: "glm/glm-5.3-air" }, permMode: "allow", permHardAskCount: 0, permHardAskBySpace: true, guardrailsOn: true, modeOn: true },
+];
+let mockSpaceProfiles: SpaceProfileView[] = mockSpaceProfilesInit.map((p) => ({ ...p, models: { ...p.models } }));
+
 type CoreMethods = Pick<
   AppBindings,
   | "ListWorkspaces" | "PickWorkspace" | "SwitchWorkspace"
-  | "GaeaSpaceList" | "GaeaSpaceActive" | "GaeaSpaceActivate" | "GaeaSpaceProfiles"
+  | "GaeaSpaceList" | "GaeaSpaceActive" | "GaeaSpaceActivate" | "GaeaSpaceProfiles" | "GaeaSpaceProfileSet"
   | "ContextUsage" | "ContextView" | "ContextNodeDetail" | "Trajectory" | "AgentNetwork" | "TCCAReport" | "Jobs"
   | "Meta" | "Commands" | "Capabilities"
   | "AddMCPServer" | "RemoveMCPServer" | "RetryMCPServer" | "SetMCPServerEnabled"
@@ -539,10 +547,30 @@ export function buildCore(s: MakeMockState): CoreMethods {
     },
     async GaeaSpaceProfiles(): Promise<SpaceProfileView[]> {
       await delay(90);
-      return [
-        { space: "work", gaea: "", gaeaResolved: "", gaeaOk: false, models: {}, permMode: "ask", permHardAskCount: 0, permHardAskBySpace: false, guardrailsOn: false, modeOn: true },
-        { space: "play", gaea: "glm/glm-5.3", gaeaResolved: "glm · glm-5.3", gaeaOk: true, models: { novel: "glm/glm-5.3-air" }, permMode: "allow", permHardAskCount: 0, permHardAskBySpace: true, guardrailsOn: true, modeOn: true },
-      ];
+      return mockSpaceProfiles.map((p) => ({ ...p, models: { ...p.models } }));
+    },
+    async GaeaSpaceProfileSet(space: string, key: string, ref: string): Promise<SpaceProfileView[]> {
+      await delay(150);
+      if (space !== "work" && space !== "play") throw new Error(`非法空间 ${space}（仅 work|play）`);
+      if (!["gaea", "chat", "whisper", "novel", "office", "characterlib", "routine"].includes(key)) {
+        throw new Error(`未知 profile 键 ${key}`);
+      }
+      const v = ref.trim();
+      const idx = mockSpaceProfiles.findIndex((p) => p.space === space);
+      if (idx >= 0) {
+        const next = { ...mockSpaceProfiles[idx], models: { ...mockSpaceProfiles[idx].models } };
+        if (key === "gaea") {
+          next.gaea = v;
+          next.gaeaOk = v !== "";
+          next.gaeaResolved = v ? `demo · ${v.split("/").pop() ?? v}` : "";
+        } else if (v) {
+          next.models[key] = v;
+        } else {
+          delete next.models[key];
+        }
+        mockSpaceProfiles = mockSpaceProfiles.map((p, i) => (i === idx ? next : p));
+      }
+      return mockSpaceProfiles.map((p) => ({ ...p, models: { ...p.models } }));
     },
     async GaeaSpaceActivate(space: string) {
       await delay(120);

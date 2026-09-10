@@ -128,9 +128,8 @@ func (a *App) GaeaSpaceActivate(space string) (SpaceActiveView, error) {
 }
 
 // SpaceProfileView 是单个空间的装配 profile 视图（GaeaSpaceProfiles 返回，模型
-// 中心「总闸/空间策略」分区只读消费，长期规划阶段二）：只汇报 gaea.toml 里
-// 配了什么、经既有链生效成什么，不提供写路径——写仍归配置文件（boot 装配
-// 世界，S1.3-A）。
+// 中心「总闸/空间策略」分区消费，长期规划阶段二）：汇报 gaea.toml 里配了什么、
+// 经既有链生效成什么。写路径=GaeaSpaceProfileSet（生效时机同为下次引擎重建）。
 type SpaceProfileView struct {
 	Space string `json:"space"` // "work" | "play"
 	// Gaea 是办公 agent 功能域模型覆写原值（space_profiles.<space>.gaea，引用
@@ -203,8 +202,8 @@ func buildSpaceProfileViews(cfg *gaeaConfig.Config) []SpaceProfileView {
 	return out
 }
 
-// GaeaSpaceProfiles 返回双空间装配 profile 视图（只读；引擎未初始化时读盘
-// 兜底，gaeaSpaceActiveView 同款，避免「配置了但重启前查不到」的假空）。
+// GaeaSpaceProfiles 返回双空间装配 profile 视图（引擎未初始化时读盘兜底，
+// gaeaSpaceActiveView 同款，避免「配置了但重启前查不到」的假空）。
 func (a *App) GaeaSpaceProfiles() []SpaceProfileView {
 	cfg := gaeaCfgSnapshot()
 	if cfg == nil {
@@ -213,4 +212,80 @@ func (a *App) GaeaSpaceProfiles() []SpaceProfileView {
 		}
 	}
 	return buildSpaceProfileViews(cfg)
+}
+
+// spaceProfileKeys 是 GaeaSpaceProfileSet 可写的 profile 键 → 写入函数
+// （gaea=办公 agent 功能域为总闸主控；其余功能域覆写同键体系一并放开）。
+var spaceProfileKeys = map[string]func(*gaeaConfig.SpaceProfile, string){
+	"chat":         func(p *gaeaConfig.SpaceProfile, v string) { p.Chat = v },
+	"whisper":      func(p *gaeaConfig.SpaceProfile, v string) { p.Whisper = v },
+	"novel":        func(p *gaeaConfig.SpaceProfile, v string) { p.Novel = v },
+	"office":       func(p *gaeaConfig.SpaceProfile, v string) { p.Office = v },
+	"gaea":         func(p *gaeaConfig.SpaceProfile, v string) { p.Gaea = v },
+	"characterlib": func(p *gaeaConfig.SpaceProfile, v string) { p.CharacterLib = v },
+	"routine":      func(p *gaeaConfig.SpaceProfile, v string) { p.Routine = v },
+}
+
+// applySpaceProfileEdit 校验并落一处空间 profile 编辑（纯函数，便于测试）：
+// ref 空=清除该键（未配置语义）；非空必须经 ResolveModel 解析（与 boot 装配
+// 同链）——解析不了的坏引用宁拒不写，错误消息带已配置 provider 清单（说人话）。
+// 生效时机与 GaeaSpaceActivate 同口径：gaeaBuildController 下次构建/重启生效。
+func applySpaceProfileEdit(cfg *gaeaConfig.Config, space, key, ref string) error {
+	if !spaces.Valid(space) {
+		return fmt.Errorf("非法空间 %q（仅 work|play）", space)
+	}
+	apply, ok := spaceProfileKeys[key]
+	if !ok {
+		return fmt.Errorf("未知 profile 键 %q（可写：gaea/chat/whisper/novel/office/characterlib/routine）", key)
+	}
+	ref = strings.TrimSpace(ref)
+	if ref != "" {
+		if _, ok := cfg.ResolveModel(ref); !ok {
+			names := make([]string, 0, len(cfg.Providers))
+			for _, p := range cfg.Providers {
+				if n := strings.TrimSpace(p.Name); n != "" {
+					names = append(names, n)
+				}
+			}
+			return fmt.Errorf("无法解析 %q——坏引用不写入（写入只会让现状模型继续生效还骗人）。provider/model 形态，已配置 provider: %s", ref, strings.Join(names, ", "))
+		}
+	}
+	prof := cfg.SpaceProfiles[space] // map 缺键取零值副本
+	apply(&prof, ref)
+	if cfg.SpaceProfiles == nil {
+		cfg.SpaceProfiles = map[string]gaeaConfig.SpaceProfile{}
+	}
+	if ref == "" && prof.Permissions == nil && prof.Guardrails == nil && prof == (gaeaConfig.SpaceProfile{}) {
+		delete(cfg.SpaceProfiles, space) // 全空段不落盘噪音
+	} else {
+		cfg.SpaceProfiles[space] = prof
+	}
+	return nil
+}
+
+// GaeaSpaceProfileSet 写一处空间 profile（space+key+ref；ref 空=清除），
+// 返回刷新后的双空间视图。持久化到用户配置文件；生效时机=下次引擎重建/
+// 重启（boot 装配世界，运行中引擎不动——与 GaeaSpaceActivate 同口径）。
+func (a *App) GaeaSpaceProfileSet(space, key, ref string) ([]SpaceProfileView, error) {
+	ga.mu.Lock()
+	cfg := ga.cfg
+	if cfg == nil {
+		loaded, err := gaeaLoadConfig()
+		if err != nil {
+			ga.mu.Unlock()
+			return nil, err
+		}
+		cfg = loaded
+	}
+	if err := applySpaceProfileEdit(cfg, space, key, ref); err != nil {
+		ga.mu.Unlock()
+		return nil, err
+	}
+	ga.cfg = cfg
+	err := gaeaConfig.Save(cfg)
+	ga.mu.Unlock()
+	if err != nil {
+		return nil, fmt.Errorf("持久化空间配置失败: %w", err)
+	}
+	return buildSpaceProfileViews(cfg), nil
 }
