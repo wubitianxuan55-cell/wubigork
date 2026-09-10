@@ -316,6 +316,10 @@ type AgentRunner struct {
 	// nil disables all hook firing.
 	hooks ToolHooks
 
+	// finalizeText 是最终文本定稿闸（Options.FinalizeText，nil = 不改写）。
+	// stream() 收尾在 Message 全文事件发出前应用。
+	finalizeText func(string) string
+
 	// asker lets the `ask` tool put questions to the user. Set via SetAsker
 	// before the run loop starts (same happens-before contract as gate).
 	// nil in headless runs. Safe for concurrent reads.
@@ -523,6 +527,10 @@ func (a *AgentRunner) Sink() event.Sink { return a.sink }
 // Run() — this is intended for one-time setup or between-turn sink wrapping.
 func (a *AgentRunner) SetSink(s event.Sink) { a.sink = s }
 
+// SetFinalizeText 装配最终文本定稿闸（v4.211 记忆 5.1 出口闸，仅主执行器调用；
+// 子代理/headless 缺省 nil=不改写）。必须在 Run() 前调用一次。
+func (a *AgentRunner) SetFinalizeText(fn func(string) string) { a.finalizeText = fn }
+
 func (a *AgentRunner) SetArchive(ar *archive.Store, sessionID string) {
 	a.archive = ar
 	a.sessionID = sessionID
@@ -676,6 +684,7 @@ func New(prov provider.LLMProvider, tools *tool.Registry, session *Session, opts
 		pricing:       opts.Pricing,
 		sink:          sink,
 		hooks:         hooks,
+		finalizeText:  opts.FinalizeText,
 		jobs:          opts.Jobs,
 		evidence:      evidence.NewLedger(),
 		changes:       evidence.NewChangeLedger(),

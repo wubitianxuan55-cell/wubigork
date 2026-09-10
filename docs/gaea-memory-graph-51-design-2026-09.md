@@ -11,7 +11,7 @@
 | 判据 | 承担者 | 状态 |
 |---|---|---|
 | 记忆互引可图遍历 | `memory.GraphNeighbors`（BFS，id/[MEM:] 键/显示名三入口，边双向可走） | ✅ v4.210.0 |
-| [MEM:] 引用在回复发出前全部解析到节点 | 回合收尾 `touchMemoryCitations` → `ResolveCitationsDetailed` 解析+触达+落 cite 事件；悬空键不触达不入实体但留痕可查。**真·发送前剥离**（流式层改写最终文本）未做 → **5.1 余项**，见 §6 | ◐ 部分 |
+| [MEM:] 引用在回复发出前全部解析到节点 | v4.210.0 落观测侧（回合收尾解析+触达+cite 事件）；**v4.211.0 落执行侧**：agent stream() 收尾定稿闸（`Options.FinalizeText`/`SetFinalizeText`），悬空键在 Message 全文事件发出前剥离（改写值同进 session/摘要），boot 按记忆开关注入闭包，被剥离键落 dangling cite 事件保住可观测性；前端收 Message 整泡替换零改动 | ✅ v4.211.0 |
 | 同一事件日志两次投影结果一致 | `ProjectEvents` 纯函数（不读时钟/不落 IO/输出排序），`TestProjectEventsDeterministic` + `TestGraphRebuildFromLog`（物化=投影逐字段一致） | ✅ v4.210.0 |
 
 ## 2. 架构（三层）
@@ -57,7 +57,7 @@
 
 ## 6. 5.1 余项与后续刀
 
-- **真·「回复发出前」闸**：最终文本流式先行，事后剥离会与 UI 已渲染内容脱节；需流式层（agent_run 最终无工具消息定稿点）做 `[MEM:]` 校验改写，独立小刀，不动本刀数据层。
+- ~~**真·「回复发出前」闸**~~ ✅ **v4.211.0 已收口**：闸点=stream() 收尾（Message 全文事件发出前+返回值进 session 前），`memory.Store.StripDanglingCitations` 纯函数剥离（不 Touch，触达职责仍在回合收尾），boot 装配闭包（记忆开关闭/库不可用=不注入，子代理 nil 不改写），剥离键落 dangling cite 事件。流式增量原样透传、由 Message 重渲染收敛——前端零改动。测试：memory 三例（命中保留/悬空剥离+空间隔离/不触达+零值 Store 跳过）+ agent 两例（Message/Summary/session 三路改写、nil no-op）。
 - **5.2 上下文编译**：意图分类 → 预算调度 → 前缀稳定排序；`embedding` 向量列在此刀启用。
 - **5.3 记忆生命周期**：固化/衰减/归档三态替代 90 天一刀切——touch 事件已留痕，衰减计算直接吃日志。
 - **投影水位增量化**：当前懒对账全量重投影（本地量级足够：万级事件 < 百毫秒）；事件到十万级再考虑按 max_seq 增量折算。

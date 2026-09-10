@@ -45,6 +45,40 @@ type CitationResult struct {
 	Dangling []string
 }
 
+// StripDanglingCitations 是回复定稿闸（5.1 出口判据「[MEM:] 引用在回复发出前
+// 全部解析到节点」的执行侧）：文本里解析不到的 [MEM:] 键整处剥离（含紧邻的
+// 一个前导空白），命中的键原样保留。**不 Touch**——触达仍是回合收尾
+// ResolveCitations 的职责（两条路径分离：定稿闸只校验改写，触达带留痕）；
+// 被剥离键由调用方落 dangling cite 事件（AppendCiteEvents），可观测性不丢。
+// space 语义同 GetInSpace：非空限定本空间，跨空间键视为悬空。纯函数：不改
+// 存储状态，只读存在性。
+func (s Store) StripDanglingCitations(text, space string) (string, []string) {
+	names := ExtractCitationNames(text)
+	if len(names) == 0 {
+		return text, nil
+	}
+	if s.backend == nil && s.Dir == "" && s.GlobalDir == "" {
+		// 零值/禁用 Store：存在性判定恒失败，会误剥正常引用键——整体跳过
+		//（记忆关闭/未装配场景，boot 闭包侧也不注入）。
+		return text, nil
+	}
+	var dangling []string
+	for _, name := range names {
+		if _, ok := s.GetInSpace(name, space); !ok {
+			dangling = append(dangling, name)
+		}
+	}
+	if len(dangling) == 0 {
+		return text, nil
+	}
+	cleaned := text
+	for _, name := range dangling {
+		re := regexp.MustCompile(`(?i)\s?\[MEM:` + name + `\]`)
+		cleaned = re.ReplaceAllString(cleaned, "")
+	}
+	return cleaned, dangling
+}
+
 // ResolveCitationsDetailed 是 ResolveCitations 的全量版：命中照旧 Touch（更新
 // last_used_at），悬空键返回而非静默丢——调用方（controller 回合收尾）拿去落
 // cite 事件。空间语义与 ResolveCitations 一致：space 非空时限定本空间，跨空间

@@ -1,3 +1,6 @@
+## v4.211.0 · 5.1 收口：回复发出前剥离悬空 [MEM:] 引用（2026-09-11）
+> v4.210.0 的 5.1 余项收口刀（纯 Go，前端零改动）。闸点=agent stream() 收尾：`Options.FinalizeText`/`SetFinalizeText` 定稿钩子在 Message 全文事件发出前改写答案文本，改写值同时进 session 历史与 TurnResult 摘要——模型幻觉的引用键到不了持久层，前端收 Message 事件整泡替换（既有语义），流式增量原样透传由重渲染收敛。boot 按记忆总闸+库可用性注入剥离闭包（`memory.Store.StripDanglingCitations` 纯函数：命中键保留、悬空键含紧邻空白整处剥离、**不 Touch**——触达职责仍在回合收尾 touchMemoryCitations；被剥离键当场落 dangling cite 事件，v4.210 的悬空可观测性不丢）。子代理/headless executor nil=不改写。空间语义同读端隔离器（work 会话剥 play 键）。测试 Go +5（memory 三例：命中保留+悬空剥离+空间隔离/不触达+零值 Store 跳过；agent 两例：Message/Summary/session 三路改写+nil no-op）。**5.1 出口判据至此全满足**，阶段五下一刀=5.2 上下文编译。
+
 ## v4.210.0 · 记忆语义图谱：事件日志投影出图（2026-09-11）
 > 阶段五「记忆OS+上下文编译」首刀（规划 gaea-next-stage-plan-2026-09 §2，底座#1）。记忆此前只有存储没有结构：新增 memory_events 事件日志（SchemaV18，追加式，一切记忆写路径——remember 工具/桌面面板/做梦/蒸馏合并/引用触达——落库成功即留痕），ProjectEvents 纯函数投影出实体/事件/来源三向图（produces/affects/references），物化进 mem_graph_*（含 embedding 向量占位列，5.2 启用）。日志即真相：图可删可重建（读前水位对账懒重建，物化=投影逐字段一致有测试锁死）。[MEM:name] 图节点寻址；悬空互引不入图但 Dangling 留痕不静默；回合收尾引用解析（命中+悬空）落 cite 事件。绑定 608→609（GaeaMemorySemanticGraph）；MemoryHub 图谱页新增「关联图/事件图谱」切换（GraphView source prop，默认 cloud 旧行为零变化）。Go +9 用例（确定性/三向边/悬空拒写/删库重建/BFS 遍历/写路径挂钩/cite 事件），vitest +1（semantic 数据源切换）。设计基线：docs/gaea-memory-graph-51-design-2026-09.md（5.1 余项=真·发送前悬空引用剥离，需流式层另刀）。
 

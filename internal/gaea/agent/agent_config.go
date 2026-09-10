@@ -69,6 +69,14 @@ type Options struct {
 	// 空 = 关闭证据链（旧形态/测试缺省）。回合结束把变更证据卡写入
 	// JSONL + markdown 投影（play 回合不落盘，红线）。
 	JournalDir string
+
+	// FinalizeText 是最终文本定稿闸（v4.211 记忆 5.1 出口判据「[MEM:] 引用
+	// 在回复发出前全部解析到节点」）：每次模型轮次收尾（Message 全文事件发出
+	// 前 + 文本进 session/摘要前）对答案文本做一次改写。装配点注入（boot 按
+	// 记忆开关注入悬空 [MEM:] 键剥离闭包）；nil = 不改写（子代理/测试缺省，
+	// 行为与历史逐字节一致）。改写只作用于收尾全文——流式增量原样透传，前端
+	// 收到 Message 事件整泡替换，不新增事件形态。
+	FinalizeText func(text string) string
 }
 
 // StormBreaker tracks repeated failures to detect death spirals (V3.0 Phase 4).

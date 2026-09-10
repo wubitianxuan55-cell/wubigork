@@ -160,10 +160,17 @@ func (a *AgentRunner) stream(ctx context.Context, turn int) (string, string, str
 	// Close the text stream: a sink may re-render the streamed raw text as
 	// styled markdown now that it is complete. Reasoning rides along so the sink
 	// has the full chain if it wants it.
-	if text.Len() > 0 || display != "" {
-		a.sink.Emit(event.Event{Kind: event.Message, Text: text.String(), Reasoning: display})
+	// 定稿闸（v4.211）：改写后的全文随 Message 事件发出（前端整泡替换）并作为
+	// 返回值进 session/摘要/归档——模型幻觉的引用键到不了持久层。流式增量原样
+	// 已发出，由 Message 重渲染收敛，不新增事件形态。
+	final := text.String()
+	if a.finalizeText != nil && final != "" {
+		final = a.finalizeText(final)
 	}
-	return text.String(), stored, signature, calls, usage, false, nil
+	if text.Len() > 0 || display != "" {
+		a.sink.Emit(event.Event{Kind: event.Message, Text: final, Reasoning: display})
+	}
+	return final, stored, signature, calls, usage, false, nil
 }
 
 // systemPromptFromMessages 拼接请求中全部 system 角色的内容（L1 + L2）。

@@ -428,6 +428,27 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 		JournalDir: filepath.Join(cwd, ".gaea", "work", "journal"),
 	}, sink)
 
+	// v4.211 记忆 5.1 出口闸：最终回复定稿时剥离悬空 [MEM:] 引用键（真·发送前
+	// ——改写后的全文随 Message 事件发出并进 session/摘要，模型幻觉键到不了
+	// 持久层）。被剥离键落 dangling cite 事件（AppendCiteEvents）保住可观测性；
+	// 命中键不在这里 Touch——触达仍是回合收尾 touchMemoryCitations 的职责。
+	// 门控与装配同源：记忆总闸关闭 / 库不可用时不注入（nil = 不改写，子代理
+	// 与 headless executor 均不受影响）。
+	if cfg.Memory.Enabled {
+		if gdb := db.GetDatabase(config.MemoryUserDir()); gdb != nil {
+			sanitizeStore := memory.SQLiteStoreFor(gdb, config.MemoryUserDir(), cwd)
+			sanitizeLog := &memory.EventLog{DB: gdb}
+			sanitizeSpace := space
+			executor.SetFinalizeText(func(text string) string {
+				cleaned, stripped := sanitizeStore.StripDanglingCitations(text, sanitizeSpace)
+				if len(stripped) > 0 {
+					sanitizeLog.AppendCiteEvents(nil, stripped, sanitizeSpace)
+				}
+				return cleaned
+			})
+		}
+	}
+
 	// V7.0: session archive for cross-session Dream/Distill
 	archiveDir := filepath.Join(cwd, ".gaea", "archive")
 	if ar, err := archive.Open(archiveDir); err == nil && ar != nil {
