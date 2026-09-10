@@ -195,7 +195,7 @@ async function openMenu(testid: string): Promise<string[]> {
 
 
 describe('SchedulePage 命令区三行（v4.140：菜单栏/工具栏/信息条）', () => {
-  it('四个菜单项齐全：编辑（撤销/重做/删除/清空）、视图（四档勾选）、任务（选中前禁用）', async () => {
+  it('五个菜单项齐全：编辑（撤销/重做/删除/清空）、视图（五档勾选）、任务（选中前禁用）', async () => {
     render(<SchedulePage />)
     const edit = await openMenu('sched-menu-edit')
     expect(edit.some((t) => t.startsWith('撤销'))).toBe(true)
@@ -203,7 +203,7 @@ describe('SchedulePage 命令区三行（v4.140：菜单栏/工具栏/信息条�
     expect(edit).toContain('删除选中(dis)')
     expect(edit).toContain('清空全部任务与搭接')
     const view = await openMenu('sched-menu-view')
-    expect(view).toEqual(['横道图', '单代号网络图', '双代号网络图', '资源使用'])
+    expect(view).toEqual(['横道图', '单代号网络图', '双代号网络图', '资源使用', '质量体检'])
     const task = await openMenu('sched-menu-task')
     expect(task.some((t) => t.startsWith('添加任务'))).toBe(true)
     expect(task).toContain('设为里程碑(dis)')

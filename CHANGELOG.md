@@ -1,3 +1,6 @@
+## v4.216.0 · 阶段六 6.4 首刀：进度·DCMA 14 点计划质量体检（2026-09-11）
+> 6.4「DCMA 14 点逐项+总分，纯函数，吃现有 CPM+多基线数据」首刀（对标 Deltek Acumen Fuse）。TS 纯函数 dcmaAudit（frontend/src/schedule/dcma.ts，吃 SchedulePage 前端自算的 CPM 与基线——与 deadline/drift 同一镜像口径，零绑定零 Go 改动）：缺逻辑（首末豁免收紧=孤立任务不得因 es 并列豁免）/负搭接/正搭接/FS 占比/硬约束（模型无约束字段恒过+note 诚实标注）/高浮时/负浮时/长工期/无效日期/资源缺失（未启用资源维度= n/a）/错过基线/关键路径连续性（连通分量计数）/CPLI/BEI（后两者需基线+数据日期，progress≥100 作完成口径的诚实近似）14 点逐项，超标样本点名上限 5，每点带阈值与口径 note；通过率评分在 CPM 断裂时置 null（整体分不可信，逐点结论仍在）。SchedulePage 新增「质量体检」视图（菜单+Segmented+侧栏口径，DcmaView 纯展示）。测试 vitest +11（十四点逐形态：健康基线/孤立任务/负正搭接/FS 占比/高浮长工期/负浮时/资源 n-a 与点名/错过基线/单链双链/CPLI-BEI n-a 与可评估/循环依赖全 n-a+score null/阈值常量），SchedulePage 菜单用例同步五档。判据「十四点纯函数全测」满足。
+
 ## v4.215.0 · 阶段六 6.2 首刀：记忆驱动项目本体——项目本体注入（2026-09-11）
 > 6.2 出口判据「Plan 注入带决策引用且可关闭」首刀（依赖 5.1 图谱底座已就位）。BuildProjectBrief 纯函数把记忆投影成项目事实表：固化全收+project/feedback 按衰减评分降序，每行带 [MEM:] 稳定引用键（采纳→句末引用→触达/徽标同源）+决策来源归因（「依据 session-x 会话 · turn N」），600 rune 预算截行不截半句，无候选零注入。注入点=work 空间会话装配（晨报预载同位，缓存稳定前缀，跨会话项目连续性），BootOptions.ProjectBrief 穿管（CLI/TUI 不读配置维持原行为）。可关闭=config project_brief 键（默认开）+GaeaMemoryBrief/GaeaSetMemoryBrief 绑定（写后重建即时生效）+MemoryPanel「项目本体」胶囊。绑定 611→613。测试 Go +2 / vitest +1。
 
