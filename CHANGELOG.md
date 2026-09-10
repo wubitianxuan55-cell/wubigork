@@ -1,3 +1,6 @@
+## v4.215.0 · 阶段六 6.2 首刀：记忆驱动项目本体——项目本体注入（2026-09-11）
+> 6.2 出口判据「Plan 注入带决策引用且可关闭」首刀（依赖 5.1 图谱底座已就位）。BuildProjectBrief 纯函数把记忆投影成项目事实表：固化全收+project/feedback 按衰减评分降序，每行带 [MEM:] 稳定引用键（采纳→句末引用→触达/徽标同源）+决策来源归因（「依据 session-x 会话 · turn N」），600 rune 预算截行不截半句，无候选零注入。注入点=work 空间会话装配（晨报预载同位，缓存稳定前缀，跨会话项目连续性），BootOptions.ProjectBrief 穿管（CLI/TUI 不读配置维持原行为）。可关闭=config project_brief 键（默认开）+GaeaMemoryBrief/GaeaSetMemoryBrief 绑定（写后重建即时生效）+MemoryPanel「项目本体」胶囊。绑定 611→613。测试 Go +2 / vitest +1。
+
 ## v4.214.0 · 阶段六 6.1 首刀：可审计默认化——文件预览默认版本条（2026-09-11）
 > 阶段旗交阶段六（书斋纵深·办公主角），6.1「Verify→Journal→一键回滚从能力升为文件工作台默认 UI」首刀。纯前端、零新绑定、零 Go 改动。缺口：VersionTimeline（v4.28 B1 逐版本预览/恢复）此前只藏在交付面板的 vN 徽标里。落地=FileVersionStrip 新组件默认可见地挂进文件预览标题栏下（三件套通用）：版本数+最近 AI 改动时间+复核状态+「可恢复」标注，无版本时显示「AI 改动会自动成为版本点」说明条；展开为该文件的逐版本时间线（按路径过滤的 VersionTimeline：预览基线/一键恢复，恢复=新版本不丢历史，恢复后父级静默重读预览）。pptx 页码归因来自证据卡摘要（p3 格式）。「AI 改动自动成版本点」=证据链既有能力（v4.1 起 Apply→Journal+基线快照）。测试 vitest +4（默认可见/展开时间线/恢复贯通 RollbackRecord+onRestored/空态与降级）。6.1 判据满足。
 

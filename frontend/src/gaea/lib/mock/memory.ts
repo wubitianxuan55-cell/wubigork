@@ -24,7 +24,7 @@ type MemoryMethods = Pick<
   | "KnowledgeList" | "KnowledgeSearch" | "KnowledgeGet" | "KnowledgeSave" | "KnowledgeDelete"
   | "KnowledgeImportPreview" | "KnowledgeImportAIParse" | "KnowledgeImportApply"
   | "KnowledgeHistory" | "KnowledgeFindSimilar" | "KnowledgeExport" | "KnowledgeReview" | "KnowledgeMerge"
-  | "MemoryDuplicates" | "MemoryMerge" | "SemanticGraph" | "MemoryPin" | "MemoryLifecycle"
+  | "MemoryDuplicates" | "MemoryMerge" | "SemanticGraph" | "MemoryPin" | "MemoryLifecycle" | "MemoryBrief" | "SetMemoryBrief"
   | "MemoryMorningBrief"
 >;
 
@@ -206,6 +206,12 @@ export function buildMemory(_s: MakeMockState): MemoryMethods {
     },
     async MemoryGraph() {
       return { nodes: [], links: [] };
+    },
+    async MemoryBrief() {
+      return true;
+    },
+    async SetMemoryBrief() {
+      // mock：开关写回即成功（面板 toast 由调用方提示）。
     },
     async MemoryPin() {
       // mock：固化切换成功即回（面板 reload 后 pinned 徽标随 mock 数据展示）。

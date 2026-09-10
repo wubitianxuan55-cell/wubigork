@@ -184,6 +184,8 @@ export const gaeaToGaea = {
   SemanticGraph: "GaeaMemorySemanticGraph",
   MemoryPin: "GaeaMemoryPin",
   MemoryLifecycle: "GaeaMemoryLifecycle",
+  MemoryBrief: "GaeaMemoryBrief",
+  SetMemoryBrief: "GaeaSetMemoryBrief",
   MemoryMorningBrief: "GaeaMemoryMorningBrief",
   CostList: "GaeaCostList",
   CostSearch: "GaeaCostSearch",

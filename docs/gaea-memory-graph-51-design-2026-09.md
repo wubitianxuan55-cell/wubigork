@@ -86,6 +86,25 @@
 - 测试：Go +5（pin/unpin 闭环+事件留痕+归档不可 pin/固化豁免清理/评分
   半衰-下限-固化-零值/三态分类/晨报固化加权）、vitest +1（统计行+徽标+解除）。
 
+## 6.2 办公·记忆驱动项目本体·首刀（v4.215.0）：项目本体注入
+
+阶段六 6.2 出口判据「Plan 注入带决策引用且可关闭」的落点（依赖 5.1 图谱
+底座 v4.210 已就位）：
+
+- **BuildProjectBrief 纯函数**（memory/projectbrief.go）：记忆 → 项目事实表。
+  固化全收（用户明示保留的决策/规范/口径），补 project/feedback 型按衰减
+  评分降序；每行带 `[MEM:<name>]` 稳定引用键（采纳→句末引用→触达/徽标
+  同源）+ 决策来源归因（SourceSession/SourceMessage → 「依据 session-x
+  会话 · turn N」）；rune 预算 600（截行不截半句）；无候选返回空串零注入。
+- **注入点=work 空间会话装配**（buildSystemPrompt，晨报预载同位）——缓存
+  稳定前缀，跨会话项目连续性；BootOptions.ProjectBrief 穿管（mirror
+  MorningPreload），CLI/TUI 不读该配置维持原行为。
+- **可关闭**：config `project_brief` 键（默认开）+ `GaeaMemoryBrief` /
+  `GaeaSetMemoryBrief` 绑定（写后 gaeaRebuildLocked 即时生效）+ MemoryPanel
+  「项目本体 开/关」胶囊（mirror 晨报预载开关）。
+- 测试：Go +2（固化优先+引用键可解析+归因/预算截断+确定性）、vitest +1
+  （开关读取+切换持久化）。
+
 ## 6. 5.1 余项与后续刀
 
 - ~~**真·「回复发出前」闸**~~ ✅ **v4.211.0 已收口**：闸点=stream() 收尾（Message 全文事件发出前+返回值进 session 前），`memory.Store.StripDanglingCitations` 纯函数剥离（不 Touch，触达职责仍在回合收尾），boot 装配闭包（记忆开关闭/库不可用=不注入，子代理 nil 不改写），剥离键落 dangling cite 事件。流式增量原样透传、由 Message 重渲染收敛——前端零改动。测试：memory 三例（命中保留/悬空剥离+空间隔离/不触达+零值 Store 跳过）+ agent 两例（Message/Summary/session 三路改写、nil no-op）。

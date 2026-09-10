@@ -40,7 +40,7 @@ type syspromptOut struct {
 // 与记忆索引不再跨空间泄露，兑现 S1.2 读端硬隔离的注入侧承诺）。
 // morningPreload 是晨报预载开关（v4.16 刀④，桌面端从 morning_preload 配置键
 // 读取传入）：work 空间会话装配时预装配高频工作记忆晨报块。
-func buildSystemPrompt(cfg *config.Config, cwd, space string, morningPreload bool, stderrPath io.Writer) (*syspromptOut, error) {
+func buildSystemPrompt(cfg *config.Config, cwd, space string, morningPreload bool, projectBrief bool, stderrPath io.Writer) (*syspromptOut, error) {
 	sysPrompt, err := cfg.ResolveSystemPrompt()
 	if err != nil {
 		return nil, err
@@ -80,6 +80,14 @@ func buildSystemPrompt(cfg *config.Config, cwd, space string, morningPreload boo
 	// （双空间红线）。空记忆时纯函数返回空串，零注入、前缀逐字节不变。
 	if cfg.Memory.Enabled && morningPreload && space == "work" {
 		if block := memory.BuildMorningPreloadBlock(mem.Store.List(), time.Now(), 0); block != "" {
+			sysPrompt = strings.TrimRight(sysPrompt, "\n") + "\n\n" + block
+		}
+	}
+	// 项目本体注入（6.2 可审计默认化的决策侧）：固化/项目/反馈决策带
+	// [MEM:] 引用键与来源会话归因，装配进缓存稳定前缀（跨会话项目连续性）。
+	// 可关：config project_brief（默认开）；play/mode=off 不注入（work 专属）。
+	if cfg.Memory.Enabled && projectBrief && space == "work" {
+		if block := memory.BuildProjectBrief(mem.Store.List(), time.Now(), 0); block != "" {
 			sysPrompt = strings.TrimRight(sysPrompt, "\n") + "\n\n" + block
 		}
 	}

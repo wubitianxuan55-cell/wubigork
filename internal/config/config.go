@@ -75,6 +75,8 @@ func Load() *Config {
 		AutoPreload:     true,
 		// 晨报预载（v4.16 刀④）：默认开启（高频工作记忆预装配进上下文）。
 		MorningPreload: true,
+		// 项目本体注入（6.2）：默认开启（固化/项目/反馈决策带引用注入）。
+		ProjectBrief: true,
 		// 汇率默认 7.2（费用估算折算口径）。
 		UsdCnyRate: DefaultUsdCnyRate,
 		// CosyVoice 本地 TTS 服务（T6-9.5，默认与历史硬编码一致）。
@@ -390,6 +392,9 @@ func Load() *Config {
 			}
 			if cf.AutoPreload != nil {
 				cfg.AutoPreload = *cf.AutoPreload
+			}
+			if cf.ProjectBrief != nil {
+				cfg.ProjectBrief = *cf.ProjectBrief
 			}
 			if cf.MorningPreload != nil {
 				cfg.MorningPreload = *cf.MorningPreload

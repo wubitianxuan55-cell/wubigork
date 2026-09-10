@@ -96,6 +96,7 @@ const (
 	// 「晨报预载」块预装配进 agent 上下文（零 LLM、预算受限、work 只读）。
 	// 只影响上下文注入，与首页晨报卡片（GaeaMemoryMorningBrief）无关。默认开启。
 	KeyMorningPreload    = "morning_preload"
+	KeyProjectBrief      = "project_brief"
 	KeyDeepseekAPIKey    = "deepseek_api_key"
 	KeyGLMAPIKey         = "glm_api_key"
 	KeyOpencodeGoAPIKey  = "opencode_go_api_key"

@@ -154,6 +154,20 @@ func (c *Config) GetMorningPreload() bool {
 	return c.MorningPreload
 }
 
+// GetProjectBrief 读取项目本体注入开关（6.2，未显式配置时默认开启）。
+func (c *Config) GetProjectBrief() bool {
+	funcMu.RLock()
+	defer funcMu.RUnlock()
+	return c.ProjectBrief
+}
+
+// SetProjectBrief 写入项目本体注入开关。
+func (c *Config) SetProjectBrief(enabled bool) {
+	funcMu.Lock()
+	defer funcMu.Unlock()
+	c.ProjectBrief = enabled
+}
+
 // SetMorningPreload 写入晨报预载开关（仅 config 文件可控，无 UI 绑定）。
 func (c *Config) SetMorningPreload(enabled bool) {
 	funcMu.Lock()

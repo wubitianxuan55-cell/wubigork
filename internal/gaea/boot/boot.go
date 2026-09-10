@@ -80,6 +80,11 @@ type Options struct {
 	// 键读取传入（默认开）；零值 false = 不注入（CLI/TUI 等不读该配置的
 	// 前端维持原行为，无晨报预载）。
 	MorningPreload bool
+	// ProjectBrief 是项目本体注入开关（6.2）：work 空间会话装配时把固化/
+	// 项目/反馈决策带 [MEM:] 引用键注入系统提示词（跨会话项目连续性）。
+	// 桌面端从 ~/.gaea_config.json 的 project_brief 键读取传入（默认开）；
+	// 零值 false = 不注入（CLI/TUI 维持原行为）。
+	ProjectBrief bool
 }
 
 // Build loads config, resolves the model, and returns a Controller wrapping a
@@ -189,7 +194,7 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 	// V10.22: system prompt + memory + skills assembled in sysprompt.go
 	// 传入工作空间根（opts.Cwd），项目画像/技能索引基于真实工作区而非进程目录。
 	// v4.5.1a 红线补课：记忆注入侧按装配空间收窄（space=""=mode=off 旧行为）。
-	sp, err := buildSystemPrompt(cfg, cwd, space, opts.MorningPreload, opts.Stderr)
+	sp, err := buildSystemPrompt(cfg, cwd, space, opts.MorningPreload, opts.ProjectBrief, opts.Stderr)
 	if err != nil {
 		return nil, err
 	}

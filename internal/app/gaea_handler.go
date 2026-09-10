@@ -148,6 +148,9 @@ func (a *App) gaeaBuildController() (*control.Controller, error) {
 		// 的 morning_preload 键（默认开，仅 config 文件可控，无 UI 绑定）；
 		// a.cfg 未就绪（测试/启动早期）时缺省开启，与配置默认值一致。
 		MorningPreload: morningPreloadEnabled(a),
+		// 项目本体注入（6.2）：开关读 project_brief 键（默认开）；绑定
+		// GaeaMemoryBrief/GaeaSetMemoryBrief 可查可关。
+		ProjectBrief: projectBriefEnabled(a),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("gaea: 引擎初始化失败: %w", err)
@@ -175,6 +178,38 @@ func morningPreloadEnabled(a *App) bool {
 		return true
 	}
 	return a.cfg.GetMorningPreload()
+}
+
+func projectBriefEnabled(a *App) bool {
+	if a == nil || a.cfg == nil {
+		return true
+	}
+	return a.cfg.GetProjectBrief()
+}
+
+// GaeaMemoryBrief 返回项目本体注入开关（project_brief 键，默认开）：work
+// 空间新会话装配时把固化/项目/反馈决策带 [MEM:] 引用键注入上下文（6.2）。
+func (a *App) GaeaMemoryBrief() bool {
+	if a == nil || a.cfg == nil {
+		return true
+	}
+	return a.cfg.GetProjectBrief()
+}
+
+// GaeaSetMemoryBrief 持久化项目本体注入开关并重建办公引擎（新会话装配即时
+// 生效）：写 ~/.gaea_config.json + 更新内存 + gaeaRebuildLocked。
+func (a *App) GaeaSetMemoryBrief(enabled bool) error {
+	val := "0"
+	if enabled {
+		val = "1"
+	}
+	if err := appconfig.Save(appconfig.KeyProjectBrief, val); err != nil {
+		return err
+	}
+	if a.cfg != nil {
+		a.cfg.SetProjectBrief(enabled)
+	}
+	return a.gaeaRebuildLocked()
 }
 
 // GaeaMorningPreload 返回晨报预载开关（~/.gaea_config.json 的 morning_preload

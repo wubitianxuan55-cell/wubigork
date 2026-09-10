@@ -50,6 +50,8 @@ export function MemoryPanel(p: {
   const [memoryEnabled, setMemoryEnabled] = useState(view?.enabled ?? true);
   // 晨报预载开关（v4.16 刀④ UI 补齐）：work 空间新会话自动预装配高频工作记忆
   const [morningPreload, setMorningPreload] = useState(true);
+  // 项目本体注入开关（6.2）：work 空间新会话注入固化/项目决策带引用块
+  const [projectBrief, setProjectBrief] = useState(true);
   const toast = useToast();
   const scopes = useMemo(() => view?.scopes ?? [], [view?.scopes]);
   const factNames = useMemo(() => new Set(facts.map((f) => f.name)), [facts]);
@@ -74,6 +76,9 @@ export function MemoryPanel(p: {
     let alive = true;
     app.MorningPreload()
       .then((v) => { if (alive) setMorningPreload(v); })
+      .catch(() => {});
+    app.MemoryBrief()
+      .then((v) => { if (alive) setProjectBrief(v); })
       .catch(() => {});
     return () => { alive = false; };
   }, []);
@@ -109,6 +114,22 @@ export function MemoryPanel(p: {
       })
       .catch(() => setMorningPreload(!next));
   }, [morningPreload, toast]);
+
+  const toggleProjectBrief = useCallback(() => {
+    const next = !projectBrief;
+    setProjectBrief(next);
+    app
+      .SetMemoryBrief(next)
+      .then(() => {
+        toast.show(
+          next
+            ? "项目本体已开启：新会话注入固化/项目决策事实（带引用键）"
+            : "项目本体已关闭：新会话不再注入项目事实块",
+          "info",
+        );
+      })
+      .catch(() => setProjectBrief(!next));
+  }, [projectBrief, toast]);
 
   const normalizedQuery = query.trim().toLowerCase();
   const filteredFacts = useMemo(
@@ -272,6 +293,21 @@ export function MemoryPanel(p: {
                 className={`w-1.5 h-1.5 rounded-full ${morningPreload ? "bg-accent" : "bg-fg-faint/50"}`}
               />
               晨报预载 {morningPreload ? "开" : "关"}
+            </button>
+            <button
+              type="button"
+              onClick={toggleProjectBrief}
+              className={`inline-flex items-center gap-1.5 px-2.5 h-7 rounded-full border text-[11px] cursor-pointer transition-colors ${
+                projectBrief
+                  ? "border-accent/30 bg-accent/10 text-accent"
+                  : "border-border text-fg-faint hover:text-fg"
+              }`}
+              title={projectBrief ? "点击关闭项目本体（新会话不再注入项目事实块）" : "点击开启项目本体（work 空间新会话注入固化/项目决策，带 [MEM:] 引用）"}
+            >
+              <span
+                className={`w-1.5 h-1.5 rounded-full ${projectBrief ? "bg-accent" : "bg-fg-faint/50"}`}
+              />
+              项目本体 {projectBrief ? "开" : "关"}
             </button>
         </div>
       </section>

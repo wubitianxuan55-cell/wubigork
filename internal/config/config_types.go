@@ -87,6 +87,9 @@ type configFile struct {
 	AutoPreload     *bool `json:"auto_preload,omitempty"`      // 启动自动预载
 	// 晨报预载开关（v4.16 刀④，nil=默认开启）：只影响上下文注入，与晨报卡片无关。
 	MorningPreload *bool `json:"morning_preload,omitempty"`
+	// ProjectBrief 是项目本体注入开关（6.2，默认开）：work 空间新会话装配时
+	// 把固化/项目/反馈决策带 [MEM:] 引用键注入缓存稳定前缀。
+	ProjectBrief *bool `json:"project_brief,omitempty"`
 	// 美元→人民币汇率（费用估算折算用；0=未配置，加载时回退默认 7.2）
 	UsdCnyRate float64 `json:"usd_cny_rate,omitempty"`
 	// GLM 目录覆盖文件路径（空=只用内嵌目录）
@@ -243,6 +246,7 @@ type Config struct {
 	// 晨报预载（v4.16 刀④）：work 空间会话装配时把高频工作记忆预装配进
 	// agent 上下文（零 LLM、预算受限）。默认开启，只影响上下文注入。
 	MorningPreload bool
+	ProjectBrief   bool
 
 	// 美元→人民币汇率（费用估算折算用，默认 7.2；模型中心可配置）
 	UsdCnyRate float64

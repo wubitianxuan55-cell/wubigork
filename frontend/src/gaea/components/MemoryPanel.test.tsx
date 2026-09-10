@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { MemoryView } from "../lib/types";
 import { LocaleProvider } from "../lib/i18n";
@@ -7,6 +7,8 @@ import { ToastProvider } from "./Toast";
 const mocks = vi.hoisted(() => ({
   morningPreload: vi.fn(),
   setMorningPreload: vi.fn(),
+  projectBrief: vi.fn(),
+  setProjectBrief: vi.fn(),
 }));
 
 vi.mock("../lib/bridge", () => ({
@@ -14,6 +16,8 @@ vi.mock("../lib/bridge", () => ({
     get(_t, prop) {
       if (prop === "MorningPreload") return mocks.morningPreload;
       if (prop === "SetMorningPreload") return mocks.setMorningPreload;
+      if (prop === "MemoryBrief") return mocks.projectBrief;
+      if (prop === "SetMemoryBrief") return mocks.setProjectBrief;
       return vi.fn();
     },
   }),
@@ -49,6 +53,16 @@ describe("MemoryPanel 记忆主区视图（v4.73）", () => {
     mocks.setMorningPreload.mockReset();
     mocks.morningPreload.mockResolvedValue(true);
     mocks.setMorningPreload.mockResolvedValue(undefined);
+    mocks.projectBrief.mockResolvedValue(true);
+    mocks.setProjectBrief.mockResolvedValue(undefined);
+  });
+
+  it("项目本体开关：读取初始状态 + 点击切换并持久化（6.2 可关闭）", async () => {
+    await renderPanel();
+    expect(await screen.findByText(/项目本体 开/)).toBeTruthy();
+    fireEvent.click(screen.getByTitle(/点击关闭项目本体/));
+    await waitFor(() => expect(mocks.setProjectBrief).toHaveBeenCalledWith(false));
+    expect(await screen.findByText(/项目本体 关/)).toBeTruthy();
   });
 
   it("晨报预载开关：读取初始状态 + 点击切换并持久化", async () => {

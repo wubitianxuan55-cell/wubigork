@@ -25,6 +25,7 @@ func (b *MemoryB) GaeaKnowledgeSave(e KnowledgeEntry) error { return b.a.GaeaKno
 func (b *MemoryB) GaeaKnowledgeSearch(query string, category string, phase string, status string) []KnowledgeSummary { return b.a.GaeaKnowledgeSearch(query, category, phase, status) }
 func (b *MemoryB) GaeaMemory() MemoryView { return b.a.GaeaMemory() }
 func (b *MemoryB) GaeaMemoryArchivedList(limit int, offset int) (MemoryArchivedPage, error) { return b.a.GaeaMemoryArchivedList(limit, offset) }
+func (b *MemoryB) GaeaMemoryBrief() bool { return b.a.GaeaMemoryBrief() }
 func (b *MemoryB) GaeaMemoryCleanupArchived() (int, error) { return b.a.GaeaMemoryCleanupArchived() }
 func (b *MemoryB) GaeaMemoryDuplicates(min float64) []MemoryDuplicateView { return b.a.GaeaMemoryDuplicates(min) }
 func (b *MemoryB) GaeaMemoryGraph() MemoryGraphView { return b.a.GaeaMemoryGraph() }
