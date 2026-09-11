@@ -49,3 +49,29 @@ describe("AssistantMessage subagentRef 徽标", () => {
     expect(view.queryByRole("button", { name: /copy/i })).toBeNull();
   });
 });
+
+describe("AssistantMessage 重新生成按钮（v4.232）", () => {
+  it("canRegenerate：渲染按钮，点击按轮号回调", () => {
+    const onRegenerateTurn = vi.fn();
+    const view = render(wrap(
+      <AssistantMessage item={assistant({ text: "可重发的回答" })} turnNo={2} canRegenerate onRegenerateTurn={onRegenerateTurn} />,
+    ));
+    const btn = view.getByRole("button", { name: /regenerate|重新生成/i });
+    fireEvent.click(btn);
+    expect(onRegenerateTurn).toHaveBeenCalledWith(2);
+  });
+
+  it("无资格（canRegenerate 缺省）：不渲染按钮", () => {
+    const view = render(wrap(
+      <AssistantMessage item={assistant({ text: "历史回答" })} turnNo={0} onRegenerateTurn={vi.fn()} />,
+    ));
+    expect(view.queryByRole("button", { name: /regenerate|重新生成/i })).toBeNull();
+  });
+
+  it("流式中不渲染（与复制/沉淀同闸）", () => {
+    const view = render(wrap(
+      <AssistantMessage item={assistant({ text: "进行中…", streaming: true })} turnNo={0} canRegenerate onRegenerateTurn={vi.fn()} />,
+    ));
+    expect(view.queryByRole("button", { name: /regenerate|重新生成/i })).toBeNull();
+  });
+});

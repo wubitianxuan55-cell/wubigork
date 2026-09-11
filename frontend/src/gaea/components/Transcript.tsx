@@ -189,6 +189,10 @@ function renderOutsideItems(
     dismissedErrors: Set<string>;
     onDismissError: (id: string) => void;
     captureForId: (id: string) => ((solution: string) => void) | undefined;
+    /** v4.232 重新生成：符合条件的那条 assistant 消息 id（当前会话最后一条
+     *  且非运行中；undefined=无）。回调 props 恒稳定，不击穿 AssistantMessage memo。 */
+    canRegenerateId?: string;
+    onRegenerateTurn?: (turn: number) => void;
     subcalls: Map<string, ToolItem[]>;
     setTurnEl: (tn: number) => (el: HTMLElement | null) => void;
   },
@@ -234,6 +238,8 @@ function renderOutsideItems(
               deliverTail={ctx.turnTail}
               onCollapse={ctx.onCollapse}
               onCapture={ctx.captureForId(it.id)}
+              canRegenerate={ctx.canRegenerateId === it.id}
+              onRegenerateTurn={ctx.onRegenerateTurn}
             />
           </div>
         );
@@ -278,7 +284,7 @@ function renderOutsideItems(
 // 由 Transcript 用 useCallback 稳定化后传入，memo 才能生效。
 export const TurnBlock = memo(function TurnBlock({
   seg, running, isLast, turnNo, turnTail, openTurn, onToggleTurn, onRewindTurn, onCollapse,
-  dismissedErrors, onDismissError, captureForId, turnElsRef, workHeader,
+  dismissedErrors, onDismissError, captureForId, turnElsRef, workHeader, canRegenerateId, onRegenerateTurn,
 }: {
   seg: Segment;
   running: boolean;
@@ -293,6 +299,8 @@ export const TurnBlock = memo(function TurnBlock({
   dismissedErrors: Set<string>;
   onDismissError: (id: string) => void;
   captureForId: (id: string) => ((solution: string) => void) | undefined;
+  canRegenerateId?: string;
+  onRegenerateTurn?: (turn: number) => void;
   turnElsRef: React.MutableRefObject<Map<number, HTMLElement>>;
   /** v4.26 工作态头部：锚定在最后一轮的用户消息段（WorkHeader 自订 store 的
    *  running/turnStartAt/items，running→done 转换不依赖本组件重渲染）。 */
@@ -313,9 +321,9 @@ export const TurnBlock = memo(function TurnBlock({
     () =>
       renderOutsideItems(seg.outsideItems, {
         turnNo, turnTail, openTurn, onToggleTurn, onRewindTurn, onCollapse,
-        dismissedErrors, onDismissError, captureForId, subcalls, setTurnEl,
+        dismissedErrors, onDismissError, captureForId, canRegenerateId, onRegenerateTurn, subcalls, setTurnEl,
       }),
-    [seg.outsideItems, turnNo, turnTail, openTurn, onToggleTurn, onRewindTurn, onCollapse, dismissedErrors, onDismissError, captureForId, subcalls, setTurnEl],
+    [seg.outsideItems, turnNo, turnTail, openTurn, onToggleTurn, onRewindTurn, onCollapse, dismissedErrors, onDismissError, captureForId, canRegenerateId, onRegenerateTurn, subcalls, setTurnEl],
   );
   return (
     <>
@@ -526,11 +534,13 @@ export const ProcessCard = memo(function ProcessCard({
 });
 
 export function Transcript({
-  onPrompt, onRewind, running, onThreadEl, onScrollToTurnReady,
+  onPrompt, onRewind, onRegenerate, running, onThreadEl, onScrollToTurnReady,
   cwd, cwdName, sessions, onResumeSession, meta,
 }: {
   onPrompt: (text: string) => void;
   onRewind?: (turn: number, scope: string) => void;
+  /** v4.232 重新生成：controller.regenerate（截断该轮后原样重发）。 */
+  onRegenerate?: (turn: number) => void;
   running: boolean;
   onThreadEl?: (el: HTMLElement | null) => void;
   onScrollToTurnReady?: (fn: (turn: number) => void) => void;
@@ -730,6 +740,21 @@ export function Transcript({
     setOpenTurn(null);
   }, [onRewind]);
 
+  const handleRegenerateTurn = useCallback((turn: number) => {
+    onRegenerate?.(turn);
+  }, [onRegenerate]);
+
+  // v4.232 重新生成资格：当前会话最后一条 assistant 消息（非运行中、非流式）。
+  // 运行中/流式一律不显形；半截取消的回复同样可重发（rewind 截断该轮后 resend）。
+  const canRegenerateId = useMemo(() => {
+    if (running) return undefined;
+    for (let i = items.length - 1; i >= 0; i--) {
+      const it = items[i];
+      if (it.kind === "assistant") return it.streaming ? undefined : it.id;
+    }
+    return undefined;
+  }, [items, running]);
+
   const dismissError = useCallback((id: string) => {
     setDismissedErrors((p) => new Set(p).add(id));
   }, []);
@@ -802,6 +827,8 @@ export function Transcript({
                 dismissedErrors={dismissedErrors}
                 onDismissError={dismissError}
                 captureForId={captureForId}
+                canRegenerateId={canRegenerateId}
+                onRegenerateTurn={handleRegenerateTurn}
                 turnElsRef={turnEls}
                 workHeader={segIdx === lastUserSegIdx}
               />

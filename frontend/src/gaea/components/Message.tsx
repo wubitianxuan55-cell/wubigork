@@ -1,5 +1,5 @@
 import { memo, useCallback, useMemo, useRef, useState, useEffect } from "react";
-import { Bot, Check, ChevronDown, ChevronRight, Brain, Copy, FileText, Rollback, Wand2 } from "../icons";
+import { Bot, Check, ChevronDown, ChevronRight, Brain, Copy, FileText, RefreshCw, Rollback, Wand2 } from "../icons";
 import { app } from "../lib/bridge";
 import { MemoMarkdown } from "./MemoMarkdown";
 import { useT } from "../lib/i18n";
@@ -169,6 +169,8 @@ export const AssistantMessage = memo(function AssistantMessage({
   onCapture,
   turnNo,
   deliverTail,
+  canRegenerate,
+  onRegenerateTurn,
 }: {
   item: AssistantItem;
   onCollapse?: () => void;
@@ -178,6 +180,10 @@ export const AssistantMessage = memo(function AssistantMessage({
   turnNo?: number;
   /** 轮尾段才合并登记-only 交付卡（同轮去重）；缺省 true 保持独立渲染语义。 */
   deliverTail?: boolean;
+  /** 可重新生成（v4.232：仅当前会话最后一条 assistant 且非运行中）。
+   *  回调按轮号重发（controller.regenerate），props 恒稳定以保 memo。 */
+  canRegenerate?: boolean;
+  onRegenerateTurn?: (turn: number) => void;
 }) {
   const t = useT();
   const compact = useCompact();
@@ -197,6 +203,9 @@ export const AssistantMessage = memo(function AssistantMessage({
     setUserToggled(true);
     setReasoningOpenState((v) => !v);
   }, []);
+  const handleRegenerate = useCallback(() => {
+    if (turnNo != null) onRegenerateTurn?.(turnNo);
+  }, [onRegenerateTurn, turnNo]);
 
   const reasoningDisplay = displayReasoningText(item.reasoning ?? "", {
     streaming: item.streaming ?? false,
@@ -302,6 +311,17 @@ export const AssistantMessage = memo(function AssistantMessage({
                 >
                   <Wand2 size={11} />
                   {t("msg.captureSkill")}
+                </button>
+              )}
+              {canRegenerate && onRegenerateTurn && turnNo != null && (
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1 px-1.5 py-0.5 border-0 rounded bg-transparent text-fg-faint/50 text-[10.5px] cursor-pointer hover:text-fg hover:bg-bg-soft transition-colors"
+                  onClick={handleRegenerate}
+                  title={t("msg.regenerate")}
+                >
+                  <RefreshCw size={11} />
+                  {t("msg.regenerate")}
                 </button>
               )}
             </div>

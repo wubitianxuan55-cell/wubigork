@@ -73,6 +73,101 @@ describe("isFinalAnswerRendered（T7-4 完整文本比较）", () => {
   });
 });
 
+describe("regenerate 重新生成编排（v4.232）", () => {
+  beforeEach(() => {
+    useStore.setState({ ...initialState, _dispatch: useStore.getState()._dispatch });
+  });
+  afterEach(() => {
+    clearInject();
+  });
+
+  function seedTwoTurns(): void {
+    useStore.setState({
+      items: [
+        { kind: "user", id: "u1", text: "第一轮问题" },
+        { kind: "assistant", id: "a1", text: "第一轮回答", reasoning: "", streaming: false },
+        { kind: "user", id: "u2", text: "第二轮问题" },
+        { kind: "assistant", id: "a2", text: "第二轮回答", reasoning: "", streaming: false },
+      ] as Item[],
+    });
+  }
+
+  it("最后一轮：rewind(conversation) 成功后原样重发该轮用户文本", async () => {
+    const f = facade();
+    const rewindSpy = vi.fn(async () => {});
+    const sendSpy = vi.fn(async () => {});
+    f.GaeaRewind = rewindSpy;
+    f.GaeaSend = sendSpy;
+    f.GaeaResyncEvents = vi.fn(async () => null);
+    inject(f);
+    const { result } = renderHook(() => useController());
+    await flush();
+    seedTwoTurns();
+
+    let ok = false;
+    await act(async () => { ok = await result.current.regenerate(1); });
+
+    expect(ok).toBe(true);
+    expect(rewindSpy).toHaveBeenCalledWith(1, "conversation");
+    expect(sendSpy).toHaveBeenCalledTimes(1);
+    expect(sendSpy).toHaveBeenCalledWith("第二轮问题");
+  });
+
+  it("rewind 失败：不重发、返回 false、失败可见（回退对话）", async () => {
+    const f = facade();
+    f.GaeaRewind = vi.fn(async () => { throw new Error("truncate boom"); });
+    f.GaeaSend = vi.fn(async () => {});
+    f.GaeaResyncEvents = vi.fn(async () => null);
+    inject(f);
+    const { result } = renderHook(() => useController());
+    await flush();
+    seedTwoTurns();
+
+    let ok = true;
+    await act(async () => { ok = await result.current.regenerate(1); });
+
+    expect(ok).toBe(false);
+    expect(f.GaeaSend).not.toHaveBeenCalled();
+    expect(noticeText()).toContain("回退对话");
+    expect(noticeText()).toContain("truncate boom");
+  });
+
+  it("非最后一轮拒绝：不触碰后端（语义上交给回退）", async () => {
+    const f = facade();
+    const rewindSpy = vi.fn(async () => {});
+    f.GaeaRewind = rewindSpy;
+    f.GaeaSend = vi.fn(async () => {});
+    inject(f);
+    const { result } = renderHook(() => useController());
+    await flush();
+    seedTwoTurns();
+
+    let ok = true;
+    await act(async () => { ok = await result.current.regenerate(0); });
+
+    expect(ok).toBe(false);
+    expect(rewindSpy).not.toHaveBeenCalled();
+  });
+
+  it("运行中拒绝：running 或有排队未决消息时不编排", async () => {
+    const f = facade();
+    const rewindSpy = vi.fn(async () => {});
+    f.GaeaRewind = rewindSpy;
+    f.GaeaSend = vi.fn(async () => {});
+    inject(f);
+    const { result } = renderHook(() => useController());
+    await flush();
+    seedTwoTurns();
+    useStore.setState({ running: true });
+
+    let ok = true;
+    await act(async () => { ok = await result.current.regenerate(1); });
+
+    expect(ok).toBe(false);
+    expect(rewindSpy).not.toHaveBeenCalled();
+  });
+});
+
 describe("useController 写路径失败可见化（T7-4）", () => {
   beforeEach(() => {
     // 重置共享 store，避免用例间状态污染（保留工作 _dispatch）
