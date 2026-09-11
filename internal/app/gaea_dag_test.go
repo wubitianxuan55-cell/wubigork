@@ -546,3 +546,78 @@ func TestDagParallelWaveAndSessionAttribution(t *testing.T) {
 		}
 	}
 }
+
+// TestDagPlanEditInPlace dag_plan 增量改图（v4.222）：run_id 在场=原地调和——
+// 形状未变节点保留状态/产物，变更节点回 pending，撤销验收如实注明；run 不在
+// 场/坏形状 fail-closed。
+func TestDagPlanEditInPlace(t *testing.T) {
+	injectDagEnv(t)
+	id := planChain(t)
+	tool := dagPlanTool{dir: filepath.Join(".", ".gaea", "work", "dag")}
+	a := &App{}
+
+	// 先跑一轮让 read 拿到产物与 ref。
+	SetDagRunnerForTest(func(ctx context.Context, prompt string, emit func(ref, text string)) (string, string, error) {
+		return "ok", "sa_x", nil
+	})
+	if _, err := a.GaeaDagRun(id); err != nil {
+		t.Fatal(err)
+	}
+	waitDagDone(t, id)
+
+	edit := func(t *testing.T, args map[string]any) string {
+		t.Helper()
+		b, err := json.Marshal(args)
+		if err != nil {
+			t.Fatal(err)
+		}
+		out, err := tool.Execute(context.Background(), b)
+		if err != nil {
+			t.Fatalf("edit: %v", err)
+		}
+		return out
+	}
+
+	// 改 report 指令（read 原样保留）→ 保留 2、改 1。
+	out := edit(t, map[string]any{
+		"goal": "出月度报告", "run_id": id,
+		"nodes": []map[string]any{
+			{"id": "read", "title": "读报表", "prompt": "读取三份月度 xlsx"},
+			{"id": "pivot", "title": "透视汇总", "prompt": "透视汇总出 summary.xlsx", "depends_on": []string{"read"}},
+			{"id": "report", "title": "出报告", "prompt": "改用季度口径出报告 docx", "depends_on": []string{"pivot"}},
+		},
+	})
+	if !strings.Contains(out, "保留 2 节点") || !strings.Contains(out, "改/增 1") {
+		t.Fatalf("改图文案错误: %q", out)
+	}
+	r, _ := a.dagStore().Get(id)
+	if n := dagNode(t, r, "read"); n.Status != dag.StatusDone || n.RunCount != 1 || n.Ref != "sa_x" {
+		t.Fatalf("未变节点状态应保留: %+v", n)
+	}
+	if n := dagNode(t, r, "report"); n.Status != dag.StatusPending || n.RunCount != 0 {
+		t.Fatalf("变更节点应回 pending: %+v", n)
+	}
+
+	// 守卫：run 不在场报错；运行中拒绝（构造一个 running 节点）；移除仍被依赖
+	// 的 read = 悬空依赖拒绝。
+	if _, err := tool.Execute(context.Background(), json.RawMessage(`{"goal":"g","run_id":"dag_ghost","nodes":[
+		{"id":"a","title":"t","prompt":"p"},{"id":"b","title":"t","prompt":"p"}]}`)); err == nil {
+		t.Fatal("编辑不存在的 run 应报错")
+	}
+	r, _ = a.dagStore().Get(id)
+	r.Nodes[1].Status = dag.StatusRunning // pivot 标 running（模拟在跑）
+	if err := a.dagStore().Save(r); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tool.Execute(context.Background(), json.RawMessage(`{"goal":"出月度报告","run_id":"`+id+`","nodes":[
+		{"id":"read","title":"读报表","prompt":"p1"},
+		{"id":"pivot","title":"透视汇总","prompt":"p2","depends_on":["read"]},
+		{"id":"report","title":"出报告","prompt":"p3","depends_on":["pivot"]}]}`)); err == nil {
+		t.Fatal("运行中应拒绝改图")
+	}
+	if _, err := tool.Execute(context.Background(), json.RawMessage(`{"goal":"出月度报告","run_id":"`+id+`","nodes":[
+		{"id":"pivot","title":"透视汇总","prompt":"p2","depends_on":["read"]},
+		{"id":"report","title":"出报告","prompt":"p3","depends_on":["pivot"]}]}`)); err == nil {
+		t.Fatal("移除仍被依赖的 read 应悬空拒绝")
+	}
+}

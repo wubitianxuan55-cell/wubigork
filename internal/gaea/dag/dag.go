@@ -221,6 +221,81 @@ func MarkInterrupted(r *Run, reason string) bool {
 	return changed
 }
 
+// EditReport 是一次增量改图的调和结果（人读摘要用）。
+type EditReport struct {
+	Kept       int // 原样保留（形状未变，状态/产物/运行痕迹延续）
+	Updated    int // 形状有变或新增，回 pending（含撤销验收）
+	Removed    int // 移除的节点数
+	RevokedAcc int // 其中撤销了已验收节点的数量
+}
+
+// ApplyEdit 增量改图（v4.222）：新图（goal+全量节点）对既有 run 做原地调和。
+// 语义（诚实可解释）：
+//   - 运行中拒绝（Derived==running fail-closed，先终止再改）；
+//   - 新图必须自身合法（Validate：非空/id 唯一/依赖在场/无环）——被移除节点
+//     若仍被保留节点依赖，Validate 悬空依赖自然拒绝，不静默断链；
+//   - 节点按 id 对账：id 在且 title/prompt/dependsOn 全等 → 原样保留（状态/
+//     产物/运行痕迹延续）；id 在但有变、或新 id → 回 pending 全新节点；
+//   - 已验收节点被改/被删 = 撤销验收（产物是旧指令的产出，新指令下不再成立），
+//     RevokedAcc 计数交调用方透出，不静默。
+func ApplyEdit(r Run, goal string, nodes []Node) (Run, EditReport, error) {
+	if d := Derived(r); d == DerivedRunning {
+		return Run{}, EditReport{}, fmt.Errorf("流水线运行中，先终止再改图")
+	}
+	if err := Validate(goal, nodes); err != nil {
+		return Run{}, EditReport{}, err
+	}
+	old := make(map[string]Node, len(r.Nodes))
+	for _, n := range r.Nodes {
+		old[n.ID] = n
+	}
+	var rep EditReport
+	reconciled := make([]Node, 0, len(nodes))
+	for _, n := range nodes {
+		prev, existed := old[n.ID]
+		sameShape := existed &&
+			prev.Title == n.Title && prev.Prompt == n.Prompt && sameDeps(prev.DependsOn, n.DependsOn)
+		if sameShape {
+			reconciled = append(reconciled, prev)
+			rep.Kept++
+			continue
+		}
+		if prev.Status == StatusAccepted {
+			rep.RevokedAcc++
+		}
+		if existed {
+			rep.Updated++
+		} else {
+			rep.Updated++ // 新增同计入 Updated（回 pending 的都算「改」）
+		}
+		reconciled = append(reconciled, Node{
+			ID:        n.ID,
+			Title:     n.Title,
+			Prompt:    n.Prompt,
+			DependsOn: n.DependsOn,
+			Status:    StatusPending,
+		})
+	}
+	rep.Removed = len(r.Nodes) - (rep.Kept + rep.Updated)
+	r.Goal = strings.TrimSpace(goal)
+	r.Nodes = reconciled
+	return r, rep, nil
+}
+
+// sameDeps 依赖列表等值比较（顺序敏感——dag_plan 落盘与模型回传同序，顺序
+// 变化视为形状变化回 pending，宁可多改不可漏改）。
+func sameDeps(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
 // Store run 档文件存储（无状态；并发读改写由调用方串行化）。
 type Store struct{ dir string }
 

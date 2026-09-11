@@ -37,7 +37,7 @@ func (d dagPlanTool) SpaceTag() string   { return spaces.SpaceWork }
 func (d dagPlanTool) PersistWrite() bool { return true }
 
 func (d dagPlanTool) Description() string {
-	return "把多文件跨格式任务（如「读 N 份报表→透视→嵌图表→出 Word→导 PDF」）规划成一条可执行的文件流水线：逐节点写清委托指令与依赖，落盘后用户在 任务中心→文件流水线 起跑、逐节点验收。只做规划不执行。适用于用户表达一条多步骤交付意图、且各步骤可独立验收的场景；单文件小改动不要用。"
+	return "把多文件跨格式任务（如「读 N 份报表→透视→嵌图表→出 Word→导 PDF」）规划成一条可执行的文件流水线：逐节点写清委托指令与依赖，落盘后用户在 任务中心→文件流水线 起跑、逐节点验收。只做规划不执行。带 run_id 时为增量改图：对既有流水线原地调和（形状未变的节点保留状态与产物，变更/新增节点回待跑，撤销已验收节点会如实注明），不必整链重建。单文件小改动不要用。"
 }
 
 func (d dagPlanTool) Schema() json.RawMessage {
@@ -45,6 +45,7 @@ func (d dagPlanTool) Schema() json.RawMessage {
 "type":"object",
 "properties":{
   "goal":{"type":"string","description":"整条流水线的最终目标与验收口径（一句话）"},
+  "run_id":{"type":"string","description":"可选。传入既有流水线 id 时为增量改图模式（运行中的流水线会被拒绝）；省略时新建流水线"},
   "nodes":{"type":"array","minItems":2,"items":{"type":"object","properties":{
     "id":{"type":"string","description":"节点短 id（ASCII kebab，如 read-reports）"},
     "title":{"type":"string","description":"节点名（3-8 字，验收后将作为记忆条目名）"},
@@ -59,6 +60,7 @@ func (d dagPlanTool) Schema() json.RawMessage {
 func (d dagPlanTool) Execute(ctx context.Context, args json.RawMessage) (string, error) {
 	var p struct {
 		Goal  string `json:"goal"`
+		RunID string `json:"run_id"`
 		Nodes []struct {
 			ID        string   `json:"id"`
 			Title     string   `json:"title"`
@@ -79,12 +81,36 @@ func (d dagPlanTool) Execute(ctx context.Context, args json.RawMessage) (string,
 			Status:    dag.StatusPending,
 		})
 	}
-	if err := dag.Validate(p.Goal, nodes); err != nil {
+	goal := strings.TrimSpace(p.Goal)
+
+	// 增量改图模式（run_id 在场）：原地调和，不换 run id，不重排既有验收。
+	if runID := strings.TrimSpace(p.RunID); runID != "" {
+		store := dag.NewStore(d.dir)
+		r, err := store.Get(runID)
+		if err != nil {
+			return "", err
+		}
+		r, rep, err := dag.ApplyEdit(r, goal, nodes)
+		if err != nil {
+			return "", err
+		}
+		if err := store.Save(r); err != nil {
+			return "", fmt.Errorf("流水线改图落盘: %w", err)
+		}
+		slog.Info("文件流水线已改图", "id", r.ID, "kept", rep.Kept, "updated", rep.Updated, "removed", rep.Removed, "revoked", rep.RevokedAcc)
+		msg := fmt.Sprintf("已更新流水线 %s：保留 %d 节点、改/增 %d 节点、移除 %d 节点。", r.ID, rep.Kept, rep.Updated, rep.Removed)
+		if rep.RevokedAcc > 0 {
+			msg += fmt.Sprintf("注意：%d 个已验收节点因指令变更撤销验收，重跑后需重新验收。", rep.RevokedAcc)
+		}
+		return msg, nil
+	}
+
+	if err := dag.Validate(goal, nodes); err != nil {
 		return "", err
 	}
 	run := dag.Run{
 		ID:        dag.NewID(),
-		Goal:      strings.TrimSpace(p.Goal),
+		Goal:      goal,
 		CreatedAt: time.Now().Format(time.RFC3339),
 		Nodes:     nodes,
 	}

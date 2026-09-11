@@ -173,3 +173,66 @@ func TestStoreRoundTripAndSafety(t *testing.T) {
 		t.Fatalf("tmp 文件不应入列，得 %d", len(list))
 	}
 }
+
+// ApplyEdit 增量改图（v4.222）：形状未变保留状态/变更回 pending/移除/撤销验收
+// 诚实计数；运行中与坏形状 fail-closed。
+func TestApplyEditReconcile(t *testing.T) {
+	r := Run{
+		ID:   "dag_e",
+		Goal: "出月度报告",
+		Nodes: []Node{
+			{ID: "read", Title: "读报表", Prompt: "读取三份月度 xlsx", Status: StatusAccepted,
+				Ref: "sa_read", Outputs: []string{"docs/read.xlsx"}, RunCount: 1},
+			{ID: "report", Title: "出报告", Prompt: "嵌图表出报告 docx", DependsOn: []string{"read"},
+				Status: StatusDone, RunCount: 1},
+		},
+	}
+
+	// 改 report 指令 + 新增 pivot + 移除无 → read 原样保留（验收不动）。
+	newNodes := []Node{
+		{ID: "read", Title: "读报表", Prompt: "读取三份月度 xlsx", DependsOn: []string{}},
+		{ID: "report", Title: "出报告", Prompt: "改用季度口径出报告", DependsOn: []string{"read"}},
+	}
+	out, rep, err := ApplyEdit(r, "出月度报告", newNodes)
+	if err != nil {
+		t.Fatalf("ApplyEdit: %v", err)
+	}
+	if rep.Kept != 1 || rep.Updated != 1 || rep.Removed != 0 || rep.RevokedAcc != 0 {
+		t.Fatalf("调和计数错误: %+v", rep)
+	}
+	if n := out.Nodes[0]; n.Status != StatusAccepted || len(n.Outputs) != 1 {
+		t.Fatalf("未变节点应保留状态与产物: %+v", n)
+	}
+	if n := out.Nodes[1]; n.Status != StatusPending || n.RunCount != 0 || n.Ref != "" {
+		t.Fatalf("变更节点应回 pending 全新: %+v", n)
+	}
+
+	// 改已验收节点 = 撤销验收，计数透出。
+	acc := Run{ID: "dag_e2", Goal: "g", Nodes: []Node{
+		{ID: "a", Title: "t", Prompt: "旧指令", Status: StatusAccepted, RunCount: 1},
+	}}
+	out, rep, err = ApplyEdit(acc, "g", []Node{{ID: "a", Title: "t", Prompt: "新指令"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rep.RevokedAcc != 1 || out.Nodes[0].Status != StatusPending {
+		t.Fatalf("撤销验收语义错误: rep=%+v node=%+v", rep, out.Nodes[0])
+	}
+
+	// 守卫：运行中拒绝；成环拒绝；移除仍被依赖的节点=悬空依赖拒绝。
+	running := Run{ID: "dag_e3", Goal: "g", Nodes: []Node{{ID: "a", Title: "t", Prompt: "p", Status: StatusRunning}}}
+	if _, _, err := ApplyEdit(running, "g", []Node{{ID: "a", Title: "t", Prompt: "p2"}}); err == nil {
+		t.Fatal("运行中应拒绝改图")
+	}
+	if _, _, err := ApplyEdit(r, "g", []Node{
+		{ID: "a", Title: "t", Prompt: "p", DependsOn: []string{"b"}},
+		{ID: "b", Title: "t", Prompt: "p", DependsOn: []string{"a"}},
+	}); err == nil {
+		t.Fatal("新图成环应拒绝")
+	}
+	if _, _, err := ApplyEdit(r, "g", []Node{
+		{ID: "report", Title: "出报告", Prompt: "p", DependsOn: []string{"read"}},
+	}); err == nil {
+		t.Fatal("移除仍被依赖的 read 应悬空拒绝")
+	}
+}
