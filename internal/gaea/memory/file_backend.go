@@ -181,6 +181,12 @@ func (b *fileBackend) Unpin(string) error {
 	return fmt.Errorf("文件后端不支持固化（SQLite 后端可用）")
 }
 
+// AppendFeedbackEvent 反馈事件：文件后端不支持（对齐 Pin 先例——生产路径是
+// SQLite 后端），明确报错由调用方诚实展示，绝不静默假成功。
+func (b *fileBackend) AppendFeedbackEvent(e Event) error {
+	return fmt.Errorf("文件后端不支持反馈事件（SQLite 后端可用）")
+}
+
 // List returns the saved memories parsed from their files, sorted by name. Used
 // by `/memory` and the desktop memory panel. Files that fail to parse are
 // skipped so one bad file never hides the rest.

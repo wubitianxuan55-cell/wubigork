@@ -231,6 +231,7 @@ export const bindingNames = [
 	"GaeaMemoryLifecycle",
 	"GaeaMemoryMerge",
 	"GaeaMemoryMorningBrief",
+	"GaeaMemoryFeedback",
 	"GaeaMemoryPin",
 	"GaeaMemorySemanticGraph",
 	"GaeaMemorySetRetentionDays",

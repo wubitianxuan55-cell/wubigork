@@ -356,6 +356,7 @@ export const GAEA_METHOD_FACETS = {
   MemoryGraph: "work",
   SemanticGraph: "work",
   MemoryPin: "work",
+  MemoryFeedback: "work",
   MemoryLifecycle: "work",
   MemoryBrief: "work",
   SetMemoryBrief: "work",

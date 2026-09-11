@@ -24,7 +24,7 @@ type MemoryMethods = Pick<
   | "KnowledgeList" | "KnowledgeSearch" | "KnowledgeGet" | "KnowledgeSave" | "KnowledgeDelete"
   | "KnowledgeImportPreview" | "KnowledgeImportAIParse" | "KnowledgeImportApply"
   | "KnowledgeHistory" | "KnowledgeFindSimilar" | "KnowledgeExport" | "KnowledgeReview" | "KnowledgeMerge"
-  | "MemoryDuplicates" | "MemoryMerge" | "SemanticGraph" | "MemoryPin" | "MemoryLifecycle" | "MemoryBrief" | "SetMemoryBrief"
+  | "MemoryDuplicates" | "MemoryMerge" | "SemanticGraph" | "MemoryPin" | "MemoryFeedback" | "MemoryLifecycle" | "MemoryBrief" | "SetMemoryBrief"
   | "MemoryMorningBrief"
 >;
 
@@ -212,6 +212,10 @@ export function buildMemory(_s: MakeMockState): MemoryMethods {
     },
     async SetMemoryBrief() {
       // mock：开关写回即成功（面板 toast 由调用方提示）。
+    },
+    async MemoryFeedback() {
+      // mock：反馈即成功（真机落 memory_events 事件，事件图谱可查）。
+      return undefined;
     },
     async MemoryPin() {
       // mock：固化切换成功即回（面板 reload 后 pinned 徽标随 mock 数据展示）。

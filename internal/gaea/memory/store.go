@@ -109,6 +109,9 @@ type backend interface {
 	// 的后端（file）返回明确错误，由调用方诚实展示。
 	Pin(name string) error
 	Unpin(name string) error
+	// AppendFeedbackEvent 助手回答反馈事件（op=feedback，v4.238 能力层）：
+	// SQLite 后端落 memory_events；文件后端明确报错（Pin 先例）。
+	AppendFeedbackEvent(e Event) error
 	List() []Memory
 	// ListInSpace 按空间过滤活跃事实（S1 双空间读谓词）：space 为空不过滤
 	// （与 List 等价，既有调用零变化），非空时仅返回该 space_id 下的行。
@@ -266,6 +269,10 @@ func (s Store) Pin(name string) error { return s.engine().Pin(name) }
 
 // Unpin 解除固化，回落普通衰减生命周期。
 func (s Store) Unpin(name string) error { return s.engine().Unpin(name) }
+
+// AppendFeedbackEvent 助手回答反馈事件（op=feedback，v4.238 能力层）：
+// SQLite 后端落 memory_events 日志；文件后端明确报错（Pin 先例）。
+func (s Store) AppendFeedbackEvent(e Event) error { return s.engine().AppendFeedbackEvent(e) }
 
 // InSpace 返回按空间收窄**读路径**的 Store 视图（S1.2 B「spaceList 风格单点」
 // 的视图形态）：space 非空时 List/Index/Get/Touch 只作用于该空间（SQLite 走

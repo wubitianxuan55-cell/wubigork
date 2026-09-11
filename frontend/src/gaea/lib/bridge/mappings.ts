@@ -183,6 +183,7 @@ export const gaeaToGaea = {
   MemoryGraph: "GaeaMemoryGraph",
   SemanticGraph: "GaeaMemorySemanticGraph",
   MemoryPin: "GaeaMemoryPin",
+  MemoryFeedback: "GaeaMemoryFeedback",
   MemoryLifecycle: "GaeaMemoryLifecycle",
   MemoryBrief: "GaeaMemoryBrief",
   SetMemoryBrief: "GaeaSetMemoryBrief",

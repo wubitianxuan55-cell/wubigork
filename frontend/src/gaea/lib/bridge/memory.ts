@@ -49,6 +49,10 @@ export interface MemoryBindings {
   SetMemoryEnabled(enabled: boolean): Promise<void>;
   // MemoryPin 固化/解除固化一条办公记忆（5.3 三态生命周期）。
   MemoryPin(name: string, pinned: boolean): Promise<void>;
+  // MemoryFeedback 助手回答反馈（点赞/点踩）落记忆事件（op=feedback，
+  // v4.238 能力层）：messageID=助手消息 id；rating=up/down；excerpt=回答
+  // 摘要（后端截断）；space=事件行空间标记。消费者=事件图谱/事件日志。
+  MemoryFeedback(messageID: string, rating: string, excerpt: string, space: string): Promise<void>;
   // MemoryLifecycle 三态生命周期总览（固化/衰减/归档 + 衰减评分）。
   MemoryLifecycle(): Promise<MemoryLifecycleView>;
   // MorningPreload 读/写晨报预载开关（~/.gaea_config.json，默认开）：work

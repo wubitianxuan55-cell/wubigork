@@ -1,5 +1,5 @@
 import { memo, useCallback, useMemo, useRef, useState, useEffect } from "react";
-import { Bot, Check, ChevronDown, ChevronRight, Brain, Copy, FileText, RefreshCw, Rollback, Wand2 } from "../icons";
+import { Bot, Check, ChevronDown, ChevronRight, Brain, Copy, FileText, RefreshCw, Rollback, ThumbsDown, ThumbsDownFilled, ThumbsUp, ThumbsUpFilled, Wand2 } from "../icons";
 import { app } from "../lib/bridge";
 import { MemoMarkdown } from "./MemoMarkdown";
 import { useT } from "../lib/i18n";
@@ -9,6 +9,7 @@ import { displayReasoningText } from "../lib/reasoningDisplay";
 import { useNow } from "../lib/useNow";
 import { useTurnStartAt } from "../lib/store";
 import { openPaneFileOrPreview } from "../lib/paneFileOpen";
+import { useToast } from "./Toast";
 import type { Item } from "../lib/store";
 import { DeliverableCards } from "./DeliverableCards";
 
@@ -171,6 +172,7 @@ export const AssistantMessage = memo(function AssistantMessage({
   deliverTail,
   canRegenerate,
   onRegenerateTurn,
+  onFeedback,
 }: {
   item: AssistantItem;
   onCollapse?: () => void;
@@ -184,6 +186,8 @@ export const AssistantMessage = memo(function AssistantMessage({
    *  回调按轮号重发（controller.regenerate），props 恒稳定以保 memo。 */
   canRegenerate?: boolean;
   onRegenerateTurn?: (turn: number) => void;
+  /** 回答反馈入口（v4.238）：传=显示 👍/👎（记忆事件 op=feedback 落库）。 */
+  onFeedback?: boolean;
 }) {
   const t = useT();
   const compact = useCompact();
@@ -206,6 +210,20 @@ export const AssistantMessage = memo(function AssistantMessage({
   const handleRegenerate = useCallback(() => {
     if (turnNo != null) onRegenerateTurn?.(turnNo);
   }, [onRegenerateTurn, turnNo]);
+  // 回答反馈（v4.238）：一次有效（事件日志追加式，不可撤回），失败回退可重试。
+  const [rated, setRated] = useState<"up" | "down" | null>(null);
+  const toast = useToast();
+  const sendFeedback = useCallback((rating: "up" | "down") => {
+    if (rated) return;
+    setRated(rating); // 乐观锁钮：失败回退可重试
+    app
+      .MemoryFeedback(item.id, rating, item.text, "work")
+      .then(() => toast.show(rating === "up" ? t("msg.feedbackThanks") : t("msg.feedbackThanksDown"), "info"))
+      .catch((err: unknown) => {
+        setRated(null);
+        toast.show(`${t("msg.feedbackFailed")}: ${err instanceof Error ? err.message : String(err)}`, "error");
+      });
+  }, [rated, item.id, item.text, toast, t]);
 
   const reasoningDisplay = displayReasoningText(item.reasoning ?? "", {
     streaming: item.streaming ?? false,
@@ -323,6 +341,30 @@ export const AssistantMessage = memo(function AssistantMessage({
                   <RefreshCw size={11} />
                   {t("msg.regenerate")}
                 </button>
+              )}
+              {onFeedback && (
+                <>
+                  <button
+                    type="button"
+                    className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 border-0 rounded bg-transparent text-[10.5px] cursor-pointer transition-colors disabled:cursor-default ${rated === "up" ? "text-ok" : "text-fg-faint/50 hover:text-fg"} ${rated !== null && rated !== "up" ? "opacity-40" : ""}`}
+                    disabled={rated !== null}
+                    onClick={() => sendFeedback("up")}
+                    title={rated === "up" ? t("msg.feedbackDone") : t("msg.feedbackUp")}
+                    aria-label={t("msg.feedbackUp")}
+                  >
+                    {rated === "up" ? <ThumbsUpFilled size={11} className="text-ok" /> : <ThumbsUp size={11} />}
+                  </button>
+                  <button
+                    type="button"
+                    className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 border-0 rounded bg-transparent text-[10.5px] cursor-pointer transition-colors disabled:cursor-default ${rated === "down" ? "text-err" : "text-fg-faint/50 hover:text-fg"} ${rated !== null && rated !== "down" ? "opacity-40" : ""}`}
+                    disabled={rated !== null}
+                    onClick={() => sendFeedback("down")}
+                    title={rated === "down" ? t("msg.feedbackDone") : t("msg.feedbackDown")}
+                    aria-label={t("msg.feedbackDown")}
+                  >
+                    {rated === "down" ? <ThumbsDownFilled size={11} className="text-err" /> : <ThumbsDown size={11} />}
+                  </button>
+                </>
               )}
             </div>
           )}

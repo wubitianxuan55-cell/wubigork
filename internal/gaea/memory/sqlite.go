@@ -225,6 +225,22 @@ func (b *sqliteBackend) Unpin(name string) error {
 	return b.setPinned(name, false)
 }
 
+// AppendFeedbackEvent 助手回答反馈（点赞/点踩，op=feedback）追加进事件日志
+// （v4.238 能力层）：摘要按 eventExcerptLimit 截断，日志即真相。投影对
+// feedback 只出事件节点不建实体（与 cite/pin 同边界）。
+func (b *sqliteBackend) AppendFeedbackEvent(e Event) error {
+	if len(e.Excerpt) > eventExcerptLimit {
+		e.Excerpt = e.Excerpt[:eventExcerptLimit]
+	}
+	if e.At == 0 {
+		e.At = time.Now().UnixMilli()
+	}
+	if e.Actor == "" {
+		e.Actor = "panel"
+	}
+	return (&EventLog{DB: b.db}).AppendEvent(e)
+}
+
 func (b *sqliteBackend) setPinned(name string, pinned bool) error {
 	name = slug(name)
 	if name == "" {

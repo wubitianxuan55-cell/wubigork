@@ -697,7 +697,7 @@ export default function App() {
                     {chatTab === "chat" && (
                       <GenuiScopeProvider scope={{ scope: "office", sessionKey: currentSessionKey }}>
                         <GenuiActionProvider onAction={genuiActionHandler}>
-                          <Transcript onPrompt={send} running={state.running} onRewind={rewind} onRegenerate={regenerate} onScrollToTurnReady={setScrollToTurn} cwd={state.meta?.cwd} cwdName={cwdName} sessions={recentSessions} onResumeSession={resumeRecentSession} meta={state.meta} />
+                          <Transcript onPrompt={send} running={state.running} onRewind={rewind} onRegenerate={regenerate} onFeedback onScrollToTurnReady={setScrollToTurn} cwd={state.meta?.cwd} cwdName={cwdName} sessions={recentSessions} onResumeSession={resumeRecentSession} meta={state.meta} />
                           {state.items.length > 1 && <JumpBar items={state.items} scrollToTurn={scrollToTurn ?? undefined} />}
                         </GenuiActionProvider>
                       </GenuiScopeProvider>

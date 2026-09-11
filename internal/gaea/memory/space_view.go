@@ -65,6 +65,10 @@ func (v spaceView) Touch(name string) error { return v.inner.TouchInSpace(name, 
 func (v spaceView) Pin(name string) error   { return v.inner.Pin(name) }
 func (v spaceView) Unpin(name string) error { return v.inner.Unpin(name) }
 
+// AppendFeedbackEvent 反馈事件透传内层后端（事件行自带 Space 字段，视图
+// 不改写——与 Pin 同形的最小透传面）。
+func (v spaceView) AppendFeedbackEvent(e Event) error { return v.inner.AppendFeedbackEvent(e) }
+
 func (v spaceView) TouchInSpace(name, space string) error {
 	if space == "" {
 		return v.inner.TouchInSpace(name, v.space)

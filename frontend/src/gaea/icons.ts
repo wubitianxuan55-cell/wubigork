@@ -3,6 +3,10 @@
 // 用法：`import { X, Check, ... } from "../icons"`（原 lucide 图标名保持可用）。
 import {
   AlertOutlined,
+  DislikeFilled,
+  DislikeOutlined,
+  LikeFilled,
+  LikeOutlined,
   AimOutlined,
   ApartmentOutlined,
   ApiOutlined,
@@ -104,6 +108,10 @@ function wrap(Comp: ElementType): Icon {
 
 // lucide 名 → antd 图标
 export const AlertCircle: Icon = wrap(AlertOutlined);
+export const ThumbsUp: Icon = wrap(LikeOutlined);
+export const ThumbsUpFilled: Icon = wrap(LikeFilled);
+export const ThumbsDown: Icon = wrap(DislikeOutlined);
+export const ThumbsDownFilled: Icon = wrap(DislikeFilled);
 export const Aim: Icon = wrap(AimOutlined);
 export const ArrowDown: Icon = wrap(ArrowDownOutlined);
 export const ArrowUp: Icon = wrap(ArrowUpOutlined);

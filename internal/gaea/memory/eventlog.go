@@ -51,6 +51,7 @@ const (
 	OpCite       = "cite"
 	OpPin        = "pin"   // 固化（5.3 三态生命周期）
 	OpUnpin      = "unpin" // 解除固化
+	OpFeedback   = "feedback" // 助手回答反馈（点赞/点踩，v4.238 能力层；投影只出事件节点不建实体）
 )
 
 // wikiRefRe 匹配 body 中的 wiki 式互引：[[name]] / [[name|别名]]。与 app 层

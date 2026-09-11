@@ -193,6 +193,8 @@ function renderOutsideItems(
      *  且非运行中；undefined=无）。回调 props 恒稳定，不击穿 AssistantMessage memo。 */
     canRegenerateId?: string;
     onRegenerateTurn?: (turn: number) => void;
+    /** v4.238 回答反馈能力开关（App 层恒传 true）。 */
+    onFeedback?: boolean;
     subcalls: Map<string, ToolItem[]>;
     setTurnEl: (tn: number) => (el: HTMLElement | null) => void;
   },
@@ -240,6 +242,7 @@ function renderOutsideItems(
               onCapture={ctx.captureForId(it.id)}
               canRegenerate={ctx.canRegenerateId === it.id}
               onRegenerateTurn={ctx.onRegenerateTurn}
+              onFeedback={ctx.onFeedback}
             />
           </div>
         );
@@ -284,7 +287,7 @@ function renderOutsideItems(
 // 由 Transcript 用 useCallback 稳定化后传入，memo 才能生效。
 export const TurnBlock = memo(function TurnBlock({
   seg, running, isLast, turnNo, turnTail, openTurn, onToggleTurn, onRewindTurn, onCollapse,
-  dismissedErrors, onDismissError, captureForId, turnElsRef, workHeader, canRegenerateId, onRegenerateTurn,
+  dismissedErrors, onDismissError, captureForId, turnElsRef, workHeader, canRegenerateId, onRegenerateTurn, onFeedback,
 }: {
   seg: Segment;
   running: boolean;
@@ -301,6 +304,8 @@ export const TurnBlock = memo(function TurnBlock({
   captureForId: (id: string) => ((solution: string) => void) | undefined;
   canRegenerateId?: string;
   onRegenerateTurn?: (turn: number) => void;
+  /** v4.238 回答反馈能力开关（透传 AssistantMessage）。 */
+  onFeedback?: boolean;
   turnElsRef: React.MutableRefObject<Map<number, HTMLElement>>;
   /** v4.26 工作态头部：锚定在最后一轮的用户消息段（WorkHeader 自订 store 的
    *  running/turnStartAt/items，running→done 转换不依赖本组件重渲染）。 */
@@ -321,9 +326,9 @@ export const TurnBlock = memo(function TurnBlock({
     () =>
       renderOutsideItems(seg.outsideItems, {
         turnNo, turnTail, openTurn, onToggleTurn, onRewindTurn, onCollapse,
-        dismissedErrors, onDismissError, captureForId, canRegenerateId, onRegenerateTurn, subcalls, setTurnEl,
+        dismissedErrors, onDismissError, captureForId, canRegenerateId, onRegenerateTurn, onFeedback, subcalls, setTurnEl,
       }),
-    [seg.outsideItems, turnNo, turnTail, openTurn, onToggleTurn, onRewindTurn, onCollapse, dismissedErrors, onDismissError, captureForId, canRegenerateId, onRegenerateTurn, subcalls, setTurnEl],
+    [seg.outsideItems, turnNo, turnTail, openTurn, onToggleTurn, onRewindTurn, onCollapse, dismissedErrors, onDismissError, captureForId, canRegenerateId, onRegenerateTurn, onFeedback, subcalls, setTurnEl],
   );
   return (
     <>
@@ -534,13 +539,15 @@ export const ProcessCard = memo(function ProcessCard({
 });
 
 export function Transcript({
-  onPrompt, onRewind, onRegenerate, running, onThreadEl, onScrollToTurnReady,
+  onPrompt, onRewind, onRegenerate, onFeedback, running, onThreadEl, onScrollToTurnReady,
   cwd, cwdName, sessions, onResumeSession, meta,
 }: {
   onPrompt: (text: string) => void;
   onRewind?: (turn: number, scope: string) => void;
-  /** v4.232 重新生成：controller.regenerate（截断该轮后原样重发）。 */
+  /** v4.236 重新生成：controller.regenerate（截断该轮后原样重发）。 */
   onRegenerate?: (turn: number) => void;
+  /** v4.238 回答反馈能力开关。 */
+  onFeedback?: boolean;
   running: boolean;
   onThreadEl?: (el: HTMLElement | null) => void;
   onScrollToTurnReady?: (fn: (turn: number) => void) => void;
@@ -829,6 +836,7 @@ export function Transcript({
                 captureForId={captureForId}
                 canRegenerateId={canRegenerateId}
                 onRegenerateTurn={handleRegenerateTurn}
+                onFeedback={onFeedback}
                 turnElsRef={turnEls}
                 workHeader={segIdx === lastUserSegIdx}
               />
