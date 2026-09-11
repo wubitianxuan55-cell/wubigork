@@ -214,3 +214,4 @@ func (b *OfficeB) OfficeIsTask(text string) bool { return b.a.OfficeIsTask(text)
 func (b *OfficeB) OfficeListFolder(p string) office.ExecResult { return b.a.OfficeListFolder(p) }
 func (b *OfficeB) OfficeReadFile(p string) office.ExecResult { return b.a.OfficeReadFile(p) }
 func (b *OfficeB) OfficeSetMode(s string, e bool) { b.a.OfficeSetMode(s, e) }
+

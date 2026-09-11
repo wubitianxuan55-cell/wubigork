@@ -7,10 +7,11 @@
  *  - E24: 记忆中枢 3D 图谱必须用 3d-force-graph（误装底层库会白屏）
  *  - E25: 聊天×轻语合并不变量（单一入口 ChatSend / localStorage 迁移 / 菜单无独立轻语）
  *  - E26: 壳层空间切换=纯导航（1B 拍板 2026-09-10：switchSpace 零桥接，不打断在跑的活）
+ *  - E27: Go 绑定面变参禁令（v4.237 定论：Wails v2.13 变参绑定不可用——unmarshal/reflect 双口径矛盾，静默坏死）
  *
  * 任一检查失败 → 非零退出，CI 拦截。
  */
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
@@ -156,6 +157,31 @@ section("E26 空间切换零桥接");
     const hit = forbidden.filter((k) => body.includes(k));
     if (hit.length) bad(`switchSpace 含引擎/桥接调用（违反 1B 拍板）: ${hit.join(", ")}`);
     else ok("switchSpace 零桥接——壳层切换纯导航，不打断在跑的活");
+  }
+}
+
+// E27: Go 绑定面变参禁令（v4.237 三刀定论：Wails v2.13 对 ...T 绑定，
+// ParseArgs 按 []T 反序列化、reflect.Call 按 In(0)=T 校验——双口径矛盾，
+// 任何传参形态要么立即报错要么回调永不送达（静默坏死数周）。
+// 绑定门面（internal/app/bindings_*.go）一律禁用变参参数；
+// 核心层（internal/gaea/**）可保留变参，由门面单参透传。）
+section("E27 Go 绑定面变参禁令");
+{
+  const bindDir = path.join(root, "internal", "app");
+  const files = readdirSync(bindDir).filter((f) => /^bindings_.*\.go$/.test(f));
+  const hits = [];
+  for (const f of files) {
+    const lines = readFileSync(path.join(bindDir, f), "utf8").split(/\r?\n/);
+    lines.forEach((line, i) => {
+      if (/^\s*func \(\w+ \*\w+\) \w+\(.*\.\.\./.test(line)) {
+        hits.push(`${f}:${i + 1} ${line.trim().slice(0, 70)}`);
+      }
+    });
+  }
+  if (hits.length) {
+    for (const h of hits) bad(`变参绑定（Wails v2.13 不可用，改单参透传）: ${h}`);
+  } else {
+    ok("绑定面无变参参数（GaeaTaskList/GaeaAgentNetwork 族已单参化）");
   }
 }
 
