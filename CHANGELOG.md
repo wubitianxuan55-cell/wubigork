@@ -1,3 +1,6 @@
+## knip Unused exports 甄别首批（2026-09-12，非版本刀）
+> 维持轨项（.gaea/todos.md ⬜→🔶）。knip@5 + 新增 frontend/knip.json 固化口径（ignoreExportsUsedInFile + test 入口； genui/icons barrel 白名单）——全量 441 项过滤后 **真死候选 56 项**。**首批删除 14 项零引用声明**（stats.ts×7：priceFor/calcCost/fmtElapsed/filterSteps/withHitRate/mergeCols/DEFAULT_PRICE；subagentRunsStore getSubagentRunsSnapshot；officeTurnProjection OFFICE_READ_TOOLS；workspaceTabs WORKSPACE_TAB_COMPACT_WIDTH；api/engines getSemanticIndexStatus/getBenchmarkDetail；chat/constants CHAT_SIDEBAR_KEY；schedule/customFields customUsedKeys；gsapAnimations DUR_FAST）。**剩余 46 项三态账本**：守卫 KEEP 12（spaceBindings/drift 编译期 canary + wails.d.ts 生成面）+ DEFAULT 组件 7 + 真死待删 27（下一批 surgical 删除）。**坑**=括号配平删除脚本对无分号单行常量会吞后续行（CHAT_SIDEBAR_KEY 案，git checkout 恢复后单行精确重删）——声明块删除必须 tsc+git diff 双验证。**门禁**：tsc 0/eslint 0/StatsPanel 4 例绿。
+
 ## v4.239.0 · 数学公式渲染对齐：伴侣线接入 KaTeX（2026-09-12）
 > 「AI 输出对齐」补遗刀：**伴侣/聊天线（ChatMarkdown/MarkdownContent）一直没有数学渲染**——$E=mc^2$、$$..$$、\(..\) 全部裸显。**落地**：① 新 gaea/lib/mathText.ts 跨板块共享（自 gaea Markdown.tsx 提取 normalizeMath/hasMathContent/ensureKatexCss，行为零变化）；② ChatMarkdown plain 终态管线加 remark-math + rehype-katex，text 先过 normalizeMath，有数学内容才注入 KaTeX CSS；③ MarkdownContent companion/流式同款（GenUI 覆盖件路径不受影响）。零新依赖零新 chunk（katex 模块/样式经既有共享 chunk 复用）、无 Go 改动、绑定 625 不变。**测试**=vitest +2（两线 $..$ → .katex 真实渲染）。**门禁**：tsc 0/eslint 0/ci.ps1 全绿/绑定 625/版本三处 4.239.0。
 

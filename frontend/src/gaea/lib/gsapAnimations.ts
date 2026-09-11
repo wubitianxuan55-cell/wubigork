@@ -2,9 +2,6 @@
 // Mirrors the CSS token system (--dur-fast / --dur-base / --dur-slow / --ease-out)
 // so JS-driven animations stay in sync with the CSS transition layer.
 
-/** 120ms — color/border hovers, tooltips. Mirrors CSS --dur-fast. */
-export const DUR_FAST = 0.12;
-
 /** 180ms — popovers, menus, small enters. Mirrors CSS --dur-base. */
 export const DUR_BASE = 0.18;
 

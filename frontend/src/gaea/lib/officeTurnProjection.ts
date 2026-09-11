@@ -34,17 +34,6 @@ export const OFFICE_WRITE_TOOLS: ReadonlySet<string> = new Set([
   "xlsx_apply",
 ]);
 
-// 读取类 = lib/changes.ts READ_TOOL_NAMES 白名单（read_file/grep/vision/
-// format_convert）+ ls（列目录，生命周期「发现」语义）。format_convert 同时在
-// 写入集合里：分类以写入优先（它落盘产物），其读取侧路径不参与回读判定。
-export const OFFICE_READ_TOOLS: ReadonlySet<string> = new Set([
-  "read_file",
-  "grep",
-  "vision",
-  "format_convert",
-  "ls",
-]);
-
 // Office 文档扩展名（草稿/就绪徽标与预览置前的适用范围；对齐
 // DELIVERABLE_EXT_RE 的办公文档子集 + 国产格式 wps/et/dps/ofd）。
 export const OFFICE_DOC_EXT_RE =

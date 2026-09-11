@@ -9,7 +9,6 @@ export const LEGACY_PERSONALITY_KEY = 'wubigrok_whisper_personality'
 export const COMPANION_SETTINGS_KEY = 'gaea_whisper_companion_settings'
 export const LEGACY_COMPANION_SETTINGS_KEY = 'wubigrok_whisper_companion_settings'
 export const ACTIVE_TOPIC_KEY = 'gaea_chat_active_topic'
-export const CHAT_SIDEBAR_KEY = 'gaea.chatSidebarCollapsed'
 // T6-3.4：旧 localStorage 话题迁移「已完成」持久化标记（版本化键）。
 // 迁移成功才写入；失败不写（下次启动可重试），本次会话内仅尝试一次（initRef 守卫）。
 export const MIGRATION_KEY = 'gaea_chat_migration_v1'

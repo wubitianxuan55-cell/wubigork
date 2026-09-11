@@ -46,14 +46,3 @@ export function customValueOf(task: SchedTask, key: CustomFieldKey): string | nu
   if (def?.type === 'number') return typeof v === 'number' && Number.isFinite(v) ? v : undefined
   return typeof v === 'string' ? v : undefined
 }
-
-/** 有值槽 key 集（按注册表序返回；xlsx 导出只出这些列） */
-export function customUsedKeys(tasks: SchedTask[]): CustomFieldKey[] {
-  const used = new Set<CustomFieldKey>()
-  for (const t of tasks) {
-    for (const d of CUSTOM_FIELDS) {
-      if (customValueOf(t, d.key) !== undefined) used.add(d.key)
-    }
-  }
-  return CUSTOM_FIELDS.filter((d) => used.has(d.key)).map((d) => d.key)
-}

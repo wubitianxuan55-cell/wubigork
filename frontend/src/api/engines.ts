@@ -561,12 +561,6 @@ export async function getUsageOverview(): Promise<UsageOverview> {
   return result as UsageOverview
 }
 
-/** 语义向量索引状态（各 kind 条数，D3-1） */
-export async function getSemanticIndexStatus(): Promise<SemanticIndexStatus> {
-  const result = await App().GaeaSemanticIndexStatus()
-  return result as SemanticIndexStatus
-}
-
 /** Herdsman 受控测评运行列表（D3-3） */
 export async function getBenchmarkList(): Promise<BenchmarkRunSummary[]> {
   const result = await App().GaeaBenchmarkList()
@@ -577,12 +571,6 @@ export async function getBenchmarkList(): Promise<BenchmarkRunSummary[]> {
 export async function startBenchmark(req: BenchmarkRequest): Promise<string> {
   const result = await App().GaeaBenchmarkStart(req)
   return result as string
-}
-
-/** 测评运行完整明细（逐 case） */
-export async function getBenchmarkDetail(id: string): Promise<BenchmarkRunDetail> {
-  const result = await App().GaeaBenchmarkDetail(id)
-  return result as BenchmarkRunDetail
 }
 
 /** 导出测评报告（Markdown），返回文件路径 */

@@ -147,15 +147,6 @@ export function reloadSubagentRuns(path: string): void {
   pull(path, p);
 }
 
-/** 非响应式读取快照（task 卡活动 provider 等非 React 场景）。带 path 读指定会话；省略时仅在恰有一个轮询器时返回该快照。 */
-export function getSubagentRunsSnapshot(path?: string): SubagentRunView[] {
-  if (path !== undefined) return pollers.get(path)?.snapshot ?? [];
-  if (pollers.size === 1) {
-    for (const p of pollers.values()) return p.snapshot;
-  }
-  return [];
-}
-
 /**
  * 纯函数：返回 runs 里 seen 集合中没有的新 ref（0→N / 新子代理检测）。
  * 不修改 seen——由调用方决定何时并入（自动展开的去抖重评估依赖这一点）。
