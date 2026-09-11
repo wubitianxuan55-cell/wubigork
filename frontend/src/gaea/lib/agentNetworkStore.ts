@@ -80,7 +80,7 @@ function pull(): void {
   if (!p || p.inFlight) return;
   p.inFlight = true;
   void app
-    .AgentNetwork(p.path ? [p.path] : undefined)
+    .AgentNetwork(p.path || undefined) // 空串=内核会话哨兵，不下发空串参数（v4.236 wire 契约）
     .then((n) => {
       p.snapshot = n ?? null;
       p.meta = { status: "ready" };

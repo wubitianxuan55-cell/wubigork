@@ -120,14 +120,14 @@ export interface CoreBindings {
   // 六分类当前组成、逐请求趋势、上下文事件、模型可见节点与归档。sessionPath
   // 单元素数组可选（Go 变参 → JS 数组，与 Trajectory 同形态）：[path]=按该
   // 会话读取（UI 会话切换语义）；缺省/[]=内核当前会话。
-  ContextView(sessionPath?: string[]): Promise<ContextTimeline>;
+  ContextView(sessionPath?: string): Promise<ContextTimeline>;
   // Trajectory 返回会话的轨迹时间线（轮次→步骤→工具调用）。sessionPath
   // 单元素数组可选（Go 变参 → JS 数组，与 TaskList 同形态）：[path]=按该
   // 会话读取（UI 会话切换语义）；缺省/[]=内核当前会话。
-  Trajectory(sessionPath?: string[]): Promise<Trajectory>;
+  Trajectory(sessionPath?: string): Promise<Trajectory>;
   // AgentNetwork 返回会话的 Agent 网络（主 agent 根 + 子代理树）。sessionPath
   // 语义同 Trajectory。
-  AgentNetwork(sessionPath?: string[]): Promise<AgentNetwork>;
+  AgentNetwork(sessionPath?: string): Promise<AgentNetwork>;
   // TCCA 缓存报告（V3.0）— 返回 CacheReport JSON 字符串
   TCCAReport(): Promise<string>;
   // Balance queries the active provider's wallet balance (a network call);
@@ -256,7 +256,7 @@ export interface CoreBindings {
   // TaskKill 强制终止（v4.78：协作取消 + 击杀任务自有 OS 进程树；纯函数任务
   // 等价 TaskCancel）；TaskRetry 重试失败/已取消的任务；TaskOutput 读取任务
   // 实时输出尾部（C1）。任务实时进度经 onTaskEvent 推送。
-  TaskList(space?: string[]): Promise<TaskView[]>;
+  TaskList(space?: string): Promise<TaskView[]>;
   TaskCancel(id: string): Promise<void>;
   TaskKill(id: string): Promise<void>;
   TaskRetry(id: string): Promise<void>;
@@ -264,7 +264,7 @@ export interface CoreBindings {
   // v4.80 上下文浏览器：懒加载节点「完整调用」详情（按 seq 回读会话日志；
   // tool_result 配对 dispatch 取参数，user/assistant 取全文）。sessionPath
   // 语义同 ContextView。
-  ContextNodeDetail(seq: number, sessionPath?: string[]): Promise<ContextNodeDetailView>;
+  ContextNodeDetail(seq: number, sessionPath?: string): Promise<ContextNodeDetailView>;
   // v4.1 证据链：Journal 最近证据卡（跨会话聚合，时间倒序；前端「证据」入口）。
   GaeaJournalList(limit: number): Promise<JournalChangeRecord[]>;
   // 2b Git 面板最小集（D3：单仓库 status/diff/stage/unstage/discard/commit/log，无 push）。

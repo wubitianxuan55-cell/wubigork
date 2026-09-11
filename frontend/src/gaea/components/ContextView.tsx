@@ -621,7 +621,7 @@ export function ContextView({
     void reloadAgentNetwork(sessionPath);
     const p = fetchTimeline
       ? fetchTimeline()
-      : app.ContextView(sessionPath ? [sessionPath] : undefined);
+      : app.ContextView(sessionPath);
     p
       // 老后端可能把空切片序列化成 null，按数组消费前统一归一化
       .then((tl) => {

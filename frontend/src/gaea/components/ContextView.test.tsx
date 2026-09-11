@@ -580,6 +580,6 @@ describe("ContextView 2.5b 后半：工具结果图片缩略卡 + token 估算",
     const { ContextView } = await import("./ContextView");
     renderT(<ContextView running={false} sessionPath="/sessions/hist.jsonl" />);
     expect(await screen.findByText("工具调用")).toBeTruthy();
-    expect(contextViewMock).toHaveBeenCalledWith(["/sessions/hist.jsonl"]);
+    expect(contextViewMock).toHaveBeenCalledWith("/sessions/hist.jsonl");
   });
 });

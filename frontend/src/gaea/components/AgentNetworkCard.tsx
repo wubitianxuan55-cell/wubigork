@@ -87,7 +87,7 @@ export function AgentNetworkCard({ running, sessionPath }: { running: boolean; s
 
   const load = useCallback(() => {
     // 按 UI 会话读取（v4.181）：缺省=内核当前会话。会话切换经 load 依赖重建触发。
-    app.AgentNetwork(sessionPath ? [sessionPath] : undefined)
+    app.AgentNetwork(sessionPath)
       .then((n) => { setNet(n); setError(null); })
       .catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)));
   }, [sessionPath]);

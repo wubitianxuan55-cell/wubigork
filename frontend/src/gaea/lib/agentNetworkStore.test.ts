@@ -182,9 +182,9 @@ describe("状态广播 / 错误保留 / 显式重拉", () => {
 
 // ── 路径声明（v4.181：绑定按会话读取）──
 describe("subscribeAgentNetwork 路径声明", () => {
-  it("订阅带 path → 拉取携带 [path]（UI 会话语义）；无 path → 内核会话（undefined）", () => {
+  it("订阅带 path → 拉取按单串传递（v4.236 wire 契约：Go 变参逐元素）；无 path → 内核会话（undefined）", () => {
     const off1 = subscribeAgentNetwork(() => {}, { path: "s1.jsonl" });
-    expect(mocks.AgentNetwork).toHaveBeenCalledWith(["s1.jsonl"]);
+    expect(mocks.AgentNetwork).toHaveBeenCalledWith("s1.jsonl");
     off1();
     const off2 = subscribeAgentNetwork(() => {});
     expect(mocks.AgentNetwork).toHaveBeenCalledWith(undefined);
@@ -210,7 +210,7 @@ describe("subscribeAgentNetwork 路径声明", () => {
       { path: "s2.jsonl" },
     );
     expect(seen.at(-1)).toBe("-1:loading"); // 旧会话树不转售
-    expect(mocks.AgentNetwork).toHaveBeenLastCalledWith(["s2.jsonl"]);
+    expect(mocks.AgentNetwork).toHaveBeenLastCalledWith("s2.jsonl");
     resolve2(net(222));
     await new Promise((r) => setTimeout(r, 0));
     expect(seen.at(-1)).toBe("222:ready");
@@ -223,10 +223,10 @@ describe("subscribeAgentNetwork 路径声明", () => {
     await new Promise((r) => setTimeout(r, 0));
     mocks.AgentNetwork.mockClear();
     reloadAgentNetwork("s1.jsonl"); // 同路径：原语义重拉
-    expect(mocks.AgentNetwork).toHaveBeenLastCalledWith(["s1.jsonl"]);
+    expect(mocks.AgentNetwork).toHaveBeenLastCalledWith("s1.jsonl");
     await new Promise((r) => setTimeout(r, 0));
     reloadAgentNetwork("s3.jsonl"); // 跨路径：立即以新路径拉取
-    expect(mocks.AgentNetwork).toHaveBeenLastCalledWith(["s3.jsonl"]);
+    expect(mocks.AgentNetwork).toHaveBeenLastCalledWith("s3.jsonl");
     off();
   });
 });

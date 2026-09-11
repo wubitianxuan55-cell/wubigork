@@ -67,7 +67,7 @@ function useNodeDetails(sessionPath?: string) {
     });
     if (!details.has(seq)) {
       setDetails((cur) => new Map(cur).set(seq, { s: "loading" }));
-      app.ContextNodeDetail(seq, sessionPath ? [sessionPath] : undefined)
+      app.ContextNodeDetail(seq, sessionPath)
         .then((d) => setDetails((cur) => new Map(cur).set(seq, { s: "ok", d })))
         .catch(() => setDetails((cur) => new Map(cur).set(seq, { s: "error" })));
     }

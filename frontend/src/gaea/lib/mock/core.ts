@@ -56,7 +56,7 @@ export function buildCore(s: MakeMockState): CoreMethods {
     async ContextUsage() {
       return { used: 1280, window: 1_000_000 };
     },
-    async ContextView(_sessionPath?: string[]) {
+    async ContextView(_sessionPath?: string) {
       // 浏览器开发 mock：固定一份与效果图形态一致的快照。
       return {
         ok: true,
@@ -109,7 +109,7 @@ export function buildCore(s: MakeMockState): CoreMethods {
         ],
       };
     },
-    async ContextNodeDetail(seq: number, _sessionPath?: string[]) {
+    async ContextNodeDetail(seq: number, _sessionPath?: string) {
       // mock：按 seq 返回样例详情（真实实现 = 按 seq 回读当前会话日志）。
       // 与上方 ContextView 场景的节点对齐：seq 4 = tool 节点（read_file）。
       if (seq === 4) {
@@ -195,7 +195,7 @@ export function buildCore(s: MakeMockState): CoreMethods {
       }
       throw new Error("mock: 未找到 seq=" + seq + " 的可展开节点");
     },
-    async Trajectory(_sessionPath?: string[]) {
+    async Trajectory(_sessionPath?: string) {
       // 浏览器开发 mock：固定一份与后端折叠形态一致的轨迹快照。
       // sessionPath（Go 变参数组）在 mock 演示数据中不区分会话，签名对齐真绑定。
       return {
@@ -239,7 +239,7 @@ export function buildCore(s: MakeMockState): CoreMethods {
         ],
       };
     },
-    async AgentNetwork(_sessionPath?: string[]) {
+    async AgentNetwork(_sessionPath?: string) {
       // 浏览器开发 mock：主 agent + 两个子代理（一完成一运行），运行中的
       // 子代理带嵌套孙节点（AgentTree 深层展开/收起用）。节点 id 与
       // SubagentRuns 的 ref 对齐（ref 直等匹配，面板富化运行预览）。
