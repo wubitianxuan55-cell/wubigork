@@ -470,3 +470,11 @@ CREATE TABLE IF NOT EXISTS mem_graph_meta (
 const SchemaV19 = `
 ALTER TABLE facts ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0;
 `
+
+// SchemaV20 任务会话维度 v4.180 结构刀：tasks 增加 session_id（提交任务的
+// 会话标识，空串=非会话入口——cron/系统周期任务诚实留空不造数）。读取端
+// Get/List 原样回带，前端任务中心按当前会话过滤（零新绑定：字段随 JSON
+// 自动带出）。ADD COLUMN NOT NULL DEFAULT 空串，对既有行零成本回填。
+const SchemaV20 = `
+ALTER TABLE tasks ADD COLUMN session_id TEXT NOT NULL DEFAULT '';
+`

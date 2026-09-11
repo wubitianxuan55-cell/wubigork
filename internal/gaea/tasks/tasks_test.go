@@ -31,7 +31,7 @@ func openTestDB(t *testing.T) *sql.DB {
   payload TEXT NOT NULL DEFAULT '{}', result TEXT NOT NULL DEFAULT '',
   created_at INTEGER NOT NULL DEFAULT 0, started_at INTEGER NOT NULL DEFAULT 0,
   finished_at INTEGER NOT NULL DEFAULT 0,
-  space_id TEXT NOT NULL DEFAULT 'work')`); err != nil {
+  space_id TEXT NOT NULL DEFAULT 'work', session_id TEXT NOT NULL DEFAULT '')`); err != nil {
 		t.Fatalf("create table: %v", err)
 	}
 	t.Cleanup(func() { db.Close() })

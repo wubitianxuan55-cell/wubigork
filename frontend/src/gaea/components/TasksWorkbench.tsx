@@ -406,7 +406,10 @@ export function TasksWorkbench({
             自拉 GaeaDagList、running 时 2.5s 轮询自校正（详见 DagPanel 头注）。 */}
         <DagPanel />
 
-        {/* ② 后台任务（同页滚动；TaskCenter 自带输出 dock/取消/重试） */}
+        {/* ② 后台任务（同页滚动；TaskCenter 自带输出 dock/取消/重试）。
+            v4.180 结构刀：TaskCenter 的 sessionPath「本会话」过滤面已就位（含测试），
+            但现有任务创建点全为 cron/设置类、无会话上下文可写 session_id——
+            chip 显形等首个会话入口接线，避免恒空过滤的半成品面。 */}
         <div className="mt-1 border-t border-border-soft" style={{ paddingTop: 2 }}>
           <TaskCenter />
         </div>

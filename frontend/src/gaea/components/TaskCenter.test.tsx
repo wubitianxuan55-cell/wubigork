@@ -232,3 +232,64 @@ describe("TaskCenter 任务中心（C1 实时输出 + 结束态细分）", () =>
     expect(screen.getByText("解析失败")).toBeTruthy();
   });
 });
+
+describe("TaskCenter 会话过滤（v4.180 结构刀：session_id 维度）", () => {
+  const SESSION = "/sessions/demo.jsonl";
+
+  it("无会话标识不渲染过滤 chip，列表保持全量（旧行为零变化）", async () => {
+    tasks.list = [
+      makeTask({ id: "s1", label: "会话任务", session_id: SESSION }),
+      makeTask({ id: "c1", label: "定时任务", session_id: "" }),
+    ];
+    render(wrap(<TaskCenter />));
+    expect(await screen.findByText("会话任务")).toBeTruthy();
+    expect(screen.queryByTestId("task-filter-all")).toBeNull();
+    expect(screen.queryByTestId("task-filter-session")).toBeNull();
+    expect(screen.getByText("定时任务")).toBeTruthy();
+  });
+
+  it("有会话标识显示 chip；默认「全部」全量展示（cron 空串任务不丢）", async () => {
+    tasks.list = [
+      makeTask({ id: "s1", label: "会话任务", session_id: SESSION }),
+      makeTask({ id: "c1", label: "定时任务", session_id: "" }),
+    ];
+    render(wrap(<TaskCenter sessionPath={SESSION} />));
+    expect(await screen.findByTestId("task-filter-all")).toBeTruthy();
+    expect(screen.getByTestId("task-filter-session")).toBeTruthy();
+    expect(screen.getByText("会话任务")).toBeTruthy();
+    expect(screen.getByText("定时任务")).toBeTruthy();
+  });
+
+  it("点击「本会话」只显示 session_id 匹配当前会话的任务；切回「全部」恢复", async () => {
+    tasks.list = [
+      makeTask({ id: "s1", label: "本会话任务", session_id: SESSION }),
+      makeTask({ id: "s2", label: "他会话任务", session_id: "/sessions/other.jsonl" }),
+      makeTask({ id: "c1", label: "定时任务", session_id: "" }),
+    ];
+    render(wrap(<TaskCenter sessionPath={SESSION} />));
+    await screen.findByText("本会话任务");
+
+    fireEvent.click(screen.getByTestId("task-filter-session"));
+    expect(await screen.findByText("本会话任务")).toBeTruthy();
+    expect(screen.queryByText("他会话任务")).toBeNull();
+    expect(screen.queryByText("定时任务")).toBeNull();
+
+    fireEvent.click(screen.getByTestId("task-filter-all"));
+    expect(await screen.findByText("定时任务")).toBeTruthy();
+    expect(screen.getByText("本会话任务")).toBeTruthy();
+    expect(screen.getByText("他会话任务")).toBeTruthy();
+  });
+
+  it("过滤在渲染层：本会话开启时事件增量同受过滤，会话任务事件仍进入", async () => {
+    tasks.list = [makeTask({ id: "s1", label: "本会话任务", session_id: SESSION })];
+    render(wrap(<TaskCenter sessionPath={SESSION} />));
+    await screen.findByText("本会话任务");
+
+    fireEvent.click(screen.getByTestId("task-filter-session"));
+    // 他会话的 gaea-task 事件不出现；本会话事件实时进入
+    taskEventCb?.(makeTask({ id: "s3", label: "他会话事件", session_id: "/sessions/other.jsonl", status: "queued" }));
+    taskEventCb?.(makeTask({ id: "s4", label: "本会话事件", session_id: SESSION, status: "queued" }));
+    expect(await screen.findByText("本会话事件")).toBeTruthy();
+    expect(screen.queryByText("他会话事件")).toBeNull();
+  });
+});

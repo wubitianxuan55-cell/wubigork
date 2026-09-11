@@ -25,6 +25,10 @@ export interface TaskView {
   // S1 空间归属（后端 Task.Space `json:"spaceId,omitempty"`）：任务中心/角标
   // 按当前空间过滤事件（S2.1 docs/gaea-space-shell-design.md §4.7）。
   spaceId?: string;
+  // 会话归属（v4.180 结构刀，后端 Task.SessionID `json:"session_id,omitempty"`，
+  // SchemaV20 session_id 列）：提交任务的会话标识，空串/缺省=非会话入口
+  // （cron/系统周期任务诚实留空）；任务中心「本会话」chip 按此过滤。
+  session_id?: string;
   // C9 事件视图字段：gaea-task 事件在输出变更/终态时携带输出尾部整尾回放
   // （有界环形缓冲），输出 dock 事件即推（轮询兜底）；列表/查询响应中缺省。
   outputTail?: string;

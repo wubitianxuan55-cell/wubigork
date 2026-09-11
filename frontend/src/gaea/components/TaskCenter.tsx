@@ -53,11 +53,15 @@ function fmtTime(ms: number): string {
   return d.toLocaleTimeString("zh-CN", { hour12: false });
 }
 
-export function TaskCenter() {
+export function TaskCenter({ sessionPath }: { sessionPath?: string } = {}) {
   const t = useT();
   const [tasks, setTasks] = useState<TaskView[]>([]);
   const [loading, setLoading] = useState(true);
   const toast = useToast();
+  // v4.180 结构刀：「本会话」过滤 chip（有当前会话标识时显示）——点击后只显示
+  // session_id 匹配当前会话的任务，默认「全部」保持现状。过滤在渲染层做（原始
+  // 清单仍全量入 state），chip 切换零请求、事件增量天然随之生效。
+  const [sessionOnly, setSessionOnly] = useState(false);
   // C1：选中任务 → 底部共享输出 dock
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [output, setOutput] = useState<TaskOutputView>({ tail: "", truncated: false });
@@ -169,15 +173,22 @@ export function TaskCenter() {
     [toast, t],
   );
 
+  // v4.180：会话过滤后的可见清单（session_id 精确匹配当前会话；无会话标识或
+  // 未开启过滤 = 全量，旧行为零变化）。空串 session_id 的 cron 任务只出现在「全部」。
+  const visible = useMemo(
+    () => (sessionPath && sessionOnly ? tasks.filter((x) => x.session_id === sessionPath) : tasks),
+    [tasks, sessionOnly, sessionPath],
+  );
+
   const { active, history } = useMemo(() => {
     const activeList: TaskView[] = [];
     const historyList: TaskView[] = [];
-    for (const t of tasks) {
+    for (const t of visible) {
       if (t.status === "queued" || t.status === "running" || t.status === "stopping") activeList.push(t);
       else historyList.push(t);
     }
     return { active: activeList, history: historyList };
-  }, [tasks]);
+  }, [visible]);
 
   const activeCount = active.length;
 
@@ -208,6 +219,49 @@ export function TaskCenter() {
             {t("tasks.activeCount", { n: activeCount })}
           </span>
         )}
+        {/* v4.180 结构刀：本会话/全部过滤 chip（有当前会话标识时才显示；默认「全部」） */}
+        {sessionPath && (
+          <>
+            <button
+              type="button"
+              data-testid="task-filter-all"
+              aria-pressed={!sessionOnly}
+              title={t("tasks.filterAllTitle")}
+              onClick={() => setSessionOnly(false)}
+              className="px-1.5 py-px rounded-full text-[10px] cursor-pointer transition-colors shrink-0"
+              style={
+                sessionOnly
+                  ? { border: "1px solid var(--md-sys-color-outline-variant)", color: "var(--md-sys-color-text-secondary)", background: "transparent" }
+                  : {
+                      background: "color-mix(in srgb, var(--md-sys-color-primary-container) 55%, transparent)",
+                      color: "var(--gaea-glow)",
+                      border: "1px solid color-mix(in srgb, var(--gaea-glow) 26%, transparent)",
+                    }
+              }
+            >
+              {t("tasks.filterAll")}
+            </button>
+            <button
+              type="button"
+              data-testid="task-filter-session"
+              aria-pressed={sessionOnly}
+              title={t("tasks.filterSessionTitle")}
+              onClick={() => setSessionOnly(true)}
+              className="px-1.5 py-px rounded-full text-[10px] cursor-pointer transition-colors shrink-0"
+              style={
+                sessionOnly
+                  ? {
+                      background: "color-mix(in srgb, var(--md-sys-color-primary-container) 55%, transparent)",
+                      color: "var(--gaea-glow)",
+                      border: "1px solid color-mix(in srgb, var(--gaea-glow) 26%, transparent)",
+                    }
+                  : { border: "1px solid var(--md-sys-color-outline-variant)", color: "var(--md-sys-color-text-secondary)", background: "transparent" }
+              }
+            >
+              {t("tasks.filterSession")}
+            </button>
+          </>
+        )}
         <span className="v3-panel-spacer" />
         <button
           className="p-1 rounded-md bg-transparent cursor-pointer transition-colors hover:bg-(color:--md-sys-color-surface-container-high)"
@@ -221,7 +275,7 @@ export function TaskCenter() {
       </div>
 
       <div className="flex-1 min-h-0 overflow-y-auto px-3 py-2 space-y-2">
-        {tasks.length === 0 && (
+        {visible.length === 0 && (
           <div className="flex flex-col items-center justify-center h-40 gap-2" style={{ color: "var(--md-sys-color-text-secondary)" }}>
             <CheckCircle size={20} aria-hidden style={{ color: "var(--md-sys-color-success)", opacity: 0.7 }} />
             <span>{t("tasks.empty")}</span>

@@ -1129,6 +1129,11 @@ export const zhTW: Record<DictKey, string> = {
   "tasks.forceStopConfirm": "再擊確認終止",
   "tasks.cancelBtn": "取消",
   "tasks.retryBtn": "重試",
+  // ── v4.180 結構刀：任務會話維度（TaskCenter 本會話過濾 chip）──
+  "tasks.filterAll": "全部",
+  "tasks.filterAllTitle": "顯示全部任務（含定時/系統後台任務）",
+  "tasks.filterSession": "本會話",
+  "tasks.filterSessionTitle": "只顯示當前會話提交的任務",
 
   // ── v4.57 i18n 收尾：子代理工作台（面板/樹/對話/網路卡）──
   "subagent.feedTitle": "即時動態",

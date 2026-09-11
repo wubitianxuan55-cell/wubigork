@@ -1124,6 +1124,11 @@ export const en = {
   "tasks.forceStopConfirm": "Click again to confirm",
   "tasks.cancelBtn": "Cancel",
   "tasks.retryBtn": "Retry",
+  // ── v4.180 结构刀：任务会话维度（TaskCenter 本会话过滤 chip）──
+  "tasks.filterAll": "All",
+  "tasks.filterAllTitle": "Show all tasks (including cron / system background tasks)",
+  "tasks.filterSession": "This session",
+  "tasks.filterSessionTitle": "Show only tasks submitted from the current session",
 
   // ── v4.57 i18n 收尾：子代理工作台（面板/树/对话/网络卡）──
   "subagent.feedTitle": "Live activity",
