@@ -100,6 +100,18 @@
   --ds-warning: var(--warn);
   --ds-warning-soft: color-mix(in srgb, var(--warn) 14%, transparent);
 }
+/* 浅色主题代码高亮调色板（data-hl 由主应用主题 effect 挂，lib/codeHighlight
+   applyHlTheme）：上方暗色调色板的淡色阶在浅背景对比不足，浅色换同色相深阶 */
+:root[data-hl="light"] {
+  --hl-keyword: #7C3AED;  /* violet-600 */
+  --hl-string: #047857;   /* emerald-700 */
+  --hl-number: #C2410C;   /* orange-700 */
+  --hl-comment: #64748B;  /* slate-500 */
+  --hl-func: #1D4ED8;     /* blue-700 */
+  --hl-type: #A16207;     /* yellow-700 */
+  --hl-builtin: #0369A1;  /* sky-700 */
+  --hl-meta: #4B5563;     /* gray-600 */
+}
 /* -- Platform-specific font stacks -------------------------------------------------- */
 :root[data-platform="windows"] {
   --font-ui: "Segoe UI Variable Text", "Segoe UI", "Microsoft YaHei UI",

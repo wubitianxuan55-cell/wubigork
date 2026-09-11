@@ -143,7 +143,11 @@ const App: React.FC = () => {
     set('--transition-fast', effTokens.transitionFast)
     set('--transition-normal', effTokens.transitionNormal)
     set('--transition-slow', effTokens.transitionSlow)
-  }, [effTokens])
+
+    // 代码高亮明暗挂钩（gaea 板块 .hljs-* 调色板切换，色值在 gaea/styles.css
+    // :root[data-hl="light"]；刻意内联不走 gaea/lib 导入——那会把消毒链拖进主入口）
+    document.documentElement.dataset.hl = darkMode ? 'dark' : 'light'
+  }, [effTokens, darkMode])
 
   return (
     <div className={[

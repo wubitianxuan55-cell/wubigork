@@ -28,6 +28,7 @@ import { Check, Copy, FileText, Loader } from "../icons";
 
 import { app, openExternal } from "../lib/bridge";
 import { classifyExternalLink } from "../lib/browserPolicy";
+import { highlightCode } from "../lib/codeHighlight";
 import { isLocalFilePath } from "../lib/fileLinks";
 import { remarkFileLinks } from "../lib/remarkFileLinks";
 import { remarkMemCitations } from "../lib/remarkMemCitations";
@@ -384,6 +385,29 @@ const MermaidBlock = memo(function MermaidBlock({ code, autoExport = true }: { c
   );
 });
 
+// ── 代码块语法高亮（懒加载缝）───────────────────────────────────────
+// 首帧纯文本立现（不挡流式），hljs 异步就位后整体换着色 HTML；未知/失败
+// 语言保持纯文本不硬造。调用点=稳定分段（MemoMarkdown 段签名缓存），流式
+// 增长中的尾部走简易 HTML 不经此处，无逐 delta 重高亮问题。
+function HlCode({ text, lang }: { text: string; lang?: string }) {
+  const [html, setHtml] = useState<string | null>(null);
+  useEffect(() => {
+    let alive = true;
+    setHtml(null);
+    highlightCode(text, lang).then((h) => {
+      if (alive) setHtml(h);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [text, lang]);
+  return html === null ? (
+    <code>{text}</code>
+  ) : (
+    <code dangerouslySetInnerHTML={{ __html: html }} />
+  );
+}
+
 // ── 代码块复制按钮 ──────────────────────────────────────────────────
 
 function CodeBlockHeader({ language, text }: { language?: string; text: string }) {
@@ -449,7 +473,7 @@ function buildComponents(
         return (
           <div className="my-3 rounded-lg border border-border-soft overflow-hidden">
             <CodeBlockHeader language={lang} text={text} />
-            <pre className="px-3 py-2.5 font-mono text-[12.5px] leading-[1.55] overflow-auto whitespace-pre text-fg"><code>{text}</code></pre>
+            <pre className="px-3 py-2.5 font-mono text-[12.5px] leading-[1.55] overflow-auto whitespace-pre text-fg"><HlCode text={text} lang={lang} /></pre>
           </div>
         );
       }

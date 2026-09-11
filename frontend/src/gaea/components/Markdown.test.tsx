@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 const openExternalMock = vi.hoisted(() => vi.fn());
 vi.mock("../lib/bridge", () => ({
   app: new Proxy({}, { get: () => () => Promise.resolve({}) }),
@@ -258,5 +258,27 @@ describe("Markdown 内嵌 HTML 白名单", () => {
     render(<Markdown text={'<a href="http://127.0.0.1:8080/api">内网HTML</a>'} />);
     fireEvent.click(screen.getByRole("link", { name: /内网HTML/ }));
     expect(openExternalMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("Markdown 代码块语法高亮（懒加载缝）", () => {
+  it("go 代码块异步着色为 hljs 令牌 span，纯文本首帧先行", async () => {
+    const { container } = render(
+      <Markdown text={'```go\npackage main\n\nfunc main() {}\n```'} />,
+    );
+    // 高亮未就位前纯文本已立现（不挡渲染）
+    expect(container.textContent).toContain("package main");
+    // hljs 异步就位后换着色 HTML
+    await waitFor(() => expect(container.querySelector(".hljs-keyword")).toBeTruthy());
+    expect(container.querySelector("code")?.innerHTML).toContain('<span class="hljs-keyword">');
+  });
+
+  it("未知语言保持纯文本不硬造（无 hljs span）", async () => {
+    const { container } = render(
+      <Markdown text={'```brainfuck\n++++[>++++<]\n```'} />,
+    );
+    await waitFor(() => expect(container.querySelector("code")).toBeTruthy());
+    expect(container.querySelector(".hljs-keyword")).toBeNull();
+    expect(container.textContent).toContain("++++");
   });
 });
