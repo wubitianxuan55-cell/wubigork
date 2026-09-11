@@ -1,0 +1,8 @@
+{
+  "amountAbsFloor": 0.01,
+  "amountRelTol": 0.01,
+  "totalOverRatio": 1.05,
+  "totalUnderRatio": 0.5,
+  "minContentSamples": 3,
+  "degenerateBandTol": 0.05
+}

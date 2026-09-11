@@ -4,12 +4,35 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
+	gaeaconfig "github.com/gaea/gaea/internal/gaea/config"
 	"github.com/gaea/gaea/internal/gaea/cost"
 	"github.com/gaea/gaea/internal/gaea/provider"
 )
+
+// costParamsOnce 保证判定参数覆盖文件每进程只探测一次（参数是增强面：覆盖
+// 文件不在场/解析失败都静默保内置默认，不挡组价主流程）。
+var costParamsOnce sync.Once
+
+// ensureCostCheckParams 按惯例目录加载判定参数覆盖（v4.227 规范知识出内核，
+// 拍板池 §5.5 形态 a）：<cwd>/.gaea|/.agents|/.agent|/.claude/skills/cost-compose/
+// params.json（.gaea 优先），部分字段即可——改判定口径不改代码不发版。
+func ensureCostCheckParams() {
+	costParamsOnce.Do(func() {
+		for _, base := range gaeaconfig.ConventionDirs {
+			p := filepath.Join(gaeaCwd(), base, "skills", "cost-compose", "params.json")
+			if _, err := os.Stat(p); err == nil {
+				_ = cost.LoadCheckParams(p)
+				return
+			}
+		}
+	})
+}
 
 // CostComposeEvidence 证据链一条:相似清单条目快照。溯源字段(来源/地区/期数/
 // 口径)天然是证据格式——AI 组价的核心护城河。
@@ -106,6 +129,7 @@ func (a *App) GaeaCostCompose(desc, unit string) (CostComposeView, error) {
 // 组件明细——检索相似条目就是「同类」的口径,与价格带同池;载入失败/无组件
 // 的条目跳过,池空时该层静默(宁缺勿误,不装对照)。
 func (a *App) composeChecks(similar []cost.Summary, comps []cost.Component, recommended float64) []cost.ComposeCheck {
+	ensureCostCheckParams() // 惯例目录判定参数覆盖每进程加载一次
 	checks := cost.CheckComposeComponents(comps, recommended)
 	if len(comps) == 0 {
 		return checks

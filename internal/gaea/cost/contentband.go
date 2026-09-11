@@ -14,9 +14,9 @@ import (
 	"unicode"
 )
 
-// MinContentSamples 同一资源参与对照的最少同类样本数;低于该值不比对
-// (两三例凑不出规律,宁缺勿误)。
-const MinContentSamples = 3
+// MinContentSamples 默认值已外置为判定参数数据资产（v4.227 checkparams.json，
+// 可被惯例目录覆盖文件部分更新）。运行时经 currentCheckParams().MinContentSamples
+// 读取；此处不再保留同名常量，防双源漂移。
 
 // normCompTitle 组件标题匹配键:全角→半角、去全部空白、转小写。
 // 「C32.5 水泥」「ｃ３２．５水泥」「c32.5  水泥」归一后同键;空串原样返回。
@@ -79,6 +79,7 @@ func CheckContentBaseline(comps []Component, pool [][]Component) []ComposeCheck 
 		}
 	}
 	var out []ComposeCheck
+	th := currentCheckParams()
 	for i, c := range comps {
 		if c.Quantity <= 0 {
 			continue
@@ -88,14 +89,14 @@ func CheckContentBaseline(comps []Component, pool [][]Component) []ComposeCheck 
 			continue
 		}
 		qs := samples[key{t, normCompUnit(c.Unit)}]
-		if len(qs) < MinContentSamples {
+		if len(qs) < th.MinContentSamples {
 			continue
 		}
 		sort.Float64s(qs)
 		p25, p75 := percentile(qs, 0.25), percentile(qs, 0.75)
 		outside := c.Quantity > p75 || c.Quantity < p25
-		if p25 == p75 { // 同值退化带:按 ±5% 容差判带外
-			outside = c.Quantity > p75*1.05 || c.Quantity < p25*0.95
+		if p25 == p75 { // 同值退化带:按 ±容差判带外
+			outside = c.Quantity > p75*(1+th.DegenerateBandTol) || c.Quantity < p25*(1-th.DegenerateBandTol)
 		}
 		if !outside {
 			continue
