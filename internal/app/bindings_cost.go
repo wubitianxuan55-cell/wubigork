@@ -33,7 +33,7 @@ func (b *CostB) GaeaCostEstimateVersions(projectID string) []costproject.Version
 func (b *CostB) GaeaCostGet(name string) *CostEntry { return b.a.GaeaCostGet(name) }
 func (b *CostB) GaeaCostGraph(scope string, focus string, limit int) (string, error) { return b.a.GaeaCostGraph(scope, focus, limit) }
 func (b *CostB) GaeaCostImportAIParse(path string) (CostImportPreview, error) { return b.a.GaeaCostImportAIParse(path) }
-func (b *CostB) GaeaCostImportApply(rows []CostEntry, inquirySource ...string) (int, error) { return b.a.GaeaCostImportApply(rows, inquirySource...) }
+func (b *CostB) GaeaCostImportApply(rows []CostEntry, inquirySource string) (int, error) { return b.a.GaeaCostImportApply(rows, inquirySource) }
 func (b *CostB) GaeaCostImportPreview(path string) (CostImportPreview, error) { return b.a.GaeaCostImportPreview(path) }
 func (b *CostB) GaeaCostImportVisionPreview(path string) (CostImportPreview, error) { return b.a.GaeaCostImportVisionPreview(path) }
 func (b *CostB) GaeaCostIndicators(group string) []costref.Indicator { return b.a.GaeaCostIndicators(group) }

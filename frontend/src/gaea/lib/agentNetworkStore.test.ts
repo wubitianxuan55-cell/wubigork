@@ -187,7 +187,7 @@ describe("subscribeAgentNetwork 路径声明", () => {
     expect(mocks.AgentNetwork).toHaveBeenCalledWith("s1.jsonl");
     off1();
     const off2 = subscribeAgentNetwork(() => {});
-    expect(mocks.AgentNetwork).toHaveBeenCalledWith(undefined);
+    expect(mocks.AgentNetwork).toHaveBeenCalledWith(""); // 无 path=内核当前会话（空串哨兵）
     off2();
   });
 

@@ -368,7 +368,7 @@ describe("ContextView 上下文页卡片墙（v4.71 卡片化）", () => {
     fireEvent.click(opBtns[0]);
     const panel = await screen.findByTestId("ctx-node-detail");
     expect(panel.textContent).toContain("grep");
-    expect(contextNodeDetailMock).toHaveBeenCalledWith(21, undefined); // 无 sessionPath 回落内核；跳转落到对应操作 seq
+    expect(contextNodeDetailMock).toHaveBeenCalledWith(21, ""); // 无 sessionPath 回落内核；跳转落到对应操作 seq
   });
 
   it("文件活动：按文件聚合 + 读写徽标 + 点击预览", async () => {

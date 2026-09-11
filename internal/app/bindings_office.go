@@ -24,7 +24,7 @@ func (b *OfficeB) GaeaAcceptMergeSuggestion(keep string, archive string) (string
 func (b *OfficeB) GaeaAcceptSkillSuggestion(candidate interface{}) (string, error) { return b.a.GaeaAcceptSkillSuggestion(candidate) }
 func (b *OfficeB) GaeaAddMCPServer(input MCPServerInput) (int, error) { return b.a.GaeaAddMCPServer(input) }
 func (b *OfficeB) GaeaAddPermissionRule(list string, rule string) error { return b.a.GaeaAddPermissionRule(list, rule) }
-func (b *OfficeB) GaeaAgentNetwork(sessionPath ...string) (trajectory.AgentNetwork, error) { return b.a.GaeaAgentNetwork(sessionPath...) }
+func (b *OfficeB) GaeaAgentNetwork(sessionPath string) (trajectory.AgentNetwork, error) { return b.a.GaeaAgentNetwork(sessionPath) }
 func (b *OfficeB) GaeaAnswer(id string, answers []event.AskAnswer) { b.a.GaeaAnswer(id, answers) }
 func (b *OfficeB) GaeaApplyUpdate() error { return b.a.GaeaApplyUpdate() }
 func (b *OfficeB) GaeaApprove(id string, decision string) { b.a.GaeaApprove(id, decision) }
@@ -43,8 +43,8 @@ func (b *OfficeB) GaeaCheckUpdate() (*UpdateInfo, error) { return b.a.GaeaCheckU
 func (b *OfficeB) GaeaCheckpoints() []CheckpointMeta { return b.a.GaeaCheckpoints() }
 func (b *OfficeB) GaeaCommands() []CommandInfo { return b.a.GaeaCommands() }
 func (b *OfficeB) GaeaContext() ContextInfo { return b.a.GaeaContext() }
-func (b *OfficeB) GaeaContextNodeDetail(seq int64, sessionPath ...string) (contextview.NodeDetail, error) { return b.a.GaeaContextNodeDetail(seq, sessionPath...) }
-func (b *OfficeB) GaeaContextView(sessionPath ...string) (contextview.ContextTimeline, error) { return b.a.GaeaContextView(sessionPath...) }
+func (b *OfficeB) GaeaContextNodeDetail(seq int64, sessionPath string) (contextview.NodeDetail, error) { return b.a.GaeaContextNodeDetail(seq, sessionPath) }
+func (b *OfficeB) GaeaContextView(sessionPath string) (contextview.ContextTimeline, error) { return b.a.GaeaContextView(sessionPath) }
 func (b *OfficeB) GaeaConvertToPdf(rel string) (ConvertPdfResult, error) { return b.a.GaeaConvertToPdf(rel) }
 func (b *OfficeB) GaeaCrossEmbed(in CrossEmbedInput) (CrossEmbedResult, error) { return b.a.GaeaCrossEmbed(in) }
 func (b *OfficeB) GaeaDagCancel(id string) (string, error) { return b.a.GaeaDagCancel(id) }
@@ -183,14 +183,14 @@ func (b *OfficeB) GaeaSwitchWorkspace(path string) string { return b.a.GaeaSwitc
 func (b *OfficeB) GaeaTCCAReport() string { return b.a.GaeaTCCAReport() }
 func (b *OfficeB) GaeaTaskCancel(id string) error { return b.a.GaeaTaskCancel(id) }
 func (b *OfficeB) GaeaTaskKill(id string) error { return b.a.GaeaTaskKill(id) }
-func (b *OfficeB) GaeaTaskList(space ...string) []tasks.Task { return b.a.GaeaTaskList(space...) }
+func (b *OfficeB) GaeaTaskList(space string) []tasks.Task { return b.a.GaeaTaskList(space) }
 func (b *OfficeB) GaeaTaskOutput(id string) (TaskOutputView, error) { return b.a.GaeaTaskOutput(id) }
 func (b *OfficeB) GaeaTaskRetry(id string) error { return b.a.GaeaTaskRetry(id) }
 func (b *OfficeB) GaeaTaskTemplates() []TaskTemplate { return b.a.GaeaTaskTemplates() }
 func (b *OfficeB) GaeaTools() []map[string]interface{} { return b.a.GaeaTools() }
-func (b *OfficeB) GaeaTrajectory(sessionPath ...string) (trajectory.Trajectory, error) { return b.a.GaeaTrajectory(sessionPath...) }
+func (b *OfficeB) GaeaTrajectory(sessionPath string) (trajectory.Trajectory, error) { return b.a.GaeaTrajectory(sessionPath) }
 func (b *OfficeB) GaeaUnarchiveSession(path string) (string, error) { return b.a.GaeaUnarchiveSession(path) }
-func (b *OfficeB) GaeaUnifiedSearch(query string, topN int, scope ...string) (UnifiedSearchView, error) { return b.a.GaeaUnifiedSearch(query, topN, scope...) }
+func (b *OfficeB) GaeaUnifiedSearch(query string, topN int, scope string) (UnifiedSearchView, error) { return b.a.GaeaUnifiedSearch(query, topN, scope) }
 func (b *OfficeB) GaeaUnpinMaterial(rel string) []FileSearchHit { return b.a.GaeaUnpinMaterial(rel) }
 func (b *OfficeB) GaeaUpdateFact(name string, body string) (string, error) { return b.a.GaeaUpdateFact(name, body) }
 func (b *OfficeB) GaeaVerifyRecord(id string) (evidence.Verdict, error) { return b.a.GaeaVerifyRecord(id) }

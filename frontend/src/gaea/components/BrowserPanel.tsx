@@ -151,7 +151,7 @@ export function BrowserPanel({
     // 单轮询并行拉两源（学 SubagentsPanel）：任一失败各自降级不拖垮另一侧。
     void Promise.all([
       (observe ?? defaultObserve)().catch(() => ({ ...UNAVAILABLE_VIEW })),
-      Promise.resolve(fetchTrajectory ? fetchTrajectory() : app.Trajectory()).catch(() => null),
+      Promise.resolve(fetchTrajectory ? fetchTrajectory() : app.Trajectory("")).catch(() => null),
     ])
       .then(([v, traj]) => {
         setView(v);

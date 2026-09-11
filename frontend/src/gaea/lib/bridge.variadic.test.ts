@@ -25,18 +25,18 @@ describe("变参绑定 wire 契约", () => {
     expect(spy.mock.calls[0]).toEqual(["s.json"]);
   });
 
-  it("AgentNetwork 无参：零实参（变参空集）", async () => {
+  it("AgentNetwork 空串：内核当前会话语义（显式逐参传递）", async () => {
     const spy = vi.fn(async () => ({ ok: true }));
     inject({ OfficeB: { GaeaAgentNetwork: spy, GaeaLogFrontendError: vi.fn(async () => {}) } });
-    await app.AgentNetwork();
-    expect(spy.mock.calls[0]).toEqual([]);
+    await app.AgentNetwork("");
+    expect(spy.mock.calls[0]).toEqual([""]);
   });
 
-  it("TaskList 无参：space 变参为空（任务中心全量拉取）", async () => {
+  it("TaskList 空串：不过滤全量（任务中心）", async () => {
     const spy = vi.fn(async () => []);
     inject({ OfficeB: { GaeaTaskList: spy, GaeaLogFrontendError: vi.fn(async () => {}) } });
-    await app.TaskList();
-    expect(spy.mock.calls[0]).toEqual([]);
+    await app.TaskList("");
+    expect(spy.mock.calls[0]).toEqual([""]);
   });
 
   it("Trajectory 单路径同契约", async () => {

@@ -323,7 +323,7 @@ export function TrajectoryView({ running, sessionPath }: { running: boolean; ses
 
   const load = useCallback(() => {
     // 按 UI 会话读取（v4.181）：缺省=内核当前会话。会话切换经 load 依赖重建触发。
-    app.Trajectory(sessionPath)
+    app.Trajectory(sessionPath ?? "")
       // 老后端可能把空切片序列化成 null，按数组消费前统一归一化
       .then((t) => {
         setTrajectory({
