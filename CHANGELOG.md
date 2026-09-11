@@ -1,3 +1,6 @@
+## 壳内全板块渲染健康巡检（2026-09-12，非版本刀）
+> v4.237 收尾巡检：CDP 起壳逐 rail 页点击 + 错误边界断言，覆盖**闲庭空间七页**（闲庭首页/首页/聊天/小说/绘梦/模型中心/角色库）与**书斋空间六页**（首页/办公/造价数据库/记忆中枢/模型中心/青鸟）——**13 页全部干净**（「页面渲染出错」零接管，办公页内容满载 13834 字符）。巡检配方沉淀 .tmp/walk-pages.mjs 形态（rail 坐标 DOM 定位 + 逐页 4.5s 停留 + 错误文本断言）。零代码改动不抬版本。
+
 ## v4.237.0 · 变参绑定根治：绑定层去变参 + Wails 变参真相定论（2026-09-12）
 > v4.236 单串化方向对但没修到根：轨迹页专项走查暴露新错误形态（json: cannot unmarshal string into Go value of type []string），追到 **Wails v2.13 源码 + 真机经验矩阵双重定论=变参绑定在 Wails v2.13 根本不可用**（ParseArgs 严格计数+逐参 unmarshal 口径为 []string，而 reflect.Call 按 In(0)=string 校验——传串 unmarshal 失败、传数组 reflect panic 被 recover 后回调永不送达=promise 永久 pending；七形态×双方法×3s 超时经验矩阵全败，对照无参绑定秒回）。**修复**：bindings_office.go 六处+bindings_cost.go 一处绑定门面 ...string→普通单 string（透传核心层；resolveGaeaSessionPath 跳空回退当前会话/taskListInSpace("")=不过滤语义已核实）；前端 facade 签名改**必填串**、调用点显式传 ""（真机日志实锤 Wails 要求逐参显式传，省略=count 错）；回归锁与三处断言跟随。**真机复验**=重建壳 wire 错误 0 条 + 轨迹页红卡消失满载数据（Duration/Turns/Calls+完整事件线+子代理树 7 节点）+ 任务管理实时行在位——对比 v4.235 红卡/v4.236 空面板修复实效确凿。**坑固化**=①Wails v2.13 变参绑定不可用，绑定面禁用 ... 参数（核心层可保留）；②修 wire 契约后必须重建 exe 再复验（旧壳跑旧前端，本轮踩中浪费一轮探针）；③被 .catch 静默吞掉的接口错误，修完报错≠修完功能，必须验证数据真到达。**门禁**：Go app 67s 绿/vitest 87 例相关面绿/tsc 0/eslint 0/ci.ps1 全绿/绑定 624 零变更/版本三处 4.237.0。
 
