@@ -2,8 +2,12 @@ package app
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
+	"sync"
 
+	gaeaconfig "github.com/gaea/gaea/internal/gaea/config"
 	"github.com/gaea/gaea/internal/novelstyle"
 )
 
@@ -14,7 +18,27 @@ import (
 // 一键去味：对任意已有章节（v4 逐场景 / v3 整章）重写命中 AI 词并落盘。
 // 纯确定性、零 LLM、零网络；返回改动统计供前端反馈。
 
+// novelWordsOnce 保证词表覆盖文件每进程只探测一次（词表是增强面：覆盖文件
+// 不在场/解析失败都静默保内置默认，不挡去味主功能）。
+var novelWordsOnce sync.Once
+
+// ensureNovelStyleWords 按惯例目录加载词表覆盖（v4.225 规范知识出内核）：
+// <cwd>/.gaea|/.agents|/.agent|/.claude/skills/novel-deslop/words.json，
+// .gaea 优先。用户改词表不改代码不发版。
+func ensureNovelStyleWords() {
+	novelWordsOnce.Do(func() {
+		for _, base := range gaeaconfig.ConventionDirs { // .gaea 最优先
+			p := filepath.Join(gaeaCwd(), base, "skills", "novel-deslop", "words.json")
+			if _, err := os.Stat(p); err == nil {
+				_ = novelstyle.LoadWordsFile(p)
+				return
+			}
+		}
+	})
+}
+
 func (a *writingState) DeSlopChapterAiTaste(chapterNum int) (map[string]interface{}, error) {
+	ensureNovelStyleWords()
 	pm := a.getPM()
 	if pm == nil {
 		return nil, fmt.Errorf("请先打开项目")

@@ -311,7 +311,7 @@ func rulePunctuation(text string, runes []rune) []TasteIssue {
 // ruleAIBlacklist 规则 9：AI 高频词黑名单。
 func ruleAIBlacklist(text string, runes []rune) []TasteIssue {
 	var issues []TasteIssue
-	for _, w := range aiBlacklist {
+	for _, w := range currentWords().Blacklist {
 		for _, rng := range findRuneRanges(text, w) {
 			issues = append(issues, TasteIssue{
 				Start: rng[0], End: rng[1],

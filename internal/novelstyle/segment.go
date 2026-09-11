@@ -2,6 +2,7 @@ package novelstyle
 
 import (
 	"sort"
+	"sync/atomic"
 	"unicode"
 )
 
@@ -92,12 +93,9 @@ var emotionDirectWords = []string{
 	"很伤心", "五味杂陈", "百味杂陈",
 }
 
-// aiBlacklist AI 高频词黑名单（用于规则 9）。
-var aiBlacklist = []string{
-	"眼帘", "轻叹", "眸光", "微微上扬", "嘴角勾起", "缓缓", "不由", "旋即",
-	"须臾", "定睛", "精光一闪", "仿佛", "眸色", "凤眸", "唇角", "勾唇",
-	"略微", "颔首", "眸光流转",
-}
+// aiBlacklist 已外置为词表数据资产（v4.225 规范知识出内核）：默认表在
+// words.json（go:embed），可被 .gaea/skills/novel-deslop/words.json 整体替换
+// （LoadWordsFile），运行时经 currentWords().Blacklist 读取。
 
 // commonWords 常用词（扩充分词词表，覆盖中文网络小说高频实词）。
 var commonWords = []string{
@@ -165,32 +163,36 @@ func allVocabWords() []string {
 	add(metaphorMarkers)
 	add(registerBreakWords)
 	add(emotionDirectWords)
-	add(aiBlacklist)
+	add(currentWords().Blacklist)
 	add(commonWords)
 	return out
 }
 
-// vocab 词表集合。
-var vocab = map[string]struct{}{}
+// vocab 词表集合已随 v4.225 词表外置并入 vocabSnap（旧 map 只写不读,删除）。
 
-// vocabByFirst 按首字索引的词表（已按长度降序），用于贪心最长匹配。
-var vocabByFirst = map[rune][]string{}
+// vocabByFirst 按首字索引的词表快照（已按长度降序），用于贪心最长匹配。
+// v4.225 词表可整体替换（LoadWordsFile→rebuildVocab）：快照原子换出，tokenize
+// 无锁读旧快照安全（重建只建新 map 新切片，不改旧的）。
+var vocabSnap atomic.Pointer[map[rune][]string]
 
-func init() {
+// init 包装载时构建首版词表快照（words 已由包级变量初始化，先于此处）。
+func init() { rebuildVocab() }
+
+func rebuildVocab() {
+	byFirst := map[rune][]string{}
 	for _, w := range allVocabWords() {
 		runes := []rune(w)
 		if len(runes) == 0 {
 			continue
 		}
-		vocab[w] = struct{}{}
-		first := runes[0]
-		vocabByFirst[first] = append(vocabByFirst[first], w)
+		byFirst[runes[0]] = append(byFirst[runes[0]], w)
 	}
-	for k := range vocabByFirst {
-		ws := vocabByFirst[k]
+	for k := range byFirst {
+		ws := byFirst[k]
 		sort.Slice(ws, func(a, b int) bool { return len(ws[a]) > len(ws[b]) })
-		vocabByFirst[k] = ws
+		byFirst[k] = ws
 	}
+	vocabSnap.Store(&byFirst)
 }
 
 // tokenize 用词表贪心最长匹配对文本做确定性分词。
@@ -204,7 +206,7 @@ func tokenize(text string) []string {
 		r := rs[i]
 		switch {
 		case isCJK(r):
-			candidates := vocabByFirst[r]
+			candidates := (*vocabSnap.Load())[r]
 			matched := false
 			for _, w := range candidates {
 				wr := []rune(w)

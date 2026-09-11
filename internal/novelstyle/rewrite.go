@@ -23,39 +23,11 @@ type RewriteReport struct {
 	PunctFixed  int             `json:"punct_fixed"`
 }
 
-// aiReplacements 中文网文常见 AI 高频词 → 平实替代表（确定性去 AI 味第一梯队）。
-// 原则：不改变情节与语义，只把「AI 腔」词汇换成更口语化/更平实的写法。
-// 这些词与 segment.go 的 aiBlacklist 同源，替换后应显著降低 ScoreText 的 AI 味分。
-// 注意：等价映射难免有语境误差，作者可在结果上再手改；本表是保守的「降 AI 味」基线。
-var aiReplacements = map[string]string{
-	"眸光流转": "目光流转",
-	"眼睑":   "眼皮",
-	"眼帘":   "眼睛",
-	"轻叹":   "叹息",
-	"眸光":   "目光",
-	"眸色":   "眼色",
-	"凤眸":   "凤眼",
-	"微微上扬": "微扬",
-	"嘴角勾起": "嘴角弯起",
-	"缓缓":   "慢慢",
-	"不由":   "禁不住",
-	"旋即":   "随即",
-	"须臾":   "片刻",
-	"定睛":   "凝神",
-	"精光一闪": "眼神一闪",
-	"仿佛":   "好像",
-	"唇角":   "嘴角",
-	"勾唇":   "弯唇",
-	"略微":   "稍稍",
-	"颔首":   "点头",
-	"骤然":   "突然",
-	"霍地":   "猛地",
-	"悄然":   "悄悄",
-	"淡然":   "平静",
-	"眸底":   "眼底",
-	"沉声道":  "低声说",
-	"微微一怔": "愣了一下",
-}
+// aiReplacements 词表已外置为数据资产（v4.225 规范知识出内核）：默认表在
+// words.json（go:embed），可被 .gaea/skills/novel-deslop/words.json 整体替换
+// （LoadWordsFile），运行时经 currentWords().Replacements 读取。
+// 原则不变：不改变情节与语义，只把「AI 腔」词汇换成更口语化/更平实的写法；
+// 等价映射难免有语境误差，作者可在结果上再手改。
 
 // punctOverRE 连串省略号 / 感叹号（used to collapse overloaded runs）。
 var punctOverRE = regexp.MustCompile(`…{2,}|\.{6,}|！{2,}|!{2,}`)
@@ -79,15 +51,17 @@ func DeSlopRewrite(text string, score *TasteScore) (string, *RewriteReport, erro
 	report := &RewriteReport{BeforeScore: before.Score}
 
 	// 1. 词表替换（全局，命中即换；按词长降序避免"眼帘"先于"眸光流转"截断）。
-	words := make([]string, 0, len(aiReplacements))
-	for w := range aiReplacements {
+	// v4.225 词表外置：读词表快照（默认 words.json 内置，可被覆盖文件替换）。
+	repl := currentWords().Replacements
+	words := make([]string, 0, len(repl))
+	for w := range repl {
 		words = append(words, w)
 	}
 	sort.Slice(words, func(i, j int) bool { return len([]rune(words[i])) > len([]rune(words[j])) })
 
 	out := text
 	for _, w := range words {
-		after := aiReplacements[w]
+		after := repl[w]
 		if after == "" || !strings.Contains(out, w) {
 			continue
 		}

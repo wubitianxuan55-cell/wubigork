@@ -395,6 +395,7 @@ func (a *writingState) streamCreateChapter(ctx context.Context, pm *project.Mana
 	// 并把报告带进 done 的 aiTaste，供作者知悉改了多少。
 	var deSlopReport *novelstyle.RewriteReport
 	if deSlop {
+		ensureNovelStyleWords() // 惯例目录词表覆盖每进程加载一次
 		if rx, rep, err := novelstyle.DeSlopRewrite(content, nil); err == nil && rep != nil && rep.AfterScore < rep.BeforeScore {
 			if rx != "" {
 				content = rx
