@@ -295,7 +295,7 @@ describe("Markdown 超长代码块折叠（v4.234）", () => {
   });
 
   it("短代码零包装：无展开钮", () => {
-    const { container } = render(<Markdown text={"```go\npackage main\n```"} />);
+    render(<Markdown text={"```go\npackage main\n```"} />);
     expect(screen.queryByRole("button", { name: /展开全部/ })).toBeNull();
   });
 });

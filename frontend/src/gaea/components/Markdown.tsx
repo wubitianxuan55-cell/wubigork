@@ -43,23 +43,7 @@ import { GenuiMarkdownFence, genuiFenceStateKey, isGenuiFenceLang } from "../../
 import { parseGenuiFenceBody, splitGenuiFences } from "../../genui/parse";
 import { useGenuiScope } from "../../genui/scope";
 import { useGenuiPanelStore } from "../lib/genuiPanel";
-
-// KaTeX CSS 延迟注入：避免非数学对话的 ~23KB CSS 开销。
-// 有数学内容时才加载（$$ 或 $ 包裹的公式）。
-let katexCssLoaded = false;
-
-function ensureKatexCss() {
-  if (katexCssLoaded) return;
-  katexCssLoaded = true;
-  const link = document.createElement("link");
-  link.rel = "stylesheet";
-  link.href = new URL("katex/dist/katex.min.css", import.meta.url).href;
-  document.head.appendChild(link);
-}
-
-function hasMathContent(text: string): boolean {
-  return text.includes("$$") || (text.includes("$") && /\$\S[^$]*\S\$/.test(text));
-}
+import { ensureKatexCss, hasMathContent, normalizeMath } from "../lib/mathText";
 
 // ── Mermaid 图表渲染（agent 生成的流程图/架构图/思维导图等）─────────────
 
@@ -522,24 +506,6 @@ function buildComponents(
     h3: ({ children }) => <h3 className="mt-3 mb-1 text-[14px] font-semibold text-fg">{children}</h3>,
     p: ({ children }) => <p className="my-1.5 leading-relaxed text-fg">{children}</p>,
   };
-}
-
-// ── 数学公式标准化 ──────────────────────────────────────────────────
-
-function normalizeMath(s: string): string {
-  const lb = "\x00LB\x00";
-  let r = s.replace(/\\\\\[/g, lb);
-  r = r
-    .replace(/\\\[/g, () => "$$")
-    .replace(/\\\]/g, () => "$$")
-    .replace(/\\\(/g, () => "$")
-    .replace(/\\\)/g, () => "$");
-  // 用字面量字符串恢复哨兵（等价于全局替换，避免在正则中书写 \x00 控制字符）
-  r = r.split(lb).join("\\\\[");
-  const vert = (m: string) => m.replace(/\|/g, "\\vert ");
-  r = r.replace(/\$\$([\s\S]*?)\$\$/g, (_m, m) => `$$${vert(m)}$$`);
-  r = r.replace(/\$([^$\n]+)\$/g, (_m, m) => `$${vert(m)}$`);
-  return r;
 }
 
 // 渲染层 URL 收口（对渲染树所有 a/img 生效，含 raw HTML 版本）：

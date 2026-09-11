@@ -57,3 +57,21 @@ describe("聊天线代码块语法高亮（懒加载缝）", () => {
     await waitFor(() => expect(container.querySelector(".hljs-keyword")).toBeTruthy());
   });
 });
+
+describe("聊天线数学公式渲染（v4.239）", () => {
+  it("ChatMarkdown：$..$ 行内公式渲染为 KaTeX", () => {
+    const { container } = render(<ChatMarkdown text={"质能方程 $E=mc^2$ 很有名"} />);
+    expect(container.querySelector(".katex")).toBeTruthy();
+  });
+
+  it("MarkdownContent（companion/流式）：同款 KaTeX 渲染", () => {
+    const { container } = render(
+      <MarkdownContent
+        source={"面积 $A=\\pi r^2$。"}
+        className="md-content"
+        components={buildMarkdownGenuiOverrides({ scope: "chat", sessionKey: "t3" }, "m3")}
+      />,
+    );
+    expect(container.querySelector(".katex")).toBeTruthy();
+  });
+});

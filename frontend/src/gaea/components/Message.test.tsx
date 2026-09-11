@@ -78,7 +78,6 @@ describe("AssistantMessage 重新生成按钮（v4.232）", () => {
 });
 
 describe("AssistantMessage 回答反馈（v4.238 能力层）", () => {
-  type G = { go?: { app?: Record<string, Record<string, unknown>> } };
   function injectFeedback(ok: boolean) {
     const spy = vi.fn(
       ok

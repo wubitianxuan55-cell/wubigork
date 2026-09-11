@@ -2,6 +2,9 @@ import { isValidElement, memo } from 'react'
 import ReactMarkdown from 'react-markdown'
 import type { Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import remarkMath from 'remark-math'
+import rehypeKatex from 'rehype-katex'
+import { ensureKatexCss, hasMathContent, normalizeMath } from '../gaea/lib/mathText'
 import { ChatCodeBlock } from './ChatCodeBlock'
 
 /** Markdown 渲染（GFM：表格/删除线/任务列表等，基于 react-markdown） */
@@ -32,6 +35,8 @@ type Props = {
 // T7-4：React.memo 包裹——source 未变化时跳过重渲染，避免父级无关
 // state 刷新导致整棵 markdown 子树（大文档时开销明显）重复 diff。
 export const MarkdownContent = memo(function MarkdownContent({ source, className, components }: Props) {
+  // v4.239 数学公式对齐（与 ChatMarkdown 同款）。
+  if (hasMathContent(source)) ensureKatexCss()
   return (
     <div
       className={className}
@@ -41,7 +46,13 @@ export const MarkdownContent = memo(function MarkdownContent({ source, className
         wordBreak: 'break-word',
       }}
     >
-      <ReactMarkdown remarkPlugins={[remarkGfm]} components={components ?? defaultComponents}>{source}</ReactMarkdown>
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm, remarkMath]}
+        rehypePlugins={[rehypeKatex]}
+        components={components ?? defaultComponents}
+      >
+        {normalizeMath(source)}
+      </ReactMarkdown>
     </div>
   )
 })

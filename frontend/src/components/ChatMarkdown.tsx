@@ -2,7 +2,10 @@ import React, { memo } from 'react'
 import ReactMarkdown from 'react-markdown'
 import type { Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import remarkMath from 'remark-math'
+import rehypeKatex from 'rehype-katex'
 import { C } from '../utils/theme'
+import { ensureKatexCss, hasMathContent, normalizeMath } from '../gaea/lib/mathText'
 import { genuiFenceStateKey, isGenuiFenceLang, GenuiMarkdownFence } from '../genui/markdownFence'
 import { useGenuiScope } from '../genui/scope'
 import { ChatCodeBlock } from './ChatCodeBlock'
@@ -14,9 +17,18 @@ const ChatMarkdown: React.FC<{ text: string; genuiKey?: string }> = memo(functio
     genuiScope !== null && genuiKey !== undefined
       ? (body: string): string | undefined => genuiFenceStateKey(genuiScope, genuiKey, body)
       : undefined
+  // v4.239 数学公式对齐：remark-math + rehype-katex（KaTeX CSS 由 mathText
+  // ensureKatexCss 懒注入）；\(...\)/\[...\] 先归一成 $ 定界符。
+  if (hasMathContent(text)) ensureKatexCss()
   return (
     <div style={{ fontSize: 14, lineHeight: 1.75, wordBreak: 'break-word' }}>
-      <ReactMarkdown remarkPlugins={[remarkGfm]} components={chatMarkdownComponents(fenceKeyFor)}>{text}</ReactMarkdown>
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm, remarkMath]}
+        rehypePlugins={[rehypeKatex]}
+        components={chatMarkdownComponents(fenceKeyFor)}
+      >
+        {normalizeMath(text)}
+      </ReactMarkdown>
     </div>
   )
 })
