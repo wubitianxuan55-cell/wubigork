@@ -1,14 +1,31 @@
-import { memo } from 'react'
+import { isValidElement, memo } from 'react'
 import ReactMarkdown from 'react-markdown'
 import type { Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { ChatCodeBlock } from './ChatCodeBlock'
 
 /** Markdown 渲染（GFM：表格/删除线/任务列表等，基于 react-markdown） */
+
+// 缺省代码渲染（v4.233：调用方未传 components 时生效——NovelSettingPage 等
+// 直用面与聊天线同款：块级代码走 ChatCodeBlock 暗色面板+hljs 高亮+复制头，
+// 行内代码交还 .md-content code 默认样式；pre 透传防双层包裹。传了
+// components（聊天 GenUI 缝）则完全尊重调用方，零变化。模块级常量保证
+// 引用稳定，不破坏 memo。
+const defaultComponents: Components = {
+  pre: ({ children }) => (isValidElement(children) ? <>{children}</> : <pre>{children}</pre>),
+  code: ({ className, children }) => {
+    const text = String(children ?? '').replace(/\n$/, '')
+    const match = /language-([\w-]+)/.exec(className ?? '')
+    const isBlock = match !== null || text.includes('\n')
+    if (isBlock) return <ChatCodeBlock language={match?.[1]} text={text} />
+    return <code className={className}>{children}</code>
+  },
+}
 
 type Props = {
   source: string
   className?: string
-  /** 可选组件覆盖（聊天 GenUI 渲染缝用；缺省 = 现状零变化）。 */
+  /** 可选组件覆盖（聊天 GenUI 渲染缝用；缺省 = 代码块缺省高亮面板）。 */
   components?: Components
 }
 
@@ -24,7 +41,7 @@ export const MarkdownContent = memo(function MarkdownContent({ source, className
         wordBreak: 'break-word',
       }}
     >
-      <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>{source}</ReactMarkdown>
+      <ReactMarkdown remarkPlugins={[remarkGfm]} components={components ?? defaultComponents}>{source}</ReactMarkdown>
     </div>
   )
 })

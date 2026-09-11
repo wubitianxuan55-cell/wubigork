@@ -123,7 +123,9 @@ func (a *writingState) CreateChapter(setting, prevSummary, plotReq string, chapt
 	}
 
 	// 启动流式生成 + 字数守卫（续写模式）
+	a.chapterGenWG.Add(1)
 	go func() {
+		defer a.chapterGenWG.Done()
 		defer a.unregisterChapterGen(genKey, genCancel)
 		a.streamCreateChapter(genCtx, pm, of, setting, prevSummary, plotReq, chapterNum, branchFromNodeID, systemPrompt, userPrompt, minWords, maxContinues, temperature, targetNum, nodeID, branch, skillName == "story-deslop")
 	}()

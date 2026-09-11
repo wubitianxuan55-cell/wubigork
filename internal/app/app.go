@@ -79,6 +79,10 @@ type writingState struct {
 	// 不同章节可并行；CancelCreateChapter 取出并调用取消函数中断流式生成。
 	chapterGenMu      sync.Mutex
 	chapterGenCancels map[string]context.CancelFunc
+	// 进行中章节生成协程数：登记表在取消路径会被先删（取消后协程仍有
+	// 「已生成部分落盘」尾步），表空 ≠ 协程退出；测试等协程真正退出要等它
+	// （v4.233 根治 TempDir 清理与尾步写盘的 Windows unlinkat 竞态）。
+	chapterGenWG sync.WaitGroup
 
 	// 项目管理
 	pm *project.Manager

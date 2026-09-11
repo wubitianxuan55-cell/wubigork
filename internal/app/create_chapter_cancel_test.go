@@ -98,15 +98,27 @@ func waitFor(t *testing.T, timeout time.Duration, desc string, cond func() bool)
 	t.Fatalf("等待超时: %s", desc)
 }
 
-// waitGensDone 等待所有章节生成协程结束（登记表清空），避免测试结束时仍有
-// 协程在写盘。
+// waitGensDone 等待所有章节生成协程结束。两级等待：登记表清空（快速路径）
+// 之后还须等协程真正退出——取消路径会先删登记，协程仍有「已生成部分落盘」
+// 尾步；只等登记表会在 Windows 上与 t.TempDir() 清理竞态（unlinkat
+// directory not empty，v4.233 在册 flaky 的根因），故最终以 chapterGenWG 为准。
 func waitGensDone(t *testing.T, a *App) {
 	t.Helper()
-	waitFor(t, 5*time.Second, "章节生成协程全部结束", func() bool {
+	waitFor(t, 5*time.Second, "章节生成登记表清空", func() bool {
 		a.chapterGenMu.Lock()
 		defer a.chapterGenMu.Unlock()
 		return len(a.chapterGenCancels) == 0
 	})
+	done := make(chan struct{})
+	go func() {
+		a.chapterGenWG.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatalf("章节生成协程 5s 内未退出")
+	}
 }
 
 // TestCreateChapter_SameChapterConcurrentRejected 并发写同一章节仅一次成功：
