@@ -15,7 +15,7 @@ import {
   taskMock,
 } from "../shared";
 import { makeSampleProject } from "../../../../schedule/sample";
-import type { DagRunView, FilePickResult } from "../../types";
+import type { DagRunView, DagTemplateView, FilePickResult } from "../../types";
 import { mockFileBodies, mockXlsxState } from "./state";
 import { mockScheduleFiles } from "./schedule";
 import type { OfficeMethods } from "./types";
@@ -31,6 +31,36 @@ interface DagMockState {
 }
 
 let dagMock: DagMockState | null = null;
+
+// 模板库 mock 态（与会话内 runs 同生命周期）：预置一条「月度经营报告」模板，
+// 让 ?mock=1 首屏即可走查「模板」区的展开/重建/删除。
+interface DagTplMockState {
+  tpls: DagTemplateView[];
+}
+
+let dagTplMock: DagTplMockState | null = null;
+
+function dagTplState(): DagTplMockState {
+  if (!dagTplMock) {
+    dagTplMock = {
+      tpls: [
+        {
+          id: "dagtpl_mock_monthly",
+          name: "月度经营报告",
+          goal: "读三份月度报表，出一份带图表的月度经营报告",
+          createdAt: new Date(Date.now() - 24 * 3600_000).toISOString(),
+          nodes: [
+            { id: "n1_read_reports", title: "读三份月度 xlsx 报表", prompt: "读取三份报表并提取核心表。", status: "pending", runCount: 0 },
+            { id: "n2_pivot_summary", title: "透视汇总生成 summary.xlsx", prompt: "按月聚合营收/成本/利润。", dependsOn: ["n1_read_reports"], status: "pending", runCount: 0 },
+            { id: "n3_chart_report", title: "嵌图表出报告 docx", prompt: "生成柱状/饼图并撰写报告。", dependsOn: ["n2_pivot_summary"], status: "pending", runCount: 0 },
+            { id: "n4_export_pdf", title: "导出 PDF 归档", prompt: "无头转换为 PDF 归档。", dependsOn: ["n3_chart_report"], status: "pending", runCount: 0 },
+          ],
+        },
+      ],
+    };
+  }
+  return dagTplMock;
+}
 
 function dagState(): DagMockState {
   if (!dagMock) {
@@ -948,5 +978,53 @@ export const officeMethods: Partial<Omit<OfficeMethods, "PinnedMaterials">> &
     return stopped > 0
       ? `已终止：${stopped} 个运行中节点置为跳过，未跑节点不再起跑`
       : "已终止：流水线无运行中节点";
+  },
+  // ── 6.3 余项：流水线模板库（存模板一键重建）——会话内走查态，不落盘。──
+  async DagTemplateList() {
+    return dagTplState().tpls.map((t) => ({ ...t, nodes: t.nodes.map((n) => ({ ...n })) }));
+  },
+  async DagTemplateSave(runId: string, name: string) {
+    const run = dagState().runs.find((r) => r.id === runId);
+    if (!run) throw new Error(`dag run not found: ${runId}`);
+    const tpl: DagTemplateView = {
+      id: `dagtpl_mock_${dagTplState().tpls.length + 1}`,
+      name: name.trim() || run.goal.slice(0, 24),
+      goal: run.goal,
+      nodes: run.nodes.map((n) => ({
+        id: n.id, title: n.title, prompt: n.prompt,
+        dependsOn: n.dependsOn ? [...n.dependsOn] : undefined,
+        status: "pending" as const, runCount: 0,
+      })),
+      createdAt: new Date().toISOString(),
+      sourceRunId: run.id,
+    };
+    dagTplState().tpls.unshift(tpl);
+    return `已存为模板「${tpl.name}」（${tpl.nodes.length} 个节点）（mock 不落盘）`;
+  },
+  async DagTemplateNew(templateId: string) {
+    const st = dagTplState();
+    const tpl = st.tpls.find((t) => t.id === templateId);
+    if (!tpl) throw new Error(`dag template not found: ${templateId}`);
+    const run: DagRunView = {
+      id: `dag_rebuild_${st.tpls.length}_${Date.now() % 10_000}`,
+      goal: tpl.goal,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      derived: "draft",
+      nodes: tpl.nodes.map((n) => ({
+        id: n.id, title: n.title, prompt: n.prompt,
+        dependsOn: n.dependsOn ? [...n.dependsOn] : undefined,
+        status: "pending" as const, runCount: 0,
+      })),
+    };
+    dagState().runs.unshift(run);
+    return `已从模板「${tpl.name}」重建流水线（未起跑，mock 可直接点起跑/续跑）`;
+  },
+  async DagTemplateDelete(templateId: string) {
+    const st = dagTplState();
+    const i = st.tpls.findIndex((t) => t.id === templateId);
+    if (i < 0) throw new Error(`dag template not found: ${templateId}`);
+    st.tpls.splice(i, 1);
+    return "模板已删除（mock 不落盘）";
   },
 };

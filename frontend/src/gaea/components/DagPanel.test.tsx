@@ -4,7 +4,7 @@ import type { ReactElement } from "react";
 import { DagPanel } from "./DagPanel";
 import { LocaleProvider } from "../lib/i18n";
 import { usePreviewStore } from "../lib/store";
-import type { DagRunView } from "../lib/types";
+import type { DagRunView, DagTemplateView } from "../lib/types";
 
 // DagPanel 走查测试：桥接 mock 的工厂必须给齐 ../lib/bridge 的全部 named exports
 // （仓库已知坑：工厂缺导出不报错，但 lib/store/controller 对 app/onEvent/onReady
@@ -18,6 +18,10 @@ const bridge = vi.hoisted(() => ({
   dagNodeSteer: vi.fn(),
   dagNodeAccept: vi.fn(),
   dagCancel: vi.fn(),
+  dagTemplateList: vi.fn(),
+  dagTemplateSave: vi.fn(),
+  dagTemplateNew: vi.fn(),
+  dagTemplateDelete: vi.fn(),
 }));
 
 vi.mock("../lib/bridge", () => ({
@@ -29,6 +33,10 @@ vi.mock("../lib/bridge", () => ({
     DagNodeSteer: bridge.dagNodeSteer,
     DagNodeAccept: bridge.dagNodeAccept,
     DagCancel: bridge.dagCancel,
+    DagTemplateList: bridge.dagTemplateList,
+    DagTemplateSave: bridge.dagTemplateSave,
+    DagTemplateNew: bridge.dagTemplateNew,
+    DagTemplateDelete: bridge.dagTemplateDelete,
   },
   onEvent: vi.fn(() => () => {}),
   onSubagentText: vi.fn(() => () => {}),
@@ -112,14 +120,31 @@ const RUNNING_RUN: DagRunView = {
   ],
 };
 
+// 模板样例（6.3 余项：存模板一键重建）。
+const TPL: DagTemplateView = {
+  id: "dagtpl_monthly",
+  name: "月度经营报告",
+  goal: "读三份月度报表，出一份带图表的月度经营报告",
+  createdAt: "2026-09-10T09:00:00+08:00",
+  sourceRunId: "dag_src",
+  nodes: [
+    { id: "n1", title: "读三份月度 xlsx 报表", prompt: "p", status: "pending", runCount: 0 },
+    { id: "n2", title: "透视汇总生成 summary.xlsx", prompt: "p", dependsOn: ["n1"], status: "pending", runCount: 0 },
+  ],
+};
+
 beforeEach(() => {
   vi.clearAllMocks();
   bridge.dagList.mockResolvedValue([]);
+  bridge.dagTemplateList.mockResolvedValue([]);
   bridge.dagRun.mockResolvedValue("受理（mock）");
   bridge.dagNodeRun.mockResolvedValue("受理（mock）");
   bridge.dagNodeSteer.mockResolvedValue("受理（mock）");
   bridge.dagNodeAccept.mockResolvedValue("受理（mock）");
   bridge.dagCancel.mockResolvedValue("受理（mock）");
+  bridge.dagTemplateSave.mockResolvedValue("已存为模板（mock）");
+  bridge.dagTemplateNew.mockResolvedValue("已重建（mock）");
+  bridge.dagTemplateDelete.mockResolvedValue("已删除（mock）");
   usePreviewStore.setState({ previewFile: null, previewList: [], previewIndex: -1 });
 });
 
@@ -261,5 +286,66 @@ describe("DagPanel 办公流水线区块（6.3 办公多文件 DAG）", () => {
       vi.advanceTimersByTime(7_500);
     });
     expect(bridge.dagList).toHaveBeenCalledTimes(1);
+  });
+
+  // ── 模板库（6.3 余项：存模板一键重建）───────────────────────────────
+  it("模板区：无模板不显形；有模板折叠条默认收起，展开后逐条渲染+新建/删", async () => {
+    bridge.dagList.mockResolvedValue([]);
+    bridge.dagTemplateList.mockResolvedValue([TPL]);
+    renderT(<DagPanel />);
+    expect(await screen.findByTestId("dag-tpl-section")).toBeTruthy();
+    // 默认收起：行不可见
+    expect(screen.queryByTestId(`dag-tpl-row-${TPL.id}`)).toBeNull();
+    fireEvent.click(screen.getByTestId("dag-tpl-toggle"));
+    expect(await screen.findByTestId(`dag-tpl-row-${TPL.id}`)).toBeTruthy();
+    expect(screen.getByText("月度经营报告")).toBeTruthy();
+    expect(screen.getByText("2 节点")).toBeTruthy();
+  });
+
+  it("模板新建：点「新建」调 DagTemplateNew，run 列表随之重拉", async () => {
+    bridge.dagList.mockResolvedValue([]);
+    bridge.dagTemplateList.mockResolvedValue([TPL]);
+    renderT(<DagPanel />);
+    await screen.findByTestId("dag-tpl-section");
+    fireEvent.click(screen.getByTestId("dag-tpl-toggle"));
+    fireEvent.click(await screen.findByTestId(`dag-tpl-new-${TPL.id}`));
+    await waitFor(() => expect(bridge.dagTemplateNew).toHaveBeenCalledWith(TPL.id));
+    await waitFor(() => expect(bridge.dagList.mock.calls.length).toBeGreaterThanOrEqual(2));
+  });
+
+  it("存模板：run 卡「存模板」出内联输入（默认 goal 截断），提交调 DagTemplateSave", async () => {
+    bridge.dagList.mockResolvedValue([RUN]);
+    renderT(<DagPanel />);
+    await screen.findByTestId(`dag-run-${runId}`);
+    fireEvent.click(screen.getByTestId(`dag-run-save-tpl-${runId}`));
+    const input = screen.getByTestId(`dag-tpl-input-${runId}`) as HTMLInputElement;
+    // goal 共 21 字未超 24 截断阈值 → 原样带出
+    expect(input.value).toBe("读三份月度报表，出一份带图表的月度经营报告");
+    fireEvent.click(screen.getByTestId(`dag-tpl-save-${runId}`));
+    await waitFor(() =>
+      expect(bridge.dagTemplateSave).toHaveBeenCalledWith(runId, "读三份月度报表，出一份带图表的月度经营报告"),
+    );
+    // 提交后内联框收起
+    await waitFor(() => expect(screen.queryByTestId(`dag-tpl-input-${runId}`)).toBeNull());
+  });
+
+  it("模板拉取失败静默：模板区不显形，不挡主列表空态", async () => {
+    bridge.dagList.mockResolvedValue([]);
+    bridge.dagTemplateList.mockRejectedValue(new Error("boom"));
+    renderT(<DagPanel />);
+    // 主列表空态正常（模板失败静默）
+    expect(await screen.findByText(/暂无流水线/)).toBeTruthy();
+    expect(screen.queryByTestId("dag-tpl-section")).toBeNull();
+  });
+
+  it("模板删除：点「删」调 DagTemplateDelete", async () => {
+    bridge.dagList.mockResolvedValue([]);
+    bridge.dagTemplateList.mockResolvedValue([TPL]);
+    renderT(<DagPanel />);
+    expect(await screen.findByTestId("dag-tpl-section")).toBeTruthy();
+    fireEvent.click(screen.getByTestId("dag-tpl-toggle"));
+    fireEvent.click(screen.getByTestId(`dag-tpl-del-${TPL.id}`));
+    await waitFor(() => expect(bridge.dagTemplateDelete).toHaveBeenCalledWith(TPL.id));
+    await waitFor(() => expect(bridge.dagTemplateList.mock.calls.length).toBeGreaterThanOrEqual(2));
   });
 });

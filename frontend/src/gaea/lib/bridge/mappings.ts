@@ -300,4 +300,9 @@ export const gaeaToGaea = {
   DagNodeSteer: "GaeaDagNodeSteer",
   DagNodeAccept: "GaeaDagNodeAccept",
   DagCancel: "GaeaDagCancel",
+  // 6.3 余项：流水线模板库（存模板一键重建）。
+  DagTemplateList: "GaeaDagTemplateList",
+  DagTemplateSave: "GaeaDagTemplateSave",
+  DagTemplateNew: "GaeaDagTemplateNew",
+  DagTemplateDelete: "GaeaDagTemplateDelete",
 } as const satisfies Record<string, string>;

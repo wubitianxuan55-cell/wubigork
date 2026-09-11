@@ -478,6 +478,11 @@ export const GAEA_METHOD_FACETS = {
   DagNodeSteer: "work",
   DagNodeAccept: "work",
   DagCancel: "work",
+  // 6.3 余项：流水线模板库（存模板一键重建）→ work。
+  DagTemplateList: "work",
+  DagTemplateSave: "work",
+  DagTemplateNew: "work",
+  DagTemplateDelete: "work",
   // 批次三a legacy 直调转正（Go CoreB.ListProjects）：书架工程卡片清单
   // （api/characterlib.listShelfProjects 消费面=创作间书架/角色库）→ play。
   ListProjects: "play",

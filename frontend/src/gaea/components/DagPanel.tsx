@@ -1,19 +1,24 @@
 import { useCallback, useEffect, useState } from "react";
 import { Check, ChevronDown, ListTree, Loader2 } from "../icons";
 import { app } from "../lib/bridge";
-import type { DagNodeView, DagRunView } from "../lib/types";
+import type { DagNodeView, DagRunView, DagTemplateView } from "../lib/types";
 import { usePreviewStore } from "../lib/store";
 import { useT } from "../lib/i18n";
 
-// DagPanel — 任务视图「办公流水线」区块（6.3 办公多文件 DAG 首刀）。
+// DagPanel — 任务视图「办公流水线」区块（6.3 办公多文件 DAG 首刀 + 模板库余项）。
 //
-// 数据源 = GaeaDagList（挂载自拉一次）；派生态 derived=running 的 run 存在时
-// 每 2.5s 轮询自校正（后端受理型契约不推事件流），无 running 停轮询；所有
-// 操作（起跑/单跑/重跑/验收/改向/终止）成功与否都立刻重拉一次。
+// 数据源 = GaeaDagList（挂载自拉一次）+ GaeaDagTemplateList（模板区，同挂载）；
+// 派生态 derived=running 的 run 存在时每 2.5s 轮询自校正（后端受理型契约不推
+// 事件流），无 running 停轮询；所有操作（起跑/单跑/重跑/验收/改向/终止/存模板/
+// 模板重建/删模板）成功与否都立刻重拉一次。
 //
 // 与子代理区块同构：可折叠分组头（点击整块收展）+ 分区计数 + 空态/失败态分离
 // （拉取失败给重试入口，不用「暂无」冒充失败态）。产物 chips 点击走全局预览
 // 队列（usePreviewStore.openFilePreview，与资源管理器/交付面板同通道）。
+//
+// 模板区（6.3 余项「存模板一键重建」）：run 卡「存模板」→ 内联输入（默认
+// goal 截断，可清空交后端回退）→ 存为模板；顶部「模板」折叠条逐条「新建」=
+// 一键重建为草稿 run（不自动起跑，起跑仍人拍板）+「删」=删档即弃。
 //
 // 口径注（诚实不造精确）：卡片底部小字说明「产物=运行窗口内新增证据卡」，
 // 主对话同期写盘会并入，不承诺逐节点精确清单（精确归档属 Go 侧后续刀）。
@@ -56,6 +61,12 @@ export function DagPanel() {
   const [open, setOpen] = useState(true);
   const [runs, setRuns] = useState<DagRunView[] | null>(null);
   const [failed, setFailed] = useState(false);
+  // 模板区：列表 + 折叠态（默认收起，run 列表是主内容）；「存模板」内联输入按
+  // runId 记激活态与草稿名（默认带出 goal 截断）。
+  const [tpls, setTpls] = useState<DagTemplateView[]>([]);
+  const [tplOpen, setTplOpen] = useState(false);
+  const [saveTplFor, setSaveTplFor] = useState<string | null>(null);
+  const [saveTplName, setSaveTplName] = useState("");
   // run 卡展开表（runId → 节点列表是否展开）；steer 输入草稿按 run:node 记。
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [steerDrafts, setSteerDrafts] = useState<Record<string, string>>({});
@@ -73,8 +84,17 @@ export function DagPanel() {
     }
   }, []);
 
+  const reloadTpls = useCallback(async () => {
+    try {
+      setTpls(await app.DagTemplateList());
+    } catch {
+      // 模板拉取失败静默保旧值：模板区是增强面，不因它挡流水线主列表
+    }
+  }, []);
+
   useEffect(() => {
     void reload();
+    void reloadTpls();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -96,6 +116,7 @@ export function DagPanel() {
   }, [anyRunning]);
 
   // 统一操作通道：防在途重入 + 完成后立刻重拉（成败都拉，受理文案不细究）。
+  // 模板操作后模板列表一并重拉（重建/删除/存模板都可能改两侧数据）。
   const op = useCallback(
     async (key: string, fn: () => Promise<unknown>) => {
       if (busyKey) return;
@@ -108,8 +129,9 @@ export function DagPanel() {
         setBusyKey(null);
       }
       void reload();
+      void reloadTpls();
     },
-    [busyKey, reload],
+    [busyKey, reload, reloadTpls],
   );
 
   const runAction = (run: DagRunView) => {
@@ -142,7 +164,75 @@ export function DagPanel() {
             终止
           </button>
         )}
+        <button
+          type="button"
+          data-testid={`dag-run-save-tpl-${run.id}`}
+          disabled={busyKey !== null}
+          className="cursor-pointer rounded-md px-1.5 py-0.5 text-[10.5px] font-medium disabled:opacity-50"
+          style={btnStyle}
+          onClick={() => {
+            setSaveTplName(run.goal.length > 24 ? run.goal.slice(0, 24) : run.goal);
+            setSaveTplFor((cur) => (cur === run.id ? null : run.id));
+          }}
+          title="把这条流水线的图形状存为模板（剥离状态与产物），下月一键重建"
+        >
+          存模板
+        </button>
       </>
+    );
+  };
+
+  // saveTplBox 「存模板」内联输入：默认带出 goal 截断；清空提交=后端回退 goal。
+  const saveTplBox = (run: DagRunView) => {
+    if (saveTplFor !== run.id) return null;
+    const k = `savetpl:${run.id}`;
+    const submit = () => {
+      void op(k, () => app.DagTemplateSave(run.id, saveTplName));
+      setSaveTplFor(null);
+      setSaveTplName("");
+    };
+    return (
+      <div className="mt-1 flex items-center gap-1 border-t border-border-soft pt-1">
+        <input
+          data-testid={`dag-tpl-input-${run.id}`}
+          value={saveTplName}
+          placeholder="模板名（空=用目标截断）"
+          maxLength={40}
+          className="min-w-0 flex-1 rounded-md px-1.5 py-0.5 text-[11px] outline-none"
+          style={{
+            background: "var(--md-sys-color-surface-container-high)",
+            border: "1px solid var(--md-sys-color-outline-variant)",
+            color: "var(--md-sys-color-text)",
+          }}
+          autoFocus
+          onChange={(e) => setSaveTplName(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") submit();
+            if (e.key === "Escape") setSaveTplFor(null);
+          }}
+        />
+        <button
+          type="button"
+          data-testid={`dag-tpl-save-${run.id}`}
+          disabled={busyKey !== null}
+          className="shrink-0 cursor-pointer rounded-md px-1.5 py-0.5 text-[10.5px] font-medium disabled:opacity-50"
+          style={btnStyle}
+          onClick={submit}
+          title="存为模板"
+        >
+          存
+        </button>
+        <button
+          type="button"
+          data-testid={`dag-tpl-cancel-${run.id}`}
+          disabled={busyKey !== null}
+          className="shrink-0 cursor-pointer rounded-md border-0 bg-transparent px-1 py-0.5 text-[10.5px] underline-offset-2 hover:underline"
+          style={{ color: "var(--md-sys-color-text-secondary)" }}
+          onClick={() => setSaveTplFor(null)}
+        >
+          取消
+        </button>
+      </div>
     );
   };
 
@@ -269,6 +359,73 @@ export function DagPanel() {
 
       {open && (
         <>
+          {/* 模板区（6.3 余项）：有模板才显形；「新建」=一键重建草稿 run（不自动起跑） */}
+          {tpls.length > 0 && (
+            <div data-testid="dag-tpl-section" className="px-1 pt-1">
+              <button
+                type="button"
+                data-testid="dag-tpl-toggle"
+                aria-expanded={tplOpen}
+                className="flex w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-left text-[10.5px] cursor-pointer border-0 bg-transparent transition-colors hover:bg-(color:--md-sys-color-surface-container-high)"
+                style={{ color: "var(--md-sys-color-text-secondary)" }}
+                onClick={() => setTplOpen((v) => !v)}
+                title={tplOpen ? "收起模板列表" : "展开模板列表"}
+              >
+                <ChevronDown
+                  size={10}
+                  aria-hidden
+                  className="transition-transform duration-150"
+                  style={{ transform: tplOpen ? "rotate(0deg)" : "rotate(-90deg)" }}
+                />
+                模板
+                <span className="ml-auto font-mono normal-case">{tpls.length}</span>
+              </button>
+              {tplOpen && (
+                <div className="flex flex-col gap-0.5 px-1.5 pb-1">
+                  {tpls.map((tpl) => (
+                    <div
+                      key={tpl.id}
+                      data-testid={`dag-tpl-row-${tpl.id}`}
+                      className="flex items-center gap-2 rounded-md px-1 py-0.5 transition-colors hover:bg-(color:--md-sys-color-surface-container-high)"
+                    >
+                      <span
+                        className="min-w-0 flex-1 cursor-default truncate text-[11.5px] leading-snug"
+                        style={{ color: "var(--md-sys-color-text)" }}
+                        title={`${tpl.goal}（存自 ${tpl.sourceRunId ?? "手动"}）`}
+                      >
+                        {tpl.name}
+                      </span>
+                      <span className="shrink-0 font-mono text-[10px]" style={{ color: "var(--md-sys-color-text-secondary)" }}>
+                        {tpl.nodes.length} 节点
+                      </span>
+                      <button
+                        type="button"
+                        data-testid={`dag-tpl-new-${tpl.id}`}
+                        disabled={busyKey !== null}
+                        className="shrink-0 cursor-pointer rounded-md px-1.5 py-0.5 text-[10.5px] font-medium disabled:opacity-50"
+                        style={btnStyle}
+                        onClick={() => void op(`tplnew:${tpl.id}`, () => app.DagTemplateNew(tpl.id))}
+                        title="一键重建为草稿流水线（不自动起跑）"
+                      >
+                        新建
+                      </button>
+                      <button
+                        type="button"
+                        data-testid={`dag-tpl-del-${tpl.id}`}
+                        disabled={busyKey !== null}
+                        className="shrink-0 cursor-pointer rounded-md border-0 bg-transparent px-1 py-0.5 text-[10.5px] underline-offset-2 hover:underline disabled:opacity-50"
+                        style={{ color: "var(--md-sys-color-text-secondary)" }}
+                        onClick={() => void op(`tpldel:${tpl.id}`, () => app.DagTemplateDelete(tpl.id))}
+                        title="删除模板（已重建的流水线不受影响）"
+                      >
+                        删
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
           {loading && (
             <div className="flex items-center gap-2 px-4 py-4 text-[11px]" style={{ color: "var(--md-sys-color-text-secondary)" }}>
               <Loader2 size={13} className="animate-spin" />
@@ -284,7 +441,10 @@ export function DagPanel() {
                 type="button"
                 data-testid="dag-retry"
                 className="cursor-pointer rounded-md border px-2 py-0.5 text-[11px] transition-colors"
-                onClick={() => void reload()}
+                onClick={() => {
+                  void reload();
+                  void reloadTpls();
+                }}
                 style={{
                   color: "var(--md-sys-color-error)",
                   border: "1px solid color-mix(in srgb, var(--md-sys-color-error) 40%, transparent)",
@@ -348,6 +508,7 @@ export function DagPanel() {
                     </div>
                     {runAction(run)}
                   </div>
+                  {saveTplBox(run)}
                   {/* 节点列表 */}
                   {isOpen && (
                     <div className="mt-1 flex flex-col gap-0.5 border-t border-border-soft pt-1">

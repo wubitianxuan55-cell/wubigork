@@ -54,6 +54,10 @@ func (b *OfficeB) GaeaDagNodeAccept(id string, nodeID string) (string, error) { 
 func (b *OfficeB) GaeaDagNodeRun(id string, nodeID string) (string, error) { return b.a.GaeaDagNodeRun(id, nodeID) }
 func (b *OfficeB) GaeaDagNodeSteer(id string, nodeID string, prompt string) (string, error) { return b.a.GaeaDagNodeSteer(id, nodeID, prompt) }
 func (b *OfficeB) GaeaDagRun(id string) (string, error) { return b.a.GaeaDagRun(id) }
+func (b *OfficeB) GaeaDagTemplateDelete(templateID string) (string, error) { return b.a.GaeaDagTemplateDelete(templateID) }
+func (b *OfficeB) GaeaDagTemplateList() ([]dag.Template, error) { return b.a.GaeaDagTemplateList() }
+func (b *OfficeB) GaeaDagTemplateNew(templateID string) (string, error) { return b.a.GaeaDagTemplateNew(templateID) }
+func (b *OfficeB) GaeaDagTemplateSave(runID string, name string) (string, error) { return b.a.GaeaDagTemplateSave(runID, name) }
 func (b *OfficeB) GaeaDataBackupCancel() error { return b.a.GaeaDataBackupCancel() }
 func (b *OfficeB) GaeaDataBackupCreate(destDir string) (map[string]interface{}, error) { return b.a.GaeaDataBackupCreate(destDir) }
 func (b *OfficeB) GaeaDataBackupInfo() map[string]interface{} { return b.a.GaeaDataBackupInfo() }

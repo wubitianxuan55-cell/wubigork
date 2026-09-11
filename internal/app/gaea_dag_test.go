@@ -351,6 +351,7 @@ func TestDagPlanValidation(t *testing.T) {
 		}
 	}
 }
+
 // TestDagSteerGuard steer 守卫：无可改向运行/空指令/执行器未接线均显式报错。
 func TestDagSteerGuard(t *testing.T) {
 	injectDagEnv(t)
@@ -373,5 +374,109 @@ func TestDagSteerGuard(t *testing.T) {
 	// ga.followUp 未接线（injectDagEnv 清空）→ fail-closed。
 	if _, err := a.GaeaDagNodeSteer(id, "read", "追加同比列"); err == nil {
 		t.Fatal("改向执行器未接线应报错")
+	}
+}
+
+// TestDagTemplateFlow 模板库全流程（6.3 余项）：存模板（剥运行痕迹/空名回退
+// goal）→ 列表 → 一键重建（全新草稿不自动起跑）→ 重建链可跑通；守卫=存不存在
+// 的 run/重建不存在的模板/删除后显式报错。
+func TestDagTemplateFlow(t *testing.T) {
+	injectDagEnv(t)
+	id := planChain(t)
+	a := &App{}
+
+	// 先把链跑出一轮产物/验收痕迹，验证存模板剥得净。
+	SetDagRunnerForTest(func(ctx context.Context, prompt string, emit func(ref, text string)) (string, string, error) {
+		return "ok", "sa_x", nil
+	})
+	if _, err := a.GaeaDagRun(id); err != nil {
+		t.Fatalf("GaeaDagRun: %v", err)
+	}
+	waitDagDone(t, id)
+
+	// 守卫：run 不在场报错。
+	if _, err := a.GaeaDagTemplateSave("dag_ghost", ""); err == nil {
+		t.Fatal("存不存在的 run 应报错")
+	}
+
+	// 空名存 → 回退 goal；运行痕迹剥净。
+	if out, err := a.GaeaDagTemplateSave(id, ""); err != nil {
+		t.Fatalf("GaeaDagTemplateSave: %v", err)
+	} else if !strings.Contains(out, "已存为模板") {
+		t.Fatalf("存模板文案: %q", out)
+	}
+	tpls, err := a.GaeaDagTemplateList()
+	if err != nil || len(tpls) != 1 {
+		t.Fatalf("TemplateList: err=%v n=%d", err, len(tpls))
+	}
+	tpl := tpls[0]
+	if tpl.Name != "出月度报告" || tpl.SourceRunID != id || len(tpl.Nodes) != 3 {
+		t.Fatalf("模板内容错误: %+v", tpl)
+	}
+	for _, n := range tpl.Nodes {
+		if n.Status != dag.StatusPending || n.Ref != "" || n.RunCount != 0 || len(n.Outputs) != 0 {
+			t.Fatalf("模板节点未剥运行痕迹: %+v", n)
+		}
+	}
+
+	// 一键重建：全新草稿 run（不自动起跑），图形状与依赖保持。
+	if _, err := a.GaeaDagTemplateNew("dagtpl_ghost"); err == nil {
+		t.Fatal("重建不存在的模板应报错")
+	}
+	out, err := a.GaeaDagTemplateNew(tpl.ID)
+	if err != nil {
+		t.Fatalf("GaeaDagTemplateNew: %v", err)
+	}
+	if !strings.Contains(out, "未起跑") {
+		t.Fatalf("重建文案应注明未起跑: %q", out)
+	}
+	runs, err := a.dagStore().List()
+	if err != nil || len(runs) != 2 {
+		t.Fatalf("重建后应有 2 条 run: err=%v n=%d", err, len(runs))
+	}
+	var fresh dag.Run
+	for _, r := range runs {
+		if r.ID != id {
+			fresh = r
+		}
+	}
+	if fresh.ID == "" || dag.Derived(fresh) != dag.DerivedDraft || len(fresh.Nodes) != 3 {
+		t.Fatalf("重建 run 应为全新草稿: %+v", fresh)
+	}
+	if n := dagNode(t, fresh, "report"); len(n.DependsOn) != 1 || n.DependsOn[0] != "pivot" {
+		t.Fatalf("重建依赖形状丢失: %+v", n)
+	}
+
+	// 重建链可跑通：fake runner 按指令路由，全链 done。
+	SetDagRunnerForTest(func(ctx context.Context, prompt string, emit func(ref, text string)) (string, string, error) {
+		switch {
+		case strings.Contains(prompt, "读取三份月度 xlsx"):
+			return "ok", "sa_read", nil
+		case strings.Contains(prompt, "透视汇总出 summary.xlsx"):
+			return "ok", "sa_pivot", nil
+		case strings.Contains(prompt, "嵌图表出报告 docx"):
+			return "ok", "sa_report", nil
+		}
+		return "", "", errors.New("未知节点指令")
+	})
+	if _, err := a.GaeaDagRun(fresh.ID); err != nil {
+		t.Fatalf("重建链起跑: %v", err)
+	}
+	r := waitDagDone(t, fresh.ID)
+	for _, n := range r.Nodes {
+		if n.Status != dag.StatusDone {
+			t.Fatalf("重建链应全 done: %+v", n)
+		}
+	}
+
+	// 删除闭环；再删/再用显式报错。
+	if _, err := a.GaeaDagTemplateDelete(tpl.ID); err != nil {
+		t.Fatalf("Delete: %v", err)
+	}
+	if tpls, _ := a.GaeaDagTemplateList(); len(tpls) != 0 {
+		t.Fatalf("删除后应为空: %d", len(tpls))
+	}
+	if _, err := a.GaeaDagTemplateDelete(tpl.ID); err == nil {
+		t.Fatal("删除不存在模板应报错")
 	}
 }

@@ -66,6 +66,7 @@
 > 进度（2026-09-11）：**6.5 首刀 v4.217.0**——蒙特卡洛工期带 TS 纯函数（monte.ts：种子化 RNG+三角分布采样+逐次重算 CPM，P25/中位/P75 三档+关键线路出现频率/稳定度+直方图，全本地零云依赖）；进度页新增「工期模拟」视图（不确定度可调）。6.5 判据「三档+稳定度本地可跑」满足。
 > 进度（2026-09-11）：**6.6 首刀 v4.218.0**——跨域 EVM TS 纯函数（evm.ts：PV 基线线性分摊/EV 完成率×预算/AC 手工录入 + SPI/CPI/SV/CV，每数口径注直出；缺基线/CPM 断裂 fail-closed，AC 未录入 CPI 诚实 n/a）；进度页新增「挣值分析」视图七档。6.6 判据「三数+两指数出且口径注全」满足——**阶段六 6.1/6.2/6.4/6.5/6.6 判据全满足，余 6.3 DAG 一刀**。
 > 进度（2026-09-11）：**6.3 首刀 v4.219.0——阶段六收官刀**。办公多文件 DAG（设计基线 docs/gaea-office-dag-63-design-2026-09.md）：dag_plan 规划工具（work 空间，PersistWrite 防子代理嵌套）→ run 档落 .gaea/work/dag/（workspace 本地）→ 执行器拓扑分波（波内顺序=产物归因窗口不重叠），每节点=TaskTool.RunNew 全新子代理会话（headless 闸+过滤工具集+transcripts，文本增量走 gaea-subagent-text）→ 7 绑定 613→620（List/Get/Run/NodeRun/NodeSteer/NodeAccept/Cancel）→ 任务中心「办公流水线」区（steer 输入框/重跑/验收/产物 chips 进预览；running 轮询自校正；?mock=1 可走查）。关键口径：节点产物=Journal 证据卡窗口增量（诚实不造精确归因）；验收=人拍板→办公记忆库 Save（自动落 memory_events 成 5.1 图谱实体）；重跑降 accepted=验收失效诚实降级；终止级联+runner 未接线/成环/悬空依赖 fail-closed+重启中断懒清扫。Go +6 vitest +9；顺带归正 spaceBindings 锁 433→442（v4.215 +2 漏更既有漂移）。**判据「一条 ≥3 节点链全节点可控」满足——阶段六 6.1~6.6 出口判据全部满足，阶段六收官**（余项：波内并行/运行中 GaeaSteer 直穿/危险操作分级审批/DAG 模板库，见设计档 §6）。
+> 进度（2026-09-11）：**6.3 余项·模板库 v4.220.0**——「月度报告」存模板一键重建（internal/gaea/dag/template.go 纯函数：FromRun 剥运行痕迹+Instantiate 全新草稿；模板档落 .gaea/work/dag/templates/，Save 前全量 Validate 坏形状拒入库）；绑定 620→624（GaeaDagTemplateSave/List/New/Delete）；一键重建=草稿 run 不自动起跑（起跑仍人拍板）；DagPanel 模板区+run 卡「存模板」。Go +6 vitest +4。§6 余项剩：波内并行/运行中 GaeaSteer 直穿+分级审批/增量改图/DeliverableRegistry。
 
 ## 4. 板块并行池（不占阶段旗，train 插空）
 

@@ -5,6 +5,7 @@ import type {
   CrossEmbedInput,
   CrossEmbedResult,
   DagRunView,
+  DagTemplateView,
   ExportDeliverableInput,
   ExportDeliverableResult,
   OfficeEditResult,
@@ -130,4 +131,12 @@ export interface OfficeBindings {
   DagNodeAccept(id: string, nodeId: string): Promise<string>;
   // DagCancel 终止级联：running 节点停推、未跑节点不再起跑。
   DagCancel(id: string): Promise<string>;
+  // ── 6.3 余项：流水线模板库（「月度报告」存模板一键重建）──
+  // DagTemplateList 全部模板（创建时间倒序）；DagTemplateSave 把既有 run 存为
+  // 模板（name 空回退 goal 截断）；DagTemplateNew 一键重建=全新草稿 run（不自动
+  // 起跑，起跑仍是人拍板）；DagTemplateDelete 删档即弃（已重建 run 不受影响）。
+  DagTemplateList(): Promise<DagTemplateView[]>;
+  DagTemplateSave(runId: string, name: string): Promise<string>;
+  DagTemplateNew(templateId: string): Promise<string>;
+  DagTemplateDelete(templateId: string): Promise<string>;
 }

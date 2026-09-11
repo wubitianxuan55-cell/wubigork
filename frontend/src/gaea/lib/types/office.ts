@@ -268,3 +268,14 @@ export interface DagRunView {
   derived: "draft" | "running" | "failed" | "ready" | "accepted";
   nodes: DagNodeView[];
 }
+
+// DagTemplateView 是流水线模板（6.3 余项：存模板一键重建）。nodes 只含图形状
+// （id/title/prompt/dependsOn，status 恒 pending）；sourceRunId=由哪条 run 存来。
+export interface DagTemplateView {
+  id: string;
+  name: string;
+  goal: string;
+  nodes: DagNodeView[];
+  createdAt: string;
+  sourceRunId?: string;
+}

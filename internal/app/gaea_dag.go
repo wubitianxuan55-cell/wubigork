@@ -309,6 +309,60 @@ func (a *App) GaeaDagCancel(id string) (string, error) {
 	return fmt.Sprintf("流水线 %s 已终止。", id), nil
 }
 
+// ── 模板库（6.3 余项：「月度报告」存模板一键重建）────────────────────────
+
+// dagTplStore 模板库：<cwd>/.gaea/work/dag/templates（run 档同域子目录，
+// Store.List 只读顶层 *.json 互不混；删档即弃不进用户库）。
+func (a *App) dagTplStore() *dag.TemplateStore {
+	return dag.NewTemplateStore(filepath.Join(gaeaCwd(), ".gaea", "work", "dag", "templates"))
+}
+
+// GaeaDagTemplateSave 把既有流水线存为模板：只取图形状（goal+节点指令+依赖），
+// 状态/产物/运行痕迹剥净。name 空则回退 goal 截断（前端给了输入框，后端仍守卫）。
+func (a *App) GaeaDagTemplateSave(runID, name string) (string, error) {
+	r, err := a.dagStore().Get(runID)
+	if err != nil {
+		return "", err
+	}
+	tpl, err := dag.FromRun(r, name)
+	if err != nil {
+		return "", err
+	}
+	if err := a.dagTplStore().Save(tpl); err != nil {
+		return "", err
+	}
+	slog.Info("流水线已存为模板", "run", runID, "template", tpl.ID, "nodes", len(tpl.Nodes))
+	return fmt.Sprintf("已存为模板「%s」（%d 个节点）。可在文件流水线区顶部「模板」中一键重建。", tpl.Name, len(tpl.Nodes)), nil
+}
+
+// GaeaDagTemplateList 全部模板（创建时间倒序）。
+func (a *App) GaeaDagTemplateList() ([]dag.Template, error) {
+	return a.dagTplStore().List()
+}
+
+// GaeaDagTemplateNew 一键重建：模板→全新草稿 run（不自动起跑——起跑仍是人
+// 拍板，与整链首跑同闸）。重建即模板当前形状的快照，改模板不影响已重建的 run。
+func (a *App) GaeaDagTemplateNew(templateID string) (string, error) {
+	tpl, err := a.dagTplStore().Get(templateID)
+	if err != nil {
+		return "", err
+	}
+	run := dag.Instantiate(tpl)
+	if err := a.dagStore().SaveNew(&run); err != nil {
+		return "", fmt.Errorf("重建流水线落盘: %w", err)
+	}
+	slog.Info("流水线已从模板重建", "template", templateID, "run", run.ID, "nodes", len(run.Nodes))
+	return fmt.Sprintf("已从模板「%s」重建流水线 %s（%d 个节点，未起跑）。可检查节点指令后起跑。", tpl.Name, run.ID, len(run.Nodes)), nil
+}
+
+// GaeaDagTemplateDelete 删模板（删档即弃；已重建的 run 不受影响）。
+func (a *App) GaeaDagTemplateDelete(templateID string) (string, error) {
+	if err := a.dagTplStore().Delete(templateID); err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("模板 %s 已删除。", templateID), nil
+}
+
 // ── 执行器 ────────────────────────────────────────────────────────────
 
 // dagExecute 波次推进：波内顺序（产物归因窗口单调不重叠的首刀口径），波间依赖
