@@ -90,6 +90,16 @@ type docxFile struct {
 	documentXML []byte
 }
 
+// ReadDocumentXML 导出 docx 主文档 XML（v4.223 排版细则 lint 的取数口）：
+// 返回 word/document.xml 原始字节，供 standard.ParseDocxLayout 提取排版事实。
+func ReadDocumentXML(path string) ([]byte, error) {
+	doc, err := readDocx(path)
+	if err != nil {
+		return nil, err
+	}
+	return doc.documentXML, nil
+}
+
 func readDocx(path string) (*docxFile, error) {
 	r, err := zip.OpenReader(path)
 	if err != nil {

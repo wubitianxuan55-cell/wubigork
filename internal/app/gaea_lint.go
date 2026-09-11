@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/gaea/gaea/internal/docmd"
+	"github.com/gaea/gaea/internal/office/docxedit"
 	"github.com/gaea/gaea/internal/office/standard"
 )
 
@@ -26,6 +27,7 @@ func (a *App) GaeaDocumentLint(rel string) (standard.LintReport, error) {
 	}
 	ext := strings.ToLower(filepath.Ext(path))
 	text := ""
+	var layout *standard.DocxLayout
 	switch ext {
 	case ".md", ".markdown", ".txt":
 		raw, err := os.ReadFile(path)
@@ -39,6 +41,13 @@ func (a *App) GaeaDocumentLint(rel string) (standard.LintReport, error) {
 			return standard.LintReport{}, fmt.Errorf("docx 提取失败：%w", err)
 		}
 		text = md
+		// v4.223 排版细则：提取主文档 XML 的排版事实；解析失败不阻断文本层
+		// 检查（layout=nil 时排版包跳过，诚实口径=其余规范包照常体检）。
+		if xmlData, err := docxedit.ReadDocumentXML(path); err == nil {
+			if l, err := standard.ParseDocxLayout(xmlData); err == nil {
+				layout = &l
+			}
+		}
 	default:
 		return standard.LintReport{}, fmt.Errorf("暂支持 md/txt/docx（当前 %s）", ext)
 	}
@@ -51,5 +60,5 @@ func (a *App) GaeaDocumentLint(rel string) (standard.LintReport, error) {
 	} else {
 		head = text
 	}
-	return standard.LintDocument(rel, head, body), nil
+	return standard.LintDocumentWithLayout(rel, head, body, layout), nil
 }
