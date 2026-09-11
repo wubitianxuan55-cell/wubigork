@@ -1523,11 +1523,13 @@ body::after {
 }
 
 /* ══ 通用办公重设计：清爽化覆写 ══
-   对话列加宽（对齐 Codex）：正文与输入框共用 --maxw（min(1000px, 100%)）同一
-   中轴，宽屏下消息行长短于输入框的错位感消除。仅办公板块生效——.v3-reading
-   的 74ch 窄栏保留给对话/小说板块。 */
+   对话列加宽并左对齐：正文与输入框共用 --maxw（min(1000px, 100%)）同一左缘，
+   与右侧工作台/产物面板等满宽区域对齐。仅办公板块生效——.v3-reading 的
+   74ch 居中窄栏保留给对话/小说板块。 */
 .gaea-app-layout .v3-reading {
   max-width: var(--maxw);
+  margin-left: 0;
+  margin-right: 0;
 }
 
 .msg--user .msg__body {
@@ -1544,9 +1546,14 @@ body::after {
   letter-spacing: 0.01em;
 }
 
+/* 输出流左对齐：阶段小标随正文列靠左（.phase 基础居中规则保留给进度计划板块） */
+.gaea-app-layout .phase {
+  margin-left: 0;
+  margin-right: 0;
+  text-align: left;
+}
+
 .composer-glow {
   max-width: var(--maxw);
-  margin-left: auto;
-  margin-right: auto;
   width: 100%;
 }

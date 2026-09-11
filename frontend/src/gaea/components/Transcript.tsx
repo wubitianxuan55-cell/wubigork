@@ -774,7 +774,7 @@ export function Transcript({
         {items.length === 0 && (
           <Welcome onPrompt={onPrompt} cwd={cwd} cwdName={cwdName} sessions={sessions} onResumeSession={onResumeSession} meta={meta} />
         )}
-        {/* 正文 74ch 阅读宽度（.v3-reading 居中）；欢迎页作为启动器保持铺满 */}
+        {/* 正文阅读宽度列（办公板块覆写为 --maxw 左对齐，其余板块 74ch 居中）；欢迎页作为启动器保持铺满 */}
         <div className="v3-reading">
           {/* v4.26：StreamingIndicator 降级为最底兜底（工作态头部已接管主反馈），
               文案收敛为「连接中…/仍在等待事件…」。items 为空且 running 时

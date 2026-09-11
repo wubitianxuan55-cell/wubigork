@@ -176,7 +176,7 @@ export function monteCarlo(project: SchedProject, opts?: MonteOptions): MonteRes
     const step = (max - min) / 10
     for (let i = 0; i < 10; i++) histogram.push({ upTo: Math.ceil(min + step * (i + 1)), count: 0 })
     for (const d of durations) {
-      let idx = Math.min(9, Math.floor((d - min) / step))
+      const idx = Math.min(9, Math.floor((d - min) / step))
       histogram[idx].count++
     }
   } else if (durations.length > 0) {
