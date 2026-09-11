@@ -3,7 +3,7 @@
 // 设计口径：
 //  - highlight.js 走动态 import（独立 async chunk 不进入口体积；mermaid
 //    异步 chunk 同款先例），首个代码块出现时才拉取。
-//  - 语言白名单注册（后端/办公/数据域 ~22 个），未注册语言回退纯文本
+//  - 语言白名单注册（后端/办公/数据/通用域 ~27 个），未注册语言回退纯文本
 //    着色——宁缺勿硬造，与 lang.ts「纯语言解析不拉高亮器」的缝互补。
 //  - 围栏语言别名归一复用 lang.ts ALIASES（编辑器/工具卡同源表）；toml
 //    无官方语法，借 ini 语法着色（节+键结构一致），展示标签不受影响。
@@ -30,11 +30,16 @@ const REGISTER: Record<string, () => Promise<{ default: LanguageFn }>> = {
   java: () => import("highlight.js/lib/languages/java"),
   javascript: () => import("highlight.js/lib/languages/javascript"),
   json: () => import("highlight.js/lib/languages/json"),
+  kotlin: () => import("highlight.js/lib/languages/kotlin"),
+  lua: () => import("highlight.js/lib/languages/lua"),
   makefile: () => import("highlight.js/lib/languages/makefile"),
   markdown: () => import("highlight.js/lib/languages/markdown"),
   nginx: () => import("highlight.js/lib/languages/nginx"),
+  perl: () => import("highlight.js/lib/languages/perl"),
+  php: () => import("highlight.js/lib/languages/php"),
   powershell: () => import("highlight.js/lib/languages/powershell"),
   python: () => import("highlight.js/lib/languages/python"),
+  ruby: () => import("highlight.js/lib/languages/ruby"),
   rust: () => import("highlight.js/lib/languages/rust"),
   sql: () => import("highlight.js/lib/languages/sql"),
   typescript: () => import("highlight.js/lib/languages/typescript"),

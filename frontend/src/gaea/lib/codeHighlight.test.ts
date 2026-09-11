@@ -15,6 +15,14 @@ describe("canonFenceLang 围栏语言归一", () => {
     expect(canonFenceLang("c++")).toBe("cpp");
   });
 
+  it("通用域白名单（v4.231 扩容：ruby/php/kotlin/perl/lua）", () => {
+    expect(canonFenceLang("ruby")).toBe("ruby");
+    expect(canonFenceLang("php")).toBe("php");
+    expect(canonFenceLang("kotlin")).toBe("kotlin");
+    expect(canonFenceLang("perl")).toBe("perl");
+    expect(canonFenceLang("lua")).toBe("lua");
+  });
+
   it("明示纯文本与未知语言回退 undefined（不硬造着色）", () => {
     expect(canonFenceLang("text")).toBeUndefined();
     expect(canonFenceLang("plaintext")).toBeUndefined();

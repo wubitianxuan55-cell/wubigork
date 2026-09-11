@@ -1,0 +1,123 @@
+/*
+ * hljs 令牌主题——代码块语法高亮的色值单一真源（v4.231 自 gaea/styles.css 迁出为
+ * 跨板块共享件：办公板块 Markdown 与聊天线 ChatCodeBlock 两处消费；由 HlCode
+ * 组件 import 随用随载）。
+ * 结构：--hl-dark-*（暗色 One Dark 系）/ --hl-light-*（浅色同色相深阶，白底
+ * 对比度 ≥4.5:1——暗色淡色阶在浅背景 <3:1 不可用）两组常量 → :root 兜底暗色、
+ * :root[data-hl="light"] 跟主应用明暗（App.tsx 主题 effect 挂 data-hl，darkMode
+ * 为 store 派生实际明暗）；.hl-scope-dark = 不随主题的暗色代码面板（聊天线
+ * hex-exempt 专用色面板）整体钉死暗色组——令牌随面板不随应用主题。
+ */
+:root {
+  /* 暗色（One Dark inspired, adjusted for new palette） */
+  --hl-dark-keyword: #C084FC;  /* purple */
+  --hl-dark-string: #22C55E;   /* run green */
+  --hl-dark-number: #FB923C;   /* orange */
+  --hl-dark-comment: #64748B;  /* slate */
+  --hl-dark-func: #60A5FA;     /* blue */
+  --hl-dark-type: #FBBF24;     /* amber */
+  --hl-dark-builtin: #38BDF8;  /* sky */
+  --hl-dark-meta: #94A3B8;     /* slate-400 */
+  /* 浅色（同色相深阶） */
+  --hl-light-keyword: #7C3AED;  /* violet-600 */
+  --hl-light-string: #047857;   /* emerald-700 */
+  --hl-light-number: #C2410C;   /* orange-700 */
+  --hl-light-comment: #64748B;  /* slate-500 */
+  --hl-light-func: #1D4ED8;     /* blue-700 */
+  --hl-light-type: #A16207;     /* yellow-700 */
+  --hl-light-builtin: #0369A1;  /* sky-700 */
+  --hl-light-meta: #4B5563;     /* gray-600 */
+
+  /* 生效令牌：兜底暗色 */
+  --hl-keyword: var(--hl-dark-keyword);
+  --hl-string: var(--hl-dark-string);
+  --hl-number: var(--hl-dark-number);
+  --hl-comment: var(--hl-dark-comment);
+  --hl-func: var(--hl-dark-func);
+  --hl-type: var(--hl-dark-type);
+  --hl-builtin: var(--hl-dark-builtin);
+  --hl-meta: var(--hl-dark-meta);
+}
+/* 浅色主题覆写（data-hl 由主应用主题 effect 挂，lib/codeHighlight applyHlTheme 口径） */
+:root[data-hl="light"] {
+  --hl-keyword: var(--hl-light-keyword);
+  --hl-string: var(--hl-light-string);
+  --hl-number: var(--hl-light-number);
+  --hl-comment: var(--hl-light-comment);
+  --hl-func: var(--hl-light-func);
+  --hl-type: var(--hl-light-type);
+  --hl-builtin: var(--hl-light-builtin);
+  --hl-meta: var(--hl-light-meta);
+}
+/* 不随主题的暗色代码面板：元素级声明压过 :root/[data-hl]，面板内令牌恒暗色 */
+.hl-scope-dark {
+  --hl-keyword: var(--hl-dark-keyword);
+  --hl-string: var(--hl-dark-string);
+  --hl-number: var(--hl-dark-number);
+  --hl-comment: var(--hl-dark-comment);
+  --hl-func: var(--hl-dark-func);
+  --hl-type: var(--hl-dark-type);
+  --hl-builtin: var(--hl-dark-builtin);
+  --hl-meta: var(--hl-dark-meta);
+}
+
+/* ── highlight.js token theme (mapped to palette) ────────────────────────── */
+.hljs-comment,
+.hljs-quote {
+  color: var(--hl-comment);
+  font-style: italic;
+}
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-literal,
+.hljs-section,
+.hljs-doctag,
+.hljs-type,
+.hljs-name,
+.hljs-strong {
+  color: var(--hl-keyword);
+}
+.hljs-string,
+.hljs-regexp,
+.hljs-addition,
+.hljs-attribute,
+.hljs-meta .hljs-string {
+  color: var(--hl-string);
+}
+.hljs-number,
+.hljs-symbol,
+.hljs-bullet,
+.hljs-link,
+.hljs-selector-attr,
+.hljs-selector-pseudo {
+  color: var(--hl-number);
+}
+.hljs-title,
+.hljs-title.function_,
+.hljs-section .hljs-title {
+  color: var(--hl-func);
+}
+.hljs-class .hljs-title,
+.hljs-title.class_,
+.hljs-built_in,
+.hljs-attr {
+  color: var(--hl-type);
+}
+.hljs-variable,
+.hljs-template-variable,
+.hljs-property,
+.hljs-params,
+.hljs-selector-id,
+.hljs-selector-class {
+  color: var(--hl-builtin);
+}
+.hljs-meta,
+.hljs-comment .hljs-doctag {
+  color: var(--hl-meta);
+}
+.hljs-emphasis {
+  font-style: italic;
+}
+.hljs-strong {
+  font-weight: 600;
+}

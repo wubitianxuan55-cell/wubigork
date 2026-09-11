@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import ChatMarkdown from "./ChatMarkdown";
 import { MarkdownContent } from "./MarkdownContent";
 import { GenuiScopeProvider } from "../genui/scope";
@@ -32,5 +32,28 @@ describe("聊天 markdown 缝渲染 GenUI", () => {
     );
     expect(screen.getByText("小看板")).toBeTruthy();
     expect(screen.getByText("¥128k")).toBeTruthy();
+  });
+});
+
+describe("聊天线代码块语法高亮（懒加载缝）", () => {
+  const goFence = "```go\npackage main\n\nfunc main() {}\n```";
+
+  it("ChatMarkdown（plain 终态）暗面板 + 异步 hljs 令牌", async () => {
+    const { container } = render(<ChatMarkdown text={goFence} />);
+    expect(container.querySelector(".hl-scope-dark")).toBeTruthy();
+    expect(container.textContent).toContain("package main");
+    await waitFor(() => expect(container.querySelector(".hljs-keyword")).toBeTruthy());
+  });
+
+  it("MarkdownContent（companion/流式）经覆盖件走同一面板", async () => {
+    const { container } = render(
+      <MarkdownContent
+        source={goFence}
+        className="md-content"
+        components={buildMarkdownGenuiOverrides({ scope: "chat", sessionKey: "t2" }, "m2")}
+      />,
+    );
+    expect(container.querySelector(".hl-scope-dark")).toBeTruthy();
+    await waitFor(() => expect(container.querySelector(".hljs-keyword")).toBeTruthy());
   });
 });

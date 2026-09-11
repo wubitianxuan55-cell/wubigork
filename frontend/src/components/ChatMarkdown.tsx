@@ -1,49 +1,11 @@
-import React, { memo, useCallback, useState } from 'react'
+import React, { memo } from 'react'
 import ReactMarkdown from 'react-markdown'
 import type { Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { CheckOutlined, CopyOutlined } from '@ant-design/icons'
 import { C } from '../utils/theme'
 import { genuiFenceStateKey, isGenuiFenceLang, GenuiMarkdownFence } from '../genui/markdownFence'
 import { useGenuiScope } from '../genui/scope'
-
-/** 代码块头部：语言标签 + 复制按钮（对齐行业标准：深色底 + 右上角复制） */
-function CodeBlockHeader({ language, text }: { language?: string; text: string }) {
-  const [copied, setCopied] = useState(false)
-  const copy = useCallback(async () => {
-    try { await navigator.clipboard.writeText(text) } catch { /* noop */ }
-    setCopied(true)
-    setTimeout(() => setCopied(false), 1500)
-  }, [text])
-  return (
-    <div style={{
-      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-      padding: '5px 12px',
-      background: 'rgba(0,0,0,0.28)',
-      borderBottom: '1px solid rgba(255,255,255,0.08)',
-      fontSize: 10.5, userSelect: 'none',
-    }}>
-      <span style={{ color: C('color-text-secondary'), fontFamily: 'monospace', fontWeight: 500, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-        {language || 'text'}
-      </span>
-      <button
-        onClick={copy}
-        title="复制代码"
-        style={{
-          display: 'inline-flex', alignItems: 'center', gap: 4, cursor: 'pointer',
-          border: 'none', background: 'transparent', padding: '2px 6px', borderRadius: 6,
-          color: copied ? 'var(--md-sys-color-success)' : C('color-text-secondary'), fontSize: 11,
-          transition: 'color 0.15s',
-        }}
-        onMouseEnter={(e) => { if (!copied) e.currentTarget.style.color = C('color-text') }}
-        onMouseLeave={(e) => { e.currentTarget.style.color = copied ? 'var(--md-sys-color-success)' : C('color-text-secondary') }}
-      >
-        {copied ? <CheckOutlined style={{ fontSize: 10 }} /> : <CopyOutlined style={{ fontSize: 10 }} />}
-        {copied ? '已复制' : '复制'}
-      </button>
-    </div>
-  )
-}
+import { ChatCodeBlock } from './ChatCodeBlock'
 
 /** ChatMarkdown — 聊天消息 Markdown 渲染（老栈 M3 令牌样式，供 ChatPage 使用） */
 const ChatMarkdown: React.FC<{ text: string; genuiKey?: string }> = memo(function ChatMarkdown({ text, genuiKey }) {
@@ -71,13 +33,7 @@ return {
       return <GenuiMarkdownFence code={text} stateKey={fenceKeyFor?.(text)} />
     }
     if (isBlock) {
-      return (
-        /* 代码块专用深色底（#0b0e14/#e2e8f0 为行业标准暗色代码面板，不随主题，属专用色保留） */
-        <div style={{ margin: '10px 0', borderRadius: 10, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.09)', background: '#0b0e14' }}> {/* hex-exempt 行业标准暗色代码面板（不随主题） */}
-          <CodeBlockHeader language={lang} text={text} />
-          <pre style={{ padding: '10px 12px', margin: 0, overflow: 'auto', fontFamily: "'Cascadia Code', Consolas, monospace", fontSize: 12.5, lineHeight: 1.55, color: '#e2e8f0', whiteSpace: 'pre' }}><code>{text}</code></pre> {/* hex-exempt 行业标准暗色代码面板（不随主题） */}
-        </div>
-      )
+      return <ChatCodeBlock language={lang} text={text} />
     }
     return (
       <code style={{

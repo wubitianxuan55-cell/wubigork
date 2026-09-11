@@ -49,15 +49,8 @@
   --del-bg: color-mix(in srgb, var(--err) 14%, transparent);
   --del-fg: var(--err);
 
-  /* ── syntax highlight (One Dark inspired, adjusted for new palette) ── */
-  --hl-keyword: #C084FC;  /* purple */
-  --hl-string: #22C55E;   /* run green */
-  --hl-number: #FB923C;   /* orange */
-  --hl-comment: #64748B;  /* slate */
-  --hl-func: #60A5FA;     /* blue */
-  --hl-type: #FBBF24;     /* amber */
-  --hl-builtin: #38BDF8;  /* sky */
-  --hl-meta: #94A3B8;     /* slate-400 */
+  /* ── syntax highlight — 色值已迁 gaea/hljs-theme.css（跨板块共享：聊天线
+     ChatCodeBlock 同用；--hl-* 生效令牌仍在此名下由该文件定义） ── */
 
   /* ── layout ────────────────────────────────────────────────────────── */
   --radius: 9px;
@@ -99,18 +92,6 @@
   --ds-success-soft: color-mix(in srgb, var(--ok) 14%, transparent);
   --ds-warning: var(--warn);
   --ds-warning-soft: color-mix(in srgb, var(--warn) 14%, transparent);
-}
-/* 浅色主题代码高亮调色板（data-hl 由主应用主题 effect 挂，lib/codeHighlight
-   applyHlTheme）：上方暗色调色板的淡色阶在浅背景对比不足，浅色换同色相深阶 */
-:root[data-hl="light"] {
-  --hl-keyword: #7C3AED;  /* violet-600 */
-  --hl-string: #047857;   /* emerald-700 */
-  --hl-number: #C2410C;   /* orange-700 */
-  --hl-comment: #64748B;  /* slate-500 */
-  --hl-func: #1D4ED8;     /* blue-700 */
-  --hl-type: #A16207;     /* yellow-700 */
-  --hl-builtin: #0369A1;  /* sky-700 */
-  --hl-meta: #4B5563;     /* gray-600 */
 }
 /* -- Platform-specific font stacks -------------------------------------------------- */
 :root[data-platform="windows"] {
@@ -534,66 +515,7 @@ body {
   color: var(--fg-faint);
 }
 
-/* ── highlight.js token theme (mapped to palette) ────────────────────────── */
-.hljs-comment,
-.hljs-quote {
-  color: var(--hl-comment);
-  font-style: italic;
-}
-.hljs-keyword,
-.hljs-selector-tag,
-.hljs-literal,
-.hljs-section,
-.hljs-doctag,
-.hljs-type,
-.hljs-name,
-.hljs-strong {
-  color: var(--hl-keyword);
-}
-.hljs-string,
-.hljs-regexp,
-.hljs-addition,
-.hljs-attribute,
-.hljs-meta .hljs-string {
-  color: var(--hl-string);
-}
-.hljs-number,
-.hljs-symbol,
-.hljs-bullet,
-.hljs-link,
-.hljs-selector-attr,
-.hljs-selector-pseudo {
-  color: var(--hl-number);
-}
-.hljs-title,
-.hljs-title.function_,
-.hljs-section .hljs-title {
-  color: var(--hl-func);
-}
-.hljs-class .hljs-title,
-.hljs-title.class_,
-.hljs-built_in,
-.hljs-attr {
-  color: var(--hl-type);
-}
-.hljs-variable,
-.hljs-template-variable,
-.hljs-property,
-.hljs-params,
-.hljs-selector-id,
-.hljs-selector-class {
-  color: var(--hl-builtin);
-}
-.hljs-meta,
-.hljs-comment .hljs-doctag {
-  color: var(--hl-meta);
-}
-.hljs-emphasis {
-  font-style: italic;
-}
-.hljs-strong {
-  font-weight: 600;
-}
+/* highlight.js token 规则已迁 gaea/hljs-theme.css（跨板块共享：聊天线同用） */
 
 /* ── scrollbars ──────────────────────────────────────────────────────────── */
 ::-webkit-scrollbar {

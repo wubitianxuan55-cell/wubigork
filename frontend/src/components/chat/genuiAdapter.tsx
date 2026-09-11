@@ -3,6 +3,7 @@ import { isValidElement, type ReactNode } from 'react'
 import type { Components } from 'react-markdown'
 import { GenuiMarkdownFence, genuiFenceStateKey, isGenuiFenceLang } from '../../genui/markdownFence'
 import type { GenuiScope } from '../../genui/scope'
+import { ChatCodeBlock } from '../ChatCodeBlock'
 
 export function buildMarkdownGenuiOverrides(
   scope: GenuiScope | null,
@@ -22,6 +23,15 @@ export function buildMarkdownGenuiOverrides(
       return (
         <div data-genui-host="true">
           <GenuiMarkdownFence code={text} stateKey={fenceKeyFor?.(text)} />
+        </div>
+      )
+    }
+    if (isBlock) {
+      // 普通代码块走聊天线统一面板（暗色+高亮，与 plain 模式同款）；
+      // 外层带 data-genui-host 让 GenuiPre 透传，不落 .md-content pre 默认底。
+      return (
+        <div data-genui-host="true">
+          <ChatCodeBlock language={lang} text={text} />
         </div>
       )
     }
