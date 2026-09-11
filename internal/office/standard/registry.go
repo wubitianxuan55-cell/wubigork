@@ -52,19 +52,9 @@ var defaultRegistry = NewRegistry(RedheadChecker{}, CostTableChecker{})
 // GaeaDocumentLint 从 LintText 切换到这里）。每个 Issue 带 Spec 归属，
 // Summary 按规范包分别统计。
 func LintDocument(path, head, body string) LintReport {
-	return LintDocumentWithLayout(path, head, body, nil)
-}
-
-// LintDocumentWithLayout 在文本检查器之外追加排版细则（v4.223）：layout 非 nil
-// 时跑 FormatChecker（docx 排版事实）；md/txt 等无排版事实传 nil，行为与
-// LintDocument 一致。
-func LintDocumentWithLayout(path, head, body string, layout *DocxLayout) LintReport {
 	var issues []Issue
 	for _, c := range defaultRegistry.checkers {
 		issues = append(issues, c.Check(path, head, body)...)
-	}
-	if layout != nil {
-		issues = append(issues, FormatChecker{}.CheckLayout(*layout)...)
 	}
 	missing := 0
 	for _, it := range issues {
