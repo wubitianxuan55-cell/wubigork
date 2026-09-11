@@ -1192,6 +1192,12 @@ export const en = {
   "subagent.noMatchMsg": "No matching messages",
   "subagent.modelToolLabel": "Local model",
   "subagent.modelToolSection": "Local model tools",
+  // ── 6.3 Office pipelines (DagPanel section in the tasks view; GaeaDag* bindings) ──
+  "dag.sectionTitle": "Office pipelines",
+  "dag.sectionEmpty": "No pipelines yet — ask gaea in chat to plan a multi-file task chain (e.g. \"read these reports and produce a monthly report\")",
+  "dag.loadFail": "Failed to load pipelines — click to retry",
+  "dag.loading": "Loading pipelines…",
+  "dag.scopeNote": "Outputs = evidence cards added within the run window; same-period writes from the main chat merge in — the evidence chain is authoritative, not a per-node exact manifest",
 
   // ── v4.57 i18n 收尾：ContextView ──
   "contextview.catSystem": "System prompt",

@@ -349,6 +349,57 @@ func FollowUpSink(ref string, onText func(text string)) event.Sink {
 	})
 }
 
+// SubagentRunRunner 是宿主侧「全新子代理运行」执行器（6.3 文件流水线节点，
+// 设计 docs/gaea-office-dag-63-design-2026-09.md）：不走 task 工具调用面，
+// 由 boot 组装后交给宿主保存（App 层 DAG 执行器调用）。emit 回调收文本增量
+// （gaea-subagent-text 专用通道，与追问同路），返回 (最终文本, sa_ ref, 错误)。
+type SubagentRunRunner = func(ctx context.Context, prompt string, emit func(ref, text string)) (string, string, error)
+
+// RunNew 派发一次全新子代理运行（不复用已有 transcript）：transcripts 落盘、
+// MarkRunning + TrackProgress 维持 ~1s 快照、收尾 SaveCompleted/SaveFailed，
+// 与 task 工具派发同管道——节点自动出现在既有子代理树/tab。emit 非 nil 时
+// 文本增量走 SubagentText 通道（wire-only，不进主对话账本）。
+func (t *TaskTool) RunNew(ctx context.Context, prompt string, emit func(ref, text string)) (string, string, error) {
+	prompt = strings.TrimSpace(prompt)
+	if prompt == "" {
+		return "", "", fmt.Errorf("prompt is required")
+	}
+	run, err := t.prepareRun(ctx, "", false)
+	if err != nil {
+		return "", "", err
+	}
+	ref := subagentRunRef(run)
+	var sink event.Sink = event.Discard
+	if emit != nil && run != nil {
+		sink = FollowUpSink(ref, func(text string) { emit(ref, text) })
+	}
+	if run == nil {
+		// ephemeral 模式（无 transcript store）：仍可执行，只是无 ref/落盘。
+		maxSteps := t.maxSteps / 2
+		if maxSteps < 5 {
+			maxSteps = 5
+		}
+		result, err := t.runSubSession(ctx, prompt, t.buildSubReg(nil), sink, nil, maxSteps, nil)
+		return result, "", err
+	}
+	defer run.Release()
+	if err := t.transcripts.MarkRunning(run); err != nil {
+		return "", ref, fmt.Errorf("mark subagent running: %w", err)
+	}
+	stop := t.transcripts.TrackProgress(run, 0)
+	// stop 必须先于终态写（TrackProgress 契约，见 runFollowUp 同注）。
+	stop()
+
+	subReg := t.buildSubReg(nil)
+	maxSteps := t.maxSteps / 2
+	if maxSteps < 5 {
+		maxSteps = 5
+	}
+	result, err := t.runSubSession(ctx, prompt, subReg, sink, run, maxSteps, nil)
+	final, ferr := t.finalizeRun(result, err, run)
+	return final, ref, ferr
+}
+
 // RunFollowUp 对已完结的 sa_ 运行执行一次用户追问：追加 prompt 后继续运行
 // （复用 continue_from 管道：PrepareContinue 拒绝 running/mt_/跨空间，
 // MarkRunning + TrackProgress 维持 ~1s 快照，收尾 SaveCompleted/SaveFailed）。

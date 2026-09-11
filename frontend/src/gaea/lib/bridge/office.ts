@@ -4,6 +4,7 @@ import type {
   ConvertPdfResult,
   CrossEmbedInput,
   CrossEmbedResult,
+  DagRunView,
   ExportDeliverableInput,
   ExportDeliverableResult,
   OfficeEditResult,
@@ -113,4 +114,20 @@ export interface OfficeBindings {
   DataBackupCancel(): Promise<void>;
   DataBackupRollback(): Promise<boolean>;
   DataBackupRestoreResult(): Promise<Record<string, unknown>>;
+  // ── 6.3 办公多文件 DAG（Go OfficeB.GaeaDag*，视图类型见 types DagRunView）──
+  // DagList 列出全部流水线（DagPanel 拉取/轮询）；DagGet 单条详情。
+  // 起跑/单跑/续跑改向/验收/终止均返回人类可读受理文案（Promise<string>，
+  // 后端受理即返回，进度靠前端轮询 DagList 自校正，不推事件流）。
+  DagList(): Promise<DagRunView[]>;
+  DagGet(id: string): Promise<DagRunView>;
+  // DagRun 起跑/续跑整链：draft 首跑、failed/ready 续跑（未完成节点续推）。
+  DagRun(id: string): Promise<string>;
+  // DagNodeRun 单节点跑/重跑（不动下游，重跑只覆盖该节点）。
+  DagNodeRun(id: string, nodeId: string): Promise<string>;
+  // DagNodeSteer 对已完成节点续跑改向（steerCount 累加，产物刷新）。
+  DagNodeSteer(id: string, nodeId: string, prompt: string): Promise<string>;
+  // DagNodeAccept 验收（人拍板，产物回流记忆）→ 节点置 accepted。
+  DagNodeAccept(id: string, nodeId: string): Promise<string>;
+  // DagCancel 终止级联：running 节点停推、未跑节点不再起跑。
+  DagCancel(id: string): Promise<string>;
 }

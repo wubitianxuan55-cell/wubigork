@@ -15,6 +15,7 @@ import {
 import { loadSubagentAutoOpen } from "../lib/subagentPrefs";
 import { AgentTree } from "./AgentTree";
 import { TaskCenter } from "./TaskCenter";
+import { DagPanel } from "./DagPanel";
 import { useT } from "../lib/i18n";
 import { useStore } from "../lib/store";
 import { useTodoExtractor } from "../hooks/useTodoExtractor";
@@ -400,6 +401,10 @@ export function TasksWorkbench({
             </div>
           </>
         )}
+
+        {/* ①c 办公流水线（6.3 办公多文件 DAG）：run 卡列表 + 节点操作，
+            自拉 GaeaDagList、running 时 2.5s 轮询自校正（详见 DagPanel 头注）。 */}
+        <DagPanel />
 
         {/* ② 后台任务（同页滚动；TaskCenter 自带输出 dock/取消/重试） */}
         <div className="mt-1 border-t border-border-soft" style={{ paddingTop: 2 }}>

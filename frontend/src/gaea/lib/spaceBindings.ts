@@ -470,6 +470,14 @@ export const GAEA_METHOD_FACETS = {
   DataBackupCancel: "work",
   DataBackupRollback: "work",
   DataBackupRestoreResult: "work",
+  // 6.3 办公多文件 DAG（Go OfficeB.GaeaDag*）：任务视图 DagPanel 消费面 → work。
+  DagList: "work",
+  DagGet: "work",
+  DagRun: "work",
+  DagNodeRun: "work",
+  DagNodeSteer: "work",
+  DagNodeAccept: "work",
+  DagCancel: "work",
   // 批次三a legacy 直调转正（Go CoreB.ListProjects）：书架工程卡片清单
   // （api/characterlib.listShelfProjects 消费面=创作间书架/角色库）→ play。
   ListProjects: "play",

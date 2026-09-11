@@ -7,6 +7,7 @@ import (
 	"github.com/gaea/gaea/internal/gaea/contextview"
 	"github.com/gaea/gaea/internal/gaea/event"
 	"github.com/gaea/gaea/internal/gaea/evidence"
+	"github.com/gaea/gaea/internal/gaea/dag"
 	"github.com/gaea/gaea/internal/office"
 	"github.com/gaea/gaea/internal/office/pptxedit"
 	"github.com/gaea/gaea/internal/office/standard"
@@ -46,6 +47,13 @@ func (b *OfficeB) GaeaContextNodeDetail(seq int64, sessionPath ...string) (conte
 func (b *OfficeB) GaeaContextView(sessionPath ...string) (contextview.ContextTimeline, error) { return b.a.GaeaContextView(sessionPath...) }
 func (b *OfficeB) GaeaConvertToPdf(rel string) (ConvertPdfResult, error) { return b.a.GaeaConvertToPdf(rel) }
 func (b *OfficeB) GaeaCrossEmbed(in CrossEmbedInput) (CrossEmbedResult, error) { return b.a.GaeaCrossEmbed(in) }
+func (b *OfficeB) GaeaDagCancel(id string) (string, error) { return b.a.GaeaDagCancel(id) }
+func (b *OfficeB) GaeaDagGet(id string) (*dag.RunView, error) { return b.a.GaeaDagGet(id) }
+func (b *OfficeB) GaeaDagList() ([]dag.RunView, error) { return b.a.GaeaDagList() }
+func (b *OfficeB) GaeaDagNodeAccept(id string, nodeID string) (string, error) { return b.a.GaeaDagNodeAccept(id, nodeID) }
+func (b *OfficeB) GaeaDagNodeRun(id string, nodeID string) (string, error) { return b.a.GaeaDagNodeRun(id, nodeID) }
+func (b *OfficeB) GaeaDagNodeSteer(id string, nodeID string, prompt string) (string, error) { return b.a.GaeaDagNodeSteer(id, nodeID, prompt) }
+func (b *OfficeB) GaeaDagRun(id string) (string, error) { return b.a.GaeaDagRun(id) }
 func (b *OfficeB) GaeaDataBackupCancel() error { return b.a.GaeaDataBackupCancel() }
 func (b *OfficeB) GaeaDataBackupCreate(destDir string) (map[string]interface{}, error) { return b.a.GaeaDataBackupCreate(destDir) }
 func (b *OfficeB) GaeaDataBackupInfo() map[string]interface{} { return b.a.GaeaDataBackupInfo() }

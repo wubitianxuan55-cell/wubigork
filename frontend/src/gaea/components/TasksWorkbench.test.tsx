@@ -28,9 +28,14 @@ const storeMocks = vi.hoisted(() => ({
 }));
 const bridgeMocks = vi.hoisted(() => ({
   onEvent: vi.fn(() => () => {}),
+  dagList: vi.fn(),
 }));
 
-vi.mock("../lib/bridge", () => ({ onEvent: bridgeMocks.onEvent }));
+vi.mock("../lib/bridge", () => ({
+  onEvent: bridgeMocks.onEvent,
+  // 6.3：内嵌 DagPanel 挂载即自拉 GaeaDagList（本文件不测该区块，给空清单即可）
+  app: { DagList: bridgeMocks.dagList },
+}));
 vi.mock("../lib/agentNetworkStore", () => ({
   subscribeAgentNetwork: storeMocks.subscribeAgentNetwork,
   reloadAgentNetwork: storeMocks.reloadAgentNetwork,
@@ -130,6 +135,8 @@ const netErrorM: AgentNetworkMeta = { status: "error" };
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // 内嵌 DagPanel（6.3）：本文件不测该区块，稳定空清单防未实现 mock 漏值
+  bridgeMocks.dagList.mockResolvedValue([]);
   runsCb = null;
   netCb = null;
   unsubRuns = vi.fn();

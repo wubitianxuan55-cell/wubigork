@@ -238,3 +238,33 @@ export interface LintReportView {
   passed: boolean;
   summary: string;
 }
+
+// ── 6.3 办公多文件 DAG（DagNodeView/DagRunView，Go OfficeB.GaeaDag* 契约冻结）──
+// DagNodeView 是流水线单节点视图：ref=最近一次子代理运行 ref（sa_ 前缀）；
+// outputs=工作区相对路径产物；runCount 已跑次数；steerCount 续跑改向次数；
+// acceptedAt 验收时间。status：pending 待跑 / running / done / failed /
+// skipped 级联终止或依赖失败跳过 / accepted 已验收（产物回流记忆）。
+export interface DagNodeView {
+  id: string;
+  title: string;
+  prompt: string;
+  dependsOn?: string[];
+  status: "pending" | "running" | "done" | "failed" | "skipped" | "accepted";
+  ref?: string;
+  outputs?: string[];
+  error?: string;
+  runCount: number;
+  steerCount?: number;
+  acceptedAt?: string;
+}
+
+// DagRunView 是整条流水线视图。derived=后端派生态（前端不自算，只渲染）：
+// draft=还没跑过 / running / failed=有失败 / ready=全 done 待验收 / accepted=全验收。
+export interface DagRunView {
+  id: string;
+  goal: string;
+  createdAt: string;
+  updatedAt: string;
+  derived: "draft" | "running" | "failed" | "ready" | "accepted";
+  nodes: DagNodeView[];
+}

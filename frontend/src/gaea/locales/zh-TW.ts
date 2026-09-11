@@ -1197,6 +1197,12 @@ export const zhTW: Record<DictKey, string> = {
   "subagent.noMatchMsg": "沒有符合的訊息",
   "subagent.modelToolLabel": "本地模型",
   "subagent.modelToolSection": "本地模型工具",
+  // ── 6.3 辦公流水線（DagPanel 任務視圖區塊，GaeaDag* 綁定消費面）──
+  "dag.sectionTitle": "辦公流水線",
+  "dag.sectionEmpty": "暫無流水線——對話裡讓 gaea 規劃多檔案任務鏈（如「讀這幾份報表出一份月度報告」）",
+  "dag.loadFail": "流水線清單載入失敗，點擊重試",
+  "dag.loading": "讀取流水線…",
+  "dag.scopeNote": "產物口徑：執行視窗內新增的證據卡，主對話同期寫入會併入——以證據鏈為準，非逐節點精確清單",
 
   // ── v4.57 i18n 收尾：ContextView ──
   "contextview.catSystem": "系統提示詞",

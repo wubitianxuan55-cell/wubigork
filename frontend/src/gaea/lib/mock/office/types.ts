@@ -27,4 +27,6 @@ export type OfficeMethods = Pick<
   // 批次三a legacy 直调转正（Go OfficeB.GaeaDataBackup*，Gaea 前缀经 mappings 映射）。
   | "DataBackupInfo" | "DataBackupCreate" | "DataBackupRestore"
   | "DataBackupCancel" | "DataBackupRollback" | "DataBackupRestoreResult"
+  // 6.3 办公多文件 DAG（Go OfficeB.GaeaDag*，Gaea 前缀经 mappings 映射）。
+  | "DagList" | "DagGet" | "DagRun" | "DagNodeRun" | "DagNodeSteer" | "DagNodeAccept" | "DagCancel"
 >;

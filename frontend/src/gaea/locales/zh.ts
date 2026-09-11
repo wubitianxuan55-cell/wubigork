@@ -1193,6 +1193,12 @@ export const zh: Record<DictKey, string> = {
   "subagent.noMatchMsg": "没有匹配的消息",
   "subagent.modelToolLabel": "本地模型",
   "subagent.modelToolSection": "本地模型工具",
+  // ── 6.3 办公流水线（DagPanel 任务视图区块，GaeaDag* 绑定消费面）──
+  "dag.sectionTitle": "办公流水线",
+  "dag.sectionEmpty": "暂无流水线——对话里让 gaea 规划多文件任务链（如「读这几份报表出一份月度报告」）",
+  "dag.loadFail": "流水线列表加载失败，点击重试",
+  "dag.loading": "读取流水线…",
+  "dag.scopeNote": "产物口径：运行窗口内新增的证据卡，主对话同期写盘会并入——以证据链为准，非逐节点精确清单",
 
   // ── v4.57 i18n 收尾：ContextView ──
   "contextview.catSystem": "系统提示词",

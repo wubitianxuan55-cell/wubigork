@@ -292,4 +292,12 @@ export const gaeaToGaea = {
   PreloadPlanGet: "GetPreloadPlan",
   PreloadPlanSet: "SetPreloadPlan",
   ModelSwitchEstimate: "GaeaModelSwitchEstimate",
+  // 6.3 办公多文件 DAG（Go OfficeB.GaeaDag*）：DagPanel 拉取/轮询与操作面。
+  DagList: "GaeaDagList",
+  DagGet: "GaeaDagGet",
+  DagRun: "GaeaDagRun",
+  DagNodeRun: "GaeaDagNodeRun",
+  DagNodeSteer: "GaeaDagNodeSteer",
+  DagNodeAccept: "GaeaDagNodeAccept",
+  DagCancel: "GaeaDagCancel",
 } as const satisfies Record<string, string>;

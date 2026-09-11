@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -12,8 +13,8 @@ import (
 	"github.com/BurntSushi/toml"
 
 	appconfig "github.com/gaea/gaea/internal/config"
-	gaeaBoot "github.com/gaea/gaea/internal/gaea/boot"
 	gaeaAgent "github.com/gaea/gaea/internal/gaea/agent"
+	gaeaBoot "github.com/gaea/gaea/internal/gaea/boot"
 	gaeaConfig "github.com/gaea/gaea/internal/gaea/config"
 	"github.com/gaea/gaea/internal/gaea/control"
 	"github.com/gaea/gaea/internal/gaea/event"
@@ -40,6 +41,13 @@ type gaeaRuntime struct {
 	// 重建而更新（任务树/tab 状态经轮询自校正，无在途状态需要迁移）。
 	followUp   gaeaAgent.SubagentFollowUpRunner
 	followUpMu sync.Mutex
+	// nodeRunner 是「全新子代理运行」执行器（6.3 文件流水线节点）：boot 用
+	// taskTool.RunNew 管道组装，经 OnNodeRunnerReady 交给这里；语义同 followUp
+	// （随 controller 重建更新）。dagMu 串行化 run 档读改写，dagCancels 是
+	// runID→cancel 的在途执行登记（终态级联 + 重启中断懒清扫判据）。
+	nodeRunner gaeaAgent.SubagentRunRunner
+	dagMu      sync.Mutex
+	dagCancels sync.Map
 	// wire 是 gaea 事件流 → 前端 gaea-event 的转发层（v4.26 对话流式重造）：
 	// wire seq 打点 + phase 节流的唯一状态点，随进程存活（不随 controller
 	// 重建重置——设置变更重建引擎不打断当前会话，seq 回退会破坏前端断号检测）。
@@ -111,7 +119,7 @@ func (a *App) gaeaBuildController() (*control.Controller, error) {
 		space = ga.cfg.EffectiveSessionSpace()
 	}
 	ctrl, err := gaeaBoot.Build(a.ctx, gaeaBoot.Options{
-		Model:      "gaea",
+		Model: "gaea",
 		// v4.64 Side Chat 式追问：文本增量走专用通道（gaea-subagent-text），
 		// 追问执行器交给 ga 保存（GaeaSubagentFollowUp 绑定调用）。
 		EmitSubagentText: func(ref, text string) {
@@ -122,6 +130,12 @@ func (a *App) gaeaBuildController() (*control.Controller, error) {
 		OnFollowUpReady: func(runner gaeaAgent.SubagentFollowUpRunner) {
 			ga.followUpMu.Lock()
 			ga.followUp = runner
+			ga.followUpMu.Unlock()
+		},
+		// 6.3 文件流水线：全新子代理执行器交给 ga 保存（DAG 节点执行器调用）。
+		OnNodeRunnerReady: func(runner gaeaAgent.SubagentRunRunner) {
+			ga.followUpMu.Lock()
+			ga.nodeRunner = runner
 			ga.followUpMu.Unlock()
 		},
 		RequireKey: false,
@@ -142,6 +156,8 @@ func (a *App) gaeaBuildController() (*control.Controller, error) {
 			factAddTool{},
 			factListTool{},
 			factClearTool{},
+			// 6.3 文件流水线：主代理规划工具（work 空间，PersistWrite 防子代理嵌套）。
+			dagPlanTool{dir: filepath.Join(gaeaCwd(), ".gaea", "work", "dag")},
 		}, gaeaSpecialistTools(a)...),
 		// 晨报预载（v4.16 刀④）：work 空间会话装配时把高频工作记忆预装配进
 		// agent 上下文（零 LLM、预算受限、work 只读）。开关读 ~/.gaea_config.json

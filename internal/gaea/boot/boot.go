@@ -58,6 +58,10 @@ type Options struct {
 	// taskTool 的 continue_from 管道组装，宿主（App）保存并在绑定里调用。
 	EmitSubagentText func(ref, text string)
 	OnFollowUpReady  func(runner agent.SubagentFollowUpRunner)
+	// OnNodeRunnerReady（6.3 文件流水线）：接收「全新子代理运行」执行器
+	// （taskTool.RunNew 管道，transcripts 落盘+headless 闸+过滤工具集），
+	// 宿主（App）保存后供 DAG 节点执行器调用；emit 语义同 EmitSubagentText。
+	OnNodeRunnerReady func(runner agent.SubagentRunRunner)
 	// Stderr is the writer for diagnostic warnings and plugin subprocess
 	// stderr output. When nil, defaults to os.Stderr. Set to io.Discard
 	// during model switch inside a bubbletea session to prevent any output
@@ -310,6 +314,11 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 		if opts.OnFollowUpReady != nil {
 			opts.OnFollowUpReady(followUp)
 		}
+	}
+	// 6.3 文件流水线：全新子代理执行器交给宿主（App 侧 DAG 节点执行器）。
+	// 不依赖 EmitSubagentText——emit 由调用方逐次传入，nil 走 Discard。
+	if opts.OnNodeRunnerReady != nil {
+		opts.OnNodeRunnerReady(taskTool.RunNew)
 	}
 
 	// The `remember` tool lets the model persist durable facts to the project's
