@@ -77,7 +77,7 @@ export function DagPanel() {
   const reload = useCallback(async () => {
     try {
       const rs = await app.DagList();
-      setRuns(rs);
+      setRuns(rs ?? []); // Go nil slice 序列化为 null：边界归一（v4.234 真机实锤）
       setFailed(false);
     } catch {
       // 失败保留旧快照；首拉失败（无数据）时由下方 failed 空态出重试入口
@@ -87,7 +87,7 @@ export function DagPanel() {
 
   const reloadTpls = useCallback(async () => {
     try {
-      setTpls(await app.DagTemplateList());
+      setTpls((await app.DagTemplateList()) ?? []); // 同上：nil slice → null 边界归一
     } catch {
       // 模板拉取失败静默保旧值：模板区是增强面，不因它挡流水线主列表
     }
@@ -106,7 +106,7 @@ export function DagPanel() {
     const h = setInterval(() => {
       void (async () => {
         try {
-          setRuns(await app.DagList());
+          setRuns((await app.DagList()) ?? []);
           setFailed(false);
         } catch {
           // 轮询失败保旧快照，下个 tick 继续

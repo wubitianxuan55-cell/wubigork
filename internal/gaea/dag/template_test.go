@@ -80,6 +80,10 @@ func TestTemplateStoreRoundtrip(t *testing.T) {
 	s := NewTemplateStore(filepath.Join(t.TempDir(), "templates"))
 	if ts, err := s.List(); err != nil || len(ts) != 0 {
 		t.Fatalf("空目录 List: err=%v n=%d", err, len(ts))
+	} else if ts == nil {
+		// 目录不存在必须返回非 nil 空集：nil slice 序列化成 JSON null，会把
+		// 前端非空断言的消费方（DagPanel tpls.length）炸掉（v4.234 真机走查实锤）。
+		t.Fatalf("目录不存在 List 应返回非 nil 空集")
 	}
 	tpl, err := FromRun(tplChain(), "月度报告")
 	if err != nil {

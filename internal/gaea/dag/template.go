@@ -163,7 +163,9 @@ func (s *TemplateStore) Get(id string) (Template, error) {
 func (s *TemplateStore) List() ([]Template, error) {
 	entries, err := os.ReadDir(s.dir)
 	if os.IsNotExist(err) {
-		return nil, nil
+		// 目录不存在=空集语义：nil slice 经 JSON 序列化成 null，会把前端
+		// 非空断言的消费方（DagPanel tpls.length）炸掉（v4.234 真机走查实锤）。
+		return []Template{}, nil
 	}
 	if err != nil {
 		return nil, err
