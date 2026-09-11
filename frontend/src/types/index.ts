@@ -129,17 +129,6 @@ export interface ConsistencyDeepResult {
   ai_note?: string
 }
 
-// ── 画布 ────────────────────────────────────────────────
-export interface CanvasChapterData {
-  num: number
-  title: string
-  summary: string
-  keyEvents: string[]
-  characters: string[]
-  emotionTone: string
-  quality: number
-}
-
 // ── 写作 ────────────────────────────────────────────────
 export interface ChapterTabData {
   node: OutlineNode

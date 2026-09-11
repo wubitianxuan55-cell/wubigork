@@ -228,5 +228,3 @@ export const ChatInspector: React.FC<ChatInspectorProps> = ({
     </div>
   )
 }
-
-export default ChatInspector

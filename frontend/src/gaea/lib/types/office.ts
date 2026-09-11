@@ -99,15 +99,6 @@ export interface XlsxPreview {
 // XlsxEditResult 是单元格编辑结果：更新后的预览 + 摘要。
 export type XlsxEditResult = WireShape<AppModels.XlsxEditResult>;
 
-// XlsxCellChange 是规划 diff 中的一处单元格变更（值或公式与原文件不同）。
-export interface XlsxCellChange {
-  sheet: string;
-  cell: string;
-  before: string;
-  after: string;
-  formula?: string; // 变更后为公式时给出（显示 fx）
-}
-
 // XlsxPlanResult 是「先规划后应用」的规划结果：ops 原样带回（应用时透传），
 // 附变更清单供用户审阅批准（对标 Copilot Plan/Show Changes 范式）。
 export type XlsxPlanResult = WireShape<AppModels.XlsxPlanResult>;

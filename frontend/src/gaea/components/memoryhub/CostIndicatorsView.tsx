@@ -120,5 +120,3 @@ export function CostIndicatorsView() {
     </div>
   );
 }
-
-export default CostIndicatorsView;

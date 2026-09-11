@@ -96,4 +96,3 @@ export const EmotionSpeakSelector: React.FC<EmotionSpeakSelectorProps> = ({ valu
   )
 }
 
-export default EmotionSpeakSelector

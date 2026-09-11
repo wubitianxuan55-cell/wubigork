@@ -132,5 +132,3 @@ export function RetrievalEvalSection() {
     </div>
   )
 }
-
-export default RetrievalEvalSection

@@ -31,9 +31,6 @@ export interface MemoryArchive {
 // 归档超过 90 天的事实为硬删除候选（GaeaMemoryCleanupArchived 清理）。
 export type MemoryArchivedView = WireShape<AppModels.MemoryArchivedView>;
 
-// MemoryLifecycleItem / MemoryLifecycleView 是三态生命周期视图
-// （GaeaMemoryLifecycle：固化/衰减/归档，5.3）。
-export type MemoryLifecycleItem = WireShape<AppModels.MemoryLifecycleItem>;
 
 export type MemoryLifecycleView = WireShape<AppModels.MemoryLifecycleView>;
 
@@ -70,8 +67,6 @@ export interface SkillSuggestion {
 
 export type MemorySuggestionsView = WireShape<AppModels.MemorySuggestionsView>;
 
-/** MemoryMergeSuggestion 蒸馏合并候选（做梦 2.0：确定性重复记忆，批准后归档较旧条）。 */
-export type MemoryMergeSuggestion = NonNullable<MemorySuggestionsView["merges"]>[number];
 // ── 记忆中枢（Memory Hub）类型 ──────────────────────────────────────
 
 // ProfileFactView 主脑全局画像事实（跨板块共享的用户画像）。

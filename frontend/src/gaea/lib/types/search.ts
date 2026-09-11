@@ -45,9 +45,6 @@ export interface IntentResultView {
   target?: string;
 }
 
-// RetrievalEvalQuery 是检索质量测评中单条查询的明细：期望命中 vs 实际前 10 命中。
-// expected/topHits 均为 "kind:name" 形式（如 "cost:hp300"），便于前端直接对比。
-export type RetrievalEvalQuery = WireShape<AppModels.RetrievalEvalQuery>;
 
 // RetrievalEvalReport 是检索质量测评结果：内置查询集跑一遍统一检索，
 // 统计平均 recall@10，并与达标门槛比较给出通过状态。

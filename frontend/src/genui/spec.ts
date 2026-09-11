@@ -27,14 +27,6 @@ export const GENUI_LIMITS = {
   maxAction: 64,
 } as const;
 
-export type Tone =
-  | "success"
-  | "warn"
-  | "danger"
-  | "accent"
-  | "info"
-  | "error";
-
 export type TextSize = "h1" | "h2" | "h3" | "body" | "muted" | "caption";
 export type ButtonTone = "primary" | "danger" | "success" | "ghost";
 export type InputType = "text" | "email" | "password";

@@ -68,7 +68,6 @@ export const FRONTEND_EVENTS = {
   AI_ASSIST_SEND: 'ai-assist-send',
 } as const
 
-export type BackendEventName = (typeof BACKEND_EVENTS)[keyof typeof BACKEND_EVENTS]
 export type FrontendEventName = (typeof FRONTEND_EVENTS)[keyof typeof FRONTEND_EVENTS]
 
 /** 聊天流动态频道：chat-stream:<runID> */

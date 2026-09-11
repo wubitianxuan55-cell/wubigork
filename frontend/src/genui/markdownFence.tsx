@@ -4,7 +4,7 @@
 //   const lang = /language-([\w-]+)/.exec(className ?? "")?.[1];
 //   if (lang && isGenuiFenceLang(lang)) return <GenuiMarkdownFence code={text} stateKey={...} />;
 
-import { GENUI_FENCE_LANGS, type GenuiSpec } from "./spec";
+import { GENUI_FENCE_LANGS } from "./spec";
 import { parseGenuiFenceBody } from "./parse";
 import { GenuiBlock } from "./GenuiBlock";
 import { genuiStateKey } from "./fingerprint";
@@ -12,11 +12,6 @@ import type { GenuiScope } from "./scope";
 
 export function isGenuiFenceLang(lang: string): boolean {
   return GENUI_FENCE_LANGS.has(lang);
-}
-
-/** 供缝代码快速尝试解析；失败返回 null（渲染器退化为普通代码块）。 */
-export function tryParseFence(code: string): GenuiSpec | null {
-  return parseGenuiFenceBody(code);
 }
 
 export function GenuiMarkdownFence({

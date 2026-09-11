@@ -1,4 +1,3 @@
-/* eslint-disable react-refresh/only-export-components -- extractTags 工具函数导出供角色表单复用 */
 import React from 'react'
 import { Typography, Input, Select } from 'antd'
 import { C } from '../../../utils/theme'
@@ -19,11 +18,6 @@ export function Block({ title, extra, children }: { title: React.ReactNode; extr
 /** L 标签文字 */
 export function L({ children }: { children: React.ReactNode }) {
   return <Typography.Text style={{ color: C('color-text-secondary'), fontSize: 11, display: 'block', marginBottom: 4 }}>{children}</Typography.Text>
-}
-
-/** 从文本中提取关键词标签（按中文/英文逗号、分号、顿号分隔） */
-export function extractTags(text: string): string[] {
-  return text.split(/[，,、；;]/).map((s) => s.trim()).filter((s) => s.length > 1)
 }
 
 export interface FieldProps {

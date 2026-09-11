@@ -1,7 +1,6 @@
-/* eslint-disable react-refresh/only-export-components -- 常量/渲染函数与组件同文件导出 */
 // GenuiBlock — 渲染一个已修复的 GenUI 规格。
 // 状态归属：块级 answers/fields/meta/locked；本地判卷与持久化都在本层完成。
-import { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { type GenuiSpec } from "./spec";
 import { useGenuiAction, type GenuiActionHandler } from "./GenuiActionContext";
 import { loadBlockState, saveBlockState } from "./interaction";
@@ -164,7 +163,3 @@ export const GenuiBlock = memo(function GenuiBlock(props: GenuiBlockProps) {
   const instanceKey = props.stateKey === undefined ? "volatile" : `durable:${props.stateKey}`;
   return <GenuiBlockInstance key={instanceKey} {...props} />;
 }, (prev, next) => prev.stateKey === next.stateKey && specEquivalent(prev.spec, next.spec));
-
-export function renderGenuiSpec(spec: GenuiSpec): ReactNode {
-  return <GenuiBlock spec={spec} />;
-}

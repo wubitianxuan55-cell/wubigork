@@ -12,8 +12,6 @@ export type BalanceInfo = WireShape<AppModels.BalanceInfo>;
 // JobView is one running background job (desktop/app.go Jobs) for the status bar.
 export type JobView = WireShape<AppModels.JobView>;
 
-// FactView: one settled fact in the conversation fact base (sidebar panel).
-export type FactView = WireShape<AppModels.FactView>;
 
 // FactBaseView: the fact-base panel view: facts + copy-ready Markdown.
 export type FactBaseView = WireShape<AppModels.FactBaseView>;

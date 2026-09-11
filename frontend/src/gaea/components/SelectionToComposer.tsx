@@ -105,5 +105,3 @@ export function SelectionToComposer() {
     document.body,
   );
 }
-
-export default SelectionToComposer;

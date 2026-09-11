@@ -46,11 +46,6 @@ export async function deleteOrganization(id: string): Promise<void> {
   await app.DeleteOrganization(id)
 }
 
-/** 切换组织成员 */
-export async function toggleOrgMember(charID: string, orgID: string): Promise<void> {
-  await app.ToggleOrgMember(charID, orgID)
-}
-
 // ── 关系 ──
 
 /** 保存关系 */

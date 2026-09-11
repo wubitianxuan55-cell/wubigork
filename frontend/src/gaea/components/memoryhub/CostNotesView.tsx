@@ -306,5 +306,3 @@ function fmtDate(iso?: string): string {
   const p = (n: number) => String(n).padStart(2, "0");
   return `${d.getMonth() + 1}-${p(d.getDate())}`;
 }
-
-export default CostNotesView;

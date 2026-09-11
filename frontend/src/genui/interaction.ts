@@ -67,15 +67,6 @@ export function saveBlockState(stateKey: string, state: BlockInteractionState): 
   writeStore(store);
 }
 
-export function clearBlockState(stateKey: string): void {
-  if (stateKey === "") return;
-  const store = readStore();
-  if (!(stateKey in store.blocks)) return;
-  delete store.blocks[stateKey];
-  store.order = store.order.filter((k) => k !== stateKey);
-  writeStore(store);
-}
-
 export function resetInteractionStore(): void {
   try {
     window.localStorage.removeItem(STORE_KEY);

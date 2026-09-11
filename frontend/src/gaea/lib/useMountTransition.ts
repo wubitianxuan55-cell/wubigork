@@ -44,35 +44,3 @@ export function useMountTransition(
 
   return { mounted, status };
 }
-
-// useDeferredClose suits overlays whose mount is owned by a parent (rendered as
-// `{cond && <Panel onClose={...} />}`). The panel defers the parent's unmount
-// so the exit animation can play first.
-export function useDeferredClose(
-  onClose: () => void,
-  duration: number,
-): { status: MountStatus; requestClose: () => void } {
-  const [closing, setClosing] = useState(false);
-  const timerRef = useRef<number | null>(null);
-  const onCloseRef = useRef(onClose);
-  onCloseRef.current = onClose;
-
-  const requestClose = () => {
-    if (timerRef.current !== null) return;
-    setClosing(true);
-    const wait = prefersReducedMotion() ? 0 : duration;
-    timerRef.current = window.setTimeout(() => {
-      timerRef.current = null;
-      onCloseRef.current();
-    }, wait);
-  };
-
-  useEffect(
-    () => () => {
-      if (timerRef.current !== null) window.clearTimeout(timerRef.current);
-    },
-    [],
-  );
-
-  return { status: closing ? "closing" : "open", requestClose };
-}

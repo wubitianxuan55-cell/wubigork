@@ -504,12 +504,6 @@ export const useScheduleStore = create<ScheduleState>()(
   ),
 )
 
-/** 供组件读取的任务快捷方法（非 hook 场景用 getState） */
-export const scheduleActions = {
-  addTask: (afterId?: string) => useScheduleStore.getState().addTask(afterId),
-  removeTask: (id: string) => useScheduleStore.getState().removeTask(id),
-}
-
 // ── 文件同步（v4.113.0 刀4）────────────────────────────────
 // 水合 → 防抖自动保存 → agent 写入回读（focus/可见轻扫）。终态语义：
 // 板块不弹窗打断编辑，失败落 syncError 由指示器诚实展示。

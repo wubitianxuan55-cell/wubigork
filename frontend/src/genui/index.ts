@@ -34,7 +34,6 @@ export type {
   GenuiTabs,
   GenuiAccordion,
   GenuiQuiz,
-  Tone,
   ButtonTone,
   ChartKind,
 } from "./spec";
@@ -49,7 +48,6 @@ export {
   parseGenuiFenceBody,
   parsePartialGenuiSpec,
   stripTrailingCommas,
-  setMaxPartialRepairAttempts,
   MAX_PARTIAL_REPAIR_ATTEMPTS,
 } from "./parse";
 export type { GenuiSegment, GenuiFenceSplit } from "./parse";
@@ -57,8 +55,6 @@ export { fingerprint, genuiStateKey, genuiPanelKey } from "./fingerprint";
 export {
   loadBlockState,
   saveBlockState,
-  clearBlockState,
-  clearBlockStatesForSession,
   resetInteractionStore,
 } from "./interaction";
 export type { BlockInteractionState } from "./interaction";
@@ -74,6 +70,5 @@ export type { GenuiScope } from "./scope";
 export { renderNode } from "./renderNode";
 export {
   isGenuiFenceLang,
-  tryParseFence,
   GenuiMarkdownFence,
 } from "./markdownFence";

@@ -15,8 +15,3 @@ export function formatRelativeTime(iso: string): string {
   if (days < 30) return `${Math.floor(days / 7)} 周前`
   return date.toLocaleDateString('zh-CN')
 }
-
-/** delay — 延迟指定毫秒数 */
-export function delay(ms: number): Promise<void> {
-  return new Promise((r) => setTimeout(r, ms))
-}

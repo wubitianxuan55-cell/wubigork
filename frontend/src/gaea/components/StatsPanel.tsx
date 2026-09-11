@@ -1,5 +1,4 @@
-/* eslint-disable react-refresh/only-export-components -- useStatsPersistence hook 与组件同文件（usage 事件订阅持久化） */
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { ArrowDown, ArrowUp, BarChart3, TrendingUp, Wallet, Zap } from "../icons";
 import type { SessionStatsView, WireUsage } from "../lib/types";
 import { aggSteps, colFromUsage, hitRateColor, type StepRecord, type ColStats } from "../lib/stats";
@@ -7,26 +6,7 @@ import { TrendChart, type TrendPoint } from "./TrendChart";
 
 interface Point { x: number; y: number; label: string; }
 
-function storageKey(sessionKey: string) { return `gaea.stats.${sessionKey}`; }
-
 export interface StoredData { turns: TurnRecord[]; steps: StepRecord[]; }
-
-function loadData(sessionKey: string): StoredData {
-  try {
-    const raw = localStorage.getItem(storageKey(sessionKey));
-    if (!raw) return { turns: [], steps: [] };
-    const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed)) return { turns: parsed as TurnRecord[], steps: [] };
-    return {
-      turns: Array.isArray((parsed as StoredData).turns) ? (parsed as StoredData).turns : [],
-      steps: Array.isArray((parsed as StoredData).steps) ? (parsed as StoredData).steps : [],
-    };
-  } catch { return { turns: [], steps: [] }; }
-}
-
-function saveData(sessionKey: string, data: StoredData) {
-  try { localStorage.setItem(storageKey(sessionKey), JSON.stringify(data)); } catch {}
-}
 
 interface TurnRecord {
   turn: number;
@@ -40,126 +20,6 @@ interface TurnRecord {
 
 function tk(n: number): string { return n.toLocaleString(); }
 function cash(v: number): string { return "¥" + v.toFixed(4); }
-
-// ─── useStatsPersistence ──────────────────────────────────
-// 将 localStorage 持久化逻辑提取为独立 hook，在 App 层运行。
-// StatsPanel 可安全条件渲染（不再需要 display:none 保活），
-// 此 hook 始终运行以接收 usage 事件并写入 localStorage。
-
-export function useStatsPersistence(
-  sessionKey: string,
-  resetKey: number | undefined,
-  turnSteps: WireUsage[] | undefined,
-  perTurnUsage: WireUsage | null | undefined,
-) {
-  const turnRef = useRef(0);
-  const stepRef = useRef(0);
-  const turnAccumRef = useRef<{ prompt: number; completion: number; cacheHit: number; cacheMiss: number; cost: number }>({ prompt: 0, completion: 0, cacheHit: 0, cacheMiss: 0, cost: 0 });
-  const perTurnRef = useRef<WireUsage | null>(null);
-  const [data, setData] = useState<StoredData>(() => {
-    const loaded = loadData(sessionKey);
-    if (loaded.turns.length > 0) turnRef.current = loaded.turns[loaded.turns.length - 1].turn;
-    if (loaded.steps.length > 0) stepRef.current = loaded.steps[loaded.steps.length - 1].step;
-    return loaded;
-  });
-
-  const lastKeyRef = useRef(sessionKey);
-  const keyChanged = lastKeyRef.current !== sessionKey;
-  if (keyChanged) lastKeyRef.current = sessionKey;
-
-  const lastResetRef = useRef(resetKey);
-  const skipWriteRef = useRef(false);
-  // Merged effect: keyChanged (load data) runs before reset (clear data) to avoid
-  // race when both sessionKey and resetKey change in the same render cycle.
-  useEffect(() => {
-    const kc = lastKeyRef.current !== sessionKey;
-    if (kc) {
-      lastKeyRef.current = sessionKey;
-      const loaded = loadData(sessionKey);
-      turnRef.current = loaded.turns.length > 0 ? loaded.turns[loaded.turns.length - 1].turn : 0;
-      stepRef.current = loaded.steps.length > 0 ? loaded.steps[loaded.steps.length - 1].step : 0;
-      turnAccumRef.current = { prompt: 0, completion: 0, cacheHit: 0, cacheMiss: 0, cost: 0 };
-      perTurnRef.current = null;
-      setData(loaded);
-    }
-    if (resetKey !== undefined && resetKey !== lastResetRef.current) {
-      lastResetRef.current = resetKey;
-      skipWriteRef.current = true;
-      saveData(sessionKey, { turns: [], steps: [] });
-      turnRef.current = 0; stepRef.current = 0;
-      turnAccumRef.current = { prompt: 0, completion: 0, cacheHit: 0, cacheMiss: 0, cost: 0 };
-      perTurnRef.current = null;
-      setData({ turns: [], steps: [] });
-    }
-  }, [resetKey, sessionKey]);
-
-  useEffect(() => {
-    if (!turnSteps || turnSteps.length === 0) return;
-    if (skipWriteRef.current) { skipWriteRef.current = false; return; }
-    const lastStep = turnSteps[turnSteps.length - 1];
-    setData(prev => {
-      if (prev.steps.length > 0) {
-        const prevStep = prev.steps[prev.steps.length - 1];
-        if (prevStep.prompt === lastStep.promptTokens && prevStep.completion === lastStep.completionTokens
-          && prevStep.cacheHit === lastStep.cacheHitTokens && prevStep.cacheMiss === lastStep.cacheMissTokens
-          && prevStep.source === lastStep.source) {
-          return prev;
-        }
-      }
-      stepRef.current += 1;
-      const rec: StepRecord = {
-        step: stepRef.current,
-        prompt: lastStep.promptTokens,
-        completion: lastStep.completionTokens,
-        cacheHit: lastStep.cacheHitTokens,
-        cacheMiss: lastStep.cacheMissTokens,
-        cost: lastStep.costUsd ?? 0,
-        source: lastStep.source,
-      };
-      turnAccumRef.current.prompt += lastStep.promptTokens;
-      turnAccumRef.current.completion += lastStep.completionTokens;
-      turnAccumRef.current.cacheHit += lastStep.cacheHitTokens;
-      turnAccumRef.current.cacheMiss += lastStep.cacheMissTokens;
-      turnAccumRef.current.cost += lastStep.costUsd ?? 0;
-      const next = { ...prev, steps: [...prev.steps, rec] };
-      saveData(sessionKey, next);
-      return next;
-    });
-  }, [turnSteps, sessionKey]);
-
-  useEffect(() => {
-    if (perTurnUsage != null) { perTurnRef.current = perTurnUsage; return; }
-    const last = perTurnRef.current;
-    if (last && last.totalTokens > 0) {
-      turnRef.current += 1;
-      const rec: TurnRecord = {
-        turn: turnRef.current,
-        prompt: turnAccumRef.current.prompt,
-        completion: turnAccumRef.current.completion,
-        cacheHit: turnAccumRef.current.cacheHit,
-        cacheMiss: turnAccumRef.current.cacheMiss,
-        cost: turnAccumRef.current.cost,
-        totalTokens: last.totalTokens,
-      };
-      setData(prev => {
-        const next = { ...prev, turns: [...prev.turns, rec] };
-        saveData(sessionKey, next);
-        return next;
-      });
-    }
-    turnAccumRef.current = { prompt: 0, completion: 0, cacheHit: 0, cacheMiss: 0, cost: 0 };
-    perTurnRef.current = null;
-  }, [perTurnUsage, sessionKey]);
-
-  const clearData = () => {
-    saveData(sessionKey, { turns: [], steps: [] });
-    turnRef.current = 0;
-    stepRef.current = 0;
-    setData({ turns: [], steps: [] });
-  };
-
-  return { data, clearData };
-}
 
 // ─── 统计表格 ─────────────────────────────────────────────
 function StatsTable({ title, executor, sub, total, collapsed }: {

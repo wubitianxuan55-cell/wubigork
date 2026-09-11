@@ -359,5 +359,3 @@ export function BenchmarkSection() {
     </div>
   )
 }
-
-export default BenchmarkSection

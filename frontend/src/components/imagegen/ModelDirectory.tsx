@@ -338,5 +338,3 @@ export const ModelDirectory: React.FC<{
     </div>
   )
 }
-
-export default ModelDirectory

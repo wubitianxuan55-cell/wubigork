@@ -100,10 +100,4 @@ export interface FilePickResult {
   /** 文件字节数（P2-4 附件上下文占用展示用；后端 GaeaPickFiles 已返回）。 */
   size?: number;
 }
-// 工作区文件语义索引状态 / 命中。
-export interface FileIndexStatus {
-  total: number;
-  skipped: number;
-  error: string;
-}
 export type FileSemanticHit = WireShape<AppModels.FileSemanticHit>;

@@ -123,11 +123,7 @@ export function parseGenuiFenceBody(body: string): GenuiSpec | null {
 
 /** 部分解析候选预算（测试可覆写）。 */
 export const MAX_PARTIAL_REPAIR_ATTEMPTS = 32;
-let partialAttemptsLimit = MAX_PARTIAL_REPAIR_ATTEMPTS;
-
-export function setMaxPartialRepairAttempts(n: number): void {
-  partialAttemptsLimit = Math.max(1, n);
-}
+const partialAttemptsLimit = MAX_PARTIAL_REPAIR_ATTEMPTS;
 
 interface PartialCandidate {
   end: number;

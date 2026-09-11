@@ -7,11 +7,6 @@ import { usePollingGate } from "../../hooks/usePollingGate";
 const PING_INTERVAL_MS = 5000;
 const PING_TIMEOUT_MS = 3000;
 
-export interface BridgeWatchState {
-  alive: boolean;
-  lastCheck: number; // Date.now() of last successful ping
-}
-
 export function useBridgeWatch() {
   const [alive, setAlive] = useState(true);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);

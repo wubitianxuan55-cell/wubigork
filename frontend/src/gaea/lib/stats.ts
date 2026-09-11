@@ -18,20 +18,10 @@ export function fmtTokens(n: number): string {
   return String(n);
 }
 
-export function fmtCost(v: number): string {
-  if (v >= 0.01) return "¥" + v.toFixed(2);
-  if (v > 0) return "¥" + v.toFixed(4);
-  return "¥0";
-}
-
 // ─── hit rate ───────────────────────────────────────────────────
 
 export function hitRateColor(rate: number): string {
   return rate >= 80 ? "text-ok" : rate >= 50 ? "text-warning" : "text-err";
-}
-
-export function hitRate(rate: number): number {
-  return Math.min(100, Math.max(0, rate));
 }
 
 // ─── Step / Col aggregation ─────────────────────────────────────
@@ -74,13 +64,3 @@ export function colFromUsage(u: WireUsage | undefined): ColStats {
 }
 
 // ─── hit rate helpers for StatsPanel ────────────────────────────
-
-export interface ColStatsWithRate extends ColStats {
-  hitPct: number;
-}
-
-/** Compute hit rate from cacheHit/cacheMiss. */
-export function hitPct(hit: number, miss: number): number {
-  const total = hit + miss;
-  return total > 0 ? (hit / total) * 100 : 0;
-}
