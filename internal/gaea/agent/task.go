@@ -129,6 +129,12 @@ type TaskTool struct {
 	subagentCtxWin   int
 
 	transcripts *SubagentStore // V10.29: subagent transcript persistence (continue_from)
+
+	// journalDir 是子代理证据链 Journal 目录（v4.221 子代理证据落账）：非空时
+	// 子代理回合收尾把写盘证据卡落 Journal，SessionID=run.Ref（sa_…）——
+	// 文件工作台的版本时间线/回滚与 DAG 节点产物归因（按会话）由此供给。
+	// 空 = 子代理不落证据卡（CLI/测试旧行为）。
+	journalDir string
 }
 
 // NewTaskTool wires a task tool to the parent agent's environment so its
@@ -154,6 +160,11 @@ func NewTaskTool(prov provider.LLMProvider, pricing *provider.Pricing, parentReg
 		gate:          gate,
 	}
 }
+
+// SetSubagentJournalDir 注入子代理证据链 Journal 目录（v4.221）：与父执行器
+// 的 JournalDir 同目录（<cwd>/.gaea/work/journal），boot 装配点调用；空/不调
+// 用 = 子代理不落证据卡（旧行为）。
+func (t *TaskTool) SetSubagentJournalDir(dir string) { t.journalDir = dir }
 
 func (t *TaskTool) Name() string { return "task" }
 
@@ -518,6 +529,14 @@ func (t *TaskTool) runSubSession(ctx context.Context, prompt string, subReg *too
 		defer stopProgress()
 	}
 
+	// v4.221 子代理证据落账：Journal 目录与 SessionID（=run.Ref）随子代理
+	// 执行器下发——子代理写盘在回合收尾成证据卡，按会话分文件落账。仅在
+	// 有持久 run（ref 非空）时启用：ephemeral 无归属会话，宁缺勿错。
+	subJournal := ""
+	if run != nil && run.Ref != "" {
+		subJournal = t.journalDir
+	}
+
 	var subUsage provider.Usage
 	var result string
 	var err error
@@ -530,6 +549,8 @@ func (t *TaskTool) runSubSession(ctx context.Context, prompt string, subReg *too
 			ContextWindow: subCtxWin,
 			Compaction:    CompactionConfig{ArchiveDir: t.archiveDir},
 			ActiveSchemas: t.parentReg.Schemas(), // V10.36: align tools JSON with parent for cache
+			JournalDir:    subJournal,
+			SessionID:     subagentRunRef(run),
 		}, sink, &subUsage)
 	} else {
 		result, err = RunSubAgent(ctx, subProv, subReg, sysPrompt, prompt, Options{
@@ -540,6 +561,8 @@ func (t *TaskTool) runSubSession(ctx context.Context, prompt string, subReg *too
 			ContextWindow: subCtxWin,
 			Compaction:    CompactionConfig{ArchiveDir: t.archiveDir},
 			ActiveSchemas: t.parentReg.Schemas(), // V10.36: align tools JSON with parent for cache
+			JournalDir:    subJournal,
+			SessionID:     subagentRunRef(run),
 		}, sink, &subUsage)
 	}
 	if err == nil && strings.TrimSpace(result) != "" {

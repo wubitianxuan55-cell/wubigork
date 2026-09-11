@@ -38,7 +38,7 @@ UI 面    TasksWorkbench 新增「文件流水线」区 —— run 卡+节点卡
 
 ## 3. 关键口径
 
-- **节点产物**：节点起跑前快照 Journal 最大 ID，收跑后取新增 ChangeRecord、Target 过滤出工作区相对路径=该节点 outputs。主对话同期写盘会并入——UI 口径注明示「运行窗口内新增证据卡」，**不造精确归因**。
+- **节点产物**（v4.221 按会话归因定案）：子代理证据落账后（SessionID=run.Ref，Journal 按会话分文件），节点 outputs=SessionID==ref 的证据卡 Target——精确归因，主对话/其他节点同期写盘不再并入；ref 为空（ephemeral）回退窗口增量口径。UI 口径注「本节点子代理会话写入的工作区文件」。
 - **状态机**：节点 `pending→running→done|failed→（steer 续跑→done|failed）→accepted`；重跑把 accepted 退回 done（重跑即产物可能变，验收失效诚实降级）。run 态=派生：全 accepted=已验收 / 有 running=运行中 / 有 failed=有失败 / 其余=待验收/草稿，不落盘不双写。
 - **steer=续跑管道**：GaeaDagNodeSteer 走 RunFollowUp（PrepareContinue 拒 running/mt_/跨空间；followUpClaims 每 ref 单飞防双击）；running 中的节点不可 steer——先 Cancel 再 NodeRun。
 - **验收=人拍板**：GaeaDagNodeAccept 落一条办公记忆（name=节点标题归一、description=goal+节点+产物路径清单、tags 含 dag），save 路径自动落 memory_events 成图谱实体——**不在节点完成时静默入记忆**，6.2 项目本体与晨报自然吃到。
@@ -61,10 +61,10 @@ UI 面    TasksWorkbench 新增「文件流水线」区 —— run 卡+节点卡
 
 ## 6. 余项与后续刀
 
-- 波内并行（按 ref 归因切分证据卡窗口后放开；波间依赖分波已就绪）。
 - 运行中 GaeaSteer 直穿改向 + 危险操作分级审批（roadmap §12.4 后半，等审批闸分级面）。
 - dag_plan 的增量改图（首刀只整链重建；改单节点指令须整链重新规划）。
 - 产物自动登记 DeliverableRegistry 侧（现走证据卡侧通道，够用）。
 - 壳内真机走查（含真实三件套样例链）挂观察池。
 
 > 进度（2026-09-11，v4.220.0）：**模板库已清**——FromRun 剥运行痕迹存 `.gaea/work/dag/templates/`（Save 前全量 Validate，坏形状拒入库），GaeaDagTemplateNew 一键重建为**草稿** run（不自动起跑，起跑仍人拍板）；绑定 620→624；DagPanel 模板区（折叠条+新建/删）与 run 卡「存模板」内联输入。余项剩上列四条。
+> 进度（2026-09-11，v4.221.0）：**波内并行已放开（§6 首条清掉）**——前提升案：真机归因链核查发现**子代理写盘从不落 Journal**（子代理 Options 无 JournalDir/SessionID，flushJournal 直接跳过；v4.219 的窗口归因在真机上恒为空集，fake-runner 测试靠手工塞卡，真机走查恰挂观察池未跑——结构性缺口）。本刀三合一定案：① **子代理证据落账**=TaskTool 增 journalDir（boot 注入，与主执行器同目录）+ Options.SessionID=run.Ref 经 runSubSession 下发（task 工具/RunNew/RunFollowUp 三路径全覆盖），子代理写盘回合收尾落卡、按会话分文件——顺带收口「task 子代理编辑对版本时间线/回滚不可见」的既有审计缺口（6.1 同向）；② **按会话归因**=节点 outputs=SessionID==ref 的卡（ref 空回退窗口增量），主对话同期写盘不再并入；③ **波内并行**=dagExecute 波内 goroutine 并发（归因已精确，不再依赖窗口不重叠），失败级联/终止级联语义不变。Go +3（agent 落账往返/app 并行互等+会话隔离/生命周期测试改模拟真实落账）。**§6 余项剩三条**：运行中 steer 直穿+分级审批/增量改图/DeliverableRegistry。

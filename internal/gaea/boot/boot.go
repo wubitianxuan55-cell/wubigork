@@ -281,6 +281,10 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 	// executor uses, so the model surfaces it like any other tool.
 	taskTool := agent.NewTaskTool(execProv, entry.Price, reg, maxSteps,
 		entry.ContextWindow, cfg.Agent.SubagentTemp(), config.ArchiveDir(), "", headlessGate)
+	// v4.221 子代理证据落账：子代理写盘也进证据链（SessionID=sa_ ref，按会话
+	// 分文件）——文件工作台版本时间线/回滚与 DAG 节点产物归因由此供给。与主
+	// 执行器 JournalDir 同目录（下方 Options.JournalDir 同源路径）。
+	taskTool.SetSubagentJournalDir(filepath.Join(cwd, ".gaea", "work", "journal"))
 
 	// V10.22: resolve subagent model from config. When SubagentModel names a
 	// configured provider, sub-agents use that provider (typically a cheaper

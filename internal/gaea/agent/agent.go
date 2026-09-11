@@ -694,6 +694,7 @@ func New(prov provider.LLMProvider, tools *tool.Registry, session *Session, opts
 		evidence:      evidence.NewLedger(),
 		changes:       evidence.NewChangeLedger(),
 		journalDir:    opts.JournalDir,
+		sessionID:     opts.SessionID,
 		compaction:    comp,
 		keepPolicy:    comp.KeepPolicy,
 		dispatcher:    opts.Dispatcher,

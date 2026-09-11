@@ -70,6 +70,13 @@ type Options struct {
 	// JSONL + markdown 投影（play 回合不落盘，红线）。
 	JournalDir string
 
+	// SessionID 是本执行器在证据卡上的会话标识（v4.221 子代理证据落账）：
+	// flushJournal 把它盖进每张卡的 SessionID（Journal 按会话分文件）。
+	// 主执行器经 SetArchive 注入；子代理由 runSubSession 传 run.Ref（sa_…）——
+	// DAG 节点产物据此按会话精确归因（设计 docs/gaea-office-dag-63-design-2026-09.md §3）。
+	// 空 = 证据卡 SessionID 留空（旧行为）。
+	SessionID string
+
 	// FinalizeText 是最终文本定稿闸（v4.211 记忆 5.1 出口判据「[MEM:] 引用
 	// 在回复发出前全部解析到节点」）：每次模型轮次收尾（Message 全文事件发出
 	// 前 + 文本进 session/摘要前）对答案文本做一次改写。装配点注入（boot 按

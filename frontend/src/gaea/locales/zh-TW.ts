@@ -1202,7 +1202,7 @@ export const zhTW: Record<DictKey, string> = {
   "dag.sectionEmpty": "暫無流水線——對話裡讓 gaea 規劃多檔案任務鏈（如「讀這幾份報表出一份月度報告」）",
   "dag.loadFail": "流水線清單載入失敗，點擊重試",
   "dag.loading": "讀取流水線…",
-  "dag.scopeNote": "產物口徑：執行視窗內新增的證據卡，主對話同期寫入會併入——以證據鏈為準，非逐節點精確清單",
+  "dag.scopeNote": "產物口徑：本節點子代理會話寫入的工作區檔案（按會話精確歸因）——以證據鏈為準",
 
   // ── v4.57 i18n 收尾：ContextView ──
   "contextview.catSystem": "系統提示詞",

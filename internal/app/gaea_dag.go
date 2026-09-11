@@ -1,10 +1,11 @@
 package app
 
-// 办公多文件流水线（阶段六 6.3 首刀，设计 docs/gaea-office-dag-63-design-2026-09.md）：
+// 办公多文件流水线（阶段六 6.3，设计 docs/gaea-office-dag-63-design-2026-09.md）：
 // 规划（dag_plan 工具）→ 存储（<cwd>/.gaea/work/dag/<id>.json）→ 执行（波次推进，
-// 每节点=一次 TaskTool.RunNew 全新子代理会话）→ 控制（本文件 7 个绑定）→
+// 每节点=一次 TaskTool.RunNew 全新子代理会话，v4.221 起波内并行）→ 控制（绑定面）→
 // 验收回流记忆（hubOfficeStore.Save，人拍板即写入确认面）。
-// 关键口径见设计 §3：产物=证据卡窗口增量（不造精确归因）、终止级联、fail-closed。
+// 关键口径见设计 §3：产物=按会话归因（SessionID=sa_ ref；ref 空回退窗口增量）、
+// 终止级联、fail-closed。
 
 import (
 	"context"
@@ -15,6 +16,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	gaeaAgent "github.com/gaea/gaea/internal/gaea/agent"
@@ -365,8 +367,10 @@ func (a *App) GaeaDagTemplateDelete(templateID string) (string, error) {
 
 // ── 执行器 ────────────────────────────────────────────────────────────
 
-// dagExecute 波次推进：波内顺序（产物归因窗口单调不重叠的首刀口径），波间依赖
-// 分波。单节点失败→后续波全部 skipped（上游失败不空跑）。
+// dagExecute 波次推进（v4.221 波内并行）：波间依赖分波，波内节点并发各跑各的
+// 子代理会话——产物归因已升级为按会话（SessionID=sa_ ref，精确不串），不再
+// 依赖「波内顺序保证窗口不重叠」。单节点失败→后续波全部 skipped（上游失败
+// 不空跑）。
 // dagStart 起跑执行器：cancel 登记在受理方同步完成（返回即「在途」可查可取消），
 // goroutine 收尾删除——「登记存在」与「goroutine 在跑」全程一致，无窗口。
 func (a *App) dagStart(id string, waves [][]dag.Node) {
@@ -388,41 +392,56 @@ func (a *App) dagExecute(ctx context.Context, id string, waves [][]dag.Node) {
 	emit := a.dagEmit()
 	for wi, wave := range waves {
 		failed := false
+		var failMu sync.Mutex
+		var wg sync.WaitGroup
 		for _, node := range wave {
-			if ctx.Err() != nil {
-				a.dagMarkNode(id, node.ID, func(n *dag.Node) {
-					n.Status = dag.StatusSkipped
-					n.Error = "已取消"
-				})
-				continue
-			}
-			seen := dagJournalIDs()
-			startErr := a.dagMarkNode(id, node.ID, func(n *dag.Node) {
-				n.Status = dag.StatusRunning
-				n.RunCount++
-				n.Error = ""
-			})
-			if startErr != nil {
-				slog.Warn("流水线节点状态落盘失败", "run", id, "node", node.ID, "error", startErr)
-			}
-			prompt := a.dagNodePrompt(id, node.ID)
-			_, ref, err := runner(gaeaAgent.WithSpace(ctx, gaeaSessionSpace()), prompt, emit)
-			outputs := dagJournalTargetsAfter(seen)
-			status, errMsg := dag.StatusDone, ""
-			if err != nil {
-				status, errMsg = dag.StatusFailed, err.Error()
-				failed = true
-			}
-			a.dagMarkNode(id, node.ID, func(n *dag.Node) {
-				n.Status = status
-				n.Error = errMsg
-				n.Ref = ref
-				if status == dag.StatusDone && len(outputs) > 0 {
-					n.Outputs = outputs
+			node := node
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				if ctx.Err() != nil {
+					a.dagMarkNode(id, node.ID, func(n *dag.Node) {
+						n.Status = dag.StatusSkipped
+						n.Error = "已取消"
+					})
+					return
 				}
-			})
-			slog.Info("流水线节点收跑", "run", id, "node", node.ID, "status", status, "outputs", outputs)
+				seen := dagJournalIDs() // 窗口回退基线（ref 为空时归因用）
+				startErr := a.dagMarkNode(id, node.ID, func(n *dag.Node) {
+					n.Status = dag.StatusRunning
+					n.RunCount++
+					n.Error = ""
+				})
+				if startErr != nil {
+					slog.Warn("流水线节点状态落盘失败", "run", id, "node", node.ID, "error", startErr)
+				}
+				prompt := a.dagNodePrompt(id, node.ID)
+				_, ref, err := runner(gaeaAgent.WithSpace(ctx, gaeaSessionSpace()), prompt, emit)
+				outputs := dagJournalTargetsAfter(seen)
+				if ref != "" {
+					// v4.221 按会话归因：子代理把写盘卡落在自己会话名下
+					// （SessionID=sa_ ref），主对话同期写盘不再并入。
+					outputs = dagJournalTargetsBySession(ref)
+				}
+				status, errMsg := dag.StatusDone, ""
+				if err != nil {
+					status, errMsg = dag.StatusFailed, err.Error()
+					failMu.Lock()
+					failed = true
+					failMu.Unlock()
+				}
+				a.dagMarkNode(id, node.ID, func(n *dag.Node) {
+					n.Status = status
+					n.Error = errMsg
+					n.Ref = ref
+					if status == dag.StatusDone && len(outputs) > 0 {
+						n.Outputs = outputs
+					}
+				})
+				slog.Info("流水线节点收跑", "run", id, "node", node.ID, "status", status, "outputs", outputs)
+			}()
 		}
+		wg.Wait()
 		if failed {
 			for _, later := range waves[wi+1:] {
 				for _, node := range later {
@@ -518,11 +537,26 @@ func dagJournalIDs() map[string]bool {
 }
 
 // dagJournalTargetsAfter 窗口增量：快照后新增证据卡的 Target（工作区相对路径）。
-// 主对话同期写盘会并入——口径注在 UI 明示，不造精确归因（设计 §3）。
+// v4.221 起只作回退口径（ref 为空的 ephemeral 运行）——有 ref 时按会话归因。
 func dagJournalTargetsAfter(seen map[string]bool) []string {
 	var out []string
 	for _, rec := range dagJournalAll() {
 		if rec.Target == "" || seen[rec.ID] || strings.HasPrefix(rec.Target, ".gaea/") {
+			continue
+		}
+		out = append(out, rec.Target)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// dagJournalTargetsBySession 按会话归因（v4.221）：SessionID==ref（sa_…）的
+// 证据卡 Target。子代理把写盘卡落在自己会话名下（Journal 按会话分文件），
+// 主对话/其他节点的同期写盘天然不并入——归因从「窗口增量」升级为精确会话。
+func dagJournalTargetsBySession(ref string) []string {
+	var out []string
+	for _, rec := range dagJournalAll() {
+		if rec.Target == "" || rec.SessionID != ref || strings.HasPrefix(rec.Target, ".gaea/") {
 			continue
 		}
 		out = append(out, rec.Target)

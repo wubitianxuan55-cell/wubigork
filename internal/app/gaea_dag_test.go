@@ -164,8 +164,10 @@ func TestDagLifecycle(t *testing.T) {
 			node = "report"
 		}
 		calls = append(calls, node)
-		// 每节点落一张证据卡=其产物；上游产物对下游可见（prompt 携带上游清单）。
-		appendCard(t, journalDir, "sess-"+node, "docs/"+node+".xlsx")
+		// 每节点落一张证据卡=其产物；SessionID=ref（v4.221 模拟子代理证据落账
+		// 的真实形态——执行器据此按会话归因）。上游产物对下游可见（prompt 携带
+		// 上游清单）。
+		appendCard(t, journalDir, "sa_"+node, "docs/"+node+".xlsx")
 		if node == "report" && !strings.Contains(prompt, "docs/pivot.xlsx") {
 			return "", "sa_report", errors.New("report 节点 prompt 未携带上游产物")
 		}
@@ -478,5 +480,69 @@ func TestDagTemplateFlow(t *testing.T) {
 	}
 	if _, err := a.GaeaDagTemplateDelete(tpl.ID); err == nil {
 		t.Fatal("删除不存在模板应报错")
+	}
+}
+
+// TestDagParallelWaveAndSessionAttribution 波内并行（v4.221）：独立根节点同波
+// 并发起跑（互等信号证明重叠执行），产物按会话归因（SessionID=ref）互不串——
+// 并发窗口重叠下 a/b 的证据卡各归各节点。
+func TestDagParallelWaveAndSessionAttribution(t *testing.T) {
+	journalDir := injectDagEnv(t)
+	tool := dagPlanTool{dir: filepath.Join(".", ".gaea", "work", "dag")}
+	args := map[string]any{
+		"goal": "并行读两份报表再汇总",
+		"nodes": []map[string]any{
+			{"id": "a", "title": "读报表A", "prompt": "解析报表A数据"},
+			{"id": "b", "title": "读报表B", "prompt": "解析报表B数据"},
+			{"id": "c", "title": "汇总", "prompt": "汇总两份结果", "depends_on": []string{"a", "b"}},
+		},
+	}
+	b, _ := json.Marshal(args)
+	if _, err := tool.Execute(context.Background(), b); err != nil {
+		t.Fatalf("dag_plan: %v", err)
+	}
+	runs, _ := (&App{}).dagStore().List()
+	id := runs[0].ID
+
+	startedA := make(chan struct{}, 1)
+	startedB := make(chan struct{}, 1)
+	SetDagRunnerForTest(func(ctx context.Context, prompt string, emit func(ref, text string)) (string, string, error) {
+		switch {
+		case strings.Contains(prompt, "报表A"):
+			appendCard(t, journalDir, "sa_a", "docs/a.xlsx")
+			startedA <- struct{}{}
+			select {
+			case <-startedB: // 对端已起跑=真并发
+			case <-time.After(3 * time.Second):
+				return "", "sa_a", errors.New("节点 B 未并发起跑（波内仍顺序执行）")
+			}
+			return "ok", "sa_a", nil
+		case strings.Contains(prompt, "报表B"):
+			appendCard(t, journalDir, "sa_b", "docs/b.xlsx")
+			startedB <- struct{}{}
+			select {
+			case <-startedA:
+			case <-time.After(3 * time.Second):
+				return "", "sa_b", errors.New("节点 A 未并发起跑（波内仍顺序执行）")
+			}
+			return "ok", "sa_b", nil
+		default:
+			appendCard(t, journalDir, "sa_c", "docs/c.xlsx")
+			return "ok", "sa_c", nil
+		}
+	})
+
+	a := &App{}
+	if _, err := a.GaeaDagRun(id); err != nil {
+		t.Fatalf("GaeaDagRun: %v", err)
+	}
+	r := waitDagDone(t, id)
+	for nodeID, want := range map[string]string{
+		"a": "docs/a.xlsx", "b": "docs/b.xlsx", "c": "docs/c.xlsx",
+	} {
+		n := dagNode(t, r, nodeID)
+		if n.Status != dag.StatusDone || len(n.Outputs) != 1 || n.Outputs[0] != want {
+			t.Fatalf("节点 %s 会话归因错误: status=%s outputs=%v", nodeID, n.Status, n.Outputs)
+		}
 	}
 }
