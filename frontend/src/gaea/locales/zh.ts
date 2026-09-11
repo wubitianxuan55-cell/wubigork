@@ -280,6 +280,8 @@ export const zh: Record<DictKey, string> = {
   "msg.thinkingRunning": "思考中",
   "msg.copy": "复制",
   "msg.regenerate": "重新生成",
+  "msg.codeExpand": "展开全部（{n} 行）",
+  "msg.codeCollapse": "收起",
   "msg.turnDivider": "第 {n} 轮",
   "rewind.label": "回滚 / 分叉 / 摘要…",
   "rewind.both": "文件 + 对话",

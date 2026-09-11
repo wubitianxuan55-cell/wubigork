@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react'
 import { CheckOutlined, CopyOutlined } from '@ant-design/icons'
 import { C } from '../utils/theme'
 import { HlCode } from '../gaea/components/HlCode'
+import { CodeCollapse } from '../gaea/components/CodeCollapse'
 
 /** 聊天线代码块（ChatMarkdown plain 模式与 companion 模式 genuiAdapter 共用）：
  *  语言标签+复制头部 + 暗色面板 + hljs 高亮。面板为行业标准暗色专用色
@@ -47,10 +48,12 @@ function CodeBlockHeader({ language, text }: { language?: string; text: string }
 
 export function ChatCodeBlock({ language, text }: { language?: string; text: string }) {
   return (
-    /* 行业标准暗色代码面板（不随主题，专用色在册） */
+    /* hex-exempt 行业标准暗色代码面板（不随主题，专用色在册）；fade 同色 */
     <div className="hl-scope-dark" style={{ margin: '10px 0', borderRadius: 10, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.09)', background: '#0b0e14' }}> {/* hex-exempt 行业标准暗色代码面板（不随主题） */}
       <CodeBlockHeader language={language} text={text} />
-      <pre style={{ padding: '10px 12px', margin: 0, overflow: 'auto', fontFamily: "'Cascadia Code', Consolas, monospace", fontSize: 12.5, lineHeight: 1.55, color: '#e2e8f0', whiteSpace: 'pre' }}><HlCode text={text} lang={language} /></pre> {/* hex-exempt 行业标准暗色代码面板（不随主题） */}
+      <CodeCollapse text={text} fade="#0b0e14"> {/* hex-exempt 渐隐色随专用暗色面板 */}
+        <pre style={{ padding: '10px 12px', margin: 0, overflow: 'auto', fontFamily: "'Cascadia Code', Consolas, monospace", fontSize: 12.5, lineHeight: 1.55, color: '#e2e8f0', whiteSpace: 'pre' }}><HlCode text={text} lang={language} /></pre> {/* hex-exempt 行业标准暗色代码面板（不随主题） */}
+      </CodeCollapse>
     </div>
   )
 }

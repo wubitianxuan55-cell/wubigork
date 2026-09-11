@@ -282,3 +282,20 @@ describe("Markdown 代码块语法高亮（懒加载缝）", () => {
     expect(container.textContent).toContain("++++");
   });
 });
+
+describe("Markdown 超长代码块折叠（v4.234）", () => {
+  const longFence = "```go\n" + Array.from({ length: 40 }, (_, i) => "line_" + i).join("\n") + "\n```";
+
+  it("超阈值默认收起：展开钮可见、点击切换", async () => {
+    const { container } = render(<Markdown text={longFence} />);
+    const btn = await screen.findByRole("button", { name: /展开全部（40 行）/ });
+    fireEvent.click(btn);
+    expect(await screen.findByRole("button", { name: /收起/ })).toBeTruthy();
+    expect(container.textContent).toContain("line_39");
+  });
+
+  it("短代码零包装：无展开钮", () => {
+    const { container } = render(<Markdown text={"```go\npackage main\n```"} />);
+    expect(screen.queryByRole("button", { name: /展开全部/ })).toBeNull();
+  });
+});

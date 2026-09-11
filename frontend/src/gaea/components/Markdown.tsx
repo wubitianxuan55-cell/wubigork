@@ -35,6 +35,8 @@ import { remarkMemCitations } from "../lib/remarkMemCitations";
 import { mdHtmlSchemaSanitize } from "../lib/sanitize";
 import { openPaneFileOrPreview } from "../lib/paneFileOpen";
 import { useToast } from "./Toast";
+import { useTOptional } from "../lib/i18n";
+import { CodeCollapse, type CodeCollapseLabels } from "./CodeCollapse";
 import { FileChip } from "./FileChip";
 import { MemCitationChip } from "./MemCitationChip";
 import { GenuiMarkdownFence, genuiFenceStateKey, isGenuiFenceLang } from "../../genui/markdownFence";
@@ -417,6 +419,7 @@ function buildComponents(
   onOpenFile: (rel: string) => void,
   autoExportMermaid: boolean,
   fenceKeyFor: ((body: string) => string | undefined) | undefined,
+  codeLabels: CodeCollapseLabels,
 ): Components {
   return {
     pre: ({ children }) => {
@@ -450,7 +453,9 @@ function buildComponents(
         return (
           <div className="my-3 rounded-lg border border-border-soft overflow-hidden">
             <CodeBlockHeader language={lang} text={text} />
-            <pre className="px-3 py-2.5 font-mono text-[12.5px] leading-[1.55] overflow-auto whitespace-pre text-fg"><HlCode text={text} lang={lang} /></pre>
+            <CodeCollapse text={text} labels={codeLabels}>
+              <pre className="px-3 py-2.5 font-mono text-[12.5px] leading-[1.55] overflow-auto whitespace-pre text-fg"><HlCode text={text} lang={lang} /></pre>
+            </CodeCollapse>
           </div>
         );
       }
@@ -575,12 +580,16 @@ export const Markdown = memo(function Markdown({
     genuiScope !== null && genuiKey !== undefined
       ? (body: string): string | undefined => genuiFenceStateKey(genuiScope, genuiKey, body)
       : undefined;
+  const t = useTOptional();
   return (
     <div className="md text-[14px] leading-relaxed">
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkMath, remarkFileLinks, remarkMemCitations]}
         rehypePlugins={[rehypeRaw, mdHtmlSchemaSanitize, rehypeKatex]}
-        components={buildComponents(openFilePreview, autoExportMermaid, fenceKeyFor)}
+        components={buildComponents(openFilePreview, autoExportMermaid, fenceKeyFor, {
+          expand: (n: number) => t("msg.codeExpand", { n }),
+          collapse: t("msg.codeCollapse"),
+        })}
         urlTransform={mdUrlTransform}
       >
         {normalizeMath(text)}

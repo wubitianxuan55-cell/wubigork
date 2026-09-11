@@ -277,6 +277,8 @@ export const en = {
   "msg.thinkingRunning": "thinking…",
   "msg.copy": "Copy",
   "msg.regenerate": "Regenerate",
+  "msg.codeExpand": "Show all ({n} lines)",
+  "msg.codeCollapse": "Collapse",
   "msg.turnDivider": "Turn {n}",
   "rewind.label": "Rewind / fork / summarize…",
   "rewind.both": "Code + conversation",

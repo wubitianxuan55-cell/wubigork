@@ -282,6 +282,8 @@ export const zhTW: Record<DictKey, string> = {
   "msg.thinkingRunning": "思考中…",
   "msg.copy": "複製",
   "msg.regenerate": "重新生成",
+  "msg.codeExpand": "展開全部（{n} 行）",
+  "msg.codeCollapse": "收起",
   "msg.turnDivider": "第 {n} 輪",
   "rewind.label": "回退 / 分支 / 摘要…",
   "rewind.both": "程式碼 + 對話",

@@ -1,3 +1,7 @@
+## v4.234.0 · AI 输出渲染：超长代码块折叠（2026-09-12）
+> 观察池第二项清账（对齐 Claude/ChatGPT 长代码处理）。**落地**：① 新 `gaea/components/CodeCollapse.tsx` 双板块共享——>30 行块级代码默认收起（max-height 380px+底部渐隐+「展开全部（N 行）/收起」胶囊钮），≤30 行零包装直通，折叠态保留横向滚动；渐隐色由调用方显式传（gaea 默认 var(--bg)，聊天线传 #0b0e14 同其恒暗面板），按钮用全局 M3 令牌内联样式，文案调用方注入 labels（gaea 走 useT 三语 msg.codeExpand/codeCollapse，聊天线硬编码中文一致）——**跨 chunk 共享组件不能假定对方加载了 gaea/styles.css 令牌**。② 新 useTOptional()：无 LocaleProvider 回退 zh 直译不抛错——Markdown 是被裸渲染的共享组件，useT 会让全部裸渲染用例连坐抛错（首跑 27 例挂即此）；运行态恒有 Provider 真实三语不受影响。**测试**=vitest +2（40 行围栏默认收起+展开/收起切换；短围栏零包装）。**③ 顺带修 LocaleProvider context value 不稳定（真回归，三步实验定位）**：value 原先每渲染造新对象，Markdown 经 useTOptional 成为消费者后 en chunk 就绪的 forceRender 把它拖进重渲染级联、ReactMarkdown 整树重解析撕掉 MemCitationChip 弹层（CI 4 例挂+隔离稳定复现；stash 二分+去包裹/去 hook/memo 化三实验锁定）——修复=value useMemo 化，消费者只在语言真变时重渲染。**坑四证（固化铁律）**：python heredoc 追加含 
+/反引号源码本会话第三次转义丢失——追加源码只走 Edit 工具无例外。**门禁**：tsc 0/eslint 0/ci.ps1 全绿/绑定 624 零变更/版本三处 4.234.0。**观察池剩**=点赞点踩（等真实需求）/壳内真机走查（五刀汇总）。
+
 ## v4.233.0 · AI 输出渲染收尾：MarkdownContent 缺省高亮 + 明暗调色板目检（2026-09-12）
 > 高亮三刀收尾。**① 目检补证**：v4.230/231 此前只有 vitest DOM 断言没有视觉验证——Node 同款语法包生成 go/sql/python/powershell 样例 hljs HTML → check.html 双 link 真实 hljs-theme.css（双面板=gaea 随主题/聊天线恒暗 .hl-scope-dark）→ 无头 Edge 截图明暗两版人工目检：暗色层次清楚、浅色同色相深阶对比良好、**恒暗面板在浅色主题下令牌仍钉暗色组按设计工作**。**② MarkdownContent 缺省高亮**：NovelSettingPage.tsx:189 直用无覆盖是全仓最后一个无着色渲染面——模块级 defaultComponents（引用稳定不破坏 memo）：未传 components 时块级代码走 ChatCodeBlock（暗面板+高亮+复制头与聊天线同款）、行内交还 .md-content code 默认样式、pre 透传防双层；传了 components（GenUI 缝）完全尊重调用方零变化。**测试**=vitest +3（无覆盖走面板+异步令牌/行内不进面板/有覆盖零变化）。**顺带根治 Go 在册 flaky（两天两度打挂 CI）**：TestCreateChapter_SameChapterConcurrentRejected 家族失败从来不是断言而是 t.TempDir() 清理竞态——CancelCreateChapter 取消路径先删登记表，被取消协程仍有「已生成部分落盘」尾步，waitGensDone 只等表空放行即撞 Windows unlinkat；根治=writingState 增 chapterGenWG（spawn 前 Add/协程首 defer Done）+waitGensDone 两级等待（表空快速路径+WG 5s 超时等真退出），-count=10 全绿。**坑再证**：python heredoc 追加含反引号 fence 的测试代码第二次踩转义丢失坑——追加源码只走 Edit 工具无例外；后台 CI 管道 tail 截丢归因必须整份落盘。**门禁**：tsc 0/eslint 0/ci.ps1 全绿/绑定 624 零变更/版本三处 4.233.0。**主线全清**：观察池=点赞点踩（个人工具暂无消费方）/超长代码块折叠/壳内真机走查。
 
@@ -1676,7 +1680,7 @@
 > 定位错位。**绑定面 550 零变更**。
 - **根因**：fileLinks 路径字符集不排除 markdown 包裹符 `` ` `` 与 `*`——两者
   恰是 Windows 文件名非法字符，应作路径边界（v4.26.1 全角括号盲区第二弹）。
-- **修复**：PATH_BODY/FIRST_SEG 排除 \`\` \` \`\` 与 *，PATH_BOUNDARY 纳入为边界，
+- **修复**：PATH_BODY/FIRST_SEG 排除 `` ` `` 与 *，PATH_BOUNDARY 纳入为边界，
   BARE_FILE_RE 分隔符后允许包裹符前缀；下划线等合法字符不受影响；存量消息
   渲染时实时重提取，重启即恢复可点。
 - 测试 +5（真实会话文件名四形态+下划线守卫）；tsc -b/eslint 0；

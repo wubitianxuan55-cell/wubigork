@@ -10,7 +10,7 @@
 // have its own `language` config for prompts and terminal text, but switching the
 // desktop setting must not rewrite config or rebuild the model controller.
 
-import { createContext, useCallback, useContext, useEffect, useReducer, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useReducer, useState, useMemo } from "react";
 import type { ReactNode } from "react";
 import { zh } from "../locales/zh";
 import type { DictKey } from "../locales/en";
@@ -149,7 +149,13 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
 
   const tt = useCallback<Translator>((key, vars) => translate(detectLocale(pref), key, vars), [pref]);
 
-  return <I18nContext.Provider value={{ locale, pref, setPref, t: tt }}>{children}</I18nContext.Provider>;
+  // v4.234：context value 必须 memo 化——forceRender（en chunk 就绪）每次
+  // 渲染造新对象会把全部 context 消费者拖进重渲染级联；Markdown 成为消费者
+  // 后（useTOptional），级联落在流式/弹层的中间态上会撕掉子组件状态
+  // （MemCitationChip 弹层即此回归）。deps 变化才换新值。
+  const value = useMemo(() => ({ locale, pref, setPref, t: tt }), [locale, pref, setPref, tt]);
+
+  return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;
 }
 
 export function useI18n(): I18nValue {
@@ -161,4 +167,13 @@ export function useI18n(): I18nValue {
 // useT is the common shorthand: just the translator.
 export function useT(): Translator {
   return useI18n().t;
+}
+
+// useTOptional：无 Provider 时回退 zh 直译而不抛错。供 Markdown/FilePreview
+// 这类被裸渲染的共享组件用（测试/mock 面板/独立挂载）；gaea 板块运行态恒有
+// Provider，真实三语不受影响。zh 静态字典恒可用（v4.177 回退链先例）。
+export function useTOptional(): Translator {
+  const ctx = useContext(I18nContext);
+  const fallback = useCallback<Translator>((key, vars) => translate("zh", key, vars), []);
+  return ctx ? ctx.t : fallback;
 }
