@@ -1,12 +1,44 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { CpmResult, SchedProject } from './types'
-import { dcmaAudit } from './dcma'
+import { app } from '../gaea/lib/bridge'
+import { dcmaAudit, type DcmaThresholds } from './dcma'
 
 /** DcmaView — 6.4 计划质量体检：DCMA 14 点逐项结论（对标 Acumen Fuse 的
- *  体检单形态）。纯展示：审计在 dcmaAudit 纯函数内完成（同一输入同一结论，
- *  不落 IO 不弹窗）；数据不足的点诚实显示「不可评估」+原因，绝不伪造。 */
+ *  体检单形态）。展示 + 阈值覆盖加载：审计在 dcmaAudit 纯函数内完成（同一输入
+ *  同一结论）；阈值表是数据资产（v4.226 规范知识出内核）——挂载时尝试读工作区
+ *  覆盖文件 .gaea/skills/schedule-dcma/thresholds.json（部分字段可覆盖），缺失
+ *  或解析失败静默用内置默认（增强面不挡主功能），数据不足的点诚实显示「不可
+ *  评估」+原因，绝不伪造。 */
+const THRESHOLDS_OVERRIDE_REL = '.gaea/skills/schedule-dcma/thresholds.json'
+
 export function DcmaView({ project, cpm, dataDate }: { project: SchedProject; cpm: CpmResult; dataDate?: number | null }) {
-  const report = useMemo(() => dcmaAudit(project, cpm, dataDate ?? null), [project, cpm, dataDate])
+  const [thresholds, setThresholds] = useState<Partial<DcmaThresholds> | null>(null)
+
+  useEffect(() => {
+    let alive = true
+    app
+      .ReadFile(THRESHOLDS_OVERRIDE_REL)
+      .then((f) => {
+        if (!alive) return
+        try {
+          const t = JSON.parse(f.markdown) as Partial<DcmaThresholds>
+          if (t && typeof t === 'object') setThresholds(t)
+        } catch {
+          // 覆盖文件解析失败：保内置默认，不打断体检
+        }
+      })
+      .catch(() => {
+        // 无覆盖文件：内置默认
+      })
+    return () => {
+      alive = false
+    }
+  }, [])
+
+  const report = useMemo(
+    () => dcmaAudit(project, cpm, dataDate ?? null, thresholds ?? undefined),
+    [project, cpm, dataDate, thresholds],
+  )
 
   const scoreTone =
     report.score === null

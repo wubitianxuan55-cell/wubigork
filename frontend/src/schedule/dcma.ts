@@ -7,17 +7,35 @@
 // 资源维度），绝不伪造可评估假象。口径与标准 14 点的差异逐点写进 note。
 
 import type { CpmResult, SchedProject, SchedTask } from './types'
+import defaultThresholds from './dcma-thresholds.json'
 
-/** DCMA 常用阈值（工作日口径） */
-export const DCMA_HIGH_FLOAT_DAYS = 44
-export const DCMA_HIGH_DURATION_DAYS = 44
-/** 高浮时/长工期/缺逻辑/错过基线的超标占比阈值（%） */
-export const DCMA_RATIO_LIMIT = 5
-/** FS 关系占比下限（%） */
-export const DCMA_FS_RATIO_MIN = 90
-/** CPLI / BEI 通过下限 */
-export const DCMA_CPLI_MIN = 0.95
-export const DCMA_BEI_MIN = 0.95
+// v4.226 阈值表数据资产（规范知识出内核红线）：DCMA 阈值是行业标准值，可被
+// 工作区覆盖文件 .gaea/skills/schedule-dcma/thresholds.json 部分覆盖（DcmaView
+// 经 ReadFile 懒加载传入）——改阈值不发版；计算逻辑是机制，留码。
+export interface DcmaThresholds {
+  /** 高浮时判定（工作日） */
+  highFloatDays: number
+  /** 长工期判定（任务自身单位） */
+  highDurationDays: number
+  /** 缺逻辑/正搭接/高浮/长工期/错过基线的超标占比上限（%） */
+  ratioLimitPct: number
+  /** FS 关系占比下限（%） */
+  fsRatioMinPct: number
+  /** CPLI 通过下限 */
+  cpliMin: number
+  /** BEI 通过下限 */
+  beiMin: number
+}
+
+const DEFAULT_THRESHOLDS: DcmaThresholds = { ...defaultThresholds }
+
+/** 兼容导出：默认阈值常量（历史消费方；判定一律走 dcmaAudit 的 th 参数）。 */
+export const DCMA_HIGH_FLOAT_DAYS = DEFAULT_THRESHOLDS.highFloatDays
+export const DCMA_HIGH_DURATION_DAYS = DEFAULT_THRESHOLDS.highDurationDays
+export const DCMA_RATIO_LIMIT = DEFAULT_THRESHOLDS.ratioLimitPct
+export const DCMA_FS_RATIO_MIN = DEFAULT_THRESHOLDS.fsRatioMinPct
+export const DCMA_CPLI_MIN = DEFAULT_THRESHOLDS.cpliMin
+export const DCMA_BEI_MIN = DEFAULT_THRESHOLDS.beiMin
 
 /** 体检单点结论。na 非空 = 不可评估（数据不足，诚实口径）。 */
 export interface DcmaCheck {
@@ -49,10 +67,6 @@ const OFFENDER_LIMIT = 5
 
 function check(id: number, name: string, threshold: string): DcmaCheck {
   return { id, name, threshold, value: null, offenders: [] }
-}
-
-function naCheck(id: number, name: string, threshold: string, na: string): DcmaCheck {
-  return { id, name, threshold, na, value: null, offenders: [] }
 }
 
 function pct(part: number, whole: number): number {
@@ -100,8 +114,15 @@ function criticalSegments(project: SchedProject, cpm: CpmResult): { segments: nu
 /**
  * DCMA 14 点体检。dataDate = 数据日期（工作日序号，相对开工日；缺省/null =
  * 未提供实际执行口径 → 11/13/14 按未开工或 n/a 诚实处理）。
+ * thresholds = 阈值覆盖（v4.226 数据资产：部分字段可覆盖，缺省用内置默认表）。
  */
-export function dcmaAudit(project: SchedProject, cpm: CpmResult, dataDate?: number | null): DcmaReport {
+export function dcmaAudit(
+  project: SchedProject,
+  cpm: CpmResult,
+  dataDate?: number | null,
+  thresholds?: Partial<DcmaThresholds>,
+): DcmaReport {
+  const th: DcmaThresholds = { ...DEFAULT_THRESHOLDS, ...(thresholds ?? {}) }
   const checks: DcmaCheck[] = []
   const leaves = leafTasks(project)
   const leavesNm = leafNoMilestone(project)
@@ -112,7 +133,7 @@ export function dcmaAudit(project: SchedProject, cpm: CpmResult, dataDate?: numb
   // ── 1 缺逻辑 Logic（≤5%）：叶任务（非里程碑）无前驱且无后继；
   // 开工首任务与竣工末任务豁免（项目级起止，标准口径允许）。
   {
-    const c = check(1, '缺逻辑任务', `≤${DCMA_RATIO_LIMIT}%`)
+    const c = check(1, '缺逻辑任务', `≤${th.ratioLimitPct}%`)
     if (!cpm.ok) c.na = 'CPM 未通过（循环依赖），先修复排程'
     else {
       const hasPred = new Set<string>()
@@ -148,7 +169,7 @@ export function dcmaAudit(project: SchedProject, cpm: CpmResult, dataDate?: numb
       }
       c.value = pct(bad, leavesNm.length)
       c.offenders = offenders
-      c.pass = c.value <= DCMA_RATIO_LIMIT
+      c.pass = c.value <= th.ratioLimitPct
     }
     checks.push(c)
   }
@@ -165,24 +186,24 @@ export function dcmaAudit(project: SchedProject, cpm: CpmResult, dataDate?: numb
 
   // ── 3 Lags 正搭接（<5%）
   {
-    const c = check(3, '正搭接（Lags）', `<${DCMA_RATIO_LIMIT}%`)
+    const c = check(3, '正搭接（Lags）', `<${th.ratioLimitPct}%`)
     const bad = project.links.filter((l) => l.lag > 0)
     c.value = pct(bad.length, project.links.length)
     c.offenders = bad.slice(0, OFFENDER_LIMIT).map((l) => `${nameOf(l.from)} → ${nameOf(l.to)}（${l.type} lag +${l.lag}）`)
-    c.pass = c.value < DCMA_RATIO_LIMIT
+    c.pass = c.value < th.ratioLimitPct
     checks.push(c)
   }
 
   // ── 4 FS 关系占比（≥90%）
   {
-    const c = check(4, 'FS 关系占比', `≥${DCMA_FS_RATIO_MIN}%`)
+    const c = check(4, 'FS 关系占比', `≥${th.fsRatioMinPct}%`)
     const fs = project.links.filter((l) => l.type === 'FS')
     c.value = project.links.length === 0 ? 100 : pct(fs.length, project.links.length)
     c.offenders = project.links
       .filter((l) => l.type !== 'FS')
       .slice(0, OFFENDER_LIMIT)
       .map((l) => `${nameOf(l.from)} → ${nameOf(l.to)}（${l.type}）`)
-    c.pass = c.value >= DCMA_FS_RATIO_MIN
+    c.pass = c.value >= th.fsRatioMinPct
     c.note = '无搭接关系时按 100%（不误伤小计划）'
     checks.push(c)
   }
@@ -190,24 +211,24 @@ export function dcmaAudit(project: SchedProject, cpm: CpmResult, dataDate?: numb
   // ── 5 硬约束（<5%）：当前模型无约束字段，恒 0（manual 锁定开始是排程模式
   // 而非日期约束，不计）。
   {
-    const c = check(5, '硬约束', `<${DCMA_RATIO_LIMIT}%`)
+    const c = check(5, '硬约束', `<${th.ratioLimitPct}%`)
     c.value = 0
     c.pass = true
     c.note = '当前计划模型无日期约束字段，恒通过'
     checks.push(c)
   }
 
-  // ── 6 高浮时 High Float（<5%）：叶任务 TF>44 工作日。
+  // ── 6 高浮时 High Float（<5%）：叶任务 TF>默认 44（th.highFloatDays）工作日。
   {
-    const c = check(6, '高浮时任务', `<${DCMA_RATIO_LIMIT}%（>44 工作日）`)
+    const c = check(6, '高浮时任务', `<${th.ratioLimitPct}%（>${th.highFloatDays} 工作日）`)
     if (!cpm.ok) c.na = 'CPM 未通过'
     else {
-      const bad = leavesNm.filter((t) => (rowOf(t.id)?.tf ?? 0) > DCMA_HIGH_FLOAT_DAYS)
+      const bad = leavesNm.filter((t) => (rowOf(t.id)?.tf ?? 0) > th.highFloatDays)
       c.value = pct(bad.length, leavesNm.length)
       c.offenders = bad
         .slice(0, OFFENDER_LIMIT)
         .map((t) => `${t.name}（TF ${rowOf(t.id)?.tf}）`)
-      c.pass = c.value < DCMA_RATIO_LIMIT
+      c.pass = c.value < th.ratioLimitPct
     }
     checks.push(c)
   }
@@ -227,13 +248,13 @@ export function dcmaAudit(project: SchedProject, cpm: CpmResult, dataDate?: numb
     checks.push(c)
   }
 
-  // ── 8 长工期 High Duration（<5%）：>44（按任务自身单位口径）。
+  // ── 8 长工期 High Duration（<5%）：>默认 44（th.highDurationDays，按任务自身单位口径）。
   {
-    const c = check(8, '长工期任务', `<${DCMA_RATIO_LIMIT}%（>44）`)
-    const bad = leavesNm.filter((t) => t.duration > DCMA_HIGH_DURATION_DAYS)
+    const c = check(8, '长工期任务', `<${th.ratioLimitPct}%（>${th.highDurationDays}）`)
+    const bad = leavesNm.filter((t) => t.duration > th.highDurationDays)
     c.value = pct(bad.length, leavesNm.length)
     c.offenders = bad.slice(0, OFFENDER_LIMIT).map((t) => `${t.name}（${t.duration}${t.durationUnit === 'cd' ? 'cd' : 'wd'}）`)
-    c.pass = c.value < DCMA_RATIO_LIMIT
+    c.pass = c.value < th.ratioLimitPct
     checks.push(c)
   }
 
@@ -271,7 +292,7 @@ export function dcmaAudit(project: SchedProject, cpm: CpmResult, dataDate?: numb
 
   // ── 11 错过基线 Missed Tasks（≤5%）：当前 EF 晚于基线 EF 且未完成。
   {
-    const c = check(11, '错过基线任务', `≤${DCMA_RATIO_LIMIT}%`)
+    const c = check(11, '错过基线任务', `≤${th.ratioLimitPct}%`)
     if (!project.baseline) c.na = '未保存基线'
     else if (!cpm.ok) c.na = 'CPM 未通过'
     else {
@@ -283,7 +304,7 @@ export function dcmaAudit(project: SchedProject, cpm: CpmResult, dataDate?: numb
       })
       c.value = pct(bad.length, leavesNm.length)
       c.offenders = bad.slice(0, OFFENDER_LIMIT).map((t) => t.name)
-      c.pass = c.value <= DCMA_RATIO_LIMIT
+      c.pass = c.value <= th.ratioLimitPct
     }
     checks.push(c)
   }
@@ -304,7 +325,7 @@ export function dcmaAudit(project: SchedProject, cpm: CpmResult, dataDate?: numb
 
   // ── 13 CPLI（≥0.95）：CPLI = (PD − 执行至) / (PF − 执行至)，需数据日期+基线。
   {
-    const c = check(13, 'CPLI 关键路径长度指数', `≥${DCMA_CPLI_MIN}`)
+    const c = check(13, 'CPLI 关键路径长度指数', `≥${th.cpliMin}`)
     if (!project.baseline) c.na = '未保存基线'
     else if (dataDate == null) c.na = '未提供数据日期'
     else {
@@ -315,7 +336,7 @@ export function dcmaAudit(project: SchedProject, cpm: CpmResult, dataDate?: numb
       else {
         const v = (pd - asOf) / (pf - asOf)
         c.value = Math.round(v * 1000) / 1000
-        c.pass = c.value >= DCMA_CPLI_MIN
+        c.pass = c.value >= th.cpliMin
       }
       c.note = 'CPLI=(基线工期−执行至)/(当前预测工期−执行至)，工作日口径'
     }
@@ -324,7 +345,7 @@ export function dcmaAudit(project: SchedProject, cpm: CpmResult, dataDate?: numb
 
   // ── 14 BEI（≥0.95）：完成任务数 / 数据日期应完成（基线 EF≤数据日期）数。
   {
-    const c = check(14, 'BEI 基线执行指数', `≥${DCMA_BEI_MIN}`)
+    const c = check(14, 'BEI 基线执行指数', `≥${th.beiMin}`)
     if (!project.baseline) c.na = '未保存基线'
     else if (dataDate == null) c.na = '未提供数据日期'
     else {
@@ -333,7 +354,7 @@ export function dcmaAudit(project: SchedProject, cpm: CpmResult, dataDate?: numb
       else {
         const done = scheduled.filter((t) => t.progress >= 100).length
         c.value = Math.round((done / scheduled.length) * 1000) / 1000
-        c.pass = c.value >= DCMA_BEI_MIN
+        c.pass = c.value >= th.beiMin
       }
       c.note = '完成口径=progress≥100（本模型无实际日期字段），诚实近似'
     }

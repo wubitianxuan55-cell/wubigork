@@ -2,7 +2,7 @@
 // n/a 诚实口径（缺基线/缺数据日期/未启用资源）。
 import { describe, expect, it } from 'vitest'
 import { computeCpm } from './cpm'
-import { dcmaAudit, DCMA_HIGH_FLOAT_DAYS, DCMA_HIGH_DURATION_DAYS } from './dcma'
+import { dcmaAudit, DCMA_HIGH_FLOAT_DAYS, DCMA_HIGH_DURATION_DAYS, DCMA_RATIO_LIMIT, DCMA_FS_RATIO_MIN, DCMA_CPLI_MIN, DCMA_BEI_MIN } from './dcma'
 import type { SchedProject, SchedTask } from './types'
 
 function task(p: Partial<SchedTask> & { id: string; name?: string }): SchedTask {
@@ -194,5 +194,33 @@ describe('DCMA 14 点体检（6.4）', () => {
   it('阈值常量与 DCMA 标准一致（44 天 / 5% / 90% / 0.95）', () => {
     expect(DCMA_HIGH_FLOAT_DAYS).toBe(44)
     expect(DCMA_HIGH_DURATION_DAYS).toBe(44)
+  })
+})
+
+// ── v4.226 阈值数据资产（规范知识出内核）────────────────────────────────
+describe('DCMA 阈值数据资产（v4.226）', () => {
+  it('内置默认表漂移守卫：与行业标准值逐字段一致', () => {
+    expect(DCMA_RATIO_LIMIT).toBe(5)
+    expect(DCMA_FS_RATIO_MIN).toBe(90)
+    expect(DCMA_CPLI_MIN).toBe(0.95)
+    expect(DCMA_BEI_MIN).toBe(0.95)
+  })
+
+  it('阈值覆盖：部分字段覆盖生效，展示串与判定同步（缺省字段用内置默认）', () => {
+    // B 工期抬到 50 天：默认长工期线（>44）应判未过；把线抬到 60 后转通过。
+    const p = healthyProject()
+    p.tasks[1].duration = 50
+    const cpm = computeCpm(p.tasks, p.links)
+    const base = dcmaAudit(p, cpm, null)
+    expect(base.checks[7].pass).toBe(false)
+    expect(base.checks[7].threshold).toContain('>44')
+
+    const tuned = dcmaAudit(p, cpm, null, { highDurationDays: 60, ratioLimitPct: 10 })
+    expect(tuned.checks[7].pass).toBe(true)
+    expect(tuned.checks[7].threshold).toContain('>60')
+    // 未覆盖字段保持默认：FS 占比下限仍显示 ≥90%（不在覆盖字段里）。
+    expect(tuned.checks[3].threshold).toBe('≥90%')
+    // 阈值抬到 60 后 B 不再超标：长工期实测占比归零。
+    expect(tuned.checks[7].value).toBe(0)
   })
 })

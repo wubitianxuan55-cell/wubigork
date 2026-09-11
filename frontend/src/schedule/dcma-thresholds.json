@@ -1,0 +1,8 @@
+{
+  "highFloatDays": 44,
+  "highDurationDays": 44,
+  "ratioLimitPct": 5,
+  "fsRatioMinPct": 90,
+  "cpliMin": 0.95,
+  "beiMin": 0.95
+}
