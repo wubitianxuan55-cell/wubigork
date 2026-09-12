@@ -13,8 +13,8 @@ import (
 	"sync"
 	"unicode/utf8"
 
-	"github.com/gaea/gaea/internal/gaea/search"
 	"github.com/gaea/gaea/internal/docmd"
+	"github.com/gaea/gaea/internal/gaea/search"
 )
 
 // Hit 是工作区全文搜索的一条命中。
@@ -87,6 +87,11 @@ var (
 	cacheMu   sync.Mutex
 )
 
+// textCacheCap 是正文缓存条目上限（刀E v4.249，普查#10）：改前只增不删，
+// 长会话/大工作区内存无界增长。超限整体清空（下次访问按 mtime/size 重新
+// 提取；文件未变时 mtime/size 校验照旧命中文件系统）。
+const textCacheCap = 64
+
 // extractText 读取/转换一个文件的正文；失败返回 ("", false)。
 func extractText(abs string) (string, bool, bool) {
 	info, err := os.Stat(abs)
@@ -130,6 +135,9 @@ func extractText(abs string) (string, bool, bool) {
 		text = truncateRunes(text, maxDocRunes)
 	}
 	cacheMu.Lock()
+	if _, known := textCache[key]; !known && len(textCache) >= textCacheCap {
+		textCache = map[string]cachedText{}
+	}
 	textCache[key] = cachedText{modTime: info.ModTime().UnixMilli(), size: info.Size(), text: text, truncated: truncated}
 	cacheMu.Unlock()
 	return text, true, truncated

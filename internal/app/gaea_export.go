@@ -15,6 +15,9 @@ import (
 	"github.com/gaea/gaea/internal/gaea/spaces"
 )
 
+// deliverableNameRe 是交付物文件名非法字符正则（刀E v4.249 普查#20：包级）。
+var deliverableNameRe = regexp.MustCompile(`[\\/:*?"<>|]+`)
+
 // ExportDeliverableInput 是统一交付出口的入参：受控 Markdown + 目标格式。
 type ExportDeliverableInput struct {
 	Markdown string `json:"markdown"`
@@ -320,7 +323,7 @@ func findSkillScript(skill, sub, name string) string {
 
 // safeDeliverableName 生成交付物文件名（保留中文，去掉非法路径字符）。
 func safeDeliverableName(s string) string {
-	re := regexp.MustCompile(`[\\/:*?"<>|]+`)
+	re := deliverableNameRe
 	s = re.ReplaceAllString(s, "-")
 	s = strings.TrimSpace(s)
 	if len(s) > 60 {

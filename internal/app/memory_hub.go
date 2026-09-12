@@ -19,6 +19,10 @@ import (
 	whisperdb "github.com/gaea/gaea/internal/whisper/db/repos"
 )
 
+// hubRefRe 是记忆事件图谱的 [[引用]] 提取正则（刀E v4.249 普查#20：
+// 提为包级，避免每次面板调用重编译）。
+var hubRefRe = regexp.MustCompile(`\[\[([^\]|]+)(?:\|[^\]]+)?\]\]`)
+
 // ── 记忆中枢绑定（主脑前端入口的统一管理接口）───────────────────────
 //
 // 记忆中枢 = 三脑架构的前端呈现：左脑办公记忆（Hephaestus.db facts）、
@@ -424,7 +428,7 @@ func (a *App) GaeaMemoryGraph() MemoryGraphView {
 	}
 
 	// 边：[[引用]]（办公/画像 body 指向其他记忆）
-	refRe := regexp.MustCompile(`\[\[([^\]|]+)(?:\|[^\]]+)?\]\]`)
+	refRe := hubRefRe
 	for _, m := range a.hubOfficeStore().List() {
 		if tid, ok := nameID[m.Name]; ok {
 			for _, ref := range refRe.FindAllStringSubmatch(m.Body, -1) {
@@ -459,29 +463,29 @@ func displayName(title, name string) string {
 
 // CostSummary 成本条目轻量视图。
 type CostSummary struct {
-	Name         string    `json:"name"`
-	Title        string    `json:"title"`
-	Code         string    `json:"code,omitempty"` // 定额编码/清单编码（归一化；空=未录入）
-	Category     string    `json:"category"`
-	CategoryPath string    `json:"categoryPath"`
-	Unit         string    `json:"unit"`
-	Price        float64   `json:"price"`
+	Name         string  `json:"name"`
+	Title        string  `json:"title"`
+	Code         string  `json:"code,omitempty"` // 定额编码/清单编码（归一化；空=未录入）
+	Category     string  `json:"category"`
+	CategoryPath string  `json:"categoryPath"`
+	Unit         string  `json:"unit"`
+	Price        float64 `json:"price"`
 	// 人材机二级汇总（综合单价子目）：人工费/材料费/机械费（元）。
 	LaborFee    float64 `json:"laborFee,omitempty"`
 	MaterialFee float64 `json:"materialFee,omitempty"`
 	MachineFee  float64 `json:"machineFee,omitempty"`
 	// 人材机组成行数（二级明细规模，综合单价子目才有）。
-	ComponentCount int `json:"componentCount,omitempty"`
-	Spec         string    `json:"spec"`
-	Source       string    `json:"source"`
-	Region       string    `json:"region,omitempty"`       // 地区（价格三要素）
-	PriceDate    string    `json:"priceDate,omitempty"`    // 价格时间/期数
-	PriceType    string    `json:"priceType,omitempty"`    // 价格口径：出厂价/到场价/安装综合价
-	ValidUntil   string    `json:"validUntil,omitempty"`   // 有效期至
-	SourceRow    int       `json:"sourceRow,omitempty"`    // 导入原始行号（0=手动）
-	Tags         []string  `json:"tags"`
-	Status       string    `json:"status"`
-	UpdatedAt    time.Time `json:"updatedAt"`
+	ComponentCount int       `json:"componentCount,omitempty"`
+	Spec           string    `json:"spec"`
+	Source         string    `json:"source"`
+	Region         string    `json:"region,omitempty"`     // 地区（价格三要素）
+	PriceDate      string    `json:"priceDate,omitempty"`  // 价格时间/期数
+	PriceType      string    `json:"priceType,omitempty"`  // 价格口径：出厂价/到场价/安装综合价
+	ValidUntil     string    `json:"validUntil,omitempty"` // 有效期至
+	SourceRow      int       `json:"sourceRow,omitempty"`  // 导入原始行号（0=手动）
+	Tags           []string  `json:"tags"`
+	Status         string    `json:"status"`
+	UpdatedAt      time.Time `json:"updatedAt"`
 }
 
 // CostEntry 完整成本条目。
@@ -643,7 +647,7 @@ func toCostSummary(s cost.Summary) CostSummary {
 		Unit: s.Unit, Price: s.Price,
 		LaborFee: s.LaborFee, MaterialFee: s.MaterialFee, MachineFee: s.MachineFee,
 		ComponentCount: s.ComponentCount,
-		Spec: s.Spec, Source: s.Source,
+		Spec:           s.Spec, Source: s.Source,
 		Region: s.Region, PriceDate: s.PriceDate, PriceType: s.PriceType,
 		ValidUntil: s.ValidUntil, SourceRow: s.SourceRow,
 		Tags: s.Tags, Status: s.Status, UpdatedAt: s.UpdatedAt,

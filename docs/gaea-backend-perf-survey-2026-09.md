@@ -29,7 +29,7 @@
 ## 低（顺手修，单点影响小）
 
 18. `internal/app/platform_handler.go:72-73` 循环 `result += string(r)` O(n²) 拼接，换 `strings.Builder`。
-19. `internal/gaea/retrieval/semantic.go:22-31` `SemanticRecall` 每查询全量重 embedding 候选库——已被持久化向量路径取代、现无生产调用方，属遗留危险实现，建议删除或修复防误接线。
+19. ~~`internal/gaea/retrieval/semantic.go:22-31` `SemanticRecall` 每查询全量重 embedding 候选库~~（**v4.249 已删除**：零生产消费方核实；DocText/Cosine 有消费方保留）。
 20. `internal/app/memory_hub.go:427`、`internal/app/gaea_export.go:323`、`internal/app/shelf.go:371` 函数体内 `regexp.MustCompile`，UI 交互路径重复编译，提为包级变量即可。
 
 ## Benchmark 现状
@@ -38,10 +38,10 @@
 
 ## 建议刀路（待拍板，不替用户排期）
 
-> 进度：**刀A 已执行=v4.245.0**（#1+#14，benchmark 先行）；**刀B 已执行=v4.246.0**（#2+#12；#8 复核撤销——BuildSearchIndex 实际分词 body，见中-8 勘误）。#2 的刀法修正：刷新保持对调用方同步（写后立即可见的语义与测试依赖不动），Load 改在 c.mu **锁外**执行（begin/finish 两段式+写侧代号守卫防慢 Load 回退快照），Send/Cancel 等不再被全库重载阻塞；#12 顺带覆盖 Archive/Unarchive/ChangeType/Touch（同一「实体语句+事件留痕」双写形态，Touch 在引用解析热路径上）。**刀D 已执行=v4.247.0**（#3+#4+子查询；#3 的刀法修正：bm25.Cache 原设计语料=整库，但 Search 现行为=关键词命中子集排序，直接接通会改 BM25 统计口径——改为**包级缓存**（key=db 池+数据版本+过滤形态，语料=该过滤形态下 SQL 全捞全量，写路径 Save/Delete/SaveCategory/DeleteCategory/SelfHeal 修复/app 批量导入推进版本或显式失效），命中子集按语料下标取分，tie-break 语料序=name 序与改前一致，TestCostSearchBM25Order 原样通过）。**刀C 已执行=v4.248.0**（#6+#11：连接池 1→4（WAL 读并行，DSN 逐连接 PRAGMA 已覆盖每新连接；写由单写者锁+busy_timeout 兜底）——并行读 3.0×（7.6μs→2.5μs）；CleanupArchived/semantic Stale 逐条 DELETE 批量事务化（CleanupArchived 收紧为原子语义：全删或全不删）；两处「rows 未关闭 Exec 死锁」注脚（portrait.go/whisper fts.go）所记录的死锁类随池放宽整体消除）。
+> 进度：**刀A 已执行=v4.245.0**（#1+#14，benchmark 先行）；**刀B 已执行=v4.246.0**（#2+#12；#8 复核撤销——BuildSearchIndex 实际分词 body，见中-8 勘误）。#2 的刀法修正：刷新保持对调用方同步（写后立即可见的语义与测试依赖不动），Load 改在 c.mu **锁外**执行（begin/finish 两段式+写侧代号守卫防慢 Load 回退快照），Send/Cancel 等不再被全库重载阻塞；#12 顺带覆盖 Archive/Unarchive/ChangeType/Touch（同一「实体语句+事件留痕」双写形态，Touch 在引用解析热路径上）。**刀D 已执行=v4.247.0**（#3+#4+子查询；#3 的刀法修正：bm25.Cache 原设计语料=整库，但 Search 现行为=关键词命中子集排序，直接接通会改 BM25 统计口径——改为**包级缓存**（key=db 池+数据版本+过滤形态，语料=该过滤形态下 SQL 全捞全量，写路径 Save/Delete/SaveCategory/DeleteCategory/SelfHeal 修复/app 批量导入推进版本或显式失效），命中子集按语料下标取分，tie-break 语料序=name 序与改前一致，TestCostSearchBM25Order 原样通过）。**刀C 已执行=v4.248.0**（#6+#11：连接池 1→4（WAL 读并行，DSN 逐连接 PRAGMA 已覆盖每新连接；写由单写者锁+busy_timeout 兜底）——并行读 3.0×（7.6μs→2.5μs）；CleanupArchived/semantic Stale 逐条 DELETE 批量事务化（CleanupArchived 收紧为原子语义：全删或全不删）；两处「rows 未关闭 Exec 死锁」注脚（portrait.go/whisper fts.go）所记录的死锁类随池放宽整体消除）。**刀E 已执行=v4.249.0**（#5 缓存 408×/#7 缓存+轻量解码/#10 上限/#16 字符串化/#18 Builder/#20 包级/#19 删除；#17 观察）。
 
 - **刀 A（每回合税）✅ v4.245.0**：#1 事件日志 seq 增量化（RepairLogFile/countLogLines 只跑会话首开或改增量校验）+ #14 DigestMessages 增量哈希。零外部行为变化，benchmark 锁基线。
 - **刀 B（记忆写路径）✅ v4.246.0**：#2 QueueMemory/写点锁内全库重载改锁外重载 + #12 Save 包事务（扩及全部五写方法）+ ~~#8~~（撤销）。动全局锁语义，须真机走查。
 - **刀 C（SQLite 口径）✅ v4.248.0**：#6 连接池放宽 1→4（读写并行+死锁类消除）+ #11 批量事务化（CleanupArchived 原子语义收紧 + semantic Stale；#12 已随刀B）。单独一刀+全量回归（app 67s 全绿）。
 - **刀 D（cost 检索）✅ v4.247.0**：#3 接通 BM25 缓存（包级版本化实现）+ #4 Embedder/Reranker 单例化（按注入配置缓存，SetRetrievalRuntime 变更自动重建）+ 子查询消除（逐行相关 COUNT → LEFT JOIN GROUP BY 单趟）。
-- **刀 E（面板/杂项）**：#5 contextview 缓存/增量 + #7 预览采样 + #10 缓存上限 + #16/#17/#18/#20 顺手项。
+- **刀 E（面板/杂项）✅ v4.249.0**：#5 会话条目缓存（size+mtime 键，append-only 语义；看板读取 9.1ms→22μs 408×）+ #7 预览缓存+轻量解码 + #10 wssearch 上限 64 + #16 正则改字符串操作（QuoteMeta 字面量等价）+ #18 strings.Builder + #20 正则包级 + #19 SemanticRecall 死代码删除（DocText/Cosine 有生产消费方保留）；#17 归档分页=legacy file backend 观察不修（DB 后端无此路径）。

@@ -16,6 +16,9 @@ import (
 	"github.com/gaea/gaea/internal/types"
 )
 
+// chapterNameRe 是章节文件名正则（刀E v4.249 普查#20：包级）。
+var chapterNameRe = regexp.MustCompile(`^\d+[a-z]?\.md$`)
+
 // ProjectCard 书架上的项目卡片数据（返回给前端）
 type ProjectCard struct {
 	Title        string `json:"title"`
@@ -368,7 +371,7 @@ func scanChapterStats(projectDir string) (chapterCount int, totalWords int) {
 	if err != nil {
 		return 0, 0
 	}
-	re := regexp.MustCompile(`^\d+[a-z]?\.md$`)
+	re := chapterNameRe
 	for _, entry := range entries {
 		if entry.IsDir() {
 			continue

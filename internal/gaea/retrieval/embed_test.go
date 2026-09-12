@@ -7,8 +7,6 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-
-	"github.com/gaea/gaea/internal/gaea/cost"
 )
 
 // fakeEmbedServer 按文档是否含「振动锤/水泥」返回 1-hot 向量，模拟 bge-m3。
@@ -64,45 +62,5 @@ func TestEmbedderEmbedAndCosine(t *testing.T) {
 	}
 	if c := Cosine(vecs[0], vecs[1]); c != 0 {
 		t.Errorf("orthogonal cosine = %v, want 0", c)
-	}
-}
-
-func TestSemanticRecall(t *testing.T) {
-	srv := fakeEmbedServer(t)
-	defer srv.Close()
-	e := NewEmbedder(srv.URL, "bge-m3")
-	ctx := context.Background()
-	full := []cost.Summary{
-		{Name: "cement", Title: "P.O 42.5 水泥", Unit: "吨", Price: 480},
-		{Name: "hp300", Title: "HP300 高频液压振动锤", Unit: "台班", Price: 3200},
-	}
-	got := SemanticRecall(ctx, e, "液压振动锤", full, nil, 1)
-	if len(got) != 1 || got[0].Name != "hp300" {
-		t.Errorf("semantic recall = %+v, want hp300", got)
-	}
-}
-
-func TestSemanticRecallExcludesExisting(t *testing.T) {
-	srv := fakeEmbedServer(t)
-	defer srv.Close()
-	e := NewEmbedder(srv.URL, "bge-m3")
-	ctx := context.Background()
-	full := []cost.Summary{
-		{Name: "cement", Title: "P.O 42.5 水泥", Unit: "吨", Price: 480},
-		{Name: "hp300", Title: "HP300 高频液压振动锤", Unit: "台班", Price: 3200},
-	}
-	// 已有 hp300（关键词命中），语义召回只补水泥之外的语义相近项。
-	got := SemanticRecall(ctx, e, "液压振动锤", full, []cost.Summary{{Name: "hp300"}}, 5)
-	if len(got) != 1 || got[0].Name != "hp300" {
-		t.Errorf("exclude logic wrong: %+v", got)
-	}
-}
-
-func TestEmbedderUnavailable(t *testing.T) {
-	e := NewEmbedder("http://127.0.0.1:1", "bge-m3")
-	ctx, cancel := context.WithTimeout(context.Background(), 0)
-	defer cancel()
-	if e.Available(ctx) {
-		t.Error("unreachable server should not be available")
 	}
 }

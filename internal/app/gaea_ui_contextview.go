@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	gaeaAgent "github.com/gaea/gaea/internal/gaea/agent"
 	"github.com/gaea/gaea/internal/gaea/agent/session"
@@ -19,6 +20,67 @@ import (
 	_ "golang.org/x/image/bmp"
 	_ "golang.org/x/image/webp"
 )
+
+// ── 会话条目缓存（刀E v4.249，普查#5）────────────────────────────
+// 上下文看板/节点详情/轨迹/Agent 网络（+ resync 外共五处）绑定共用
+// ReadEntriesFor 全量读+逐行解析，前端轮询刷新时同份日志被反复解析——
+// 会话越长看板越卡。事件日志是 append-only（单写入器整行追加），文件
+// size+mtime 未变 ⇒ 内容未变；legacy 会话文件同理（投影只依赖该文件）。
+// 缓存切片跨调用方只读共享（fold/detail/trajectory 层均不原地改写）。
+
+type cachedEntries struct {
+	key     string
+	entries []session.LogEntry
+}
+
+var (
+	entriesCacheMu sync.Mutex
+	entriesCache   = map[string]cachedEntries{}
+)
+
+// readEntriesForCached 是 session.ReadEntriesFor 的缓存形态。key=日志文件与
+// legacy 会话文件的 size+mtime 组合；缓存上限 8 个会话，超出整体清空（面板
+// 场景同时活跃的会话数远小于此）。
+func readEntriesForCached(sessionPath string) ([]session.LogEntry, error) {
+	key, keyErr := entriesCacheKey(sessionPath)
+	entriesCacheMu.Lock()
+	if keyErr == nil {
+		if c, ok := entriesCache[sessionPath]; ok && c.key == key {
+			e := c.entries
+			entriesCacheMu.Unlock()
+			return e, nil
+		}
+	}
+	entriesCacheMu.Unlock()
+
+	entries, err := session.ReadEntriesFor(sessionPath)
+	if err != nil {
+		return nil, err
+	}
+	if keyErr == nil {
+		entriesCacheMu.Lock()
+		if len(entriesCache) > 8 {
+			entriesCache = map[string]cachedEntries{}
+		}
+		entriesCache[sessionPath] = cachedEntries{key: key, entries: entries}
+		entriesCacheMu.Unlock()
+	}
+	return entries, nil
+}
+
+func entriesCacheKey(sessionPath string) (string, error) {
+	stat := func(p string) string {
+		if st, err := os.Stat(p); err == nil {
+			return fmt.Sprintf("%d:%d", st.Size(), st.ModTime().UnixNano())
+		}
+		return "-"
+	}
+	logPath := session.LogPathFor(sessionPath)
+	if logPath == "" {
+		return "", fmt.Errorf("empty log path")
+	}
+	return stat(logPath) + "|" + stat(sessionPath), nil
+}
 
 // GaeaContextView 返回会话的上下文构成快照（dsh-context Go 移植 Phase A）：
 // 六分类当前组成、逐请求趋势、上下文事件、模型可见节点与归档。
@@ -30,7 +92,7 @@ func (a *App) GaeaContextView(sessionPath ...string) (contextview.ContextTimelin
 	if path == "" {
 		return contextview.EmptyTimeline(), nil
 	}
-	entries, err := session.ReadEntriesFor(path)
+	entries, err := readEntriesForCached(path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return contextview.EmptyTimeline(), nil
@@ -49,7 +111,7 @@ func (a *App) GaeaContextNodeDetail(seq int64, sessionPath ...string) (contextvi
 	if path == "" {
 		return contextview.NodeDetail{}, fmt.Errorf("会话未就绪")
 	}
-	entries, err := session.ReadEntriesFor(path)
+	entries, err := readEntriesForCached(path)
 	if err != nil {
 		return contextview.NodeDetail{}, err
 	}
@@ -125,7 +187,7 @@ func (a *App) GaeaTrajectory(sessionPath ...string) (trajectory.Trajectory, erro
 	if path == "" {
 		return trajectory.EmptyTrajectory(), nil
 	}
-	entries, err := session.ReadEntriesFor(path)
+	entries, err := readEntriesForCached(path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return trajectory.EmptyTrajectory(), nil
@@ -144,7 +206,7 @@ func (a *App) GaeaAgentNetwork(sessionPath ...string) (trajectory.AgentNetwork, 
 	if path == "" {
 		return trajectory.EmptyAgentNetwork(), nil
 	}
-	entries, err := session.ReadEntriesFor(path)
+	entries, err := readEntriesForCached(path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return trajectory.EmptyAgentNetwork(), nil

@@ -13,7 +13,7 @@ import (
 
 // Link 一个 [[wiki-link]] 引用
 type Link struct {
-	Target     string `json:"target"`     // 链接目标实体名
+	Target     string `json:"target"`      // 链接目标实体名
 	SourceFile string `json:"source_file"` // 来源文件路径
 	LineNumber int    `json:"line_number"` // 行号（1-based）
 	Context    string `json:"context"`     // 周围文本（20字上下文）
@@ -126,17 +126,15 @@ func FindUnlinkedMentions(content string, entities []string) []string {
 	var result []string
 
 	for _, entity := range entities {
-		// 检查是否已被 [[entity]] 链接
-		linkedPattern := `\[\[` + regexp.QuoteMeta(entity) + `\]\]`
-		linkedRE := regexp.MustCompile(linkedPattern)
+		// 检查是否已被 [[entity]] 链接（刀E v4.249：QuoteMeta 后的字面量
+		// 匹配与 ReplaceAll/MatchString 等价，改纯字符串操作免每次编译）。
+		linked := "[[" + entity + "]]"
 
 		// 移除所有已链接的实例，检查剩余裸文本
-		cleaned := linkedRE.ReplaceAllString(content, "")
+		cleaned := strings.ReplaceAll(content, linked, "")
 
 		// 在清理后的文本中查找裸实体名
-		barePattern := regexp.QuoteMeta(entity)
-		bareRE := regexp.MustCompile(barePattern)
-		if bareRE.MatchString(cleaned) {
+		if strings.Contains(cleaned, entity) {
 			result = append(result, entity)
 		}
 	}

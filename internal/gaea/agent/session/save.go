@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gaea/gaea/internal/gaea/fileutil"
@@ -242,7 +243,7 @@ func listSingleDir(dir, space string) ([]Info, error) {
 			continue
 		}
 		full := filepath.Join(dir, e.Name())
-		preview, turns := previewSession(full)
+		preview, turns := previewSessionCached(full)
 		if turns == 0 {
 			// Skip sessions that have never had user interaction — they are
 			// empty conversations that should not appear in the history panel
@@ -273,14 +274,22 @@ func previewSession(path string) (string, int) {
 	first := ""
 	turns := 0
 	for {
-		var m provider.Message
+		// 轻量解码（刀E v4.249）：面板只要「首条用户消息预览+轮次数」，
+		// 不需要每条消息的 tool_calls/reasoning 等大字段——content 只在
+		// 确属首条用户消息时才反序列化，其余行只取 role 一个字符串。
+		var m struct {
+			Role    string          `json:"role"`
+			Content json.RawMessage `json:"content"`
+		}
 		if err := dec.Decode(&m); err != nil {
 			break // EOF or a malformed tail — return the preview gathered so far
 		}
-		if m.Role == provider.RoleUser {
+		if m.Role == string(provider.RoleUser) {
 			turns++
 			if first == "" {
-				s := strings.TrimSpace(m.Content)
+				s := ""
+				_ = json.Unmarshal(m.Content, &s)
+				s = strings.TrimSpace(s)
 				if r := []rune(s); len(r) > 80 {
 					s = string(r[:77]) + "…"
 				}
@@ -289,6 +298,49 @@ func previewSession(path string) (string, int) {
 		}
 	}
 	return first, turns
+}
+
+// ── 预览缓存（刀E v4.249，普查#7）───────────────────────────────
+// 会话历史面板每次刷新对全部 .jsonl 全量解码（含多 MB 工具输出）。会话
+// 文件整体重写（transcript save），size+mtime 未变 ⇒ 内容未变，直接复用。
+// 上限 64 个会话，超出整体清空。
+
+type cachedPreview struct {
+	key     string
+	preview string
+	turns   int
+}
+
+var (
+	previewCacheMu sync.Mutex
+	previewCache   = map[string]cachedPreview{}
+)
+
+func previewSessionCached(path string) (string, int) {
+	var key string
+	if st, err := os.Stat(path); err == nil {
+		key = fmt.Sprintf("%d:%d", st.Size(), st.ModTime().UnixNano())
+	} else {
+		key = "-" // stat 失败：照常直读，结果不缓存
+	}
+	previewCacheMu.Lock()
+	if c, ok := previewCache[path]; ok && c.key == key {
+		p, t := c.preview, c.turns
+		previewCacheMu.Unlock()
+		return p, t
+	}
+	previewCacheMu.Unlock()
+
+	preview, turns := previewSession(path)
+	if key != "-" {
+		previewCacheMu.Lock()
+		if len(previewCache) > 64 {
+			previewCache = map[string]cachedPreview{}
+		}
+		previewCache[path] = cachedPreview{key: key, preview: preview, turns: turns}
+		previewCacheMu.Unlock()
+	}
+	return preview, turns
 }
 
 // ─── V5.21: Session archive ──────────────────────────────────────────────

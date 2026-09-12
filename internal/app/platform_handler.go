@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/gaea/gaea/internal/export"
 	"github.com/gaea/gaea/internal/stats"
@@ -67,12 +68,13 @@ func (a *App) ExportHTML(templateName string) (map[string]interface{}, error) {
 }
 
 func sanitizeFilename(s string) string {
-	result := ""
+	var b strings.Builder // 刀E v4.249（普查#18）：循环 += 是 O(n²) 分配
 	for _, r := range s {
 		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '-' || r == '_' {
-			result += string(r)
+			b.WriteRune(r)
 		}
 	}
+	result := b.String()
 	if result == "" {
 		result = "export"
 	}
