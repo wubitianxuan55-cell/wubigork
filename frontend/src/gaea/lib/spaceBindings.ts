@@ -479,6 +479,7 @@ export const GAEA_METHOD_FACETS = {
   DagNodeRun: "work",
   DagNodeSteer: "work",
   DagNodeAccept: "work",
+  DagNodeApprove: "work",
   DagAcceptAll: "work",
   DagCancel: "work",
   // 6.3 余项：流水线模板库（存模板一键重建）→ work。

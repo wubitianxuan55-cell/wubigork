@@ -748,6 +748,27 @@ func RunSubAgentWithSession(ctx context.Context, prov provider.LLMProvider, reg 
 	return runSubAgentInternal(ctx, prov, reg, sess, prompt, opts, sink, subUsage)
 }
 
+// subRunners 是在跑子代理的 live 登记（ref=SessionID → AgentRunner）：运行中
+// 直穿改向（v4.243）的寻址面——GaeaDagNodeSteer 凭 ref 找到在跑 runner 注入
+// steer 队列（不打断工具执行，下一回合生效）。runSubAgentInternal 起跑登记、
+// defer 注销；查无此 ref=已收跑或 ephemeral 运行，调用方如实报错。
+var subRunners sync.Map
+
+// SteerSubagent 向在跑子代理直穿一条补充指引。找不到在跑登记（已收跑/
+// 未起跑/ephemeral）返回错误，绝不静默吞掉改向意图。
+func SteerSubagent(ref, text string) error {
+	ref = strings.TrimSpace(ref)
+	if ref == "" {
+		return fmt.Errorf("ref is required")
+	}
+	v, ok := subRunners.Load(ref)
+	if !ok {
+		return fmt.Errorf("子代理 %s 当前不在运行（已收跑请用续跑改向）", ref)
+	}
+	v.(*AgentRunner).Steer(text)
+	return nil
+}
+
 // runSubAgentInternal is the shared sub-agent execution path: wire up an
 // AgentRunner, run the prompt, and extract the final assistant message.
 func runSubAgentInternal(ctx context.Context, prov provider.LLMProvider, reg *tool.Registry, sess *Session, prompt string, opts Options, sink event.Sink, subUsage *provider.Usage) (string, error) {
@@ -763,6 +784,10 @@ func runSubAgentInternal(ctx context.Context, prov provider.LLMProvider, reg *to
 	// sub-agents don't need orchestrate verify — they execute a single task
 	opts.DisableVerify = true
 	sub := New(prov, reg, sess, opts, sink)
+	if opts.SessionID != "" {
+		subRunners.Store(opts.SessionID, sub)
+		defer subRunners.Delete(opts.SessionID)
+	}
 	_, runErr := sub.Run(ctx, prompt)
 	// Populate subUsage from the sub-agent's last usage so SubUsage() reflects
 	// real token counts for cost tracking.

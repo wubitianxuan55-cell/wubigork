@@ -50,7 +50,8 @@ func (d dagPlanTool) Schema() json.RawMessage {
     "id":{"type":"string","description":"节点短 id（ASCII kebab，如 read-reports）"},
     "title":{"type":"string","description":"节点名（3-8 字，验收后将作为记忆条目名）"},
     "prompt":{"type":"string","description":"该节点的完整委托指令：输入文件（工作区相对路径）、加工动作、期望产物路径。子代理看不到对话，prompt 必须自包含"},
-    "depends_on":{"type":"array","items":{"type":"string"},"description":"依赖的节点 id 列表（可空=无依赖）"}}},
+    "depends_on":{"type":"array","items":{"type":"string"},"description":"依赖的节点 id 列表（可空=无依赖）"},
+    "risk":{"type":"string","enum":["normal","high"],"description":"风险分级：覆盖/删除工作区既有文件、批量移动、全局性改动的节点标 high（起跑前会暂停等用户审批）；常规新增/编辑用 normal（缺省）"}}},
     "required":["id","title","prompt"]}}
 },
 "required":["goal","nodes"]
@@ -66,6 +67,7 @@ func (d dagPlanTool) Execute(ctx context.Context, args json.RawMessage) (string,
 			Title     string   `json:"title"`
 			Prompt    string   `json:"prompt"`
 			DependsOn []string `json:"depends_on"`
+			Risk      string   `json:"risk"`
 		} `json:"nodes"`
 	}
 	if err := json.Unmarshal(args, &p); err != nil {
@@ -78,6 +80,7 @@ func (d dagPlanTool) Execute(ctx context.Context, args json.RawMessage) (string,
 			Title:     strings.TrimSpace(n.Title),
 			Prompt:    strings.TrimSpace(n.Prompt),
 			DependsOn: n.DependsOn,
+			Risk:      n.Risk,
 			Status:    dag.StatusPending,
 		})
 	}
@@ -250,6 +253,19 @@ func (a *App) GaeaDagNodeSteer(id, nodeID, prompt string) (string, error) {
 		return "", fmt.Errorf("节点不存在: %s", nodeID)
 	}
 	node := r.Nodes[idx]
+	// 运行中直穿（v4.243）：凭 ref 找到在跑子代理 runner，注入 steer 队列
+	//（不打断工具执行，下一回合生效）——与主对话 GaeaSteer 同机制。节点状态
+	// 不动；查无在跑登记（恰好收跑/ephemeral）如实报错，不静默转续跑。
+	if node.Status == dag.StatusRunning {
+		if node.Ref == "" {
+			return "", fmt.Errorf("节点在跑但暂无会话引用，稍后再试或收跑后用续跑改向")
+		}
+		if err := gaeaAgent.SteerSubagent(node.Ref, prompt); err != nil {
+			return "", err
+		}
+		slog.Info("流水线节点改向直穿", "run", id, "node", nodeID, "ref", node.Ref)
+		return "改向指令已直穿在跑节点（不打断执行，下一回合生效）。", nil
+	}
 	if node.Ref == "" || (node.Status != dag.StatusDone && node.Status != dag.StatusFailed) {
 		return "", fmt.Errorf("节点 %s 尚无可改向的完成运行（先跑一次）", nodeID)
 	}
@@ -378,6 +394,38 @@ func (a *App) GaeaDagAcceptAll(id string) (string, error) {
 	return msg, nil
 }
 
+// GaeaDagNodeApprove 审批放行（危险操作分级审批的人拍板侧）：hold→pending
+// 并置 Approved——后续起跑/续跑/单跑放行；只放行不自动跑（起跑仍人拍板，
+// 与整链首跑同闸）。非 hold 节点拒绝。改图变更节点时 Approved 归零（dag 包
+// ApplyEdit 新节点不携带）=新指令重新批。
+func (a *App) GaeaDagNodeApprove(id, nodeID string) (string, error) {
+	ga.dagMu.Lock()
+	r, err := a.dagStore().Get(id)
+	if err != nil {
+		ga.dagMu.Unlock()
+		return "", err
+	}
+	idx := dagNodeIndex(r, nodeID)
+	if idx < 0 {
+		ga.dagMu.Unlock()
+		return "", fmt.Errorf("节点不存在: %s", nodeID)
+	}
+	if r.Nodes[idx].Status != dag.StatusHold {
+		ga.dagMu.Unlock()
+		return "", fmt.Errorf("只审批待审批（hold）的节点（当前 %s）", r.Nodes[idx].Status)
+	}
+	r.Nodes[idx].Status = dag.StatusPending
+	r.Nodes[idx].Approved = true
+	r.Nodes[idx].Error = ""
+	if err := a.dagStore().Save(r); err != nil {
+		ga.dagMu.Unlock()
+		return "", err
+	}
+	ga.dagMu.Unlock()
+	slog.Info("流水线高风险节点已批准", "run", id, "node", nodeID)
+	return fmt.Sprintf("节点 %s 已批准放行（待跑），可起跑/续跑/单跑执行。", nodeID), nil
+}
+
 // GaeaDagCancel 终止级联（roadmap §16）：取消 run ctx→在跑节点子代理随之
 // 取消→未起跑节点置 skipped。
 func (a *App) GaeaDagCancel(id string) (string, error) {
@@ -470,7 +518,9 @@ func (a *App) dagExecute(ctx context.Context, id string, waves [][]dag.Node) {
 	emit := a.dagEmit()
 	for wi, wave := range waves {
 		failed := false
+		held := false
 		var failMu sync.Mutex
+		var holdMu sync.Mutex
 		var wg sync.WaitGroup
 		for _, node := range wave {
 			node := node
@@ -482,6 +532,20 @@ func (a *App) dagExecute(ctx context.Context, id string, waves [][]dag.Node) {
 						n.Status = dag.StatusSkipped
 						n.Error = "已取消"
 					})
+					return
+				}
+				// 危险操作分级审批（roadmap §12.4，v4.243）：高风险且未批准的
+				// 节点置 hold 待审批，本波不执行；波收尾链停——下游保持待跑
+				//（不级联 skipped），人批准（GaeaDagNodeApprove→pending）后续跑放行。
+				if node.Risk == dag.RiskHigh && !node.Approved {
+					holdMu.Lock()
+					held = true
+					holdMu.Unlock()
+					_ = a.dagMarkNode(id, node.ID, func(n *dag.Node) {
+						n.Status = dag.StatusHold
+						n.Error = "高风险节点待审批"
+					})
+					slog.Info("流水线高风险节点挂起待审批", "run", id, "node", node.ID)
 					return
 				}
 				seen := dagJournalIDs() // 窗口回退基线（ref 为空时归因用）
@@ -520,11 +584,15 @@ func (a *App) dagExecute(ctx context.Context, id string, waves [][]dag.Node) {
 			}()
 		}
 		wg.Wait()
+		if held {
+			// 审批闸链停：下游不动（保持 pending，不跑不跳过），等审批后续跑。
+			return
+		}
 		if failed {
 			for _, later := range waves[wi+1:] {
 				for _, node := range later {
 					a.dagMarkNode(id, node.ID, func(n *dag.Node) {
-						if n.Status == dag.StatusPending || n.Status == dag.StatusRunning {
+						if n.Status == dag.StatusPending || n.Status == dag.StatusRunning || n.Status == dag.StatusHold {
 							n.Status = dag.StatusSkipped
 							n.Error = "上游失败跳过"
 						}

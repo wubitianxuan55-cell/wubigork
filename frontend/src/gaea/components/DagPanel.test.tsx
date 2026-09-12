@@ -18,6 +18,7 @@ const bridge = vi.hoisted(() => ({
   dagNodeSteer: vi.fn(),
   dagNodeAccept: vi.fn(),
   dagAcceptAll: vi.fn(),
+  dagNodeApprove: vi.fn(),
   dagCancel: vi.fn(),
   dagTemplateList: vi.fn(),
   dagTemplateSave: vi.fn(),
@@ -34,6 +35,7 @@ vi.mock("../lib/bridge", () => ({
     DagNodeSteer: bridge.dagNodeSteer,
     DagNodeAccept: bridge.dagNodeAccept,
     DagAcceptAll: bridge.dagAcceptAll,
+    DagNodeApprove: bridge.dagNodeApprove,
     DagCancel: bridge.dagCancel,
     DagTemplateList: bridge.dagTemplateList,
     DagTemplateSave: bridge.dagTemplateSave,
@@ -381,5 +383,48 @@ describe("DagPanel 办公流水线区块（6.3 办公多文件 DAG）", () => {
 
     // RUNNING_RUN（derived=running）：不显一键验收按钮
     expect(screen.queryByTestId("dag-run-acceptall-dag_running")).toBeNull();
+  });
+
+  it("审批分级：hold 节点显待审批徽标与批准按钮，点击调 DagNodeApprove", async () => {
+    const holdRun: DagRunView = {
+      id: "dag_hold",
+      goal: "带审批闸的覆盖汇总链",
+      createdAt: "2026-09-12T09:00:00+08:00",
+      updatedAt: "2026-09-12T09:01:00+08:00",
+      derived: "ready",
+      nodes: [
+        {
+          id: "h1",
+          title: "覆盖既有汇总表",
+          prompt: "覆盖 docs/summary.xlsx",
+          status: "hold",
+          runCount: 0,
+          risk: "high",
+          error: "高风险节点待审批",
+        },
+      ],
+    };
+    bridge.dagList.mockResolvedValue([holdRun]);
+    bridge.dagTemplateList.mockResolvedValue([]);
+    bridge.dagNodeApprove.mockResolvedValue("节点 h1 已批准放行（待跑）");
+    renderT(<DagPanel />);
+    await screen.findByTestId(`dag-run-dag_hold`);
+    fireEvent.click(screen.getByText(holdRun.goal)); // 展开节点列表（节点行默认折叠）
+
+    // 徽标走状态点 title（与既有节点状态渲染同形态）
+    expect(await screen.findByTitle("待审批")).toBeTruthy();
+    const btn = screen.getByTestId(`dag-node-approve-dag_hold-h1`);
+    fireEvent.click(btn);
+    await waitFor(() => expect(bridge.dagNodeApprove).toHaveBeenCalledWith("dag_hold", "h1"));
+  });
+
+  it("运行中直穿：running 节点也显改向输入框（直穿占位文案）", async () => {
+    bridge.dagList.mockResolvedValue([RUNNING_RUN]);
+    bridge.dagTemplateList.mockResolvedValue([]);
+    renderT(<DagPanel />);
+    await screen.findByTestId(`dag-run-dag_running`);
+    fireEvent.click(screen.getByText(RUNNING_RUN.goal));
+    const input = screen.getByTestId("dag-steer-input-dag_running-r2");
+    expect(input.getAttribute("placeholder")).toContain("直穿");
   });
 });

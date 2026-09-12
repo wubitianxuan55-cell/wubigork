@@ -26,6 +26,15 @@ const (
 	StatusFailed   = "failed"
 	StatusSkipped  = "skipped"
 	StatusAccepted = "accepted"
+	StatusHold     = "hold" // 高风险节点待审批（v4.243 审批分级；approve 后回 pending 放行）
+)
+
+// 风险分级（v4.243 审批分级，roadmap §12.4「危险操作分级审批」）：dag_plan 对
+// 覆盖/删除既有文件、批量移动、全局性改动的节点标 high——执行器起跑前置闸
+// （hold 待审批，人批准才跑）；normal 缺省不设闸。
+const (
+	RiskNormal = "normal"
+	RiskHigh   = "high"
 )
 
 // 派生态（Derived）：不落盘，列表/详情实时折算——单一事实源在节点状态。
@@ -50,6 +59,10 @@ type Node struct {
 	RunCount   int      `json:"runCount"`
 	SteerCount int      `json:"steerCount,omitempty"`
 	AcceptedAt string   `json:"acceptedAt,omitempty"`
+	// Risk 风险分级（normal 缺省/high 高风险=起跑前置审批闸）；
+	// Approved=人已批准本次执行（approve 置位，改图变更节点归零=新指令重新批）。
+	Risk     string `json:"risk,omitempty"`
+	Approved bool   `json:"approved,omitempty"`
 }
 
 // Run 一条流水线。
@@ -98,6 +111,9 @@ func Validate(goal string, nodes []Node) error {
 		}
 		if strings.TrimSpace(n.Prompt) == "" {
 			return fmt.Errorf("节点 %s 的 prompt 不能为空", n.ID)
+		}
+		if n.Risk != "" && n.Risk != RiskNormal && n.Risk != RiskHigh {
+			return fmt.Errorf("节点 %s 的 risk 非法（只认 normal/high）", n.ID)
 		}
 		ids[n.ID] = true
 	}
@@ -254,7 +270,7 @@ func ApplyEdit(r Run, goal string, nodes []Node) (Run, EditReport, error) {
 	for _, n := range nodes {
 		prev, existed := old[n.ID]
 		sameShape := existed &&
-			prev.Title == n.Title && prev.Prompt == n.Prompt && sameDeps(prev.DependsOn, n.DependsOn)
+			prev.Title == n.Title && prev.Prompt == n.Prompt && prev.Risk == n.Risk && sameDeps(prev.DependsOn, n.DependsOn)
 		if sameShape {
 			reconciled = append(reconciled, prev)
 			rep.Kept++
@@ -273,6 +289,7 @@ func ApplyEdit(r Run, goal string, nodes []Node) (Run, EditReport, error) {
 			Title:     n.Title,
 			Prompt:    n.Prompt,
 			DependsOn: n.DependsOn,
+			Risk:      n.Risk,
 			Status:    StatusPending,
 		})
 	}

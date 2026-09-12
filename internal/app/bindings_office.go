@@ -52,6 +52,7 @@ func (b *OfficeB) GaeaDagAcceptAll(id string) (string, error) { return b.a.GaeaD
 func (b *OfficeB) GaeaDagGet(id string) (*dag.RunView, error) { return b.a.GaeaDagGet(id) }
 func (b *OfficeB) GaeaDagList() ([]dag.RunView, error) { return b.a.GaeaDagList() }
 func (b *OfficeB) GaeaDagNodeAccept(id string, nodeID string) (string, error) { return b.a.GaeaDagNodeAccept(id, nodeID) }
+func (b *OfficeB) GaeaDagNodeApprove(id string, nodeID string) (string, error) { return b.a.GaeaDagNodeApprove(id, nodeID) }
 func (b *OfficeB) GaeaDagNodeRun(id string, nodeID string) (string, error) { return b.a.GaeaDagNodeRun(id, nodeID) }
 func (b *OfficeB) GaeaDagNodeSteer(id string, nodeID string, prompt string) (string, error) { return b.a.GaeaDagNodeSteer(id, nodeID, prompt) }
 func (b *OfficeB) GaeaDagRun(id string) (string, error) { return b.a.GaeaDagRun(id) }

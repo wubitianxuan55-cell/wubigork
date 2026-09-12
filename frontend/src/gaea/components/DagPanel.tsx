@@ -37,6 +37,7 @@ const NODE_STATUS: Record<
   failed: { label: "失败", cls: "bg-err" },
   skipped: { label: "跳过", cls: "", style: "var(--md-sys-color-outline-variant)" },
   accepted: { label: "已验收", cls: "bg-ok" },
+  hold: { label: "待审批", cls: "", style: "var(--warn)" },
 };
 
 /** run 派生徽标：与契约 derived 语义逐条对应（draft/running/failed/ready/accepted）。 */
@@ -278,6 +279,23 @@ export function DagPanel() {
       node.status === "pending" || node.status === "running" || node.status === "skipped";
     return (
       <div className="flex shrink-0 items-center gap-1">
+        {node.status === "hold" && (
+          <button
+            type="button"
+            data-testid={`dag-node-approve-${run.id}-${node.id}`}
+            disabled={busyKey !== null}
+            className="cursor-pointer rounded-md px-1.5 py-0.5 text-[10.5px] font-medium disabled:opacity-50"
+            style={{
+              border: "1px solid var(--warn)",
+              color: "var(--warn)",
+              background: "color-mix(in srgb, var(--warn) 10%, transparent)",
+            }}
+            onClick={() => void op(k, () => app.DagNodeApprove(run.id, node.id))}
+            title="批准放行（人拍板；批准后回待跑，可起跑/续跑/单跑执行）"
+          >
+            批准
+          </button>
+        )}
         {doneLike && (
           <button
             type="button"
@@ -322,7 +340,8 @@ export function DagPanel() {
   };
 
   const steerBox = (run: DagRunView, node: DagNodeView) => {
-    if (node.status !== "done" && node.status !== "failed") return null;
+    const isRunning = node.status === "running";
+    if (!isRunning && node.status !== "done" && node.status !== "failed") return null;
     const key = `${run.id}:${node.id}`;
     const k = `steer:${key}`;
     const val = steerDrafts[key] ?? "";
@@ -337,7 +356,7 @@ export function DagPanel() {
         <input
           data-testid={`dag-steer-input-${run.id}-${node.id}`}
           value={val}
-          placeholder="对本节点补充指令…"
+          placeholder={isRunning ? "直穿指令：不打断执行，下一回合生效…" : "对本节点补充指令…"}
           className="min-w-0 flex-1 rounded-md px-1.5 py-0.5 text-[11px] outline-none"
           style={{
             background: "var(--md-sys-color-surface-container-high)",

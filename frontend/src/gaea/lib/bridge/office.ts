@@ -132,6 +132,9 @@ export interface OfficeBindings {
   // DagAcceptAll 一键验收（成品直出首刀）：run 内全部 done 节点一次置
   // accepted 并逐节点回流记忆（单条失败不阻断，汇总如实上报）。
   DagAcceptAll(id: string): Promise<string>;
+  // DagNodeApprove 审批放行（危险操作分级审批）：hold→pending+Approved，
+  // 后续起跑/续跑/单跑放行（只放行不自动跑）。
+  DagNodeApprove(id: string, nodeId: string): Promise<string>;
   // DagCancel 终止级联：running 节点停推、未跑节点不再起跑。
   DagCancel(id: string): Promise<string>;
   // ── 6.3 余项：流水线模板库（「月度报告」存模板一键重建）──

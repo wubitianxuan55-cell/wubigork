@@ -74,6 +74,7 @@ func FromRun(r Run, name string) (Template, error) {
 			Title:     n.Title,
 			Prompt:    n.Prompt,
 			DependsOn: n.DependsOn,
+			Risk:      n.Risk,
 			Status:    StatusPending,
 		})
 	}
@@ -97,6 +98,7 @@ func Instantiate(t Template) Run {
 			Title:     n.Title,
 			Prompt:    n.Prompt,
 			DependsOn: n.DependsOn,
+			Risk:      n.Risk,
 			Status:    StatusPending,
 		})
 	}

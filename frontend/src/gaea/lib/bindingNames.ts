@@ -114,6 +114,7 @@ export const bindingNames = [
 	"GaeaDagGet",
 	"GaeaDagList",
 	"GaeaDagNodeAccept",
+	"GaeaDagNodeApprove",
 	"GaeaDagNodeRun",
 	"GaeaDagNodeSteer",
 	"GaeaDagRun",
