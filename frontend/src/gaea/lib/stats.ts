@@ -5,10 +5,6 @@ import type { WireUsage } from "./types";
 
 // ─── price table ───────────────────────────────────────────────
 
-export const MODEL_PRICES: Record<string, { cacheHit: number; input: number; output: number; label: string }> = {
-  "deepseek-v4-flash": { cacheHit: 0.0203, input: 1.015, output: 2.03, label: "V4 Flash" },
-  "deepseek-v4-pro":   { cacheHit: 0.0263, input: 3.154, output: 6.308, label: "V4 Pro" },
-};
 
 // ─── formatting ─────────────────────────────────────────────────
 

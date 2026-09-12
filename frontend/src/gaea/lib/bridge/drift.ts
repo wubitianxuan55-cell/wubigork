@@ -234,12 +234,14 @@ type ExcludeNames = MockOnlyNames | LegacySurfaceNames;
 
 // 方向一：AppBindings 声明的每个绑定（映射后）必须真实存在于 Go 绑定清单。
 // 报错 → Go 侧方法被改名/删除，或 gaeaToGaea 映射目标写错。
+/** @public 编译期绑定漂移锁（AssertNever 契约，见文件头两方向说明）。 */
 export type _CheckAppBindingsHasNoStray = AssertNever<
   Exclude<AppBindingTarget, BindingName | ExcludeNames>
 >;
 
 // 方向二：Go 绑定清单的每个方法名必须被 AppBindings 消费或显式排除。
 // 报错 → Go 侧新增绑定无人认领（补 AppBindings/gaeaToGaea 或 ExcludeNames）。
+/** @public 编译期绑定漂移锁。 */
 export type _CheckAppBindingsCoversAll = AssertNever<
   Exclude<BindingName, AppBindingTarget | ExcludeNames>
 >;

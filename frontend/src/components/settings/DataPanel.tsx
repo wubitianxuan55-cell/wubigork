@@ -38,7 +38,7 @@ function fmtSize(n: number): string {
   return (n / 1024 / 1024 / 1024).toFixed(2) + ' GB'
 }
 
-export const DataPanel: React.FC = () => {
+const DataPanel: React.FC = () => {
   const [info, setInfo] = useState<BackupInfo | null>(null)
   const [creating, setCreating] = useState(false)
   const [restoring, setRestoring] = useState(false)

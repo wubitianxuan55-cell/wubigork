@@ -11,8 +11,6 @@
 // 从子模块 re-export，名字逐一同、行为零变化（含浏览器 dev mock 回退）。
 
 export type { AppBindings } from "./bridge/appBindings";
-export type { PptxSlideTextEntry } from "./bridge/office";
-export type { SubagentTextEvent } from "./bridge/events";
 export {
   onEvent,
   onSubagentText,
@@ -21,7 +19,6 @@ export {
   onReady,
 } from "./bridge/events";
 export {
-  BridgeError,
   app,
   workApp,
   playApp,
@@ -30,7 +27,3 @@ export {
   waitMockReady,
 } from "./bridge/proxy";
 export { initBridge } from "./bridge/http";
-export type {
-  _CheckAppBindingsHasNoStray,
-  _CheckAppBindingsCoversAll,
-} from "./bridge/drift";

@@ -23,7 +23,7 @@ interface LanExposure {
   guidance?: string
 }
 
-export const SecurityPanel: React.FC = () => {
+const SecurityPanel: React.FC = () => {
   const go = window.go?.app?.App as AppFacade
   const t = useT()
   const [sensitiveLocal, setSensitiveLocal] = useState<boolean>(true)

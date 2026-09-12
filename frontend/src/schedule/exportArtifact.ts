@@ -16,6 +16,7 @@ import { b64ToBytes } from '../gaea/lib/bytes'
 import { inShellEnv } from '../gaea/lib/pickFile'
 
 // 迁移注记：导出保存双门的中立层实现 + 兼容 re-export（schedule 域调用方零改动）
+/** @public downloadBlob 供 BaselinesPanel.test 的 vi.mock spy 委托（knip 解析不到该引用）。 */
 export { saveExportBlob, downloadBlob } from '../gaea/lib/saveFile'
 
 /** SVG 字符串尺寸（构建器写在 svg 根节点 width/height 属性上的数字） */

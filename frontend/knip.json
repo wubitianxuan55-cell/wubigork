@@ -13,7 +13,9 @@
   ],
   "ignore": [
     "src/genui/index.ts",
-    "src/gaea/icons.ts"
+    "src/gaea/icons.ts",
+    "src/gaea/lib/bindingNames.ts",
+    "src/gaea/lib/bridge/drift.ts"
   ],
   "ignoreDependencies": [
     "@types/node"

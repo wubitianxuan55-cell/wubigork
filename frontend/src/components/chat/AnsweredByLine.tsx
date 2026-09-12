@@ -52,7 +52,7 @@ export function answeredByCostText(costCny: number): string | null {
  * 「由 {engine}/{model} 回答 · {sourceLabel}[ · 约 ¥{cost_cny.toFixed(2)}]」
  * 费用 <= 0（本地/未知）时省略费用段。
  */
-export function AnsweredByLine({ info }: { info: AnsweredByInfo }) {
+function AnsweredByLine({ info }: { info: AnsweredByInfo }) {
   const label = answeredBySourceLabel(info.source);
   const costText = answeredByCostText(info.cost_cny);
   const segments = [`由 ${info.engine}/${info.model} 回答`, label];

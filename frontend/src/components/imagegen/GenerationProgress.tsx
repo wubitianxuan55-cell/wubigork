@@ -76,8 +76,3 @@ export const COMFY_NODE_LABELS: Record<string, string> = {
   ZImagePowerNodes: '图像处理',
 }
 
-/** 节点 class_type → 中文阶段名（未知回退原样，空值返回空串）。 */
-export function nodeStageLabel(node?: string): string {
-  if (!node) return ''
-  return COMFY_NODE_LABELS[node] || node
-}

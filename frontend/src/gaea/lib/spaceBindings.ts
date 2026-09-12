@@ -563,9 +563,11 @@ export const GAEA_METHOD_FACETS = {
 /** 编译期双向断言（与 bridge 绑定面漂移检查同范式）：分类表不得出现
  *  AppBindings 之外的名字，AppBindings 每个方法必须被显式分类。 */
 type AssertNever<T extends never> = T;
+/** @public 编译期空间归属漂移锁。 */
 export type _NoStrayFacet = AssertNever<
   Exclude<keyof typeof GAEA_METHOD_FACETS, keyof AppBindings>
 >;
+/** @public 空间归属漂移锁。 */
 export type _NoMissingFacet = AssertNever<
   Exclude<keyof AppBindings, keyof typeof GAEA_METHOD_FACETS>
 >;
@@ -578,9 +580,11 @@ type NamesOf<F extends BindingSpace> = {
 export type WorkBindingName = NamesOf<"work">;
 export type PlayBindingName = NamesOf<"play">;
 export type SharedBindingName = NamesOf<"shared">;
+/** @public independent 空间绑定名集合（契约面）。 */
 export type IndependentBindingName = NamesOf<"independent">;
 
 /** 三空间门面两两无重叠（编译期）：一个方法只能归属一个空间门面。 */
+/** @public facet 重叠锁。 */
 export type _NoFacetOverlap = AssertNever<
   | Extract<WorkBindingName, PlayBindingName | SharedBindingName>
   | Extract<PlayBindingName, SharedBindingName>

@@ -232,14 +232,6 @@ export interface UsageOverview {
   cache_hit_rate?: number
 }
 
-// ── 阶段 3 D3-1 语义索引状态 ───────────────────────────────
-
-export interface SemanticIndexStatus {
-  available: boolean
-  counts: Record<string, number>
-  error?: string
-}
-
 // ── 阶段 3 D3-3 Herdsman 受控测评 ──────────────────────────
 
 export interface BenchmarkSummary {
@@ -285,34 +277,6 @@ export interface BenchmarkRequest {
   request: BenchmarkPromptRequest
 }
 
-export interface BenchmarkCase {
-  model_name: string
-  variant_id: string
-  context_size: number
-  status: string
-  started_at?: string
-  ended_at?: string
-  duration_ms: number
-  ttft_ms_avg: number
-  ttft_ms_p95: number
-  input_tokens: number
-  output_tokens: number
-  total_tokens: number
-  cached_tokens: number
-  second_duration_ms: number
-  second_ttft_ms_avg: number
-  // D3-4 富字段：缓存复用与显存参数
-  prompt_tokens_tps?: number
-  output_tokens_tps?: number
-  prefill_speedup_ratio?: number
-  prefill_ms_saved?: number
-  prompt_ms?: number
-  predicted_ms?: number
-  response_excerpt?: string
-  effective_launch_params?: Record<string, unknown>
-  error?: string
-}
-
 /** 流式探针结果（D3-4 断流/卡顿观察） */
 export interface StreamProbeResult {
   model: string
@@ -327,16 +291,6 @@ export interface StreamProbeResult {
   interrupted: boolean
   error?: string
   response_start?: string
-}
-
-export interface BenchmarkRunDetail {
-  id: string
-  created_at: string
-  finished_at?: string
-  status: string
-  config: BenchmarkRequest
-  summary: BenchmarkSummary
-  cases: BenchmarkCase[]
 }
 
 // ── API 函数 ─────────────────────────────────────────────────

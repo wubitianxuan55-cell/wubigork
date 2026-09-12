@@ -325,7 +325,8 @@ export interface AppAPI {
 }
 
 /** AI 伴读问书历史一轮（historyJSON 数组元素，对齐 internal/app readingTurn） */
-export interface NovelReadingAskTurn {
+/** @public 问书历史元素形状（文档契约，见上 historyJSON 注）。 */
+  export interface NovelReadingAskTurn {
   q: string // 用户问题
   a: string // 助手回答
 }

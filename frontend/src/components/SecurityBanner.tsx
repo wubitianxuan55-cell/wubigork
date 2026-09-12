@@ -26,7 +26,7 @@ interface LanExposure {
 
 const DISMISS_KEY = 'gaea-lan-alert-dismissed'
 
-export const SecurityBanner: React.FC = () => {
+const SecurityBanner: React.FC = () => {
   const [exposure, setExposure] = useState<LanExposure | null>(null)
   const [checking, setChecking] = useState(false)
   const [dismissed, setDismissed] = useState<boolean>(() => {

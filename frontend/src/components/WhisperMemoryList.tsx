@@ -20,7 +20,6 @@ const SUB_LABELS: Record<string, string> = {
 
 import type { MemoryFact } from './WhisperMemoryModal'
 
-export type { MemoryFact }
 
 interface Props {
   facts: MemoryFact[]
