@@ -5,6 +5,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gaea/gaea/internal/gaea/config"
@@ -26,14 +27,35 @@ func SetAppEmbedderForTest(e *retrieval.Embedder) { appEmbedderOverride = e }
 // SetAppSemanticStoreForTest 注入隔离的向量索引存储（测试用）。
 func SetAppSemanticStoreForTest(s *semantic.Store) { appSemanticStoreOverride = s }
 
+// appSearchClientMu 保护 app 侧检索客户端单例（刀E v4.249 走查补刀，普查#4
+// 的 app 侧孪生）：localSearchEmbedder/localSearchReranker 改前每次调用 new
+// 新客户端，60s 的 Available() 探测缓存按实例存、永不命中。按解析出的
+// (baseURL, model) 为键缓存；引擎配置/环境变量变更自动重建。
+var (
+	appSearchClientMu  sync.Mutex
+	cachedSearchEmbed  *retrieval.Embedder
+	cachedSearchEmbKey string
+	cachedSearchRrk    *retrieval.Reranker
+	cachedSearchRrkKey string
+)
+
 // localSearchReranker 构造本地语义精排客户端：优先用 Herdsman 引擎配置的
 // BaseURL（与模型中心一致），模型名默认 bge-reranker-v2-m3，可用环境变量覆盖。
 func (a *App) localSearchReranker() *retrieval.Reranker {
 	base, model := a.resolveHerdsmanSearchModel("HERDSMAN_RERANK_MODEL", []string{"qwen3-reranker"}, "bge-reranker-v2-m3")
-	if base != "" {
-		return retrieval.New(base, model)
+	if base == "" {
+		return nil
 	}
-	return nil
+	key := base + "\x00" + model
+	appSearchClientMu.Lock()
+	defer appSearchClientMu.Unlock()
+	if cachedSearchRrk != nil && cachedSearchRrkKey == key {
+		return cachedSearchRrk
+	}
+	r := retrieval.New(base, model)
+	cachedSearchRrk = r
+	cachedSearchRrkKey = key
+	return r
 }
 
 // localSearchEmbedder 构造本地 embedding 客户端（bge-m3，引擎配置取 Herdsman）。
@@ -42,10 +64,19 @@ func (a *App) localSearchEmbedder() *retrieval.Embedder {
 		return appEmbedderOverride
 	}
 	base, model := a.resolveHerdsmanSearchModel("HERDSMAN_EMBED_MODEL", []string{"qwen3-embedding"}, "bge-m3")
-	if base != "" {
-		return retrieval.NewEmbedder(base, model)
+	if base == "" {
+		return nil
 	}
-	return nil
+	key := base + "\x00" + model
+	appSearchClientMu.Lock()
+	defer appSearchClientMu.Unlock()
+	if cachedSearchEmbed != nil && cachedSearchEmbKey == key {
+		return cachedSearchEmbed
+	}
+	e := retrieval.NewEmbedder(base, model)
+	cachedSearchEmbed = e
+	cachedSearchEmbKey = key
+	return e
 }
 
 // resolveHerdsmanSearchModel 动态选择检索模型（P4 检索升级）：
