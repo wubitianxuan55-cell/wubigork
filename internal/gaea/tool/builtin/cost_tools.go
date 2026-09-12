@@ -151,7 +151,12 @@ func semanticCostRecall(ctx context.Context, query string, have []cost.Summary, 
 	if st == nil || !st.Available() {
 		return nil
 	}
-	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
+	// 搜索路径加界（刀F v4.250，观察池①收尾）：Search 内含 Ensure 增量
+	// 向量化——库大或刚导入时追赶可远超单次查询成本（真机实测 60s/次），
+	// 全吃进调用方（模型回合/UI 绑定）。超时回落关键词结果；追赶由导入
+	// 后台钩子与显式补齐（GaeaSemanticIndexBackfill）完成，收敛后本路径
+	// Ensure 为 no-op，5s 只覆盖 diff 读+单次查询嵌入。
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	docs := make([]semantic.Doc, len(full))
 	keep := make(map[string]bool, len(full))

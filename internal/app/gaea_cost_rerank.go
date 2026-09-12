@@ -117,7 +117,11 @@ func (a *App) semanticCostRecall(query string, have []cost.Summary, topN int) []
 	if st == nil || !st.Available() {
 		return nil
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	// 搜索路径加界（刀F v4.250，观察池①收尾）：Search 内含 Ensure 增量
+	// 向量化，追赶窗口内会吃满 ctx（真机实测 60s/次）。超时回落关键词
+	// 结果；追赶由导入后台钩子与显式补齐完成，收敛后本路径 Ensure 为
+	// no-op，5s 只覆盖 diff 读+单次查询嵌入。
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	docs := make([]semantic.Doc, len(full))
 	keep := make(map[string]bool, len(full))
