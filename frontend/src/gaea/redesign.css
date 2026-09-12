@@ -10,7 +10,7 @@
 
 /* ── 作用域令牌微调（仅 gaea 工作台内生效） ── */
 .gaea-app-layout {
-  --radius: 12px;
+  /* --radius 覆写已删（v4.256）：styles.css 的 --radius 已直接桥接 --md-sys-radius-md=12px，同值冗余 */
   --border-soft: color-mix(in srgb, var(--fg-faint) 16%, transparent);
   --border: color-mix(in srgb, var(--fg-faint) 26%, transparent);
   --ds-shadow-topbar: none;

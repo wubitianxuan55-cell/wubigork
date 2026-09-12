@@ -1033,7 +1033,7 @@
 }
 .sched-aoa-mode-btn {
   font-size: 11px;
-  color: var(--sched-dim, #64748b);
+  color: var(--md-sys-color-on-surface-variant, #64748b);
   border: 0;
   background: transparent;
   padding: 1px 8px;

@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { PushpinFilled, PushpinOutlined } from '@ant-design/icons'
+import V3Empty from '../../components/V3Empty'
 import { engineColor } from './utils'
 
 export type StatusTone = 'ok' | 'warn' | 'danger' | 'neutral' | 'accent'
@@ -89,7 +90,7 @@ export function KpiTile({
   )
 }
 
-/** 统一空状态 */
+/** 统一空状态：无 icon 时收敛到全局 V3Empty 轨道环视觉；有 icon 时保留语义图标形态 */
 export function EmptyState({
   icon,
   title,
@@ -101,11 +102,31 @@ export function EmptyState({
   hint?: ReactNode
   compact?: boolean
 }) {
+  if (icon) {
+    return (
+      <div className={`mc-empty${compact ? ' mc-empty--compact' : ''}`}>
+        <div className="mc-empty-icon">{icon}</div>
+        <div className="mc-empty-title">{title}</div>
+        {hint && <div className="mc-empty-hint">{hint}</div>}
+      </div>
+    )
+  }
   return (
     <div className={`mc-empty${compact ? ' mc-empty--compact' : ''}`}>
-      {icon && <div className="mc-empty-icon">{icon}</div>}
-      <div className="mc-empty-title">{title}</div>
-      {hint && <div className="mc-empty-hint">{hint}</div>}
+      <V3Empty compact={compact} description={title}>
+        {hint && (
+          <div
+            style={{
+              fontSize: 12,
+              color: 'var(--md-sys-color-on-surface-variant)',
+              opacity: 0.8,
+              marginTop: 2,
+            }}
+          >
+            {hint}
+          </div>
+        )}
+      </V3Empty>
     </div>
   )
 }

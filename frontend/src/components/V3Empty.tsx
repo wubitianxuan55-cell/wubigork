@@ -10,6 +10,8 @@ interface V3EmptyProps {
   image?: unknown
   /** 兼容旧 antd Empty 调用点：接受并忽略 */
   imageStyle?: React.CSSProperties
+  /** 紧凑档：48px 图形+缩小间距（卡片内/窄容器空态） */
+  compact?: boolean
   style?: React.CSSProperties
   className?: string
   children?: React.ReactNode
@@ -25,15 +27,17 @@ const DEFAULT_STYLE: React.CSSProperties = {
 
 export default function V3Empty({
   description,
+  compact,
   style,
   className,
   children,
 }: V3EmptyProps) {
+  const box = compact ? 48 : 64
   return (
     <div className={className} style={{ ...DEFAULT_STYLE, ...style }}>
       <svg
-        width={64}
-        height={64}
+        width={box}
+        height={box}
         viewBox="0 0 64 64"
         fill="none"
         aria-hidden="true"
@@ -67,8 +71,8 @@ export default function V3Empty({
       {description ? (
         <div
           style={{
-            marginTop: 16,
-            fontSize: 13,
+            marginTop: compact ? 10 : 16,
+            fontSize: compact ? 12 : 13,
             lineHeight: 1.6,
             color: 'var(--md-sys-color-on-surface-variant)',
             maxWidth: 320,
@@ -80,7 +84,7 @@ export default function V3Empty({
       {children ? (
         <div
           style={{
-            marginTop: 12,
+            marginTop: compact ? 8 : 12,
             display: 'flex',
             justifyContent: 'center',
           }}
