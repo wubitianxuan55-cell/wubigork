@@ -24,7 +24,7 @@ type MemoryMethods = Pick<
   | "KnowledgeList" | "KnowledgeSearch" | "KnowledgeGet" | "KnowledgeSave" | "KnowledgeDelete"
   | "KnowledgeImportPreview" | "KnowledgeImportAIParse" | "KnowledgeImportApply"
   | "KnowledgeHistory" | "KnowledgeFindSimilar" | "KnowledgeExport" | "KnowledgeReview" | "KnowledgeMerge"
-  | "MemoryDuplicates" | "MemoryMerge" | "SemanticGraph" | "MemoryPin" | "MemoryFeedback" | "MemoryLifecycle" | "MemoryBrief" | "SetMemoryBrief"
+  | "MemoryDuplicates" | "MemoryMerge" | "SemanticGraph" | "MemoryPin" | "MemoryFeedback" | "MemoryLifecycle" | "MemoryEvalRun" | "MemoryBrief" | "SetMemoryBrief"
   | "MemoryMorningBrief"
 >;
 
@@ -232,6 +232,27 @@ export function buildMemory(_s: MakeMockState): MemoryMethods {
         archivedCount: 2,
         retentionDays: 90,
         staleAfterDays: 60,
+      };
+    },
+    async MemoryEvalRun() {
+      // mock：全合规小样例（结构不变量体检，确定性无模型调用）。
+      return {
+        memoryEnabled: true,
+        morningPreload: true,
+        projectBrief: true,
+        spaceModeOn: true,
+        preloadPresent: true,
+        briefPresent: true,
+        preloadRunes: 96,
+        briefRunes: 148,
+        preloadBudget: 600,
+        briefBudget: 600,
+        entryCount: 2,
+        refCount: 2,
+        pinnedTotal: 1,
+        pinnedInBrief: 1,
+        violations: [],
+        passed: true,
       };
     },
     async SemanticGraph() {

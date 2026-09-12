@@ -358,6 +358,7 @@ export const GAEA_METHOD_FACETS = {
   MemoryPin: "work",
   MemoryFeedback: "work",
   MemoryLifecycle: "work",
+  MemoryEvalRun: "work",
   MemoryBrief: "work",
   SetMemoryBrief: "work",
   // 晨报（做梦 2.0 主动预取）：只读 work 空间记忆，play 不渲染（双空间红线）。

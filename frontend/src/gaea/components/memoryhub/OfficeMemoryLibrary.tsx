@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Modal, message } from "antd";
+import { ExperimentOutlined } from "@ant-design/icons";
 import { RefreshCw, Rollback, Sparkles, Trash2 } from "../../icons";
 import { app } from "../../lib/bridge";
 import type { MemoryArchivedView, MemoryDuplicateView, MemoryFact, MemoryLifecycleView, MemoryView } from "../../lib/types";
 import { FactCard } from "../FactCard";
 import { DocEditor } from "../DocEditor";
 import { EmptyState } from "../EmptyState";
+import { MemoryEvalSection } from "./MemoryEvalSection";
 
 const TYPE_FILTERS = ["all", "user", "feedback", "project", "reference"] as const;
 type TabKey = "facts" | "docs" | "archives";
@@ -28,6 +30,8 @@ export function OfficeMemoryLibrary() {
   const [typeFilter, setTypeFilter] = useState<string>("all");
   // 三态生命周期（5.3）：固化/衰减/归档总览（facts tab 统计行数据源）。
   const [lifecycle, setLifecycle] = useState<MemoryLifecycleView | null>(null);
+  // 注入体检（市场调研候选2）：Drawer 渐进披露，不占面板常态空间。
+  const [evalOpen, setEvalOpen] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [highlight, setHighlight] = useState<string | null>(null);
   const [dupOpen, setDupOpen] = useState(false);
@@ -250,6 +254,14 @@ export function OfficeMemoryLibrary() {
               查重合并
             </button>
           )}
+          <button
+            className="inline-flex items-center gap-1 px-2.5 h-8 rounded-lg border border-border text-fg-faint hover:text-fg hover:bg-bg-soft transition-colors text-[12px]"
+            onClick={() => setEvalOpen(true)}
+            title="注入体检：晨报预载/项目本体两块的结构不变量（预算/泄漏/悬空）"
+          >
+            <ExperimentOutlined />
+            注入体检
+          </button>
           {tab === "archives" && (
             <button
               className="inline-flex items-center gap-1 px-2.5 h-8 rounded-lg border border-border text-fg-faint hover:text-fg hover:bg-bg-soft transition-colors text-[12px]"
@@ -572,6 +584,7 @@ export function OfficeMemoryLibrary() {
           </div>
         )}
       </Modal>
+      <MemoryEvalSection open={evalOpen} onClose={() => setEvalOpen(false)} />
     </div>
   );
 }

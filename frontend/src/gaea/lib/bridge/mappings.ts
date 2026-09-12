@@ -185,6 +185,7 @@ export const gaeaToGaea = {
   MemoryPin: "GaeaMemoryPin",
   MemoryFeedback: "GaeaMemoryFeedback",
   MemoryLifecycle: "GaeaMemoryLifecycle",
+  MemoryEvalRun: "GaeaMemoryEvalRun",
   MemoryBrief: "GaeaMemoryBrief",
   SetMemoryBrief: "GaeaSetMemoryBrief",
   MemoryMorningBrief: "GaeaMemoryMorningBrief",

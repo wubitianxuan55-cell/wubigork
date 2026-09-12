@@ -8,6 +8,7 @@ import type {
   KnowledgeSummary,
   MemoryArchivedPage,
   MemoryLifecycleView,
+  MemoryEvalReport,
   MemoryDuplicateView,
   MemoryGraphView,
   SemanticGraphView,
@@ -55,6 +56,10 @@ export interface MemoryBindings {
   MemoryFeedback(messageID: string, rating: string, excerpt: string, space: string): Promise<void>;
   // MemoryLifecycle 三态生命周期总览（固化/衰减/归档 + 衰减评分）。
   MemoryLifecycle(): Promise<MemoryLifecycleView>;
+  // MemoryEvalRun 记忆注入体检（市场调研候选2）：对真实库跑装配点同款
+  // 构建器，断言预算/泄漏/悬空五不变量（设计档
+  // docs/gaea-memory-injection-eval-design-2026-09.md）。
+  MemoryEvalRun(): Promise<MemoryEvalReport>;
   // MorningPreload 读/写晨报预载开关（~/.gaea_config.json，默认开）：work
   // 空间新会话装配时预装配高频工作记忆；写后重建引擎即时生效。
   MorningPreload(): Promise<boolean>;

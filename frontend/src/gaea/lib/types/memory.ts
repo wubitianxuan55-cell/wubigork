@@ -34,6 +34,29 @@ export type MemoryArchivedView = WireShape<AppModels.MemoryArchivedView>;
 
 export type MemoryLifecycleView = WireShape<AppModels.MemoryLifecycleView>;
 
+// MemoryEvalReport 是记忆注入体检报告（GaeaMemoryEvalRun，市场调研候选2）。
+// 手写接口（wailsjs models 为生成物不随源入库，MemoryArchivedPage 同口径）。
+export interface MemoryEvalReport {
+  memoryEnabled: boolean;
+  morningPreload: boolean;
+  projectBrief: boolean;
+  spaceModeOn: boolean;
+  preloadPresent: boolean;
+  briefPresent: boolean;
+  preloadRunes: number;
+  briefRunes: number;
+  preloadBudget: number;
+  briefBudget: number;
+  entryCount: number;
+  refCount: number;
+  pinnedTotal: number;
+  pinnedInBrief: number;
+  missingPinned?: string[];
+  violations?: string[];
+  passed: boolean;
+  note?: string;
+}
+
 // MemoryArchivedPage 是归档列表分页结果（GaeaMemoryArchivedList）。
 export interface MemoryArchivedPage {
   items: MemoryArchivedView[];
