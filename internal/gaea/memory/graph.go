@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 )
 
 // ── 记忆语义图谱投影（阶段五 5.1）──────────────────────────────────
@@ -110,7 +111,7 @@ func ProjectEvents(events []Event) *Graph {
 		evID := eventID(e.Seq)
 		upsert(GraphNode{
 			ID: evID, NType: NodeEvent, Name: eventTitle(e),
-			Desc: eventDesc(e), Weight: 0.5,
+			Desc: eventDesc(e) + eventTimeNote(e), Weight: 0.5,
 			Space: e.Space, Project: e.Project,
 		})
 		srcID := sourceID(e.Project, e.SourceSession)
@@ -206,11 +207,34 @@ func eventTitle(e Event) string {
 	return e.Op + " · " + name
 }
 
+// eventDesc / eventTimeNote 是事件节点的展示文案。双时间轴标注烘进 Desc：
+// desc 随投影进 mem_graph_nodes 物化，「物化=日志投影」的不变量因此天然保持
+// （时间轴不作为节点字段——物化表没有这两列，字段化会破坏逐字段可比）。
+// 只在事实时间与记录时间分歧≥1 秒才标注：写入路径 At 取写入时刻、与盖的
+// recorded_at 同毫秒级是常态，零噪音；分歧只出现在「事实在过去、写入在当下」
+// 的回填/导入/做梦衍生类路径，那正是要透出的审计信息。格式化用本地时区
+// （物化是本机展示缓存，重建可复现以同机为准）。
 func eventDesc(e Event) string {
 	if d := oneLine(e.Desc); d != "" {
 		return d
 	}
 	return oneLine(e.Excerpt)
+}
+
+func eventTimeNote(e Event) string {
+	if e.At <= 0 || e.RecordedAt <= 0 {
+		return ""
+	}
+	d := e.RecordedAt - e.At
+	if d < 0 {
+		d = -d
+	}
+	if d < int64(time.Second/time.Millisecond) {
+		return ""
+	}
+	return fmt.Sprintf("（发生 %s · 记录 %s）",
+		time.UnixMilli(e.At).Format("2006-01-02 15:04"),
+		time.UnixMilli(e.RecordedAt).Format("2006-01-02 15:04"))
 }
 
 func sourceName(e Event) string {

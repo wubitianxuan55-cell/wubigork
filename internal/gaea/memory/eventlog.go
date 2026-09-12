@@ -18,19 +18,23 @@ import (
 // 可重建」。日志不存全文（body 只留摘要 excerpt 供展示），内容真相仍在 facts 表；
 // 日志存的是「何时/何空间/对哪条记忆/发生了什么」的事件真相与投影所需的元数据。
 
-// Event 是事件日志中的一条记忆事件（与 db SchemaV18 memory_events 列一一对应）。
+// Event 是事件日志中的一条记忆事件（与 db SchemaV18+V21 memory_events 列一一对应）。
 type Event struct {
-	Seq     int64    `json:"seq"`     // 日志单调序号（AUTOINCREMENT，投影按此定序）
-	At      int64    `json:"at"`      // unix ms
-	Op      string   `json:"op"`      // save / archive / unarchive / delete / touch / change_type / cite
-	Name    string   `json:"name"`    // [MEM:name] 引用键（kebab-case slug）
-	Project string   `json:"project"` // 事实所属项目（slugified cwd）
-	Space   string   `json:"space"`   // work / play（cite 可能空=不过滤）
-	Kind    string   `json:"kind,omitempty"`
-	Type    string   `json:"type,omitempty"`
-	Title   string   `json:"title,omitempty"`
-	Desc    string   `json:"description,omitempty"`
-	Tags    []string `json:"tags,omitempty"`
+	Seq int64 `json:"seq"` // 日志单调序号（AUTOINCREMENT，投影按此定序）
+	At  int64 `json:"at"`  // unix ms，事实时间：事件所述事实的发生时刻
+	// RecordedAt 是事务时间（unix ms，SchemaV21）：本行写入日志的时刻，由
+	// AppendEvent 服务端盖章——调用方可声明事实时间（At），不可伪造记录时间。
+	// 0=V21 之前的旧行（当时两轴共用 at），读取端归一回落 At。
+	RecordedAt int64    `json:"recordedAt,omitempty"`
+	Op         string   `json:"op"`      // save / archive / unarchive / delete / touch / change_type / cite
+	Name       string   `json:"name"`    // [MEM:name] 引用键（kebab-case slug）
+	Project    string   `json:"project"` // 事实所属项目（slugified cwd）
+	Space      string   `json:"space"`   // work / play（cite 可能空=不过滤）
+	Kind       string   `json:"kind,omitempty"`
+	Type       string   `json:"type,omitempty"`
+	Title      string   `json:"title,omitempty"`
+	Desc       string   `json:"description,omitempty"`
+	Tags       []string `json:"tags,omitempty"`
 	// Refs 是本条事件携带的引用目标（save=body 里的 [MEM:x]/[[x]] 互引；
 	// cite=dangling 未解析键——悬空引用不建边但必须留痕）。
 	Refs          []string `json:"refs,omitempty"`
@@ -49,8 +53,8 @@ const (
 	OpTouch      = "touch"
 	OpChangeType = "change_type"
 	OpCite       = "cite"
-	OpPin        = "pin"   // 固化（5.3 三态生命周期）
-	OpUnpin      = "unpin" // 解除固化
+	OpPin        = "pin"      // 固化（5.3 三态生命周期）
+	OpUnpin      = "unpin"    // 解除固化
 	OpFeedback   = "feedback" // 助手回答反馈（点赞/点踩，v4.238 能力层；投影只出事件节点不建实体）
 )
 
@@ -104,6 +108,10 @@ func (l *EventLog) AppendEvent(e Event) error {
 	if e.At == 0 {
 		e.At = time.Now().UnixMilli()
 	}
+	// 事务时间（SchemaV21）由日志侧盖章：无论调用方传什么，写入时刻以本处
+	// 时钟为准（审计锚点不可被调用方伪造）；fact time 与 transaction time
+	// 从此两轴独立。
+	e.RecordedAt = time.Now().UnixMilli()
 	tags, refs := "[]", "[]"
 	if b, err := json.Marshal(e.Tags); err == nil && len(e.Tags) > 0 {
 		tags = string(b)
@@ -115,10 +123,10 @@ func (l *EventLog) AppendEvent(e Event) error {
 		e.Excerpt = e.Excerpt[:eventExcerptLimit]
 	}
 	_, err := l.DB.Exec(`
-INSERT INTO memory_events(at, op, name, project, space, kind, type, title, description, tags, refs, excerpt, source_session, source_message, actor)
-VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+INSERT INTO memory_events(at, op, name, project, space, kind, type, title, description, tags, refs, excerpt, source_session, source_message, actor, recorded_at)
+VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		e.At, e.Op, e.Name, e.Project, e.Space, e.Kind, e.Type, e.Title, e.Desc,
-		tags, refs, e.Excerpt, e.SourceSession, e.SourceMessage, e.Actor)
+		tags, refs, e.Excerpt, e.SourceSession, e.SourceMessage, e.Actor, e.RecordedAt)
 	return err
 }
 
@@ -128,7 +136,7 @@ func (l *EventLog) LoadEvents() ([]Event, error) {
 	if l == nil || l.DB == nil {
 		return nil, nil
 	}
-	rows, err := l.DB.Query(`SELECT seq, at, op, name, project, space, kind, type, title, description, tags, refs, excerpt, source_session, source_message, actor FROM memory_events ORDER BY seq`)
+	rows, err := l.DB.Query(`SELECT seq, at, op, name, project, space, kind, type, title, description, tags, refs, excerpt, source_session, source_message, actor, recorded_at FROM memory_events ORDER BY seq`)
 	if err != nil {
 		return nil, err
 	}
@@ -138,8 +146,13 @@ func (l *EventLog) LoadEvents() ([]Event, error) {
 		var e Event
 		var tags, refs string
 		if err := rows.Scan(&e.Seq, &e.At, &e.Op, &e.Name, &e.Project, &e.Space, &e.Kind, &e.Type,
-			&e.Title, &e.Desc, &tags, &refs, &e.Excerpt, &e.SourceSession, &e.SourceMessage, &e.Actor); err != nil {
+			&e.Title, &e.Desc, &tags, &refs, &e.Excerpt, &e.SourceSession, &e.SourceMessage, &e.Actor, &e.RecordedAt); err != nil {
 			continue
+		}
+		// 旧行归一（V21 前写入的行 recorded_at=0=没有记录时间真相）：回落
+		// 事实时间，保证消费端（投影/视图）拿到的时间轴恒非零。
+		if e.RecordedAt == 0 {
+			e.RecordedAt = e.At
 		}
 		_ = json.Unmarshal([]byte(tags), &e.Tags)
 		_ = json.Unmarshal([]byte(refs), &e.Refs)

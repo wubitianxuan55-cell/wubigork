@@ -478,3 +478,15 @@ ALTER TABLE facts ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0;
 const SchemaV20 = `
 ALTER TABLE tasks ADD COLUMN session_id TEXT NOT NULL DEFAULT '';
 `
+
+// SchemaV21 记忆双时间轴 v4.240.0（市场调研刀#1，docs/gaea-market-survey-2026-09.md
+// §2/§5 候选1）：memory_events 增加 recorded_at（日志写入时刻=事务时间，
+// AppendEvent 服务端盖章，调用方不可伪造）。at 从此单一语义=事实时间（事件
+// 所述事实的发生时刻）；此前 at 一列身兼二职（既是事实时间又是写入时间），
+// 「事实在过去、写入在当下」的回填/导入/做梦衍生类路径无法两轴并存——
+// 「日志即真相」缺审计完整性。旧行 recorded_at=0（无记录时间真相），读取端
+// 归一回落 at，与 V20「零成本回填+诚实缺省」同口径。对标：Zep/Graphiti
+// bi-temporal（valid time vs transaction time）是 2026 记忆层共识口径。
+const SchemaV21 = `
+ALTER TABLE memory_events ADD COLUMN recorded_at INTEGER NOT NULL DEFAULT 0;
+`
