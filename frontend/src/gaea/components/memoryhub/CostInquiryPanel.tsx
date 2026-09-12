@@ -54,8 +54,7 @@ function blankRecord(): CostInquiryRecord {
     validUntil: "",
     note: "",
     status: "",
-    createdAt: "",
-    updatedAt: "",
+    // 空串时间字段会让 Wails 参数解析失败（同 FiveCalcPanel v4.269）；缺省即可
   };
 }
 

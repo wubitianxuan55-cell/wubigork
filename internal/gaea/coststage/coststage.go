@@ -42,41 +42,43 @@ const (
 )
 
 // StageValue 五算阶段值(project_id 对应 cost_projects.id)。
+// json 标签=前端契约（camelCase）；v4.269 修复同 costproject（无标签线上
+// PascalCase，前端读 camelCase 全空）。
 type StageValue struct {
-	ID        int64
-	ProjectID string
-	Stage     string
-	Amount    float64
-	Date      string // YYYY-MM-DD
-	Note      string
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	ID        int64     `json:"id"`
+	ProjectID string    `json:"projectId"`
+	Stage     string    `json:"stage"`
+	Amount    float64   `json:"amount"`
+	Date      string    `json:"date"` // YYYY-MM-DD
+	Note      string    `json:"note"`
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
 }
 
 // CompareRow 对比行:阶段金额 + 环比(相对上一阶段) + 累计差(相对估算) + 差幅%。
 type CompareRow struct {
-	Stage         string
-	Amount        float64
-	HasValue      bool    // 该阶段是否有值(缺阶段为 false,Amount=0)
-	PrevStage     string  // 上一有值阶段(用于环比);无则空
-	HasPrev       bool
-	ChainDiff     float64 // 环比差额(本阶段 - 上一有值阶段)
-	ChainDiffPct  float64 // 环比差幅%((本-上)/上*100;上<=0 时为 0)
-	BaseDiff      float64 // 累计差(相对估算/首个有值阶段)
-	BaseDiffPct   float64
+	Stage        string  `json:"stage"`
+	Amount       float64 `json:"amount"`
+	HasValue     bool    `json:"hasValue"`  // 该阶段是否有值(缺阶段为 false,Amount=0)
+	PrevStage    string  `json:"prevStage"` // 上一有值阶段(用于环比);无则空
+	HasPrev      bool    `json:"hasPrev"`
+	ChainDiff    float64 `json:"chainDiff"`    // 环比差额(本阶段 - 上一有值阶段)
+	ChainDiffPct float64 `json:"chainDiffPct"` // 环比差幅%((本-上)/上*100;上<=0 时为 0)
+	BaseDiff     float64 `json:"baseDiff"`     // 累计差(相对估算/首个有值阶段)
+	BaseDiffPct  float64 `json:"baseDiffPct"`
 }
 
 // Deviation 相邻有值阶段的偏差特征(供前端展示与复盘笔记 AI 诊断输入)。
 type Deviation struct {
-	FromStage  string
-	ToStage    string
-	FromAmount float64
-	ToAmount   float64
-	Diff       float64
-	DiffPct    float64
-	Direction  string // 上升/下降(Diff>=0 为上升)
-	Level      string // 正常(|pct|<5) / 关注(5<=|pct|<=15) / 异常(|pct|>15)
-	Suggestion string // 规则文案(中文)
+	FromStage  string  `json:"fromStage"`
+	ToStage    string  `json:"toStage"`
+	FromAmount float64 `json:"fromAmount"`
+	ToAmount   float64 `json:"toAmount"`
+	Diff       float64 `json:"diff"`
+	DiffPct    float64 `json:"diffPct"`
+	Direction  string  `json:"direction"`  // 上升/下降(Diff>=0 为上升)
+	Level      string  `json:"level"`      // 正常(|pct|<5) / 关注(5<=|pct|<=15) / 异常(|pct|>15)
+	Suggestion string  `json:"suggestion"` // 规则文案(中文)
 }
 
 // 建表 SQL(对齐 docs/gaea-v42-cost-ai-design.md §3;包内幂等自建,正式迁移由

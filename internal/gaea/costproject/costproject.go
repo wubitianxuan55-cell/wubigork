@@ -23,55 +23,57 @@ import (
 var idSeq uint64
 
 // Project 测算项目。
+// json 标签=前端契约（camelCase）；v4.269 修复：无标签时线上输出 PascalCase，
+// 前端读 camelCase 全空（列表卡空名/¥NaN）。Unmarshal 大小写不敏 ⇒ 旧数据兼容。
 type Project struct {
-	ID          string
-	Name        string
-	ProjectType string // 项目类型（房建/市政/安装/园林…）
-	Scale       string // 规模（如 5 万 m²）
-	Craft       string // 工艺/说明
-	Status      string // 编制中 / 已保存版本 / 已沉淀
-	Note        string
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
+	ID          string    `json:"id"`
+	Name        string    `json:"name"`
+	ProjectType string    `json:"projectType"` // 项目类型（房建/市政/安装/园林…）
+	Scale       string    `json:"scale"`       // 规模（如 5 万 m²）
+	Craft       string    `json:"craft"`       // 工艺/说明
+	Status      string    `json:"status"`      // 编制中 / 已保存版本 / 已沉淀
+	Note        string    `json:"note"`
+	CreatedAt   time.Time `json:"createdAt"`
+	UpdatedAt   time.Time `json:"updatedAt"`
 }
 
 // ProjectSummary 项目列表视图（含条目数/合计/版本数，供列表与概览）。
 type ProjectSummary struct {
 	Project
-	ItemCount    int
-	Total        float64
-	VersionCount int
+	ItemCount    int     `json:"itemCount"`
+	Total        float64 `json:"total"`
+	VersionCount int     `json:"versionCount"`
 }
 
 // Item 测算明细行（工程量清单行）。
 type Item struct {
-	ID           int64
-	ProjectID    string
-	Name         string // kebab 稳定名（沉淀为 cost_entries.name）
-	Title        string
-	CategoryPath string
-	Unit         string
-	Code         string // 定额编码/清单编码（归一化；空=未录入；组价检索/归因对标锚点）
-	Quantity     float64
-	Price        float64
-	Amount       float64 // 数量×单价（保存时自动计算）
-	EntryName    string  // 引用的成本条目 name（可空=手动估价）
-	Source       string
-	Note         string
-	Sort         int
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
+	ID           int64     `json:"id"`
+	ProjectID    string    `json:"projectId"`
+	Name         string    `json:"name"` // kebab 稳定名（沉淀为 cost_entries.name）
+	Title        string    `json:"title"`
+	CategoryPath string    `json:"categoryPath"`
+	Unit         string    `json:"unit"`
+	Code         string    `json:"code"` // 定额编码/清单编码（归一化；空=未录入；组价检索/归因对标锚点）
+	Quantity     float64   `json:"quantity"`
+	Price        float64   `json:"price"`
+	Amount       float64   `json:"amount"`    // 数量×单价（保存时自动计算）
+	EntryName    string    `json:"entryName"` // 引用的成本条目 name（可空=手动估价）
+	Source       string    `json:"source"`
+	Note         string    `json:"note"`
+	Sort         int       `json:"sort"`
+	CreatedAt    time.Time `json:"createdAt"`
+	UpdatedAt    time.Time `json:"updatedAt"`
 }
 
 // Version 不可变版本快照。
 type Version struct {
-	ID        int64
-	ProjectID string
-	Version   int
-	Total     float64
-	Snapshot  string // 明细行 JSON
-	Note      string
-	CreatedAt time.Time
+	ID        int64     `json:"id"`
+	ProjectID string    `json:"projectId"`
+	Version   int       `json:"version"`
+	Total     float64   `json:"total"`
+	Snapshot  string    `json:"snapshot"` // 明细行 JSON
+	Note      string    `json:"note"`
+	CreatedAt time.Time `json:"createdAt"`
 }
 
 // Store 测算项目存储（Hephaestus.db）。

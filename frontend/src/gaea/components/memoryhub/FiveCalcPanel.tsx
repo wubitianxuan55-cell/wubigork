@@ -157,8 +157,7 @@ export function FiveCalcPanel({ projectId, onChanged }: { projectId: string; onC
           amount: parseAmount(raw),
           date: dates[stage] ?? "",
           note: "",
-          createdAt: "",
-          updatedAt: "",
+          // 注意：不能带 createdAt/updatedAt 空串——Wails 解析 "" 进 time.Time 直接报错（v4.269 走查抓到）
         };
         await app.CostStageSave(payload);
         toast.show(`${stage}阶段已保存`, "info");
@@ -233,8 +232,7 @@ export function FiveCalcPanel({ projectId, onChanged }: { projectId: string; onC
         amount: pickedVersion.total,
         date: dates[bringStage] ?? "",
         note: `带入:${proj?.name ?? bringProjectId} v${pickedVersion.version}`,
-        createdAt: "",
-        updatedAt: "",
+        // 同上：空串时间字段会让 Wails 参数解析失败
       };
       await app.CostStageSave(payload);
       setDrafts((p) => ({ ...p, [bringStage]: String(pickedVersion.total) }));

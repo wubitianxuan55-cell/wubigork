@@ -1,6 +1,7 @@
 package coststage
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/gaea/gaea/internal/gaea/db"
@@ -70,9 +71,9 @@ func TestSaveStageUpsert(t *testing.T) {
 func TestSaveStageValidation(t *testing.T) {
 	s := newStore(t)
 	cases := []StageValue{
-		{ProjectID: "p", Stage: "设计概算", Amount: 1}, // 非五算阶段
-		{ProjectID: "p", Stage: "", Amount: 1},        // 空阶段
-		{ProjectID: "p", Stage: "估算 ", Amount: 1},   // 带空白
+		{ProjectID: "p", Stage: "设计概算", Amount: 1},       // 非五算阶段
+		{ProjectID: "p", Stage: "", Amount: 1},           // 空阶段
+		{ProjectID: "p", Stage: "估算 ", Amount: 1},        // 带空白
 		{ProjectID: "", Stage: StageEstimate, Amount: 1}, // 空项目 id
 	}
 	for i, c := range cases {
@@ -153,5 +154,36 @@ func TestOpenIdempotent(t *testing.T) {
 	}
 	if got := s1.ListStages("p5"); len(got) != 1 {
 		t.Fatalf("两 store 应共享同一表 = %+v", got)
+	}
+}
+
+// TestWireShapeCamelCase 线上 JSON 形状回归锁（v4.269，同 costproject）。
+func TestWireShapeCamelCase(t *testing.T) {
+	b, err := json.Marshal(StageValue{ID: 1, ProjectID: "p", Stage: "投资估算", Amount: 100})
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	var m map[string]any
+	_ = json.Unmarshal(b, &m)
+	for _, k := range []string{"id", "projectId", "stage", "amount"} {
+		if _, ok := m[k]; !ok {
+			t.Errorf("StageValue 缺 camelCase 键 %q: %v", k, m)
+		}
+	}
+	cb, _ := json.Marshal(CompareRow{Stage: "概算", HasPrev: true})
+	var cm map[string]any
+	_ = json.Unmarshal(cb, &cm)
+	for _, k := range []string{"stage", "hasValue", "prevStage", "chainDiff", "baseDiffPct"} {
+		if _, ok := cm[k]; !ok {
+			t.Errorf("CompareRow 缺 camelCase 键 %q", k)
+		}
+	}
+	db2, _ := json.Marshal(Deviation{FromStage: "估算", Level: "正常"})
+	var dm map[string]any
+	_ = json.Unmarshal(db2, &dm)
+	for _, k := range []string{"fromStage", "toStage", "direction", "level", "suggestion"} {
+		if _, ok := dm[k]; !ok {
+			t.Errorf("Deviation 缺 camelCase 键 %q", k)
+		}
 	}
 }

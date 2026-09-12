@@ -98,3 +98,51 @@ func TestCostProjectFlow(t *testing.T) {
 		t.Fatal("删除后应查不到")
 	}
 }
+
+// TestWireShapeCamelCase 线上 JSON 形状回归锁（v4.269）：绑定面序列化必须
+// camelCase——曾因无 json 标签输出 PascalCase，前端读 camelCase 全空
+// （列表卡空名/¥NaN，真机走查池抓到）。
+func TestWireShapeCamelCase(t *testing.T) {
+	b, err := json.Marshal(ProjectSummary{Project: Project{ID: "p1", Name: "n", ProjectType: "房建"}, ItemCount: 3, Total: 100.5, VersionCount: 1})
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	var m map[string]any
+	if err := json.Unmarshal(b, &m); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	for _, k := range []string{"id", "name", "projectType", "itemCount", "total", "versionCount"} {
+		if _, ok := m[k]; !ok {
+			t.Errorf("ProjectSummary 缺 camelCase 键 %q: %v", k, m)
+		}
+	}
+	for _, bad := range []string{"ID", "Name", "ItemCount"} {
+		if _, ok := m[bad]; ok {
+			t.Errorf("不应出现 PascalCase 键 %q", bad)
+		}
+	}
+
+	ib, _ := json.Marshal(Item{ID: 1, ProjectID: "p1", Name: "x", Quantity: 2, Price: 3})
+	var im map[string]any
+	_ = json.Unmarshal(ib, &im)
+	for _, k := range []string{"id", "projectId", "quantity", "price", "amount"} {
+		if _, ok := im[k]; !ok {
+			t.Errorf("Item 缺 camelCase 键 %q", k)
+		}
+	}
+
+	vb, _ := json.Marshal(Version{ID: 1, ProjectID: "p1", Version: 2, Total: 9})
+	var vm map[string]any
+	_ = json.Unmarshal(vb, &vm)
+	for _, k := range []string{"id", "projectId", "version", "total"} {
+		if _, ok := vm[k]; !ok {
+			t.Errorf("Version 缺 camelCase 键 %q", k)
+		}
+	}
+
+	// 存量兼容：旧 PascalCase 快照行 Unmarshal 仍可读（encoding/json 大小写不敏）。
+	var old Item
+	if err := json.Unmarshal([]byte(`{"ID":7,"ProjectID":"p","Name":"n"}`), &old); err != nil || old.ID != 7 {
+		t.Errorf("旧 PascalCase 数据应兼容: %+v err=%v", old, err)
+	}
+}

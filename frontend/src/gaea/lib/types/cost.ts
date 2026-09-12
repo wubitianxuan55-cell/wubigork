@@ -408,8 +408,8 @@ export interface CostInquiryRecord {
   validUntil: string;
   note: string;
   status: string;
-  createdAt: string;
-  updatedAt: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 // CostAdjustSuggestion 调差建议：成本库条目 vs 最新询价数据点（|差幅|>2%）。
 // SemanticIndexStatus 语义索引覆盖状态（成本条目 vs 向量库，与 Ensure 同口径）。
@@ -453,8 +453,9 @@ export interface CostStageValue {
   amount: number;
   date: string;
   note: string;
-  createdAt: string;
-  updatedAt: string;
+  /** 响应里有值；保存载荷必须省略（空串会让 Wails time.Time 解析失败）。 */
+  createdAt?: string;
+  updatedAt?: string;
 }
 // CostStageCompareRow 五算对比行：固定 5 阶段顺序，缺阶段 hasValue=false。
 export interface CostStageCompareRow {
