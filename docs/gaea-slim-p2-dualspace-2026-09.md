@@ -90,7 +90,7 @@
   工位/乐园两态（work 默认激活、切换器高 57px）、8 项分域+foot 单列、图标零破图——
   取证详情见 docs/webview2-shell-audit-2026-09.md §6b；
 - ✅ knowledge 孤儿页删除后无残留入口（rail 与可见交互元素双断言零命中）；
-- ✅（空态）home 右舷「最近文档」面板壳内渲染正常；localStorage 写路径待人工打开文档复验；
+- ✅（空态）home 右舷「最近文档」面板壳内渲染正常；localStorage 写路径**已复验（2026-09-13 维持轨走查）**：办公文件面打开 .gsched.json → recordRecentFile 写 gaea.atRecentFiles → RecentFilesBar chip 显示且跨 reload 持久（截图 .tmp/walk-pool-files.png）；
 - ⏸ .gsched 摘要卡「基线 N」chips 壳内布局：壳实例被关闭（桌面使用中）未取证，配方就绪待续。
 
 ## 7. 审计边界

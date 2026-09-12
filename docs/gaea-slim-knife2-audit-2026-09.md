@@ -2,7 +2,7 @@
 
 > **状态=审计证据（2026-09-09）**——**G-2 已关闭（v4.169.0）**：`gschedSummary.ts` 增 `baselineCount`（project.baselines 长度），
 > ScheduleFileCard 增「基线 N」StatChip（summary.baselineCount>0 时）——「基线数=N」计数口径落地，测试 +5（gschedSummary 3 + ScheduleFileCard 2）。
-> G-3 真机走查仍挂真机池（.gsched kind:text 前置：v4.169 摘要卡「基线 N」chip 一并真机核）。
+> G-3 真机走查仍挂真机池（.gsched kind:text 前置：v4.169 摘要卡「基线 N」chip 一并真机核）——**2026-09-13 真机核通过（维持轨走查，非版本刀）**：用户真实工程「双流黄甲金具厂」（29 任务/0 基线）办公文件面打开 .gsched.json → ScheduleFileCard 真机渲染：总工期/工作 29/关键/搭接四 chip 全在位、baselineCount=0 时「基线 N」chip 正确条件隐藏（>0 分支由 vitest +5 覆盖）、截图 .tmp/walk-pool-files.png；脚本 .tmp/walk-pool-files.mjs（CDP：书斋空间→gaea→文件树→点击 .gsched 行），零前端 JS 错误。
 > 审计时点仓库状态：HEAD=v4.167.0（P2 刀0 已随版落档）；工作树含刀1a/刀1b 未提交改动（见 §6 与缺口清单 G-1/G-4）。
 
 ## 0. 审计口径
