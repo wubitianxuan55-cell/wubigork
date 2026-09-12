@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gaea/gaea/internal/gaea/config"
@@ -188,6 +189,19 @@ func openSemanticStore() *semantic.Store {
 	return semantic.Open(db.GetDatabase(config.MemoryUserDir()))
 }
 
+// retrievalClientMu 保护两个检索客户端单例（刀D v4.247）：改前每次工具调用
+// new 一个 Embedder/Reranker（各自新建 http.Client），60s 的 Available() 探测
+// 缓存按实例存、永不命中——每次语义召回/精排都多做一次 /models 探测且
+// keep-alive 全部失效。实例按注入的运行时配置为键缓存；SetRetrievalRuntime
+// 改配置后下次调用自动重建。构造无网络 I/O，持锁构建即可。
+var (
+	retrievalClientMu sync.Mutex
+	cachedEmbedder    *retrieval.Embedder
+	cachedEmbedderCfg RetrievalRuntime
+	cachedReranker    *retrieval.Reranker
+	cachedRerankerCfg RetrievalRuntime
+)
+
 // costEmbedder 构造本地 embedding 客户端：config 驱动（SetRetrievalRuntime
 // 注入的 embed kind/base/model），未注入时回落默认值（等价旧 HERDSMAN_BASE_URL
 // 缺省行为：localhost:8080 + bge-m3）。3.0 Step 3d #2：不再读环境变量绑死。
@@ -206,13 +220,21 @@ func costEmbedder() *retrieval.Embedder {
 	if retrievalRuntime.EmbedModel != "" {
 		cfg.Model = retrievalRuntime.EmbedModel
 	}
+	retrievalClientMu.Lock()
+	defer retrievalClientMu.Unlock()
+	if cachedEmbedder != nil && cachedEmbedderCfg == retrievalRuntime {
+		return cachedEmbedder
+	}
 	e, err := retrieval.NewEmbedderByKind(kind, cfg)
 	if err != nil {
 		// 未知 kind fail-closed：不静默降级，返回 nil（调用方按"服务不可用"回退）。
+		// 失败不缓存——下次调用重试，配置修复后无需重启。
 		slog.Warn("cost_search: embedding 后端不可用", "kind", kind, "error", err)
 		return nil
 	}
 	if em, ok := e.(*retrieval.Embedder); ok {
+		cachedEmbedder = em
+		cachedEmbedderCfg = retrievalRuntime
 		return em
 	}
 	// 注册表可能返回非 *Embedder 实现（第三方 kind），本工具沿用具体类型，
@@ -269,13 +291,21 @@ func costReranker() *retrieval.Reranker {
 	if retrievalRuntime.RerankModel != "" {
 		cfg.Model = retrievalRuntime.RerankModel
 	}
+	retrievalClientMu.Lock()
+	defer retrievalClientMu.Unlock()
+	if cachedReranker != nil && cachedRerankerCfg == retrievalRuntime {
+		return cachedReranker
+	}
 	r, err := retrieval.NewRerankerByKind(kind, cfg)
 	if err != nil {
 		// 未知 kind fail-closed：返回 nil（调用方回退 SQL 结果，不静默降级）。
+		// 失败不缓存——下次调用重试，配置修复后无需重启。
 		slog.Warn("cost_search: rerank 后端不可用", "kind", kind, "error", err)
 		return nil
 	}
 	if rk, ok := r.(*retrieval.Reranker); ok {
+		cachedReranker = rk
+		cachedRerankerCfg = retrievalRuntime
 		return rk
 	}
 	return nil
@@ -384,7 +414,7 @@ func (costSave) Schema() json.RawMessage {
 }`)
 }
 func (costSave) ReadOnly() bool                 { return false }
-func (costSave) PersistWrite() bool              { return true }
+func (costSave) PersistWrite() bool             { return true }
 func (costSave) CompactDescription() string     { return compactDesc["cost_save"] }
 func (costSave) CompactSchema() json.RawMessage { return compactSchema["cost_save"] }
 

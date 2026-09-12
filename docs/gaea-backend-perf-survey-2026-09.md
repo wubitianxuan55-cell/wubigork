@@ -38,10 +38,10 @@
 
 ## 建议刀路（待拍板，不替用户排期）
 
-> 进度：**刀A 已执行=v4.245.0**（#1+#14，benchmark 先行）；**刀B 已执行=v4.246.0**（#2+#12；#8 复核撤销——BuildSearchIndex 实际分词 body，见中-8 勘误）。#2 的刀法修正：刷新保持对调用方同步（写后立即可见的语义与测试依赖不动），Load 改在 c.mu **锁外**执行（begin/finish 两段式+写侧代号守卫防慢 Load 回退快照），Send/Cancel 等不再被全库重载阻塞；#12 顺带覆盖 Archive/Unarchive/ChangeType/Touch（同一「实体语句+事件留痕」双写形态，Touch 在引用解析热路径上）。
+> 进度：**刀A 已执行=v4.245.0**（#1+#14，benchmark 先行）；**刀B 已执行=v4.246.0**（#2+#12；#8 复核撤销——BuildSearchIndex 实际分词 body，见中-8 勘误）。#2 的刀法修正：刷新保持对调用方同步（写后立即可见的语义与测试依赖不动），Load 改在 c.mu **锁外**执行（begin/finish 两段式+写侧代号守卫防慢 Load 回退快照），Send/Cancel 等不再被全库重载阻塞；#12 顺带覆盖 Archive/Unarchive/ChangeType/Touch（同一「实体语句+事件留痕」双写形态，Touch 在引用解析热路径上）。**刀D 已执行=v4.247.0**（#3+#4+子查询；#3 的刀法修正：bm25.Cache 原设计语料=整库，但 Search 现行为=关键词命中子集排序，直接接通会改 BM25 统计口径——改为**包级缓存**（key=db 池+数据版本+过滤形态，语料=该过滤形态下 SQL 全捞全量，写路径 Save/Delete/SaveCategory/DeleteCategory/SelfHeal 修复/app 批量导入推进版本或显式失效），命中子集按语料下标取分，tie-break 语料序=name 序与改前一致，TestCostSearchBM25Order 原样通过）。
 
 - **刀 A（每回合税）✅ v4.245.0**：#1 事件日志 seq 增量化（RepairLogFile/countLogLines 只跑会话首开或改增量校验）+ #14 DigestMessages 增量哈希。零外部行为变化，benchmark 锁基线。
 - **刀 B（记忆写路径）✅ v4.246.0**：#2 QueueMemory/写点锁内全库重载改锁外重载 + #12 Save 包事务（扩及全部五写方法）+ ~~#8~~（撤销）。动全局锁语义，须真机走查。
 - **刀 C（SQLite 口径）**：#6 读写连接分离（WAL 下读写不互阻）+ #11/#12 批量事务化。风险最高（仓内留有死锁注脚），单独一刀+回归。
-- **刀 D（cost 检索）**：#3 接通 bm25.Cache（本来就为此写的）+ #4 Embedder/Reranker 单例化 + 子查询消除。
+- **刀 D（cost 检索）✅ v4.247.0**：#3 接通 BM25 缓存（包级版本化实现）+ #4 Embedder/Reranker 单例化（按注入配置缓存，SetRetrievalRuntime 变更自动重建）+ 子查询消除（逐行相关 COUNT → LEFT JOIN GROUP BY 单趟）。
 - **刀 E（面板/杂项）**：#5 contextview 缓存/增量 + #7 预览采样 + #10 缓存上限 + #16/#17/#18/#20 顺手项。

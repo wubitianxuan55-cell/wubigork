@@ -354,6 +354,9 @@ func (s *Store) RepairCategoryPaths() (fixed, left int, err error) {
 	if err := tx.Commit(); err != nil {
 		return fixed, left, err
 	}
+	if fixed > 0 {
+		bumpRankVersion()
+	}
 	return fixed, left, nil
 }
 
@@ -433,6 +436,9 @@ func (s *Store) BackfillPriceMeta() (regionCount, dateCount int, err error) {
 	}
 	if err := tx.Commit(); err != nil {
 		return regionCount, dateCount, err
+	}
+	if regionCount+dateCount > 0 {
+		bumpRankVersion()
 	}
 	return regionCount, dateCount, nil
 }

@@ -21,12 +21,12 @@ import (
 
 // CostImportRowView 是导入预览中的一条候选成本条目（前端可编辑后确认）。
 type CostImportRowView struct {
-	Name          string  `json:"name"`
-	Title         string  `json:"title"`
-	Code          string  `json:"code"` // 定额编码/清单编码（归一化；空=未录入）
-	Category      string  `json:"category"`
-	Unit          string  `json:"unit"`
-	Price         float64 `json:"price"`
+	Name     string  `json:"name"`
+	Title    string  `json:"title"`
+	Code     string  `json:"code"` // 定额编码/清单编码（归一化；空=未录入）
+	Category string  `json:"category"`
+	Unit     string  `json:"unit"`
+	Price    float64 `json:"price"`
 	// 综合单价架构：人材机二级 = 合计 + 组成明细；费率仅展示追溯。
 	LaborFee      float64             `json:"laborFee,omitempty"`
 	MaterialFee   float64             `json:"materialFee,omitempty"`
@@ -37,16 +37,16 @@ type CostImportRowView struct {
 	TaxRate       float64             `json:"taxRate,omitempty"`
 	Components    []CostComponentView `json:"components,omitempty"`
 	Body          string              `json:"body,omitempty"`
-	Spec          string  `json:"spec"`
-	Source        string  `json:"source"`
-	SourceRow     int     `json:"sourceRow,omitempty"` // 原始工作表物理行号（0=无法确定）
-	Status        string  `json:"status"`
-	ExistingName  string  `json:"existingName"`
-	ExistingPrice float64 `json:"existingPrice"`
-	MatchNote     string  `json:"matchNote"`
-	Raw           string  `json:"raw"`
-	Skip          bool    `json:"skip"`
-	SkipReason    string  `json:"skipReason"`
+	Spec          string              `json:"spec"`
+	Source        string              `json:"source"`
+	SourceRow     int                 `json:"sourceRow,omitempty"` // 原始工作表物理行号（0=无法确定）
+	Status        string              `json:"status"`
+	ExistingName  string              `json:"existingName"`
+	ExistingPrice float64             `json:"existingPrice"`
+	MatchNote     string              `json:"matchNote"`
+	Raw           string              `json:"raw"`
+	Skip          bool                `json:"skip"`
+	SkipReason    string              `json:"skipReason"`
 }
 
 // CostImportPreview 是导入解析结果视图（无确认不落库，写库走 ImportApply）。
@@ -366,6 +366,9 @@ VALUES(?,?,?,?,?,?,?,?,?,?,?)`,
 	}); err != nil {
 		return 0, err
 	}
+	// 批量导入不经 cost.Store.Save（与 Save 同构的直写 UPSERT），BM25 排序
+	// 缓存（刀D v4.247）必须显式失效。
+	cost.InvalidateRankers()
 	n := len(entries)
 	if len(inquirySource) > 0 && strings.TrimSpace(inquirySource[0]) != "" {
 		a.upsertInquiryFromImport(entries, strings.TrimSpace(inquirySource[0]))
@@ -391,14 +394,14 @@ func (a *App) upsertInquiryFromImport(entries []cost.Entry, source string) {
 			priceDate = time.Now().Format("2006-01")
 		}
 		if _, err := st.UpsertBySourceKey(costinquiry.Record{
-			Title:     strings.TrimSpace(e.Title),
-			Spec:      e.Spec,
-			Unit:      e.Unit,
-			Price:     e.Price,
-			Source:    source,
-			Supplier:  strings.TrimSpace(e.Source),
-			Region:    e.Region,
-			PriceDate: priceDate,
+			Title:      strings.TrimSpace(e.Title),
+			Spec:       e.Spec,
+			Unit:       e.Unit,
+			Price:      e.Price,
+			Source:     source,
+			Supplier:   strings.TrimSpace(e.Source),
+			Region:     e.Region,
+			PriceDate:  priceDate,
 			ValidUntil: e.ValidUntil,
 			Note:       "由报价单导入自动生成（成本库同步）",
 			Status:     "现行",
@@ -428,7 +431,7 @@ func toCostImportPreview(pv *costimport.Preview, aiUsed bool) CostImportPreview 
 			ManagementFee: r.ManagementFee, ProfitFee: r.ProfitFee, AdvanceFee: r.AdvanceFee,
 			TaxRate: r.TaxRate, Components: toCostComponentViews(r.Components), Body: r.Body,
 			Spec: r.Spec, Source: r.Source, Status: r.Status,
-			SourceRow: r.SourceRow,
+			SourceRow:    r.SourceRow,
 			ExistingName: r.ExistingName, ExistingPrice: r.ExistingPrice,
 			MatchNote: r.MatchNote, Raw: r.Raw, Skip: r.Skip, SkipReason: r.SkipReason,
 		})

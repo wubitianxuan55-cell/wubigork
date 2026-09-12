@@ -11,6 +11,8 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 	"unicode"
 
@@ -114,6 +116,57 @@ type CategoryView struct {
 // Store 成本库存储（Hephaestus.db）。
 type Store struct {
 	db *sql.DB
+}
+
+// BM25 排序缓存（刀D v4.247，T7-3 原设计接通；包级——Store 即建即弃，
+// openCostStore/hubCostStore 每次调用都 cost.Open 新实例）。key=db 池|数据
+// 版本|category|status 过滤形态，语料=该形态下 SQL 全捞的条目集（name 序），
+// 查询只对关键词命中子集取分。改前每查询对命中子集从零重建倒排（2000 条
+// 库 20.6ms/22MB 分配）。写路径推进版本（bumpRankVersion/InvalidateRankers）
+// 旧 Ranker 自然失效；map 超 16 项整体清空防任意过滤值撑大。
+var (
+	rankMu      sync.Mutex
+	rankVersion atomic.Uint64
+	rankers     = map[string]rankerEntry{}
+)
+
+type rankerEntry struct {
+	ranker *bm25.Ranker
+}
+
+// bumpRankVersion 推进数据版本（写路径成功后调用，同包内直接访问）。
+func bumpRankVersion() { rankVersion.Add(1) }
+
+// InvalidateRankers 使全部 BM25 排序缓存失效（包外写路径用：app 层批量
+// 导入直写 cost_entries 不经 Store.Save，提交后必须调用）。
+func InvalidateRankers() { bumpRankVersion() }
+
+// rankerFor 返回当前过滤形态与数据版本下的 BM25 打分器：语料=all（该
+// category/status 过滤下 SQL 全捞的条目，name 序）。命中直接复用；版本
+// 推进或 key 首见时构建。
+func rankerFor(db *sql.DB, category, status string, all []Summary) *bm25.Ranker {
+	key := fmt.Sprintf("%p|%d|%s|%s", db, rankVersion.Load(), category, status)
+	rankMu.Lock()
+	defer rankMu.Unlock()
+	if e, ok := rankers[key]; ok {
+		return e.ranker
+	}
+	if len(rankers) > 16 {
+		rankers = map[string]rankerEntry{}
+	}
+	docs := make([]bm25.Doc, len(all))
+	for i, e := range all {
+		docs[i] = bm25.Doc{ID: i, Text: summaryDocText(e)}
+	}
+	r := bm25.NewRanker(docs)
+	rankers[key] = rankerEntry{ranker: r}
+	return r
+}
+
+// summaryDocText 把条目摘要拼成 BM25 文档串（名称/标题/编码/单位/规格/
+// 来源/地区/价格形态/期数/标签）。
+func summaryDocText(e Summary) string {
+	return e.Name + " " + e.Title + " " + e.Code + " " + e.Unit + " " + e.Spec + " " + e.Source + " " + e.Region + " " + e.PriceType + " " + e.PriceDate + " " + strings.Join(e.Tags, " ")
 }
 
 // Open 打开成本库；gdb 为 nil 时返回不可用 store。
@@ -224,6 +277,9 @@ VALUES(?,?,?,?,?,?,?,?,?,?,?)`,
 		}
 	}
 	err = tx.Commit()
+	if err == nil {
+		bumpRankVersion()
+	}
 	return err
 }
 
@@ -293,6 +349,9 @@ func (s *Store) Delete(name string) error {
 		return err
 	}
 	err = tx.Commit()
+	if err == nil {
+		bumpRankVersion()
+	}
 	return err
 }
 
@@ -319,7 +378,7 @@ func (s *Store) Search(query, category, status string) []Summary {
 		conds = append(conds, "status = ?")
 		args = append(args, status)
 	}
-	sqlText := "SELECT name, title, code, category, category_path, unit, price, labor_fee, material_fee, machine_fee, (SELECT COUNT(*) FROM cost_entry_components c WHERE c.entry_name = cost_entries.name), spec, source, region, price_date, price_type, valid_until, source_row, tags, status, updated_at FROM cost_entries"
+	sqlText := "SELECT name, title, code, category, category_path, unit, price, labor_fee, material_fee, machine_fee, COALESCE(cc.cnt, 0), spec, source, region, price_date, price_type, valid_until, source_row, tags, status, updated_at FROM cost_entries LEFT JOIN (SELECT entry_name, COUNT(*) AS cnt FROM cost_entry_components GROUP BY entry_name) cc ON cc.entry_name = cost_entries.name"
 	if len(conds) > 0 {
 		sqlText += " WHERE " + strings.Join(conds, " AND ")
 	}
@@ -330,7 +389,7 @@ func (s *Store) Search(query, category, status string) []Summary {
 		return nil
 	}
 	defer rows.Close()
-	var out []Summary
+	var all []Summary
 	for rows.Next() {
 		var sm Summary
 		var tags, updated string
@@ -341,59 +400,76 @@ func (s *Store) Search(query, category, status string) []Summary {
 		}
 		sm.Tags = parseTagsJSON(tags)
 		sm.UpdatedAt, _ = time.Parse(time.RFC3339, updated)
-		out = append(out, sm)
+		all = append(all, sm)
 	}
 	// 关键词在 Go 侧做包含过滤：按词拆分（词间 AND、字段间 OR），
 	// 精确子串匹配。刻意不在 SQL 里拼 6 列 OR LIKE 链——modernc/sqlite
 	// 对特定形状的长 OR 链存在返回空集的怪癖（单列 LIKE 正常）。
+	var out []Summary
 	q := strings.ToLower(strings.TrimSpace(query))
-	if q != "" {
-		terms := strings.Fields(q)
-		filtered := out[:0]
-		for _, e := range out {
-			hay := strings.ToLower(e.Name + "\x00" + e.Title + "\x00" + e.Code + "\x00" + e.Category + "\x00" + e.CategoryPath + "\x00" + e.Unit + "\x00" + e.Spec + "\x00" + e.Source + "\x00" + e.Region + "\x00" + e.PriceType + "\x00" + e.PriceDate + "\x00" + strings.Join(e.Tags, " "))
-			ok := true
-			for _, term := range terms {
-				if !strings.Contains(hay, term) {
-					ok = false
-					break
-				}
-			}
-			if ok {
-				filtered = append(filtered, e)
+	if q == "" {
+		out = all
+		// 空查询保持 name 排序（SQL 已 ORDER BY name，此处仅为兜底保证确定性）。
+		sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+		return out
+	}
+	terms := strings.Fields(q)
+	gis := make([]int, 0, len(all)) // 命中条目在 all（name 序语料）中的下标
+	for gi, e := range all {
+		hay := strings.ToLower(e.Name + "\x00" + e.Title + "\x00" + e.Code + "\x00" + e.Category + "\x00" + e.CategoryPath + "\x00" + e.Unit + "\x00" + e.Spec + "\x00" + e.Source + "\x00" + e.Region + "\x00" + e.PriceType + "\x00" + e.PriceDate + "\x00" + strings.Join(e.Tags, " "))
+		ok := true
+		for _, term := range terms {
+			if !strings.Contains(hay, term) {
+				ok = false
+				break
 			}
 		}
-		out = filtered
-		// BM25 本地排序（零 token）：命中词越多/密度越高排越前，
-		// 未命中 BM25 的纯子串命中条目保持原顺序排在后面。
-		if len(out) > 1 {
-			docs := make([]bm25.Doc, len(out))
-			for i, e := range out {
-				docs[i] = bm25.Doc{ID: i, Text: e.Name + " " + e.Title + " " + e.Code + " " + e.Unit + " " + e.Spec + " " + e.Source + " " + e.Region + " " + e.PriceType + " " + e.PriceDate + " " + strings.Join(e.Tags, " ")}
-			}
-			scored := bm25.NewRanker(docs).Rank(query)
-			if len(scored) > 0 {
-				seen := make(map[int]bool, len(scored))
-				ranked := make([]Summary, 0, len(out))
-				for _, s := range scored {
-					if s.ID >= 0 && s.ID < len(out) {
-						ranked = append(ranked, out[s.ID])
-						seen[s.ID] = true
-					}
-				}
-				for i, e := range out {
-					if !seen[i] {
-						ranked = append(ranked, e)
-					}
-				}
-				out = ranked
-			}
+		if ok {
+			out = append(out, e)
+			gis = append(gis, gi)
 		}
 	}
-	// 有查询词时保留 BM25/精排后的相关度顺序；空查询保持 name 排序
-	//（SQL 已 ORDER BY name，此处仅为兜底保证确定性）。
-	if q == "" {
-		sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	// BM25 本地排序（零 token）：命中词越多/密度越高排越前，未命中 BM25
+	// 的纯子串命中条目保持原顺序排在后面。打分器按「db 池+数据版本+过滤
+	// 形态」缓存（语料=all 全量，改前=命中子集从零重建）；命中子集按其
+	// 语料下标取分，同分按语料序（=name 序，与改前 tie-break 一致）。
+	if len(out) > 1 {
+		if r := rankerFor(s.db, category, status, all); r != nil {
+			scored := r.Rank(query)
+			if len(scored) > 0 {
+				scoreOf := make(map[int]float64, len(scored))
+				for _, sc := range scored {
+					scoreOf[sc.ID] = sc.Score
+				}
+				type hitEntry struct {
+					gi int
+					sc float64
+					e  Summary
+				}
+				hits := make([]hitEntry, 0, len(out))
+				rest := make([]Summary, 0, len(out))
+				for i, e := range out {
+					if sc, ok := scoreOf[gis[i]]; ok {
+						hits = append(hits, hitEntry{gi: gis[i], sc: sc, e: e})
+					} else {
+						rest = append(rest, e)
+					}
+				}
+				sort.Slice(hits, func(a, b int) bool {
+					if d := hits[a].sc - hits[b].sc; d > 0.0001 {
+						return true
+					} else if d < -0.0001 {
+						return false
+					}
+					return hits[a].gi < hits[b].gi
+				})
+				ranked := make([]Summary, 0, len(out))
+				for _, h := range hits {
+					ranked = append(ranked, h.e)
+				}
+				out = append(ranked, rest...)
+			}
+		}
 	}
 	return out
 }
@@ -647,6 +723,7 @@ func (s *Store) SaveCategory(parentID int, name string, sort int, id int) (int, 
 				newPath, len(oldPath)+1, oldPath, escapeLike(oldPath)+"/%")
 		}
 	}
+	bumpRankVersion()
 	return id, nil
 }
 
@@ -683,6 +760,9 @@ func (s *Store) DeleteCategory(id int) error {
 		}
 	}
 	_, err := s.db.Exec("DELETE FROM cost_categories WHERE id=?", id)
+	if err == nil {
+		bumpRankVersion()
+	}
 	return err
 }
 
