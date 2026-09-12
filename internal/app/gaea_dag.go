@@ -301,29 +301,81 @@ func (a *App) GaeaDagNodeAccept(id, nodeID string) (string, error) {
 	ga.dagMu.Unlock()
 
 	node := r.Nodes[idx]
-	store := a.hubOfficeStore()
-	{
-		name := node.ID
-		outputs := strings.Join(node.Outputs, "、")
-		if outputs == "" {
-			outputs = "（无文件产物）"
-		}
-		_, memErr := store.Save(memory.Memory{
-			Name:        name,
-			Title:       node.Title,
-			Description: fmt.Sprintf("流水线「%s」节点「%s」交付：%s", r.Goal, node.Title, outputs),
-			Type:        memory.TypeProject,
-			Kind:        memory.KindSemantic,
-			Tags:        []string{"dag", "交付物"},
-			Body:        fmt.Sprintf("## 流水线交付\n\n- 目标：%s\n- 节点：%s（%s）\n- 产物：%s\n- 验收时间：%s", r.Goal, node.Title, node.ID, outputs, node.AcceptedAt),
-		})
-		if memErr != nil {
-			// 验收动作已成立；记忆回写失败如实上报，不静默不回滚验收。
-			return fmt.Sprintf("节点 %s 已验收，但记忆回写失败: %v", nodeID, memErr), nil
-		}
+	if memErr := dagAcceptMemoryWrite(a, r, node); memErr != nil {
+		// 验收动作已成立；记忆回写失败如实上报，不静默不回滚验收。
+		return fmt.Sprintf("节点 %s 已验收，但记忆回写失败: %v", nodeID, memErr), nil
 	}
 	slog.Info("流水线节点已验收", "run", id, "node", nodeID, "outputs", node.Outputs)
 	return fmt.Sprintf("节点 %s 已验收，产物已回流记忆。", nodeID), nil
+}
+
+// dagAcceptMemoryWrite 是节点验收的记忆回写核心（单验收/一键验收共用单一真源）：
+// 产物清单落「流水线交付」记忆（Tags dag/交付物），由 Save 路径自动落
+// memory_events。回写失败由调用方如实上报——验收动作已成立，不回滚。
+func dagAcceptMemoryWrite(a *App, r dag.Run, node dag.Node) error {
+	store := a.hubOfficeStore()
+	outputs := strings.Join(node.Outputs, "、")
+	if outputs == "" {
+		outputs = "（无文件产物）"
+	}
+	_, err := store.Save(memory.Memory{
+		Name:        node.ID,
+		Title:       node.Title,
+		Description: fmt.Sprintf("流水线「%s」节点「%s」交付：%s", r.Goal, node.Title, outputs),
+		Type:        memory.TypeProject,
+		Kind:        memory.KindSemantic,
+		Tags:        []string{"dag", "交付物"},
+		Body:        fmt.Sprintf("## 流水线交付\n\n- 目标：%s\n- 节点：%s（%s）\n- 产物：%s\n- 验收时间：%s", r.Goal, node.Title, node.ID, outputs, node.AcceptedAt),
+	})
+	return err
+}
+
+// GaeaDagAcceptAll 一键验收（成品直出首刀，DeliverableRegistry 用户面）：
+// 把 run 内全部 done 节点一次置 accepted（锁内一次翻转+save 一次），锁外逐节点
+// 记忆回写（单条失败不阻断其余，汇总如实上报——验收已成立不回滚，与单验收同
+// 哲学）。验收语义零变更：仍人拍板（前端两段式确认=一次拍板覆盖清单所列节点），
+// 不自动验收不定时验收。无可验收节点返回明确信息非错误。
+func (a *App) GaeaDagAcceptAll(id string) (string, error) {
+	ga.dagMu.Lock()
+	r, err := a.dagStore().Get(id)
+	if err != nil {
+		ga.dagMu.Unlock()
+		return "", err
+	}
+	now := time.Now().Format(time.RFC3339)
+	var flipped []dag.Node
+	for i := range r.Nodes {
+		if r.Nodes[i].Status == dag.StatusDone {
+			r.Nodes[i].Status = dag.StatusAccepted
+			r.Nodes[i].AcceptedAt = now
+			flipped = append(flipped, r.Nodes[i])
+		}
+	}
+	if len(flipped) == 0 {
+		ga.dagMu.Unlock()
+		return "没有可一键验收的节点（只有「完成」态节点可验收）", nil
+	}
+	if err := a.dagStore().Save(r); err != nil {
+		ga.dagMu.Unlock()
+		return "", err
+	}
+	ga.dagMu.Unlock()
+
+	files := 0
+	var failed []string
+	for _, node := range flipped {
+		files += len(node.Outputs)
+		if memErr := dagAcceptMemoryWrite(a, r, node); memErr != nil {
+			failed = append(failed, fmt.Sprintf("%s: %v", node.Title, memErr))
+			continue
+		}
+		slog.Info("流水线节点已验收", "run", id, "node", node.ID, "outputs", node.Outputs)
+	}
+	msg := fmt.Sprintf("已一键验收 %d 个节点、%d 件产物回流记忆。", len(flipped), files)
+	if len(failed) > 0 {
+		msg += fmt.Sprintf("（%d 条记忆回写失败：%s）", len(failed), strings.Join(failed, "；"))
+	}
+	return msg, nil
 }
 
 // GaeaDagCancel 终止级联（roadmap §16）：取消 run ctx→在跑节点子代理随之

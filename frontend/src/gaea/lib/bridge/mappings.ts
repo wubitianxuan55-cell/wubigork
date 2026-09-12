@@ -302,6 +302,7 @@ export const gaeaToGaea = {
   DagNodeSteer: "GaeaDagNodeSteer",
   DagNodeAccept: "GaeaDagNodeAccept",
   DagCancel: "GaeaDagCancel",
+  DagAcceptAll: "GaeaDagAcceptAll",
   // 6.3 余项：流水线模板库（存模板一键重建）。
   DagTemplateList: "GaeaDagTemplateList",
   DagTemplateSave: "GaeaDagTemplateSave",

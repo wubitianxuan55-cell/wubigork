@@ -109,6 +109,7 @@ export const bindingNames = [
 	"GaeaContextNodeDetail",
 	"GaeaContextView",
 	"GaeaConvertToPdf",
+	"GaeaDagAcceptAll",
 	"GaeaDagCancel",
 	"GaeaDagGet",
 	"GaeaDagList",

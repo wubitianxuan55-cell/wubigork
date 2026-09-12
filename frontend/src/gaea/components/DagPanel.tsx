@@ -72,6 +72,8 @@ export function DagPanel() {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [steerDrafts, setSteerDrafts] = useState<Record<string, string>>({});
   const [busyKey, setBusyKey] = useState<string | null>(null);
+  // 一键验收两段式武装（runId）：首击只武装，再击执行；任何重拉后解除（防陈旧误击）。
+  const [acceptAllArmed, setAcceptAllArmed] = useState<string | null>(null);
   const openFilePreview = usePreviewStore((s) => s.openFilePreview);
 
   const reload = useCallback(async () => {
@@ -129,16 +131,48 @@ export function DagPanel() {
       } finally {
         setBusyKey(null);
       }
+      setAcceptAllArmed(null);
       void reload();
       void reloadTpls();
     },
     [busyKey, reload, reloadTpls],
   );
 
+  const doneCount = (run: DagRunView) =>
+    run.nodes.filter((n) => n.status === "done").length;
+  const deliverables = (run: DagRunView) =>
+    run.nodes
+      .filter((n) => n.status === "done" || n.status === "accepted")
+      .flatMap((n) => n.outputs ?? []);
+
   const runAction = (run: DagRunView) => {
     const k = `run:${run.id}`;
+    const armed = acceptAllArmed === run.id;
     return (
       <>
+        {run.derived !== "running" && doneCount(run) > 0 && (
+          <button
+            type="button"
+            data-testid={`dag-run-acceptall-${run.id}`}
+            disabled={busyKey !== null}
+            className="cursor-pointer rounded-md px-1.5 py-0.5 text-[10.5px] font-medium disabled:opacity-50"
+            style={{
+              border: "1px solid var(--md-sys-color-primary)",
+              color: armed ? "var(--md-sys-color-primary)" : "var(--md-sys-color-text-secondary)",
+              background: armed ? "color-mix(in srgb, var(--md-sys-color-primary) 10%, transparent)" : "transparent",
+            }}
+            onClick={() => {
+              if (!armed) {
+                setAcceptAllArmed(run.id);
+                return;
+              }
+              void op(`acceptall:${run.id}`, () => app.DagAcceptAll(run.id));
+            }}
+            title="一键验收全部完成节点（一次拍板覆盖清单，产物回流记忆）"
+          >
+            {armed ? `确认验收 ${doneCount(run)} 节点` : `一键验收 ${doneCount(run)}`}
+          </button>
+        )}
         {(run.derived === "draft" || run.derived === "failed" || run.derived === "ready") && (
           <button
             type="button"
@@ -505,6 +539,15 @@ export function DagPanel() {
                           {meta.label}
                         </span>
                         <span className="font-mono">{run.nodes.length} 节点</span>
+                        {deliverables(run).length > 0 && (
+                          <span
+                            className="rounded-full px-1 font-mono"
+                            style={{ background: "var(--md-sys-color-surface-container-high)", color: "var(--md-sys-color-primary)" }}
+                            title={`成品：${deliverables(run).join("、")}`}
+                          >
+                            {deliverables(run).length} 件成品
+                          </span>
+                        )}
                       </div>
                     </div>
                     {runAction(run)}

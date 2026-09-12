@@ -48,6 +48,7 @@ func (b *OfficeB) GaeaContextView(sessionPath string) (contextview.ContextTimeli
 func (b *OfficeB) GaeaConvertToPdf(rel string) (ConvertPdfResult, error) { return b.a.GaeaConvertToPdf(rel) }
 func (b *OfficeB) GaeaCrossEmbed(in CrossEmbedInput) (CrossEmbedResult, error) { return b.a.GaeaCrossEmbed(in) }
 func (b *OfficeB) GaeaDagCancel(id string) (string, error) { return b.a.GaeaDagCancel(id) }
+func (b *OfficeB) GaeaDagAcceptAll(id string) (string, error) { return b.a.GaeaDagAcceptAll(id) }
 func (b *OfficeB) GaeaDagGet(id string) (*dag.RunView, error) { return b.a.GaeaDagGet(id) }
 func (b *OfficeB) GaeaDagList() ([]dag.RunView, error) { return b.a.GaeaDagList() }
 func (b *OfficeB) GaeaDagNodeAccept(id string, nodeID string) (string, error) { return b.a.GaeaDagNodeAccept(id, nodeID) }

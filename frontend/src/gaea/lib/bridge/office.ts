@@ -129,6 +129,9 @@ export interface OfficeBindings {
   DagNodeSteer(id: string, nodeId: string, prompt: string): Promise<string>;
   // DagNodeAccept 验收（人拍板，产物回流记忆）→ 节点置 accepted。
   DagNodeAccept(id: string, nodeId: string): Promise<string>;
+  // DagAcceptAll 一键验收（成品直出首刀）：run 内全部 done 节点一次置
+  // accepted 并逐节点回流记忆（单条失败不阻断，汇总如实上报）。
+  DagAcceptAll(id: string): Promise<string>;
   // DagCancel 终止级联：running 节点停推、未跑节点不再起跑。
   DagCancel(id: string): Promise<string>;
   // ── 6.3 余项：流水线模板库（「月度报告」存模板一键重建）──

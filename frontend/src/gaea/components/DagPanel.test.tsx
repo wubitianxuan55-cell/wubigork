@@ -17,6 +17,7 @@ const bridge = vi.hoisted(() => ({
   dagNodeRun: vi.fn(),
   dagNodeSteer: vi.fn(),
   dagNodeAccept: vi.fn(),
+  dagAcceptAll: vi.fn(),
   dagCancel: vi.fn(),
   dagTemplateList: vi.fn(),
   dagTemplateSave: vi.fn(),
@@ -32,6 +33,7 @@ vi.mock("../lib/bridge", () => ({
     DagNodeRun: bridge.dagNodeRun,
     DagNodeSteer: bridge.dagNodeSteer,
     DagNodeAccept: bridge.dagNodeAccept,
+    DagAcceptAll: bridge.dagAcceptAll,
     DagCancel: bridge.dagCancel,
     DagTemplateList: bridge.dagTemplateList,
     DagTemplateSave: bridge.dagTemplateSave,
@@ -347,5 +349,37 @@ describe("DagPanel 办公流水线区块（6.3 办公多文件 DAG）", () => {
     fireEvent.click(screen.getByTestId(`dag-tpl-del-${TPL.id}`));
     await waitFor(() => expect(bridge.dagTemplateDelete).toHaveBeenCalledWith(TPL.id));
     await waitFor(() => expect(bridge.dagTemplateList.mock.calls.length).toBeGreaterThanOrEqual(2));
+  });
+
+  it("成品直出：run 头显成品计数徽标（title=文件清单，done+accepted 口径）", async () => {
+    bridge.dagList.mockResolvedValue([RUN]);
+    bridge.dagTemplateList.mockResolvedValue([]);
+    renderT(<DagPanel />);
+    // n4（accepted）在夹具里无 outputs → 只有 done n1 的 1 件计入
+    const chip = await screen.findByTitle("成品：docs/月度汇总.xlsx");
+    expect(chip.textContent).toBe("1 件成品");
+    // running run 无 done+accepted 产物链时不显徽标（RUNNING_RUN 有 done 无 outputs）
+  });
+
+  it("一键验收两段式：首击武装（文案变确认），再击调 GaeaDagAcceptAll 并重拉；running 不显按钮", async () => {
+    bridge.dagList.mockResolvedValue([RUN, RUNNING_RUN]);
+    bridge.dagTemplateList.mockResolvedValue([]);
+    bridge.dagAcceptAll.mockResolvedValue("已一键验收 1 个节点、1 件产物回流记忆。");
+    renderT(<DagPanel />);
+
+    // RUN（derived=failed，1 个 done）：按钮显形，首击只武装
+    const btn = await screen.findByTestId(`dag-run-acceptall-${runId}`);
+    expect(btn.textContent).toBe("一键验收 1");
+    fireEvent.click(btn);
+    expect(bridge.dagAcceptAll).not.toHaveBeenCalled();
+    expect(await screen.findByTestId(`dag-run-acceptall-${runId}`).then((b) => b.textContent)).toBe("确认验收 1 节点");
+
+    // 再击执行并重拉
+    fireEvent.click(screen.getByTestId(`dag-run-acceptall-${runId}`));
+    await waitFor(() => expect(bridge.dagAcceptAll).toHaveBeenCalledWith(runId));
+    await waitFor(() => expect(bridge.dagList.mock.calls.length).toBeGreaterThanOrEqual(2));
+
+    // RUNNING_RUN（derived=running）：不显一键验收按钮
+    expect(screen.queryByTestId("dag-run-acceptall-dag_running")).toBeNull();
   });
 });
