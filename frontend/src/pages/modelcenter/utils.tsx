@@ -317,6 +317,7 @@ export const FEATURES: { key: string; label: string; icon: string; mergeKeys?: s
   { key: 'novel', label: '小说', icon: '📖' },
   { key: 'office', label: '办公', icon: '🛠️', mergeKeys: ['gaea'] },
   { key: 'characterlib', label: '角色库', icon: '🎭' },
+  { key: 'sin', label: '原罪', icon: '😈' },
   { key: 'routine', label: '常规办公', icon: '⚙️' },
 ]
 

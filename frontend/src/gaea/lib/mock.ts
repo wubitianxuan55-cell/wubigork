@@ -30,6 +30,7 @@ import { buildNovel } from "./mock/novel";
 import { buildOffice } from "./mock/office";
 import { buildRetrieval } from "./mock/retrieval";
 import { buildSettings } from "./mock/settings";
+import { buildSin } from "./mock/sin";
 import { buildVoice } from "./mock/voice";
 import { buildWeixin } from "./mock/weixin";
 import { createMockState } from "./mock/state";
@@ -66,5 +67,6 @@ export function makeMockApp(): AppBindings {
     buildWeixin(),
     buildImagehub(),
     buildImagegenTools(),
+    buildSin(),
   );
 }

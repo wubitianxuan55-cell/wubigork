@@ -18,6 +18,7 @@ import type { ChatBindings } from "./chat";
 import type { NovelBindings } from "./novel";
 import type { ImageBindings } from "./image";
 import type { CharLibBindings } from "./charlib";
+import type { SinBindings } from "./sin";
 
 export interface AppBindings
   extends CoreBindings,
@@ -29,4 +30,5 @@ export interface AppBindings
     ChatBindings,
     NovelBindings,
     ImageBindings,
-    CharLibBindings {}
+    CharLibBindings,
+    SinBindings {}

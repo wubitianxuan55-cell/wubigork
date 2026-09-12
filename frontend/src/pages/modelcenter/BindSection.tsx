@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { Button, message, Select, Switch } from 'antd'
 import {
-  CommentOutlined, EditOutlined, LinkOutlined, PictureOutlined,
+  CommentOutlined, EditOutlined, FireOutlined, LinkOutlined, PictureOutlined,
   RobotOutlined, SoundOutlined, ToolOutlined, UserOutlined,
 } from '@ant-design/icons'
 import { app } from '../../gaea/lib/bridge'
@@ -17,6 +17,7 @@ const FEATURE_ICONS: Record<string, ReactNode> = {
   novel: <EditOutlined />,
   office: <ToolOutlined />,
   characterlib: <UserOutlined />,
+  sin: <FireOutlined />,
   routine: <RobotOutlined />,
 }
 
@@ -24,6 +25,7 @@ const FEATURE_NOTES: Record<string, string> = {
   chat: '聊天语音：TTS 与 STT 跟随语音管道，绑定的是对话大模型',
   office: '通用 + 方案 + 知识库',
   characterlib: '生成 / 补全',
+  sin: '原罪（闲庭图文故事）：故事文本生成；未绑定跟随全局；角色库角色随故事走，不读办公工具与办公记忆',
   routine: '纯文本摘要/归一化/抽取/改写等无专业工具覆盖的活，由云端 agent 通过 routine_llm 兜底调用（识图/OCR/检索/转换走各自专业工具）；未绑定默认本地 herdsman',
 }
 

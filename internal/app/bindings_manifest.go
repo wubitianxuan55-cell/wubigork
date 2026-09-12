@@ -19,5 +19,6 @@ func NewBindings(a *App) []interface{} {
 		&NovelB{a: a},
 		&ImageB{a: a},
 		&CharlibB{a: a},
+		&SinB{a: a},
 	}
 }

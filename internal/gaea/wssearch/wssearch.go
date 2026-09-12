@@ -49,16 +49,18 @@ var skipDirs = map[string]bool{
 	".cache": true, ".codegraph": true, ".tianxuan": true, ".reasonix": true,
 }
 
-// isNoiseRel 判断路径是否属于搜索噪音：.gaea 下只跳过会话/归档/缓存与 play
-// 产物分区（.gaea/play/exports——S1.2 双空间：play 交付物属乐园产物，不进
-// 共享关键词检索面，工位搜索不可见；对应验收红线「工位搜索搜不到乐园记忆/
-// 产物」），exports（work 交付产物）等仍可被索引。
+// isNoiseRel 判断路径是否属于搜索噪音：.gaea 下跳过会话/归档/缓存与**整个
+// play 分区**（S1.2 双空间验收红线「工位搜索搜不到乐园记忆/产物」）。
+// v4.257 硬隔离刀：改前只跳 .gaea/play/exports，play 分区其余子目录
+// （imagehub 台账、章节配图、原罪/画室产物）仍会被工位关键词检索索引——
+// 那是乐园数据面漏进工位检索的缺口。现在 `.gaea/play` 整棵子树不进检索面；
+// work 交付产物（.gaea/exports）与其余 .gaea 内容照旧可被索引。
 func isNoiseRel(rel string) bool {
 	first, rest, _ := strings.Cut(rel, "/")
 	if first != ".gaea" {
 		return false
 	}
-	if rest == "play/exports" || strings.HasPrefix(rest, "play/exports/") {
+	if rest == "play" || strings.HasPrefix(rest, "play/") {
 		return true
 	}
 	seg, _, _ := strings.Cut(rest, "/")

@@ -237,15 +237,25 @@ func (a *App) appendChatExchange(topicID, userMsg, reply, extra string) error {
 
 // ── 话题 CRUD（统一会话存储）─────────────────────────────────
 
-// ChatTopicsList 列出全部话题（T6-3.2：读错返回 error，前端可见失败而非空列表）。
+// ChatTopicsList 列出聊天板块话题（T6-3.2：读错返回 error，前端可见失败而非空列表）。
+// 原罪（sin）故事话题存同一张表（mode=sin）但属于闲庭·原罪板块：这里过滤
+// 掉——聊天板块的 persona 分支不认识 sin 模式，放进去既污染列表也会走错
+// 生成路径；原罪侧经 SinTopicsList 读自己的话题（见 sin_handler.go）。
 func (a *App) ChatTopicsList() ([]chat.Topic, error) {
 	if a.chatStore == nil {
 		return nil, fmt.Errorf("chat store 未初始化")
 	}
-	topics, err := a.chatStore.ListTopics()
+	all, err := a.chatStore.ListTopics()
 	if err != nil {
 		slog.Error("chat 话题列表读取失败", "error", err)
 		return nil, err
+	}
+	topics := make([]chat.Topic, 0, len(all))
+	for _, t := range all {
+		if t.Mode == sinTopicMode {
+			continue
+		}
+		topics = append(topics, t)
 	}
 	return topics, nil
 }

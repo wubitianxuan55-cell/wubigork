@@ -7,6 +7,7 @@ import {
 import { C } from '../../utils/theme'
 import { estimateImageTime } from './ui'
 import { backendSupportsMode } from './meta'
+import { GenerationProgress } from './GenerationProgress'
 import type { ImageMode } from './types'
 
 interface Props {
@@ -59,25 +60,13 @@ export const GenerationBar: React.FC<Props> = ({
   // ComfyUI 实时进度（percent >= 0 时显示确定进度条；其余后端/未知显示不定态光带）
   const hasRealProgress = generating && backend === 'comfyui' && (comfyProgress?.percent ?? -1) >= 0
   const percent = hasRealProgress ? Math.min(100, Math.max(0, comfyProgress!.percent!)) : -1
-  const nodeLabel = comfyProgress?.node ? (COMFY_NODE_LABELS[comfyProgress.node] || comfyProgress.node) : ''
-
   return (
     <div className={generating ? 'ig-bottom-bar is-busy' : 'ig-bottom-bar'}>
       {generating && (
-        <div className="ig-progress" aria-live="polite">
-          <div className="ig-progress-track">
-            <div
-              className={hasRealProgress ? 'ig-progress-fill' : 'ig-progress-fill is-indeterminate'}
-              style={hasRealProgress ? { width: `${percent}%` } : undefined}
-            />
-          </div>
-          <div className="ig-progress-meta">
-            {hasRealProgress
-              ? <span>全部: {percent}%</span>
-              : <span>生成中…</span>}
-            {nodeLabel && <span>当前节点: {nodeLabel}</span>}
-          </div>
-        </div>
+        <GenerationProgress
+          percent={hasRealProgress ? percent : -1}
+          node={comfyProgress?.node}
+        />
       )}
       <div
         className="ig-bottom-row"
@@ -142,30 +131,3 @@ export const GenerationBar: React.FC<Props> = ({
   )
 }
 
-/** ComfyUI 节点 class_type → 中文阶段名（未知节点回退原始名） */
-const COMFY_NODE_LABELS: Record<string, string> = {
-  CheckpointLoaderSimple: '加载模型',
-  CheckpointLoader: '加载模型',
-  UNETLoader: '加载模型',
-  UnetLoaderGGUF: '加载模型',
-  CLIPLoader: '加载模型',
-  CLIPLoaderGGUF: '加载模型',
-  DualCLIPLoader: '加载模型',
-  LoraLoader: '加载 LoRA',
-  LoraLoaderModelOnly: '加载 LoRA',
-  EmptyLatentImage: '初始化画布',
-  LatentFromImage: '初始化画布',
-  KSampler: '采样中',
-  KSamplerAdvanced: '采样中',
-  SamplerCustom: '采样中',
-  VAEDecode: '解码中',
-  VAEDecodeTiled: '解码中',
-  VAEEncode: '编码中',
-  LoadImage: '读取参考图',
-  SaveImage: '保存图片',
-  SaveAnimatedWEBP: '保存动画',
-  LTXVideo: '生成视频',
-  LTXV: '生成视频',
-  LTXVConditioning: '视频条件',
-  ZImagePowerNodes: '图像处理',
-}

@@ -59,7 +59,7 @@ describe('CommandRail 书斋/闲庭双空间分域导航（v4.169）', () => {
     expect(screen.getByLabelText('编程').closest('.v3-rail-foot')).not.toBeNull()
   })
 
-  it('play 空间：主体 = 共享 + 闲庭板块（聊天/小说/绘梦/模型中心/角色库），空间标识激活态跟随', () => {
+  it('play 空间：主体 = 共享 + 闲庭板块（聊天/小说/绘梦/模型中心/角色库/原罪），空间标识激活态跟随', () => {
     const { rerender } = renderRail()
     rerender(wrap(
       <CommandRail
@@ -71,7 +71,7 @@ describe('CommandRail 书斋/闲庭双空间分域导航（v4.169）', () => {
         onSwitchSpace={vi.fn()}
       />,
     ))
-    expect(navLabels()).toEqual(['首页', '聊天', '小说', '绘梦', '模型中心', '角色库'])
+    expect(navLabels()).toEqual(['首页', '聊天', '小说', '绘梦', '模型中心', '角色库', '原罪'])
     expect(screen.getByTestId('v3-rail-space-indicator').textContent).toBe('闲庭')
     expect(screen.getAllByLabelText(/编程/)).toHaveLength(1)
   })

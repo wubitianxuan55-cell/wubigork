@@ -27,6 +27,8 @@ registerPage('SettingsPage', lazy(() => import('./pages/SettingsPage')))
 registerPage('WeixinPage', lazy(() => import('./pages/WeixinPage')))
 // v4.110.0 进度计划板块（横道图/单代号/双代号三视图自由切换）
 registerPage('SchedulePage', lazy(() => import('./pages/SchedulePage')))
+// 闲庭 v4.244：原罪板块（图文混杂的故事创作，复用办公组件；后端 SinB 门面）
+registerPage('OriginalSinPage', lazy(() => import('./pages/OriginalSinPage')))
 
 
 // ═══ WebView2 rAF 节流降级 ═══════════════════════════════════════════

@@ -19,6 +19,7 @@ import {
   ToolOutlined, DatabaseOutlined, ApiOutlined, TeamOutlined,
   SettingOutlined, WechatOutlined, BookOutlined, CodeOutlined, AccountBookOutlined,
   ScheduleOutlined,
+  FireOutlined,
 } from '@ant-design/icons'
 import type { ComponentType } from 'react'
 import type { BoardManifest, BoardNavChild } from './types'
@@ -30,7 +31,7 @@ const ICON_REGISTRY: Record<string, ComponentType> = {
   HomeOutlined, MessageOutlined, ReadOutlined, PictureOutlined,
   ToolOutlined, DatabaseOutlined, ApiOutlined, TeamOutlined,
   SettingOutlined, WechatOutlined, BookOutlined, CodeOutlined, AccountBookOutlined,
-  ScheduleOutlined,
+  ScheduleOutlined, FireOutlined,
 }
 
 /** 查表解析 antd 图标；未知图标名返回 null（不抛错，渲染时退化） */
@@ -142,6 +143,15 @@ export const canonicalBoards: BoardManifest[] = [
     menuOrder: 12, inMenu: false, space: 'work',
     featureModel: 'schedule',
   },
+  {
+    // 闲庭新板块：与 AI 对话式合写图文混杂的成人向故事（H 故事小说）。
+    // 复用办公（gaea）组件与视觉层；后端复用统一会话存储（mode=sin）+
+    // 功能级绑定 sin（模型中心可单绑）+ 绘梦图像后端（内联插图）。
+    id: 'sin', label: '原罪', icon: 'FireOutlined', page: 'OriginalSinPage',
+    lazy: true, keepAlive: true, layout: 'full',
+    menuOrder: 13, inMenu: true, space: 'play',
+    featureModel: 'sin',
+  },
 ]
 
 // ─── 类型级断言锁死（附 B #1：Page 类型由 manifest.id 派生）────────────────
@@ -151,7 +161,7 @@ type AssertNever<T extends never> = T
 export type BoardId = (typeof canonicalBoards)[number]['id']
 /** 编译期断言：Page 联合恰好等于 manifest 全部 id（新增板块只改 manifests.ts） */
 type _AssertBoardIdsUnique = AssertNever<never>
-type _AssertBoardIdCoversLegacy = AssertNever<Exclude<'home' | 'chat' | 'novel' | 'imagegen' | 'gaea' | 'cost' | 'code' | 'memoryhub' | 'modelcenter' | 'characterlib' | 'settings' | 'weixin', BoardId>>
+type _AssertBoardIdCoversLegacy = AssertNever<Exclude<'home' | 'chat' | 'novel' | 'imagegen' | 'gaea' | 'cost' | 'code' | 'memoryhub' | 'modelcenter' | 'characterlib' | 'settings' | 'weixin' | 'schedule' | 'sin', BoardId>>
 
 // ─── 派生视图通用实现（列表参数化：静态 canonicalBoards 与活动清单共用）──────
 /** 顶栏菜单：filter(inMenu) + sort(menuOrder)（附 B #4） */

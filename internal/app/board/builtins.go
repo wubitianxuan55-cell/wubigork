@@ -164,6 +164,18 @@ var builtinManifests = []Manifest{
 		Space:        SpaceWork, // 工位·进度计划
 		FeatureModel: "schedule",
 	},
+	{
+		// 原罪（闲庭新板块）：与 AI 对话式合写图文混杂的成人向故事。
+		// 页面复用办公（gaea）组件与视觉层，后端复用统一会话存储（mode=sin）
+		// + 功能级模型绑定（sin）+ 绘梦图像后端（内联插图）。
+		ID: "sin", Label: "原罪", Icon: "FireOutlined",
+		Page: "OriginalSinPage", Lazy: true,
+		KeepAlive: Bool(true), Layout: "full",
+		MenuOrder: 13, InMenu: Bool(true),
+		Space:        SpacePlay, // 闲庭·原罪（故事创作）
+		FeatureModel: "sin",
+		Bindings:     []string{"SinB"},
+	},
 }
 
 // BuiltinManifests 返回 canonical 板块 manifest 清单（拷贝，调用方可安全修改）。
@@ -189,5 +201,5 @@ func Builtins() []Board {
 // CanonicalIDs 返回 canonical 业务板块的 id（验收断言用；不含 knowledge——
 // knowledge 是 D7 独立板块，见 BuiltinManifests）。
 func CanonicalIDs() []string {
-	return []string{"chat", "novel", "imagegen", "gaea", "cost", "code", "memoryhub", "modelcenter", "characterlib", "settings", "weixin", "schedule"}
+	return []string{"chat", "novel", "imagegen", "gaea", "cost", "code", "memoryhub", "modelcenter", "characterlib", "settings", "weixin", "schedule", "sin"}
 }

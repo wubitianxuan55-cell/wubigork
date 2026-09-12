@@ -174,9 +174,17 @@ export async function cancelImageGeneration(): Promise<boolean> {
 /**
  * 通过后端文件读取绑定把本地路径转为 data URL（历史图片恢复 / 下载 / 剧照）。
  * 复用现有 GaeaAttachmentDataURL（OfficeB 门面），不新增绑定。
+ *
+ * v4.257.1 修复：历史实现直连 `window.go.app.App.AttachmentDataURL`（S2-3 兼容
+ * 代理）——该代理只认字面名，真机下 Go 方法名是 GaeaAttachmentDataURL，
+ * 于是必抛「e(...).AttachmentDataURL is not a function」（原罪插图、章节配图
+ * 历史缩略图都会中招）。规范路径改走 bridge 代理（按 gaeaToGaea 映射 + mock
+ * 兜底）；只有 bridge 上确实没有这个方法时才退回旧直连形态。
  */
 export async function readFileAsDataURL(path: string): Promise<string> {
-  // 经 appFacade：mock 下落到 office.ts 的 AttachmentDataURL 占位色块。
+  const viaBridge = bridgeApp.AttachmentDataURL
+  if (typeof viaBridge === 'function') return viaBridge.call(bridgeApp, path)
+  // bridge 未认领（极端环境）：退回旧直连形态（兼容代理已补映射，见 bridge/http.ts）
   return appFacade().AttachmentDataURL(path)
 }
 

@@ -209,9 +209,56 @@ func (a *mediaState) GetComfyUITaskProgress() map[string]interface{} {
 // GenerateFreeImage 自由图片生成 — 供 AI 绘梦 Tab 使用
 // 参数: prompt, negative, size, style, model, seed (0=随机), n (1-4)
 func (a *mediaState) GenerateFreeImage(prompt string, negative string, size string, style string, model string, seed int, n int, lora string) (map[string]interface{}, error) {
+	return a.generateFreeImageProvenanced(prompt, negative, size, style, model, seed, n, lora, "imagegen", "")
+}
+
+// imageGenInternal 内部生成参数（绑定面不变：绘梦 / 原罪共用同一条生成链）。
+// v4.258：把「产物归属」（sourceBoard/saveDir）与「T2 角色参考槽」
+// （mode/refImages/refMethod/denoise/characterID）一并参数化，避免为参考图再抄一遍生成链。
+type imageGenInternal struct {
+	prompt   string
+	negative string
+	size     string
+	style    string
+	model    string
+	lora     string
+	seed     int
+	n        int
+	// 产物归属（v4.257 硬隔离刀）
+	sourceBoard string
+	saveDir     string
+	// T2 角色参考槽（v4.258）：mode 空 = txt2img；refImages 为 data URL（本地路径
+	// 由调用方先转 data URL——comfyui uploadImage 与 herdsman img2img 都只认 data URL）
+	mode        string
+	refImages   []string
+	refMethod   string
+	denoise     float64
+	characterID string
+}
+
+// generateFreeImageProvenanced 与 GenerateFreeImage 同一条生成链，把「产物
+// 归属」参数化（v4.257 硬隔离刀）：
+//   - sourceBoard：图像域台账的来源板块（绘梦=imagegen，原罪=sin）；
+//   - saveDir：产物落盘目录覆盖（空 = 现状：ImageSaveDir 优先、其次小说 images/）。
+//     原罪传自有目录（<用户配置目录>/gaea/sin/art），既不写办公工作区，也不依赖
+//     办公的 ImageSaveDir 配置——原罪板块与办公板块硬隔离的落点之一。
+//
+// 行为等价性：saveDir="" 且 sourceBoard="imagegen" 时与改造前逐字节一致。
+func (a *mediaState) generateFreeImageProvenanced(prompt string, negative string, size string, style string,
+	model string, seed int, n int, lora string, sourceBoard string, saveDir string) (map[string]interface{}, error) {
+	return a.generateImageInternal(imageGenInternal{
+		prompt: prompt, negative: negative, size: size, style: style, model: model,
+		seed: seed, n: n, lora: lora, sourceBoard: sourceBoard, saveDir: saveDir,
+	})
+}
+
+// generateImageInternal 统一图片生成实现（含 T2 参考槽透传）。
+func (a *mediaState) generateImageInternal(o imageGenInternal) (map[string]interface{}, error) {
 	if a.client == nil {
 		return map[string]interface{}{"error": "AI 客户端未初始化，请先登录"}, nil
 	}
+	prompt, negative, size, style, model, seed, n, lora := o.prompt, o.negative, o.size, o.style, o.model, o.seed, o.n, o.lora
+	sourceBoard, saveDir := o.sourceBoard, o.saveDir
 	genCtx, cancel, genID := a.beginImageGen(a.ctx)
 	defer a.endImageGen(genID, cancel)
 	if a.cfg.ImageBackend == "comfyui" {
@@ -260,6 +307,11 @@ func (a *mediaState) GenerateFreeImage(prompt string, negative string, size stri
 			Size:     size,
 			Seed:     genSeed,
 			Lora:     lora,
+			// T2 参考槽：文生图 + 参考图时由后端按 refMethod 决定是否转图生图
+			Mode:      o.mode,
+			RefImages: o.refImages,
+			RefMethod: o.refMethod,
+			Denoise:   o.denoise,
 		}
 		if a.cfg.ImageBackend == "comfyui" {
 			imgReq.ProgressCallback = a.updateComfyTaskProgress
@@ -306,14 +358,21 @@ func (a *mediaState) GenerateFreeImage(prompt string, negative string, size stri
 			Size:   size,
 		}
 		// T6-4.3：保存路径写入历史元数据（前端历史图片据此恢复本地文件）
-		if a.cfg.ImageSaveDir != "" && imageData != "" {
+		if saveDir != "" && imageData != "" {
+			item.FilePath = a.saveMediaToDisk(imageData, fullPrompt, saveDir)
+		} else if a.cfg.ImageSaveDir != "" && imageData != "" {
 			item.FilePath = a.saveImageToDisk(imageData, fullPrompt)
 		} else if imageData != "" {
 			// 未配置专用目录时，自动保存到小说 images/ 目录
 			item.FilePath = a.saveToNovelImages(imageData, fullPrompt)
 		}
-		// T0 图像域试点：绘梦落盘后登记（imagegen/media.generate；失败只 warn）。
-		a.recordImageHubGenerated(item, "txt2img", "")
+		// T0 图像域试点：落盘后登记（失败只 warn）；模式与角色 ID 如实登记，
+		// 供画室按来源/角色回溯（参考槽生成标 img2img）。
+		modeLabel := o.mode
+		if modeLabel == "" {
+			modeLabel = "txt2img"
+		}
+		a.recordImageHubGeneratedFor(item, modeLabel, o.characterID, sourceBoard)
 		images = append(images, item)
 	}
 

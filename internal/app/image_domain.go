@@ -215,6 +215,14 @@ func imageHubMIMEByExt(path string) string {
 
 // recordImageHubGenerated 绘梦工作台/媒体落盘后的登记（mediaState 便捷方法）。
 func (m *mediaState) recordImageHubGenerated(item imageItem, mode, characterID string) {
+	m.recordImageHubGeneratedFor(item, mode, characterID, "imagegen")
+}
+
+// recordImageHubGeneratedFor 与 recordImageHubGenerated 同语义，但把来源板块
+// 参数化：绘梦/媒体走 "imagegen"（原行为逐字节），原罪板块走 "sin"。
+// 动机（v4.257 硬隔离刀）：一个产物只登记一条——生成链内部登记，调用方
+// 不得再补第二条（否则画室同一张图会以两个来源重复出现）。
+func (m *mediaState) recordImageHubGeneratedFor(item imageItem, mode, characterID, sourceBoard string) {
 	if item.FilePath == "" {
 		return
 	}
@@ -231,7 +239,7 @@ func (m *mediaState) recordImageHubGenerated(item imageItem, mode, characterID s
 		params["character_id"] = characterID
 	}
 	space := gaeaEffectiveSpace()
-	if err := recordImageHubGeneratedAsset(gaeaCwd(), space, "imagegen", m.cfg.ImageBackend,
+	if err := recordImageHubGeneratedAsset(gaeaCwd(), space, sourceBoard, m.cfg.ImageBackend,
 		item.Model, item.Prompt,
 		params,
 		imageHubAsset{Kind: kind, Path: item.FilePath}, nil); err != nil {

@@ -41,6 +41,7 @@ export const LAUNCHER_DESC: Record<string, string> = {
   characterlib: '角色档案与跨板块角色管理',
   weixin: '青鸟传信 · 微信遥控器：扫码绑定与离线代办提醒',
   schedule: '工程进度计划：横道图 / 单代号 / 双代号网络图',
+  sin: '与 AI 对话写图文故事（含插图与导出）',
   settings: '应用偏好与主题外观',
 }
 

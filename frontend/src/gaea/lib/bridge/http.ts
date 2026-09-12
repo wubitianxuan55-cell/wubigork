@@ -1,5 +1,6 @@
 // http.ts — initBridge（S2-2 移动端 HTTP 桥接 + S2-3 旧形态兼容层）。
 import { getHttpToken } from "../../../api/httpToken";
+import { gaeaToGaea } from "./mappings";
 
 // ── 桥接归一（T6-10.6）─────────────────────────────────────────────────
 // initBridge 原为 frontend/src/api/bridge.ts（S2-2 移动端 HTTP 桥接 + S2-3 旧
@@ -23,7 +24,16 @@ function isWailsNative(): boolean {
   return !!goApp && typeof goApp === "object" && Object.keys(goApp).length > 0;
 }
 
-/** S2-3 兼容层：为旧调用点补 window.go.app.App 代理，按方法名路由到对应门面。 */
+/**
+ * S2-3 兼容层：为旧调用点补 window.go.app.App 代理，按方法名路由到对应门面。
+ *
+ * v4.257.1 修复：兼容代理原先只按**字面名**在各门面里找方法，认不出
+ * gaeaToGaea 的短名映射——例如旧调用点写 `window.go.app.App.AttachmentDataURL()`，
+ * 而 OfficeB 上的真名是 `GaeaAttachmentDataURL`，查找落空返回 undefined，
+ * 调用即抛「AttachmentDataURL is not a function」。现在字面名查不到时回退一次
+ * 映射名（短名 → Go 方法名），与 bridge 代理同口径；仍未命中才返回 undefined
+ * （诚实失败，不静默兜底假实现）。
+ */
 function ensureLegacyAppProxy(): void {
   const goApp = (window as unknown as { go?: { app?: Record<string, unknown> } }).go?.app;
   if (!goApp || typeof goApp !== "object") return;
@@ -33,10 +43,16 @@ function ensureLegacyAppProxy(): void {
     {
       get(_t, prop: string) {
         if (prop === "then") return undefined; // 避免被误判为 Promise
-        for (const ns of Object.values(goApp)) {
-          if (ns === goApp.App || ns === null || typeof ns !== "object") continue;
-          const v = (ns as Record<string, unknown>)[prop];
-          if (typeof v === "function") return (v as (...a: unknown[]) => unknown).bind(ns);
+        // 候选名：字面名优先，其次 gaeaToGaea 映射出的 Go 方法名
+        const candidates = [String(prop)];
+        const mapped = (gaeaToGaea as Record<string, string>)[String(prop)];
+        if (mapped && mapped !== prop) candidates.push(mapped);
+        for (const name of candidates) {
+          for (const ns of Object.values(goApp)) {
+            if (ns === goApp.App || ns === null || typeof ns !== "object") continue;
+            const v = (ns as Record<string, unknown>)[name];
+            if (typeof v === "function") return (v as (...a: unknown[]) => unknown).bind(ns);
+          }
         }
         return undefined;
       },
@@ -118,9 +134,8 @@ export function initBridge(): void {
   // useVoiceChat 的 App.VoiceStop），HTTP 桥接下这些门面不存在会抛
   // "Cannot read properties of undefined (reading 'VoiceStop')"。RPC 端点按方法名路由，
   // 与门面无关，故每门面挂同一 RPC 代理即可（方法名冲突时后注册者生效，方法与门面一一对应无冲突）。
-  const FACADES = ["CoreB", "OfficeB", "MemoryB", "CostB", "ModelB", "VoiceB", "ChatB", "NovelB", "ImageB", "CharlibB"] as const;
+  const FACADES = ["CoreB", "OfficeB", "MemoryB", "CostB", "ModelB", "VoiceB", "ChatB", "NovelB", "ImageB", "CharlibB", "SinB"] as const;
   for (const ns of FACADES) {
     if (!w.go.app[ns]) w.go.app[ns] = createAppProxy();
   }
 }
-

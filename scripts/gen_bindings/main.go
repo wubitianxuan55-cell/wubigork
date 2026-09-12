@@ -31,7 +31,7 @@ var receiverTypes = map[string]bool{
 }
 
 // facadeOrder 板块顺序（生成文件与绑定顺序一致，稳定可读）。
-var facadeOrder = []string{"core", "office", "memory", "cost", "model", "voice", "chat", "novel", "image", "charlib"}
+var facadeOrder = []string{"core", "office", "memory", "cost", "model", "voice", "chat", "novel", "image", "charlib", "sin"}
 
 type method struct {
 	Name      string
@@ -60,6 +60,9 @@ func mapMethod(m method) string {
 	case strings.HasPrefix(n, "Chat"), strings.HasPrefix(n, "MainBrainChat"),
 		strings.HasPrefix(n, "Brain"), n == "RunModule":
 		return "chat"
+	case strings.HasPrefix(n, "Sin"):
+		// 原罪板块（闲庭·图文故事创作）：Sin* 前缀独占一门面
+		return "sin"
 	case strings.HasPrefix(n, "Character"):
 		return "charlib"
 	case strings.HasPrefix(n, "GenerateFreeImage"), strings.HasPrefix(n, "CancelImageGeneration"),
@@ -466,7 +469,7 @@ func facadeTitle(f string) string {
 		"memory": "记忆中枢与知识库", "cost": "成本库与价格源",
 		"model": "模型中心与 Herdsman 底座", "voice": "语音（TTS/ASR/轻语）",
 		"chat": "聊天与主脑", "novel": "小说写作", "image": "绘梦与媒体",
-		"charlib": "角色库",
+		"charlib": "角色库", "sin": "原罪（闲庭·图文故事创作）",
 	}
 	if t, ok := titles[f]; ok {
 		return t

@@ -33,6 +33,7 @@
 | gaea-dream-studio-nextgen-2026-09.md | 材料汇编+下一代草案，不承诺版本（§0.5 已被图域 longterm-plan 吸收） |
 | gaea-image-domain-longterm-plan-2026.md | 长期路线：T0 契约已落地（v4.98.0）；T1+ 未启动 |
 | gaea-image-domain-t0-contract-design-2026-09.md | ✅ 已落地随 v4.98.0 |
+| gaea-sin-board-design-2026-09.md | ✅ **闲庭·原罪板块（v4.256.0）**：对话式图文混杂故事创作——办公组件复用清单、sin 绑定契约（会话/流式/插图/导出）、cue 编号跨端约定、成人内容边界与验收证据 |
 
 ## 蒸馏规划（取道不取器）
 

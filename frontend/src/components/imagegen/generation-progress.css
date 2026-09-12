@@ -1,0 +1,51 @@
+/* generation-progress.css — 生成进度条（绘梦 / 原罪共用；v4.258 从 imagegen.css 抽出）。
+   类名 `.ig-progress*` 保持不变：绘梦既有测试（GenerationBar.test.tsx）与样式锚点依赖它。 */
+
+.ig-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  width: 100%;
+  min-width: 0;
+}
+
+.ig-progress-track {
+  height: 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--md-sys-color-text, var(--color-text)) 10%, transparent);
+  overflow: hidden;
+}
+
+.ig-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--color-primary), var(--gaea-glow));
+  box-shadow: 0 0 10px color-mix(in srgb, var(--gaea-glow) 55%, transparent);
+  transition: width 320ms ease;
+}
+
+.ig-progress-fill.is-indeterminate {
+  width: 42%;
+  animation: ig-progress-slide 1.6s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.ig-progress-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--md-sys-color-text-secondary, var(--color-text-secondary));
+}
+
+/* 不定态光带位移（imagegen.css 的 .ig-bottom-bar.is-busy::after 亦复用该动画） */
+@keyframes ig-progress-slide {
+  0% { transform: translateX(-110%); }
+  100% { transform: translateX(260%); }
+}
+
+/* reduced-motion：进度光带降级为静态（与全站动效纪律一致） */
+@media (prefers-reduced-motion: reduce) {
+  .ig-progress-fill.is-indeterminate { animation: none; width: 100%; opacity: .55; }
+}

@@ -200,6 +200,42 @@ func (s *Store) AppendMessage(topicID, role, content, extra string) (*Message, e
 	return &m, nil
 }
 
+// UpdateMessageExtra 覆盖指定消息的 extra 字段（消息 id 唯一定位）。
+// 原罪（sin）板块用：插图生成完成后就地回写该轮助手消息的 extra，
+// 重开故事时按 extra 里的插图映射直接渲染，不必重新生成。
+// 消息不存在（id 未命中）时返回错误，由调用方决定是否降级为告警。
+func (s *Store) UpdateMessageExtra(id int64, extra string) error {
+	if s == nil || s.db == nil {
+		return fmt.Errorf("chat store 未初始化")
+	}
+	res, err := s.db.Exec("UPDATE chat_messages SET extra = ? WHERE id = ?", extra, id)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return fmt.Errorf("消息不存在: %d", id)
+	}
+	return nil
+}
+
+// GetMessage 按消息 id 读取单条消息（不存在时返回错误）。
+func (s *Store) GetMessage(id int64) (Message, error) {
+	if s == nil || s.db == nil {
+		return Message{}, fmt.Errorf("chat store 未初始化")
+	}
+	var m Message
+	err := s.db.QueryRow(
+		"SELECT id, topic_id, role, content, extra, seq, created_at FROM chat_messages WHERE id = ?", id).
+		Scan(&m.ID, &m.TopicID, &m.Role, &m.Content, &m.Extra, &m.Seq, &m.CreatedAt)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return Message{}, fmt.Errorf("消息不存在: %d", id)
+		}
+		return Message{}, err
+	}
+	return m, nil
+}
+
 // AppendExchange 以单事务原子写入「用户消息 + 助手消息」，并刷新话题 updated_at。
 // 任一写入失败则整体回滚，避免出现只落库半条交换的情况。
 func (s *Store) AppendExchange(topicID, userContent, assistantContent, assistantExtra string) error {

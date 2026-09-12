@@ -1,0 +1,350 @@
+/* sin.css — 原罪板块版面（闲庭 · 图文故事创作）。
+   令牌复用办公样式层（gaea/styles.css 的 --bg/--fg/--border-soft/--accent 等），
+   不新造色彩体系；仅在办公三栏骨架上做本板块的密度与留白。 */
+
+.sin-page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  color: var(--fg);
+  background: var(--gaea-glass-bg, var(--bg));
+}
+
+/* ── 顶栏 ── */
+.sin-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 18px;
+  border-bottom: 1px solid var(--border-soft);
+  flex: 0 0 auto;
+}
+.sin-head-title { display: flex; align-items: baseline; gap: 12px; min-width: 0; }
+.sin-mark {
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  color: var(--accent);
+}
+.sin-head-sub {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--fg-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sin-dot { width: 3px; height: 3px; border-radius: 50%; background: var(--fg-faint); opacity: .6; }
+.sin-head-actions { display: flex; align-items: center; gap: 4px; flex: 0 0 auto; }
+
+/* ── 三栏骨架 ── */
+.sin-body { display: flex; flex: 1; min-height: 0; }
+
+/* 左：故事架 */
+.sin-shelf {
+  width: 232px;
+  flex: 0 0 232px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-right: 1px solid var(--border-soft);
+  background: var(--sidebar-bg, var(--bg-soft));
+}
+.sin-shelf-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px 6px;
+  font-size: 11px;
+  letter-spacing: .16em;
+  color: var(--fg-faint);
+}
+.sin-shelf-list { flex: 1; min-height: 0; overflow-y: auto; padding: 2px 8px 12px; }
+.sin-shelf-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 8px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background .15s ease;
+}
+.sin-shelf-item:hover { background: var(--sidebar-hover, var(--bg-soft)); }
+.sin-shelf-item.is-active { background: var(--sidebar-active, rgba(99,102,241,.14)); }
+.sin-shelf-icon { color: var(--fg-faint); font-size: 13px; flex: 0 0 auto; }
+.sin-shelf-text { min-width: 0; flex: 1; }
+.sin-shelf-title {
+  font-size: 13px;
+  color: var(--fg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sin-shelf-preview {
+  font-size: 11px;
+  color: var(--fg-faint);
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sin-shelf-empty { padding: 18px 10px; font-size: 12px; color: var(--fg-faint); text-align: center; }
+
+/* 中：故事流 + 输入 */
+.sin-main { flex: 1; min-width: 0; display: flex; flex-direction: column; min-height: 0; }
+.sin-stream-host { flex: 1; min-height: 0; display: flex; }
+.sin-stream {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 20px clamp(16px, 4vw, 56px) 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.sin-row { display: flex; }
+.sin-row.is-user { justify-content: flex-end; }
+.sin-bubble-user {
+  max-width: 76%;
+  padding: 9px 13px;
+  border-radius: 14px 14px 4px 14px;
+  background: var(--accent-soft, rgba(99,102,241,.14));
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, transparent);
+  font-size: 13.5px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.sin-row.is-assistant { justify-content: flex-start; }
+.sin-assistant-card {
+  max-width: 92%;
+  min-width: 0;
+  padding: 4px 2px;
+}
+.sin-row.is-error .sin-assistant-card { color: var(--err); }
+.sin-text { font-size: 14px; line-height: 1.85; }
+.sin-text p { margin: 0 0 12px; }
+.sin-caret {
+  display: inline-block;
+  width: 7px;
+  height: 15px;
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  background: var(--accent);
+  animation: sin-blink 1s steps(2, start) infinite;
+}
+@keyframes sin-blink { to { opacity: 0 } }
+
+.sin-composer {
+  flex: 0 0 auto;
+  padding: 6px clamp(16px, 4vw, 56px) 14px;
+  border-top: 1px solid var(--border-soft);
+}
+
+/* 页面级提示条（插图失败/读取失败等，可关闭；不静默吞错） */
+.sin-notice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 clamp(16px, 4vw, 56px);
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--warn) 45%, var(--border-soft));
+  background: color-mix(in srgb, var(--warn) 12%, transparent);
+  color: var(--fg-dim);
+  font-size: 12px;
+}
+.sin-notice-text { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+
+/* 插图（图文混杂的「图」） */
+.sin-figure { margin: 14px 0 16px; }
+.sin-figure-img {
+  display: block;
+  width: 100%;
+  max-width: 560px;
+  border-radius: 12px;
+  border: 1px solid var(--border-soft);
+  background: var(--bg-soft);
+}
+.sin-figure-slot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 132px;
+  padding: 16px 18px;
+  border-radius: 12px;
+  border: 1px dashed var(--border);
+  background: color-mix(in srgb, var(--bg-soft) 70%, transparent);
+  color: var(--fg-dim);
+  font-size: 12.5px;
+}
+.sin-figure-slot.is-error { border-color: color-mix(in srgb, var(--err) 55%, var(--border)); color: var(--err); }
+.sin-figure-slot-text { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+
+/* 生成进度（复用绘梦 GenerationProgress 的 .ig-progress 视觉） */
+.sin-figure-progress { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.sin-figure-progress-actions { display: flex; justify-content: flex-end; }
+.sin-figure-spinner {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  border-top-color: var(--accent);
+  animation: sin-spin .8s linear infinite;
+}
+@keyframes sin-spin { to { transform: rotate(360deg) } }
+.sin-figure-cap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  font-size: 11.5px;
+  color: var(--fg-faint);
+}
+.sin-figure-cap-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sin-figure-ref {
+  flex: 0 0 auto;
+  padding: 1px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--border-soft);
+  background: color-mix(in srgb, var(--bg-soft) 70%, transparent);
+  font-size: 10.5px;
+  color: var(--fg-faint);
+  white-space: nowrap;
+}
+.sin-figure-ref.is-on {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border-soft));
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+/* 右：说明栏 */
+.sin-side {
+  width: 268px;
+  flex: 0 0 268px;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 14px 14px 20px;
+  border-left: 1px solid var(--border-soft);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.sin-card {
+  border: 1px solid var(--border-soft);
+  border-radius: 12px;
+  padding: 12px 12px 10px;
+  background: color-mix(in srgb, var(--bg-soft) 60%, transparent);
+}
+.sin-card-title { font-size: 12px; color: var(--fg); margin-bottom: 8px; letter-spacing: .04em; }
+.sin-card-text { margin: 0; font-size: 12px; line-height: 1.7; color: var(--fg-dim); }
+.sin-card-text code {
+  padding: 1px 5px;
+  border-radius: 5px;
+  background: var(--bg-elev, var(--bg-soft));
+  border: 1px solid var(--border-soft);
+  font-size: 11.5px;
+}
+.sin-card-list { margin: 0; padding-left: 18px; font-size: 12px; line-height: 1.75; color: var(--fg-dim); }
+.sin-card-list li { margin-bottom: 4px; }
+
+/* ── 角色卡（角色库带入） ── */
+.sin-cast-count { float: right; font-size: 11px; color: var(--fg-faint); }
+.sin-cast-chips { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+.sin-cast-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 4px 4px 6px;
+  border: 1px solid var(--border-soft);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--bg-soft) 70%, transparent);
+  min-width: 0;
+}
+.sin-cast-chip-art {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  overflow: hidden;
+  flex: 0 0 auto;
+  background: var(--bg-elev, var(--bg-soft));
+}
+.sin-cast-chip-art img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.sin-cast-chip-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 12.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 角色选择弹层（Modal 内） */
+.sin-cast-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 10px;
+  max-height: 52vh;
+  overflow-y: auto;
+  padding: 2px;
+}
+.sin-cast-item {
+  display: flex;
+  gap: 10px;
+  text-align: left;
+  padding: 8px;
+  border-radius: 12px;
+  border: 1px solid var(--border-soft);
+  background: color-mix(in srgb, var(--bg-soft) 55%, transparent);
+  cursor: pointer;
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+.sin-cast-item:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--border-soft)); }
+.sin-cast-item.is-picked {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent) inset;
+}
+.sin-cast-item-art {
+  width: 52px;
+  height: 52px;
+  border-radius: 10px;
+  overflow: hidden;
+  flex: 0 0 auto;
+  background: var(--bg-elev, var(--bg-soft));
+}
+.sin-cast-item-art img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.sin-cast-item-body { min-width: 0; flex: 1; }
+.sin-cast-item-name { font-size: 13px; color: var(--fg); display: flex; gap: 6px; align-items: baseline; }
+.sin-cast-item-role { font-size: 11px; color: var(--fg-faint); }
+.sin-cast-item-line {
+  font-size: 11.5px;
+  color: var(--fg-dim);
+  line-height: 1.5;
+  margin-top: 2px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.sin-cast-item-line.is-dim { color: var(--fg-faint); }
+.sin-cast-item-tags { margin-top: 4px; }
+.sin-cast-item-tags .ant-tag { font-size: 10.5px; line-height: 16px; margin-inline-end: 4px; }
+.sin-cast-error { margin-bottom: 8px; font-size: 12px; color: var(--err); }
+
+/* 窄窗：说明栏收起（保留故事流与输入，功能不以尺寸为借口消失） */
+@media (max-width: 1180px) {
+  .sin-side { display: none; }
+}
+@media (max-width: 880px) {
+  .sin-shelf { display: none; }
+}
+
+/* reduced-motion：动效全部关停（与办公样式层同纪律） */
+@media (prefers-reduced-motion: reduce) {
+  .sin-caret { animation: none; }
+  .sin-figure-spinner { animation: none; }
+}

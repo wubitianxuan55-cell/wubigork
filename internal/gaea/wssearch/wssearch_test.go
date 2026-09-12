@@ -109,6 +109,33 @@ func TestSearchSkipsPlayExports(t *testing.T) {
 	}
 }
 
+// v4.257 硬隔离刀：play 分区**整棵子树**都是噪音（不只是 play/exports）——
+// 画室台账（play/imagehub）、章节配图（play/art）、原罪插图产物等乐园数据面
+// 一律不进工位关键词检索，工位搜索搜不到乐园内容（S2.1 验收红线）。
+func TestSearchSkipsWholePlayPartition(t *testing.T) {
+	dir := t.TempDir()
+	write(t, filepath.Join(dir, "docs", "方案.md"), "成本方案正文")
+	write(t, filepath.Join(dir, ".gaea", "exports", "工位周报.md"), "工位交付产物成本总结")
+	write(t, filepath.Join(dir, ".gaea", "play", "imagehub", "assets.jsonl"),
+		`{"meta":{"prompt":"雨夜站台成本氛围"}}`)
+	write(t, filepath.Join(dir, ".gaea", "play", "art", "chapter-art.json"), `{"cost":1}`)
+	write(t, filepath.Join(dir, ".gaea", "play", "exports", "游戏攻略.md"), "游戏攻略成本攻略内容")
+
+	hits := Search(dir, "成本", 10)
+	foundWorkExport := false
+	for _, h := range hits {
+		if strings.HasPrefix(h.Path, ".gaea/play") {
+			t.Fatalf("play 分区泄漏进工位检索面: %s", h.Path)
+		}
+		if h.Path == ".gaea/exports/工位周报.md" {
+			foundWorkExport = true
+		}
+	}
+	if !foundWorkExport {
+		t.Fatalf("work 交付产物应仍可被索引: %+v", hits)
+	}
+}
+
 func TestSearchFilenameFallback(t *testing.T) {
 	dir := t.TempDir()
 	// 文件名含关键词，但正文不含：应靠文件名保底命中。

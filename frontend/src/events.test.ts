@@ -1,17 +1,19 @@
 import { describe, expect, it, vi, afterEach } from 'vitest'
-import { BACKEND_EVENTS, FRONTEND_EVENTS, chatStreamChannel, subscribe, subscribeForSpace, emitFrontendEvent } from './events'
+import { BACKEND_EVENTS, FRONTEND_EVENTS, chatStreamChannel, sinStreamChannel, subscribe, subscribeForSpace, emitFrontendEvent } from './events'
 
-// 3.0 01 报告 §4：22 后端事件（+v4.3c 轻语主动关心定时推送）+ 4 前端事件常量表 + subscribe 统一封装
+// 3.0 01 报告 §4：22 后端事件（+v4.3c 轻语主动关心定时推送 + v4.244 原罪故事流）
+// + 4 前端事件常量表 + subscribe 统一封装
 
-describe('BACKEND_EVENTS（§4.1，23 个）', () => {
-  it('共 23 个后端事件常量', () => {
-    expect(Object.keys(BACKEND_EVENTS)).toHaveLength(23)
+describe('BACKEND_EVENTS（§4.1，24 个）', () => {
+  it('共 24 个后端事件常量（v4.244 +SIN_STREAM）', () => {
+    expect(Object.keys(BACKEND_EVENTS)).toHaveLength(24)
   })
 
   it('常量名与事件名字面量一一对应（防复制笔误）', () => {
     expect(BACKEND_EVENTS.MODEL_CHANGED).toBe('model-changed')
     expect(BACKEND_EVENTS.FEATURE_MODEL_CHANGED).toBe('feature-model-changed')
     expect(BACKEND_EVENTS.CHAT_STREAM).toBe('chat-stream')
+    expect(BACKEND_EVENTS.SIN_STREAM).toBe('sin-stream')
     expect(BACKEND_EVENTS.CREATE_CHAPTER_STREAM).toBe('create-chapter-stream')
     expect(BACKEND_EVENTS.GHOST_STREAM).toBe('ghost-stream')
     expect(BACKEND_EVENTS.XAI_OUTPUT).toBe('xai-output')
@@ -35,6 +37,10 @@ describe('BACKEND_EVENTS（§4.1，23 个）', () => {
 
   it('chatStreamChannel 生成动态频道（chat-stream:<runID>）', () => {
     expect(chatStreamChannel('run-42')).toBe('chat-stream:run-42')
+  })
+
+  it('sinStreamChannel 生成动态频道（sin-stream:<runID>，与 chatStreamChannel 同形）', () => {
+    expect(sinStreamChannel('run-42')).toBe('sin-stream:run-42')
   })
 })
 

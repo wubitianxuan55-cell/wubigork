@@ -14,6 +14,8 @@ export const BACKEND_EVENTS = {
   FEATURE_MODEL_CHANGED: 'feature-model-changed',
   /** 聊天流动态频道前缀：实际事件名为 `chat-stream:${runID}`（useChatStream） */
   CHAT_STREAM: 'chat-stream',
+  /** 原罪故事流动态频道前缀：实际事件名为 `sin-stream:${runID}`（sin/useSinStory） */
+  SIN_STREAM: 'sin-stream',
   /** 章节生成流（useChapterStream） */
   CREATE_CHAPTER_STREAM: 'create-chapter-stream',
   /** 幽灵补写（GhostText） */
@@ -73,6 +75,11 @@ export type FrontendEventName = (typeof FRONTEND_EVENTS)[keyof typeof FRONTEND_E
 /** 聊天流动态频道：chat-stream:<runID> */
 export function chatStreamChannel(runID: string): string {
   return `${BACKEND_EVENTS.CHAT_STREAM}:${runID}`
+}
+
+/** 原罪故事流动态频道：sin-stream:<runID>（与 chatStreamChannel 同形） */
+export function sinStreamChannel(runID: string): string {
+  return `${BACKEND_EVENTS.SIN_STREAM}:${runID}`
 }
 
 /**

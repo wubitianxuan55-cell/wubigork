@@ -66,6 +66,10 @@ type configFile struct {
 	FuncRoutineEngine  string `json:"func_routine_engine,omitempty"` // 常规任务模型目标（routine_llm 工具）
 	FuncRoutineModel   string `json:"func_routine_model,omitempty"`
 	FuncRoutineEnabled *bool  `json:"func_routine_enabled,omitempty"`
+	// 原罪板块（闲庭·图文故事创作）：独立 LLM 绑定 + 启停
+	FuncSinEngine  string `json:"func_sin_engine,omitempty"`
+	FuncSinModel   string `json:"func_sin_model,omitempty"`
+	FuncSinEnabled *bool  `json:"func_sin_enabled,omitempty"`
 	// 敏感域本地化开关（nil=默认开启，true=成本/报价 AI 走本地 Herdsman）
 	SensitiveLocal *bool `json:"sensitive_local,omitempty"`
 	// 办公本地优先开关（nil=默认开启，true=办公功能级 AI 调用走本地 Herdsman）
@@ -210,6 +214,9 @@ type Config struct {
 	// 不参与强制路由——是否调用由云端 agent 自行决定。
 	FuncRoutineEngine string
 	FuncRoutineModel  string
+	// 原罪板块（闲庭·图文故事创作）：故事文本生成的独立引擎/模型绑定。
+	FuncSinEngine string
+	FuncSinModel  string
 	// 功能级启停（默认启用；停用后该功能路由回退全局）
 	FuncChatEnabled    bool
 	FuncNovelEnabled   bool
@@ -217,6 +224,7 @@ type Config struct {
 	FuncGaeaEnabled    bool
 	FuncCharLibEnabled bool
 	FuncRoutineEnabled bool
+	FuncSinEnabled     bool
 
 	// 敏感域本地化（S2-4/D8）：成本/报价类 AI 操作默认路由本地 Herdsman。
 	// true=本地优先（默认）；false=按常规路由（可回云端）。

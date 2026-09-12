@@ -106,6 +106,20 @@ export const GAEA_METHOD_FACETS = {
   ImageHubAssets: "shared",
   // 项目章节配图清单（chapter-art.json）：小说域（play）专属消费。
   ChapterArtList: "play",
+  // 原罪（闲庭·图文故事创作）：故事会话/流式续写/插图/导出——闲庭数据面，
+  // 与轻语记忆同归 play（工位侧不出现该板块入口）。
+  SinTopicsList: "play",
+  SinTopicCreate: "play",
+  SinTopicRename: "play",
+  SinTopicDelete: "play",
+  SinTopicClear: "play",
+  SinMessages: "play",
+  SinStream: "play",
+  SinIllustrate: "play",
+  SinExportMarkdown: "play",
+  SinCastGet: "play",
+  SinCastSet: "play",
+  SinCancel: "play",
 
   // ── play：乐园数据面（轻语聊天记忆）──────────────────────────
   WhisperMemories: "play",

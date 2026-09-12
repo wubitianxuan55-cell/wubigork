@@ -53,6 +53,10 @@ const (
 	KeyFuncCharLibModel  = "func_characterlib_model"
 	KeyFuncRoutineEngine = "func_routine_engine"
 	KeyFuncRoutineModel  = "func_routine_model"
+	// 原罪（闲庭·图文故事创作板块）：独立 LLM 绑定，便于给故事创作单挂
+	// 无审查/长上下文模型，与聊天/小说互不干扰。
+	KeyFuncSinEngine = "func_sin_engine"
+	KeyFuncSinModel  = "func_sin_model"
 	// 功能级启停（FeatureModelBar 启停语义：只影响该功能的路由，不影响整个引擎）
 	KeyFuncChatEnabled    = "func_chat_enabled"
 	KeyFuncNovelEnabled   = "func_novel_enabled"
@@ -60,6 +64,7 @@ const (
 	KeyFuncGaeaEnabled    = "func_gaea_enabled"
 	KeyFuncCharLibEnabled = "func_characterlib_enabled"
 	KeyFuncRoutineEnabled = "func_routine_enabled"
+	KeyFuncSinEnabled     = "func_sin_enabled"
 	// 敏感域本地化（S2-4/D8）：成本/报价类 AI 操作默认路由本地 Herdsman，
 	// 可配置回云端。默认开启。
 	KeySensitiveLocal = "sensitive_local"

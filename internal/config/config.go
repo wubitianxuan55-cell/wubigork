@@ -55,6 +55,7 @@ func Load() *Config {
 		FuncGaeaEnabled:    true,
 		FuncCharLibEnabled: true,
 		FuncRoutineEnabled: true, // 常规办公默认启用：routine_llm 工具按绑定目标执行
+		FuncSinEnabled:     true, // 原罪（闲庭·图文故事创作）默认启用：绑定即生效
 		// S2-4/D8：敏感域（成本/报价）AI 默认本地优先。
 		SensitiveLocal: true,
 		// 2026-08-28：办公板块功能级 AI 调用默认本地优先（数据不出本机 + 省 token）。
@@ -362,6 +363,15 @@ func Load() *Config {
 			}
 			if cf.FuncRoutineEnabled != nil {
 				cfg.FuncRoutineEnabled = *cf.FuncRoutineEnabled
+			}
+			if cf.FuncSinEngine != "" {
+				cfg.FuncSinEngine = cf.FuncSinEngine
+			}
+			if cf.FuncSinModel != "" {
+				cfg.FuncSinModel = cf.FuncSinModel
+			}
+			if cf.FuncSinEnabled != nil {
+				cfg.FuncSinEnabled = *cf.FuncSinEnabled
 			}
 			if cf.SensitiveLocal != nil {
 				cfg.SensitiveLocal = *cf.SensitiveLocal
