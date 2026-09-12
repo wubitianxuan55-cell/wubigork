@@ -100,6 +100,7 @@ describe('过程卡纯函数', () => {
   it('工具标签：已知工具给中文，未知工具如实显示原名', () => {
     expect(sinToolLabel('web_search')).toBe('联网搜索')
     expect(sinToolLabel('sin_outline')).toBe('故事大纲')
+    expect(sinToolLabel('sin_export')).toBe('图文导出')
     expect(sinToolLabel('mystery_tool')).toBe('mystery_tool')
   })
 

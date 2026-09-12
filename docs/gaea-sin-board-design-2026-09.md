@@ -271,6 +271,9 @@ v4.256~v4.261 原罪只有「固定管线 + 前端触发」，模型**零工具*
 但其**产物回写链路**（工具产物 → 过程卡缩略图 / 重开还原）两个代理各以为对方会补、实际没人补，
 属半成品。本刀已把这三份文件挪出树外存于 `.tmp/sin-next-knife/`（不删），下刀接完产物链路
 再入册；本刀工具面按上表 5 个交付。
+**→ 注记（2026-09-13，v4.267）**：`sin_export` 已接完产物链路入册（导出产物=exports 目录
+落盘文件+轨迹文本路径，过程卡 v4.262 已能渲染）；`sin_illustrate` 维持上方「刻意不做」，
+留存件仍在 `.tmp/sin-next-knife/`，入册与否待拍板。
 
 ### 13.3 事件与落库契约（`sin-stream:<runID>` 通道，与既有 delta/reasoning/done 平级）
 
@@ -427,3 +430,17 @@ sending 中保存禁用并给原因。空底稿也给入口（用户可以先于
 
 **绑定面**：`SinNotesSave(topicID, baseline, outline, notes, force)`（641→642，
 play 空间），与 `SinNotesGet` 同文件同锁同口径；返回保存后的 `SinNotesView`。
+
+### 14.8 sin_export 工具入册（v4.267.0）
+
+v4.262 留存合约清账（13.2 注记「下刀接完产物链路再入册」）：导出工具的产物链路
+= exports 目录落盘 + 轨迹文本路径，过程卡（v4.262）已能渲染工具输出，前置已满足。
+- 实现（取自留存件，逐字入册）：委托既有 `SinExportMarkdown`（与前端「另存为」
+  同一份 Markdown，不复制第二份导出逻辑）；落 `<用户配置目录>/gaea/sin/exports/`
+  （与 art/notes 同一数据根，硬隔离口径不变）；同名不覆盖（-2…-99），文件名净化
+  fail-closed（路径分隔/保留字符/控制符剔除、上跳不留、.md 去重、60 rune 截断），
+  原子写（tmp+rename）。
+- 工具面：`ReadOnly=false`（会新建文件）、schema 仅可选 `filename`、Description
+  明确「只在用户明确要导出时用」。工具集 5→6，order 末位（收尾动作）。
+- 前端：过程卡标签「图文导出」+ Download 图标 + 行首摘要给 filename。
+- `sin_illustrate` 不动：仍按 13.2「刻意不做」留待拍板，留存件不删。
