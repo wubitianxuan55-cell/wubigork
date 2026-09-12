@@ -97,7 +97,7 @@
 
 ## 6. 维持轨（常开，永不做成主题）
 
-瘦身 P5 度量 · 壳内真机走查池（~~.gsched 基线 chips~~（2026-09-13 真机核通过=knife2-audit G-3，真实工程 29 任务 0 基线四 chip+条件隐藏全对） / ~~最近文档 localStorage 写路径~~（2026-09-13 复验=跨 reload 持久） / ~~冷启动基线采集~~（§5/§6 首采+复测） / ~~五算带入与含量对照端到端~~（**2026-09-13 清账=v4.269.0**：安全夹具=一次性造价项目+级联删除；走查抓到两个线上真 bug 并当场修——①costproject/coststage 无 json 标签线上 PascalCase 列表卡空名/¥NaN ②五算带入 payload 空串时间字段 Wails 解析必炸；修复后端到端全通=建项目→快照→UI 带入→桥验阶段值+溯源备注落库）） · 无参绑定「UI 会话 ≠ 内核会话」随碰到随补 · knip unused exports ~~169 甄别~~（**2026-09-13 清账=v4.268.0**：实跑仅 11+6+8，全死删/契约 @public/误报注明，unused 清零余 3 处接受的重复出口） · 零功能周卫生。
+瘦身 P5 度量 · 壳内真机走查池（~~.gsched 基线 chips~~（2026-09-13 真机核通过=knife2-audit G-3，真实工程 29 任务 0 基线四 chip+条件隐藏全对） / ~~最近文档 localStorage 写路径~~（2026-09-13 复验=跨 reload 持久） / ~~冷启动基线采集~~（§5/§6 首采+复测） / ~~五算带入与含量对照端到端~~（**2026-09-13 清账=v4.269.0**：安全夹具=一次性造价项目+级联删除；走查抓到两个线上真 bug 并当场修——①costproject/coststage 无 json 标签线上 PascalCase 列表卡空名/¥NaN ②五算带入 payload 空串时间字段 Wails 解析必炸；修复后端到端全通=建项目→快照→UI 带入→桥验阶段值+溯源备注落库）） · 无参绑定「UI 会话 ≠ 内核会话」随碰到随补（**2026-09-13 审计=无可行动发现**：全量枚举 178 个无参绑定，会话语义候选 4 个——GaeaNewSession/GaeaContext/GaeaListSessions/GaeaListProjectSessions——前端零消费（仅 bindingNames 在册），当前无可达分歧路径；历史风险族 GaeaAgentNetwork/GaeaTrajectory/GaeaContextNodeDetail/GaeaTaskList 已 v4.237 单参化。规则维持「随碰到随补」，审计记录在此，无需代码改动） · knip unused exports ~~169 甄别~~（**2026-09-13 清账=v4.268.0**：实跑仅 11+6+8，全死删/契约 @public/误报注明，unused 清零余 3 处接受的重复出口） · 零功能周卫生。
 
 ## 7. 阶段门规则（不变）
 
