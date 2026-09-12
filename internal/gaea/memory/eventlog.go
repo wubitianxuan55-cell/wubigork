@@ -102,6 +102,21 @@ func (l *EventLog) AppendEvent(e Event) error {
 	if l == nil || l.DB == nil {
 		return nil
 	}
+	return appendEventExec(l.DB, e)
+}
+
+// execer 是 *sql.DB 与 *sql.Tx 的公共子集：事件插入必须落在调用方的事务
+// 连接上（刀B v4.246 写路径事务化）——Hephaestus.db 是单连接池（MaxOpen
+// Conns(1)），事务持有连接期间任何 l.DB.Exec 都会等连接而互相死锁。
+type execer interface {
+	Exec(query string, args ...any) (sql.Result, error)
+}
+
+// appendEventExec 是 AppendEvent 的执行载体（exec 决定落库还是落事务）。
+func appendEventExec(x execer, e Event) error {
+	if x == nil {
+		return nil
+	}
 	if e.Op == "" || e.Name == "" {
 		return fmt.Errorf("event needs op and name")
 	}
@@ -122,7 +137,7 @@ func (l *EventLog) AppendEvent(e Event) error {
 	if len(e.Excerpt) > eventExcerptLimit {
 		e.Excerpt = e.Excerpt[:eventExcerptLimit]
 	}
-	_, err := l.DB.Exec(`
+	_, err := x.Exec(`
 INSERT INTO memory_events(at, op, name, project, space, kind, type, title, description, tags, refs, excerpt, source_session, source_message, actor, recorded_at)
 VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		e.At, e.Op, e.Name, e.Project, e.Space, e.Kind, e.Type, e.Title, e.Desc,

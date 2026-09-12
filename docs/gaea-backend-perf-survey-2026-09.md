@@ -15,7 +15,7 @@
 ## 中（面板刷新/批量写/无界增长）
 
 7. **会话列表预览全量解析** — `internal/gaea/agent/session/save.go:266-292`：`previewSession` 对每个 `.jsonl` 解码全部消息（含多 MB 工具输出）只为取首条预览+轮次数。会话面板每次刷新 = O(所有会话总字节)。
-8. **记忆索引搬运全量 body** — `internal/gaea/memory/sqlite.go:282-289` + `memory/search.go:49-87`：`listInSpace`/`Index()` SELECT 每条 fact 完整 body（注入索引只用 title/description），`BuildSearchIndex` 再全量分词 body。会话装配与每次记忆写后重载都搬运+分词整个记忆库正文。
+8. ~~**记忆索引搬运全量 body**~~（**2026-09-12 刀B 复核撤销**：`BuildSearchIndex` 实际分词 body（`memory/search.go:66`），去掉 body SELECT 会改变 memory_search 语义——该条证据不成立）— ~~`internal/gaea/memory/sqlite.go:282-289` + `memory/search.go:49-87`~~。
 9. **并行子代理收尾串行落盘** — `internal/gaea/agent/subagent_store.go:115, 241-257` + `session/save.go:25-39`：`Session.Save` 每次全量重写 transcript JSONL，N 路并行子代理 `SaveCompleted` 全串行在同一把 `SubagentStore.mu` 上。
 10. **wssearch 文本缓存无界** — `internal/gaea/wssearch/wssearch.go:86`：全局 `textCache` 每文件最多 20 万字符，只增不删无上限无过期，长会话/大工作区内存无界增长。
 11. **批量清理逐条 DELETE 无事务** — `internal/gaea/memory/sqlite.go:426-432`（`CleanupArchived`）、`internal/gaea/semantic/semantic.go:270-274`（`Stale`）。N 行 = N 次独立写事务（WAL 下 N 次 commit/fsync）。
@@ -38,8 +38,10 @@
 
 ## 建议刀路（待拍板，不替用户排期）
 
-- **刀 A（每回合税）**：#1 事件日志 seq 增量化（RepairLogFile/countLogLines 只跑会话首开或改增量校验）+ #14 DigestMessages 增量哈希。零外部行为变化，benchmark 锁基线。
-- **刀 B（记忆写路径）**：#2 QueueMemory 改后台刷新/增量索引 + #12 Save 包事务 + #8 索引不 SELECT body。动全局锁语义，须真机走查。
+> 进度：**刀A 已执行=v4.245.0**（#1+#14，benchmark 先行）；**刀B 已执行=v4.246.0**（#2+#12；#8 复核撤销——BuildSearchIndex 实际分词 body，见中-8 勘误）。#2 的刀法修正：刷新保持对调用方同步（写后立即可见的语义与测试依赖不动），Load 改在 c.mu **锁外**执行（begin/finish 两段式+写侧代号守卫防慢 Load 回退快照），Send/Cancel 等不再被全库重载阻塞；#12 顺带覆盖 Archive/Unarchive/ChangeType/Touch（同一「实体语句+事件留痕」双写形态，Touch 在引用解析热路径上）。
+
+- **刀 A（每回合税）✅ v4.245.0**：#1 事件日志 seq 增量化（RepairLogFile/countLogLines 只跑会话首开或改增量校验）+ #14 DigestMessages 增量哈希。零外部行为变化，benchmark 锁基线。
+- **刀 B（记忆写路径）✅ v4.246.0**：#2 QueueMemory/写点锁内全库重载改锁外重载 + #12 Save 包事务（扩及全部五写方法）+ ~~#8~~（撤销）。动全局锁语义，须真机走查。
 - **刀 C（SQLite 口径）**：#6 读写连接分离（WAL 下读写不互阻）+ #11/#12 批量事务化。风险最高（仓内留有死锁注脚），单独一刀+回归。
 - **刀 D（cost 检索）**：#3 接通 bm25.Cache（本来就为此写的）+ #4 Embedder/Reranker 单例化 + 子查询消除。
 - **刀 E（面板/杂项）**：#5 contextview 缓存/增量 + #7 预览采样 + #10 缓存上限 + #16/#17/#18/#20 顺手项。

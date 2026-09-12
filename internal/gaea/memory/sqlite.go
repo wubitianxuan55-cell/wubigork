@@ -52,6 +52,33 @@ func (b *sqliteBackend) Path(name string) string {
 // space.mode 开关由 S2 接线）。
 const defaultFactSpace = "work"
 
+// commitWithEvent 在单事务里执行实体语句并按需追加事件留痕（刀B v4.246：
+// 改前两条独立写事务=WAL 下双倍 commit/fsync，dream 批量与引用触达路径成倍
+// 放大）。ev 在实体语句执行后回调，返回 nil=不留痕（如 UPDATE 未命中行）。
+// 事件仍尽力而为：事务内事件语句失败→回滚并退回单语句重放实体语句——写入
+// 本体不因事件失败而丢（语义与改前一致）；实体语句失败直接回滚报错。
+func (b *sqliteBackend) commitWithEvent(query string, args []any, ev func(sql.Result) *Event) (sql.Result, error) {
+	tx, err := b.db.Begin()
+	if err != nil {
+		return nil, err
+	}
+	res, err := tx.Exec(query, args...)
+	if err != nil {
+		_ = tx.Rollback()
+		return nil, err
+	}
+	if e := ev(res); e != nil {
+		if err := appendEventExec(tx, *e); err != nil {
+			_ = tx.Rollback()
+			return b.db.Exec(query, args...)
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	return res, nil
+}
+
 func (b *sqliteBackend) Save(m Memory) (string, error) {
 	name := slug(m.Name)
 	if name == "" {
@@ -68,7 +95,7 @@ func (b *sqliteBackend) Save(m Memory) (string, error) {
 	if space == "" {
 		space = defaultFactSpace
 	}
-	_, err := b.db.Exec(`
+	_, err := b.commitWithEvent(`
 INSERT INTO facts(project, name, title, description, type, kind, tags, body, archived, created_at, updated_at, last_used_at, source_session, source_message, space_id)
 VALUES(?,?,?,?,?,?,?,?,0,?,?,?,?,?,?)
 ON CONFLICT(project, name) DO UPDATE SET
@@ -79,23 +106,24 @@ ON CONFLICT(project, name) DO UPDATE SET
   source_session=excluded.source_session,
   source_message=excluded.source_message,
   space_id=excluded.space_id`,
-		b.project, name, m.Title, m.Description,
-		string(NormalizeType(string(m.Type))), string(NormalizeKind(string(m.Kind))),
-		tags, m.Body, now, now, fmtTime(m.LastUsedAt), m.SourceSession, m.SourceMessage, space)
+		[]any{b.project, name, m.Title, m.Description,
+			string(NormalizeType(string(m.Type))), string(NormalizeKind(string(m.Kind))),
+			tags, m.Body, now, now, fmtTime(m.LastUsedAt), m.SourceSession, m.SourceMessage, space},
+		func(sql.Result) *Event {
+			// 事件带投影所需元数据（kind/type/title/desc/tags/space/互引
+			// refs），body 只留摘要——内容真相在 facts 表，日志是事件真相。
+			return &Event{
+				At: time.Now().UnixMilli(), Op: OpSave, Name: name, Project: b.project, Space: space,
+				Kind: string(NormalizeKind(string(m.Kind))), Type: string(NormalizeType(string(m.Type))),
+				Title: m.Title, Desc: m.Description, Tags: m.Tags,
+				Refs:          ExtractRefNames(m.Body),
+				Excerpt:       m.Body,
+				SourceSession: m.SourceSession, SourceMessage: m.SourceMessage,
+			}
+		})
 	if err != nil {
 		return "", err
 	}
-	// 事件日志（5.1）：落库成功即追加 save 事件（尽力而为，失败不阻断写入）。
-	// 事件带投影所需元数据（kind/type/title/desc/tags/space/互引 refs），
-	// body 只留摘要——内容真相在 facts 表，日志是事件真相。
-	_ = (&EventLog{DB: b.db}).AppendEvent(Event{
-		At: time.Now().UnixMilli(), Op: OpSave, Name: name, Project: b.project, Space: space,
-		Kind: string(NormalizeKind(string(m.Kind))), Type: string(NormalizeType(string(m.Type))),
-		Title: m.Title, Desc: m.Description, Tags: m.Tags,
-		Refs:   ExtractRefNames(m.Body),
-		Excerpt: m.Body,
-		SourceSession: m.SourceSession, SourceMessage: m.SourceMessage,
-	})
 	return b.Path(name), nil
 }
 
@@ -107,19 +135,23 @@ func (b *sqliteBackend) Archive(name string) (string, error) {
 	if name == "" {
 		return "", fmt.Errorf("memory needs a name")
 	}
-	res, err := b.db.Exec(
+	res, err := b.commitWithEvent(
 		`UPDATE facts SET archived=1, updated_at=? WHERE project=? AND name=? AND archived=0`,
-		time.Now().UTC().Format(time.RFC3339), b.project, name)
+		[]any{time.Now().UTC().Format(time.RFC3339), b.project, name},
+		func(res sql.Result) *Event {
+			if n, _ := res.RowsAffected(); n == 0 {
+				return nil // 未命中行不留痕（语义同改前）
+			}
+			return &Event{
+				At: time.Now().UnixMilli(), Op: OpArchive, Name: name, Project: b.project,
+			}
+		})
 	if err != nil {
 		return "", err
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
 		return "", nil
 	}
-	// 事件日志（5.1）：归档留痕（尽力而为）。
-	_ = (&EventLog{DB: b.db}).AppendEvent(Event{
-		At: time.Now().UnixMilli(), Op: OpArchive, Name: name, Project: b.project,
-	})
 	return b.Path(name), nil
 }
 
@@ -138,19 +170,23 @@ func (b *sqliteBackend) Unarchive(name string) error {
 	if name == "" {
 		return fmt.Errorf("memory needs a name")
 	}
-	res, err := b.db.Exec(
+	res, err := b.commitWithEvent(
 		`UPDATE facts SET archived=0, updated_at=? WHERE project=? AND name=? AND archived=1`,
-		time.Now().UTC().Format(time.RFC3339), b.project, name)
+		[]any{time.Now().UTC().Format(time.RFC3339), b.project, name},
+		func(res sql.Result) *Event {
+			if n, _ := res.RowsAffected(); n == 0 {
+				return nil
+			}
+			return &Event{
+				At: time.Now().UnixMilli(), Op: OpUnarchive, Name: name, Project: b.project,
+			}
+		})
 	if err != nil {
 		return err
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
 		return fmt.Errorf("memory %q 未归档或已被清理", name)
 	}
-	// 事件日志（5.1）：恢复留痕（尽力而为）。
-	_ = (&EventLog{DB: b.db}).AppendEvent(Event{
-		At: time.Now().UnixMilli(), Op: OpUnarchive, Name: name, Project: b.project,
-	})
 	return nil
 }
 
@@ -159,21 +195,26 @@ func (b *sqliteBackend) ChangeType(name string, newType Type) error {
 	if name == "" {
 		return fmt.Errorf("memory needs a name")
 	}
-	res, err := b.db.Exec(
+	res, err := b.commitWithEvent(
 		`UPDATE facts SET type=?, updated_at=? WHERE project=? AND name=? AND archived=0`,
-		string(NormalizeType(string(newType))), time.Now().UTC().Format(time.RFC3339), b.project, name)
+		[]any{string(NormalizeType(string(newType))), time.Now().UTC().Format(time.RFC3339), b.project, name},
+		func(res sql.Result) *Event {
+			if n, _ := res.RowsAffected(); n == 0 {
+				return nil
+			}
+			// 类型变更留痕（投影不据此改实体元数据，元数据一律以最新 save
+			// 事件为准）。
+			return &Event{
+				At: time.Now().UnixMilli(), Op: OpChangeType, Name: name, Project: b.project,
+				Type: string(NormalizeType(string(newType))),
+			}
+		})
 	if err != nil {
 		return err
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
 		return fmt.Errorf("memory %q not found", name)
 	}
-	// 事件日志（5.1）：类型变更留痕（尽力而为；投影不据此改实体元数据，
-	// 元数据一律以最新 save 事件为准）。
-	_ = (&EventLog{DB: b.db}).AppendEvent(Event{
-		At: time.Now().UnixMilli(), Op: OpChangeType, Name: name, Project: b.project,
-		Type: string(NormalizeType(string(newType))),
-	})
 	return nil
 }
 
@@ -184,7 +225,7 @@ func (b *sqliteBackend) Touch(name string) error {
 
 // TouchInSpace 是 Touch 的空间谓词版（S1.2 B 读端隔离器）：space 为空 = 旧行为
 // （全空间）；非空时仅触达该空间的活跃事实——跨空间键不命中、不动行
-//（citations 回传触达的空间限定走此处）。
+// （citations 回传触达的空间限定走此处）。
 func (b *sqliteBackend) TouchInSpace(name, space string) error {
 	return b.touchInSpace(name, space)
 }
@@ -200,18 +241,17 @@ func (b *sqliteBackend) touchInSpace(name, space string) error {
 		query += ` AND space_id=?`
 		args = append(args, space)
 	}
-	res, err := b.db.Exec(query, args...)
-	if err != nil {
-		return err
-	}
-	// 事件日志（5.1）：触达留痕（尽力而为）。触达是生命周期衰减（5.3）的
-	// 事实依据，高频但单行极小；只记未命中过的行（RowsAffected>0）。
-	if n, _ := res.RowsAffected(); n > 0 {
-		_ = (&EventLog{DB: b.db}).AppendEvent(Event{
+	// 触达是生命周期衰减（5.3）的事实依据，高频但单行极小；只记未命中过的
+	// 行（RowsAffected>0）。
+	_, err := b.commitWithEvent(query, args, func(res sql.Result) *Event {
+		if n, _ := res.RowsAffected(); n == 0 {
+			return nil
+		}
+		return &Event{
 			At: time.Now().UnixMilli(), Op: OpTouch, Name: name, Project: b.project, Space: space,
-		})
-	}
-	return nil
+		}
+	})
+	return err
 }
 
 // Pin 固化一条记忆（5.3 三态生命周期）：免疫衰减归档、豁免保留期硬删、

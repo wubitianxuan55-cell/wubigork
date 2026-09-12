@@ -233,7 +233,7 @@ func TestRefreshMemorySpaceIsolation(t *testing.T) {
 
 	// work 会话：刷新后读端只含 work（play 事实被隔离）
 	c.space = "work"
-	c.refreshMemoryLocked()
+	c.refreshMemory()
 	got := names(c.Memory().Store.List())
 	if len(got) != 1 || got[0] != "work-fact" {
 		t.Fatalf("work 会话 List = %v, want [work-fact]", got)
@@ -245,7 +245,7 @@ func TestRefreshMemorySpaceIsolation(t *testing.T) {
 
 	// play 会话：刷新后只含 play
 	c.space = "play"
-	c.refreshMemoryLocked()
+	c.refreshMemory()
 	got = names(c.Memory().Store.List())
 	if len(got) != 1 || got[0] != "play-fact" {
 		t.Fatalf("play 会话 List = %v, want [play-fact]", got)
@@ -253,7 +253,7 @@ func TestRefreshMemorySpaceIsolation(t *testing.T) {
 
 	// space.mode=off（""）：不过滤，两空间都可见（旧行为）
 	c.space = ""
-	c.refreshMemoryLocked()
+	c.refreshMemory()
 	got = names(c.Memory().Store.List())
 	if len(got) != 2 {
 		t.Fatalf("mode=off List = %v, want [work-fact play-fact]", got)

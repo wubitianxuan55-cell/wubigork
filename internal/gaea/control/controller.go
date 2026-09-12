@@ -63,8 +63,13 @@ type Controller struct {
 	hooks         *hook.Runner // session hook runner; nil-safe (no hooks configured)
 	mem           *memory.Set
 	memoryEnabled bool // false 时跳过逐轮记忆上下文注入（记忆开关）
-	cleanup       func()
-	startedOnce   bool // guards the one-shot SessionStart hook on first turn
+	// memGen/memLoadedGen 是记忆写侧代号（刀B v4.246）：每次记忆写路径或
+	// 空间切换推进 memGen；快照在锁外重载完成后按代号提交（gen ≥ 已换入代号
+	// 才换入），防慢 Load 把更新的快照回退。由 c.mu 保护。
+	memGen       uint64
+	memLoadedGen uint64
+	cleanup      func()
+	startedOnce  bool // guards the one-shot SessionStart hook on first turn
 
 	// balanceURL/balanceKey target the active provider's optional wallet-balance
 	// endpoint (empty when the provider declares none). balanceKind selects the
@@ -195,15 +200,15 @@ type Options struct {
 	// 且不记忆会话放行。nil = 包级默认集 hardAskTools（现状）；非 nil（可为
 	// 空集）= 按空间策略生效——play 产品默认空集（不弹审批卡，与 S1.2 play
 	// 记忆隔离配套）。硬拒绝（deny 规则）与本参数无关，始终生效。
-	HardAskTools     map[string]bool
-	Runner           agent.Runner
-	Executor         *agent.Agent
-	Sink             event.Sink
-	Policy           permission.Policy
-	Label            string
-	SystemPrompt     string
-	SessionDir       string
-	SessionPath      string
+	HardAskTools map[string]bool
+	Runner       agent.Runner
+	Executor     *agent.Agent
+	Sink         event.Sink
+	Policy       permission.Policy
+	Label        string
+	SystemPrompt string
+	SessionDir   string
+	SessionPath  string
 	// LogFormat 是会话持久化格式（"legacy"/""=旧行为，"event"=事件日志）。
 	// 事件日志模式下：Snapshot 双写（legacy 镜像+日志）、回合开始前落用户
 	// 消息并 flush 检查点（fail-closed）、Resume 走 Restore（checkpoint+tail）。
@@ -211,13 +216,13 @@ type Options struct {
 	// Space 是会话空间的配置生效值（S2 双空间）："work"/"play"=分区空间；
 	// ""=space.mode=off（忽略空间，平铺 + 日志不写 space 字段）。注入后由
 	// NewSession/Resume/SetSessionPath 以路径归属折算传播到当前会话。
-	Space     string
-	Host      *plugin.Host
-	Commands  []command.Command
-	Skills    []skill.Skill
-	Hooks     *hook.Runner
-	Memory    *memory.Set
-	Cleanup   func()
+	Space    string
+	Host     *plugin.Host
+	Commands []command.Command
+	Skills   []skill.Skill
+	Hooks    *hook.Runner
+	Memory   *memory.Set
+	Cleanup  func()
 	// BalanceURL/BalanceKey wire the active provider's optional wallet-balance
 	// endpoint and bearer key; empty when the provider declares no balance_url.
 	BalanceURL string
@@ -1025,6 +1030,11 @@ func (c *Controller) SetSpace(space string) { c.applySpace(space) }
 func (c *Controller) applySpace(space string) {
 	c.mu.Lock()
 	c.space = space
+	// 空间切换使在途记忆快照过期（刀B v4.246）：在途 Load 完成后按代号被
+	// 拒绝换入，下次写路径以新空间重载（与改前一致：applySpace 本就不刷新）。
+	if c.mem != nil {
+		c.memGen++
+	}
 	path := c.sessionPath
 	exec := c.executor
 	spaceForPath := c.writeSpaceForLocked(path)

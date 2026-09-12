@@ -102,19 +102,23 @@ func DreamAuditEntries(userDir string, max int) []DreamAuditEntry {
 // TIANXUAN.md by default) — the write side of "#<note>". Returns the file written.
 func (c *Controller) QuickAdd(scope memory.Scope, note string) (string, error) {
 	c.mu.Lock()
-	defer c.mu.Unlock()
 	if c.mem == nil {
+		c.mu.Unlock()
 		return "", nil
 	}
 	path := c.mem.DocPath(scope)
 	if path == "" {
+		c.mu.Unlock()
 		return "", fmt.Errorf("no target file for memory scope %q", scope)
 	}
 	if err := memory.AppendDoc(path, note); err != nil {
+		c.mu.Unlock()
 		return "", err
 	}
 	c.pendingMemory = append(c.pendingMemory, note)
-	c.refreshMemoryLocked()
+	opts, gen := c.beginMemoryReloadLocked()
+	c.mu.Unlock()
+	c.finishMemoryReload(opts, gen)
 	return path, nil
 }
 
@@ -122,12 +126,13 @@ func (c *Controller) QuickAdd(scope memory.Scope, note string) (string, error) {
 // desktop panel's in-place editor. Returns the file written.
 func (c *Controller) SaveDoc(path, body string) (string, error) {
 	c.mu.Lock()
-	defer c.mu.Unlock()
 	if c.mem == nil {
+		c.mu.Unlock()
 		return "", nil
 	}
 	written, err := c.mem.WriteDoc(path, body)
 	if err != nil {
+		c.mu.Unlock()
 		return "", err
 	}
 	// Inject the new content once on the next turn: the cached prefix still holds
@@ -136,7 +141,9 @@ func (c *Controller) SaveDoc(path, body string) (string, error) {
 	// prefix. Trimmed to a single tail note (drained by Compose), not per-turn.
 	c.pendingMemory = append(c.pendingMemory,
 		"Memory file "+written+" was just edited. Its current contents:\n"+strings.TrimSpace(body))
-	c.refreshMemoryLocked()
+	opts, gen := c.beginMemoryReloadLocked()
+	c.mu.Unlock()
+	c.finishMemoryReload(opts, gen)
 	return written, nil
 }
 
@@ -145,8 +152,8 @@ func (c *Controller) SaveDoc(path, body string) (string, error) {
 // atomic on disk and the index stays consistent. Returns the file written.
 func (c *Controller) UpdateFact(name, body string) (string, error) {
 	c.mu.Lock()
-	defer c.mu.Unlock()
 	if c.mem == nil {
+		c.mu.Unlock()
 		return "", nil
 	}
 	var target *memory.Memory
@@ -158,16 +165,20 @@ func (c *Controller) UpdateFact(name, body string) (string, error) {
 		}
 	}
 	if target == nil {
+		c.mu.Unlock()
 		return "", fmt.Errorf("fact %q not found", name)
 	}
 	target.Body = body
 	path, err := c.mem.Store.Save(*target)
 	if err != nil {
+		c.mu.Unlock()
 		return "", err
 	}
 	c.pendingMemory = append(c.pendingMemory,
 		"Memory fact \""+name+"\" was edited. Its current body:\n"+strings.TrimSpace(body))
-	c.refreshMemoryLocked()
+	opts, gen := c.beginMemoryReloadLocked()
+	c.mu.Unlock()
+	c.finishMemoryReload(opts, gen)
 	return path, nil
 }
 
@@ -176,17 +187,20 @@ func (c *Controller) UpdateFact(name, body string) (string, error) {
 // preserved. Refreshes the memory snapshot and queues a turn-tail note.
 func (c *Controller) ChangeFactType(name, newType string) error {
 	c.mu.Lock()
-	defer c.mu.Unlock()
 	if c.mem == nil {
+		c.mu.Unlock()
 		return nil
 	}
 	t := memory.NormalizeType(newType)
 	if err := c.mem.Store.ChangeType(name, t); err != nil {
+		c.mu.Unlock()
 		return err
 	}
 	c.pendingMemory = append(c.pendingMemory,
 		"Memory fact \""+name+"\" type changed to "+string(t)+".")
-	c.refreshMemoryLocked()
+	opts, gen := c.beginMemoryReloadLocked()
+	c.mu.Unlock()
+	c.finishMemoryReload(opts, gen)
 	return nil
 }
 
@@ -198,16 +212,19 @@ func (c *Controller) ChangeFactType(name, newType string) error {
 // until the next session re-folds the index).
 func (c *Controller) ForgetMemory(name string) error {
 	c.mu.Lock()
-	defer c.mu.Unlock()
 	if c.mem == nil {
+		c.mu.Unlock()
 		return nil
 	}
 	if err := c.mem.Store.Delete(name); err != nil {
+		c.mu.Unlock()
 		return err
 	}
 	c.pendingMemory = append(c.pendingMemory,
 		"Deleted memory \""+name+"\" — disregard its line still shown in the saved-memories index until next session.")
-	c.refreshMemoryLocked()
+	opts, gen := c.beginMemoryReloadLocked()
+	c.mu.Unlock()
+	c.finishMemoryReload(opts, gen)
 	return nil
 }
 
@@ -217,9 +234,16 @@ func (c *Controller) ForgetMemory(name string) error {
 // refreshes the snapshot a memory panel reads.
 func (c *Controller) QueueMemory(note string) {
 	c.mu.Lock()
-	defer c.mu.Unlock()
 	c.pendingMemory = append(c.pendingMemory, note)
-	c.refreshMemoryLocked()
+	var opts memory.Options
+	var gen uint64
+	if c.mem != nil {
+		opts, gen = c.beginMemoryReloadLocked()
+	}
+	c.mu.Unlock()
+	if gen > 0 {
+		c.finishMemoryReload(opts, gen)
+	}
 }
 
 // Memory returns the loaded memory snapshot (nil when memory is disabled), for
@@ -231,24 +255,49 @@ func (c *Controller) Memory() *memory.Set {
 	return c.mem
 }
 
-// refreshMemoryLocked re-discovers memory from disk so a later Memory() reflects
-// a just-applied write, and updates the search index so memory_search finds the
-// change immediately. Caller holds c.mu.
-//
-// v4.5.1a 红线补课：按会话空间收窄读端（Options.Space→InSpace 视图）——work
-// 会话的逐轮记忆注入/面板只看到 work 记忆，play 只看到 play；space.mode=off
-// 时 c.space="" 不过滤（旧行为零变化）。写路径仍以 Memory.Space 落库为准。
-func (c *Controller) refreshMemoryLocked() {
+// beginMemoryReloadLocked 在锁内收口刷新入参并推进写侧代号。调用方随后释放
+// c.mu，在锁外跑 memory.Load（SELECT 全部 facts + 全量分词 + 文档发现），
+// 完成后调 finishMemoryReload 提交——刀B v4.246：改前这 2~7ms 的全库重载在
+// c.mu 内执行，Send/Cancel/事件等全部控制器操作被一并阻塞。
+// 调用方持有 c.mu 且 c.mem 非 nil。Space 取 c.space 当前值（v4.5.1a 读端
+// 空间收窄：work 会话只看到 work 记忆，play 只看到 play；space.mode=off 时
+// 为空不过滤——写路径仍以 Memory.Space 落库为准）。
+func (c *Controller) beginMemoryReloadLocked() (memory.Options, uint64) {
+	c.memGen++
+	return memory.Options{
+		CWD:     c.mem.CWD,
+		UserDir: c.mem.UserDir,
+		DB:      c.mem.DB,
+		Space:   c.space,
+	}, c.memGen
+}
+
+// finishMemoryReload 锁外重载后的提交点：代号守卫仅当代号 ≥ 已换入代号时
+// 换入（两个写者并发时，慢的旧 Load 不得把新快照回退；被跳过的写必然已被
+// 更新一代的 Load 读到——Load 起点晚于该写）。搜索索引与快照同点换入。
+// 调用方不得持有 c.mu。
+func (c *Controller) finishMemoryReload(opts memory.Options, gen uint64) {
+	next := memory.Load(opts)
+	c.mu.Lock()
+	if gen >= c.memLoadedGen {
+		c.mem = next
+		c.memLoadedGen = gen
+		builtin.SetMemorySearchIndex(next.Search)
+	}
+	c.mu.Unlock()
+}
+
+// refreshMemory 强制重载记忆快照（测试与诊断用）：等价一次「锁内取参→
+// 锁外 Load→提交」的完整刷新。正常写路径不必直接调它——写点自带刷新。
+func (c *Controller) refreshMemory() {
+	c.mu.Lock()
 	if c.mem == nil {
+		c.mu.Unlock()
 		return
 	}
-	c.mem = memory.Load(memory.Options{
-		CWD:      c.mem.CWD,
-		UserDir:  c.mem.UserDir,
-		DB:       c.mem.DB,
-		Space:    c.space,
-	})
-	builtin.SetMemorySearchIndex(c.mem.Search)
+	opts, gen := c.beginMemoryReloadLocked()
+	c.mu.Unlock()
+	c.finishMemoryReload(opts, gen)
 }
 
 // SessionRemember saves a fact to session-only memory (not written to disk).
@@ -267,19 +316,22 @@ func (c *Controller) SessionRemember(m memory.Memory) {
 // Returns the number of facts promoted.
 func (c *Controller) PromoteSessionFacts() (int, error) {
 	c.mu.Lock()
-	defer c.mu.Unlock()
 	if c.mem == nil || len(c.sessionFacts) == 0 {
+		c.mu.Unlock()
 		return 0, nil
 	}
 	n := 0
 	for _, m := range c.sessionFacts {
 		if _, err := c.mem.Store.Save(m); err != nil {
+			c.mu.Unlock()
 			return n, fmt.Errorf("promoting %q: %w", m.Name, err)
 		}
 		n++
 	}
 	c.sessionFacts = nil
-	c.refreshMemoryLocked()
+	opts, gen := c.beginMemoryReloadLocked()
+	c.mu.Unlock()
+	c.finishMemoryReload(opts, gen)
 	return n, nil
 }
 
@@ -299,8 +351,8 @@ func (c *Controller) PromoteSessionFacts() (int, error) {
 // explicit，条数 + 名称 + 空间），保证全程可追溯。
 func (c *Controller) SaveDreamFacts(space, source string, facts []memory.Memory) (int, error) {
 	c.mu.Lock()
-	defer c.mu.Unlock()
 	if c.mem == nil || len(facts) == 0 {
+		c.mu.Unlock()
 		return 0, nil
 	}
 	sp := spaces.Normalize(space)
@@ -324,15 +376,19 @@ func (c *Controller) SaveDreamFacts(space, source string, facts []memory.Memory)
 				"name", m.Name, "from", old.Space, "to", sp, "source", source)
 		}
 		if _, err := c.mem.Store.Save(m); err != nil {
+			c.mu.Unlock()
 			return n, fmt.Errorf("dream save %q: %w", m.Name, err)
 		}
 		n++
 		names = append(names, m.Name)
 	}
-	c.refreshMemoryLocked()
+	userDir := c.mem.UserDir
+	opts, gen := c.beginMemoryReloadLocked()
+	c.mu.Unlock()
+	c.finishMemoryReload(opts, gen)
 	// 审计（尽力而为）：每次实际写入都记一行，失败不阻断主流程。
 	if n > 0 {
-		if err := appendDreamAudit(c.mem.UserDir, DreamAuditEntry{
+		if err := appendDreamAudit(userDir, DreamAuditEntry{
 			TS:     time.Now().UTC().Format(time.RFC3339),
 			Source: source,
 			Saved:  n,
@@ -359,8 +415,8 @@ func (c *Controller) DistillMerge(keep, archive string) (string, error) {
 		return "", fmt.Errorf("keep 与 archive 不能是同一条记忆")
 	}
 	c.mu.Lock()
-	defer c.mu.Unlock()
 	if c.mem == nil {
+		c.mu.Unlock()
 		return "", fmt.Errorf("记忆未就绪")
 	}
 	cand := memory.DistillMergeCandidates(c.mem.Store.List())
@@ -372,6 +428,7 @@ func (c *Controller) DistillMerge(keep, archive string) (string, error) {
 		}
 	}
 	if !matched {
+		c.mu.Unlock()
 		return "", fmt.Errorf("候选已过期或不存在（%s / %s），请刷新建议后重试", keep, archive)
 	}
 	newer, older := keep, archive
@@ -383,20 +440,26 @@ func (c *Controller) DistillMerge(keep, archive string) (string, error) {
 	}
 	keepMem, _ := c.mem.Store.Get(newer)
 	if _, err := c.mem.Store.Archive(older); err != nil {
+		c.mu.Unlock()
 		return "", fmt.Errorf("归档 %q 失败: %w", older, err)
 	}
 	if err := c.mem.Store.Touch(newer); err != nil {
 		// 归档已生效、Touch 失败：不回滚（归档可逆），如实报错。
+		c.mu.Unlock()
 		return "", fmt.Errorf("保留条 %q 触达失败: %w", newer, err)
 	}
-	c.refreshMemoryLocked()
+	userDir := c.mem.UserDir
+	auditSpace := keepMem.Space
+	opts, gen := c.beginMemoryReloadLocked()
+	c.mu.Unlock()
+	c.finishMemoryReload(opts, gen)
 	// 审计（尽力而为）：合并动作落 dream 审计，与 SaveDreamFacts 同口径。
-	if err := appendDreamAudit(c.mem.UserDir, DreamAuditEntry{
+	if err := appendDreamAudit(userDir, DreamAuditEntry{
 		TS:     time.Now().UTC().Format(time.RFC3339),
 		Source: "distill_merge",
 		Saved:  0,
 		Names:  []string{newer, older},
-		Space:  keepMem.Space,
+		Space:  auditSpace,
 	}); err != nil {
 		slog.Warn("distill merge audit write failed", "error", err)
 	}
