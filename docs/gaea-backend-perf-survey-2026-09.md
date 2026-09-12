@@ -56,7 +56,7 @@
 |---|---|---|---|
 | 1 | browser/manager.go:145 | Ensure/NewTab/SwitchTab 全程持 mu 做进程拉起+探活（冷启动最长 20s+），并发 browser_* 全串行 | 观察（单用户桌面场景并发低；并行化需重构 attach 状态机） |
 | 2 | channels/weixin/clawbot.go:1028 | apiPost timeout<90s 时每次克隆新 Transport——长轮询循环永久每轮新建+TCP/TLS 握手 | **✅ v4.251.0 修**：每请求 context 截止替代客户端克隆，语义等价（较短者生效） |
-| 3 | app.go:418→characterlib/portrait.go:190 | Startup 内串行下载全部远程剧照（每张 30s 超时，N×30s） | 观察（仅 xAI 临时图场景触发；异步化需先核 characterlib 库并发安全） |
+| 3 | app.go:418→characterlib/portrait.go:190 | Startup 内串行下载全部远程剧照（每张 30s 超时，N×30s） | **✅ v4.252.0 修**：异步化（安全前提核实=下载期间不占库连接、短 Exec 与启动期操作在单连接池上安全交错；迁移完成前显示远程 URL=迁移前既有状态，语义零变化；幂等+本体测试覆盖） |
 | 4 | boot/plugins.go:46→plugin/plugin.go:218 | StartAvailable 串行连接 MCP server 且无 deadline——挂死 server 无限期卡住会话装配 | **✅ v4.251.0 修**：并行连接+单 server 30s 上限（AfterFunc 取消仅失败路径生效，健康连接不被误杀；测试=双挂死+好 server 耗时上界守卫并行性） |
 | 5 | whisper_state.go:197→clawbot.go:175 | Startup 内每微信助手同步 notifyStart POST（10s×N） | **✅ v4.251.0 修**：通知异步化（失败无补救语义） |
 | 6 | gaea_tasks.go:405→filewatch.go:100 | Startup 内同步递归 WalkDir 整个工作区 | 观察（watcher 就绪语义改动风险大；大工作区启动末尾卡顿） |
@@ -67,4 +67,4 @@
 | 11 | weixin/capture.go:52 | 包级 captureMu 持有期间做文件 IO | 观察（并发度低） |
 | 12 | app/tts_service.go:115 | Startup 内同步探活 CosyVoice（2s 上限） | 观察（connect-refused 立即返回，低危） |
 
-**未发现**：goroutine 泄漏（类别全净）。**净修复 5 项（#2/#4/#5/#8/#10），观察 7 项**（#1/#3/#6 触及启动/状态机语义，需单独设计；#7/#9/#11/#12 低危顺手级）。
+**未发现**：goroutine 泄漏（类别全净）。**净修复 6 项（#2/#3/#4/#5/#8/#10），观察 6 项**（#1/#6 触及启动/状态机语义，需单独设计；#7/#9/#11/#12 低危顺手级）。

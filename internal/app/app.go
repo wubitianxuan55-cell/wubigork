@@ -415,10 +415,22 @@ func (a *App) Startup(ctx context.Context) {
 	if n := a.charLib.MigratePortraitsToFiles(); n > 0 {
 		slog.Info("角色库剧照已迁移为文件", "count", n)
 	}
-	// 远程剧照（xAI 临时图等会过期）本地化，避免角色卡裂图
-	if n := a.charLib.MigrateRemotePortraits(); n > 0 {
-		slog.Info("角色库远程剧照已本地化", "count", n)
-	}
+	// 远程剧照（xAI 临时图等会过期）本地化，避免角色卡裂图。
+	// 刀H v4.252（普查二遍#3）：改前同步串行下载（每张 30s 超时，N×30s
+	// 全算进冷启动）。异步化安全前提：下载期间不占库连接（先收集 todo 再
+	// 逐条下载+短 Exec），与启动期其他角色库操作在单连接池上安全交错；
+	// 迁移完成前角色卡显示远程 URL——与迁移前的既有状态一致，语义零变化。
+	// 幂等（本版未迁移的下轮启动重试），本体已有测试覆盖。
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("角色库远程剧照后台迁移 panic", "panic", r)
+			}
+		}()
+		if n := a.charLib.MigrateRemotePortraits(); n > 0 {
+			slog.Info("角色库远程剧照已本地化（后台）", "count", n)
+		}
+	}()
 	if a.charLib != nil {
 		if err := a.charLib.EnsureBuiltins(whisper.PersonalityPresets); err != nil {
 			slog.Error("角色库种子化内置角色失败", "error", err)
