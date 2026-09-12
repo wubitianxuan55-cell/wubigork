@@ -380,6 +380,11 @@ func (a *App) runSinStream(runID, topicID, userMessage, eng, model, source strin
 		}
 	}
 
+	// 工具插图产物回写（v4.270）：本轮落库后把 sin_illustrate 的产物按
+	// tool0..toolN 写进 extra.illustrations——画廊/导出与正文标记图同一存储。
+	// cue 用 toolN 前缀：正文标记的 cue 是数字键，避免同键互踩。
+	a.sinPersistToolArtifacts(messageID, trace)
+
 	costCNY := 0.0
 	if usage != nil {
 		usdCny := 0.0

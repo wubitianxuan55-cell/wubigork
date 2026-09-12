@@ -101,6 +101,7 @@ describe('过程卡纯函数', () => {
     expect(sinToolLabel('web_search')).toBe('联网搜索')
     expect(sinToolLabel('sin_outline')).toBe('故事大纲')
     expect(sinToolLabel('sin_export')).toBe('图文导出')
+    expect(sinToolLabel('sin_illustrate')).toBe('生成插图')
     expect(sinToolLabel('mystery_tool')).toBe('mystery_tool')
   })
 

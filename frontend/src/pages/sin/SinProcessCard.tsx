@@ -9,6 +9,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { AlertCircle, CheckCircle, ChevronRight, Loader, Wrench } from '../../gaea/icons'
 import { boundedOutput } from '../../gaea/lib/tools'
+import { readFileAsDataURL } from '../../api/image'
 import { TOOL_ICONS, fmtToolElapsed, sinToolLabel, sinToolSubject, sinToolSummary } from './sinToolMeta'
 import type { SinToolTraceView } from './types'
 
@@ -106,6 +107,9 @@ function SinToolRow({ tool }: { tool: SinToolTraceView }) {
       </button>
       {expandable && open && (
         <div className="sin-proc-tool-body">
+          {(tool.artifacts ?? []).filter((a) => a.kind === 'image').map((a, i) => (
+            <SinProcArtifact key={`${a.path}_${i}`} path={a.path} caption={a.caption} />
+          ))}
           {pretty && (
             <div className="sin-proc-kv">
               <span className="sin-proc-k">参数</span>
@@ -123,5 +127,26 @@ function SinToolRow({ tool }: { tool: SinToolTraceView }) {
         </div>
       )}
     </div>
+  )
+}
+
+/** 工具产物缩略图（sin_illustrate 图片）：本地路径经附件通道转 data URL。 */
+function SinProcArtifact({ path, caption }: { path: string; caption?: string }) {
+  const [url, setUrl] = useState('')
+  const [failed, setFailed] = useState(false)
+  useEffect(() => {
+    let live = true
+    readFileAsDataURL(path)
+      .then((u) => { if (live) setUrl(u) })
+      .catch(() => { if (live) setFailed(true) })
+    return () => { live = false }
+  }, [path])
+  return (
+    <figure className="sin-proc-art">
+      {failed
+        ? <span className="sin-proc-art-missing">缩略图读取失败</span>
+        : <img className="sin-proc-art-img" src={url || undefined} alt={caption || '工具产物插图'} loading="lazy" />}
+      {caption && <figcaption className="sin-proc-art-cap">{caption}</figcaption>}
+    </figure>
   )
 }

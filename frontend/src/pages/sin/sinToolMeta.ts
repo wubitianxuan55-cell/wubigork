@@ -2,7 +2,7 @@
 //
 // 与组件分文件：组件文件只导出组件（react-refresh 的 only-export-components
 // 纪律），纯函数另放一处便于单测与复用。
-import { BookOpen, Download, FileText, Globe, ListTree, Users } from '../../gaea/icons'
+import { BookOpen, Download, FileText, Globe, Image, ListTree, Users } from '../../gaea/icons'
 import { subjectOf } from '../../gaea/lib/tools'
 import type { SinToolTraceView } from './types'
 
@@ -14,6 +14,7 @@ export const TOOL_LABELS: Record<string, string> = {
   sin_notes: '故事便签',
   sin_outline: '故事大纲',
   sin_export: '图文导出',
+  sin_illustrate: '生成插图',
 }
 
 export const TOOL_ICONS = {
@@ -23,6 +24,7 @@ export const TOOL_ICONS = {
   sin_notes: BookOpen,
   sin_outline: ListTree,
   sin_export: Download,
+  sin_illustrate: Image,
 } as const
 
 const ACTION_LABELS: Record<string, string> = {
@@ -68,6 +70,7 @@ export function sinToolSubject(t: SinToolTraceView): string {
     return content ? `${action} · ${clip(content, 24)}` : action
   }
   if (t.name === 'sin_export') return str('filename') || '按默认名导出'
+  if (t.name === 'sin_illustrate') return clip(str('prompt'), 32)
   const office = subjectOf(t.name ?? '', args)
   if (office) return clip(office, 48)
   return clip(str('query') || str('url') || str('content') || '', 48)

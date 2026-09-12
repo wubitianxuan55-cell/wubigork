@@ -18,18 +18,19 @@ import (
 
 // 工具名常量（提示词、事件、前端标签、测试单点引用）。
 const (
-	sinToolWebSearch = "web_search"
-	sinToolWebFetch  = "web_fetch"
-	sinToolCast      = "sin_cast"
-	sinToolNotes     = "sin_notes"
-	sinToolOutline   = "sin_outline"
-	sinToolExport    = "sin_export"
+	sinToolWebSearch  = "web_search"
+	sinToolWebFetch   = "web_fetch"
+	sinToolCast       = "sin_cast"
+	sinToolNotes      = "sin_notes"
+	sinToolOutline    = "sin_outline"
+	sinToolExport     = "sin_export"
+	sinToolIllustrate = "sin_illustrate"
 )
 
 // sinToolOrder 工具在提示词与事件里的稳定顺序。
 // 顺序 = 模型选工具时的心理优先级：先「把现实细节查准」（联网），再原罪域内的
 // 底稿（便签/大纲/角色卡），最后「收尾动作」（导出）。
-var sinToolOrder = []string{sinToolWebSearch, sinToolWebFetch, sinToolCast, sinToolNotes, sinToolOutline, sinToolExport}
+var sinToolOrder = []string{sinToolWebSearch, sinToolWebFetch, sinToolCast, sinToolNotes, sinToolOutline, sinToolIllustrate, sinToolExport}
 
 // sinTool 单个原罪工具：声明（name/description/schema）+ 执行。
 type sinTool interface {
@@ -108,6 +109,9 @@ type sinToolTrace struct {
 	Error     string `json:"error,omitempty"`
 	ElapsedMS int64  `json:"elapsed_ms,omitempty"`
 	ReadOnly  bool   `json:"read_only,omitempty"`
+	// Artifacts 工具产物（sin_illustrate 图片；result 帧与 extra.tools 同形，
+	// 前端过程卡据此渲染缩略图；落库后回写 extra.illustrations）。
+	Artifacts []sinToolArtifact `json:"artifacts,omitempty"`
 }
 
 // sinToolByName 按名查找本轮工具；未知工具返回 nil——调用方如实把

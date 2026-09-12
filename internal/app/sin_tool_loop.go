@@ -156,6 +156,11 @@ func (a *App) sinRunToolCall(ctx context.Context, runID string, tools []sinTool,
 		} else {
 			tr.Output = sinClampToolOutput(out)
 			output = tr.Output
+			// 产物收集（sin_illustrate 图片）：provider 在 Execute 内累积，取走后
+			// 随轨迹落库，落库后回写 extra.illustrations（sin_handler）。
+			if prov, ok := t.(sinToolArtifactProvider); ok {
+				tr.Artifacts = prov.Artifacts()
+			}
 		}
 	}
 	tr.ElapsedMS = time.Since(start).Milliseconds()
@@ -179,7 +184,7 @@ func sinToolDispatchFrame(tr sinToolTrace) map[string]interface{} {
 }
 
 func sinToolResultFrame(tr sinToolTrace) map[string]interface{} {
-	return map[string]interface{}{
+	frame := map[string]interface{}{
 		"type":       "tool_result",
 		"id":         tr.ID,
 		"name":       tr.Name,
@@ -187,6 +192,10 @@ func sinToolResultFrame(tr sinToolTrace) map[string]interface{} {
 		"error":      tr.Error,
 		"elapsed_ms": tr.ElapsedMS,
 	}
+	if len(tr.Artifacts) > 0 {
+		frame["artifacts"] = tr.Artifacts
+	}
+	return frame
 }
 
 // sinClampToolOutput 截断过长的工具结果并留可见标记（截断就如实说，不静默切）。

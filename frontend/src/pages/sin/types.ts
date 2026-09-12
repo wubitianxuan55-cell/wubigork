@@ -41,6 +41,14 @@ export interface SinToolTrace {
   error?: string
   elapsed_ms?: number
   read_only?: boolean
+  /** 工具产物（sin_illustrate 图片）：过程卡缩略图 + 落库后已回写 extra.illustrations。 */
+  artifacts?: SinToolArtifactView[]
+}
+
+export interface SinToolArtifactView {
+  kind: string
+  path: string
+  caption?: string
 }
 
 /** 过程卡视图：轨迹 + 运行期状态（dispatch 到达 → running；result 到达 → 终态）。 */

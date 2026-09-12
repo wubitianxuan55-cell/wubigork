@@ -272,8 +272,8 @@ v4.256~v4.261 原罪只有「固定管线 + 前端触发」，模型**零工具*
 属半成品。本刀已把这三份文件挪出树外存于 `.tmp/sin-next-knife/`（不删），下刀接完产物链路
 再入册；本刀工具面按上表 5 个交付。
 **→ 注记（2026-09-13，v4.267）**：`sin_export` 已接完产物链路入册（导出产物=exports 目录
-落盘文件+轨迹文本路径，过程卡 v4.262 已能渲染）；`sin_illustrate` 维持上方「刻意不做」，
-留存件仍在 `.tmp/sin-next-knife/`，入册与否待拍板。
+落盘文件+轨迹文本路径，过程卡 v4.262 已能渲染）；`sin_illustrate` 留存件仍在 `.tmp/sin-next-knife/`；
+**v4.270 用户拍板放行入册**（单链路委托+Artifacts 轨迹+落库回写，见 §14.9），上方「刻意不做」理由就此作废。
 
 ### 13.3 事件与落库契约（`sin-stream:<runID>` 通道，与既有 delta/reasoning/done 平级）
 
@@ -444,3 +444,19 @@ v4.262 留存合约清账（13.2 注记「下刀接完产物链路再入册」�
   明确「只在用户明确要导出时用」。工具集 5→6，order 末位（收尾动作）。
 - 前端：过程卡标签「图文导出」+ Download 图标 + 行首摘要给 filename。
 - `sin_illustrate` 不动：仍按 13.2「刻意不做」留待拍板，留存件不删。
+
+
+### 14.9 sin_illustrate 工具入册（v4.270.0）
+
+用户在拍板池清单后连续「继续」=按序放行（推翻 §13.2「刻意不做」；若非本意可回退，
+功能可逆）。**单链路委托既有 SinIllustrate**（角色锚点+参考槽门控+退回纯文本+台账+
+sin/art 目录），不复制出图链；与标记协议的分工在 Description 写死（正文配图走标记，
+工具只在用户明确要图时用）。
+- **Artifacts 产物链（补 v4.262 留存缺口）**：sinToolTrace 增 `artifacts` 字段；
+  工具实现 `sinToolArtifactProvider`，循环 Execute 成功后收集，随 result 帧与
+  extra.tools 落库（重开还原同形）。
+- **落库回写**：消息落库拿到 messageID 后 `sinPersistToolArtifacts` 按 tool0..toolN
+  并入 extra.illustrations（画廊/导出同存储；toolN 前缀防与正文标记数字 cue 互踩；
+  逐条告警不阻断）。
+- **前端**：过程卡缩略图（附件通道 data URL + caption 图注 + 失败如实占位）。
+- **留池**：live 模型调工具端到端补验（等模型环境稳定+用户闲置窗口）。

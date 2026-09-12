@@ -1,7 +1,7 @@
 package app
 
 // 原罪工具循环测试：可编排的多轮假 LLM（第 N 次请求返回预置 SSE），断言
-//  1. 请求体形态——首轮带 6 个 tools、次轮把 assistant(tool_calls)+tool 结果接回；
+//  1. 请求体形态——首轮带 7 个 tools、次轮把 assistant(tool_calls)+tool 结果接回；
 //  2. 落库结果——正文 = 模型输出、extra.tools 轨迹、工具真实副作用；
 //  3. 降级——模型/端点不支持 tools 时去掉工具重试一次，写作不中断；
 //  4. 轮次上限与未知工具——不空转、如实回错、不落空消息。
@@ -182,12 +182,12 @@ func TestSinToolLoopExecutesToolAndPersistsTrace(t *testing.T) {
 		t.Errorf("便签未落盘: %+v", doc)
 	}
 
-	// 请求形态：两轮；首轮带 6 个工具定义；次轮接上 assistant(tool_calls)+tool 结果。
+	// 请求形态：两轮；首轮带 7 个工具定义；次轮接上 assistant(tool_calls)+tool 结果。
 	if llm.count() != 2 {
 		t.Fatalf("请求轮次 = %d, want 2", llm.count())
 	}
-	if got := len(sinReqTools(llm.request(0))); got != 6 {
-		t.Errorf("首轮 tools = %d, want 6", got)
+	if got := len(sinReqTools(llm.request(0))); got != 7 {
+		t.Errorf("首轮 tools = %d, want 7", got)
 	}
 	req2 := sinReqMessages(llm.request(1))
 	if len(req2) != 4 {
