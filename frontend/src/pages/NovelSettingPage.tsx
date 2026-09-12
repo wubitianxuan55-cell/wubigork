@@ -4,7 +4,7 @@
 // v4.3e/f：新增「维度化」模式（6 维度卡片分卡片编辑）与伏笔登记表 / 一致性检查面板。
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
-  Button, Empty, Input, Modal, Segmented, Space, Spin, Tag, message,
+  Button, Input, Modal, Segmented, Space, Spin, Tag, message,
 } from 'antd'
 import {
   ColumnWidthOutlined, EditOutlined, ExportOutlined, EyeOutlined,
@@ -14,6 +14,7 @@ import ChatPanel from '../components/ChatPanel'
 import type { Message } from '../components/ChatPanel'
 import { MarkdownContent, mdStyles } from '../components/MarkdownContent'
 import WorldviewSectionsEditor from '../components/novel/WorldviewSectionsEditor'
+import V3Empty from '../components/V3Empty'
 import ForeshadowPanel from '../components/novel/ForeshadowPanel'
 import ConsistencyPanel from '../components/novel/ConsistencyPanel'
 import { useAppStore } from '../stores/appStore'
@@ -195,7 +196,7 @@ const NovelSettingPage: React.FC = () => {
   )
 
   const editorBody = needsProject ? (
-    <Empty style={{ margin: 'auto' }} image={Empty.PRESENTED_IMAGE_SIMPLE}
+    <V3Empty style={{ margin: 'auto' }}
       description="请先在「书架」打开或创建一部小说项目" />
   ) : loading ? (
     <div style={{ margin: 'auto' }}><Spin size="large" /></div>

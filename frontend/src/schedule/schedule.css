@@ -1,12 +1,21 @@
 /* schedule/schedule.css — 进度计划板块样式（横道图/单代号/双代号共用令牌） */
 
 :root {
+  /* 领域编码色（关键红/工作蓝）：禁绑 --md-sys-color-primary/error（主题预设会改色相）。
+     默认档=暗色，用提亮值保证深底可读；亮色档见下方 :root[data-hl="light"] 锁原值（零回归）。 */
+  --sched-critical: #f04848;   /* 斑马关键红（暗色提亮） */
+  --sched-normal: #4d8df0;     /* 斑马工作蓝（暗色提亮） */
+  --sched-link: #8b98ab;       /* 连线/虚线（暗色提亮） */
+  --sched-group: #d5dae2;      /* 分组汇总条/箭头/汇总名文字（暗色提亮；6 处消费均为细条/线条/文字，无深底白字依赖） */
+  --sched-weekend: rgba(148, 163, 184, 0.14);
+  --sched-grid: rgba(148, 163, 184, 0.16); /* 网络图坐标纸底（v4.127 降强度，不压节点） */
+}
+/* 亮色档：锁定历史原值（亮色零变化=零回归）；先例 gaea/hljs-theme.css:43 */
+:root[data-hl="light"] {
   --sched-critical: #e02020;   /* 斑马关键红 */
   --sched-normal: #1e6fd9;     /* 斑马工作蓝 */
   --sched-link: #94a3b8;
   --sched-group: #1f2937;
-  --sched-weekend: rgba(148, 163, 184, 0.14);
-  --sched-grid: rgba(148, 163, 184, 0.16); /* 网络图坐标纸底（v4.127 降强度，不压节点） */
 }
 
 /* ── 页面骨架 ─────────────────────────────────────────────── */
@@ -328,6 +337,7 @@
   white-space: nowrap;
   background: #1f2937;
   color: #fff;
+  border: 1px solid var(--md-sys-color-outline-variant, transparent); /* 深底惯例保留，暗色下补 1px 轮廓 */
   border-radius: 4px;
   padding: 1px 6px;
   z-index: 40;
@@ -337,7 +347,7 @@
   background: var(--sched-critical);
 }
 .sched-bar-manual {
-  background: #64748b;
+  background: var(--md-sys-color-outline, #64748b);
 }
 .sched-mode-chip {
   font-size: 11px;
@@ -345,7 +355,7 @@
   height: 20px;
 }
 .sched-mode-manual {
-  color: #64748b;
+  color: var(--md-sys-color-on-surface-variant, #64748b);
 }
 .sched-bar-progress {
   height: 100%;
@@ -407,17 +417,17 @@
   bottom: 3px;
   height: 5px;
   border-radius: 2px;
-  border: 1px solid #64748b;
+  border: 1px solid var(--md-sys-color-outline, #64748b);
   background: rgba(100, 116, 139, 0.12);
   z-index: 11;
 }
 /* 基线对比文案色（提前/退出关键=绿；拖后/新进关键沿用关键红） */
 .sched-drift-good {
-  color: #16a34a;
+  color: var(--md-sys-color-success, #16a34a);
   font-weight: 700;
 }
 .sched-statusbar .sched-sb-good {
-  color: #16a34a;
+  color: var(--md-sys-color-success, #16a34a);
   font-weight: 700;
 }
 /* 基线对比行类别徽标 */
@@ -430,16 +440,16 @@
   line-height: 16px;
 }
 .sched-base-shifted {
-  color: #b45309;
-  border-color: #f59e0b;
+  color: var(--md-sys-color-warning, #b45309);
+  border-color: var(--md-sys-color-warning, #f59e0b);
 }
 .sched-base-added {
-  color: #1d4ed8;
-  border-color: #3b82f6;
+  color: var(--md-sys-color-primary, #1d4ed8);
+  border-color: var(--md-sys-color-primary, #3b82f6);
 }
 .sched-base-removed {
-  color: #6b7280;
-  border-color: #9ca3af;
+  color: var(--md-sys-color-on-surface-variant, #6b7280);
+  border-color: var(--md-sys-color-outline, #9ca3af);
   text-decoration: line-through;
 }
 
@@ -623,7 +633,7 @@
 /* 非关键工作线加深（v4.161 对齐标杆图：非关键=深灰，让位关键红） */
 .sched-aoa-link {
   fill: none;
-  stroke: #475569;
+  stroke: var(--md-sys-color-outline-variant, #475569);
   stroke-width: 1.6;
 }
 .sched-aoa-link-critical {
@@ -632,7 +642,7 @@
 }
 .sched-aoa-dummy {
   stroke-dasharray: 5 4;
-  stroke: #64748b;
+  stroke: var(--md-sys-color-outline-variant, #64748b);
 }
 /* 自由时差波形线（v4.161 独立路径）：绿色=标杆图例语言 */
 .sched-aoa-wave {
@@ -667,7 +677,7 @@
 }
 /* 图例「工作」样本（v4.161：与非关键线同深灰） */
 .sched-lg-task {
-  border-top-color: #475569;
+  border-top-color: var(--md-sys-color-outline-variant, #475569);
 }
 .sched-aoa-node-wrap {
   position: absolute;
@@ -832,7 +842,7 @@
 
 /* 非工作日表头列底纹（与图区底纹呼应） */
 .sched-day-col.sched-day-off .sched-day-cell {
-  color: #e08c8c;
+  color: var(--md-sys-color-destructive, #e08c8c);
 }
 
 /* ── 双栏布局（v4.119 刀10：左 AI 对话 · 右工作台） ─────────── */
@@ -1078,4 +1088,15 @@
 .sched-gantt-row:hover .sched-unit-chip,
 .sched-unit-chip.sched-unit-cd {
   display: inline-flex;
+}
+
+/* ── 动画减弱（无障碍）：sched-pulse 跑马灯圆点；先例 novel-workspace.css:2210 ── */
+@media (prefers-reduced-motion: reduce) {
+  .sched-chat-running-dot {
+    animation: none;
+  }
+}
+/* App.tsx motion='reduced' 时挂 .ui-reduced-motion（应用根 div），同款关闭 */
+.ui-reduced-motion .sched-chat-running-dot {
+  animation: none;
 }

@@ -3,7 +3,7 @@
 // 面板内可改的只有项目内覆盖（定位 / 弧线状态 / 状态），全局设定一律去角色库。
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
-  Typography, Empty, Button, Input, Modal, InputNumber, Drawer,
+  Typography, Button, Input, Modal, InputNumber, Drawer,
   Select, message, Tabs, Tag, Switch, Popconfirm, Checkbox,
 } from 'antd'
 import {
@@ -13,6 +13,7 @@ import {
   GlobalOutlined, BookOutlined, CloseOutlined,
 } from '@ant-design/icons'
 import RelationGraph from '../components/RelationGraph'
+import V3Empty from '../components/V3Empty'
 import type { CharacterData, OrganizationData, RelationshipData } from '../types'
 
 /** 提取错误消息（unknown 收窄；无 message 用 fallback） */
@@ -587,7 +588,7 @@ const CharacterPage: React.FC = () => {
         )}
       </div>
       {drawResult.length === 0 ? (
-        <Empty description="抽到的角色会显示在这里，点「加入本书」引用" image={Empty.PRESENTED_IMAGE_SIMPLE} style={{ marginTop: 40 }} />
+        <V3Empty description="抽到的角色会显示在这里，点「加入本书」引用" style={{ marginTop: 40 }} />
       ) : (
         <div className="char-grid char-grid--slim">
           {drawResult.map(c => {
@@ -672,9 +673,9 @@ const CharacterPage: React.FC = () => {
               ))}
             </div>
           ) : characters.length === 0 ? (
-            <Empty description="本书还没有角色，去角色库抽卡吧" image={Empty.PRESENTED_IMAGE_SIMPLE} style={{ marginTop: 80 }}>
+            <V3Empty description="本书还没有角色，去角色库抽卡吧" style={{ marginTop: 80 }}>
               <Button type="primary" icon={<ThunderboltOutlined />} onClick={() => setDrawOpen(true)}>抽卡</Button>
-            </Empty>
+            </V3Empty>
           ) : filteredCharacters.length === 0 ? (
             <div className="char-empty" style={{ textAlign: 'center', color: C('color-text-secondary'), fontSize: 12 }}>
               没有匹配筛选条件的角色
@@ -701,9 +702,9 @@ const CharacterPage: React.FC = () => {
       key: 'orgs',
       label: <span><ApartmentOutlined /> 组织 ({organizations.length})</span>,
       children: organizations.length === 0 ? (
-        <Empty description="暂无组织，新建一个试试" image={Empty.PRESENTED_IMAGE_SIMPLE} style={{ marginTop: 80 }}>
+        <V3Empty description="暂无组织，新建一个试试" style={{ marginTop: 80 }}>
           <Button icon={<PlusOutlined />} onClick={handleNewOrg}>新建组织</Button>
-        </Empty>
+        </V3Empty>
       ) : (
         <div className="char-grid char-grid--slim">
           {organizations.map(org => (
@@ -725,7 +726,7 @@ const CharacterPage: React.FC = () => {
               onClick={() => { setRelTargetId(''); setRelType('friend'); setRelModalOpen(true) }}>添加关系</Button>
           </div>
           {relationships.length === 0 ? (
-            <Empty description="暂无关系" image={Empty.PRESENTED_IMAGE_SIMPLE} style={{ marginTop: 60 }} />
+            <V3Empty description="暂无关系" style={{ marginTop: 60 }} />
           ) : (
             <div style={{ height: 'calc(100% - 56px)', minHeight: 360, display: 'flex', flexDirection: 'column', gap: 10 }}>
               <div style={{ flex: 1, overflow: 'hidden' }}>

@@ -1,9 +1,10 @@
 import { wailsApp } from '../lib/wailsApp';
 import React, { useState } from 'react'
-import { Typography, Space, Tag, Modal, Input, Spin, Empty, Button } from 'antd'
+import { Typography, Space, Tag, Modal, Input, Spin, Button } from 'antd'
 import { SearchOutlined, FileTextOutlined, UserOutlined, ThunderboltOutlined } from '@ant-design/icons'
 
 import { C } from '../utils/theme'
+import V3Empty from './V3Empty'
 import { app } from '../gaea/lib/bridge'
 import { useT } from '../gaea/lib/i18n'
 import type { SearchScope, UnifiedSearchView, IntentResultView } from '../gaea/lib/types'
@@ -283,7 +284,7 @@ const SearchModal: React.FC<SearchModalProps> = ({ open, onClose, space }) => {
             )}
             {totalResults === 0 ? (
               !intent && (
-                <Empty description={t('shell.search.noResults', { q: query })} image={Empty.PRESENTED_IMAGE_SIMPLE} />
+                <V3Empty description={t('shell.search.noResults', { q: query })} />
               )
             ) : (
               <>

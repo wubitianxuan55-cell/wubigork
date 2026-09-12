@@ -1,7 +1,7 @@
 import { wailsApp } from '../lib/wailsApp';
 import React, { useState, useEffect, useMemo } from 'react'
 import {
-  Button, Skeleton, message, Input, Select, Empty,
+  Button, Skeleton, message, Input, Select,
 } from 'antd'
 import {
   PlusOutlined, SearchOutlined, ReadOutlined, SortAscendingOutlined, UploadOutlined,
@@ -12,6 +12,7 @@ import WelcomePage from '../components/WelcomePage'
 import CreateNovelModal from '../components/novel/CreateNovelModal'
 import ImportNovelModal from '../components/novel/ImportNovelModal'
 import ProjectCardItem from '../components/ProjectCardItem'
+import V3Empty from '../components/V3Empty'
 import { readReadingProgress } from '../utils/readingProgress'
 
 type SortKey = 'recent' | 'words' | 'chapters' | 'title'
@@ -306,7 +307,7 @@ const HomePage: React.FC = () => {
             </div>
           </div>
         ) : (
-          <Empty description="没有可显示的小说" className="novel-shelf-antd-empty" />
+          <V3Empty description="没有可显示的小说" className="novel-shelf-antd-empty" />
         )
       ) : (
         <div className="novel-shelf-grid">

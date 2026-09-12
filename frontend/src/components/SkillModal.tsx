@@ -1,11 +1,12 @@
 import { wailsApp } from '../lib/wailsApp';
 import React, { useState, useEffect, useRef } from 'react'
-import { Typography, Button, Space, Tag, Modal, Empty, message } from 'antd'
+import { Typography, Button, Space, Tag, Modal, message } from 'antd'
 import {
   ImportOutlined, FileMarkdownOutlined, BulbOutlined,
 } from '@ant-design/icons'
 
 import { C } from '../utils/theme'
+import V3Empty from './V3Empty'
 import { inShellEnv, pickFileAsFile } from '../gaea/lib/pickFile'
 
 interface SkillInfo {
@@ -115,7 +116,7 @@ const SkillModal: React.FC<SkillModalProps> = ({ open, onClose }) => {
 
         {/* 已安装列表 */}
         {skills.length === 0 ? (
-          <Empty description="暂无 Skill" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+          <V3Empty description="暂无 Skill" />
         ) : (
           <Space direction="vertical" size={8} style={{ width: '100%' }}>
             <Typography.Text strong style={{ color: C('color-text'), fontSize: 13 }}>

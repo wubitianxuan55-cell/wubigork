@@ -1,5 +1,15 @@
 /* gaea — Material Design 3 全局样式 */
 
+:root {
+  /* 字号阶梯（v4.255 立桩）：页面散点 px 字号渐进收敛至此，新样式勿再写裸 px 字号 */
+  --font-size-xs: 11px;
+  --font-size-sm: 12px;
+  --font-size-md: 13px;
+  --font-size-base: 14px;
+  --font-size-lg: 16px;
+  --font-size-xl: 20px;
+}
+
 #root {
   width: 100%;
   min-height: 100dvh;
@@ -32,6 +42,29 @@ body {
 @media (max-width: 899px) {
   ::-webkit-scrollbar { display: none; }
   * { scrollbar-width: none; }
+}
+
+/* ═══ 全局键盘焦点环 + 选区 ═══ */
+/* :focus-visible 仅键盘导航时出现（鼠标点击不出环）。antd 自带焦点态的控件豁免，避免双环。 */
+:focus-visible {
+  outline: 2px solid var(--gaea-glow, var(--md-sys-color-primary));
+  outline-offset: 2px;
+}
+.ant-btn:focus-visible,
+.ant-input:focus-visible,
+.ant-input-affix-wrapper:focus-visible,
+.ant-input-number:focus-visible,
+.ant-select:focus-visible,
+.ant-select-selector:focus-visible,
+.ant-switch:focus-visible,
+.ant-slider:focus-visible,
+.ant-pagination-item:focus-visible,
+.ant-tabs-tab:focus-visible,
+.ant-picker:focus-visible {
+  outline: none;
+}
+::selection {
+  background: color-mix(in srgb, var(--md-sys-color-primary) 30%, transparent);
 }
 
 /* ═══ M3 Surface 工具类 ═══ */
@@ -105,7 +138,7 @@ body {
 
 /* ═══ 分区标题 ═══ */
 .section-title {
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   font-weight: 500;
   letter-spacing: 0.05em;
   color: var(--md-sys-color-on-surface-variant);
@@ -122,7 +155,7 @@ body {
   border: 1px solid var(--md-sys-color-outline-variant) !important;
   color: var(--md-sys-color-on-surface) !important;
   padding: 20px 24px !important;
-  font-size: 16px !important;
+  font-size: var(--font-size-lg) !important;
   line-height: 2 !important;
   resize: vertical;
   min-height: 240px;
@@ -363,7 +396,7 @@ body {
   color: var(--md-sys-color-on-surface-variant) !important;
   border: none !important;
   transition: all var(--md-sys-transition-fast) !important;
-  font-size: 12px !important;
+  font-size: var(--font-size-sm) !important;
 }
 .chapter-tabs .ant-tabs-tab-active {
   background: var(--md-sys-color-primary) !important;

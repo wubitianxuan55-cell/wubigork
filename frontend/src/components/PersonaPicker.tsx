@@ -1,11 +1,12 @@
 // PersonaPicker.tsx — 聊天内角色选择器
 // 聊天只做「选角色」：这里只展示角色库中可聊天的角色并切换，管理与编辑一律去角色库。
 import React, { useCallback, useEffect, useState } from 'react'
-import { Popover, Input, Tag, Typography, Button, Empty } from 'antd'
+import { Popover, Input, Tag, Typography, Button } from 'antd'
 import { SearchOutlined, SwapOutlined, TeamOutlined, UserOutlined } from '@ant-design/icons'
 import { app } from '../gaea/lib/bridge'
 import type { characterlib } from '../../wailsjs/go/models'
 import { C } from '../utils/theme'
+import V3Empty from './V3Empty'
 
 type LibraryCharacter = characterlib.Character
 
@@ -63,7 +64,7 @@ const PersonaPicker: React.FC<Props> = ({ children, activeId, onSelect, onManage
         autoFocus style={{ marginBottom: 8 }} />
       <div style={{ maxHeight: 320, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 4 }}>
         {filtered.length === 0 ? (
-          <Empty description="没有可聊天角色" image={Empty.PRESENTED_IMAGE_SIMPLE} style={{ margin: '24px 0' }} />
+          <V3Empty description="没有可聊天角色" style={{ margin: '24px 0' }} />
         ) : filtered.map(c => {
           const km = KIND_LABELS[c.kind] || KIND_LABELS.custom
           const active = c.id === activeId
