@@ -249,21 +249,7 @@ aside[aria-label="gaea navigation"] .sidebar-session-scroll {
   border-left: var(--v3-split);
 }
 
-/* ── 滚动条：细、融入背景 ── */
-.gaea-app-layout ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-.gaea-app-layout ::-webkit-scrollbar-thumb {
-  background: var(--border);
-  border-radius: 8px;
-  border: 2px solid var(--bg);
-}
-
-.gaea-app-layout ::-webkit-scrollbar-thumb:hover {
-  background: var(--fg-faint);
-}
+/* 滚动条走 index.css 全站单一真源（v4.271 收敛，本作用域 8px 定义已删） */
 
 /* ── 欢迎页（空状态）── */
 .welcome-logo {

@@ -29,14 +29,21 @@ body {
   transition: background 0.6s ease;
 }
 
-/* ═══ 滚动条 ═══ */
-::-webkit-scrollbar { width: 6px; height: 6px; }
+/* ═══ 滚动条（全站单一真源：8px 中性胶囊，hover 提亮）═══
+ * 形态取自原 module-launcher 私有定义（v4.271 收敛为全局唯一）。
+ * 用 on-surface 半透明而非 glow——主题色滚动条会喧宾夺主。 */
+::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb {
-  background: var(--md-sys-color-outline-variant);
-  border-radius: 3px;
+  background: color-mix(in srgb, var(--md-sys-color-on-surface) 18%, transparent);
+  border: 2px solid transparent;
+  background-clip: content-box;
+  border-radius: 999px;
 }
-::-webkit-scrollbar-thumb:hover { background: var(--md-sys-color-outline); }
+::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--md-sys-color-on-surface) 30%, transparent);
+  background-clip: content-box;
+}
 
 /* 移动端隐藏滚动条 */
 @media (max-width: 899px) {
@@ -44,7 +51,7 @@ body {
   * { scrollbar-width: none; }
 }
 
-/* ═══ 全局键盘焦点环 + 选区 ═══ */
+/* ═══ 全局键盘焦点环 ═══ */
 /* :focus-visible 仅键盘导航时出现（鼠标点击不出环）。antd 自带焦点态的控件豁免，避免双环。 */
 :focus-visible {
   outline: 2px solid var(--gaea-glow, var(--md-sys-color-primary));
@@ -63,9 +70,7 @@ body {
 .ant-picker:focus-visible {
   outline: none;
 }
-::selection {
-  background: color-mix(in srgb, var(--md-sys-color-primary) 30%, transparent);
-}
+/* 文本选区：全站唯一定义在文件尾部「文本选区主题化」（glow 底 + on-primary 字）。 */
 
 /* ═══ M3 Surface 工具类 ═══ */
 .md-surface {
@@ -645,14 +650,6 @@ body {
 @keyframes livePulse {
   0%, 100% { box-shadow: 0 0 6px var(--gaea-glow), 0 0 14px var(--gaea-glow); opacity: 1; }
   50%      { box-shadow: 0 0 14px var(--gaea-glow), 0 0 30px var(--gaea-glow); opacity: 0.75; }
-}
-
-/* ── 流光扫描线（顶部装饰）── */
-
-/* ── 滚动条霓虹化 ── */
-::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, var(--gaea-glow), var(--md-sys-color-outline));
-  opacity: 0.7;
 }
 
 /* ── 文本选区主题化 ── */

@@ -517,24 +517,7 @@ body {
 
 /* highlight.js token 规则已迁 gaea/hljs-theme.css（跨板块共享：聊天线同用） */
 
-/* ── scrollbars ──────────────────────────────────────────────────────────── */
-::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
-}
-::-webkit-scrollbar-thumb {
-  background: var(--border);
-  border-radius: 6px;
-  border: 2px solid transparent;
-  background-clip: padding-box;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: var(--fg-faint);
-  background-clip: padding-box;
-}
-::-webkit-scrollbar-track {
-  background: transparent;
-}
+/* 滚动条走 index.css 全站单一真源（v4.271 收敛，本文件 10px 旧定义已删） */
 
 
 /* ── history drawer: click-to-resume rows with rename/delete actions ────────── */
