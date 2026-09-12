@@ -13,8 +13,9 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Button, Input, Modal, Popconfirm, Tooltip } from 'antd'
 import {
   CloseOutlined, DeleteOutlined, EditOutlined, ExportOutlined, MessageOutlined,
-  PlusOutlined, ReloadOutlined, SettingOutlined, UserOutlined,
+  PlusOutlined, ReloadOutlined, SettingOutlined,
 } from '@ant-design/icons'
+import { PanelRightClose, PanelRightOpen } from '../gaea/icons'
 import { Composer } from '../gaea/components/Composer'
 import { ToolbarButton } from '../gaea/components/ToolbarButton'
 import { LocaleProvider } from '../gaea/lib/i18n'
@@ -26,7 +27,9 @@ import { isNearBottom } from '../utils/scroll'
 import { StoryStream } from './sin/StoryStream'
 import { useSinStory } from './sin/useSinStory'
 import { useSinCast } from './sin/useSinCast'
-import { SinCastPanel } from './sin/SinCastPanel'
+import { useSinNotes } from './sin/useSinNotes'
+import { readSinPanelOpen, writeSinPanelOpen } from './sin/sinPanelState'
+import { SinSidePanel } from './sin/SinSidePanel'
 import { SinCastPicker } from './sin/SinCastPicker'
 import { suggestStoryTitle } from './sin/storyText'
 import '../gaea/styles.css'
@@ -42,13 +45,27 @@ function navigateToBoard(target: string): void {
 const OriginalSinPage: React.FC = () => {
   const story = useSinStory()
   const cast = useSinCast(story.activeId)
+  const notes = useSinNotes(story.activeId)
   const model = useFeatureModel('sin')
   const [castPickerOpen, setCastPickerOpen] = useState(false)
+  const [panelOpen, setPanelOpen] = useState<boolean>(() => readSinPanelOpen())
   const [renameTarget, setRenameTarget] = useState('')
   const [renameDraft, setRenameDraft] = useState('')
   const [exporting, setExporting] = useState(false)
   const listRef = useRef<HTMLDivElement>(null)
   const stickRef = useRef(true)
+
+  useEffect(() => {
+    writeSinPanelOpen(panelOpen)
+  }, [panelOpen])
+
+  // 每个回合结束后重读便签/大纲（AI 可能在回合里用 sin_notes/sin_outline 写了底稿）
+  const { reload: reloadNotes } = notes
+  const prevSendingRef = useRef(false)
+  useEffect(() => {
+    if (prevSendingRef.current && !story.sending) reloadNotes()
+    prevSendingRef.current = story.sending
+  }, [story.sending, reloadNotes])
 
   // ── 智能滚动：贴底时跟随流式输出；用户上翻阅读时不打断 ──
   const onScroll = useCallback(() => {
@@ -105,6 +122,12 @@ const OriginalSinPage: React.FC = () => {
             </span>
           </div>
           <div className="sin-head-actions">
+            <ToolbarButton
+              title={panelOpen ? '收起创作面板' : '展开创作面板'}
+              onClick={() => setPanelOpen((v) => !v)}
+            >
+              {panelOpen ? <PanelRightClose size={13} /> : <PanelRightOpen size={13} />}
+            </ToolbarButton>
             <Tooltip title={`故事模型：${modelText}（在模型中心「原罪」功能绑定里更换）`}>
               <Button size="small" type="text" icon={<SettingOutlined />} onClick={() => navigateToBoard('modelcenter')}>
                 {model.engine && model.model ? `${model.model}` : '未绑定模型'}
@@ -213,37 +236,19 @@ const OriginalSinPage: React.FC = () => {
             </div>
           </main>
 
-          {/* ── 右：创作说明（协议与边界，静态说明 + 当前故事信息） ── */}
-          <aside className="sin-side">
-            <SinCastPanel
+          {/* ── 右：创作面板（办公同款标签页：角色/大纲/设定/插图 + 玩法气泡） ── */}
+          {panelOpen && (
+            <SinSidePanel
               cast={cast.cast}
-              saving={cast.saving}
+              castSaving={cast.saving}
               onOpenPicker={() => setCastPickerOpen(true)}
-              onRemove={(id) => void cast.saveCast(cast.castIds.filter((x) => x !== id))}
+              onRemoveCast={(id) => void cast.saveCast(cast.castIds.filter((x) => x !== id))}
+              notesDoc={notes.doc}
+              notesError={notes.error}
+              notesLoading={notes.loading}
+              messages={story.messages}
             />
-            <section className="sin-card">
-              <div className="sin-card-title"><UserOutlined /> 玩法</div>
-              <ol className="sin-card-list">
-                <li>先给设定：谁、在哪、什么关系、从哪一幕开始。</li>
-                <li>原罪写完一段会停下等你——说「继续」「换场景」「她来主导」即可接着走。</li>
-                <li>正文里出现插图位时会自动出图；也可点「重新生成」换一张。</li>
-              </ol>
-            </section>
-            <section className="sin-card">
-              <div className="sin-card-title">插图协议</div>
-              <p className="sin-card-text">
-                模型在需要配图处另起一行输出 <code>@@插图|画面描述@@</code>，
-                原罪就地生成插图并嵌进正文；导出的 Markdown 会把这些位置写成图片链接。
-              </p>
-            </section>
-            <section className="sin-card">
-              <div className="sin-card-title">边界</div>
-              <p className="sin-card-text">
-                成人内容默认开启（个人非商用桌面应用）：故事角色一律成年人，合意基调，
-                不写真实在世人物；你说停就停。
-              </p>
-            </section>
-          </aside>
+          )}
         </div>
 
         <SinCastPicker

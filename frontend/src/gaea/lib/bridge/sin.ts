@@ -43,4 +43,10 @@ export interface SinBindings {
   SinIllustrate(topicID: string, messageID: number, cue: string, prompt: string, size: string): Promise<Record<string, unknown>>;
   /** 导出图文 Markdown（插图标记 → Markdown 图片；未生成的保留占位）。 */
   SinExportMarkdown(topicID: string): Promise<string>;
+  /**
+   * 读取某故事的便签（设定集）与大纲（右栏面板只读展示）：
+   * 写作侧由 sin_notes / sin_outline 工具落 <用户配置目录>/gaea/sin/notes/，
+   * 这里只读同源文件；缺失/损坏 = 空清单 + 空大纲（辅助数据不阻断）。
+   */
+  SinNotesGet(topicID: string): Promise<{ notes: string[]; outline: string }>;
 }

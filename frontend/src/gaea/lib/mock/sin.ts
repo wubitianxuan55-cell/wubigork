@@ -14,7 +14,7 @@ type SinMethods = Pick<
   AppBindings,
   | "SinTopicsList" | "SinTopicCreate" | "SinTopicRename" | "SinTopicDelete"
   | "SinTopicClear" | "SinMessages" | "SinStream" | "SinIllustrate" | "SinExportMarkdown"
-  | "SinCastGet" | "SinCastSet" | "SinCancel"
+  | "SinCastGet" | "SinCastSet" | "SinCancel" | "SinNotesGet"
 >;
 
 interface MockStory {
@@ -73,6 +73,10 @@ export function buildSin(): SinMethods {
   const messages = new Map<string, MockSinMessage[]>();
   // 角色选择内存态（故事 id → 角色库 id）；角色库本身由 mock/weixin.ts 提供。
   const casts = new Map<string, string[]>();
+  // 便签（设定集）与大纲内存态（故事 id → { notes, outline }）：
+  // 真机由 sin_notes/sin_outline 工具落 notes/<故事 id>.json，这里给右栏面板
+  // 同样的可走查数据（种子与 DEMO_TOOLS 里写的那条便签对齐）。
+  const notesDocs = new Map<string, { notes: string[]; outline: string }>();
   // 在途流（runID → 是否已被取消）：SinCancel 用它中止模拟流式
   const runningStreams = new Map<string, { cancelled: boolean; topicID: string }>();
   const now = () => new Date().toISOString();
@@ -99,6 +103,10 @@ export function buildSin(): SinMethods {
         seq: 2, created_at: ts,
       },
     ]);
+    notesDocs.set(id, {
+      notes: ["女主：林晚，地方台记者；男主：指节有旧伤，认识她"],
+      outline: "第一章：雨夜站台相遇\n第二章：车厢对峙与旧伤来历\n第三章：相机里的秘密",
+    });
   };
 
   const emitFrame = (runID: string, payload: Record<string, unknown>) => {
@@ -133,6 +141,7 @@ export function buildSin(): SinMethods {
       if (i >= 0) stories.splice(i, 1);
       messages.delete(id);
       casts.delete(id);
+      notesDocs.delete(id);
     },
     async SinTopicClear(id: string) {
       messages.set(id, []);
@@ -211,6 +220,11 @@ export function buildSin(): SinMethods {
     async SinCastGet(topicID: string) {
       seed();
       return (casts.get(topicID) ?? []).slice();
+    },
+    async SinNotesGet(topicID: string) {
+      seed();
+      const doc = notesDocs.get(topicID);
+      return doc ? { notes: doc.notes.slice(), outline: doc.outline } : { notes: [], outline: "" };
     },
     async SinCastSet(topicID: string, ids: string[]) {
       seed();

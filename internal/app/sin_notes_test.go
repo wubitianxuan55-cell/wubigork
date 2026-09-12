@@ -146,6 +146,51 @@ func TestSinNotesPathGuard(t *testing.T) {
 	}
 }
 
+// TestSinNotesGetBinding 右栏「设定/大纲」面板的读取绑定（v4.263）：工具侧写 →
+// SinNotesGet 读回同源数据；无文档 = 空清单 + 空大纲；未知/非原罪故事 id 拒绝。
+func TestSinNotesGetBinding(t *testing.T) {
+	a, _ := newSinCastTestApp(t)
+	story, err := a.SinTopicCreate("雨夜")
+	if err != nil {
+		t.Fatalf("SinTopicCreate: %v", err)
+	}
+
+	// 空文档：Notes 非 nil（前端按数组渲染，不编造）且大纲为空
+	v, err := a.SinNotesGet(story.ID)
+	if err != nil {
+		t.Fatalf("SinNotesGet(空): %v", err)
+	}
+	if v.Notes == nil || len(v.Notes) != 0 || v.Outline != "" {
+		t.Fatalf("空文档视图 = %+v, want 空便签 + 空大纲", v)
+	}
+
+	// 工具侧写入（与 AI 写作同一条路径）→ 面板读回同源
+	ctx := context.Background()
+	notes := sinNotesTool{topicID: story.ID}
+	if _, err := notes.Execute(ctx, json.RawMessage(`{"action":"write","content":"女主叫林晚，地方台记者"}`)); err != nil {
+		t.Fatalf("notes write: %v", err)
+	}
+	outline := sinOutlineTool{topicID: story.ID}
+	if _, err := outline.Execute(ctx, json.RawMessage(`{"action":"write","content":"第一章：雨夜\n第二章：旧案"}`)); err != nil {
+		t.Fatalf("outline write: %v", err)
+	}
+	v, err = a.SinNotesGet(story.ID)
+	if err != nil {
+		t.Fatalf("SinNotesGet: %v", err)
+	}
+	if len(v.Notes) != 1 || !strings.Contains(v.Notes[0], "林晚") {
+		t.Fatalf("便签读回 = %+v", v.Notes)
+	}
+	if !strings.Contains(v.Outline, "第二章：旧案") {
+		t.Fatalf("大纲读回 = %q", v.Outline)
+	}
+
+	// 守卫：未知故事 id / 非原罪 id 拒绝
+	if _, err := a.SinNotesGet("sin_missing_9"); err == nil {
+		t.Error("未知故事 id 应报错")
+	}
+}
+
 // TestSinNotesCorruptFileFallsBackToEmpty 损坏文件只当空文档（辅助数据不阻断
 // 故事创作），后续写入自愈成合法 JSON。
 func TestSinNotesCorruptFileFallsBackToEmpty(t *testing.T) {

@@ -119,6 +119,7 @@ export const GAEA_METHOD_FACETS = {
   SinExportMarkdown: "play",
   SinCastGet: "play",
   SinCastSet: "play",
+  SinNotesGet: "play",
   SinCancel: "play",
 
   // ── play：乐园数据面（轻语聊天记忆）──────────────────────────

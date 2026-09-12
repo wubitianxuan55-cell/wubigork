@@ -3,7 +3,7 @@
 // 契约：标记 `@@插图|画面描述@@` 独占一行；一条消息内按出现次序编号（0 起），
 // 该编号即插图映射键（Go 侧 sinCueKey / SinIllustrate 的 cue 参数）。
 
-import type { SinToolTrace, SinToolTraceView, StorySegment } from './types'
+import type { SinMessageView, SinToolTrace, SinToolTraceView, StorySegment } from './types'
 
 /** 插图标记定界符（与 Go 侧 sin_prompt.go 常量逐字一致）。 */
 export const SIN_CUE_OPEN = '@@插图|'
@@ -139,6 +139,33 @@ export function pendingIllustrations(
 /** 无标记的历史正文（用户消息展示用）：把标记折成简短的「（插图）」提示。 */
 export function stripCuesForDisplay(content: string): string {
   return content.split(SIN_CUE_OPEN).join('（插图：').split(SIN_CUE_CLOSE).join('）')
+}
+
+/** 插图画廊条目（右栏面板用）：extra.illustrations 的路径 + 从正文反解的描述。 */
+export interface SinGalleryItem {
+  key: string
+  path: string
+  prompt: string
+}
+
+/** 汇总一个故事的全部插图（消息序即时间序；同一消息内按 cue 序号）。 */
+export function collectIllustrations(
+  messages: Array<Pick<SinMessageView, 'key' | 'content' | 'illustrations'>>,
+): SinGalleryItem[] {
+  const out: SinGalleryItem[] = []
+  for (const m of messages) {
+    const entries = Object.entries(m.illustrations ?? {})
+    if (entries.length === 0) continue
+    const promptByCue = new Map<string, string>()
+    for (const s of parseStorySegments(m.content)) {
+      if (s.kind === 'illustration') promptByCue.set(s.cueKey, s.prompt)
+    }
+    for (const [cue, path] of entries) {
+      if (!path) continue
+      out.push({ key: `${m.key}:${cue}`, path, prompt: promptByCue.get(cue) ?? '' })
+    }
+  }
+  return out
 }
 
 /** 故事标题建议：取首条用户消息前 16 字，空则「新故事」。 */

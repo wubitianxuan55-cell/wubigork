@@ -175,3 +175,29 @@ func (a *App) sinCastCharacters(topicID string) []*characterlib.Character {
 	}
 	return out
 }
+
+// SinNotesView 右栏「设定/大纲」面板的只读视图（sin/notes/<故事 id>.json 的
+// 便签与大纲两份工作底稿；写作时由 sin_notes/sin_outline 工具读写）。
+type SinNotesView struct {
+	Notes   []string `json:"notes"`
+	Outline string   `json:"outline"`
+}
+
+// SinNotesGet 读取某故事的便签（设定集）与大纲，供前端右栏面板展示。
+// 文件缺失/损坏 = 空文档（与工具侧 loadSinNotes 同口径，辅助数据不阻断）。
+func (a *App) SinNotesGet(topicID string) (SinNotesView, error) {
+	if err := a.sinTopicGuard(topicID); err != nil {
+		return SinNotesView{}, err
+	}
+	path, err := sinNotesPath(topicID)
+	if err != nil {
+		return SinNotesView{}, err
+	}
+	sinNotesMu.Lock()
+	defer sinNotesMu.Unlock()
+	doc := loadSinNotes(path)
+	if doc.Notes == nil {
+		doc.Notes = []string{}
+	}
+	return SinNotesView{Notes: doc.Notes, Outline: doc.Outline}, nil
+}

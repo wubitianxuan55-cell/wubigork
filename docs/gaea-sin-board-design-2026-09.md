@@ -340,3 +340,43 @@ dispatch→result 合并 + 丢帧兜底 + notice；重开从 extra.tools 还原�
    **什么都没落库** ⇒ 收尾轮加「工具阶段结束」收束令 + 允许一次兜底收尾轮；
 3. **前端误判超时**：静默超时是一次性 90s 计时器（不随帧重置）⇒ 工具循环的长回合必踩
    （后端已落库 827 字、前端却报超时）⇒ 改每帧重置的真沉默计时。
+
+## 14. 右栏创作面板：角色 / 大纲 / 设定 / 插图（v4.263.0）
+
+### 14.1 为什么
+
+v4.262.0 给了模型 `sin_notes`（设定集）与 `sin_outline`（大纲）两个写作工具，底稿落
+`%APPDATA%\gaea\sin\notes\<故事id>.json`——但前端没有任何读取通道：AI 写了什么用户
+看不见。用户口径「增加类似办公的右侧面板，可以看角色、大纲、插图、设定」：把故事的
+**工作底稿 + 产物**聚合成办公右侧面板同款的多页签面板。
+
+### 14.2 数据面（新绑定 SinNotesGet，640→641，play 空间）
+
+- `sin_store.go::SinNotesGet(topicID) → SinNotesView{notes, outline}`：只读同源便签
+  文件（`sinNotesPath`+`loadSinNotes`），与工具侧共用 `sinNotesMu`；`sinTopicGuard`
+  守卫；缺失/损坏=空清单空大纲（与工具侧同口径，辅助数据不阻断）。
+- **只读**：写路径仍只在工具侧（AI 写作）——用户直接改底稿的冲突合并留待下刀。
+- 实时性：页面在每回合结束（sending true→false 沿）重读一次，切故事即重读。
+
+### 14.3 前端形态（SinSidePanel，对标 WorkspacePane）
+
+| 页签 | 内容 | 数据源 |
+|---|---|---|
+| 角色 | SinCastPanel 原样入页签 | SinCastGet（不变） |
+| 大纲 | sin_outline 大纲，pre-wrap 只读 | SinNotesGet().outline |
+| 设定 | 设定集逐条卡片（#序号） | SinNotesGet().notes |
+| 插图 | 全故事画廊：缩略图 → Modal 大图 | extra.illustrations + 正文反解 caption |
+
+- 插图画廊收集=`collectIllustrations`（storyText.ts 纯函数）；路径→data URL 走
+  AttachmentDataURL 通道（与流内插图同口径）；空态 V3Empty compact。
+- 玩法/插图协议/边界三段静态说明收进面板头问号气泡（内容逐字保留）。
+- 页签**纯文字**（不带图标）：真机走查实证 268px 宽度下「图标+两字」会折行成竖排——
+  去图标+nowrap 后四页签单行（宽度预算 244<252）。
+- 开合=顶栏 PanelRight 钮；记忆键 `gaea.sin.panelOpen`/`gaea.sin.panelTab`
+  （原罪自有命名空间，不借办公 workbench 键）；宽窗默认开/窄窗默认收，
+  替代原 1180px 强制隐藏媒体查询。
+
+### 14.4 测试与走查
+
+Go +1（绑定三态）；vitest +14（面板 8 + collectIllustrations 2 + useSinNotes 4）。
+空间分类计数锁 462→463。真机走查见 releases/v4.263.0.md 产物行。
