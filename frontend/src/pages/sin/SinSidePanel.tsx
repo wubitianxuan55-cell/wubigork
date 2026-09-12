@@ -12,7 +12,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Button, Modal, Popover } from 'antd'
-import { QuestionCircleOutlined } from '@ant-design/icons'
+import { DeleteOutlined, EditOutlined, PlusOutlined, QuestionCircleOutlined } from '@ant-design/icons'
 import V3Empty from '../../components/V3Empty'
 import { readFileAsDataURL } from '../../api/image'
 import { collectIllustrations, type SinGalleryItem } from './storyText'
@@ -24,6 +24,11 @@ import { SinCastPanel } from './SinCastPanel'
 import type { SinCastCharacter } from './useSinCast'
 import type { SinNotesDoc } from './useSinNotes'
 import type { SinMessageView } from './types'
+
+/** 与工具侧同口径的限长（sinNoteMaxRunes/sinOutlineMaxRunes，前端如实拦截）。 */
+const NOTE_MAX_RUNES = 2000
+const OUTLINE_MAX_RUNES = 4000
+const runeLen = (s: string) => Array.from(s).length
 
 /** 缩略图：本地路径经附件读取通道转 data URL（与流内插图同口径）。 */
 function SinGalleryThumb({ item, onOpen }: { item: SinGalleryItem; onOpen: (item: SinGalleryItem) => void }) {
@@ -68,15 +73,17 @@ export interface SinSidePanelProps {
   notesError: string
   notesLoading: boolean
   messages: SinMessageView[]
-  /** 故事回合进行中：重新生成禁用（避免与在途插图/流式回写互相踩）。 */
+  /** 故事回合进行中：重新生成/底稿编辑禁用（AI 在回合里可能写底稿，防互踩）。 */
   sending: boolean
   /** 画廊「重新生成」：排队→SinIllustrate 覆盖回写→消息重载；失败经 notice 透出。 */
   onRegenerate: (item: SinGalleryItem) => Promise<void>
+  /** 底稿编辑保存（v4.266，useSinNotes.save）：冲突返回 conflict=true。 */
+  onSaveNotes: (baseline: SinNotesDoc, outline: string, notes: string[], force: boolean) => Promise<{ ok: boolean; conflict: boolean; message: string }>
 }
 
 export function SinSidePanel({
   cast, castSaving, onOpenPicker, onRemoveCast,
-  notesDoc, notesError, notesLoading, messages, sending, onRegenerate,
+  notesDoc, notesError, notesLoading, messages, sending, onRegenerate, onSaveNotes,
 }: SinSidePanelProps) {
   const [tab, setTab] = useState<SinSideTabId>(() => readSinPanelTab())
   const [preview, setPreview] = useState<SinGalleryItem | null>(null)
@@ -99,7 +106,50 @@ export function SinSidePanel({
         return next
       })
     })
-  }, [onRegenerate, regenKeys, sending])
+    }, [onRegenerate, regenKeys, sending])
+
+  // ── 底稿编辑会话（v4.266）──
+  // baseline = 进入编辑时的 doc 快照（SinNotesSave 锁内比对锚）；sending 中保存
+  // 禁用（AI 回合可能写底稿），冲突走「覆盖确认」——设计档 §14.7，不做字段级 merge。
+  const [draft, setDraft] = useState<{
+    tab: 'outline' | 'notes'
+    baseline: SinNotesDoc
+    outline: string
+    notes: string[]
+  } | null>(null)
+  const [draftSaving, setDraftSaving] = useState(false)
+  const [draftError, setDraftError] = useState('')
+
+  const startDraft = useCallback((tab: 'outline' | 'notes') => {
+    if (sending) return
+    setDraftError('')
+    setDraft({ tab, baseline: { notes: [...notesDoc.notes], outline: notesDoc.outline }, outline: notesDoc.outline, notes: [...notesDoc.notes] })
+  }, [notesDoc, sending])
+
+  const saveDraft = (d: NonNullable<typeof draft>, force = false) => {
+    if (draftSaving) return
+    setDraftSaving(true)
+    setDraftError('')
+    onSaveNotes(d.baseline, d.outline, d.notes, force)
+      .then((res) => {
+        if (res.ok) {
+          setDraft(null)
+          return
+        }
+        if (res.conflict) {
+          Modal.confirm({
+            title: '底稿已被更新',
+            content: '便签/大纲在你编辑期间被修改过（AI 或另一窗口）。用当前编辑内容覆盖？',
+            okText: '覆盖',
+            cancelText: '放弃我的修改',
+            onOk: () => saveDraft(d, true),
+          })
+          return
+        }
+        setDraftError(res.message)
+      })
+      .finally(() => setDraftSaving(false))
+  }
 
   const startResize = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     e.preventDefault()
@@ -233,35 +283,140 @@ export function SinSidePanel({
 
         {tab === 'outline' && (
           <section className="sin-card">
-            {notesDoc.outline ? (
-              <div className="sin-outline-text">{notesDoc.outline}</div>
+            {draft?.tab === 'outline' ? (
+              <div className="sin-draft">
+                <textarea
+                  className="sin-draft-ta"
+                  value={draft.outline}
+                  rows={10}
+                  placeholder="章节走向、时间线、伏笔…"
+                  onChange={(e) => setDraft({ ...draft, outline: e.target.value })}
+                />
+                <div className="sin-draft-meta">
+                  <span className={runeLen(draft.outline) > OUTLINE_MAX_RUNES ? 'is-over' : ''}>
+                    {runeLen(draft.outline)} / {OUTLINE_MAX_RUNES}
+                  </span>
+                  <span className="sin-draft-actions">
+                    <Button
+                      size="small" type="primary" loading={draftSaving}
+                      disabled={sending || runeLen(draft.outline) > OUTLINE_MAX_RUNES}
+                      title={sending ? '回合进行中，暂不能保存' : undefined}
+                      onClick={() => saveDraft(draft)}
+                    >
+                      保存
+                    </Button>
+                    <Button size="small" disabled={draftSaving} onClick={() => setDraft(null)}>取消</Button>
+                  </span>
+                </div>
+                {draftError && <p className="sin-side-error">{draftError}</p>}
+              </div>
             ) : (
-              <EmptyHint
-                description="还没有大纲"
-                hint="对话里说「先出个大纲」，AI 会把章节走向、时间线和伏笔记在这里。"
-              />
+              <>
+                <div className="sin-card-head">
+                  <button
+                    type="button" className="sin-edit-entry" disabled={sending}
+                    title={sending ? '回合进行中，暂不可编辑' : '编辑大纲'}
+                    onClick={() => startDraft('outline')}
+                  >
+                    <EditOutlined /> {notesDoc.outline ? '编辑' : '写大纲'}
+                  </button>
+                </div>
+                {notesDoc.outline ? (
+                  <div className="sin-outline-text">{notesDoc.outline}</div>
+                ) : (
+                  <EmptyHint
+                    description="还没有大纲"
+                    hint="对话里说「先出个大纲」，AI 会把章节走向、时间线和伏笔记在这里；也可以自己动手写。"
+                  />
+                )}
+              </>
             )}
           </section>
         )}
 
         {tab === 'notes' && (
           <section className="sin-card">
-            {notesError ? (
-              <p className="sin-side-error">{notesError}</p>
-            ) : notesDoc.notes.length > 0 ? (
-              <div className="sin-note-list">
-                {notesDoc.notes.map((n, i) => (
-                  <div className="sin-note-item" key={i}>
-                    <span className="sin-note-idx">#{i}</span>
-                    <span className="sin-note-text">{n}</span>
-                  </div>
-                ))}
+            {draft?.tab === 'notes' ? (
+              <div className="sin-draft">
+                <div className="sin-note-list">
+                  {draft.notes.map((n, i) => (
+                    <div className={`sin-note-item is-editing${runeLen(n) > NOTE_MAX_RUNES ? ' is-over' : ''}`} key={i}>
+                      <span className="sin-note-idx">#{i}</span>
+                      <textarea
+                        className="sin-draft-ta sin-draft-ta-note"
+                        value={n}
+                        rows={2}
+                        placeholder="设定内容…"
+                        onChange={(e) => {
+                          const next = draft.notes.slice()
+                          next[i] = e.target.value
+                          setDraft({ ...draft, notes: next })
+                        }}
+                      />
+                      <button
+                        type="button" className="sin-note-del" title="删除这条便签"
+                        onClick={() => setDraft({ ...draft, notes: draft.notes.filter((_, j) => j !== i) })}
+                      >
+                        <DeleteOutlined />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <button
+                  type="button" className="sin-edit-entry"
+                  disabled={draft.notes.length >= 200}
+                  title={draft.notes.length >= 200 ? '最多 200 条' : '添加一条'}
+                  onClick={() => setDraft({ ...draft, notes: [...draft.notes, ''] })}
+                >
+                  <PlusOutlined /> 添加一条
+                </button>
+                <div className="sin-draft-meta">
+                  <span className={draft.notes.some((n) => runeLen(n) > NOTE_MAX_RUNES) ? 'is-over' : ''}>
+                    {draft.notes.length} 条{draft.notes.some((n) => runeLen(n) > NOTE_MAX_RUNES) ? ' · 有便签超过 2000 字' : ''}
+                  </span>
+                  <span className="sin-draft-actions">
+                    <Button
+                      size="small" type="primary" loading={draftSaving}
+                      disabled={sending || draft.notes.some((n) => runeLen(n) > NOTE_MAX_RUNES)}
+                      title={sending ? '回合进行中，暂不能保存' : undefined}
+                      onClick={() => saveDraft(draft)}
+                    >
+                      保存
+                    </Button>
+                    <Button size="small" disabled={draftSaving} onClick={() => setDraft(null)}>取消</Button>
+                  </span>
+                </div>
+                {draftError && <p className="sin-side-error">{draftError}</p>}
               </div>
             ) : (
-              <EmptyHint
-                description="还没有设定便签"
-                hint="故事里定下的人名、关系、伏笔，AI 会用便签记在这里，写作时自动对齐。"
-              />
+              <>
+                <div className="sin-card-head">
+                  <button
+                    type="button" className="sin-edit-entry" disabled={sending}
+                    title={sending ? '回合进行中，暂不可编辑' : '编辑设定集'}
+                    onClick={() => startDraft('notes')}
+                  >
+                    <EditOutlined /> {notesDoc.notes.length > 0 ? '编辑' : '记便签'}
+                  </button>
+                </div>
+                {notesError ? (
+                  <p className="sin-side-error">{notesError}</p>
+                ) : notesDoc.notes.length > 0 ? (
+                  <div className="sin-note-list">
+                    {notesDoc.notes.map((n, i) => (
+                      <div className="sin-note-item" key={i}>
+                        <span className="sin-note-idx">#{i}</span>
+                        <span className="sin-note-text">{n}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <EmptyHint
+                    description="还没有设定便签"
+                    hint="故事里定下的人名、关系、伏笔，AI 会用便签记在这里，写作时自动对齐；也可以自己记。"
+                  />
+                )}
+              </>
             )}
           </section>
         )}

@@ -1,9 +1,10 @@
-// sin/useSinNotes.test.tsx — 右栏「设定/大纲」数据源：读取、错误、重读。
+// sin/useSinNotes.test.tsx — 右栏「设定/大纲」数据源：读取、错误、重读、编辑保存。
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, renderHook, waitFor } from '@testing-library/react'
 
 const bridgeMock = vi.hoisted(() => ({
   SinNotesGet: vi.fn(),
+  SinNotesSave: vi.fn(),
 }))
 
 vi.mock('../../gaea/lib/bridge', async (importOriginal) => ({
@@ -19,6 +20,7 @@ import { useSinNotes } from './useSinNotes'
 
 beforeEach(() => {
   bridgeMock.SinNotesGet.mockReset().mockResolvedValue({ notes: [], outline: '' })
+  bridgeMock.SinNotesSave.mockReset().mockResolvedValue({ notes: [], outline: '' })
 })
 
 describe('useSinNotes', () => {
@@ -59,5 +61,40 @@ describe('useSinNotes', () => {
     await act(async () => { result.current.reload() })
     await waitFor(() => expect(result.current.doc.notes).toEqual(['新便签']))
     expect(bridgeMock.SinNotesGet).toHaveBeenCalledTimes(2)
+  })
+
+  it('save：整包写回（基线快照 JSON + 新值），成功后就地更新 doc', async () => {
+    bridgeMock.SinNotesSave.mockResolvedValue({ notes: ['改后'], outline: '新大纲' })
+    const { result } = renderHook(() => useSinNotes('sin_4'))
+    await waitFor(() => expect(result.current.loading).toBe(false))
+    const baseline = { notes: ['旧'], outline: '旧大纲' }
+    let res!: { ok: boolean; conflict: boolean; message: string }
+    await act(async () => {
+      res = await result.current.save(baseline, '新大纲', ['改后'], false)
+    })
+    expect(res).toEqual({ ok: true, conflict: false, message: '' })
+    expect(bridgeMock.SinNotesSave).toHaveBeenCalledWith(
+      'sin_4', JSON.stringify(baseline), '新大纲', JSON.stringify(['改后']), false,
+    )
+    expect(result.current.doc).toEqual({ notes: ['改后'], outline: '新大纲' })
+  })
+
+  it('save：冲突错误映射 conflict=true（按「底稿冲突：」前缀），其他错误不算冲突', async () => {
+    const { result } = renderHook(() => useSinNotes('sin_5'))
+    await waitFor(() => expect(result.current.loading).toBe(false))
+    bridgeMock.SinNotesSave.mockRejectedValueOnce(new Error('底稿冲突：便签/大纲已被其他端更新，请确认后再保存'))
+    let res!: { ok: boolean; conflict: boolean; message: string }
+    await act(async () => {
+      res = await result.current.save({ notes: [], outline: '' }, '', [], false)
+    })
+    expect(res.ok).toBe(false)
+    expect(res.conflict).toBe(true)
+    bridgeMock.SinNotesSave.mockRejectedValueOnce(new Error('故事 ID 非法'))
+    await act(async () => {
+      res = await result.current.save({ notes: [], outline: '' }, '', [], false)
+    })
+    expect(res.ok).toBe(false)
+    expect(res.conflict).toBe(false)
+    expect(res.message).toContain('故事 ID 非法')
   })
 })

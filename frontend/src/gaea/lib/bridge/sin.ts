@@ -49,4 +49,10 @@ export interface SinBindings {
    * 这里只读同源文件；缺失/损坏 = 空清单 + 空大纲（辅助数据不阻断）。
    */
   SinNotesGet(topicID: string): Promise<{ notes: string[]; outline: string }>;
+  /**
+   * 面板内编辑保存（v4.266，大纲+设定集整包写回）：baseline 是开始编辑时的
+   * doc 快照 JSON（{"notes":[…],"outline":"…"}），锁内与当前文件比对，不符
+   * 拒绝（错误带「底稿冲突：」前缀）；确认后 force=true 覆盖。
+   */
+  SinNotesSave(topicID: string, baseline: string, outline: string, notes: string, force: boolean): Promise<{ notes: string[]; outline: string }>;
 }

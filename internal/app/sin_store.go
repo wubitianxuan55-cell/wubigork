@@ -19,6 +19,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 
@@ -200,4 +201,52 @@ func (a *App) SinNotesGet(topicID string) (SinNotesView, error) {
 		doc.Notes = []string{}
 	}
 	return SinNotesView{Notes: doc.Notes, Outline: doc.Outline}, nil
+}
+
+// sinConflictPrefix 面板保存冲突错误的固定前缀（前端据此弹「覆盖确认」）。
+const sinConflictPrefix = "底稿冲突："
+
+// SinNotesSave 面板内编辑保存（v4.266）：大纲 + 设定集整包写回。
+//
+// 冲突口径（设计档 §14.7）：AI 只在回合内写底稿，面板编辑在回合中锁定，常规
+// 路径无并发；残余窗口（多开壳实例/他端写入）用**锁内基线比对**拦——baseline
+// 是用户开始编辑时的 doc 快照 JSON（{"notes":[…],"outline":"…"}），与当前文件
+// 不符即拒绝（错误带 sinConflictPrefix 前缀），前端确认后置 force 覆盖。
+// 限长与工具侧同口径：单条 2000 rune 截断、大纲 4000 rune 截断、条数 200 上限
+// （超限拒绝，不静默丢）。
+func (a *App) SinNotesSave(topicID string, baseline string, outline string, notes string, force bool) (SinNotesView, error) {
+	if err := a.sinTopicGuard(topicID); err != nil {
+		return SinNotesView{}, err
+	}
+	var newNotes []string
+	if err := json.Unmarshal([]byte(notes), &newNotes); err != nil {
+		return SinNotesView{}, fmt.Errorf("便签列表格式错误: %w", err)
+	}
+	if len(newNotes) > sinNotesMaxItems {
+		return SinNotesView{}, fmt.Errorf("便签条数超上限（%d > %d）", len(newNotes), sinNotesMaxItems)
+	}
+	for i, n := range newNotes {
+		newNotes[i] = truncateRunes(n, sinNoteMaxRunes)
+	}
+	newOutline := truncateRunes(strings.TrimSpace(outline), sinOutlineMaxRunes)
+
+	var base sinNotesDoc
+	if err := json.Unmarshal([]byte(baseline), &base); err != nil {
+		return SinNotesView{}, fmt.Errorf("编辑基线格式错误: %w", err)
+	}
+	path, err := sinNotesPath(topicID)
+	if err != nil {
+		return SinNotesView{}, err
+	}
+	sinNotesMu.Lock()
+	defer sinNotesMu.Unlock()
+	current := loadSinNotes(path)
+	if !force && (current.Outline != base.Outline || !slices.Equal(current.Notes, base.Notes)) {
+		return SinNotesView{}, fmt.Errorf("%s便签/大纲已被其他端更新，请确认后再保存", sinConflictPrefix)
+	}
+	next := sinNotesDoc{Version: sinNotesVersion, Notes: newNotes, Outline: newOutline}
+	if err := saveSinNotes(path, next); err != nil {
+		return SinNotesView{}, err
+	}
+	return SinNotesView{Notes: next.Notes, Outline: next.Outline}, nil
 }

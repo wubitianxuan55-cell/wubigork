@@ -1,6 +1,7 @@
 // sin/SinSidePanel.test.tsx — 右栏创作面板：页签切换/空态/插画collect/预览/持久化。
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { Modal } from 'antd'
 
 const apiMock = vi.hoisted(() => ({
   readFileAsDataURL: vi.fn(),
@@ -48,6 +49,7 @@ function renderPanel(over: Partial<Parameters<typeof SinSidePanel>[0]> = {}) {
       messages={MESSAGES}
       sending={false}
       onRegenerate={vi.fn().mockResolvedValue(undefined)}
+      onSaveNotes={vi.fn().mockResolvedValue({ ok: true, conflict: false, message: '' })}
       {...over}
     />,
   )
@@ -211,8 +213,7 @@ describe('SinSidePanel 画廊重新生成（v4.265）', () => {
     expect(screen.queryByTitle('按原画面描述重新生成这张插图')).toBeNull()
   })
 
-  it('大图预览 footer 同款重新生成；成功重载后预览跟到新图', async () => {
-    let resolveRegen: () => void = () => {}
+  it('大图预览 footer 同款重新生成；成功重载后预览跟到新图', async () => {    let resolveRegen: () => void = () => {}
     const onRegenerate = vi.fn().mockImplementation(
       () => new Promise<void>((r) => { resolveRegen = r }),
     )
@@ -238,9 +239,123 @@ describe('SinSidePanel 画廊重新生成（v4.265）', () => {
         notesDoc={{ notes: ['女主：林晚，地方台记者'], outline: '第一章：雨夜站台相遇' }}
         notesError="" notesLoading={false} messages={msNext}
         sending={false} onRegenerate={onRegenerate}
+        onSaveNotes={vi.fn().mockResolvedValue({ ok: true, conflict: false, message: '' })}
       />,
     )
     await waitFor(() => expect(apiMock.readFileAsDataURL).toHaveBeenCalledWith('/tmp/a2.png'))
+  })
+})
+
+describe('SinSidePanel 底稿编辑（v4.266）', () => {
+  afterEach(() => {
+    Modal.destroyAll()
+    // antd confirm 在测试环境会重复渲染+残留根节点（记忆坑：confirm DOM 残留误报）
+    document.body.querySelectorAll('.ant-modal-root').forEach((n) => n.remove())
+  })
+
+  it('大纲编辑：进入→修改→保存回调带基线快照与新值，成功后退出编辑态', async () => {
+    const onSaveNotes = vi.fn().mockResolvedValue({ ok: true, conflict: false, message: '' })
+    renderPanel({ onSaveNotes })
+    fireEvent.click(screen.getByRole('tab', { name: /大纲/ }))
+    fireEvent.click(screen.getByTitle('编辑大纲'))
+    const ta = screen.getByPlaceholderText('章节走向、时间线、伏笔…') as HTMLTextAreaElement
+    expect(ta.value).toBe('第一章：雨夜站台相遇')
+    fireEvent.change(ta, { target: { value: '第一章：新的走向' } })
+    fireEvent.click(screen.getByRole('button', { name: /保\s*存/ }))
+    await waitFor(() => expect(onSaveNotes).toHaveBeenCalledTimes(1))
+    expect(onSaveNotes.mock.calls[0][0]).toEqual({ notes: ['女主：林晚，地方台记者'], outline: '第一章：雨夜站台相遇' })
+    expect(onSaveNotes.mock.calls[0][1]).toBe('第一章：新的走向')
+    expect(onSaveNotes.mock.calls[0][3]).toBe(false)
+    await waitFor(() => expect(screen.queryByPlaceholderText('章节走向、时间线、伏笔…')).toBeNull())
+  })
+
+  it('空大纲入口叫「写大纲」；取消不调用保存', () => {
+    const onSaveNotes = vi.fn().mockResolvedValue({ ok: true, conflict: false, message: '' })
+    renderPanel({ onSaveNotes, notesDoc: { notes: [], outline: '' } })
+    fireEvent.click(screen.getByRole('tab', { name: /大纲/ }))
+    expect(screen.getByText('写大纲')).toBeTruthy()
+    fireEvent.click(screen.getByTitle('编辑大纲'))
+    expect(screen.getByPlaceholderText('章节走向、时间线、伏笔…')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: /取\s*消/ }))
+    expect(onSaveNotes).not.toHaveBeenCalled()
+    expect(screen.getByText('还没有大纲')).toBeTruthy()
+  })
+
+  it('设定编辑：加一条/删一条后整包保存', async () => {
+    const onSaveNotes = vi.fn().mockResolvedValue({ ok: true, conflict: false, message: '' })
+    renderPanel({ onSaveNotes })
+    fireEvent.click(screen.getByRole('tab', { name: /设定/ }))
+    fireEvent.click(screen.getByTitle('编辑设定集'))
+    fireEvent.click(screen.getByTitle('添加一条'))
+    const tas = screen.getAllByPlaceholderText(/设定内容/)
+    fireEvent.change(tas[tas.length - 1], { target: { value: '顾城是三年前的线人' } })
+    fireEvent.click(screen.getAllByTitle('删除这条便签')[0])
+    fireEvent.click(screen.getByRole('button', { name: /保\s*存/ }))
+    await waitFor(() => expect(onSaveNotes).toHaveBeenCalledTimes(1))
+    expect(onSaveNotes.mock.calls[0][2]).toEqual(['顾城是三年前的线人'])
+  })
+
+  it('sending 中：编辑入口禁用并给原因；草稿中保存按钮也禁用', async () => {
+    const onSaveNotes = vi.fn().mockResolvedValue({ ok: true, conflict: false, message: '' })
+    const { rerender } = renderPanel({ onSaveNotes, sending: true })
+    fireEvent.click(screen.getByRole('tab', { name: /大纲/ }))
+    const entry = screen.getByTitle('回合进行中，暂不可编辑') as HTMLButtonElement
+    expect(entry.disabled).toBe(true)
+    // 放开 sending 进入编辑，再恢复 sending → 保存禁用
+    rerender(
+      <SinSidePanel
+        cast={CAST} castSaving={false} onOpenPicker={vi.fn()} onRemoveCast={vi.fn()}
+        notesDoc={{ notes: ['女主：林晚，地方台记者'], outline: '第一章：雨夜站台相遇' }}
+        notesError="" notesLoading={false} messages={MESSAGES}
+        sending={false} onRegenerate={vi.fn()}
+        onSaveNotes={onSaveNotes}
+      />,
+    )
+    fireEvent.click(screen.getByTitle('编辑大纲'))
+    rerender(
+      <SinSidePanel
+        cast={CAST} castSaving={false} onOpenPicker={vi.fn()} onRemoveCast={vi.fn()}
+        notesDoc={{ notes: ['女主：林晚，地方台记者'], outline: '第一章：雨夜站台相遇' }}
+        notesError="" notesLoading={false} messages={MESSAGES}
+        sending onRegenerate={vi.fn()} onSaveNotes={onSaveNotes}
+      />,
+    )
+    const save = screen.getByTitle('回合进行中，暂不能保存') as HTMLButtonElement
+    expect(save.disabled).toBe(true)
+    expect(onSaveNotes).not.toHaveBeenCalled()
+  })
+
+  it('冲突：保存返回 conflict → 弹「覆盖确认」→ 确认后带 force 重试', async () => {
+    let calls = 0
+    const onSaveNotes = vi.fn().mockImplementation(() => {
+      calls += 1
+      const first = calls === 1
+      return Promise.resolve(first
+        ? { ok: false, conflict: true, message: '底稿冲突：便签/大纲已被其他端更新，请确认后再保存' }
+        : { ok: true, conflict: false, message: '' })
+    })
+    renderPanel({ onSaveNotes })
+    fireEvent.click(screen.getByRole('tab', { name: /设定/ }))
+    fireEvent.click(screen.getByTitle('编辑设定集'))
+    fireEvent.click(screen.getByRole('button', { name: /保\s*存/ }))
+    expect((await screen.findAllByText('底稿已被更新')).length).toBeGreaterThan(0)
+    const okBtn = Array.from(document.querySelectorAll('.ant-modal-confirm .ant-btn-primary'))
+      .find((b) => (b.textContent ?? '').replace(/\s/g, '') === '覆盖') as HTMLButtonElement
+    expect(okBtn).toBeTruthy()
+    fireEvent.click(okBtn)
+    await waitFor(() => expect(onSaveNotes).toHaveBeenCalledTimes(2))
+    expect(onSaveNotes.mock.calls[1][3]).toBe(true)
+    await waitFor(() => expect(screen.queryByText('保存')).toBeNull())
+  })
+
+  it('普通保存失败：错误就地显示，不弹确认框', async () => {
+    const onSaveNotes = vi.fn().mockResolvedValue({ ok: false, conflict: false, message: '便签文件不可写' })
+    renderPanel({ onSaveNotes })
+    fireEvent.click(screen.getByRole('tab', { name: /大纲/ }))
+    fireEvent.click(screen.getByTitle('编辑大纲'))
+    fireEvent.click(screen.getByRole('button', { name: /保\s*存/ }))
+    await waitFor(() => expect(screen.getByText('便签文件不可写')).toBeTruthy())
+    expect(screen.queryAllByText('底稿已被更新').length).toBe(0)
   })
 })
 

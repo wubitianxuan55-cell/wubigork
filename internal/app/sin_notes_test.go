@@ -214,3 +214,84 @@ func TestSinNotesCorruptFileFallsBackToEmpty(t *testing.T) {
 		t.Errorf("自愈后文档 = %+v", doc)
 	}
 }
+
+// TestSinNotesSaveBinding 面板编辑保存绑定（v4.266）：基线一致才落盘；他端更新
+// 后拒绝（冲突前缀）+ force 覆盖；限长与工具侧同口径（单条/大纲截断、条数上限）；
+// 守卫沿用 sinTopicGuard。
+func TestSinNotesSaveBinding(t *testing.T) {
+	a, _ := newSinCastTestApp(t)
+	story, err := a.SinTopicCreate("雨夜")
+	if err != nil {
+		t.Fatalf("SinTopicCreate: %v", err)
+	}
+
+	// 工具侧先写一版（= 用户开始编辑时的基线）
+	ctx := context.Background()
+	notes := sinNotesTool{topicID: story.ID}
+	if _, err := notes.Execute(ctx, json.RawMessage(`{"action":"write","content":"女主叫林晚"}`)); err != nil {
+		t.Fatalf("notes write: %v", err)
+	}
+	outline := sinOutlineTool{topicID: story.ID}
+	if _, err := outline.Execute(ctx, json.RawMessage(`{"action":"write","content":"第一章：雨夜"}`)); err != nil {
+		t.Fatalf("outline write: %v", err)
+	}
+	base, err := a.SinNotesGet(story.ID)
+	if err != nil {
+		t.Fatalf("SinNotesGet: %v", err)
+	}
+	baseJSON, _ := json.Marshal(base)
+
+	// 正常保存：改大纲 + 改便签
+	v, err := a.SinNotesSave(story.ID, string(baseJSON), "第一章：雨夜站台\n第二章：旧案", `["女主叫林晚","顾城是线人"]`, false)
+	if err != nil {
+		t.Fatalf("SinNotesSave: %v", err)
+	}
+	if len(v.Notes) != 2 || !strings.Contains(v.Outline, "雨夜站台") {
+		t.Fatalf("保存结果 = %+v", v)
+	}
+
+	// 基线过期（他端又写了一笔）→ 冲突拒绝，错误带固定前缀；确认后 force 覆盖
+	if _, err := notes.Execute(ctx, json.RawMessage(`{"action":"write","content":"他端插入的一条"}`)); err != nil {
+		t.Fatalf("他端写: %v", err)
+	}
+	stale := SinNotesView{Notes: v.Notes, Outline: v.Outline}
+	staleJSON, _ := json.Marshal(stale)
+	_, err = a.SinNotesSave(story.ID, string(staleJSON), "被覆盖的大纲", `[]`, false)
+	if err == nil || !strings.HasPrefix(err.Error(), sinConflictPrefix) {
+		t.Fatalf("过期基线应冲突拒绝, got %v", err)
+	}
+	v, err = a.SinNotesSave(story.ID, string(staleJSON), "被覆盖的大纲", `[]`, true)
+	if err != nil {
+		t.Fatalf("force Save: %v", err)
+	}
+	if len(v.Notes) != 0 || v.Outline != "被覆盖的大纲" {
+		t.Fatalf("force 结果 = %+v", v)
+	}
+
+	// 限长：大纲 4000 / 单条 2000 截断（与工具侧同常量），条数 >200 拒绝
+	cur, _ := a.SinNotesGet(story.ID)
+	curJSON, _ := json.Marshal(cur)
+	v, err = a.SinNotesSave(story.ID, string(curJSON), strings.Repeat("纲", sinOutlineMaxRunes+30), `["`+strings.Repeat("字", sinNoteMaxRunes+30)+`"]`, false)
+	if err != nil {
+		t.Fatalf("限长 Save: %v", err)
+	}
+	if len([]rune(v.Outline)) != sinOutlineMaxRunes || len([]rune(v.Notes[0])) != sinNoteMaxRunes {
+		t.Errorf("截断口径: outline=%d note=%d", len([]rune(v.Outline)), len([]rune(v.Notes[0])))
+	}
+	tooMany := make([]string, sinNotesMaxItems+1)
+	for i := range tooMany {
+		tooMany[i] = "x"
+	}
+	b, _ := json.Marshal(tooMany)
+	if _, err := a.SinNotesSave(story.ID, string(curJSON), "", string(b), false); err == nil || !strings.Contains(err.Error(), "上限") {
+		t.Errorf("条数超限应拒绝, got %v", err)
+	}
+
+	// 便签列表坏 JSON 拒绝；未知故事 id 走守卫
+	if _, err := a.SinNotesSave(story.ID, string(curJSON), "", `{坏`, false); err == nil {
+		t.Error("便签列表格式错误应报错")
+	}
+	if _, err := a.SinNotesSave("sin_missing_9", "{}", "", "[]", false); err == nil {
+		t.Error("未知故事 id 应报错")
+	}
+}

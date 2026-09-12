@@ -273,6 +273,7 @@ const OriginalSinPage: React.FC = () => {
               messages={story.messages}
               sending={story.sending}
               onRegenerate={onRegenerate}
+              onSaveNotes={notes.save}
             />
           )}
         </div>

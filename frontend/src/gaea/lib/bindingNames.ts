@@ -571,6 +571,7 @@ export const bindingNames = [
 	"SinIllustrate",
 	"SinMessages",
 	"SinNotesGet",
+	"SinNotesSave",
 	"SinStream",
 	"SinTopicClear",
 	"SinTopicCreate",

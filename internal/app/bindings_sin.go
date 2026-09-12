@@ -17,6 +17,7 @@ func (b *SinB) SinExportMarkdown(topicID string) (string, error) { return b.a.Si
 func (b *SinB) SinIllustrate(topicID string, messageID int64, cue string, prompt string, size string) (map[string]interface{}, error) { return b.a.SinIllustrate(topicID, messageID, cue, prompt, size) }
 func (b *SinB) SinMessages(topicID string) ([]chat.Message, error) { return b.a.SinMessages(topicID) }
 func (b *SinB) SinNotesGet(topicID string) (SinNotesView, error) { return b.a.SinNotesGet(topicID) }
+func (b *SinB) SinNotesSave(topicID string, baseline string, outline string, notes string, force bool) (SinNotesView, error) { return b.a.SinNotesSave(topicID, baseline, outline, notes, force) }
 func (b *SinB) SinStream(topicID string, message string) (string, error) { return b.a.SinStream(topicID, message) }
 func (b *SinB) SinTopicClear(id string) error { return b.a.SinTopicClear(id) }
 func (b *SinB) SinTopicCreate(title string) (chat.Topic, error) { return b.a.SinTopicCreate(title) }

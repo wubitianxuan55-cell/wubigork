@@ -14,7 +14,7 @@ type SinMethods = Pick<
   AppBindings,
   | "SinTopicsList" | "SinTopicCreate" | "SinTopicRename" | "SinTopicDelete"
   | "SinTopicClear" | "SinMessages" | "SinStream" | "SinIllustrate" | "SinExportMarkdown"
-  | "SinCastGet" | "SinCastSet" | "SinCancel" | "SinNotesGet"
+  | "SinCastGet" | "SinCastSet" | "SinCancel" | "SinNotesGet" | "SinNotesSave"
 >;
 
 interface MockStory {
@@ -225,6 +225,18 @@ export function buildSin(): SinMethods {
       seed();
       const doc = notesDocs.get(topicID);
       return doc ? { notes: doc.notes.slice(), outline: doc.outline } : { notes: [], outline: "" };
+    },
+    async SinNotesSave(topicID: string, baseline: string, outline: string, notes: string, force: boolean) {
+      seed();
+      // 与真机同口径：锁内基线比对（mock 无锁但保留冲突语义供走查）
+      const base = JSON.parse(baseline || "{}") as { notes?: string[]; outline?: string };
+      const cur = notesDocs.get(topicID) ?? { notes: [], outline: "" };
+      if (!force && (cur.outline !== (base.outline ?? "") || JSON.stringify(cur.notes) !== JSON.stringify(base.notes ?? []))) {
+        throw new Error("底稿冲突：便签/大纲已被其他端更新，请确认后再保存");
+      }
+      const next = { notes: (JSON.parse(notes || "[]") as string[]).slice(), outline };
+      notesDocs.set(topicID, next);
+      return { notes: next.notes.slice(), outline: next.outline };
     },
     async SinCastSet(topicID: string, ids: string[]) {
       seed();
