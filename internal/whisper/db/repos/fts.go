@@ -22,7 +22,7 @@ func RebuildFactsFTS(dataRoot string) error {
 		return err
 	}
 
-	// 先全量读入内存再插入：MaxOpenConns(1) 下 rows 未 Close 时 Exec 会死锁等连接
+	// 先全量读入内存再插入（v4.248 连接池放宽后死锁类已消除，保留收集再写回习惯）
 	rows, err := sqlDB.Query(
 		"SELECT id, subject, summary, COALESCE(triggers_text, '') FROM memory_facts",
 	)

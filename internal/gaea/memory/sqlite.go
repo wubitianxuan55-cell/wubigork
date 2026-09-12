@@ -463,11 +463,22 @@ func (b *sqliteBackend) CleanupArchived(cutoff time.Time) ([]ArchivedMemory, err
 	if len(doomed) == 0 {
 		return nil, nil
 	}
+	// 批量事务化（刀C v4.248）：改前逐条 DELETE 各自提交（N 次 fsync）。
+	// 原子语义：要么全部删除并如实上报，要么回滚什么都不报——不再出现
+	// 「删了一半还把整批 doomed 报给审计」的中间态。
+	tx, err := b.db.Begin()
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
 	for _, am := range doomed {
-		if _, err := b.db.Exec(
+		if _, err := tx.Exec(
 			`DELETE FROM facts WHERE project=? AND name=? AND archived=1`, b.project, slug(am.Name)); err != nil {
-			return doomed, err
+			return nil, err
 		}
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
 	}
 	return doomed, nil
 }

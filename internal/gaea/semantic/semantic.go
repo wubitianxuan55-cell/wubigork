@@ -267,10 +267,22 @@ func (s *Store) Stale(kind string, keep map[string]bool) (int, error) {
 			del = append(del, id)
 		}
 	}
+	if len(del) == 0 {
+		return 0, nil
+	}
+	// 批量事务化（刀C v4.248）：改前逐条 DELETE 各自提交（N 次 fsync）。
+	tx, err := s.db.Begin()
+	if err != nil {
+		return 0, err
+	}
+	defer tx.Rollback()
 	for _, id := range del {
-		if _, err := s.db.Exec(`DELETE FROM semantic_vectors WHERE kind=? AND id=?`, kind, id); err != nil {
+		if _, err := tx.Exec(`DELETE FROM semantic_vectors WHERE kind=? AND id=?`, kind, id); err != nil {
 			return 0, err
 		}
+	}
+	if err := tx.Commit(); err != nil {
+		return 0, err
 	}
 	return len(del), nil
 }

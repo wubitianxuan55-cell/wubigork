@@ -48,7 +48,15 @@ func GetDatabase(userDir string) *sql.DB {
 		return nil
 	}
 
-	db.SetMaxOpenConns(1) // SQLite 串行写入最佳实践
+	// 连接池放宽（刀C v4.248）：改前 SetMaxOpenConns(1) 把读也串到单连接
+	// （WAL 本可读并行），且「rows 未关闭时 Exec 等连接」是整类死锁的根源
+	// （internal/characterlib/portrait.go、internal/whisper/db/repos/fts.go
+	// 两处注脚）。WAL 下读并行安全；写并发由 SQLite 单写者锁串行化 +
+	// DSN 逐连接 _busy_timeout=5000 兜底（DSN 参数对池内每个新连接生效，
+	// 非仅首连接）。cache_size=-8000 为每连接 8MB 页缓存，4 连接 ≤32MB。
+	const maxConns = 4
+	db.SetMaxOpenConns(maxConns)
+	db.SetMaxIdleConns(maxConns)
 
 	pragmas := []string{
 		"PRAGMA journal_mode=WAL",

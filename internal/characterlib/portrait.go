@@ -241,9 +241,8 @@ func (s *Store) MigratePortraitsToFiles() int {
 	if err != nil {
 		return 0
 	}
-	// 注意：连接池 SetMaxOpenConns(1)。不能在 rows 未关闭时于循环内执行
-	// UPDATE，否则唯一连接被 rows 占用，Exec 会永久等待，启动卡死
-	// （chatStore 等后续初始化永远不执行）。先收集再写回。
+	// 注意（v4.248 连接池放宽后死锁类已消除）：仍保持先收集再写回——rows
+	// 未关闭时不做写操作，避免长时间占用池内连接与读写交错。
 	type pending struct {
 		id       string
 		portrait string
