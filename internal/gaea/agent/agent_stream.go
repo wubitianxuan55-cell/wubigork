@@ -29,7 +29,9 @@ func (a *AgentRunner) stream(ctx context.Context, turn int) (string, string, str
 	// v4.212（5.2）：随事件携带消息级编译摘要与相邻请求前缀稳定判定——
 	// 装配 dump/diff 落日志可回放，与 usage 的 CacheHitTokens 配对即
 	// 「前缀字节级稳定 + 缓存命中可证」。首请求无 prev，判定字段缺省。
-	digests := DigestMessages(msgs)
+	// 刀A v4.245：增量摘要——前缀指针身份核对后复用，只重哈希新增/改写
+	// 消息（与 DigestMessages 逐元素等价，见 compile.go DigestCache）。
+	digests := a.digestCache.Digest(msgs)
 	hadPrev := len(a.lastDigests) > 0
 	compileDiff := CompileDiff{Hash: SequenceHash(digests)}
 	if hadPrev {

@@ -261,6 +261,10 @@ type AgentRunner struct {
 	// stream() 组装时与本次摘要链一比，前缀稳定判定随 RequestHeader 落日志。
 	// stream 在单个 Run 内顺序调用，无需加锁。
 	lastDigests []MsgDigest
+	// digestCache 是摘要链的增量缓存（刀A v4.245）：相邻请求前缀指针身份
+	// 核对后复用逐消息摘要，只重哈希新增/改写消息；Digest 返回值即
+	// lastDigests 的新值。与 lastDigests 同约束（stream 链顺序调用）。
+	digestCache DigestCache
 
 	// V5.31: ����������Ƚضϼ�����output_continue.go��
 	lenContCount    int

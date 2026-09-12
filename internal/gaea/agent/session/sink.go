@@ -7,6 +7,7 @@ package session
 
 import (
 	"log/slog"
+	"os"
 	"sync"
 	"time"
 
@@ -25,6 +26,12 @@ type EventLogSink struct {
 	writer   *LogWriter
 	logPath  string
 	openErr  error // 打开失败时记一次，避免每事件重试刷屏
+	// 回合边界干净关闭后的续接点（刀A v4.245）：路径 + 关闭时 seq + 文件
+	// 大小。重开时大小未变 ⇒ 尾部完好、行数未变，走 OpenLogResuming 跳过
+	// 全量修复+逐行解析；大小不符（外部触碰/删除/轮转）自动回落全量路径。
+	resumePath string
+	resumeSeq  int64
+	resumeSize int64
 }
 
 // NewEventLogSink 构造事件日志 sink。dir 是会话目录；inner 是下一环 sink。
@@ -93,13 +100,17 @@ func (s *EventLogSink) logTo(path string, e event.Event) {
 	}
 	if s.writer == nil || s.logPath != lp {
 		if s.writer != nil {
-			_ = s.writer.Close()
-			s.writer = nil
+			s.closeWriterLocked()
 		}
 		s.logPath = lp
 		s.openErr = nil
 		// 空间自描述随写入器确定（懒解析：打开时实时读取当前会话空间）。
-		w, err := OpenLog(lp, path, s.spaceFor(path))
+		// 续接点只对本路径生效（会话切换不误用上一会话的 seq/大小）。
+		var rSeq, rSize int64
+		if s.resumePath == lp {
+			rSeq, rSize = s.resumeSeq, s.resumeSize
+		}
+		w, err := OpenLogResuming(lp, path, s.spaceFor(path), rSeq, rSize)
 		if err != nil {
 			s.openErr = err
 			slog.Warn("session event log: open failed", "log", lp, "error", err)
@@ -117,23 +128,36 @@ func (s *EventLogSink) logTo(path string, e event.Event) {
 		return
 	}
 	// 回合边界（turn_done）落盘后关闭写入器：回合间日志处于持久、可被外部
-	// 工具删除/迁移的状态；下一事件再懒打开（OpenLog 修复 torn-tail 并续 seq）。
+	// 工具删除/迁移的状态；下一事件再懒打开（OpenLogResuming 凭续接点 O(1)
+	// 续 seq，外部触碰时回落全量修复+计数）。
 	if entry.Kind == "turn_done" {
-		_ = s.writer.Close()
-		s.writer = nil
+		s.closeWriterLocked()
 	}
+}
+
+// closeWriterLocked 干净关闭当前写入器并记下续接点（关闭时 seq + 刷盘后
+// 文件大小）。调用方持有 s.mu。大小在 Close 之后取（无用户态缓冲，stat
+// 即终值）；stat 失败则不记续接点（下轮回落全量路径，只慢不错）。
+func (s *EventLogSink) closeWriterLocked() error {
+	if s.writer == nil {
+		return nil
+	}
+	seq := s.writer.Seq()
+	path := s.writer.path
+	err := s.writer.Close()
+	s.writer = nil
+	s.resumePath, s.resumeSeq, s.resumeSize = "", 0, 0
+	if st, statErr := os.Stat(path); statErr == nil {
+		s.resumePath, s.resumeSeq, s.resumeSize = path, seq, st.Size()
+	}
+	return err
 }
 
 // Close 关闭当前日志写入器。
 func (s *EventLogSink) Close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.writer != nil {
-		err := s.writer.Close()
-		s.writer = nil
-		return err
-	}
-	return nil
+	return s.closeWriterLocked()
 }
 
 // Flush 是 fail-closed 检查点落盘挂钩：确保日志已追加（close 刷盘）并返回

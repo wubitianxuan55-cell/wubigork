@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"strconv"
+	"unsafe"
 
 	"github.com/gaea/gaea/internal/gaea/provider"
 )
@@ -61,6 +62,69 @@ func DigestMessages(msgs []provider.Message) []MsgDigest {
 		out[i] = digestMessage(m)
 	}
 	return out
+}
+
+// ── 增量摘要缓存（刀A v4.245）──────────────────────────────────────
+//
+// DigestMessages 每次请求对全部历史消息重哈希（每步 O(会话总字节)）。相邻
+// 请求间消息序列通常只追加不改写——DigestCache 以指针级身份核对前缀，未变
+// 消息复用上一请求摘要，仅对新增/改写消息重哈希。
+//
+// 身份判定的正确性依据：Go 字符串不可变，数据指针+长度相等 ⇒ 字节内容相等
+// （两份存活字符串不可能部分重叠）；切片同理（同一底层数组 ⇒ 同元素）。
+// ToolCallID 等不在 digestMessage 输入里的字段不参与身份。身份不符只意味着
+// 「须重哈希」，绝不据此判定内容不同——保守方向，前缀稳定证据链只会重算、
+// 不会错判。
+
+// DigestCache 是相邻请求间的逐消息摘要缓存（AgentRunner 每实例一个，
+// 非并发安全——stream 链单调用方）。零值可用。
+type DigestCache struct {
+	msgs    []provider.Message
+	digests []MsgDigest
+	hits    int // 最近一次 Digest 复用的前缀消息数（测试/观测用）
+}
+
+// Digest 摘要消息序列：与 DigestMessages 逐元素等价，前缀身份相符的
+// 部分复用上次结果。
+func (c *DigestCache) Digest(msgs []provider.Message) []MsgDigest {
+	k := 0
+	for k < len(c.msgs) && k < len(msgs) && sameDigestIdentity(c.msgs[k], msgs[k]) {
+		k++
+	}
+	c.hits = k
+	out := make([]MsgDigest, len(msgs))
+	copy(out, c.digests[:k])
+	for i := k; i < len(msgs); i++ {
+		out[i] = digestMessage(msgs[i])
+	}
+	c.msgs = msgs
+	c.digests = out
+	return out
+}
+
+// sameDigestIdentity 报告两条消息的摘要相关输入是否同一份数据。
+func sameDigestIdentity(a, b provider.Message) bool {
+	if a.Role != b.Role || !sameStringIdentity(a.Content, b.Content) {
+		return false
+	}
+	if len(a.ToolCalls) != len(b.ToolCalls) {
+		return false
+	}
+	if len(a.ToolCalls) == 0 {
+		return true
+	}
+	return unsafe.SliceData(a.ToolCalls) == unsafe.SliceData(b.ToolCalls)
+}
+
+// sameStringIdentity 报告两个字符串是否同一份数据（指针+长度）。
+func sameStringIdentity(a, b string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	if len(a) == 0 {
+		return true
+	}
+	return unsafe.StringData(a) == unsafe.StringData(b)
 }
 
 // SequenceHash 是整条序列的整体摘要（相邻请求等值即整体未变）。

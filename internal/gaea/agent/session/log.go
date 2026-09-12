@@ -90,9 +90,9 @@ func KindString(k event.Kind) string {
 
 // LogEntry 是日志中的一行。Payload 保持原始 JSON 无损（不重新编解码）。
 type LogEntry struct {
-	Seq  int64           `json:"seq"`
-	Ts   int64           `json:"ts"`
-	Kind string          `json:"kind"`
+	Seq  int64  `json:"seq"`
+	Ts   int64  `json:"ts"`
+	Kind string `json:"kind"`
 	// Space 是会话空间自描述（S2 双空间）：写端由 LogWriter 按会话目录归属
 	// 写入（"work"/"play"）；space.mode=off 的平铺日志无此字段。读端空值一律
 	// 降级 work（spaces.SpaceOr），且保持原始空值以便 RewindLog 逐字节重写。
@@ -208,9 +208,9 @@ func CheckpointPathFor(sessionPath string) string {
 // LogWriter 是单点顺序写入器：Append 持锁串行，seq = 已写行数。
 // 打开时自动修复 torn-tail（截断最后的不完整行），保证后续 seq 连续。
 type LogWriter struct {
-	mu     sync.Mutex
-	f      *os.File
-	path   string
+	mu   sync.Mutex
+	f    *os.File
+	path string
 	// space 是本日志的空间自描述值（"work"/"play"；""=不写 space 字段，
 	// space.mode=off 平铺日志的旧行为形态）。由 OpenLog 在打开时确定。
 	space  string
@@ -257,6 +257,27 @@ func OpenLog(logPath, legacyPath, space string) (*LogWriter, error) {
 	w := &LogWriter{f: f, path: logPath, space: space}
 	w.seq = countLogLines(logPath)
 	return w, nil
+}
+
+// OpenLogResuming 是 OpenLog 的回合边界续接形态（刀A v4.245）：写入器由
+// 本进程在 turn_done 干净关闭时（EventLogSink 记下关闭时的 seq 与文件大小），
+// 重开时文件大小未变即可断定尾部完好、行数未变——跳过全量修复与逐行解析
+// （长会话下每回合 O(会话总字节) 的固定税）。大小不符（外部删除/轮转/改动/
+// 截断）或参数为零时回落 OpenLog 全量路径，语义不变；「回合间日志持久、
+// 可被外部工具触碰」的设计红线由大小核对保住。
+func OpenLogResuming(logPath, legacyPath, space string, resumeSeq, resumeSize int64) (*LogWriter, error) {
+	if logPath == "" {
+		return nil, errors.New("empty log path")
+	}
+	if resumeSeq > 0 && resumeSize > 0 {
+		if st, err := os.Stat(logPath); err == nil && st.Size() == resumeSize {
+			f, err := os.OpenFile(logPath, os.O_APPEND|os.O_WRONLY, 0o644)
+			if err == nil {
+				return &LogWriter{f: f, path: logPath, space: space, seq: resumeSeq}, nil
+			}
+		}
+	}
+	return OpenLog(logPath, legacyPath, space)
 }
 
 // Append 追加一条事件并返回其 seq。payload 必须可无损序列化为 JSON；

@@ -93,7 +93,7 @@
 3. **壳外 computer use**（期权；2026-09-10 提名已撤回，与「本机管家一切留痕」人设张力最大，仅观察）。
 4. ~~**进度 DCMA 14 点技能化形态**~~（2026-09-11 审计入池，**同日已执行形态 a=v4.226.0 清池**）：质量体检视图保留；阈值表数据化 dcma-thresholds.json（内置默认+`.gaea/skills/schedule-dcma/thresholds.json` 部分字段覆盖，改阈值不发版）；计算逻辑=机制留码。
 5. ~~**造价校验规则技能化**~~（2026-09-11 审计入池，**同日已执行形态 a=v4.227.0 清池**）：Apply 确认留痕流不动；判定参数数据化 checkparams.json（R1 容差/R3 两档/最少样本/退化带容差，内置默认+`.gaea/skills/cost-compose/params.json` 部分字段覆盖，改口径不发版）；校验引擎=机制留码。
-6. **Go 后端性能刀路 A-E**（2026-09-12 审计入池；普查落档 docs/gaea-backend-perf-survey-2026-09.md，20 项证据 file:line 均核实，与既有条目零重叠）：A=每回合税（事件日志全量重读增量化+DigestMessages 增量哈希，零行为变化）；B=记忆写路径（remember 全局锁内全库重载改后台刷新+Save 包事务+索引不 SELECT body）；C=SQLite 口径（Hephaestus.db 读写连接分离+批量事务化，仓内留有死锁注脚风险最高单独走）；D=cost 检索（接通闲置 bm25.Cache+Embedder/Reranker 单例化）；E=面板杂项（contextview 全量重解析+会话预览采样+wssearch 缓存上限+正则提包级）。首批立项建议先立 benchmark 锁基线。
+6. **Go 后端性能刀路 A-E**（2026-09-12 审计入池；普查落档 docs/gaea-backend-perf-survey-2026-09.md，20 项证据 file:line 均核实，与既有条目零重叠）：A=~~每回合税（事件日志全量重读增量化+DigestMessages 增量哈希，零行为变化）~~（**同日已执行=v4.245.0 清池**：benchmark 先行 20×/10.6×，外部触碰回落保语义）；B=记忆写路径（remember 全局锁内全库重载改后台刷新+Save 包事务+索引不 SELECT body）；C=SQLite 口径（Hephaestus.db 读写连接分离+批量事务化，仓内留有死锁注脚风险最高单独走）；D=cost 检索（接通闲置 bm25.Cache+Embedder/Reranker 单例化）；E=面板杂项（contextview 全量重解析+会话预览采样+wssearch 缓存上限+正则提包级）。立项先立 benchmark 锁基线（刀A 已开先例：log_bench/compile_bench 入库）。
 
 ## 6. 维持轨（常开，永不做成主题）
 
