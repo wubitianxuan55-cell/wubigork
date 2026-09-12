@@ -5,6 +5,21 @@
 
 const PANEL_OPEN = 'gaea.sin.panelOpen'
 const PANEL_TAB = 'gaea.sin.panelTab'
+const PANEL_WIDTH = 'gaea.sin.panelWidth'
+
+/** 面板宽度档位：默认=老版面 268；上限同时受视口收敛（保住故事流可读）。 */
+export const SIN_PANEL_DEFAULT_WIDTH = 268
+export const SIN_PANEL_MIN_WIDTH = 240
+export const SIN_PANEL_MAX_WIDTH = 640
+
+export function clampSinPanelWidth(value: number): number {
+  if (!Number.isFinite(value)) return SIN_PANEL_DEFAULT_WIDTH
+  const viewportMax = typeof window === 'undefined'
+    ? SIN_PANEL_MAX_WIDTH
+    : window.innerWidth - 520 // 左故事架 232 + 故事流最低可读余量
+  const max = Math.max(SIN_PANEL_MIN_WIDTH + 40, Math.min(SIN_PANEL_MAX_WIDTH, viewportMax))
+  return Math.min(max, Math.max(SIN_PANEL_MIN_WIDTH, Math.round(value)))
+}
 
 export type SinSideTabId = 'cast' | 'outline' | 'notes' | 'gallery'
 
@@ -48,4 +63,13 @@ export function readSinPanelTab(): SinSideTabId {
 
 export function writeSinPanelTab(tab: SinSideTabId): void {
   writeSideValue(PANEL_TAB, tab)
+}
+
+export function readSinPanelWidth(): number {
+  const raw = Number(readSideValue(PANEL_WIDTH))
+  return clampSinPanelWidth(Number.isFinite(raw) && raw > 0 ? raw : SIN_PANEL_DEFAULT_WIDTH)
+}
+
+export function writeSinPanelWidth(width: number): void {
+  writeSideValue(PANEL_WIDTH, String(clampSinPanelWidth(width)))
 }

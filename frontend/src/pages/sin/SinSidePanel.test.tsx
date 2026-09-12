@@ -13,6 +13,7 @@ vi.mock('../../api/image', async (importOriginal) => ({
 
 import { SinSidePanel } from './SinSidePanel'
 import { collectIllustrations } from './storyText'
+import { clampSinPanelWidth } from './sinPanelState'
 import type { SinMessageView } from './types'
 import type { SinCastCharacter } from './useSinCast'
 
@@ -115,6 +116,55 @@ describe('SinSidePanel', () => {
   it('玩法说明入口在面板头部（问号气泡触发钮）', () => {
     renderPanel()
     expect(screen.getByLabelText('玩法与协议说明')).toBeTruthy()
+  })
+
+  it('宽度拖拽：左缘手柄向左拖变宽、实时跟手、松手持久化', () => {
+    const { container } = renderPanel()
+    const aside = container.querySelector('aside.sin-side') as HTMLElement
+    expect(aside.style.width).toBe('268px')
+    const handle = screen.getByRole('separator', { name: '调整面板宽度' })
+    fireEvent.pointerDown(handle, { clientX: 1000 })
+    // jsdom innerWidth=1024 → 视口上限 504；向左拖 240px：268+240=508 → 钳到 504
+    fireEvent.pointerMove(window, { clientX: 760 })
+    expect(aside.style.width).toBe('504px')
+    fireEvent.pointerUp(window)
+    expect(localStorage.getItem('gaea.sin.panelWidth')).toBe('504')
+  })
+
+  it('宽度拖拽：向右拖收窄到下限 240', () => {
+    const { container } = renderPanel()
+    const aside = container.querySelector('aside.sin-side') as HTMLElement
+    fireEvent.pointerDown(screen.getByRole('separator', { name: '调整面板宽度' }), { clientX: 500 })
+    fireEvent.pointerMove(window, { clientX: 700 })
+    expect(aside.style.width).toBe('240px')
+    fireEvent.pointerUp(window)
+  })
+
+  it('双击手柄复位默认宽度并持久化', () => {
+    const { container } = renderPanel()
+    const aside = container.querySelector('aside.sin-side') as HTMLElement
+    fireEvent.pointerDown(screen.getByRole('separator', { name: '调整面板宽度' }), { clientX: 1000 })
+    fireEvent.pointerMove(window, { clientX: 760 })
+    fireEvent.pointerUp(window)
+    fireEvent.doubleClick(screen.getByRole('separator', { name: '调整面板宽度' }))
+    expect(aside.style.width).toBe('268px')
+    expect(localStorage.getItem('gaea.sin.panelWidth')).toBe('268')
+  })
+
+  it('宽度记忆：重挂载恢复上次宽度', () => {
+    localStorage.setItem('gaea.sin.panelWidth', '380')
+    const { container } = renderPanel()
+    expect((container.querySelector('aside.sin-side') as HTMLElement).style.width).toBe('380px')
+  })
+})
+
+describe('clampSinPanelWidth', () => {
+  it('钳制到 [240, 视口收敛上限]，非法值回默认', () => {
+    // jsdom innerWidth=1024 → 上限 min(640, 1024-520)=504
+    expect(clampSinPanelWidth(9999)).toBe(504)
+    expect(clampSinPanelWidth(100)).toBe(240)
+    expect(clampSinPanelWidth(Number.NaN)).toBe(268)
+    expect(clampSinPanelWidth(Number.POSITIVE_INFINITY)).toBe(268)
   })
 })
 

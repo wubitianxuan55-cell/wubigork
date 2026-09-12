@@ -380,3 +380,12 @@ v4.262.0 给了模型 `sin_notes`（设定集）与 `sin_outline`（大纲）两
 
 Go +1（绑定三态）；vitest +14（面板 8 + collectIllustrations 2 + useSinNotes 4）。
 空间分类计数锁 462→463。真机走查见 releases/v4.263.0.md 产物行。
+
+### 14.5 面板宽度可拖拽（v4.264.0）
+
+用户口径「右侧面板宽度应该是可以自由拉伸的」。左缘拖拽手柄（`.sin-side-resizer`，
+骑边框 8px 命中带、悬停/拖拽 accent 显色），指针拖拽范式与办公 useWorkspaceLayout
+同源：window 级 pointermove 实时跟手、拖拽中 body 锁 col-resize+禁选中、pointerup
+持久化、pointercancel 兜底。宽度记忆 `gaea.sin.panelWidth`；
+`clampSinPanelWidth` 纯函数钳制 240~640 + 视口收敛（innerWidth-520）；双击复位 268；
+画廊列数改 auto-fill minmax(104px,1fr) 随宽自适应（拖宽有实际收益）。

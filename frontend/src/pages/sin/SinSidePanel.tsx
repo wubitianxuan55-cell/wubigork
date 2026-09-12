@@ -10,13 +10,16 @@
 // 页签不放图标：268px 面板宽度下「图标+两字」会折行成竖排（真机走查实证），
 // 纯文字+计数在密度与可读性上都是对的。
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Modal, Popover } from 'antd'
 import { QuestionCircleOutlined } from '@ant-design/icons'
 import V3Empty from '../../components/V3Empty'
 import { readFileAsDataURL } from '../../api/image'
 import { collectIllustrations, type SinGalleryItem } from './storyText'
-import { readSinPanelTab, writeSinPanelTab, type SinSideTabId } from './sinPanelState'
+import {
+  clampSinPanelWidth, readSinPanelTab, readSinPanelWidth, SIN_PANEL_DEFAULT_WIDTH,
+  writeSinPanelTab, writeSinPanelWidth, type SinSideTabId,
+} from './sinPanelState'
 import { SinCastPanel } from './SinCastPanel'
 import type { SinCastCharacter } from './useSinCast'
 import type { SinNotesDoc } from './useSinNotes'
@@ -74,7 +77,38 @@ export function SinSidePanel({
   const [tab, setTab] = useState<SinSideTabId>(() => readSinPanelTab())
   const [preview, setPreview] = useState<SinGalleryItem | null>(null)
   const [previewUrl, setPreviewUrl] = useState('')
+  // 面板宽度：拖左缘手柄实时跟手，松手持久化（与办公 useWorkspaceLayout 同范式）
+  const [width, setWidth] = useState<number>(() => readSinPanelWidth())
+  const widthRef = useRef(width)
+  const [resizing, setResizing] = useState(false)
   const gallery = useMemo(() => collectIllustrations(messages), [messages])
+
+  const startResize = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    const startX = e.clientX
+    const startWidth = widthRef.current
+    setResizing(true)
+    const onMove = (me: PointerEvent) => {
+      // 手柄在面板左缘：向左拖（clientX 变小）= 变宽
+      const next = clampSinPanelWidth(startWidth + (startX - me.clientX))
+      widthRef.current = next
+      setWidth(next)
+    }
+    const onDone = () => {
+      writeSinPanelWidth(widthRef.current)
+      setResizing(false)
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onDone)
+      window.removeEventListener('pointercancel', onDone)
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+    }
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onDone)
+    window.addEventListener('pointercancel', onDone)
+  }, [])
 
   // 大图预览：点击缩略图打开；关闭即丢弃 data URL
   useEffect(() => {
@@ -99,7 +133,20 @@ export function SinSidePanel({
   ]
 
   return (
-    <aside className="sin-side">
+    <aside className="sin-side" style={{ width, flexBasis: width }}>
+      <div
+        className={`sin-side-resizer${resizing ? ' is-resizing' : ''}`}
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="调整面板宽度"
+        title="拖拽调整宽度 · 双击复位"
+        onPointerDown={startResize}
+        onDoubleClick={() => {
+          setWidth(SIN_PANEL_DEFAULT_WIDTH)
+          widthRef.current = SIN_PANEL_DEFAULT_WIDTH
+          writeSinPanelWidth(SIN_PANEL_DEFAULT_WIDTH)
+        }}
+      />
       <div className="sin-side-tabs" role="tablist" aria-label="创作面板">
         {tabs.map((t) => (
           <button

@@ -223,8 +223,10 @@
 }
 
 /* 右：创作面板（办公同款标签页，v4.263）。
-   开合由顶栏按钮管（记忆在 gaea.sin.panelOpen），窄窗不再强制隐藏。 */
+   开合由顶栏按钮管（记忆在 gaea.sin.panelOpen），窄窗不再强制隐藏；
+   宽度由左缘手柄拖拽（v4.264，记忆在 gaea.sin.panelWidth），内联样式生效。 */
 .sin-side {
+  position: relative;
   width: 268px;
   flex: 0 0 268px;
   min-height: 0;
@@ -232,6 +234,33 @@
   background: var(--sidebar-bg, var(--bg-soft));
   display: flex;
   flex-direction: column;
+}
+/* 左缘拖拽手柄：骑在边框上给 8px 命中带，悬停/拖拽中显色提示 */
+.sin-side-resizer {
+  position: absolute;
+  left: -4px;
+  top: 0;
+  bottom: 0;
+  width: 8px;
+  cursor: col-resize;
+  z-index: 5;
+  border: 0;
+  padding: 0;
+  background: none;
+}
+.sin-side-resizer::after {
+  content: '';
+  position: absolute;
+  left: 3px;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: transparent;
+  transition: background .15s ease;
+}
+.sin-side-resizer:hover::after,
+.sin-side-resizer.is-resizing::after {
+  background: color-mix(in srgb, var(--accent) 45%, transparent);
 }
 .sin-side-tabs {
   display: flex;
@@ -326,8 +355,8 @@
   overflow-wrap: anywhere;
 }
 
-/* 插图画廊（本故事全部产物，点开看大图） */
-.sin-gal-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+/* 插图画廊（本故事全部产物，点开看大图）；列数随面板宽度自适应（v4.264 拖宽） */
+.sin-gal-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 8px; }
 .sin-gal-cell { margin: 0; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .sin-gal-thumb {
   display: block;
@@ -483,6 +512,7 @@
   .sin-figure-spinner { animation: none; }
   .sin-proc-spin { animation: none; }
   .sin-proc-chevron { transition: none; }
+  .sin-side-resizer::after { transition: none; }
 }
 
 /* ── 过程卡（v4.262）：思考过程 + 工具调用轨迹 ──────────────────────
