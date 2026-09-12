@@ -50,6 +50,23 @@ const DEMO_REPLY = [
   "她没有否认，只是把相机往身后挪了半寸。列车启动，两个人的影子同时晃了一下。",
 ].join("\n");
 
+/** 走查用工具轨迹：与后端 sinToolTrace 同形（snake_case，键名逐字对应），
+ *  既喂流式过程卡（dispatch → result），也写进消息 extra.tools 供重开还原。 */
+const DEMO_TOOLS = [
+  {
+    id: "call_demo_1", name: "web_search",
+    args: JSON.stringify({ query: "1980年代 通勤电车 车厢内景 顶灯" }),
+    output: '[{"title":"通勤电车车厢内饰","url":"https://example.com/train","snippet":"暖色顶灯、吊环、雨天玻璃反光"}]',
+    error: "", elapsed_ms: 1240, read_only: true,
+  },
+  {
+    id: "call_demo_2", name: "sin_notes",
+    args: JSON.stringify({ action: "write", content: "女主：林晚，地方台记者；男主：指节有旧伤" }),
+    output: "已记录便签 #0（共 1 条）。",
+    error: "", elapsed_ms: 5, read_only: false,
+  },
+];
+
 export function buildSin(): SinMethods {
   let seq = 0;
   const stories: MockStory[] = [];
@@ -78,7 +95,7 @@ export function buildSin(): SinMethods {
       {
         id: ++seq, topic_id: id, role: "assistant",
         content: DEMO_REPLY,
-        extra: JSON.stringify({ illustrations: { "0": ".gaea/uploads/sin-mock-1.png" } }),
+        extra: JSON.stringify({ illustrations: { "0": ".gaea/uploads/sin-mock-1.png" }, tools: DEMO_TOOLS }),
         seq: 2, created_at: ts,
       },
     ]);
@@ -141,6 +158,22 @@ export function buildSin(): SinMethods {
       const handle = { cancelled: false, topicID };
       runningStreams.set(runID, handle);
       void (async () => {
+        // 过程帧与真机同序同形：reasoning → tool_dispatch → tool_result → delta → done。
+        // 运行态可走查（dispatch 与 result 之间有停顿），且不伪造百分比。
+        emitFrame(runID, { type: "reasoning", content: "（mock）先把现实细节查准，再落笔。" });
+        for (const tool of DEMO_TOOLS) {
+          if (handle?.cancelled) break;
+          emitFrame(runID, {
+            type: "tool_dispatch", id: tool.id, name: tool.name,
+            args: tool.args, read_only: tool.read_only,
+          });
+          await new Promise((r) => setTimeout(r, 220));
+          emitFrame(runID, {
+            type: "tool_result", id: tool.id, name: tool.name,
+            output: tool.output, error: tool.error, elapsed_ms: tool.elapsed_ms,
+          });
+          await new Promise((r) => setTimeout(r, 80));
+        }
         const step = 24;
         let sent = "";
         for (let i = 0; i < DEMO_REPLY.length; i += step) {
@@ -155,14 +188,15 @@ export function buildSin(): SinMethods {
           id: ++seq, topic_id: topicID, role: "assistant",
           content: cancelled ? sent : DEMO_REPLY,
           extra: JSON.stringify(cancelled
-            ? { reasoning: "（mock）用户停止", cancelled: true }
-            : { reasoning: "（mock）按雨夜站台→车厢近景推进" }),
+            ? { reasoning: "（mock）用户停止", cancelled: true, tools: DEMO_TOOLS }
+            : { reasoning: "（mock）按雨夜站台→车厢近景推进", tools: DEMO_TOOLS }),
           seq: base + 2, created_at: now(),
         };
         list.push(assistant);
         emitFrame(runID, {
           type: "done", reply: assistant.content, reasoning: "", cancelled,
           topicID, message_id: assistant.id,
+          tools: DEMO_TOOLS,
           answered_by: { engine: "mock", model: "mock-story", source: "feature", cost_cny: 0 },
         });
       })();

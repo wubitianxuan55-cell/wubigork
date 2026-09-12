@@ -26,7 +26,7 @@ import (
 // newChatServiceTestApp 构造统一聊天入口测试 App：herdsman 指向 mock LLM。
 func newChatServiceTestApp(t *testing.T) *App {
 	t.Helper()
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	return newChatServiceTestAppWithHandler(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/event-stream")
 		w.Write([]byte("data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"你好呀\"}}]}\n\n"))
 		w.Write([]byte("data: [DONE]\n\n"))
@@ -34,6 +34,13 @@ func newChatServiceTestApp(t *testing.T) *App {
 			f.Flush()
 		}
 	}))
+}
+
+// newChatServiceTestAppWithHandler 与 newChatServiceTestApp 同一套装配，但假 LLM
+// 的响应由调用方决定——多轮工具循环需要按轮次编排 SSE（第 1 轮工具调用、第 2 轮正文）。
+func newChatServiceTestAppWithHandler(t *testing.T, handler http.Handler) *App {
+	t.Helper()
+	srv := httptest.NewServer(handler)
 	t.Cleanup(srv.Close)
 
 	home := t.TempDir()

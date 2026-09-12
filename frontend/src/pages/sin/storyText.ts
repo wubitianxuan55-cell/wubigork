@@ -3,7 +3,7 @@
 // 契约：标记 `@@插图|画面描述@@` 独占一行；一条消息内按出现次序编号（0 起），
 // 该编号即插图映射键（Go 侧 sinCueKey / SinIllustrate 的 cue 参数）。
 
-import type { StorySegment } from './types'
+import type { SinToolTrace, SinToolTraceView, StorySegment } from './types'
 
 /** 插图标记定界符（与 Go 侧 sin_prompt.go 常量逐字一致）。 */
 export const SIN_CUE_OPEN = '@@插图|'
@@ -80,6 +80,49 @@ export function parseReasoning(extra: unknown): string {
   if (!obj || typeof obj !== 'object') return ''
   const r = (obj as Record<string, unknown>).reasoning
   return typeof r === 'string' ? r : ''
+}
+
+/**
+ * 从 extra 里取工具轨迹（后端落库的 tools 字段）。
+ * 容错口径与 parseIllustrations 同源：坏 JSON / 缺字段 / 单条畸形一律跳过，
+ * 绝不抛——过程卡是装饰面，不能让它拖垮故事渲染。
+ */
+export function parseTools(extra: unknown): SinToolTrace[] {
+  let obj: unknown = extra
+  if (typeof extra === 'string') {
+    const raw = extra.trim()
+    if (!raw) return []
+    try {
+      obj = JSON.parse(raw)
+    } catch {
+      return []
+    }
+  }
+  if (!obj || typeof obj !== 'object') return []
+  const list = (obj as Record<string, unknown>).tools
+  if (!Array.isArray(list)) return []
+  const out: SinToolTrace[] = []
+  for (const raw of list) {
+    if (!raw || typeof raw !== 'object') continue
+    const t = raw as Record<string, unknown>
+    const name = typeof t.name === 'string' ? t.name : ''
+    if (!name) continue // 无名字的行渲染不出信息，丢弃
+    out.push({
+      id: typeof t.id === 'string' ? t.id : '',
+      name,
+      args: typeof t.args === 'string' ? t.args : '',
+      output: typeof t.output === 'string' ? t.output : '',
+      error: typeof t.error === 'string' ? t.error : '',
+      elapsed_ms: typeof t.elapsed_ms === 'number' ? t.elapsed_ms : 0,
+      read_only: t.read_only === true,
+    })
+  }
+  return out
+}
+
+/** 落库轨迹 → 过程卡视图：有 error 即失败，否则完成（历史消息没有 running 态）。 */
+export function toToolViews(traces: SinToolTrace[]): SinToolTraceView[] {
+  return traces.map((t) => ({ ...t, status: t.error ? 'failed' : 'done' }))
 }
 
 /** 该条消息里还没有插图产物的插图段（供自动生成排队）。 */

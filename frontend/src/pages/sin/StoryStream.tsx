@@ -8,6 +8,7 @@ import { forwardRef } from 'react'
 import { Markdown } from '../../gaea/components/Markdown'
 import { EmptyState } from '../../gaea/components/EmptyState'
 import { SinIllustration } from './SinIllustration'
+import { SinProcessCard } from './SinProcessCard'
 import { parseStorySegments } from './storyText'
 import type { SinMessageView } from './types'
 
@@ -48,6 +49,8 @@ export const StoryStream = forwardRef<HTMLDivElement, StoryStreamProps>(function
         return (
           <div className={`sin-row is-assistant${m.error ? ' is-error' : ''}`} key={m.key}>
             <div className="sin-assistant-card">
+              {/* 过程先于结果：思考过程与工具调用在正文之上（无内容时自行不渲染） */}
+              <SinProcessCard reasoning={m.reasoning} tools={m.tools ?? []} running={!!m.streaming} />
               {segments.map((seg, i) => (
                 seg.kind === 'text' ? (
                   <div className="sin-text" key={`t${i}`}>

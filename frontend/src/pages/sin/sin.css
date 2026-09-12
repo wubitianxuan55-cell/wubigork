@@ -347,4 +347,111 @@
 @media (prefers-reduced-motion: reduce) {
   .sin-caret { animation: none; }
   .sin-figure-spinner { animation: none; }
+  .sin-proc-spin { animation: none; }
+  .sin-proc-chevron { transition: none; }
+}
+
+/* ── 过程卡（v4.262）：思考过程 + 工具调用轨迹 ──────────────────────
+   视觉对齐办公过程卡的收敛形态（弱色边框、折叠头、工具行），状态靠
+   色 + 图标 + 文字三重传达（12 主题下可区分）。 */
+.sin-proc {
+  margin-bottom: 8px;
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--bg-soft) 60%, transparent);
+  overflow: hidden;
+}
+.sin-proc-head {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  background: none;
+  border: 0;
+  color: var(--fg-dim);
+  font-size: 11.5px;
+  cursor: pointer;
+  text-align: left;
+}
+.sin-proc-head:hover { color: var(--fg); }
+.sin-proc-head-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sin-proc-chevron { flex: 0 0 auto; opacity: .6; transition: transform .15s ease; }
+.sin-proc-chevron.is-open { transform: rotate(90deg); }
+.sin-proc-spin { animation: sin-proc-spin 1s linear infinite; }
+.sin-proc-done { color: var(--ok); }
+.sin-proc-body {
+  padding: 2px 8px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.sin-proc-reason {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--fg-dim);
+  white-space: pre-wrap;
+  max-height: 180px;
+  overflow: auto;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: var(--bg-elev, var(--bg-soft));
+}
+.sin-proc-tool { border-left: 2px solid var(--border-soft); padding-left: 6px; }
+.sin-proc-tool.is-running { border-left-color: var(--accent); }
+.sin-proc-tool.is-failed { border-left-color: var(--err); }
+.sin-proc-tool-head {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: 0;
+  padding: 3px 0;
+  color: var(--fg);
+  font-size: 12px;
+  cursor: pointer;
+  text-align: left;
+}
+.sin-proc-tool-icon { display: inline-flex; color: var(--fg-faint); flex: 0 0 auto; }
+.sin-proc-tool.is-failed .sin-proc-tool-icon { color: var(--err); }
+.sin-proc-tool-label { flex: 0 0 auto; }
+.sin-proc-tool-subject {
+  flex: 1;
+  min-width: 0;
+  color: var(--fg-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sin-proc-tool-status { flex: 0 0 auto; font-size: 11px; color: var(--fg-faint); }
+.sin-proc-tool.is-failed .sin-proc-tool-status { color: var(--err); }
+.sin-proc-tool-body { padding: 2px 0 6px; display: flex; flex-direction: column; gap: 6px; }
+.sin-proc-kv { display: flex; gap: 6px; align-items: flex-start; }
+.sin-proc-k { flex: 0 0 auto; font-size: 11px; color: var(--fg-faint); padding-top: 2px; }
+.sin-proc-pre {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 220px;
+  overflow: auto;
+  background: var(--bg-elev, var(--bg-soft));
+  border-radius: 8px;
+  padding: 6px 8px;
+  color: var(--fg-dim);
+}
+.sin-proc-err { font-size: 11.5px; color: var(--err); white-space: pre-wrap; }
+
+@keyframes sin-proc-spin {
+  to { transform: rotate(360deg); }
 }

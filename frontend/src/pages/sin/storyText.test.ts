@@ -4,7 +4,8 @@
 import { describe, expect, it } from 'vitest'
 import {
   SIN_CUE_CLOSE, SIN_CUE_OPEN, parseIllustrations, parseReasoning,
-  parseStorySegments, pendingIllustrations, sinCueKey, stripCuesForDisplay, suggestStoryTitle,
+  parseStorySegments, parseTools, pendingIllustrations, sinCueKey,
+  stripCuesForDisplay, suggestStoryTitle, toToolViews,
 } from './storyText'
 
 describe('parseStorySegments', () => {
@@ -69,5 +70,42 @@ describe('展示辅助', () => {
   it('suggestStoryTitle 取首条指令前 16 字，空则「新故事」', () => {
     expect(suggestStoryTitle('写一个雨夜电车上的开场，主角是女记者和一个陌生男人')).toBe('写一个雨夜电车上的开场，主角是女')
     expect(suggestStoryTitle('   ')).toBe('新故事')
+  })
+})
+
+describe('parseTools / toToolViews（工具轨迹）', () => {
+  it('解析落库轨迹：JSON 字符串与已解析对象都认，键名按后端 snake_case', () => {
+    const extra = JSON.stringify({
+      reasoning: 'r',
+      tools: [{
+        id: 'call_1', name: 'web_search', args: '{"query":"唐末长安"}',
+        output: '结果', error: '', elapsed_ms: 1240, read_only: true,
+      }],
+    })
+    const [t] = parseTools(extra)
+    expect(t).toEqual({
+      id: 'call_1', name: 'web_search', args: '{"query":"唐末长安"}',
+      output: '结果', error: '', elapsed_ms: 1240, read_only: true,
+    })
+    expect(parseTools(JSON.parse(extra))).toHaveLength(1)
+  })
+
+  it('容错：坏 JSON / 缺字段 / 畸形条目一律跳过，绝不抛', () => {
+    expect(parseTools('not json')).toEqual([])
+    expect(parseTools('')).toEqual([])
+    expect(parseTools(null)).toEqual([])
+    expect(parseTools('{"tools":"nope"}')).toEqual([])
+    // 无名条目渲染不出信息 → 丢弃；其余字段缺失按默认值补齐（不编造）。
+    expect(parseTools('{"tools":[{"args":"{}"},{"name":"sin_notes"}]}')).toEqual([
+      { id: '', name: 'sin_notes', args: '', output: '', error: '', elapsed_ms: 0, read_only: false },
+    ])
+  })
+
+  it('toToolViews：有 error 即失败，否则完成（历史消息没有运行态）', () => {
+    const views = toToolViews([
+      { id: 'a', name: 'web_search', error: '' },
+      { id: 'b', name: 'sin_notes', error: '工具执行失败：x' },
+    ])
+    expect(views.map((v) => v.status)).toEqual(['done', 'failed'])
   })
 })

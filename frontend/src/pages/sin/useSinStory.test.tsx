@@ -47,7 +47,11 @@ beforeEach(() => {
     {
       id: 2, topic_id: 'sin_1', role: 'assistant',
       content: '雨落在窗上。\n@@插图|灯下的女人@@',
-      extra: JSON.stringify({ illustrations: { '0': 'C:/tmp/art.png' }, reasoning: 'r' }),
+      extra: JSON.stringify({
+        illustrations: { '0': 'C:/tmp/art.png' },
+        reasoning: 'r',
+        tools: [{ id: 'call_9', name: 'sin_cast', args: '{"name":"林晚"}', output: '角色卡：林晚', error: '', elapsed_ms: 4, read_only: true }],
+      }),
       seq: 2, created_at: '2026-09-12 10:00:01',
     },
   ])
@@ -73,6 +77,11 @@ describe('useSinStory', () => {
     expect(assistant.role).toBe('assistant')
     expect(assistant.illustrations).toEqual({ '0': 'C:/tmp/art.png' })
     expect(assistant.reasoning).toBe('r')
+    // 重开故事：过程卡从 extra.tools 还原（历史消息没有运行态）
+    expect(assistant.tools).toEqual([{
+      id: 'call_9', name: 'sin_cast', args: '{"name":"林晚"}', output: '角色卡：林晚',
+      error: '', elapsed_ms: 4, read_only: true, status: 'done',
+    }])
   })
 
   it('发送：乐观消息 → delta 累加 → done 落定（消息 id 对齐为 db_ 键）', async () => {
@@ -123,6 +132,56 @@ describe('useSinStory', () => {
     expect(result.current.sending).toBe(false)
   })
 
+  it('过程帧：reasoning 累加、dispatch→result 按 id 合并、notice 进提示条、done.tools 覆盖累积', async () => {
+    bridgeMock.SinStream.mockResolvedValue('ss_proc')
+    const { result } = renderHook(() => useSinStory())
+    await waitFor(() => expect(result.current.initializing).toBe(false))
+    await act(async () => { void result.current.send('写开场') })
+    await waitFor(() => expect(eventsMock.handlers['sin-stream:ss_proc']).toBeTruthy())
+
+    const frame = (p: Record<string, unknown>) => { eventsMock.handlers['sin-stream:ss_proc'](p) }
+    const lastMsg = () => result.current.messages[result.current.messages.length - 1]
+
+    act(() => {
+      frame({ type: 'notice', message: '当前模型不支持工具调用，已按纯写作继续' })
+      frame({ type: 'reasoning', content: '先查资料' })
+      frame({ type: 'tool_dispatch', id: 'call_1', name: 'web_search', args: '{"query":"唐末长安"}', read_only: true })
+    })
+    await waitFor(() => {
+      expect(lastMsg().reasoning).toBe('先查资料')
+      expect(lastMsg().tools).toHaveLength(1)
+      expect(lastMsg().tools?.[0].status).toBe('running')
+    })
+    expect(result.current.notice).toContain('不支持工具调用')
+
+    act(() => {
+      frame({ type: 'tool_result', id: 'call_1', name: 'web_search', output: '3 条结果', error: '', elapsed_ms: 900 })
+      // 丢帧兜底：没有 dispatch 的 result 也如实补一行（不静默吞掉调用事实）
+      frame({ type: 'tool_result', id: 'call_orphan', name: 'sin_notes', output: '已记录便签 #0' })
+    })
+    await waitFor(() => {
+      expect(lastMsg().tools?.[0]).toMatchObject({ status: 'done', output: '3 条结果', elapsed_ms: 900 })
+      expect(lastMsg().tools?.[1]).toMatchObject({ id: 'call_orphan', status: 'done', args: '' })
+    })
+
+    act(() => {
+      frame({
+        type: 'done', reply: '正文。', message_id: 11, reasoning: '先查资料',
+        tools: [{
+          id: 'call_1', name: 'web_search', args: '{"query":"唐末长安"}',
+          output: '3 条结果', error: '', elapsed_ms: 900, read_only: true,
+        }],
+      })
+    })
+    await waitFor(() => expect(result.current.sending).toBe(false))
+    // done.tools 是权威轨迹：整段覆盖（孤儿行被清掉，与落库一致）
+    expect(lastMsg().tools).toEqual([{
+      id: 'call_1', name: 'web_search', args: '{"query":"唐末长安"}',
+      output: '3 条结果', error: '', elapsed_ms: 900, read_only: true, status: 'done',
+    }])
+    expect(lastMsg().key).toBe('db_11')
+  })
+
   it('无帧超时：超时阈值后按失败收尾（长文阈值导出给测试共用）', async () => {
     vi.useFakeTimers()
     bridgeMock.SinStream.mockResolvedValue('ss_timeout')
@@ -141,6 +200,30 @@ describe('useSinStory', () => {
     await waitFor(() => expect(result.current.initializing).toBe(false))
     act(() => { result.current.setIllustration('db_2', '1', 'C:/tmp/new.png') })
     expect(result.current.messages[1].illustrations).toEqual({ '0': 'C:/tmp/art.png', '1': 'C:/tmp/new.png' })
+  })
+
+  it('帧到达会重置静默计时：工具循环的长回合不误判超时（v4.262）', async () => {
+    vi.useFakeTimers()
+    bridgeMock.SinStream.mockResolvedValue('ss_long')
+    const { result } = renderHook(() => useSinStory())
+    await act(async () => { await Promise.resolve() })
+    await act(async () => { void result.current.send('写下一幕') })
+    await act(async () => { await vi.advanceTimersByTimeAsync(SIN_STREAM_SILENCE_TIMEOUT_MS - 5_000) })
+    // 半程收到一帧（工具结果）→ 计时重置
+    act(() => {
+      eventsMock.handlers['sin-stream:ss_long']({
+        type: 'tool_result', id: 'c1', name: 'web_search', output: '3 条结果', error: '', elapsed_ms: 800,
+      })
+    })
+    await act(async () => { await vi.advanceTimersByTimeAsync(SIN_STREAM_SILENCE_TIMEOUT_MS - 5_000) })
+    // 改前：一次性计时器在 stream 开始 +90s 就判超时（真机走查：正文已落库却报超时）
+    expect(result.current.messages[result.current.messages.length - 1].error).toBeFalsy()
+    act(() => {
+      eventsMock.handlers['sin-stream:ss_long']({ type: 'done', reply: '正文。', message_id: 21, reasoning: '' })
+    })
+    await act(async () => { await vi.advanceTimersByTimeAsync(10) })
+    expect(result.current.messages[result.current.messages.length - 1].content).toContain('正文')
+    expect(result.current.sending).toBe(false)
   })
 
   it('cancel：调用 SinCancel、收掉流式标记、sending 复位（输入框解封）', async () => {

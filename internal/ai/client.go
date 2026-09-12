@@ -1127,6 +1127,57 @@ func (c *Client) ChatStreamChunks(ctx context.Context, model, systemPrompt, user
 	}
 	ctx, cancel := context.WithTimeout(ctx, time.Duration(timeoutMinutes)*time.Minute)
 
+	req := c.prepareStreamRequest(model, []ChatMessage{
+		{Role: "system", Content: systemPrompt},
+		{Role: "user", Content: userMsg},
+	}, opts)
+
+	reqEngine := opts.EngineID
+	if reqEngine == "" {
+		reqEngine = c.ActiveEngineID()
+	}
+
+	c.emit("request", map[string]interface{}{
+		"model":     req.Model,
+		"system":    systemPrompt,
+		"user":      userMsg,
+		"reasoning": opts.ReasoningEffort,
+		"engine":    reqEngine,
+	})
+
+	chunks, err := c.ChatStream(ctx, req)
+	if err != nil {
+		cancel()
+		return nil, nil, err
+	}
+	return chunks, cancel, nil
+}
+
+// ChatStreamMessages 与 ChatStreamChunks 同一份装配（超时/模型解析/default 采样/
+// modelhub 让位/思考预算守护），但接受完整消息数组与工具定义：多轮工具循环要逐轮
+// 追加 assistant(tool_calls) 与 tool 消息，两段式「system + user」表达不了。
+// 装配逻辑只留在 prepareStreamRequest 一处，两条入口不会漂移。
+func (c *Client) ChatStreamMessages(ctx context.Context, model string, messages []ChatMessage, opts ChatSimpleOptions, tools []ChatToolSchema) (<-chan SSEChunk, context.CancelFunc, error) {
+	timeoutMinutes := opts.TimeoutMinutes
+	if timeoutMinutes <= 0 {
+		timeoutMinutes = 5
+	}
+	ctx, cancel := context.WithTimeout(ctx, time.Duration(timeoutMinutes)*time.Minute)
+
+	req := c.prepareStreamRequest(model, messages, opts)
+	req.Tools = tools
+
+	chunks, err := c.ChatStream(ctx, req)
+	if err != nil {
+		cancel()
+		return nil, nil, err
+	}
+	return chunks, cancel, nil
+}
+
+// prepareStreamRequest 装配一轮流式请求：模型名兜底、default 采样、modelhub 让位、
+// Qwen3 系思考预算守护。ChatStreamChunks 与 ChatStreamMessages 共用同一份实现。
+func (c *Client) prepareStreamRequest(model string, messages []ChatMessage, opts ChatSimpleOptions) *ChatRequest {
 	// 如果 model 为空，用引擎默认模型（功能级引擎优先）
 	if model == "" {
 		model = c.resolveModelName("", opts.EngineID)
@@ -1135,14 +1186,6 @@ func (c *Client) ChatStreamChunks(ctx context.Context, model, systemPrompt, user
 	if reqEngine == "" {
 		reqEngine = c.ActiveEngineID()
 	}
-
-	c.emit("request", map[string]interface{}{
-		"model":     model,
-		"system":    systemPrompt,
-		"user":      userMsg,
-		"reasoning": opts.ReasoningEffort,
-		"engine":    reqEngine,
-	})
 
 	// modelhub 引擎判定（MH1/§七蒸馏：unsloth Studio 服务端有按模型自动采样
 	// 调优与思考模板开关，客户端默认值不应顶掉）。自定义引擎 Type 恒为
@@ -1169,7 +1212,7 @@ func (c *Client) ChatStreamChunks(ctx context.Context, model, systemPrompt, user
 	req := &ChatRequest{
 		Model:           model,
 		EngineID:        opts.EngineID,
-		Messages:        []ChatMessage{{Role: "system", Content: systemPrompt}, {Role: "user", Content: userMsg}},
+		Messages:        messages,
 		MaxTokens:       maxTokens,
 		Temperature:     temperature,
 		ReasoningEffort: opts.ReasoningEffort,
@@ -1204,12 +1247,7 @@ func (c *Client) ChatStreamChunks(ctx context.Context, model, systemPrompt, user
 		}
 	}
 
-	chunks, err := c.ChatStream(ctx, req)
-	if err != nil {
-		cancel()
-		return nil, nil, err
-	}
-	return chunks, cancel, nil
+	return req
 }
 
 // SetImageBackend 设置图片生成后端（nil + backendType 回退到 xAI）

@@ -242,44 +242,105 @@ func (a *App) runSinStream(runID, topicID, userMessage, eng, model, source strin
 		TimeoutMinutes: 10,
 	}
 
-	chunks, cancel, err := a.client.ChatStreamChunks(a.ctx, model, sinSystemPrompt(), userPrompt, opts)
-	if err != nil {
-		a.emit("sin-stream:"+runID, map[string]interface{}{"type": "error", "error": err.Error()})
-		return
-	}
-	defer cancel()
-	// 取消句柄交给登记项：SinCancel 调用它即断开底层请求（chunks 通道随之收尾）
-	run.cancel = cancel
+	// 工具集（原罪域内，硬隔离：不接办公工作区读写/命令执行/记忆面）。
+	// 注册表为空时本循环退化为改造前的单轮行为（请求不带 tools 字段）。
+	tools := a.sinToolSet(topicID)
+	schemas := sinToolSchemas(tools)
+
+	// 整轮可取消：SinCancel 取消的是这一整轮（底层流式请求 + 正在执行的工具），
+	// 且起手即登记——改造前要等首个请求建立成功才可取消，存在一个窄窗口。
+	runCtx, runCancel := context.WithCancel(a.ctx)
+	defer runCancel()
+	run.cancel = runCancel
 	if run.cancelled.Load() {
-		cancel() // 极窄竞态：注册与取消同帧 → 立即中止
+		runCancel() // 极窄竞态：注册与取消同帧 → 立即中止
 	}
 
-	var reply, reasoning strings.Builder
-	var usage *ai.ChatUsage
-	for chunk := range chunks {
-		if run.cancelled.Load() {
-			break
+	messages := []ai.ChatMessage{
+		{Role: "system", Content: sinSystemPrompt()},
+		{Role: "user", Content: userPrompt},
+	}
+	var (
+		reply, reasoning strings.Builder
+		usage            *ai.ChatUsage
+		trace            []sinToolTrace
+		round            int
+		useTools         = len(schemas) > 0
+		// 工具预算按「一整轮用户回合」计（跨工具轮不重置）：真机走查实测模型会
+		// 拿 web_search 一路查到轮次封顶，正文只剩几十字。
+		budget = &sinToolBudget{}
+		nudged bool
+	)
+	// 轮次上限 = 工具轮（sinToolRoundsMax-1）+ 收尾轮；收尾轮若仍被模型拿工具
+	// 顶掉（真机实测），允许一次兜底收尾轮把正文逼出来。
+	for round < sinToolRoundsMax+1 {
+		finalize := round >= sinToolRoundsMax-1
+		roundSchemas := []ai.ChatToolSchema(nil)
+		// 收尾轮不带 tools：强制模型收尾成正文（工具是手段，写作是目的）。
+		if useTools && !finalize {
+			roundSchemas = schemas
 		}
-		if chunk.Error != "" {
-			// 取消引发的读错误按「已停止」收尾（不当失败报）
+		if finalize && !nudged {
+			// 明确告知「工具阶段结束」——只说「别调工具」不够，要给出只写正文的指令。
+			messages = append(messages, ai.ChatMessage{Role: "system", Content: sinFinalizeNudge})
+			nudged = true
+		}
+		res, err := a.sinStreamRound(runCtx, runID, model, opts, messages, roundSchemas, run)
+		if err != nil {
 			if run.cancelled.Load() {
 				break
 			}
-			a.emit("sin-stream:"+runID, map[string]interface{}{"type": "error", "error": chunk.Error})
-			return
-		}
-		if chunk.Done {
-			usage = chunk.Usage
+			switch {
+			case roundSchemas != nil && len(trace) == 0 && reply.Len() == 0:
+				// 首轮带工具直接失败（模型/端点不支持 tools）→ 去掉工具重试一次，
+				// 并如实告知。工具是增强不是前置条件：不支持工具不该让写作整单失败。
+				useTools = false
+				a.emit("sin-stream:"+runID, map[string]interface{}{
+					"type": "notice", "message": "当前模型不支持工具调用，已按纯写作继续",
+				})
+				continue
+			case reply.Len() > 0:
+				// 已经有正文：中断的是工具轮，用已写出来的内容收尾（不吞掉故事）。
+				a.emit("sin-stream:"+runID, map[string]interface{}{
+					"type": "notice", "message": "工具轮中断，已用已生成的内容收尾",
+				})
+			default:
+				a.emit("sin-stream:"+runID, map[string]interface{}{"type": "error", "error": err.Error()})
+				return
+			}
 			break
 		}
-		if chunk.Content != "" {
-			reply.WriteString(chunk.Content)
-			a.emit("sin-stream:"+runID, map[string]interface{}{"type": "delta", "content": chunk.Content})
+
+		round++
+		reply.WriteString(res.content)
+		reasoning.WriteString(res.reasoning)
+		usage = sinAccumulateUsage(usage, res.usage)
+		if len(res.calls) == 0 {
+			break // 没有工具调用 = 这一轮就是正文，自然收尾
 		}
-		if chunk.Reasoning != "" {
-			reasoning.WriteString(chunk.Reasoning)
-			a.emit("sin-stream:"+runID, map[string]interface{}{"type": "reasoning", "content": chunk.Reasoning})
+		if finalize {
+			// 收尾轮本就不带 tools，若仍冒出工具调用：没有下一轮消费结果了——
+			// 不执行、不空转；这一轮没有正文时允许兜底轮再试一次（上限 +1）。
+			slog.Warn("sin 收尾轮仍收到工具调用，忽略并要求收尾", "runID", runID, "calls", len(res.calls))
+			continue
 		}
+		// 工具轮：assistant(tool_calls) + 逐条 tool 结果接回消息数组后继续下一轮。
+		messages = append(messages, ai.ChatMessage{Role: "assistant", Content: res.content, ToolCalls: res.calls})
+		for _, call := range res.calls {
+			if run.cancelled.Load() {
+				break
+			}
+			messages = append(messages, a.sinRunToolCall(runCtx, runID, tools, call, &trace, budget))
+		}
+	}
+
+	// 兜底：全程只吐工具调用、没有任何正文时，不落一条空消息（用户看到的是
+	// 「没有内容」而不是「失败」）。取消不算——那是有意的部分保留。
+	if strings.TrimSpace(reply.String()) == "" && !run.cancelled.Load() {
+		a.emit("sin-stream:"+runID, map[string]interface{}{
+			"type": "error", "error": "模型没有返回内容，请重试",
+		})
+		return
 	}
 
 	replyStr := reply.String()
@@ -287,6 +348,10 @@ func (a *App) runSinStream(runID, topicID, userMessage, eng, model, source strin
 	cancelled := run.cancelled.Load()
 	extra := ""
 	extraMap := map[string]interface{}{"reasoning": reasoningStr}
+	if len(trace) > 0 {
+		// 工具轨迹与 done.tools 同一形态：前端单点解析，流式与重开同一条渲染路径。
+		extraMap["tools"] = trace
+	}
 	if cancelled {
 		extraMap["cancelled"] = true
 	}
@@ -330,6 +395,8 @@ func (a *App) runSinStream(runID, topicID, userMessage, eng, model, source strin
 		"topicID":    topicID,
 		"message_id": messageID,
 		"cancelled":  cancelled,
+		// 本轮工具轨迹（无工具时为空数组/ null，前端按「无卡片」处理）。
+		"tools": trace,
 		"answered_by": map[string]interface{}{
 			"engine": eng, "model": model, "source": source, "cost_cny": costCNY,
 		},

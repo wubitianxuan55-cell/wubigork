@@ -11,8 +11,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { app } from '../../gaea/lib/bridge'
 import { subscribe, sinStreamChannel } from '../../events'
-import { parseIllustrations, parseReasoning, suggestStoryTitle } from './storyText'
-import type { SinMessageView, SinStoryView, SinStreamPayload } from './types'
+import { parseIllustrations, parseReasoning, parseTools, suggestStoryTitle, toToolViews } from './storyText'
+import type { SinMessageView, SinStoryView, SinStreamPayload, SinToolTraceView } from './types'
 
 /** 无帧超时：故事单次输出可长达数千字，比聊天（30s）放宽到 90s。 */
 export const SIN_STREAM_SILENCE_TIMEOUT_MS = 90_000
@@ -54,8 +54,25 @@ function toMessageView(raw: Record<string, unknown>): SinMessageView {
     content: typeof raw.content === 'string' ? raw.content : '',
     illustrations: parseIllustrations(raw.extra),
     reasoning: parseReasoning(raw.extra),
+    tools: toToolViews(parseTools(raw.extra)),
     createdAt: typeof raw.created_at === 'string' ? raw.created_at : '',
   }
+}
+
+/**
+ * 结果帧合并到哪一行：按 id 精确匹配；id 缺失时回退「最后一个同名运行中行」
+ * （后端 id 恒有，这里只是兜底）。找不到 → -1（调用方补一行，别丢帧）。
+ */
+function findToolRow(tools: SinToolTraceView[], p: SinStreamPayload): number {
+  const id = p.id ?? ''
+  if (id) {
+    const byId = tools.findIndex((t) => t.id === id)
+    if (byId >= 0) return byId
+  }
+  for (let i = tools.length - 1; i >= 0; i -= 1) {
+    if (tools[i].name === (p.name ?? '') && tools[i].status === 'running') return i
+  }
+  return -1
 }
 
 export interface UseSinStoryResult {
@@ -271,24 +288,67 @@ export function useSinStory(): UseSinStoryResult {
       setMessages((prev) => prev.map((m) => (m.key === key ? { ...m, ...p } : m)))
     }
 
+    // 过程帧折叠（v4.262）：dispatch 先到追加运行中行、result 后到按 id 合并终态；
+    // 丢帧导致 result 先到时如实补一行（不静默吞掉模型确实调用过的事实）。
+    const applyToolFrame = (p: SinStreamPayload) => {
+      setMessages((prev) => prev.map((m) => {
+        if (m.key !== asstKey) return m
+        const tools = m.tools ?? []
+        if (p.type === 'tool_dispatch') {
+          const view: SinToolTraceView = {
+            id: p.id ?? '', name: p.name ?? '', args: p.args ?? '',
+            read_only: p.read_only === true, status: 'running',
+          }
+          return { ...m, tools: [...tools, view] }
+        }
+        const idx = findToolRow(tools, p)
+        const done: SinToolTraceView = idx >= 0
+          ? {
+            ...tools[idx],
+            output: p.output ?? tools[idx].output,
+            error: p.error ?? '',
+            elapsed_ms: typeof p.elapsed_ms === 'number' ? p.elapsed_ms : tools[idx].elapsed_ms,
+            status: p.error ? 'failed' : 'done',
+          }
+          : {
+            id: p.id ?? '', name: p.name ?? '', args: '',
+            output: p.output ?? '', error: p.error ?? '',
+            elapsed_ms: typeof p.elapsed_ms === 'number' ? p.elapsed_ms : 0,
+            status: p.error ? 'failed' : 'done',
+          }
+        const next = tools.slice()
+        if (idx >= 0) next[idx] = done
+        else next.push(done)
+        return { ...m, tools: next }
+      }))
+    }
+
     await new Promise<void>((resolve) => {
       let settled = false
+      // v4.262：静默超时改为「每一帧重置」——工具循环下这一轮要跑多次模型调用
+      // （查询→抓取→收尾写作），一次性 90 秒会把正常的长回合误判成超时
+      // （真机走查：正文已落库 827 字，前端却报了「请求超时」）。
+      let timer: ReturnType<typeof setTimeout> | undefined
+      const armSilenceTimer = () => {
+        if (timer) clearTimeout(timer)
+        timer = setTimeout(() => {
+          patch(asstKey, {
+            streaming: false,
+            error: true,
+            content: `请求超时：${SIN_STREAM_SILENCE_TIMEOUT_MS / 1000} 秒内未收到回复，请重试`,
+          })
+          finish()
+        }, SIN_STREAM_SILENCE_TIMEOUT_MS)
+      }
       const finish = () => {
         if (settled) return
         settled = true
-        clearTimeout(timer)
+        if (timer) clearTimeout(timer)
         if (finishRef.current === finish) finishRef.current = null
         resolve()
       }
       finishRef.current = finish
-      const timer = setTimeout(() => {
-        patch(asstKey, {
-          streaming: false,
-          error: true,
-          content: `请求超时：${SIN_STREAM_SILENCE_TIMEOUT_MS / 1000} 秒内未收到回复，请重试`,
-        })
-        finish()
-      }, SIN_STREAM_SILENCE_TIMEOUT_MS)
+      armSilenceTimer()
 
       app.SinStream(storyId, content)
         .then((runID: string) => {
@@ -300,6 +360,7 @@ export function useSinStory(): UseSinStoryResult {
           // 先订阅后收帧：runID 一到立即注册（与后端 emit 无异步间隙）
           const unsub = subscribe(sinStreamChannel(runID), (raw) => {
             if (settled) return
+            armSilenceTimer() // 收到任何一帧都算「还活着」
             const p = (raw || {}) as SinStreamPayload
             if (p.type === 'delta') {
               setMessages((prev) => prev.map((m) => (
@@ -307,9 +368,26 @@ export function useSinStory(): UseSinStoryResult {
               )))
               return
             }
+            if (p.type === 'reasoning') {
+              setMessages((prev) => prev.map((m) => (
+                m.key === asstKey ? { ...m, reasoning: (m.reasoning ?? '') + (p.content || '') } : m
+              )))
+              return
+            }
+            if (p.type === 'tool_dispatch' || p.type === 'tool_result') {
+              applyToolFrame(p)
+              return
+            }
+            if (p.type === 'notice') {
+              // 降级提示（如「当前模型不支持工具调用，已按纯写作继续」）：如实弹出，
+              // 不写进故事正文。
+              setNotice(p.message || '')
+              return
+            }
             if (p.type === 'done') {
               const reply = typeof p.reply === 'string' ? p.reply : ''
               const messageId = typeof p.message_id === 'number' ? p.message_id : 0
+              const doneTools = Array.isArray(p.tools) && p.tools.length > 0 ? toToolViews(p.tools) : undefined
               patch(asstKey, {
                 // 落库后的消息 id 是插图回写的定位键，命中后 key 与 db 行对齐
                 key: messageId > 0 ? `db_${messageId}` : asstKey,
@@ -317,6 +395,7 @@ export function useSinStory(): UseSinStoryResult {
                 content: reply,
                 streaming: false,
                 reasoning: typeof p.reasoning === 'string' ? p.reasoning : '',
+                ...(doneTools ? { tools: doneTools } : {}),
               })
               finish()
               return
