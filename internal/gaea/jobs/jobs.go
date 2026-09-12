@@ -245,6 +245,9 @@ func (m *Manager) pruneTerminalLocked() {
 	m.order = kept
 	for id := range evict {
 		delete(m.jobs, id)
+		// 级联链随 job 一并回收（刀I v4.253，普查二遍#9）：改前 children
+		// 只增不清，已淘汰 job 的映射随进程内后台派生数累积。
+		delete(m.children, id)
 	}
 }
 

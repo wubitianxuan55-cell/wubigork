@@ -59,12 +59,12 @@
 | 3 | app.go:418→characterlib/portrait.go:190 | Startup 内串行下载全部远程剧照（每张 30s 超时，N×30s） | **✅ v4.252.0 修**：异步化（安全前提核实=下载期间不占库连接、短 Exec 与启动期操作在单连接池上安全交错；迁移完成前显示远程 URL=迁移前既有状态，语义零变化；幂等+本体测试覆盖） |
 | 4 | boot/plugins.go:46→plugin/plugin.go:218 | StartAvailable 串行连接 MCP server 且无 deadline——挂死 server 无限期卡住会话装配 | **✅ v4.251.0 修**：并行连接+单 server 30s 上限（AfterFunc 取消仅失败路径生效，健康连接不被误杀；测试=双挂死+好 server 耗时上界守卫并行性） |
 | 5 | whisper_state.go:197→clawbot.go:175 | Startup 内每微信助手同步 notifyStart POST（10s×N） | **✅ v4.251.0 修**：通知异步化（失败无补救语义） |
-| 6 | gaea_tasks.go:405→filewatch.go:100 | Startup 内同步递归 WalkDir 整个工作区 | 观察（watcher 就绪语义改动风险大；大工作区启动末尾卡顿） |
+| 6 | gaea_tasks.go:405→filewatch.go:100 | Startup 内同步递归 WalkDir 整个工作区 | **结案（v4.253.0）**：skipDirs 已覆盖 node_modules/.git 等重目录，实测开发工作区 925 目录仅 **46ms**——异步化收益趋零而「启动窗口事件丢失+无周期重扫兜底」风险真实，风险大于收益，维持同步 |
 | 7 | tasks/tasks.go:863 | pickNext 持 m.mu 查 SQLite queued 任务（注释自认锁序固定） | 观察（本地库快，低危存疑） |
 | 8 | tasks/tasks.go:1117/296 | lastEmit/lastOutputEmit 节流 map 只增不删 | **✅ v4.251.0 修**：随 outputs LRU 淘汰联动回收 |
-| 9 | jobs/jobs.go:148 | children 级联链只增不清（含已淘汰 job） | 观察（条目极小、会话级生命周期） |
+| 9 | jobs/jobs.go:148 | children 级联链只增不清（含已淘汰 job） | **✅ v4.253.0 修**：children 随 pruneTerminalLocked 淘汰联动回收 |
 | 10 | app.go:745 copyPath | 旧数据根迁移整文件读入内存（启动内存峰值=最大文件） | **✅ v4.251.0 修**：io.Copy 流式拷贝 |
 | 11 | weixin/capture.go:52 | 包级 captureMu 持有期间做文件 IO | 观察（并发度低） |
 | 12 | app/tts_service.go:115 | Startup 内同步探活 CosyVoice（2s 上限） | 观察（connect-refused 立即返回，低危） |
 
-**未发现**：goroutine 泄漏（类别全净）。**净修复 6 项（#2/#3/#4/#5/#8/#10），观察 6 项**（#1/#6 触及启动/状态机语义，需单独设计；#7/#9/#11/#12 低危顺手级）。
+**未发现**：goroutine 泄漏（类别全净）。**净修复 7 项（#2/#3/#4/#5/#8/#9/#10），结案 1 项（#6 实测 46ms 风险大于收益），观察 4 项（#1/#7/#11/#12，均为已知低危或需独立设计）**。
