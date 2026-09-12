@@ -79,7 +79,7 @@ func TestSinAugmentPromptWithCast(t *testing.T) {
 		t.Fatalf("added = %v", added)
 	}
 	// 提示词已含该外观 → 不重复追加
-	dup, added2 := sinAugmentPromptWithCast("近景：" + lin.Appearance, []*characterlib.Character{lin})
+	dup, added2 := sinAugmentPromptWithCast("近景："+lin.Appearance, []*characterlib.Character{lin})
 	if strings.Contains(dup, "人物锚点") || len(added2) != 0 {
 		t.Fatalf("已含外观不应重复追加: %q", dup)
 	}
@@ -270,5 +270,145 @@ func TestSinIllustrateFallsBackWhenRefFails(t *testing.T) {
 	}
 	if p, _ := res["path"].(string); p == "" {
 		t.Errorf("回退后应有产物路径: %+v", res)
+	}
+}
+
+// TestSinResolveRefImages 参考图解析：data URL 原样、本地文件转 URL、远端 URL
+// 与缺失文件跳过；台账归属记在「真正带图」的角色身上（不是 picked[0]）。
+func TestSinResolveRefImages(t *testing.T) {
+	dir := t.TempDir()
+	png := filepath.Join(dir, "lin.png")
+	if err := os.WriteFile(png, []byte{0x89, 'P', 'N', 'G'}, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	lin := charWith("c_lin", "林晚", "短发") // 无参考图、无剧照
+	gu := charWith("c_gu", "顾城", "高个", png)
+	got := sinResolveRefImages([]*characterlib.Character{lin, gu})
+	if len(got.images) != 1 || !strings.HasPrefix(got.images[0], "data:image/png;base64,") {
+		t.Fatalf("应只解析出顾城的本地参考图: %+v", got.images)
+	}
+	if len(got.names) != 1 || got.names[0] != "顾城" {
+		t.Fatalf("names = %v, want [顾城]", got.names)
+	}
+	if got.charID != "c_gu" {
+		t.Fatalf("台账归属应为带图的角色 c_gu，got %q", got.charID)
+	}
+	// 远端剧照 / 缺失文件 → 跳过（不扩展网络面、不报错）
+	remote := charWith("c_r", "远端", "长发")
+	remote.PortraitURL = "https://example.com/p.png"
+	gone := charWith("c_g", "缺失", "短发", filepath.Join(dir, "gone.png"))
+	if out := sinResolveRefImages([]*characterlib.Character{remote, gone}); len(out.images) != 0 || out.charID != "" {
+		t.Fatalf("远端与缺失都应跳过: %+v", out)
+	}
+	// data URL 原样透传
+	data := charWith("c_d", "原样", "短发", "data:image/jpeg;base64,AAA")
+	if out := sinResolveRefImages([]*characterlib.Character{data}); len(out.images) != 1 || out.images[0] != "data:image/jpeg;base64,AAA" {
+		t.Fatalf("data URL 应原样: %+v", out.images)
+	}
+}
+
+// TestSinIllustrateStaysTxt2ImgWithoutUsableRef 拿不到可用参考图时必须是纯文本
+// 请求——留下 mode=img2img 会让后端因缺参考图整单报错：真机症状「图片生成失败：
+// marshal image request: 图生图需要提供参考图」（Herdsman 文生图/图生图分端点）。
+func TestSinIllustrateStaysTxt2ImgWithoutUsableRef(t *testing.T) {
+	dir := t.TempDir()
+	localRef := filepath.Join(dir, "gu.png")
+	if err := os.WriteFile(localRef, []byte{0x89, 'P', 'N', 'G'}, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cases := []struct {
+		name      string
+		cast      []string
+		prep      func(t *testing.T, a *App)
+		prompt    string
+		wantAncho bool // 文本锚点仍应生效（选了角色时）
+		wantNoise bool // 是否应给出「参考图不可用」原因
+	}{
+		{
+			name:   "没选角色",
+			cast:   nil,
+			prompt: "雨夜站台全景",
+		},
+		{
+			name: "单角色但只有远端剧照",
+			cast: []string{"c_lin"},
+			prep: func(t *testing.T, a *App) {
+				c, err := a.charLib.Get("c_lin")
+				if err != nil {
+					t.Fatalf("Get: %v", err)
+				}
+				c.PortraitURL = "https://example.com/xai-temp.png" // 远端图不喂后端
+				if err := a.charLib.Upsert(c); err != nil {
+					t.Fatalf("Upsert: %v", err)
+				}
+			},
+			prompt:    "雨夜站台，林晚回头",
+			wantAncho: true,
+			wantNoise: true,
+		},
+		{
+			name: "多角色未点名",
+			cast: []string{"c_lin", "c_gu"},
+			prep: func(t *testing.T, a *App) {
+				c, _ := a.charLib.Get("c_lin")
+				c.ReferenceImages = []string{localRef}
+				if err := a.charLib.Upsert(c); err != nil {
+					t.Fatalf("Upsert(c_lin): %v", err)
+				}
+				if err := a.charLib.Upsert(&characterlib.Character{
+					ID: "c_gu", Name: "顾城", Appearance: "高个", ReferenceImages: []string{localRef},
+				}); err != nil {
+					t.Fatalf("Upsert(c_gu): %v", err)
+				}
+			},
+			prompt: "雨夜站台全景", // 两人都有图，但都没点名 → 不锚定（防互串）
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			fake := &sinRefBackend{}
+			a := newSinRefTestApp(t, "herdsman", "sd-turbo", fake)
+			if c.prep != nil {
+				c.prep(t, a)
+			}
+			story, err := a.SinTopicCreate("雨夜")
+			if err != nil {
+				t.Fatalf("SinTopicCreate: %v", err)
+			}
+			if len(c.cast) > 0 {
+				if _, err := a.SinCastSet(story.ID, c.cast); err != nil {
+					t.Fatalf("SinCastSet: %v", err)
+				}
+			}
+			res, err := a.SinIllustrate(story.ID, 0, "0", c.prompt, "")
+			if err != nil {
+				t.Fatalf("参考槽用不上不该让插图失败: %v", err)
+			}
+			if len(fake.requests) != 1 {
+				t.Fatalf("应只调用一次生成（不该带 img2img 重试）: %d", len(fake.requests))
+			}
+			req := fake.requests[0]
+			if req.Mode != "" || req.RefMethod != "" || len(req.RefImages) != 0 {
+				t.Fatalf("无可用参考图必须退回纯文本: mode=%q method=%q refs=%d", req.Mode, req.RefMethod, len(req.RefImages))
+			}
+			if used, _ := res["ref_used"].(bool); used {
+				t.Errorf("ref_used 应为 false: %+v", res)
+			}
+			if c.wantAncho && !strings.Contains(req.Prompt, "人物锚点") {
+				t.Errorf("文本锚点应照旧生效: %q", req.Prompt)
+			}
+			reason, _ := res["ref_reason"].(string)
+			if c.wantNoise && !strings.Contains(reason, "没有可用的参考图") {
+				t.Errorf("应如实给出跳过原因: %q", reason)
+			}
+			if !c.wantNoise && reason != "" {
+				t.Errorf("无角色可锚定时不该弹噪声徽标: %q", reason)
+			}
+			if p, _ := res["path"].(string); p == "" {
+				t.Errorf("应产出图片路径: %+v", res)
+			}
+		})
 	}
 }

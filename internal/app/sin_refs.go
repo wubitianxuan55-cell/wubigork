@@ -158,6 +158,37 @@ func sinRefDataURL(path string) (string, bool) {
 	return "data:" + mime + ";base64," + base64.StdEncoding.EncodeToString(raw), true
 }
 
+// sinRefPick 参考槽解析结果：可用的参考图（data URL）与同序角色名，
+// charID 为「台账归属」——唯一一个真正带上参考图的角色 id。
+type sinRefPick struct {
+	images []string
+	names  []string
+	charID string
+}
+
+// sinResolveRefImages 把候选角色解析成可用的参考图：参考图优先、其次剧照；
+// 远端 URL 与缺失文件按 sinRefDataURL 口径跳过。台账归属取第一个真正带图的
+// 角色——多角色里只有一人有图时不能记成 picked[0]（那会把登记记到别人身上）。
+func sinResolveRefImages(picked []*characterlib.Character) sinRefPick {
+	var out sinRefPick
+	for _, c := range picked {
+		path := sinCharacterRefPath(c)
+		if path == "" {
+			continue
+		}
+		dataURL, ok := sinRefDataURL(path)
+		if !ok {
+			continue
+		}
+		out.images = append(out.images, dataURL)
+		out.names = append(out.names, c.Name)
+		if out.charID == "" {
+			out.charID = c.ID
+		}
+	}
+	return out
+}
+
 // pathExt 取小写扩展名（.png 等）。
 func pathExt(p string) string {
 	idx := strings.LastIndexAny(p, `/\`)

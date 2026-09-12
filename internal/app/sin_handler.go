@@ -357,25 +357,28 @@ func (a *App) SinIllustrate(topicID string, messageID int64, cue string, prompt 
 	promptUsed, anchorNames := sinAugmentPromptWithCast(prompt, picked)
 	refModel := a.mediaState.cfg.ImageModel
 	refMode, refMethod, refOK, refReason := sinRefPlan(a.mediaState.cfg.ImageBackend, refModel)
-	var refImages []string
-	var refChars []string
-	if refOK {
-		for _, c := range picked {
-			path := sinCharacterRefPath(c)
-			if path == "" {
-				continue
-			}
-			if dataURL, ok := sinRefDataURL(path); ok {
-				refImages = append(refImages, dataURL)
-				refChars = append(refChars, c.Name)
-			}
+	refs := sinResolveRefImages(picked)
+	switch {
+	case !refOK:
+		if len(picked) == 0 {
+			refReason = "" // 没点名任何角色：不算「不支持」，只是这次用不上
 		}
-		if len(refImages) == 0 && len(picked) > 0 {
-			refOK = false
+	case len(refs.images) == 0:
+		// 后端支持参考槽，但这一轮拿不到任何可用参考图（没选角色兜底 / 角色库
+		// 只有远端 URL / 本地文件缺失）——如实跳过并给原因，不硬塞。
+		refOK = false
+		if len(picked) > 0 {
 			refReason = "该角色没有可用的参考图/立绘（角色库可生成剧照后重试）"
+		} else {
+			refReason = ""
 		}
-	} else if len(picked) == 0 {
-		refReason = "" // 本次提示词没有点名角色：不算「不支持」，只是用不上
+	}
+	if !refOK {
+		// 没有可用参考图时必须退回纯文本：留下 mode=img2img 会让后端因缺参考图
+		// 整单报错（真机症状「marshal image request: 图生图需要提供参考图」），
+		// 插图不该因为用不上参考槽而失败。
+		refMode, refMethod = "", ""
+		refs.images, refs.names, refs.charID = nil, nil, ""
 	}
 
 	// 硬隔离（v4.257）：产物落原罪自有目录（<用户配置目录>/gaea/sin/art），
@@ -384,10 +387,10 @@ func (a *App) SinIllustrate(topicID string, messageID int64, cue string, prompt 
 	gen := imageGenInternal{
 		prompt: strings.TrimSpace(promptUsed), size: size,
 		sourceBoard: sinSourceBoard, saveDir: sinArtDir(),
-		mode: refMode, refImages: refImages, refMethod: refMethod, denoise: sinRefDenoise,
+		mode: refMode, refImages: refs.images, refMethod: refMethod, denoise: sinRefDenoise,
 	}
-	if len(refChars) == 1 {
-		gen.characterID = picked[0].ID // 单角色锚定：台账可按角色回溯
+	if len(refs.names) == 1 {
+		gen.characterID = refs.charID // 单角色锚定：台账按「真正带参考图」的角色回溯
 	}
 	refFallback := false
 	res, err := a.mediaState.generateImageInternal(gen)
@@ -397,11 +400,11 @@ func (a *App) SinIllustrate(topicID string, messageID int64, cue string, prompt 
 		}
 		return ""
 	}()
-	if len(refImages) > 0 && (err != nil || genErr != "") {
+	if len(refs.images) > 0 && (err != nil || genErr != "") {
 		// 参考图这条路失败不该让插图整体失败：退回纯文本重试一次（如实标记 fallback）
 		slog.Warn("原罪参考槽生成失败，退回纯文本重试", "error", err, "resError", genErr)
 		refFallback = true
-		refImages, refChars = nil, nil
+		refs.images, refs.names, refs.charID = nil, nil, ""
 		gen.mode, gen.refImages, gen.refMethod, gen.characterID = "", nil, "", ""
 		res, err = a.mediaState.generateImageInternal(gen)
 	}
@@ -445,8 +448,8 @@ func (a *App) SinIllustrate(topicID string, messageID int64, cue string, prompt 
 		"seed":           item.Seed,
 		"persisted":      persisted,
 		"prompt_used":    promptUsed,
-		"ref_used":       len(refImages) > 0,
-		"ref_characters": refChars,
+		"ref_used":       len(refs.images) > 0,
+		"ref_characters": refs.names,
 		"ref_reason":     refReason,
 		"ref_fallback":   refFallback,
 		"anchor_added":   anchorNames,
