@@ -202,6 +202,22 @@ describe('useSinStory', () => {
     expect(result.current.messages[1].illustrations).toEqual({ '0': 'C:/tmp/art.png', '1': 'C:/tmp/new.png' })
   })
 
+  it('reloadMessages：从后端重读当前故事消息（画廊重新生成后刷新用）', async () => {
+    const { result } = renderHook(() => useSinStory())
+    await waitFor(() => expect(result.current.initializing).toBe(false))
+    bridgeMock.SinMessages.mockResolvedValue([
+      { id: 1, topic_id: 'sin_1', role: 'user', content: '开场', extra: '', seq: 1, created_at: '2026-09-12 10:00:00' },
+      {
+        id: 2, topic_id: 'sin_1', role: 'assistant',
+        content: '雨落在窗上。\n@@插图|灯下的女人@@',
+        extra: JSON.stringify({ illustrations: { '0': 'C:/tmp/art-regen.png' } }),
+        seq: 2, created_at: '2026-09-12 10:00:01',
+      },
+    ])
+    await act(() => result.current.reloadMessages())
+    expect(result.current.messages[1].illustrations).toEqual({ '0': 'C:/tmp/art-regen.png' })
+  })
+
   it('帧到达会重置静默计时：工具循环的长回合不误判超时（v4.262）', async () => {
     vi.useFakeTimers()
     bridgeMock.SinStream.mockResolvedValue('ss_long')

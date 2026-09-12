@@ -31,7 +31,8 @@ import { useSinNotes } from './sin/useSinNotes'
 import { readSinPanelOpen, writeSinPanelOpen } from './sin/sinPanelState'
 import { SinSidePanel } from './sin/SinSidePanel'
 import { SinCastPicker } from './sin/SinCastPicker'
-import { suggestStoryTitle } from './sin/storyText'
+import { suggestStoryTitle, type SinGalleryItem } from './sin/storyText'
+import { enqueueIllustration } from './sin/illustrationQueue'
 import '../gaea/styles.css'
 import '../gaea/tailwind.css'
 import '../gaea/redesign.css'
@@ -86,6 +87,29 @@ const OriginalSinPage: React.FC = () => {
 
   const onSend = useCallback((display: string) => {
     void story.send(display)
+  }, [story])
+
+  // 画廊「重新生成」：与流内插图同一串行队列（一次一张）→ SinIllustrate 按
+  // messageId+cue 覆盖回写 → 消息重载刷新画廊与流内。失败/未回写如实提示，
+  // 原图不受影响（回写失败时 extra 保留旧路径）。
+  const onRegenerate = useCallback(async (item: SinGalleryItem) => {
+    if (!story.activeId || story.sending) return
+    if (!item.messageId || !item.prompt.trim()) {
+      story.showNotice('该插图缺少定位或画面描述，无法重新生成')
+      return
+    }
+    const { promise } = enqueueIllustration(() =>
+      app.SinIllustrate(story.activeId, item.messageId, item.cue, item.prompt, ''),
+    )
+    try {
+      const res = (await promise) as { persisted?: unknown }
+      if (res?.persisted === false) {
+        story.showNotice('新图已生成但回写失败，画廊保留原图')
+      }
+      await story.reloadMessages()
+    } catch (err) {
+      story.showNotice(err instanceof Error ? err.message : '重新生成失败')
+    }
   }, [story])
 
   const onExport = useCallback(async () => {
@@ -247,6 +271,8 @@ const OriginalSinPage: React.FC = () => {
               notesError={notes.error}
               notesLoading={notes.loading}
               messages={story.messages}
+              sending={story.sending}
+              onRegenerate={onRegenerate}
             />
           )}
         </div>

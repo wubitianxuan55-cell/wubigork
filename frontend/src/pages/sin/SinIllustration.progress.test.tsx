@@ -119,3 +119,26 @@ describe('SinIllustration 生成进度', () => {
     await waitFor(() => expect(screen.getByText('参考图不可用 · 已按纯文本生成')).toBeTruthy())
   })
 })
+
+describe('SinIllustration 外部换图采纳（v4.265 画廊重新生成）', () => {
+  const base = { storyId: 'sin_1', messageId: 2, cueKey: '0', prompt: '雨夜站台', ready: true } as const
+
+  it('画廊重新生成回写后消息重载带来新 path：组件换读新图', async () => {
+    const { rerender } = render(
+      <SinIllustration {...base} path="C:/tmp/a.png" onGenerated={vi.fn()} />,
+    )
+    await waitFor(() => expect(apiMock.readFileAsDataURL).toHaveBeenCalledWith('C:/tmp/a.png'))
+    rerender(<SinIllustration {...base} path="C:/tmp/a2.png" onGenerated={vi.fn()} />)
+    await waitFor(() => expect(apiMock.readFileAsDataURL).toHaveBeenCalledWith('C:/tmp/a2.png'))
+    expect(bridgeMock.SinIllustrate).not.toHaveBeenCalled() // 外部换图不触发再生成
+  })
+
+  it('自己生成中不采纳外部换图（防把在途产物顶掉）', async () => {
+    bridgeMock.SinIllustrate.mockImplementation(() => new Promise(() => {})) // 挂住 = 生成中
+    const { rerender } = render(<SinIllustration {...base} onGenerated={vi.fn()} />)
+    await waitFor(() => expect(screen.getByText('取消')).toBeTruthy())
+    apiMock.readFileAsDataURL.mockClear()
+    rerender(<SinIllustration {...base} path="C:/tmp/ext.png" onGenerated={vi.fn()} />)
+    expect(apiMock.readFileAsDataURL).not.toHaveBeenCalled()
+  })
+})

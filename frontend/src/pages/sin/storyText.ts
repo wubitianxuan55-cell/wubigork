@@ -141,16 +141,19 @@ export function stripCuesForDisplay(content: string): string {
   return content.split(SIN_CUE_OPEN).join('（插图：').split(SIN_CUE_CLOSE).join('）')
 }
 
-/** 插图画廊条目（右栏面板用）：extra.illustrations 的路径 + 从正文反解的描述。 */
+/** 插图画廊条目（右栏面板用）：extra.illustrations 的路径 + 从正文反解的描述；
+ *  messageId/cue 是「重新生成」的回写定位（SinIllustrate 按 messageId+cue 覆盖写）。 */
 export interface SinGalleryItem {
   key: string
+  messageId: number
+  cue: string
   path: string
   prompt: string
 }
 
 /** 汇总一个故事的全部插图（消息序即时间序；同一消息内按 cue 序号）。 */
 export function collectIllustrations(
-  messages: Array<Pick<SinMessageView, 'key' | 'content' | 'illustrations'>>,
+  messages: Array<Pick<SinMessageView, 'key' | 'messageId' | 'content' | 'illustrations'>>,
 ): SinGalleryItem[] {
   const out: SinGalleryItem[] = []
   for (const m of messages) {
@@ -162,7 +165,7 @@ export function collectIllustrations(
     }
     for (const [cue, path] of entries) {
       if (!path) continue
-      out.push({ key: `${m.key}:${cue}`, path, prompt: promptByCue.get(cue) ?? '' })
+      out.push({ key: `${m.key}:${cue}`, messageId: m.messageId, cue, path, prompt: promptByCue.get(cue) ?? '' })
     }
   }
   return out

@@ -46,6 +46,8 @@ function renderPanel(over: Partial<Parameters<typeof SinSidePanel>[0]> = {}) {
       notesError=""
       notesLoading={false}
       messages={MESSAGES}
+      sending={false}
+      onRegenerate={vi.fn().mockResolvedValue(undefined)}
       {...over}
     />,
   )
@@ -158,6 +160,90 @@ describe('SinSidePanel', () => {
   })
 })
 
+describe('SinSidePanel 画廊重新生成（v4.265）', () => {
+  const openGallery = async () => {
+    fireEvent.click(screen.getByRole('tab', { name: /插图/ }))
+    await waitFor(() => expect(screen.getAllByAltText('雨夜站台，湿风衣反光').length).toBeGreaterThan(0))
+  }
+
+  it('悬浮钮点击回调带上 messageId/cue/prompt（SinIllustrate 回写定位）', async () => {
+    const onRegenerate = vi.fn().mockResolvedValue(undefined)
+    renderPanel({ onRegenerate })
+    await openGallery()
+    fireEvent.click(screen.getAllByTitle('按原画面描述重新生成这张插图')[0])
+    expect(onRegenerate).toHaveBeenCalledTimes(1)
+    expect(onRegenerate.mock.calls[0][0]).toMatchObject({
+      messageId: 3, cue: '0', prompt: '雨夜站台，湿风衣反光', path: '/tmp/a.png',
+    })
+  })
+
+  it('生成中进 busy：显示「重新生成中…」并挡住重复点击，结束恢复', async () => {
+    let resolveRegen: () => void = () => {}
+    const onRegenerate = vi.fn().mockImplementation(
+      () => new Promise<void>((r) => { resolveRegen = r }),
+    )
+    renderPanel({ onRegenerate })
+    await openGallery()
+    fireEvent.click(screen.getAllByTitle('按原画面描述重新生成这张插图')[0])
+    expect(screen.getByText('重新生成中…')).toBeTruthy()
+    // busy 的那张按钮被状态条顶掉，另一张仍在
+    expect(screen.getAllByTitle('按原画面描述重新生成这张插图').length).toBe(1)
+    resolveRegen()
+    await waitFor(() => expect(screen.queryByText('重新生成中…')).toBeNull())
+    expect(screen.getAllByTitle('按原画面描述重新生成这张插图').length).toBe(2)
+  })
+
+  it('故事回合进行中（sending）：重新生成钮禁用并给原因', async () => {
+    renderPanel({ sending: true })
+    await openGallery()
+    const btn = screen.getAllByTitle('故事生成中，稍后再试')[0] as HTMLButtonElement
+    expect(btn.disabled).toBe(true)
+  })
+
+  it('正文无标记的插图（prompt 空）：不出重新生成钮', async () => {
+    const ms: SinMessageView[] = [
+      { key: 'db_9', messageId: 9, role: 'assistant', content: '无标记正文', illustrations: { '0': '/tmp/x.png' } },
+    ]
+    renderPanel({ messages: ms })
+    fireEvent.click(screen.getByRole('tab', { name: /插图/ }))
+    await waitFor(() => expect(screen.getByAltText('故事插图')).toBeTruthy())
+    expect(screen.queryByText('重新生成')).toBeNull()
+    expect(screen.queryByTitle('按原画面描述重新生成这张插图')).toBeNull()
+  })
+
+  it('大图预览 footer 同款重新生成；成功重载后预览跟到新图', async () => {
+    let resolveRegen: () => void = () => {}
+    const onRegenerate = vi.fn().mockImplementation(
+      () => new Promise<void>((r) => { resolveRegen = r }),
+    )
+    const { rerender } = renderPanel({ onRegenerate })
+    await openGallery()
+    fireEvent.click(screen.getByAltText('雨夜站台，湿风衣反光'))
+    const footerBtn = await waitFor(() => {
+      const b = document.querySelector('.ant-modal-footer button') as HTMLButtonElement
+      expect(b).toBeTruthy()
+      return b
+    })
+    fireEvent.click(footerBtn)
+    expect(onRegenerate).toHaveBeenCalledTimes(1)
+    // 消息重载带来新路径（key 相同 path 不同）→ 预览对象跟新
+    const msNext: SinMessageView[] = [
+      ...MESSAGES.slice(0, 2),
+      { ...MESSAGES[2], illustrations: { '0': '/tmp/a2.png', '1': '/tmp/b.png' } },
+    ]
+    resolveRegen()
+    rerender(
+      <SinSidePanel
+        cast={CAST} castSaving={false} onOpenPicker={vi.fn()} onRemoveCast={vi.fn()}
+        notesDoc={{ notes: ['女主：林晚，地方台记者'], outline: '第一章：雨夜站台相遇' }}
+        notesError="" notesLoading={false} messages={msNext}
+        sending={false} onRegenerate={onRegenerate}
+      />,
+    )
+    await waitFor(() => expect(apiMock.readFileAsDataURL).toHaveBeenCalledWith('/tmp/a2.png'))
+  })
+})
+
 describe('clampSinPanelWidth', () => {
   it('钳制到 [240, 视口收敛上限]，非法值回默认', () => {
     // jsdom innerWidth=1024 → 上限 min(640, 1024-520)=504
@@ -175,6 +261,10 @@ describe('collectIllustrations', () => {
     expect(items[0].prompt).toBe('雨夜站台，湿风衣反光')
     expect(items[1].prompt).toBe('车厢内近景，暖色顶灯')
     expect(items[0].key).toBe('db_3:0')
+    // v4.265：重新生成的回写定位（SinIllustrate 按 messageId+cue 覆盖写）
+    expect(items[0].messageId).toBe(3)
+    expect(items[0].cue).toBe('0')
+    expect(items[1].cue).toBe('1')
   })
 
   it('正文没有对应标记时 prompt 诚实留空；空路径跳过', () => {

@@ -97,6 +97,8 @@ export interface UseSinStoryResult {
    */
   cancel: () => string | undefined
   setIllustration: (messageKey: string, cueKey: string, path: string) => void
+  /** 从后端重读当前故事消息（画廊「重新生成」回写后刷新画廊与流内插图）。 */
+  reloadMessages: () => Promise<void>
 }
 
 export function useSinStory(): UseSinStoryResult {
@@ -246,6 +248,10 @@ export function useSinStory(): UseSinStoryResult {
       m.key === messageKey ? { ...m, illustrations: { ...m.illustrations, [cueKey]: path } } : m
     )))
   }, [])
+
+  const reloadMessages = useCallback(async () => {
+    await loadMessages(activeIdRef.current)
+  }, [loadMessages])
 
   const send = useCallback(async (text: string) => {
     const content = (text ?? '').trim()
@@ -457,6 +463,7 @@ export function useSinStory(): UseSinStoryResult {
   return {
     stories, activeId, activeStory, messages, initializing, sending, notice, clearNotice, showNotice,
     selectStory, createStory, renameStory, deleteStory, clearStory, send, setIllustration,
+    reloadMessages,
     cancel,
   }
 }

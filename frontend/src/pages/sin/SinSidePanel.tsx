@@ -11,7 +11,7 @@
 // 纯文字+计数在密度与可读性上都是对的。
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Modal, Popover } from 'antd'
+import { Button, Modal, Popover } from 'antd'
 import { QuestionCircleOutlined } from '@ant-design/icons'
 import V3Empty from '../../components/V3Empty'
 import { readFileAsDataURL } from '../../api/image'
@@ -68,11 +68,15 @@ export interface SinSidePanelProps {
   notesError: string
   notesLoading: boolean
   messages: SinMessageView[]
+  /** 故事回合进行中：重新生成禁用（避免与在途插图/流式回写互相踩）。 */
+  sending: boolean
+  /** 画廊「重新生成」：排队→SinIllustrate 覆盖回写→消息重载；失败经 notice 透出。 */
+  onRegenerate: (item: SinGalleryItem) => Promise<void>
 }
 
 export function SinSidePanel({
   cast, castSaving, onOpenPicker, onRemoveCast,
-  notesDoc, notesError, notesLoading, messages,
+  notesDoc, notesError, notesLoading, messages, sending, onRegenerate,
 }: SinSidePanelProps) {
   const [tab, setTab] = useState<SinSideTabId>(() => readSinPanelTab())
   const [preview, setPreview] = useState<SinGalleryItem | null>(null)
@@ -82,6 +86,20 @@ export function SinSidePanel({
   const widthRef = useRef(width)
   const [resizing, setResizing] = useState(false)
   const gallery = useMemo(() => collectIllustrations(messages), [messages])
+  // 重新生成进行中的条目（key 集合）：缩略图/大图按钮进 busy，防重复点火
+  const [regenKeys, setRegenKeys] = useState<ReadonlySet<string>>(new Set())
+  const regenerate = useCallback((item: SinGalleryItem) => {
+    if (sending || regenKeys.has(item.key) || !item.prompt.trim()) return
+    setRegenKeys((prev) => new Set(prev).add(item.key))
+    void onRegenerate(item).finally(() => {
+      setRegenKeys((prev) => {
+        if (!prev.has(item.key)) return prev
+        const next = new Set(prev)
+        next.delete(item.key)
+        return next
+      })
+    })
+  }, [onRegenerate, regenKeys, sending])
 
   const startResize = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     e.preventDefault()
@@ -120,6 +138,13 @@ export function SinSidePanel({
       .catch(() => { if (live) setPreviewUrl('') })
     return () => { live = false }
   }, [preview])
+
+  // 重新生成成功后消息重载、画廊重算——大图预览若还开着，跟到新条目（新图）
+  useEffect(() => {
+    if (!preview) return
+    const next = gallery.find((g) => g.key === preview.key)
+    if (next && next.path !== preview.path) setPreview(next)
+  }, [gallery, preview])
 
   useEffect(() => {
     writeSinPanelTab(tab)
@@ -247,7 +272,22 @@ export function SinSidePanel({
               <div className="sin-gal-grid">
                 {gallery.map((item) => (
                   <figure className="sin-gal-cell" key={item.key}>
-                    <SinGalleryThumb item={item} onOpen={setPreview} />
+                    <div className={`sin-gal-media${regenKeys.has(item.key) ? ' is-regen' : ''}`}>
+                      <SinGalleryThumb item={item} onOpen={setPreview} />
+                      {regenKeys.has(item.key) ? (
+                        <span className="sin-gal-regen is-busy">重新生成中…</span>
+                      ) : item.prompt ? (
+                        <button
+                          type="button"
+                          className="sin-gal-regen"
+                          disabled={sending}
+                          title={sending ? '故事生成中，稍后再试' : '按原画面描述重新生成这张插图'}
+                          onClick={() => regenerate(item)}
+                        >
+                          重新生成
+                        </button>
+                      ) : null}
+                    </div>
                     {item.prompt && (
                       <figcaption className="sin-gal-cap" title={item.prompt}>{item.prompt}</figcaption>
                     )}
@@ -267,7 +307,17 @@ export function SinSidePanel({
       <Modal
         open={preview !== null}
         title={preview?.prompt || '故事插图'}
-        footer={null}
+        footer={preview && (
+          <Button
+            size="small"
+            disabled={sending || !preview.prompt.trim() || regenKeys.has(preview.key)}
+            loading={regenKeys.has(preview.key)}
+            title={!preview.prompt.trim() ? '该插图没有画面描述，无法重新生成' : undefined}
+            onClick={() => regenerate(preview)}
+          >
+            重新生成
+          </Button>
+        )}
         width={720}
         onCancel={() => setPreview(null)}
         centered

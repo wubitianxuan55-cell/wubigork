@@ -172,6 +172,16 @@ export function SinIllustration({
     void generate()
   }, [generate, path, ready])
 
+  // 外部换图采纳（v4.265）：画廊「重新生成」经后端回写+消息重载带来新路径时，
+  // 本组件采纳之，防「画廊新图 / 流内旧图」不同步。自己正在生成时只记录不采纳
+  // （生成收尾自会 setPath，避免把在途产物顶掉）。
+  const extPathRef = useRef(pathProp ?? '')
+  useEffect(() => {
+    if (!pathProp || pathProp === extPathRef.current) return
+    extPathRef.current = pathProp
+    if (!startedRef.current) setPath(pathProp)
+  }, [pathProp])
+
   return (
     <figure className="sin-figure">
       {status === 'ready' && dataUrl ? (

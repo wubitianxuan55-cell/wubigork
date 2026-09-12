@@ -389,3 +389,18 @@ Go +1（绑定三态）；vitest +14（面板 8 + collectIllustrations 2 + useSi
 持久化、pointercancel 兜底。宽度记忆 `gaea.sin.panelWidth`；
 `clampSinPanelWidth` 纯函数钳制 240~640 + 视口收敛（innerWidth-520）；双击复位 268；
 画廊列数改 auto-fill minmax(104px,1fr) 随宽自适应（拖宽有实际收益）。
+
+### 14.6 画廊重新生成入口（v4.265.0）
+
+v4.263 下刀候选清账。此前「重新生成」只在流内插图卡（caption 钮），画廊只能看。
+**零 Go 零新绑定**：`SinIllustrate` 本就是全链路（角色锚点+参考槽门控+退回纯文本
+重试+台账登记+`arts[cue]=path` 覆盖回写），重生成=同一入口按 `(messageId, cue)` 再调。
+- 条目定位：`collectIllustrations` 扩 `messageId/cue`（SinIllustrate 回写槽）。
+- 入口两处：缩略图悬浮钮（hover/focus 显形；busy=「重新生成中…」+缩略图调暗；
+  正文无标记→prompt 空不出钮；sending 中禁用）+ 大图 Modal footer 钮。
+- 执行纪律：与流内同一 `illustrationQueue` 串行；成功后 `reloadMessages()` 全链
+  刷新（useSinStory 新暴露）。
+- **外部换图采纳**：SinIllustration 记 `extPathRef`，pathProp 变化且自身不在生成中
+  才采纳——防「画廊新图/流内旧图」不同步，也防顶掉自己在途产物。
+- 失败口径：如实 notice，原图保留（回写只在成功路径发生）；`persisted:false`
+  （图已生成但回写失败）同样提示不静默。
