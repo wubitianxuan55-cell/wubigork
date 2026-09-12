@@ -248,3 +248,14 @@ knowledge 为受控隐藏的维度（功能并入记忆中枢，等价性成立�
 > ②环境稳态后（下次正常开机）可再采一轮，若仍 ~420ms 则把 §5 基线修订为含环境
 > 噪声的复现区间；③本次对照实验脚本留存 .tmp/coldstart-probe.mjs（起壳后读
 > Navigation/Paint/Resource/长任务四类计时）。
+
+## 7. 每版度量看板（§面五规矩「每版六行」恢复落账，自 v4.267.0 起）
+
+> 口径=masterplan §3 六行；基线面五之后 v4.254~v4.266 未逐版落账（流程滑步，本节起
+> 恢复逐版执行）。「每空间一级板块数」按 manifests 统计（含未进菜单板块，shared/
+> independent 另计）。
+
+| 版本 | 板块数(工位/乐园) | entry chunk(gz) | 冷启动可交互 | 常驻内存 | exe | >50KB 源文件 |
+|---|---|---|---|---|---|---|
+| **v4.267.0**（2026-09-13） | 5 / 5（工位含 schedule 未进菜单；shared 3、independent 1） | **243.0 KB**（基线 375.36，-35%，MemoryHub/GaeaPage 拆包生效） | 1.36~1.67s（bind→UI ~420ms；环境态漂移见 §6，代码零回归，跨环境不可比） | **125.3 MB 工作集** / 139.5 私有（首采=P4 建内存基线） | 47.0 MB（49,281,024B，strip 未做属 P4） | **6**（基线 16，巨文件拆解生效；余=en/zh/zh-TW locales+control/controller.go+lib/store/controller.ts+novel-workspace.css） |
+| 基线参照（§5/面三，v4.253 期） | — | 375.36 KB | 1.05~1.20s（§5 口径注：DOM 文本就绪≠首帧） | 无基线（本节首采） | 46.22 MB | 16 |
