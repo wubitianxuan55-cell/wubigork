@@ -212,3 +212,64 @@ func TestHelperProcess(t *testing.T) {
 		os.Stdout.Write(append(b, '\n'))
 	}
 }
+
+// TestHelperHangProcess 是 StartAvailable 超时测试的挂死子进程（永不写
+// stdio，spawn+initialize 永不完成）。
+func TestHelperHangProcess(t *testing.T) {
+	if os.Getenv("GO_WANT_HANG_PROCESS") != "1" {
+		return
+	}
+	// sleep 循环保持进程存活——select{} 会触发 Go 死锁检测器把子进程
+	// 自己杀掉（EOF 而非超时路径）。
+	for {
+		time.Sleep(time.Hour)
+	}
+}
+
+// 刀G v4.251（普查二遍#4）：挂死的 MCP server 不得无限期卡住会话装配——
+// StartAvailable 必须在连接上限内返回、如实记失败；并行语义下好 server
+// 不受坏 server 拖累照常连上。
+func TestStartAvailableTimesOutHungServer(t *testing.T) {
+	old := mcpConnectTimeout
+	mcpConnectTimeout = 2 * time.Second
+	defer func() { mcpConnectTimeout = old }()
+
+	hangSpec := func(name string) Spec {
+		return Spec{
+			Name:    name,
+			Command: os.Args[0],
+			Args:    []string{"-test.run=TestHelperHangProcess", "--"},
+			Env:     map[string]string{"GO_WANT_HANG_PROCESS": "1"},
+		}
+	}
+	good := Spec{
+		Name:    "good",
+		Command: os.Args[0],
+		Args:    []string{"-test.run=TestHelperProcess", "--"},
+		Env:     map[string]string{"GO_WANT_HELPER_PROCESS": "1"},
+	}
+
+	// 两个挂死 server + 一个好 server：并行=约一个超时（2s），
+	// 串行=两个超时+好 server 连接（>4s）——耗时上界即并行性守卫。
+	start := time.Now()
+	host, tools := StartAvailable(context.Background(), []Spec{hangSpec("hang1"), hangSpec("hang2"), good})
+	elapsed := time.Since(start)
+	defer host.Close()
+
+	if elapsed > 3500*time.Millisecond {
+		t.Fatalf("StartAvailable 耗时 %s，超时或并行性失效", elapsed)
+	}
+	if len(tools) != 2 {
+		t.Fatalf("tools = %d, want 2（好 server 应照常连上）", len(tools))
+	}
+	failed := map[string]bool{}
+	for _, f := range host.Failures() {
+		failed[f.Name] = true
+		if !strings.Contains(f.Error, "timeout") {
+			t.Fatalf("failure %q error = %q, want timeout", f.Name, f.Error)
+		}
+	}
+	if !failed["hang1"] || !failed["hang2"] || len(failed) != 2 {
+		t.Fatalf("failures = %v, want [hang1 hang2]", failed)
+	}
+}

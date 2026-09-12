@@ -45,3 +45,26 @@
 - **刀 C（SQLite 口径）✅ v4.248.0**：#6 连接池放宽 1→4（读写并行+死锁类消除）+ #11 批量事务化（CleanupArchived 原子语义收紧 + semantic Stale；#12 已随刀B）。单独一刀+全量回归（app 67s 全绿）。
 - **刀 D（cost 检索）✅ v4.247.0**：#3 接通 BM25 缓存（包级版本化实现）+ #4 Embedder/Reranker 单例化（按注入配置缓存，SetRetrievalRuntime 变更自动重建）+ 子查询消除（逐行相关 COUNT → LEFT JOIN GROUP BY 单趟）。
 - **刀 E（面板/杂项）✅ v4.249.0**：#5 会话条目缓存（size+mtime 键，append-only 语义；看板读取 9.1ms→22μs 408×）+ #7 预览缓存+轻量解码 + #10 wssearch 上限 64 + #16 正则改字符串操作（QuoteMeta 字面量等价）+ #18 strings.Builder + #20 正则包级 + #19 SemanticRecall 死代码删除（DocText/Cosine 有生产消费方保留）；#17 归档分页=legacy file backend 观察不修（DB 后端无此路径）。
+
+---
+
+## 第二遍扫描（2026-09-12，v4.251.0 落档）
+
+> 换镜头复查首遍欠覆盖维度：goroutine 生命周期/无界内存/锁跨慢操作/启动链。**goroutine 泄漏零**（全部 go func 有退出路径；time.After 循环均有 deadline 上界）；schedule/novelstyle/novelcontext/proc/filewatch 四包全净。
+
+| # | 位置 | 问题 | 处置 |
+|---|---|---|---|
+| 1 | browser/manager.go:145 | Ensure/NewTab/SwitchTab 全程持 mu 做进程拉起+探活（冷启动最长 20s+），并发 browser_* 全串行 | 观察（单用户桌面场景并发低；并行化需重构 attach 状态机） |
+| 2 | channels/weixin/clawbot.go:1028 | apiPost timeout<90s 时每次克隆新 Transport——长轮询循环永久每轮新建+TCP/TLS 握手 | **✅ v4.251.0 修**：每请求 context 截止替代客户端克隆，语义等价（较短者生效） |
+| 3 | app.go:418→characterlib/portrait.go:190 | Startup 内串行下载全部远程剧照（每张 30s 超时，N×30s） | 观察（仅 xAI 临时图场景触发；异步化需先核 characterlib 库并发安全） |
+| 4 | boot/plugins.go:46→plugin/plugin.go:218 | StartAvailable 串行连接 MCP server 且无 deadline——挂死 server 无限期卡住会话装配 | **✅ v4.251.0 修**：并行连接+单 server 30s 上限（AfterFunc 取消仅失败路径生效，健康连接不被误杀；测试=双挂死+好 server 耗时上界守卫并行性） |
+| 5 | whisper_state.go:197→clawbot.go:175 | Startup 内每微信助手同步 notifyStart POST（10s×N） | **✅ v4.251.0 修**：通知异步化（失败无补救语义） |
+| 6 | gaea_tasks.go:405→filewatch.go:100 | Startup 内同步递归 WalkDir 整个工作区 | 观察（watcher 就绪语义改动风险大；大工作区启动末尾卡顿） |
+| 7 | tasks/tasks.go:863 | pickNext 持 m.mu 查 SQLite queued 任务（注释自认锁序固定） | 观察（本地库快，低危存疑） |
+| 8 | tasks/tasks.go:1117/296 | lastEmit/lastOutputEmit 节流 map 只增不删 | **✅ v4.251.0 修**：随 outputs LRU 淘汰联动回收 |
+| 9 | jobs/jobs.go:148 | children 级联链只增不清（含已淘汰 job） | 观察（条目极小、会话级生命周期） |
+| 10 | app.go:745 copyPath | 旧数据根迁移整文件读入内存（启动内存峰值=最大文件） | **✅ v4.251.0 修**：io.Copy 流式拷贝 |
+| 11 | weixin/capture.go:52 | 包级 captureMu 持有期间做文件 IO | 观察（并发度低） |
+| 12 | app/tts_service.go:115 | Startup 内同步探活 CosyVoice（2s 上限） | 观察（connect-refused 立即返回，低危） |
+
+**未发现**：goroutine 泄漏（类别全净）。**净修复 5 项（#2/#4/#5/#8/#10），观察 7 项**（#1/#3/#6 触及启动/状态机语义，需单独设计；#7/#9/#11/#12 低危顺手级）。

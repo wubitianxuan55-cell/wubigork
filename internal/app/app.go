@@ -39,6 +39,7 @@ import (
 	"github.com/gaea/gaea/internal/voice"
 	"github.com/gaea/gaea/internal/whisper"
 	"github.com/gaea/gaea/internal/worldview"
+	"io"
 )
 
 // core 是所有子服务共享的基础依赖（ctx/client/cfg/engineMgr 等）。
@@ -774,9 +775,20 @@ func copyPath(src, dst string) error {
 		}
 		return nil
 	}
-	data, err := os.ReadFile(src)
+	// 流式拷贝（刀G v4.251，普查二遍#10）：改前整文件读入内存再写回，
+	// 迁移大文件（SQLite/日志）时启动内存峰值等于最大文件体积。
+	in, err := os.Open(src)
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(dst, data, info.Mode().Perm())
+	defer in.Close()
+	out, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, info.Mode().Perm())
+	if err != nil {
+		return err
+	}
+	_, err = io.Copy(out, in)
+	if cerr := out.Close(); err == nil {
+		err = cerr
+	}
+	return err
 }

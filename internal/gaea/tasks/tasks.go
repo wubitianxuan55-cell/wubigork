@@ -187,8 +187,8 @@ type Manager struct {
 	// Progress.OnForceKill 注册、Manager.Kill 锁外快照后逐个执行并删除；
 	// 尝试结束（worker 收尾 / unregisterCancel / clearStaleCancel）一并清理，
 	// 旧尝试的钩子不串味到重跑。
-	kills map[string][]func()
-	lastEmit  map[string]time.Time
+	kills    map[string][]func()
+	lastEmit map[string]time.Time
 
 	// lastOutputEmit 是输出事件的独立节流时间戳（C9）：与进度事件分开计时，
 	// 防止 Output→Report 紧邻调用时进度更新被输出事件挤掉节流窗口。
@@ -282,6 +282,10 @@ func (m *Manager) appendOutput(id, line string) {
 			break // 只剩当前任务缓冲（防御：正常不会发生）
 		}
 		delete(m.outputs, victim)
+		// 节流时间戳随缓冲一并回收（刀G v4.251，普查二遍#8）：改前
+		// lastEmit/lastOutputEmit 只增不删，随进程内任务数线性增长。
+		delete(m.lastEmit, victim)
+		delete(m.lastOutputEmit, victim)
 	}
 	tail := strings.Join(o.lines, "\n")
 	trunc := o.trunc

@@ -17,6 +17,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/gaea/gaea/internal/gaea/tool"
 )
@@ -212,19 +213,50 @@ func StartAll(ctx context.Context, specs []Spec) (*Host, []tool.Tool, error) {
 // StartAvailable connects every plugin it can and records failures on the host
 // instead of aborting the whole session. The returned tools are the union of the
 // successfully connected servers.
+//
+// 刀G v4.251（普查二遍#4）：改前串行连接且无 deadline——一个挂死的 MCP
+// server 无限期卡住会话装配，N 个 server 耗时累加。改为并行连接 + 单 server
+// 30s 上限。超时取消只在失败路径生效：成功连接的 transport 绑定该 ctx，
+// 定时器必须 Stop，否则健康 server 会被误杀（AfterFunc 形态的原因）。
 func StartAvailable(ctx context.Context, specs []Spec) (*Host, []tool.Tool) {
 	h := &Host{}
+	var mu sync.Mutex
 	var tools []tool.Tool
+	var wg sync.WaitGroup
 	for _, s := range specs {
-		ts, err := h.addConnected(ctx, s)
-		if err != nil {
-			h.RecordFailure(s, err)
-			continue
-		}
-		tools = append(tools, ts...)
+		s := s
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			sctx, cancel := context.WithCancel(ctx)
+			timer := time.AfterFunc(mcpConnectTimeout, cancel)
+			ts, err := h.addConnected(sctx, s)
+			fired := !timer.Stop()
+			if err != nil || fired {
+				if fired {
+					// 超时统一按 timeout 上报（底层可能是取消竞态的
+					// context canceled）；连接若已成功，transport 绑定
+					// 在已取消的 sctx 上，撤下。
+					if err == nil {
+						h.Remove(s.Name)
+					}
+					err = fmt.Errorf("connect timeout after %s", mcpConnectTimeout)
+				}
+				h.RecordFailure(s, err)
+				return
+			}
+			mu.Lock()
+			tools = append(tools, ts...)
+			mu.Unlock()
+		}()
 	}
+	wg.Wait()
 	return h, tools
 }
+
+// mcpConnectTimeout 是单个 MCP server 的连接上限（spawn+initialize+tools/list）。
+// var 仅为测试可缩短超时；生产读 30s。
+var mcpConnectTimeout = 30 * time.Second
 
 // Close terminates all plugin connections.
 func (h *Host) Close() {

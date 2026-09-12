@@ -21,6 +21,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"context"
 	"github.com/gaea/gaea/internal/netclient"
 )
 
@@ -172,7 +173,9 @@ func (s *Server) Start() error {
 	}
 	s.stopMu.Unlock()
 	s.sessionExpired.Store(false)
-	s.notifyStart()
+	// 启动通知异步化（刀G v4.251）：同步 POST 在 Startup 链上，网络不可
+	// 达时每助手最多 10s×N；通知失败无补救语义，不阻塞通道启动。
+	go s.notifyStart()
 	go s.pollLoop()
 	slog.Info("[weixin] 助手通道启动",
 		"assistant", s.cfg.AssistantID,
@@ -531,9 +534,9 @@ func (s *Server) handle(msg *inboundMsg) {
 				mediaOverflow++
 				continue
 			}
-				if s.MediaRecognizer != nil {
-					if u, _ := item.ImageItem.resolveDownload(); u != "" {
-						if desc, ok := s.recognizeImage(*item.ImageItem, msg.FromUserID); ok {
+			if s.MediaRecognizer != nil {
+				if u, _ := item.ImageItem.resolveDownload(); u != "" {
+					if desc, ok := s.recognizeImage(*item.ImageItem, msg.FromUserID); ok {
 						recognized = append(recognized, recognizedImageLabel(*item.ImageItem, desc))
 						continue
 					}
@@ -818,7 +821,7 @@ func (s *Server) Push(text string) error {
 // SendFileCard 产物回推 seam（v4.8.3 真机协议版 + v4.9 文件卡泛化）：按扩展名
 // 分流——图片白名单（png/jpeg/webp/gif）走真机定稿图片卡链（getuploadurl
 // media_type=1 → CDN 密文上传 → image_item 卡片，逐字节不变）；非图片
-//（docx/xlsx/pptx/pdf/zip/txt/md 等）走文件卡链（探针制：media_type=3 +
+// （docx/xlsx/pptx/pdf/zip/txt/md 等）走文件卡链（探针制：media_type=3 +
 // file_item，upload_probe 已埋点，任何失败降级图片卡链同款文本路径）；
 // 成功后 caption 独立文本补发。协议经三方印证（本机抓包实测解密、hermes-
 // agent 生产实现、openilink-sdk-go 导出符号），上传域与扫码 baseurl 无关。
@@ -1024,11 +1027,12 @@ func (s *Server) apiPost(endpoint string, body []byte, timeout time.Duration) ([
 	req.Header.Set("Content-Type", "application/json")
 	s.setAuthHeaders(req)
 
-	c := s.client
-	if timeout < c.Timeout {
-		c = netclient.NewSimpleClient(timeout)
-	}
-	resp, err := c.Do(req)
+	// 每请求超时走 context（刀G v4.251）：改前 timeout<90s 时克隆新
+	// Transport——长轮询循环（约 30s/轮）永久每轮新建 Transport+TCP/TLS
+	// 握手，连接复用全失效。共享 client + ctx 截止语义等价（较短者生效）。
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	resp, err := s.client.Do(req.WithContext(ctx))
 	if err != nil {
 		return nil, err
 	}
