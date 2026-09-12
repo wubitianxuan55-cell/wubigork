@@ -335,20 +335,14 @@ var writableScopes = []memory.Scope{memory.ScopeUser, memory.ScopeProject, memor
 // GaeaMemory 返回记忆面板数据。
 func (a *App) GaeaMemory() MemoryView {
 	view := MemoryView{Docs: []MemoryDoc{}, Facts: []MemoryFact{}, Scopes: []MemoryScope{}}
-	c := gaeaCtrl()
-	if c == nil {
-		return view
-	}
-	set := c.Memory()
-	if set == nil {
-		return view
-	}
-	view.StoreDir = set.Store.Dir
-	view.Available = true
-	for _, d := range set.Docs {
-		view.Docs = append(view.Docs, MemoryDoc{Path: d.Path, Scope: string(d.Scope), Body: d.Body})
-	}
-	for _, f := range set.Store.List() {
+	// Facts/available 以管理面真实状态为准（hubOfficeStore 直连 SQLite，与
+	// GaeaMemoryLifecycle/注入体检同取数路径）：引擎控制器要等构建才有——此前
+	// facts 等控制器，新起壳面板误报「不可用—未配置」而同库生命周期/体检都能
+	// 读到活跃条（v4.243 真机走查实锤）。docs/scopes 是引擎域文件面，控制器
+	// 就绪时补充；不可用仅在用户目录不可解析（Store 零值退化）时成立。
+	store := a.hubOfficeStore()
+	view.Available = gaeaConfig.MemoryUserDir() != ""
+	for _, f := range store.List() {
 		view.Facts = append(view.Facts, MemoryFact{
 			Name: f.Name, Title: f.Title, Description: f.Description,
 			Type: string(f.Type), Body: f.Body,
@@ -358,9 +352,17 @@ func (a *App) GaeaMemory() MemoryView {
 			Pinned:        f.Pinned,
 		})
 	}
-	for _, sc := range writableScopes {
-		if p := set.DocPath(sc); p != "" {
-			view.Scopes = append(view.Scopes, MemoryScope{Scope: string(sc), Path: p})
+	if c := gaeaCtrl(); c != nil {
+		if set := c.Memory(); set != nil {
+			view.StoreDir = set.Store.Dir
+			for _, d := range set.Docs {
+				view.Docs = append(view.Docs, MemoryDoc{Path: d.Path, Scope: string(d.Scope), Body: d.Body})
+			}
+			for _, sc := range writableScopes {
+				if p := set.DocPath(sc); p != "" {
+					view.Scopes = append(view.Scopes, MemoryScope{Scope: string(sc), Path: p})
+				}
+			}
 		}
 	}
 	view.Enabled = memoryEnabled()
