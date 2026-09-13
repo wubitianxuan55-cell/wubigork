@@ -109,6 +109,14 @@ func TestLoadWhitelistFile_MissingNilAndCommentsSkipped(t *testing.T) {
 	if err != nil || len(wl) != 1 {
 		t.Fatalf("注释与空行应剔除: %v %v", wl, err)
 	}
+
+	// 上游 style-resolution 注记格式兼容：条目上一行 `# 来源：…；用途：…` 整行忽略
+	p2 := filepath.Join(t.TempDir(), ".deslop-whitelist")
+	os.WriteFile(p2, []byte("# 来源：本书文风明确允许；用途：口头禅式停顿\n——且慢——\n"), 0o644)
+	wl2, err := LoadWhitelistFile(p2)
+	if err != nil || len(wl2) != 1 || wl2[0] != "——且慢——" {
+		t.Fatalf("注记格式应兼容: %v %v", wl2, err)
+	}
 }
 
 // ── 去味 × 白名单 ──

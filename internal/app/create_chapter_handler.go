@@ -4,9 +4,12 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/gaea/gaea/internal/ai"
 	"github.com/gaea/gaea/internal/characterlib"
@@ -571,6 +574,7 @@ const (
 	ctxBudgetTotal        = 4000 // 新增区段（伏笔+世界观）合计预算
 	ctxForeshadowBudget   = 1600 // 伏笔区正文上限
 	ctxWorldviewBudget    = 1600 // 世界观区正文上限
+	ctxStyleBudget        = 1200 // 书级文风档案区上限（T6：偏好宜精不宜多）
 	ctxForeshadowLineLen  = 100  // 单条伏笔描述截断
 	ctxForeshadowMaxItems = 15   // 最多注入的伏笔条数
 	ctxWorldviewDimLen    = 150  // 世界观单维度截断
@@ -607,15 +611,53 @@ func truncateBudget(s string, budget int) string {
 // （未回收伏笔 + 世界观要点）。无数据或读取失败时返回 ""，调用方不追加
 // 任何内容（prompt 中不出现空区段）。
 func buildChapterContextSections(pm *project.Manager) string {
-	sections := make([]string, 0, 2)
+	sections := make([]string, 0, 3)
 	if body := buildForeshadowSection(pm); body != "" {
 		sections = append(sections, "## 未回收伏笔（创作约束）\n"+
 			"以下伏笔已埋设尚未回收，写作时不得与之矛盾；可自然推进，不要强行提前揭穿：\n"+body)
+	}
+	if body := buildStyleSection(pm); body != "" {
+		sections = append(sections, body)
 	}
 	if body := buildWorldviewSection(pm); body != "" {
 		sections = append(sections, "## 世界观要点\n"+body)
 	}
 	return joinWithBudget(ctxBudgetTotal, sections...)
+}
+
+// buildStyleSection 书级文风档案（oh-story T6 风格档案协议对齐，上游
+// style-resolution.md）：项目根 style.md，作者显式文风偏好——一句可执行的
+// 偏好也有效；空白/纯标题/「待补充」不算；无文件不建占位、不猜。
+// 协议口径：文风只裁决**表达维度**（句长/视角/标点/对话/修辞/收尾），
+// 事件、事实、信息揭露边界仍以细纲为准——事实与表达分开裁决。
+func buildStyleSection(pm *project.Manager) string {
+	if pm == nil {
+		return ""
+	}
+	raw, err := os.ReadFile(filepath.Join(pm.Dir, "style.md"))
+	if err != nil {
+		return "" // 无文件不建占位（上游口径）
+	}
+	var lines []string
+	for _, line := range strings.Split(string(raw), "\n") {
+		t := strings.TrimSpace(strings.TrimSuffix(line, "\r"))
+		if t == "" || strings.HasPrefix(t, "#") {
+			continue // 标题行不是偏好
+		}
+		if strings.Contains(t, "待补充") {
+			continue
+		}
+		lines = append(lines, t)
+	}
+	if len(lines) == 0 {
+		return ""
+	}
+	body := strings.Join(lines, "\n")
+	if r := utf8.RuneCountInString(body); r > ctxStyleBudget {
+		body = string([]rune(body)[:ctxStyleBudget]) + "……"
+	}
+	return "## 本书文风（作者显式偏好，优先于通用默认写法）\n" +
+		"以下只约束表达方式（句长/视角/标点/对话/修辞/收尾等）；事件、事实与信息边界仍以细纲为准：\n" + body
 }
 
 // joinWithBudget 用空行拼接区段；合计超过 budget（rune）时对每段截断至

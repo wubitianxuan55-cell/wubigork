@@ -361,3 +361,66 @@ data: [DONE]
 		}
 	}
 }
+
+// ── oh-story T6 风格档案协议：书级文风档案 style.md 注入 ──
+
+func TestChapterContextInjectsBookStyle(t *testing.T) {
+	pm := newContextTestProject(t)
+	pref := "短句为主，每段不超过三行。\n对话密集，少用叙述转述。\n结尾落在具体动作上，不写抒情总结。"
+	if err := os.WriteFile(filepath.Join(pm.Dir, "style.md"), []byte("# 本书文风\n\n"+pref+"\n"), 0644); err != nil {
+		t.Fatalf("写 style.md: %v", err)
+	}
+
+	got := buildChapterContextSections(pm)
+	if !strings.Contains(got, "本书文风（作者显式偏好") {
+		t.Fatalf("文风区段应注入: %s", got)
+	}
+	if !strings.Contains(got, "短句为主") || !strings.Contains(got, "结尾落在具体动作上") {
+		t.Fatalf("偏好内容应原样带入: %s", got)
+	}
+	if !strings.Contains(got, "事实") { // 事实与表达分开裁决的口径要写明
+		t.Fatal("区段应声明表达/事实裁决边界")
+	}
+	if strings.Contains(got, "# 本书文风") && strings.Count(got, "本书文风") != strings.Count(got, "本书文风（作者显式偏好") {
+		// 标题行不应原样带进偏好正文（过滤 # 行）
+		t.Fatalf("# 标题行应被过滤: %s", got)
+	}
+}
+
+func TestChapterContextStyleMissingOrPlaceholderOmitted(t *testing.T) {
+	pm := newContextTestProject(t)
+
+	// 无文件：不建占位
+	if got := buildChapterContextSections(pm); got != "" {
+		t.Fatalf("无 style.md 应无区段: %s", got)
+	}
+
+	// 纯标题 + 待补充 = 无有效偏好
+	os.WriteFile(filepath.Join(pm.Dir, "style.md"), []byte("# 文风\n\n（待补充）\n"), 0644)
+	if got := buildChapterContextSections(pm); got != "" {
+		t.Fatalf("占位文件应无区段: %s", got)
+	}
+
+	// 一句有效偏好即可
+	os.WriteFile(filepath.Join(pm.Dir, "style.md"), []byte("多用短句。"), 0644)
+	got := buildChapterContextSections(pm)
+	if !strings.Contains(got, "多用短句") {
+		t.Fatalf("一句偏好也应注入: %s", got)
+	}
+}
+
+func TestChapterContextStyleTruncated(t *testing.T) {
+	pm := newContextTestProject(t)
+	long := strings.Repeat("这句偏好用来撑长度。", 200) // ~2000 字超 1200 上限
+	os.WriteFile(filepath.Join(pm.Dir, "style.md"), []byte(long), 0644)
+	got := buildChapterContextSections(pm)
+	if !strings.Contains(got, "本书文风") {
+		t.Fatal("超长偏好仍应注入（截断版）")
+	}
+	if !strings.Contains(got, "……") {
+		t.Fatal("超长偏好应带截断标记")
+	}
+	if strings.Contains(got, long[:len(long)-100]) {
+		t.Fatal("截断后不应保留全文")
+	}
+}
