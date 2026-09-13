@@ -1,6 +1,6 @@
 # 小说板块 · 书源取书→拆书导入接通（刀路规格）
 
-> 状态：**t1 已落地（2026-09-13，非版本刀）· t2 已落地（2026-09-14，版本刀 v4.283.0）**；t3 打磨按反馈开工 · 类型：板块接线规格
+> 状态：**t1/t2/t3 全落（2026-09-13~14；t2=v4.283.0、走查补刀=v4.283.1、t3=v4.284.0+v4.285.0）——书源线功能项收官** · 类型：板块接线规格
 > 关联代码：`internal/booksource/`（引擎，已落地零消费者）、`internal/app/novel_import_handler.go`、
 > `internal/bookimport/`、`internal/app/bindings_novel.go`、`frontend/src/pages/HomePage.tsx`
 > 关联决策：`docs/gaea-sin-booksource-distill-2026-09.md`（书源引擎蒸馏规格，§7 t5 预留「拆书联动」）、
@@ -73,7 +73,7 @@
 |---|---|---|
 | **t1**（后端，非版本刀可先行） | `createImportedProject` 重构 + 共享资产目录（EnsureTemplate 幂等）+ NovelB +4 绑定 + 进度/取消事件 | ✅ 2026-09-13：go build/vet/test 全绿（internal/app 全量 84s 过）；绑定面 654 drift OK；文件导入回归零变化（TestImportNovelBook_RefactorRegression）；13 新例（规则装载剔除/搜索合并去重/目录截断样例/导入落库/Failed 清单/范围重编号/全败报错/无规则拒绝/取消登记簿/起跑预检）；实施偏差见 §8 |
 | **t2**（前端，版本刀） | 书架「在线搜书」入口：搜索→候选表（来源/HasRule 标注）→目录预览→范围选择→进度条→完成入书架 + 报告直显（复用 v4.279 报告面） | ✅ 2026-09-14：tsc -b 0、eslint 0 error、vitest 全绿（面板 7 例+报告 util 6 例+入口 1 例+事件频道 1 例）、ci.ps1 全绿、发布 v4.283.0；真机取书走查留观察池（见 §9.3） |
-| **t3**（打磨，按反馈） | 失败章重试、搜索历史、泛搜索引擎规则用户可编辑 | 失败章重试 ✅ 2026-09-14（v4.284.0：引擎 DownloadChapters + NovelBookSourceImportChapters 追加落库 + Modal 失败面板；详见 v4.284.0 发布说明）；余两项观察池驱动 |
+| **t3**（打磨，按反馈） | 失败章重试、搜索历史、泛搜索引擎规则用户可编辑 | ✅ 全落 2026-09-14：失败章重试 v4.284.0（DownloadChapters + NovelBookSourceImportChapters 追加落库 + 失败面板）；搜索历史 + 引擎规则可编辑 v4.285.0（bookSearchHistory + NovelBookSourceEnginesGet/Save + BookSearchEnginesModal，整体替换 fail-closed）。**t3 收官，书源线功能项全清** |
 
 ## 6. 不做清单（防过度设计）
 

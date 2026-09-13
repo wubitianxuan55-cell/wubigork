@@ -381,6 +381,68 @@ type NovelBookSourceAppendResult struct {
 	Failed        []booksource.FailedChapter `json:"failed,omitempty"`
 }
 
+// ── 泛搜索引擎规则编辑（t3：规则是用户数据资产，UI 可编辑不养第二份）──
+
+// NovelBookSourceEnginesPayload 引擎规则清单 + 落盘路径（编辑器的只读面）。
+type NovelBookSourceEnginesPayload struct {
+	Path  string                        `json:"path"`
+	Rules []*booksource.SearchEngineRule `json:"rules"`
+}
+
+// enginesGet 读引擎规则清单（文件缺失=空清单，路径照返供编辑器展示）。
+func enginesGet(dir string) (NovelBookSourceEnginesPayload, error) {
+	raw, err := os.ReadFile(filepath.Join(dir, enginesFileName))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return NovelBookSourceEnginesPayload{Path: filepath.Join(dir, enginesFileName)}, nil
+		}
+		return NovelBookSourceEnginesPayload{}, err
+	}
+	rules, err := booksource.LoadEnginesFileBytes(raw)
+	if err != nil {
+		return NovelBookSourceEnginesPayload{}, fmt.Errorf("引擎规则文件损坏: %w", err)
+	}
+	if rules == nil {
+		rules = []*booksource.SearchEngineRule{}
+	}
+	return NovelBookSourceEnginesPayload{Path: filepath.Join(dir, enginesFileName), Rules: rules}, nil
+}
+
+// enginesSave 整体替换引擎规则：逐条 fail-closed 校验（CSS only、禁 @js:，同
+// 装载纪律），全过后临时文件+改名原子落盘；空清单拒绝（防误清空，要清空删文件）。
+func enginesSave(dir, rulesJSON string) (int, error) {
+	var rules []booksource.SearchEngineRule
+	if err := json.Unmarshal([]byte(rulesJSON), &rules); err != nil {
+		return 0, fmt.Errorf("引擎规则 JSON 解析失败: %w", err)
+	}
+	if len(rules) == 0 {
+		return 0, fmt.Errorf("至少保留一个搜索引擎（要清空请直接删除文件）")
+	}
+	seen := map[string]bool{}
+	for i := range rules {
+		if err := rules[i].Validate(); err != nil {
+			return 0, fmt.Errorf("第 %d 条: %w", i+1, err)
+		}
+		if seen[rules[i].Name] {
+			return 0, fmt.Errorf("引擎名重复：%s", rules[i].Name)
+		}
+		seen[rules[i].Name] = true
+	}
+	raw, err := json.MarshalIndent(rules, "", "  ")
+	if err != nil {
+		return 0, err
+	}
+	tmp := filepath.Join(dir, enginesFileName+".tmp")
+	if err := os.WriteFile(tmp, raw, 0o644); err != nil {
+		return 0, err
+	}
+	if err := os.Rename(tmp, filepath.Join(dir, enginesFileName)); err != nil {
+		_ = os.Remove(tmp)
+		return 0, err
+	}
+	return len(rules), nil
+}
+
 // NovelBookSourceImportChapters 失败章补下：对既有书架项目按显式清单抓章追加
 // （清单 = 整本导入 done 事件的 Failed 原样回传）。章号从项目现有最大章号续编，
 // 大纲节点同序追加（imp-NNN 与既有编号规则一致且不撞号）；进度/终态复用
@@ -439,6 +501,27 @@ func (w *writingState) NovelBookSourceImportChapters(source, projectPath, chapte
 		w.emit("novel-import-progress:"+jobID, map[string]interface{}{"type": "append-done", "result": res})
 	}()
 	return NovelBookSourceImportStart{JobID: jobID}, nil
+}
+
+// ── 绑定（搜索引擎编辑器）──
+
+// NovelBookSourceEnginesGet 读引擎规则清单（编辑器数据面；先 EnsureTemplate 保底）。
+func (w *writingState) NovelBookSourceEnginesGet() (NovelBookSourceEnginesPayload, error) {
+	dir := booksourceRulesDir()
+	if err := booksource.EnsureTemplate(dir); err != nil {
+		return NovelBookSourceEnginesPayload{}, fmt.Errorf("书源模板初始化失败: %w", err)
+	}
+	return enginesGet(dir)
+}
+
+// NovelBookSourceEnginesSave 整体替换引擎规则（fail-closed 校验后原子落盘；
+// 返回保存条数）。下次搜索即按新规则装载——规则目录每次搜索现读，无缓存失效面。
+func (w *writingState) NovelBookSourceEnginesSave(rulesJSON string) (int, error) {
+	dir := booksourceRulesDir()
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return 0, err
+	}
+	return enginesSave(dir, rulesJSON)
 }
 
 // appendProjectChapters 把补下章节追加进既有项目：章号从现有最大 OrderIndex 续编，

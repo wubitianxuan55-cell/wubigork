@@ -154,6 +154,8 @@ type LegacySurfaceNames =
   | "MainBrainChat"
   | "MigrateProjectToV4"
   | "NovelBookSourceImport"
+  | "NovelBookSourceEnginesGet"
+  | "NovelBookSourceEnginesSave"
   | "NovelBookSourceImportCancel"
   | "NovelBookSourceImportChapters"
   | "NovelBookSourceSearch"

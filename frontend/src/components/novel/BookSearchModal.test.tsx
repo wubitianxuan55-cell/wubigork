@@ -16,6 +16,8 @@ vi.mock('../../gaea/lib/bridge', async (importOriginal) => {
       NovelBookSourceImport: vi.fn(),
       NovelBookSourceImportCancel: vi.fn(),
       NovelBookSourceImportChapters: vi.fn(),
+      NovelBookSourceEnginesGet: vi.fn(),
+      NovelBookSourceEnginesSave: vi.fn(),
     },
   }
 })
@@ -103,6 +105,20 @@ describe('候选表（搜索结果）', () => {
     const pickButtons = screen.getAllByRole('button', { name: /选\s*书|仅参考/ })
     expect((pickButtons[0] as HTMLButtonElement).disabled).toBe(false)
     expect((pickButtons[1] as HTMLButtonElement).disabled).toBe(true)
+  })
+
+  it('搜索历史：seed 渲染 chips，点击即用该关键字搜索（t3 余项）', async () => {
+    localStorage.setItem('gaea.booksearch.history', JSON.stringify(['大道朝天']))
+    search.mockResolvedValue({ candidates: [{ kind: 'rule', source: '测试源', title: '大道朝天', url: 'https://a.test/b/1', host: 'a.test', hasRule: true }], warnings: [] })
+    renderModal()
+
+    const chip = await screen.findByText('大道朝天')
+    fireEvent.click(chip)
+    await waitFor(() => expect(search).toHaveBeenCalledWith('大道朝天'))
+    expect(screen.getByText(/来源：测试源/)).toBeTruthy()
+
+    // 搜索成功后历史记录该关键字
+    expect(localStorage.getItem('gaea.booksearch.history')).toContain('大道朝天')
   })
 
   it('各源失败告警如实透出不静默', async () => {

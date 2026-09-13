@@ -44,6 +44,7 @@ type NovelMethods = Pick<
   | "NovelBookSourceSearch" | "NovelBookSourceToc"
   | "NovelBookSourceImport" | "NovelBookSourceImportCancel"
   | "NovelBookSourceImportChapters"
+  | "NovelBookSourceEnginesGet" | "NovelBookSourceEnginesSave"
 >;
 
 export function buildNovel(): NovelMethods {
@@ -336,6 +337,18 @@ export function buildNovel(): NovelMethods {
     },
     async NovelBookSourceImportChapters(): Promise<{ jobId: string }> {
       throw new Error("浏览器 mock 模式不支持失败章补下（无网络与书源规则），请在应用内使用");
+    },
+    async NovelBookSourceEnginesGet() {
+      return {
+        path: "C:/mock/gaea/booksource/rules/websearch-engines.json",
+        rules: [
+          { name: "bing", url: "https://www.bing.com/search?q=%s", queryFormat: "%s 小说 免费阅读", result: ".b_algo", title: "h2 a" },
+          { name: "ddg-html", url: "https://html.duckduckgo.com/html/?q=%s", result: ".result", title: ".result__a", linkParam: "uddg", disabled: true },
+        ],
+      };
+    },
+    async NovelBookSourceEnginesSave(_rulesJSON: string): Promise<number> {
+      throw new Error("浏览器 mock 模式不支持保存引擎规则（无规则目录），请在应用内使用");
     },
   };
 }

@@ -60,6 +60,8 @@ func (b *NovelB) LintForeshadows() (ForeshadowLintReport, error) { return b.a.Li
 func (b *NovelB) ListSnapshots(sceneID string, chapterNum int) ([]map[string]interface{}, error) { return b.a.ListSnapshots(sceneID, chapterNum) }
 func (b *NovelB) MergeCharacters(keepID string, mergeID string) (map[string]interface{}, error) { return b.a.MergeCharacters(keepID, mergeID) }
 func (b *NovelB) MigrateProjectToV4() error { return b.a.MigrateProjectToV4() }
+func (b *NovelB) NovelBookSourceEnginesGet() (NovelBookSourceEnginesPayload, error) { return b.a.NovelBookSourceEnginesGet() }
+func (b *NovelB) NovelBookSourceEnginesSave(rulesJSON string) (int, error) { return b.a.NovelBookSourceEnginesSave(rulesJSON) }
 func (b *NovelB) NovelBookSourceImport(source string, detailURL string, start int, end int, title string, genre string, style string) (NovelBookSourceImportStart, error) { return b.a.NovelBookSourceImport(source, detailURL, start, end, title, genre, style) }
 func (b *NovelB) NovelBookSourceImportCancel(jobID string) bool { return b.a.NovelBookSourceImportCancel(jobID) }
 func (b *NovelB) NovelBookSourceImportChapters(source string, projectPath string, chaptersJSON string) (NovelBookSourceImportStart, error) { return b.a.NovelBookSourceImportChapters(source, projectPath, chaptersJSON) }

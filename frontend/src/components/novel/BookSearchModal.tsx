@@ -10,7 +10,7 @@ import {
   Alert, Button, Checkbox, Empty, Input, InputNumber, List, Modal,
   Progress, Space, Spin, Tag, Typography, message,
 } from 'antd'
-import { ArrowLeftOutlined, CloudDownloadOutlined, SearchOutlined } from '@ant-design/icons'
+import { ArrowLeftOutlined, CloudDownloadOutlined, SearchOutlined, SettingOutlined } from '@ant-design/icons'
 import { app } from '../../gaea/lib/bridge'
 import type {
   NovelBookSourceAppendResult, NovelBookSourceCandidate, NovelBookSourceTocPreview,
@@ -18,6 +18,8 @@ import type {
 import { bookImportProgressChannel, subscribe } from '../../events'
 import { GENRE_OPTIONS, STYLE_OPTIONS } from './novelOptions'
 import type { ImportReportLike } from '../../utils/novelImportReport'
+import { clearSearchHistory, loadSearchHistory, pushSearchHistory } from '../../utils/bookSearchHistory'
+import BookSearchEnginesModal from './BookSearchEnginesModal'
 import { C } from '../../utils/theme'
 
 interface BookSearchModalProps {
@@ -72,6 +74,10 @@ const BookSearchModal: React.FC<BookSearchModalProps> = ({ open, onClose, onImpo
   const unsubRef = useRef<(() => void) | null>(null)
   const cancelRequestedRef = useRef(false)
 
+  // ── 搜索历史（t3 余项）+ 引擎规则编辑器入口 ──
+  const [history, setHistory] = useState<string[]>([])
+  const [enginesOpen, setEnginesOpen] = useState(false)
+
   // ── 失败章补下（t3）：done 带失败清单 → 面板内一键重试补下 ──
   const [lastImported, setLastImported] = useState<ImportReportLike | null>(null)
   const [failedList, setFailedList] = useState<FailedChapterLike[]>([])
@@ -83,6 +89,11 @@ const BookSearchModal: React.FC<BookSearchModalProps> = ({ open, onClose, onImpo
     unsubRef.current = null
   }, [])
 
+  // 打开时载入搜索历史
+  useEffect(() => {
+    if (open) setHistory(loadSearchHistory())
+  }, [open])
+
   // 关闭即复位（订阅必退，杜绝悬挂监听）
   useEffect(() => {
     if (open) return
@@ -93,17 +104,19 @@ const BookSearchModal: React.FC<BookSearchModalProps> = ({ open, onClose, onImpo
     setJobId(''); setProgress({ done: 0, total: 0 })
     setImporting(false); setSearching(false); setStartError('')
     setLastImported(null); setFailedList([]); setRetrying(false); setAppendMsg('')
+    setEnginesOpen(false)
     cancelRequestedRef.current = false
   }, [open, detachProgress])
   useEffect(() => detachProgress, [detachProgress])
 
-  const handleSearch = async () => {
-    const kw = keyword.trim()
+  const handleSearch = async (kwArg?: string) => {
+    const kw = (kwArg ?? keyword).trim()
     if (!kw || searching) return
     setSearching(true)
     setSearchWarnings([])
     try {
       const res = await app.NovelBookSourceSearch(kw)
+      setHistory(pushSearchHistory(kw))
       setCandidates(res.candidates ?? [])
       setSearchWarnings(res.warnings ?? [])
       if ((res.candidates ?? []).length === 0 && (res.warnings ?? []).length === 0) {
@@ -303,6 +316,32 @@ const BookSearchModal: React.FC<BookSearchModalProps> = ({ open, onClose, onImpo
             prefix={<SearchOutlined style={{ color: C('color-text-secondary') }} />}
             aria-label="在线搜书关键字"
           />
+          {(
+            <Space size={4} wrap align="center">
+              <Button
+                type="text"
+                size="small"
+                icon={<SettingOutlined aria-hidden />}
+                onClick={() => setEnginesOpen(true)}
+              >
+                搜索引擎规则
+              </Button>
+              {history.slice(0, 8).map((kw) => (
+                <Tag
+                  key={kw}
+                  style={{ cursor: 'pointer', color: C('color-text-secondary') }}
+                  onClick={() => { setKeyword(kw); void handleSearch(kw) }}
+                >
+                  {kw}
+                </Tag>
+              ))}
+              {history.length > 0 && (
+                <Button type="text" size="small" onClick={() => { clearSearchHistory(); setHistory([]) }}>
+                  清空历史
+                </Button>
+              )}
+            </Space>
+          )}
           {searchWarnings.length > 0 && (
             <Alert
               type="warning"
@@ -449,6 +488,8 @@ const BookSearchModal: React.FC<BookSearchModalProps> = ({ open, onClose, onImpo
           )}
         </Space>
       )}
+
+      <BookSearchEnginesModal open={enginesOpen} onClose={() => setEnginesOpen(false)} />
     </Modal>
   )
 }

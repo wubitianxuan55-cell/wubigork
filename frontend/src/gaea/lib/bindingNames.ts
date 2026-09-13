@@ -493,6 +493,8 @@ export const bindingNames = [
 	"NovelBookSourceImport",
 	"NovelBookSourceImportCancel",
 	"NovelBookSourceImportChapters",
+	"NovelBookSourceEnginesGet",
+	"NovelBookSourceEnginesSave",
 	"NovelBookSourceSearch",
 	"NovelBookSourceToc",
 	"NovelChapterReview",

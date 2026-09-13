@@ -401,3 +401,53 @@ func TestAppendProjectChapters_RenumbersAndAppendsOutline(t *testing.T) {
 		t.Fatalf("全败语义不符: %+v", res2)
 	}
 }
+
+// ── 搜索引擎规则编辑（t3）──
+
+func TestEnginesGetSave_RoundTripAndFailClosed(t *testing.T) {
+	dir := t.TempDir()
+
+	// Get：文件缺失=空清单+路径照返（不报错）
+	got, err := enginesGet(dir)
+	if err != nil || len(got.Rules) != 0 || got.Path == "" {
+		t.Fatalf("缺失文件应空清单不报错: %+v %v", got, err)
+	}
+
+	// Save：合法两条（一条 disabled）→ 落盘 → Get 回读一致
+	n, err := enginesSave(dir, `[{"name":"bing","url":"https://www.bing.com/search?q=%s","result":".b_algo","title":"h2 a"},
+		{"name":"ddg","url":"https://html.duckduckgo.com/html/?q=%s","result":".result","title":".result__a","linkParam":"uddg","disabled":true}]`)
+	if err != nil || n != 2 {
+		t.Fatalf("保存: %v n=%d", err, n)
+	}
+	got, err = enginesGet(dir)
+	if err != nil || len(got.Rules) != 2 || got.Rules[1].Name != "ddg" || !got.Rules[1].Disabled {
+		t.Fatalf("回读不符: %+v %v", got, err)
+	}
+
+	// Get：装载剔除口径一致性——坏 JSON 显式报错不静默
+	if err := os.WriteFile(filepath.Join(dir, enginesFileName), []byte("{bad"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := enginesGet(dir); err == nil {
+		t.Fatal("坏文件应报错")
+	}
+
+	// Save fail-closed：空清单拒绝 / 缺 name 点名 / 重复名拒绝，且原文件不被破坏
+	good, _ := os.ReadFile(filepath.Join(dir, enginesFileName))
+	if _, err := enginesSave(dir, `[]`); err == nil {
+		t.Fatal("空清单应拒绝")
+	}
+	if _, err := enginesSave(dir, `[{"name":"","url":"https://x.com/s?q=%s","result":".r","title":"a"}]`); err == nil {
+		t.Fatal("缺 name 应拒绝")
+	}
+	if _, err := enginesSave(dir, `[{"name":"a","url":"https://x.com/s?q=%s","result":".r","title":"a"},{"name":"a","url":"https://y.com/s?q=%s","result":".r","title":"a"}]`); err == nil {
+		t.Fatal("重复名应拒绝")
+	}
+	if _, err := enginesSave(dir, `[{"name":"a","url":"https://x.com/s?q=%s","result":".r","title":"a@js:x"}]`); err == nil {
+		t.Fatal("@js: 应拒绝")
+	}
+	after, _ := os.ReadFile(filepath.Join(dir, enginesFileName))
+	if string(after) != string(good) {
+		t.Fatal("校验失败后原文件不得被破坏")
+	}
+}

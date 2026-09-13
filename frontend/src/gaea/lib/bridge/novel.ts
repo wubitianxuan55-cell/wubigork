@@ -131,6 +131,8 @@ export interface NovelBindings {
   NovelBookSourceImport(source: string, detailURL: string, start: number, end: number, title: string, genre: string, style: string): Promise<NovelBookSourceImportStart>;
   NovelBookSourceImportCancel(jobId: string): Promise<boolean>;
   NovelBookSourceImportChapters(source: string, projectPath: string, chaptersJSON: string): Promise<NovelBookSourceImportStart>;
+  NovelBookSourceEnginesGet(): Promise<NovelBookSourceEnginesPayload>;
+  NovelBookSourceEnginesSave(rulesJSON: string): Promise<number>;
   // 实体关系图谱（角色/组织/关系图数据）。
   GetEntityRelations(): Promise<Record<string, unknown>>;
   // 场景族：场景列表/生成/新建（Go 均返回 map；CancelCreateChapter 实测
@@ -251,6 +253,27 @@ export interface NovelBookSourceFailedChapter {
   title: string;
   url: string;
   error: string;
+}
+
+/** 引擎规则条目（对齐 booksource.SearchEngineRule；字段可 omitempty，整体往返保存）。 */
+export interface NovelBookSourceEngineRule {
+  name: string;
+  url: string;
+  queryFormat?: string;
+  result: string;
+  title: string;
+  link?: string;
+  disabled?: boolean;
+  comment?: string;
+  linkParam?: string;
+  redirectHosts?: string[];
+  crawl?: Record<string, unknown>;
+}
+
+/** 引擎规则清单 + 落盘路径（编辑器数据面）。 */
+export interface NovelBookSourceEnginesPayload {
+  path: string;
+  rules: NovelBookSourceEngineRule[];
 }
 
 /** 失败章补下结果（t3 重试；追加语义词——appended/addedWords 为本次增量）。 */

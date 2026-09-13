@@ -309,7 +309,6 @@ func collectMethods(dir string) ([]method, error) {
 			slot := 0
 			for _, p := range fd.Type.Params.List {
 				typeStr := exprString(p.Type)
-				_, variadic := p.Type.(*ast.Ellipsis)
 				names := p.Names
 				if len(names) == 0 {
 					names = []*ast.Ident{{Name: "_"}}
@@ -327,14 +326,18 @@ func collectMethods(dir string) ([]method, error) {
 						name = base
 					}
 					usedNames[name] = true
-					params = append(params, name+" "+typeStr)
 					arg := name
-					// 变参（...T）调用侧必须以 `name...` 透传，否则生成门面
-					// 把 []T 当单个 T 传（编译错误）——S1.2 GaeaUnifiedSearch
-					// 的可变 scope 参数依赖此规则。
-					if variadic {
-						arg += "..."
+					// v4.285 根治（v4.237「绑定层禁变参」工具化）：Wails v2.13
+					// 变参绑定不可用（wire []string 与 reflect.Call 口径自相
+					// 矛盾），门面签名一律把 ...T 收窄成单值 T、按单值透传——
+					// 核心层保持变参语义不变。此前靠 E27 守卫拦 + 手工还原，
+					// 每次再生都要返工，现由生成器直接产出合规签名。
+					if ell, ok := p.Type.(*ast.Ellipsis); ok {
+						params = append(params, name+" "+exprString(ell.Elt))
+						args = append(args, name)
+						continue
 					}
+					params = append(params, name+" "+typeStr)
 					args = append(args, arg)
 				}
 			}
