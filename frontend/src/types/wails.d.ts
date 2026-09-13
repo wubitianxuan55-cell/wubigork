@@ -163,6 +163,8 @@ export interface AppAPI {
   DeleteProject(dir: string): Promise<void>
   GaeaPickFiles(): Promise<FilePickResult[]>
   ImportNovelBook(filePath: string, title: string, genre: string, style: string): Promise<NovelImportResult>
+  /** v4.287 tail 出口：extractMode = full | tail；tailChapters 按 5 的倍数取整，>50 降级全本。 */
+  ImportNovelBookEx(filePath: string, title: string, genre: string, style: string, extractMode: string, tailChapters: number): Promise<NovelImportResult>
 
   // ── 大纲 ──
   GetOutlines(): { nodes: OutlineNode[]; story_thread?: string }

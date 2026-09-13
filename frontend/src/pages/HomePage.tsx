@@ -45,6 +45,7 @@ const HomePage: React.FC = () => {
   const [importGenre, setImportGenre] = useState<string[]>([])
   const [importStyle, setImportStyle] = useState<string[]>([])
   const [importing, setImporting] = useState(false)
+  const [importExtractRange, setImportExtractRange] = useState('full')
 
   // 在线搜书（书源取书→拆书导入 t2）
   const [bookSearchModal, setBookSearchModal] = useState(false)
@@ -122,11 +123,14 @@ const HomePage: React.FC = () => {
     if (!importFile || !importTitle.trim() || importing) return
     setImporting(true)
     try {
-      const res = await wailsApp().ImportNovelBook(
+      const [mode, tailStr] = importExtractRange.split(':')
+      const res = await wailsApp().ImportNovelBookEx(
         importFile.path,
         importTitle.trim(),
         importGenre.join('、') || '未分类',
         importStyle.join('、') || '默认',
+        mode,
+        tailStr ? Number(tailStr) : 0,
       )
       openProject(res.path, res.title)
       await loadProjects()
@@ -386,6 +390,8 @@ const HomePage: React.FC = () => {
         genre={importGenre}
         style={importStyle}
         importing={importing}
+        extractRange={importExtractRange}
+        onExtractRangeChange={setImportExtractRange}
         onTitleChange={setImportTitle}
         onGenreChange={setImportGenre}
         onStyleChange={setImportStyle}

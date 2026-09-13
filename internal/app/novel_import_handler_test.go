@@ -3,8 +3,11 @@ package app
 import (
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/gaea/gaea/internal/bookimport"
 	"unicode/utf8"
 
 	"github.com/gaea/gaea/internal/project"
@@ -18,7 +21,7 @@ func TestParseTextChapters_SplitsByHeadings(t *testing.T) {
 	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
 		t.Fatalf("写文件: %v", err)
 	}
-	chs, report, err := parseTextChapters(path)
+	chs, report, err := parseTextChapters(path, bookimport.ParseOptions{ExtractMode: bookimport.ExtractFull})
 	if err != nil {
 		t.Fatalf("parseTextChapters: %v", err)
 	}
@@ -45,7 +48,7 @@ func TestParseTextChapters_NoHeadings_SingleChapter(t *testing.T) {
 	if err := os.WriteFile(path, []byte("没有章节标记的一段文字"), 0644); err != nil {
 		t.Fatalf("写文件: %v", err)
 	}
-	chs, report, err := parseTextChapters(path)
+	chs, report, err := parseTextChapters(path, bookimport.ParseOptions{ExtractMode: bookimport.ExtractFull})
 	if err != nil || len(chs) != 1 || chs[0].Title != "全文" {
 		t.Fatalf("无章节标记应归为全文一章: %v %v", chs, err)
 	}
@@ -63,7 +66,7 @@ func TestParseTextChapters_UTF8BOM(t *testing.T) {
 	if err := os.WriteFile(path, raw, 0644); err != nil {
 		t.Fatalf("写文件: %v", err)
 	}
-	chs, report, err := parseTextChapters(path)
+	chs, report, err := parseTextChapters(path, bookimport.ParseOptions{ExtractMode: bookimport.ExtractFull})
 	if err != nil || len(chs) != 2 {
 		t.Fatalf("BOM 文件解析: %v %d", err, len(chs))
 	}
@@ -85,7 +88,7 @@ func TestParseTextChapters_GB18030(t *testing.T) {
 	if err := os.WriteFile(path, raw, 0644); err != nil {
 		t.Fatalf("写文件: %v", err)
 	}
-	chs, report, err := parseTextChapters(path)
+	chs, report, err := parseTextChapters(path, bookimport.ParseOptions{ExtractMode: bookimport.ExtractFull})
 	if err != nil || len(chs) != 2 {
 		t.Fatalf("GB18030 文件解析: %v %d", err, len(chs))
 	}
@@ -104,7 +107,7 @@ func TestParseTextChapters_NoHeadingLongText_WindowSplit(t *testing.T) {
 	if err := os.WriteFile(path, []byte(sb.String()), 0644); err != nil {
 		t.Fatalf("写文件: %v", err)
 	}
-	chs, report, err := parseTextChapters(path)
+	chs, report, err := parseTextChapters(path, bookimport.ParseOptions{ExtractMode: bookimport.ExtractFull})
 	if err != nil {
 		t.Fatalf("无标题长文本解析: %v", err)
 	}
@@ -124,7 +127,7 @@ func TestParseTextChapters_WeakHeadings(t *testing.T) {
 	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
 		t.Fatalf("写文件: %v", err)
 	}
-	chs, report, err := parseTextChapters(path)
+	chs, report, err := parseTextChapters(path, bookimport.ParseOptions{ExtractMode: bookimport.ExtractFull})
 	if err != nil || len(chs) != 3 {
 		t.Fatalf("弱标题切分: %v %d 章", err, len(chs))
 	}
@@ -198,5 +201,81 @@ func TestImportNovelBook_Guards(t *testing.T) {
 	}
 	if _, err := a.ImportNovelBook(filepath.Join(t.TempDir(), "nope.txt"), "书", "玄幻", ""); err == nil {
 		t.Fatalf("文件不存在应报错")
+	}
+}
+
+// ── tail 提取范围出口（v4.287，拆书导入线欠账）──
+
+// 构造 N 章强标题 TXT。
+func writeNChapters(t *testing.T, dir string, n int) string {
+	t.Helper()
+	var b strings.Builder
+	for i := 1; i <= n; i++ {
+		b.WriteString("第" + strconv.Itoa(i) + "章 标题" + strconv.Itoa(i) + "\n\n本章正文内容，足够长不算过短。\n\n")
+	}
+	path := filepath.Join(dir, "长书.txt")
+	if err := os.WriteFile(path, []byte(b.String()), 0644); err != nil {
+		t.Fatalf("写长书: %v", err)
+	}
+	return path
+}
+
+func TestImportNovelBookEx_TailModeKeepsLastAndRenumbers(t *testing.T) {
+	a := newCharacterLibTestApp(t)
+	a.cfg.NovelsDir = t.TempDir()
+
+	path := writeNChapters(t, t.TempDir(), 12)
+	res, err := a.ImportNovelBookEx(path, "末十章", "玄幻", "", "tail", 10)
+	if err != nil {
+		t.Fatalf("tail 导入: %v", err)
+	}
+	if res.ChapterCount != 10 {
+		t.Fatalf("应只保留末 10 章: %+v", res)
+	}
+	// 裁剪告知应透出到导入报告
+	hit := false
+	for _, w := range res.Warnings {
+		if strings.Contains(w.Message, "末尾 10 章") {
+			hit = true
+		}
+	}
+	if !hit {
+		t.Fatalf("裁剪告警应如实带出: %+v", res.Warnings)
+	}
+	// 落库章节应从 1 重编号，首章=源第 3 章
+	pm, err := project.Open(res.Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer pm.Close()
+	of, _ := pm.ReadOutlines()
+	if len(of.Nodes) != 10 || of.Nodes[0].Title != "第3章 标题3" {
+		t.Fatalf("应从源第 3 章起保留 10 章: %+v", of.Nodes[0])
+	}
+}
+
+func TestImportNovelBookEx_TailOverMaxFallsBackFull(t *testing.T) {
+	a := newCharacterLibTestApp(t)
+	a.cfg.NovelsDir = t.TempDir()
+
+	path := writeNChapters(t, t.TempDir(), 12)
+	// 60 > 上限 50 → 降级全本（12 章）
+	res, err := a.ImportNovelBookEx(path, "全本", "玄幻", "", "tail", 60)
+	if err != nil {
+		t.Fatalf("降级导入: %v", err)
+	}
+	if res.ChapterCount != 12 {
+		t.Fatalf(">50 应降级全本: %+v", res)
+	}
+
+	// 非法模式显式报错
+	if _, err := a.ImportNovelBookEx(path, "x", "", "", "middle", 0); err == nil {
+		t.Fatal("非法 extractMode 应报错")
+	}
+
+	// full 出口与旧绑定行为一致（回归）
+	resFull, err := a.ImportNovelBookEx(path, "全本2", "玄幻", "", "full", 0)
+	if err != nil || resFull.ChapterCount != 12 {
+		t.Fatalf("full 出口回归: %+v %v", resFull, err)
 	}
 }

@@ -40,6 +40,14 @@ type importChapter struct {
 // ImportNovelBook 导入成品小说（TXT / Markdown / EPUB）到书架：
 // 解析章节 → 新建项目（outline + chapters/）→ 返回项目路径（不自动打开）。
 func (a *writingState) ImportNovelBook(filePath, title, genre, style string) (NovelImportResult, error) {
+	return a.ImportNovelBookEx(filePath, title, genre, style, string(bookimport.ExtractFull), 0)
+}
+
+// ImportNovelBookEx 导入成品小说（带提取范围出口，v4.287 拆书导入线欠账）：
+// extractMode = full（全本）| tail（只取末尾 N 章——长书续写参考场景）；
+// tailChapters 按 5 的倍数向上取整，>50 或非法值由引擎降级全本（不静默乱裁）。
+// EPUB 暂不支持 tail（按全本导入）。
+func (a *writingState) ImportNovelBookEx(filePath, title, genre, style, extractMode string, tailChapters int) (NovelImportResult, error) {
 	ext := strings.ToLower(filepath.Ext(filePath))
 	if ext != ".txt" && ext != ".md" && ext != ".markdown" && ext != ".epub" {
 		return NovelImportResult{}, fmt.Errorf("暂支持 TXT / Markdown / EPUB 格式")
@@ -47,7 +55,14 @@ func (a *writingState) ImportNovelBook(filePath, title, genre, style string) (No
 	if _, err := os.Stat(filePath); err != nil {
 		return NovelImportResult{}, fmt.Errorf("文件不存在：%s", filePath)
 	}
-	chapters, report, err := parseNovelFile(filePath)
+	mode := bookimport.ExtractMode(extractMode)
+	if mode != bookimport.ExtractFull && mode != bookimport.ExtractTail {
+		return NovelImportResult{}, fmt.Errorf("提取范围非法：%s（full | tail）", extractMode)
+	}
+	chapters, report, err := parseNovelFile(filePath, bookimport.ParseOptions{
+		ExtractMode:      mode,
+		TailChapterCount: tailChapters,
+	})
 	if err != nil {
 		return NovelImportResult{}, err
 	}
@@ -134,28 +149,39 @@ func sanitizeDirName(s string) string {
 
 // ── 章节解析 ──────────────────────────────────────────────
 
-func parseNovelFile(filePath string) ([]importChapter, bookimport.Report, error) {
+func parseNovelFile(filePath string, opts bookimport.ParseOptions) ([]importChapter, bookimport.Report, error) {
 	if strings.EqualFold(filepath.Ext(filePath), ".epub") {
 		chs, err := parseEpubChapters(filePath)
+		// EPUB 章节来自 spine 结构化清单，无「末尾 N 章」语义，tail 暂不适用：
+		// 用户显式选了 tail 时如实告知按全本导入。
+		var warnings []bookimport.Warning
+		if opts.ExtractMode == bookimport.ExtractTail {
+			warnings = append(warnings, bookimport.Warning{
+				Code:    bookimport.WarningTrimmedForMode,
+				Message: "EPUB 暂不支持提取范围，已按全本导入",
+				Level:   "info",
+			})
+		}
 		return chs, bookimport.Report{
 			Encoding:         "epub",
 			SplitStrategy:    bookimport.StrategyEPUB,
 			TotalChapters:    len(chs),
 			SelectedChapters: len(chs),
+			Warnings:         warnings,
 		}, err
 	}
-	return parseTextChapters(filePath)
+	return parseTextChapters(filePath, opts)
 }
 
 // parseTextChapters 文本类（TXT/Markdown）分章：委托 internal/bookimport 的
 // 三级切分（强标题 → 弱标题 → 兜底窗口）+ 5 级编码链（规格 §8.1，v4.279）。
 // 解析报告随返回值带出（编码/策略/告警），空输入仍返回空章节由调用方报错。
-func parseTextChapters(filePath string) ([]importChapter, bookimport.Report, error) {
+func parseTextChapters(filePath string, opts bookimport.ParseOptions) ([]importChapter, bookimport.Report, error) {
 	raw, err := os.ReadFile(filePath)
 	if err != nil {
 		return nil, bookimport.Report{}, fmt.Errorf("读取文件失败: %w", err)
 	}
-	res := bookimport.Parse(raw, bookimport.ParseOptions{ExtractMode: bookimport.ExtractFull})
+	res := bookimport.Parse(raw, opts)
 	chapters := make([]importChapter, 0, len(res.Chapters))
 	for _, ch := range res.Chapters {
 		title := strings.TrimSpace(ch.Title)

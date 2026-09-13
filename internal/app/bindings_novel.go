@@ -54,6 +54,7 @@ func (b *NovelB) GetWorldMapImage() string { return b.a.GetWorldMapImage() }
 func (b *NovelB) GetWorldview() string { return b.a.GetWorldview() }
 func (b *NovelB) GetWorldviewSections() (map[string]interface{}, error) { return b.a.GetWorldviewSections() }
 func (b *NovelB) ImportNovelBook(filePath string, title string, genre string, style string) (NovelImportResult, error) { return b.a.ImportNovelBook(filePath, title, genre, style) }
+func (b *NovelB) ImportNovelBookEx(filePath string, title string, genre string, style string, extractMode string, tailChapters int) (NovelImportResult, error) { return b.a.ImportNovelBookEx(filePath, title, genre, style, extractMode, tailChapters) }
 func (b *NovelB) InjectMemories(currentContext string, maxMemories int, maxTokens int) (map[string]interface{}, error) { return b.a.InjectMemories(currentContext, maxMemories, maxTokens) }
 func (b *NovelB) IsProjectV4() bool { return b.a.IsProjectV4() }
 func (b *NovelB) LintForeshadows() (ForeshadowLintReport, error) { return b.a.LintForeshadows() }

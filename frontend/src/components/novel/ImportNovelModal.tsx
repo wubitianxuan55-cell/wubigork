@@ -1,7 +1,16 @@
 import React from 'react'
-import { Typography, Space, Input, Modal, Checkbox } from 'antd'
+import { Typography, Space, Input, Modal, Checkbox, Select } from 'antd'
 import { C } from '../../utils/theme'
 import { GENRE_OPTIONS, STYLE_OPTIONS } from './novelOptions'
+
+/** 提取范围选项（v4.287 tail 出口）：全本 / 末 N 章（5 的倍数，>50 后端自动按全本）。 */
+export const EXTRACT_OPTIONS = [
+  { value: 'full', label: '全本' },
+  ...[5, 10, 15, 20, 25, 30, 35, 40, 45, 50].map((n) => ({
+    value: `tail:${n}`,
+    label: `末 ${n} 章`,
+  })),
+]
 
 interface ImportNovelModalProps {
   open: boolean
@@ -10,6 +19,8 @@ interface ImportNovelModalProps {
   genre: string[]
   style: string[]
   importing: boolean
+  extractRange: string
+  onExtractRangeChange: (v: string) => void
   onTitleChange: (v: string) => void
   onGenreChange: (v: string[]) => void
   onStyleChange: (v: string[]) => void
@@ -19,7 +30,7 @@ interface ImportNovelModalProps {
 
 /** 导入成品小说：选择文件后填写书名 / 题材 / 文风，确认后解析入库 */
 const ImportNovelModal: React.FC<ImportNovelModalProps> = ({
-  open, fileName, title, genre, style, importing,
+  open, fileName, title, genre, style, importing, extractRange, onExtractRangeChange,
   onTitleChange, onGenreChange, onStyleChange, onImport, onClose,
 }) => (
   <Modal
@@ -50,6 +61,19 @@ const ImportNovelModal: React.FC<ImportNovelModalProps> = ({
         onChange={(e) => onTitleChange(e.target.value)}
         style={{ background: C('color-bg-layout'), borderColor: C('color-border'), color: C('color-text') }}
       />
+
+      <div>
+        <Typography.Text style={{ color: C('color-text-secondary'), fontSize: 12, marginBottom: 6, display: 'block' }}>
+          提取范围（长书只想要末尾几章做续写参考时选 tail；EPUB 暂仅支持全本）
+        </Typography.Text>
+        <Select
+          value={extractRange}
+          onChange={onExtractRangeChange}
+          options={EXTRACT_OPTIONS}
+          style={{ width: 200 }}
+          aria-label="提取范围"
+        />
+      </div>
 
       <div>
         <Typography.Text style={{ color: C('color-text-secondary'), fontSize: 12, marginBottom: 6, display: 'block' }}>
