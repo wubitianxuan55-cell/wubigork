@@ -257,5 +257,7 @@ knowledge 为受控隐藏的维度（功能并入记忆中枢，等价性成立�
 
 | 版本 | 板块数(工位/乐园) | entry chunk(gz) | 冷启动可交互 | 常驻内存 | exe | >50KB 源文件 |
 |---|---|---|---|---|---|---|
+| **v4.273.0**（2026-09-13） | 5 / 5（同 v4.267，manifests 未动） | **243.6 KB**（v4.267=243.0；+0.6KB≈UX 三刀纯 CSS，零回归） | 1.39~1.70s 六轮（bind→UI 405~424ms；与 v4.267 同区间） | 139.1 MB 工作集 / 152.9 私有（采样时办公工作台开着用户真实工程，环境态漂移跨环境不可比，口径同 v4.267 注） | 47.0 MB（49,292,288B） | **6**（同 v4.267：locales×3+control/controller.go+lib/store/controller.ts+novel-workspace.css，零变化） |
+| ↳ 注（2026-09-13） | **v4.268~v4.272 未逐版采集（流程滑步再现，CHANGELOG v4.252/253 漏记同型）**：期间 v4.268=knip 零行为、v4.269=Go 侧 wire 修复、v4.270~272=sin 工具/UX CSS 刀。自本行起恢复逐版落账。 |
 | **v4.267.0**（2026-09-13） | 5 / 5（工位含 schedule 未进菜单；shared 3、independent 1） | **243.0 KB**（基线 375.36，-35%，MemoryHub/GaeaPage 拆包生效） | 1.36~1.67s（bind→UI ~420ms；环境态漂移见 §6，代码零回归，跨环境不可比） | **125.3 MB 工作集** / 139.5 私有（首采=P4 建内存基线） | 47.0 MB（49,281,024B，strip 未做属 P4） | **6**（基线 16，巨文件拆解生效；余=en/zh/zh-TW locales+control/controller.go+lib/store/controller.ts+novel-workspace.css） |
 | 基线参照（§5/面三，v4.253 期） | — | 375.36 KB | 1.05~1.20s（§5 口径注：DOM 文本就绪≠首帧） | 无基线（本节首采） | 46.22 MB | 16 |
