@@ -44,6 +44,10 @@ type OutlineReconstructItem struct {
 	KeyPoints     []string `json:"keyPoints,omitempty"`
 	Emotion       string   `json:"emotion,omitempty"`
 	Goal          string   `json:"goal,omitempty"`
+
+	// matchedCharacterIDs 应用期由角色名匹配填入（不序列化，预览不可见；
+	// 角色库为空时为空）。见 matchCharacterIDs。
+	matchedCharacterIDs []string `json:"-"`
 }
 
 // OutlineReconstructPreview 反推预览载荷（零落库）。
@@ -145,6 +149,35 @@ func (a *writingState) NovelOutlineReconstruct() (OutlineReconstructPreview, err
 	return preview, nil
 }
 
+// matchCharacterIDs 角色名→角色库 ID 匹配（v4.290，拆书线欠账：反推条目带
+// 角色名，大纲节点 Characters 字段收角色 ID）。规则：精确名优先，双向包含
+// 兜底（反推给「林晚」、库里有「林晚儿」）；去重保序。
+// 匹配不到的名字静默跳过（角色库是用户资产，不因反推编造角色）。
+func matchCharacterIDs(names []string, chars []types.Character) []string {
+	if len(names) == 0 || len(chars) == 0 {
+		return nil
+	}
+	seen := map[string]bool{}
+	var ids []string
+	for _, name := range names {
+		name = strings.TrimSpace(name)
+		if name == "" {
+			continue
+		}
+		for _, c := range chars {
+			if seen[c.ID] || c.Name == "" {
+				continue
+			}
+			if c.Name == name || strings.Contains(c.Name, name) || strings.Contains(name, c.Name) {
+				ids = append(ids, c.ID)
+				seen[c.ID] = true
+				break
+			}
+		}
+	}
+	return ids
+}
+
 // NovelOutlineReconstructApply 把预览载荷**合并**到当前工程的大纲：
 // 章级条目（短篇）按章号命中既有节点写 summary/scenes/key_points/emotion
 // （角色名留预览，不写角色 ID 字段——那是角色库的活），**幂等**，不新建/不删除
@@ -173,6 +206,16 @@ func (a *writingState) NovelOutlineReconstructApply(itemsJSON string) (int, erro
 		}
 		if it.ChapterNumber > 0 {
 			byNum[it.ChapterNumber] = it
+		}
+	}
+	// 角色名→角色库 ID 匹配（v4.290，拆书线欠账）：库为空/读失败时无匹配，
+	// 不影响其余合并；角色库是用户资产，匹配不到的名字不编造角色。
+	if cf, cerr := pm.ReadCharacters(); cerr == nil && cf != nil {
+		for num, it := range byNum {
+			if ids := matchCharacterIDs(it.Characters, cf.Characters); len(ids) > 0 {
+				it.matchedCharacterIDs = ids
+				byNum[num] = it
+			}
 		}
 	}
 	outline, err := pm.ReadOutlines()
@@ -221,6 +264,19 @@ func (a *writingState) NovelOutlineReconstructApply(itemsJSON string) (int, erro
 		}
 		if len(it.KeyPoints) > 0 {
 			node.KeyPoints = it.KeyPoints
+		}
+		if len(it.matchedCharacterIDs) > 0 {
+			// 合并去重：既有出场角色 ID 保留在前，新增匹配追加在后。
+			have := map[string]bool{}
+			for _, id := range node.Characters {
+				have[id] = true
+			}
+			for _, id := range it.matchedCharacterIDs {
+				if !have[id] {
+					node.Characters = append(node.Characters, id)
+					have[id] = true
+				}
+			}
 		}
 		if it.Emotion != "" {
 			node.Emotion = it.Emotion
