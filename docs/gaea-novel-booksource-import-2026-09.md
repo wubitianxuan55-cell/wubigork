@@ -109,3 +109,4 @@ SinCancel 先例（句柄登记簿 + 精确取消 + 完成移除）。
 2. **进度事件订阅**=events.ts `BOOK_IMPORT_PROGRESS` 常量 + `bookImportProgressChannel(jobId)` + `subscribe()` 统一封装（后端事件常量 24→25）；取消请求本地记账 ref，`context canceled` 类 error 事件如实转写「已取消导入」不冒错。
 3. **真机取书走查留观察池**：发布冒烟仅验壳/桥健康（/api/health 200）；真实源站搜索-下载链路依赖线上 SERP 与用户自备规则（模板 disabled 不被拾取），引擎 34 例 + app 13 例均假站零真网络——线上漂移按书源规格观察池口径跟踪。
 4. **报告面共享化**：v4.279 的内联 strategyLabel/告警摘要抽 `utils/novelImportReport.ts`（+`booksource→在线书源`），文件导入与在线导入共用——两入口报告口径单源，不会再漂。
+5. **真机走查（v4.283.1 补刀）**：壳内 CDP + 本地假站 + 临时规则全链走查，抓到 **P0 零注入 nil-Fetcher panic**（`newCrawler` 只兜底 Sleeper/Rand；单测全注入假站故零暴露）——引擎一处兜底四绑定修净（v4.283.1 发布说明 §根因/§测试）；修复后全链通过（搜索同表/目录预览/范围导入落库/磁盘核验/零前端错误）。观察注记：一次「首搜零候选零告警、复搜稳定」的 SERP 首请求抖动归既有漂移观察池。

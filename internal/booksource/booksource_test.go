@@ -790,3 +790,44 @@ func TestEnsureTemplateIdempotent(t *testing.T) {
 		t.Fatalf("落盘引擎模板应可装载: %v", err)
 	}
 }
+
+// v4.283.1 走查补刀回归：v4.283.0 实机 NovelBookSourceSearch 空指针 panic——
+// newCrawler 只兜底 Sleeper/Rand，零注入 Fetcher 时 DiscoverySearch 首请求即
+// nil 接口解引用（测试全走假站注入，故发布前未暴露）。
+func TestNewCrawlerZeroOptionsMustNotNilFetcher(t *testing.T) {
+	c := newCrawler(CrawlConfig{}, Options{})
+	if c.fetch == nil {
+		t.Fatal("零注入 Options 的 crawler.fetch 必须回落生产 HTTPFetcher，不得为 nil")
+	}
+	if c.sleep == nil || c.rand == nil {
+		t.Fatal("Sleeper/Rand 缺省兜底不应被回归破坏")
+	}
+	// Engine / WebSearcher 两条构造路径同源（Toc/Import/Search 四绑定全走这里）
+	if e := New(&Rule{Name: "x"}, Options{}); e == nil || e.crawler == nil || e.crawler.fetch == nil {
+		t.Fatal("New 零注入必须有可用 fetch 通道")
+	}
+	w := NewWebSearcher(WebOptions{})
+	if w == nil || w.crawler == nil || w.crawler.fetch == nil {
+		t.Fatal("NewWebSearcher 零注入必须有可用 fetch 通道")
+	}
+}
+
+// 零值 HTTPFetcher（Client/Timeout 全缺省）对本地 httptest 站点真实取回一页，
+// 证明缺省生产通道端到端可用（仅回环，零真网络）。
+func TestHTTPFetcherZeroValueLocalServer(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("User-Agent") == "" {
+			t.Errorf("应携带随机 UA")
+		}
+		_, _ = w.Write([]byte(`<html><title>t</title><body><p>正文段落</p></body></html>`))
+	}))
+	defer srv.Close()
+	f := &HTTPFetcher{}
+	page, err := f.Fetch(context.Background(), Request{URL: srv.URL})
+	if err != nil {
+		t.Fatalf("零值 HTTPFetcher 本地取页失败: %v", err)
+	}
+	if page == nil || !strings.Contains(string(page.Body), "正文段落") {
+		t.Fatalf("取回内容不符: %+v", page)
+	}
+}

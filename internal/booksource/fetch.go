@@ -151,6 +151,12 @@ type crawler struct {
 }
 
 func newCrawler(cfg CrawlConfig, opt Options) *crawler {
+	if opt.Fetcher == nil {
+		// 缺省生产通道（v4.283.1 走查补刀）：绑定层零注入不得 panic——
+		// v4.283.0 实机走查抓到 NovelBookSourceSearch 空指针（HTTPFetcher
+		// 的 Client==nil 回落已内建，这里只补「没注入就没有通道」这一层）。
+		opt.Fetcher = &HTTPFetcher{}
+	}
 	if opt.Sleeper == nil {
 		opt.Sleeper = systemSleeper
 	}
