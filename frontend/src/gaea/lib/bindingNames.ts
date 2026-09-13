@@ -493,6 +493,8 @@ export const bindingNames = [
 	"NovelFingerprintBuild",
 	"NovelFingerprintScore",
 	"NovelFingerprintStatus",
+	"NovelOutlineReconstruct",
+	"NovelOutlineReconstructApply",
 	"NovelReadingAsk",
 	"NovelSearch",
 	"OfficeCancelJob",

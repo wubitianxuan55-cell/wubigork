@@ -113,6 +113,10 @@ export interface NovelBindings {
   NovelFingerprintStatus(): Promise<FingerprintStatusPayload>;
   NovelFingerprintBuild(): Promise<FingerprintStatusPayload>;
   NovelFingerprintScore(chapterNum: number): Promise<FingerprintScorePayload>;
+  // 拆书反推族（v4.281）：Reconstruct 反推当前工程（立项 + 分批章节大纲），
+  // 只返回预览载荷、零落库；Apply 把 items 按章号合并进大纲（幂等），返回命中节点数。
+  NovelOutlineReconstruct(): Promise<OutlineReconstructPreview>;
+  NovelOutlineReconstructApply(itemsJSON: string): Promise<number>;
   // 实体关系图谱（角色/组织/关系图数据）。
   GetEntityRelations(): Promise<Record<string, unknown>>;
   // 场景族：场景列表/生成/新建（Go 均返回 map；CancelCreateChapter 实测
@@ -134,4 +138,28 @@ export interface NovelBindings {
   ToggleOrgMember(charID: string, orgID: string): Promise<void>;
   SaveRelationship(relJSON: string): Promise<void>;
   DeleteRelationship(fromID: string, toID: string): Promise<void>;
+}
+// 拆书反推载荷（对齐 internal/app NovelOutlineReconstructPreview，camelCase 形状）：
+// aiUsed=false 表示模型不可用/解析失败，本次为规则兜底（warnings 说明原因）。
+export interface OutlineReconstructItem {
+  chapterNumber: number;
+  title: string;
+  summary: string;
+  scenes?: string[];
+  characters?: string[];
+  keyPoints?: string[];
+  emotion?: string;
+  goal?: string;
+}
+
+export interface OutlineReconstructPreview {
+  aiUsed: boolean;
+  projectTitle: string;
+  description?: string;
+  theme?: string;
+  genre?: string;
+  narrativePerspective?: string;
+  targetWords?: number;
+  items: OutlineReconstructItem[];
+  warnings?: string[];
 }

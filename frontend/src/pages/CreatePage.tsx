@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { Alert, Button, message, Modal } from 'antd'
 import { app } from '../gaea/lib/bridge'
-import { GetNovelState, BuildNovelStatePatch, SettleNovelState, DeSlopChapterAiTaste, RewriteChapterAiTaste, GetEntityRelations, CancelCreateChapter, NovelFingerprintStatus, NovelFingerprintBuild, NovelFingerprintScore } from '../../wailsjs/go/app/NovelB'
+import { GetNovelState, BuildNovelStatePatch, SettleNovelState, DeSlopChapterAiTaste, RewriteChapterAiTaste, GetEntityRelations, CancelCreateChapter, NovelFingerprintStatus, NovelFingerprintBuild, NovelFingerprintScore, NovelOutlineReconstruct, NovelOutlineReconstructApply } from '../../wailsjs/go/app/NovelB'
 import { useOutlineStore } from '../stores/outlineStore'
 import { useAppStore } from '../stores/appStore'
 import type { OutlineNode } from '../types'
@@ -144,6 +144,8 @@ const CreatePage: React.FC = () => {
   const [fpStatus, setFpStatus] = useState<FingerprintStatusPayload | null>(null)
   const [fpScore, setFpScore] = useState<FingerprintScorePayload | null>(null)
   const [fpBusy, setFpBusy] = useState(false)
+  // AI 反推大纲（v4.281）：反推 → 确认 → 幂等合并进大纲
+  const [reconstructBusy, setReconstructBusy] = useState(false)
   const [fpMsg, setFpMsg] = useState('')
 
   const openGraph = async () => {
@@ -494,6 +496,40 @@ const CreatePage: React.FC = () => {
     finally { setFpBusy(false) }
   }, [activeChapterNum])
 
+  // ── AI 反推大纲（v4.281，拆书导入 P1）：反推当前工程立项 + 分批章节大纲（只读预览），
+  // 确认后按章号合并进大纲（幂等、不覆盖章节正文）；模型不可用时后端自动规则兜底并如实回报。
+  const reconstructOutlines = useCallback(async () => {
+    setReconstructBusy(true)
+    setStateMsg('AI 反推大纲中…')
+    try {
+      const preview = await NovelOutlineReconstruct()
+      const items = preview?.items ?? []
+      if (items.length === 0) {
+        setStateMsg('反推结果为空，未做修改')
+        return
+      }
+      const head = preview?.aiUsed ? 'AI 反推完成' : '模型不可用，已用规则兜底'
+      const warn = preview?.warnings?.length ? `\n提示：${preview.warnings.slice(0, 2).join('；')}` : ''
+      const meta = [preview?.genre, preview?.narrativePerspective, preview?.targetWords ? `目标 ${preview.targetWords.toLocaleString()} 字` : '']
+        .filter(Boolean).join(' · ')
+      Modal.confirm({
+        title: '应用 AI 反推大纲？',
+        content: `${head}：共 ${items.length} 章。将把每章的概要 / 场景 / 要点 / 情感基调合并进大纲（不覆盖章节正文，可重复执行）。${meta ? `\n推断：${meta}` : ''}${warn}`,
+        okText: '应用到大纲',
+        cancelText: '取消',
+        onOk: async () => {
+          const n = await NovelOutlineReconstructApply(JSON.stringify(items))
+          setStateMsg(`已应用 ${n} 章大纲`)
+          await loadOutlines()
+        },
+      })
+    } catch (err: unknown) {
+      setStateMsg(err instanceof Error ? err.message : 'AI 反推失败')
+    } finally {
+      setReconstructBusy(false)
+    }
+  }, [loadOutlines])
+
   return (
     <div className="novel-create-root">
       {aiTaste && (
@@ -516,6 +552,7 @@ const CreatePage: React.FC = () => {
         <Button size="small" loading={stateBusy} onClick={() => void llmDeslop()}>高级去味</Button>
         <Button size="small" loading={graphBusy} onClick={() => void openGraph()}>全文脑图</Button>
         <Button size="small" onClick={() => void openFingerprint()}>文风指纹</Button>
+        <Button size="small" loading={reconstructBusy} onClick={() => void reconstructOutlines()}>AI 反推大纲</Button>
         {stateMsg ? <span className="novel-create-rail-msg">{stateMsg}</span> : null}
       </div>
       <div className="novel-workspace">

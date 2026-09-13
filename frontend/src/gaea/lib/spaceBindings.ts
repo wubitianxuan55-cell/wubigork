@@ -551,6 +551,9 @@ export const GAEA_METHOD_FACETS = {
   NovelFingerprintBuild: "play",
   NovelFingerprintScore: "play",
   NovelFingerprintStatus: "play",
+  // 拆书反推（v4.281）：立项 + 分批章节大纲反推与幂等落库——小说创作间数据面，归 play。
+  NovelOutlineReconstruct: "play",
+  NovelOutlineReconstructApply: "play",
   RewriteChapterAiTaste: "play",
   GetEntityRelations: "play",
   GetChapterScenes: "play",

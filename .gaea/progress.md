@@ -3,6 +3,17 @@
 > 本文件为**最近发布速览**。完整历史磁带见 `docs/archive/progress-history-2026-09.md`
 > 与 `releases/`。
 
+## 最新发布：v4.281.0（2026-09-13）「拆书导入 P1 接线：AI 反推大纲（预览载荷 + 幂等落库 + 创作间入口）」
+
+- **来源**：续 v4.280.0（反推引擎），把 t2 P1 接成用户可用的一条链（规格 §8.2/§8.3 首刀）。
+- **后端**（新 `internal/app/novel_import_ai.go`，绑定 646→648）：`NovelOutlineReconstruct` 读当前工程章节（标题取大纲节点、正文 `ReadChapterAsStitch`，上限 200 章）→ Stage1 立项反推（模板 book-import-project，采样 3 章 ×2000 rune）→ 分批章节大纲（batchSize=5，逐批独立降级）→ 预览载荷零落库；`NovelOutlineReconstructApply` 按**章号**命中节点写 summary/scene_ideas/key_points/emotion，**幂等**、不新建不删除、不碰正文、角色名只进预览；空载荷/全不匹配**显式报错**。
+- **降级诚实**：无模型或解析失败逐级回落规则兜底并把原因写进 warnings（aiUsed=false），单批失败只影响该批。
+- **前端**：CreatePage rail「AI 反推大纲」→ 反推 → 确认弹窗（题材/视角/目标字数 + 前两条告警 + 「不覆盖正文、可重复执行」）→ 应用 → 刷新大纲 + rail 消息。
+- **接线**：NovelB +2、bindingNames 648、spaceBindings 归 play（锁 468→470）、wailsjs 由 `wails generate module` 再生。
+- **测试**：Go +2（无模型全规则兜底且逐章完整 / 幂等与作用域 + 空载荷与全不匹配报错）+vitest spaceBindings 4 例 + CreatePage 9 例。
+- **门禁**：ci.ps1 全绿（Go 全量 exit 0 / 前端 lint 0 error〔5 既有 warning〕/ vite build 成功 / vitest 345 文件 2994 例全绿 / E 系列守卫 OK / 仓库卫生守卫 OK）、drift OK@648、版本三处 4.281.0；产物=exe 49,455,616B SHA256=7FB09E36…2A693（releases/gaea-v4.281.0.exe + SHA256SUMS-v4.281.0.txt；桌面副本同哈希；冒烟 /api/health 200 过）。
+- **未做（下刀）**：导入向导的逐章预览 UI；长书后台化任务态（`tasks` 表 `KindBookImport`）；角色名→角色库 ID 匹配；tail 模式出口。
+
 ## 最新发布：v4.280.0（2026-09-13）「拆书导入 P1 引擎：大纲反推编排 + Prompt 模板移植 + 输入节稳定序」
 
 - **来源**：续 v4.279.0（t2 P0），本刀落 t2 P1「AI 反推」**引擎层**（规格 `docs/distill/02-book-import.md` §8.2/§3.7/§3.8）；真模型调用编排与预览 UI 下刀接线（本刀零 LLM 依赖、全部可单测）。

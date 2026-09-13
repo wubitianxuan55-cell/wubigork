@@ -70,6 +70,7 @@
 | webview2-shell-audit-2026-09.md | ✅ 审计完成（P0×2/P1×7 + 刀序 A–D）；**刀 A–C 已修**（v4.165/166）；刀 D（printSvg print/拖拽/粘贴）真机取证挂池 |
 | gaea-office-hub-decouple-audit-2026-09.md | ✅ 已收刀（v4.197：`office/docmd → internal/docmd`，内核内边清零）；遗留候选（别名门面/archive.go 死码候选/度量口径）挂观察池 |
 | distill/ | 🔄 MuMuAINovel 蒸馏规格与实施交接书（01~07 六域 + `09-impl-handoff.md`）；**t1 共享契约已落库（v4.278.0）**，t2~t7 未实施 |
+| gaea-sin-booksource-distill-2026-09.md | 🔄 原罪·书源引擎蒸馏规格（so-novel 机制重推导；AGPL 红线=不搬代码与规则 JSON）；并行线在制品，代码落点 `internal/booksource/` |
 
 ## 上手与工装
 
