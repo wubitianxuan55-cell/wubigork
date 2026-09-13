@@ -14,6 +14,7 @@
 | gaea-convergence-plan-2026-09.md | 🔄 **收敛期叠加层**：W1 卫生刀 ✅（v4.164/165）、W2 知识外化三件 ✅、W3-4 office 枢纽解耦 ✅（v4.197）；冲突时以「不加新板块」为先 |
 | gaea-competitive-landscape-2026.md | 竞品格局与差异化定位（参考基线 2026-08-29，注意时效） |
 | gaea-market-survey-2026-09.md | 🔄 **市场调研增量刷新（v4.240 落地）**：八赛道信号 + 三战略结论（Copilot agentic GA 验证形态/LM Studio Bionic 正面竞品/「本地」已非差异点）+ 候选 4 项交拍板池（已过删除史筛）；候选1 双时间轴已落地（SchemaV21），候选2 记忆可评测为下一刀 |
+| gaea-mcp-hub-reversal-review-2026-09.md | **MCP 双向枢纽翻案评估（拍板池条2，建议维持排除）**：入方向已在产（boot/plugins.go 配置化挂载+热插拔）；出方向三条独立反对证据同向=工程形态矛盾（GUI 壳 vs 常驻 server）/与自身入口重复/安全暴露面与人设冲突；留单向导出作远期观察不立项 |
 | gaea-backend-perf-survey-2026-09.md | 🔄 **Go 后端性能热点普查（2026-09-12，交拍板池刀路 A-E）**：20 项证据 file:line 已核实（回合边界日志全量重读/remember 全局锁内全库重载/cost_search 每查询重建索引/Hephaestus.db 单连接串行读写等）；go vet 全净；与既有条目零重叠；gaea/ai 热路径零 benchmark 需先立基线 |
 | gaea-cost-domain-survey-2026-09.md | 造价域现状基线（file:line；**校正 roadmap §15 过时欠账**）+ 造价刀路池：§1 编码 v4.178 / §2 多方案 v4.204 / §3 五算 v4.194 / §4 询价扫描 v4.195 / §5 索引补齐 v4.196；**六项全清（§6 含量对照 v4.209 收官，本档转现状基线不再当欠账池）** |
 | gaea-priceband-datasource-research-2026-09.md | 🔄 **价格带数据源调研（拍板池候选4，v4.275 结案建议）**：现状核实=价格带数据面基础设施已完整在产（四要素字段+统计+导入链+OCR 询价飞轮）；外部自动接入四路评估=B 抓取不建议（脆弱+合规灰）/C 商业 API 不做/D LLM 查价不作基线；真机验证抓实锤当场修=信息价「除税价（元）」列适配（fieldPrice 字典+回归测试，12/12 识别） |
