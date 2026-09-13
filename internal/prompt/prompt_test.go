@@ -167,6 +167,56 @@ func TestBuildUserPromptPriorityOrder(t *testing.T) {
 	}
 }
 
+// v4.280：输入节顺序确定性（规格 docs/distill/02-book-import.md §8.2 点名的引擎缺陷）——
+// 原实现按 Go map 遍历输入节，同模板两次渲染字节不同；改后按 Order 升序 + key 字典序兜底。
+func TestBuildUserPrompt_StableOrderAcrossRenders(t *testing.T) {
+	eng := NewEngine("../../prompts")
+	tmpl := eng.Get("book-import-outline")
+	if tmpl == nil {
+		t.Fatal("book-import-outline not found")
+	}
+	contexts := map[string]string{
+		"project_title":         "书名",
+		"genre":                 "都市",
+		"theme":                 "主题",
+		"narrative_perspective": "第三人称",
+		"batch_range":           "第1-5章",
+		"expected_count":        "5",
+		"chapters_text":         "正文……",
+	}
+	first := tmpl.BuildUserPrompt(contexts)
+	for i := 2; i <= 20; i++ {
+		if got := tmpl.BuildUserPrompt(contexts); got != first {
+			t.Fatalf("第 %d 次渲染与首次不一致（输入节顺序不稳定）:\n%q\n%q", i, first, got)
+		}
+	}
+	// 长文本（chapters_text，order=9）必须稳定置尾；靠前字段在前
+	if strings.Index(first, "书名") > strings.Index(first, "正文……") {
+		t.Fatalf("长文本应置于末尾: %q", first)
+	}
+	if strings.Index(first, "本批章节范围") > strings.Index(first, "正文……") {
+		t.Fatalf("批次范围应在长文本之前: %q", first)
+	}
+}
+
+func TestBuildUserPrompt_OrderFieldOverridesKeyOrder(t *testing.T) {
+	raw := `{"name":"t","system":"s","task":"k","input_sections":{` +
+		`"z_last":{"priority":"P0","label":"Z","order":9},` +
+		`"a_first":{"priority":"P0","label":"A","order":1}},` +
+		`"output":{"format":"json","description":"d"},"constraints":{"must":[],"forbidden":[]}}`
+	tmpl, err := parseTemplate([]byte(raw), "test")
+	if err != nil {
+		t.Fatalf("解析模板: %v", err)
+	}
+	out := tmpl.BuildUserPrompt(map[string]string{"z_last": "ZZZ", "a_first": "AAA"})
+	if strings.Index(out, "AAA") < 0 || strings.Index(out, "ZZZ") < 0 {
+		t.Fatalf("两节都应渲染: %q", out)
+	}
+	if strings.Index(out, "AAA") > strings.Index(out, "ZZZ") {
+		t.Fatalf("order 未生效（a_first 应在 z_last 之前）: %q", out)
+	}
+}
+
 func TestBuildUserPromptEmptyContext(t *testing.T) {
 	eng := NewEngine("../../prompts")
 	tmpl := eng.Get("chapter-summary")

@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 )
 
@@ -24,6 +25,12 @@ type Template struct {
 type InputDef struct {
 	Priority string `json:"priority"` // P0 / P1 / P2
 	Label    string `json:"label"`
+	// Order 同优先级内的稳定顺序（升序；未写为 0，同值按 key 字典序）。
+	//
+	// 规格来源：docs/distill/02-book-import.md §8.2 「RTCO 引擎的一个真实约束」——
+	// 原实现按 Go map 遍历输入节，**输出顺序随机**，导致同模板两次渲染字节不同
+	// （prompt 缓存无法命中，且长文本无法稳定置尾）。t2 反推/上下文编译都依赖确定性。
+	Order int `json:"order,omitempty"`
 }
 
 // OutputDef 输出节定义
@@ -190,13 +197,27 @@ func (t *Template) BuildUserPrompt(contexts map[string]string) string {
 }
 
 func buildSection(inputs map[string]InputDef, contexts map[string]string, priority string) string {
-	var sb strings.Builder
+	type sectionItem struct {
+		key string
+		def InputDef
+	}
+	items := make([]sectionItem, 0, len(inputs))
 	for key, def := range inputs {
-		if def.Priority != priority {
-			continue
+		if def.Priority == priority {
+			items = append(items, sectionItem{key: key, def: def})
 		}
-		if content, ok := contexts[key]; ok && content != "" {
-			sb.WriteString(fmt.Sprintf("## %s\n", def.Label))
+	}
+	// 稳定序：Order 升序 → key 字典序兜底（未标 order 的旧模板行为可预期而非随机）。
+	sort.Slice(items, func(i, j int) bool {
+		if items[i].def.Order != items[j].def.Order {
+			return items[i].def.Order < items[j].def.Order
+		}
+		return items[i].key < items[j].key
+	})
+	var sb strings.Builder
+	for _, it := range items {
+		if content, ok := contexts[it.key]; ok && content != "" {
+			sb.WriteString(fmt.Sprintf("## %s\n", it.def.Label))
 			sb.WriteString(content)
 			sb.WriteString("\n\n")
 		}

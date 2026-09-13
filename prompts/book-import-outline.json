@@ -1,0 +1,62 @@
+{
+  "name": "book-import-outline",
+  "system": "你是中文小说结构分析助手。逐章阅读给定正文，产出结构化章节大纲；只依据正文内容，不编造。输出必须是可被 JSON.parse 解析的 JSON 数组，不要 markdown 代码块，不要解释文字。",
+  "task": "为给定批次章节反推结构化大纲。\n【目标】一章一个对象，字段严格一致，供后续创作时作为章节骨架使用。",
+  "input_sections": {
+    "project_title": {
+      "priority": "P0",
+      "label": "作品名",
+      "order": 1
+    },
+    "genre": {
+      "priority": "P0",
+      "label": "题材",
+      "order": 2
+    },
+    "theme": {
+      "priority": "P0",
+      "label": "主题",
+      "order": 3
+    },
+    "narrative_perspective": {
+      "priority": "P0",
+      "label": "叙事视角",
+      "order": 4
+    },
+    "batch_range": {
+      "priority": "P0",
+      "label": "本批章节范围",
+      "order": 5
+    },
+    "expected_count": {
+      "priority": "P0",
+      "label": "本批应返回的对象数量",
+      "order": 6
+    },
+    "chapters_text": {
+      "priority": "P0",
+      "label": "本批章节正文（按章节顺序，含标题行）",
+      "order": 9
+    }
+  },
+  "output": {
+    "format": "json",
+    "description": "JSON 数组，长度等于 expected_count，每个元素字段固定为：\n{\"chapter_number\":整数（必须与输入章节号一致）,\"title\":\"章节标题（必须与输入标题逐字一致）\",\"summary\":\"本章概要 200-600 字\",\"scenes\":[\"场景1\",\"场景2\"],\"characters\":[{\"name\":\"角色名\",\"type\":\"character\"}],\"key_points\":[\"要点1\",\"要点2\"],\"emotion\":\"本章情感基调（一句话）\",\"goal\":\"本章叙事目标（一句话）\"}\n字段约束：scenes 2-6 条；key_points 2-6 条；characters 可为空数组，type 只能取 character 或 organization；emotion 与 goal 各一句话。"
+  },
+  "constraints": {
+    "must": [
+      "一章一个对象，数量与顺序与输入章节完全一致",
+      "字段名、层级、类型严格按 output 描述，不得增删字段",
+      "title 与 chapter_number 必须与输入逐字一致",
+      "summary 基于该章正文实际内容撰写，不编造情节",
+      "只输出可解析的 JSON 数组"
+    ],
+    "forbidden": [
+      "输出 JSON 以外的任何文本",
+      "用 markdown 代码块包裹输出",
+      "缺失字段或新增字段",
+      "chapter_number / title 与输入不一致",
+      "characters.type 取 character / organization 之外的值"
+    ]
+  }
+}

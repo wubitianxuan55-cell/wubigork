@@ -1,0 +1,36 @@
+{
+  "name": "book-import-project",
+  "system": "你是中文小说结构分析助手。只依据给定正文样本判断，不做臆测；输出必须是可被 JSON.parse 解析的单个 JSON 对象，不要 markdown 代码块，不要任何解释性文字。",
+  "task": "根据书名与正文样本，反推这本书的立项信息：简介、主题、题材、叙事视角、目标字数。\n【目标】为「拆书导入」生成可直接落库的项目立项信息；信息必须自洽且能在原文中找到依据。",
+  "input_sections": {
+    "title": {
+      "priority": "P0",
+      "label": "书名",
+      "order": 1
+    },
+    "sampled_text": {
+      "priority": "P0",
+      "label": "正文样本（开头若干章，可能被截断）",
+      "order": 9
+    }
+  },
+  "output": {
+    "format": "json",
+    "description": "单个 JSON 对象，字段固定为：\n{\"description\":\"全书简介，120-300 字，基于样本推断不编造\",\"theme\":\"核心主题，一句话（12-30 字）\",\"genre\":\"题材，可多类型用、或/分隔（如 都市、悬疑）\",\"narrative_perspective\":\"第一人称|第三人称|全知视角 三选一\",\"target_words\":整数（预估全书字数，如 300000）}"
+  },
+  "constraints": {
+    "must": [
+      "严格基于给定正文样本推断，不引入样本中没有的人物/设定",
+      "narrative_perspective 只能取「第一人称」「第三人称」「全知视角」之一",
+      "target_words 必须是整数（不带单位、不带千分位）",
+      "genre 可多类型，用、或/分隔",
+      "输出必须是一个可解析的 JSON 对象"
+    ],
+    "forbidden": [
+      "输出 JSON 以外的任何文字",
+      "用 markdown 代码块包裹输出",
+      "narrative_perspective 取上述三值之外的值",
+      "target_words 输出非整数或带单位"
+    ]
+  }
+}

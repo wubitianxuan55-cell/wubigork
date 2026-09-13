@@ -3,6 +3,14 @@
 > 本文件为**最近发布速览**。完整历史磁带见 `docs/archive/progress-history-2026-09.md`
 > 与 `releases/`。
 
+## 最新发布：v4.280.0（2026-09-13）「拆书导入 P1 引擎：大纲反推编排 + Prompt 模板移植 + 输入节稳定序」
+
+- **来源**：续 v4.279.0（t2 P0），本刀落 t2 P1「AI 反推」**引擎层**（规格 `docs/distill/02-book-import.md` §8.2/§3.7/§3.8）；真模型调用编排与预览 UI 下刀接线（本刀零 LLM 依赖、全部可单测）。
+- **落地**：①反推编排引擎（`internal/bookimport/reconstruct.go`）——具名契约 + 逐字段归一化（rune 截断 / characters type 二元 / **title 与 chapter_number 强制用输入值**）+ **位置对齐**批量归一化（AI 少返/乱序不错章）+ 数量不符**整批回退规则结构**的断言式防线 + 规则兜底逐字对齐规格 + 视角 11 别名归一 + target_words <1000 回落/>3e6 夹取；②`CallJSON` 负反馈重试（期望类型显式 object|array、失败原文截 200 字注入、传输错误不重试、ctx 取消零调用）+ `ExtractJSON` 容忍 markdown 包裹；③新增两个 RTCO 模板 `prompts/book-import-project.json` / `book-import-outline.json`；④**补掉规格点名的引擎缺陷**：`BuildUserPrompt` 原按 Go map 遍历输入节（同模板两次渲染字节不同、长文本无法稳定置尾、前缀缓存无法命中）→ `InputDef` 增 `order`，按 Order 升序 → key 字典序稳定排序，长文本固定置尾。
+- **测试**：`internal/bookimport` +9 例（视角矩阵/字段回落与夹取/位置对齐/截断与 type 归一/兜底取首句/重试提示要素/类型不符报错/传输错误与 ctx 取消/JSON 容错与采样）+`internal/prompt` +2 例（**同模板 20 次渲染字节一致**/order 覆盖 key 序）。
+- **门禁**：ci.ps1 全绿（Go 全量 exit 0 / 前端 lint 0 error〔5 既有 warning〕/ vite build 成功 / vitest 345 文件 2994 例全绿 / E 系列守卫 OK / 仓库卫生守卫 OK）、drift OK@646（零新绑定）、版本三处 4.280.0；产物=exe 49,405,440B SHA256=0F9BF89A…8EF4B（releases/gaea-v4.280.0.exe + SHA256SUMS-v4.280.0.txt；桌面副本同哈希；冒烟 /api/health 200 过）。
+- **未做（下刀）**：app 绑定 `NovelImportReconstruct*`（真模型编排 + 预览载荷）/ 导入向导 UI（预览→应用，含 tail 模式出口）/ 幂等落库与三件套（§8.3，`tasks` 表 `KindBookImport`）。
+
 ## 最新发布：v4.279.0（2026-09-13）「拆书导入 P0：三级分章 + 5 级编码链（MuMu 蒸馏 t2 首刀）」
 
 - **来源**：续 v4.278.0（t1 共享契约），本刀落 t2「拆书/导入反推」**P0 阶段**（规格 `docs/distill/02-book-import.md` §8.1，纯规则零 AI、可独立验收）。
