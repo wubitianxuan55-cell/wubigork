@@ -217,8 +217,9 @@ describe('CreatePage 反推任务化', () => {
   beforeEach(() => {
     useOutlineStore.setState({ outlines: [] })
     useAppStore.setState({ projectOpen: true, projectPath: 'C:/novel/test' })
-    vi.mocked(mocks.NovelOutlineReconstructStart).mockResolvedValue({ taskId: 'tk-9', status: 'queued' })
-    vi.mocked(mocks.NovelOutlineReconstructApply).mockResolvedValue(6)
+    vi.mocked(mocks.NovelOutlineReconstructStart).mockClear().mockResolvedValue({ taskId: 'tk-9', status: 'queued' })
+    vi.mocked(mocks.NovelOutlineReconstructApply).mockClear().mockResolvedValue(6)
+    vi.mocked(mocks.NovelOutlineReconstructTaskGet).mockClear()
   })
 
   it('中篇预览轮询到 succeeded 后弹确认，文案含卷级节点，应用调 Apply', async () => {
@@ -263,5 +264,37 @@ describe('CreatePage 反推任务化', () => {
     fireEvent.click(btn)
     expect(await screen.findByText(/这本书还没有已写章节/)).toBeTruthy()
     expect(screen.queryByRole('button', { name: '应用到大纲' })).toBeNull()
+  })
+})
+
+// tail×反推串联（v4.292）：书架派发 novel:auto-reconstruct 事件 → 本页自动开跑反推。
+describe('CreatePage 反推串联事件', () => {
+  it('novel:auto-reconstruct 事件触发任务化反推并弹确认', async () => {
+    vi.mocked(mocks.NovelOutlineReconstructStart).mockResolvedValue({ taskId: 'tk-ev', status: 'queued' })
+    vi.mocked(mocks.NovelOutlineReconstructTaskGet).mockResolvedValue({
+      taskId: 'tk-ev',
+      status: 'succeeded',
+      preview: {
+        aiUsed: false,
+        projectTitle: '中篇',
+        tier: 'mid',
+        segmentSize: 10,
+        items: [{ chapterNumber: 1, chapterFrom: 1, chapterTo: 10, title: '第1-10章', summary: '开局段。' }],
+      },
+    } as never)
+    render(<CreatePage />)
+
+    await act(async () => {
+      window.dispatchEvent(new CustomEvent('novel:auto-reconstruct'))
+      await new Promise((r) => setTimeout(r, 50))
+    })
+
+    expect(await screen.findByText(/篇幅路由（中篇）/)).toBeTruthy()
+    // 应用：事件触发的链路终点是 Apply 收到骨架条目
+    vi.mocked(mocks.NovelOutlineReconstructApply).mockClear()
+    const okBtn = document.querySelector('.ant-modal-confirm .ant-modal-confirm-btns button:last-child')
+    expect(okBtn).toBeTruthy()
+    fireEvent.click(okBtn as Element)
+    await waitFor(() => expect(mocks.NovelOutlineReconstructApply).toHaveBeenCalledTimes(1))
   })
 })

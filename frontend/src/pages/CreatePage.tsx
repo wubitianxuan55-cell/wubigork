@@ -595,6 +595,14 @@ const CreatePage: React.FC = () => {
     }
   }, [loadOutlines])
 
+  // tail×反推串联（v4.292）：导入向导 tail 模式完成后由书架派发本事件，
+  // 本页自动开跑反推（任务化后台执行）。
+  React.useEffect(() => {
+    const handler = () => { void reconstructOutlines() }
+    window.addEventListener('novel:auto-reconstruct', handler)
+    return () => window.removeEventListener('novel:auto-reconstruct', handler)
+  }, [reconstructOutlines])
+
   return (
     <div className="novel-create-root">
       {aiTaste && (

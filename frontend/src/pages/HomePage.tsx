@@ -1,7 +1,7 @@
 import { wailsApp } from '../lib/wailsApp';
 import React, { useState, useEffect, useMemo } from 'react'
 import {
-  Button, Skeleton, message, Input, Select,
+  Button, Skeleton, message, Input, Select, Modal,
 } from 'antd'
 import {
   PlusOutlined, SearchOutlined, ReadOutlined, SortAscendingOutlined, UploadOutlined, GlobalOutlined,
@@ -139,6 +139,21 @@ const HomePage: React.FC = () => {
       message.success(formatImportSuccess(res))
       const warnText = formatImportWarnings(res)
       if (warnText) message.warning(warnText)
+      // tail×反推串联（v4.292）：按提取范围（末 N 章）导入的，引导一键反推
+      // 续写大纲——flag 经 sessionStorage 交接给 CreatePage（跨页面挂载时序）。
+      if (mode === 'tail') {
+        const tailN = tailStr ? Number(tailStr) : 0
+        Modal.confirm({
+          title: '立即反推这部分大纲？',
+          content: `已按提取范围导入末 ${tailN || res.chapter_count} 章。去创作间跑一次「AI 反推大纲」，即可得到这部分的结构参考（任务化后台执行）。`,
+          okText: '去创作间反推',
+          cancelText: '稍后再说',
+          onOk: () => {
+            window.dispatchEvent(new CustomEvent('novel:goto-tab', { detail: { tab: 'create' } }))
+            window.dispatchEvent(new CustomEvent('novel:auto-reconstruct'))
+          },
+        })
+      }
     } catch (err: unknown) {
       message.error(err instanceof Error ? err.message : '导入失败')
     } finally {

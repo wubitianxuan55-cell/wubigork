@@ -15,10 +15,6 @@ vi.mock('../components/novel/CreateNovelModal', () => ({
   default: () => null,
 }))
 
-vi.mock('../components/novel/ImportNovelModal', () => ({
-  default: () => null,
-}))
-
 vi.mock('../components/novel/BookSearchModal', () => ({
   default: ({ open }: { open: boolean }) => (open ? <div>booksearch-stub</div> : null),
 }))
@@ -110,5 +106,63 @@ describe('HomePage 书房书架', () => {
     expect(screen.queryByText('booksearch-stub')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: /在线搜书/ }))
     expect(screen.getByText('booksearch-stub')).toBeTruthy()
+  })
+})
+
+// tail×反推串联（v4.292）：tail 导入完成后弹「立即反推」确认，
+// 确认后派发 goto-tab + auto-reconstruct 两个事件。
+describe('HomePage tail 导入串联反推', () => {
+  beforeEach(() => {
+    useAppStore.setState({
+      loggedIn: true, projectOpen: false, projectPath: '', projectTitle: '', projects: [],
+    })
+  })
+
+  it('tail 模式导入完成弹反推确认，确认后派发事件', async () => {
+    mockedWailsApp.mockReturnValue({
+      ListProjects: vi.fn(async () => []),
+      GetNovelsDir: vi.fn(async () => 'C:/novels'),
+      GaeaPickFiles: vi.fn(async () => [{ path: 'C:/b/长书.txt', name: '长书.txt', size: 10 }]),
+      ImportNovelBookEx: vi.fn(async () => ({
+        path: 'C:/novels/长书', title: '长书', chapter_count: 10, total_words: 100, split_strategy: 'booksource',
+      })),
+    } as unknown as ReturnType<typeof wailsApp>)
+
+    const events: string[] = []
+    const spy = vi.fn((e: Event) => events.push(e.type))
+    window.addEventListener('novel:goto-tab', spy)
+    window.addEventListener('novel:auto-reconstruct', spy)
+
+    render(<HomePage />)
+    await waitFor(() => expect(screen.getByRole('button', { name: /导入小说/ })).toBeTruthy())
+    fireEvent.click(screen.getByRole('button', { name: /导入小说/ }))
+
+    // 提取范围选末 10 章（antd 下拉挂在 body portal，需 mouseDown selector 展开）
+    await screen.findByPlaceholderText('小说标题（必填）') // 等 modal 渲染
+    const selector = document.querySelector('.ant-modal .ant-select-selector')
+    expect(selector).toBeTruthy()
+    fireEvent.mouseDown(selector as Element)
+    const opt = await screen.findByText('末 10 章', {}, { timeout: 5000 })
+    fireEvent.click(opt.closest('.ant-select-item-option') ?? opt)
+
+    fireEvent.change(screen.getByPlaceholderText('小说标题（必填）'), { target: { value: '长书' } })
+    const modalEl = document.querySelector('.ant-modal')
+    expect(modalEl).toBeTruthy()
+    const importBtn = Array.from(modalEl!.querySelectorAll('button')).find(
+      (b) => b.textContent !== null && /导\s*入/.test(b.textContent),
+    )
+    expect(importBtn).toBeTruthy()
+    fireEvent.click(importBtn as Element)
+
+    // 导入完成 → tail 确认弹窗
+    await waitFor(() => expect(document.body.textContent).toContain('立即反推这部分大纲？'))
+    const confirmBtn = document.querySelector('.ant-modal-confirm .ant-modal-confirm-btns button:last-child')
+    expect(confirmBtn).toBeTruthy() // 确认弹窗存在
+    fireEvent.click(confirmBtn as Element)
+
+    await waitFor(() => expect(events).toContain('novel:auto-reconstruct'))
+    expect(events).toContain('novel:goto-tab')
+    window.removeEventListener('novel:goto-tab', spy)
+    window.removeEventListener('novel:auto-reconstruct', spy)
   })
 })
