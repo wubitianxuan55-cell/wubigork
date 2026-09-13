@@ -12,6 +12,8 @@ import { LocaleProvider } from './gaea/lib/i18n'
 initBridge()
 initRuntimePolyfill()
 
+import { ensureLightContrast } from './lib/accent'
+
 /** hex 颜色 → 'r,g,b' 字符串（用于 --accent-rgb 覆盖） */
 function hexToRgb(hex: string): string {
   const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim())
@@ -33,14 +35,16 @@ const App: React.FC = () => {
   // 字体设置：预设 key → 完整 font-family 值（默认系统）
   const effFontFamily = FONT_OPTIONS.find((o) => o.key === fontFamily)?.value ?? FONT_OPTIONS[0].value
 
-  // 强调色自定义：覆盖主题默认 glow/primary（accentRgb 供 rgb() 使用）
+  // 强调色自定义：覆盖主题默认 glow/primary（accentRgb 供 rgb() 使用）。
+  // 亮态下对自定义强调色做对比度保障（ensureLightContrast）：暗色调亮的强调色
+  // （如 #1dd7bf）切亮色主题后压浅底对比仅 ~1.5，全站 accent 文字看不清——渲染
+  // 时自动深化到 WCAG AA；暗态与用户存储的原始色均不变（v4.274）。
   // useMemo：无 accent 时保持 tokens 同一引用，避免 useEffect 每次渲染重复写 CSS 变量
-  const effTokens = useMemo(
-    () => accentColor
-      ? { ...tokens, glow: accentColor, colorPrimary: accentColor, accentRgb: hexToRgb(accentColor) || tokens.accentRgb }
-      : tokens,
-    [tokens, accentColor],
-  )
+  const effTokens = useMemo(() => {
+    if (!accentColor) return tokens
+    const eff = darkMode ? accentColor : ensureLightContrast(accentColor)
+    return { ...tokens, glow: eff, colorPrimary: eff, accentRgb: hexToRgb(eff) || tokens.accentRgb }
+  }, [tokens, accentColor, darkMode])
 
   // 同步 M3 CSS 变量到 :root
   useEffect(() => {
