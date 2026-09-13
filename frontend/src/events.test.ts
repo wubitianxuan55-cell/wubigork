@@ -1,12 +1,12 @@
 import { describe, expect, it, vi, afterEach } from 'vitest'
-import { BACKEND_EVENTS, FRONTEND_EVENTS, chatStreamChannel, sinStreamChannel, subscribe, subscribeForSpace, emitFrontendEvent } from './events'
+import { BACKEND_EVENTS, FRONTEND_EVENTS, bookImportProgressChannel, chatStreamChannel, sinStreamChannel, subscribe, subscribeForSpace, emitFrontendEvent } from './events'
 
-// 3.0 01 报告 §4：22 后端事件（+v4.3c 轻语主动关心定时推送 + v4.244 原罪故事流）
-// + 4 前端事件常量表 + subscribe 统一封装
+// 3.0 01 报告 §4：22 后端事件（+v4.3c 轻语主动关心定时推送 + v4.244 原罪故事流
+// + v4.283 书源在线导入进度）+ 4 前端事件常量表 + subscribe 统一封装
 
-describe('BACKEND_EVENTS（§4.1，24 个）', () => {
-  it('共 24 个后端事件常量（v4.244 +SIN_STREAM）', () => {
-    expect(Object.keys(BACKEND_EVENTS)).toHaveLength(24)
+describe('BACKEND_EVENTS（§4.1，25 个）', () => {
+  it('共 25 个后端事件常量（v4.244 +SIN_STREAM，v4.283 +BOOK_IMPORT_PROGRESS）', () => {
+    expect(Object.keys(BACKEND_EVENTS)).toHaveLength(25)
   })
 
   it('常量名与事件名字面量一一对应（防复制笔误）', () => {
@@ -41,6 +41,10 @@ describe('BACKEND_EVENTS（§4.1，24 个）', () => {
 
   it('sinStreamChannel 生成动态频道（sin-stream:<runID>，与 chatStreamChannel 同形）', () => {
     expect(sinStreamChannel('run-42')).toBe('sin-stream:run-42')
+  })
+
+  it('bookImportProgressChannel 生成动态频道（novel-import-progress:<jobId>，与 chatStreamChannel 同形）', () => {
+    expect(bookImportProgressChannel('bsi_1_2')).toBe('novel-import-progress:bsi_1_2')
   })
 })
 

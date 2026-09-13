@@ -1,6 +1,6 @@
 # 小说板块 · 书源取书→拆书导入接通（刀路规格）
 
-> 状态：**t1 已落地（2026-09-13，非版本刀）**；t2 前端「在线搜书」/t3 打磨未开工 · 类型：板块接线规格
+> 状态：**t1 已落地（2026-09-13，非版本刀）· t2 已落地（2026-09-14，版本刀 v4.283.0）**；t3 打磨按反馈开工 · 类型：板块接线规格
 > 关联代码：`internal/booksource/`（引擎，已落地零消费者）、`internal/app/novel_import_handler.go`、
 > `internal/bookimport/`、`internal/app/bindings_novel.go`、`frontend/src/pages/HomePage.tsx`
 > 关联决策：`docs/gaea-sin-booksource-distill-2026-09.md`（书源引擎蒸馏规格，§7 t5 预留「拆书联动」）、
@@ -72,7 +72,7 @@
 | 刀 | 内容 | 验收判据 |
 |---|---|---|
 | **t1**（后端，非版本刀可先行） | `createImportedProject` 重构 + 共享资产目录（EnsureTemplate 幂等）+ NovelB +4 绑定 + 进度/取消事件 | ✅ 2026-09-13：go build/vet/test 全绿（internal/app 全量 84s 过）；绑定面 654 drift OK；文件导入回归零变化（TestImportNovelBook_RefactorRegression）；13 新例（规则装载剔除/搜索合并去重/目录截断样例/导入落库/Failed 清单/范围重编号/全败报错/无规则拒绝/取消登记簿/起跑预检）；实施偏差见 §8 |
-| **t2**（前端，版本刀） | 书架「在线搜书」入口：搜索→候选表（来源/HasRule 标注）→目录预览→范围选择→进度条→完成入书架 + 报告直显（复用 v4.279 报告面） | tsc -b 0、eslint 0 error、vitest 全绿（面板新例）、真机走查一轮 |
+| **t2**（前端，版本刀） | 书架「在线搜书」入口：搜索→候选表（来源/HasRule 标注）→目录预览→范围选择→进度条→完成入书架 + 报告直显（复用 v4.279 报告面） | ✅ 2026-09-14：tsc -b 0、eslint 0 error、vitest 全绿（面板 7 例+报告 util 6 例+入口 1 例+事件频道 1 例）、ci.ps1 全绿、发布 v4.283.0；真机取书走查留观察池（见 §9.3） |
 | **t3**（打磨，按反馈） | 失败章重试、搜索历史、泛搜索引擎规则用户可编辑 | 观察池驱动，不预承诺 |
 
 ## 6. 不做清单（防过度设计）
@@ -102,3 +102,10 @@
 
 进度事件节流：每 20 章 + 完成必报（`booksourceProgressStep`）；job 语义沿
 SinCancel 先例（句柄登记簿 + 精确取消 + 完成移除）。
+
+## 9. t2 实施记录（2026-09-14，v4.283.0）
+
+1. **调用缝走 bridge `app` 代理**（`gaea/lib/bridge` 按方法名路由 NovelB 门面），非 HomePage 的 `wailsApp()` legacy 直调——浏览器 `?mock=` 模式可达（mock/novel.ts 四方法诚实空态：搜索空候选+说明、导入如实抛错），与 v4.171 起「legacy 直调转正」方向一致。`wails.d.ts` AppAPI 未动（零 legacy 新增面）。
+2. **进度事件订阅**=events.ts `BOOK_IMPORT_PROGRESS` 常量 + `bookImportProgressChannel(jobId)` + `subscribe()` 统一封装（后端事件常量 24→25）；取消请求本地记账 ref，`context canceled` 类 error 事件如实转写「已取消导入」不冒错。
+3. **真机取书走查留观察池**：发布冒烟仅验壳/桥健康（/api/health 200）；真实源站搜索-下载链路依赖线上 SERP 与用户自备规则（模板 disabled 不被拾取），引擎 34 例 + app 13 例均假站零真网络——线上漂移按书源规格观察池口径跟踪。
+4. **报告面共享化**：v4.279 的内联 strategyLabel/告警摘要抽 `utils/novelImportReport.ts`（+`booksource→在线书源`），文件导入与在线导入共用——两入口报告口径单源，不会再漂。

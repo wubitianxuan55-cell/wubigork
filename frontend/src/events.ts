@@ -1,12 +1,12 @@
 /**
  * events.ts — 事件名常量表 + subscribe() 统一封装（3.0 01 报告 §4）
  *
- * 后端事件 21 个（window.runtime.EventsOn 全量订阅点，§4.1）+ 前端自定义事件 4 个（§4.2）。
+ * 后端事件 22 个（window.runtime.EventsOn 全量订阅点，§4.1）+ 前端自定义事件 4 个（§4.2）。
  * subscribe() 收敛"规范路径（wailsjs runtime 返回卸载函数）"与"手动路径（window.runtime 裸调）"
  * 两套并存（§4.3），统一返回 () => void 卸载函数。
  */
 
-// ─── 后端事件（§4.1，21 个）────────────────────────────────────────────
+// ─── 后端事件（§4.1，22 个）────────────────────────────────────────────
 export const BACKEND_EVENTS = {
   /** 顶栏模型标签刷新（MainLayout） */
   MODEL_CHANGED: 'model-changed',
@@ -18,6 +18,8 @@ export const BACKEND_EVENTS = {
   SIN_STREAM: 'sin-stream',
   /** 章节生成流（useChapterStream） */
   CREATE_CHAPTER_STREAM: 'create-chapter-stream',
+  /** 书源在线导入进度动态频道前缀：实际事件名为 `novel-import-progress:<jobId>`（BookSearchModal） */
+  BOOK_IMPORT_PROGRESS: 'novel-import-progress',
   /** 幽灵补写（GhostText） */
   GHOST_STREAM: 'ghost-stream',
   /** AI 控制台输出（AIConsole） */
@@ -80,6 +82,11 @@ export function chatStreamChannel(runID: string): string {
 /** 原罪故事流动态频道：sin-stream:<runID>（与 chatStreamChannel 同形） */
 export function sinStreamChannel(runID: string): string {
   return `${BACKEND_EVENTS.SIN_STREAM}:${runID}`
+}
+
+/** 书源在线导入进度动态频道：novel-import-progress:<jobId>（与 chatStreamChannel 同形） */
+export function bookImportProgressChannel(jobId: string): string {
+  return `${BACKEND_EVENTS.BOOK_IMPORT_PROGRESS}:${jobId}`
 }
 
 /**

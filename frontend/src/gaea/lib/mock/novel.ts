@@ -40,6 +40,9 @@ type NovelMethods = Pick<
   | "NovelFingerprintStatus" | "NovelFingerprintBuild" | "NovelFingerprintScore"
   // 平台评审批次（v4.282，oh-story 蒸馏 T1；CreatePage「平台评审」面板）。
   | "NovelReviewPlatforms" | "NovelChapterReview"
+  // 书源在线搜书批次（v4.283，书源取书→拆书导入 t2；HomePage「在线搜书」）。
+  | "NovelBookSourceSearch" | "NovelBookSourceToc"
+  | "NovelBookSourceImport" | "NovelBookSourceImportCancel"
 >;
 
 export function buildNovel(): NovelMethods {
@@ -310,6 +313,25 @@ export function buildNovel(): NovelMethods {
           "哪个原文证据支持你的判断？没有证据的结论不采纳。",
         ],
       };
+    },
+
+    // ── 书源在线搜书批次（v4.283）────────────────────────────────────
+    // 浏览器 dev 无真实网络与书源规则目录：查询类诚实空态（带说明，不编造
+    // 候选），动作类如实拒绝——在线导入只在 Wails 壳内可用。
+    async NovelBookSourceSearch(_keyword: string) {
+      return {
+        candidates: [],
+        warnings: ["浏览器 mock 模式：书源搜索需要真实网络与规则目录，请在应用内使用"],
+      };
+    },
+    async NovelBookSourceToc(_source: string, _detailURL: string) {
+      return { total: 0, sample: [], truncated: false };
+    },
+    async NovelBookSourceImport(): Promise<{ jobId: string }> {
+      throw new Error("浏览器 mock 模式不支持在线导入（无网络与书源规则），请在应用内使用");
+    },
+    async NovelBookSourceImportCancel(_jobId: string): Promise<boolean> {
+      return false;
     },
   };
 }

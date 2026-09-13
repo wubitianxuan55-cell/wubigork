@@ -4,16 +4,18 @@ import {
   Button, Skeleton, message, Input, Select,
 } from 'antd'
 import {
-  PlusOutlined, SearchOutlined, ReadOutlined, SortAscendingOutlined, UploadOutlined,
+  PlusOutlined, SearchOutlined, ReadOutlined, SortAscendingOutlined, UploadOutlined, GlobalOutlined,
 } from '@ant-design/icons'
 import { useAppStore, type ProjectCard } from '../stores/appStore'
 
 import WelcomePage from '../components/WelcomePage'
 import CreateNovelModal from '../components/novel/CreateNovelModal'
 import ImportNovelModal from '../components/novel/ImportNovelModal'
+import BookSearchModal from '../components/novel/BookSearchModal'
 import ProjectCardItem from '../components/ProjectCardItem'
 import V3Empty from '../components/V3Empty'
 import { readReadingProgress } from '../utils/readingProgress'
+import { formatImportSuccess, formatImportWarnings } from '../utils/novelImportReport'
 
 type SortKey = 'recent' | 'words' | 'chapters' | 'title'
 
@@ -43,6 +45,9 @@ const HomePage: React.FC = () => {
   const [importGenre, setImportGenre] = useState<string[]>([])
   const [importStyle, setImportStyle] = useState<string[]>([])
   const [importing, setImporting] = useState(false)
+
+  // 在线搜书（书源取书→拆书导入 t2）
+  const [bookSearchModal, setBookSearchModal] = useState(false)
 
   // 书架工具条：搜索 / 排序
   const [query, setQuery] = useState('')
@@ -127,22 +132,24 @@ const HomePage: React.FC = () => {
       await loadProjects()
       setImportModal(false)
       // v4.279：解析报告直显（编码 + 切分策略），便于判断「这本书是不是被切错了」
-      const strategyLabel: Record<string, string> = {
-        strong: '标题分章', weak: '短标题分章', window: '窗口分章', single: '单章', epub: 'EPUB',
-      }
-      const how = [res.encoding, res.split_strategy ? (strategyLabel[res.split_strategy] ?? res.split_strategy) : '']
-        .filter(Boolean).join(' · ')
-      message.success(`已导入「${res.title}」：${res.chapter_count} 章，${res.total_words.toLocaleString()} 字${how ? `（${how}）` : ''}`)
-      const warns = res.warnings ?? []
-      if (warns.length > 0) {
-        const head = warns.slice(0, 2).map((w) => w.message).join('；')
-        message.warning(warns.length > 2 ? `${head}；等 ${warns.length} 条提示` : head)
-      }
+      message.success(formatImportSuccess(res))
+      const warnText = formatImportWarnings(res)
+      if (warnText) message.warning(warnText)
     } catch (err: unknown) {
       message.error(err instanceof Error ? err.message : '导入失败')
     } finally {
       setImporting(false)
     }
+  }
+
+  // ── 在线搜书导入完成：与文件导入同款落书架 + 报告直显（t2）──
+  const handleOnlineImported = async (res: Parameters<typeof formatImportSuccess>[0]) => {
+    openProject(res.path, res.title)
+    await loadProjects()
+    setBookSearchModal(false)
+    message.success(formatImportSuccess(res))
+    const warnText = formatImportWarnings(res)
+    if (warnText) message.warning(warnText)
   }
 
   // ── 打开/关闭项目 ──
@@ -272,6 +279,13 @@ const HomePage: React.FC = () => {
         />
         <span className="novel-shelf-toolbar-spacer" />
         <Button
+          icon={<GlobalOutlined aria-hidden />}
+          onClick={() => setBookSearchModal(true)}
+          className="novel-shelf-btn"
+        >
+          在线搜书
+        </Button>
+        <Button
           icon={<UploadOutlined aria-hidden />}
           onClick={handlePickImport}
           className="novel-shelf-btn"
@@ -367,6 +381,11 @@ const HomePage: React.FC = () => {
         onStyleChange={setImportStyle}
         onImport={() => void handleImport()}
         onClose={() => { if (!importing) setImportModal(false) }}
+      />
+      <BookSearchModal
+        open={bookSearchModal}
+        onClose={() => setBookSearchModal(false)}
+        onImported={(res) => void handleOnlineImported(res)}
       />
     </div>
   )

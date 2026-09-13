@@ -19,6 +19,10 @@ vi.mock('../components/novel/ImportNovelModal', () => ({
   default: () => null,
 }))
 
+vi.mock('../components/novel/BookSearchModal', () => ({
+  default: ({ open }: { open: boolean }) => (open ? <div>booksearch-stub</div> : null),
+}))
+
 import HomePage from './HomePage'
 import { useAppStore } from '../stores/appStore'
 import { writeReadingProgress } from '../utils/readingProgress'
@@ -98,5 +102,13 @@ describe('HomePage 书房书架', () => {
     })
     expect(screen.getAllByRole('button', { name: /新建小说/ }).length).toBeGreaterThan(0)
     expect(screen.getByRole('button', { name: /导入成品小说/ })).toBeTruthy()
+  })
+
+  it('工具条「在线搜书」开关搜索 Modal（t2）', async () => {
+    render(<HomePage />)
+    await waitFor(() => expect(screen.getByText('风雪夜归')).toBeTruthy())
+    expect(screen.queryByText('booksearch-stub')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: /在线搜书/ }))
+    expect(screen.getByText('booksearch-stub')).toBeTruthy()
   })
 })
