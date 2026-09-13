@@ -1,0 +1,41 @@
+{
+  "id": "generic",
+  "name": "通用网文章节评审",
+  "source": "重推导自 oh-story-claudecode skills/story-review/references/quality-rubric.md（MIT）",
+  "severity": {
+    "S1": "影响主线、角色动机、世界规则或读者信任",
+    "S2": "明显影响留存、节奏、章节效果或人物可信度",
+    "S3": "局部质量、格式、措辞、轻微节奏",
+    "S4": "风格建议或可选增强"
+  },
+  "verdict": {
+    "APPROVE": "无 S1/S2，S3 可快速处理",
+    "CONCERNS": "有 S2，或 S3 数量多影响阅读",
+    "REJECT": "有 S1，或核心卖点/角色动机/世界规则崩坏"
+  },
+  "goldenQuestions": [
+    "读者为什么翻下一页？",
+    "本章改变了什么？（情节/关系/信息/情绪至少一项）",
+    "哪个证据支持你的判断？（无原文证据的 finding 不输出，改标证据不足）"
+  ],
+  "dimensions": [
+    { "id": "core_selling_point", "name": "核心卖点", "pass": "章节围绕明确卖点推进，读者知道为什么继续看", "warn": "卖点存在但表达弱或被支线稀释", "fail": "看不出本章服务什么卖点或主线", "measurable": false },
+    { "id": "conflict_progress", "name": "冲突推进", "pass": "本章有明确冲突、阻碍、选择或代价", "warn": "冲突较轻，推进感不足", "fail": "主要是解释/闲聊/总结，无实际推进", "measurable": false },
+    { "id": "task_blocker", "name": "任务卡点", "pass": "角色办事被卡住，并卡出信息、关系、代价、选择或伏笔变化", "warn": "有卡点但变化偏弱，可压缩", "fail": "卡点只是流程细节，删掉不影响故事", "measurable": false },
+    { "id": "emotion_curve", "name": "情绪曲线", "pass": "有铺垫、升温、释放或反转", "warn": "情绪有变化但节点不清", "fail": "情绪平直或突兀转向", "measurable": false },
+    { "id": "hook_expectation", "name": "钩子与期待", "pass": "开头/结尾至少一处建立期待", "warn": "钩子弱但仍有后续问题", "fail": "没有悬念、目标或未完成期待", "measurable": false },
+    { "id": "opening_freshness", "name": "开头新鲜度（仅开篇/前 3 章）", "pass": "开局有具体人物/处境切口，不是同题材默认套路", "warn": "有钩子但开局形状与同题材撞车", "fail": "开局是题材默认模板，可整体换到任意同类书", "measurable": false },
+    { "id": "character_motivation", "name": "角色动机", "pass": "行为符合目标、性格、处境和关系压力", "warn": "局部行为缺少铺垫", "fail": "角色为推动剧情而失真", "measurable": false },
+    { "id": "dialogue_quality", "name": "对话质量", "pass": "对话有潜台词、信息控制和角色差异", "warn": "有信息堆叠或声音略同质", "fail": "对话像说明书，人人同腔", "measurable": false },
+    { "id": "setting_consistency", "name": "设定一致性", "pass": "不违背既有规则、时间线和角色属性", "warn": "有轻微模糊点需补证据", "fail": "与已写设定或前文事实冲突", "measurable": false },
+    { "id": "prose_naturalness", "name": "文字自然度", "pass": "具体、可感、动作承载信息", "warn": "偶有套话或抽象总结", "fail": "AI 腔、陈词滥调、总结体明显", "measurable": false, "crossCheck": "novelstyle 章节体检 AI 味分数" },
+    { "id": "sentence_rhythm", "name": "句长节奏", "pass": "叙述默认逗号长句，短句只作偶尔孤立重拍", "warn": "局部碎句或电报体，或机械长短交替", "fail": "逗号之间连续 ≤5 字、通篇超短句像提纲，或审改把长句拆碎", "measurable": true, "metric": "句长均值/标准差、短句占比" },
+    { "id": "punctuation_rhythm", "name": "标点节奏", "pass": "标点跟语气、人物声线和情绪功能匹配", "warn": "局部标点单调或略有堆砌", "fail": "通篇句号化、随机堆砌问号/感叹号，或用省略号/破折号硬造停顿", "measurable": true, "metric": "标点分布与异常堆叠检测" },
+    { "id": "stated_length_accuracy", "name": "具体字数表达校验", "pass": "「这五个字」类表达字数属实且有叙事必要", "warn": "字数属实但可更自然", "fail": "字数与实际不符或口径不可确认", "measurable": true, "metric": "引用片段 rune 计数核对" },
+    { "id": "format_readability", "name": "格式可读性", "pass": "段落按戏剧单元/镜头断开，对话独立，无多余空行", "warn": "局部段落偏长/偏碎或主语重复略多", "fail": "大段堆叠、机械切段、对话与叙述难读", "measurable": true, "metric": "段长分布、对话段占比" },
+    { "id": "plot_loop", "name": "剧情循环", "pass": "目标→阻碍→行动→代价/反馈→新期待闭环清晰", "warn": "有循环但缺一环或反馈偏弱", "fail": "无目标、无阻碍或无反馈", "measurable": false },
+    { "id": "climax_build", "name": "高潮构建", "pass": "蓄能→假胜→崩解→反转/兑现有层次", "warn": "有爆点但蓄能或兑现不足", "fail": "平铺直给、无代价、无兑现或情绪落空", "measurable": false },
+    { "id": "relationship_progress", "name": "关系进展", "pass": "互动尺度匹配关系阶段，越界有铺垫", "warn": "局部推进略快但可补证据", "fail": "突然亲密/信任/敌对，关系跳变", "measurable": false },
+    { "id": "foreshadow_state", "name": "伏笔状态", "pass": "埋设、状态和回收路径可追踪", "warn": "偏密/偏疏但不影响理解", "fail": "与设定冲突、断线或造成主线理解混乱", "measurable": true, "crossCheck": "ForeshadowPanel 一致性体检（五类检查）" }
+  ]
+}
