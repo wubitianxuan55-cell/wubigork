@@ -397,8 +397,9 @@ func (a *writingState) streamCreateChapter(ctx context.Context, pm *project.Mana
 	// 并把报告带进 done 的 aiTaste，供作者知悉改了多少。
 	var deSlopReport *novelstyle.RewriteReport
 	if deSlop {
-		ensureNovelStyleWords() // 惯例目录词表覆盖每进程加载一次
-		if rx, rep, err := novelstyle.DeSlopRewrite(content, nil); err == nil && rep != nil && rep.AfterScore < rep.BeforeScore {
+		ensureNovelStyleWords()    // 惯例目录词表覆盖每进程加载一次
+		ensureNovelStylePatterns() // 模式级门禁覆盖（oh-story T2）
+		if rx, rep, err := novelstyle.DeSlopRewriteEx(content, nil, bookWhitelist(pm)); err == nil && rep != nil && rep.AfterScore < rep.BeforeScore {
 			if rx != "" {
 				content = rx
 				deSlopReport = rep
@@ -471,6 +472,7 @@ func (a *writingState) streamCreateChapter(ctx context.Context, pm *project.Mana
 	// 随 done 事件回传给前端，作者立即看到；失败不阻断 done（仅附空结果）。
 	aiTaste := map[string]any{}
 	if taste, terr := novelstyle.ScoreTextNoRef(content); terr == nil && taste != nil {
+		novelstyle.ApplyWhitelist(taste, content, bookWhitelist(pm)) // 书级白名单豁免后再报分
 		aiTaste = map[string]any{"score": taste.Score, "issues": taste.Issues}
 	}
 	if deSlopReport != nil {

@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -9,6 +10,7 @@ import (
 
 	gaeaconfig "github.com/gaea/gaea/internal/gaea/config"
 	"github.com/gaea/gaea/internal/novelstyle"
+	"github.com/gaea/gaea/internal/project"
 )
 
 // ── 刀 5 续 · 手动「一键去味」 ─────────────────────────────────────────
@@ -37,9 +39,42 @@ func ensureNovelStyleWords() {
 	})
 }
 
+// ensureNovelStylePatterns 按惯例目录加载模式表覆盖（oh-story T2 内核消费；
+// 同 words.json 纪律：.gaea/skills/novel-deslop/patterns.json 整体替换）。
+var novelPatternsOnce sync.Once
+
+func ensureNovelStylePatterns() {
+	novelPatternsOnce.Do(func() {
+		for _, base := range gaeaconfig.ConventionDirs { // .gaea 最优先
+			p := filepath.Join(gaeaCwd(), base, "skills", "novel-deslop", "patterns.json")
+			if _, err := os.Stat(p); err == nil {
+				_ = novelstyle.LoadPatternsFile(p)
+				return
+			}
+		}
+	})
+}
+
+// bookWhitelist 读书级白名单（oh-story T2：<项目目录>/.deslop-whitelist，
+// 一行一显式授权片段）。无文件不建空表（gates.json A.whitelist 口径）；
+// 读取失败按无豁免处理并如实记日志，不挡去味主功能。
+func bookWhitelist(pm *project.Manager) []string {
+	if pm == nil {
+		return nil
+	}
+	wl, err := novelstyle.LoadWhitelistFile(filepath.Join(pm.Dir, ".deslop-whitelist"))
+	if err != nil {
+		slog.Warn("读取书级白名单失败（按无豁免处理）", "error", err)
+		return nil
+	}
+	return wl
+}
+
 func (a *writingState) DeSlopChapterAiTaste(chapterNum int) (map[string]interface{}, error) {
 	ensureNovelStyleWords()
+	ensureNovelStylePatterns()
 	pm := a.getPM()
+	wl := bookWhitelist(pm)
 	if pm == nil {
 		return nil, fmt.Errorf("请先打开项目")
 	}
@@ -63,7 +98,8 @@ func (a *writingState) DeSlopChapterAiTaste(chapterNum int) (map[string]interfac
 				continue
 			}
 			b, _ := novelstyle.ScoreTextNoRef(sc.Content)
-			rw, rep, derr := novelstyle.DeSlopRewrite(sc.Content, b)
+			novelstyle.ApplyWhitelist(b, sc.Content, wl)
+			rw, rep, derr := novelstyle.DeSlopRewriteEx(sc.Content, b, wl)
 			if derr == nil && rep != nil && rep.AfterScore < rep.BeforeScore && rw != "" {
 				sc.Content = rw
 				_ = sm.Write(sc)
@@ -78,7 +114,8 @@ func (a *writingState) DeSlopChapterAiTaste(chapterNum int) (map[string]interfac
 			return nil, fmt.Errorf("读取章节失败: %w", err)
 		}
 		b, _ := novelstyle.ScoreTextNoRef(content)
-		rw, rep, derr := novelstyle.DeSlopRewrite(content, b)
+		novelstyle.ApplyWhitelist(b, content, wl)
+		rw, rep, derr := novelstyle.DeSlopRewriteEx(content, b, wl)
 		if derr == nil && rep != nil && rep.AfterScore < rep.BeforeScore && rw != "" {
 			if werr := pm.WriteChapter(chapterNum, rw); werr != nil {
 				return nil, fmt.Errorf("保存章节失败: %w", werr)

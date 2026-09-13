@@ -54,7 +54,7 @@
 | 刀 | 内容 | 落点 | 规模 |
 |---|---|---|---|
 | ~~**T1**~~ ✅ | **质量 rubric 数据化**：分平台/分题材评审档位 + 章节质量评分纯函数（吃现有 novelstyle 指标）——**资产已落**（`.gaea/skills/novel-review/`：SKILL.md 评审协议 + `rubrics/generic.json` 26 维 + `rubrics/platforms.json` 三平台档位 + MIT 许可）；**引擎与接线已落（v4.282.0）**：`internal/novelreview` 15 维确定性评审（PASS/WARN/FAIL/SKIP + S1~S4 + 原文证据 + APPROVE/CONCERNS/REJECT）+ `internal/novelreview/rubric.json` 阈值资产（四档位、可被 `<工作区>/.gaea/skills/novel-review/rubric.json` 整体替换）+ 创作间「平台评审」面板（NovelB 两绑定） | 资产 `.gaea/skills/novel-review/`；引擎 `internal/novelreview` | 已完成 |
-| ~~**T2**~~ ✅ | ~~**去 AI 味规则分层**：把「模式级」判定（句式模板/连接词堆叠/四字格密度/标点异常）与门槛分级补进现有词表资产~~ **已落**：`.gaea/skills/novel-deslop/references/ai-patterns.md`（删除优先判断 + 门禁 A-G 要点）+ `gates.json`（7 门禁结构化 + 保护清单 + 执行纪律）+ MIT 许可文件；内核消费 `gates.json` 留后续刀 | `.gaea/skills/novel-deslop/`（数据资产） | 已完成 |
+| ~~**T2**~~ ✅ | ~~**去 AI 味规则分层**：把「模式级」判定（句式模板/连接词堆叠/四字格密度/标点异常）与门槛分级补进现有词表资产~~ **已落**：`.gaea/skills/novel-deslop/references/ai-patterns.md`（删除优先判断 + 门禁 A-G 要点）+ `gates.json`（7 门禁结构化 + 保护清单 + 执行纪律）+ MIT 许可文件；内核消费 ✅ v4.286.0（novelstyle patterns.json 两族模式 + 规则 10/11 + `.deslop-whitelist` 书级白名单豁免打分与去味） | `.gaea/skills/novel-deslop/`（数据资产） | 已完成 |
 | ~~**T3**~~ ✅ | **生成前后校验闸**：写前大纲契约检查（关键字段齐备/章节目标不为空）+ 写后质量闸（不达标给回炉建议，不静默通过）——**已落**：`internal/novelgate`（OutlineContractIssues + ChapterQualityIssues，S1~S4 同轴、必带证据）+ `RunChapterGate` 新增 `outlineContract` / `deterministic` 两路（必出、零成本、失败不阻断）+ NovelInspector「章节体检」区直显；**写前契约的「拒绝生成」硬闸留后续刀**（当前只报告不阻断，避免作者被空大纲卡住） | 内核纯函数 + 创作间提示 | 已完成 |
 | **T4** | **导入结构映射与篇幅路由**：按总字数/章数选骨架（短中长三档），映射到 gaea 大纲字段 | `internal/bookimport`（拆书导入续刀） | 中 |
 | T5 | 子代理角色卡资产化（7 角色提示词按 gaea 形态重写为技能资产，接 `run_skill`/任务子代理） | `.gaea/skills/novel-agents/` | 中 |
@@ -80,8 +80,7 @@
 
 **当前口径**：确定性可测的维度由引擎（`internal/novelreview`）给结论；语义维度（卖点/动机/伏笔回收）
 由 `novel-review` 技能按原文证据判定，两者**共用同一套维度 id 与 S1~S4 分级**（`rubrics/generic.json`
-为词汇表唯一真源，引擎实现 `measurable` 子集）。下刀候选：T2 内核消费（`gates.json` 模式级门禁进
-novelstyle 打分与去味）/ T4 导入结构映射与篇幅路由 / T5 子代理角色卡资产。
+为词汇表唯一真源，引擎实现 `measurable` 子集）。T2 内核消费已落（v4.286.0）。下刀候选：T4 导入结构映射与篇幅路由 / T5 子代理角色卡资产。
 
 **T2 去 AI 味规则分层** 紧随其后（同一资产层，可共用一次发版）。
 

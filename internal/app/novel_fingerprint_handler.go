@@ -205,6 +205,7 @@ func excerptOf(text string, start, end int) string {
 // 无参考档时按通用阈值打分（refExists:false），两条路都可用。
 func (a *writingState) NovelFingerprintScore(chapterNum int) (FingerprintScorePayload, error) {
 	ensureNovelStyleWords()
+	ensureNovelStylePatterns()
 	pm := a.getPM()
 	if pm == nil {
 		return FingerprintScorePayload{}, fmt.Errorf("请先打开项目")
@@ -233,6 +234,7 @@ func (a *writingState) NovelFingerprintScore(chapterNum int) (FingerprintScorePa
 	if err != nil {
 		return FingerprintScorePayload{}, fmt.Errorf("AI 味打分失败: %w", err)
 	}
+	novelstyle.ApplyWhitelist(score, text, bookWhitelist(pm)) // 书级白名单豁免后再报分
 	payload.Score = score.Score
 	if ref != nil {
 		if observed, ferr := novelstyle.ComputeFingerprint([]string{text}); ferr == nil {

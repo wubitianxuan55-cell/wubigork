@@ -2,6 +2,7 @@ package app
 
 import (
 	"encoding/json"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -220,5 +221,97 @@ func TestCollectChapterSamples_StopsOnMissing(t *testing.T) {
 	}
 	if chars <= 0 || strings.Contains(strings.Join(samples, ""), "第四章") {
 		t.Fatalf("样本越界: chars=%d samples=%v", chars, samples)
+	}
+}
+
+// ── oh-story T2 内核消费：书级白名单豁免（v4.286）──
+
+// 写含 AI 词与否定翻转句的一章（去味/体检两用的最小命中样本）。
+func mustWriteAiTasteChapter(t *testing.T, a *App, num int) {
+	t.Helper()
+	content := "她的眸光流转，带着几分笑意。\n\n这不是失败，而是他计划的第一步。夜风从窗缝里钻进来。"
+	if err := a.getPM().WriteChapter(num, content); err != nil {
+		t.Fatalf("写章节: %v", err)
+	}
+	// v4 项目走场景路由：去味按场景读写，直接建一个场景承载同一正文。
+	sm := a.getPM().SceneManager(num)
+	sc, err := sm.Create("opening", "开场")
+	if err != nil {
+		t.Fatalf("建场景: %v", err)
+	}
+	sc.Content = content
+	if err := sm.Write(sc); err != nil {
+		t.Fatalf("写场景: %v", err)
+	}
+}
+
+func TestDeSlopChapterAiTaste_BookWhitelistExempts(t *testing.T) {
+	a := newFingerprintTestApp(t)
+	mustWriteAiTasteChapter(t, a, 1)
+
+	// 无白名单：眸光流转被替换（changes>0）
+	res, err := a.DeSlopChapterAiTaste(1)
+	if err != nil {
+		t.Fatalf("去味: %v", err)
+	}
+	if res["changes"].(int) == 0 {
+		t.Fatalf("无白名单应产生替换: %+v", res)
+	}
+
+	// 建白名单授权该片段：重建项目重跑，替换应被豁免
+	a2 := newFingerprintTestApp(t)
+	mustWriteAiTasteChapter(t, a2, 1)
+	wlPath := filepath.Join(a2.getPM().Dir, ".deslop-whitelist")
+	if err := os.WriteFile(wlPath, []byte("她的眸光流转，带着几分笑意。\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	res2, err := a2.DeSlopChapterAiTaste(1)
+	if err != nil {
+		t.Fatalf("白名单去味: %v", err)
+	}
+	if res2["changes"].(int) != 0 {
+		t.Fatalf("授权片段应豁免替换: %+v", res2)
+	}
+	content, _ := a2.getPM().ReadChapter(1)
+	if !strings.Contains(content, "眸光流转") {
+		t.Fatalf("授权词应原样保留: %q", content)
+	}
+}
+
+func TestNovelFingerprintScore_WhitelistExempts(t *testing.T) {
+	a := newFingerprintTestApp(t)
+	mustWriteAiTasteChapter(t, a, 1)
+
+	// 无白名单：否定翻转命中并计分
+	p1, err := a.NovelFingerprintScore(1)
+	if err != nil {
+		t.Fatalf("体检: %v", err)
+	}
+	hit := false
+	for _, iss := range p1.Issues {
+		if strings.Contains(iss.Reason, "否定铺垫后肯定翻转") {
+			hit = true
+		}
+	}
+	if !hit {
+		t.Fatalf("无白名单应命中否定翻转: %+v", p1.Issues)
+	}
+
+	// 白名单整句授权：命中摘除、分数下降（或有其它 issue 时权重减少）
+	wlPath := filepath.Join(a.getPM().Dir, ".deslop-whitelist")
+	if err := os.WriteFile(wlPath, []byte("这不是失败，而是他计划的第一步。\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	p2, err := a.NovelFingerprintScore(1)
+	if err != nil {
+		t.Fatalf("白名单体检: %v", err)
+	}
+	if p2.Score > p1.Score {
+		t.Fatalf("豁免后分数不应升高: %d > %d", p2.Score, p1.Score)
+	}
+	for _, iss := range p2.Issues {
+		if strings.Contains(iss.Reason, "否定铺垫后肯定翻转") {
+			t.Fatalf("授权命中应摘除: %+v", iss)
+		}
 	}
 }

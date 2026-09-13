@@ -40,6 +40,13 @@ var punctOverRE = regexp.MustCompile(`…{2,}|\.{6,}|！{2,}|!{2,}`)
 // score 可为 nil（此时内部用 ScoreTextNoRef 先算一次 before）。返回 after 文本
 // 由调用方决定是否落盘——本函数不修改传入内容，纯函数。
 func DeSlopRewrite(text string, score *TasteScore) (string, *RewriteReport, error) {
+	return DeSlopRewriteEx(text, score, nil)
+}
+
+// DeSlopRewriteEx 同 DeSlopRewrite，另接受书级白名单（oh-story T2 门禁 A 的
+// whitelist 口径）：白名单条目命中上下文的替换出现位置原样保留——作者显式
+// 授权的片段连禁用词替换也豁免。
+func DeSlopRewriteEx(text string, score *TasteScore, whitelist []string) (string, *RewriteReport, error) {
 	before := score
 	if before == nil {
 		b, err := ScoreTextNoRef(text)
@@ -66,8 +73,12 @@ func DeSlopRewrite(text string, score *TasteScore) (string, *RewriteReport, erro
 			continue
 		}
 		beforeText := out
-		out = strings.ReplaceAll(out, w, after)
-		cnt := strings.Count(beforeText, w)
+		if len(whitelist) == 0 {
+			out = strings.ReplaceAll(out, w, after)
+		} else {
+			out = replaceExceptWhitelisted(out, w, after, whitelist)
+		}
+		cnt := strings.Count(beforeText, w) - strings.Count(out, w)
 		if cnt > 0 {
 			report.Changes = append(report.Changes, RewriteChange{Word: w, Before: w, After: after, Count: cnt})
 		}
@@ -85,12 +96,60 @@ func DeSlopRewrite(text string, score *TasteScore) (string, *RewriteReport, erro
 		report.PunctFixed = 1
 	}
 
-	// 3. 复测 after 分数。
+	// 3. 复测 after 分数（与 before 同口径应用白名单，豁免段不计回）。
 	if after, err := ScoreTextNoRef(out); err == nil {
-		report.AfterScore = after.Score
+		report.AfterScore = ApplyWhitelist(after, out, whitelist)
 	} else {
 		report.AfterScore = before.Score
 	}
 
 	return out, report, nil
+}
+
+// replaceExceptWhitelisted 逐出现替换：出现位置上下文命中白名单的保留原文。
+func replaceExceptWhitelisted(text, word, after string, whitelist []string) string {
+	var b strings.Builder
+	idx := 0
+	for {
+		j := strings.Index(text[idx:], word)
+		if j < 0 {
+			break
+		}
+		pos := idx + j
+		b.WriteString(text[idx:pos])
+		end := pos + len(word)
+		if whitelisted(contextWindow(text, pos, end), whitelist) {
+			b.WriteString(text[pos:end]) // 授权片段：原样保留
+		} else {
+			b.WriteString(after)
+		}
+		idx = end
+	}
+	b.WriteString(text[idx:])
+	return b.String()
+}
+
+// contextWindow 取字节区间 [start,end) 命中前后各 16 个 rune 的上下文
+// （白名单片段常为整句，命中词只是其中一小段）。
+func contextWindow(text string, start, end int) string {
+	rs := []rune(text)
+	runesOf := func(target int) int {
+		b := 0
+		for i, r := range rs {
+			if b == target {
+				return i
+			}
+			b += len(string(r))
+		}
+		return len(rs)
+	}
+	ri, rj := runesOf(start), runesOf(end)
+	s, e := 0, len(rs)
+	if ri > 16 {
+		s = ri - 16
+	}
+	if rj+16 < e {
+		e = rj + 16
+	}
+	return string(rs[s:e])
 }

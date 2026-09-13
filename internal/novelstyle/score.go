@@ -102,6 +102,12 @@ func ScoreText(text string, fp *Fingerprint) (*TasteScore, error) {
 	// 规则 9：AI 高频词黑名单
 	issues = append(issues, ruleAIBlacklist(text, runes)...)
 
+	// 规则 10：句式套路——否定铺垫后肯定翻转（oh-story T2 门禁 B，同句高置信）
+	issues = append(issues, ruleNegationFlip(text, runes)...)
+
+	// 规则 11：解释腔/上帝感标记（oh-story T2 门禁 G，advisory 封顶）
+	issues = append(issues, ruleExplanatoryMarkers(text, runes)...)
+
 	score := 0
 	for _, iss := range issues {
 		score += severityToWeight(iss.Severity)

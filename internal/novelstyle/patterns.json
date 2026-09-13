@@ -1,0 +1,20 @@
+{
+  "schema": 1,
+  "source": "重推导自 oh-story-claudecode skills/story-deslop references/ai-patterns.md §2/§7 与 gates.json 门禁 B/G（MIT；随附 .gaea/skills/novel-deslop/LICENSE-oh-story.txt）",
+  "note": "模式级门禁的可机械判定子集（T2 内核消费）：只收同句高置信句式（门禁 B：否定铺垫后肯定翻转=高置信直接改）与解释腔标记（门禁 G）；跨段复核制与语义裁决（承担锚点/情绪则保留）留给 novel-deslop 技能，内核不装懂。正则为 Go RE2（无反向引用）；本文件可被惯例目录 .gaea/skills/novel-deslop/patterns.json 整体替换（同 words.json 纪律），坏正则 fail-closed 不换出。",
+  "negationFlipHigh": [
+    "不是[^。！？；\\n]{1,16}，?而是",
+    "不是[^。！？；\\n]{1,16}，是",
+    "没有[^。！？；\\n]{1,12}，?没有[^。！？；\\n]{1,12}，?只是",
+    "并非[^。！？；\\n]{1,16}，?而是"
+  ],
+  "explanatoryMarkers": [
+    "之所以",
+    "这意味着",
+    "她不知道的是",
+    "他不知道的是",
+    "殊不知",
+    "多年以后",
+    "(?:^|[。！？！?\\n])原来"
+  ]
+}
