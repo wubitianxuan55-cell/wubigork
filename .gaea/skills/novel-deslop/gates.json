@@ -1,0 +1,37 @@
+{
+  "schema": 1,
+  "source": "重推导自 oh-story-claudecode skills/story-deslop/references/deslop-gates.md（MIT）",
+  "note": "模式级门禁（模型按 novel-deslop 技能执行）；words.json 仍是确定性引擎的唯一输入。内核消费本文件=后续刀。",
+  "deleteFirst": {
+    "order": [
+      "删掉后是否丢失伏笔/钩子/角色特征/情节推进/必要信息/必要转折？",
+      "丢任意一项 → 保留信息、只改表达",
+      "不整段删；跌破字数下限改为降 AI 重写（禁止用新废话凑字）",
+      "删完通读：出现电报体（只剩最短句/虚词扫光/动作全带「了一下」尾巴）则恢复自然白话"
+    ],
+    "protected": ["伏笔", "钩子", "角色特征", "人物记忆", "情绪承接", "因果锚点", "关键信息", "必要转折"]
+  },
+  "gates": [
+    { "id": "A", "name": "禁用词替换", "rule": "禁用词 → 具体动作/细节；不得换成另一个形容词", "asset": "words.json(replacements/blacklist)", "whitelist": "书级 .deslop-whitelist（显式授权片段豁免；无文件不建空表）", "confidence": "high" },
+    { "id": "B", "name": "句式去套路", "rule": "否定铺垫后肯定翻转（同句）=高置信直接改；跨段/同动词变体=复核制；修饰词多余即删，一次只用一个形容词", "asset": "references/ai-patterns.md §2", "confidence": "high(同句)/advisory(跨段)" },
+    { "id": "C", "name": "情绪落地", "rule": "删空泛情绪总结句与已被上下文成立的补充说明；不做「情绪词→身体动作」默认转换", "confidence": "advisory" },
+    { "id": "D", "name": "节奏调整", "rule": "只拆臃肿修饰/堆叠比喻/信息过载长句；句长随情绪 beat 交错；把长句拆碎同属 AI 味", "crossCheck": "novelstyle 句长分布（体检实测）", "confidence": "advisory" },
+    { "id": "E", "name": "对话去腔调", "rule": "角色语气差异化；犹豫/打断/拖长用动作、短句或换行承担，不堆对话标签", "confidence": "advisory" },
+    { "id": "F", "name": "结尾去升华", "rule": "大段抒情收尾 → 安静细节收尾；悬念优先于升华", "confidence": "advisory" },
+    { "id": "G", "name": "去解释腔/上帝感/安排感", "rule": "删无功能解释/未授权剧透/重复总结/空泛定性；授权的有限全知不删；场内载体（手机/公告/屏幕）保留为角色看到的文本", "markers": ["之所以", "原来", "这意味着", "她不知道的是", "殊不知", "多年以后"], "confidence": "high(空泛定性)/advisory(叙述姿态)" }
+  ],
+  "writerSelfCheck": {
+    "A": "禁用词逐一替换（对照 words.json）",
+    "B": "连续排比/刻意对称打散；禁止高置信否定铺垫后肯定翻转",
+    "C": "删空泛情绪总结，不设情绪→动作默认转换",
+    "D": "只拆臃肿长句，长短随情绪 beat",
+    "E": "对话按语言风格档案差异化",
+    "F": "结尾去升华",
+    "G": "去解释腔/上帝感；授权全知保留"
+  },
+  "discipline": [
+    "只执行被指定的门禁范围，不扩大为全量改写",
+    "先按本书文风裁决（作者样本/题材卡）再套通用规则",
+    "改完复测：gaea 内核既有「分数不降才落盘」闸（internal/novelstyle）"
+  ]
+}
