@@ -59,6 +59,9 @@ func (b *NovelB) IsProjectV4() bool { return b.a.IsProjectV4() }
 func (b *NovelB) ListSnapshots(sceneID string, chapterNum int) ([]map[string]interface{}, error) { return b.a.ListSnapshots(sceneID, chapterNum) }
 func (b *NovelB) MergeCharacters(keepID string, mergeID string) (map[string]interface{}, error) { return b.a.MergeCharacters(keepID, mergeID) }
 func (b *NovelB) MigrateProjectToV4() error { return b.a.MigrateProjectToV4() }
+func (b *NovelB) NovelFingerprintBuild() (FingerprintStatusPayload, error) { return b.a.NovelFingerprintBuild() }
+func (b *NovelB) NovelFingerprintScore(chapterNum int) (FingerprintScorePayload, error) { return b.a.NovelFingerprintScore(chapterNum) }
+func (b *NovelB) NovelFingerprintStatus() (FingerprintStatusPayload, error) { return b.a.NovelFingerprintStatus() }
 func (b *NovelB) NovelReadingAsk(kind string, title string, chapterText string, selection string, question string, historyJSON string) (string, error) { return b.a.NovelReadingAsk(kind, title, chapterText, selection, question, historyJSON) }
 func (b *NovelB) NovelSearch(query string) ([]NovelSearchHit, error) { return b.a.NovelSearch(query) }
 func (b *NovelB) ParseLinks(content string) []string { return b.a.ParseLinks(content) }

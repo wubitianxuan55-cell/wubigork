@@ -2,6 +2,34 @@
 // 小说域经 AppBindings 的方法（批次三b：章节族/叙事状态族/场景族/项目角色族
 // 从 wailsjsCompat 直调转正；Go 侧 CancelCreateChapter 返回 bool、MergeCharacters
 // 返回 map，签名以 bindings_novel.go 实测为准）。
+// 文风指纹族（NovelFingerprintStatus/Build/Score）：CreatePage「文风指纹」面板
+// 消费——参考档状态/构建 + 章节 AI 味体检（主线并行开发，wailsjs 再生前由
+// CreatePage 直接 import 三个绑定，再生后 tsc 自然转绿）。
+
+// ── 文风指纹载荷（Go 侧 omitempty 字段可能缺省，消费方需 ?. 与 ?? 防御）──
+/** 风格摘要：句长/段长统计 + 词汇密度 + 口头禅（bigram/trigram/签名词）。 */
+export interface FingerprintSummary {
+  sentenceMean: number; sentenceSd: number; paraMean: number; ttr1000: number;
+  dialogRatio: number; fourCharRatio: number; connectiveDensity: number; adjAdvDensity: number;
+  topBigrams: string[]; topTrigrams: string[]; authorSignWords: string[];
+}
+/** 参考档状态：exists=false 表示尚未构建（summary 等字段缺省）。 */
+export interface FingerprintStatusPayload {
+  exists: boolean; builtAt?: string; chapters?: number; chars?: number; summary?: FingerprintSummary;
+}
+/** 单条体检命中：severity 分档 low/medium/high/blocker（未知档允许透传 string）。 */
+export interface FingerprintIssue {
+  start: number; end: number; reason: string;
+  severity: 'low' | 'medium' | 'high' | 'blocker' | string;
+  suggestion: string; excerpt: string;
+}
+/** 章节体检结果：score 0-100 越高越像 AI；delta=与参考档的函数词距离（越小越像
+ *  作者，无参考档时缺省 → 消费方显示「按通用阈值打分」口径）。 */
+export interface FingerprintScorePayload {
+  chapterNum: number; refExists: boolean; score: number;
+  delta?: number;
+  issues: FingerprintIssue[];
+}
 
 export interface NovelBindings {
   // GenerateBookCover 生成项目书封（3:4，play exports），返回封面路径。
@@ -54,6 +82,12 @@ export interface NovelBindings {
   // AI 味净化/重写（v4.7x 反 AI 味，返回 {done,...}）。
   DeSlopChapterAiTaste(chapterNum: number): Promise<Record<string, unknown>>;
   RewriteChapterAiTaste(chapterNum: number): Promise<Record<string, unknown>>;
+  // 文风指纹族（CreatePage「文风指纹」面板消费）：Status 读参考档状态；
+  // Build 用全部已写章节构建/重建风格基线（样本不足时 reject，Error.message
+  // 为中文提示）；Score 对指定章跑 AI 味体检（score 0-100，越高越像 AI）。
+  NovelFingerprintStatus(): Promise<FingerprintStatusPayload>;
+  NovelFingerprintBuild(): Promise<FingerprintStatusPayload>;
+  NovelFingerprintScore(chapterNum: number): Promise<FingerprintScorePayload>;
   // 实体关系图谱（角色/组织/关系图数据）。
   GetEntityRelations(): Promise<Record<string, unknown>>;
   // 场景族：场景列表/生成/新建（Go 均返回 map；CancelCreateChapter 实测

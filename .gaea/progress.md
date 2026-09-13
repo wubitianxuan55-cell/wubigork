@@ -8,6 +8,14 @@
 > 本文件为**最近发布速览**。完整历史磁带见 `docs/archive/progress-history-2026-09.md`
 > 与 `releases/`。
 
+## 最新发布：v4.277.0（2026-09-13）「小说·文风指纹落地面：参考档构建 + 对照体检」
+
+- **来源**：「优化完善gaea」→ 拍板池三项均用户决策项，按既定习惯从板块并行池挑小说线既定余项（novel-revolution 刀3 内核指纹算子齐备但 app 层零消费）。
+- **落地**：参考档 fingerprint.json（Manager 三方法原子写）+ NovelFingerprintBuild（全部已写章节 ComputeFingerprint 落盘，门槛 ≥3 章 ≥3000 字诚实拒绝）+ NovelFingerprintScore（有参考档 ScoreText+Delta 对照 / 无参考档通用阈值，两路可用）+ NovelFingerprintStatus + CreatePage「文风指纹」面板（空态引导/摘要格子/体检大数字+Δ 基线距离+issues 摘录）。绑定 642→645。v1 口径=作者成稿即样本，「只学作者手改」留后续刀。
+- **测试**：Go+6+形状锁（camelCase 断言+delta=0 指针零值不吞）+vitest+5+spaceBindings 锁 464→467；tsc/eslint 0；drift OK@645。
+- **真机走查**：夹具工程（project.Create 造 3 章约 4000 字）壳内 CDP 全流程全通（空态→构建→体检→重建覆盖）+console 零错误+清场。坑复训=海报墙须 scrollIntoView 再点/无 outline 夹具致体检钮 disabled/delete-pending 须 PowerShell 复删。
+- **门禁**：ci.ps1 run1 抓 v4.276 存量缺陷当场修（ChatPage.test 语音断言未随 camelCase 发送对齐，改齐后单文件 15/15）run2 全绿/版本三处 4.277.0/桌面副本同哈希冒烟 200。产物 exe 49,352,704B SHA256=2CB99312…802CD。
+
 ## 最新发布：v4.276.0（2026-09-13）「绑定面 JSON 形状普查：造价参考/复盘笔记/会话组价价格带断链修复」
 
 - **普查方法**：把 v4.269 走查抓到的「Go struct 缺 json 标签→Wails 线上 PascalCase→前端 camelCase 读空」bug 类升级为全仓 AST 闭包普查（绑定面签名类型递归展开×缺标签求交）：327 缺标签 struct 中绑定面可达仅 7。

@@ -1,13 +1,15 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { Alert, Button, message, Modal } from 'antd'
 import { app } from '../gaea/lib/bridge'
-import { GetNovelState, BuildNovelStatePatch, SettleNovelState, DeSlopChapterAiTaste, RewriteChapterAiTaste, GetEntityRelations, CancelCreateChapter } from '../../wailsjs/go/app/NovelB'
+import { GetNovelState, BuildNovelStatePatch, SettleNovelState, DeSlopChapterAiTaste, RewriteChapterAiTaste, GetEntityRelations, CancelCreateChapter, NovelFingerprintStatus, NovelFingerprintBuild, NovelFingerprintScore } from '../../wailsjs/go/app/NovelB'
 import { useOutlineStore } from '../stores/outlineStore'
 import { useAppStore } from '../stores/appStore'
 import type { OutlineNode } from '../types'
 import { buildTree, flattenTree, buildPrevSummary } from '../components/novel/create/outlineTree'
 import { useChapterStream } from '../components/novel/create/useChapterStream'
 import type { AiTasteResult } from '../components/novel/create/chapterStreamTypes'
+import type { FingerprintScorePayload, FingerprintStatusPayload } from '../gaea/lib/bridge/novel'
+import StyleFingerprintPanel from '../components/novel/StyleFingerprintPanel'
 import ChapterTreePanel from '../components/novel/create/ChapterTreePanel'
 import EditorPanel from '../components/novel/create/EditorPanel'
 import CreateInspector from '../components/novel/create/CreateInspector'
@@ -136,6 +138,13 @@ const CreatePage: React.FC = () => {
   const [graphBusy, setGraphBusy] = useState(false)
   const [graphData, setGraphData] = useState<EntityGraph | null>(null)
   const [graphMsg, setGraphMsg] = useState('')
+
+  // 文风指纹（参考档 + 章节体检）弹窗状态；Status 在打开时自动拉取（无独立刷新按钮）
+  const [fpOpen, setFpOpen] = useState(false)
+  const [fpStatus, setFpStatus] = useState<FingerprintStatusPayload | null>(null)
+  const [fpScore, setFpScore] = useState<FingerprintScorePayload | null>(null)
+  const [fpBusy, setFpBusy] = useState(false)
+  const [fpMsg, setFpMsg] = useState('')
 
   const openGraph = async () => {
     setGraphOpen(true)
@@ -455,6 +464,36 @@ const CreatePage: React.FC = () => {
     finally { setStateBusy(false) }
   }, [activeChapterNum])
 
+  // ── 文风指纹（参考档构建 + 章节体检；wailsjs 再生前 NovelB 三方法直接 import）──
+  // 打开即拉参考档状态（刷新并入 open 时自动加载）；失败落 rail 消息（stateMsg）。
+  const openFingerprint = useCallback(async () => {
+    setFpOpen(true); setFpBusy(true); setFpMsg(''); setFpScore(null)
+    try {
+      setFpStatus(await NovelFingerprintStatus())
+    } catch (err: unknown) { setStateMsg(err instanceof Error ? err.message : '加载文风指纹失败') }
+    finally { setFpBusy(false) }
+  }, [])
+  // 构建/重建参考档：用全部已写章节生成风格基线（样本不足时后端 reject 中文提示）。
+  const buildFingerprint = useCallback(async () => {
+    setFpBusy(true); setFpMsg('')
+    try {
+      const s = await NovelFingerprintBuild()
+      setFpStatus(s)
+      setFpMsg(`参考档已构建（${s?.chapters ?? 0} 章 · ${(s?.chars ?? 0).toLocaleString()} 字）`)
+    } catch (err: unknown) { setFpMsg(err instanceof Error ? err.message : '构建参考档失败') }
+    finally { setFpBusy(false) }
+  }, [])
+  // 体检当前章：AI 味评分 + 与参考档距离（无参考档时后端按通用阈值打分）。
+  const scoreFingerprint = useCallback(async () => {
+    setFpBusy(true); setFpMsg('')
+    try {
+      const r = await NovelFingerprintScore(activeChapterNum)
+      setFpScore(r)
+      setFpMsg(`第 ${activeChapterNum} 章体检完成`)
+    } catch (err: unknown) { setFpMsg(err instanceof Error ? err.message : '章节体检失败') }
+    finally { setFpBusy(false) }
+  }, [activeChapterNum])
+
   return (
     <div className="novel-create-root">
       {aiTaste && (
@@ -476,6 +515,7 @@ const CreatePage: React.FC = () => {
         <Button size="small" loading={stateBusy} onClick={() => void deslopChapter()}>一键去味</Button>
         <Button size="small" loading={stateBusy} onClick={() => void llmDeslop()}>高级去味</Button>
         <Button size="small" loading={graphBusy} onClick={() => void openGraph()}>全文脑图</Button>
+        <Button size="small" onClick={() => void openFingerprint()}>文风指纹</Button>
         {stateMsg ? <span className="novel-create-rail-msg">{stateMsg}</span> : null}
       </div>
       <div className="novel-workspace">
@@ -550,6 +590,17 @@ const CreatePage: React.FC = () => {
           <Alert type="info" showIcon message="暂无实体" description="尚未提取到可展示的实体关系。" />
         )}
       </Modal>
+      <StyleFingerprintPanel
+        open={fpOpen}
+        onClose={() => setFpOpen(false)}
+        busy={fpBusy}
+        msg={fpMsg}
+        status={fpStatus}
+        score={fpScore}
+        onBuild={() => void buildFingerprint()}
+        onScore={() => void scoreFingerprint()}
+        hasChapter={activeChapterNum > 0}
+      />
     </div>
   )
 }

@@ -313,8 +313,9 @@ describe('T6-3.3 语音持久化与资源清理', () => {
     await renderChat()
     await act(async () => { voiceMock.opts.onTranscript?.('语音你好') })
     await act(async () => { voiceMock.opts.onReply?.('语音回复') })
-    expect(ChatAppendMessages).toHaveBeenCalledWith('t1', [{ Role: 'user', Content: '语音你好', Extra: '' }])
-    expect(ChatAppendMessages).toHaveBeenCalledWith('t1', [{ Role: 'assistant', Content: '语音回复', Extra: '' }])
+    // v4.276 形状普查：useChatVoice 发送载荷已改 camelCase（真源=Go json 标签），断言对齐。
+    expect(ChatAppendMessages).toHaveBeenCalledWith('t1', [{ role: 'user', content: '语音你好', extra: '' }])
+    expect(ChatAppendMessages).toHaveBeenCalledWith('t1', [{ role: 'assistant', content: '语音回复', extra: '' }])
     expect(await screen.findByText('语音你好')).toBeTruthy()
     expect(await screen.findByText('语音回复')).toBeTruthy()
   })

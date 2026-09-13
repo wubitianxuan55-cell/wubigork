@@ -225,6 +225,21 @@ func (m *Manager) WriteForeshadows(ff *types.ForeshadowFile) error {
 	return writeJSON(filepath.Join(m.Dir, "foreshadows.json"), ff)
 }
 
+// StyleFingerprintPath 文风指纹参考档路径（fingerprint.json）
+func (m *Manager) StyleFingerprintPath() string {
+	return filepath.Join(m.Dir, "fingerprint.json")
+}
+
+// ReadStyleFingerprint 读文风指纹参考档（不存在时返回 os 文件错误）
+func (m *Manager) ReadStyleFingerprint() (*types.StyleFingerprintFile, error) {
+	return loadJSON[types.StyleFingerprintFile](m.StyleFingerprintPath())
+}
+
+// WriteStyleFingerprint 写文风指纹参考档（原子写）
+func (m *Manager) WriteStyleFingerprint(sf *types.StyleFingerprintFile) error {
+	return writeJSON(m.StyleFingerprintPath(), sf)
+}
+
 // WriteChapter 写章节文件 chapters/NNN.md（自动补零，原子写）
 func (m *Manager) WriteChapter(num int, content string) error {
 	return writeFileAtomic(m.ChapterPath(num), []byte(content))

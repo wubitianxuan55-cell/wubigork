@@ -1,12 +1,19 @@
 // mock/novel.ts — 小说域 dev mock（v4.171 批次一 NovelSearch legacy 直调转正；
 // 批次二补 12 个 NovelB 门面方法；批次三b 补章节族/叙事状态族/场景族/项目角色族
-// 22 个 NovelB 门面方法；批次三c 补 CreatePage 创作间 3 方法）。
+// 22 个 NovelB 门面方法；批次三c 补 CreatePage 创作间 3 方法；文风指纹批次补
+// NovelFingerprintStatus/Build/Score 3 方法——CreatePage「文风指纹」面板）。
 // Go 侧对应 NovelB 门面（internal/app/bindings_novel.go，除 ChatWorldview 在
 // ChatB 门面同名——返回 map[string]interface{}；GenerateCharacterPortrait 实测
 // 在 ImageB 门面同名）。
 // 口径：查询类中性空态（浏览器开发无可检索小说项目，返回空/最小样例，不编造
 // 全书数据）、动作类 no-op（无小说库可写）、生成类诚实样例（模拟回答/占位插图）。
+// 文风指纹为演示口径特例：模块级状态存参考档（初始未构建），Build 后返回诚实
+// 假摘要、Score 返回固定示范分——结构必须与契约（bridge/novel.ts 载荷）一致。
 import type { AppBindings } from "../bridge";
+import type { FingerprintStatusPayload } from "../bridge/novel";
+
+// 文风指纹演示态（模块级：同一会话内 Build 后保持已构建）。
+const mockFingerprintStatus: FingerprintStatusPayload = { exists: false };
 
 type NovelMethods = Pick<
   AppBindings,
@@ -27,6 +34,8 @@ type NovelMethods = Pick<
   | "GenerateProjectCharacterFill" | "GenerateCharacterPortrait" | "MergeCharacters"
   | "SaveOrganization" | "DeleteOrganization" | "ToggleOrgMember"
   | "SaveRelationship" | "DeleteRelationship"
+  // 文风指纹批次（CreatePage「文风指纹」面板；Go NovelB 门面同名前缀）。
+  | "NovelFingerprintStatus" | "NovelFingerprintBuild" | "NovelFingerprintScore"
 >;
 
 export function buildNovel(): NovelMethods {
@@ -161,6 +170,57 @@ export function buildNovel(): NovelMethods {
     },
     async DeleteRelationship(_fromID: string, _toID: string) {
       // mock: no-op。
+    },
+    // ── 文风指纹批次（CreatePage「文风指纹」面板；演示口径允许示范数据，
+    // 结构与 bridge/novel.ts 载荷契约一致）──────────────────────────────
+    async NovelFingerprintStatus() {
+      return { ...mockFingerprintStatus };
+    },
+    async NovelFingerprintBuild() {
+      // 无参动作：置已构建并返回诚实假摘要（3 章 3200 字示范基线）。
+      mockFingerprintStatus.exists = true;
+      mockFingerprintStatus.builtAt = new Date().toISOString();
+      mockFingerprintStatus.chapters = 3;
+      mockFingerprintStatus.chars = 3200;
+      mockFingerprintStatus.summary = {
+        sentenceMean: 18.6,
+        sentenceSd: 7.4,
+        paraMean: 96.3,
+        ttr1000: 412.5,
+        dialogRatio: 0.34,
+        fourCharRatio: 0.052,
+        connectiveDensity: 0.018,
+        adjAdvDensity: 0.041,
+        topBigrams: ["的时候", "看了一眼"],
+        topTrigrams: [],
+        authorSignWords: ["却说"],
+      };
+      return { ...mockFingerprintStatus };
+    },
+    async NovelFingerprintScore(chapterNum: number) {
+      // 固定示范分（42 分「有 AI 痕迹」档 + Δ0.31 基线距离 + 2 条样例命中）。
+      return {
+        chapterNum,
+        refExists: mockFingerprintStatus.exists,
+        score: 42,
+        delta: 0.31,
+        issues: [
+          {
+            start: 12, end: 40,
+            reason: "「不是…而是…」解释腔排比",
+            severity: "medium",
+            suggestion: "拆成两句直述，或用角色动作收束",
+            excerpt: "这不是简单的巧合，而是他早已布下的伏线。",
+          },
+          {
+            start: 88, end: 118,
+            reason: "「仿佛在诉说着什么」总结腔收尾",
+            severity: "low",
+            suggestion: "删去总结性收尾，让细节自己说话",
+            excerpt: "夜色沉沉，仿佛在诉说着什么。",
+          },
+        ],
+      };
     },
   };
 }

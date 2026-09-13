@@ -543,6 +543,11 @@ export const GAEA_METHOD_FACETS = {
   BuildNovelStatePatch: "play",
   SettleNovelState: "play",
   DeSlopChapterAiTaste: "play",
+  // 文风指纹（NovelB 门面）：参考档状态/构建/章节 AI 味体检——小说创作间数据面
+  // （CreatePage「文风指纹」面板消费），同叙事状态族/去味族归 play。
+  NovelFingerprintBuild: "play",
+  NovelFingerprintScore: "play",
+  NovelFingerprintStatus: "play",
   RewriteChapterAiTaste: "play",
   GetEntityRelations: "play",
   GetChapterScenes: "play",
