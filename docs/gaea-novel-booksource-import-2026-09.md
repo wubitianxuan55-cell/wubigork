@@ -108,5 +108,6 @@ SinCancel 先例（句柄登记簿 + 精确取消 + 完成移除）。
 1. **调用缝走 bridge `app` 代理**（`gaea/lib/bridge` 按方法名路由 NovelB 门面），非 HomePage 的 `wailsApp()` legacy 直调——浏览器 `?mock=` 模式可达（mock/novel.ts 四方法诚实空态：搜索空候选+说明、导入如实抛错），与 v4.171 起「legacy 直调转正」方向一致。`wails.d.ts` AppAPI 未动（零 legacy 新增面）。
 2. **进度事件订阅**=events.ts `BOOK_IMPORT_PROGRESS` 常量 + `bookImportProgressChannel(jobId)` + `subscribe()` 统一封装（后端事件常量 24→25）；取消请求本地记账 ref，`context canceled` 类 error 事件如实转写「已取消导入」不冒错。
 3. **真机取书走查留观察池**：发布冒烟仅验壳/桥健康（/api/health 200）；真实源站搜索-下载链路依赖线上 SERP 与用户自备规则（模板 disabled 不被拾取），引擎 34 例 + app 13 例均假站零真网络——线上漂移按书源规格观察池口径跟踪。
-4. **报告面共享化**：v4.279 的内联 strategyLabel/告警摘要抽 `utils/novelImportReport.ts`（+`booksource→在线书源`），文件导入与在线导入共用——两入口报告口径单源，不会再漂。
+4. **真机走查（v4.285~v4.287 三刀验收，2026-09-14 非版本刀）**：状态化假站（持续失败开关 /unfail）全链走查——失败章补下面板/重试/卷尾续编落盘、引擎规则编辑器保存落盘、tail 出口裁剪告警，全部通过零缺陷零前端错误。**配方修正**：引擎内置重试会把一次性 500 当场救回，失败路径验证必须用持续失败开关（假站状态化），一次性首取失败进不了 Failed。
+5. **报告面共享化**：v4.279 的内联 strategyLabel/告警摘要抽 `utils/novelImportReport.ts`（+`booksource→在线书源`），文件导入与在线导入共用——两入口报告口径单源，不会再漂。
 5. **真机走查（v4.283.1 补刀）**：壳内 CDP + 本地假站 + 临时规则全链走查，抓到 **P0 零注入 nil-Fetcher panic**（`newCrawler` 只兜底 Sleeper/Rand；单测全注入假站故零暴露）——引擎一处兜底四绑定修净（v4.283.1 发布说明 §根因/§测试）；修复后全链通过（搜索同表/目录预览/范围导入落库/磁盘核验/零前端错误）。观察注记：一次「首搜零候选零告警、复搜稳定」的 SERP 首请求抖动归既有漂移观察池。
