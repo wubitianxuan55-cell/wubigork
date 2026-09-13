@@ -3,6 +3,14 @@
 > 本文件为**最近发布速览**。完整历史磁带见 `docs/archive/progress-history-2026-09.md`
 > 与 `releases/`。
 
+## 非版本刀（2026-09-13）：小说·生成门补确定性两路——写前大纲契约 + 写后质量体检（oh-story 蒸馏 T3）
+
+- **来源**：oh-story-claudecode（MIT）蒸馏第三刀（规格 docs/gaea-novel-ohstory-distill-2026-09.md §2 真增量第 1 条：gaea 缺「写前结构契约闸 + 写后确定性质量闸」）。
+- **落地**：①新包 `internal/novelgate`（零 LLM 纯函数）——`OutlineContractIssues`（标题/计划/要点/情感四项目齐备性，S2~S4）+ `ChapterQualityIssues`（空正文 S1 / 超长段落 S3 带行号 / 电报体 S2〔短句占比 >40% 且均句长 <10 字〕/ 平均句长偏短 S3 / 标点堆砌 S3 / 省略号滥用 S3 / 通篇句号化 S3）；Issue 与评审 rubric S1-S4 同轴、必带证据；阈值常量集中、rune 口径。②接线 `RunChapterGate` 新增确定性两路 `outlineContract` + `deterministic`，与 AI 四路并列（必出、零成本、不阻断）。
+- **测试**：Go +7（契约齐备与分级/空正文 S1/正常文本零误报/电报体/超长段落/标点与省略号/句号化/证据随行）。
+- **门禁**：本刀自身证据（go build/vet exit 0 + novelgate 7 例 + 生成门定向用例绿）；全量 ci.ps1 未取全绿——并行线在制品 internal/app/novel_review_handler_test.go:117 当前为红（与本刀无关）；drift OK@648；**未抬版本**（下次发版随 exe 出）。
+- **未做（下刀）**：T4 导入结构映射与篇幅路由；写前契约硬闸（需先有「一键补大纲」）；书级白名单与 T2 `gates.json` 的内核消费。
+
 ## 最新发布：v4.281.0（2026-09-13）「拆书导入 P1 接线：AI 反推大纲（预览载荷 + 幂等落库 + 创作间入口）」
 
 - **来源**：续 v4.280.0（反推引擎），把 t2 P1 接成用户可用的一条链（规格 §8.2/§8.3 首刀）。

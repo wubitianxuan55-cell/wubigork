@@ -6,6 +6,7 @@ import (
 	"log/slog"
 
 	"github.com/gaea/gaea/internal/novelstyle"
+	"github.com/gaea/gaea/internal/novelgate"
 	"github.com/gaea/gaea/internal/project"
 	"github.com/gaea/gaea/internal/types"
 	"github.com/gaea/gaea/internal/util"
@@ -43,11 +44,15 @@ func (a *writingState) RunChapterGate(chapterNum int) (map[string]interface{}, e
 	title, prevHint := gateReviewContext(pm, chapterNum)
 
 	result := map[string]interface{}{
-		"chapterNum":  chapterNum,
-		"analysis":    nil,
-		"review":      nil,
-		"consistency": nil,
-		"aiTaste":     nil,
+		"chapterNum": chapterNum,
+		// 确定性两路（v4.282 蒸馏 T3）：零 LLM、必出，作为「AI 四路」的基线对照。
+		// outlineContract=写前契约（本章计划齐备性）；deterministic=写后质量（段落/句长/标点）。
+		"outlineContract": gateOutlineIssues(pm, chapterNum),
+		"deterministic":   novelgate.ChapterQualityIssues(content),
+		"analysis":        nil,
+		"review":          nil,
+		"consistency":     nil,
+		"aiTaste":         nil,
 	}
 
 	// ── 1. 情节分析（analysisAgent 缺省时降级）──
@@ -164,4 +169,24 @@ func gateOutlineNodeTitle(n types.OutlineNode, target string) string {
 		}
 	}
 	return ""
+}
+
+// gateOutlineIssues 取本章对应大纲节点的写前契约发现（零 LLM）。
+// 匹配口径：优先 ChapterFile 前导章号，其次 OrderIndex；找不到返回空表（不阻断）。
+func gateOutlineIssues(pm *project.Manager, chapterNum int) []novelgate.Issue {
+	outline, err := pm.ReadOutlines()
+	if err != nil || outline == nil {
+		return []novelgate.Issue{}
+	}
+	for _, n := range outline.Nodes {
+		if n.ChapterFile != "" && types.ChapterNumOf(n.ChapterFile) == chapterNum {
+			return novelgate.OutlineContractIssues(n)
+		}
+	}
+	for _, n := range outline.Nodes {
+		if n.OrderIndex == chapterNum {
+			return novelgate.OutlineContractIssues(n)
+		}
+	}
+	return []novelgate.Issue{}
 }
