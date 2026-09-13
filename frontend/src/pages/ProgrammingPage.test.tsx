@@ -29,7 +29,9 @@ import ProgrammingPage from './ProgrammingPage'
 // 负载 flake 治理（2026-08-30，v3.9.0/v4.2.0 挂账「全量负载偶发 flake，单独跑
 // 通过」）：全量套件高负载下 jsdom 调度会被饿死，RTL 默认 1s 超时不够——
 // 与 TrajectoryView.test 同款先例显式放宽到 5s（仍有上界，不会掩盖真回归）。
-const LOAD = { timeout: 5000 }
+// v4.293 治理：5s 在全量 vitest 满负载下过紧（waitFor 假红两次），
+// 满载时单断言链路（点击→handler→mock→渲染）实测可逼近 10s+。
+const LOAD = { timeout: 15000 }
 
 const idleStatus = {
   running: false, owned: false, pid: 0,

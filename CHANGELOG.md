@@ -1,3 +1,6 @@
+## （非版本刀）测试负载 flaky 治理：ProgrammingPage / ContextView 假红消除（2026-09-14）
+> 本会话 ci 三次因满负载假红复跑（ProgrammingPage「重新检查」×2、ContextView 两例超时、builtin 一次性），隔离恒绿——典型负载敏感而非真回归。**①ProgrammingPage.test**：`LOAD` 等待预算 5s→15s（满载时点击→handler→mock→渲染链路实测可逼近 10s+，断言本身确定性不变）；②**ContextView.test**：文件级 `testTimeout` 20s→40s（import 图最重〔recharts 族〕，满负载下 20s 两例超时假红，只影响本文件）。**验证**=两文件隔离 40/40 绿 + 全量 ci exit 0（vitest 段含满负载场景）。**builtin TestWriteToolsWithoutLedgerNoop**（一次性、无时序依赖）不盲改，继续观察。**Windows 原子重命名「Access is denied」类**（本轮 Schedule index.json 与 config 各一例，隔离绿）维持既有「隔离复跑」处置，根修（rename 重试）需动原子写公共路径，另案评估。
+
 ## v4.292.0 · tail×反推串联：末 N 章导入完成后一键反推续写大纲（2026-09-14）
 > 拆书线按反馈项「tail×AI 反推串联」——tail 的产品意图（用末尾几章反推「接下来该怎么写」）此前只完成一半：末 N 章能导入，反推还得自己进创作间点。**落地**=①HomePage：tail 提取范围导入成功后弹「立即反推这部分大纲？」确认——确认后派发 `novel:goto-tab`（跳创作间）+ `novel:auto-reconstruct`（触发反推）两事件；稍后再说一切照旧。②CreatePage：监听 `novel:auto-reconstruct`，触发既有任务化反推流（Start 入队→轮询→确认→应用，v4.291）；tab 组件常驻渲染，监听器在事件派发时必然在位。**测试**=HomePage +1（tail 选末 10 章导入→确认弹窗→两事件派发）+CreatePage +1（事件触发任务化反推链到 Apply 收骨架条目）。**门禁**=ci.ps1 全绿、drift OK@660（零绑定面）、版本三处 4.292.0；**产物**=exe 50,041,344B SHA256=7AE305A5C672BB6852F680CDD7CDEE69909470887428E5E892122AD639A244D2（releases/gaea-v4.292.0.exe + SHA256SUMS-v4.292.0.txt；桌面副本同哈希；冒烟 /api/health 200 过）。**未做**=反推任务取消绑定/反向角色补建/骨架 AI 丰富化按反馈；观察池=负载 flaky 三处+SERP 首搜抖动。
 
