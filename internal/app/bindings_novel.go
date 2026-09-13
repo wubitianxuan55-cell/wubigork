@@ -60,6 +60,10 @@ func (b *NovelB) LintForeshadows() (ForeshadowLintReport, error) { return b.a.Li
 func (b *NovelB) ListSnapshots(sceneID string, chapterNum int) ([]map[string]interface{}, error) { return b.a.ListSnapshots(sceneID, chapterNum) }
 func (b *NovelB) MergeCharacters(keepID string, mergeID string) (map[string]interface{}, error) { return b.a.MergeCharacters(keepID, mergeID) }
 func (b *NovelB) MigrateProjectToV4() error { return b.a.MigrateProjectToV4() }
+func (b *NovelB) NovelBookSourceImport(source string, detailURL string, start int, end int, title string, genre string, style string) (NovelBookSourceImportStart, error) { return b.a.NovelBookSourceImport(source, detailURL, start, end, title, genre, style) }
+func (b *NovelB) NovelBookSourceImportCancel(jobID string) bool { return b.a.NovelBookSourceImportCancel(jobID) }
+func (b *NovelB) NovelBookSourceSearch(keyword string) (NovelBookSourceSearchResult, error) { return b.a.NovelBookSourceSearch(keyword) }
+func (b *NovelB) NovelBookSourceToc(source string, detailURL string) (NovelBookSourceTocPreview, error) { return b.a.NovelBookSourceToc(source, detailURL) }
 func (b *NovelB) NovelChapterReview(chapterNum int, platform string) (ChapterReviewPayload, error) { return b.a.NovelChapterReview(chapterNum, platform) }
 func (b *NovelB) NovelFingerprintBuild() (FingerprintStatusPayload, error) { return b.a.NovelFingerprintBuild() }
 func (b *NovelB) NovelFingerprintScore(chapterNum int) (FingerprintScorePayload, error) { return b.a.NovelFingerprintScore(chapterNum) }

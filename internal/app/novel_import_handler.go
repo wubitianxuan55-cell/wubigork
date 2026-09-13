@@ -57,14 +57,21 @@ func (a *writingState) ImportNovelBook(filePath, title, genre, style string) (No
 	if strings.TrimSpace(title) == "" {
 		title = strings.TrimSuffix(filepath.Base(filePath), filepath.Ext(filePath))
 	}
+	return createImportedProject(a.cfg.NovelsDir, title, genre, style, chapters, report)
+}
+
+// createImportedProject 把「已解析章节」落成书架项目（outline + chapters/）。
+// 文件导入（ImportNovelBook）与书源在线导入（NovelBookSourceImport）共用的
+// 收口（规格 docs/gaea-novel-booksource-import-2026-09.md §3.1）；解析报告
+// 随参透传（文件导入=解析报告；在线导入=booksource 口径）。
+func createImportedProject(novelsDir, title, genre, style string, chapters []importChapter, report bookimport.Report) (NovelImportResult, error) {
 	if strings.TrimSpace(genre) == "" {
 		genre = "未分类"
 	}
 	if strings.TrimSpace(style) == "" {
 		style = "默认"
 	}
-
-	dir, err := uniqueProjectDir(a.cfg.NovelsDir, title)
+	dir, err := uniqueProjectDir(novelsDir, title)
 	if err != nil {
 		return NovelImportResult{}, err
 	}

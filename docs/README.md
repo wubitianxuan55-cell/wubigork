@@ -73,6 +73,7 @@
 | gaea-sin-booksource-distill-2026-09.md | 🔄 原罪·书源引擎蒸馏规格（so-novel 机制重推导；AGPL 红线=不搬代码与规则 JSON）；并行线在制品，代码落点 `internal/booksource/` |
 | gaea-sin-booksearch-distill-2026-09.md | 🔄 原罪·书源检索蒸馏规格（并行线在制品） |
 | gaea-novel-ohstory-distill-2026-09.md | 🔄 小说板块·oh-story-claudecode 蒸馏规格（MIT：机制重推导 + 知识资产带许可收录）；技能×gaea 映射 + 六刀刀路，首刀=T1 评审 rubric 数据化 |
+| gaea-novel-booksource-import-2026-09.md | 🔄 小说板块·书源取书→拆书导入接通刀路（用户拍板 2026-09-13：两板块不合并改接通）；书源引擎（零消费者）作导入取书上游，NovelB +4 绑定 + 书架「在线搜书」；sin 书源线 t2~t5 归并行线不碰 |
 
 ## 上手与工装
 

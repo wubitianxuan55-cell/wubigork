@@ -122,6 +122,14 @@ export interface NovelBindings {
   // APPROVE/CONCERNS/REJECT 结论；平台档位空/未知回落 general）。
   NovelReviewPlatforms(): Promise<ReviewPlatform[]>;
   NovelChapterReview(chapterNum: number, platform: string): Promise<ChapterReviewPayload>;
+  // 书源取书族（书源→拆书导入 t1，规格 docs/gaea-novel-booksource-import-2026-09.md）：
+  // Search 聚合书源命中 + 泛搜索候选（HasRule=可导入；免规则候选正文不可解析）；
+  // Toc 目录预览（范围选择依据）；Import 后台下载整本 → 落库书架（进度/终态走
+  // novel-import-progress:<jobId> 事件）；Cancel 精确取消（未知 job 返回 false）。
+  NovelBookSourceSearch(keyword: string): Promise<NovelBookSourceSearchResult>;
+  NovelBookSourceToc(source: string, detailURL: string): Promise<NovelBookSourceTocPreview>;
+  NovelBookSourceImport(source: string, detailURL: string, start: number, end: number, title: string, genre: string, style: string): Promise<NovelBookSourceImportStart>;
+  NovelBookSourceImportCancel(jobId: string): Promise<boolean>;
   // 实体关系图谱（角色/组织/关系图数据）。
   GetEntityRelations(): Promise<Record<string, unknown>>;
   // 场景族：场景列表/生成/新建（Go 均返回 map；CancelCreateChapter 实测
@@ -205,4 +213,41 @@ export interface ChapterReviewPayload {
   counts: Record<string, number>;
   dimensions: ChapterReviewDimension[];
   advisories?: string[];
+}
+
+// ── 书源取书载荷（NovelBookSource*；书源→拆书导入 t1）──
+/** 搜书候选：kind=rule 书源规则命中（可导入）；kind=web 泛搜索参考候选（HasRule 才可导入）。 */
+export interface NovelBookSourceCandidate {
+  kind: 'rule' | 'web' | string;
+  source: string;
+  title: string;
+  author?: string;
+  url: string;
+  host?: string;
+  hasRule: boolean;
+  latestChapter?: string;
+}
+
+export interface NovelBookSourceSearchResult {
+  candidates: NovelBookSourceCandidate[];
+  warnings?: string[];
+}
+
+/** 目录预览：total 全量章数；sample 首 8 + 末 4（truncated=true 时），供范围选择。 */
+export interface NovelBookSourceTocPreview {
+  total: number;
+  sample: Array<{ title: string; url: string; order: number }>;
+  truncated: boolean;
+}
+
+/** 在线导入起跑回执：进度/终态订阅 novel-import-progress:<jobId>（progress/done/error）。 */
+export interface NovelBookSourceImportStart {
+  jobId: string;
+}
+
+/** 下载失败章（引擎重试穷尽后如实上报，不占位）。 */
+export interface NovelBookSourceFailedChapter {
+  title: string;
+  url: string;
+  error: string;
 }
