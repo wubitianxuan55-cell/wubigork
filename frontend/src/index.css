@@ -53,11 +53,13 @@ body {
 
 /* ═══ 全局键盘焦点环 ═══ */
 /* :focus-visible 仅键盘导航时出现（鼠标点击不出环）。antd 自带焦点态的控件豁免，避免双环。 */
+/* !important 必要：Tailwind 产物里存在同特异性的 :focus-visible{outline:none}（v4.3 preflight
+ * 链路注入，源码不可见），普通规则会被其层叠吃掉——v4.273 真机实测 toolbar-btn 等自定义
+ * 按钮聚焦时 computed outlineStyle=none，焦点环全站性失效。 */
 :focus-visible {
-  outline: 2px solid var(--gaea-glow, var(--md-sys-color-primary));
-  outline-offset: 2px;
+  outline: 2px solid var(--gaea-glow, var(--md-sys-color-primary)) !important;
+  outline-offset: 2px !important;
 }
-.ant-btn:focus-visible,
 .ant-input:focus-visible,
 .ant-input-affix-wrapper:focus-visible,
 .ant-input-number:focus-visible,
@@ -68,8 +70,10 @@ body {
 .ant-pagination-item:focus-visible,
 .ant-tabs-tab:focus-visible,
 .ant-picker:focus-visible {
-  outline: none;
+  outline: none !important;
 }
+/* ant-btn 不豁免（v4.273）：Button 无自管焦点视觉（text/default 型聚焦零变化），
+ * 豁免=键盘用户找不到焦点，吃全局 glow 环。 */
 /* 文本选区：全站唯一定义在文件尾部「文本选区主题化」（glow 底 + on-primary 字）。 */
 
 /* ═══ M3 Surface 工具类 ═══ */
