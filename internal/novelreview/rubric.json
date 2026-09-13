@@ -1,0 +1,185 @@
+{
+  "meta": {
+    "source": "重推导自 oh-story-claudecode（MIT）references/quality-rubric.md 与 references/rubrics/{fanqie,qidian,zhihu}.md；阈值口径按 gaea 小说板块语料重标",
+    "spec": "docs/gaea-novel-ohstory-distill-2026-09.md",
+    "version": "2026-09-13"
+  },
+  "advisories": [
+    "读者为什么翻下一页？答不出至少记 S2。",
+    "本章改变了什么？情节、关系、信息、情绪至少改变一项。",
+    "哪个原文证据支持你的判断？没有证据的结论不采纳。"
+  ],
+  "markers": {
+    "conflict": [
+      "争", "吵", "吼", "骂", "斥", "拒", "反驳", "质问", "逼", "威胁", "警告", "命令",
+      "夺", "抢", "摔", "拦", "挡", "冲突", "动手", "翻脸", "撕破", "冷笑", "咬牙",
+      "不许", "闭嘴", "滚", "别过来", "最后通牒", "动手了", "挑衅", "对骂"
+    ],
+    "emotion": [
+      "怒", "气", "恼", "慌", "怕", "恐惧", "惊", "愣", "怔", "颤", "抖", "哭", "泪",
+      "笑", "喜", "悲", "痛", "酸", "暖", "羞", "愧", "恨", "急", "焦", "烦躁",
+      "心跳", "脸色", "咬牙", "攥", "握紧", "深吸", "苦", "叹", "嗤", "沉默"
+    ],
+    "suspense": [
+      "悬念", "不知", "未知", "疑问", "谜", "到底", "究竟", "为什么", "为何", "反常",
+      "不对劲", "异常", "奇怪", "莫名", "隐隐", "预感", "察觉", "谁在", "这是什么",
+      "隐藏", "秘密", "线索", "真相", "蹊跷", "古怪"
+    ],
+    "power": [
+      "突破", "晋级", "升级", "觉醒", "打脸", "反杀", "逆袭", "奖励", "到手", "暴涨",
+      "飙升", "变强", "实力大增", "秒杀", "碾压", "翻盘", "秘籍", "丹药", "功法",
+      "新高", "翻倍", "净赚", "入账", "签单", "成交"
+    ],
+    "lever_mention": [
+      "系统", "面板", "提示音", "金手指", "签到", "商城", "积分", "任务", "属性",
+      "经验", "戒指", "老爷爷", "空间", "灵田", "外挂"
+    ],
+    "trailerEnding": [
+      "才刚刚开始", "这才刚刚开始", "没有人知道", "没人知道", "殊不知", "多年以后",
+      "正朝着", "压了过来", "等着他的是", "等着她的是", "更大的风暴", "风暴即将",
+      "暗流涌动", "真正的考验", "一切都将改变"
+    ],
+    "trailerSummary": [
+      "这一夜注定", "这一切都结束", "一切才刚刚开始", "新的人生", "命运的齿轮",
+      "注定不平凡", "新的篇章", "从这一刻开始", "属于他的时代", "属于她的时代"
+    ]
+  },
+  "platforms": [
+    {
+      "id": "general",
+      "label": "通用",
+      "form": "chapter",
+      "chapterWordsMin": 1500,
+      "chapterWordsMax": 6000,
+      "longParagraphChars": 200,
+      "openingHookParagraphs": 3,
+      "dialogRatioMin": 0.06,
+      "dialogRatioMax": 0.8,
+      "emotionPerKilo": 0.8,
+      "emotionGapWarn": 1600,
+      "emotionGapFail": 2600,
+      "ellipsisPerKiloWarn": 3.0,
+      "paraUniformRatioWarn": 0.75,
+      "severity": {
+        "length_band": "S3",
+        "opening_freshness": "S2",
+        "hook_expectation": "S2",
+        "trailer_ending": "S1",
+        "emotion_curve": "S2",
+        "plot_loop": "S2",
+        "format_readability": "S3",
+        "dialogue_ratio": "S3",
+        "punctuation_rhythm": "S3",
+        "dash_usage": "S2",
+        "format_hygiene": "S4",
+        "perspective_consistency": "S2",
+        "protagonist_presence": "S2",
+        "lever_mention": "S3",
+        "stated_length_accuracy": "S4"
+      }
+    },
+    {
+      "id": "fanqie",
+      "label": "番茄小说",
+      "form": "chapter",
+      "chapterWordsMin": 1500,
+      "chapterWordsMax": 3000,
+      "longParagraphChars": 150,
+      "openingHookParagraphs": 3,
+      "dialogRatioMin": 0.15,
+      "dialogRatioMax": 0.85,
+      "emotionPerKilo": 1.0,
+      "emotionGapWarn": 1200,
+      "emotionGapFail": 2000,
+      "ellipsisPerKiloWarn": 2.0,
+      "paraUniformRatioWarn": 0.7,
+      "severity": {
+        "length_band": "S2",
+        "opening_freshness": "S2",
+        "hook_expectation": "S2",
+        "trailer_ending": "S1",
+        "emotion_curve": "S2",
+        "plot_loop": "S3",
+        "format_readability": "S2",
+        "dialogue_ratio": "S3",
+        "punctuation_rhythm": "S3",
+        "dash_usage": "S2",
+        "format_hygiene": "S4",
+        "perspective_consistency": "S2",
+        "protagonist_presence": "S2",
+        "lever_mention": "S3",
+        "stated_length_accuracy": "S4"
+      }
+    },
+    {
+      "id": "qidian",
+      "label": "起点中文网",
+      "form": "chapter",
+      "chapterWordsMin": 2000,
+      "chapterWordsMax": 4000,
+      "longParagraphChars": 220,
+      "openingHookParagraphs": 3,
+      "dialogRatioMin": 0.08,
+      "dialogRatioMax": 0.75,
+      "emotionPerKilo": 0.5,
+      "emotionGapWarn": 2000,
+      "emotionGapFail": 3000,
+      "ellipsisPerKiloWarn": 3.0,
+      "paraUniformRatioWarn": 0.75,
+      "powerPer3k": 1.0,
+      "leverRequired": true,
+      "severity": {
+        "length_band": "S3",
+        "opening_freshness": "S2",
+        "hook_expectation": "S2",
+        "trailer_ending": "S1",
+        "emotion_curve": "S3",
+        "plot_loop": "S2",
+        "format_readability": "S3",
+        "dialogue_ratio": "S3",
+        "punctuation_rhythm": "S3",
+        "dash_usage": "S2",
+        "format_hygiene": "S4",
+        "perspective_consistency": "S3",
+        "protagonist_presence": "S2",
+        "lever_mention": "S3",
+        "stated_length_accuracy": "S4"
+      }
+    },
+    {
+      "id": "zhihu",
+      "label": "知乎盐言故事",
+      "form": "story",
+      "wordsMin": 8000,
+      "wordsMax": 13000,
+      "longParagraphChars": 260,
+      "openingHookParagraphs": 1,
+      "dialogRatioMin": 0.05,
+      "dialogRatioMax": 0.7,
+      "emotionPerKilo": 1.2,
+      "emotionGapWarn": 1000,
+      "emotionGapFail": 1800,
+      "ellipsisPerKiloWarn": 2.0,
+      "paraUniformRatioWarn": 0.7,
+      "firstPerson": true,
+      "noBlankLines": true,
+      "severity": {
+        "length_band": "S3",
+        "opening_freshness": "S2",
+        "hook_expectation": "S2",
+        "trailer_ending": "S1",
+        "emotion_curve": "S2",
+        "plot_loop": "S3",
+        "format_readability": "S3",
+        "dialogue_ratio": "S3",
+        "punctuation_rhythm": "S3",
+        "dash_usage": "S2",
+        "format_hygiene": "S3",
+        "perspective_consistency": "S1",
+        "protagonist_presence": "S3",
+        "lever_mention": "S3",
+        "stated_length_accuracy": "S4"
+      }
+    }
+  ]
+}

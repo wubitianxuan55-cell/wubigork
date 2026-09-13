@@ -36,6 +36,20 @@
     { "id": "plot_loop", "name": "剧情循环", "pass": "目标→阻碍→行动→代价/反馈→新期待闭环清晰", "warn": "有循环但缺一环或反馈偏弱", "fail": "无目标、无阻碍或无反馈", "measurable": false },
     { "id": "climax_build", "name": "高潮构建", "pass": "蓄能→假胜→崩解→反转/兑现有层次", "warn": "有爆点但蓄能或兑现不足", "fail": "平铺直给、无代价、无兑现或情绪落空", "measurable": false },
     { "id": "relationship_progress", "name": "关系进展", "pass": "互动尺度匹配关系阶段，越界有铺垫", "warn": "局部推进略快但可补证据", "fail": "突然亲密/信任/敌对，关系跳变", "measurable": false },
-    { "id": "foreshadow_state", "name": "伏笔状态", "pass": "埋设、状态和回收路径可追踪", "warn": "偏密/偏疏但不影响理解", "fail": "与设定冲突、断线或造成主线理解混乱", "measurable": true, "crossCheck": "ForeshadowPanel 一致性体检（五类检查）" }
-  ]
+    { "id": "foreshadow_state", "name": "伏笔状态", "pass": "埋设、状态和回收路径可追踪", "warn": "偏密/偏疏但不影响理解", "fail": "与设定冲突、断线或造成主线理解混乱", "measurable": true, "crossCheck": "ForeshadowPanel 一致性体检（五类检查）" },
+    { "id": "length_band", "name": "字数区间", "pass": "章节字数落在平台常见区间内", "warn": "略偏离平台区间", "fail": "严重偏离（不足下限一半或超上限一倍）", "measurable": true, "metric": "非空白 rune 计数 vs 平台档位", "engine": true },
+    { "id": "dialogue_ratio", "name": "对话占比", "pass": "对话占比落在平台区间", "warn": "偏低或偏高", "fail": "远低于平台下限（旁白交代为主）", "measurable": true, "metric": "引号内字数 / 全章字数", "engine": true },
+    { "id": "trailer_ending", "name": "预告式收尾", "pass": "章尾无预告/总结腔", "warn": "—", "fail": "出现「才刚刚开始 / 没人知道 / 命运的齿轮」式收尾", "measurable": true, "metric": "预告与总结腔标记词表（章尾两段）", "engine": true },
+    { "id": "dash_usage", "name": "破折号", "pass": "正文无破折号", "warn": "—", "fail": "正文出现破折号（按功能改写，勿一律换句号）", "measurable": true, "metric": "——/—/-- 计数（数字区间豁免）", "engine": true },
+    { "id": "format_hygiene", "name": "格式合规", "pass": "无连续空行、无段首缩进", "warn": "存在连续空行或段首缩进（盐言档位禁用空行分段）", "fail": "—", "measurable": true, "metric": "连续空行与段首空白计数", "engine": true },
+    { "id": "perspective_consistency", "name": "人称视角", "pass": "以「我」为主（盐言档位要求第一人称）", "warn": "—", "fail": "第三人称主导或通篇无「我」", "measurable": true, "metric": "「我」vs「他/她」计数", "engine": true },
+    { "id": "protagonist_presence", "name": "主角存在感", "pass": "主角本章出场", "warn": "—", "fail": "本章未出现主角", "measurable": true, "metric": "角色库 RoleType=protagonist 名字命中次数", "engine": true },
+    { "id": "lever_mention", "name": "金手指提及", "pass": "本章提及金手指/系统", "warn": "本章未提及（起点口径需跨章看：连续 5 章才算问题）", "fail": "—", "measurable": true, "metric": "金手指词表命中次数", "engine": true }
+  ],
+  "deterministicEngine": {
+    "package": "internal/novelreview",
+    "thresholds": "internal/novelreview/rubric.json（可被 <工作区>/.gaea/skills/novel-review/rubric.json 整体覆盖，改门槛不改代码不发版）",
+    "implementedDimensions": ["length_band", "opening_freshness", "hook_expectation", "trailer_ending", "emotion_curve", "plot_loop", "format_readability", "dialogue_ratio", "punctuation_rhythm", "dash_usage", "format_hygiene", "perspective_consistency", "protagonist_presence", "lever_mention", "stated_length_accuracy"],
+    "note": "引擎只做可机械判定的维度（零 LLM）；语义维度（core_selling_point 等）仍由 LLM 评审批次负责。外部数据缺失时显式 skip 并说明原因，不静默给 PASS；每条 finding 附原文证据（rune 区间 + 段落号）。"
+  }
 }

@@ -490,12 +490,14 @@ export const bindingNames = [
 	"MainBrainChat",
 	"MergeCharacters",
 	"MigrateProjectToV4",
+	"NovelChapterReview",
 	"NovelFingerprintBuild",
 	"NovelFingerprintScore",
 	"NovelFingerprintStatus",
 	"NovelOutlineReconstruct",
 	"NovelOutlineReconstructApply",
 	"NovelReadingAsk",
+	"NovelReviewPlatforms",
 	"NovelSearch",
 	"OfficeCancelJob",
 	"OfficeExecute",
@@ -648,4 +650,5 @@ export const bindingNames = [
 	"WhisperWeixinQRStatus",
 	"WhisperWeixinQRStatusWithCode",
 	"WhisperWeixinStatus",
-] as const;
+] as const
+

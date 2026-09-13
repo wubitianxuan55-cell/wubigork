@@ -117,6 +117,11 @@ export interface NovelBindings {
   // 只返回预览载荷、零落库；Apply 把 items 按章号合并进大纲（幂等），返回命中节点数。
   NovelOutlineReconstruct(): Promise<OutlineReconstructPreview>;
   NovelOutlineReconstructApply(itemsJSON: string): Promise<number>;
+  // 平台质量评审族（v4.282，oh-story 蒸馏 T1）：Platforms 取可用档位清单（选择器数据源）；
+  // ChapterReview 对指定章跑确定性评审（零 LLM：逐维 PASS/WARN/FAIL/SKIP + 原文证据 +
+  // APPROVE/CONCERNS/REJECT 结论；平台档位空/未知回落 general）。
+  NovelReviewPlatforms(): Promise<ReviewPlatform[]>;
+  NovelChapterReview(chapterNum: number, platform: string): Promise<ChapterReviewPayload>;
   // 实体关系图谱（角色/组织/关系图数据）。
   GetEntityRelations(): Promise<Record<string, unknown>>;
   // 场景族：场景列表/生成/新建（Go 均返回 map；CancelCreateChapter 实测
@@ -162,4 +167,42 @@ export interface OutlineReconstructPreview {
   targetWords?: number;
   items: OutlineReconstructItem[];
   warnings?: string[];
+}
+
+// ── 平台质量评审载荷（NovelChapterReview / NovelReviewPlatforms；v4.282，oh-story 蒸馏 T1）──
+/** 档位清单条目（引擎数据资产 rubric.json 的四档：通用/番茄/起点/知乎盐言）。 */
+export interface ReviewPlatform {
+  id: string;
+  label: string;
+  /** chapter=按章评审；story=整篇口径（盐言故事）。 */
+  form: string;
+}
+
+/** 单条原文证据：段落号（1-based，0=未定位）+ Go 侧已截断摘录（免前端按 rune 切字）。 */
+export interface ChapterReviewEvidence {
+  paragraph: number;
+  excerpt: string;
+}
+
+/** 单维度评审结果：verdict 四态；severity 仅 warn/fail 有（S1 打回 / S2 顾虑 / S3 局部 / S4 建议主）。 */
+export interface ChapterReviewDimension {
+  id: string;
+  label: string;
+  verdict: 'pass' | 'warn' | 'fail' | 'skip' | string;
+  severity?: 'S1' | 'S2' | 'S3' | 'S4' | string;
+  detail: string;
+  advice?: string;
+  evidence?: ChapterReviewEvidence[];
+}
+
+/** 章节评审报告：verdict 为发布门槛结论；counts 为 S1~S4 命中计数。 */
+export interface ChapterReviewPayload {
+  chapterNum: number;
+  platform: string;
+  platformLabel: string;
+  words: number;
+  verdict: 'APPROVE' | 'CONCERNS' | 'REJECT' | string;
+  counts: Record<string, number>;
+  dimensions: ChapterReviewDimension[];
+  advisories?: string[];
 }

@@ -45,6 +45,23 @@ function gateFirstTip(route: Record<string, unknown> | null, key: string): strin
   return ''
 }
 
+/** 取确定性两路（outlineContract / deterministic）的发现列表（Go 侧 []novelgate.Issue）。 */
+function gateIssuesOf(report: GateReport | null, key: string): Array<{ code?: string; severity?: string; message?: string; evidence?: string }> {
+  if (!report) return []
+  const v = (report as Record<string, unknown>)[key]
+  if (!Array.isArray(v)) return []
+  return v.filter((x): x is Record<string, unknown> => typeof x === 'object' && x !== null)
+}
+
+/** 确定性发现摘要：按 severity 排序后的「[S1] 消息」列表（最多 n 条）。 */
+function gateIssueLines(issues: Array<{ severity?: string; message?: string }>, n: number): string[] {
+  const rank: Record<string, number> = { S1: 0, S2: 1, S3: 2, S4: 3 }
+  return [...issues]
+    .sort((a, b) => (rank[a.severity ?? 'S3'] ?? 9) - (rank[b.severity ?? 'S3'] ?? 9))
+    .slice(0, n)
+    .map((i) => `[${i.severity ?? 'S3'}] ${i.message ?? ''}`)
+}
+
 interface NovelInspectorProps {
   activeTab: NovelTab
   collapsed: boolean
@@ -121,6 +138,10 @@ const NovelInspector: React.FC<NovelInspectorProps> = ({
     const aiTaste = gateNum(gateRouteOf(gate, 'aiTaste'), 'score')
     const reviewTip = gateFirstTip(gateRouteOf(gate, 'review'), 'weaknesses')
     const analysisTip = gateFirstTip(gateRouteOf(gate, 'analysis'), 'improvement_tips')
+    // 确定性两路（v4.282，oh-story 蒸馏 T3）：写前契约（本章计划齐备性）+ 写后硬信号
+    // （段落堆叠/电报体/标点堆砌）。零 LLM、必出，作为「AI 四路」的基线对照。
+    const outlineIssues = gateIssuesOf(gate, 'outlineContract')
+    const deterministicIssues = gateIssuesOf(gate, 'deterministic')
     return (
     <section className="novel-inspector-section">
       <div className="novel-inspector-section-title"><ReadOutlined />当前章节</div>
@@ -156,6 +177,12 @@ const NovelInspector: React.FC<NovelInspectorProps> = ({
                 <span className="novel-inspector-hint">{gateErr}</span>
               ) : gate ? (
                 <div style={{ display: 'grid', gap: 2, fontSize: 11 }}>
+                  <span>
+                    写前契约：{outlineIssues.length > 0 ? <b>{outlineIssues.length} 项待补</b> : '齐备'}
+                  </span>
+                  <span>
+                    写后硬信号：{deterministicIssues.length > 0 ? <b>{deterministicIssues.length} 项</b> : '未命中'}
+                  </span>
                   <span>章节质量：<b>{review ?? '未启用'}</b>{review != null ? ' /10' : ''}</span>
                   <span>情节质量：<b>{analysis ?? '未启用'}</b>{analysis != null ? ' /100' : ''}</span>
                   <span>一致性：{consistency != null ? <b>{consistency}</b> : '未启用'}{consistency != null ? ' 处疑点' : ''}</span>
@@ -165,6 +192,9 @@ const NovelInspector: React.FC<NovelInspectorProps> = ({
                       {reviewTip || analysisTip}
                     </span>
                   ) : null}
+                  {[...gateIssueLines(outlineIssues, 2).map((l) => `计划 ${l}`), ...gateIssueLines(deterministicIssues, 2).map((l) => `正文 ${l}`)].map((line, i) => (
+                    <span key={`det-${i}`} className="novel-inspector-hint">{line}</span>
+                  ))}
                 </div>
               ) : (
                 <span className="novel-inspector-hint">合并分析/审查/一致性/AI 味四路，出一份单章报告。</span>

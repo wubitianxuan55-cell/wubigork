@@ -10,7 +10,7 @@
 // 文风指纹为演示口径特例：模块级状态存参考档（初始未构建），Build 后返回诚实
 // 假摘要、Score 返回固定示范分——结构必须与契约（bridge/novel.ts 载荷）一致。
 import type { AppBindings } from "../bridge";
-import type { FingerprintStatusPayload } from "../bridge/novel";
+import type { ChapterReviewPayload, FingerprintStatusPayload, ReviewPlatform } from "../bridge/novel";
 
 // 文风指纹演示态（模块级：同一会话内 Build 后保持已构建）。
 const mockFingerprintStatus: FingerprintStatusPayload = { exists: false };
@@ -38,6 +38,8 @@ type NovelMethods = Pick<
   | "SaveRelationship" | "DeleteRelationship"
   // 文风指纹批次（CreatePage「文风指纹」面板；Go NovelB 门面同名前缀）。
   | "NovelFingerprintStatus" | "NovelFingerprintBuild" | "NovelFingerprintScore"
+  // 平台评审批次（v4.282，oh-story 蒸馏 T1；CreatePage「平台评审」面板）。
+  | "NovelReviewPlatforms" | "NovelChapterReview"
 >;
 
 export function buildNovel(): NovelMethods {
@@ -251,6 +253,61 @@ export function buildNovel(): NovelMethods {
             suggestion: "删去总结性收尾，让细节自己说话",
             excerpt: "夜色沉沉，仿佛在诉说着什么。",
           },
+        ],
+      };
+    },
+    // ── 平台评审批次（v4.282；演示口径允许示范数据，结构与 bridge/novel.ts 契约一致）──
+    async NovelReviewPlatforms(): Promise<ReviewPlatform[]> {
+      return [
+        { id: "general", label: "通用", form: "chapter" },
+        { id: "fanqie", label: "番茄小说", form: "chapter" },
+        { id: "qidian", label: "起点中文网", form: "chapter" },
+        { id: "zhihu", label: "知乎盐言故事", form: "story" },
+      ];
+    },
+    async NovelChapterReview(chapterNum: number, platform: string): Promise<ChapterReviewPayload> {
+      // 示范报告：一条 S1（预告式收尾）+ 一条 S2（开篇钩子）+ 一条 S3 + 一条 pass + 一条 skip，
+      // 覆盖面板的全部渲染分支（结论 CONCERNS/REJECT、证据摘录、skip 说明）。
+      const label = platform === "fanqie" ? "番茄小说" : platform === "qidian" ? "起点中文网" : platform === "zhihu" ? "知乎盐言故事" : "通用";
+      return {
+        chapterNum,
+        platform,
+        platformLabel: label,
+        words: 2380,
+        verdict: "REJECT",
+        counts: { S1: 1, S2: 1, S3: 1, S4: 0 },
+        dimensions: [
+          {
+            id: "opening_freshness", label: "开篇钩子", verdict: "warn", severity: "S2",
+            detail: "前 3 段只有悬念铺垫，没有冲突或台词落地",
+            advice: "开篇把悬念变成当场发生的事：一句对话、一次阻拦、一个具体麻烦。",
+            evidence: [{ paragraph: 1, excerpt: "夜色很深。风从窗缝里钻进来。" }],
+          },
+          {
+            id: "trailer_ending", label: "预告式收尾", verdict: "fail", severity: "S1",
+            detail: "章尾出现预告/总结腔：才刚刚开始",
+            advice: "删掉「才刚刚开始 / 没人知道 / 命运的齿轮」式收束，把悬念落到具体动作或物件上。",
+            evidence: [{ paragraph: 42, excerpt: "属于他的反击，才刚刚开始。" }],
+          },
+          {
+            id: "format_readability", label: "段落节奏", verdict: "warn", severity: "S3",
+            detail: "段落节奏：3 段超过 150 字（平均 78.2 字，最长 246 字）",
+            advice: "长短交错：冲突处短段推进，沉淀处可长段，别通篇同长。",
+            evidence: [{ paragraph: 17, excerpt: "他把三张单据摊在桌上，一张一张码齐……" }],
+          },
+          {
+            id: "punctuation_rhythm", label: "标点节奏", verdict: "pass",
+            detail: "标点节奏正常（省略号 1.2 次/千字、问号 6、感叹号 2）",
+          },
+          {
+            id: "protagonist_presence", label: "主角存在感", verdict: "skip",
+            detail: "角色库未标注主角，跳过（在角色库把主要角色标为「主角」后本维度生效）",
+          },
+        ],
+        advisories: [
+          "读者为什么翻下一页？答不出至少记 S2。",
+          "本章改变了什么？情节、关系、信息、情绪至少改变一项。",
+          "哪个原文证据支持你的判断？没有证据的结论不采纳。",
         ],
       };
     },

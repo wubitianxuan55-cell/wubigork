@@ -1,15 +1,16 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { Alert, Button, message, Modal } from 'antd'
 import { app } from '../gaea/lib/bridge'
-import { GetNovelState, BuildNovelStatePatch, SettleNovelState, DeSlopChapterAiTaste, RewriteChapterAiTaste, GetEntityRelations, CancelCreateChapter, NovelFingerprintStatus, NovelFingerprintBuild, NovelFingerprintScore, NovelOutlineReconstruct, NovelOutlineReconstructApply } from '../../wailsjs/go/app/NovelB'
+import { GetNovelState, BuildNovelStatePatch, SettleNovelState, DeSlopChapterAiTaste, RewriteChapterAiTaste, GetEntityRelations, CancelCreateChapter, NovelFingerprintStatus, NovelFingerprintBuild, NovelFingerprintScore, NovelOutlineReconstruct, NovelOutlineReconstructApply, NovelReviewPlatforms, NovelChapterReview } from '../../wailsjs/go/app/NovelB'
 import { useOutlineStore } from '../stores/outlineStore'
 import { useAppStore } from '../stores/appStore'
 import type { OutlineNode } from '../types'
 import { buildTree, flattenTree, buildPrevSummary } from '../components/novel/create/outlineTree'
 import { useChapterStream } from '../components/novel/create/useChapterStream'
 import type { AiTasteResult } from '../components/novel/create/chapterStreamTypes'
-import type { FingerprintScorePayload, FingerprintStatusPayload } from '../gaea/lib/bridge/novel'
+import type { ChapterReviewPayload, FingerprintScorePayload, FingerprintStatusPayload, ReviewPlatform } from '../gaea/lib/bridge/novel'
 import StyleFingerprintPanel from '../components/novel/StyleFingerprintPanel'
+import ChapterReviewPanel from '../components/novel/ChapterReviewPanel'
 import ChapterTreePanel from '../components/novel/create/ChapterTreePanel'
 import EditorPanel from '../components/novel/create/EditorPanel'
 import CreateInspector from '../components/novel/create/CreateInspector'
@@ -144,6 +145,13 @@ const CreatePage: React.FC = () => {
   const [fpStatus, setFpStatus] = useState<FingerprintStatusPayload | null>(null)
   const [fpScore, setFpScore] = useState<FingerprintScorePayload | null>(null)
   const [fpBusy, setFpBusy] = useState(false)
+  // 平台评审（v4.282，oh-story 蒸馏 T1）：档位清单 + 单章报告 + 动作态。
+  const [reviewOpen, setReviewOpen] = useState(false)
+  const [reviewPlatforms, setReviewPlatforms] = useState<ReviewPlatform[]>([])
+  const [reviewPlatformId, setReviewPlatformId] = useState('general')
+  const [reviewReport, setReviewReport] = useState<ChapterReviewPayload | null>(null)
+  const [reviewBusy, setReviewBusy] = useState(false)
+  const [reviewMsg, setReviewMsg] = useState('')
   // AI 反推大纲（v4.281）：反推 → 确认 → 幂等合并进大纲
   const [reconstructBusy, setReconstructBusy] = useState(false)
   const [fpMsg, setFpMsg] = useState('')
@@ -497,6 +505,36 @@ const CreatePage: React.FC = () => {
   }, [activeChapterNum])
 
   // ── AI 反推大纲（v4.281，拆书导入 P1）：反推当前工程立项 + 分批章节大纲（只读预览），
+  // ── 平台评审（v4.282，oh-story 蒸馏 T1）：档位清单（一次拉取）+ 当前章确定性评审。
+  // 打开面板即拉档位（失败落 rail 消息，选择器回退为「通用」一档）；评审零模型调用。
+  const openReview = useCallback(async () => {
+    setReviewOpen(true)
+    setReviewMsg('')
+    if (reviewPlatforms.length === 0) {
+      try {
+        const list = await NovelReviewPlatforms()
+        setReviewPlatforms(Array.isArray(list) ? list : [])
+      } catch (err: unknown) {
+        setReviewMsg(err instanceof Error ? err.message : '加载平台档位失败')
+      }
+    }
+  }, [reviewPlatforms.length])
+  const runReview = useCallback(async () => {
+    setReviewBusy(true)
+    setReviewMsg('')
+    try {
+      const rep = await NovelChapterReview(activeChapterNum, reviewPlatformId)
+      setReviewReport(rep)
+      const hit = (rep?.counts?.S1 ?? 0) + (rep?.counts?.S2 ?? 0) + (rep?.counts?.S3 ?? 0) + (rep?.counts?.S4 ?? 0)
+      setReviewMsg(`第 ${activeChapterNum} 章评审完成：${rep?.platformLabel ?? ''} · ${rep?.verdict ?? ''} · 命中 ${hit} 项`)
+    } catch (err: unknown) {
+      setReviewMsg(err instanceof Error ? err.message : '评审失败')
+    } finally {
+      setReviewBusy(false)
+    }
+  }, [activeChapterNum, reviewPlatformId])
+
+  // ── AI 反推大纲（v4.281，拆书导入 P1）：反推当前工程立项 + 分批章节大纲（只读预览），
   // 确认后按章号合并进大纲（幂等、不覆盖章节正文）；模型不可用时后端自动规则兜底并如实回报。
   const reconstructOutlines = useCallback(async () => {
     setReconstructBusy(true)
@@ -552,6 +590,7 @@ const CreatePage: React.FC = () => {
         <Button size="small" loading={stateBusy} onClick={() => void llmDeslop()}>高级去味</Button>
         <Button size="small" loading={graphBusy} onClick={() => void openGraph()}>全文脑图</Button>
         <Button size="small" onClick={() => void openFingerprint()}>文风指纹</Button>
+        <Button size="small" onClick={() => void openReview()}>平台评审</Button>
         <Button size="small" loading={reconstructBusy} onClick={() => void reconstructOutlines()}>AI 反推大纲</Button>
         {stateMsg ? <span className="novel-create-rail-msg">{stateMsg}</span> : null}
       </div>
@@ -636,6 +675,18 @@ const CreatePage: React.FC = () => {
         score={fpScore}
         onBuild={() => void buildFingerprint()}
         onScore={() => void scoreFingerprint()}
+        hasChapter={activeChapterNum > 0}
+      />
+      <ChapterReviewPanel
+        open={reviewOpen}
+        onClose={() => setReviewOpen(false)}
+        busy={reviewBusy}
+        msg={reviewMsg}
+        platforms={reviewPlatforms}
+        platformId={reviewPlatformId}
+        onPlatformChange={(id) => { setReviewPlatformId(id); setReviewReport(null) }}
+        report={reviewReport}
+        onReview={() => void runReview()}
         hasChapter={activeChapterNum > 0}
       />
     </div>

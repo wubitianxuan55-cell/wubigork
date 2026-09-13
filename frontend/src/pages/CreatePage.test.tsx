@@ -25,6 +25,17 @@ const mocks = vi.hoisted(() => ({
   RewriteChapterAiTaste: vi.fn().mockResolvedValue({ done: false, reason: '无命中句' }),
   GetEntityRelations: vi.fn().mockResolvedValue({ nodes: [], edges: [] }),
   CancelCreateChapter: vi.fn().mockResolvedValue(true),
+  // 平台评审批次（v4.282）：档位清单 + 单章报告
+  NovelReviewPlatforms: vi.fn().mockResolvedValue([
+    { id: 'general', label: '通用', form: 'chapter' },
+    { id: 'fanqie', label: '番茄小说', form: 'chapter' },
+  ]),
+  NovelChapterReview: vi.fn().mockResolvedValue({
+    chapterNum: 1, platform: 'general', platformLabel: '通用', words: 2380,
+    verdict: 'CONCERNS', counts: { S1: 0, S2: 1, S3: 0, S4: 0 },
+    dimensions: [{ id: 'opening_freshness', label: '开篇钩子', verdict: 'warn', severity: 'S2', detail: '前 3 段只有悬念铺垫' }],
+    advisories: ['读者为什么翻下一页？'],
+  }),
 }))
 vi.mock('../gaea/lib/bridge', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../gaea/lib/bridge')>()
@@ -57,6 +68,8 @@ vi.mock('../../wailsjs/go/app/NovelB', () => ({
   RewriteChapterAiTaste: mocks.RewriteChapterAiTaste,
   GetEntityRelations: mocks.GetEntityRelations,
   CancelCreateChapter: mocks.CancelCreateChapter,
+  NovelReviewPlatforms: mocks.NovelReviewPlatforms,
+  NovelChapterReview: mocks.NovelChapterReview,
 }))
 
 import CreatePage from './CreatePage'
@@ -176,5 +189,17 @@ describe('CreatePage 生成控制（T6-7.2 停止按钮 + cancelled 事件）', 
       )
     })
     await waitFor(() => expect(screen.queryByRole('dialog', { name: /剧情方向/ })).toBeNull())
+  })
+
+  it('平台评审：rail 入口打开面板并拉档位清单；无当前章时评审按钮禁用', async () => {
+    render(<CreatePage />)
+    fireEvent.click(await screen.findByRole('button', { name: '平台评审' }))
+    // 面板打开即拉档位（NovelReviewPlatforms 走 NovelB 门面具名导入）。
+    await waitFor(() => expect(mocks.NovelReviewPlatforms).toHaveBeenCalledTimes(1))
+    expect(await screen.findByText(/确定性评审，零模型调用/)).toBeTruthy()
+    // 空大纲（beforeEach 置 outlines: []）→ 无当前章，评审按钮禁用且不调用评审绑定。
+    const btn = screen.getByRole('button', { name: '评审当前章' }) as HTMLButtonElement
+    expect(btn.disabled).toBe(true)
+    expect(mocks.NovelChapterReview).not.toHaveBeenCalled()
   })
 })

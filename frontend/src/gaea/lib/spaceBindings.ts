@@ -554,6 +554,10 @@ export const GAEA_METHOD_FACETS = {
   // 拆书反推（v4.281）：立项 + 分批章节大纲反推与幂等落库——小说创作间数据面，归 play。
   NovelOutlineReconstruct: "play",
   NovelOutlineReconstructApply: "play",
+  // 平台质量评审（v4.282，oh-story 蒸馏 T1）：档位清单 + 章节确定性评审——小说创作间
+  // 数据面（CreatePage「平台评审」面板消费），同文风指纹/伏笔体检族归 play。
+  NovelReviewPlatforms: "play",
+  NovelChapterReview: "play",
   RewriteChapterAiTaste: "play",
   GetEntityRelations: "play",
   GetChapterScenes: "play",
