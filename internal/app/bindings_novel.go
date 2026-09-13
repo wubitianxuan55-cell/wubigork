@@ -74,6 +74,8 @@ func (b *NovelB) NovelFingerprintScore(chapterNum int) (FingerprintScorePayload,
 func (b *NovelB) NovelFingerprintStatus() (FingerprintStatusPayload, error) { return b.a.NovelFingerprintStatus() }
 func (b *NovelB) NovelOutlineReconstruct() (OutlineReconstructPreview, error) { return b.a.NovelOutlineReconstruct() }
 func (b *NovelB) NovelOutlineReconstructApply(itemsJSON string) (int, error) { return b.a.NovelOutlineReconstructApply(itemsJSON) }
+func (b *NovelB) NovelOutlineReconstructStart() (NovelOutlineReconstructTaskState, error) { return b.a.NovelOutlineReconstructStart() }
+func (b *NovelB) NovelOutlineReconstructTaskGet() (NovelOutlineReconstructTaskState, error) { return b.a.NovelOutlineReconstructTaskGet() }
 func (b *NovelB) NovelReadingAsk(kind string, title string, chapterText string, selection string, question string, historyJSON string) (string, error) { return b.a.NovelReadingAsk(kind, title, chapterText, selection, question, historyJSON) }
 func (b *NovelB) NovelReviewPlatforms() []ReviewPlatformView { return b.a.NovelReviewPlatforms() }
 func (b *NovelB) NovelSearch(query string) ([]NovelSearchHit, error) { return b.a.NovelSearch(query) }

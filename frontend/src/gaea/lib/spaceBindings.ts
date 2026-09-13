@@ -567,6 +567,8 @@ export const GAEA_METHOD_FACETS = {
   NovelBookSourceImportChapters: "play",
   NovelBookSourceEnginesGet: "play",
   NovelBookSourceEnginesSave: "play",
+  NovelOutlineReconstructStart: "play",
+  NovelOutlineReconstructTaskGet: "play",
   RewriteChapterAiTaste: "play",
   GetEntityRelations: "play",
   GetChapterScenes: "play",

@@ -29,6 +29,7 @@ const (
 	KindPriceFetch    Kind = "price_fetch"
 	KindPriceFetchAll Kind = "price_fetch_all"
 	KindFileIndex     Kind = "file_index"
+	KindOutlineReconstruct Kind = "outline_reconstruct"
 )
 
 // Status 任务生命周期状态。

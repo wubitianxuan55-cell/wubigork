@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { Alert, Button, message, Modal } from 'antd'
 import { app } from '../gaea/lib/bridge'
-import { GetNovelState, BuildNovelStatePatch, SettleNovelState, DeSlopChapterAiTaste, RewriteChapterAiTaste, GetEntityRelations, CancelCreateChapter, NovelFingerprintStatus, NovelFingerprintBuild, NovelFingerprintScore, NovelOutlineReconstruct, NovelOutlineReconstructApply, NovelReviewPlatforms, NovelChapterReview } from '../../wailsjs/go/app/NovelB'
+import { GetNovelState, BuildNovelStatePatch, SettleNovelState, DeSlopChapterAiTaste, RewriteChapterAiTaste, GetEntityRelations, CancelCreateChapter, NovelFingerprintStatus, NovelFingerprintBuild, NovelFingerprintScore, NovelOutlineReconstruct, NovelOutlineReconstructApply, NovelOutlineReconstructStart, NovelOutlineReconstructTaskGet, NovelReviewPlatforms, NovelChapterReview } from '../../wailsjs/go/app/NovelB'
 import { useOutlineStore } from '../stores/outlineStore'
 import { useAppStore } from '../stores/appStore'
 import type { OutlineNode } from '../types'
@@ -540,7 +540,28 @@ const CreatePage: React.FC = () => {
     setReconstructBusy(true)
     setStateMsg('AI 反推大纲中…')
     try {
-      const preview = await NovelOutlineReconstruct()
+      // v4.291 任务化：反推入任务队列（任务中心可见、页面关闭不丢），
+      // 轮询取结果；队列不可用回落同步绑定。
+      let preview: Awaited<ReturnType<typeof NovelOutlineReconstruct>> | null = null
+      try {
+        await NovelOutlineReconstructStart()
+        const deadline = Date.now() + 12 * 60_000
+        for (;;) {
+          if (Date.now() > deadline) throw new Error('反推任务超时（12 分钟）')
+          await new Promise((r) => setTimeout(r, 3000))
+          const st = await NovelOutlineReconstructTaskGet()
+          if (st.status === 'failed') throw new Error(st.error || '反推任务失败')
+          if (st.status === 'succeeded' && st.preview) {
+            preview = st.preview as Awaited<ReturnType<typeof NovelOutlineReconstruct>>
+            break
+          }
+        }
+      } catch (taskErr: unknown) {
+        const msg = taskErr instanceof Error ? taskErr.message : ''
+        const fallbackable = msg.includes('任务队列不可用') || msg.includes('尚无反推任务')
+        if (!fallbackable) throw taskErr
+        preview = await NovelOutlineReconstruct()
+      }
       const items = preview?.items ?? []
       if (items.length === 0) {
         setStateMsg('反推结果为空，未做修改')

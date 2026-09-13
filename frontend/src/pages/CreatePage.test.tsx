@@ -25,6 +25,10 @@ const mocks = vi.hoisted(() => ({
   RewriteChapterAiTaste: vi.fn().mockResolvedValue({ done: false, reason: '无命中句' }),
   GetEntityRelations: vi.fn().mockResolvedValue({ nodes: [], edges: [] }),
   CancelCreateChapter: vi.fn().mockResolvedValue(true),
+  // 反推任务化（v4.291）：Start 提交 / TaskGet 轮询 / Apply 落库
+  NovelOutlineReconstructStart: vi.fn().mockResolvedValue({ taskId: 'tk-1', status: 'queued' }),
+  NovelOutlineReconstructTaskGet: vi.fn().mockResolvedValue({ taskId: 'tk-1', status: 'queued' }),
+  NovelOutlineReconstructApply: vi.fn().mockResolvedValue(6),
   // 平台评审批次（v4.282）：档位清单 + 单章报告
   NovelReviewPlatforms: vi.fn().mockResolvedValue([
     { id: 'general', label: '通用', form: 'chapter' },
@@ -70,6 +74,9 @@ vi.mock('../../wailsjs/go/app/NovelB', () => ({
   CancelCreateChapter: mocks.CancelCreateChapter,
   NovelReviewPlatforms: mocks.NovelReviewPlatforms,
   NovelChapterReview: mocks.NovelChapterReview,
+  NovelOutlineReconstructStart: mocks.NovelOutlineReconstructStart,
+  NovelOutlineReconstructTaskGet: mocks.NovelOutlineReconstructTaskGet,
+  NovelOutlineReconstructApply: mocks.NovelOutlineReconstructApply,
 }))
 
 import CreatePage from './CreatePage'
@@ -201,5 +208,60 @@ describe('CreatePage 生成控制（T6-7.2 停止按钮 + cancelled 事件）', 
     const btn = screen.getByRole('button', { name: '评审当前章' }) as HTMLButtonElement
     expect(btn.disabled).toBe(true)
     expect(mocks.NovelChapterReview).not.toHaveBeenCalled()
+  })
+})
+
+// 反推任务化（v4.291）：Start 入队 → 轮询 TaskGet 到 succeeded → 确认弹窗按
+// 篇幅路由分叉文案 → Apply 落库卷级节点。
+describe('CreatePage 反推任务化', () => {
+  beforeEach(() => {
+    useOutlineStore.setState({ outlines: [] })
+    useAppStore.setState({ projectOpen: true, projectPath: 'C:/novel/test' })
+    vi.mocked(mocks.NovelOutlineReconstructStart).mockResolvedValue({ taskId: 'tk-9', status: 'queued' })
+    vi.mocked(mocks.NovelOutlineReconstructApply).mockResolvedValue(6)
+  })
+
+  it('中篇预览轮询到 succeeded 后弹确认，文案含卷级节点，应用调 Apply', async () => {
+    vi.mocked(mocks.NovelOutlineReconstructTaskGet).mockResolvedValue({
+      taskId: 'tk-9',
+      status: 'succeeded',
+      preview: {
+        aiUsed: false,
+        projectTitle: '中篇',
+        tier: 'mid',
+        segmentSize: 10,
+        items: [
+          { chapterNumber: 1, chapterFrom: 1, chapterTo: 10, title: '第1-10章', summary: '开局段。' },
+          { chapterNumber: 11, chapterFrom: 11, chapterTo: 20, title: '第11-20章', summary: '推进段。' },
+        ],
+      },
+    } as never)
+    render(<CreatePage />)
+
+    const btn = await screen.findByRole('button', { name: 'AI 反推大纲' })
+    fireEvent.click(btn)
+
+    expect(await screen.findByText(/篇幅路由（中篇）/)).toBeTruthy()
+    expect(screen.getByText(/2 个卷级节点/)).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: '应用到大纲' }))
+    await waitFor(() => expect(mocks.NovelOutlineReconstructApply).toHaveBeenCalledTimes(1))
+    const sent = JSON.parse(mocks.NovelOutlineReconstructApply.mock.calls[0][0])
+    expect(sent[0].chapterFrom).toBe(1)
+    expect(sent[1].chapterTo).toBe(20)
+  })
+
+  it('任务失败：错误透出且不弹确认', async () => {
+    vi.mocked(mocks.NovelOutlineReconstructTaskGet).mockResolvedValue({
+      taskId: 'tk-9',
+      status: 'failed',
+      error: '这本书还没有已写章节，无法反推大纲',
+    } as never)
+    render(<CreatePage />)
+
+    const btn = await screen.findByRole('button', { name: 'AI 反推大纲' })
+    fireEvent.click(btn)
+    expect(await screen.findByText(/这本书还没有已写章节/)).toBeTruthy()
+    expect(screen.queryByRole('button', { name: '应用到大纲' })).toBeNull()
   })
 })

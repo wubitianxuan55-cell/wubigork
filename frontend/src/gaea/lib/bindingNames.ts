@@ -504,6 +504,8 @@ export const bindingNames = [
 	"NovelFingerprintStatus",
 	"NovelOutlineReconstruct",
 	"NovelOutlineReconstructApply",
+	"NovelOutlineReconstructStart",
+	"NovelOutlineReconstructTaskGet",
 	"NovelReadingAsk",
 	"NovelReviewPlatforms",
 	"NovelSearch",

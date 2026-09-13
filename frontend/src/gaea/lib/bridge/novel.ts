@@ -117,6 +117,8 @@ export interface NovelBindings {
   // 只返回预览载荷、零落库；Apply 把 items 按章号合并进大纲（幂等），返回命中节点数。
   NovelOutlineReconstruct(): Promise<OutlineReconstructPreview>;
   NovelOutlineReconstructApply(itemsJSON: string): Promise<number>;
+  NovelOutlineReconstructStart(): Promise<NovelOutlineReconstructTaskState>;
+  NovelOutlineReconstructTaskGet(): Promise<NovelOutlineReconstructTaskState>;
   // 平台质量评审族（v4.282，oh-story 蒸馏 T1）：Platforms 取可用档位清单（选择器数据源）；
   // ChapterReview 对指定章跑确定性评审（零 LLM：逐维 PASS/WARN/FAIL/SKIP + 原文证据 +
   // APPROVE/CONCERNS/REJECT 结论；平台档位空/未知回落 general）。
@@ -155,6 +157,15 @@ export interface NovelBindings {
   SaveRelationship(relJSON: string): Promise<void>;
   DeleteRelationship(fromID: string, toID: string): Promise<void>;
 }
+/** 反推任务状态（v4.291 任务化：轮询返回，succeeded 时携带预览）。 */
+export interface NovelOutlineReconstructTaskState {
+  taskId: string;
+  status: string;
+  message?: string;
+  error?: string;
+  preview?: OutlineReconstructPreview;
+}
+
 // 拆书反推载荷（对齐 internal/app NovelOutlineReconstructPreview，camelCase 形状）：
 // aiUsed=false 表示模型不可用/解析失败，本次为规则兜底（warnings 说明原因）。
 export interface OutlineReconstructItem {

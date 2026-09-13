@@ -67,7 +67,16 @@ type OutlineReconstructPreview struct {
 
 // NovelOutlineReconstruct 对**当前打开的工程**跑大纲反推：立项信息（Stage1）+
 // 分批章节大纲（batchSize=5），返回预览载荷，**不写任何文件**。
+// v4.291 起另有任务化入口 NovelOutlineReconstructStart/TaskGet（长书后台态）。
 func (a *writingState) NovelOutlineReconstruct() (OutlineReconstructPreview, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), reconstructTimeout)
+	defer cancel()
+	return a.outlineReconstructCore(ctx)
+}
+
+// outlineReconstructCore 反推内核（同步绑定与任务 handler 共用；超时由调用方
+// 的 ctx 决定）。
+func (a *writingState) outlineReconstructCore(ctx context.Context) (OutlineReconstructPreview, error) {
 	pm := a.getPM()
 	if pm == nil {
 		return OutlineReconstructPreview{}, fmt.Errorf("请先打开项目")
@@ -80,8 +89,6 @@ func (a *writingState) NovelOutlineReconstruct() (OutlineReconstructPreview, err
 	if pm.Meta != nil {
 		title = pm.Meta.Title
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), reconstructTimeout)
-	defer cancel()
 
 	// ── 篇幅路由（oh-story T4）：按读到的总字数/章数选骨架粒度 ──
 	totalWords := 0

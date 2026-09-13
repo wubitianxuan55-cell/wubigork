@@ -49,6 +49,7 @@ func (a *App) startTaskScheduler() {
 		m.Register(tasks.KindPriceFetch, a.priceFetchTaskHandler)
 		m.Register(tasks.KindPriceFetchAll, a.priceFetchAllTaskHandler)
 		m.Register(tasks.KindFileIndex, a.fileIndexTaskHandler)
+		m.Register(tasks.KindOutlineReconstruct, a.outlineReconstructTaskHandler)
 		a.officeState.tasks = m
 		if n, err := m.Start(); err != nil {
 			slog.Warn("tasks: 调度器启动失败", "error", err)
