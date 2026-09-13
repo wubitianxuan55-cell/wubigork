@@ -159,6 +159,9 @@ export const GAEA_METHOD_FACETS = {
   CheckConsistencyDeep: "play",
   GetForeshadows: "play",
   SaveForeshadows: "play",
+  // 伏笔一致性体检（NovelB 门面）：ForeshadowPanel「一致性体检」——小说创作间
+  // 数据面，同伏笔读写族归 play。
+  LintForeshadows: "play",
   SaveCharactersBatch: "play",
   NovelReadingAsk: "play",
   GenerateSceneIllustration: "play",

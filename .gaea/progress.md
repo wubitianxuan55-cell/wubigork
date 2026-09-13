@@ -3,10 +3,16 @@
 > 本文件为**最近发布速览**。完整历史磁带见 `docs/archive/progress-history-2026-09.md`
 > 与 `releases/`。
 
-# 任务进度
+## 最新发布：v4.278.0（2026-09-13）「小说域 v2 共享契约落库 + 伏笔一致性体检（含 wire 口径纠偏）」
 
-> 本文件为**最近发布速览**。完整历史磁带见 `docs/archive/progress-history-2026-09.md`
-> 与 `releases/`。
+- **来源**：两条线汇合——①「优化完善gaea」并行池小说线续刀=伏笔一致性 Linter（文风指纹 v4.277.0 已落）；②MuMuAINovel 蒸馏实施线（规格 docs/distill/）由外部团队先落 t1 共享契约后停摆，用户确认后由 Codex 侧接管收口。
+- **①伏笔一致性体检**：新 `internal/app/novel_foreshadow_lint_handler.go`（纯函数 5 类确定性检查：ordering / status-mismatch〔partial 豁免〕/ dangling / stale≥10 章〔长线豁免〕/ duplicate）+ 报告 totalChapters/items/planted/hinted/revealed/longTerm/findings；前端 ForeshadowPanel「一致性体检」（概要行 + severity Tag 轻/中/重 + 说明 + 原文条目 + 章节引用，Go 侧 omitempty/null 全防御）；绑定 645→646。
+- **②t1 共享契约落库**（internal/types/）：伏笔并集 6 态 + 计划回收章 + 来源/评分/关联/注入控制 + urgency 显式 must_resolve（MuMu 静默丢弃字段的教训）+ 引用失效禁止回落内容匹配；角色三态章节水位守卫 + 方案 C 职业引用 + 派生 member_count + 亲密/delta_hint 钳制；9 维分析 + 三维分档评分 + 建议数硬联动；ChapterPlan / RewriteVersion+Index / Annotation；模板解析-覆盖-渲染-校验与上下文组装接口 + Lint 接口 + ChapterNumOf；Character/Organization/Relationship v2 可选字段（全 omitempty 零迁移）+ compat_test 兼容矩阵。
+- **③P0 wire 口径纠偏**：在制品曾把「已回收」**写入口径**定为 `resolved`（`revealed` 降读取别名）——与 handoff §2-3/§4-7 相反，会让统计回收率/lint 计数/章节注入/SaveForeshadows 白名单等 7 类消费方**静默读空**；纠回 `revealed` 写入口径 + 新增 `IsResolvedStatus` 覆盖两套 wire 值并接进 stats / 伏笔 lint（检查·标签·计数）/ create_chapter 注入闸 / analysis 聚合；SaveForeshadows 白名单 3 态→并集 6 态（别名先归一化）。
+- **④规格入库**：`docs/distill/`（01~07 六域 + 09-impl-handoff）入库并在 docs/README 登记；docs/mumu-distill/ 为重复副本未入库。
+- **测试**：Go 全量绿（types 兼容矩阵 + 两套 wire 值新用例 / app 伏笔 Lint 5 类 / stats / analysis）+ vitest 体检 3 例 + spaceBindings 锁 467→468。
+- **门禁**：ci.ps1 全绿（Go 全量 exit 0 / 前端 lint 0 error〔5 既有 warning〕/ vite build 成功 / vitest 345 文件 2994 例全绿 / E 系列守卫 OK / 仓库卫生守卫 OK）、drift OK@646、版本三处 4.278.0；产物=exe 49,379,328B SHA256=E6E17B1B…C9FE1（releases/gaea-v4.278.0.exe + SHA256SUMS-v4.278.0.txt；桌面副本同哈希；冒烟 /api/health 200 过）。
+- **欠账**：六域实施 t2~t7 未开工（规格在库、契约就位）；t1 契约除伏笔体检外暂无消费方；**走查未覆盖创作面壳内真机**（mock 无工程夹具）；观察项=ChapterNumOf 双实现 / stats·narrative 无 owner / docs/mumu-distill 重复副本待删 / **novel api 直取 `window.go.app.App`（`components/novel/api/outlines.ts` 等，mock 模式 console 报 Wails runtime unavailable；生产壳不受影响）**。
 
 ## 最新发布：v4.277.0（2026-09-13）「小说·文风指纹落地面：参考档构建 + 对照体检」
 

@@ -480,6 +480,7 @@ export const bindingNames = [
 	"ImportStyleProfile",
 	"InjectMemories",
 	"IsProjectV4",
+	"LintForeshadows",
 	"ListProjects",
 	"ListSkills",
 	"ListSnapshots",

@@ -77,6 +77,20 @@ type Character struct {
 	Status      string `json:"status"`        // Alive / Dead / Missing / Transformed
 	Notes       string `json:"notes,omitempty"`
 	PortraitURL string `json:"portrait_url,omitempty"` // 角色剧照 URL 或 data URL
+
+	// ── v2 状态机（全部可选 + omitempty，旧 characters.json 零迁移）──
+	// 口径：docs/distill/05-character-career.md §7.1 与 09-impl-handoff.md §3-1/§3-2。
+	// StatusChangedChapter 是存活状态的水位（本章号低于它时拒绝回退改写）；
+	// StateUpdatedChapter 是心理/处境状态的水位。两者与职业的 UpdatedChapter
+	// 一起构成「三态水位」，防止重跑低章节造成重复推进。
+	StatusChangedChapter int    `json:"status_changed_chapter,omitempty"` // 存活状态最后一次变更章号
+	CurrentState         string `json:"current_state,omitempty"`          // 心理/处境
+	StateUpdatedChapter  int    `json:"state_updated_chapter,omitempty"`  // 心理状态最后一次变更章号
+	// MainCareerID / MainCareerStage = 方案 C 的职业引用（不建 Career 模型，
+	// 职业树承载于 worldview.json 的 id:"careers" section）。
+	MainCareerID    string               `json:"main_career_id,omitempty"`
+	MainCareerStage int                  `json:"main_career_stage,omitempty"`
+	SubCareers      []CharacterCareerRef `json:"sub_careers,omitempty"`
 }
 
 // PromptView 返回去除剧照等二进制字段的角色副本（E02：防 base64 剧照泄漏进 LLM prompt）。
@@ -106,10 +120,16 @@ type Organization struct {
 	Name        string   `json:"name"`
 	Type        string   `json:"type,omitempty"` // 门派/国家/商会...
 	Description string   `json:"description,omitempty"`
-	PowerLevel  string   `json:"power_level,omitempty"` // 实力等级
+	PowerLevel  string   `json:"power_level,omitempty"` // 实力等级（既有，保留只读兼容）
 	Location    string   `json:"location,omitempty"`
 	Motto       string   `json:"motto,omitempty"`
-	Members     []string `json:"members,omitempty"` // 成员角色 ID
+	Members     []string `json:"members,omitempty"` // 成员角色 ID（既有，保留只读兼容）
+
+	// ── v2 扩展（全部可选 + omitempty）──
+	PowerValue       int         `json:"power_value,omitempty"`       // 0..100，分析驱动
+	MemberList       []OrgMember `json:"member_list,omitempty"`       // 完整成员关系
+	Destroyed        bool        `json:"destroyed,omitempty"`         // 是否已覆灭
+	DestroyedChapter int         `json:"destroyed_chapter,omitempty"` // 覆灭章号
 }
 
 // Relationship 角色/组织之间的关系
@@ -119,6 +139,12 @@ type Relationship struct {
 	RelationType string `json:"relation_type"` // friend / enemy / family / mentor / rival / lover / member / leader
 	Description  string `json:"description,omitempty"`
 	Intimacy     int    `json:"intimacy"` // -100(死敌) ~ 100(灵魂gaea)
+
+	// ── v2 扩展（全部可选 + omitempty）──
+	Status    string      `json:"status,omitempty"`     // active / broken / past / complicated
+	StartedAt string      `json:"started_at,omitempty"` // "第N章" 或 ISO8601
+	EndedAt   string      `json:"ended_at,omitempty"`
+	History   []RelChange `json:"history,omitempty"` // 关系变更时间线
 }
 
 // CharacterFile characters.json 完整文件结构
@@ -178,37 +204,16 @@ type ChapterSummary struct {
 }
 
 // ── 伏笔 ────────────────────────────────────────────────────
-
-// ForeshadowStatus 伏笔状态
-type ForeshadowStatus string
-
-const (
-	ForeshadowPlanted  ForeshadowStatus = "planted"
-	ForeshadowHinted   ForeshadowStatus = "hinted"
-	ForeshadowRevealed ForeshadowStatus = "revealed"
-)
-
-// Foreshadow 伏笔追踪条目
-type Foreshadow struct {
-	ID          string           `json:"id"`       // stable_id = {type}_{chapter}_{content_hash}
-	Category    string           `json:"category"` // character / plot / world / relationship
-	Description string           `json:"description"`
-	PlantedIn   string           `json:"planted_in"`            // 章节文件名
-	RevealedIn  string           `json:"revealed_in,omitempty"` // 回收章节
-	Status      ForeshadowStatus `json:"status"`
-	IsLongTerm  bool             `json:"is_long_term"`
-}
+//
+// Foreshadow / ForeshadowStatus / ForeshadowFile 的 v2 定义已迁至
+// foreshadow_v2.go（并集 6 态 + 兼容别名 + 计划回收章）。本文件只保留
+// 每章伏笔变化记录。
 
 // ForeshadowChange 每章的伏笔变化
 type ForeshadowChange struct {
 	ForeshadowID string `json:"foreshadow_id"`
-	Action       string `json:"action"` // planted / hinted / revealed
+	Action       string `json:"action"` // planted / hinted / revealed（写入口径见 foreshadow_v2.go）
 	Description  string `json:"description"`
-}
-
-// ForeshadowFile foreshadows.json 完整文件结构
-type ForeshadowFile struct {
-	Items []Foreshadow `json:"items"`
 }
 
 // ── Lorebook 词条 ────────────────────────────────────────────

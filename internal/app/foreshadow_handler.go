@@ -27,22 +27,24 @@ func (a *writingState) SaveForeshadows(itemsJSON string) error {
 		return fmt.Errorf("解析伏笔列表失败: %w", err)
 	}
 
-	validStatus := map[types.ForeshadowStatus]bool{
-		types.ForeshadowPlanted:  true,
-		types.ForeshadowHinted:   true,
-		types.ForeshadowRevealed: true,
+	// 合法写入状态 = 并集 6 态（见 types.AllForeshadowStatuses，写入口径 revealed）；
+	// 读取别名 resolved 先归一化再校验，兼容外部导入与旧前端。
+	validStatus := make(map[types.ForeshadowStatus]bool, 6)
+	for _, s := range types.AllForeshadowStatuses() {
+		validStatus[s] = true
 	}
 	seen := make(map[string]bool, len(items))
 	now := time.Now().UnixMilli()
 	for i := range items {
 		it := &items[i]
+		it.Status = types.NormalizeForeshadowStatus(it.Status)
 		if it.ID == "" {
 			// 空 ID 兜底：manual_ 前缀 + 毫秒时间戳，与 AI stable ID
 			// （{category}_{chapter}_{hash}）天然不冲突。
 			it.ID = fmt.Sprintf("manual_%d", now)
 		}
 		if !validStatus[it.Status] {
-			return fmt.Errorf("伏笔 %s 状态非法: %q（允许 planted/hinted/revealed）", it.ID, it.Status)
+			return fmt.Errorf("伏笔 %s 状态非法: %q（允许 pending/planted/hinted/revealed/partially_resolved/abandoned）", it.ID, it.Status)
 		}
 		if seen[it.ID] {
 			return fmt.Errorf("伏笔 ID 重复: %s", it.ID)

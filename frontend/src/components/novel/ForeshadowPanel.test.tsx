@@ -1,10 +1,11 @@
 // ForeshadowPanel.test.tsx — 伏笔登记表面板关键路径
-// 覆盖：手工登记→全量写回→列表出现；状态流转写回 hinted；保存失败回滚提示；删除（confirm）。
+// 覆盖：手工登记→全量写回→列表出现；状态流转写回 hinted；保存失败回滚提示；删除（confirm）；
+// 一致性体检（LintForeshadows）：概要行渲染 / findings Tag+说明+章节引用 / 空 findings 提示。
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 
 // 屏蔽 Wails 绑定：jsdom 中没有 window.go。
-// 组件经 gaea/lib/bridge 的 app 调用 GetForeshadows / SaveForeshadows。
+// 组件经 gaea/lib/bridge 的 app 调用 GetForeshadows / SaveForeshadows / LintForeshadows。
 vi.mock('../../gaea/lib/bridge', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../gaea/lib/bridge')>()
   return {
@@ -12,6 +13,7 @@ vi.mock('../../gaea/lib/bridge', async (importOriginal) => {
     app: {
       GetForeshadows: vi.fn().mockResolvedValue({ items: [] }),
       SaveForeshadows: vi.fn().mockResolvedValue(undefined),
+      LintForeshadows: vi.fn().mockResolvedValue(null),
     },
   }
 })
@@ -19,6 +21,7 @@ vi.mock('../../gaea/lib/bridge', async (importOriginal) => {
 import ForeshadowPanel from './ForeshadowPanel'
 import { app } from '../../gaea/lib/bridge'
 import type { ForeshadowItemData } from '../../types'
+import type { ForeshadowLintReport } from '../../gaea/lib/bridge/novel'
 
 const EXISTING: ForeshadowItemData = {
   id: 'plot_001_abc',
@@ -108,5 +111,75 @@ describe('ForeshadowPanel 手工登记闭环', () => {
     const payload = JSON.parse(vi.mocked(app.SaveForeshadows).mock.calls[0][0] as string) as ForeshadowItemData[]
     expect(payload).toEqual([])
     expect(await screen.findByText(/还没有伏笔登记/)).toBeTruthy()
+  })
+})
+
+describe('ForeshadowPanel 一致性体检', () => {
+  const LINT_REPORT: ForeshadowLintReport = {
+    totalChapters: 12,
+    items: 5,
+    planted: 3,
+    hinted: 1,
+    revealed: 1,
+    longTerm: 1,
+    findings: [
+      {
+        code: 'ordering',
+        severity: 'high',
+        foreshadowId: 'manual_demo_1',
+        itemDesc: '神秘铜匣的钥匙',
+        message: '回收章 001.md 早于埋设章 002.md，登记序颠倒',
+        chapter: '001.md',
+      },
+      {
+        code: 'stale',
+        severity: 'medium',
+        foreshadowId: 'manual_demo_2',
+        itemDesc: '主角左臂旧伤的来历',
+        message: '已悬置 11 章未回收（第 1 章埋设），考虑回收或标记长线',
+        chapter: '001.md',
+      },
+    ],
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.mocked(app.GetForeshadows).mockResolvedValue({ items: [] })
+    vi.mocked(app.SaveForeshadows).mockResolvedValue(undefined)
+    vi.mocked(app.LintForeshadows).mockResolvedValue(LINT_REPORT)
+  })
+
+  it('点击「一致性体检」→ 概要行渲染统计数字', async () => {
+    render(<ForeshadowPanel />)
+    await screen.findByText(/还没有伏笔登记/)
+
+    fireEvent.click(screen.getByRole('button', { name: /一致性体检/ }))
+
+    expect(await screen.findByText(/全书 12 章 · 登记 5 条/)).toBeTruthy()
+    expect(screen.getByText(/已埋 3 \/ 暗示 1 \/ 回收 1（长线 1）/)).toBeTruthy()
+    expect(vi.mocked(app.LintForeshadows)).toHaveBeenCalledTimes(1)
+  })
+
+  it('findings 渲染：severity Tag（重/中）+ 说明文本 + 章节引用', async () => {
+    render(<ForeshadowPanel />)
+    await screen.findByText(/还没有伏笔登记/)
+
+    fireEvent.click(screen.getByRole('button', { name: /一致性体检/ }))
+
+    expect(await screen.findByText('重')).toBeTruthy()
+    expect(screen.getByText('中')).toBeTruthy()
+    expect(screen.getByText('回收章 001.md 早于埋设章 002.md，登记序颠倒')).toBeTruthy()
+    expect(screen.getByText('已悬置 11 章未回收（第 1 章埋设），考虑回收或标记长线')).toBeTruthy()
+    expect(screen.getAllByText('→ 001.md')).toHaveLength(2)
+  })
+
+  it('findings 为空 → 「未发现一致性问题」提示', async () => {
+    vi.mocked(app.LintForeshadows).mockResolvedValue({ ...LINT_REPORT, findings: [] })
+    render(<ForeshadowPanel />)
+    await screen.findByText(/还没有伏笔登记/)
+
+    fireEvent.click(screen.getByRole('button', { name: /一致性体检/ }))
+
+    expect(await screen.findByText('未发现一致性问题')).toBeTruthy()
   })
 })

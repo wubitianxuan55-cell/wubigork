@@ -652,7 +652,8 @@ func buildForeshadowSection(pm *project.Manager) string {
 	}
 	var lines []string
 	for _, f := range ff.Items {
-		if f.Status == types.ForeshadowRevealed {
+		// 已回收（含外部导入的 resolved 别名）不再注入
+		if types.IsResolvedStatus(f.Status) {
 			continue // 已回收的伏笔不再注入
 		}
 		label := statusLabel[f.Status]

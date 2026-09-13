@@ -2,14 +2,18 @@
 // 登记→埋设→回收闭环：GetForeshadows 展示 + SaveForeshadows 全量写回。
 // ①「登记伏笔」表单（类别/描述/埋设章节/是否长线，manual_ 前缀 ID）；
 // ② 每条状态流转按钮（planted→hinted→revealed，revealed 可回退）；
-// ③ 删除（confirm）；④ 描述可编辑。操作乐观更新，写回失败回滚并提示。
+// ③ 删除（confirm）；④ 描述可编辑；⑤「一致性体检」（LintForeshadows）：
+//    概要统计 + findings 直显（severity Tag + 说明 + 条目描述 + 章节引用）。
 // 纯逻辑（ID 生成/状态机/载荷收窄）抽在 foreshadowLogic.ts。
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Alert, Button, Checkbox, Empty, Input, InputNumber, message, Popconfirm, Select, Spin, Tag, Tooltip,
 } from 'antd'
-import { DeleteOutlined, EditOutlined, FlagOutlined, PlusOutlined, ReloadOutlined } from '@ant-design/icons'
+import {
+  CheckCircleOutlined, DeleteOutlined, EditOutlined, FlagOutlined, PlusOutlined, ReloadOutlined, SafetyCertificateOutlined,
+} from '@ant-design/icons'
 import { app } from '../../gaea/lib/bridge'
+import type { ForeshadowLintReport } from '../../gaea/lib/bridge/novel'
 import type { ForeshadowItemData, ForeshadowStatus } from '../../types'
 import {
   advanceForeshadowStatus,
@@ -22,6 +26,14 @@ const STATUS_META: Record<ForeshadowStatus, { label: string; color: string }> = 
   planted: { label: '已埋设', color: 'blue' },
   hinted: { label: '已暗示', color: 'gold' },
   revealed: { label: '已回收', color: 'green' },
+}
+
+/** 体检 severity → Tag 色/文案（high=红「重」/ medium=gold「中」/ low=default「轻」，
+ *  未知档透传原文显示；口径对齐 bridge/novel.ts ForeshadowLintFinding）。 */
+const LINT_SEVERITY_META: Record<string, { color: string; label: string }> = {
+  high: { color: 'red', label: '重' },
+  medium: { color: 'gold', label: '中' },
+  low: { color: 'default', label: '轻' },
 }
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -52,6 +64,9 @@ const ForeshadowPanel: React.FC<ForeshadowPanelProps> = ({ disabled }) => {
   const [isLongTerm, setIsLongTerm] = useState(false)
   // 行内描述编辑
   const [editing, setEditing] = useState<{ id: string; desc: string } | null>(null)
+  // 一致性体检（LintForeshadows 结果直显；保留上次报告直至下次体检）
+  const [linting, setLinting] = useState(false)
+  const [lintReport, setLintReport] = useState<ForeshadowLintReport | null>(null)
 
   const load = useCallback(async () => {
     const token = ++loadToken.current
@@ -76,6 +91,19 @@ const ForeshadowPanel: React.FC<ForeshadowPanelProps> = ({ disabled }) => {
   }, [disabled])
 
   useEffect(() => { void load() }, [load])
+
+  // 一致性体检：拉报告直显（Go 侧字段可能 omitempty/findings 可能为 null，渲染处 ?. ?? 防御）
+  const runLint = useCallback(async () => {
+    setLinting(true)
+    try {
+      const report = await app.LintForeshadows()
+      setLintReport(report)
+    } catch (err: unknown) {
+      message.error(`一致性体检失败：${err instanceof Error ? err.message : '未知错误'}`)
+    } finally {
+      setLinting(false)
+    }
+  }, [])
 
   // persist 全量写回（乐观更新 + 失败回滚提示）
   const persist = useCallback(async (prev: ForeshadowItemData[], next: ForeshadowItemData[]) => {
@@ -140,6 +168,9 @@ const ForeshadowPanel: React.FC<ForeshadowPanelProps> = ({ disabled }) => {
     return { total, revealed, hinted, planted, rate }
   }, [items])
 
+  // 体检发现（Go 侧 findings 可能为 null → ?? [] 防御）
+  const lintFindings = lintReport?.findings ?? []
+
   const flowLegend = (
     <div className="fs-flow-legend">
       <span>埋设</span><span className="fs-arrow">→</span>
@@ -158,6 +189,12 @@ const ForeshadowPanel: React.FC<ForeshadowPanelProps> = ({ disabled }) => {
         </span>
         <Button size="small" icon={<PlusOutlined />} disabled={disabled} onClick={() => setFormOpen((o) => !o)}>
           登记伏笔
+        </Button>
+        <Button
+          size="small" icon={<SafetyCertificateOutlined />} loading={linting} disabled={disabled}
+          onClick={() => void runLint()}
+        >
+          一致性体检
         </Button>
         <Button size="small" icon={<ReloadOutlined />} onClick={() => void load()} loading={loading} disabled={disabled}>
           刷新
@@ -198,6 +235,46 @@ const ForeshadowPanel: React.FC<ForeshadowPanelProps> = ({ disabled }) => {
                   <Button size="small" type="primary" icon={<FlagOutlined />} onClick={register}>登记</Button>
                   <Button size="small" onClick={() => setFormOpen(false)}>取消</Button>
                 </div>
+              </div>
+            )}
+            {/* ⑤ 一致性体检报告（直显从简：概要行 + findings 列表，Go 侧字段 omitempty → ?. ?? 防御） */}
+            {lintReport && (
+              <div
+                className="fs-lint"
+                style={{
+                  flexShrink: 0, marginBottom: 8, padding: '6px 8px', borderRadius: 6,
+                  border: '1px solid var(--color-border, var(--md-sys-color-outline-variant))',
+                  display: 'flex', flexDirection: 'column', gap: 6,
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 12, fontWeight: 600 }}><SafetyCertificateOutlined />体检报告</span>
+                  <div style={{ flex: 1 }} />
+                  <span className="novel-setting-meta">
+                    全书 {lintReport.totalChapters ?? 0} 章 · 登记 {lintReport.items ?? 0} 条 · 已埋 {lintReport.planted ?? 0} / 暗示 {lintReport.hinted ?? 0} / 回收 {lintReport.revealed ?? 0}（长线 {lintReport.longTerm ?? 0}）
+                  </span>
+                </div>
+                {lintFindings.length === 0 ? (
+                  <div style={{ fontSize: 12, color: 'var(--color-success, #52c41a)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <CheckCircleOutlined />未发现一致性问题
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {lintFindings.map((f, i) => {
+                      const sev = LINT_SEVERITY_META[f.severity] ?? { color: 'default', label: f.severity }
+                      return (
+                        <div key={`${f.foreshadowId}-${i}`} style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                          <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, flexWrap: 'wrap' }}>
+                            <Tag style={{ marginInlineEnd: 0, fontSize: 11 }} color={sev.color}>{sev.label}</Tag>
+                            <span style={{ fontSize: 12 }}>{f.message}</span>
+                            {f.chapter && <span className="novel-setting-meta">→ {f.chapter}</span>}
+                          </div>
+                          {f.itemDesc && <span className="novel-setting-meta">条目：{f.itemDesc}</span>}
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
               </div>
             )}
             {items.length === 0 ? (

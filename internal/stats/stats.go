@@ -8,6 +8,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/gaea/gaea/internal/project"
+	"github.com/gaea/gaea/internal/types"
 )
 
 // Summary 统计数据摘要
@@ -69,7 +70,9 @@ func Collect(pm *project.Manager) *Summary {
 	if ff != nil {
 		s.ForeshadowTotal = len(ff.Items)
 		for _, f := range ff.Items {
-			if f.Status == "revealed" {
+			// 走助手判定：gaea 存量 revealed 与外部导入 resolved 两套 wire 值都算已回收
+			// （types.IsResolvedStatus，见 internal/types/foreshadow_v2.go）。
+			if types.IsResolvedStatus(f.Status) {
 				s.ForeshadowRevealed++
 			}
 		}

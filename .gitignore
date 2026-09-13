@@ -61,6 +61,7 @@ build/bin/
 .codegraph/
 .reasonix/
 .superpowers/
+.agent-teams/
 .dsh-vision-router/
 z_image_turbo-Q5_K_M(1).gguf
 

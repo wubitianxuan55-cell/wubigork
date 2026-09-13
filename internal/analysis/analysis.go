@@ -298,7 +298,7 @@ func (a *Agent) AggregateBookData() ([]BookChapterData, map[string][]int, string
 		revealed, total := 0, len(ff.Items)
 		for _, f := range ff.Items {
 			status := "埋设"
-			if f.Status == types.ForeshadowRevealed {
+			if types.IsResolvedStatus(f.Status) {
 				status = "已回收"
 				revealed++
 			} else if f.Status == types.ForeshadowHinted {

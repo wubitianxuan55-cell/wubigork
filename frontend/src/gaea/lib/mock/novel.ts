@@ -24,6 +24,8 @@ type NovelMethods = Pick<
   | "CheckConsistency" | "CheckConsistencyDeep"
   | "GetForeshadows" | "SaveForeshadows" | "SaveCharactersBatch"
   | "NovelReadingAsk" | "GenerateSceneIllustration"
+  // 伏笔一致性体检（ForeshadowPanel「一致性体检」；演示口径允许示范数据）。
+  | "LintForeshadows"
   // 批次三b legacy 直调转正（NovelB 门面，同名前缀）：章节族/叙事状态族/场景族/
   // 项目角色族。
   | "GetChapter" | "GetChapterBranch" | "SaveChapterContent" | "SaveChapterBranchContent"
@@ -73,6 +75,36 @@ export function buildNovel(): NovelMethods {
     },
     async SaveForeshadows(_itemsJSON: string) {
       // mock: no-op。
+    },
+    async LintForeshadows() {
+      // 伏笔一致性体检：诚实演示样例（示范书 12 章、登记 5 条，2 条发现）。
+      // 结构与契约（bridge/novel.ts ForeshadowLintReport）一致。
+      return {
+        totalChapters: 12,
+        items: 5,
+        planted: 3,
+        hinted: 1,
+        revealed: 1,
+        longTerm: 1,
+        findings: [
+          {
+            code: "ordering",
+            severity: "high",
+            foreshadowId: "manual_demo_1",
+            itemDesc: "神秘铜匣的钥匙",
+            message: "回收章 001.md 早于埋设章 002.md，登记序颠倒",
+            chapter: "001.md",
+          },
+          {
+            code: "stale",
+            severity: "medium",
+            foreshadowId: "manual_demo_2",
+            itemDesc: "主角左臂旧伤的来历",
+            message: "已悬置 11 章未回收（第 1 章埋设），考虑回收或标记长线",
+            chapter: "001.md",
+          },
+        ],
+      };
     },
     async SaveCharactersBatch(namesJSON: string) {
       // 批量角色生成：诚实返回「已保存 N 个名字」（真实实现逐名生成角色）。

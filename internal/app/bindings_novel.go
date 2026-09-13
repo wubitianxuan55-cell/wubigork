@@ -56,6 +56,7 @@ func (b *NovelB) GetWorldviewSections() (map[string]interface{}, error) { return
 func (b *NovelB) ImportNovelBook(filePath string, title string, genre string, style string) (NovelImportResult, error) { return b.a.ImportNovelBook(filePath, title, genre, style) }
 func (b *NovelB) InjectMemories(currentContext string, maxMemories int, maxTokens int) (map[string]interface{}, error) { return b.a.InjectMemories(currentContext, maxMemories, maxTokens) }
 func (b *NovelB) IsProjectV4() bool { return b.a.IsProjectV4() }
+func (b *NovelB) LintForeshadows() (ForeshadowLintReport, error) { return b.a.LintForeshadows() }
 func (b *NovelB) ListSnapshots(sceneID string, chapterNum int) ([]map[string]interface{}, error) { return b.a.ListSnapshots(sceneID, chapterNum) }
 func (b *NovelB) MergeCharacters(keepID string, mergeID string) (map[string]interface{}, error) { return b.a.MergeCharacters(keepID, mergeID) }
 func (b *NovelB) MigrateProjectToV4() error { return b.a.MigrateProjectToV4() }

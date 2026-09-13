@@ -31,6 +31,28 @@ export interface FingerprintScorePayload {
   issues: FingerprintIssue[];
 }
 
+// ── 伏笔一致性体检载荷（LintForeshadows；Go 侧字段可能 omitempty，消费方 ?. 与 ?? 防御）──
+/** 单条体检发现：code 为发现类别（ordering/status-mismatch/dangling/stale/duplicate，
+ * 未知类别允许透传 string）；chapter 为相关章节文件名（如 001.md），缺省无。 */
+export interface ForeshadowLintFinding {
+  code: 'ordering' | 'status-mismatch' | 'dangling' | 'stale' | 'duplicate' | string;
+  severity: 'high' | 'medium' | 'low' | string;
+  foreshadowId: string;
+  itemDesc: string;
+  message: string;
+  chapter?: string;
+}
+/** 体检报告：全书概要统计 + findings（Go 侧可能给 null，消费方 ?? [] 防御）。 */
+export interface ForeshadowLintReport {
+  totalChapters: number;
+  items: number;
+  planted: number;
+  hinted: number;
+  revealed: number;
+  longTerm: number;
+  findings: ForeshadowLintFinding[];
+}
+
 export interface NovelBindings {
   // GenerateBookCover 生成项目书封（3:4，play exports），返回封面路径。
   GenerateBookCover(projectId: string, promptHint: string): Promise<string>;
@@ -53,6 +75,9 @@ export interface NovelBindings {
   CheckConsistencyDeep(maxChapters: number): Promise<Record<string, unknown>>;
   GetForeshadows(): Promise<Record<string, unknown>>;
   SaveForeshadows(itemsJSON: string): Promise<void>;
+  // LintForeshadows 伏笔一致性体检（无参，主线并行开发中：wailsjs 再生前
+  // wailsjs 侧缺该签名属预期，再生后 tsc 转绿；ForeshadowPanel「一致性体检」消费）。
+  LintForeshadows(): Promise<ForeshadowLintReport>;
   SaveCharactersBatch(namesJSON: string): Promise<Record<string, unknown>>;
   NovelReadingAsk(kind: string, title: string, chapterText: string, selection: string, question: string, historyJSON: string): Promise<string>;
   GenerateSceneIllustration(chapterNum: number): Promise<Record<string, unknown>>;
