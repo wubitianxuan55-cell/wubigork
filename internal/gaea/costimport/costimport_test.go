@@ -412,3 +412,38 @@ func TestRawTableAndSlugConsistency(t *testing.T) {
 		t.Errorf("slug = %q", got)
 	}
 }
+
+// v4.274 信息价发布表适配：价格列「除税价（元）」是各地造价信息网信息价的标准
+// 列名，此前不在 fieldPrice 字典 → 价格列 unmapped、整表 skip「缺少有效单价」。
+func TestParseCSV_InfoPriceChushuiColumn(t *testing.T) {
+	store := newTestStore(t)
+	dir := t.TempDir()
+	csvPath := filepath.Join(dir, "信息价.csv")
+	csv := "\xEF\xBB\xBF某市建设工程材料市场信息价（2026年9月期）\n" +
+		"序号,材料名称,规格型号,单位,除税价（元）,备注\n" +
+		"1,螺纹钢,HRB400E Φ12,t,3850.00,\n" +
+		"2,C商品混凝土,C30,m³,465.00,含泵送\n" +
+		"3,水泥,P.O 42.5 散装,t,368.00,\n"
+	if err := os.WriteFile(csvPath, []byte(csv), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	pv, err := Parse(csvPath, store)
+	if err != nil {
+		t.Fatalf("Parse failed: %v", err)
+	}
+	if len(pv.Rows) != 3 {
+		t.Fatalf("expected 3 rows, got %d: %+v", len(pv.Rows), pv.Rows)
+	}
+	for i, r := range pv.Rows {
+		if r.Skip {
+			t.Errorf("row%d should not be skipped: %+v", i, r)
+		}
+	}
+	if r0 := pv.Rows[0]; r0.Title != "螺纹钢" || r0.Unit != "t" || r0.Price != 3850 {
+		t.Errorf("row0 mapped wrong: %+v", r0)
+	}
+	if r1 := pv.Rows[1]; r1.Spec != "C30" || r1.Price != 465 {
+		t.Errorf("row1 mapped wrong: %+v", r1)
+	}
+}
