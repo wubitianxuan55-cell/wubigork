@@ -1,0 +1,59 @@
+{
+  "name": "（模板）示例书源——复制后逐字段改成目标站点，name 改成站点名",
+  "baseUri": "https://book.example.com/",
+  "comment": "gaea 原罪书源规则模板（docs/gaea-sin-booksource-distill-2026-09.md §3.2）。选择器语法=CSS only；字段选择器可带 @href/@src 后缀抽属性；搜索 URL 与 toc.url 里的 %s 为槽位。不支持 @js: 步骤与 XPath（校验器会点名报错）。disabled=true 时聚合搜索跳过本源。",
+  "disabled": true,
+  "search": {
+    "url": "https://book.example.com/search?q=%s",
+    "method": "get",
+    "data": { "searchkey": "%s" },
+    "cookies": {},
+    "limit": 30,
+    "result": ".result-item",
+    "bookName": ".item-title a",
+    "link": ".item-title a@href",
+    "author": ".item-author",
+    "category": ".item-cat",
+    "latestChapter": ".item-latest",
+    "lastUpdateTime": ".item-time",
+    "status": ".item-status",
+    "wordCount": ".item-words",
+    "nextPage": ".pager a"
+  },
+  "book": {
+    "url": "https://book.example.com/book/(\\d+)/",
+    "bookName": "meta[property=og:novel:book_name]",
+    "author": "#info p:nth-of-type(1)",
+    "intro": "#intro",
+    "category": "#info p:nth-of-type(3)",
+    "coverUrl": "#cover img@src",
+    "latestChapter": "#info p:nth-of-type(5) a",
+    "lastUpdateTime": "#info p:nth-of-type(4)",
+    "status": "#info p:nth-of-type(2)"
+  },
+  "toc": {
+    "url": "https://book.example.com/book/%s/list.html",
+    "list": "",
+    "item": "#chapter-list a",
+    "reverse": false,
+    "nextPage": "#page-select option"
+  },
+  "chapter": {
+    "title": ".chapter-title h1",
+    "content": "#chapter-content",
+    "paragraphTagClosed": true,
+    "paragraphTag": "<br>+", 
+    "filterTxt": "一秒记住.+|本站最新网址.+|\\(本章完\\)",
+    "filterTag": "div.ad, script",
+    "nextPage": ".page-nav a:last-child",
+    "endPattern": ""
+  },
+  "crawl": {
+    "concurrency": 5,
+    "minIntervalMs": 1000,
+    "maxIntervalMs": 2000,
+    "maxRetries": 3,
+    "retryMinMs": 2000,
+    "retryMaxMs": 4000
+  }
+}
