@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"math"
 	"os"
+
+	"github.com/gaea/gaea/internal/gaea/fileutil"
 	"path/filepath"
 	"strings"
 )
@@ -59,7 +61,7 @@ func Save(path string, p Project) error {
 	if err := os.WriteFile(tmp, raw, 0o644); err != nil {
 		return fmt.Errorf("写入临时文件失败：%w", err)
 	}
-	if err := os.Rename(tmp, path); err != nil {
+	if err := fileutil.RenameWithRetry(tmp, path); err != nil {
 		_ = os.Remove(tmp)
 		return fmt.Errorf("替换计划文件失败：%w", err)
 	}

@@ -1,3 +1,6 @@
+## （非版本刀）Windows 原子重命名根修：fileutil.RenameWithRetry（2026-09-14）
+> 「Access is denied」rename 假红类（TestEditFileBasic/GaeaRewindTurn0/Schedule index.json/config Save 等，本会话 ci 咬两次）根修：Windows 上 AV/索引器/备份进程短暂持有目标文件时，覆盖式 rename 报 os.ErrPermission 且绝大多数瞬时——隔离复跑是止血，本刀根治。**落地**=①`fileutil.RenameWithRetry(src,dst)`：权限类错误（errors.Is os.ErrPermission）按 5/10/20ms 退避重试 3 次（共 4 次尝试），其他错误原样快速失败；②`fileutil.AtomicWrite` 内部改用（config/会话/记忆库等共享写路径全受益）；③schedule index.go/project.go 两处实测假红点迁移。**测试**=fileutil +3（瞬态持锁经重试成功〔Windows 语义〕/持续持锁穷尽报错且错误保留权限类+原数据不破坏/AtomicWrite 覆盖回环；-count=8 压力稳定）。**门禁**=ci.ps1 全绿。
+
 ## （非版本刀）测试负载 flaky 治理：ProgrammingPage / ContextView 假红消除（2026-09-14）
 > 本会话 ci 三次因满负载假红复跑（ProgrammingPage「重新检查」×2、ContextView 两例超时、builtin 一次性），隔离恒绿——典型负载敏感而非真回归。**①ProgrammingPage.test**：`LOAD` 等待预算 5s→15s（满载时点击→handler→mock→渲染链路实测可逼近 10s+，断言本身确定性不变）；②**ContextView.test**：文件级 `testTimeout` 20s→40s（import 图最重〔recharts 族〕，满负载下 20s 两例超时假红，只影响本文件）。**验证**=两文件隔离 40/40 绿 + 全量 ci exit 0（vitest 段含满负载场景）。**builtin TestWriteToolsWithoutLedgerNoop**（一次性、无时序依赖）不盲改，继续观察。**Windows 原子重命名「Access is denied」类**（本轮 Schedule index.json 与 config 各一例，隔离绿）维持既有「隔离复跑」处置，根修（rename 重试）需动原子写公共路径，另案评估。
 

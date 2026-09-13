@@ -17,6 +17,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/gaea/gaea/internal/gaea/fileutil"
 )
 
 // ScheduleProjectsDir 工程文件目录（工作区相对，canonical 用 / 分隔）。
@@ -83,7 +85,7 @@ func SaveScheduleIndex(dir string, idx ScheduleIndex) error {
 	if err := os.WriteFile(tmp, raw, 0o644); err != nil {
 		return fmt.Errorf("写入索引临时文件失败：%w", err)
 	}
-	if err := os.Rename(tmp, target); err != nil {
+	if err := fileutil.RenameWithRetry(tmp, target); err != nil {
 		_ = os.Remove(tmp)
 		return fmt.Errorf("替换索引文件失败：%w", err)
 	}
