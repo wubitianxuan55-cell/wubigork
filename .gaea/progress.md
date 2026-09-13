@@ -8,6 +8,13 @@
 > 本文件为**最近发布速览**。完整历史磁带见 `docs/archive/progress-history-2026-09.md`
 > 与 `releases/`。
 
+## 对比度普查收账（2026-09-13，非版本刀，零代码）：无正文级硬伤，不改
+
+- **方法**：CDP 13 页×明暗两态程序化扫描——枚举可见文本宿主，沿祖先合成有效背景色，算 WCAG 对比度（正文 4.5 / 大字 3.0），脚本 .tmp/walk-v4274-contrast.mjs，数据 .tmp/ui-contrast/report.json。
+- **结论**：dark 15 项 / light 63 项告警，逐类甄别后**大头为脚本误报**（渐变/图片背景无法从 backgroundColor 合成——角色卡白字压图片、首页「闲庭」chip 压渐变底、accent 按钮白字，目检实际清晰可读）；真实低对比仅剩**亮态 accent 弱化文本**（徽标/链接 chip ~10 处 1.5~1.8）与 schedule 甘特行号（1.3，设计弱化）+ weixin antd purple tag（3.39）——**全部为装饰性/弱化文本，非正文，无 AA 硬伤，按「收益趋零不做」纪律不动**。
+- **观察池新增（打磨候选待拍板）**：亮态 accent 弱化文本（徽标/链接类 chip）对比 1.5~1.8——若要修需动主题 lightFn 令牌（glow/accent 亮态深化），影响所有 accent 消费面，属视觉拍板项。
+- **坑**：对比度自动扫描的背景合成对 background-image/渐变必然误报——告警必须逐类目检甄别后才能定刀。
+
 ## 留池清账（2026-09-13，非版本刀，零代码）：v4.270 sin_illustrate live 端到端补验通过
 
 - **结论**：live 模型调 `sin_illustrate` 端到端全通——模型真调工具、图片真实落盘（sin/art/…「雨夜回眸」.png 1.8MB）、轨迹 artifacts 在位、`extra.illustrations['tool0']` 回写（画廊可见）、过程卡「✓思考过程·319 字·生成插图」元数据在位；截图 .tmp/walk-v4270-illustrate.png。脚本 .tmp/walk-v4270-illustrate.mjs（含空间切换修正）+ .tmp/retry-illustrate.cjs。
