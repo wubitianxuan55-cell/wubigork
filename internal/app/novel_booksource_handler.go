@@ -8,18 +8,23 @@ package app
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/url"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
+	"unicode/utf8"
 
 	"github.com/gaea/gaea/internal/bookimport"
 	"github.com/gaea/gaea/internal/booksource"
 	gaeaConfig "github.com/gaea/gaea/internal/gaea/config"
+	"github.com/gaea/gaea/internal/project"
+	"github.com/gaea/gaea/internal/types"
 )
 
 // enginesFileName 泛搜索引擎文件与书源规则同目录（EnsureTemplate 单目录落盘），
@@ -361,4 +366,132 @@ func (w *writingState) NovelBookSourceImportCancel(jobID string) bool {
 	}
 	cancel()
 	return true
+}
+
+// ── 失败章补下（t3 重试；规格 docs/gaea-novel-booksource-import-2026-09.md §5 t3）──
+
+// NovelBookSourceAppendResult 补下结果：追加章数与追加后总量（追加语义词，不与
+// 整本导入的 chapter_count 混用）。
+type NovelBookSourceAppendResult struct {
+	Path          string                     `json:"path"`
+	Title         string                     `json:"title"`
+	Appended      int                        `json:"appended"`
+	TotalChapters int                        `json:"totalChapters"`
+	AddedWords    int                        `json:"addedWords"`
+	Failed        []booksource.FailedChapter `json:"failed,omitempty"`
+}
+
+// NovelBookSourceImportChapters 失败章补下：对既有书架项目按显式清单抓章追加
+// （清单 = 整本导入 done 事件的 Failed 原样回传）。章号从项目现有最大章号续编，
+// 大纲节点同序追加（imp-NNN 与既有编号规则一致且不撞号）；进度/终态复用
+// novel-import-progress:<jobID> 通道（append-done 为补下终态），取消复用同一登记簿。
+func (w *writingState) NovelBookSourceImportChapters(source, projectPath, chaptersJSON string) (NovelBookSourceImportStart, error) {
+	rule := findRuleByName(loadBookSourceRules(booksourceRulesDir()), source)
+	if rule == nil {
+		return NovelBookSourceImportStart{}, fmt.Errorf("书源规则不存在或未启用：%s", source)
+	}
+	var items []booksource.FailedChapter
+	if err := json.Unmarshal([]byte(chaptersJSON), &items); err != nil || len(items) == 0 {
+		return NovelBookSourceImportStart{}, fmt.Errorf("待补下章节清单为空或格式错误")
+	}
+	for i := range items {
+		if strings.TrimSpace(items[i].URL) == "" {
+			return NovelBookSourceImportStart{}, fmt.Errorf("清单第 %d 项缺少 URL", i+1)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(projectPath, "project.json")); err != nil {
+		return NovelBookSourceImportStart{}, fmt.Errorf("项目不存在或无效：%s", projectPath)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), booksourceImportTimeout)
+	jobID := fmt.Sprintf("bsa_%d_%d", time.Now().UnixMilli(), bookImportSeq.Add(1))
+	bookImportMu.Lock()
+	bookImportRuns[jobID] = cancel
+	bookImportMu.Unlock()
+
+	go func() {
+		defer func() {
+			bookImportMu.Lock()
+			delete(bookImportRuns, jobID)
+			bookImportMu.Unlock()
+			cancel()
+		}()
+		toc := make([]booksource.TocEntry, len(items))
+		for i := range items {
+			toc[i] = booksource.TocEntry{Title: items[i].Title, URL: items[i].URL, Order: i + 1}
+		}
+		engine := booksource.New(rule, booksource.Options{})
+		onProgress := func(done, total int) {
+			if done%booksourceProgressStep == 0 || done == total {
+				w.emit("novel-import-progress:"+jobID, map[string]interface{}{"type": "progress", "done": done, "total": total})
+			}
+		}
+		report, err := engine.DownloadChapters(ctx, toc, booksource.DownloadOptions{OnProgress: onProgress})
+		if err != nil {
+			w.emit("novel-import-progress:"+jobID, map[string]interface{}{"type": "error", "error": err.Error(), "failed": failedCount(report.Failed)})
+			return
+		}
+		res, err := appendProjectChapters(projectPath, report)
+		if err != nil {
+			w.emit("novel-import-progress:"+jobID, map[string]interface{}{"type": "error", "error": err.Error(), "failed": failedCount(report.Failed)})
+			return
+		}
+		w.emit("novel-import-progress:"+jobID, map[string]interface{}{"type": "append-done", "result": res})
+	}()
+	return NovelBookSourceImportStart{JobID: jobID}, nil
+}
+
+// appendProjectChapters 把补下章节追加进既有项目：章号从现有最大 OrderIndex 续编，
+// 大纲节点（imp-NNN/done）同序追加、其余节点原样保留（outline.Agent 写路径每次
+// 调用均重读 outline.json，无缓存副本冲突面）。
+func appendProjectChapters(projectPath string, report booksource.DownloadReport) (NovelBookSourceAppendResult, error) {
+	pm, err := project.Open(projectPath)
+	if err != nil {
+		return NovelBookSourceAppendResult{}, fmt.Errorf("项目打开失败: %w", err)
+	}
+	defer pm.Close() //nolint:errcheck // 元信息时间戳尽力而为
+
+	of, err := pm.ReadOutlines()
+	if err != nil || of == nil {
+		return NovelBookSourceAppendResult{}, fmt.Errorf("读取项目大纲失败: %w", err)
+	}
+	maxNum := 0
+	for _, n := range of.Nodes {
+		if n.OrderIndex > maxNum {
+			maxNum = n.OrderIndex
+		}
+	}
+	appended, words := 0, 0
+	for _, ch := range report.Chapters {
+		num := maxNum + appended + 1
+		content := strings.Join(ch.Paragraphs, "\n")
+		if strings.TrimSpace(content) == "" {
+			content = "（本章暂无内容）"
+		}
+		if err := pm.WriteChapter(num, content); err != nil {
+			return NovelBookSourceAppendResult{}, fmt.Errorf("写章节 %d 失败: %w", num, err)
+		}
+		words += utf8.RuneCountInString(content)
+		of.Nodes = append(of.Nodes, types.OutlineNode{
+			ID:          fmt.Sprintf("imp-%03d", num),
+			Title:       strings.TrimSpace(ch.Title),
+			OrderIndex:  num,
+			ChapterFile: fmt.Sprintf("%03d.md", num),
+			Status:      types.OutlineDone,
+		})
+		appended++
+	}
+	if appended > 0 {
+		if err := pm.WriteOutlines(of); err != nil {
+			return NovelBookSourceAppendResult{}, fmt.Errorf("写回大纲失败: %w", err)
+		}
+	}
+	title := ""
+	if pm.Meta != nil {
+		title = pm.Meta.Title
+	}
+	return NovelBookSourceAppendResult{
+		Path: projectPath, Title: title, Appended: appended,
+		TotalChapters: maxNum + appended, AddedWords: words, Failed: report.Failed,
+	}, nil
 }

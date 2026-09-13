@@ -43,6 +43,7 @@ type NovelMethods = Pick<
   // 书源在线搜书批次（v4.283，书源取书→拆书导入 t2；HomePage「在线搜书」）。
   | "NovelBookSourceSearch" | "NovelBookSourceToc"
   | "NovelBookSourceImport" | "NovelBookSourceImportCancel"
+  | "NovelBookSourceImportChapters"
 >;
 
 export function buildNovel(): NovelMethods {
@@ -332,6 +333,9 @@ export function buildNovel(): NovelMethods {
     },
     async NovelBookSourceImportCancel(_jobId: string): Promise<boolean> {
       return false;
+    },
+    async NovelBookSourceImportChapters(): Promise<{ jobId: string }> {
+      throw new Error("浏览器 mock 模式不支持失败章补下（无网络与书源规则），请在应用内使用");
     },
   };
 }

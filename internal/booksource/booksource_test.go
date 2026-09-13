@@ -2,6 +2,7 @@ package booksource
 
 import (
 	"context"
+	"fmt"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -829,5 +830,39 @@ func TestHTTPFetcherZeroValueLocalServer(t *testing.T) {
 	}
 	if page == nil || !strings.Contains(string(page.Body), "正文段落") {
 		t.Fatalf("取回内容不符: %+v", page)
+	}
+}
+
+// t3 失败章补下：显式清单抓章（导入 done 事件 Failed 回传的引擎缝）。
+// 覆盖：按清单顺序取回成功章 / 空正文章如实进 Failed / 进度回调逐章上报 /
+// 空清单拒绝。
+func TestDownloadChaptersExplicitList(t *testing.T) {
+	m := newMapServer(t)
+	e := New(baseRule(m), Options{Sleeper: func(context.Context, time.Duration) error { return nil }})
+
+	var prog []string
+	rep, err := e.DownloadChapters(context.Background(), []TocEntry{
+		{Title: "第1章", URL: m.url("/ch/1"), Order: 1},
+		{Title: "第3章", URL: m.url("/ch/3"), Order: 2}, // 正文空=限流信号→失败
+		{Title: "第2章", URL: m.url("/ch/2"), Order: 3},
+	}, DownloadOptions{OnProgress: func(done, total int) { prog = append(prog, fmt.Sprintf("%d/%d", done, total)) }})
+	if err != nil {
+		t.Fatalf("显式清单抓章: %v", err)
+	}
+	// 标题以页面 h1 为准（Chapter 抓取会覆写清单标题），断言按清单顺序/URL。
+	if len(rep.Chapters) != 2 || rep.Chapters[0].Order != 1 || rep.Chapters[1].Order != 3 ||
+		!strings.Contains(string(rep.Chapters[0].Paragraphs[0]), "朝闻道") {
+		t.Fatalf("成功章应按清单顺序取回 2 章: %+v", rep.Chapters)
+	}
+	if len(rep.Failed) != 1 || !strings.HasSuffix(rep.Failed[0].URL, "/ch/3") {
+		t.Fatalf("空正文章应进 Failed: %+v", rep.Failed)
+	}
+	// 进度 done=成功数（失败章不计），3 章取回 2 → 终点 2/3；终态由 done 事件兜底。
+	if len(prog) == 0 || prog[len(prog)-1] != "2/3" {
+		t.Fatalf("进度回调应到 2/3: %v", prog)
+	}
+
+	if _, err := e.DownloadChapters(context.Background(), nil, DownloadOptions{}); err == nil {
+		t.Fatal("空清单应报错")
 	}
 }

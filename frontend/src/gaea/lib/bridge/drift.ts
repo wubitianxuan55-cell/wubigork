@@ -155,6 +155,7 @@ type LegacySurfaceNames =
   | "MigrateProjectToV4"
   | "NovelBookSourceImport"
   | "NovelBookSourceImportCancel"
+  | "NovelBookSourceImportChapters"
   | "NovelBookSourceSearch"
   | "NovelBookSourceToc"
   | "OfficeCancelJob"

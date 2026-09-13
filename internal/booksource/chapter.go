@@ -145,6 +145,21 @@ func (e *Engine) Download(ctx context.Context, detailURL string, opt DownloadOpt
 	if err != nil {
 		return DownloadReport{}, err
 	}
+	return e.fetchChapters(ctx, toc, opt)
+}
+
+// DownloadChapters 按显式清单抓章（失败章补下的引擎缝；t3）。清单由调用方
+// 给定（导入 done 事件 Failed 原样回传），与 Download 共用有界并发/重试/
+// 进度纪律；Start/End 在此路径无意义，仅 OnProgress 生效。
+func (e *Engine) DownloadChapters(ctx context.Context, items []TocEntry, opt DownloadOptions) (DownloadReport, error) {
+	if len(items) == 0 {
+		return DownloadReport{}, errors.New("章节清单为空")
+	}
+	return e.fetchChapters(ctx, items, opt)
+}
+
+// fetchChapters 有界并发抓章并按给定顺序归并（Download/DownloadChapters 共用）。
+func (e *Engine) fetchChapters(ctx context.Context, toc []TocEntry, opt DownloadOptions) (DownloadReport, error) {
 	slots := make([]*ChapterText, len(toc))
 	var (
 		mu      sync.Mutex

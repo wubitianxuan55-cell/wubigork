@@ -62,6 +62,7 @@ func (b *NovelB) MergeCharacters(keepID string, mergeID string) (map[string]inte
 func (b *NovelB) MigrateProjectToV4() error { return b.a.MigrateProjectToV4() }
 func (b *NovelB) NovelBookSourceImport(source string, detailURL string, start int, end int, title string, genre string, style string) (NovelBookSourceImportStart, error) { return b.a.NovelBookSourceImport(source, detailURL, start, end, title, genre, style) }
 func (b *NovelB) NovelBookSourceImportCancel(jobID string) bool { return b.a.NovelBookSourceImportCancel(jobID) }
+func (b *NovelB) NovelBookSourceImportChapters(source string, projectPath string, chaptersJSON string) (NovelBookSourceImportStart, error) { return b.a.NovelBookSourceImportChapters(source, projectPath, chaptersJSON) }
 func (b *NovelB) NovelBookSourceSearch(keyword string) (NovelBookSourceSearchResult, error) { return b.a.NovelBookSourceSearch(keyword) }
 func (b *NovelB) NovelBookSourceToc(source string, detailURL string) (NovelBookSourceTocPreview, error) { return b.a.NovelBookSourceToc(source, detailURL) }
 func (b *NovelB) NovelChapterReview(chapterNum int, platform string) (ChapterReviewPayload, error) { return b.a.NovelChapterReview(chapterNum, platform) }

@@ -130,6 +130,7 @@ export interface NovelBindings {
   NovelBookSourceToc(source: string, detailURL: string): Promise<NovelBookSourceTocPreview>;
   NovelBookSourceImport(source: string, detailURL: string, start: number, end: number, title: string, genre: string, style: string): Promise<NovelBookSourceImportStart>;
   NovelBookSourceImportCancel(jobId: string): Promise<boolean>;
+  NovelBookSourceImportChapters(source: string, projectPath: string, chaptersJSON: string): Promise<NovelBookSourceImportStart>;
   // 实体关系图谱（角色/组织/关系图数据）。
   GetEntityRelations(): Promise<Record<string, unknown>>;
   // 场景族：场景列表/生成/新建（Go 均返回 map；CancelCreateChapter 实测
@@ -250,4 +251,14 @@ export interface NovelBookSourceFailedChapter {
   title: string;
   url: string;
   error: string;
+}
+
+/** 失败章补下结果（t3 重试；追加语义词——appended/addedWords 为本次增量）。 */
+export interface NovelBookSourceAppendResult {
+  path: string;
+  title: string;
+  appended: number;
+  totalChapters: number;
+  addedWords: number;
+  failed?: NovelBookSourceFailedChapter[];
 }

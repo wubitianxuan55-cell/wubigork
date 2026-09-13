@@ -15,6 +15,7 @@ vi.mock('../../gaea/lib/bridge', async (importOriginal) => {
       NovelBookSourceToc: vi.fn(),
       NovelBookSourceImport: vi.fn(),
       NovelBookSourceImportCancel: vi.fn(),
+      NovelBookSourceImportChapters: vi.fn(),
     },
   }
 })
@@ -27,6 +28,7 @@ const search = vi.mocked(app.NovelBookSourceSearch)
 const toc = vi.mocked(app.NovelBookSourceToc)
 const importStart = vi.mocked(app.NovelBookSourceImport)
 const cancelJob = vi.mocked(app.NovelBookSourceImportCancel)
+const retryChapters = vi.mocked(app.NovelBookSourceImportChapters)
 
 // window.runtime 桩：subscribe() 走 EventsOn，这里捕获 handler 手工投递事件。
 let deliver: ((data: unknown) => void) | null = null
@@ -59,7 +61,7 @@ const tocPreview: NovelBookSourceTocPreview = {
 type ModalProps = Parameters<typeof BookSearchModal>[0]
 
 function renderModal(overrides: Partial<ModalProps> = {}) {
-  const props: ModalProps = { open: true, onClose: vi.fn(), onImported: vi.fn(), ...overrides }
+  const props: ModalProps = { open: true, onClose: vi.fn(), onImported: vi.fn(), onAppended: vi.fn(), ...overrides }
   render(<BookSearchModal {...props} />)
   return props
 }
@@ -159,6 +161,45 @@ describe('导入进度与终态', () => {
 
     deliver?.({ type: 'done', result, failed: [] })
     await waitFor(() => expect(onImported).toHaveBeenCalledWith(result))
+  })
+
+  it('done 带失败清单：Modal 留失败面板可一键重试补下（t3）', async () => {
+    const { onImported, onAppended } = await searchAndPick()
+    importStart.mockResolvedValue({ jobId: 'job-12' })
+    retryChapters.mockResolvedValue({ jobId: 'job-13' })
+
+    fireEvent.change(screen.getByPlaceholderText('书名（必填）'), { target: { value: '风雪夜归' } })
+    fireEvent.click(screen.getByRole('button', { name: /开始导入/ }))
+    await waitFor(() => expect(deliver).not.toBeNull())
+
+    const failed = [{ title: '第7章 断章', url: 'https://a.example.com/ch/7', error: '超时' }]
+    deliver?.({ type: 'done', result, failed })
+    expect(await screen.findByText(/1 章下载失败，未入库/)).toBeTruthy()
+    expect(onImported).toHaveBeenCalledWith(result)
+
+    fireEvent.click(screen.getByRole('button', { name: /重试补下 1 章/ }))
+    await waitFor(() => expect(retryChapters).toHaveBeenCalledTimes(1))
+    expect(retryChapters).toHaveBeenCalledWith(
+      '笔趣阁', result.path, JSON.stringify([{ title: '第7章 断章', url: 'https://a.example.com/ch/7' }]))
+
+    deliver?.({ type: 'progress', done: 1, total: 1 })
+    expect(await screen.findByText('1/1 章')).toBeTruthy()
+
+    deliver?.({ type: 'append-done', result: { path: result.path, title: result.title, appended: 1, totalChapters: 25, addedWords: 120 } })
+    await waitFor(() => expect(onAppended).toHaveBeenCalledWith({ path: result.path, title: result.title, appended: 1, totalChapters: 25, addedWords: 120 }))
+    expect(await screen.findByText(/已补下 1 章，全部章节已齐/)).toBeTruthy()
+  })
+
+  it('done 无失败：Modal 自动关闭（关闭权在组件）', async () => {
+    const { onClose } = await searchAndPick()
+    importStart.mockResolvedValue({ jobId: 'job-14' })
+
+    fireEvent.change(screen.getByPlaceholderText('书名（必填）'), { target: { value: '风雪夜归' } })
+    fireEvent.click(screen.getByRole('button', { name: /开始导入/ }))
+    await waitFor(() => expect(deliver).not.toBeNull())
+
+    deliver?.({ type: 'done', result, failed: [] })
+    await waitFor(() => expect(onClose).toHaveBeenCalled())
   })
 
   it('error 事件直显失败原因（含未取到计数），可重试', async () => {

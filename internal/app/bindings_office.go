@@ -5,10 +5,10 @@ package app
 import (
 	"github.com/gaea/gaea/internal/gaea/browser"
 	"github.com/gaea/gaea/internal/gaea/contextview"
+	"github.com/gaea/gaea/internal/gaea/dag"
 	"github.com/gaea/gaea/internal/gaea/event"
 	"github.com/gaea/gaea/internal/gaea/evidence"
-	"github.com/gaea/gaea/internal/gaea/dag"
-	"github.com/gaea/gaea/internal/office"
+	officecore "github.com/gaea/gaea/internal/core"
 	"github.com/gaea/gaea/internal/office/pptxedit"
 	"github.com/gaea/gaea/internal/office/standard"
 	"github.com/gaea/gaea/internal/gaea/tasks"
@@ -47,8 +47,8 @@ func (b *OfficeB) GaeaContextNodeDetail(seq int64, sessionPath string) (contextv
 func (b *OfficeB) GaeaContextView(sessionPath string) (contextview.ContextTimeline, error) { return b.a.GaeaContextView(sessionPath) }
 func (b *OfficeB) GaeaConvertToPdf(rel string) (ConvertPdfResult, error) { return b.a.GaeaConvertToPdf(rel) }
 func (b *OfficeB) GaeaCrossEmbed(in CrossEmbedInput) (CrossEmbedResult, error) { return b.a.GaeaCrossEmbed(in) }
-func (b *OfficeB) GaeaDagCancel(id string) (string, error) { return b.a.GaeaDagCancel(id) }
 func (b *OfficeB) GaeaDagAcceptAll(id string) (string, error) { return b.a.GaeaDagAcceptAll(id) }
+func (b *OfficeB) GaeaDagCancel(id string) (string, error) { return b.a.GaeaDagCancel(id) }
 func (b *OfficeB) GaeaDagGet(id string) (*dag.RunView, error) { return b.a.GaeaDagGet(id) }
 func (b *OfficeB) GaeaDagList() ([]dag.RunView, error) { return b.a.GaeaDagList() }
 func (b *OfficeB) GaeaDagNodeAccept(id string, nodeID string) (string, error) { return b.a.GaeaDagNodeAccept(id, nodeID) }
@@ -107,6 +107,7 @@ func (b *OfficeB) GaeaNewSession() error { return b.a.GaeaNewSession() }
 func (b *OfficeB) GaeaOCRText(imagePath string) (string, error) { return b.a.GaeaOCRText(imagePath) }
 func (b *OfficeB) GaeaOfficeEditText(selectedText string, instruction string) (map[string]interface{}, error) { return b.a.GaeaOfficeEditText(selectedText, instruction) }
 func (b *OfficeB) GaeaOpenDownloadPage() error { return b.a.GaeaOpenDownloadPage() }
+func (b *OfficeB) GaeaOpenLogsDir() error { return b.a.GaeaOpenLogsDir() }
 func (b *OfficeB) GaeaOpenWorkspacePath(rel string) error { return b.a.GaeaOpenWorkspacePath(rel) }
 func (b *OfficeB) GaeaPermLevel() string { return b.a.GaeaPermLevel() }
 func (b *OfficeB) GaeaPickDirectory() string { return b.a.GaeaPickDirectory() }
@@ -121,6 +122,7 @@ func (b *OfficeB) GaeaPptxSlideText(rel string) ([]pptxedit.SlideText, error) { 
 func (b *OfficeB) GaeaPreview(rel string) PreviewResult { return b.a.GaeaPreview(rel) }
 func (b *OfficeB) GaeaPromoteSubagent(sessionPath string, ref string) (string, error) { return b.a.GaeaPromoteSubagent(sessionPath, ref) }
 func (b *OfficeB) GaeaReadFile(rel string) FilePreview { return b.a.GaeaReadFile(rel) }
+func (b *OfficeB) GaeaReadFileB64(path string) (string, error) { return b.a.GaeaReadFileB64(path) }
 func (b *OfficeB) GaeaRecognizeImage(imagePath string, prompt string) (string, error) { return b.a.GaeaRecognizeImage(imagePath, prompt) }
 func (b *OfficeB) GaeaReload() (GaeaReloadResult, error) { return b.a.GaeaReload() }
 func (b *OfficeB) GaeaRemember(scope string, note string) (string, error) { return b.a.GaeaRemember(scope, note) }
@@ -137,10 +139,8 @@ func (b *OfficeB) GaeaRollbackRecord(id string) error { return b.a.GaeaRollbackR
 func (b *OfficeB) GaeaRouteIntent(text string, dryRun bool) IntentResult { return b.a.GaeaRouteIntent(text, dryRun) }
 func (b *OfficeB) GaeaRunning() bool { return b.a.GaeaRunning() }
 func (b *OfficeB) GaeaSaveAttachmentFile(fileName string, base64Data string) (string, error) { return b.a.GaeaSaveAttachmentFile(fileName, base64Data) }
-func (b *OfficeB) GaeaReadFileB64(path string) (string, error) { return b.a.GaeaReadFileB64(path) }
-func (b *OfficeB) GaeaSaveFileAs(defaultName string, base64Data string) (string, error) { return b.a.GaeaSaveFileAs(defaultName, base64Data) }
-func (b *OfficeB) GaeaOpenLogsDir() error { return b.a.GaeaOpenLogsDir() }
 func (b *OfficeB) GaeaSaveDoc(path string, body string) (string, error) { return b.a.GaeaSaveDoc(path, body) }
+func (b *OfficeB) GaeaSaveFileAs(defaultName string, base64Data string) (string, error) { return b.a.GaeaSaveFileAs(defaultName, base64Data) }
 func (b *OfficeB) GaeaSavePastedImage(dataURL string) (string, error) { return b.a.GaeaSavePastedImage(dataURL) }
 func (b *OfficeB) GaeaSaveProvider(p ProviderView) error { return b.a.GaeaSaveProvider(p) }
 func (b *OfficeB) GaeaSaveSettings(view SettingsView) error { return b.a.GaeaSaveSettings(view) }
@@ -161,8 +161,8 @@ func (b *OfficeB) GaeaSessionStats(path string) SessionStatsView { return b.a.Ga
 func (b *OfficeB) GaeaSetAgentParams(temperature float64, maxSteps int, systemPrompt string) error { return b.a.GaeaSetAgentParams(temperature, maxSteps, systemPrompt) }
 func (b *OfficeB) GaeaSetDefaultModel(ref string) error { return b.a.GaeaSetDefaultModel(ref) }
 func (b *OfficeB) GaeaSetMCPServerEnabled(name string, enabled bool) error { return b.a.GaeaSetMCPServerEnabled(name, enabled) }
-func (b *OfficeB) GaeaSetMemoryEnabled(enabled bool) error { return b.a.GaeaSetMemoryEnabled(enabled) }
 func (b *OfficeB) GaeaSetMemoryBrief(enabled bool) error { return b.a.GaeaSetMemoryBrief(enabled) }
+func (b *OfficeB) GaeaSetMemoryEnabled(enabled bool) error { return b.a.GaeaSetMemoryEnabled(enabled) }
 func (b *OfficeB) GaeaSetMorningPreload(enabled bool) error { return b.a.GaeaSetMorningPreload(enabled) }
 func (b *OfficeB) GaeaSetPermLevel(level string) error { return b.a.GaeaSetPermLevel(level) }
 func (b *OfficeB) GaeaSetPermissionMode(mode string) error { return b.a.GaeaSetPermissionMode(mode) }
@@ -209,11 +209,10 @@ func (b *OfficeB) GaeaXlsxSetCell(rel string, sheet string, ref string, value st
 func (b *OfficeB) GaeaZipDeliverables(paths []string) (ZipDeliverableResult, error) { return b.a.GaeaZipDeliverables(paths) }
 func (b *OfficeB) LocalTranslate(req LocalTranslateRequest) (LocalTranslateResult, error) { return b.a.LocalTranslate(req) }
 func (b *OfficeB) OfficeCancelJob(s string) { b.a.OfficeCancelJob(s) }
-func (b *OfficeB) OfficeExecute(act string, path string, tgt string, q string, url string, content string) office.ExecResult { return b.a.OfficeExecute(act, path, tgt, q, url, content) }
-func (b *OfficeB) OfficeGetJobState(s string) *office.AgentJobState { return b.a.OfficeGetJobState(s) }
+func (b *OfficeB) OfficeExecute(act string, path string, tgt string, q string, url string, content string) officecore.ExecResult { return b.a.OfficeExecute(act, path, tgt, q, url, content) }
+func (b *OfficeB) OfficeGetJobState(s string) *officecore.AgentJobState { return b.a.OfficeGetJobState(s) }
 func (b *OfficeB) OfficeGetMode(s string) bool { return b.a.OfficeGetMode(s) }
 func (b *OfficeB) OfficeIsTask(text string) bool { return b.a.OfficeIsTask(text) }
-func (b *OfficeB) OfficeListFolder(p string) office.ExecResult { return b.a.OfficeListFolder(p) }
-func (b *OfficeB) OfficeReadFile(p string) office.ExecResult { return b.a.OfficeReadFile(p) }
+func (b *OfficeB) OfficeListFolder(p string) officecore.ExecResult { return b.a.OfficeListFolder(p) }
+func (b *OfficeB) OfficeReadFile(p string) officecore.ExecResult { return b.a.OfficeReadFile(p) }
 func (b *OfficeB) OfficeSetMode(s string, e bool) { b.a.OfficeSetMode(s, e) }
-

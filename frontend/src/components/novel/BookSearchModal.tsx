@@ -13,7 +13,7 @@ import {
 import { ArrowLeftOutlined, CloudDownloadOutlined, SearchOutlined } from '@ant-design/icons'
 import { app } from '../../gaea/lib/bridge'
 import type {
-  NovelBookSourceCandidate, NovelBookSourceTocPreview,
+  NovelBookSourceAppendResult, NovelBookSourceCandidate, NovelBookSourceTocPreview,
 } from '../../gaea/lib/bridge/novel'
 import { bookImportProgressChannel, subscribe } from '../../events'
 import { GENRE_OPTIONS, STYLE_OPTIONS } from './novelOptions'
@@ -25,6 +25,8 @@ interface BookSearchModalProps {
   onClose: () => void
   /** 导入完成（done 事件）：HomePage 打开项目 + 报告直显（与文件导入同款）。 */
   onImported: (res: ImportReportLike) => void
+  /** 失败章补下完成（append-done 事件）：HomePage 刷新书架 + 提示。 */
+  onAppended: (res: NovelBookSourceAppendResult) => void
 }
 
 /** 下载失败章（引擎重试穷尽后如实上报，不占位；对齐 booksource.FailedChapter）。 */
@@ -43,7 +45,7 @@ type ImportProgressEvent =
 const secondaryStyle = { color: C('color-text-secondary'), fontSize: 12 } as const
 
 /** 在线搜书 Modal：自包含 搜索→目录→范围→进度 流程；完成/失败经回调与全局提示上报。 */
-const BookSearchModal: React.FC<BookSearchModalProps> = ({ open, onClose, onImported }) => {
+const BookSearchModal: React.FC<BookSearchModalProps> = ({ open, onClose, onImported, onAppended }) => {
   // ── 搜索 ──
   const [keyword, setKeyword] = useState('')
   const [searching, setSearching] = useState(false)
@@ -70,6 +72,12 @@ const BookSearchModal: React.FC<BookSearchModalProps> = ({ open, onClose, onImpo
   const unsubRef = useRef<(() => void) | null>(null)
   const cancelRequestedRef = useRef(false)
 
+  // ── 失败章补下（t3）：done 带失败清单 → 面板内一键重试补下 ──
+  const [lastImported, setLastImported] = useState<ImportReportLike | null>(null)
+  const [failedList, setFailedList] = useState<FailedChapterLike[]>([])
+  const [retrying, setRetrying] = useState(false)
+  const [appendMsg, setAppendMsg] = useState('')
+
   const detachProgress = useCallback(() => {
     unsubRef.current?.()
     unsubRef.current = null
@@ -84,6 +92,7 @@ const BookSearchModal: React.FC<BookSearchModalProps> = ({ open, onClose, onImpo
     setTitle(''); setGenre([]); setStyle([])
     setJobId(''); setProgress({ done: 0, total: 0 })
     setImporting(false); setSearching(false); setStartError('')
+    setLastImported(null); setFailedList([]); setRetrying(false); setAppendMsg('')
     cancelRequestedRef.current = false
   }, [open, detachProgress])
   useEffect(() => detachProgress, [detachProgress])
@@ -152,13 +161,16 @@ const BookSearchModal: React.FC<BookSearchModalProps> = ({ open, onClose, onImpo
         setImporting(false)
         if (ev?.type === 'done') {
           const failed = ev.failed ?? []
-          if (failed.length > 0) {
-            const head = failed.slice(0, 2).map((f) => f.title).join('、')
-            message.warning(
-              failed.length > 2 ? `${head} 等 ${failed.length} 章下载失败，未入库` : `${head} 下载失败，未入库`,
-            )
-          }
           onImported(ev.result)
+          if (failed.length > 0) {
+            // t3：失败章留面板可一键重试补下（清单仅存于本次会话，关闭即弃——
+            // 不做持久化/断点续传，规格 §6 不做清单）。此时不关 Modal——父层
+            // 也不再代关，关闭权在本组件（全部成功自动关 / 面板「完成」手动关）。
+            setLastImported(ev.result)
+            setFailedList(failed)
+          } else {
+            onClose()
+          }
         } else if (ev?.type === 'error') {
           if (cancelRequestedRef.current) {
             message.info('已取消导入')
@@ -182,6 +194,53 @@ const BookSearchModal: React.FC<BookSearchModalProps> = ({ open, onClose, onImpo
       if (!ok) message.info('任务已结束，无需取消')
     } catch (err: unknown) {
       message.error(err instanceof Error ? err.message : '取消失败')
+    }
+  }
+
+  // 失败章补下（t3）：done 事件 Failed 原样回传，引擎按清单抓章、项目端续编落库。
+  const handleRetry = async () => {
+    if (!selected || !lastImported || retrying || failedList.length === 0) return
+    setRetrying(true)
+    setStartError('')
+    setAppendMsg('')
+    setProgress({ done: 0, total: failedList.length })
+    cancelRequestedRef.current = false
+    try {
+      const started = await app.NovelBookSourceImportChapters(
+        selected.source, lastImported.path,
+        JSON.stringify(failedList.map(({ title, url }) => ({ title, url }))),
+      )
+      setJobId(started.jobId)
+      detachProgress()
+      unsubRef.current = subscribe(bookImportProgressChannel(started.jobId), (data) => {
+        const ev = data as {
+          type?: string; done?: number; total?: number
+          error?: string; failed?: number; result?: NovelBookSourceAppendResult
+        }
+        if (ev?.type === 'progress') {
+          setProgress({ done: ev.done ?? 0, total: ev.total ?? 0 })
+          return
+        }
+        detachProgress()
+        setRetrying(false)
+        if (ev?.type === 'append-done' && ev.result) {
+          const remain = ev.result.failed ?? []
+          setFailedList(remain)
+          setAppendMsg(remain.length > 0
+            ? `已补下 ${ev.result.appended} 章，仍有 ${remain.length} 章未取到`
+            : `已补下 ${ev.result.appended} 章，全部章节已齐`)
+          onAppended(ev.result)
+        } else if (ev?.type === 'error') {
+          if (cancelRequestedRef.current) {
+            message.info('已取消补下')
+          } else {
+            setStartError(`${ev.error}${ev.failed ? `（${ev.failed} 章未取到）` : ''}`)
+          }
+        }
+      })
+    } catch (err: unknown) {
+      setRetrying(false)
+      message.error(err instanceof Error ? err.message : '补下起跑失败')
     }
   }
 
@@ -224,7 +283,7 @@ const BookSearchModal: React.FC<BookSearchModalProps> = ({ open, onClose, onImpo
     <Modal
       title={<span style={{ color: C('color-text') }}>在线搜书</span>}
       open={open}
-      onCancel={() => { if (!importing) onClose() }}
+      onCancel={() => { if (!importing && !retrying) onClose() }}
       footer={null}
       width={640}
       destroyOnHidden
@@ -353,6 +412,39 @@ const BookSearchModal: React.FC<BookSearchModalProps> = ({ open, onClose, onImpo
                 </Space>
               )}
               {startError && <Alert type="error" showIcon message={startError} />}
+
+              {failedList.length > 0 && !importing && (
+                <Space direction="vertical" size={8} style={{ width: '100%' }}>
+                  <Alert
+                    type="warning"
+                    showIcon
+                    message={`${failedList.length} 章下载失败，未入库：${failedList.slice(0, 3).map((f) => f.title).join('、')}${failedList.length > 3 ? ' 等' : ''}`}
+                  />
+                  {retrying ? (
+                    <>
+                      <Progress
+                        percent={progress.total > 0 ? Math.round((progress.done / progress.total) * 100) : 0}
+                        status="active"
+                        format={() => `${progress.done}/${progress.total} 章`}
+                      />
+                      <Space>
+                        <Button disabled>补下中…</Button>
+                        <Button onClick={() => void handleCancelImport()}>取消</Button>
+                      </Space>
+                    </>
+                  ) : (
+                    <Button type="primary" icon={<CloudDownloadOutlined aria-hidden />} onClick={() => void handleRetry()}>
+                      重试补下 {failedList.length} 章
+                    </Button>
+                  )}
+                </Space>
+              )}
+              {(appendMsg || (failedList.length === 0 && lastImported && !importing)) && (
+                <Space direction="vertical" size={8} style={{ width: '100%' }}>
+                  {appendMsg && <Typography.Text style={secondaryStyle}>{appendMsg}</Typography.Text>}
+                  <Button onClick={onClose}>完成</Button>
+                </Space>
+              )}
             </>
           )}
         </Space>

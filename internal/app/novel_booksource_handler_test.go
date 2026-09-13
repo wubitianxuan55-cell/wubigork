@@ -9,7 +9,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gaea/gaea/internal/bookimport"
 	"github.com/gaea/gaea/internal/booksource"
+	"github.com/gaea/gaea/internal/project"
+	"github.com/gaea/gaea/internal/types"
 	"github.com/gaea/gaea/internal/config"
 )
 
@@ -331,5 +334,70 @@ func TestImportNovelBook_RefactorRegression(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(res.Path, "chapters", "002.md")); err != nil {
 		t.Fatalf("章节应落盘: %v", err)
+	}
+}
+
+// ── 失败章补下（t3）──
+
+func TestAppendProjectChapters_RenumbersAndAppendsOutline(t *testing.T) {
+	dir := t.TempDir()
+	base, err := createImportedProject(dir, "补下测试", "未分类", "默认", []importChapter{
+		{Title: "第1章", Content: "一"}, {Title: "第2章", Content: "二"}, {Title: "第3章", Content: "三"},
+	}, bookimport.Report{SplitStrategy: "booksource"})
+	if err != nil {
+		t.Fatalf("建基线项目: %v", err)
+	}
+
+	res, err := appendProjectChapters(base.Path, booksource.DownloadReport{
+		Chapters: []booksource.ChapterText{
+			{Title: "第4章", Order: 4, Paragraphs: []string{"四A", "四B"}},
+			{Title: "第5章", Order: 5, Paragraphs: []string{"五"}},
+		},
+		Failed: []booksource.FailedChapter{{Title: "第6章", URL: "https://book.test/ch/6", Err: "boom"}},
+	})
+	if err != nil {
+		t.Fatalf("补下: %v", err)
+	}
+	if res.Appended != 2 || res.TotalChapters != 5 || res.AddedWords != 6 || res.Title != "补下测试" {
+		t.Fatalf("追加语义词不符: %+v", res)
+	}
+	if len(res.Failed) != 1 || res.Failed[0].Err != "boom" {
+		t.Fatalf("失败清单应原样透出: %+v", res.Failed)
+	}
+
+	pm, err := project.Open(base.Path)
+	if err != nil {
+		t.Fatalf("重开项目: %v", err)
+	}
+	defer pm.Close()
+	if _, err := pm.ReadChapter(4); err != nil {
+		t.Fatalf("第4章应已落盘: %v", err)
+	}
+	if c, err := pm.ReadChapter(5); err != nil || c != "五" {
+		t.Fatalf("第5章内容不符: %q %v", c, err)
+	}
+	of, err := pm.ReadOutlines()
+	if err != nil || len(of.Nodes) != 5 {
+		t.Fatalf("大纲应有 5 节点: %v %d", err, len(of.Nodes))
+	}
+	last := of.Nodes[4]
+	if last.ID != "imp-005" || last.OrderIndex != 5 || last.Status != types.OutlineDone {
+		t.Fatalf("追加节点应续编且 done: %+v", last)
+	}
+	for _, n := range of.Nodes[:3] { // 既有节点原样保留
+		if n.ID != "imp-001" && n.ID != "imp-002" && n.ID != "imp-003" {
+			t.Fatalf("既有节点被动过: %+v", n)
+		}
+	}
+
+	// 全部失败：追加 0，大纲不动，失败清单如实透出
+	res2, err := appendProjectChapters(base.Path, booksource.DownloadReport{
+		Failed: []booksource.FailedChapter{{Title: "第6章", URL: "u6", Err: "boom"}},
+	})
+	if err != nil {
+		t.Fatalf("全败补下不应报错: %v", err)
+	}
+	if res2.Appended != 0 || res2.TotalChapters != 5 || len(res2.Failed) != 1 {
+		t.Fatalf("全败语义不符: %+v", res2)
 	}
 }

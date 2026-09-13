@@ -142,14 +142,24 @@ const HomePage: React.FC = () => {
     }
   }
 
-  // ── 在线搜书导入完成：与文件导入同款落书架 + 报告直显（t2）──
+  // ── 在线搜书导入完成：与文件导入同款落书架 + 报告直显（t2）。
+  // 不在此关 Modal：全部成功由 Modal 自关，带失败章时留失败面板可重试（t3）。
   const handleOnlineImported = async (res: Parameters<typeof formatImportSuccess>[0]) => {
     openProject(res.path, res.title)
     await loadProjects()
-    setBookSearchModal(false)
     message.success(formatImportSuccess(res))
     const warnText = formatImportWarnings(res)
     if (warnText) message.warning(warnText)
+  }
+
+  // ── 失败章补下完成（t3）：刷新书架 + 增量提示 ──
+  const handleChaptersAppended = async (res: { appended: number; totalChapters: number; failed?: unknown[] }) => {
+    await loadProjects()
+    if (res.failed && res.failed.length > 0) {
+      message.warning(`补下 ${res.appended} 章，仍有 ${res.failed.length} 章未取到`)
+    } else {
+      message.success(`已补下 ${res.appended} 章，本书共 ${res.totalChapters} 章`)
+    }
   }
 
   // ── 打开/关闭项目 ──
@@ -386,6 +396,7 @@ const HomePage: React.FC = () => {
         open={bookSearchModal}
         onClose={() => setBookSearchModal(false)}
         onImported={(res) => void handleOnlineImported(res)}
+        onAppended={(res) => void handleChaptersAppended(res)}
       />
     </div>
   )
