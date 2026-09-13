@@ -256,6 +256,16 @@ func (a *App) runSinStream(runID, topicID, userMessage, eng, model, source strin
 		runCancel() // 极窄竞态：注册与取消同帧 → 立即中止
 	}
 
+	// 附件 @引用展开（@路径 → 本轮可读内容块）：Composer 提交的附件只带路径
+	// 文本，模型没有文件工具、读不到本地盘——不展开就等于「原罪无法访问附件」。
+	// 引用块只进本轮提示，消息落库仍是 @路径 原文（历史不膨胀，与办公同口径）。
+	if refBlock, refErrs := sinFileRefBlock(runCtx, userMessage); refBlock != "" {
+		userPrompt += "\n\n" + refBlock
+		for _, e := range refErrs {
+			slog.Warn("原罪附件引用解析失败", "topicID", topicID, "detail", e)
+		}
+	}
+
 	messages := []ai.ChatMessage{
 		{Role: "system", Content: sinSystemPrompt()},
 		{Role: "user", Content: userPrompt},
