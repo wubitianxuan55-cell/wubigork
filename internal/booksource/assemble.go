@@ -54,7 +54,7 @@ func (e *Engine) parseBookDetail(doc *goquery.Document, pageURL string) BookInfo
 			a = attr
 		}
 		if a != "" {
-			return attrOf(doc.Selection, s, a, pageURL)
+			return attrOf(doc.Selection, s, a, e.base(pageURL))
 		}
 		return textOf(doc.Selection, s)
 	}

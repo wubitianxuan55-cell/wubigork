@@ -143,9 +143,16 @@ func paragraphsFromHTML(contentHTML string, closed bool, paragraphTag string) []
 			})
 			return paras
 		}
-		root.Children().Each(func(_ int, s *goquery.Selection) {
-			if goquery.NodeName(s) == "#text" {
-				if t := strings.TrimSpace(s.Text()); t != "" {
+		// 无 <p> 的闭合源：按上游「非 <p> 闭合标签统一改名 <p>」的等价做法，把直接
+		// 子级（**含文本节点**——只有 Contents 含非元素节点）按文档序各自成段。只认
+		// Children() 的 #text 会把 <div> 逐段成句的源压成一整段（正文黏连）。
+		root.Contents().Each(func(_ int, s *goquery.Selection) {
+			switch goquery.NodeName(s) {
+			case "#comment", "script", "style":
+				return
+			}
+			for _, line := range strings.Split(s.Text(), "\n") {
+				if t := strings.TrimSpace(line); t != "" {
 					paras = append(paras, t)
 				}
 			}

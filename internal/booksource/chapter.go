@@ -3,6 +3,7 @@ package booksource
 import (
 	"context"
 	"errors"
+	"fmt"
 	"regexp"
 	"strings"
 	"sync"
@@ -20,6 +21,10 @@ var (
 	// 通用末页启发式的分页 URL 形态：以 -1.html / _12.html 结尾视为「仍是本章分页」。
 	pageSuffix = regexp.MustCompile(`[-_]\d+\.html$`)
 )
+
+// maxChapterPages 单章分页上限：正常章节分页远小于此；触顶即判环形/超长分页，
+// **显式报错**而非静默截断正文（规格 §2.7 的诚实报错原则）。
+const maxChapterPages = 50
 
 // ChapterText 单章清洗后的文本。
 type ChapterText struct {
@@ -43,17 +48,21 @@ func (e *Engine) Chapter(ctx context.Context, entry TocEntry) (ChapterText, erro
 	}
 	var htmls []string
 	title := ""
+	var firstDoc *goquery.Document
 	cur := entry.URL
 	// 单章分页上限：防站方环形链接把下载挂死（正常章节分页远小于 50）。
 	for page := 0; ; page++ {
-		if page > 50 {
-			break
+		if page >= maxChapterPages {
+			return ChapterText{}, fmt.Errorf("本章分页超过 %d 页上限（疑似环形分页链接）", maxChapterPages)
 		}
-		doc, _, err := e.pacedFetch(ctx, Request{URL: cur})
+		doc, pageURL, err := e.pacedFetch(ctx, Request{URL: cur})
 		if err != nil {
 			return ChapterText{}, err
 		}
-		if title == "" {
+		if firstDoc == nil {
+			firstDoc = doc
+		}
+		if title == "" && strings.TrimSpace(cr.Title) != "" {
 			title = textOf(doc.Selection, cr.Title)
 		}
 		content := htmlOf(doc.Selection, cr.Content)
@@ -62,11 +71,15 @@ func (e *Engine) Chapter(ctx context.Context, entry TocEntry) (ChapterText, erro
 		}
 		htmls = append(htmls, content)
 
-		next, last := e.nextChapterPage(doc, cur)
+		next, last := e.nextChapterPage(doc, pageURL)
 		if last {
 			break
 		}
 		cur = next
+	}
+	// 免规则标题回退：<title> 正则 → h1 → <title>（规格书源搜索 §2.4）
+	if title == "" && firstDoc != nil {
+		title = GuessChapterTitle(firstDoc)
 	}
 	joined := cleanChapterHTML(strings.Join(htmls, "\n"), cr.FilterTxt, cr.FilterTag, title)
 	paras := paragraphsFromHTML(joined, cr.ParagraphTagClosed, cr.ParagraphTag)
@@ -79,10 +92,16 @@ func (e *Engine) Chapter(ctx context.Context, entry TocEntry) (ChapterText, erro
 // nextChapterPage 解析下一分页：返回 (下一页 URL, 是否末页)。
 // 末页判定：规则 endPattern 正则命中即末页；缺省走通用启发式——URL 非
 // 「-_N.html」分页形态 且 按钮文本是「下一章/没有了/>>/书末页」（规格 §2.7）。
+// nextPage 为空且 autoNext 开启时走免规则翻页（只认含「页」锚点，防吞下一章）；
 // 无下一页元素或抽不到链接 = 末页（单页章节走这里）。
 func (e *Engine) nextChapterPage(doc *goquery.Document, cur string) (string, bool) {
 	cr := e.rule.Chapter
 	if cr == nil || strings.TrimSpace(cr.NextPage) == "" {
+		if cr != nil && cr.AutoNext {
+			if next, ok := GuessNextPage(doc, e.base(cur)); ok {
+				return next, false
+			}
+		}
 		return "", true
 	}
 	nextEls := doc.Find(cr.NextPage)
@@ -90,7 +109,7 @@ func (e *Engine) nextChapterPage(doc *goquery.Document, cur string) (string, boo
 		return "", true
 	}
 	href, _ := nextEls.First().Attr("href")
-	next := resolveLink(cur, href)
+	next := resolveLink(e.base(cur), href)
 	if next == "" || next == cur {
 		return "", true
 	}
@@ -154,10 +173,13 @@ func (e *Engine) Download(ctx context.Context, detailURL string, opt DownloadOpt
 			continue
 		}
 		f := FailedChapter{Title: toc[i].Title, URL: toc[i].URL}
-		if errs != nil && errs[i] != nil {
+		switch {
+		case errs != nil && errs[i] != nil:
 			f.Err = errs[i].Error()
-		} else {
+		case ctx.Err() != nil:
 			f.Err = ctx.Err().Error()
+		default:
+			f.Err = "未取到结果（原因未上报）"
 		}
 		report.Failed = append(report.Failed, f)
 	}

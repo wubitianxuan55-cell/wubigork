@@ -51,11 +51,20 @@ func (e *Engine) tocPageURLs(ctx context.Context, firstURL string) ([]string, []
 	}
 	docs[0] = doc
 	if t := e.rule.Toc; t != nil && t.NextPage != "" {
-		for _, u := range absLinks(doc.Selection, t.NextPage, pageURL) {
+		for _, u := range absLinks(doc.Selection, t.NextPage, e.base(pageURL)) {
 			if i, ok := seen[u]; ok {
-				// 已存在：挪到队尾（后写覆盖语义）
+				// 已存在：挪到队尾（后写覆盖语义）；已抓到的文档随行复用，不重复抓
+				moved := docs[i]
 				pages = append(pages[:i], pages[i+1:]...)
 				docs = append(docs[:i], docs[i+1:]...)
+				seen = make(map[string]int, len(pages)+1) // 删除后旧索引全失效，重建
+				for j, v := range pages {
+					seen[v] = j
+				}
+				seen[u] = len(pages)
+				pages = append(pages, u)
+				docs = append(docs, moved)
+				continue
 			}
 			seen[u] = len(pages)
 			pages = append(pages, u)
@@ -87,7 +96,7 @@ func (e *Engine) tocItemsOf(doc *goquery.Document, pageURL string) []TocEntry {
 	scope.Find(t.Item).Each(func(_ int, s *goquery.Selection) {
 		title := strings.TrimSpace(s.Text())
 		href, _ := s.Attr("href")
-		u := resolveLink(pageURL, href)
+		u := resolveLink(e.base(pageURL), href)
 		if title == "" || u == "" {
 			return
 		}
@@ -96,11 +105,15 @@ func (e *Engine) tocItemsOf(doc *goquery.Document, pageURL string) []TocEntry {
 	return out
 }
 
+// maxTocGuessPages 免规则目录的翻页上限（上游为单页场景；防环形链接，规格书源搜索 §4 D4）。
+const maxTocGuessPages = 20
+
 // Toc 解析目录；start/end 为 1 起闭区间（end<=0 表示到末卷）。
+// toc.item 为空走**免规则路线**（owllook 猜目录 + 猜翻页，规格书源搜索 §2.2）。
 func (e *Engine) Toc(ctx context.Context, detailURL string, start, end int) ([]TocEntry, error) {
 	t := e.rule.Toc
 	if t == nil || strings.TrimSpace(t.Item) == "" {
-		return nil, errors.New("书源缺少 toc 段或 toc.item")
+		return e.guessToc(ctx, detailURL, t, start, end)
 	}
 	firstURL := detailURL
 	if id := e.bookID(detailURL); id != "" && t.URL != "" {
@@ -112,8 +125,7 @@ func (e *Engine) Toc(ctx context.Context, detailURL string, start, end int) ([]T
 	}
 	if len(pageURLs) > 1 {
 		idx := make([]int, 0, len(pageURLs))
-		for i, u := range pageURLs {
-			_ = u
+		for i := range pageURLs {
 			if docs[i] == nil {
 				idx = append(idx, i)
 			}
@@ -136,6 +148,58 @@ func (e *Engine) Toc(ctx context.Context, detailURL string, start, end int) ([]T
 		toc = append(toc, e.tocItemsOf(docs[i], u)...)
 	}
 	if t.Reverse { // 倒序源反转后仍是「第 1 章在前」
+		for i, j := 0, len(toc)-1; i < j; i, j = i+1, j-1 {
+			toc[i], toc[j] = toc[j], toc[i]
+		}
+	}
+	if len(toc) == 0 {
+		return nil, ErrEmptyToc
+	}
+	if start < 1 {
+		start = 1
+	}
+	if end <= 0 || end > len(toc) {
+		end = len(toc)
+	}
+	if start > end {
+		return nil, fmt.Errorf("章节范围 [%d,%d] 越界（共 %d 章）", start, end, len(toc))
+	}
+	toc = toc[start-1 : end]
+	for i := range toc {
+		toc[i].Order = i + 1
+	}
+	return toc, nil
+}
+
+// guessToc 免规则目录：首页 GuessTocEntries + GuessNextPage 有限翻页合并
+// （跨页按抓取顺序拼接；页内已按 URL 数字尾升序）。范围/重编号与规则路线同语义。
+func (e *Engine) guessToc(ctx context.Context, detailURL string, t *TocRule, start, end int) ([]TocEntry, error) {
+	firstURL := detailURL
+	if id := e.bookID(detailURL); id != "" && t != nil && t.URL != "" {
+		firstURL = strings.ReplaceAll(t.URL, "%s", id)
+	}
+	var toc []TocEntry
+	seen := map[string]bool{}
+	cur := firstURL
+	for page := 0; page < maxTocGuessPages && cur != ""; page++ {
+		doc, pageURL, err := e.pacedFetch(ctx, Request{URL: cur})
+		if err != nil {
+			return nil, err
+		}
+		for _, en := range GuessTocEntries(doc, e.base(pageURL)) {
+			if seen[en.URL] {
+				continue
+			}
+			seen[en.URL] = true
+			toc = append(toc, en)
+		}
+		next, ok := GuessNextPage(doc, e.base(pageURL))
+		if !ok {
+			break
+		}
+		cur = next
+	}
+	if t != nil && t.Reverse { // 倒序源反转后仍是「第 1 章在前」
 		for i, j := 0, len(toc)-1; i < j; i, j = i+1, j-1 {
 			toc[i], toc[j] = toc[j], toc[i]
 		}

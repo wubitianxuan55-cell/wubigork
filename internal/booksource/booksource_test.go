@@ -65,6 +65,16 @@ func newMapServer(t *testing.T) *mapServer {
 			body = pageChapter2
 		case strings.HasPrefix(r.URL.Path, "/ch/3"):
 			body = pageChapter3 // 正文空（限流信号）
+		case strings.HasPrefix(r.URL.Path, "/serp"):
+			body = pageSERP
+		case strings.HasPrefix(r.URL.Path, "/gtoc2"):
+			body = pageGuessToc2
+		case strings.HasPrefix(r.URL.Path, "/gtoc1"):
+			body = pageGuessToc1
+		case strings.HasPrefix(r.URL.Path, "/gch1_p2"):
+			body = pageGuessChapterP2
+		case strings.HasPrefix(r.URL.Path, "/gch1"):
+			body = pageGuessChapter1
 		case strings.HasPrefix(r.URL.Path, "/cf"):
 			body = "<html><head><title>Just a moment...</title></head><body></body></html>"
 		case strings.HasPrefix(r.URL.Path, "/echo"):
@@ -182,6 +192,55 @@ const pageChapter2P2 = `<html><body><div id="content">
 
 const pageChapter3 = `<html><body><h1>第三章 空章</h1><div id="content"></div></body></html>`
 
+// ── 泛搜索与免规则夹具（owllook 蒸馏）───────────────────────────────────
+
+// 假 SERP：合法候选 / index.html 剥离 / .html 详情拒绝 / 重复去重 / 黑名单 /
+// 站点根拒绝（引擎自家域过滤由 redirect 测试覆盖）。
+const pageSERP = `<html><body>
+<div class="b_algo"><h2><a href="https://site-a.com/book/55/">大道朝天 - siteA</a></h2></div>
+<div class="b_algo"><h2><a href="https://site-b.com/book/66/index.html">大道朝天 - siteB</a></h2></div>
+<div class="b_algo"><h2><a href="https://site-c.com/book/77/8845907.html">大道朝天 第一章</a></h2></div>
+<div class="b_algo"><h2><a href="https://site-a.com/book/55/">大道朝天 - siteA 复制</a></h2></div>
+<div class="b_algo"><h2><a href="https://www.blacklist.com/book/8/">大道朝天 - 黑名单</a></h2></div>
+<div class="b_algo"><h2><a href="https://site-d.com/">站点根</a></h2></div>
+</body></html>`
+
+// 免规则目录两页：页内含卷锚点/全角数字/噪声锚点/重复 URL；页间「下一页」串联。
+const pageGuessToc1 = `<html><body>
+<div class="nav"><a href="/">关于我们</a><a href="/gtoc1">本页</a></div>
+<a href="/ch/8845907.html">第一章 起身</a>
+<a href="/ch/8845908.html">第一卷 风起（序）</a>
+<a href="/ch/第３章.html">第３章 试剑</a>
+<a href="/ch/8845908.html">第二章 重复URL</a>
+<a href="/gtoc2">下一页</a><a href="/gtoc1">上一页</a>
+</body></html>`
+
+const pageGuessToc2 = `<html><body>
+<a href="/ch/8845909.html">第四章 收官</a>
+<a href="/gtoc2">下一页</a>
+</body></html>`
+
+// 免规则正文：<title> 带章节名，AutoNext 翻「下一页」，「下一章」不得吞入。
+const pageGuessChapter1 = `<html><head><title>第一章 起身_大道朝天_假站</title></head><body>
+<div id="content"><p>甲。</p></div>
+<a href="/gch1_p2">下一页</a>
+</body></html>`
+
+const pageGuessChapterP2 = `<html><head><title>正文页</title></head><body>
+<div id="content"><p>乙。</p></div>
+<a href="/ch/9999999.html">下一章</a>
+</body></html>`
+
+func serpEngine(m *mapServer) *SearchEngineRule {
+	return &SearchEngineRule{
+		Name:        "假引擎",
+		URL:         m.url("/serp") + "?q=%s",
+		QueryFormat: "%s 小说 免费阅读",
+		Result:      ".b_algo",
+		Title:       "h2 a",
+	}
+}
+
 // ── 规则与校验 ──────────────────────────────────────────────────────────
 
 func TestTemplateParsesAndValidates(t *testing.T) {
@@ -212,7 +271,7 @@ func TestValidateFailClosed(t *testing.T) {
 		{"书id无捕获组", func(r *Rule) { r.Book.URL = regexp.QuoteMeta(m.url("/book/")) + "\\d+" }, "捕获组"},
 		{"负并发", func(r *Rule) { r.Crawl.Concurrency = -1 }, "负"},
 		{"坏method", func(r *Rule) { r.Search.Method = "put" }, "get/post"},
-		{"缺item", func(r *Rule) { r.Toc.Item = "" }, "toc.item"},
+		{"坏item", func(r *Rule) { r.Toc.Item = "//a" }, "XPath"},
 		{"坏css", func(r *Rule) { r.Chapter.Content = "##" }, "选择器"},
 	}
 	for _, c := range cases {
@@ -250,6 +309,21 @@ func TestLoadDirReportsPerFileErrors(t *testing.T) {
 	}
 	if loaded[1].Err != nil || loaded[1].Rule.Name != good.Name {
 		t.Fatalf("好文件应装载成功: %+v", loaded[1])
+	}
+}
+
+func TestValidateAllowsGuessRoutes(t *testing.T) {
+	// 免规则路线（owllook 蒸馏）：toc.item 与 chapter.title 可空，正文仍必填
+	m := newMapServer(t)
+	r := baseRule(m)
+	r.Toc.Item = ""
+	r.Chapter.Title = ""
+	if err := r.Validate(); err != nil {
+		t.Fatalf("免规则路线应通过校验: %v", err)
+	}
+	r.Chapter.Content = ""
+	if err := r.Validate(); err == nil || !strings.Contains(err.Error(), "chapter.content") {
+		t.Fatalf("正文选择器仍必须 fail-closed: %v", err)
 	}
 }
 
@@ -706,5 +780,13 @@ func TestEnsureTemplateIdempotent(t *testing.T) {
 	}
 	if _, err := Parse(raw); err != nil {
 		t.Fatalf("落盘模板应可解析: %v", err)
+	}
+	// 引擎规则模板（owllook 泛搜索蒸馏）同随落盘
+	engRaw, err := os.ReadFile(filepath.Join(dir, "websearch-engines.json"))
+	if err != nil {
+		t.Fatalf("读引擎模板失败: %v", err)
+	}
+	if _, err := LoadEnginesFileBytes(engRaw); err != nil {
+		t.Fatalf("落盘引擎模板应可装载: %v", err)
 	}
 }

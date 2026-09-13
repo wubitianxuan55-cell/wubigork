@@ -114,7 +114,7 @@ func (e *Engine) parseSearchPage(doc *goquery.Document, pageURL string) []Search
 		if name == "" {
 			return
 		}
-		sr := SearchResult{Source: e.rule.Name, BookName: name, URL: searchLink(row, s, pageURL)}
+		sr := SearchResult{Source: e.rule.Name, BookName: name, URL: searchLink(row, s, e.base(pageURL))}
 		if s.Author != "" {
 			sr.Author = textOf(row, s.Author)
 		}
@@ -139,7 +139,7 @@ func (e *Engine) parseSearchPage(doc *goquery.Document, pageURL string) []Search
 		if b := e.parseBookDetail(doc, pageURL); b.Name != "" {
 			out = append(out, SearchResult{
 				Source:   e.rule.Name,
-				URL:      pageURL,
+				URL:      e.base(pageURL),
 				BookName: b.Name,
 				Author:   b.Author,
 				Category: b.Category,

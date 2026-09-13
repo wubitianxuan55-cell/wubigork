@@ -85,22 +85,29 @@ type BookRule struct {
 }
 
 type TocRule struct {
-	URL      string `json:"url,omitempty"` // 详情/目录分页时必填，"%s"=书 id
-	List     string `json:"list,omitempty"`
-	Item     string `json:"item"`
+	URL  string `json:"url,omitempty"` // 详情/目录分页时必填，"%s"=书 id
+	List string `json:"list,omitempty"`
+	// Item 章节链接选择器；缺省走**免规则路线**（owllook 猜目录，
+	// 规格书源搜索 docs/gaea-sin-booksearch-distill-2026-09.md §2.2）。
+	Item     string `json:"item,omitempty"`
 	Reverse  bool   `json:"reverse,omitempty"` // 上游 isDesc 同义
 	NextPage string `json:"nextPage,omitempty"`
 }
 
 type ChapterRule struct {
-	Title              string `json:"title"`
+	// Title 章节名选择器；缺省走免规则标题回退（<title> 正则 → h1 → title，
+	// 规格书源搜索 §2.4）。
+	Title              string `json:"title,omitempty"`
 	Content            string `json:"content"`
 	ParagraphTagClosed bool   `json:"paragraphTagClosed,omitempty"`
 	ParagraphTag       string `json:"paragraphTag,omitempty"` // 非闭合源的切段正则（如 "<br>+"）
 	FilterTxt          string `json:"filterTxt,omitempty"`    // 广告正则（| 连缀单条）
 	FilterTag          string `json:"filterTag,omitempty"`    // 元素连内容整删（"div, script"）
 	NextPage           string `json:"nextPage,omitempty"`
-	EndPattern         string `json:"endPattern,omitempty"` // 末页 URL 正则；缺省走通用启发式
+	// AutoNext nextPage 为空时启用免规则翻页（「下一页」锚点启发式，
+	// 只认含「页」文本防把下一章吞成本章续页，规格书源搜索 §2.3）。
+	AutoNext   bool   `json:"autoNext,omitempty"`
+	EndPattern string `json:"endPattern,omitempty"` // 末页 URL 正则；缺省走通用启发式
 }
 
 type CrawlRule struct {
@@ -166,8 +173,8 @@ func (r *Rule) crawlConfig() CrawlConfig {
 // ── 校验（fail-closed：不支持即报错并点名，规格 §3.2）────────────────────
 
 var (
-	// 上游 XPath 判定同款前缀（规格 §2.2）；v1 CSS only。
-	xpathPrefix = regexp.MustCompile(`^(/|\(|\()`)
+	// XPath 前缀判定（规格 §2.2 的 (/|//|( 三类，// 以 / 开头）；v1 CSS only。
+	xpathPrefix = regexp.MustCompile(`^(/|\()`)
 	attrSuffix  = regexp.MustCompile(`@(href|src)$`)
 	titleNumber = regexp.MustCompile(`^(\d+)\s*\.\s*(.+)$`)
 )
@@ -214,6 +221,10 @@ func (r *Rule) Validate() error {
 		}
 		return nil
 	}
+	// 只对「真是正则」的字段做正则校验：book.url（捕获书 id）、filterTxt、
+	// paragraphTag、endPattern。search.url / toc.url 是带 %s 槽位的 **URL 模板**，
+	// 合法 URL 里会出现 []、( 等正则元字符（如 ?tags[]=1），当正则校验会误拒合法
+	// 规则——fail-closed 只针对真不支持的语法。
 
 	if s := r.Search; s != nil {
 		for _, f := range []string{s.URL, s.Result, s.BookName} {
@@ -228,9 +239,6 @@ func (r *Rule) Validate() error {
 		case "", "get", "post":
 		default:
 			return fmt.Errorf("search.method 仅支持 get/post，得到「%s」", s.Method)
-		}
-		if err := checkRegex("search.url", s.URL); err != nil {
-			return err
 		}
 		if err := checkSel("search.result", s.Result, true); err != nil {
 			return err
@@ -273,7 +281,7 @@ func (r *Rule) Validate() error {
 		}
 	}
 	if t := r.Toc; t != nil {
-		if err := checkSel("toc.item", t.Item, true); err != nil {
+		if err := checkSel("toc.item", t.Item, false); err != nil {
 			return err
 		}
 		if err := checkSel("toc.list", t.List, false); err != nil {
@@ -282,12 +290,9 @@ func (r *Rule) Validate() error {
 		if err := checkSel("toc.nextPage", t.NextPage, false); err != nil {
 			return err
 		}
-		if err := checkRegex("toc.url", t.URL); err != nil {
-			return err
-		}
 	}
 	if c := r.Chapter; c != nil {
-		if err := checkSel("chapter.title", c.Title, true); err != nil {
+		if err := checkSel("chapter.title", c.Title, false); err != nil {
 			return err
 		}
 		if err := checkSel("chapter.content", c.Content, true); err != nil {
@@ -363,6 +368,9 @@ func LoadFile(path string) (*Rule, error) {
 
 // Parse 解析并校验规则字节。
 func Parse(raw []byte) (*Rule, error) {
+	if err := rejectUnsupportedFields(raw); err != nil {
+		return nil, err
+	}
 	var r Rule
 	if err := json.Unmarshal(raw, &r); err != nil {
 		return nil, fmt.Errorf("规则 JSON 解析失败: %w", err)
@@ -371,6 +379,35 @@ func Parse(raw []byte) (*Rule, error) {
 		return nil, err
 	}
 	return &r, nil
+}
+
+// unsupportedFields 上游规则里 gaea v1 明确不做、但必须**如实点名**的字段
+// （规格 §4 D4）。schema 结构体里没有这些字段，json.Unmarshal 默认静默丢弃——
+// 静默的代价是「分页抓不到 → 章节被截断」，属静默失真，故在校验层 fail-closed。
+var unsupportedFields = []struct{ Section, Field, Why string }{
+	{"chapter", "nextPageInJs", "需 JS 步骤引擎，gaea v1 不做（规格 §4 D4）"},
+}
+
+// rejectUnsupportedFields 在 schema 之外检查明确不支持的字段名。
+func rejectUnsupportedFields(raw []byte) error {
+	var sections map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &sections); err != nil {
+		return nil // 结构层面的错误交给主解析路径报，避免掩盖真因
+	}
+	for _, f := range unsupportedFields {
+		rawSec, ok := sections[f.Section]
+		if !ok || len(rawSec) == 0 || rawSec[0] != '{' {
+			continue
+		}
+		var fields map[string]json.RawMessage
+		if err := json.Unmarshal(rawSec, &fields); err != nil {
+			continue
+		}
+		if _, hit := fields[f.Field]; hit {
+			return fmt.Errorf("%s.%s 不支持：%s", f.Section, f.Field, f.Why)
+		}
+	}
+	return nil
 }
 
 // Loaded LoadDir 的逐文件结果（坏文件不致命，错误随条目上报）。

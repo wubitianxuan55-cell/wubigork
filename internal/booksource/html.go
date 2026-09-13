@@ -29,6 +29,15 @@ func resolveLink(pageURL, ref string) string {
 	return r.String()
 }
 
+// base 相对链接补全基准：优先本次抓取回报的页址；注入的 Fetcher 不回报页址时
+// 回落规则 baseUri（规格 §3.2 声明 baseUri 即「相对链接补全基准」，不得是死字段）。
+func (e *Engine) base(pageURL string) string {
+	if strings.TrimSpace(pageURL) != "" {
+		return pageURL
+	}
+	return e.rule.BaseURI
+}
+
 // textOf 取首个命中文本的收拢文本（对齐上游 ContentType.TEXT）。
 func textOf(s *goquery.Selection, sel string) string {
 	return strings.TrimSpace(s.Find(sel).First().Text())

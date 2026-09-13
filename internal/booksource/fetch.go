@@ -119,7 +119,12 @@ func (f *HTTPFetcher) Fetch(ctx context.Context, req Request) (*Page, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Page{URL: req.URL, Body: raw}, nil
+	// 重定向跟随后的最终 URL（重定向解包依赖，规格书源搜索 §2.1）
+	finalURL := req.URL
+	if resp.Request != nil && resp.Request.URL != nil {
+		finalURL = resp.Request.URL.String()
+	}
+	return &Page{URL: finalURL, Body: raw}, nil
 }
 
 // ── 引擎 ────────────────────────────────────────────────────────────────
@@ -137,74 +142,63 @@ var cfTitles = map[string]bool{
 	"Checking your browser before accessing": true,
 }
 
-// Engine 单书源引擎：规则 + 注入的通道/时钟/随机源。
-type Engine struct {
-	rule  *Rule
+// crawler 抓取纪律载体（抖动/退避/并发/CF 检测），Engine 与 WebSearcher 共用。
+type crawler struct {
 	cfg   CrawlConfig
 	fetch Fetcher
 	sleep Sleeper
 	rand  *rand.Rand
 }
 
-// Options 引擎依赖注入（零值可用：系统 sleeper、默认抓取参数）。
-type Options struct {
-	Fetcher Fetcher
-	Sleeper Sleeper
-	Rand    *rand.Rand
-}
-
-func New(rule *Rule, opt Options) *Engine {
+func newCrawler(cfg CrawlConfig, opt Options) *crawler {
 	if opt.Sleeper == nil {
 		opt.Sleeper = systemSleeper
 	}
 	if opt.Rand == nil {
 		opt.Rand = rand.New(rand.NewPCG(uint64(time.Now().UnixNano()), 1)) //nolint:gosec
 	}
-	return &Engine{rule: rule, cfg: rule.crawlConfig(), fetch: opt.Fetcher, sleep: opt.Sleeper, rand: opt.Rand}
+	return &crawler{cfg: cfg, fetch: opt.Fetcher, sleep: opt.Sleeper, rand: opt.Rand}
 }
-
-// Rule 只读访问规则（前端展示书源名等）。
-func (e *Engine) Rule() *Rule { return e.rule }
 
 // jitter 请求间隔随机抖动 [min,max]。
-func (e *Engine) jitter() time.Duration {
-	return time.Duration(e.randBetween(e.cfg.MinIntervalMs, e.cfg.MaxIntervalMs)) * time.Millisecond
+func (c *crawler) jitter() time.Duration {
+	return time.Duration(c.randBetween(c.cfg.MinIntervalMs, c.cfg.MaxIntervalMs)) * time.Millisecond
 }
 
-// retryJitter 重试间隔抖动 × 尝试次数（线性放大，规格 §2.3）。
-func (e *Engine) retryJitter(attempt int) time.Duration {
-	base := e.randBetween(e.cfg.RetryMinMs, e.cfg.RetryMaxMs)
+// retryJitter 重试间隔抖动 × 尝试次数（线性放大，书源规格 §2.3）。
+func (c *crawler) retryJitter(attempt int) time.Duration {
+	base := c.randBetween(c.cfg.RetryMinMs, c.cfg.RetryMaxMs)
 	return time.Duration(base*attempt) * time.Millisecond
 }
 
-func (e *Engine) randBetween(min, max int) int {
+func (c *crawler) randBetween(min, max int) int {
 	if max <= min {
 		return min
 	}
-	return min + e.rand.IntN(max-min+1)
+	return min + c.rand.IntN(max-min+1)
 }
 
 // pacedFetch 带纪律的抓取：先抖动再请求；失败按「重试抖动 × 尝试次数」退避，
 // ctx 取消后零调用（不睡眠不请求）。
-func (e *Engine) pacedFetch(ctx context.Context, req Request) (*goquery.Document, string, error) {
+func (c *crawler) pacedFetch(ctx context.Context, req Request) (*goquery.Document, string, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, "", err
 	}
-	if err := e.sleep(ctx, e.jitter()); err != nil {
+	if err := c.sleep(ctx, c.jitter()); err != nil {
 		return nil, "", err
 	}
-	page, err := e.fetch.Fetch(ctx, req)
-	for attempt := 1; page == nil && err != nil && attempt <= e.cfg.MaxRetries; attempt++ {
+	page, err := c.fetch.Fetch(ctx, req)
+	for attempt := 1; page == nil && err != nil && attempt <= c.cfg.MaxRetries; attempt++ {
 		if ctx.Err() != nil {
 			return nil, "", ctx.Err()
 		}
 		if errors.Is(err, ErrCloudflare) {
 			return nil, "", err
 		}
-		if err := e.sleep(ctx, e.retryJitter(attempt)); err != nil {
+		if err := c.sleep(ctx, c.retryJitter(attempt)); err != nil {
 			return nil, "", err
 		}
-		page, err = e.fetch.Fetch(ctx, req)
+		page, err = c.fetch.Fetch(ctx, req)
 	}
 	if err != nil {
 		return nil, "", err
@@ -222,9 +216,9 @@ func (e *Engine) pacedFetch(ctx context.Context, req Request) (*goquery.Document
 }
 
 // runBounded 有界并发执行 fn(i)，i ∈ [0,n)；ctx 取消后未起跑的槽位记 ctx 错误。
-func (e *Engine) runBounded(ctx context.Context, n, limit int, fn func(i int) error) []error {
+func (c *crawler) runBounded(ctx context.Context, n, limit int, fn func(i int) error) []error {
 	if limit <= 0 {
-		limit = e.cfg.Concurrency
+		limit = c.cfg.Concurrency
 	}
 	if limit > n {
 		limit = n
@@ -249,3 +243,23 @@ func (e *Engine) runBounded(ctx context.Context, n, limit int, fn func(i int) er
 	wg.Wait()
 	return errs
 }
+
+// Engine 单书源引擎：规则 + 注入的通道/时钟/随机源。
+type Engine struct {
+	*crawler
+	rule *Rule
+}
+
+// Options 引擎依赖注入（零值可用：系统 sleeper、默认抓取参数）。
+type Options struct {
+	Fetcher Fetcher
+	Sleeper Sleeper
+	Rand    *rand.Rand
+}
+
+func New(rule *Rule, opt Options) *Engine {
+	return &Engine{crawler: newCrawler(rule.crawlConfig(), opt), rule: rule}
+}
+
+// Rule 只读访问规则（前端展示书源名等）。
+func (e *Engine) Rule() *Rule { return e.rule }

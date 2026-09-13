@@ -1,0 +1,27 @@
+[
+  {
+    "name": "bing",
+    "url": "https://www.bing.com/search?q=%s",
+    "queryFormat": "%s 小说 免费阅读",
+    "result": "#b_results .b_algo",
+    "title": "h2 a",
+    "comment": "自带引擎规则模板（自编功能数据，非上游拷贝）：换引擎/调类名改这份 JSON 即可。SERP 结构随时间漂移，坏了对付法=换选择器或换引擎。"
+  },
+  {
+    "name": "ddg-html",
+    "url": "https://html.duckduckgo.com/html/?q=%s",
+    "queryFormat": "%s 小说 免费阅读",
+    "result": ".result",
+    "title": ".result__a",
+    "linkParam": "uddg",
+    "disabled": true
+  },
+  {
+    "name": "so360",
+    "url": "https://www.so.com/s?q=%s",
+    "queryFormat": "%s 小说 免费阅读",
+    "result": ".res-list",
+    "title": "h3 a",
+    "disabled": true
+  }
+]
