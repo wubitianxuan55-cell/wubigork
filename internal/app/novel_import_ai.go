@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/gaea/gaea/internal/ai"
 	"github.com/gaea/gaea/internal/bookimport"
@@ -29,9 +30,13 @@ const (
 	reconstructTimeout     = 10 * time.Minute
 )
 
-// OutlineReconstructItem 单章反推结果（前端预览与落库共用载荷）。
+// OutlineReconstructItem 反推结果条目（前端预览与落库共用载荷）。
+// 短篇 = 单章条目（chapterNumber）；中/长篇 = 聚合骨架条目（chapterFrom/chapterTo
+// 标注跨度，oh-story T4 篇幅路由），落库时新建卷级参考节点。
 type OutlineReconstructItem struct {
 	ChapterNumber int      `json:"chapterNumber"`
+	ChapterFrom   int      `json:"chapterFrom,omitempty"` // 聚合骨架：起始章（>0 = 骨架条目）
+	ChapterTo     int      `json:"chapterTo,omitempty"`   // 聚合骨架：结束章
 	Title         string   `json:"title"`
 	Summary       string   `json:"summary"`
 	Scenes        []string `json:"scenes,omitempty"`
@@ -51,6 +56,8 @@ type OutlineReconstructPreview struct {
 	NarrativePerspective string                   `json:"narrativePerspective,omitempty"`
 	TargetWords          int                      `json:"targetWords,omitempty"`
 	Items                []OutlineReconstructItem `json:"items"`
+	Tier                 string                   `json:"tier,omitempty"`       // 篇幅档位 short|mid|long（T4 篇幅路由）
+	SegmentSize          int                      `json:"segmentSize,omitempty"` // >0 = items 已按每 N 章聚合
 	Warnings             []string                 `json:"warnings,omitempty"`
 }
 
@@ -72,8 +79,18 @@ func (a *writingState) NovelOutlineReconstruct() (OutlineReconstructPreview, err
 	ctx, cancel := context.WithTimeout(context.Background(), reconstructTimeout)
 	defer cancel()
 
+	// ── 篇幅路由（oh-story T4）：按读到的总字数/章数选骨架粒度 ──
+	totalWords := 0
+	for _, ch := range chapters {
+		totalWords += utf8.RuneCountInString(ch.Content)
+	}
+	tier := bookimport.RouteTier(totalWords, len(chapters))
+	segSize := bookimport.SegmentSize(tier)
+
 	preview := OutlineReconstructPreview{
 		ProjectTitle: title,
+		Tier:         string(tier),
+		SegmentSize:  segSize,
 		Items:        []OutlineReconstructItem{},
 		Warnings:     []string{},
 	}
@@ -92,20 +109,35 @@ func (a *writingState) NovelOutlineReconstruct() (OutlineReconstructPreview, err
 	preview.TargetWords = suggestion.TargetWords
 
 	// ── 分批章节大纲（每批独立降级）──
+	var structs []bookimport.OutlineStructure
 	for start := 0; start < len(chapters); start += reconstructBatchSize {
 		end := start + reconstructBatchSize
 		if end > len(chapters) {
 			end = len(chapters)
 		}
 		batch := chapters[start:end]
-		structs, err := a.reconstructBatch(ctx, suggestion, batch, start, len(chapters))
+		batchStructs, err := a.reconstructBatch(ctx, suggestion, batch, start, len(chapters))
 		if err != nil {
 			preview.Warnings = append(preview.Warnings,
 				fmt.Sprintf("第 %d-%d 章反推失败，已用规则兜底：%v", start+1, end, err))
-			structs = fallbackBatch(batch, start+1)
+			batchStructs = fallbackBatch(batch, start+1)
 		} else {
 			preview.AIUsed = true
 		}
+		structs = append(structs, batchStructs...)
+	}
+	if segSize > 0 {
+		// 中/长篇：章级条目聚合为骨架节点（卷级粗纲），预览/落库以骨架为准。
+		for _, seg := range bookimport.AggregateSkeleton(structs, segSize) {
+			preview.Items = append(preview.Items, OutlineReconstructItem{
+				ChapterNumber: seg.ChapterFrom,
+				ChapterFrom:   seg.ChapterFrom,
+				ChapterTo:     seg.ChapterTo,
+				Title:         seg.Title,
+				Summary:       seg.Summary,
+			})
+		}
+	} else {
 		for _, st := range structs {
 			preview.Items = append(preview.Items, toPreviewItem(st))
 		}
@@ -114,8 +146,12 @@ func (a *writingState) NovelOutlineReconstruct() (OutlineReconstructPreview, err
 }
 
 // NovelOutlineReconstructApply 把预览载荷**合并**到当前工程的大纲：
-// 只按章号命中既有节点写 summary/scenes/key_points/emotion（角色名留预览，不写
-// 角色 ID 字段——那是角色库的活），**幂等**，不新建/不删除节点、不碰章节正文。
+// 章级条目（短篇）按章号命中既有节点写 summary/scenes/key_points/emotion
+// （角色名留预览，不写角色 ID 字段——那是角色库的活），**幂等**，不新建/不删除
+// 节点、不碰章节正文。
+// 骨架条目（中/长篇，chapterFrom>0，T4 篇幅路由）：新建卷级参考节点
+// （seg-NNN，planned，根级）；节点由反推功能持有——重复应用时先移除旧的
+// seg-* 再落新节点，保持可重复执行不堆积。
 func (a *writingState) NovelOutlineReconstructApply(itemsJSON string) (int, error) {
 	pm := a.getPM()
 	if pm == nil {
@@ -129,7 +165,12 @@ func (a *writingState) NovelOutlineReconstructApply(itemsJSON string) (int, erro
 		return 0, fmt.Errorf("反推结果为空，未做任何修改")
 	}
 	byNum := make(map[int]OutlineReconstructItem, len(items))
+	var segItems []OutlineReconstructItem
 	for _, it := range items {
+		if it.ChapterFrom > 0 && it.ChapterTo > 0 {
+			segItems = append(segItems, it) // 骨架条目：走新建卷级节点分支
+			continue
+		}
 		if it.ChapterNumber > 0 {
 			byNum[it.ChapterNumber] = it
 		}
@@ -138,6 +179,29 @@ func (a *writingState) NovelOutlineReconstructApply(itemsJSON string) (int, erro
 	if err != nil || outline == nil {
 		return 0, fmt.Errorf("读取大纲失败: %w", err)
 	}
+	// 骨架节点由反推持有：重复应用先移除旧 seg-*（幂等不堆积）。
+	keptNodes := outline.Nodes[:0:0]
+	maxOrder := 0
+	for _, n := range outline.Nodes {
+		if strings.HasPrefix(n.ID, "seg-") {
+			continue
+		}
+		if n.OrderIndex > maxOrder {
+			maxOrder = n.OrderIndex
+		}
+		keptNodes = append(keptNodes, n)
+	}
+	outline.Nodes = keptNodes
+	for k, seg := range segItems {
+		outline.Nodes = append(outline.Nodes, types.OutlineNode{
+			ID:         fmt.Sprintf("seg-%03d", k+1),
+			Title:      seg.Title,
+			Summary:    seg.Summary,
+			OrderIndex: maxOrder + 1 + k,
+			Status:     types.OutlinePlanned,
+		})
+	}
+	created := len(segItems)
 	updated := 0
 	for i := range outline.Nodes {
 		node := &outline.Nodes[i]
@@ -163,13 +227,13 @@ func (a *writingState) NovelOutlineReconstructApply(itemsJSON string) (int, erro
 		}
 		updated++
 	}
-	if updated == 0 {
+	if updated == 0 && created == 0 {
 		return 0, fmt.Errorf("没有匹配到任何章节节点（反推结果与当前工程对不上）")
 	}
 	if err := pm.WriteOutlines(outline); err != nil {
 		return 0, fmt.Errorf("写大纲失败: %w", err)
 	}
-	return updated, nil
+	return updated + created, nil
 }
 
 // ── 内部实现 ──────────────────────────────────────────────────

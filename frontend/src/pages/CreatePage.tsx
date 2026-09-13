@@ -550,14 +550,20 @@ const CreatePage: React.FC = () => {
       const warn = preview?.warnings?.length ? `\n提示：${preview.warnings.slice(0, 2).join('；')}` : ''
       const meta = [preview?.genre, preview?.narrativePerspective, preview?.targetWords ? `目标 ${preview.targetWords.toLocaleString()} 字` : '']
         .filter(Boolean).join(' · ')
+      // 篇幅路由（oh-story T4）：中/长篇预览按每 segmentSize 章聚合为卷级参考节点
+      const seg = preview?.segmentSize ?? 0
+      const tierLabel = preview?.tier === 'long' ? '长篇' : preview?.tier === 'mid' ? '中篇' : '短篇'
+      const action = seg > 0
+        ? `篇幅路由（${tierLabel}）：已按每 ${seg} 章聚合为 ${items.length} 个卷级参考节点，应用将新建这些节点（不影响章节正文，可重复执行）。`
+        : '将把每章的概要 / 场景 / 要点 / 情感基调合并进大纲（不覆盖章节正文，可重复执行）。'
       Modal.confirm({
         title: '应用 AI 反推大纲？',
-        content: `${head}：共 ${items.length} 章。将把每章的概要 / 场景 / 要点 / 情感基调合并进大纲（不覆盖章节正文，可重复执行）。${meta ? `\n推断：${meta}` : ''}${warn}`,
+        content: `${head}：共 ${items.length} ${seg > 0 ? '个卷级节点' : '章'}。${action}${meta ? `\n推断：${meta}` : ''}${warn}`,
         okText: '应用到大纲',
         cancelText: '取消',
         onOk: async () => {
           const n = await NovelOutlineReconstructApply(JSON.stringify(items))
-          setStateMsg(`已应用 ${n} 章大纲`)
+          setStateMsg(seg > 0 ? `已应用 ${n} 个卷级参考节点` : `已应用 ${n} 章大纲`)
           await loadOutlines()
         },
       })

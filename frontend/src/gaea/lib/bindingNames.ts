@@ -477,6 +477,7 @@ export const bindingNames = [
 	"HerdsmanSecurityCheck",
 	"ImageHubAssets",
 	"ImportNovelBook",
+	"ImportNovelBookEx",
 	"ImportStyleProfile",
 	"InjectMemories",
 	"IsProjectV4",
@@ -490,11 +491,11 @@ export const bindingNames = [
 	"MainBrainChat",
 	"MergeCharacters",
 	"MigrateProjectToV4",
+	"NovelBookSourceEnginesGet",
+	"NovelBookSourceEnginesSave",
 	"NovelBookSourceImport",
 	"NovelBookSourceImportCancel",
 	"NovelBookSourceImportChapters",
-	"NovelBookSourceEnginesGet",
-	"NovelBookSourceEnginesSave",
 	"NovelBookSourceSearch",
 	"NovelBookSourceToc",
 	"NovelChapterReview",
@@ -658,4 +659,3 @@ export const bindingNames = [
 	"WhisperWeixinQRStatusWithCode",
 	"WhisperWeixinStatus",
 ] as const
-

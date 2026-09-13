@@ -144,6 +144,7 @@ type LegacySurfaceNames =
   | "HerdsmanProbe"
   | "HerdsmanSecurityCheck"
   | "ImportNovelBook"
+  | "ImportNovelBookEx"
   | "ImportStyleProfile"
   | "InjectMemories"
   | "IsProjectV4"
