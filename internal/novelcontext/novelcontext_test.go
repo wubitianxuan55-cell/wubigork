@@ -273,6 +273,51 @@ func TestBuildSceneBibleFromChapter(t *testing.T) {
 	}
 }
 
+// TestBuildForeshadows_LayerPriority 分层优先采样：硬约束层（必须回收/超期/
+// 本章计划埋入）排在参考信息（近期/无计划）之前；已回收/远期不注入。
+func TestBuildForeshadows_LayerPriority(t *testing.T) {
+	pm, _ := newTestProject(t, "char-a")
+	if err := pm.WriteForeshadows(&types.ForeshadowFile{SchemaVersion: 2, Items: []types.Foreshadow{
+		{ID: "np", Description: "无计划旧伏笔", PlantedIn: "001.md", Status: types.ForeshadowPlanted},
+		{ID: "near", Description: "近期参考伏笔", PlantedIn: "001.md", TargetResolveIn: "006.md", Status: types.ForeshadowPlanted},
+		{ID: "overdue", Description: "超期伏笔", PlantedIn: "001.md", TargetResolveIn: "003.md", Status: types.ForeshadowPlanted},
+		{ID: "must", Description: "本章必须回收伏笔", PlantedIn: "001.md", TargetResolveIn: "005.md", Status: types.ForeshadowPlanted},
+		{ID: "far", Description: "远期伏笔不应出现", PlantedIn: "001.md", TargetResolveIn: "030.md", Status: types.ForeshadowPlanted},
+		{ID: "done", Description: "已回收伏笔不应出现", PlantedIn: "001.md", RevealedIn: "004.md", Status: types.ForeshadowRevealed},
+		{ID: "plan", Description: "本章计划埋入伏笔", PlantedIn: "005.md", Status: types.ForeshadowPending},
+	}}); err != nil {
+		t.Fatalf("写伏笔: %v", err)
+	}
+
+	got := buildForeshadows(pm, 5)
+	if len(got) != 5 {
+		t.Fatalf("应注入 5 条（远期/已回收排除）, got %d: %v", len(got), got)
+	}
+	// 硬约束层（must/overdue/plan）先于参考层（near/np）
+	hard := []string{"[本章必须回收]", "[已超期", "[本章计划埋入]"}
+	soft := []string{"[计划第6章回收]", "[待规划回收章]"}
+	lastHard, firstSoft := -1, len(got)
+	for i, line := range got {
+		if firstSoft == len(got) && sliceContains(soft, line) {
+			firstSoft = i
+		}
+		if sliceContains(hard, line) {
+			lastHard = i
+		}
+	}
+	if lastHard > firstSoft {
+		t.Errorf("硬约束层应先于参考层输出: %v", got)
+	}
+	if !sliceContains(got, "[本章必须回收]") || !sliceContains(got, "[已超期2章]") {
+		t.Errorf("层标注缺失: %v", got)
+	}
+	for _, line := range got {
+		if strings.Contains(line, "远期") || strings.Contains(line, "已回收") {
+			t.Errorf("不应注入的条目出现了: %q", line)
+		}
+	}
+}
+
 func containsAny(haystack string, needles ...string) bool {
 	for _, n := range needles {
 		if n != "" && strings.Contains(haystack, n) {

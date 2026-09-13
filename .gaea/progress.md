@@ -3,6 +3,24 @@
 > 本文件为**最近发布速览**。完整历史磁带见 `docs/archive/progress-history-2026-09.md`
 > 与 `releases/`。
 
+## 最新发布：v4.293.0（2026-09-14）「伏笔分层注入：按计划回收章调度生成上下文（t1-P1）」
+
+- **来源**：MuMuAINovel 蒸馏线 t1 伏笔域消费方第一刀。契约（6 态并集+计划回收章+注入控制）v4.278.0 已落库但零生成侧消费方；本刀按 `docs/distill/01-foreshadow-spec.md` §4 落分层注入（spec P1），零绑定面。
+- **落地**：①纯函数层（新 `internal/types/foreshadow_urgency.go`）：UrgencyLevel（0-3 运行时不落库；D15 修正 partial/hinted 有回收压力；缺计划章不猜值不假超期）+ClassifyResolve 四值+ForeshadowLayerOf 分层唯一入口（L1 必须回收/L2 超期/L3 近期参考/L4 本章计划埋入/L5 无计划兜底〔gaea 扩展：存量无 target_resolve_in 条目保底注入防回归〕）+调度常量唯一声明；②include_in_context=false 全层排除、auto_remind=false 只抑制 L3（D8：L1/L2 硬约束不消隐）、远期不注入；③四层渲染（新 `internal/app/foreshadow_context.go`）替代旧「未回收伏笔（创作约束）」单层：模板对齐 spec §4.2（D14 省略号按长度判断）、L2≤3/L3≤5/总量≤15/整区含标题≤1600 rune、消耗顺序 L1→L2→L3→L4→L5、空层不输出标题、区段头带调度规则约束行；④`resolveTargetChapterNum`（显式/分支父节点/顺延，与 ensureChapterNode 同源复用）；⑤novelcontext 场景圣经分层优先采样（硬约束层带层标注先于参考层；分层逻辑全仓唯 types 一处=D9 消除）；⑥删 docs/mumu-distill 重复副本。
+- **测试**：types +4 / app +7 / novelcontext +1（抓出超期章数负号 bug）/ 既有 context 测试迁移分层口径。
+- **门禁**：ci.ps1 全绿、drift OK@660（零绑定面）、版本三处 4.293.0；产物见 `releases/SHA256SUMS-v4.293.0.txt`。
+- **未做（下刀）**：t1-P2 分析驱动自动回收（MatchByContent 六策略+SyncForeshadows 三级匹配+分析 Prompt 候选清单）；t1-P3 清理/Lint 扩展；t1-P4 前端。
+
+## v4.283.0 ~ v4.292.0 段落补登（2026-09-14；逐版全文在 CHANGELOG/releases，速览补账）
+
+- **v4.292.0** tail×反推串联：tail 导入成功→确认→novel:goto-tab+novel:auto-reconstruct 两事件→CreatePage 任务化反推链自动开跑。
+- **v4.291.0** 反推任务化：tasks.KindOutlineReconstruct+Start/TaskGet（NovelB 660），长书后台态页面关闭不丢。
+- **v4.290.0** 角色名→角色库 ID 匹配：matchCharacterIDs 合并进反推 Apply（不冲手工）。
+- **v4.289.0** oh-story T6 书级文风档案 style.md 注入（T1~T6 收官）；**v4.288.0** T4 篇幅路由三档骨架（bookimport/skeleton.go）。
+- **v4.287.0** tail 出口 ImportNovelBookEx；**v4.286.0** oh-story T2 内核消费（patterns.json+书级白名单）。
+- **v4.285.0** 搜索历史+引擎规则编辑器（NovelB 657）；**v4.284.0** 失败章重试补下（NovelB 655）；**v4.283.0** 在线搜书入口；v4.283.1 nil-Fetcher panic 根修。
+- 非版本刀：真机走查（假站 /unfail 配方）、flaky 治理（ProgrammingPage 15s/ContextView 40s）、rename 根修（fileutil.RenameWithRetry）。
+
 ## 最新发布：v4.282.0（2026-09-13）「oh-story 蒸馏首刀接线：平台质量评审（rubric 引擎 + 创作间面板）+ 生成门确定性两路直显」
 
 - **来源**：用户「把 oh-story-claudecode（MIT 网文写作插件）蒸馏给小说板块」——把已在库的三份资产（T1 评审 rubric / T2 去 AI 味门禁资产 / T3 生成门资产）**接成用户可用的一条链**（规格 `docs/gaea-novel-ohstory-distill-2026-09.md`）。

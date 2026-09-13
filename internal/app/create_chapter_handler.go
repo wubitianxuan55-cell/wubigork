@@ -79,10 +79,13 @@ func (a *writingState) CreateChapter(setting, prevSummary, plotReq string, chapt
 		"characters":   a.buildCharacterSummary(pm),
 		"prev_summary": prevSummary,
 	})
-	// 上下文增强：追加未回收伏笔 + 世界观要点区段。全部容错注入——读取失败或
+	// 上下文增强：追加分层伏笔调度 + 世界观要点区段。全部容错注入——读取失败或
 	// 无数据时静默跳过（不追加空区段），绝不因增强失败中断章节生成主链路；
 	// 新增区段合计受 ctxBudgetTotal 预算约束，超出逐段截断。
-	if extra := buildChapterContextSections(pm); extra != "" {
+	// 伏笔分层按「本章章号」判定（t1-P1）：显式指定章号直接用；分支续写取父
+	// 节点章号；否则顺延为新章（与 ensureChapterNode 定号逻辑同源）。
+	ctxChapterNum := resolveTargetChapterNum(of, chapterNum, branchFromNodeID)
+	if extra := buildChapterContextSections(pm, ctxChapterNum); extra != "" {
 		userPrompt += extra + "\n"
 	}
 
@@ -500,6 +503,25 @@ func (a *writingState) streamCreateChapter(ctx context.Context, pm *project.Mana
 	go a.extractCharactersAfterChapter(pm, content, targetNum)
 }
 
+// resolveTargetChapterNum 计算「本章章号」：显式指定（>0）直接用；分支续写
+// 取父节点章号；否则顺延为新章（len+1）。与 ensureChapterNode 的定号逻辑
+// 同源（该函数内部也走本助手），供生成前注入按正确章号分层。
+// 分支父节点不存在时返回 0（调用方按无章号降级处理）。
+func resolveTargetChapterNum(of *types.OutlineFile, chapterNum int, branchFromNodeID string) int {
+	if chapterNum > 0 {
+		return chapterNum
+	}
+	if branchFromNodeID != "" {
+		for i := range of.Nodes {
+			if of.Nodes[i].ID == branchFromNodeID {
+				return of.Nodes[i].OrderIndex
+			}
+		}
+		return 0
+	}
+	return len(of.Nodes) + 1
+}
+
 // ensureChapterNode 确定章节号并创建/复用节点（同步，在 AI 生成前执行）
 func (a *writingState) ensureChapterNode(pm *project.Manager, of *types.OutlineFile, chapterNum int, branchFromNodeID string) (targetNum int, nodeID string, branch string) {
 	if chapterNum > 0 {
@@ -608,11 +630,11 @@ func truncateBudget(s string, budget int) string {
 }
 
 // buildChapterContextSections 组装章节生成 prompt 的增强上下文区段
-// （未回收伏笔 + 世界观要点）。无数据或读取失败时返回 ""，调用方不追加
-// 任何内容（prompt 中不出现空区段）。
-func buildChapterContextSections(pm *project.Manager) string {
+// （分层伏笔调度 + 世界观要点）。无数据或读取失败时返回 ""，调用方不追加
+// 任何内容（prompt 中不出现空区段）。分层伏笔渲染见 foreshadow_context.go。
+func buildChapterContextSections(pm *project.Manager, currentChapter int) string {
 	sections := make([]string, 0, 3)
-	if body := buildForeshadowSection(pm); body != "" {
+	if body := buildForeshadowSection(pm, currentChapter); body != "" {
 		sections = append(sections, "## 未回收伏笔（创作约束）\n"+
 			"以下伏笔已埋设尚未回收，写作时不得与之矛盾；可自然推进，不要强行提前揭穿：\n"+body)
 	}
@@ -676,48 +698,6 @@ func joinWithBudget(budget int, sections ...string) string {
 		joined = strings.Join(sections, "\n\n")
 	}
 	return joined
-}
-
-// buildForeshadowSection 读 foreshadows.json，把未回收（planted/hinted，
-// 即「未回收/进行中」）的伏笔整理为创作约束区正文：每条一行、描述截断、
-// 最多 ctxForeshadowMaxItems 条、整体不超过 ctxForeshadowBudget。
-// 读失败或没有未回收伏笔时返回 ""。
-func buildForeshadowSection(pm *project.Manager) string {
-	if pm == nil {
-		return ""
-	}
-	ff, err := pm.ReadForeshadows()
-	if err != nil || ff == nil || len(ff.Items) == 0 {
-		return ""
-	}
-	statusLabel := map[types.ForeshadowStatus]string{
-		types.ForeshadowPlanted: "已埋设",
-		types.ForeshadowHinted:  "已暗示·进行中",
-	}
-	var lines []string
-	for _, f := range ff.Items {
-		// 已回收（含外部导入的 resolved 别名）不再注入
-		if types.IsResolvedStatus(f.Status) {
-			continue // 已回收的伏笔不再注入
-		}
-		label := statusLabel[f.Status]
-		if label == "" {
-			label = string(f.Status)
-		}
-		longTag := ""
-		if f.IsLongTerm {
-			longTag = "（长线）"
-		}
-		desc := util.Truncate(strings.TrimSpace(f.Description), ctxForeshadowLineLen)
-		lines = append(lines, fmt.Sprintf("- [%s] %s%s（状态：%s）", f.Category, desc, longTag, label))
-		if len(lines) >= ctxForeshadowMaxItems {
-			break
-		}
-	}
-	if len(lines) == 0 {
-		return ""
-	}
-	return truncateBudget(strings.Join(lines, "\n"), ctxForeshadowBudget)
 }
 
 // buildWorldviewSection 读世界观并拆分为「维度要点」正文，每维度截断

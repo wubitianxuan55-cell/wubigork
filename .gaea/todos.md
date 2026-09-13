@@ -1,13 +1,13 @@
 # 任务进度
 
-> 最后更新: 2026-09-13（v4.282.0 oh-story 蒸馏首刀接线：平台评审引擎 + 面板。本表只留**仍开放**项；已完成历史见 .gaea/AGENTS.md 版本速览与 progress.md）
+> 最后更新: 2026-09-14（v4.293.0 伏笔分层注入：t1 消费方第一刀。本表只留**仍开放**项；已完成历史见 .gaea/AGENTS.md 版本速览与 progress.md）
 
 ## 当前开放（按域）
 
 | 状态 | 任务 |
 |------|------|
-| 🔄 | 小说·MuMu 蒸馏六域（规格 `docs/distill/`）：**t1 契约（v4.278.0）/ t2 P0 解析（v4.279.0）/ t2 P1 反推引擎（v4.280.0）/ t2 P1 接线（v4.281.0：AI 反推大纲 + 幂等落库 + 创作间入口，绑定 648）已落**；t2 余项=逐章预览 UI（核对/编辑后应用）/ 长书后台任务态（`tasks` 表 `KindBookImport`）/ 角色名→角色 ID 匹配 / tail 模式出口；t3 长程一致性 / t4 情节分析与重写 / t5 角色职业与状态机接线 / t6 提示词工坊（`order` 已先行）/ t7 前端统一接线——**未开工** |
-| 🔄 | 小说·oh-story 蒸馏（规格 `docs/gaea-novel-ohstory-distill-2026-09.md`）：**T1 平台评审 rubric（资产 0da1ad70 + 引擎与面板 v4.282.0）/ T2 去 AI 味门禁资产（0a845d91）/ T3 生成门两路（f8e39d88 + v4.282.0 直显）已落**；余项=**T2 内核消费**（`gates.json` 7 门禁 + `ai-patterns.md` 模式级判定进 `internal/novelstyle` 打分与去味、书级白名单 `.deslop-whitelist`）/ **T4** 导入结构映射与篇幅路由（长短篇骨架，落 `internal/bookimport`）/ **T5** 七角色卡资产（`.gaea/skills/novel-agents/`）/ **T6** 风格档案协议对齐（`internal/novelstyle`）/ 写前契约「拒绝生成」硬闸（需先有「一键补大纲」） |
+| 🔄 | 小说·MuMu 蒸馏六域（规格 `docs/distill/`）：**t1 伏笔=契约（v4.278.0）+ 分层注入 P1（v4.293.0）已落**，余=P2 分析驱动自动回收（MatchByContent+SyncForeshadows+分析 Prompt 候选清单）/ P3 清理入口+Lint 扩展 overdue·unplanned+统计 / P4 前端（表格+紧急度 Badge 用后端 urgency）；**t2 拆书线收官**（v4.278~v4.292：解析/反推任务化/tail 出口/角色 ID 匹配/串联；观察池=反推任务取消绑定/反向角色补建/骨架 AI 丰富化按反馈）；t3 长程一致性 / t4 情节分析与重写 / t5 角色职业与状态机接线 / t6 提示词工坊（`order` 已先行）/ t7 前端统一接线——**未开工** |
+| 🔄 | 小说·oh-story 蒸馏（规格 `docs/gaea-novel-ohstory-distill-2026-09.md`）：**T1~T6 全部收官**（T1 评审 v4.282 / T2 内核消费 v4.286〔patterns.json+书级白名单〕/ T3 生成门 v4.282 / T4 篇幅路由 v4.288 / T5 七角色卡资产 / T6 文风档案 v4.289）；余项=T5 落库接线（资产已就位）、写前契约「拒绝生成」硬闸（需先有「一键补大纲」） |
 | ⬜ | 进度计划·真机池：mspdi 刀4 Project/WPS/斑马走查、2013+ 资源/分配键位（等样本）、list_projects 真机、E1 负数对称（动逆推才收口） |
 | ⬜ | 办公·pptx：刀2 真机走查（mock 无 pptx 预览分支）；刀4 修改队列泛化（待使用反馈拍板）；Verifier 通道 B 对 docx_apply 复核口径 |
 | ⬜ | 办公·思维导图/多维表：B2 后半（字段类型面板/画廊视图/可选 validate 工具）待拍板（M2 已于 v4.108 落地） |

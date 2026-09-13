@@ -90,8 +90,8 @@ func CompileSceneBible(pm *project.Manager, chapterNum int, scene *types.Scene) 
 	b.Characters = buildSceneChars(scene, entities, charIndex(pm))
 	b.POVView, b.HiddenFacts = buildPOVMask(pm, scene, entities)
 
-	// 未回收伏笔
-	b.Foreshadows = buildForeshadows(pm)
+	// 未回收伏笔（分层优先采样，硬约束层优先）
+	b.Foreshadows = buildForeshadows(pm, chapterNum)
 
 	// 时间锚点
 	b.TimeAnchor = buildTimeAnchor(pm, chapterNum, scene)
@@ -149,7 +149,7 @@ func (b *SceneBible) Render(maxRunes int) string {
 	}
 
 	if len(b.Foreshadows) > 0 {
-		addSection("未回收伏笔（创作约束）", strings.Join(b.Foreshadows, "\n"))
+		addSection("未回收伏笔（分层约束）", strings.Join(b.Foreshadows, "\n"))
 	}
 
 	addSection("时间锚点", b.TimeAnchor)
@@ -217,27 +217,64 @@ func buildThread(pm *project.Manager) string {
 	return util.Truncate(strings.TrimSpace(of.StoryThread), threadBudget)
 }
 
-// buildForeshadows 只取 Planting / Hinted（未回收）的伏笔，一行一条，截断。
-func buildForeshadows(pm *project.Manager) []string {
+// buildForeshadows 分层优先采样（t1-P1）：分层判定走唯一入口
+// types.ForeshadowLayerOf（已回收/废弃/远期不注入），按硬约束层（必须回收/
+// 超期/本章计划埋入）优先于参考信息（近期/无计划兜底）的顺序输出；
+// 一行一条，每行带层标注，截断 foreshadowLineMax。读失败返回 nil。
+func buildForeshadows(pm *project.Manager, chapterNum int) []string {
 	ff, err := pm.ReadForeshadows()
 	if err != nil || ff == nil {
 		return nil
 	}
-	var out []string
-	for _, f := range ff.Items {
-		if f.Status != types.ForeshadowPlanted && f.Status != types.ForeshadowHinted {
+	type sampled struct {
+		line  string
+		prio  int
+		order int
+	}
+	var items []sampled
+	for i, f := range ff.Items {
+		layer := types.ForeshadowLayerOf(f, chapterNum, types.ForeshadowLookaheadDefault)
+		if layer == types.ForeshadowLayerNone {
 			continue
 		}
-		line := strings.TrimSpace(f.Description)
-		if line == "" {
-			line = strings.TrimSpace(f.ID)
+		desc := strings.TrimSpace(f.Description)
+		if desc == "" {
+			desc = strings.TrimSpace(f.ID)
 		}
-		if line == "" {
+		if desc == "" {
 			continue
 		}
-		out = append(out, util.Truncate(line, foreshadowLineMax))
+		line := foreshadowLayerTag(f, layer, chapterNum) + desc
+		items = append(items, sampled{util.Truncate(line, foreshadowLineMax), types.ForeshadowLayerPriority(layer), i})
+	}
+	sort.SliceStable(items, func(a, b int) bool {
+		if items[a].prio != items[b].prio {
+			return items[a].prio < items[b].prio
+		}
+		return items[a].order < items[b].order
+	})
+	out := make([]string, 0, len(items))
+	for _, it := range items {
+		out = append(out, it.line)
 	}
 	return out
+}
+
+// foreshadowLayerTag 场景圣经行的层标注（紧凑，单行口径）。
+func foreshadowLayerTag(f types.Foreshadow, layer types.ForeshadowLayer, chapterNum int) string {
+	switch layer {
+	case types.ForeshadowLayerMust:
+		return "[本章必须回收] "
+	case types.ForeshadowLayerOverdue:
+		return fmt.Sprintf("[已超期%d章] ", chapterNum-types.ChapterNumOf(f.TargetResolveIn))
+	case types.ForeshadowLayerNear:
+		return fmt.Sprintf("[计划第%d章回收] ", types.ChapterNumOf(f.TargetResolveIn))
+	case types.ForeshadowLayerPlant:
+		return "[本章计划埋入] "
+	case types.ForeshadowLayerNoPlan:
+		return "[待规划回收章] "
+	}
+	return ""
 }
 
 // buildTimeAnchor 组装一个简短时间锚点：场景自身时间 + 上一章摘要承接。

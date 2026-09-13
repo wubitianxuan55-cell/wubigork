@@ -54,17 +54,17 @@ func TestChapterContextInjectsForeshadowsAndWorldview(t *testing.T) {
 		t.Fatalf("写入世界观: %v", err)
 	}
 
-	got := buildChapterContextSections(pm)
+	got := buildChapterContextSections(pm, 99)
 	if got == "" {
 		t.Fatalf("有伏笔和世界观数据时增强区段不应为空")
 	}
 	for _, want := range []string{
-		"## 未回收伏笔（创作约束）",
+		"## 伏笔调度（分层约束）",
 		"不得与之矛盾",
 		"古剑胎记",
-		"已埋设",
+		"- ID:f1",
 		"（长线）",
-		"已暗示·进行中",
+		"- ID:f2",
 		"## 世界观要点",
 		"- 时代背景：灵气复苏三百年",
 		"- 规则体系：修士以灵石为基",
@@ -90,7 +90,7 @@ func TestChapterContextSkipsWhenEmptyOrBroken(t *testing.T) {
 	pm := newContextTestProject(t)
 
 	// 新建项目：foreshadows.json 为空、worldview.json 六维度全空 → 不注入任何区段
-	if got := buildChapterContextSections(pm); got != "" {
+	if got := buildChapterContextSections(pm, 99); got != "" {
 		t.Errorf("空项目不应注入增强区段，got:\n%s", got)
 	}
 
@@ -101,7 +101,7 @@ func TestChapterContextSkipsWhenEmptyOrBroken(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(pm.Dir, "worldview.json"), []byte("not json at all"), 0644); err != nil {
 		t.Fatalf("写损坏世界观文件: %v", err)
 	}
-	if got := buildChapterContextSections(pm); got != "" {
+	if got := buildChapterContextSections(pm, 99); got != "" {
 		t.Errorf("文件损坏时应静默跳过，got:\n%s", got)
 	}
 }
@@ -117,7 +117,7 @@ func TestChapterContextLegacyWorldviewMarkdown(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(pm.Dir, "worldview.md"), []byte(legacy), 0644); err != nil {
 		t.Fatalf("写旧版 worldview.md: %v", err)
 	}
-	got := buildChapterContextSections(pm)
+	got := buildChapterContextSections(pm, 99)
 	if !strings.Contains(got, "## 世界观要点") {
 		t.Errorf("旧 md 世界观应注入世界观要点区段:\n%s", got)
 	}
@@ -151,8 +151,8 @@ func TestChapterContextBudgetTruncation(t *testing.T) {
 	if err := pm.WriteForeshadows(&types.ForeshadowFile{Items: items}); err != nil {
 		t.Fatalf("写入伏笔: %v", err)
 	}
-	fs := buildForeshadowSection(pm)
-	if n := strings.Count(fs, "- ["); n > ctxForeshadowMaxItems {
+	fs := buildForeshadowSection(pm, 1)
+	if n := strings.Count(fs, "- ID:"); n > ctxForeshadowMaxItems {
 		t.Errorf("伏笔条数未封顶: got %d, want <= %d", n, ctxForeshadowMaxItems)
 	}
 	if n := len([]rune(fs)); n > ctxForeshadowBudget {
@@ -171,7 +171,7 @@ func TestChapterContextBudgetTruncation(t *testing.T) {
 	}
 
 	// 合计：两项同时超大 → buildChapterContextSections 不超过总预算
-	if n := len([]rune(buildChapterContextSections(pm))); n > ctxBudgetTotal {
+	if n := len([]rune(buildChapterContextSections(pm, 1))); n > ctxBudgetTotal {
 		t.Errorf("增强区段合计超总预算: got %d rune, want <= %d", n, ctxBudgetTotal)
 	}
 }
@@ -348,8 +348,8 @@ data: [DONE]
 		t.Fatalf("请求中缺少 user 消息")
 	}
 	for _, want := range []string{
-		"小说设定",           // 既有锚点不破坏
-		"## 未回收伏笔（创作约束）", // 伏笔注入
+		"小说设定",          // 既有锚点不破坏
+		"## 伏笔调度（分层约束）", // 伏笔注入（分层调度）
 		"古剑胎记",
 		"## 世界观要点", // 世界观注入
 		"- 时代背景：灵气复苏三百年",
@@ -371,7 +371,7 @@ func TestChapterContextInjectsBookStyle(t *testing.T) {
 		t.Fatalf("写 style.md: %v", err)
 	}
 
-	got := buildChapterContextSections(pm)
+	got := buildChapterContextSections(pm, 99)
 	if !strings.Contains(got, "本书文风（作者显式偏好") {
 		t.Fatalf("文风区段应注入: %s", got)
 	}
@@ -391,19 +391,19 @@ func TestChapterContextStyleMissingOrPlaceholderOmitted(t *testing.T) {
 	pm := newContextTestProject(t)
 
 	// 无文件：不建占位
-	if got := buildChapterContextSections(pm); got != "" {
+	if got := buildChapterContextSections(pm, 99); got != "" {
 		t.Fatalf("无 style.md 应无区段: %s", got)
 	}
 
 	// 纯标题 + 待补充 = 无有效偏好
 	os.WriteFile(filepath.Join(pm.Dir, "style.md"), []byte("# 文风\n\n（待补充）\n"), 0644)
-	if got := buildChapterContextSections(pm); got != "" {
+	if got := buildChapterContextSections(pm, 99); got != "" {
 		t.Fatalf("占位文件应无区段: %s", got)
 	}
 
 	// 一句有效偏好即可
 	os.WriteFile(filepath.Join(pm.Dir, "style.md"), []byte("多用短句。"), 0644)
-	got := buildChapterContextSections(pm)
+	got := buildChapterContextSections(pm, 99)
 	if !strings.Contains(got, "多用短句") {
 		t.Fatalf("一句偏好也应注入: %s", got)
 	}
@@ -413,7 +413,7 @@ func TestChapterContextStyleTruncated(t *testing.T) {
 	pm := newContextTestProject(t)
 	long := strings.Repeat("这句偏好用来撑长度。", 200) // ~2000 字超 1200 上限
 	os.WriteFile(filepath.Join(pm.Dir, "style.md"), []byte(long), 0644)
-	got := buildChapterContextSections(pm)
+	got := buildChapterContextSections(pm, 99)
 	if !strings.Contains(got, "本书文风") {
 		t.Fatal("超长偏好仍应注入（截断版）")
 	}
