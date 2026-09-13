@@ -242,12 +242,12 @@ const TelemetryRail: React.FC<{ stats: StatsData | null; info: ProjectInfo | nul
         {engLabel.length ? (
           engLabel.map((e) => (
             <Tooltip key={e} title={t('shell.tele.enginesTip')}>
-              <span className="v3-engine-pod"><span className="v3-pod-dot" />{e}</span>
+              <span className="v3-engine-pod"><span className="v3-pod-dot" /><span className="v3-pod-text">{e}</span></span>
             </Tooltip>
           ))
         ) : (
           <Tooltip title={t('shell.tele.noEnginesTip')}>
-            <span className="v3-engine-pod" style={{ opacity: 0.65 }}><ThunderboltOutlined style={{ fontSize: 10 }} />{t('shell.tele.noEngines')}</span>
+            <span className="v3-engine-pod" style={{ opacity: 0.65 }}><ThunderboltOutlined style={{ fontSize: 10 }} /><span className="v3-pod-text">{t('shell.tele.noEngines')}</span></span>
           </Tooltip>
         )}
         {info && showProject && (

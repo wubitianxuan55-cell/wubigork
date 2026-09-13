@@ -418,6 +418,15 @@
   font-size: 11px;
   cursor: pointer;
   white-space: nowrap;
+  /* 窄窗先截断 pod（模型名长），保右侧 CPU/内存/GPU 数值完整（v4.272） */
+  max-width: 240px;
+  flex-shrink: 1;
+  min-width: 0;
+}
+.v3-engine-pod .v3-pod-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .v3-engine-pod:hover { box-shadow: var(--v3-glow-faint); }
 .v3-engine-pod .v3-pod-dot {
@@ -428,13 +437,14 @@
   box-shadow: 0 0 6px var(--color-success);
 }
 .v3-engine-pod.is-hot .v3-pod-dot { background: var(--color-warning); box-shadow: 0 0 6px var(--color-warning); }
-/* 遥测数值 */
+/* 遥测数值（右缘系统遥测组不被压缩——窄窗挤压优先落在 pod/工程名上） */
 .v3-tele-value {
   font-family: var(--font-mono, ui-monospace, 'Cascadia Code', Consolas, monospace);
   font-variant-numeric: tabular-nums;
   color: var(--color-text);
+  flex-shrink: 0;
 }
-.v3-tele-key { color: var(--color-text-secondary); }
+.v3-tele-key { color: var(--color-text-secondary); flex-shrink: 0; }
 /* 展开态内容 */
 .v3-telemetry-body {
   display: none;

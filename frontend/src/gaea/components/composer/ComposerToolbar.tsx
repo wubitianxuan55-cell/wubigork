@@ -38,7 +38,7 @@ export function ComposerToolbar({
 }: ComposerToolbarProps) {
   const t = useT()
   return (
-    <div className="flex items-center gap-1.5 min-w-0 px-2.5 py-1.5">
+    <div className="flex items-center flex-wrap gap-x-1.5 gap-y-1 min-w-0 px-2.5 py-1.5">
       {cwd && (
         <div className="relative inline-flex min-w-0" ref={workspaceAnchorRef}>
           <button
@@ -75,12 +75,12 @@ export function ComposerToolbar({
       </button>
 
       {/* 权限级别选择器：询问 / 自动 / YOLO */}
-      <div className="flex gap-[3px]">
+      <div className="flex gap-[3px] shrink-0">
         {(["ask", "auto", "yolo"] as const).map((level) => {
           const isYolo = level === "yolo"
           return (
             <button key={level} type="button"
-              className={`flex items-center gap-1.5 px-2.5 py-1 border rounded-md bg-transparent text-xs cursor-pointer transition-[color,background,border,transform] duration-[var(--dur-fast)] active:scale-[0.97] ${
+              className={`flex items-center gap-1.5 px-2.5 py-1 border rounded-md bg-transparent text-xs cursor-pointer whitespace-nowrap transition-[color,background,border,transform] duration-[var(--dur-fast)] active:scale-[0.97] ${
                 permLevel === level
                   ? isYolo ? "text-err bg-err/10 border-err/20 shadow-[0_0_0_1px_var(--err)]" : "text-accent bg-accent-soft border-accent/30 shadow-[0_0_0_1px_var(--accent-soft)]"
                   : "text-fg-dim border-border-soft hover:text-fg hover:bg-bg-soft hover:border-fg-faint"
@@ -99,10 +99,10 @@ export function ComposerToolbar({
       </div>
 
       {/* 思考深度选择器：快速 / 标准 / 深度（映射到 SetAgentParams 温度） */}
-      <div className="flex gap-[3px]" aria-label={t("composer.thinkLabel")}>
+      <div className="flex gap-[3px] shrink-0" aria-label={t("composer.thinkLabel")}>
         {(["fast", "normal", "deep"] as const).map((level) => (
           <button key={level} type="button"
-            className={`flex items-center gap-1 px-2 py-1 border rounded-md bg-transparent text-xs cursor-pointer transition-[color,background,border,transform] duration-[var(--dur-fast)] active:scale-[0.97] ${
+            className={`flex items-center gap-1 px-2 py-1 border rounded-md bg-transparent text-xs cursor-pointer whitespace-nowrap transition-[color,background,border,transform] duration-[var(--dur-fast)] active:scale-[0.97] ${
               thinkLevel === level
                 ? "text-accent bg-accent-soft border-accent/30 shadow-[0_0_0_1px_var(--accent-soft)]"
                 : "text-fg-faint border-transparent hover:text-fg hover:bg-bg-soft"
