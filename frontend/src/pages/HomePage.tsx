@@ -126,7 +126,18 @@ const HomePage: React.FC = () => {
       openProject(res.path, res.title)
       await loadProjects()
       setImportModal(false)
-      message.success(`已导入「${res.title}」：${res.chapter_count} 章，${res.total_words.toLocaleString()} 字`)
+      // v4.279：解析报告直显（编码 + 切分策略），便于判断「这本书是不是被切错了」
+      const strategyLabel: Record<string, string> = {
+        strong: '标题分章', weak: '短标题分章', window: '窗口分章', single: '单章', epub: 'EPUB',
+      }
+      const how = [res.encoding, res.split_strategy ? (strategyLabel[res.split_strategy] ?? res.split_strategy) : '']
+        .filter(Boolean).join(' · ')
+      message.success(`已导入「${res.title}」：${res.chapter_count} 章，${res.total_words.toLocaleString()} 字${how ? `（${how}）` : ''}`)
+      const warns = res.warnings ?? []
+      if (warns.length > 0) {
+        const head = warns.slice(0, 2).map((w) => w.message).join('；')
+        message.warning(warns.length > 2 ? `${head}；等 ${warns.length} 条提示` : head)
+      }
     } catch (err: unknown) {
       message.error(err instanceof Error ? err.message : '导入失败')
     } finally {

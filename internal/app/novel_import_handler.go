@@ -12,10 +12,9 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/gaea/gaea/internal/bookimport"
 	"github.com/gaea/gaea/internal/project"
 	"github.com/gaea/gaea/internal/types"
-	"golang.org/x/text/encoding"
-	"golang.org/x/text/encoding/simplifiedchinese"
 )
 
 // NovelImportResult 导入成品小说的结果摘要。
@@ -24,6 +23,12 @@ type NovelImportResult struct {
 	Title        string `json:"title"`
 	ChapterCount int    `json:"chapter_count"`
 	TotalWords   int    `json:"total_words"`
+	// ── v4.279 解析报告（规格 docs/distill/02-book-import.md §8.1）──
+	// 实际采用的编码 / 切分策略 / 解析告警：导入成功文案直显，便于用户判断
+	// 「这本书是不是被切错了」（编码误判与切分退化过去是静默的）。
+	Encoding      string               `json:"encoding,omitempty"`
+	SplitStrategy string               `json:"split_strategy,omitempty"`
+	Warnings      []bookimport.Warning `json:"warnings,omitempty"`
 }
 
 // importChapter 解析出的章节（标题 + 正文）。
@@ -42,7 +47,7 @@ func (a *writingState) ImportNovelBook(filePath, title, genre, style string) (No
 	if _, err := os.Stat(filePath); err != nil {
 		return NovelImportResult{}, fmt.Errorf("文件不存在：%s", filePath)
 	}
-	chapters, err := parseNovelFile(filePath)
+	chapters, report, err := parseNovelFile(filePath)
 	if err != nil {
 		return NovelImportResult{}, err
 	}
@@ -93,6 +98,7 @@ func (a *writingState) ImportNovelBook(filePath, title, genre, style string) (No
 	}
 	return NovelImportResult{
 		Path: dir, Title: title, ChapterCount: len(chapters), TotalWords: totalWords,
+		Encoding: report.Encoding, SplitStrategy: report.SplitStrategy, Warnings: report.Warnings,
 	}, nil
 }
 
@@ -121,84 +127,48 @@ func sanitizeDirName(s string) string {
 
 // ── 章节解析 ──────────────────────────────────────────────
 
-func parseNovelFile(filePath string) ([]importChapter, error) {
+func parseNovelFile(filePath string) ([]importChapter, bookimport.Report, error) {
 	if strings.EqualFold(filepath.Ext(filePath), ".epub") {
-		return parseEpubChapters(filePath)
+		chs, err := parseEpubChapters(filePath)
+		return chs, bookimport.Report{
+			Encoding:         "epub",
+			SplitStrategy:    bookimport.StrategyEPUB,
+			TotalChapters:    len(chs),
+			SelectedChapters: len(chs),
+		}, err
 	}
 	return parseTextChapters(filePath)
 }
 
-var chapterHeadingRe = regexp.MustCompile(`(?i)^\s*(?:第\s*[0-9０-９一二三四五六七八九十百千万零两〇]+\s*[章回卷节篇部集]|chapter\s+\d+|序章|楔子|引子|前言|序言|尾声|后记|番外|外传|终章|大结局)`)
-var markdownHeadingRe = regexp.MustCompile(`^\s*#{1,6}\s+\S`)
-var markdownStripRe = regexp.MustCompile(`^#{1,6}\s*`)
-
-func isChapterHeading(line string) bool {
-	return chapterHeadingRe.MatchString(line) || markdownHeadingRe.MatchString(line)
-}
-
-func parseTextChapters(filePath string) ([]importChapter, error) {
+// parseTextChapters 文本类（TXT/Markdown）分章：委托 internal/bookimport 的
+// 三级切分（强标题 → 弱标题 → 兜底窗口）+ 5 级编码链（规格 §8.1，v4.279）。
+// 解析报告随返回值带出（编码/策略/告警），空输入仍返回空章节由调用方报错。
+func parseTextChapters(filePath string) ([]importChapter, bookimport.Report, error) {
 	raw, err := os.ReadFile(filePath)
 	if err != nil {
-		return nil, fmt.Errorf("读取文件失败: %w", err)
+		return nil, bookimport.Report{}, fmt.Errorf("读取文件失败: %w", err)
 	}
-	text := decodeText(raw)
-	lines := strings.Split(strings.ReplaceAll(text, "\r\n", "\n"), "\n")
-
-	var chapters []importChapter
-	var cur *importChapter
-	var pending []string // 首个章节标题出现前的内容（并入第一章）
-	flush := func() {
-		if cur == nil {
-			return
-		}
-		body := strings.TrimSpace(cur.Content)
-		if body != "" {
-			chapters = append(chapters, importChapter{Title: cur.Title, Content: body})
-		}
-	}
-	for _, line := range lines {
-		trimmed := strings.TrimSpace(line)
-		if isChapterHeading(trimmed) {
-			flush()
-			title := strings.TrimSpace(markdownStripRe.ReplaceAllString(trimmed, ""))
-			if title == "" {
-				title = trimmed
-			}
-			cur = &importChapter{Title: title}
-			if len(pending) > 0 {
-				cur.Content = strings.Join(pending, "\n") + "\n\n"
-				pending = nil
-			}
+	res := bookimport.Parse(raw, bookimport.ParseOptions{ExtractMode: bookimport.ExtractFull})
+	chapters := make([]importChapter, 0, len(res.Chapters))
+	for _, ch := range res.Chapters {
+		title := strings.TrimSpace(ch.Title)
+		content := strings.TrimSpace(ch.Content)
+		if title == "" && content == "" {
 			continue
 		}
-		if cur == nil {
-			if strings.TrimSpace(trimmed) != "" {
-				pending = append(pending, trimmed)
-			}
-			continue
+		if title == "" {
+			title = "全文"
 		}
-		cur.Content += line + "\n"
+		chapters = append(chapters, importChapter{Title: title, Content: content})
 	}
-	flush()
-	if len(chapters) == 0 && strings.TrimSpace(text) != "" {
-		chapters = []importChapter{{Title: "全文", Content: strings.TrimSpace(text)}}
-	}
-	return chapters, nil
+	return chapters, res.Report, nil
 }
 
-// decodeText 解码文本：UTF-8 优先，GB18030/GBK 兜底（常见中文 TXT）。
+// decodeText 解码文本（保留旧入口给既有调用/测试）：委托 bookimport.Decode 的
+// 5 级编码链（UTF-8/utf-8-sig/GB18030/GBK/Big5 + UTF-16 BOM 识别 + 兜底）。
 func decodeText(raw []byte) string {
-	if utf8.Valid(raw) {
-		return string(raw)
-	}
-	for _, dec := range []encoding.Encoding{
-		simplifiedchinese.GB18030, simplifiedchinese.GBK,
-	} {
-		if out, err := dec.NewDecoder().Bytes(raw); err == nil && utf8.Valid(out) {
-			return string(out)
-		}
-	}
-	return string(raw)
+	text, _ := bookimport.Decode(raw)
+	return text
 }
 
 // ── EPUB 解析（archive/zip 直接读取 spine 顺序章节） ──────────────

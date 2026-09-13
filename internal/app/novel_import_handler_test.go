@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/gaea/gaea/internal/project"
 	"golang.org/x/text/encoding/simplifiedchinese"
@@ -17,9 +18,12 @@ func TestParseTextChapters_SplitsByHeadings(t *testing.T) {
 	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
 		t.Fatalf("写文件: %v", err)
 	}
-	chs, err := parseTextChapters(path)
+	chs, report, err := parseTextChapters(path)
 	if err != nil {
 		t.Fatalf("parseTextChapters: %v", err)
+	}
+	if report.SplitStrategy != "strong" || report.Encoding != "utf-8" {
+		t.Fatalf("解析报告异常: %+v", report)
 	}
 	if len(chs) != 2 {
 		t.Fatalf("应解析出 2 章: %d", len(chs))
@@ -41,9 +45,91 @@ func TestParseTextChapters_NoHeadings_SingleChapter(t *testing.T) {
 	if err := os.WriteFile(path, []byte("没有章节标记的一段文字"), 0644); err != nil {
 		t.Fatalf("写文件: %v", err)
 	}
-	chs, err := parseTextChapters(path)
+	chs, report, err := parseTextChapters(path)
 	if err != nil || len(chs) != 1 || chs[0].Title != "全文" {
 		t.Fatalf("无章节标记应归为全文一章: %v %v", chs, err)
+	}
+	if report.SplitStrategy != "single" {
+		t.Fatalf("短文本无标题策略应为 single: %+v", report)
+	}
+}
+
+// ── v4.279：三级分章 + 编码链（规格 docs/distill/02-book-import.md §8.1 验收项）──
+
+func TestParseTextChapters_UTF8BOM(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "bom.txt")
+	content := "第一章 起\n\n风起了。\n\n第二章 落\n\n雨停了。"
+	raw := append([]byte{0xEF, 0xBB, 0xBF}, []byte(content)...)
+	if err := os.WriteFile(path, raw, 0644); err != nil {
+		t.Fatalf("写文件: %v", err)
+	}
+	chs, report, err := parseTextChapters(path)
+	if err != nil || len(chs) != 2 {
+		t.Fatalf("BOM 文件解析: %v %d", err, len(chs))
+	}
+	if report.Encoding != "utf-8-sig" {
+		t.Fatalf("BOM 编码名 = %q, want utf-8-sig", report.Encoding)
+	}
+	if strings.Contains(chs[0].Title, "\uFEFF") || !strings.HasPrefix(chs[0].Title, "第一章") {
+		t.Fatalf("BOM 污染了标题: %q", chs[0].Title)
+	}
+}
+
+func TestParseTextChapters_GB18030(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "gb.txt")
+	content := "第一章 起\n\n风起了。\n\n第二章 落\n\n雨停了。"
+	raw, err := simplifiedchinese.GB18030.NewEncoder().Bytes([]byte(content))
+	if err != nil {
+		t.Fatalf("构造 GB18030 样本: %v", err)
+	}
+	if err := os.WriteFile(path, raw, 0644); err != nil {
+		t.Fatalf("写文件: %v", err)
+	}
+	chs, report, err := parseTextChapters(path)
+	if err != nil || len(chs) != 2 {
+		t.Fatalf("GB18030 文件解析: %v %d", err, len(chs))
+	}
+	if report.Encoding != "gb18030" || chs[1].Title != "第二章 落" {
+		t.Fatalf("GB18030 解码异常: %+v %+v", report, chs[1])
+	}
+}
+
+func TestParseTextChapters_NoHeadingLongText_WindowSplit(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "plain-long.txt")
+	var sb strings.Builder
+	for utf8.RuneCountInString(sb.String()) < 8000 {
+		sb.WriteString("他推开门，雨还在下，屋檐下的灯影在水面上摇晃了很久很久。")
+		sb.WriteString("。")
+	}
+	if err := os.WriteFile(path, []byte(sb.String()), 0644); err != nil {
+		t.Fatalf("写文件: %v", err)
+	}
+	chs, report, err := parseTextChapters(path)
+	if err != nil {
+		t.Fatalf("无标题长文本解析: %v", err)
+	}
+	if report.SplitStrategy != "window" || len(chs) < 2 {
+		t.Fatalf("8000 字无标题应走窗口切分: %+v %d 章", report, len(chs))
+	}
+	for _, ch := range chs {
+		if !strings.HasPrefix(ch.Title, "第") || !strings.HasSuffix(ch.Title, "章") {
+			t.Fatalf("窗口章标题应伪造为第N章: %q", ch.Title)
+		}
+	}
+}
+
+func TestParseTextChapters_WeakHeadings(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "weak.txt")
+	content := "开篇的话\n\n雨夜\n\n她推开门。\n\n晨光\n\n城外的消息传开了。"
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatalf("写文件: %v", err)
+	}
+	chs, report, err := parseTextChapters(path)
+	if err != nil || len(chs) != 3 {
+		t.Fatalf("弱标题切分: %v %d 章", err, len(chs))
+	}
+	if report.SplitStrategy != "weak" || chs[1].Title != "雨夜" {
+		t.Fatalf("弱标题策略/标题异常: %+v %+v", report, chs[1])
 	}
 }
 
@@ -84,6 +170,9 @@ func TestImportNovelBook_EndToEnd(t *testing.T) {
 	}
 	if res.ChapterCount != 2 || res.Title != "成书" || res.Path == "" {
 		t.Fatalf("导入结果异常: %+v", res)
+	}
+	if res.Encoding != "utf-8" || res.SplitStrategy != "strong" {
+		t.Fatalf("导入结果应带解析报告（编码/策略）: %+v", res)
 	}
 	meta, err := loadProjectMeta(filepath.Join(res.Path, "project.json"))
 	if err != nil {

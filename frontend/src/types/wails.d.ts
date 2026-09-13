@@ -64,6 +64,12 @@ interface NovelImportResult {
   title: string
   chapter_count: number
   total_words: number
+  /** v4.279 解析报告：实际采用的编码（utf-8 / utf-8-sig / gb18030 / gbk / big5 / utf-16le…） */
+  encoding?: string
+  /** 切分策略：strong | weak | window | single | epub */
+  split_strategy?: string
+  /** 解析告警（过短/过长/标题重复/按范围裁剪），导入后提示用户复核 */
+  warnings?: Array<{ code: string; message: string; level: string }>
 }
 
 /** 写作统计摘要（对齐 internal/app/stats_handler.go GetStats） */

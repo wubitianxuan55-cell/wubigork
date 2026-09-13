@@ -3,6 +3,16 @@
 > 本文件为**最近发布速览**。完整历史磁带见 `docs/archive/progress-history-2026-09.md`
 > 与 `releases/`。
 
+## 最新发布：v4.279.0（2026-09-13）「拆书导入 P0：三级分章 + 5 级编码链（MuMu 蒸馏 t2 首刀）」
+
+- **来源**：续 v4.278.0（t1 共享契约），本刀落 t2「拆书/导入反推」**P0 阶段**（规格 `docs/distill/02-book-import.md` §8.1，纯规则零 AI、可独立验收）。
+- **改前短板**：导入只有强标题正则，识别不到即退化成单章「全文」；编码链缺 utf-8-sig 与 Big5，且 GB18030 解码几乎不报错 + `utf8.Valid` 二次校验**静默放过误判**。
+- **落地**：①新包 `internal/bookimport`（纯规则零 IO）——`Decode` 五级链 + UTF-16 BOM + **候选结果含替换符即判误判续探**（实测 GB18030/GBK 解 Big5 不报错只出乱码）；`Clean` 六步顺序敏感清洗；`Split` 三级切分（强标题存在不叠加弱标题、弱标题需 ≥2 候选、无标题 >5000 字走 3000~5000 窗口取最靠后句读边界）；`tail` 裁剪（5 倍数取整、>50 降 full）；四类告警。②app 接线（委托 + `NovelImportResult` 增 `encoding`/`split_strategy`/`warnings`）。③前端成功文案直显「编码 · 切分策略」+ 告警弹窗。
+- **有意偏离 MuMu**：首标题前 <200 字并入首章（不丢书名/作者）；阈值一律 rune 计数（MuMu 用字节）。
+- **测试**：`internal/bookimport` 17 例（Big5 不被 GBK 遮蔽回归/BOM/UTF-16/兜底不 panic/清洗顺序/三级切分/窗口上界/三类告警/tail 取整与降级）+`internal/app` 导入 5 例（BOM/GB18030/无标题窗口/弱标题/e2e 报告字段）。
+- **门禁**：ci.ps1 全绿（Go 全量 exit 0 / 前端 lint 0 error〔5 既有 warning〕/ vite build 成功 / vitest 345 文件 2994 例全绿 / E 系列守卫 OK / 仓库卫生守卫 OK）、drift OK@646、版本三处 4.279.0；产物=exe 49,397,760B SHA256=D8947306…7659E（releases/gaea-v4.279.0.exe + SHA256SUMS-v4.279.0.txt；桌面副本同哈希；冒烟 /api/health 200 过）。
+- **未做（下刀）**：AI 反推编排（字段级归一化 + JSON 负反馈重试）/幂等落库与任务态（`tasks` 表 `KindBookImport`，禁用内存 dict）/导入向导 UI（tail 引擎已就绪，当前仅 full 可达）。
+
 ## 最新发布：v4.278.0（2026-09-13）「小说域 v2 共享契约落库 + 伏笔一致性体检（含 wire 口径纠偏）」
 
 - **来源**：两条线汇合——①「优化完善gaea」并行池小说线续刀=伏笔一致性 Linter（文风指纹 v4.277.0 已落）；②MuMuAINovel 蒸馏实施线（规格 docs/distill/）由外部团队先落 t1 共享契约后停摆，用户确认后由 Codex 侧接管收口。
