@@ -655,3 +655,22 @@ func TestChatSend_Plain_SearchErrorStillSucceeds(t *testing.T) {
 		t.Errorf("消息落库应保留用户原文: %+v", msgs)
 	}
 }
+
+// TestChatMessageInputWireShape 线上 JSON 形状回归锁（v4.276）：ChatMessageInput
+// 为前端提交 payload（ChatAppendMessages/ChatImportTopic），补 camelCase json
+// 标签后形状锁定；Unmarshal 大小写不敏，存量提交兼容。
+func TestChatMessageInputWireShape(t *testing.T) {
+	b, err := json.Marshal(ChatMessageInput{Role: "user", Content: "hi", Extra: "{}"})
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	var m map[string]any
+	if err := json.Unmarshal(b, &m); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	for _, k := range []string{"role", "content", "extra"} {
+		if _, ok := m[k]; !ok {
+			t.Errorf("ChatMessageInput 缺 camelCase 键 %q: %v", k, m)
+		}
+	}
+}

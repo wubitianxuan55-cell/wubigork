@@ -1,6 +1,7 @@
 package cost
 
 import (
+	"encoding/json"
 	"fmt"
 	"math"
 	"strings"
@@ -297,5 +298,40 @@ func TestRecommendPriceIntegration(t *testing.T) {
 	assertNear(t, got, 86.5, "median")
 	if !strings.Contains(text, "基于 12 条相似条目") || !strings.Contains(text, "¥86.50") || !strings.Contains(text, "置信度 高") {
 		t.Errorf("text = %q, want 含 12条/¥86.50/高", text)
+	}
+}
+
+// TestWireShapeCamelCase 线上 JSON 形状回归锁（v4.276）：PriceBand/BandSource 经
+// GaeaCostCompose 的 band 字段直达前端，曾因缺 json 标签线上 PascalCase、前端
+// camelCase 全读空（价格带卡空值/证据表离群判定失效，v4.191 起；v4.269 同款断链）。
+func TestWireShapeCamelCase(t *testing.T) {
+	b, err := json.Marshal(PriceBand{Samples: 3, Min: 1, Max: 9, Mean: 4, Median: 3.5, P25: 2, P75: 5,
+		SpreadPct: 42.8, Outliers: 1, Confidence: "中",
+		Sources: []BandSource{{Name: "x", Title: "t", Category: "c", Unit: "m³", Spec: "s",
+			Source: "AI", Region: "r", PriceDate: "2026-09", PriceType: "信息价", Price: 3}}})
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	var m map[string]any
+	if err := json.Unmarshal(b, &m); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	for _, k := range []string{"samples", "min", "max", "mean", "median", "p25", "p75", "spreadPct", "outliers", "confidence", "sources"} {
+		if _, ok := m[k]; !ok {
+			t.Errorf("PriceBand 缺 camelCase 键 %q: %v", k, m)
+		}
+	}
+	for _, bad := range []string{"P25", "P75", "SpreadPct"} {
+		if _, ok := m[bad]; ok {
+			t.Errorf("PriceBand 不应出现 PascalCase 键 %q", bad)
+		}
+	}
+	sb, _ := json.Marshal(BandSource{Name: "x", PriceDate: "2026-09", PriceType: "信息价", UpdatedAt: time.Unix(0, 0).UTC()})
+	var sm map[string]any
+	_ = json.Unmarshal(sb, &sm)
+	for _, k := range []string{"name", "title", "category", "unit", "spec", "source", "region", "priceDate", "priceType", "price", "updatedAt"} {
+		if _, ok := sm[k]; !ok {
+			t.Errorf("BandSource 缺 camelCase 键 %q: %v", k, sm)
+		}
 	}
 }

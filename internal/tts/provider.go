@@ -21,10 +21,10 @@ import (
 // TTSParams 单次合成参数（零值=不指定，提供者按自身能力消费，能力外参数静默忽略）。
 // 语义见 docs/gaea-v43-play-deepen-design.md §5.3（v4.3d 情感语音参数扩展）。
 type TTSParams struct {
-	Speed   float64 // 倍速 0.5-2.0；0=不指定（edge→rate、herdsman→speed）
-	Pitch   float64 // 音高偏移半音 -12..12；0=不指定（edge→pitch、herdsman→pitch）
-	Style   string  // 风格标签（cosyvoice/herdsman 透传 style）
-	Emotion string  // 情绪标签（ANGRY/CALM/... 透传 emotion）
+	Speed   float64 `json:"speed"`   // 倍速 0.5-2.0；0=不指定（edge→rate、herdsman→speed）
+	Pitch   float64 `json:"pitch"`   // 音高偏移半音 -12..12；0=不指定（edge→pitch、herdsman→pitch）
+	Style   string  `json:"style"`   // 风格标签（cosyvoice/herdsman 透传 style）
+	Emotion string  `json:"emotion"` // 情绪标签（ANGRY/CALM/... 透传 emotion）
 }
 
 // TTSProvider TTS 合成提供者接口（seam 定义）。

@@ -452,9 +452,9 @@ func sanitizeChatFilename(s string) string {
 
 // ChatMessageInput 历史消息导入输入（旧 localStorage 话题迁入 chat.db）。
 type ChatMessageInput struct {
-	Role    string
-	Content string
-	Extra   string
+	Role    string `json:"role"`
+	Content string `json:"content"`
+	Extra   string `json:"extra"`
 }
 
 // ChatImportTopic 创建话题并按序导入历史消息（迁移旧 localStorage 会话，不调用 AI）。

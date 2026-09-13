@@ -8,6 +8,14 @@
 > 本文件为**最近发布速览**。完整历史磁带见 `docs/archive/progress-history-2026-09.md`
 > 与 `releases/`。
 
+## 最新发布：v4.276.0（2026-09-13）「绑定面 JSON 形状普查：造价参考/复盘笔记/会话组价价格带断链修复」
+
+- **普查方法**：把 v4.269 走查抓到的「Go struct 缺 json 标签→Wails 线上 PascalCase→前端 camelCase 读空」bug 类升级为全仓 AST 闭包普查（绑定面签名类型递归展开×缺标签求交）：327 缺标签 struct 中绑定面可达仅 7。
+- **三真断链当场修**：cost.PriceBand/BandSource（v4.191 起会话组价价格带卡全空+证据表离群判定失效）/costref.Note（复盘笔记 validUntil/refCount 读空）/costref.Indicator（造价参考视图读空）；四输入方向防御补齐。连带抓出 useChatVoice.ts 三处 PascalCase 发送点改 camelCase。
+- **结构性守卫**：TestWireShapeGuard 把普查逻辑测试化进 ci（缺标签即 FAIL，负向验证过）——v4.269 修 7 结构体没防住本轮同款，守卫是根治。
+- **真机走查**：CDP 桥验 GaeaCostNoteList 返回 camelCase+UI 断言笔记卡片全字段渲染+console 零错误+清场干净；坑=整段式走查脚本 UI 段卡死，拆探针分段+看门狗全链过。
+- **门禁**：ci.ps1 全绿（run1 负载 flaky 两例隔离复跑绿）/ drift OK@642 / 版本三处 4.276.0；产物=exe 49,294,336B SHA256=1A12B1CA…DA869（SHA256SUMS-v4.276.0.txt，冒烟 200 过）。
+
 ## 最新发布：v4.275.0（2026-09-13）「价格带数据源调研结案：信息价『除税价』列适配」
 
 - **调研**（docs/gaea-priceband-datasource-research-2026-09.md）：价格带数据面基础设施已完整在产（四要素字段+统计+导入链+询价飞轮），外部自动接入四路评估后建议候选4 结案（抓取脆弱+合规灰、商业 API 同「询比价不做」口径、LLM 查价不作基线）。

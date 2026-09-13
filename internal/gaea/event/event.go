@@ -162,7 +162,7 @@ type AskQuestion struct {
 	Header  string // short label (the tab title)
 	Prompt  string // the question text
 	Options []AskOption
-	Multi   bool   // allow selecting more than one option
+	Multi   bool // allow selecting more than one option
 }
 
 // Ask carries an AskRequest: a batch of questions and the ID that correlates the
@@ -188,8 +188,8 @@ type Compaction struct {
 // AskAnswer is the user's reply to one AskQuestion: the chosen option label(s)
 // (a free-typed answer is carried as a single Selected entry).
 type AskAnswer struct {
-	QuestionID string
-	Selected   []string
+	QuestionID string   `json:"questionId"` // 前端 wire camelCase;Unmarshal 大小写不敏,补标签为形状锁定的唯一真源
+	Selected   []string `json:"selected"`
 }
 
 // Event is one increment in a turn's event stream. Read the field(s) documented

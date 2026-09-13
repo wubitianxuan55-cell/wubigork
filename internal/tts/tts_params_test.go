@@ -257,3 +257,21 @@ func TestSapiSynthesizeWithParams_Interface(t *testing.T) {
 	w := NewWinTTS()
 	var _ func(string, TTSParams) ([]byte, string, error) = w.SynthesizeWithParams
 }
+
+// TestTTSParamsWireShape 线上 JSON 形状回归锁（v4.276）：TTSParams 由
+// GaeaTTSVoiceParams 返回给前端，补 camelCase json 标签后形状锁定。
+func TestTTSParamsWireShape(t *testing.T) {
+	b, err := json.Marshal(TTSParams{Speed: 1.2, Pitch: 2, Style: "cosy", Emotion: "CALM"})
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	var m map[string]any
+	if err := json.Unmarshal(b, &m); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	for _, k := range []string{"speed", "pitch", "style", "emotion"} {
+		if _, ok := m[k]; !ok {
+			t.Errorf("TTSParams 缺 camelCase 键 %q: %v", k, m)
+		}
+	}
+}

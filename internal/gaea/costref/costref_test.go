@@ -1,6 +1,7 @@
 package costref
 
 import (
+	"encoding/json"
 	"math"
 	"testing"
 
@@ -91,5 +92,52 @@ func TestComputeIndicators(t *testing.T) {
 	}
 	if got := ComputeIndicators(nil, "title"); got != nil {
 		t.Errorf("空输入应返回 nil，got %+v", got)
+	}
+}
+
+// TestWireShapeCamelCase 线上 JSON 形状回归锁（v4.276）：Note/Indicator 由
+// GaeaCostNoteList/GaeaCostIndicators 直达前端，曾因缺 json 标签线上 PascalCase、
+// 前端 camelCase 全读空（复盘笔记/造价参考视图断裂；保存方向 Unmarshal 大小写
+// 不敏故录入正常未暴露，v4.269 同款模式）。
+func TestWireShapeCamelCase(t *testing.T) {
+	nb, err := json.Marshal(Note{ID: 1, Title: "t", Conclusion: "c", Boundary: "b", Risk: "r",
+		Evidence: "e", Confidence: "高", ValidUntil: "2026-12-31", Status: "已确认",
+		Category: "材料", ProjectType: "房建", Craft: "泵送", RefCount: 2})
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	var nm map[string]any
+	if err := json.Unmarshal(nb, &nm); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	for _, k := range []string{"id", "title", "conclusion", "boundary", "risk", "evidence",
+		"confidence", "validUntil", "status", "category", "projectType", "craft", "refCount", "createdAt", "updatedAt"} {
+		if _, ok := nm[k]; !ok {
+			t.Errorf("Note 缺 camelCase 键 %q: %v", k, nm)
+		}
+	}
+	for _, bad := range []string{"ValidUntil", "RefCount", "ProjectType"} {
+		if _, ok := nm[bad]; ok {
+			t.Errorf("Note 不应出现 PascalCase 键 %q", bad)
+		}
+	}
+	// 存量兼容：旧 PascalCase 行 Unmarshal 仍可读（encoding/json 大小写不敏）。
+	var old Note
+	if err := json.Unmarshal([]byte(`{"ID":7,"ValidUntil":"2026-01-01","RefCount":3}`), &old); err != nil || old.ID != 7 || old.RefCount != 3 {
+		t.Errorf("旧 PascalCase 数据应兼容读取, err=%v old=%+v", err, old)
+	}
+
+	ib, _ := json.Marshal(Indicator{Key: "钢筋", Unit: "t", Samples: 5, Min: 1, Max: 9, Mean: 4, Median: 3.5, P25: 2, P75: 5})
+	var im map[string]any
+	_ = json.Unmarshal(ib, &im)
+	for _, k := range []string{"key", "unit", "samples", "min", "max", "mean", "median", "p25", "p75"} {
+		if _, ok := im[k]; !ok {
+			t.Errorf("Indicator 缺 camelCase 键 %q: %v", k, im)
+		}
+	}
+	for _, bad := range []string{"P25", "P75"} {
+		if _, ok := im[bad]; ok {
+			t.Errorf("Indicator 不应出现 PascalCase 键 %q", bad)
+		}
 	}
 }

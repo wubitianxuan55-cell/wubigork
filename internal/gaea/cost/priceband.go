@@ -11,34 +11,37 @@ import (
 	"time"
 )
 
-// BandSource 证据链一条:相似条目快照(不带 Body)。
+// BandSource 证据链一条:相似条目快照(不带 Body)。json 标签必须与前端
+// PriceBandSource 一致——缺标签线上即 PascalCase,前端 camelCase 读空
+// (v4.269 costproject/coststage 同款断链,2026-09-13 补锁)。
 type BandSource struct {
-	Name      string
-	Title     string
-	Category  string
-	Unit      string
-	Spec      string
-	Source    string
-	Region    string
-	PriceDate string
-	PriceType string
-	Price     float64
-	UpdatedAt time.Time
+	Name      string    `json:"name"`
+	Title     string    `json:"title"`
+	Category  string    `json:"category"`
+	Unit      string    `json:"unit"`
+	Spec      string    `json:"spec"`
+	Source    string    `json:"source"`
+	Region    string    `json:"region"`
+	PriceDate string    `json:"priceDate"`
+	PriceType string    `json:"priceType"`
+	Price     float64   `json:"price"`
+	UpdatedAt time.Time `json:"updatedAt"`
 }
 
-// PriceBand 相似清单的价格带推荐。
+// PriceBand 相似清单的价格带推荐。json 标签与前端 PriceBand 类型逐字段一致
+// (p25/p75 全小写),断链教训同 BandSource。
 type PriceBand struct {
-	Samples    int // 参与统计的样本数
-	Min        float64
-	Max        float64
-	Mean       float64
-	Median     float64 // P50
-	P25        float64
-	P75        float64
-	SpreadPct  float64      // 离散度 (P75-P25)/Median*100
-	Outliers   int          // 超出 P25-1.5IQR / P75+1.5IQR 的样本数
-	Confidence string       // 高(样本>=8)/中(4-7)/低(1-3)/(0 样本返回 nil 不产生 band)
-	Sources    []BandSource // 全部参与样本
+	Samples    int          `json:"samples"` // 参与统计的样本数
+	Min        float64      `json:"min"`
+	Max        float64      `json:"max"`
+	Mean       float64      `json:"mean"`
+	Median     float64      `json:"median"` // P50
+	P25        float64      `json:"p25"`
+	P75        float64      `json:"p75"`
+	SpreadPct  float64      `json:"spreadPct"`  // 离散度 (P75-P25)/Median*100
+	Outliers   int          `json:"outliers"`   // 超出 P25-1.5IQR / P75+1.5IQR 的样本数
+	Confidence string       `json:"confidence"` // 高(样本>=8)/中(4-7)/低(1-3)/(0 样本返回 nil 不产生 band)
+	Sources    []BandSource `json:"sources"`    // 全部参与样本
 }
 
 // ComputePriceBand 由相似条目计算价格带:

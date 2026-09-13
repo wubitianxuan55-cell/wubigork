@@ -1,6 +1,7 @@
 package event
 
 import (
+	"encoding/json"
 	"sync"
 	"testing"
 
@@ -224,5 +225,28 @@ func TestFuncSinkForwardsEachConcurrentEmit(t *testing.T) {
 	defer mu.Unlock()
 	if count != 100 {
 		t.Errorf("count = %d, want 100", count)
+	}
+}
+
+// TestAskAnswerWireShape 线上 JSON 形状回归锁（v4.276）：AskAnswer 为前端提交
+// payload（GaeaAnswer），补 camelCase 标签后形状锁定；Unmarshal 大小写不敏，
+// 存量前端提交兼容。
+func TestAskAnswerWireShape(t *testing.T) {
+	b, err := json.Marshal(AskAnswer{QuestionID: "q1", Selected: []string{"甲"}})
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	var m map[string]any
+	if err := json.Unmarshal(b, &m); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	for _, k := range []string{"questionId", "selected"} {
+		if _, ok := m[k]; !ok {
+			t.Errorf("AskAnswer 缺 camelCase 键 %q: %v", k, m)
+		}
+	}
+	var in AskAnswer
+	if err := json.Unmarshal([]byte(`{"questionId":"q2","selected":["乙"]}`), &in); err != nil || in.QuestionID != "q2" {
+		t.Errorf("camelCase Unmarshal 应命中, err=%v in=%+v", err, in)
 	}
 }

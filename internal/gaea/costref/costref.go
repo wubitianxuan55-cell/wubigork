@@ -17,36 +17,39 @@ import (
 	"github.com/gaea/gaea/internal/gaea/costproject"
 )
 
-// Note 复盘笔记。
+// Note 复盘笔记。json 标签与前端 CostReviewNote 一致(缺标签线上即 PascalCase
+// 断链,v4.269 同款;输入方向 Unmarshal 大小写不敏故存量保存兼容,输出方向此前
+// 前端 validUntil/refCount/updatedAt 全读空)。
 type Note struct {
-	ID          int64
-	Title       string
-	Conclusion  string // 结论
-	Boundary    string // 适用边界
-	Risk        string // 风险提示
-	Evidence    string // 证据来源（项目/版本/文件）
-	Confidence  string // 可信度：高/中/低
-	ValidUntil  string // 有效期至
-	Status      string // 草稿 / 已确认
-	Category    string // 成本分类（如 机械/材料/综合单价）
-	ProjectType string // 项目类型
-	Craft       string // 工艺类型
-	RefCount    int    // 引用次数
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
+	ID          int64     `json:"id"`
+	Title       string    `json:"title"`
+	Conclusion  string    `json:"conclusion"`  // 结论
+	Boundary    string    `json:"boundary"`    // 适用边界
+	Risk        string    `json:"risk"`        // 风险提示
+	Evidence    string    `json:"evidence"`    // 证据来源（项目/版本/文件）
+	Confidence  string    `json:"confidence"`  // 可信度：高/中/低
+	ValidUntil  string    `json:"validUntil"`  // 有效期至
+	Status      string    `json:"status"`      // 草稿 / 已确认
+	Category    string    `json:"category"`    // 成本分类（如 机械/材料/综合单价）
+	ProjectType string    `json:"projectType"` // 项目类型
+	Craft       string    `json:"craft"`       // 工艺类型
+	RefCount    int       `json:"refCount"`    // 引用次数
+	CreatedAt   time.Time `json:"createdAt"`
+	UpdatedAt   time.Time `json:"updatedAt"`
 }
 
-// Indicator 造价参考指标（一组样本的价格统计）。
+// Indicator 造价参考指标（一组样本的价格统计）。json 标签与前端 CostIndicator
+// 一致（断链教训同 Note）。
 type Indicator struct {
-	Key     string  // 科目标题 或 一级分类名
-	Unit    string  // 样本最常见单位（按科目分组时才有意义）
-	Samples int     // 样本数（参与统计的明细行数）
-	Min     float64 // 极值（最低）
-	Max     float64 // 极值（最高）
-	Mean    float64 // 均值
-	Median  float64 // 中位数（P50）
-	P25     float64 // 下四分位
-	P75     float64 // 上四分位
+	Key     string  `json:"key"`     // 科目标题 或 一级分类名
+	Unit    string  `json:"unit"`    // 样本最常见单位（按科目分组时才有意义）
+	Samples int     `json:"samples"` // 样本数（参与统计的明细行数）
+	Min     float64 `json:"min"`     // 极值（最低）
+	Max     float64 `json:"max"`     // 极值（最高）
+	Mean    float64 `json:"mean"`    // 均值
+	Median  float64 `json:"median"`  // 中位数（P50）
+	P25     float64 `json:"p25"`     // 下四分位
+	P75     float64 `json:"p75"`     // 上四分位
 }
 
 // AttributionItem 单条明细的归因对标（v4.6.1 补课：审计 §C ④「成本知识图谱+

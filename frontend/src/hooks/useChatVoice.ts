@@ -17,7 +17,7 @@ export interface UseChatVoiceOptions {
 export function useChatVoice({ setMessages, getActiveId, getMode }: UseChatVoiceOptions) {
   const [voiceOn, setVoiceOn] = useState(false)
 
-  const persistVoiceMessages = useCallback((msgs: Array<{ Role: string; Content: string; Extra: string }>) => {
+  const persistVoiceMessages = useCallback((msgs: Array<{ role: string; content: string; extra: string }>) => {
     const topicID = getActiveId()
     if (!topicID) return
     // ChatAppendMessages 为 T6-3 新绑定：wailsjs/go 生成物由 wails build 再生成，
@@ -31,13 +31,13 @@ export function useChatVoice({ setMessages, getActiveId, getMode }: UseChatVoice
   const onVoiceTranscript = useCallback((t: string) => {
     const text = (t || '').trim(); if (!text) return
     setMessages(prev => [...prev, { key: nextMsgKey(), role: 'user', content: text, createdAt: nowStr() }])
-    persistVoiceMessages([{ Role: 'user', Content: text, Extra: '' }])
+    persistVoiceMessages([{ role: 'user', content: text, extra: '' }])
   }, [persistVoiceMessages, setMessages])
 
   const onVoiceReply = useCallback((t: string) => {
     const text = (t || '').trim(); if (!text) return
     setMessages(prev => [...prev, { key: nextMsgKey(), role: 'assistant', content: text, createdAt: nowStr() }])
-    persistVoiceMessages([{ Role: 'assistant', Content: text, Extra: '' }])
+    persistVoiceMessages([{ role: 'assistant', content: text, extra: '' }])
   }, [persistVoiceMessages, setMessages])
 
   const { state: voice, start: startVoice, stop: stopVoice } = useVoiceChat({ onTranscript: onVoiceTranscript, onReply: onVoiceReply })
