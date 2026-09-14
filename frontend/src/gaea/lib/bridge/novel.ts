@@ -35,7 +35,7 @@ export interface FingerprintScorePayload {
 /** 单条体检发现：code 为发现类别（ordering/status-mismatch/dangling/stale/duplicate，
  * 未知类别允许透传 string）；chapter 为相关章节文件名（如 001.md），缺省无。 */
 export interface ForeshadowLintFinding {
-  code: 'ordering' | 'status-mismatch' | 'dangling' | 'stale' | 'duplicate' | string;
+  code: 'ordering' | 'status-mismatch' | 'dangling' | 'stale' | 'duplicate' | 'overdue' | 'unplanned' | string;
   severity: 'high' | 'medium' | 'low' | string;
   foreshadowId: string;
   itemDesc: string;
@@ -51,6 +51,29 @@ export interface ForeshadowLintReport {
   revealed: number;
   longTerm: number;
   findings: ForeshadowLintFinding[];
+}
+
+/** 清理入口统一返回：deleted=删除条数；rolledBack=回退回收态条数（Clean 专属，
+ * Go omitempty 缺省）；resetManual=重置为 pending 的手工条数（Reset 专属）。 */
+export interface ForeshadowCleanupResult {
+  deleted: number;
+  rolledBack?: number;
+  resetManual?: number;
+}
+/** 伏笔统计（spec §5.1）：resolved 为 gaea 写入口径 revealed（resolved 别名归一
+ * 并入）；overdueCount=存活条目计划回收章<当前章（currentChapter<=0 时后端自动
+ * 按已写章节数）；Total=分状态计数之和（未知状态不入桶）。 */
+export interface ForeshadowStatsReport {
+  total: number;
+  pending: number;
+  planted: number;
+  hinted: number;
+  resolved: number;
+  partiallyResolved: number;
+  abandoned: number;
+  longTermCount: number;
+  overdueCount: number;
+  currentChapter?: number;
 }
 
 export interface NovelBindings {
@@ -78,6 +101,15 @@ export interface NovelBindings {
   // LintForeshadows 伏笔一致性体检（无参，主线并行开发中：wailsjs 再生前
   // wailsjs 侧缺该签名属预期，再生后 tsc 转绿；ForeshadowPanel「一致性体检」消费）。
   LintForeshadows(): Promise<ForeshadowLintReport>;
+  // ── 伏笔生命周期清理与统计（t1-P3，spec §8.1/§5.1）：三个清理入口语义严格
+  // 区分（章节删除/重分析前清理/项目重置），source_type 是批量清理唯一判据、
+  // 手动条目（source_type 非 analysis）永不批量删除只重置。
+  DeleteChapterForeshadows(chapterFile: string, onlyAnalysisSource: boolean): Promise<ForeshadowCleanupResult>;
+  CleanChapterAnalysisForeshadows(chapterFile: string): Promise<ForeshadowCleanupResult>;
+  ClearProjectForeshadowsForReset(): Promise<ForeshadowCleanupResult>;
+  // GetForeshadowStats 伏笔统计：分状态计数 + 超期数；currentChapter<=0 时
+  // 后端自动按已写章节数计算（returned currentChapter 带回实际口径）。
+  GetForeshadowStats(currentChapter: number): Promise<ForeshadowStatsReport>;
   SaveCharactersBatch(namesJSON: string): Promise<Record<string, unknown>>;
   NovelReadingAsk(kind: string, title: string, chapterText: string, selection: string, question: string, historyJSON: string): Promise<string>;
   GenerateSceneIllustration(chapterNum: number): Promise<Record<string, unknown>>;

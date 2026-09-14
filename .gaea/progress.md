@@ -3,6 +3,14 @@
 > 本文件为**最近发布速览**。完整历史磁带见 `docs/archive/progress-history-2026-09.md`
 > 与 `releases/`。
 
+## 最新发布：v4.298.0（2026-09-14）「伏笔生命周期清理与统计 + Lint 扩两码（t1-P3）」
+
+- **来源**：MuMu 蒸馏线 t1 伏笔域第三刀（spec §8.1/§5.1/P3.4）。P2 打通分析自动回收后，重分析/重新生成场景缺「干净重来」入口。
+- **落地**：①三个清理入口（新 `internal/app/foreshadow_cleanup_handler.go`，语义严格区分）：DeleteChapterForeshadows（删埋入∨回收本章，默认只删分析来源）/CleanChapterAnalysisForeshadows（重分析前：删「分析∧埋入本章」+回退本章回收→planted 清回收痕迹）/ClearProjectForeshadowsForReset（删全部来源；手动**重置不删除**→pending 清章节关联时间戳）；关键不变量=source_type 唯一判据、手动条目永不批量删除；②统计 GetForeshadowStats：分状态+longTermCount+overdueCount（ClassifyResolve 唯一入口，currentChapter≤0 自动），resolved 别名归一并入；③Lint 扩两码 5→7：overdue（medium）+unplanned（low，长线豁免，与 stale「该收了」vs「缺计划字段」并存）。
+- **测试**：app +6（三入口 e2e/统计口径/Lint 新码矩阵/camelCase 形状锁）。
+- **门禁**：ci.ps1 全绿、绑定面 +4 drift OK@671（spaceBindings 锁 489→493）、版本三处 4.298.0；产物见 `releases/SHA256SUMS-v4.298.0.txt`。
+- **未做（下刀）**：t1-P4 前端（面板接清理/统计/新体检码+Badge，mock 随消费面补）；真机走查（分析→回收→清理闭环，等闲置窗口）。
+
 ## 最新发布：v4.297.0（2026-09-14）「伏笔分析驱动自动回收：三级匹配闭环 + 候选清单三层渲染（t1-P2）」
 
 - **来源**：MuMu 蒸馏线 t1 伏笔域第二刀（spec P2 闭环核心）。此前分析侧回收只做「描述精确相等」，候选清单是整包 JSON 直塞 prompt——模型记不住该回填哪个 ID。本刀按 `docs/distill/01-foreshadow-spec.md` §3.3~§3.5/§6.1 把分析侧接上 v2 契约，埋入→回收闭环咬合，零绑定面。

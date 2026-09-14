@@ -22,7 +22,7 @@ const foreshadowStaleAfterChapters = 10
 
 // ForeshadowLintFinding 一条体检发现。
 type ForeshadowLintFinding struct {
-	Code         string `json:"code"`              // ordering / status-mismatch / dangling / stale / duplicate
+	Code         string `json:"code"`              // ordering / status-mismatch / dangling / stale / duplicate / overdue / unplanned
 	Severity     string `json:"severity"`          // high / medium / low
 	ForeshadowID string `json:"foreshadowId"`      // 命中条目 ID
 	ItemDesc     string `json:"itemDesc"`          // 条目描述（面板直显免二次查）
@@ -60,7 +60,8 @@ func normalizeForeshadowDesc(s string) string {
 	return strings.TrimSpace(s)
 }
 
-// lintForeshadowItems 对登记条目跑五类确定性检查（纯函数）。
+// lintForeshadowItems 对登记条目跑七类确定性检查（纯函数）：
+// ①ordering ②status-mismatch ③dangling ④stale ⑤duplicate ⑥overdue（t1-P3）⑦unplanned（t1-P3）。
 func lintForeshadowItems(items []types.Foreshadow, totalChapters int) []ForeshadowLintFinding {
 	findings := []ForeshadowLintFinding{}
 	add := func(f ForeshadowLintFinding) { findings = append(findings, f) }
@@ -115,6 +116,27 @@ func lintForeshadowItems(items []types.Foreshadow, totalChapters int) []Foreshad
 					Message: fmt.Sprintf("与条目 %s 描述相同，疑似重复登记", firstID)})
 			} else {
 				firstByDesc[d] = it.ID
+			}
+		}
+		// ⑥ 超期（t1-P3）：计划回收章早于当前进度——v4.293 起有调度注入，
+		// 超期条目会以「硬约束」进生成上下文，作者应尽早处置
+		if foreshadowAlive(it.Status) {
+			if targetNum := chapterNumOf(it.TargetResolveIn); targetNum > 0 && totalChapters > 0 && targetNum < totalChapters {
+				add(ForeshadowLintFinding{Code: "overdue", Severity: "medium", ForeshadowID: it.ID, ItemDesc: desc,
+					Message: fmt.Sprintf("已超期 %d 章未回收（原计划第 %d 章回收，当前写至第 %d 章）",
+						totalChapters-targetNum, targetNum, totalChapters),
+					Chapter: it.TargetResolveIn})
+			}
+			// ⑦ 无计划回收章（t1-P3）：已埋入超过悬置阈值且没填 target_resolve_in，
+			// 无法参与按章调度。长线豁免与 ④ 同理（跨书埋设本就不该有近期计划）。
+			// 与 ④ 的差异：stale 说「该收了」，unplanned 说「缺计划字段」——建议动作不同。
+			if !it.IsLongTerm && it.TargetResolveIn == "" &&
+				plantedNum > 0 && plantedNum <= totalChapters {
+				if age := totalChapters - plantedNum; age >= foreshadowStaleAfterChapters {
+					add(ForeshadowLintFinding{Code: "unplanned", Severity: "low", ForeshadowID: it.ID, ItemDesc: desc,
+						Message: fmt.Sprintf("已埋入 %d 章仍未填计划回收章，无法参与按章调度，建议补填", age),
+						Chapter: it.PlantedIn})
+				}
 			}
 		}
 	}

@@ -173,6 +173,13 @@ export const GAEA_METHOD_FACETS = {
   // 伏笔一致性体检（NovelB 门面）：ForeshadowPanel「一致性体检」——小说创作间
   // 数据面，同伏笔读写族归 play。
   LintForeshadows: "play",
+  // 伏笔生命周期清理与统计（t1-P3，spec §8.1/§5.1）：三个清理入口（章节删除/
+  // 重分析前清理/项目重置，手动条目只重置不删除）+ 统计（分状态+超期数），
+  // 同伏笔读写族归 play。
+  CleanChapterAnalysisForeshadows: "play",
+  ClearProjectForeshadowsForReset: "play",
+  DeleteChapterForeshadows: "play",
+  GetForeshadowStats: "play",
   SaveCharactersBatch: "play",
   NovelReadingAsk: "play",
   GenerateSceneIllustration: "play",
