@@ -1,1 +1,2 @@
 c27ff6d3fb3bf0909ed2d46f7e76a3a7c6afec1d88121200f058a2baa1b625b3  gaea-v4.304.0.exe
+SHA256=2fb4f2cbe36a8db249f8f7ed0e80fc086ef69753a0cf67467210291a757eed9f  wubigork-v4.304.0-source.tar.gz (49046520 B, git archive @9380c3ee, 4326 files)
