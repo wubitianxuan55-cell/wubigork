@@ -84,6 +84,17 @@ func (a *Agent) persistStoryMemories(chapterNum int, v2 *types.AnalysisResultV2,
 	}
 }
 
+// persistAnnotations 标注层（t4-C4）：从 V2 载荷构建 keyword→正文偏移标注
+// 并落盘 analysis/annotations/MMM.json。容错注入：失败只记日志。
+func (a *Agent) persistAnnotations(chapterNum int, content string, v2 *types.AnalysisResultV2) {
+	anns := BuildAnnotations(content, v2)
+	if err := a.pm.SaveChapterAnnotations(chapterNum, anns); err != nil {
+		slog.Warn("章节标注落盘失败（不影响分析返回）", "chapter", chapterNum, "error", err)
+		return
+	}
+	slog.Info("章节标注已登记", "chapter", chapterNum, "count", len(anns))
+}
+
 // pacingLabel 节奏英文枚举 → 中文（旧 wire 是自由中文文本）。
 func pacingLabel(p string) string {
 	switch strings.TrimSpace(p) {

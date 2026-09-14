@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gaea/gaea/internal/ai"
+	"github.com/gaea/gaea/internal/analysis"
 	"github.com/gaea/gaea/internal/project"
 	"github.com/gaea/gaea/internal/rewrite"
 	"github.com/gaea/gaea/internal/types"
@@ -284,4 +285,44 @@ func (a *writingState) NovelChapterSuggestions(chapterNum int) ([]string, error)
 		}
 	}
 	return []string{}, nil
+}
+
+// NovelChapterAnnotations 读取该章分析标注（keyword→正文 rune 偏移，前端
+// 内联高亮数据源）。缺档且该章有 V2 分析时按需重建（存量分析免重跑）。
+func (a *writingState) NovelChapterAnnotations(chapterNum int) ([]types.Annotation, error) {
+	pm := a.getPM()
+	if pm == nil {
+		return nil, fmt.Errorf("请先打开项目")
+	}
+	f, err := pm.ReadChapterAnnotations(chapterNum)
+	if err != nil {
+		return nil, err
+	}
+	if len(f.Items) > 0 || f.ChapterNum != 0 {
+		return f.Items, nil
+	}
+	// 缺档重建：需该章 V2 分析与正文都可得
+	af, err := pm.ReadAnalysisV2File()
+	if err != nil {
+		return nil, err
+	}
+	var v2 *types.AnalysisResultV2
+	for i := range af.Items {
+		if af.Items[i].ChapterNum == chapterNum {
+			v2 = &af.Items[i].Result
+			break
+		}
+	}
+	if v2 == nil {
+		return []types.Annotation{}, nil
+	}
+	content, err := pm.ReadChapter(chapterNum)
+	if err != nil {
+		return nil, fmt.Errorf("读取章节失败: %w", err)
+	}
+	anns := analysis.BuildAnnotations(content, v2)
+	if err := pm.SaveChapterAnnotations(chapterNum, anns); err != nil {
+		slog.Warn("标注按需重建落盘失败", "chapter", chapterNum, "error", err)
+	}
+	return anns, nil
 }

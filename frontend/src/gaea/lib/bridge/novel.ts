@@ -126,6 +126,16 @@ export interface NovelRewriteResult {
   newContent: string;
 }
 /** 重写请求载荷（NovelChapterRewrite 的 reqJSON）。 */
+/** 单条分析标注：pos/length 为正文 rune 偏移与长度（-1=未命中不高亮）。 */
+export interface ChapterAnnotation {
+  type: 'hook' | 'foreshadow' | 'plot_point' | 'conflict' | 'character' | 'suggestion' | string;
+  title?: string;
+  content: string;
+  importance?: number;
+  pos: number;
+  length?: number;
+  tags?: string[];
+}
 export interface NovelRewriteRequest {
   source?: 'custom' | 'analysis_suggestions' | 'mixed';
   suggestion_indices?: number[];
@@ -189,6 +199,9 @@ export interface NovelBindings {
   // NovelChapterSuggestions 读取该章分析建议（重写建议驱动勾选数据源）；
   // 无分析结果返回空数组（正常态）。
   NovelChapterSuggestions(chapterNum: number): Promise<string[]>;
+  // NovelChapterAnnotations 读取该章分析标注（缺档且有 V2 分析时后端按需
+  // 重建；无分析返回空数组）。Pos=-1 表示未命中不高亮（如 suggestion 类）。
+  NovelChapterAnnotations(chapterNum: number): Promise<ChapterAnnotation[]>;
   SaveCharactersBatch(namesJSON: string): Promise<Record<string, unknown>>;
   NovelReadingAsk(kind: string, title: string, chapterText: string, selection: string, question: string, historyJSON: string): Promise<string>;
   GenerateSceneIllustration(chapterNum: number): Promise<Record<string, unknown>>;

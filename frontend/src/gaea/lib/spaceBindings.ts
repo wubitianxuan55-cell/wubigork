@@ -188,6 +188,8 @@ export const GAEA_METHOD_FACETS = {
   NovelRestoreRewriteVersion: "play",
   // 章节分析建议读取（t4-C3 重写建议驱动 UI 数据源）。
   NovelChapterSuggestions: "play",
+  // 章节分析标注（t4-C4：keyword→正文偏移，前端内联高亮数据源）。
+  NovelChapterAnnotations: "play",
   ClearProjectForeshadowsForReset: "play",
   DeleteChapterForeshadows: "play",
   GetForeshadowStats: "play",

@@ -504,6 +504,7 @@ export const bindingNames = [
 	"NovelBookSourceImportChapters",
 	"NovelBookSourceSearch",
 	"NovelBookSourceToc",
+	"NovelChapterAnnotations",
 	"NovelChapterReview",
 	"NovelChapterRewrite",
 	"NovelChapterSuggestions",

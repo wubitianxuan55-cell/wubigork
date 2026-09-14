@@ -834,3 +834,29 @@ func (m *Manager) UpdateRewriteVersion(v *types.RewriteVersion) error {
 	}
 	return m.syncRewriteIndex(*v)
 }
+
+// ChapterAnnotationsPath 单章标注文件路径（analysis/annotations/MMM.json）。
+func (m *Manager) ChapterAnnotationsPath(chapterNum int) string {
+	return filepath.Join(m.Dir, "analysis", "annotations", fmt.Sprintf("%03d.json", chapterNum))
+}
+
+// SaveChapterAnnotations 保存单章标注（分析完成后由分析代理写入）。
+func (m *Manager) SaveChapterAnnotations(chapterNum int, items []types.Annotation) error {
+	path := m.ChapterAnnotationsPath(chapterNum)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return fmt.Errorf("创建标注目录失败: %w", err)
+	}
+	return writeJSON(path, &types.AnnotationFile{ChapterNum: chapterNum, Items: items})
+}
+
+// ReadChapterAnnotations 读单章标注；文件缺失返回空文件与 nil error（正常态）。
+func (m *Manager) ReadChapterAnnotations(chapterNum int) (*types.AnnotationFile, error) {
+	f, err := loadJSON[types.AnnotationFile](m.ChapterAnnotationsPath(chapterNum))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return &types.AnnotationFile{Items: []types.Annotation{}}, nil
+		}
+		return nil, err
+	}
+	return f, nil
+}
