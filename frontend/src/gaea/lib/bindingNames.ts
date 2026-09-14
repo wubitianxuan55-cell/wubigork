@@ -438,6 +438,7 @@ export const bindingNames = [
 	"GetImageBackendConfig",
 	"GetImageBackendInfo",
 	"GetKeepWarm",
+	"GetLastForeshadowSync",
 	"GetLoginStatus",
 	"GetLorebookEntries",
 	"GetModelCallStats",

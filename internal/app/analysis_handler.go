@@ -1,8 +1,11 @@
 package app
 
 import (
+	"encoding/json"
 	"fmt"
 	"log/slog"
+
+	"github.com/gaea/gaea/internal/types"
 )
 
 // ── 分析 ────────────────────────────────────────────────────
@@ -37,6 +40,33 @@ func (a *writingState) AnalyzeChapter(chapterNum int) (map[string]interface{}, e
 	}, nil
 }
 
+// foreshadowUrgencyView 单条目的运行时紧急度投影（spec §2.1 ForeshadowUrgency，
+// A5：运行时算不落库；D7：阈值以后端为准前端不自算）。
+// 已回收/已废弃无回收压力 → 返回 nil（wire 缺省该键）。
+func foreshadowUrgencyView(f types.Foreshadow, currentChapter int) *types.ForeshadowUrgency {
+	if types.IsResolvedStatus(f.Status) || f.Status == types.ForeshadowAbandoned {
+		return nil
+	}
+	u := types.ForeshadowUrgency{
+		Level:             types.UrgencyLevel(f, currentChapter),
+		RemainingChapters: types.ChapterNumOf(f.TargetResolveIn) - currentChapter,
+		ResolveStatus:     types.ClassifyResolve(f, currentChapter),
+		MustResolve:       types.ClassifyResolve(f, currentChapter) == types.ResolveMustNow,
+	}
+	if u.RemainingChapters < 0 {
+		u.OverdueChapters = -u.RemainingChapters
+	}
+	return &u
+}
+
+// foreshadowUrgencyCurrentChapter 紧急度投影的当前章口径：调用方未指定时按已写章节数。
+func (a *writingState) foreshadowUrgencyCurrentChapter(currentChapter int) int {
+	if currentChapter > 0 {
+		return currentChapter
+	}
+	return countWrittenChapters(a.getPM())
+}
+
 // GetForeshadows 获取伏笔列表
 func (a *writingState) GetForeshadows() map[string]interface{} {
 	pm := a.getPM()
@@ -48,9 +78,51 @@ func (a *writingState) GetForeshadows() map[string]interface{} {
 		slog.Warn("读取伏笔文件失败", "error", err)
 		return nil
 	}
-	return map[string]interface{}{
-		"items": ff.Items,
+	// 紧急度投影（嵌入展平：条目既有键零变化，仅追加 urgency 键；不落库，
+	// 前端写回载荷由 SaveForeshadows 的 types.Foreshadow 反序列化自然丢弃）。
+	cur := a.foreshadowUrgencyCurrentChapter(0)
+	items := make([]map[string]interface{}, 0, len(ff.Items))
+	for i := range ff.Items {
+		it := ff.Items[i]
+		raw := map[string]interface{}{}
+		if b, err := json.Marshal(it); err == nil {
+			_ = json.Unmarshal(b, &raw)
+		}
+		if len(raw) == 0 {
+			continue
+		}
+		if u := foreshadowUrgencyView(it, cur); u != nil {
+			raw["urgency"] = u
+		}
+		items = append(items, raw)
 	}
+	return map[string]interface{}{
+		"items":          items,
+		"currentChapter": cur,
+	}
+}
+
+// GetLastForeshadowSync 最近一轮章节分析的伏笔同步结果（t1-P4：SyncResult 上
+// 绑定面，跳过原因可见不静默——D3）。尚未执行过分析时显式报错。
+func (a *writingState) GetLastForeshadowSync() (map[string]interface{}, error) {
+	if a.analysisAgent == nil {
+		return nil, fmt.Errorf("请先打开项目")
+	}
+	res, ok := a.analysisAgent.LastSync()
+	if !ok {
+		return nil, fmt.Errorf("本次会话尚未执行过章节分析，暂无伏笔同步记录")
+	}
+	return map[string]interface{}{
+		"plantedCount":        res.PlantedCount,
+		"resolvedCount":       res.ResolvedCount,
+		"createdCount":        res.CreatedCount,
+		"updatedIds":          res.UpdatedIDs,
+		"createdIds":          res.CreatedIDs,
+		"matchedByContent":    res.MatchedByContent,
+		"skippedResolveCount": res.SkippedResolveCount,
+		"skippedReasons":      res.SkippedReasons,
+		"errors":              res.Errors,
+	}, nil
 }
 
 // ReviewBook AI 全书审稿

@@ -63,7 +63,7 @@ const (
 // 命中的字段，AI 结果只做「更新既有 ID 的状态 / 追加新 ID」，绝不全量覆盖、
 // 不重置既有状态；回收动作三级匹配（精确 ID → 内容兜底 → 跳过不新建）。
 // 单条容错：一条失败只记 Errors，不中断整批；批次末尾一次性落盘。
-func (a *Agent) syncForeshadows(chapterNum int, hits []types.ForeshadowHit) SyncResult {
+func (a *Agent) SyncForeshadows(chapterNum int, hits []types.ForeshadowHit) SyncResult {
 	res := SyncResult{
 		UpdatedIDs:     []string{},
 		CreatedIDs:     []string{},
@@ -124,6 +124,10 @@ func (a *Agent) syncForeshadows(chapterNum int, hits []types.ForeshadowHit) Sync
 	ff.SchemaVersion = 2
 
 	a.pm.WriteForeshadows(ff)
+
+	a.syncMu.Lock()
+	a.lastSync = &res
+	a.syncMu.Unlock()
 	return res
 }
 

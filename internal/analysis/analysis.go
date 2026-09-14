@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"sync"
 
 	"github.com/gaea/gaea/internal/ai"
 	"github.com/gaea/gaea/internal/config"
@@ -22,6 +23,20 @@ type Agent struct {
 	pm     *project.Manager
 	cfg    *config.Config
 	eng    *prompt.Engine
+
+	// lastSync 最近一轮伏笔同步结果（t1-P4 上绑定面：跳过原因可见，D3 不静默）。
+	syncMu   sync.RWMutex
+	lastSync *SyncResult
+}
+
+// LastSync 返回最近一轮伏笔同步结果；从未执行过同步时 ok=false。
+func (a *Agent) LastSync() (SyncResult, bool) {
+	a.syncMu.RLock()
+	defer a.syncMu.RUnlock()
+	if a.lastSync == nil {
+		return SyncResult{}, false
+	}
+	return *a.lastSync, true
 }
 
 // New 创建分析 Agent
@@ -100,7 +115,7 @@ func (a *Agent) Analyze(ctx context.Context, chapterNum int, chapterContent stri
 	}
 
 	// 同步伏笔到文件（t1-P2：三级匹配 + SyncResult 可追溯，D3 不静默跳过）
-	syncRes := a.syncForeshadows(chapterNum, result.Foreshadows)
+	syncRes := a.SyncForeshadows(chapterNum, result.Foreshadows)
 	if len(syncRes.Errors) > 0 || syncRes.SkippedResolveCount > 0 ||
 		syncRes.PlantedCount > 0 || syncRes.ResolvedCount > 0 {
 		slog.Info("分析: 伏笔同步完成",

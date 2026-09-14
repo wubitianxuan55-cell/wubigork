@@ -52,8 +52,19 @@ export function buildManualForeshadow(input: ManualForeshadowInput, now: number 
   }
 }
 
-/** GetForeshadows 载荷（Go map[string]interface{}）收窄为条目数组 */
+/** GetForeshadows 载荷（Go map[string]interface{}）收窄为条目数组
+ *  （含后端附带的 urgency 投影，展示用；写回前必须经 stripForeshadowUrgency 剥离）。 */
 export function normalizeForeshadowItems(raw: unknown): ForeshadowItemData[] {
   const list = ((raw as { items?: ForeshadowItemData[] } | null)?.items ?? []) as ForeshadowItemData[]
   return Array.isArray(list) ? list : []
+}
+
+/** 剥离运行时投影 urgency（A5：不落库——SaveForeshadows 全量写回前必须调用，
+ *  防投影字段经写回意外持久化）。 */
+export function stripForeshadowUrgency(items: ForeshadowItemData[]): ForeshadowItemData[] {
+  return items.map((it) => {
+    if (!it || !('urgency' in it)) return it
+    const { urgency: _stripped, ...rest } = it as ForeshadowItemData & { urgency?: unknown }
+    return rest as ForeshadowItemData
+  })
 }

@@ -41,11 +41,25 @@ func getForeshadowItems(t *testing.T, a *App) []types.Foreshadow {
 	if res == nil {
 		t.Fatal("GetForeshadows 返回 nil")
 	}
-	items, ok := res["items"].([]types.Foreshadow)
+	items, ok := res["items"].([]map[string]interface{})
 	if !ok {
 		t.Fatalf("GetForeshadows items 类型异常: %T", res["items"])
 	}
-	return items
+	// v4.299 起 items 为 map 投影（附 urgency 运行时键）；此处只回填测试所需的
+	// v1 核心字段，条目读回校验保持原语义。
+	out := make([]types.Foreshadow, 0, len(items))
+	for _, raw := range items {
+		b, err := json.Marshal(raw)
+		if err != nil {
+			t.Fatalf("条目再序列化失败: %v", err)
+		}
+		var it types.Foreshadow
+		if err := json.Unmarshal(b, &it); err != nil {
+			t.Fatalf("条目反序列化失败: %v", err)
+		}
+		out = append(out, it)
+	}
+	return out
 }
 
 // TestSaveForeshadows_RoundTrip 写读回环：保存→GetForeshadows 读回字段一致；

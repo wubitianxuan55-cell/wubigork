@@ -1,25 +1,30 @@
-// ForeshadowPanel.tsx — 伏笔登记表面板（v4.3f 闭环版）
+// ForeshadowPanel.tsx — 伏笔登记表面板（v4.3f 闭环版 + t1-P4 调度可视面）
 // 登记→埋设→回收闭环：GetForeshadows 展示 + SaveForeshadows 全量写回。
 // ①「登记伏笔」表单（类别/描述/埋设章节/是否长线，manual_ 前缀 ID）；
 // ② 每条状态流转按钮（planted→hinted→revealed，revealed 可回退）；
 // ③ 删除（confirm）；④ 描述可编辑；⑤「一致性体检」（LintForeshadows）：
-//    概要统计 + findings 直显（severity Tag + 说明 + 条目描述 + 章节引用）。
+//    概要统计 + findings 直显（severity Tag + 说明 + 条目描述 + 章节引用）；
+// ⑥ t1-P4：后端统计行（分状态+超期）、紧急度 Badge（后端投影不落库，D7 前端不自算）、
+//    生命周期清理入口（删本章/重分析前清理/项目重置，手动条目后端护栏保护）、
+//    上次分析同步结果（跳过原因可见，D3 不静默）。
 // 纯逻辑（ID 生成/状态机/载荷收窄）抽在 foreshadowLogic.ts。
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Alert, Button, Checkbox, Empty, Input, InputNumber, message, Popconfirm, Select, Spin, Tag, Tooltip,
 } from 'antd'
 import {
-  CheckCircleOutlined, DeleteOutlined, EditOutlined, FlagOutlined, PlusOutlined, ReloadOutlined, SafetyCertificateOutlined,
+  CheckCircleOutlined, ClearOutlined, DeleteOutlined, EditOutlined, FlagOutlined, PlusOutlined, ReloadOutlined, SafetyCertificateOutlined,
 } from '@ant-design/icons'
 import { app } from '../../gaea/lib/bridge'
-import type { ForeshadowLintReport } from '../../gaea/lib/bridge/novel'
+import type { ForeshadowLintReport, ForeshadowStatsReport, ForeshadowSyncResult } from '../../gaea/lib/bridge/novel'
 import type { ForeshadowItemData, ForeshadowStatus } from '../../types'
 import {
   advanceForeshadowStatus,
   buildManualForeshadow,
   foreshadowFlowLabel,
+  formatPlantedIn,
   normalizeForeshadowItems,
+  stripForeshadowUrgency,
 } from './foreshadowLogic'
 
 const STATUS_META: Record<ForeshadowStatus, { label: string; color: string }> = {
@@ -45,6 +50,21 @@ const CATEGORY_LABELS: Record<string, string> = {
 
 const CATEGORY_OPTIONS = Object.entries(CATEGORY_LABELS).map(([value, label]) => ({ value, label }))
 
+/** 紧急度 Badge（后端投影 level 0-3；阈值在后端，前端不自算 D7）。 */
+const URGENCY_META: Record<number, { color: string; label: string }> = {
+  3: { color: 'red', label: '已超期' },
+  2: { color: 'orange', label: '急需回收' },
+  1: { color: 'gold', label: '需关注' },
+}
+
+/** 回收时机四值中文（tooltip 用）。 */
+const RESOLVE_STATUS_LABELS: Record<string, string> = {
+  must_resolve_now: '本章必须回收',
+  overdue: '已超期',
+  not_yet: '未到回收时机',
+  no_plan: '未填计划回收章',
+}
+
 interface ForeshadowPanelProps {
   /** 未打开项目时仅展示空态引导，不触发加载 */
   disabled?: boolean
@@ -67,11 +87,20 @@ const ForeshadowPanel: React.FC<ForeshadowPanelProps> = ({ disabled }) => {
   // 一致性体检（LintForeshadows 结果直显；保留上次报告直至下次体检）
   const [linting, setLinting] = useState(false)
   const [lintReport, setLintReport] = useState<ForeshadowLintReport | null>(null)
+  // t1-P4：后端统计 + 上次分析同步（都随 load 拉取；失败静默降级）
+  const [beStats, setBeStats] = useState<ForeshadowStatsReport | null>(null)
+  const [lastSync, setLastSync] = useState<ForeshadowSyncResult | null>(null)
+  // 生命周期清理工具（展开态 + 共享章号）
+  const [cleanOpen, setCleanOpen] = useState(false)
+  const [cleanChapter, setCleanChapter] = useState(1)
+  const [onlyAnalysis, setOnlyAnalysis] = useState(true)
 
   const load = useCallback(async () => {
     const token = ++loadToken.current
     if (disabled) {
       setItems([])
+      setBeStats(null)
+      setLastSync(null)
       setLoading(false)
       setError('')
       return
@@ -79,9 +108,22 @@ const ForeshadowPanel: React.FC<ForeshadowPanelProps> = ({ disabled }) => {
     setLoading(true)
     setError('')
     try {
-      const res = await app.GetForeshadows()
+      const [res, stat] = await Promise.all([
+        app.GetForeshadows(),
+        // 统计/同步为增量绑定（t1-P4）：旧桥接/局部 mock 缺失时静默降级
+        typeof app.GetForeshadowStats === 'function'
+          ? app.GetForeshadowStats(0).catch(() => null)
+          : Promise.resolve(null),
+      ])
       if (token !== loadToken.current) return
       setItems(normalizeForeshadowItems(res))
+      setBeStats(stat)
+      setLastSync(null)
+      if (typeof app.GetLastForeshadowSync === 'function') {
+        void app.GetLastForeshadowSync()
+          .then((r) => { if (token === loadToken.current) setLastSync(r) })
+          .catch(() => { if (token === loadToken.current) setLastSync(null) }) // 尚未分析=不展示
+      }
     } catch (err: unknown) {
       if (token !== loadToken.current) return
       setError(err instanceof Error ? err.message : '伏笔加载失败')
@@ -109,7 +151,8 @@ const ForeshadowPanel: React.FC<ForeshadowPanelProps> = ({ disabled }) => {
   const persist = useCallback(async (prev: ForeshadowItemData[], next: ForeshadowItemData[]) => {
     setItems(next)
     try {
-      await app.SaveForeshadows(JSON.stringify(next))
+      // A5：urgency 是运行时投影不落库，写回载荷剥离
+      await app.SaveForeshadows(JSON.stringify(stripForeshadowUrgency(next)))
       return true
     } catch (err: unknown) {
       setItems(prev)
@@ -117,6 +160,29 @@ const ForeshadowPanel: React.FC<ForeshadowPanelProps> = ({ disabled }) => {
       return false
     }
   }, [])
+
+  // 生命周期清理（t1-P3 绑定，t1-P4 面板消费）：后端护栏=手动条目只重置不删除。
+  // 全部经 Popconfirm 二次确认；结果 toast + 重载登记表。
+  const runClean = useCallback(async (kind: 'cleanChapter' | 'deleteChapter' | 'resetProject') => {
+    try {
+      if (kind === 'resetProject') {
+        const res = await app.ClearProjectForeshadowsForReset()
+        message.success(`项目重置完成：删除分析条目 ${res.deleted ?? 0} 条，重置手动条目 ${res.resetManual ?? 0} 条`)
+      } else {
+        const file = formatPlantedIn(cleanChapter)
+        if (kind === 'cleanChapter') {
+          const res = await app.CleanChapterAnalysisForeshadows(file)
+          message.success(`已清理第 ${cleanChapter} 章（${file}）：删除 ${res.deleted ?? 0} 条，回退回收 ${res.rolledBack ?? 0} 条`)
+        } else {
+          const res = await app.DeleteChapterForeshadows(file, onlyAnalysis)
+          message.success(`已删除第 ${cleanChapter} 章（${file}）伏笔 ${res.deleted ?? 0} 条${onlyAnalysis ? '（仅分析来源）' : ''}`)
+        }
+      }
+      await load()
+    } catch (err: unknown) {
+      message.error(`清理失败：${err instanceof Error ? err.message : '未知错误'}`)
+    }
+  }, [cleanChapter, onlyAnalysis, load])
 
   const register = () => {
     const desc = description.trim()
@@ -195,6 +261,12 @@ const ForeshadowPanel: React.FC<ForeshadowPanelProps> = ({ disabled }) => {
           onClick={() => void runLint()}
         >
           一致性体检
+        </Button>
+        <Button
+          size="small" icon={<ClearOutlined />} disabled={disabled}
+          onClick={() => setCleanOpen((o) => !o)}
+        >
+          清理
         </Button>
         <Button size="small" icon={<ReloadOutlined />} onClick={() => void load()} loading={loading} disabled={disabled}>
           刷新
@@ -277,6 +349,75 @@ const ForeshadowPanel: React.FC<ForeshadowPanelProps> = ({ disabled }) => {
                 )}
               </div>
             )}
+            {/* ⑥ 生命周期清理工具（后端护栏：手动条目只重置不删除）+ 上次同步结果 */}
+            {cleanOpen && (
+              <div
+                className="fs-clean"
+                style={{
+                  flexShrink: 0, marginBottom: 8, padding: '6px 8px', borderRadius: 6,
+                  border: '1px solid var(--color-border, var(--md-sys-color-outline-variant))',
+                  display: 'flex', flexDirection: 'column', gap: 6,
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 12, fontWeight: 600 }}><ClearOutlined />生命周期清理</span>
+                  <span className="novel-setting-meta">手动登记条目永不批量删除（仅分析来源可删）</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                  <span className="novel-setting-meta">章节</span>
+                  <InputNumber size="small" min={1} max={9999} style={{ width: 72 }} value={cleanChapter} onChange={(v) => setCleanChapter(Number(v) || 1)} />
+                  <Popconfirm
+                    title={`重分析前清理第 ${cleanChapter} 章？`}
+                    description="删除该章分析来源伏笔，回退该章回收记录（手动条目保留）"
+                    okText="清理" cancelText="取消"
+                    onConfirm={() => void runClean('cleanChapter')}
+                  >
+                    <Button size="small">重分析前清理</Button>
+                  </Popconfirm>
+                  <Popconfirm
+                    title={`删除第 ${cleanChapter} 章伏笔？`}
+                    description={onlyAnalysis ? '仅删除分析来源条目' : '将连同手动条目一起删除'}
+                    okText="删除" cancelText="取消"
+                    onConfirm={() => void runClean('deleteChapter')}
+                  >
+                    <Button size="small" danger>删除本章伏笔</Button>
+                  </Popconfirm>
+                  <Checkbox checked={onlyAnalysis} onChange={(e) => setOnlyAnalysis(e.target.checked)} style={{ fontSize: 12 }}>
+                    只删分析来源
+                  </Checkbox>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <Popconfirm
+                    title="重置整个项目的伏笔登记表？"
+                    description="删除全部分析来源条目；手动条目重置为待规划（保留内容）"
+                    okText="重置" cancelText="取消"
+                    onConfirm={() => void runClean('resetProject')}
+                  >
+                    <Button size="small" danger>项目重置</Button>
+                  </Popconfirm>
+                </div>
+              </div>
+            )}
+            {/* ⑥ 上次分析同步结果（常显；跳过原因可见 D3 不静默） */}
+            {lastSync && (
+              <div
+                style={{
+                  flexShrink: 0, marginBottom: 8, padding: '4px 8px', borderRadius: 6, fontSize: 12,
+                  border: '1px dashed var(--color-border, var(--md-sys-color-outline-variant))',
+                  display: 'flex', flexDirection: 'column', gap: 2,
+                }}
+              >
+                <span className="novel-setting-meta">
+                  上次分析同步：回收 {lastSync.resolvedCount ?? 0} · 新埋 {lastSync.createdCount ?? 0} · 内容匹配 {lastSync.matchedByContent ?? 0} · 跳过 {lastSync.skippedResolveCount ?? 0}
+                </span>
+                {(lastSync.skippedReasons ?? []).slice(0, 2).map((r, i) => (
+                  <span key={i} className="novel-setting-meta">· {r.message}</span>
+                ))}
+                {(lastSync.skippedReasons?.length ?? 0) > 2 && (
+                  <span className="novel-setting-meta">· ……其余 {lastSync.skippedReasons!.length - 2} 条略</span>
+                )}
+              </div>
+            )}
             {items.length === 0 ? (
               <Empty
                 image={Empty.PRESENTED_IMAGE_SIMPLE}
@@ -292,7 +433,19 @@ const ForeshadowPanel: React.FC<ForeshadowPanelProps> = ({ disabled }) => {
                 <div className="fs-stats-row">
                   {flowLegend}
                   <div style={{ flex: 1 }} />
-                  <span className="novel-setting-meta">埋设 {stats.planted} · 暗示 {stats.hinted} · 回收 {stats.revealed}</span>
+                  {/* t1-P4：优先后端统计口径（含待规划/部分/废弃/长线）；失败降级前端计数 */}
+                  {beStats ? (
+                    <span className="novel-setting-meta">
+                      埋设 {beStats.planted ?? 0} · 暗示 {beStats.hinted ?? 0} · 回收 {beStats.resolved ?? 0} · 部分 {beStats.partiallyResolved ?? 0} · 待规划 {beStats.pending ?? 0} · 废弃 {beStats.abandoned ?? 0} · 长线 {beStats.longTermCount ?? 0}
+                    </span>
+                  ) : (
+                    <span className="novel-setting-meta">埋设 {stats.planted} · 暗示 {stats.hinted} · 回收 {stats.revealed}</span>
+                  )}
+                  {(beStats?.overdueCount ?? 0) > 0 && (
+                    <Tooltip title={`有 ${beStats!.overdueCount} 条伏笔已过计划回收章，正以硬约束进入章节生成上下文`}>
+                      <Tag style={{ marginInlineEnd: 0, fontSize: 11 }} color="red">超期 {beStats!.overdueCount}</Tag>
+                    </Tooltip>
+                  )}
                 </div>
                 {items.map((it) => (
                   <div key={it.id} className="fs-item">
@@ -314,6 +467,14 @@ const ForeshadowPanel: React.FC<ForeshadowPanelProps> = ({ disabled }) => {
                       <Tag style={{ marginInlineEnd: 0, fontSize: 11 }} color={STATUS_META[it.status].color}>
                         {STATUS_META[it.status].label}
                       </Tag>
+                      {/* t1-P4：紧急度 Badge（后端运行时投影；阈值后端算 D7） */}
+                      {it.urgency && it.urgency.level > 0 && (
+                        <Tooltip title={`${RESOLVE_STATUS_LABELS[it.urgency.resolveStatus] ?? it.urgency.resolveStatus}${it.urgency.overdueChapters ? `·已超 ${it.urgency.overdueChapters} 章` : it.urgency.remainingChapters > 0 ? `·还有 ${it.urgency.remainingChapters} 章` : ''}`}>
+                          <Tag style={{ marginInlineEnd: 0, fontSize: 11 }} color={URGENCY_META[it.urgency.level]?.color ?? 'default'}>
+                            {URGENCY_META[it.urgency.level]?.label ?? `紧急度${it.urgency.level}`}
+                          </Tag>
+                        </Tooltip>
+                      )}
                     </div>
                     <div className="fs-item-foot" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                       {it.is_long_term && <Tag style={{ fontSize: 10, marginInlineEnd: 0 }} color="purple">长期伏笔</Tag>}

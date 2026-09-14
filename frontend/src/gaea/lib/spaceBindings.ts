@@ -177,6 +177,8 @@ export const GAEA_METHOD_FACETS = {
   // 重分析前清理/项目重置，手动条目只重置不删除）+ 统计（分状态+超期数），
   // 同伏笔读写族归 play。
   CleanChapterAnalysisForeshadows: "play",
+  // 上次分析同步结果（t1-P4：SyncResult 上绑定面，跳过原因可见不静默 D3）。
+  GetLastForeshadowSync: "play",
   ClearProjectForeshadowsForReset: "play",
   DeleteChapterForeshadows: "play",
   GetForeshadowStats: "play",

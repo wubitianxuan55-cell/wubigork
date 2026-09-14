@@ -28,6 +28,10 @@ type NovelMethods = Pick<
   | "NovelReadingAsk" | "GenerateSceneIllustration"
   // 伏笔一致性体检（ForeshadowPanel「一致性体检」；演示口径允许示范数据）。
   | "LintForeshadows"
+  // 伏笔清理/统计/同步结果批次（t1-P3 后端 + t1-P4 面板消费；浏览器演示口径）。
+  | "GetForeshadowStats" | "GetLastForeshadowSync"
+  | "DeleteChapterForeshadows" | "CleanChapterAnalysisForeshadows"
+  | "ClearProjectForeshadowsForReset"
   // 批次三b legacy 直调转正（NovelB 门面，同名前缀）：章节族/叙事状态族/场景族/
   // 项目角色族。
   | "GetChapter" | "GetChapterBranch" | "SaveChapterContent" | "SaveChapterBranchContent"
@@ -83,10 +87,31 @@ export function buildNovel(): NovelMethods {
       return { consistent: true, issues: [], checkedChapters: 0 };
     },
     async GetForeshadows() {
-      return { foreshadows: [] };
+      return { items: [], currentChapter: 0 };
     },
     async SaveForeshadows(_itemsJSON: string) {
       // mock: no-op。
+    },
+    async GetForeshadowStats(_currentChapter: number) {
+      // 伏笔统计：浏览器演示无真实登记表，全 0（诚实空态）。
+      return {
+        total: 0, pending: 0, planted: 0, hinted: 0, resolved: 0,
+        partiallyResolved: 0, abandoned: 0, longTermCount: 0,
+        overdueCount: 0, currentChapter: 0,
+      };
+    },
+    async GetLastForeshadowSync() {
+      // 尚未分析：如实 reject（消费方 catch 后显示「尚未执行分析」）。
+      throw new Error("dev mock：尚未执行过章节分析");
+    },
+    async DeleteChapterForeshadows(_chapterFile: string, _onlyAnalysisSource: boolean) {
+      return { deleted: 0 };
+    },
+    async CleanChapterAnalysisForeshadows(_chapterFile: string) {
+      return { deleted: 0, rolledBack: 0 };
+    },
+    async ClearProjectForeshadowsForReset() {
+      return { deleted: 0, resetManual: 0 };
     },
     async LintForeshadows() {
       // 伏笔一致性体检：诚实演示样例（示范书 12 章、登记 5 条，2 条发现）。

@@ -84,6 +84,17 @@ export interface ForeshadowItemData {
   revealed_in?: string // 回收章节
   status: ForeshadowStatus
   is_long_term: boolean
+  urgency?: ForeshadowUrgencyData // 后端附带（v4.299），写回前剥离
+}
+
+/** 运行时紧急度投影（GetForeshadows 附带，后端实时算不落库；保存写回前应剥离）。
+ *  对齐 bridge/novel.ts ForeshadowUrgencyPayload。 */
+export interface ForeshadowUrgencyData {
+  level: number // 0=不紧急 1=需关注 2=急需回收 3=已超期
+  remainingChapters: number
+  overdueChapters?: number
+  resolveStatus: string
+  mustResolve: boolean
 }
 
 // ── 一致性检查（v4.3f，对齐 internal/graph.ConsistencyIssue）────

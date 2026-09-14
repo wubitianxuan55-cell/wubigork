@@ -76,6 +76,34 @@ export interface ForeshadowStatsReport {
   currentChapter?: number;
 }
 
+/** 运行时紧急度投影（后端按计划回收章实时算，不落库；前端不自算阈值 D7）。
+ *  level: 0=不紧急 1=需关注 2=急需回收 3=已超期；mustResolve=进入「本章必须回收」集合。 */
+export interface ForeshadowUrgencyPayload {
+  level: number;
+  remainingChapters: number;
+  overdueChapters?: number;
+  resolveStatus: 'must_resolve_now' | 'overdue' | 'not_yet' | 'no_plan' | string;
+  mustResolve: boolean;
+}
+/** 最近一轮章节分析的伏笔同步结果（GetLastForeshadowSync；D3 跳过原因可见不静默）。 */
+export interface ForeshadowSyncSkipReason {
+  kind: 'invalid_reference' | 'already_resolved' | 'not_planted' | 'no_match' | 'limit_reached' | 'empty_content' | string;
+  refId?: string;
+  title?: string;
+  message: string;
+}
+export interface ForeshadowSyncResult {
+  plantedCount: number;
+  resolvedCount: number;
+  createdCount: number;
+  updatedIds: string[];
+  createdIds: string[];
+  matchedByContent: number;
+  skippedResolveCount: number;
+  skippedReasons: ForeshadowSyncSkipReason[];
+  errors: string[];
+}
+
 export interface NovelBindings {
   // GenerateBookCover 生成项目书封（3:4，play exports），返回封面路径。
   GenerateBookCover(projectId: string, promptHint: string): Promise<string>;
@@ -110,6 +138,9 @@ export interface NovelBindings {
   // GetForeshadowStats 伏笔统计：分状态计数 + 超期数；currentChapter<=0 时
   // 后端自动按已写章节数计算（returned currentChapter 带回实际口径）。
   GetForeshadowStats(currentChapter: number): Promise<ForeshadowStatsReport>;
+  // GetLastForeshadowSync 最近一轮章节分析的伏笔同步结果（尚未分析时 reject，
+  // Error.message 为中文提示；消费方 catch 后显示「尚未执行分析」）。
+  GetLastForeshadowSync(): Promise<ForeshadowSyncResult>;
   SaveCharactersBatch(namesJSON: string): Promise<Record<string, unknown>>;
   NovelReadingAsk(kind: string, title: string, chapterText: string, selection: string, question: string, historyJSON: string): Promise<string>;
   GenerateSceneIllustration(chapterNum: number): Promise<Record<string, unknown>>;

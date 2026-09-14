@@ -3,6 +3,14 @@
 > 本文件为**最近发布速览**。完整历史磁带见 `docs/archive/progress-history-2026-09.md`
 > 与 `releases/`。
 
+## 最新发布：v4.299.0（2026-09-14）「伏笔面板接调度可视面：清理入口/统计/紧急度 Badge/同步结果（t1-P4）」
+
+- **来源**：MuMu 蒸馏线 t1 伏笔域第四刀（收官刀）。P1~P3 全在后端，前端面板仍是旧三态视图。
+- **落地**：①SyncResult 上绑定面（v4.297 欠账）：GetLastForeshadowSync（面 671→672），同步计数+skippedReasons 全量（D3 可见），未分析显式报错；②GetForeshadows 附带 urgency 运行时投影（共享入口算，A5 不落库，回收/废弃不带键）；③面板四件：后端统计行（分状态+超期红 Tag，降级前端计数）/紧急度 Badge（红橙金+tooltip）/清理折叠区（三入口全确认+自动重载）/上次同步常显卡（计数+前 2 条跳过原因）；④A5 护栏=写回 stripForeshadowUrgency 剥离；⑤契约面+mock+5+load() 增量绑定降级。
+- **测试**：Go +2（投影矩阵/lastSync；SyncForeshadows 按规格签名转正导出）+ vitest 面板 14/14（+6）。
+- **门禁**：ci.ps1 全绿、绑定面 +1 drift OK@672（spaceBindings 锁 493→494）、版本三处 4.299.0；产物见 `releases/SHA256SUMS-v4.299.0.txt`。
+- **未做（观察池）**：真机走查闭环一条龙（等闲置窗口）；SyncResult 持久化不做（会话内诊断面）。
+
 ## 最新发布：v4.298.0（2026-09-14）「伏笔生命周期清理与统计 + Lint 扩两码（t1-P3）」
 
 - **来源**：MuMu 蒸馏线 t1 伏笔域第三刀（spec §8.1/§5.1/P3.4）。P2 打通分析自动回收后，重分析/重新生成场景缺「干净重来」入口。

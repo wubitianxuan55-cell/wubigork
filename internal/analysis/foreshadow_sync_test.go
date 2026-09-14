@@ -73,7 +73,7 @@ func TestSyncForeshadows_MergesByIDAndKeepsManual(t *testing.T) {
 	}
 	seedForeshadows(t, a, manual, aiA)
 
-	res := a.syncForeshadows(2, []types.ForeshadowHit{
+	res := a.SyncForeshadows(2, []types.ForeshadowHit{
 		// 新伏笔：第 2 章新埋设（带预估回收章与评分）
 		{Type: "planted", Category: "item", Title: "星门钥匙", Content: "星门在月圆之夜开启",
 			Strength: 8, EstimateResolve: 12},
@@ -143,7 +143,7 @@ func TestSyncForeshadows_ReplayNoDuplicateNoReset(t *testing.T) {
 	stableID := GenerateStableID("plot", "003.md", "铜匣出现")
 	hit := types.ForeshadowHit{Type: "planted", Category: "plot", Content: "铜匣出现"}
 
-	res1 := a.syncForeshadows(3, []types.ForeshadowHit{hit})
+	res1 := a.SyncForeshadows(3, []types.ForeshadowHit{hit})
 	if res1.CreatedCount != 1 {
 		t.Fatalf("首次同步应新建 1 条: %+v", res1)
 	}
@@ -152,7 +152,7 @@ func TestSyncForeshadows_ReplayNoDuplicateNoReset(t *testing.T) {
 	items[0].Status = types.ForeshadowHinted
 	seedForeshadows(t, a, items...)
 
-	res2 := a.syncForeshadows(3, []types.ForeshadowHit{hit})
+	res2 := a.SyncForeshadows(3, []types.ForeshadowHit{hit})
 
 	items = readForeshadowItems(t, a)
 	if len(items) != 1 {
@@ -176,7 +176,7 @@ func TestSyncForeshadows_CorruptFileNotOverwritten(t *testing.T) {
 		t.Fatalf("写损坏文件: %v", err)
 	}
 
-	res := a.syncForeshadows(1, []types.ForeshadowHit{
+	res := a.SyncForeshadows(1, []types.ForeshadowHit{
 		{Type: "planted", Category: "plot", Content: "不应落盘"},
 	})
 
@@ -195,7 +195,7 @@ func TestSyncForeshadows_CorruptFileNotOverwritten(t *testing.T) {
 // TestSyncForeshadows_FreshProject 新项目（文件不存在）首次同步正常建档。
 func TestSyncForeshadows_FreshProject(t *testing.T) {
 	a := newSyncTestAgent(t)
-	a.syncForeshadows(1, []types.ForeshadowHit{
+	a.SyncForeshadows(1, []types.ForeshadowHit{
 		{Type: "planted", Category: "identity", Content: "主角的旧玉佩"},
 	})
 
@@ -215,7 +215,7 @@ func TestSyncForeshadows_InvalidRefNoFallback(t *testing.T) {
 		PlantedIn: "001.md", Status: types.ForeshadowPlanted,
 	})
 
-	res := a.syncForeshadows(2, []types.ForeshadowHit{
+	res := a.SyncForeshadows(2, []types.ForeshadowHit{
 		{Type: "resolved", Title: "铜匣", Content: "祠堂地砖下的铜匣", ReferenceStableID: "plot_999_gone"},
 	})
 
@@ -240,7 +240,7 @@ func TestSyncForeshadows_ResolvedNoMatchNoCreate(t *testing.T) {
 		ID: "plot_001_a", Description: "左臂旧伤", PlantedIn: "001.md", Status: types.ForeshadowPlanted,
 	})
 
-	res := a.syncForeshadows(2, []types.ForeshadowHit{
+	res := a.SyncForeshadows(2, []types.ForeshadowHit{
 		{Type: "resolved", Title: "毫不相干", Content: "北方边境爆发战乱，粮草告急"},
 	})
 
@@ -263,7 +263,7 @@ func TestSyncForeshadows_AlreadyResolvedNoReset(t *testing.T) {
 		Status: types.ForeshadowRevealed, RevealedIn: "001.md",
 	})
 
-	res := a.syncForeshadows(5, []types.ForeshadowHit{
+	res := a.SyncForeshadows(5, []types.ForeshadowHit{
 		{Type: "resolved", ReferenceStableID: "plot_001_a", Content: "旧伤迸裂"},
 	})
 
@@ -288,7 +288,7 @@ func TestSyncForeshadows_NotPlantedSkip(t *testing.T) {
 		ID: "plot_001_p", Description: "计划中的预言", PlantedIn: "001.md", Status: types.ForeshadowPending,
 	})
 
-	res := a.syncForeshadows(2, []types.ForeshadowHit{
+	res := a.SyncForeshadows(2, []types.ForeshadowHit{
 		{Type: "resolved", ReferenceStableID: "plot_001_p", Content: "预言应验"},
 	})
 
@@ -309,7 +309,7 @@ func TestSyncForeshadows_HintedResolvable(t *testing.T) {
 		ID: "plot_001_h", Description: "左臂旧伤", PlantedIn: "001.md", Status: types.ForeshadowHinted,
 	})
 
-	res := a.syncForeshadows(2, []types.ForeshadowHit{
+	res := a.SyncForeshadows(2, []types.ForeshadowHit{
 		{Type: "resolved", ReferenceStableID: "plot_001_h", Content: "旧伤迸裂"},
 	})
 
@@ -333,7 +333,7 @@ func TestSyncForeshadows_CapFivePerChapter(t *testing.T) {
 			Title: fmt.Sprintf("%d号信物", i), Content: fmt.Sprintf("第%d枚信物在火场出现", i),
 		})
 	}
-	res := a.syncForeshadows(4, hits)
+	res := a.SyncForeshadows(4, hits)
 
 	items := readForeshadowItems(t, a)
 	if len(items) != types.ForeshadowMaxNewPerChapter {
@@ -354,7 +354,7 @@ func TestSyncForeshadows_CapFivePerChapter(t *testing.T) {
 			Title: fmt.Sprintf("后加%d", i), Content: fmt.Sprintf("后续补充的第%d枚信物", i),
 		})
 	}
-	a.syncForeshadows(5, replay) // 注意：新章（005.md）重置额度，仅验证重放零新建
+	a.SyncForeshadows(5, replay) // 注意：新章（005.md）重置额度，仅验证重放零新建
 	items = readForeshadowItems(t, a)
 	// 004 章 5 条 + 005 章重放命中 004 既有条目（更新不新建）+ 5 条新章新建 = 11
 	if len(items) != 5+5 {
@@ -365,7 +365,7 @@ func TestSyncForeshadows_CapFivePerChapter(t *testing.T) {
 // TestSyncForeshadows_EmptyContentSkip 埋入内容为空如实跳过。
 func TestSyncForeshadows_EmptyContentSkip(t *testing.T) {
 	a := newSyncTestAgent(t)
-	res := a.syncForeshadows(1, []types.ForeshadowHit{
+	res := a.SyncForeshadows(1, []types.ForeshadowHit{
 		{Type: "planted", Category: "mystery", Content: "   "},
 	})
 	if len(readForeshadowItems(t, a)) != 0 {
@@ -387,7 +387,7 @@ func TestSyncForeshadows_PlantedDedupByTitleGuard(t *testing.T) {
 	})
 
 	// 同章同题但内容改写 → 稳定 ID 变了，第二道防重应命中
-	res := a.syncForeshadows(3, []types.ForeshadowHit{
+	res := a.SyncForeshadows(3, []types.ForeshadowHit{
 		{Type: "planted", Category: "mystery", Title: "古钟自鸣", Content: "村口古钟每到子夜自鸣三声"},
 	})
 
@@ -412,7 +412,7 @@ func TestSyncForeshadows_SameBatchNoDoubleMatch(t *testing.T) {
 		ID: "plot_001_x", Description: "一枚成对的黑玉扳指", PlantedIn: "001.md", Status: types.ForeshadowPlanted,
 	})
 
-	res := a.syncForeshadows(2, []types.ForeshadowHit{
+	res := a.SyncForeshadows(2, []types.ForeshadowHit{
 		{Type: "resolved", Title: "扳指", Content: "一枚成对的黑玉扳指"},
 		{Type: "resolved", Title: "扳指", Content: "一枚成对的黑玉扳指"},
 	})
@@ -428,7 +428,7 @@ func TestSyncForeshadows_SameBatchNoDoubleMatch(t *testing.T) {
 // TestSyncForeshadows_UnknownTypeError 未知类型如实进 Errors，不中断整批。
 func TestSyncForeshadows_UnknownTypeError(t *testing.T) {
 	a := newSyncTestAgent(t)
-	res := a.syncForeshadows(1, []types.ForeshadowHit{
+	res := a.SyncForeshadows(1, []types.ForeshadowHit{
 		{Type: "hinted", Content: "旧动作残留"},
 		{Type: "planted", Content: "正常建档"},
 	})
@@ -445,7 +445,7 @@ func TestSyncForeshadows_UnknownTypeError(t *testing.T) {
 // Importance=min(Strength/10,1)；Strength/Subtlety 0→缺省 5；>10 封顶。
 func TestSyncForeshadows_ScoreDerivedDefaults(t *testing.T) {
 	a := newSyncTestAgent(t)
-	a.syncForeshadows(1, []types.ForeshadowHit{
+	a.SyncForeshadows(1, []types.ForeshadowHit{
 		{Type: "planted", Content: "缺省评分条目"},
 		{Type: "planted", Content: "超限评分条目", Strength: 15, Subtlety: -3},
 	})
