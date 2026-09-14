@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gaea/gaea/internal/characterstate"
 	"github.com/gaea/gaea/internal/types"
 )
 
@@ -160,9 +161,10 @@ func deriveLegacyAnalysis(v2 *types.AnalysisResultV2) *AnalysisResult {
 	return old
 }
 
-// syncCharacterStatesV2 角色状态同步（V2 差分载荷）：按名字命中即写 NewState。
-// 空 NewState 不写（差分缺省=无变化，不猜值）。
-func (a *Agent) syncCharacterStatesV2(v2 *types.AnalysisResultV2) {
+// syncCharacterStatesV2 角色状态同步（t5：委托 characterstate 差分更新器——
+// 水位单调守卫 + 存活短路/级联 + 关系差分 + 亲密度算法，替代旧「NewState
+// 直写 Status」的半成品行为）。容错注入：失败只记日志。
+func (a *Agent) syncCharacterStatesV2(chapterNum int, v2 *types.AnalysisResultV2) {
 	if v2 == nil || len(v2.CharacterStates) == 0 {
 		return
 	}
@@ -174,16 +176,52 @@ func (a *Agent) syncCharacterStatesV2(v2 *types.AnalysisResultV2) {
 	if chars == nil {
 		return
 	}
-	changed := false
-	for i := range chars.Characters {
-		for _, sc := range v2.CharacterStates {
-			if chars.Characters[i].Name == sc.Name && strings.TrimSpace(sc.NewState) != "" {
-				chars.Characters[i].Status = sc.NewState
-				changed = true
+	// V2 差分 → 状态机输入：survival_status 映射 gaea Status 值域，
+	// relationship_changes 展开为逐条关系差分。
+	states := make([]types.CharacterStateDiff, 0, len(v2.CharacterStates))
+	rels := make([]types.RelationshipChange, 0, len(v2.CharacterStates))
+	for _, sc := range v2.CharacterStates {
+		if strings.TrimSpace(sc.Name) == "" {
+			continue
+		}
+		states = append(states, types.CharacterStateDiff{
+			Name:     sc.Name,
+			NewState: strings.TrimSpace(sc.NewState),
+			Status:   survivalToCharacterStatus(sc.SurvivalStatus),
+			KeyEvent: strings.TrimSpace(sc.KeyEvent),
+			Reason:   strings.TrimSpace(sc.PsychologicalChange),
+		})
+		for target, desc := range sc.RelationshipChanges {
+			if t := strings.TrimSpace(target); t != "" && strings.TrimSpace(desc) != "" {
+				rels = append(rels, types.RelationshipChange{
+					FromName: sc.Name, ToName: t, ChangeDesc: strings.TrimSpace(desc),
+				})
 			}
 		}
 	}
-	if changed {
-		a.pm.WriteCharacters(chars)
+	res := characterstate.ApplyChapterDiff(chars, chapterNum, states, rels, nil)
+	if len(res.Changes) > 0 || len(res.Skipped) > 0 {
+		slog.Info("角色状态机差分应用", "stateUpdated", res.StateUpdated,
+			"relCreated", res.RelCreated, "relUpdated", res.RelUpdated,
+			"careerUpdated", res.CareerUpdated, "skipped", len(res.Skipped))
+		if len(res.Changes) > 0 {
+			a.pm.WriteCharacters(chars)
+		}
 	}
+}
+
+// survivalToCharacterStatus 分析侧 survival_status（active|deceased|missing|
+// retired）→ gaea Character.Status 值域。空返回空（稀疏差分：未提及不动）。
+func survivalToCharacterStatus(s string) string {
+	switch strings.ToLower(strings.TrimSpace(s)) {
+	case "deceased":
+		return "Dead"
+	case "missing":
+		return "Missing"
+	case "retired":
+		return "Retired"
+	case "active":
+		return "Alive"
+	}
+	return ""
 }

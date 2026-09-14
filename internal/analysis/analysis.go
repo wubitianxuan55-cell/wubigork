@@ -142,8 +142,8 @@ func (a *Agent) Analyze(ctx context.Context, chapterNum int, chapterContent stri
 		}
 	}
 
-	// 更新角色状态（V2 差分载荷）
-	a.syncCharacterStatesV2(&v2)
+	// 更新角色状态（t5 状态机差分更新器）
+	a.syncCharacterStatesV2(chapterNum, &v2)
 
 	// 派生旧 wire 形状：AnalyzeChapter 绑定返回键零变化，前端零改动
 	return deriveLegacyAnalysis(&v2), nil
