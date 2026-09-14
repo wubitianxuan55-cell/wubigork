@@ -8,6 +8,7 @@
 // 插图：SinIllustrate 复用绘梦图像后端生成，产物落 imagehub 台账
 // （space=play / source_board=sin），并把路径回写到该轮消息 extra.illustrations。
 import type { chat } from "../../../../wailsjs/go/models";
+import type { NovelBookSourceSearchResult, NovelBookSourceTocPreview } from "./novel";
 
 export interface SinBindings {
   /** 故事列表（仅 mode=sin；聊天板块话题不混入）。 */
@@ -55,4 +56,44 @@ export interface SinBindings {
    * 拒绝（错误带「底稿冲突：」前缀）；确认后 force=true 覆盖。
    */
   SinNotesSave(topicID: string, baseline: string, outline: string, notes: string, force: boolean): Promise<{ notes: string[]; outline: string }>;
+  // ── sin 书源 t2（规格 docs/gaea-sin-booksource-distill-2026-09.md §5；产物落 sin 数据面）──
+  /** 书源聚合搜索 + 泛搜索（与小说侧同源同表；HasRule=可下载，免规则候选仅参考）。 */
+  SinBookSourceSearch(keyword: string): Promise<NovelBookSourceSearchResult>;
+  /** 目录预览（总数 + 首8末4样例 + truncated 注记），供范围选择。 */
+  SinBookSourceToc(source: string, detailURL: string): Promise<NovelBookSourceTocPreview>;
+  /**
+   * 下载整本成书 TXT → <用户配置目录>/gaea/sin/books/（硬隔离：sin 数据面，
+   * 不写工作区/书架）；进度/终态订阅 sin-booksource:<jobId>（progress/done/error，
+   * done 附 Failed 清单）。免规则来源同步拒绝（正文必须规则）。
+   */
+  SinBookSourceDownload(source: string, detailURL: string, start: number, end: number, title: string): Promise<SinBookSourceDownloadStart>;
+  /** 取消在途下载（与小说侧共用 job 登记簿；未知 job 返回 false）。 */
+  SinBookSourceDownloadCancel(jobId: string): Promise<boolean>;
+  /** 成书清单（.txt，按修改时间新→旧；未下载过 = 空清单不报错）。 */
+  SinBookSourceBooksList(): Promise<SinBookSourceBook[]>;
+  /** 删除成书（fail-closed 路径护栏：限成书目录内 .txt，越界拒绝）。 */
+  SinBookSourceBookDelete(path: string): Promise<void>;
+}
+
+/** 下载起跑回执：进度/终态订阅 sin-booksource:<jobId>。 */
+export interface SinBookSourceDownloadStart {
+  jobId: string;
+}
+
+/** 成书清单条目。 */
+export interface SinBookSourceBook {
+  title: string;
+  path: string;
+  sizeBytes: number;
+  /** RFC3339。 */
+  modifiedAt: string;
+}
+
+/** 成书结果（done 事件载荷；failed 为引擎重试穷尽后的失败章，如实透出）。 */
+export interface SinBookSourceDownloadResult {
+  title: string;
+  path: string;
+  chapters: number;
+  words: number;
+  failed?: Array<{ title: string; url: string; error: string }>;
 }

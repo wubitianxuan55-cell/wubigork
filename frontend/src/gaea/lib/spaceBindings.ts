@@ -122,6 +122,15 @@ export const GAEA_METHOD_FACETS = {
   SinNotesGet: "play",
   SinNotesSave: "play",
   SinCancel: "play",
+  // sin 书源 t2（sin 书源线移交本线，规格 docs/gaea-sin-booksource-distill-2026-09.md §5）：
+  // 搜书/目录/下载成书/取消/成书清单/成书删除——原罪域内素材获取，产物落 sin 数据面
+  // （sinRoot()/books），规则用共享资产层；同原罪板块全部归 play。
+  SinBookSourceSearch: "play",
+  SinBookSourceToc: "play",
+  SinBookSourceDownload: "play",
+  SinBookSourceDownloadCancel: "play",
+  SinBookSourceBooksList: "play",
+  SinBookSourceBookDelete: "play",
 
   // ── play：乐园数据面（轻语聊天记忆）──────────────────────────
   WhisperMemories: "play",

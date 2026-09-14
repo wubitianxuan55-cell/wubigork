@@ -10,6 +10,12 @@ import (
 // 方法体零改动——纯委托给 App 实例（b.a.<Method>）。
 type SinB struct{ a *App }
 
+func (b *SinB) SinBookSourceBookDelete(path string) error { return b.a.SinBookSourceBookDelete(path) }
+func (b *SinB) SinBookSourceBooksList() ([]SinBookSourceBook, error) { return b.a.SinBookSourceBooksList() }
+func (b *SinB) SinBookSourceDownload(source string, detailURL string, start int, end int, title string) (SinBookSourceDownloadStart, error) { return b.a.SinBookSourceDownload(source, detailURL, start, end, title) }
+func (b *SinB) SinBookSourceDownloadCancel(jobID string) bool { return b.a.SinBookSourceDownloadCancel(jobID) }
+func (b *SinB) SinBookSourceSearch(keyword string) (NovelBookSourceSearchResult, error) { return b.a.SinBookSourceSearch(keyword) }
+func (b *SinB) SinBookSourceToc(source string, detailURL string) (NovelBookSourceTocPreview, error) { return b.a.SinBookSourceToc(source, detailURL) }
 func (b *SinB) SinCancel(topicID string) error { return b.a.SinCancel(topicID) }
 func (b *SinB) SinCastGet(topicID string) ([]string, error) { return b.a.SinCastGet(topicID) }
 func (b *SinB) SinCastSet(topicID string, ids []string) ([]string, error) { return b.a.SinCastSet(topicID, ids) }

@@ -190,7 +190,7 @@ CF 检测=页面 title 精确匹配集合（`Just a moment...` 等 4 个，`Craw
 | 刀 | 内容 | 状态 |
 |---|---|---|
 | t1 | `internal/booksource` 引擎 P0（本档 §3.3 全表 + 夹具单测；零绑定零前端零 app 接线） | ✅ 本刀（非版本刀，避开并行在途 release 的绑定面） |
-| t2 | app 绑定 `SinBookSource*`（List/Search/Toc/Download + 下载进度事件流；`sinRoot()/rules|books` 落盘；netclient 代理注入） | 待拍板后开工（绑定面与并行线互斥） |
+| t2 | app 绑定 `SinBookSource*`（List/Search/Toc/Download + 下载进度事件流；`sinRoot()/rules|books` 落盘；netclient 代理注入） | ✅ 2026-09-14：**该线自 DSH 移交本线执行（用户拍板）**。落地=SinB +6→20（Search/Toc/Download/DownloadCancel/BooksList/BookDelete，总面 660→666）；**规则目录合流收敛**：小说侧 t1 先落地共享层 %配置目录%/gaea/booksource/rules，按「以先落地为准」弃本档 sinRoot()/rules 口径，成书产物落 sinRoot()/books（sin 数据面）；搜索/目录/取消登记簿与小说侧同源复用（searchBookSources/tocBookSource/bookImportRuns，job 前缀 bss_）；成书=AssembleTXT utf-8（详情名缺省回填与文件名同源）、同名追加序号、单章失败不中断 Failed 如实带出、删除有路径护栏（限成书目录内 .txt）；进度事件 sin-booksource:<jobId> 每 20 章一报；测试 +8（成书落盘/兜底名/Failed/无规则拒绝/同名序号/清单排序/路径护栏/起跑预检），全量 app 回归绿 |
 | t3 | 原罪右栏「书源」卡：搜书 → 结果表（相似度序/书源标注）→ 下载进度 → 成书入口 | 依赖 t2 |
 | t4 | 原罪工具接线：`book_search`/`book_download` 进 `sinToolOrder`（sin_tool_web.go 委托同款），故事中可拉素材 | 依赖 t2 |
 | t5 | 拆书联动：成书 TXT 一键进小说板块导入向导（tail 引擎已就绪）；EPUB 导出（go-epub 已在依赖） | 待拍板 |
