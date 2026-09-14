@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -44,24 +45,30 @@ func (a *writingState) CreateChapter(setting, prevSummary, plotReq string, chapt
 		slog.Info("CreateChapter 将注入 Skill", "name", skillName)
 	}
 
-	// 3. 从章节节点树提取前文摘要
+	// 3. 从章节节点树提取前文摘要（t3 首刀：最近 10 章窗口预算化，规格
+	// docs/distill/03-long-range-consistency.md §11.3 缺口 1 / §12.1——原实现
+	// 200 rune×全部前章无界拼接，200 章≈40k rune 的 prompt 前缀）。
 	of, err := pm.ReadOutlines()
 	if err != nil {
 		of = &types.OutlineFile{Nodes: []types.OutlineNode{}}
 	}
-	var prevParts []string
 	limitChapter := chapterNum
 	if limitChapter <= 0 {
 		limitChapter = len(of.Nodes) + 1
 	}
-	for _, n := range of.Nodes {
-		cn := n.OrderIndex
-		if cn > 0 && cn < limitChapter && n.Summary != "" {
-			// 每章摘要截断 200 rune（原 100，前文上下文加厚）
-			prevParts = append(prevParts, fmt.Sprintf("第%d章：%s", cn, util.Truncate(n.Summary, 200)))
+	// 摘要回退链（spec §12.4-5）：大纲节点 Summary → 章节摘要文件 → 跳过该章。
+	resolvePrevSummary := func(n types.OutlineNode) string {
+		if s := strings.TrimSpace(n.Summary); s != "" {
+			return s
 		}
+		if cs, err := pm.ReadChapterSummary(n.OrderIndex); err == nil && cs != nil {
+			if s := strings.TrimSpace(cs.Summary); s != "" {
+				return s
+			}
+		}
+		return ""
 	}
-	prevSummary = strings.Join(prevParts, "\n\n")
+	prevSummary = buildPrevSummaryWindow(of.Nodes, limitChapter, resolvePrevSummary)
 
 	if minWords <= 0 {
 		minWords = 5000
@@ -611,6 +618,46 @@ const (
 	charMaxRelations    = 3    // 每角色最多注入关系数
 	charSummaryBudget   = 2400 // 角色摘要整体预算（rune）
 )
+
+// 前文摘要窗口（t3 首刀，spec docs/distill/03-long-range-consistency.md §12.1，
+// 对齐 MuMu chapter_context_service.py:1375/:1408 的「最近 10 章摘要窗口」）。
+const (
+	ctxPrevWindowChapters = 10 // 只注入本章之前的最近 N 章
+	ctxPrevChapterLen     = 180 // 窗口内单章摘要截断（rune）
+)
+
+// buildPrevSummaryWindow 组装「最近 N 章」前文摘要窗口（纯函数，确定性输出）。
+//
+// 只取 OrderIndex ∈ [limit-N, limit) 的章节，按章号升序拼接；单章摘要经
+// resolve 回退链取文并截断到 ctxPrevChapterLen；取不到文的章节跳过（不占位）。
+// 整体带窗口声明头——告诉模型这是有意的部分视图，更早剧情仍然有效。
+// 无可注入内容返回 ""（模板槽位按空跳过）。
+func buildPrevSummaryWindow(nodes []types.OutlineNode, limitChapter int, resolve func(types.OutlineNode) string) string {
+	if limitChapter <= 0 || resolve == nil {
+		return ""
+	}
+	floor := limitChapter - ctxPrevWindowChapters
+	if floor < 1 {
+		floor = 1
+	}
+	picked := make([]types.OutlineNode, 0, ctxPrevWindowChapters)
+	for _, n := range nodes {
+		cn := n.OrderIndex
+		if cn >= floor && cn < limitChapter && resolve(n) != "" {
+			picked = append(picked, n)
+		}
+	}
+	if len(picked) == 0 {
+		return ""
+	}
+	sort.Slice(picked, func(i, j int) bool { return picked[i].OrderIndex < picked[j].OrderIndex })
+	parts := make([]string, 0, len(picked)+1)
+	parts = append(parts, fmt.Sprintf("（仅含第 %d～%d 章概要；更早章节的剧情同样有效，只是不在此重复）", floor, limitChapter-1))
+	for _, n := range picked {
+		parts = append(parts, fmt.Sprintf("第%d章：%s", n.OrderIndex, truncateBudget(resolve(n), ctxPrevChapterLen)))
+	}
+	return strings.Join(parts, "\n\n")
+}
 
 // runeLen 字符串的 rune 长度
 func runeLen(s string) int {
