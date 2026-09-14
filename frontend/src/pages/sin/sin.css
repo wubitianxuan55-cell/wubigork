@@ -709,3 +709,42 @@
 .sin-proc-art-img { width: 100%; border-radius: 8px; border: 1px solid var(--border-soft); display: block; background: var(--bg-elev, var(--bg-soft)); }
 .sin-proc-art-missing { font-size: 10.5px; color: var(--fg-faint); }
 .sin-proc-art-cap { font-size: 10.5px; color: var(--fg-faint); line-height: 1.5; }
+
+/* ── 书源页签（sin 书源线 t3）：搜书 → 候选 → 目录预览 → 进度 → 成书清单 ── */
+.sin-bs { display: flex; flex-direction: column; gap: 10px; }
+.sin-bs-search { display: flex; gap: 6px; }
+.sin-bs-warnings { display: flex; flex-direction: column; gap: 2px; }
+.sin-bs-warning { margin: 0; font-size: 11px; color: var(--warn, #d4883a); line-height: 1.5; word-break: break-word; }
+.sin-bs-cands { display: flex; flex-direction: column; gap: 4px; max-height: 260px; overflow: auto; }
+.sin-bs-cand {
+  display: flex; flex-direction: column; gap: 2px; text-align: left;
+  padding: 6px 8px; border-radius: 8px; border: 1px solid var(--border-soft);
+  background: transparent; color: var(--fg); cursor: pointer; font: inherit;
+}
+.sin-bs-cand:hover { background: var(--bg-elev, var(--bg-soft)); }
+.sin-bs-cand.is-active { border-color: var(--accent); }
+.sin-bs-cand.is-ref { cursor: default; opacity: 0.62; }
+.sin-bs-cand-title { font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sin-bs-cand-meta { font-size: 11px; color: var(--fg-faint); display: flex; align-items: center; gap: 6px; min-width: 0; }
+.sin-bs-badge { font-style: normal; font-size: 10px; padding: 0 5px; border-radius: 8px; border: 1px solid var(--border-soft); color: var(--fg-faint); flex: 0 0 auto; }
+.sin-bs-badge.is-ok { color: var(--accent); border-color: var(--accent); }
+.sin-bs-toc { border: 1px solid var(--border-soft); border-radius: 8px; padding: 8px; display: flex; flex-direction: column; gap: 8px; }
+.sin-bs-toc-head { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.sin-bs-toc-title { font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sin-bs-toc-meta { font-size: 11px; color: var(--fg-faint); }
+.sin-bs-sample { display: flex; flex-direction: column; gap: 2px; max-height: 150px; overflow: auto; }
+.sin-bs-sample-row { font-size: 11.5px; color: var(--fg-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sin-bs-sample-omit { font-size: 11px; color: var(--fg-faint); padding: 2px 0; }
+.sin-bs-range { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 11.5px; color: var(--fg-dim); }
+.sin-bs-progress { display: flex; flex-direction: column; gap: 4px; }
+.sin-bs-progress-meta { display: flex; align-items: center; justify-content: space-between; gap: 6px; font-size: 11px; color: var(--fg-faint); }
+.sin-bs-books-head { font-size: 11px; color: var(--fg-faint); letter-spacing: 0.04em; }
+.sin-bs-books { display: flex; flex-direction: column; gap: 4px; }
+.sin-bs-book {
+  display: flex; align-items: center; gap: 6px;
+  border: 1px solid var(--border-soft); border-radius: 8px; padding: 5px 8px;
+}
+.sin-bs-book-title { flex: 1; min-width: 0; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sin-bs-book-meta { flex: 0 0 auto; font-size: 10.5px; color: var(--fg-faint); }
+.sin-bs-book-del { flex: 0 0 auto; border: 0; background: transparent; color: var(--fg-faint); cursor: pointer; padding: 2px; font-size: 12px; }
+.sin-bs-book-del:hover { color: var(--err); }

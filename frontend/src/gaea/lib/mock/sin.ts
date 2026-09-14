@@ -15,6 +15,8 @@ type SinMethods = Pick<
   | "SinTopicsList" | "SinTopicCreate" | "SinTopicRename" | "SinTopicDelete"
   | "SinTopicClear" | "SinMessages" | "SinStream" | "SinIllustrate" | "SinExportMarkdown"
   | "SinCastGet" | "SinCastSet" | "SinCancel" | "SinNotesGet" | "SinNotesSave"
+  | "SinBookSourceSearch" | "SinBookSourceToc" | "SinBookSourceDownload"
+  | "SinBookSourceDownloadCancel" | "SinBookSourceBooksList" | "SinBookSourceBookDelete"
 >;
 
 interface MockStory {
@@ -237,6 +239,28 @@ export function buildSin(): SinMethods {
       const next = { notes: (JSON.parse(notes || "[]") as string[]).slice(), outline };
       notesDocs.set(topicID, next);
       return { notes: next.notes.slice(), outline: next.outline };
+    },
+    // ── sin 书源 t2：浏览器无书源规则目录与真网络，走查只验版面——诚实空态/拒绝 ──
+    async SinBookSourceSearch() {
+      return {
+        candidates: [],
+        warnings: ["dev mock：书源搜索需真实网络与规则目录，浏览器走查仅验版面"],
+      };
+    },
+    async SinBookSourceToc() {
+      return { total: 0, sample: [], truncated: false };
+    },
+    async SinBookSourceDownload() {
+      throw new Error("dev mock：下载成书需真实网络与书源规则");
+    },
+    async SinBookSourceDownloadCancel() {
+      return false;
+    },
+    async SinBookSourceBooksList() {
+      return [];
+    },
+    async SinBookSourceBookDelete() {
+      /* mock 无成书可删：如实 no-op */
     },
     async SinCastSet(topicID: string, ids: string[]) {
       seed();

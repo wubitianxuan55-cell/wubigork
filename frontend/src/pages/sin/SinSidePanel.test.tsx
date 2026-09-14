@@ -64,7 +64,7 @@ describe('SinSidePanel', () => {
   it('默认页签 = 角色：渲染角色卡（计数徽标与选择按钮）', () => {
     renderPanel()
     const tabs = screen.getAllByRole('tab')
-    expect(tabs.map((t) => t.textContent)).toEqual(['角色2', '大纲1', '设定1', '插图2'])
+    expect(tabs.map((t) => t.textContent)).toEqual(['角色2', '大纲1', '设定1', '插图2', '书源']) // sin 书源线 t3 +书源页签（无计数徽标）
     expect(tabs[0].getAttribute('aria-selected')).toBe('true')
     expect(screen.getByText('调整角色')).toBeTruthy()
   })

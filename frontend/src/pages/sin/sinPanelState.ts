@@ -21,7 +21,7 @@ export function clampSinPanelWidth(value: number): number {
   return Math.min(max, Math.max(SIN_PANEL_MIN_WIDTH, Math.round(value)))
 }
 
-export type SinSideTabId = 'cast' | 'outline' | 'notes' | 'gallery'
+export type SinSideTabId = 'cast' | 'outline' | 'notes' | 'gallery' | 'books'
 
 function readSideValue(key: string): string {
   try {
@@ -58,7 +58,7 @@ export function writeSinPanelOpen(open: boolean): void {
 
 export function readSinPanelTab(): SinSideTabId {
   const v = readSideValue(PANEL_TAB)
-  return v === 'outline' || v === 'notes' || v === 'gallery' ? v : 'cast'
+  return v === 'outline' || v === 'notes' || v === 'gallery' || v === 'books' ? v : 'cast'
 }
 
 export function writeSinPanelTab(tab: SinSideTabId): void {

@@ -2,11 +2,11 @@ import { describe, expect, it, vi, afterEach } from 'vitest'
 import { BACKEND_EVENTS, FRONTEND_EVENTS, bookImportProgressChannel, chatStreamChannel, sinStreamChannel, subscribe, subscribeForSpace, emitFrontendEvent } from './events'
 
 // 3.0 01 报告 §4：22 后端事件（+v4.3c 轻语主动关心定时推送 + v4.244 原罪故事流
-// + v4.283 书源在线导入进度）+ 4 前端事件常量表 + subscribe 统一封装
+// + v4.283 书源在线导入进度 + v4.294 原罪书源下载进度）+ 4 前端事件常量表 + subscribe 统一封装
 
-describe('BACKEND_EVENTS（§4.1，25 个）', () => {
-  it('共 25 个后端事件常量（v4.244 +SIN_STREAM，v4.283 +BOOK_IMPORT_PROGRESS）', () => {
-    expect(Object.keys(BACKEND_EVENTS)).toHaveLength(25)
+describe('BACKEND_EVENTS（§4.1，26 个）', () => {
+  it('共 26 个后端事件常量（v4.244 +SIN_STREAM，v4.283 +BOOK_IMPORT_PROGRESS，v4.294 +SIN_BOOKSOURCE_PROGRESS）', () => {
+    expect(Object.keys(BACKEND_EVENTS)).toHaveLength(26)
   })
 
   it('常量名与事件名字面量一一对应（防复制笔误）', () => {

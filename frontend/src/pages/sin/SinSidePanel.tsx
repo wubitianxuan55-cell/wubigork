@@ -21,6 +21,7 @@ import {
   writeSinPanelTab, writeSinPanelWidth, type SinSideTabId,
 } from './sinPanelState'
 import { SinCastPanel } from './SinCastPanel'
+import { SinBookSourcePanel } from './SinBookSourcePanel'
 import type { SinCastCharacter } from './useSinCast'
 import type { SinNotesDoc } from './useSinNotes'
 import type { SinMessageView } from './types'
@@ -205,6 +206,7 @@ export function SinSidePanel({
     { id: 'outline', label: '大纲', count: notesDoc.outline ? 1 : 0 },
     { id: 'notes', label: '设定', count: notesDoc.notes.length },
     { id: 'gallery', label: '插图', count: gallery.length },
+    { id: 'books', label: '书源', count: 0 }, // 成书计数不进页签徽标（清单自管，避免双向拉状态）
   ]
 
   return (
@@ -457,6 +459,8 @@ export function SinSidePanel({
             )}
           </section>
         )}
+
+        {tab === 'books' && <SinBookSourcePanel />}
       </div>
 
       <Modal
