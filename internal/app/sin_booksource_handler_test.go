@@ -143,3 +143,71 @@ func TestSinBookSourceDownload_SyncRulelessRefused(t *testing.T) {
 		t.Fatalf("起跑前应同步拒绝无规则来源")
 	}
 }
+
+// ── EPUB 导出（t5）──
+
+func TestSinBookParseTxt_RoundTrip(t *testing.T) {
+	raw := []byte("书名：测试之书\n作者：某人\n简介：一段简介\n\n第1章 起风\n\n第一段。\n第二段。\n\n第2章 夜行\n\n第三段。\n")
+	title, author, intro, chapters, err := sinBookParseTxt(raw)
+	if err != nil {
+		t.Fatalf("sinBookParseTxt: %v", err)
+	}
+	if title != "测试之书" || author != "某人" || intro != "一段简介" {
+		t.Fatalf("头字段解析异常: %q %q %q", title, author, intro)
+	}
+	if len(chapters) != 2 || chapters[0].Title != "第1章 起风" || len(chapters[0].Paras) != 2 || chapters[1].Paras[0] != "第三段。" {
+		t.Fatalf("章节解析异常: %+v", chapters)
+	}
+}
+
+func TestSinBookParseTxt_UnrecognizedRefused(t *testing.T) {
+	if _, _, _, _, err := sinBookParseTxt([]byte("随便一段不是书源组装的文字")); err == nil {
+		t.Fatalf("非组装格式应拒绝")
+	}
+}
+
+func TestSinBookExportEpubAt_HappyPathAndGuard(t *testing.T) {
+	dir := t.TempDir()
+	txt := filepath.Join(dir, "书.txt")
+	if err := os.WriteFile(txt, []byte("书名：测试之书\n作者：某人\n简介：简介\n\n第1章 起风\n\n第一段。\n"), 0o644); err != nil {
+		t.Fatalf("写夹具: %v", err)
+	}
+	epubPath, err := sinBookExportEpubAt(dir, txt)
+	if err != nil {
+		t.Fatalf("sinBookExportEpubAt: %v", err)
+	}
+	if filepath.Base(epubPath) != "书.epub" {
+		t.Fatalf("应同名 .epub: %s", epubPath)
+	}
+	raw, err := os.ReadFile(epubPath)
+	if err != nil || len(raw) < 100 {
+		t.Fatalf("EPUB 应落盘且非空: %v %d", err, len(raw))
+	}
+	// 护栏：目录外 / 非 txt 拒绝
+	if _, err := sinBookExportEpubAt(dir, filepath.Join(t.TempDir(), "外.txt")); err == nil {
+		t.Fatalf("目录外应拒绝")
+	}
+	if _, err := sinBookExportEpubAt(dir, filepath.Join(dir, "书.epub")); err == nil {
+		t.Fatalf("非 .txt 应拒绝")
+	}
+}
+
+func TestSinBookDeleteAt_RemovesCompanionEpub(t *testing.T) {
+	dir := t.TempDir()
+	txt := filepath.Join(dir, "书.txt")
+	epubPath := filepath.Join(dir, "书.epub")
+	for _, p := range []string{txt, epubPath} {
+		if err := os.WriteFile(p, []byte("x"), 0o644); err != nil {
+			t.Fatalf("写夹具: %v", err)
+		}
+	}
+	if err := sinBookDeleteAt(dir, txt); err != nil {
+		t.Fatalf("删除: %v", err)
+	}
+	if _, err := os.Stat(txt); !os.IsNotExist(err) {
+		t.Fatalf("txt 应已删除")
+	}
+	if _, err := os.Stat(epubPath); !os.IsNotExist(err) {
+		t.Fatalf("同名 epub 应连带清理")
+	}
+}

@@ -71,8 +71,10 @@ export interface SinBindings {
   SinBookSourceDownloadCancel(jobId: string): Promise<boolean>;
   /** 成书清单（.txt，按修改时间新→旧；未下载过 = 空清单不报错）。 */
   SinBookSourceBooksList(): Promise<SinBookSourceBook[]>;
-  /** 删除成书（fail-closed 路径护栏：限成书目录内 .txt，越界拒绝）。 */
+  /** 删除成书（fail-closed 路径护栏：限成书目录内 .txt，越界拒绝；同名 .epub 连带清理）。 */
   SinBookSourceBookDelete(path: string): Promise<void>;
+  /** 导出 EPUB（t5：同名 .epub 落同目录，重复导出覆盖；返回产物路径）。 */
+  SinBookSourceBookExportEpub(path: string): Promise<string>;
 }
 
 /** 下载起跑回执：进度/终态订阅 sin-booksource:<jobId>。 */

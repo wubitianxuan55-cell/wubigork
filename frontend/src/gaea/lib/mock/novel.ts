@@ -18,6 +18,8 @@ const mockFingerprintStatus: FingerprintStatusPayload = { exists: false };
 type NovelMethods = Pick<
   AppBindings,
   | "NovelSearch"
+  // sin 书源 t5「送小说导入」消费（浏览器无桌面文件系统，如实拒绝）。
+  | "ImportNovelBookEx"
   // 批次二 legacy 直调转正（NovelB/ChatB 门面，同名前缀）。
   | "GetWorldview" | "SaveWorldview" | "ChatWorldview"
   | "GetWorldviewSections" | "SaveAllWorldviewSections"
@@ -49,6 +51,9 @@ type NovelMethods = Pick<
 
 export function buildNovel(): NovelMethods {
   return {
+    async ImportNovelBookEx() {
+      throw new Error("dev mock：导入需桌面端文件系统");
+    },
     async NovelSearch(_query: string) {
       return [];
     },

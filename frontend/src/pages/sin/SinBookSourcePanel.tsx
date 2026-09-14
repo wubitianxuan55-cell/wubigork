@@ -8,9 +8,9 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Button, Input, InputNumber, Popconfirm, Progress, message } from 'antd'
-import { DeleteOutlined, SearchOutlined } from '@ant-design/icons'
+import { DeleteOutlined, ExportOutlined, SearchOutlined, SendOutlined } from '@ant-design/icons'
 import { app } from '../../gaea/lib/bridge'
-import { subscribe, sinBooksourceChannel } from '../../events'
+import { emitFrontendEvent, FRONTEND_EVENTS, subscribe, sinBooksourceChannel } from '../../events'
 import type { NovelBookSourceCandidate } from '../../gaea/lib/bridge/novel'
 import type { SinBookSourceBook, SinBookSourceDownloadStart } from '../../gaea/lib/bridge/sin'
 import type { NovelBookSourceTocPreview } from '../../gaea/lib/bridge/novel'
@@ -171,6 +171,32 @@ export function SinBookSourcePanel() {
       .catch((err: unknown) => message.error(errText(err, '删除失败')))
   }, [refreshBooks])
 
+  // ── 成书两个后续动作（t5）：送小说书架（复用既有导入链，零新后端耦合）、导出 EPUB ──
+  const [sendingBook, setSendingBook] = useState<string | null>(null)
+  const [exportingKey, setExportingKey] = useState<string | null>(null)
+
+  const sendToNovel = useCallback((book: SinBookSourceBook) => {
+    if (sendingBook) return
+    setSendingBook(book.path)
+    app.ImportNovelBookEx(book.path, book.title, '未分类', '默认', 'full', 0)
+      .then((res) => {
+        message.success(`已导入书架「${res.title}」：${res.chapter_count} 章`)
+        // 跨板块跳转走 NAVIGATE 白名单事件（MainLayout 校验空间可达性）
+        emitFrontendEvent(FRONTEND_EVENTS.NAVIGATE, { page: 'novel' })
+      })
+      .catch((err: unknown) => message.error(errText(err, '导入失败')))
+      .finally(() => setSendingBook(null))
+  }, [sendingBook])
+
+  const exportEpub = useCallback((book: SinBookSourceBook) => {
+    if (exportingKey) return
+    setExportingKey(book.path)
+    app.SinBookSourceBookExportEpub(book.path)
+      .then(() => message.success('已导出 EPUB（与 TXT 同目录）'))
+      .catch((err: unknown) => message.error(errText(err, '导出失败')))
+      .finally(() => setExportingKey(null))
+  }, [exportingKey])
+
   const searching = phase.kind === 'searching'
   const downloading = phase.kind === 'downloading'
   const sample = toc?.sample ?? []
@@ -297,9 +323,32 @@ export function SinBookSourcePanel() {
             <div className="sin-bs-book" role="listitem" key={b.path}>
               <span className="sin-bs-book-title" title={b.path}>{b.title}</span>
               <span className="sin-bs-book-meta">{fmtSize(b.sizeBytes)} · {fmtTime(b.modifiedAt)}</span>
+              <button
+                type="button" className="sin-bs-book-act" title="导出 EPUB（与 TXT 同目录）"
+                aria-label={`导出 ${b.title} 的 EPUB`}
+                disabled={exportingKey !== null || sendingBook !== null}
+                onClick={() => exportEpub(b)}
+              >
+                <ExportOutlined />
+              </button>
+              <Popconfirm
+                title="导入到小说书架？"
+                description="按 TXT 整本导入（书架新建项目），完成后跳转书架。"
+                okText="导入"
+                cancelText="取消"
+                onConfirm={() => sendToNovel(b)}
+              >
+                <button
+                  type="button" className="sin-bs-book-act" title="送入小说板块书架"
+                  aria-label={`送 ${b.title} 入小说书架`}
+                  disabled={exportingKey !== null || sendingBook !== null}
+                >
+                  {sendingBook === b.path ? '…' : <SendOutlined />}
+                </button>
+              </Popconfirm>
               <Popconfirm
                 title="删除这本成书？"
-                description="只删除 TXT 文件，不影响任何项目。"
+                description="删除 TXT 与已导出的 EPUB，不影响任何项目。"
                 okText="删除"
                 cancelText="取消"
                 onConfirm={() => removeBook(b)}

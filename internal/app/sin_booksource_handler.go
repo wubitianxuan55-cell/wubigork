@@ -14,12 +14,14 @@ package app
 import (
 	"context"
 	"fmt"
+	"html"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 	"time"
 
+	"github.com/bmaupin/go-epub"
 	"github.com/gaea/gaea/internal/booksource"
 )
 
@@ -148,26 +150,118 @@ func sinBooksList(dir string) ([]SinBookSourceBook, error) {
 	return books, nil
 }
 
-// sinBookDeleteAt 删除成书（fail-closed 路径护栏：必须在成书目录内且是 .txt）。
-func sinBookDeleteAt(dir, path string) error {
+// sinGuardBookPath 成书路径护栏（fail-closed）：必须在成书目录内且是 .txt，
+// 返回绝对路径。删除与 EPUB 导出共用同一条护栏。
+func sinGuardBookPath(dir, path string) (string, error) {
 	absDir, err := filepath.Abs(dir)
 	if err != nil {
-		return err
+		return "", err
 	}
 	absPath, err := filepath.Abs(path)
 	if err != nil {
-		return err
+		return "", err
 	}
 	if absPath != absDir && !strings.HasPrefix(absPath, absDir+string(filepath.Separator)) {
-		return fmt.Errorf("路径不在成书目录内，拒绝删除")
+		return "", fmt.Errorf("路径不在成书目录内")
 	}
 	if !strings.EqualFold(filepath.Ext(absPath), ".txt") {
-		return fmt.Errorf("只允许删除 .txt 成书文件")
+		return "", fmt.Errorf("只允许操作 .txt 成书文件")
+	}
+	return absPath, nil
+}
+
+// sinBookDeleteAt 删除成书（fail-closed 路径护栏）；同名 .epub（EPUB 导出产物）
+// 连带清理（best-effort，删不掉不阻断——孤儿文件可手清）。
+func sinBookDeleteAt(dir, path string) error {
+	absPath, err := sinGuardBookPath(dir, path)
+	if err != nil {
+		return fmt.Errorf("%w（拒绝删除）", err)
 	}
 	if err := os.Remove(absPath); err != nil {
 		return fmt.Errorf("删除失败: %w", err)
 	}
+	_ = os.Remove(strings.TrimSuffix(absPath, ".txt") + ".epub")
 	return nil
+}
+
+// ── EPUB 导出（sin 书源线 t5；go-epub 已在依赖）──
+
+// sinBookTxtChapter 成书 TXT 解析出的章（书源组装格式的逆过程：我们自己写的
+// 格式自己解析，确定性强——章头=「第N章 …」行，段=章头间的非空行）。
+type sinBookTxtChapter struct {
+	Title string
+	Paras []string
+}
+
+// sinBookParseTxt 解析 AssembleTXT 产物（书名/作者/简介头 + 章节体）。
+func sinBookParseTxt(raw []byte) (title, author, intro string, chapters []sinBookTxtChapter, err error) {
+	var cur *sinBookTxtChapter
+	for _, line := range strings.Split(string(raw), "\n") {
+		line = strings.TrimRight(line, "\r")
+		trimmed := strings.TrimSpace(line)
+		switch {
+		case strings.HasPrefix(trimmed, "书名："):
+			title = strings.TrimPrefix(trimmed, "书名：")
+		case strings.HasPrefix(trimmed, "作者："):
+			author = strings.TrimPrefix(trimmed, "作者：")
+		case strings.HasPrefix(trimmed, "简介："):
+			intro = strings.TrimPrefix(trimmed, "简介：")
+		case strings.HasPrefix(trimmed, "第") && strings.Contains(trimmed, "章 "):
+			chapters = append(chapters, sinBookTxtChapter{Title: trimmed})
+			cur = &chapters[len(chapters)-1]
+		case trimmed == "":
+			continue
+		case cur != nil:
+			cur.Paras = append(cur.Paras, trimmed)
+		}
+	}
+	if len(chapters) == 0 {
+		return "", "", "", nil, fmt.Errorf("成书内容无法识别（不是书源组装的 TXT）")
+	}
+	return title, author, intro, chapters, nil
+}
+
+// sinBookExportEpubAt 把成书 TXT 转出同名 .epub（同目录；重复导出覆盖——重导出语义）。
+func sinBookExportEpubAt(dir, path string) (string, error) {
+	absPath, err := sinGuardBookPath(dir, path)
+	if err != nil {
+		return "", fmt.Errorf("%w（拒绝导出）", err)
+	}
+	raw, err := os.ReadFile(absPath)
+	if err != nil {
+		return "", fmt.Errorf("读取成书失败: %w", err)
+	}
+	title, author, intro, chapters, err := sinBookParseTxt(raw)
+	if err != nil {
+		return "", err
+	}
+	if strings.TrimSpace(title) == "" {
+		title = strings.TrimSuffix(filepath.Base(absPath), ".txt")
+	}
+	book := epub.NewEpub(title)
+	if strings.TrimSpace(author) != "" {
+		book.SetAuthor(author)
+	}
+	if strings.TrimSpace(intro) != "" {
+		if _, err := book.AddSection("<p>"+html.EscapeString(intro)+"</p>", "简介", "", ""); err != nil {
+			return "", fmt.Errorf("写入简介失败: %w", err)
+		}
+	}
+	for _, ch := range chapters {
+		paras := make([]string, 0, len(ch.Paras))
+		for _, p := range ch.Paras {
+			paras = append(paras, "<p>"+html.EscapeString(p)+"</p>")
+		}
+		if _, err := book.AddSection(strings.Join(paras, "\n"), ch.Title, "", ""); err != nil {
+			return "", fmt.Errorf("写入章节「%s」失败: %w", ch.Title, err)
+		}
+	}
+	epubPath := strings.TrimSuffix(absPath, ".txt") + ".epub"
+	if err := book.Write(epubPath); err != nil {
+		_ = os.Remove(epubPath) // 半截产物不落第
+		return "", fmt.Errorf("写出 EPUB 失败: %w", err)
+	}
+	return epubPath, nil
 }
 
 // ── 绑定（SinB 门面经 gen_bindings 收录；真目录 + 真网络）──
@@ -249,4 +343,9 @@ func (a *App) SinBookSourceBooksList() ([]SinBookSourceBook, error) {
 // SinBookSourceBookDelete 删除成书（fail-closed 路径护栏：限成书目录内 .txt）。
 func (a *App) SinBookSourceBookDelete(path string) error {
 	return sinBookDeleteAt(sinBooksDir(), path)
+}
+
+// SinBookSourceBookExportEpub 把成书 TXT 转出同名 .epub（同目录，重复导出覆盖）。
+func (a *App) SinBookSourceBookExportEpub(path string) (string, error) {
+	return sinBookExportEpubAt(sinBooksDir(), path)
 }

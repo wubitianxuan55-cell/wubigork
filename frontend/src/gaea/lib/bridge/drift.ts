@@ -144,7 +144,6 @@ type LegacySurfaceNames =
   | "HerdsmanProbe"
   | "HerdsmanSecurityCheck"
   | "ImportNovelBook"
-  | "ImportNovelBookEx"
   | "NovelOutlineReconstructStart"
   | "NovelOutlineReconstructTaskGet"
   | "ImportStyleProfile"

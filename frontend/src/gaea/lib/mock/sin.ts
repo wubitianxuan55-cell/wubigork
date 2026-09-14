@@ -17,6 +17,7 @@ type SinMethods = Pick<
   | "SinCastGet" | "SinCastSet" | "SinCancel" | "SinNotesGet" | "SinNotesSave"
   | "SinBookSourceSearch" | "SinBookSourceToc" | "SinBookSourceDownload"
   | "SinBookSourceDownloadCancel" | "SinBookSourceBooksList" | "SinBookSourceBookDelete"
+  | "SinBookSourceBookExportEpub"
 >;
 
 interface MockStory {
@@ -261,6 +262,9 @@ export function buildSin(): SinMethods {
     },
     async SinBookSourceBookDelete() {
       /* mock 无成书可删：如实 no-op */
+    },
+    async SinBookSourceBookExportEpub() {
+      throw new Error("dev mock：EPUB 导出需桌面端文件系统");
     },
     async SinCastSet(topicID: string, ids: string[]) {
       seed();

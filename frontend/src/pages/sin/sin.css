@@ -769,3 +769,9 @@
 .sin-bs-book-meta { flex: 0 0 auto; font-size: 10.5px; color: var(--fg-faint); }
 .sin-bs-book-del { flex: 0 0 auto; border: 0; background: transparent; color: var(--fg-faint); cursor: pointer; padding: 2px; font-size: 12px; }
 .sin-bs-book-del:hover { color: var(--err); }
+.sin-bs-book-act {
+  flex: 0 0 auto; border: 0; background: transparent; color: var(--fg-faint);
+  cursor: pointer; padding: 2px; font-size: 12px;
+}
+.sin-bs-book-act:hover:not(:disabled) { color: var(--accent); }
+.sin-bs-book-act:disabled { opacity: .45; cursor: default; }

@@ -17,6 +17,8 @@ vi.mock('../../gaea/lib/bridge', async (importOriginal) => {
       SinBookSourceDownloadCancel: vi.fn(),
       SinBookSourceBooksList: vi.fn(),
       SinBookSourceBookDelete: vi.fn(),
+      SinBookSourceBookExportEpub: vi.fn(),
+      ImportNovelBookEx: vi.fn(),
     },
   }
 })
@@ -32,6 +34,8 @@ const download = vi.mocked(app.SinBookSourceDownload)
 const cancelJob = vi.mocked(app.SinBookSourceDownloadCancel)
 const booksList = vi.mocked(app.SinBookSourceBooksList)
 const bookDelete = vi.mocked(app.SinBookSourceBookDelete)
+const exportEpub = vi.mocked(app.SinBookSourceBookExportEpub)
+const importEx = vi.mocked(app.ImportNovelBookEx)
 
 // window.runtime 桩：subscribe() 走 EventsOn，捕获 handler 手工投递事件。
 let deliver: ((data: unknown) => void) | null = null
@@ -170,4 +174,29 @@ describe('SinBookSourcePanel（原罪·书源页签）', () => {
     await waitFor(() => expect(bookDelete).toHaveBeenCalledWith('/books/风雪夜归.txt'))
     await waitFor(() => expect(booksList).toHaveBeenCalledTimes(2))
   })
+
+  it('送小说：确认后逐参对齐导入（full 全本）并派发 NAVIGATE 跳书架', async () => {
+  booksList.mockResolvedValue(books)
+  importEx.mockResolvedValue({ path: '/p', title: '风雪夜归', chapter_count: 3, total_words: 100 })
+  const spy = vi.spyOn(window, 'dispatchEvent')
+  renderPanel()
+  await screen.findByRole('list', { name: '成书清单' })
+  fireEvent.click(screen.getByLabelText('送 风雪夜归 入小说书架'))
+  fireEvent.click(await screen.findByRole('button', { name: /^导\s*入$/ }))
+  await waitFor(() => expect(importEx).toHaveBeenCalledWith('/books/风雪夜归.txt', '风雪夜归', '未分类', '默认', 'full', 0))
+  await waitFor(() => {
+    const ev = spy.mock.calls.map(([e]) => e as Event).find((e) => e.type === 'navigate') as CustomEvent | undefined
+    expect(ev?.detail).toEqual({ page: 'novel' })
+  })
+})
+
+it('EPUB：点击导出调用绑定并提示成功', async () => {
+  booksList.mockResolvedValue(books)
+  exportEpub.mockResolvedValue('/books/风雪夜归.epub')
+  renderPanel()
+  await screen.findByRole('list', { name: '成书清单' })
+  fireEvent.click(screen.getByLabelText('导出 风雪夜归 的 EPUB'))
+  await waitFor(() => expect(exportEpub).toHaveBeenCalledWith('/books/风雪夜归.txt'))
+  await screen.findByText('已导出 EPUB（与 TXT 同目录）')
+})
 })

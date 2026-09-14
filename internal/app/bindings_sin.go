@@ -11,6 +11,7 @@ import (
 type SinB struct{ a *App }
 
 func (b *SinB) SinBookSourceBookDelete(path string) error { return b.a.SinBookSourceBookDelete(path) }
+func (b *SinB) SinBookSourceBookExportEpub(path string) (string, error) { return b.a.SinBookSourceBookExportEpub(path) }
 func (b *SinB) SinBookSourceBooksList() ([]SinBookSourceBook, error) { return b.a.SinBookSourceBooksList() }
 func (b *SinB) SinBookSourceDownload(source string, detailURL string, start int, end int, title string) (SinBookSourceDownloadStart, error) { return b.a.SinBookSourceDownload(source, detailURL, start, end, title) }
 func (b *SinB) SinBookSourceDownloadCancel(jobID string) bool { return b.a.SinBookSourceDownloadCancel(jobID) }

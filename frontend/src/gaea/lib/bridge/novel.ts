@@ -132,6 +132,9 @@ export interface NovelBindings {
   NovelBookSourceToc(source: string, detailURL: string): Promise<NovelBookSourceTocPreview>;
   NovelBookSourceImport(source: string, detailURL: string, start: number, end: number, title: string, genre: string, style: string): Promise<NovelBookSourceImportStart>;
   NovelBookSourceImportCancel(jobId: string): Promise<boolean>;
+  // 拆书导入出口（v4.287 tail 出口；v4.296 由 sin「送小说导入」消费转正进契约面）：
+  // extractMode=full | tail:…；原 ImportNovelBook 同语义。
+  ImportNovelBookEx(filePath: string, title: string, genre: string, style: string, extractMode: string, tailChapters: number): Promise<NovelImportResult>;
   NovelBookSourceImportChapters(source: string, projectPath: string, chaptersJSON: string): Promise<NovelBookSourceImportStart>;
   NovelBookSourceEnginesGet(): Promise<NovelBookSourceEnginesPayload>;
   NovelBookSourceEnginesSave(rulesJSON: string): Promise<number>;
@@ -295,4 +298,16 @@ export interface NovelBookSourceAppendResult {
   totalChapters: number;
   addedWords: number;
   failed?: NovelBookSourceFailedChapter[];
+}
+
+/** 文件导入结果（对齐 internal/app NovelImportResult；书源成书「送小说导入」同款返回）。 */
+export interface NovelImportResult {
+  path: string;
+  title: string;
+  chapter_count: number;
+  total_words: number;
+  encoding?: string;
+  /** strong | weak | window | single | epub | booksource */
+  split_strategy?: string;
+  warnings?: Array<{ code: string; message: string; level: string }>;
 }

@@ -131,6 +131,8 @@ export const GAEA_METHOD_FACETS = {
   SinBookSourceDownloadCancel: "play",
   SinBookSourceBooksList: "play",
   SinBookSourceBookDelete: "play",
+  SinBookSourceBookExportEpub: "play",
+  ImportNovelBookEx: "play",
 
   // ── play：乐园数据面（轻语聊天记忆）──────────────────────────
   WhisperMemories: "play",

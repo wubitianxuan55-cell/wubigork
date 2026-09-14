@@ -583,6 +583,7 @@ export const bindingNames = [
 	"SettleNovelState",
 	"Shutdown",
 	"SinBookSourceBookDelete",
+	"SinBookSourceBookExportEpub",
 	"SinBookSourceBooksList",
 	"SinBookSourceDownload",
 	"SinBookSourceDownloadCancel",
