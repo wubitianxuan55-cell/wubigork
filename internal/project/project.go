@@ -729,3 +729,108 @@ func (m *Manager) ReadAllChapterMemories() ([]types.StoryMemory, error) {
 	sort.Slice(out, func(i, j int) bool { return out[i].ChapterNum < out[j].ChapterNum })
 	return out, nil
 }
+
+// ── 重写版本库（t4-C3，契约 rewrites/<chapterNum>/）──────────────
+//
+// index.json 只存索引（无全文，防 MuMu 式 1.74MB 全量下发）；全文按
+// <id>.json 按需读。Save 时 ID 为空则生成（rw-<chapter>-<unixnano>）。
+
+// RewriteChapterDir 重写版本目录。
+func (m *Manager) RewriteChapterDir(chapterNum int) string {
+	return filepath.Join(m.Dir, "rewrites", fmt.Sprintf("%d", chapterNum))
+}
+
+// SaveRewriteVersion 保存重写版本（全文文件 + 索引条目同步）。
+// v.ID 为空则生成；v.CreatedAt 为零值则取当前时间。
+func (m *Manager) SaveRewriteVersion(v *types.RewriteVersion) error {
+	if v == nil {
+		return fmt.Errorf("版本为空")
+	}
+	if v.ID == "" {
+		v.ID = fmt.Sprintf("rw-%d-%d", v.ChapterNum, time.Now().UnixNano())
+	}
+	if v.CreatedAt.IsZero() {
+		v.CreatedAt = time.Now()
+	}
+	dir := m.RewriteChapterDir(v.ChapterNum)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return fmt.Errorf("创建重写版本目录失败: %w", err)
+	}
+	if err := writeJSON(filepath.Join(dir, v.ID+".json"), v); err != nil {
+		return err
+	}
+	return m.syncRewriteIndex(*v)
+}
+
+// syncRewriteIndex 把版本摘要合并进 index.json（存在则更新，不存在追加）。
+func (m *Manager) syncRewriteIndex(v types.RewriteVersion) error {
+	dir := m.RewriteChapterDir(v.ChapterNum)
+	idxPath := filepath.Join(dir, "index.json")
+	idx := types.RewriteVersionIndex{
+		ID: v.ID, ChapterNum: v.ChapterNum, Mode: v.Mode, Status: v.Status,
+		Similarity: v.Similarity, CreatedAt: v.CreatedAt,
+	}
+	var list []types.RewriteVersionIndex
+	if raw, err := os.ReadFile(idxPath); err == nil {
+		var old struct {
+			Items []types.RewriteVersionIndex `json:"items"`
+		}
+		if json.Unmarshal(raw, &old) == nil {
+			list = old.Items
+		}
+	}
+	replaced := false
+	for i := range list {
+		if list[i].ID == v.ID {
+			list[i] = idx
+			replaced = true
+			break
+		}
+	}
+	if !replaced {
+		list = append(list, idx)
+	}
+	sort.Slice(list, func(i, j int) bool { return list[i].CreatedAt.After(list[j].CreatedAt) }) // 时间倒序
+	return writeJSON(idxPath, &struct {
+		Items []types.RewriteVersionIndex `json:"items"`
+	}{Items: list})
+}
+
+// ListRewriteVersions 重写版本索引（时间倒序，无全文）。
+func (m *Manager) ListRewriteVersions(chapterNum int) ([]types.RewriteVersionIndex, error) {
+	idxPath := filepath.Join(m.RewriteChapterDir(chapterNum), "index.json")
+	raw, err := os.ReadFile(idxPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return []types.RewriteVersionIndex{}, nil
+		}
+		return nil, err
+	}
+	var old struct {
+		Items []types.RewriteVersionIndex `json:"items"`
+	}
+	if err := json.Unmarshal(raw, &old); err != nil {
+		return nil, fmt.Errorf("解析重写索引失败: %w", err)
+	}
+	return old.Items, nil
+}
+
+// GetRewriteVersion 读单个重写版本全文（含 OriginalContent/NewContent 快照）。
+func (m *Manager) GetRewriteVersion(chapterNum int, id string) (*types.RewriteVersion, error) {
+	if id == "" || strings.ContainsAny(id, `/\`) {
+		return nil, fmt.Errorf("非法版本 ID")
+	}
+	return loadJSON[types.RewriteVersion](filepath.Join(m.RewriteChapterDir(chapterNum), id+".json"))
+}
+
+// UpdateRewriteVersion 状态流转/审计字段更新（全文文件与索引条目同步写）。
+func (m *Manager) UpdateRewriteVersion(v *types.RewriteVersion) error {
+	if v == nil || v.ID == "" {
+		return fmt.Errorf("版本为空")
+	}
+	dir := m.RewriteChapterDir(v.ChapterNum)
+	if err := writeJSON(filepath.Join(dir, v.ID+".json"), v); err != nil {
+		return err
+	}
+	return m.syncRewriteIndex(*v)
+}

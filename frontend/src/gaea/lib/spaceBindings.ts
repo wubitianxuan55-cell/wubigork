@@ -179,6 +179,13 @@ export const GAEA_METHOD_FACETS = {
   CleanChapterAnalysisForeshadows: "play",
   // 上次分析同步结果（t1-P4：SyncResult 上绑定面，跳过原因可见不静默 D3）。
   GetLastForeshadowSync: "play",
+  // 驱动式整章重写（t4-C3 首刀：whole 模式+版本库，生成后不自动落章）。
+  NovelChapterRewrite: "play",
+  NovelListRewriteVersions: "play",
+  NovelGetRewriteVersion: "play",
+  NovelApplyRewriteVersion: "play",
+  NovelDiscardRewriteVersion: "play",
+  NovelRestoreRewriteVersion: "play",
   ClearProjectForeshadowsForReset: "play",
   DeleteChapterForeshadows: "play",
   GetForeshadowStats: "play",

@@ -2,6 +2,10 @@
 
 package app
 
+import (
+	"github.com/gaea/gaea/internal/types"
+)
+
 // NovelB 小说写作绑定门面（S2-3「App 绑定面拆分」）：仅暴露小说写作的方法，
 // 方法体零改动——纯委托给 App 实例（b.a.<Method>）。
 type NovelB struct{ a *App }
@@ -66,6 +70,7 @@ func (b *NovelB) LintForeshadows() (ForeshadowLintReport, error) { return b.a.Li
 func (b *NovelB) ListSnapshots(sceneID string, chapterNum int) ([]map[string]interface{}, error) { return b.a.ListSnapshots(sceneID, chapterNum) }
 func (b *NovelB) MergeCharacters(keepID string, mergeID string) (map[string]interface{}, error) { return b.a.MergeCharacters(keepID, mergeID) }
 func (b *NovelB) MigrateProjectToV4() error { return b.a.MigrateProjectToV4() }
+func (b *NovelB) NovelApplyRewriteVersion(chapterNum int, versionID string) (map[string]interface{}, error) { return b.a.NovelApplyRewriteVersion(chapterNum, versionID) }
 func (b *NovelB) NovelBookSourceEnginesGet() (NovelBookSourceEnginesPayload, error) { return b.a.NovelBookSourceEnginesGet() }
 func (b *NovelB) NovelBookSourceEnginesSave(rulesJSON string) (int, error) { return b.a.NovelBookSourceEnginesSave(rulesJSON) }
 func (b *NovelB) NovelBookSourceImport(source string, detailURL string, start int, end int, title string, genre string, style string) (NovelBookSourceImportStart, error) { return b.a.NovelBookSourceImport(source, detailURL, start, end, title, genre, style) }
@@ -74,14 +79,19 @@ func (b *NovelB) NovelBookSourceImportChapters(source string, projectPath string
 func (b *NovelB) NovelBookSourceSearch(keyword string) (NovelBookSourceSearchResult, error) { return b.a.NovelBookSourceSearch(keyword) }
 func (b *NovelB) NovelBookSourceToc(source string, detailURL string) (NovelBookSourceTocPreview, error) { return b.a.NovelBookSourceToc(source, detailURL) }
 func (b *NovelB) NovelChapterReview(chapterNum int, platform string) (ChapterReviewPayload, error) { return b.a.NovelChapterReview(chapterNum, platform) }
+func (b *NovelB) NovelChapterRewrite(chapterNum int, reqJSON string) (map[string]interface{}, error) { return b.a.NovelChapterRewrite(chapterNum, reqJSON) }
+func (b *NovelB) NovelDiscardRewriteVersion(chapterNum int, versionID string) error { return b.a.NovelDiscardRewriteVersion(chapterNum, versionID) }
 func (b *NovelB) NovelFingerprintBuild() (FingerprintStatusPayload, error) { return b.a.NovelFingerprintBuild() }
 func (b *NovelB) NovelFingerprintScore(chapterNum int) (FingerprintScorePayload, error) { return b.a.NovelFingerprintScore(chapterNum) }
 func (b *NovelB) NovelFingerprintStatus() (FingerprintStatusPayload, error) { return b.a.NovelFingerprintStatus() }
+func (b *NovelB) NovelGetRewriteVersion(chapterNum int, versionID string) (*types.RewriteVersion, error) { return b.a.NovelGetRewriteVersion(chapterNum, versionID) }
+func (b *NovelB) NovelListRewriteVersions(chapterNum int) ([]types.RewriteVersionIndex, error) { return b.a.NovelListRewriteVersions(chapterNum) }
 func (b *NovelB) NovelOutlineReconstruct() (OutlineReconstructPreview, error) { return b.a.NovelOutlineReconstruct() }
 func (b *NovelB) NovelOutlineReconstructApply(itemsJSON string) (int, error) { return b.a.NovelOutlineReconstructApply(itemsJSON) }
 func (b *NovelB) NovelOutlineReconstructStart() (NovelOutlineReconstructTaskState, error) { return b.a.NovelOutlineReconstructStart() }
 func (b *NovelB) NovelOutlineReconstructTaskGet() (NovelOutlineReconstructTaskState, error) { return b.a.NovelOutlineReconstructTaskGet() }
 func (b *NovelB) NovelReadingAsk(kind string, title string, chapterText string, selection string, question string, historyJSON string) (string, error) { return b.a.NovelReadingAsk(kind, title, chapterText, selection, question, historyJSON) }
+func (b *NovelB) NovelRestoreRewriteVersion(chapterNum int, versionID string) (map[string]interface{}, error) { return b.a.NovelRestoreRewriteVersion(chapterNum, versionID) }
 func (b *NovelB) NovelReviewPlatforms() []ReviewPlatformView { return b.a.NovelReviewPlatforms() }
 func (b *NovelB) NovelSearch(query string) ([]NovelSearchHit, error) { return b.a.NovelSearch(query) }
 func (b *NovelB) ParseLinks(content string) []string { return b.a.ParseLinks(content) }

@@ -104,6 +104,42 @@ export interface ForeshadowSyncResult {
   errors: string[];
 }
 
+// ── 驱动式整章重写（t4-C3 首刀：whole 模式+版本库）──────────────
+/** 重写版本索引条目（列表接口不下发全文）。 */
+export interface RewriteVersionIndex {
+  id: string;
+  chapterNum: number;
+  mode: 'whole' | 'partial' | 'deslop' | string;
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'applied' | 'discarded' | string;
+  similarity?: number;
+  createdAt: string;
+}
+/** 重写结果（生成后不自动落章；前端对比确认后调 NovelApplyRewriteVersion）。 */
+export interface NovelRewriteResult {
+  versionId: string;
+  status: string;
+  similarity: number;
+  change: number;
+  changePercent: number;
+  originalWordCount: number;
+  newWordCount: number;
+  newContent: string;
+}
+/** 重写请求载荷（NovelChapterRewrite 的 reqJSON）。 */
+export interface NovelRewriteRequest {
+  source?: 'custom' | 'analysis_suggestions' | 'mixed';
+  suggestion_indices?: number[];
+  custom_instructions?: string;
+  focus_areas?: string[];
+  preserve_elements?: {
+    preserve_structure?: boolean;
+    preserve_dialogues?: string[];
+    preserve_plot_points?: string[];
+    preserve_character_traits?: boolean;
+  };
+  target_word_count?: number;
+}
+
 export interface NovelBindings {
   // GenerateBookCover 生成项目书封（3:4，play exports），返回封面路径。
   GenerateBookCover(projectId: string, promptHint: string): Promise<string>;
@@ -141,6 +177,15 @@ export interface NovelBindings {
   // GetLastForeshadowSync 最近一轮章节分析的伏笔同步结果（尚未分析时 reject，
   // Error.message 为中文提示；消费方 catch 后显示「尚未执行分析」）。
   GetLastForeshadowSync(): Promise<ForeshadowSyncResult>;
+  // ── 驱动式整章重写（t4-C3 首刀：whole 模式）──────────────────
+  // NovelChapterRewrite 按请求重写整章（温度 0.7），生成后不自动落章；
+  // 应用/丢弃/恢复走版本库三绑定（恢复=写回原文快照，gaea 强制增量）。
+  NovelChapterRewrite(chapterNum: number, reqJSON: string): Promise<NovelRewriteResult>;
+  NovelListRewriteVersions(chapterNum: number): Promise<RewriteVersionIndex[]>;
+  NovelGetRewriteVersion(chapterNum: number, versionID: string): Promise<Record<string, unknown>>;
+  NovelApplyRewriteVersion(chapterNum: number, versionID: string): Promise<Record<string, unknown>>;
+  NovelDiscardRewriteVersion(chapterNum: number, versionID: string): Promise<void>;
+  NovelRestoreRewriteVersion(chapterNum: number, versionID: string): Promise<Record<string, unknown>>;
   SaveCharactersBatch(namesJSON: string): Promise<Record<string, unknown>>;
   NovelReadingAsk(kind: string, title: string, chapterText: string, selection: string, question: string, historyJSON: string): Promise<string>;
   GenerateSceneIllustration(chapterNum: number): Promise<Record<string, unknown>>;
