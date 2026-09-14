@@ -4,9 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"io/fs"
 	"log/slog"
 	"strings"
 
@@ -34,7 +32,7 @@ func New(client ai.LLMClient, pm *project.Manager, cfg *config.Config, eng *prom
 // AnalysisResult 分析结果
 type AnalysisResult struct {
 	Hook            string                 `json:"hook"`             // 开头钩子
-	Foreshadows     []ForeshadowAction     `json:"foreshadows"`      // 伏笔变化
+	Foreshadows     []types.ForeshadowHit  `json:"foreshadows"`      // 伏笔变化（v2 契约：planted|resolved）
 	Conflict        string                 `json:"conflict"`         // 冲突分析
 	EmotionCurve    string                 `json:"emotion_curve"`    // 情感曲线
 	CharacterStates []CharacterStateChange `json:"character_states"` // 角色状态变化
@@ -42,14 +40,6 @@ type AnalysisResult struct {
 	SceneRhythm     string                 `json:"scene_rhythm"`     // 场景节奏
 	QualityScore    int                    `json:"quality_score"`    // 1-10
 	ImprovementTips []string               `json:"improvement_tips"` // 改进建议
-}
-
-// ForeshadowAction 伏笔动作
-type ForeshadowAction struct {
-	Category    string `json:"category"` // character / plot / world / relationship
-	Action      string `json:"action"`   // planted / hinted / revealed
-	Description string `json:"description"`
-	StableID    string `json:"stable_id,omitempty"`
 }
 
 // CharacterStateChange 角色状态变化
@@ -71,7 +61,12 @@ func (a *Agent) Analyze(ctx context.Context, chapterNum int, chapterContent stri
 	if err != nil {
 		slog.Warn("分析: 读取伏笔失败", "error", err)
 	}
-	foreshadowsJSON := string(util.MustMarshalCompact(ff))
+	var foreshadowSlots string
+	if ff != nil {
+		// 分析侧候选清单三层渲染（spec §6.1）：替代整包 JSON 直塞——
+		// 已埋入条目带 ID 与逐条回填指令，模型才能把回收挂回正确条目。
+		foreshadowSlots = RenderForeshadowCandidates(ff.Items, chapterNum)
+	}
 
 	tmpl := a.eng.Get("analysis-chapter")
 	if tmpl == nil {
@@ -82,7 +77,7 @@ func (a *Agent) Analyze(ctx context.Context, chapterNum int, chapterContent stri
 	userPrompt := tmpl.BuildUserPrompt(map[string]string{
 		"chapter_content":      chapterContent, // Grok 1M 上下文窗口，不再截断
 		"existing_characters":  string(charsJSON),
-		"existing_foreshadows": string(foreshadowsJSON),
+		"existing_foreshadows": foreshadowSlots,
 	})
 
 	// ── 调用 LLM + JSON 解析重试 ──
@@ -104,82 +99,27 @@ func (a *Agent) Analyze(ctx context.Context, chapterNum int, chapterContent stri
 		return nil, fmt.Errorf("解析分析结果 JSON 失败: %w", err)
 	}
 
-	// 同步伏笔到文件
-	a.syncForeshadows(chapterNum, &result)
+	// 同步伏笔到文件（t1-P2：三级匹配 + SyncResult 可追溯，D3 不静默跳过）
+	syncRes := a.syncForeshadows(chapterNum, result.Foreshadows)
+	if len(syncRes.Errors) > 0 || syncRes.SkippedResolveCount > 0 ||
+		syncRes.PlantedCount > 0 || syncRes.ResolvedCount > 0 {
+		slog.Info("分析: 伏笔同步完成",
+			"chapter", chapterNum,
+			"planted", syncRes.PlantedCount, "resolved", syncRes.ResolvedCount,
+			"created", syncRes.CreatedCount, "matchedByContent", syncRes.MatchedByContent,
+			"skipped", syncRes.SkippedResolveCount, "errors", len(syncRes.Errors))
+		for _, s := range syncRes.SkippedReasons {
+			slog.Debug("分析: 伏笔跳过", "kind", s.Kind, "ref", s.RefID, "reason", s.Message)
+		}
+		for _, e := range syncRes.Errors {
+			slog.Warn("分析: 伏笔同步单条错误", "error", e)
+		}
+	}
 
 	// 更新角色状态
 	a.syncCharacterStates(&result)
 
 	return &result, nil
-}
-
-// syncForeshadows 将分析出的伏笔变化同步到 foreshadows.json。
-// 合并语义（按 ID）：既有条目（含 manual_ 前缀的手工登记条目）原样保留，AI 结果只做
-// 「更新既有 ID 的状态 / 追加新 ID」，绝不全量覆盖；同章同内容重复埋设不重复登记、
-// 不重置既有状态。hinted/revealed 按 StableID 或描述匹配，因此 AI 也能推进手工伏笔。
-func (a *Agent) syncForeshadows(chapterNum int, result *AnalysisResult) {
-	ff, err := a.pm.ReadForeshadows()
-	if err != nil {
-		if !errors.Is(err, fs.ErrNotExist) {
-			// 读取失败（文件损坏/权限等）时放弃本次同步：避免拿空数据覆盖掉
-			// 既有伏笔（含手工登记条目）。文件不存在属正常（新项目）。
-			slog.Warn("syncForeshadows: 读取伏笔失败，跳过本次同步", "error", err)
-			return
-		}
-		ff = &types.ForeshadowFile{Items: []types.Foreshadow{}}
-	}
-
-	chapterFile := fmt.Sprintf("%03d.md", chapterNum)
-
-	index := make(map[string]int, len(ff.Items))
-	for i := range ff.Items {
-		index[ff.Items[i].ID] = i
-	}
-
-	for _, action := range result.Foreshadows {
-		if action.Action == "planted" {
-			// 新建伏笔；同 ID 已存在（同章同内容重复分析）则保持既有条目不动
-			stableID := GenerateStableID(action.Category, chapterFile, action.Description)
-			if _, ok := index[stableID]; ok {
-				continue
-			}
-			ff.Items = append(ff.Items, types.Foreshadow{
-				ID:          stableID,
-				Category:    action.Category,
-				Description: action.Description,
-				PlantedIn:   chapterFile,
-				Status:      types.ForeshadowPlanted,
-				IsLongTerm:  false,
-			})
-			index[stableID] = len(ff.Items) - 1
-		} else if action.Action == "revealed" || action.Action == "hinted" {
-			// 更新已有伏笔状态（手工条目同样可被推进）
-			for i := range ff.Items {
-				if ff.Items[i].ID == action.StableID ||
-					ff.Items[i].Description == action.Description {
-					if action.Action == "revealed" {
-						ff.Items[i].Status = types.ForeshadowRevealed
-						ff.Items[i].RevealedIn = chapterFile
-					} else {
-						ff.Items[i].Status = types.ForeshadowHinted
-					}
-				}
-			}
-		}
-	}
-
-	// 清洗：清洗历史文件中已存在的重复 ID（旧版追加语义所致），保留首条
-	seen := make(map[string]bool)
-	var deduped []types.Foreshadow
-	for _, f := range ff.Items {
-		if !seen[f.ID] {
-			seen[f.ID] = true
-			deduped = append(deduped, f)
-		}
-	}
-	ff.Items = deduped
-
-	a.pm.WriteForeshadows(ff)
 }
 
 // syncCharacterStates 更新角色状态

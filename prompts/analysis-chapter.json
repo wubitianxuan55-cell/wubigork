@@ -1,1 +1,42 @@
-{"name":"analysis-chapter","system":"你是一位专业的小说分析编辑，擅长对章节进行深度分析。","task":"对指定章节进行 9 维度分析，返回结构化 JSON。","input_sections":{"chapter_content":{"priority":"P0","label":"章节内容"},"existing_characters":{"priority":"P0","label":"现有角色"},"existing_foreshadows":{"priority":"P0","label":"现有伏笔"}},"output":{"format":"json","description":"{\"hook\":\"开篇钩子效果\",\"foreshadows\":[{\"category\":\"character|plot|world|relationship\",\"action\":\"planted|hinted|revealed\",\"description\":\"...\",\"stable_id\":\"已有伏笔ID（回收时填写）\"}],\"conflict\":\"冲突类型和强度\",\"emotion_curve\":\"情感变化轨迹\",\"character_states\":[{\"name\":\"角色名\",\"old_state\":\"旧状态\",\"new_state\":\"新状态\"}],\"key_events\":[\"事件1\",...],\"scene_rhythm\":\"场景节奏评价\",\"quality_score\":1-10,\"improvement_tips\":[\"建议1\",\"建议2\",\"建议3\"]}"},"constraints":{"must":["hook 不超过 20 字","key_events 最多 5 个","quality_score 为 1-10 整数","improvement_tips 最多 3 条"],"forbidden":["添加 markdown 代码块或 JSON 以外的注释"],"style":["客观、精准"]}}
+{
+  "name": "analysis-chapter",
+  "system": "你是一位专业的小说分析编辑，擅长对章节进行深度分析。",
+  "task": "对指定章节进行 9 维度分析，返回结构化 JSON。",
+  "input_sections": {
+    "chapter_content": {
+      "priority": "P0",
+      "label": "章节内容"
+    },
+    "existing_characters": {
+      "priority": "P0",
+      "label": "现有角色"
+    },
+    "existing_foreshadows": {
+      "priority": "P1",
+      "label": "已埋入伏笔列表（回收匹配候选）"
+    }
+  },
+  "output": {
+    "format": "json",
+    "description": "{\"hook\":\"开篇钩子效果\",\"foreshadows\":[{\"title\":\"伏笔标题（回收时与原伏笔标题保持一致）\",\"content\":\"伏笔描述\",\"type\":\"planted|resolved\",\"strength\":1-10,\"subtlety\":1-10,\"category\":\"identity|mystery|item|relationship|event|ability|prophecy\",\"is_long_term\":false,\"related_characters\":[\"角色名\"],\"estimated_resolve_chapter\":12,\"reference_chapter\":0,\"reference_stable_id\":\"回收时必填：候选列表中的伏笔ID\",\"keyword\":{\"text\":\"原文8-25字锚点\",\"pos\":-1,\"length\":0}}],\"conflict\":\"冲突类型和强度\",\"emotion_curve\":\"情感变化轨迹\",\"character_states\":[{\"name\":\"角色名\",\"old_state\":\"旧状态\",\"new_state\":\"新状态\"}],\"key_events\":[\"事件1\",...],\"scene_rhythm\":\"场景节奏评价\",\"quality_score\":1-10,\"improvement_tips\":[\"建议1\",\"建议2\",\"建议3\"]}"
+  },
+  "constraints": {
+    "must": [
+      "hook 不超过 20 字",
+      "key_events 最多 5 个",
+      "quality_score 为 1-10 整数",
+      "improvement_tips 最多 3 条",
+      "【🔴 伏笔追踪任务（重要）】系统已提供【已埋入伏笔列表】，当你识别到章节中有回收伏笔时：1. 必须从列表中找出对应的伏笔ID；2. 在 foreshadows 数组中使用 type='resolved' 且 reference_stable_id 字段关联；3. 如果无法确定是哪个伏笔，reference_stable_id 填空字符串，禁止编造ID",
+      "⚠️ 回收伏笔时，标题应与原伏笔标题保持一致，不要添加「回收」「揭示」等后缀。示例：原伏笔「古钟之谜」→ 回收记录 title 填「古钟之谜」，不得填「古钟之谜·回收」",
+      "reference_stable_id：【回收时必填】已埋入伏笔的唯一标识。如果列表中有标注【ID: xxx】的伏笔，回收时必须使用该ID填写",
+      "estimated_resolve_chapter：【埋入时必填】预估回收章节号（埋下时必须预估填写；回收时填当前章节号）",
+      "✅ 【伏笔ID追踪自检】回收伏笔时，必须从【已埋入伏笔列表】中查找匹配的ID填入 reference_stable_id"
+    ],
+    "forbidden": [
+      "添加 markdown 代码块或 JSON 以外的注释"
+    ],
+    "style": [
+      "客观、精准"
+    ]
+  }
+}

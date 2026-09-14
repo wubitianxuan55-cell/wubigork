@@ -14,9 +14,10 @@ import (
 // 前端持有完整列表（AI 条目 + manual_ 手工条目）整体写回；底层 project.writeJSON
 // 走临时文件 + rename 原子替换，不会写坏用户数据。
 //
-// 手工条目不会被 Analyze 的 syncForeshadows 冲掉：那边是按 ID 合并
-// （只更新/追加 AI 认识的 ID，manual_ 等它不认识的 ID 原样保留），见
-// internal/analysis/analysis.go syncForeshadows。
+// 手工条目不会被 Analyze 的 syncForeshadows 冲掉：那边是「只更新既有条目的
+// 状态/字段、追加新 ID，绝不全量覆盖」，manual_ 等未命中的 ID 原样保留；
+// 回收动作三级匹配（精确 ID → 内容兜底 → 跳过不新建），见
+// internal/analysis/foreshadow_sync.go。
 func (a *writingState) SaveForeshadows(itemsJSON string) error {
 	pm := a.getPM()
 	if pm == nil {

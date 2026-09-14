@@ -3,6 +3,14 @@
 > 本文件为**最近发布速览**。完整历史磁带见 `docs/archive/progress-history-2026-09.md`
 > 与 `releases/`。
 
+## 最新发布：v4.297.0（2026-09-14）「伏笔分析驱动自动回收：三级匹配闭环 + 候选清单三层渲染（t1-P2）」
+
+- **来源**：MuMu 蒸馏线 t1 伏笔域第二刀（spec P2 闭环核心）。此前分析侧回收只做「描述精确相等」，候选清单是整包 JSON 直塞 prompt——模型记不住该回填哪个 ID。本刀按 `docs/distill/01-foreshadow-spec.md` §3.3~§3.5/§6.1 把分析侧接上 v2 契约，埋入→回收闭环咬合，零绑定面。
+- **落地**：①纯函数层（新 `internal/types/foreshadow_match.go`）：WordOverlap（rune 级 2/3-gram Jaccard 加权）+ MatchForeshadowByContent 六策略加权（标题族取最大/关键词/内容相似/引用章/分类/角色 Jaccard 累加，采纳≥0.5 同分取先=最早埋入）；②同步层重写（新 `internal/analysis/foreshadow_sync.go`，消费 `types.ForeshadowHit` 替代旧 ForeshadowAction）：回收三级匹配=精确 ID（查不到禁止回落内容匹配）→内容兜底→跳过不新建；已回收不重置、pending 拒收、hinted/partial 可回收（D15）；埋入两道防重+每章新建≤5+Importance=min(Strength/10,1) 唯一派生+计划章缺失不猜值；SyncResult 完整含 SkippedReasons 六类 Kind（修 MuMu D3 静默跳过）；③候选清单三层渲染（新 `internal/analysis/foreshadow_prompt.go`）：L1 必须回收逐条带「⚠️ 回收时 reference_stable_id 填写」紧邻指令/L2 超期≤5/L3 其他≤10+溢出注记，分层走 ClassifyResolve 唯一入口（D9）；④`prompts/analysis-chapter.json`：foreshadows 换 v2 字段+候选槽位升 P1+伏笔追踪任务指令+三条强约束+ID 追踪自检（spec §6.1）；写入口径仍 revealed，前端零消费零破坏。
+- **测试**：types +4 / analysis 同步 15 例（4 迁移+11 新增，含无效引用不回落关键回归）/ 渲染 4 例（三层/排除口径/折叠上限/空态 D14 截断）。
+- **门禁**：ci.ps1 全绿、drift OK@667（零绑定面）、版本三处 4.297.0；产物见 `releases/SHA256SUMS-v4.297.0.txt`。
+- **未做（下刀）**：t1-P3 清理入口/Lint 扩展 overdue·unplanned/统计口径；t1-P4 前端（表格/Badge 用后端 urgency，SyncResult 上绑定面随 P4）；真机走查（分析闭环+书源线一条龙，等闲置窗口）。
+
 ## 最新发布：v4.293.0（2026-09-14）「伏笔分层注入：按计划回收章调度生成上下文（t1-P1）」
 
 - **来源**：MuMuAINovel 蒸馏线 t1 伏笔域消费方第一刀。契约（6 态并集+计划回收章+注入控制）v4.278.0 已落库但零生成侧消费方；本刀按 `docs/distill/01-foreshadow-spec.md` §4 落分层注入（spec P1），零绑定面。
