@@ -634,3 +634,38 @@ func (m *Manager) ForEachChapter(fn func(chapterNum int, content string) error) 
 	}
 	return nil
 }
+
+// ReadAnalysisV2File 读 analysis-v2.json（V2 章节分析落盘）；文件缺失返回空文件
+// 与 nil error（新项目正常态）。
+func (m *Manager) ReadAnalysisV2File() (*types.AnalysisV2File, error) {
+	f, err := loadJSON[types.AnalysisV2File](filepath.Join(m.Dir, "analysis-v2.json"))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return &types.AnalysisV2File{Items: []types.ChapterAnalysisResult{}}, nil
+		}
+		return nil, err
+	}
+	return f, nil
+}
+
+// UpsertAnalysisV2 按章号 upsert 一条 V2 分析结果（同章重分析覆盖不追加），
+// 保持章号升序，写回走原子替换。
+func (m *Manager) UpsertAnalysisV2(res types.ChapterAnalysisResult) error {
+	f, err := m.ReadAnalysisV2File()
+	if err != nil {
+		return err
+	}
+	replaced := false
+	for i := range f.Items {
+		if f.Items[i].ChapterNum == res.ChapterNum {
+			f.Items[i] = res
+			replaced = true
+			break
+		}
+	}
+	if !replaced {
+		f.Items = append(f.Items, res)
+	}
+	sort.Slice(f.Items, func(i, j int) bool { return f.Items[i].ChapterNum < f.Items[j].ChapterNum })
+	return writeJSON(filepath.Join(m.Dir, "analysis-v2.json"), f)
+}

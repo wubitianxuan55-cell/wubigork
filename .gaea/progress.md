@@ -3,6 +3,14 @@
 > 本文件为**最近发布速览**。完整历史磁带见 `docs/archive/progress-history-2026-09.md`
 > 与 `releases/`。
 
+## 最新发布：v4.301.0（2026-09-14）「t4-C1 分析代理 V2 化：9 维结构化 + 三维评分联动 + analysis-v2.json 落盘」
+
+- **来源**：MuMu 蒸馏线 t4 情节分析域首刀（§8.3 C1）。市场调研增量轮（调研档 §9）抬升优先级：自动设定库回填是行业痛点（Novelcrafter 手填摩擦/Sudowrite 书长极限），V2 载荷是回填数据底座。
+- **落地**：①模板 V2 九维化原地升级（伏笔追踪约束原样保留，ForeshadowHit 契约零改动）；②服务端权威归一（三维钳位/overall 重算/建议联动只裁上限）；③analysis-v2.json 按章号 upsert 落盘（容错注入）；④旧 wire 零破坏派生（AnalyzeChapter 返回键零变化）；syncCharacterStates 升 V2 差分。
+- **测试**：analysis +4 + project 落盘回环；既有零改动。
+- **门禁**：ci.ps1 全绿、零绑定面 drift OK@672、版本三处 4.301.0；产物见 `releases/SHA256SUMS-v4.301.0.txt`。
+- **未做（下刀）**：t3-P1 记忆生产者（已解锁，下一刀闭环自动回填）；t4-C3 驱动式重写；t4-C4 锚点标注。
+
 ## 最新发布：v4.300.0（2026-09-14）「t3 首刀：章节前文摘要窗口预算化 + 回退链 + 反重复约束」
 
 - **来源**：MuMu 蒸馏线 t3 长程一致性域首刀。§11.3 缺口：prevSummary 全前章 200 rune 无界拼接（200 章≈40k rune 前缀），不参与预算体系。

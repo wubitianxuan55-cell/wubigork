@@ -138,6 +138,56 @@
 
 ---
 
+---
+
+## 9. 增量刷新（2026-09-14，第三轮）
+
+> 检索时间 2026-09-14。距上轮仅 2 天，无代际级新信号；本轮=三线交叉验证 + 候选表对账。
+> 结论：上轮判断全部维持；候选表两处状态更新（见 §9.3）。
+
+### 9.1 小说工具线（与本仓 MuMu/oh-story 蒸馏线直接相关）
+
+**市场事实**
+- Novelcrafter Codex（story wiki）被 2026-04 评测称「强大但上手挫败」——**逐条手工建档是公认摩擦点**（Medium April 2026 review；r/WritingWithAI 同向）。
+- epos-ai.ch 深文《AI Novel Writing Tools in 2026: What Breaks at Book Length》：Sudowrite ~2 万词上下文在书长尺度失效——**书长一致性是全行业未解问题**。
+- 国内：蛙蛙写作（自研 Weaver 模型）主打长篇网文「项目架构管理+设定库+多端同步+自定义工作流」，评测位次居首；马良写作对照页以「大纲层级+设定管理」为横评轴。**工作流>模型**成共识（知乎 2026 评测文）。
+
+**对 gaea 的含义**
+- 「设定库自动回填」正是市场痛着的点：Novelcrafter 要手填、Sudowrite 上下文到书长就破——gaea 的 t1 伏笔自动登记（分析驱动回收）与 t3/t4 规划中的「分析→StoryMemory 自动落盘」正是自动回填路线，**从「跟跑验证」升级为「差异化主攻」**。
+- 佐证排序决策：t3-P1（记忆生产者）依赖 t4-C1（分析 V2 化）产出 AnalysisResultV2——**t4-C1 是书长一致性的数据底座，优先级被市场信号抬升**。
+
+### 9.2 记忆层线
+
+**市场事实**
+- Mem0《State of AI Agent Memory 2026》：新算法把 **agent 生成事实当一等公民**（agent 确认、来源存证）；Zep/Graphiti bi-temporal 口径继续领跑（71.2% 自报）。
+- 赛道拥挤化：Letta/Cognee/Supermemory/LangMem/MemoryLake 全部入局（Q3 2026 五家对比已成常规选题）。
+
+**对 gaea 的含义**
+- 「agent 生成事实一等公民」= gaea memory_events 的 `actor`/`source_session` 字段已在做的事，市场同构确认；
+- 双时间轴已落（见 §9.3）；「可评测」候选（#2）仍是记忆域唯一开放增量，且 repo 已有 retrieval-eval-set.md（12 条查询）+ gaea_retrieval_eval.go 测评框架可复用。
+
+### 9.3 候选表对账（§5 提名表状态更新）
+
+| # | 候选 | 状态 |
+|---|---|---|
+| 1 | 记忆双时间轴口径 | **已落地 v4.240.0**（SchemaV21：memory_events.recorded_at 事务时间，at=事实时间；schema.go 注释已对标 Zep/Graphiti）——本表此前未回写，现已销账 |
+| 2 | 记忆质量可评测 | **开放**（repo 已有 retrieval-eval-set.md 12 条查询+gaea_retrieval_eval.go 框架，扩展到记忆注入质量评估即可）；仍是记忆域首选增量 |
+| 3 | 办公交付物「成品直出」打磨 | **主体已落地 v4.242.0**（DagAcceptAll 成品直出）；「打磨」余项随办公线日常迭代，不再单列候选 |
+| 4 | 价格带数据源 | 已结案 v4.275（原文如此） |
+
+### 9.4 本轮新增候选提名（交拍板池）
+
+- **无新增**。本轮三线信号全部指向既有在制品（小说 t3/t4 自动一致性线、记忆评测候选2），市场在验证 gaea 已走的路，不需要新开口子。
+
+### 来源（增量）
+
+- [Novelcrafter Review（Medium, 2026-04）](https://ilampadmanabhan.medium.com/novelcrafter-review-powerful-for-fiction-writers-frustrating-to-set-up-april-2026-64d391c629a2)
+- [AI Novel Writing Tools: What Breaks at Book Length（epos-ai.ch）](https://epos-ai.ch)
+- [2026 AI写小说工具测评：10款主流软件（腾讯新闻 2026-07）](https://news.qq.com/rain/a/20260724A0BS0400)
+- [马良写作 vs 18 工具对照](https://maliangwriter.com/compare/)
+- [State of AI Agent Memory 2026（Mem0）](https://mem0.ai/blog/state-of-ai-agent-memory-2026)
+- [Mem0 vs Zep vs Letta vs Cognee vs Supermemory（Q3 2026）](https://mnemoverse.com/docs/library/ai-memory-solutions-2026-q3)
+
 ## 来源
 
 - [Copilot agentic capabilities GA（MS 365 Blog 2026-04-22）](https://www.microsoft.com/en-us/microsoft-365/blog/2026/04/22/copilots-agentic-capabilities-in-word-excel-and-powerpoint-are-generally-available/)

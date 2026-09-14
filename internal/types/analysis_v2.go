@@ -212,3 +212,9 @@ const (
 func ValidKeywordRuneCount(n int) bool {
 	return n >= KeywordMinRunes && n <= KeywordMaxRunes
 }
+
+// AnalysisV2File analysis-v2.json 落盘结构：逐章 V2 分析结果，按章号 upsert
+// （同章重分析覆盖，PlotAnalysis 的 chapter_id unique 语义同源）。
+type AnalysisV2File struct {
+	Items []ChapterAnalysisResult `json:"items"`
+}

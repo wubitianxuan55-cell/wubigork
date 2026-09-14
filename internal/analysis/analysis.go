@@ -109,13 +109,18 @@ func (a *Agent) Analyze(ctx context.Context, chapterNum int, chapterContent stri
 		return nil, err
 	}
 
-	var result AnalysisResult
-	if err := json.Unmarshal([]byte(jsonStr), &result); err != nil {
+	// V2 解析（t4-C1：9 维结构化 + 三维评分，契约 types.AnalysisResultV2）
+	var v2 types.AnalysisResultV2
+	if err := json.Unmarshal([]byte(jsonStr), &v2); err != nil {
 		return nil, fmt.Errorf("解析分析结果 JSON 失败: %w", err)
 	}
+	normalizeAnalysisV2(&v2)
+
+	// 落盘 analysis-v2.json（按章号 upsert；容错：失败不影响分析返回）
+	a.persistAnalysisV2(chapterNum, &v2)
 
 	// 同步伏笔到文件（t1-P2：三级匹配 + SyncResult 可追溯，D3 不静默跳过）
-	syncRes := a.SyncForeshadows(chapterNum, result.Foreshadows)
+	syncRes := a.SyncForeshadows(chapterNum, v2.Foreshadows)
 	if len(syncRes.Errors) > 0 || syncRes.SkippedResolveCount > 0 ||
 		syncRes.PlantedCount > 0 || syncRes.ResolvedCount > 0 {
 		slog.Info("分析: 伏笔同步完成",
@@ -131,37 +136,14 @@ func (a *Agent) Analyze(ctx context.Context, chapterNum int, chapterContent stri
 		}
 	}
 
-	// 更新角色状态
-	a.syncCharacterStates(&result)
+	// 更新角色状态（V2 差分载荷）
+	a.syncCharacterStatesV2(&v2)
 
-	return &result, nil
+	// 派生旧 wire 形状：AnalyzeChapter 绑定返回键零变化，前端零改动
+	return deriveLegacyAnalysis(&v2), nil
 }
 
-// syncCharacterStates 更新角色状态
-func (a *Agent) syncCharacterStates(result *AnalysisResult) {
-	if len(result.CharacterStates) == 0 {
-		return
-	}
-
-	chars, err := a.pm.ReadCharacters()
-	if err != nil {
-		slog.Warn("syncCharacterStates: 读取角色失败", "error", err)
-		return
-	}
-	if chars == nil {
-		return
-	}
-
-	for i := range chars.Characters {
-		for _, sc := range result.CharacterStates {
-			if chars.Characters[i].Name == sc.Name {
-				chars.Characters[i].Status = sc.NewState
-			}
-		}
-	}
-
-	a.pm.WriteCharacters(chars)
-}
+// syncCharacterStates 已由 syncCharacterStatesV2 替代（t4-C1 差分载荷），见 analysis_v2.go。
 
 // GenerateStableID 生成稳定的伏笔 ID
 func GenerateStableID(category, chapterFile, description string) string {
