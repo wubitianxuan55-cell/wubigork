@@ -11,9 +11,9 @@ import (
 
 	"github.com/gaea/gaea/internal/bookimport"
 	"github.com/gaea/gaea/internal/booksource"
+	"github.com/gaea/gaea/internal/config"
 	"github.com/gaea/gaea/internal/project"
 	"github.com/gaea/gaea/internal/types"
-	"github.com/gaea/gaea/internal/config"
 )
 
 // ── 假站与夹具（引擎 Fetcher/Sleeper 注入，零真网络）──
@@ -48,7 +48,13 @@ func bsTestOptions(fetch booksource.Fetcher) booksource.Options {
 // bsFixtureDir 临时规则目录：一本源规则 + 一份泛搜索引擎文件。
 func bsFixtureDir(t *testing.T) string {
 	t.Helper()
-	dir := t.TempDir()
+	return bsWriteFixtureRules(t, t.TempDir())
+}
+
+// bsWriteFixtureRules 把夹具规则/引擎写进指定规则目录（工具测试要落在
+// booksourceRulesDir() 的临时 HOME 下，不能自己另开 TempDir）。
+func bsWriteFixtureRules(t *testing.T, dir string) string {
+	t.Helper()
 	rule := `{
 		"name": "测试源",
 		"baseUri": "https://book.test/",

@@ -182,12 +182,12 @@ func TestSinToolLoopExecutesToolAndPersistsTrace(t *testing.T) {
 		t.Errorf("便签未落盘: %+v", doc)
 	}
 
-	// 请求形态：两轮；首轮带 7 个工具定义；次轮接上 assistant(tool_calls)+tool 结果。
+	// 请求形态：两轮；首轮带 9 个工具定义（t4 +book_search/book_download）；次轮接上 assistant(tool_calls)+tool 结果。
 	if llm.count() != 2 {
 		t.Fatalf("请求轮次 = %d, want 2", llm.count())
 	}
-	if got := len(sinReqTools(llm.request(0))); got != 7 {
-		t.Errorf("首轮 tools = %d, want 7", got)
+	if got := len(sinReqTools(llm.request(0))); got != 9 {
+		t.Errorf("首轮 tools = %d, want 9", got)
 	}
 	req2 := sinReqMessages(llm.request(1))
 	if len(req2) != 4 {

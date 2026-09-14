@@ -29,18 +29,20 @@ func sinTestHome(t *testing.T) string {
 func TestSinToolRegistryWiring(t *testing.T) {
 	a := &App{}
 	tools := a.sinToolSet("sin_1_1")
-	want := []string{sinToolWebSearch, sinToolWebFetch, sinToolCast, sinToolNotes, sinToolOutline, sinToolIllustrate, sinToolExport}
+	want := []string{sinToolWebSearch, sinToolWebFetch, sinToolBookSearch, sinToolBookDownload, sinToolCast, sinToolNotes, sinToolOutline, sinToolIllustrate, sinToolExport}
 	if got := sinToolNames(tools); strings.Join(got, ",") != strings.Join(want, ",") {
 		t.Fatalf("工具顺序 = %v, want %v", got, want)
 	}
 	wantReadOnly := map[string]bool{
-		sinToolWebSearch:  true,
-		sinToolWebFetch:   true,
-		sinToolCast:       true,
-		sinToolNotes:      false, // 含 write/set/delete
-		sinToolOutline:    false, // 含 write
-		sinToolExport:     false, // 新建导出文件（不改正文）
-		sinToolIllustrate: false, // 出图落盘+台账
+		sinToolWebSearch:    true,
+		sinToolWebFetch:     true,
+		sinToolCast:         true,
+		sinToolNotes:        false, // 含 write/set/delete
+		sinToolOutline:      false, // 含 write
+		sinToolExport:       false, // 新建导出文件（不改正文）
+		sinToolIllustrate:   false, // 出图落盘+台账
+		sinToolBookSearch:   true,  // 只搜不落盘
+		sinToolBookDownload: false, // 成书落盘（sin 数据面）
 	}
 	for _, tl := range tools {
 		if strings.TrimSpace(tl.Description()) == "" {
