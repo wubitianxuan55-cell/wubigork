@@ -265,3 +265,23 @@ func readOutlineNodes(pm *project.Manager) []types.OutlineNode {
 	}
 	return of.Nodes
 }
+
+// NovelChapterSuggestions 读取该章分析建议（analysis-v2.json 的
+// Result.Suggestions，供重写建议驱动 UI 勾选）。无分析结果返回空数组
+// （正常态，前端提示先分析），不报错。
+func (a *writingState) NovelChapterSuggestions(chapterNum int) ([]string, error) {
+	pm := a.getPM()
+	if pm == nil {
+		return nil, fmt.Errorf("请先打开项目")
+	}
+	af, err := pm.ReadAnalysisV2File()
+	if err != nil {
+		return nil, fmt.Errorf("读取分析结果失败: %w", err)
+	}
+	for i := range af.Items {
+		if af.Items[i].ChapterNum == chapterNum {
+			return af.Items[i].Result.Suggestions, nil
+		}
+	}
+	return []string{}, nil
+}

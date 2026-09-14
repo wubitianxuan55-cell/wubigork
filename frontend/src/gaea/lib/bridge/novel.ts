@@ -186,6 +186,9 @@ export interface NovelBindings {
   NovelApplyRewriteVersion(chapterNum: number, versionID: string): Promise<Record<string, unknown>>;
   NovelDiscardRewriteVersion(chapterNum: number, versionID: string): Promise<void>;
   NovelRestoreRewriteVersion(chapterNum: number, versionID: string): Promise<Record<string, unknown>>;
+  // NovelChapterSuggestions 读取该章分析建议（重写建议驱动勾选数据源）；
+  // 无分析结果返回空数组（正常态）。
+  NovelChapterSuggestions(chapterNum: number): Promise<string[]>;
   SaveCharactersBatch(namesJSON: string): Promise<Record<string, unknown>>;
   NovelReadingAsk(kind: string, title: string, chapterText: string, selection: string, question: string, historyJSON: string): Promise<string>;
   GenerateSceneIllustration(chapterNum: number): Promise<Record<string, unknown>>;

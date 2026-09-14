@@ -80,6 +80,7 @@ func (b *NovelB) NovelBookSourceSearch(keyword string) (NovelBookSourceSearchRes
 func (b *NovelB) NovelBookSourceToc(source string, detailURL string) (NovelBookSourceTocPreview, error) { return b.a.NovelBookSourceToc(source, detailURL) }
 func (b *NovelB) NovelChapterReview(chapterNum int, platform string) (ChapterReviewPayload, error) { return b.a.NovelChapterReview(chapterNum, platform) }
 func (b *NovelB) NovelChapterRewrite(chapterNum int, reqJSON string) (map[string]interface{}, error) { return b.a.NovelChapterRewrite(chapterNum, reqJSON) }
+func (b *NovelB) NovelChapterSuggestions(chapterNum int) ([]string, error) { return b.a.NovelChapterSuggestions(chapterNum) }
 func (b *NovelB) NovelDiscardRewriteVersion(chapterNum int, versionID string) error { return b.a.NovelDiscardRewriteVersion(chapterNum, versionID) }
 func (b *NovelB) NovelFingerprintBuild() (FingerprintStatusPayload, error) { return b.a.NovelFingerprintBuild() }
 func (b *NovelB) NovelFingerprintScore(chapterNum int) (FingerprintScorePayload, error) { return b.a.NovelFingerprintScore(chapterNum) }

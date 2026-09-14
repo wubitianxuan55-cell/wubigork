@@ -46,6 +46,11 @@ type NovelMethods = Pick<
   | "NovelFingerprintStatus" | "NovelFingerprintBuild" | "NovelFingerprintScore"
   // 平台评审批次（v4.282，oh-story 蒸馏 T1；CreatePage「平台评审」面板）。
   | "NovelReviewPlatforms" | "NovelChapterReview"
+  // 驱动式整章重写批次（t4-C3；浏览器演示口径）。
+  | "NovelChapterRewrite" | "NovelChapterSuggestions"
+  | "NovelListRewriteVersions" | "NovelGetRewriteVersion"
+  | "NovelApplyRewriteVersion" | "NovelDiscardRewriteVersion"
+  | "NovelRestoreRewriteVersion"
   // 书源在线搜书批次（v4.283，书源取书→拆书导入 t2；HomePage「在线搜书」）。
   | "NovelBookSourceSearch" | "NovelBookSourceToc"
   | "NovelBookSourceImport" | "NovelBookSourceImportCancel"
@@ -85,6 +90,28 @@ export function buildNovel(): NovelMethods {
     },
     async CheckConsistencyDeep(_maxChapters: number) {
       return { consistent: true, issues: [], checkedChapters: 0 };
+    },
+    async NovelChapterSuggestions(_chapterNum: number) {
+      // 浏览器演示无分析产物：空数组（UI 提示先分析，锁自定义指令）。
+      return [];
+    },
+    async NovelChapterRewrite(_chapterNum: number, _reqJSON: string) {
+      throw new Error("dev mock：整章重写需本地模型调用");
+    },
+    async NovelListRewriteVersions(_chapterNum: number) {
+      return [];
+    },
+    async NovelGetRewriteVersion(_chapterNum: number, _versionID: string) {
+      throw new Error("dev mock：无重写版本");
+    },
+    async NovelApplyRewriteVersion(_chapterNum: number, _versionID: string) {
+      throw new Error("dev mock：无重写版本可应用");
+    },
+    async NovelDiscardRewriteVersion(_chapterNum: number, _versionID: string) {
+      throw new Error("dev mock：无重写版本可丢弃");
+    },
+    async NovelRestoreRewriteVersion(_chapterNum: number, _versionID: string) {
+      throw new Error("dev mock：无重写版本可恢复");
     },
     async GetForeshadows() {
       return { items: [], currentChapter: 0 };

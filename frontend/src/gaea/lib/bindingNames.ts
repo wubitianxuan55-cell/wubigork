@@ -506,6 +506,7 @@ export const bindingNames = [
 	"NovelBookSourceToc",
 	"NovelChapterReview",
 	"NovelChapterRewrite",
+	"NovelChapterSuggestions",
 	"NovelDiscardRewriteVersion",
 	"NovelFingerprintBuild",
 	"NovelFingerprintScore",

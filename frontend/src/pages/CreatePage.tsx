@@ -12,6 +12,7 @@ import type { ChapterReviewPayload, FingerprintScorePayload, FingerprintStatusPa
 import StyleFingerprintPanel from '../components/novel/StyleFingerprintPanel'
 import ChapterReviewPanel from '../components/novel/ChapterReviewPanel'
 import ChapterTreePanel from '../components/novel/create/ChapterTreePanel'
+import RewriteModal from '../components/novel/RewriteModal'
 import EditorPanel from '../components/novel/create/EditorPanel'
 import CreateInspector from '../components/novel/create/CreateInspector'
 import NewCharactersModal from '../components/novel/create/NewCharactersModal'
@@ -123,6 +124,8 @@ const CreatePage: React.FC = () => {
   const [temperature, setTemperature] = useState(0)
   const [directPlot, setDirectPlot] = useState('')
   const [stats, setStats] = useState<{ totalWords: number; chapterCount: number } | null>(null)
+  // 整章重写弹窗（t4-C3 前端消费）
+  const [rwOpen, setRwOpen] = useState(false)
   // 默认启用 story-deslop 去 AI 味润色技能；可在右侧创作设置中切换或清空
   const [selectedSkill, setSelectedSkill] = useState<string | undefined>('story-deslop')
   // 生成完成后 novelstyle 的 AI 味检测结果（分数 + 命中问题），展示给作者
@@ -627,8 +630,16 @@ const CreatePage: React.FC = () => {
         <Button size="small" onClick={() => void openFingerprint()}>文风指纹</Button>
         <Button size="small" onClick={() => void openReview()}>平台评审</Button>
         <Button size="small" loading={reconstructBusy} onClick={() => void reconstructOutlines()}>AI 反推大纲</Button>
+        <Button size="small" onClick={() => setRwOpen(true)}>整章重写</Button>
         {stateMsg ? <span className="novel-create-rail-msg">{stateMsg}</span> : null}
       </div>
+      <RewriteModal
+        open={rwOpen}
+        chapterNum={activeChapterNum || null}
+        onClose={() => setRwOpen(false)}
+        onApplied={() => { if (activeNode) void selectChapter(activeNode) }}
+      />
+
       <div className="novel-workspace">
       <ChapterTreePanel flatNodes={flatNodes} activeId={activeId} nextChapterNum={nextMainChapterNum}
         onSelect={selectChapter} onRegenerate={handleRegenerate} onDelete={handleDelete}
