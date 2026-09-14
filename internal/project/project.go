@@ -669,3 +669,37 @@ func (m *Manager) UpsertAnalysisV2(res types.ChapterAnalysisResult) error {
 	sort.Slice(f.Items, func(i, j int) bool { return f.Items[i].ChapterNum < f.Items[j].ChapterNum })
 	return writeJSON(filepath.Join(m.Dir, "analysis-v2.json"), f)
 }
+
+// ChapterMemoriesPath 单章故事记忆文件路径（memories/MMM-<n>-memory.json）。
+func (m *Manager) ChapterMemoriesPath(chapterNum int) string {
+	return filepath.Join(m.Dir, "memories", fmt.Sprintf("MMM-%03d-memory.json", chapterNum))
+}
+
+// ReadChapterMemories 读单章故事记忆；文件缺失返回空文件与 nil error（正常态）。
+func (m *Manager) ReadChapterMemories(chapterNum int) (*types.StoryMemoryFile, error) {
+	f, err := loadJSON[types.StoryMemoryFile](m.ChapterMemoriesPath(chapterNum))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return &types.StoryMemoryFile{Items: []types.StoryMemory{}}, nil
+		}
+		return nil, err
+	}
+	return f, nil
+}
+
+// WriteChapterMemories 整章替换写单章故事记忆（确定性 ID + 整文件替换 =
+// 重分析幂等，规避 MuMu D1「重分析不清旧数据」）。空 items = 删除该章记忆文件
+// （重分析后无合格记忆时不留陈旧档）。目录不存在自动创建。
+func (m *Manager) WriteChapterMemories(chapterNum int, items []types.StoryMemory) error {
+	path := m.ChapterMemoriesPath(chapterNum)
+	if len(items) == 0 {
+		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+		return nil
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return fmt.Errorf("创建 memories 目录失败: %w", err)
+	}
+	return writeJSON(path, &types.StoryMemoryFile{Items: items})
+}

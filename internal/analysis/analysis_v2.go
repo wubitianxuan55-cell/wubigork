@@ -66,6 +66,24 @@ func (a *Agent) persistAnalysisV2(chapterNum int, v2 *types.AnalysisResultV2) {
 	}
 }
 
+// persistStoryMemories 记忆生产者（t3-P1）：从 V2 载荷按规则表抽取本章
+// 故事记忆并整章替换落盘 memories/MMM-<n>-memory.json（确定性 ID+整文件
+// 替换=重分析幂等，规避 MuMu D1）。容错注入：失败只记日志。
+func (a *Agent) persistStoryMemories(chapterNum int, v2 *types.AnalysisResultV2, chapterContent string) {
+	mems := ExtractStoryMemories(chapterNum, fmt.Sprintf("%03d.md", chapterNum), v2, chapterContent)
+	now := time.Now().Format(time.RFC3339)
+	for i := range mems {
+		mems[i].CreatedAt = now
+	}
+	if err := a.pm.WriteChapterMemories(chapterNum, mems); err != nil {
+		slog.Warn("章节记忆落盘失败（不影响分析返回）", "chapter", chapterNum, "error", err)
+		return
+	}
+	if len(mems) > 0 {
+		slog.Info("章节记忆已登记", "chapter", chapterNum, "count", len(mems))
+	}
+}
+
 // pacingLabel 节奏英文枚举 → 中文（旧 wire 是自由中文文本）。
 func pacingLabel(p string) string {
 	switch strings.TrimSpace(p) {

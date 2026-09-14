@@ -3,6 +3,14 @@
 > 本文件为**最近发布速览**。完整历史磁带见 `docs/archive/progress-history-2026-09.md`
 > 与 `releases/`。
 
+## 最新发布：v4.302.0（2026-09-15）「t3-P1 记忆生产者：规则表抽取 StoryMemory 按章落盘（自动回填闭环）」
+
+- **来源**：MuMu 蒸馏线 t3 长程一致性域第二刀（§2.3/§12.1/§12.2/§12.4-4）。t4-C1 解锁 V2 载荷，本刀补「分析→结构化记忆」抽取——自动回填闭环咬合（市场差异化点，调研档 §9）。
+- **落地**：①types.StoryMemory+确定性 ID `<MMM>-<type>-<ordinal>`+五类常量+is_foreshadow 三值（无 Position 死字段 D11）；②提取规则表纯函数（chapter_summary 必有三级回退固定 0.6/hook≥6/foreshadow 全部/plot_point≥0.6/character_event 0.7/conflict≥7→plot_point，门槛常量唯一声明）；③memories/MMM-<n>-memory.json 按章整文件替换写（幂等规避 MuMu D1，空=删文件）；④Analyze 接线 persistStoryMemories（容错）。
+- **测试**：analysis +3（规则表/确定性 ID/回退链）+project +1（回环/空写删档）。
+- **门禁**：ci.ps1 全绿、零绑定面 drift OK@672、版本三处 4.302.0；产物见 `releases/SHA256SUMS-v4.302.0.txt`。
+- **未做（下刀）**：t3-P2 召回消费（semantic kind=story_memory+SceneBible 记忆区段+三常量+结构化 query）——接上即全闭环；t4-C3/C4。
+
 ## 最新发布：v4.301.0（2026-09-14）「t4-C1 分析代理 V2 化：9 维结构化 + 三维评分联动 + analysis-v2.json 落盘」
 
 - **来源**：MuMu 蒸馏线 t4 情节分析域首刀（§8.3 C1）。市场调研增量轮（调研档 §9）抬升优先级：自动设定库回填是行业痛点（Novelcrafter 手填摩擦/Sudowrite 书长极限），V2 载荷是回填数据底座。

@@ -119,6 +119,9 @@ func (a *Agent) Analyze(ctx context.Context, chapterNum int, chapterContent stri
 	// 落盘 analysis-v2.json（按章号 upsert；容错：失败不影响分析返回）
 	a.persistAnalysisV2(chapterNum, &v2)
 
+	// 记忆生产者（t3-P1）：规则表抽取本章故事记忆落盘（自动回填设定库）
+	a.persistStoryMemories(chapterNum, &v2, chapterContent)
+
 	// 同步伏笔到文件（t1-P2：三级匹配 + SyncResult 可追溯，D3 不静默跳过）
 	syncRes := a.SyncForeshadows(chapterNum, v2.Foreshadows)
 	if len(syncRes.Errors) > 0 || syncRes.SkippedResolveCount > 0 ||
