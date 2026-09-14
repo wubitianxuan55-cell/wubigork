@@ -3,6 +3,15 @@
 > 本文件为**最近发布速览**。完整历史磁带见 `docs/archive/progress-history-2026-09.md`
 > 与 `releases/`。
 
+## 最新发布：v4.308.0（2026-09-15）「t5 第二刀：状态回灌（SceneBible 实体属性 + 章节生成 character_states 槽位，降噪）」
+
+- **来源**：MuMu 蒸馏线 t5 角色状态机域第二刀（§3.9/§7.4）。v4.307 差分器写盘后生成侧看不见——状态机一半价值在写回生成侧。MuMu 两通道格式不一致（历史债），gaea 统一多行式。
+- **落地**：①SceneBible 实体属性回灌（零新增管道）：entityFromCharacter +current_state/career_main/career_sub，sceneCharFromEntity 读回+角色文件兜底，formatSceneChar 渲染（存量老角色零噪声）；②create-chapter 模板 +character_states P1 槽位，注入器 buildCharacterStatesSection 多行式（存活 emoji/心理截150/职业「剑修·3阶」/组织+忠诚度/关系+亲密度），接线 CreateChapter 主链；③降噪（照搬 MuMu :794/821）：intimacy==50 与 loyalty==50（0 视为未记录）不注入、past 关系跳过、非 active 成员不显示、关系前5/组织前3、区段预算 1500 rune、存量项目全员无 v2 字段返回空串零噪声；④types.CareerMainLabel/CareerSubLabels（无最大阶——方案 C 死解析不做已裁决；CareerName 快照优先）。
+- **范围裁决**：chapter-generate.json 是 embedded 死资产（无消费方），槽位打真实链路 create-chapter，死资产不养死槽位。
+- **测试**：types +1 + novelcontext +3（roundtrip/兜底/零噪声）+ app +4（降噪矩阵/模板联通）；既有零改动。
+- **门禁**：ci.ps1 全绿、零绑定面 drift OK@680、版本四处 4.308.0（含 versioninfo.rc，sync-version.ps1 同步）；产物见 `releases/SHA256SUMS-v4.308.0.txt`。
+- **未做（下刀）**：t5 余项（组织顶层差分 UI/关系图谱升级 §7.5/职业管理页 §7.6）；t4-C3 余项；t6/t7。
+
 ## 最新发布：v4.307.0（2026-09-15）「t5 首刀：角色状态机差分更新器（水位守卫+存活级联+关系差分）」
 
 - **来源**：MuMu 蒸馏线 t5 角色状态机域首刀（§3.3~§3.6/§7.2/§7.3）。契约 v4.278 已落，差分器实现是缺口。

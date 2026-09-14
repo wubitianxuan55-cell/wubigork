@@ -81,10 +81,11 @@ func (a *writingState) CreateChapter(setting, prevSummary, plotReq string, chapt
 	}
 
 	userPrompt := tmpl.BuildUserPrompt(map[string]string{
-		"plot_req":     plotReq,
-		"setting":      setting,
-		"characters":   a.buildCharacterSummary(pm),
-		"prev_summary": prevSummary,
+		"plot_req":         plotReq,
+		"setting":          setting,
+		"characters":       a.buildCharacterSummary(pm),
+		"character_states": a.buildCharacterStatesSection(pm), // t5 §7.4 状态机回灌（P1，空则不渲染）
+		"prev_summary":     prevSummary,
 	})
 	// 上下文增强：追加分层伏笔调度 + 世界观要点区段。全部容错注入——读取失败或
 	// 无数据时静默跳过（不追加空区段），绝不因增强失败中断章节生成主链路；

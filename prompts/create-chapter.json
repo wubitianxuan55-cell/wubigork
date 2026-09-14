@@ -18,6 +18,10 @@
     "prev_summary": {
       "priority": "P0",
       "label": "前文摘要"
+    },
+    "character_states": {
+      "priority": "P1",
+      "label": "角色当前状态（心理·处境·职业·组织·亲密度——写实时必须与之一致，死亡/失踪/退场角色不得出场）"
     }
   },
   "output": {

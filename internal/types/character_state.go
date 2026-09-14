@@ -1,5 +1,7 @@
 package types
 
+import "fmt"
+
 // ── 角色状态机 + 职业引用（共享契约）──────────────────────────
 //
 // 口径来源：docs/distill/05-character-career.md §7.1/§7.2/§7.3。
@@ -78,6 +80,43 @@ type CareerStage struct {
 
 // CareersSectionID 方案 C 中承载职业树的 worldview section id。
 const CareersSectionID = "careers"
+
+// CareerMainLabel 渲染主职业标签，如「剑修·3阶」。
+//
+// 回灌通道（05 §7.4）用：MuMu 渲染「剑修(3/10阶)」带最大阶；gaea 方案 C 不建
+// Career 主表，worldview careers section 是 markdown 文本——对它做死解析不如
+// 不做，故不渲染最大阶。MainCareerID 无独立名称快照（SubCareers 才有
+// CareerName），值域即「名称式 ID」直渲染。无主职业返回空串。
+func (c Character) CareerMainLabel() string {
+	if c.MainCareerID == "" {
+		return ""
+	}
+	if c.MainCareerStage <= 0 {
+		return c.MainCareerID
+	}
+	return fmt.Sprintf("%s·%d阶", c.MainCareerID, c.MainCareerStage)
+}
+
+// CareerSubLabels 渲染副职业标签列表（「炼丹师·2阶」）。CareerName 冗余快照
+// 优先，缺失退 career_id；两者皆空跳过（防御空引用行）。
+func (c Character) CareerSubLabels() []string {
+	out := make([]string, 0, len(c.SubCareers))
+	for _, ref := range c.SubCareers {
+		name := ref.CareerName
+		if name == "" {
+			name = ref.CareerID
+		}
+		if name == "" {
+			continue
+		}
+		if ref.Stage > 0 {
+			out = append(out, fmt.Sprintf("%s·%d阶", name, ref.Stage))
+		} else {
+			out = append(out, name)
+		}
+	}
+	return out
+}
 
 // ── 章节分析 → 角色域差分（ApplyChapterDiff 的输入）──────────
 

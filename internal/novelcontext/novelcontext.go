@@ -68,6 +68,10 @@ type SceneChar struct {
 	Location string   // 当前位置
 	Items    []string // 持有物
 	KnownBy  []string // 谁知晓其关键信息（POV 视角一部分）
+	// ── v2 状态机回灌（t5 §7.4-1，走既有实体属性管道零新增）──
+	CurrentState string   // 心理/处境（如「坚定（第12章）」）
+	CareerMain   string   // 主职业标签（「剑修·3阶」）
+	CareerSub    []string // 副职业标签列表
 }
 
 // ── 编译入口 ────────────────────────────────────────────────
@@ -154,7 +158,7 @@ func (b *SceneBible) Render(maxRunes int) string {
 	if len(b.Foreshadows) > 0 {
 		addSection("未回收伏笔（分层约束）", strings.Join(b.Foreshadows, "\n"))
 	}
-	
+
 	if len(b.Memories) > 0 {
 		// 语义召回的历史记忆（t3-P2）：参考信息，与伏笔同层——辅助衔接而非硬约束
 		memLines := make([]string, 0, len(b.Memories))
@@ -483,10 +487,15 @@ func charIndex(pm *project.Manager) map[string]types.Character {
 }
 
 // entityFromCharacter 把 types.Character 转成一个临时实体（当实体库未建该角色时用）。
+// v2 状态机字段（current_state/职业）随实体属性走——与既有 status 同一条管道，
+// 实体库回灌（§7.4-1）零新增。
 func entityFromCharacter(c types.Character, id string) graph.Entity {
 	props := map[string]string{
-		"role_type": c.RoleType,
-		"status":    c.Status,
+		"role_type":     c.RoleType,
+		"status":        c.Status,
+		"current_state": c.CurrentState,
+		"career_main":   c.CareerMainLabel(),
+		"career_sub":    strings.Join(c.CareerSubLabels(), ";"),
 	}
 	return graph.Entity{
 		ID:         id,
@@ -505,14 +514,26 @@ func sceneCharFromEntity(e graph.Entity, charByName map[string]types.Character) 
 		sc.Location = e.Properties["location"]
 		sc.Items = splitList(e.Properties["items"])
 		sc.KnownBy = splitList(e.Properties["known_by"])
+		sc.CurrentState = e.Properties["current_state"]
+		sc.CareerMain = e.Properties["career_main"]
+		sc.CareerSub = splitList(e.Properties["career_sub"])
 	}
-	// 角色文件兜底
+	// 角色文件兜底（实体库未回灌/属性缺失时以 characters.json 为准）
 	if c, ok := charByName[e.Name]; ok {
 		if sc.RoleType == "" {
 			sc.RoleType = c.RoleType
 		}
 		if sc.Status == "" {
 			sc.Status = c.Status
+		}
+		if sc.CurrentState == "" {
+			sc.CurrentState = c.CurrentState
+		}
+		if sc.CareerMain == "" {
+			sc.CareerMain = c.CareerMainLabel()
+		}
+		if len(sc.CareerSub) == 0 {
+			sc.CareerSub = c.CareerSubLabels()
 		}
 	}
 	if sc.RoleType == "" {
@@ -839,6 +860,15 @@ func formatSceneChar(c SceneChar) string {
 	var bits []string
 	if c.Status != "" {
 		bits = append(bits, "状态: "+c.Status)
+	}
+	if c.CurrentState != "" {
+		bits = append(bits, "当前状态: "+util.Truncate(c.CurrentState, 50))
+	}
+	if c.CareerMain != "" {
+		bits = append(bits, "主职业: "+c.CareerMain)
+	}
+	if len(c.CareerSub) > 0 {
+		bits = append(bits, "副职业: "+strings.Join(c.CareerSub, "、"))
 	}
 	if c.Location != "" {
 		bits = append(bits, "位置: "+c.Location)
