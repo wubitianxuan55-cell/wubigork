@@ -1,18 +1,20 @@
-// sin/SinSidePanel.tsx — 右栏创作面板（v4.263，对标办公右侧面板的标签页形态）。
+// sin/SinSidePanel.tsx — 右栏创作面板（v4.263 页签制 → v4.295 手风琴卡片堆）。
 //
-// 四个页签把故事的「工作底稿 + 产物」聚合到一处：
-//   角色 = 本故事带入的角色库角色（SinCastPanel 原样入页签）；
-//   大纲 = AI 用 sin_outline 工具记下的章节走向（只读）；
-//   设定 = AI 用 sin_notes 工具记下的设定集（只读）；
-//   插图 = 本故事已生成的全部插图缩略图（点开看大图）。
+// 五个功能卡（参考办公右侧面板「一次聚焦一个视图」的形态做卡片化）：
+//   角色 = 本故事带入的角色库角色（SinCastPanel）；
+//   大纲 = AI 用 sin_outline 工具记下的章节走向（可编辑）；
+//   设定 = AI 用 sin_notes 工具记下的设定集（可编辑）；
+//   插图 = 本故事已生成的全部插图缩略图（点开看大图）；
+//   书源 = 搜书/下载成书（sin 书源线 t3）。
+// 卡头常显、一次只展开一张（点卡头切换；268px 宽度下五页签并排过挤，用户拍板卡片化）。
 // 玩法/插图协议/边界三段静态说明收进面板头部的问号气泡（内容不删，版面降噪）。
-// 开合/页签记忆在 sinPanelState.ts（gaea.sin.* 自有键名）。
-// 页签不放图标：268px 面板宽度下「图标+两字」会折行成竖排（真机走查实证），
+// 展开卡记忆在 sinPanelState.ts（gaea.sin.* 自有键名，旧页签值直接迁移）。
+// 卡头不放图标：268px 面板宽度下「图标+两字」会折行成竖排（真机走查实证），
 // 纯文字+计数在密度与可读性上都是对的。
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Button, Modal, Popover } from 'antd'
-import { DeleteOutlined, EditOutlined, PlusOutlined, QuestionCircleOutlined } from '@ant-design/icons'
+import { CaretRightOutlined, DeleteOutlined, EditOutlined, PlusOutlined, QuestionCircleOutlined } from '@ant-design/icons'
 import V3Empty from '../../components/V3Empty'
 import { readFileAsDataURL } from '../../api/image'
 import { collectIllustrations, type SinGalleryItem } from './storyText'
@@ -201,14 +203,6 @@ export function SinSidePanel({
     writeSinPanelTab(tab)
   }, [tab])
 
-  const tabs: Array<{ id: SinSideTabId; label: string; count: number }> = [
-    { id: 'cast', label: '角色', count: cast.length },
-    { id: 'outline', label: '大纲', count: notesDoc.outline ? 1 : 0 },
-    { id: 'notes', label: '设定', count: notesDoc.notes.length },
-    { id: 'gallery', label: '插图', count: gallery.length },
-    { id: 'books', label: '书源', count: 0 }, // 成书计数不进页签徽标（清单自管，避免双向拉状态）
-  ]
-
   return (
     <aside className="sin-side" style={{ width, flexBasis: width }}>
       <div
@@ -224,20 +218,8 @@ export function SinSidePanel({
           writeSinPanelWidth(SIN_PANEL_DEFAULT_WIDTH)
         }}
       />
-      <div className="sin-side-tabs" role="tablist" aria-label="创作面板">
-        {tabs.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            role="tab"
-            aria-selected={tab === t.id}
-            className={`sin-side-tab${tab === t.id ? ' is-active' : ''}`}
-            onClick={() => setTab(t.id)}
-          >
-            <span>{t.label}</span>
-            {t.count > 0 && <span className="sin-side-tab-count">{t.count}</span>}
-          </button>
-        ))}
+      <div className="sin-side-head">
+        <span className="sin-side-head-title">创作面板</span>
         <Popover
           placement="leftTop"
           trigger="click"
@@ -268,200 +250,282 @@ export function SinSidePanel({
           </button>
         </Popover>
       </div>
+      <div className="sin-side-cards" role="tablist" aria-orientation="vertical" aria-label="创作面板">
+        <section className={`sin-acc${tab === 'cast' ? ' is-open' : ''}`}>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === 'cast'}
+            aria-expanded={tab === 'cast'}
+            className="sin-acc-head"
+            title={tab === 'cast' ? undefined : '展开角色'}
+            onClick={() => setTab('cast')}
+          >
+            <CaretRightOutlined className="sin-acc-caret" aria-hidden />
+            <span className="sin-acc-label">角色</span>
+            {cast.length > 0 && <span className="sin-acc-count">{cast.length}</span>}
+          </button>
+          {tab === 'cast' && (
+            <div className="sin-acc-body" role="tabpanel" aria-label="角色">
 
-      <div
-        className="sin-side-body"
-        role="tabpanel"
-        aria-label={tabs.find((t) => t.id === tab)?.label}
-      >
-        {tab === 'cast' && (
-          <SinCastPanel
-            cast={cast}
-            saving={castSaving}
-            onOpenPicker={onOpenPicker}
-            onRemove={onRemoveCast}
-          />
-        )}
-
-        {tab === 'outline' && (
-          <section className="sin-card">
-            {draft?.tab === 'outline' ? (
-              <div className="sin-draft">
-                <textarea
-                  className="sin-draft-ta"
-                  value={draft.outline}
-                  rows={10}
-                  placeholder="章节走向、时间线、伏笔…"
-                  onChange={(e) => setDraft({ ...draft, outline: e.target.value })}
+                <SinCastPanel
+                  cast={cast}
+                  saving={castSaving}
+                  onOpenPicker={onOpenPicker}
+                  onRemove={onRemoveCast}
                 />
-                <div className="sin-draft-meta">
-                  <span className={runeLen(draft.outline) > OUTLINE_MAX_RUNES ? 'is-over' : ''}>
-                    {runeLen(draft.outline)} / {OUTLINE_MAX_RUNES}
-                  </span>
-                  <span className="sin-draft-actions">
-                    <Button
-                      size="small" type="primary" loading={draftSaving}
-                      disabled={sending || runeLen(draft.outline) > OUTLINE_MAX_RUNES}
-                      title={sending ? '回合进行中，暂不能保存' : undefined}
-                      onClick={() => saveDraft(draft)}
-                    >
-                      保存
-                    </Button>
-                    <Button size="small" disabled={draftSaving} onClick={() => setDraft(null)}>取消</Button>
-                  </span>
-                </div>
-                {draftError && <p className="sin-side-error">{draftError}</p>}
-              </div>
-            ) : (
-              <>
-                <div className="sin-card-head">
-                  <button
-                    type="button" className="sin-edit-entry" disabled={sending}
-                    title={sending ? '回合进行中，暂不可编辑' : '编辑大纲'}
-                    onClick={() => startDraft('outline')}
-                  >
-                    <EditOutlined /> {notesDoc.outline ? '编辑' : '写大纲'}
-                  </button>
-                </div>
-                {notesDoc.outline ? (
-                  <div className="sin-outline-text">{notesDoc.outline}</div>
-                ) : (
-                  <EmptyHint
-                    description="还没有大纲"
-                    hint="对话里说「先出个大纲」，AI 会把章节走向、时间线和伏笔记在这里；也可以自己动手写。"
-                  />
-                )}
-              </>
-            )}
-          </section>
-        )}
+            </div>
+          )}
+        </section>
+        <section className={`sin-acc${tab === 'outline' ? ' is-open' : ''}`}>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === 'outline'}
+            aria-expanded={tab === 'outline'}
+            className="sin-acc-head"
+            title={tab === 'outline' ? undefined : '展开大纲'}
+            onClick={() => setTab('outline')}
+          >
+            <CaretRightOutlined className="sin-acc-caret" aria-hidden />
+            <span className="sin-acc-label">大纲</span>
+            {notesDoc.outline ? <span className="sin-acc-count">1</span> : null}
+          </button>
+          {tab === 'outline' && (
+            <div className="sin-acc-body" role="tabpanel" aria-label="大纲">
 
-        {tab === 'notes' && (
-          <section className="sin-card">
-            {draft?.tab === 'notes' ? (
-              <div className="sin-draft">
-                <div className="sin-note-list">
-                  {draft.notes.map((n, i) => (
-                    <div className={`sin-note-item is-editing${runeLen(n) > NOTE_MAX_RUNES ? ' is-over' : ''}`} key={i}>
-                      <span className="sin-note-idx">#{i}</span>
+                <section className="sin-card">
+                  {draft?.tab === 'outline' ? (
+                    <div className="sin-draft">
                       <textarea
-                        className="sin-draft-ta sin-draft-ta-note"
-                        value={n}
-                        rows={2}
-                        placeholder="设定内容…"
-                        onChange={(e) => {
-                          const next = draft.notes.slice()
-                          next[i] = e.target.value
-                          setDraft({ ...draft, notes: next })
-                        }}
+                        className="sin-draft-ta"
+                        value={draft.outline}
+                        rows={10}
+                        placeholder="章节走向、时间线、伏笔…"
+                        onChange={(e) => setDraft({ ...draft, outline: e.target.value })}
                       />
-                      <button
-                        type="button" className="sin-note-del" title="删除这条便签"
-                        onClick={() => setDraft({ ...draft, notes: draft.notes.filter((_, j) => j !== i) })}
-                      >
-                        <DeleteOutlined />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-                <button
-                  type="button" className="sin-edit-entry"
-                  disabled={draft.notes.length >= 200}
-                  title={draft.notes.length >= 200 ? '最多 200 条' : '添加一条'}
-                  onClick={() => setDraft({ ...draft, notes: [...draft.notes, ''] })}
-                >
-                  <PlusOutlined /> 添加一条
-                </button>
-                <div className="sin-draft-meta">
-                  <span className={draft.notes.some((n) => runeLen(n) > NOTE_MAX_RUNES) ? 'is-over' : ''}>
-                    {draft.notes.length} 条{draft.notes.some((n) => runeLen(n) > NOTE_MAX_RUNES) ? ' · 有便签超过 2000 字' : ''}
-                  </span>
-                  <span className="sin-draft-actions">
-                    <Button
-                      size="small" type="primary" loading={draftSaving}
-                      disabled={sending || draft.notes.some((n) => runeLen(n) > NOTE_MAX_RUNES)}
-                      title={sending ? '回合进行中，暂不能保存' : undefined}
-                      onClick={() => saveDraft(draft)}
-                    >
-                      保存
-                    </Button>
-                    <Button size="small" disabled={draftSaving} onClick={() => setDraft(null)}>取消</Button>
-                  </span>
-                </div>
-                {draftError && <p className="sin-side-error">{draftError}</p>}
-              </div>
-            ) : (
-              <>
-                <div className="sin-card-head">
-                  <button
-                    type="button" className="sin-edit-entry" disabled={sending}
-                    title={sending ? '回合进行中，暂不可编辑' : '编辑设定集'}
-                    onClick={() => startDraft('notes')}
-                  >
-                    <EditOutlined /> {notesDoc.notes.length > 0 ? '编辑' : '记便签'}
-                  </button>
-                </div>
-                {notesError ? (
-                  <p className="sin-side-error">{notesError}</p>
-                ) : notesDoc.notes.length > 0 ? (
-                  <div className="sin-note-list">
-                    {notesDoc.notes.map((n, i) => (
-                      <div className="sin-note-item" key={i}>
-                        <span className="sin-note-idx">#{i}</span>
-                        <span className="sin-note-text">{n}</span>
+                      <div className="sin-draft-meta">
+                        <span className={runeLen(draft.outline) > OUTLINE_MAX_RUNES ? 'is-over' : ''}>
+                          {runeLen(draft.outline)} / {OUTLINE_MAX_RUNES}
+                        </span>
+                        <span className="sin-draft-actions">
+                          <Button
+                            size="small" type="primary" loading={draftSaving}
+                            disabled={sending || runeLen(draft.outline) > OUTLINE_MAX_RUNES}
+                            title={sending ? '回合进行中，暂不能保存' : undefined}
+                            onClick={() => saveDraft(draft)}
+                          >
+                            保存
+                          </Button>
+                          <Button size="small" disabled={draftSaving} onClick={() => setDraft(null)}>取消</Button>
+                        </span>
                       </div>
-                    ))}
-                  </div>
-                ) : (
-                  <EmptyHint
-                    description="还没有设定便签"
-                    hint="故事里定下的人名、关系、伏笔，AI 会用便签记在这里，写作时自动对齐；也可以自己记。"
-                  />
-                )}
-              </>
-            )}
-          </section>
-        )}
-
-        {tab === 'gallery' && (
-          <section className="sin-card">
-            {gallery.length > 0 ? (
-              <div className="sin-gal-grid">
-                {gallery.map((item) => (
-                  <figure className="sin-gal-cell" key={item.key}>
-                    <div className={`sin-gal-media${regenKeys.has(item.key) ? ' is-regen' : ''}`}>
-                      <SinGalleryThumb item={item} onOpen={setPreview} />
-                      {regenKeys.has(item.key) ? (
-                        <span className="sin-gal-regen is-busy">重新生成中…</span>
-                      ) : item.prompt ? (
-                        <button
-                          type="button"
-                          className="sin-gal-regen"
-                          disabled={sending}
-                          title={sending ? '故事生成中，稍后再试' : '按原画面描述重新生成这张插图'}
-                          onClick={() => regenerate(item)}
-                        >
-                          重新生成
-                        </button>
-                      ) : null}
+                      {draftError && <p className="sin-side-error">{draftError}</p>}
                     </div>
-                    {item.prompt && (
-                      <figcaption className="sin-gal-cap" title={item.prompt}>{item.prompt}</figcaption>
-                    )}
-                  </figure>
-                ))}
-              </div>
-            ) : (
-              <EmptyHint
-                description="还没有插图"
-                hint={notesLoading ? '正在读取…' : '正文里出现插图位时会自动出图，生成后都收在这里。'}
-              />
-            )}
-          </section>
-        )}
+                  ) : (
+                    <>
+                      <div className="sin-card-head">
+                        <button
+                          type="button" className="sin-edit-entry" disabled={sending}
+                          title={sending ? '回合进行中，暂不可编辑' : '编辑大纲'}
+                          onClick={() => startDraft('outline')}
+                        >
+                          <EditOutlined /> {notesDoc.outline ? '编辑' : '写大纲'}
+                        </button>
+                      </div>
+                      {notesDoc.outline ? (
+                        <div className="sin-outline-text">{notesDoc.outline}</div>
+                      ) : (
+                        <EmptyHint
+                          description="还没有大纲"
+                          hint="对话里说「先出个大纲」，AI 会把章节走向、时间线和伏笔记在这里；也可以自己动手写。"
+                        />
+                      )}
+                    </>
+                  )}
+                </section>
+            </div>
+          )}
+        </section>
+        <section className={`sin-acc${tab === 'notes' ? ' is-open' : ''}`}>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === 'notes'}
+            aria-expanded={tab === 'notes'}
+            className="sin-acc-head"
+            title={tab === 'notes' ? undefined : '展开设定'}
+            onClick={() => setTab('notes')}
+          >
+            <CaretRightOutlined className="sin-acc-caret" aria-hidden />
+            <span className="sin-acc-label">设定</span>
+            {notesDoc.notes.length > 0 && <span className="sin-acc-count">{notesDoc.notes.length}</span>}
+          </button>
+          {tab === 'notes' && (
+            <div className="sin-acc-body" role="tabpanel" aria-label="设定">
 
-        {tab === 'books' && <SinBookSourcePanel />}
+                <section className="sin-card">
+                  {draft?.tab === 'notes' ? (
+                    <div className="sin-draft">
+                      <div className="sin-note-list">
+                        {draft.notes.map((n, i) => (
+                          <div className={`sin-note-item is-editing${runeLen(n) > NOTE_MAX_RUNES ? ' is-over' : ''}`} key={i}>
+                            <span className="sin-note-idx">#{i}</span>
+                            <textarea
+                              className="sin-draft-ta sin-draft-ta-note"
+                              value={n}
+                              rows={2}
+                              placeholder="设定内容…"
+                              onChange={(e) => {
+                                const next = draft.notes.slice()
+                                next[i] = e.target.value
+                                setDraft({ ...draft, notes: next })
+                              }}
+                            />
+                            <button
+                              type="button" className="sin-note-del" title="删除这条便签"
+                              onClick={() => setDraft({ ...draft, notes: draft.notes.filter((_, j) => j !== i) })}
+                            >
+                              <DeleteOutlined />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                      <button
+                        type="button" className="sin-edit-entry"
+                        disabled={draft.notes.length >= 200}
+                        title={draft.notes.length >= 200 ? '最多 200 条' : '添加一条'}
+                        onClick={() => setDraft({ ...draft, notes: [...draft.notes, ''] })}
+                      >
+                        <PlusOutlined /> 添加一条
+                      </button>
+                      <div className="sin-draft-meta">
+                        <span className={draft.notes.some((n) => runeLen(n) > NOTE_MAX_RUNES) ? 'is-over' : ''}>
+                          {draft.notes.length} 条{draft.notes.some((n) => runeLen(n) > NOTE_MAX_RUNES) ? ' · 有便签超过 2000 字' : ''}
+                        </span>
+                        <span className="sin-draft-actions">
+                          <Button
+                            size="small" type="primary" loading={draftSaving}
+                            disabled={sending || draft.notes.some((n) => runeLen(n) > NOTE_MAX_RUNES)}
+                            title={sending ? '回合进行中，暂不能保存' : undefined}
+                            onClick={() => saveDraft(draft)}
+                          >
+                            保存
+                          </Button>
+                          <Button size="small" disabled={draftSaving} onClick={() => setDraft(null)}>取消</Button>
+                        </span>
+                      </div>
+                      {draftError && <p className="sin-side-error">{draftError}</p>}
+                    </div>
+                  ) : (
+                    <>
+                      <div className="sin-card-head">
+                        <button
+                          type="button" className="sin-edit-entry" disabled={sending}
+                          title={sending ? '回合进行中，暂不可编辑' : '编辑设定集'}
+                          onClick={() => startDraft('notes')}
+                        >
+                          <EditOutlined /> {notesDoc.notes.length > 0 ? '编辑' : '记便签'}
+                        </button>
+                      </div>
+                      {notesError ? (
+                        <p className="sin-side-error">{notesError}</p>
+                      ) : notesDoc.notes.length > 0 ? (
+                        <div className="sin-note-list">
+                          {notesDoc.notes.map((n, i) => (
+                            <div className="sin-note-item" key={i}>
+                              <span className="sin-note-idx">#{i}</span>
+                              <span className="sin-note-text">{n}</span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <EmptyHint
+                          description="还没有设定便签"
+                          hint="故事里定下的人名、关系、伏笔，AI 会用便签记在这里，写作时自动对齐；也可以自己记。"
+                        />
+                      )}
+                    </>
+                  )}
+                </section>
+            </div>
+          )}
+        </section>
+        <section className={`sin-acc${tab === 'gallery' ? ' is-open' : ''}`}>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === 'gallery'}
+            aria-expanded={tab === 'gallery'}
+            className="sin-acc-head"
+            title={tab === 'gallery' ? undefined : '展开插图'}
+            onClick={() => setTab('gallery')}
+          >
+            <CaretRightOutlined className="sin-acc-caret" aria-hidden />
+            <span className="sin-acc-label">插图</span>
+            {gallery.length > 0 && <span className="sin-acc-count">{gallery.length}</span>}
+          </button>
+          {tab === 'gallery' && (
+            <div className="sin-acc-body" role="tabpanel" aria-label="插图">
+
+                <section className="sin-card">
+                  {gallery.length > 0 ? (
+                    <div className="sin-gal-grid">
+                      {gallery.map((item) => (
+                        <figure className="sin-gal-cell" key={item.key}>
+                          <div className={`sin-gal-media${regenKeys.has(item.key) ? ' is-regen' : ''}`}>
+                            <SinGalleryThumb item={item} onOpen={setPreview} />
+                            {regenKeys.has(item.key) ? (
+                              <span className="sin-gal-regen is-busy">重新生成中…</span>
+                            ) : item.prompt ? (
+                              <button
+                                type="button"
+                                className="sin-gal-regen"
+                                disabled={sending}
+                                title={sending ? '故事生成中，稍后再试' : '按原画面描述重新生成这张插图'}
+                                onClick={() => regenerate(item)}
+                              >
+                                重新生成
+                              </button>
+                            ) : null}
+                          </div>
+                          {item.prompt && (
+                            <figcaption className="sin-gal-cap" title={item.prompt}>{item.prompt}</figcaption>
+                          )}
+                        </figure>
+                      ))}
+                    </div>
+                  ) : (
+                    <EmptyHint
+                      description="还没有插图"
+                      hint={notesLoading ? '正在读取…' : '正文里出现插图位时会自动出图，生成后都收在这里。'}
+                    />
+                  )}
+                </section>
+            </div>
+          )}
+        </section>
+        <section className={`sin-acc${tab === 'books' ? ' is-open' : ''}`}>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === 'books'}
+            aria-expanded={tab === 'books'}
+            className="sin-acc-head"
+            title={tab === 'books' ? undefined : '展开书源'}
+            onClick={() => setTab('books')}
+          >
+            <CaretRightOutlined className="sin-acc-caret" aria-hidden />
+            <span className="sin-acc-label">书源</span>
+          </button>
+          {tab === 'books' && (
+            <div className="sin-acc-body" role="tabpanel" aria-label="书源">
+      <SinBookSourcePanel />
+            </div>
+          )}
+        </section>
       </div>
+
 
       <Modal
         open={preview !== null}
