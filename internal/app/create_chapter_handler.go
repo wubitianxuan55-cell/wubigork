@@ -121,6 +121,11 @@ func (a *writingState) CreateChapter(setting, prevSummary, plotReq string, chapt
 	//    场景圣经注入生成 prompt，替代「扁平截断前文摘要」的失忆问题。
 	//    任何编译失败都静默跳过——绝不因增强失败中断生成主链路。
 	if bible, err := novelcontext.BuildSceneBibleFromChapter(pm, targetNum); err == nil && bible != nil {
+		// 相关记忆召回（t3-P2）：结构化 query → 语义检索 → 阈值/兜底筛选，
+		// 注入 SceneBible 记忆区段。全链容错：无库/无 embedding/无记忆返回 nil。
+		if node := findOutlineNodeByID(of.Nodes, nodeID); node != nil {
+			bible.Memories = a.recallStoryMemories(pm, node, plotReq, targetNum)
+		}
 		if r := bible.Render(ctxSceneBibleBudget); r != "" {
 			userPrompt += "\n\n" + r
 		}
@@ -622,7 +627,7 @@ const (
 // 前文摘要窗口（t3 首刀，spec docs/distill/03-long-range-consistency.md §12.1，
 // 对齐 MuMu chapter_context_service.py:1375/:1408 的「最近 10 章摘要窗口」）。
 const (
-	ctxPrevWindowChapters = 10 // 只注入本章之前的最近 N 章
+	ctxPrevWindowChapters = 10  // 只注入本章之前的最近 N 章
 	ctxPrevChapterLen     = 180 // 窗口内单章摘要截断（rune）
 )
 

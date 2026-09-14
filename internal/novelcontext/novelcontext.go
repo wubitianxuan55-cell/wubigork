@@ -35,6 +35,8 @@ const (
 	hiddenBudget      = 160 // POV 不知情事实（约束）
 	foreshadowBudget  = 280 // 未回收伏笔
 	timeAnchorBudget  = 120 // 时间锚点
+	memoryBudget      = 400 // 相关记忆（语义召回，t3-P2）
+	memoryLineMax     = 120 // 单条记忆行截断
 	styleBudget       = 240 // 文风指导
 	threadBudget      = 100 // 故事主线
 	foreshadowLineMax = 90  // 单条伏笔描述截断
@@ -52,6 +54,7 @@ type SceneBible struct {
 	POVView     string          // 仅当前 POV 角色知情的关键事实（视角掩码产物）
 	HiddenFacts []string        // POV 不知情、且不得在本场景泄露的事实（生成时约束）
 	Foreshadows []string        // 未回收伏笔（创作约束）
+	Memories    []string        // 相关记忆（语义召回，按相关度降序，t3-P2）
 	TimeAnchor  string          // 时间锚点（本场景相对上一场景的时间）
 	Style       string          // 文风指导（style.LoadProfile → ToStyleGuide，截断）
 	Thread      string          // 故事主线（当前必须在推进的主线）
@@ -150,6 +153,17 @@ func (b *SceneBible) Render(maxRunes int) string {
 
 	if len(b.Foreshadows) > 0 {
 		addSection("未回收伏笔（分层约束）", strings.Join(b.Foreshadows, "\n"))
+	}
+	
+	if len(b.Memories) > 0 {
+		// 语义召回的历史记忆（t3-P2）：参考信息，与伏笔同层——辅助衔接而非硬约束
+		memLines := make([]string, 0, len(b.Memories))
+		for _, m := range b.Memories {
+			if m = strings.TrimSpace(m); m != "" {
+				memLines = append(memLines, util.Truncate(m, memoryLineMax))
+			}
+		}
+		addSection("相关记忆（按相关度）", util.Truncate(strings.Join(memLines, "\n"), memoryBudget))
 	}
 
 	addSection("时间锚点", b.TimeAnchor)

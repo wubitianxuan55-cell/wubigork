@@ -703,3 +703,29 @@ func (m *Manager) WriteChapterMemories(chapterNum int, items []types.StoryMemory
 	}
 	return writeJSON(path, &types.StoryMemoryFile{Items: items})
 }
+
+// ReadAllChapterMemories 读取全部章节的故事记忆（memories/MMM-*.json），
+// 按章号升序拍平；单个文件损坏跳过不中断（记忆是增强数据，不因脏档丢全书）。
+func (m *Manager) ReadAllChapterMemories() ([]types.StoryMemory, error) {
+	entries, err := os.ReadDir(filepath.Join(m.Dir, "memories"))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	out := make([]types.StoryMemory, 0, 64)
+	for _, e := range entries {
+		name := e.Name()
+		if e.IsDir() || !strings.HasPrefix(name, "MMM-") || !strings.HasSuffix(name, "-memory.json") {
+			continue
+		}
+		f, err := loadJSON[types.StoryMemoryFile](filepath.Join(m.Dir, "memories", name))
+		if err != nil {
+			continue // 脏档跳过
+		}
+		out = append(out, f.Items...)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].ChapterNum < out[j].ChapterNum })
+	return out, nil
+}
