@@ -1440,13 +1440,23 @@ body::after {
 }
 
 /* ══ 通用办公重设计：清爽化覆写 ══
-   对话列加宽并左对齐：正文与输入框共用 --maxw（min(1000px, 100%)）同一左缘，
-   与右侧工作台/产物面板等满宽区域对齐。仅办公板块生效——.v3-reading 的
-   74ch 居中窄栏保留给对话/小说板块。 */
+   对话列加宽至 --maxw（min(1000px, 100%)）：右栏（工作台/产物预览）开启时
+   左对齐——与右栏满宽区域共用同一左缘；右栏折叠时回到居中（margin auto），
+   与输入框 Composer 根节点 mx-auto 同缘（否则折叠后输入框居中、正文靠左
+   错位）。仅办公板块生效——.v3-reading 的 74ch 居中窄栏保留给对话/小说板块。 */
 .gaea-app-layout .v3-reading {
   max-width: var(--maxw);
-  margin-left: 0;
-  margin-right: 0;
+  margin-left: auto;
+  margin-right: auto;
+}
+/* 左对齐仅在右栏真实可见时生效：与 ≤1239px 的 workspace-pane display:none
+   网格覆写同断点（窄窗下类仍在而面板不可见，不左对齐）。 */
+@media (min-width: 1240px) {
+  .gaea-app-layout .layout--workspace-open .v3-reading,
+  .gaea-app-layout .layout--preview-open .v3-reading {
+    margin-left: 0;
+    margin-right: 0;
+  }
 }
 
 .msg--user .msg__body {
