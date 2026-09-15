@@ -403,6 +403,10 @@ export const GAEA_METHOD_FACETS = {
   AcceptMemorySuggestion: "work",
   AcceptMergeSuggestion: "work",
   AcceptSkillSuggestion: "work",
+  // journal 历史蒸馏（7.2-2）：journal 证据链恒 work 空间，建议/蒸馏/决定同域。
+  SkillDistillCandidates: "work",
+  SkillDistillDraft: "work",
+  SkillDistillDecide: "work",
   KnowledgeList: "work",
   KnowledgeSearch: "work",
   MemoryHubOverview: "work",

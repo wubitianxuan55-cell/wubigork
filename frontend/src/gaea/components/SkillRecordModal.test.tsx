@@ -93,4 +93,34 @@ describe("SkillRecordModal 会话录制技能", () => {
     expect(screen.queryByTestId("record-name")).toBeNull();
     expect(screen.getByRole("button", { name: /重新蒸馏/ })).toBeTruthy();
   });
+
+  // ── preload 路径（7.2-2 journal 蒸馏收口）：跳过内部蒸馏直接回填 ──
+
+  it("preload 提供时不再调用 SkillDraftFromSession，直接回填表单", async () => {
+    render(
+      <ToastProvider>
+        <SkillRecordModal open preload={SAMPLE} onClose={() => {}} />
+      </ToastProvider>,
+    );
+    await waitFor(() => {
+      expect((screen.getByTestId("record-name") as HTMLInputElement).value).toBe("weekly-report");
+    });
+    expect((screen.getByTestId("record-steps") as HTMLTextAreaElement).value).toBe(
+      "读取本周会议纪要\n汇总完成事项",
+    );
+    expect(draftFromSession).not.toHaveBeenCalled();
+  });
+
+  it("preload 保存成功后 onSaved 收到落盘技能名", async () => {
+    const onSaved = vi.fn();
+    draftSave.mockResolvedValue({ name: "weekly-report", reloaded: true });
+    render(
+      <ToastProvider>
+        <SkillRecordModal open preload={SAMPLE} onClose={() => {}} onSaved={onSaved} />
+      </ToastProvider>,
+    );
+    await waitFor(() => expect(screen.getByTestId("record-steps")).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: /^保\s*存\s*为\s*技\s*能$/ }));
+    await waitFor(() => expect(onSaved).toHaveBeenCalledWith("weekly-report"));
+  });
 });

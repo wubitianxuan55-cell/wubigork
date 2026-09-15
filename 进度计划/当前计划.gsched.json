@@ -1,0 +1,454 @@
+{
+  "name": "双流黄甲金具厂地块土壤污染修复项目进度计划",
+  "startDate": "2026-09-01",
+  "tasks": [
+    {
+      "id": "g1",
+      "name": "施工准备",
+      "duration": 0,
+      "level": 0,
+      "progress": 0
+    },
+    {
+      "id": "t101",
+      "name": "管理人员进场及场地交接",
+      "duration": 1,
+      "level": 1,
+      "progress": 0
+    },
+    {
+      "id": "t102",
+      "name": "人员教育体检投保及PPE配置",
+      "duration": 3,
+      "level": 1,
+      "progress": 0
+    },
+    {
+      "id": "t103",
+      "name": "施工方案编制报审",
+      "duration": 4,
+      "level": 1,
+      "progress": 0
+    },
+    {
+      "id": "t104",
+      "name": "转运备案及处置协议办理",
+      "duration": 5,
+      "level": 1,
+      "progress": 0
+    },
+    {
+      "id": "t105",
+      "name": "应急预案备案",
+      "duration": 8,
+      "level": 1,
+      "progress": 0
+    },
+    {
+      "id": "t106",
+      "name": "围挡声屏障及场地水电",
+      "duration": 4,
+      "level": 1,
+      "progress": 0
+    },
+    {
+      "id": "t107",
+      "name": "预处理大棚及配套临建",
+      "duration": 8,
+      "level": 1,
+      "progress": 0
+    },
+    {
+      "id": "t108",
+      "name": "机械物资进场调试",
+      "duration": 5,
+      "level": 1,
+      "progress": 0
+    },
+    {
+      "id": "t109",
+      "name": "清挖班组进场教育",
+      "duration": 2,
+      "level": 1,
+      "progress": 0
+    },
+    {
+      "id": "t110",
+      "name": "临建综合验收及开工报告",
+      "duration": 1,
+      "level": 1,
+      "progress": 0
+    },
+    {
+      "id": "m1",
+      "name": "节点一：临建投用具备清挖条件",
+      "duration": 0,
+      "level": 1,
+      "progress": 0,
+      "isMilestone": true
+    },
+    {
+      "id": "g2",
+      "name": "清挖筛分与转运",
+      "duration": 0,
+      "level": 0,
+      "progress": 0
+    },
+    {
+      "id": "t201",
+      "name": "建渣清理及清洁土剥离",
+      "duration": 3,
+      "level": 1,
+      "progress": 0
+    },
+    {
+      "id": "t202",
+      "name": "分层清挖（三层）",
+      "duration": 7,
+      "level": 1,
+      "progress": 0
+    },
+    {
+      "id": "t203",
+      "name": "筛分冲洗及筛下土外运",
+      "duration": 7,
+      "level": 1,
+      "progress": 0
+    },
+    {
+      "id": "t204",
+      "name": "培坑快筛及清挖到位",
+      "duration": 1,
+      "level": 1,
+      "progress": 0
+    },
+    {
+      "id": "m2",
+      "name": "节点二/三：清挖转运完成",
+      "duration": 0,
+      "level": 1,
+      "progress": 0,
+      "isMilestone": true
+    },
+    {
+      "id": "g3",
+      "name": "回填与场地恢复",
+      "duration": 0,
+      "level": 0,
+      "progress": 0
+    },
+    {
+      "id": "t301",
+      "name": "建渣冲洗料及清洁土回填",
+      "duration": 6,
+      "level": 1,
+      "progress": 0
+    },
+    {
+      "id": "t302",
+      "name": "场地平整及自验收",
+      "duration": 2,
+      "level": 1,
+      "progress": 0
+    },
+    {
+      "id": "m3",
+      "name": "节点四：自验收合格",
+      "duration": 0,
+      "level": 1,
+      "progress": 0,
+      "isMilestone": true
+    },
+    {
+      "id": "g4",
+      "name": "效果评估与备案",
+      "duration": 0,
+      "level": 0,
+      "progress": 0
+    },
+    {
+      "id": "t401",
+      "name": "第三方检测采样与分析",
+      "duration": 13,
+      "level": 1,
+      "progress": 0
+    },
+    {
+      "id": "m4",
+      "name": "节点五：检测数据出具",
+      "duration": 0,
+      "level": 1,
+      "progress": 0,
+      "isMilestone": true
+    },
+    {
+      "id": "t402",
+      "name": "效果评估报告编制",
+      "duration": 10,
+      "level": 1,
+      "progress": 0
+    },
+    {
+      "id": "t403",
+      "name": "专家评审",
+      "duration": 7,
+      "level": 1,
+      "progress": 0
+    },
+    {
+      "id": "t404",
+      "name": "效果评估备案",
+      "duration": 8,
+      "level": 1,
+      "progress": 0
+    },
+    {
+      "id": "m5",
+      "name": "节点六：效果评估备案完成",
+      "duration": 0,
+      "level": 1,
+      "progress": 0,
+      "isMilestone": true
+    }
+  ],
+  "links": [
+    {
+      "from": "t101",
+      "to": "t103",
+      "type": "SS",
+      "lag": 0
+    },
+    {
+      "from": "t101",
+      "to": "t104",
+      "type": "SS",
+      "lag": 0
+    },
+    {
+      "from": "t101",
+      "to": "t105",
+      "type": "SS",
+      "lag": 0
+    },
+    {
+      "from": "t101",
+      "to": "t106",
+      "type": "SS",
+      "lag": 0
+    },
+    {
+      "from": "t101",
+      "to": "t107",
+      "type": "SS",
+      "lag": 0
+    },
+    {
+      "from": "t101",
+      "to": "t108",
+      "type": "SS",
+      "lag": 2
+    },
+    {
+      "from": "t101",
+      "to": "t109",
+      "type": "SS",
+      "lag": 4
+    },
+    {
+      "from": "t102",
+      "to": "t109",
+      "type": "FS",
+      "lag": 0
+    },
+    {
+      "from": "t108",
+      "to": "t110",
+      "type": "FS",
+      "lag": 0
+    },
+    {
+      "from": "t109",
+      "to": "t110",
+      "type": "FS",
+      "lag": 0
+    },
+    {
+      "from": "t103",
+      "to": "t110",
+      "type": "FS",
+      "lag": 0
+    },
+    {
+      "from": "t104",
+      "to": "t110",
+      "type": "FS",
+      "lag": 0
+    },
+    {
+      "from": "t106",
+      "to": "t110",
+      "type": "FS",
+      "lag": 0
+    },
+    {
+      "from": "t105",
+      "to": "t110",
+      "type": "FF",
+      "lag": 0
+    },
+    {
+      "from": "t107",
+      "to": "t110",
+      "type": "FF",
+      "lag": 0
+    },
+    {
+      "from": "t110",
+      "to": "m1",
+      "type": "FS",
+      "lag": 0
+    },
+    {
+      "from": "t110",
+      "to": "t201",
+      "type": "SS",
+      "lag": 0
+    },
+    {
+      "from": "t108",
+      "to": "t201",
+      "type": "FS",
+      "lag": 0
+    },
+    {
+      "from": "t106",
+      "to": "t201",
+      "type": "FS",
+      "lag": 0
+    },
+    {
+      "from": "t201",
+      "to": "t202",
+      "type": "SS",
+      "lag": 0
+    },
+    {
+      "from": "t202",
+      "to": "t203",
+      "type": "SS",
+      "lag": 0
+    },
+    {
+      "from": "t104",
+      "to": "t203",
+      "type": "FS",
+      "lag": 0
+    },
+    {
+      "from": "t107",
+      "to": "t203",
+      "type": "SS",
+      "lag": 7
+    },
+    {
+      "from": "t202",
+      "to": "t204",
+      "type": "FF",
+      "lag": 0
+    },
+    {
+      "from": "t202",
+      "to": "m2",
+      "type": "FS",
+      "lag": 0
+    },
+    {
+      "from": "t203",
+      "to": "m2",
+      "type": "FS",
+      "lag": 0
+    },
+    {
+      "from": "t204",
+      "to": "m2",
+      "type": "FS",
+      "lag": 0
+    },
+    {
+      "from": "m2",
+      "to": "t301",
+      "type": "FS",
+      "lag": 0
+    },
+    {
+      "from": "t301",
+      "to": "t302",
+      "type": "FS",
+      "lag": 0
+    },
+    {
+      "from": "t302",
+      "to": "m3",
+      "type": "FS",
+      "lag": 0
+    },
+    {
+      "from": "m3",
+      "to": "t401",
+      "type": "FS",
+      "lag": 0
+    },
+    {
+      "from": "t401",
+      "to": "m4",
+      "type": "FS",
+      "lag": 0
+    },
+    {
+      "from": "m4",
+      "to": "t402",
+      "type": "FS",
+      "lag": 0
+    },
+    {
+      "from": "t402",
+      "to": "t403",
+      "type": "FS",
+      "lag": 0
+    },
+    {
+      "from": "t403",
+      "to": "t404",
+      "type": "FS",
+      "lag": 0
+    },
+    {
+      "from": "t404",
+      "to": "m5",
+      "type": "FS",
+      "lag": 0
+    },
+    {
+      "from": "t101",
+      "to": "t102",
+      "type": "SS",
+      "lag": 0
+    }
+  ],
+  "calendar": {
+    "workweek": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6
+    ],
+    "holidays": []
+  },
+  "deadline": "2026-10-30",
+  "aoaLayout": {
+    "pins": {}
+  }
+}

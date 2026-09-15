@@ -2,12 +2,15 @@
 // 从 App.tsx 按原声明顺序迁出：历史抽屉打开/恢复/删除/重命名、删除当前会话、
 // 工作区切换、跨项目恢复、置顶/归档/恢复、记忆写操作与建议接受。全部为
 // useCallback/useMemo，无 effect，deps 数组原样保留。
-import { useCallback, useMemo } from "react";
+// 7.2-2 追加：流程蒸馏（journal 历史蒸馏）的视图状态与四组 handler——本文件
+// 唯一的 useState（distill 视图/加载态自包含于此，MemoryPanel 经可选 props
+// 消费，未接线调用方零感知）。
+import { useCallback, useMemo, useState } from "react";
 import { app } from "../lib/bridge";
 import type { Translator } from "../lib/i18n";
 import type {
   MemorySuggestion, MemorySuggestionsView, MemoryView, ProjectGroup,
-  SessionMeta, SkillSuggestion,
+  SessionMeta, SkillDistillView, SkillRecordResult, SkillSuggestion,
 } from "../lib/types";
 import { purgeDeletedSessionGenui } from "./sessionCleanup";
 
@@ -235,11 +238,77 @@ export function useSessionHandlers(params: UseSessionHandlersParams) {
     }
   }, []);
 
+  // ── 流程蒸馏（阶段七 7.2-2：journal 历史挖掘 → 技能结晶）──────────────
+  // 契约：app.SkillDistillCandidates / SkillDistillDraft / SkillDistillDecide
+  // （主代理收口在 lib/bridge 统一补齐；收口前 import 处 tsc 必红，属预期）。
+
+  // distill 视图 + 加载态（refresh 由容器在记忆面板打开/点刷新时触发）。
+  const [distillView, setDistillView] = useState<SkillDistillView | null>(null);
+  const [distillLoading, setDistillLoading] = useState(false);
+
+  // refreshDistill 复算候选（纯确定性挖掘，零 LLM）；失败静默容错（onRefreshSuggestions 同款先例）。
+  const refreshDistill = useCallback(async (): Promise<SkillDistillView | null> => {
+    setDistillLoading(true);
+    try {
+      const v = await app.SkillDistillCandidates();
+      setDistillView(v);
+      return v;
+    } catch (e) {
+      console.warn("[gaea-distill] candidates failed:", e);
+      return null;
+    } finally {
+      setDistillLoading(false);
+    }
+  }, []);
+
+  // draftDistill 对一条候选生成 LLM 蒸馏草稿（只回不落盘）。调用方
+  // （MemoryPanel 容器层）拿到结果后以 SkillRecordModal preload 打开审阅。
+  const draftDistill = useCallback(async (patternId: string): Promise<SkillRecordResult | null> => {
+    try {
+      return await app.SkillDistillDraft(patternId);
+    } catch (e) {
+      toast.show(String((e as Error)?.message ?? e), "warn");
+      return null;
+    }
+  }, [toast]);
+
+  // ignoreDistill「不再提示」：Decide(id,"ignore","") 落状态 → 复算即静默跳过。
+  const ignoreDistill = useCallback(
+    async (patternId: string) => {
+      try {
+        await app.SkillDistillDecide(patternId, "ignore", "");
+      } catch (e) {
+        toast.show(String((e as Error)?.message ?? e), "warn");
+        return;
+      }
+      await refreshDistill();
+    },
+    [refreshDistill, toast],
+  );
+
+  // crystallizeDistill 结晶审计：审阅弹窗保存成功后回调（skillName=落盘技能
+  // 名），Decide(id,"crystallized",skillName) 记录哪些会话、何时、结晶成哪个
+  // 技能，随后刷新候选（该模式不再出现）。
+  const crystallizeDistill = useCallback(
+    async (patternId: string, skillName: string) => {
+      try {
+        await app.SkillDistillDecide(patternId, "crystallized", skillName);
+      } catch (e) {
+        // 审计落账失败不回滚已保存技能（技能本体已生效），告警即可。
+        console.warn("[gaea-distill] crystallized decide failed:", e);
+      }
+      await refreshDistill();
+    },
+    [refreshDistill],
+  );
+
   return {
     openHistory, closeHistory, onResumeSession, onDeleteSession, onRenameSession,
     confirmDeleteCurrent, switchFolder, resumeSessionInProject, recentSessions,
     resumeRecentSession, onArchiveSession, onPinSession, onRestoreSession,
     onRemember, onForget, onSaveDoc, onSaveFact, onAcceptMemorySuggestion,
     onAcceptSkillSuggestion, onAcceptMergeSuggestion, onRefreshSuggestions,
+    distillView, distillLoading, refreshDistill, draftDistill, ignoreDistill,
+    crystallizeDistill,
   };
 }

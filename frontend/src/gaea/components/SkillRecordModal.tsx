@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Button, Input, Modal, Typography } from "antd";
 import { useToast } from "./Toast";
 import { app } from "../lib/bridge";
-import type { SkillDraft } from "../lib/types";
+import type { SkillDraft, SkillRecordResult } from "../lib/types";
 
 const { Text } = Typography;
 
@@ -11,7 +11,20 @@ const { Text } = Typography;
 // （名称/描述/适用场景/步骤/注意事项），用户审阅修订后保存——与单轮「沉淀
 // 为技能」走同一落盘通道（同名覆盖 + 全局镜像 + 热加载）。LLM 只产草稿，
 // 落盘必经用户确认。
-export function SkillRecordModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+// 7.2-2 扩展（全部可选，缺省行为与 7.2-1 逐字节一致）：preload 提供时打开
+// 不再内部蒸馏，直接回填外部已蒸馏的结果（journal 流程蒸馏入口复用本审阅
+// 管道）；onSaved 在保存成功后回调落盘技能名（结晶审计 Decide 用）。
+export function SkillRecordModal({
+  open,
+  onClose,
+  preload,
+  onSaved,
+}: {
+  open: boolean;
+  onClose: () => void;
+  preload?: SkillRecordResult;
+  onSaved?: (skillName: string) => void;
+}) {
   const toast = useToast();
   const [drafting, setDrafting] = useState(false);
   const [draft, setDraft] = useState<SkillDraft | null>(null);
@@ -44,7 +57,15 @@ export function SkillRecordModal({ open, onClose }: { open: boolean; onClose: ()
   useEffect(() => {
     if (open) {
       reset();
-      void distill();
+      if (preload) {
+        // preload（7.2-2 流程蒸馏）：外部已完成蒸馏，直接回填，不再调用
+        // SkillDraftFromSession（LLM 零重复消耗）。
+        setDraft(preload.draft);
+        setReplay(preload.replay);
+        setPreview(preload.preview);
+      } else {
+        void distill();
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
@@ -72,6 +93,7 @@ export function SkillRecordModal({ open, onClose }: { open: boolean; onClose: ()
           ? `技能已保存并热加载：/${res.name}（技能 ${res.skills} 个）`
           : `技能已保存：/${res.name}`,
       );
+      onSaved?.(res.name);
       onClose();
     } catch (e: unknown) {
       toast.show(String((e as Error)?.message ?? e), "warn");

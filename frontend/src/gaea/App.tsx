@@ -312,6 +312,7 @@ export default function App() {
     resumeRecentSession, onArchiveSession, onPinSession, onRestoreSession,
     onRemember, onForget, onSaveDoc, onSaveFact, onAcceptMemorySuggestion,
     onAcceptSkillSuggestion, onAcceptMergeSuggestion, onRefreshSuggestions,
+    distillView, distillLoading, refreshDistill, draftDistill, ignoreDistill, crystallizeDistill,
   } = useSessionHandlers({
     t, toast, refreshSessions, deleteSession, newSessionAndReset, pickWorkspace,
     switchWorkspace, handleResumeSession, handleDeleteSession, handleRenameSession,
@@ -734,6 +735,12 @@ export default function App() {
                         onAcceptSkillSuggestion={onAcceptSkillSuggestion}
                         onAcceptMergeSuggestion={onAcceptMergeSuggestion}
                         onRefreshSuggestions={onRefreshSuggestions}
+                        distillView={distillView}
+                        distillLoading={distillLoading}
+                        onRefreshDistill={refreshDistill}
+                        onDraftDistill={draftDistill}
+                        onIgnoreDistill={ignoreDistill}
+                        onCrystallizeDistill={crystallizeDistill}
                       />
                     )}
                   </>

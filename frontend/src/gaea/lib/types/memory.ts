@@ -108,3 +108,26 @@ export type MemoryGraphView = WireShape<AppModels.MemoryGraphView>;
 export type SemanticGraphView = WireShape<AppModels.SemanticGraphView>;
 // 办公记忆疑似重复对（keep 为建议保留项）。
 export type MemoryDuplicateView = WireShape<AppModels.MemoryDuplicateView>;
+
+// ── 流程蒸馏（阶段七 7.2-2：journal 历史挖掘 → 技能结晶建议）──────────
+
+// SkillDistillCandidateView 是一条跨会话重复流程候选（GaeaSkillDistillCandidates）：
+// pattern 为 PatternLine 步骤行（如 "edit_file .md"，视图层直显）；repeat 为出现
+// 该模式的不同会话数；evidence 为人类可读证据行。手写接口（MemoryEvalReport
+// 先例：不依赖 wailsjs 生成物，防包环）。
+export interface SkillDistillCandidateView {
+  id: string;
+  pattern: string[];
+  repeat: number;
+  sessions: string[];
+  evidence: string[];
+  lastAt: number;
+}
+
+// SkillDistillView 是流程蒸馏视图：候选列表（至多 3 条）+ journal 可用性
+// （available=false 表示历史执行数据不可读/无沉淀）+ 生成时间。
+export interface SkillDistillView {
+  candidates: SkillDistillCandidateView[];
+  available: boolean;
+  generatedAt: string;
+}

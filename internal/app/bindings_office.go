@@ -171,6 +171,9 @@ func (b *OfficeB) GaeaSetSandbox(bash string, network bool, workspaceRoot string
 func (b *OfficeB) GaeaSetSubagentEffort(effort string) error { return b.a.GaeaSetSubagentEffort(effort) }
 func (b *OfficeB) GaeaSetSubagentModelForSkill(skill string, ref string) error { return b.a.GaeaSetSubagentModelForSkill(skill, ref) }
 func (b *OfficeB) GaeaSettings() SettingsView { return b.a.GaeaSettings() }
+func (b *OfficeB) GaeaSkillDistillCandidates() SkillDistillView { return b.a.GaeaSkillDistillCandidates() }
+func (b *OfficeB) GaeaSkillDistillDecide(patternID string, decision string, skillName string) error { return b.a.GaeaSkillDistillDecide(patternID, decision, skillName) }
+func (b *OfficeB) GaeaSkillDistillDraft(patternID string) (SkillRecordResult, error) { return b.a.GaeaSkillDistillDraft(patternID) }
 func (b *OfficeB) GaeaSkillDraftFromSession() (SkillRecordResult, error) { return b.a.GaeaSkillDraftFromSession() }
 func (b *OfficeB) GaeaSkillDraftSave(d SkillDraft) (SkillCaptureResult, error) { return b.a.GaeaSkillDraftSave(d) }
 func (b *OfficeB) GaeaSkills() []map[string]interface{} { return b.a.GaeaSkills() }

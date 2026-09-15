@@ -531,6 +531,18 @@ export const zh: Record<DictKey, string> = {
   "memory.savedBadge": "✓ 已保存",
   "memory.createdBadge": "✓ 已创建",
   "memory.generatedAt": "生成于",
+  // 流程蒸馏（阶段七 7.2-2：journal 历史挖掘 → 技能结晶建议）
+  "memory.distill.title": "流程蒸馏",
+  "memory.distill.hint": "从历史执行记录中挖掘跨会话重复流程，一键结晶为可复用技能",
+  "memory.distill.repeatBadge": "重复 {n} 次",
+  "memory.distill.lastAt": "最近 ",
+  "memory.distill.evidence": "执行证据",
+  "memory.distill.draft": "结晶为技能",
+  "memory.distill.ignore": "不再提示",
+  "memory.distill.unavailable": "历史执行数据不可用",
+  "memory.distill.empty": "暂无重复流程——多完成几次同类任务后，这里会出现结晶建议",
+  "memory.distill.loading": "正在挖掘历史执行记录…",
+  "memory.distill.drafting": "正在蒸馏…",
   // S2.2 双空间壳 chrome（i18n 全铺第一刀）
   "shell.space.work": "书斋",
   "shell.space.play": "闲庭",

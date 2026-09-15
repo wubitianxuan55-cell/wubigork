@@ -11,6 +11,7 @@ type ChatMethods = Pick<
   | "Submit" | "SubmitDisplay" | "Cancel" | "Steer" | "Approve" | "AnswerQuestion"
   | "GaeaRunning" | "Compact" | "NewSession"
   | "Reload" | "CaptureSkill" | "SkillDraftFromSession" | "SkillDraftSave" | "Checkpoints" | "Rewind" | "Fork"
+  | "SkillDistillCandidates" | "SkillDistillDraft" | "SkillDistillDecide"
   | "SummarizeFrom" | "SummarizeUpTo" | "History"
   | "ListSessions" | "ListProjectSessions" | "ArchiveSession" | "UnarchiveSession"
   | "PinSession" | "ResumeSession" | "DeleteSession" | "RenameSession"
@@ -232,6 +233,46 @@ export function buildChat(s: MakeMockState): ChatMethods {
     },
     async SkillDraftSave(_draft) {
       return { name: _draft.name, description: _draft.description, path: "", reloaded: false, tools: 0, skills: 0 };
+    },
+    async SkillDistillCandidates() {
+      // mock: 浏览器开发环境无真实 journal，返回一份示例候选供开发预览
+      // （走查锚点：编辑 Markdown→导出 xlsx 模式重复 3 次）。
+      const lastAt = Date.now();
+      return {
+        candidates: [
+          {
+            id: "jd-mock0001",
+            pattern: ["edit_file .md", "write_file .xlsx"],
+            repeat: 3,
+            sessions: ["s3", "s2", "s1"],
+            evidence: [
+              "会话 s3（今天）：edit_file 周报.md → write_file 汇总.xlsx",
+              "会话 s2（上周）：edit_file 周报.md → write_file 汇总.xlsx",
+              "会话 s1（两周前）：edit_file 周报.md → write_file 汇总.xlsx",
+            ],
+            lastAt,
+          },
+        ],
+        available: true,
+        generatedAt: new Date(lastAt).toISOString(),
+      };
+    },
+    async SkillDistillDraft(_patternID) {
+      // mock: 无真实 LLM，返回一份从「多次执行回放」蒸馏的示例草稿
+      return {
+        draft: {
+          name: "weekly-report-export",
+          description: "把 Markdown 周报整理并导出为 xlsx 汇总表（mock 蒸馏示例）",
+          scenario: "需要把 Markdown 周报整理成表格并发给相关方时",
+          steps: ["整理 Markdown 周报内容", "使用 write_file 生成 xlsx 汇总表", "核对表格内容后导出"],
+          cautions: ["各次执行的文件名不同，注意按当期主题命名"],
+        },
+        replay: "── 第 1 次执行（会话 s3，今天）──\n【工具】edit_file 周报.md\n【工具】write_file 汇总.xlsx",
+        preview: "---\nname: weekly-report-export\n---\n# 示例（mock journal 蒸馏）",
+      };
+    },
+    async SkillDistillDecide(_patternID, _decision, _skillName) {
+      // mock: 浏览器开发环境不落状态文件，静默成功
     },
     async Checkpoints() {
       return [];

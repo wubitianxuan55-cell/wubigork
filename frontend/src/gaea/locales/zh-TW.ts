@@ -535,6 +535,18 @@ export const zhTW: Record<DictKey, string> = {
   "memory.savedBadge": "✓ 已儲存",
   "memory.createdBadge": "✓ 已建立",
   "memory.generatedAt": "生成於",
+  // 流程蒸餾（階段七 7.2-2：journal 歷史挖掘 → 技能結晶建議）
+  "memory.distill.title": "流程蒸餾",
+  "memory.distill.hint": "從歷史執行記錄中挖掘跨會話重複流程，一鍵結晶為可複用技能",
+  "memory.distill.repeatBadge": "重複 {n} 次",
+  "memory.distill.lastAt": "最近 ",
+  "memory.distill.evidence": "執行證據",
+  "memory.distill.draft": "結晶為技能",
+  "memory.distill.ignore": "不再提示",
+  "memory.distill.unavailable": "歷史執行資料不可用",
+  "memory.distill.empty": "暫無重複流程——多完成幾次同類任務後，這裡會出現結晶建議",
+  "memory.distill.loading": "正在挖掘歷史執行記錄…",
+  "memory.distill.drafting": "正在蒸餾…",
   // S2.2 雙空間殼 chrome（i18n 全鋪第一刀）
   "shell.space.work": "書齋",
   "shell.space.play": "閒庭",

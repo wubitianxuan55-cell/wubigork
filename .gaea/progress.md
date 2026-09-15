@@ -3,6 +3,21 @@
 > 本文件为**最近发布速览**。完整历史磁带见 `docs/archive/progress-history-2026-09.md`
 > 与 `releases/`。
 
+## 最新发布：v4.317.0（2026-09-15）「阶段七第四刀：journal 历史蒸馏（重复模式挖掘+结晶审阅+审计链，7.2-2）」
+
+- **来源**：用户指令「继续并行使用子代理，优化迭代 gaea」。契约先行（规格书 进度计划/gaea-journal-distill-7-2-2-20260915.md：契约+足迹互斥表+出口对照）→ A/B/C 三线并行 → 主代理收口。**坑**=A 线纯函数包子代理跑满上下文**零落盘**——主代理接管代写（卡死判据先例再+1：v4.316 B 线同款「长时间零落盘」）；B/C 两线正常交付（B 10/10、C 12/12）。
+- **论点**：journal 证据链（.gaea/work/journal/*.jsonl，每卡=一次已应用变更）是书斋审批链既有沉淀，把它变成程序性记忆矿床——确定性挖掘跨会话重复 ≥3 次的工具应用模式 → 建议卡只提示不打扰 → 点「结晶为技能」→ LLM 从多次执行回放蒸馏草稿 → 复用 7.2-1 审阅弹窗编辑落盘 → 决定与结晶全程审计。**7.2 技能结晶双入口齐装**（演示式录制 v4.313+历史蒸馏本刀）。
+- **线A（主代理代写）**：新纯包 internal/skilldistill（零 IO 表驱动，先例 routesuggest）：MineFlows 会话聚合确定性排序+Distill（连续同 (Tool,Shape) 折叠→会话级序列精确匹配分组→Repeat=不同会话数≥3→步数∈[2,12]→ignored 静默→截 3 宁少勿扰）+BuildPatternID（jd-+sha256 前 8hex 幂等）+ParsePatternID 残渣防御。V1 裁决=滑窗/子序列不进（观察池）。
+- **线B**：internal/app/gaea_skill_distill.go 三绑定（OfficeB +3）——Candidates（journal 现算只读零 LLM，ignored∪crystallized 双静默）/Draft（buildJournalReplay ≤3 最近会话分段+AfterSummary 200 rune+整段 600 rune 防护→prompts/skill-from-journal.json（RTCO：多次执行共性进步骤、差异进 cautions、文件名通用化占位）→RetryJSON 2→复用 SkillRecordResult 只回不落盘）/Decide（ignore|crystallized；crystallized 必带技能名，审计条目=sessions+skill+decidedAt）；状态 <DataRoot>/skill_distill_state.json route_suggestions 同款容错读+原子写。
+- **线C**：SkillDistillSection（PatternLine 步骤序+重复徽章+证据折叠+结晶/不再提示同卡互斥 loading+空态两分）挂 MemoryPanel 建议 tab「流程蒸馏」分区（props 全可选缺省隐藏，既有调用方零改动）；SkillRecordModal 加 preload/onSaved 可选（preload 直接回填不调内部蒸馏，缺省与 7.2-1 逐字节一致；7.2-1 Composer 入口不动，MemoryPanel 本地托管第二实例零复制）；三语 memory.distill.* 11 键三语键集相等。
+- **主代理收口**：gen_bindings+bindingNames 再生 691（bindings_novel 368 行重排噪音甄别还原，v4.313 坑再证）+bridge/core +3（SkillDistillView 局部重述 herdsman 防环先例）+mappings+mock/chat 三桩（走查样本）+spaceBindings work 510→513+App.tsx 接线（useSessionHandlers 六值解构+MemoryPanel 六 props）+建议 tab 首开自动拉候选（C 线 distillView 初值 null 使 undefined 判据失效——主代理改 ref 守卫；fetch 期显示 loading 而非「不可用」误判）+补 SkillRecordModal preload 2 例。
+- **绑定面**：688→691（OfficeB +3）；work 锁 510→513；drift OK@691。
+- **出口对账**：①只提示不打扰、拒绝即静默 ✅（Decide ignore→状态→复算跳过，测试钉死）；③审计链完整（哪次历史/谁确认/哪版）✅；②结晶技能调用 ≥5 次且成功率可见=**欠账如实入档**（需技能调用计数机制 statsFile 先例另刀）。
+- **验收**：skilldistill 15 例+app 10 例+前端 18 例（含收口补 2 例）；tsc -b 零错（双向漂移防线过）、eslint 零告警。
+- **门禁**：ci.ps1 全绿 exit 0（复跑：首跑 exit 1 无 FAIL——flaky 先例再+1）；版本四处 4.317.0；产物=exe 50576384B SHA256=e5577402da81afbf0b0135631db066494aa7e415455da67eee2dbe9b0d5e3d2d（releases/gaea-v4.317.0.exe+SUMS；桌面副本同哈希；冒烟 200 过）。
+- **观察池**：滑窗/子序列挖掘 V2 等真实 journal 数据分布；journal 回放纳入 verdicts（复核结论）过滤；真机走查（同型任务×3→建议卡→结晶→新会话命中技能一条龙）挂闲置窗口；releases/README V4_RECENT 实存条数与「最近 34 版」头注不符（v4.315 前已存在，非本刀引入）。
+- **未做（下刀）**：7.3-1 任务收件箱（收窄版任务空间制首刀）或 7.2-2 判据②调用计数小刀；闲庭在册清欠沿既有列车。
+
 ## 最新发布：v4.316.0（2026-09-15）「阶段七第三刀：路由学习（任务级账目+成本归因+建议制改绑，7.1-2）」
 
 - **来源**：用户指令「继续并行使用子代理，优化迭代 gaea」。契约先行（规格书 进度计划/gaea-route-learning-7-1-2-20260915.md：三线调研结论+契约+足迹互斥表）→ A/B/C 三线并行 → 主代理收口。**坑**=B 线原实现子代理 40 分钟零落盘、两次检查点未应——中断接管主代理代写（子代理卡死判据：长时间零落盘+检查点静默；先例入 AGENTS 执行纪律候选）。

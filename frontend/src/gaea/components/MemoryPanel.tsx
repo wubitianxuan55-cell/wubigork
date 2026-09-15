@@ -1,7 +1,10 @@
 import { Plus, RefreshCw, Search, X, Brain } from "../icons";
 import "./context/context-view.css";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { MemorySuggestion, MemorySuggestionsView, MemoryView, SkillSuggestion } from "../lib/types";
+import type {
+  MemorySuggestion, MemorySuggestionsView, MemoryView, SkillDistillView,
+  SkillRecordResult, SkillSuggestion,
+} from "../lib/types";
 import { app } from "../lib/bridge";
 import { DocEditor } from "./DocEditor";
 import { useT } from "../lib/i18n";
@@ -12,6 +15,11 @@ import { TabButton } from "./TabButton";
 import { EmptyState } from "./EmptyState";
 import { SuggestionCard } from "./SuggestionCard";
 import { ArchivesSection } from "./ArchivesSection";
+import { SkillDistillSection } from "./SkillDistillSection";
+import { SkillRecordModal } from "./SkillRecordModal";
+
+// 流程蒸馏未接线 onIgnore 时的稳定空回调（避免每次渲染重建打断 memo）。
+const noopDistill = async (): Promise<void> => {};
 
 export function MemoryPanel(p: {
   view: MemoryView | null;
@@ -24,8 +32,22 @@ export function MemoryPanel(p: {
   onAcceptSkillSuggestion: (candidate: SkillSuggestion) => Promise<void> | void;
   onAcceptMergeSuggestion: (keep: string, archive: string) => Promise<void> | void;
   onRefreshSuggestions: () => Promise<MemorySuggestionsView | null>;
+  // ── 流程蒸馏（7.2-2）：全部可选，缺省时分区整体隐藏（既有调用方零改动）。
+  // onDraftDistill 返回蒸馏结果时，本面板本地打开 SkillRecordModal(preload)
+  // 复用 7.2-1 审阅管道；保存成功经 onCrystallizeDistill 落 crystallized 审计。
+  distillView?: SkillDistillView | null;
+  distillLoading?: boolean;
+  onRefreshDistill?: () => void;
+  onDraftDistill?: (id: string) => Promise<SkillRecordResult | null | void> | SkillRecordResult | null | void;
+  onIgnoreDistill?: (id: string) => Promise<void> | void;
+  onCrystallizeDistill?: (patternId: string, skillName: string) => Promise<void> | void;
 }) {
-  const { view, onRemember, onForget, onSaveDoc, onSaveFact, onChangeType, onAcceptMemorySuggestion, onAcceptSkillSuggestion, onAcceptMergeSuggestion, onRefreshSuggestions } = p;
+  const {
+    view, onRemember, onForget, onSaveDoc, onSaveFact, onChangeType,
+    onAcceptMemorySuggestion, onAcceptSkillSuggestion, onAcceptMergeSuggestion,
+    onRefreshSuggestions, distillView, distillLoading, onRefreshDistill,
+    onDraftDistill, onIgnoreDistill, onCrystallizeDistill,
+  } = p;
   const t = useT();
   const [note, setNote] = useState("");
   const [scope, setScope] = useState("");
@@ -46,6 +68,9 @@ export function MemoryPanel(p: {
   const [suggestions, setSuggestions] = useState<MemorySuggestionsView | null>(null);
   const [suggestionsBusy, setSuggestionsBusy] = useState(false);
   const [acceptedSuggestions, setAcceptedSuggestions] = useState<Set<string>>(new Set());
+  // 流程蒸馏（7.2-2）：容器层本地托管的 preload 审阅弹窗（draft 结果 +
+  // 对应候选 id；保存成功经 onCrystallizeDistill 落审计后关闭）。
+  const [distillDraft, setDistillDraft] = useState<{ id: string; result: SkillRecordResult } | null>(null);
   // 记忆开关（记忆可控性）：与后端配置同步，切换后引擎重建立即生效
   const [memoryEnabled, setMemoryEnabled] = useState(view?.enabled ?? true);
   // 晨报预载开关（v4.16 刀④ UI 补齐）：work 空间新会话自动预装配高频工作记忆
@@ -82,6 +107,15 @@ export function MemoryPanel(p: {
       .catch(() => {});
     return () => { alive = false; };
   }, []);
+
+  // 流程蒸馏首拉（7.2-2 收口）：建议 tab 打开时自动取一次候选（只读零 LLM、
+  // 静默失败）——fetch 期间分区显示 loading 而非「不可用」；失败可走扫描按钮。
+  const distillFetchedRef = useRef(false);
+  useEffect(() => {
+    if (tab !== "suggestions" || distillFetchedRef.current || !onRefreshDistill) return;
+    distillFetchedRef.current = true;
+    onRefreshDistill();
+  }, [tab, onRefreshDistill]);
 
   const toggleMemory = useCallback(() => {
     const next = !memoryEnabled;
@@ -219,6 +253,19 @@ export function MemoryPanel(p: {
       Promise.resolve(onChangeType(name, newType)).finally(() => setBusy(false));
     },
     [onChangeType],
+  );
+
+  // 流程蒸馏（7.2-2）：未传任何 distill prop 的旧调用方不渲染分区；点
+  // 「结晶为技能」→ onDraftDistill 拉蒸馏草稿 → 本地以 preload 打开 7.2-1
+  // 审阅弹窗（LLM 只蒸馏一次，审阅编辑→保存走既有 SkillDraftSave 通道）。
+  const distillWired = distillView !== undefined || onRefreshDistill !== undefined || onDraftDistill !== undefined;
+  const handleDraftDistill = useCallback(
+    async (id: string) => {
+      if (!onDraftDistill) return;
+      const res = await onDraftDistill(id);
+      if (res) setDistillDraft({ id, result: res });
+    },
+    [onDraftDistill],
   );
 
   // 键盘快捷键（用 useCallback 避免重复注册）
@@ -499,6 +546,9 @@ export function MemoryPanel(p: {
               <button
                 className="flex items-center justify-center gap-2 px-4 py-2.5 border border-border-soft rounded-lg bg-bg-soft text-fg text-[12.5px] cursor-pointer hover:bg-bg hover:border-accent transition-colors disabled:opacity-40"
                 onClick={async () => {
+                  // 流程蒸馏（7.2-2）：扫描/刷新按钮同时触发候选复算（各自
+                  // 独立 loading，不互相阻塞；未接线时为 no-op）。
+                  void onRefreshDistill?.();
                   setSuggestionsBusy(true);
                   const result = await onRefreshSuggestions();
                   setSuggestions(result);
@@ -608,10 +658,35 @@ export function MemoryPanel(p: {
                   )}
                 </>
               )}
+
+              {/* ── 流程蒸馏分区（7.2-2）：未接线（旧调用方/既有测试）时整体隐藏 ── */}
+              {distillWired && (
+                <SkillDistillSection
+                  view={distillView ?? null}
+                  loading={distillLoading}
+                  onDraft={handleDraftDistill}
+                  onIgnore={onIgnoreDistill ?? noopDistill}
+                />
+              )}
             </div>
           )}
         </div>
       </section>
+
+      {/* 流程蒸馏 preload 审阅弹窗（7.2-2，复用 7.2-1 管道；保存成功后
+          onCrystallizeDistill 落 crystallized 审计并刷新候选） */}
+      {distillDraft && (
+        <SkillRecordModal
+          open
+          preload={distillDraft.result}
+          onClose={() => setDistillDraft(null)}
+          onSaved={(skillName) => {
+            const patternId = distillDraft.id;
+            setDistillDraft(null);
+            void onCrystallizeDistill?.(patternId, skillName);
+          }}
+        />
+      )}
     </div>
   );
 }

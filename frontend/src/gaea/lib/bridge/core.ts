@@ -41,6 +41,7 @@ import type {
   SkillCaptureInput,
   SkillCaptureResult,
   SkillDraft,
+  SkillDistillView,
   SkillRecordResult,
   SlashArgsResult,
   SpaceActiveView,
@@ -153,6 +154,12 @@ export interface CoreBindings {
   SkillDraftFromSession(): Promise<SkillRecordResult>;
   // SkillDraftSave 保存（通常已审阅修订的）技能草稿：渲染→落盘→镜像→热加载。
   SkillDraftSave(draft: SkillDraft): Promise<SkillCaptureResult>;
+  // SkillDistill* journal 历史蒸馏（7.2-2）：Candidates 现算重复模式候选（零 LLM
+  // 只读）；Draft 按 patternID 从多次执行回放蒸馏草稿（复用 7.2-1 审阅管道，只回
+  // 不落盘）；Decide 落用户决定（ignore=静默不再提示 / crystallized=已结晶审计）。
+  SkillDistillCandidates(): Promise<SkillDistillView>;
+  SkillDistillDraft(patternID: string): Promise<SkillRecordResult>;
+  SkillDistillDecide(patternID: string, decision: "ignore" | "crystallized", skillName: string): Promise<void>;
   Meta(): Promise<Meta>;
   Commands(): Promise<CommandInfo[]>;
   // Capabilities feeds the MCP & Skills drawer: connected/failed servers + skills.

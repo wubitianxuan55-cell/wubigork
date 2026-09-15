@@ -530,6 +530,18 @@ export const en = {
   "memory.savedBadge": "✓ Saved",
   "memory.createdBadge": "✓ Created",
   "memory.generatedAt": "Generated at",
+  // Flow distill (stage 7.2-2: journal mining → skill crystallization)
+  "memory.distill.title": "Flow distill",
+  "memory.distill.hint": "Mines repeated cross-session flows from execution history into reusable skills",
+  "memory.distill.repeatBadge": "Repeated {n}×",
+  "memory.distill.lastAt": "Last ",
+  "memory.distill.evidence": "Evidence",
+  "memory.distill.draft": "Crystallize to skill",
+  "memory.distill.ignore": "Don't suggest again",
+  "memory.distill.unavailable": "Execution history unavailable",
+  "memory.distill.empty": "No repeated flows yet — complete a few similar tasks and crystallization suggestions will appear here",
+  "memory.distill.loading": "Mining execution history…",
+  "memory.distill.drafting": "Distilling…",
   // S2.2 双空间壳 chrome（i18n 全铺第一刀，docs/gaea-space-shell-design.md §4.8）
   "shell.space.work": "Study",
   "shell.space.play": "Lounge",
