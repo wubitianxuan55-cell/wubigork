@@ -1,4 +1,4 @@
-/* 首页 · 双空间重设计（v7：书斋「文书台」/ 闲庭「游园画廊」）
+/* 首页 · 双空间重设计（v9：书斋「案头」/ 闲庭「游园画廊」）
    ────────────────────────────────────────────────────────────────────
    v6 版式仍被用户判为「低级」，根因与 v7 对策（对照检查表）：
      1. 到处都是等大圆角卡片 + 描边 → 结构只用三种形态：仪表条 / 账页 / 海报墙。
@@ -10,9 +10,17 @@
         月洞门细环这类版式记号。
      5. 动效只有一次性 rise → 保留分阶入场（.v3-rise），补 hover 位移/描边生长/
         环形箭头；只动 transform/opacity，reduced-motion 与 gaea-raf-degraded 全降级。
+   v8（书斋「文书台」）：杂志刊头压缩为 kicker 行，命令台升格第一主角件；
+      账页×目录双列；右舷晨报置顶 + 五节脉息纵栏。
+   v9（书斋「案头」）：kicker 升格为开放排印身份区 .w-masthead（印泥朱方印
+      .w-seal + display 大字 + hairline 收束）；能力目录改双列案牌网格
+      .w-plaques/.w-plaque*；脉息面板 .w-vitals/.w-vital 替代 .w-rail-panel/.w-sec
+      （写作环放大 80/62）；命令条 60px 高 / 15px 字。
    令牌纪律：零硬编码色值，全部走 --color-* / --md-sys-* / --gaea-* / --radius-* /
-   --shadow-* / --transition-*。类名契约：.garden-banner、ml-space-*(testid)、
-   ml-space-chip、desk-recent-docs、garden-progress/sessions/memory/meters。 */
+   --shadow-* / --transition-*。唯一例外：.w-seal 印泥朱 #d06055（印章品牌记号，
+   hex-exempt 在册，明暗两档可读）。类名契约：.garden-banner、ml-space-*(testid)、
+   ml-space-chip、desk-recent-docs、garden-progress/sessions/memory/meters、
+   v9 案头：.w-masthead、.w-seal、.w-plaques、.w-vitals。 */
 
 .ml {
   /* ── 局部令牌 ── */
@@ -333,7 +341,7 @@
 }
 
 /* ════════════════════════════════════════════════════════════════════
-   三、书斋（work）· 文书台
+   三、书斋（work）· 案头（v9）
    ════════════════════════════════════════════════════════════════════ */
 .ml-work { padding: 22px 32px 44px; }
 .w-dock {
@@ -353,14 +361,77 @@
   min-width: 0;
 }
 
-/* ── 命令台（deck，v8 重设计主角件）：v7 杂志刊头（大标题+三行 lede ~25% 视高）
-   压缩为一条 kicker 行；命令条/气泡流/语音状态收进一张抬升玻璃台面——工作台
-   首页的第一任务是发起工作，视觉锚点=命令台而非刊头大字。 */
+/* ── 身份区（v9「案头」masthead）：开放排印——印泥朱方印 + display 大字 + 一行
+   lede；无卡片底、无边框盒，仅以一条 hairline 收束。身份靠排印立住，不靠盒子。 ── */
+.w-masthead {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 26px 6px 20px;
+  border-bottom: 1px solid var(--w-line-soft);
+  margin-bottom: 4px;
+}
+
+/* 印泥朱方印：#d06055——hex-exempt 印章品牌记号（朱砂调在明暗两档主题下均可读，
+   主题令牌无对应物，不随强调色换色），豁免在册；同色 color-mix 派生同属此豁免。 */
+.w-seal {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  transform: rotate(-3deg);
+  display: grid;
+  place-items: center;
+  border: 1.5px solid #d06055; /* hex-exempt 印泥朱印章品牌记号 */
+  background: color-mix(in srgb, #d06055 10%, transparent); /* hex-exempt 同上 */
+  color: #d06055; /* hex-exempt 同上 */
+  font-family: 'Noto Serif SC', 'Songti SC', serif;
+  font-size: 20px;
+  font-weight: 700;
+  box-shadow: 0 2px 10px color-mix(in srgb, #d06055 18%, transparent); /* hex-exempt 同上 */
+  flex-shrink: 0;
+}
+
+.w-mast-body { min-width: 0; flex: 1; }
+.w-mast-title {
+  margin: 0;
+  font-size: clamp(30px, 3vw, 42px);
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  color: var(--w-ink);
+}
+.w-mast-lede {
+  margin: 6px 0 0;
+  max-width: 52ch;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--w-ink-2);
+}
+.w-mast-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  flex-shrink: 0;
+}
+/* quiet 小签：白名单化为 hairline 底线排印记号，不做大边框胶囊 */
+.w-mast-pill {
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  color: var(--w-ink-3);
+  white-space: nowrap;
+  padding-bottom: 3px;
+  border-bottom: 1px solid var(--w-line-soft);
+}
+
+/* ── 命令台（deck，v8 主角件 → v9 从容化）：玻璃台面沿用（渐变/顶光线/边框
+   不变），身份上移 masthead 后命令条加高加大（60px / 15px），focus 光晕 4px——
+   工作台首页的第一任务仍是发起工作，视觉锚点=命令台。 */
 .w-deck {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 18px 20px 16px;
+  padding: 20px 22px 18px;
   border-radius: var(--radius-xl, 20px);
   border: 1px solid var(--w-line);
   background:
@@ -377,30 +448,8 @@
   pointer-events: none;
   background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--w-accent) 34%, transparent), transparent);
 }
-.w-deck-head { display: flex; align-items: center; gap: 10px; min-width: 0; }
-.w-deck-sub {
-  flex: 0 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  font-size: 12px;
-  color: var(--w-ink-2);
-}
-.w-kicker-mark { width: 22px; height: 2px; background: var(--w-accent); border-radius: 2px; }
-.w-kicker-rule { flex: 1; height: 1px; min-width: 20px; background: linear-gradient(90deg, var(--w-line), transparent); }
-.w-kicker-pill {
-  font-size: 10.5px;
-  letter-spacing: 0.14em;
-  color: var(--w-ink-3);
-  padding: 4px 10px;
-  border-radius: 999px;
-  border: 1px solid var(--w-line-soft);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 46%;
-}
+/* v9：v8 的 deck-head / kicker 行（.w-deck-head/.w-deck-sub/.w-kicker-*）随
+   TSX 移除——身份信息上移 masthead，台面内不再有刊头行；孤儿规则一并删除。 */
 
 .w-hero-chat { display: flex; flex-direction: column; gap: 2px; }
 
@@ -409,7 +458,7 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  height: 54px;
+  height: 60px;
   padding: 0 10px 0 16px;
   border-radius: var(--radius-xl, 18px);
   border: 1px solid var(--w-line);
@@ -419,7 +468,7 @@
 }
 .w-cmd:focus-within {
   border-color: color-mix(in srgb, var(--w-accent) 58%, transparent);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--w-accent) 15%, transparent), var(--shadow-lg);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--w-accent) 15%, transparent), var(--shadow-lg);
 }
 .w-cmd.is-listening { border-color: color-mix(in srgb, var(--w-accent) 46%, transparent); }
 
@@ -439,8 +488,8 @@
 .w-cmd.is-speaking .w-cmd-orb-ring { animation: w-orb 1.8s ease-out infinite; }
 .w-cmd.is-active .w-cmd-orb-core { animation: w-breathe 2.2s ease-in-out infinite; }
 
-.w-cmd-input { flex: 1; min-width: 0; font-size: 14px; }
-.w-cmd-input input { font-size: 14px; }
+.w-cmd-input { flex: 1; min-width: 0; font-size: 15px; }
+.w-cmd-input input { font-size: 15px; }
 
 .w-cmd-btn {
   appearance: none;
@@ -544,7 +593,7 @@
   grid-template-columns: 44px minmax(0, 1.05fr) minmax(0, 1.25fr) 22px;
   align-items: center;
   gap: 14px;
-  padding: 13px 12px 13px 4px;
+  padding: 14px 12px 14px 4px;
   border: 0;
   background: transparent;
   text-align: left;
@@ -560,7 +609,7 @@
   font-variant-numeric: tabular-nums;
 }
 .w-ledger-name {
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 550;
   color: var(--w-ink);
   overflow: hidden;
@@ -600,7 +649,7 @@
 .w-empty-icon { font-size: 16px; opacity: 0.7; }
 .w-empty-text { line-height: 1.6; }
 
-/* ── 能力目录：旗舰横带 + 双列目录 ── */
+/* ── 能力目录（v9）：旗舰横带 + 双列案牌网格 ── */
 .w-cap { display: flex; flex-direction: column; gap: 9px; padding-top: 6px; }
 .w-flagship {
   appearance: none;
@@ -673,67 +722,69 @@
 .w-flagship:hover .w-flagship-arrow { transform: translateX(4px); }
 .w-flagship:hover .w-flagship-cta { color: var(--w-ink); }
 
-.w-index {
+/* ── 案牌网格（v9 目录主体，替代 v8 .w-index* 序号行）：双列浅浮雕案牌——
+   图标龛 + 名称/单行描述 + 悬停箭头；与账页行式形成「行 / 牌」两种节奏。 ── */
+.w-plaques {
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
 }
-.w-index-item {
+.w-plaque {
   appearance: none;
   cursor: pointer;
   position: relative;
-  display: grid;
-  grid-template-columns: 34px minmax(0, 1fr) 16px;
+  display: flex;
   align-items: center;
   gap: 12px;
-  padding: 14px 10px 14px 0;
-  border: 0;
-  border-top: 1px solid var(--w-line-soft);
-  background: transparent;
+  padding: 13px 14px;
+  border-radius: var(--radius-lg, 14px);
+  border: 1px solid var(--w-line-soft);
+  background: color-mix(in srgb, var(--w-plate) 78%, transparent);
   text-align: left;
   color: inherit;
-  transition: transform var(--transition-fast, 140ms) ease, background var(--transition-fast, 140ms) ease;
+  transition: transform var(--transition-fast, 140ms) ease, border-color var(--transition-fast, 140ms) ease,
+    box-shadow var(--transition-fast, 140ms) ease;
 }
-.w-index-item::before {
-  content: '';
-  position: absolute;
-  left: 0; top: 10px; bottom: 10px;
-  width: 2px;
-  border-radius: 2px;
-  background: var(--w-accent);
-  transform: scaleY(0);
-  transform-origin: 50% 50%;
-  transition: transform var(--transition-fast, 140ms) ease;
+.w-plaque:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--w-accent) 36%, transparent);
+  box-shadow: var(--shadow-md);
 }
-.w-index-item:hover { background: color-mix(in srgb, var(--w-accent) 5%, transparent); }
-.w-index-item:hover::before { transform: scaleY(1); }
-.w-index-num {
-  font-family: var(--w-mono);
-  font-size: 11px;
-  letter-spacing: 0.1em;
-  color: var(--w-ink-3);
-  font-variant-numeric: tabular-nums;
+.w-plaque-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  display: grid;
+  place-items: center;
+  font-size: 15px;
+  color: var(--w-accent);
+  background: color-mix(in srgb, var(--w-accent) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--w-accent) 26%, transparent);
+  flex-shrink: 0;
 }
-.w-index-body { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
-.w-index-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.w-index-icon { display: inline-flex; font-size: 14px; color: var(--w-ink-2); }
-.w-index-name { font-size: 13.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.w-index-desc {
-  font-size: 11.5px;
-  color: var(--w-ink-3);
-  line-height: 1.5;
+.w-plaque-body { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1; }
+.w-plaque-name {
+  font-size: 13.5px;
+  font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.w-index-arrow {
+.w-plaque-desc {
+  font-size: 11.5px;
+  color: var(--w-ink-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.w-plaque-arrow {
   font-size: 11px;
   color: var(--w-ink-3);
   opacity: 0;
   transform: translateX(-3px);
   transition: opacity var(--transition-fast, 140ms) ease, transform var(--transition-fast, 140ms) ease;
 }
-.w-index-item:hover .w-index-arrow { opacity: 1; transform: translateX(0); }
+.w-plaque:hover .w-plaque-arrow { opacity: 1; transform: none; color: var(--w-accent); }
 
 /* ── 右舷仪表纵栏（单一色调面 + hairline 分节，常驻可见）── */
 .w-rail {
@@ -744,14 +795,19 @@
   gap: 14px;
   min-width: 0;
 }
-.w-rail-panel {
+/* ── 脉息面板（v9）：.w-vitals/.w-vital 替代 v8 .w-rail-panel/.w-sec——同一张
+   色调面内 hairline 分节；首节（写作）进度环在面板内放大（覆盖共享原语 72/56
+   默认；选择器锚定 .w-vital，闲庭侧 .ml-ring 不受影响）。 ── */
+.w-vitals {
   border-radius: var(--radius-lg, 16px);
   border: 1px solid var(--w-line-soft);
   background: color-mix(in srgb, var(--w-plate) 82%, transparent);
-  padding: 2px 16px;
+  padding: 2px 18px;
 }
-.w-sec { padding: 15px 0; border-top: 1px solid var(--w-line-soft); }
-.w-sec:first-child { border-top: 0; }
+.w-vital { padding: 16px 0; border-top: 1px solid var(--w-line-soft); }
+.w-vital:first-child { border-top: 0; }
+.w-vital .ml-ring { width: 80px; height: 80px; }
+.w-vital .ml-ring-hole { width: 62px; height: 62px; }
 
 /* ════════════════════════════════════════════════════════════════════
    四、闲庭（play）· 游园画廊
@@ -1076,7 +1132,7 @@ html.gaea-raf-degraded .ml .w-status-dot {
     transition-duration: 0.001ms !important;
   }
   .ml .v3-rise { opacity: 1; transform: none; animation: none; }
-  .w-flagship:hover, .w-index-item:hover, .p-poster:hover, .garden-banner:hover, .garden-chip:hover { transform: none; }
+  .w-flagship:hover, .w-plaque:hover, .p-poster:hover, .garden-banner:hover, .garden-chip:hover { transform: none; }
 }
 .ui-reduced-motion .ml .v3-rise { opacity: 1; transform: none; animation: none; }
 .ui-reduced-motion .w-flagship:hover,
@@ -1094,11 +1150,13 @@ html.gaea-raf-degraded .ml .w-status-dot {
 @media (max-width: 1180px) {
   .w-dock { grid-template-columns: minmax(0, 1fr); gap: 22px; }
   .w-columns { grid-template-columns: minmax(0, 1fr); }
-  .w-deck-sub { display: none; }
+  .w-masthead { padding: 18px 4px 16px; }
+  /* 仅藏 pill——ml-space-chip 是 testid 契约元素，绝不能 display:none */
+  .w-mast-pill { display: none; }
   .w-rail { position: static; }
-  .w-rail-panel { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 26px; }
-  .w-sec { border-top: 1px solid var(--w-line-soft); }
-  .w-sec:nth-child(-n + 2) { border-top: 0; }
+  /* 脉息 2 列：顶线处理对齐旧 .w-sec 规则（前两节去顶线，其余保留 hairline） */
+  .w-vitals { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 26px; }
+  .w-vital:nth-child(-n + 2) { border-top: 0; }
   .p-foot { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 22px; }
   .p-foot-sec { padding-left: 0; border-left: 0; }
 }
@@ -1107,7 +1165,6 @@ html.gaea-raf-degraded .ml .w-status-dot {
   .ml-work, .ml-play { padding: 18px 20px 36px; }
   .w-ledger-btn { grid-template-columns: 34px minmax(0, 1fr) 18px; gap: 10px; }
   .w-ledger-path { display: none; }
-  .w-index { grid-template-columns: minmax(0, 1fr); }
   .p-wall { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .p-poster.is-hero { grid-column: span 2; grid-row: span 1; min-height: 260px; }
   .garden-banner { flex-direction: column; align-items: flex-start; gap: 18px; min-height: 0; }
@@ -1117,7 +1174,10 @@ html.gaea-raf-degraded .ml .w-status-dot {
 
 @media (max-width: 640px) {
   .w-dock { gap: 18px; }
-  .w-rail-panel { grid-template-columns: minmax(0, 1fr); }
+  .w-vitals { grid-template-columns: minmax(0, 1fr); }
+  .w-plaques { grid-template-columns: minmax(0, 1fr); }
+  .w-masthead { gap: 12px; }
+  .w-seal { width: 38px; height: 38px; font-size: 17px; }
   .w-cmd { height: auto; flex-wrap: wrap; padding: 10px 10px 10px 14px; gap: 8px; }
   .w-cmd-btn-label { display: none; }
   .w-kbd { display: none; }

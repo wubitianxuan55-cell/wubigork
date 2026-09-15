@@ -903,7 +903,7 @@ export const zhTW: Record<DictKey, string> = {
   "settings.context.footnote": "各項與上下文頁內的開關共用儲存；切換在上下文頁重新開啟後生效。",
   // AppearancePanel — 預覽 / 主題 / 顯示模式 / 字型 / 密度 / 動態 / 強調色 / 語言
   "settings.appear.livePreviewTitle": "外觀即時預覽",
-  "settings.appear.livePreviewDesc": "目前主題與顯示模式的組合效果；滑鼠懸停下方主題卡可即時預覽，點擊才生效。",
+  "settings.appear.livePreviewDesc": "目前主題與顯示模式的組合效果；開啟下拉懸停選項可即時預覽，點擊才生效。",
   "settings.appear.themeTitle": "主題色系",
   "settings.appear.themeDesc": "選擇全域氛圍色 —— 深空星雲背景、霓虹光效與玻璃質感將隨主題連動。",
   "settings.appear.dark": "暗色",

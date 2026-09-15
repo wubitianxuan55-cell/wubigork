@@ -898,7 +898,7 @@ export const en = {
   "settings.context.footnote": "These options share storage with the in-page toggles; changes take effect when the context page is reopened.",
   // AppearancePanel — 预览 / 主题 / 显示模式 / 字体 / 密度 / 动效 / 强调色 / 语言
   "settings.appear.livePreviewTitle": "Live appearance preview",
-  "settings.appear.livePreviewDesc": "The combined effect of the current theme and display mode; hover a theme card below to preview instantly — click to apply.",
+  "settings.appear.livePreviewDesc": "The combined effect of the current theme and display mode; open the dropdown and hover an option to preview instantly — click to apply.",
   "settings.appear.themeTitle": "Theme colors",
   "settings.appear.themeDesc": "Pick the global accent color — the deep-space nebula backdrop, neon glow and glass texture all follow the theme.",
   "settings.appear.dark": "Dark",

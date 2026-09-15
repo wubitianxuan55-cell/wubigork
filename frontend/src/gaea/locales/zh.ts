@@ -899,7 +899,7 @@ export const zh: Record<DictKey, string> = {
   "settings.context.footnote": "各项与上下文页内的开关共用存储；切换在上下文页重新打开后生效。",
   // AppearancePanel — 预览 / 主题 / 显示模式 / 字体 / 密度 / 动效 / 强调色 / 语言
   "settings.appear.livePreviewTitle": "外观实时预览",
-  "settings.appear.livePreviewDesc": "当前主题与显示模式的组合效果；鼠标悬停下方主题卡可即时预览，点击才生效。",
+  "settings.appear.livePreviewDesc": "当前主题与显示模式的组合效果；打开下拉悬停选项可即时预览，点击才生效。",
   "settings.appear.themeTitle": "主题色系",
   "settings.appear.themeDesc": "选择全局氛围色 —— 深空星云背景、霓虹光效与玻璃质感将随主题联动。",
   "settings.appear.dark": "暗色",

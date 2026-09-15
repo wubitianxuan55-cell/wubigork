@@ -1,5 +1,6 @@
 /**
  * ModuleLauncher — 双空间首页（v7 重设计：书斋「文书台」/ 闲庭「游园画廊」）
+ * v9 书斋·案头：masthead+印章身份区 / 命令台独占主角 / 案牌网格 / 脉息面板
  *
  * 设计判据（为什么 v6 仍显廉价，v7 逐条改）：
  *   1. 到处都是「等大圆角卡片 + 描边」= 模板感源头 → v7 结构只用三种形态：
@@ -436,7 +437,7 @@ const SpaceSwitch: React.FC<{
 }
 
 // ════════════════════════════════════════════════════════════════════
-//  书斋（work）·「文书台」——仪表条 + 版式标题 + 命令条 + 账页 + 目录 + 仪表栏
+//  书斋（work）· v9「案头」——masthead 身份区 + 纯命令台 + 账页×案牌 + 脉息面板
 // ════════════════════════════════════════════════════════════════════
 const DeskHome: React.FC<{
   data: LauncherData
@@ -506,23 +507,28 @@ const DeskHome: React.FC<{
         <div className="w-main">
           <SpaceSwitch space={space} onSwitchSpace={onSwitchSpace} activeModel={activeModel} />
 
-          {/* 命令台（v8 重设计）：v7 的杂志刊头（大标题+三行 lede，占 ~25% 视高）压缩为
-              一条 kicker 行；命令条升格为页面第一主角件（玻璃抬升面，气泡流/语音状态
-              全部收进台内），视觉锚点从「书斋」二字转移到命令台——工作台首页的第一
-              任务是发起工作，不是读刊头。 */}
-          <section className="w-deck v3-rise v3-rise-1" aria-label={t('shell.launcher.heroAria')}>
-            <div className="w-deck-head">
-              <span className="w-kicker-mark" aria-hidden="true" />
+          {/* v9 身份区（masthead）：印章 + 标题/lede + 空间 chip + 就绪 pill。v8
+              deck 内的 kicker 行升回独立 header——身份与状态归 masthead，命令台
+              只管发起工作；印章取空间名首字（书/斋），纯装饰 aria-hidden。 */}
+          <header className="w-masthead v3-rise v3-rise-1">
+            <span className="w-seal" aria-hidden="true">{spaceLabel.slice(0, 1)}</span>
+            <div className="w-mast-body">
+              <h1 className="w-mast-title">{t('home.title')}</h1>
+              <p className="w-mast-lede">{t('home.sub')}</p>
+            </div>
+            <div className="w-mast-side">
               {spaceEntry && (
                 <span className="ml-space-chip" data-testid="ml-space-chip" title={t('home.spaceSwitchHint')}>
                   {spaceLabel}
                 </span>
               )}
-              <span className="w-deck-sub" title={t('home.sub')}>{t('home.sub')}</span>
-              <span className="w-kicker-rule" aria-hidden="true" />
-              <span className="w-kicker-pill">{t('home.pill')}</span>
+              <span className="w-mast-pill">{t('home.pill')}</span>
             </div>
+          </header>
 
+          {/* 命令台（v9 纯命令台）：deck-head 整块上移 masthead，台内只留气泡流 /
+              命令条 / 语音状态——命令台独占主角。 */}
+          <section className="w-deck v3-rise v3-rise-2" aria-label={t('shell.launcher.heroAria')}>
             {hasChat && (
               <div className="w-hero-chat" aria-live="polite">
                 {userText && <ChatBubble role="user" text={userText} />}
@@ -589,8 +595,8 @@ const DeskHome: React.FC<{
             </div>
           </section>
 
-          {/* ═══ 账页 × 目录 双列（v8：两段行式列表不再纵向堆叠——同构列表并排
-              消扫视疲劳；账页左=文档驱动主角，目录右=索引）═══ */}
+          {/* ═══ 账页 × 目录 双列（v9：账页左=文档驱动主角，目录右=旗舰横带 +
+              案牌网格，两段异质内容并排消扫视疲劳）═══ */}
           <div className="w-columns">
             {/* 最近文档账页（书斋主角：文档驱动；localStorage 单源，零新 binding） */}
             <section className="w-ledger v3-rise v3-rise-2" aria-label={t('home.recentDocs')} data-testid="desk-recent-docs">
@@ -622,7 +628,8 @@ const DeskHome: React.FC<{
               )}
             </section>
 
-            {/* 能力目录：旗舰横带（序号水印）+ 单列序号行（目录列内单列，密度对齐账页） */}
+            {/* 能力目录（v9 案牌）：旗舰横带（序号水印）不变；行式索引改案牌网格——
+                徽记 + 名称/描述 + 箭头，去序号去逐项 animationDelay，铺排更疏朗 */}
             <section className="w-cap" aria-label={t('home.capTitle')}>
               <div className="v3-rise v3-rise-3">
                 <SectionLabel icon={<ThunderboltOutlined />} title={t('home.capTitle')} sub={t('home.capSub')} />
@@ -634,12 +641,12 @@ const DeskHome: React.FC<{
                   onOpen={() => onNavigate(featuredModule.key)}
                 />
               )}
-              <div className="w-index">
-                {indexModules.map((m, i) => (
-                  <IndexItem key={m.key} m={m} idx={i + 2} onOpen={() => onNavigate(m.key)} />
+              <div className="w-plaques">
+                {indexModules.map((m) => (
+                  <Plaque key={m.key} m={m} onOpen={() => onNavigate(m.key)} />
                 ))}
                 {settingsModule && (
-                  <IndexItem key={settingsModule.key} m={settingsModule} idx={indexModules.length + 2} onOpen={() => onNavigate(settingsModule.key)} />
+                  <Plaque m={settingsModule} onOpen={() => onNavigate(settingsModule.key)} />
                 )}
                 {indexModules.length === 0 && !featuredModule && !settingsModule && (
                   <div className="ml-col-empty v3-rise">{t('shell.launcher.noModules')}</div>
@@ -649,21 +656,13 @@ const DeskHome: React.FC<{
           </div>
         </div>
 
-        {/* ═══ 右舷：晨报置顶（主动作卡）+ 仪表纵栏（v8：五节等权改主从——晨报
-            是「今天该做什么」，遥测/写作/会话/记忆是「状态脉搏」，主从分层）═══ */}
+        {/* ═══ 右舷（v9 脉息面板）：晨报置顶（今天该做什么）+ w-vitals 单一脉息
+            面板收拢四节——写作进度升为第一节（图形锚点），内核 / 会话 / 记忆随后 ═══ */}
         <aside className="w-rail v3-rise v3-rise-3" aria-label={t('home.sideAria')}>
           {/* 做梦 2.0 晨报（纯本地主动预取）：仅书斋渲染（只读 work 空间记忆）。 */}
           <MorningBriefCard />
-          <div className="w-rail-panel">
-            <section className="w-sec" aria-label={t('home.kernel')}>
-              <div className="ml-sec-head">
-                <span className="ml-sec-icon" aria-hidden="true"><ApiOutlined /></span>
-                <span className="ml-sec-title">{t('home.kernel')}</span>
-              </div>
-              <TelemetryBody data={data} />
-            </section>
-
-            <section className="w-sec" aria-label={t('shell.launcher.statWriting')}>
+          <div className="w-vitals">
+            <section className="w-vital" aria-label={t('shell.launcher.statWriting')}>
               <div className="ml-sec-head">
                 <span className="ml-sec-icon" aria-hidden="true"><FileTextOutlined /></span>
                 <span className="ml-sec-title">{t('shell.launcher.statWriting')}</span>
@@ -671,7 +670,15 @@ const DeskHome: React.FC<{
               <WritingRing data={data} />
             </section>
 
-            <section className="w-sec" aria-label={t('shell.launcher.sessions')}>
+            <section className="w-vital" aria-label={t('home.kernel')}>
+              <div className="ml-sec-head">
+                <span className="ml-sec-icon" aria-hidden="true"><ApiOutlined /></span>
+                <span className="ml-sec-title">{t('home.kernel')}</span>
+              </div>
+              <TelemetryBody data={data} />
+            </section>
+
+            <section className="w-vital" aria-label={t('shell.launcher.sessions')}>
               <div className="ml-sec-head">
                 <span className="ml-sec-icon" aria-hidden="true"><ClockCircleOutlined /></span>
                 <span className="ml-sec-title">{t('shell.launcher.sessions')}</span>
@@ -679,7 +686,7 @@ const DeskHome: React.FC<{
               <SessionList sessions={data.sessions} onOpen={() => onNavigate('chat')} />
             </section>
 
-            <section className="w-sec" aria-label={t('shell.launcher.memoryPulse')}>
+            <section className="w-vital" aria-label={t('shell.launcher.memoryPulse')}>
               <div className="ml-sec-head">
                 <span className="ml-sec-icon" aria-hidden="true"><HeartOutlined /></span>
                 <span className="ml-sec-title">{t('shell.launcher.memoryPulse')}</span>
@@ -724,31 +731,19 @@ const FeaturedBand: React.FC<{
   )
 }
 
-/** 目录式索引项（书斋：序号 + 徽记 + 名称 + 描述；hover 描边生长 + 位移） */
-const IndexItem: React.FC<{
-  m: LauncherModule
-  idx: number
-  onOpen: () => void
-}> = ({ m, idx, onOpen }) => {
+/** 案牌（v9：徽记 + 名称/描述 + 箭头；替代行式索引项，网格铺排，不带序号） */
+const Plaque: React.FC<{ m: LauncherModule; onOpen: () => void }> = ({ m, onOpen }) => {
   const Icon = resolveBoardIcon(m.icon)
   const t = useT()
   return (
-    <button
-      type="button"
-      aria-label={t('shell.launcher.enterModule', { name: m.name })}
-      className="w-index-item v3-rise"
-      style={{ animationDelay: `${200 + (idx - 2) * 40}ms` } as React.CSSProperties}
-      onClick={onOpen}
-    >
-      <span className="w-index-num" aria-hidden="true">{pad2(idx)}</span>
-      <span className="w-index-body">
-        <span className="w-index-head">
-          <span className="w-index-icon" aria-hidden="true">{Icon ? <Icon /> : null}</span>
-          <span className="w-index-name">{m.name}</span>
-        </span>
-        <span className="w-index-desc">{m.desc}</span>
+    <button type="button" className="w-plaque v3-rise" onClick={onOpen}
+      aria-label={t('shell.launcher.enterModule', { name: m.name })}>
+      <span className="w-plaque-icon" aria-hidden="true">{Icon ? <Icon /> : null}</span>
+      <span className="w-plaque-body">
+        <span className="w-plaque-name">{m.name}</span>
+        <span className="w-plaque-desc">{m.desc}</span>
       </span>
-      <ArrowRightOutlined className="w-index-arrow" aria-hidden="true" />
+      <ArrowRightOutlined className="w-plaque-arrow" aria-hidden="true" />
     </button>
   )
 }

@@ -2,9 +2,9 @@ import React, { useMemo, useState } from 'react'
 import {
   CheckOutlined, DesktopOutlined, MoonOutlined, BgColorsOutlined,
   SunOutlined, ThunderboltOutlined, FontSizeOutlined, DashboardOutlined, CompressOutlined,
-  EyeOutlined, SwapOutlined, AimOutlined, GlobalOutlined,
+  SwapOutlined, AimOutlined, GlobalOutlined,
 } from '@ant-design/icons'
-import { Button, InputNumber, Select } from 'antd'
+import { Button, InputNumber, Segmented, Select } from 'antd'
 import { useAppStore, THEME_PRESETS, FONT_OPTIONS, type DisplayMode, type ThemePreset, type Density, type MotionPref } from '../../stores/appStore'
 import { useI18n, useT, type LangPref } from '../../gaea/lib/i18n'
 import type { DictKey } from '../../gaea/locales/en'
@@ -23,7 +23,15 @@ const THEME_LABEL_KEYS: Record<ThemePreset, { label: DictKey; desc: DictKey }> =
 
 interface ThemeOption { key: ThemePreset; label: string; desc: string; color: string }
 
-/** 主题选项（label/desc 已本地化）；t 变更时重算（hover 预览与主题卡共用） */
+/** 主题 Select 的 option data 形状：color/desc 随 options 透传，optionRender 经 option.data 取用 */
+type ThemeSelectOption = {
+  value: ThemePreset
+  label: string
+  color: string
+  desc: string
+}
+
+/** 主题选项（label/desc 已本地化）；t 变更时重算（下拉选项与 hover 预览共用） */
 function useThemeOptions(): ThemeOption[] {
   const t = useT()
   return useMemo(
@@ -32,128 +40,18 @@ function useThemeOptions(): ThemeOption[] {
   )
 }
 
-/** 通用「选择卡片」：多选一，选中发光对勾（外观设置各维度复用） */
-function ChoiceCards<T extends string>({ options, value, onChange }: {
-  options: { key: T; label: string; desc?: string; icon?: React.ReactNode }[]
-  value: T
-  onChange: (k: T) => void
-}) {
+/** ThemeOrb — 主题色发光球（沿用原 ThemeCard 氛围球样式）：下拉 labelRender 色点 / optionRender 图标共用 */
+function ThemeOrb({ color, size = 20 }: { color: string; size?: number }) {
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10 }}>
-      {options.map((m) => {
-        const active = value === m.key
-        return (
-          <div
-            key={m.key}
-            role="button"
-            tabIndex={0}
-            onClick={() => onChange(m.key)}
-            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onChange(m.key) } }}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 10,
-              padding: '13px 14px', borderRadius: 'var(--md-sys-radius-md)', cursor: 'pointer', userSelect: 'none',
-              background: active ? 'color-mix(in srgb, var(--gaea-glow) 10%, var(--md-sys-color-surface-container))' : 'var(--md-sys-color-surface-container)',
-              border: active ? '1.5px solid var(--gaea-glow)' : '1px solid var(--md-sys-color-outline-variant)',
-              boxShadow: active ? '0 0 16px color-mix(in srgb, var(--gaea-glow) 25%, transparent)' : 'none',
-              transition: 'all var(--md-sys-transition-fast)',
-            }}
-          >
-            {m.icon && (
-              <span style={{
-                width: 30, height: 30, borderRadius: 9, flexShrink: 0,
-                display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15,
-                color: active ? 'var(--gaea-glow)' : 'var(--md-sys-color-text-secondary)',
-                background: active ? 'color-mix(in srgb, var(--gaea-glow) 12%, transparent)' : 'var(--md-sys-color-surface-variant)',
-              }}>{m.icon}</span>
-            )}
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--md-sys-color-text)' }}>{m.label}</div>
-              {m.desc && <div style={{ fontSize: 10.5, color: 'var(--md-sys-color-text-secondary)' }}>{m.desc}</div>}
-            </div>
-            {active && (
-              <span style={{
-                marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                width: 18, height: 18, borderRadius: '50%', background: 'var(--gaea-glow)',
-                color: '#08130f', fontSize: 10, boxShadow: '0 0 8px var(--gaea-glow)', // hex-exempt 主题预览固定明暗样张
-              }}><CheckOutlined /></span>
-            )}
-          </div>
-        )
-      })}
-    </div>
+    <span style={{
+      width: size, height: size, borderRadius: '50%', flexShrink: 0,
+      background: `radial-gradient(circle at 35% 30%, ${color}, color-mix(in srgb, ${color} 45%, #000))`,
+      boxShadow: `0 0 10px ${color}66, 0 0 20px ${color}33`,
+    }} />
   )
 }
 
-/** 主题预览卡：上部氛围色渐变条 + 下部名称/说明，选中态发光边框 + 对勾角标 */
-function ThemeCard({ t, active, onClick, onHover }: {
-  t: ThemeOption
-  active: boolean
-  onClick: () => void
-  onHover: (hovering: boolean) => void
-}) {
-  return (
-    <div
-      role="button"
-      tabIndex={0}
-      onClick={onClick}
-      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick() } }}
-      onMouseEnter={(e: React.MouseEvent<HTMLDivElement>) => {
-        onHover(true)
-        if (!active) e.currentTarget.style.borderColor = 'color-mix(in srgb, var(--gaea-glow) 45%, transparent)'
-      }}
-      onMouseLeave={(e: React.MouseEvent<HTMLDivElement>) => {
-        onHover(false)
-        if (!active) e.currentTarget.style.borderColor = 'var(--md-sys-color-outline-variant)'
-      }}
-      style={{
-        borderRadius: 14, overflow: 'hidden', cursor: 'pointer', userSelect: 'none',
-        background: 'var(--md-sys-color-surface-container)',
-        border: active ? '1.5px solid var(--gaea-glow)' : '1px solid var(--md-sys-color-outline-variant)',
-        boxShadow: active ? '0 0 18px color-mix(in srgb, var(--gaea-glow) 30%, transparent)' : 'none',
-        transition: 'all var(--md-sys-transition-fast)',
-        position: 'relative',
-      }}
-
-    >
-      {/* 氛围预览条：暗底星云 + 主题色霓虹光晕 */}
-      <div style={{
-        height: 62,
-        background: `linear-gradient(135deg, #0a0f1e 0%, ${t.color}44 55%, ${t.color}22 100%)`,
-        position: 'relative',
-      }}>
-        <span style={{
-          position: 'absolute', left: 16, top: 16, width: 22, height: 22, borderRadius: '50%',
-          background: `radial-gradient(circle at 35% 30%, ${t.color}, color-mix(in srgb, ${t.color} 45%, #000))`,
-          boxShadow: `0 0 12px ${t.color}, 0 0 26px color-mix(in srgb, ${t.color} 45%, transparent)`,
-        }} />
-        <span style={{
-          position: 'absolute', right: 20, bottom: 12, width: 8, height: 8, borderRadius: '50%',
-          background: `${t.color}88`, boxShadow: `0 0 8px ${t.color}`,
-        }} />
-      </div>
-      {/* 名称区 */}
-      <div style={{ padding: '10px 12px', display: 'flex', alignItems: 'center', gap: 8 }}>
-        <span style={{ fontSize: 13, fontWeight: 600, color: active ? 'var(--gaea-glow)' : 'var(--md-sys-color-text)' }}>
-          {t.label}
-        </span>
-        <span style={{
-          fontSize: 10.5, color: 'var(--md-sys-color-text-secondary)',
-          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1,
-        }}>{t.desc}</span>
-        {active && (
-          <span style={{
-            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-            width: 18, height: 18, borderRadius: '50%', flexShrink: 0,
-            background: 'var(--gaea-glow)', color: '#08130f', fontSize: 10, // hex-exempt 主题预览固定明暗样张
-            boxShadow: '0 0 8px var(--gaea-glow)',
-          }}><CheckOutlined /></span>
-        )}
-      </div>
-    </div>
-  )
-}
-
-/** AppearancePreview — 主题 + 模式实时微缩预览（hover 主题卡时预览该主题，离开恢复当前） */
+/** AppearancePreview — 主题 + 模式实时微缩预览（hover 下拉选项时预览该主题，离开恢复当前） */
 function AppearancePreview({ t, previewing }: { t: ThemeOption; previewing: boolean }) {
   const { darkMode } = useAppStore()
   const tr = useT()
@@ -193,7 +91,7 @@ function AppearancePreview({ t, previewing }: { t: ThemeOption; previewing: bool
         <div style={{
           borderRadius: 12, padding: '12px 14px',
           background: darkMode ? 'rgba(255,255,255,0.07)' : 'rgba(255,255,255,0.72)',
-          border: '1px solid rgba(255,255,255,0.14)',
+          border: darkMode ? '1px solid rgba(255,255,255,0.14)' : '1px solid rgba(0,0,0,0.10)', // hex-exempt 主题预览固定明暗样张（边框随档位）
           backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
@@ -213,7 +111,8 @@ function AppearancePreview({ t, previewing }: { t: ThemeOption; previewing: bool
   )
 }
 
-/** AppearancePanel — 外观设置：主题色系（hover 预览）+ 实时预览 */
+/** AppearancePanel — 主题色系：下拉选择 + 合并进卡的实时预览（原「外观实时预览」独立卡并入，8 卡 → 7 卡）
+ *  主题下拉：optionRender 悬停即时预览，点击生效 */
 const AppearancePanel: React.FC = () => {
   const t = useT()
   const { baseTheme, setTheme } = useAppStore()
@@ -223,40 +122,113 @@ const AppearancePanel: React.FC = () => {
   const previewT = themeOptions.find((x) => x.key === (hovered ?? baseTheme)) ?? themeOptions[0]
 
   return (
-    <>
-      <SettingsSection icon={<span style={{ fontSize: 15 }}><EyeOutlined /></span>} title={t('settings.appear.livePreviewTitle')} desc={t('settings.appear.livePreviewDesc')} noMargin>
-        <AppearancePreview t={previewT} previewing={!!hovered} />
-      </SettingsSection>
-      <SettingsSection
-        icon={<span style={{ fontSize: 15 }}><BgColorsOutlined /></span>}
-        title={t('settings.appear.themeTitle')}
-        desc={t('settings.appear.themeDesc')}
-      >
-        <div style={{
-          display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))', gap: 10,
-        }}>
-          {themeOptions.map((t) => (
-            <ThemeCard
-              key={t.key} t={t} active={t.key === baseTheme}
-              onClick={() => setTheme(t.key)}
-              onHover={(h) => setHovered(h ? t.key : null)}
-            />
-          ))}
-        </div>
-      </SettingsSection>
-    </>
+    <SettingsSection
+      icon={<span style={{ fontSize: 15 }}><BgColorsOutlined /></span>}
+      title={t('settings.appear.themeTitle')}
+      desc={t('settings.appear.themeDesc')}
+    >
+      {/* 主题下拉：色点 + 名称，option 悬停即时预览（沿袭原 ThemeCard hover 特性） */}
+      <Select<ThemePreset, ThemeSelectOption>
+        value={baseTheme}
+        onChange={(k) => setTheme(k)}
+        style={{ width: 320 }}
+        popupMatchSelectWidth={false}
+        aria-label={t('settings.appear.themeTitle')}
+        onOpenChange={(open) => { if (!open) setHovered(null) }}
+        labelRender={({ label, value }) => {
+          const opt = themeOptions.find((o) => o.key === value) ?? themeOptions[0]
+          return (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+              <ThemeOrb color={opt.color} size={16} />
+              <span>{label ?? opt.label}</span>
+            </span>
+          )
+        }}
+        optionRender={(option) => {
+          const d = option.data
+          return (
+            <div
+              onMouseEnter={() => setHovered(d.value)}
+              onMouseLeave={() => setHovered(null)}
+              style={{ display: 'flex', alignItems: 'center', gap: 10 }}
+            >
+              <ThemeOrb color={d.color} size={20} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--md-sys-color-text)' }}>{d.label}</div>
+                <div style={{ fontSize: 11, color: 'var(--md-sys-color-text-secondary)' }}>{d.desc}</div>
+              </div>
+              {d.value === baseTheme && <CheckOutlined style={{ color: 'var(--gaea-glow)', fontSize: 13 }} />}
+            </div>
+          )
+        }}
+        options={themeOptions.map((o) => ({ value: o.key, label: o.label, color: o.color, desc: o.desc }))}
+      />
+      {/* hover 预览说明行 */}
+      <div style={{ fontSize: 11, color: 'var(--md-sys-color-text-secondary)', margin: '8px 0 12px' }}>
+        {t('settings.appear.livePreviewDesc')}
+      </div>
+      {/* 预览小标题 */}
+      <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--md-sys-color-text)', marginBottom: 6 }}>
+        {t('settings.appear.livePreviewTitle')}
+      </div>
+      <AppearancePreview t={previewT} previewing={!!hovered} />
+    </SettingsSection>
   )
 }
 
-/** DarkModePanel — 显示模式三卡：暗色 / 亮色 / 跟随系统 */
+/** SegmentedRow — 行式选择条目：左侧当前项图标 + label/desc 摘要，右侧 Segmented 分段切换。
+ *  紧凑替代原 ChoiceCards 卡片网格，与 FontPanel/AccentPanel 的行式风格统一（显示模式/密度/动效共用）。 */
+function SegmentedRow<T extends string>({ value, onChange, options, ariaLabel }: {
+  value: T
+  onChange: (v: T) => void
+  ariaLabel: string
+  options: { key: T; label: string; desc?: string; icon?: React.ReactNode }[]
+}) {
+  // 左侧摘要跟随当前选中项（icon + label + desc 随切换联动）
+  const current = options.find((o) => o.key === value)
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+      {current?.icon && (
+        <span style={{
+          width: 30, height: 30, borderRadius: 9, flexShrink: 0,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15,
+          color: 'var(--md-sys-color-text-secondary)',
+          background: 'var(--md-sys-color-surface-variant)',
+          transition: 'all var(--md-sys-transition-fast)',
+        }}>{current.icon}</span>
+      )}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--md-sys-color-text)' }}>{current?.label}</div>
+        {current?.desc && <div style={{ fontSize: 10.5, color: 'var(--md-sys-color-text-secondary)' }}>{current.desc}</div>}
+      </div>
+      <Segmented
+        value={value}
+        onChange={(v) => onChange(v as T)}
+        aria-label={ariaLabel}
+        options={options.map((o) => ({
+          value: o.key,
+          label: (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              {o.icon && <span style={{ fontSize: 13 }}>{o.icon}</span>}
+              {o.label}
+            </span>
+          ),
+        }))}
+      />
+    </div>
+  )
+}
+
+/** DarkModePanel — 显示模式行式条目：暗色 / 亮色 / 跟随系统 */
 export const DarkModePanel: React.FC = () => {
   const t = useT()
   const { mode, systemDark, setMode } = useAppStore()
   return (
     <SettingsSection icon={<span style={{ fontSize: 15 }}><SwapOutlined /></span>} title={t('settings.appear.displayTitle')} desc={t('settings.appear.displayDesc')}>
-      <ChoiceCards<DisplayMode>
+      <SegmentedRow<DisplayMode>
         value={mode}
         onChange={setMode}
+        ariaLabel={t('settings.appear.displayTitle')}
         options={[
           { key: 'dark',   label: t('settings.appear.modeDark'), desc: t('settings.appear.modeDarkDesc'), icon: <MoonOutlined /> },
           { key: 'light',  label: t('settings.appear.modeLight'), desc: t('settings.appear.modeLightDesc'), icon: <SunOutlined /> },
@@ -335,9 +307,10 @@ export const DensityPanel: React.FC = () => {
   const { density, setDensity } = useAppStore()
   return (
     <SettingsSection icon={<span style={{ fontSize: 15 }}><DashboardOutlined /></span>} title={t('settings.appear.densityTitle')} desc={t('settings.appear.densityDesc')}>
-      <ChoiceCards<Density>
+      <SegmentedRow<Density>
         value={density}
         onChange={setDensity}
+        ariaLabel={t('settings.appear.densityTitle')}
         options={[
           { key: 'standard', label: t('settings.appear.densityStandard'), desc: t('settings.appear.densityStandardDesc'), icon: <DashboardOutlined /> },
           { key: 'compact',  label: t('settings.appear.densityCompact'), desc: t('settings.appear.densityCompactDesc'), icon: <CompressOutlined /> },
@@ -353,9 +326,10 @@ export const MotionPanel: React.FC = () => {
   const { motion, setMotion } = useAppStore()
   return (
     <SettingsSection icon={<span style={{ fontSize: 15 }}><ThunderboltOutlined /></span>} title={t('settings.appear.motionTitle')} desc={t('settings.appear.motionDesc')}>
-      <ChoiceCards<MotionPref>
+      <SegmentedRow<MotionPref>
         value={motion}
         onChange={setMotion}
+        ariaLabel={t('settings.appear.motionTitle')}
         options={[
           { key: 'full',    label: t('settings.appear.motionFull'), desc: t('settings.appear.motionFullDesc'), icon: <ThunderboltOutlined /> },
           { key: 'reduced', label: t('settings.appear.motionReduced'), desc: t('settings.appear.motionReducedDesc'), icon: <MoonOutlined /> },

@@ -112,3 +112,28 @@
 （home.sub 收进 deck 头单行截断）；遥测/写作/会话/记忆/晨报/语音/命令条功能全保留。
 **验收**：1440×900 左栏一屏收齐（余 ~5-8% 底部空间）；1100×800 双列塌缩正常；
 间距节奏均匀（w-cap gap 12→9 + 旗舰 padding 13→11）；既有测试 9/9 过。
+
+## v9 书斋重设计（2026-09-15 · 「案头」，规格=进度计划/gaea-desk-home-redesign-v9-202609.md）
+**诊断**（v8 遗留四条）：①无第一印象——砍刊头后书斋无排印锚点，首屏最大字号 19px，
+  与闲庭月洞门+34-54px 大字并置成「无签名版」；②清单海——~80% 界面是 hairline 文字行、
+  等宽字消费点 10 处，仪表盘气质与「书斋」意象相悖；③主角不突出——命令条仅 54px、上方
+  还压 kicker 行；④右舷拥挤——304px 窄栏五件纵排无图形锚点。
+**方案**（口诀「抬头见款识、伸手是笔砚、左手账册、右手名牌、侧厢脉案」）：
+- masthead 身份区（新增）：w-seal 印章 44px 印泥朱 #d06055（全文件唯一 raw hex 豁免，
+  取空间名首字、aria-hidden、-3° 定格）+ 台名 clamp(30,3vw,42px)/650 + lede +
+  ml-space-chip/w-mast-pill 迁入；开放式排印无卡片盒，底缘 hairline 收束。
+- kicker 行整体退役：mark/rule 退役、chip/pill 迁 masthead、deck-sub 升格 w-mast-lede；
+  命令条 54→60px、输入 14→15px、focus 光晕加强。
+- 能力目录：旗舰横带保留为目录首件；w-index 单列行 → w-plaques 双列案牌
+  （图标章 32px + 单行描述 + hover 抬升）；删除 w-index-num 等宽序号（降 mono 密度）。
+- 右舷：w-rail-panel 更名 w-vitals（单卡四节语义升格状态脉搏）；写作进度升首节、
+  ml-ring 72→80px——用 .w-vitals 作用域选择器放大，不波及闲庭共用件。
+- 身份对仗：闲庭月洞门（圆/居中/token 派生色）↔ 书斋印章（方/左置/实色不随主题）。
+**契约不变**：ml-space-switch/ml-space-work/play、ml-space-chip（迁位不改 testid）、
+  desk-recent-docs、.garden-banner 五钩子全保；i18n 零键增删（所需键全部已存在）；
+  闲庭 GardenHome 与 .p-*/.garden-* CSS 逐行不动；共享排版原语签名零改动。
+**验收**（CDP 9333 DOM 断言 + 截图留档 .tmp/v9-desk-1440.png / v9-garden-1440.png）：
+  书斋 17 项断言全绿（masthead/印章属性/台名「文书台」/chip 在 masthead 内/案牌×5/
+  w-index-num 已删/vitals+80px 环/kicker 已退役/命令条实测 60px/账页 testid 在位/
+  无横向溢出）+ 闲庭 5 项（garden-banner 在、v9 三件套均 null、aria-pressed 同步）；
+  ModuleLauncher 8/8（4 既有 + 4 新增）+ AppearancePanel 6/6 + tsc/eslint 零错。

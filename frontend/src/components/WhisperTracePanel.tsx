@@ -30,18 +30,18 @@ const EVENT_LABEL: Record<string, string> = {
   extreme_redline: '红线',
 }
 
-// 信任颜色（绿→黄→红）
+// 信任颜色（绿→黄→红；语义令牌随主题明暗自动切换，浅色模式压深保证可读）
 function trustColor(t: number): string {
-  if (t >= 70) return '#4ade80'
-  if (t >= 40) return '#facc15'
-  return '#f87171'
+  if (t >= 70) return 'var(--md-sys-color-success)'
+  if (t >= 40) return 'var(--md-sys-color-warning)'
+  return 'var(--md-sys-color-destructive)'
 }
 
 // MiniBar 四色：indigo/green/amber/pink
 function MiniBar2({ value, color, max }: { value: number; color: string; max: number }) {
   const pct = Math.max(0, Math.min(100, ((value + max) / (2 * max)) * 100))
   return (
-    <div style={{ width: '100%', height: 4, background: 'rgba(255,255,255,0.06)', borderRadius: 2, overflow: 'hidden' }}>
+    <div style={{ width: '100%', height: 4, background: 'var(--md-sys-color-outline-variant)', borderRadius: 2, overflow: 'hidden' }}>
       <div style={{ height: '100%', borderRadius: 2, width: `${pct}%`, background: color, transition: 'width 0.3s' }} />
     </div>
   )
@@ -55,33 +55,33 @@ function TraceRow({ entry, expanded, onToggle }: {
   const tColor = trustColor(entry.l1.trust)
 
   return (
-    <div style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+    <div style={{ borderBottom: '1px solid var(--md-sys-color-outline-variant)' }}>
       <button
         onClick={onToggle}
         style={{
           width: '100%', display: 'flex', alignItems: 'center', gap: 6,
           padding: '6px 8px', background: 'none', border: 'none',
-          cursor: 'pointer', textAlign: 'left', fontSize: 12, color: '#999',
+          cursor: 'pointer', textAlign: 'left', fontSize: 12, color: 'var(--md-sys-color-text-secondary)',
         }}
-        onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.04)')}
+        onMouseEnter={e => (e.currentTarget.style.background = 'color-mix(in srgb, var(--md-sys-color-primary) 8%, transparent)')}
         onMouseLeave={e => (e.currentTarget.style.background = 'none')}
       >
-        <span style={{ color: '#666', width: 22, flexShrink: 0 }}>#{entry.turn}</span>
+        <span style={{ color: 'var(--md-sys-color-on-surface-variant)', width: 22, flexShrink: 0 }}>#{entry.turn}</span>
         <span style={{ width: 44, flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {eventLabel}
         </span>
-        {entry.l3.silent && <span style={{ color: '#f59e0b', fontSize: 11 }}>🤫</span>}
+        {entry.l3.silent && <span style={{ color: 'var(--md-sys-color-warning)', fontSize: 11 }}>🤫</span>}
         <span style={{ color: tColor, fontWeight: 600, marginLeft: 'auto', marginRight: 8 }}>
           {Math.round(entry.l1.trust)}
         </span>
-        <span style={{ color: '#888', fontSize: 10 }}>{stageLabel}</span>
+        <span style={{ color: 'var(--md-sys-color-text-secondary)', fontSize: 10 }}>{stageLabel}</span>
       </button>
 
       {expanded && (
-        <div style={{ padding: '8px 12px 10px', display: 'flex', flexDirection: 'column', gap: 8, fontSize: 11, color: '#888' }}>
+        <div style={{ padding: '8px 12px 10px', display: 'flex', flexDirection: 'column', gap: 8, fontSize: 11, color: 'var(--md-sys-color-text-secondary)' }}>
           {/* L0: 事件类型 */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
-            <span>类型: <b style={{ color: '#ccc' }}>{eventLabel}</b></span>
+            <span>类型: <b style={{ color: 'var(--md-sys-color-text)' }}>{eventLabel}</b></span>
             <span>强度: {entry.l0.intensity}</span>
             <span>真诚: {entry.l0.sincerity?.toFixed(1) ?? '-'}</span>
           </div>
@@ -110,29 +110,29 @@ function TraceRow({ entry, expanded, onToggle }: {
               </div>
             ))}
           </div>
-          <div style={{ color: '#aaa' }}>情绪: <b style={{ color: '#fbbf24' }}>{entry.l2.label}</b></div>
+          <div style={{ color: 'var(--md-sys-color-text-secondary)' }}>情绪: <b style={{ color: 'var(--md-sys-color-warning)' }}>{entry.l2.label}</b></div>
 
           {/* L3 */}
           <div style={{ display: 'flex', gap: 12 }}>
             <span>TierB: {entry.l3.tierBChars}字</span>
             <span>事实: {entry.l3.factsUsed || 0}</span>
             <span>命中: {entry.l3.embeddingHits || 0}</span>
-            {entry.l3.silent && <span style={{ color: '#f59e0b' }}>🤫 沉默</span>}
+            {entry.l3.silent && <span style={{ color: 'var(--md-sys-color-warning)' }}>🤫 沉默</span>}
           </div>
 
           {/* L4/L5 */}
           {(entry.l4?.wrote || entry.l5?.toolCalls?.length) && (
             <div style={{ display: 'flex', gap: 12 }}>
-              {entry.l4?.wrote && <span style={{ color: '#4ade80' }}>✍️ 已写入</span>}
+              {entry.l4?.wrote && <span style={{ color: 'var(--md-sys-color-success)' }}>✍️ 已写入</span>}
               {entry.l5?.toolCalls?.map((tc, i) => (
-                <span key={i} style={{ color: '#818cf8' }}>🔧 {tc}</span>
+                <span key={i} style={{ color: 'var(--md-sys-color-primary)' }}>🔧 {tc}</span>
               ))}
             </div>
           )}
 
           {/* 耗时 */}
           {entry.ms?.total != null && (
-            <span style={{ color: '#666', fontSize: 10 }}>⏱ {entry.ms.total}ms</span>
+            <span style={{ color: 'var(--md-sys-color-on-surface-variant)', fontSize: 10 }}>⏱ {entry.ms.total}ms</span>
           )}
         </div>
       )}
@@ -146,7 +146,7 @@ export default function WhisperTracePanel({ traces }: Props) {
 
   if (traces.length === 0) {
     return (
-      <div style={{ color: '#777', fontSize: 12, padding: 16, textAlign: 'center' }}>
+      <div style={{ color: 'var(--md-sys-color-on-surface-variant)', fontSize: 12, padding: 16, textAlign: 'center' }}>
         暂无追踪记录 — 开始对话后将显示每轮的心理变化
       </div>
     )
@@ -158,21 +158,21 @@ export default function WhisperTracePanel({ traces }: Props) {
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <div style={{
         display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px',
-        borderBottom: '1px solid rgba(255,255,255,0.08)', fontSize: 12, color: '#999',
+        borderBottom: '1px solid var(--md-sys-color-outline-variant)', fontSize: 12, color: 'var(--md-sys-color-text-secondary)',
       }}>
         <span>📊 对话追踪</span>
         <select
           value={count}
           onChange={e => setCount(Number(e.target.value))}
           style={{
-            marginLeft: 'auto', fontSize: 11, background: 'rgba(255,255,255,0.06)',
-            border: '1px solid rgba(255,255,255,0.1)', borderRadius: 4,
-            color: '#aaa', padding: '2px 6px',
+            marginLeft: 'auto', fontSize: 11, background: 'var(--md-sys-color-surface-variant)',
+            border: '1px solid var(--md-sys-color-outline-variant)', borderRadius: 4,
+            color: 'var(--md-sys-color-text-secondary)', padding: '2px 6px',
           }}
         >
           {[10, 20, 50, 100].map(n => <option key={n} value={n}>最近 {n} 轮</option>)}
         </select>
-        <span style={{ color: '#666' }}>共{traces.length}轮</span>
+        <span style={{ color: 'var(--md-sys-color-on-surface-variant)' }}>共{traces.length}轮</span>
       </div>
       <div style={{ flex: 1, overflow: 'auto' }}>
         {recent.map(entry => (
