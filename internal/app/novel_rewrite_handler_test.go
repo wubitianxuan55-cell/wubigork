@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -310,5 +312,103 @@ func TestNovelChapterRewrite_PartialCustomNoTarget(t *testing.T) {
 		`"start_pos":%d,"end_pos":%d,"selected_text":%q,"length_mode":"custom"}`, start, end, sel)
 	if _, err := a.NovelChapterRewrite(2, reqJSON); err == nil || !strings.Contains(err.Error(), "目标字数") {
 		t.Fatalf("custom 缺目标字数应报错: %v", err)
+	}
+}
+
+// ── v4 场景章整章重写（t4-C3 收官刀）──────────────────────────
+
+// mustMakeV4SceneChapter 把章变为 v4 场景章：写 v4 标记 + 建两个场景各写正文。
+func mustMakeV4SceneChapter(t *testing.T, a *App, chapterNum int, s1, s2 string) {
+	t.Helper()
+	pm := a.getPM()
+	if err := os.MkdirAll(filepath.Join(pm.Dir, ".gaea"), 0o755); err != nil {
+		t.Fatalf("建 .gaea: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(pm.Dir, ".gaea", "v4"), []byte("4"), 0o644); err != nil {
+		t.Fatalf("写 v4 标记: %v", err)
+	}
+	if err := pm.WriteChapter(chapterNum, s1+"\n\n"+s2); err != nil {
+		t.Fatalf("写 blob: %v", err)
+	}
+	sm := pm.SceneManager(chapterNum)
+	for i, content := range []string{s1, s2} {
+		sc, err := sm.Create(fmt.Sprintf("sc%d", i+1), fmt.Sprintf("场景 %d", i+1))
+		if err != nil {
+			t.Fatalf("建场景: %v", err)
+		}
+		sc.Content = content
+		if err := sm.Write(sc); err != nil {
+			t.Fatalf("写场景: %v", err)
+		}
+	}
+}
+
+// TestNovelChapterRewrite_SceneChapterRoundtrip v4 场景章整章重写全链：
+// 拼接读入 → 版本快照=stitch 全文 → 应用=单场景替换（rebuildScenesFromBlob）
+// +blob 同步 → 恢复原文同语义。
+func TestNovelChapterRewrite_SceneChapterRoundtrip(t *testing.T) {
+	const rewritten = "重写后：场景章的新整章正文。"
+	a := newRewriteTestApp(t, rewritten)
+	mustMakeV4SceneChapter(t, a, 2, "场景一原文。", "场景二原文。")
+	mustAnalysisWithSuggestions(t, a, 2, []string{"节奏拖沓"})
+
+	res, err := a.NovelChapterRewrite(2, `{"source":"analysis_suggestions","suggestion_indices":[0]}`)
+	if err != nil {
+		t.Fatalf("场景章重写失败: %v", err)
+	}
+	stitched, err := a.getPM().ReadChapterAsStitch(2)
+	if err != nil {
+		t.Fatalf("读 stitch: %v", err)
+	}
+	if !strings.Contains(stitched, "场景一原文。") || !strings.Contains(stitched, "场景二原文。") {
+		t.Fatalf("重写前 stitch 应含两场景原文: %q", stitched)
+	}
+	if res["newContent"].(string) != "场景章的新整章正文。" {
+		t.Fatalf("新全文不对: %v", res["newContent"])
+	}
+
+	// 应用：单场景替换。
+	if _, err := a.NovelApplyRewriteVersion(2, res["versionId"].(string)); err != nil {
+		t.Fatalf("应用失败: %v", err)
+	}
+	sm := a.getPM().SceneManager(2)
+	metas, _ := sm.List()
+	if len(metas) != 1 {
+		t.Fatalf("应用后应收敛为单场景，实际 %d", len(metas))
+	}
+	after, err := a.getPM().ReadChapterAsStitch(2)
+	if err != nil {
+		t.Fatalf("读应用后 stitch: %v", err)
+	}
+	if after != "场景章的新整章正文。" {
+		t.Fatalf("应用后 stitch 应为新全文: %q", after)
+	}
+	blob, _ := a.getPM().ReadChapter(2)
+	if blob != "场景章的新整章正文。" {
+		t.Fatalf("blob 投影应同步: %q", blob)
+	}
+
+	// 恢复原文：同语义（原文写回+单场景重置）。
+	if _, err := a.NovelRestoreRewriteVersion(2, res["versionId"].(string)); err != nil {
+		t.Fatalf("恢复失败: %v", err)
+	}
+	restored, _ := a.getPM().ReadChapterAsStitch(2)
+	if restored != "场景一原文。\n\n场景二原文。" && !strings.Contains(restored, "场景一原文。") {
+		t.Fatalf("恢复后应为原文拼接: %q", restored)
+	}
+	metas2, _ := a.getPM().SceneManager(2).List()
+	if len(metas2) != 1 {
+		t.Fatalf("恢复后也应为单场景（重置语义对称），实际 %d", len(metas2))
+	}
+}
+
+// TestNovelChapterRewrite_PartialRejectsSceneChapter partial 对 v4 场景章拒绝。
+func TestNovelChapterRewrite_PartialRejectsSceneChapter(t *testing.T) {
+	a := newRewriteTestApp(t, "不应被调用")
+	mustMakeV4SceneChapter(t, a, 2, "场景一原文。", "场景二原文。")
+
+	_, err := a.NovelChapterRewrite(2, `{"mode":"partial","source":"custom","custom_instructions":"收紧","start_pos":0,"end_pos":5,"selected_text":"场景一原文。"}`)
+	if err == nil || !strings.Contains(err.Error(), "局部重写") {
+		t.Fatalf("场景章 partial 应拒绝: %v", err)
 	}
 }

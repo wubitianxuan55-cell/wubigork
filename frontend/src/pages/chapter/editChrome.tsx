@@ -28,6 +28,10 @@ export interface EditChromeProps {
   onToggleFocus: () => void
   canIllustrate: boolean
   onIllustrate: () => void
+  /** v4 场景章整章重写入口（t4-C3 收官）：非场景章缺省不渲染 */
+  canRewrite?: boolean
+  onRewrite?: () => void
+  onRewriteHistory?: () => void
   onSave: () => void
   canSave: boolean
 }
@@ -48,6 +52,9 @@ const EditChrome: React.FC<EditChromeProps> = ({
   onToggleFocus,
   canIllustrate,
   onIllustrate,
+  canRewrite,
+  onRewrite,
+  onRewriteHistory,
   onSave,
   canSave,
 }) => (
@@ -93,6 +100,12 @@ const EditChrome: React.FC<EditChromeProps> = ({
         配图
       </Button>
     </Tooltip>
+    {canRewrite && onRewrite && (
+      <Button size="small" onClick={onRewrite}>整章重写</Button>
+    )}
+    {canRewrite && onRewriteHistory && (
+      <Button size="small" onClick={onRewriteHistory}>重写历史</Button>
+    )}
     <Tooltip title="Ctrl+S">
       <Button size="small" icon={<SaveOutlined />} onClick={onSave} disabled={!canSave}>保存</Button>
     </Tooltip>

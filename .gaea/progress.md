@@ -3,6 +3,15 @@
 > 本文件为**最近发布速览**。完整历史磁带见 `docs/archive/progress-history-2026-09.md`
 > 与 `releases/`。
 
+## 最新发布：v4.322.0（2026-09-16）「t4-C3 收官：场景工程整章重写（单场景替换）」
+
+- **来源**：用户指令「继续」。小刀单线主代理直做；规格书 进度计划/gaea-scene-rewrite-20260916.md。
+- **产品裁决**：单场景替换（应用/Restore 对称）；LLM 分场景回写与场景粒度重写入观察池。
+- **落地**：移除 whole v4 拒绝+stitch 读；Apply/Restore +rebuildScenesFromBlob（复用既有原语零新机制）；partial v4 守卫；EditChrome 双按钮+ChapterPage 挂两弹窗。零新绑定 696。
+- **验收**：Go +2+前端 +2（11/11）；ci.ps1 全绿 exit 0（go 129 包+vitest 365 文件）；drift OK@696；产物=exe 50638848B SHA256=5b1b105ad81bff7b5dd391cc445aeda8cb77aed575a516c996e10441c38ea29e（releases+SUMS；桌面副本同哈希；冒烟 200 过）。
+- **出口**：t4-C3 余项全清（三通道×两存储矩阵仅剩 partial×场景=守卫+观察池）。
+- **未做（下刀）**：t6 提示词工坊/t7 前端统一接线；7.3-2 板块降视图（等零功能周）。
+
 ## 最新发布：v4.321.0（2026-09-16）「t4-C3 余项：partial 选段局部重写（版本库升级版）」
 
 - **来源**：用户指令「可继续」。三线并行子代理（A/B/C 足迹互斥全部一次绿）→ 主代理收口；规格书 进度计划/gaea-partial-rewrite-20260916.md。

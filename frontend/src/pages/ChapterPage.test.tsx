@@ -293,3 +293,35 @@ describe('ChapterPage 阅读页场景化（V4 主线章读场景、逐场景保�
     expect(novelB.GetChapterScenes).not.toHaveBeenCalled()
   })
 })
+
+// ── v4 场景章整章重写入口（t4-C3 收官）──
+describe('ChapterPage 场景章重写入口', () => {
+  it('v4 场景章：chrome 渲染「整章重写」「重写历史」按钮', async () => {
+    novelB.IsProjectV4.mockResolvedValue(true)
+    novelB.GetChapterScenes.mockResolvedValue([
+      { id: '001-s1', content: '场景一正文。' },
+      { id: '002-s2', content: '场景二正文。' },
+    ])
+    useOutlineStore.setState({ outlines: [leaf] })
+    useAppStore.setState({ projectPath: 'C:/proj/novel' })
+    render(<ChapterPage />)
+    // 等 V4 探测完成（ref 镜像写入）再派发开章事件（mountSceneChapter 同款）
+    await waitFor(() => expect(novelB.IsProjectV4).toHaveBeenCalled())
+    await act(async () => {})
+    window.dispatchEvent(new CustomEvent('novel:open-chapter', { detail: { node: leaf } }))
+    await screen.findByTestId('chapter-editor-stub')
+    await screen.findByText('已保存')
+    expect(screen.getByText('整章重写')).toBeTruthy()
+    expect(screen.getByText('重写历史')).toBeTruthy()
+  })
+
+  it('v3 blob 章不渲染重写入口（CreatePage 已有入口，不重复挂）', async () => {
+    useOutlineStore.setState({ outlines: [leaf] })
+    render(<ChapterPage />)
+    window.dispatchEvent(new CustomEvent('novel:open-chapter', { detail: { node: leaf } }))
+    expect(await screen.findByRole('tab', { name: /第一回 风雪夜归人/ })).toBeTruthy()
+    expect(await screen.findByTestId('chapter-editor-stub')).toBeTruthy()
+    expect(screen.queryByText('整章重写')).toBeNull()
+    expect(screen.queryByText('重写历史')).toBeNull()
+  })
+})

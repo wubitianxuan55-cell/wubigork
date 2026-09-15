@@ -59,6 +59,8 @@ import { C } from '../utils/theme'
 import { errText } from './chapter/errText'
 import ReadingChrome from './chapter/readingChrome'
 import EditChrome from './chapter/editChrome'
+import RewriteModal from '../components/novel/RewriteModal'
+import RewriteHistoryPanel from '../components/novel/RewriteHistoryPanel'
 import ReadingPanel from './chapter/readingPanel'
 import ReadingOverlays from './chapter/readingOverlays'
 
@@ -97,6 +99,9 @@ const ChapterPage: React.FC = () => {
   const [searchError, setSearchError] = useState<string | null>(null)
   const [exportOpen, setExportOpen] = useState(false)
   const [illusOpen, setIllusOpen] = useState(false)
+  // v4 场景章整章重写（t4-C3 收官）：场景工程章在 ChapterPage 编辑，重写入口挂这里
+  const [rwOpen, setRwOpen] = useState(false)
+  const [rwHistOpen, setRwHistOpen] = useState(false)
   const pendingSearch = useRef<{ nodeId: string; query: string; paragraphIndex: number; charOffset: number } | null>(null)
   // 每次点击搜索命中自增：同章内重复点命中时 readMode/readNodeId 均不变，
   // 定位 effect 若只依赖二者则不会重跑、pendingSearch 永不被消费（回归缺陷修复）。
@@ -810,6 +815,9 @@ const ChapterPage: React.FC = () => {
                     onIllustrate={() => setIllusOpen(true)}
                     onSave={handleSave}
                     canSave={totalWords > 0}
+                    canRewrite={!!activeTab.sceneBacked && activeTab.chapterNum >= 1}
+                    onRewrite={() => setRwOpen(true)}
+                    onRewriteHistory={() => setRwHistOpen(true)}
                   />
                 )}
               </div>
@@ -912,6 +920,18 @@ const ChapterPage: React.FC = () => {
       </Modal>
 
       {/* 章节配图（v4.3g 图文联动）：打开即加载，父级卸载即关闭 */}
+      <RewriteModal
+        open={rwOpen}
+        chapterNum={activeTab?.chapterNum ?? null}
+        onClose={() => setRwOpen(false)}
+        onApplied={() => { if (activeTab) void loadChapterIntoTab(activeTab.node.id, activeTab.node, activeTab.chapterNum, true) }}
+      />
+      <RewriteHistoryPanel
+        open={rwHistOpen}
+        chapterNum={activeTab?.chapterNum ?? null}
+        onClose={() => setRwHistOpen(false)}
+        onApplied={() => { if (activeTab) void loadChapterIntoTab(activeTab.node.id, activeTab.node, activeTab.chapterNum, true) }}
+      />
       {illusOpen && activeTab && activeTab.chapterNum >= 1 && (
         <ChapterIllustration
           chapterNum={activeTab.chapterNum}

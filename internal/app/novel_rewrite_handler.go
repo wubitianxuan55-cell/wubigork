@@ -39,12 +39,6 @@ func (a *writingState) NovelChapterRewrite(chapterNum int, reqJSON string) (map[
 	if chapterNum <= 0 {
 		return nil, fmt.Errorf("章号非法")
 	}
-	// 场景级工程（正文按场景存储）的整章重写下刀支持；纯文件章照常。
-	if sm := pm.SceneManager(chapterNum); sm != nil {
-		if metas, err := sm.List(); err == nil && len(metas) > 0 {
-			return nil, fmt.Errorf("该章为场景级工程（正文按场景存储），整章重写暂未开放（下一刀支持）")
-		}
-	}
 	var req types.RewriteRequest
 	if strings.TrimSpace(reqJSON) != "" {
 		if err := json.Unmarshal([]byte(reqJSON), &req); err != nil {
@@ -79,7 +73,8 @@ func (a *writingState) NovelChapterRewrite(chapterNum int, reqJSON string) (map[
 		}
 	}
 
-	original, err := pm.ReadChapter(chapterNum)
+	// v4 场景章：读拼接视图（v3 走 fallback 零变化）——重写整章语义以全章为对象。
+	original, err := pm.ReadChapterAsStitch(chapterNum)
 	if err != nil {
 		return nil, fmt.Errorf("读取章节失败: %w", err)
 	}
@@ -153,6 +148,13 @@ func (a *writingState) NovelChapterRewrite(chapterNum int, reqJSON string) (map[
 // 对齐 whole；MuMu 局部重写无快照无 undo 是 F5 缺陷）。
 // 口径：docs/distill/04-plot-analysis.md §5.3；rune 偏移由前端换算，后端全程 rune。
 func (a *writingState) novelChapterRewritePartial(pm *project.Manager, chapterNum int, req types.RewriteRequest) (map[string]interface{}, error) {
+	// v4 场景章守卫：选段拼接回写会破坏场景结构且无法对齐边界，V1 不做
+	//（观察池：选段→场景映射）。整章重写对场景章已开放（whole 路径）。
+	if pm.IsV4() {
+		if metas, err := pm.SceneManager(chapterNum).List(); err == nil && len(metas) > 0 {
+			return nil, fmt.Errorf("场景工程章暂不支持局部重写（选段与场景边界无法对齐），请使用整章重写")
+		}
+	}
 	original, err := pm.ReadChapter(chapterNum)
 	if err != nil {
 		return nil, fmt.Errorf("读取章节失败: %w", err)
@@ -286,6 +288,9 @@ func (a *writingState) NovelApplyRewriteVersion(chapterNum int, versionID string
 	if err := pm.WriteChapter(chapterNum, v.NewContent); err != nil {
 		return nil, fmt.Errorf("写回正文失败: %w", err)
 	}
+	// v4 场景章：整章新全文与旧场景边界无法对齐——重置为单场景（CreateChapter
+	// 整章重写完成点同款 rebuildScenesFromBlob；v3/无场景章 no-op）。
+	rebuildScenesFromBlob(pm, chapterNum)
 	now := time.Now()
 	v.Status = types.RewriteApplied
 	v.AppliedAt = &now
@@ -334,6 +339,8 @@ func (a *writingState) NovelRestoreRewriteVersion(chapterNum int, versionID stri
 	if err := pm.WriteChapter(chapterNum, v.OriginalContent); err != nil {
 		return nil, fmt.Errorf("恢复正文失败: %w", err)
 	}
+	// v4 场景章恢复同语义：原文写回后重置单场景（与 Apply 对称）。
+	rebuildScenesFromBlob(pm, chapterNum)
 	now := time.Now()
 	v.RestoredAt = &now
 	v.RestoredFrom = v.ID
