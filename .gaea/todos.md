@@ -1,6 +1,6 @@
 # 任务进度
 
-> 最后更新: 2026-09-15（v4.313.0 阶段七第二刀·会话录制技能 7.2-1——GaeaSkillDraftFromSession/Save 两绑定+SkillRecordModal+Composer 工具栏入口，绑定面 684；7.2-1 演示式录制已落。本表只留**仍开放**项；已完成历史见 .gaea/AGENTS.md 版本速览与 progress.md）
+> 最后更新: 2026-09-15（v4.314.0 书斋首页 v8 重设计「驾驶舱台面」+v4.313.0 会话录制技能 7.2-1——GaeaSkillDraftFromSession/Save 两绑定+SkillRecordModal+Composer 工具栏入口，绑定面 684；7.2-1 演示式录制已落。本表只留**仍开放**项；已完成历史见 .gaea/AGENTS.md 版本速览与 progress.md）
 
 ## 当前开放（按域）
 
