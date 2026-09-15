@@ -3,6 +3,19 @@
 > 本文件为**最近发布速览**。完整历史磁带见 `docs/archive/progress-history-2026-09.md`
 > 与 `releases/`。
 
+## 最新发布：v4.316.0（2026-09-15）「阶段七第三刀：路由学习（任务级账目+成本归因+建议制改绑，7.1-2）」
+
+- **来源**：用户指令「继续并行使用子代理，优化迭代 gaea」。契约先行（规格书 进度计划/gaea-route-learning-7-1-2-20260915.md：三线调研结论+契约+足迹互斥表）→ A/B/C 三线并行 → 主代理收口。**坑**=B 线原实现子代理 40 分钟零落盘、两次检查点未应——中断接管主代理代写（子代理卡死判据：长时间零落盘+检查点静默；先例入 AGENTS 执行纪律候选）。
+- **判据①任务级账目全键覆盖**：ChatRequest/ChatSimpleOptions 加 Feature 带外字段（json:"-"）→ ai 包 recordUsage/parseStreamEvents/prepareStreamRequest 透传 → statsKey 三维 feature|engine|model（whisper→chat 归一）→ statsFile v2→v3 兼容读 → 24 handler 文件 ~40 调用点一行式透传七键全覆盖（grep 复核零遗漏）；copilot 三入口获批扩迹；bridge 工厂 Provider 打标签（boot→gaea/显式引擎→office）。残留如实报：platform_handler 风格分析（internal/style 足迹外，落未标记桶）、gaea_diagram 两处全局引擎。
+- **判据②成本归因视图**：模型中心「成本归因」tab（AttributionSection：KPI×4+功能分组表三维桶行+未标记桶最后；useAttributionState；api/engines.ts +4 函数）。
+- **判据③建议制改绑**：新纯包 internal/routesuggest（score=成功率×成本因子域内归一；ScoreGapThreshold 0.25+MinSamples 20 双门槛宁少勿扰；单域至多 1 条；ID 确定性重算幂等+解析残渣防御）；App 三绑定 Suggestions/Apply/Ignore（Apply 走 SetFeatureModel 既有链路绝不自动改绑；状态原子写 <DataRoot>/route_suggestions.json）。
+- **判据④本地引擎同池**：候选=全部启用引擎 llm 模型（Kind 回退 ClassifyModelKind）本地云端同池；mock 契约内置 herdsman 建议卡样本（走查锚点；真机采纳样本挂闲置窗口）。
+- **绑定面**：684→688（ModelB +4，gen_bindings 覆盖表→model 门面）；work 锁 506→510（shared）；bridge/model.ts 局部重述类型+mock 四桩+新契约测试 mock-contract-route。
+- **验收**：routesuggest 11 例+stats 3 例+ai 3 例+app 5 例+前端 9 例+锁数；tsc -b 零错、eslint 零告警。
+- **门禁**：ci.ps1 全绿 exit 0（一次过）、drift OK@688、版本四处 4.316.0；产物=exe 50515456B SHA256=82c0e4537d28dfb53314770054672ea094e636aac2645509227d76de88113213（桌面副本同哈希；冒烟 200 过）。
+- **观察池**：按任务实例切片留 7.3 联动；bridge 启发式边界（显式引擎 provider=office 域现状 6 处）；route_suggestions.json 无 UI 清单；真机走查（聊天→归因 tab 见桶行+建议卡）。
+- **未做（下刀）**：7.2-2 journal 历史蒸馏或 7.3-1 任务收件箱；闲庭在册清欠沿既有列车。
+
 ## 最新发布：v4.315.0（2026-09-15）「书斋首页 v9『案头』重设计+外观模块下拉化（零功能删除）」
 
 - **来源**：用户指令「继续并行使用子代理，优化迭代 gaea」。工作树发现上会话中断的在飞刀（两份规格书随刀入库：进度计划/gaea-desk-home-redesign-v9-202609.md+gaea-appearance-module-redesign-202609.md；实现与工具链验证上会话已完成）——本轮接管收口：独立审查子代理七点对账+CDP 走查取证+全量门禁+发版。
