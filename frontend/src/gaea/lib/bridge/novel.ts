@@ -281,6 +281,8 @@ export interface NovelBindings {
   SaveOrganization(orgJSON: string): Promise<void>;
   DeleteOrganization(id: string): Promise<void>;
   ToggleOrgMember(charID: string, orgID: string): Promise<void>;
+  SetCharacterCareer(charID: string, reqJSON: string): Promise<void>;
+  RemoveCharacterCareer(charID: string, reqJSON: string): Promise<void>;
   SaveRelationship(relJSON: string): Promise<void>;
   DeleteRelationship(fromID: string, toID: string): Promise<void>;
 }

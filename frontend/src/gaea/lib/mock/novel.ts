@@ -41,6 +41,7 @@ type NovelMethods = Pick<
   | "GetChapterScenes" | "GenerateScene" | "CreateScene" | "SaveSceneMeta" | "CancelCreateChapter"
   | "GenerateProjectCharacterFill" | "GenerateCharacterPortrait" | "MergeCharacters"
   | "SaveOrganization" | "DeleteOrganization" | "ToggleOrgMember"
+  | "SetCharacterCareer" | "RemoveCharacterCareer"
   | "SaveRelationship" | "DeleteRelationship"
   // 文风指纹批次（CreatePage「文风指纹」面板；Go NovelB 门面同名前缀）。
   | "NovelFingerprintStatus" | "NovelFingerprintBuild" | "NovelFingerprintScore"
@@ -259,6 +260,12 @@ export function buildNovel(): NovelMethods {
       // mock: no-op。
     },
     async ToggleOrgMember(_charID: string, _orgID: string) {
+      // mock: no-op。
+    },
+    async SetCharacterCareer(_charID: string, _reqJSON: string) {
+      // mock: no-op（浏览器走查用演示数据，职业设置落真项目需桌面端）。
+    },
+    async RemoveCharacterCareer(_charID: string, _reqJSON: string) {
       // mock: no-op。
     },
     async SaveRelationship(_relJSON: string) {

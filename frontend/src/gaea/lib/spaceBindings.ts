@@ -613,6 +613,8 @@ export const GAEA_METHOD_FACETS = {
   SaveOrganization: "play",
   DeleteOrganization: "play",
   ToggleOrgMember: "play",
+  SetCharacterCareer: "play",
+  RemoveCharacterCareer: "play",
   SaveRelationship: "play",
   DeleteRelationship: "play",
 } as const satisfies Record<keyof AppBindings, BindingSpace>;

@@ -32,6 +32,18 @@ export interface CharacterData {
   arc: string
   status: string
   portrait_url?: string
+  // ── v2 状态机（t5；GetCharacters 已返回，前端此前未消费）──
+  current_state?: string
+  main_career_id?: string
+  main_career_stage?: number
+  sub_careers?: CareerRefData[]
+}
+
+export interface CareerRefData {
+  career_id: string
+  career_name?: string
+  stage: number
+  updated_chapter?: number
 }
 
 export interface OrganizationData {

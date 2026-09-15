@@ -3,6 +3,15 @@
 > 本文件为**最近发布速览**。完整历史磁带见 `docs/archive/progress-history-2026-09.md`
 > 与 `releases/`。
 
+## 最新发布：v4.310.0（2026-09-15）「t5 第四刀：职业管理页（角色-职业绑定 UI，§7.6 断线补齐）」
+
+- **来源**：MuMu 蒸馏线 t5 第四刀（§6.4/§7.6/§7.7-#9）。MuMu 职业接口后端完备前端断线；gaea 四刀全通后同样「用户到不了」——本刀补 UI 通路。
+- **落地**：①NovelB +SetCharacterCareer/RemoveCharacterCareer（主职业允许替换〔手工意图 vs 差分器防 LLM 误改，两处语义有意不同〕/副职上限 2/同名幂等/阶段钳 ≥1/手工不写水位；存储=项目 characters.json 与差分器同库即设即生成可见）②CharacterPage Drawer 增「职业体系」区块（主/副管理+即时保存+上限禁用+操作后同步快照）+types v2 字段（GetCharacters 早已返回前端未消费）③契约面：bridge/mock/bindingNames 682/spaceBindings 锁 504。
+- **测试**：character +1（绑定矩阵）+vitest 3 例（渲染/逐参/上限+Popconfirm 确认）。
+- **维护**：AGENTS 速览整段分流——留 3 版迁 10 条入 archive，水位 61671→38151B 根治。
+- **门禁**：ci.ps1 全绿、drift OK@682、版本四处 4.310.0；产物见 `releases/SHA256SUMS-v4.310.0.txt`。
+- **未做（下刀）**：t5 余项唯一=关系图谱升级 §7.5；t4-C3 余项；t6/t7。
+
 ## 最新发布：v4.309.0（2026-09-15）「t5 第三刀：组织状态顶层差分接线（分析链三路输入全通）」
 
 - **来源**：MuMu 蒸馏线 t5 第三刀（§3.7/§3.8/§7.7-#5）。差分器有组织管道但调用侧传 nil、模板无契约、载荷无字段——有管道无水源。

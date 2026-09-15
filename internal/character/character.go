@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/gaea/gaea/internal/ai"
+	"github.com/gaea/gaea/internal/characterstate"
 	"github.com/gaea/gaea/internal/config"
 	"github.com/gaea/gaea/internal/project"
 	"github.com/gaea/gaea/internal/prompt"
@@ -715,4 +716,106 @@ func (a *Agent) chat(ctx context.Context, system, user string) (string, error) {
 	// 未绑定（model 为空）时留空，由客户端按活跃引擎解析默认模型（等价 routeModel 全局路径），
 	// 避免把全局 cfg.Model（如 xAI 的 grok-4.20）发给非 xAI 引擎导致 404（E03）。
 	return a.client.ChatSimpleStreamWithOptions(ctx, model, system, user, ai.ChatSimpleOptions{EngineID: eng})
+}
+
+// ── 角色-职业绑定（t5 第四刀 §7.6；方案 C：职业树在 worldview careers
+// section，角色只存 {career_id, stage} 引用，名称即 ID 口径）──────────
+
+// SetCharacterCareerRequest 设置职业请求（UI 手工操作）。
+type SetCharacterCareerRequest struct {
+	IsMain     bool   `json:"is_main"`
+	CareerName string `json:"career_name"`
+	Stage      int    `json:"stage"`
+}
+
+// SetCharacterCareer 设置角色主/副职业引用（直接写 characters.json，与差分器
+// 同一存储——UI 设置即生成可见）。主职业允许替换（手工意图明确；差分器拒绝
+// 替换是防 LLM 误改，两处语义不同是有意的）。副职业沿用 MaxSubCareers 上限
+// 与同名引用幂等更新；阶段钳 ≥1。手工设置不写水位（UpdatedChapter 保持 0 =
+// 最低水位，后续章节差分可正常推进）。
+func (a *Agent) SetCharacterCareer(charID string, reqJSON string) error {
+	var req SetCharacterCareerRequest
+	if err := json.Unmarshal([]byte(reqJSON), &req); err != nil {
+		return fmt.Errorf("解析职业设置失败: %w", err)
+	}
+	req.CareerName = strings.TrimSpace(req.CareerName)
+	if req.CareerName == "" {
+		return fmt.Errorf("职业名称不能为空")
+	}
+	if req.Stage < 1 {
+		req.Stage = 1
+	}
+	cf, err := a.pm.ReadCharacters()
+	if err != nil || cf == nil {
+		return fmt.Errorf("读取角色失败: %w", err)
+	}
+	for i := range cf.Characters {
+		if cf.Characters[i].ID != charID {
+			continue
+		}
+		c := &cf.Characters[i]
+		if req.IsMain {
+			c.MainCareerID = req.CareerName
+			c.MainCareerStage = req.Stage
+		} else {
+			idx := -1
+			for j := range c.SubCareers {
+				if c.SubCareers[j].CareerID == req.CareerName {
+					idx = j
+					break
+				}
+			}
+			if idx < 0 {
+				if len(c.SubCareers) >= characterstate.MaxSubCareers {
+					return fmt.Errorf("副职业已达上限 %d", characterstate.MaxSubCareers)
+				}
+				c.SubCareers = append(c.SubCareers, types.CharacterCareerRef{CareerID: req.CareerName})
+				idx = len(c.SubCareers) - 1
+			}
+			c.SubCareers[idx].Stage = req.Stage
+			c.SubCareers[idx].CareerName = req.CareerName
+		}
+		return a.pm.WriteCharacters(cf)
+	}
+	return fmt.Errorf("角色 %q 不存在", charID)
+}
+
+// RemoveCharacterCareer 移除角色主/副职业引用（主职业清引用对；副职业按名删行）。
+func (a *Agent) RemoveCharacterCareer(charID string, reqJSON string) error {
+	var req SetCharacterCareerRequest
+	if err := json.Unmarshal([]byte(reqJSON), &req); err != nil {
+		return fmt.Errorf("解析职业移除失败: %w", err)
+	}
+	req.CareerName = strings.TrimSpace(req.CareerName)
+	cf, err := a.pm.ReadCharacters()
+	if err != nil || cf == nil {
+		return fmt.Errorf("读取角色失败: %w", err)
+	}
+	for i := range cf.Characters {
+		if cf.Characters[i].ID != charID {
+			continue
+		}
+		c := &cf.Characters[i]
+		if req.IsMain {
+			if c.MainCareerID == "" {
+				return fmt.Errorf("该角色没有主职业")
+			}
+			c.MainCareerID = ""
+			c.MainCareerStage = 0
+		} else {
+			idx := -1
+			for j := range c.SubCareers {
+				if c.SubCareers[j].CareerID == req.CareerName {
+					idx = j
+					break
+				}
+			}
+			if idx < 0 {
+				return fmt.Errorf("副职业 %q 不存在", req.CareerName)
+			}
+			c.SubCareers = append(c.SubCareers[:idx], c.SubCareers[idx+1:]...)
+		}
+		return a.pm.WriteCharacters(cf)
+	}
+	return fmt.Errorf("角色 %q 不存在", charID)
 }

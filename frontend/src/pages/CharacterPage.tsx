@@ -30,7 +30,7 @@ import OrganizationEditModal from '../components/novel/character/OrganizationEdi
 import PortraitLightbox from '../components/novel/character/PortraitLightbox'
 import { PortraitImg } from '../components/characterlib/PortraitImg'
 import {
-  getCharacters, saveOrganization, deleteOrganization,
+  getCharacters, saveOrganization, deleteOrganization, setCharacterCareer, removeCharacterCareer,
   saveRelationship, deleteRelationship,
   generateCharacterFill, generateCharacterPortrait, mergeCharacters,
 } from '../components/novel/api/character'
@@ -123,6 +123,11 @@ const CharacterPage: React.FC = () => {
   const [peRole, setPeRole] = useState('')
   const [peArc, setPeArc] = useState('')
   const [peStatus, setPeStatus] = useState('')
+  // 职业编辑（t5 §7.6：即时保存，不随「保存本书状态」）
+  const [peCareerMain, setPeCareerMain] = useState('')
+  const [peCareerMainStage, setPeCareerMainStage] = useState(1)
+  const [peNewSub, setPeNewSub] = useState('')
+  const [peNewSubStage, setPeNewSubStage] = useState(1)
 
   const projectPath = useAppStore(s => s.projectPath)
   const dataLoadToken = useRef(0)
@@ -239,11 +244,66 @@ const CharacterPage: React.FC = () => {
   }
 
   // ── 项目内状态编辑（只写关联表）──
+  // 职业操作后刷新全量并同步 Drawer 内快照（即时保存语义）
+  const reloadProjectEdit = useCallback(async (charID: string) => {
+    const data = await getCharacters()
+    setCharacters(data.characters || [])
+    setOrganizations(data.organizations || [])
+    setRelationships(data.relationships || [])
+    const fresh = (data.characters || []).find(c => c.id === charID)
+    if (fresh) setProjectEdit(fresh)
+  }, [])
+
+  const handleSetMainCareer = async () => {
+    if (!projectEdit) return
+    const name = peCareerMain.trim()
+    if (!name) { message.warning('请填写职业名称（名称即 ID）'); return }
+    try {
+      await setCharacterCareer(projectEdit.id, { is_main: true, career_name: name, stage: peCareerMainStage })
+      message.success(`主职业已设为「${name}·${peCareerMainStage}阶」`)
+      await reloadProjectEdit(projectEdit.id)
+    } catch (err) { message.error(errText(err, '设置主职业失败')) }
+  }
+
+  const handleRemoveMainCareer = async () => {
+    if (!projectEdit) return
+    try {
+      await removeCharacterCareer(projectEdit.id, { is_main: true })
+      message.success('主职业已移除')
+      await reloadProjectEdit(projectEdit.id)
+    } catch (err) { message.error(errText(err, '移除主职业失败')) }
+  }
+
+  const handleAddSubCareer = async () => {
+    if (!projectEdit) return
+    const name = peNewSub.trim()
+    if (!name) { message.warning('请填写副职业名称'); return }
+    try {
+      await setCharacterCareer(projectEdit.id, { is_main: false, career_name: name, stage: peNewSubStage })
+      message.success(`副职业已添加「${name}·${peNewSubStage}阶」`)
+      setPeNewSub('')
+      await reloadProjectEdit(projectEdit.id)
+    } catch (err) { message.error(errText(err, '添加副职业失败')) }
+  }
+
+  const handleRemoveSubCareer = async (name: string) => {
+    if (!projectEdit) return
+    try {
+      await removeCharacterCareer(projectEdit.id, { is_main: false, career_name: name })
+      message.success(`副职业「${name}」已移除`)
+      await reloadProjectEdit(projectEdit.id)
+    } catch (err) { message.error(errText(err, '移除副职业失败')) }
+  }
+
   const openProjectEdit = (ch: CharacterData) => {
     setProjectEdit(ch)
     setPeRole(ch.role_type || 'supporting')
     setPeArc(ch.arc || '')
     setPeStatus(normalizeCharacterStatus(ch.status))
+    setPeCareerMain(ch.main_career_id || '')
+    setPeCareerMainStage(ch.main_career_stage || 1)
+    setPeNewSub('')
+    setPeNewSubStage(1)
   }
 
   const handleSaveProjectState = async () => {
@@ -549,6 +609,54 @@ const CharacterPage: React.FC = () => {
                 </div>
                 <div className="char-detail-hint">
                   未填写项沿用全局值；这里的修改只影响本书，不会改动角色库。
+                </div>
+              </div>
+            </section>
+
+            <section className="char-detail-col char-detail-col--local">
+              <div className="char-detail-section-title">
+                <ThunderboltOutlined />职业体系
+                <Tag className="char-detail-section-tag">t5 状态机 · 即时保存 · 生成时自动携带</Tag>
+              </div>
+              <div className="char-detail-form">
+                <div className="char-detail-form-item">
+                  <label>主职业{ch.main_career_id ? `（当前：${ch.main_career_id}·${ch.main_career_stage || 1}阶）` : '（未设）'}</label>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <Input size="small" value={peCareerMain} onChange={e => setPeCareerMain(e.target.value)}
+                      placeholder="如：剑修（名称即 ID）" style={{ flex: 1 }} />
+                    <InputNumber size="small" min={1} max={99} value={peCareerMainStage}
+                      onChange={v => setPeCareerMainStage(v || 1)} addonAfter="阶" style={{ width: 96 }} />
+                    <Button size="small" onClick={handleSetMainCareer}>设定</Button>
+                    {ch.main_career_id && (
+                      <Popconfirm title={`移除主职业「${ch.main_career_id}」？`} okText="移除" cancelText="取消"
+                        onConfirm={handleRemoveMainCareer}>
+                        <Button size="small" danger icon={<DeleteOutlined />} />
+                      </Popconfirm>
+                    )}
+                  </div>
+                </div>
+                <div className="char-detail-form-item">
+                  <label>副职业（最多 2 个；阶段由章节分析自动推进）</label>
+                  {(ch.sub_careers || []).map(sc => (
+                    <div key={sc.career_id} style={{ display: 'flex', gap: 6, marginBottom: 4, alignItems: 'center' }}>
+                      <Tag color="blue">{sc.career_name || sc.career_id}·{sc.stage}阶</Tag>
+                      <Popconfirm title={`移除副职业「${sc.career_name || sc.career_id}」？`} okText="移除" cancelText="取消"
+                        onConfirm={() => handleRemoveSubCareer(sc.career_id)}>
+                        <Button size="small" type="text" danger icon={<CloseOutlined />} />
+                      </Popconfirm>
+                    </div>
+                  ))}
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <Input size="small" value={peNewSub} onChange={e => setPeNewSub(e.target.value)}
+                      placeholder="如：炼丹师" style={{ flex: 1 }} />
+                    <InputNumber size="small" min={1} max={99} value={peNewSubStage}
+                      onChange={v => setPeNewSubStage(v || 1)} addonAfter="阶" style={{ width: 96 }} />
+                    <Button size="small" onClick={handleAddSubCareer}
+                      disabled={(ch.sub_careers || []).length >= 2}>添加</Button>
+                  </div>
+                </div>
+                <div className="char-detail-hint">
+                  写入本书 characters.json，与章节分析差分同库——章节分析会按剧情自动推进阶段，手工设置定初值或纠偏；章节生成时职业与状态自动注入 Prompt。
                 </div>
               </div>
             </section>

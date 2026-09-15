@@ -566,3 +566,19 @@ func mergeGeneratedProfile(dst, src *types.Character) {
 		dst.Arc = src.Arc
 	}
 }
+
+// SetCharacterCareer 设置角色主/副职业引用（t5 §7.6：角色-职业绑定 UI 的后端）。
+func (a *writingState) SetCharacterCareer(charID string, reqJSON string) error {
+	if a.characterAgent == nil {
+		return fmt.Errorf("请先打开项目")
+	}
+	return a.characterAgent.SetCharacterCareer(charID, reqJSON)
+}
+
+// RemoveCharacterCareer 移除角色主/副职业引用。
+func (a *writingState) RemoveCharacterCareer(charID string, reqJSON string) error {
+	if a.characterAgent == nil {
+		return fmt.Errorf("请先打开项目")
+	}
+	return a.characterAgent.RemoveCharacterCareer(charID, reqJSON)
+}

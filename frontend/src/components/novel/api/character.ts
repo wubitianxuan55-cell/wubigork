@@ -57,3 +57,15 @@ export async function saveRelationship(rel: RelationshipData): Promise<void> {
 export async function deleteRelationship(fromID: string, toID: string): Promise<void> {
   await app.DeleteRelationship(fromID, toID)
 }
+
+// ── 角色-职业绑定（t5 第四刀 §7.6；方案 C：名称即 ID，职业树只读走世界观）──
+
+/** 设置角色主/副职业（is_main=true 替换主职业；副职业达 2 个后端拒绝） */
+export async function setCharacterCareer(charID: string, req: { is_main: boolean; career_name: string; stage: number }): Promise<void> {
+  await app.SetCharacterCareer(charID, JSON.stringify(req))
+}
+
+/** 移除角色主/副职业引用 */
+export async function removeCharacterCareer(charID: string, req: { is_main: boolean; career_name?: string }): Promise<void> {
+  await app.RemoveCharacterCareer(charID, JSON.stringify(req))
+}

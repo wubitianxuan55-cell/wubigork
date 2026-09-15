@@ -169,3 +169,69 @@ func TestCharacterChat_BoundNovelUsesBinding(t *testing.T) {
 		t.Errorf("绑定后 model/engine = (%q,%q), want (qwen3-8b,herdsman)", client.model, client.engine)
 	}
 }
+
+// TestSetRemoveCharacterCareer 职业绑定矩阵（t5 第四刀 §7.6）：
+// 主职业设置/替换（手工意图明确，与差分器拒绝替换语义有意不同）/
+// 副职业上限 2/同名幂等更新/阶段钳 ≥1/移除/角色不存在。
+func TestSetRemoveCharacterCareer(t *testing.T) {
+	a, _, pm := newTestAgent(t)
+	must := func(err error, what string) {
+		t.Helper()
+		if err != nil {
+			t.Fatalf("%s: %v", what, err)
+		}
+	}
+
+	// 设主职业：阶段 <1 钳 1
+	must(a.SetCharacterCareer("mc", `{"is_main":true,"career_name":"剑修","stage":0}`), "设主职业")
+	cf, _ := pm.ReadCharacters()
+	if cf.Characters[0].MainCareerID != "剑修" || cf.Characters[0].MainCareerStage != 1 {
+		t.Fatalf("主职业未落/未钳: %+v", cf.Characters[0])
+	}
+
+	// 替换主职业（手工 UI 允许）
+	must(a.SetCharacterCareer("mc", `{"is_main":true,"career_name":"刀客","stage":3}`), "替换主职业")
+	cf, _ = pm.ReadCharacters()
+	if cf.Characters[0].MainCareerID != "刀客" || cf.Characters[0].MainCareerStage != 3 {
+		t.Fatalf("主职业替换未落: %+v", cf.Characters[0])
+	}
+
+	// 副职业：加两个 + 同名幂等更新
+	must(a.SetCharacterCareer("mc", `{"is_main":false,"career_name":"炼丹师","stage":2}`), "副职业1")
+	must(a.SetCharacterCareer("mc", `{"is_main":false,"career_name":"阵法师","stage":1}`), "副职业2")
+	must(a.SetCharacterCareer("mc", `{"is_main":false,"career_name":"炼丹师","stage":4}`), "副职业同名更新")
+	cf, _ = pm.ReadCharacters()
+	subs := cf.Characters[0].SubCareers
+	if len(subs) != 2 {
+		t.Fatalf("副职业应 2 个: %+v", subs)
+	}
+	if subs[0].CareerID != "炼丹师" || subs[0].Stage != 4 || subs[0].CareerName != "炼丹师" {
+		t.Fatalf("同名更新未幂等: %+v", subs[0])
+	}
+
+	// 上限拒绝
+	if err := a.SetCharacterCareer("mc", `{"is_main":false,"career_name":"御兽师","stage":1}`); err == nil {
+		t.Fatal("第三个副职业应被上限拒绝")
+	}
+
+	// 空名称拒绝
+	if err := a.SetCharacterCareer("mc", `{"is_main":true,"career_name":"  ","stage":1}`); err == nil {
+		t.Fatal("空职业名应拒绝")
+	}
+
+	// 移除：主职业 + 副职业 + 不存在副职业报错
+	must(a.RemoveCharacterCareer("mc", `{"is_main":false,"career_name":"阵法师"}`), "移除副职业")
+	must(a.RemoveCharacterCareer("mc", `{"is_main":true}`), "移除主职业")
+	cf, _ = pm.ReadCharacters()
+	if cf.Characters[0].MainCareerID != "" || len(cf.Characters[0].SubCareers) != 1 {
+		t.Fatalf("移除未落: %+v %+v", cf.Characters[0].MainCareerID, cf.Characters[0].SubCareers)
+	}
+	if err := a.RemoveCharacterCareer("mc", `{"is_main":false,"career_name":"不存在"}`); err == nil {
+		t.Fatal("移除不存在的副职业应报错")
+	}
+
+	// 角色不存在
+	if err := a.SetCharacterCareer("ghost", `{"is_main":true,"career_name":"剑修","stage":1}`); err == nil {
+		t.Fatal("不存在的角色应报错")
+	}
+}
