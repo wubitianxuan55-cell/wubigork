@@ -3,6 +3,15 @@
 > 本文件为**最近发布速览**。完整历史磁带见 `docs/archive/progress-history-2026-09.md`
 > 与 `releases/`。
 
+## 最新发布：v4.320.0（2026-09-16）「t4-C3 余项：重写版本历史面板（版本库前端消费）」
+
+- **来源**：用户指令「继续」。小刀单线主代理直做（纯前端后端零改动）；契约先行（规格书 进度计划/gaea-rewrite-history-panel-20260916.md）。
+- **论点**：v4.304 版本库只有「刚重写完那一刻」的 RewriteModal 能操作，List/Get 两绑定零 UI 消费——关弹窗/换会话后历史版本不可看不可用（v4.305「用户到不了的功能等于没有」同型）。
+- **落地**：RewriteHistoryPanel（多行展开+详情懒拉缓存+动作镜像后端状态机门控：completed→应用+放弃/discarded→应用/applied→恢复原文/其余只读；Popconfirm 显式 okText）+CreatePage rail「重写历史」入口（打开才拉）+mock 两样本。零后端：绑定面 696/锁数不动、drift OK@696。
+- **验收**：面板 5 用例+CreatePage 既有 13/13 零破坏；tsc/eslint 零错；ci.ps1 全绿 exit 0（go 129 包+vitest 364 文件）；产物=exe 50613248B SHA256=4bc1d56d44a5f97a92fde68d1fb8b18026dec5d0c4a8c6fec19731fca8dca837（releases/gaea-v4.320.0.exe+SUMS；桌面副本同哈希；冒烟 /api/health 200 过）。
+- **观察池**：双栏 diff 视图；partial 入口随 partial 刀；按模式/状态过滤。
+- **未做（下刀）**：t4-C3 余项剩 partial 局部重写+场景工程；t6 提示词工坊/t7 前端接线；7.3-2 板块降视图（等 v4.318 稳定一个零功能周）。
+
 ## 最新发布：v4.319.0（2026-09-16）「7.2-2 判据②收口：结晶技能调用计数（skill_stats）」
 
 - **来源**：用户指令「继续」。小刀单线主代理直做（体量一轮未拆子代理）；契约先行（规格书 进度计划/gaea-skill-usage-stats-7-2-2-20260916.md）。

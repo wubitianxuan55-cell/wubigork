@@ -100,10 +100,21 @@ export function buildNovel(): NovelMethods {
       throw new Error("dev mock：整章重写需本地模型调用");
     },
     async NovelListRewriteVersions(_chapterNum: number) {
-      return [];
+      // mock：浏览器开发环境无真实版本库，返回两条样本供面板开发预览
+      // （applied 整章 + completed 局部——重写历史面板走查锚点）。
+      const now = new Date().toISOString();
+      return [
+        { id: "rv-mock-applied", chapterNum: _chapterNum, mode: "whole", status: "applied", similarity: 62.5, createdAt: now },
+        { id: "rv-mock-completed", chapterNum: _chapterNum, mode: "partial", status: "completed", similarity: 81.2, createdAt: new Date(Date.now() - 3600_000).toISOString() },
+      ];
     },
     async NovelGetRewriteVersion(_chapterNum: number, _versionID: string) {
-      throw new Error("dev mock：无重写版本");
+      const orig = "原文快照（mock）：雨夜站台的灯光在雨幕里暈开。";
+      return {
+        id: _versionID, chapterNum: _chapterNum, mode: _versionID.includes("partial") ? "partial" : "whole", status: _versionID.includes("applied") ? "applied" : "completed",
+        originalContent: orig, newContent: "新文预览（mock）：雨幕洗过的灯光漂在碎玻璃上，暈出一圈模糊的暖黄。",
+        originalWordCount: 24, newWordCount: 31, similarity: _versionID.includes("applied") ? 62.5 : 81.2, beforeAIScore: 41, afterAIScore: 26, createdAt: new Date().toISOString(),
+      };
     },
     async NovelApplyRewriteVersion(_chapterNum: number, _versionID: string) {
       throw new Error("dev mock：无重写版本可应用");

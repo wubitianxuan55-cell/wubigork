@@ -13,6 +13,7 @@ import StyleFingerprintPanel from '../components/novel/StyleFingerprintPanel'
 import ChapterReviewPanel from '../components/novel/ChapterReviewPanel'
 import ChapterTreePanel from '../components/novel/create/ChapterTreePanel'
 import RewriteModal from '../components/novel/RewriteModal'
+import RewriteHistoryPanel from '../components/novel/RewriteHistoryPanel'
 import EditorPanel from '../components/novel/create/EditorPanel'
 import CreateInspector from '../components/novel/create/CreateInspector'
 import NewCharactersModal from '../components/novel/create/NewCharactersModal'
@@ -126,6 +127,8 @@ const CreatePage: React.FC = () => {
   const [stats, setStats] = useState<{ totalWords: number; chapterCount: number } | null>(null)
   // 整章重写弹窗（t4-C3 前端消费）
   const [rwOpen, setRwOpen] = useState(false)
+  // 重写版本历史面板（t4-C3 余项：版本库 List/Get 前端消费）
+  const [rwHistOpen, setRwHistOpen] = useState(false)
   // 默认启用 story-deslop 去 AI 味润色技能；可在右侧创作设置中切换或清空
   const [selectedSkill, setSelectedSkill] = useState<string | undefined>('story-deslop')
   // 生成完成后 novelstyle 的 AI 味检测结果（分数 + 命中问题），展示给作者
@@ -631,12 +634,19 @@ const CreatePage: React.FC = () => {
         <Button size="small" onClick={() => void openReview()}>平台评审</Button>
         <Button size="small" loading={reconstructBusy} onClick={() => void reconstructOutlines()}>AI 反推大纲</Button>
         <Button size="small" onClick={() => setRwOpen(true)}>整章重写</Button>
+        <Button size="small" onClick={() => setRwHistOpen(true)}>重写历史</Button>
         {stateMsg ? <span className="novel-create-rail-msg">{stateMsg}</span> : null}
       </div>
       <RewriteModal
         open={rwOpen}
         chapterNum={activeChapterNum || null}
         onClose={() => setRwOpen(false)}
+        onApplied={() => { if (activeNode) void selectChapter(activeNode) }}
+      />
+      <RewriteHistoryPanel
+        open={rwHistOpen}
+        chapterNum={activeChapterNum || null}
+        onClose={() => setRwHistOpen(false)}
         onApplied={() => { if (activeNode) void selectChapter(activeNode) }}
       />
 
