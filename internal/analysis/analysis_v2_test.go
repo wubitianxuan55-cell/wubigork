@@ -164,3 +164,85 @@ func TestPersistAnalysisV2_Upsert(t *testing.T) {
 		t.Fatalf("persist 后应 3 条: %v %d", err, len(f.Items))
 	}
 }
+
+// TestSyncCharacterStatesV2_OrgDiff 组织顶层差分端到端（t5 第二刀）：
+// V2 载荷 organization_states（名称式引用）→ 名称→ID 精确匹配 →
+// ApplyChapterDiff 落库。覆盖：成员加入带忠诚度/晋升/覆灭短路/
+// 不存在组织与角色跳过/destroyed 时其他字段忽略。
+func TestSyncCharacterStatesV2_OrgDiff(t *testing.T) {
+	a := newSyncTestAgent(t)
+	if err := a.pm.WriteCharacters(&types.CharacterFile{
+		Characters: []types.Character{
+			{ID: "c1", Name: "林晚", RoleType: "protagonist", Status: "Alive"},
+			{ID: "c2", Name: "沈青", RoleType: "antagonist", Status: "Alive"},
+		},
+		Organizations: []types.Organization{
+			{Name: "青云宗", MemberList: []types.OrgMember{
+				{CharacterID: "c1", Position: "外门弟子", Status: "active", Loyalty: 50},
+			}},
+			{Name: "丹盟"},
+		},
+	}); err != nil {
+		t.Fatalf("写角色库: %v", err)
+	}
+
+	loyal := 88
+	destroyed := true
+	v2 := &types.AnalysisResultV2{
+		OrganizationStates: []types.OrganizationStateChangeV2{
+			{OrgName: "青云宗", PowerValue: intPtr(72), MemberChanges: []types.OrgMemberChangeV2{
+				{CharacterName: "林晚", ChangeType: "promoted", Position: "内门弟子", LoyaltyHint: &loyal},
+				{CharacterName: "沈青", ChangeType: "joined", Position: "客卿"},
+				{CharacterName: "不存在的人", ChangeType: "joined"}, // 名称匹配失败跳过
+			}},
+			{OrgName: "不存在组织", Destroyed: &destroyed},                      // 组织不存在跳过
+			{OrgName: "丹盟", Destroyed: &destroyed, PowerValue: intPtr(10)}, // 覆灭短路：power 忽略
+		},
+	}
+	a.syncCharacterStatesV2(5, v2)
+
+	cf, err := a.pm.ReadCharacters()
+	if err != nil {
+		t.Fatalf("读回: %v", err)
+	}
+	orgByName := map[string]types.Organization{}
+	for _, o := range cf.Organizations {
+		orgByName[o.Name] = o
+	}
+	qy := orgByName["青云宗"]
+	if qy.PowerValue != 72 {
+		t.Errorf("青云宗 PowerValue = %d, want 72", qy.PowerValue)
+	}
+	if len(qy.MemberList) != 2 {
+		t.Fatalf("青云宗成员应 2 人（不存在的人被跳过）: %+v", qy.MemberList)
+	}
+	if qy.MemberList[0].Position != "内门弟子" || qy.MemberList[0].Loyalty != 88 || qy.MemberList[0].UpdatedChapter != 5 {
+		t.Errorf("林晚晋升未落: %+v", qy.MemberList[0])
+	}
+	if qy.MemberList[1].CharacterID != "c2" || qy.MemberList[1].Loyalty != 50 || qy.MemberList[1].JoinedAt != "第5章" {
+		t.Errorf("沈青加入未落（ID 匹配/缺省忠诚 50/JoinedAt）: %+v", qy.MemberList[1])
+	}
+	dm := orgByName["丹盟"]
+	if !dm.Destroyed || dm.DestroyedChapter != 5 {
+		t.Errorf("丹盟覆灭未落: %+v", dm)
+	}
+	if dm.PowerValue != 0 {
+		t.Errorf("覆灭短路后 PowerValue 应被忽略（保持 0）: %d", dm.PowerValue)
+	}
+}
+
+// TestSyncCharacterStatesV2_OrgOnlyEmpty 载荷只有空组织差分时零写盘
+// （早退短路，不触发 ReadCharacters 失败路径）。
+func TestSyncCharacterStatesV2_OrgOnlyEmpty(t *testing.T) {
+	a := newSyncTestAgent(t)
+	a.syncCharacterStatesV2(3, &types.AnalysisResultV2{}) // 全空：不应 panic 也不应写盘
+	cf, err := a.pm.ReadCharacters()
+	if err != nil || cf == nil {
+		t.Fatalf("空项目读回应为空文件非错误: %v", err)
+	}
+	if len(cf.Organizations) != 0 || len(cf.Characters) != 0 {
+		t.Errorf("空差分不应写入任何数据: %+v", cf)
+	}
+}
+
+func intPtr(v int) *int { return &v }

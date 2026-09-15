@@ -92,6 +92,32 @@ type CharacterStateChangeV2 struct {
 	RelationshipChanges map[string]string `json:"relationship_changes,omitempty"`
 }
 
+// OrgMemberChangeV2 组织成员变更（分析侧 wire 契约，t5 组织顶层差分）。
+//
+// 与差分器输入 OrgMemberChange 分层：LLM 只输出**角色名称**（MuMu 同款约束），
+// 名称→ID 匹配由 analysis 解析侧完成，匹配失败记日志跳过（稀疏差分：
+// 不猜测、不模糊匹配）。ChangeType 六值枚举与差分器常量一致
+// （joined/left/expelled/betrayed/promoted/status）。
+type OrgMemberChangeV2 struct {
+	CharacterName string `json:"character_name"`
+	ChangeType    string `json:"change_type"`
+	Position      string `json:"position,omitempty"`
+	LoyaltyHint   *int   `json:"loyalty_hint,omitempty"` // 0..100，缺省走差分器缺省语义
+	Reason        string `json:"reason,omitempty"`
+}
+
+// OrganizationStateChangeV2 单组织状态差分（分析侧 wire 契约）。
+//
+// 字段与差分器输入 OrgStateDiff 对齐但组织/角色均用名称引用；
+// PowerValue 是 0..100 绝对值（MuMu power_change 相对增量的 gaea 增量裁决，
+// 绝对值幂等可重放）；Destroyed=true 时其余字段被差分器忽略（覆灭短路）。
+type OrganizationStateChangeV2 struct {
+	OrgName       string              `json:"org_name"`
+	PowerValue    *int                `json:"power_value,omitempty"`
+	Destroyed     *bool               `json:"destroyed,omitempty"`
+	MemberChanges []OrgMemberChangeV2 `json:"member_changes,omitempty"`
+}
+
 // PlotPoint 情节推进点。
 type PlotPoint struct {
 	Content    string  `json:"content"`
@@ -128,20 +154,23 @@ type AnalysisScores struct {
 // plot_points / scenes / pacing(节奏) / dialogue_ratio+description_ratio(文白比)
 // ——与 t4 §8.3 的 AnalysisV2 字段逐一对齐，另加 scores/suggestions/summary 三项输出。
 type AnalysisResultV2 struct {
-	Hooks            []Hook                   `json:"hooks"`
-	Foreshadows      []ForeshadowHit          `json:"foreshadows"`
-	Conflict         Conflict                 `json:"conflict"`
-	EmotionalArc     EmotionalArc             `json:"emotional_arc"`
-	CharacterStates  []CharacterStateChangeV2 `json:"character_states"`
-	PlotPoints       []PlotPoint              `json:"plot_points"`
-	Scenes           []AnalysisScene          `json:"scenes"`
-	Pacing           string                   `json:"pacing"` // slow|moderate|fast|varied
-	DialogueRatio    float64                  `json:"dialogue_ratio"`
-	DescriptionRatio float64                  `json:"description_ratio"`
-	Scores           AnalysisScores           `json:"scores"`
-	PlotStage        string                   `json:"plot_stage"`
-	Suggestions      []string                 `json:"suggestions"` // 数量与 Overall 硬联动
-	Summary          string                   `json:"summary"`     // 供记忆/检索用
+	Hooks           []Hook                   `json:"hooks"`
+	Foreshadows     []ForeshadowHit          `json:"foreshadows"`
+	Conflict        Conflict                 `json:"conflict"`
+	EmotionalArc    EmotionalArc             `json:"emotional_arc"`
+	CharacterStates []CharacterStateChangeV2 `json:"character_states"`
+	// OrganizationStates 组织顶层差分（t5 第二刀）。稀疏差分纪律：本章未提及
+	// 的组织一律不输出；空/缺省 = 无组织变化。
+	OrganizationStates []OrganizationStateChangeV2 `json:"organization_states,omitempty"`
+	PlotPoints         []PlotPoint                 `json:"plot_points"`
+	Scenes             []AnalysisScene             `json:"scenes"`
+	Pacing             string                      `json:"pacing"` // slow|moderate|fast|varied
+	DialogueRatio      float64                     `json:"dialogue_ratio"`
+	DescriptionRatio   float64                     `json:"description_ratio"`
+	Scores             AnalysisScores              `json:"scores"`
+	PlotStage          string                      `json:"plot_stage"`
+	Suggestions        []string                    `json:"suggestions"` // 数量与 Overall 硬联动
+	Summary            string                      `json:"summary"`     // 供记忆/检索用
 }
 
 // ChapterAnalysisResult 落盘单元：analysis-v2.json 的一条。

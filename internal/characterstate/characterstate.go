@@ -194,6 +194,16 @@ func ApplyChapterDiff(cf *types.CharacterFile, chapterNum int,
 			res.Skipped = append(res.Skipped, fmt.Sprintf("组织 %q 不存在，跳过", od.OrgName))
 			continue
 		}
+		// 覆灭短路（MuMu :718-750）：destroyed=true 时清零势力值并跳过其余
+		// 属性与成员变更——组织已灭，power/成员晋升皆无意义。
+		if od.Destroyed != nil && *od.Destroyed {
+			o.Destroyed = true
+			o.DestroyedChapter = chapterNum
+			o.PowerValue = 0 // MuMu :725 覆灭清零
+			res.OrgStateUpdated++
+			res.Changes = append(res.Changes, fmt.Sprintf("组织 %s 覆灭（第%d章）", o.Name, chapterNum))
+			continue
+		}
 		if od.PowerValue != nil {
 			pv := *od.PowerValue
 			if pv < 0 {
@@ -204,12 +214,6 @@ func ApplyChapterDiff(cf *types.CharacterFile, chapterNum int,
 			}
 			o.PowerValue = pv
 			res.OrgStateUpdated++
-		}
-		if od.Destroyed != nil && *od.Destroyed {
-			o.Destroyed = true
-			o.DestroyedChapter = chapterNum
-			res.OrgStateUpdated++
-			res.Changes = append(res.Changes, fmt.Sprintf("组织 %s 覆灭（第%d章）", o.Name, chapterNum))
 		}
 		for _, mc := range od.Members {
 			if applyOrgMemberChange(o, chapterNum, mc) {

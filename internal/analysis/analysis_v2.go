@@ -162,10 +162,10 @@ func deriveLegacyAnalysis(v2 *types.AnalysisResultV2) *AnalysisResult {
 }
 
 // syncCharacterStatesV2 角色状态同步（t5：委托 characterstate 差分更新器——
-// 水位单调守卫 + 存活短路/级联 + 关系差分 + 亲密度算法，替代旧「NewState
-// 直写 Status」的半成品行为）。容错注入：失败只记日志。
+// 水位单调守卫 + 存活短路/级联 + 关系差分 + 亲密度算法 + 组织差分，替代旧
+// 「NewState 直写 Status」的半成品行为）。容错注入：失败只记日志。
 func (a *Agent) syncCharacterStatesV2(chapterNum int, v2 *types.AnalysisResultV2) {
-	if v2 == nil || len(v2.CharacterStates) == 0 {
+	if v2 == nil || (len(v2.CharacterStates) == 0 && len(v2.OrganizationStates) == 0) {
 		return
 	}
 	chars, err := a.pm.ReadCharacters()
@@ -180,6 +180,10 @@ func (a *Agent) syncCharacterStatesV2(chapterNum int, v2 *types.AnalysisResultV2
 	// relationship_changes 展开为逐条关系差分。
 	states := make([]types.CharacterStateDiff, 0, len(v2.CharacterStates))
 	rels := make([]types.RelationshipChange, 0, len(v2.CharacterStates))
+	charsByName := make(map[string]string, len(chars.Characters))
+	for _, c := range chars.Characters {
+		charsByName[c.Name] = c.ID
+	}
 	for _, sc := range v2.CharacterStates {
 		if strings.TrimSpace(sc.Name) == "" {
 			continue
@@ -199,11 +203,46 @@ func (a *Agent) syncCharacterStatesV2(chapterNum int, v2 *types.AnalysisResultV2
 			}
 		}
 	}
-	res := characterstate.ApplyChapterDiff(chars, chapterNum, states, rels, nil)
+	// 组织顶层差分（t5 第二刀）：wire 契约用名称引用，这里做名称→ID 精确
+	// 匹配（MuMu 同款；不猜测不模糊——匹配失败跳过并记日志，稀疏差分纪律）。
+	orgs := make([]types.OrgStateDiff, 0, len(v2.OrganizationStates))
+	for _, oc := range v2.OrganizationStates {
+		name := strings.TrimSpace(oc.OrgName)
+		if name == "" {
+			continue
+		}
+		var org *types.Organization
+		for i := range chars.Organizations {
+			if chars.Organizations[i].Name == name {
+				org = &chars.Organizations[i]
+				break
+			}
+		}
+		if org == nil {
+			slog.Warn("组织差分跳过：组织不存在", "org", name, "chapter", chapterNum)
+			continue
+		}
+		d := types.OrgStateDiff{OrgName: name, PowerValue: oc.PowerValue, Destroyed: oc.Destroyed}
+		for _, mc := range oc.MemberChanges {
+			id, ok := charsByName[strings.TrimSpace(mc.CharacterName)]
+			if !ok {
+				slog.Warn("组织成员变更跳过：角色不存在", "org", name, "char", mc.CharacterName, "chapter", chapterNum)
+				continue
+			}
+			d.Members = append(d.Members, types.OrgMemberChange{
+				CharacterID: id, ChangeType: mc.ChangeType, Position: mc.Position,
+				LoyaltyHint: mc.LoyaltyHint, Reason: mc.Reason,
+			})
+		}
+		orgs = append(orgs, d)
+	}
+	res := characterstate.ApplyChapterDiff(chars, chapterNum, states, rels, orgs)
 	if len(res.Changes) > 0 || len(res.Skipped) > 0 {
 		slog.Info("角色状态机差分应用", "stateUpdated", res.StateUpdated,
 			"relCreated", res.RelCreated, "relUpdated", res.RelUpdated,
-			"careerUpdated", res.CareerUpdated, "skipped", len(res.Skipped))
+			"careerUpdated", res.CareerUpdated,
+			"orgStateUpdated", res.OrgStateUpdated, "orgMemberUpdated", res.OrgMemberUpdated,
+			"skipped", len(res.Skipped))
 		if len(res.Changes) > 0 {
 			a.pm.WriteCharacters(chars)
 		}

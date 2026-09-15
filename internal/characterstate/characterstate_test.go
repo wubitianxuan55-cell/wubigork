@@ -175,3 +175,47 @@ func TestApplyChapterDiff_OrgAndCareer(t *testing.T) {
 }
 
 func intPtr(v int) *int { return &v }
+
+// TestApplyChapterDiff_OrgDestroyedShortCircuit 覆灭短路（MuMu :718-750，
+// t5 第二刀钉死）：destroyed=true 时 power 清零、同条成员变更跳过——
+// 组织已灭，加人/晋升无意义；低章节重放不「复活」已覆灭组织。
+func TestApplyChapterDiff_OrgDestroyedShortCircuit(t *testing.T) {
+	cf := &types.CharacterFile{
+		Characters: []types.Character{{ID: "c1", Name: "甲", Status: "Alive"}},
+		Organizations: []types.Organization{
+			{Name: "魔教", PowerValue: 60, MemberList: []types.OrgMember{
+				{CharacterID: "c1", Status: "active", Loyalty: 80},
+			}},
+		},
+	}
+	yes := true
+	res := ApplyChapterDiff(cf, 9, nil, nil, []types.OrgStateDiff{{
+		OrgName: "魔教", Destroyed: &yes, PowerValue: intPtr2(99),
+		Members: []types.OrgMemberChange{{CharacterID: "c1", ChangeType: "promoted", Position: "护法"}},
+	}})
+	o := cf.Organizations[0]
+	if !o.Destroyed || o.DestroyedChapter != 9 {
+		t.Errorf("覆灭未落: %+v", o)
+	}
+	if o.PowerValue != 0 {
+		t.Errorf("覆灭应清零势力值（MuMu :725），got %d", o.PowerValue)
+	}
+	if len(o.MemberList) != 1 || o.MemberList[0].Position == "护法" {
+		t.Errorf("覆灭短路应跳过成员变更: %+v", o.MemberList)
+	}
+	if res.OrgStateUpdated != 1 || res.OrgMemberUpdated != 0 {
+		t.Errorf("净产出不符: %+v", res)
+	}
+
+	// 低章节重放：destroyed=false 不清覆灭标记（false 与 null 都不走短路分支）
+	no := false
+	ApplyChapterDiff(cf, 3, nil, nil, []types.OrgStateDiff{{OrgName: "魔教", Destroyed: &no, PowerValue: intPtr2(10)}})
+	if !cf.Organizations[0].Destroyed {
+		t.Errorf("destroyed=false 不应复活已覆灭组织")
+	}
+	if cf.Organizations[0].PowerValue != 10 {
+		t.Errorf("非覆灭分支 power 正常更新: %d", cf.Organizations[0].PowerValue)
+	}
+}
+
+func intPtr2(v int) *int { return &v }

@@ -3,6 +3,15 @@
 > 本文件为**最近发布速览**。完整历史磁带见 `docs/archive/progress-history-2026-09.md`
 > 与 `releases/`。
 
+## 最新发布：v4.309.0（2026-09-15）「t5 第三刀：组织状态顶层差分接线（分析链三路输入全通）」
+
+- **来源**：MuMu 蒸馏线 t5 第三刀（§3.7/§3.8/§7.7-#5）。差分器有组织管道但调用侧传 nil、模板无契约、载荷无字段——有管道无水源。
+- **落地**：①V2 wire 契约 OrganizationStateChangeV2/OrgMemberChangeV2 名称式引用（与差分器 ID 式输入分层，对齐 character_states 先例）+AnalysisResultV2 +organization_states；②模板 output 加 organization_states JSON 形状+must 稀疏差分纪律（名称精确一致否则省略，不猜测）；③syncCharacterStatesV2 名称→ID 匹配（失败 WARN 跳过）传第 4 参；④**修首刀缺陷：覆灭短路**（destroyed=true 清零势力值+跳过同条 power 与成员变更；destroyed=false 不复活）。
+- **范围裁决**：PowerValue 用 0-100 绝对值而非 MuMu 相对增量——幂等可重放，免疫 MuMu §8 坑 2（org 更新无水位守卫）。
+- **测试**：analysis +2（端到端：晋升/加入/缺省忠诚/ID 匹配/不存在跳过/覆灭忽略 power/空载荷零写盘）+characterstate +1（覆灭短路纯函数钉死+destroyed=false 不复活）；既有零改动。
+- **门禁**：ci.ps1 全绿、零绑定面 drift OK@680、版本四处 4.309.0；产物见 `releases/SHA256SUMS-v4.309.0.txt`。
+- **未做（下刀）**：t5 余项（关系图谱升级 §7.5/职业管理页 §7.6）；t4-C3 余项；t6/t7。
+
 ## 最新发布：v4.308.0（2026-09-15）「t5 第二刀：状态回灌（SceneBible 实体属性 + 章节生成 character_states 槽位，降噪）」
 
 - **来源**：MuMu 蒸馏线 t5 角色状态机域第二刀（§3.9/§7.4）。v4.307 差分器写盘后生成侧看不见——状态机一半价值在写回生成侧。MuMu 两通道格式不一致（历史债），gaea 统一多行式。
