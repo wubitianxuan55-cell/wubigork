@@ -3,6 +3,18 @@
 > 本文件为**最近发布速览**。完整历史磁带见 `docs/archive/progress-history-2026-09.md`
 > 与 `releases/`。
 
+## 最新发布：v4.315.0（2026-09-15）「书斋首页 v9『案头』重设计+外观模块下拉化（零功能删除）」
+
+- **来源**：用户指令「继续并行使用子代理，优化迭代 gaea」。工作树发现上会话中断的在飞刀（两份规格书随刀入库：进度计划/gaea-desk-home-redesign-v9-202609.md+gaea-appearance-module-redesign-202609.md；实现与工具链验证上会话已完成）——本轮接管收口：独立审查子代理七点对账+CDP 走查取证+全量门禁+发版。
+- **v9 诊断**（v8 遗留）：砍刊头后无排印锚点（首屏最大字号 19px）/清单海 ~80% hairline 行+等宽点 10 处/命令条 54px 主角不立/右舷五件纵排无图形锚点。
+- **落地**：①masthead 身份区（w-seal 印章 44px 印泥朱 #d06055 唯一 hex 豁免+台名 clamp(30,3vw,42px)+lede+chip/pill 迁入；与闲庭月洞门身份对仗）②kicker 行退役+命令条 54→60px③w-index→w-plaques 双列案牌④w-rail-panel→w-vitals（写作升首节、ml-ring 72→80px 作用域隔离）⑤外观面板 ChoiceCards/ThemeCard 退役→Select 泛型下拉（hover 预览「预览中」徽章）+SegmentedRow 三面板⑥WhisperTracePanel hex→--md-sys-* 令牌（亮色可读）。
+- **契约**：五钩子 testid 全保；三语键集 1479 零增删（1 键文案随交互更新）；闲庭逐行不动；零绑定面 drift OK@684。
+- **验收**：CDP 9333 DOM 断言书斋 17 项+闲庭 5 项全绿+亮色档令牌实测（surface=#f0fdf9）+三截图留档（.tmp/v9-desk-1440.png 等）；ModuleLauncher 8/8+AppearancePanel 6/6+审查对账（className 双向孤儿=0）。
+- **门禁**：ci.ps1 全绿 exit 0（第三跑——首跑 netclient flaky 定向复跑绿、二跑 internal/app TempDir 清理竞争，环境 flaky 先例再+2；三跑清走 Vite/无头 Edge 负载后全绿）、版本四处 4.315.0；产物=exe 50464768B SHA256=356b7c6e8ac9ed4ecfa4f0fb5b1f9fa6c52f61b1f1dcdcc1bd13b620e3bc2a1d（桌面副本同哈希；冒烟 200 过）。
+- **文档**：home.md 补 v9 节+releases README V4_RECENT 补齐 v4.308~v4.315 九版滞后+规格书入库+AGENTS 三十迁。
+- **观察池**：releases 实存 33 版 exe 与「留 5 版」拍板不符（不动文件待用户定夺）；v3-rise 入场序号两对同拍；pnpm 污染两枚已清+frontend/NUL 坏文件已删。
+- **未做（下刀）**：7.1-2 路由学习（三线调研已成：R1 遥测=RecordCall 全量收口+ChatRequest 缺 feature 字段；R2 绑定=featureModelKeys 8 键+SetFeatureModel 链路+routesuggest 纯包落点+route_suggestions.json 存储；R3 前端=模型中心「成本归因」tab 落点推荐+命名避让 GaeaCostAttribution。契约待主代理定稿→后端账目/接线+建议生成+前端三线并行）。
+
 ## 最新发布：v4.314.0（2026-09-15）「书斋首页 v8 重设计『驾驶舱台面』（技能库驱动，零功能删除）」
 
 - **来源**：用户指令「使用技能重新设计书斋首页」——ui-ux-pro-max 技能库三路检索定方向（Swiss 数据密集+星枢令牌 MASTER 权威）+ Edge 无头 CDP 截图 + analyze_image 诊断。
