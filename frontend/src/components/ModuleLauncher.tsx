@@ -502,154 +502,158 @@ const DeskHome: React.FC<{
   return (
     <div className="ml ml-work">
       <div className="w-dock">
-        {/* ═══ 左舷：仪表条 + 版式标题 + 命令条 + 账页 + 目录 ═══ */}
+        {/* ═══ 左舷：仪表条 + 命令台（主角）+ 账页×目录双列 ═══ */}
         <div className="w-main">
           <SpaceSwitch space={space} onSwitchSpace={onSwitchSpace} activeModel={activeModel} />
 
-          <section className="w-mast" aria-label={t('shell.launcher.heroAria')}>
-            {/* 版式标题（左）+ 命令控制台（右）：非对称两栏，命令条即页面焦点 */}
-            <div className="w-mast-lead">
-              <div className="w-mast-kicker v3-rise v3-rise-1">
-                <span className="w-kicker-mark" aria-hidden="true" />
-                {spaceEntry && (
-                  <span className="ml-space-chip" data-testid="ml-space-chip" title={t('home.spaceSwitchHint')}>
-                    {spaceLabel}
-                  </span>
-                )}
-                <span className="w-kicker-rule" aria-hidden="true" />
-                <span className="w-kicker-pill">{t('home.pill')}</span>
-              </div>
-
-              <h1 className="w-display v3-rise v3-rise-1">{t('home.title')}</h1>
-              <p className="w-lede v3-rise v3-rise-1">{t('home.sub')}</p>
+          {/* 命令台（v8 重设计）：v7 的杂志刊头（大标题+三行 lede，占 ~25% 视高）压缩为
+              一条 kicker 行；命令条升格为页面第一主角件（玻璃抬升面，气泡流/语音状态
+              全部收进台内），视觉锚点从「书斋」二字转移到命令台——工作台首页的第一
+              任务是发起工作，不是读刊头。 */}
+          <section className="w-deck v3-rise v3-rise-1" aria-label={t('shell.launcher.heroAria')}>
+            <div className="w-deck-head">
+              <span className="w-kicker-mark" aria-hidden="true" />
+              {spaceEntry && (
+                <span className="ml-space-chip" data-testid="ml-space-chip" title={t('home.spaceSwitchHint')}>
+                  {spaceLabel}
+                </span>
+              )}
+              <span className="w-deck-sub" title={t('home.sub')}>{t('home.sub')}</span>
+              <span className="w-kicker-rule" aria-hidden="true" />
+              <span className="w-kicker-pill">{t('home.pill')}</span>
             </div>
 
-            <div className="w-mast-console">
-              {hasChat && (
-                <div className="w-hero-chat" aria-live="polite">
-                  {userText && <ChatBubble role="user" text={userText} />}
-                  {aiReply && <ChatBubble role="assistant" text={aiReply} />}
-                </div>
-              )}
+            {hasChat && (
+              <div className="w-hero-chat" aria-live="polite">
+                {userText && <ChatBubble role="user" text={userText} />}
+                {aiReply && <ChatBubble role="assistant" text={aiReply} />}
+              </div>
+            )}
 
-              {/* 命令条：单一抬升面 + focus-within 描边（键盘可达，⌘K 提示） */}
-              <div className={`w-cmd v3-rise v3-rise-2 ${voiceTone}`}>
-                <span className="w-cmd-orb" aria-hidden="true">
-                  <span className="w-cmd-orb-core" />
-                  <span className="w-cmd-orb-ring" />
-                </span>
-                <Input
-                  value={typedText}
-                  onChange={(e) => setTypedText(e.target.value)}
-                  onPressEnter={() => sendTyped()}
-                  placeholder={t('home.placeholder')}
-                  aria-label={t('home.placeholder')}
-                  variant="borderless"
-                  className="w-cmd-input"
-                  disabled={voice.active}
-                />
-                {voice.active ? (
-                  <button
-                    type="button"
-                    className="w-cmd-btn is-voice is-on"
-                    onClick={toggleVoice}
-                    aria-label={t('shell.launcher.voiceAriaEnd')}
-                  >
-                    <StopOutlined /> <span className="w-cmd-btn-label">{t('shell.launcher.voiceEnd')}</span>
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    className="w-cmd-btn is-voice"
-                    onClick={toggleVoice}
-                    aria-label={t('shell.launcher.voiceAriaStart')}
-                  >
-                    <AudioOutlined /> <span className="w-cmd-btn-label">{t('shell.launcher.voiceStart')}</span>
-                  </button>
-                )}
+            {/* 命令条：单一抬升面 + focus-within 描边（键盘可达，⌘K 提示） */}
+            <div className={`w-cmd v3-rise v3-rise-2 ${voiceTone}`}>
+              <span className="w-cmd-orb" aria-hidden="true">
+                <span className="w-cmd-orb-core" />
+                <span className="w-cmd-orb-ring" />
+              </span>
+              <Input
+                value={typedText}
+                onChange={(e) => setTypedText(e.target.value)}
+                onPressEnter={() => sendTyped()}
+                placeholder={t('home.placeholder')}
+                aria-label={t('home.placeholder')}
+                variant="borderless"
+                className="w-cmd-input"
+                disabled={voice.active}
+              />
+              {voice.active ? (
                 <button
                   type="button"
-                  className="w-cmd-btn is-send"
-                  onClick={sendTyped}
-                  disabled={!typedText.trim() || voice.active}
-                  aria-label={t('shell.launcher.courtyardSend')}
+                  className="w-cmd-btn is-voice is-on"
+                  onClick={toggleVoice}
+                  aria-label={t('shell.launcher.voiceAriaEnd')}
                 >
-                  <SendOutlined />
+                  <StopOutlined /> <span className="w-cmd-btn-label">{t('shell.launcher.voiceEnd')}</span>
                 </button>
-                <kbd className="w-kbd" title={t('home.cmdk')} aria-label={t('home.cmdk')}>⌘K</kbd>
-              </div>
+              ) : (
+                <button
+                  type="button"
+                  className="w-cmd-btn is-voice"
+                  onClick={toggleVoice}
+                  aria-label={t('shell.launcher.voiceAriaStart')}
+                >
+                  <AudioOutlined /> <span className="w-cmd-btn-label">{t('shell.launcher.voiceStart')}</span>
+                </button>
+              )}
+              <button
+                type="button"
+                className="w-cmd-btn is-send"
+                onClick={sendTyped}
+                disabled={!typedText.trim() || voice.active}
+                aria-label={t('shell.launcher.courtyardSend')}
+              >
+                <SendOutlined />
+              </button>
+              <kbd className="w-kbd" title={t('home.cmdk')} aria-label={t('home.cmdk')}>⌘K</kbd>
+            </div>
 
-              <div className="w-voice-status v3-rise v3-rise-2" aria-label={t('home.voiceStatusAria', { state: voiceStateLabel })}>
-                <span className={`w-status-dot${voiceTone ? ` ${voiceTone}` : ''}`} aria-hidden="true" />
-                <span className="w-status-label">{voiceStateLabel}</span>
-                {voice.error && <span className="w-voice-err" role="alert">{voice.error}</span>}
-                {voice.active && voice.aiSpeaking && (
-                  <button className="w-interrupt-btn" onClick={interrupt} type="button">
-                    <StopOutlined /> {t('shell.launcher.voiceInterrupt')}
-                  </button>
+            <div className="w-voice-status v3-rise v3-rise-2" aria-label={t('home.voiceStatusAria', { state: voiceStateLabel })}>
+              <span className={`w-status-dot${voiceTone ? ` ${voiceTone}` : ''}`} aria-hidden="true" />
+              <span className="w-status-label">{voiceStateLabel}</span>
+              {voice.error && <span className="w-voice-err" role="alert">{voice.error}</span>}
+              {voice.active && voice.aiSpeaking && (
+                <button className="w-interrupt-btn" onClick={interrupt} type="button">
+                  <StopOutlined /> {t('shell.launcher.voiceInterrupt')}
+                </button>
+              )}
+            </div>
+          </section>
+
+          {/* ═══ 账页 × 目录 双列（v8：两段行式列表不再纵向堆叠——同构列表并排
+              消扫视疲劳；账页左=文档驱动主角，目录右=索引）═══ */}
+          <div className="w-columns">
+            {/* 最近文档账页（书斋主角：文档驱动；localStorage 单源，零新 binding） */}
+            <section className="w-ledger v3-rise v3-rise-2" aria-label={t('home.recentDocs')} data-testid="desk-recent-docs">
+              <SectionLabel icon={<FileTextOutlined />} title={t('home.recentDocs')} />
+              {data.recentFiles.length > 0 ? (
+                <ul className="w-ledger-list">
+                  {data.recentFiles.map((f, i) => (
+                    <li key={`${f.path}:${i}`} className="w-ledger-row">
+                      <button
+                        type="button"
+                        className="w-ledger-btn"
+                        title={t('home.recentDocsHint')}
+                        aria-label={`${f.name || f.path} — ${t('home.recentDocsHint')}`}
+                        onClick={() => onNavigate('gaea')}
+                      >
+                        <span className="w-ledger-idx" aria-hidden="true">{pad2(i + 1)}</span>
+                        <span className="w-ledger-name">{f.name || f.path}</span>
+                        <span className="w-ledger-path">{f.path}</span>
+                        <ArrowRightOutlined className="w-ledger-arrow" aria-hidden="true" />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <div className="w-empty">
+                  <FileTextOutlined className="w-empty-icon" aria-hidden="true" />
+                  <span className="w-empty-text">{t('home.recentDocsEmpty')}</span>
+                </div>
+              )}
+            </section>
+
+            {/* 能力目录：旗舰横带（序号水印）+ 单列序号行（目录列内单列，密度对齐账页） */}
+            <section className="w-cap" aria-label={t('home.capTitle')}>
+              <div className="v3-rise v3-rise-3">
+                <SectionLabel icon={<ThunderboltOutlined />} title={t('home.capTitle')} sub={t('home.capSub')} />
+              </div>
+              {featuredModule && (
+                <FeaturedBand
+                  m={featuredModule}
+                  watermark={pad2(1)}
+                  onOpen={() => onNavigate(featuredModule.key)}
+                />
+              )}
+              <div className="w-index">
+                {indexModules.map((m, i) => (
+                  <IndexItem key={m.key} m={m} idx={i + 2} onOpen={() => onNavigate(m.key)} />
+                ))}
+                {settingsModule && (
+                  <IndexItem key={settingsModule.key} m={settingsModule} idx={indexModules.length + 2} onOpen={() => onNavigate(settingsModule.key)} />
+                )}
+                {indexModules.length === 0 && !featuredModule && !settingsModule && (
+                  <div className="ml-col-empty v3-rise">{t('shell.launcher.noModules')}</div>
                 )}
               </div>
-            </div>
-          </section>
-
-          {/* ═══ 最近文档账页（书斋主角：文档驱动；localStorage 单源，零新 binding）═══ */}
-          <section className="w-ledger v3-rise v3-rise-2" aria-label={t('home.recentDocs')} data-testid="desk-recent-docs">
-            <SectionLabel icon={<FileTextOutlined />} title={t('home.recentDocs')} />
-            {data.recentFiles.length > 0 ? (
-              <ul className="w-ledger-list">
-                {data.recentFiles.map((f, i) => (
-                  <li key={`${f.path}:${i}`} className="w-ledger-row">
-                    <button
-                      type="button"
-                      className="w-ledger-btn"
-                      title={t('home.recentDocsHint')}
-                      aria-label={`${f.name || f.path} — ${t('home.recentDocsHint')}`}
-                      onClick={() => onNavigate('gaea')}
-                    >
-                      <span className="w-ledger-idx" aria-hidden="true">{pad2(i + 1)}</span>
-                      <span className="w-ledger-name">{f.name || f.path}</span>
-                      <span className="w-ledger-path">{f.path}</span>
-                      <ArrowRightOutlined className="w-ledger-arrow" aria-hidden="true" />
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <div className="w-empty">
-                <FileTextOutlined className="w-empty-icon" aria-hidden="true" />
-                <span className="w-empty-text">{t('home.recentDocsEmpty')}</span>
-              </div>
-            )}
-          </section>
-
-          {/* ═══ 能力目录：旗舰横带（序号水印）+ 双列目录（序号行替代等大瓦片）═══ */}
-          <section className="w-cap" aria-label={t('home.capTitle')}>
-            <div className="v3-rise v3-rise-3">
-              <SectionLabel icon={<ThunderboltOutlined />} title={t('home.capTitle')} sub={t('home.capSub')} />
-            </div>
-            {featuredModule && (
-              <FeaturedBand
-                m={featuredModule}
-                watermark={pad2(1)}
-                onOpen={() => onNavigate(featuredModule.key)}
-              />
-            )}
-            <div className="w-index">
-              {indexModules.map((m, i) => (
-                <IndexItem key={m.key} m={m} idx={i + 2} onOpen={() => onNavigate(m.key)} />
-              ))}
-              {settingsModule && (
-                <IndexItem key={settingsModule.key} m={settingsModule} idx={indexModules.length + 2} onOpen={() => onNavigate(settingsModule.key)} />
-              )}
-              {indexModules.length === 0 && !featuredModule && !settingsModule && (
-                <div className="ml-col-empty v3-rise">{t('shell.launcher.noModules')}</div>
-              )}
-            </div>
-          </section>
+            </section>
+          </div>
         </div>
 
-        {/* ═══ 右舷：单一仪表纵栏（遥测 / 写作 / 会话 / 记忆 / 晨报，hairline 分节）═══ */}
+        {/* ═══ 右舷：晨报置顶（主动作卡）+ 仪表纵栏（v8：五节等权改主从——晨报
+            是「今天该做什么」，遥测/写作/会话/记忆是「状态脉搏」，主从分层）═══ */}
         <aside className="w-rail v3-rise v3-rise-3" aria-label={t('home.sideAria')}>
+          {/* 做梦 2.0 晨报（纯本地主动预取）：仅书斋渲染（只读 work 空间记忆）。 */}
+          <MorningBriefCard />
           <div className="w-rail-panel">
             <section className="w-sec" aria-label={t('home.kernel')}>
               <div className="ml-sec-head">
@@ -683,9 +687,6 @@ const DeskHome: React.FC<{
               <MemoryPulse memoryHub={data.memoryHub} />
             </section>
           </div>
-
-          {/* 做梦 2.0 晨报（纯本地主动预取）：仅书斋渲染（只读 work 空间记忆）。 */}
-          <MorningBriefCard />
         </aside>
       </div>
     </div>

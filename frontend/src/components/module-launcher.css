@@ -353,30 +353,40 @@
   min-width: 0;
 }
 
-/* ── 版式标题区（masthead）：非对称两栏 = 标题（左）+ 命令控制台（右）──
-   命令条是页面焦点，与版式标题同排可以消掉「标题右侧一片空」的廉价感；
-   ≤1180px 干净塌缩为单列（命令条落到标题下方）。 */
-.w-mast {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(340px, 428px);
-  gap: 22px 34px;
-  align-items: end;
-  padding: 22px 0 24px;
+/* ── 命令台（deck，v8 重设计主角件）：v7 杂志刊头（大标题+三行 lede ~25% 视高）
+   压缩为一条 kicker 行；命令条/气泡流/语音状态收进一张抬升玻璃台面——工作台
+   首页的第一任务是发起工作，视觉锚点=命令台而非刊头大字。 */
+.w-deck {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px 20px 16px;
+  border-radius: var(--radius-xl, 20px);
+  border: 1px solid var(--w-line);
+  background:
+    linear-gradient(104deg, color-mix(in srgb, var(--w-accent) 7%, var(--w-plate-2)), var(--w-plate-2) 58%);
+  box-shadow: var(--shadow-md);
   position: relative;
+  overflow: hidden;
 }
-.w-mast::before {
+.w-deck::before {
   content: '';
   position: absolute;
-  inset: -40px -80px auto -80px;
-  height: 260px;
+  inset: 0 0 auto 0;
+  height: 1px;
   pointer-events: none;
-  background: radial-gradient(58% 100% at 12% 0%, color-mix(in srgb, var(--w-accent) 9%, transparent), transparent 70%);
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--w-accent) 34%, transparent), transparent);
 }
-.w-mast > * { position: relative; }
-.w-mast-lead { display: flex; flex-direction: column; gap: 13px; min-width: 0; }
-.w-mast-console { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
-
-.w-mast-kicker { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.w-deck-head { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.w-deck-sub {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 12px;
+  color: var(--w-ink-2);
+}
 .w-kicker-mark { width: 22px; height: 2px; background: var(--w-accent); border-radius: 2px; }
 .w-kicker-rule { flex: 1; height: 1px; min-width: 20px; background: linear-gradient(90deg, var(--w-line), transparent); }
 .w-kicker-pill {
@@ -392,24 +402,6 @@
   max-width: 46%;
 }
 
-.w-display {
-  margin: 0;
-  font-size: clamp(32px, 3.3vw, 50px);
-  font-weight: 650;
-  line-height: 1.04;
-  letter-spacing: -0.032em;
-  max-width: 22ch;
-}
-.w-lede {
-  margin: 0;
-  font-size: 14px;
-  line-height: 1.75;
-  color: var(--w-ink-2);
-  /* 中文按字宽换行：em 制比 ch 制准（ch 在 CJK 下只有半个字宽，会挤成孤字行）；
-     balance 让 3 行标题描述均分，避免「…留痕，每 / 一步都查得到」这类断句 */
-  max-width: 34em;
-  text-wrap: balance;
-}
 .w-hero-chat { display: flex; flex-direction: column; gap: 2px; }
 
 /* ── 命令条（页面焦点：抬升面 + focus 描边 + 键盘提示）── */
@@ -532,6 +524,14 @@
 .w-interrupt-btn:hover { color: var(--w-ink); border-color: var(--w-accent); }
 
 /* ── 最近文档账页（表格语义：等宽序号 + hairline + hover 行抬升）── */
+/* 账页 × 目录 双列（v8）：两段行式列表不再纵向堆叠（同构列表并排消扫视疲劳，
+   左栏一屏收齐）；≤1180px 塌缩单列（账页在上）。 */
+.w-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+  gap: 0 30px;
+  align-items: start;
+}
 .w-ledger { display: flex; flex-direction: column; }
 .w-ledger-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
 .w-ledger-row { border-top: 1px solid var(--w-line-soft); }
@@ -601,17 +601,17 @@
 .w-empty-text { line-height: 1.6; }
 
 /* ── 能力目录：旗舰横带 + 双列目录 ── */
-.w-cap { display: flex; flex-direction: column; gap: 12px; padding-top: 6px; }
+.w-cap { display: flex; flex-direction: column; gap: 9px; padding-top: 6px; }
 .w-flagship {
   appearance: none;
   cursor: pointer;
   position: relative;
   overflow: hidden;
   display: grid;
-  grid-template-columns: 46px minmax(0, 1fr) auto;
+  grid-template-columns: 40px minmax(0, 1fr) auto;
   align-items: center;
-  gap: 20px;
-  padding: 20px 24px;
+  gap: 14px;
+  padding: 11px 16px;
   border-radius: var(--radius-lg, 16px);
   border: 1px solid var(--w-line);
   background:
@@ -623,10 +623,10 @@
 .w-flagship:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); }
 .w-flagship-num {
   position: absolute;
-  left: 14px;
-  top: -22px;
+  left: 10px;
+  top: -16px;
   font-family: var(--w-mono);
-  font-size: 96px;
+  font-size: 68px;
   font-weight: 700;
   line-height: 1;
   letter-spacing: -0.04em;
@@ -675,8 +675,8 @@
 
 .w-index {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0 26px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
 }
 .w-index-item {
   appearance: none;
@@ -1093,7 +1093,8 @@ html.gaea-raf-degraded .ml .w-status-dot {
 
 @media (max-width: 1180px) {
   .w-dock { grid-template-columns: minmax(0, 1fr); gap: 22px; }
-  .w-mast { grid-template-columns: minmax(0, 1fr); align-items: start; }
+  .w-columns { grid-template-columns: minmax(0, 1fr); }
+  .w-deck-sub { display: none; }
   .w-rail { position: static; }
   .w-rail-panel { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 26px; }
   .w-sec { border-top: 1px solid var(--w-line-soft); }
