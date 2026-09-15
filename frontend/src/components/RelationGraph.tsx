@@ -3,22 +3,20 @@ import {
   forceSimulation, forceLink, forceManyBody, forceCenter, forceCollide,
 } from 'd3-force'
 import { ROLE_LABELS, RELATION_LABELS } from '../utils/theme'
-
-interface CharNode {
-  id: string; name: string; role_type: string; color: string
-}
-interface OrgNode {
-  id: string; name: string; color: string
-}
-interface RelEdge {
-  from: string; to: string; type: string; color: string; label: string
-}
+import {
+  buildGraphData, EDGE_CATEGORY_LABEL,
+  type GraphNode, type GraphEdge, type EdgeCategory,
+  type GraphCharacter, type GraphOrganization,
+} from './RelationGraph/graphData'
 
 interface RelationGraphProps {
-  characters: { id: string; name: string; role_type: string }[]
-  organizations: { id: string; name: string }[]
+  characters: GraphCharacter[]
+  organizations: GraphOrganization[]
   relationships: { from_id: string; to_id: string; relation_type: string }[]
 }
+
+// 分类可见性默认全开（§7.5 分类筛选）
+const ALL_CATEGORIES: EdgeCategory[] = ['organization', 'career_group', 'career_main', 'career_sub', 'interpersonal']
 
 // ── 颜色常量（令牌派生：canvas 不解析 var()，挂载时经 getComputedStyle 解析为具体色；
 //    解析失败回退到原 hex，保证可用性） ──
@@ -58,23 +56,23 @@ const BG = resolveCSSColor('color-mix(in srgb, var(--color-surface, #0f0f0f) 92%
 
 // ── d3-force 二维仿真 ──
 function runSimulation(
-  charNodes: CharNode[], orgNodes: OrgNode[], edges: RelEdge[],
+  graphNodes: GraphNode[], edges: GraphEdge[],
 ): Map<string, { x: number; y: number }> {
-  const N = charNodes.length + orgNodes.length
+  const N = graphNodes.length
   if (N === 0) return new Map()
   const linkDist = Math.min(200, 80 + 30 * Math.log10(N + 1))
   const repel = -Math.min(3000, 500 + 200 * Math.log10(N + 1))
   const jitter = () => (Math.random() - 0.5) * 2
   interface SimNode { id: string; x: number; y: number }
-  interface SimLink { source: string; target: string }
-  const nodes: SimNode[] = [
-    ...charNodes.map((c) => ({ id: c.id, x: jitter(), y: jitter() })),
-    ...orgNodes.map((o) => ({ id: o.id, x: jitter(), y: jitter() })),
-  ]
-  const links: SimLink[] = edges.map((e) => ({ source: e.from, target: e.to }))
+  interface SimLink { source: string; target: string; strength?: number }
+  const nodes: SimNode[] = graphNodes.map((n) => ({ id: n.id, x: jitter(), y: jitter() }))
+  const links: SimLink[] = edges.map((e) => ({ source: e.from, target: e.to, strength: e.strength }))
 
   const sim = forceSimulation<SimNode>(nodes)
-    .force('link', forceLink<SimNode, SimLink>(links).id((d) => d.id).distance(linkDist).strength(0.3))
+    .force('link', forceLink<SimNode, SimLink>(links).id((d) => d.id).distance(linkDist)
+      // §7.5 布局权重：每边自带 strength（组织 0.5 > 分组 0.35 > 主职 0.3 >
+      // 副职 0.2 > 人际 0.02）——高权边先稳定层级，人际边只渲染基本不布局。
+      .strength((l) => l.strength ?? 0.3))
     .force('charge', forceManyBody().strength(repel).distanceMax(linkDist * 3))
     .force('center', forceCenter(0, 0))
     .force('collide', forceCollide(30))
@@ -94,6 +92,10 @@ const RelationGraph: React.FC<RelationGraphProps> = ({
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [size, setSize] = useState({ w: 700, h: 500 })
   const [hovered, setHovered] = useState<string | null>(null)
+  const [selected, setSelected] = useState<string | null>(null)
+  const [visible, setVisible] = useState<Record<EdgeCategory, boolean>>({
+    organization: true, career_group: true, career_main: true, career_sub: true, interpersonal: true,
+  })
   const [scale, setScale] = useState(1)
   const [offset, setOffset] = useState({ x: 0, y: 0 })
   const dragRef = useRef({ dragging: false, startX: 0, startY: 0, ox: 0, oy: 0, panning: false })
@@ -110,51 +112,75 @@ const RelationGraph: React.FC<RelationGraphProps> = ({
     return () => ro.disconnect()
   }, [])
 
-  // 构建节点和边
-  const charNodes: CharNode[] = useMemo(() =>
-    characters.map((c) => ({
-      id: c.id, name: c.name, role_type: c.role_type,
-      color: roleColors[c.role_type] || '#6b7280',
-    })),
-  [characters])
-  const orgNodes: OrgNode[] = useMemo(() =>
-    organizations.map((o) => ({ id: o.id, name: o.name, color: orgColor })),
-  [organizations])
+  // 节点/边构建（graphData 纯函数：三类节点+四层边，§7.5）
+  const { nodes: graphNodes, edges: allEdges } = useMemo(() => buildGraphData(
+    characters, organizations, relationships,
+    {
+      careerMain: resolveCSSColor('var(--color-primary)'),
+      careerSub: resolveCSSColor('var(--color-warning)'),
+      group: resolveCSSColor('var(--color-text-tertiary)'),
+    },
+  ), [characters, organizations, relationships])
 
-  const edges: RelEdge[] = useMemo(() => {
-    const edgeSet = new Set<string>()
-    const result: RelEdge[] = []
-    for (const r of relationships) {
-      const key = [r.from_id, r.to_id].sort().join('-')
-      if (edgeSet.has(key)) continue
-      edgeSet.add(key)
-      result.push({
-        from: r.from_id, to: r.to_id, type: r.relation_type,
-        color: relColors[r.relation_type] || '#6b7280',
-        label: relCN[r.relation_type] || r.relation_type,
-      })
-    }
-    return result
-  }, [relationships])
+  // 角色节点着色沿用定位色；组织节点沿用组织色
+  const decoratedNodes = useMemo(() => graphNodes.map((n) => {
+    if (n.kind === 'character') return { ...n, color: roleColors[n.role_type || ''] || '#6b7280' }
+    if (n.kind === 'organization') return { ...n, color: orgColor }
+    return n
+  }), [graphNodes])
 
-  // 力导向布局
-  const positions = useMemo(() => runSimulation(charNodes, orgNodes, edges), [charNodes, orgNodes, edges])
+  const edges: (GraphEdge & { color: string })[] = useMemo(() => allEdges
+    .map((e) => ({
+      ...e,
+      color: e.category === 'interpersonal'
+        ? (relColors[e.label] || '#6b7280')
+        : e.category === 'organization' ? orgColor
+        : e.category === 'career_main' ? resolveCSSColor('var(--color-primary)')
+        : e.category === 'career_sub' ? resolveCSSColor('var(--color-warning)')
+        : resolveCSSColor('var(--color-text-tertiary)'),
+      label: e.category === 'interpersonal' ? (relCN[e.label] || e.label) : e.label,
+    }))
+    .filter((e) => visible[e.category]),
+  [allEdges, visible])
+
+  const visibleNodes = useMemo(() => {
+    const live = new Set<string>()
+    for (const e of edges) { live.add(e.from); live.add(e.to) }
+    // 无任何可见边的节点仍展示（孤立角色/组织），人际类节点全保留
+    return decoratedNodes.filter((n) =>
+      n.kind === 'character' || n.kind === 'organization' || live.has(n.id) ||
+      (n.kind === 'career' && decoratedNodes.some((m) => m.kind === 'career' && m.id === n.id)) || live.has(n.id))
+  }, [decoratedNodes, edges])
+
+  // 力导向布局（仅可见边参与）
+  const positions = useMemo(() => runSimulation(visibleNodes, edges), [visibleNodes, edges])
 
   // 悬停关联节点集
-  const hoverRelated = useMemo(() => {
-    if (!hovered) return new Set<string>()
-    const related = new Set<string>([hovered])
-    for (const e of edges) {
-      if (e.from === hovered) related.add(e.to)
-      if (e.to === hovered) related.add(e.from)
+  const relatedOf = (id: string | null, list: GraphEdge[]) => {
+    const related = new Set<string>()
+    if (!id) return related
+    related.add(id)
+    for (const e of list) {
+      if (e.from === id) related.add(e.to)
+      if (e.to === id) related.add(e.from)
     }
     return related
-  }, [hovered, edges])
+  }
+  const hoverRelated = useMemo(() => relatedOf(hovered, edges), [hovered, edges])
+  const selectRelated = useMemo(() => relatedOf(selected, edges), [selected, edges])
 
-  const allNodes = useMemo(() => [...charNodes, ...orgNodes], [charNodes, orgNodes])
+  const allNodes = visibleNodes
+  const nodeById = useMemo(() => new Map(allNodes.map((n) => [n.id, n])), [allNodes])
   const nodeRadiusScale = 8 + 2 * Math.log10(allNodes.length + 1)
 
   // 检测鼠标下的节点（基于前一帧的变换）
+  // 节点半径按种类：组织 > 角色/职业分组 > 职业
+  const nodeRadiusFor = useCallback((n: GraphNode) => {
+    if (n.kind === 'organization') return nodeRadiusScale * 1.6
+    if (n.kind === 'career') return nodeRadiusScale * 0.85
+    if (n.kind === 'career_group') return nodeRadiusScale * 0.7
+    return nodeRadiusScale
+  }, [nodeRadiusScale])
   const hitTest = useCallback((mx: number, my: number): string | null => {
     const px = (mx - size.w / 2 - offset.x) / scale
     const py = (my - size.h / 2 - offset.y) / scale
@@ -165,15 +191,16 @@ const RelationGraph: React.FC<RelationGraphProps> = ({
       if (!p) continue
       const dx = p.x - px, dy = p.y - py
       const d = Math.sqrt(dx * dx + dy * dy)
-      const isOrg = orgNodes.some((o) => o.id === n.id)
-      const r = isOrg ? nodeRadiusScale * 1.6 : nodeRadiusScale
+      const r = nodeRadiusFor(n)
       if (d < r + 6 && d < closestDist) {
         closest = n.id
         closestDist = d
       }
     }
     return closest
-  }, [allNodes, positions, size, offset, scale, nodeRadiusScale, orgNodes])
+  }, [allNodes, positions, size, offset, scale, nodeRadiusFor])
+
+
 
   // Canvas 渲染循环
   const rafRef = useRef<number>(0)
@@ -197,7 +224,7 @@ const RelationGraph: React.FC<RelationGraphProps> = ({
       ctx!.translate(w / 2 + offset.x, h / 2 + offset.y)
       ctx!.scale(scale, scale)
 
-      // ── 连线 ──
+      // ── 连线（虚线种类：组织成员/职业分组/副职，§7.5 边样式）──
       for (const e of edges) {
         const from = positions.get(e.from), to = positions.get(e.to)
         if (!from || !to) continue
@@ -207,10 +234,13 @@ const RelationGraph: React.FC<RelationGraphProps> = ({
         const my = (from.y + to.y) / 2 - 10
         ctx!.moveTo(from.x, from.y)
         ctx!.quadraticCurveTo(mx, my, to.x, to.y)
+        ctx!.setLineDash(e.dashed ? [6, 3] : [])
+        const structural = e.category !== 'interpersonal'
         ctx!.strokeStyle = dim ? '#333' : e.color
-        ctx!.lineWidth = dim ? 0.5 : 1.5
-        ctx!.globalAlpha = dim ? 0.15 : 0.7
+        ctx!.lineWidth = dim ? 0.5 : structural ? 1.2 : 1.5
+        ctx!.globalAlpha = dim ? 0.15 : structural ? 0.55 : 0.7
         ctx!.stroke()
+        ctx!.setLineDash([])
 
         // 中点标签
         if (!dim) {
@@ -223,20 +253,23 @@ const RelationGraph: React.FC<RelationGraphProps> = ({
         ctx!.globalAlpha = 1
       }
 
-      // ── 节点 ──
+      // ── 节点（角色/组织圆形；职业方形；分组小圆虚描边）──
       for (const n of allNodes) {
         const p = positions.get(n.id)
         if (!p) continue
-        const isOrg = orgNodes.some((o) => o.id === n.id)
-        const r = isOrg ? nodeRadiusScale * 1.6 : nodeRadiusScale
+        const r = nodeRadiusFor(n)
         const dim = hovered !== null && !hoverRelated.has(n.id)
-        const color = dim ? '#444' : n.color
+        const color = dim ? '#444' : n.color || '#6b7280'
         const alpha = dim ? 0.3 : 1
 
-        // 发光效果
-        if (!dim) {
+        const isCareer = n.kind === 'career'
+        const isGroup = n.kind === 'career_group'
+        const selectedGlow = selected === n.id || (selected !== null && (selectRelated.has(n.id)))
+
+        // 发光效果（结构类弱化；选中节点用描边强调）
+        if (!dim && !isGroup) {
           const glow = ctx!.createRadialGradient(p.x, p.y, 0, p.x, p.y, r * 3)
-          glow.addColorStop(0, n.color + '44')
+          glow.addColorStop(0, hexOrColor(n.color) + '44')
           glow.addColorStop(1, 'transparent')
           ctx!.fillStyle = glow
           ctx!.beginPath()
@@ -244,24 +277,42 @@ const RelationGraph: React.FC<RelationGraphProps> = ({
           ctx!.fill()
         }
 
-        // 节点圆
-        const grad = ctx!.createRadialGradient(p.x - r * 0.3, p.y - r * 0.3, 0, p.x, p.y, r)
-        grad.addColorStop(0, lighten(color, 30))
-        grad.addColorStop(1, color)
-        ctx!.fillStyle = grad
         ctx!.globalAlpha = alpha
-        ctx!.beginPath()
-        ctx!.arc(p.x, p.y, r, 0, Math.PI * 2)
-        ctx!.fill()
-        ctx!.globalAlpha = 1
-
-        // 描边
-        ctx!.strokeStyle = color
-        ctx!.lineWidth = 1.5
-        ctx!.globalAlpha = alpha
-        ctx!.beginPath()
-        ctx!.arc(p.x, p.y, r, 0, Math.PI * 2)
-        ctx!.stroke()
+        if (isCareer) {
+          // 职业：圆角方形（区别于角色/组织圆形）
+          const grad = ctx!.createLinearGradient(p.x - r, p.y - r, p.x + r, p.y + r)
+          grad.addColorStop(0, lighten(color, 30))
+          grad.addColorStop(1, color)
+          ctx!.fillStyle = grad
+          ctx!.beginPath()
+          ctx!.roundRect(p.x - r, p.y - r, r * 2, r * 2, r * 0.35)
+          ctx!.fill()
+          ctx!.strokeStyle = color
+          ctx!.lineWidth = selectedGlow ? 3 : 1.2
+          ctx!.stroke()
+        } else if (isGroup) {
+          // 分组：小空心圆
+          ctx!.strokeStyle = color
+          ctx!.setLineDash([3, 2])
+          ctx!.lineWidth = 1.2
+          ctx!.beginPath()
+          ctx!.arc(p.x, p.y, r, 0, Math.PI * 2)
+          ctx!.stroke()
+          ctx!.setLineDash([])
+        } else {
+          const grad = ctx!.createRadialGradient(p.x - r * 0.3, p.y - r * 0.3, 0, p.x, p.y, r)
+          grad.addColorStop(0, lighten(color, 30))
+          grad.addColorStop(1, color)
+          ctx!.fillStyle = grad
+          ctx!.beginPath()
+          ctx!.arc(p.x, p.y, r, 0, Math.PI * 2)
+          ctx!.fill()
+          ctx!.strokeStyle = color
+          ctx!.lineWidth = selectedGlow ? 3 : 1.5
+          ctx!.beginPath()
+          ctx!.arc(p.x, p.y, r, 0, Math.PI * 2)
+          ctx!.stroke()
+        }
         ctx!.globalAlpha = 1
 
         // 名称标签
@@ -279,7 +330,7 @@ const RelationGraph: React.FC<RelationGraphProps> = ({
 
     rafRef.current = requestAnimationFrame(render)
     return () => cancelAnimationFrame(rafRef.current)
-  }, [size, positions, edges, allNodes, hovered, hoverRelated, scale, offset, nodeRadiusScale, orgNodes])
+  }, [size, positions, edges, allNodes, hovered, hoverRelated, selected, selectRelated, scale, offset, nodeRadiusFor])
 
   // ── 交互事件 ──
   const handleWheel = useCallback((e: React.WheelEvent) => {
@@ -294,15 +345,17 @@ const RelationGraph: React.FC<RelationGraphProps> = ({
     const mx = e.clientX - rect.left, my = e.clientY - rect.top
     const hit = hitTest(mx, my)
     if (hit) {
-      // 点击节点：不拖拽
+      // 点击节点：选中（详情浮层），不拖拽；再点同节点取消
       dragRef.current.dragging = false
+      setSelected((s) => (s === hit ? null : hit))
       return
     }
+    if (selected !== null) setSelected(null)
     dragRef.current = {
       dragging: true, startX: e.clientX, startY: e.clientY,
       ox: offset.x, oy: offset.y, panning: false,
     }
-  }, [offset, hitTest])
+  }, [offset, hitTest, selected])
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     const rect = canvasRef.current?.getBoundingClientRect()
@@ -340,7 +393,9 @@ const RelationGraph: React.FC<RelationGraphProps> = ({
     setOffset({ x: 0, y: 0 })
   }, [])
 
-  if (charNodes.length === 0 && orgNodes.length === 0) {
+  const selectedNode = selected ? nodeById.get(selected) : undefined
+
+  if (characters.length === 0 && organizations.length === 0) {
     return (
       <div style={{ width: '100%', height: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-text-secondary)', fontSize: 13 }}>
         无数据
@@ -362,6 +417,62 @@ const RelationGraph: React.FC<RelationGraphProps> = ({
         onMouseLeave={handleMouseLeave}
         style={{ display: 'block', cursor: hovered ? 'pointer' : 'grab' }}
       />
+      {/* 分类筛选（§7.5 分类筛选） */}
+      <div style={{
+        position: 'absolute', top: 30, left: 12,
+        display: 'flex', flexDirection: 'column', gap: 2,
+        background: 'var(--color-surface-container)', border: '1px solid var(--color-border)',
+        borderRadius: 6, padding: '6px 10px', fontSize: 10.5,
+      }}>
+        {ALL_CATEGORIES.map((cat) => (
+          <label key={cat} style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', color: 'var(--color-text-secondary)', userSelect: 'none' }}>
+            <input
+              type="checkbox"
+              checked={visible[cat]}
+              onChange={() => setVisible((v) => ({ ...v, [cat]: !v[cat] }))}
+              style={{ accentColor: 'var(--color-primary)', width: 12, height: 12 }}
+            />
+            {EDGE_CATEGORY_LABEL[cat]}
+          </label>
+        ))}
+      </div>
+
+      {/* 节点详情浮层（点击选中，再点空白或同节点关闭） */}
+      {selectedNode && (
+        <div style={{
+          position: 'absolute', bottom: 12, left: 12,
+          background: 'var(--color-surface-container-high)', border: '1px solid var(--color-border)',
+          borderRadius: 8, padding: '10px 12px', fontSize: 11.5, maxWidth: 260,
+          color: 'var(--color-text)', boxShadow: '0 4px 16px rgba(0,0,0,0.35)',
+        }}>
+          <div style={{ fontWeight: 600, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ width: 8, height: 8, borderRadius: selectedNode.kind === 'career' ? 1 : '50%', background: selectedNode.color || '#6b7280', display: 'inline-block' }} />
+            {selectedNode.name}
+          </div>
+          {selectedNode.kind === 'character' && (
+            <div style={{ color: 'var(--color-text-secondary)', lineHeight: '18px' }}>
+              <div>定位：{roleCN[selectedNode.role_type || ''] || selectedNode.role_type || '未设'}</div>
+              {selectedNode.main_career_id
+                ? <div>主职业：{selectedNode.main_career_id}·{selectedNode.main_career_stage || 1}阶</div>
+                : <div>主职业：未设</div>}
+              {(selectedNode.sub_careers || []).length > 0 && (
+                <div>副职业：{selectedNode.sub_careers!.map((s) => `${s.career_name || s.career_id}·${s.stage}阶`).join('、')}</div>
+              )}
+            </div>
+          )}
+          {selectedNode.kind === 'career' && (
+            <div style={{ color: 'var(--color-text-secondary)' }}>
+              {selectedNode.holders && selectedNode.holders.length > 0
+                ? <div>持有：{selectedNode.holders.join('、')}{selectedNode.stage ? `（最高 ${selectedNode.stage} 阶）` : ''}</div>
+                : <div>暂无持有者</div>}
+            </div>
+          )}
+          {selectedNode.kind === 'career_group' && (
+            <div style={{ color: 'var(--color-text-secondary)' }}>职业分组视图节点</div>
+          )}
+        </div>
+      )}
+
       {/* 缩放控制 */}
       <div style={{
         position: 'absolute', top: 8, left: 12,
@@ -384,7 +495,7 @@ const RelationGraph: React.FC<RelationGraphProps> = ({
         )}
       </div>
       <div style={{ position: 'absolute', top: 8, right: 12, fontSize: 10, color: 'var(--color-text-secondary)', pointerEvents: 'none' }}>
-        🖱 拖拽平移 · 滚轮缩放 · 悬停高亮
+        🖱 拖拽平移 · 滚轮缩放 · 悬停高亮 · 点击看详情
       </div>
       {/* 图例 */}
       <Legend />
@@ -393,7 +504,12 @@ const RelationGraph: React.FC<RelationGraphProps> = ({
 }
 
 // ── 颜色工具 ──
+function hexOrColor(c: string): string {
+  return c.startsWith('#') ? c : '#6b7280'
+}
+
 function lighten(hex: string, percent: number): string {
+  if (!hex.startsWith('#')) return hex
   const num = parseInt(hex.replace('#', ''), 16)
   const r = Math.min(255, (num >> 16) + Math.round(255 * percent / 100))
   const g = Math.min(255, ((num >> 8) & 0x00FF) + Math.round(255 * percent / 100))
@@ -425,6 +541,19 @@ const Legend: React.FC = () => (
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, lineHeight: '18px' }}>
         <span style={{ width: 10, height: 10, borderRadius: '50%', background: orgColor, flexShrink: 0 }} />
         <span>势力/组织</span>
+      </div>
+      <div style={{ color: 'var(--color-text)', fontWeight: 600, marginBottom: 4 }}>结构边（§7.5）</div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, lineHeight: '18px' }}>
+        <span style={{ width: 14, height: 0, borderTop: '2px dashed ' + orgColor, flexShrink: 0 }} />
+        <span>组织成员</span>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, lineHeight: '18px' }}>
+        <span style={{ width: 8, height: 8, borderRadius: 1, background: resolveCSSColor('var(--color-primary)'), flexShrink: 0 }} />
+        <span>主职业（方形节点）</span>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, lineHeight: '18px' }}>
+        <span style={{ width: 8, height: 8, borderRadius: 1, background: resolveCSSColor('var(--color-warning)'), flexShrink: 0 }} />
+        <span>副职业（虚线边）</span>
       </div>
       <div style={{ marginTop: 6, color: 'var(--color-text)', fontWeight: 600, marginBottom: 4 }}>关系</div>
       {Object.entries(relCN).map(([k, v]) => (

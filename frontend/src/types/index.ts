@@ -55,6 +55,7 @@ export interface OrganizationData {
   location?: string
   motto?: string
   members?: string[]
+  member_list?: { character_id: string; position?: string; rank?: number; status?: string; loyalty?: number }[]
 }
 
 export interface RelationshipData {
