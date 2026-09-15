@@ -13,6 +13,7 @@ import StyleFingerprintPanel from '../components/novel/StyleFingerprintPanel'
 import ChapterReviewPanel from '../components/novel/ChapterReviewPanel'
 import ChapterTreePanel from '../components/novel/create/ChapterTreePanel'
 import RewriteModal from '../components/novel/RewriteModal'
+import PartialRewriteModal from '../components/novel/PartialRewriteModal'
 import RewriteHistoryPanel from '../components/novel/RewriteHistoryPanel'
 import EditorPanel from '../components/novel/create/EditorPanel'
 import CreateInspector from '../components/novel/create/CreateInspector'
@@ -129,6 +130,8 @@ const CreatePage: React.FC = () => {
   const [rwOpen, setRwOpen] = useState(false)
   // 重写版本历史面板（t4-C3 余项：版本库 List/Get 前端消费）
   const [rwHistOpen, setRwHistOpen] = useState(false)
+  // 局部重写选区（t4-C3 余项：EditorPanel 选段回调 → PartialRewriteModal；rune 偏移）
+  const [pSel, setPSel] = useState<{ start: number; end: number; text: string } | null>(null)
   // 默认启用 story-deslop 去 AI 味润色技能；可在右侧创作设置中切换或清空
   const [selectedSkill, setSelectedSkill] = useState<string | undefined>('story-deslop')
   // 生成完成后 novelstyle 的 AI 味检测结果（分数 + 命中问题），展示给作者
@@ -649,6 +652,13 @@ const CreatePage: React.FC = () => {
         onClose={() => setRwHistOpen(false)}
         onApplied={() => { if (activeNode) void selectChapter(activeNode) }}
       />
+      <PartialRewriteModal
+        open={!!pSel}
+        chapterNum={activeChapterNum || null}
+        selection={pSel}
+        onClose={() => setPSel(null)}
+        onApplied={() => { if (activeNode) void selectChapter(activeNode) }}
+      />
 
       <div className="novel-workspace">
       <ChapterTreePanel flatNodes={flatNodes} activeId={activeId} nextChapterNum={nextMainChapterNum}
@@ -660,7 +670,8 @@ const CreatePage: React.FC = () => {
         generating={generating} genPhase={genPhase} genPercent={genPercent} stopping={stopping} saving={saving}
         onRegenerate={() => activeNode && handleRegenerate(activeNode)} onSave={handleSave} onStop={handleStop}
         hasChapters={flatNodes.length > 0} nextChapterNum={nextMainChapterNum} onOpenWizard={openWizard}
-        editorFontSize={editorFontSize} onEditorFontSizeChange={handleEditorFontSizeChange} />
+        editorFontSize={editorFontSize} onEditorFontSizeChange={handleEditorFontSizeChange}
+        onPartialRewrite={setPSel} />
       <div className="v3-grip" aria-hidden="true" />
       <CreateInspector setting={setting} onRefreshSetting={() => void refreshSetting()}
         selectedSkill={selectedSkill} onSelectSkill={(v) => setSelectedSkill(v)}

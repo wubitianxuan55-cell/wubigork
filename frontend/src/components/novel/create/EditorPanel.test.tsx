@@ -62,3 +62,29 @@ describe('EditorPanel 生成状态栏（T6-7.2 停止按钮）', () => {
     expect(screen.getByRole('button', { name: /减小字号/ })).toHaveProperty('disabled', false)
   })
 })
+
+describe('EditorPanel 局部重写入口（t4-C3 余项）', () => {
+  const getEditorTextarea = (): HTMLTextAreaElement =>
+    screen.getByPlaceholderText(/AI 将在此流式呈现正文/) as HTMLTextAreaElement
+
+  it('无选区点击「局部重写」：message.warning 提示且不回调', async () => {
+    const onPartialRewrite = vi.fn()
+    render(<EditorPanel {...baseProps} onPartialRewrite={onPartialRewrite} />)
+    fireEvent.click(screen.getByRole('button', { name: /局部重写/ }))
+    expect(await screen.findByText('请先选中要重写的文字段落')).toBeTruthy()
+    expect(onPartialRewrite).not.toHaveBeenCalled()
+  })
+
+  it('有选区：回调 rune 偏移（代理对 𝒜 占 2 code-unit/1 rune，code-unit 选区换算）', () => {
+    const onPartialRewrite = vi.fn()
+    // '𝒜' 为星面字符（surrogate pair）：'a𝒜b文' = 5 code-unit / 4 rune
+    const content = 'a𝒜b文'
+    render(<EditorPanel {...baseProps} content={content} onPartialRewrite={onPartialRewrite} />)
+    const ta = getEditorTextarea()
+    // code-unit 选区 [3,5) 选中「b文」；rune 偏移应为 [2,4)
+    ta.setSelectionRange(3, 5)
+    fireEvent.click(screen.getByRole('button', { name: /局部重写/ }))
+    expect(onPartialRewrite).toHaveBeenCalledTimes(1)
+    expect(onPartialRewrite).toHaveBeenCalledWith({ start: 2, end: 4, text: 'b文' })
+  })
+})

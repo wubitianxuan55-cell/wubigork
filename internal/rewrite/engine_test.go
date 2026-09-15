@@ -129,3 +129,82 @@ func TestComputeDiff(t *testing.T) {
 		t.Fatalf("相似度应在 0-100: %v", d.Similarity)
 	}
 }
+
+// TestNormalizeRequestPartial partial 分支六断言（规格 §1：恒 custom 来源、
+// 指令必填、长度模式缺省 similar、custom 档需目标字数、选区方向校验×2）
+// + 合法请求字段透传 + whole 既有文案回归。
+func TestNormalizeRequestPartial(t *testing.T) {
+	base := types.RewriteRequest{
+		Mode:               types.RewriteModePartial,
+		Source:             types.RewriteSourceCustom,
+		CustomInstructions: "只改对话",
+		StartPos:           10,
+		EndPos:             20,
+	}
+	mustErr := func(name, want string, req types.RewriteRequest) {
+		t.Helper()
+		if _, err := NormalizeRequest(req); err == nil || err.Error() != want {
+			t.Fatalf("%s: want %q got %v", name, want, err)
+		}
+	}
+
+	// 1. Source 非 custom（空已归 custom）→ 局部重写仅支持自定义指令
+	for _, src := range []types.RewriteSource{
+		types.RewriteSourceSuggestions, types.RewriteSourceMixed, "bogus",
+	} {
+		r := base
+		r.Source = src
+		r.SuggestionIdxs = []int{0}
+		mustErr("非 custom 来源", "局部重写仅支持自定义指令", r)
+	}
+	// 2. 指令 trim 空 → 重写指令不能为空（whole 同条件是「自定义指令不能为空」）
+	r2 := base
+	r2.CustomInstructions = "   "
+	mustErr("指令空", "重写指令不能为空", r2)
+	// 3. LengthMode 空 → similar；且不套 whole 的字数缺省 3000
+	got, err := NormalizeRequest(base)
+	if err != nil {
+		t.Fatalf("合法 partial 请求不应报错: %v", err)
+	}
+	if got.LengthMode != LengthModeSimilar {
+		t.Fatalf("LengthMode 缺省应 similar: %q", got.LengthMode)
+	}
+	if got.TargetWordCount != 0 {
+		t.Fatalf("partial 不应套用 whole 字数缺省: %d", got.TargetWordCount)
+	}
+	// 4. custom 档无目标字数 → 自定义长度需提供目标字数
+	r4 := base
+	r4.LengthMode = LengthModeCustom
+	mustErr("custom 无字数", "自定义长度需提供目标字数", r4)
+	// 5. StartPos<0 → 选区非法
+	r5 := base
+	r5.StartPos = -1
+	mustErr("起始负", "选区非法", r5)
+	// 6. EndPos<=StartPos → 选区非法
+	r6 := base
+	r6.EndPos = 10
+	mustErr("结束等于起始", "选区非法", r6)
+	r6b := base
+	r6b.EndPos = 5
+	mustErr("结束小于起始", "选区非法", r6b)
+
+	// 合法 custom 档：字段原样透传（字数不套 whole 的钳制）
+	r7 := base
+	r7.LengthMode = LengthModeCustom
+	r7.TargetWordCount = 800
+	got7, err := NormalizeRequest(r7)
+	if err != nil {
+		t.Fatalf("合法 custom 不应报错: %v", err)
+	}
+	if got7.Mode != types.RewriteModePartial || got7.Source != types.RewriteSourceCustom ||
+		got7.LengthMode != LengthModeCustom || got7.TargetWordCount != 800 {
+		t.Fatalf("合法 custom 字段应原样透传: %+v", got7)
+	}
+
+	// whole 回归：显式 whole + custom 空指令仍走既有文案
+	if _, err := NormalizeRequest(types.RewriteRequest{
+		Mode: types.RewriteModeWhole, Source: types.RewriteSourceCustom,
+	}); err == nil || err.Error() != "自定义指令不能为空" {
+		t.Fatalf("whole 空指令文案应不变: %v", err)
+	}
+}

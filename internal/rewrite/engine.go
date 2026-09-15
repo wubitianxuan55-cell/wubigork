@@ -36,13 +36,20 @@ const (
 //     mixed：两者至少其一；
 //   - TargetWordCount 0 → 3000，钳制 [500,10000]；
 //   - FocusAreas 未知 key 静默丢弃；
-//   - Mode 为空 → whole（本刀只支持 whole，partial 由后续刀放开）。
+//   - Mode 为空 → whole；partial 分支（t4-C3 余项）恒 custom 来源：仅自定义
+//     指令、长度模式缺省 similar、custom 档需目标字数、选区方向校验，细则
+//     见 normalizePartial（规格 进度计划/gaea-partial-rewrite-20260916.md §1）。
 func NormalizeRequest(req types.RewriteRequest) (types.RewriteRequest, error) {
 	if req.Mode == "" {
 		req.Mode = types.RewriteModeWhole
 	}
 	if req.Source == "" {
 		req.Source = types.RewriteSourceCustom
+	}
+	// partial 分支（t4-C3 余项）：不走 whole 的建议/混合与字数缺省链路，
+	// 细则见 normalizePartial；whole 既有路径零变化。
+	if req.Mode == types.RewriteModePartial {
+		return normalizePartial(req)
 	}
 	hasInstr := strings.TrimSpace(req.CustomInstructions) != ""
 	hasIdx := len(req.SuggestionIdxs) > 0

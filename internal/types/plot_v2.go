@@ -151,6 +151,9 @@ type RewriteRequest struct {
 	StartPos           int             `json:"start_pos,omitempty"`
 	EndPos             int             `json:"end_pos,omitempty"`
 	LengthMode         string          `json:"length_mode,omitempty"`
+	// SelectedText 选中文本（partial）：前端选区原文，后端据此做 ±50 模糊重锚。
+	// rune 偏移（StartPos/EndPos）由前端从 code-unit selectionStart/End 换算。
+	SelectedText string `json:"selected_text,omitempty"`
 }
 
 // ── 分析标注层（t4 C4）──────────────────────────────────────

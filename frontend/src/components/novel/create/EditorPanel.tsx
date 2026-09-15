@@ -1,5 +1,5 @@
-import React from 'react'
-import { Button, Spin, Typography, Input, Tooltip, Space } from 'antd'
+import React, { useRef } from 'react'
+import { Button, Spin, Typography, Input, Tooltip, Space, message } from 'antd'
 import {
   EditOutlined, LoadingOutlined, ReloadOutlined, SaveOutlined,
   PlusOutlined, ThunderboltOutlined, StopOutlined,
@@ -32,15 +32,35 @@ interface EditorPanelProps {
   /** 正文编辑字号（px） */
   editorFontSize?: number
   onEditorFontSizeChange?: (value: number) => void
+  /** 局部重写入口（t4-C3 余项）：start/end 为正文 rune 偏移（code-unit 选区已换算），text 为选中文本 */
+  onPartialRewrite?: (sel: { start: number; end: number; text: string }) => void
 }
 
-/** 中部编辑器面板（T6-7.5 从 CreatePage 拆分）：标题/状态标签/字数 + 正文编辑 + 生成进度与停止按钮 */
+/** 中部编辑器面板（T6-7.5 从 CreatePage 拆分）：标题/状态标签/字数 + 正文编辑 + 生成进度与停止按钮 + 局部重写入口 */
 const EditorPanel: React.FC<EditorPanelProps> = ({
   activeNode, content, onContentChange, chapterLoading,
   generating, genPhase, genPercent, stopping, saving,
   onRegenerate, onSave, onStop, hasChapters, nextChapterNum, onOpenWizard,
-  editorFontSize = 15, onEditorFontSizeChange,
-}) => (
+  editorFontSize = 15, onEditorFontSizeChange, onPartialRewrite,
+}) => {
+  const editorRef = useRef<React.ComponentRef<typeof TextArea> | null>(null)
+
+  // 局部重写入口：读原生 textarea 的 code-unit 选区（selectionStart/End 为 UTF-16
+  // code-unit 偏移），换算成 rune 偏移后回调（后端选段校验按 rune 口径）；无选区给提示。
+  const handlePartialRewrite = () => {
+    const ta = editorRef.current?.resizableTextArea?.textArea
+    if (!ta) return
+    const s = ta.selectionStart
+    const e = ta.selectionEnd
+    if (s === e) {
+      message.warning('请先选中要重写的文字段落')
+      return
+    }
+    const toRune = (codeUnitPos: number): number => [...content.slice(0, codeUnitPos)].length
+    onPartialRewrite?.({ start: toRune(s), end: toRune(e), text: content.slice(s, e) })
+  }
+
+  return (
   <section
     className="novel-editor-panel novel-workspace-col novel-editor-col"
     style={{ '--novel-editor-font-size': `${editorFontSize}px` } as React.CSSProperties}
@@ -85,6 +105,9 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
       {activeNode && (
         <Button size="small" icon={<ReloadOutlined />} onClick={onRegenerate}>重写</Button>
       )}
+      {activeNode && !generating && (
+        <Button size="small" onClick={handlePartialRewrite}>局部重写</Button>
+      )}
       {activeNode && (
         <Button size="small" type="primary" icon={<SaveOutlined />} onClick={onSave} loading={saving}>保存</Button>
       )}
@@ -94,7 +117,7 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
       {chapterLoading ? (
         <div className="novel-editor-loading"><Spin /></div>
       ) : (activeNode || generating) ? (
-        <TextArea className="novel-editor" value={content} onChange={e => onContentChange(e.target.value)}
+        <TextArea className="novel-editor" ref={editorRef} value={content} onChange={e => onContentChange(e.target.value)}
           placeholder="AI 将在此流式呈现正文；也可直接手写后保存…"
         />
       ) : (
@@ -142,6 +165,7 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
       </div>
     )}
   </section>
-)
+  )
+}
 
 export default EditorPanel

@@ -13,6 +13,7 @@ import (
 	"github.com/gaea/gaea/internal/config"
 	"github.com/gaea/gaea/internal/modelengine"
 	"github.com/gaea/gaea/internal/prompt"
+	"github.com/gaea/gaea/internal/rewrite"
 	"github.com/gaea/gaea/internal/types"
 )
 
@@ -187,5 +188,127 @@ func TestNovelRewriteResultWireShape(t *testing.T) {
 		if !strings.Contains(string(b), "\""+key+"\"") {
 			t.Fatalf("缺键 %q: %s", key, b)
 		}
+	}
+}
+
+// mustWritePartialChapter 写一章「前文/选段/后文」三段结构已知的正文，返回
+// rune 口径选区偏移（partial 测试夹具）。
+func mustWritePartialChapter(t *testing.T, a *App, num int) (content, prefix, sel, suffix string, start, end int) {
+	t.Helper()
+	prefix = "夜色渐深，他推门而入，屋内的烛火晃了一下。"
+	sel = "他攥紧了拳头，指节发白，一句话也说不出来。"
+	suffix = "远处传来更夫的梆子声，一下，又一下。"
+	content = prefix + sel + suffix
+	if err := a.getPM().WriteChapter(num, content); err != nil {
+		t.Fatalf("写章节 %d: %v", num, err)
+	}
+	start = len([]rune(prefix))
+	end = start + len([]rune(sel))
+	return
+}
+
+// TestNovelChapterRewrite_PartialRoundtrip partial 往返：只重写选段，选区外
+// 前后文零变化（拼接断言钉死）；partial 恒 custom 不需要分析结果；版本留全文
+// 快照（Mode/StartPos/LengthMode 等字段）；返回键=whole 键集+partial 扩展。
+func TestNovelChapterRewrite_PartialRoundtrip(t *testing.T) {
+	const newSel = "他把拳头攥得更紧，喉头动了动，终究没吐出一个字。"
+	a := newRewriteTestApp(t, "重写后："+newSel) // 桩回包带前缀，顺带验证输出清理
+	content, prefix, sel, suffix, start, end := mustWritePartialChapter(t, a, 2)
+
+	reqJSON := fmt.Sprintf(`{"mode":"partial","source":"custom","custom_instructions":"把选段写得更紧张",`+
+		`"start_pos":%d,"end_pos":%d,"selected_text":%q,"length_mode":"similar"}`, start, end, sel)
+	res, err := a.NovelChapterRewrite(2, reqJSON)
+	if err != nil {
+		t.Fatalf("局部重写失败: %v", err)
+	}
+
+	// 拼接断言：新选段替换选区，前后文原文零变化
+	newFull := prefix + newSel + suffix
+	got, _ := res["newContent"].(string)
+	if got != newFull || !strings.HasPrefix(got, prefix) || !strings.HasSuffix(got, suffix) {
+		t.Fatalf("拼接错误，选区外内容被波及: %q", got)
+	}
+	// 不自动落章：正文仍为原文
+	if c, _ := a.getPM().ReadChapter(2); c != content {
+		t.Fatalf("生成后不应自动落章")
+	}
+
+	// partial 扩展键 + 选段口径统计（与引擎 ComputeDiff 对账）
+	wantDiff := rewrite.ComputeDiff(sel, newSel)
+	if res["mode"] != "partial" || res["lengthMode"] != "similar" ||
+		res["startPos"] != start || res["endPos"] != end {
+		t.Fatalf("partial 扩展键不对: %v", res)
+	}
+	if res["selectedWordCount"] != wantDiff.OriginalLen || res["newSelectedWordCount"] != wantDiff.NewLen ||
+		res["similarity"] != wantDiff.Similarity || res["change"] != wantDiff.Change {
+		t.Fatalf("选段统计不对: %v (want %+v)", res, wantDiff)
+	}
+	// whole 键集仍在
+	for _, key := range []string{"versionId", "status", "changePercent", "originalWordCount", "newWordCount"} {
+		if _, ok := res[key]; !ok {
+			t.Fatalf("缺 whole 键 %q: %v", key, res)
+		}
+	}
+	if res["originalWordCount"] != len([]rune(content)) || res["newWordCount"] != len([]rune(newFull)) {
+		t.Fatalf("全文 rune 字数不对: %v", res)
+	}
+
+	// 版本落盘：Mode=partial、选区、全文快照、全文 rune 字数
+	vid := res["versionId"].(string)
+	v, err := a.NovelGetRewriteVersion(2, vid)
+	if err != nil {
+		t.Fatalf("读版本: %v", err)
+	}
+	if v.Mode != types.RewriteModePartial || v.Status != types.RewriteCompleted ||
+		v.StartPos != start || v.EndPos != end || v.LengthMode != "similar" || v.TargetWords != 0 {
+		t.Fatalf("版本字段不对: %+v", v)
+	}
+	if v.OriginalContent != content || v.NewContent != newFull ||
+		v.OriginalWordCount != len([]rune(content)) || v.NewWordCount != len([]rune(newFull)) {
+		t.Fatalf("版本快照应为全文: %+v", v)
+	}
+
+	// partial 版本走既有应用链路（回滚=整章恢复）
+	if _, err := a.NovelApplyRewriteVersion(2, vid); err != nil {
+		t.Fatalf("应用失败: %v", err)
+	}
+	if c, _ := a.getPM().ReadChapter(2); c != newFull {
+		t.Fatalf("应用后正文应为拼接全文")
+	}
+	if _, err := a.NovelRestoreRewriteVersion(2, vid); err != nil {
+		t.Fatalf("恢复失败: %v", err)
+	}
+	if c, _ := a.getPM().ReadChapter(2); c != content {
+		t.Fatalf("恢复后正文应为原文")
+	}
+}
+
+// TestNovelChapterRewrite_PartialSelectionMismatch 选中文本与正文不匹配 →
+// 显式报错且不落任何版本。
+func TestNovelChapterRewrite_PartialSelectionMismatch(t *testing.T) {
+	a := newRewriteTestApp(t, "不应被调用")
+	_, _, _, _, start, end := mustWritePartialChapter(t, a, 2)
+
+	reqJSON := fmt.Sprintf(`{"mode":"partial","source":"custom","custom_instructions":"收紧",`+
+		`"start_pos":%d,"end_pos":%d,"selected_text":"完全不相干的选中文本","length_mode":"similar"}`, start, end)
+	_, err := a.NovelChapterRewrite(2, reqJSON)
+	if err == nil || !strings.Contains(err.Error(), "不匹配") {
+		t.Fatalf("选中文本不匹配应显式报错: %v", err)
+	}
+	if list, _ := a.getPM().ListRewriteVersions(2); len(list) != 0 {
+		t.Fatalf("失败不应落版本: %v", list)
+	}
+}
+
+// TestNovelChapterRewrite_PartialCustomNoTarget custom 长度模式缺目标字数 →
+// NormalizeRequest 层前置报错。
+func TestNovelChapterRewrite_PartialCustomNoTarget(t *testing.T) {
+	a := newRewriteTestApp(t, "不应被调用")
+	_, _, sel, _, start, end := mustWritePartialChapter(t, a, 2)
+
+	reqJSON := fmt.Sprintf(`{"mode":"partial","source":"custom","custom_instructions":"扩写",`+
+		`"start_pos":%d,"end_pos":%d,"selected_text":%q,"length_mode":"custom"}`, start, end, sel)
+	if _, err := a.NovelChapterRewrite(2, reqJSON); err == nil || !strings.Contains(err.Error(), "目标字数") {
+		t.Fatalf("custom 缺目标字数应报错: %v", err)
 	}
 }

@@ -22,7 +22,8 @@ import (
 // gaea 强制增量：MuMu 只在前端内存里「放弃」且无 restore 路由——本刀版本库
 // 自带恢复（写回 OriginalContent + 审计字段）。生成后不自动落章：应用走
 // NovelApplyRewriteVersion（对齐 MuMu「前端确认后 PUT」语义）。
-// 首刀范围：whole 模式（v3 章节文件）；v4 场景工程与 partial 下刀放开。
+// 首刀范围：whole 模式（v3 章节文件）；partial 已放开（下方分支）；v4 场景工程
+// 与 deslop 下刀待放开。
 
 // NovelChapterRewrite 驱动式整章重写：归一请求 → 取分析建议 → 构建修改指令 →
 // LLM 重写（温度 0.7，MuMu L92）→ 输出清理 → diff 统计 → 版本落盘（completed，
@@ -53,6 +54,11 @@ func (a *writingState) NovelChapterRewrite(chapterNum int, reqJSON string) (map[
 	req, err := rewrite.NormalizeRequest(req)
 	if err != nil {
 		return nil, err
+	}
+	// partial 选段局部重写：只重写选中片段、前后文原样拼接（t4-C3 partial 刀）。
+	// 整章（whole）路径零变化。
+	if req.Mode == types.RewriteModePartial {
+		return a.novelChapterRewritePartial(pm, chapterNum, req)
 	}
 
 	// 建议来源：analysis-v2.json 该章 Result.Suggestions（t4-C1 产物）
@@ -138,6 +144,102 @@ func (a *writingState) NovelChapterRewrite(chapterNum int, reqJSON string) (map[
 		"originalWordCount": diff.OriginalLen,
 		"newWordCount":      diff.NewLen,
 		"newContent":        newContent,
+	}, nil
+}
+
+// novelChapterRewritePartial 选段局部重写（NovelChapterRewrite 的 partial 分支）：
+// 选区 ±50 模糊重锚 → ±500 上下文截取 → 长度模式四档 → 同一 rewrite-chapter 模板
+// 只重写选段 → 清理输出 → 前后文原样拼接 → 版本落全文快照（回滚=整章恢复，
+// 对齐 whole；MuMu 局部重写无快照无 undo 是 F5 缺陷）。
+// 口径：docs/distill/04-plot-analysis.md §5.3；rune 偏移由前端换算，后端全程 rune。
+func (a *writingState) novelChapterRewritePartial(pm *project.Manager, chapterNum int, req types.RewriteRequest) (map[string]interface{}, error) {
+	original, err := pm.ReadChapter(chapterNum)
+	if err != nil {
+		return nil, fmt.Errorf("读取章节失败: %w", err)
+	}
+	runes := []rune(original)
+	start, end, err := rewrite.ResolveSelection(original, req.StartPos, req.EndPos, req.SelectedText)
+	if err != nil {
+		return nil, err
+	}
+	selected := string(runes[start:end])
+	// ±500 rune 前后文（仅进指令供参考，不进 chapter_content）
+	ctxBefore := string(runes[max(0, start-500):start])
+	ctxAfter := string(runes[end:min(len(runes), end+500)])
+
+	spec := rewrite.PartialLengthSpec(req.LengthMode, len([]rune(selected)), req.TargetWordCount)
+	instruction := rewrite.BuildPartialInstruction(req.CustomInstructions, selected, ctxBefore, ctxAfter, spec)
+
+	tmpl := a.eng.Get("rewrite-chapter")
+	if tmpl == nil {
+		return nil, fmt.Errorf("缺少 rewrite-chapter 模板文件")
+	}
+	systemPrompt := substituteWordCount(tmpl.BuildSystemPrompt(""), spec.MaxRunes)
+	userPrompt := tmpl.BuildUserPrompt(map[string]string{
+		"chapter_content":          selected, // 只给选段；选区外上下文在修改指令里
+		"modification_instruction": instruction,
+		"prev_summary":             buildPrevSummaryWindow(readOutlineNodes(pm), chapterNum, prevSummaryResolver(pm)),
+	})
+
+	eng, model, _ := a.routeModel("novel")
+	if model == "" {
+		return nil, fmt.Errorf("未找到可用模型（可能离线）")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	defer cancel()
+	// MaxTokens 按 spec 计算（whole 固定 8192 不动，仅本分支）
+	raw, err := a.client.ChatSimpleStreamWithOptions(ctx, model, systemPrompt, userPrompt, ai.ChatSimpleOptions{
+		EngineID: eng, Feature: "novel", Temperature: 0.7, MaxTokens: rewrite.PartialMaxTokens(spec), TimeoutMinutes: 10,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("重写生成失败: %w", err)
+	}
+	newSelected := rewrite.CleanRewriteOutput(raw)
+	if strings.TrimSpace(newSelected) == "" {
+		return nil, fmt.Errorf("重写结果为空，已放弃（不落任何数据）")
+	}
+	newFull := string(runes[:start]) + newSelected + string(runes[end:])
+	diff := rewrite.ComputeDiff(selected, newSelected) // 相似度/变化按选段口径
+
+	v := &types.RewriteVersion{
+		ChapterNum:        chapterNum,
+		Mode:              types.RewriteModePartial,
+		Status:            types.RewriteCompleted,
+		Source:            req.Source,
+		CustomInstr:       req.CustomInstructions,
+		StartPos:          start,
+		EndPos:            end,
+		LengthMode:        req.LengthMode,
+		OriginalContent:   original, // 全文快照（回滚=整章恢复）
+		OriginalWordCount: len(runes),
+		NewContent:        newFull,
+		NewWordCount:      len([]rune(newFull)),
+		Similarity:        diff.Similarity,
+	}
+	if req.LengthMode == rewrite.LengthModeCustom {
+		v.TargetWords = req.TargetWordCount
+	}
+	if err := pm.SaveRewriteVersion(v); err != nil {
+		return nil, fmt.Errorf("保存重写版本失败: %w", err)
+	}
+	slog.Info("局部重写完成", "chapter", chapterNum, "version", v.ID,
+		"start", start, "end", end, "similarity", diff.Similarity, "change", diff.Change)
+
+	return map[string]interface{}{
+		"versionId":            v.ID,
+		"status":               string(v.Status),
+		"similarity":           diff.Similarity,
+		"change":               diff.Change,
+		"changePercent":        diff.ChangePercent,
+		"originalWordCount":    len(runes),
+		"newWordCount":         len([]rune(newFull)),
+		"newContent":           newFull,
+		"mode":                 string(types.RewriteModePartial),
+		"selectedWordCount":    diff.OriginalLen,
+		"newSelectedWordCount": diff.NewLen,
+		"lengthMode":           req.LengthMode,
+		"startPos":             start,
+		"endPos":               end,
 	}, nil
 }
 

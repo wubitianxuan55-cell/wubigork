@@ -3,6 +3,15 @@
 > 本文件为**最近发布速览**。完整历史磁带见 `docs/archive/progress-history-2026-09.md`
 > 与 `releases/`。
 
+## 最新发布：v4.321.0（2026-09-16）「t4-C3 余项：partial 选段局部重写（版本库升级版）」
+
+- **来源**：用户指令「可继续」。三线并行子代理（A/B/C 足迹互斥全部一次绿）→ 主代理收口；规格书 进度计划/gaea-partial-rewrite-20260916.md。
+- **论点**：整章重写对「改一段」太重；partial=选区+指令+长度模式只重写选中片段。对 MuMu 升级=走版本库（全文快照可回滚）；全链 rune 口径；零新绑定（696 不动）。
+- **落地**：rewrite/partial.go 四纯函数+NormalizeRequest 五规则（whole 零字节变化）+novelChapterRewritePartial（拼接钉死前后文零变化+版本字段）+前端 EditorPanel 选区 rune 换算/PartialRewriteModal 三态/CreatePage 挂载。
+- **验收**：rewrite 9 函数+app +3+前端新增 6（合并定向 34 全绿）；ci.ps1 全绿 exit 0（go 129 包+vitest 365 文件）；drift OK@696；产物=exe 50638336B SHA256=c0f1abd770b4b4a2253c17e9c92d912f06f7992fbcbc62fe155e1e456a97fa7f（releases+SUMS；桌面副本同哈希；冒烟 200 过）。
+- **观察池**：选段高亮回写编辑器；流式输出；deslop 入口（类型已留）。
+- **未做（下刀）**：t4-C3 余项剩场景工程整章重写；t6 提示词工坊/t7 前端统一接线；7.3-2 板块降视图（等零功能周）。
+
 ## 最新发布：v4.320.0（2026-09-16）「t4-C3 余项：重写版本历史面板（版本库前端消费）」
 
 - **来源**：用户指令「继续」。小刀单线主代理直做（纯前端后端零改动）；契约先行（规格书 进度计划/gaea-rewrite-history-panel-20260916.md）。
