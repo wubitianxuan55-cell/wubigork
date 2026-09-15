@@ -10,10 +10,12 @@
 |---|---|
 | gaea-nextgen-roadmap-2026.md | 全域路线图（权威；§16 调研回填后近期落地项见 v4.88/4.89） |
 | gaea-next-stage-plan-2026-09.md | 🔄 **下一阶段规划大纲（活跃指导）**：接棒长期规划——阶段五 记忆 OS+上下文编译（主轴）/ 阶段六 书斋纵深（办公主角：可审计默认化·项目本体·DAG；进度 DCMA·蒙特卡洛；跨域 EVM）/ 板块并行池 / 拍板池 / 维持轨 |
+| gaea-stage7-plan-2026-09.md | 🔄 **阶段七规划（平台收口与复利层，2026-09-15 拍板启动）**：7.1 信任地基（记忆评测+路由学习）→7.2 技能结晶双入口（演示式录制+journal 历史蒸馏）→7.3 任务空间制收窄版（多入口收件箱+板块降视图，纯同步零常驻）→7.4 闲庭清欠并行线；红线含「不需要昼夜运转」新拍板 |
 | gaea-slim-masterplan-2026-09.md | 🔄 **瘦身长期总规划（活跃权威）**：七面体检×七轨道×六阶段；**P0–P4 已收官**（v4.167–v4.177）+ 清点刀 v4.179；余 P5 维持与观察池审判 |
 | gaea-convergence-plan-2026-09.md | 🔄 **收敛期叠加层**：W1 卫生刀 ✅（v4.164/165）、W2 知识外化三件 ✅、W3-4 office 枢纽解耦 ✅（v4.197）；冲突时以「不加新板块」为先 |
 | gaea-competitive-landscape-2026.md | 竞品格局与差异化定位（参考基线 2026-08-29，注意时效） |
 | gaea-market-survey-2026-09.md | 🔄 **市场调研增量刷新（v4.240 落地）**：八赛道信号 + 三战略结论（Copilot agentic GA 验证形态/LM Studio Bionic 正面竞品/「本地」已非差异点）+ 候选 4 项交拍板池（已过删除史筛）；候选1 双时间轴已落地（SchemaV21），候选2 记忆可评测为下一刀 |
+| gaea-platform-market-survey-2026-09-15.md | 🔄 **平台级市场调研（阶段七前置，2026-09-15）**：三路并行调研——大厂 agent 任务/技能接口（SKILL.md 成标准·历史蒸馏无人做）+本地生态×记忆×路由（程序性记忆空位·路由不进本地模型）+中文创作/陪伴/图像/监管（网文 AI 检测红线·拟人化新规·成人向刑事执法活跃期）；候选提名表六项交拍板池（①技能结晶②任务收件箱③路由学习④记忆评测⑤自证创作〔挂起〕⑥审计主权口径） |
 | gaea-mcp-hub-reversal-review-2026-09.md | **MCP 双向枢纽翻案评估（拍板池条2，建议维持排除）**：入方向已在产（boot/plugins.go 配置化挂载+热插拔）；出方向三条独立反对证据同向=工程形态矛盾（GUI 壳 vs 常驻 server）/与自身入口重复/安全暴露面与人设冲突；留单向导出作远期观察不立项 |
 | gaea-backend-perf-survey-2026-09.md | 🔄 **Go 后端性能热点普查（2026-09-12，交拍板池刀路 A-E）**：20 项证据 file:line 已核实（回合边界日志全量重读/remember 全局锁内全库重载/cost_search 每查询重建索引/Hephaestus.db 单连接串行读写等）；go vet 全净；与既有条目零重叠；gaea/ai 热路径零 benchmark 需先立基线 |
 | gaea-cost-domain-survey-2026-09.md | 造价域现状基线（file:line；**校正 roadmap §15 过时欠账**）+ 造价刀路池：§1 编码 v4.178 / §2 多方案 v4.204 / §3 五算 v4.194 / §4 询价扫描 v4.195 / §5 索引补齐 v4.196；**六项全清（§6 含量对照 v4.209 收官，本档转现状基线不再当欠账池）** |
@@ -89,7 +91,7 @@ gaea-space-shell-design.md（S2.1，v3.9.0）· gaea-space-dimension-design.md�
 
 ## 政策 / 约定 / 数据集
 
-ADULT_MODE.md · DREAM_WRITE_POLICY.md · MEMORY_ARCHITECTURE.md · evaluation-set.md · retrieval-eval-set.md（12 条查询集，代码运行时直接解析）· ilink-non-text-protocol.md · 2026-08-15-gaea3-architecture-design.md（历史基准：内核架构事件日志/Manifest/Seam，仍有效）
+ADULT_MODE.md · DREAM_WRITE_POLICY.md · MEMORY_ARCHITECTURE.md · evaluation-set.md · retrieval-eval-set.md（12 条查询集，代码运行时直接解析）· memory-eval-set.md（三脑+经验习得题集，阶段七 7.1-1；internal/memoryeval 解析跑批，四域基线 recall@10=1.000）· ilink-non-text-protocol.md · 2026-08-15-gaea3-architecture-design.md（历史基准：内核架构事件日志/Manifest/Seam，仍有效）
 
 ## 归档区（不在此处展开）
 
