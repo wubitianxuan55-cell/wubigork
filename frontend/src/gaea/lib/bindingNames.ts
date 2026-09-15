@@ -337,6 +337,8 @@ export const bindingNames = [
 	"GaeaSetSubagentModelForSkill",
 	"GaeaSetUsdCnyRate",
 	"GaeaSettings",
+	"GaeaSkillDraftFromSession",
+	"GaeaSkillDraftSave",
 	"GaeaSkills",
 	"GaeaSlashArgs",
 	"GaeaSpaceActivate",
@@ -682,4 +684,4 @@ export const bindingNames = [
 	"WhisperWeixinQRStatus",
 	"WhisperWeixinQRStatusWithCode",
 	"WhisperWeixinStatus",
-] as const
+] as const;

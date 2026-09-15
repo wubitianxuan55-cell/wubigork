@@ -1,5 +1,5 @@
 // Composer 拆分产物：底部工具栏（工作区/导入/截图/权限级别/思考深度/快捷键提示，行为零变化，T6-10.1）
-import { Camera, ChevronDown, FolderGit2, Gauge, Loader, Paperclip, Zap } from "../../icons";
+import { Camera, ChevronDown, FolderGit2, Gauge, Loader, Paperclip, Wand2, Zap } from "../../icons";
 import { useT } from "../../lib/i18n";
 import type { DictKey } from "../../locales/en";
 
@@ -14,6 +14,7 @@ export interface ComposerToolbarProps {
   captureBusy: boolean
   onPickFiles: () => void
   onScreenshot: () => void
+  onRecordSkill?: () => void
   permLevel?: string
   onSetPermLevel?: (p: "ask" | "auto" | "yolo") => void
   thinkLevel?: string
@@ -33,7 +34,7 @@ const THINK_DESCS: Record<string, DictKey> = {
 
 export function ComposerToolbar({
   cwd, workspaceName, workspaceMenuOpen, onToggleWorkspaceMenu, workspaceAnchorRef,
-  running, pendingPaste, captureBusy, onPickFiles, onScreenshot,
+  running, pendingPaste, captureBusy, onPickFiles, onScreenshot, onRecordSkill,
   permLevel, onSetPermLevel, thinkLevel, onSetThinkLevel,
 }: ComposerToolbarProps) {
   const t = useT()
@@ -72,6 +73,17 @@ export function ComposerToolbar({
         title={running ? t("common.busyHint") : t("composer.screenshot")}
       >
         {captureBusy ? <Loader size={14} className="animate-spin" /> : <Camera size={14} />}
+      </button>
+
+      {/* 会话录制技能按钮（阶段七 7.2-1 演示式录制）：蒸馏当前会话为可复用技能 */}
+      <button
+        className="inline-flex items-center justify-center w-[28px] h-[28px] border-0 rounded-md bg-transparent text-fg-dim cursor-pointer transition-[color,background] duration-[var(--dur-fast)] hover:text-fg hover:bg-bg-soft disabled:cursor-default disabled:opacity-40 shrink-0"
+        onClick={() => onRecordSkill?.()}
+        disabled={running}
+        title={running ? t("common.busyHint") : t("composer.recordSkill")}
+        aria-label={t("composer.recordSkill")}
+      >
+        <Wand2 size={14} />
       </button>
 
       {/* 权限级别选择器：询问 / 自动 / YOLO */}

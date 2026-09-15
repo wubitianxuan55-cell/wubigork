@@ -971,6 +971,7 @@ export const en = {
   "composer.queueSendHint": "Queue send (runs after the current turn; unlike steering it does not touch the running task)",
   "composer.queueCount": "Queued sends ({n})",
   "composer.screenshot": "Screenshot: capture the screen and attach a crop",
+  "composer.recordSkill": "Record skill: distill this session into a reusable skill",
   "composer.permAsk": "Ask",
   "composer.permAskDesc": "Confirm before writes (default)",
   "composer.permAuto": "Auto",

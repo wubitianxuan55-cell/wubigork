@@ -976,6 +976,7 @@ export const zhTW: Record<DictKey, string> = {
   "composer.queueSendHint": "排入佇列（目前回合結束後執行，與插話不同：插話立即調整目前任務）",
   "composer.queueCount": "排入佇列 ({n})",
   "composer.screenshot": "截圖：擷取螢幕並裁切附加",
+  "composer.recordSkill": "錄製技能：把本會話蒸餾為可複用技能",
   "composer.permAsk": "詢問",
   "composer.permAskDesc": "寫入前需確認（預設）",
   "composer.permAuto": "自動",

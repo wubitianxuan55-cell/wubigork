@@ -40,6 +40,8 @@ import type {
   SessionStatsView,
   SkillCaptureInput,
   SkillCaptureResult,
+  SkillDraft,
+  SkillRecordResult,
   SlashArgsResult,
   SpaceActiveView,
   SpaceOption,
@@ -146,6 +148,11 @@ export interface CoreBindings {
   // CaptureSkill 把一次成功对话沉淀为可复用技能（写入 .gaea/skills + 全局镜像，
   // 成功后热加载引擎）。同名技能允许覆盖。
   CaptureSkill(input: SkillCaptureInput): Promise<SkillCaptureResult>;
+  // SkillDraftFromSession 把当前会话回放蒸馏为技能草稿（LLM 结构化，只回不落盘；
+  // 落盘走 SkillDraftSave，用户审阅后）。
+  SkillDraftFromSession(): Promise<SkillRecordResult>;
+  // SkillDraftSave 保存（通常已审阅修订的）技能草稿：渲染→落盘→镜像→热加载。
+  SkillDraftSave(draft: SkillDraft): Promise<SkillCaptureResult>;
   Meta(): Promise<Meta>;
   Commands(): Promise<CommandInfo[]>;
   // Capabilities feeds the MCP & Skills drawer: connected/failed servers + skills.

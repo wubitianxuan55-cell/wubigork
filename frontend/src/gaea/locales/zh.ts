@@ -972,6 +972,7 @@ export const zh: Record<DictKey, string> = {
   "composer.queueSendHint": "排队发送（当前回合结束后执行，与插话不同：插话立即调整当前任务）",
   "composer.queueCount": "排队发送 ({n})",
   "composer.screenshot": "截图：捕获屏幕并裁剪附加",
+  "composer.recordSkill": "录制技能：把本会话蒸馏为可复用技能",
   "composer.permAsk": "询问",
   "composer.permAskDesc": "写入前需确认（默认）",
   "composer.permAuto": "自动",

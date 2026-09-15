@@ -22,6 +22,12 @@ export type SkillCaptureInput = WireShape<AppModels.SkillCaptureInput>;
 // SkillCaptureResult 是沉淀结果；reloaded=true 表示技能已热加载进引擎。
 export type SkillCaptureResult = WireShape<AppModels.SkillCaptureResult>;
 
+// SkillDraft 是会话录制蒸馏出的可编辑技能草稿（阶段七 7.2-1）。
+export type SkillDraft = WireShape<AppModels.SkillDraft>;
+
+// SkillRecordResult 是会话录制返回：草稿+回放摘要+SKILL.md 预览。
+export type SkillRecordResult = WireShape<AppModels.SkillRecordResult>;
+
 export type PermissionsView = WireShape<AppModels.PermissionsView>;
 
 export type SandboxView = WireShape<AppModels.SandboxView>;

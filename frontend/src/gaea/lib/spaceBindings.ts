@@ -320,6 +320,8 @@ export const GAEA_METHOD_FACETS = {
   FactBaseClear: "work",
   FactBasePromote: "work",
   CaptureSkill: "work",
+  SkillDraftFromSession: "work",
+  SkillDraftSave: "work",
   Commands: "work",
   Capabilities: "work",
   AddMCPServer: "work",

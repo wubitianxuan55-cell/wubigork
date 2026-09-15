@@ -79,9 +79,19 @@ func (a *App) GaeaCaptureSkill(in SkillCaptureInput) (SkillCaptureResult, error)
 - 对话中直接描述任务即可命中本技能，也可用 /%s 显式调用
 - 按操作步骤执行，完成后按场景要求验证产出`, name, task, solution, name)
 
-	content := skill.RenderSkillFile(name, desc, body)
+	return a.saveSkillFile(name, desc, body)
+}
 
-	// 1) 工作区 .gaea/skills（gaea 项目作用域，优先加载）
+// saveSkillFile 是技能落盘共享通道（单轮沉淀 GaeaCaptureSkill 与会话录制
+// GaeaSkillDraftSave 共用）：写工作区 .gaea/skills + 镜像全局 + 热加载。
+func (a *App) saveSkillFile(name, desc, body string) (SkillCaptureResult, error) {
+	return a.saveSkillFileContent(name, desc, skill.RenderSkillFile(name, desc, body))
+}
+
+// saveSkillFileContent 落盘已渲染的 SKILL.md 全文：工作区 .gaea/skills
+// （gaea 项目作用域，优先加载）→ 镜像 ~/.codex/skills（Codex 跨工具复用）
+// → 热加载办公引擎（仅当引擎已初始化，技能立刻进入索引与能力抽屉）。
+func (a *App) saveSkillFileContent(name, desc, content string) (SkillCaptureResult, error) {
 	root := filepath.Join(gaeaCwd(), ".gaea", "skills")
 	dir := filepath.Join(root, name)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -92,7 +102,6 @@ func (a *App) GaeaCaptureSkill(in SkillCaptureInput) (SkillCaptureResult, error)
 		return SkillCaptureResult{}, fmt.Errorf("写入技能失败: %w", err)
 	}
 
-	// 2) 镜像到 Codex 全局技能目录（~/.codex/skills），跨工具复用
 	if home, err := os.UserHomeDir(); err == nil {
 		codexDir := filepath.Join(home, ".codex", "skills", name)
 		if err := os.MkdirAll(codexDir, 0o755); err == nil {
@@ -101,7 +110,6 @@ func (a *App) GaeaCaptureSkill(in SkillCaptureInput) (SkillCaptureResult, error)
 	}
 
 	res := SkillCaptureResult{Name: name, Description: desc, Path: path}
-	// 3) 热加载办公引擎（仅当引擎已初始化）：技能立刻进入索引与能力抽屉
 	ga.mu.Lock()
 	initialized := ga.ctrl != nil
 	ga.mu.Unlock()

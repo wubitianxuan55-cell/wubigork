@@ -26,6 +26,7 @@ import {
 import { ComposerTableBanner } from "./composer/ComposerTableBanner";
 import { ComposerInputRow } from "./composer/ComposerInputRow";
 import { ComposerToolbar } from "./composer/ComposerToolbar";
+import { SkillRecordModal } from "./SkillRecordModal";
 
 const COMPOSER_MIN_HEIGHT = 86;
 const COMPOSER_MAX_HEIGHT = 360;
@@ -312,6 +313,7 @@ export function Composer({
   // ── 高度调整 ──
   const [composerHeight, setComposerHeight] = useState<number | null>(loadComposerHeight);
   const [composerResizing, setComposerResizing] = useState(false);
+  const [recordOpen, setRecordOpen] = useState(false);
   useEffect(() => {
     const onResize = () => setComposerHeight((h) => (h === null ? null : clampComposerHeight(h)));
     window.addEventListener("resize", onResize); return () => window.removeEventListener("resize", onResize);
@@ -517,12 +519,16 @@ export function Composer({
           captureBusy={captureBusy}
           onPickFiles={() => void handlePickFiles()}
           onScreenshot={() => void handleScreenshot()}
+          onRecordSkill={() => setRecordOpen(true)}
           permLevel={permLevel}
           onSetPermLevel={onSetPermLevel}
           thinkLevel={thinkLevel}
           onSetThinkLevel={onSetThinkLevel}
         />
       </div>
+
+      {/* 会话录制技能浮层（阶段七 7.2-1） */}
+      <SkillRecordModal open={recordOpen} onClose={() => setRecordOpen(false)} />
 
       {/* 截图裁剪浮层 */}
       {cropSrc && (

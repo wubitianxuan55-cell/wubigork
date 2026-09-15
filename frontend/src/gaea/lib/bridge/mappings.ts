@@ -15,6 +15,8 @@ export const gaeaToGaea = {
   NewSession: "GaeaNewSession",
   Reload: "GaeaReload",
   CaptureSkill: "GaeaCaptureSkill",
+  SkillDraftFromSession: "GaeaSkillDraftFromSession",
+  SkillDraftSave: "GaeaSkillDraftSave",
   History: "GaeaHistory",
   Checkpoints: "GaeaCheckpoints",
   Rewind: "GaeaRewind",

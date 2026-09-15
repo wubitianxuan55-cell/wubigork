@@ -3,6 +3,15 @@
 > 本文件为**最近发布速览**。完整历史磁带见 `docs/archive/progress-history-2026-09.md`
 > 与 `releases/`。
 
+## 最新发布：v4.313.0（2026-09-15）「阶段七第二刀：会话录制技能（演示式录制，7.2-1）」
+
+- **来源**：阶段七 7.2-1（平台调研验证形态：Anthropic Record a Skill / OpenAI Record & Replay 均已发布；SKILL.md 成事实标准）。已有单轮沉淀+记忆聚类候选两通道，缺「会话级多轮回放→结构化草稿→审阅入库」。
+- **落地**：①skill-from-session.json 模板（蒸馏纪律+JSON 草稿契约）②office_skill_record.go（buildSkillReplay 末段 60 条回放/parseSkillDraft 归一断拒/renderSkillDraftBody）③GaeaSkillDraftFromSession（本地优先路由+RetryJSON，只回不落盘）+GaeaSkillDraftSave（审阅后落盘）④saveSkillFile 共享通道重构（单轮/会话录制同一落点）⑤SkillRecordModal+Composer 工具栏入口；绑定面 682→684（work 锁 506）。
+- **纪律**：LLM 只产草稿，落盘必经用户审阅。
+- **测试**：Go 6 例+vitest 4 例；既有零改动。坑=heredoc 转义破坏 TS 字符串/锁数量忘同步/gen_bindings 噪音再证。
+- **门禁**：ci.ps1 全绿 exit 0、drift OK@684、版本四处 4.313.0；产物见 `releases/SHA256SUMS-v4.313.0.txt`。
+- **未做（下刀）**：7.1-2 路由学习或 7.2-2 journal 历史蒸馏；闲庭在册清欠沿既有列车。
+
 ## 最新发布：v4.312.0（2026-09-15）「阶段七首刀：记忆质量受控评测（三脑四域零依赖基线+经验习得题集，7.1-1）」
 
 - **来源**：阶段七规划（docs/gaea-stage7-plan-2026-09.md，2026-09-15 拍板启动）首刀；闭合在册开放增量「记忆质量可评测」（对齐物升级为 BEAM/LongMemEval-V2）。三脑记忆域检索质量此前零量化——记忆不可信则 7.2 技能结晶复用成功率不可测。

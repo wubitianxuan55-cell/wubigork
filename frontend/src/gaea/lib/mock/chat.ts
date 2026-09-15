@@ -10,7 +10,7 @@ type ChatMethods = Pick<
   AppBindings,
   | "Submit" | "SubmitDisplay" | "Cancel" | "Steer" | "Approve" | "AnswerQuestion"
   | "GaeaRunning" | "Compact" | "NewSession"
-  | "Reload" | "CaptureSkill" | "Checkpoints" | "Rewind" | "Fork"
+  | "Reload" | "CaptureSkill" | "SkillDraftFromSession" | "SkillDraftSave" | "Checkpoints" | "Rewind" | "Fork"
   | "SummarizeFrom" | "SummarizeUpTo" | "History"
   | "ListSessions" | "ListProjectSessions" | "ArchiveSession" | "UnarchiveSession"
   | "PinSession" | "ResumeSession" | "DeleteSession" | "RenameSession"
@@ -215,6 +215,23 @@ export function buildChat(s: MakeMockState): ChatMethods {
     async CaptureSkill(_input) {
       // mock: 浏览器开发环境不写磁盘，返回假结果
       return { name: _input.name || "mock-skill", description: _input.description, path: "", reloaded: false, tools: 0, skills: 0 };
+    },
+    async SkillDraftFromSession() {
+      // mock: 无真实会话，返回一份示例草稿供开发预览
+      return {
+        draft: {
+          name: "mock-recorded-skill",
+          description: "从会话蒸馏的示例技能（mock）",
+          scenario: "演示用适用场景",
+          steps: ["第一步", "第二步"],
+          cautions: [],
+        },
+        replay: "【用户】示例回放…",
+        preview: "---\nname: mock-recorded-skill\n---\n# 示例",
+      };
+    },
+    async SkillDraftSave(_draft) {
+      return { name: _draft.name, description: _draft.description, path: "", reloaded: false, tools: 0, skills: 0 };
     },
     async Checkpoints() {
       return [];
