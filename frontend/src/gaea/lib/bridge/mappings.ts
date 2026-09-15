@@ -20,6 +20,7 @@ export const gaeaToGaea = {
   SkillDistillCandidates: "GaeaSkillDistillCandidates",
   SkillDistillDraft: "GaeaSkillDistillDraft",
   SkillDistillDecide: "GaeaSkillDistillDecide",
+  SkillStats: "GaeaSkillStats",
   History: "GaeaHistory",
   Checkpoints: "GaeaCheckpoints",
   Rewind: "GaeaRewind",

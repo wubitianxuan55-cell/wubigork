@@ -11,7 +11,7 @@ type ChatMethods = Pick<
   | "Submit" | "SubmitDisplay" | "Cancel" | "Steer" | "Approve" | "AnswerQuestion"
   | "GaeaRunning" | "Compact" | "NewSession"
   | "Reload" | "CaptureSkill" | "SkillDraftFromSession" | "SkillDraftSave" | "Checkpoints" | "Rewind" | "Fork"
-  | "SkillDistillCandidates" | "SkillDistillDraft" | "SkillDistillDecide"
+  | "SkillDistillCandidates" | "SkillDistillDraft" | "SkillDistillDecide" | "SkillStats"
   | "GaeaTaskInboxList" | "GaeaTaskInboxSave" | "GaeaTaskInboxSetStatus" | "GaeaTaskInboxDelete"
   | "SummarizeFrom" | "SummarizeUpTo" | "History"
   | "ListSessions" | "ListProjectSessions" | "ArchiveSession" | "UnarchiveSession"
@@ -280,6 +280,15 @@ export function buildChat(s: MakeMockState): ChatMethods {
         available: true,
         generatedAt: new Date(lastAt).toISOString(),
       };
+    },
+    async SkillStats() {
+      // mock: 浏览器开发环境无真实计数，返回样本供开发预览（判据②走查锚点：
+      // 一条高频高成功 + 一条低频）。
+      const lastAt = Date.now();
+      return [
+        { name: "cost-compose", calls: 23, ok: 21, lastAt },
+        { name: "weekly-report-export", calls: 3, ok: 3, lastAt: lastAt - 86400000 },
+      ];
     },
     async SkillDistillDraft(_patternID) {
       // mock: 无真实 LLM，返回一份从「多次执行回放」蒸馏的示例草稿

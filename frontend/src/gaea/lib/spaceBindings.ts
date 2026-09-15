@@ -414,6 +414,7 @@ export const GAEA_METHOD_FACETS = {
   SkillDistillCandidates: "work",
   SkillDistillDraft: "work",
   SkillDistillDecide: "work",
+  SkillStats: "work",
   KnowledgeList: "work",
   KnowledgeSearch: "work",
   MemoryHubOverview: "work",

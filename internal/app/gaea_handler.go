@@ -138,6 +138,8 @@ func (a *App) gaeaBuildController() (*control.Controller, error) {
 			ga.nodeRunner = runner
 			ga.followUpMu.Unlock()
 		},
+		// 7.2-2 判据②：read_skill/run_skill 工具级调用计数（包级函数无状态）。
+		OnSkillUse:  recordSkillUse,
 		RequireKey: false,
 		Sink:       sink,
 		MaxSteps:   0,

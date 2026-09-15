@@ -3,6 +3,15 @@
 > 本文件为**最近发布速览**。完整历史磁带见 `docs/archive/progress-history-2026-09.md`
 > 与 `releases/`。
 
+## 最新发布：v4.319.0（2026-09-16）「7.2-2 判据②收口：结晶技能调用计数（skill_stats）」
+
+- **来源**：用户指令「继续」。小刀单线主代理直做（体量一轮未拆子代理）；契约先行（规格书 进度计划/gaea-skill-usage-stats-7-2-2-20260916.md）。
+- **论点**：v4.317 出口判据②欠账「结晶技能调用 ≥5 次且成功率可见」：现状核实=技能计数是前端会话级（useToolStats 只算当前会话 run_skill，不持久、无成功率、漏 read_skill 主消费通道——boot 按需加载器才是结晶技能被「翻开来用」的时刻）；本刀补**工具级调用计数**：read_skill+run_skill 双钩子 → <DataRoot>/skill_stats.json 持久化 → GaeaSkillStats 绑定 → 能力面板技能行「N 次 · 成功率 X%」。诚实口径（V1）=成功率工具级（read_skill 交付正文/run_skill 管线无错=ok；读不到名也计 fail 不静默）；回合级留观察池；「≥5 次」使用事实门槛不做硬闸。
+- **落地**：①新纯包 internal/skillstats（零 IO 表驱动，先例 routesuggest/taskinbox）：Record（空名忽略/MaxSkills=500 新名拒收防漂移堆积/零值 File 自动建表）+View（calls 降序→name 升序稳定）+JSON camelCase 钉死。②boot 双钩子：Options.OnSkillUse（缺省 nil 零行为变化，EmitSubagentText 先例）+sysprompt resolver 包装（read_skill 失败也计）+run_skill 装饰器 skillUseCountTool（args.name 解析失败不计宁少勿扰；CompactDescriptor 回退语义同注册表缺省）。③App：skill_stats.json route_suggestions 同款容错读（缺失/损坏/version≠1 回空表）+原子写+skillStatsMu 串行；recordSkillUse 包级回调；绑定 GaeaSkillStats（OfficeB +1，**695→696**）只读现算。④前端：CapabilitiesPanel open 态拉 app.SkillStats 一次零轮询（reload 随引擎热加载刷新）→SkillsSection 可选 usage prop→SkillRow 徽标行灰字「N 次 · 成功率 X%」（skill-usage-stat；缺省/零调用不渲染，会话 chip 语义不变）+SkillStatView（types/memory）+三语 +2 键+mock 桩+spaceBindings work+1（锁 517→518）。
+- **验收**：skillstats 5 函数+app 3 例+前端 2 例；tsc -b 零错、eslint 零告警；ci.ps1 全绿 exit 0 一次过（go 129 包+vitest 363 文件全过）、drift OK@696、版本三处 4.319.0；产物=exe 50606592B SHA256=43739c69ad424a8356a0994525d3d4d93c4dc367e6037e00802bf249b0641de1（releases/gaea-v4.319.0.exe+SUMS；桌面副本同哈希；冒烟 /api/health 200 过）。
+- **观察池**：回合级成功率（点赞点踩/重生成信号另刀）；蒸馏建议 tab 内联已结晶技能计数；两周后真机清池核「≥5 次」。
+- **未做（下刀）**：7.3-2 板块降视图（等 v4.318 稳定一个零功能周）；闲庭在册清欠沿既有列车。
+
 ## 最新发布：v4.318.0（2026-09-16）「阶段七第五刀：多入口统一任务收件箱（任务持久实体+四入口存为任务+状态机追踪，7.3-1）」
 
 - **来源**：用户指令「继续推进」（沿「继续 并行使用子代理，优化迭代 gaea」习惯）。契约先行（规格书 进度计划/gaea-task-inbox-7-3-1-20260915.md：A/B/C 三线足迹互斥+出口对照）→ A/B/C 三线并行 → 主代理收口。三线全部一次绿，**无卡死接管**（v4.316/v4.317 连续两刀接管后首回全并行一次过）。

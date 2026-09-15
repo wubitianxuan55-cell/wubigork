@@ -43,11 +43,13 @@ function ScopeBadge({ scope, text }: { scope: string; text: string }) {
 function SkillRow({
   skill,
   count,
+  usage,
   expanded,
   onToggle,
 }: {
   skill: SkillView
   count: number
+  usage?: { calls: number; ok: number }
   expanded: boolean
   onToggle: () => void
 }) {
@@ -90,6 +92,15 @@ function SkillRow({
           <span className="flex items-center gap-1 flex-wrap">
             <ScopeBadge scope={skill.scope} text={skillScopeLabel(skill.scope, t)} />
             {skill.runAs === "subagent" && <ScopeBadge scope="project" text={t("caps.subagent")} />}
+            {usage && usage.calls > 0 && (
+              <span
+                data-testid="skill-usage-stat"
+                className="font-mono text-[10px]"
+                style={{ color: "var(--md-sys-color-text-secondary)" }}
+              >
+                {t("caps.skillUsage", { n: usage.calls })} · {t("caps.skillSuccessRate", { p: Math.round((usage.ok / usage.calls) * 100) })}
+              </span>
+            )}
           </span>
         </span>
         {count > 0 && (
@@ -122,11 +133,14 @@ function SkillRow({
 export interface SkillsSectionProps {
   skills: SkillView[]
   counts: Record<string, number>
+  // usage 持久化调用计数（7.2-2 判据②，GaeaSkillStats 视图按名索引）；
+  // 缺省不渲染统计行（旧调用方/旧测试零变化）。
+  usage?: Record<string, { calls: number; ok: number }>
   expanded: Set<string>
   onToggle: (name: string) => void
 }
 
-export function SkillsSection({ skills, counts, expanded, onToggle }: SkillsSectionProps) {
+export function SkillsSection({ skills, counts, usage, expanded, onToggle }: SkillsSectionProps) {
   const t = useT()
   const [query, setQuery] = useState("")
   const filteredSkills = useMemo(() => {
@@ -166,6 +180,7 @@ export function SkillsSection({ skills, counts, expanded, onToggle }: SkillsSect
               key={sk.name}
               skill={sk}
               count={counts[sk.name] ?? 0}
+              usage={usage?.[sk.name]}
               expanded={expanded.has(sk.name)}
               onToggle={() => onToggle(sk.name)}
             />

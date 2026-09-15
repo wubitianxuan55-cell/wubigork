@@ -40,7 +40,7 @@ type syspromptOut struct {
 // 与记忆索引不再跨空间泄露，兑现 S1.2 读端硬隔离的注入侧承诺）。
 // morningPreload 是晨报预载开关（v4.16 刀④，桌面端从 morning_preload 配置键
 // 读取传入）：work 空间会话装配时预装配高频工作记忆晨报块。
-func buildSystemPrompt(cfg *config.Config, cwd, space string, morningPreload bool, projectBrief bool, stderrPath io.Writer) (*syspromptOut, error) {
+func buildSystemPrompt(cfg *config.Config, cwd, space string, morningPreload bool, projectBrief bool, stderrPath io.Writer, onSkillUse func(name string, ok bool)) (*syspromptOut, error) {
 	sysPrompt, err := cfg.ResolveSystemPrompt()
 	if err != nil {
 		return nil, err
@@ -125,6 +125,11 @@ func buildSystemPrompt(cfg *config.Config, cwd, space string, morningPreload boo
 
 	builtin.WireReadSkillResolver(func(name string) (string, error) {
 		sk, ok := skillStore.Read(name)
+		if onSkillUse != nil {
+			// 7.2-2 判据②：读不到名也算一次 fail——技能名漂移/删除后的
+			// 如实计数，不静默。
+			onSkillUse(name, ok)
+		}
 		if !ok {
 			return "", fmt.Errorf("skill %q not found", name)
 		}

@@ -346,6 +346,7 @@ export const bindingNames = [
   "GaeaSkillDistillDraft",
   "GaeaSkillDraftFromSession",
   "GaeaSkillDraftSave",
+  "GaeaSkillStats",
   "GaeaSkills",
   "GaeaSlashArgs",
   "GaeaSpaceActivate",

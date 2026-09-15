@@ -8,7 +8,7 @@
 // each server shows a connected/failed dot, transport, and tool/prompt/resource
 // counts, with add / remove / retry; skills list their scope and run mode.
 // v3「星枢」面板语言：分段式 v3 标签页（激活 = 主色容器 + 柔光），令牌化操作按钮。
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Globe, Cpu, RefreshCw } from "../icons";
 import { app } from "../lib/bridge";
 import { useT } from "../lib/i18n";
@@ -39,6 +39,17 @@ export function CapabilitiesPanel({
   const [expandedSkills, setExpandedSkills] = useState<Set<string>>(() => new Set());
   const [expandedErrors, setExpandedErrors] = useState<Set<string>>(() => new Set());
   const [expandedServers, setExpandedServers] = useState<Set<string>>(() => new Set());
+  // 7.2-2 判据②：持久化技能调用计数（open 态拉一次，零轮询；reload 后随
+  // 引擎热加载一并刷新）。
+  const [skillUsage, setSkillUsage] = useState<Record<string, { calls: number; ok: number }>>({});
+  const refreshSkillUsage = useCallback(() => {
+    void app.SkillStats().then((rows: { name: string; calls: number; ok: number }[]) => {
+      const out: Record<string, { calls: number; ok: number }> = {};
+      for (const r of rows ?? []) out[r.name] = { calls: r.calls, ok: r.ok };
+      setSkillUsage(out);
+    }).catch(() => null);
+  }, []);
+  useEffect(() => { refreshSkillUsage() }, [refreshSkillUsage]);
 
   const toggleSkill = useCallback((name: string) => {
     setExpandedSkills((prev) => {
@@ -85,7 +96,7 @@ export function CapabilitiesPanel({
               background: "transparent",
             }}
             disabled={reloading}
-            onClick={() => void reloadEngine()}
+            onClick={() => { void reloadEngine(); refreshSkillUsage() }}
             title={t("caps.reloadHint")}
           >
             {reloading ? (
@@ -234,7 +245,7 @@ export function CapabilitiesPanel({
             ) : tab === "tools" ? (
               <ToolsTabContent toolCounts={toolCounts} />
             ) : (
-              <SkillsSection skills={view.skills} counts={skillCounts} expanded={expandedSkills} onToggle={toggleSkill} />
+              <SkillsSection skills={view.skills} counts={skillCounts} usage={skillUsage} expanded={expandedSkills} onToggle={toggleSkill} />
             )}
           </div>
         )}

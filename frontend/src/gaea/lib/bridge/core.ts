@@ -42,6 +42,7 @@ import type {
   SkillCaptureResult,
   SkillDraft,
   SkillDistillView,
+  SkillStatView,
   SkillRecordResult,
   SlashArgsResult,
   SpaceActiveView,
@@ -161,6 +162,9 @@ export interface CoreBindings {
   SkillDistillCandidates(): Promise<SkillDistillView>;
   SkillDistillDraft(patternID: string): Promise<SkillRecordResult>;
   SkillDistillDecide(patternID: string, decision: "ignore" | "crystallized", skillName: string): Promise<void>;
+  // SkillStats 技能调用计数（7.2-2 判据②）：read_skill/run_skill 工具级累计，
+  // calls 降序只读视图。
+  SkillStats(): Promise<SkillStatView[]>;
   Meta(): Promise<Meta>;
   Commands(): Promise<CommandInfo[]>;
   // Capabilities feeds the MCP & Skills drawer: connected/failed servers + skills.

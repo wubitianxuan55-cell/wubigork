@@ -139,6 +139,8 @@ export const zh: Record<DictKey, string> = {
   "caps.skillScopeCustom": "自定义",
   "caps.skillScopeGlobal": "全局",
   "caps.subagent": "子代理",
+  "caps.skillUsage": "{n} 次",
+  "caps.skillSuccessRate": "成功率 {p}%",
   "caps.addServer": "+ 添加服务器",
   "caps.addContext7": "⚡ 一键添加 Context7 (实时库文档)",
   "caps.addContext7Hint": "50,000+ 第三方库最新文档和示例",

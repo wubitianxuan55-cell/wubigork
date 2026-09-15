@@ -131,3 +131,12 @@ export interface SkillDistillView {
   available: boolean;
   generatedAt: string;
 }
+
+// SkillStatView 是技能调用计数视图（7.2-2 判据②）：calls 降序；成功率=工具级
+// （read_skill 交付正文 / run_skill 管线无错=ok）。
+export interface SkillStatView {
+  name: string;
+  calls: number;
+  ok: number;
+  lastAt: number;
+}

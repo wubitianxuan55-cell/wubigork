@@ -89,6 +89,10 @@ type Options struct {
 	// 桌面端从 ~/.gaea_config.json 的 project_brief 键读取传入（默认开）；
 	// 零值 false = 不注入（CLI/TUI 维持原行为）。
 	ProjectBrief bool
+	// OnSkillUse 是技能调用计数回调（7.2-2 判据②）：read_skill 按需加载
+	// 与 run_skill 管线执行各汇报一次，ok=工具级成功。空 = 不计数
+	// （CLI/TUI 宿主不传不受影响——EmitSubagentText 同款先例）。
+	OnSkillUse func(name string, ok bool)
 }
 
 // Build loads config, resolves the model, and returns a Controller wrapping a
@@ -198,7 +202,7 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 	// V10.22: system prompt + memory + skills assembled in sysprompt.go
 	// 传入工作空间根（opts.Cwd），项目画像/技能索引基于真实工作区而非进程目录。
 	// v4.5.1a 红线补课：记忆注入侧按装配空间收窄（space=""=mode=off 旧行为）。
-	sp, err := buildSystemPrompt(cfg, cwd, space, opts.MorningPreload, opts.ProjectBrief, opts.Stderr)
+	sp, err := buildSystemPrompt(cfg, cwd, space, opts.MorningPreload, opts.ProjectBrief, opts.Stderr, opts.OnSkillUse)
 	if err != nil {
 		return nil, err
 	}
@@ -402,7 +406,13 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 			ActiveSchemas: reg.Schemas(),
 		}, agent.NestedSink(sctx, event.Discard), subagentStore, nil)
 	}
-	reg.Add(skill.NewRunSkillTool(skillStore, skillRunner))
+	runSkill := skill.NewRunSkillTool(skillStore, skillRunner)
+	if opts.OnSkillUse != nil {
+		// 7.2-2 判据②：run_skill 执行结果计入调用统计（args.name 解析失败
+		// 不计——宁少勿扰）。装饰器只包 Execute，其余方法原样转发。
+		runSkill = &skillUseCountTool{Tool: runSkill, onUse: opts.OnSkillUse}
+	}
+	reg.Add(runSkill)
 	reg.Add(skill.NewInstallSkillTool(skillStore, nil))
 	// V5.30: 注册内置子代理模板，同类子代理共享 L4 前缀缓存
 	for _, st := range cache.BuiltinSpawnTemplates() {

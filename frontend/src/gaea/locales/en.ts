@@ -136,6 +136,8 @@ export const en = {
   "caps.skillScopeCustom": "Custom",
   "caps.skillScopeGlobal": "Global",
   "caps.subagent": "Subagent",
+  "caps.skillUsage": "{n} uses",
+  "caps.skillSuccessRate": "{p}% success",
   "caps.addServer": "+ Add server",
   "caps.addContext7": "⚡ Add Context7 (live docs)",
   "caps.addContext7Hint": "50,000+ libraries — real-time API docs & code examples",

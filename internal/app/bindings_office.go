@@ -10,6 +10,7 @@ import (
 	"github.com/gaea/gaea/internal/gaea/evidence"
 	officecore "github.com/gaea/gaea/internal/core"
 	"github.com/gaea/gaea/internal/office/pptxedit"
+	"github.com/gaea/gaea/internal/skillstats"
 	"github.com/gaea/gaea/internal/office/standard"
 	"github.com/gaea/gaea/internal/gaea/tasks"
 	"github.com/gaea/gaea/internal/gaea/trajectory"
@@ -176,6 +177,7 @@ func (b *OfficeB) GaeaSkillDistillDecide(patternID string, decision string, skil
 func (b *OfficeB) GaeaSkillDistillDraft(patternID string) (SkillRecordResult, error) { return b.a.GaeaSkillDistillDraft(patternID) }
 func (b *OfficeB) GaeaSkillDraftFromSession() (SkillRecordResult, error) { return b.a.GaeaSkillDraftFromSession() }
 func (b *OfficeB) GaeaSkillDraftSave(d SkillDraft) (SkillCaptureResult, error) { return b.a.GaeaSkillDraftSave(d) }
+func (b *OfficeB) GaeaSkillStats() []skillstats.StatView { return b.a.GaeaSkillStats() }
 func (b *OfficeB) GaeaSkills() []map[string]interface{} { return b.a.GaeaSkills() }
 func (b *OfficeB) GaeaSlashArgs(input string) SlashArgsResult { return b.a.GaeaSlashArgs(input) }
 func (b *OfficeB) GaeaSteer(input string) { b.a.GaeaSteer(input) }
