@@ -27,5 +27,8 @@
   "style": [
    "简洁、可执行、祈使句"
   ]
- }
+ },
+ "version": "1",
+ "category": "skill",
+ "description": "把一段办公会话回放蒸馏成可复用技能草稿 JSON"
 }

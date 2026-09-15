@@ -58,5 +58,8 @@
       "chapter_number / title 与输入不一致",
       "characters.type 取 character / organization 之外的值"
     ]
-  }
+  },
+  "version": "1",
+  "category": "book-import",
+  "description": "逐章阅读拆书正文，反推结构化章节大纲 JSON 数组"
 }

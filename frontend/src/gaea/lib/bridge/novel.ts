@@ -285,6 +285,64 @@ export interface NovelBindings {
   RemoveCharacterCareer(charID: string, reqJSON: string): Promise<void>;
   SaveRelationship(relJSON: string): Promise<void>;
   DeleteRelationship(fromID: string, toID: string): Promise<void>;
+  // ── t6 提示词工坊五绑定（PromptTemplate*；novel/api/prompt.ts 消费，
+  // 规格 进度计划/gaea-prompt-workshop-t6-20260916.md §4.2）──
+  PromptTemplateList(): Promise<PromptTemplateMetaView[]>;
+  PromptTemplateGet(key: string): Promise<PromptTemplateDetailView>;
+  PromptTemplateSave(key: string, reqJSON: string): Promise<PromptSaveResultView>;
+  PromptTemplateReset(key: string): Promise<void>;
+  PromptTemplatePreview(reqJSON: string, varsJSON: string): Promise<PromptPreviewResultView>;
+}
+
+// ── 提示词工坊载荷（t6 首刀；Go promptstore.Issue / PromptTemplateMeta 等，
+// 结构化 struct 返回直连——novel/api/prompt.ts 的本地类型与本节结构一致）──
+/** 保存/预览校验问题：error 阻断不落盘；warn 落盘带回提示。 */
+export interface PromptIssueView {
+  code: string;
+  severity: 'error' | 'warn' | string;
+  message: string;
+}
+/** 模板清单行（列表不回传正文——MuMu 1.74MB 全量下发教训）。 */
+export interface PromptTemplateMetaView {
+  key: string;
+  category: string;
+  description: string;
+  /** override=覆盖激活生效；builtin=磁盘/embed 内置。 */
+  source: 'override' | 'builtin' | string;
+  hasOverride: boolean;
+  overrideActive: boolean;
+  version: number;
+  updatedAt: number;
+}
+/** 模板正文（Go prompt.Template 宽松视图；全字段可缺省防御）。 */
+export interface PromptTemplateBody {
+  name?: string;
+  system?: string;
+  task?: string;
+  output?: { format?: string; description?: string };
+  constraints?: { must?: string[]; forbidden?: string[]; style?: string[] };
+  input_sections?: Record<string, unknown>;
+  version?: string;
+  category?: string;
+  description?: string;
+  parameters?: string[];
+}
+/** 详情：生效模板 + 内置基线（对照/恢复参照）。 */
+export interface PromptTemplateDetailView {
+  meta: PromptTemplateMetaView;
+  template: PromptTemplateBody;
+  base: PromptTemplateBody;
+}
+/** 保存结果：error → saved=false；warn 落盘带回 issues；version=保存次数。 */
+export interface PromptSaveResultView {
+  saved: boolean;
+  issues: PromptIssueView[];
+  version: number;
+}
+/** 预览结果（V1 只渲染 system 段；warnings=未解析 {{name}} 变量名）。 */
+export interface PromptPreviewResultView {
+  systemPrompt: string;
+  warnings: string[];
 }
 /** 反推任务状态（v4.291 任务化：轮询返回，succeeded 时携带预览）。 */
 export interface NovelOutlineReconstructTaskState {

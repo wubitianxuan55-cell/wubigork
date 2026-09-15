@@ -3,6 +3,16 @@
 > 本文件为**最近发布速览**。完整历史磁带见 `docs/archive/progress-history-2026-09.md`
 > 与 `releases/`。
 
+## 最新发布：v4.323.0（2026-09-16）「t6 提示词工坊首刀：模板可编辑覆盖层（{{name}} 渲染+三级解析+工坊面板）」
+
+- **来源**：用户指令「继续优化迭代 gaea，记得使用子代理」。三线并行子代理（A 引擎纯函数/B handler/C 前端）→ 主代理收口；规格书 进度计划/gaea-prompt-workshop-t6-20260916.md；蒸馏依据 docs/distill/06-prompt-workshop.md。
+- **论点**：20 个 prompts/*.json 只读两层用户改不了；占位符单点硬编码；保存零校验（MuMu §9.3 同型）。裁决={{name}} 统一（旧语法兼容）；V1 只全局覆盖；裁剪云端工坊三表；列表零正文。
+- **落地**：internal/prompt +四元数据字段+RenderPlaceholders+SetOverride 三级解析+Names；新包 promptstore 六规则校验+Upsert 自增；prompts ×20 元数据+2 文件占位符迁移；gaea_prompt_store.go 状态文件+五 App 方法+两装配点挂钩+substituteWordCount 双语法；PromptWorkshopPanel 三区+api/prompt.ts+CreatePage 入口+mock 五档。绑定面 696→701（NovelB +5 显式覆盖表归域；play 锁 518→523）。
+- **验收**：Go +22 测试函数+前端 +12（CreatePage 13/13 零破坏）；tsc -b 零错；ci.ps1 全绿 exit 0（go 130 包+vitest 367 文件 3138 例）；drift OK@701；产物=exe 50754048B SHA256=1a712949e53414c308ae8a14f85de914d95e021b47fc9711f3ae3e880fdcf4d6（releases+SUMS；桌面副本同哈希；冒烟 200 过）。
+- **出口**：20 模板可看可改可恢复；覆盖即时生效（eng.Get 三级解析全链共享）；保存真校验；{{name}} 统一。
+- **观察池**：模板包导入导出（content_hash 三态，t6-C2）；项目级 scope；自建模板键；triggers；升级合并交互；风格注入与 novelstyle 打通。
+- **未做（下刀）**：t6-C2 模板包导入导出 / t7 前端统一接线（小说线最后两域）；7.3-2 板块降视图（等零功能周）。
+
 ## 最新发布：v4.322.0（2026-09-16）「t4-C3 收官：场景工程整章重写（单场景替换）」
 
 - **来源**：用户指令「继续」。小刀单线主代理直做；规格书 进度计划/gaea-scene-rewrite-20260916.md。

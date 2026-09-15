@@ -15,6 +15,7 @@ import ChapterTreePanel from '../components/novel/create/ChapterTreePanel'
 import RewriteModal from '../components/novel/RewriteModal'
 import PartialRewriteModal from '../components/novel/PartialRewriteModal'
 import RewriteHistoryPanel from '../components/novel/RewriteHistoryPanel'
+import PromptWorkshopPanel from '../components/novel/PromptWorkshopPanel'
 import EditorPanel from '../components/novel/create/EditorPanel'
 import CreateInspector from '../components/novel/create/CreateInspector'
 import NewCharactersModal from '../components/novel/create/NewCharactersModal'
@@ -130,6 +131,8 @@ const CreatePage: React.FC = () => {
   const [rwOpen, setRwOpen] = useState(false)
   // 重写版本历史面板（t4-C3 余项：版本库 List/Get 前端消费）
   const [rwHistOpen, setRwHistOpen] = useState(false)
+  // 提示词工坊面板（t6 首刀：模板可编辑覆盖层；打开才拉一次）
+  const [promptWsOpen, setPromptWsOpen] = useState(false)
   // 局部重写选区（t4-C3 余项：EditorPanel 选段回调 → PartialRewriteModal；rune 偏移）
   const [pSel, setPSel] = useState<{ start: number; end: number; text: string } | null>(null)
   // 默认启用 story-deslop 去 AI 味润色技能；可在右侧创作设置中切换或清空
@@ -638,6 +641,7 @@ const CreatePage: React.FC = () => {
         <Button size="small" loading={reconstructBusy} onClick={() => void reconstructOutlines()}>AI 反推大纲</Button>
         <Button size="small" onClick={() => setRwOpen(true)}>整章重写</Button>
         <Button size="small" onClick={() => setRwHistOpen(true)}>重写历史</Button>
+        <Button size="small" onClick={() => setPromptWsOpen(true)}>提示词工坊</Button>
         {stateMsg ? <span className="novel-create-rail-msg">{stateMsg}</span> : null}
       </div>
       <RewriteModal
@@ -651,6 +655,10 @@ const CreatePage: React.FC = () => {
         chapterNum={activeChapterNum || null}
         onClose={() => setRwHistOpen(false)}
         onApplied={() => { if (activeNode) void selectChapter(activeNode) }}
+      />
+      <PromptWorkshopPanel
+        open={promptWsOpen}
+        onClose={() => setPromptWsOpen(false)}
       />
       <PartialRewriteModal
         open={!!pSel}

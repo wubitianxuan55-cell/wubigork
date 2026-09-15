@@ -217,11 +217,20 @@ func (a *writingState) CancelCreateChapter(chapterNum int, branch string) bool {
 // （prompts/create-chapter.json 的 task 与 output 两处字数声明均使用它）。
 const wordCountPlaceholder = "{word_count}"
 
-// substituteWordCount 将模板中的 {word_count} 占位符精确替换为实际目标字数。
+// wordCountPlaceholderV2 t6 起占位符统一迁移到双花括号语法（规格书 §2 Q1
+// 裁决：与 {{name}} 渲染口径一致，避免与 JSON 字面单花括号混淆）。
+const wordCountPlaceholderV2 = "{{word_count}}"
+
+// substituteWordCount 将模板中的目标字数占位符精确替换为实际字数。t6 起为
+// 双语法（规格书 §4.3）：先替换新语法 {{word_count}}，再兜底替换旧语法
+// {word_count}——模板文件随 t6 迁移到新语法，但用户手改盘上的旧语法模板
+// 不炸（迁移期兼容，调用点零改动）。
 // 旧实现 strings.ReplaceAll("5000") 会误伤模板中其他 "5000" 字样；占位符替换
 // 只命中字数声明位，其余数字字样原样保留。
 func substituteWordCount(prompt string, minWords int) string {
-	return strings.ReplaceAll(prompt, wordCountPlaceholder, strconv.Itoa(minWords))
+	n := strconv.Itoa(minWords)
+	replaced := strings.ReplaceAll(prompt, wordCountPlaceholderV2, n)
+	return strings.ReplaceAll(replaced, wordCountPlaceholder, n)
 }
 
 // chapterCurrentBody 计算当前已生成的纯正文（不含 ---CHAPTER_SUMMARY--- 摘要）。

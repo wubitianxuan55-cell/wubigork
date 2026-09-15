@@ -35,6 +35,7 @@ import (
 	"github.com/gaea/gaea/internal/outline"
 	"github.com/gaea/gaea/internal/project"
 	"github.com/gaea/gaea/internal/prompt"
+	"github.com/gaea/gaea/internal/promptstore"
 	"github.com/gaea/gaea/internal/skill"
 	"github.com/gaea/gaea/internal/voice"
 	"github.com/gaea/gaea/internal/whisper"
@@ -90,6 +91,15 @@ type writingState struct {
 
 	// 共享 prompt engine（单例）
 	eng *prompt.Engine
+
+	// t6 提示词工坊（规格书 §4.3）eng 的全局覆盖层：覆盖缓存（mutex 串行，
+	// save/reset 后失效、override 闭包惰性重读状态文件）+ 基线引擎（磁盘/embed
+	// 两级、永不挂覆盖，工坊 Base 对比视图用，懒构造）。逻辑见 gaea_prompt_store.go。
+	promptOverridesMu     sync.Mutex
+	promptOverridesCache  []promptstore.Override
+	promptOverridesLoaded bool
+	promptBaseEng         *prompt.Engine
+	promptEmbeddedFS      fs.FS
 
 	// 子代理
 	worldviewAgent *worldview.Agent
@@ -277,6 +287,8 @@ func New() *App {
 		eng:  prompt.NewEngine(filepath.Join(cfg.ResourceDir, "prompts")),
 		mu:   sync.RWMutex{},
 	}
+	// t6 提示词工坊：引擎构造后挂全局覆盖层（规格书 §4.3 三级解析）。
+	a.applyPromptOverrides(a.writingState.eng)
 	a.mediaState = &mediaState{core: c, app: a}
 	a.whisperState = &whisperState{
 		core:            c,
@@ -677,6 +689,9 @@ func (a *App) SetPromptFS(fsys fs.FS) {
 	}
 	a.writingState.eng = prompt.NewEngineWithEmbedded(
 		filepath.Join(a.cfg.ResourceDir, "prompts"), fsys)
+	// t6 提示词工坊：重建引擎必须重挂覆盖层；内置 FS 交基线引擎重建拾取（规格书 §4.3）。
+	a.writingState.notePromptEmbeddedFS(fsys)
+	a.applyPromptOverrides(a.writingState.eng)
 }
 
 func CLILogin() {

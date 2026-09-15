@@ -15,6 +15,9 @@ import type { ChapterReviewPayload, FingerprintStatusPayload, ReviewPlatform } f
 // 文风指纹演示态（模块级：同一会话内 Build 后保持已构建）。
 const mockFingerprintStatus: FingerprintStatusPayload = { exists: false };
 
+// 提示词工坊演示态（模块级：Save 保存次数自增，模拟覆盖 Version 递增）。
+let mockPromptSaveCount = 0;
+
 type NovelMethods = Pick<
   AppBindings,
   | "NovelSearch"
@@ -57,6 +60,9 @@ type NovelMethods = Pick<
   | "NovelBookSourceImport" | "NovelBookSourceImportCancel"
   | "NovelBookSourceImportChapters"
   | "NovelBookSourceEnginesGet" | "NovelBookSourceEnginesSave"
+  // 提示词工坊批次（t6 首刀：模板可编辑覆盖层；CreatePage「提示词工坊」面板）。
+  | "PromptTemplateList" | "PromptTemplateGet" | "PromptTemplateSave"
+  | "PromptTemplateReset" | "PromptTemplatePreview"
 >;
 
 export function buildNovel(): NovelMethods {
@@ -424,6 +430,96 @@ export function buildNovel(): NovelMethods {
     },
     async NovelBookSourceEnginesSave(_rulesJSON: string): Promise<number> {
       throw new Error("浏览器 mock 模式不支持保存引擎规则（无规则目录），请在应用内使用");
+    },
+
+    // ── 提示词工坊批次（t6 首刀：模板可编辑覆盖层）──────────────────
+    // 浏览器演示口径：两样本走查锚点——create-chapter 覆盖激活态（Base 与生效
+    // Template 的 system 不同，供面板对照）+ chapter-summary 内置态；Save 简单
+    // 校验回 Issues；Preview 本地 {{name}} 替换（缺失变量保留原文并记名）。
+    async PromptTemplateList() {
+      return [
+        { key: "create-chapter", category: "chapter", description: "整章创作主模板（示例：已启用自定义覆盖）", source: "override", hasOverride: true, overrideActive: true, version: 3, updatedAt: Date.now() },
+        { key: "chapter-summary", category: "summary", description: "章末摘要模板（内置态样本）", source: "builtin", hasOverride: false, overrideActive: false, version: 0, updatedAt: 0 },
+      ];
+    },
+    async PromptTemplateGet(key: string) {
+      if (key === "chapter-summary") {
+        const t = {
+          name: "chapter-summary",
+          system: "请为第 {{chapter_num}} 章写一段约 200 字的情节摘要，交代关键事件与人物变化。",
+          task: "阅读本章正文，产出章末摘要。",
+          output: { description: "一段 200 字以内的摘要" },
+          constraints: { must: ["不剧透未回收伏笔"] },
+          inputs: [],
+          version: "1",
+          category: "summary",
+          description: "章末摘要模板（内置态样本）",
+          parameters: ["chapter_num"],
+        };
+        return {
+          meta: { key: "chapter-summary", category: "summary", description: "章末摘要模板（内置态样本）", source: "builtin", hasOverride: false, overrideActive: false, version: 0, updatedAt: 0 },
+          template: t,
+          base: t,
+        };
+      }
+      if (key !== "create-chapter") {
+        throw new Error("dev mock：未知模板键 " + key);
+      }
+      const base = {
+        name: "create-chapter",
+        system: "你是网文创作助手。请依据大纲节点与上一章摘要写作本章，字数约 {{word_count}} 字。",
+        task: "结合给定大纲节点与上一章摘要，推进本章情节。",
+        output: { description: "完整章节正文" },
+        constraints: { forbidden: ["重复上一章内容"] },
+        inputs: [],
+        version: "1",
+        category: "chapter",
+        description: "整章创作主模板（内置基线）",
+        parameters: ["plot", "chapter_num", "word_count"],
+      };
+      return {
+        meta: { key: "create-chapter", category: "chapter", description: "整章创作主模板（示例：已启用自定义覆盖）", source: "override", hasOverride: true, overrideActive: true, version: 3, updatedAt: Date.now() },
+        template: {
+          ...base,
+          system: "你是资深网文作者，文风克制、细节扎实。请围绕 {{plot}} 创作第 {{chapter_num}} 章，约 {{word_count}} 字。",
+          description: "整章创作主模板（示例：已启用自定义覆盖）",
+        },
+        base,
+      };
+    },
+    async PromptTemplateSave(key: string, reqJSON: string) {
+      if (key !== "create-chapter" && key !== "chapter-summary") {
+        throw new Error("dev mock：未知模板键 " + key);
+      }
+      let req: { content?: { system?: string } } = {};
+      try { req = JSON.parse(reqJSON) as typeof req; } catch { /* 坏 JSON 给空 */ }
+      if (!req.content || String(req.content.system ?? "").trim() === "") {
+        return { saved: false, issues: [{ code: "empty-system", severity: "error", message: "System 提示不能为空" }], version: 0 };
+      }
+      mockPromptSaveCount += 1;
+      return {
+        saved: true,
+        issues: [{ code: "legacy-brace", severity: "warn", message: "检测到旧语法 {word_count} 占位符，新渲染下不会被替换，建议改为 {{word_count}}" }],
+        version: mockPromptSaveCount,
+      };
+    },
+    async PromptTemplateReset(_key: string) {
+      // mock：无副作用（浏览器开发环境无 prompt_overrides.json 可删）。
+    },
+    async PromptTemplatePreview(reqJSON: string, varsJSON: string) {
+      let req: { content?: { system?: string } } = {};
+      let vars: Record<string, string> = {};
+      try { req = JSON.parse(reqJSON) as typeof req; } catch { /* 坏 JSON 给空 */ }
+      try { vars = JSON.parse(varsJSON) as Record<string, string>; } catch { /* 坏 JSON 给空 */ }
+      const system = String(req.content?.system ?? "");
+      const unresolved: string[] = [];
+      // 与 Go RenderPlaceholders 同口径：只认双层 {{name}}，缺失变量保留原文并记名。
+      const systemPrompt = system.replace(/\{\{([^{}]+)\}\}/g, (_all, name: string) => {
+        const v = vars[name];
+        if (v === undefined || v === "") { unresolved.push(name); return `{{${name}}}`; }
+        return v;
+      });
+      return { systemPrompt, warnings: unresolved };
     },
   };
 }

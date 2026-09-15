@@ -35,5 +35,8 @@
   "style": [
    "简洁、可执行、祈使句"
   ]
- }
+ },
+ "version": "1",
+ "category": "skill",
+ "description": "从多次历史执行回放蒸馏可复用技能草稿 JSON"
 }

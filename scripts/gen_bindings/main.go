@@ -108,6 +108,13 @@ var explicitOverrides = map[string]string{
 	// v4.291：反推任务化两绑定挂 *App（taskMgr 在 App 级），点名归 novel。
 	"NovelOutlineReconstructStart":   "novel",
 	"NovelOutlineReconstructTaskGet": "novel",
+	// v4.323：t6 提示词工坊五绑定挂 *App（覆盖缓存在 writingState 侧、方法
+	// 在 App 级），点名归 novel（规格 进度计划/gaea-prompt-workshop-t6-20260916.md §4.2）。
+	"PromptTemplateList":    "novel",
+	"PromptTemplateGet":     "novel",
+	"PromptTemplateSave":    "novel",
+	"PromptTemplateReset":   "novel",
+	"PromptTemplatePreview": "novel",
 	"GetModelRoute":                  "model",
 	"GetSensitiveLocal":              "model",
 	"GetOfficeLocal":                 "model",

@@ -40,5 +40,8 @@
     "style": [
       "客观、精准"
     ]
-  }
+  },
+  "version": "1",
+  "category": "analysis",
+  "description": "对章节做 9 维度结构化分析（钩子/伏笔/冲突等）并附三维分档评分"
 }

@@ -609,6 +609,14 @@ export const GAEA_METHOD_FACETS = {
   // 数据面（CreatePage「平台评审」面板消费），同文风指纹/伏笔体检族归 play。
   NovelReviewPlatforms: "play",
   NovelChapterReview: "play",
+  // 提示词工坊（t6 首刀：模板可编辑覆盖层）：模板清单/详情/保存覆盖/恢复内置/
+  // 渲染预览——小说创作间数据面（CreatePage「提示词工坊」面板消费），同平台
+  // 评审族归 play（play 锁 +5，数量锁待主代理收口同步）。
+  PromptTemplateList: "play",
+  PromptTemplateGet: "play",
+  PromptTemplateSave: "play",
+  PromptTemplateReset: "play",
+  PromptTemplatePreview: "play",
   // 书源取书（书源→拆书导入 t1）：搜书/目录预览/在线导入/取消——书架「在线搜书」
   // 数据面（规格 docs/gaea-novel-booksource-import-2026-09.md），同导入/书封族归 play。
   NovelBookSourceSearch: "play",

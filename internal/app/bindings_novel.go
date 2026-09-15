@@ -97,6 +97,11 @@ func (b *NovelB) NovelRestoreRewriteVersion(chapterNum int, versionID string) (m
 func (b *NovelB) NovelReviewPlatforms() []ReviewPlatformView { return b.a.NovelReviewPlatforms() }
 func (b *NovelB) NovelSearch(query string) ([]NovelSearchHit, error) { return b.a.NovelSearch(query) }
 func (b *NovelB) ParseLinks(content string) []string { return b.a.ParseLinks(content) }
+func (b *NovelB) PromptTemplateGet(key string) (PromptTemplateDetail, error) { return b.a.PromptTemplateGet(key) }
+func (b *NovelB) PromptTemplateList() []PromptTemplateMeta { return b.a.PromptTemplateList() }
+func (b *NovelB) PromptTemplatePreview(reqJSON string, varsJSON string) (PromptPreviewResult, error) { return b.a.PromptTemplatePreview(reqJSON, varsJSON) }
+func (b *NovelB) PromptTemplateReset(key string) error { return b.a.PromptTemplateReset(key) }
+func (b *NovelB) PromptTemplateSave(key string, reqJSON string) (PromptSaveResult, error) { return b.a.PromptTemplateSave(key, reqJSON) }
 func (b *NovelB) QueryEntities(entityType string) ([]map[string]interface{}, error) { return b.a.QueryEntities(entityType) }
 func (b *NovelB) QuickBrainstormBranches(setting string, prevSummary string) (map[string]interface{}, error) { return b.a.QuickBrainstormBranches(setting, prevSummary) }
 func (b *NovelB) RemoveCharacterCareer(charID string, reqJSON string) error { return b.a.RemoveCharacterCareer(charID, reqJSON) }

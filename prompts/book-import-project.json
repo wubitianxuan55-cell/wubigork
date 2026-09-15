@@ -32,5 +32,8 @@
       "narrative_perspective 取上述三值之外的值",
       "target_words 输出非整数或带单位"
     ]
-  }
+  },
+  "version": "1",
+  "category": "book-import",
+  "description": "由书名与正文样本反推立项信息（简介/主题/题材/视角/字数）JSON"
 }
