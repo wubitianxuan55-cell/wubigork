@@ -27,6 +27,7 @@ import {
   ArrowRightOutlined, AudioOutlined, SendOutlined,
   StopOutlined, RobotOutlined, UserOutlined, ThunderboltOutlined,
   FileTextOutlined, ClockCircleOutlined, HeartOutlined, ApiOutlined,
+  CheckSquareOutlined,
 } from '@ant-design/icons'
 // 板块清单：活动清单（静态 fallback / 后端合并）订阅驱动；图标由 manifest 图标注册表解析（3.0 §5.2）
 import { getActiveBoards, subscribeBoards, resolveBoardIcon } from '../boards/manifests'
@@ -42,6 +43,7 @@ import { useT, type Translator } from '../gaea/lib/i18n'
 import { app } from '../gaea/lib/bridge'
 import { getModelMonitor } from '../api/engines'
 import MorningBriefCard from '../gaea/components/MorningBriefCard'
+import { TaskInboxPanel } from '../gaea/components/TaskInboxPanel'
 import './module-launcher.css'
 
 /**
@@ -240,6 +242,60 @@ const MemoryPulse: React.FC<{ memoryHub: MemoryHubLite | null }> = ({ memoryHub 
     <div className="ml-memory">
       <span className="ml-krow-strong">{t('shell.launcher.memoryCount', { count: memoryTotal })}</span>
       <span className="ml-sess-meta">{t('shell.launcher.memoryUpdated', { time: fmtRel(memoryUpdated, t) })}</span>
+    </div>
+  )
+}
+
+/**
+ * 任务收件箱挂点内容（7.3-1）：待处理计数 + 「打开收件箱」。
+ * 计数取 GaeaTaskInboxList(space) 的 pending 数——挂载时一次读（与
+ * desk-recent-docs 同款首屏单次读）；inboxTick 在面板收起时 +1，用户动作
+ * 触发补一次重读（判据④：零轮询零定时器，读写均由用户动作触发）。
+ * row=true 为闲庭园底信息带的横排形态（全宽第五节），默认纵排对齐记忆脉搏。
+ */
+const TaskInboxEntry: React.FC<{
+  space: ShellSpace
+  tick: number
+  onOpen: () => void
+  row?: boolean
+}> = ({ space, tick, onOpen, row }) => {
+  const t = useT()
+  const [pending, setPending] = useState<number | null>(null)
+  useEffect(() => {
+    let alive = true
+    app
+      .GaeaTaskInboxList(space)
+      .then((list: unknown) => {
+        if (!alive) return
+        const rows = ((list ?? []) as { status?: string }[]).filter((x) => x.status === 'pending').length
+        setPending(rows)
+      })
+      .catch(() => { if (alive) setPending(null) })
+    return () => { alive = false }
+  }, [space, tick])
+  return (
+    <div className="ml-memory" style={row ? { flexDirection: 'row', alignItems: 'center', gap: 14 } : undefined}>
+      <span className="ml-krow-strong">
+        {pending === null ? '—' : t('tasks.inbox.pendingCount', { n: pending })}
+      </span>
+      {/* 打开按钮：hairline 胶囊（令牌走 --w-accent，.ml 作用域内恒可用） */}
+      <button
+        type="button"
+        onClick={onOpen}
+        data-testid="task-inbox-open-btn"
+        style={{
+          border: '1px solid color-mix(in srgb, var(--w-accent) 34%, transparent)',
+          color: 'var(--w-accent)',
+          background: 'transparent',
+          borderRadius: 999,
+          padding: '3px 12px',
+          fontSize: 11,
+          cursor: 'pointer',
+          alignSelf: row ? 'center' : 'flex-start',
+        }}
+      >
+        {t('tasks.inbox.open')}
+      </button>
     </div>
   )
 }
@@ -445,7 +501,9 @@ const DeskHome: React.FC<{
   space: ShellSpace
   onSwitchSpace: (s: ShellSpace) => void
   activeModel?: string
-}> = ({ data, onNavigate, space, onSwitchSpace, activeModel }) => {
+  onOpenTaskInbox: () => void
+  inboxTick: number
+}> = ({ data, onNavigate, space, onSwitchSpace, activeModel, onOpenTaskInbox, inboxTick }) => {
   const t = useT()
   const activeBoards = useSyncExternalStore(subscribeBoards, getActiveBoards)
   const allModules = deriveLauncherModules(activeBoards, LAUNCHER_DESC, space)
@@ -693,6 +751,15 @@ const DeskHome: React.FC<{
               </div>
               <MemoryPulse memoryHub={data.memoryHub} />
             </section>
+
+            {/* 7.3-1 任务收件箱：第五节——待处理计数 + 打开收件箱（结构对齐既有四节） */}
+            <section className="w-vital" aria-label={t('shell.launcher.taskInbox')} data-testid="desk-task-inbox">
+              <div className="ml-sec-head">
+                <span className="ml-sec-icon" aria-hidden="true"><CheckSquareOutlined /></span>
+                <span className="ml-sec-title">{t('shell.launcher.taskInbox')}</span>
+              </div>
+              <TaskInboxEntry space={space} tick={inboxTick} onOpen={onOpenTaskInbox} />
+            </section>
           </div>
         </aside>
       </div>
@@ -757,7 +824,9 @@ const GardenHome: React.FC<{
   space: ShellSpace
   onSwitchSpace: (s: ShellSpace) => void
   activeModel?: string
-}> = ({ data, onNavigate, space, onSwitchSpace, activeModel }) => {
+  onOpenTaskInbox: () => void
+  inboxTick: number
+}> = ({ data, onNavigate, space, onSwitchSpace, activeModel, onOpenTaskInbox, inboxTick }) => {
   const t = useT()
   const activeBoards = useSyncExternalStore(subscribeBoards, getActiveBoards)
   const allModules = deriveLauncherModules(activeBoards, LAUNCHER_DESC, space)
@@ -828,6 +897,23 @@ const GardenHome: React.FC<{
               <span className="ml-sec-title">{t('home.kernel')}</span>
             </div>
             <TelemetryBody data={data} />
+          </div>
+
+          {/* 7.3-1 任务收件箱：第五节。p-foot 为固定四列网格（module-launcher.css
+              .p-foot grid-template-columns 210px/1.35fr/190px/1.35fr），CSS 文件不在
+              本刀足迹——内联跨全列（gridColumn 1/-1 全断点成立）+ 顶 hairline 分隔，
+              既有四节（garden-progress/sessions/memory/meters）位置与布局零变化。 */}
+          <div
+            className="p-foot-sec"
+            data-testid="garden-task-inbox"
+            aria-label={t('shell.launcher.taskInbox')}
+            style={{ gridColumn: '1 / -1', paddingLeft: 0, borderLeft: 'none', borderTop: '1px solid var(--w-line-soft)', marginTop: 4, paddingTop: 14 }}
+          >
+            <div className="ml-sec-head">
+              <span className="ml-sec-icon" aria-hidden="true"><CheckSquareOutlined /></span>
+              <span className="ml-sec-title">{t('shell.launcher.taskInbox')}</span>
+            </div>
+            <TaskInboxEntry space={space} tick={inboxTick} onOpen={onOpenTaskInbox} row />
           </div>
         </section>
       </div>
@@ -903,13 +989,29 @@ const GardenPoster: React.FC<{
 
 /**
  * ModuleLauncher — 首页入口：数据一次拉取，按壳层空间分发书斋 / 闲庭变体。
+ * 7.3-1：任务收件箱面板单例挂顶层（space 跟随当前 home 空间，onNavigate 复用
+ * 既有回调）；两空间的收件箱挂点（书斋 w-vitals 第五节 / 闲庭 p-foot 第五节）
+ * 都只改本组件内 inboxOpen 状态。inboxTick 在面板收起时 +1，驱动挂点计数
+ * 补一次重读（用户动作触发，非轮询）。
  */
 const ModuleLauncher: React.FC<ModuleLauncherProps> = ({ onNavigate, activeModel, space, onSwitchSpace }) => {
   const data = useLauncherData()
-  return space === 'work' ? (
-    <DeskHome data={data} onNavigate={onNavigate} space={space} onSwitchSpace={onSwitchSpace} activeModel={activeModel} />
-  ) : (
-    <GardenHome data={data} onNavigate={onNavigate} space={space} onSwitchSpace={onSwitchSpace} activeModel={activeModel} />
+  const [inboxOpen, setInboxOpen] = useState(false)
+  const [inboxTick, setInboxTick] = useState(0)
+  const openInbox = useCallback(() => setInboxOpen(true), [])
+  const closeInbox = useCallback(() => {
+    setInboxOpen(false)
+    setInboxTick((x) => x + 1)
+  }, [])
+  return (
+    <>
+      {space === 'work' ? (
+        <DeskHome data={data} onNavigate={onNavigate} space={space} onSwitchSpace={onSwitchSpace} activeModel={activeModel} onOpenTaskInbox={openInbox} inboxTick={inboxTick} />
+      ) : (
+        <GardenHome data={data} onNavigate={onNavigate} space={space} onSwitchSpace={onSwitchSpace} activeModel={activeModel} onOpenTaskInbox={openInbox} inboxTick={inboxTick} />
+      )}
+      <TaskInboxPanel open={inboxOpen} onClose={closeInbox} space={space} onNavigate={onNavigate} />
+    </>
   )
 }
 

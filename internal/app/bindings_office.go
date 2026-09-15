@@ -189,6 +189,10 @@ func (b *OfficeB) GaeaSummarizeUpTo(turn int) error { return b.a.GaeaSummarizeUp
 func (b *OfficeB) GaeaSwitchWorkspace(path string) string { return b.a.GaeaSwitchWorkspace(path) }
 func (b *OfficeB) GaeaTCCAReport() string { return b.a.GaeaTCCAReport() }
 func (b *OfficeB) GaeaTaskCancel(id string) error { return b.a.GaeaTaskCancel(id) }
+func (b *OfficeB) GaeaTaskInboxDelete(id string) error { return b.a.GaeaTaskInboxDelete(id) }
+func (b *OfficeB) GaeaTaskInboxList(space string) []TaskInboxView { return b.a.GaeaTaskInboxList(space) }
+func (b *OfficeB) GaeaTaskInboxSave(reqJSON string) (TaskInboxView, error) { return b.a.GaeaTaskInboxSave(reqJSON) }
+func (b *OfficeB) GaeaTaskInboxSetStatus(id string, status string) (TaskInboxView, error) { return b.a.GaeaTaskInboxSetStatus(id, status) }
 func (b *OfficeB) GaeaTaskKill(id string) error { return b.a.GaeaTaskKill(id) }
 func (b *OfficeB) GaeaTaskList(space string) []tasks.Task { return b.a.GaeaTaskList(space) }
 func (b *OfficeB) GaeaTaskOutput(id string) (TaskOutputView, error) { return b.a.GaeaTaskOutput(id) }

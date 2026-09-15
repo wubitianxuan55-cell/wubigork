@@ -3,7 +3,7 @@ import type { CSSProperties } from "react";
 import { Layout, Modal } from "antd";
 import {
   BookOpen, Check, SquarePen, Brain, ChevronDown, FolderGit2, FileText, LineChart,
-  PanelRightOpen, PanelRightClose, MessageSquare, Trash2, X, Aim, List, Square,
+  PanelRightOpen, PanelRightClose, MessageSquare, Trash2, X, Aim, List, Square, Inbox,
 } from "./icons";
 import { Sidebar } from "./components/Sidebar";
 import { useT } from "./lib/i18n";
@@ -208,6 +208,24 @@ export default function App() {
   const [compactMode, setCompactMode] = useState(() => readWorkbenchValue("gaea.compactMode") === "1");
   const [scrollToTurn, setScrollToTurn] = useState<((turn: number) => void) | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  // 7.3-1 任务收件箱：命令面板动态「存为任务」项需要拿到面板输入 query——
+  // CommandPalette 的 query 是其内部状态（App 拿不到，且组件契约不在本刀足迹），
+  // 这里在面板打开期间以捕获期 input 监听镜像输入框值（.palette__input 唯一
+  // 类名锚定），面板开/关复位。纯用户动作驱动，零轮询零常驻（判据④）。
+  const [paletteQuery, setPaletteQuery] = useState("");
+  useEffect(() => {
+    if (!paletteOpen) return;
+    setPaletteQuery("");
+    const onPaletteInput = (e: Event) => {
+      const el = e.target as HTMLElement | null;
+      if (el && el.classList?.contains("palette__input")) setPaletteQuery((el as HTMLInputElement).value);
+    };
+    document.addEventListener("input", onPaletteInput, true);
+    return () => {
+      document.removeEventListener("input", onPaletteInput, true);
+      setPaletteQuery("");
+    };
+  }, [paletteOpen]);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   // 主区大预览 + 右侧工作台交互编排（预览队列/专注模式/pane 打开/拖拽）→ app/usePreviewPanel
   const {
@@ -521,14 +539,41 @@ export default function App() {
       keywords: ["template", "模板", tm.name, ...tm.title.split(/\s+/)],
       run: () => { closeFilePreview(); setWorkspacePanel(false); send(tm.prompt); },
     }));
+    // 7.3-1 任务收件箱：query 非空时尾部动态项「存为任务『query』」——办公
+    // 工作台内落 work 空间（space='work'）；session=当前会话路径若有（审计链，
+    // currentSessionPath 为 sidebarSessions 中 current 会话的 .jsonl 路径）；
+    // 标题上限镜像后端 MaxTitleRunes=120（超长截断，存任务不该被长度卡死）。
+    const saveTaskTitle = paletteQuery.trim().slice(0, 120);
+    const saveTaskItems: PaletteItem[] = saveTaskTitle
+      ? [{
+          id: "cmd-save-task",
+          group: t("palette.group.commands") ?? "命令",
+          title: t("palette.saveTask", { query: saveTaskTitle }),
+          icon: <Inbox size={15} />,
+          compact: true,
+          keywords: ["save", "task", "存为任务", "任务", "inbox"],
+          run: () => {
+            void app
+              .GaeaTaskInboxSave(
+                JSON.stringify({
+                  title: saveTaskTitle,
+                  space: "work",
+                  source: "palette",
+                  ...(currentSessionPath ? { session: currentSessionPath } : {}),
+                }),
+              )
+              .catch(() => {});
+          },
+        }]
+      : [];
     // v4.30 命令面板按当前视图重排（Linear 式）：当前激活的右栏面板 / 主区
     // tab 对应命令置顶，其余保持稳定原序（纯函数，见 lib/paletteRank）。
     return rankPaletteItems(
-      [...cmds, ...templateItems, ...sessionItems],
+      [...cmds, ...templateItems, ...sessionItems, ...saveTaskItems],
       { chatTab, rightTab: rightTab ?? "files" },
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps -- setWorkspacePanel 为 hook 返回的稳定 dispatch（模板 run 内引用），deps 原样保留
-  }, [t, sidebarSessions, openMemory, openHistory, openKnowledge, onResumeSession, openPaneView, closeFilePreview, templates, send, newSessionAndReset, chatTab, rightTab]);
+  }, [t, sidebarSessions, openMemory, openHistory, openKnowledge, onResumeSession, openPaneView, closeFilePreview, templates, send, newSessionAndReset, chatTab, rightTab, paletteQuery, currentSessionPath]);
 
   const layoutStyle = useMemo(
     () =>

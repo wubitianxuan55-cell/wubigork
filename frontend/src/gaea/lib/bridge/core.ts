@@ -49,6 +49,7 @@ import type {
   SpaceProfileView,
   SubagentRunsView,
   SubagentTranscriptView,
+  TaskInboxView,
   TaskOutputView,
   TaskTemplate,
   TaskView,
@@ -275,6 +276,16 @@ export interface CoreBindings {
   TaskKill(id: string): Promise<void>;
   TaskRetry(id: string): Promise<void>;
   TaskOutput(id: string): Promise<TaskOutputView>;
+  // ── 阶段七 7.3-1 任务收件箱（多入口统一；Go OfficeB.GaeaTaskInbox*，同名
+  // 前缀无需映射——GetProgrammingWebStatus 先例）──
+  // GaeaTaskInboxList 按空间过滤收件箱（''=全部；状态组序+最近变化优先）；
+  // Save 新建（id 空，pending）或只改 title/note（来源字段不可变——审计链）；
+  // SetStatus 走状态机（pending→doing→done；pending|doing→abandoned）；
+  // Delete 删除。纯同步按需：无轮询无事件，前端在每次变更后重拉。
+  GaeaTaskInboxList(space: string): Promise<TaskInboxView[]>;
+  GaeaTaskInboxSave(reqJSON: string): Promise<TaskInboxView>;
+  GaeaTaskInboxSetStatus(id: string, status: string): Promise<TaskInboxView>;
+  GaeaTaskInboxDelete(id: string): Promise<void>;
   // v4.80 上下文浏览器：懒加载节点「完整调用」详情（按 seq 回读会话日志；
   // tool_result 配对 dispatch 取参数，user/assistant 取全文）。sessionPath
   // 语义同 ContextView。

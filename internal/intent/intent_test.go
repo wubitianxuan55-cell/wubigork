@@ -40,6 +40,14 @@ func TestParse_Hits(t *testing.T) {
 		{"主屏", "读一下主屏", ActionReadScreen, "screen:primary"},
 		{"副屏", "看看副屏上写了什么", ActionReadScreen, "screen:2"},
 		{"十一屏", "读第十一块屏幕", ActionReadScreen, "screen:11"},
+		// 存为任务（7.3-1 任务收件箱）：两式动词锚 + 冒号式
+		{"存为任务", "存为任务写周报", ActionSaveTask, "写周报"},
+		{"记个任务", "记个任务给老板发报告", ActionSaveTask, "给老板发报告"},
+		{"帮我添加任务", "帮我添加一个任务买咖啡", ActionSaveTask, "买咖啡"},
+		{"任务冒号式", "任务：整理书架", ActionSaveTask, "整理书架"},
+		{"待办冒号式", "待办：交水电费", ActionSaveTask, "交水电费"},
+		// 提醒让位：提醒打头的「存个任务」归提醒位，不被 save_task 抢走
+		{"提醒让位存任务", "提醒我存个任务明天开会", ActionReminder, ""},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -76,6 +84,10 @@ func TestParse_Misses(t *testing.T) {
 		{"看看天气", "看看天气"},
 		{"屏幕坏了", "屏幕坏了"},
 		{"主屏幕坏了", "主屏幕坏了"},
+		// 存为任务窄规则（7.3-1）：无动词锚 / 导航语境 / 空标题一律不命中
+		{"任务闲聊", "这个任务不错"},
+		{"任务导航语境", "打开任务中心"},
+		{"存任务空标题", "存为任务"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

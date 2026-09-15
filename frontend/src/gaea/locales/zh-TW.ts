@@ -505,6 +505,8 @@ export const zhTW: Record<DictKey, string> = {
   "palette.group.commands": "命令",
   "palette.group.sessions": "工作階段",
   "palette.group.templates": "任務模板",
+  // 7.3-1 任務收件匣：命令面板動態「存為任務」項（query 非空時尾部出現）
+  "palette.saveTask": "存為任務『{query}』",
 
   // memory panel — 新增鍵
   "memory.filterAll": "全部",
@@ -571,6 +573,8 @@ export const zhTW: Record<DictKey, string> = {
   "shell.search.intentStatus": "查詢狀態",
   "shell.search.intentReminder": "設提醒",
   "shell.search.intentReadScreen": "讀屏文字",
+  // 7.3-1 任務收件匣：指令預覽卡「存為任務」次按鈕（命中指令才出現）
+  "shell.search.intentSaveTask": "存為任務",
   // S2.2b 殼層存量 i18n：strip / rail / telemetry / launcher
   "shell.strip.home": "返回首頁",
   "shell.strip.settings": "設定",
@@ -633,6 +637,8 @@ export const zhTW: Record<DictKey, string> = {
   "shell.launcher.voiceAriaEnd": "結束語音對話",
   "shell.launcher.sessions": "最近對話",
   "shell.launcher.memoryPulse": "記憶脈搏",
+  // 7.3-1 任務收件匣：兩空間首頁掛點的節標題（書齋 w-vitals 第五節 / 閒庭 p-foot 第五節）
+  "shell.launcher.taskInbox": "任務",
   "shell.launcher.noSessions": "暫無最近對話",
   "shell.launcher.memoryCount": "{count} 條記憶",
   "shell.launcher.memoryUpdated": "最近更新 {time}",
@@ -1156,6 +1162,33 @@ export const zhTW: Record<DictKey, string> = {
   "tasks.filterAllTitle": "顯示全部任務（含定時/系統後台任務）",
   "tasks.filterSession": "本會話",
   "tasks.filterSessionTitle": "只顯示當前會話提交的任務",
+
+  // ── 7.3-1 任務收件匣（TaskInboxPanel + 兩空間首頁掛點 + 四入口回執）──
+  "tasks.inbox.title": "任務收件匣",
+  "tasks.inbox.pending": "待處理",
+  "tasks.inbox.doing": "進行中",
+  "tasks.inbox.done": "已完成",
+  "tasks.inbox.abandoned": "已放棄",
+  "tasks.inbox.start": "開始",
+  "tasks.inbox.finish": "完成",
+  "tasks.inbox.abandon": "放棄",
+  "tasks.inbox.delete": "刪除",
+  "tasks.inbox.add": "新增",
+  "tasks.inbox.addPlaceholder": "輸入任務標題，按 Enter 或點「新增」",
+  "tasks.inbox.source.ctrlk": "Ctrl+K",
+  "tasks.inbox.source.palette": "命令面板",
+  "tasks.inbox.source.voice": "語音",
+  "tasks.inbox.source.weixin": "微信",
+  "tasks.inbox.source.inbox": "收件匣",
+  "tasks.inbox.goBoard": "前往板塊",
+  "tasks.inbox.backSession": "回到會話",
+  "tasks.inbox.empty": "暫無任務",
+  "tasks.inbox.emptyHint": "Ctrl+K、命令面板或語音說「存個任務 …」都會落到這裡",
+  "tasks.inbox.loadFail": "任務載入失敗",
+  "tasks.inbox.retry": "重試",
+  "tasks.inbox.saved": "已存入任務收件匣",
+  "tasks.inbox.pendingCount": "待處理 {n} 項",
+  "tasks.inbox.open": "開啟收件匣",
 
   // ── v4.57 i18n 收尾：子代理工作台（面板/樹/對話/網路卡）──
   "subagent.feedTitle": "即時動態",

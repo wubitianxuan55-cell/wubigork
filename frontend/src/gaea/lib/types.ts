@@ -28,3 +28,24 @@ export * from "./types/cost";
 export * from "./types/search";
 export * from "./types/tasks";
 export * from "./types/programming";
+
+// ── 7.3-1 任务收件箱：本地重述（herdsman 防环先例，不依赖 AppModels 再生；
+// 字段名/顺序与后端 internal/app.TaskInboxView 的 json 标签逐一同——camelCase
+// 形状由 Go 侧测试钉死，前端只按此形状消费）──
+// 状态机：pending→doing→done；pending|doing→abandoned；终态不接受迁移
+// （CanTransition 的前端镜像见 TaskInboxPanel 的 nextActions 纯函数）。
+export type TaskInboxStatus = "pending" | "doing" | "done" | "abandoned";
+
+export interface TaskInboxView {
+  id: string; // "ti-"+12hex（后端生成，实体非重算候选）
+  title: string; // NormalizeTitle 产物（≤120 rune）
+  space: string; // "work" | "play"（唯一合法值，双空间隔离红线）
+  status: TaskInboxStatus;
+  source: string; // ctrlk | palette | voice | weixin | inbox（来源审计链）
+  action?: string; // 意图动作（navigate/…；手动新建留空）
+  target?: string; // 意图目标（板块 id 等）
+  session?: string; // 源会话路径（审计链；V1 跳转=板块粒度）
+  note?: string;
+  createdAt: number; // unix 毫秒
+  updatedAt: number; // unix 毫秒
+}

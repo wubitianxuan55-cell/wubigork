@@ -171,9 +171,36 @@ const SearchModal: React.FC<SearchModalProps> = ({ open, onClose, space }) => {
   // S4.6：执行指令（用户显式点击「执行」= 确认）——dryRun=false 真跑能力，
   // 回执内联展示；导航类由后端 emit gaea-intent-navigate → MainLayout
   // navigateBoard 自动切板块，稍候收面板。
+  // 7.3-1：save_task 不走 RouteIntent 真执行——前端入口带 shell 空间更准
+  // （后端执行层无空间上下文只能取 gaeaEffectiveSpace），直接调同一 Save 内核
+  // 落库（source='ctrlk'，两路落同一状态文件，来源可区分）。
+  const saveIntentTask = async () => {
+    const q = query.trim()
+    if (!q || intentBusy || !intent) return
+    setIntentBusy(true)
+    try {
+      await app.GaeaTaskInboxSave(JSON.stringify({
+        title: q,
+        space,
+        source: 'ctrlk',
+        action: intent.action,
+        target: intent.target,
+      }))
+      setIntentReply(t('tasks.inbox.saved'))
+    } catch (_) {
+      /* 落库失败静默：按钮可再点（宁漏勿误，不打断搜索流） */
+    } finally {
+      setIntentBusy(false)
+    }
+  }
+
   const executeIntent = async () => {
     const q = query.trim()
     if (!q || intentBusy) return
+    if (intent?.action === 'save_task') {
+      await saveIntentTask()
+      return
+    }
     setIntentBusy(true)
     try {
       const res = await app.RouteIntent(q, false)
@@ -267,9 +294,17 @@ const SearchModal: React.FC<SearchModalProps> = ({ open, onClose, space }) => {
                         </Typography.Text>
                       )}
                     </Space>
-                    <Button size="small" type="primary" loading={intentBusy} onClick={executeIntent}>
-                      {t('shell.search.intentExec')}
-                    </Button>
+                    {/* 7.3-1：〔执行〕旁次按钮〔存为任务〕——命中指令才出现（搜索词≠
+                        指令时宁漏勿误，手动新建走收件箱面板）；执行按钮保持在首位
+                        （既有测试锚定卡内第一个 button）。 */}
+                    <Space size={8}>
+                      <Button size="small" type="primary" loading={intentBusy} onClick={executeIntent}>
+                        {t('shell.search.intentExec')}
+                      </Button>
+                      <Button size="small" data-testid="intent-save-task" disabled={intentBusy} onClick={saveIntentTask}>
+                        {t('shell.search.intentSaveTask')}
+                      </Button>
+                    </Space>
                   </Space>
                   <Typography.Text style={{ color: C('color-text-secondary'), fontSize: 12 }}>
                     {intent.reply}

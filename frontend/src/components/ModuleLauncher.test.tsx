@@ -21,6 +21,14 @@ const bridgeMocks = vi.hoisted(() => ({
     MemoryHubOverview: vi.fn(async () => ({})),
     VoiceApplySettings: vi.fn(async () => ({})),
     VoiceChatText: vi.fn(async () => ({})),
+    // 7.3-1 任务收件箱：四方法桩（bridge 签名由主代理收口时补）。
+    // 返回值给完整最小样本（TaskInboxView 必填字段齐——类型即契约防漂移）。
+    GaeaTaskInboxList: vi.fn(async (): Promise<import('../gaea/lib/types').TaskInboxView[]> => []),
+    GaeaTaskInboxSave: vi.fn(async (): Promise<import('../gaea/lib/types').TaskInboxView> =>
+      ({ id: 'ti-mock', title: 't', space: 'work', status: 'pending', source: 'inbox', createdAt: 0, updatedAt: 0 })),
+    GaeaTaskInboxSetStatus: vi.fn(async (): Promise<import('../gaea/lib/types').TaskInboxView> =>
+      ({ id: 'ti-mock', title: 't', space: 'work', status: 'pending', source: 'inbox', createdAt: 0, updatedAt: 0 })),
+    GaeaTaskInboxDelete: vi.fn(async (): Promise<void> => {}),
   },
 }))
 
@@ -130,19 +138,21 @@ describe('书斋 v9 案头版式', () => {
     expect(document.querySelector('.w-index-item')).toBeNull()
   })
 
-  it('脉息面板四节齐备（写作/内核/会话/记忆，aria-label 对齐 zh 精确文案）', () => {
+  it('脉息面板五节齐备（写作/内核/会话/记忆/任务，aria-label 对齐 zh 精确文案）', () => {
     render(wrap(<ModuleLauncher onNavigate={vi.fn()} space="work" onSwitchSpace={vi.fn()} />))
     expect(document.querySelector('.w-vitals')).toBeTruthy()
     const vitals = document.querySelectorAll('.w-vital')
-    expect(vitals.length).toBe(4)
+    // 7.3-1 起 w-vitals 为五节：新增任务收件箱节（desk-task-inbox）
+    expect(vitals.length).toBe(5)
     // zh.ts 精确键值：shell.launcher.statWriting=项目写作进度（非简称「写作进度」）、
     // home.kernel=内核状态、shell.launcher.sessions=最近会话、
-    // shell.launcher.memoryPulse=记忆脉搏
+    // shell.launcher.memoryPulse=记忆脉搏、shell.launcher.taskInbox=任务
     const labels = Array.from(vitals).map((el) => el.getAttribute('aria-label'))
     expect(labels).toContain('项目写作进度')
     expect(labels).toContain('内核状态')
     expect(labels).toContain('最近会话')
     expect(labels).toContain('记忆脉搏')
+    expect(labels).toContain('任务')
   })
 
   it('闲庭不受 v9 影响', () => {
@@ -150,5 +160,67 @@ describe('书斋 v9 案头版式', () => {
     expect(document.querySelector('.w-masthead')).toBeNull()
     expect(document.querySelector('.w-plaques')).toBeNull()
     expect(document.querySelector('.garden-banner')).toBeTruthy()
+  })
+})
+
+// 7.3-1 任务收件箱双空间挂点：书斋 w-vitals 第五节（desk-task-inbox）+
+// 闲庭 p-foot 第五节（garden-task-inbox，跨全列不破坏既有四节）；挂点计数
+// 一次性读 GaeaTaskInboxList(space)；点击开 TaskInboxPanel 单例（space 跟随
+// 当前 home 空间，面板内 List 同空间）。
+describe('ModuleLauncher 任务收件箱挂点（7.3-1）', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('书斋：w-vitals 任务节渲染，挂载一次性拉 work 待处理数并展示计数', async () => {
+    bridgeMocks.app.GaeaTaskInboxList.mockResolvedValue([
+      { id: 'ti-a', title: 'a', space: 'work', status: 'pending', source: 'ctrlk', createdAt: 1, updatedAt: 1 },
+      { id: 'ti-b', title: 'b', space: 'work', status: 'pending', source: 'voice', createdAt: 2, updatedAt: 2 },
+      { id: 'ti-c', title: 'c', space: 'work', status: 'done', source: 'inbox', createdAt: 3, updatedAt: 3 },
+    ])
+    render(wrap(<ModuleLauncher onNavigate={vi.fn()} space="work" onSwitchSpace={vi.fn()} />))
+    const sec = screen.getByTestId('desk-task-inbox')
+    expect(sec).toBeTruthy()
+    expect(sec.textContent).toContain('任务')
+    // 一次性读：work 空间、pending 计数 2（done 不计）
+    await vi.waitFor(() => expect(bridgeMocks.app.GaeaTaskInboxList).toHaveBeenCalledWith('work'))
+    await vi.waitFor(() => expect(sec.textContent).toContain('待处理 2 项'))
+    // 零轮询：无定时器增量重拉（挂载后调用数稳定）
+    const calls = bridgeMocks.app.GaeaTaskInboxList.mock.calls.length
+    await new Promise((r) => setTimeout(r, 30))
+    expect(bridgeMocks.app.GaeaTaskInboxList.mock.calls.length).toBe(calls)
+  })
+
+  it('书斋：点「打开收件箱」开面板单例（space=work），面板内按 work 再拉', async () => {
+    render(wrap(<ModuleLauncher onNavigate={vi.fn()} space="work" onSwitchSpace={vi.fn()} />))
+    await vi.waitFor(() => expect(bridgeMocks.app.GaeaTaskInboxList).toHaveBeenCalled())
+    fireEvent.click(screen.getByTestId('task-inbox-open-btn'))
+    // antd Modal portal 到 body：document 直查面板
+    await vi.waitFor(() => expect(document.querySelector('[data-testid="task-inbox-panel"]')).toBeTruthy())
+    // 面板 open → 按 work 空间拉清单（空间隔离判据③）
+    await vi.waitFor(() => expect(bridgeMocks.app.GaeaTaskInboxList).toHaveBeenCalledWith('work'))
+  })
+
+  it('闲庭：p-foot 第五节渲染且既有四节 testid 不受影响（布局铁律）', async () => {
+    bridgeMocks.app.GaeaTaskInboxList.mockResolvedValue([])
+    render(wrap(<ModuleLauncher onNavigate={vi.fn()} space="play" onSwitchSpace={vi.fn()} />))
+    // 既有四节齐备（零回归）
+    expect(screen.getByTestId('garden-progress')).toBeTruthy()
+    expect(screen.getByTestId('garden-sessions')).toBeTruthy()
+    expect(screen.getByTestId('garden-memory')).toBeTruthy()
+    expect(screen.getByTestId('garden-meters')).toBeTruthy()
+    // 第五节：任务收件箱（跨全列形态）
+    const sec = screen.getByTestId('garden-task-inbox')
+    expect(sec).toBeTruthy()
+    expect(sec.textContent).toContain('任务')
+    // 闲庭侧按 play 拉取
+    await vi.waitFor(() => expect(bridgeMocks.app.GaeaTaskInboxList).toHaveBeenCalledWith('play'))
+  })
+
+  it('闲庭：点开面板单例 space=play（两空间各查各空间）', async () => {
+    render(wrap(<ModuleLauncher onNavigate={vi.fn()} space="play" onSwitchSpace={vi.fn()} />))
+    await vi.waitFor(() => expect(bridgeMocks.app.GaeaTaskInboxList).toHaveBeenCalledWith('play'))
+    fireEvent.click(screen.getByTestId('task-inbox-open-btn'))
+    await vi.waitFor(() => expect(document.querySelector('[data-testid="task-inbox-panel"]')).toBeTruthy())
   })
 })

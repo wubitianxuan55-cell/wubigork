@@ -3,6 +3,21 @@
 > 本文件为**最近发布速览**。完整历史磁带见 `docs/archive/progress-history-2026-09.md`
 > 与 `releases/`。
 
+## 最新发布：v4.318.0（2026-09-16）「阶段七第五刀：多入口统一任务收件箱（任务持久实体+四入口存为任务+状态机追踪，7.3-1）」
+
+- **来源**：用户指令「继续推进」（沿「继续 并行使用子代理，优化迭代 gaea」习惯）。契约先行（规格书 进度计划/gaea-task-inbox-7-3-1-20260915.md：A/B/C 三线足迹互斥+出口对照）→ A/B/C 三线并行 → 主代理收口。三线全部一次绿，**无卡死接管**（v4.316/v4.317 连续两刀接管后首回全并行一次过）。
+- **论点**：四入口（意图中枢/微信/语音/Ctrl+K）v4.5 已汇同一内核（intent.Parse→routeIntent），本刀补「任务」为**持久实体**+统一收件箱：指令除即时执行外可「存为任务」→ 状态机（待处理/进行中/已完成/已放弃）→ 跳回来源板块。**收件箱是清单不是调度器**（零轮询零定时器零后台事件，读写均用户动作触发=「关闭即停」昼夜运转拍板）；space 必带 work/play 隔离（跨空间仅显式，不做移动/复制）；不加新板块（挂既有双空间首页）。
+- **线A**：新纯包 internal/taskinbox（零 IO 表驱动，先例 skilldistill）：CanTransition 四条合法迁移（pending→doing→done、pending|doing→abandoned；终态拒迁同值恒 false）+NormalizeTitle（哨兵 ErrEmptyTitle、120 rune 截断）+ValidSource 五来源（ctrlk|palette|voice|weixin|inbox）+ParseTaskID（ti-+12hex 残渣防御）+FilterBySpace（''=全部，GaeaTaskList 变参先例）+Sort（状态组序→组内 UpdatedAt 降序→ID 稳定=行动优先）。9 测试函数 ~104 断言（JSON camelCase 形状逐字钉死）。
+- **线B**：intent 新动作 save_task（存为任务X/记个任务X/帮我添加一个任务X/任务：X/待办：X 首尾锚定两式，排提醒后让位——「提醒我存个任务明天开会」归提醒；空标题不命中坠回聊天宁漏勿误；+9 表用例）+状态文件 <DataRoot>/task_inbox.json（{version:1,tasks:[]} camelCase，route_suggestions 同款容错读+temp+rename 原子写）+四绑定（OfficeB +4）：List（FilterBySpace+Sort 损坏回空表）/Save（id 空=新建 pending+ti-+12hex crypto/rand+超 500 拒；id 非空只改 title/note——**Source/Action/Target/Session/CreatedAt 不可变=来源审计链**；source 缺省兜底 inbox）/SetStatus（同值短路零落盘）/Delete；执行层 execSaveTask：语音/微信走 routeIntent→space=gaeaEffectiveSpace() 归一回退 work、assistantID 判 weixin/voice、reply「已存入任务收件箱：<title>」；**Ctrl+K/面板不走后端执行**——dry-run 照常命中，前端直调 Save（shell 空间更准，来源可区分）。app 9 测试函数（camelCase 钉死禁 created_at 泄漏/"WORK" 大写不泄漏/dry-run 零落盘）。
+- **线C**：TaskInboxPanel（antd Modal 四档 tab 计数、CanTransition 前端镜像非法组合按钮不渲染、action=navigate→去板块/session→回会话 V1 板块粒度、V3Empty 两分；9 用例）+双空间首页挂点（书斋 w-vitals 第五节 desk-task-inbox；闲庭 p-foot 第五节 garden-task-inbox 内联 gridColumn '1 / -1' 跨全列——固定四列网格零 CSS 改动）+四入口（Ctrl+K 指令卡〔存为任务〕次按钮+save_task「执行」短路直调 Save；面板 query 非空动态项「存为任务『query』」**捕获期 input 监听**镜像输入——CommandPalette 契约不动，观察池列清退方案；语音/微信零前端改动）+lib/types 本地重述 TaskInboxView（herdsman 防环先例）+三语 +28 键（zh=en=zh-TW=1518 逐键相等）。
+- **主代理收口**：gen_bindings+bindingNames 再生 695（drift OK@695；bindings_novel 多行委托规整单行 +101/−101 零语义——v4.313/4.317 重排噪音同款甄别）+bridge/core +4（同名前缀无需映射，GetProgrammingWebStatus 先例）+mock/chat 四桩（两空间样本内存态）+spaceBindings 四名 shared（隔离由 space 参数承担，UnifiedSearch 口径）+收口修 5 处 tsc（bindingNames 再生丢 as const→drift 串味；mock vi.fn 空数组推断 never[]→补 Promise<TaskInboxView[]> 完整样本；antd Text 无 rows 配置→Paragraph）。
+- **绑定面**：691→695（OfficeB +4）；锁数 513→517（shared +4）；drift OK@695。
+- **出口对账**：①四入口来源可区分 ✅（五 source 落库，测试钉死）③空间隔离零泄漏 ✅（space 必带+严格过滤+"WORK" 大写不泄漏）④零常驻 ✅（无轮询/定时器/事件订阅）；②板块级 ✅（Target 精确导航）、**会话级欠账**——按路径恢复 seam 存在（palette sessionItems→onResumeSession(path)）但活在 gaea App 树内首页拿不到，Session 字段已落库数据就绪后续刀接。
+- **验收**：taskinbox 9 函数+app 9 函数+intent +9；前端 33/33（Panel 9+ModuleLauncher 12+SearchModal 8+锁数 4）+App palette/export 源级锁 6/6；tsc -b 零错、eslint 零告警。
+- **门禁**：ci.ps1 全绿 exit 0（一次过）、drift OK@695、版本四处 4.318.0；产物=exe 50592256B SHA256=63be1263d9077006a5b312f552abb2984787e9f4d3553ecaeb31bfdf3aaeb311（releases/gaea-v4.318.0.exe+SUMS；桌面副本同哈希；冒烟 /api/health 200 过）。
+- **观察池**：命令面板 query DOM 捕获→CommandPalette 可选 prop 清退（约 6 行）；精确回源会话接 seam（面板挂工作台或 resumeSession 提全局事件）；任务模板联动（GaeaTaskTemplates 从模板建任务）；LLM 兜底分类器对 save_task 覆盖；releases exe 留版数待用户拍板（沿 v4.315 观察项）。
+- **未做（下刀）**：7.3-2 板块降视图（依赖本刀稳定一个零功能周）或 7.2-2 判据②调用计数小刀（statsFile 先例）；闲庭在册清欠沿既有列车。
+
 ## 最新发布：v4.317.0（2026-09-15）「阶段七第四刀：journal 历史蒸馏（重复模式挖掘+结晶审阅+审计链，7.2-2）」
 
 - **来源**：用户指令「继续并行使用子代理，优化迭代 gaea」。契约先行（规格书 进度计划/gaea-journal-distill-7-2-2-20260915.md：契约+足迹互斥表+出口对照）→ A/B/C 三线并行 → 主代理收口。**坑**=A 线纯函数包子代理跑满上下文**零落盘**——主代理接管代写（卡死判据先例再+1：v4.316 B 线同款「长时间零落盘」）；B/C 两线正常交付（B 10/10、C 12/12）。

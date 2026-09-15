@@ -23,6 +23,7 @@ const (
 	ActionReminder       Action = "reminder"         // 离线代办提醒（时间解析在执行层）
 	ActionReadScreen     Action = "read_screen"      // 读一下屏幕（屏幕感知：截屏 + OCR，v4.7 S4.6）
 	ActionSendLatestFile Action = "send_latest_file" // 把(刚才/最新)文件/产物发给我（最新产物文件卡回推，v4.41 微信文件收发）
+	ActionSaveTask       Action = "save_task"        // 存为任务（7.3-1 任务收件箱；Target = 任务标题文本）
 )
 
 // Intent 解析结果；Parse 未命中返回 nil（调用方走原聊天管道）。
@@ -220,8 +221,20 @@ func cnOrdinal(s string) int {
 // 提醒类（宽匹配放最后；时间解析在执行层）。
 var reReminder = regexp.MustCompile(`提醒|叫我`)
 
+// reSaveTask 存为任务（7.3-1 任务收件箱 §2.2）：「存为/存个/记个/记一条/
+// 添加/新建（+量词）任务 + 标题」或「任务/待办：标题」两式，首尾锚定 +
+// 宁漏勿误：标题至少 1 字符（「存为任务」空标题不命中）；「这个任务不错」
+// 无动词锚不命中；「打开任务中心」导航动词在前不命中；含提醒字样让位
+// 提醒位（「提醒我存个任务明天开会」归提醒——检查排在 reminder 分支
+// 之后，与 reWxReminderish 同款守卫思想）。标题上限 120 与纯包
+// NormalizeTitle 同口径（执行层仍会二次校验）。
+var reSaveTask = regexp.MustCompile(
+	`^(?:请|麻烦|帮我)?(?:存为|存个|记个|记一条|添加|新建)(?:一个|一条|个)?任务[:：]?\s*(.{1,120})$` +
+		`|^(?:任务|待办)[:：]\s*(.{1,120})$`)
+
 // Parse 解析一条自然语言指令；未命中返回 nil。
-// 优先级：导航 > 生图 > 读屏 > 状态 > 产物推送 > 提醒（窄规则优先，宽匹配殿后）。
+// 优先级：导航 > 生图 > 读屏 > 状态 > 产物推送 > 提醒 > 存为任务（窄规则
+// 优先，宽匹配殿后；save_task 排在提醒之后——提醒让位，7.3-1）。
 func Parse(text string) *Intent {
 	t := strings.TrimSpace(text)
 	t = strings.TrimRight(t, "。.！!？?？")
@@ -279,6 +292,19 @@ func Parse(text string) *Intent {
 	// ⑤ 提醒
 	if reReminder.MatchString(t) {
 		return &Intent{Action: ActionReminder, Target: "", Text: t}
+	}
+
+	// ⑥ 存为任务（7.3-1）：排在提醒之后——「提醒我存个任务明天开会」这类
+	// 提醒打头的短语归提醒位（让位守卫）；两式短语与既有动作互斥，命中即
+	// Target=任务标题（捕获组一空取二，两式各一组）。
+	if m := reSaveTask.FindStringSubmatch(t); m != nil {
+		title := strings.TrimSpace(m[1])
+		if title == "" {
+			title = strings.TrimSpace(m[2])
+		}
+		if title != "" {
+			return &Intent{Action: ActionSaveTask, Target: title, Text: t}
+		}
 	}
 
 	return nil

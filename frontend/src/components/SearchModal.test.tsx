@@ -8,6 +8,24 @@ import SearchModal from "./SearchModal";
 import { LocaleProvider } from "../gaea/lib/i18n";
 import { waitMockReady } from "../gaea/lib/bridge";
 
+// 7.3-1 任务收件箱：收口前真实 mock 层没有 GaeaTaskInbox* 方法——用
+// importOriginal 包装真实模块，仅给 app 补 Save 桩，其余导出（waitMockReady、
+// RouteIntent 演示规则等）逐属性透传，既有用例零回归。
+const taskInboxMocks = vi.hoisted(() => ({
+  save: vi.fn(),
+}));
+
+vi.mock("../gaea/lib/bridge", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../gaea/lib/bridge")>();
+  const wrappedApp: typeof actual.app = new Proxy(actual.app, {
+    get(target, prop) {
+      if (prop === "GaeaTaskInboxSave") return taskInboxMocks.save;
+      return Reflect.get(target, prop);
+    },
+  });
+  return { ...actual, app: wrappedApp };
+});
+
 // H6（P4 entry 懒加载）：mock 为异步 chunk，RouteIntent/UnifiedSearch 演示规则在
 // chunk 加载后才可用——先等 mock 就绪再渲染（否则断言打到空结果）。
 beforeAll(async () => {
@@ -114,5 +132,68 @@ describe("SearchModal 命令面板接统一意图路由（S4.6）", () => {
     // 但仅是预览——这里验证的是「夸赞」绝不触发生图预览卡。
     await search("这张图画得不错");
     expect(screen.queryByTestId("intent-card")).toBeNull();
+  });
+});
+
+// 7.3-1 任务收件箱：指令预览卡〔存为任务〕次按钮——命中指令才出现（搜索词≠
+// 指令宁漏勿误，手动新建走收件箱面板）；点击直接 GaeaTaskInboxSave 落库
+// （source='ctrlk'、space=当前壳层空间、action/target 随指令），回执内联。
+describe("SearchModal 存为任务（7.3-1）", () => {
+  beforeEach(() => {
+    taskInboxMocks.save.mockClear();
+    taskInboxMocks.save.mockResolvedValue({
+      id: "ti-save00000001",
+      title: "打开绘梦",
+      space: "work",
+      status: "pending",
+      source: "ctrlk",
+      createdAt: 0,
+      updatedAt: 0,
+    });
+  });
+
+  it("指令预览卡出〔存为任务〕次按钮；「执行」仍为卡内首位按钮（既有锚定不变）", async () => {
+    renderModal();
+    await search("打开绘梦");
+
+    const card = screen.getByTestId("intent-card");
+    const saveBtn = card.querySelector<HTMLButtonElement>('[data-testid="intent-save-task"]');
+    expect(saveBtn).toBeTruthy();
+    expect(saveBtn!.textContent).toContain("存为任务");
+    // 卡内第一个 button 仍是「执行」（既有 execButton() 语义零回归；antd 中文
+    // 双字按钮自动插入字间空格，比较前去空白）
+    expect(card.querySelector("button")!.textContent!.replace(/\s+/g, "")).toContain("执行");
+  });
+
+  it("点〔存为任务〕：调 Save 落库（title/space/source/action/target）且回执「已存入任务收件箱」", async () => {
+    renderModal();
+    await search("打开绘梦");
+
+    const card = screen.getByTestId("intent-card");
+    fireEvent.click(card.querySelector<HTMLButtonElement>('[data-testid="intent-save-task"]')!);
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(taskInboxMocks.save).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(taskInboxMocks.save.mock.calls[0][0] as string)).toEqual({
+      title: "打开绘梦",
+      space: "work",
+      source: "ctrlk",
+      action: "navigate",
+      target: "imagegen",
+    });
+    // 回执内联（intentReply 位）
+    expect(card.textContent).toContain("已存入任务收件箱");
+  });
+
+  it("未命中指令（无预览卡）时不出现〔存为任务〕按钮", async () => {
+    renderModal();
+    await search("这张图画得不错");
+
+    expect(screen.queryByTestId("intent-card")).toBeNull();
+    expect(document.querySelector('[data-testid="intent-save-task"]')).toBeNull();
+    expect(taskInboxMocks.save).not.toHaveBeenCalled();
   });
 });

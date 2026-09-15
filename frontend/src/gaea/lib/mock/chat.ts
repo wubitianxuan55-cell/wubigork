@@ -12,6 +12,7 @@ type ChatMethods = Pick<
   | "GaeaRunning" | "Compact" | "NewSession"
   | "Reload" | "CaptureSkill" | "SkillDraftFromSession" | "SkillDraftSave" | "Checkpoints" | "Rewind" | "Fork"
   | "SkillDistillCandidates" | "SkillDistillDraft" | "SkillDistillDecide"
+  | "GaeaTaskInboxList" | "GaeaTaskInboxSave" | "GaeaTaskInboxSetStatus" | "GaeaTaskInboxDelete"
   | "SummarizeFrom" | "SummarizeUpTo" | "History"
   | "ListSessions" | "ListProjectSessions" | "ArchiveSession" | "UnarchiveSession"
   | "PinSession" | "ResumeSession" | "DeleteSession" | "RenameSession"
@@ -25,6 +26,29 @@ type ChatMethods = Pick<
 
 // 话题 mock 计数器（会话内自增 ID；真实实现 = 后端 chat 库自增主键）。
 let mockTopicSeq = 0;
+
+// 7.3-1 任务收件箱 mock 内存态：浏览器 dev 预览用（真机走 task_inbox.json 状态
+// 文件）。两空间各一条样本——书斋（Ctrl+K 来源）与闲庭（语音来源），走查锚点。
+interface MockTaskInboxItem {
+  id: string; title: string; space: string; status: "pending" | "doing" | "done" | "abandoned";
+  source: string; action?: string; target?: string; session?: string; note?: string;
+  createdAt: number; updatedAt: number;
+}
+const taskInboxMock: MockTaskInboxItem[] = [
+  {
+    id: "ti-mock0001", title: "把季度总结整理成 xlsx 汇总表", space: "work", status: "pending",
+    source: "ctrlk", action: "navigate", target: "gaea",
+    createdAt: Date.now() - 3600_000, updatedAt: Date.now() - 3600_000,
+  },
+  {
+    id: "ti-mock0002", title: "续写《雨夜站台》第五章", space: "play", status: "doing",
+    source: "voice", action: "navigate", target: "novel",
+    createdAt: Date.now() - 86_400_000, updatedAt: Date.now() - 7200_000,
+  },
+];
+function mockTaskInbox() {
+  return taskInboxMock;
+}
 
 // 完整一轮「普通」对话模拟（demo 默认路径）：turn_started → reasoning 逐字
 // → 3 个工具（ls/write_file/edit_file）→ 正文逐字 → usage ×2 → turn_done。
@@ -273,6 +297,48 @@ export function buildChat(s: MakeMockState): ChatMethods {
     },
     async SkillDistillDecide(_patternID, _decision, _skillName) {
       // mock: 浏览器开发环境不落状态文件，静默成功
+    },
+    async GaeaTaskInboxList(space) {
+      // mock: 浏览器开发环境内存态收件箱（两空间各一条样本，走查锚点）。
+      const all = mockTaskInbox();
+      return (space ? all.filter((x) => x.space === space) : all).map((x) => ({ ...x }));
+    },
+    async GaeaTaskInboxSave(reqJSON) {
+      // mock: 与后端同语义——id 空=新建（pending）、id 非空=只改 title/note。
+      const req = JSON.parse(reqJSON) as {
+        id?: string; title: string; space: string; source?: string;
+        action?: string; target?: string; session?: string; note?: string;
+      };
+      const list = mockTaskInbox();
+      if (req.id) {
+        const t = list.find((x) => x.id === req.id);
+        if (!t) throw new Error("任务不存在");
+        t.title = req.title || t.title;
+        t.note = req.note ?? t.note;
+        t.updatedAt = Date.now();
+        return { ...t };
+      }
+      const now = Date.now();
+      const t = {
+        id: "ti-mock" + String(now % 1000000).padStart(6, "0"),
+        title: req.title, space: req.space, status: "pending" as const,
+        source: req.source || "inbox", action: req.action, target: req.target,
+        session: req.session, note: req.note, createdAt: now, updatedAt: now,
+      };
+      list.unshift(t);
+      return { ...t };
+    },
+    async GaeaTaskInboxSetStatus(id, status) {
+      const t = mockTaskInbox().find((x) => x.id === id);
+      if (!t) throw new Error("任务不存在");
+      t.status = status as typeof t.status;
+      t.updatedAt = Date.now();
+      return { ...t };
+    },
+    async GaeaTaskInboxDelete(id) {
+      const list = mockTaskInbox();
+      const i = list.findIndex((x) => x.id === id);
+      if (i >= 0) list.splice(i, 1);
     },
     async Checkpoints() {
       return [];

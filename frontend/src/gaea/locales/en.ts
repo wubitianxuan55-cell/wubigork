@@ -500,6 +500,8 @@ export const en = {
   "palette.group.commands": "Commands",
   "palette.group.sessions": "Sessions",
   "palette.group.templates": "Templates",
+  // 7.3-1 Task inbox: dynamic "save as task" palette item (appears at the tail when query is non-empty)
+  "palette.saveTask": "Save task “{query}”",
 
   // memory panel — new additions
   "memory.filterAll": "All",
@@ -566,6 +568,8 @@ export const en = {
   "shell.search.intentStatus": "Check status",
   "shell.search.intentReminder": "Set reminder",
   "shell.search.intentReadScreen": "Read screen",
+  // 7.3-1 Task inbox: "save as task" secondary button on the intent preview card (only when an intent matches)
+  "shell.search.intentSaveTask": "Save as task",
   // S2.2b 壳层存量 i18n：strip / rail / telemetry / launcher
   "shell.strip.home": "Back to home",
   "shell.strip.settings": "Settings",
@@ -628,6 +632,8 @@ export const en = {
   "shell.launcher.voiceAriaEnd": "End voice conversation",
   "shell.launcher.sessions": "Recent sessions",
   "shell.launcher.memoryPulse": "Memory pulse",
+  // 7.3-1 Task inbox: section title on both space homepages (Study w-vitals fifth section / Lounge p-foot fifth section)
+  "shell.launcher.taskInbox": "Tasks",
   "shell.launcher.noSessions": "No recent sessions",
   "shell.launcher.memoryCount": "{count} memories",
   "shell.launcher.memoryUpdated": "Updated {time}",
@@ -1151,6 +1157,33 @@ export const en = {
   "tasks.filterAllTitle": "Show all tasks (including cron / system background tasks)",
   "tasks.filterSession": "This session",
   "tasks.filterSessionTitle": "Show only tasks submitted from the current session",
+
+  // ── 7.3-1 Task inbox (TaskInboxPanel + dual-space home hooks + four-entry receipts) ──
+  "tasks.inbox.title": "Task inbox",
+  "tasks.inbox.pending": "Pending",
+  "tasks.inbox.doing": "In progress",
+  "tasks.inbox.done": "Done",
+  "tasks.inbox.abandoned": "Abandoned",
+  "tasks.inbox.start": "Start",
+  "tasks.inbox.finish": "Complete",
+  "tasks.inbox.abandon": "Abandon",
+  "tasks.inbox.delete": "Delete",
+  "tasks.inbox.add": "Add",
+  "tasks.inbox.addPlaceholder": "Type a task title, press Enter or click Add",
+  "tasks.inbox.source.ctrlk": "Ctrl+K",
+  "tasks.inbox.source.palette": "Palette",
+  "tasks.inbox.source.voice": "Voice",
+  "tasks.inbox.source.weixin": "WeChat",
+  "tasks.inbox.source.inbox": "Inbox",
+  "tasks.inbox.goBoard": "Go to board",
+  "tasks.inbox.backSession": "Back to chat",
+  "tasks.inbox.empty": "No tasks yet",
+  "tasks.inbox.emptyHint": "Tasks saved from Ctrl+K, the palette, or voice land here",
+  "tasks.inbox.loadFail": "Failed to load tasks",
+  "tasks.inbox.retry": "Retry",
+  "tasks.inbox.saved": "Saved to task inbox",
+  "tasks.inbox.pendingCount": "{n} pending",
+  "tasks.inbox.open": "Open inbox",
 
   // ── v4.57 i18n 收尾：子代理工作台（面板/树/对话/网络卡）──
   "subagent.feedTitle": "Live activity",

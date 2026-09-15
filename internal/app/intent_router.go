@@ -34,6 +34,7 @@ import (
 	"github.com/gaea/gaea/internal/gaea/trajectory"
 	"github.com/gaea/gaea/internal/screen"
 	"github.com/gaea/gaea/internal/intent"
+	"github.com/gaea/gaea/internal/taskinbox"
 )
 
 // intentNavigateEvent 导航意图事件名：前端订阅后走 navigateBoard
@@ -122,6 +123,9 @@ func (a *App) routeIntentModeForAssistant(text string, dryRun bool, assistantID 
 	case intent.ActionSendLatestFile:
 		reply, ok, card := a.execSendLatestFile(it)
 		return IntentResult{Reply: reply, Handled: ok, CardPath: card, Action: string(it.Action), Target: it.Target}
+	case intent.ActionSaveTask:
+		reply, ok := a.execSaveTask(it, assistantID)
+		return IntentResult{Reply: reply, Handled: ok, Action: string(it.Action), Target: it.Target}
 	}
 	return IntentResult{}
 }
@@ -193,6 +197,12 @@ func (a *App) intentPreviewForAssistant(it *intent.Intent, assistantID string) I
 			return IntentResult{Reply: "将发送最新产物：" + filepath.Base(p), Action: string(it.Action), Target: it.Target, Handled: true}
 		}
 		return IntentResult{Reply: "暂无可发送的产物", Action: string(it.Action), Target: it.Target, Handled: true}
+	case intent.ActionSaveTask:
+		// 存为任务预览（7.3-1 §2.3）：Ctrl+K/命令面板不走执行路径落库——
+		// 预览照常命中（action=save_task），前端点「执行/存为任务」直接调
+		// GaeaTaskInboxSave（source=ctrlk|palette、space=前端当前空间）。
+		// 预览零落盘（dry-run 纪律）。
+		return IntentResult{Reply: "将存为任务：" + it.Target + "（进任务收件箱追踪）", Action: string(it.Action), Target: it.Target, Handled: true}
 	}
 	return IntentResult{}
 }
@@ -374,6 +384,45 @@ func (a *App) execSendLatestFile(it *intent.Intent) (string, bool, string) {
 		return "暂无可发送的产物。可以先在办公板块让 gaea 生成一份，再对我说「把最新的文件发给我」。", true, ""
 	}
 	return "已发送：" + filepath.Base(p), true, p
+}
+
+// execSaveTask 存为任务能力（7.3-1 任务收件箱 §2.3）：语音/微信的「存个
+// 任务 X」落任务收件箱，与 GaeaTaskInboxSave 同一内核（同一状态文件、
+// 同一纯包校验——两路来源可区分，审计判据）。
+//   - space 取 gaeaEffectiveSpace（后端入口无前端空间上下文，语音/微信的
+//     诚实取法；ToLower 归一，非法/空回退 work）；
+//   - source 按助手上下文：assistantID 非空=微信回调（weixin），否则语音
+//     （voice）；
+//   - title=it.Target 经 NormalizeTitle（意图层 .{1,120} 已挡空标题，这里
+//     二次校验兜底）；Action/Target 存意图原值（来源审计链）。
+// Ctrl+K/命令面板不走此执行路径落库——dry-run 预览照常命中，前端点「执行/
+// 存为任务」直接调 GaeaTaskInboxSave。回复文本即回执（语音 TTS/微信回推
+// 天然可用）。
+func (a *App) execSaveTask(it *intent.Intent, assistantID string) (string, bool) {
+	title, err := taskinbox.NormalizeTitle(it.Target)
+	if err != nil {
+		return "想帮你存任务，但没听清内容。可以这样说：「存个任务 买咖啡」。", true
+	}
+	space := strings.ToLower(gaeaEffectiveSpace())
+	if !taskinbox.ValidSpace(space) {
+		space = spaces.SpaceWork // 非法/空回退 work（宁落好空间不丢任务）
+	}
+	source := "voice"
+	if assistantID != "" {
+		source = "weixin"
+	}
+	view, err := a.taskInboxSave(taskInboxSaveInput{
+		Title:  title,
+		Space:  space,
+		Source: source,
+		Action: string(it.Action),
+		Target: it.Target,
+	})
+	if err != nil {
+		slog.Warn("[intent] 存任务失败", "err", err)
+		return "存任务失败：" + err.Error() + "。", true
+	}
+	return "已存入任务收件箱：" + view.Title, true
 }
 
 // execStatus 状态查询能力：当前可用引擎摘要（模型中心同源数据）。

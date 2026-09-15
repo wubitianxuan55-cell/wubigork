@@ -503,6 +503,8 @@ export const zh: Record<DictKey, string> = {
   "palette.group.commands": "命令",
   "palette.group.sessions": "会话",
   "palette.group.templates": "任务模板",
+  // 7.3-1 任务收件箱：命令面板动态「存为任务」项（query 非空时尾部出现）
+  "palette.saveTask": "存为任务『{query}』",
 
   // memory panel — 新增键
   "memory.filterAll": "全部",
@@ -567,6 +569,8 @@ export const zh: Record<DictKey, string> = {
   "shell.search.intentStatus": "查询状态",
   "shell.search.intentReminder": "设提醒",
   "shell.search.intentReadScreen": "读屏文字",
+  // 7.3-1 任务收件箱：指令预览卡「存为任务」次按钮（命中指令才出现）
+  "shell.search.intentSaveTask": "存为任务",
   // S2.2b 壳层存量 i18n：strip / rail / telemetry / launcher
   "shell.strip.home": "返回首页",
   "shell.strip.settings": "设置",
@@ -629,6 +633,8 @@ export const zh: Record<DictKey, string> = {
   "shell.launcher.voiceAriaEnd": "结束语音对话",
   "shell.launcher.sessions": "最近会话",
   "shell.launcher.memoryPulse": "记忆脉搏",
+  // 7.3-1 任务收件箱：两空间首页挂点的节标题（书斋 w-vitals 第五节 / 闲庭 p-foot 第五节）
+  "shell.launcher.taskInbox": "任务",
   "shell.launcher.noSessions": "暂无最近会话",
   "shell.launcher.memoryCount": "{count} 条记忆",
   "shell.launcher.memoryUpdated": "最近更新 {time}",
@@ -1152,6 +1158,33 @@ export const zh: Record<DictKey, string> = {
   "tasks.filterAllTitle": "显示全部任务（含定时/系统后台任务）",
   "tasks.filterSession": "本会话",
   "tasks.filterSessionTitle": "只显示当前会话提交的任务",
+
+  // ── 7.3-1 任务收件箱（TaskInboxPanel + 双空间首页挂点 + 四入口回执）──
+  "tasks.inbox.title": "任务收件箱",
+  "tasks.inbox.pending": "待处理",
+  "tasks.inbox.doing": "进行中",
+  "tasks.inbox.done": "已完成",
+  "tasks.inbox.abandoned": "已放弃",
+  "tasks.inbox.start": "开始",
+  "tasks.inbox.finish": "完成",
+  "tasks.inbox.abandon": "放弃",
+  "tasks.inbox.delete": "删除",
+  "tasks.inbox.add": "添加",
+  "tasks.inbox.addPlaceholder": "输入任务标题，回车或点「添加」",
+  "tasks.inbox.source.ctrlk": "Ctrl+K",
+  "tasks.inbox.source.palette": "命令面板",
+  "tasks.inbox.source.voice": "语音",
+  "tasks.inbox.source.weixin": "微信",
+  "tasks.inbox.source.inbox": "收件箱",
+  "tasks.inbox.goBoard": "去板块",
+  "tasks.inbox.backSession": "回会话",
+  "tasks.inbox.empty": "暂无任务",
+  "tasks.inbox.emptyHint": "Ctrl+K、命令面板或语音说「存个任务 …」都会落到这里",
+  "tasks.inbox.loadFail": "任务加载失败",
+  "tasks.inbox.retry": "重试",
+  "tasks.inbox.saved": "已存入任务收件箱",
+  "tasks.inbox.pendingCount": "待处理 {n} 项",
+  "tasks.inbox.open": "打开收件箱",
 
   // ── v4.57 i18n 收尾：子代理工作台（面板/树/对话/网络卡）──
   "subagent.feedTitle": "实时动态",

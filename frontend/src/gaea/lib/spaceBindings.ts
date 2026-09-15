@@ -52,6 +52,13 @@ export const GAEA_METHOD_FACETS = {
   GaeaRouteSuggestions: "shared",
   GaeaRouteSuggestionApply: "shared",
   GaeaRouteSuggestionIgnore: "shared",
+  // 任务收件箱四名（阶段七 7.3-1）：多入口统一任务实体——双空间首页收件箱
+  // 挂点各自调用（书斋 w-vitals/闲庭 p-foot）；隔离由 space 参数承担
+  // （GaeaTaskInboxList 严格过滤，UnifiedSearch 同款口径）。
+  GaeaTaskInboxList: "shared",
+  GaeaTaskInboxSave: "shared",
+  GaeaTaskInboxSetStatus: "shared",
+  GaeaTaskInboxDelete: "shared",
   Settings: "shared",
   SetDefaultModel: "shared",
   // v4.171 批次一：办公引擎设置整体写回（OfficePanel「保存」，同 Settings 归 shared）。
