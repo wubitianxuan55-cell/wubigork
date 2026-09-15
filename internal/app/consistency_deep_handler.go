@@ -469,6 +469,7 @@ func (a *writingState) deepExtractCards(pm *project.Manager, maxChapters int) ([
 	caller := func(ctx context.Context, sys, usr string) (string, error) {
 		return a.client.ChatSimpleStreamWithOptions(ctx, model, sys, usr, ai.ChatSimpleOptions{
 			EngineID:    eng,
+			Feature:     "novel",
 			Temperature: 0.2, // 提取任务：低温度保稳定
 			MaxTokens:   2048,
 		})

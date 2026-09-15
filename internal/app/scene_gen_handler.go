@@ -164,7 +164,7 @@ func (a *writingState) GenerateScene(chapterNum int, sceneID string, plotReq str
 		minWords, scene.Meta.Title, chapterNum, plotReq, bible)
 
 	reply, err := a.client.ChatSimpleStreamWithOptions(context.Background(), model, system, user, ai.ChatSimpleOptions{
-		EngineID: eng, Temperature: 0.8, MaxTokens: 4096,
+		EngineID: eng, Feature: "novel", Temperature: 0.8, MaxTokens: 4096,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("场景生成失败: %w", err)

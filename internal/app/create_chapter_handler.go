@@ -330,6 +330,7 @@ func (a *writingState) streamCreateChapter(ctx context.Context, pm *project.Mana
 		req := &ai.ChatRequest{
 			Model:    featModel,
 			EngineID: featEng,
+			Feature:  "novel",
 			Messages: []ai.ChatMessage{{Role: "system", Content: systemPrompt}, {Role: "user", Content: currentPrompt}},
 		}
 		applyChapterGuardrails(req, temperature, g)

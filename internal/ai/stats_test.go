@@ -262,3 +262,71 @@ func TestChatStream_FallbackWithoutStreamOptions(t *testing.T) {
 		t.Errorf("tokens = %d/%d, want 5/2", sum.InputTokens, sum.OutputTokens)
 	}
 }
+
+// ── 7.1-2 A 线：feature 账目标签透传 ─────────────────────────
+
+// TestChat_FeaturePassthrough 非流式路径 req.Feature 经 recordUsage 落进
+// ModelCallUsage.Feature，stats 侧按 feature 分桶。
+func TestChat_FeaturePassthrough(t *testing.T) {
+	c, mgr := newStatsClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{
+			"id": "chat-1", "model": "grok-4.20",
+			"choices": []map[string]any{{"index": 0, "message": map[string]any{"role": "assistant", "content": "hi"}}},
+			"usage":   map[string]any{"prompt_tokens": 12, "completion_tokens": 3, "total_tokens": 15},
+		})
+	}))
+	req := reqForTest()
+	req.Feature = "chat"
+	if _, err := c.Chat(context.Background(), req); err != nil {
+		t.Fatalf("Chat: %v", err)
+	}
+	sum := mgr.GetModelCallStats()
+	if len(sum.PerFeature) != 1 || sum.PerFeature[0].Feature != "chat" {
+		t.Fatalf("PerFeature = %+v, want 单桶 feature=chat", sum.PerFeature)
+	}
+	if sum.PerFeature[0].TokensIn != 12 || sum.PerFeature[0].TokensOut != 3 {
+		t.Errorf("chat 桶 tokens = %d/%d, want 12/3", sum.PerFeature[0].TokensIn, sum.PerFeature[0].TokensOut)
+	}
+}
+
+// TestChatStream_FeaturePassthroughWhisperNormalized 流式路径 req.Feature 经
+// parseStreamEvents 落桶；whisper 标签在 stats 侧归一为 chat（同域别名）。
+func TestChatStream_FeaturePassthroughWhisperNormalized(t *testing.T) {
+	c, mgr := newStatsClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.Write([]byte("data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"hi\"}}]}\n\n"))
+		w.Write([]byte("data: {\"choices\":[],\"usage\":{\"prompt_tokens\":20,\"completion_tokens\":7}}\n\n"))
+		w.Write([]byte("data: [DONE]\n\n"))
+	}))
+	req := reqForTest()
+	req.Feature = "whisper"
+	chunks, err := c.ChatStream(context.Background(), req)
+	if err != nil {
+		t.Fatalf("ChatStream: %v", err)
+	}
+	for ch := range chunks {
+		if ch.Error != "" {
+			t.Fatalf("stream error: %s", ch.Error)
+		}
+	}
+	sum := mgr.GetModelCallStats()
+	if len(sum.PerFeature) != 1 || sum.PerFeature[0].Feature != "chat" {
+		t.Fatalf("PerFeature = %+v, want whisper 归一后单桶 feature=chat", sum.PerFeature)
+	}
+}
+
+// TestPrepareStreamRequest_FeaturePassthrough ChatSimpleOptions.Feature 经
+// prepareStreamRequest 汇入 ChatRequest（ChatSimpleStream* 变体共用装配）。
+func TestPrepareStreamRequest_FeaturePassthrough(t *testing.T) {
+	c := &Client{}
+	req := c.prepareStreamRequest("grok-4.20", []ChatMessage{{Role: "user", Content: "hi"}},
+		ChatSimpleOptions{Feature: "novel"})
+	if req.Feature != "novel" {
+		t.Errorf("req.Feature = %q, want novel", req.Feature)
+	}
+	req = c.prepareStreamRequest("grok-4.20", []ChatMessage{{Role: "user", Content: "hi"}}, ChatSimpleOptions{})
+	if req.Feature != "" {
+		t.Errorf("未传 Feature 时 req.Feature = %q, want 空串（未标记）", req.Feature)
+	}
+}

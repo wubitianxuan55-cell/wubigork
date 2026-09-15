@@ -198,6 +198,7 @@ func (a *App) translateOne(ctx context.Context, engine, model string, found bool
 	}
 	return a.client.ChatSimpleStreamWithOptions(ctx, model, translateSystemPrompt, prompt, ai.ChatSimpleOptions{
 		EngineID:       engine,
+		Feature:        "routine", // 回退链走 resolveRoutineTarget（常规办公绑定）
 		Temperature:    0.3,
 		MaxTokens:      4096,
 		TimeoutMinutes: 3,

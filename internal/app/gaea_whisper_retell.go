@@ -32,7 +32,7 @@ func (a *whisperState) GaeaWhisperMemoryRetell(kind, id, personalityID string) (
 
 	reply, _, err := a.client.ChatSimpleStreamDetailed(
 		a.ctx, model, buildMemoryRetellSystemPrompt(orch.Preset), contextText,
-		ai.ChatSimpleOptions{EngineID: engine})
+		ai.ChatSimpleOptions{EngineID: engine, Feature: "chat"})
 	if err != nil {
 		return "", fmt.Errorf("重述生成失败: %w", err)
 	}

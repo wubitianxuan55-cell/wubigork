@@ -9,7 +9,7 @@ func (a *App) ChatGeneral(userMsg string) (map[string]interface{}, error) {
 	// v4.15 路由归位：走 routeModel（离线过滤 + 全局/兜底 + model.route 事件），
 	// 与 plain 聊天主链路同源；本绑定不返回 source（返回契约不变）。
 	eng, model, _ := a.routeModel("chat")
-	reply, err := a.client.ChatSimpleStreamWithOptions(a.ctx, model, "你是一个热心、博学的AI助手，用中文与用户进行日常对话。", userMsg, ai.ChatSimpleOptions{EngineID: eng})
+	reply, err := a.client.ChatSimpleStreamWithOptions(a.ctx, model, "你是一个热心、博学的AI助手，用中文与用户进行日常对话。", userMsg, ai.ChatSimpleOptions{EngineID: eng, Feature: "chat"})
 	if err != nil {
 		return nil, err
 	}

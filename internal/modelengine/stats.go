@@ -20,6 +20,7 @@ import (
 type ModelCallUsage struct {
 	EngineID     string `json:"engine_id"`
 	Model        string `json:"model"`
+	Feature      string `json:"feature,omitempty"` // 账目功能域标签（7.1-2 A 线：chat/novel/office 等；空=历史/未标记）
 	InputTokens  int64  `json:"input_tokens"`
 	OutputTokens int64  `json:"output_tokens"`
 	// KV 缓存拆分（命中缓存的 prompt token / 未命中缓存的 prompt token）。
@@ -31,8 +32,10 @@ type ModelCallUsage struct {
 	FinishedAt      string `json:"finished_at,omitempty"`
 }
 
-// ModelUsageStats 单个（引擎, 模型）维度的累计统计。
+// ModelUsageStats 单个（功能域, 引擎, 模型）维度的累计统计（7.1-2 A 线起
+// statsKey 三维分桶；feature 为空 = 历史/未标记桶）。
 type ModelUsageStats struct {
+	Feature         string  `json:"feature,omitempty"` // 账目功能域标签（空=历史/未标记）
 	EngineID        string  `json:"engine_id"`
 	Model           string  `json:"model"`
 	CallCount       int64   `json:"call_count"`
@@ -79,6 +82,24 @@ type ModelStatsSummary struct {
 	// "remote 2"（生效优先级 覆盖 > 远程 > 内嵌，见 glm_catalog.go）。
 	CatalogVersion string `json:"catalog_version,omitempty"`
 	CatalogSource  string `json:"catalog_source,omitempty"`
+	// PerFeature 按 feature×engine×model 三维桶的账目行（7.1-2 A 线，路由账本
+	// GaeaRouteLedger 数据源）：一个功能域多引擎多模型多行，前端按 feature
+	// 分组渲染；feature 为空的桶 = 历史/未标记，排序固定最后（展示层标
+	// 「未标记」，不在此改写）。
+	PerFeature []FeatureUsageSummary `json:"per_feature,omitempty"`
+}
+
+// FeatureUsageSummary 单个 feature×engine×model 桶的账目行。
+type FeatureUsageSummary struct {
+	Feature     string  `json:"feature"`      // 功能绑定键（chat/novel/office/...；空=未标记）
+	EngineID    string  `json:"engine_id"`    // 引擎 ID
+	Model       string  `json:"model"`        // 模型名
+	Calls       int64   `json:"calls"`        // 调用次数
+	TokensIn    int64   `json:"tokens_in"`    // 输入 token
+	TokensOut   int64   `json:"tokens_out"`   // 输出 token
+	CostCNY     float64 `json:"cost_cny"`     // 估算费用（人民币口径；本地引擎恒 0）
+	AvgMs       int64   `json:"avg_ms"`       // 平均单次时长（毫秒）
+	SuccessRate float64 `json:"success_rate"` // 成功率（0-1）
 }
 
 // EngineSubtotal 按引擎聚合的小计（ModelStatsSummary.Engines 的值）。
@@ -274,10 +295,13 @@ func EstimateCostCNY(engineID, model string, inTok, outTok int64, usdCny float64
 const defaultUsdCnyRate = 7.2
 
 // statsFile 磁盘统计文件结构。
+// version 3（7.1-2 A 线）：Models key 扩为 "feature|engine|model" 三维；
+// version 2 及更早的旧文件 key 为 "engine|model"，load 时全量按 feature=""
+// 兼容读入（重键），首次落盘即升 v3。
 type statsFile struct {
 	Version int                        `json:"version"`
 	Since   string                     `json:"since,omitempty"`
-	Models  map[string]ModelUsageStats `json:"models"`           // key: engineID + "|" + model
+	Models  map[string]ModelUsageStats `json:"models"`           // key: feature + "|" + engineID + "|" + model（v2 及更早: engineID + "|" + model）
 	Trends  map[string]TrendPoint      `json:"trends,omitempty"` // key: 小时桶 "2006-01-02T15:00"
 }
 
@@ -341,8 +365,21 @@ func trendBucket(t time.Time) string {
 	return t.Truncate(time.Hour).Format("2006-01-02T15:00")
 }
 
-// key 返回统计维度 key（引擎 + 模型，模型可能为空 → 归入引擎总计）。
-func statsKey(engineID, model string) string {
+// normalizeFeatureKey 归一化账目 feature 标签（7.1-2 A 线）：去空白；
+// whisper 归一为 chat（2.x 聊天/轻语合并，featureModelKeys 同一别名，防脏桶）。
+// 其余原样保留——未知 feature 不静默丢弃，账目如实呈现，由展示层标未知名。
+func normalizeFeatureKey(feature string) string {
+	f := strings.TrimSpace(feature)
+	if f == "whisper" {
+		return "chat"
+	}
+	return f
+}
+
+// key 返回统计维度 key（feature + 引擎 + 模型，7.1-2 A 线三维桶；模型可能为
+// 空 → 归入引擎总计；feature 为空 = 历史/未标记）。
+func statsKey(feature, engineID, model string) string {
+	feature = normalizeFeatureKey(feature)
 	engineID = strings.TrimSpace(engineID)
 	model = strings.TrimSpace(model)
 	if engineID == "" {
@@ -351,7 +388,7 @@ func statsKey(engineID, model string) string {
 	if model == "" {
 		model = "(默认)"
 	}
-	return engineID + "|" + model
+	return feature + "|" + engineID + "|" + model
 }
 
 // load 从磁盘加载统计（懒加载：首次调用时执行）。
@@ -378,6 +415,12 @@ func (r *statsRecorder) load() {
 	r.since = f.Since
 	for k, v := range f.Models {
 		vv := v
+		if f.Version < 3 {
+			// v2 旧文件无 feature 维度（key 为 "engine|model"）：全量按
+			// feature="" 兼容读入，重键到三维格式；首次落盘升 v3。
+			vv.Feature = ""
+			k = statsKey("", vv.EngineID, vv.Model)
+		}
 		r.models[k] = &vv
 	}
 	for k, v := range f.Trends {
@@ -394,7 +437,7 @@ func (r *statsRecorder) save() {
 	}
 	r.mu.Lock()
 	f := statsFile{
-		Version: 2,
+		Version: 3,
 		Since:   r.since,
 		Models:  make(map[string]ModelUsageStats, len(r.models)),
 		Trends:  make(map[string]TrendPoint, len(r.trends)),
@@ -427,10 +470,11 @@ func (r *statsRecorder) record(u ModelCallUsage, billing string) {
 	if r.since == "" {
 		r.since = time.Now().Format("2006-01-02 15:04:05")
 	}
-	key := statsKey(u.EngineID, u.Model)
+	key := statsKey(u.Feature, u.EngineID, u.Model)
 	st, ok := r.models[key]
 	if !ok {
 		st = &ModelUsageStats{
+			Feature:  normalizeFeatureKey(u.Feature),
 			EngineID: strings.TrimSpace(u.EngineID),
 			Model:    strings.TrimSpace(u.Model),
 		}
@@ -547,10 +591,45 @@ func (r *statsRecorder) summary() ModelStatsSummary {
 		eng.EstimatedCostCNY += costCNY
 		sum.Engines[engKey] = eng
 		sum.PerModel = append(sum.PerModel, cp)
+		// per-feature 账目行（7.1-2 A 线）：一行一个 feature×engine×model
+		// 三维桶，费用口径与 per-model 一致（编码套餐桶不计价；本地引擎恒 0
+		// 属实呈现）。
+		fus := FeatureUsageSummary{
+			Feature:   st.Feature,
+			EngineID:  st.EngineID,
+			Model:     st.Model,
+			Calls:     st.CallCount,
+			TokensIn:  st.InputTokens,
+			TokensOut: st.OutputTokens,
+			CostCNY:   costCNY,
+		}
+		if st.CallCount > 0 {
+			fus.AvgMs = st.TotalDurationMs / st.CallCount
+			fus.SuccessRate = float64(st.SuccessCount) / float64(st.CallCount)
+		}
+		sum.PerFeature = append(sum.PerFeature, fus)
 	}
 	if sum.TotalCalls > 0 {
 		sum.AvgDurationMs = sum.TotalDurationMs / sum.TotalCalls
 	}
+	// 未标记桶（feature=""）固定最后；同 feature 内调用次数降序，
+	// 再按引擎/模型升序保证确定性。
+	sort.Slice(sum.PerFeature, func(i, j int) bool {
+		a, b := sum.PerFeature[i], sum.PerFeature[j]
+		if (a.Feature == "") != (b.Feature == "") {
+			return b.Feature == ""
+		}
+		if a.Feature != b.Feature {
+			return a.Feature < b.Feature
+		}
+		if a.Calls != b.Calls {
+			return a.Calls > b.Calls
+		}
+		if a.EngineID != b.EngineID {
+			return a.EngineID < b.EngineID
+		}
+		return a.Model < b.Model
+	})
 	for _, tp := range r.trends {
 		sum.Trend = append(sum.Trend, *tp)
 	}

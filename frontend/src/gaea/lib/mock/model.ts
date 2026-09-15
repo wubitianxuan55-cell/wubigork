@@ -144,6 +144,8 @@ type ModelMethods = Pick<
   | "ModelSwitchEstimate" | "Balance"
   // v4.171 批次一 legacy 直调转正（ModelB 门面）：功能级模型绑定写 + 活跃模型读。
   | "SetFeatureModel" | "SetFeatureModelEnabled" | "GetActiveModel"
+  // 路由学习四名（阶段七 7.1-2，ModelB 门面）：账本/建议/采纳/忽略。
+  | "GaeaRouteLedger" | "GaeaRouteSuggestions" | "GaeaRouteSuggestionApply" | "GaeaRouteSuggestionIgnore"
 > & LegacyModelMethods & LegacyHerdsmanMethods & LegacyBenchmarkMethods &
   LegacyModelHubMethods & LegacyOpencodeKeyMethods;
 
@@ -421,6 +423,40 @@ export function buildModel(s: MakeMockState): ModelMethods {
         per_model: [],
       };
     },
+    // ── 路由学习四名（阶段七 7.1-2；归因 tab 走查用：给一组有数据的账本
+    // + 一条本地引擎建议样本，便于 ?mock=1 目检建议卡/分组表/未标记桶）──
+    async GaeaRouteLedger() {
+      return {
+        generated_at: "2026-09-15T12:00:00+08:00",
+        total: { calls: 120, tokens_in: 80000, tokens_out: 30000, cost_cny: 0.42, avg_ms: 2400, success_rate: 0.95 },
+        features: [
+          { feature: "chat", engine_id: "xai", model: "grok-4", calls: 80, tokens_in: 60000, tokens_out: 22000, cost_cny: 0.38, avg_ms: 2600, success_rate: 0.94 },
+          { feature: "chat", engine_id: "deepseek", model: "deepseek-chat", calls: 20, tokens_in: 10000, tokens_out: 4000, cost_cny: 0.02, avg_ms: 1800, success_rate: 0.95 },
+          { feature: "novel", engine_id: "glm", model: "glm-5", calls: 20, tokens_in: 10000, tokens_out: 4000, cost_cny: 0.02, avg_ms: 2200, success_rate: 0.9 },
+          { feature: "", engine_id: "xai", model: "grok-4", calls: 5, tokens_in: 3000, tokens_out: 1000, cost_cny: 0.01, avg_ms: 2000, success_rate: 1 },
+        ],
+      };
+    },
+    async GaeaRouteSuggestions() {
+      return {
+        generated_at: "2026-09-15T12:00:00+08:00",
+        suggestions: [
+          {
+            id: "chat|xai>grok-4>herdsman>qwen3:32b",
+            feature: "chat",
+            reason: "同功能下 herdsman/qwen3:32b 评分领先当前 0.31（成功率 0.97 vs 0.94，单次成本 0.0000 vs 0.0047 CNY）",
+            evidence: "候选：样本 64 次、均时长 6800ms、本地引擎（零成本）；当前：样本 80 次、均时长 2600ms",
+            from: { engine_id: "xai", model: "grok-4" },
+            to: { engine_id: "herdsman", model: "qwen3:32b", is_local: true, success_rate: 0.97, cost_cny: 0 },
+            score_gap: 0.31,
+          },
+        ],
+      };
+    },
+    async GaeaRouteSuggestionApply(_id: string): Promise<void> {
+      // mock 环境无真实引擎管理：确认语义即可（真实链路=SetFeatureModel 改绑）
+    },
+    async GaeaRouteSuggestionIgnore(_id: string): Promise<void> {},
     // 引擎列表空态（v4.57 走查抓到的既有缺口）：引擎管理段空表，
     // 不再报「GetEngines is not a function」横幅。
     async GetEngines() {

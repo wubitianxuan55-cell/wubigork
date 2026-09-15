@@ -54,6 +54,7 @@ type ChatToolCallDelta struct {
 type ChatRequest struct {
 	Model              string             `json:"model"`
 	EngineID           string             `json:"-"` // 功能级引擎覆盖（空=全局激活引擎），不序列化
+	Feature            string             `json:"-"` // 账目 feature 标签（7.1-2 A 线：调用方功能域，如 chat/novel/office；空=未标记），不序列化
 	Messages           []ChatMessage      `json:"messages"`
 	MaxTokens          int                `json:"max_tokens,omitempty"`
 	Temperature        float64            `json:"temperature,omitempty"`
@@ -78,6 +79,7 @@ type ChatStreamOptions struct {
 // ChatSimpleOptions ChatSimpleStream 的可选参数覆盖
 type ChatSimpleOptions struct {
 	EngineID        string  // 功能级引擎覆盖（空=全局激活引擎）
+	Feature         string  // 账目 feature 标签（7.1-2 A 线：调用方功能域；空=未标记）
 	Temperature     float64 // 覆盖默认 temperature（0 表示使用默认值）
 	MaxTokens       int     // 覆盖默认 max_tokens（0 表示使用默认值）
 	ReasoningEffort string  // 推理深度（"" 表示不开启推理）

@@ -369,6 +369,7 @@ func (a *App) characterGenerate(chJSON, mode string, targets []string) (string, 
 	g := playGuardrails()
 	reply, err := a.client.ChatSimpleStreamWithOptions(ctx, model, systemPrompt, userPrompt, ai.ChatSimpleOptions{
 		EngineID:    eng,
+		Feature:     "characterlib",
 		Temperature: clampPlayTemperature(0.85, g.TemperatureMax),
 		MaxTokens:   clampPlayMaxTokens(2048, g.MaxOutputTokens),
 	})

@@ -1,6 +1,7 @@
 package modelengine
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -388,5 +389,182 @@ func TestStats_UsdCnyRateInvalidFallsBack(t *testing.T) {
 	m.SetUsdCnyRate(-1)
 	if got := m.UsdCnyRate(); got != 7.2 {
 		t.Errorf("SetUsdCnyRate(-1) 后汇率 = %v, want 回退 7.2", got)
+	}
+}
+
+// ── 7.1-2 A 线：feature 三维桶 ───────────────────────────────
+
+// TestStats_FeatureBuckets 表驱动验证 feature|engine|model 三维分桶：
+// 同一 (engine, model) 不同 feature 落不同桶；feature 为空 = 未标记桶；
+// PerFeature 一行一个三维桶（engine_id/model/calls/tokens/cost/avg/rate）；
+// 全局总量不受 feature 维度影响。
+func TestStats_FeatureBuckets(t *testing.T) {
+	m := NewManager("", "")
+	m.SetUsdCnyRate(7.2)
+	cases := []ModelCallUsage{
+		// chat 域 × deepseek：2 次成功 1 次失败
+		{Feature: "chat", EngineID: "deepseek", Model: "deepseek-v4-flash", InputTokens: 100, OutputTokens: 20, DurationMs: 300, Success: true},
+		{Feature: "chat", EngineID: "deepseek", Model: "deepseek-v4-flash", InputTokens: 50, OutputTokens: 10, DurationMs: 300, Success: true},
+		{Feature: "chat", EngineID: "deepseek", Model: "deepseek-v4-flash", InputTokens: 0, OutputTokens: 0, DurationMs: 300, Success: false, ErrorMessage: "HTTP 500"},
+		// novel 域 × 同一 (engine, model)：独立桶
+		{Feature: "novel", EngineID: "deepseek", Model: "deepseek-v4-flash", InputTokens: 1000, OutputTokens: 200, DurationMs: 1000, Success: true},
+		// 未标记（历史调用：ai.Client 旧版本/未透传路径）
+		{EngineID: "deepseek", Model: "deepseek-v4-flash", InputTokens: 10, OutputTokens: 2, DurationMs: 100, Success: true},
+	}
+	for _, u := range cases {
+		m.RecordCall(u)
+	}
+
+	sum := m.GetModelCallStats()
+	// 全局总量 = 三桶之和（feature 维度不改变总量口径）
+	if sum.TotalCalls != 5 || sum.SuccessCalls != 4 || sum.FailCalls != 1 {
+		t.Fatalf("TotalCalls/Success/Fail = %d/%d/%d, want 5/4/1", sum.TotalCalls, sum.SuccessCalls, sum.FailCalls)
+	}
+	if sum.InputTokens != 1160 || sum.OutputTokens != 232 {
+		t.Errorf("tokens = %d/%d, want 1160/232", sum.InputTokens, sum.OutputTokens)
+	}
+	// PerModel：同一 (engine,model) 按 feature 分桶 → 3 行
+	if len(sum.PerModel) != 3 {
+		t.Fatalf("PerModel 数量 = %d, want 3（feature 维度分桶）", len(sum.PerModel))
+	}
+	// PerFeature：一行一个三维桶，未标记（feature=""）排最后
+	if len(sum.PerFeature) != 3 {
+		t.Fatalf("PerFeature 数量 = %d, want 3", len(sum.PerFeature))
+	}
+	if got := sum.PerFeature[len(sum.PerFeature)-1].Feature; got != "" {
+		t.Errorf("PerFeature 末行 feature = %q, want 空串（未标记桶排最后）", got)
+	}
+	byFeature := map[string]FeatureUsageSummary{}
+	for _, f := range sum.PerFeature {
+		byFeature[f.Feature] = f
+	}
+	chat := byFeature["chat"]
+	if chat.EngineID != "deepseek" || chat.Model != "deepseek-v4-flash" {
+		t.Errorf("chat 行 engine/model = %s/%s, want deepseek/deepseek-v4-flash", chat.EngineID, chat.Model)
+	}
+	if chat.Calls != 3 || chat.TokensIn != 150 || chat.TokensOut != 30 {
+		t.Errorf("chat 行 calls/tokens = %d/%d/%d, want 3/150/30", chat.Calls, chat.TokensIn, chat.TokensOut)
+	}
+	if chat.AvgMs != 300 { // (300+300+300)/3
+		t.Errorf("chat 行 AvgMs = %d, want 300", chat.AvgMs)
+	}
+	if got := chat.SuccessRate; got < 0.66 || got > 0.67 { // 2/3
+		t.Errorf("chat 行 SuccessRate = %v, want ~0.667", got)
+	}
+	// 费用与 EstimateCostCNY 同口径（deepseek 走通用目录官方核实价，
+	// 目录价随版本核实更新，测试不硬编码具体单价）
+	wantCost := EstimateCostCNY("deepseek", "deepseek-v4-flash", 150, 30, 7.2)
+	if got := chat.CostCNY; got < wantCost*0.99 || got > wantCost*1.01 {
+		t.Errorf("chat 行 CostCNY = %v, want ~%v", got, wantCost)
+	}
+	novel := byFeature["novel"]
+	if novel.Calls != 1 || novel.TokensIn != 1000 || novel.TokensOut != 200 || novel.AvgMs != 1000 || novel.SuccessRate != 1 {
+		t.Errorf("novel 行 = %+v", novel)
+	}
+	if unmarked := byFeature[""]; unmarked.Calls != 1 || unmarked.TokensIn != 10 {
+		t.Errorf("未标记行 = %+v", unmarked)
+	}
+}
+
+// TestStats_WhisperNormalizedToChat whisper 是 chat 别名（featureModelKeys
+// 2.x 合并），记账时归一为 chat，防止同域脏桶。
+func TestStats_WhisperNormalizedToChat(t *testing.T) {
+	m := NewManager("", "")
+	m.RecordCall(ModelCallUsage{Feature: "whisper", EngineID: "deepseek", Model: "deepseek-v4-flash", InputTokens: 10, Success: true})
+	m.RecordCall(ModelCallUsage{Feature: "chat", EngineID: "deepseek", Model: "deepseek-v4-flash", InputTokens: 20, Success: true})
+
+	sum := m.GetModelCallStats()
+	if len(sum.PerModel) != 1 {
+		t.Fatalf("PerModel 数量 = %d, want 1（whisper 归一到 chat 同桶）", len(sum.PerModel))
+	}
+	if len(sum.PerFeature) != 1 || sum.PerFeature[0].Feature != "chat" {
+		t.Fatalf("PerFeature = %+v, want 单桶 feature=chat", sum.PerFeature)
+	}
+	if sum.PerFeature[0].Calls != 2 {
+		t.Errorf("chat 桶 Calls = %d, want 2", sum.PerFeature[0].Calls)
+	}
+}
+
+// TestStats_LoadLegacyV2RemapsAndUpgradesV3 v2 旧文件（key 为 "engine|model"
+// 二段、无 feature 字段）全量按 feature="" 兼容读入；之后新记录落盘升 v3，
+// key 变为三段 "feature|engine|model"，重启后两类桶并存可读。
+func TestStats_LoadLegacyV2RemapsAndUpgradesV3(t *testing.T) {
+	dir := t.TempDir()
+	statsPath := filepath.Join(dir, "model_stats.json")
+	legacy := `{
+  "version": 2,
+  "since": "2026-08-01 10:00:00",
+  "models": {
+    "deepseek|deepseek-v4-flash": {
+      "engine_id": "deepseek",
+      "model": "deepseek-v4-flash",
+      "call_count": 2,
+      "success_count": 2,
+      "input_tokens": 200,
+      "output_tokens": 40,
+      "total_tokens": 240
+    },
+    "xai|grok-4.20": {
+      "engine_id": "xai",
+      "model": "grok-4.20",
+      "call_count": 1,
+      "success_count": 0,
+      "fail_count": 1,
+      "input_tokens": 10,
+      "output_tokens": 0,
+      "total_tokens": 10
+    }
+  }
+}`
+	if err := os.WriteFile(statsPath, []byte(legacy), 0644); err != nil {
+		t.Fatalf("写 v2 统计文件失败: %v", err)
+	}
+
+	// 1. v2 兼容读：全量 feature=""，数据不丢
+	m := NewManager("", "")
+	m.SetStatsPath(statsPath)
+	sum := m.GetModelCallStats()
+	if sum.TotalCalls != 3 || sum.InputTokens != 210 {
+		t.Fatalf("v2 兼容读 TotalCalls/InputTokens = %d/%d, want 3/210", sum.TotalCalls, sum.InputTokens)
+	}
+	for _, f := range sum.PerFeature {
+		if f.Feature != "" {
+			t.Errorf("v2 旧桶 feature = %q, want 空串", f.Feature)
+		}
+	}
+
+	// 2. 新记录（带 feature）触发落盘 → 版本升 v3、key 三段
+	m.RecordCall(ModelCallUsage{Feature: "chat", EngineID: "deepseek", Model: "deepseek-v4-flash", InputTokens: 30, OutputTokens: 5, Success: true})
+	data, err := os.ReadFile(statsPath)
+	if err != nil {
+		t.Fatalf("读升版后统计文件失败: %v", err)
+	}
+	var f statsFile
+	if err := json.Unmarshal(data, &f); err != nil {
+		t.Fatalf("解析 v3 文件失败: %v", err)
+	}
+	if f.Version != 3 {
+		t.Errorf("落盘版本 = %d, want 3", f.Version)
+	}
+	if _, ok := f.Models["|deepseek|deepseek-v4-flash"]; !ok {
+		t.Errorf("v2 旧桶未按 feature=\"\" 重键: %v", f.Models)
+	}
+	if _, ok := f.Models["chat|deepseek|deepseek-v4-flash"]; !ok {
+		t.Errorf("新桶未落三段 key: %v", f.Models)
+	}
+
+	// 3. 重启恢复：两类桶并存，未标记与 chat 各自独立
+	m2 := NewManager("", "")
+	m2.SetStatsPath(statsPath)
+	sum2 := m2.GetModelCallStats()
+	if sum2.TotalCalls != 4 {
+		t.Fatalf("v3 恢复后 TotalCalls = %d, want 4", sum2.TotalCalls)
+	}
+	feats := map[string]int64{}
+	for _, row := range sum2.PerFeature {
+		feats[row.Feature] += row.Calls
+	}
+	if feats[""] != 2+1 || feats["chat"] != 1 {
+		t.Errorf("v3 恢复后分桶 = %v, want 未标记 3 / chat 1", feats)
 	}
 }

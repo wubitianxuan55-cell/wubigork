@@ -237,6 +237,7 @@ func (a *App) runSinStream(runID, topicID, userMessage, eng, model, source strin
 	g := playGuardrails()
 	opts := ai.ChatSimpleOptions{
 		EngineID:       eng,
+		Feature:        "sin",
 		Temperature:    clampPlayTemperature(sinTemperature, g.TemperatureMax),
 		MaxTokens:      clampPlayMaxTokens(sinMaxTokens, g.MaxOutputTokens),
 		TimeoutMinutes: 10,

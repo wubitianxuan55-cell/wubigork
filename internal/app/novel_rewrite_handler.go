@@ -97,7 +97,7 @@ func (a *writingState) NovelChapterRewrite(chapterNum int, reqJSON string) (map[
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
 	raw, err := a.client.ChatSimpleStreamWithOptions(ctx, model, systemPrompt, userPrompt, ai.ChatSimpleOptions{
-		EngineID: eng, Temperature: 0.7, MaxTokens: 8192, TimeoutMinutes: 10,
+		EngineID: eng, Feature: "novel", Temperature: 0.7, MaxTokens: 8192, TimeoutMinutes: 10,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("重写生成失败: %w", err)

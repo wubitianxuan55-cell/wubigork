@@ -17,10 +17,11 @@ import (
 // Provider 是 gaea provider.LLMProvider（seam 定义）的 gaea 模型中心实现。
 // 注册 kind = "wubigrok"（provider.LLMKindWubigrok），是缺省 LLM 提供者。
 type Provider struct {
-	name   string
-	model  string
-	client ai.LLMClient
-	engine string // 办公功能级引擎（空 = 由 ai.Client 按活跃引擎解析）
+	name    string
+	model   string
+	client  ai.LLMClient
+	engine  string // 办公功能级引擎（空 = 由 ai.Client 按活跃引擎解析）
+	feature string // 账目 feature 标签（7.1-2 A 线）："gaea"=主 agent（引擎未显式指定）；"office"=app 侧显式引擎的功能域调用
 }
 
 // _ 编译期断言：bridge Provider 满足 LLM seam 定义接口（Stream + Chat）。
@@ -44,6 +45,7 @@ func (p *Provider) Stream(ctx context.Context, req provider.Request) (<-chan pro
 		MaxTokens:   req.MaxTokens,
 		Temperature: req.Temperature,
 		EngineID:    p.engine,
+		Feature:     p.feature,
 	}
 	// Qwen3 等本地模型默认不输出推理；开启思考模式（enable_thinking +
 	// chat_template_kwargs）后服务端才会流式下发 reasoning_content，
@@ -161,6 +163,9 @@ func SetClient(c ai.LLMClient) { client = c }
 var featureEngine, featureModel string
 
 // SetFeature 注入办公功能级引擎与模型（空 = 跟随全局活跃引擎）。
+// 注入只影响引擎/模型解析；账目 feature 标签不经此传入——工厂按
+// 「引擎是否显式指定」判定：默认 provider（主 agent）标 "gaea"，
+// app 侧显式引擎的 provider（成本/摘要/知识/读屏等）标 "office"。
 func SetFeature(engine, model string) {
 	featureEngine, featureModel = engine, model
 }
@@ -177,10 +182,16 @@ func init() {
 			model = featureModel // 功能级模型（未绑定则为空，由 ai.Client 动态解析）
 		}
 		engine := cfg.Engine
+		feature := "gaea" // 主 agent（gaea 绑定键域；boot.NewProvider 不传 Engine）
+		if engine != "" {
+			// app 侧功能域调用显式传入引擎（routeOfficeLocal/routeSensitiveLocal
+			// 解析结果：成本/摘要/知识导入/读屏等，全部 office 域）。
+			feature = "office"
+		}
 		if engine == "" {
 			engine = featureEngine // 功能级引擎（未绑定则为空，由 ai.Client 按活跃引擎解析）
 		}
-		return &Provider{name: cfg.Name, model: model, engine: engine, client: client}, nil
+		return &Provider{name: cfg.Name, model: model, engine: engine, feature: feature, client: client}, nil
 	})
 }
 

@@ -94,7 +94,7 @@ func TestCmdKEdit_EngineIDRoutesToEngine(t *testing.T) {
 		engineMgr:  mgr,
 	}
 
-	out, err := c.CmdKEdit(context.Background(), "herdsman", "qwen3-8b", "选中文本", "用更紧张的节奏重写", "")
+	out, err := c.CmdKEdit(context.Background(), "herdsman", "qwen3-8b", "novel", "选中文本", "用更紧张的节奏重写", "")
 	if err != nil {
 		t.Fatalf("CmdKEdit: %v", err)
 	}

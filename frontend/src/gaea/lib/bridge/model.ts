@@ -62,4 +62,74 @@ export interface ModelBindings {
   // GetActiveModel 当前活跃模型名（空=无可用引擎，Go ModelB.GetActiveModel，
   // 同批转正；api/settings.ts getActiveModel / 模型中心 / MainLayout 消费）。
   GetActiveModel(): Promise<string>;
+  // ── 路由学习四名（阶段七 7.1-2，Go ModelB 同名；模型中心「成本归因」tab
+  // 经 api/engines.ts App() 兼容通道消费）。视图形状局部重述对齐
+  // api/engines.ts 的 RouteLedgerView/RouteSuggestionsView（api 层 import 会成
+  // api→gaea→api 环，字段漂移由 mock-contract-route 契约测试兜底——herdsman 先例）。──
+  GaeaRouteLedger(): Promise<RouteLedgerViewB>;
+  GaeaRouteSuggestions(): Promise<RouteSuggestionsViewB>;
+  GaeaRouteSuggestionApply(id: string): Promise<void>;
+  GaeaRouteSuggestionIgnore(id: string): Promise<void>;
+}
+
+// RouteLedgerTotalB 账本总计（与 api/engines.ts RouteLedgerTotal 同形）。
+export interface RouteLedgerTotalB {
+  calls: number;
+  tokens_in: number;
+  tokens_out: number;
+  cost_cny: number;
+  avg_ms: number;
+  success_rate: number; // 0-1；无调用时 0
+}
+
+// FeatureUsageSummaryB 单个 feature×engine×model 桶账目行。
+export interface FeatureUsageSummaryB {
+  feature: string; // 功能绑定键；空串=历史/未标记
+  engine_id: string;
+  model: string;
+  calls: number;
+  tokens_in: number;
+  tokens_out: number;
+  cost_cny: number;
+  avg_ms: number;
+  success_rate: number; // 0-1
+}
+
+// RouteLedgerViewB 路由账本（GaeaRouteLedger 返回形状）。
+export interface RouteLedgerViewB {
+  generated_at: string;
+  total: RouteLedgerTotalB;
+  features: FeatureUsageSummaryB[]; // feature="" 桶=未标记，排序最后
+}
+
+// RouteEndpointB 建议绑定端点。
+export interface RouteEndpointB {
+  engine_id: string;
+  model: string;
+}
+
+// RouteSuggestionTargetB 建议目标（含质量/成本供展示）。
+export interface RouteSuggestionTargetB {
+  engine_id: string;
+  model: string;
+  is_local: boolean;
+  success_rate?: number; // 无样本时缺省
+  cost_cny: number;
+}
+
+// RouteSuggestionB 一条改绑建议。
+export interface RouteSuggestionB {
+  id: string;
+  feature: string;
+  reason: string;
+  evidence: string;
+  from: RouteEndpointB;
+  to: RouteSuggestionTargetB;
+  score_gap: number;
+}
+
+// RouteSuggestionsViewB 建议视图（GaeaRouteSuggestions 返回形状）。
+export interface RouteSuggestionsViewB {
+  generated_at: string;
+  suggestions: RouteSuggestionB[];
 }

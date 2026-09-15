@@ -69,7 +69,7 @@ func (a *App) chatSendPlain(topicID, message string, searchEnabled, thinking, fo
 	promptMessage := a.preparePlainChatMessage(message, searchEnabled, forceSearch)
 	eng, model, source := a.routeModel("chat")
 	reply, reasoning, err := a.client.ChatSimpleStreamDetailed(a.ctx, model,
-		chatPlainSystemPrompt, promptMessage, ai.ChatSimpleOptions{EngineID: eng, EnableThinking: thinking})
+		chatPlainSystemPrompt, promptMessage, ai.ChatSimpleOptions{EngineID: eng, Feature: "chat", EnableThinking: thinking})
 	if err != nil {
 		return nil, err
 	}
@@ -124,7 +124,7 @@ func (a *App) runChatStreamPlain(runID, topicID, userMessage, eng, model, source
 
 	promptMessage := a.preparePlainChatMessage(userMessage, searchEnabled, forceSearch)
 	chunks, cancel, err := a.client.ChatStreamChunks(a.ctx, model, chatPlainSystemPrompt, promptMessage,
-		ai.ChatSimpleOptions{EngineID: eng, EnableThinking: thinking})
+		ai.ChatSimpleOptions{EngineID: eng, Feature: "chat", EnableThinking: thinking})
 	if err != nil {
 		a.emit("chat-stream:"+runID, map[string]interface{}{"type": "error", "error": err.Error()})
 		return

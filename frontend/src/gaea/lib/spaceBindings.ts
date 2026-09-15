@@ -46,6 +46,12 @@ export const GAEA_METHOD_FACETS = {
   SetFeatureModel: "shared",
   SetFeatureModelEnabled: "shared",
   GetActiveModel: "shared",
+  // 路由学习四名（阶段七 7.1-2）：功能级账本/改绑建议（模型中心「成本归因」
+  // tab，两空间模型中心共用）。
+  GaeaRouteLedger: "shared",
+  GaeaRouteSuggestions: "shared",
+  GaeaRouteSuggestionApply: "shared",
+  GaeaRouteSuggestionIgnore: "shared",
   Settings: "shared",
   SetDefaultModel: "shared",
   // v4.171 批次一：办公引擎设置整体写回（OfficePanel「保存」，同 Settings 归 shared）。

@@ -181,6 +181,12 @@ var explicitOverrides = map[string]string{
 	// v4.113.0 刀4：进度计划文件持久化（前缀规则本就落 office，显式声明对齐登记惯例）
 	"GaeaScheduleLoad": "office",
 	"GaeaScheduleSave": "office",
+	// 阶段七 7.1-2 路由学习：账本/建议绑定面挂 ModelB（前缀规则默认落 office，
+	// 模型中心「成本归因」tab 消费，GaeaUsageOverview 同族先例）
+	"GaeaRouteLedger":           "model",
+	"GaeaRouteSuggestions":      "model",
+	"GaeaRouteSuggestionApply":  "model",
+	"GaeaRouteSuggestionIgnore": "model",
 }
 
 func main() {

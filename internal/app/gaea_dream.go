@@ -161,7 +161,7 @@ func (a *App) runDream(space string) error {
 	defer cancel()
 
 	out, err := a.client.ChatSimpleStreamWithOptions(ctx, featModel, dreamSystemPrompt, input,
-		ai.ChatSimpleOptions{EngineID: featEng, Temperature: 0.2, MaxTokens: 1200})
+		ai.ChatSimpleOptions{EngineID: featEng, Feature: "office", Temperature: 0.2, MaxTokens: 1200})
 	if err != nil {
 		return fmt.Errorf("dream summarize: %w", err)
 	}

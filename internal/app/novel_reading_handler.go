@@ -254,6 +254,7 @@ func (a *writingState) NovelReadingAsk(kind, title, chapterText, selection, ques
 	}
 	reply, err := a.client.ChatSimpleStreamWithOptions(ctx, model, system, user, ai.ChatSimpleOptions{
 		EngineID:    eng,
+		Feature:     "novel",
 		Temperature: 0.6,
 		MaxTokens:   maxTokens,
 	})

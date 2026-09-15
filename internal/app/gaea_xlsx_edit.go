@@ -69,7 +69,7 @@ func (a *App) GaeaXlsxPlanEdit(rel, sheet, instruction, selection string) (XlsxP
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	reply, err := a.client.XlsxEditOps(ctx, featEng, featModel, ctxJSON, selection, instruction)
+	reply, err := a.client.XlsxEditOps(ctx, featEng, featModel, "office", ctxJSON, selection, instruction)
 	if err != nil {
 		return XlsxPlanResult{}, err
 	}

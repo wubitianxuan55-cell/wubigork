@@ -214,6 +214,7 @@ func runWxAgent(a *App, assistantID, systemPrompt, userMsg string) (reply string
 		req := &ai.ChatRequest{
 			Model:       model,
 			EngineID:    engine,
+			Feature:     "chat",
 			Messages:    msgs,
 			Tools:       wxAgentTools,
 			MaxTokens:   4096,

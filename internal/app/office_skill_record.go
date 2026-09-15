@@ -175,7 +175,7 @@ func (a *App) GaeaSkillDraftFromSession() (SkillRecordResult, error) {
 	}
 	caller := func(ctx context.Context, sys, usr string) (string, error) {
 		return a.client.ChatSimpleStreamWithOptions(ctx, model, sys, usr,
-			ai.ChatSimpleOptions{EngineID: engID, Temperature: 0.2, MaxTokens: 1500, TimeoutMinutes: 3})
+			ai.ChatSimpleOptions{EngineID: engID, Feature: "office", Temperature: 0.2, MaxTokens: 1500, TimeoutMinutes: 3})
 	}
 	system := tmpl.BuildSystemPrompt("")
 	user := tmpl.BuildUserPrompt(map[string]string{"replay": replay})

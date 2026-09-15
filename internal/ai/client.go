@@ -469,7 +469,7 @@ func (c *Client) chatOnce(ctx context.Context, req *ChatRequest) (*ChatResponse,
 
 	endpoint, apiKey, err := c.resolveChatEndpoint(req.EngineID)
 	if err != nil {
-		c.recordUsage(reqEngine, reqModel, start, 0, 0, 0, 0, false, err.Error())
+		c.recordUsage(req.Feature, reqEngine, reqModel, start, 0, 0, 0, 0, false, err.Error())
 		return nil, err
 	}
 
@@ -480,7 +480,7 @@ func (c *Client) chatOnce(ctx context.Context, req *ChatRequest) (*ChatResponse,
 
 	body, err := json.Marshal(req)
 	if err != nil {
-		c.recordUsage(reqEngine, reqModel, start, 0, 0, 0, 0, false, err.Error())
+		c.recordUsage(req.Feature, reqEngine, reqModel, start, 0, 0, 0, 0, false, err.Error())
 		return nil, fmt.Errorf("marshal request: %w", err)
 	}
 
@@ -493,14 +493,14 @@ func (c *Client) chatOnce(ctx context.Context, req *ChatRequest) (*ChatResponse,
 			case <-time.After(backoff[attempt-1]):
 			case <-ctx.Done():
 				errMsg := fmt.Sprintf("请求已取消: %v", ctx.Err())
-				c.recordUsage(reqEngine, reqModel, start, 0, 0, 0, 0, false, errMsg)
+				c.recordUsage(req.Feature, reqEngine, reqModel, start, 0, 0, 0, 0, false, errMsg)
 				return nil, fmt.Errorf("%s", errMsg)
 			}
 		}
 
 		httpReq, err := http.NewRequestWithContext(ctx, "POST", endpoint, bytes.NewReader(body))
 		if err != nil {
-			c.recordUsage(reqEngine, reqModel, start, 0, 0, 0, 0, false, err.Error())
+			c.recordUsage(req.Feature, reqEngine, reqModel, start, 0, 0, 0, 0, false, err.Error())
 			return nil, fmt.Errorf("构造请求失败: %w", err)
 		}
 		httpReq.Header.Set("Content-Type", "application/json")
@@ -512,7 +512,7 @@ func (c *Client) chatOnce(ctx context.Context, req *ChatRequest) (*ChatResponse,
 		if err != nil {
 			// 连接建立失败：ctx 取消不重试，其余退避重试
 			if ctx.Err() != nil {
-				c.recordUsage(reqEngine, reqModel, start, 0, 0, 0, 0, false, err.Error())
+				c.recordUsage(req.Feature, reqEngine, reqModel, start, 0, 0, 0, 0, false, err.Error())
 				return nil, fmt.Errorf("API 请求失败: %w", err)
 			}
 			lastErr = fmt.Errorf("API 请求失败: %w", err)
@@ -523,7 +523,7 @@ func (c *Client) chatOnce(ctx context.Context, req *ChatRequest) (*ChatResponse,
 		respBody, readErr := io.ReadAll(resp.Body)
 		resp.Body.Close()
 		if readErr != nil {
-			c.recordUsage(reqEngine, reqModel, start, 0, 0, 0, 0, false, readErr.Error())
+			c.recordUsage(req.Feature, reqEngine, reqModel, start, 0, 0, 0, 0, false, readErr.Error())
 			return nil, fmt.Errorf("read response body: %w", readErr)
 		}
 
@@ -531,13 +531,13 @@ func (c *Client) chatOnce(ctx context.Context, req *ChatRequest) (*ChatResponse,
 		//（不递归调用 Chat，避免外层 defer releaseSem 未执行而占 2 个信号量槽）。
 		if resp.StatusCode == 401 && reqEngine == "xai" && !refreshed {
 			if err := c.tryRefreshToken(); err != nil {
-				c.recordUsage(reqEngine, reqModel, start, 0, 0, 0, 0, false, err.Error())
+				c.recordUsage(req.Feature, reqEngine, reqModel, start, 0, 0, 0, 0, false, err.Error())
 				return nil, fmt.Errorf("认证失败 (HTTP 401): %w", err)
 			}
 			refreshed = true
 			newKey, err := c.GetToken()
 			if err != nil {
-				c.recordUsage(reqEngine, reqModel, start, 0, 0, 0, 0, false, err.Error())
+				c.recordUsage(req.Feature, reqEngine, reqModel, start, 0, 0, 0, 0, false, err.Error())
 				return nil, fmt.Errorf("认证失败 (HTTP 401): %w", err)
 			}
 			apiKey = newKey
@@ -554,18 +554,18 @@ func (c *Client) chatOnce(ctx context.Context, req *ChatRequest) (*ChatResponse,
 
 		if resp.StatusCode != 200 {
 			errMsg := fmt.Sprintf("API 错误 (HTTP %d): %s", resp.StatusCode, trimStr(string(respBody), 500))
-			c.recordUsage(reqEngine, reqModel, start, 0, 0, 0, 0, false, errMsg)
+			c.recordUsage(req.Feature, reqEngine, reqModel, start, 0, 0, 0, 0, false, errMsg)
 			return nil, fmt.Errorf("%s", errMsg)
 		}
 
 		var chatResp ChatResponse
 		if err := json.Unmarshal(respBody, &chatResp); err != nil {
-			c.recordUsage(reqEngine, reqModel, start, 0, 0, 0, 0, false, err.Error())
+			c.recordUsage(req.Feature, reqEngine, reqModel, start, 0, 0, 0, 0, false, err.Error())
 			return nil, fmt.Errorf("解析响应失败: %w", err)
 		}
 		if chatResp.Error != nil {
 			errMsg := fmt.Sprintf("[%s] %s", chatResp.Error.Code, chatResp.Error.Message)
-			c.recordUsage(reqEngine, reqModel, start, 0, 0, 0, 0, false, errMsg)
+			c.recordUsage(req.Feature, reqEngine, reqModel, start, 0, 0, 0, 0, false, errMsg)
 			return nil, fmt.Errorf("%s", errMsg)
 		}
 		var inTok, outTok, cacheHit, cacheMiss int64
@@ -573,13 +573,13 @@ func (c *Client) chatOnce(ctx context.Context, req *ChatRequest) (*ChatResponse,
 			inTok, outTok = chatResp.Usage.PromptTokens, chatResp.Usage.CompletionTokens
 			cacheHit, cacheMiss = cacheSplitForUsage(chatResp.Usage)
 		}
-		c.recordUsage(reqEngine, reqModel, start, inTok, outTok, cacheHit, cacheMiss, true, "")
+		c.recordUsage(req.Feature, reqEngine, reqModel, start, inTok, outTok, cacheHit, cacheMiss, true, "")
 		return &chatResp, nil
 	}
 	if lastErr == nil {
 		lastErr = fmt.Errorf("API 请求失败（重试耗尽）")
 	}
-	c.recordUsage(reqEngine, reqModel, start, 0, 0, 0, 0, false, lastErr.Error())
+	c.recordUsage(req.Feature, reqEngine, reqModel, start, 0, 0, 0, 0, false, lastErr.Error())
 	return nil, lastErr
 }
 
@@ -605,7 +605,7 @@ func (c *Client) ChatStream(ctx context.Context, req *ChatRequest) (<-chan SSECh
 	endpoint, apiKey, err := c.resolveChatEndpoint(req.EngineID)
 	if err != nil {
 		c.releaseSem()
-		c.recordUsage(reqEngine, reqModel, start, 0, 0, 0, 0, false, err.Error())
+		c.recordUsage(req.Feature, reqEngine, reqModel, start, 0, 0, 0, 0, false, err.Error())
 		return nil, err
 	}
 
@@ -623,7 +623,7 @@ func (c *Client) ChatStream(ctx context.Context, req *ChatRequest) (<-chan SSECh
 	body, err := json.Marshal(req)
 	if err != nil {
 		c.releaseSem()
-		c.recordUsage(reqEngine, reqModel, start, 0, 0, 0, 0, false, err.Error())
+		c.recordUsage(req.Feature, reqEngine, reqModel, start, 0, 0, 0, 0, false, err.Error())
 		return nil, fmt.Errorf("marshal stream request: %w", err)
 	}
 
@@ -647,7 +647,7 @@ func (c *Client) ChatStream(ctx context.Context, req *ChatRequest) (<-chan SSECh
 		cancel()
 		c.releaseSem()
 		// 失败请求照常记账（原引擎/模型）。
-		c.recordUsage(reqEngine, reqModel, start, 0, 0, 0, 0, false, err.Error())
+		c.recordUsage(req.Feature, reqEngine, reqModel, start, 0, 0, 0, 0, false, err.Error())
 		// C 刀故障转移 v0：doStreamRequest 只在「尚未收到任何响应字节」时返回
 		// 错误（连接失败/非 200；200 返回即流已开始，不进本分支）。可转移时换
 		// 候选引擎重试一次；重试请求带 failoverDone 标记，不再二次转移。
@@ -676,7 +676,7 @@ func (c *Client) ChatStream(ctx context.Context, req *ChatRequest) (<-chan SSECh
 	// 若把 streamCtx 传入，超时后 send 的 ctx.Done 分支就绪会随机抢占，
 	// 导致超时错误分块被丢弃。
 	chunks := make(chan SSEChunk, 64)
-	go c.parseStreamEvents(ctx, resp, chunks, reqEngine, reqModel, start)
+	go c.parseStreamEvents(ctx, resp, chunks, reqEngine, reqModel, req.Feature, start)
 	return chunks, nil
 }
 
@@ -771,7 +771,8 @@ func (c *Client) doStreamRequest(ctx context.Context, endpoint, apiKey string, b
 }
 
 // parseStreamEvents 解析 SSE 事件流并发送到 chunks channel
-func (c *Client) parseStreamEvents(ctx context.Context, resp *http.Response, chunks chan SSEChunk, reqEngine, reqModel string, start time.Time) {
+// feature 为账目功能域标签（7.1-2 A 线，由 ChatStream 从 req.Feature 透传）。
+func (c *Client) parseStreamEvents(ctx context.Context, resp *http.Response, chunks chan SSEChunk, reqEngine, reqModel, feature string, start time.Time) {
 	defer resp.Body.Close()
 	defer close(chunks)
 	defer c.releaseSem()
@@ -805,6 +806,7 @@ func (c *Client) parseStreamEvents(ctx context.Context, resp *http.Response, chu
 		c.engineMgr.RecordCall(modelengine.ModelCallUsage{
 			EngineID:        reqEngine,
 			Model:           reqModel,
+			Feature:         feature,
 			InputTokens:     inTok,
 			OutputTokens:    outTok,
 			CacheHitTokens:  cacheHit,
@@ -1026,13 +1028,15 @@ func flushToolCalls(pending map[int]*ChatToolCall, order []int) []ChatToolCall {
 }
 
 // recordUsage 上报一次模型调用统计（非流式路径 / 流式前置失败路径）。
-func (c *Client) recordUsage(engineID, model string, start time.Time, inTok, outTok, cacheHit, cacheMiss int64, success bool, errMsg string) {
+// feature 为账目功能域标签（7.1-2 A 线，空=未标记/历史）。
+func (c *Client) recordUsage(feature, engineID, model string, start time.Time, inTok, outTok, cacheHit, cacheMiss int64, success bool, errMsg string) {
 	if c.engineMgr == nil {
 		return
 	}
 	c.engineMgr.RecordCall(modelengine.ModelCallUsage{
 		EngineID:        engineID,
 		Model:           model,
+		Feature:         feature,
 		InputTokens:     inTok,
 		OutputTokens:    outTok,
 		CacheHitTokens:  cacheHit,
@@ -1212,6 +1216,7 @@ func (c *Client) prepareStreamRequest(model string, messages []ChatMessage, opts
 	req := &ChatRequest{
 		Model:           model,
 		EngineID:        opts.EngineID,
+		Feature:         opts.Feature,
 		Messages:        messages,
 		MaxTokens:       maxTokens,
 		Temperature:     temperature,

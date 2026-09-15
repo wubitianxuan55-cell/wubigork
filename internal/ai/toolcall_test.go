@@ -45,7 +45,7 @@ func TestParseStreamEvents_ToolCalls(t *testing.T) {
 		t.Fatalf("acquireSem: %v", err)
 	}
 	chunks := make(chan SSEChunk, 16)
-	go c.parseStreamEvents(context.Background(), resp, chunks, "xai", "grok-4.20", time.Now())
+	go c.parseStreamEvents(context.Background(), resp, chunks, "xai", "grok-4.20", "", time.Now())
 
 	var got []SSEChunk
 	for ch := range chunks {

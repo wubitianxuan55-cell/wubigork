@@ -123,7 +123,7 @@ func (a *writingState) brainstormBranchesForNode(pm *project.Manager, target *ty
 	eng, model, _ := a.routeModel("novel")
 	// S1.5-B play 内容护栏：max_output_tokens 钳制（temperature_max 不适用
 	// ——该点未显式传温度，钳制不注入新参数）。未配置 = 零值 = 现状逐字节。
-	opts := ai.ChatSimpleOptions{EngineID: eng}
+	opts := ai.ChatSimpleOptions{EngineID: eng, Feature: "novel"}
 	applyChatSimpleMaxTokens(&opts, playGuardrails().MaxOutputTokens)
 	reply, err := a.client.ChatSimpleStreamWithOptions(a.ctx, model, systemPrompt, userPrompt, opts)
 	if err != nil {
@@ -249,7 +249,7 @@ func (a *writingState) QuickBrainstormBranches(setting, prevSummary string) (map
 	eng, model, _ := a.routeModel("novel")
 	// S1.5-B play 内容护栏：同 BrainstormBranches（max_output_tokens 钳制；
 	// 未配置 = 零值 = 现状逐字节）。
-	opts := ai.ChatSimpleOptions{EngineID: eng}
+	opts := ai.ChatSimpleOptions{EngineID: eng, Feature: "novel"}
 	applyChatSimpleMaxTokens(&opts, playGuardrails().MaxOutputTokens)
 	reply, err := a.client.ChatSimpleStreamWithOptions(a.ctx, model, systemPrompt, userPrompt, opts)
 	if err != nil {

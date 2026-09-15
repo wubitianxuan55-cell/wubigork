@@ -47,7 +47,7 @@ func (c *Client) GhostComplete(ctx context.Context, model string, currentText st
 		Model:       model,
 		Messages:    []ChatMessage{{Role: "system", Content: systemPrompt}, {Role: "user", Content: userPrompt}},
 		MaxTokens:   256,
-		Temperature: 0.8,  // 稍高温度增加多样性
+		Temperature: 0.8, // 稍高温度增加多样性
 		Stream:      true,
 		TopP:        0.95,
 	}
@@ -98,11 +98,12 @@ func (c *Client) GhostComplete(ctx context.Context, model string, currentText st
 // ── Cmd+K 命令编辑 ──────────────────────────────────────────
 
 // CmdKEdit 根据自然语言指令编辑选中文本。
-// engineID 指定引擎（功能绑定路由后传入；空=活跃引擎回退），model 指定模型名。
+// engineID 指定引擎（功能绑定路由后传入；空=活跃引擎回退），model 指定模型名，
+// feature 为账目功能域标签（7.1-2 A 线，空=未标记）。
 // selectedText: 用户选中的文本，instruction: 自然语言编辑指令（如"用更紧张的节奏重写"）
 // styleProfile: 可选的风格指导
 // 返回编辑后的文本
-func (c *Client) CmdKEdit(ctx context.Context, engineID, model string, selectedText string, instruction string, styleProfile string) (string, error) {
+func (c *Client) CmdKEdit(ctx context.Context, engineID, model, feature string, selectedText string, instruction string, styleProfile string) (string, error) {
 	styleInstruction := ""
 	if styleProfile != "" {
 		styleInstruction = fmt.Sprintf("\n整体风格要求：%s", styleProfile)
@@ -130,6 +131,7 @@ func (c *Client) CmdKEdit(ctx context.Context, engineID, model string, selectedT
 		Temperature: 0.6,
 		MaxTokens:   util.Max(len([]rune(selectedText))*2, 1024),
 		EngineID:    engineID,
+		Feature:     feature,
 	})
 	if err != nil {
 		return "", fmt.Errorf("Cmd+K 编辑失败: %w", err)
@@ -146,8 +148,8 @@ func (c *Client) CmdKEdit(ctx context.Context, engineID, model string, selectedT
 
 // OfficeEditText 根据自然语言指令编辑选中的办公文本（框选即改）。
 // 与 CmdKEdit（小说向）不同：提示词面向办公文档——措辞严谨、关键信息
-// （数字/日期/单位/专有名词）不变、输出纯文本。
-func (c *Client) OfficeEditText(ctx context.Context, engineID, model string, selectedText string, instruction string) (string, error) {
+// （数字/日期/单位/专有名词）不变、输出纯文本。feature 为账目功能域标签。
+func (c *Client) OfficeEditText(ctx context.Context, engineID, model, feature string, selectedText string, instruction string) (string, error) {
 	styleInstruction := "\n5. 保留文档原语气与行文风格，不擅自添加营销腔或夸张表达"
 
 	systemPrompt := fmt.Sprintf(`你是专业办公文档编辑助手。根据用户指令精确编辑给定文本。
@@ -172,6 +174,7 @@ func (c *Client) OfficeEditText(ctx context.Context, engineID, model string, sel
 		Temperature: 0.3,
 		MaxTokens:   util.Max(len([]rune(selectedText))*2, 1024),
 		EngineID:    engineID,
+		Feature:     feature,
 	})
 	if err != nil {
 		return "", fmt.Errorf("AI 编辑失败: %w", err)
@@ -187,7 +190,8 @@ func (c *Client) OfficeEditText(ctx context.Context, engineID, model string, sel
 
 // XlsxEditOps 根据表格上下文与用户指令，规划 Excel 单元格操作（JSON 数组）。
 // 返回的字符串由调用方用 util.ExtractJSON 解析为 xlsxedit.Op 列表。
-func (c *Client) XlsxEditOps(ctx context.Context, engineID, model string, contextJSON string, selection string, instruction string) (string, error) {
+// feature 为账目功能域标签（7.1-2 A 线，空=未标记）。
+func (c *Client) XlsxEditOps(ctx context.Context, engineID, model, feature string, contextJSON string, selection string, instruction string) (string, error) {
 	systemPrompt := `你是 Excel 表格操作规划器。根据表格上下文与用户指令，输出严格 JSON 数组，每个元素是一个操作对象。
 支持的操作类型（sheet 使用给定工作表名）：
 {"type":"set_formula","sheet":"..","target":"B4","formula":"SUM(B2:B3)"}  在指定单元格写入公式（不含前导 =）
@@ -220,6 +224,7 @@ func (c *Client) XlsxEditOps(ctx context.Context, engineID, model string, contex
 		Temperature: 0.2,
 		MaxTokens:   2048,
 		EngineID:    engineID,
+		Feature:     feature,
 	})
 	if err != nil {
 		return "", fmt.Errorf("表格操作规划失败: %w", err)

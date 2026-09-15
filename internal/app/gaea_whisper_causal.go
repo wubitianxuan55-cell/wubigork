@@ -52,7 +52,7 @@ func (a *whisperState) GaeaWhisperCausalExplain(entity, personalityID string) (s
 
 	reply, _, err := a.client.ChatSimpleStreamDetailed(
 		a.ctx, model, buildCausalExplainSystemPrompt(orch.Preset, entity), evidence,
-		ai.ChatSimpleOptions{EngineID: engine})
+		ai.ChatSimpleOptions{EngineID: engine, Feature: "chat"})
 	if err != nil {
 		return "", fmt.Errorf("因果解释生成失败: %w", err)
 	}

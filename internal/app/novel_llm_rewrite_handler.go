@@ -155,7 +155,7 @@ func (a *writingState) llmRewriteSentences(chapterNum int, targets []rewriteSent
 		return nil, fmt.Errorf("未找到可用模型（可能离线）")
 	}
 	reply, err := a.client.ChatSimpleStreamWithOptions(context.Background(), model, system, user, ai.ChatSimpleOptions{
-		EngineID: eng, Temperature: 0.7, MaxTokens: 2048,
+		EngineID: eng, Feature: "novel", Temperature: 0.7, MaxTokens: 2048,
 	})
 	if err != nil {
 		return nil, err

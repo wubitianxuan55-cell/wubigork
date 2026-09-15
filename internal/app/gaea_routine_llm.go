@@ -80,6 +80,7 @@ func (t routineLLMTool) Execute(ctx context.Context, args json.RawMessage) (stri
 	}
 	reply, err := t.a.client.ChatSimpleStreamWithOptions(ctx, model, p.System, p.Prompt, ai.ChatSimpleOptions{
 		EngineID:       engine,
+		Feature:        "routine",
 		Temperature:    temperature,
 		MaxTokens:      p.MaxTokens,
 		TimeoutMinutes: 3,

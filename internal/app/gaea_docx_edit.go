@@ -31,7 +31,7 @@ func (a *App) GaeaOfficeEditText(selectedText, instruction string) (map[string]i
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	edited, err := a.client.OfficeEditText(ctx, featEng, featModel, selectedText, instruction)
+	edited, err := a.client.OfficeEditText(ctx, featEng, featModel, "office", selectedText, instruction)
 	if err != nil {
 		return nil, err
 	}

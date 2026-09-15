@@ -21,7 +21,7 @@ func (a *App) CmdKEdit(selectedText string, instruction string, styleProfile str
 	if ctx == nil {
 		ctx = context.Background() // 测试/异常路径防御：client 需要非 nil ctx
 	}
-	edited, err := a.client.CmdKEdit(ctx, featEng, featModel, selectedText, instruction, styleProfile)
+	edited, err := a.client.CmdKEdit(ctx, featEng, featModel, "novel", selectedText, instruction, styleProfile)
 	if err != nil {
 		return nil, err
 	}

@@ -383,7 +383,7 @@ func (a *writingState) reconstructChat(ctx context.Context, system, user string)
 		return "", fmt.Errorf("未找到可用模型（可能离线）")
 	}
 	return a.client.ChatSimpleStreamWithOptions(ctx, model, system, user, ai.ChatSimpleOptions{
-		EngineID: eng, Temperature: 0.3, MaxTokens: 8192,
+		EngineID: eng, Feature: "novel", Temperature: 0.3, MaxTokens: 8192,
 	})
 }
 

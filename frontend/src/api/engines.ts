@@ -293,6 +293,65 @@ export interface StreamProbeResult {
   response_start?: string
 }
 
+// ── 阶段七 7.1-2 路由学习：成本归因账本 + 改绑建议（模型中心「成本归因」tab） ──
+
+/** 功能维度用量汇总（RouteLedgerView.features 元素；一行 = feature×引擎×模型桶） */
+export interface FeatureUsageSummary {
+  feature: string // 功能绑定键（chat/novel/office/...；空串 = 历史/未标记）
+  engine_id: string
+  model: string
+  calls: number
+  tokens_in: number
+  tokens_out: number
+  cost_cny: number // 估算成本（既有 EstimateCostCNY 口径；本地引擎恒 0 属实呈现）
+  avg_ms: number
+  success_rate: number // 0-1
+}
+
+/** 归因账本总览（口径同 FeatureUsageSummary 的全量汇总） */
+export interface RouteLedgerTotal {
+  calls: number
+  tokens_in: number
+  tokens_out: number
+  cost_cny: number
+  avg_ms: number
+  success_rate: number // 0-1
+}
+
+export interface RouteLedgerView {
+  generated_at: string
+  total: RouteLedgerTotal
+  features: FeatureUsageSummary[]
+}
+
+/** 建议端点（from / to 共用基础形状） */
+export interface RouteEndpoint {
+  engine_id: string
+  model: string
+}
+
+/** 建议目标端（to）：在端点之上附本地/云端与评分证据 */
+export interface RouteSuggestionTarget extends RouteEndpoint {
+  is_local: boolean
+  success_rate?: number // 0-1；无样本时缺省（无样本不给建议）
+  cost_cny: number
+}
+
+export interface RouteSuggestion {
+  id: string // 确定性 ID：feature:fromEngine/fromModel>toEngine/toModel
+  feature: string
+  reason: string
+  evidence: string
+  from: RouteEndpoint
+  to: RouteSuggestionTarget
+  score_gap: number // 候选 score − 当前绑定 score（≥0.25 才出建议）
+}
+
+export interface RouteSuggestionsView {
+  generated_at: string
+  suggestions: RouteSuggestion[]
+}
+
 // ── API 函数 ─────────────────────────────────────────────────
 
 import type { AppFacade } from '../types/wails'
@@ -449,6 +508,29 @@ export async function startModelHubModel(modelID: string): Promise<void> {
 export async function getModelCallStats(): Promise<ModelStatsSummary> {
   const result = await App().GetModelCallStats()
   return result as ModelStatsSummary
+}
+
+/** 获取成本归因账本（阶段七 7.1-2：按功能绑定键聚合的用量/成本/成功率视图） */
+export async function getRouteLedger(): Promise<RouteLedgerView> {
+  const result = await App().GaeaRouteLedger()
+  return result as RouteLedgerView
+}
+
+/** 获取改绑建议（后端现算 + 合并忽略表；评分差超阈值才出现） */
+export async function getRouteSuggestions(): Promise<RouteSuggestionsView> {
+  const result = await App().GaeaRouteSuggestions()
+  return result as RouteSuggestionsView
+}
+
+/** 采纳一条改绑建议（后端内部经 SetFeatureModel 即时重建；绑定面靠既有
+ *  feature-model-changed 事件自动刷新，前端无需手动刷绑定区） */
+export async function applyRouteSuggestion(id: string): Promise<void> {
+  await App().GaeaRouteSuggestionApply(id)
+}
+
+/** 忽略一条改绑建议（写忽略状态，被忽略建议不再出现） */
+export async function ignoreRouteSuggestion(id: string): Promise<void> {
+  await App().GaeaRouteSuggestionIgnore(id)
 }
 
 /** 获取美元→人民币汇率（费用估算折算用，默认 7.2；T6-6.2） */

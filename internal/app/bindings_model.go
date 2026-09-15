@@ -20,6 +20,10 @@ func (b *ModelB) GaeaGetUsdCnyRate() float64 { return b.a.GaeaGetUsdCnyRate() }
 func (b *ModelB) GaeaModel() string { return b.a.GaeaModel() }
 func (b *ModelB) GaeaModelSwitchEstimate(engineID string, model string) ModelSwitchEstimate { return b.a.GaeaModelSwitchEstimate(engineID, model) }
 func (b *ModelB) GaeaModels() []ModelInfo { return b.a.GaeaModels() }
+func (b *ModelB) GaeaRouteLedger() (RouteLedgerView, error) { return b.a.GaeaRouteLedger() }
+func (b *ModelB) GaeaRouteSuggestionApply(id string) error { return b.a.GaeaRouteSuggestionApply(id) }
+func (b *ModelB) GaeaRouteSuggestionIgnore(id string) error { return b.a.GaeaRouteSuggestionIgnore(id) }
+func (b *ModelB) GaeaRouteSuggestions() (RouteSuggestionsView, error) { return b.a.GaeaRouteSuggestions() }
 func (b *ModelB) GaeaSetEngine(engineID string) error { return b.a.GaeaSetEngine(engineID) }
 func (b *ModelB) GaeaSetModel(name string) error { return b.a.GaeaSetModel(name) }
 func (b *ModelB) GaeaSetUsdCnyRate(rate float64) error { return b.a.GaeaSetUsdCnyRate(rate) }

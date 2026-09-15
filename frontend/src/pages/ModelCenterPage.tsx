@@ -3,7 +3,7 @@ import { Button, Drawer, message } from 'antd'
 import {
   ThunderboltOutlined, PictureOutlined, SoundOutlined, SettingOutlined, LinkOutlined,
   CheckCircleOutlined, LoginOutlined, LogoutOutlined, DatabaseOutlined, DashboardOutlined, ReloadOutlined, BarChartOutlined,
-  AppstoreOutlined, ExperimentOutlined, SearchOutlined, ControlOutlined,
+  AppstoreOutlined, ExperimentOutlined, SearchOutlined, ControlOutlined, PieChartOutlined,
 } from '@ant-design/icons'
 import { useAppStore } from '../stores/appStore'
 import { ModelCenterContext, type ModelCenterContextValue } from './modelcenter/context'
@@ -20,6 +20,7 @@ import { HerdsmanCatalogSection } from './modelcenter/HerdsmanCatalogSection'
 import { BenchmarkSection } from './modelcenter/BenchmarkSection'
 import { RetrievalEvalSection } from './modelcenter/RetrievalEvalSection'
 import { SchedulingSection } from './modelcenter/SchedulingSection'
+import { AttributionSection } from './modelcenter/AttributionSection'
 import { InspectorPanel } from './modelcenter/InspectorPanel'
 import { useEngineState } from './modelcenter/hooks/useEngineState'
 import { useStatsState } from './modelcenter/hooks/useStatsState'
@@ -194,6 +195,7 @@ const ModelCenterPage: React.FC = () => {
     { key: 'retrieval', icon: <SearchOutlined />, label: '检索质量' },
     { key: 'bind', icon: <LinkOutlined />, label: '功能绑定' },
     { key: 'strategy', icon: <ControlOutlined />, label: '空间策略' },
+    { key: 'attribution', icon: <PieChartOutlined />, label: '成本归因' },
     { key: 'engine', icon: <SettingOutlined />, label: '引擎管理' },
   ]
 
@@ -313,6 +315,7 @@ const ModelCenterPage: React.FC = () => {
             )}
             {category === 'bind' && <BindSection />}
             {category === 'strategy' && <StrategySection />}
+            {category === 'attribution' && <AttributionSection />}
             <Drawer
               title="模型调用统计"
               open={statsOpen}

@@ -78,6 +78,7 @@ func (a *App) classifyIntentWithLLM(text string) *intent.Intent {
 	reply, err := a.client.ChatSimpleStreamWithOptions(ctx, model,
 		sysPrompt, "用户输入："+text, ai.ChatSimpleOptions{
 			EngineID:       engine,
+			Feature:        "routine",
 			Temperature:    0.1,
 			MaxTokens:      64,
 			TimeoutMinutes: 1,
