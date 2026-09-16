@@ -1,7 +1,8 @@
 // T6 提示词工坊契约层 mock 冒烟测试：PromptTemplate 五名（List/Get/Save/Reset/
-// Preview，Go NovelB 门面，t6 首刀规格 §4.2）。锁定 AppBindings 契约 + mock 实现
-// 形状——键名与 api/prompt.ts 消费方解析字段、面板（PromptWorkshopPanel）渲染
-// 分支三方一一对应（先例：mock-contract-route.test.ts）。
+// Preview，Go NovelB 门面，t6 首刀规格 §4.2）+ t6-C2 模板包两名
+// （PromptBundleExport/Import，规格 进度计划/gaea-prompt-bundle-t6c2-20260916.md）。
+// 锁定 AppBindings 契约 + mock 实现形状——键名与 api/prompt.ts 消费方解析字段、
+// 面板（PromptWorkshopPanel）渲染分支三方一一对应（先例：mock-contract-route.test.ts）。
 import { describe, expect, it } from "vitest";
 import { app } from "./bridge";
 
@@ -30,11 +31,17 @@ const promptApi = app as unknown as {
   ): Promise<{ saved: boolean; issues: Array<{ code: string; severity: string; message: string }>; version: number }>;
   PromptTemplateReset(key: string): Promise<void>;
   PromptTemplatePreview(reqJSON: string, varsJSON: string): Promise<{ systemPrompt: string; warnings: string[] }>;
+  PromptBundleExport(): Promise<string>;
+  PromptBundleImport(bundleJSON: string): Promise<{
+    applied: boolean;
+    statistics: Record<string, number>;
+    outcomes: Array<{ key: string; action: string; reason?: string }>;
+  }>;
 };
 
 describe("mock 契约 · 提示词工坊五名（t6 首刀：模板可编辑覆盖层）", () => {
   it("五名均存在于 mock 绑定面（契约：可调用、不 undefined）", () => {
-    for (const n of ["PromptTemplateList", "PromptTemplateGet", "PromptTemplateSave", "PromptTemplateReset", "PromptTemplatePreview"]) {
+    for (const n of ["PromptTemplateList", "PromptTemplateGet", "PromptTemplateSave", "PromptTemplateReset", "PromptTemplatePreview", "PromptBundleExport", "PromptBundleImport"]) {
       expect(typeof (app as unknown as Record<string, unknown>)[n], n).toBe("function");
     }
   });
@@ -120,5 +127,26 @@ describe("mock 契约 · 提示词工坊五名（t6 首刀：模板可编辑覆�
     expect(res.systemPrompt).toContain("{{word_count}}");
     expect(Array.isArray(res.warnings)).toBe(true);
     expect(res.warnings).toContain("word_count");
+  });
+
+  it("BundleExport：回合法 JSON 字符串（version=1 + templates + statistics）", async () => {
+    const raw = await promptApi.PromptBundleExport();
+    expect(typeof raw).toBe("string");
+    const bundle = JSON.parse(raw) as { version: number; templates: unknown[]; statistics: { total: number } };
+    expect(bundle.version).toBe(1);
+    expect(Array.isArray(bundle.templates)).toBe(true);
+    expect(bundle.templates.length).toBe(bundle.statistics.total);
+  });
+
+  it("BundleImport：回 applied/statistics/outcomes 三段；坏 JSON 抛错", async () => {
+    const res = await promptApi.PromptBundleImport('{"version":1,"templates":[{"key":"a"},{"key":"b"}]}');
+    expect(typeof res.applied).toBe("boolean");
+    expect(typeof res.statistics.total).toBe("number");
+    expect(res.outcomes.length).toBe(2);
+    for (const o of res.outcomes) {
+      expect(typeof o.key).toBe("string");
+      expect(typeof o.action).toBe("string");
+    }
+    await expect(promptApi.PromptBundleImport("not-json")).rejects.toThrow();
   });
 });

@@ -3,6 +3,7 @@
 package app
 
 import (
+	"github.com/gaea/gaea/internal/promptstore"
 	"github.com/gaea/gaea/internal/types"
 )
 
@@ -97,6 +98,8 @@ func (b *NovelB) NovelRestoreRewriteVersion(chapterNum int, versionID string) (m
 func (b *NovelB) NovelReviewPlatforms() []ReviewPlatformView { return b.a.NovelReviewPlatforms() }
 func (b *NovelB) NovelSearch(query string) ([]NovelSearchHit, error) { return b.a.NovelSearch(query) }
 func (b *NovelB) ParseLinks(content string) []string { return b.a.ParseLinks(content) }
+func (b *NovelB) PromptBundleExport() (string, error) { return b.a.PromptBundleExport() }
+func (b *NovelB) PromptBundleImport(bundleJSON string) (promptstore.BundleImportResult, error) { return b.a.PromptBundleImport(bundleJSON) }
 func (b *NovelB) PromptTemplateGet(key string) (PromptTemplateDetail, error) { return b.a.PromptTemplateGet(key) }
 func (b *NovelB) PromptTemplateList() []PromptTemplateMeta { return b.a.PromptTemplateList() }
 func (b *NovelB) PromptTemplatePreview(reqJSON string, varsJSON string) (PromptPreviewResult, error) { return b.a.PromptTemplatePreview(reqJSON, varsJSON) }

@@ -104,3 +104,30 @@ export async function previewTemplate(
 ): Promise<PromptPreviewResult> {
   return (await app.PromptTemplatePreview(JSON.stringify(req), JSON.stringify(vars))) as unknown as PromptPreviewResult
 }
+
+// ── t6-C2 模板包导入导出（规格 进度计划/gaea-prompt-bundle-t6c2-20260916.md §5）──
+
+/** 导入结果（Go promptstore.BundleImportResult；action 取值见 ACTION_*）。 */
+export interface BundleImportResult {
+  applied: boolean
+  statistics: {
+    total: number
+    keptSystemDefault: number
+    convertedToCustom: number
+    createdOrUpdate: number
+    skippedInvalid: number
+    skippedUnknown: number
+    skippedDuplicate: number
+  }
+  outcomes: Array<{ key: string; action: string; reason?: string }>
+}
+
+/** 导出模板包：回明文 JSON 字符串（调用方走 saveExportBlob 双门落盘）。 */
+export async function exportBundle(): Promise<string> {
+  return (await app.PromptBundleExport()) as string
+}
+
+/** 导入模板包：三态决策在 Go 侧完成，回统计与逐行结果。 */
+export async function importBundle(text: string): Promise<BundleImportResult> {
+  return (await app.PromptBundleImport(text)) as unknown as BundleImportResult
+}

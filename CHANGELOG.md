@@ -1,3 +1,19 @@
+## v4.324.0 · t6-C2 提示词工坊第二刀：模板包导入导出（content_hash 三态）（2026-09-16）
+> 用户指令「继续优化迭代 gaea」。小刀单线主代理直做（体量一轮未拆子代理）；契约先行（规格书随刀入库 进度计划/gaea-prompt-bundle-t6c2-20260916.md；蒸馏依据 docs/distill/06-prompt-workshop.md §6.4——「本域最有借鉴价值的一段算法」+§11.4 裁决）。
+**论点**=首刀覆盖表是只有一份的本地状态——换机/重装没有搬运手段，内置升级后也没有对账工具；本刀补全量快照 JSON 包+MuMu 三态导入算法（false+同基线→删覆盖行回落内置 kept_system_default / false+基线不同→转自定义 converted_to_custom / true→直接写行 created_or_updated）。
+**对 MuMu 升级**=导入行过 promptstore.Validate 真校验（error 级跳行不阻断整包——MuMu 导入零校验云端人工审核当唯一闸门，单机无审核链坏模板会直接毒化生成链）；重复键跳过（首见生效）；裁剪=未知键不建行（工坊 V1 不支持自建键，与 Save 拒未知键同口径）。
+**裁决**=导出范围=引擎 Names() 全量含内置行（备份语义）；行内容=覆盖行存在（无论启停）取覆盖行 Content 保真备份；导入不信包内 version（防倒退，本地 Upsert 自增）；哈希 sha256(TrimSpace)[:16] 只是导出侧冗余诊断，对账用 canonical JSON 逐字比对（MuMu 同口径用内容比对不用哈希）；导出落盘走前端 saveExportBlob 双门（壳内 GaeaSaveFileAs/浏览器 a[download]，v4.162 先例）绑定只回 JSON 字符串；导入选文件壳内 pickFileAsFile(['json'])（GaeaPickFiles 系统对话框+.json 后置校验）浏览器动态 input 回退（SkillModal 刀C-3 同款）。
+**落地线A**=internal/promptstore/bundle.go（零 IO 纯函数）：ContentHash+SameTemplate（canonical JSON 稳定，map 键序不干扰）+BuildBundle（names×覆盖表×基线闭包→包+统计 total/customized/systemDefault）+ImportBundle 三态决策合并（入参不改写恒非 nil；写行路径统一过 Validate 闸；BundleImportStats/Outcome/Result 三形状）。
+**落地线B**=gaea_prompt_store.go +2：PromptBundleExport（BuildBundle→MarshalIndent 回 JSON 字符串）/PromptBundleImport（坏 JSON·version!=1 报错；Applied 才原子落盘+invalidatePromptOverrides；空包/全跳过不落盘不算错）；NovelB 门面 +2 委托。
+**落地线C**=PromptWorkshopPanel 顶栏两钮（空态也可见——导入正是空环境恢复路径）：导出=exportBundle→Blob→saveExportBlob('gaea-prompt-bundle.json')取消静默；导入=双门选文件→importBundle→结果 Modal（统计一行+逐行 action 中文 Tag，skipped_* 红/橙标+原因）→applied 后 refreshList+定向刷新当前键；api/prompt.ts +2 函数+BundleImportResult 类型；mock/novel +2 桩；mock-contract +2 用例。
+**绑定面**=701→703（NovelB 121→123；PromptBundle* 挂 *App 被默认路由 CoreB——gen_bindings 显式覆盖表 +2 点名归 novel，v4.323 同款坑当日复现即修）；bindingNames 再生；play 锁 523→525。
+**测试**=Go +4 函数（线A 三态矩阵 10 分支+round-trip 内核+哈希/canonical 稳定+BuildBundle 统计与停用行保真；线B 导出→清状态→导入覆盖逐字节回魂引擎生效/kept 删覆盖行/防御四例）；前端 +4（导出 Blob 断言/导入结果弹窗逐行+刷新/取消不触发/契约 2）；tsc -b 零错、eslint 足迹零告警。
+**门禁**=go build/vet 全过、promptstore+app 全绿、vitest 全量 3143 例（首跑 PptxEditPanel 1 例环境 flaky 复跑绿——隔离复跑 8/8）、drift OK@703、版本三处 4.324.0；产物=exe 50734592B SHA256=5c1b3916518cd268f84ec9dfc6b61a3b3746c7d12f778151c1076736380d0abc（releases/gaea-v4.324.0.exe+SHA256SUMS-v4.324.0.txt；桌面副本同哈希；冒烟 /api/health 200 过）。
+**文档**=规格书+releases/v4.324.0.md+CHANGELOG/README+AGENTS 迁 1 插 1（三十九迁）+progress/todos。
+**出口对照**=导出的 JSON 包在干净环境导入后覆盖层逐字节回魂（生成链路同效果）✅；内置升级场景三态各分支测试钉死 ✅；坏模板行不落盘且整包其余行正常导入 ✅；绑定面 703 三处同步 ✅；壳内导出落盘/导入选文件走系统对话框双门 ✅。
+**观察池**=项目级覆盖（scope）；自建新模板键；系统模板版本升级提示合并交互；按书切换配方；Skill triggers；模板包签名/加密（单机明文够用）。
+**未做（下刀）**=t7 前端统一接线（小说线最后一域：分析 V2/伏笔面板/标注高亮/重写建议消费面）；7.3-2 板块降视图（等 v4.318 稳定一个零功能周）。
+
 ## v4.323.0 · t6 提示词工坊首刀：模板可编辑覆盖层（{{name}} 渲染+三级解析+工坊面板）（2026-09-16）
 > 用户指令「继续优化迭代 gaea，记得使用子代理」。三线并行子代理（A 引擎纯函数 / B handler 接线 / C 前端三件，足迹互斥）→ 主代理收口；契约先行（规格书随刀入库 进度计划/gaea-prompt-workshop-t6-20260916.md；蒸馏依据 docs/distill/06-prompt-workshop.md §5/§6/§9.3/§11）。
 **论点**=gaea 模板是「磁盘 JSON+embed 兜底」的只读两层，用户改不了（改了也被发版覆盖）；占位符只有 {word_count} 单点硬编码替换；模板保存零校验（MuMu §9.3 同型缺陷）——本刀补「全局覆盖→磁盘→embed」三级解析+`{{name}}` 渲染+保存校验+工坊面板。**裁决**=占位符统一 `{{name}}`（迁移 create-chapter/rewrite-chapter 两文件，substituteWordCount 双语法兼容旧盘上模板）；V1 只做全局覆盖（项目级 scope/自建模板键入观察池）；风格注入不做（oh-story T6 v4.289 已有 style.md 注入链路，互补部分观察池）；模板包导入导出留 t6-C2。**裁剪**=云端社区工坊三表/审核流/X-Instance-ID 信任模型整域不做（单机无多租户）；列表接口不回传正文（MuMu 1.74MB 全量下发教训 §9.2）。

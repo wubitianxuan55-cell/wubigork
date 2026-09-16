@@ -63,6 +63,8 @@ type NovelMethods = Pick<
   // 提示词工坊批次（t6 首刀：模板可编辑覆盖层；CreatePage「提示词工坊」面板）。
   | "PromptTemplateList" | "PromptTemplateGet" | "PromptTemplateSave"
   | "PromptTemplateReset" | "PromptTemplatePreview"
+  // 模板包导入导出（t6-C2：content_hash 三态；面板「导出/导入模板包」）。
+  | "PromptBundleExport" | "PromptBundleImport"
 >;
 
 export function buildNovel(): NovelMethods {
@@ -520,6 +522,33 @@ export function buildNovel(): NovelMethods {
         return v;
       });
       return { systemPrompt, warnings: unresolved };
+    },
+    // t6-C2 模板包：导出回内置两行演示包（真实现=引擎全量快照）；
+    // 导入解析包行数回统计+outcomes（浏览器桩不落盘）。
+    async PromptBundleExport() {
+      return JSON.stringify(
+        {
+          version: 1,
+          exportedAt: Date.now(),
+          templates: [
+            { key: "create-chapter", category: "chapter", description: "整章创作主模板（示例：已启用自定义覆盖）", content: { name: "create-chapter", system: "你是资深网文作者……", task: "结合大纲推进情节。", output: { description: "完整章节正文" } }, isActive: true, isCustomized: true, version: 3 },
+            { key: "chapter-summary", category: "summary", description: "章末摘要模板（内置态样本）", content: { name: "chapter-summary", system: "请为第 {{chapter_num}} 章写一段约 200 字的情节摘要。", task: "阅读本章正文，产出章末摘要。", output: { description: "一段 200 字以内的摘要" } }, isActive: true, isCustomized: false, version: 0 },
+          ],
+          statistics: { total: 2, customized: 1, systemDefault: 1 },
+        },
+        null,
+        2,
+      );
+    },
+    async PromptBundleImport(bundleJSON: string) {
+      let bundle: { templates?: unknown[] } = {};
+      try { bundle = JSON.parse(bundleJSON) as typeof bundle; } catch { throw new Error("dev mock：模板包格式不正确"); }
+      const rows = Array.isArray(bundle.templates) ? bundle.templates.length : 0;
+      return {
+        applied: rows > 0,
+        statistics: { total: rows, keptSystemDefault: 1, convertedToCustom: 0, createdOrUpdate: Math.max(rows - 1, 0), skippedInvalid: 0, skippedUnknown: 0, skippedDuplicate: 0 },
+        outcomes: Array.from({ length: rows }, (_v, i) => ({ key: `mock-template-${i + 1}`, action: i === 0 ? "kept_system_default" : "created_or_updated" })),
+      };
     },
   };
 }

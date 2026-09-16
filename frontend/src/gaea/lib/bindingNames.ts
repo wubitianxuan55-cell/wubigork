@@ -549,6 +549,8 @@ export const bindingNames = [
   "OpenProject",
   "ParseLinks",
   "ProgrammingWebLogTail",
+  "PromptBundleExport",
+  "PromptBundleImport",
   "PromptTemplateGet",
   "PromptTemplateList",
   "PromptTemplatePreview",

@@ -617,6 +617,8 @@ export const GAEA_METHOD_FACETS = {
   PromptTemplateSave: "play",
   PromptTemplateReset: "play",
   PromptTemplatePreview: "play",
+  PromptBundleExport: "play",
+  PromptBundleImport: "play",
   // 书源取书（书源→拆书导入 t1）：搜书/目录预览/在线导入/取消——书架「在线搜书」
   // 数据面（规格 docs/gaea-novel-booksource-import-2026-09.md），同导入/书封族归 play。
   NovelBookSourceSearch: "play",

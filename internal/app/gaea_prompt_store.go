@@ -419,3 +419,64 @@ func (a *App) PromptTemplatePreview(reqJSON string, varsJSON string) (PromptPrev
 	}
 	return PromptPreviewResult{SystemPrompt: rendered, Warnings: warnings}, nil
 }
+
+// ── t6-C2 模板包导入导出（规格 进度计划/gaea-prompt-bundle-t6c2-20260916.md
+// §4）：线 A promptstore/bundle.go 纯函数的 App 装配层。导出只回 JSON 字符串
+// （落盘走前端 saveExportBlob 双门，Q6）；导入回三态结果（选文件走前端
+// pickFileAsFile 双门，Q7）。───────────────────────────────────────────
+
+// PromptBundleExport 导出模板包：引擎 Names() 全量 × 覆盖快照 × 基线闭包 →
+// BuildBundle（纯函数）→ MarshalIndent 明文 JSON 字符串。引擎未初始化报错。
+func (a *App) PromptBundleExport() (string, error) {
+	if a.writingState == nil || a.writingState.eng == nil {
+		return "", &appError{"模板引擎未初始化"}
+	}
+	names := a.writingState.eng.Names()
+	bundle := promptstore.BuildBundle(names, a.writingState.promptOverridesSnapshot(),
+		a.writingState.promptBaselineTemplate, time.Now().UnixMilli())
+	b, err := json.MarshalIndent(bundle, "", "  ")
+	if err != nil {
+		return "", fmt.Errorf("模板包序列化失败: %w", err)
+	}
+	slog.Info("提示词工坊：导出模板包", "total", bundle.Statistics.Total, "customized", bundle.Statistics.Customized)
+	return string(b), nil
+}
+
+// PromptBundleImport 导入模板包：解析（坏 JSON / version!=1 报错）→
+// ImportBundle 三态决策（engineHas=引擎已知键、baseline=基线闭包）→
+// Applied 才原子落盘 + 失效覆盖缓存。空包/全跳过 Applied=false 不落盘不算错。
+func (a *App) PromptBundleImport(bundleJSON string) (promptstore.BundleImportResult, error) {
+	if strings.TrimSpace(bundleJSON) == "" {
+		return promptstore.BundleImportResult{}, &appError{"模板包内容为空"}
+	}
+	var bundle promptstore.ExportBundle
+	if err := json.Unmarshal([]byte(bundleJSON), &bundle); err != nil {
+		return promptstore.BundleImportResult{}, &appError{"模板包格式不正确: " + err.Error()}
+	}
+	if bundle.Version != 1 {
+		return promptstore.BundleImportResult{}, &appError{fmt.Sprintf("不支持的模板包版本: %d", bundle.Version)}
+	}
+	if a.writingState == nil || a.writingState.eng == nil {
+		return promptstore.BundleImportResult{}, &appError{"模板引擎未初始化"}
+	}
+	keySet := make(map[string]bool)
+	for _, n := range a.writingState.eng.Names() {
+		keySet[n] = true
+	}
+	merged, res := promptstore.ImportBundle(bundle, a.writingState.promptOverridesSnapshot(),
+		func(k string) bool { return keySet[k] },
+		a.writingState.promptBaselineTemplate, time.Now().UnixMilli())
+	if res.Applied {
+		dataRoot := config.DataRoot()
+		if err := savePromptOverrides(dataRoot, merged); err != nil {
+			return promptstore.BundleImportResult{}, fmt.Errorf("写入模板覆盖状态文件失败: %w", err)
+		}
+		a.writingState.invalidatePromptOverrides() // 缓存失效 → 引擎覆盖解析即时重读
+	}
+	slog.Info("提示词工坊：导入模板包", "total", res.Statistics.Total,
+		"createdOrUpdate", res.Statistics.CreatedOrUpdate, "converted", res.Statistics.ConvertedToCustom,
+		"kept", res.Statistics.KeptSystemDefault, "skipped",
+		res.Statistics.SkippedInvalid+res.Statistics.SkippedUnknown+res.Statistics.SkippedDuplicate,
+		"applied", res.Applied)
+	return res, nil
+}

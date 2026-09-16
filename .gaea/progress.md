@@ -3,6 +3,16 @@
 > 本文件为**最近发布速览**。完整历史磁带见 `docs/archive/progress-history-2026-09.md`
 > 与 `releases/`。
 
+## 最新发布：v4.324.0（2026-09-16）「t6-C2 提示词工坊第二刀：模板包导入导出（content_hash 三态）」
+
+- **来源**：用户指令「继续优化迭代 gaea」。小刀单线主代理直做；规格书 进度计划/gaea-prompt-bundle-t6c2-20260916.md；蒸馏依据 docs/distill/06-prompt-workshop.md §6.4+§11.4。
+- **论点**：覆盖表只有一份本地状态——换机/重装无搬运手段、内置升级无对账工具。补全量快照 JSON 包+三态导入（kept/converted/created_or_updated + gaea 三闸 invalid/unknown/duplicate）；对 MuMu 升级=导入真校验（error 跳行不阻断整包）+去重；裁剪=未知键不建行。
+- **落地**：internal/promptstore/bundle.go（ContentHash/SameTemplate canonical/BuildBundle/ImportBundle 零 IO 纯函数）；gaea_prompt_store.go +2 绑定（Export 回 JSON 字符串/Import 三态落盘）；面板顶栏导出（saveExportBlob 双门）/导入（pickFileAsFile 双门+结果 Modal）；mock/契约同步。绑定面 701→703（NovelB +2 显式覆盖表归域——v4.323 同款坑复现即修；play 锁 523→525）。
+- **验收**：Go +4 测试函数（三态矩阵 10 分支+round-trip 内核+回魂 e2e）+前端 +4；tsc -b 零错；vitest 全量 3143 例（1 例环境 flaky 复跑绿）；drift OK@703；产物=exe 50734592B SHA256=5c1b3916518cd268f84ec9dfc6b61a3b3746c7d12f778151c1076736380d0abc（releases+SUMS+桌面副本同哈希；冒烟 200 过）。
+- **出口**：干净环境导入覆盖逐字节回魂；内置升级三态分支钉死；坏模板行不落盘整包其余正常；壳内导出/导入双门。
+- **观察池**：项目级 scope；自建模板键；升级合并交互；按书切换配方；triggers；模板包签名/加密。
+- **未做（下刀）**：t7 前端统一接线（小说线最后一域）；7.3-2 板块降视图（等零功能周）。
+
 ## 最新发布：v4.323.0（2026-09-16）「t6 提示词工坊首刀：模板可编辑覆盖层（{{name}} 渲染+三级解析+工坊面板）」
 
 - **来源**：用户指令「继续优化迭代 gaea，记得使用子代理」。三线并行子代理（A 引擎纯函数/B handler/C 前端）→ 主代理收口；规格书 进度计划/gaea-prompt-workshop-t6-20260916.md；蒸馏依据 docs/distill/06-prompt-workshop.md。

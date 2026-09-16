@@ -353,3 +353,115 @@ func TestPromptStore_OverrideSnapshotInvalidation(t *testing.T) {
 		t.Fatalf("Reset 后快照不应再有激活覆盖行: %+v", row)
 	}
 }
+
+// ── t6-C2 模板包导入导出（规格 进度计划/gaea-prompt-bundle-t6c2-20260916.md
+// §6）：导出→清状态→导入→覆盖回魂 round-trip、三态分支接线、防御路径。────
+
+func TestPromptBundle_RoundTripRestore(t *testing.T) {
+	a, dataRoot := newPromptWorkshopApp(t)
+	tmpl := mustWorkshopTemplate(t, "create-chapter")
+	tmpl.System = "【搬家】覆盖正文——round-trip 应回魂"
+	if _, err := a.PromptTemplateSave("create-chapter", promptWorkshopSaveReq(t, tmpl, nil)); err != nil {
+		t.Fatalf("保存: %v", err)
+	}
+
+	bundleJSON, err := a.PromptBundleExport()
+	if err != nil {
+		t.Fatalf("导出: %v", err)
+	}
+	var bundle promptstore.ExportBundle
+	if err := json.Unmarshal([]byte(bundleJSON), &bundle); err != nil {
+		t.Fatalf("包应为合法 JSON: %v", err)
+	}
+	if bundle.Version != 1 || bundle.Statistics.Total == 0 {
+		t.Fatalf("包头/统计不对: %+v", bundle.Statistics)
+	}
+	if bundle.Statistics.Customized != 1 {
+		t.Fatalf("应恰有一行自定义: %+v", bundle.Statistics)
+	}
+
+	// 模拟换机：清掉状态文件再导入，覆盖层应逐字节回魂。
+	if err := os.Remove(filepath.Join(dataRoot, "prompt_overrides.json")); err != nil {
+		t.Fatalf("清状态: %v", err)
+	}
+	a.writingState.invalidatePromptOverrides()
+	if row := promptstore.ActiveOverride(a.writingState.promptOverridesSnapshot(), "create-chapter"); row != nil {
+		t.Fatal("清状态后不应有覆盖行")
+	}
+	res, err := a.PromptBundleImport(bundleJSON)
+	if err != nil {
+		t.Fatalf("导入: %v", err)
+	}
+	if !res.Applied || res.Statistics.CreatedOrUpdate != 1 {
+		t.Fatalf("导入统计不对: %+v", res.Statistics)
+	}
+	got := a.writingState.eng.Get("create-chapter")
+	if got == nil || !strings.Contains(got.System, "【搬家】覆盖正文") {
+		t.Fatalf("引擎应解析到回魂覆盖: %v", got)
+	}
+	if row := promptstore.ActiveOverride(a.writingState.promptOverridesSnapshot(), "create-chapter"); row == nil {
+		t.Fatal("覆盖行应回魂")
+	}
+}
+
+func TestPromptBundle_ImportSameAsBaselineRemovesOverride(t *testing.T) {
+	a, _ := newPromptWorkshopApp(t)
+	// 本地有覆盖行，导入一份「内容=基线」的内置快照 → 三态判 kept：覆盖行被删。
+	base := mustWorkshopTemplate(t, "chapter-summary")
+	tmpl := base
+	tmpl.System = "本地临时覆盖"
+	if _, err := a.PromptTemplateSave("chapter-summary", promptWorkshopSaveReq(t, tmpl, nil)); err != nil {
+		t.Fatalf("保存: %v", err)
+	}
+	bundle := promptstore.ExportBundle{Version: 1, Templates: []promptstore.BundleTemplate{
+		{Key: "chapter-summary", Content: base, IsActive: true},
+	}}
+	raw, _ := json.Marshal(bundle)
+	res, err := a.PromptBundleImport(string(raw))
+	if err != nil {
+		t.Fatalf("导入: %v", err)
+	}
+	if res.Statistics.KeptSystemDefault != 1 || res.Statistics.CreatedOrUpdate != 0 {
+		t.Fatalf("三态应判 kept: %+v", res.Statistics)
+	}
+	if row := promptstore.ActiveOverride(a.writingState.promptOverridesSnapshot(), "chapter-summary"); row != nil {
+		t.Fatal("kept 分支应删本地覆盖行")
+	}
+}
+
+func TestPromptBundle_ImportDefenses(t *testing.T) {
+	a, _ := newPromptWorkshopApp(t)
+	if _, err := a.PromptBundleImport(""); err == nil {
+		t.Error("空串应报错")
+	}
+	if _, err := a.PromptBundleImport("not-json"); err == nil {
+		t.Error("坏 JSON 应报错")
+	}
+	badVer, _ := json.Marshal(promptstore.ExportBundle{Version: 9})
+	if _, err := a.PromptBundleImport(string(badVer)); err == nil {
+		t.Error("version!=1 应报错")
+	}
+	// 空包：Applied=false 不落盘不算错。
+	empty, _ := json.Marshal(promptstore.ExportBundle{Version: 1})
+	res, err := a.PromptBundleImport(string(empty))
+	if err != nil || res.Applied {
+		t.Errorf("空包应静默: res=%+v err=%v", res, err)
+	}
+	// 坏模板行（error 级校验）跳行不阻断，未知键不建行。
+	bad := prompt.Template{Name: "create-chapter", System: " ", Task: "x"}
+	bundle := promptstore.ExportBundle{Version: 1, Templates: []promptstore.BundleTemplate{
+		{Key: "create-chapter", Content: bad, IsCustomized: true},
+		{Key: "no-such-key", Content: prompt.Template{System: "s", Task: "t"}, IsCustomized: true},
+	}}
+	raw, _ := json.Marshal(bundle)
+	res, err = a.PromptBundleImport(string(raw))
+	if err != nil {
+		t.Fatalf("导入: %v", err)
+	}
+	if res.Statistics.SkippedInvalid != 1 || res.Statistics.SkippedUnknown != 1 || res.Statistics.CreatedOrUpdate != 0 {
+		t.Fatalf("两道闸统计不对: %+v", res.Statistics)
+	}
+	if promptstore.ActiveOverride(a.writingState.promptOverridesSnapshot(), "create-chapter") != nil {
+		t.Fatal("坏模板行不应落盘")
+	}
+}

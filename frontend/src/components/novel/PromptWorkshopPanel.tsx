@@ -4,12 +4,17 @@
 // 打开才拉一次（零轮询，RewriteHistoryPanel 同款），保存/恢复后定向刷新。
 // 来源语义：override=自定义（orange）/ builtin=内置（default）；覆盖行存在
 // 但未启用加灰 Tag「已停用」（此时生效的仍是内置）。
+// t6-C2：顶栏「导出/导入模板包」——导出走 saveExportBlob 双门落盘；导入
+// 双门选文件后三态决策在 Go 侧，结果弹窗逐行展示（规格
+// 进度计划/gaea-prompt-bundle-t6c2-20260916.md §5）。
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { Alert, Button, Collapse, Empty, Input, Modal, Popconfirm, Spin, Switch, Tag, Typography, message } from 'antd'
 import {
-  listTemplates, getTemplate, saveTemplate, resetTemplate, previewTemplate,
-  type PromptTemplateDetail, type PromptTemplateIssue, type PromptTemplateMeta, type PromptTemplateView,
+  listTemplates, getTemplate, saveTemplate, resetTemplate, previewTemplate, exportBundle, importBundle,
+  type BundleImportResult, type PromptTemplateDetail, type PromptTemplateIssue, type PromptTemplateMeta, type PromptTemplateView,
 } from './api/prompt'
+import { saveExportBlob } from '../../gaea/lib/saveFile'
+import { inShellEnv, pickFileAsFile } from '../../gaea/lib/pickFile'
 
 /** category → 分组标题（小说域口径；未知分类回落「其它」）。 */
 const CATEGORY_LABELS: Record<string, string> = {
@@ -39,6 +44,16 @@ const EMPTY_FORM: DraftForm = { system: '', task: '', outputDesc: '', category: 
 const softTextStyle: React.CSSProperties = { fontSize: 12, color: 'var(--v3-fg-soft, #6b7280)' }
 const labelTextStyle: React.CSSProperties = { fontSize: 12, color: 'var(--v3-fg-soft, #6b7280)', marginBottom: 2 }
 
+/** 导入 action → 结果弹窗标签（Go promptstore.Action*；skipped_* 用警示色）。 */
+const ACTION_VIEWS: Record<string, { label: string; color?: string }> = {
+  kept_system_default: { label: '维持内置' },
+  converted_to_custom: { label: '转为自定义', color: 'orange' },
+  created_or_updated: { label: '写入自定义', color: 'green' },
+  skipped_invalid: { label: '跳过·校验未过', color: 'red' },
+  skipped_unknown: { label: '跳过·未知键', color: 'red' },
+  skipped_duplicate: { label: '跳过·重复键', color: 'orange' },
+}
+
 export default function PromptWorkshopPanel({ open, onClose }: {
   open: boolean
   onClose: () => void
@@ -55,6 +70,9 @@ export default function PromptWorkshopPanel({ open, onClose }: {
   const [saving, setSaving] = useState(false)
   const [resetting, setResetting] = useState(false)
   const [previewing, setPreviewing] = useState(false)
+  const [exporting, setExporting] = useState(false)
+  const [importing, setImporting] = useState(false)
+  const [importResult, setImportResult] = useState<BundleImportResult | null>(null)
 
   const refreshList = useCallback(async () => {
     setLoading(true)
@@ -168,6 +186,53 @@ export default function PromptWorkshopPanel({ open, onClose }: {
     }
   }
 
+  // ── t6-C2 模板包：导出=绑定回 JSON 字符串 → Blob → saveExportBlob 双门
+  //（壳内 GaeaSaveFileAs 系统对话框 / 浏览器 a[download]；用户取消静默）。
+  const doExport = async () => {
+    setExporting(true)
+    try {
+      const json = await exportBundle()
+      const saved = await saveExportBlob(new Blob([json], { type: 'application/json' }), 'gaea-prompt-bundle.json')
+      if (saved) message.success('模板包已导出')
+    } catch (e) {
+      message.error(`模板包导出失败：${e instanceof Error ? e.message : String(e)}`)
+    } finally {
+      setExporting(false)
+    }
+  }
+
+  // 导入选文件双门（SkillModal 刀C-3 同款）：壳内 pickFileAsFile（GaeaPickFiles
+  // 系统对话框 + .json 后置校验），浏览器动态 input 回退；取消=null 静默。
+  const pickBundleFile = async (): Promise<File | null> => {
+    if (inShellEnv()) return pickFileAsFile(['json'])
+    return new Promise(resolve => {
+      const input = document.createElement('input')
+      input.type = 'file'
+      input.accept = '.json'
+      input.onchange = (e: Event) => resolve((e.target as HTMLInputElement).files?.[0] ?? null)
+      input.click()
+    })
+  }
+
+  const doImport = async () => {
+    setImporting(true)
+    try {
+      const file = await pickBundleFile()
+      if (!file) return
+      const res = await importBundle(await file.text())
+      setImportResult(res)
+      if (res.applied) {
+        message.success('模板包已导入（生成链路即时生效）')
+        await refreshList()
+        if (selectedKey) await select(selectedKey)
+      }
+    } catch (e) {
+      message.error(`模板包导入失败：${e instanceof Error ? e.message : String(e)}`)
+    } finally {
+      setImporting(false)
+    }
+  }
+
   /** 按 category 分组（保持后端字典序的组内顺序；未知分类归「其它」）。 */
   const groups = useMemo(() => {
     const map = new Map<string, PromptTemplateMeta[]>()
@@ -204,6 +269,11 @@ export default function PromptWorkshopPanel({ open, onClose }: {
 
   return (
     <Modal open={open} title="提示词工坊" onCancel={onClose} footer={null} width={920} destroyOnHidden>
+      {/* t6-C2 工具栏：空态也可见（导入正是空环境的恢复路径） */}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginBottom: 10 }}>
+        <Button size="small" loading={exporting} data-testid="prompt-workshop-bundle-export" onClick={() => void doExport()}>导出模板包</Button>
+        <Button size="small" loading={importing} data-testid="prompt-workshop-bundle-import" onClick={() => void doImport()}>导入模板包</Button>
+      </div>
       {loading ? (
         <div style={{ padding: '32px 0', textAlign: 'center' }}><Spin /></div>
       ) : metas.length === 0 ? (
@@ -330,6 +400,36 @@ export default function PromptWorkshopPanel({ open, onClose }: {
           </div>
         </div>
       )}
+      {/* t6-C2 导入结果弹窗：统计一行 + 逐行 action 标签（skipped_* 带原因） */}
+      <Modal open={importResult !== null} title="模板包导入结果" width={560} destroyOnHidden
+        onCancel={() => setImportResult(null)}
+        footer={<Button size="small" onClick={() => setImportResult(null)}>知道了</Button>}>
+        {importResult && (() => {
+          const st = importResult.statistics
+          const skipped = st.skippedInvalid + st.skippedUnknown + st.skippedDuplicate
+          return (
+            <div data-testid="prompt-bundle-result">
+              <Typography.Paragraph style={{ fontSize: 13, marginBottom: 10 }}>
+                共 {st.total} 行：写入自定义 {st.createdOrUpdate} · 转为自定义 {st.convertedToCustom} · 维持内置 {st.keptSystemDefault}
+                {skipped > 0 && <span style={{ color: 'var(--color-error, var(--md-sys-color-error, #cf1322))' }}> · 跳过 {skipped}</span>}
+                {!importResult.applied && '（无变更，未落盘）'}
+              </Typography.Paragraph>
+              <div style={{ maxHeight: 300, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {importResult.outcomes.map((o, i) => {
+                  const view = ACTION_VIEWS[o.action]
+                  return (
+                    <div key={`${o.key}-${i}`} style={{ display: 'flex', gap: 6, alignItems: 'flex-start' }}>
+                      <Tag color={view?.color} style={{ marginRight: 0, flexShrink: 0 }}>{view?.label ?? o.action}</Tag>
+                      <span style={{ fontSize: 12.5 }}>{o.key}</span>
+                      {o.reason && <span style={softTextStyle}>{o.reason}</span>}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )
+        })()}
+      </Modal>
     </Modal>
   )
 }

@@ -292,6 +292,10 @@ export interface NovelBindings {
   PromptTemplateSave(key: string, reqJSON: string): Promise<PromptSaveResultView>;
   PromptTemplateReset(key: string): Promise<void>;
   PromptTemplatePreview(reqJSON: string, varsJSON: string): Promise<PromptPreviewResultView>;
+  // ── t6-C2 模板包导入导出两绑定（PromptBundle*；规格
+  // 进度计划/gaea-prompt-bundle-t6c2-20260916.md §4）──
+  PromptBundleExport(): Promise<string>;
+  PromptBundleImport(bundleJSON: string): Promise<PromptBundleImportResultView>;
 }
 
 // ── 提示词工坊载荷（t6 首刀；Go promptstore.Issue / PromptTemplateMeta 等，
@@ -343,6 +347,23 @@ export interface PromptSaveResultView {
 export interface PromptPreviewResultView {
   systemPrompt: string;
   warnings: string[];
+}
+/** 模板包导入结果（t6-C2；Go promptstore.BundleImportResult 直连）。 */
+export interface PromptBundleImportResultView {
+  /** 至少一行变更（前端据此刷新列表）。 */
+  applied: boolean;
+  statistics: {
+    total: number;
+    keptSystemDefault: number;
+    convertedToCustom: number;
+    createdOrUpdate: number;
+    skippedInvalid: number;
+    skippedUnknown: number;
+    skippedDuplicate: number;
+  };
+  /** 单行结果：action=kept_system_default/converted_to_custom/created_or_updated/
+   *  skipped_invalid/skipped_unknown/skipped_duplicate；reason=跳过原因。 */
+  outcomes: Array<{ key: string; action: string; reason?: string }>;
 }
 /** 反推任务状态（v4.291 任务化：轮询返回，succeeded 时携带预览）。 */
 export interface NovelOutlineReconstructTaskState {

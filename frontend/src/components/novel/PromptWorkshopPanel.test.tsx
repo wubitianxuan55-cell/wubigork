@@ -4,15 +4,19 @@ import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import type { Mock } from 'vitest'
 
-// 五绑定 mock 以 vi.hoisted 引用持有（vi.mock 工厂被提升到文件顶部；
-// 断言不经过 app.* 类型面——AppBindings 尚未含这五名，tsc 待主代理 regen
-// 后转绿，CreatePage.test.tsx 同款范式）。
+// 五绑定 + t6-C2 模板包两绑定 mock 以 vi.hoisted 引用持有（vi.mock 工厂被提升
+// 到文件顶部；断言不经过 app.* 类型面——CreatePage.test.tsx 同款范式）。
+// 导出落盘/导入选文件走独立模块桩（saveFile/pickFile），不碰真 Blob 对话框。
 const mocks = vi.hoisted(() => ({
   list: vi.fn().mockResolvedValue([]),
   get: vi.fn().mockResolvedValue({}),
   save: vi.fn().mockResolvedValue({ saved: true, issues: [], version: 1 }),
   reset: vi.fn().mockResolvedValue(undefined),
   preview: vi.fn().mockResolvedValue({ systemPrompt: '', warnings: [] }),
+  bundleExport: vi.fn().mockResolvedValue('{"version":1}'),
+  bundleImport: vi.fn().mockResolvedValue({ applied: true, statistics: {}, outcomes: [] }),
+  saveExportBlob: vi.fn().mockResolvedValue(true),
+  pickFileAsFile: vi.fn().mockResolvedValue(null),
 }))
 
 vi.mock('../../gaea/lib/bridge', async (importOriginal) => {
@@ -25,7 +29,26 @@ vi.mock('../../gaea/lib/bridge', async (importOriginal) => {
       PromptTemplateSave: mocks.save,
       PromptTemplateReset: mocks.reset,
       PromptTemplatePreview: mocks.preview,
+      PromptBundleExport: mocks.bundleExport,
+      PromptBundleImport: mocks.bundleImport,
     },
+  }
+})
+
+vi.mock('../../gaea/lib/saveFile', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../gaea/lib/saveFile')>()
+  return {
+    ...actual,
+    saveExportBlob: mocks.saveExportBlob,
+  }
+})
+
+vi.mock('../../gaea/lib/pickFile', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../gaea/lib/pickFile')>()
+  return {
+    ...actual,
+    inShellEnv: () => true, // 壳路径 → pickBundleFile 走 pickFileAsFile 桩
+    pickFileAsFile: mocks.pickFileAsFile,
   }
 })
 
@@ -197,5 +220,63 @@ describe('PromptWorkshopPanel 提示词工坊（t6 首刀）', () => {
     mocks.list.mockResolvedValue([] as never)
     render(<PromptWorkshopPanel open onClose={onClose} />)
     await waitFor(() => expect(screen.getByText(/还没有可编辑的提示词模板/)).toBeTruthy())
+  })
+
+  it('t6-C2 导出：调 PromptBundleExport → saveExportBlob 落 JSON Blob → 成功提示', async () => {
+    mocks.list.mockResolvedValue([
+      mkMeta('create-chapter', 'chapter', 'override', true, true, 3),
+    ] as never)
+    openPanel()
+    await waitFor(() => expect(screen.getAllByTestId('prompt-workshop-row')).toHaveLength(1))
+    fireEvent.click(screen.getByTestId('prompt-workshop-bundle-export'))
+    await waitFor(() => expect(mocks.bundleExport).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(mocks.saveExportBlob).toHaveBeenCalledTimes(1))
+    const [blob, name] = (mocks.saveExportBlob as Mock).mock.calls[0]
+    expect(name).toBe('gaea-prompt-bundle.json')
+    expect(blob).toBeInstanceOf(Blob)
+    await waitFor(() => expect(screen.getByText('模板包已导出')).toBeTruthy())
+  })
+
+  it('t6-C2 导入：选文件→PromptBundleImport→结果弹窗逐行展示→applied 后刷新列表', async () => {
+    mocks.list.mockResolvedValue([
+      mkMeta('create-chapter', 'chapter', 'builtin', false, false, 0),
+    ] as never)
+    mocks.pickFileAsFile.mockResolvedValueOnce(new File(['{"version":1,"templates":[]}'], 'bundle.json', { type: 'application/json' }))
+    mocks.bundleImport.mockResolvedValueOnce({
+      applied: true,
+      statistics: { total: 3, keptSystemDefault: 1, convertedToCustom: 1, createdOrUpdate: 1, skippedInvalid: 0, skippedUnknown: 0, skippedDuplicate: 0 },
+      outcomes: [
+        { key: 'a', action: 'kept_system_default' },
+        { key: 'b', action: 'converted_to_custom', reason: '与当前内置基线不同，已转为自定义覆盖' },
+        { key: 'c', action: 'created_or_updated' },
+      ],
+    } as never)
+    openPanel()
+    await waitFor(() => expect(screen.getAllByTestId('prompt-workshop-row')).toHaveLength(1))
+    fireEvent.click(screen.getByTestId('prompt-workshop-bundle-import'))
+    await waitFor(() => expect(mocks.bundleImport).toHaveBeenCalledTimes(1))
+    expect((mocks.bundleImport as Mock).mock.calls[0][0]).toBe('{"version":1,"templates":[]}')
+    // 结果弹窗：统计行 + 三行 action 标签 + 跳过原因
+    await waitFor(() => expect(screen.getByTestId('prompt-bundle-result')).toBeTruthy())
+    expect(screen.getByText(/共 3 行/)).toBeTruthy()
+    expect(screen.getByText('维持内置')).toBeTruthy()
+    expect(screen.getByText('转为自定义')).toBeTruthy()
+    expect(screen.getByText('写入自定义')).toBeTruthy()
+    expect(screen.getByText(/已转为自定义覆盖/)).toBeTruthy()
+    await waitFor(() => expect(screen.getByText('模板包已导入（生成链路即时生效）')).toBeTruthy())
+    // applied → 刷新列表（第二次 List）
+    await waitFor(() => expect(mocks.list).toHaveBeenCalledTimes(2))
+  })
+
+  it('t6-C2 导入取消：pickFile 返回 null 不触发导入绑定', async () => {
+    mocks.list.mockResolvedValue([
+      mkMeta('create-chapter', 'chapter', 'builtin', false, false, 0),
+    ] as never)
+    mocks.pickFileAsFile.mockResolvedValueOnce(null)
+    openPanel()
+    await waitFor(() => expect(screen.getAllByTestId('prompt-workshop-row')).toHaveLength(1))
+    fireEvent.click(screen.getByTestId('prompt-workshop-bundle-import'))
+    await waitFor(() => expect(mocks.pickFileAsFile).toHaveBeenCalledTimes(1))
+    expect(mocks.bundleImport).not.toHaveBeenCalled()
   })
 })
