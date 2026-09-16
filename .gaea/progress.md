@@ -3,6 +3,16 @@
 > 本文件为**最近发布速览**。完整历史磁带见 `docs/archive/progress-history-2026-09.md`
 > 与 `releases/`。
 
+## 最新发布：v4.325.0（2026-09-16）「t7 前端统一接线收官：分析 V2 消费面板 + 标注高亮视图」
+
+- **来源**：用户指令「继续」。小刀单线主代理直做；规格书 进度计划/gaea-analysis-v2-panel-t7-20260916.md。**本刀合入=小说·MuMu 蒸馏六域前端接线全清（t7 收官）**。
+- **论点**：分析 V2（九维落盘）与标注层（keyword→rune 偏移）后端在位 UI 零消费；AnalyzeChapter 困在 Legacy 面零入口。裁决=types 直连（不复制九维子类型树）；缺章诚实报错接分析按钮闭环；高亮 V1=面板只读视图不动编辑器；rune→code-unit 换算+交叠裁剪。
+- **落地**：analysis_handler.go +NovelChapterAnalysisV2（703→704）；AnalyzeChapter 出 Legacy 转正（AppBindings+mock）；ChapterAnalysisPanel（头部评分+chips+meta、九维分节空节隐藏、标注区 列表|高亮视图 双模式+锚点定位）；CreatePage rail「章节分析」。锁 525→527；drift OK@704。
+- **验收**：Go +3+前端 +8（含交叠裁剪断言）；CreatePage 13/13 零破坏；vitest 全量 3151 例（1 例环境 flaky 隔离绿）；tsc/eslint 零错；产物=exe 50756096B SHA256=6604f8e06b3f27cd586053794bfe22d8b881851e72210a7e7b0e2aeb22d89528（releases/gaea-v4.325.0.exe+SHA256SUMS-v4.325.0.txt；桌面副本同哈希；冒烟 /api/health 200 过）
+- **出口**：分析按钮→V2 落盘→九维可见；标注列表+只读高亮+锚点；AnalyzeChapter 出 Legacy；既有面零回归。
+- **观察池**：编辑器 overlay 持久高亮；标注定位编辑器光标；多章对比；情感曲线图形化。
+- **未做（下刀）**：7.3-2 板块降视图（等 v4.318 零功能周≈09-23）；闲庭在册清欠沿既有列车。
+
 ## 最新发布：v4.324.0（2026-09-16）「t6-C2 提示词工坊第二刀：模板包导入导出（content_hash 三态）」
 
 - **来源**：用户指令「继续优化迭代 gaea」。小刀单线主代理直做；规格书 进度计划/gaea-prompt-bundle-t6c2-20260916.md；蒸馏依据 docs/distill/06-prompt-workshop.md §6.4+§11.4。

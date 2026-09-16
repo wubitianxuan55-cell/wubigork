@@ -19,6 +19,7 @@ export type BindingSpace = ShellSpace | "shared" | "independent";
 
 /** gaea 桥方法空间归属（键名 = AppBindings 短方法名，经 gaeaToGaea 映射到 Go）。 */
 export const GAEA_METHOD_FACETS = {
+  AnalyzeChapter: "play",
   // ── shared：两空间共用基础设施 ──────────────────────────────
   Meta: "shared",
   Version: "shared",
@@ -203,6 +204,7 @@ export const GAEA_METHOD_FACETS = {
   NovelChapterSuggestions: "play",
   // 章节分析标注（t4-C4：keyword→正文偏移，前端内联高亮数据源）。
   NovelChapterAnnotations: "play",
+  NovelChapterAnalysisV2: "play",
   ClearProjectForeshadowsForReset: "play",
   DeleteChapterForeshadows: "play",
   GetForeshadowStats: "play",

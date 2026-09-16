@@ -136,6 +136,51 @@ export interface ChapterAnnotation {
   length?: number;
   tags?: string[];
 }
+// ── t7 分析 V2 视图（Go types.ChapterAnalysisResult 直连；顶层 snake_case
+// 如实透传〔Q1 裁决：不为只读面板复制九维子类型树〕；全字段可缺省防御）──
+export interface ChapterAnalysisV2View {
+  chapter_num?: number;
+  chapter_file?: string;
+  analyzed_at?: string;
+  engine?: string;
+  model?: string;
+  analyzer_source?: string;
+  result?: AnalysisV2ResultView;
+}
+/** 九维分析载荷（Go AnalysisResultV2 镜像；嵌套 snake_case 同落盘契约）。 */
+export interface AnalysisV2ResultView {
+  hooks?: Array<{ type?: string; content?: string; strength?: number; position?: string }>;
+  foreshadows?: Array<{
+    title?: string; content?: string; type?: string; strength?: number; subtlety?: number;
+    category?: string; is_long_term?: boolean; related_characters?: string[]; estimated_resolve_chapter?: number;
+  }>;
+  conflict?: {
+    types?: string[]; parties?: string[]; level?: number;
+    description?: string; resolution_progress?: number;
+  };
+  emotional_arc?: {
+    primary_emotion?: string; intensity?: number; curve?: string; secondary_emotions?: string[];
+  };
+  character_states?: Array<{
+    name?: string; old_state?: string; new_state?: string; psychological_change?: string;
+    key_event?: string; survival_status?: string;
+  }>;
+  organization_states?: Array<{
+    org_name?: string; power_value?: number; destroyed?: boolean;
+    member_changes?: Array<{ character_name?: string; change_type?: string; position?: string; reason?: string }>;
+  }>;
+  plot_points?: Array<{ content?: string; type?: string; importance?: number; impact?: string }>;
+  scenes?: Array<{ location?: string; atmosphere?: string; duration?: string }>;
+  pacing?: string;
+  dialogue_ratio?: number;
+  description_ratio?: number;
+  scores?: {
+    pacing?: number; engagement?: number; coherence?: number; overall?: number; score_justification?: string;
+  };
+  plot_stage?: string;
+  suggestions?: string[];
+  summary?: string;
+}
 export interface NovelRewriteRequest {
   source?: 'custom' | 'analysis_suggestions' | 'mixed';
   suggestion_indices?: number[];
@@ -202,6 +247,14 @@ export interface NovelBindings {
   // NovelChapterAnnotations 读取该章分析标注（缺档且有 V2 分析时后端按需
   // 重建；无分析返回空数组）。Pos=-1 表示未命中不高亮（如 suggestion 类）。
   NovelChapterAnnotations(chapterNum: number): Promise<ChapterAnnotation[]>;
+  // ── t7 前端接线（规格 进度计划/gaea-analysis-v2-panel-t7-20260916.md）──
+  // NovelChapterAnalysisV2 读取该章 V2 分析（analysis-v2.json 条目直连）；
+  // 缺档 reject（message=「尚未分析」，面板空态引导先分析）。
+  NovelChapterAnalysisV2(chapterNum: number): Promise<ChapterAnalysisV2View>;
+  // AnalyzeChapter 触发该章 LLM 分析（原 Legacy 面绑定转正；V1 wire 返回
+  // 面板忽略——真相源是 analysis-v2.json 落盘，完成后重拉 V2；顺带伏笔
+  // 同步/记忆回填既有链路）。
+  AnalyzeChapter(chapterNum: number): Promise<Record<string, unknown>>;
   SaveCharactersBatch(namesJSON: string): Promise<Record<string, unknown>>;
   NovelReadingAsk(kind: string, title: string, chapterText: string, selection: string, question: string, historyJSON: string): Promise<string>;
   GenerateSceneIllustration(chapterNum: number): Promise<Record<string, unknown>>;

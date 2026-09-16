@@ -80,6 +80,7 @@ func (b *NovelB) NovelBookSourceImportChapters(source string, projectPath string
 func (b *NovelB) NovelBookSourceSearch(keyword string) (NovelBookSourceSearchResult, error) { return b.a.NovelBookSourceSearch(keyword) }
 func (b *NovelB) NovelBookSourceToc(source string, detailURL string) (NovelBookSourceTocPreview, error) { return b.a.NovelBookSourceToc(source, detailURL) }
 func (b *NovelB) NovelChapterAnnotations(chapterNum int) ([]types.Annotation, error) { return b.a.NovelChapterAnnotations(chapterNum) }
+func (b *NovelB) NovelChapterAnalysisV2(chapterNum int) (types.ChapterAnalysisResult, error) { return b.a.NovelChapterAnalysisV2(chapterNum) }
 func (b *NovelB) NovelChapterReview(chapterNum int, platform string) (ChapterReviewPayload, error) { return b.a.NovelChapterReview(chapterNum, platform) }
 func (b *NovelB) NovelChapterRewrite(chapterNum int, reqJSON string) (map[string]interface{}, error) { return b.a.NovelChapterRewrite(chapterNum, reqJSON) }
 func (b *NovelB) NovelChapterSuggestions(chapterNum int) ([]string, error) { return b.a.NovelChapterSuggestions(chapterNum) }

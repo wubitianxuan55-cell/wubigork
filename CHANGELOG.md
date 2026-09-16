@@ -1,3 +1,17 @@
+## v4.325.0 · t7 前端统一接线收官：分析 V2 消费面板 + 标注高亮视图（2026-09-16）
+> 用户指令「继续」。小刀单线主代理直做；契约先行（规格书随刀入库 进度计划/gaea-analysis-v2-panel-t7-20260916.md）。**本刀合入=小说·MuMu 蒸馏六域前端接线全清（t7 收官）**——伏笔面板 v4.299/重写建议 v4.305 已消费，本刀清掉最后两块零消费资产。
+**论点**=分析 V2（v4.301 落盘九维 analysis-v2.json）与标注层（v4.306 NovelChapterAnnotations keyword→rune 偏移）后端早已在位而 UI 面零消费；AnalyzeChapter 绑定困在 drift.ts LegacySurfaceNames 零入口——用户没有任何途径触发分析或看到结果。
+**裁决**=新绑定 NovelChapterAnalysisV2 回 types.ChapterAnalysisResult **直连**（PromptTemplateDetail 回 prompt.Template 先例；顶层 snake_case 如实透传前端镜像声明，不为只读面板复制九维子类型树）；缺该章分析诚实 error「尚未分析」（面板空态接分析按钮闭环）；AnalyzeChapter 出 Legacy 转正（AppBindings+mock，t7「接线」字面义；V1 返回忽略，真相源=V2 落盘）；标注高亮 V1=面板内**只读高亮视图**（不动编辑器 textarea——overlay 对 antd 样式同步脆弱入观察池）；rune→code-unit 换算（EditorPanel toRune 逆函数，代理对按 codePoint 步进）+交叠裁剪（后段起点钳前段终点）+越界钳制。
+**落地线B**=analysis_handler.go +NovelChapterAnalysisV2（ReadAnalysisV2File 按章查找直连；只读，落盘由 AnalyzeChapter 的 agent 链路完成）；NovelB 门面 +1（703→704）。
+**落地线C**=①bridge/novel.ts：AppBindings +AnalyzeChapter（drift.ts LegacySurfaceNames 移除）+NovelChapterAnalysisV2 +ChapterAnalysisV2View/AnalysisV2ResultView 视图（嵌套 snake 同落盘契约，全字段缺省防御）②mock/novel +2 桩（V2 单章九维演示样本）③新组件 ChapterAnalysisPanel（antd Modal）：头部综合分大数+三维 Tag+评分理由+chips（节奏/阶段/对话·叙述占比）+meta；分节=钩子/伏笔（埋设·回收徽标+长线+预计回收章）/冲突（烈度+化解%）/情感/角色变化（存活态异常 Tag）/组织变化（稀疏）/情节推进/场景/建议/小结——空节隐藏；标注区 Segmented 双模式=列表（type 徽标+importance+↩定位）/高亮视图（只读 pre-wrap 正文+分类型软底 mark+title 悬停），列表行点击切视图并 scrollIntoView 锚点④CreatePage rail「章节分析」按钮+挂载（content/activeChapterNum 传入）。
+**绑定面**=703→704（NovelB 123→124）；AnalyzeChapter 入 facets play；锁 525→527（AppBindings +2）；bindingNames 再生；drift OK@704。
+**测试**=Go +3（命中回九维+meta 直连/缺章「尚未分析」/无 agent「请先打开项目」）；前端 +8（面板 5：九维渲染/缺档空态+分析闭环（AnalyzeChapter→重拉 V2+标注）/高亮段换算+交叠裁剪（两段交叠断言第二段起点钳 5）/锚点切换滚动/无章空态不拉取；契约 3）；CreatePage 13/13 零破坏；tsc -b 零错、eslint 足迹零告警。
+**门禁**=go build/vet 全过、internal/app 全绿（146s）、vitest 全量、drift OK@704、版本三处 4.325.0；产物=exe 50756096B SHA256=6604f8e06b3f27cd586053794bfe22d8b881851e72210a7e7b0e2aeb22d89528（releases/gaea-v4.325.0.exe+SHA256SUMS-v4.325.0.txt；桌面副本同哈希；冒烟 /api/health 200 过）
+**文档**=规格书+releases/v4.325.0.md+CHANGELOG/README+AGENTS 迁 1 插 1（四十迁）+progress/todos。
+**出口对照**=分析本章按钮→V2 落盘→面板九维可见 ✅；标注列表+只读高亮+锚点可达 ✅；AnalyzeChapter 出 Legacy ✅；既有消费面零回归（CreatePage 13/13）✅。
+**观察池**=编辑器 textarea 内 overlay 持久高亮；标注点击定位编辑器光标（需 ref 联动）；多章对比；情感曲线图形化；V1 wire 前端消费。
+**未做（下刀）**=7.3-2 板块降视图（等 v4.318 零功能周≈09-23）；闲庭在册清欠沿既有列车。
+
 ## v4.324.0 · t6-C2 提示词工坊第二刀：模板包导入导出（content_hash 三态）（2026-09-16）
 > 用户指令「继续优化迭代 gaea」。小刀单线主代理直做（体量一轮未拆子代理）；契约先行（规格书随刀入库 进度计划/gaea-prompt-bundle-t6c2-20260916.md；蒸馏依据 docs/distill/06-prompt-workshop.md §6.4——「本域最有借鉴价值的一段算法」+§11.4 裁决）。
 **论点**=首刀覆盖表是只有一份的本地状态——换机/重装没有搬运手段，内置升级后也没有对账工具；本刀补全量快照 JSON 包+MuMu 三态导入算法（false+同基线→删覆盖行回落内置 kept_system_default / false+基线不同→转自定义 converted_to_custom / true→直接写行 created_or_updated）。

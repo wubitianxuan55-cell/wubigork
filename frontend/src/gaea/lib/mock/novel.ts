@@ -65,6 +65,8 @@ type NovelMethods = Pick<
   | "PromptTemplateReset" | "PromptTemplatePreview"
   // 模板包导入导出（t6-C2：content_hash 三态；面板「导出/导入模板包」）。
   | "PromptBundleExport" | "PromptBundleImport"
+  // t7 分析接线：AnalyzeChapter 出 Legacy 转正 + V2 读取（CreatePage「章节分析」面板）。
+  | "AnalyzeChapter" | "NovelChapterAnalysisV2"
 >;
 
 export function buildNovel(): NovelMethods {
@@ -548,6 +550,48 @@ export function buildNovel(): NovelMethods {
         applied: rows > 0,
         statistics: { total: rows, keptSystemDefault: 1, convertedToCustom: 0, createdOrUpdate: Math.max(rows - 1, 0), skippedInvalid: 0, skippedUnknown: 0, skippedDuplicate: 0 },
         outcomes: Array.from({ length: rows }, (_v, i) => ({ key: `mock-template-${i + 1}`, action: i === 0 ? "kept_system_default" : "created_or_updated" })),
+      };
+    },
+    // t7 分析接线：AnalyzeChapter=触发分析（浏览器桩无 LLM，回 V1 形状即可——
+    // 真相源是 V2 落盘，真机由面板重拉 V2）；V2 读取=单章九维演示样本。
+    async AnalyzeChapter(_chapterNum: number) {
+      return {
+        hook: "夜半敲门声揭开的往事",
+        conflict: "主角与守门人的对峙",
+        emotionCurve: "紧张→缓和→再起",
+        keyEvents: ["密室开启", "信物现世"],
+        sceneRhythm: "两快一慢",
+        qualityScore: 8,
+        improvementTips: ["中段可收紧"],
+        foreshadows: [],
+        characterStates: [],
+      };
+    },
+    async NovelChapterAnalysisV2(chapterNum: number) {
+      return {
+        chapter_num: chapterNum,
+        chapter_file: String(chapterNum).padStart(3, "0") + ".md",
+        analyzed_at: new Date().toISOString(),
+        engine: "dev-mock",
+        model: "mock-model",
+        analyzer_source: "llm",
+        result: {
+          hooks: [{ type: "悬念", content: "夜半敲门声只响了三下，门外却没有人。", strength: 8, position: "开头" }],
+          foreshadows: [{ title: "褪色的信物", content: "袖中信物纹路与门楣浮雕一致。", type: "planted", strength: 7, subtlety: 8, category: "item", is_long_term: true, estimated_resolve_chapter: chapterNum + 12 }],
+          conflict: { types: ["人与人", "人与己"], parties: ["林昭", "守门人"], level: 7, description: "进门与守门的正面拉锯。", resolution_progress: 0.4 },
+          emotional_arc: { primary_emotion: "警觉", intensity: 7, curve: "缓起-陡升-悬置", secondary_emotions: ["怀疑", "隐痛"] },
+          character_states: [{ name: "林昭", old_state: "旁观", new_state: "入局", psychological_change: "从回避到直面", key_event: "接过信物", survival_status: "active" }],
+          organization_states: [],
+          plot_points: [{ content: "信物现世，身份线索落地。", type: "revelation", importance: 0.8, impact: "后续门规冲突的直接引信" }],
+          scenes: [{ location: "旧宅门廊", atmosphere: "湿冷压抑", duration: "一刻钟" }],
+          pacing: "moderate",
+          dialogue_ratio: 0.32,
+          description_ratio: 0.41,
+          scores: { pacing: 7.5, engagement: 8, coherence: 8, overall: 7.8, score_justification: "开篇钩子扎实，中段节奏略缓。" },
+          plot_stage: "第一幕·铺垫",
+          suggestions: ["中段铺垫可压缩一档", "守门人动机可再露半分"],
+          summary: "本章以敲门声开局，信物将主角由旁观推入局中，冲突升至 7 且未解。",
+        },
       };
     },
   };

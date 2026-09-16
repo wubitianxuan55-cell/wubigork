@@ -44,7 +44,6 @@ type MockOnlyNames =
 type LegacySurfaceNames =
   | "AddCustomEngine"
   | "AddOutlineNode"
-  | "AnalyzeChapter"
   | "AnalyzeStyle"
   | "ApplyBranch"
   | "BrainCrossRefs"

@@ -40,6 +40,31 @@ func (a *writingState) AnalyzeChapter(chapterNum int) (map[string]interface{}, e
 	}, nil
 }
 
+// NovelChapterAnalysisV2 读取该章 V2 分析（t7 前端接线：analysis-v2.json 该章
+// 条目直连，types.ChapterAnalysisResult 透传——PromptTemplateDetail 回
+// prompt.Template 直连先例；顶层 snake_case 如实透传，前端视图镜像声明）。
+// 无该章条目 error（面板空态引导「先分析」）；分析落盘由 AnalyzeChapter
+// 的 agent 链路完成（本方法只读）。
+func (a *writingState) NovelChapterAnalysisV2(chapterNum int) (types.ChapterAnalysisResult, error) {
+	if a.analysisAgent == nil {
+		return types.ChapterAnalysisResult{}, fmt.Errorf("请先打开项目")
+	}
+	pm := a.getPM()
+	if pm == nil {
+		return types.ChapterAnalysisResult{}, fmt.Errorf("请先打开项目")
+	}
+	af, err := pm.ReadAnalysisV2File()
+	if err != nil {
+		return types.ChapterAnalysisResult{}, fmt.Errorf("读取分析结果失败: %w", err)
+	}
+	for i := range af.Items {
+		if af.Items[i].ChapterNum == chapterNum {
+			return af.Items[i], nil
+		}
+	}
+	return types.ChapterAnalysisResult{}, fmt.Errorf("第 %d 章尚未分析（先运行「分析本章」）", chapterNum)
+}
+
 // foreshadowUrgencyView 单条目的运行时紧急度投影（spec §2.1 ForeshadowUrgency，
 // A5：运行时算不落库；D7：阈值以后端为准前端不自算）。
 // 已回收/已废弃无回收压力 → 返回 nil（wire 缺省该键）。
