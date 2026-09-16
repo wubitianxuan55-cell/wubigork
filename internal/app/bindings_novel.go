@@ -112,6 +112,7 @@ func (b *NovelB) RemoveCharacterCareer(charID string, reqJSON string) error { re
 func (b *NovelB) ReorderScenes(chapterNum int, sceneIDs []string) error { return b.a.ReorderScenes(chapterNum, sceneIDs) }
 func (b *NovelB) RestoreSnapshot(snapshotID string, sceneID string, chapterNum int) error { return b.a.RestoreSnapshot(snapshotID, sceneID, chapterNum) }
 func (b *NovelB) ReviewBook() (map[string]interface{}, error) { return b.a.ReviewBook() }
+func (b *NovelB) RunBookHealthCheck() (BookHealthReport, error) { return b.a.RunBookHealthCheck() }
 func (b *NovelB) RewriteChapterAiTaste(chapterNum int) (map[string]interface{}, error) { return b.a.RewriteChapterAiTaste(chapterNum) }
 func (b *NovelB) RunChapterGate(chapterNum int) (map[string]interface{}, error) { return b.a.RunChapterGate(chapterNum) }
 func (b *NovelB) SaveAllWorldviewSections(sectionsJSON string) error { return b.a.SaveAllWorldviewSections(sectionsJSON) }

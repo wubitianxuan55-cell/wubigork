@@ -1,3 +1,17 @@
+## v4.326.0 · GenerationGate 闭环收口：生成后自动分析门 + 全书体检（2026-09-16）
+> 用户指令「继续」。小刀单线主代理直做；契约先行（规格书随刀入库 进度计划/gaea-gen-gate-closure-20260916.md）。阶段七 §4 在册项；7.3-2 仍等零功能周窗口（≈09-23）。
+**论点**=revolution 未勾项「GenerationGate 完整闭环」：生成 done 只挂去味+AI 味分+角色提取，**分析路从不自动发生**——t1-P2 伏笔自动回收/t3-P1 记忆回填/t4 V2 落盘三条已建成管道的水源只能靠手动点「分析本章」，闭环名存实亡；全书体检=单章门与伏笔 Lint 各自孤立，没有「点一次出全书报告」的聚合面。
+**裁决**=自动门**异步非阻断**（extractCharactersAfterChapter 同款 go 位）默认武装——分析是加法数据（幂等/带审计），与角色提取同性质；只跑确定性三路+分析路（一次 LLM），review/consistency 仍留单章门手动（成本纪律）；**分支章跳分析路**（V2 落盘/伏笔登记是主线口径，upsert 会污染主线条目）；结果 emit `chapter-gate` 事件（V1 零前端消费，t7 章节分析面板天然是消费面——V2 保证新鲜）；全书体检=**纯确定性零 LLM**（作者点按秒级出报告，无常驻无定时）。
+**落地线B**=①novel_book_health.go：buildAutoGateReport（同步可测：outlineContract+ChapterQualityIssues+aiTaste 白名单豁免后必出；分析路主线章才跑，失败 warn 降级）+runAutoGateAfterGeneration（go 位包装+recover 兜底+emit）；RunBookHealthCheck（逐章确定性三路+字数；伏笔 Lint 复用；V2 覆盖计数；BookHealthReport camelCase typed，S1/S2 记 error 级）②create_chapter_handler done 后挂自动门 go 位③NovelB +RunBookHealthCheck（**704→705**）。
+**落地线C**=BookHealthPanel（CreatePage rail「全书体检」）：聚合卡（总章/契约问题章/质量问题章/最差 AI 味/V2 覆盖/伏笔告警数）+最差 AI 味≥60 告警（指引去味复检）+逐章表（契约/质量计数与阻断级红标·AI 味 60+ 红·字数 tabular-nums）+伏笔 findings 列表+零 LLM 说明脚注；bridge+视图类型；mock +1 桩；锁 527→528；bindingNames 再生。
+**测试**=Go +5（自动门三例：确定性三路必出/分支跳分析/agent 失败降级不 panic；体检两例：干净+脏章聚合断言〔超长段落 S3 非阻断、契约 S2×1+S3+S4 计数、无大纲节点章不计契约〕+V2 覆盖与空书零章非 nil）；前端 +5（聚合渲染/重新体检/零章空态/失败空态/契约 1）；CreatePage 既有测试零破坏。
+**门禁**=go build/vet 全过、internal/app 全绿 147s（-count=1）、vitest 全量、drift OK@705、版本三处 4.326.0；产物=exe 50774528B SHA256=0581c0be3ea4a61f33989eecf4ebd666a287cd648a10ec2a21e5da304aa5f83b（releases/gaea-v4.326.0.exe+SHA256SUMS-v4.326.0.txt；桌面副本同哈希；冒烟 /api/health 200 过）。
+**坑**=①analysis.New(nil client) 在 Analyze 内部 nil 解引用 panic——测试须用无引擎真 client（ai.NewClient 空 cfg，LLM 调用走 error 返回）②JSX 泛型不认索引访问（Table<Obj['rows'][number]> 语法错），抽 type 别名③gateOutlineIssues 找不到大纲节点返回空表=无契约可违不计问题章（首版断言想当然写反）。
+**文档**=规格书+releases/v4.326.0.md+CHANGELOG/README+AGENTS 迁 1 插 1（四十一迁）+progress/todos。
+**出口对照**=生成一章后 V2/伏笔同步/记忆回填自动发生（分析被调降级路径钉住）✅；全书体检查一次出聚合报告零 LLM ✅；revolution「GenerationGate 完整闭环」勾销 ✅。
+**观察池**=chapter-gate 事件 UI 消费（toast/面板）；auto 分析 kill-switch；review/consistency 自动化（成本拍板）；体检 LLM 深检档与报告导出。
+**未做（下刀）**=7.3-2 板块降视图（等零功能周≈09-23）；闲庭在册清欠沿既有列车。
+
 ## v4.325.0 · t7 前端统一接线收官：分析 V2 消费面板 + 标注高亮视图（2026-09-16）
 > 用户指令「继续」。小刀单线主代理直做；契约先行（规格书随刀入库 进度计划/gaea-analysis-v2-panel-t7-20260916.md）。**本刀合入=小说·MuMu 蒸馏六域前端接线全清（t7 收官）**——伏笔面板 v4.299/重写建议 v4.305 已消费，本刀清掉最后两块零消费资产。
 **论点**=分析 V2（v4.301 落盘九维 analysis-v2.json）与标注层（v4.306 NovelChapterAnnotations keyword→rune 偏移）后端早已在位而 UI 面零消费；AnalyzeChapter 绑定困在 drift.ts LegacySurfaceNames 零入口——用户没有任何途径触发分析或看到结果。

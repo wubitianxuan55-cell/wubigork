@@ -1,6 +1,7 @@
-// t7 分析接线契约层 mock 冒烟：AnalyzeChapter（出 Legacy 转正）+ 
-// NovelChapterAnalysisV2 两名（mock 实现见 mock/novel.ts；真实后端见 Go NovelB）。
-// 锁定 mock 形状与 ChapterAnalysisPanel 消费字段的对应（先例：mock-contract-prompt.test.ts）。
+// t7 分析接线 + GenerationGate 闭环契约层 mock 冒烟：AnalyzeChapter（出 Legacy
+// 转正）/NovelChapterAnalysisV2/RunBookHealthCheck（mock 实现见 mock/novel.ts；
+// 真实后端见 Go NovelB）。锁定 mock 形状与面板消费字段的对应（先例：
+// mock-contract-prompt.test.ts）。
 import { describe, expect, it } from 'vitest'
 import { app } from './bridge'
 
@@ -23,11 +24,19 @@ const analysisApi = app as unknown as {
       summary: string
     }
   }>
+  RunBookHealthCheck(): Promise<{
+    totalChapters: number
+    chapters: Array<Record<string, number>>
+    contractIssueChapters: number
+    qualityIssueChapters: number
+    analyzedChapters: number
+    foreshadow?: { findings: unknown[] }
+  }>
 }
 
 describe('mock 契约 · 分析接线两名（t7：分析 V2 面板）', () => {
   it('两名均存在于 mock 绑定面', () => {
-    for (const n of ['AnalyzeChapter', 'NovelChapterAnalysisV2']) {
+    for (const n of ['AnalyzeChapter', 'NovelChapterAnalysisV2', 'RunBookHealthCheck']) {
       expect(typeof (app as unknown as Record<string, unknown>)[n], n).toBe('function')
     }
   })
@@ -48,5 +57,17 @@ describe('mock 契约 · 分析接线两名（t7：分析 V2 面板）', () => {
     for (const k of ['hook', 'conflict', 'qualityScore', 'improvementTips'] as const) {
       expect(k in r, k).toBe(true)
     }
+  })
+
+  it('RunBookHealthCheck 回聚合+逐章行+伏笔 findings（BookHealthPanel 消费面）', async () => {
+    const r = await analysisApi.RunBookHealthCheck()
+    expect(typeof r.totalChapters).toBe('number')
+    expect(Array.isArray(r.chapters)).toBe(true)
+    for (const row of r.chapters) {
+      for (const k of ['chapterNum', 'words', 'outlineIssues', 'qualityIssues', 'aiTasteScore'] as const) {
+        expect(typeof row[k], k).toBe('number')
+      }
+    }
+    expect(r.foreshadow?.findings).toBeDefined()
   })
 })

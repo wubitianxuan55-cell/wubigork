@@ -567,6 +567,7 @@ export const bindingNames = [
   "RestoreSnapshot",
   "ReviewBook",
   "RewriteChapterAiTaste",
+  "RunBookHealthCheck",
   "RunChapterGate",
   "RunModule",
   "SaveAllWorldviewSections",

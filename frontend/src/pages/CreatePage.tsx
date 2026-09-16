@@ -17,6 +17,7 @@ import PartialRewriteModal from '../components/novel/PartialRewriteModal'
 import RewriteHistoryPanel from '../components/novel/RewriteHistoryPanel'
 import PromptWorkshopPanel from '../components/novel/PromptWorkshopPanel'
 import ChapterAnalysisPanel from '../components/novel/ChapterAnalysisPanel'
+import BookHealthPanel from '../components/novel/BookHealthPanel'
 import EditorPanel from '../components/novel/create/EditorPanel'
 import CreateInspector from '../components/novel/create/CreateInspector'
 import NewCharactersModal from '../components/novel/create/NewCharactersModal'
@@ -135,6 +136,7 @@ const CreatePage: React.FC = () => {
   // 提示词工坊面板（t6 首刀：模板可编辑覆盖层；打开才拉一次）
   const [promptWsOpen, setPromptWsOpen] = useState(false)
   const [analysisOpen, setAnalysisOpen] = useState(false)
+  const [healthOpen, setHealthOpen] = useState(false)
   // 局部重写选区（t4-C3 余项：EditorPanel 选段回调 → PartialRewriteModal；rune 偏移）
   const [pSel, setPSel] = useState<{ start: number; end: number; text: string } | null>(null)
   // 默认启用 story-deslop 去 AI 味润色技能；可在右侧创作设置中切换或清空
@@ -645,6 +647,7 @@ const CreatePage: React.FC = () => {
         <Button size="small" onClick={() => setRwHistOpen(true)}>重写历史</Button>
         <Button size="small" onClick={() => setPromptWsOpen(true)}>提示词工坊</Button>
         <Button size="small" onClick={() => setAnalysisOpen(true)}>章节分析</Button>
+        <Button size="small" onClick={() => setHealthOpen(true)}>全书体检</Button>
         {stateMsg ? <span className="novel-create-rail-msg">{stateMsg}</span> : null}
       </div>
       <RewriteModal
@@ -659,6 +662,7 @@ const CreatePage: React.FC = () => {
         onClose={() => setRwHistOpen(false)}
         onApplied={() => { if (activeNode) void selectChapter(activeNode) }}
       />
+      <BookHealthPanel open={healthOpen} onClose={() => setHealthOpen(false)} />
       <ChapterAnalysisPanel
         open={analysisOpen}
         onClose={() => setAnalysisOpen(false)}

@@ -181,6 +181,35 @@ export interface AnalysisV2ResultView {
   suggestions?: string[];
   summary?: string;
 }
+// ── 全书体检视图（GenerationGate 闭环收口；Go BookHealthReport 直连）──
+/** 逐章体检行（全确定性）。aiTasteScore=-1=打分失败。 */
+export interface BookHealthChapterView {
+  chapterNum: number;
+  words: number;
+  outlineIssues: number;
+  outlineErrors: number;
+  qualityIssues: number;
+  qualityErrors: number;
+  aiTasteScore: number;
+}
+/** 全书体检报告：聚合 + 逐章行 + 伏笔 Lint（复用 ForeshadowLintReport 形状）。 */
+export interface BookHealthReportView {
+  totalChapters: number;
+  chapters: BookHealthChapterView[];
+  contractIssueChapters: number;
+  qualityIssueChapters: number;
+  worstAiTaste?: BookHealthChapterView;
+  analyzedChapters: number;
+  foreshadow?: {
+    totalChapters: number;
+    items: number;
+    planted: number;
+    hinted: number;
+    revealed: number;
+    longTerm: number;
+    findings: Array<{ code?: string; message?: string; [k: string]: unknown }>;
+  };
+}
 export interface NovelRewriteRequest {
   source?: 'custom' | 'analysis_suggestions' | 'mixed';
   suggestion_indices?: number[];
@@ -255,6 +284,9 @@ export interface NovelBindings {
   // 面板忽略——真相源是 analysis-v2.json 落盘，完成后重拉 V2；顺带伏笔
   // 同步/记忆回填既有链路）。
   AnalyzeChapter(chapterNum: number): Promise<Record<string, unknown>>;
+  // RunBookHealthCheck 全书体检（GenerationGate 闭环收口：触发式全量编译，
+  // 纯确定性零 LLM；作者点按跑完出报告——无常驻无定时）。
+  RunBookHealthCheck(): Promise<BookHealthReportView>;
   SaveCharactersBatch(namesJSON: string): Promise<Record<string, unknown>>;
   NovelReadingAsk(kind: string, title: string, chapterText: string, selection: string, question: string, historyJSON: string): Promise<string>;
   GenerateSceneIllustration(chapterNum: number): Promise<Record<string, unknown>>;

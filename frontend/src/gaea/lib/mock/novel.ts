@@ -67,6 +67,8 @@ type NovelMethods = Pick<
   | "PromptBundleExport" | "PromptBundleImport"
   // t7 分析接线：AnalyzeChapter 出 Legacy 转正 + V2 读取（CreatePage「章节分析」面板）。
   | "AnalyzeChapter" | "NovelChapterAnalysisV2"
+  // GenerationGate 闭环：全书体检（触发式全量编译，零 LLM）。
+  | "RunBookHealthCheck"
 >;
 
 export function buildNovel(): NovelMethods {
@@ -565,6 +567,20 @@ export function buildNovel(): NovelMethods {
         improvementTips: ["中段可收紧"],
         foreshadows: [],
         characterStates: [],
+      };
+    },
+    async RunBookHealthCheck() {
+      return {
+        totalChapters: 2,
+        chapters: [
+          { chapterNum: 1, words: 3200, outlineIssues: 0, outlineErrors: 0, qualityIssues: 0, qualityErrors: 0, aiTasteScore: 12 },
+          { chapterNum: 2, words: 4100, outlineIssues: 3, outlineErrors: 1, qualityIssues: 2, qualityErrors: 0, aiTasteScore: 74 },
+        ],
+        contractIssueChapters: 1,
+        qualityIssueChapters: 1,
+        worstAiTaste: { chapterNum: 2, words: 4100, outlineIssues: 3, outlineErrors: 1, qualityIssues: 2, qualityErrors: 0, aiTasteScore: 74 },
+        analyzedChapters: 1,
+        foreshadow: { totalChapters: 2, items: 4, planted: 3, hinted: 1, revealed: 0, longTerm: 2, findings: [{ code: "target-past", message: "「褪色的信物」目标回收章已过当前进度" }] },
       };
     },
     async NovelChapterAnalysisV2(chapterNum: number) {

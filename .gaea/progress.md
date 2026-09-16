@@ -3,6 +3,16 @@
 > 本文件为**最近发布速览**。完整历史磁带见 `docs/archive/progress-history-2026-09.md`
 > 与 `releases/`。
 
+## 最新发布：v4.326.0（2026-09-16）「GenerationGate 闭环收口：生成后自动分析门 + 全书体检」
+
+- **来源**：用户指令「继续」。小刀单线主代理直做；规格书 进度计划/gaea-gen-gate-closure-20260916.md；阶段七 §4 在册项（revolution「GenerationGate 完整闭环」未勾项收口）。
+- **论点**：生成 done 只挂去味+AI 味分+角色提取，分析路（V2 落盘/伏笔同步/记忆回填）从不自动发生——三条已建成管道水源靠手动。裁决=自动门异步默认武装；只跑确定性三路+分析路一次 LLM（review/consistency 留手动）；分支章跳分析路；chapter-gate 事件零消费（t7 面板天然消费面）；全书体检纯确定性零 LLM。
+- **落地**：novel_book_health.go（buildAutoGateReport 同步可测+runAutoGateAfterGeneration go 位+RunBookHealthCheck 逐章三路+伏笔 Lint 复用+V2 覆盖）；create_chapter_handler done 后挂接；NovelB +1（704→705）；BookHealthPanel（聚合卡+最差 AI 味告警+逐章表红标+伏笔 findings）；锁 527→528；drift OK@705。
+- **验收**：Go +5（自动门三例+体检两例）+前端 +5；CreatePage 既有测试零破坏；tsc/eslint 零错；产物=exe 50774528B SHA256=0581c0be3ea4a61f33989eecf4ebd666a287cd648a10ec2a21e5da304aa5f83b（releases+SUMS+桌面副本同哈希；冒烟 200 过）。
+- **坑**：analysis.New(nil client) 在 Analyze 内 panic——测试用无引擎真 client；JSX 泛型不认索引访问抽别名；无大纲节点=无契约可违不计。
+- **出口**：生成后 V2/伏笔同步/记忆回填自动发生；全书体检聚合报告零 LLM；revolution 未勾项勾销。
+- **未做（下刀）**：7.3-2 板块降视图（≈09-23）；闲庭在册清欠沿列车。
+
 ## 最新发布：v4.325.0（2026-09-16）「t7 前端统一接线收官：分析 V2 消费面板 + 标注高亮视图」
 
 - **来源**：用户指令「继续」。小刀单线主代理直做；规格书 进度计划/gaea-analysis-v2-panel-t7-20260916.md。**本刀合入=小说·MuMu 蒸馏六域前端接线全清（t7 收官）**。

@@ -524,6 +524,11 @@ func (a *writingState) streamCreateChapter(ctx context.Context, pm *project.Mana
 
 	// 异步提取章节角色（不阻塞 done 事件）
 	go a.extractCharactersAfterChapter(pm, content, targetNum)
+
+	// 生成后自动门（GenerationGate 闭环收口，规格 进度计划/gaea-gen-gate-closure-
+	// 20260916.md）：确定性三路+分析路（V2 落盘/伏笔同步/记忆回填）异步过水；
+	// 分支章在门内跳分析路（登记表是主线口径）。
+	go a.runAutoGateAfterGeneration(pm, targetNum, content, branch)
 }
 
 // resolveTargetChapterNum 计算「本章章号」：显式指定（>0）直接用；分支续写
