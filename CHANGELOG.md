@@ -1,3 +1,16 @@
+## v4.328.0 · 绘梦阶段一刀 D 核心片：章节配图管线 v2（角色参考图 + 风格槽）（2026-09-17）
+> 用户指令「继续」。小刀单线主代理直做；契约先行（规格书随刀入库 进度计划/gaea-scene-illustration-v2-20260917.md；规格 docs/gaea-dream-studio-nextgen-2026-09.md §4 刀 D）。取核心片=GenerateSceneIllustration 参考图+风格槽贯通（书封参考/素材库变体/灯箱共用留后续片）。
+**论点**=场景插图纯文生图：角色一致性只靠外貌文字（刀 B 参考槽没接到配图链），风格句写死。
+**裁决**=签名扩展 `GenerateSceneIllustration(chapterNum, optsJSON)`（v4.139 Save 先例，空串零行为变化，**绑定面 705 不变**）；opts={"characterIds":[],"style":""}；参考图来源=项目角色 PortraitURL（data URL 直用/本地路径读盘转 data URL/无立绘诚实跳过）；**参考路由按后端能力**（comfyui/herdsman 附 RefImages img2img+SceneRefDenoise=0.6；其它后端不附+refNote 诚实降级提示不静默）；风格槽替换风格描述（16:9 构图固定保留）；返回 map 增 refNote 键恒回。
+**落地Go**=chapter.Agent +GenerateSceneIllustrationV2（refs/style 参；旧签名委托零变化）；chapter_handler 签名扩展+opts 解析+sceneIllustrationRefs 路由+readImageFileAsDataURL（8MB 上限+MIME 推断）。
+**落地前端**=ChapterIllustration 弹窗加风格输入+角色勾选（GetCharacters 名单，至多 8 个展示）+refNote 浅色说明行；bridge/mock 双参同步。**修复挂载效应 bug：run 依赖 refIds/style 后改选项会自动重跑（每次键入触发生成）——didMountRun ref 守卫恢复「打开即一次」语义**。
+**测试**=Go +7（风格注入/空 opts 零变化/坏 opts 拒绝/参考路由三态〔comfyui 附 img2img·非参考后端降级提示·无立绘跳过说明〕/路径立绘转 dataURL）；前端 3 改 5（双参断言/v2 选项与重试/refNote 有无两态）。坑=测试 fixture 须 a.ctx=context.Background（agent 持 a.ctx 直透后端，nil 在 fake 的 ctx.Err() 解引用 panic）；fakeImageBackend +lastReq 捕获字段。
+**门禁**=go build/vet 全过、chapter+app 全绿（app 首跑并行环境 flaky 复跑两次绿先例+1）、tsc -b 零错、eslint 零告警、vitest 全量 3162/3162 一次全绿、drift OK@705、版本三处 4.328.0；产物=exe 50796032B SHA256=070f39f84f964b7d129b59e09ba68023d11a7c892d8d8932c4e736377a656c39（releases/gaea-v4.328.0.exe+SHA256SUMS-v4.328.0.txt；桌面副本同哈希；冒烟 /api/health 200 过）。
+**文档**=规格书+releases/v4.328.0.md+CHANGELOG/README+AGENTS 迁 1 插 1（四十三迁）+progress/todos。
+**出口对照**=配图弹窗选风格+勾角色→opts 透传→参考路由诚实（附/降级/跳过三态可见）✅；空 opts 旧行为零变化 ✅；挂载一次语义保住 ✅。
+**观察池**=GaeaGenerateBookCover 参考图与风格槽；素材库变体/替换/设为书封；灯箱共用；denoise 用户可调；多参考权重。
+**未做（下刀）**=绘梦阶段一收尾（刀 E 画室消耗轻量面板）或 7.3-2 板块降视图（≈09-23 解锁）。
+
 ## v4.327.0 · 绘梦阶段一刀 C：指令编辑「改图」MVP（云端先行）（2026-09-17）
 > 用户指令「继续」。小刀单线主代理直做；契约先行（规格书随刀入库 进度计划/gaea-instruct-edit-20260917.md；规格 docs/gaea-dream-studio-nextgen-2026-09.md §4 阶段一刀 C）。前置核对=刀 A 资产面板（AssetStudio）/刀 B 参考槽（RefImages img2img）/刀 E 模型目录分层均已落——**刀 C 指令编辑是真缺口**（现状「改图」=把结果填回图生图整幅重绘，无「原图+人话指令」语义编辑）。
 **论点**=编辑能力是旗舰标配（调研 §1.1/§1.2）；gaea 后端已有 OpenAI 兼容图片面但缺 /images/edits——Qwen-Image-Edit 系云端网关的标准暴露面。

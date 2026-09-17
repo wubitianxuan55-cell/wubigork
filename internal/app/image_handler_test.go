@@ -20,9 +20,11 @@ type fakeImageBackend struct {
 	resets     int
 	result     *ai.ImageGenerationResponse
 	err        error
+	lastReq    *ai.ImageGenerationRequest // 最近一次请求（配图 v2 等形状断言）
 }
 
 func (f *fakeImageBackend) GenerateImage(ctx context.Context, req *ai.ImageGenerationRequest) (*ai.ImageGenerationResponse, error) {
+	f.lastReq = req
 	if ctx.Err() != nil {
 		return nil, ctx.Err()
 	}

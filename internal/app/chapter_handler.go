@@ -1,11 +1,15 @@
 package app
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"os"
+	"path/filepath"
 	"strings"
 
+	"github.com/gaea/gaea/internal/project"
 	"github.com/gaea/gaea/internal/types"
 )
 
@@ -127,13 +131,29 @@ func markNodeWritten(node *types.OutlineNode, num int, branch string) bool {
 
 // GenerateSceneIllustration 为指定章节生成场景插图（Aurora）
 // GenerateSceneIllustration 为指定章节生成场景插图（Aurora）
-func (a *writingState) GenerateSceneIllustration(chapterNum int) (map[string]interface{}, error) {
+// sceneIllustrationOpts 配图 v2 选项（阶段一刀 D 核心片，规格
+// 进度计划/gaea-scene-illustration-v2-20260917.md）。空 JSON/空串=旧行为零变化。
+type sceneIllustrationOpts struct {
+	CharacterIDs []string `json:"characterIds"` // 参考图角色 ID（无 PortraitURL 的诚实跳过）
+	Style        string   `json:"style"`        // 风格槽（空=默认风格句）
+}
+
+// GenerateSceneIllustration 为章节生成场景插图（v2 签名扩展，v4.139 Save 先例：
+// 增 optsJSON 尾参，空串零行为变化；绑定面不增名）。
+func (a *writingState) GenerateSceneIllustration(chapterNum int, optsJSON string) (map[string]interface{}, error) {
 	if a.chapterAgent == nil {
 		return nil, fmt.Errorf("请先打开项目")
 	}
 	pm := a.getPM()
 	if pm == nil {
 		return nil, fmt.Errorf("请先打开项目")
+	}
+
+	var opts sceneIllustrationOpts
+	if strings.TrimSpace(optsJSON) != "" {
+		if err := json.Unmarshal([]byte(optsJSON), &opts); err != nil {
+			return nil, fmt.Errorf("配图选项格式不正确: %w", err)
+		}
 	}
 
 	content, err := pm.ReadChapter(chapterNum)
@@ -160,7 +180,11 @@ func (a *writingState) GenerateSceneIllustration(chapterNum int) (map[string]int
 		slog.Warn("读取世界观失败", "error", err)
 	}
 
-	resp, err := a.chapterAgent.GenerateSceneIllustration(a.ctx, content, summary, characterList, wv)
+	// 参考槽路由（Q3/Q4）：角色 PortraitURL → data URL 列表；仅参考能力后端
+	// 附着（comfyui/herdsman——刀 B img2img 口径），其它后端诚实降级提示。
+	refs, refNote := a.sceneIllustrationRefs(pm, characterList, opts.CharacterIDs)
+
+	resp, err := a.chapterAgent.GenerateSceneIllustrationV2(a.ctx, content, summary, characterList, wv, refs, opts.Style)
 	if err != nil {
 		return nil, fmt.Errorf("生成插图失败: %w", err)
 	}
@@ -199,11 +223,92 @@ func (a *writingState) GenerateSceneIllustration(chapterNum int) (map[string]int
 	result := map[string]interface{}{
 		"url":            resp.Data[0].URL,
 		"revised_prompt": resp.Data[0].RevisedPrompt,
+		"refNote":        refNote, // 参考使用情况（Q6：恒回，前端浅色说明行）
 	}
 	if outPath != "" {
 		result["file_path"] = outPath
 	}
 	return result, nil
+}
+
+// sceneIllustrationRefs 参考槽收集与路由（Q3/Q4）：
+//   - characterIDs → 项目角色 PortraitURL（data URL 直用；本地路径读盘转
+//     data URL；无 PortraitURL 的角色诚实跳过并计入说明）；
+//   - 仅参考能力后端（comfyui/herdsman，刀 B img2img 口径）返回非空 refs；
+//     其它后端 refs=nil + refNote「不支持参考图」——诚实降级提示不静默。
+func (a *writingState) sceneIllustrationRefs(pm *project.Manager, characters []types.Character, characterIDs []string) (refs []string, refNote string) {
+	if len(characterIDs) == 0 {
+		return nil, ""
+	}
+	byID := make(map[string]types.Character, len(characters))
+	for _, c := range characters {
+		byID[c.ID] = c
+	}
+	var skipped []string
+	for _, id := range characterIDs {
+		c, ok := byID[id]
+		if !ok {
+			skipped = append(skipped, id+"（不存在）")
+			continue
+		}
+		p := strings.TrimSpace(c.PortraitURL)
+		if p == "" {
+			skipped = append(skipped, c.Name+"（无立绘）")
+			continue
+		}
+		if strings.HasPrefix(p, "data:") {
+			refs = append(refs, p)
+			continue
+		}
+		if dataURL, err := readImageFileAsDataURL(p); err == nil {
+			refs = append(refs, dataURL)
+		} else {
+			slog.Warn("角色参考图读取失败（跳过）", "character", c.Name, "path", p, "error", err)
+			skipped = append(skipped, c.Name+"（参考图读取失败）")
+		}
+	}
+	// 后端能力路由：非参考能力后端不附着（后端会拒绝 img2img 或文生图带参考）。
+	backend := ""
+	if a.cfg != nil {
+		backend = a.cfg.ImageBackend
+	}
+	if len(refs) > 0 && backend != "comfyui" && backend != "herdsman" {
+		note := "当前引擎（" + backend + "）不支持参考图，本次纯文生图"
+		if len(skipped) > 0 {
+			note += "；另有角色未取到参考：" + strings.Join(skipped, "、")
+		}
+		return nil, note
+	}
+	if len(refs) > 0 {
+		note := fmt.Sprintf("已附 %d 张角色参考图（img2img）", len(refs))
+		if len(skipped) > 0 {
+			note += "；未取到参考：" + strings.Join(skipped, "、")
+		}
+		return refs, note
+	}
+	return nil, "未取到任何角色参考图：" + strings.Join(skipped, "、")
+}
+
+// readImageFileAsDataURL 本地图片路径 → data URL（参考槽只认 data URL——
+// comfyui uploadImage 与 herdsman img2img 同口径）。
+func readImageFileAsDataURL(path string) (string, error) {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	if len(b) > 8<<20 {
+		return "", fmt.Errorf("图片过大（上限 8MB）")
+	}
+	mime := "image/png"
+	switch strings.ToLower(filepath.Ext(path)) {
+	case ".jpg", ".jpeg":
+		mime = "image/jpeg"
+	case ".webp":
+		mime = "image/webp"
+	case ".gif":
+		mime = "image/gif"
+	}
+	return "data:" + mime + ";base64," + base64.StdEncoding.EncodeToString(b), nil
 }
 
 // ── v4 场景 API ──────────────────────────────────────────────

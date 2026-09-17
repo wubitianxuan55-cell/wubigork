@@ -289,7 +289,9 @@ export interface NovelBindings {
   RunBookHealthCheck(): Promise<BookHealthReportView>;
   SaveCharactersBatch(namesJSON: string): Promise<Record<string, unknown>>;
   NovelReadingAsk(kind: string, title: string, chapterText: string, selection: string, question: string, historyJSON: string): Promise<string>;
-  GenerateSceneIllustration(chapterNum: number): Promise<Record<string, unknown>>;
+  // 配图 v2（阶段一刀 D）：optsJSON={"characterIds":[],"style":""}（空串=旧行为）；
+  // 返回增 refNote（参考使用情况：已附/降级/跳过原因）。
+  GenerateSceneIllustration(chapterNum: number, optsJSON: string): Promise<Record<string, unknown>>;
   // ── 批次三b wailsjsCompat 双轨退役转正（Go NovelB 门面 bindings_novel.go，
   // 同名前缀；ChapterPage/CreatePage/api 小说角色族消费面=章节正文/分支/
   // 叙事状态/场景/项目角色——小说创作间数据面归 play）──

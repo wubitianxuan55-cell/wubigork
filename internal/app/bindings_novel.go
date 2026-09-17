@@ -44,7 +44,7 @@ func (b *NovelB) GenerateCharacters(count int) (map[string]interface{}, error) {
 func (b *NovelB) GenerateOutlineWithDialogue(storyPrompt string, numChapters int, maxTurns int) (map[string]interface{}, error) { return b.a.GenerateOutlineWithDialogue(storyPrompt, numChapters, maxTurns) }
 func (b *NovelB) GenerateProjectCharacterFill(chJSON string) (string, error) { return b.a.GenerateProjectCharacterFill(chJSON) }
 func (b *NovelB) GenerateScene(chapterNum int, sceneID string, plotReq string, minWords int) (map[string]interface{}, error) { return b.a.GenerateScene(chapterNum, sceneID, plotReq, minWords) }
-func (b *NovelB) GenerateSceneIllustration(chapterNum int) (map[string]interface{}, error) { return b.a.GenerateSceneIllustration(chapterNum) }
+func (b *NovelB) GenerateSceneIllustration(chapterNum int, optsJSON string) (map[string]interface{}, error) { return b.a.GenerateSceneIllustration(chapterNum, optsJSON) }
 func (b *NovelB) GenerateSingleCharacter(chJSON string) (map[string]interface{}, error) { return b.a.GenerateSingleCharacter(chJSON) }
 func (b *NovelB) GetAllEntityNames() ([]map[string]interface{}, error) { return b.a.GetAllEntityNames() }
 func (b *NovelB) GetBacklinks(entityName string) ([]map[string]interface{}, error) { return b.a.GetBacklinks(entityName) }

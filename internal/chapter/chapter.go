@@ -63,6 +63,18 @@ func (a *Agent) GenerateSummary(ctx context.Context, chapterContent string) (*ty
 // GenerateSceneIllustration 为章节生成场景插图（Aurora 图片生成）
 // chapterContent: 本章正文, summary: 章节摘要, characters: 出场角色列表, worldview: 世界观描述
 func (a *Agent) GenerateSceneIllustration(ctx context.Context, chapterContent string, summary *types.ChapterSummary, characters []types.Character, worldview string) (*ai.ImageGenerationResponse, error) {
+	return a.GenerateSceneIllustrationV2(ctx, chapterContent, summary, characters, worldview, nil, "")
+}
+
+// SceneRefDenoise 参考槽重绘幅度：结构引导优先、兼顾场景重排（刀 B 的
+// img2img 近似档在配图场景的取值——过高丢角色结构，过低场景重排不开）。
+const SceneRefDenoise = 0.6
+
+// GenerateSceneIllustrationV2 场景插图 v2（阶段一刀 D 核心片，规格
+// 进度计划/gaea-scene-illustration-v2-20260917.md）：refs=角色参考图
+// （data URL，非空时 img2img 附着）；style=风格槽（空=默认风格句，非空
+// 替换风格描述，16:9 构图固定保留）。
+func (a *Agent) GenerateSceneIllustrationV2(ctx context.Context, chapterContent string, summary *types.ChapterSummary, characters []types.Character, worldview string, refs []string, style string) (*ai.ImageGenerationResponse, error) {
 	// 构建 Aurora prompt
 	var promptBuilder strings.Builder
 	promptBuilder.WriteString("小说场景插图。")
@@ -94,16 +106,27 @@ func (a *Agent) GenerateSceneIllustration(ctx context.Context, chapterContent st
 		promptBuilder.WriteString("。")
 	}
 
-	// 风格指令
-	promptBuilder.WriteString(" 风格: 数字油画，电影级光影，高细节，16:9构图。")
+	// 风格槽（刀 D）：非空替换风格描述，构图固定保留
+	styleDesc := strings.TrimSpace(style)
+	if styleDesc == "" {
+		styleDesc = "数字油画，电影级光影，高细节"
+	}
+	promptBuilder.WriteString(" 风格: " + styleDesc + "，16:9构图。")
 
-	slog.Info("生成场景插图", "prompt", util.Truncate(promptBuilder.String(), 120))
+	slog.Info("生成场景插图", "prompt", util.Truncate(promptBuilder.String(), 120), "refs", len(refs), "style", styleDesc)
 
 	req := &ai.ImageGenerationRequest{
 		Model:  "grok-imagine-image-quality",
 		Prompt: promptBuilder.String(),
 		N:      1,
 		Size:   "1024x576", // 16:9 宽屏
+	}
+	if len(refs) > 0 {
+		// 参考槽（刀 B 贯通）：img2img 近似档；首张作种子与 ComfyUI 既有口径一致。
+		req.Mode = "img2img"
+		req.RefImages = refs
+		req.RefMethod = "img2img"
+		req.Denoise = SceneRefDenoise
 	}
 
 	return a.client.GenerateImage(ctx, req)

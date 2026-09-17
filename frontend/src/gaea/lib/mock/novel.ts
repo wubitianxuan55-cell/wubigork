@@ -203,8 +203,20 @@ export function buildNovel(): NovelMethods {
     async NovelReadingAsk(_kind: string, _title: string, _chapterText: string, _selection: string, _question: string, _historyJSON: string) {
       return "模拟回答";
     },
-    async GenerateSceneIllustration(_chapterNum: number) {
-      return { ok: true, path: ".gaea/play/exports/mock-scene.png" };
+    async GenerateSceneIllustration(chapterNum: number, optsJSON: string) {
+      // 配图 v2（刀 D）：解析 opts 组 refNote 演示（浏览器桩无真生图）。
+      let opts: { characterIds?: string[]; style?: string } = {};
+      try { opts = JSON.parse(optsJSON || "{}") as typeof opts; } catch { /* 空/坏 JSON 走缺省 */ }
+      const refNote = (opts.characterIds?.length ?? 0) > 0
+        ? `已附 ${opts.characterIds!.length} 张角色参考图（img2img）`
+        : opts.style ? "" : "";
+      return {
+        ok: true,
+        url: "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciLz4=",
+        revised_prompt: `mock 场景插图 prompt${opts.style ? `（风格：${opts.style}）` : ""}`,
+        refNote,
+        path: `.gaea/play/exports/mock-scene-${chapterNum}.png`,
+      };
     },
     // ── 批次三b legacy 直调转正（Go NovelB，同名前缀）────────────────────
     // 章节族：中性空态章节对象（真实实现读项目章节正文/分支）。

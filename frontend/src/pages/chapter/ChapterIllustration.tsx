@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useState } from 'react'
-import { Button, Modal, Spin } from 'antd'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { Button, Checkbox, Input, Modal, Spin } from 'antd'
 import { ReloadOutlined } from '@ant-design/icons'
 import { app } from '../../gaea/lib/bridge'
 import { PortraitImg } from '../../components/characterlib/PortraitImg'
-import { chapterArtList, readFileAsDataURL } from '../../api/image'
+import { chapterArtList, getCharacters, readFileAsDataURL } from '../../api/image'
 
 /**
  * 章节配图（v4.3g 图文联动前端）：为指定章节生成场景插图。
@@ -19,6 +19,8 @@ import { chapterArtList, readFileAsDataURL } from '../../api/image'
 interface SceneIllustrationResult {
   url?: unknown
   revised_prompt?: unknown
+  /** 配图 v2（刀 D）：参考使用情况（已附/降级/跳过原因；空串不展示）。 */
+  refNote?: unknown
 }
 
 interface ChapterIllustrationProps {
@@ -35,7 +37,11 @@ function errText(err: unknown, fallback: string): string {
 export function ChapterIllustration({ chapterNum, onClose }: ChapterIllustrationProps) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [result, setResult] = useState<{ url: string; revisedPrompt: string } | null>(null)
+  const [result, setResult] = useState<{ url: string; revisedPrompt: string; refNote: string } | null>(null)
+  // 配图 v2（刀 D）：风格槽 + 角色参考勾选（打开即拉角色名单）
+  const [style, setStyle] = useState('')
+  const [characters, setCharacters] = useState<{ id: string; name: string }[]>([])
+  const [refIds, setRefIds] = useState<string[]>([])
   // T1 画室素材：本章历史配图（后端落盘后登记，本地路径转 data URL 展示）。
   const [history, setHistory] = useState<{ path: string; url: string; createdAt: string }[]>([])
   const [activeArt, setActiveArt] = useState(0)
@@ -52,6 +58,10 @@ export function ChapterIllustration({ chapterNum, onClose }: ChapterIllustration
     setHistory(items)
   }, [chapterNum])
 
+  useEffect(() => {
+    void getCharacters().then(setCharacters).catch(() => setCharacters([]))
+  }, [])
+
   const run = useCallback(async () => {
     if (chapterNum < 1) {
       setLoading(false)
@@ -63,11 +73,13 @@ export function ChapterIllustration({ chapterNum, onClose }: ChapterIllustration
     setError(null)
     setResult(null)
     try {
-      const data = (await app.GenerateSceneIllustration(chapterNum)) as SceneIllustrationResult
+      const opts = { characterIds: refIds, style: style.trim() }
+      const data = (await app.GenerateSceneIllustration(chapterNum, JSON.stringify(opts))) as SceneIllustrationResult
       const url = typeof data.url === 'string' ? data.url : ''
       if (!url) throw new Error('未生成图片')
       const revisedPrompt = typeof data.revised_prompt === 'string' ? data.revised_prompt : ''
-      setResult({ url, revisedPrompt })
+      const refNote = typeof data.refNote === 'string' ? data.refNote : ''
+      setResult({ url, revisedPrompt, refNote })
       setActiveArt(0)
       void loadHistory()
     } catch (err) {
@@ -75,10 +87,14 @@ export function ChapterIllustration({ chapterNum, onClose }: ChapterIllustration
     } finally {
       setLoading(false)
     }
-  }, [chapterNum, loadHistory])
+  }, [chapterNum, loadHistory, refIds, style])
 
-  // 打开即加载：挂载即触发一次生成
+  // 打开即加载：挂载即触发一次生成（ref 守卫——run 依赖风格/参考选项，
+  // 不守卫会在改选项时自动重跑，每次键入都触发生成）。
+  const didMountRun = useRef(false)
   useEffect(() => {
+    if (didMountRun.current) return
+    didMountRun.current = true
     void run()
     void loadHistory()
   }, [run, loadHistory])
@@ -92,6 +108,25 @@ export function ChapterIllustration({ chapterNum, onClose }: ChapterIllustration
       width={460}
     >
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, paddingTop: 8 }}>
+        {/* 配图 v2（刀 D）：风格槽 + 角色参考勾选（默认收起感轻量；重试带最新选项） */}
+        <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <Input
+            data-testid="scene-style-input" size="small" value={style}
+            placeholder="风格（默认：数字油画，电影级光影，高细节）"
+            onChange={e => setStyle(e.target.value)} />
+          {characters.length > 0 && (
+            <div data-testid="scene-ref-characters" style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 11, color: 'var(--color-text-secondary)' }}>参考：</span>
+              {characters.slice(0, 8).map(c => (
+                <Checkbox key={c.id} checked={refIds.includes(c.id)} onChange={e => {
+                  setRefIds(prev => e.target.checked ? [...prev, c.id] : prev.filter(id => id !== c.id))
+                }}>
+                  <span style={{ fontSize: 11 }}>{c.name}</span>
+                </Checkbox>
+              ))}
+            </div>
+          )}
+        </div>
         {loading ? (
           <div style={{ padding: '48px 0', textAlign: 'center' }}>
             <Spin size="large" />
@@ -111,6 +146,11 @@ export function ChapterIllustration({ chapterNum, onClose }: ChapterIllustration
               alt={`第${chapterNum}章配图`}
               style={{ maxWidth: 360, maxHeight: 360, borderRadius: 8 }}
             />
+            {result.refNote && (
+              <div data-testid="scene-ref-note" style={{ marginTop: 8, fontSize: 11, color: 'var(--color-text-secondary)' }}>
+                {result.refNote}
+              </div>
+            )}
             {result.revisedPrompt && (
               <div
                 style={{
