@@ -4,7 +4,7 @@
 // 缩略 dataURL 复用 office.ts 的 AttachmentDataURL 占位色块。
 import type { AppBindings } from "../bridge";
 
-type ImageHubMethods = Pick<AppBindings, "ImageHubAssets" | "ChapterArtList">;
+type ImageHubMethods = Pick<AppBindings, "ImageHubAssets" | "ChapterArtList" | "ImageHubMonthlyUsage">;
 
 // type alias（非 interface）：MockAsset[] 要赋给 Record<string, unknown>[] 视图。
 type MockAsset = {
@@ -119,6 +119,21 @@ export function buildImagehub(): ImageHubMethods {
     async ChapterArtList(_chapterNum: number) {
       // 项目级按章清单语义，走查保持中性空态（各章历史配图属真数据域）。
       return [];
+    },
+    // 刀 E：当月画室消耗聚合 mock（两模型样本=免费+付费，未定价一档）。
+    async ImageHubMonthlyUsage(_space: string) {
+      return {
+        month: new Date().toISOString().slice(0, 7),
+        space: "play",
+        total: 9,
+        freeCount: 7,
+        unpriced: 1,
+        estimated: "0.36 CNY（另有 1 张未定价）",
+        byModel: [
+          { model: "krea2", backend: "comfyui", count: 7, unitCost: "0", estCost: "0 CNY" },
+          { model: "qwen-image-3.0-pro", backend: "openai", count: 2, unitCost: "0.18 CNY/张", estCost: "0.36 CNY" },
+        ],
+      };
     },
   };
 }

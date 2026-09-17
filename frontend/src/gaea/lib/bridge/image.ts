@@ -23,6 +23,8 @@ export interface ImageBindings {
   // ImageHubAssets 图像域登记只读视图（按空间/来源过滤，T1 画室素材库；
   // 原 legacy wailsjsCompat 直调转正，浏览器 dev mock 可达；从 LegacySurfaceNames 摘除）。
   ImageHubAssets(space: string, sourceBoard: string, limit: number): Promise<Array<Record<string, unknown>>>;
+  // ImageHubMonthlyUsage 当月画室消耗聚合（只读台账；刀 E）。
+  ImageHubMonthlyUsage(space: string): Promise<StudioUsageView>;
   // ChapterArtList 项目章节配图清单（chapter-art.json 只读取，同批转正）。
   ChapterArtList(chapterNum: number): Promise<Array<Record<string, unknown>>>;
   // CaptureScreen 捕获整个屏幕（返回 PNG data URL）；RecognizeImage 用本地
@@ -50,4 +52,22 @@ export interface ImageBindings {
   SetActiveASRModel(engineID: string, modelID: string): Promise<void>;
   SetActiveTTSModel(engineID: string, modelID: string): Promise<void>;
   SetChatVoiceModel(engineID: string, modelID: string): Promise<void>;
+}
+
+// ── 画室消耗视图（刀 E；Go ImageHubMonthlyUsageReport 直连）──
+export interface StudioUsageModelRow {
+  model: string;
+  backend?: string;
+  count: number;
+  unitCost?: string;
+  estCost?: string;
+}
+export interface StudioUsageView {
+  month: string;
+  space: string;
+  total: number;
+  freeCount: number;
+  unpriced: number;
+  estimated: string;
+  byModel: StudioUsageModelRow[];
 }

@@ -24,6 +24,7 @@ import { AssetLibrary } from '../components/imagegen/AssetLibrary'
 import { AssetStudio } from '../components/imagegen/AssetStudio'
 import { VisionTrial } from '../components/imagegen/VisionTrial'
 import InstructionEditModal from '../components/imagegen/InstructionEditModal'
+import StudioUsagePanel from '../components/imagegen/StudioUsagePanel'
 import type { GenResult } from '../components/imagegen/types'
 import { ModelDirectory } from '../components/imagegen/ModelDirectory'
 import { StatusDot } from '../components/imagegen/ui'
@@ -343,6 +344,9 @@ const ImageGenPage: React.FC = () => {
             style={{ color: 'var(--color-text-secondary)', fontSize: 13, padding: '0 6px' }} />
         </div>
       </div>
+
+      {/* 刀 E：本月画室消耗折叠面板（只读台账聚合，默认收起；辅助视图不打扰创作） */}
+      <StudioUsagePanel />
 
       {/* T1 素材库 / 创作资产 / 识图试用 / 模型目录视图：激活时替换生成工作台（模块内独立页，行为零回归） */}
       {assetLibraryOpen ? (

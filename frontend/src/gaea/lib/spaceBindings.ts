@@ -118,6 +118,7 @@ export const GAEA_METHOD_FACETS = {
   // 图像域登记只读视图（T1 画室素材库）：space 由参数承担、两空间各自 ledger，
   // 消费面绘梦（play）与后续工位配图（work）都会调 → shared（转正自 Legacy 直调）。
   ImageHubAssets: "shared",
+  ImageHubMonthlyUsage: "play",
   // 项目章节配图清单（chapter-art.json）：小说域（play）专属消费。
   ChapterArtList: "play",
   // 原罪（闲庭·图文故事创作）：故事会话/流式续写/插图/导出——闲庭数据面，

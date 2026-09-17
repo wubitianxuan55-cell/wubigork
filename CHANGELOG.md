@@ -1,3 +1,17 @@
+## v4.329.0 · 绘梦阶段一刀 E：画室消耗（月度聚合+折叠面板，阶段一全清）（2026-09-17）
+> 用户指令「继续」。小刀单线主代理直做；契约先行（规格书随刀入库 进度计划/gaea-studio-usage-20260917.md；规格 docs/gaea-dream-studio-nextgen-2026-09.md §4 刀 E 轻量收尾）。**本刀合入=绘梦阶段一（A 资产面板/B 参考槽/C 指令编辑/D 配图 v2/E 画室消耗）全清**。
+**论点**=台账已逐条记 Cost（目录单价）+CreatedAt 但没有聚合视图——用户看不到「本月画了几张、花了多少」。
+**裁决**=+1 绑定 ImageHubMonthlyUsage(space)（705→706，ImageB）；聚合口径=当月（本地时区 CreatedAt 前缀 YYYY-MM）×model+backend 分组；**单价以台账记录为事实源**（记录缺价回落目录表）；可解析「X CNY/张」才估算（张数×X），裸"0"/"0 CNY/张"=免费，"未定价"/空=unpriced 计数诚实不猜；合计全免费→「0 CNY（本地免费）」，有未定价→注明；文案「画室消耗/创作记录」不用积分话术（规格原文）；面板 space 固定 play（work 空间走成本归因）。
+**落地Go**=imagehub_usage.go：ImageHubMonthlyUsage（绑定入口 gaeaCwd 与 ImageHubAssets 同构）+imageHubMonthlyUsageAt（cwd 参数化供测试）+parseUnitCostCNY；空台账=零报告不算错。
+**落地前端**=StudioUsagePanel（Collapse 默认收起：标题带总数+合计；展开=按模型行 张数/估算/未定价如实+口径脚注；失败静默收起）；ImageGenPage 顶栏下方挂点；bridge/image.ts +StudioUsageView；mock/imagehub +1；spaceBindings play +1（锁 528→529）；bindingNames 再生（706）。
+**测试**=Go +4（当月过滤跨月剔除/分组估算算术〔glm 2×0.1=0.20；krea2 免费 0 CNY；grok 未定价留空〕/记录单价优先目录回落/单价解析矩阵含裸 0）；前端 +4（标题聚合/按模型行/空月引导/失败静默）。
+**坑**=①裸 "0" 单价初版没被解析成免费（只认「X CNY/张」形态）——测试矩阵钉住②gaeaCwd 走全局 ga.cfg 不可注入——cwd 参数化内函数供测试（ImageHubAssets 同款口径由绑定入口负责）③mock 尾部 rfind 锚点吞掉前方法闭合括号（插入后必 tsc 即炸即修）。
+**门禁**=go build/vet 全过、app 全绿、tsc -b 零错、eslint 零告警、vitest 全量、drift OK@706、版本三处 4.329.0；产物=exe 50809856B SHA256=90e9ec5627b7c7304a11da30194971d528d87cb06cb15f563e3bbb25db7aad78（releases/gaea-v4.329.0.exe+SHA256SUMS-v4.329.0.txt；桌面副本同哈希；冒烟 /api/health 200 过）。
+**文档**=规格书+releases/v4.329.0.md+CHANGELOG/README+AGENTS 迁 1 插 1（四十四迁）+progress/todos。
+**出口对照**=画室侧「本月画室消耗」折叠面板可见（张数+估算+免费/未定价如实）✅；本地免费显示 0 ✅；零计费动作纯只读 ✅；**绘梦阶段一全清** ✅。
+**观察池**=按来源板块细分；单价表动态化；消耗趋势；work 空间并入成本归因。
+**未做（下刀）**=7.3-2 板块降视图（≈09-23 解锁）；阶段二规划拍板（画室长出手脚：模板市场/资产复用/一致性进阶）。
+
 ## v4.328.0 · 绘梦阶段一刀 D 核心片：章节配图管线 v2（角色参考图 + 风格槽）（2026-09-17）
 > 用户指令「继续」。小刀单线主代理直做；契约先行（规格书随刀入库 进度计划/gaea-scene-illustration-v2-20260917.md；规格 docs/gaea-dream-studio-nextgen-2026-09.md §4 刀 D）。取核心片=GenerateSceneIllustration 参考图+风格槽贯通（书封参考/素材库变体/灯箱共用留后续片）。
 **论点**=场景插图纯文生图：角色一致性只靠外貌文字（刀 B 参考槽没接到配图链），风格句写死。
