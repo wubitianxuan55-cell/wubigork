@@ -219,6 +219,11 @@ func (b *ComfyUIBackend) GenerateImage(ctx context.Context, req *ImageGeneration
 	if mode == "" {
 		mode = "txt2img"
 	}
+	if mode == "edit" {
+		// 指令编辑（阶段一刀 C）：本地档未接（B 计划），诚实拒绝不静默降级
+		// 为图生图（编辑语义≠整幅重绘）。
+		return nil, fmt.Errorf("指令编辑暂未接入 ComfyUI 本地档（规划中），请使用云端 OpenAI 兼容引擎的 /images/edits")
+	}
 	// T2 参考槽 v0：文生图带参考图且方法为 img2img 近似时转图生图（krea2/z-image）；
 	// ipadapter/pulid 未实现 → 诚实报错，不静默忽略参考图。
 	if len(req.RefImages) > 0 {

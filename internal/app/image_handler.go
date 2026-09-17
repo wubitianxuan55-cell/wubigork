@@ -398,8 +398,8 @@ type mediaGenParams struct {
 	Seed      int     `json:"seed"`
 	Lora      string  `json:"lora"`
 	Count     int     `json:"count"`
-	Mode      string  `json:"mode"`      // txt2img | img2img | t2v
-	InitImage string  `json:"initImage"` // 图生图参考图 data URL
+	Mode      string  `json:"mode"`      // txt2img | img2img | edit | t2v
+	InitImage string  `json:"initImage"` // 图生图参考图 / 指令编辑原图（data URL）
 	Denoise   float64 `json:"denoise"`   // 重绘幅度 0-1
 	Frames    int     `json:"frames"`    // 视频帧数
 	FPS       int     `json:"fps"`       // 视频帧率
@@ -436,6 +436,11 @@ func (a *mediaState) GenerateMedia(paramsJSON string) (map[string]interface{}, e
 	}
 	if mode == "img2img" && strings.TrimSpace(p.InitImage) == "" && len(p.RefImages) == 0 {
 		return map[string]interface{}{"error": "图生图需要先上传参考图或选择角色参考"}, nil
+	}
+	// 指令编辑（阶段一刀 C）：原图必填；不加后端门——透传到后端按能力诚实
+	// 报错（OpenAI 兼容=edits 端点；GLM/ComfyUI 拒绝文案见 internal/ai）。
+	if mode == "edit" && strings.TrimSpace(p.InitImage) == "" {
+		return map[string]interface{}{"error": "指令编辑需要原图"}, nil
 	}
 	if strings.TrimSpace(p.Prompt) == "" {
 		return map[string]interface{}{"error": "请输入画面描述"}, nil

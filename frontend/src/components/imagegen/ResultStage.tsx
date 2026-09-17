@@ -4,6 +4,7 @@ import {
   PictureOutlined, ExpandOutlined, DownloadOutlined, SyncOutlined,
   DeleteOutlined, ReloadOutlined, AppstoreOutlined, VideoCameraOutlined,
   EditOutlined,
+  HighlightOutlined,
 } from '@ant-design/icons'
 import { C } from '../../utils/theme'
 import { mediaIsVideo } from './media'
@@ -23,6 +24,8 @@ interface Props {
   onOpenTemplatePicker?: () => void
   /** 把该张结果作为参考图发起图生图（不传则不渲染「改图」动作） */
   onEditImage?: (index: number) => void
+  /** 指令编辑（刀 C）：原图+人话指令语义改图（云端 /images/edits）。 */
+  onInstructEdit?: (index: number) => void
 }
 
 const getAspect = (size: string) => {
@@ -32,7 +35,7 @@ const getAspect = (size: string) => {
 }
 
 export const ResultStage: React.FC<Props> = ({
-  results, generating, error, mode = 'txt2img', initImage, onPreview, onDownload, onReuse, onDelete, onRetry, onOpenTemplatePicker, onEditImage,
+  results, generating, error, mode = 'txt2img', initImage, onPreview, onDownload, onReuse, onDelete, onRetry, onOpenTemplatePicker, onEditImage, onInstructEdit,
 }) => {
   const emptyTitle = mode === 't2v' ? '输入描述，生成你的第一支 AI 视频'
     : mode === 'img2img' ? '上传参考图，开始重绘'
@@ -191,6 +194,9 @@ export const ResultStage: React.FC<Props> = ({
             {onEditImage && !mediaIsVideo(r.image) && (
               <Action icon={<EditOutlined />} label="改图" onClick={(e) => { e.stopPropagation(); onEditImage(0) }} />
             )}
+            {onInstructEdit && !mediaIsVideo(r.image) && (
+              <Action icon={<HighlightOutlined />} label="指令编辑" onClick={(e) => { e.stopPropagation(); onInstructEdit(0) }} />
+            )}
             {onDelete && (
               <Action icon={<DeleteOutlined />} label="删除" onClick={(e) => { e.stopPropagation(); onDelete(0) }} />
             )}
@@ -257,6 +263,9 @@ export const ResultStage: React.FC<Props> = ({
             <Action icon={<SyncOutlined />} label="复用" onClick={(e) => { e.stopPropagation(); onReuse(i) }} />
             {onEditImage && !mediaIsVideo(r.image) && (
               <Action icon={<EditOutlined />} label="改图" onClick={(e) => { e.stopPropagation(); onEditImage(i) }} />
+            )}
+            {onInstructEdit && !mediaIsVideo(r.image) && (
+              <Action icon={<HighlightOutlined />} label="指令编辑" onClick={(e) => { e.stopPropagation(); onInstructEdit(i) }} />
             )}
             {onDelete && (
               <Action icon={<DeleteOutlined />} label="删除" onClick={(e) => { e.stopPropagation(); onDelete(i) }} />

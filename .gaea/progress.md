@@ -3,6 +3,15 @@
 > 本文件为**最近发布速览**。完整历史磁带见 `docs/archive/progress-history-2026-09.md`
 > 与 `releases/`。
 
+## 最新发布：v4.327.0（2026-09-17）「绘梦阶段一刀 C：指令编辑『改图』MVP（云端先行）」
+
+- **来源**：用户指令「继续」。小刀单线主代理直做；规格书 进度计划/gaea-instruct-edit-20260917.md。前置核对：刀 A/B/E 已落，刀 C 是真缺口（改图=整幅重绘无语义编辑）。
+- **论点**：gaea OpenAI 兼容图片面缺 /images/edits（Qwen-Image-Edit 系云端网关标准面）。裁决=复用请求字段（Mode=edit）；三后端诚实口径（openai 实现/glm·comfyui 拒绝）；零新绑定 705 不动。
+- **落地**：image_openai.go editImage multipart 分支+parseImageResponse 共用提取；GenerateMedia edit 原图必填；InstructionEditModal（对照+用到画布）+ResultStage「指令编辑」Action+ImageGenPage 接线。
+- **验收**：Go +5+前端 +4；ResultStage 5/5 零破坏；ci.ps1 全绿（FilePreviewModal 1 例 flaky 隔离绿，两日两现候选常驻）；产物=exe 50785280B SHA256=855b56f1…9ae0（releases+SUMS+桌面副本同哈希；冒烟 200 过）。
+- **观察池**：mask/保留区域；ComfyUI 本地档；多图输入；edit-of-edit 谱系；刀 D/刀 E 轻量收尾。
+- **未做（下刀）**：绘梦阶段一余项（刀 D 章节配图 v2/刀 E 画室消耗）或 7.3-2（≈09-23）。
+
 ## 最新发布：v4.326.0（2026-09-16）「GenerationGate 闭环收口：生成后自动分析门 + 全书体检」
 
 - **来源**：用户指令「继续」。小刀单线主代理直做；规格书 进度计划/gaea-gen-gate-closure-20260916.md；阶段七 §4 在册项（revolution「GenerationGate 完整闭环」未勾项收口）。

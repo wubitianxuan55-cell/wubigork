@@ -385,7 +385,7 @@ export interface MediaParams {
   seed: number
   lora: string
   count: number
-  mode: 'txt2img' | 'img2img' | 't2v'
+  mode: 'txt2img' | 'img2img' | 'edit' | 't2v'
   initImage?: string
   denoise?: number
   frames?: number

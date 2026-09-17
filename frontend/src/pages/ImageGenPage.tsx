@@ -23,6 +23,8 @@ import { TaskCenter } from '../components/imagegen/TaskCenter'
 import { AssetLibrary } from '../components/imagegen/AssetLibrary'
 import { AssetStudio } from '../components/imagegen/AssetStudio'
 import { VisionTrial } from '../components/imagegen/VisionTrial'
+import InstructionEditModal from '../components/imagegen/InstructionEditModal'
+import type { GenResult } from '../components/imagegen/types'
 import { ModelDirectory } from '../components/imagegen/ModelDirectory'
 import { StatusDot } from '../components/imagegen/ui'
 import { TEMPLATES, type Template } from '../data/imageTemplates'
@@ -113,6 +115,8 @@ const ImageGenPage: React.FC = () => {
   // T1 创作资产面板 + 识图试用：与素材库同模式（轨道 tab，激活时替换工作台）。
   const [assetStudioOpen, setAssetStudioOpen] = useState(false)
   const [visionTrialOpen, setVisionTrialOpen] = useState(false)
+  // 指令编辑源图（刀 C：结果卡「指令编辑」→ InstructionEditModal）
+  const [instructEditSource, setInstructEditSource] = useState<GenResult | null>(null)
   // T1 模型目录：创作语境视图（读模型中心目录，与素材库同模式，激活时替换工作台）。
   const [modelDirectoryOpen, setModelDirectoryOpen] = useState(false)
 
@@ -190,6 +194,16 @@ const ImageGenPage: React.FC = () => {
       message.success('已把该图设为参考图，输入修改描述后点击生成')
     }
   }, [results, backend, setMode, setInitImage, setPrompt])
+
+  // 指令编辑（刀 C）：打开弹窗（源图=点击结果）；应用=结果前插画布与历史
+  //（镜像 queue 成功路径 setResults/setHistory 前插——后端已落盘+登记台账）。
+  const handleInstructEdit = useCallback((i: number) => {
+    setInstructEditSource(results[i] ?? null)
+  }, [results])
+  const handleApplyEdited = useCallback((r: GenResult) => {
+    setResults((prev) => [r, ...prev])
+    setHistory((prev) => [r, ...prev])
+  }, [setResults, setHistory])
 
   const handleDeleteResult = useCallback((i: number) => {
     const r = results[i]
@@ -398,6 +412,7 @@ const ImageGenPage: React.FC = () => {
             onDownload={handleDownloadResult}
             onReuse={handleReuseResult}
             onEditImage={handleEditImage}
+            onInstructEdit={handleInstructEdit}
             onDelete={handleDeleteResult}
             onRetry={handleGenerate}
             onOpenTemplatePicker={() => setTemplatePickerOpen(true)}
@@ -459,6 +474,12 @@ const ImageGenPage: React.FC = () => {
       )}
 
       {/* 自定义模板弹窗 */}
+      <InstructionEditModal
+        open={instructEditSource !== null}
+        source={instructEditSource}
+        onClose={() => setInstructEditSource(null)}
+        onApply={handleApplyEdited}
+      />
       <CustomTemplateModal
         open={customModalOpen}
         editing={!!editingCustom}

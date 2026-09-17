@@ -1,3 +1,18 @@
+## v4.327.0 · 绘梦阶段一刀 C：指令编辑「改图」MVP（云端先行）（2026-09-17）
+> 用户指令「继续」。小刀单线主代理直做；契约先行（规格书随刀入库 进度计划/gaea-instruct-edit-20260917.md；规格 docs/gaea-dream-studio-nextgen-2026-09.md §4 阶段一刀 C）。前置核对=刀 A 资产面板（AssetStudio）/刀 B 参考槽（RefImages img2img）/刀 E 模型目录分层均已落——**刀 C 指令编辑是真缺口**（现状「改图」=把结果填回图生图整幅重绘，无「原图+人话指令」语义编辑）。
+**论点**=编辑能力是旗舰标配（调研 §1.1/§1.2）；gaea 后端已有 OpenAI 兼容图片面但缺 /images/edits——Qwen-Image-Edit 系云端网关的标准暴露面。
+**裁决**=复用 ImageGenerationRequest（Mode="edit"+InitImage=原图+Prompt=指令，零新字段）；OpenAI 兼容后端 multipart POST /images/edits；GLM/ComfyUI 诚实拒绝（本地档 B 计划）；**app 层不加后端门**（透传按后端能力诚实报错——img2img 既有门不动）；**零新绑定**（GenerateMedia paramsJSON 加 mode，绑定面 705 不变）；前端 V1=弹窗对照（原图|新图）+用到画布（并入 results/history 走既有保存/台账链）；mask/保留区域观察池。
+**落地线A**=image_openai.go：editImage 分支（data URL 解码→multipart model/prompt/n/size+image 文件名按 MIME）+parseImageResponse 提取（generation/img2img/edit 三分支共用，行为零变化）+decodeDataURLBytes；image_glm.go edit 并入拒绝（文案区分指令编辑）；image_comfyui.go edit 前置拒绝（不静默降级为图生图——编辑语义≠整幅重绘）。
+**落地线B**=GenerateMedia：mode="edit" 原图必填校验（「指令编辑需要原图」）+ 既有 prompt 校验；t2v/img2img 门零变化。
+**落地线C**=MediaParams.mode +'edit'；新 InstructionEditModal（指令输入+对照区原图|新图并排+meta+错误 Alert+用到画布/关闭；后端落盘+台账后已就绪，前端只并入画布）；ResultStage +onInstructEdit Action「指令编辑」（单图/网格两视图，icon HighlightOutlined 与「改图」并列）；ImageGenPage 接线（instructEditSource 状态+onApply=setResults/setHistory 前插镜像 queue 成功路径）。
+**测试**=Go +5（ai 层 4：edit multipart 形状〔httptest 断言端点/表单字段/文件/n+size〕/缺原图与非 data URL 报错/GLM 拒绝/ComfyUI 拒绝；app 层 1：缺原图拒绝+带原图透传出结果落盘带回路径）+前端 +4（生成透传/用到画布回调〔prompt【编辑】前缀〕/错误态/空指令守卫）；ResultStage 既有 5/5 零破坏。
+**门禁**=go build/vet 全过、ai+app 全绿 -count=1（156s）、tsc -b 零错、eslint 足迹零告警、vitest 全量、版本三处 4.327.0；**绑定面 705 不动（零新绑定刀）**；产物=exe 50785280B SHA256=855b56f1ee1dc0f05959e6f004d40a828569c9d2ee33d0dcbd155e78a0499ae0（releases/gaea-v4.327.0.exe+SHA256SUMS-v4.327.0.txt；桌面副本同哈希；冒烟 /api/health 200 过）。
+**坑**=JSX 三元表达式内首个匹配 `<AssetLibrary` 插挂点会破坏单父结构（挂点必须找弹窗区锚点）；antd Modal open 由父控——组件测试不断言 onClose 后内容卸载。
+**文档**=规格书+releases/v4.327.0.md+CHANGELOG/README+AGENTS 迁 1 插 1（四十二迁）+progress/todos。
+**出口对照**=结果卡「指令编辑」→指令→对照→用到画布全链可达 ✅（真机走查挂池）；三后端诚实口径（openai 实现/glm·comfyui 拒绝）✅；零绑定面 ✅。
+**观察池**=mask/保留区域；ComfyUI 本地档（Qwen-Image-Edit/FLUX Kontext 工作流）；多图编辑输入；edit-of-edit 谱系；刀 D 章节配图管线 v2 与刀 E 画室消耗轻量收尾。
+**未做（下刀）**=绘梦阶段一余项（刀 D 章节配图参考图贯通/刀 E 画室消耗）；7.3-2 板块降视图（≈09-23）。
+
 ## v4.326.0 · GenerationGate 闭环收口：生成后自动分析门 + 全书体检（2026-09-16）
 > 用户指令「继续」。小刀单线主代理直做；契约先行（规格书随刀入库 进度计划/gaea-gen-gate-closure-20260916.md）。阶段七 §4 在册项；7.3-2 仍等零功能周窗口（≈09-23）。
 **论点**=revolution 未勾项「GenerationGate 完整闭环」：生成 done 只挂去味+AI 味分+角色提取，**分析路从不自动发生**——t1-P2 伏笔自动回收/t3-P1 记忆回填/t4 V2 落盘三条已建成管道的水源只能靠手动点「分析本章」，闭环名存实亡；全书体检=单章门与伏笔 Lint 各自孤立，没有「点一次出全书报告」的聚合面。

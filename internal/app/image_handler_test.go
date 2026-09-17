@@ -416,3 +416,40 @@ func TestSetImageBackend_GLM(t *testing.T) {
 		}
 	})
 }
+
+// TestGenerateMedia_EditMode 指令编辑模式（阶段一刀 C）：缺原图拒绝；
+// 带原图透传后端（fake 后端不校验 mode，形状由 ai 层测试钉死）。
+func TestGenerateMedia_EditMode(t *testing.T) {
+	dir := t.TempDir()
+	fake := &fakeImageBackend{result: &ai.ImageGenerationResponse{
+		Data: []ai.ImageData{{B64JSON: pngDataURLApp("fake-edit"), Kind: "image"}},
+	}}
+	c := &ai.Client{}
+	c.SetImageBackend(fake, "openai")
+	ms := &mediaState{core: &core{cfg: &config.Config{ImageBackend: "openai", ImageSaveDir: dir}, client: c}}
+
+	// 缺原图：拒绝（不触后端）
+	res, err := ms.GenerateMedia(`{"prompt":"把外套改成红色","mode":"edit","count":1}`)
+	if err != nil {
+		t.Fatalf("GenerateMedia: %v", err)
+	}
+	if msg, _ := res["error"].(string); msg != "指令编辑需要原图" {
+		t.Fatalf("缺原图应拒绝，得到: %v", res["error"])
+	}
+
+	// 带原图：透传后端出结果（edit 不设后端门——Q3）
+	res, err = ms.GenerateMedia(`{"prompt":"把外套改成红色","mode":"edit","initImage":"data:image/png;base64,AAAA","count":1}`)
+	if err != nil {
+		t.Fatalf("GenerateMedia: %v", err)
+	}
+	if msg, _ := res["error"].(string); msg != "" {
+		t.Fatalf("带原图应透传出结果，得到: %s", msg)
+	}
+	if res["mode"] != "edit" {
+		t.Fatalf("mode 应回显 edit: %v", res["mode"])
+	}
+	results := res["results"].([]imageItem)
+	if len(results) != 1 || results[0].FilePath == "" {
+		t.Fatalf("编辑结果应落盘带回路径: %+v", results)
+	}
+}

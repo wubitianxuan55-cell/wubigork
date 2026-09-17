@@ -9,8 +9,10 @@ import (
 	"github.com/gaea/gaea/internal/netclient"
 	"io"
 	"log/slog"
+	"mime/multipart"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -47,6 +49,9 @@ func init() {
 
 // GenerateImage 通过 OpenAI 兼容 API 生成图片
 func (b *OpenAIImageBackend) GenerateImage(ctx context.Context, req *ImageGenerationRequest) (*ImageGenerationResponse, error) {
+	if req.Mode == "edit" {
+		return b.editImage(ctx, req)
+	}
 	var endpoint string
 	var body []byte
 	var err error
@@ -89,12 +94,69 @@ func (b *OpenAIImageBackend) GenerateImage(ctx context.Context, req *ImageGenera
 	if err != nil {
 		return nil, fmt.Errorf("读取图片响应失败: %w", err)
 	}
+	return b.parseImageResponse(ctx, respBody, resp.StatusCode)
+}
 
-	if resp.StatusCode != 200 {
-		slog.Error("图片生成失败", "backend", b.baseURL, "status", resp.StatusCode, "body", trimStr(string(respBody), 500))
-		return nil, fmt.Errorf("图片 API 错误 (HTTP %d): %s", resp.StatusCode, trimStr(string(respBody), 500))
+// editImage 指令编辑（阶段一刀 C，规格 进度计划/gaea-instruct-edit-20260917.md）：
+// multipart POST /images/edits（OpenAI 标准编辑端点；Qwen-Image-Edit 系云端
+// 网关的暴露面）。InitImage=原图 data URL、Prompt=人话指令（Q1 复用既有字段）。
+func (b *OpenAIImageBackend) editImage(ctx context.Context, req *ImageGenerationRequest) (*ImageGenerationResponse, error) {
+	imgBytes, ext, err := decodeDataURLBytes(req.InitImage)
+	if err != nil {
+		return nil, fmt.Errorf("指令编辑需要原图（data URL）：%w", err)
 	}
 
+	var buf bytes.Buffer
+	w := multipart.NewWriter(&buf)
+	_ = w.WriteField("model", req.Model)
+	_ = w.WriteField("prompt", req.Prompt)
+	if req.N > 0 {
+		_ = w.WriteField("n", strconv.Itoa(req.N))
+	}
+	if req.Size != "" {
+		_ = w.WriteField("size", req.Size)
+	}
+	fw, err := w.CreateFormFile("image", "source."+ext)
+	if err != nil {
+		return nil, fmt.Errorf("构造编辑请求失败: %w", err)
+	}
+	if _, err := fw.Write(imgBytes); err != nil {
+		return nil, fmt.Errorf("构造编辑请求失败: %w", err)
+	}
+	if err := w.Close(); err != nil {
+		return nil, fmt.Errorf("构造编辑请求失败: %w", err)
+	}
+
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", b.baseURL+"/images/edits", &buf)
+	if err != nil {
+		return nil, fmt.Errorf("构造图片请求失败: %w", err)
+	}
+	httpReq.Header.Set("Content-Type", w.FormDataContentType())
+	if b.apiKey != "" {
+		httpReq.Header.Set("Authorization", "Bearer "+b.apiKey)
+	}
+
+	resp, err := b.httpClient.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("图片 API 请求失败 (%s): %w", b.baseURL, err)
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("读取图片响应失败: %w", err)
+	}
+	return b.parseImageResponse(ctx, respBody, resp.StatusCode)
+}
+
+// parseImageResponse 响应解析共用（generation/img2img/edit 三分支同构）：
+// JSON 解析 + url（含相对路径）统一下载转 data URL（原 GenerateImage 内联
+// 逻辑原样提取，行为零变化）。
+func (b *OpenAIImageBackend) parseImageResponse(ctx context.Context, respBody []byte, status int) (*ImageGenerationResponse, error) {
+	if status != 200 {
+		slog.Error("图片生成失败", "backend", b.baseURL, "status", status, "body", trimStr(string(respBody), 500))
+		return nil, fmt.Errorf("图片 API 错误 (HTTP %d): %s", status, trimStr(string(respBody), 500))
+	}
 	var imgResp ImageGenerationResponse
 	if err := json.Unmarshal(respBody, &imgResp); err != nil {
 		slog.Error("解析图片响应失败", "backend", b.baseURL, "body", trimStr(string(respBody), 300), "error", err)
@@ -128,6 +190,37 @@ func (b *OpenAIImageBackend) GenerateImage(ctx context.Context, req *ImageGenera
 	}
 
 	return &imgResp, nil
+}
+
+// decodeDataURLBytes data URL → (字节, 扩展名)。MIME 按常见图片映射，未知
+// 缺省 png（编辑端点宽容）；非 data URL 报错（编辑原图必须是 data URL——
+// 与 img2img 的 InitImage 口径一致）。
+func decodeDataURLBytes(dataURL string) ([]byte, string, error) {
+	s := strings.TrimSpace(dataURL)
+	if !strings.HasPrefix(s, "data:") {
+		return nil, "", fmt.Errorf("原图须为 data URL")
+	}
+	comma := strings.Index(s, ",")
+	if comma < 0 {
+		return nil, "", fmt.Errorf("data URL 缺少负载")
+	}
+	mime := strings.TrimPrefix(strings.SplitN(s[5:comma], ";", 2)[0], "image/")
+	b, err := base64.StdEncoding.DecodeString(s[comma+1:])
+	if err != nil {
+		return nil, "", fmt.Errorf("data URL base64 解码失败: %w", err)
+	}
+	switch mime {
+	case "jpeg", "jpg":
+		return b, "jpg", nil
+	case "webp":
+		return b, "webp", nil
+	case "gif":
+		return b, "gif", nil
+	case "png", "":
+		return b, "png", nil
+	default:
+		return b, "png", nil
+	}
 }
 
 // img2imgRequest Herdsman /v1/images/img2img 请求体（JSON，image 为参考图 base64）

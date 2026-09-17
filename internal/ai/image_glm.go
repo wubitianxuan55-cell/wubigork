@@ -67,8 +67,11 @@ type glmImageRequest struct {
 
 // GenerateImage 调智谱 /images/generations 生成图片。
 func (b *GLMImageBackend) GenerateImage(ctx context.Context, req *ImageGenerationRequest) (*ImageGenerationResponse, error) {
-	if req.Mode == "img2img" || strings.TrimSpace(req.InitImage) != "" || len(req.RefImages) > 0 {
-		// 官方端点无图生图参数——诚实报错，不静默丢弃参考图。
+	if req.Mode == "img2img" || req.Mode == "edit" || strings.TrimSpace(req.InitImage) != "" || len(req.RefImages) > 0 {
+		// 官方端点无图生图/编辑参数——诚实报错，不静默丢弃参考图。
+		if req.Mode == "edit" {
+			return nil, fmt.Errorf("GLM 图片端点暂不支持指令编辑（官方无 images/edits），请切换到支持编辑的 OpenAI 兼容引擎")
+		}
 		return nil, fmt.Errorf("GLM 生图端点仅支持文生图（官方 images/generations 无图生图/参考图参数）")
 	}
 	model := strings.TrimSpace(req.Model)
