@@ -1,3 +1,16 @@
+## v4.332.0 · 7.3-2 板块降级为任务视图（阶段七「层跃升」刀：任务优先首页+能力视图+回退开关）（2026-09-17）
+> 用户指令「开始吧」（在 7.3-2 解锁讨论后明确提前拍板——原零功能周窗口 ≈09-23）。契约先行（规格书随刀入库 进度计划/gaea-tasks-first-home-20260917.md；阶段七规划 §3 7.3-2；身位依据平台调研 §1.1：任务持久化红海、「收件箱第一界面+板块降级」无人发布）。**形态标志：本版=阶段七「层跃升」版本（nextgen §10 口径；版本号续 v4.x 列车不跳号）。**
+**论点**=现状首页板块入口优先，打开第一问「用哪个工具」；7.3-2 翻转为「什么在等我」——收件箱+最近上下文成为首屏，板块入口降为「能力的视图」。
+**裁决**=形态开关 homeLayout（classic/tasks）入 appStore 持久化（localStorage，缺省 **classic**=现有体验零变化，层跃升由开关启用）；TaskInboxPanel 抽内联 **TaskInboxBoard**（Modal 壳保留薄包装，props/DOM/既有 9 用例零改动）；TasksFirstHome 两空间共用 space 感知；回退开关双位（设置页 HomeLayoutPanel 正式位+首页 SpaceSwitch 条快捷钮互切）；**零新绑定**（GaeaTaskInbox* 四绑定复用）；manifest/pageRegistry 零改动（形态合并引擎零改动原则）；三语 +12 键 zh=en=zh-TW。
+**落地**=①appStore +HomeLayout 类型/态/setter/persist 守卫（非法值回退 classic）②TaskInboxPanel.tsx 抽 TaskInboxBoard（active 拉取位+onPendingChange 计数上报，Modal 标题徽标同源）③新 components/TasksFirstHome.tsx：SpaceSwitch+轻 masthead（印章/标题/lede+切回经典钮）→ 收件箱大区（TaskInboxBoard 直嵌）→ 最近会话（SessionList）→ 能力视图（deriveLauncherModules 全量 chips 点击直达——**藏≠删**）→ 纯同步口径脚注④ModuleLauncher：homeLayout 分支（classic 走既有 Desk/Garden 零变化）+SpaceSwitch 条 HomeLayoutToggle 快捷钮⑤设置页 HomeLayoutPanel（SegmentedRow 同款）挂 SettingsPage⑥locales 三语 12 键。
+**测试**=前端 +10（TasksFirstHome 4：收件箱直嵌拉取/能力 chips 全量点击直达/切回经典写 store/最近会话；ModuleLauncher 分支 2：缺省 classic 零变化+tasks 形态渲染与快捷钮互切；appStore 3：缺省/持久化/非法值守卫）；**既有零回归实证**：TaskInboxPanel 9/9 零改动、ModuleLauncher 13/13 零改动（缺省 classic 分支原路径）、SettingsPage/appStore 既有全绿。
+**坑**=①测试文件尾部 rfind('})') 追加会吞原 describe 闭合（Unexpected EOF）——追加后必须数括号或直接读尾②TasksFirstHome 用 useT 须 LocaleProvider 包裹（ModuleLauncher.test wrap 先例）③ESM 测试无 require——守卫函数走顶部 import。
+**门禁**=go build 全过（零 Go 改动）、tsc -b 零错、eslint 零告警、vitest 全量、drift OK@707（零新绑定）、版本三处 4.332.0；产物=exe 50831872B SHA256=80dacda4f818deeb47827006e944293bb045b479087611c275345ec29d9dd7eb（releases/gaea-v4.332.0.exe+SHA256SUMS-v4.332.0.txt；桌面副本同哈希；冒烟 /api/health 200 过）。
+**文档**=规格书+releases/v4.332.0.md+CHANGELOG/README+AGENTS 迁 1 插 1（四十七迁）+progress/todos+阶段七规划 7.3-2 状态更新。
+**出口对照**=①收件箱+最近任务成为首页首屏（tasks 形态）✅；②既有板块全部入口无损（能力 chips 全量直达，测试钉死）✅；③回退开关（设置页+首页快捷，即时切回经典）✅；④classic 零回归（既有测试零改动全绿）✅。
+**观察池**=「最近任务」独立区（doing/done 档已覆盖）；能力 chips 分组/搜索；任务拖拽排序；晨报/脉息在 tasks 形态取舍；默认形态翻转（用户试用后拍板）。
+**未做（下刀）**=阶段七出口判据复核对账（7.1-7.3 三门收口）；刀8 余项（跨模块验收+回退演练）；绘梦阶段二提案候拍板。
+
 ## v4.331.0 · 自动门可见化 + CI race 扩面（刀8 race 项收口）（2026-09-17）
 > 用户指令「继续」。小刀单线主代理直做；契约先行（规格书随刀入库 进度计划/gaea-gate-notice-race-20260917.md）。7.3-2 仍锁窗（≈09-23）。两件收口：①v4.326 观察池第一项——chapter-gate 事件零前端消费；②revolution 刀8 第三项——CI race 门禁只盖办公核心包。
 **论点A**=自动门（v4.326）异步跑完只落 slog+事件，用户毫无感知——「生成→体检→分析同步」主轴最后一环（知会作者）缺失。**论点B**=race 门禁现盖 gaea/agent·tool·control+novelstyle·novelcontext·narrative；chapter/analysis/promptstore/novelgate/rewrite/characterstate 六个 revolution 期新生包无并发防线（自动门/覆盖缓存/状态机都在其并发路径上）。

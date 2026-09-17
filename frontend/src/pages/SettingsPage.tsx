@@ -8,7 +8,7 @@ import {
 import './settings-page.css'
 import { useT } from '../gaea/lib/i18n'
 import type { DictKey } from '../gaea/locales/en'
-import AppearancePanel, { DarkModePanel, FontPanel, DensityPanel, MotionPanel, AccentPanel, LanguagePanel } from '../components/settings/AppearancePanel'
+import AppearancePanel, { DarkModePanel, FontPanel, DensityPanel, MotionPanel, AccentPanel, LanguagePanel, HomeLayoutPanel } from '../components/settings/AppearancePanel'
 import ChatPanel from '../components/settings/ChatPanel'
 import WorkspacePanel from '../components/settings/WorkspacePanel'
 import ImageGenPanel from '../components/settings/ImageGenPanel'
@@ -43,7 +43,7 @@ const CATEGORIES: Category[] = [
     desc: '外观',
     descKey: 'settings.cat.generalDesc',
     keywords: ['通用', '外观', '主题', '暗色', '亮色', '深色', '浅色', '模式', '字体', '字号', '密度', '动效', '动画', '强调色', '颜色', '显示', '语言', '界面语言', '英文', '繁体', 'language'],
-    panel: (<><AppearancePanel /><DarkModePanel /><FontPanel /><DensityPanel /><MotionPanel /><AccentPanel /><LanguagePanel /></>),
+    panel: (<><AppearancePanel /><DarkModePanel /><FontPanel /><DensityPanel /><MotionPanel /><AccentPanel /><HomeLayoutPanel /><LanguagePanel /></>),
   },
   {
     key: 'chat',

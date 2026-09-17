@@ -3,6 +3,15 @@
 > 本文件为**最近发布速览**。完整历史磁带见 `docs/archive/progress-history-2026-09.md`
 > 与 `releases/`。
 
+## 最新发布：v4.332.0（2026-09-17）「7.3-2 板块降级为任务视图（阶段七『层跃升』刀）」
+
+- **来源**：用户「开始吧」提前拍板解锁（原窗口 ≈09-23）；规格书 进度计划/gaea-tasks-first-home-20260917.md。**本版=阶段七层跃升版本**。
+- **论点**：首页从「用哪个工具」翻转为「什么在等我」。裁决=homeLayout 开关缺省 classic（渐进零变化）；TaskInboxBoard 内联抽取（面板零破坏）；回退开关双位；零新绑定 707；manifest 零改动。
+- **落地**：appStore homeLayout+守卫；TasksFirstHome（收件箱大区/最近会话/能力 chips 全量直达/切回经典）；ModuleLauncher 分支+SpaceSwitch 快捷钮；设置页 HomeLayoutPanel；三语 12 键。
+- **验收**：前端 +10；零回归实证（TaskInboxPanel 9/9+ModuleLauncher 13/13 零改动）；vitest 3180/3180 一次全绿；ci.ps1 全绿；产物=exe 50831872B SHA256=80dacda4…d7eb（releases+SUMS+桌面副本同哈希；冒烟 200 过）。
+- **坑**：测试尾追加吞 describe 闭合；LocaleProvider 包裹；ESM 无 require。
+- **未做（下刀）**：阶段七出口判据复核对账（三门收口）；刀8 余项；绘梦阶段二提案候拍板。
+
 ## 最新发布：v4.331.0（2026-09-17）「自动门可见化 + CI race 扩面（刀8 race 项收口）」
 
 - **来源**：用户指令「继续」。小刀单线主代理直做；规格书 进度计划/gaea-gate-notice-race-20260917.md。

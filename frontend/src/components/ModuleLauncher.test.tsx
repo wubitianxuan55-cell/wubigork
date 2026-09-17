@@ -223,4 +223,33 @@ describe('ModuleLauncher 任务收件箱挂点（7.3-1）', () => {
     fireEvent.click(screen.getByTestId('task-inbox-open-btn'))
     await vi.waitFor(() => expect(document.querySelector('[data-testid="task-inbox-panel"]')).toBeTruthy())
   })
+
+// ── 7.3-2 板块降级为任务视图：homeLayout 分支（classic 零变化由上方既有用例
+// 钉死；此处只钉 tasks 分支与快捷切换钮）──
+describe('ModuleLauncher 首页形态分支（7.3-2 层跃升）', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    localStorage.removeItem('gaea.home.layout')
+  })
+
+  it('缺省 classic：渲染既有书斋首页，快捷钮为「任务优先」入口', async () => {
+    const { useAppStore } = await import('../stores/appStore')
+    useAppStore.setState({ homeLayout: 'classic' })
+    render(wrap(<ModuleLauncher onNavigate={vi.fn()} space="work" onSwitchSpace={vi.fn()} />))
+    expect(screen.getByTestId('desk-task-inbox')).toBeTruthy()
+    expect(screen.queryByTestId('tasks-first-home')).toBeNull()
+    expect(screen.getByTestId('home-layout-tasks-entry')).toBeTruthy()
+  })
+
+  it('tasks 形态：渲染任务优先首页（收件箱首屏）；快捷钮变「切回经典」', async () => {
+    const { useAppStore } = await import('../stores/appStore')
+    useAppStore.setState({ homeLayout: 'tasks' })
+    render(wrap(<ModuleLauncher onNavigate={vi.fn()} space="work" onSwitchSpace={vi.fn()} />))
+    expect(screen.getByTestId('tasks-first-home')).toBeTruthy()
+    expect(screen.getByTestId('tasks-first-inbox')).toBeTruthy()
+    expect(screen.queryByTestId('desk-task-inbox')).toBeNull()
+    expect(screen.getByTestId('home-layout-back-classic')).toBeTruthy()
+    useAppStore.setState({ homeLayout: 'classic' })
+  })
+})
 })

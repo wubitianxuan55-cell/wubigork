@@ -33,6 +33,7 @@ import {
 import { getActiveBoards, subscribeBoards, resolveBoardIcon } from '../boards/manifests'
 import { deriveLauncherModules, LAUNCHER_DESC, LAUNCHER_FEATURED, type LauncherModule } from '../boards/launcher'
 import { SHELL_SPACES, type ShellSpace } from '../boards/space'
+import TasksFirstHome from './TasksFirstHome'
 import { loadRecentFiles } from '../gaea/lib/recentFiles'
 import type { AtEntry } from '../gaea/lib/types'
 import { Input } from 'antd'
@@ -341,7 +342,7 @@ const TelemetryBody: React.FC<{ data: LauncherData }> = ({ data }) => {
 }
 
 /** 会话列表内容（书斋=账页行式 / 闲庭=软胶囊 chips，由 chips 切换） */
-const SessionList: React.FC<{ sessions: SessionLite[]; onOpen: () => void; chips?: boolean }> = ({ sessions, onOpen, chips }) => {
+export const SessionList: React.FC<{ sessions: SessionLite[]; onOpen: () => void; chips?: boolean }> = ({ sessions, onOpen, chips }) => {
   const t = useT()
   if (sessions.length === 0) return <div className="ml-panel-empty">{t('shell.launcher.noSessions')}</div>
   if (chips) {
@@ -375,7 +376,7 @@ const SessionList: React.FC<{ sessions: SessionLite[]; onOpen: () => void; chips
 }
 
 /** 首页共享数据（useLauncherData 一次拉取，两变体各自选用） */
-interface LauncherData {
+export interface LauncherData {
   stats: ReturnType<typeof useAppStore.getState>['stats']
   projectOpen: boolean
   monitor: ModelMonitor | null
@@ -452,7 +453,27 @@ function useLauncherData(): LauncherData {
 // （办公侧栏 SpaceChip，写 session.space）两套是定局；切换零扰在跑的活
 // （e-check E26 锁 switchSpace 零桥接）。title 说清楚防「切了闲庭办公
 // 工具就没了」的误解。
-const SpaceSwitch: React.FC<{
+/** 首页形态快捷切换（7.3-2）：形态互切按钮，读写 appStore.homeLayout。 */
+const HomeLayoutToggle: React.FC = () => {
+  const t = useT()
+  const homeLayout = useAppStore((st) => st.homeLayout)
+  const setHomeLayout = useAppStore((st) => st.setHomeLayout)
+  const tasks = homeLayout === 'tasks'
+  return (
+    <button
+      type="button"
+      data-testid={tasks ? 'home-layout-back-classic' : 'home-layout-tasks-entry'}
+      aria-pressed={tasks}
+      title={tasks ? t('home.tasksFirstBackHint') : t('home.tasksFirstEntryHint')}
+      className="ml-space-btn"
+      onClick={() => setHomeLayout(tasks ? 'classic' : 'tasks')}
+    >
+      {tasks ? t('home.tasksFirstBack') : t('home.tasksFirstEntry')}
+    </button>
+  )
+}
+
+export const SpaceSwitch: React.FC<{
   space: ShellSpace
   onSwitchSpace: (s: ShellSpace) => void
   activeModel?: string
@@ -478,6 +499,9 @@ const SpaceSwitch: React.FC<{
           )
         })}
       </div>
+      {/* 7.3-2 首页形态快捷切换：classic→「任务优先」；tasks→「切回经典」。
+          SpaceSwitch 两首页共用，按钮即回退开关的快捷位（设置页另有正式开关）。 */}
+      <HomeLayoutToggle />
       <span className="ml-strip-rule" aria-hidden="true" />
       <span className="ml-strip-date" aria-hidden="true">{new Date().toLocaleDateString()}</span>
       <span className="ml-strip-spacer" aria-hidden="true" />
@@ -1003,9 +1027,15 @@ const ModuleLauncher: React.FC<ModuleLauncherProps> = ({ onNavigate, activeModel
     setInboxOpen(false)
     setInboxTick((x) => x + 1)
   }, [])
+  // 7.3-2 板块降级为任务视图：homeLayout==='tasks' → 任务优先首页（收件箱首屏+
+  // 能力 chips）；classic → 既有 Desk/Garden 零变化（藏≠删，回退开关即时切回）。
+  const homeLayout = useAppStore((st) => st.homeLayout)
+
   return (
     <>
-      {space === 'work' ? (
+      {homeLayout === 'tasks' ? (
+        <TasksFirstHome data={data} onNavigate={onNavigate} space={space} onSwitchSpace={onSwitchSpace} activeModel={activeModel} />
+      ) : space === 'work' ? (
         <DeskHome data={data} onNavigate={onNavigate} space={space} onSwitchSpace={onSwitchSpace} activeModel={activeModel} onOpenTaskInbox={openInbox} inboxTick={inboxTick} />
       ) : (
         <GardenHome data={data} onNavigate={onNavigate} space={space} onSwitchSpace={onSwitchSpace} activeModel={activeModel} onOpenTaskInbox={openInbox} inboxTick={inboxTick} />

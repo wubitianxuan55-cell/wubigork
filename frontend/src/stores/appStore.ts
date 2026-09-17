@@ -195,6 +195,23 @@ function loadShellSpace(): ShellSpace {
   return 'work'
 }
 
+/** 首页形态（7.3-2 板块降级为任务视图）：classic=板块入口优先（缺省，零行为
+ * 变化）；tasks=任务优先（收件箱首屏+能力 chips）。持久化与空间键同款范式。 */
+export type HomeLayout = 'classic' | 'tasks'
+const HOME_LAYOUT_KEY = 'gaea.home.layout'
+
+export function isHomeLayout(v: unknown): v is HomeLayout {
+  return v === 'classic' || v === 'tasks'
+}
+
+function loadHomeLayout(): HomeLayout {
+  try {
+    const v = localStorage.getItem(HOME_LAYOUT_KEY)
+    if (isHomeLayout(v)) return v
+  } catch (_) {}
+  return 'classic'
+}
+
 /** 显示模式：light/dark/system（system = 跟随操作系统明暗） */
 export type DisplayMode = 'light' | 'dark' | 'system'
 
@@ -242,6 +259,7 @@ interface AppState {
   fontFamily: string           // 界面字体预设 key（FONT_OPTIONS）
   fontSize: number             // 界面字号 12-20
   space: ShellSpace            // S2.1 壳层视图空间（工位/乐园，持久化）
+  homeLayout: HomeLayout       // 7.3-2 首页形态：classic（缺省）/tasks（任务优先）
   projectInfo: ProjectInfo | null
   stats: StatsData | null
   login: () => Promise<void>
@@ -262,6 +280,7 @@ interface AppState {
   setFontFamily: (f: string) => void
   setFontSize: (n: number) => void
   setSpace: (s: ShellSpace) => void
+  setHomeLayout: (h: HomeLayout) => void
   loadProjectInfo: () => Promise<void>
   loadStats: () => Promise<void>
   setNovelsDir: (dir: string) => Promise<void>
@@ -284,6 +303,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   fontFamily: loadFontFamily(),
   fontSize: loadFontSize(),
   space: loadShellSpace(),
+  homeLayout: loadHomeLayout(),
   projectInfo: null,
   stats: null,
 
@@ -331,6 +351,11 @@ export const useAppStore = create<AppState>((set, get) => ({
   setSpace: (s: ShellSpace) => {
     set({ space: s })
     try { localStorage.setItem(SHELL_SPACE_KEY, s) } catch (_) {}
+  },
+
+  setHomeLayout: (h: HomeLayout) => {
+    set({ homeLayout: h })
+    try { localStorage.setItem(HOME_LAYOUT_KEY, h) } catch (_) {}
   },
 
   login: async () => {

@@ -177,6 +177,62 @@ export function TaskInboxPanel({
   onNavigate?: (boardId: string) => void;
 }) {
   const t = useT();
+  // 待处理计数提升给 Modal 标题徽标（7.3-2：面板=Board 的 Modal 壳，DOM 零变化）
+  const [pending, setPending] = useState(0);
+  return (
+    <Modal
+      open={open}
+      onCancel={onClose}
+      footer={null}
+      width={620}
+      destroyOnHidden
+      transitionName=""
+      maskTransitionName=""
+      title={
+        // v3-panel-head 细条头：图标 + 标题 + 待处理计数（对齐 TaskCenter 语言）
+        <div className="v3-panel-head">
+          <Inbox size={13} aria-hidden style={{ color: "var(--gaea-glow)" }} />
+          <span className="v3-panel-title">{t("tasks.inbox.title")}</span>
+          {pending > 0 && (
+            <span
+              className="px-1.5 py-px rounded-full text-[10px]"
+              style={{
+                background: "color-mix(in srgb, var(--md-sys-color-primary-container) 55%, transparent)",
+                color: "var(--gaea-glow)",
+                border: "1px solid color-mix(in srgb, var(--gaea-glow) 26%, transparent)",
+              }}
+            >
+              {t("tasks.inbox.pendingCount", { n: pending })}
+            </span>
+          )}
+        </div>
+      }
+    >
+      <TaskInboxBoard space={space} active={open} onNavigate={onNavigate} onPendingChange={setPending} />
+    </Modal>
+  );
+}
+
+/**
+ * TaskInboxBoard 收件箱内联板（7.3-2 板块降级为任务视图）：原 TaskInboxPanel
+ * 主体原样抽出——四档 tab + 新建 + 状态机动作 + 板块跳转。Modal 壳保留为薄
+ * 包装（面板 props/DOM/既有测试零变化）；任务优先首页直接内嵌本组件。
+ * active=false 时不拉取（Modal 关闭态）；onPendingChange 把待处理计数报给
+ * 壳层（Modal 标题徽标 / 首页头部计数共用）。
+ */
+export function TaskInboxBoard({
+  space,
+  active,
+  onNavigate,
+  onPendingChange,
+}: {
+  space: ShellSpace;
+  /** 激活态（false=挂载但不拉取；内嵌首页恒 true） */
+  active: boolean;
+  onNavigate?: (boardId: string) => void;
+  onPendingChange?: (pending: number) => void;
+}) {
+  const t = useT();
   const [tasks, setTasks] = useState<TaskInboxView[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState(false);
@@ -212,9 +268,9 @@ export function TaskInboxPanel({
   }, [space]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!active) return;
     return load();
-  }, [open, load]);
+  }, [active, load]);
 
   // 手动新建：source='inbox'（第五来源兜底），回车或点「添加」提交
   const submitAdd = useCallback(() => {
@@ -268,35 +324,11 @@ export function TaskInboxPanel({
 
   const rows = useMemo(() => tasks.filter((t2) => t2.status === tab), [tasks, tab]);
 
+  useEffect(() => {
+    onPendingChange?.(counts.pending);
+  }, [counts.pending, onPendingChange]);
+
   return (
-    <Modal
-      open={open}
-      onCancel={onClose}
-      footer={null}
-      width={620}
-      destroyOnHidden
-      transitionName=""
-      maskTransitionName=""
-      title={
-        // v3-panel-head 细条头：图标 + 标题 + 待处理计数（对齐 TaskCenter 语言）
-        <div className="v3-panel-head">
-          <Inbox size={13} aria-hidden style={{ color: "var(--gaea-glow)" }} />
-          <span className="v3-panel-title">{t("tasks.inbox.title")}</span>
-          {counts.pending > 0 && (
-            <span
-              className="px-1.5 py-px rounded-full text-[10px]"
-              style={{
-                background: "color-mix(in srgb, var(--md-sys-color-primary-container) 55%, transparent)",
-                color: "var(--gaea-glow)",
-                border: "1px solid color-mix(in srgb, var(--gaea-glow) 26%, transparent)",
-              }}
-            >
-              {t("tasks.inbox.pendingCount", { n: counts.pending })}
-            </span>
-          )}
-        </div>
-      }
-    >
       <div data-testid="task-inbox-panel" className="flex flex-col gap-3">
         {/* 手动新建（回车提交） */}
         <div className="flex items-center gap-2">
@@ -379,6 +411,5 @@ export function TaskInboxPanel({
           )}
         </div>
       </div>
-    </Modal>
   );
 }
