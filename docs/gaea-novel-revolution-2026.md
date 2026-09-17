@@ -25,9 +25,9 @@
 - [x] **刀 6 · 叙事状态审批制结算**（`internal/app/novel_state_handler.go`）：新增 `GetNovelState`/`BuildNovelStatePatch`/`SettleNovelState` 绑定，走 `narrative.AuthorizeAndSettle`（`approved=false` 不入账本）；绑定面 +bridge 同步，drift PASS。
 - [x] **刀 5 续 · 手动「一键去味」**：新增 `DeSlopChapterAiTaste` 绑定（对**任意已有章节**做确定性 `DeSlopRewrite`，v4 逐场景 / v3 整章，零 LLM）；绑定面 566→567，`bindingNames`/bridge/drift 同步；前端 CreatePage「一键去味」按钮 + 去味结果反馈。
 - [x] **刀 5 再续 · LLM 受限重写**：新增 `RewriteChapterAiTaste` 绑定（打分→定位命中句→LLM 批量受限重写→安全替换→**复测分数下降才落盘**的安全闸→v4 逐场景/v3 整章）；绑定面 567→568，`bindingNames`/bridge/drift 同步；前端 CreatePage「高级去味」按钮。纯函数测试 `splitSentences`/`pickFlaggedSentences` 通过（模型路径由编译+安全闸逻辑保障，离线无法端到端）。
-- [ ] `GenerationGate` 完整闭环（生成后自动 Analyze/Review/Consistency + AI 味 + 修复 + 复检的编排）。
+- [x] `GenerationGate` 完整闭环（生成后自动 Analyze/Review/Consistency + AI 味 + 修复 + 复检的编排）——v4.326.0 收口：生成 done 后异步自动门（确定性三路+分析路一次 LLM=V2 落盘/伏笔同步/记忆回填；review/consistency 留单章门手动=成本纪律）+ 全书体检 RunBookHealthCheck 零 LLM 聚合。
 - [x] **刀 7 · 前端（执行部分）**：AI 味分 + 命中问题展示（`CreatePage`）；**叙事状态账本面板 + 「AI 生成状态建议」+「批准结算」审批 Modal**（调用 `GetNovelState/BuildNovelStatePatch/SettleNovelState`）。vitest 14/14 + `tsc -b` 0 + eslint 0。
-- [ ] 刀 7 续 · 前端：场景生成按钮（`ChapterEditor` 逐场景 `GenerateScene`，需加场景 ID 追踪）、全文脑图、文风指纹面板、POV 视图。
+- [x] 刀 7 续 · 前端：场景生成按钮（`ChapterEditor` 逐场景 `GenerateScene`，需加场景 ID 追踪——v4 场景工程线已落）、全文脑图（CreatePage 在位）、文风指纹面板（v4.298 系在位）、POV 视图（v4.330.0：NovelSceneBibleView 绑定 + 场景「视角」抽屉，已知/不知情对照）。
 - [ ] 刀 8 · 跨模块验收 + 回退演练 + `go test -race` 门禁（本环境 `CGO_ENABLED=0` 无法跑 `-race`，CI 侧另配）。
 
 ---

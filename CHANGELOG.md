@@ -1,3 +1,17 @@
+## v4.330.0 · 刀7续收官：POV 视图（场景圣经消费面）（2026-09-17）
+> 用户指令「继续」。小刀单线主代理直做；契约先行（规格书随刀入库 进度计划/gaea-pov-view-20260917.md）。前置核对=场景生成按钮已落（v4 场景工程线）/全文脑图/文风指纹在位——刀7续仅剩 POV 视图，本刀合入即 revolution 只剩刀8。
+**论点**=POV 视角掩码（刀2 场景圣经核心差异化：POVView=已知/HiddenFacts=不知情且不得泄露）只在生成链内部消费——用户看不到「这个场景通过谁的眼睛在看、哪些信息被刻意瞒住」，视角纪律不可审视。
+**裁决**=+1 绑定 NovelSceneBibleView(chapterNum, sceneID)（706→707，NovelB）；sceneID 非空=该场景编译（不存在报错）/空=整章合成（BuildSceneBibleFromChapter，v3 与纯 blob 章可用）；视图 camelCase typed 切片恒非 nil（前端零判空）；编译静默降级契约——空区段如实空展示不编造。
+**落地Go**=novel_scene_bible.go：SceneBibleView/SceneBibleCharView wire 投影+双路编译。
+**落地前端**=SceneBibleDrawer（POV 头「通过谁的眼睛」+核心区已知（绿底）/不知情（红字）对照+角色卡含 t5 状态机回灌（currentState/careerMain/Sub）+伏笔约束+时间锚点/主线+确定性编译脚注）；ChapterEditor 场景操作行「视角」按钮（EyeOutlined，sceneIds 门控）挂抽屉；bridge/mock/锁 529→530/bindingNames 707。
+**revolution 勾选对账**=GenerationGate 闭环（v4.326 实落）与刀7续（场景生成/脑图/指纹核对+本刀 POV）补记勾选——文档只剩刀8（验收演练/race 门禁 CI 侧）。
+**测试**=Go +3（整章视图形状恒非 nil/未知场景报错/无项目报错；POV 掩码语义由 novelcontext 包测试钉死此处只钉 wire 投影）+前端 +3（对照区渲染/空区段全知视角+无隐藏约束/错误态重试）；ChapterEditor 既有 7/7 零破坏。
+**门禁**=go build/vet 全过、app+novelcontext 全绿 -count=1、tsc -b 零错、eslint 零告警、vitest 全量 3169/3169 一次全绿、drift OK@707、版本三处 4.330.0；产物=exe 50823680B SHA256=4ea486520055b3ca160c7fe5336414efbc8e5408535020544974e83528494eeb（releases/gaea-v4.330.0.exe+SHA256SUMS-v4.330.0.txt；桌面副本同哈希；冒烟 /api/health 200 过）。
+**文档**=规格书+releases/v4.330.0.md+CHANGELOG/README+AGENTS 迁 1 插 1（四十五迁）+progress/todos+revolution 勾选对账。
+**出口对照**=场景「视角」抽屉可见 POV 已知/不知情对照 ✅；整章合成路 v3 章可用 ✅；空区段诚实 ✅。
+**观察池**=Render 全文预览；POV 切换沙盒（改 POVCharID 重编译）；多场景并排；隐藏事实来源溯源。
+**未做（下刀）**=7.3-2 板块降视图（≈09-23 解锁）；刀8 验收演练+race 门禁（CI 侧另配）候排。
+
 ## v4.329.0 · 绘梦阶段一刀 E：画室消耗（月度聚合+折叠面板，阶段一全清）（2026-09-17）
 > 用户指令「继续」。小刀单线主代理直做；契约先行（规格书随刀入库 进度计划/gaea-studio-usage-20260917.md；规格 docs/gaea-dream-studio-nextgen-2026-09.md §4 刀 E 轻量收尾）。**本刀合入=绘梦阶段一（A 资产面板/B 参考槽/C 指令编辑/D 配图 v2/E 画室消耗）全清**。
 **论点**=台账已逐条记 Cost（目录单价）+CreatedAt 但没有聚合视图——用户看不到「本月画了几张、花了多少」。

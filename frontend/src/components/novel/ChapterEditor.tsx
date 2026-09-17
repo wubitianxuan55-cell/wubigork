@@ -1,7 +1,8 @@
 import React, { useState } from 'react'
 import { Button, Space, Tag, Input, Select, Modal, Typography, message } from 'antd'
-import { ArrowUpOutlined, ArrowDownOutlined, PlusOutlined, DeleteOutlined, EditOutlined, ColumnWidthOutlined, RedoOutlined, ThunderboltOutlined, InfoCircleOutlined } from '@ant-design/icons'
+import { ArrowUpOutlined, ArrowDownOutlined, PlusOutlined, DeleteOutlined, EditOutlined, ColumnWidthOutlined, RedoOutlined, ThunderboltOutlined, InfoCircleOutlined, EyeOutlined } from '@ant-design/icons'
 import { GetChapterScenes, GenerateScene, CreateScene, SaveSceneMeta, ReorderScenes } from '../../../wailsjs/go/app/NovelB'
+import SceneBibleDrawer from './SceneBibleDrawer'
 import { getCharacters } from './api/character'
 import type { ChapterTabData } from '../../types'
 import GhostText from './editor/GhostText'
@@ -68,6 +69,8 @@ const ChapterEditor: React.FC<ChapterEditorProps> = ({ tab, onUpdate, sceneTexta
   const sceneIds = tab.sceneIds ?? []
   const [scenePlots, setScenePlots] = useState<string[]>([])
   const [sceneGen, setSceneGen] = useState<Record<number, { loading: boolean; aiTaste?: number; beforeScore?: number; afterScore?: number; changes?: number }>>({})
+  // POV 视图（刀7续收官）：场景「视角」抽屉——场景圣经（已知/不知情对照）。
+  const [bibleScene, setBibleScene] = useState<number | null>(null)
   const [addingScene, setAddingScene] = useState(false)
   const [moving, setMoving] = useState(false)
 
@@ -308,6 +311,9 @@ const ChapterEditor: React.FC<ChapterEditorProps> = ({ tab, onUpdate, sceneTexta
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
                     <Tag style={{ fontSize: 10 }}>场景 {i + 1}</Tag>
                     <Space size={2}>
+                      <Button type="text" size="small" icon={<EyeOutlined />} style={{ color: C('color-text-secondary'), fontSize: 10, padding: '0 4px' }}
+                        disabled={!sceneIds[i]}
+                        onClick={() => setBibleScene(i)} aria-label={`场景 ${i + 1} 视角`} title="视角：该场景通过谁的眼睛在看——已知事实 / 不知情约束 / 出场角色 / 伏笔" />
                       <Button type="text" size="small" icon={<InfoCircleOutlined />} style={{ color: C('color-text-secondary'), fontSize: 10, padding: '0 4px' }}
                         disabled={tab.sceneBacked !== true}
                         onClick={() => void openMeta(i)} aria-label={`场景 ${i + 1} 信息`} title="场景信息：标题 / 概要 / POV / 地点 / 时间 / 情感 / 标签 / 状态" />
@@ -500,6 +506,15 @@ const ChapterEditor: React.FC<ChapterEditorProps> = ({ tab, onUpdate, sceneTexta
           </label>
         </div>
       </Modal>
+    {bibleScene != null && (
+        <SceneBibleDrawer
+          open
+          chapterNum={tab.chapterNum}
+          sceneID={sceneIds[bibleScene] ?? ''}
+          sceneLabel={`场景 ${bibleScene + 1}`}
+          onClose={() => setBibleScene(null)}
+        />
+      )}
     </>
   )
 }

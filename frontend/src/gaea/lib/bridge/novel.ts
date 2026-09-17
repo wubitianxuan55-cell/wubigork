@@ -379,6 +379,9 @@ export interface NovelBindings {
   PromptTemplateSave(key: string, reqJSON: string): Promise<PromptSaveResultView>;
   PromptTemplateReset(key: string): Promise<void>;
   PromptTemplatePreview(reqJSON: string, varsJSON: string): Promise<PromptPreviewResultView>;
+  // NovelSceneBibleView 场景圣经视图（刀7续 POV 视图：sceneID 空=整章合成；
+  // povView/hiddenFacts 对照为核心区）。
+  NovelSceneBibleView(chapterNum: number, sceneID: string): Promise<Record<string, unknown>>;
   // ── t6-C2 模板包导入导出两绑定（PromptBundle*；规格
   // 进度计划/gaea-prompt-bundle-t6c2-20260916.md §4）──
   PromptBundleExport(): Promise<string>;

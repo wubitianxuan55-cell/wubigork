@@ -67,6 +67,8 @@ type NovelMethods = Pick<
   | "PromptBundleExport" | "PromptBundleImport"
   // t7 分析接线：AnalyzeChapter 出 Legacy 转正 + V2 读取（CreatePage「章节分析」面板）。
   | "AnalyzeChapter" | "NovelChapterAnalysisV2"
+  // 刀7续 POV 视图：场景圣经（ChapterEditor 场景「视角」抽屉）。
+  | "NovelSceneBibleView"
   // GenerationGate 闭环：全书体检（触发式全量编译，零 LLM）。
   | "RunBookHealthCheck"
 >;
@@ -579,6 +581,28 @@ export function buildNovel(): NovelMethods {
         improvementTips: ["中段可收紧"],
         foreshadows: [],
         characterStates: [],
+      };
+    },
+    async NovelSceneBibleView(chapterNum: number, sceneID: string) {
+      void chapterNum;
+      return {
+        pov: sceneID ? "char-linzhao" : "",
+        title: sceneID ? "雨夜叩门" : `第${chapterNum}章（整章合成）`,
+        location: "旧宅门廊",
+        timeOfDay: "深夜",
+        mood: "压抑中带一点试探",
+        tags: ["dialogue", "revelation"],
+        characters: [
+          { name: "林昭", roleType: "主角", status: "Alive", location: "门廊", currentState: "由旁观转入局（第 14 章）", careerMain: "剑修·3阶" },
+          { name: "守门人", roleType: "配角", status: "Alive", location: "门内", knownBy: ["林昭"] },
+        ],
+        povView: "林昭知道：信物纹路与门楣浮雕一致；守门人昨夜换了值。袖中信物是母亲遗物。",
+        hiddenFacts: ["守门人早已认出林昭，且与林母旧识", "信物另有一枚，在反派手中"],
+        foreshadows: ["褪色的信物（预计第 26 章回收）"],
+        memories: [],
+        timeAnchor: "上一场景后约半个时辰",
+        thread: "身世之谜逼近第一层揭开",
+        style: "克制、细节扎实，对话短促",
       };
     },
     async RunBookHealthCheck() {

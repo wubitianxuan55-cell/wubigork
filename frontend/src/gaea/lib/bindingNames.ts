@@ -537,6 +537,7 @@ export const bindingNames = [
   "NovelReadingAsk",
   "NovelRestoreRewriteVersion",
   "NovelReviewPlatforms",
+  "NovelSceneBibleView",
   "NovelSearch",
   "OfficeCancelJob",
   "OfficeExecute",

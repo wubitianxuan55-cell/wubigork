@@ -79,8 +79,8 @@ func (b *NovelB) NovelBookSourceImportCancel(jobID string) bool { return b.a.Nov
 func (b *NovelB) NovelBookSourceImportChapters(source string, projectPath string, chaptersJSON string) (NovelBookSourceImportStart, error) { return b.a.NovelBookSourceImportChapters(source, projectPath, chaptersJSON) }
 func (b *NovelB) NovelBookSourceSearch(keyword string) (NovelBookSourceSearchResult, error) { return b.a.NovelBookSourceSearch(keyword) }
 func (b *NovelB) NovelBookSourceToc(source string, detailURL string) (NovelBookSourceTocPreview, error) { return b.a.NovelBookSourceToc(source, detailURL) }
-func (b *NovelB) NovelChapterAnnotations(chapterNum int) ([]types.Annotation, error) { return b.a.NovelChapterAnnotations(chapterNum) }
 func (b *NovelB) NovelChapterAnalysisV2(chapterNum int) (types.ChapterAnalysisResult, error) { return b.a.NovelChapterAnalysisV2(chapterNum) }
+func (b *NovelB) NovelChapterAnnotations(chapterNum int) ([]types.Annotation, error) { return b.a.NovelChapterAnnotations(chapterNum) }
 func (b *NovelB) NovelChapterReview(chapterNum int, platform string) (ChapterReviewPayload, error) { return b.a.NovelChapterReview(chapterNum, platform) }
 func (b *NovelB) NovelChapterRewrite(chapterNum int, reqJSON string) (map[string]interface{}, error) { return b.a.NovelChapterRewrite(chapterNum, reqJSON) }
 func (b *NovelB) NovelChapterSuggestions(chapterNum int) ([]string, error) { return b.a.NovelChapterSuggestions(chapterNum) }
@@ -97,6 +97,7 @@ func (b *NovelB) NovelOutlineReconstructTaskGet() (NovelOutlineReconstructTaskSt
 func (b *NovelB) NovelReadingAsk(kind string, title string, chapterText string, selection string, question string, historyJSON string) (string, error) { return b.a.NovelReadingAsk(kind, title, chapterText, selection, question, historyJSON) }
 func (b *NovelB) NovelRestoreRewriteVersion(chapterNum int, versionID string) (map[string]interface{}, error) { return b.a.NovelRestoreRewriteVersion(chapterNum, versionID) }
 func (b *NovelB) NovelReviewPlatforms() []ReviewPlatformView { return b.a.NovelReviewPlatforms() }
+func (b *NovelB) NovelSceneBibleView(chapterNum int, sceneID string) (SceneBibleView, error) { return b.a.NovelSceneBibleView(chapterNum, sceneID) }
 func (b *NovelB) NovelSearch(query string) ([]NovelSearchHit, error) { return b.a.NovelSearch(query) }
 func (b *NovelB) ParseLinks(content string) []string { return b.a.ParseLinks(content) }
 func (b *NovelB) PromptBundleExport() (string, error) { return b.a.PromptBundleExport() }
@@ -112,8 +113,8 @@ func (b *NovelB) RemoveCharacterCareer(charID string, reqJSON string) error { re
 func (b *NovelB) ReorderScenes(chapterNum int, sceneIDs []string) error { return b.a.ReorderScenes(chapterNum, sceneIDs) }
 func (b *NovelB) RestoreSnapshot(snapshotID string, sceneID string, chapterNum int) error { return b.a.RestoreSnapshot(snapshotID, sceneID, chapterNum) }
 func (b *NovelB) ReviewBook() (map[string]interface{}, error) { return b.a.ReviewBook() }
-func (b *NovelB) RunBookHealthCheck() (BookHealthReport, error) { return b.a.RunBookHealthCheck() }
 func (b *NovelB) RewriteChapterAiTaste(chapterNum int) (map[string]interface{}, error) { return b.a.RewriteChapterAiTaste(chapterNum) }
+func (b *NovelB) RunBookHealthCheck() (BookHealthReport, error) { return b.a.RunBookHealthCheck() }
 func (b *NovelB) RunChapterGate(chapterNum int) (map[string]interface{}, error) { return b.a.RunChapterGate(chapterNum) }
 func (b *NovelB) SaveAllWorldviewSections(sectionsJSON string) error { return b.a.SaveAllWorldviewSections(sectionsJSON) }
 func (b *NovelB) SaveChapterBranchContent(num int, branch string, content string) error { return b.a.SaveChapterBranchContent(num, branch, content) }
