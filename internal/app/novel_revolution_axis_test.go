@@ -298,6 +298,12 @@ func TestKnife8_GenerationAxis_EndToEnd(t *testing.T) {
 	}
 
 	// ③ memories 回填：非空且含 chapter_summary 与 foreshadow 两类
+	// （门协程落盘序=V2→memories→annotations→伏笔：V2 就绪≠后续就绪——
+	// v4.335 修 flaky：③④⑤ 一律 waitFor 终态，不可裸读）
+	waitFor(t, 10*time.Second, "章节记忆回填", func() bool {
+		mems, err := pm.ReadChapterMemories(1)
+		return err == nil && len(mems.Items) > 0
+	})
 	mems, err := pm.ReadChapterMemories(1)
 	if err != nil || len(mems.Items) == 0 {
 		t.Fatalf("章节记忆应非空: err=%v items=%d", err, len(mems.Items))
@@ -316,6 +322,10 @@ func TestKnife8_GenerationAxis_EndToEnd(t *testing.T) {
 	}
 
 	// ④ annotations 落盘：≥1 条 pos≥0（锚点命中）
+	waitFor(t, 10*time.Second, "章节标注落盘", func() bool {
+		ann, err := pm.ReadChapterAnnotations(1)
+		return err == nil && len(ann.Items) > 0
+	})
 	ann, err := pm.ReadChapterAnnotations(1)
 	if err != nil || len(ann.Items) == 0 {
 		t.Fatalf("章节标注应非空: err=%v items=%d", err, len(ann.Items))
@@ -331,6 +341,18 @@ func TestKnife8_GenerationAxis_EndToEnd(t *testing.T) {
 	}
 
 	// ⑤ 伏笔同步：桩 JSON 的 planted title 出现且登记在 001.md
+	waitFor(t, 10*time.Second, "伏笔同步落盘", func() bool {
+		ff, err := pm.ReadForeshadows()
+		if err != nil {
+			return false
+		}
+		for _, f := range ff.Items {
+			if f.Title == axisForeshadowTitle && f.Status == types.ForeshadowPlanted && f.PlantedIn == "001.md" {
+				return true
+			}
+		}
+		return false
+	})
 	ff, err := pm.ReadForeshadows()
 	if err != nil {
 		t.Fatalf("读伏笔: %v", err)

@@ -1,3 +1,10 @@
+## v4.335.0 · 办公输入动线对齐 DSH/Codex：运行中 Enter=排队，插话改显式（2026-09-17）
+> 用户报告「办公板块消息输入的排序/插话/撤回不见了，直接插入正在跑的对话中」。归因=**非回归**：队列功能本体（v4.200/201 排序/插话/撤回/锁定）一直在且测试全绿，丢的是入口——v3.6.0（2026-08-28）把运行中 Enter 从排队改成插话（对齐豆包边跑边改），排队退到 Clock 小按钮，用户 Enter→直插当前对话→队列卡从未出现。用户拍板「按 DSH/Codex 方式处理」。
+**落地**（纯前端零绑定 707）=①运行中 **Enter=排队**：入发送队列→队列卡（拖拽排序/撤回编辑/单条·全部插话/全部取消/发送中锁定）回主动线，回合结束 FIFO 自动派发②**插话改显式**：Alt+Enter 直插当前回合（边跑边改保留），队列卡 Zap/全部插话不变③Shift+Enter 纠正/Esc 停止/Clock 按钮语义零变化④发送钮 title 三态换 sendQueuedTitle；placeholder 运行中提示三语更新（Enter 排队 · Alt+Enter 插话 · Shift+Enter 纠正）⑤composer.steerTitle 键删（维持 0 死键）；Composer 四处重复组装抽 assembleSubmit/enqueueSubmit/pushInputHistory，入队统一进输入历史。**测试**=Composer.queue +3（Enter 排队不走 steer/Alt+Enter 直插不入队/Shift+Enter 纠正回归锁）+I18n 断言对齐+sendQueuedTitle 三态钉；composer 域 22/22。**顺带修 flaky（v4.334 遗留）**=CI 首跑 TestKnife8_GenerationAxis_EndToEnd 快败（标注 items=0）：门协程落盘序 V2→memories→annotations→伏笔，测试只对 V2 waitFor、③④⑤裸读输给 IO 时序（昨日 3 连跑全赢属侥幸）——③④⑤ 改 waitFor 终态后 -count=3 绿；教训=**异步落盘链上读到 A≠读到 B，断言等终态不赌时序**。**坑=后台跑 ci.ps1 别接管道 tail（吞退出码假绿，v4.334 首跑被 tail 的 exit 0 骗过）**。**观察**=GenUI action 运行中仍走 steer（机器动作语义与用户输入分线，不改）。
+**门禁**=tsc 零错/eslint 零告警/全量 ci.ps1 绿/drift OK@707/版本三处 4.335.0；产物=exe 50832384B SHA256=556c906f1efed83273dd72d7b289610abf1c90c1287560393cd0e3ddf446ccd0（releases+SUMS；桌面副本同哈希；冒烟 200 过）。
+**文档**=releases/v4.335.0.md+CHANGELOG/README+AGENTS 迁 1 插 1（五十迁）+progress/todos。
+**未做（下刀）**=真机走查清池班；技能 ≥5 次核数 ≈09-30；绘梦阶段二/缺省形态翻转候拍板。
+
 ## v4.334.0 · revolution 刀8 收官：跨模块验收+回退演练+版本三处漂移根治（2026-09-17）
 > 用户指令「继续优化迭代 gaea」。三线并发子代理+主代理收口；契约先行（规格书随刀入库 进度计划/gaea-rev-knife8-acceptance-20260917.md）。**本刀合入=小说 revolution 刀 1–8 全线收官**（race 项 v4.331 已清，刀8 余项=跨模块验收+回退演练本刀收口）。
 **论点**=各模块单测在位但跨模块串联零覆盖：生成主轴端到端（CreateChapter→done+aiTaste→自动门→分析 V2 落盘/记忆/标注/伏笔同步→场景物化）全仓无贯通测试，**自动门成功路径（analysisDone=true/foreshadowSync）从未被测**（既有只测 nil-engine 降级）；叙事审批链 app 级 0 测试；回退三径（app 级快照往返/v3 迁移 `_v3_backup` 非破坏）零断言；性能判据（AI 味<1s）与去味保真（字数/实体不变）无钉。

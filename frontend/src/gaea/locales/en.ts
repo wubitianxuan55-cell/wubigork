@@ -996,9 +996,9 @@ export const en = {
 
   // ── v4.57 i18n 收尾：composer 家族 ──
   "composer.queuePending": "Queued ({n})…",
-  "composer.runningHint": "Task running… Enter to steer · Shift+Enter to correct",
+  "composer.runningHint": "Task running… Enter to queue · Alt+Enter to steer · Shift+Enter to correct",
+  "composer.sendQueuedTitle": "Queue send (Enter) · Alt+Enter to steer",
   "composer.askIn": "Ask in {name}/…",
-  "composer.steerTitle": "Steer (sent into the current task without interrupting it)",
   "composer.correctTitle": "Correct & resend (Shift+Enter)",
   "composer.queueSendHint": "Queue send (runs after the current turn; unlike steering it does not touch the running task)",
   "composer.queueCount": "Queued sends ({n})",

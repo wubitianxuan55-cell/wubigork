@@ -206,49 +206,46 @@ export function Composer({
   };
   const onDragLeave = () => setDragOver(false);
 
-  const submit = () => {
-    if (disabled) return;
+  const pushInputHistory = (display: string) => {
+    if (!display.trim()) return;
+    try {
+      const history = JSON.parse(sessionStorage.getItem(INPUT_HISTORY_KEY) || "[]") as string[];
+      history.unshift(display);
+      sessionStorage.setItem(INPUT_HISTORY_KEY, JSON.stringify(history.slice(0, MAX_INPUT_HISTORY)));
+    } catch {}
+  };
+
+  // 组装待发送文本（表格块展开 + 附件引用）；空输入/paste 未决返回 null。
+  const assembleSubmit = (): { displayText: string; submitText: string } | null => {
     const converted = tableMode ? applyTableConversion(text, true) : text;
     const tTrim = converted.trim();
-    if ((!tTrim && attachments.length === 0) || pendingPaste > 0) return;
+    if ((!tTrim && attachments.length === 0) || pendingPaste > 0) return null;
     const refs = attachments.map((a) => `@${a.path}`).join(" ");
     const displayText = [tTrim, refs].filter(Boolean).join(tTrim && refs ? " " : "");
     const submitText = [paste.expandBlocks(tTrim), refs].filter(Boolean).join(tTrim && refs ? " " : "");
-    const pushInputHistory = () => {
-      if (!displayText.trim()) return;
-      try {
-        const history = JSON.parse(sessionStorage.getItem(INPUT_HISTORY_KEY) || "[]") as string[];
-        history.unshift(displayText);
-        sessionStorage.setItem(INPUT_HISTORY_KEY, JSON.stringify(history.slice(0, MAX_INPUT_HISTORY)));
-      } catch {}
-    };
-    const clearInput = () => { setText(""); setAttachments([]); };
-    if (displayText.trim()) {
-      pushInputHistory();
-    }
-    setHistoryIndex(-1);
-    if (running) {
-      // 2026-08-28：任务运行中 Enter = 插话调整（Steer），消息注入当前回合
-      // 作为补充指引；Shift+Enter 仍为纠正（取消+重发）。需要显式排队的
-      // 用户可通过排队按钮（ComposerQueueList 保留）。
-      onSteer?.(submitText);
-      clearInput();
-      return;
-    }
-    onSend(displayText, submitText); clearInput();
+    if (!displayText.trim()) return null;
+    return { displayText, submitText };
   };
 
-  // 显式排队（2026-08-28）：任务运行中把输入加入发送队列，回合结束后 FIFO
-  // 执行——与插话（立即调整当前任务）区分；队列项可点击撤回输入框编辑。
-  const queueSubmit = () => {
+  // 入队（2026-09-17 对齐 DSH/Codex：运行中发送默认排队，回合结束后 FIFO 派发；
+  // 队列卡可拖拽排序/撤回编辑/单条·全部插话/取消）。
+  const enqueueSubmit = () => {
+    const parts = assembleSubmit();
+    if (!parts) return;
+    pushInputHistory(parts.displayText);
+    syncQueue([...queueRef.current, makeQueueItem(parts.submitText)]);
+    setText("");
+    setAttachments([]);
+  };
+
+  const submit = () => {
     if (disabled) return;
-    const converted = tableMode ? applyTableConversion(text, true) : text;
-    const tTrim = converted.trim();
-    if ((!tTrim && attachments.length === 0) || pendingPaste > 0) return;
-    const refs = attachments.map((a) => `@${a.path}`).join(" ");
-    const submitText = [paste.expandBlocks(tTrim), refs].filter(Boolean).join(tTrim && refs ? " " : "");
-    if (!submitText.trim()) return;
-    syncQueue([...queueRef.current, makeQueueItem(submitText)]);
+    if (running) { enqueueSubmit(); return; } // v3.6.0 的「Enter=插话」退役为 Alt+Enter（2026-09-17 用户拍板）
+    const parts = assembleSubmit();
+    if (!parts) return;
+    pushInputHistory(parts.displayText);
+    setHistoryIndex(-1);
+    onSend(parts.displayText, parts.submitText);
     setText("");
     setAttachments([]);
   };
@@ -365,23 +362,25 @@ export function Composer({
       // 纠正模式：Shift+Enter → 清空队列 + 取消当前轮次 + 立即发送新文本
       e.preventDefault();
       if (disabled) return;
-      const converted = tableMode ? applyTableConversion(text, true) : text;
-      const tTrim = converted.trim();
-      if ((!tTrim && attachments.length === 0) || pendingPaste > 0) return;
-      const refs = attachments.map((a) => `@${a.path}`).join(" ");
-      const displayText = [tTrim, refs].filter(Boolean).join(tTrim && refs ? " " : "");
-      const submitText = [paste.expandBlocks(tTrim), refs].filter(Boolean).join(tTrim && refs ? " " : "");
-      if (displayText.trim()) {
-        try {
-          const history = JSON.parse(sessionStorage.getItem(INPUT_HISTORY_KEY) || "[]") as string[];
-          history.unshift(displayText);
-          sessionStorage.setItem(INPUT_HISTORY_KEY, JSON.stringify(history.slice(0, MAX_INPUT_HISTORY)));
-        } catch {}
-      }
+      const parts = assembleSubmit();
+      if (!parts) return;
+      pushInputHistory(parts.displayText);
       setHistoryIndex(-1);
       syncQueue([]);
       onCancel();
-      correctionRef.current = submitText;
+      correctionRef.current = parts.submitText;
+      setText("");
+      setAttachments([]);
+      return;
+    }
+    // Alt+Enter：直插当前回合（显式插话，不入队——2026-09-17 起 Enter 已改排队）
+    if (e.key === "Enter" && e.altKey && !e.shiftKey && !composing) {
+      e.preventDefault();
+      if (disabled || !running) return;
+      const parts = assembleSubmit();
+      if (!parts) return;
+      pushInputHistory(parts.displayText);
+      onSteerRef.current?.(parts.submitText);
       setText("");
       setAttachments([]);
       return;
@@ -504,7 +503,7 @@ export function Composer({
           onDragLeave={onDragLeave}
           onStop={handleCancel}
           onSubmit={submit}
-          onQueue={queueSubmit}
+          onQueue={enqueueSubmit}
         />
 
         {/* 底部工具栏 */}

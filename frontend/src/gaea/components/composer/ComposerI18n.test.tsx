@@ -68,6 +68,33 @@ describe("ComposerInputRow i18n 冒烟", () => {
     );
     expect(screen.getByTitle("排队发送 (2)")).toBeTruthy();
     expect(screen.getByTitle("排队发送（当前回合结束后执行，与插话不同：插话立即调整当前任务）")).toBeTruthy();
+    cleanup();
+    renderT(
+      <ComposerInputRow
+        taRef={nullRef}
+        text="hi"
+        onTextChange={noop}
+        onPaste={noop}
+        onKeyDown={noop}
+        placeholder="p"
+        disabled={false}
+        running
+        composerHeightFixed={false}
+        dragOver={false}
+        shiftHeld={false}
+        queueLen={0}
+        pendingPaste={0}
+        attachmentsCount={0}
+        onDrop={noop}
+        onDragOver={noop}
+        onDragLeave={noop}
+        onStop={noop}
+        onSubmit={noop}
+        onQueue={noop}
+      />,
+    );
+    // 2026-09-17 起 Enter=排队（对齐 DSH/Codex），插话退役为 Alt+Enter
+    expect(screen.getByTitle("排队发送（Enter）· Alt+Enter 插话调整")).toBeTruthy();
   });
 
   it("Shift 按住时 title 切纠正发送；空闲时回退 composer.send", () => {
@@ -180,7 +207,7 @@ describe("Composer i18n 冒烟", () => {
     renderT(
       <Composer running cwd="/ws" onSend={noop} onCancel={() => undefined} onPickFolder={async () => "/ws"} />,
     );
-    expect(screen.getByPlaceholderText("任务执行中… Enter 插话调整 · Shift+Enter 纠正")).toBeTruthy();
+    expect(screen.getByPlaceholderText("任务执行中… Enter 排队发送 · Alt+Enter 插话调整 · Shift+Enter 纠正")).toBeTruthy();
     cleanup();
 
     renderT(

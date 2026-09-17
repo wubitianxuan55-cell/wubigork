@@ -85,6 +85,38 @@ describe("Composer 发送队列", () => {
     expect(onSend).not.toHaveBeenCalled();
   });
 
+  it("运行中 Enter 默认排队（2026-09-17 对齐 DSH/Codex），不直插当前回合", () => {
+    const { onSend, onSteer } = renderQueue(true);
+    const ta = screen.getByPlaceholderText(/任务执行中/);
+    fireEvent.change(ta, { target: { value: "Enter 排队" } });
+    fireEvent.keyDown(ta, { key: "Enter" });
+    expect(screen.getByTestId("composer-queue")).toBeTruthy();
+    expect(screen.getByText("Enter 排队")).toBeTruthy();
+    expect(onSteer).not.toHaveBeenCalled();
+    expect(onSend).not.toHaveBeenCalled();
+  });
+
+  it("运行中 Alt+Enter 直插当前回合（显式插话，不入队）", () => {
+    const { onSend, onSteer } = renderQueue(true);
+    const ta = screen.getByPlaceholderText(/任务执行中/);
+    fireEvent.change(ta, { target: { value: "插话调整" } });
+    fireEvent.keyDown(ta, { key: "Enter", altKey: true });
+    expect(onSteer).toHaveBeenCalledWith("插话调整");
+    expect(onSend).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("composer-queue")).toBeNull();
+  });
+
+  it("Shift+Enter 纠正：清队列+取消当前回合，回合结束后补发纠正文本", () => {
+    const { onSend, onCancel, rerun } = renderQueue(true);
+    const ta = screen.getByPlaceholderText(/任务执行中/);
+    fireEvent.change(ta, { target: { value: "纠正后的文本" } });
+    fireEvent.keyDown(ta, { key: "Enter", shiftKey: true });
+    expect(onCancel).toHaveBeenCalled();
+    expect(screen.queryByTestId("composer-queue")).toBeNull();
+    rerun(false);
+    expect(onSend).toHaveBeenCalledWith("纠正后的文本", "纠正后的文本");
+  });
+
   it("全部取消只清队列，不调用 onCancel", () => {
     const { onCancel } = renderQueue(true);
     const ta = screen.getByPlaceholderText(/任务执行中/);

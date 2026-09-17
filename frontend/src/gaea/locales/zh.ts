@@ -997,9 +997,9 @@ export const zh: Record<DictKey, string> = {
 
   // ── v4.57 i18n 收尾：composer 家族（zh 为原硬编码文案逐字迁移）──
   "composer.queuePending": "排队中 ({n})…",
-  "composer.runningHint": "任务执行中… Enter 插话调整 · Shift+Enter 纠正",
+  "composer.runningHint": "任务执行中… Enter 排队发送 · Alt+Enter 插话调整 · Shift+Enter 纠正",
+  "composer.sendQueuedTitle": "排队发送（Enter）· Alt+Enter 插话调整",
   "composer.askIn": "在 {name}/ 中提问…",
-  "composer.steerTitle": "插话调整（发送到当前任务，不打断执行）",
   "composer.correctTitle": "纠正发送（Shift+Enter）",
   "composer.queueSendHint": "排队发送（当前回合结束后执行，与插话不同：插话立即调整当前任务）",
   "composer.queueCount": "排队发送 ({n})",

@@ -66,7 +66,7 @@ export function ComposerInputRow({
         className={`inline-flex items-center justify-center w-[32px] h-[32px] border-0 rounded-full cursor-pointer shrink-0 transition-all duration-[var(--dur-fast)] active:scale-95 ${running ? (shiftHeld ? "bg-warn/20 text-warn hover:bg-warn hover:text-white shadow-[0_0_8px_var(--warn)]" : "bg-bg-elev-2 text-fg-dim hover:bg-accent hover:text-accent-fg hover:scale-105") : `bg-accent text-accent-fg hover:brightness-110 ${breathing ? "v3-send-breathe" : ""}`} disabled:bg-bg-elev-2 disabled:text-fg-faint disabled:cursor-default disabled:hover:scale-100 disabled:active:scale-100 disabled:shadow-none`}
         onClick={onSubmit}
         disabled={disabled || pendingPaste > 0 || (!text.trim() && attachmentsCount === 0 && (!running || queueLen === 0))}
-        title={running ? (shiftHeld ? t("composer.correctTitle") : queueLen > 0 ? t("composer.queueCount", { n: queueLen }) : t("composer.steerTitle")) : t("composer.send")}
+        title={running ? (shiftHeld ? t("composer.correctTitle") : queueLen > 0 ? t("composer.queueCount", { n: queueLen }) : t("composer.sendQueuedTitle")) : t("composer.send")}
       >
         {running && shiftHeld ? (
           <Zap size={16} />

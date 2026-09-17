@@ -1001,9 +1001,9 @@ export const zhTW: Record<DictKey, string> = {
 
   // ── v4.57 i18n 收尾：composer 家族 ──
   "composer.queuePending": "排隊中 ({n})…",
-  "composer.runningHint": "任務執行中… Enter 插話調整 · Shift+Enter 糾正",
+  "composer.runningHint": "任務執行中… Enter 排隊發送 · Alt+Enter 插話調整 · Shift+Enter 糾正",
+  "composer.sendQueuedTitle": "排隊發送（Enter）· Alt+Enter 插話調整",
   "composer.askIn": "在 {name}/ 中提問…",
-  "composer.steerTitle": "插話調整（傳送到目前任務，不打斷執行）",
   "composer.correctTitle": "糾正傳送（Shift+Enter）",
   "composer.queueSendHint": "排入佇列（目前回合結束後執行，與插話不同：插話立即調整目前任務）",
   "composer.queueCount": "排入佇列 ({n})",
