@@ -7,6 +7,7 @@ import { useAppStore } from '../stores/appStore'
 import type { OutlineNode } from '../types'
 import { buildTree, flattenTree, buildPrevSummary } from '../components/novel/create/outlineTree'
 import { useChapterStream } from '../components/novel/create/useChapterStream'
+import { useChapterGateNotice } from '../components/novel/create/useChapterGateNotice'
 import type { AiTasteResult } from '../components/novel/create/chapterStreamTypes'
 import type { ChapterReviewPayload, FingerprintScorePayload, FingerprintStatusPayload, ReviewPlatform } from '../gaea/lib/bridge/novel'
 import StyleFingerprintPanel from '../components/novel/StyleFingerprintPanel'
@@ -118,6 +119,9 @@ const CreatePage: React.FC = () => {
 
   const [activeId, setActiveId] = useState('')
   const [content, setContent] = useState('')
+
+  // 生成后自动门轻通知（v4.331：chapter-gate 事件消费——契约/质量/AI 味/分析同步）
+  useChapterGateNotice()
   const [chapterLoading, setChapterLoading] = useState(false)
   const [generating, setGenerating] = useState(false)
   const [saving, setSaving] = useState(false)

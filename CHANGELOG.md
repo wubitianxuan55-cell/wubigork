@@ -1,3 +1,14 @@
+## v4.331.0 · 自动门可见化 + CI race 扩面（刀8 race 项收口）（2026-09-17）
+> 用户指令「继续」。小刀单线主代理直做；契约先行（规格书随刀入库 进度计划/gaea-gate-notice-race-20260917.md）。7.3-2 仍锁窗（≈09-23）。两件收口：①v4.326 观察池第一项——chapter-gate 事件零前端消费；②revolution 刀8 第三项——CI race 门禁只盖办公核心包。
+**论点A**=自动门（v4.326）异步跑完只落 slog+事件，用户毫无感知——「生成→体检→分析同步」主轴最后一环（知会作者）缺失。**论点B**=race 门禁现盖 gaea/agent·tool·control+novelstyle·novelcontext·narrative；chapter/analysis/promptstore/novelgate/rewrite/characterstate 六个 revolution 期新生包无并发防线（自动门/覆盖缓存/状态机都在其并发路径上）。
+**落地前端**=useChapterGateNotice 钩子（useChapterStream 同款 runtime.EventsOn/EventsOff 通道模式）：chapter-gate report → 轻通知「第 N 章 生成后自动体检：契约 X 项 · 质量 Y 项 · AI 味 Z · 分析已同步」（antd message.info key 防叠 6s，空体检显示完成，分支章带标记，非 report 忽略，浏览器无通道静默）；CreatePage 挂载。**零新绑定 707 不动**。
+**落地CI**=.github/workflows/ci.yml race job 追加六包（chapter/analysis/promptstore/novelgate/rewrite/characterstate）；internal/app 注释不进（race 下已知 TempDir 清理竞争 flaky 先例，候单独评估）；六包本地普通模式全绿。revolution 刀8 行补注（race 项收口，余=跨模块验收+回退演练候排）。
+**测试**=前端 +3（文案拼装三分支/订阅触发+防叠+非 report 忽略+卸载退订/无 runtime 静默——坑=vi.stubGlobal('window') 整窗替换会炸 react-dom 的 document 依赖，只换 runtime 属性）。CreatePage 既有测试零破坏。
+**门禁**=go build 全过、六包全绿、tsc -b 零错、eslint 零告警、vitest 全量 3172/3172 一次全绿、drift OK@707（零新绑定）、版本三处 4.331.0；产物=exe 50824704B SHA256=a5e239f24897a858b628dcd3c8a18ccbafbd073f3831172300a3cfa6b8a63198（releases/gaea-v4.331.0.exe+SHA256SUMS-v4.331.0.txt；桌面副本同哈希；冒烟 /api/health 200 过）。
+**文档**=规格书+releases/v4.331.0.md+CHANGELOG/README+AGENTS 迁 1 插 1（四十六迁）+progress/todos+revolution 刀8 行补注。
+**观察池**=通知点击跳 t7 章节分析面板；internal/app race 扩面评估；刀8 余项（跨模块验收+回退演练）候排。
+**未做（下刀）**=7.3-2 板块降视图（≈09-23 解锁）；刀8 余项候排。
+
 ## v4.330.0 · 刀7续收官：POV 视图（场景圣经消费面）（2026-09-17）
 > 用户指令「继续」。小刀单线主代理直做；契约先行（规格书随刀入库 进度计划/gaea-pov-view-20260917.md）。前置核对=场景生成按钮已落（v4 场景工程线）/全文脑图/文风指纹在位——刀7续仅剩 POV 视图，本刀合入即 revolution 只剩刀8。
 **论点**=POV 视角掩码（刀2 场景圣经核心差异化：POVView=已知/HiddenFacts=不知情且不得泄露）只在生成链内部消费——用户看不到「这个场景通过谁的眼睛在看、哪些信息被刻意瞒住」，视角纪律不可审视。

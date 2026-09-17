@@ -28,7 +28,7 @@
 - [x] `GenerationGate` 完整闭环（生成后自动 Analyze/Review/Consistency + AI 味 + 修复 + 复检的编排）——v4.326.0 收口：生成 done 后异步自动门（确定性三路+分析路一次 LLM=V2 落盘/伏笔同步/记忆回填；review/consistency 留单章门手动=成本纪律）+ 全书体检 RunBookHealthCheck 零 LLM 聚合。
 - [x] **刀 7 · 前端（执行部分）**：AI 味分 + 命中问题展示（`CreatePage`）；**叙事状态账本面板 + 「AI 生成状态建议」+「批准结算」审批 Modal**（调用 `GetNovelState/BuildNovelStatePatch/SettleNovelState`）。vitest 14/14 + `tsc -b` 0 + eslint 0。
 - [x] 刀 7 续 · 前端：场景生成按钮（`ChapterEditor` 逐场景 `GenerateScene`，需加场景 ID 追踪——v4 场景工程线已落）、全文脑图（CreatePage 在位）、文风指纹面板（v4.298 系在位）、POV 视图（v4.330.0：NovelSceneBibleView 绑定 + 场景「视角」抽屉，已知/不知情对照）。
-- [ ] 刀 8 · 跨模块验收 + 回退演练 + `go test -race` 门禁（本环境 `CGO_ENABLED=0` 无法跑 `-race`，CI 侧另配）。
+- [ ] 刀 8 · 跨模块验收 + 回退演练 + `go test -race` 门禁（本环境 `CGO_ENABLED=0` 无法跑 `-race`，CI 侧另配）——race 项 v4.331 扩面收口（CI race job 增小说域六包：chapter/analysis/promptstore/novelgate/rewrite/characterstate）；余=跨模块验收+回退演练候排。
 
 ---
 
