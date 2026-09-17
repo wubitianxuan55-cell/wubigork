@@ -4,7 +4,8 @@ import { describe, expect, it, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import React from 'react'
 
-import ImportNovelModal, { EXTRACT_OPTIONS } from './ImportNovelModal'
+import ImportNovelModal from './ImportNovelModal'
+import { EXTRACT_OPTIONS } from './novelOptions'
 
 function renderModal(overrides: Partial<Parameters<typeof ImportNovelModal>[0]> = {}) {
   const props = {

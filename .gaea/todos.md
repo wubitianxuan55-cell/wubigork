@@ -17,7 +17,7 @@
 | 🔄 | 造价·刀路池（docs/gaea-cost-domain-survey-2026-09.md §缺口）：§1 编码 v4.178 / §2 多方案对照 v4.204（流式打字机/费率政策不做）/ §3 五算 v4.194 / §4 询价扫描 v4.195 / §5 索引补齐 v4.196 → 剩 §6 行业含量对照基线（等真实样本）；组价依据区 mock 恒空真机走查挂池 |
 | ⬜ | DSH 蒸馏：3c 沙箱浏览器多开、阶段四真实终端、阶段五侧边对话——全部「拍板后/若做」门控 |
 | ⬜ | genui 审计唯一开放项：resume 槽位口径统一（明确不做，另行排期） |
-| 🔄 | 小说域收尾：GenerationGate 闭环已收口（v4.326.0：生成后自动分析门+全书体检；观察池=chapter-gate 事件 UI 消费/auto 分析 kill-switch/review·consistency 自动化成本拍板/体检 LLM 深检档）；刀8 跨模块验收+回退演练+go test -race 门禁（CI 侧）未做 |
+| ✅ | 小说域收尾：GenerationGate 闭环已收口（v4.326.0：生成后自动分析门+全书体检；观察池=chapter-gate 事件点击跳 t7 面板/auto 分析 kill-switch/review·consistency 自动化成本拍板/体检 LLM 深检档）；刀8 全清——race CI 扩面 v4.331+跨模块验收与回退演练 v4.334（生成主轴端到端/审批链 app 级/快照与迁移回退/性能与保真钉，Go +7），**revolution 刀 1–8 全线收官** |
 | ⬜ | 图域：T1+（T0 契约 v4.98 已落地） |
 
 ## 收敛计划 W1（2026-09-08 立项，权威= docs/gaea-convergence-plan-2026-09.md）

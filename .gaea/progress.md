@@ -3,6 +3,15 @@
 > 本文件为**最近发布速览**。完整历史磁带见 `docs/archive/progress-history-2026-09.md`
 > 与 `releases/`。
 
+## 最新发布：v4.334.0（2026-09-17）「revolution 刀8 收官：跨模块验收+回退演练+版本三处漂移根治——**revolution 刀 1–8 全线收官**」
+
+- **来源**：用户指令「继续优化迭代 gaea」；三线并发子代理+主代理收口；规格书 进度计划/gaea-rev-knife8-acceptance-20260917.md。
+- **跨模块验收 Go +7（零生产代码改动）**：线A=AI 味性能钉（3.3~5ms<1s）+去味保真（分降/rune 漂移 0/实体句数不变）；线B=生成主轴端到端史上首测（双路桩贯通自动门成功路径+chapter-gate 事件 httpbridge 捕获）+50 章书级体检；线C=审批链 app 级（approved=false 零入库/journal 回放一致/账本只增）+快照往返+真 v3 迁移非破坏。
+- **版本漂移根治**：app_info.go/versioninfo.rc 停 4.323.0（十版未跑 sync-version）——三处同步 4.334.0+ci.ps1 新增 version drift check 段；顺手 eslint 5→0（EXTRACT_OPTIONS 归位 novelOptions.ts）。
+- **验收**：go vet/test 全量绿；vitest 3185/3185；tsc 零错；drift OK@707（零新绑定）；产物=exe 50832384B SHA256=4d2a01c5…81bc（releases+SUMS+桌面副本同哈希；冒烟 200 过）。
+- **坑**：RetryJSON 桩回包须包 ```json 围栏；rebuildScenesFromBlob 无场景章 no-op；project.Create 直写 v4 标记（旧 v3 夹具假设过时）。
+- **未做（下刀）**：真机走查清池班（v4.319~v4.334 挂池，须闲置窗口）；技能核数 ≈09-30；绘梦阶段二与缺省形态翻转候拍板。
+
 ## 最新发布：v4.333.0（2026-09-17）「阶段七出口对账 + 7.3-1 会话级回源收口」
 
 - **来源**：用户指令「继续」；规格书 进度计划/gaea-stage7-audit-resume-20260917.md。

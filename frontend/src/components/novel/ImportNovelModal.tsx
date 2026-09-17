@@ -1,16 +1,7 @@
 import React from 'react'
 import { Typography, Space, Input, Modal, Checkbox, Select } from 'antd'
 import { C } from '../../utils/theme'
-import { GENRE_OPTIONS, STYLE_OPTIONS } from './novelOptions'
-
-/** 提取范围选项（v4.287 tail 出口）：全本 / 末 N 章（5 的倍数，>50 后端自动按全本）。 */
-export const EXTRACT_OPTIONS = [
-  { value: 'full', label: '全本' },
-  ...[5, 10, 15, 20, 25, 30, 35, 40, 45, 50].map((n) => ({
-    value: `tail:${n}`,
-    label: `末 ${n} 章`,
-  })),
-]
+import { EXTRACT_OPTIONS, GENRE_OPTIONS, STYLE_OPTIONS } from './novelOptions'
 
 interface ImportNovelModalProps {
   open: boolean

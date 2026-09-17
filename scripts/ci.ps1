@@ -24,6 +24,10 @@ function Invoke-Native {
     if ($LASTEXITCODE -ne 0) { throw "$Name failed (exit $LASTEXITCODE)" }
 }
 
+# 版本三处漂移闸门（v4.334 入：v4.324~v4.333 十版未跑 sync-version，exe 内嵌
+# 版本停在 4.323.0 而闸门不在 CI 内从未拦截——收进 CI 防再犯）
+Invoke-Native 'version drift check' 'powershell' @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', (Join-Path $PSScriptRoot 'check-version-drift.ps1'))
+
 Invoke-Native 'go build' 'go' @('build', './...')
 Invoke-Native 'go vet' 'go' @('vet', './...')
 Invoke-Native 'go test' 'go' @('test', './...', '-count=1')

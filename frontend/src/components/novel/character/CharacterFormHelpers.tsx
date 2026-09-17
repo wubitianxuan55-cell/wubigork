@@ -1,5 +1,5 @@
 import React from 'react'
-import { Typography, Input, Select } from 'antd'
+import { Typography, Input } from 'antd'
 import { C } from '../../../utils/theme'
 
 /** L 标签文字 */

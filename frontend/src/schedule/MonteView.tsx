@@ -5,7 +5,7 @@ import { monteCarlo } from './monte'
 /** MonteView — 6.5 蒙特卡洛工期带：本地模拟 → 工期 P25/中位/P75 三档 +
  *  关键路径稳定度。与造价价格带同一「工期也给你三档」哲学；种子化模拟
  *  同输入同结果（跨会话可比），全本地零云依赖（6.5 出口判据）。 */
-export function MonteView({ project, cpm }: { project: SchedProject; cpm: CpmResult }) {
+export function MonteView({ project, cpm: _cpm }: { project: SchedProject; cpm: CpmResult }) {
   const [uncertainty, setUncertainty] = useState(0.3)
   const result = useMemo(() => monteCarlo(project, { uncertainty }), [project, uncertainty])
 

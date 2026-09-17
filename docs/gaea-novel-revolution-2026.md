@@ -6,10 +6,11 @@
 >
 > 生成：2026。完成度：前端+后端逐文件审计完毕；市场/社区/开源竞品逐家调研完毕。
 > 硬数据来自马良写作（20 万字后设定矛盾率 83%→23%）、anti-ai-polish、anti-ai-checklist。
-> 状态（2026-09-08 核对）：**部分落地 + 活跃执行计划**——刀 1–6 及生成管线接入、前端 AI 味
-> 反馈已随 v4.77.0 批次落地（2026-09-04 提交 `f8ef3290`，逐刀勾选见文内「落地状态」表）；
-> **未落地** = GenerationGate 完整闭环编排、刀 7 续（前端场景生成按钮/全文脑图/文风指纹
-> 面板/POV 视图）、刀 8（跨模块验收+回退演练+race 门禁）。未承诺版本；权威路线 =
+> 状态（2026-09-17 核对）：**刀 1–8 全线收官，规划收官**——刀 1–6 及生成管线接入、前端 AI 味
+> 反馈随 v4.77.0 批次落地（2026-09-04 提交 `f8ef3290`）；GenerationGate 完整闭环 v4.326；
+> 刀 7 续（场景生成按钮/全文脑图/文风指纹/POV 视图）v4.330；刀 8（race 门禁 CI 扩面
+> v4.331 + 跨模块验收+回退演练 v4.334——生成主轴端到端/审批链 app 级/快照与迁移回退/
+> 性能与保真钉，Go +7）。逐刀勾选见文内「落地状态」表。权威路线 =
 > `docs/gaea-nextgen-roadmap-2026.md` §5/§13。本文兼外部材料汇编（马良/anti-ai 硬数据），
 > 供小说域后续刀路取用。
 
@@ -28,7 +29,7 @@
 - [x] `GenerationGate` 完整闭环（生成后自动 Analyze/Review/Consistency + AI 味 + 修复 + 复检的编排）——v4.326.0 收口：生成 done 后异步自动门（确定性三路+分析路一次 LLM=V2 落盘/伏笔同步/记忆回填；review/consistency 留单章门手动=成本纪律）+ 全书体检 RunBookHealthCheck 零 LLM 聚合。
 - [x] **刀 7 · 前端（执行部分）**：AI 味分 + 命中问题展示（`CreatePage`）；**叙事状态账本面板 + 「AI 生成状态建议」+「批准结算」审批 Modal**（调用 `GetNovelState/BuildNovelStatePatch/SettleNovelState`）。vitest 14/14 + `tsc -b` 0 + eslint 0。
 - [x] 刀 7 续 · 前端：场景生成按钮（`ChapterEditor` 逐场景 `GenerateScene`，需加场景 ID 追踪——v4 场景工程线已落）、全文脑图（CreatePage 在位）、文风指纹面板（v4.298 系在位）、POV 视图（v4.330.0：NovelSceneBibleView 绑定 + 场景「视角」抽屉，已知/不知情对照）。
-- [ ] 刀 8 · 跨模块验收 + 回退演练 + `go test -race` 门禁（本环境 `CGO_ENABLED=0` 无法跑 `-race`，CI 侧另配）——race 项 v4.331 扩面收口（CI race job 增小说域六包：chapter/analysis/promptstore/novelgate/rewrite/characterstate）；余=跨模块验收+回退演练候排。
+- [x] 刀 8 · 跨模块验收 + 回退演练 + `go test -race` 门禁（本环境 `CGO_ENABLED=0` 无法跑 `-race`，CI 侧另配）——race 项 v4.331 扩面收口（CI race job 增小说域六包：chapter/analysis/promptstore/novelgate/rewrite/characterstate）；**跨模块验收+回退演练 v4.334.0 收官**（Go +7：生成主轴端到端双路桩贯通〔自动门成功路径史上首测+chapter-gate 事件 httpbridge 捕获〕/50 章书级体检/审批链 app 级〔approved=false 零入库+journal 回放一致〕/快照往返+v3 迁移 `_v3_backup` 非破坏/AI 味性能 3.3~5ms<1s/去味保真分降且字数实体句数不变）。**刀 1–8 全勾，规划收官。**
 
 ---
 

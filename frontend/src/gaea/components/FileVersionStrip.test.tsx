@@ -56,7 +56,7 @@ describe("FileVersionStrip 文件版本时间线一级入口（6.1 可审计默�
   });
 
   it("默认可见：渲染版本数/最近改动/状态，展开为该文件的逐版本时间线", async () => {
-    const { container } = render(<LocaleProvider><FileVersionStrip relPath="docs/报价.pptx" /></LocaleProvider>);
+    render(<LocaleProvider><FileVersionStrip relPath="docs/报价.pptx" /></LocaleProvider>);
 
     // 条本体默认可见（无版本也可见，见下例）
     const strip = await screen.findByText(/版本/);

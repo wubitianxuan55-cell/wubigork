@@ -1,7 +1,6 @@
 // monte.test.ts — 6.5 蒙特卡洛工期带纯函数：确定性（同种子同结果）、
 // 三档单调、零不确定度退化、关键线路稳定度、CPM 断裂诚实失败。
 import { describe, expect, it } from 'vitest'
-import { computeCpm } from './cpm'
 import { monteCarlo, mulberry32 } from './monte'
 import type { SchedProject } from './types'
 
