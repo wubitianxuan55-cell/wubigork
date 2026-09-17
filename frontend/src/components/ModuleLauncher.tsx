@@ -34,6 +34,7 @@ import { getActiveBoards, subscribeBoards, resolveBoardIcon } from '../boards/ma
 import { deriveLauncherModules, LAUNCHER_DESC, LAUNCHER_FEATURED, type LauncherModule } from '../boards/launcher'
 import { SHELL_SPACES, type ShellSpace } from '../boards/space'
 import TasksFirstHome from './TasksFirstHome'
+import { requestSessionResume } from '../gaea/lib/pendingSessionResume'
 import { loadRecentFiles } from '../gaea/lib/recentFiles'
 import type { AtEntry } from '../gaea/lib/types'
 import { Input } from 'antd'
@@ -1027,6 +1028,13 @@ const ModuleLauncher: React.FC<ModuleLauncherProps> = ({ onNavigate, activeModel
     setInboxOpen(false)
     setInboxTick((x) => x + 1)
   }, [])
+
+  // 会话级回源（7.3-1 收口）：记 pending+派发事件（keepAlive 已挂载态直达），
+  // 再导航到 gaea 板块——冷启态由 App 挂载消费 pending 兜底。
+  const resumeSessionFromInbox = useCallback((path: string) => {
+    requestSessionResume(path)
+    onNavigate('gaea')
+  }, [onNavigate])
   // 7.3-2 板块降级为任务视图：homeLayout==='tasks' → 任务优先首页（收件箱首屏+
   // 能力 chips）；classic → 既有 Desk/Garden 零变化（藏≠删，回退开关即时切回）。
   const homeLayout = useAppStore((st) => st.homeLayout)
@@ -1034,13 +1042,13 @@ const ModuleLauncher: React.FC<ModuleLauncherProps> = ({ onNavigate, activeModel
   return (
     <>
       {homeLayout === 'tasks' ? (
-        <TasksFirstHome data={data} onNavigate={onNavigate} space={space} onSwitchSpace={onSwitchSpace} activeModel={activeModel} />
+        <TasksFirstHome data={data} onNavigate={onNavigate} space={space} onSwitchSpace={onSwitchSpace} activeModel={activeModel} onResumeSession={resumeSessionFromInbox} />
       ) : space === 'work' ? (
         <DeskHome data={data} onNavigate={onNavigate} space={space} onSwitchSpace={onSwitchSpace} activeModel={activeModel} onOpenTaskInbox={openInbox} inboxTick={inboxTick} />
       ) : (
         <GardenHome data={data} onNavigate={onNavigate} space={space} onSwitchSpace={onSwitchSpace} activeModel={activeModel} onOpenTaskInbox={openInbox} inboxTick={inboxTick} />
       )}
-      <TaskInboxPanel open={inboxOpen} onClose={closeInbox} space={space} onNavigate={onNavigate} />
+      <TaskInboxPanel open={inboxOpen} onClose={closeInbox} space={space} onNavigate={onNavigate} onResumeSession={resumeSessionFromInbox} />
     </>
   )
 }

@@ -86,12 +86,15 @@ function TaskRow({
   onSetStatus,
   onDelete,
   onNavigate,
+  onResumeSession,
 }: {
   task: TaskInboxView;
   busy: boolean;
   onSetStatus: (id: string, status: TaskInboxStatus) => void;
   onDelete: (id: string) => void;
   onNavigate?: (boardId: string) => void;
+  /** 会话级回源（7.3-1 收口）：带会话路径精确恢复；缺省回退板块粒度。 */
+  onResumeSession?: (path: string) => void;
 }) {
   const t = useT();
   return (
@@ -143,9 +146,11 @@ function TaskRow({
             {t("tasks.inbox.goBoard")}
           </Button>
         )}
-        {/* 源会话：V1 板块粒度回工作台（Session 落库走审计链，精确回源见规格 §3.4） */}
-        {task.session && onNavigate && (
-          <Button size="small" type="dashed" data-testid={`task-inbox-back-${task.id}`} onClick={() => onNavigate("gaea")}>
+        {/* 源会话：会话级回源（7.3-1 收口）——有回调且带路径走精确恢复；
+            否则回退 V1 板块粒度回工作台（Session 落库走审计链） */}
+        {task.session && (onResumeSession || onNavigate) && (
+          <Button size="small" type="dashed" data-testid={`task-inbox-back-${task.id}`}
+            onClick={() => (onResumeSession && task.session ? onResumeSession(task.session) : onNavigate?.("gaea"))}>
             {t("tasks.inbox.backSession")}
           </Button>
         )}
@@ -169,12 +174,15 @@ export function TaskInboxPanel({
   onClose,
   space,
   onNavigate,
+  onResumeSession,
 }: {
   open: boolean;
   onClose: () => void;
   space: ShellSpace;
   /** 板块级跳转（ModuleLauncher 既有 onNavigate；缺省时跳转按钮不渲染） */
   onNavigate?: (boardId: string) => void;
+  /** 会话级回源（7.3-1 收口）：透传 Board。 */
+  onResumeSession?: (path: string) => void;
 }) {
   const t = useT();
   // 待处理计数提升给 Modal 标题徽标（7.3-2：面板=Board 的 Modal 壳，DOM 零变化）
@@ -208,7 +216,7 @@ export function TaskInboxPanel({
         </div>
       }
     >
-      <TaskInboxBoard space={space} active={open} onNavigate={onNavigate} onPendingChange={setPending} />
+      <TaskInboxBoard space={space} active={open} onNavigate={onNavigate} onPendingChange={setPending} onResumeSession={onResumeSession} />
     </Modal>
   );
 }
@@ -225,12 +233,15 @@ export function TaskInboxBoard({
   active,
   onNavigate,
   onPendingChange,
+  onResumeSession,
 }: {
   space: ShellSpace;
   /** 激活态（false=挂载但不拉取；内嵌首页恒 true） */
   active: boolean;
   onNavigate?: (boardId: string) => void;
   onPendingChange?: (pending: number) => void;
+  /** 会话级回源（7.3-1 收口）：透传 TaskRow。 */
+  onResumeSession?: (path: string) => void;
 }) {
   const t = useT();
   const [tasks, setTasks] = useState<TaskInboxView[]>([]);
@@ -406,6 +417,7 @@ export function TaskInboxBoard({
                 onSetStatus={setStatus}
                 onDelete={remove}
                 onNavigate={onNavigate}
+                onResumeSession={onResumeSession}
               />
             ))
           )}

@@ -45,7 +45,7 @@ const SAMPLE: TaskInboxView[] = [
   makeTask({ id: "ti-ddd000000005", title: "放弃的任务", source: "weixin", status: "abandoned" }),
 ];
 
-function renderPanel(p?: { open?: boolean; space?: "work" | "play"; onNavigate?: (b: string) => void }) {
+function renderPanel(p?: { open?: boolean; space?: "work" | "play"; onNavigate?: (b: string) => void; onResumeSession?: (path: string) => void }) {
   return render(
     <LocaleProvider>
       <TaskInboxPanel
@@ -53,6 +53,7 @@ function renderPanel(p?: { open?: boolean; space?: "work" | "play"; onNavigate?:
         onClose={vi.fn()}
         space={p?.space ?? "work"}
         onNavigate={p?.onNavigate}
+        onResumeSession={p?.onResumeSession}
       />
     </LocaleProvider>,
   );
@@ -196,4 +197,34 @@ describe("TaskInboxPanel 任务收件箱", () => {
     expect(mocks.list).not.toHaveBeenCalled();
     expect(screen.queryByTestId("task-inbox-panel")).toBeNull();
   });
+
+// ── 7.3-1 收口：会话级回源（有回调走精确路径；无回调回退板块粒度）──
+describe('TaskInboxPanel 会话级回源（v4.333）', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.list.mockResolvedValue([
+      { id: "ti-sec0000000001", title: "回源样本", status: "pending", source: "palette", session: "C:/ws/x/sessions/s1.json", createdAt: 1, updatedAt: 2 },
+    ]);
+  });
+
+  it('有 onResumeSession：回会话按钮带会话路径精确回调（不再板块粒度）', async () => {
+    const onResumeSession = vi.fn();
+    const onNavigate = vi.fn();
+    const { unmount } = renderPanel({ onNavigate, onResumeSession });
+    await waitFor(() => expect(screen.getByText("回源样本")).toBeTruthy());
+    fireEvent.click(screen.getByTestId("task-inbox-back-ti-sec0000000001"));
+    expect(onResumeSession).toHaveBeenCalledWith("C:/ws/x/sessions/s1.json");
+    expect(onNavigate).not.toHaveBeenCalledWith("gaea");
+    unmount();
+  });
+
+  it('无回调：回退 V1 板块粒度 onNavigate("gaea")（既有行为零变化）', async () => {
+    const onNavigate = vi.fn();
+    const { unmount } = renderPanel({ onNavigate });
+    await waitFor(() => expect(screen.getByText("回源样本")).toBeTruthy());
+    fireEvent.click(screen.getByTestId("task-inbox-back-ti-sec0000000001"));
+    expect(onNavigate).toHaveBeenCalledWith("gaea");
+    unmount();
+  });
+});
 });

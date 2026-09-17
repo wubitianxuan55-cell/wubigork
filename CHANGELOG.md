@@ -1,3 +1,12 @@
+## v4.333.0 · 阶段七出口对账 + 7.3-1 会话级回源收口（2026-09-17）
+> 用户指令「继续」。小刀单线主代理直做；契约先行（规格书随刀入库 进度计划/gaea-stage7-audit-resume-20260917.md）。三门刀已全落（7.1 v4.312/316；7.2 v4.313/317/319；7.3 v4.318/332）——本刀=出口判据逐条复核（诚实注记挂账）+收掉 7.3-1 唯一结构欠账。
+**会话级回源**=v4.318 遗留：Session 路径已落库（palette 存 currentSessionPath 实证）但 resume seam 活在 gaea App 树内，收件箱在首页拿不到，V1 只回板块粒度。**落地**=①新模块 gaea/lib/pendingSessionResume（模块级单例 pending+requestSessionResume 派发 window CustomEvent「gaea:resume-session」——gaea 板块 keepAlive=true 两态通道：已挂载走事件直达/冷启走挂载消费 pending 兜底）②gaea App 挂载 effect：consume pending+事件监听→resumeRecentSession（内部按 projectGroups 解析跨项目切工作区后恢复）；**ref 保最新回调防过期闭包**（projectGroups 异步加载，[] 依赖订阅一次）③TaskInboxBoard/Panel +onResumeSession 透传——源会话按钮有回调且带路径走精确回源，否则回退 V1 板块粒度（既有行为零变化）；ModuleLauncher/TasksFirstHome 接线（request+onNavigate('gaea')）。零新绑定 707。
+**出口对账**（docs/gaea-stage7-plan §5 门表+总判据+7.3-1 判据②全部更新）：7.1 已落（挂账=本地引擎建议真实采纳样本待真机）；7.2 已落（挂账=录制复跑 ≥80% 抽样真机+结晶 ≥5 次真实调用 ≈09-30 清池核数）；7.3 已落（②会话级本刀收口；缺省 classic→tasks 翻转候拍板）；7.4 已清（t6/t7/Gate/画室一）；总判据①②③④✅、⑤真机走查欠账（v4.319~v4.332 挂池，列下一班清池首项）。
+**测试**=前端 +5（pendingSessionResume 3：派发/一次性消费/空路径防御；TaskInboxPanel +2：精确回调不再板块粒度/无回调回退零变化）；既有 11 用例零改动。**坑**=①测试文件尾 rfind('})') 追加吞 describe 闭合——**同坑两日三犯**，规约：测试追加一律在末尾按「闭合块后整体 append」并在 append 前数一遍尾括号②闭包过期：订阅 effect [] 依赖引用了依赖异步数据的回调——ref 保最新。
+**门禁**=go build 全过、go test ./... 全量复跑全绿、tsc -b 零错、eslint 零告警、vitest 3185/3185、drift OK@707（零新绑定）、版本三处 4.333.0；**ci.ps1 首两跑分别撞 go test/vitest 段瞬时失败（单跑皆绿、清残留 node 进程后第三跑 CI OK——环境竞争先例+2）**；产物=exe 50832384B SHA256=89d1de3d332d19ca77b42952708bef88bfac0cc45c355c28052caa28773c0ba2（releases/gaea-v4.333.0.exe+SHA256SUMS-v4.333.0.txt；桌面副本同哈希；冒烟 /api/health 200 过）。
+**文档**=规格书+releases/v4.333.0.md+CHANGELOG/README+AGENTS 迁 1 插 1（四十八迁）+progress/todos+阶段七规划对账更新。
+**未做（下刀）**=真机走查清池班（⑤欠账+各刀挂池项，须用户闲置窗口）；技能 ≥5 次核数（≈09-30）；刀8 余项与绘梦阶段二候拍板。
+
 ## v4.332.0 · 7.3-2 板块降级为任务视图（阶段七「层跃升」刀：任务优先首页+能力视图+回退开关）（2026-09-17）
 > 用户指令「开始吧」（在 7.3-2 解锁讨论后明确提前拍板——原零功能周窗口 ≈09-23）。契约先行（规格书随刀入库 进度计划/gaea-tasks-first-home-20260917.md；阶段七规划 §3 7.3-2；身位依据平台调研 §1.1：任务持久化红海、「收件箱第一界面+板块降级」无人发布）。**形态标志：本版=阶段七「层跃升」版本（nextgen §10 口径；版本号续 v4.x 列车不跳号）。**
 **论点**=现状首页板块入口优先，打开第一问「用哪个工具」；7.3-2 翻转为「什么在等我」——收件箱+最近上下文成为首屏，板块入口降为「能力的视图」。

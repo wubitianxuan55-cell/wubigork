@@ -36,12 +36,14 @@ const CapabilityChip: React.FC<{ m: LauncherModule; onOpen: () => void }> = ({ m
   )
 }
 
-export default function TasksFirstHome({ data, onNavigate, space, onSwitchSpace, activeModel }: {
+export default function TasksFirstHome({ data, onNavigate, space, onSwitchSpace, activeModel, onResumeSession }: {
   data: LauncherData
   onNavigate: (t: string) => void
   space: ShellSpace
   onSwitchSpace: (s: ShellSpace) => void
   activeModel?: string
+  /** 会话级回源（7.3-1 收口）：透传收件箱 Board。 */
+  onResumeSession?: (path: string) => void
 }) {
   const t = useT()
   const setHomeLayout = useAppStore((st) => st.setHomeLayout)
@@ -80,7 +82,7 @@ export default function TasksFirstHome({ data, onNavigate, space, onSwitchSpace,
               <span className="ml-sec-icon" aria-hidden="true"><InboxOutlined /></span>
               <span className="ml-sec-title">{t('tasks.inbox.title')}</span>
             </div>
-            <TaskInboxBoard space={space} active onNavigate={onNavigate} />
+            <TaskInboxBoard space={space} active onNavigate={onNavigate} onResumeSession={onResumeSession} />
           </section>
 
           {/* 最近上下文：最近会话（点开进聊天板块续上现场） */}

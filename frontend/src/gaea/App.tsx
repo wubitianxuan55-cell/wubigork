@@ -11,6 +11,7 @@ import { sessionTitle, sessionTime } from "./lib/session";
 import { relativeTime } from "./lib/time";
 import { useController, useUpdatedFilesStore } from "./lib/store";
 import { app } from "./lib/bridge";
+import { RESUME_SESSION_EVENT, consumePendingSessionResume } from "./lib/pendingSessionResume";
 import { GenuiActionProvider } from "../genui/GenuiActionContext";
 import { GenuiScopeProvider } from "../genui/scope";
 import { scheduleApplyArgsOf } from "../schedule/applyDiff";
@@ -340,6 +341,22 @@ export default function App() {
   });
 
   useEffect(() => { void refreshSessions(); }, [cwd, refreshSessions]);
+
+  // 会话级回源（7.3-1 收口）：冷启态消费 pending；keepAlive 已挂载态走事件直达。
+  // resumeRecentSession 依赖 projectGroups 快照（异步加载）——ref 保最新回调，
+  // 订阅 effect 只跑一次不重建，避免过期闭包拿到空分组。
+  const resumeRef = useRef(resumeRecentSession);
+  useEffect(() => { resumeRef.current = resumeRecentSession; });
+  useEffect(() => {
+    const pending = consumePendingSessionResume();
+    if (pending) void resumeRef.current(pending);
+    const onResume = (e: Event) => {
+      const path = (e as CustomEvent<{ path?: string }>).detail?.path;
+      if (path) void resumeRef.current(path);
+    };
+    window.addEventListener(RESUME_SESSION_EVENT, onResume);
+    return () => window.removeEventListener(RESUME_SESSION_EVENT, onResume);
+  }, []);
 
   // 全局快捷键 → app/useAppKeyboard（deps 原样）
   useAppKeyboard({
