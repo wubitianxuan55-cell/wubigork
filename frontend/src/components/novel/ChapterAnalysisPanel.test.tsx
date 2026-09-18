@@ -171,3 +171,51 @@ describe('标注定位编辑器光标（t7 观察池：onLocate 入口）', () =
     expect(screen.queryByTestId('analysis-ann-locate')).toBeNull()
   })
 })
+
+describe('章际对比（t7 多章对比最小形态）', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.v2.mockResolvedValue(mkV2() as never)
+    mocks.annotations.mockResolvedValue([])
+  })
+
+  it('未提供 chapterOptions：对比区不渲染', async () => {
+    open(2, '零一二三')
+    await waitFor(() => expect(screen.getByTestId('analysis-body')).toBeTruthy())
+    expect(screen.queryByTestId('analysis-compare')).toBeNull()
+  })
+
+  it('提供 chapterOptions：下拉排除本章；选对比章拉其 V2 渲染差值表', async () => {
+    const cmp = mkV2()
+    cmp.result!.scores!.overall = 6.0
+    mocks.v2.mockImplementation(async (num: number) => {
+      if (num === 3) return cmp as never
+      return mkV2() as never
+    })
+    render(<ChapterAnalysisPanel open onClose={vi.fn()} chapterNum={2} content="零一二三" chapterOptions={[1, 2, 3, 4]} />)
+    await waitFor(() => expect(screen.getByTestId('analysis-body')).toBeTruthy())
+    fireEvent.mouseDown(screen.getByRole('combobox'))
+    // 本章（2）被排除；选项含 1/3/4（dropdown 渲染在 portal，等它出现）
+    expect(await screen.findByTitle('第 3 章')).toBeTruthy()
+    expect(screen.queryByTitle('第 2 章')).toBeNull()
+    fireEvent.click(screen.getByTitle('第 3 章'))
+    // 差值表：本章 7.8 vs 对比章 6.0 → Δ -1.8
+    expect(await screen.findByTestId('analysis-compare-table')).toBeTruthy()
+    expect(screen.getByText('6.0')).toBeTruthy()
+    expect(screen.getByText('-1.8')).toBeTruthy()
+    expect(mocks.v2).toHaveBeenCalledWith(3)
+  })
+
+  it('对比章尚未分析：行内提示不报 toast', async () => {
+    mocks.v2.mockImplementation(async (num: number) => {
+      if (num === 3) throw new Error('第 3 章尚未分析')
+      return mkV2() as never
+    })
+    render(<ChapterAnalysisPanel open onClose={vi.fn()} chapterNum={2} content="零一二三" chapterOptions={[3]} />)
+    await waitFor(() => expect(screen.getByTestId('analysis-body')).toBeTruthy())
+    fireEvent.mouseDown(screen.getByRole('combobox'))
+    fireEvent.click(await screen.findByTitle('第 3 章'))
+    expect(await screen.findByText(/尚未分析——先在章节页运行分析后再对比/)).toBeTruthy()
+    expect(screen.queryByTestId('analysis-compare-table')).toBeNull()
+  })
+})

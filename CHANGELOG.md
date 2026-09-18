@@ -1,3 +1,12 @@
+## v4.342.0 · t7 观察池「多章对比」最小形态：分析面板章际对比（2026-09-19）
+> 观察池条目的最小可用形态；纯前端两文件，零新绑定 705。情感曲线（v4.341）给全书节奏，本刀补「第 N 章比第 M 章强吗」的章际质量对比。
+**落地**=①ChapterAnalysisPanel 增可选 chapterOptions：提供且排除本章后可选 ≥1 时渲染「章际对比」区（缺省整体隐藏，其他挂载点零影响）；Select 选对比章拉其 V2 → 差值表（综合/节奏/代入/连贯+情感强度）；Δ 语义=四质量维上绿下红、情感强度中性不判色、缺字段与 0 差值不着色；对比章未分析→行内提示不 toast；V2 无 scores→「对比章分析无评分数据」；切章/关面板重置②CreatePage 传 flatNodes 章号清单。
+**测试**=Panel +3 共 11/11（未提供隐藏/下拉排除本章+差值表 7.8 vs 6.0 Δ-1.8+按章号调用/未分析行内提示）。
+**坑**=①flattenTree 返回 TreeNode 章号在 .node 下——tsc 抓住 map(n=>n.order_index) 的 undefined 运行期隐患②antd Select 的 mousedown 必须落内层 role=combobox 元素（根 div 不开下拉），dropdown 渲染在 portal 需 findByTitle 等待，选项点击 jsdom 可用。
+**门禁**=tsc/eslint 0；Panel 域 11/11；全量 ci.ps1 绿；drift OK@705；版本三处 4.342.0；产物=exe 50841600B SHA256=3ade927983d1b41e7ac1a6351f72302169e0e52d1e1470bec5db61318bec41dd（releases+SUMS；桌面副本同哈希；冒烟 200 过）。
+**文档**=releases/v4.342.0.md+CHANGELOG/README+AGENTS 迁 1 插 1（五十七迁）+progress/todos。
+**未做（下刀）**=真机走查清池班（v4.319~v4.342 挂池，须闲置窗口）；技能 ≥5 次核数 ≈09-30；t7 观察池仅剩编辑器 overlay 持久高亮（镜像背景层中刀候拍板）。
+
 ## v4.341.0 · t7 观察池「情感曲线图形化」：全书体检面板情感弧线折线（2026-09-19）
 > 观察池条目（v4.325 记录）；纯前端单文件 BookHealthPanel，零新绑定 705、零新依赖（纯 SVG 不引图表库）。
 **落地**=①体检面板情感曲线区（逐章表与伏笔 findings 之间）：默认「生成曲线」按钮按需触发——N 章=N 次 V2 读盘 RPC，交给作者决定不随体检自动跑②逐章读 NovelChapterAnalysisV2：命中 emotional_arc.intensity（钳 0-10）收集 {章号,强度,主导情绪}；缺档/无弧线/报错跳过并计数（缺档只报「尚未分析」不触发重建，循环安全）③纯 SVG 折线 EmotionCurveSvg：x=章号线性、y=强度反转、0/5/10 参考线（5 虚线）、相邻点直连——未分析章间隙以长段如实呈现不插值、圆点 title tooltip（章号·情绪·强度）、viewBox 自适应④诚实不足态：<2 章可绘制提示「需 ≥2 章有情感弧线数据；本次拿到 N 章，M 章跳过」；跳过数>0 折线下计数说明⑤「重新体检」重置曲线；按钮态生成/刷新。

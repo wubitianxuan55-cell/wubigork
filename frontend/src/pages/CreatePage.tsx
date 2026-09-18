@@ -723,6 +723,7 @@ const CreatePage: React.FC = () => {
         chapterNum={gateChapter ?? (activeChapterNum || null)}
         content={gateContent || content}
         onLocate={gateChapter == null || gateChapter === activeChapterNum ? handleLocateInEditor : undefined}
+        chapterOptions={flatNodes.map(tn => tn.node.order_index)}
       />
       <PromptWorkshopPanel
         open={promptWsOpen}
