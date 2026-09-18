@@ -3,6 +3,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { createRef, useState } from 'react'
 import EditorPanel, { type EditorPanelHandle } from './EditorPanel'
 import type { OutlineNode } from '../../../types'
+import type { ChapterAnnotation } from '../../../gaea/lib/bridge/novel'
 
 const node: OutlineNode = { id: 'n1', title: '第1章', summary: '', status: 'writing', order_index: 1 }
 
@@ -118,25 +119,40 @@ describe('EditorPanel 标注定位（t7 观察池：locate 命令句柄）', () 
     expect(ref.current?.locate(0, 1)).toBe(false)
   })
 
-  it('locate 后镜像层出现且 mark 文本=选区内容；正文编辑后高亮清除', async () => {
-    // harness 持真实 content state：onChange → 父 content 变化 → 失效 effect 清除
+  it('annotations 供给 → 镜像常驻多 mark（rune→code-unit 换算）；正文编辑后整体退场，locate 光标仍可用', async () => {
     const ref = createRef<EditorPanelHandle>()
+    const anns: ChapterAnnotation[] = [
+      { type: 'conflict', content: '冲突', pos: 1, length: 2 },
+      { type: 'suggestion', content: '尾段', pos: 5, length: 1 },
+    ]
     function Harness() {
       const [content, setContent] = useState('𝌆一二三四五')
-      return <EditorPanel ref={ref} {...baseProps} content={content} onContentChange={setContent} />
+      return <EditorPanel ref={ref} {...baseProps} content={content} onContentChange={setContent} annotations={anns} />
     }
     render(<Harness />)
+    // 镜像常驻（非定位触发）
+    await screen.findByTestId('editor-annotation-mirror')
+    const marks = screen.getAllByTestId('editor-annotation-mark')
+    expect(marks).toHaveLength(2)
+    expect(marks[0].textContent).toBe('一二') // rune [1,3) → code-unit [2,4)
+    expect(marks[1].textContent).toBe('五') // rune [5,6) → code-unit [6,7)
+    // 正文编辑 → dirty → 镜像整体退场
+    fireEvent.change(document.querySelector('textarea') as HTMLTextAreaElement, { target: { value: '改动' } })
+    await waitFor(() => expect(screen.queryByTestId('editor-annotation-mirror')).toBeNull())
+    // locate 光标定位契约不受 dirty 影响
+    expect(ref.current?.locate(1, 2)).toBe(true)
     const ta = document.querySelector('textarea') as HTMLTextAreaElement
-    // 定位前无镜像
-    expect(screen.queryByTestId('editor-annotation-mirror')).toBeNull()
-    expect(ref.current?.locate(1, 3)).toBe(true)
-    // setHl 走异步渲染，等镜像出现
-    const mirror = await screen.findByTestId('editor-annotation-mirror')
-    const mark = mirror.querySelector('mark') as HTMLElement
-    // rune [1,3) = 「一二」 → code-unit [2,4)
-    expect(mark.textContent).toBe('一二')
-    // 编辑正文 → 高亮失效（content prop 变化触发清除 effect）
-    fireEvent.change(ta, { target: { value: '改动后的正文' } })
+    expect(ta.selectionStart).toBe(1)
+    expect(ta.selectionEnd).toBe(2)
+  })
+
+  it('越界标注不产生 mark：无有效段则无镜像', async () => {
+    const anns: ChapterAnnotation[] = [{ type: 'conflict', content: '越界', pos: 99, length: 2 }]
+    function Harness() {
+      const [content] = useState('abc')
+      return <EditorPanel {...baseProps} content={content} onContentChange={() => {}} annotations={anns} />
+    }
+    render(<Harness />)
     await waitFor(() => expect(screen.queryByTestId('editor-annotation-mirror')).toBeNull())
   })
 })

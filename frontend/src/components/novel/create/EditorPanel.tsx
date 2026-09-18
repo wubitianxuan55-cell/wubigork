@@ -1,4 +1,4 @@
-import React, { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react'
+import React, { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import { Button, Spin, Typography, Input, Tooltip, Space, message } from 'antd'
 import {
   EditOutlined, LoadingOutlined, ReloadOutlined, SaveOutlined,
@@ -7,7 +7,9 @@ import {
 import { C } from '../../../utils/theme'
 import { countTextChars } from '../../../utils/text'
 import { chapterLabel } from './outlineTree'
+import { buildAnnSegments } from './annotationMarks'
 import type { OutlineNode } from '../../../types'
+import type { ChapterAnnotation } from '../../../gaea/lib/bridge/novel'
 
 const { TextArea } = Input
 
@@ -34,6 +36,9 @@ interface EditorPanelProps {
   onEditorFontSizeChange?: (value: number) => void
   /** 局部重写入口（t4-C3 余项）：start/end 为正文 rune 偏移（code-unit 选区已换算），text 为选中文本 */
   onPartialRewrite?: (sel: { start: number; end: number; text: string }) => void
+  /** 持久标注高亮（t7 overlay）：本章标注清单（rune 偏移口径）。 dirty（正文
+   *  编辑）即整体失效，切章/标注重载恢复——偏移漂移的结构性规避。 */
+  annotations?: ChapterAnnotation[]
 }
 
 /** 编辑器命令句柄（t7 观察池「标注定位编辑器光标」）：父层经 ref 驱动光标。 */
@@ -51,21 +56,32 @@ const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(function Edi
   activeNode, content, onContentChange, chapterLoading,
   generating, genPhase, genPercent, stopping, saving,
   onRegenerate, onSave, onStop, hasChapters, nextChapterNum, onOpenWizard,
-  editorFontSize = 15, onEditorFontSizeChange, onPartialRewrite,
+  editorFontSize = 15, onEditorFontSizeChange, onPartialRewrite, annotations,
 }, ref) {
   const editorRef = useRef<React.ComponentRef<typeof TextArea> | null>(null)
-  // v4.343 标注定位高亮（t7 overlay 轻量版）：locate 时在 textarea 背后垫一层
-  // 镜像 div（同字体/行高/字距/padding，文本透明仅 mark 显色），textarea 底色
-  // 透出高亮。单条+编辑即清除（content/activeNode 变化失效），规避偏移漂移。
-  // gutter=textarea 滚动条占宽，镜像补等量右内距对齐换行。
-  const [hl, setHl] = useState<{ start: number; end: number; gutter: number } | null>(null)
+  // v4.344 持久标注高亮（t7 overlay）：annotations 全量 mark 常驻，正文编辑
+  // （dirty）整体退场，切章/标注重载恢复。镜像层同 v4.343：文本透明仅 mark
+  // 显色，滚动条占宽补右内距对齐换行。
+  const [dirty, setDirty] = useState(false)
+  const [gutter, setGutter] = useState(0)
   const mirrorRef = useRef<HTMLDivElement | null>(null)
+  const marks = useMemo(() => buildAnnSegments(content, annotations ?? []), [content, annotations])
+  const showMirror = !dirty && marks.length > 0
   const syncMirrorScroll = () => {
     const ta = editorRef.current?.resizableTextArea?.textArea
     if (mirrorRef.current && ta) mirrorRef.current.scrollTop = ta.scrollTop
   }
-  // 正文或章变化（编辑/流式重生成/切章）→ 高亮失效
-  useEffect(() => { setHl(null) }, [content, activeNode])
+  // 正文/章/标注任一变化 → 重新判定：dirty 复位（新标注或新章），滚动对齐
+  useEffect(() => { setDirty(false) }, [annotations, activeNode])
+  useEffect(() => {
+    if (!showMirror) return
+    const rid = requestAnimationFrame(() => {
+      const ta = editorRef.current?.resizableTextArea?.textArea
+      if (ta) setGutter(Math.max(0, ta.offsetWidth - ta.clientWidth))
+      syncMirrorScroll()
+    })
+    return () => cancelAnimationFrame(rid)
+  }, [showMirror, content])
 
   // 局部重写入口：读原生 textarea 的 code-unit 选区（selectionStart/End 为 UTF-16
   // code-unit 偏移），换算成 rune 偏移后回调（后端选段校验按 rune 口径）；无选区给提示。
@@ -84,6 +100,7 @@ const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(function Edi
 
   // 标注定位：rune 偏移 → code-unit（toRune 的逆），先设选区再聚焦——
   // Chromium 在聚焦时把选区滚动进视口，无需手算 scrollTop。
+  // v4.344：镜像高亮由 annotations 持久供给，定位只负责光标与滚动。
   useImperativeHandle(ref, () => ({
     locate(runeStart: number, runeEnd: number): boolean {
       const ta = editorRef.current?.resizableTextArea?.textArea
@@ -102,9 +119,6 @@ const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(function Edi
       const e = toCodeUnit(Math.max(runeStart + 1, runeEnd))
       ta.setSelectionRange(s, e)
       ta.focus()
-      // 镜像高亮：滚动条占宽（offsetWidth-clientWidth）补进镜像右内距，
-      // 换行与 textarea 一致；聚焦滚动后再同步一次镜像 scrollTop。
-      setHl({ start: s, end: e, gutter: ta.offsetWidth - ta.clientWidth })
       requestAnimationFrame(() => syncMirrorScroll())
       return true
     },
@@ -168,28 +182,39 @@ const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(function Edi
         <div className="novel-editor-loading"><Spin /></div>
       ) : (activeNode || generating) ? (
         <div style={{ position: 'relative', flex: 1, minWidth: 0, display: 'flex' }}>
-          {hl && (
+          {showMirror && (
             <div ref={mirrorRef} aria-hidden data-testid="editor-annotation-mirror"
               style={{
                 position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none',
                 border: '1px solid transparent', boxSizing: 'border-box',
                 padding: '20px 24px',
-                paddingRight: `calc(24px + ${hl.gutter}px)`,
+                paddingRight: `calc(24px + ${gutter}px)`,
                 fontFamily: "'Georgia', 'Noto Serif SC', 'Source Han Serif SC', 'STSong', 'SimSun', serif",
                 fontSize: 'var(--novel-editor-font-size, 15px)',
                 lineHeight: 1.9, letterSpacing: '0.02em',
                 whiteSpace: 'pre-wrap', overflowWrap: 'break-word',
                 color: 'transparent',
               }}>
-              {content.slice(0, hl.start)}
-              <mark style={{ background: 'color-mix(in srgb, var(--gaea-glow) 32%, transparent)', color: 'transparent', borderRadius: 2 }}>
-                {content.slice(hl.start, hl.end)}
-              </mark>
-              {content.slice(hl.end)}
+              {(() => {
+                const parts: React.ReactNode[] = []
+                let last = 0
+                marks.forEach((sg, i) => {
+                  if (sg.start > last) parts.push(<span key={`t${i}`}>{content.slice(last, sg.start)}</span>)
+                  parts.push(
+                    <mark key={`m${i}`} data-testid="editor-annotation-mark"
+                      style={{ background: 'color-mix(in srgb, var(--gaea-glow) 32%, transparent)', color: 'transparent', borderRadius: 2 }}>
+                      {content.slice(sg.start, sg.end)}
+                    </mark>,
+                  )
+                  last = sg.end
+                })
+                parts.push(<span key="tail">{content.slice(last)}</span>)
+                return parts
+              })()}
             </div>
           )}
-          <TextArea className={`novel-editor${hl ? ' novel-editor-mirror-hl' : ''}`} ref={editorRef} value={content}
-            onChange={e => onContentChange(e.target.value)}
+          <TextArea className={`novel-editor${showMirror ? ' novel-editor-mirror-hl' : ''}`} ref={editorRef} value={content}
+            onChange={e => { setDirty(true); onContentChange(e.target.value) }}
             onScroll={syncMirrorScroll}
             placeholder="AI 将在此流式呈现正文；也可直接手写后保存…"
           />

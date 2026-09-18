@@ -479,6 +479,17 @@ const CreatePage: React.FC = () => {
 
   // ── 叙事状态账本（作者审批制）──
   const activeChapterNum = activeNode?.order_index || lastMainChapter
+  // 持久标注高亮（t7 overlay）：本章标注清单随激活章加载传给编辑器镜像；
+  // 正文编辑的失效由 EditorPanel 内部 dirty 纪律处理（编辑即整体退场）。
+  const [editorAnns, setEditorAnns] = useState<ChapterAnnotation[]>([])
+  useEffect(() => {
+    if (!activeChapterNum) { setEditorAnns([]); return undefined }
+    let alive = true
+    app.NovelChapterAnnotations(activeChapterNum)
+      .then(a => { if (alive) setEditorAnns(a ?? []) })
+      .catch(() => { if (alive) setEditorAnns([]) })
+    return () => { alive = false }
+  }, [activeChapterNum])
   const loadState = useCallback(async () => {
     setStateBusy(true); setStateMsg('')
     try {
@@ -743,6 +754,7 @@ const CreatePage: React.FC = () => {
         onAddNext={handleAddNext} onGenerateNext={() => openWizard(lastMainChapter)} />
       <div className="v3-grip" aria-hidden="true" />
       <EditorPanel ref={editorRef} activeNode={activeNode ?? null} content={content} onContentChange={setContent}
+        annotations={editorAnns}
         chapterLoading={chapterLoading}
         generating={generating} genPhase={genPhase} genPercent={genPercent} stopping={stopping} saving={saving}
         onRegenerate={() => activeNode && handleRegenerate(activeNode)} onSave={handleSave} onStop={handleStop}

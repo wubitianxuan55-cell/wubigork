@@ -1,3 +1,12 @@
+## v4.344.0 · t7 最终形态：编辑器持久标注高亮（overlay 常驻 + 编辑退场）（2026-09-19）
+> v4.343 轻量版的完全体（真机镜像对齐已过，最后顾虑清掉）；纯前端三文件，零新绑定 705、零新依赖。
+**落地**=①分段工具收敛：新建 create/annotationMarks.ts（buildAnnSegments+runeToCodeUnit），面板高亮视图与编辑器镜像同一实现——rune↔code-unit 口径全仓唯一出处（Panel 本地副本删除，11 用例零改动=重构等价证明）②EditorPanel：单条 hl 换 annotations prop 驱动 marks（useMemo 派生），镜像渲染全量段（交叠钳制 Q5 口径）；dirty 纪律——正文编辑整体退场（偏移漂移结构性规避）、切章/标注重载恢复；gutter 镜像显形时 rAF 实测③CreatePage 随激活章加载 NovelChapterAnnotations（alive 守卫防竞态）④locate 句柄契约不变（光标+滚动），与常驻 mark 解耦。
+**测试**=EditorPanel 重写+2 共 11/11（常驻双 mark rune 换算断言/编辑整体退场/locate 契约不受 dirty 影响/越界标注无 mark）；Panel 11/11（重构等价）；CreatePage 15/15（补 NovelChapterAnnotations 漏桩）。
+**坑**=①effect 引用 200 行后才声明的 const=TDZ，tsc 不抓靠读序发现②测试桩漏项放大成组件树崩（unhandled rejection → 整树卸载 → 后续断言全"找不到元素"），先看 unhandled errors 段。
+**门禁**=tsc/eslint 0；三域 38/38；全量 ci.ps1 绿；drift OK@705；版本三处 4.344.0；产物=exe 50843648B SHA256=95ecb91d66a9d1828a26fb8d7c660d1a4f0bba3db7a7c8292c47c654fd74d5fc（releases+SUMS；桌面副本同哈希；冒烟 200 过）。
+**文档**=releases/v4.344.0.md+CHANGELOG/README+AGENTS 迁 1 插 1（五十九迁）+progress/todos。
+**未做（下刀）**=真机走查清池班（持久 overlay 真机目检随下一班）；技能 ≥5 次核数 ≈09-30；t2 余项按反馈。
+
 ## v4.343.0 · t7 收尾「编辑器标注高亮」轻量版：定位单条镜像 mark + 编辑即失效（2026-09-19）
 > 观察池最后一项（v4.325 有意裁剪的编辑器 overlay）轻量落地；纯前端 EditorPanel + 一条 CSS，零新绑定 705、零新依赖。
 **落地**=①镜像背景层：locate 时 textarea 背后垫同排版 div（同衬线栈/font-size 变量/行高 1.9/字距/20×24 padding/1px 透明 border/box-sizing），文本 color transparent 仅 mark 显色（--gaea-glow 32%），textarea 切 `.novel-editor-mirror-hl` 底透出（!important 源码序压过既有底色）②换行对齐：镜像按滚动条占宽（offsetWidth−clientWidth）补右内距；pre-wrap+break-word 与 textarea 默认一致；onScroll 同步 scrollTop+聚焦后 rAF 补同步③失效纪律：content/activeNode 变化（手写/流式/切章）即清除——偏移漂移正确性问题结构性规避；pointerEvents none 纯装饰。

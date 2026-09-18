@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   DeleteOutlineNode: vi.fn().mockResolvedValue(undefined),
   SaveChapterBranchContent: vi.fn().mockResolvedValue(undefined),
   SaveCharactersBatch: vi.fn().mockResolvedValue({}),
+  NovelChapterAnnotations: vi.fn().mockResolvedValue([]),
   // NovelB 门面具名导入（批次三组2 cast 族）
   GetNovelState: vi.fn().mockResolvedValue({ version: 1, entities: {} }),
   BuildNovelStatePatch: vi.fn().mockResolvedValue({ patch: 'ok' }),
@@ -55,6 +56,7 @@ vi.mock('../gaea/lib/bridge', async (importOriginal) => {
     DeleteOutlineNode: mocks.DeleteOutlineNode,
     SaveChapterBranchContent: mocks.SaveChapterBranchContent,
     SaveCharactersBatch: mocks.SaveCharactersBatch,
+    NovelChapterAnnotations: mocks.NovelChapterAnnotations,
     TaskCancel: mocks.taskCancel,
   }
   return {

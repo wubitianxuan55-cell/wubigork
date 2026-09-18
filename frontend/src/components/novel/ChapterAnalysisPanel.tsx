@@ -9,6 +9,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { Alert, Button, Empty, Modal, Segmented, Select, Spin, Tag, Typography, message } from 'antd'
 import { app } from '../../gaea/lib/bridge'
 import type { ChapterAnalysisV2View, ChapterAnnotation } from '../../gaea/lib/bridge/novel'
+import { buildAnnSegments } from './create/annotationMarks'
 
 const softTextStyle: React.CSSProperties = { fontSize: 12, color: 'var(--v3-fg-soft, #6b7280)' }
 const cmpThStyle: React.CSSProperties = { textAlign: 'left', fontWeight: 500, padding: '2px 10px 2px 0', color: 'var(--v3-fg-soft, #6b7280)', fontSize: 11.5 }
@@ -27,45 +28,7 @@ const TYPE_VIEWS: Record<string, { label: string; color?: string; bg: string }> 
 
 const PACING_LABELS: Record<string, string> = { slow: '舒缓', moderate: '适中', fast: '紧凑', varied: '多变' }
 
-/** rune 偏移 → code-unit 下标（EditorPanel toRune 的逆函数；代理对按 codePoint 步进）。 */
-function runeToCodeUnit(text: string, runePos: number): number {
-  let runes = 0
-  let i = 0
-  while (i < text.length && runes < runePos) {
-    const cp = text.codePointAt(i) ?? 0
-    i += cp > 0xffff ? 2 : 1
-    runes += 1
-  }
-  return i
-}
-
-/** 高亮段（Q5：跳过 pos<0/length≤0；pos 升序；交叠后段起点钳到前段终点；越界裁剪）。 */
-interface AnnSegment {
-  start: number // code-unit
-  end: number // code-unit
-  ann: ChapterAnnotation
-}
-
-function buildSegments(text: string, anns: ChapterAnnotation[]): AnnSegment[] {
-  const totalRunes = [...text].length
-  const hits = anns
-    .filter(a => a.pos >= 0 && (a.length ?? 0) > 0)
-    .slice()
-    .sort((x, y) => x.pos - y.pos)
-  const segs: AnnSegment[] = []
-  let cursorRunes = 0
-  for (const a of hits) {
-    const startRune = Math.max(a.pos, cursorRunes)
-    const endRune = Math.min(a.pos + (a.length ?? 0), totalRunes)
-    if (endRune <= startRune) continue
-    const start = runeToCodeUnit(text, startRune)
-    const end = runeToCodeUnit(text, endRune)
-    if (end <= start) continue
-    segs.push({ start, end, ann: a })
-    cursorRunes = endRune
-  }
-  return segs
-}
+// 高亮段构建收敛到 create/annotationMarks.ts（v4.344 起：与编辑器持久 overlay 同一实现）
 
 /** 小节标题（带计数；空节由调用方隐藏）。 */
 function Section({ title, count, children }: { title: string; count: number; children: React.ReactNode }) {
@@ -170,7 +133,7 @@ export default function ChapterAnalysisPanel({ open, onClose, chapterNum, conten
     }
   }
 
-  const segments = useMemo(() => buildSegments(content ?? '', anns), [content, anns])
+  const segments = useMemo(() => buildAnnSegments(content ?? '', anns), [content, anns])
 
   /** 列表行点击：切到高亮视图并滚动到对应锚点（未命中段不跳）。 */
   const jumpTo = (ann: ChapterAnnotation) => {
