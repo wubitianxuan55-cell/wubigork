@@ -121,13 +121,13 @@ describe("ToolCard task 卡 live 行", () => {
   });
 });
 
-describe("ToolGroup 重复调用折叠（已调用 X · N 次）", () => {
+describe("ToolGroup 重复调用折叠（bash × N）", () => {
   const tools: ToolItem[] = ["a", "b", "c"].map((id) =>
     ({ kind: "tool", id, name: "bash", args: JSON.stringify({ command: `echo ${id}` }), readOnly: false, status: "done" }));
 
-  it("折叠行文案为「已调用 X · N 次」，点开展开明细", () => {
+  it("折叠行文案为「bash × 3」（完整语义在 title），点开展开明细", () => {
     const view = render(wrap(<ToolGroup tools={tools} />));
-    expect(view.container.textContent).toContain("已调用 bash · 3 次");
+    expect(view.container.textContent).toContain("bash × 3");
     // 展开后明细可见（GSAP 折叠只改样式，DOM 常驻；点击验证交互通路）
     fireEvent.click(view.container.firstElementChild as Element);
     expect(view.container.textContent).toContain("echo a");

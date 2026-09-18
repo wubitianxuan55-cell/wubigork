@@ -100,6 +100,34 @@ describe("WorkHeader 工作态头部行", () => {
     const view = mount(<WorkHeader />);
     expect(headerOf(view.container)).toBeNull();
   });
+
+  it("doneSuppressed：完成态让位给过程卡头部不渲染；运行中仍常驻", () => {
+    setStore({
+      running: true,
+      turnStartAt: Date.now() - 12_000,
+      items: [user("u1", "干个活"), tool("t1", "done")],
+    });
+    const view = mount(<WorkHeader doneSuppressed />);
+    expect(headerOf(view.container)?.getAttribute("data-state")).toBe("running");
+
+    // turn_done：完成态被本轮过程卡取代 → 整行不渲染
+    act(() => { setStore({ running: false }); });
+    expect(headerOf(view.container)).toBeNull();
+  });
+
+  it("纯问答轮（0 步）完成态不渲染（Codex 对齐：纯回答不挂元信息行）", () => {
+    setStore({
+      running: true,
+      turnStartAt: Date.now() - 6_000,
+      items: [user("u1", "问个问题")],
+    });
+    const view = mount(<WorkHeader />);
+    expect(headerOf(view.container)?.getAttribute("data-state")).toBe("running");
+
+    // turn_done：无工具/阶段/思考（0 步）→ 完成态整行不渲染
+    act(() => { setStore({ running: false }); });
+    expect(headerOf(view.container)).toBeNull();
+  });
 });
 
 describe("countTurnSteps / latestTurnPhaseText / formatElapsed 纯函数", () => {

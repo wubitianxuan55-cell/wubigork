@@ -1,3 +1,13 @@
+## v4.337.0 · 办公对话流美化三轮收官：对齐 Codex web（降噪+动线+语义归位）（2026-09-18）
+> 办公对话流美化线程收口发版（对齐 Codex web 三轮）。纯前端零新绑定 707，零 Go 改动；规格=releases/v4.337.0.md。
+**落地十件**=①用户消息气泡化（surface-container-high+细边框，替代无气泡裸文本——轮次边界扫读清晰）②裸思考行 bare 模式（纯思考段不出过程卡，一行裸思考块+行数 meta 进思考行；meta 三语键 reasoning.metaLineOne/metaLines+英文单复数——收口修掉初版硬编码中文「行」）③过程卡完成即收起（运行中自动展开/完成收起一行「已工作 Xs·…」/历史恢复同样折叠/手动干预保留；旧「展开态默认展开」废=垂直噪音主源；耗时角标只在「已工作」缺席时补位）④WorkHeader 三改（轮内有过程卡时完成态「已完成·用时」行让位 doneSuppressed/纯问答轮 0 步完成态不渲染/运行态样式对齐过程条左细线+hover 底）⑤尾随工具段合并（buildSegments 末段纯过程并回前段——store 事件序工具尾追，过程卡按 Codex 语义渲染在正文前，消「答后动作」假象）⑥轮尾登记-only 交付卡补挂（reasoning-first 轮尾无正文段原先丢卡）+omitPaths 跨段去重（防同文件双卡）⑦交付卡统一边框容器（细边框+行分隔线+整卡一圆角）⑧消息操作 hover 淡入（复制/评分后驻留）⑨顶条只留 waiting 档（≤5s 连接档与 WorkHeader spinner 同义不显示；>5s 才出顶条——正常回合运行态无第二行横幅）⑩ToolGroup 文案精简「bash × 3」+title 完整语义（三语新键）+ToolCard 代码块圆角统一。
+**测试**=ProcessCard 展开态测试重写钉新行为（完成态折叠 small/非 small 一致+运行中自动展开+bare 无卡头——旧测试钉已废行为且用例数据恰落 bare 分支，全量首跑 1 红）；vitest 3199/3199；tsc 零错；eslint 零告警；三语 +4 键同轴。
+**目检**（本班收口补验）=vite dev 9344 ?mock=demo+独立 headless Edge 9345 CDP 驱动真实 UI 两轮五态截图全过（运行中自动展开/完成收起/交付卡容器/用户气泡/顶条无横幅/bare「思考 1 行」实测/Composer 排队提示在位）。
+**坑**=①摘要类文案禁硬编码——初版「行」硬编码 en 界面漏中文，一律三语键+注意英文单复数②行为变更须重写钉旧行为的测试（其用例数据可能已落新分支）③杀隔离进程按 user-data-dir/端口过滤勿全杀。
+**门禁**=全量 ci.ps1 绿；drift OK@707；版本三处 4.337.0；产物=exe 50837504B SHA256=36d7b3e2ab26886b2f96192d13db16666db7686f18c729ce0c36381f0d89c641（releases+SUMS；桌面副本同哈希；冒烟 200 过）。
+**文档**=releases/v4.337.0.md+CHANGELOG/README+AGENTS 迁 1 插 1（五十二迁）+progress/todos。
+**未做（下刀）**=真机走查清池班（v4.319~v4.337 挂池，须闲置窗口）；技能 ≥5 次核数 ≈09-30；绘梦阶段二/缺省形态翻转候拍板。
+
 ## v4.336.0 · chapter-gate 通知跳转 + oh-story T5 落库接线（2026-09-18）
 > 用户指令「继续」。两件观察池/todos 收口；规格书 进度计划/gaea-gate-jump-t5-wiring-20260918.md。
 **甲件 自动门通知可点击**（v4.331 观察池头名）=useChapterGateNotice 增可选 onOpen 回调（ref 保最新回调防过期闭包），通知 onClick 传报告章号；CreatePage gateChapter 覆盖态打开章节分析面板，跨章时 GetChapter 拉正文供标注锚定（失败回退空串）；无回调=纯通知零变化。测试钩子 +1。

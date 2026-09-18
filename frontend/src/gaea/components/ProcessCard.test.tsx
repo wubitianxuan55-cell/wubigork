@@ -14,26 +14,58 @@ const wrap = (node: React.ReactNode) => {
 };
 
 describe("ProcessCard 小过程卡 / 展开态初始状态", () => {
-  it("分段小过程卡（small）默认折叠；非 small（交替段展开态）默认展开", () => {
+  // 含已完成工具的段（非 bare）：卡头 button[aria-expanded] 即过程卡头
+  const toolDone = (): Item =>
+    ({ kind: "tool", id: `t${Math.random()}`, name: "write_file", args: "", readOnly: false, status: "done" } as Item);
+
+  it("完成态过程卡默认折叠（small/非 small 一致；2026-09-18 Codex 对齐：完成即收起）", () => {
     const items: Item[] = [
       { kind: "assistant", id: "a1", text: "", reasoning: "先分析需求", streaming: false },
+      toolDone(),
     ];
     const smallView = render(
       wrap(
-<ProcessCard items={items} toolCount={0} thoughtCount={1} small subcallsByParent={noSubcalls} />),
+<ProcessCard items={items} toolCount={1} thoughtCount={1} small subcallsByParent={noSubcalls} />),
     );
-    // 运行中的分段小过程卡：默认折叠
     const smallHeader = smallView.container.querySelectorAll("button[aria-expanded]")[0];
     expect(smallHeader?.getAttribute("aria-expanded")).toBe("false");
     smallView.unmount();
 
-    // 非 small（交替段展开态）：默认展开
+    // 旧「展开态默认展开」已废：非 small 完成态同样收起为一行
     const bigView = render(
+      wrap(
+<ProcessCard items={items} toolCount={1} thoughtCount={1} small={false} subcallsByParent={noSubcalls} />),
+    );
+    const bigHeader = bigView.container.querySelectorAll("button[aria-expanded]")[0];
+    expect(bigHeader?.getAttribute("aria-expanded")).toBe("false");
+  });
+
+  it("运行中过程卡自动展开（实时活动可见）", () => {
+    const items: Item[] = [
+      { kind: "assistant", id: "a1", text: "", reasoning: "先分析需求", streaming: false },
+      { kind: "tool", id: "t-run", name: "write_file", args: "", readOnly: false, status: "running" } as Item,
+    ];
+    const view = render(
+      wrap(
+<ProcessCard items={items} toolCount={1} thoughtCount={1} small running subcallsByParent={noSubcalls} />),
+    );
+    const header = view.container.querySelectorAll("button[aria-expanded]")[0];
+    expect(header?.getAttribute("aria-expanded")).toBe("true");
+  });
+
+  it("纯思考段走 bare 模式：无过程卡容器，只渲染裸思考行", () => {
+    const items: Item[] = [
+      { kind: "assistant", id: "a1", text: "", reasoning: "先分析需求", streaming: false },
+    ];
+    const view = render(
       wrap(
 <ProcessCard items={items} toolCount={0} thoughtCount={1} small={false} subcallsByParent={noSubcalls} />),
     );
-    const bigHeader = bigView.container.querySelectorAll("button[aria-expanded]")[0];
-    expect(bigHeader?.getAttribute("aria-expanded")).toBe("true");
+    expect(view.container.querySelector("[data-bare-process]")).not.toBeNull();
+    // 唯一的折叠头是思考行自己的 .reasoning__head，无卡头
+    const heads = view.container.querySelectorAll("button[aria-expanded]");
+    expect(heads.length).toBe(1);
+    expect(heads[0].className).toContain("reasoning__head");
   });
 });
 

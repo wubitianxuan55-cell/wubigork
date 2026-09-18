@@ -231,7 +231,7 @@ export const ToolCard = memo(function ToolCard({ item, subcalls }: { item: ToolI
           {diffs.map((d, i) => (
             <div className={`${innerPx} ${innerPb}`} key={i}>
               {d.label && <div className="text-[10px] text-fg-faint uppercase tracking-wider mb-0.5">{d.label}</div>}
-              <pre className="px-3 py-2 font-mono text-[12px] leading-[1.5] overflow-auto whitespace-pre bg-bg-soft border border-border-soft rounded text-fg-dim"><code>{d.original}</code></pre>
+              <pre className="px-3 py-2 font-mono text-[12px] leading-[1.5] overflow-auto whitespace-pre bg-bg-soft border border-border-soft rounded-md text-fg-dim"><code>{d.original}</code></pre>
             </div>
           ))}
 
@@ -245,13 +245,13 @@ export const ToolCard = memo(function ToolCard({ item, subcalls }: { item: ToolI
 
           {hasArgs && (
             <div className={`${innerPx} ${innerPb}`}>
-              {item.args && <pre className="px-3 py-2 font-mono text-[12px] leading-[1.5] overflow-auto whitespace-pre bg-bg-soft border border-border-soft rounded text-fg-dim"><code>{pretty(item.args)}</code></pre>}
+              {item.args && <pre className="px-3 py-2 font-mono text-[12px] leading-[1.5] overflow-auto whitespace-pre bg-bg-soft border border-border-soft rounded-md text-fg-dim"><code>{pretty(item.args)}</code></pre>}
             </div>
           )}
           {hasOutput && (
             <div className={`${innerPx} ${innerPb}`}>
               <div className="text-[9px] text-fg-faint/60 uppercase tracking-wider mb-0.5 select-none">{t("tool.outputHeader", { n: outputLines })}</div>
-              <pre className="px-3 py-2 font-mono text-[12px] leading-[1.5] overflow-auto whitespace-pre bg-bg-soft border border-border-soft rounded text-fg-dim"><code><FileLinkText text={showFullOutput ? bounded.full : bounded.preview} compact /></code></pre>
+              <pre className="px-3 py-2 font-mono text-[12px] leading-[1.5] overflow-auto whitespace-pre bg-bg-soft border border-border-soft rounded-md text-fg-dim"><code><FileLinkText text={showFullOutput ? bounded.full : bounded.preview} compact /></code></pre>
               {bounded.collapsed && (
                 <button
                   type="button"

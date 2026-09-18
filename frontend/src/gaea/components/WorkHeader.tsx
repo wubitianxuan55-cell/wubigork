@@ -59,7 +59,7 @@ export function latestTurnPhaseText(items: Item[]): string {
   return "";
 }
 
-export function WorkHeader() {
+export function WorkHeader({ doneSuppressed = false }: { doneSuppressed?: boolean }) {
   const running = useStore((s) => s.running);
   const turnStartAt = useTurnStartAt();
   const items = useItems();
@@ -87,7 +87,11 @@ export function WorkHeader() {
   }
 
   // 恢复历史会话 / 与本组件无关的空闲态：从未运行过 → 不渲染（保持现状）。
-  if (!running && !finalRef.current.ran && turnStartAt <= 0) return null;
+  // doneSuppressed：本轮有过程卡时，完成态耗时行由过程卡头部承担，完成态
+  // 不再渲染（运行中不受影响——phase/死寂窗口反馈仍是头部职责）。
+  // Codex 对齐（2026-09-18）：纯问答轮（0 步，无工具/阶段/思考）完成态同样
+  // 不渲染——纯回答上挂一行「已完成 · 用时」是 Codex 没有的噪音。
+  if (!running && (doneSuppressed || finalRef.current.steps === 0 || (!finalRef.current.ran && turnStartAt <= 0))) return null;
 
   const phaseText = latestTurnPhaseText(items);
   const steps = running ? countTurnSteps(items) : finalRef.current.steps;
@@ -99,9 +103,12 @@ export function WorkHeader() {
     <div
       data-testid="work-header"
       data-state={running ? "running" : "done"}
-      className="my-1.5 flex items-center gap-2 rounded-lg bg-accent/[0.03] px-2.5 py-1.5 text-[11.5px] leading-none"
+      className={`my-0.5 flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-[11.5px] leading-none transition-colors duration-[var(--dur-base)] ${
+        running ? "bg-accent/[0.03]" : "hover:bg-(color:--md-sys-color-surface-container-high)/40"
+      }`}
       title={running && phaseText ? phaseText : undefined}
     >
+      <span className={`shrink-0 w-0.5 self-stretch rounded-full transition-colors ${running ? "bg-accent animate-pulse" : "bg-transparent"}`} />
       {running ? (
         <Loader2 size={12} className="shrink-0 animate-spin text-accent" />
       ) : (

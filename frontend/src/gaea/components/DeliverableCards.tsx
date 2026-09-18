@@ -51,7 +51,10 @@ const iconBtn =
 // 本卡与 DeliverablesPanel 的 VersionTimeline 共用同一徽标语言与判定函数——
 // 呈现层收敛，但本卡不复制操作 footer：保留/回滚/验收等操作仍只在登记面
 // （DeliverablesPanel）与证据链入口，登记表数据源与产物置前行为不变。
-export const DeliverableCards = memo(function DeliverableCards({ text, turnNo, mergeRegistry = true }: { text: string; turnNo?: number; mergeRegistry?: boolean }) {
+// omitPaths：本卡渲染时须排除的路径键集（deliverablePathKey 口径）。用于
+// 轮尾登记合并卡排除同轮其它段正文已提及的文件——正文提及卡在非轮尾段
+// 也有，登记合并不做跨段排除会渲染同文件双卡。
+export const DeliverableCards = memo(function DeliverableCards({ text, turnNo, mergeRegistry = true, omitPaths }: { text: string; turnNo?: number; mergeRegistry?: boolean; omitPaths?: ReadonlySet<string> }) {
   const updatedAt = useUpdatedFilesStore((s) => s.updatedAt);
   const toast = useToast();
   const t = useT();
@@ -62,8 +65,11 @@ export const DeliverableCards = memo(function DeliverableCards({ text, turnNo, m
 
   const textPaths = useMemo(() => deliverableMentions(text), [text]);
   const cards = useMemo(
-    () => mergeDeliverableCards(textPaths, entries, turnNo),
-    [textPaths, entries, turnNo],
+    () =>
+      mergeDeliverableCards(textPaths, entries, turnNo).filter(
+        ({ path }) => !omitPaths?.has(deliverablePathKey(path)),
+      ),
+    [textPaths, entries, turnNo, omitPaths],
   );
   // 草稿/就绪徽标数据源：证据链 JournalList（会话级，与版本时间线/回滚同源）。
   // 只在卡片里存在 Office 文档时拉取（共享缓存 2s 去重；失败静默 → 不标徽标）。
@@ -98,7 +104,7 @@ export const DeliverableCards = memo(function DeliverableCards({ text, turnNo, m
   };
 
   return (
-    <div className="mt-2 flex flex-col gap-1.5" aria-label={t("deliver.title")}>
+    <div className="mt-2 flex flex-col gap-1" aria-label={t("deliver.title")}>
       <div className="flex items-center gap-1.5 select-none">
         <span className="text-[10px] uppercase tracking-wider font-medium" style={{ color: "var(--md-sys-color-text-secondary)" }}>
           {t("deliver.title")}
@@ -113,8 +119,15 @@ export const DeliverableCards = memo(function DeliverableCards({ text, turnNo, m
           {cards.length}
         </span>
       </div>
-      <div className="flex flex-col gap-1">
-        {cards.map(({ path, from }) => {
+      {/* 统一卡片容器：细边框 + 行分隔线（Codex 文件卡语言），整卡一个圆角 */}
+      <div
+        className="flex flex-col overflow-hidden rounded-lg"
+        style={{
+          border: "1px solid color-mix(in srgb, var(--md-sys-color-outline-variant) 60%, transparent)",
+          background: "color-mix(in srgb, var(--md-sys-color-surface-container) 40%, transparent)",
+        }}
+      >
+        {cards.map(({ path, from }, idx) => {
           const ext = extOf(path);
           const updated = updatedAt[path] != null;
           // 缺失态：登记-only 且已确认文件不存在（登记 = 派发即登记，写失败
@@ -129,8 +142,11 @@ export const DeliverableCards = memo(function DeliverableCards({ text, turnNo, m
           return (
             <div
               key={path}
-              className="group flex items-center gap-2 px-2 py-1.5 rounded-lg transition-colors duration-150 hover:bg-(color:--md-sys-color-surface-container-high)"
-              style={isMissing ? { opacity: 0.55 } : undefined}
+              className="group flex items-center gap-2.5 px-2.5 py-2 transition-colors duration-150 hover:bg-(color:--md-sys-color-surface-container-high)"
+              style={{
+                opacity: isMissing ? 0.55 : undefined,
+                borderTop: idx > 0 ? "1px solid color-mix(in srgb, var(--md-sys-color-outline-variant) 45%, transparent)" : undefined,
+              }}
             >
               <span
                 className="shrink-0 w-8 h-8 rounded-md flex items-center justify-center overflow-hidden"

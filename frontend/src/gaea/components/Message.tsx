@@ -105,14 +105,15 @@ export const UserMessage = memo(function UserMessage({
   const LONG_MSG_CHARS = 240;
   const longText = textParts.some((p) => p.type === "text" && p.value.length > LONG_MSG_CHARS);
   const [msgOpen, setMsgOpen] = useState(false);
-  // Codex 式用户消息：无气泡、无头像，右对齐纯文本 + 细标签；
-  // 正文与助手回复同宽，视觉上让"对话记录"更线性、更安静。
+  // Codex web 式用户消息（2026-09-18）：右对齐柔和气泡（surface-container
+  // 高档位 + 细边框），替代此前的无气泡纯文本——裸文本与助手正文同权重，
+  // 扫读时用户/助手轮次边界不清晰。
   return (
     <div className="flex justify-end my-1.5 group" data-entrance={turn != null ? `u${turn}` : undefined}>
       <div className={`flex items-start gap-2 max-w-[85%] ${compact ? "min-w-[120px]" : "min-w-[160px]"}`}>
         <div className="flex-1 min-w-0">
           <div
-            className={`${compact ? "text-[13px]" : "text-[14px]"} text-fg leading-relaxed`}
+            className={`${compact ? "text-[13px]" : "text-[14px]"} text-fg leading-relaxed rounded-2xl rounded-br-md border border-border-soft bg-(color:--md-sys-color-surface-container-high)/60 px-3.5 py-2 w-fit max-w-full`}
           >
             {textParts.map((part, i) => {
               if (part.type === "text") {
@@ -170,6 +171,7 @@ export const AssistantMessage = memo(function AssistantMessage({
   onCapture,
   turnNo,
   deliverTail,
+  deliverOmitPaths,
   canRegenerate,
   onRegenerateTurn,
   onFeedback,
@@ -182,6 +184,8 @@ export const AssistantMessage = memo(function AssistantMessage({
   turnNo?: number;
   /** 轮尾段才合并登记-only 交付卡（同轮去重）；缺省 true 保持独立渲染语义。 */
   deliverTail?: boolean;
+  /** 轮尾登记合并卡排除的路径键集（同轮其它段正文已提及的文件，防双卡）。 */
+  deliverOmitPaths?: ReadonlySet<string>;
   /** 可重新生成（v4.232：仅当前会话最后一条 assistant 且非运行中）。
    *  回调按轮号重发（controller.regenerate），props 恒稳定以保 memo。 */
   canRegenerate?: boolean;
@@ -241,7 +245,7 @@ export const AssistantMessage = memo(function AssistantMessage({
   // turns"）；ref 全文放 title。字段缺省不渲染，行为与现状一致。
   const subagentRef = item.subagentRef;
   return (
-    <div className="flex justify-start my-2" data-entrance={item.id}>
+    <div className="group/msg flex justify-start my-2" data-entrance={item.id}>
       <div className="flex-1 min-w-0">
           {/* 子代理来源徽标 */}
           {subagentRef && (
@@ -302,11 +306,14 @@ export const AssistantMessage = memo(function AssistantMessage({
             </div>
           )}
           {/* 交付物附件卡片：正文中的文件引用 + 权威登记表本轮条目，渲染成可点击预览卡片 */}
-          {item.text && <DeliverableCards text={item.text} turnNo={turnNo} mergeRegistry={deliverTail} />}
+          {item.text && <DeliverableCards text={item.text} turnNo={turnNo} mergeRegistry={deliverTail} omitPaths={deliverOmitPaths} />}
 
-          {/* 消息操作：复制正文（常驻，Codex 式）+ 沉淀为技能（成功对话可复用） */}
+          {/* 消息操作：复制正文（Codex 式 hover 淡入，复制/评分后驻留）+
+              沉淀为技能（成功对话可复用） */}
           {item.text && !streaming && (
-            <div className="mt-1 flex items-center gap-1">
+            <div className={`mt-1 flex items-center gap-1 transition-opacity duration-150 ${
+              copied || rated ? "opacity-100" : "opacity-0 group-hover/msg:opacity-100 focus-within:opacity-100"
+            }`}>
               <button
                 type="button"
                 className="inline-flex items-center gap-1 px-1.5 py-0.5 border-0 rounded bg-transparent text-fg-faint/50 text-[10.5px] cursor-pointer hover:text-fg hover:bg-bg-soft transition-colors"

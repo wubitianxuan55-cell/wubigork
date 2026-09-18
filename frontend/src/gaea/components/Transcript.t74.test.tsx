@@ -3,7 +3,7 @@
 // 从而验证「同 props 重渲染不调用子组件、内容变化才调用」的 memo 语义。
 import { beforeAll, describe, expect, it, vi } from "vitest";
 // P4-H7：en 字典按需加载后，默认 locale=en 的模块级 t() 需先等 chunk 就绪
-import { loadLocale } from "../lib/i18n";
+import { loadLocale, LocaleProvider } from "../lib/i18n";
 import { render } from "@testing-library/react";
 import { ProcessCard, TurnBlock } from "./Transcript";
 import type { Item } from "../lib/store";
@@ -144,5 +144,34 @@ describe("ProcessCard memo（T7-4）", () => {
 
   it("ProcessCard 是 React.memo 组件", () => {
     expect((ProcessCard as unknown as { $$typeof?: unknown }).$$typeof).toBe(Symbol.for("react.memo"));
+  });
+
+  // 纯思考段（v4.308 视觉降噪）：不出过程卡头，只渲染裸思考行 + 行数摘要
+  it("纯思考段走 bare 模式：无卡头按钮，思考行带行数 meta", () => {
+    const { container } = render(
+      <LocaleProvider>
+        <ProcessCard
+          items={[{ kind: "assistant", id: "r1", text: "", reasoning: "第一行\n\n第二行", streaming: false } as Item]}
+          toolCount={0}
+          thoughtCount={1}
+          small={false}
+          subcallsByParent={noSubcalls}
+        />
+      </LocaleProvider>,
+    );
+    const bare = container.querySelector("[data-bare-process]");
+    expect(bare).not.toBeNull();
+    // 无过程卡头（头部 button 只可能是思考行自己的 .reasoning__head）
+    expect(bare?.querySelector(":scope > button")).toBeNull();
+    expect(bare?.querySelector(".reasoning__head")).not.toBeNull();
+    // 行数摘要：两段非空行 → 「2 行」
+    expect(bare?.querySelector(".reasoning__meta")?.textContent).toContain("2");
+  });
+
+  it("含工具段不出 bare 模式（保留卡头与折叠）", () => {
+    const { container } = render(
+      <ProcessCard items={[tool("t1", "read_file")]} toolCount={1} thoughtCount={0} small={false} subcallsByParent={noSubcalls} />,
+    );
+    expect(container.querySelector("[data-bare-process]")).toBeNull();
   });
 });

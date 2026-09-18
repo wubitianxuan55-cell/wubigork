@@ -3,7 +3,7 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { DeliverableCards } from "./DeliverableCards";
 import { usePreviewStore, useUpdatedFilesStore } from "../lib/store";
 import { LocaleProvider } from "../lib/i18n";
-import { invalidateTurnCaches } from "../lib/deliverablesTurn";
+import { invalidateTurnCaches, deliverablePathKey } from "../lib/deliverablesTurn";
 import type { DeliverableEntry, DirEntry, SessionMeta } from "../lib/types";
 
 // useT 需要 Provider；钉住 zh 让断言用中文文案（沿 Message.test.tsx 模式）。
@@ -108,6 +108,36 @@ describe("DeliverableCards 交付文件卡片", () => {
     // 目录探测（缺失态）随登记拉取而触发，且确认存在 → 无徽标
     await waitFor(() => expect(bindings.GaeaListDir).toHaveBeenCalled());
     expect(screen.queryByText("未生成")).toBeNull();
+  });
+
+  // v4.308 跨段去重：轮尾登记合并卡须排除同轮其它段正文已提及的路径
+  //（omitPaths 传归一键，构造方用 deliverablePathKey），防同文件双卡。
+  it("omitPaths 排除同轮其它段已提及的文件（按归一键匹配）", async () => {
+    injectBindings({
+      DeliverableRegistry: () =>
+        Promise.resolve({
+          available: true,
+          total: 2,
+          entries: [
+            entryOf({ path: "reports/已提及的方案.docx", turn: 2, updatedAt: 300 }),
+            entryOf({ path: "reports/漏提的数据.xlsx", turn: 2, updatedAt: 310 }),
+          ],
+        }),
+      ListDir: () => Promise.resolve([dirEntry("漏提的数据.xlsx")]),
+    });
+    const view = render(
+      wrap(
+        <DeliverableCards
+          text="本轮生成：reports/漏提的数据.xlsx"
+          turnNo={1}
+          omitPaths={new Set([deliverablePathKey("REPORTS/已提及的方案.DOCX")])}
+        />,
+      ),
+    );
+    await screen.findByText("漏提的数据.xlsx");
+    // 其它段已提及（键归一后命中）→ 不出卡
+    expect(screen.queryByText("已提及的方案.docx")).toBeNull();
+    expect(view.container.textContent).toContain("漏提的数据.xlsx");
   });
 
   it("登记-only 且列目录确认不存在 → 灰色淡化 + 「未生成」徽标", async () => {

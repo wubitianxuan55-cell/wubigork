@@ -140,9 +140,24 @@ export function buildSegments(items: Item[], _running = false): Segment[] {
 
   // 2026-08-26（用户决策）：删除大过程卡——所有轮次（含已完成）统一交替，
   // 文本独立显示、过程单独成卡，不再把文本和过程包在一张卡片内。
+  // 2026-09-18（尾随工具段合并）：store 事件序里工具项物理上排在流式
+  // assistant 项之后（reasoning/text 先建项、tool_dispatch 尾追），末段若为
+  // 纯过程段（无正文），时序上它属于本轮回答的生成过程而非「答后动作」——
+  // 并回前一段（前一段必有正文），过程卡随 Codex 语义渲染在正文之前。
   const segments: Segment[] = [];
   turns.forEach((turn) => {
-    segments.push(...alternatingSegments(turn));
+    const segs = alternatingSegments(turn);
+    if (segs.length >= 2) {
+      const last = segs[segs.length - 1];
+      const prev = segs[segs.length - 2];
+      const lastHasText = last.outsideItems.some((it) => it.kind === "assistant" && it.text);
+      const prevHasText = prev.outsideItems.some((it) => it.kind === "assistant" && it.text);
+      if (!lastHasText && last.processItems.length > 0 && prevHasText) {
+        prev.processItems = [...prev.processItems, ...last.processItems];
+        segs.pop();
+      }
+    }
+    segments.push(...segs);
   });
   return segments;
 }
@@ -195,6 +210,8 @@ function renderOutsideItems(
     onRegenerateTurn?: (turn: number) => void;
     /** v4.238 回答反馈能力开关（App 层恒传 true）。 */
     onFeedback?: boolean;
+    /** 轮尾登记合并卡须排除的路径键集（同轮其它段正文已提及的文件）。 */
+    deliverOmitPaths?: ReadonlySet<string>;
     subcalls: Map<string, ToolItem[]>;
     setTurnEl: (tn: number) => (el: HTMLElement | null) => void;
   },
@@ -238,6 +255,7 @@ function renderOutsideItems(
               item={it}
               turnNo={ctx.turnNo}
               deliverTail={ctx.turnTail}
+              deliverOmitPaths={ctx.turnTail ? ctx.deliverOmitPaths : undefined}
               onCollapse={ctx.onCollapse}
               onCapture={ctx.captureForId(it.id)}
               canRegenerate={ctx.canRegenerateId === it.id}
@@ -287,7 +305,7 @@ function renderOutsideItems(
 // 由 Transcript 用 useCallback 稳定化后传入，memo 才能生效。
 export const TurnBlock = memo(function TurnBlock({
   seg, running, isLast, turnNo, turnTail, openTurn, onToggleTurn, onRewindTurn, onCollapse,
-  dismissedErrors, onDismissError, captureForId, turnElsRef, workHeader, canRegenerateId, onRegenerateTurn, onFeedback,
+  dismissedErrors, onDismissError, captureForId, turnElsRef, workHeader, turnDoneSuppressed, tailOmitMentions, canRegenerateId, onRegenerateTurn, onFeedback,
 }: {
   seg: Segment;
   running: boolean;
@@ -310,6 +328,12 @@ export const TurnBlock = memo(function TurnBlock({
   /** v4.26 工作态头部：锚定在最后一轮的用户消息段（WorkHeader 自订 store 的
    *  running/turnStartAt/items，running→done 转换不依赖本组件重渲染）。 */
   workHeader?: boolean;
+  /** 本轮（工作态头部所属轮）存在过程卡时，完成态「已完成·用时」行被
+   *  过程卡头部（已工作 Xs · …）取代——同组信息不再占两行。 */
+  turnDoneSuppressed?: boolean;
+  /** 本段为轮尾且轮尾无正文时，登记-only 交付卡改挂在本段（登记合并口径
+   *  不变）；值为同轮其它段正文已提及的路径键集，防同文件双卡。 */
+  tailOmitMentions?: ReadonlySet<string>;
 }) {
   const toolCount = seg.processItems.filter((it) => it.kind === "tool" && !it.parentId).length;
   const thoughtCount = seg.processItems.filter((it) => it.kind === "assistant" && it.reasoning).length;
@@ -326,10 +350,16 @@ export const TurnBlock = memo(function TurnBlock({
     () =>
       renderOutsideItems(seg.outsideItems, {
         turnNo, turnTail, openTurn, onToggleTurn, onRewindTurn, onCollapse,
-        dismissedErrors, onDismissError, captureForId, canRegenerateId, onRegenerateTurn, onFeedback, subcalls, setTurnEl,
+        dismissedErrors, onDismissError, captureForId, canRegenerateId, onRegenerateTurn, onFeedback,
+        deliverOmitPaths: tailOmitMentions, subcalls, setTurnEl,
       }),
-    [seg.outsideItems, turnNo, turnTail, openTurn, onToggleTurn, onRewindTurn, onCollapse, dismissedErrors, onDismissError, captureForId, canRegenerateId, onRegenerateTurn, onFeedback, subcalls, setTurnEl],
+    [seg.outsideItems, turnNo, turnTail, openTurn, onToggleTurn, onRewindTurn, onCollapse, dismissedErrors, onDismissError, captureForId, canRegenerateId, onRegenerateTurn, onFeedback, tailOmitMentions, subcalls, setTurnEl],
   );
+  // 轮尾无正文段（reasoning-first 回合里工具段在正文之后成为轮尾）：
+  // 登记-only 交付卡原来只挂在轮尾段的 AssistantMessage 上，这里整段缺席
+  // 会导致本轮登记的产物卡整体丢失——补挂在本段末尾（跨段去重见
+  // tailOmitMentions）。
+  const tailHasText = seg.outsideItems.some((it) => it.kind === "assistant" && it.text);
   return (
     <>
       {hasProcess && (
@@ -343,15 +373,22 @@ export const TurnBlock = memo(function TurnBlock({
         />
       )}
       {seg.outsideItems.length > 0 && outside}
+      {turnTail && turnNo != null && !tailHasText && (
+        <DeliverableCards text="" turnNo={turnNo} mergeRegistry omitPaths={tailOmitMentions} />
+      )}
       {/* v4.26 工作态头部：紧跟用户消息（items 为空也渲染，消灭 turn_started
-          到首条 text/tool 之间的死寂窗口）；轮完成转 Codex 式耗时行。 */}
-      {workHeader && <WorkHeader />}
+          到首条 text/tool 之间的死寂窗口）；轮完成转 Codex 式耗时行。
+          本轮有过程卡时完成态行让位（turnDoneSuppressed），运行中仍常驻。 */}
+      {workHeader && <WorkHeader doneSuppressed={turnDoneSuppressed} />}
     </>
   );
 });
 
-// 过程卡内的思考块（复用 .reasoning 样式）
-function InlineReasoning({ item }: { item: AssistantItem }) {
+// 过程卡内的思考块（复用 .reasoning 样式）。
+// metaLines：bare 模式（纯思考段无卡头）时把行数摘要并进思考行头部
+// （i18n 由 InlineReasoning 的 useT 格式化），替代原「已工作 · N 段思考」
+// 卡头信息，避免同组信息占两行。
+function InlineReasoning({ item, metaLines }: { item: AssistantItem; metaLines?: number }) {
   // 思考卡默认折叠：只看到标题，点开才看推理内容。
   const [open, setOpen] = useState(false);
   const bodyRef = useRef<HTMLDivElement>(null);
@@ -374,7 +411,8 @@ function InlineReasoning({ item }: { item: AssistantItem }) {
       >
         <Brain size={12} className="reasoning__icon" />
         {running && <span aria-hidden className="w-1 h-1 rounded-full bg-accent animate-pulse shadow-[0_0_6px_var(--accent)] shrink-0" />}
-        <span className="reasoning__label">{t("reasoning.label")}</span>
+        <span className="reasoning__label">{running ? t("msg.thinkingRunning") : t("reasoning.label")}</span>
+        {metaLines != null && <span className="reasoning__meta">{t(metaLines === 1 ? "reasoning.metaLineOne" : "reasoning.metaLines", { n: metaLines })}</span>}
         <ChevronRight size={12} className={`reasoning__chevron${open ? " reasoning__chevron--open" : ""}`} />
       </button>
       <div ref={bodyRef} style={{ overflow: "hidden" }}>
@@ -391,6 +429,9 @@ function InlineReasoning({ item }: { item: AssistantItem }) {
 //    状态不只靠颜色——色 + 图标 + 文字三重传达，12 主题下可区分）──
 import { deriveProcessStatus, PROCESS_STATUS_META } from "../lib/processStatus";
 import { turnTailSegs } from "../lib/deliverablesTurn";
+import { deliverableMentions } from "../lib/fileLinks";
+import { deliverablePathKey } from "../lib/deliverablesTurn";
+import { DeliverableCards } from "./DeliverableCards";
 
 const STATUS_ICONS = { alert: AlertCircle, ban: Ban, check: CheckCircle } as const;
 
@@ -410,9 +451,11 @@ export const ProcessCard = memo(function ProcessCard({
   small?: boolean;
   subcallsByParent: Map<string, ToolItem[]>;
 }) {
-  // 展开态段默认展开；流式交替段的小过程卡默认折叠。
-  // 用户手动折叠/展开过则不干预。
-  const [open, setOpen] = useState(!small);
+  // Codex 对齐（2026-09-18）：过程卡只在运行中自动展开（实时活动可见），
+  // 完成即收起为一行「已工作 Xs · …」；历史会话恢复同样折叠。用户手动
+  // 展开/折叠过则不干预。展开态的「默认展开」旧行为已废——完成后整卡
+  // 摊开（思考+每个工具各占一行）是对话流垂直噪音的主源。
+  const [open, setOpen] = useState(false);
   const userOverridden = useRef(false);
   const prevRunningRef = useRef(running);
   const bodyRef = useRef<HTMLDivElement>(null);
@@ -428,12 +471,11 @@ export const ProcessCard = memo(function ProcessCard({
       if (!wasRunning) userOverridden.current = false;
       if (!userOverridden.current) setOpen(true);
     } else if (wasRunning && !userOverridden.current) {
-      // 本段刚完成：按 small 收敛（展开态保持展开、小过程卡折叠收起）；
-      // 用户手动折叠过则不干预。
-      setOpen(!small);
+      // 本段刚完成：收起为一行；用户手动展开过则保留。
+      setOpen(false);
       finalElapsedRef.current = turnStartAt > 0 ? Math.max(0, now - Math.floor(turnStartAt / 1000)) : 0;
     } else if (!userOverridden.current && small) {
-      // 运行中已完成的历史分段小过程卡：默认折叠（手动展开过则保留）。
+      // 运行中已完成的历史分段小过程卡：保持折叠（手动展开过则保留）。
       setOpen(false);
     }
   }, [running, turnStartAt, now, small]);
@@ -444,6 +486,12 @@ export const ProcessCard = memo(function ProcessCard({
   const elapsedStr = elapsed > 0
     ? (elapsed < 60 ? `${elapsed}s` : `${Math.floor(elapsed / 60)}m${elapsed % 60}s`)
     : "";
+
+  // 纯思考段（只有 reasoning、无工具/阶段/通知）：不出过程卡——卡头
+  // 「已工作 · N 段思考」与卡内「思考」行是同组信息占两行，是消息流
+  // 视觉噪音的主要来源。改为一行裸思考块（bare），行数/耗时并进思考行。
+  const bare = toolCount === 0 && thoughtCount > 0 &&
+    items.every((it) => it.kind === "assistant");
 
   const labelParts: string[] = [];
   if (elapsedStr) labelParts.push(t("process.worked", { t: elapsedStr }));
@@ -477,7 +525,7 @@ export const ProcessCard = memo(function ProcessCard({
       const it = gi.item;
       switch (it.kind) {
         case "assistant":
-          if (it.reasoning) out.push(<InlineReasoning key={it.id} item={it as AssistantItem} />);
+          if (it.reasoning) out.push(<InlineReasoning key={it.id} item={it as AssistantItem} metaLines={bare ? it.reasoning.split("\n").filter((l) => l.trim()).length : undefined} />);
           if (it.text) {
             out.push(
               <div key={`${it.id}-text`} className="px-2.5 py-1.5 rounded-lg bg-bg/60 border border-border-soft/50 text-fg-dim text-[12.5px] leading-relaxed whitespace-pre-wrap">
@@ -505,16 +553,25 @@ export const ProcessCard = memo(function ProcessCard({
       }
     }
     return out;
-  }, [items, subcallsByParent, lastPhaseId]);
+  }, [items, subcallsByParent, lastPhaseId, bare]);
+
+  // 纯思考段：只渲染裸思考行（无卡头/无耗时角标）；行数摘要见 InlineReasoning。
+  if (bare) {
+    return (
+      <div className="my-1 space-y-0.5" data-bare-process="">
+        {body}
+      </div>
+    );
+  }
 
   // Codex 式过程条：无边框、低噪声；运行中只有左侧细线强调，状态靠徽标传达。
   return (
-    <div className={`my-1 rounded-lg overflow-hidden transition-colors duration-[var(--dur-base)] ${
+    <div className={`my-0.5 rounded-lg overflow-hidden transition-colors duration-[var(--dur-base)] ${
       running ? "bg-accent/[0.03]" : "hover:bg-(color:--md-sys-color-surface-container-high)/40"
     }`}>
       <button
         type="button"
-        className="flex items-center gap-2 w-full px-2.5 py-1.5 text-left cursor-pointer rounded-lg transition-colors"
+        className="flex items-center gap-2 w-full px-2.5 py-1 text-left cursor-pointer rounded-lg transition-colors"
         data-running={running ? "" : undefined}
         onClick={() => { userOverridden.current = true; setOpen((v) => !v); }}
         aria-expanded={open}
@@ -529,7 +586,10 @@ export const ProcessCard = memo(function ProcessCard({
             <span>{t(statusMeta.labelKey)}</span>
           </span>
         )}
-        <span className="ml-auto text-fg-faint/50 text-[10px] font-mono tabular-nums shrink-0">{elapsedStr}</span>
+        {/* 耗时只在「已工作」缺席时角标补位（如纯阶段/通知段），不再与卡头重复 */}
+        {!elapsedStr && (
+          <span className="ml-auto text-fg-faint/50 text-[10px] font-mono tabular-nums shrink-0">{running ? t("process.working") : ""}</span>
+        )}
       </button>
       <div ref={bodyRef} style={{ overflow: "hidden" }}>
         <div className="px-2.5 pb-2 pt-0.5 space-y-0.5">{body}</div>
@@ -732,9 +792,49 @@ export function Transcript({
     return last;
   }, [segments]);
 
+  // 最后一轮是否存在过程卡（任意段的 processItems 非空）。存在时该轮完成态
+  // 的「已完成·用时」行由轮内过程卡头部「已工作 Xs · …」承担，不再双行。
+  const lastTurnHasProcess = useMemo(() => {
+    if (lastUserSegIdx < 0) return false;
+    return segments.some((seg, i) => i > lastUserSegIdx && seg.processItems.length > 0);
+  }, [segments, lastUserSegIdx]);
+
   // 每轮「最后一段」集合：登记-only 交付卡只挂轮尾段（同轮去重，见
   // deliverablesTurn.turnTailSegs）。
   const turnTails = useMemo(() => turnTailSegs(turnNos), [turnNos]);
+
+  // 轮尾段的跨段提及排除集：正文提及卡在非轮尾段也渲染，轮尾的登记合并
+  // 须排除同轮其它段已提及的路径（键 = deliverablePathKey），防同文件双卡。
+  const tailOmitBySeg = useMemo(() => {
+    const mentionsBySeg = new Map<number, Set<string>>();
+    const allByTurn = new Map<number, Set<string>>();
+    segments.forEach((seg, i) => {
+      const set = new Set<string>();
+      for (const it of seg.outsideItems) {
+        if (it.kind === "assistant" && it.text) {
+          for (const p of deliverableMentions(it.text)) set.add(deliverablePathKey(p));
+        }
+      }
+      mentionsBySeg.set(i, set);
+      const tn = turnNos.get(i);
+      if (tn != null && set.size > 0) {
+        const acc = allByTurn.get(tn);
+        if (acc) for (const k of set) acc.add(k);
+        else allByTurn.set(tn, new Set(set));
+      }
+    });
+    const out = new Map<number, Set<string>>();
+    for (const idx of turnTails) {
+      const tn = turnNos.get(idx);
+      const all = tn != null ? allByTurn.get(tn) : undefined;
+      if (!all) continue;
+      const own = mentionsBySeg.get(idx);
+      const others = new Set<string>();
+      for (const k of all) if (!own?.has(k)) others.add(k);
+      if (others.size > 0) out.set(idx, others);
+    }
+    return out;
+  }, [segments, turnNos, turnTails]);
 
   // T7-4：onToggle/onRewind/onDismiss 全部 useCallback 稳定化，UserMessage/
   // ErrorCard 的 memo 才不会被每次渲染的新函数击穿。
@@ -839,6 +939,8 @@ export function Transcript({
                 onFeedback={onFeedback}
                 turnElsRef={turnEls}
                 workHeader={segIdx === lastUserSegIdx}
+                turnDoneSuppressed={segIdx === lastUserSegIdx && lastTurnHasProcess}
+                tailOmitMentions={tailOmitBySeg.get(segIdx)}
               />
             );
           })}

@@ -1,6 +1,6 @@
 # 任务进度
 
-> 最后更新: 2026-09-18（v4.336.0 chapter-gate 通知可点击跳章节分析面板+oh-story T5 落库接线（runAs=subagent+派发契约+写作域 spawn 模板，oh-story 只剩写前契约硬闸等上游）。前次：v4.335.0 办公输入动线对齐 DSH/Codex：运行中 Enter=排队〔队列卡排序/撤回/插话回主动线〕，插话改 Alt+Enter 显式；顺带修 v4.334 轴测试裸读 flaky。前次：v4.334.0 revolution 刀8 收官——**刀 1–8 全线收官**+版本三处漂移根治；v4.333.0 阶段七出口对账——三门已落/7.4 已清/挂账三项注记，零新绑定 707。本表只留**仍开放**项；已完成历史见 .gaea/AGENTS.md 版本速览与 progress.md）
+> 最后更新: 2026-09-18（v4.337.0 办公对话流美化三轮收官：对齐 Codex web——用户消息气泡化/裸思考行 bare/过程卡完成即收起/WorkHeader doneSuppressed/尾随工具段合并/轮尾登记卡补挂+omitPaths 去重/交付卡边框容器/hover 操作/顶条只留 waiting/ToolGroup「× N」三语；纯前端零新绑定 707。前次：v4.336.0 chapter-gate 通知可点击跳章节分析面板+oh-story T5 落库接线。本表只留**仍开放**项；已完成历史见 .gaea/AGENTS.md 版本速览与 progress.md）
 
 ## 当前开放（按域）
 

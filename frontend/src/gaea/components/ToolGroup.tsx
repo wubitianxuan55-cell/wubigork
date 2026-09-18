@@ -5,6 +5,7 @@ import { ToolCard } from "./ToolCard";
 import { useCompact } from "../hooks/useCompact";
 import { useGSAPCollapse } from "../lib/useGSAPCollapse";
 import { subjectOf } from "../lib/tools";
+import { useT } from "../lib/i18n";
 import type { Item } from "../lib/store";
 
 type ToolItem = Extract<Item, { kind: "tool" }>;
@@ -15,8 +16,9 @@ export const ToolGroup = memo(function ToolGroup({ tools, onCollapse }: { tools:
   const contentRef = useRef<HTMLDivElement>(null);
   useGSAPCollapse(contentRef, open);
   const compact = useCompact();
+  const t = useT();
   if (tools.length === 0) return null;
-  const t = tools[0];
+  const t0 = tools[0];
 
   // 提取所有工具的操作目标 — 最多 3 个，溢出显示 +N
   const allSubjects = tools
@@ -42,9 +44,13 @@ export const ToolGroup = memo(function ToolGroup({ tools, onCollapse }: { tools:
           size={iconSize}
         />
         <FolderOpen className="shrink-0 text-fg-faint" size={iconSize} />
-        {/* v4.26 对齐 Claude Code "Called slack 3 times"：重复调用折叠行 */}
-        <span className={`font-mono text-fg font-medium ${compact ? "text-[11px]" : "text-xs"}`}>
-          已调用 {t.name} · {tools.length} 次
+        {/* v4.26 对齐 Claude Code "Called slack 3 times"；v4.308 文案精简为
+            「bash × 3」（Codex 式紧凑），完整语义在 title。 */}
+        <span
+          className={`font-mono text-fg font-medium ${compact ? "text-[11px]" : "text-xs"}`}
+          title={t("toolGroup.calledTitle", { name: t0.name, n: tools.length })}
+        >
+          {t("toolGroup.called", { name: t0.name, n: tools.length })}
         </span>
         {subjects.length > 0 && (
           <span className={`text-fg-faint truncate ml-1 ${compact ? "text-[10px]" : "text-[11px]"}`}>

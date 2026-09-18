@@ -2,13 +2,16 @@ import { useEffect, useRef, useState } from "react";
 import { t } from "../lib/i18n";
 import type { DictKey } from "../locales/en";
 
-// StreamingIndicator — 对话窗最底兜底的连接状态条（v4.26 重定）。
+// StreamingIndicator — 对话窗最底兜底的连接状态条（v4.26 重定，v4.308 降噪）。
 //
 // Why：v4.26 工作态头部行（WorkHeader）已接管主反馈（阶段文本 + 已用时 +
 // 步数，items 为空也渲染），本组件降级为「首个事件都没到」的最底兜底——
 // 原「准备中→生成中→工具执行中→仍在处理…」多阶段文案与头部信息重复，
 // 收敛为两档：连接中（≤5s）/ 仍在等待事件（>5s，附「可切轨迹面板查看」
 // 提示，指引用户去 TrajectoryView 深度层排查，而不是干等）。
+// v4.308：连接档（≤5s）与 WorkHeader spinner 完全同义，顶条不再显示——
+// 只有超 5s 升级到 waiting 档才出现（携带 WorkHeader 没有的「切轨迹排查」
+// 指引）。正常回合的运行态不再有第二行反馈横幅。
 //
 // How：running 时启动 5s 定时器，超时未收到任何反馈即升级 waiting 档；
 // 保留 sticky 顶条布局（占位防虚拟列表抖动）与语义色点。
@@ -47,7 +50,8 @@ export function StreamingIndicator({
     };
   }, [running]);
 
-  const hidden = !running || stage === "idle";
+  // 只有 waiting（>5s 无事件）档显示顶条；connecting 档由 WorkHeader spinner 覆盖。
+  const hidden = !running || stage !== "waiting";
   const cfg = stageConfig[hidden ? "idle" : stage];
 
   return (

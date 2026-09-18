@@ -91,6 +91,48 @@ describe("buildSegments", () => {
   });
 });
 
+// ── v4.308 尾随工具段合并 ────────────────────────────────────────────────
+// store 事件序 artifact：reasoning/text 先建 assistant 项、tool_dispatch 尾追，
+// 工具段物理上排在正文段之后但时序属于本轮回答的生成过程。末段为纯过程段
+// （无正文）且前段有正文 → 并回前一段，过程卡渲染在正文之前（Codex 语义）。
+describe("v4.308 尾随工具段合并", () => {
+  it("末段纯过程段并回前一段（过程卡在正文之前）", () => {
+    const items: Item[] = [
+      u("u1", "整理季度数据"),
+      a("a1", "我先查看资料再整理给你。", "先看看目录"),
+      tool("t1", "ls"),
+      tool("t2", "write_file"),
+    ];
+    const segs = buildSegments(items, false);
+    // 用户段 + 合并后的单段（工具进前段过程、正文留在外面）
+    expect(segs).toHaveLength(2);
+    expect(segs[1].processItems.map((x) => x.id)).toEqual(["a1", "t1", "t2"]);
+    expect(segs[1].outsideItems.map((x) => x.id)).toEqual(["a1"]);
+  });
+
+  it("工具段前无正文（用户后直接工具）不合并，保持独立段", () => {
+    const items: Item[] = [u("u1", "跑个任务"), tool("t1", "bash")];
+    const segs = buildSegments(items, false);
+    expect(segs).toHaveLength(2);
+    expect(segs[1].processItems.map((x) => x.id)).toEqual(["t1"]);
+    expect(segs[1].outsideItems).toHaveLength(0);
+  });
+
+  it("末段带正文（答后又有新回答）不合并，交替契约不变", () => {
+    const items: Item[] = [
+      u("u1", "两步走"),
+      a("a1", "第一步结论", ""),
+      tool("t1", "write_file"),
+      a("a2", "第二步结论", ""),
+    ];
+    const segs = buildSegments(items, false);
+    expect(segs).toHaveLength(3);
+    expect(segs[1].outsideItems.map((x) => x.id)).toEqual(["a1"]);
+    expect(segs[2].processItems.map((x) => x.id)).toEqual(["t1"]);
+    expect(segs[2].outsideItems.map((x) => x.id)).toEqual(["a2"]);
+  });
+});
+
 // ── v4.26「对话流式重造 · 对齐 Codex」──────────────────────────────────
 
 // phase 收编：最新 phase 由 WorkHeader 工作态头部展示（组件层），历史 phase
