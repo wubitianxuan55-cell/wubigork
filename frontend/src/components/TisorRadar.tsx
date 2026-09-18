@@ -3,7 +3,7 @@
 import React, { useState } from 'react'
 
 interface Props {
-  dims: { T: number; I: number; S: number; O: number; R: number }
+  dims?: { T: number; I: number; S: number; O: number; R: number }
   size?: number       // SVG 画布尺寸，默认 200
   color?: string      // 数据区域主色，默认粉色
   showLabels?: boolean
@@ -21,6 +21,8 @@ function polar(cx: number, cy: number, r: number, angleDeg: number): [number, nu
 
 export default function TisorRadar({ dims, size = 200, color = '#e85388', showLabels = true }: Props) {
   const [hovered, setHovered] = useState<string | null>(null)
+  // 五维档案缺档（如旧数据/外部来源角色）不渲染雷达——渲染崩溃会拖垮整个错误边界
+  if (!dims) return null
   const cx = size / 2, cy = size / 2
   const radius = size * 0.34
   const levels = [0.2, 0.4, 0.6, 0.8, 1.0]

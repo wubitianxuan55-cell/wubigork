@@ -46,17 +46,21 @@ const characters = [
     id: "c_lin", name: "林晚", kind: "custom", gender: "female", tags: ["女主角", "清冷"],
     portraitUrl: charPortrait("林", 265), roleType: "女主", personality: "清冷聪慧，外冷内热",
     background: "前朝遗孤，隐姓埋名于市井，身负血仇", chatEnabled: true,
+    // dims 与真实后端对齐：Go 侧 Dims 为值类型必出（whisper.PersonalityDims）
+    dims: { T: 35, I: 78, S: 82, O: 64, R: 41 },
   },
   {
     id: "c_gucheng", name: "顾城", kind: "custom", gender: "male", tags: ["男主角", "将领"],
     portraitUrl: charPortrait("顾", 200), roleType: "男主", personality: "沉稳寡言，护短",
     background: "边关少将，战功赫赫却厌战", chatEnabled: true,
+    dims: { T: 28, I: 55, S: 40, O: 47, R: 80 },
   },
   {
     // T1 画室「创作资产」角色槽扩样例：无立绘可聊天角色（诚实占位路径）。
     id: "c_baimo", name: "白墨", kind: "custom", gender: "male", tags: ["书生", "谋士"],
     portraitUrl: "", roleType: "配角", personality: "温吞细致，擅推演",
     background: "落第书生，以抄书为业，胸有丘壑", chatEnabled: true,
+    dims: { T: 52, I: 60, S: 58, O: 72, R: 76 },
   },
 ];
 

@@ -3,6 +3,13 @@
 > 本文件为**最近发布速览**。完整历史磁带见 `docs/archive/progress-history-2026-09.md`
 > 与 `releases/`。
 
+## 最新发布：v4.346.0（2026-09-19）「UI 健壮性双修：错误边界页级隔离（keepAlive 连坐根修）+ TisorRadar 缺档崩页」
+
+- **来源**：UI 优化班——隔离目检（vite dev ?mock=1 + 无头 Edge CDP）双空间全页×明暗两态；纯前端四文件，零新绑定 705。
+- **根修**：①MainLayout 错误边界下沉 keepAlive 每页内部（原包整组外面=任何一页崩卸载全部页且后续导航全停错误态，keepAlive 状态俱失）②TisorRadar dims 守卫+CharacterCard 调用方守卫（缺档不渲染不出假图）③mock 三角色补 dims 对齐真契约。
+- **测试**：TisorRadar.test +3 +CharacterCard.test +1（按 circle 计数断言）定向 19/19；tsc 0。
+- **验收**：修复前角色库明暗皆崩；修复后 3 卡×30 circle 雷达在位、双空间明暗全绿；全量 ci 绿；drift OK@705；产物见 releases/v4.346.0.md。
+- **未做（下刀）**：亮态 accent 对比度打磨（视觉拍板维持观察池）；动效手感待上手定论；真机走查清池班；技能核数 ≈09-30。
 ## 最新发布：v4.345.0（2026-09-19）「filewatch 关闭竞态根修：fs 通道关闭路径漏 close(out) 致消费方挂起」
 
 - **来源**：全量 ci 偶发时间型 flaky 深挖——预算拉满 10s 仍挂=真缺陷非调度慢。

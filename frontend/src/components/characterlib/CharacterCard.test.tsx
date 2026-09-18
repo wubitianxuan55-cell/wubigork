@@ -196,4 +196,14 @@ describe('CharacterCard', () => {
     const { container: c } = render(<CharacterCard character={makeCharacter({ kind: 'custom' })} index={0} {...baseProps} />)
     expect(c.querySelector('[title="创建青鸟助手"]')).not.toBeNull()
   })
+  it('chatEnabled 但五维档案缺档：不渲染雷达也不崩（旧档/外部来源角色；v4.346 前会整页崩进错误边界）', () => {
+    const { container } = render(
+      <CharacterCard character={makeCharacter({ dims: undefined })} index={0} {...baseProps} />,
+    )
+    // 雷达特征是 circle（antd 动作图标也是 svg，不能按标签判）
+    expect(container.querySelectorAll('svg circle').length).toBe(0)
+    // 卡片本体与动作照常
+    expect(container.querySelector('.ccard-name')?.textContent).toBe('苏念')
+    expect(container.querySelector('[title="编辑"]')).not.toBeNull()
+  })
 })

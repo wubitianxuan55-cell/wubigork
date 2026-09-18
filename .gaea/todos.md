@@ -1,6 +1,6 @@
 # 任务进度
 
-> 最后更新: 2026-09-19（v4.345.0 filewatch 关闭竞态根修：fs.Close 连带关闭 fsnotify 事件通道的路径此前直接 return 漏 close(out)，与 done 分支 select 竞速 1/20 概率致消费方 range Events() 永久挂起——closeOut 幂等收敛三退出路径+TestCloseStopsEvents 终态轮询 10s 预算；20 连跑全绿。前次：v4.344.0 编辑器持久标注高亮。本表只留**仍开放**项）
+> 最后更新: 2026-09-19（v4.346.0 UI 健壮性双修：MainLayout 错误边界下沉 keepAlive 每页内部〔原包整组外面=任何一页崩连坐全壳、keepAlive 状态俱失〕+TisorRadar dims 缺档守卫〔角色库整页崩根修〕+mock 角色补 dims 对齐真契约；隔离目检双空间明暗全绿。前次：v4.345.0 filewatch 关闭竞态根修。本表只留**仍开放**项）
 
 ## 当前开放（按域）
 

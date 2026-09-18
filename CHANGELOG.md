@@ -1,3 +1,13 @@
+## v4.346.0 · UI 健壮性双修：错误边界页级隔离（keepAlive 连坐根修）+ TisorRadar 缺档崩页（2026-09-19）
+> UI 优化班——隔离目检（vite dev ?mock=1 + 无头 Edge CDP）双空间全页×明暗两态扫出一处整页崩溃与一处架构级连坐缺陷，全部根修。纯前端四文件，零新绑定 705、零新依赖、零功能删减。
+**发现**=角色库整页崩进错误边界（`Cannot read properties of undefined (reading 'T')`，堆栈单点收敛 TisorRadar `dims[k]/100`）；顺带揪出更深一条：边界崩一次后切任何页都停在错误态——目检现场的「原罪页也崩」即此假象（原罪本体无辜）。
+**根修**=①MainLayout 错误边界下沉到 keepAlive 每页内部：壳层 visitedPages 全部已访问页常驻挂载，边界包在整组外面时任何一页崩溃会卸载全部页（keepAlive 状态一并丢失）且后续所有导航停在错误态——与「防止单页崩溃拖垮整个应用」的注释意图相反；页级实例后崩溃只瘫自己那页，外层边界保留兜底②TisorRadar 组件级守卫：`dims` 可选+缺档渲染 null（真数据旧档/外部来源可缺，Inspector 的 `c.dims &&` 守卫是先例，卡片漏了）+CharacterCard 调用方守卫对齐（缺档不渲染雷达，不出假图）③mock 三角色补 dims：Go 侧 Dims 值类型必出，mock 对齐真契约——本次崩页正是 mock 与真实形状分叉暴露的洞。
+**测试**=新增 TisorRadar.test +3（缺档 null 不崩/有档 5 点 10 圆+五标签/showLabels=false 零标签）；CharacterCard.test +1（chatEnabled 缺 dims → 零 circle 不崩、卡片动作照常；antd 图标也是 svg，按 circle 计数断言）。
+**门禁**=tsc 0；定向 19/19 绿；全量 ci.ps1 绿；drift OK@705（零绑定变更）；版本三处 4.346.0（sync-version.ps1）；产物=exe 50844160B SHA256=5c2a7ec30751b31bc6eb739e2ba6b0250eec844b70795a7c8565954c22c24631（releases+SUMS；桌面副本同哈希；冒烟 200 过）。首轮全量撞 BookHealthPanel 负载型 flaky（足迹零交叠，隔离 7/7 绿，复跑全量绿收口）；抬版本手改漏 app_info.go 被漂移门禁逮住——一律走 sync-version.ps1。
+**目检**=修复前角色库明暗皆崩「页面渲染出错」；修复后 3 卡×30 circle 雷达在位、错误边界 0，双空间明暗全绿。脚本与截图 .tmp/uiwalk-v4346*。
+**坑**=①错误边界+keepAlive 是隐形耦合：边界粒度必须与常驻粒度对齐，否则「隔离」只在注释里②生成类型说必填≠运行时必达，TS 挡不住 mock/旧档缺档，防御守卫落在渲染组件边界③CDP 目检切主题走 rail 按钮 aria-label（Tooltip 不落 title）；无头 Edge 临时 profile 记住主题态，脚本按当前态自适应。
+**未做（下刀）**=亮态 accent 弱化文本对比度打磨（视觉拍板项维持观察池）；动效手感待上手定论；真机走查清池班；技能核数 ≈09-30。
+
 ## v4.345.0 · filewatch 关闭竞态根修：fs 通道关闭路径漏 close(out) 致消费方挂起（2026-09-19）
 > 真机走查班后续——全量 ci 偶发的时间型 flaky 深挖后是真并发缺陷。单文件 Go 修复+测试加固。
 **根因**=loop() 三退出路径中，`fs.Close()` 连带关闭 fsnotify Events/Errors 通道的两条路径此前裸 `return` 漏 `close(w.out)`——与 done 分支 select 竞速（随机取胜），输了就永不关闭输出通道，消费方 `for range w.Events()`（工作区语义索引触发链）永久挂起=关闭竞态协程泄漏。压测频率 ~1/20，全量 ci 高负载放大竞速窗口。

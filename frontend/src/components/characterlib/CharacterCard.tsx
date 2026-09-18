@@ -151,7 +151,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
       </div>
 
       <div className="ccard-foot">
-        {c.chatEnabled && (
+        {c.chatEnabled && c.dims && (
           <TisorRadar dims={c.dims} size={52} color="var(--gaea-glow)" showLabels={false} />
         )}
         <div className="ccard-actions">

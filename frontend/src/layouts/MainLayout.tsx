@@ -766,14 +766,19 @@ const MainLayout: React.FC = () => {
                       const Comp = p === getActiveHomeBoard().id ? undefined : resolvePageComponent(p)
                       return (
                         <div key={p} className="page-enter" style={{ display: p === page ? 'flex' : 'none', flex: 1, flexDirection: 'column', minHeight: 0 }}>
-                          {p === getActiveHomeBoard().id
-                            ? <ModuleLauncher
-                                onNavigate={(target: LauncherTarget) => navigateBoard(target as Page)}
-                                activeModel={activeModel || undefined}
-                                space={space}
-                                onSwitchSpace={switchSpace}
-                              />
-                            : Comp ? <Comp /> : null}
+                          {/* 边界在每页内部：keepAlive 下所有已访问页常驻挂载，边界若包在整组外面，
+                              任何一页崩溃会卸载全部页并让后续所有导航都停在错误态（连坐）。
+                              页级隔离后崩溃只瘫自己那页，其余页与各自状态不受牵连。 */}
+                          <ErrorBoundary>
+                            {p === getActiveHomeBoard().id
+                              ? <ModuleLauncher
+                                  onNavigate={(target: LauncherTarget) => navigateBoard(target as Page)}
+                                  activeModel={activeModel || undefined}
+                                  space={space}
+                                  onSwitchSpace={switchSpace}
+                                />
+                              : Comp ? <Comp /> : null}
+                          </ErrorBoundary>
                         </div>
                       )
                     })}
