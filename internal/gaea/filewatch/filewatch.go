@@ -45,6 +45,7 @@ type Watcher struct {
 	out       chan Event
 	done      chan struct{}
 	closeOnce sync.Once
+	outOnce   sync.Once // out 关闭只做一次（loop 各退出路径竞速共用）
 
 	mu       sync.Mutex
 	watchErr error // 监听过程中出现的错误（目录不可加等），调用方据此回退
@@ -93,6 +94,13 @@ func (w *Watcher) WatchErr() error {
 
 // Events 返回去抖事件批次通道（Start 后可用）。
 func (w *Watcher) Events() <-chan Event { return w.out }
+
+// closeOut 关闭输出通道（幂等）：loop 的各退出路径（done / fs 通道关闭）
+// 竞速共用——v4.345 根修：fs.Close() 会连带关闭 fsnotify 的事件通道，此前
+// 该路径直接 return 漏掉 close(out)，消费方 range Events() 永久挂起。
+func (w *Watcher) closeOut() {
+	w.outOnce.Do(func() { close(w.out) })
+}
 
 // Start 开始监听：递归添加目录（跳过 skipDirs），启动事件循环。
 // 目录添加失败不致命（记录 WatchErr，仍监听已成功的子树）。
@@ -184,18 +192,20 @@ func (w *Watcher) loop() {
 		select {
 		case <-w.done:
 			flush()
-			close(w.out)
+			w.closeOut()
 			return
 		case <-timerC:
 			flush()
 			timerC = nil
 		case err, ok := <-w.fs.Errors:
 			if !ok {
+				w.closeOut()
 				return
 			}
 			w.setErr(err)
 		case ev, ok := <-w.fs.Events:
 			if !ok {
+				w.closeOut()
 				return
 			}
 			rel, relErr := filepath.Rel(w.root, ev.Name)

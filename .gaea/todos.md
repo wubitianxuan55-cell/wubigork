@@ -1,6 +1,6 @@
 # 任务进度
 
-> 最后更新: 2026-09-19（v4.344.0 t7 最终形态：编辑器持久标注高亮——annotations 驱动全量 mark 常驻，dirty 编辑退场，分段工具收敛 annotationMarks.ts；零新绑定 705。前次：真机走查班全绿；v4.343.0 定位镜像轻量版。本表只留**仍开放**项）
+> 最后更新: 2026-09-19（v4.345.0 filewatch 关闭竞态根修：fs.Close 连带关闭 fsnotify 事件通道的路径此前直接 return 漏 close(out)，与 done 分支 select 竞速 1/20 概率致消费方 range Events() 永久挂起——closeOut 幂等收敛三退出路径+TestCloseStopsEvents 终态轮询 10s 预算；20 连跑全绿。前次：v4.344.0 编辑器持久标注高亮。本表只留**仍开放**项）
 
 ## 当前开放（按域）
 

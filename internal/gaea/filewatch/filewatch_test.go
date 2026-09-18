@@ -175,14 +175,20 @@ func TestCloseStopsEvents(t *testing.T) {
 	if err := w.Close(); err != nil {
 		t.Fatalf("close: %v", err)
 	}
-	// 关闭后通道应被关闭
-	select {
-	case _, ok := <-w.Events():
-		if ok {
-			t.Fatal("关闭后不应再收到事件")
+	// 关闭后通道应被关闭：close(w.out) 在 loop 协程里做（done 触发后），
+	// 负载下协程调度可能晚于短窗口——等终态，10s 预算（异步链断言等终态
+	// 不赌时序纪律，v4.335 先例）。
+	deadline := time.After(10 * time.Second)
+	for {
+		select {
+		case _, ok := <-w.Events():
+			if ok {
+				t.Fatal("关闭后不应再收到事件")
+			}
+			return
+		case <-deadline:
+			t.Fatal("关闭后事件通道应关闭（10s 预算内未终态）")
 		}
-	case <-time.After(2 * time.Second):
-		t.Fatal("关闭后事件通道应关闭")
 	}
 }
 

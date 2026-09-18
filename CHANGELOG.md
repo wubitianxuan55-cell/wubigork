@@ -1,3 +1,12 @@
+## v4.345.0 · filewatch 关闭竞态根修：fs 通道关闭路径漏 close(out) 致消费方挂起（2026-09-19）
+> 真机走查班后续——全量 ci 偶发的时间型 flaky 深挖后是真并发缺陷。单文件 Go 修复+测试加固。
+**根因**=loop() 三退出路径中，`fs.Close()` 连带关闭 fsnotify Events/Errors 通道的两条路径此前裸 `return` 漏 `close(w.out)`——与 done 分支 select 竞速（随机取胜），输了就永不关闭输出通道，消费方 `for range w.Events()`（工作区语义索引触发链）永久挂起=关闭竞态协程泄漏。压测频率 ~1/20，全量 ci 高负载放大竞速窗口。
+**修复**=①outOnce sync.Once + closeOut()：三条退出路径统一幂等关闭②TestCloseStopsEvents 断言 2s 硬超时改终态轮询（10s 预算，v4.335 纪律）——既是加固也是回归锁（修复前 1/20 必挂，修复后 20/20 绿）。
+**坑**=flaky 分两级：预算太短（改预算就绿，掩盖真缺陷）与预算拉满仍挂（真缺陷）——治理必须压测到「拉满仍挂」才停，否则只是把缺陷埋深；select 多通道退出的关闭路径逐条清点，主动关闭正确≠被动关闭正确（fsnotify 连带关闭=隐形触发源）。
+**门禁**=go vet 0；filewatch 20 连跑全绿；全量 ci.ps1 绿；drift OK@705（零绑定变更）；版本三处 4.345.0；产物=exe 50843648B SHA256=b3befbdc11c7975aa272848ac9deca857bade2b2dca267feca573ba99e465cf0（releases+SUMS；桌面副本同哈希；冒烟 200 过）。
+**文档**=releases/v4.345.0.md+CHANGELOG/README+AGENTS 迁 1 插 1（六十迁）+progress/todos。
+**未做（下刀）**=真机走查清池班（v4.319~v4.345；持久 overlay 目检随下一班）；技能核数 ≈09-30；t2 余项按反馈。
+
 ## v4.344.0 · t7 最终形态：编辑器持久标注高亮（overlay 常驻 + 编辑退场）（2026-09-19）
 > v4.343 轻量版的完全体（真机镜像对齐已过，最后顾虑清掉）；纯前端三文件，零新绑定 705、零新依赖。
 **落地**=①分段工具收敛：新建 create/annotationMarks.ts（buildAnnSegments+runeToCodeUnit），面板高亮视图与编辑器镜像同一实现——rune↔code-unit 口径全仓唯一出处（Panel 本地副本删除，11 用例零改动=重构等价证明）②EditorPanel：单条 hl 换 annotations prop 驱动 marks（useMemo 派生），镜像渲染全量段（交叠钳制 Q5 口径）；dirty 纪律——正文编辑整体退场（偏移漂移结构性规避）、切章/标注重载恢复；gutter 镜像显形时 rAF 实测③CreatePage 随激活章加载 NovelChapterAnnotations（alive 守卫防竞态）④locate 句柄契约不变（光标+滚动），与常驻 mark 解耦。
