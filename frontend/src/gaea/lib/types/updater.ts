@@ -18,21 +18,3 @@ export interface UpdateProgress {
   total: number;
   err?: string;
 }
-
-// TCCA 缓存报告（V3.0 — 匹配 internal/context/metrics.go CacheReport）
-export interface TCCAReport {
-  l1Size: number;
-  l2Size: number;
-  l3Version: number;
-  l4Messages: number;
-  savedByCompact: number;
-  savedByFork: number;
-  forkCount: number;
-  savedUsd: number;
-  savedLatencyMs: number;
-  compactionCount: number;
-  // V5.30: 全会话缓存命中统计 (来自 agent + context metrics)
-  cacheHitTokens: number;
-  cacheMissTokens: number;
-  breakCount: number;
-}

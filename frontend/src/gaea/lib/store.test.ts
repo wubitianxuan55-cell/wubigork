@@ -121,7 +121,6 @@ describe("useController bridge 失败记录（T6-1.2）", () => {
       GaeaBalance: async () => ({ available: true, display: "CNY 0.00" }),
       GaeaJobs: async () => [],
       GaeaFactBase: async () => ({ facts: [], markdown: "", count: 0, path: "" }),
-      GaeaTCCAReport: async () => '{"ok":true}',
     };
   }
 
@@ -154,16 +153,4 @@ describe("useController bridge 失败记录（T6-1.2）", () => {
     expect(lfe).toHaveBeenCalledWith(expect.stringContaining("[BalanceError]"));
   });
 
-  it("TCCAReport JSON 解析失败经 LogFrontendError 记录（内层 catch 也不再静默）", async () => {
-    const f = facadeOk();
-    f.GaeaTCCAReport = async () => "{not json";
-    (window as unknown as { go?: { app?: Record<string, unknown> } }).go = { app: { CoreB: f } };
-    const lfe = f.GaeaLogFrontendError as ReturnType<typeof vi.fn>;
-    renderHook(() => useController());
-    await act(async () => {
-      emitMock({ kind: "turn_done" });
-      await new Promise((r) => setTimeout(r, 0));
-    });
-    expect(lfe).toHaveBeenCalledWith(expect.stringContaining("TCCAReport JSON.parse"));
-  });
 });

@@ -128,9 +128,6 @@ export interface WireEvent {
 // 先以交叉扩展显式补齐；生成物刷新（wails generate module）后两侧一致，此扩展可回收。
 export type HistoryMessage = WireShape<AppModels.HistoryMessage> & { subagentRef?: string };
 
-// CheckpointMeta is one rewind point (a user turn) for the rewind UI.
-export type CheckpointMeta = WireShape<AppModels.CheckpointMeta>;
-
 // SessionStatsView 是会话级 token/成本派生统计（后端从事件日志重放 usage 事件）。
 // available=false 表示该会话无事件日志（legacy 会话或路径非法），前端不展示
 // 历史统计块。

@@ -41,7 +41,6 @@ func (b *OfficeB) GaeaCaptureScreen() (string, error) { return b.a.GaeaCaptureSc
 func (b *OfficeB) GaeaCaptureSkill(in SkillCaptureInput) (SkillCaptureResult, error) { return b.a.GaeaCaptureSkill(in) }
 func (b *OfficeB) GaeaChangeFactType(name string, typ string) (string, error) { return b.a.GaeaChangeFactType(name, typ) }
 func (b *OfficeB) GaeaCheckUpdate() (*UpdateInfo, error) { return b.a.GaeaCheckUpdate() }
-func (b *OfficeB) GaeaCheckpoints() []CheckpointMeta { return b.a.GaeaCheckpoints() }
 func (b *OfficeB) GaeaCommands() []CommandInfo { return b.a.GaeaCommands() }
 func (b *OfficeB) GaeaContext() ContextInfo { return b.a.GaeaContext() }
 func (b *OfficeB) GaeaContextNodeDetail(seq int64, sessionPath string) (contextview.NodeDetail, error) { return b.a.GaeaContextNodeDetail(seq, sessionPath) }
@@ -189,7 +188,6 @@ func (b *OfficeB) GaeaSummarizeFile(rel string, focus string) (GaeaSummaryResult
 func (b *OfficeB) GaeaSummarizeFrom(turn int) error { return b.a.GaeaSummarizeFrom(turn) }
 func (b *OfficeB) GaeaSummarizeUpTo(turn int) error { return b.a.GaeaSummarizeUpTo(turn) }
 func (b *OfficeB) GaeaSwitchWorkspace(path string) string { return b.a.GaeaSwitchWorkspace(path) }
-func (b *OfficeB) GaeaTCCAReport() string { return b.a.GaeaTCCAReport() }
 func (b *OfficeB) GaeaTaskCancel(id string) error { return b.a.GaeaTaskCancel(id) }
 func (b *OfficeB) GaeaTaskInboxDelete(id string) error { return b.a.GaeaTaskInboxDelete(id) }
 func (b *OfficeB) GaeaTaskInboxList(space string) []TaskInboxView { return b.a.GaeaTaskInboxList(space) }

@@ -3,7 +3,6 @@ package app
 import (
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/gaea/gaea/internal/gaea/agent"
@@ -248,40 +247,4 @@ func TestGaeaFork(t *testing.T) {
 	if _, err := ctrl.ResumeFromDisk(newPath); err != nil {
 		t.Fatalf("分叉会话恢复失败: %v", err)
 	}
-}
-
-func TestGaeaCheckpoints(t *testing.T) {
-	restore := workspaceTestIsolate(t)
-	defer restore()
-	oldCfg, oldCtrl := ga.cfg, ga.ctrl
-	defer func() { ga.cfg, ga.ctrl = oldCfg, oldCtrl }()
-
-	ws := t.TempDir()
-	ga.cfg = &gaeaConfig.Config{Workspace: ws}
-	path := buildRewindSession(t, gaeaConfig.WorkspaceSessionDir(ws, ""))
-
-	ctrl := rewindController(t, path)
-	ga.ctrl = ctrl
-	defer ctrl.Close()
-
-	a := &App{}
-	cps := a.GaeaCheckpoints()
-	if len(cps) != 2 {
-		t.Fatalf("Checkpoints = %d, want 2; %+v", len(cps), cps)
-	}
-	if cps[0].Turn != 0 || cps[0].Prompt != "帮我写周报" {
-		t.Errorf("cp0 = %+v, want {Turn:0 Prompt:帮我写周报}", cps[0])
-	}
-	if len(cps[0].Files) != 1 || cps[0].Files[0] != "report.md" {
-		t.Errorf("cp0.Files = %v, want [report.md]", cps[0].Files)
-	}
-	if cps[1].Turn != 1 || cps[1].Prompt != "改成英文" {
-		t.Errorf("cp1 = %+v, want {Turn:1 Prompt:改成英文}", cps[1])
-	}
-	// 引擎未初始化返回空
-	ga.ctrl = nil
-	if cps := a.GaeaCheckpoints(); len(cps) != 0 {
-		t.Errorf("引擎未初始化 Checkpoints = %+v, want 空", cps)
-	}
-	_ = strings.Contains
 }

@@ -20,7 +20,6 @@ function facadeOk(): Record<string, unknown> {
     GaeaBalance: async () => ({ available: true, display: 'CNY 0.00' }),
     GaeaJobs: async () => [],
     GaeaFactBase: async () => ({ facts: [], markdown: '', count: 0, path: '' }),
-    GaeaTCCAReport: async () => '{"ok":true}',
   }
 }
 

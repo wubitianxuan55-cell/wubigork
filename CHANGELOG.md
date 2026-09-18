@@ -1,3 +1,13 @@
+## v4.338.0 · 无参绑定会话语义审计收官 + 死链清理（绑定面 707→705）（2026-09-19）
+> todos 挂账「GaeaHistory/ContextView 等无参绑定内核会话语义逐个审计」收官（v4.181.0 起挂池）；审计档 docs/gaea-session-binding-audit-2026-09.md。
+**审计结论=需修 0 项，家族关闭**。枚举全部 Gaea* 导出绑定逐个核对 ga.ctrl 会话态读点与前端消费方——核心发现=该应用会话模型构造性保证「看历史必经 ResumeSession 切内核」（currentSessionPath 的 current 标记本身来自 GaeaListSessions 读 c.SessionPath()）：①对话主流水线（History/ResyncEvents/Context/FactBase/ListSessions Current 标记）无参读内核自洽，无「旁路查看另一会话」UI 目标②v4.181 旁路看板族（轨迹/网络/上下文/子代理 runs）无同构残余③提交类/引擎级豁免。**复审口径入档**：新绑定无参读内核会话三条件（跟随实时流的视图/动作类/引擎级），带会话切换的看板一律显式 sessionPath。
+**顺手清账两条死链（707→705）**=①GaeaCheckpoints（全仓唯一引用=bridge 声明+mock，UI 回退实走 GaeaRewind）——连带删 CheckpointMeta 类型/门面/TestGaeaCheckpoints/wire 类型/wailsjs 再生，rewind.go 注释自述化（内核能力保留）②GaeaTCCAReport（返回值仅入库 state.tcca 零渲染消费）——连带删 controller 两处拉取+action/reducer/字段+TCCAReport 接口+mock+三处测试 mock 键与 JSON.parse 错误注入用例。
+**拍板池新候选**=GaeaSkillDraftFromSession 参数化（唯一无参读全会话做 LLM 加工点；「从历史会话蒸馏技能」功能增量候拍板）。
+**坑**=①gen_bindings -names 只打印不写盘（v4.145 在案）bindingNames.ts 手工同步；wailsjs 目录 gitignore 再生后 git status 不显示，验证须看文件本身②删 Go 测试带走 import 唯一使用（_ = strings.Contains）——build 段不测 test 文件，删测试后须 go vet 快验。
+**门禁**=go build/vet 0+internal/app 全量 ok；tsc/eslint 0；store 域 38/38；drift OK@705；全量 ci.ps1 绿；版本三处 4.338.0；产物=exe 50833408B SHA256=9d4f70562e1e9e4b82fb4373cc7d4cef2e2de15bca301196baaf67f13ed5b0d5（releases+SUMS；桌面副本同哈希；冒烟 200 过）。
+**文档**=审计档+releases/v4.338.0.md+CHANGELOG/README+AGENTS 迁 1 插 1（五十三迁）+progress/todos。
+**未做（下刀）**=真机走查清池班（v4.319~v4.338 挂池，须闲置窗口）；技能 ≥5 次核数 ≈09-30；TaskCenter 会话关联结构刀（另立版本）。
+
 ## v4.337.0 · 办公对话流美化三轮收官：对齐 Codex web（降噪+动线+语义归位）（2026-09-18）
 > 办公对话流美化线程收口发版（对齐 Codex web 三轮）。纯前端零新绑定 707，零 Go 改动；规格=releases/v4.337.0.md。
 **落地十件**=①用户消息气泡化（surface-container-high+细边框，替代无气泡裸文本——轮次边界扫读清晰）②裸思考行 bare 模式（纯思考段不出过程卡，一行裸思考块+行数 meta 进思考行；meta 三语键 reasoning.metaLineOne/metaLines+英文单复数——收口修掉初版硬编码中文「行」）③过程卡完成即收起（运行中自动展开/完成收起一行「已工作 Xs·…」/历史恢复同样折叠/手动干预保留；旧「展开态默认展开」废=垂直噪音主源；耗时角标只在「已工作」缺席时补位）④WorkHeader 三改（轮内有过程卡时完成态「已完成·用时」行让位 doneSuppressed/纯问答轮 0 步完成态不渲染/运行态样式对齐过程条左细线+hover 底）⑤尾随工具段合并（buildSegments 末段纯过程并回前段——store 事件序工具尾追，过程卡按 Codex 语义渲染在正文前，消「答后动作」假象）⑥轮尾登记-only 交付卡补挂（reasoning-first 轮尾无正文段原先丢卡）+omitPaths 跨段去重（防同文件双卡）⑦交付卡统一边框容器（细边框+行分隔线+整卡一圆角）⑧消息操作 hover 淡入（复制/评分后驻留）⑨顶条只留 waiting 档（≤5s 连接档与 WorkHeader spinner 同义不显示；>5s 才出顶条——正常回合运行态无第二行横幅）⑩ToolGroup 文案精简「bash × 3」+title 完整语义（三语新键）+ToolCard 代码块圆角统一。

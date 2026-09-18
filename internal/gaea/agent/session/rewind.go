@@ -5,8 +5,9 @@ package session
 // 操作，由本文件提供「从日志定位回合边界」与「截断日志」两个原子能力，
 // controller 层据此重建会话并接管。
 //
-// 对齐前端契约：CheckpointMeta{turn, prompt, files, time}（gaea_ui.go）——
-// turn 0 起、prompt = 该轮用户消息、files = 该轮写过的文件、time = 回合起始。
+// 回合边界语义：turn 0 起、prompt = 该轮用户消息、files = 该轮写过的文件、
+// time = 回合起始（v4.338 起 App 层 GaeaCheckpoints 绑定已删，本能力仅内核
+// 回退/分叉链路自用）。
 
 import (
 	"bytes"

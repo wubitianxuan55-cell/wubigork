@@ -2,7 +2,6 @@ package app
 
 import (
 	"context"
-	"encoding/json"
 	"sort"
 	"strings"
 	"time"
@@ -244,19 +243,6 @@ func (a *App) GaeaContext() ContextInfo {
 	}
 	used, window := c.ContextSnapshot()
 	return ContextInfo{Used: used, Window: window}
-}
-
-// GaeaTCCAReport 返回 TCCA 缓存指标 JSON 字符串。
-func (a *App) GaeaTCCAReport() string {
-	c := gaeaCtrl()
-	if c == nil {
-		return "{}"
-	}
-	b, err := json.Marshal(c.TCCAReport())
-	if err != nil {
-		return "{}"
-	}
-	return string(b)
 }
 
 // GaeaBalance 查询当前引擎钱包余额（网络调用，失败返回不可用读数）。

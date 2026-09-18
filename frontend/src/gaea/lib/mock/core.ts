@@ -19,7 +19,7 @@ type CoreMethods = Pick<
   AppBindings,
   | "ListWorkspaces" | "PickWorkspace" | "SwitchWorkspace"
   | "GaeaSpaceList" | "GaeaSpaceActive" | "GaeaSpaceActivate" | "GaeaSpaceProfiles" | "GaeaSpaceProfileSet"
-  | "ContextUsage" | "ContextView" | "ContextNodeDetail" | "Trajectory" | "AgentNetwork" | "TCCAReport" | "Jobs"
+  | "ContextUsage" | "ContextView" | "ContextNodeDetail" | "Trajectory" | "AgentNetwork" | "Jobs"
   | "Meta" | "Commands" | "Capabilities"
   | "AddMCPServer" | "RemoveMCPServer" | "RetryMCPServer" | "SetMCPServerEnabled"
   | "SlashArgs"
@@ -298,20 +298,6 @@ export function buildCore(s: MakeMockState): CoreMethods {
           ],
         },
       };
-    },
-    async TCCAReport() {
-      return JSON.stringify({
-        l1Size: 12400,
-        l2Size: 1200,
-        l3Version: 2,
-        l4Messages: 18,
-        savedByCompact: 82000,
-        savedByFork: 100300,
-        forkCount: 23,
-        savedUsd: 0.24,
-        savedLatencyMs: 4500,
-        compactionCount: 3,
-      });
     },
     async Jobs() {
       return []; // browser dev mock has no background jobs

@@ -61,14 +61,6 @@ type SessionMeta struct {
 	SpaceID string `json:"spaceId,omitempty"`
 }
 
-// CheckpointMeta 是一个可回退点（用户回合）。
-type CheckpointMeta struct {
-	Turn   int      `json:"turn"`
-	Prompt string   `json:"prompt"`
-	Files  []string `json:"files"`
-	Time   int64    `json:"time"`
-}
-
 var errActiveSession = errors.New("can't delete the session you're in — start a new one first")
 
 // gaeaCtrl 返回当前办公控制器（未初始化返回 nil）。
@@ -680,21 +672,6 @@ func (a *App) resumeLastSession(ctrl *control.Controller) string {
 	ctrl.SeedContextUsage()
 	slog.Info("gaea: 已自动恢复最近会话", "path", infos[0].Path, "messages", len(loaded.Messages))
 	return infos[0].Path
-}
-
-// GaeaCheckpoints 列出会话可回退点（每个用户回合一个：turn/prompt/files/time）。
-// 事件日志模式从日志派生；legacy 模式从内存消息派生。引擎未初始化返回空。
-func (a *App) GaeaCheckpoints() []CheckpointMeta {
-	c := gaeaCtrl()
-	if c == nil {
-		return nil
-	}
-	ranges := c.Checkpoints()
-	out := make([]CheckpointMeta, 0, len(ranges))
-	for _, r := range ranges {
-		out = append(out, CheckpointMeta{Turn: r.Turn, Prompt: r.Prompt, Files: r.Files, Time: r.Time})
-	}
-	return out
 }
 
 // GaeaRewind 回退到指定回合。scope 语义（与前端 rewind 菜单对齐）：

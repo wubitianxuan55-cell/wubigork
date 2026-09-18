@@ -1,6 +1,6 @@
 # 任务进度
 
-> 最后更新: 2026-09-18（v4.337.0 办公对话流美化三轮收官：对齐 Codex web——用户消息气泡化/裸思考行 bare/过程卡完成即收起/WorkHeader doneSuppressed/尾随工具段合并/轮尾登记卡补挂+omitPaths 去重/交付卡边框容器/hover 操作/顶条只留 waiting/ToolGroup「× N」三语；纯前端零新绑定 707。前次：v4.336.0 chapter-gate 通知可点击跳章节分析面板+oh-story T5 落库接线。本表只留**仍开放**项；已完成历史见 .gaea/AGENTS.md 版本速览与 progress.md）
+> 最后更新: 2026-09-19（v4.338.0 无参绑定会话语义审计收官+死链清理：需修 0 项〔看历史=切内核构造性自洽；v4.181 旁路看板族无同构残余〕，删 GaeaCheckpoints/GaeaTCCAReport 两条死链，绑定面 707→705，拍板池+GaeaSkillDraftFromSession 参数化；审计档 docs/gaea-session-binding-audit-2026-09.md。前次：v4.337.0 办公对话流美化三轮收官。本表只留**仍开放**项；已完成历史见 .gaea/AGENTS.md 版本速览与 progress.md）
 
 ## 当前开放（按域）
 
@@ -12,7 +12,7 @@
 | ⬜ | 进度计划·真机池：mspdi 刀4 Project/WPS/斑马走查、2013+ 资源/分配键位（等样本）、list_projects 真机、E1 负数对称（动逆推才收口） |
 | ⬜ | 办公·pptx：刀2 真机走查（mock 无 pptx 预览分支）；刀4 修改队列泛化（待使用反馈拍板）；Verifier 通道 B 对 docx_apply 复核口径 |
 | ⬜ | 办公·思维导图/多维表：B2 后半（字段类型面板/画廊视图/可选 validate 工具）待拍板（M2 已于 v4.108 落地） |
-| ⬜ | 办公·无参绑定审计：「UI 会话≠内核会话」根因家族——GaeaHistory/ContextView 等其余恒读 ga.ctrl 的绑定逐个审计是否需要变参会话路径（v4.181 已修 GaeaTrajectory/GaeaAgentNetwork） |
+| ✅ | 办公·无参绑定审计收官（v4.338.0，审计档 docs/gaea-session-binding-audit-2026-09.md）：**需修 0 项**——会话模型=「看历史必经 ResumeSession 切内核」，主流水线无参读内核构造性自洽；v4.181 旁路看板族（轨迹/网络/上下文）无同构残余；顺手删两条死链 GaeaCheckpoints（UI 回退实走 GaeaRewind）+GaeaTCCAReport（state.tcca 零渲染消费），绑定面 707→705；**拍板池新候选=GaeaSkillDraftFromSession 参数化**（唯一无参读全会话做加工点，「从历史会话蒸馏技能」候拍板） |
 | ⬜ | 办公·任务管理：TaskCenter 会话关联结构刀（Go 任务表加 session 维度：Schema+提交链路，另立版本）；「会话后台任务」过滤视图等该维度就位再评估（v4.180.0 已以区块语义区隔过渡） |
 | 🔄 | 造价·刀路池（docs/gaea-cost-domain-survey-2026-09.md §缺口）：§1 编码 v4.178 / §2 多方案对照 v4.204（流式打字机/费率政策不做）/ §3 五算 v4.194 / §4 询价扫描 v4.195 / §5 索引补齐 v4.196 → 剩 §6 行业含量对照基线（等真实样本）；组价依据区 mock 恒空真机走查挂池 |
 | ⬜ | DSH 蒸馏：3c 沙箱浏览器多开、阶段四真实终端、阶段五侧边对话——全部「拍板后/若做」门控 |

@@ -10,7 +10,7 @@ import { noteEventSeq, resetEventSync } from "../eventSync";
 import { parseTodos } from "../tools";
 import type {
   BalanceInfo, ContextInfo, FactBaseView, HistoryMessage, JobView, MemoryView,
-  Meta, ProjectGroup, QuestionAnswer, SessionMeta, SessionStatsView, TCCAReport, WireApproval, WireAsk,
+  Meta, ProjectGroup, QuestionAnswer, SessionMeta, SessionStatsView, WireApproval, WireAsk,
   WireEvent, WireUsage,
 } from "../types";
 
@@ -29,7 +29,6 @@ export type Item =
 export interface ControllerState {
   items: Item[]; running: boolean; turnActive: boolean; approval?: WireApproval; ask?: WireAsk;
   usage?: WireUsage; context: ContextInfo; meta?: Meta; balance?: BalanceInfo; jobs: JobView[]; factBase: FactBaseView;
-  tcca?: TCCAReport;
   currentAssistant?: string; pendingUser?: string; discardTurn?: boolean;
   lastAssistantIdx: number; // 最后一个 assistant 项的索引，避免流式 text/reasoning 事件中 O(n) 反向查找
   turnStartAt: number; turnTokens: number; seq: number;
@@ -50,7 +49,6 @@ type Action =
   | { type: "localCancel" }
   | { type: "meta"; meta: Meta } | { type: "context"; context: ContextInfo }
   | { type: "balance"; balance: BalanceInfo } | { type: "jobs"; jobs: JobView[] } | { type: "factbase"; factBase: FactBaseView }
-  | { type: "tcca"; report: TCCAReport }
   | { type: "sessionStats"; stats?: SessionStatsView }
   | { type: "history"; messages: HistoryMessage[] }
   // v4.26 序号防线补拉：items 为后端 GaeaResyncEvents 折叠快照（原始 JSON，
@@ -435,7 +433,6 @@ export function reducer(s: ControllerState, a: Action): ControllerState {
     }
     case "meta": return { ...s, meta: a.meta }; case "context": return { ...s, context: a.context };
     case "balance": return { ...s, balance: a.balance }; case "jobs": return { ...s, jobs: a.jobs }; case "factbase": return { ...s, factBase: a.factBase };
-    case "tcca": return { ...s, tcca: a.report };
     case "sessionStats": return { ...s, sessionStats: a.stats };
     case "history": {
       const rebuilt = rebuildHistoryItems(a.messages);
@@ -483,7 +480,6 @@ export const initialState: ControllerState = {
   items: [], running: false, turnActive: false,
   approval: undefined, ask: undefined, usage: undefined,
   context: { used: 0, window: 0 }, meta: undefined, balance: undefined,
-  tcca: undefined,
   jobs: [], currentAssistant: undefined, pendingUser: undefined, discardTurn: false, lastAssistantIdx: -1,
   factBase: { facts: [], markdown: "", count: 0, path: "" },
   turnStartAt: 0, turnTokens: 0, seq: 0, sessionTotal: 0, sessionNonce: 0, perTurnUsage: null, turnSteps: [],
@@ -567,10 +563,6 @@ function ensureEventsBound(deps: EventBindDeps): void {
     if (e.kind === "turn_done") {
       app.ContextUsage().then(c => dispatch({ type: "context", context: c })).catch((err) => logBridgeError("turn_done ContextUsage", err));
       app.Balance().then(b => dispatch({ type: "balance", balance: b })).catch((err) => logBridgeError("turn_done Balance", err));
-      app.TCCAReport().then(raw => {
-        try { dispatch({ type: "tcca", report: JSON.parse(raw) as TCCAReport }); }
-        catch (err) { logBridgeError("TCCAReport JSON.parse", err); }
-      }).catch((err) => logBridgeError("TCCAReport", err));
       reconcileFinalAnswer();
     }
     if (e.kind === "turn_done" || e.kind === "notice") {
@@ -586,10 +578,6 @@ function ensureEventsBound(deps: EventBindDeps): void {
     app.Balance().then(b => dispatch({ type: "balance", balance: b })).catch((err) => logBridgeError("onReady Balance", err));
     app.Jobs().then(j => dispatch({ type: "jobs", jobs: j })).catch((err) => logBridgeError("onReady Jobs", err));
     refreshFactBase();
-    app.TCCAReport().then(raw => {
-      try { dispatch({ type: "tcca", report: JSON.parse(raw) as TCCAReport }); }
-      catch (err) { logBridgeError("TCCAReport JSON.parse", err); }
-    }).catch((err) => logBridgeError("TCCAReport", err));
   });
   void deps.loadSessionData();
   app.Balance().then(b => dispatch({ type: "balance", balance: b })).catch((err) => logBridgeError("init Balance", err));

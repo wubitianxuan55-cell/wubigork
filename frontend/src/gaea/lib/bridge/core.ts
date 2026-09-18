@@ -4,7 +4,6 @@ import type {
   AgentNetwork,
   BalanceInfo,
   CapabilitiesView,
-  CheckpointMeta,
   CommandInfo,
   ContextInfo,
   ContextNodeDetailView,
@@ -81,9 +80,6 @@ export interface CoreBindings {
   // 使技能/工具/插件/参数变更无需重启即生效；返回重建后的工具/技能数量。
   Reload(): Promise<GaeaReloadResult>;
   History(): Promise<HistoryMessage[]>;
-  // Checkpoints lists the session's rewind points; Rewind restores one (scope
-  // "code" | "conversation" | "both"), after which the caller re-reads History.
-  Checkpoints(): Promise<CheckpointMeta[]>;
   Rewind(turn: number, scope: string): Promise<void>;
   Fork(turn: number): Promise<void>;
   SummarizeFrom(turn: number): Promise<void>;
@@ -133,8 +129,6 @@ export interface CoreBindings {
   // AgentNetwork 返回会话的 Agent 网络（主 agent 根 + 子代理树）。sessionPath
   // 语义同 Trajectory。
   AgentNetwork(sessionPath: string): Promise<AgentNetwork>;
-  // TCCA 缓存报告（V3.0）— 返回 CacheReport JSON 字符串
-  TCCAReport(): Promise<string>;
   // Balance queries the active provider's wallet balance (a network call);
   // returns an unavailable readout when no balance_url is configured or it fails.
   Balance(): Promise<BalanceInfo>;

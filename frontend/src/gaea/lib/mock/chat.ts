@@ -10,7 +10,7 @@ type ChatMethods = Pick<
   AppBindings,
   | "Submit" | "SubmitDisplay" | "Cancel" | "Steer" | "Approve" | "AnswerQuestion"
   | "GaeaRunning" | "Compact" | "NewSession"
-  | "Reload" | "CaptureSkill" | "SkillDraftFromSession" | "SkillDraftSave" | "Checkpoints" | "Rewind" | "Fork"
+  | "Reload" | "CaptureSkill" | "SkillDraftFromSession" | "SkillDraftSave" | "Rewind" | "Fork"
   | "SkillDistillCandidates" | "SkillDistillDraft" | "SkillDistillDecide" | "SkillStats"
   | "GaeaTaskInboxList" | "GaeaTaskInboxSave" | "GaeaTaskInboxSetStatus" | "GaeaTaskInboxDelete"
   | "SummarizeFrom" | "SummarizeUpTo" | "History"
@@ -348,9 +348,6 @@ export function buildChat(s: MakeMockState): ChatMethods {
       const list = mockTaskInbox();
       const i = list.findIndex((x) => x.id === id);
       if (i >= 0) list.splice(i, 1);
-    },
-    async Checkpoints() {
-      return [];
     },
     async Rewind() {},
     async Fork() {},
