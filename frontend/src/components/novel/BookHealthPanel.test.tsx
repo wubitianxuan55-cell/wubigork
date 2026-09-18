@@ -5,6 +5,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 
 const mocks = vi.hoisted(() => ({
   run: vi.fn(),
+  v2: vi.fn(),
 }))
 
 vi.mock('../../gaea/lib/bridge', async (importOriginal) => {
@@ -13,6 +14,7 @@ vi.mock('../../gaea/lib/bridge', async (importOriginal) => {
     ...actual,
     app: {
       RunBookHealthCheck: mocks.run,
+      NovelChapterAnalysisV2: mocks.v2,
     },
   }
 })
@@ -80,5 +82,57 @@ describe('BookHealthPanel 全书体检（GenerationGate 闭环）', () => {
     render(<BookHealthPanel open onClose={vi.fn()} />)
     await waitFor(() => expect(screen.getByText(/请先打开项目/)).toBeTruthy())
     expect(screen.getByText('没有体检结果')).toBeTruthy()
+  })
+})
+
+// 情感曲线（t7 观察池）：按需逐章拉分析 V2 情感弧线，SVG 折线；未分析章跳过计数。
+describe('BookHealthPanel 情感曲线', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.run.mockResolvedValue(REPORT as never)
+  })
+
+  it('默认不拉 V2；点「生成曲线」逐章读取并渲染折线点与 tooltip', async () => {
+    mocks.v2.mockImplementation(async (num: number) => ({
+      chapter_num: num,
+      result: { emotional_arc: { primary_emotion: num === 1 ? '警觉' : '释然', intensity: num === 1 ? 7 : 3 } },
+    }) as never)
+    render(<BookHealthPanel open onClose={vi.fn()} />)
+    await waitFor(() => expect(screen.getByTestId('book-health-body')).toBeTruthy())
+    // 未点按钮前零 V2 调用
+    expect(mocks.v2).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByTestId('health-curve-run'))
+    expect(await screen.findByTestId('health-curve-svg')).toBeTruthy()
+    expect(mocks.v2).toHaveBeenCalledTimes(2) // 逐章读取
+    const pts = screen.getAllByTestId('health-curve-point')
+    expect(pts).toHaveLength(2)
+    expect(pts[0].querySelector('title')?.textContent).toContain('第 1 章 · 警觉（强度 7）')
+    expect(pts[1].querySelector('title')?.textContent).toContain('第 2 章 · 释然（强度 3）')
+  })
+
+  it('两章有数据：两个折线点', async () => {
+    mocks.v2.mockImplementation(async (num: number) => ({
+      chapter_num: num,
+      result: { emotional_arc: { primary_emotion: num === 1 ? '警觉' : '释然', intensity: num === 1 ? 7 : 3 } },
+    }) as never)
+    render(<BookHealthPanel open onClose={vi.fn()} />)
+    await waitFor(() => expect(screen.getByTestId('book-health-body')).toBeTruthy())
+    fireEvent.click(screen.getByTestId('health-curve-run'))
+    await waitFor(() => expect(screen.getAllByTestId('health-curve-point')).toHaveLength(2))
+  })
+
+  it('可绘制章不足（1 章有弧线 + 1 章跳过）给不足提示并计跳过数', async () => {
+    mocks.v2.mockImplementation(async (num: number) => {
+      if (num === 1) {
+        return { chapter_num: 1, result: { emotional_arc: { primary_emotion: '警觉', intensity: 7 } } } as never
+      }
+      throw new Error('尚未分析')
+    })
+    render(<BookHealthPanel open onClose={vi.fn()} />)
+    await waitFor(() => expect(screen.getByTestId('book-health-body')).toBeTruthy())
+    fireEvent.click(screen.getByTestId('health-curve-run'))
+    expect(await screen.findByText(/可绘制的章不足/)).toBeTruthy()
+    expect(screen.getByText(/1 章跳过/)).toBeTruthy()
+    expect(screen.queryByTestId('health-curve-svg')).toBeNull()
   })
 })

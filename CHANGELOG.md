@@ -1,3 +1,12 @@
+## v4.341.0 · t7 观察池「情感曲线图形化」：全书体检面板情感弧线折线（2026-09-19）
+> 观察池条目（v4.325 记录）；纯前端单文件 BookHealthPanel，零新绑定 705、零新依赖（纯 SVG 不引图表库）。
+**落地**=①体检面板情感曲线区（逐章表与伏笔 findings 之间）：默认「生成曲线」按钮按需触发——N 章=N 次 V2 读盘 RPC，交给作者决定不随体检自动跑②逐章读 NovelChapterAnalysisV2：命中 emotional_arc.intensity（钳 0-10）收集 {章号,强度,主导情绪}；缺档/无弧线/报错跳过并计数（缺档只报「尚未分析」不触发重建，循环安全）③纯 SVG 折线 EmotionCurveSvg：x=章号线性、y=强度反转、0/5/10 参考线（5 虚线）、相邻点直连——未分析章间隙以长段如实呈现不插值、圆点 title tooltip（章号·情绪·强度）、viewBox 自适应④诚实不足态：<2 章可绘制提示「需 ≥2 章有情感弧线数据；本次拿到 N 章，M 章跳过」；跳过数>0 折线下计数说明⑤「重新体检」重置曲线；按钮态生成/刷新。
+**测试**=BookHealthPanel +4 共 7/7（零 V2 调用前置断言/SVG 两点+tooltip 文案/不足提示+跳过计数/默认不拉 V2）。
+**坑**=①数据点数与跳过数断言须按报告章数编排——2 章报告跳过 1 章后只剩 1 点走「不足」分支而非折线分支②未分析章 V2 绑定报「尚未分析」不触发重建（重建是标注绑定的行为），逐章循环安全不引爆 LLM。
+**门禁**=tsc/eslint 0；BookHealthPanel 域 7/7；全量 ci.ps1 绿；drift OK@705；版本三处 4.341.0；产物=exe 50838528B SHA256=9067547b1fa0f7207370d98cc113509307d0dea93650b84e1969ac306e9ffaa9（releases+SUMS；桌面副本同哈希；冒烟 200 过）。
+**文档**=releases/v4.341.0.md+CHANGELOG/README+AGENTS 迁 1 插 1（五十六迁）+progress/todos。
+**未做（下刀）**=真机走查清池班（v4.319~v4.341 挂池，须闲置窗口）；技能 ≥5 次核数 ≈09-30；t7 余项（overlay 持久高亮有意裁剪/多章对比形态候拍板）。
+
 ## v4.340.0 · t2 观察池「反推任务取消绑定」：AI 反推大纲轮询期可取消（2026-09-19）
 > 观察池条目（t2 拆书线 v4.291 任务化体验余项）；纯前端单文件 CreatePage，零新绑定 705——后端取消能力 v4.291 起即备齐（TaskState.TaskID 回传+GaeaTaskCancel 协作取消 ctx 直通 handler），缺的只是前端入口。
 **落地**=①取消状态三件：reconstructCancelRef（轮询标志）/reconstructTaskIdRef（Start 回传 taskId）/reconstructCancellable（taskId 到手才 true——精确门控，同步回落路径无任务 id 不出取消钮）②轮询循环加检查点（入循环前+3s sleep 后）：命中→退出轮询+app.TaskCancel 请求协作取消（完成竞态后端报错被吞——等待已停，任务中心可查，消息如实说「已请求取消」）+落「已取消反推等待」return 不弹应用确认③rail「AI 反推大纲」旁 danger「取消反推」钮，finally 复位；novel:auto-reconstruct 自动链路同样受益。
