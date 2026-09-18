@@ -1,3 +1,12 @@
+## v4.340.0 · t2 观察池「反推任务取消绑定」：AI 反推大纲轮询期可取消（2026-09-19）
+> 观察池条目（t2 拆书线 v4.291 任务化体验余项）；纯前端单文件 CreatePage，零新绑定 705——后端取消能力 v4.291 起即备齐（TaskState.TaskID 回传+GaeaTaskCancel 协作取消 ctx 直通 handler），缺的只是前端入口。
+**落地**=①取消状态三件：reconstructCancelRef（轮询标志）/reconstructTaskIdRef（Start 回传 taskId）/reconstructCancellable（taskId 到手才 true——精确门控，同步回落路径无任务 id 不出取消钮）②轮询循环加检查点（入循环前+3s sleep 后）：命中→退出轮询+app.TaskCancel 请求协作取消（完成竞态后端报错被吞——等待已停，任务中心可查，消息如实说「已请求取消」）+落「已取消反推等待」return 不弹应用确认③rail「AI 反推大纲」旁 danger「取消反推」钮，finally 复位；novel:auto-reconstruct 自动链路同样受益。
+**测试**=CreatePage.test +2（轮询期取消：消息+TaskCancel('tk-c')+确认不弹；同步回落路径不出入口零 Cancel）13 既有全绿；补两处漏桩（NovelB mock 块缺 NovelOutlineReconstruct 同步回落本体/bridge appStubs 缺 TaskCancel）。3s 轮询 sleep 靠全局 asyncUtilTimeout 5000 覆盖无假定时器。
+**坑**=①取消请求是「尽力而为」：任务恰在取消前完成是正常竞态，UI 语义=停止等待+尽力取消+如实说请求已发，不做取消结果二次确认（任务中心=任务态权威）②取消入口必须以 taskId 到手门控，不能只看 busy 态（同步回落无 id）。
+**门禁**=tsc/eslint 0；CreatePage 域 15/15；全量 ci.ps1 绿；drift OK@705；版本三处 4.340.0；产物=exe 50835456B SHA256=7aaf15a8fcea664ec85969f3048a49ffe1be2ac2054e8d70021fbb2c63c8cb93（releases+SUMS；桌面副本同哈希；冒烟 200 过）。
+**文档**=releases/v4.340.0.md+CHANGELOG/README+AGENTS 迁 1 插 1（五十五迁）+progress/todos。
+**未做（下刀）**=真机走查清池班（v4.319~v4.340 挂池，须闲置窗口）；技能 ≥5 次核数 ≈09-30；t2 观察池余项（反向角色补建/骨架 AI 丰富化按反馈）。
+
 ## v4.339.0 · t7 观察池「标注定位编辑器光标」：分析面板→正文编辑器定位闭环（2026-09-19）
 > 观察池条目（v4.325 记录）按既定习惯开刀；零新绑定 705，纯前端三组件。
 **落地**=①EditorPanel 转 forwardRef 暴露 `locate(runeStart,runeEnd)` 命令句柄——rune→code-unit 换算（toRune 逆，代理对按 codePoint 步进）+setSelectionRange+focus（Chromium 聚焦即滚选区入视口），无激活章回 false②ChapterAnalysisPanel 增可选 onLocate：锚定标注行内「编辑器定位」钮（stopPropagation 不触发行内高亮跳转），原「↩定位」标签改「↩高亮」消歧③CreatePage 接线：onLocate 仅面板章=编辑章时提供（gate 跳他章时面板 content 是他章正文，入口隐藏而非点了报错），处理器关面板→复位 gate→locate(pos,pos+length)，未就绪降级提示。

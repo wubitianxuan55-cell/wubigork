@@ -199,6 +199,11 @@ const CreatePage: React.FC = () => {
   const [reviewMsg, setReviewMsg] = useState('')
   // AI 反推大纲（v4.281）：反推 → 确认 → 幂等合并进大纲
   const [reconstructBusy, setReconstructBusy] = useState(false)
+  // v4.340 取消：轮询期「取消反推」可见（cancellable=已入队拿到 taskId），
+  // 点击置标志 → 轮询下个检查点退出 + 请求后端协作取消任务。
+  const [reconstructCancellable, setReconstructCancellable] = useState(false)
+  const reconstructCancelRef = useRef(false)
+  const reconstructTaskIdRef = useRef('')
   const [fpMsg, setFpMsg] = useState('')
 
   const openGraph = async () => {
@@ -586,14 +591,21 @@ const CreatePage: React.FC = () => {
     setStateMsg('AI 反推大纲中…')
     try {
       // v4.291 任务化：反推入任务队列（任务中心可见、页面关闭不丢），
-      // 轮询取结果；队列不可用回落同步绑定。
+      // 轮询取结果；队列不可用回落同步绑定。v4.340：轮询期可取消——
+      // 停止等待并请求后端取消任务（任务完成竞态下取消失败被吞，任务中心可查）。
       let preview: Awaited<ReturnType<typeof NovelOutlineReconstruct>> | null = null
+      let cancelled = false
       try {
-        await NovelOutlineReconstructStart()
+        const started = await NovelOutlineReconstructStart()
+        reconstructTaskIdRef.current = started.taskId || ''
+        reconstructCancelRef.current = false
+        setReconstructCancellable(true)
         const deadline = Date.now() + 12 * 60_000
         for (;;) {
+          if (reconstructCancelRef.current) { cancelled = true; break }
           if (Date.now() > deadline) throw new Error('反推任务超时（12 分钟）')
           await new Promise((r) => setTimeout(r, 3000))
+          if (reconstructCancelRef.current) { cancelled = true; break }
           const st = await NovelOutlineReconstructTaskGet()
           if (st.status === 'failed') throw new Error(st.error || '反推任务失败')
           if (st.status === 'succeeded' && st.preview) {
@@ -606,6 +618,14 @@ const CreatePage: React.FC = () => {
         const fallbackable = msg.includes('任务队列不可用') || msg.includes('尚无反推任务')
         if (!fallbackable) throw taskErr
         preview = await NovelOutlineReconstruct()
+      }
+      if (cancelled) {
+        // 用户取消：停止等待并请求后端协作取消（任务恰已完成时后端报错，
+        // 吞掉即可——等待已停，结果可在任务中心看到）。
+        const id = reconstructTaskIdRef.current
+        if (id) void app.TaskCancel(id).catch(() => {})
+        setStateMsg('已取消反推等待；任务已请求取消，可在任务中心查看')
+        return
       }
       const items = preview?.items ?? []
       if (items.length === 0) {
@@ -637,6 +657,7 @@ const CreatePage: React.FC = () => {
       setStateMsg(err instanceof Error ? err.message : 'AI 反推失败')
     } finally {
       setReconstructBusy(false)
+      setReconstructCancellable(false)
     }
   }, [loadOutlines])
 
@@ -672,6 +693,10 @@ const CreatePage: React.FC = () => {
         <Button size="small" onClick={() => void openFingerprint()}>文风指纹</Button>
         <Button size="small" onClick={() => void openReview()}>平台评审</Button>
         <Button size="small" loading={reconstructBusy} onClick={() => void reconstructOutlines()}>AI 反推大纲</Button>
+        {reconstructCancellable && (
+          <Button size="small" danger data-testid="reconstruct-cancel"
+            onClick={() => { reconstructCancelRef.current = true }}>取消反推</Button>
+        )}
         <Button size="small" onClick={() => setRwOpen(true)}>整章重写</Button>
         <Button size="small" onClick={() => setRwHistOpen(true)}>重写历史</Button>
         <Button size="small" onClick={() => setPromptWsOpen(true)}>提示词工坊</Button>

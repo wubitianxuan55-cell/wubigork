@@ -29,6 +29,8 @@ const mocks = vi.hoisted(() => ({
   NovelOutlineReconstructStart: vi.fn().mockResolvedValue({ taskId: 'tk-1', status: 'queued' }),
   NovelOutlineReconstructTaskGet: vi.fn().mockResolvedValue({ taskId: 'tk-1', status: 'queued' }),
   NovelOutlineReconstructApply: vi.fn().mockResolvedValue(6),
+  NovelOutlineReconstruct: vi.fn().mockResolvedValue({ items: [], aiUsed: false }),
+  taskCancel: vi.fn().mockResolvedValue(undefined),
   // 平台评审批次（v4.282）：档位清单 + 单章报告
   NovelReviewPlatforms: vi.fn().mockResolvedValue([
     { id: 'general', label: '通用', form: 'chapter' },
@@ -53,6 +55,7 @@ vi.mock('../gaea/lib/bridge', async (importOriginal) => {
     DeleteOutlineNode: mocks.DeleteOutlineNode,
     SaveChapterBranchContent: mocks.SaveChapterBranchContent,
     SaveCharactersBatch: mocks.SaveCharactersBatch,
+    TaskCancel: mocks.taskCancel,
   }
   return {
     ...actual,
@@ -77,6 +80,7 @@ vi.mock('../../wailsjs/go/app/NovelB', () => ({
   NovelOutlineReconstructStart: mocks.NovelOutlineReconstructStart,
   NovelOutlineReconstructTaskGet: mocks.NovelOutlineReconstructTaskGet,
   NovelOutlineReconstructApply: mocks.NovelOutlineReconstructApply,
+  NovelOutlineReconstruct: mocks.NovelOutlineReconstruct,
 }))
 
 import CreatePage from './CreatePage'
@@ -296,5 +300,39 @@ describe('CreatePage 反推串联事件', () => {
     expect(okBtn).toBeTruthy()
     fireEvent.click(okBtn as Element)
     await waitFor(() => expect(mocks.NovelOutlineReconstructApply).toHaveBeenCalledTimes(1))
+  })
+})
+
+// 反推取消（v4.340）：轮询期「取消反推」可见 → 点击停止等待 + 请求后端协作
+// 取消任务（完成竞态下取消失败被吞）；同步回落路径无任务 id，不出取消入口。
+describe('CreatePage 反推取消', () => {
+  beforeEach(() => {
+    useOutlineStore.setState({ outlines: [] })
+    useAppStore.setState({ projectOpen: true, projectPath: 'C:/novel/test' })
+    vi.mocked(mocks.NovelOutlineReconstructStart).mockClear().mockResolvedValue({ taskId: 'tk-c', status: 'queued' })
+    vi.mocked(mocks.NovelOutlineReconstructTaskGet).mockClear().mockResolvedValue({ taskId: 'tk-c', status: 'queued' })
+    mocks.taskCancel.mockClear()
+  })
+
+  it('轮询期出「取消反推」，点击停止等待并请求取消任务，不弹确认', async () => {
+    render(<CreatePage />)
+    const btn = await screen.findByRole('button', { name: 'AI 反推大纲' })
+    fireEvent.click(btn)
+    // taskId 到手后出现取消入口（Start 拿到 tk-c）
+    fireEvent.click(await screen.findByTestId('reconstruct-cancel'))
+    // 取消后：消息落出 + 后端取消被请求（≤3s 轮询 sleep 在 5s RTL 窗口内）
+    expect(await screen.findByText(/已取消反推等待/)).toBeTruthy()
+    await waitFor(() => expect(mocks.taskCancel).toHaveBeenCalledWith('tk-c'))
+    expect(screen.queryByRole('button', { name: '应用到大纲' })).toBeNull()
+  })
+
+  it('同步回落路径（任务队列不可用）不出取消入口、不调 Cancel', async () => {
+    vi.mocked(mocks.NovelOutlineReconstructStart).mockRejectedValue(new Error('任务队列不可用，请直接使用同步反推'))
+    render(<CreatePage />)
+    const btn = await screen.findByRole('button', { name: 'AI 反推大纲' })
+    fireEvent.click(btn)
+    expect(await screen.findByText(/反推结果为空/)).toBeTruthy()
+    expect(screen.queryByTestId('reconstruct-cancel')).toBeNull()
+    expect(mocks.taskCancel).not.toHaveBeenCalled()
   })
 })
