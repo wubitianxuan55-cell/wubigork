@@ -530,6 +530,12 @@
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--gaea-glow) 12%, transparent) !important;
 }
 
+/* v4.343 标注定位高亮（轻量 overlay）：textarea 底色透出镜像层的 mark，
+   仅在存在定位高亮时挂第二个类；须排在本文件 .novel-editor 系之后。 */
+.novel-editor.novel-editor-mirror-hl {
+  background: transparent !important;
+}
+
 /* ═══ 创作工作台三栏布局 ═══ */
 .novel-workspace-col {
   display: flex;

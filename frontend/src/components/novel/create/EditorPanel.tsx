@@ -1,4 +1,4 @@
-import React, { forwardRef, useImperativeHandle, useRef } from 'react'
+import React, { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react'
 import { Button, Spin, Typography, Input, Tooltip, Space, message } from 'antd'
 import {
   EditOutlined, LoadingOutlined, ReloadOutlined, SaveOutlined,
@@ -54,6 +54,18 @@ const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(function Edi
   editorFontSize = 15, onEditorFontSizeChange, onPartialRewrite,
 }, ref) {
   const editorRef = useRef<React.ComponentRef<typeof TextArea> | null>(null)
+  // v4.343 标注定位高亮（t7 overlay 轻量版）：locate 时在 textarea 背后垫一层
+  // 镜像 div（同字体/行高/字距/padding，文本透明仅 mark 显色），textarea 底色
+  // 透出高亮。单条+编辑即清除（content/activeNode 变化失效），规避偏移漂移。
+  // gutter=textarea 滚动条占宽，镜像补等量右内距对齐换行。
+  const [hl, setHl] = useState<{ start: number; end: number; gutter: number } | null>(null)
+  const mirrorRef = useRef<HTMLDivElement | null>(null)
+  const syncMirrorScroll = () => {
+    const ta = editorRef.current?.resizableTextArea?.textArea
+    if (mirrorRef.current && ta) mirrorRef.current.scrollTop = ta.scrollTop
+  }
+  // 正文或章变化（编辑/流式重生成/切章）→ 高亮失效
+  useEffect(() => { setHl(null) }, [content, activeNode])
 
   // 局部重写入口：读原生 textarea 的 code-unit 选区（selectionStart/End 为 UTF-16
   // code-unit 偏移），换算成 rune 偏移后回调（后端选段校验按 rune 口径）；无选区给提示。
@@ -90,6 +102,10 @@ const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(function Edi
       const e = toCodeUnit(Math.max(runeStart + 1, runeEnd))
       ta.setSelectionRange(s, e)
       ta.focus()
+      // 镜像高亮：滚动条占宽（offsetWidth-clientWidth）补进镜像右内距，
+      // 换行与 textarea 一致；聚焦滚动后再同步一次镜像 scrollTop。
+      setHl({ start: s, end: e, gutter: ta.offsetWidth - ta.clientWidth })
+      requestAnimationFrame(() => syncMirrorScroll())
       return true
     },
   }), [activeNode, content])
@@ -151,9 +167,33 @@ const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(function Edi
       {chapterLoading ? (
         <div className="novel-editor-loading"><Spin /></div>
       ) : (activeNode || generating) ? (
-        <TextArea className="novel-editor" ref={editorRef} value={content} onChange={e => onContentChange(e.target.value)}
-          placeholder="AI 将在此流式呈现正文；也可直接手写后保存…"
-        />
+        <div style={{ position: 'relative', flex: 1, minWidth: 0, display: 'flex' }}>
+          {hl && (
+            <div ref={mirrorRef} aria-hidden data-testid="editor-annotation-mirror"
+              style={{
+                position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none',
+                border: '1px solid transparent', boxSizing: 'border-box',
+                padding: '20px 24px',
+                paddingRight: `calc(24px + ${hl.gutter}px)`,
+                fontFamily: "'Georgia', 'Noto Serif SC', 'Source Han Serif SC', 'STSong', 'SimSun', serif",
+                fontSize: 'var(--novel-editor-font-size, 15px)',
+                lineHeight: 1.9, letterSpacing: '0.02em',
+                whiteSpace: 'pre-wrap', overflowWrap: 'break-word',
+                color: 'transparent',
+              }}>
+              {content.slice(0, hl.start)}
+              <mark style={{ background: 'color-mix(in srgb, var(--gaea-glow) 32%, transparent)', color: 'transparent', borderRadius: 2 }}>
+                {content.slice(hl.start, hl.end)}
+              </mark>
+              {content.slice(hl.end)}
+            </div>
+          )}
+          <TextArea className={`novel-editor${hl ? ' novel-editor-mirror-hl' : ''}`} ref={editorRef} value={content}
+            onChange={e => onContentChange(e.target.value)}
+            onScroll={syncMirrorScroll}
+            placeholder="AI 将在此流式呈现正文；也可直接手写后保存…"
+          />
+        </div>
       ) : (
         <div className="novel-editor-empty">
           <EditOutlined className="novel-editor-empty-icon" />

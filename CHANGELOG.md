@@ -1,3 +1,12 @@
+## v4.343.0 · t7 收尾「编辑器标注高亮」轻量版：定位单条镜像 mark + 编辑即失效（2026-09-19）
+> 观察池最后一项（v4.325 有意裁剪的编辑器 overlay）轻量落地；纯前端 EditorPanel + 一条 CSS，零新绑定 705、零新依赖。
+**落地**=①镜像背景层：locate 时 textarea 背后垫同排版 div（同衬线栈/font-size 变量/行高 1.9/字距/20×24 padding/1px 透明 border/box-sizing），文本 color transparent 仅 mark 显色（--gaea-glow 32%），textarea 切 `.novel-editor-mirror-hl` 底透出（!important 源码序压过既有底色）②换行对齐：镜像按滚动条占宽（offsetWidth−clientWidth）补右内距；pre-wrap+break-word 与 textarea 默认一致；onScroll 同步 scrollTop+聚焦后 rAF 补同步③失效纪律：content/activeNode 变化（手写/流式/切章）即清除——偏移漂移正确性问题结构性规避；pointerEvents none 纯装饰。
+**测试**=EditorPanel +1 共 11/11：真实 state harness——定位前无镜像/locate 后 mark=「一二」（rune[1,3)→code-unit[2,4)）/fireEvent.change 编辑后高亮清除。
+**坑**=①rune 区间心算又错：rune[1,3) 在 𝌆 开头串里是「一二」非「二三」（𝌆 占 rune 0）——区间断言先写清每个 rune 是谁②定位句柄里 setState 异步渲染须 findBy/waitFor，setSelectionRange 同步 DOM 立即可断言——同一次 locate 两种时序③textarea 底色 !important 内联压不过，须同优先级类+源码序在后。
+**门禁**=tsc/eslint 0；EditorPanel 域 11/11；全量 ci.ps1 绿；drift OK@705；版本三处 4.343.0；产物=exe 50842624B SHA256=49381cbd2b5af04af05a124b6678c4916342743b7758e3ab32d564a790338ecb（releases+SUMS；桌面副本同哈希；冒烟 200 过）。
+**文档**=releases/v4.343.0.md+CHANGELOG/README+AGENTS 迁 1 插 1（五十八迁）+progress/todos。
+**未做（下刀）**=真机走查清池班（镜像对齐真实字体/滚动条下需真机目检，通过后再议持久全量高亮）；技能 ≥5 次核数 ≈09-30；t2 余项按反馈。
+
 ## v4.342.0 · t7 观察池「多章对比」最小形态：分析面板章际对比（2026-09-19）
 > 观察池条目的最小可用形态；纯前端两文件，零新绑定 705。情感曲线（v4.341）给全书节奏，本刀补「第 N 章比第 M 章强吗」的章际质量对比。
 **落地**=①ChapterAnalysisPanel 增可选 chapterOptions：提供且排除本章后可选 ≥1 时渲染「章际对比」区（缺省整体隐藏，其他挂载点零影响）；Select 选对比章拉其 V2 → 差值表（综合/节奏/代入/连贯+情感强度）；Δ 语义=四质量维上绿下红、情感强度中性不判色、缺字段与 0 差值不着色；对比章未分析→行内提示不 toast；V2 无 scores→「对比章分析无评分数据」；切章/关面板重置②CreatePage 传 flatNodes 章号清单。

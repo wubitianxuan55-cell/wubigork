@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
-import { createRef } from 'react'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { createRef, useState } from 'react'
 import EditorPanel, { type EditorPanelHandle } from './EditorPanel'
 import type { OutlineNode } from '../../../types'
 
@@ -116,5 +116,27 @@ describe('EditorPanel 标注定位（t7 观察池：locate 命令句柄）', () 
     const ref = createRef<EditorPanelHandle>()
     render(<EditorPanel ref={ref} {...baseProps} activeNode={null} content="" />)
     expect(ref.current?.locate(0, 1)).toBe(false)
+  })
+
+  it('locate 后镜像层出现且 mark 文本=选区内容；正文编辑后高亮清除', async () => {
+    // harness 持真实 content state：onChange → 父 content 变化 → 失效 effect 清除
+    const ref = createRef<EditorPanelHandle>()
+    function Harness() {
+      const [content, setContent] = useState('𝌆一二三四五')
+      return <EditorPanel ref={ref} {...baseProps} content={content} onContentChange={setContent} />
+    }
+    render(<Harness />)
+    const ta = document.querySelector('textarea') as HTMLTextAreaElement
+    // 定位前无镜像
+    expect(screen.queryByTestId('editor-annotation-mirror')).toBeNull()
+    expect(ref.current?.locate(1, 3)).toBe(true)
+    // setHl 走异步渲染，等镜像出现
+    const mirror = await screen.findByTestId('editor-annotation-mirror')
+    const mark = mirror.querySelector('mark') as HTMLElement
+    // rune [1,3) = 「一二」 → code-unit [2,4)
+    expect(mark.textContent).toBe('一二')
+    // 编辑正文 → 高亮失效（content prop 变化触发清除 effect）
+    fireEvent.change(ta, { target: { value: '改动后的正文' } })
+    await waitFor(() => expect(screen.queryByTestId('editor-annotation-mirror')).toBeNull())
   })
 })
