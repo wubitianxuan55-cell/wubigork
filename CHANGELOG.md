@@ -1,3 +1,12 @@
+## v4.339.0 · t7 观察池「标注定位编辑器光标」：分析面板→正文编辑器定位闭环（2026-09-19）
+> 观察池条目（v4.325 记录）按既定习惯开刀；零新绑定 705，纯前端三组件。
+**落地**=①EditorPanel 转 forwardRef 暴露 `locate(runeStart,runeEnd)` 命令句柄——rune→code-unit 换算（toRune 逆，代理对按 codePoint 步进）+setSelectionRange+focus（Chromium 聚焦即滚选区入视口），无激活章回 false②ChapterAnalysisPanel 增可选 onLocate：锚定标注行内「编辑器定位」钮（stopPropagation 不触发行内高亮跳转），原「↩定位」标签改「↩高亮」消歧③CreatePage 接线：onLocate 仅面板章=编辑章时提供（gate 跳他章时面板 content 是他章正文，入口隐藏而非点了报错），处理器关面板→复位 gate→locate(pos,pos+length)，未就绪降级提示。
+**测试**=EditorPanel +3（𝌆 代理对换算选区聚焦/越界钳文末/无激活章 false）+Panel +3（回传标注+stopPropagation/未锚定无入口/未提供 onLocate 隐藏）；tsc/eslint 0；两文件 18/18。
+**坑**=gate 跳转的章≠编辑章（面板 content 可为 gateContent 他章正文）——定位入口按章一致条件提供，不做「点了再报错」。
+**门禁**=全量 ci.ps1 绿；drift OK@705；版本三处 4.339.0；产物=exe 50834944B SHA256=447cc8b0452af06a912edbd5009b14a32e830f9f639a0b681b579ca9fa8290ea（releases+SUMS；桌面副本同哈希；冒烟 200 过）。
+**文档**=releases/v4.339.0.md+CHANGELOG/README+AGENTS 迁 1 插 1（五十四迁）+progress/todos。
+**未做（下刀）**=真机走查清池班（v4.319~v4.339 挂池，须闲置窗口）；技能 ≥5 次核数 ≈09-30；t7 观察池余项（overlay 持久高亮/多章对比/情感曲线）候拍板或按反馈。
+
 ## 非版本刀 · todos 对账清账 + booksource 进度回调乱序根修（2026-09-19）
 > 全表对照 git log/CHANGELOG 逐行核查开放项（子代理扫描+人工复核），起因=「TaskCenter 会话维度」行标 ⬜ 实际 v4.229.0 已落、险些重做。
 **对账结果**=关 3 行：TaskCenter 会话维度（v4.229.0 SchemaV20+SubmitSpaceSession+过滤面就位 chip 熄灯；chip 显形等首个会话上下文创建点=门控）/审计刀A（v4.165.0 已落仅状态标错）/knip 甄别（v4.268.0 清账，剩余 15 项 KEEP=@public 哨兵在册保留）。改写 2 子句：t4-C4「随 t7」悬置语→已随 t7 收官（面板只读高亮+锚点 v4.325.0；编辑器 overlay=v4.325 有意裁剪入观察池）；造价「剩 §6 等样本」→§6=v4.209.0 已收官（基线源=自有库不引入外部数据=设计裁决）。删 7.3-1「会话级回源欠账」旧注记（v4.333.0 已收口）。补记 7.3-2 缺省 classic→tasks 翻转候拍板（v4.333 出口对账在案 todos 漏记）。**勘误=v4.338.0 未做段「TaskCenter 结构刀」同源过时，按惯例不追改已发条目、以本条为准**。

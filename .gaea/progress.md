@@ -3,6 +3,13 @@
 > 本文件为**最近发布速览**。完整历史磁带见 `docs/archive/progress-history-2026-09.md`
 > 与 `releases/`。
 
+## 最新发布：v4.339.0（2026-09-19）「t7 观察池「标注定位编辑器光标」：分析面板→正文编辑器定位闭环」
+
+- **来源**：观察池条目（v4.325 记录）按既定习惯开刀；零新绑定 705，纯前端三组件。
+- **落地**：EditorPanel forwardRef+locate 句柄（rune→code-unit 换算+选区+聚焦滚动）；分析面板标注行「编辑器定位」钮（stopPropagation）；CreatePage 接线（gate 跳他章时入口按章一致条件隐藏）。
+- **测试**：EditorPanel +3 + Panel +3（18/18）；tsc/eslint 0。
+- **验收**：全量 ci 绿；drift OK@705；产物见 releases/v4.339.0.md。
+- **未做（下刀）**：真机走查清池班；技能核数 ≈09-30；t7 观察池余项候拍板。
 ## 最新发布：v4.338.0（2026-09-19）「无参绑定会话语义审计收官 + 死链清理（绑定面 707→705）」
 
 - **来源**：todos 挂账（v4.181.0 起池）收官；审计档 docs/gaea-session-binding-audit-2026-09.md。

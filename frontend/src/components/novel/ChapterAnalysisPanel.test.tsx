@@ -136,3 +136,38 @@ describe('ChapterAnalysisPanel 章节分析 V2（t7 收官）', () => {
     expect(mocks.v2).not.toHaveBeenCalled()
   })
 })
+
+describe('标注定位编辑器光标（t7 观察池：onLocate 入口）', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.v2.mockResolvedValue(mkV2() as never)
+    mocks.annotations.mockResolvedValue([
+      { type: 'conflict', content: '冲突段', pos: 1, length: 2 },
+      { type: 'suggestion', content: '未命中不锚定', pos: -1 },
+    ] as never)
+  })
+
+  it('提供 onLocate 且锚定：行内出「编辑器定位」，点击回传标注且不触发行内高亮跳转', async () => {
+    const onLocate = vi.fn()
+    render(<ChapterAnalysisPanel open onClose={vi.fn()} chapterNum={2} content="零一二三" onLocate={onLocate} />)
+    await waitFor(() => expect(screen.getAllByTestId('analysis-ann-row')).toHaveLength(2))
+    fireEvent.click(screen.getByTestId('analysis-ann-locate'))
+    expect(onLocate).toHaveBeenCalledTimes(1)
+    expect(onLocate).toHaveBeenCalledWith(expect.objectContaining({ pos: 1, length: 2 }))
+    // stopPropagation：行点击副作用（切高亮视图）不触发
+    expect(screen.queryByTestId('analysis-highlight-view')).toBeNull()
+  })
+
+  it('仅未锚定标注（pos=-1）时定位入口不出现', async () => {
+    mocks.annotations.mockResolvedValue([{ type: 'suggestion', content: '未命中不锚定', pos: -1 }] as never)
+    render(<ChapterAnalysisPanel open onClose={vi.fn()} chapterNum={2} content="零一二三" onLocate={vi.fn()} />)
+    await waitFor(() => expect(screen.getByTestId('analysis-ann-row')).toBeTruthy())
+    expect(screen.queryByTestId('analysis-ann-locate')).toBeNull()
+  })
+
+  it('未提供 onLocate：入口整体隐藏（gate 跳他章形态）', async () => {
+    render(<ChapterAnalysisPanel open onClose={vi.fn()} chapterNum={2} content="零一二三" />)
+    await waitFor(() => expect(screen.getAllByTestId('analysis-ann-row')).toHaveLength(2))
+    expect(screen.queryByTestId('analysis-ann-locate')).toBeNull()
+  })
+})

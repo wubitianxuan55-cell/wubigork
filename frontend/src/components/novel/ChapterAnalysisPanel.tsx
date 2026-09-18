@@ -76,13 +76,16 @@ function Section({ title, count, children }: { title: string; count: number; chi
   )
 }
 
-export default function ChapterAnalysisPanel({ open, onClose, chapterNum, content }: {
+export default function ChapterAnalysisPanel({ open, onClose, chapterNum, content, onLocate }: {
   open: boolean
   onClose: () => void
   /** 当前章号（0/null=无激活章）。 */
   chapterNum: number | null
   /** 章正文（CreatePage 编辑器态；高亮视图数据源，rune 换算基准）。 */
   content: string
+  /** 可选：把标注定位到正文编辑器光标（CreatePage 传入；仅面板章=编辑章时
+   *  提供——gate 跳转他章时编辑器内容不一致，不提供即隐藏入口）。 */
+  onLocate?: (ann: ChapterAnnotation) => void
 }) {
   const [loading, setLoading] = useState(false)
   const [analyzing, setAnalyzing] = useState(false)
@@ -325,7 +328,14 @@ export default function ChapterAnalysisPanel({ open, onClose, chapterNum, conten
                         {a.content}
                       </span>
                       {a.importance ? <span style={softTextStyle}>{Math.round(a.importance * 100)}%</span> : null}
-                      {anchored && <span style={softTextStyle}>↩定位</span>}
+                      {anchored && onLocate && (
+                        <Button size="small" type="link" data-testid="analysis-ann-locate"
+                          style={{ fontSize: 11, padding: 0, height: 'auto', flexShrink: 0 }}
+                          onClick={(e) => { e.stopPropagation(); onLocate(a) }}>
+                          编辑器定位
+                        </Button>
+                      )}
+                      {anchored && <span style={softTextStyle}>↩高亮</span>}
                     </div>
                   )
                 })}

@@ -1,4 +1,4 @@
-import React, { useRef } from 'react'
+import React, { forwardRef, useImperativeHandle, useRef } from 'react'
 import { Button, Spin, Typography, Input, Tooltip, Space, message } from 'antd'
 import {
   EditOutlined, LoadingOutlined, ReloadOutlined, SaveOutlined,
@@ -36,13 +36,23 @@ interface EditorPanelProps {
   onPartialRewrite?: (sel: { start: number; end: number; text: string }) => void
 }
 
+/** 编辑器命令句柄（t7 观察池「标注定位编辑器光标」）：父层经 ref 驱动光标。 */
+export interface EditorPanelHandle {
+  /**
+   * 定位光标到正文 rune 偏移区间 [runeStart, runeEnd)：换算 code-unit 后
+   * setSelectionRange+focus（Chromium 聚焦即滚动选区入视口）。
+   * 返回 false=编辑器未就绪（无激活章），调用方可给提示。
+   */
+  locate(runeStart: number, runeEnd: number): boolean
+}
+
 /** 中部编辑器面板（T6-7.5 从 CreatePage 拆分）：标题/状态标签/字数 + 正文编辑 + 生成进度与停止按钮 + 局部重写入口 */
-const EditorPanel: React.FC<EditorPanelProps> = ({
+const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(function EditorPanel({
   activeNode, content, onContentChange, chapterLoading,
   generating, genPhase, genPercent, stopping, saving,
   onRegenerate, onSave, onStop, hasChapters, nextChapterNum, onOpenWizard,
   editorFontSize = 15, onEditorFontSizeChange, onPartialRewrite,
-}) => {
+}, ref) {
   const editorRef = useRef<React.ComponentRef<typeof TextArea> | null>(null)
 
   // 局部重写入口：读原生 textarea 的 code-unit 选区（selectionStart/End 为 UTF-16
@@ -59,6 +69,30 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
     const toRune = (codeUnitPos: number): number => [...content.slice(0, codeUnitPos)].length
     onPartialRewrite?.({ start: toRune(s), end: toRune(e), text: content.slice(s, e) })
   }
+
+  // 标注定位：rune 偏移 → code-unit（toRune 的逆），先设选区再聚焦——
+  // Chromium 在聚焦时把选区滚动进视口，无需手算 scrollTop。
+  useImperativeHandle(ref, () => ({
+    locate(runeStart: number, runeEnd: number): boolean {
+      const ta = editorRef.current?.resizableTextArea?.textArea
+      if (!ta || !activeNode) return false
+      const toCodeUnit = (runePos: number): number => {
+        let runes = 0
+        let i = 0
+        while (i < content.length && runes < runePos) {
+          const cp = content.codePointAt(i) ?? 0
+          i += cp > 0xffff ? 2 : 1
+          runes += 1
+        }
+        return i
+      }
+      const s = toCodeUnit(Math.max(0, runeStart))
+      const e = toCodeUnit(Math.max(runeStart + 1, runeEnd))
+      ta.setSelectionRange(s, e)
+      ta.focus()
+      return true
+    },
+  }), [activeNode, content])
 
   return (
   <section
@@ -166,6 +200,6 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
     )}
   </section>
   )
-}
+})
 
 export default EditorPanel

@@ -9,7 +9,7 @@ import { buildTree, flattenTree, buildPrevSummary } from '../components/novel/cr
 import { useChapterStream } from '../components/novel/create/useChapterStream'
 import { useChapterGateNotice } from '../components/novel/create/useChapterGateNotice'
 import type { AiTasteResult } from '../components/novel/create/chapterStreamTypes'
-import type { ChapterReviewPayload, FingerprintScorePayload, FingerprintStatusPayload, ReviewPlatform } from '../gaea/lib/bridge/novel'
+import type { ChapterReviewPayload, FingerprintScorePayload, FingerprintStatusPayload, ReviewPlatform, ChapterAnnotation } from '../gaea/lib/bridge/novel'
 import StyleFingerprintPanel from '../components/novel/StyleFingerprintPanel'
 import ChapterReviewPanel from '../components/novel/ChapterReviewPanel'
 import ChapterTreePanel from '../components/novel/create/ChapterTreePanel'
@@ -20,6 +20,7 @@ import PromptWorkshopPanel from '../components/novel/PromptWorkshopPanel'
 import ChapterAnalysisPanel from '../components/novel/ChapterAnalysisPanel'
 import BookHealthPanel from '../components/novel/BookHealthPanel'
 import EditorPanel from '../components/novel/create/EditorPanel'
+import type { EditorPanelHandle } from '../components/novel/create/EditorPanel'
 import CreateInspector from '../components/novel/create/CreateInspector'
 import NewCharactersModal from '../components/novel/create/NewCharactersModal'
 import BranchWizardModal, { type Branch } from '../components/novel/create/BranchWizardModal'
@@ -153,6 +154,17 @@ const CreatePage: React.FC = () => {
   // 提示词工坊面板（t6 首刀：模板可编辑覆盖层；打开才拉一次）
   const [promptWsOpen, setPromptWsOpen] = useState(false)
   const [analysisOpen, setAnalysisOpen] = useState(false)
+  // 标注定位编辑器（t7 观察池）：面板「编辑器定位」→ 关面板 → 编辑器光标
+  // 选区定位到标注区间（rune 偏移，EditorPanel 内部换算 code-unit）。
+  // gate 跳转他章时面板章≠编辑章（gateContent 是他章正文），不提供该入口。
+  const editorRef = useRef<EditorPanelHandle>(null)
+  const handleLocateInEditor = (ann: ChapterAnnotation) => {
+    setAnalysisOpen(false)
+    setGateChapter(null)
+    setGateContent('')
+    const ok = editorRef.current?.locate(ann.pos, ann.pos + (ann.length ?? 0)) ?? false
+    if (!ok) message.info('请先在左侧选择该章，再定位标注')
+  }
   const [healthOpen, setHealthOpen] = useState(false)
   // 局部重写选区（t4-C3 余项：EditorPanel 选段回调 → PartialRewriteModal；rune 偏移）
   const [pSel, setPSel] = useState<{ start: number; end: number; text: string } | null>(null)
@@ -685,6 +697,7 @@ const CreatePage: React.FC = () => {
         onClose={() => { setAnalysisOpen(false); setGateChapter(null); setGateContent('') }}
         chapterNum={gateChapter ?? (activeChapterNum || null)}
         content={gateContent || content}
+        onLocate={gateChapter == null || gateChapter === activeChapterNum ? handleLocateInEditor : undefined}
       />
       <PromptWorkshopPanel
         open={promptWsOpen}
@@ -703,7 +716,7 @@ const CreatePage: React.FC = () => {
         onSelect={selectChapter} onRegenerate={handleRegenerate} onDelete={handleDelete}
         onAddNext={handleAddNext} onGenerateNext={() => openWizard(lastMainChapter)} />
       <div className="v3-grip" aria-hidden="true" />
-      <EditorPanel activeNode={activeNode ?? null} content={content} onContentChange={setContent}
+      <EditorPanel ref={editorRef} activeNode={activeNode ?? null} content={content} onContentChange={setContent}
         chapterLoading={chapterLoading}
         generating={generating} genPhase={genPhase} genPercent={genPercent} stopping={stopping} saving={saving}
         onRegenerate={() => activeNode && handleRegenerate(activeNode)} onSave={handleSave} onStop={handleStop}
