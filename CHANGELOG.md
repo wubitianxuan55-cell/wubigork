@@ -1,3 +1,9 @@
+## 非版本刀 · todos 对账清账 + booksource 进度回调乱序根修（2026-09-19）
+> 全表对照 git log/CHANGELOG 逐行核查开放项（子代理扫描+人工复核），起因=「TaskCenter 会话维度」行标 ⬜ 实际 v4.229.0 已落、险些重做。
+**对账结果**=关 3 行：TaskCenter 会话维度（v4.229.0 SchemaV20+SubmitSpaceSession+过滤面就位 chip 熄灯；chip 显形等首个会话上下文创建点=门控）/审计刀A（v4.165.0 已落仅状态标错）/knip 甄别（v4.268.0 清账，剩余 15 项 KEEP=@public 哨兵在册保留）。改写 2 子句：t4-C4「随 t7」悬置语→已随 t7 收官（面板只读高亮+锚点 v4.325.0；编辑器 overlay=v4.325 有意裁剪入观察池）；造价「剩 §6 等样本」→§6=v4.209.0 已收官（基线源=自有库不引入外部数据=设计裁决）。删 7.3-1「会话级回源欠账」旧注记（v4.333.0 已收口）。补记 7.3-2 缺省 classic→tasks 翻转候拍板（v4.333 出口对账在案 todos 漏记）。**勘误=v4.338.0 未做段「TaskCenter 结构刀」同源过时，按惯例不追改已发条目、以本条为准**。
+**booksource 进度回调根修**=fetchChapters 的 OnProgress 曾在计数锁外发射：并发 worker 各持快照乱序到达（全量 ci 实测 [0/3 2/3 1/3]，「单跑绿全量挂」负载 flaky 家族+1）且对消费方构成并发调用（测试侧 append 潜在竞争）。根修=发射互斥（emitMu）下现读计数：回调序列非降、末次=成功总数、消费方免同步；OnProgress 契约注释补纪律（轻量回调）。-count=10 绿；本机无 gcc -race 不可跑（race 门=GitHub Actions）。
+**教训**=①「已落地未关」的 todos 行会传导进 release notes 的未做段，下版排刀前先对账②进度类回调的发射序是契约的一部分——计数加锁≠发射有序。
+
 ## v4.338.0 · 无参绑定会话语义审计收官 + 死链清理（绑定面 707→705）（2026-09-19）
 > todos 挂账「GaeaHistory/ContextView 等无参绑定内核会话语义逐个审计」收官（v4.181.0 起挂池）；审计档 docs/gaea-session-binding-audit-2026-09.md。
 **审计结论=需修 0 项，家族关闭**。枚举全部 Gaea* 导出绑定逐个核对 ga.ctrl 会话态读点与前端消费方——核心发现=该应用会话模型构造性保证「看历史必经 ResumeSession 切内核」（currentSessionPath 的 current 标记本身来自 GaeaListSessions 读 c.SessionPath()）：①对话主流水线（History/ResyncEvents/Context/FactBase/ListSessions Current 标记）无参读内核自洽，无「旁路查看另一会话」UI 目标②v4.181 旁路看板族（轨迹/网络/上下文/子代理 runs）无同构残余③提交类/引擎级豁免。**复审口径入档**：新绑定无参读内核会话三条件（跟随实时流的视图/动作类/引擎级），带会话切换的看板一律显式 sessionPath。

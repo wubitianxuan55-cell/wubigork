@@ -128,7 +128,9 @@ func (e *Engine) nextChapterPage(doc *goquery.Document, cur string) (string, boo
 // DownloadOptions 下载编排选项。
 type DownloadOptions struct {
 	Start, End int // 1 起闭区间；0 = 全本（透传 Toc）
-	// OnProgress 每完成一章回调（done/total）；可为 nil。
+	// OnProgress 每完成一章回调（done/total，done=成功数）；可为 nil。
+	// 串行发射（v4.338 后非版本刀根修）：done 非降、末次=成功总数，
+	// 并发 worker 不会同时进入回调——消费方无需自带同步，回调应保持轻量。
 	OnProgress func(done, total int)
 }
 
@@ -164,6 +166,7 @@ func (e *Engine) fetchChapters(ctx context.Context, toc []TocEntry, opt Download
 	var (
 		mu      sync.Mutex
 		doneCnt int
+		emitMu  sync.Mutex // OnProgress 发射互斥：锁外直接回调曾实测乱序 [0/3 2/3 1/3]
 	)
 	errs := e.runBounded(ctx, len(toc), e.cfg.Concurrency, func(i int) error {
 		ch, err := e.Chapter(ctx, toc[i])
@@ -174,10 +177,14 @@ func (e *Engine) fetchChapters(ctx context.Context, toc []TocEntry, opt Download
 			slots[i] = &ch
 		}
 		if opt.OnProgress != nil {
+			// 发射互斥下现读计数：回调序列非降、末次=成功总数；且并发
+			// worker 不同时进入回调，消费方免同步。
+			emitMu.Lock()
 			mu.Lock()
 			d := doneCnt
 			mu.Unlock()
 			opt.OnProgress(d, len(toc))
+			emitMu.Unlock()
 		}
 		return err
 	})
