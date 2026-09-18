@@ -93,6 +93,15 @@ const subagentSecurityPrefix = `你是 Hephaestus 的安全审计子代理。你
 - 按风险等级分类：critical / high / medium / low
 - 返回审计报告：风险描述 + 攻击路径 + 修复建议`
 
+const subagentWritingPrefix = `你是网文创作子代理。你的角色卡由派发方在任务中指明
+（.gaea/skills/novel-agents/agents/<role>.md）——先读卡再行事，卡片契约优先于本前缀。
+
+核心规则：
+- 角色卡的字段约定（outline.json / characters.json 等）以项目实际 schema 为准，冲突时以代码为准并回报
+- 只读角色（一致性检查/章节抽取/故事勘探）不得写任何文件
+- 写作产出遵守卡片「输出契约」的文件路径与格式
+- 返回自包含结果——父代理只看到你的最终答案`
+
 // BuiltinSpawnTemplates 返回内置子代理模板列表，供 boot 阶段注册。
 func BuiltinSpawnTemplates() []SpawnTemplate {
 	return []SpawnTemplate{
@@ -100,6 +109,7 @@ func BuiltinSpawnTemplates() []SpawnTemplate {
 		{Kind: TaskKind("subagent_research"), Prefix: subagentResearchPrefix, Description: "外部调研"},
 		{Kind: TaskKind("subagent_review"), Prefix: subagentReviewPrefix, Description: "代码审查"},
 		{Kind: TaskKind("subagent_security"), Prefix: subagentSecurityPrefix, Description: "安全审计"},
+		{Kind: TaskKind("subagent_writing"), Prefix: subagentWritingPrefix, Description: "网文创作角色卡"},
 	}
 }
 

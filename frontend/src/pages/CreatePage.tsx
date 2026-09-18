@@ -121,7 +121,20 @@ const CreatePage: React.FC = () => {
   const [content, setContent] = useState('')
 
   // 生成后自动门轻通知（v4.331：chapter-gate 事件消费——契约/质量/AI 味/分析同步）
-  useChapterGateNotice()
+  // v4.336：通知可点击→跳章节分析面板；跨章时拉该章正文供标注锚定（失败回退空）
+  const [gateChapter, setGateChapter] = useState<number | null>(null)
+  const [gateContent, setGateContent] = useState('')
+  useChapterGateNotice((n) => {
+    setGateChapter(n)
+    if (n === activeChapterNum) {
+      setGateContent('')
+    } else {
+      void app.GetChapter(n)
+        .then((ch) => setGateContent(String((ch?.content as string) ?? '')))
+        .catch(() => setGateContent(''))
+    }
+    setAnalysisOpen(true)
+  })
   const [chapterLoading, setChapterLoading] = useState(false)
   const [generating, setGenerating] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -669,9 +682,9 @@ const CreatePage: React.FC = () => {
       <BookHealthPanel open={healthOpen} onClose={() => setHealthOpen(false)} />
       <ChapterAnalysisPanel
         open={analysisOpen}
-        onClose={() => setAnalysisOpen(false)}
-        chapterNum={activeChapterNum || null}
-        content={content}
+        onClose={() => { setAnalysisOpen(false); setGateChapter(null); setGateContent('') }}
+        chapterNum={gateChapter ?? (activeChapterNum || null)}
+        content={gateContent || content}
       />
       <PromptWorkshopPanel
         open={promptWsOpen}

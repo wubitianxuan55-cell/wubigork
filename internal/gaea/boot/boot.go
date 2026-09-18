@@ -846,6 +846,8 @@ func subagentSkillToTemplateKind(skillName string) cache.TaskKind {
 		return "subagent_review"
 	case "security-review", "security_review":
 		return "subagent_security"
+	case "novel-agents": // v4.336：网文创作七角色子代理（写作域角色卡）
+		return "subagent_writing"
 	default:
 		return ""
 	}

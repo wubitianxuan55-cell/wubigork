@@ -3,8 +3,9 @@
 // （v4.326 后端 emit，此前零前端消费），把异步自动门结果轻通知给作者
 // （antd message.info，key 防叠，6s 自动消失，零弹窗打扰）。
 // 通道模式同 useChapterStream（window.runtime.EventsOn/EventsOff——浏览器
-// mock 无通道静默跳过）。
-import { useEffect } from 'react'
+// mock 无通道静默跳过）。v4.336：通知可点击——onOpen(chapterNum) 跳章节
+// 分析面板（观察池头名收口）。
+import { useEffect, useRef } from 'react'
 import { message } from 'antd'
 
 export const CHAPTER_GATE_CHANNEL = 'chapter-gate'
@@ -32,15 +33,26 @@ export function gateNoticeText(r: ChapterGateReport): string {
   return parts.length > 0 ? `${label} 生成后自动体检：${parts.join(' · ')}` : `${label} 生成后自动体检完成`
 }
 
-/** 订阅 chapter-gate：组件挂载期监听，卸载退订（EventsOff 只清本通道）。 */
-export function useChapterGateNotice(): void {
+/** 订阅 chapter-gate：组件挂载期监听，卸载退订（EventsOff 只清本通道）。
+ *  onOpen：点击通知回调（传报告章号；无回调=纯通知不跳转，既有行为零变化）。 */
+export function useChapterGateNotice(onOpen?: (chapterNum: number) => void): void {
+  // ref 保最新回调（防过期闭包——[] 依赖订阅一次，回调可能引用异步态）
+  const onOpenRef = useRef(onOpen)
+  onOpenRef.current = onOpen
   useEffect(() => {
     const handler = (payload: unknown) => {
       // 兼容 CustomEvent 包装（event.detail）与 Wails 直传负载
       const raw = (payload as { detail?: unknown } | null)?.detail ?? payload
       const r = raw as ChapterGateReport | null
       if (!r || r.type !== 'report') return
-      message.info({ key: 'chapter-gate', content: gateNoticeText(r), duration: 6 })
+      message.info({
+        key: 'chapter-gate',
+        content: gateNoticeText(r),
+        duration: 6,
+        onClick: () => {
+          if (r.chapterNum && r.chapterNum > 0) onOpenRef.current?.(r.chapterNum)
+        },
+      })
     }
     try {
       window.runtime?.EventsOn?.(CHAPTER_GATE_CHANNEL, handler as (data: unknown) => void)

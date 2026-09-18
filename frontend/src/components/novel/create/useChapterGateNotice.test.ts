@@ -55,6 +55,38 @@ describe('useChapterGateNotice 自动门通知（v4.331）', () => {
     }
   })
 
+  it('点击通知回调 onOpen(章号)；无效章号不回调；无 onOpen 纯通知（v4.336 跳转分析面板）', () => {
+    const listeners: Record<string, (data: unknown) => void> = {}
+    const eventsOn = vi.fn((ch: string, h: (data: unknown) => void) => { listeners[ch] = h })
+    const eventsOff = vi.fn()
+    const w = window as unknown as { runtime?: unknown }
+    const originalRuntime = w.runtime
+    w.runtime = { EventsOn: eventsOn, EventsOff: eventsOff }
+    const infoSpy = vi.spyOn(message, 'info').mockImplementation(() => ({ then: () => ({}) }) as never)
+    const onOpen = vi.fn()
+
+    try {
+      const { unmount } = renderHook(() => useChapterGateNotice(onOpen))
+      listeners[CHAPTER_GATE_CHANNEL]({ type: 'report', chapterNum: 5, qualityIssues: 1 })
+      const cfg = infoSpy.mock.calls[0][0] as unknown as { onClick: () => void }
+      cfg.onClick()
+      expect(onOpen).toHaveBeenCalledWith(5)
+
+      // 无效章号：onClick 不触发回调
+      listeners[CHAPTER_GATE_CHANNEL]({ type: 'report' })
+      ;(infoSpy.mock.calls[1][0] as unknown as { onClick: () => void }).onClick()
+      expect(onOpen).toHaveBeenCalledTimes(1)
+
+      // 无 onOpen：不炸（纯通知）
+      unmount()
+      renderHook(() => useChapterGateNotice())
+      listeners[CHAPTER_GATE_CHANNEL]({ type: 'report', chapterNum: 2 })
+      expect(() => (infoSpy.mock.calls[2][0] as unknown as { onClick: () => void }).onClick()).not.toThrow()
+    } finally {
+      w.runtime = originalRuntime
+    }
+  })
+
   it('浏览器无 runtime：订阅静默跳过不炸', () => {
     const w = window as unknown as { runtime?: unknown }
     const originalRuntime = w.runtime

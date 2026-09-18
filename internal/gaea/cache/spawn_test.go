@@ -40,8 +40,8 @@ func TestRegisterSpawnTemplate_EmptyKindOrPrefix(t *testing.T) {
 
 func TestBuiltinSpawnTemplates(t *testing.T) {
 	templates := BuiltinSpawnTemplates()
-	if len(templates) != 4 {
-		t.Fatalf("expected 4 builtin templates, got %d", len(templates))
+	if len(templates) != 5 {
+		t.Fatalf("expected 5 builtin templates, got %d", len(templates))
 	}
 	types := make(map[string]bool)
 	for _, st := range templates {
@@ -52,6 +52,10 @@ func TestBuiltinSpawnTemplates(t *testing.T) {
 			t.Fatalf("duplicate template kind: %s", st.Kind)
 		}
 		types[string(st.Kind)] = true
+	}
+	// v4.336：写作域角色卡模板（novel-agents 七角色子代理共享前缀缓存）
+	if !types["subagent_writing"] {
+		t.Fatalf("missing subagent_writing template: %v", types)
 	}
 }
 

@@ -3,6 +3,14 @@
 > 本文件为**最近发布速览**。完整历史磁带见 `docs/archive/progress-history-2026-09.md`
 > 与 `releases/`。
 
+## 最新发布：v4.336.0（2026-09-18）「chapter-gate 通知跳转 + oh-story T5 落库接线」
+
+- **来源**：用户指令「继续」；规格书 进度计划/gaea-gate-jump-t5-wiring-20260918.md。
+- **甲件**：自动门通知可点击——onOpen 回调+CreatePage 覆盖态+跨章拉正文锚定；无回调零变化（v4.331 观察池头名收口）。
+- **乙件**：T5 七角色卡升格可派发——SKILL.md runAs=subagent+派发契约；spawn 写作域模板 subagent_writing+boot 映射；验收钉 Go +3。oh-story 只剩写前契约硬闸（等上游）。
+- **验收**：全量 ci 绿；drift OK@707；产物见 releases/v4.336.0.md。
+- **未做（下刀）**：真机走查清池班；技能核数 ≈09-30；绘梦阶段二候拍板。
+
 ## 最新发布：v4.335.0（2026-09-17）「办公输入动线对齐 DSH/Codex：运行中 Enter=排队，插话改显式」
 
 - **来源**：用户报告「办公板块消息输入的排序/插话/撤回不见了，直接插入正在跑的对话中」；拍板「按 DSH/Codex 方式处理」。

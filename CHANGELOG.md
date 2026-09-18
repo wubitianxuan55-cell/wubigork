@@ -1,3 +1,11 @@
+## v4.336.0 · chapter-gate 通知跳转 + oh-story T5 落库接线（2026-09-18）
+> 用户指令「继续」。两件观察池/todos 收口；规格书 进度计划/gaea-gate-jump-t5-wiring-20260918.md。
+**甲件 自动门通知可点击**（v4.331 观察池头名）=useChapterGateNotice 增可选 onOpen 回调（ref 保最新回调防过期闭包），通知 onClick 传报告章号；CreatePage gateChapter 覆盖态打开章节分析面板，跨章时 GetChapter 拉正文供标注锚定（失败回退空串）；无回调=纯通知零变化。测试钩子 +1。
+**乙件 oh-story T5 落库接线**（todos 欠账本体）=摸底证实资产零代码引用、消费面应为 run_skill/任务子代理（非角色库，数据管道已齐）——①SKILL.md frontmatter `runAs: subagent`+「派发契约」段（子代理执行序=解析 role→read_file `.gaea/skills/novel-agents/agents/<role>.md`→按卡执行；七 role 枚举；主会话 arguments 格式 `role=<角色> <任务>`）②spawn 第五内置模板 `subagent_writing`（写作域角色卡前缀）+boot 映射 novel-agents→subagent_writing（七角色子代理共享 L4 前缀缓存 V5.30）③验收钉 Go +3（skill 包直读仓库资产断言 Scope/RunAs/锚点/七 role；boot 映射；cache 计数 4→5）。**oh-story 余项只剩写前契约硬闸（需先有一键补大纲，等上游）**。零新绑定 707。
+**门禁**=全量 ci.ps1 绿；drift OK@707；版本三处 4.336.0；产物=exe 50833920B SHA256=235e3f05ca7ab062ebea99c49e24160f439a599b80db51a648f33bd1419d77ea（releases+SUMS；桌面副本同哈希；冒烟 200 过）。
+**文档**=规格书+releases/v4.336.0.md+CHANGELOG/README+AGENTS 迁 1 插 1（五十一迁）+progress/todos。
+**未做（下刀）**=真机走查清池班（v4.319~v4.336 挂池，须闲置窗口）；技能 ≥5 次核数 ≈09-30；绘梦阶段二/缺省形态翻转候拍板。
+
 ## v4.335.0 · 办公输入动线对齐 DSH/Codex：运行中 Enter=排队，插话改显式（2026-09-17）
 > 用户报告「办公板块消息输入的排序/插话/撤回不见了，直接插入正在跑的对话中」。归因=**非回归**：队列功能本体（v4.200/201 排序/插话/撤回/锁定）一直在且测试全绿，丢的是入口——v3.6.0（2026-08-28）把运行中 Enter 从排队改成插话（对齐豆包边跑边改），排队退到 Clock 小按钮，用户 Enter→直插当前对话→队列卡从未出现。用户拍板「按 DSH/Codex 方式处理」。
 **落地**（纯前端零绑定 707）=①运行中 **Enter=排队**：入发送队列→队列卡（拖拽排序/撤回编辑/单条·全部插话/全部取消/发送中锁定）回主动线，回合结束 FIFO 自动派发②**插话改显式**：Alt+Enter 直插当前回合（边跑边改保留），队列卡 Zap/全部插话不变③Shift+Enter 纠正/Esc 停止/Clock 按钮语义零变化④发送钮 title 三态换 sendQueuedTitle；placeholder 运行中提示三语更新（Enter 排队 · Alt+Enter 插话 · Shift+Enter 纠正）⑤composer.steerTitle 键删（维持 0 死键）；Composer 四处重复组装抽 assembleSubmit/enqueueSubmit/pushInputHistory，入队统一进输入历史。**测试**=Composer.queue +3（Enter 排队不走 steer/Alt+Enter 直插不入队/Shift+Enter 纠正回归锁）+I18n 断言对齐+sendQueuedTitle 三态钉；composer 域 22/22。**顺带修 flaky（v4.334 遗留）**=CI 首跑 TestKnife8_GenerationAxis_EndToEnd 快败（标注 items=0）：门协程落盘序 V2→memories→annotations→伏笔，测试只对 V2 waitFor、③④⑤裸读输给 IO 时序（昨日 3 连跑全赢属侥幸）——③④⑤ 改 waitFor 终态后 -count=3 绿；教训=**异步落盘链上读到 A≠读到 B，断言等终态不赌时序**。**坑=后台跑 ci.ps1 别接管道 tail（吞退出码假绿，v4.334 首跑被 tail 的 exit 0 骗过）**。**观察**=GenUI action 运行中仍走 steer（机器动作语义与用户输入分线，不改）。
