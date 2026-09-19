@@ -4,7 +4,7 @@ import { CloudOutlined, DatabaseOutlined, DesktopOutlined, ReloadOutlined, SaveO
 import { EmptyState, KpiTile, StatusChip } from './ui'
 import { billingModeLabel, costToCNY, engineColor, engineIcons, engineLabel, estimatePoints, findModelMeta, fmtCost, hasPointsCoef, isLocalEngine, USD_TO_CNY } from './utils'
 import { RequestsTrendChart, TokenTrendChart, type StatsSort, type TrendRange } from './charts'
-import { useModelCenter } from './context'
+import { useModelCenterActions, useModelCenterState } from './context'
 import { getUsageOverview, type UsageOverview, type UsageSide } from '../../api/engines'
 
 // T5-3 KV 缓存命中率展示：后端 json tag 为 snake_case（与 engines.ts 类型一致），
@@ -26,9 +26,19 @@ function sideCache(s: UsageSide): UsageSide & SideCache {
 
 export function StatsSection() {
   const {
-    engines, callStats, statsSort, setStatsSort, trendRange, setTrendRange,
-    loadCallStats, handleResetCallStats, trendData,
-  } = useModelCenter()
+    engines,
+    callStats,
+    statsSort,
+    trendRange,
+    trendData,
+  } = useModelCenterState()
+
+  const {
+    setStatsSort,
+    setTrendRange,
+    loadCallStats,
+    handleResetCallStats,
+  } = useModelCenterActions()
   const [overview, setOverview] = React.useState<UsageOverview | null>(null)
   const [overviewLoading, setOverviewLoading] = React.useState(false)
 

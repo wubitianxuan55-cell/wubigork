@@ -3,14 +3,24 @@ import { Button, Input } from 'antd'
 import { CaretRightOutlined, CheckCircleOutlined, LoadingOutlined, ThunderboltOutlined } from '@ant-design/icons'
 import { EmptyState, ModelCard, SectionHead, StatusChip } from './ui'
 import { capLabels, engineColor, engineLabel, filterModelsBySearch, formatCtx, formatPrice, glmAliasNote, isUDVariant, modelAvailability, sortModelHubUDFirst, sortModelsPinnedFirst } from './utils'
-import { useModelCenter } from './context'
+import { useModelCenterActions, useModelCenterState } from './context'
 import { usePinnedModels } from './modelPrefs'
 
 export function LLMSection() {
   const {
-    engines, llmModels, engineStatuses, testingEngine, hubLoadingIds,
-    handleTestConnection, handleRefreshModels, handleStartModel, isModelActive,
-  } = useModelCenter()
+    engines,
+    llmModels,
+    engineStatuses,
+    testingEngine,
+    hubLoadingIds,
+  } = useModelCenterState()
+
+  const {
+    handleTestConnection,
+    handleRefreshModels,
+    handleStartModel,
+    isModelActive,
+  } = useModelCenterActions()
   const [llmSearch, setLlmSearch] = useState('')
   const [pinned, togglePin] = usePinnedModels()
 

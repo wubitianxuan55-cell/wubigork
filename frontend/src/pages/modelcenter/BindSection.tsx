@@ -10,7 +10,7 @@ import {
   engineLabel, FEATURES, featureState, featureStateMeta,
   modelOptionsForEngine, routeSourceLabel,
 } from './utils'
-import { useModelCenter } from './context'
+import { useModelCenterActions, useModelCenterState } from './context'
 
 const FEATURE_ICONS: Record<string, ReactNode> = {
   chat: <CommentOutlined />,
@@ -36,15 +36,35 @@ const stateTone = (color: string): StatusTone =>
 
 export function BindSection() {
   const {
-    engines, featureCfg, featureDraft, featureEnabled, modelRoutes,
-    chatVoiceCfg, chatVoiceDraft, chatVoiceSaving, chatVoiceOptions, chatVoiceValue,
+    engines,
+    featureCfg,
+    featureDraft,
+    featureEnabled,
+    modelRoutes,
+    chatVoiceCfg,
+    chatVoiceDraft,
+    chatVoiceSaving,
+    chatVoiceOptions,
+    chatVoiceValue,
+    portraitCfg,
+    portraitDraft,
+    portraitModelOptions,
+    portraitSaving,
+    llmModels,
+    ttsModels,
+  } = useModelCenterState()
+
+  const {
     setVoiceCfg,
-    portraitCfg, portraitDraft, portraitModelOptions, portraitSaving,
-    llmModels, ttsModels,
-    setFeatureDraft, setChatVoiceDraft, setPortraitDraft,
-    handleSaveFeature, handleToggleFeatureEnabled,
-    handleSaveChatVoice, handleClearChatVoice, handleSavePortrait,
-  } = useModelCenter()
+    setFeatureDraft,
+    setChatVoiceDraft,
+    setPortraitDraft,
+    handleSaveFeature,
+    handleToggleFeatureEnabled,
+    handleSaveChatVoice,
+    handleClearChatVoice,
+    handleSavePortrait,
+  } = useModelCenterActions()
 
   return (
     <section className="mc-section">

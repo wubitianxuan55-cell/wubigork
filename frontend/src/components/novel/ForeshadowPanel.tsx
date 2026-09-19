@@ -8,7 +8,7 @@
 //    生命周期清理入口（删本章/重分析前清理/项目重置，手动条目后端护栏保护）、
 //    上次分析同步结果（跳过原因可见，D3 不静默）。
 // 纯逻辑（ID 生成/状态机/载荷收窄）抽在 foreshadowLogic.ts。
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Alert, Button, Checkbox, Empty, Input, InputNumber, message, Popconfirm, Select, Spin, Tag, Tooltip,
 } from 'antd'
@@ -64,6 +64,90 @@ const RESOLVE_STATUS_LABELS: Record<string, string> = {
   not_yet: '未到回收时机',
   no_plan: '未填计划回收章',
 }
+
+/** 单行组件（v4.352 memo 化）：行内编辑/登记表单每键此前全列表重渲染（数百行
+ *  可达，每行 Tag/Tooltip/Popconfirm）；行数据不可变更新 + 回调全 useCallback，
+ *  编辑键入只重渲染受控行。 */
+interface ForeshadowRowProps {
+  it: ForeshadowItemData
+  editing: boolean
+  editDesc: string
+  onEditChange: (id: string, desc: string) => void
+  onSaveEdit: () => void
+  onCancelEdit: () => void
+  onFlow: (id: string) => void
+  onStartEdit: (it: ForeshadowItemData) => void
+  onRemove: (id: string) => void
+}
+
+const ForeshadowRow = memo(function ForeshadowRow({
+  it, editing, editDesc, onEditChange, onSaveEdit, onCancelEdit, onFlow, onStartEdit, onRemove,
+}: ForeshadowRowProps) {
+  return (
+    <div className="fs-item">
+      <div className="fs-item-head">
+        <Tag style={{ marginInlineEnd: 6, fontSize: 11 }} color="default">{CATEGORY_LABELS[it.category] || it.category}</Tag>
+        {editing ? (
+          <Input.TextArea
+            size="small" rows={2} autoFocus style={{ flex: 1, minWidth: 0 }}
+            value={editDesc}
+            onChange={(e) => onEditChange(it.id, e.target.value)}
+          />
+        ) : (
+          <span className="fs-item-desc">{it.description}</span>
+        )}
+        <div style={{ flex: 1 }} />
+        <Tooltip title={`章节：${it.planted_in}`}>
+          <span className="novel-setting-meta">{it.planted_in}</span>
+        </Tooltip>
+        <Tag style={{ marginInlineEnd: 0, fontSize: 11 }} color={STATUS_META[it.status].color}>
+          {STATUS_META[it.status].label}
+        </Tag>
+        {/* t1-P4：紧急度 Badge（后端运行时投影；阈值后端算 D7） */}
+        {it.urgency && it.urgency.level > 0 && (
+          <Tooltip title={`${RESOLVE_STATUS_LABELS[it.urgency.resolveStatus] ?? it.urgency.resolveStatus}${it.urgency.overdueChapters ? `·已超 ${it.urgency.overdueChapters} 章` : it.urgency.remainingChapters > 0 ? `·还有 ${it.urgency.remainingChapters} 章` : ''}`}>
+            <Tag style={{ marginInlineEnd: 0, fontSize: 11 }} color={URGENCY_META[it.urgency.level]?.color ?? 'default'}>
+              {URGENCY_META[it.urgency.level]?.label ?? `紧急度${it.urgency.level}`}
+            </Tag>
+          </Tooltip>
+        )}
+      </div>
+      <div className="fs-item-foot" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        {it.is_long_term && <Tag style={{ fontSize: 10, marginInlineEnd: 0 }} color="purple">长期伏笔</Tag>}
+        {it.status === 'revealed' && it.revealed_in && (
+          <span className="novel-setting-meta">回收于 {it.revealed_in}</span>
+        )}
+        <div style={{ flex: 1 }} />
+        {editing ? (
+          <>
+            <Button size="small" type="link" style={{ padding: 0 }} onClick={onSaveEdit}>保存</Button>
+            <Button size="small" type="link" style={{ padding: 0 }} onClick={onCancelEdit}>取消</Button>
+          </>
+        ) : (
+          <>
+            {/* ② 状态流转：planted→hinted→revealed，revealed 可回退 */}
+            <Button size="small" type="link" style={{ padding: 0 }} onClick={() => onFlow(it.id)}>
+              {foreshadowFlowLabel(it.status)}
+            </Button>
+            {/* ④ 描述编辑 */}
+            <Button
+              size="small" type="link" icon={<EditOutlined />}
+              aria-label={`编辑伏笔：${it.description}`}
+              onClick={() => onStartEdit(it)}
+            />
+            {/* ③ 删除（confirm） */}
+            <Popconfirm title="删除该伏笔？" okText="删除" cancelText="取消" onConfirm={() => onRemove(it.id)}>
+              <Button
+                size="small" type="link" danger icon={<DeleteOutlined />}
+                aria-label={`删除伏笔：${it.description}`}
+              />
+            </Popconfirm>
+          </>
+        )}
+      </div>
+    </div>
+  )
+})
 
 interface ForeshadowPanelProps {
   /** 未打开项目时仅展示空态引导，不触发加载 */
@@ -198,7 +282,7 @@ const ForeshadowPanel: React.FC<ForeshadowPanelProps> = ({ disabled }) => {
     message.success('伏笔已登记')
   }
 
-  const flow = (id: string) => {
+  const flow = useCallback((id: string) => {
     const target = items.find((it) => it.id === id)
     if (!target) return
     const nextStatus = advanceForeshadowStatus(target.status)
@@ -207,13 +291,13 @@ const ForeshadowPanel: React.FC<ForeshadowPanelProps> = ({ disabled }) => {
       status: nextStatus,
       revealed_in: nextStatus === 'revealed' ? (it.revealed_in ?? it.planted_in) : undefined,
     })))
-  }
+  }, [items, persist])
 
-  const remove = (id: string) => {
+  const remove = useCallback((id: string) => {
     void persist(items, items.filter((it) => it.id !== id))
-  }
+  }, [items, persist])
 
-  const saveEdit = () => {
+  const saveEdit = useCallback(() => {
     if (!editing) return
     const desc = editing.desc.trim()
     if (!desc) {
@@ -223,7 +307,16 @@ const ForeshadowPanel: React.FC<ForeshadowPanelProps> = ({ disabled }) => {
     const id = editing.id
     setEditing(null)
     void persist(items, items.map((it) => (it.id !== id ? it : { ...it, description: desc })))
-  }
+  }, [editing, items, persist])
+
+  // v4.352 行组件化回调：编辑键入/登记表单键入只重渲染受控行
+  const handleEditChange = useCallback((id: string, desc: string) => {
+    setEditing((cur) => (cur && cur.id === id ? { id, desc } : cur));
+  }, []);
+  const cancelEdit = useCallback(() => setEditing(null), []);
+  const startEdit = useCallback((it: ForeshadowItemData) => {
+    setEditing({ id: it.id, desc: it.description });
+  }, []);
 
   const stats = useMemo(() => {
     const total = items.length
@@ -448,68 +541,18 @@ const ForeshadowPanel: React.FC<ForeshadowPanelProps> = ({ disabled }) => {
                   )}
                 </div>
                 {items.map((it) => (
-                  <div key={it.id} className="fs-item">
-                    <div className="fs-item-head">
-                      <Tag style={{ marginInlineEnd: 6, fontSize: 11 }} color="default">{CATEGORY_LABELS[it.category] || it.category}</Tag>
-                      {editing?.id === it.id ? (
-                        <Input.TextArea
-                          size="small" rows={2} autoFocus style={{ flex: 1, minWidth: 0 }}
-                          value={editing.desc}
-                          onChange={(e) => setEditing({ id: it.id, desc: e.target.value })}
-                        />
-                      ) : (
-                        <span className="fs-item-desc">{it.description}</span>
-                      )}
-                      <div style={{ flex: 1 }} />
-                      <Tooltip title={`章节：${it.planted_in}`}>
-                        <span className="novel-setting-meta">{it.planted_in}</span>
-                      </Tooltip>
-                      <Tag style={{ marginInlineEnd: 0, fontSize: 11 }} color={STATUS_META[it.status].color}>
-                        {STATUS_META[it.status].label}
-                      </Tag>
-                      {/* t1-P4：紧急度 Badge（后端运行时投影；阈值后端算 D7） */}
-                      {it.urgency && it.urgency.level > 0 && (
-                        <Tooltip title={`${RESOLVE_STATUS_LABELS[it.urgency.resolveStatus] ?? it.urgency.resolveStatus}${it.urgency.overdueChapters ? `·已超 ${it.urgency.overdueChapters} 章` : it.urgency.remainingChapters > 0 ? `·还有 ${it.urgency.remainingChapters} 章` : ''}`}>
-                          <Tag style={{ marginInlineEnd: 0, fontSize: 11 }} color={URGENCY_META[it.urgency.level]?.color ?? 'default'}>
-                            {URGENCY_META[it.urgency.level]?.label ?? `紧急度${it.urgency.level}`}
-                          </Tag>
-                        </Tooltip>
-                      )}
-                    </div>
-                    <div className="fs-item-foot" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      {it.is_long_term && <Tag style={{ fontSize: 10, marginInlineEnd: 0 }} color="purple">长期伏笔</Tag>}
-                      {it.status === 'revealed' && it.revealed_in && (
-                        <span className="novel-setting-meta">回收于 {it.revealed_in}</span>
-                      )}
-                      <div style={{ flex: 1 }} />
-                      {editing?.id === it.id ? (
-                        <>
-                          <Button size="small" type="link" style={{ padding: 0 }} onClick={saveEdit}>保存</Button>
-                          <Button size="small" type="link" style={{ padding: 0 }} onClick={() => setEditing(null)}>取消</Button>
-                        </>
-                      ) : (
-                        <>
-                          {/* ② 状态流转：planted→hinted→revealed，revealed 可回退 */}
-                          <Button size="small" type="link" style={{ padding: 0 }} onClick={() => flow(it.id)}>
-                            {foreshadowFlowLabel(it.status)}
-                          </Button>
-                          {/* ④ 描述编辑 */}
-                          <Button
-                            size="small" type="link" icon={<EditOutlined />}
-                            aria-label={`编辑伏笔：${it.description}`}
-                            onClick={() => setEditing({ id: it.id, desc: it.description })}
-                          />
-                          {/* ③ 删除（confirm） */}
-                          <Popconfirm title="删除该伏笔？" okText="删除" cancelText="取消" onConfirm={() => remove(it.id)}>
-                            <Button
-                              size="small" type="link" danger icon={<DeleteOutlined />}
-                              aria-label={`删除伏笔：${it.description}`}
-                            />
-                          </Popconfirm>
-                        </>
-                      )}
-                    </div>
-                  </div>
+                  <ForeshadowRow
+                    key={it.id}
+                    it={it}
+                    editing={editing?.id === it.id}
+                    editDesc={editing?.id === it.id ? editing.desc : ''}
+                    onEditChange={handleEditChange}
+                    onSaveEdit={saveEdit}
+                    onCancelEdit={cancelEdit}
+                    onFlow={flow}
+                    onStartEdit={startEdit}
+                    onRemove={remove}
+                  />
                 ))}
               </div>
             )}

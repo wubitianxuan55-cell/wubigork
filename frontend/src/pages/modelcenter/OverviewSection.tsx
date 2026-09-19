@@ -9,7 +9,7 @@ import {
 } from '@ant-design/icons'
 import { EmptyState, KpiTile, ModelCard, SectionHead, StatusChip } from './ui'
 import { engineLabel, modelDisplayName } from './utils'
-import { useModelCenter } from './context'
+import { useModelCenterActions, useModelCenterState } from './context'
 
 /** 巡检时间 title（C 刀）：ISO → 「巡检 HH:MM」；缺失/解析失败返回 undefined 不占位 */
 function checkedAtTitle(iso?: string): string | undefined {
@@ -21,7 +21,8 @@ function checkedAtTitle(iso?: string): string | undefined {
 }
 
 export function OverviewSection() {
-  const { engines, engineStatuses, callStats, setCategory, activeEngine } = useModelCenter()
+    const { engines, engineStatuses, callStats, activeEngine } = useModelCenterState()
+  const { setCategory } = useModelCenterActions()
   const enabled = engines.filter(e => e.enabled)
   const connected = enabled.filter(e => engineStatuses[e.id]?.connected).length
   const failedCalls = callStats?.fail_calls ?? 0

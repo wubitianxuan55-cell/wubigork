@@ -16,7 +16,7 @@
  */
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import { ModelCenterContext, type ModelCenterContextValue } from './context'
+import { ModelCenterActionsContext, ModelCenterContext, ModelCenterStateContext, type ModelCenterContextValue } from './context'
 import { EngineSection } from './EngineSection'
 import { saveEngine, type EngineConfig } from '../../api/engines'
 
@@ -72,9 +72,9 @@ function renderSection() {
     makeModels: (engine: EngineConfig) => engine.models || [],
   } as unknown as ModelCenterContextValue
   render(
-    <ModelCenterContext.Provider value={value}>
+    <ModelCenterStateContext.Provider value={value}><ModelCenterActionsContext.Provider value={value}><ModelCenterContext.Provider value={value}>
       <EngineSection />
-    </ModelCenterContext.Provider>,
+    </ModelCenterContext.Provider></ModelCenterActionsContext.Provider></ModelCenterStateContext.Provider>,
   )
   return { handleAddCustomEngine, handleUpdateCustomEngine, handleRemoveCustomEngine, saveEngine: mSaveEngine }
 }

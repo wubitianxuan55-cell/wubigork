@@ -10,72 +10,56 @@ export interface VoiceCfg {
   tts: { engine: string; model: string; voice: string }
 }
 
-export interface ModelCenterContextValue {
+export interface ModelCenterStateValue {
   category: Category
-  setCategory: (c: Category) => void
   engines: EngineConfig[]
   engineStatuses: Record<string, EngineStatus>
   editingURLs: Record<string, string>
-  setEditingURLs: Dispatch<SetStateAction<Record<string, string>>>
   savingEngine: string | null
   testingEngine: string | null
   activeEngine: string
   activeModel: string
   deepseekKey: string
-  setDeepseekKeyState: (v: string) => void
   deepseekKeyMasked: string
   glmKey: string
-  setGlmKeyState: (v: string) => void
   glmKeyMasked: string
   opencodeGoKey: string
-  setOpencodeGoKeyState: (v: string) => void
   opencodeGoKeyMasked: string
   opencodeZenKey: string
-  setOpencodeZenKeyState: (v: string) => void
   opencodeZenKeyMasked: string
   modelHubKey: string
-  setModelHubKeyState: (v: string) => void
   modelHubKeyMasked: string
+  settingGlmEndpoint: boolean
   /** MH2：正在 Studio 侧加载的 modelhub 模型 id（模型卡显示「加载中」并禁用按钮） */
   hubLoadingIds: string[]
   callStats: ModelStatsSummary | null
   loadError: string | null
   statsSort: StatsSort
-  setStatsSort: (v: StatsSort) => void
   trendRange: TrendRange
-  setTrendRange: (v: TrendRange) => void
   trendData: TrendDatum[]
   imageBackend: string
-  setImageBackend: (v: string) => void
   comfyUIURL: string
   comfyUIPath: string
   comfyUIPythonPath: string
   imageModel: string
-  setImageModel: (v: string) => void
   imageSaveDir: string
-  setImageSaveDir: (v: string) => void
   imageBackendSaving: boolean
   comfyStatus: { running: boolean; port: number }
   comfyBusy: boolean
   voiceCfg: VoiceCfg
-  setVoiceCfg: Dispatch<SetStateAction<VoiceCfg>>
   ocrCfg: { engine: string; model: string }
-  setOcrCfg: Dispatch<SetStateAction<{ engine: string; model: string }>>
   chatVoiceCfg: { engine: string; model: string }
   chatVoiceDraft: { engine: string; model: string }
-  setChatVoiceDraft: Dispatch<SetStateAction<{ engine: string; model: string }>>
   chatVoiceSaving: boolean
   chatVoiceSpeakers: string[]
   chatVoiceOptions: { value: string; label: string }[]
   chatVoiceValue?: string
   featureCfg: Record<string, { engine: string; model: string }>
   featureDraft: Record<string, { engine: string; model: string }>
-  setFeatureDraft: Dispatch<SetStateAction<Record<string, { engine: string; model: string }>>>
   featureEnabled: Record<string, boolean>
   modelRoutes: Record<string, { engine: string; model: string; source: string }>
   portraitCfg: { backend: string; model: string }
   portraitDraft: { backend: string; model: string }
-  setPortraitDraft: Dispatch<SetStateAction<{ backend: string; model: string }>>
   portraitModelOptions: { label: string; value: string }[]
   portraitSaving: boolean
   llmModels: ModelCardData[]
@@ -83,6 +67,28 @@ export interface ModelCenterContextValue {
   sttModels: ModelCardData[]
   imageModels: ModelCardData[]
   specialtyModels: ModelCardData[]
+}
+
+/** 动作通道（v4.352 拆分）：五个 hook 返回的函数引用随各 hook 重渲染换新——
+ *  单独一个通道承载，state 消费者不因动作引用变化重渲染。 */
+export interface ModelCenterActionsValue {
+  setCategory: (c: Category) => void
+  setEditingURLs: Dispatch<SetStateAction<Record<string, string>>>
+  setDeepseekKeyState: (v: string) => void
+  setGlmKeyState: (v: string) => void
+  setOpencodeGoKeyState: (v: string) => void
+  setOpencodeZenKeyState: (v: string) => void
+  setModelHubKeyState: (v: string) => void
+  setStatsSort: (v: StatsSort) => void
+  setTrendRange: (v: TrendRange) => void
+  setImageBackend: (v: string) => void
+  setImageModel: (v: string) => void
+  setImageSaveDir: (v: string) => void
+  setVoiceCfg: Dispatch<SetStateAction<VoiceCfg>>
+  setOcrCfg: Dispatch<SetStateAction<{ engine: string; model: string }>>
+  setChatVoiceDraft: Dispatch<SetStateAction<{ engine: string; model: string }>>
+  setFeatureDraft: Dispatch<SetStateAction<Record<string, { engine: string; model: string }>>>
+  setPortraitDraft: Dispatch<SetStateAction<{ backend: string; model: string }>>
   makeModels: (engine: EngineConfig) => ModelCardData[]
   isModelActive: (card: ModelCardData) => boolean
   handleTestConnection: (id: string) => Promise<void>
@@ -100,7 +106,6 @@ export interface ModelCenterContextValue {
   handleAddCustomEngine: (name: string, baseURL: string, apiKey: string) => Promise<boolean>
   handleUpdateCustomEngine: (engineID: string, name: string, baseURL: string, apiKey: string) => Promise<boolean>
   handleRemoveCustomEngine: (engineID: string) => Promise<void>
-  settingGlmEndpoint: boolean
   handleSetGlmEndpoint: (family: 'std' | 'coding') => Promise<void>
   handleResetCallStats: () => Promise<void>
   loadCallStats: () => Promise<void>
@@ -115,10 +120,29 @@ export interface ModelCenterContextValue {
   handleClearChatVoice: () => Promise<void>
 }
 
+export interface ModelCenterContextValue extends ModelCenterStateValue, ModelCenterActionsValue {
+  settingGlmEndpoint: boolean
+}
+
+export const ModelCenterStateContext = createContext<ModelCenterStateValue | null>(null)
+export const ModelCenterActionsContext = createContext<ModelCenterActionsValue | null>(null)
 export const ModelCenterContext = createContext<ModelCenterContextValue | null>(null)
 
 export function useModelCenter(): ModelCenterContextValue {
   const v = useContext(ModelCenterContext)
   if (!v) throw new Error('useModelCenter 必须在 ModelCenterPage 内使用')
+  return v
+}
+
+/** state-only 消费者走此口：动作引用变化不触发重渲染（v4.352 拆分通道） */
+export function useModelCenterState(): ModelCenterStateValue {
+  const v = useContext(ModelCenterStateContext)
+  if (!v) throw new Error('useModelCenterState 必须在 ModelCenterPage 内使用')
+  return v
+}
+
+export function useModelCenterActions(): ModelCenterActionsValue {
+  const v = useContext(ModelCenterActionsContext)
+  if (!v) throw new Error('useModelCenterActions 必须在 ModelCenterPage 内使用')
   return v
 }

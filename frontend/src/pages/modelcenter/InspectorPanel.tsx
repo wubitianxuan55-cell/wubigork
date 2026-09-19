@@ -5,7 +5,7 @@ import { ResourceMonitor } from './ResourceMonitor'
 import { EmptyState, KpiTile } from './ui'
 import { RequestsTrendChart, TokenTrendChart, type TrendRange } from './charts'
 import { fmtCost } from './utils'
-import { useModelCenter } from './context'
+import { useModelCenterActions, useModelCenterState } from './context'
 
 /**
  * 引擎控制台右侧「统计与资源」检查器（§2.7，v3-panel，可折叠）：
@@ -58,7 +58,8 @@ export function InspectorPanel() {
 
 /** 检查器内紧凑调用统计：KPI 摘要 + 趋势图（趋势范围与「详细统计」抽屉共享） */
 function StatsInspector() {
-  const { callStats, trendData, trendRange, setTrendRange, loadError, loadCallStats } = useModelCenter()
+    const { callStats, trendData, trendRange, loadError } = useModelCenterState()
+  const { setTrendRange, loadCallStats } = useModelCenterActions()
   const hasStats = !!callStats && callStats.total_calls > 0
   return (
     <section className="mc-inspector-block" aria-label="模型调用统计">

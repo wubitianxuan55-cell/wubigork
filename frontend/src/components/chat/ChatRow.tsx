@@ -55,7 +55,7 @@ export const ChatRow: React.FC<ChatRowProps> = ({
         {msg.content && !msg.streaming && (
           <div className="chat-msg-actions">
             <Tooltip title={copied ? '已复制' : '复制'}>
-              <Button type="text" size="small" icon={copied ? <CheckOutlined style={{ color: 'var(--md-sys-color-success)' }} /> : <CopyOutlined />}
+              <Button type="text" size="small" aria-label={copied ? '已复制' : '复制'} icon={copied ? <CheckOutlined style={{ color: 'var(--md-sys-color-success)' }} /> : <CopyOutlined />}
                 onClick={() => onCopy(msg.content, msg.key)} style={{ color: C('color-text-secondary'), fontSize: 12, padding: '0 4px', height: 22 }} />
             </Tooltip>
           </div>
@@ -106,12 +106,12 @@ export const ChatRow: React.FC<ChatRowProps> = ({
       {msg.content && !msg.streaming && (
         <div className="chat-msg-actions">
           <Tooltip title={copied ? '已复制' : '复制'}>
-            <Button type="text" size="small" icon={copied ? <CheckOutlined style={{ color: 'var(--md-sys-color-success)' }} /> : <CopyOutlined />}
+            <Button type="text" size="small" aria-label={copied ? '已复制' : '复制'} icon={copied ? <CheckOutlined style={{ color: 'var(--md-sys-color-success)' }} /> : <CopyOutlined />}
               onClick={() => onCopy(msg.content, msg.key)} style={{ color: C('color-text-secondary'), fontSize: 12, padding: '0 4px', height: 22 }} />
           </Tooltip>
           {!msg.error && (
             <Tooltip title={speaking ? '朗读中…' : '朗读'}>
-              <Button type="text" size="small" icon={<SoundOutlined />} loading={speaking}
+              <Button type="text" size="small" aria-label={speaking ? '朗读中' : '朗读'} icon={<SoundOutlined />} loading={speaking}
                 onClick={() => onSpeak(msg.content, msg.key)} style={{ color: C('color-text-secondary'), fontSize: 12, padding: '0 4px', height: 22 }} />
             </Tooltip>
           )}

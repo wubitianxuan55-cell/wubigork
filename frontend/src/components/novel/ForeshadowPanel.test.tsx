@@ -38,6 +38,43 @@ const EXISTING: ForeshadowItemData = {
   is_long_term: false,
 }
 
+describe('ForeshadowPanel 行 memo（v4.352）', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.mocked(app.GetForeshadows).mockResolvedValue({
+      items: [
+        EXISTING,
+        { ...EXISTING, id: 'plot_002_def', description: '城主的佩剑来历', planted_in: '002.md' },
+        { ...EXISTING, id: 'plot_003_ghi', description: '雨夜血案的目击者', planted_in: '003.md' },
+      ],
+    })
+    vi.mocked(app.SaveForeshadows).mockResolvedValue(undefined)
+  })
+
+  it('行内编辑键入仍可保存（memo 化后行为不回归）', async () => {
+    render(<ForeshadowPanel />)
+    await screen.findByText('主角左臂旧伤')
+    fireEvent.click(screen.getByLabelText('编辑伏笔：主角左臂旧伤'))
+    const box = await screen.findByRole('textbox')
+    fireEvent.change(box, { target: { value: '主角左臂旧伤（三处刀口）' } })
+    fireEvent.click(screen.getByText('保存'))
+    await waitFor(() => expect(vi.mocked(app.SaveForeshadows)).toHaveBeenCalledTimes(1))
+    const payload = JSON.parse(vi.mocked(app.SaveForeshadows).mock.calls[0][0] as string) as ForeshadowItemData[]
+    expect(payload.find((x) => x.id === 'plot_001_abc')?.description).toBe('主角左臂旧伤（三处刀口）')
+    expect(payload).toHaveLength(3)
+  })
+
+  it('编辑取消不写回；其余行不受影响', async () => {
+    render(<ForeshadowPanel />)
+    await screen.findByText('城主的佩剑来历')
+    fireEvent.click(screen.getByLabelText('编辑伏笔：城主的佩剑来历'))
+    fireEvent.change(await screen.findByRole('textbox'), { target: { value: 'x' } })
+    fireEvent.click(screen.getByText('取消'))
+    await waitFor(() => expect(screen.getByText('城主的佩剑来历')).toBeTruthy())
+    expect(vi.mocked(app.SaveForeshadows)).not.toHaveBeenCalled()
+  })
+})
+
 describe('ForeshadowPanel 手工登记闭环', () => {
   beforeEach(() => {
     vi.clearAllMocks()

@@ -3,17 +3,33 @@ import { FolderOpenOutlined, PictureOutlined } from '@ant-design/icons'
 import SettingField from '../../components/SettingField'
 import { ModelCard, SectionHead, StatusChip } from './ui'
 import { COMFY_IMAGE_MODELS, comfyModelQuantFlag, engineLabel, imageModelDefaultFor, imageModelOptionsFor, sortComfyModelsQuantFirst } from './utils'
-import { useModelCenter } from './context'
+import { useModelCenterActions, useModelCenterState } from './context'
 import { openImageSaveDir } from '../../api/image'
 
 const popupContainer = () => document.body
 
 export function ImageSection() {
   const {
-    engines, imageBackend, setImageBackend, comfyStatus, comfyBusy, handleToggleComfy,
-    comfyUIURL, comfyUIPath, comfyUIPythonPath, imageModel, setImageModel, imageModels,
-    imageBackendSaving, handleSaveImageBackend, imageSaveDir, setImageSaveDir,
-  } = useModelCenter()
+    engines,
+    imageBackend,
+    comfyStatus,
+    comfyBusy,
+    comfyUIURL,
+    comfyUIPath,
+    comfyUIPythonPath,
+    imageModel,
+    imageModels,
+    imageBackendSaving,
+    imageSaveDir,
+  } = useModelCenterState()
+
+  const {
+    setImageBackend,
+    handleToggleComfy,
+    setImageModel,
+    handleSaveImageBackend,
+    setImageSaveDir,
+  } = useModelCenterActions()
 
   // 后端切换时同步校正图片模型，避免「xAI 后端 + krea2 模型」的错配
   const handleBackendChange = (v: string) => {

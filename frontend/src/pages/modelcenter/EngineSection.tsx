@@ -5,25 +5,52 @@ import { SectionHead, StatusChip } from './ui'
 import { engineColor, engineIcon, engineLabel, filterEnginesByEnabled, glmEndpointFamily, isCustomEngine, isValidBaseURL, kindOf } from './utils'
 import type { EngineConfig } from '../../api/engines'
 import { saveEngine } from '../../api/engines'
-import { useModelCenter } from './context'
+import { useModelCenterActions, useModelCenterState } from './context'
 
 export function EngineSection() {
   const {
-    engines, engineStatuses, activeEngine, testingEngine, savingEngine,
-    editingURLs, setEditingURLs,
-    deepseekKey, setDeepseekKeyState, deepseekKeyMasked,
-    glmKey, setGlmKeyState, glmKeyMasked,
-    opencodeGoKey, setOpencodeGoKeyState, opencodeGoKeyMasked,
-    opencodeZenKey, setOpencodeZenKeyState, opencodeZenKeyMasked,
-    modelHubKey, setModelHubKeyState, modelHubKeyMasked,
-    settingGlmEndpoint, handleSetGlmEndpoint,
-    handleTestConnection, handleRefreshModels, handleSaveURL, handleToggleEngine,
+    engines,
+    engineStatuses,
+    activeEngine,
+    testingEngine,
+    savingEngine,
+    editingURLs,
+    deepseekKey,
+    deepseekKeyMasked,
+    glmKey,
+    glmKeyMasked,
+    opencodeGoKey,
+    opencodeGoKeyMasked,
+    opencodeZenKey,
+    opencodeZenKeyMasked,
+    modelHubKey,
+    modelHubKeyMasked,
+    settingGlmEndpoint,
+  } = useModelCenterState()
+
+  const {
+    setEditingURLs,
+    setDeepseekKeyState,
+    setGlmKeyState,
+    setOpencodeGoKeyState,
+    setOpencodeZenKeyState,
+    setModelHubKeyState,
+    handleSetGlmEndpoint,
+    handleTestConnection,
+    handleRefreshModels,
+    handleSaveURL,
+    handleToggleEngine,
     handleBulkToggleEngines,
-    handleSaveDeepseekKey, handleSaveGlmKey, handleSaveOpencodeGoKey, handleSaveOpencodeZenKey,
+    handleSaveDeepseekKey,
+    handleSaveGlmKey,
+    handleSaveOpencodeGoKey,
+    handleSaveOpencodeZenKey,
     handleSaveModelHubKey,
-    handleAddCustomEngine, handleUpdateCustomEngine, handleRemoveCustomEngine,
+    handleAddCustomEngine,
+    handleUpdateCustomEngine,
+    handleRemoveCustomEngine,
     makeModels,
-  } = useModelCenter()
+  } = useModelCenterActions()
   const [showEnabledOnly, setShowEnabledOnly] = useState(false)
   const [bulkBusy, setBulkBusy] = useState(false)
 

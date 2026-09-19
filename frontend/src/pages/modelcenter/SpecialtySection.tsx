@@ -4,7 +4,7 @@ import { Button, Input } from 'antd'
 import { CheckCircleOutlined, FileTextOutlined, NumberOutlined, SearchOutlined } from '@ant-design/icons'
 import { EmptyState, ModelCard, SectionHead, StatusChip, type StatusTone } from './ui'
 import { engineLabel, filterModelsBySearch, formatCtx, formatPrice, kindOf, modelAvailability, sortModelsPinnedFirst } from './utils'
-import { useModelCenter } from './context'
+import { useModelCenterActions, useModelCenterState } from './context'
 import { usePinnedModels } from './modelPrefs'
 
 const KIND_META: Record<string, { label: string; icon: ReactNode; tone: StatusTone }> = {
@@ -14,7 +14,8 @@ const KIND_META: Record<string, { label: string; icon: ReactNode; tone: StatusTo
 }
 
 export function SpecialtySection() {
-  const { specialtyModels, ocrCfg, handleSetOCRModel, engines, engineStatuses } = useModelCenter()
+    const { specialtyModels, ocrCfg, engines, engineStatuses } = useModelCenterState()
+  const { handleSetOCRModel } = useModelCenterActions()
   const [search, setSearch] = useState('')
   const [pinned, togglePin] = usePinnedModels()
   const models = sortModelsPinnedFirst(filterModelsBySearch(specialtyModels, search), pinned)

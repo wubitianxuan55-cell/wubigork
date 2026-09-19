@@ -53,24 +53,24 @@ export const ChatModeBar: React.FC<ChatModeBarProps> = ({
     {variant !== 'strip' && <div className="chat-mode-bar-spacer" style={{ flex: 1 }} />}
     <Space size={2}>
       <Tooltip title={searchEnabled ? '联网搜索已开启（自动检测搜索意图）' : '联网搜索已关闭'}>
-        <Button type="text" size="small" icon={<GlobalOutlined style={{ color: searchEnabled ? 'var(--md-sys-color-success)' : C('color-text-secondary') }} />}
+        <Button type="text" size="small" aria-label={searchEnabled ? '联网搜索已开启' : '联网搜索已关闭'} icon={<GlobalOutlined style={{ color: searchEnabled ? 'var(--md-sys-color-success)' : C('color-text-secondary') }} />}
           onClick={onToggleSearch} style={{ padding: '0 4px', height: 24, opacity: searchEnabled ? 1 : 0.5 }} />
       </Tooltip>
       {mode !== 'plain' && (
         <>
           <Tooltip title="角色库管理">
-            <Button type="text" size="small" icon={<SettingOutlined />} onClick={onNavigateLib}
+            <Button type="text" size="small" aria-label="角色库管理" icon={<SettingOutlined />} onClick={onNavigateLib}
               style={{ color: C('color-text-secondary'), height: 24 }} />
           </Tooltip>
           <PersonaPicker activeId={personaPickerActiveId}
             onSelect={onSwitchPersonality} onManage={onNavigateLib}>
             <Tooltip title="切换角色">
-              <Button type="text" size="small" icon={<SwapOutlined />}
+              <Button type="text" size="small" aria-label="切换角色" icon={<SwapOutlined />}
                 style={{ color: C('color-text-secondary'), height: 24 }} />
             </Tooltip>
           </PersonaPicker>
           <Tooltip title="语音设置">
-            <Button type="text" size="small" icon={<SoundOutlined />} onClick={onOpenVoiceSettings}
+            <Button type="text" size="small" aria-label="语音设置" icon={<SoundOutlined />} onClick={onOpenVoiceSettings}
               style={{ color: C('color-text-secondary'), height: 24 }} />
           </Tooltip>
         </>

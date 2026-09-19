@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useMemo, useState, useEffect } from 'react'
 import { Button, Drawer, message } from 'antd'
 import {
   ThunderboltOutlined, PictureOutlined, SoundOutlined, SettingOutlined, LinkOutlined,
@@ -6,7 +6,7 @@ import {
   AppstoreOutlined, ExperimentOutlined, SearchOutlined, ControlOutlined, PieChartOutlined,
 } from '@ant-design/icons'
 import { useAppStore } from '../stores/appStore'
-import { ModelCenterContext, type ModelCenterContextValue } from './modelcenter/context'
+import { ModelCenterContext, ModelCenterStateContext, ModelCenterActionsContext, type ModelCenterContextValue, type ModelCenterStateValue, type ModelCenterActionsValue } from './modelcenter/context'
 import { LLMSection } from './modelcenter/LLMSection'
 import { BindSection } from './modelcenter/BindSection'
 import { StrategySection } from './modelcenter/StrategySection'
@@ -128,36 +128,62 @@ const ModelCenterPage: React.FC = () => {
     }
   }, [loadAllSync, enginesLive])
 
-  const ctx: ModelCenterContextValue = {
-    category, setCategory,
+  // v4.352：ctx 拆 state/actions 两通道——五 hook 返回对象字面量每渲染新引用，
+  // deps 无法建立（v4.350 辨伪），拆分后 state 通道由各 hook 的状态字段组成
+  // （内容变化才重渲染），动作通道单独承载函数引用波动；useModelCenter 兼容口
+  // 继续提供全量值（settingGlmEndpoint 归 state 补位）。
+  const stateCtx: ModelCenterStateValue = useMemo(() => ({
+    category,
     engines: engine.engines, engineStatuses: engine.engineStatuses,
-    editingURLs: engine.editingURLs, setEditingURLs: engine.setEditingURLs,
+    editingURLs: engine.editingURLs,
     savingEngine: engine.savingEngine, testingEngine: engine.testingEngine,
     activeEngine: engine.activeEngine, activeModel: engine.activeModel,
-    deepseekKey: engine.deepseekKey, setDeepseekKeyState: engine.setDeepseekKeyState, deepseekKeyMasked: engine.deepseekKeyMasked,
-    glmKey: engine.glmKey, setGlmKeyState: engine.setGlmKeyState, glmKeyMasked: engine.glmKeyMasked,
-    opencodeGoKey: engine.opencodeGoKey, setOpencodeGoKeyState: engine.setOpencodeGoKeyState, opencodeGoKeyMasked: engine.opencodeGoKeyMasked,
-    opencodeZenKey: engine.opencodeZenKey, setOpencodeZenKeyState: engine.setOpencodeZenKeyState, opencodeZenKeyMasked: engine.opencodeZenKeyMasked,
-    modelHubKey: engine.modelHubKey, setModelHubKeyState: engine.setModelHubKeyState, modelHubKeyMasked: engine.modelHubKeyMasked,
-    callStats: stats.callStats, statsSort: stats.statsSort, setStatsSort: stats.setStatsSort,
+    deepseekKey: engine.deepseekKey, deepseekKeyMasked: engine.deepseekKeyMasked,
+    glmKey: engine.glmKey, glmKeyMasked: engine.glmKeyMasked,
+    opencodeGoKey: engine.opencodeGoKey, opencodeGoKeyMasked: engine.opencodeGoKeyMasked,
+    opencodeZenKey: engine.opencodeZenKey, opencodeZenKeyMasked: engine.opencodeZenKeyMasked,
+    modelHubKey: engine.modelHubKey, modelHubKeyMasked: engine.modelHubKeyMasked,
+    settingGlmEndpoint: engine.settingGlmEndpoint,
+    hubLoadingIds: engine.hubLoadingIds,
+    callStats: stats.callStats, statsSort: stats.statsSort,
     loadError: stats.loadError,
-    trendRange: stats.trendRange, setTrendRange: stats.setTrendRange, trendData: stats.trendData,
-    imageBackend: image.imageBackend, setImageBackend: image.setImageBackend,
+    trendRange: stats.trendRange, trendData: stats.trendData,
+    imageBackend: image.imageBackend,
     comfyUIURL: image.comfyUIURL, comfyUIPath: image.comfyUIPath, comfyUIPythonPath: image.comfyUIPythonPath,
-    imageModel: image.imageModel, setImageModel: image.setImageModel,
-    imageSaveDir: image.imageSaveDir, setImageSaveDir: image.setImageSaveDir,
+    imageModel: image.imageModel,
+    imageSaveDir: image.imageSaveDir,
     imageBackendSaving: image.imageBackendSaving, comfyStatus: image.comfyStatus, comfyBusy: image.comfyBusy,
-    voiceCfg: voice.voiceCfg, setVoiceCfg: voice.setVoiceCfg,
-    ocrCfg: voice.ocrCfg, setOcrCfg: voice.setOcrCfg,
-    chatVoiceCfg: voice.chatVoiceCfg, chatVoiceDraft: voice.chatVoiceDraft, setChatVoiceDraft: voice.setChatVoiceDraft,
+    voiceCfg: voice.voiceCfg,
+    ocrCfg: voice.ocrCfg,
+    chatVoiceCfg: voice.chatVoiceCfg, chatVoiceDraft: voice.chatVoiceDraft,
     chatVoiceSaving: voice.chatVoiceSaving, chatVoiceSpeakers: voice.chatVoiceSpeakers,
     chatVoiceOptions: voice.chatVoiceOptions, chatVoiceValue: voice.chatVoiceValue,
-    featureCfg: bind.featureCfg, featureDraft: bind.featureDraft, setFeatureDraft: bind.setFeatureDraft,
+    featureCfg: bind.featureCfg, featureDraft: bind.featureDraft,
     featureEnabled: bind.featureEnabled, modelRoutes: bind.modelRoutes,
-    portraitCfg: bind.portraitCfg, portraitDraft: bind.portraitDraft, setPortraitDraft: bind.setPortraitDraft,
+    portraitCfg: bind.portraitCfg, portraitDraft: bind.portraitDraft,
     portraitModelOptions: bind.portraitModelOptions, portraitSaving: bind.portraitSaving,
     llmModels: engine.llmModels, ttsModels: engine.ttsModels, sttModels: engine.sttModels,
     imageModels: engine.imageModels, specialtyModels: engine.specialtyModels,
+  }), [category, engine, stats, image, voice, bind])
+
+  const actionsCtx: ModelCenterActionsValue = useMemo(() => ({
+    setCategory,
+    setEditingURLs: engine.setEditingURLs,
+    setDeepseekKeyState: engine.setDeepseekKeyState,
+    setGlmKeyState: engine.setGlmKeyState,
+    setOpencodeGoKeyState: engine.setOpencodeGoKeyState,
+    setOpencodeZenKeyState: engine.setOpencodeZenKeyState,
+    setModelHubKeyState: engine.setModelHubKeyState,
+    setStatsSort: stats.setStatsSort,
+    setTrendRange: stats.setTrendRange,
+    setImageBackend: image.setImageBackend,
+    setImageModel: image.setImageModel,
+    setImageSaveDir: image.setImageSaveDir,
+    setVoiceCfg: voice.setVoiceCfg,
+    setOcrCfg: voice.setOcrCfg,
+    setChatVoiceDraft: voice.setChatVoiceDraft,
+    setFeatureDraft: bind.setFeatureDraft,
+    setPortraitDraft: bind.setPortraitDraft,
     makeModels: engine.makeModels, isModelActive: engine.isModelActive,
     handleTestConnection: engine.handleTestConnection,
     handleRefreshModels: engine.handleRefreshModels,
@@ -170,11 +196,9 @@ const ModelCenterPage: React.FC = () => {
     handleSaveOpencodeGoKey: engine.handleSaveOpencodeGoKey,
     handleSaveOpencodeZenKey: engine.handleSaveOpencodeZenKey,
     handleSaveModelHubKey: engine.handleSaveModelHubKey,
-    hubLoadingIds: engine.hubLoadingIds,
     handleAddCustomEngine: engine.handleAddCustomEngine,
     handleUpdateCustomEngine: engine.handleUpdateCustomEngine,
     handleRemoveCustomEngine: engine.handleRemoveCustomEngine,
-    settingGlmEndpoint: engine.settingGlmEndpoint,
     handleSetGlmEndpoint: engine.handleSetGlmEndpoint,
     handleResetCallStats: stats.handleResetCallStats, loadCallStats: stats.loadCallStats,
     handleToggleComfy: image.handleToggleComfy, handleSaveImageBackend: image.handleSaveImageBackend,
@@ -182,7 +206,12 @@ const ModelCenterPage: React.FC = () => {
     handleSaveFeature: bind.handleSaveFeature, handleToggleFeatureEnabled: bind.handleToggleFeatureEnabled,
     handleSavePortrait: bind.handleSavePortrait,
     handleSaveChatVoice: voice.handleSaveChatVoice, handleClearChatVoice: voice.handleClearChatVoice,
-  }
+  }), [setCategory, engine, stats, image, voice, bind])
+
+  const ctx: ModelCenterContextValue = useMemo(
+    () => ({ ...stateCtx, ...actionsCtx }),
+    [stateCtx, actionsCtx],
+  )
 
   const TABS: { key: Category; icon: React.ReactNode; label: string }[] = [
     { key: 'overview', icon: <DashboardOutlined />, label: '总览' },
@@ -261,6 +290,8 @@ const ModelCenterPage: React.FC = () => {
         </div>
       </header>
 
+      <ModelCenterStateContext.Provider value={stateCtx}>
+      <ModelCenterActionsContext.Provider value={actionsCtx}>
       <ModelCenterContext.Provider value={ctx}>
         <div className="mc-workbench">
           {/* 左：分类导航栏（v3-panel；激活项 = 主色容器 + 左缘光条 + 光晕 orb） */}
@@ -331,6 +362,8 @@ const ModelCenterPage: React.FC = () => {
           <InspectorPanel />
         </div>
       </ModelCenterContext.Provider>
+      </ModelCenterActionsContext.Provider>
+      </ModelCenterStateContext.Provider>
     </div>
   )
 }

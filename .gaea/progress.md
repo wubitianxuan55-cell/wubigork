@@ -1,3 +1,12 @@
+## 最新发布：v4.352.0（2026-09-19）「前端优化第四轮：ForeshadowPanel 行 memo / ModelCenter ctx 两通道拆分 / 图标钮可访问名」
+
+- **动机**：用户口径「继续」——v4.351 下刀池延续；纯前端 16 源码 + 5 测试（扩 5），零 Go 改动、零绑定变更（706 不动）。
+- **线1 ForeshadowPanel 行 memo**：抽 ForeshadowRow memo 组件 + flow/remove/saveEdit/handleEditChange/cancelEdit/startEdit 六回调 useCallback 化 + 编辑态布尔/文本双 prop 下发——行内编辑/登记表单每键只重渲染受控行（原全列表重渲染，数百行可达每行 Tag/Tooltip/Popconfirm）；测试 +2（编辑保存全量写回含 3 条/取消不写回其余行不受影响）。
+- **线2 ModelCenter ctx 两通道拆分**（v4.350 辨伪项的正解）：ModelCenterContext 拆 StateContext（状态字段，内容变化才触发消费者重渲染）/ ActionsContext（setter/handler 引用波动单独承载）/ 兼容口（两通道合并，useModelCenter 存量不破坏）；页面 stateCtx/actionsCtx 各自 useMemo，9 个 section 迁 useModelCenterState + 按需 useModelCenterActions（多行解构逐字段分类），settingGlmEndpoint 归 state——键入 API Key 不再全 section 重渲染；4 个测试文件兼容 Provider 补三连挂载（value 同对象）。
+- **线3 图标钮可访问名**：ChatRow 四处（用户/助手复制动态态+朗读）+ ChatModeBar 四处（联网开关动态态/角色库管理/切换角色/语音设置）补 aria-label——Tooltip 不参与可访问名；SecurityPanel 排除（按钮带文字标签非图标钮）。
+- **坑**：①多行解构迁移必须先从源码抄全字段清单再分类（凭接口记忆分类漏 trendData/settingGlmEndpoint/setXxx——UNCLASSIFIED 断言救一半，tsc 逮另一半）②测试文件改完必须 tsc -b --force（上轮沉淀本轮再验证）③兼容口三 Provider 嵌套顺序 state→actions→兼容，测试挂载三连 value 同对象语义不变。
+- **门禁**：tsc 0（--force 全量复核）+eslint 0/0+全量 ci.ps1 绿（vitest 385 文件 3289 例）+bindings drift OK@706+版本三处 4.352.0；产物见 releases/v4.352.0.md。**文档**=releases/v4.352.0.md+CHANGELOG/README+AGENTS 迁 1 插 1（六十七迁：v4.349 入 archive）+progress/todos。**未做（下刀池）**=其余可点 div 键盘化 ~8 处（v4.349 池）/ResizableDrawer 焦点管理/reducer 级整店订阅 13 处/selbar z-1080 阶梯治理/海报墙 hero 内容槽（内容决策）。
+
 ## 最新发布：v4.351.0（2026-09-19）「前端优化第三轮：启动反闪根修 / 绘梦历史有界化 / 亮主题叠加层失效群 / color-scheme / 反馈确认补遗」
 
 - **动机**：用户口径「继续」——v4.350 下刀池延续，六线并收；纯前端 29 源码 + 4 测试（1 新 3 扩），零 Go 改动、零绑定变更（706 不动）。

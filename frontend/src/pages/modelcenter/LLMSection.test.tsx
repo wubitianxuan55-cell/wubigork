@@ -6,7 +6,7 @@
  */
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import { ModelCenterContext, type ModelCenterContextValue } from './context'
+import { ModelCenterActionsContext, ModelCenterContext, ModelCenterStateContext, type ModelCenterContextValue } from './context'
 import { LLMSection } from './LLMSection'
 import type { ModelCardData } from './utils'
 
@@ -37,9 +37,9 @@ function renderLLM(models: ModelCardData[], over: Record<string, unknown> = {}) 
     ...over,
   } as unknown as ModelCenterContextValue
   return render(
-    <ModelCenterContext.Provider value={value}>
+    <ModelCenterStateContext.Provider value={value}><ModelCenterActionsContext.Provider value={value}><ModelCenterContext.Provider value={value}>
       <LLMSection />
-    </ModelCenterContext.Provider>,
+    </ModelCenterContext.Provider></ModelCenterActionsContext.Provider></ModelCenterStateContext.Provider>,
   )
 }
 

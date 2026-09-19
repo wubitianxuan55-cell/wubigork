@@ -3,14 +3,22 @@ import { Button, Input } from 'antd'
 import { AudioOutlined, CaretRightOutlined, SoundOutlined } from '@ant-design/icons'
 import { EmptyState, ModelCard, SectionHead, StatusChip } from './ui'
 import { engineLabel, filterModelsBySearch, isLocalEngine, modelAvailability, sortModelsPinnedFirst } from './utils'
-import { useModelCenter } from './context'
+import { useModelCenterActions, useModelCenterState } from './context'
 import { usePinnedModels } from './modelPrefs'
 
 export function VoiceSection() {
   const {
-    voiceCfg, ttsModels, sttModels, handleSetVoiceModel,
-    handleStartModel, engines, engineStatuses,
-  } = useModelCenter()
+    voiceCfg,
+    ttsModels,
+    sttModels,
+    engines,
+    engineStatuses,
+  } = useModelCenterState()
+
+  const {
+    handleSetVoiceModel,
+    handleStartModel,
+  } = useModelCenterActions()
   const [voiceSearch, setVoiceSearch] = useState('')
   const [pinned, togglePin] = usePinnedModels()
   const tts = sortModelsPinnedFirst(filterModelsBySearch(ttsModels, voiceSearch), pinned)

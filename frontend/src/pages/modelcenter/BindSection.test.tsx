@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import { ModelCenterContext, type ModelCenterContextValue } from './context'
+import { ModelCenterActionsContext, ModelCenterContext, ModelCenterStateContext, type ModelCenterContextValue } from './context'
 import { BindSection } from './BindSection'
 
 function renderBind(overrides: Partial<ModelCenterContextValue> = {}) {
@@ -41,9 +41,9 @@ function renderBind(overrides: Partial<ModelCenterContextValue> = {}) {
     ...overrides,
   } as unknown as ModelCenterContextValue
   return render(
-    <ModelCenterContext.Provider value={value}>
+    <ModelCenterStateContext.Provider value={value}><ModelCenterActionsContext.Provider value={value}><ModelCenterContext.Provider value={value}>
       <BindSection />
-    </ModelCenterContext.Provider>,
+    </ModelCenterContext.Provider></ModelCenterActionsContext.Provider></ModelCenterStateContext.Provider>,
   )
 }
 
