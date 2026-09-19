@@ -452,7 +452,11 @@ func (a *App) Startup(ctx context.Context) {
 		}
 		// 助手记录同步本地化后的剧照路径（聊天人格头像与角色库一致）
 		if a.assistantMgr != nil {
-			for _, c := range a.charLib.ListChatEnabled() {
+			chatChars, err := a.charLib.ListChatEnabled()
+			if err != nil {
+				slog.Warn("角色库可聊天角色读取失败（跳过剧照同步）", "error", err)
+			}
+			for _, c := range chatChars {
 				if c.AssistantID == "" || c.PortraitURL == "" {
 					continue
 				}

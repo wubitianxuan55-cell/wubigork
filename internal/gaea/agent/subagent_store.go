@@ -113,6 +113,12 @@ type SubagentStore struct {
 	// mu 串行化同一 store 上全部 transcript/meta 写（并行子代理各自写不同
 	// 文件，但 ticker 快照与终态写不能互相覆盖状态）。
 	mu sync.Mutex
+	// continueClaims 在途续跑的 ref 单飞（2026-09-19 审计）：PrepareContinue
+	// 的 meta.Status 非 running 检查与 MarkRunning 写回之间有 TOCTOU 窗口，
+	// 双路续跑同 ref 会交错写转录。绑定层 followUpClaims 只盖 UI 路径，工具
+	// 路径（TaskTool continue_from）无守卫——单飞下沉到 store 层，claim 随
+	// run.Release（调用方 defer）或终态写（SaveCompleted/SaveFailed 兜底）释放。
+	continueClaims sync.Map // ref -> struct{}
 }
 
 // NewSubagentStore creates a store rooted at dir. Callers should ensure
@@ -238,10 +244,12 @@ func kindOr(a, b string) string {
 }
 
 // SaveCompleted persists the transcript JSONL and marks the run as completed.
+// 终态写即释放续跑 claim（兜底，防调用方忘 Release；幂等）。
 func (s *SubagentStore) SaveCompleted(run *SubagentRun) error {
 	if run == nil || run.Ref == "" {
 		return nil // ephemeral runs have nothing to persist
 	}
+	defer s.continueClaims.Delete(run.Ref)
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if run.Session == nil || !run.Session.HasContent() {
@@ -258,10 +266,12 @@ func (s *SubagentStore) SaveCompleted(run *SubagentRun) error {
 
 // SaveFailed marks the run as failed. A partial transcript is persisted when
 // the session already carries content so the UI can show what happened.
+// 终态写即释放续跑 claim（兜底，防调用方忘 Release；幂等）。
 func (s *SubagentStore) SaveFailed(run *SubagentRun) error {
 	if run == nil || run.Ref == "" {
 		return nil
 	}
+	defer s.continueClaims.Delete(run.Ref)
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if run.Session != nil && run.Session.HasContent() {
@@ -352,12 +362,19 @@ func (s *SubagentStore) PrepareContinue(ref, space string) (*SubagentRun, error)
 		return nil, fmt.Errorf("subagent %s space mismatch: recorded space %q != request space %q (fail-closed)", ref, refSpace, spaces.Normalize(space))
 	}
 
+	// ref 单飞：双路（绑定层追问 + TaskTool continue_from）并发续跑同 ref
+	// 时，第二路在此拒绝；成功路径 claim 随 run.Release / 终态写释放。
+	if _, loaded := s.continueClaims.LoadOrStore(ref, struct{}{}); loaded {
+		return nil, fmt.Errorf("subagent %s is already being continued; wait for it to finish", ref)
+	}
+
 	// Load the transcript.
 	s.mu.Lock()
 	path := s.transcriptPathUnlocked(ref)
 	s.mu.Unlock()
 	sess, err := session.Load(path)
 	if err != nil {
+		s.continueClaims.Delete(ref) // 后续步骤失败不占坑
 		return nil, fmt.Errorf("load transcript for subagent %s: %w", ref, err)
 	}
 
@@ -367,6 +384,7 @@ func (s *SubagentStore) PrepareContinue(ref, space string) (*SubagentRun, error)
 		Title:   meta.Title,
 		Space:   spaces.Normalize(space),
 		store:   s,
+		release: func() { s.continueClaims.Delete(ref) },
 	}, nil
 }
 

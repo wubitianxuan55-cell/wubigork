@@ -118,17 +118,22 @@ func (a *whisperState) getOrCreateOrch(personalityID string) *whisper.Orchestrat
 }
 
 func (a *whisperState) WhisperGetPersonalities() []whisper.PersonalityPreset {
-	// 统一人格列表 = 角色库中可聊天角色（内置人格已种子化进库，可在库内编辑）
+	// 统一人格列表 = 角色库中可聊天角色（内置人格已种子化进库，可在库内编辑）。
+	// 库读失败回退内置预设但 warn 留痕（2026-09-19 审计）：不再吞错返回空列表。
 	if a.charLib != nil {
-		items := a.charLib.ListChatEnabled()
-		out := make([]whisper.PersonalityPreset, 0, len(items))
-		for i := range items {
-			if p := items[i].ToPreset(); p != nil {
-				out = append(out, *p)
+		items, err := a.charLib.ListChatEnabled()
+		if err != nil {
+			slog.Warn("[whisper] 角色库人格列表读取失败（回退内置人格）", "error", err)
+		} else {
+			out := make([]whisper.PersonalityPreset, 0, len(items))
+			for i := range items {
+				if p := items[i].ToPreset(); p != nil {
+					out = append(out, *p)
+				}
 			}
-		}
-		if len(out) > 0 {
-			return out
+			if len(out) > 0 {
+				return out
+			}
 		}
 	}
 	return whisper.PersonalityPresets

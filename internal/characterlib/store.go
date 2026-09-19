@@ -335,12 +335,14 @@ func (s *Store) List(query, kind string, chatOnly bool, limit, offset int) ([]Ch
 }
 
 // ListChatEnabled 返回所有可聊天角色（聊天人格列表用，按更新时间倒序）。
-func (s *Store) ListChatEnabled() []Character {
+// 查询失败如实上抛（2026-09-19 审计）：吞错返回空列表会让人格列表静默回退
+// 内置预设，调用方分不清「没有可聊天角色」与「库读失败」。
+func (s *Store) ListChatEnabled() ([]Character, error) {
 	items, _, err := s.List("", "", true, 500, 0)
 	if err != nil {
-		return nil
+		return nil, err
 	}
-	return items
+	return items, nil
 }
 
 // Associate 把角色加入项目（幂等，role/arcState/status 为项目内覆盖值）。

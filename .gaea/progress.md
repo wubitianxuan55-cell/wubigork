@@ -1,3 +1,15 @@
+## 最新发布：v4.357.0（2026-09-19）「后端优化轮第二弹：挂池三组清账——错误吞噬可见化 4 处 / 并发观察 4 刀根修 / 死代码 2 文件」
+
+- **动机**：用户口径「继续优化后端」——v4.356 挂池三组（错误吞噬卫生 P2×5/并发观察 6 项/AuditLogger·DecisionLogger 死代码）逐项取证定刀。纯 Go 8 源文件+3 测试文件（含 1 处签名适配），绑定面 706 不动（零签名变更 drift OK），前端零改动。
+- **刀A 失败可见化 4 处**：①characterlib ListChatEnabled 吞错→签名 ([]Character, error) 上抛（WhisperGetPersonalities 失败 warn 回退内置人格、app.go 剧照同步 warn 跳过——「没有可聊天角色」与「库读失败」不再混淆）②DAG 懒清扫 `_ = Save` ×2→warn（sweep 幂等下次重扫重存，失败可见即可）③turn markdown 投影 `_, _ =`→warn（JSONL 证据链仍在，投影静默缺失不可见）④cost_projects 状态标签 Save ×2→warn（版本/沉淀本体不受影响，列表页状态不再永远旧档）。辨伪：AppendTurnTraceToDB 失败仅 log 不升级——whisper 链无 Notice 事件总线（WhisperChat 同步绑定返回），接线成本>收益，日志 Error 级已可见。
+- **刀B 并发加固 4 刀**：⑤PrepareContinue TOCTOU 根修（subagent_store.go）——meta.Status 检查与 MarkRunning 写回之间窗口，双路续跑同 ref 交错写转录；绑定层 followUpClaims 只盖 UI 路径，TaskTool continue_from 无守卫。修法=**接通 store 半成品**（SubagentRun.release 字段+Release() 调用+注释三件齐备却无人赋值恒 no-op）：continueClaims sync.Map 占 ref 单飞，第二路报 already being continued；claim 随 defer run.Release()（调用点本就有）或 SaveCompleted/SaveFailed 终态写兜底释放；转录 Load 失败不占坑；零调用方改动。⑥cost BM25 语料/版本戳原子化——rankerFor 内部再 Load 与调用方捞语料非同一时点，写路径在两步间推进版本时旧语料挂新版本 key 用到下次写；调用方捞语料前快照 corpusVer 传入（rankerFor 加 version 参数不再自取）。⑦weixin Stop→Start 双轮询根修（clawbot.go）——旧 pollLoop 睡在轮询间隔/长轮询 HTTP 里，Stop 后立刻 Start 时 running 被 Swap(true) 复位，旧 loop 醒来条件复活与新 loop 并行；修法=生命周期代际 gen atomic.Int64，每次 Start 递增，pollLoop 捕获启动代 alive()=running&&gen==启动代；panic 兜底的 running 复位加代际守卫（防旧 loop panic 打掉新 loop）。⑧realtime Dial 双拨号泄首连（openai.go）——检查（conn==nil）与赋值之间窗口，输家覆盖 s.conn=赢家连接被遗忘无人 Close（fd 泄漏+双 readLoop）；修法=CAS 落位锁内重检 closed/conn，输家关掉自己拨到的连接再报 already connected/session closed。
+- **刀C 死代码**：删 internal/gaea/control/audit.go+decisions.go（~230 行）——New*Logger/SummarizeAuditLog 全仓零调用（v3.2/v3.3 期设计未接线），控制包测试零引用；实际审计走 core/journal.go AppendAudit 与 whisper/desktop_audit_log.go 两条活链。挂池③销账（「直接删」）。
+- **挂池辨伪不修 2 项**：memory file_backend 双写非原子（事实文件+MEMORY.md 索引两步）——设计内自愈语义已在（损坏行跳过/traceable and recoverable/索引可重建），事务化两阶段写成本>收益；QuickAdd 锁内 AppendDoc——锁刻意串行化 ReadFile+WriteFile 读改写（移出锁=并发丢更新），低频小文件阻塞窗口毫秒级。
+- **测试**：定向 +2——TestPrepareContinueSingleFlight（双路同 ref 第二路受理处即拒/Release 后可再续/终态写兜底释放后可再续）+TestOpenAISession_DialConcurrentLoserCloses（并发双 Dial 恰一胜一负，输家报 already connected，赢家连接保留）；既有测试适配 1 处（store_test 双返回值）。race 检测本机无 gcc 未跑（CI race job 兜底）。
+- **门禁**：go build/vet 0+受影响 6 包测试绿（agent/realtime/cost/weixin/characterlib/app）+全量 ci.ps1 绿（exit 0）+bindings drift OK@706+版本三处 4.357.0。
+- **坑**：①半成品机制比没有更危险——release 三件齐备无人赋值，读代码误以为守卫存在；新并发守卫落地先 grep 赋值点验证接线完整性②可见化≠fail-closed——幂等写失败 warn 即可不阻断主流程，判据=失败是否改变主操作结果③代际修复要同时护 panic 兜底复位路径④吞错修复优先改签名上抛而非原地打日志（编译器强制全调用点审查）。
+- **产物**：exe 50900480B SHA256=c3877db06fd398b74df4a6b981b0f599ba104e7f81062ecd886b0ff51872a413（时间戳 2026-09-19 23:03:48 新鲜；桌面副本同哈希实测一致；冒烟 /api/health 200 过）；保留策略 5 版留 v4.353~v4.357 删 v4.352.exe（SUMS 身份档案全保留）。
+
 ## 最新发布：v4.356.0（2026-09-19）「后端优化轮：panic 防线收口 12 处 / 确定性自死锁根修 / cfg.Model 并发收口 / 快照失败可见化」
 
 - **动机**：用户口径「继续优化迭代 gaea，本次会话优化后端」——2026-09-12 后端性能普查（两遍扫描，v4.245~v4.253 刀A~E）已全清，换镜头开**三路并行只读审计**（线1 panic 防线与错误吞噬/线2 并发安全与回调发射序/线3 资源句柄生命周期），按证据定刀。纯 Go 30 源文件+2 测试扩展，绑定面 706 不动（零签名变更 drift OK），前端零改动。

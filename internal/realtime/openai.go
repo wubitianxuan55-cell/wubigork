@@ -105,9 +105,23 @@ func (s *OpenAISession) Dial(ctx context.Context) error {
 		return fmt.Errorf("realtime/openai: dial %s: %w", endpoint, err)
 	}
 
+	// CAS 落位（2026-09-19 审计）：并发双 Dial 时检查（conn==nil）与赋值之间
+	// 有窗口——输家若直接覆盖，赢家的连接既被 s.conn 遗忘又无人 Close（fd 泄
+	// 漏 + 双 readLoop）。输家关掉自己拨到的连接再报已连接/已关闭。
 	s.mu.Lock()
-	s.conn = conn
+	loserClosed := s.closed
+	loserConnected := s.conn != nil
+	if !loserClosed && !loserConnected {
+		s.conn = conn
+	}
 	s.mu.Unlock()
+	if loserClosed || loserConnected {
+		conn.Close()
+		if loserClosed {
+			return fmt.Errorf("realtime/openai: session closed")
+		}
+		return fmt.Errorf("realtime/openai: already connected")
+	}
 
 	go s.readLoop()
 

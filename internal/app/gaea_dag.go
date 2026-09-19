@@ -163,7 +163,10 @@ func (a *App) GaeaDagList() ([]dag.RunView, error) {
 	out := make([]dag.RunView, 0, len(runs))
 	for _, r := range runs {
 		if dagSweep(&r) {
-			_ = a.dagStore().Save(r)
+			// sweep 幂等（下次 List/Get 会重扫重存），失败 warn 留痕即可。
+			if err := a.dagStore().Save(r); err != nil {
+				slog.Warn("dag 懒清扫结果落盘失败", "id", r.ID, "error", err)
+			}
 		}
 		out = append(out, dag.View(r))
 	}
@@ -177,7 +180,9 @@ func (a *App) GaeaDagGet(id string) (*dag.RunView, error) {
 		return nil, err
 	}
 	if dagSweep(&r) {
-		_ = a.dagStore().Save(r)
+		if err := a.dagStore().Save(r); err != nil {
+			slog.Warn("dag 懒清扫结果落盘失败", "id", r.ID, "error", err)
+		}
 	}
 	v := dag.View(r)
 	return &v, nil

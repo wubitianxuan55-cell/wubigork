@@ -78,6 +78,10 @@ type Server struct {
 	running atomic.Bool
 	stopMu  sync.Mutex
 	stopCh  chan struct{}
+	// gen 生命周期代际（2026-09-19 审计）：Stop→立刻 Start 时旧 pollLoop 可
+	// 能还睡在轮询间隔里，醒来后 running 已被新 Start 复位 true——它与新
+	// loop 并行形成双轮询。每次 Start 递增 gen，loop 只在自己启动那一代存续。
+	gen atomic.Int64
 
 	syncBuf   string
 	syncBufMu sync.Mutex
@@ -174,10 +178,13 @@ func (s *Server) Start() error {
 	}
 	s.stopMu.Unlock()
 	s.sessionExpired.Store(false)
+	// 新代际：旧 pollLoop（若还在轮询间隔/HTTP 长轮询里未退出）醒来后 gen
+	// 不匹配即退出，Stop→Start 不产生双轮询。
+	gen := s.gen.Add(1)
 	// 启动通知异步化（刀G v4.251）：同步 POST 在 Startup 链上，网络不可
 	// 达时每助手最多 10s×N；通知失败无补救语义，不阻塞通道启动。
 	go s.notifyStart()
-	go s.pollLoop()
+	go s.pollLoop(gen)
 	slog.Info("[weixin] 助手通道启动",
 		"assistant", s.cfg.AssistantID,
 		"personality", s.cfg.PersonalityID,
@@ -425,17 +432,23 @@ func (it *fileItem) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (s *Server) pollLoop() {
+func (s *Server) pollLoop(gen int64) {
 	// 常驻轮询兜底防线：轮询编排在独立 goroutine，任何漏网 panic 若不拦截
 	// 会带崩整个进程（同文件 handle/invokeFileHandler/SendFileCard 均有
 	// 消息级防线，本层是编排级兜底）——退出前复位 running，IsRunning 不误报。
+	// 复位仅限自己仍是当前代：Stop→Start 换代后旧 loop 的 panic 复位会把
+	// 新 loop 的 running 误打掉。
 	defer func() {
 		if r := recover(); r != nil {
 			slog.Error("[weixin] 轮询循环 panic，已退出（重启助手通道可恢复）",
 				"assistant", s.cfg.AssistantID, "recover", r)
-			s.running.Store(false)
+			if s.gen.Load() == gen {
+				s.running.Store(false)
+			}
 		}
 	}()
+
+	alive := func() bool { return s.running.Load() && s.gen.Load() == gen }
 
 	var fails int
 	timeout := s.pollTO
@@ -446,7 +459,7 @@ func (s *Server) pollLoop() {
 		getUpdates = s.getUpdatesFn
 	}
 
-	for s.running.Load() {
+	for alive() {
 		req := pollReq{BaseInfo: s.baseInfo()}
 		s.syncBufMu.Lock()
 		req.GetUpdatesBuf = s.syncBuf

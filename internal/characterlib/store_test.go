@@ -225,7 +225,10 @@ func TestEnsureAssistants_MirrorsChatConfig(t *testing.T) {
 		t.Fatalf("gaea 助手应回退预设字段: %+v", c2)
 	}
 	// 助手可聊天角色出现在聊天列表
-	items := s.ListChatEnabled()
+	items, err := s.ListChatEnabled()
+	if err != nil {
+		t.Fatalf("聊天列表读取失败: %v", err)
+	}
 	if len(items) != 2 {
 		t.Fatalf("聊天列表应为 2（gaea + lib_01）: %d", len(items))
 	}

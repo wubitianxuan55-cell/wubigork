@@ -13,6 +13,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -365,4 +366,55 @@ func TestOpenAISession_CloseWithoutDial(t *testing.T) {
 	if err := s.Close(); err != nil {
 		t.Errorf("未 Dial 直接 Close 应合法, got %v", err)
 	}
+}
+
+// TestOpenAISession_DialConcurrentLoserCloses（2026-09-19 审计）：并发双 Dial
+// 检查（conn==nil）与赋值之间有窗口——输家若直接覆盖 s.conn，赢家的连接被
+// 遗忘且无人 Close（fd 泄漏 + 双 readLoop）。CAS 落位后输家关掉自己的连接
+// 并报 already connected，赢家连接原样保留。
+func TestOpenAISession_DialConcurrentLoserCloses(t *testing.T) {
+	srv, conns, _, _ := fakeServer(t)
+	s, err := New("openai", Config{BaseURL: srv.URL, APIKey: "sk-test", Model: "gpt-4o-realtime-preview"})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	sess := s.(*OpenAISession)
+
+	const racers = 2
+	errs := make(chan error, racers)
+	for i := 0; i < racers; i++ {
+		go func() { errs <- sess.Dial(context.Background()) }()
+	}
+	var wins, loses int
+	var loserErr error
+	for i := 0; i < racers; i++ {
+		select {
+		case err := <-errs:
+			if err == nil {
+				wins++
+			} else {
+				loses++
+				loserErr = err
+			}
+		case <-time.After(3 * time.Second):
+			t.Fatal("等待并发 Dial 结果超时")
+		}
+	}
+	if wins != 1 || loses != 1 {
+		t.Fatalf("并发 Dial 应恰一胜一负, got wins=%d loses=%d (lastErr=%v)", wins, loses, loserErr)
+	}
+	if !strings.Contains(loserErr.Error(), "already connected") {
+		t.Fatalf("输家错误 = %v, want already connected", loserErr)
+	}
+	// 赢家连接存活（fakeServer 已收一条升级连接，输家自关不再产生第二条
+	// 活连接——服务端共收到 racers 条升级，但只有赢家的 s.conn 被引用）。
+	select {
+	case <-conns:
+	default:
+		t.Fatal("服务端未收到任何升级连接")
+	}
+	if err := sess.Dial(context.Background()); err == nil || !strings.Contains(err.Error(), "already connected") {
+		t.Fatalf("已连接后再次 Dial 应拒绝, got %v", err)
+	}
+	t.Cleanup(func() { _ = sess.Close() })
 }

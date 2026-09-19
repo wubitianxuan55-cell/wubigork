@@ -232,3 +232,41 @@ func TestRunFollowUp_MetaRefreshed(t *testing.T) {
 		t.Fatalf("follow-up prompt missing from transcript: %+v", sess.Messages)
 	}
 }
+
+// TestPrepareContinueSingleFlight（2026-09-19 审计）：PrepareContinue 的
+// meta.Status 检查与 MarkRunning 写回之间有 TOCTOU 窗口，双路续跑同 ref
+// 会交错写转录——绑定层 followUpClaims 只盖 UI 路径。store 层 claim 单飞
+// 后：同 ref 第二路在受理处即拒，Release/终态写释放后可再续。
+func TestPrepareContinueSingleFlight(t *testing.T) {
+	store := NewSubagentStore(t.TempDir())
+	ref := seedCompletedRun(t, store)
+
+	first, err := store.PrepareContinue(ref, spaces.SpaceWork)
+	if err != nil {
+		t.Fatalf("第一次续跑应受理: %v", err)
+	}
+
+	// 第二路同 ref：claim 在手，受理处拒绝（不依赖 meta 状态翻转时序）。
+	if _, err := store.PrepareContinue(ref, spaces.SpaceWork); err == nil {
+		t.Fatal("同 ref 第二路续跑应被拒绝")
+	} else if !strings.Contains(err.Error(), "already being continued") {
+		t.Fatalf("拒绝原因 = %v, want already being continued", err)
+	}
+
+	// Release（调用方 defer 语义）释放后可再续。
+	first.Release()
+	second, err := store.PrepareContinue(ref, spaces.SpaceWork)
+	if err != nil {
+		t.Fatalf("Release 后应可再续: %v", err)
+	}
+
+	// 终态写兜底释放：忘调 Release 也不锁死 ref。
+	if err := store.SaveCompleted(second); err != nil {
+		t.Fatalf("SaveCompleted: %v", err)
+	}
+	third, err := store.PrepareContinue(ref, spaces.SpaceWork)
+	if err != nil {
+		t.Fatalf("终态写后应可再续: %v", err)
+	}
+	third.Release()
+}

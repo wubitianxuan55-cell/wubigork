@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"path/filepath"
 	"strings"
 	"time"
@@ -450,8 +451,12 @@ func (a *AgentRunner) flushJournal() {
 		}
 	}
 	// markdown 投影：<journalDir>/../exports/journal/<session>/turn-<n>.md
+	// 失败 warn 留痕（2026-09-19 审计）：导出目录被占用/磁盘满时 JSONL 证据链
+	// 仍在（Append 已成功），但投影静默缺失让人以为导出通道坏了也没人知道。
 	exportsJournalDir := filepath.Join(filepath.Dir(a.journalDir), "exports", "journal")
-	_, _ = st.WriteTurnMarkdown(exportsJournalDir, a.sessionID, a.turnSeq, recs)
+	if _, err := st.WriteTurnMarkdown(exportsJournalDir, a.sessionID, a.turnSeq, recs); err != nil {
+		slog.Warn("journal turn markdown 投影失败", "session", a.sessionID, "turn", a.turnSeq, "error", err)
+	}
 }
 
 // buildTurnResult assembles a TurnResult from per-turn tracking variables.

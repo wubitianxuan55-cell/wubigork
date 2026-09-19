@@ -143,9 +143,12 @@ func InvalidateRankers() { bumpRankVersion() }
 
 // rankerFor 返回当前过滤形态与数据版本下的 BM25 打分器：语料=all（该
 // category/status 过滤下 SQL 全捞的条目，name 序）。命中直接复用；版本
-// 推进或 key 首见时构建。
-func rankerFor(db *sql.DB, category, status string, all []Summary) *bm25.Ranker {
-	key := fmt.Sprintf("%p|%d|%s|%s", db, rankVersion.Load(), category, status)
+// 推进或 key 首见时构建。version 由调用方在捞语料**之前**快照传入——
+// 语料与版本戳取自同一时点（2026-09-19 审计）：此前 rankerFor 内部再
+// Load 一次版本，若写路径在捞语料与构 key 之间推进版本，旧语料会挂到
+// 新版本 key 上一直用到下次写。
+func rankerFor(db *sql.DB, version uint64, category, status string, all []Summary) *bm25.Ranker {
+	key := fmt.Sprintf("%p|%d|%s|%s", db, version, category, status)
 	rankMu.Lock()
 	defer rankMu.Unlock()
 	if e, ok := rankers[key]; ok {
@@ -384,6 +387,9 @@ func (s *Store) Search(query, category, status string) []Summary {
 	}
 	sqlText += " ORDER BY name"
 
+	// 语料版本快照（先于 SQL 捞取）：写路径在捞语料期间推进版本时，本查询
+	// 语料按旧版本挂 key，下次写路径推进后自然失效——语料与版本戳原子。
+	corpusVer := rankVersion.Load()
 	rows, err := s.db.Query(sqlText, args...)
 	if err != nil {
 		return nil
@@ -434,7 +440,7 @@ func (s *Store) Search(query, category, status string) []Summary {
 	// 形态」缓存（语料=all 全量，改前=命中子集从零重建）；命中子集按其
 	// 语料下标取分，同分按语料序（=name 序，与改前 tie-break 一致）。
 	if len(out) > 1 {
-		if r := rankerFor(s.db, category, status, all); r != nil {
+		if r := rankerFor(s.db, corpusVer, category, status, all); r != nil {
 			scored := r.Rank(query)
 			if len(scored) > 0 {
 				scoreOf := make(map[int]float64, len(scored))

@@ -4,6 +4,7 @@ package app
 
 import (
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -85,10 +86,13 @@ func (a *App) GaeaCostEstimateVersionSave(projectID, note string) (*costproject.
 	if err != nil {
 		return nil, err
 	}
-	// 保存版本后项目状态置为「已保存版本」。
+	// 保存版本后项目状态置为「已保存版本」。标签写失败不影响版本本体
+	// （已落库），但 warn 留痕——静默吞掉会让列表页状态永远停在旧档。
 	if p, e := a.hubCostProjectStore().GetProject(projectID); e == nil && p != nil {
 		p.Status = "已保存版本"
-		_, _ = a.hubCostProjectStore().SaveProject(*p)
+		if _, err := a.hubCostProjectStore().SaveProject(*p); err != nil {
+			slog.Warn("测算项目状态标签更新失败", "projectID", projectID, "error", err)
+		}
 	}
 	return v, nil
 }
@@ -161,7 +165,9 @@ func (a *App) GaeaCostEstimateSediment(projectID string, itemIDs []int64) (int, 
 	if applied > 0 {
 		p.Status = "已沉淀"
 		p.UpdatedAt = time.Now().UTC()
-		_, _ = a.hubCostProjectStore().SaveProject(*p)
+		if _, err := a.hubCostProjectStore().SaveProject(*p); err != nil {
+			slog.Warn("测算项目状态标签更新失败", "projectID", projectID, "error", err)
+		}
 	}
 	return applied, nil
 }
