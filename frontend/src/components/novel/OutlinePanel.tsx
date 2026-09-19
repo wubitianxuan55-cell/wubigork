@@ -42,7 +42,10 @@ const OutlinePanel: React.FC<OutlinePanelProps> = ({
             const statusColor = STATUS_COLORS[n.status as keyof typeof STATUS_COLORS] || STATUS_COLORS.planned
             const statusLabel = STATUS_LABELS[n.status as keyof typeof STATUS_LABELS] || '未写'
           cards.push(
-            <div key={n.id} className="novel-outline-row" onClick={() => onSelectNode(n)} style={{
+            <div key={n.id} className="novel-outline-row" role="button" tabIndex={0}
+              aria-label={`选择大纲章节 ${(n.title || '').trim() || `第${n.order_index || '?'}章`}`}
+              onClick={() => onSelectNode(n)}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelectNode(n); } }} style={{
               padding: '6px 10px', paddingLeft: 10 + depth * 16,
               margin: '2px 0', cursor: 'pointer',
               background: isSelected ? 'color-mix(in srgb, var(--gaea-glow) 12%, transparent)' : 'transparent',

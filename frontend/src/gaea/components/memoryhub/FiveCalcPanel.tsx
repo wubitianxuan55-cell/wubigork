@@ -448,7 +448,9 @@ export function FiveCalcPanel({ projectId, onChanged }: { projectId: string; onC
 
       {/* 版本快照带入选择器：项目（默认本项目）→ 版本 → 确认带入 */}
       {bringOpen && bringStage && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setBringOpen(false)}>
+        // Esc 关闭（v4.352：手写遮罩此前无键盘路径）；遮罩本身点击关闭保持
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setBringOpen(false)}
+          onKeyDown={(e) => { if (e.key === 'Escape') setBringOpen(false); }}>
           <div
             className="v3-panel rounded-xl w-[440px] max-h-[70vh] flex flex-col"
             data-testid="bring-modal"

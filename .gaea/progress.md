@@ -1,3 +1,11 @@
+## 最新发布：v4.353.0（2026-09-19）「前端优化第五轮：ResizableDrawer 弹层可访问性收口 / 可点 div 键盘化余量」
+
+- **动机**：用户口径「继续」——可访问性余池两条线收口；纯前端 9 源码 + 1 测试（新建），零 Go 改动、零绑定变更（706 不动）。
+- **线1 ResizableDrawer 三缺补齐**（对照 ApprovalModal 先例）：dialog 语义（role=dialog+aria-modal+aria-label 新 prop，两调用方传 i18n 标题）+ Esc 关闭（可编辑目标不劫持）+ 焦点管理（开记录 activeElement+聚焦容器 tabIndex=-1，卸载还原 try 兜底）；ResizableDrawer.test 新建 4 例（Esc 经退出动画/普通键不关/dialog 三件套/开聚焦+卸载还原）。
+- **线2 可点 div 键盘化余量**（v4.349 池逐点核对净剩 4 处+顺带 5 钮）：ChapterTreePanel 章节树节点/OutlinePanel 大纲行/StatsPanel 会话·本轮两折叠→role=button+tabIndex+Enter/Space+aria-label（FileTree 范式）；ChapterEditor 加/删场景+ChapterTreePanel 重新生成/删除/添加五 icon Button 补 aria-label（title 不参与可访问名）；FiveCalcPanel 版本带入遮罩补 Esc。辨伪=RailItem/FactCard 已是 button。
+- **坑**：①effect 引用 useCallback 声明顺序——Esc effect 插在 handleClose 声明前，依赖数组渲染期即时求值 TDZ ReferenceError；effect 一律放依赖声明后②React 合成 KeyboardEvent 无 isContentEditable（DOM HTMLElement 属性），div onKeyDown 判可编辑目标要 e.target 断言③审计清单是快照不是现状，逐点核对再动手。
+- **门禁**：tsc 0（--force）+eslint 0/0+全量 ci.ps1 绿（vitest 386 文件 3293 例）+bindings drift OK@706+版本三处 4.353.0；产物见 releases/v4.353.0.md。**文档**=releases/v4.353.0.md+CHANGELOG/README+AGENTS 迁 1 插 1（六十八迁：v4.350 入 archive）+progress/todos。**未做（下刀池）**=reducer 级整店订阅 13 处（v4.350 审计辨伪「appStore 写入面低频不构成热点」维持不做）/selbar z-1080 阶梯治理（防御性）/海报墙 hero 内容槽（内容决策）/持久全量 overlay（真机窗口）。
+
 ## 最新发布：v4.352.0（2026-09-19）「前端优化第四轮：ForeshadowPanel 行 memo / ModelCenter ctx 两通道拆分 / 图标钮可访问名」
 
 - **动机**：用户口径「继续」——v4.351 下刀池延续；纯前端 16 源码 + 5 测试（扩 5），零 Go 改动、零绑定变更（706 不动）。

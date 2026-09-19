@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, KeyboardEvent, PointerEvent as ReactPointerEvent, ReactNode } from "react";
 import { useT } from "../lib/i18n";
 import { loadLayoutSize, saveLayoutSize, type LayoutSizeKey } from "../lib/layoutPreferences";
@@ -42,15 +42,31 @@ export function ResizableDrawer({
   onClose,
   subtle = false,
   wide = false,
+  label,
 }: {
   children: ReactNode;
   onClose: () => void;
   subtle?: boolean;
   wide?: boolean;
+  /** 弹层可访问名（v4.352 补：role=dialog 必须有名）；缺省退「面板」 */
+  label?: string;
 }) {
   const t = useT();
   const [exiting, setExiting] = useState(false);
   const config = drawerConfig(wide);
+  const drawerRef = useRef<HTMLElement>(null);
+  // 焦点还原：打开时记录当前焦点元素，卸载时还原（v4.352；ApprovalModal 先例）
+  const prevFocusRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    prevFocusRef.current = document.activeElement as HTMLElement | null;
+    // 开时聚焦抽屉容器（tabIndex=-1，Tab 流从内容第一个可聚焦元素继续）
+    drawerRef.current?.focus();
+    return () => {
+      // 关闭动画后真实卸载：焦点还原到打开者（元素可能已消失，try 兜底）
+      try { prevFocusRef.current?.focus(); } catch { /* 元素已卸载则忽略 */ }
+    };
+  }, []);
 
   // Intercept close: play exit animation, then call the real onClose.
   const handleClose = useCallback(() => {
@@ -58,6 +74,20 @@ export function ResizableDrawer({
     setExiting(true);
     setTimeout(() => onClose(), 120); // matches drawer-out duration
   }, [exiting, onClose]);
+
+  // Esc 关闭（对照 ApprovalModal：输入控件内的 Esc 不劫持）。放在 handleClose
+  // 声明之后——effect 回调虽延迟执行，依赖数组读 handleClose 绑定是即时的（TDZ）。
+  useEffect(() => {
+    const onKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      const target = event.target as HTMLElement | null;
+      if (target?.isContentEditable) return;
+      event.preventDefault();
+      handleClose();
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [handleClose]);
   const [viewportWidth, setViewportWidth] = useState(() => (typeof window === "undefined" ? 1440 : window.innerWidth));
   const [width, setWidth] = useState(() =>
     loadLayoutSize(config.key, config.defaultWidth, (value) => clampDrawerWidth(value, wide)),
@@ -135,7 +165,12 @@ export function ResizableDrawer({
       {/* positioning layer */}
       <div className="absolute inset-0 flex justify-end pointer-events-none">
       <aside
-        className={"relative flex flex-col h-full bg-bg-elev border-l border-border pointer-events-auto " + (
+        ref={drawerRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={label ?? t("drawer.resize")}
+        tabIndex={-1}
+        className={"relative flex flex-col h-full bg-bg-elev border-l border-border pointer-events-auto outline-none " + (
           exiting ? "anim-drawer-out" : "anim-drawer-in"
         ) + (resizing ? " drawer--resizing" : "") + " " + (
           wide

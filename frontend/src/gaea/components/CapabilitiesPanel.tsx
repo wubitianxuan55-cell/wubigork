@@ -82,7 +82,7 @@ export function CapabilitiesPanel({
     "flex items-center gap-1.5 px-2 py-1 text-xs rounded-md cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-default";
 
   return (
-    <ResizableDrawer onClose={onClose} subtle>
+    <ResizableDrawer onClose={onClose} subtle label={t("caps.title")}>
         <DrawerHeader onClose={onClose}>
           <div>
             <DrawerTitle text={t("caps.title")} />

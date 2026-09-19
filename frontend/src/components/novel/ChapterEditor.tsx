@@ -323,8 +323,8 @@ const ChapterEditor: React.FC<ChapterEditorProps> = ({ tab, onUpdate, sceneTexta
                       <Button type="text" size="small" icon={<ArrowDownOutlined />} style={{ color: C('color-text-secondary'), fontSize: 10, padding: '0 4px' }}
                         disabled={i === tab.scenes.length - 1 || tab.sceneBacked !== true || moving}
                         onClick={() => void moveScene(i, 1)} aria-label={`场景 ${i + 1} 下移`} title="下移场景" />
-                      <Button type="text" size="small" icon={<PlusOutlined />} style={{ color: C('color-text-secondary'), fontSize: 10, padding: '0 4px' }} loading={addingScene} onClick={() => void addScene()} />
-                      <Button type="text" size="small" danger icon={<DeleteOutlined />} style={{ fontSize: 10, padding: '0 4px' }} onClick={() => removeScene(i)} disabled={tab.scenes.length <= 1} />
+                      <Button type="text" size="small" icon={<PlusOutlined />} aria-label="添加场景" style={{ color: C('color-text-secondary'), fontSize: 10, padding: '0 4px' }} loading={addingScene} onClick={() => void addScene()} />
+                      <Button type="text" size="small" danger icon={<DeleteOutlined />} aria-label={`删除场景 ${i + 1}`} style={{ fontSize: 10, padding: '0 4px' }} onClick={() => removeScene(i)} disabled={tab.scenes.length <= 1} />
                     </Space>
                   </div>
                   {/* 逐场景 AI 生成：剧情要点（可选） + 生成按钮 + aiTaste/deSlop 简讯 */}

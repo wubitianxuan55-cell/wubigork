@@ -58,7 +58,7 @@ export function HistoryPanel({
   const hasSessions = sessions.length > 0;
 
   return (
-    <ResizableDrawer onClose={onClose}>
+    <ResizableDrawer onClose={onClose} label={t("history.title")}>
       <DrawerHeader onClose={onClose}>
         <DrawerTitle text={tr("history.title")} />
         {hasSessions && (

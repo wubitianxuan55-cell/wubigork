@@ -51,21 +51,26 @@ const ChapterTreePanel: React.FC<ChapterTreePanelProps> = ({
             style={{ paddingLeft: 8 + tn.depth * 14, borderLeft: isBranch ? '2px solid var(--md-sys-color-outline-variant)' : undefined }}
           >
             <span className={`novel-tree-status ${statusClass}`} title={n.status || '未写'} />
-            <div onClick={() => onSelect(n)}
+            <div
+              role="button"
+              tabIndex={0}
+              aria-label={`选择章节 ${n.title || n.id}`}
+              onClick={() => onSelect(n)}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(n); } }}
               title={n.summary ? `摘要: ${n.summary.slice(0, 100)}${n.summary.length > 100 ? '...' : ''}` : `ID: ${n.id}`}
               style={{ flex: 1, cursor: 'pointer', fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
               {isBranch ? <ShareAltOutlined style={{ fontSize: 9, marginRight: 4, opacity: 0.5 }} /> : <RightOutlined style={{ fontSize: 10, marginRight: 4, opacity: 0.4 }} />}
               {n.title || chapterLabel(chapNum)}
             </div>
             <Space size={0}>
-              <Button type="text" size="small" icon={<ReloadOutlined />}
+              <Button type="text" size="small" icon={<ReloadOutlined />} aria-label={`重新生成章节 ${n.title || n.id}`}
                 onClick={() => onRegenerate(n)}
                 style={{ color: C('color-text-secondary'), fontSize: 11, padding: '0 3px', height: 22 }} title="重新生成" />
               <Popconfirm title="删除此章节？" onConfirm={() => onDelete(n)} okText="删除" cancelText="取消">
-                <Button type="text" size="small" danger icon={<DeleteOutlined />}
+                <Button type="text" size="small" danger icon={<DeleteOutlined />} aria-label={`删除章节 ${n.title || n.id}`}
                   style={{ fontSize: 11, padding: '0 3px', height: 22 }} />
               </Popconfirm>
-              <Button type="text" size="small" icon={<PlusOutlined />}
+              <Button type="text" size="small" icon={<PlusOutlined />} aria-label={tn.children.length > 0 ? '添加子分支' : '生成下一章'}
                 onClick={() => onAddNext(n)}
                 style={{ color: 'var(--md-sys-color-primary)', fontSize: 11, padding: '0 3px', height: 22 }}
                 title={tn.children.length > 0 ? '添加子分支' : '生成下一章'} />

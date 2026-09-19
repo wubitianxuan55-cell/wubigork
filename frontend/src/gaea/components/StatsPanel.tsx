@@ -369,7 +369,9 @@ export function StatsPanel({ data, clearData, turnSteps, subagentModel, toolCoun
         </div>
 
         {/* ── 会话级统计表格 ── */}
-        <div className="cursor-pointer select-none" onClick={() => setSessionExpanded(!sessionExpanded)}>
+        <div className="cursor-pointer select-none" role="button" tabIndex={0} aria-expanded={sessionExpanded} aria-label="会话统计明细"
+          onClick={() => setSessionExpanded(!sessionExpanded)}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSessionExpanded(!sessionExpanded); } }}>
           <StatsTable
             title={`会话 (${history.length}轮·${stepHistory.length}步)`}
             executor={sessExecutor} sub={sessSub} total={sessTotal}
@@ -391,7 +393,9 @@ export function StatsPanel({ data, clearData, turnSteps, subagentModel, toolCoun
 
         {(perTurnExecutorUsage || perTurnSubUsage) && (
           <>
-            <div className="cursor-pointer select-none" onClick={() => setTurnExpanded(!turnExpanded)}>
+            <div className="cursor-pointer select-none" role="button" tabIndex={0} aria-expanded={turnExpanded} aria-label="本轮统计明细"
+              onClick={() => setTurnExpanded(!turnExpanded)}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setTurnExpanded(!turnExpanded); } }}>
               <StatsTable title={`本轮 (${turnSteps?.length || 0}步)`} executor={turnExecutor} sub={turnSub} total={turnTotal} collapsed={!turnExpanded} />
             </div>
             {turnExpanded && (
