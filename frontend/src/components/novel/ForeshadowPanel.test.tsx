@@ -75,6 +75,40 @@ describe('ForeshadowPanel 行 memo（v4.352）', () => {
   })
 })
 
+describe('ForeshadowPanel 6 态契约（v4.354 P0 回归）', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.mocked(app.SaveForeshadows).mockResolvedValue(undefined)
+  })
+
+  it('Go 侧超集状态（pending/partially_resolved/abandoned）渲染不崩且诚实显示', async () => {
+    // v4.349 前端只声明 3 态，Go 6 态透传时 STATUS_META[status] undefined 整页崩
+    vi.mocked(app.GetForeshadows).mockResolvedValue({
+      items: [
+        { ...EXISTING, id: 'f_p', status: 'pending' as ForeshadowItemData['status'] },
+        { ...EXISTING, id: 'f_pr', status: 'partially_resolved' as ForeshadowItemData['status'] },
+        { ...EXISTING, id: 'f_ab', status: 'abandoned' as ForeshadowItemData['status'] },
+      ],
+    })
+    render(<ForeshadowPanel />)
+    expect(await screen.findByText('待规划')).toBeTruthy()
+    expect(screen.getByText('部分回收')).toBeTruthy()
+    expect(screen.getByText('待规划')).toBeTruthy() // 面板顶部统计行另有待规划计数（beStats 关闭时无），此处行内 Tag 即可
+    expect(screen.getByText('已废弃')).toBeTruthy()
+    // 页面未被错误边界接管
+    expect(screen.queryByText('页面渲染出错')).toBeNull()
+  })
+
+  it('未知新状态值：防御 fallback 显示原始值不崩', async () => {
+    vi.mocked(app.GetForeshadows).mockResolvedValue({
+      items: [{ ...EXISTING, id: 'f_x', status: 'future_state' as ForeshadowItemData['status'] }],
+    })
+    render(<ForeshadowPanel />)
+    expect(await screen.findByText('future_state')).toBeTruthy()
+    expect(screen.queryByText('页面渲染出错')).toBeNull()
+  })
+})
+
 describe('ForeshadowPanel 手工登记闭环', () => {
   beforeEach(() => {
     vi.clearAllMocks()

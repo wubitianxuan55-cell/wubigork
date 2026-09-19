@@ -319,6 +319,10 @@ const ChapterPage: React.FC = () => {
     if (!activeTab || activeTab.chapterNum < 1) return
     const c = activeTab.scenes.join('\n\n')
     if (!c) return
+    // v4.354：保存快照——V4 场景章逐场景串行 N 次后端往返（数百 ms 起步），
+    // 期间继续打字后「完成侧强制 saved=true」会把未保存保护打掉（关闭不弹
+    // 确认→新增文字静默丢失）。完成侧只有快照仍与当前缓冲一致才置 saved。
+    const savedSnapshot = activeTab.scenes.join('\u0000')
     try {
       if (activeTab.node.branch) {
         await app.SaveChapterBranchContent(activeTab.chapterNum, activeTab.node.branch, c)
@@ -340,8 +344,14 @@ const ChapterPage: React.FC = () => {
       } else {
         await app.SaveChapterContent(activeTab.chapterNum, c)
       }
-      updateTab('saved', true)
-      message.success('已保存')
+      // 完成侧：只有「保存时快照 == 当前缓冲」才置 saved（setTabs 函数式读最新，
+      // 保存期间继续打字则保持 saved=false，未保存保护不丢）
+      const keyAtSave = activeTab.node.id
+      setTabs((prev) => prev.map((t) => (
+        t.node.id === keyAtSave && t.scenes.join('\u0000') === savedSnapshot ? { ...t, saved: true } : t
+      )))
+      const unchanged = tabs.some((t) => t.node.id === keyAtSave && t.scenes.join('\u0000') === savedSnapshot)
+      message.success(unchanged ? '已保存' : '已保存（保存期间有新改动，请再次保存）')
     } catch { message.error('保存失败') }
   }
   handleSaveRef.current = handleSave

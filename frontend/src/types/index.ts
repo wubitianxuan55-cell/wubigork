@@ -87,7 +87,16 @@ export interface ConsistencyReportData {
 }
 
 // ── 伏笔（v4.3f，对齐 internal/types.Foreshadow）────────────────
-export type ForeshadowStatus = 'planted' | 'hinted' | 'revealed'
+// v4.354：Go 侧状态机是 6 态并集（foreshadow_v2.go：pending=外部导入初始态 /
+// partially_resolved / abandoned=合法存量），此前前端只声明 3 态——后端透传
+// 超集值时 STATUS_META[status] undefined 整页崩（「项目重置」按钮确定性触发）。
+export type ForeshadowStatus =
+  | 'pending'
+  | 'planted'
+  | 'hinted'
+  | 'revealed'
+  | 'partially_resolved'
+  | 'abandoned'
 
 export interface ForeshadowItemData {
   id: string

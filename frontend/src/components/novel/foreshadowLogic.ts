@@ -20,15 +20,21 @@ export function formatPlantedIn(chapterNum: number): string {
  * planted → hinted（标记暗示）→ revealed（标记回收）；revealed 回退一步到 hinted（可再回收）。
  */
 export function advanceForeshadowStatus(status: ForeshadowStatus): ForeshadowStatus {
+  if (status === 'pending') return 'planted'
   if (status === 'planted') return 'hinted'
   if (status === 'revealed') return 'hinted' // 回退
+  if (status === 'partially_resolved') return 'revealed'
+  if (status === 'abandoned') return 'planted' // 废弃恢复
   return 'revealed'
 }
 
-/** 流转按钮文案 */
+/** 流转按钮文案（v4.354：覆盖 6 态——Go 状态机超集此前只给 3 态文案） */
 export function foreshadowFlowLabel(status: ForeshadowStatus): string {
+  if (status === 'pending') return '标记埋设'
   if (status === 'planted') return '标记暗示'
   if (status === 'hinted') return '标记回收'
+  if (status === 'partially_resolved') return '标记回收'
+  if (status === 'abandoned') return '恢复埋设'
   return '回退到暗示'
 }
 

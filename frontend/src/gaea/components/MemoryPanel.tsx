@@ -551,6 +551,14 @@ export function MemoryPanel(p: {
                   void onRefreshDistill?.();
                   setSuggestionsBusy(true);
                   const result = await onRefreshSuggestions();
+                  // v4.354：Go nil slice 序列化为 JSON null（suggestSkillsFromMemories
+                  // 在规则类记忆 <2 条时 return nil，skills 无 omitempty）——null.length
+                  // 此前整页崩，收窄归一在此统一修，消费侧五处不再逐个防御。
+                  if (result) {
+                    result.skills ??= [];
+                    result.memories ??= [];
+                    result.merges ??= [];
+                  }
                   setSuggestions(result);
                   setSuggestionsBusy(false);
                 }}

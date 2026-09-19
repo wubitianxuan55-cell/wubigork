@@ -123,6 +123,9 @@ export function useChatTopics({ setMessages, setPersonalities }: UseChatTopicsOp
 
   const createTopic = useCallback(async () => {
     try {
+      // v4.354：失效在途 loadTopic——否则点历史话题（消息在途）→立刻新建对话，
+      // 旧话题响应后到把空话题视图填满，用户「清空对话」清错对象。
+      topicLoadSeqRef.current++
       // 契约返回 Record 形状（含 id），转正时限定为 chat.Topic 供 state 使用；
       // 运行期数据即后端 chat.Topic JSON，逐字段类型一致。
       const t = (await app.ChatTopicCreate('新对话', modeRef.current)) as unknown as chat.Topic
@@ -193,10 +196,17 @@ export function useChatTopics({ setMessages, setPersonalities }: UseChatTopicsOp
     })
   }, [])
 
+  // v4.354：失效在途话题载入（清空对话等绕过 loadTopic 的入口用，防旧响应
+  // 把清空后的视图重新填满）
+  const invalidateLoads = useCallback(() => {
+    topicLoadSeqRef.current++
+  }, [])
+
   return {
     topics, setTopics, activeId, activeIdRef, mode, modeRef, topicsRef,
     emotion, setEmotion, aff, setAff, aro, setAro,
     initializing, resetPersonaMeta, loadTopic, selectTopic,
     createTopic, deleteTopic, renameTopic, switchMode, finalizeTopicAfterSend,
+    invalidateLoads,
   }
 }

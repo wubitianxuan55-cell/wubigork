@@ -256,6 +256,9 @@ export function useImageGenConfig() {
   // ── 切换后端 ──
   const handleSwitchBackend = useCallback(async (newBackend: string) => {
     if (newBackend === backend) return
+    // v4.354：重入守卫——后端 state 在 await 持久化之后才写，二次切换时旧
+    // backend 值仍挡不住，两个 setImageBackendAPI 在途交错最终态与 UI 错位
+    if (backendSwitching) return
     setBackendSwitching(true)
     try {
       let defaultModel = ''
@@ -286,7 +289,7 @@ export function useImageGenConfig() {
       }
     } catch (err: unknown) { message.error(errText(err, '切换失败')) }
     finally { setBackendSwitching(false) }
-  }, [backend, engines])
+  }, [backend, engines, backendSwitching])
 
   // ── 引擎启停 ──
   const handleStartEngine = useCallback(async () => {

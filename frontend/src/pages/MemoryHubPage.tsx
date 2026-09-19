@@ -166,6 +166,7 @@ function MemoryHubPage() {
   // 检索终态三态（v4.350）：此前失败与 0 命中都什么都不显示——「检索中…」一闪
   // 即无，用户无法区分「没搜到」还是「坏了」。
   const [searchOutcome, setSearchOutcome] = useState<"idle" | "empty" | "error">("idle");
+  const searchSeqRef = useRef(0);
   const [referenced, setReferenced] = useState<string | null>(null);
   const [detail, setDetail] = useState<InspectorDetail | null>(null);
   const [inspectorOpen, setInspectorOpen] = useState(true);
@@ -193,9 +194,13 @@ function MemoryHubPage() {
       setSearchOutcome("idle");
       return;
     }
+    // v4.354：seq 守卫——语义检索秒级延迟，旧响应覆盖新检索的命中（同
+    // ChapterPage searchSeqRef 范式）
+    const seq = ++searchSeqRef.current;
     setSearching(true);
     try {
       const v = await app.UnifiedSearch(q, scope, 8).catch(() => null);
+      if (seq !== searchSeqRef.current) return;
       if (!v) {
         setHits([]);
         setSearchOutcome("error");
@@ -237,10 +242,13 @@ function MemoryHubPage() {
       setHits(merged);
       setSearchOutcome(merged.length === 0 ? "empty" : "idle");
     } catch {
+      if (seq !== searchSeqRef.current) return;
       setHits([]);
       setSearchOutcome("error");
     }
-    finally { setSearching(false); }
+    finally {
+      if (seq === searchSeqRef.current) setSearching(false);
+    }
   };
 
   // 一键 @ 引用：写入全局输入框通道，回到办公板块后自动插入

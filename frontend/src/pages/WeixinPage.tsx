@@ -204,6 +204,7 @@ const WeixinPage: React.FC = () => {
   const [newTime, setNewTime] = useState<Dayjs | null>(null)
   const [adding, setAdding] = useState(false)
   const [assistantsLoadFailed, setAssistantsLoadFailed] = useState(false)
+  const [togglingId, setTogglingId] = useState<string | null>(null)
 
   const loadAssistants = useCallback(async () => {
     // 两路并行：状态用 Status 行、字段用 List 行；单路失败兜底空数组，
@@ -363,14 +364,20 @@ const WeixinPage: React.FC = () => {
     }
   }
 
-  // 启停：传 List 完整对象 + 翻转后的 enabled（空 token 字段后端保留现值）
+  // 启停：传 List 完整对象 + 翻转后的 enabled（空 token 字段后端保留现值）。
+  // v4.354：busy 闸——Switch 受控到轮询才翻转，「点了没反应」诱发连点=两条
+  // 相反的 Save 并发，最终启停与显示相反。
   const toggleAssistant = async (row: AssistantRow, enabled: boolean) => {
+    if (togglingId) return
+    setTogglingId(row.id)
     try {
       await app.WhisperAssistantSave({ ...viewOf(row), enabled })
       message.success(enabled ? '助手已启用' : '助手已停用')
       loadAssistants()
     } catch (e) {
       message.error(`保存失败：${e instanceof Error ? e.message : String(e)}`)
+    } finally {
+      setTogglingId(null)
     }
   }
 
@@ -575,7 +582,8 @@ const WeixinPage: React.FC = () => {
                   row={selected}
                   core={selected.id === 'gaea'}
                   onBind={() => startBinding(viewOf(selected))}
-                  onToggle={(v) => toggleAssistant(selected, v)}
+                  onToggle={(v) => void toggleAssistant(selected, v)}
+                  toggling={togglingId === selected.id}
                   onDelete={() => removeAssistant(selected)}
                   onEdit={() => openEdit(selected)}
                 />
@@ -886,9 +894,10 @@ const ChannelDetail: React.FC<{
   core: boolean
   onBind: () => void
   onToggle: (v: boolean) => void
+  toggling?: boolean
   onDelete: () => void
   onEdit: () => void
-}> = ({ row, core, onBind, onToggle, onDelete, onEdit }) => {
+}> = ({ row, core, onBind, onToggle, toggling, onDelete, onEdit }) => {
   const st = channelStatusOf(rowStatus(row))
   const bound = rowStatus(row).hasToken
   const name = row.name || row.id
@@ -959,6 +968,7 @@ const ChannelDetail: React.FC<{
             ) : (
               <Switch
                 size="small" aria-label={`启停 ${name}`} checked={row.enabled}
+                loading={toggling}
                 onChange={onToggle}
               />
             )}

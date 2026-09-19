@@ -27,10 +27,19 @@ import {
   stripForeshadowUrgency,
 } from './foreshadowLogic'
 
+// v4.354：6 态全量（Go foreshadow_v2 状态机并集透传；此前 3 态缺 pending/
+// partially_resolved/abandoned，「项目重置」把手动条目置 pending 后重拉即整页崩）
 const STATUS_META: Record<ForeshadowStatus, { label: string; color: string }> = {
+  pending: { label: '待规划', color: 'default' },
   planted: { label: '已埋设', color: 'blue' },
   hinted: { label: '已暗示', color: 'gold' },
   revealed: { label: '已回收', color: 'green' },
+  partially_resolved: { label: '部分回收', color: 'cyan' },
+  abandoned: { label: '已废弃', color: 'default' },
+}
+/** 行渲染防御：后端未来再扩状态值时不出 undefined 崩（诚实显示原始值） */
+function statusMetaOf(status: ForeshadowStatus): { label: string; color: string } {
+  return STATUS_META[status] ?? { label: status, color: 'default' };
 }
 
 /** 体检 severity → Tag 色/文案（high=红「重」/ medium=gold「中」/ low=default「轻」，
@@ -100,8 +109,8 @@ const ForeshadowRow = memo(function ForeshadowRow({
         <Tooltip title={`章节：${it.planted_in}`}>
           <span className="novel-setting-meta">{it.planted_in}</span>
         </Tooltip>
-        <Tag style={{ marginInlineEnd: 0, fontSize: 11 }} color={STATUS_META[it.status].color}>
-          {STATUS_META[it.status].label}
+        <Tag style={{ marginInlineEnd: 0, fontSize: 11 }} color={statusMetaOf(it.status).color}>
+          {statusMetaOf(it.status).label}
         </Tag>
         {/* t1-P4：紧急度 Badge（后端运行时投影；阈值后端算 D7） */}
         {it.urgency && it.urgency.level > 0 && (

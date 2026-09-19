@@ -118,19 +118,25 @@ export function useSinStory(): UseSinStoryResult {
   const cleanupRef = useRef<(() => void) | null>(null)
   // 在流的助手消息 key（取消时把「正在写」标记收掉）
   const streamingKeyRef = useRef('')
+  // v4.354：消息载入序号——快速切故事时旧故事 SinMessages 慢响应会覆盖当前
+  // 视图（同 useChatTopics.loadTopic 守卫范式），此后发送会把两故事内容同屏串台
+  const loadSeqRef = useRef(0)
 
   const clearNotice = useCallback(() => setNotice(''), [])
   const showNotice = useCallback((message: string) => setNotice(message), [])
 
   const loadMessages = useCallback(async (id: string) => {
+    const seq = ++loadSeqRef.current
     if (!id) {
       setMessages([])
       return
     }
     try {
       const ms = await app.SinMessages(id)
+      if (seq !== loadSeqRef.current) return
       setMessages((ms || []).map((m) => toMessageView(m as unknown as Record<string, unknown>)))
     } catch (err) {
+      if (seq !== loadSeqRef.current) return
       setNotice(errText(err, '故事内容读取失败'))
       setMessages([])
     }
@@ -195,6 +201,7 @@ export function useSinStory(): UseSinStoryResult {
 
   const createStory = useCallback(async () => {
     try {
+      loadSeqRef.current++ // 失效在途故事消息载入（v4.354）
       const t = await app.SinTopicCreate('新故事')
       const list = await refreshStories()
       setStories(list)

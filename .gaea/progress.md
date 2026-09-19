@@ -1,3 +1,12 @@
+## 最新发布：v4.354.0（2026-09-19）「前端优化第六轮：P0 数据形状崩溃×2 / 异步竞态 11 处 / 资源生命周期」
+
+- **动机**：用户口径「继续」——五连发后新现场再开三路并行只读审计（异步竞态与并发 / 运行时数据形状防御 / 资源生命周期第二层），按证据定刀；纯前端 17 源码 + 1 测试扩展，零 Go 改动、零绑定变更（706 不动）。
+- **P0 数据形状崩溃×2**（均为「后端产出前端未声明形状 + mock 不可复现」同型）：①伏笔面板 STATUS_META 3 态 vs Go 6 态并集透传，「清理→项目重置」把手动条目置 pending 重拉即整页崩（一键自毁式交互）→类型 6 态并集+STATUS_META 补全+statusMetaOf 防御未知值+流转按钮 6 态文案语义，测试+2；②记忆面板 suggestions.skills=null（Go suggestSkillsFromMemories 规则类记忆<2 条 return nil，nil slice 无 omitempty 序列化 JSON null；mock 恒 []）→setSuggestions 入口统一收窄归一（skills/memories/merges ??= []），消费侧五处不再逐个防御。
+- **异步竞态 11 处**（统一项目已有 seq/loadToken 范式补齐，辨伪 18+）：PromptWorkshopPanel 模板切换 seq（A 正文写进 B 表单保存即数据损坏）；BookSearchModal pickSeq+backToSearch 失效（B 书源 URL+A 章节范围错误导入）；useChatTopics.createTopic/ChatPage.handleClearMessages 失效在途（新增 invalidateLoads 暴露，空话题视图被旧话题填满后清错对象）；useSinStory loadSeqRef+createStory 失效（切故事串台）；ChapterPage.handleSave 保存快照+setTabs 函数式比对（保存期间继续打字不再被强制 saved=true，未保存保护不丢，提示「请再次保存」）；SearchModal 移除 onPressEnter 双发+searchSeqRef（旧意图卡不再可被执行）；MemoryHubPage runSearch searchSeqRef（Enter 路径守卫）；useImageGenConfig backendSwitching 重入闸；outlineStore 模块级 loadSeq（错书章节读写风险）；WeixinPage togglingId busy 闸+Switch loading（连点两条相反 Save）；TTSPlayer 卸载 cleanupAudio（泄 blob URL 且音频继续外放）。
+- **资源生命周期第二层**：blob URL/Observer/AudioContext/MediaStream 全量辨伪通过（saveFile 同步 revoke、useVoiceChat 四路回收、9 处 Observer 均 disconnect）；dirListingsCache 无界+invalidateTurnCaches 零调用方挂池（结构性欠账需设计接线时机）。
+- **坑**：①Go nil slice→JSON null 且 mock 手写 [] 永不复现——前端收窄层统一归一优于消费点逐个防御②saved 标志语义=「缓冲区==磁盘」，异步完成侧不能无条件置位，快照比对是通用解③antd Input.Search 回车已触发 onSearch，再挂 onPressEnter=双发，删除而非守卫④竞态修复统一走已有 seq 范式不发明新机制。
+- **门禁**：tsc 0（--force）+eslint 0/0+全量 ci.ps1 绿（vitest 386 文件 3295 例）+bindings drift OK@706+版本三处 4.354.0；产物见 releases/v4.354.0.md。**文档**=releases/v4.354.0.md+CHANGELOG/README+AGENTS 迁 1 插 1（六十九迁：v4.351 入 archive）+progress/todos。**未做（下刀池）**=dirListingsCache 失效接线/CharacterPage 双击重复写（幂等低危）/海报墙 hero 内容槽（内容决策）。
+
 ## 最新发布：v4.353.0（2026-09-19）「前端优化第五轮：ResizableDrawer 弹层可访问性收口 / 可点 div 键盘化余量」
 
 - **动机**：用户口径「继续」——可访问性余池两条线收口；纯前端 9 源码 + 1 测试（新建），零 Go 改动、零绑定变更（706 不动）。

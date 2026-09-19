@@ -49,7 +49,7 @@ const ChatPage: React.FC = () => {
     topics, setTopics, activeId, activeIdRef, mode, modeRef,
     emotion, setEmotion, aff, setAff, aro, setAro,
     initializing, resetPersonaMeta, selectTopic: selectTopicData,
-    createTopic, deleteTopic, renameTopic, switchMode, finalizeTopicAfterSend,
+    createTopic, deleteTopic, renameTopic, switchMode, finalizeTopicAfterSend, invalidateLoads,
   } = topicsApi
 
   const [input, setInput] = useState('')
@@ -298,6 +298,7 @@ const ChatPage: React.FC = () => {
   const handleClearMessages = useCallback(async () => {
     stickToBottomRef.current = true
     setAtBottom(true)
+    invalidateLoads() // v4.354：失效在途话题载入，防旧响应把清空后的视图重新填满
     setMessages([]); resetPersonaMeta()
     if (activeIdRef.current) {
       try { await app.ChatTopicClear(activeIdRef.current) } catch (_) {}
@@ -306,7 +307,7 @@ const ChatPage: React.FC = () => {
     if (modeRef.current !== 'plain') {
       try { await app.WhisperClearSession(modeRef.current) } catch (_) {}
     }
-  }, [resetPersonaMeta, activeIdRef, modeRef, setTopics])
+  }, [resetPersonaMeta, activeIdRef, modeRef, setTopics, invalidateLoads])
 
   const handleExport = useCallback(async () => {
     if (!activeIdRef.current) return

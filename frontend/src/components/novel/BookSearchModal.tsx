@@ -57,6 +57,9 @@ const BookSearchModal: React.FC<BookSearchModalProps> = ({ open, onClose, onImpo
   // ── 目录预览 + 范围 ──
   const [selected, setSelected] = useState<NovelBookSourceCandidate | null>(null)
   const [tocLoading, setTocLoading] = useState(false)
+  // v4.354：选书→取目录的 seq 守卫——网络秒级延迟窗口内换书，慢响应把 A 的目录
+  // 落在 B 的界面上（章节范围用 B 的书源 URL+A 的 range 执行导入）
+  const pickSeqRef = useRef(0)
   const [toc, setToc] = useState<NovelBookSourceTocPreview | null>(null)
   const [rangeStart, setRangeStart] = useState(1)
   const [rangeEnd, setRangeEnd] = useState(0)
@@ -130,6 +133,7 @@ const BookSearchModal: React.FC<BookSearchModalProps> = ({ open, onClose, onImpo
   }
 
   const handlePick = async (c: NovelBookSourceCandidate) => {
+    const seq = ++pickSeqRef.current
     setSelected(c)
     setToc(null)
     setTitle(c.title || '')
@@ -137,14 +141,16 @@ const BookSearchModal: React.FC<BookSearchModalProps> = ({ open, onClose, onImpo
     setTocLoading(true)
     try {
       const res = await app.NovelBookSourceToc(c.source, c.url)
+      if (seq !== pickSeqRef.current) return
       setToc(res)
       setRangeStart(1)
       setRangeEnd(res.total)
     } catch (err: unknown) {
+      if (seq !== pickSeqRef.current) return
       message.error(err instanceof Error ? err.message : '目录获取失败')
       setSelected(null)
     } finally {
-      setTocLoading(false)
+      if (seq === pickSeqRef.current) setTocLoading(false)
     }
   }
 
@@ -258,6 +264,7 @@ const BookSearchModal: React.FC<BookSearchModalProps> = ({ open, onClose, onImpo
   }
 
   const backToSearch = () => {
+    pickSeqRef.current += 1 // 失效在途目录响应（v4.354）
     setSelected(null); setToc(null); setStartError('')
   }
 

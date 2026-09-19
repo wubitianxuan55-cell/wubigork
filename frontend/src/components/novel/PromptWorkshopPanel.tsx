@@ -7,7 +7,7 @@
 // t6-C2：顶栏「导出/导入模板包」——导出走 saveExportBlob 双门落盘；导入
 // 双门选文件后三态决策在 Go 侧，结果弹窗逐行展示（规格
 // 进度计划/gaea-prompt-bundle-t6c2-20260916.md §5）。
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Alert, Button, Collapse, Empty, Input, Modal, Popconfirm, Spin, Switch, Tag, Typography, message } from 'antd'
 import {
   listTemplates, getTemplate, saveTemplate, resetTemplate, previewTemplate, exportBundle, importBundle,
@@ -58,6 +58,7 @@ export default function PromptWorkshopPanel({ open, onClose }: {
   open: boolean
   onClose: () => void
 }) {
+  const selectSeqRef = useRef(0);
   const [metas, setMetas] = useState<PromptTemplateMeta[]>([])
   const [loading, setLoading] = useState(false)
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
@@ -96,8 +97,11 @@ export default function PromptWorkshopPanel({ open, onClose }: {
     }
   }, [open, refreshList])
 
-  /** 选中模板并拉详情填充表单（keepIssues：保存后刷新详情时保留校验结果展示）。 */
+  /** 选中模板并拉详情填充表单（keepIssues：保存后刷新详情时保留校验结果展示）。
+   *  v4.354：seq 守卫——模板切换无守卫时慢响应把 A 的正文写进 B 的表单，用户
+   *  点保存即用 A 内容覆盖 B 模板（生成链路即时生效，数据损坏）。 */
   const select = async (key: string, keepIssues = false) => {
+    const seq = ++selectSeqRef.current
     setSelectedKey(key)
     setDetail(null)
     setPreview(null)
@@ -106,6 +110,7 @@ export default function PromptWorkshopPanel({ open, onClose }: {
     setDetailLoading(true)
     try {
       const d = await getTemplate(key)
+      if (seq !== selectSeqRef.current) return
       setDetail(d)
       setForm({
         system: d.template?.system ?? '',
@@ -116,9 +121,10 @@ export default function PromptWorkshopPanel({ open, onClose }: {
         isActive: d.meta?.source === 'override' ? d.meta.overrideActive : true,
       })
     } catch (e) {
+      if (seq !== selectSeqRef.current) return
       message.error(`模板详情加载失败：${e instanceof Error ? e.message : String(e)}`)
     } finally {
-      setDetailLoading(false)
+      if (seq === selectSeqRef.current) setDetailLoading(false)
     }
   }
 

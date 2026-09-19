@@ -65,6 +65,9 @@ const TTSPlayer: React.FC<TTSPlayerProps> = ({ getText, onStatusChange, onSenten
       audioRef.current = null
     }
   }, [])
+  // 卸载 cleanup 经 ref 调用（effect 依赖数组不引 cleanupAudio，免重订阅）
+  const cleanupAudioRef = useRef(cleanupAudio)
+  cleanupAudioRef.current = cleanupAudio
 
   // 播放队列中的下一个音频块
   const playNextChunk = useCallback(() => {
@@ -150,6 +153,9 @@ const TTSPlayer: React.FC<TTSPlayerProps> = ({ getText, onStatusChange, onSenten
       try {
         window.runtime?.EventsOff?.('tts-stream')
       } catch (_) {}
+      // v4.354：卸载回收播放中资源——此前 cleanupAudio 只在操作路径调用，
+      // 播放中卸载组件（切章节/切页面）泄当前 chunk blob URL 且音频继续外放
+      cleanupAudioRef.current()
     }
   }, [enqueueChunk])
 

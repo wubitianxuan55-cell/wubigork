@@ -30,6 +30,10 @@ interface OutlineState {
   setStoryThread: (value: string) => void
 }
 
+// v4.354：载入序号（模块级）——快速换书时旧书 fetchOutlines 慢响应覆盖新书
+// 大纲树，用户按 A 树章号读写 B 书章节（错误正文/写错章）
+let loadSeq = 0
+
 export const useOutlineStore = create<OutlineState>((set) => ({
   outlines: [],
   storyThread: '',
@@ -37,9 +41,11 @@ export const useOutlineStore = create<OutlineState>((set) => ({
   error: null,
 
   loadOutlines: async () => {
+    const seq = ++loadSeq
     set({ loading: true, error: null })
     try {
       const data = await fetchOutlines()
+      if (seq !== loadSeq) return
       // fetchOutlines 内部吞错并返回 null：null 同样视为加载失败（否则
       // 前端会呈现“加载完成但大纲为空”的假空态，无法区分失败与真空）。
       if (!data) {

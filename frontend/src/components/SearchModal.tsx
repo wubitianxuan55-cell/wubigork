@@ -1,5 +1,5 @@
 import { wailsApp } from '../lib/wailsApp';
-import React, { useState } from 'react'
+import React, { useRef, useState } from 'react'
 import { Typography, Space, Tag, Modal, Input, Spin, Button } from 'antd'
 import { SearchOutlined, FileTextOutlined, UserOutlined, ThunderboltOutlined } from '@ant-design/icons'
 
@@ -122,6 +122,8 @@ const SearchModal: React.FC<SearchModalProps> = ({ open, onClose, space }) => {
   const t = useT()
   const [query, setQuery] = useState('')
   const [loading, setLoading] = useState(false)
+  // v4.354：检索序号——慢语义检索旧响应覆盖新结果、旧意图卡可被执行
+  const searchSeqRef = useRef(0)
   const [sections, setSections] = useState<SearchSection[]>([])
   const [searched, setSearched] = useState(false)
   const [scope, setScope] = useState<SearchScope>(space)
@@ -145,6 +147,7 @@ const SearchModal: React.FC<SearchModalProps> = ({ open, onClose, space }) => {
   const handleSearch = async (value: string) => {
     const q = value.trim()
     if (!q) { resetQuery(); return }
+    const seq = ++searchSeqRef.current
     setLoading(true)
     setSearched(true)
     setFilterCategory(null)
@@ -157,15 +160,19 @@ const SearchModal: React.FC<SearchModalProps> = ({ open, onClose, space }) => {
         scope === 'work' ? Promise.resolve(null) : wailsApp().Search(q).catch(() => null),
         scope === 'play' ? Promise.resolve(null) : app.UnifiedSearch(q, scope === 'work' ? 'work' : '', 8).catch(() => null),
       ])
+      if (seq !== searchSeqRef.current) return
       setIntent(intentHit?.handled ? intentHit : null)
       const all: SearchSection[] = []
       if (novel) all.push(...sectionsFromNovel(novel, t))
       if (unified) all.push(...sectionsFromUnified(unified, t))
       setSections(all)
     } catch (_) {
+      if (seq !== searchSeqRef.current) return
       setSections([])
       setIntent(null)
-    } finally { setLoading(false) }
+    } finally {
+      if (seq === searchSeqRef.current) setLoading(false)
+    }
   }
 
   // S4.6：执行指令（用户显式点击「执行」= 确认）——dryRun=false 真跑能力，
@@ -240,8 +247,9 @@ const SearchModal: React.FC<SearchModalProps> = ({ open, onClose, space }) => {
           placeholder={t('shell.search.placeholder')}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
+          // v4.354：onPressEnter 已移除——antd Input.Search 回车本就触发 onSearch，
+          // 双挂=一次回车两遍检索（旧意图卡残留可被执行）
           onSearch={handleSearch}
-          onPressEnter={() => handleSearch(query)}
           size="large"
           allowClear
           style={{ background: C('color-bg-layout') }}
