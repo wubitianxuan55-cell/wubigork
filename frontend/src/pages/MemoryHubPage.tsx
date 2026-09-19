@@ -199,7 +199,7 @@ function MemoryHubPage() {
     const seq = ++searchSeqRef.current;
     setSearching(true);
     try {
-      const v = await app.UnifiedSearch(q, scope, 8).catch(() => null);
+      const v = await app.UnifiedSearch(q, 8, scope).catch(() => null);
       if (seq !== searchSeqRef.current) return;
       if (!v) {
         setHits([]);

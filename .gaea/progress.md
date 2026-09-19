@@ -1,3 +1,13 @@
+## 最新发布：v4.355.0（2026-09-19）「真机走查班：UnifiedSearch 参数序错位根修」
+
+- **动机**：用户口径「继续」——前端优化六连发后按惯例开真机走查班（v4.343 非版本刀先例），CDP 9333 附着 v4.354.0 壳（WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9333 直启 exe）。
+- **巡检基线**：双空间 13 页（书斋 6+乐园 7）错误边界 0 / 空白 0 / exception 0（.tmp/walk-v4354*.mjs 三版迭代）。
+- **真发现：UnifiedSearch 三调用方参数序错位（月级老 bug）**：Go GaeaUnifiedSearch(query, topN int, scope ...string)（v2.23.0 起）vs 前端 bridge 声明与调用方 (query, scope, topN)——scope 落 int 形参每次 unmarshal 失败；记忆中枢三脑检索/工作区搜索面板/Ctrl+K 真壳自 v2.23 一直坏。捂因=mock 按前端期望签名写（契约全绿）+bindings_completeness_test 只收方法名+.catch(()=>null) 静默——v4.350 失败可见化（「检索失败，请重试」）一次走查拽出。修复=bridge 签名 (query, topN?, scope?)+MemoryHubPage/WorkspaceSearchPanel/SearchModal 换序+mock 同序+mock-contract-e5/MemoryHubPage/WorkspaceSearchPanel 三测试断言换序；零 Go 改动绑定面 706 不动。
+- **修复确证（新壳复验）**：错误从 cannot unmarshal → embedding 请求失败（localhost:8080 语义服务超时——本机 embedding 未部署属环境事实挂观察池）；UI 三态如实呈现。语义检索完全可用需先起 embedding 服务，届时补一条龙走查。
+- **其余发现**：角色库页 console 27 条 file:// 头像 WebView2 拒载（既有非本轮回归，挂池：AttachmentDataURL 或 asset:// 通道）；[longtask] 69~165ms 误报阈值过敏感挂池；ResizableDrawer Esc 真机抽验因导航成本收尾（vitest 4 例已锁）。
+- **坑**：①mock 契约必须从 Go 绑定复制签名含参数序——按「前端怎么调」写，签名错位时 mock 全绿真壳全坏②静默吞错捂 bug 时长与可见性成反比，失败可见化是最便宜的测试③走查探针按钮定位优先类名/testid，textContent 匹配撞到别的按钮得假阴性（「检索中…」也是按钮文案）。
+- **门禁**：tsc 0（--force）+eslint 0/0+全量 ci.ps1 绿（vitest 386 文件 3295 例）+bindings drift OK@706+版本三处 4.355.0；产物见 releases/v4.355.0.md。**文档**=releases/v4.355.0.md+CHANGELOG/README+AGENTS 迁 1 插 1（七十迁：v4.352 入 archive）+progress/todos。**未做（下刀池）**=embedding 服务就绪后语义检索一条龙走查/file:// 头像通道治理/longtask 阈值/dirListingsCache 接线/海报墙 hero 内容槽（内容决策）。
+
 ## 最新发布：v4.354.0（2026-09-19）「前端优化第六轮：P0 数据形状崩溃×2 / 异步竞态 11 处 / 资源生命周期」
 
 - **动机**：用户口径「继续」——五连发后新现场再开三路并行只读审计（异步竞态与并发 / 运行时数据形状防御 / 资源生命周期第二层），按证据定刀；纯前端 17 源码 + 1 测试扩展，零 Go 改动、零绑定变更（706 不动）。

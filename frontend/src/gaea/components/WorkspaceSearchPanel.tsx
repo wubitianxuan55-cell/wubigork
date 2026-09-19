@@ -106,7 +106,7 @@ export const WorkspaceSearchPanel = memo(function WorkspaceSearchPanel({
     if (cross) {
       // 跨库模式：一次 UnifiedSearch 调用，关键词 + 语义两组一次拿齐。
       // scope 随面板切换传递（""=全部 / "work"/"play"）。
-      app.UnifiedSearch(trimmed, scope, 20)
+      app.UnifiedSearch(trimmed, 20, scope)
         .then((v) => {
           if (id !== seq.current) return;
           setHits(v?.keyword ?? []);

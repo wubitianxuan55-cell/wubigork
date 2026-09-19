@@ -238,7 +238,10 @@ export interface CoreBindings {
   // ""=全部（旧行为，仅显式选择时使用），"work"/"play"=只搜对应空间；前端默认
   // 传当前生效空间（GaeaSpaceActive，双空间红线：默认不跨空间混搜）。
   // 注意：后端 B 步合入前，旧绑定为 (query, topN)，此签名按约定先行对齐。
-  UnifiedSearch(query: string, scope: SearchScope, topN?: number): Promise<UnifiedSearchView>;
+  // v4.355：签名对齐 Go GaeaUnifiedSearch(query, topN int, scope ...string)——
+  // 此前端声明 (query, scope, topN) 且 mock 同序，三调用方把 scope 传进 int
+  // 形参（unmarshal 失败静默），真壳上统一检索一直坏（v4.350 失败可见化才露出）。
+  UnifiedSearch(query: string, topN?: number, scope?: SearchScope): Promise<UnifiedSearchView>;
   // RouteIntent 统一意图路由（v4.5 指令中枢）命令面板入口（S4.6）：
   // dryRun=true 只解析与校验、零副作用（返回「将发生什么」预览语 + action/target），
   // 面板据此渲染指令预览卡；用户显式确认后以 dryRun=false 真执行并返回回执。

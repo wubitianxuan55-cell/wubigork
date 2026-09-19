@@ -98,7 +98,7 @@ export function buildRetrieval(_s: MakeMockState): RetrievalMethods {
     //   · semantic：只对最终 hits 过滤（严禁动索引源）——演示数据里
     //     cost/knowledge/office 为 work 域，play scope 返回 play 分区命中。
     //   · keyword/files：工作区单根目录=共享面，不过滤。
-    async UnifiedSearch(query: string, scope = "", topN = 10) {
+    async UnifiedSearch(query: string, topN = 10, scope = "") {
       if (!query.trim()) return { keyword: [], semantic: [], brain: [], files: [] };
       const kw = await (this as unknown as WithWorkspaceSearch).WorkspaceSearch(query, topN);
       const sem = await this.SemanticSearch(query);

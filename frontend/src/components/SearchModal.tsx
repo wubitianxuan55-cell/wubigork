@@ -158,7 +158,7 @@ const SearchModal: React.FC<SearchModalProps> = ({ open, onClose, space }) => {
       const [intentHit, novel, unified] = await Promise.all([
         app.RouteIntent(q, true).catch(() => null),
         scope === 'work' ? Promise.resolve(null) : wailsApp().Search(q).catch(() => null),
-        scope === 'play' ? Promise.resolve(null) : app.UnifiedSearch(q, scope === 'work' ? 'work' : '', 8).catch(() => null),
+        scope === 'play' ? Promise.resolve(null) : app.UnifiedSearch(q, 8, scope === 'work' ? 'work' : '').catch(() => null),
       ])
       if (seq !== searchSeqRef.current) return
       setIntent(intentHit?.handled ? intentHit : null)

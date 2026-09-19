@@ -151,12 +151,12 @@ describe("WorkspaceSearchPanel 工作区搜索", () => {
       target: { value: "振动锤" },
     });
 
-    // 300ms 防抖后发起跨库检索：签名 (query, scope, topN)，默认 scope=work。
+    // 300ms 防抖后发起跨库检索：v4.355 签名对齐 Go (query, topN, scope)，默认 scope=work。
     await waitFor(() => expect(h.unifiedCalls().length).toBeGreaterThan(0));
-    const [q, scope, topN] = h.unifiedCalls()[0];
+    const [q, topN, scope] = h.unifiedCalls()[0];
     expect(q).toBe("振动锤");
-    expect(scope).toBe("work");
     expect(topN).toBe(20);
+    expect(scope).toBe("work");
   });
 
   it("跨库模式：切「全部」后 UnifiedSearch 收到 scope=\"\"（旧行为，显式选择才跨空间）", async () => {
@@ -170,15 +170,15 @@ describe("WorkspaceSearchPanel 工作区搜索", () => {
       target: { value: "振动锤" },
     });
     await waitFor(() => expect(h.unifiedCalls().length).toBeGreaterThan(0));
-    expect(h.unifiedCalls()[0][1]).toBe("work");
+    expect(h.unifiedCalls()[0][2]).toBe("work");
 
     // 切「全部」（scope=""）→ run 重建 → 防抖后自动重搜一次。
     fireEvent.click(screen.getByTitle(/跨书房与庭院检索/));
     await waitFor(() => expect(h.unifiedCalls().length).toBeGreaterThanOrEqual(2));
     const last = h.unifiedCalls()[h.unifiedCalls().length - 1];
     expect(last[0]).toBe("振动锤");
-    expect(last[1]).toBe("");
-    expect(last[2]).toBe(20);
+    expect(last[1]).toBe(20);
+    expect(last[2]).toBe("");
   });
 
   it("跨库模式：SpaceChip 激活 play 后（noteSpaceActivated 广播）默认 scope=play", async () => {
@@ -199,7 +199,7 @@ describe("WorkspaceSearchPanel 工作区搜索", () => {
     });
 
     await waitFor(() => expect(h.unifiedCalls().length).toBeGreaterThan(0));
-    const [, scope] = h.unifiedCalls()[0];
+    const [, , scope] = h.unifiedCalls()[0];
     expect(scope).toBe("play");
   });
 });
