@@ -36,12 +36,19 @@ var glmCatalogV2NewIDs = []string{
 	"glm-4-voice", "glm-realtime", "glm-realtime-flash", "glm-realtime-air",
 }
 
+// glmCatalogV2FlashXIDs 2026-09-19 官方核实追加：GLM-5.3-FlashX 新发
+// （Flash 加速版，200 tokens/s，1M/128K，caps 同 Flash；coding 套餐官方
+// 明示暂未开放，不配积分系数）。
+var glmCatalogV2FlashXIDs = []string{
+	"glm-5.3-flashx",
+}
+
 // TestGLMCatalogEmbeddedMatchesLegacy 内嵌 JSON（schema v2）锚定：legacy 22
 // 项逐字保留且顺序不变，其后为官方新清单 22 项；kind 仍由 ClassifyModelKind
 // 判定兜底。
 func TestGLMCatalogEmbeddedMatchesLegacy(t *testing.T) {
 	models := glmStaticModels()
-	wantIDs := append(append([]string(nil), glmCatalogLegacyIDs...), glmCatalogV2NewIDs...)
+	wantIDs := append(append(append([]string(nil), glmCatalogLegacyIDs...), glmCatalogV2NewIDs...), glmCatalogV2FlashXIDs...)
 	if len(models) != len(wantIDs) {
 		t.Fatalf("内嵌目录数量 = %d, want %d", len(models), len(wantIDs))
 	}
@@ -97,14 +104,18 @@ func TestGLMCatalogEmbeddedV2Metadata(t *testing.T) {
 	if got := byID["glm-4.1v-thinking-flashx"]; got.ContextLength != 64000 || got.MaxOutput != 16000 {
 		t.Errorf("glm-4.1v-thinking-flashx ctx/out = %d/%d, want 64000/16000", got.ContextLength, got.MaxOutput)
 	}
+	if got := byID["glm-5.3-flashx"]; got.ContextLength != 1000000 || got.MaxOutput != 128000 {
+		t.Errorf("glm-5.3-flashx ctx/out = %d/%d, want 1000000/128000", got.ContextLength, got.MaxOutput)
+	}
 	// 能力标记（宁缺勿滥：官方未列不填）
 	wantCaps := map[string][]string{
-		"glm-5.3":       {"tools", "reasoning"},
-		"glm-5.2":       {"tools", "reasoning"},
-		"glm-5.3-flash": {"vision", "tools", "reasoning"},
-		"glm-realtime":  {"vision", "tools", "search"},
-		"glm-4.6v":      {"tools"},
-		"glm-ocr":       {"json"},
+		"glm-5.3":        {"tools", "reasoning"},
+		"glm-5.2":        {"tools", "reasoning"},
+		"glm-5.3-flash":  {"vision", "tools", "reasoning"},
+		"glm-5.3-flashx": {"vision", "tools", "reasoning"},
+		"glm-realtime":   {"vision", "tools", "search"},
+		"glm-4.6v":       {"tools"},
+		"glm-ocr":        {"json"},
 	}
 	for id, caps := range wantCaps {
 		got := byID[id].Caps
@@ -162,9 +173,12 @@ func TestGLMCatalogEmbeddedV2Metadata(t *testing.T) {
 	if got := byID["glm-realtime-air"]; got.PriceIn != 0.3 || got.Currency != "CNY" || got.Unit != "minute" {
 		t.Errorf("glm-realtime-air 价 = %v/%q/%q, want 0.3 CNY minute", got.PriceIn, got.Currency, got.Unit)
 	}
-	// glm-5.3-flash 官方仅相对价：不填绝对价，price_note 记录口径
-	if got := byID["glm-5.3-flash"]; got.PriceIn != 0 || got.PriceOut != 0 || got.PriceNote == "" {
-		t.Errorf("glm-5.3-flash 应无绝对价且有 price_note, got %v/%v/%q", got.PriceIn, got.PriceOut, got.PriceNote)
+	// 官方核实国内价（2026-09-19 定价页）：Flash 系绝对价，price_note 记缓存口径
+	if got := byID["glm-5.3-flash"]; got.PriceIn != 0.8 || got.PriceOut != 2.8 || got.Currency != "CNY" || got.PriceNote == "" {
+		t.Errorf("glm-5.3-flash 价 = %v/%v/%q, want 0.8/2.8 CNY + price_note", got.PriceIn, got.PriceOut, got.Currency)
+	}
+	if got := byID["glm-5.3-flashx"]; got.PriceIn != 2 || got.PriceOut != 7 || got.Currency != "CNY" || got.PriceNote == "" {
+		t.Errorf("glm-5.3-flashx 价 = %v/%v/%q, want 2/7 CNY + price_note", got.PriceIn, got.PriceOut, got.Currency)
 	}
 	// 其余付费模型官方绝对价未查到：不填 price（估算回退内置表）
 	for _, id := range []string{"glm-5.3", "glm-5.2", "glm-5.1", "glm-5", "glm-4.6", "glm-4.6v", "glm-4.5-air"} {
@@ -172,14 +186,15 @@ func TestGLMCatalogEmbeddedV2Metadata(t *testing.T) {
 			t.Errorf("%s 不应携带目录价, got %v/%v/%q/%q", id, got.PriceIn, got.PriceOut, got.Currency, got.Unit)
 		}
 	}
-	// coding 积分系数：仅 glm-5.3 / glm-5.3-flash 有（coding 端点仅支持这两个）
+	// coding 积分系数：仅 glm-5.3 / glm-5.3-flash 有（coding 端点仅支持这两个；
+	// FlashX 官方明示暂未开放 coding 套餐）
 	if got := byID["glm-5.3"]; got.PointsIn != 6.9 || got.PointsCached != 1.7 || got.PointsOut != 24 || got.PointsPeak != 3 {
 		t.Errorf("glm-5.3 积分系数 = %v/%v/%v/%v, want 6.9/1.7/24/3", got.PointsIn, got.PointsCached, got.PointsOut, got.PointsPeak)
 	}
 	if got := byID["glm-5.3-flash"]; got.PointsIn != 2.3 || got.PointsCached != 0.56 || got.PointsOut != 8 || got.PointsPeak != 1.2 {
 		t.Errorf("glm-5.3-flash 积分系数 = %v/%v/%v/%v, want 2.3/0.56/8/1.2", got.PointsIn, got.PointsCached, got.PointsOut, got.PointsPeak)
 	}
-	for _, id := range []string{"glm-5.2", "glm-4.6", "glm-4.7"} {
+	for _, id := range []string{"glm-5.2", "glm-4.6", "glm-4.7", "glm-5.3-flashx"} {
 		if got := byID[id]; got.PointsIn != 0 || got.PointsOut != 0 || got.PointsPeak != 0 {
 			t.Errorf("%s 不应携带积分系数, got %v/%v/%v", id, got.PointsIn, got.PointsOut, got.PointsPeak)
 		}
@@ -196,8 +211,8 @@ func TestGLMCatalogOverrideAndReload(t *testing.T) {
 
 	// 覆盖文件不存在：内嵌目录原样返回
 	models := glmStaticModels()
-	if len(models) != 45 {
-		t.Fatalf("无覆盖文件时目录数量 = %d, want 45", len(models))
+	if len(models) != 46 {
+		t.Fatalf("无覆盖文件时目录数量 = %d, want 46", len(models))
 	}
 
 	t0 := time.Date(2026, 8, 31, 10, 0, 0, 0, time.UTC)
@@ -213,8 +228,8 @@ func TestGLMCatalogOverrideAndReload(t *testing.T) {
 	// 覆盖 v1：同 ID 替换（带 kind）+ 追加新 ID
 	write(`[{"id":"glm-5.3","kind":"vision-x"},{"id":"glm-6-test"}]`, t0)
 	models = glmStaticModels()
-	if len(models) != 46 {
-		t.Fatalf("覆盖后目录数量 = %d, want 46（45 + 追加 1）", len(models))
+	if len(models) != 47 {
+		t.Fatalf("覆盖后目录数量 = %d, want 47（46 + 追加 1）", len(models))
 	}
 	byID := map[string]ModelInfo{}
 	for _, m := range models {
@@ -234,8 +249,8 @@ func TestGLMCatalogOverrideAndReload(t *testing.T) {
 	t1 := t0.Add(time.Hour)
 	write(`[{"id":"glm-5.3","kind":"llm"}]`, t1)
 	models = glmStaticModels()
-	if len(models) != 45 {
-		t.Fatalf("热重载后目录数量 = %d, want 45", len(models))
+	if len(models) != 46 {
+		t.Fatalf("热重载后目录数量 = %d, want 46", len(models))
 	}
 	for _, m := range models {
 		if m.ID == "glm-6-test" {
@@ -247,16 +262,16 @@ func TestGLMCatalogOverrideAndReload(t *testing.T) {
 	}
 
 	// mtime 未变：复用缓存（行为不变，此处只验证仍正确）
-	if got := glmStaticModels(); len(got) != 45 {
-		t.Errorf("mtime 未变时目录数量 = %d, want 45", len(got))
+	if got := glmStaticModels(); len(got) != 46 {
+		t.Errorf("mtime 未变时目录数量 = %d, want 46", len(got))
 	}
 
 	// 坏 JSON：静默回退内嵌，不 panic、不体现覆盖内容
 	t2 := t1.Add(time.Hour)
 	write(`{"bad json,,,`, t2)
 	models = glmStaticModels()
-	if len(models) != 45 {
-		t.Fatalf("坏 JSON 回退后目录数量 = %d, want 45", len(models))
+	if len(models) != 46 {
+		t.Fatalf("坏 JSON 回退后目录数量 = %d, want 46", len(models))
 	}
 	for _, m := range models {
 		if m.ID == "glm-5.3" && m.Kind != "llm" {
@@ -293,8 +308,8 @@ func TestGLMCatalogOverrideV2MergeFields(t *testing.T) {
 	}
 
 	models := glmStaticModels()
-	if len(models) != 46 {
-		t.Fatalf("v2 覆盖后目录数量 = %d, want 46（45 + 追加 1）", len(models))
+	if len(models) != 47 {
+		t.Fatalf("v2 覆盖后目录数量 = %d, want 47（46 + 追加 1）", len(models))
 	}
 	byID := map[string]ModelInfo{}
 	for _, m := range models {
@@ -331,8 +346,8 @@ func TestGLMCatalogOverrideV2MergeFields(t *testing.T) {
 	if err := os.Remove(path); err != nil {
 		t.Fatal(err)
 	}
-	if models = glmStaticModels(); len(models) != 45 {
-		t.Errorf("删除覆盖文件后目录数量 = %d, want 45", len(models))
+	if models = glmStaticModels(); len(models) != 46 {
+		t.Errorf("删除覆盖文件后目录数量 = %d, want 46", len(models))
 	}
 }
 
@@ -496,8 +511,11 @@ func TestGLMPricingVerified(t *testing.T) {
 	if p := estimatePrice("glm", "glm-4.6"); p.InputPerM != 0.6 || p.OutputPerM != 2.2 || p.Currency != "USD" {
 		t.Errorf("glm-4.6 = %+v, want 0.6/2.2 USD", p)
 	}
-	if p := estimatePrice("glm", "glm-5.3-flash"); p.InputPerM != 0.15 || p.OutputPerM != 0.5 || p.Currency != "USD" {
-		t.Errorf("glm-5.3-flash = %+v, want 0.15/0.5 USD", p)
+	if p := estimatePrice("glm", "glm-5.3-flash"); p.InputPerM != 0.8 || p.OutputPerM != 2.8 || p.Currency != "CNY" {
+		t.Errorf("glm-5.3-flash = %+v, want 0.8/2.8 CNY（2026-09-19 官方绝对价，目录层命中）", p)
+	}
+	if p := estimatePrice("glm", "glm-5.3-flashx"); p.InputPerM != 2 || p.OutputPerM != 7 || p.Currency != "CNY" {
+		t.Errorf("glm-5.3-flashx = %+v, want 2/7 CNY（目录层命中）", p)
 	}
 	if p := estimatePrice("glm", "glm-4.6v"); p.InputPerM != 0.3 || p.OutputPerM != 0.9 || p.Currency != "USD" {
 		t.Errorf("glm-4.6v = %+v, want 0.3/0.9 USD", p)
@@ -553,10 +571,11 @@ func TestEstimateCostCNY_GLMValueLocks(t *testing.T) {
 		outTok int64
 		want   float64 // CNY
 	}{
-		{"glm-5.3", 1_000_000, 0, 1.4 * 7.2},                // 10.08
-		{"glm-5.3", 0, 1_000_000, 4.4 * 7.2},                // 31.68
-		{"glm-5.3-flash", 1_000_000, 1_000_000, 0.65 * 7.2}, // (0.15+0.5)*7.2
-		{"glm-4.6v", 1_000_000, 0, 0.3 * 7.2},               // 2.16
+		{"glm-5.3", 1_000_000, 0, 1.4 * 7.2},         // 10.08
+		{"glm-5.3", 0, 1_000_000, 4.4 * 7.2},         // 31.68
+		{"glm-5.3-flash", 1_000_000, 1_000_000, 3.6}, // CNY 直用（0.8+2.8，2026-09-19 官方绝对价）
+		{"glm-5.3-flashx", 1_000_000, 1_000_000, 9},  // CNY 直用（2+7）
+		{"glm-4.6v", 1_000_000, 0, 0.3 * 7.2},        // 2.16
 		{"glm-4.6", 500_000, 250_000, (0.3 + 0.55) * 7.2},
 		{"glm-ocr", 1_000_000, 1_000_000, 0.4},     // CNY 直用
 		{"embedding-3", 1_000_000, 0, 0.5},         // CNY 直用
@@ -608,8 +627,8 @@ func TestModelStatsSummary_CatalogPassthrough(t *testing.T) {
 	if sum.CatalogVersion != "2" {
 		t.Errorf("CatalogVersion = %q, want 2", sum.CatalogVersion)
 	}
-	if sum.CatalogSource != "builtin v2 (2026-09-02)" {
-		t.Errorf("CatalogSource = %q, want builtin v2 (2026-09-02)", sum.CatalogSource)
+	if sum.CatalogSource != "builtin v2 (2026-09-19)" {
+		t.Errorf("CatalogSource = %q, want builtin v2 (2026-09-19)", sum.CatalogSource)
 	}
 
 	// 远程缓存生效 → source 变为 remote <version>

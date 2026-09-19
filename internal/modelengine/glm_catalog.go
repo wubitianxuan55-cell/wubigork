@@ -26,12 +26,18 @@ import (
 // 数据来源与核实日期（写在这里——JSON 无注释）：
 //   - 模型清单/上下文/最大输出/能力标记/免费档/alias：
 //     docs.bigmodel.cn「模型概览」，2026-09-02 核实；
+//     2026-09-19 增补：GLM-5.3-FlashX 新发（GLM-5 系首个原生多模态的
+//     Flash 加速版，320B 总参/18B 激活，200 tokens/s），1M/128K，caps 同
+//     Flash，追加持尾部；coding 套餐官方明示「暂未开放 GLM-5.3-FlashX」
+//     （仅 Flash 全量上线），故不配积分系数、不进 glm_alias 别名表；
 //   - 国内价（CNY，官方核实）：glm-ocr 输入输出 0.2 元/M tokens、
 //     embedding-3 0.5 元/M tokens、glm-image 0.1 元/次、cogvideox-3 1 元/次、
 //     glm-realtime-flash 0.18 元/分钟、glm-realtime-air 0.3 元/分钟；
-//     glm-5.3-flash 官方仅给相对价（=glm-5.3 的 1/10，限时 1/20），
-//     不填绝对价（price_note 记录口径，估算回退内置表）；其余付费模型
-//     绝对价官方页动态渲染未查到——不填 price，估算回退 modelPricing；
+//     2026-09-19 定价页补出 Flash 系绝对价：glm-5.3-flash 0.8/2.8 元/M、
+//     glm-5.3-flashx 2/7 元/M（缓存命中 0.23/0.57 元/M、缓存存储限时免费，
+//     记 price_note）——此前 Flash 仅相对价（=glm-5.3 的 1/10，限时 1/20）
+//     不填绝对价的口径作废；其余付费模型绝对价官方页动态渲染未查到——
+//     不填 price，估算回退 modelPricing；
 //   - coding 套餐积分系数（积分=(输入×In+缓存命中×Cached+输出×Out)/10000，
 //     仅 coding 端点支持的 glm-5.3 / glm-5.3-flash 有）：
 //     glm-5.3 In 6.9 / Cached 1.7 / Out 24（高峰×3）；
@@ -123,7 +129,7 @@ type glmCatalogLoader struct {
 	mu          sync.Mutex
 	base        []ModelInfo // 内嵌目录解析结果（只解析一次）
 	baseVersion int         // 内嵌 schema 版本（2）
-	baseUpdated string      // 内嵌 updated（"2026-09-02"）
+	baseUpdated string      // 内嵌 updated（"2026-09-19"）
 	path        string      // 覆盖文件路径（glm_catalog_path；空=无该层）
 	remotePath  string      // 远程缓存路径（glm_catalog_remote.json；空=无该层）
 	merged      []ModelInfo // 上次合并结果缓存（nil=未算）

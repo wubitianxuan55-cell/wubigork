@@ -52,7 +52,7 @@ gaea/
 
 ## 版本
 
-当前 **v4.346.0**。
+当前 **v4.347.0**。
 
 逐条演进只写一份：[CHANGELOG.md](./CHANGELOG.md)。单版说明在 [releases/](./releases/)。这里不再抄 patch 年表。
 

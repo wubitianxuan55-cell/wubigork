@@ -3,6 +3,13 @@
 > 本文件为**最近发布速览**。完整历史磁带见 `docs/archive/progress-history-2026-09.md`
 > 与 `releases/`。
 
+## 最新发布：v4.347.0（2026-09-19）「GLM-5.3-FlashX 新模型接入目录 + Flash 补官方绝对价」
+
+- **来源**：智谱 9 月中旬新发 GLM-5.3-FlashX（Flash 加速版，320B 总参/18B 激活，200 tokens/s）；官方四页交叉核实（模型概览/详情/定价/coding 活动）后接入模型中心 GLM 静态目录。纯数据刀，零新绑定 705。
+- **落地**：`glm_catalog.json` +1 条目（1M/128K、caps 同 Flash、国内绝对价 2/7 元/M、缓存命中 0.57 记 price_note）；coding 套餐官方明示暂未开放 FlashX→不配积分系数不进别名；Flash 补绝对价 0.8/2.8 元/M（「仅相对价回退 USD」旧口径作废，估算 0.65 USD→3.6 CNY /M+M）。
+- **测试**：锚定清单+计数 45→46 全对齐 ×8；FlashX 元数据/价格锁值；积分守卫+估算锁值翻新；modelengine 包全绿。
+- **验收**：drift OK@705；全量 ci 绿；产物见 releases/v4.347.0.md。
+- **未做（下刀）**：coding 套餐若开放 FlashX 补 points/别名（覆盖文件可先行）。
 ## 最新发布：v4.346.0（2026-09-19）「UI 健壮性双修：错误边界页级隔离（keepAlive 连坐根修）+ TisorRadar 缺档崩页」
 
 - **来源**：UI 优化班——隔离目检（vite dev ?mock=1 + 无头 Edge CDP）双空间全页×明暗两态；纯前端四文件，零新绑定 705。

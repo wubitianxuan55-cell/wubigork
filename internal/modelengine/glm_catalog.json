@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "updated": "2026-09-02",
+  "updated": "2026-09-19",
   "models": [
     {"id": "glm-5.3", "context_length": 1000000, "max_output": 128000, "caps": ["tools", "reasoning"], "points_in": 6.9, "points_cached": 1.7, "points_out": 24, "points_peak": 3},
     {"id": "glm-5.2", "context_length": 200000, "max_output": 128000, "caps": ["tools", "reasoning"]},
@@ -14,7 +14,7 @@
     {"id": "glm-4-long", "context_length": 1000000, "max_output": 4000},
     {"id": "glm-4.7-flash", "context_length": 200000, "max_output": 128000, "free": true},
     {"id": "glm-4.5-flash", "context_length": 200000, "max_output": 128000, "free": true},
-    {"id": "glm-5.3-flash", "context_length": 1000000, "max_output": 128000, "caps": ["vision", "tools", "reasoning"], "price_note": "官方仅给相对价（=glm-5.3 的 1/10，限时 1/20），无绝对价——费用估算回退内置表（z.ai 国际站 USD）", "points_in": 2.3, "points_cached": 0.56, "points_out": 8, "points_peak": 1.2},
+    {"id": "glm-5.3-flash", "context_length": 1000000, "max_output": 128000, "caps": ["vision", "tools", "reasoning"], "price_in": 0.8, "price_out": 2.8, "currency": "CNY", "price_note": "缓存命中 0.23 元/M、缓存存储限时免费（2026-09-19 官方定价页核实）", "points_in": 2.3, "points_cached": 0.56, "points_out": 8, "points_peak": 1.2},
     {"id": "glm-4.6v", "context_length": 128000, "max_output": 32000, "caps": ["tools"]},
     {"id": "glm-image", "price_in": 0.1, "currency": "CNY", "unit": "call"},
     {"id": "cogview-4-250304"},
@@ -46,6 +46,7 @@
     {"id": "glm-4-voice"},
     {"id": "glm-realtime", "caps": ["vision", "tools", "search"]},
     {"id": "glm-realtime-flash", "price_in": 0.18, "currency": "CNY", "unit": "minute"},
-    {"id": "glm-realtime-air", "price_in": 0.3, "currency": "CNY", "unit": "minute"}
+    {"id": "glm-realtime-air", "price_in": 0.3, "currency": "CNY", "unit": "minute"},
+    {"id": "glm-5.3-flashx", "context_length": 1000000, "max_output": 128000, "caps": ["vision", "tools", "reasoning"], "price_in": 2, "price_out": 7, "currency": "CNY", "price_note": "更快更流畅的 GLM-5.3-Flash（200 tokens/s）；缓存命中 0.57 元/M、缓存存储限时免费；GLM Coding Plan 暂未开放（2026-09-19 官方核实）"}
   ]
 }

@@ -1,3 +1,9 @@
+## v4.347.0 · GLM-5.3-FlashX 新模型接入目录 + Flash 补官方绝对价（2026-09-19）
+> 智谱 9 月中旬新发 GLM-5.3-FlashX（Flash 加速版，320B 总参/18B 激活，200 tokens/s），官方四页交叉核实（模型概览/详情/定价/coding 活动）后接入模型中心 GLM 静态目录。纯数据刀，零新绑定 705、零代码逻辑变更。
+**落地**=①`glm_catalog.json` 追加 `glm-5.3-flashx`：1M/128K、caps 同 Flash（vision/tools/reasoning）、国内绝对价 2/7 元/M（缓存命中 0.57 记 price_note）、尾部追加纪律②coding 套餐官方明示「暂未开放 FlashX」（仅 Flash 上线）→不配积分系数、不进别名表③顺带翻新 Flash：定价页补出绝对价 0.8/2.8 元/M（缓存 0.23）——「仅相对价不填绝对价、估算回退内置表 USD」的 09-02 口径作废，估算从 USD 近似（0.65/M+M）变官方国内价精确值（3.6 CNY/M+M）④`glm_catalog.go` 头注释核实日期增补。
+**测试**=锚定清单 +`glmCatalogV2FlashXIDs`；计数 45→46 全对齐（catalog_test ×5+catalog_remote ×3）；FlashX 元数据/价格锁值 +4；积分守卫名单 +FlashX；`TestGLMPricingVerified`/`EstimateCostCNY` 锁值翻新；CatalogSource 日期锚定；modelengine 包全绿。
+**坑**=①文档站正文动态渲染抓不到表——`llms.txt` 索引+`.md` 后缀直出是正道②「无绝对价回退内置表 USD」是快照口径，官方补价后须回头改目录+锁值，否则估算长期用错币种近似（Flash 拖了 17 天）③同批发布≠同套餐：FlashX 不在 coding 套餐，逐模型核实再配计费。
+
 ## v4.346.0 · UI 健壮性双修：错误边界页级隔离（keepAlive 连坐根修）+ TisorRadar 缺档崩页（2026-09-19）
 > UI 优化班——隔离目检（vite dev ?mock=1 + 无头 Edge CDP）双空间全页×明暗两态扫出一处整页崩溃与一处架构级连坐缺陷，全部根修。纯前端四文件，零新绑定 705、零新依赖、零功能删减。
 **发现**=角色库整页崩进错误边界（`Cannot read properties of undefined (reading 'T')`，堆栈单点收敛 TisorRadar `dims[k]/100`）；顺带揪出更深一条：边界崩一次后切任何页都停在错误态——目检现场的「原罪页也崩」即此假象（原罪本体无辜）。

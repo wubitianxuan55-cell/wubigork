@@ -101,8 +101,8 @@ func TestGLMCatalogRemoteCachePriority(t *testing.T) {
 	writeAt(remote, `{"version":7,"updated":"2026-09-01","models":[{"id":"glm-5.2","price_in":2,"price_out":6,"currency":"CNY"},{"id":"glm-remote-only"}]}`, base)
 	setGLMCatalogRemotePath(remote)
 	models := glmStaticModels()
-	if len(models) != 46 {
-		t.Fatalf("远程合并后数量 = %d, want 46", len(models))
+	if len(models) != 47 {
+		t.Fatalf("远程合并后数量 = %d, want 47", len(models))
 	}
 	if p := estimatePrice("glm", "glm-5.2"); p.InputPerM != 2 || p.OutputPerM != 6 || p.Currency != "CNY" {
 		t.Errorf("远程目录价应生效 = %+v, want 2/6 CNY", p)
@@ -128,8 +128,8 @@ func TestGLMCatalogRemoteCachePriority(t *testing.T) {
 
 	// 远程缓存损坏：该层被忽略（glm-remote-only 消失），覆盖层仍生效
 	writeAt(remote, `{bad json`, base.Add(2*time.Minute))
-	if models = glmStaticModels(); len(models) != 45 {
-		t.Errorf("坏缓存被忽略后数量 = %d, want 45", len(models))
+	if models = glmStaticModels(); len(models) != 46 {
+		t.Errorf("坏缓存被忽略后数量 = %d, want 46", len(models))
 	}
 	if p := estimatePrice("glm", "glm-5.2"); p.InputPerM != 3 {
 		t.Errorf("覆盖层应不受坏缓存影响 = %+v, want 3 CNY", p)
@@ -137,8 +137,8 @@ func TestGLMCatalogRemoteCachePriority(t *testing.T) {
 
 	// 缓存恢复（mtime 变化）：热重载生效
 	writeAt(remote, `{"version":8,"models":[{"id":"glm-remote-only"}]}`, base.Add(3*time.Minute))
-	if models = glmStaticModels(); len(models) != 46 {
-		t.Errorf("缓存热恢复后数量 = %d, want 46", len(models))
+	if models = glmStaticModels(); len(models) != 47 {
+		t.Errorf("缓存热恢复后数量 = %d, want 47", len(models))
 	}
 	version, source = glmCatalogInfo()
 	if version != "9" || source != "override" {
