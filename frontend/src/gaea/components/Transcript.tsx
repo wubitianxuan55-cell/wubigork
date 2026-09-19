@@ -433,6 +433,23 @@ import { deliverableMentions } from "../lib/fileLinks";
 import { deliverablePathKey } from "../lib/deliverablesTurn";
 import { DeliverableCards } from "./DeliverableCards";
 
+// v4.350：提及扫描按文本内容缓存。流式期间 items 每 chunk 换引用，tailOmitBySeg
+// 的 useMemo 随 segments 新身份每 chunk 重算，原实现对全会话所有 assistant 正文
+// 跑两遍全局正则——长会话（数百 KB 文本）下每 chunk 数 ms~数十 ms，打字/滚动
+// 卡顿。段内文本完成后不可变，缓存命中后每 chunk 只对仍在增长的流式段付扫描成本。
+// 值为 deliverablePathKey 集合；上限清理防跨会话文本滞留。
+const mentionsCache = new Map<string, Set<string>>();
+function deliverableMentionKeysCached(text: string): Set<string> {
+  let hit = mentionsCache.get(text);
+  if (!hit) {
+    if (mentionsCache.size > 512) mentionsCache.clear();
+    hit = new Set<string>();
+    for (const p of deliverableMentions(text)) hit.add(deliverablePathKey(p));
+    mentionsCache.set(text, hit);
+  }
+  return hit;
+}
+
 const STATUS_ICONS = { alert: AlertCircle, ban: Ban, check: CheckCircle } as const;
 
 export const ProcessCard = memo(function ProcessCard({
@@ -460,7 +477,9 @@ export const ProcessCard = memo(function ProcessCard({
   const prevRunningRef = useRef(running);
   const bodyRef = useRef<HTMLDivElement>(null);
   const turnStartAt = useTurnStartAt();
-  const now = useNow();
+  // v4.350：仅运行中订阅全局时钟——已完成过程卡（历史会话可达数百张）不再
+  // 每秒重渲染；完成定格走 finalElapsedRef（下），不依赖 now 持续更新。
+  const now = useNow(running);
   const finalElapsedRef = useRef(0);
   useGSAPCollapse(bodyRef, open);
 
@@ -812,7 +831,7 @@ export function Transcript({
       const set = new Set<string>();
       for (const it of seg.outsideItems) {
         if (it.kind === "assistant" && it.text) {
-          for (const p of deliverableMentions(it.text)) set.add(deliverablePathKey(p));
+          for (const k of deliverableMentionKeysCached(it.text)) set.add(k);
         }
       }
       mentionsBySeg.set(i, set);

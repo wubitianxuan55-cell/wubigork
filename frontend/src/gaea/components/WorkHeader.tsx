@@ -63,7 +63,8 @@ export function WorkHeader({ doneSuppressed = false }: { doneSuppressed?: boolea
   const running = useStore((s) => s.running);
   const turnStartAt = useTurnStartAt();
   const items = useItems();
-  const now = useNow();
+  // v4.350：仅运行中订阅全局时钟（完成态耗时已定格在 finalRef，不看 now）
+  const now = useNow(running);
   const t = useT();
 
   // 完成态冻结：running true→false 的那次渲染里同步把耗时/步数拍进 ref

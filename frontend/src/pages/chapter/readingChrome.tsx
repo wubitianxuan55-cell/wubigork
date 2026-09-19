@@ -4,7 +4,7 @@
  * ReadingPrefsPanel 同款拆法）；classNames/data-testid 与拆分前逐字节一致。
  */
 import React from 'react'
-import { Button, Input, Popover, Tooltip } from 'antd'
+import { Button, Input, Popconfirm, Popover, Tooltip } from 'antd'
 import {
   LeftOutlined, RightOutlined, PushpinOutlined, PushpinFilled,
   PlayCircleOutlined, PauseCircleOutlined, CloseOutlined, HighlightOutlined,
@@ -187,13 +187,23 @@ const ReadingChrome: React.FC<ReadingChromeProps> = ({
                   <i className="novel-read-ann-dot" style={{ background: ANNOTATION_COLORS[a.color] }} />
                   <span className="novel-read-ann-text">{a.text}</span>
                   {a.note && <CommentOutlined className="novel-read-ann-note" />}
-                  <Button
-                    size="small"
-                    type="text"
-                    icon={<CloseOutlined />}
-                    aria-label="删除划线"
-                    onClick={(e) => { e.stopPropagation(); onDeleteAnn(a.id) }}
-                  />
+                  {/* span 挡冒泡：行本体 onClick 是跳转注释，删除入口不得触发 */}
+                  <span role="none" onClick={(e) => e.stopPropagation()}>
+                    <Popconfirm
+                      title="删除这条划线 / 想法？"
+                      okText="删除"
+                      cancelText="取消"
+                      okButtonProps={{ danger: true }}
+                      onConfirm={() => onDeleteAnn(a.id)}
+                    >
+                      <Button
+                        size="small"
+                        type="text"
+                        icon={<CloseOutlined />}
+                        aria-label="删除划线"
+                      />
+                    </Popconfirm>
+                  </span>
                 </div>
               ))}
             </div>

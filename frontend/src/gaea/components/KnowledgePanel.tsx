@@ -1,5 +1,6 @@
 import { BookOpen, Check, ChevronRight, Clock, CloudUpload, PanelRightOpen, Pencil, Plus, Save, ScrollText, Search, Trash2, X, X as XIcon } from "../icons";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Popconfirm } from "antd";
 import type { FilePickResult, KnowledgeEntry, KnowledgeHistoryView, KnowledgeSaveRequest, KnowledgeSummary, SimilarView } from "../lib/types";
 import { app } from "../lib/bridge";
 import { useT } from "../lib/i18n";
@@ -378,7 +379,16 @@ export function KnowledgePanel(p: { onClose: () => void; variant?: "modal" | "pa
                     <option value="" disabled>改状态…</option>
                     {BATCH_STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
                   </select>
-                  <button className={`px-2 h-6 rounded-md bg-red-500/15 text-red-400 text-[11px] cursor-pointer hover:bg-red-500/25 ${FOCUS_RING}`} onClick={() => void batchDelete()} type="button">批量删除</button>
+                  <Popconfirm
+                    title={`删除已选 ${selected.size} 条知识？`}
+                    description="删除后不可恢复"
+                    okText="删除"
+                    cancelText="取消"
+                    okButtonProps={{ danger: true, "data-testid": "knowledge-batch-delete-confirm" }}
+                    onConfirm={() => void batchDelete()}
+                  >
+                    <button className={`px-2 h-6 rounded-md bg-red-500/15 text-red-400 text-[11px] cursor-pointer hover:bg-red-500/25 ${FOCUS_RING}`} type="button">批量删除</button>
+                  </Popconfirm>
                 </div>
               )}
               {/* 分类筛选（竖向，激活 = 主色容器 + 左缘光条） */}
@@ -561,7 +571,16 @@ export function KnowledgePanel(p: { onClose: () => void; variant?: "modal" | "pa
                   <option value="" disabled>改状态…</option>
                   {BATCH_STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
                 </select>
-                <button className="px-2 h-6 rounded-md bg-red-500/15 text-red-400 text-[11px] cursor-pointer hover:bg-red-500/25" onClick={() => void batchDelete()} type="button">批量删除</button>
+                <Popconfirm
+                  title={`删除已选 ${selected.size} 条知识？`}
+                  description="删除后不可恢复"
+                  okText="删除"
+                  cancelText="取消"
+                  okButtonProps={{ danger: true, "data-testid": "knowledge-batch-delete-confirm" }}
+                  onConfirm={() => void batchDelete()}
+                >
+                  <button className="px-2 h-6 rounded-md bg-red-500/15 text-red-400 text-[11px] cursor-pointer hover:bg-red-500/25" type="button">批量删除</button>
+                </Popconfirm>
               </div>
             )}
             <div className="text-[11px] text-fg-faint">{t("knowledge.count", { n: filtered.length })}</div>

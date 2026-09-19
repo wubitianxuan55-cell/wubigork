@@ -220,7 +220,12 @@ const ChapterPage: React.FC = () => {
       updateTabByKey(key, 'sceneIds', [])
       updateTabByKey(key, 'sceneBacked', false)
       updateTabByKey(key, 'saved', true)
-    } catch (e) { console.error('load chapter failed:', e) }
+    } catch (e) {
+      // v4.350：载入失败可见化——此前只 console.error，章节 tab 白板且未被
+      // 标为未保存，用户误以为正文丢了。
+      console.error('load chapter failed:', e)
+      message.error(`章节 ${chNum} 载入失败：${e instanceof Error ? e.message : String(e)}`)
+    }
   }, [])
 
   useEffect(() => {

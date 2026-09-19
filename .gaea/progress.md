@@ -1,3 +1,17 @@
+## 最新发布：v4.350.0（2026-09-19）「前端优化第二轮：事件总线连环炸根修 / P0 幽灵令牌 / 破坏操作确认 / 静默失败 / 流式渲染热点 / 主题破绽」
+
+- **动机**：用户口径「优化 gaea 前端」（v4.349 五线后第二轮）。同范式：四路并行**只读审计**（事件与定时器泄漏 / 交互反馈三态 / 渲染热点 / 视觉一致性，各带 file:line 与量级推理）再按证据定刀；纯前端 32 源码 + 6 测试（3 新 3 适配），零 Go 逻辑改动、零绑定变更（706 不动）。
+- **线1 事件总线连环炸根修**：❗`onTaskEvent` 清理走 `EventsOff(channel)` 全清（wails 语义=注销通道全部监听者；v4.61 事故红线 v4.62.2 只修了 onEvent/onSubagentText，本条漏网）——gaea-task 有 5 个并发订阅点（运行角标/任务自动激活/任务面板/价格源/索引任务），任一卸载（关一次任务面板即触发）=角标冻结+自动打开失灵+下载卡「进行中」，keepAlive 下直至应用重启→一律 `subscribeWailsEvent` 按监听者退订；onUpdaterProgress/onReady 同纪律收口。polyfill（网页模式）双修：EventsOn 返回 void→消费方 deps 每变往 eventBus **叠加** handler（ModelCenter 四通道单事件 N 次重复后端拉取）→改返回「只摘自己」退订对齐 wails v2.13 桌面语义；EventsOff(带 callback) 无条件 sse.close()→共享通道他人推送被掐断→只摘自己、通道空才关 SSE。
+- **线2 P0 幽灵令牌**（12 主题功能性坏点）：`--md-sys-color-error` 全仓零定义而 gaea 四组件 26 处无 fallback 消费（CSS invalid：失败态红点/红字/红框全消失）→注入 colorDestructive 语义别名；`--md-sys-color-surface-container-low` 零定义→追问发送按钮箭头 12 主题恒隐形+输入区透明+VersionTimeline 对比底丢失→color-mix 插值；`--color-info`/`--md-sys-color-info` 补注入（#38bdf8/#0369a1 明暗分档）；幽灵四连 `--v3-fg-soft`(17 处)/`--v3-line-soft`/`--color-text-tertiary`/`--md-sys-color-text-tertiary` 明暗分档定义（暗主题 12px 次要文字 3.9:1<AA）；modelcenter.css 13 处 gaea 作用域 token 换主令牌直连（--fg 系只在 gaea/styles.css 定义且该页不加载→亮主题 #ddd 白底 1.3~2.5:1）。
+- **线3 破坏操作二次确认 9 处**：高危批量/清空 4=知识库批量删除（双分支）/成本库批量删除（**连带假成功根修**：吞错后无条件「已删除 N 条」→诚实成功 N 失败 M）/绘梦清空历史（prompt/seed 即时持久化）/原罪清空故事消息（ToolbarButton 无 forwardRef→Modal.confirm 命令式）；单条 5=任务收件箱删除（**连带吞错可见化**+i18n 三语新键）/青鸟提醒/组织/角色关系/划线想法列表（span 挡冒泡防触发跳转）。
+- **线4 静默失败反馈**：三脑检索失败与 0 命中三态化（命中/换关键词/失败重试，role=status）；排程导出 XML 补成败提示（SaveFileAs 抛错原落 unhandled rejection）；章节载入失败白板→message.error 带原因（原只 console.error 且 saved:true 误导正文丢失）。
+- **线5 渲染性能**：Transcript 提及扫描按文本内容缓存（原每 chunk 对全会话 assistant 正文跑双全局正则+O(m²) 重叠；完成后文本不可变→缓存命中只付流式段成本，上限 512）；ChatPage topicList memo+ChatTopicSidebar React.memo+过滤 useMemo+行 hover 删 hoveredId 改纯 CSS；ToolCard summary/prettyArgs/outputLines 三处 memo（write_file args 内联整文件数百 KB）；`useNow(active)` 条件订阅（已完成消息/过程卡/RunStatus 无条件订阅 1s 时钟=O(N)/秒常驻重渲染清零；**伴生修复**「思考 Xs」完成后持续增长→完成边沿 Date.now() 定格）。
+- **线6 视觉**：RelationGraph 画布 #ddd/#555/#333/#444 写死（6 亮主题节点名不可见）→resolveCSSColor 主题令牌解析+darkMode 入 deps；mermaid 跟应用 data-hl 而非 OS prefers-color-scheme。
+- **辨伪**：ModelCenter ctx（100+ 字段）不 memo——五 hook 返回对象字面量每渲染新引用 deps 无法建立，强行 memo=陈旧 ctx 真 bug（挂观察池）；TTSPlayer/AIConsole 单实例全清无害；z-index 1080 阶梯脆弱但无叠加路径；boot 亮色反闪挂池。
+- **测试**：events.test 新建 4 例（双订阅退订隔离+EventsOff 永不调用/space 过滤不变/updater+ready 同纪律）+runtimePolyfill +3 例+useNow 3 例；TaskInboxPanel/WeixinPage/KnowledgePanel 删除用例改两步确认。
+- **坑**：①EventsOff 红线是「禁全清」非「禁用」——polyfill 带 callback 只摘自己+通道空才关 SSE 才是完整语义②Popconfirm clone 注入 onClick 覆盖子元素（v4.348 Dropdown 坑家族），子按钮原 onClick 必须移除；无 forwardRef 按钮包不上改命令式③确认钮定位一律 testid（okButtonProps 透传）防「删 除」空格名④go test 全量负载 flaky（足迹零交叠复跑绿）；ci 日志勿 tail 截断否则 FAIL 无包名。
+- **门禁**：tsc 0+eslint 0/0（新色值走 // hex-exempt）+全量 ci.ps1 绿（vitest 384 文件 3280 例）+drift OK@706+版本三处 4.350.0；产物见 releases/v4.350.0.md。**文档**=releases/v4.350.0.md+CHANGELOG/README+AGENTS 迁 1 插 1（六十五迁：v4.347 入 archive）+progress/todos。**未做（下刀池）**=boot 亮色主题启动反闪（index.html 内联预读主题，动 splash 链路）；MarkdownContent pre 底 rgba(0,0,0,0.3) 亮主题脏块；白色半透明 hover 底亮主题失效群（PersonaPicker/imagegen）；--color-scheme 声明；ModelCenter ctx context 拆分（state/actions 两通道）；绘梦历史无上限渲染+dataURL 全量回填（挂载内存膨胀）；ForeshadowPanel 行 memo。
+
 ## 最新发布：v4.349.0（2026-09-19）「前端优化五线：可访问性动线 / 亮态可读性 / 运行开销 / 布局 / 稳健性」
 
 - **动机**：用户口径「优化迭代 gaea，进行前端优化」。先四路并行**只读审计**（主题可读性/交互可访问性/渲染性能/布局响应式，各带 file:line 与实测数字），再按证据定刀；审计判错的项当轮辨伪不改。纯前端 18 源码+9 测试，**零 Go 逻辑改动、零绑定变更**。

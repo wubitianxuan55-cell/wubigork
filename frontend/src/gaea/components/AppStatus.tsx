@@ -37,7 +37,8 @@ export function RunStatus({ running, turnStartAt, turnTokens, used, window: win 
   used: number;
   window: number;
 }) {
-  const now = useNow();
+  // v4.350：仅运行中订阅全局时钟（!running 时组件渲染 null，白订阅纯浪费）
+  const now = useNow(running);
   if (!running) return null;
   const elapsed = turnStartAt > 0 ? Math.max(0, now - Math.floor(turnStartAt / 1000)) : 0;
   const elapsedStr = elapsed < 60 ? `${elapsed}s` : `${Math.floor(elapsed / 60)}m${elapsed % 60}s`;

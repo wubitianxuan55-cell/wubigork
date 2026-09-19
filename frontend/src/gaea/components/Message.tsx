@@ -195,11 +195,15 @@ export const AssistantMessage = memo(function AssistantMessage({
 }) {
   const t = useT();
   const compact = useCompact();
-  const now = useNow();
+  const streaming = item.streaming ?? false;
+  // v4.350：仅流式中订阅全局时钟（已完成消息无条件订阅 = 长会话每秒 N 次无效
+  // 重渲染）；完成时刻把耗时定格进 ref（此前完成后 elapsed 持续增长，「思考
+  // Xs」三天后还在涨——WorkHeader 同款渲染期前值比较模式）。
+  const now = useNow(streaming);
   const turnStartAt = useTurnStartAt();
   const reasoningBodyRef = useRef<HTMLDivElement>(null);
 
-  const reasoningRunning = !!(item.streaming && !item.text && item.reasoning);
+  const reasoningRunning = !!(streaming && !item.text && item.reasoning);
   const [userToggled, setUserToggled] = useState(false);
   const [reasoningOpenState, setReasoningOpenState] = useState(false);
   const reasoningOpen = userToggled ? reasoningOpenState : !!item.streaming;
@@ -235,11 +239,22 @@ export const AssistantMessage = memo(function AssistantMessage({
   });
   const reasoningLines = item.reasoning ? item.reasoning.split("\n").filter(l => l.trim()).length : 0;
 
-  const elapsed = turnStartAt > 0 ? Math.max(0, now - Math.floor(turnStartAt / 1000)) : 0;
+  // 流式耗时定格（v4.350）：完成边沿用 Date.now() 拍终值，此后不再随墙钟增长
+  const finalElapsedRef = useRef<number | null>(null);
+  const prevStreamingRef = useRef(false);
+  if (streaming && !prevStreamingRef.current) finalElapsedRef.current = null;
+  else if (!streaming && prevStreamingRef.current) {
+    finalElapsedRef.current = turnStartAt > 0
+      ? Math.max(0, Math.floor(Date.now() / 1000) - Math.floor(turnStartAt / 1000))
+      : 0;
+  }
+  prevStreamingRef.current = streaming;
+
+  const liveElapsed = turnStartAt > 0 ? Math.max(0, now - Math.floor(turnStartAt / 1000)) : 0;
+  const elapsed = finalElapsedRef.current ?? liveElapsed;
   const elapsedStr = elapsed < 60 ? `${elapsed}s` : `${Math.floor(elapsed / 60)}m${elapsed % 60}s`;
 
   // 流式处理中的纯文本（不渲染 Markdown）
-  const streaming = item.streaming ?? false;
   // v4.26：带 subagentRef 的 assistant 消息 = 子代理最终答复回投主回合，
   // 加「子代理」小徽标区分来源（Codex "Report sub-agent activity on parent
   // turns"）；ref 全文放 title。字段缺省不渲染，行为与现状一致。

@@ -30,7 +30,7 @@ import { useBindState } from './modelcenter/hooks/useBindState'
 import { engineLabel, FEATURES, type Category } from './modelcenter/utils'
 import './modelcenter/modelcenter.css'
 
-/** 订阅 runtime 事件并返回退订函数（原生 runtime 返回退订；HTTP polyfill 返回 void，安全兜底） */
+/** 订阅 runtime 事件并返回退订函数（桌面与 HTTP polyfill 的 EventsOn 均返回退订；旧运行时返回 void 时跳过退订，宁可残留不全清） */
 function runtimeOn(event: string, handler: (data: unknown) => void): (() => void) | undefined {
   try {
     const on = window.runtime?.EventsOn as ((e: string, h: (d: unknown) => void) => (() => void) | void) | undefined

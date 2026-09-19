@@ -319,12 +319,15 @@ const ChatPage: React.FC = () => {
     }
   }, [activeIdRef])
 
-  const topicList: SidebarTopic[] = topics.map(t => ({
+  // v4.350：memo 化——streamText 每 chunk（角色模式≈70 renders/秒）都触发本页
+  // 重渲染，topicList 内联重建（含 O(T×P) personalities.find）使侧栏 props 恒新，
+  // 数百会话×每行 Tooltip 全量重渲染。
+  const topicList: SidebarTopic[] = useMemo(() => topics.map(t => ({
     id: t.id, title: t.title, createdAt: new Date(t.created_at || 0).getTime() || Date.now(),
     updatedAt: toUpdatedAt(t),
     mode: t.mode, modeLabel: t.mode === 'plain' ? '' : (personalities.find(p => p.id === t.mode)?.label || '角色'),
     preview: t.preview || '',
-  }))
+  })), [topics, personalities])
 
   // 顶栏模式切换条（T6-10.2）：渲染进全局轨道条宿主；行为与原先完全一致。
   const modeBar = (

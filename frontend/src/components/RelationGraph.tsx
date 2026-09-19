@@ -3,6 +3,7 @@ import {
   forceSimulation, forceLink, forceManyBody, forceCenter, forceCollide,
 } from 'd3-force'
 import { ROLE_LABELS, RELATION_LABELS } from '../utils/theme'
+import { useAppStore } from '../stores/appStore'
 import {
   buildGraphData, EDGE_CATEGORY_LABEL,
   type GraphNode, type GraphEdge, type EdgeCategory,
@@ -98,6 +99,17 @@ const RelationGraph: React.FC<RelationGraphProps> = ({
   })
   const [scale, setScale] = useState(1)
   const [offset, setOffset] = useState({ x: 0, y: 0 })
+  // canvas 主题色（v4.350）：标签/淡化元素此前写死深色值（#ddd/#555/#333/#444），
+  // 亮色主题下画布是浅底，节点名与淡化层不可见；darkMode 入 deps 使切主题即重解析。
+  const darkMode = useAppStore((s) => s.darkMode)
+  const canvasColors = useMemo(() => ({
+    labelBright: resolveCSSColor('var(--color-text)'),
+    labelDim: resolveCSSColor('var(--color-text-secondary)'),
+    edgeDim: resolveCSSColor('var(--color-border)'),
+    nodeDim: resolveCSSColor('var(--color-text-secondary)'),
+    // darkMode 仅作变更触发器：令牌值随主题写入 :root，需按明暗重新解析
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [darkMode])
   const dragRef = useRef({ dragging: false, startX: 0, startY: 0, ox: 0, oy: 0, panning: false })
 
   // ResizeObserver
@@ -236,7 +248,7 @@ const RelationGraph: React.FC<RelationGraphProps> = ({
         ctx!.quadraticCurveTo(mx, my, to.x, to.y)
         ctx!.setLineDash(e.dashed ? [6, 3] : [])
         const structural = e.category !== 'interpersonal'
-        ctx!.strokeStyle = dim ? '#333' : e.color
+        ctx!.strokeStyle = dim ? canvasColors.edgeDim : e.color
         ctx!.lineWidth = dim ? 0.5 : structural ? 1.2 : 1.5
         ctx!.globalAlpha = dim ? 0.15 : structural ? 0.55 : 0.7
         ctx!.stroke()
@@ -259,7 +271,7 @@ const RelationGraph: React.FC<RelationGraphProps> = ({
         if (!p) continue
         const r = nodeRadiusFor(n)
         const dim = hovered !== null && !hoverRelated.has(n.id)
-        const color = dim ? '#444' : n.color || '#6b7280'
+        const color = dim ? canvasColors.nodeDim : n.color || '#6b7280'
         const alpha = dim ? 0.3 : 1
 
         const isCareer = n.kind === 'career'
@@ -316,7 +328,7 @@ const RelationGraph: React.FC<RelationGraphProps> = ({
         ctx!.globalAlpha = 1
 
         // 名称标签
-        ctx!.fillStyle = dim ? '#555' : '#ddd'
+        ctx!.fillStyle = dim ? canvasColors.labelDim : canvasColors.labelBright
         ctx!.font = `${10 + Math.min(2, Math.log10(allNodes.length + 1))}px sans-serif`
         ctx!.textAlign = 'center'
         ctx!.textBaseline = 'top'
@@ -330,7 +342,7 @@ const RelationGraph: React.FC<RelationGraphProps> = ({
 
     rafRef.current = requestAnimationFrame(render)
     return () => cancelAnimationFrame(rafRef.current)
-  }, [size, positions, edges, allNodes, hovered, hoverRelated, selected, selectRelated, scale, offset, nodeRadiusFor])
+  }, [size, positions, edges, allNodes, hovered, hoverRelated, selected, selectRelated, scale, offset, nodeRadiusFor, canvasColors])
 
   // ── 交互事件 ──
   const handleWheel = useCallback((e: React.WheelEvent) => {

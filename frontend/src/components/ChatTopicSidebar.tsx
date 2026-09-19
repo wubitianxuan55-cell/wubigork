@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react'
+import React, { useState, useRef, useEffect, useMemo } from 'react'
 import { Button, Input, Popconfirm, Typography, Tooltip } from 'antd'
 import {
   PlusOutlined,
@@ -44,7 +44,6 @@ const ChatTopicSidebar: React.FC<ChatTopicSidebarProps> = ({
 }) => {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editText, setEditText] = useState('')
-  const [hoveredId, setHoveredId] = useState<string | null>(null)
   const [query, setQuery] = useState('')
   const editRef = useRef<React.ComponentRef<typeof Input>>(null)
 
@@ -67,7 +66,9 @@ const ChatTopicSidebar: React.FC<ChatTopicSidebarProps> = ({
     setEditText('')
   }
 
-  const visibleTopics = filterChatTopics(topics, query)
+  // v4.350：过滤 memo 化；行 hover 高亮（删除钮显隐）改纯 CSS——此前
+  // hoveredId state 使鼠标每扫过一行就全列表重渲染。
+  const visibleTopics = useMemo(() => filterChatTopics(topics, query), [topics, query])
 
   return (
     <div className={`chat-topic-sidebar v3-panel${collapsed ? ' is-collapsed' : ''}`}>
@@ -168,15 +169,13 @@ const ChatTopicSidebar: React.FC<ChatTopicSidebarProps> = ({
               <div>
                 {visibleTopics.map((topic) => {
               const active = topic.id === activeId
-              const hovered = hoveredId === topic.id
               return (
                 <div
                   key={topic.id}
                   className={`chat-topic-item${active ? ' active' : ''}`}
                   onClick={() => onSelect(topic.id)}
-                  onMouseEnter={() => setHoveredId(topic.id)}
-                  onMouseLeave={() => setHoveredId(null)}
-                  /* 背景走 chat-board.css：active=primary-container，hover=surface-container-high */
+                  /* 背景走 chat-board.css：active=primary-container，hover=surface-container-high；
+                     删除钮显隐同样纯 CSS（.chat-topic-del），无 JS hover state */
                 >
                   {/* title + preview (double-click to edit) */}
                   <div style={{ flex: 1, minWidth: 0 }}>
@@ -229,14 +228,13 @@ const ChatTopicSidebar: React.FC<ChatTopicSidebarProps> = ({
                     )}
                   </div>
 
-                  {/* delete button — visible on hover / active */}
+                  {/* delete button — visible on hover / active（纯 CSS，见 chat-board.css） */}
                   <div
+                    className="chat-topic-del"
                     style={{
                       width: 26, height: 26,
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
                       flexShrink: 0, marginLeft: 4,
-                      opacity: hovered || active ? 1 : 0,
-                      transition: 'opacity 0.12s',
                     }}
                   >
                     <Popconfirm
@@ -273,4 +271,6 @@ const ChatTopicSidebar: React.FC<ChatTopicSidebarProps> = ({
   )
 }
 
-export default ChatTopicSidebar
+// memo：topics 引用已由 ChatPage 的 topicList useMemo 稳定，回调均 useCallback——
+// 流式打字期间（每 chunk 一次页面渲染）侧栏整体跳过重渲染。
+export default React.memo(ChatTopicSidebar)

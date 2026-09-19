@@ -105,17 +105,21 @@ export const ToolCard = memo(function ToolCard({ item, subcalls }: { item: ToolI
   const nested = subcalls ?? [];
   const hasNested = nested.length > 0;
 
-  const summary =
-    item.status === "running"
-      ? ""
-      : item.name === "task"
-        // v4.26：task 卡完成后显示子代理结果摘要（summarize 对 task 返回空，
-        // 完成卡此前除嵌套步数外没有任何结果信息；error 走卡片错误区）。
-        ? (taskResultSummary(item.output, item.error) ||
-           (hasNested ? t(nested.length === 1 ? "tool.stepOne" : "tool.stepOther", { n: nested.length }) : ""))
-        : hasNested
-          ? t(nested.length === 1 ? "tool.stepOne" : "tool.stepOther", { n: nested.length })
-          : summarize(item.name, item.args, item.output, item.error);
+  // v4.350：summary/pretty/outputLines memo 化——write_file 等工具 args 内联
+  // 整文件内容（数百 KB 常见），此前折叠态每次自身更新仍全付 JSON round-trip
+  // 与全文 split（diffsFor/boundedOutput 已 memo，此处补齐漏网三处）。
+  const summary = useMemo(() => {
+    if (item.status === "running") return "";
+    if (item.name === "task") {
+      // v4.26：task 卡完成后显示子代理结果摘要（summarize 对 task 返回空，
+      // 完成卡此前除嵌套步数外没有任何结果信息；error 走卡片错误区）。
+      return taskResultSummary(item.output, item.error) ||
+        (nested.length > 0 ? t(nested.length === 1 ? "tool.stepOne" : "tool.stepOther", { n: nested.length }) : "");
+    }
+    return nested.length > 0
+      ? t(nested.length === 1 ? "tool.stepOne" : "tool.stepOther", { n: nested.length })
+      : summarize(item.name, item.args, item.output, item.error);
+  }, [item.status, item.name, item.args, item.output, item.error, nested.length, t]);
 
   const hasArgs = diffs.length > 0 || !!item.args;
   const hasOutput = !!item.output;
@@ -132,7 +136,8 @@ export const ToolCard = memo(function ToolCard({ item, subcalls }: { item: ToolI
   const quiet =
     item.readOnly && !hasNested && item.status !== "error" && item.status !== "stopped";
 
-  const outputLines = item.output ? item.output.split("\n").length : 0;
+  const outputLines = useMemo(() => (item.output ? item.output.split("\n").length : 0), [item.output]);
+  const prettyArgs = useMemo(() => (item.args ? pretty(item.args) : ""), [item.args]);
 
   // v4.63 子代理卡片整卡可点：task / run_skill 卡解析出可跳转的子代理 ref
   // 时，点击头部行直接打开对应会话 tab（与右栏任务树同款跳转），不再只是
@@ -245,7 +250,7 @@ export const ToolCard = memo(function ToolCard({ item, subcalls }: { item: ToolI
 
           {hasArgs && (
             <div className={`${innerPx} ${innerPb}`}>
-              {item.args && <pre className="px-3 py-2 font-mono text-[12px] leading-[1.5] overflow-auto whitespace-pre bg-bg-soft border border-border-soft rounded-md text-fg-dim"><code>{pretty(item.args)}</code></pre>}
+              {item.args && <pre className="px-3 py-2 font-mono text-[12px] leading-[1.5] overflow-auto whitespace-pre bg-bg-soft border border-border-soft rounded-md text-fg-dim"><code>{prettyArgs}</code></pre>}
             </div>
           )}
           {hasOutput && (

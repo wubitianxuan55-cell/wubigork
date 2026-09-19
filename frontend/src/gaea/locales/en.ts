@@ -1186,6 +1186,8 @@ export const en = {
   "tasks.inbox.finish": "Complete",
   "tasks.inbox.abandon": "Abandon",
   "tasks.inbox.delete": "Delete",
+  "tasks.inbox.deleteConfirm": "Delete this task? This cannot be undone.",
+  "tasks.inbox.deleteFail": "Delete failed, please retry",
   "tasks.inbox.add": "Add",
   "tasks.inbox.addPlaceholder": "Type a task title, press Enter or click Add",
   "tasks.inbox.source.ctrlk": "Ctrl+K",

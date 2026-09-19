@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Button, Input, Modal, Tabs, Tag, Typography } from "antd";
+import { Button, Input, Modal, Popconfirm, Tabs, Tag, Typography, message } from "antd";
 import { Inbox, Loader } from "../icons";
 import { app } from "../lib/bridge";
 import { useT, type Translator } from "../lib/i18n";
@@ -154,16 +154,23 @@ function TaskRow({
             {t("tasks.inbox.backSession")}
           </Button>
         )}
-        <Button
-          size="small"
-          danger
-          disabled={busy}
-          className="ml-auto"
-          data-testid={`task-inbox-delete-${task.id}`}
-          onClick={() => onDelete(task.id)}
+        <Popconfirm
+          title={t("tasks.inbox.deleteConfirm")}
+          okText={t("tasks.inbox.delete")}
+          cancelText={t("common.cancel")}
+          okButtonProps={{ danger: true, "data-testid": "task-inbox-delete-confirm" }}
+          onConfirm={() => onDelete(task.id)}
         >
-          {t("tasks.inbox.delete")}
-        </Button>
+          <Button
+            size="small"
+            danger
+            disabled={busy}
+            className="ml-auto"
+            data-testid={`task-inbox-delete-${task.id}`}
+          >
+            {t("tasks.inbox.delete")}
+          </Button>
+        </Popconfirm>
       </div>
     </div>
   );
@@ -320,10 +327,11 @@ export function TaskInboxBoard({
       app
         .GaeaTaskInboxDelete(id)
         .then(() => load())
-        .catch(() => {})
+        // v4.350：失败可见化——此前吞错，用户点删除后按钮闪一下毫无反应
+        .catch(() => message.error(t("tasks.inbox.deleteFail")))
         .finally(() => setBusyId(null));
     },
-    [busyId, load],
+    [busyId, load, t],
   );
 
   // 四档计数（tab 标签 = 状态名 + 计数）

@@ -69,6 +69,10 @@ const App: React.FC = () => {
     set('--md-sys-color-on-surface', effTokens.onSurface)
     set('--md-sys-color-surface-variant', effTokens.surfaceVariant)
     set('--md-sys-color-on-surface-variant', effTokens.onSurfaceVariant)
+    // surface-container-low：M3 tonal 阶介于 surface 与 container 之间（v4.350
+    // 补档——此前全仓零定义，SubagentThread 输入区/VersionTimeline 对比底等
+    // 消费点整条属性 invalid）。不逐主题加值，注入处对既有两档插值。
+    set('--md-sys-color-surface-container-low', `color-mix(in srgb, ${effTokens.surface} 55%, ${effTokens.surfaceContainer})`)
     set('--md-sys-color-surface-container', effTokens.surfaceContainer)
     set('--md-sys-color-surface-container-high', effTokens.surfaceContainerHigh)
     set('--md-sys-color-surface-container-highest', effTokens.surfaceContainerHighest)
@@ -85,12 +89,28 @@ const App: React.FC = () => {
     // Text
     set('--md-sys-color-text', effTokens.colorText)
     set('--md-sys-color-text-secondary', effTokens.colorTextSecondary)
+    set('--md-sys-color-text-tertiary', darkMode ? '#8b93a0' : '#6b7280') // hex-exempt
+    // 幽灵令牌补定义（v4.350）：--v3-fg-soft/--v3-line-soft/--color-text-tertiary
+    // 此前全仓零定义，所有消费点恒走 fallback 亮色值——暗主题下 11~12px 次要
+    // 文字/边框对比不足（gray-500 暗底约 3.9:1 < AA）。明暗分档，hex-exempt 同上。
+    set('--v3-fg-soft', darkMode ? '#8b93a0' : '#6b7280') // hex-exempt
+    set('--v3-line-soft', darkMode ? 'rgba(255,255,255,0.10)' : '#e5e7eb') // hex-exempt
+    set('--color-text-tertiary', darkMode ? '#8b93a0' : '#6b7280') // hex-exempt
     set('--md-sys-color-border', effTokens.colorBorder)
 
     // Semantic
     set('--md-sys-color-success', effTokens.colorSuccess)
     set('--md-sys-color-warning', effTokens.colorWarning)
     set('--md-sys-color-destructive', effTokens.colorDestructive)
+    // -info 明暗分档（v4.350）：此前仅 gaea/tailwind.css 定义 --color-info 且转发的
+    // --md-sys-color-info 本身无注入源，gaea 板块外消费（novel 风格指纹/CreatePage
+    // 图表分组）整条 invalid；亮档取 sky-700（白底 4.6:1），暗档 sky-400。hex-exempt：
+    // 主题库无 info 字段，锁定值对齐 v4.349 lightFn 下沉色先例。
+    set('--md-sys-color-info', darkMode ? '#38bdf8' : '#0369a1') // hex-exempt
+    // -error 语义别名（v4.350 补定义）：gaea 四组件 26 处消费 --md-sys-color-error
+    // 但全仓从未定义（无 fallback 整条属性 invalid→失败态红点/红字/红框全消失），
+    // 与 destructive 同值双名，12 主题自动正确。
+    set('--md-sys-color-error', effTokens.colorDestructive)
 
     // Elevation
     set('--md-sys-elevation-1', effTokens.elevation1)
@@ -128,6 +148,7 @@ const App: React.FC = () => {
     set('--color-success', effTokens.colorSuccess)
     set('--color-warning', effTokens.colorWarning)
     set('--color-destructive', effTokens.colorDestructive)
+    set('--color-info', darkMode ? '#38bdf8' : '#0369a1') // hex-exempt
     set('--color-bg-container', effTokens.colorBgContainer)
     set('--color-bg-layout', effTokens.colorBgLayout)
     // 3.0「星枢」v3 层消费的容器色 shim（v3-card / v3-rail-item.is-active / v3-model-pill 等）

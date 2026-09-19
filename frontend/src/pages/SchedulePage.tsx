@@ -191,9 +191,17 @@ const SchedulePage: React.FC = () => {
   const select = useScheduleStore((s) => s.select)
 
   const exportXml = async () => {
-    const xml = buildProjectXml(project, cpm.rows)
-    const blob = new Blob([xml], { type: 'application/xml;charset=utf-8' })
-    await saveExportBlob(blob, `${project.name || '进度计划'}.xml`)
+    // v4.350：补成功/失败反馈——此前无任何反馈，另存为抛错只落 unhandled
+    // rejection，用户「点了没反应」（对齐 exportXlsx 的消息口径；触发走菜单
+    // 无 busy UI 位，另存为对话框本身模态阻塞，无重入问题）。
+    try {
+      const xml = buildProjectXml(project, cpm.rows)
+      const blob = new Blob([xml], { type: 'application/xml;charset=utf-8' })
+      const saved = await saveExportBlob(blob, `${project.name || '进度计划'}.xml`)
+      if (saved) setImportMsg({ type: 'success', text: '已导出 XML' })
+    } catch (e) {
+      setImportMsg({ type: 'error', text: e instanceof Error ? e.message : String(e) })
+    }
   }
 
   const onImportFile = async (file: File) => {

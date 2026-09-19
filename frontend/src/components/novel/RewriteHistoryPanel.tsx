@@ -144,7 +144,7 @@ export default function RewriteHistoryPanel({ open, chapterNum, onClose, onAppli
             const canRestore = st === 'applied'
             return (
               <div key={v.id} data-testid="rewrite-history-row"
-                style={{ border: '1px solid var(--v3-line-soft, #e5e7eb)', borderRadius: 8, padding: '8px 12px', background: expanded ? 'rgba(0,0,0,0.02)' : undefined }}>
+                style={{ border: '1px solid var(--v3-line-soft, #e5e7eb)', borderRadius: 8, padding: '8px 12px', background: expanded ? 'color-mix(in srgb, var(--v3-fg-soft, #6b7280) 7%, transparent)' : undefined }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}
                   onClick={() => void toggleDetail(v.id)}>
                   <span style={{ fontSize: 12, color: 'var(--v3-fg-soft, #6b7280)', fontVariantNumeric: 'tabular-nums' }}>{fmtTime(v.createdAt)}</span>

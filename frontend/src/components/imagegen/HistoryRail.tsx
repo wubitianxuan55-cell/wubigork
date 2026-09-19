@@ -1,5 +1,5 @@
 import React from 'react'
-import { Button, Typography } from 'antd'
+import { Button, Popconfirm, Typography } from 'antd'
 import { DeleteOutlined, HistoryOutlined, MenuFoldOutlined, MenuUnfoldOutlined, PictureOutlined, VideoCameraOutlined } from '@ant-design/icons'
 import { C } from '../../utils/theme'
 import { mediaIsVideo } from './media'
@@ -25,12 +25,20 @@ export const HistoryRail: React.FC<Props> = ({ history, selectedIndex, onSelect,
         </Typography.Text>
       )}
       {!collapsed && history.length > 0 && (
-        <Button
-          type="text" size="small" icon={<DeleteOutlined />}
-          onClick={onClear}
-          title="清空历史"
-          style={{ color: C('color-text-secondary'), fontSize: 11, padding: '0 2px' }}
-        />
+        <Popconfirm
+          title={`清空全部 ${history.length} 条生成历史？`}
+          description="prompt/seed 等记录将一并删除，不可恢复"
+          okText="清空"
+          cancelText="取消"
+          okButtonProps={{ danger: true }}
+          onConfirm={onClear}
+        >
+          <Button
+            type="text" size="small" icon={<DeleteOutlined />}
+            title="清空历史"
+            style={{ color: C('color-text-secondary'), fontSize: 11, padding: '0 2px' }}
+          />
+        </Popconfirm>
       )}
       {onToggleCollapse && (
         <Button

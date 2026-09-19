@@ -69,10 +69,16 @@ export function onSubagentText(cb: (e: SubagentTextEvent) => void): () => void {
 
 
 // channel from the agent stream); returns an unsubscribe.
+// 清理只摘本监听者（v4.350）：与 onEvent 同纪律，EventsOff(channel) 全清会
+// 把同通道其他监听者连带炸掉（wailsEvents.ts 事故注记），一律走
+// subscribeWailsEvent。
 export function onUpdaterProgress(cb: (p: UpdateProgress) => void): () => void {
   if (realApp() && typeof window !== "undefined" && window.runtime) {
-    window.runtime.EventsOn("updater:progress", (p) => cb(p as UpdateProgress));
-    return () => window.runtime?.EventsOff?.("updater:progress");
+    return subscribeWailsEvent(
+      window.runtime,
+      "updater:progress",
+      (p) => cb(p as UpdateProgress),
+    );
   }
   const shared = mockEventSharedSync();
   if (!shared) {
@@ -103,9 +109,16 @@ export function onTaskEvent(cb: (t: TaskView) => void, space?: string): () => vo
     if (space && t.spaceId && t.spaceId !== space) return;
     cb(t);
   };
+  // v4.350：清理改「只摘本监听者」。此前 EventsOff("gaea-task") 全清——该
+  // 通道有 5 个并发订阅点（运行角标/任务自动激活/任务面板/价格源/索引任务），
+  // 任一卸载（如关一次任务面板）就注销其余全部监听，角标冻结、自动打开失
+  // 灵，keepAlive 下直至应用重启才恢复——v4.61 gaea-event 同类事故重演。
   if (realApp() && typeof window !== "undefined" && window.runtime) {
-    window.runtime.EventsOn("gaea-task", (payload) => handler(payload as TaskView));
-    return () => window.runtime?.EventsOff?.("gaea-task");
+    return subscribeWailsEvent(
+      window.runtime,
+      "gaea-task",
+      (payload) => handler(payload as TaskView),
+    );
   }
   const shared = mockEventSharedSync();
   if (!shared) {
@@ -123,8 +136,7 @@ export function onTaskEvent(cb: (t: TaskView) => void, space?: string): () => vo
 // The frontend re-fetches Meta/Context/History when this lands.
 export function onReady(cb: () => void): () => void {
   if (realApp() && typeof window !== "undefined" && window.runtime) {
-    window.runtime.EventsOn("gaea-ready", () => cb());
-    return () => window.runtime?.EventsOff?.("gaea-ready");
+    return subscribeWailsEvent(window.runtime, "gaea-ready", () => cb());
   }
   // In dev mock, fire immediately since there's no real boot sequence.
   cb();

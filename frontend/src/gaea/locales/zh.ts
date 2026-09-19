@@ -1187,6 +1187,8 @@ export const zh: Record<DictKey, string> = {
   "tasks.inbox.finish": "完成",
   "tasks.inbox.abandon": "放弃",
   "tasks.inbox.delete": "删除",
+  "tasks.inbox.deleteConfirm": "删除这条任务？删除后不可恢复。",
+  "tasks.inbox.deleteFail": "删除失败，请重试",
   "tasks.inbox.add": "添加",
   "tasks.inbox.addPlaceholder": "输入任务标题，回车或点「添加」",
   "tasks.inbox.source.ctrlk": "Ctrl+K",

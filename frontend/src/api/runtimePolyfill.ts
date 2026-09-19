@@ -115,6 +115,25 @@ export async function* parseSSEStream(chunks: AsyncIterable<string> | Iterable<s
 
 // ── runtime polyfill ───────────────────────────────────────────────────────
 
+/** 摘除一个监听者；仅当通道上已无任何监听者时才关闭其 SSE 连接。 */
+function removeEventListenerAndMaybeSSE(eventName: string, callback?: EventCallback): void {
+  if (callback) {
+    const set = eventBus.get(eventName)
+    if (!set) return
+    set.delete(callback)
+    if (set.size > 0) return
+    eventBus.delete(eventName)
+  } else {
+    eventBus.delete(eventName)
+  }
+  // 通道已空：清理 SSE 连接
+  const sse = activeSSE.get(eventName)
+  if (sse) {
+    sse.close()
+    activeSSE.delete(eventName)
+  }
+}
+
 /**
  * 初始化 runtime polyfill
  *
@@ -135,7 +154,10 @@ export function initRuntimePolyfill(): void {
   console.log('[runtime] 创建 runtime polyfill')
 
   const runtime: RuntimeNamespace = {
-    // EventsOn — 注册事件监听
+    // EventsOn — 注册事件监听；返回「只摘除本监听者」的退订函数（对齐 wails
+    // v2.13 桌面 runtime 语义）。此前返回 void，消费方拿不到退订函数，effect
+    // 清理变空操作：deps 每变一次就往 eventBus 叠加一套 handler（ModelCenter
+    // 页四通道单事件触发 N 次重复后端拉取，随使用时长线性增长）。
     EventsOn: (eventName: string, callback: EventCallback) => {
       if (!eventBus.has(eventName)) {
         eventBus.set(eventName, new Set())
@@ -144,22 +166,18 @@ export function initRuntimePolyfill(): void {
 
       // 所有事件都尝试走 Go 内核的 SSE 推送（网页版对齐桌面端）
       ensureBridgeSSE(eventName)
+
+      return () => {
+        removeEventListenerAndMaybeSSE(eventName, callback)
+      }
     },
 
-    // EventsOff — 注销事件监听
+    // EventsOff — 注销事件监听。带 callback 时只摘除该监听者，通道上仍有
+    // 其他监听者则保留 SSE 连接（此前无条件 sse.close() 会把共享通道上其他
+    // 订阅者的实时推送一并掐断，直到下次有人重新 EventsOn）；不带 callback
+    // 才是全清并关 SSE。
     EventsOff: (eventName: string, callback?: EventCallback) => {
-      if (callback) {
-        eventBus.get(eventName)?.delete(callback)
-      } else {
-        eventBus.delete(eventName)
-      }
-
-      // 清理 SSE 连接
-      const sse = activeSSE.get(eventName)
-      if (sse) {
-        sse.close()
-        activeSSE.delete(eventName)
-      }
+      removeEventListenerAndMaybeSSE(eventName, callback)
     },
 
     // EventsOnce — 单次监听（部分代码可能使用）

@@ -1,5 +1,5 @@
 import React from 'react'
-import { Typography, Button, Space, Tag, Modal } from 'antd'
+import { Typography, Button, Space, Tag, Modal, Popconfirm } from 'antd'
 import { ApartmentOutlined, DeleteOutlined } from '@ant-design/icons'
 import { C } from '../../../utils/theme'
 import type { OrganizationData } from '../../../types'
@@ -34,7 +34,16 @@ const OrganizationEditModal: React.FC<OrganizationEditModalProps> = ({
           <Space>
             <Button type="primary" onClick={onSave}
               style={{ background: 'var(--color-primary)', borderColor: 'var(--color-primary)', boxShadow: 'var(--shadow-glow)', borderRadius: 'var(--radius-md)' }}>保存</Button>
-            <Button danger icon={<DeleteOutlined />} onClick={() => { onDelete(org.id); onClose() }}>删除</Button>
+            <Popconfirm
+              title="删除该组织？"
+              description="删除后不可恢复"
+              okText="删除"
+              cancelText="取消"
+              okButtonProps={{ danger: true }}
+              onConfirm={() => { onDelete(org.id); onClose() }}
+            >
+              <Button danger icon={<DeleteOutlined />}>删除</Button>
+            </Popconfirm>
           </Space>
         </div>
         <Space direction="vertical" size={8} style={{ width: '100%' }}>

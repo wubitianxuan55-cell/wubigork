@@ -292,8 +292,9 @@ describe('青鸟工作台 · 提醒与指南', () => {
     fireEvent.click(screen.getByRole('switch', { name: '到点回推微信' }))
     await waitFor(() => expect(mocks.WeixinReminderSetConfig).toHaveBeenCalledWith('{"remindersEnabled":false}'), LOAD)
 
-    // 删除提醒
+    // 删除提醒（v4.350 经 Popconfirm 二次确认：点删除钮 → 点确认）
     fireEvent.click(screen.getByRole('button', { name: '删除提醒 交周报' }))
+    fireEvent.click(await screen.findByTestId('wx-rem-del-confirm'))
     await waitFor(() => expect(mocks.WeixinReminderDelete).toHaveBeenCalledWith('r1'), LOAD)
   })
 

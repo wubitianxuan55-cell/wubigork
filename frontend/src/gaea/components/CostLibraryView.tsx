@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useDebouncedValue } from "../hooks/useDebouncedValue";
-import { Input, Modal, message } from "antd";
+import { Input, Modal, Popconfirm, message } from "antd";
 import {
   BarChart3, ChevronDown, ChevronRight, Clock, CloudUpload, Coins, FolderPlus, List,
   Pencil, Plus, RefreshCw, Table, Trash2,
@@ -204,8 +204,15 @@ export function CostLibraryView() {
   }, []);
   const batchDelete = async () => {
     if (selected.size === 0) return;
-    await Promise.all([...selected].map((n) => app.CostDelete(n).catch(() => {})));
-    message.info(`已删除 ${selected.size} 条`);
+    // v4.350：失败可见化——此前逐条吞错后无条件提示「已删除 N 条」，后端全挂时
+    // 用户看到假成功，实际一条没删。
+    const results = await Promise.all(
+      [...selected].map((n) => app.CostDelete(n).then(() => true).catch(() => false)),
+    );
+    const ok = results.filter(Boolean).length;
+    const failed = results.length - ok;
+    if (failed === 0) message.info(`已删除 ${ok} 条`);
+    else message.warning(`已删除 ${ok} 条，${failed} 条失败，请重试`);
     setSelected(new Set());
     load();
   };
@@ -451,12 +458,21 @@ export function CostLibraryView() {
                   <option key={s} value={s}>{s}</option>
                 ))}
               </select>
-              <button
-                className="px-2 h-6 rounded-md bg-red-500/15 text-red-400 text-[11px] cursor-pointer hover:bg-red-500/25 transition-colors"
-                onClick={() => void batchDelete()}
+              <Popconfirm
+                title={`删除已选 ${selected.size} 条成本记录？`}
+                description="删除后不可恢复"
+                okText="删除"
+                cancelText="取消"
+                okButtonProps={{ danger: true }}
+                onConfirm={() => void batchDelete()}
               >
-                批量删除
-              </button>
+                <button
+                  className="px-2 h-6 rounded-md bg-red-500/15 text-red-400 text-[11px] cursor-pointer hover:bg-red-500/25 transition-colors"
+                  type="button"
+                >
+                  批量删除
+                </button>
+              </Popconfirm>
             </span>
           )}
         </div>

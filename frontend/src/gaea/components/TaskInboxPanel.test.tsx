@@ -158,6 +158,8 @@ describe("TaskInboxPanel 任务收件箱", () => {
     await waitFor(() => expect(mocks.list).toHaveBeenCalledTimes(2));
 
     fireEvent.click(screen.getByTestId("task-inbox-delete-ti-aaa000000002"));
+    // v4.350：删除经 Popconfirm 二次确认（确认钮走 testid，避开两字按钮空格名）
+    fireEvent.click(await screen.findByTestId("task-inbox-delete-confirm"));
     await waitFor(() => expect(mocks.del).toHaveBeenCalledWith("ti-aaa000000002"));
     await waitFor(() => expect(mocks.list).toHaveBeenCalledTimes(3));
   });

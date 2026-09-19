@@ -81,6 +81,11 @@ ${svg}
 }
 
 function mermaidTheme(): "default" | "dark" {
+  // v4.350：跟应用主题而非操作系统——App.tsx 把实际明暗挂在 <html data-hl>；
+  // 此前读 prefers-color-scheme，应用选亮色而 OS 为暗色时深底图表嵌进浅色文档。
+  if (typeof document !== "undefined" && document.documentElement.dataset.hl) {
+    return document.documentElement.dataset.hl === "dark" ? "dark" : "default";
+  }
   if (typeof window === "undefined" || !window.matchMedia) return "default";
   return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "default";
 }

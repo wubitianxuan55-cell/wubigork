@@ -163,6 +163,9 @@ function MemoryHubPage() {
   const [brainQuery, setBrainQuery] = useState("");
   const [hits, setHits] = useState<HubSearchHit[]>([]);
   const [searching, setSearching] = useState(false);
+  // 检索终态三态（v4.350）：此前失败与 0 命中都什么都不显示——「检索中…」一闪
+  // 即无，用户无法区分「没搜到」还是「坏了」。
+  const [searchOutcome, setSearchOutcome] = useState<"idle" | "empty" | "error">("idle");
   const [referenced, setReferenced] = useState<string | null>(null);
   const [detail, setDetail] = useState<InspectorDetail | null>(null);
   const [inspectorOpen, setInspectorOpen] = useState(true);
@@ -187,14 +190,19 @@ function MemoryHubPage() {
     const q = brainQuery.trim();
     if (!q) {
       setHits([]);
+      setSearchOutcome("idle");
       return;
     }
     setSearching(true);
     try {
       const v = await app.UnifiedSearch(q, scope, 8).catch(() => null);
-      if (!v) return;
+      if (!v) {
+        setHits([]);
+        setSearchOutcome("error");
+        return;
+      }
       const kindLabel: Record<string, string> = { cost: "语义·成本", knowledge: "语义·知识", office: "语义·办公", file: "语义·资料" };
-      setHits([
+      const merged = [
         // 三脑命中（brain.main 主脑 / brain.left 左脑 / brain.right 右脑）
         ...(v.brain ?? []).map((h) => ({
           kind: "brain" as const,
@@ -225,8 +233,13 @@ function MemoryHubPage() {
           text: h.snippet,
           path: h.path,
         })),
-      ]);
-    } catch { /* 忽略单次检索失败 */ }
+      ];
+      setHits(merged);
+      setSearchOutcome(merged.length === 0 ? "empty" : "idle");
+    } catch {
+      setHits([]);
+      setSearchOutcome("error");
+    }
     finally { setSearching(false); }
   };
 
@@ -322,7 +335,7 @@ function MemoryHubPage() {
             value={brainQuery}
             onChange={(e) => {
               setBrainQuery(e.target.value);
-              if (!e.target.value.trim()) setHits([]);
+              if (!e.target.value.trim()) { setHits([]); setSearchOutcome("idle"); }
             }}
             onKeyDown={(e) => { if (e.key === "Enter") runSearch(); }}
             placeholder="三脑检索 · 工作区资料"
@@ -422,6 +435,22 @@ function MemoryHubPage() {
                   )}
                 </div>
               ))}
+            </div>
+          )}
+          {hits.length === 0 && !searching && searchOutcome !== "idle" && (
+            <div className="hub-search-pop" role="status">
+              <div className={`hub-search-pop-head ${searchOutcome === "error" ? "text-red-400" : ""}`}>
+                <span>{searchOutcome === "error" ? "检索失败，请重试" : "没有找到相关内容，换个关键词试试"}</span>
+                <button
+                  type="button"
+                  className="hub-search-clear"
+                  onClick={() => setSearchOutcome("idle")}
+                  aria-label="关闭检索结果"
+                  title="关闭检索结果"
+                >
+                  <CloseOutlined aria-hidden="true" style={{ fontSize: 10 }} />
+                </button>
+              </div>
             </div>
           )}
         </div>

@@ -619,12 +619,21 @@ const WeixinPage: React.FC = () => {
                         {r.source === 'weixin' && <Tag>微信下达</Tag>}
                         {r.failCount > 0 && r.status === 'pending' && <Tag color="warning">重试 {r.failCount}/5</Tag>}
                         <span className="wx-rem-time">{dayjs(r.fireAt).format('M月D日 HH:mm')}</span>
-                        <button
-                          type="button" className="wx-rem-del" aria-label={`删除提醒 ${r.text}`}
-                          title="删除提醒" onClick={() => removeReminder(r.id)}
+                        <Popconfirm
+                          title="删除这条提醒？"
+                          description="已下达微信的提醒删除后无法撤回"
+                          okText="删除"
+                          cancelText="取消"
+                          okButtonProps={{ danger: true, 'data-testid': 'wx-rem-del-confirm' }}
+                          onConfirm={() => void removeReminder(r.id)}
                         >
-                          <DeleteOutlined aria-hidden="true" />
-                        </button>
+                          <button
+                            type="button" className="wx-rem-del" aria-label={`删除提醒 ${r.text}`}
+                            title="删除提醒"
+                          >
+                            <DeleteOutlined aria-hidden="true" />
+                          </button>
+                        </Popconfirm>
                       </div>
                     ))}
                   </div>

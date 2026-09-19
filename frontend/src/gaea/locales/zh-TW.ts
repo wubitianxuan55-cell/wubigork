@@ -1191,6 +1191,8 @@ export const zhTW: Record<DictKey, string> = {
   "tasks.inbox.finish": "完成",
   "tasks.inbox.abandon": "放棄",
   "tasks.inbox.delete": "刪除",
+  "tasks.inbox.deleteConfirm": "刪除這條任務？刪除後不可恢復。",
+  "tasks.inbox.deleteFail": "刪除失敗，請重試",
   "tasks.inbox.add": "新增",
   "tasks.inbox.addPlaceholder": "輸入任務標題，按 Enter 或點「新增」",
   "tasks.inbox.source.ctrlk": "Ctrl+K",

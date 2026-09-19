@@ -1321,10 +1321,10 @@
 .mc-catalog-type {
   height: 28px;
   padding: 0 8px;
-  border: 1px solid var(--border-soft, rgba(128, 128, 128, 0.25));
+  border: 1px solid var(--md-sys-color-outline-variant, rgba(128, 128, 128, 0.25));
   border-radius: 6px;
-  background: var(--bg-elev, rgba(128, 128, 128, 0.08));
-  color: var(--fg, #ddd);
+  background: var(--md-sys-color-surface-container-high, rgba(128, 128, 128, 0.08));
+  color: var(--md-sys-color-on-surface, #ddd);
   font-size: 12px;
   outline: none;
 }
@@ -1333,7 +1333,7 @@
   display: inline-flex;
   gap: 2px;
   padding: 2px;
-  border: 1px solid var(--border-soft, rgba(128, 128, 128, 0.25));
+  border: 1px solid var(--md-sys-color-outline-variant, rgba(128, 128, 128, 0.25));
   border-radius: 8px;
 }
 
@@ -1343,15 +1343,15 @@
   border: 0;
   border-radius: 6px;
   background: transparent;
-  color: var(--fg-dim, #aaa);
+  color: var(--md-sys-color-on-surface-variant, #aaa);
   font-size: 12px;
   cursor: pointer;
   transition: background 0.15s ease, color 0.15s ease;
 }
 
 .mc-catalog-status-btn:hover {
-  color: var(--fg, #ddd);
-  background: var(--bg-soft, rgba(128, 128, 128, 0.1));
+  color: var(--md-sys-color-on-surface, #ddd);
+  background: var(--md-sys-color-surface-container, rgba(128, 128, 128, 0.1));
 }
 
 .mc-catalog-status-btn.is-active {
@@ -1380,7 +1380,7 @@
 }
 
 .mc-catalog-stats-meta {
-  color: var(--fg-faint, #999);
+  color: var(--md-sys-color-text-secondary, #999);
   font-size: 11px;
 }
 
@@ -1393,13 +1393,13 @@
 .mc-catalog-stats-table th,
 .mc-catalog-stats-table td {
   padding: 6px 8px;
-  border-bottom: 1px solid var(--border-soft, rgba(128, 128, 128, 0.2));
+  border-bottom: 1px solid var(--md-sys-color-outline-variant, rgba(128, 128, 128, 0.2));
   text-align: left;
   white-space: nowrap;
 }
 
 .mc-catalog-stats-table th {
-  color: var(--fg-faint, #999);
+  color: var(--md-sys-color-text-secondary, #999);
   font-weight: 600;
   font-size: 11px;
   text-transform: uppercase;
@@ -1407,18 +1407,18 @@
 }
 
 .mc-catalog-stats-table td {
-  color: var(--fg-dim, #bbb);
+  color: var(--md-sys-color-on-surface-variant, #bbb);
   font-variant-numeric: tabular-nums;
 }
 
 .mc-catalog-stats-table tbody tr:hover td {
-  background: var(--bg-soft, rgba(128, 128, 128, 0.08));
+  background: var(--md-sys-color-surface-container, rgba(128, 128, 128, 0.08));
 }
 
 .mc-catalog-stats-model {
   max-width: 280px;
   overflow: hidden;
   text-overflow: ellipsis;
-  color: var(--fg, #ddd);
+  color: var(--md-sys-color-on-surface, #ddd);
   font-weight: 500;
 }

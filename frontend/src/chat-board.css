@@ -795,6 +795,16 @@
   background: var(--md-sys-color-surface-container-high);
 }
 
+/* 删除钮显隐（v4.350 由 JS hoveredId state 改纯 CSS，鼠标扫过列表不再全列表重渲染） */
+.chat-topic-del {
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.chat-topic-item:hover .chat-topic-del,
+.chat-topic-item.active .chat-topic-del {
+  opacity: 1;
+}
+
 .chat-topic-item.active {
   /* 3.0 侧栏激活态：primary-container 高亮 + 左缘 3px 光条（v3 轨道语言，::before 带光晕） */
   background: var(--md-sys-color-primary-container);

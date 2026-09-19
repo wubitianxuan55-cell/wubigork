@@ -192,7 +192,19 @@ const OriginalSinPage: React.FC = () => {
             </Dropdown>
             <ToolbarButton
               title="清空本故事消息"
-              onClick={() => void story.clearStory(story.activeId)}
+              // ToolbarButton 无 forwardRef，Popconfirm 包裹会丢事件——用命令式
+              // Modal.confirm（同页删除故事走 Popconfirm 是 Button 先例，此处不适用）
+              onClick={() => {
+                if (!story.activeId) return;
+                Modal.confirm({
+                  title: '清空本故事全部消息？',
+                  content: '清空后不可恢复',
+                  okText: '清空',
+                  okButtonProps: { danger: true },
+                  cancelText: '取消',
+                  onOk: () => story.clearStory(story.activeId),
+                });
+              }}
               disabled={!story.activeId || story.messages.length === 0}
             >
               <ReloadOutlined />

@@ -15,7 +15,9 @@ describe("KnowledgePanel 知识库面板", () => {
     fireEvent.click(boxes[1]);
     expect(screen.getByText("已选 2")).toBeTruthy();
 
+    // v4.350：批量删除经 Popconfirm 二次确认
     fireEvent.click(screen.getByText("批量删除"));
+    fireEvent.click(await screen.findByTestId("knowledge-batch-delete-confirm"));
     await waitFor(() => expect(screen.queryByText("已选 2")).toBeNull());
   });
 

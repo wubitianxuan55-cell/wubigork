@@ -847,8 +847,16 @@ const CharacterPage: React.FC = () => {
                     <Tag style={{ margin: 0 }}>{r.relation_type}</Tag>
                     <span>{getCharName(r.to_id)}</span>
                     <span style={{ flex: 1 }} />
-                    <Button size="small" type="text" danger icon={<DeleteOutlined />} title="删除关系"
-                      onClick={() => handleDeleteRel(r)} style={{ fontSize: 11, padding: '0 4px' }} />
+                    <Popconfirm
+                      title="删除这条关系？"
+                      okText="删除"
+                      cancelText="取消"
+                      okButtonProps={{ danger: true }}
+                      onConfirm={() => void handleDeleteRel(r)}
+                    >
+                      <Button size="small" type="text" danger icon={<DeleteOutlined />} title="删除关系"
+                        style={{ fontSize: 11, padding: '0 4px' }} />
+                    </Popconfirm>
                   </div>
                 ))}
               </div>
