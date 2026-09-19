@@ -119,7 +119,12 @@ func NewManager(emitter EventEmitter, config VoiceRuntimeConfig) *Manager {
 // SetASRProvider 设置 ASR 提供者（seam 消费者：接口注入，引擎经 asr 注册表选择）。
 // 由 app 层按模型中心 STT 模型路由经 asr.NewASRProvider 构造后注入。
 func (m *Manager) SetASRProvider(provider asr.ASRProvider) {
+	// 2026-09-19 审计：Startup 末尾 4 个引擎刷新 goroutine 并发调用
+	// applyASRClient 各自注入——写必须持锁（与 SetRealtimeSession 同纪律），
+	// 否则与语音回合的读侧形成形式 data race。
+	m.mu.Lock()
 	m.asrProvider = provider
+	m.mu.Unlock()
 }
 
 // SetRealtimeSession 注入 Realtime 会话（S2：仿 SetASRProvider seam 注入口）。
@@ -803,15 +808,24 @@ func (m *Manager) speak(text string, voiceDesc string) {
 	}
 }
 
+// currentASRProvider 锁内快照当前 ASR 提供者（2026-09-19 审计：Startup 末尾
+// 多引擎刷新 goroutine 并发注入，读侧不加锁与写侧构成形式 data race）。
+func (m *Manager) currentASRProvider() asr.ASRProvider {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.asrProvider
+}
+
 // transcribe 调用 ASR 进行语音识别
 func (m *Manager) transcribe(audioData []byte) (string, error) {
-	if m.asrProvider == nil {
+	provider := m.currentASRProvider()
+	if provider == nil {
 		return "", fmt.Errorf("ASR 提供者未设置")
 	}
 
 	wavAudio := wrapPCMAsWAV(audioData)
 	base64Audio := asr.EncodeBase64(wavAudio)
-	result, err := m.asrProvider.TranscribeBase64(base64Audio, "audio/wav")
+	result, err := provider.TranscribeBase64(base64Audio, "audio/wav")
 	if err != nil {
 		return "", err
 	}
@@ -1134,7 +1148,7 @@ func rtErrorInfo(raw string) (typ, code, msg string) {
 
 // HealthCheck 健康检查（对齐 Ackem voice:health）
 func (m *Manager) HealthCheck() map[string]interface{} {
-	asrReady := m.asrProvider != nil
+	asrReady := m.currentASRProvider() != nil
 	ttsReady := m.ttsSynthFn != nil
 
 	return map[string]interface{}{

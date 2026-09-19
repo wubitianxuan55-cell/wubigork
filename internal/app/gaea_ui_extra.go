@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sync"
 	"strings"
 	"time"
 
@@ -576,13 +577,33 @@ func (a *App) GaeaMaterials(limit int) []FileSearchHit {
 }
 
 // GaeaReadFile 读取工作区相对路径的文件文本。
+// 2026-09-19 审计 P1：原实现无任何路径约束（写端 GaeaWriteFile 有完整防线而
+// 读端是没上锁的孪生兄弟）——相对路径穿越/绝对路径可读任意文件且无大小上限。
+// 现对齐写端口径：拒绝绝对/.. 穿越 + withinWriteRoots + maxTextEditBytes 截断。
 func (a *App) GaeaReadFile(rel string) FilePreview {
-	path := filepath.Join(gaeaCwd(), rel)
-	b, err := os.ReadFile(path)
+	rel = strings.TrimSpace(rel)
+	clean := filepath.Clean(filepath.FromSlash(rel))
+	if rel == "" || filepath.IsAbs(clean) || clean == "." || strings.HasPrefix(clean, "..") || strings.Contains(clean, ".."+string(filepath.Separator)) {
+		return FilePreview{Path: rel, Markdown: "非法工作区相对路径: " + rel}
+	}
+	abs := filepath.Join(gaeaCwd(), clean)
+	if !withinWriteRoots(abs) {
+		return FilePreview{Path: rel, Markdown: "路径不在可读范围内（工作区/allow_write）: " + rel}
+	}
+	b, err := os.ReadFile(abs)
 	if err != nil {
 		return FilePreview{Path: rel}
 	}
-	return FilePreview{Path: rel, Markdown: string(b), Size: int64(len(b))}
+	truncated := false
+	if len(b) > maxTextEditBytes {
+		b = b[:maxTextEditBytes]
+		truncated = true
+	}
+	body := string(b)
+	if truncated {
+		body += "\n\n…（内容过大，已截断至 2MB）"
+	}
+	return FilePreview{Path: rel, Markdown: body, Size: int64(len(b))}
 }
 
 // textEditExts 是允许内联编辑的文本扩展名白名单（C5：工作区内联编辑）。
@@ -648,6 +669,24 @@ func (a *App) GaeaWriteFile(rel string, content string) error {
 		return fmt.Errorf("替换原文件失败: %w", err)
 	}
 	return nil
+}
+
+// withinReadRoots 判断绝对路径是否落在任一可读数据根内（工作区 + 应用数据
+// 根）。2026-09-19 审计新增：读侧附件/预览绑定共用的根白名单（剧照 portraits、
+// 绘梦资产、附件 uploads 均落在这两根内）。
+func withinReadRoots(abs string) bool {
+	roots := []string{gaeaCwd()}
+	if dr := config.DataRoot(); dr != "" {
+		roots = append(roots, dr)
+	}
+	abs = filepath.Clean(abs)
+	for _, r := range roots {
+		root := filepath.Clean(filepath.FromSlash(r))
+		if strings.HasPrefix(abs, root+string(filepath.Separator)) {
+			return true
+		}
+	}
+	return false
 }
 
 // withinWriteRoots 判断绝对路径是否落在任一可写根（工作区 + allow_write）内。
@@ -729,9 +768,33 @@ func (a *App) GaeaPickFiles(filters string) []FilePickResult {
 		if err != nil {
 			continue
 		}
+		registerPickedFile(f)
 		out = append(out, FilePickResult{Path: f, Name: filepath.Base(f), Size: info.Size()})
 	}
 	return out
+}
+
+// pickedFiles 登记「最近一次系统对话框选择的文件」（2026-09-19 审计 P1：
+// 「GaeaReadFileB64 只能读对话框所选文件」的契约此前只存在于注释——绑定无法
+// 区分对话框路径与注入调用传入的任意路径）。选择时登记，读取时校验。
+var pickedFiles struct {
+	mu    sync.Mutex
+	paths map[string]bool
+}
+
+func registerPickedFile(path string) {
+	pickedFiles.mu.Lock()
+	defer pickedFiles.mu.Unlock()
+	if pickedFiles.paths == nil {
+		pickedFiles.paths = map[string]bool{}
+	}
+	pickedFiles.paths[filepath.Clean(path)] = true
+}
+
+func isPickedFile(path string) bool {
+	pickedFiles.mu.Lock()
+	defer pickedFiles.mu.Unlock()
+	return pickedFiles.paths[filepath.Clean(path)]
 }
 
 // pickFileFilter 把逗号分隔扩展名（"png,jpg"）转成 Wails FileFilter
@@ -836,6 +899,10 @@ func (a *App) GaeaReadFileB64(path string) (string, error) {
 	if info.Size() > 64<<20 {
 		return "", fmt.Errorf("文件过大（上限 64MB）")
 	}
+	// 契约强制化（2026-09-19 审计）：仅允许读取本会话系统对话框选择过的文件。
+	if !isPickedFile(path) {
+		return "", fmt.Errorf("仅允许读取文件对话框选择的文件: %s", path)
+	}
 	b, err := os.ReadFile(path)
 	if err != nil {
 		return "", fmt.Errorf("读取失败: %w", err)
@@ -874,10 +941,19 @@ func (a *App) GaeaSaveFileAs(defaultName string, base64Data string) (string, err
 }
 
 // GaeaAttachmentDataURL 读取附件为 dataURL。
+// 2026-09-19 审计 P1 收口：无约束任意路径读盘转 base64 → 限定可读根
+// （工作区 + 数据根：剧照 portraits/绘梦资产/附件 uploads 均落在这两根内）
+// + 32MB 上限（头像/资产/截图远小于此，防注入读大文件撑爆内存）。
 func (a *App) GaeaAttachmentDataURL(path string) (string, error) {
+	if !withinReadRoots(path) {
+		return "", fmt.Errorf("路径不在可读数据范围内（工作区/应用数据根）: %s", path)
+	}
 	b, err := os.ReadFile(path)
 	if err != nil {
 		return "", err
+	}
+	if len(b) > 32<<20 {
+		return "", fmt.Errorf("文件过大（上限 32MB）: %s", path)
 	}
 	mime := "application/octet-stream"
 	switch strings.ToLower(filepath.Ext(path)) {

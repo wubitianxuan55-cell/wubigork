@@ -1,3 +1,14 @@
+## 最新发布：v4.358.0（2026-09-20）「后端优化轮第三弹：三路审计（SQL 存储层/启动链路/输入校验）——分类改名 P0 根修+读侧收口+FTS 增量」
+
+- **动机**：用户口径「继续优化后端」——v4.356~v4.357 已扫 panic 防线/并发锁/资源句柄/错误吞噬四条轴，本轮换新镜头开三路并行只读审计（线1 SQL/存储层、线2 启动链路、线3 输入校验），按证据定刀。纯 Go 36 源文件+3 新测试文件，绑定面 706 不动，前端零改动。
+- **线1 SQL**：①P0 分类改名 substr 字节/字符错位（cost.go SaveCategory，Go len() 喂 SQLite 按字符计数的 substr——中文路径子树条目路径整段截断重挂）→rune 计数偏移+精确行 category 叶子名同步+两写包事务+换父也重写+环检测+名称含 / 拒绝（同函数五问题一次收口）②rows.Err 缺失 17 处批量补（记忆/三元组/情节恢复主路径+成本检索语料+ListItems 直通不可变版本快照）③单条写全量重建 FTS O(N²)→接上闲置增量助手（失败降级全量重建兜底）+两个 Rebuild 事务化（原 DELETE+逐条重插 autocommit=索引空窗）④schema_v15 补 facts/episodes 会话索引+向量写事务化+COUNT 收错×5+GetSource 点查。
+- **线2 启动链**：⑤ASR provider 四引擎刷新 goroutine 并发写竞争→SetASRProvider 持锁+读侧快照（对齐 SetRealtimeSession 先例）⑥恢复/迁移结论先于 setupLogging GUI 全盲→restoreSummary 字段日志就绪后回放⑦三 db 打开失败 log.Printf→slog.Error⑧Shutdown 补关 Hephaestus/whisper db+微信 Stop 通知异步化（对齐 notifyStart 先例）+回退轮询 stop 接线+reminderStop Once（复用已有 reminderOnce 字段）。
+- **线3 读侧收口**（审计结论：写删侧护栏完备、读侧系统性短板）：⑨GaeaReadFile 对齐写端口径（拒穿越+withinWriteRoots+2MB 截断）⑩AttachmentDataURL withinReadRoots 根白名单+32MB⑪ReadFileB64 契约强制化=Pick 登记机制（fail-closed，pickFile.ts 链路零破坏）⑫Preview 相对路径拒穿越+image/docx 32MB 封顶⑬快照/场景 sceneID 白名单（唯一写越界点）⑭上下文看板 sessionPath 补 sessionDirForPath⑮CreateProject 书架 containment。
+- **辨伪挂池**：FTS 降级长 OR 链疑似空集坑/版本号并发窗口/legacy WAL 拷贝/deferred BUSY/SelfHeal N+1/导入无事务/Startup 幂等/filewatch Walk/prompt·aiClient 双构造/ListDir 全盘枚举（需查前端调用源）/ConvertToPdf 绝对路径——todos 新挂池行已给 file:line。
+- **测试**：定向 +3（TestSaveCategoryRenameChineseSubtree+Guards/TestReadFileB64RequiresPick/TestGaeaReadFileTraversalGuard/TestSnapshotSceneIDGuard）+既有测试修正 2 处（contextview 伪造路径改真实会话目录形态）+V15 迁移断言。门禁=build/vet 0+受影响 10 包绿+全量 ci 绿+drift OK@706+版本三处 4.358.0。
+- **坑**：①Go/SQLite 长度语义差是中文环境必炸点——len() 喂按字符计数函数 ASCII 全绿中文必坏，跨语言偏移一律 rune 或 Go 侧完成②增量助手存在却没人用——接闲置能力补失败降级兜底③同函数多问题一次想全④读侧防线不能照抄写侧——根白名单+Pick 登记+尺寸封顶组合，逐绑定核前端调用链（AttachmentDataURL 只限 portraits 会误伤绘梦资产）。
+- **产物**：exe 50928640B SHA256=2e1bfdf827f3aa70cc2f8f84a21d3259d2776c6bec337e5f33b553c21e2641bf（时间戳 2026-09-20 07:27:12 新鲜；桌面副本同哈希实测一致；冒烟 /api/health 200 过）；保留策略 5 版留 v4.354~v4.358 删 v4.353.exe。
+
 ## 最新发布：v4.357.0（2026-09-19）「后端优化轮第二弹：挂池三组清账——错误吞噬可见化 4 处 / 并发观察 4 刀根修 / 死代码 2 文件」
 
 - **动机**：用户口径「继续优化后端」——v4.356 挂池三组（错误吞噬卫生 P2×5/并发观察 6 项/AuditLogger·DecisionLogger 死代码）逐项取证定刀。纯 Go 8 源文件+3 测试文件（含 1 处签名适配），绑定面 706 不动（零签名变更 drift OK），前端零改动。

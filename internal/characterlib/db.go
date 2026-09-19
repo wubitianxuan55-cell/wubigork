@@ -3,7 +3,7 @@ package characterlib
 import (
 	"database/sql"
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sync"
@@ -27,23 +27,23 @@ func GetDatabase(dataDir string) *sql.DB {
 		return db
 	}
 	if err := os.MkdirAll(dataDir, 0o755); err != nil {
-		log.Printf("[characterlib-db] 创建 dataDir 失败: %v", err)
+		slog.Error("[characterlib-db] 创建 dataDir 失败", "error", err)
 		return nil
 	}
 	db, err := sql.Open("sqlite", filepath.Join(dataDir, "characterlib.db")+
 		"?_journal_mode=WAL&_synchronous=NORMAL&_foreign_keys=ON&_busy_timeout=5000")
 	if err != nil {
-		log.Printf("[characterlib-db] 打开数据库失败: %v", err)
+		slog.Error("[characterlib-db] 打开数据库失败", "error", err)
 		return nil
 	}
 	db.SetMaxOpenConns(1)
 	if _, err := db.Exec(SchemaV1); err != nil {
-		log.Printf("[characterlib-db] 建表失败: %v", err)
+		slog.Error("[characterlib-db] 建表失败", "error", err)
 		_ = db.Close()
 		return nil
 	}
 	if err := migrateSchemaV2(db); err != nil {
-		log.Printf("[characterlib-db] SchemaV2 迁移失败: %v", err)
+		slog.Error("[characterlib-db] SchemaV2 迁移失败", "error", err)
 		_ = db.Close()
 		return nil
 	}

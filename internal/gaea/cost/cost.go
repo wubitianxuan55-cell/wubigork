@@ -9,12 +9,15 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"sort"
 	"strings"
+
 	"sync"
 	"sync/atomic"
 	"time"
 	"unicode"
+	"unicode/utf8"
 
 	"github.com/gaea/gaea/internal/gaea/bm25"
 	"github.com/gaea/gaea/internal/gaea/strutil"
@@ -332,6 +335,9 @@ FROM cost_entry_components WHERE entry_name=? ORDER BY sort, id`, name)
 		}
 		out = append(out, c)
 	}
+	if err := rows.Err(); err != nil {
+		slog.Warn("cost: 组成行迭代中断，返回部分数据", "entry", name, "error", err)
+	}
 	return out
 }
 
@@ -407,6 +413,9 @@ func (s *Store) Search(query, category, status string) []Summary {
 		sm.Tags = parseTagsJSON(tags)
 		sm.UpdatedAt, _ = time.Parse(time.RFC3339, updated)
 		all = append(all, sm)
+	}
+	if err := rows.Err(); err != nil {
+		slog.Warn("cost: 检索语料迭代中断，返回部分数据", "error", err)
 	}
 	// 关键词在 Go 侧做包含过滤：按词拆分（词间 AND、字段间 OR），
 	// 精确子串匹配。刻意不在 SQL 里拼 6 列 OR LIKE 链——modernc/sqlite
@@ -604,23 +613,35 @@ func (s *Store) Categories() []CategoryView {
 		parentOf[n.view.ID] = n.view.ParentID
 		nodes = append(nodes, n)
 	}
+	if err := rows.Err(); err != nil {
+		slog.Warn("cost: 分类树读取迭代中断", "error", err)
+	}
 	if len(nodes) == 0 {
 		return nil
 	}
 
-	// 解析每节点完整路径（父链递归 + memo）。
+	// 解析每节点完整路径（父链递归 + memo）。onPath 环保护（2026-09-19
+	// 审计）：memo 只记完成态，环中节点互等永远等不到——数据带环时此处
+	// 无限递归栈溢出，遇环诚实截断。
 	pathMemo := map[int]string{}
+	onPath := map[int]bool{}
 	var resolve func(id int) string
 	resolve = func(id int) string {
 		if p, ok := pathMemo[id]; ok {
 			return p
+		}
+		if onPath[id] {
+			pathMemo[id] = names[id]
+			return names[id]
 		}
 		parent := parentOf[id]
 		if parent == 0 {
 			pathMemo[id] = names[id]
 			return names[id]
 		}
+		onPath[id] = true
 		pathMemo[id] = resolve(parent) + "/" + names[id]
+		delete(onPath, id)
 		return pathMemo[id]
 	}
 
@@ -633,6 +654,9 @@ func (s *Store) Categories() []CategoryView {
 			if crow.Scan(&p, &n) == nil {
 				counts[p] = n
 			}
+		}
+		if err := crow.Err(); err != nil {
+			slog.Warn("cost: 条目计数迭代中断", "error", err)
 		}
 		crow.Close()
 	}
@@ -684,7 +708,10 @@ func (s *Store) CategoryPath(id int) string {
 
 // SaveCategory 新建/更新分类节点。
 //   - id <= 0：新建（同父同名幂等，冲突时返回既有 id）；
-//   - id > 0：更新名称/排序；改名时同步重写该子树下成本条目的 category_path。
+//   - id > 0：更新名称/父节点/排序；改名或换父时同步重写该子树下成本条目的
+//     category_path（2026-09-19 审计 P0：原实现只在改名时重写，且用 Go 字节
+//     数喂 SQLite 按字符计数的 substr——中文路径下子树后缀整段截断/错位；
+//     现改为 rune 计数偏移 + 精确行同步叶子名，节点与条目两写包同一事务）。
 func (s *Store) SaveCategory(parentID int, name string, sort int, id int) (int, error) {
 	if s.db == nil {
 		return 0, fmt.Errorf("cost store unavailable")
@@ -692,6 +719,11 @@ func (s *Store) SaveCategory(parentID int, name string, sort int, id int) (int, 
 	name = strings.TrimSpace(name)
 	if name == "" {
 		return 0, fmt.Errorf("分类名称不能为空")
+	}
+	// 名称是路径拼装的分隔符语义字符：入库即破坏 CategoryPath 树解析
+	// （"A/B" 名让 LIKE 前缀重写命中 newPath 自身），创建/改名一律拒绝。
+	if strings.Contains(name, "/") {
+		return 0, fmt.Errorf("分类名称不能包含 /")
 	}
 	now := time.Now().UTC().Format(time.RFC3339)
 	if id <= 0 {
@@ -714,20 +746,60 @@ func (s *Store) SaveCategory(parentID int, name string, sort int, id int) (int, 
 	if err := s.db.QueryRow("SELECT name, parent_id FROM cost_categories WHERE id=?", id).Scan(&oldName, &oldParent); err != nil {
 		return 0, fmt.Errorf("分类不存在: %w", err)
 	}
-	if _, err := s.db.Exec("UPDATE cost_categories SET name=?, parent_id=?, sort=?, updated_at=? WHERE id=?",
+	// 环检测：新父不能是自己或自己的祖先链上的节点（挂到后代下会让
+	// Categories 的 resolve 递归无 memo 可命中而栈溢出，CategoryPath 的
+	// seen 只能自保）。
+	if parentID == id {
+		return 0, fmt.Errorf("不能把分类挂到自己名下")
+	}
+	for cur, seen := parentID, map[int]bool{}; cur > 0 && !seen[cur]; seen[cur] = true {
+		var parent int
+		if err := s.db.QueryRow("SELECT parent_id FROM cost_categories WHERE id=?", cur).Scan(&parent); err != nil {
+			break // 父链断裂（悬空引用）：不再向上追究
+		}
+		if parent == id {
+			return 0, fmt.Errorf("不能把分类挂到自己的子孙节点下（会形成环）")
+		}
+		cur = parent
+	}
+
+	// 改名或换父时重写子树条目路径。oldPath/newPath 在节点 UPDATE 前算好：
+	// oldPath 读旧树，newPath 的父链不受本次 UPDATE 影响（环已拒绝）。
+	rewrite := name != oldName || parentID != oldParent
+	var oldPath, newPath string
+	if rewrite {
+		oldPath = s.CategoryPathOf(oldParent, oldName)
+		newPath = s.CategoryPathOf(parentID, name)
+	}
+
+	tx, err := s.db.Begin()
+	if err != nil {
+		return 0, fmt.Errorf("开启分类更新事务失败: %w", err)
+	}
+	defer tx.Rollback()
+	if _, err := tx.Exec("UPDATE cost_categories SET name=?, parent_id=?, sort=?, updated_at=? WHERE id=?",
 		name, parentID, sort, now, id); err != nil {
 		return 0, fmt.Errorf("更新分类失败: %w", err)
 	}
-	// 改名时重写该子树下条目路径：旧路径前缀 → 新路径前缀。
-	if name != oldName {
-		oldPath := s.CategoryPathOf(oldParent, oldName)
-		newPath := s.CategoryPathOf(parentID, name)
-		if oldPath != "" && newPath != "" {
-			_, _ = s.db.Exec(
-				`UPDATE cost_entries SET category_path = ? || substr(category_path, ?)
-				 WHERE category_path = ? OR category_path LIKE ? ESCAPE '\'`,
-				newPath, len(oldPath)+1, oldPath, escapeLike(oldPath)+"/%")
+	if rewrite && oldPath != "" && newPath != "" {
+		// 直接子条目：路径精确替换 + 叶子名同步（category 列存直接父名）。
+		if _, err := tx.Exec(`UPDATE cost_entries SET category_path=?, category=? WHERE category_path=?`,
+			newPath, name, oldPath); err != nil {
+			return 0, fmt.Errorf("重写子树条目路径失败: %w", err)
 		}
+		// 更深子树条目：仅重写路径前缀。偏移按 rune 计数（SQLite substr 对
+		// 文本按 UTF-8 字符计数，Go len 是字节数——中文路径下字节偏移会把
+		// 后缀截断/错位）。
+		runeOff := utf8.RuneCountInString(oldPath) + 1
+		if _, err := tx.Exec(
+			`UPDATE cost_entries SET category_path = ? || substr(category_path, ?)
+			 WHERE category_path LIKE ? ESCAPE '\'`,
+			newPath, runeOff, escapeLike(oldPath)+"/%"); err != nil {
+			return 0, fmt.Errorf("重写子树条目路径失败: %w", err)
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return 0, fmt.Errorf("提交分类更新事务失败: %w", err)
 	}
 	bumpRankVersion()
 	return id, nil

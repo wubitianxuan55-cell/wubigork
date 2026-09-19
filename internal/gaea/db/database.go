@@ -3,7 +3,7 @@ package db
 import (
 	"database/sql"
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sync"
@@ -37,14 +37,14 @@ func GetDatabase(userDir string) *sql.DB {
 	}
 
 	if err := os.MkdirAll(userDir, 0o755); err != nil {
-		log.Printf("[hephaestus-db] 创建 userDir 失败: %v", err)
+		slog.Error("[hephaestus-db] 创建 userDir 失败", "error", err)
 		return nil
 	}
 
 	dbPath := DatabasePath(userDir)
 	db, err := sql.Open("sqlite", dbPath+"?_journal_mode=WAL&_synchronous=NORMAL&_foreign_keys=ON&_busy_timeout=5000&_cache_size=-8000")
 	if err != nil {
-		log.Printf("[hephaestus-db] 打开数据库失败: %v", err)
+		slog.Error("[hephaestus-db] 打开数据库失败", "error", err)
 		return nil
 	}
 
@@ -67,12 +67,12 @@ func GetDatabase(userDir string) *sql.DB {
 	}
 	for _, p := range pragmas {
 		if _, err := db.Exec(p); err != nil {
-			log.Printf("[hephaestus-db] PRAGMA 失败 (%s): %v", p, err)
+			slog.Error("[hephaestus-db] PRAGMA 失败", "pragma", p, "error", err)
 		}
 	}
 
 	if err := runMigrations(db); err != nil {
-		log.Printf("[hephaestus-db] 迁移失败: %v", err)
+		slog.Error("[hephaestus-db] 迁移失败", "error", err)
 		db.Close()
 		return nil
 	}
@@ -91,7 +91,7 @@ func CloseDatabase(userDir string) error {
 		return nil
 	}
 	if _, err := db.Exec("PRAGMA wal_checkpoint(TRUNCATE)"); err != nil {
-		log.Printf("[hephaestus-db] WAL checkpoint 失败: %v", err)
+		slog.Error("[hephaestus-db] WAL checkpoint 失败", "error", err)
 	}
 	if err := db.Close(); err != nil {
 		return fmt.Errorf("关闭数据库失败: %w", err)

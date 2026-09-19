@@ -4,6 +4,7 @@ package repos
 
 import (
 	"database/sql"
+	"log/slog"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -56,7 +57,9 @@ func CountTriplesInDB(dataRoot string) int {
 		return 0
 	}
 	var c int
-	sqlDB.QueryRow("SELECT COUNT(*) FROM knowledge_triples").Scan(&c)
+	if err := sqlDB.QueryRow("SELECT COUNT(*) FROM knowledge_triples").Scan(&c); err != nil {
+		slog.Warn("knowledge_triples: COUNT 失败", "error", err)
+	}
 	return c
 }
 
@@ -84,7 +87,8 @@ func LoadTriplesFromDB(dataRoot string) ([]whisper.Triple, error) {
 		}
 		triples = append(triples, r.toTriple())
 	}
-	return triples, nil
+	// 迭代/扫描中断不再静默返部分数据（2026-09-19 审计：全量恢复主路径）
+	return triples, rows.Err()
 }
 
 // ReplaceTriplesInDB 全量替换三元组

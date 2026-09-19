@@ -77,6 +77,13 @@ func resolvePreviewPath(rel string) (path, displayRel string) {
 	if filepath.IsAbs(rel) {
 		return filepath.Clean(rel), rel
 	}
+	// 相对路径拒 .. 穿越（2026-09-19 审计 P1：Join(root, rel) 此前直通；
+	// 绝对路径分支保留——附件/素材预览有合法绝对路径用途，文件大小由各
+	// 分支封顶）。落点在 root 外的路径让后续 os.Stat 自然报「文件不存在」。
+	cleanRel := filepath.Clean(filepath.FromSlash(rel))
+	if strings.HasPrefix(cleanRel, "..") || strings.Contains(cleanRel, ".."+string(filepath.Separator)) {
+		return filepath.Join(root, cleanRel), rel
+	}
 	display := filepath.ToSlash(rel)
 	joined := filepath.Join(root, rel)
 	if fileExists(joined) {
@@ -130,6 +137,13 @@ func (a *App) GaeaPreview(rel string) PreviewResult {
 	base := PreviewResult{Path: displayRel, Name: name, Ext: ext, Size: info.Size()}
 
 	if imageExts[ext] {
+		// 32MB 封顶（2026-09-19 审计：整文件读入 base64 无上限=可被驱动读
+		// 大文件撑爆内存；头像/截图/图产远小于此）。
+		if info.Size() > 32<<20 {
+			base.Kind = "error"
+			base.Error = "图片过大（上限 32MB）"
+			return base
+		}
 		b, err := os.ReadFile(path)
 		if err != nil {
 			base.Kind = "error"
@@ -184,6 +198,11 @@ func (a *App) GaeaPreview(rel string) PreviewResult {
 		// 原始 docx 交给前端 docx-preview 保真渲染（版式/表格/页眉页脚/修订）；
 		// Body 同时附带轻量 Markdown 文本（截断头部），供交付卡片缩略图
 		// 显示"看得见的文件内容"，完整版式仍走 dataUrl。
+		if info.Size() > 32<<20 {
+			base.Kind = "error"
+			base.Error = "文档过大（上限 32MB）"
+			return base
+		}
 		b, err := os.ReadFile(path)
 		if err != nil {
 			base.Kind = "error"

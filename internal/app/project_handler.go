@@ -1,13 +1,34 @@
 package app
 
 import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+
 	"github.com/gaea/gaea/internal/project"
 )
 
 // ── 项目管理 ─────────────────────────────────────────────────
 
-// CreateProject 新建小说项目
+// CreateProject 新建小说项目。创建目录必须在书架（NovelsDir）内——对齐
+// DeleteProject 的 containment 护栏（2026-09-19 审计 P2：此前可在任意位置
+// MkdirAll 并写脚手架文件）。
 func (a *App) CreateProject(dir, title, genre, style string) (map[string]interface{}, error) {
+	absDir, err := filepath.Abs(dir)
+	if err != nil {
+		return nil, fmt.Errorf("路径解析失败: %w", err)
+	}
+	absNovels, err := filepath.Abs(a.cfg.NovelsDir)
+	if err != nil {
+		return nil, fmt.Errorf("解析书架目录路径失败: %w", err)
+	}
+	if !strings.HasPrefix(absDir, absNovels+string(filepath.Separator)) {
+		return nil, fmt.Errorf("只能在书架目录下新建项目")
+	}
+	if _, err := os.Stat(absDir); err == nil {
+		return nil, fmt.Errorf("目标目录已存在: %s", dir)
+	}
 	pm, err := project.Create(dir, title, genre, style, "")
 	if err != nil {
 		return nil, err

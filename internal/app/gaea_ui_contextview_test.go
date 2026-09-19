@@ -2,6 +2,7 @@ package app
 
 import (
 	"encoding/json"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -99,7 +100,13 @@ func TestGaeaTrajectoryAndNetworkExplicitSessionPath(t *testing.T) {
 	}
 
 	// 磁盘事件日志：一轮 user + assistant（Kind 与运行期事件序一致）。
-	p := filepath.Join(t.TempDir(), "hist-session.jsonl")
+	// 路径按真实 UI 会话切换形态构造（<ws>/.gaea/sessions/work/<file>）——
+	// v4.358 起显式会话路径须过 sessionDirForPath 校验（读侧收口）。
+	ws := t.TempDir()
+	p := filepath.Join(ws, ".gaea", "sessions", "work", "hist-session.jsonl")
+	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
 	w, err := session.OpenLog(session.LogPathFor(p), "", "")
 	if err != nil {
 		t.Fatalf("OpenLog: %v", err)
@@ -160,7 +167,11 @@ func TestGaeaContextViewAndNodeDetailExplicitSessionPath(t *testing.T) {
 		t.Fatal("内核 nil 时 NodeDetail 缺省应报会话未就绪")
 	}
 
-	p := filepath.Join(t.TempDir(), "hist-session.jsonl")
+	ws := t.TempDir()
+	p := filepath.Join(ws, ".gaea", "sessions", "work", "hist-session.jsonl")
+	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
 	w, err := session.OpenLog(session.LogPathFor(p), "", "")
 	if err != nil {
 		t.Fatalf("OpenLog: %v", err)

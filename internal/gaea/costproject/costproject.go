@@ -10,6 +10,7 @@ package costproject
 import (
 	"database/sql"
 	"encoding/json"
+	"log/slog"
 	"fmt"
 	"strings"
 	"sync/atomic"
@@ -259,6 +260,11 @@ FROM cost_estimate_items WHERE project_id=? ORDER BY sort, id`, projectID)
 		i.CreatedAt, _ = time.Parse(time.RFC3339, created)
 		i.UpdatedAt, _ = time.Parse(time.RFC3339, updated)
 		out = append(out, i)
+	}
+	// 扫描/迭代中断显性化（2026-09-19 审计）：ListItems 直通 SaveVersion 的
+	// 「不可变版本」JSON 快照——静默丢行=版本快照永久缺明细行。
+	if err := rows.Err(); err != nil {
+		slog.Warn("costproject: 明细行迭代中断，返回部分数据", "project", projectID, "error", err)
 	}
 	return out
 }

@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sort"
@@ -69,7 +70,9 @@ func saveKnowledgeVersioned(store *knowledge.Store, e knowledge.Entry) error {
 			e.Version = existing.Version + 1
 		}
 		if changed {
-			_ = addKnowledgeHistory(existing, "内容更新")
+			if err := addKnowledgeHistory(existing, "内容更新"); err != nil {
+				slog.Warn("知识版本历史写入失败（重试保存会产生重复历史行）", "name", existing.Name, "error", err)
+			}
 		}
 	} else if e.Version <= 0 {
 		e.Version = 1
@@ -118,6 +121,9 @@ FROM knowledge_history WHERE name=? ORDER BY changed_at DESC, id DESC LIMIT 30`,
 		}
 		_ = json.Unmarshal([]byte(tags), &v.Tags)
 		out = append(out, v)
+	}
+	if err := rows.Err(); err != nil {
+		slog.Warn("knowledge: 历史列表迭代中断", "error", err)
 	}
 	return out
 }
@@ -184,7 +190,9 @@ func (a *App) GaeaKnowledgeReview(name string, approve bool, reviewer string) er
 			e.Reviewer = reviewer
 		}
 	}
-	_ = addKnowledgeHistory(e, note)
+	if err := addKnowledgeHistory(e, note); err != nil {
+		slog.Warn("知识版本历史写入失败", "name", e.Name, "note", note, "error", err)
+	}
 	return saveKnowledgeVersioned(store, *e)
 }
 
@@ -222,7 +230,9 @@ func (a *App) GaeaKnowledgeMerge(targetName string, sourceNames []string) (strin
 			target.Source += src.Source
 		}
 		srcTitles = append(srcTitles, src.Title)
-		_ = addKnowledgeHistory(src, "合并至 "+target.Title)
+		if err := addKnowledgeHistory(src, "合并至 "+target.Title); err != nil {
+			slog.Warn("知识合并历史写入失败", "name", src.Name, "error", err)
+		}
 		if err := store.Delete(sn); err != nil {
 			return "", err
 		}
@@ -231,7 +241,9 @@ func (a *App) GaeaKnowledgeMerge(targetName string, sourceNames []string) (strin
 		return target.Name, nil
 	}
 	target.Tags = sortedTagSet(tagSet)
-	_ = addKnowledgeHistory(target, "合并自 "+strings.Join(srcTitles, "、"))
+	if err := addKnowledgeHistory(target, "合并自 "+strings.Join(srcTitles, "、")); err != nil {
+		slog.Warn("知识合并历史写入失败", "name", target.Name, "error", err)
+	}
 	if err := saveKnowledgeVersioned(store, *target); err != nil {
 		return "", err
 	}

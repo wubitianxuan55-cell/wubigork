@@ -74,6 +74,9 @@ func (m *Manager) Create(slug, title string) (*types.Scene, error) {
 
 // Read 读取场景（正文 + 元数据）
 func (m *Manager) Read(sceneID string) (*types.Scene, error) {
+	if !validSceneID(sceneID) {
+		return nil, fmt.Errorf("非法场景 ID: %q", sceneID)
+	}
 	meta, err := m.readMeta(sceneID)
 	if err != nil {
 		return nil, fmt.Errorf("读取场景元数据 %s: %w", sceneID, err)
@@ -93,6 +96,9 @@ func (m *Manager) Read(sceneID string) (*types.Scene, error) {
 
 // Write 写入场景（正文 + 元数据）
 func (m *Manager) Write(scene *types.Scene) error {
+	if !validSceneID(scene.Meta.ID) {
+		return fmt.Errorf("非法场景 ID: %q", scene.Meta.ID)
+	}
 	if err := m.ensureDir(); err != nil {
 		return err
 	}
@@ -109,12 +115,18 @@ func (m *Manager) Write(scene *types.Scene) error {
 
 // UpdateMeta 仅更新场景元数据
 func (m *Manager) UpdateMeta(sceneID string, meta *types.SceneMeta) error {
+	if !validSceneID(sceneID) {
+		return fmt.Errorf("非法场景 ID: %q", sceneID)
+	}
 	meta.ID = sceneID
 	return m.writeMeta(meta)
 }
 
 // Delete 删除场景文件（正文+元数据）
 func (m *Manager) Delete(sceneID string) error {
+	if !validSceneID(sceneID) {
+		return fmt.Errorf("非法场景 ID: %q", sceneID)
+	}
 	// 删正文
 	if err := os.Remove(m.contentPath(sceneID)); err != nil && !os.IsNotExist(err) {
 		return err
@@ -198,6 +210,24 @@ func (m *Manager) Reorder(sceneIDs []string) error {
 }
 
 // ── 文件路径助手 ────────────────────────────────────────────
+
+// validSceneID 校验场景 ID 形态（2026-09-19 审计 P1：sceneID 前端可控直拼
+// 路径——"..\\evil" 会在项目目录外建文件/读写删除；合法 ID 由 Create 用
+// sanitizeSlug 生成，形态恒为 [0-9]{3}-[a-z0-9-](带可选纳秒尾)，白名单化
+// 校验不会误伤存量）。
+func validSceneID(sceneID string) bool {
+	if sceneID == "" || len(sceneID) > 128 {
+		return false
+	}
+	for _, r := range sceneID {
+		switch {
+		case r >= 'a' && r <= 'z', r >= '0' && r <= '9', r == '-', r == '_':
+		default:
+			return false
+		}
+	}
+	return !strings.Contains(sceneID, "..")
+}
 
 func (m *Manager) contentPath(sceneID string) string {
 	return filepath.Join(m.dir, sceneID+".md")

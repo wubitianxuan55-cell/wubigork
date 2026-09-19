@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/gaea/gaea/internal/whisper"
@@ -58,7 +59,9 @@ func CountEpisodesInDB(dataRoot string) int {
 		return 0
 	}
 	var c int
-	sqlDB.QueryRow("SELECT COUNT(*) FROM episodes").Scan(&c)
+	if err := sqlDB.QueryRow("SELECT COUNT(*) FROM episodes").Scan(&c); err != nil {
+		slog.Warn("episodes: COUNT 失败", "error", err)
+	}
 	return c
 }
 
@@ -95,7 +98,8 @@ func queryEpisodes(dataRoot, where string, args ...interface{}) ([]whisper.Episo
 		}
 		episodes = append(episodes, r.toEpisode())
 	}
-	return episodes, nil
+	// 迭代/扫描中断不再静默返部分数据（2026-09-19 审计：情节恢复主路径）
+	return episodes, rows.Err()
 }
 
 // ReplaceEpisodesInDB 全量替换情节
@@ -114,7 +118,8 @@ func ReplaceEpisodesInDB(dataRoot string, episodes []whisper.Episode) error {
 	})
 }
 
-// InsertEpisode 单条插入情节
+// InsertEpisode 单条插入情节（FTS 增量，失败降级全量重建——2026-09-19 审计：
+// 原实现每写一条全量重建索引，批量写 O(N²)）。
 func InsertEpisode(dataRoot string, ep whisper.Episode) error {
 	sqlDB, openErr := db.GetDatabase(dataRoot)
 	if openErr != nil {
@@ -123,18 +128,26 @@ func InsertEpisode(dataRoot string, ep whisper.Episode) error {
 	if err := insertEpisodeStmt(sqlDB, ep); err != nil {
 		return err
 	}
-	return RebuildEpisodesFTS(dataRoot)
+	keywordsJSON, _ := json.Marshal(ep.Keywords)
+	if err := InsertEpisodeFTS(dataRoot, ep.ID, ep.Summary, string(keywordsJSON), ep.DominantEmotion); err != nil {
+		return RebuildEpisodesFTS(dataRoot)
+	}
+	return nil
 }
 
-// DeleteAllEpisodesFromDB 清空所有情节
+// DeleteAllEpisodesFromDB 清空所有情节（FTS 索引直接整表删——全空场景无需
+// 读零行再重建一遍）。
 func DeleteAllEpisodesFromDB(dataRoot string) error {
 	if err := db.WithTransaction(dataRoot, func(tx *sql.Tx) error {
-		_, err := tx.Exec("DELETE FROM episodes")
+		if _, err := tx.Exec("DELETE FROM episodes"); err != nil {
+			return err
+		}
+		_, err := tx.Exec("DELETE FROM episodes_fts")
 		return err
 	}); err != nil {
 		return err
 	}
-	return RebuildEpisodesFTS(dataRoot)
+	return nil
 }
 
 // ─── 内部 ────────────────────────────────────────────────────────

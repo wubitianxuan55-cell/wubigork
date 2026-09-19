@@ -49,7 +49,7 @@ func LoadHabitsFromDB(dataRoot string) ([]HabitLine, error) {
 		}
 		lines = append(lines, h)
 	}
-	return lines, nil
+	return lines, rows.Err()
 }
 
 // ReplaceHabitsInDB 全量替换习惯

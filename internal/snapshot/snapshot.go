@@ -23,6 +23,23 @@ func NewStore(sceneDir string) *Store {
 	return &Store{dir: sceneDir}
 }
 
+// validSceneID 校验场景 ID 形态（2026-09-19 审计 P1：sceneID 前端可控直拼
+// 路径，".."+分隔符形态会在项目目录外 MkdirAll 并写文件——合法 ID 由
+// scene.Create 经 sanitizeSlug 生成，形态恒为 [a-z0-9-_]）。
+func validSceneID(sceneID string) bool {
+	if sceneID == "" || len(sceneID) > 128 {
+		return false
+	}
+	for _, r := range sceneID {
+		switch {
+		case r >= 'a' && r <= 'z', r >= '0' && r <= '9', r == '-', r == '_':
+		default:
+			return false
+		}
+	}
+	return true
+}
+
 // snapDir 返回特定场景的快照目录
 func (s *Store) snapDir(sceneID string) string {
 	return filepath.Join(s.dir, sceneID+".snapshots")
@@ -38,6 +55,9 @@ func (s *Store) ensureSnapDir(sceneID string) error {
 // Capture 创建场景当前状态的快照
 // content: 当前正文，label: 可选标签，trigger: 触发原因
 func (s *Store) Capture(sceneID, content, label, trigger string) (*types.Snapshot, error) {
+	if !validSceneID(sceneID) {
+		return nil, fmt.Errorf("非法场景 ID: %q", sceneID)
+	}
 	if err := s.ensureSnapDir(sceneID); err != nil {
 		return nil, err
 	}

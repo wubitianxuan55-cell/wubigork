@@ -74,5 +74,5 @@ func ListDiaryDatesFromDB(dataRoot string) ([]string, error) {
 		}
 		dates = append(dates, d)
 	}
-	return dates, nil
+	return dates, rows.Err()
 }

@@ -168,6 +168,13 @@ func resolveNodeImages(d *contextview.NodeDetail, cwd string) {
 func resolveGaeaSessionPath(args []string) string {
 	for _, p := range args {
 		if s := strings.TrimSpace(p); s != "" {
+			// 显式路径须落在会话目录内（2026-09-19 审计 P2：同族
+			// GaeaDeleteSession/GaeaSessionStats 均过 sessionDirForPath 校验，
+			// 三个只读看板口漏了——任意目录下符合命名约定的 JSONL 可被解析
+			// 回传）。非法视为未传，走内核回退/空快照的既有分支。
+			if sessionDirForPath(s) == "" {
+				return ""
+			}
 			return s
 		}
 	}

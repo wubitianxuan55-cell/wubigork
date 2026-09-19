@@ -398,7 +398,7 @@ func (a *App) startFileWatch() {
 	if err != nil {
 		slog.Warn("filewatch: 实时监听不可用，回退轮询", "error", err)
 		a.submitFileIndexTask("watch-fallback-new")
-		_ = a.startWatchPollingFallback("new-failed")
+		a.officeState.fileWatchPollStop = a.startWatchPollingFallback("new-failed")
 		return
 	}
 	a.officeState.fileWatch = w
@@ -406,7 +406,7 @@ func (a *App) startFileWatch() {
 	if err := w.Start(); err != nil {
 		slog.Warn("filewatch: 启动失败，回退轮询", "error", err)
 		a.submitFileIndexTask("watch-fallback-start")
-		_ = a.startWatchPollingFallback("start-failed")
+		a.officeState.fileWatchPollStop = a.startWatchPollingFallback("start-failed")
 		return
 	}
 	slog.Info("filewatch: 工作区实时监听已启动", "root", root)

@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/gaea/gaea/internal/whisper/db"
@@ -178,6 +179,8 @@ func CountOpenForuSessionsInDB(dataRoot string) int {
 		return 0
 	}
 	var c int
-	sqlDB.QueryRow("SELECT COUNT(*) FROM openforu_sessions").Scan(&c)
+	if err := sqlDB.QueryRow("SELECT COUNT(*) FROM openforu_sessions").Scan(&c); err != nil {
+		slog.Warn("openforu: COUNT 失败", "error", err)
+	}
 	return c
 }

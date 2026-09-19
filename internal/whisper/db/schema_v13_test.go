@@ -14,13 +14,13 @@ func TestSchemaV13_DropsWeixinTables(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = CloseDatabase(dir) })
 
-	// 迁移应已推进到 V14（V14 = 图谱情绪维度列）
+	// 迁移应已推进到 V15（V14 = 图谱情绪维度列，V15 = 会话恢复补索引）
 	var v string
 	if err := db.QueryRow("SELECT value FROM schema_meta WHERE key='user_version'").Scan(&v); err != nil {
 		t.Fatalf("查询 user_version: %v", err)
 	}
-	if v != "14" {
-		t.Fatalf("user_version = %s, want 14", v)
+	if v != "15" {
+		t.Fatalf("user_version = %s, want 15", v)
 	}
 
 	// 4 张 weixin_* 表应不存在

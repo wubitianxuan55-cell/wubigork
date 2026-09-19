@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 )
@@ -43,15 +44,32 @@ func (s *Store) ListSources() []Source {
 		src.Enabled = enabled != 0
 		out = append(out, src)
 	}
+	if err := rows.Err(); err != nil {
+		slog.Warn("pricefeed: 源列表迭代中断", "error", err)
+	}
 	return out
 }
 
-// GetSource 按 ID 读取价格源。
+// GetSource 按 ID 读取价格源（点查——2026-09-19 审计：原实现全表捞再线性找）。
 func (s *Store) GetSource(id string) (Source, bool) {
-	for _, src := range s.ListSources() {
-		if src.ID == id {
-			return src, true
+	if s.db == nil {
+		return Source{}, false
+	}
+	rows, err := s.db.Query(`SELECT id,name,url,parser,frequency_hours,area,headers,enabled,last_fetch_at,created_at FROM price_sources WHERE id = ?`, id)
+	if err != nil {
+		return Source{}, false
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var src Source
+		var headers string
+		var enabled int
+		if err := rows.Scan(&src.ID, &src.Name, &src.URL, &src.Parser, &src.FrequencyHours, &src.Area, &headers, &enabled, &src.LastFetchAt, &src.CreatedAt); err != nil {
+			continue
 		}
+		_ = json.Unmarshal([]byte(headers), &src.Headers)
+		src.Enabled = enabled != 0
+		return src, true
 	}
 	return Source{}, false
 }
@@ -169,6 +187,9 @@ func (s *Store) ListFetches(limit int) []FetchRecord {
 		_ = json.Unmarshal([]byte(sum), &f.Candidates)
 		out = append(out, f)
 	}
+	if err := rows.Err(); err != nil {
+		slog.Warn("pricefeed: 拉取记录迭代中断", "error", err)
+	}
 	return out
 }
 
@@ -232,6 +253,9 @@ func (s *Store) ListHistory(name string, limit int) []History {
 			continue
 		}
 		out = append(out, h)
+	}
+	if err := rows.Err(); err != nil {
+		slog.Warn("pricefeed: 历史迭代中断", "error", err)
 	}
 	return out
 }

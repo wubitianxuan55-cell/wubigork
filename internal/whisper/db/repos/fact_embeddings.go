@@ -89,9 +89,17 @@ func UpsertFactEmbeddings(dataRoot, modelSig string, entries map[string][]float6
 
 	updatedAt := time.Now().Format(time.RFC3339)
 
+	// 批量 UPSERT 包事务（2026-09-19 审计：逐条 autocommit，中途失败=部分
+	// 向量集，只能靠外部 corpus hash 判重恢复；事务化整体回滚）。
+	tx, err := sqlDB.Begin()
+	if err != nil {
+		return fmt.Errorf("开启向量写入事务失败: %w", err)
+	}
+	defer tx.Rollback()
+
 	for factID, vec := range entries {
 		vector := float64ToBytes(vec)
-		_, err := sqlDB.Exec(
+		_, err := tx.Exec(
 			`INSERT INTO fact_embeddings(fact_id, model_sig, dim, updated_at, vector)
 			 VALUES (?, ?, ?, ?, ?)
 			 ON CONFLICT(fact_id, model_sig) DO UPDATE SET
@@ -104,7 +112,7 @@ func UpsertFactEmbeddings(dataRoot, modelSig string, entries map[string][]float6
 			return fmt.Errorf("upsert embedding %s 失败: %w", factID, err)
 		}
 	}
-	return nil
+	return tx.Commit()
 }
 
 // DeleteStaleFactEmbeddings 删除不在活跃事实集中的旧向量
@@ -133,14 +141,24 @@ func DeleteStaleFactEmbeddings(dataRoot, modelSig string, activeFactIDs map[stri
 			toDelete = append(toDelete, factID)
 		}
 	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
 
+	tx, err := sqlDB.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
 	for _, factID := range toDelete {
-		sqlDB.Exec(
+		if _, err := tx.Exec(
 			"DELETE FROM fact_embeddings WHERE fact_id = ? AND model_sig = ?",
 			factID, modelSig,
-		)
+		); err != nil {
+			return err
+		}
 	}
-	return nil
+	return tx.Commit()
 }
 
 // DeleteFactEmbeddingsForModel 删除整个模型签名的所有向量

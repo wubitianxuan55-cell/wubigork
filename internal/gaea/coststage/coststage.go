@@ -12,6 +12,7 @@ package coststage
 import (
 	"database/sql"
 	"fmt"
+	"log/slog"
 	"log"
 	"math"
 	"strings"
@@ -184,7 +185,10 @@ FROM cost_stage_values WHERE project_id=?`, projectID)
 		v.UpdatedAt, _ = time.Parse(time.RFC3339, updated)
 		byStage[v.Stage] = v
 	}
-	out := make([]StageValue, 0, len(byStage))
+	if err := rows.Err(); err != nil {
+		slog.Warn("coststage: 阶段值迭代中断", "error", err)
+	}
+		out := make([]StageValue, 0, len(byStage))
 	for _, st := range StageOrder {
 		if v, ok := byStage[st]; ok {
 			out = append(out, v)

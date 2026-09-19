@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -141,7 +142,9 @@ func CountFactsInDB(dataRoot string) int {
 		return 0
 	}
 	var c int
-	sqlDB.QueryRow("SELECT COUNT(*) FROM memory_facts").Scan(&c)
+	if err := sqlDB.QueryRow("SELECT COUNT(*) FROM memory_facts").Scan(&c); err != nil {
+		slog.Warn("memory_facts: COUNT 失败", "error", err)
+	}
 	return c
 }
 
@@ -212,7 +215,8 @@ func ReplaceFactsInDB(dataRoot string, facts []whisper.MemoryFact) error {
 	})
 }
 
-// InsertFact 单条插入记忆事实
+// InsertFact 单条插入记忆事实。FTS 走增量（2026-09-19 审计：原实现每写一条
+// 全量重建索引，批量写 O(N²)）——增量失败降级全量重建，最终一致兜底。
 func InsertFact(dataRoot string, f whisper.MemoryFact) error {
 	sqlDB, openErr := db.GetDatabase(dataRoot)
 	if openErr != nil {
@@ -221,10 +225,13 @@ func InsertFact(dataRoot string, f whisper.MemoryFact) error {
 	if err := insertFactStmt(sqlDB, f); err != nil {
 		return err
 	}
-	return RebuildFactsFTS(dataRoot)
+	if err := InsertFactFTS(dataRoot, f.ID, f.Subject, f.Summary, strings.Join(f.Triggers, " ")); err != nil {
+		return RebuildFactsFTS(dataRoot)
+	}
+	return nil
 }
 
-// UpdateFactInDB 单条更新记忆事实
+// UpdateFactInDB 单条更新记忆事实（FTS 先删旧行再插新行，失败降级全量重建）。
 func UpdateFactInDB(dataRoot string, f whisper.MemoryFact) error {
 	sqlDB, openErr := db.GetDatabase(dataRoot)
 	if openErr != nil {
@@ -233,10 +240,16 @@ func UpdateFactInDB(dataRoot string, f whisper.MemoryFact) error {
 	if err := updateFactStmt(sqlDB, f); err != nil {
 		return err
 	}
-	return RebuildFactsFTS(dataRoot)
+	if err := DeleteFactFTS(dataRoot, f.ID); err != nil {
+		return RebuildFactsFTS(dataRoot)
+	}
+	if err := InsertFactFTS(dataRoot, f.ID, f.Subject, f.Summary, strings.Join(f.Triggers, " ")); err != nil {
+		return RebuildFactsFTS(dataRoot)
+	}
+	return nil
 }
 
-// DeleteFactFromDB 单条删除记忆事实
+// DeleteFactFromDB 单条删除记忆事实（FTS 增量删，失败降级全量重建）。
 func DeleteFactFromDB(dataRoot string, id string) error {
 	sqlDB, openErr := db.GetDatabase(dataRoot)
 	if openErr != nil {
@@ -245,7 +258,10 @@ func DeleteFactFromDB(dataRoot string, id string) error {
 	if _, err := sqlDB.Exec("DELETE FROM memory_facts WHERE id = ?", id); err != nil {
 		return err
 	}
-	return RebuildFactsFTS(dataRoot)
+	if err := DeleteFactFTS(dataRoot, id); err != nil {
+		return RebuildFactsFTS(dataRoot)
+	}
+	return nil
 }
 
 // ─── 内部 SQL ────────────────────────────────────────────────────

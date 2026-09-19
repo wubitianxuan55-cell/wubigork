@@ -27,6 +27,8 @@ import (
 	"github.com/gaea/gaea/internal/chat"
 	"github.com/gaea/gaea/internal/config"
 	"github.com/gaea/gaea/internal/gaea/filewatch"
+	gaeacfg "github.com/gaea/gaea/internal/gaea/config"
+	gaeadb "github.com/gaea/gaea/internal/gaea/db"
 	"github.com/gaea/gaea/internal/gaea/secure"
 	"github.com/gaea/gaea/internal/gaea/tasks"
 	"github.com/gaea/gaea/internal/httpbridge"
@@ -39,6 +41,7 @@ import (
 	"github.com/gaea/gaea/internal/skill"
 	"github.com/gaea/gaea/internal/voice"
 	"github.com/gaea/gaea/internal/whisper"
+	whisperdb "github.com/gaea/gaea/internal/whisper/db"
 	"github.com/gaea/gaea/internal/worldview"
 	"io"
 )
@@ -165,6 +168,9 @@ type whisperState struct {
 	// 长期日志（v4.163）：启动时刻（Shutdown 记运行时长）与日志文件关闭钩子
 	startedAt time.Time
 	logClose  func()
+	// restoreSummary 记录 setupLogging 之前的数据恢复/迁移结论（该阶段日志
+	// 尚未建立、GUI 不可见 stderr），日志就绪后由 Startup 回放进日志文件。
+	restoreSummary string
 
 	// 虚拟助手管理器
 	assistantMgr *assistant.Manager
@@ -225,6 +231,9 @@ type officeState struct {
 
 	// 阶段 5 T5-2：工作区实时文件监听（fsnotify 增量索引，失败回退轮询）。
 	fileWatch *filewatch.Watcher
+	// 回退轮询的停止钩子（2026-09-19 审计：原实现 _ = 丢弃，轮询 goroutine
+	// 启动后无人能停）。
+	fileWatchPollStop func()
 
 	// 阶段 5 T5-3a：本地模型保活（keep-warm）。每 5 分钟一轮，对 catalog 中
 	// Running 的 herdsman 模型发轻量探针，防止空闲卸载/降温。开关
@@ -346,6 +355,10 @@ func (a *App) Startup(ctx context.Context) {
 		a.logClose = closeLog
 	} else {
 		fmt.Fprintf(os.Stderr, "[gaea] 日志初始化失败: %v\n", err)
+	}
+	// 回放日志建立前的恢复/迁移结论（GUI 阶段 stderr 不可见——2026-09-19 审计）
+	if a.restoreSummary != "" {
+		slog.Warn("启动早期数据操作结论回放", "summary", a.restoreSummary)
 	}
 	stage("logging")
 	// 创建 AI client（仅此一次；token 由 GetToken 懒加载）
@@ -633,11 +646,14 @@ func (a *App) Shutdown(ctx context.Context) {
 				close(a.whisperState.proactiveStop)
 			}
 		})
-		// v4.4：停止微信提醒到点回推循环（reminderStop 由 Startup 同步创建，
-		// 与 proactiveStop 同模式，此处无并发写）。
-		if a.whisperState.reminderStop != nil {
-			close(a.whisperState.reminderStop)
-		}
+		// v4.4：停止微信提醒到点回推循环（reminderStop 由 Startup 同步创建）。
+		// Once 闸（2026-09-19 审计：Shutdown 二次调用 close of closed panic，
+		// 与 proactiveStopOnce 防护对称）。
+		a.whisperState.reminderOnce.Do(func() {
+			if a.whisperState.reminderStop != nil {
+				close(a.whisperState.reminderStop)
+			}
+		})
 	}
 	if err := a.closePM(); err != nil {
 		slog.Error("关闭项目失败", "error", err)
@@ -672,6 +688,18 @@ func (a *App) Shutdown(ctx context.Context) {
 	if w := a.officeState.fileWatch; w != nil {
 		_ = w.Close()
 		a.officeState.fileWatch = nil
+	}
+	if stop := a.officeState.fileWatchPollStop; stop != nil {
+		stop()
+		a.officeState.fileWatchPollStop = nil
+	}
+	// 关闭启动时打开的其余数据库（2026-09-19 审计对称性：chat/characterlib
+	// 已关，Hephaestus.db 与 whisper.db 漏关——退出时无 WAL checkpoint）。
+	if err := gaeadb.CloseDatabase(gaeacfg.MemoryUserDir()); err != nil {
+		slog.Error("关闭 Hephaestus.db 失败", "error", err)
+	}
+	if err := whisperdb.CloseDatabase(a.whisperDataRoot); err != nil {
+		slog.Error("关闭 whisper.db 失败", "error", err)
 	}
 }
 
@@ -762,11 +790,13 @@ func (a *App) migrateLegacyDataRoot() {
 		return // 旧目录不存在，无需迁移
 	}
 	if err := os.MkdirAll(newRoot, 0o755); err != nil {
+		a.restoreSummary = fmt.Sprintf("迁移旧数据目录失败：无法创建目标 path=%s err=%v", newRoot, err)
 		slog.Warn("迁移旧数据目录失败：无法创建目标", "path", newRoot, "error", err)
 		return
 	}
 	entries, err := os.ReadDir(legacy)
 	if err != nil {
+		a.restoreSummary = fmt.Sprintf("迁移旧数据目录失败：无法读取旧目录 path=%s err=%v", legacy, err)
 		slog.Warn("迁移旧数据目录失败：无法读取旧目录", "path", legacy, "error", err)
 		return
 	}
@@ -781,6 +811,7 @@ func (a *App) migrateLegacyDataRoot() {
 		moved++
 	}
 	if moved > 0 {
+		a.restoreSummary = fmt.Sprintf("旧数据目录已迁移 from=%s to=%s items=%d", legacy, newRoot, moved)
 		slog.Info("旧数据目录已迁移", "from", legacy, "to", newRoot, "items", moved)
 	}
 }

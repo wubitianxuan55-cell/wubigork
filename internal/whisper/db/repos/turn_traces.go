@@ -5,6 +5,7 @@ package repos
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/gaea/gaea/internal/whisper"
@@ -60,7 +61,7 @@ func LoadTurnTracesFromDB(dataRoot, date string) ([]whisper.TurnTrace, error) {
 			traces = append(traces, t)
 		}
 	}
-	return traces, nil
+	return traces, rows.Err()
 }
 
 // LoadTurnTracesFromDBSession 按会话加载最近 N 条轮次追踪（升序返回）
@@ -106,6 +107,8 @@ func CountTracesInDB(dataRoot string) int {
 		return 0
 	}
 	var c int
-	sqlDB.QueryRow("SELECT COUNT(*) FROM turn_traces").Scan(&c)
+	if err := sqlDB.QueryRow("SELECT COUNT(*) FROM turn_traces").Scan(&c); err != nil {
+		slog.Warn("turn_traces: COUNT 失败", "error", err)
+	}
 	return c
 }

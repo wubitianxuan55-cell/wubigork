@@ -17,10 +17,9 @@ func RebuildFactsFTS(dataRoot string) error {
 		return fmt.Errorf("数据库不可用: %w", openErr)
 	}
 
-	// 清空 FTS 索引（V11 后为独立表，可安全 DELETE）
-	if _, err := sqlDB.Exec("DELETE FROM memory_facts_fts"); err != nil {
-		return err
-	}
+	// 读入内存后在事务内清空+批量重插（2026-09-19 审计：原 DELETE 与逐条
+	// INSERT 各自 autocommit，中途失败=索引空窗，搜索静默退化为 LIKE）。
+	// 先读后写（v4.248 连接池放宽后死锁类已消除，保留收集再写回习惯）。
 
 	// 先全量读入内存再插入（v4.248 连接池放宽后死锁类已消除，保留收集再写回习惯）
 	rows, err := sqlDB.Query(
@@ -42,15 +41,23 @@ func RebuildFactsFTS(dataRoot string) error {
 	if err := rows.Err(); err != nil {
 		return err
 	}
+	tx, err := sqlDB.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err := tx.Exec("DELETE FROM memory_facts_fts"); err != nil {
+		return err
+	}
 	for _, r := range facts {
-		if _, err := sqlDB.Exec(
+		if _, err := tx.Exec(
 			"INSERT INTO memory_facts_fts(fact_id, subject, summary, triggers_text) VALUES (?, ?, ?, ?)",
 			r.id, r.subject, r.summary, r.triggers,
 		); err != nil {
 			return err
 		}
 	}
-	return nil
+	return tx.Commit()
 }
 
 func RebuildEpisodesFTS(dataRoot string) error {
@@ -63,7 +70,7 @@ func RebuildEpisodesFTS(dataRoot string) error {
 		return err
 	}
 
-	// 同 RebuildFactsFTS：先读后写避免 MaxOpenConns(1) 死锁
+	// 同 RebuildFactsFTS：先读后写 + 事务化清空重插。
 	rows, err := sqlDB.Query(
 		"SELECT id, summary, COALESCE(keywords, ''), COALESCE(dominant_emotion, '') FROM episodes",
 	)
@@ -83,15 +90,23 @@ func RebuildEpisodesFTS(dataRoot string) error {
 	if err := rows.Err(); err != nil {
 		return err
 	}
+	tx, err := sqlDB.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err := tx.Exec("DELETE FROM episodes_fts"); err != nil {
+		return err
+	}
 	for _, r := range eps {
-		if _, err := sqlDB.Exec(
+		if _, err := tx.Exec(
 			"INSERT INTO episodes_fts(episode_id, summary, keywords_text, dominant_emotion) VALUES (?, ?, ?, ?)",
 			r.id, r.summary, r.keywords, r.emotion,
 		); err != nil {
 			return err
 		}
 	}
-	return nil
+	return tx.Commit()
 }
 
 // ─── FTS 增量操作 ────────────────────────────────────────────────

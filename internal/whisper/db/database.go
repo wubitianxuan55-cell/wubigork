@@ -149,9 +149,10 @@ var migrations = []string{
 	SchemaV12,
 	SchemaV13,
 	SchemaV14,
+	SchemaV15,
 }
 
-// runMigrations 执行递增迁移链 V1 → V14
+// runMigrations 执行递增迁移链 V1 → V15
 func runMigrations(db *sql.DB) error {
 	// 确保 schema_meta 表存在（首次运行）
 	if _, err := db.Exec(SchemaV1); err != nil {

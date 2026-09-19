@@ -203,7 +203,7 @@ func (s *Server) Stop() {
 	close(s.stopCh)
 	s.stopCh = nil
 	s.stopMu.Unlock()
-	s.notifyStop()
+	go s.notifyStop()
 	slog.Info("[weixin] 助手通道关闭", "assistant", s.cfg.AssistantID)
 }
 
@@ -1055,6 +1055,9 @@ func (s *Server) notifyStart() {
 	s.apiPost("/ilink/bot/msg/notifystart", body, 10*time.Second)
 }
 
+// notifyStop 通知服务器通道已停止。Shutdown 链上同步 POST 网络不可达时
+// 每助手最多 10s×N 卡顿退出（2026-09-19 审计，对照 notifyStart 的异步化先例）
+// ——调用方以 goroutine 触发，best-effort：进程退出前尽力送达。
 func (s *Server) notifyStop() {
 	if s.notifyStopFn != nil {
 		s.notifyStopFn()

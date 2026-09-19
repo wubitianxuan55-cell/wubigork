@@ -226,15 +226,20 @@ func (a *App) GaeaDataBackupRestoreResult() map[string]interface{} {
 }
 
 // applyPendingRestore 应用待恢复数据（Startup 早期调用；失败保留 pending）。
+// 该阶段先于 setupLogging（恢复会改写 DataRoot，日志文件就在其中，不能先建
+// 句柄）——此时 slog 落 GUI 不可见的 stderr，结论存 a.restoreSummary，待日志
+// 就绪后由 Startup 回放进日志文件（2026-09-19 审计 P1：恢复失败用户全程无感知）。
 func (a *App) applyPendingRestore() {
 	root := config.DataRoot()
 	home, _ := os.UserHomeDir()
 	res, err := gaeaBackup.ApplyPending(root, home)
 	if err != nil {
+		a.restoreSummary = fmt.Sprintf("应用数据恢复失败（保留 pending 可重试）：zip=%s err=%v", res.ZipName, err)
 		slog.Error("应用数据恢复失败（保留 pending 可重试）", "error", err, "zip", res.ZipName)
 		return
 	}
 	if res.Applied {
+		a.restoreSummary = fmt.Sprintf("数据恢复已应用：zip=%s", res.ZipName)
 		slog.Info("数据恢复已应用", "zip", res.ZipName, "before", res.BeforeDir)
 	}
 }
