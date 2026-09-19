@@ -1,5 +1,5 @@
 // WhisperMemoryList.tsx — 角色记忆只读列表（按领域分组，供角色库「记忆」页使用）
-import React, { useState } from 'react'
+import React, { useMemo, useState } from 'react'
 import { Input, Tag } from 'antd'
 import { SearchOutlined, InboxOutlined, StarFilled } from '@ant-design/icons'
 import { C } from '../utils/theme'
@@ -30,15 +30,21 @@ const WhisperMemoryList: React.FC<Props> = ({ facts, onOpenManage }) => {
   const [search, setSearch] = useState('')
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
 
-  const filtered = facts.filter((f: MemoryFact) =>
-    !search ||
-    String(f.subject || '').toLowerCase().includes(search.toLowerCase()) ||
-    String(f.summary || '').toLowerCase().includes(search.toLowerCase()))
-  const grouped = DOMAIN_ORDER.map(d => ({
+  // 过滤/分组 memo 化（v4.349）：原实现每次渲染都 facts.filter + 6 个域各一次
+  // filtered.filter（≈7N 次谓词），且每个 fact 里重算 search.toLowerCase() 两次——
+  // 面板每敲一个字符即整表重算。语义与改动前逐字相同（含空串=不过滤）。
+  const filtered = useMemo(() => {
+    if (!search) return facts
+    const q = search.toLowerCase()
+    return facts.filter((f: MemoryFact) =>
+      String(f.subject || '').toLowerCase().includes(q) ||
+      String(f.summary || '').toLowerCase().includes(q))
+  }, [facts, search])
+  const grouped = useMemo(() => DOMAIN_ORDER.map(d => ({
     domain: d,
     label: DOMAIN_LABELS[d] || d,
     facts: filtered.filter((f: MemoryFact) => f.domain === d || f.domain === d.toLowerCase()),
-  })).filter(g => g.facts.length > 0)
+  })).filter(g => g.facts.length > 0), [filtered])
 
   const toggle = (d: string) => setCollapsed(prev => {
     const next = new Set(prev)

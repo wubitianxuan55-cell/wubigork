@@ -25,8 +25,10 @@ const HEAD_BTN =
   "flex items-center gap-1 px-1.5 py-0.5 border-0 rounded bg-transparent text-fg-dim text-[10px] cursor-pointer hover:bg-bg-soft";
 
 function StatChip({ label, value, tone }: { label: string; value: string | number; tone?: "crit" | "good" }) {
+  // whitespace-nowrap + shrink-0：窄预览列里 chip 曾被压扁致标签内折行、
+  // 一排 chip 高低参差（v4.349 布局刀）。溢出交给外层 flex-wrap 换行。
   return (
-    <span className="inline-flex items-baseline gap-1 px-2 py-0.5 rounded-md border border-border-soft bg-bg text-[11px]">
+    <span className="inline-flex shrink-0 items-baseline gap-1 whitespace-nowrap px-2 py-0.5 rounded-md border border-border-soft bg-bg text-[11px]">
       <span className="text-fg-faint">{label}</span>
       <b className={tone === "crit" ? "text-err" : tone === "good" ? "text-emerald-500" : "text-fg"}>{value}</b>
     </span>

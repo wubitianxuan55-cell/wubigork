@@ -103,12 +103,18 @@ export default function WhisperMemoryModal({ facts, personalityID, onFactsChange
           <div key={f.id} style={{padding:'10px 12px',marginBottom:6,borderRadius:10,background:'var(--whisper-surface)',border:f.tier==='core'?'1.5px solid var(--whisper-accent)':'1px solid var(--whisper-glass-border)'}}>
             <div style={{display:'flex',alignItems:'center',gap:6}}>
               {f.tier==='core' && <StarFilled style={{color:'var(--color-warning)',fontSize:12}}/>}
-              <span style={{fontSize:13,fontWeight:600,color:'var(--whisper-ink)',flex:1,cursor:'pointer'}} onClick={()=>setDetailFact(f)}>{f.subject}</span>
+              <span
+                role="button"
+                tabIndex={0}
+                style={{fontSize:13,fontWeight:600,color:'var(--whisper-ink)',flex:1,cursor:'pointer'}}
+                onClick={()=>setDetailFact(f)}
+                onKeyDown={(e)=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); setDetailFact(f) } }}
+              >{f.subject}</span>
               {f.subcategory && <Tag style={{fontSize:9,margin:0}}>{SUB_LABELS[f.subcategory] || f.subcategory}</Tag>}
               <Tag style={{fontSize:9,margin:0,opacity:.7}}>{DOMAIN_LABELS[f.domain] || f.domain}</Tag>
-              {editingId===f.id ? (<><Button type="text" size="small" icon={<CheckOutlined />} onClick={confirmEdit} style={{color:'var(--color-success)',padding:0,width:22}}/><Button type="text" size="small" icon={<CloseOutlined />} onClick={()=>setEditingId(null)} style={{color:'var(--color-destructive)',padding:0,width:22}}/></>) : (<><Tooltip title="Edit"><Button type="text" size="small" icon={<EditOutlined />} onClick={()=>startEdit(f)} style={{color:'var(--whisper-ink-muted)',padding:0,width:22}}/></Tooltip><Popconfirm title="Delete?" onConfirm={()=>handleDelete(f.id)}><Button type="text" size="small" danger icon={<DeleteOutlined />} style={{padding:0,width:22}}/></Popconfirm></>)}
+              {editingId===f.id ? (<><Button type="text" size="small" icon={<CheckOutlined />} aria-label="保存修改" onClick={confirmEdit} style={{color:'var(--color-success)',padding:0,width:22}}/><Button type="text" size="small" icon={<CloseOutlined />} aria-label="取消编辑" onClick={()=>setEditingId(null)} style={{color:'var(--color-destructive)',padding:0,width:22}}/></>) : (<><Tooltip title="Edit"><Button type="text" size="small" icon={<EditOutlined />} aria-label="编辑记忆" onClick={()=>startEdit(f)} style={{color:'var(--whisper-ink-muted)',padding:0,width:22}}/></Tooltip><Popconfirm title="Delete?" onConfirm={()=>handleDelete(f.id)}><Button type="text" size="small" danger icon={<DeleteOutlined />} aria-label="删除记忆" style={{padding:0,width:22}}/></Popconfirm></>)}
             </div>
-            {editingId===f.id ? <Input.TextArea size="small" value={editText} onChange={e=>setEditText(e.target.value)} autoSize={{minRows:2,maxRows:4}} style={{marginTop:6,fontSize:12}}/> : <div style={{fontSize:12,color:'var(--whisper-ink)',marginTop:4,lineHeight:1.6,cursor:'pointer'}} onClick={()=>setDetailFact(f)}>{f.summary.slice(0,200)}{f.summary.length>200?'…':''}</div>}
+            {editingId===f.id ? <Input.TextArea size="small" value={editText} onChange={e=>setEditText(e.target.value)} autoSize={{minRows:2,maxRows:4}} style={{marginTop:6,fontSize:12}}/> : <div role="button" tabIndex={0} style={{fontSize:12,color:'var(--whisper-ink)',marginTop:4,lineHeight:1.6,cursor:'pointer'}} onClick={()=>setDetailFact(f)} onKeyDown={(e)=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); setDetailFact(f) } }}>{f.summary.slice(0,200)}{f.summary.length>200?'…':''}</div>}
             <div style={{display:'flex',alignItems:'center',gap:8,marginTop:6,flexWrap:'wrap'}}>
               <span style={{fontSize:10,color:'var(--whisper-ink-muted)'}}>W{f.weight.toFixed(1)} · C{(f.confidence*100).toFixed(0)}%</span>
               {f.emotionalContext && <span style={{fontSize:10,color:VALENCE_COLOR(f.emotionalContext.valence||0)}}>{VALENCE_LABEL(f.emotionalContext.valence||0)}{f.emotionalContext.trust!=null&&` T${f.emotionalContext.trust.toFixed(0)}`}</span>}

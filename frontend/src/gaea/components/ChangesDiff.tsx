@@ -3,6 +3,9 @@ import type { ChangeDiff } from "../lib/planDiff";
 import { charSegments, foldContext, pairModifications, type DiffPresentRow } from "../lib/diffRender";
 import { highlightLine } from "../lib/diffHighlight";
 import "./changesdiff-tok.css";
+// 语法色单一真源（--hl-* 明暗两组 + data-hl 覆写）：本组件在懒加载链上，
+// 只 import tok 色板会拿到未定义的 var() 回落值（暗色恒亮态），故显式带上真源。
+import "../hljs-theme.css";
 
 // ChangesDiff —「变更」tab 的行级红绿 diff 渲染（v4.25 变更 tab diff 化）。
 //

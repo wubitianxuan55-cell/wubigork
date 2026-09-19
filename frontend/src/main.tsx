@@ -42,6 +42,11 @@ registerPage('OriginalSinPage', lazy(() => import('./pages/OriginalSinPage')))
 //   2) 给 <html> 加 gaea-raf-degraded 类，index.css 据此禁用 antd 弹层动画
 //      （打开立即显示、关闭立即隐藏），彻底绕开被挂起的 CSS 动画 tick。
 // 正常浏览器（60fps）不触发降级，不影响性能敏感组件（3D 图谱等）。
+// 主线程心跳时间戳（跨两个 IIFE 共享）：由 rAF 探测循环每帧更新，rAF 降级后由
+// 其 500ms 兜底续跳；下方诊断层读它判「主线程被阻塞」。v4.349 前诊断层自带
+// 500ms 轮询只写这一个时间戳（≈17.3 万次/天纯空转），故收敛到既有 rAF 循环。
+let mainThreadBeatAt = Date.now()
+
 ;(function ensureRAF() {
   if (typeof window === 'undefined' || !window.requestAnimationFrame) return
   let degraded = false
@@ -60,6 +65,9 @@ registerPage('OriginalSinPage', lazy(() => import('./pages/OriginalSinPage')))
       try { nativeCancel(id as number) } catch { /* 忽略 */ }
       window.clearTimeout(id as number)
     }
+    // 降级后 probe 不再被调度（rAF 已换成 setTimeout 包装，但循环本身已退出），
+    // 心跳改由低频兜底续跳——否则诊断层会把「已降级的正常态」误报成卡死。
+    window.setInterval(() => { mainThreadBeatAt = Date.now() }, 500)
   }
 
   // 持续探测（而非只在启动时测一次）：WebView2 可能在运行中才把 rAF
@@ -73,6 +81,7 @@ registerPage('OriginalSinPage', lazy(() => import('./pages/OriginalSinPage')))
     if (degraded) return
     sawFrame = true
     lastBeat = now
+    mainThreadBeatAt = Date.now()
     frames++
     if (now - last >= 1000) {
       const fps = Math.round((frames * 1000) / (now - last))
@@ -128,13 +137,13 @@ registerPage('OriginalSinPage', lazy(() => import('./pages/OriginalSinPage')))
   } catch { /* 某些环境只读，忽略 */ }
 
   // 主线程心跳：若被长时间占用（死循环/巨量渲染），恢复后上报卡死时长。
-  let lastBeat = Date.now()
-  setInterval(() => { lastBeat = Date.now() }, 500)
+  // 心跳戳由上方 ensureRAF 的 rAF 循环维护（降级态由其 500ms 兜底维护），
+  // 本层只做低频判读——不再自带 500ms 空转轮询（v4.349）。
   setInterval(() => {
-    const stall = Date.now() - lastBeat
+    const stall = Date.now() - mainThreadBeatAt
     if (stall > 2000) {
       log('main-thread-stall', `主线程被阻塞约 ${Math.round(stall / 1000)}s`)
-      lastBeat = Date.now()
+      mainThreadBeatAt = Date.now()
     }
   }, 8000)
 

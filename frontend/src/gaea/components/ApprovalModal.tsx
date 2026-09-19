@@ -99,7 +99,7 @@ export function ApprovalModal({
         style={{boxShadow: "var(--ds-shadow-card)"}}
         onMouseEnter={(e) => (e.currentTarget as HTMLElement).style.boxShadow = "var(--ds-shadow-card-hover)"}
         onMouseLeave={(e) => (e.currentTarget as HTMLElement).style.boxShadow = "var(--ds-shadow-card)"}
-        role="dialog" aria-modal="false" tabIndex={-1}
+        role="dialog" aria-modal="true" tabIndex={-1}
         aria-labelledby="tool-approval-title"
       >
         <div className="mb-3">

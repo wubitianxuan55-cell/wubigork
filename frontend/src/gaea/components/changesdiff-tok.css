@@ -1,36 +1,46 @@
 /* ChangesDiff 行内语法着色（2c 遗留项，v4.93 接入）——Lezer classHighlighter
-   的 tok-* 类配色。色板为语法语义色（hex-exempt：diff token 调色板，深色
-   主题调校；浅色主题下饱和色同样可辨识）。未列出的 tok-* 类无着色规则，
-   自然回落继承色。 */
+   的 tok-* 类配色。
+
+   v4.349：色值改接共享语法调色板 `--hl-*`（单一真源 = gaea/hljs-theme.css，
+   由 ChangesDiff.tsx 显式 import 保证在册），与 Markdown/聊天代码块同一套色。
+   原因是此前写死 One Dark 七色，而容器背景随主题（ChangesDiff.tsx:60 的容器不设
+   背景，继承面板 → 亮态是浅底）：实测亮态 `.tok-typeName` #e5c07b 仅 1.38:1、
+   `.tok-string` #98c379 1.61:1，亮态 diff 基本不可读。hljs-theme.css 已备好
+   「同色相深阶、白底 ≥4.5:1」的浅色组并随 data-hl 切换（App.tsx 主题 effect 挂）。
+
+   纪律（appStore.contrast.test.ts 机检）：本文件不得出现字面色值——一律走
+   `var(--hl-*)`，色板改动只改 hljs-theme.css 一处。
+
+   未列出的 tok-* 类无着色规则，自然回落继承色。 */
 
 .tok-keyword {
-  color: #c678dd;
-} /* hex-exempt 语法色板（关键字紫） */
+  color: var(--hl-keyword);
+}
 .tok-string,
 .tok-string2 {
-  color: #98c379;
-} /* hex-exempt 语法色板（字符串绿） */
+  color: var(--hl-string);
+}
 .tok-number,
 .tok-bool,
 .tok-null,
 .tok-atom {
-  color: #d19a66;
-} /* hex-exempt 语法色板（数字/字面量橙） */
+  color: var(--hl-number);
+}
 .tok-comment,
 .tok-meta {
-  color: #7f848e;
+  color: var(--hl-comment);
   font-style: italic;
-} /* hex-exempt 语法色板（注释灰） */
+}
 .tok-typeName,
 .tok-namespace {
-  color: #e5c07b;
-} /* hex-exempt 语法色板（类型黄） */
+  color: var(--hl-type);
+}
 .tok-propertyName {
-  color: #e06c75;
-} /* hex-exempt 语法色板（属性红） */
+  color: var(--hl-func);
+}
 .tok-operator {
-  color: #56b6c2;
-} /* hex-exempt 语法色板（运算符青） */
+  color: var(--hl-builtin);
+}
 .tok-definition {
   font-weight: 600;
 }

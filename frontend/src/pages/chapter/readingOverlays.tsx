@@ -4,7 +4,7 @@
  * 顺序语义（清选区 → 收起工具条 → 开问书）与拆分前一致。
  */
 import React from 'react'
-import { Button, Input, Modal } from 'antd'
+import { Button, Input, Modal, Popconfirm } from 'antd'
 import { CommentOutlined, ThunderboltOutlined } from '@ant-design/icons'
 import { ANNOTATION_COLORS, type ReadingAnnotation, type AnnotationColor } from '../../utils/readingAnnotations'
 import type { ReadingAskMessage } from './readingAskSession'
@@ -111,7 +111,18 @@ const ReadingOverlays: React.FC<ReadingOverlaysProps> = ({
             placeholder="写点什么…（保存后随高亮展示）"
           />
           <div className="novel-read-note-actions">
-            <Button danger size="small" onClick={() => onDeleteAnnotation(noteTarget.id)}>删除高亮</Button>
+            {/* 危险动作二次确认：删除高亮不可撤销（同仓 Popconfirm 范式，
+                v4.349 前是裸 onClick——阅读划线笔记误点即删） */}
+            <Popconfirm
+              title="删除这条高亮？"
+              description="删除后无法恢复（想法一并删除）。"
+              okText="删除"
+              okButtonProps={{ danger: true }}
+              cancelText="取消"
+              onConfirm={() => onDeleteAnnotation(noteTarget.id)}
+            >
+              <Button danger size="small">删除高亮</Button>
+            </Popconfirm>
             <div style={{ flex: 1 }} />
             <Button size="small" onClick={onNoteClose}>取消</Button>
             <Button type="primary" size="small" onClick={onSaveNote}>保存想法</Button>

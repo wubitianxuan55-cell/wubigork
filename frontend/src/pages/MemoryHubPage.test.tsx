@@ -113,4 +113,45 @@ describe("MemoryHubPage 三脑检索 scope（S1.2-C）", () => {
     const [, scope] = h.unifiedCalls()[0];
     expect(scope).toBe("play");
   });
+
+  // v4.349 可访问性刀：检索命中行此前是纯鼠标 div（全局检索是主入口动线）。
+  it("命中行可键盘激活：role=button + tabIndex=0，Enter 打开详情 inspector", async () => {
+    render(<MemoryHubPage />);
+    fireEvent.change(screen.getByPlaceholderText("三脑检索 · 工作区资料"), {
+      target: { value: "振动锤" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "检索" }));
+
+    const hitRow = await waitFor(() => {
+      const el = document.querySelector<HTMLElement>(".hub-hit[role='button']");
+      expect(el).toBeTruthy();
+      return el!;
+    });
+    expect(hitRow.getAttribute("tabindex")).toBe("0");
+
+    const entity = hitRow.querySelector(".hub-hit-entity, .hub-hit-entity-static")?.textContent ?? "";
+    expect(entity.length).toBeGreaterThan(0);
+
+    fireEvent.keyDown(hitRow, { key: "Enter" });
+    await waitFor(() =>
+      expect(document.querySelector(".hub-detail-title")?.textContent ?? "").toContain(entity),
+    );
+  });
+
+  it("命中行的空格键同样激活（Enter/Space 双键对齐 role=button 语义）", async () => {
+    render(<MemoryHubPage />);
+    fireEvent.change(screen.getByPlaceholderText("三脑检索 · 工作区资料"), {
+      target: { value: "振动锤" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "检索" }));
+
+    const hitRow = await waitFor(() => {
+      const el = document.querySelector<HTMLElement>(".hub-hit[role='button']");
+      expect(el).toBeTruthy();
+      return el!;
+    });
+    expect(document.querySelector(".hub-detail-title")).toBeNull();
+    fireEvent.keyDown(hitRow, { key: " " });
+    await waitFor(() => expect(document.querySelector(".hub-detail-title")).toBeTruthy());
+  });
 });

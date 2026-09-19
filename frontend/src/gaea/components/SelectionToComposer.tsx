@@ -17,15 +17,21 @@ export function SelectionToComposer() {
 
   const update = useCallback(() => {
     const sel = window.getSelection();
-    const t = sel?.toString().trim() ?? "";
+    // 折叠态（每次光标移动/键入都会触发 selectionchange）先短路：原实现上来就
+    // 物化整页选区文本（toString().trim()），是常驻文档监听里最贵的一步（v4.349）。
+    if (!sel || sel.rangeCount === 0 || sel.isCollapsed) {
+      setPos(null);
+      return;
+    }
+    const t = sel.toString().trim() ?? "";
     if (!t || t.length < 2 || t.length > 4000) {
       setPos(null);
       return;
     }
     // 忽略可编辑/控件内与浮层（弹窗/下拉/命令面板）里的选区
-    const node = sel?.anchorNode;
+    const node = sel.anchorNode;
     const el = node && node.nodeType === Node.TEXT_NODE ? node.parentElement : (node as HTMLElement | null);
-    if (!el || !sel || sel.rangeCount === 0) {
+    if (!el) {
       setPos(null);
       return;
     }

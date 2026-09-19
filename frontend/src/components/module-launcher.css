@@ -1020,7 +1020,23 @@
 .p-poster-body { position: relative; display: flex; flex-direction: column; gap: 6px; }
 .p-poster-name { font-size: 16.5px; font-weight: 650; letter-spacing: -0.01em; }
 .p-poster.is-hero .p-poster-name { font-size: 24px; letter-spacing: -0.02em; }
-.p-poster-desc { font-size: 12px; line-height: 1.55; color: var(--w-ink-2); }
+/* 长描述不再静默裁切（v4.349）：.p-poster 是 overflow:hidden 的定高卡，
+   原先描述无行数上限——单格 196px 下被无声切掉且不给省略号（compact 变体
+   已有 ellipsis，此处补齐同款意图：3 行封顶 + 省略号）。 */
+.p-poster-desc {
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--w-ink-2);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.p-poster.is-hero .p-poster-desc {
+  -webkit-line-clamp: 4;
+  line-clamp: 4;
+}
 .p-poster-go {
   position: absolute;
   right: 16px;

@@ -76,4 +76,24 @@ describe("SelectionToComposer 选区转对话（C4）", () => {
     fireEvent.click(buttons[buttons.length - 1]); // ×
     await waitFor(() => expect(document.body.textContent ?? "").not.toContain("转为提问"));
   });
+
+  // v4.349 运行开销刀：selectionchange 在光标移动/键入时高频触发，折叠态必须
+  // 先短路——原实现上来就物化整页选区文本（toString().trim()）。
+  it("折叠选区直接短路：连 toString 都不调用（避免每次光标移动物化全页文本）", async () => {
+    const toString = vi.fn(() => "");
+    vi.spyOn(window, "getSelection").mockReturnValue({
+      toString,
+      anchorNode: { nodeType: 3, parentElement: document.createElement("div") },
+      rangeCount: 1,
+      isCollapsed: true,
+      getRangeAt: () => ({ getBoundingClientRect: () => ({ left: 0, top: 0, width: 0, height: 0 }) }),
+    } as unknown as Selection);
+
+    render(<SelectionToComposer />);
+    triggerSelection();
+    await new Promise((r) => setTimeout(r, 20));
+
+    expect(toString).not.toHaveBeenCalled();
+    expect(document.body.textContent ?? "").not.toContain("转为提问");
+  });
 });

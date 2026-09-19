@@ -29,7 +29,7 @@ const SORT_OPTIONS: Array<{ value: SortKey; label: string }> = [
 const HomePage: React.FC = () => {
   const {
     loggedIn, login, projectOpen, projectPath, projectTitle, novelsDir,
-    projects, loadProjects, openProject, deleteProject, loadNovelsDir,
+    projects, projectsError, loadProjects, openProject, deleteProject, loadNovelsDir,
   } = useAppStore()
 
   // 新建小说表单
@@ -345,6 +345,22 @@ const HomePage: React.FC = () => {
             <SearchOutlined aria-hidden />
             <div className="novel-shelf-empty-title">没有匹配的书</div>
             <div className="novel-shelf-empty-hint">换个关键词试试</div>
+          </div>
+        ) : projectsError && projects.length === 0 ? (
+          // 读取失败的**诚实错误态**（v4.349）：此前失败与「一本都没有」同貌，
+          // 用户以为书丢了或从未建过；这里给出原因 + 重试入口。
+          <div className="novel-shelf-empty" data-testid="shelf-load-error">
+            <ReadOutlined aria-hidden />
+            <div className="novel-shelf-empty-title">书架读取失败</div>
+            <div className="novel-shelf-empty-hint">不是「没有书」，是这次没读到：{projectsError}</div>
+            <div className="novel-shelf-empty-actions">
+              <Button
+                type="primary"
+                onClick={() => { setLoadingProjects(true); loadProjects().finally(() => setLoadingProjects(false)) }}
+              >
+                重试
+              </Button>
+            </div>
           </div>
         ) : projects.length === 0 ? (
           <div className="novel-shelf-empty">

@@ -132,6 +132,10 @@ export const BaselinesPanel: React.FC<{ cpm: CpmResult }> = ({ cpm }) => {
                 data-slot-name={b.name}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 6, padding: '3px 6px', borderRadius: 6,
+                  // v4.349 布局刀：固定段（工期/时间戳/删除）不得被压缩换行——原先是
+                  // 无 wrap 的单行 flex，固定部分 ≈326px > minWidth 300，名称吃满剩余后
+                  // 时间戳被挤到行内换行、行高参差。改 wrap 让整段在窄面板下换行。
+                  flexWrap: 'wrap',
                   background: isActive ? 'rgba(128, 128, 128, 0.12)' : undefined,
                 }}
               >
@@ -147,8 +151,8 @@ export const BaselinesPanel: React.FC<{ cpm: CpmResult }> = ({ cpm }) => {
                   {b.name}
                 </span>
                 {isActive && <Tag color="processing" style={{ marginRight: 0 }}>当前对比</Tag>}
-                <span className="sched-dim" style={{ fontSize: 12 }}>总工期 {b.duration} 天</span>
-                <span className="sched-dim" style={{ fontSize: 12 }}>{b.savedAt}</span>
+                <span className="sched-dim" style={{ fontSize: 12, whiteSpace: 'nowrap', flexShrink: 0 }}>总工期 {b.duration} 天</span>
+                <span className="sched-dim" style={{ fontSize: 12, whiteSpace: 'nowrap', flexShrink: 0 }}>{b.savedAt}</span>
                 <Popconfirm
                   title={`删除基线「${b.name}」？`}
                   description={isActive ? '该槽是当前对比，删除后对比结束' : undefined}

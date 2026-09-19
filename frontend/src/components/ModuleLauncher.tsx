@@ -22,7 +22,7 @@
  *   零功能删除：遥测/写作/会话/记忆两空间均可达（晨报仅书斋=work 记忆红线）。
  *   令牌纪律：零硬编码色值，全部走 --color-* / --md-sys-* / --gaea-* / --v3-*。
  */
-import React, { useState, useCallback, useEffect, useSyncExternalStore } from 'react'
+import React, { useState, useCallback, useEffect, useMemo, useSyncExternalStore } from 'react'
 import {
   ArrowRightOutlined, AudioOutlined, SendOutlined,
   StopOutlined, RobotOutlined, UserOutlined, ThunderboltOutlined,
@@ -35,7 +35,7 @@ import { deriveLauncherModules, LAUNCHER_DESC, LAUNCHER_FEATURED, type LauncherM
 import { SHELL_SPACES, type ShellSpace } from '../boards/space'
 import TasksFirstHome from './TasksFirstHome'
 import { requestSessionResume } from '../gaea/lib/pendingSessionResume'
-import { loadRecentFiles } from '../gaea/lib/recentFiles'
+import { loadRecentFiles, subscribeRecentFiles } from '../gaea/lib/recentFiles'
 import type { AtEntry } from '../gaea/lib/types'
 import { Input } from 'antd'
 import { useVoiceChat } from '../hooks/useVoiceChat'
@@ -408,10 +408,10 @@ function useLauncherData(): LauncherData {
   }, [pollable])
 
   // 最近文档（localStorage 单源，零新 binding；书斋专用）
-  const [recentFiles, setRecentFiles] = useState<AtEntry[]>([])
-  useEffect(() => {
-    setRecentFiles(loadRecentFiles().slice(0, 6))
-  }, [])
+  // v4.349：订阅单源而非挂载时读一次——本页在 keepAlive（visitedPages）下常驻，
+  // 原先「在办公打开文档 → 回首页」看到的仍是首次挂载快照。
+  const recentFilesRaw = useSyncExternalStore(subscribeRecentFiles, loadRecentFiles, () => [])
+  const recentFiles = useMemo(() => recentFilesRaw.slice(0, 6), [recentFilesRaw])
 
   // 最近会话
   const [sessions, setSessions] = useState<SessionLite[]>([])

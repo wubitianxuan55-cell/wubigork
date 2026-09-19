@@ -30,7 +30,10 @@ const App: React.FC = () => {
   const accentColor = useAppStore((s) => s.accentColor)
   const fontFamily = useAppStore((s) => s.fontFamily)
   const fontSize = useAppStore((s) => s.fontSize)
-  const tokens = getThemeTokens(baseTheme, darkMode)
+  // 令牌对象必须 memo：getThemeTokens 每次调用返回**新对象**，若留在渲染体内，
+  // 下面的 effTokens useMemo 与主题 effect 会因依赖恒变而每次渲染都重跑
+  // （≈45 个 CSS 变量重复 setProperty，v4.349 前实测如此）。
+  const tokens = useMemo(() => getThemeTokens(baseTheme, darkMode), [baseTheme, darkMode])
 
   // 字体设置：预设 key → 完整 font-family 值（默认系统）
   const effFontFamily = FONT_OPTIONS.find((o) => o.key === fontFamily)?.value ?? FONT_OPTIONS[0].value
@@ -153,32 +156,34 @@ const App: React.FC = () => {
     document.documentElement.dataset.hl = darkMode ? 'dark' : 'light'
   }, [effTokens, darkMode])
 
+  // antd 主题对象同样 memo：ConfigProvider 收到新对象就会重跑主题算法
+  // （token 合并 + 组件级派生）。此前内联字面量每次渲染都是新引用（v4.349）。
+  const antdTheme = useMemo(() => ({
+    algorithm: darkMode ? theme.darkAlgorithm : theme.defaultAlgorithm,
+    token: {
+      colorPrimary: effTokens.colorPrimary,
+      colorBgContainer: effTokens.colorBgContainer,
+      colorBgLayout: effTokens.colorBgLayout,
+      colorText: effTokens.colorText,
+      colorTextSecondary: effTokens.colorTextSecondary,
+      colorBorder: effTokens.colorBorder,
+      colorError: effTokens.colorDestructive, // antd 危险语义对齐 gaea 令牌（删除/错误确认）
+      borderRadius: density === 'compact' ? 12 : 16,       // M3 默认更大圆角
+      borderRadiusLG: density === 'compact' ? 14 : 20,
+      borderRadiusSM: density === 'compact' ? 8 : 12,
+      fontFamily: effFontFamily,
+      fontSize: fontSize,
+      controlHeight: density === 'compact' ? 32 : 36,
+      lineHeight: 1.5,
+    },
+  }), [darkMode, effTokens, density, effFontFamily, fontSize])
+
   return (
     <div className={[
       density === 'compact' ? 'ui-compact' : '',
       motion === 'reduced' ? 'ui-reduced-motion' : '',
     ].filter(Boolean).join(' ')}>
-      <ConfigProvider
-        theme={{
-          algorithm: darkMode ? theme.darkAlgorithm : theme.defaultAlgorithm,
-          token: {
-            colorPrimary: effTokens.colorPrimary,
-            colorBgContainer: effTokens.colorBgContainer,
-            colorBgLayout: effTokens.colorBgLayout,
-            colorText: effTokens.colorText,
-            colorTextSecondary: effTokens.colorTextSecondary,
-            colorBorder: effTokens.colorBorder,
-            colorError: effTokens.colorDestructive, // antd 危险语义对齐 gaea 令牌（删除/错误确认）
-            borderRadius: density === 'compact' ? 12 : 16,       // M3 默认更大圆角
-            borderRadiusLG: density === 'compact' ? 14 : 20,
-            borderRadiusSM: density === 'compact' ? 8 : 12,
-            fontFamily: effFontFamily,
-            fontSize: fontSize,
-            controlHeight: density === 'compact' ? 32 : 36,
-            lineHeight: 1.5,
-          },
-        }}
-      >
+      <ConfigProvider theme={antdTheme}>
         {/* S2.2 i18n 全铺：LocaleProvider 提到根级，壳层/页面共用 gaea 字典 */}
         <LocaleProvider>
           {/* 启动动画：覆盖首帧，播完自卸（reduced-motion 降级） */}

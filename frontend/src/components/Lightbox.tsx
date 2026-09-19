@@ -97,7 +97,7 @@ const Lightbox: React.FC<Props> = ({ results, index, characters, singleImage, on
     >
       {/* 关闭按钮 */}
       <div style={{ position: 'absolute', top: 16, right: 16, zIndex: 10 }}>
-        <Button type="text" icon={<CloseOutlined />} onClick={onClose} style={{ color: '#fff', fontSize: 20 }} /> {/* hex-exempt 图片查看器深色覆盖层 chrome */}
+        <Button type="text" icon={<CloseOutlined />} onClick={onClose} aria-label="关闭（Esc）" title="关闭（Esc）" style={{ color: '#fff', fontSize: 20 }} /> {/* hex-exempt 图片查看器深色覆盖层 chrome */}
       </div>
 
       {/* 缩放提示 */}

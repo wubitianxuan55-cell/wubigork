@@ -368,7 +368,21 @@ function MemoryHubPage() {
                 </button>
               </div>
               {hits.map((h, i) => (
-                <div key={i} className="hub-hit" onClick={() => selectHit(h)}>
+                <div
+                  key={i}
+                  className="hub-hit"
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => selectHit(h)}
+                  onKeyDown={(e) => {
+                    // 键盘等价于整行点击（行内「预览/@ 引用」子按钮已有各自焦点，
+                    // 其事件 stopPropagation，不会冒泡到这里）
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      selectHit(h)
+                    }
+                  }}
+                >
                   <span className={`shrink-0 px-1.5 rounded text-[10px] ${
                     h.kind === "file"
                       ? "bg-sky-500/20 text-sky-300"

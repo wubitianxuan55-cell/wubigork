@@ -46,6 +46,7 @@ describe('HomePage 书房书架', () => {
       projectPath: '',
       projectTitle: '',
       projects: [],
+      projectsError: null,
     })
     mockedWailsApp.mockReturnValue({
       ListProjects: vi.fn(async () => [sample]),
@@ -164,5 +165,35 @@ describe('HomePage tail 导入串联反推', () => {
     expect(events).toContain('novel:goto-tab')
     window.removeEventListener('novel:goto-tab', spy)
     window.removeEventListener('novel:auto-reconstruct', spy)
+  })
+
+  // v4.349 稳健性刀：ListProjects 失败此前被 loadProjects 吞掉（只 console.error），
+  // 首页把「读失败」渲染成「书架空空如也」——假空态比无提示更误导。
+  it('ListProjects 失败：显示可重试的错误态，不冒充「书架空空如也」', async () => {
+    mockedWailsApp.mockReturnValue({
+      ListProjects: vi.fn(async () => { throw new Error('内核未就绪') }),
+      GetNovelsDir: vi.fn(async () => 'C:/novels'),
+      OpenProject: vi.fn(async () => {}),
+      DeleteProject: vi.fn(async () => {}),
+      GaeaPickFiles: vi.fn(async () => []),
+    } as unknown as ReturnType<typeof wailsApp>)
+
+    render(<HomePage />)
+    await waitFor(() => expect(screen.getByTestId('shelf-load-error')).toBeTruthy())
+    expect(screen.getByText('书架读取失败')).toBeTruthy()
+    expect(screen.getByText(/内核未就绪/)).toBeTruthy()
+    expect(screen.queryByText('书架空空如也')).toBeNull()
+
+    // 重试成功 → 回到正常书架
+    mockedWailsApp.mockReturnValue({
+      ListProjects: vi.fn(async () => [sample]),
+      GetNovelsDir: vi.fn(async () => 'C:/novels'),
+      OpenProject: vi.fn(async () => {}),
+      DeleteProject: vi.fn(async () => {}),
+      GaeaPickFiles: vi.fn(async () => []),
+    } as unknown as ReturnType<typeof wailsApp>)
+    fireEvent.click(screen.getByRole('button', { name: /重\s*试/ }))
+    await waitFor(() => expect(screen.getByRole('button', { name: '打开小说「风雪夜归」' })).toBeTruthy())
+    expect(screen.queryByTestId('shelf-load-error')).toBeNull()
   })
 })
