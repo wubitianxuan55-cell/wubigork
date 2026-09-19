@@ -14,6 +14,7 @@ type SinMethods = Pick<
   AppBindings,
   | "SinTopicsList" | "SinTopicCreate" | "SinTopicRename" | "SinTopicDelete"
   | "SinTopicClear" | "SinMessages" | "SinStream" | "SinIllustrate" | "SinExportMarkdown"
+  | "SinExportEpub"
   | "SinCastGet" | "SinCastSet" | "SinCancel" | "SinNotesGet" | "SinNotesSave"
   | "SinBookSourceSearch" | "SinBookSourceToc" | "SinBookSourceDownload"
   | "SinBookSourceDownloadCancel" | "SinBookSourceBooksList" | "SinBookSourceBookDelete"
@@ -264,6 +265,9 @@ export function buildSin(): SinMethods {
       /* mock 无成书可删：如实 no-op */
     },
     async SinBookSourceBookExportEpub() {
+      throw new Error("dev mock：EPUB 导出需桌面端文件系统");
+    },
+    async SinExportEpub() {
       throw new Error("dev mock：EPUB 导出需桌面端文件系统");
     },
     async SinCastSet(topicID: string, ids: string[]) {

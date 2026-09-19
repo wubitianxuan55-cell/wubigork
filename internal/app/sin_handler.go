@@ -231,7 +231,10 @@ func (a *App) runSinStream(runID, topicID, userMessage, eng, model, source strin
 	// 角色库内容（本故事已选角色）注入：写作锚点。硬隔离上不违背——角色库是
 	// 跨板块共享资产层，不是办公数据面（见 sin_store.go 头注）。
 	cast := a.sinCastCharacters(topicID)
-	userPrompt := buildSinUserPrompt(history, userMessage, cast)
+	// 故事底稿（便签/大纲）直注前情：模型自己记的设定不再依赖它自觉 read，
+	// 掉出历史窗口的早期设定靠底稿回归（回合中途 write 的新条目下一轮生效）。
+	draft := a.sinDraftForPrompt(topicID)
+	userPrompt := buildSinUserPrompt(history, userMessage, cast, draft)
 
 	// play 护栏（配置未启用 = 零值 = 不钳制，与既有四个直连生成点同语义）。
 	g := playGuardrails()

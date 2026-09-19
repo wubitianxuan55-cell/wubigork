@@ -138,7 +138,7 @@ func TestSinCastBlockInjectsCharacterProfile(t *testing.T) {
 			t.Errorf("角色块缺少 %q:\n%s", want, block)
 		}
 	}
-	prompt := buildSinUserPrompt(nil, "继续写", cast)
+	prompt := buildSinUserPrompt(nil, "继续写", cast, sinNotesDoc{})
 	if !strings.Contains(prompt, "林夏") {
 		t.Fatalf("单轮提示未带角色设定:\n%s", prompt)
 	}
@@ -148,7 +148,7 @@ func TestSinCastBlockInjectsCharacterProfile(t *testing.T) {
 		t.Fatalf("角色块应排在本次指令之前:\n%s", prompt)
 	}
 	// 未选角色 = 与旧行为逐字一致（无角色块）
-	if plain := buildSinUserPrompt(nil, "继续写", nil); strings.Contains(plain, "本故事角色") {
+	if plain := buildSinUserPrompt(nil, "继续写", nil, sinNotesDoc{}); strings.Contains(plain, "本故事角色") {
 		t.Fatalf("未选角色不应出现角色块:\n%s", plain)
 	}
 }

@@ -15,6 +15,7 @@ package app
 // 保证「正文 = 模型输出」逐字节可回溯）。
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/gaea/gaea/internal/characterlib"
@@ -36,6 +37,11 @@ const (
 	sinHistoryTurns = 12
 	// sinHistoryMessageRunes 单条历史消息截断长度（防长篇小说把上下文吃满）。
 	sinHistoryMessageRunes = 1500
+
+	// sinPromptNotesBudgetRunes 底稿便签直注前情的合计预算（rune）。
+	// 便签单条上限 2000、条数上限 200，不设合计预算的话长篇设定集能把
+	// 上下文吃满——按写入顺序从头带，带不下的如实报数（工具 read 仍可看全文）。
+	sinPromptNotesBudgetRunes = 4000
 
 	// sinTemperature / sinMaxTokens 故事创作生成参数基线（play 护栏可再钳制）。
 	sinTemperature = 0.9
@@ -69,8 +75,8 @@ func sinSystemPrompt() string {
 		"",
 		"【工具】你可以调用工具，调用过程用户看得见；工具只用来把故事写准，工具结果不写进正文。",
 		"- 联网搜索（web_search）/抓取网页（web_fetch）：故事依赖现实细节时才用——真实地名与年代风物、器物用法、行业术语、真实事件的时间线。纯虚构设定、人物关系与情欲描写不必搜索；查到的内容化进描写里，不要写「我查了一下」，也不要罗列来源。",
-		"- 故事便签（sin_notes）：人物多、线索长时，把用户定下的设定（称呼、外貌、关系、时间线、伏笔）记进便签；不确定既定设定就先 read 一次，避免写到后面自相矛盾。",
-		"- 故事大纲（sin_outline）：用户要「按大纲写」「别跑偏」时先 read；用户定下整体走向、或一章收束后，把更新后的大纲 write 回去。",
+		"- 故事便签（sin_notes）：人物多、线索长时，把用户定下的设定（称呼、外貌、关系、时间线、伏笔）记进便签。你的底稿（便签与大纲）非空时会随每轮前情附在下面，通常无需 read 即可核对，只有要确认某条全文时才 read；用户新定一条设定就 write 追加落稿。",
+		"- 故事大纲（sin_outline）：大纲非空时已随前情附在下面，按它执行「按大纲写」「别跑偏」；用户定下整体走向、或一章收束后，把更新后的大纲 write 回去。",
 		"- 查角色卡（sin_cast）：本故事角色已经在上面的「本故事角色」块里，只在需要核对细节时才查。",
 		"- 需要就调，不需要就直接写故事：不要为了显得勤奋而调用工具。同一个工具一轮最多 3 次、整轮工具调用最多 8 次（超了会被拒绝，你只能用手上的信息收尾）；联网搜索一次问清一件事，别把同一件事换几种说法反复搜。",
 		"",
@@ -82,13 +88,19 @@ func sinSystemPrompt() string {
 }
 
 // buildSinUserPrompt 装配发给故事模型的单轮提示：本故事角色（来自角色库的
-// 已选角色）+ 前情回顾（历史消息，按时间序，单条截断）+ 本次用户指令。
+// 已选角色）+ 故事底稿（便签/大纲直注，长程一致性的确定性锚——历史上模型
+// 要靠自觉花工具轮 read 才能看到自己记的设定，掉出 12 条历史窗口的早期设定
+// 就丢了）+ 前情回顾（历史消息，按时间序，单条截断）+ 本次用户指令。
 // 历史里的插图标记替换为「（已配图）」
 // ——标记是给前端渲染用的指令，不是故事内容，重复带进上下文只会诱导模型
 // 在后续轮次乱发插图标记。
-func buildSinUserPrompt(history []chat.Message, userMessage string, cast []*characterlib.Character) string {
+func buildSinUserPrompt(history []chat.Message, userMessage string, cast []*characterlib.Character, draft sinNotesDoc) string {
 	var b strings.Builder
 	if block := sinCastBlock(cast); block != "" {
+		b.WriteString(block)
+		b.WriteString("\n")
+	}
+	if block := sinDraftBlock(draft); block != "" {
 		b.WriteString(block)
 		b.WriteString("\n")
 	}
@@ -166,6 +178,53 @@ func writeCastField(b *strings.Builder, label, value string) {
 		return
 	}
 	b.WriteString("  · " + label + "：" + truncateRunes(v, 400) + "\n")
+}
+
+// sinDraftBlock 渲染「故事底稿」块：大纲（write 时已限长，防御性再截一次）
+// + 设定便签（按写入顺序，合计 sinPromptNotesBudgetRunes 预算内从头带）。
+// 带不下的条目如实报数，引导模型用 sin_notes read 看全文——不静默丢。
+// 底稿为空 = 空串（提示词与无底稿行为逐字一致）。
+func sinDraftBlock(doc sinNotesDoc) string {
+	outline := strings.TrimSpace(truncateRunes(doc.Outline, sinOutlineMaxRunes))
+	var notes []string
+	used := 0
+	omitted := 0
+	for _, n := range doc.Notes {
+		n = strings.TrimSpace(n)
+		if n == "" {
+			continue
+		}
+		if used >= sinPromptNotesBudgetRunes {
+			omitted++
+			continue
+		}
+		runes := len([]rune(n))
+		if room := sinPromptNotesBudgetRunes - used; runes > room {
+			notes = append(notes, truncateRunes(n, room)+"…")
+			used = sinPromptNotesBudgetRunes
+			continue
+		}
+		notes = append(notes, n)
+		used += runes
+	}
+	if outline == "" && len(notes) == 0 {
+		return ""
+	}
+	var b strings.Builder
+	b.WriteString("【故事底稿（工作设定与走向，写作必须与它保持一致）】\n")
+	if outline != "" {
+		b.WriteString("▸ 大纲：\n" + outline + "\n")
+	}
+	if len(notes) > 0 {
+		fmt.Fprintf(&b, "▸ 设定便签（共 %d 条）：\n", len(notes)+omitted)
+		for i, n := range notes {
+			fmt.Fprintf(&b, "#%d %s\n", i, n)
+		}
+		if omitted > 0 {
+			fmt.Fprintf(&b, "（其余 %d 条未展示，需要全文用 sin_notes read 查看）\n", omitted)
+		}
+	}
+	return strings.TrimRight(b.String(), "\n")
 }
 
 // sinHistoryMessages 取最近 sinHistoryTurns 条历史消息（不足则全取）。

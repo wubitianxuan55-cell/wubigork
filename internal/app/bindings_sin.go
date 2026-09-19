@@ -20,6 +20,7 @@ func (b *SinB) SinBookSourceToc(source string, detailURL string) (NovelBookSourc
 func (b *SinB) SinCancel(topicID string) error { return b.a.SinCancel(topicID) }
 func (b *SinB) SinCastGet(topicID string) ([]string, error) { return b.a.SinCastGet(topicID) }
 func (b *SinB) SinCastSet(topicID string, ids []string) ([]string, error) { return b.a.SinCastSet(topicID, ids) }
+func (b *SinB) SinExportEpub(topicID string) (string, error) { return b.a.SinExportEpub(topicID) }
 func (b *SinB) SinExportMarkdown(topicID string) (string, error) { return b.a.SinExportMarkdown(topicID) }
 func (b *SinB) SinIllustrate(topicID string, messageID int64, cue string, prompt string, size string) (map[string]interface{}, error) { return b.a.SinIllustrate(topicID, messageID, cue, prompt, size) }
 func (b *SinB) SinMessages(topicID string) ([]chat.Message, error) { return b.a.SinMessages(topicID) }

@@ -1,3 +1,13 @@
+## 最新发布：v4.348.0（2026-09-19）「原罪板块优化双刀：故事底稿直注前情 + EPUB 电子书导出」
+
+- **动机**：原罪板块优化完善班。①故事越长前情窗口（12 条×1500 rune）越丢早期设定，模型自记的便签/大纲底稿不在提示词里——要花工具轮 read 自己记的设定，忘 read 就自相矛盾；②故事成品只有 Markdown（插图本地路径引用），阅读器/传设备缺内嵌插图的可分发格式（go-epub 已在依赖，书源线有先例）。
+- **刀1 底稿直注**：buildSinUserPrompt 增底稿块（角色块后、前情前）——大纲防御性再截 4000 rune + 便签合计预算 sinPromptNotesBudgetRunes=4000 从头带，超限「其余 N 条未展示」如实报数；空稿=提示词逐字零漂移；回合中途 write 下一轮生效；sinDraftForPrompt fail-open+锁内读。工具描述/系统提示词同步改口「底稿已随前情附上」，通常无需 read（省工具轮），核对单条全文才 read。
+- **刀2 EPUB 导出**：SinExportEpub（705→706，play）——每条助手回合一节（第N回中文序数）+用户指令引块置节首+插图内嵌（go-epub AddImage；首图兼封面；webp 不在支持集→「插图未能内嵌」占位）+未生成占位（cue 次序键优先/描述键兜底同 MD）；落 sin/exports 同名不覆盖-2/-3、半截产物即删；前端顶栏导出改下拉（Markdown 另存为/EPUB 后端落盘告知路径，mock 如实抛）。
+- **测试**：sin_draft_test 5 用例（空稿逐字一致/注入排序/预算截断+未展示计数/大纲便签独立判空/fail-open）+ sin_export_epub_test 2 用例（zip 全链：正文/引块/img/占位/illu-1 恰 1 张/cover.xhtml/同名-2；守卫：空故事/聊天话题拒绝）；既有 buildSinUserPrompt 三处调用点补 sinNotesDoc{} 断言零改动。
+- **门禁**：go build/vet 0+internal/app 全量绿（102s）+tsc 0+eslint 0+vitest 定向 94/94+drift OK@706+spaceBindings 锁 528→529+bindingNames 全量再生+版本三处 4.348.0；全量 ci.ps1 绿；产物=exe 50863104B SHA256=f84e9bd9164f2bd55b1b12220f6963c6251f39247abad8dba1bb8a6a0249ed00（releases+SUMS；桌面副本同哈希；冒烟 health 200 过）；本地 exe 保留策略执行留 v4.344~v4.348 删 v4.343；
+- **坑**：①Dropdown clone 子元素注入 onClick 会覆盖 ToolbarButton 的 prop（无 forwardRef 且 onClick 必填）——占位空函数即净，不为原罪改办公组件②单条恰=预算的便签 runes>room 为假应整条收下——截断语义「超了才截」，测试前提咬一次③go-epub AddImage 收本地路径返回值直接作 img src，webp 宁占位不硬塞。
+- **未做（下刀）**：sin 真机一条龙走查（书源卡+导出下拉+底稿直注实写）挂闲置窗口池；插图变体历史候立项；章节化结构候拍板。
+
 # 任务进度
 
 > 本文件为**最近发布速览**。完整历史磁带见 `docs/archive/progress-history-2026-09.md`

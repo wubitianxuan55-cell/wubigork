@@ -630,6 +630,7 @@ export const bindingNames = [
   "SinCancel",
   "SinCastGet",
   "SinCastSet",
+  "SinExportEpub",
   "SinExportMarkdown",
   "SinIllustrate",
   "SinMessages",

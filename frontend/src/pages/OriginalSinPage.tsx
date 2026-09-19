@@ -10,10 +10,10 @@
 // 后端：internal/app/sin_handler.go / sin_prompt.go（docs/ADULT_MODE.md 成人内容口径）。
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Button, Input, Modal, Popconfirm, Tooltip } from 'antd'
+import { Button, Dropdown, Input, message, Modal, Popconfirm, Tooltip } from 'antd'
 import {
-  CloseOutlined, DeleteOutlined, EditOutlined, ExportOutlined, MessageOutlined,
-  PlusOutlined, ReloadOutlined, SettingOutlined,
+  BookOutlined, CloseOutlined, DeleteOutlined, EditOutlined, ExportOutlined, FileTextOutlined,
+  MessageOutlined, PlusOutlined, ReloadOutlined, SettingOutlined,
 } from '@ant-design/icons'
 import { PanelRightClose, PanelRightOpen } from '../gaea/icons'
 import { Composer } from '../gaea/components/Composer'
@@ -126,6 +126,21 @@ const OriginalSinPage: React.FC = () => {
     }
   }, [story])
 
+  // EPUB 电子书：后端直接落原罪导出目录（插图内嵌进书），返回路径告知即可
+  // ——二进制不走前端「另存为」（壳内 a[download] 是死的），与书源线 EPUB 导出同口径。
+  const onExportEpub = useCallback(async () => {
+    if (!story.activeId) return
+    setExporting(true)
+    try {
+      const path = await app.SinExportEpub(story.activeId)
+      message.success({ content: `已导出 EPUB：${path}`, duration: 6 })
+    } catch (err) {
+      Modal.error({ title: '导出失败', content: err instanceof Error ? err.message : String(err) })
+    } finally {
+      setExporting(false)
+    }
+  }, [story])
+
   const modelText = model.engine && model.model
     ? `${model.engine} / ${model.model}${model.enabled ? '' : '（已停用·回退全局）'}`
     : '未绑定 · 跟随全局激活模型'
@@ -157,13 +172,24 @@ const OriginalSinPage: React.FC = () => {
                 {model.engine && model.model ? `${model.model}` : '未绑定模型'}
               </Button>
             </Tooltip>
-            <ToolbarButton
-              title="导出图文 Markdown"
-              onClick={() => void onExport()}
+            <Dropdown
+              trigger={['click']}
               disabled={exporting || !story.activeId || story.messages.length === 0}
+              menu={{
+                items: [
+                  { key: 'md', icon: <FileTextOutlined />, label: '图文 Markdown（另存为）' },
+                  { key: 'epub', icon: <BookOutlined />, label: 'EPUB 电子书（插图内嵌）' },
+                ],
+                onClick: ({ key }) => {
+                  if (key === 'md') void onExport()
+                  else void onExportEpub()
+                },
+              }}
             >
-              <ExportOutlined />
-            </ToolbarButton>
+              <ToolbarButton title="导出故事" onClick={() => {}}>
+                <ExportOutlined />
+              </ToolbarButton>
+            </Dropdown>
             <ToolbarButton
               title="清空本故事消息"
               onClick={() => void story.clearStory(story.activeId)}

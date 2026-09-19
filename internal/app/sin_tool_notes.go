@@ -100,6 +100,18 @@ func loadSinNotes(path string) sinNotesDoc {
 	return doc
 }
 
+// sinDraftForPrompt 流式回合用的底稿快照（fail-open：id 非法/读失败 = 空文档，
+// 底稿是辅助数据，不阻断故事创作）。锁内读取——同一时刻模型工具可能正在写。
+func (a *App) sinDraftForPrompt(topicID string) sinNotesDoc {
+	path, err := sinNotesPath(topicID)
+	if err != nil {
+		return sinNotesDoc{Version: sinNotesVersion, Notes: []string{}}
+	}
+	sinNotesMu.Lock()
+	defer sinNotesMu.Unlock()
+	return loadSinNotes(path)
+}
+
 // saveSinNotes 原子写回便签文档（临时文件 + rename；失败向上抛）。
 func saveSinNotes(path string, doc sinNotesDoc) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
@@ -133,7 +145,8 @@ func (sinNotesTool) Name() string { return sinToolNotes }
 
 func (sinNotesTool) Description() string {
 	return "故事便签（设定集）：把用户定下、后面必须保持一致的东西记下来——人名与称呼、外貌与关系、时间线、" +
-		"伏笔与已用过的桥段。写到长篇时先用 read 回看既定设定，避免自相矛盾；用户新定一条设定就用 write 追加。" +
+		"伏笔与已用过的桥段。非空时便签全文已随每轮前情附在上下文里，通常无需 read 即可核对，" +
+		"只有要确认某条全文时才 read；用户新定一条设定就用 write 追加。" +
 		"便签是你的工作底稿，不是正文，不要把它写进故事。"
 }
 
@@ -279,9 +292,9 @@ type sinOutlineTool struct{ topicID string }
 func (sinOutlineTool) Name() string { return sinToolOutline }
 
 func (sinOutlineTool) Description() string {
-	return "故事大纲：分章推进顺序、时间线、伏笔的埋与收。用户要「按大纲写」「别跑偏」时先 read 它；" +
-		"用户定下整体走向、或故事推进到一个阶段结束时，把更新后的大纲整体 write 回去（write 会替换旧大纲）。" +
-		"大纲是工作底稿，不是正文。"
+	return "故事大纲：分章推进顺序、时间线、伏笔的埋与收。大纲非空时已随每轮前情附在上下文里，" +
+		"「按大纲写」「别跑偏」直接按它执行；用户定下整体走向、或故事推进到一个阶段结束时，" +
+		"把更新后的大纲整体 write 回去（write 会替换旧大纲）。大纲是工作底稿，不是正文。"
 }
 
 func (sinOutlineTool) Schema() json.RawMessage {

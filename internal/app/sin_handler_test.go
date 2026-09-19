@@ -195,7 +195,7 @@ func TestBuildSinUserPromptStripsCuesAndCapsHistory(t *testing.T) {
 		Role:    "assistant",
 		Content: "他推开门。\n" + sinIllustrationCueOpen + "门缝里的光" + sinIllustrationCueClose,
 	})
-	prompt := buildSinUserPrompt(history, "继续写", nil)
+	prompt := buildSinUserPrompt(history, "继续写", nil, sinNotesDoc{})
 	if strings.Contains(prompt, sinIllustrationCueOpen) {
 		t.Errorf("前情不应携带插图标记: %s", prompt)
 	}

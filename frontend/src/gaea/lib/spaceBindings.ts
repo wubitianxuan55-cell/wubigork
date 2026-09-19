@@ -132,6 +132,7 @@ export const GAEA_METHOD_FACETS = {
   SinStream: "play",
   SinIllustrate: "play",
   SinExportMarkdown: "play",
+  SinExportEpub: "play",
   SinCastGet: "play",
   SinCastSet: "play",
   SinNotesGet: "play",
