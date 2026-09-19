@@ -16,6 +16,11 @@ export interface UseImageGenHistoryOptions {
   setSize: (v: string) => void
 }
 
+/** 挂载时回填 dataURL 的最大条数（v4.351 有界化）：每条 dataURL 数 MB 级，
+ *  全量回填=内存随历史无界增长；窗口外条目缩略图显示占位，选中/下载/复用时
+ *  resolveResultImage 按需读文件。 */
+export const RESTORE_LIMIT = 48
+
 export function useImageGenHistory({ setPrompt, setNegative, setSeed, setSize }: UseImageGenHistoryOptions) {
   const [history, setHistory] = useState<GenResult[]>(() => loadHistoryMeta())
   const [lightboxIndex, setLightboxIndex] = useState(-1)
@@ -31,7 +36,7 @@ export function useImageGenHistory({ setPrompt, setNegative, setSeed, setSize }:
     let cancelled = false
     void (async () => {
       try {
-        const restored = await restoreHistoryImages(history, readFileAsDataURL)
+        const restored = await restoreHistoryImages(history.slice(0, RESTORE_LIMIT), readFileAsDataURL)
         if (cancelled || restored.length === 0) return
         setHistory((prev) => {
           const byPath = new Map(restored.map((it) => [it.file_path, it]))
@@ -58,14 +63,21 @@ export function useImageGenHistory({ setPrompt, setNegative, setSeed, setSize }:
     const name = downloadFileName(r)
     // 审计刀B a：壳内 <a download> 不落盘（v4.162）→ dataURL→Blob 走系统另存为；
     // 浏览器保留原 <a download> 语义。
-    if (inShellEnv()) {
-      await saveExportBlob(dataUrlToBlob(href), name)
-      return
+    // v4.351：失败可见化（另存为写盘抛错原落 unhandled rejection，点了没反应；
+    // 用户取消保存返回 false，不算错不提示）。
+    try {
+      if (inShellEnv()) {
+        const saved = await saveExportBlob(dataUrlToBlob(href), name)
+        if (saved) message.success(`已保存：${name}`)
+        return
+      }
+      const a = document.createElement('a')
+      a.href = href
+      a.download = name
+      a.click()
+    } catch (err) {
+      message.error(`保存失败：${err instanceof Error ? err.message : String(err)}`)
     }
-    const a = document.createElement('a')
-    a.href = href
-    a.download = name
-    a.click()
   }, [history])
 
   const handleReuse = useCallback((i: number) => {

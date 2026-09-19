@@ -155,14 +155,20 @@ const ImageGenPage: React.FC = () => {
     const name = downloadFileName(r)
     // 审计刀B a：壳内 <a download> 不落盘（v4.162）→ dataURL→Blob 走系统另存为；
     // 浏览器保留原 <a download> 语义（与 useImageGenHistory.handleDownload 同款收口）。
-    if (inShellEnv()) {
-      await saveExportBlob(dataUrlToBlob(href), name)
-      return
+    // v4.351：失败可见化（同 useImageGenHistory.handleDownload；取消不提示）
+    try {
+      if (inShellEnv()) {
+        const saved = await saveExportBlob(dataUrlToBlob(href), name)
+        if (saved) message.success(`已保存：${name}`)
+        return
+      }
+      const a = document.createElement('a')
+      a.href = href
+      a.download = name
+      a.click()
+    } catch (err) {
+      message.error(`保存失败：${err instanceof Error ? err.message : String(err)}`)
     }
-    const a = document.createElement('a')
-    a.href = href
-    a.download = name
-    a.click()
   }, [results])
 
   const handleReuseResult = useCallback((i: number) => {

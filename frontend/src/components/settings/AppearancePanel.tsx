@@ -89,7 +89,7 @@ function AppearancePreview({ t, previewing }: { t: ThemeOption; previewing: bool
         {/* 玻璃卡片模拟 */}
         <div style={{
           borderRadius: 12, padding: '12px 14px',
-          background: darkMode ? 'rgba(255,255,255,0.07)' : 'rgba(255,255,255,0.72)',
+          background: darkMode ? 'color-mix(in srgb, var(--color-text) 7%, transparent)' : 'rgba(255,255,255,0.72)',
           border: darkMode ? '1px solid rgba(255,255,255,0.14)' : '1px solid rgba(0,0,0,0.10)', // hex-exempt 主题预览固定明暗样张（边框随档位）
           backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)',
         }}>

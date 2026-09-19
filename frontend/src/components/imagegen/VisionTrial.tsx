@@ -245,7 +245,7 @@ export const VisionTrial: React.FC<{ onClose: () => void }> = ({ onClose }) => {
         <button type="button" onClick={() => void pickImage()}
           style={{
             border: '1px dashed var(--border-subtle)', borderRadius: 12, padding: '18px 12px',
-            background: 'rgba(255,255,255,0.03)', cursor: 'pointer', width: '100%',
+            background: 'color-mix(in srgb, var(--color-text) 3%, transparent)', cursor: 'pointer', width: '100%',
             display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, flexShrink: 0,
           }}>
           {saving ? <Spin size="small" /> : <FileImageOutlined style={{ fontSize: 22, color: C('color-text-secondary'), opacity: 0.7 }} />}
@@ -299,7 +299,7 @@ export const VisionTrial: React.FC<{ onClose: () => void }> = ({ onClose }) => {
         {/* 结果区：原语标注 + 模型名（若返回里有）+ 文本/错误原文 */}
         <div style={{
           border: '1px solid var(--border-subtle)', borderRadius: 10,
-          background: 'rgba(255,255,255,0.03)', padding: '10px 12px', flexShrink: 0, minWidth: 0,
+          background: 'color-mix(in srgb, var(--color-text) 3%, transparent)', padding: '10px 12px', flexShrink: 0, minWidth: 0,
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
             {result && (
@@ -365,13 +365,13 @@ export const VisionTrial: React.FC<{ onClose: () => void }> = ({ onClose }) => {
                   style={{
                     width: 96, padding: 4, cursor: 'pointer', textAlign: 'left',
                     border: '1px solid', borderColor: path === h.path ? 'var(--color-primary)' : 'var(--border-subtle)',
-                    borderRadius: 10, background: 'rgba(255,255,255,0.03)',
+                    borderRadius: 10, background: 'color-mix(in srgb, var(--color-text) 3%, transparent)',
                   }}>
                   {histThumbs[h.path] ? (
                     <img src={histThumbs[h.path]} alt={h.path}
                       style={{ width: '100%', aspectRatio: '1 / 1', objectFit: 'cover', borderRadius: 7, display: 'block' }} />
                   ) : (
-                    <div style={{ width: '100%', aspectRatio: '1 / 1', borderRadius: 7, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.04)' }}>
+                    <div style={{ width: '100%', aspectRatio: '1 / 1', borderRadius: 7, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'color-mix(in srgb, var(--color-text) 4%, transparent)' }}>
                       <FileImageOutlined style={{ fontSize: 16, color: C('color-text-secondary'), opacity: 0.6 }} />
                     </div>
                   )}

@@ -73,7 +73,8 @@ export const mdStyles = `
   font-family: 'JetBrains Mono', 'Fira Code', monospace;
 }
 .md-content pre {
-  background: rgba(0,0,0,0.3);
+  /* v4.351 令牌化：写死 rgba(0,0,0,0.3) 在亮主题成中灰脏块；surface-container 亮暗自动正确 */
+  background: var(--md-sys-color-surface-container, rgba(0,0,0,0.3));
   border-radius: 8px;
   padding: 12px 16px;
   margin: 10px 0;

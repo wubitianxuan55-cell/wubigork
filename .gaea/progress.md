@@ -1,3 +1,15 @@
+## 最新发布：v4.351.0（2026-09-19）「前端优化第三轮：启动反闪根修 / 绘梦历史有界化 / 亮主题叠加层失效群 / color-scheme / 反馈确认补遗」
+
+- **动机**：用户口径「继续」——v4.350 下刀池延续，六线并收；纯前端 29 源码 + 4 测试（1 新 3 扩），零 Go 改动、零绑定变更（706 不动）。
+- **线1 启动反闪根修**：亮色用户每次启动先看 ~2s 深空屏（index.html 静态启动屏硬编码深底，主题变量 App useEffect 首帧后才注入）→ head 内联脚本（bundle 前）预读 gaea-display-mode，判定顺序**逐字对齐 appStore.loadMode**（light→亮 / system→matchMedia / 旧布尔键 gaea-dark・wubigork-dark '0'→亮 / 缺失→dark 缺省），亮则 html[data-bs-light]；静态屏与 body 浅色分支 + boot-splash.css 首帧兜底——App 注入真令牌后 var() 接管，两段同色无跳变。
+- **线2 绘梦历史有界化**（无界三处收口，素材库 120+12/页先例对齐补漏）：持久化 HISTORY_META_MAX=500 读/写同截（原 path-only 条目可积数千条）；渲染窗口 60+「加载更多(N)」增量展开（原数百 img/video DOM 一次性构建）；回填 restoreHistoryImages 加 limit 参数按 needsFileRestore 过滤取前 48（内联小图不占名额；原全量 dataURL 常驻=数百次生成数百 MB），窗口外缩略图落既有占位、选中/下载/复用 resolveResultImage 按需读文件——记录仍在，零功能删除。
+- **线3 亮主题中性叠加层失效群 30 处**：rgba(255,255,255,0.02~0.08)（暗底白提亮惯用法）在浅底白叠白不可见（hover 消失/卡片只剩边框/进度轨道消失/shimmer 不动）→统一 color-mix(var(--color-text) N%, transparent) 明暗自动正确；辨伪保留 ChatCodeBlock 2 处（hex-exempt 暗色代码面板 chrome 刻意不随主题）；MarkdownContent pre 底 rgba(0,0,0,0.3)→surface-container 令牌（亮主题中灰脏块）。
+- **线4 color-scheme 声明**：App.tsx 注入 root.style.colorScheme（原全仓无声明，暗主题原生滚动条轨道角/表单控件残留亮色渲染）。
+- **线5 反馈确认补遗**（上轮 B 系列遗留 4 处）：角色记忆弹窗三路读取全吞错→失败 Alert（原打开即空白与「无记忆」不可分）；青鸟助手两路全失败原伪装「暂无助手」假空态→载入失败条 role=status（单路失败仍兜底不误报，轮询自动重试）；图片下载两处失败 message.error+成功提示（另存为抛错原落 unhandled rejection，取消不算错）；自定义生图模板删除补 Popconfirm。
+- **测试**：HistoryRail.test.tsx 新建 3 例（超窗渲染 60/点击增量展开到底按钮消失/不足窗口全量不回归）+historyMeta +1（limit 按需恢复项计数）+meta +2（读截/写截）+WeixinPage +1（双失败提示+单路兜底不误报）。
+- **坑**：①静态期主题预读判定序必须逐字对齐 store.loadMode，多一个 matchMedia 兜底就分叉首帧跳变②limit 语义按需恢复项计数非位置（slice 让内联小图占名额）③heredoc 写测试三层转义（python→文件→JS），\ 才是源码单反斜杠，写完看原始字节（eslint no-useless-escape 逮住）④rgba(255,255,255,x) 不全是债，先排除 hex-exempt 名单再批量替换⑤GenResult 无 id 字段——tsc 增量缓存漏检测试文件改动，强制 tsc -b --force 复核。
+- **门禁**：tsc 0（强制全量复核）+eslint 0/0+全量 ci.ps1 绿+bindings drift OK@706+版本三处 4.351.0；产物见 releases/v4.351.0.md。**文档**=releases/v4.351.0.md+CHANGELOG/README+AGENTS 迁 1 插 1（六十六迁：v4.348 入 archive）+progress/todos。**未做（下刀池）**=ForeshadowPanel 行 memo/ModelCenter ctx 拆分/其余可点 div 键盘化（v4.349 池）/ResizableDrawer 焦点管理/reducer 级整店订阅 13 处/selbar z-1080 阶梯治理。
+
 ## 最新发布：v4.350.0（2026-09-19）「前端优化第二轮：事件总线连环炸根修 / P0 幽灵令牌 / 破坏操作确认 / 静默失败 / 流式渲染热点 / 主题破绽」
 
 - **动机**：用户口径「优化 gaea 前端」（v4.349 五线后第二轮）。同范式：四路并行**只读审计**（事件与定时器泄漏 / 交互反馈三态 / 渲染热点 / 视觉一致性，各带 file:line 与量级推理）再按证据定刀；纯前端 32 源码 + 6 测试（3 新 3 适配），零 Go 逻辑改动、零绑定变更（706 不动）。

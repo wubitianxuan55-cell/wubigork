@@ -1,9 +1,13 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { Button, Popconfirm, Typography } from 'antd'
 import { DeleteOutlined, HistoryOutlined, MenuFoldOutlined, MenuUnfoldOutlined, PictureOutlined, VideoCameraOutlined } from '@ant-design/icons'
 import { C } from '../../utils/theme'
 import { mediaIsVideo } from './media'
 import type { GenResult } from './types'
+
+/** 首屏渲染窗口与「加载更多」步长（v4.351）：历史可达数百条（数百 img/video
+ *  DOM 一次性构建卡顿），窗口外条目不渲染，按钮增量展开。 */
+const PAGE_SIZE = 60
 
 interface Props {
   history: GenResult[]
@@ -15,7 +19,10 @@ interface Props {
   onToggleCollapse?: () => void
 }
 
-export const HistoryRail: React.FC<Props> = ({ history, selectedIndex, onSelect, onClear, onRegenerateMeta, collapsed = false, onToggleCollapse }) => (
+export const HistoryRail: React.FC<Props> = ({ history, selectedIndex, onSelect, onClear, onRegenerateMeta, collapsed = false, onToggleCollapse }) => {
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
+  const visible = history.slice(0, visibleCount)
+  return (
   <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, flexShrink: 0 }}>
       {!collapsed && (
@@ -62,8 +69,8 @@ export const HistoryRail: React.FC<Props> = ({ history, selectedIndex, onSelect,
         生成的图片与视频会出现在这里
       </Typography.Text>
     ) : (
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 6, overflowY: 'auto', flex: 1 }}>
-        {history.map((h, i) => {
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 6, overflowY: 'auto', flex: 1, alignContent: 'start' }}>
+        {visible.map((h, i) => {
           const selected = i === selectedIndex
           return (
             <div
@@ -109,7 +116,19 @@ export const HistoryRail: React.FC<Props> = ({ history, selectedIndex, onSelect,
             </div>
           )
         })}
+        {visibleCount < history.length && (
+          <Button
+            type="text"
+            size="small"
+            block
+            onClick={() => setVisibleCount((n) => n + PAGE_SIZE)}
+            style={{ fontSize: 10, color: C('color-text-secondary') }}
+          >
+            加载更多（{history.length - visibleCount}）
+          </Button>
+        )}
       </div>
     )}
   </div>
-)
+  )
+}

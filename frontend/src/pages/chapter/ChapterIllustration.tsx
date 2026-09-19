@@ -184,7 +184,7 @@ export function ChapterIllustration({ chapterNum, onClose }: ChapterIllustration
                   style={{
                     padding: 2, border: '1px solid',
                     borderColor: i === activeArt ? 'var(--color-primary)' : 'var(--border-subtle)',
-                    borderRadius: 8, background: 'rgba(255,255,255,0.03)', cursor: 'pointer',
+                    borderRadius: 8, background: 'color-mix(in srgb, var(--color-text) 3%, transparent)', cursor: 'pointer',
                   }}
                 >
                   <img

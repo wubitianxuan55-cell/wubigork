@@ -16,6 +16,16 @@
   opacity: 1;
   transition: opacity 380ms ease;
 }
+
+/* 亮色主题首帧兜底（v4.351）：index.html 内联脚本已预读主题挂 data-bs-light，
+   App 注入真令牌前的首帧按浅色呈现（变量注入后 var() 自然接管，两段同色无跳变）。 */
+html[data-bs-light] .bs-splash {
+  background: #eef2f4;
+  color: #1f2937;
+}
+html[data-bs-light] .bs-word { color: #0f172a; }
+html[data-bs-light] .bs-status,
+html[data-bs-light] .bs-tag { color: #475569; }
 .bs-splash.is-leaving {
   opacity: 0;
   pointer-events: none;

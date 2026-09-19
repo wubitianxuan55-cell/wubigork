@@ -101,7 +101,7 @@ export const PickerGroup = <T extends string | number,>(props: {
             padding: '7px 10px', borderRadius: 10, cursor: 'pointer',
             border: '1px solid',
             borderColor: selected ? 'var(--color-primary)' : 'var(--border-subtle)',
-            background: selected ? 'rgba(var(--accent-rgb), 0.14)' : 'rgba(255,255,255,0.03)',
+            background: selected ? 'rgba(var(--accent-rgb), 0.14)' : 'color-mix(in srgb, var(--color-text) 3%, transparent)',
             color: selected ? 'var(--color-primary)' : C('color-text-secondary'),
             fontSize: 12, fontWeight: selected ? 600 : 400,
             whiteSpace: 'nowrap', userSelect: 'none', fontFamily: 'inherit',

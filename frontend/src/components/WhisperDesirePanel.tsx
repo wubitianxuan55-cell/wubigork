@@ -49,7 +49,7 @@ function DesireBar({ desire, onDismiss }: { desire: Desire; onDismiss?: (id: str
         {desire.topic}
       </span>
       <div style={{
-        width: 48, height: 6, background: 'rgba(255,255,255,0.06)',
+        width: 48, height: 6, background: 'color-mix(in srgb, var(--color-text) 6%, transparent)',
         borderRadius: 3, overflow: 'hidden', flexShrink: 0,
       }}>
         <div style={{

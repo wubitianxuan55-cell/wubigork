@@ -179,7 +179,7 @@ export const AssetStudio: React.FC<{
                     padding: 6, textAlign: 'left', cursor: 'pointer',
                     border: '1px solid',
                     borderColor: selectedChar?.id === c.id ? 'var(--color-primary)' : 'var(--border-subtle)',
-                    borderRadius: 10, background: 'rgba(255,255,255,0.03)',
+                    borderRadius: 10, background: 'color-mix(in srgb, var(--color-text) 3%, transparent)',
                   }}>
                   {c.portraitUrl ? (
                     <img src={c.portraitUrl} alt={c.name || ''}
@@ -188,7 +188,7 @@ export const AssetStudio: React.FC<{
                     <div style={{
                       width: '100%', aspectRatio: '1 / 1', borderRadius: 7, display: 'flex',
                       flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4,
-                      background: 'rgba(255,255,255,0.04)',
+                      background: 'color-mix(in srgb, var(--color-text) 4%, transparent)',
                     }}>
                       <UserOutlined style={{ fontSize: 18, color: C('color-text-secondary'), opacity: 0.6 }} />
                       <span style={{ fontSize: 10, color: C('color-text-secondary') }}>
@@ -221,7 +221,7 @@ export const AssetStudio: React.FC<{
           {selectedChar && (
             <div style={{
               marginTop: 10, padding: '10px 12px', borderRadius: 10,
-              border: '1px solid var(--border-subtle)', background: 'rgba(255,255,255,0.03)',
+              border: '1px solid var(--border-subtle)', background: 'color-mix(in srgb, var(--color-text) 3%, transparent)',
               display: 'flex', gap: 12,
             }}>
               {selectedChar.portraitUrl ? (
@@ -231,7 +231,7 @@ export const AssetStudio: React.FC<{
                 <div style={{
                   width: 96, height: 96, borderRadius: 8, flexShrink: 0, display: 'flex',
                   flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4,
-                  background: 'rgba(255,255,255,0.04)',
+                  background: 'color-mix(in srgb, var(--color-text) 4%, transparent)',
                 }}>
                   <UserOutlined style={{ fontSize: 20, color: C('color-text-secondary'), opacity: 0.6 }} />
                   <span style={{ fontSize: 10, color: C('color-text-secondary') }}>{t('imagehubT1.studioCharNoPortrait')}</span>
@@ -302,7 +302,7 @@ export const AssetStudio: React.FC<{
                     style={{
                       padding: '8px 10px', textAlign: 'left', cursor: 'pointer',
                       border: '1px solid var(--border-subtle)', borderRadius: 10,
-                      background: 'rgba(255,255,255,0.03)', display: 'flex', flexDirection: 'column', gap: 4,
+                      background: 'color-mix(in srgb, var(--color-text) 3%, transparent)', display: 'flex', flexDirection: 'column', gap: 4,
                     }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                       {tp.icon && <span style={{ fontSize: 12 }}>{tp.icon}</span>}
@@ -365,7 +365,7 @@ export const AssetStudio: React.FC<{
                 <button key={w.path} type="button" onClick={onOpenLibrary} title={w.path || ''}
                   style={{
                     padding: 4, textAlign: 'left', cursor: 'pointer',
-                    border: '1px solid var(--border-subtle)', borderRadius: 10, background: 'rgba(255,255,255,0.03)',
+                    border: '1px solid var(--border-subtle)', borderRadius: 10, background: 'color-mix(in srgb, var(--color-text) 3%, transparent)',
                   }}>
                   {w.url ? (
                     <img src={w.url} alt={w.path || ''}
@@ -373,7 +373,7 @@ export const AssetStudio: React.FC<{
                   ) : (
                     <div style={{
                       width: '100%', aspectRatio: '1 / 1', borderRadius: 7, display: 'flex',
-                      alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.04)',
+                      alignItems: 'center', justifyContent: 'center', background: 'color-mix(in srgb, var(--color-text) 4%, transparent)',
                     }}>
                       <FileImageOutlined style={{ fontSize: 16, color: C('color-text-secondary'), opacity: 0.6 }} />
                     </div>

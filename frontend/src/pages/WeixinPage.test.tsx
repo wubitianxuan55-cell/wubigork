@@ -105,6 +105,19 @@ beforeEach(() => {
 })
 
 describe('青鸟工作台 · 通道轨道与详情', () => {
+  it('⓪ 两路数据全失败：显示载入失败提示而非「暂无助手」假空态（v4.351）', async () => {
+    mocks.WhisperWeixinStatus.mockRejectedValue(new Error('backend down'))
+    mocks.WhisperAssistantList.mockRejectedValue(new Error('backend down'))
+    const { container } = await renderPage()
+    expect(await screen.findByText('助手列表载入失败，稍后自动重试', undefined, LOAD)).toBeTruthy()
+    expect(screen.queryByText('暂无青鸟助手')).toBeNull()
+    // 单路失败仍走兜底视图（另一路照常），不误报
+    mocks.WhisperWeixinStatus.mockResolvedValue(STATUS_ROWS)
+    mocks.WhisperAssistantList.mockRejectedValue(new Error('still down'))
+    await waitFor(() => expect(container.querySelector('.wx-rail-ch')).toBeTruthy(), LOAD)
+    expect(screen.queryByText('助手列表载入失败，稍后自动重试')).toBeNull()
+  })
+
   it('① 轨道渲染多助手：名字/状态字/状态点/头像（有图用图、无图回退首字），详情显示人格 Tag', async () => {
     const { container } = await renderPage()
     // 通道轨道 3 条助手项（新增/提醒/指南按钮除外）

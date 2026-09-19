@@ -76,7 +76,7 @@ const PersonaPicker: React.FC<Props> = ({ children, activeId, onSelect, onManage
                 background: active ? 'rgba(244,114,182,0.12)' : 'transparent',
                 border: active ? '1px solid rgba(244,114,182,0.35)' : '1px solid transparent',
               }}
-              onMouseEnter={e => { if (!active) e.currentTarget.style.background = 'rgba(255,255,255,0.05)' }}
+              onMouseEnter={e => { if (!active) e.currentTarget.style.background = 'color-mix(in srgb, var(--color-text) 5%, transparent)' }}
               onMouseLeave={e => { if (!active) e.currentTarget.style.background = 'transparent' }}
             >
               {c.portraitUrl

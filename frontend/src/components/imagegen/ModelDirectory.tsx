@@ -242,7 +242,7 @@ export const ModelDirectory: React.FC<{
                       style={{
                         border: '1px solid',
                         borderColor: current ? 'var(--color-primary)' : 'var(--border-subtle)',
-                        borderRadius: 10, background: 'rgba(255,255,255,0.03)', overflow: 'hidden', minWidth: 0,
+                        borderRadius: 10, background: 'color-mix(in srgb, var(--color-text) 3%, transparent)', overflow: 'hidden', minWidth: 0,
                       }}>
                       {/* 卡头（点击展开详情；当前使用的卡描边高亮） */}
                       <button type="button" aria-expanded={open}
@@ -311,7 +311,7 @@ export const ModelDirectory: React.FC<{
                               value={families.map((fm) => t(GROUP_KEY[fm])).join(' / ')} />
                           )}
                           {m.hint && (
-                            <div style={{ background: 'rgba(255,255,255,0.04)', borderRadius: 8, padding: '6px 8px' }}>
+                            <div style={{ background: 'color-mix(in srgb, var(--color-text) 4%, transparent)', borderRadius: 8, padding: '6px 8px' }}>
                               <Typography.Text type="secondary" style={{ fontSize: 10 }}>
                                 {t('imagehubT1.modelDirHintTitle')}
                               </Typography.Text>

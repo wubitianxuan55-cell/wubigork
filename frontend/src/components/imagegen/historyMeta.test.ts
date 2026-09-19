@@ -69,6 +69,19 @@ describe('restoreHistoryImages（历史恢复路径：file_path → 后端读取
     expect(out[0].file_path).toBe('C:\\img\\a.png')
   })
 
+  it('limit>0 只回填前 limit 条需恢复项（v4.351 有界化：dataURL 内存不随历史无界）', async () => {
+    const readFile = vi.fn(async (p: string) => `data:image/png;base64,${p}`)
+    const items = [
+      base({ image: '', file_path: 'C:\\img\\a.png' }),
+      base({ image: 'data:image/png;base64,INLINE' }),
+      base({ image: '', file_path: 'C:\\img\\b.png' }),
+      base({ image: '', file_path: 'C:\\img\\c.png' }),
+    ]
+    const out = await restoreHistoryImages(items, readFile, 2)
+    expect(readFile).toHaveBeenCalledTimes(2)
+    expect(out.map((x) => x.file_path)).toEqual(['C:\\img\\a.png', 'C:\\img\\b.png'])
+  })
+
   it('records read failure and leaves item unbackfilled (no silent swallow)', async () => {
     const readFile = vi.fn(async () => { throw new Error('file missing') })
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})

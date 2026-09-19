@@ -70,13 +70,18 @@ export function templateSizeToPreset(
   return PRESETS[ratio] || null
 }
 
+// 历史元数据持久化上限（v4.351）：此前无上限——path-only 条目每条几百字节，
+// localStorage 配额内可积到数千条，渲染与回填随之无界。截最旧的（新记录 prepend 在前）。
+export const HISTORY_META_MAX = 500
+export { HISTORY_META_KEY } from './historyMeta'
+
 export function loadHistoryMeta(): GenResult[] {
   try {
     const raw = localStorage.getItem(HISTORY_META_KEY)
     if (!raw) return []
     const items = JSON.parse(raw) as GenResult[]
     // 保留已内联的小图与 file_path；无图无路径的旧记录降级为占位
-    return items.map((it) => ({ ...it, image: it.image || '' }))
+    return items.slice(0, HISTORY_META_MAX).map((it) => ({ ...it, image: it.image || '' }))
   } catch {
     return []
   }
@@ -85,7 +90,7 @@ export function loadHistoryMeta(): GenResult[] {
 // 历史元数据保存：小 base64 内联、大图只存 file_path（localStorage 容量保护分级策略）
 export function saveHistoryMeta(history: GenResult[]) {
   try {
-    localStorage.setItem(HISTORY_META_KEY, JSON.stringify(serializeHistoryMeta(history)))
+    localStorage.setItem(HISTORY_META_KEY, JSON.stringify(serializeHistoryMeta(history.slice(0, HISTORY_META_MAX))))
   } catch (err) {
     console.warn('[imagegen] 历史元数据保存失败', err)
   }

@@ -203,17 +203,29 @@ const WeixinPage: React.FC = () => {
   const [newText, setNewText] = useState('')
   const [newTime, setNewTime] = useState<Dayjs | null>(null)
   const [adding, setAdding] = useState(false)
+  const [assistantsLoadFailed, setAssistantsLoadFailed] = useState(false)
 
   const loadAssistants = useCallback(async () => {
-    try {
-      // 两路并行：状态用 Status 行、字段用 List 行；单路失败兜底空数组，
-      // 另一路照常渲染（Status 独有行仍有兜底视图）。
-      const [statuses, list] = await Promise.all([
-        app.WhisperWeixinStatus().catch(() => [] as WeixinAssistantStatusRow[]),
-        app.WhisperAssistantList().catch(() => [] as WeixinAssistantView[]),
-      ])
-      setRows(mergeAssistantRows(list, statuses))
-    } catch { /* 后端未就绪时静默 */ }
+    // 两路并行：状态用 Status 行、字段用 List 行；单路失败兜底空数组，
+    // 另一路照常渲染（Status 独有行仍有兜底视图）。两路全失败=读不到数据
+    // 而非「没有助手」——置 loadFailed 显示错误条（v4.351：此前伪装成空态，
+    // 用户误以为助手被删）。
+    const [statuses, list] = await Promise.all([
+      app.WhisperWeixinStatus().then(
+        (v) => v,
+        () => null as WeixinAssistantStatusRow[] | null,
+      ),
+      app.WhisperAssistantList().then(
+        (v) => v,
+        () => null as WeixinAssistantView[] | null,
+      ),
+    ])
+    if (statuses === null && list === null) {
+      setAssistantsLoadFailed(true)
+      return
+    }
+    setAssistantsLoadFailed(false)
+    setRows(mergeAssistantRows(list ?? [], statuses ?? []))
   }, [])
 
   const loadReminders = useCallback(async () => {
@@ -519,8 +531,11 @@ const WeixinPage: React.FC = () => {
                 </button>
               )
             })}
-            {rows.length === 0 && (
+            {rows.length === 0 && !assistantsLoadFailed && (
               <div className="wx-rail-empty">暂无青鸟助手——点上方 + 新增</div>
+            )}
+            {assistantsLoadFailed && (
+              <div className="wx-rail-empty" role="status">助手列表载入失败，稍后自动重试</div>
             )}
             <button type="button" className="wx-rail-item wx-rail-add" onClick={() => setAddOpen(true)}>
               <PlusOutlined aria-hidden="true" />

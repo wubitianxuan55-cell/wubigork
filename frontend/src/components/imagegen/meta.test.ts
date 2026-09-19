@@ -2,7 +2,29 @@ import { describe, expect, it } from 'vitest'
 import {
   BACKEND_OPTIONS, backendLabel, isLocalBackend,
   templateSizeToPreset,
+  loadHistoryMeta, saveHistoryMeta, HISTORY_META_MAX, HISTORY_META_KEY,
 } from './meta'
+import type { GenResult } from './types'
+
+const metaItem = (i: number): GenResult => ({
+  image: '', seed: i, time: i, prompt: `p${i}`, model: 'xai', size: '1024x1024',
+})
+
+describe('历史元数据有界化（v4.351）', () => {
+  it('loadHistoryMeta 超过 HISTORY_META_MAX 只加载最新一段', () => {
+    localStorage.setItem(HISTORY_META_KEY, JSON.stringify(Array.from({ length: HISTORY_META_MAX + 30 }, (_, i) => metaItem(i))))
+    expect(loadHistoryMeta()).toHaveLength(HISTORY_META_MAX)
+    // 新记录 prepend 在前：保留的是最旧的被截掉
+    expect(loadHistoryMeta()[0].prompt).toBe('p0')
+  })
+
+  it('saveHistoryMeta 写入截 HISTORY_META_MAX（持久化不再无界）', () => {
+    saveHistoryMeta(Array.from({ length: HISTORY_META_MAX + 30 }, (_, i) => metaItem(i)))
+    const raw = JSON.parse(localStorage.getItem(HISTORY_META_KEY) || '[]') as GenResult[]
+    expect(raw).toHaveLength(HISTORY_META_MAX)
+    expect(raw[0].prompt).toBe('p0')
+  })
+})
 
 describe('引擎枚举（单源化）', () => {
   it('枚举覆盖 5 个后端，GLM 标 txt2imgOnly（百炼已下线）', () => {

@@ -31,7 +31,7 @@ const RelationshipModal: React.FC<RelationshipModalProps> = ({
       <div>
         <Typography.Text style={{ color: C('color-text-secondary'), fontSize: 11, display: 'block', marginBottom: 4 }}>目标角色/组织</Typography.Text>
         <Select showSearch value={relTargetId} onChange={onRelTargetChange}
-          style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)' }}
+          style={{ width: '100%', background: 'color-mix(in srgb, var(--color-text) 5%, transparent)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)' }}
           placeholder="搜索并选择..."
           filterOption={(input, option) => (option?.label as string || '').includes(input)}
           options={[
@@ -45,7 +45,7 @@ const RelationshipModal: React.FC<RelationshipModalProps> = ({
       <div>
         <Typography.Text style={{ color: C('color-text-secondary'), fontSize: 11, display: 'block', marginBottom: 4 }}>关系类型</Typography.Text>
         <Select value={relType} onChange={onRelTypeChange}
-          style={{ width: '100%', background: 'rgba(255,255,255,0.05)', borderColor: 'var(--border-subtle)', borderRadius: 'var(--radius-md)' }}
+          style={{ width: '100%', background: 'color-mix(in srgb, var(--color-text) 5%, transparent)', borderColor: 'var(--border-subtle)', borderRadius: 'var(--radius-md)' }}
           options={[
             { value: 'friend', label: '朋友' }, { value: 'enemy', label: '敌人' },
             { value: 'family', label: '家人' }, { value: 'mentor', label: '导师' },

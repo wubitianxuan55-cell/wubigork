@@ -1,7 +1,7 @@
 // CharacterMemoryModal.tsx — 角色库：查看角色的状态 / 记忆 / 追踪
 // 聊天面板不再展示角色状态，统一归集到这里（只读查看 + 记忆管理）。
 import React, { useCallback, useEffect, useState } from 'react'
-import { Modal, Tabs, Tag, Button } from 'antd'
+import { Alert, Modal, Tabs, Tag, Button } from 'antd'
 import { HeartOutlined, InboxOutlined, RadarChartOutlined } from '@ant-design/icons'
 import { app } from '../../gaea/lib/bridge'
 import type { characterlib, whisper } from '../../../wailsjs/go/models'
@@ -24,22 +24,27 @@ const CharacterMemoryModal: React.FC<Props> = ({ open, character, onClose }) => 
   const [facts, setFacts] = useState<MemoryFact[]>([])
   const [traces, setTraces] = useState<whisper.TurnTrace[]>([])
   const [manageOpen, setManageOpen] = useState(false)
+  // v4.351：载入失败可见化——此前三路读取全部吞错，弹窗打开即全空白，
+  // 与「该角色还没有任何记忆数据」不可区分。
+  const [loadFailed, setLoadFailed] = useState(false)
 
   const load = useCallback(async () => {
     if (!character) return
-    setState({}); setFacts([]); setTraces([])
+    setState({}); setFacts([]); setTraces([]); setLoadFailed(false)
+    let failed = 0
     try {
       const s = await app.WhisperGetState(character.id)
       setState((s as Record<string, unknown>) || {})
-    } catch (_) {}
+    } catch (_) { failed++ }
     try {
       const f = await app.WhisperGetFacts(character.id)
       setFacts((Array.isArray(f) ? f : []) as unknown as MemoryFact[])
-    } catch (_) {}
+    } catch (_) { failed++ }
     try {
       const t = await app.WhisperGetTraces(character.id)
       setTraces((Array.isArray(t) ? t : []) as unknown as whisper.TurnTrace[])
-    } catch (_) {}
+    } catch (_) { failed++ }
+    setLoadFailed(failed > 0)
   }, [character])
 
   useEffect(() => {
@@ -66,6 +71,15 @@ const CharacterMemoryModal: React.FC<Props> = ({ open, character, onClose }) => 
         }
         styles={{ body: { maxHeight: '68vh', overflowY: 'auto' } }}
       >
+        {loadFailed && (
+          <Alert
+            type="warning"
+            showIcon
+            message="记忆数据载入失败"
+            description="部分或全部数据读取失败，当前内容可能不完整。可关闭后重试。"
+            style={{ marginBottom: 12 }}
+          />
+        )}
         <Tabs
           size="small"
           items={[

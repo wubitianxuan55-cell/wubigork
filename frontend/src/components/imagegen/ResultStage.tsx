@@ -54,7 +54,7 @@ export const ResultStage: React.FC<Props> = ({
           {[0, 1, 2, 3].map((i) => (
             <div key={i} style={{
               aspectRatio: '1 / 1', borderRadius: 'var(--radius-md)',
-              background: 'linear-gradient(110deg, var(--bg-elevated) 30%, rgba(255,255,255,0.06) 50%, var(--bg-elevated) 70%)',
+              background: 'linear-gradient(110deg, var(--bg-elevated) 30%, color-mix(in srgb, var(--color-text) 6%, transparent) 50%, var(--bg-elevated) 70%)',
               backgroundSize: '200% 100%',
               animation: 'imgStageShimmer 1.4s linear infinite',
             }} />

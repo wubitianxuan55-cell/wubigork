@@ -16,7 +16,7 @@ export function OrgField({ l, v = '', onChange, type = 'text', rows = 2 }: {
       style={{ background: 'rgba(0,0,0,0.15)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', color: 'var(--color-text)', fontSize: 13 }} />
   ) : (
     <Input value={v} onChange={(e) => onChange(e.target.value)}
-      style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', color: 'var(--color-text)' }} />
+      style={{ background: 'color-mix(in srgb, var(--color-text) 5%, transparent)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', color: 'var(--color-text)' }} />
   )
   return (
     <div>

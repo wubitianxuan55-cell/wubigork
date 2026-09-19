@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react'
-import { Typography, Button, Modal, Input, Empty } from 'antd'
+import { Typography, Button, Modal, Input, Empty, Popconfirm } from 'antd'
 import {
   PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined, AppstoreOutlined,
 } from '@ant-design/icons'
@@ -88,11 +88,20 @@ const TemplateCard: React.FC<{
             onClick={(e) => { e.stopPropagation(); onEdit?.() }}
             style={{ padding: 0, height: 16, width: 18, color: C('color-text-secondary') }}
           />
-          <Button
-            type="text" size="small" icon={<DeleteOutlined style={{ fontSize: 10 }} />}
-            onClick={(e) => { e.stopPropagation(); onDelete?.() }}
-            style={{ padding: 0, height: 16, width: 18, color: 'var(--color-destructive)' }}
-          />
+          <Popconfirm
+            title="删除这个自定义模板？"
+            okText="删除"
+            cancelText="取消"
+            okButtonProps={{ danger: true, 'data-testid': 'imgtpl-delete-confirm' }}
+            onConfirm={(e) => { e?.stopPropagation(); onDelete?.() }}
+            onCancel={(e) => e?.stopPropagation()}
+          >
+            <Button
+              type="text" size="small" icon={<DeleteOutlined style={{ fontSize: 10 }} />}
+              onClick={(e) => e.stopPropagation()}
+              style={{ padding: 0, height: 16, width: 18, color: 'var(--color-destructive)' }}
+            />
+          </Popconfirm>
         </span>
       )}
     </div>
@@ -286,7 +295,7 @@ const TemplatePickerModal: React.FC<Props> = ({
               style={{
                 padding: '10px 12px', borderRadius: 'var(--radius-md)',
                 border: '1px dashed var(--border-subtle)',
-                background: 'rgba(255,255,255,0.02)', cursor: 'pointer',
+                background: 'color-mix(in srgb, var(--color-text) 2%, transparent)', cursor: 'pointer',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, minHeight: 104,
                 transition: 'all 0.15s',
               }}

@@ -97,6 +97,38 @@
         letter-spacing: 0.24em;
         color: rgba(148, 163, 184, 0.75);
       }
+      /* ── 亮色主题启动分支（v4.351）──：下方内联脚本在 bundle 加载前预读
+         localStorage 的 gaea-display-mode，亮色会话给 <html> 挂 data-bs-light，
+         静态启动屏与 body 随之走浅色——此前亮色用户每次启动先看 ~2s 深空屏
+         （变量由 App useEffect 首帧后才注入，静态期只能硬编码分支）。 */
+      html[data-bs-light] body { background: #eef2f4; }
+      html[data-bs-light] #boot-splash {
+        background:
+          radial-gradient(ellipse 90% 60% at 70% -10%, rgba(13, 148, 136, 0.10), transparent 60%),
+          radial-gradient(ellipse 80% 55% at 15% 110%, rgba(13, 148, 136, 0.08), transparent 60%),
+          #eef2f4;
+        color: #1f2937;
+      }
+      html[data-bs-light] #boot-splash .bs-ring::before {
+        background: conic-gradient(from 0deg, transparent 0 300deg, rgba(13, 148, 136, 0.85) 340deg, transparent 360deg);
+      }
+      html[data-bs-light] #boot-splash .bs-ring::after {
+        border-color: rgba(13, 148, 136, 0.30);
+      }
+      html[data-bs-light] #boot-splash .bs-orb {
+        background: radial-gradient(circle at 32% 28%, rgba(153, 246, 228, 0.65), rgba(204, 251, 241, 0.9) 70%);
+        box-shadow: 0 0 24px rgba(13, 148, 136, 0.25), inset 0 0 14px rgba(13, 148, 136, 0.15);
+      }
+      html[data-bs-light] #boot-splash .bs-orb img { filter: drop-shadow(0 0 6px rgba(13, 148, 136, 0.4)); }
+      html[data-bs-light] #boot-splash .bs-word {
+        color: #0f172a;
+        text-shadow: 0 0 14px rgba(13, 148, 136, 0.25);
+      }
+      html[data-bs-light] #boot-splash .bs-bar { background: rgba(100, 116, 139, 0.22); }
+      html[data-bs-light] #boot-splash .bs-bar::before {
+        background: linear-gradient(90deg, transparent, rgba(13, 148, 136, 0.75), transparent);
+      }
+      html[data-bs-light] #boot-splash .bs-tag { color: rgba(71, 85, 105, 0.8); }
       @keyframes bs-spin { to { transform: rotate(360deg); } }
       @keyframes bs-pulse {
         0%, 100% { transform: scale(1); opacity: 0.55; }
@@ -115,6 +147,27 @@
   </head>
   <body style="margin:0;background:var(--color-bg-layout,#06090c)">
     <script>try { performance.mark('gaea:boot') } catch { /* 忽略 */ }</script>
+    <script>
+      // 亮色主题启动预读（v4.351）：判定顺序逐字对齐 appStore.loadMode——
+      // gaea-display-mode ∈ {light,dark,system}；缺失时旧布尔键（gaea-dark /
+      // wubigork-dark，'0'=亮）兜底；仍缺失缺省 dark（与 loadMode 一致，不做
+      // matchMedia 推断）。只挂属性，App 注入真令牌后静态屏被 BootSplash
+      // 接管移除，属性无残留消费方。
+      try {
+        var m = '';
+        try { m = localStorage.getItem('gaea-display-mode') || '' } catch (e) {}
+        var light = m === 'light';
+        if (!light && m === 'system') {
+          try { light = !window.matchMedia('(prefers-color-scheme: dark)').matches } catch (e) {}
+        }
+        if (!light && m === '') {
+          var legacy = '';
+          try { legacy = localStorage.getItem('gaea-dark') ?? localStorage.getItem('wubigork-dark') ?? '' } catch (e) {}
+          light = legacy === '0';
+        }
+        if (light) document.documentElement.setAttribute('data-bs-light', '');
+      } catch (e) { /* 预读失败保持深色缺省 */ }
+    </script>
     <div id="boot-splash" aria-hidden="true">
       <div class="bs-ring">
         <div class="bs-orb"><img src="/favicon.svg" alt="" width="40" height="40" /></div>

@@ -72,7 +72,7 @@ const inputStyle: React.CSSProperties = {
 const loraHintStyle: React.CSSProperties = {
   fontSize: 11, color: C('color-text-secondary'), lineHeight: 1.5,
   padding: '7px 10px', borderRadius: 8, border: '1px dashed var(--border-subtle)',
-  background: 'rgba(255,255,255,0.02)',
+  background: 'color-mix(in srgb, var(--color-text) 2%, transparent)',
 }
 
 // WebView2 老问题：CSS 动画 tick 被挂起时 antd 下拉弹层卡在 opacity:0 首帧，
@@ -570,7 +570,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                         padding: '5px 9px', borderRadius: 999, cursor: 'pointer', fontSize: 11,
                         border: '1px solid',
                         borderColor: active ? 'var(--color-primary)' : 'var(--border-subtle)',
-                        background: active ? 'rgba(var(--accent-rgb), 0.14)' : 'rgba(255,255,255,0.03)',
+                        background: active ? 'rgba(var(--accent-rgb), 0.14)' : 'color-mix(in srgb, var(--color-text) 3%, transparent)',
                         color: active ? 'var(--color-primary)' : C('color-text-secondary'),
                         fontWeight: active ? 600 : 400, fontFamily: 'inherit', whiteSpace: 'nowrap',
                       }}
@@ -620,7 +620,7 @@ const MetricBar: React.FC<{ label: string; value: number; detail: string }> = ({
         <span style={{ fontSize: 11, color: C('color-text-secondary') }}>{label}</span>
         <span style={{ fontSize: 11, fontWeight: 600, color }}>{detail}</span>
       </div>
-      <div style={{ height: 4, background: 'rgba(255,255,255,0.08)', borderRadius: 2, overflow: 'hidden' }}>
+      <div style={{ height: 4, background: 'color-mix(in srgb, var(--color-text) 8%, transparent)', borderRadius: 2, overflow: 'hidden' }}>
         <div style={{
           width: `${pct}%`, height: '100%', background: color, borderRadius: 2,
           transition: 'width 0.6s cubic-bezier(0.32, 0.72, 0, 1)',

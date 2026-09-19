@@ -46,9 +46,15 @@ export type FileReader = (path: string) => Promise<string>
 export async function restoreHistoryImages(
   history: GenResult[],
   readFile: FileReader,
+  limit = 0,
 ): Promise<GenResult[]> {
+  // limit>0 时只回填前 limit 条**需恢复项**（v4.351）：每条 dataURL 数 MB 级，
+  // 全量回填=内存随历史无界增长；按 needsFileRestore 过滤后再切，内联小图不占
+  // 名额；窗口外条目由缩略图占位兜底、选中时按需解析。
+  const candidates = history.filter(needsFileRestore)
+  const scoped = limit > 0 ? candidates.slice(0, limit) : candidates
   const restored: GenResult[] = []
-  for (const item of history) {
+  for (const item of scoped) {
     if (!needsFileRestore(item)) continue
     try {
       const dataUrl = await readFile(item.file_path as string)

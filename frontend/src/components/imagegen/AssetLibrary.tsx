@@ -168,7 +168,7 @@ export const AssetLibrary: React.FC<{ onClose: () => void }> = ({ onClose }) => 
       {selected && (
         <div style={{
           marginTop: 8, padding: '8px 10px', borderRadius: 10, flexShrink: 0,
-          border: '1px solid var(--border-subtle)', background: 'rgba(255,255,255,0.03)',
+          border: '1px solid var(--border-subtle)', background: 'color-mix(in srgb, var(--color-text) 3%, transparent)',
         }}>
           <div style={{ display: 'flex', gap: 10 }}>
             {selectedThumb?.url && (
@@ -228,7 +228,7 @@ export const AssetLibrary: React.FC<{ onClose: () => void }> = ({ onClose }) => 
                     padding: 4, textAlign: 'left', cursor: 'pointer',
                     border: '1px solid',
                     borderColor: selected?.path === a.path ? 'var(--color-primary)' : 'var(--border-subtle)',
-                    borderRadius: 10, background: 'rgba(255,255,255,0.03)',
+                    borderRadius: 10, background: 'color-mix(in srgb, var(--color-text) 3%, transparent)',
                   }}>
                   <div style={{ position: 'relative' }}>
                     {a.url ? (
@@ -238,7 +238,7 @@ export const AssetLibrary: React.FC<{ onClose: () => void }> = ({ onClose }) => 
                       <div style={{
                         width: '100%', aspectRatio: '1 / 1', borderRadius: 7, display: 'flex',
                         flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4,
-                        background: 'rgba(255,255,255,0.04)',
+                        background: 'color-mix(in srgb, var(--color-text) 4%, transparent)',
                       }}>
                         <FileImageOutlined style={{ fontSize: 18, color: C('color-text-secondary'), opacity: 0.6 }} />
                         <span style={{ fontSize: 10, color: C('color-text-secondary') }}>
