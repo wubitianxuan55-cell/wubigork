@@ -290,12 +290,16 @@ func (c *Client) resolveModelName(reqModel string, engineID string) string {
 		engineID = c.ActiveEngineID()
 	}
 
+	// cfg.Model 与 UI 写路径（切引擎/设默认模型）共享实例，读经 config.GetModelMem
+	// 持锁（写点 SetModelMem 同锁），消除「请求热路径 × UI 写路径」裸字段竞态。
+	fallbackModel := config.GetModelMem(c.cfg)
+
 	// xAI 引擎：保持原有逻辑
 	if engineID == "xai" || c.engineMgr == nil {
 		if reqModel != "" {
 			return reqModel
 		}
-		return c.cfg.Model
+		return fallbackModel
 	}
 
 	// 非 xAI 引擎：获取引擎默认模型
@@ -305,12 +309,12 @@ func (c *Client) resolveModelName(reqModel string, engineID string) string {
 	}
 
 	// 如果请求的模型为空，或者是 xAI 的默认模型名（来自 Router 的硬编码），则替换
-	if reqModel == "" || reqModel == c.cfg.Model {
+	if reqModel == "" || reqModel == fallbackModel {
 		if engineDefault != "" {
 			return engineDefault
 		}
 		// 引擎也没有默认模型，回退到 cfg.Model（会因 API 报错而提醒用户配置）
-		return c.cfg.Model
+		return fallbackModel
 	}
 
 	// 用户显式指定了非 xAI 默认的模型名，保留
@@ -676,7 +680,17 @@ func (c *Client) ChatStream(ctx context.Context, req *ChatRequest) (<-chan SSECh
 	// 若把 streamCtx 传入，超时后 send 的 ctx.Done 分支就绪会随机抢占，
 	// 导致超时错误分块被丢弃。
 	chunks := make(chan SSEChunk, 64)
-	go c.parseStreamEvents(ctx, resp, chunks, reqEngine, reqModel, req.Feature, start)
+	// 解析协程 panic 防线：每轮 LLM 调用必经；parseStreamEvents 自身 defer
+	// close(chunks) 在 panic 路径照常执行（消费方收到收帧不悬挂），本层只
+	// 负责不带崩进程。
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("SSE 流解析 panic", "engine", reqEngine, "model", reqModel, "recover", r)
+			}
+		}()
+		c.parseStreamEvents(ctx, resp, chunks, reqEngine, reqModel, req.Feature, start)
+	}()
 	return chunks, nil
 }
 

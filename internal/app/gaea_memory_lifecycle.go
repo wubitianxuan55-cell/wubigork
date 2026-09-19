@@ -146,13 +146,20 @@ func (a *App) GaeaMemorySetRetentionDays(days int) error {
 	if days > 730 {
 		days = 730
 	}
+	// GaeaInit 自身取 ga.mu，必须在加锁之前调用（与 gaeaApplyCfg 同序）——
+	// 持锁调用即 sync.Mutex 不可重入自死锁，办公板块全部 ga.mu 消费方连锁冻结。
+	// 仅未初始化时才拉起：已初始化路径行为不变（cfg 非 nil 直接改写），
+	// 间隙并发 Init 由 GaeaInit 幂等消化。
 	ga.mu.Lock()
-	defer ga.mu.Unlock()
-	if ga.cfg == nil {
+	needInit := ga.cfg == nil
+	ga.mu.Unlock()
+	if needInit {
 		if err := a.GaeaInit(); err != nil {
 			return fmt.Errorf("设置归档保留期: %w", err)
 		}
 	}
+	ga.mu.Lock()
+	defer ga.mu.Unlock()
 	if ga.cfg == nil {
 		return errors.New("设置归档保留期: 办公引擎配置未初始化")
 	}

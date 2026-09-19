@@ -136,7 +136,7 @@ func (a *App) SaveConfig(key, value string) error {
 	case config.KeyXaiClientID:
 		a.cfg.XaiClientID = value
 	case config.KeyModel:
-		a.cfg.Model = value
+		config.SetModelMem(a.cfg, value)
 	case config.KeyHTTPTimeoutSeconds:
 		if n, err := strconv.Atoi(value); err == nil {
 			a.cfg.HTTPTimeoutSeconds = n

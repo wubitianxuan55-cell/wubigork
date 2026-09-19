@@ -21,6 +21,8 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+
+	"github.com/gaea/gaea/internal/gaea/fileutil"
 )
 
 const (
@@ -129,7 +131,7 @@ func saveSinNotes(path string, doc sinNotesDoc) error {
 	if err := os.WriteFile(tmp, b, 0o644); err != nil {
 		return fmt.Errorf("写入故事便签失败: %w", err)
 	}
-	if err := os.Rename(tmp, path); err != nil {
+	if err := fileutil.RenameWithRetry(tmp, path); err != nil {
 		return fmt.Errorf("保存故事便签失败: %w", err)
 	}
 	return nil

@@ -228,6 +228,15 @@ func StartAvailable(ctx context.Context, specs []Spec) (*Host, []tool.Tool) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
+			// 连接 goroutine 防线（对齐上方 StartAvailable 并行 start 的
+			// recover 先例）：外部 MCP server 是独立进程+外部协议数据，
+			// 传输层解析 panic 转该 server 连接失败，不带崩会话装配。
+			defer func() {
+				if r := recover(); r != nil {
+					slog.Error("plugin: connect goroutine panic recovered", "plugin", s.Name, "panic", r)
+					h.RecordFailure(s, fmt.Errorf("plugin %q panic: %v", s.Name, r))
+				}
+			}()
 			sctx, cancel := context.WithCancel(ctx)
 			timer := time.AfterFunc(mcpConnectTimeout, cancel)
 			ts, err := h.addConnected(sctx, s)

@@ -533,9 +533,14 @@ func (c *Controller) runTurnWithRaw(ctx context.Context, input, raw string) erro
 		return err
 	}
 	c.touchMemoryCitations()
-	// 每轮对话后自动快照保存，确保崩溃/重启不丢上下文
+	// 每轮对话后自动快照保存，确保崩溃/重启不丢上下文。失败显性化（2026-09-19
+	// 审计）：模型调用前 checkpoint 是 fail-closed，收尾快照此前 warn-only——
+	// 会话文件被 OneDrive/杀毒短暂锁定或磁盘满时 UI 全绿、重启回退数轮无提示。
+	// Warn 级 Notice 前端走可关闭错误卡（Transcript 按 level==="warn" 渲染）。
 	if err := c.Snapshot(); err != nil {
 		slog.Warn("controller: snapshot after turn", "err", err)
+		c.sink.Emit(event.Event{Kind: event.Notice, Level: event.LevelWarn,
+			Text: fmt.Sprintf("本回合快照保存失败（%v），重启后可能丢失最近对话；请检查磁盘空间或是否有程序占用会话文件", err)})
 	}
 	return nil
 }

@@ -281,6 +281,13 @@ func (a *App) GaeaDagNodeSteer(id, nodeID, prompt string) (string, error) {
 	slog.Info("流水线节点改向受理", "run", id, "node", nodeID, "ref", node.Ref)
 	go func() {
 		defer followUpClaims.Delete(node.Ref)
+		// 改向执行与 GaeaSubagentFollowUp 后台 goroutine 逐行同构，防线同款
+		//（子代理运行链 panic 不带崩进程）。
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("流水线节点改向 panic", "ref", node.Ref, "panic", r)
+			}
+		}()
 		ctx := gaeaAgent.WithSpace(context.Background(), gaeaSessionSpace())
 		if err := runner(ctx, node.Ref, prompt); err != nil {
 			slog.Warn("流水线节点改向失败", "ref", node.Ref, "error", err)
@@ -504,6 +511,14 @@ func (a *App) dagStart(id string, waves [][]dag.Node) {
 	ga.dagCancels.Store(id, cancel)
 	go func() {
 		defer ga.dagCancels.Delete(id)
+		// 编排级兜底防线：节点级 recover（下方）盖住子代理执行 panic，本层
+		// 盖住波次推进/收尾落盘自身的漏网 panic——不带崩进程；run 状态残留
+		// running 由 dagSweep 重启兜底收尾。
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("流水线执行 panic", "run", id, "panic", r)
+			}
+		}()
 		a.dagExecute(ctx, id, waves)
 	}()
 }
@@ -527,6 +542,21 @@ func (a *App) dagExecute(ctx context.Context, id string, waves [][]dag.Node) {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
+				// 节点级 panic 防线：子代理执行链（LLM 流式/工具/事件回投）
+				// panic 转节点 failed（与 err 路径同形：置 failed+波标记失败），
+				// 不带崩进程也不悬挂本波其余节点。
+				defer func() {
+					if r := recover(); r != nil {
+						slog.Error("流水线节点执行 panic", "run", id, "node", node.ID, "panic", r)
+						failMu.Lock()
+						failed = true
+						failMu.Unlock()
+						_ = a.dagMarkNode(id, node.ID, func(n *dag.Node) {
+							n.Status = dag.StatusFailed
+							n.Error = fmt.Sprintf("节点执行 panic: %v", r)
+						})
+					}
+				}()
 				if ctx.Err() != nil {
 					a.dagMarkNode(id, node.ID, func(n *dag.Node) {
 						n.Status = dag.StatusSkipped

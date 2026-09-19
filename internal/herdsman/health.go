@@ -14,6 +14,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/gaea/gaea/internal/netclient"
 )
 
 // 默认探测参数：Herdsman 服务默认监听本机 8080。
@@ -184,7 +186,7 @@ func pingModelsAPI(baseURL string, timeout time.Duration) (bool, string) {
 	if err != nil {
 		return false, err.Error()
 	}
-	defer resp.Body.Close()
+	defer netclient.DrainAndClose(resp.Body)
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return false, fmt.Sprintf("HTTP %d", resp.StatusCode)
 	}

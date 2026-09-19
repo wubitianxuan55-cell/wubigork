@@ -299,6 +299,12 @@ func (a *App) SinBookSourceDownload(source, detailURL string, start, end int, ti
 
 	params := bookImportParams{Source: source, URL: detailURL, Title: title, Start: start, End: end}
 	go func() {
+		// 下载链 panic 防线（同小说侧导入）：转 error 事件不挂进度，不带崩进程。
+		defer func() {
+			if r := recover(); r != nil {
+				a.emit("sin-booksource:"+jobID, map[string]interface{}{"type": "error", "error": fmt.Sprintf("下载异常: %v", r)})
+			}
+		}()
 		defer func() {
 			bookImportMu.Lock()
 			delete(bookImportRuns, jobID)

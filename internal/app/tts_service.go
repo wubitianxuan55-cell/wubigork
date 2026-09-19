@@ -126,6 +126,10 @@ func (c *core) ensureLocalTTSService(engineID string) map[string]interface{} {
 
 	go func() {
 		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("本地 TTS 服务启动 panic", "engine", engineID, "recover", r)
+				c.emit("tts-service-status", map[string]interface{}{"engine": engineID, "ready": false, "error": "启动异常"})
+			}
 			ttsEnsureMu.Lock()
 			delete(ttsEnsuring, engineID)
 			ttsEnsureMu.Unlock()

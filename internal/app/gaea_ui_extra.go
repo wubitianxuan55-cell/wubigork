@@ -15,6 +15,7 @@ import (
 	"github.com/gaea/gaea/internal/auth"
 	"github.com/gaea/gaea/internal/config"
 	gaeaConfig "github.com/gaea/gaea/internal/gaea/config"
+	"github.com/gaea/gaea/internal/gaea/fileutil"
 	"github.com/gaea/gaea/internal/modelengine"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
@@ -643,7 +644,7 @@ func (a *App) GaeaWriteFile(rel string, content string) error {
 	if err := tmp.Close(); err != nil {
 		return fmt.Errorf("关闭临时文件失败: %w", err)
 	}
-	if err := os.Rename(tmpName, abs); err != nil {
+	if err := fileutil.RenameWithRetry(tmpName, abs); err != nil {
 		return fmt.Errorf("替换原文件失败: %w", err)
 	}
 	return nil

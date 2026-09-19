@@ -23,6 +23,7 @@ import (
 	"github.com/gaea/gaea/internal/bookimport"
 	"github.com/gaea/gaea/internal/booksource"
 	gaeaConfig "github.com/gaea/gaea/internal/gaea/config"
+	"github.com/gaea/gaea/internal/gaea/fileutil"
 	"github.com/gaea/gaea/internal/project"
 	"github.com/gaea/gaea/internal/types"
 )
@@ -329,6 +330,14 @@ func (w *writingState) NovelBookSourceImport(source, detailURL string, start, en
 
 	params := bookImportParams{Source: source, URL: detailURL, Title: title, Genre: genre, Style: style, Start: start, End: end}
 	go func() {
+		// 导入链 panic 防线：逐章抓取+按用户书源规则解析远程内容，解析面
+		// 对畸形内容 panic 时转 error 事件（前端进度如实失败，不永久挂起），
+		// 不带崩进程；后续 defer 正常清 jobID/cancel。
+		defer func() {
+			if r := recover(); r != nil {
+				w.emit("novel-import-progress:"+jobID, map[string]interface{}{"type": "error", "error": fmt.Sprintf("导入异常: %v", r)})
+			}
+		}()
 		defer func() {
 			bookImportMu.Lock()
 			delete(bookImportRuns, jobID)
@@ -436,7 +445,7 @@ func enginesSave(dir, rulesJSON string) (int, error) {
 	if err := os.WriteFile(tmp, raw, 0o644); err != nil {
 		return 0, err
 	}
-	if err := os.Rename(tmp, filepath.Join(dir, enginesFileName)); err != nil {
+	if err := fileutil.RenameWithRetry(tmp, filepath.Join(dir, enginesFileName)); err != nil {
 		_ = os.Remove(tmp)
 		return 0, err
 	}
@@ -472,6 +481,12 @@ func (w *writingState) NovelBookSourceImportChapters(source, projectPath, chapte
 	bookImportMu.Unlock()
 
 	go func() {
+		// 追加导入 panic 防线（同 NovelBookSourceImport）：转 error 事件不挂进度。
+		defer func() {
+			if r := recover(); r != nil {
+				w.emit("novel-import-progress:"+jobID, map[string]interface{}{"type": "error", "error": fmt.Sprintf("导入异常: %v", r)})
+			}
+		}()
 		defer func() {
 			bookImportMu.Lock()
 			delete(bookImportRuns, jobID)

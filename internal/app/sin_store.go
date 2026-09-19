@@ -25,6 +25,7 @@ import (
 
 	"github.com/gaea/gaea/internal/characterlib"
 	gaeaConfig "github.com/gaea/gaea/internal/gaea/config"
+	"github.com/gaea/gaea/internal/gaea/fileutil"
 )
 
 const (
@@ -90,7 +91,7 @@ func saveSinCast(doc sinCastDoc) error {
 	if err := os.WriteFile(tmp, b, 0o644); err != nil {
 		return fmt.Errorf("写入角色配置失败: %w", err)
 	}
-	if err := os.Rename(tmp, sinCastPath()); err != nil {
+	if err := fileutil.RenameWithRetry(tmp, sinCastPath()); err != nil {
 		return fmt.Errorf("保存角色配置失败: %w", err)
 	}
 	return nil

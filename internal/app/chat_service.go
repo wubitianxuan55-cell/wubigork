@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/gaea/gaea/internal/ai"
@@ -91,7 +92,13 @@ func (a *App) chatSendPlain(topicID, message string, searchEnabled, thinking, fo
 }
 
 // newChatStreamRunID 生成流式 runID（测试可替换为固定值以订阅固定事件名）。
-var newChatStreamRunID = func() string { return fmt.Sprintf("cs_%d", time.Now().UnixMilli()) }
+// 毫秒时间戳尾部拼进程内序号：同毫秒两路并发（双面板连发/程序化重试）不再
+// 碰撞——碰撞即两 goroutine 向同一 "chat-stream:<runID>" 通道交错发帧。
+var chatStreamRunSeq atomic.Int64
+
+var newChatStreamRunID = func() string {
+	return fmt.Sprintf("cs_%d_%d", time.Now().UnixMilli(), chatStreamRunSeq.Add(1))
+}
 
 // ChatStreamPlain 普通对话真实流式入口：立即返回 runID，前端订阅
 // "chat-stream:<runID>" 事件流（delta / reasoning / done / error），完成后落库。

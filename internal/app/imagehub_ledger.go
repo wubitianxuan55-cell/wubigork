@@ -18,6 +18,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/gaea/gaea/internal/gaea/fileutil"
 	"github.com/gaea/gaea/internal/gaea/spaces"
 )
 
@@ -156,7 +157,7 @@ func (l *imageHubLedger) pruneIfNeeded(p string) error {
 		_ = os.Remove(tmpName)
 		return fmt.Errorf("折叠移除旧文件失败: %w", err)
 	}
-	if err := os.Rename(tmpName, p); err != nil {
+	if err := fileutil.RenameWithRetry(tmpName, p); err != nil {
 		_ = os.Remove(tmpName)
 		return fmt.Errorf("折叠替换失败: %w", err)
 	}

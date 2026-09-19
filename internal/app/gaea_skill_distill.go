@@ -26,6 +26,7 @@ import (
 	"github.com/gaea/gaea/internal/ai"
 	"github.com/gaea/gaea/internal/config"
 	"github.com/gaea/gaea/internal/gaea/evidence"
+	"github.com/gaea/gaea/internal/gaea/fileutil"
 	"github.com/gaea/gaea/internal/gaea/skill"
 	"github.com/gaea/gaea/internal/skilldistill"
 	"github.com/gaea/gaea/internal/util"
@@ -132,7 +133,7 @@ func saveSkillDistillState(dataRoot string, f skillDistillStateFile) error {
 		os.Remove(tmpName)
 		return err
 	}
-	if err := os.Rename(tmpName, p); err != nil {
+	if err := fileutil.RenameWithRetry(tmpName, p); err != nil {
 		os.Remove(tmpName)
 		return err
 	}

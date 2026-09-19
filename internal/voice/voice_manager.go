@@ -497,8 +497,19 @@ func (m *Manager) resetVAD() {
 
 // ── 语音识别 → Whisper → TTS 管道 ──
 
-// handleSpeechEnd 处理语音结束（对齐 Ackem voiceManager flush → ASR → whisper → TTS）
+// handleSpeechEnd 处理语音结束（对齐 Ackem voiceManager flush → ASR → whisper → TTS）。
+// go 入口（后端 ASR 两处），panic 防线：语音链 panic 转前端错误事件并复位监听，
+// 不带崩进程（文字聊天/TTS/章节生成流 app 层均有同款防线，语音链最长独缺——补齐）。
 func (m *Manager) handleSpeechEnd(audioData []byte) {
+	defer func() {
+		if r := recover(); r != nil {
+			slog.Error("语音回合 panic（handleSpeechEnd）", "recover", r)
+			if m.emitter != nil {
+				m.emitter.EmitVoiceError(fmt.Errorf("语音处理异常，已恢复监听"))
+			}
+			m.setState(StateIdle)
+		}
+	}()
 	m.setState(StateThinking)
 	if m.emitter != nil {
 		m.emitter.EmitVoiceThinking(true)
@@ -528,9 +539,20 @@ func (m *Manager) handleSpeechEnd(audioData []byte) {
 
 // runReply 串行执行一轮语音对话。所有输入入口（浏览器识别 / 后端 ASR）
 // 共用同一把 turnMu，避免上一轮还在播 TTS 时新输入并发进入对话管道。
+// go 入口（:669），panic 防线同 handleSpeechEnd——LLM 回合/意图能力执行
+// 中 panic 复位监听态，不带崩进程；turnMu 由 defer 正常释放。
 func (m *Manager) runReply(text string) {
 	m.turnMu.Lock()
 	defer m.turnMu.Unlock()
+	defer func() {
+		if r := recover(); r != nil {
+			slog.Error("语音回合 panic（runReply）", "recover", r)
+			if m.emitter != nil {
+				m.emitter.EmitVoiceError(fmt.Errorf("语音处理异常，已恢复监听"))
+			}
+			m.setState(StateIdle)
+		}
+	}()
 	m.handleReply(text)
 }
 
@@ -932,6 +954,17 @@ type rtAggregator struct {
 //   - response.done → 冲洗聚合器（24k WAV）→ idle → 自动续听（VAD 模式）
 //   - 协议 error / 事件通道关闭 → 关会话降级回拼接管线（宁降级不黑屏）
 func (m *Manager) runRealtimePump(sess realtime.RealtimeSession) {
+	// go 入口（realtime 事件泵），panic 防线：外部会话事件分派 panic 复位
+	// 监听态，不带崩进程。
+	defer func() {
+		if r := recover(); r != nil {
+			slog.Error("语音回合 panic（runRealtimePump）", "recover", r)
+			if m.emitter != nil {
+				m.emitter.EmitVoiceError(fmt.Errorf("语音处理异常，已恢复监听"))
+			}
+			m.setState(StateIdle)
+		}
+	}()
 	agg := rtAggregator{}
 	for ev := range sess.Events() {
 		switch ev.Type {

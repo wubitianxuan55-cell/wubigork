@@ -1,6 +1,6 @@
 # 任务进度
 
-> 最后更新: 2026-09-19（v4.349.0 前端优化五线〔可访问性动线/亮态可读性〔diff token 接 --hl-* 单一真源+lightFn 语义色下沉+对比度矩阵机检〕/运行开销〔心跳收敛·令牌与 antd 主题 memo·选区短路·列表 memo〕/布局〔chip nowrap·基线行 wrap·海报描述 line-clamp〕/稳健性〔首页假空态·最近文件实时订阅〕〕。前次：v4.348.0 原罪优化双刀。本表只留**仍开放**项）
+> 最后更新: 2026-09-19（v4.356.0 后端优化轮：三路并行只读审计→panic 防线 12 处+确定性自死锁根修+cfg.Model 收口+快照失败可见化+rename 韧性 21 处；挂池新增见 v4.356 progress 段。前次：v4.349.0 前端优化五线。本表只留**仍开放**项）
 
 ## 当前开放（按域）
 
@@ -62,6 +62,7 @@
 | ⬜ | v4.349 新挂池（审计已给 file:line）：①~~其余可点 div 键盘化~~✓（v4.353.0：ChapterTree 节点/Outline 行/StatsPanel 两折叠+五 icon Button 补名；RailItem/FactCard 已是 button）②~~ResizableDrawer 焦点管理~~✓（v4.353.0：dialog 语义+Esc+开聚焦关还焦，测试 4 例）③~~图标钮可访问名余量~~✓（v4.352.0：ChatRow 四处+ChatModeBar 四处补 aria-label；SecurityPanel 排除——按钮带文字）④reducer 级整店订阅 13 处（`useStore()` 无 selector：MainLayout:414 / HomePage:33 / AppearancePanel×8 等）⑤`initRuntimePolyfill` 同步成本与 vendor manualChunks（待测收益再定） |
 | ✅ | knip Unused exports 甄别（v4.268.0 清账：unused 清零；剩余 15 项 KEEP=@public 契约哨兵/预留面=在册保留非欠账，2026-09-19 对账翻状态。首批记录保留：knip@5 + knip.json 固化（ignoreExportsUsedInFile + test 入口；npx knip@5 复跑口径）——首批 14 项真死已删（stats.ts×7/subagentRunsStore/officeTurnProjection/workspaceTabs/api/engines×2/chat/constants/schedule/customFields/gsapAnimations）；**第二批（同日）surgical 删除 31 项**（DEFAULT 组件 7：SelectionToComposer/ModelDirectory/BenchmarkSection/CostIndicatorsView/CostNotesView/ChatInspector/EmotionSpeakSelector；genui barrel 断链 4：renderGenuiSpec/clearBlockState/setMaxPartialRepairAttempts/tryParseFence；类型/接口 12：Tone/CanvasChapterData/BackendEventName/BridgeWatchState/FileIndexStatus/XlsxCellChange/MemoryLifecycleItem/MemoryMergeSuggestion/FactView/TraceStep/RetrievalEvalQuery/ColStatsWithRate/SemanticIndexStatus/BenchmarkRunDetail 及 stats hitRate→hitRateColor 勘误）；**剩余 15 项 KEEP/预留**（spaceBindings/drift 编译期 canary×6、wails.d.ts 生成面、SPINNER_WORDS/getLocale/Block/Field/MODEL_PRICES 预留面）；误删事故=hitRateColor 被同名前缀撞删（git 找回），声明删除必须 tsc+引用 grep 双验证） |
 | ⬜ | v4.355 走查班新挂池：①embedding 服务（localhost:8080）未部署——语义检索完全可用需先起服务，届时一条龙走查②角色库 file:// 头像 WebView2 拒载 27 条（既有：正确通道=AttachmentDataURL 绑定或 asset:// 协议）③[longtask] 69~165ms 误报阈值过敏感④dirListingsCache 失效接线（v4.354 记录） |
+| ⬜ | v4.356 后端审计新挂池：①错误吞噬卫生 P2（characterlib ListChatEnabled 吞错返回空列表/cost_projects 双 Save 仅状态标签/dag sweep `_ = Save`/AppendTurnTraceToDB 失败仅 log/turn markdown 导出吞错）②并发观察 6 项（PrepareContinue TOCTOU 双路续跑同 ref——followUpClaims 只盖 UI 路径/cost BM25 语料与版本戳非原子/weixin Server Stop→Start 旧 pollLoop 未退可双轮询——当前绑定面不可达/realtime Dial 双拨号泄首连——单会话不可达/memory file_backend 双写非原子 legacy/QuickAdd 锁内 AppendDoc 文件 IO）③AuditLogger/DecisionLogger 死代码（Close 无人调：接线时挂生命周期或直接删） |
 | ⬜ | 观察池刀3（工作台内嵌办公）待评估——观察池审判归 P5 |
 | ⬜ | P5 维持：季度复测+观察池审判（cost 文档化/虚拟滚动/内嵌） |
 

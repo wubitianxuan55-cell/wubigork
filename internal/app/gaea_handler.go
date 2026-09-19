@@ -2,6 +2,7 @@ package app
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -494,6 +495,13 @@ func (a *App) GaeaNewSession() error {
 	defer ga.mu.Unlock()
 	if ga.ctrl == nil {
 		return nil
+	}
+	// 运行闸（照 GaeaSubagentFollowUp 先例）：run loop 只在 idle 时换 session
+	//（agent.go 的调用方约定），回合中换会话=无锁直读 a.session 指针与
+	// SetSession 交错+后续消息落旧 session 而路径已换新。绑定层自守，防
+	// httpbridge 绕过前端 busy 闸。
+	if ga.ctrl.Running() {
+		return errors.New("回合正在运行，请先停止当前回合再开启新会话")
 	}
 	// 新会话 = 全新目标：清空 goal gate，避免上个会话的「持续工作到验收」
 	// 目标残留到新会话（手动 /goal 在新会话同样需要重设）。

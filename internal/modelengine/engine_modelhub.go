@@ -14,6 +14,8 @@ import (
 	"net/url"
 	"sort"
 	"strings"
+
+	"github.com/gaea/gaea/internal/netclient"
 )
 
 // ── Unsloth Studio 响应结构 ────────────────────────────────
@@ -63,7 +65,7 @@ func (m *Manager) fetchModelHubModels(ctx context.Context, engine *EngineConfig)
 		if err != nil {
 			return fmt.Errorf("请求失败: %w", err)
 		}
-		defer resp.Body.Close()
+		defer netclient.DrainAndClose(resp.Body)
 		if resp.StatusCode == http.StatusUnauthorized {
 			return fmt.Errorf("HTTP 401: Model Hub API Key 无效或未配置，请先在模型中心保存 Unsloth 生成的 Key（sk-unsloth- 开头，Unsloth 设置 → API 创建）")
 		}
@@ -193,7 +195,7 @@ func (m *Manager) StartModelHubModel(ctx context.Context, modelID string) error 
 	if err != nil {
 		return fmt.Errorf("加载请求失败: %w", err)
 	}
-	defer resp.Body.Close()
+	defer netclient.DrainAndClose(resp.Body)
 	if resp.StatusCode == http.StatusUnauthorized {
 		return fmt.Errorf("HTTP 401: Model Hub API Key 无效，请在模型中心重新保存（Unsloth 设置 → API 创建）")
 	}
@@ -248,7 +250,7 @@ func (m *Manager) ModelHubModelLoaded(ctx context.Context, modelID string) (bool
 	if err != nil {
 		return false, fmt.Errorf("Studio 不可达: %w", err)
 	}
-	defer resp.Body.Close()
+	defer netclient.DrainAndClose(resp.Body)
 	if resp.StatusCode == http.StatusUnauthorized {
 		return false, fmt.Errorf("HTTP 401: Model Hub API Key 无效")
 	}

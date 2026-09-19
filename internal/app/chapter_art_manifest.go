@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gaea/gaea/internal/gaea/fileutil"
 	"github.com/gaea/gaea/internal/project"
 )
 
@@ -90,7 +91,7 @@ func saveChapterArtManifest(pm *project.Manager, m chapterArtManifest) error {
 		_ = os.Remove(tmpName)
 		return fmt.Errorf("移除旧清单失败: %w", err)
 	}
-	if err := os.Rename(tmpName, p); err != nil {
+	if err := fileutil.RenameWithRetry(tmpName, p); err != nil {
 		_ = os.Remove(tmpName)
 		return fmt.Errorf("替换清单失败: %w", err)
 	}

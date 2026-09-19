@@ -3,6 +3,7 @@ package booksource
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/url"
 	"sort"
 	"strings"
@@ -288,6 +289,15 @@ func Aggregate(ctx context.Context, opt Options, keyword string, rules ...*Rule)
 		wg.Add(1)
 		go func(r *Rule) {
 			defer wg.Done()
+			// 单源 panic 防线：外部站点内容+用户规则解析面，单源异常转该源
+			// 错误项（宁漏勿误，与 err 路径同形），不带崩泛搜索。
+			defer func() {
+				if p := recover(); p != nil {
+					mu.Lock()
+					errs = append(errs, SourceError{Source: r.Name, Err: fmt.Errorf("搜索 panic: %v", p)})
+					mu.Unlock()
+				}
+			}()
 			res, err := New(r, opt).Search(ctx, keyword)
 			mu.Lock()
 			defer mu.Unlock()

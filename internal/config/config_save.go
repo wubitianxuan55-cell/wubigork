@@ -11,6 +11,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"sync"
+
+	"github.com/gaea/gaea/internal/gaea/fileutil"
 )
 
 // saveMu 串行化 Save 的 read-modify-write（并发写不同 key 不互相覆盖）
@@ -49,7 +51,9 @@ func Save(key, value string) error {
 }
 
 // renameFile 覆盖写目标文件；抽为变量便于测试注入失败路径。
-var renameFile = os.Rename
+// 默认用 fileutil.RenameWithRetry：Windows 上 AV/索引器瞬时持有目标文件时
+// 权限类 rename 失败按退避重试（v4.293），最终失败仍返回错误。
+var renameFile = fileutil.RenameWithRetry
 
 // saveConfigFile 原子写配置文件（T6-9.4）：同目录临时文件 → 写入 → fsync → rename 覆盖。
 // 任一步失败都会清理临时文件并保留原文件不破坏（中断不会截断/半写配置文件）。

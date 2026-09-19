@@ -15,6 +15,8 @@ import (
 	"strings"
 	"sync/atomic"
 	"time"
+
+	"github.com/gaea/gaea/internal/gaea/fileutil"
 )
 
 // NameMaxRune 模板名上限（rune 计，中文友好）；超限报错不静默截断。
@@ -142,7 +144,7 @@ func (s *TemplateStore) Save(t Template) error {
 	if err := os.WriteFile(tmp, b, 0o644); err != nil {
 		return err
 	}
-	return os.Rename(tmp, s.path(t.ID))
+	return fileutil.RenameWithRetry(tmp, s.path(t.ID))
 }
 
 // Get 读单条；不存在报错（fail-closed）。

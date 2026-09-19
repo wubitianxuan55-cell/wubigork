@@ -11,6 +11,8 @@ import (
 	"io"
 	"net/http"
 	"strings"
+
+	"github.com/gaea/gaea/internal/netclient"
 )
 
 // ── OpenAI 兼容响应结构 ────────────────────────────────────
@@ -82,7 +84,7 @@ func (m *Manager) fetchModels(ctx context.Context, engine *EngineConfig) ([]Mode
 	if err != nil {
 		return nil, fmt.Errorf("请求失败: %w", err)
 	}
-	defer resp.Body.Close()
+	defer netclient.DrainAndClose(resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
 		if resp.StatusCode == 401 {
@@ -241,7 +243,7 @@ func (m *Manager) glmPing(ctx context.Context, engine *EngineConfig) error {
 	if err != nil {
 		return fmt.Errorf("请求失败: %w", err)
 	}
-	defer resp.Body.Close()
+	defer netclient.DrainAndClose(resp.Body)
 	body, _ := io.ReadAll(io.LimitReader(resp.Body, 8192))
 	if resp.StatusCode == http.StatusOK {
 		return nil

@@ -19,6 +19,8 @@ import (
 	"strings"
 	"time"
 	"unicode"
+
+	"github.com/gaea/gaea/internal/gaea/fileutil"
 )
 
 const wmlNS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
@@ -150,7 +152,7 @@ func writeDocx(path string, doc *docxFile) error {
 	if err := tmp.Close(); err != nil {
 		return fmt.Errorf("关闭临时文件失败: %w", err)
 	}
-	if err := os.Rename(tmpName, path); err != nil {
+	if err := fileutil.RenameWithRetry(tmpName, path); err != nil {
 		return fmt.Errorf("替换原文件失败: %w", err)
 	}
 	return nil

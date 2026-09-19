@@ -24,6 +24,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gaea/gaea/internal/gaea/fileutil"
+
 	_ "modernc.org/sqlite" // 纯 Go SQLite 驱动
 )
 
@@ -435,7 +437,7 @@ func WritePending(state PendingState) error {
 	if err := os.WriteFile(tmp, data, 0o644); err != nil {
 		return err
 	}
-	return os.Rename(tmp, path)
+	return fileutil.RenameWithRetry(tmp, path)
 }
 
 // ReadPending 读取 pending 标记；不存在返回 (nil, nil)。

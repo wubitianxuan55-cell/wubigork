@@ -112,6 +112,9 @@ func (a *App) maybeDreamAfterTurn(space string) {
 
 	go func() {
 		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("回合做梦 panic", "recover", r)
+			}
 			gaeaDreamState.Lock()
 			gaeaDreamState.running = false
 			gaeaDreamState.last = time.Now()

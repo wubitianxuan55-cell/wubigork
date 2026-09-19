@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gaea/gaea/internal/gaea/fileutil"
 	"github.com/gaea/gaea/internal/scene"
 	"github.com/gaea/gaea/internal/snapshot"
 	"github.com/gaea/gaea/internal/types"
@@ -441,7 +442,8 @@ func findParentVolume(node types.OutlineNode, targetID string) *types.OutlineNod
 // ── 内部辅助 ─────────────────────────────────────────────────
 
 // writeFileAtomic 原子写文件：先在目标同目录写临时文件 <name>.tmp-<随机>，
-// 写入并 fsync 后 os.Rename 覆盖目标。任何一步失败都清理临时文件、保留旧文件，
+// 写入并 fsync 后经 fileutil.RenameWithRetry 覆盖目标（Windows 上 AV/索引器
+// 瞬时持有目标文件时按退避重试）。任何一步失败都清理临时文件、保留旧文件，
 // 避免崩溃或并发写把 characters.json/outline.json/章节等用户数据写坏。
 func writeFileAtomic(path string, data []byte) error {
 	dir := filepath.Dir(path)
@@ -464,7 +466,7 @@ func writeFileAtomic(path string, data []byte) error {
 	if err := tmp.Close(); err != nil {
 		return fmt.Errorf("关闭临时文件失败 (%s): %w", path, err)
 	}
-	if err := os.Rename(tmpPath, path); err != nil {
+	if err := fileutil.RenameWithRetry(tmpPath, path); err != nil {
 		return fmt.Errorf("替换文件失败 (%s): %w", path, err)
 	}
 	return nil

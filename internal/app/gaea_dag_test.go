@@ -621,3 +621,34 @@ func TestDagPlanEditInPlace(t *testing.T) {
 		t.Fatal("移除仍被依赖的 read 应悬空拒绝")
 	}
 }
+
+// TestDagNodePanicMarkedFailed 节点级 panic 防线（2026-09-19 后端审计）：
+// runner panic（子代理执行链 LLM 流式/工具/事件回投的漏网异常）转节点 failed
+//（与 err 路径同形：置 failed+Error 带证据+下游 skipped），不带崩进程不悬挂本波。
+func TestDagNodePanicMarkedFailed(t *testing.T) {
+	injectDagEnv(t)
+	id := planChain(t)
+
+	SetDagRunnerForTest(func(ctx context.Context, prompt string, emit func(ref, text string)) (string, string, error) {
+		if strings.Contains(prompt, "读取三份月度 xlsx") {
+			panic("runner 炸了")
+		}
+		t.Fatal("上游 panic 后不应继续执行下游节点")
+		return "", "", nil
+	})
+
+	a := &App{}
+	if _, err := a.GaeaDagRun(id); err != nil {
+		t.Fatalf("GaeaDagRun: %v", err)
+	}
+	r := waitDagDone(t, id)
+	n := dagNode(t, r, "read")
+	if n.Status != dag.StatusFailed || !strings.Contains(n.Error, "panic") {
+		t.Fatalf("panic 节点状态错误: %+v", n)
+	}
+	for _, want := range []string{"pivot", "report"} {
+		if n := dagNode(t, r, want); n.Status != dag.StatusSkipped {
+			t.Fatalf("下游 %s 应 skipped: %+v", want, n)
+		}
+	}
+}

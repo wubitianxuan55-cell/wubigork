@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/gaea/gaea/internal/gaea/fileutil"
 	"github.com/gaea/gaea/internal/util"
 )
 
@@ -196,9 +197,9 @@ func marshalSnapshot(s *StateSnapshot) ([]byte, error) {
 
 // writeFileAtomic writes data to path atomically: it writes to a temporary
 // sibling file and renames it over the target. Readers never see a partial
-// write. This mirrors the project-wide fileutil.AtomicWrite pattern without
-// importing that package (the narrative package is intentionally dependency
-// minimal). File and directory sync are best-effort.
+// write. The rename goes through the shared fileutil.RenameWithRetry (v4.293:
+// Windows AV/indexer transiently locking the target); the rest mirrors the
+// fileutil.AtomicWrite pattern with file and directory sync best-effort.
 func writeFileAtomic(path string, data []byte, perm os.FileMode) error {
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -219,7 +220,7 @@ func writeFileAtomic(path string, data []byte, perm os.FileMode) error {
 		_ = os.Remove(tmpPath)
 		return fmt.Errorf("narrative: close temp: %w", err)
 	}
-	if err := os.Rename(tmpPath, path); err != nil {
+	if err := fileutil.RenameWithRetry(tmpPath, path); err != nil {
 		_ = os.Remove(tmpPath)
 		return fmt.Errorf("narrative: rename %s: %w", path, err)
 	}

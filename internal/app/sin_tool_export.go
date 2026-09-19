@@ -20,6 +20,8 @@ import (
 	"strings"
 	"time"
 	"unicode"
+
+	"github.com/gaea/gaea/internal/gaea/fileutil"
 )
 
 const (
@@ -162,7 +164,7 @@ func sinWriteFileAtomic(path string, data []byte) error {
 	if err := os.WriteFile(tmp, data, 0o644); err != nil {
 		return fmt.Errorf("写入导出文件失败: %w", err)
 	}
-	if err := os.Rename(tmp, path); err != nil {
+	if err := fileutil.RenameWithRetry(tmp, path); err != nil {
 		return fmt.Errorf("保存导出文件失败: %w", err)
 	}
 	return nil

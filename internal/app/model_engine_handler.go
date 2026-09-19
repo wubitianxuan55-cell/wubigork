@@ -64,7 +64,7 @@ func (c *core) SetEngineDefaultModel(engineID, modelName string) error {
 	// 仅 xAI 引擎的默认模型同步为全局回退模型（cfg.Model）；
 	// 其他引擎（本地/第三方）不再污染全局配置，避免陈旧模型名发给活跃引擎（E03 同类问题）。
 	if engineID == "xai" {
-		c.cfg.Model = modelName
+		config.SetModelMem(c.cfg, modelName)
 		if err := config.Save(config.KeyModel, modelName); err != nil {
 			slog.Warn("保存模型配置失败", "model", modelName, "error", err)
 		}
@@ -98,7 +98,7 @@ func (c *core) SetActiveEngine(engineID string) error {
 
 	// 切换活跃引擎时同步全局回退模型，确保旧路径（xAI 回退等）使用该引擎的默认模型
 	if eng.DefaultModel != "" {
-		c.cfg.Model = eng.DefaultModel
+		config.SetModelMem(c.cfg, eng.DefaultModel)
 		if err := config.Save(config.KeyModel, eng.DefaultModel); err != nil {
 			slog.Warn("保存全局模型配置失败", "model", eng.DefaultModel, "error", err)
 		}
@@ -127,7 +127,7 @@ func (c *core) GetActiveModel() string {
 	engineID := c.client.ActiveEngineID()
 	model, _ := c.engineMgr.GetDefaultModel(engineID)
 	if model == "" && engineID == "xai" {
-		return c.cfg.Model
+		return config.GetModelMem(c.cfg)
 	}
 	return model
 }

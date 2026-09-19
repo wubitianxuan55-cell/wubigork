@@ -222,6 +222,7 @@ func (c *crawler) pacedFetch(ctx context.Context, req Request) (*goquery.Documen
 }
 
 // runBounded 有界并发执行 fn(i)，i ∈ [0,n)；ctx 取消后未起跑的槽位记 ctx 错误。
+// fn 内 panic 转该槽位 error（外部内容+用户规则解析面，单章异常不放大为进程崩溃）。
 func (c *crawler) runBounded(ctx context.Context, n, limit int, fn func(i int) error) []error {
 	if limit <= 0 {
 		limit = c.cfg.Concurrency
@@ -243,7 +244,14 @@ func (c *crawler) runBounded(ctx context.Context, n, limit int, fn func(i int) e
 				errs[i] = ctx.Err()
 				return
 			}
-			errs[i] = fn(i)
+			errs[i] = func() (err error) {
+				defer func() {
+					if r := recover(); r != nil {
+						err = fmt.Errorf("章节处理 panic: %v", r)
+					}
+				}()
+				return fn(i)
+			}()
 		}(i)
 	}
 	wg.Wait()

@@ -20,6 +20,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/gaea/gaea/internal/gaea/fileutil"
 )
 
 // BenchmarkRunSummary 测评运行摘要（GET /api/benchmarks 元素）。
@@ -302,7 +304,7 @@ func (a *App) GaeaBenchmarkExport(id, dir string) (string, error) {
 		_ = os.Remove(tmpName)
 		return "", fmt.Errorf("写入报告失败: %w", err)
 	}
-	if err := os.Rename(tmpName, path); err != nil {
+	if err := fileutil.RenameWithRetry(tmpName, path); err != nil {
 		_ = os.Remove(tmpName)
 		return "", fmt.Errorf("写入报告失败: %w", err)
 	}

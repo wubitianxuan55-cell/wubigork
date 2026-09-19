@@ -6,6 +6,7 @@ package netclient
 import (
 	"context"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -150,6 +151,18 @@ func Summary(spec ProxySpec) string {
 	default:
 		return "auto (env)"
 	}
+}
+
+// DrainAndClose 读尽并关闭响应体（错误/早退路径专用）：未读尽的 body 会让
+// 底层连接被丢弃而非归还连接池，周期性健康探测（非 2xx 早退）即每次重新
+// TCP/TLS 握手。读上限 64KB 防异常大 body；成功路径 body 已读完，此处为
+// no-op + Close，统一替换 defer resp.Body.Close() 安全。
+func DrainAndClose(body io.ReadCloser) {
+	if body == nil {
+		return
+	}
+	_, _ = io.Copy(io.Discard, io.LimitReader(body, 64<<10))
+	_ = body.Close()
 }
 
 func defaultTransport() *http.Transport {

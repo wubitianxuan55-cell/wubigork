@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/gaea/gaea/internal/config"
+	"github.com/gaea/gaea/internal/gaea/fileutil"
 	"github.com/gaea/gaea/internal/prompt"
 	"github.com/gaea/gaea/internal/promptstore"
 )
@@ -85,7 +86,7 @@ func savePromptOverrides(dataRoot string, entries []promptstore.Override) error 
 		os.Remove(tmpName)
 		return err
 	}
-	if err := os.Rename(tmpName, p); err != nil {
+	if err := fileutil.RenameWithRetry(tmpName, p); err != nil {
 		os.Remove(tmpName)
 		return err
 	}

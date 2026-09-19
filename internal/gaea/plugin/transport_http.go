@@ -10,6 +10,8 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+
+	"github.com/gaea/gaea/internal/netclient"
 )
 
 // maxHTTPBody caps how much of a JSON / SSE response body we read, so a
@@ -64,7 +66,7 @@ func (t *httpTransport) call(ctx context.Context, method string, params any) (js
 	if err != nil {
 		return nil, fmt.Errorf("plugin %q: %s: %w", t.name, method, err)
 	}
-	defer resp.Body.Close()
+	defer netclient.DrainAndClose(resp.Body)
 	t.captureSession(resp)
 
 	if resp.StatusCode/100 != 2 {
@@ -90,7 +92,7 @@ func (t *httpTransport) notify(ctx context.Context, method string, params any) e
 	if err != nil {
 		return fmt.Errorf("plugin %q: %s: %w", t.name, method, err)
 	}
-	defer resp.Body.Close()
+	defer netclient.DrainAndClose(resp.Body)
 	t.captureSession(resp)
 	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, maxHTTPBody))
 	if resp.StatusCode/100 != 2 {

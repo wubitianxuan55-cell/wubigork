@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/gaea/gaea/internal/netclient"
 )
 
 // ── 引擎健康巡检 + 故障转移候选（C 刀 v0）─────────────────────
@@ -203,7 +205,7 @@ func (m *Manager) probeEndpoint(ctx context.Context, e *EngineConfig) (connected
 	if err != nil {
 		return false, 0, fmt.Errorf("请求失败: %w", err)
 	}
-	defer resp.Body.Close()
+	defer netclient.DrainAndClose(resp.Body)
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
 		return false, 0, fmt.Errorf("HTTP %d: 健康探测失败", resp.StatusCode)
 	}

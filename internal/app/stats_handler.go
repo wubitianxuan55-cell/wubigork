@@ -3,6 +3,7 @@ package app
 import (
 	"path/filepath"
 
+	"github.com/gaea/gaea/internal/config"
 	"github.com/gaea/gaea/internal/skill"
 	"github.com/gaea/gaea/internal/stats"
 	"github.com/gaea/gaea/internal/util"
@@ -54,7 +55,7 @@ func (a *App) GetStats() map[string]interface{} {
 // GetConfig 返回当前配置
 func (a *App) GetConfig() map[string]string {
 	return map[string]string{
-		"model":     a.cfg.Model,
+		"model":     config.GetModelMem(a.cfg),
 		"baseURL":   a.cfg.XaiAPIBaseURL,
 		"tokenPath": a.cfg.TokenStorePath,
 	}

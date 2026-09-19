@@ -45,12 +45,13 @@ func DefaultConfig() Config {
 // ─── 入站防线参数（v4.8 子项 d）─────────────────────────────
 
 const (
-	wxRateLimit     = 20           // per-peer 滑动窗口内放行条数
-	wxRateWindow    = time.Minute  // 滑动窗口长度
-	wxMaxTextBytes  = 4096         // 入站文本字节上限（4KB）
-	wxMaxMediaItems = 5            // item_list 多媒体条数上限
-	rateLimitedText = "消息太频繁，稍后再说" // 超限固定文案（不触发 LLM）
-	truncatedMark   = "（消息过长已截断）"
+	wxRateLimit       = 20           // per-peer 滑动窗口内放行条数
+	wxRateWindow      = time.Minute  // 滑动窗口长度
+	wxMaxTextBytes    = 4096         // 入站文本字节上限（4KB）
+	wxMaxMediaItems   = 5            // item_list 多媒体条数上限
+	rateLimitedText   = "消息太频繁，稍后再说" // 超限固定文案（不触发 LLM）
+	truncatedMark     = "（消息过长已截断）"
+	fallbackReplyText = "思考中…请稍后再试" // AI 回复失败/消息处理 panic 的降级文案（AI 回复失败路径共用）
 )
 
 // ─── 回调 ────────────────────────────────────────────────────
@@ -425,6 +426,17 @@ func (it *fileItem) UnmarshalJSON(data []byte) error {
 }
 
 func (s *Server) pollLoop() {
+	// 常驻轮询兜底防线：轮询编排在独立 goroutine，任何漏网 panic 若不拦截
+	// 会带崩整个进程（同文件 handle/invokeFileHandler/SendFileCard 均有
+	// 消息级防线，本层是编排级兜底）——退出前复位 running，IsRunning 不误报。
+	defer func() {
+		if r := recover(); r != nil {
+			slog.Error("[weixin] 轮询循环 panic，已退出（重启助手通道可恢复）",
+				"assistant", s.cfg.AssistantID, "recover", r)
+			s.running.Store(false)
+		}
+	}()
+
 	var fails int
 	timeout := s.pollTO
 
@@ -506,6 +518,23 @@ func (s *Server) pollLoop() {
 }
 
 func (s *Server) handle(msg *inboundMsg) {
+	// 消息级 panic 防线：handle 在 pollLoop goroutine 内同步执行完整 AI 回合
+	//（媒体识别→chatFn→回推），单条消息 panic 不带崩常驻轮询——降级文案与
+	// AI 回复失败同路（宁漏勿误），继续处理后续消息。
+	defer func() {
+		if r := recover(); r != nil {
+			slog.Error("[weixin] 消息处理 panic，已拦截",
+				"assistant", s.cfg.AssistantID, "from", msg.FromUserID, "recover", r)
+			if msg.FromUserID != "" {
+				if s.sendFn != nil {
+					_ = s.sendFn(msg.FromUserID, msg.ContextToken, fallbackReplyText)
+				} else {
+					_ = s.Send(msg.FromUserID, msg.ContextToken, fallbackReplyText)
+				}
+			}
+		}
+	}()
+
 	// v4.8 d① per-peer 滑动窗口限频：超限发固定文案，不触发 LLM（不进聊天
 	// 管道，也不更新 lastPeer——正常消息已记录过回推目标）。
 	if msg.FromUserID != "" && !s.limiter.Allow(msg.FromUserID) {
@@ -597,7 +626,7 @@ func (s *Server) handle(msg *inboundMsg) {
 	reply, err := s.chatFn(text, msg.FromUserID)
 	if err != nil {
 		slog.Error("[weixin] AI回复失败", "err", err)
-		reply = "思考中…请稍后再试"
+		reply = fallbackReplyText
 	}
 	// v4.8.3：空回复不推送——产物走 SendFileCard 图片卡片（图+caption 已由
 	// seam 内部发出，失败亦有其内部文本降级），回调返回空串表示「已送出，

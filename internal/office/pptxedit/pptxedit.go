@@ -9,7 +9,7 @@
 //   - 段落解析器 = docxedit WML 版的 DrawingML 移植：a:p/a:r/a:t/a:rPr，
 //     blocker 换 a:br/a:fld/a:tab；a:fld 内文本可见但不可编辑（记 blocker）。
 //   - 表格/组合形状内的 a:p 解析器自然覆盖（设计拍板项 3：包含）。
-//   - 原子写回：临时文件 + os.Rename；zip 条目顺序原样保留。
+//   - 原子写回：临时文件 + fileutil.RenameWithRetry（带瞬时占用重试）；zip 条目顺序原样保留。
 package pptxedit
 
 import (
@@ -22,6 +22,8 @@ import (
 	"path/filepath"
 	"strings"
 	"unicode"
+
+	"github.com/gaea/gaea/internal/gaea/fileutil"
 )
 
 // SlideText 是单页幻灯片的可编辑文本定位结果（页码 1 起）。
@@ -172,7 +174,7 @@ func writePptx(path string, doc *pptxFile) error {
 	if err := tmp.Close(); err != nil {
 		return fmt.Errorf("关闭临时文件失败: %w", err)
 	}
-	if err := os.Rename(tmpName, path); err != nil {
+	if err := fileutil.RenameWithRetry(tmpName, path); err != nil {
 		return fmt.Errorf("替换原文件失败: %w", err)
 	}
 	return nil

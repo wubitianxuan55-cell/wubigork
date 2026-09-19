@@ -574,6 +574,11 @@ func (a *App) GaeaResumeSession(path string) ([]HistoryMessage, error) { // 引�
 	if c == nil {
 		return nil, errors.New("办公引擎未初始化")
 	}
+	// 运行闸（与 GaeaNewSession 同款）：回合中 ResumeFromDisk 换 session 与
+	// run loop 直读交错，先停再切。
+	if c.Running() {
+		return nil, errors.New("回合正在运行，请先停止当前回合再切换会话")
+	}
 	// 3.0 Step 1 事件日志模式：恢复走 Restore（先 DetectLegacy 迁移，再
 	// checkpoint + log tail 重放）；legacy 模式保持原 LoadSession + Resume。
 	_ = c.Snapshot() // 切换前持久化当前会话（事件日志模式含检查点）

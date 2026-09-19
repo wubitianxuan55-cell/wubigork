@@ -33,7 +33,7 @@ func (c *core) routeModel(feature string) (engine, model, source string) {
 				}
 			}
 			if model == "" && eng == "xai" {
-				model = c.cfg.Model
+				model = config.GetModelMem(c.cfg)
 			}
 			c.emitModelRoute(feature, eng, model, "global")
 			return eng, model, "global"

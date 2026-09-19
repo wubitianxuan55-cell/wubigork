@@ -14,6 +14,8 @@ import (
 	"strings"
 	"sync/atomic"
 	"time"
+
+	"github.com/gaea/gaea/internal/gaea/fileutil"
 )
 
 // 节点状态机：pending→running→done|failed→（steer 续跑→done|failed）→accepted。
@@ -352,7 +354,7 @@ func (s *Store) Save(r Run) error {
 	if err := os.WriteFile(tmp, b, 0o644); err != nil {
 		return err
 	}
-	return os.Rename(tmp, s.path(r.ID))
+	return fileutil.RenameWithRetry(tmp, s.path(r.ID))
 }
 
 // SaveNew 唯一化落盘：id 冲突（同一秒重复规划）时追加 -2/-3 后缀，绝不覆盖

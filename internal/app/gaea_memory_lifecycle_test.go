@@ -1,12 +1,16 @@
 package app
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/gaea/gaea/internal/ai"
+	"github.com/gaea/gaea/internal/config"
+	"github.com/gaea/gaea/internal/gaea/provider/bridge"
 	gaeaConfig "github.com/gaea/gaea/internal/gaea/config"
 	"github.com/gaea/gaea/internal/gaea/db"
 	"github.com/gaea/gaea/internal/gaea/memory"
@@ -307,5 +311,78 @@ func TestGaeaMemorySetRetentionDays(t *testing.T) {
 	}
 	if got.Memory.ArchivedRetentionDays != 730 {
 		t.Fatalf("隔离落盘重载 = %d, want 730", got.Memory.ArchivedRetentionDays)
+	}
+}
+
+// TestGaeaMemorySetRetentionDaysUninitialized 死锁回归（2026-09-19 后端审计）：
+// 引擎未初始化（ga.cfg==nil）时设置保留期，须先在锁外 GaeaInit 再加锁处理——
+// 此前持 ga.mu 调 GaeaInit（内部首行再取 ga.mu）sync.Mutex 不可重入自死锁，
+// 绑定 goroutine 永久卡死且持有 ga.mu，办公板块全部消费方连锁冻结。超时分支
+// 照 gaea_init_deadlock_test 先例直接退出二进制（defer 恢复函数会再次挂起）。
+func TestGaeaMemorySetRetentionDaysUninitialized(t *testing.T) {
+	restore := workspaceTestIsolate(t)
+	defer restore()
+
+	bridge.SetClient(ai.NewClient(config.Load()))
+
+	// 种子配置：GaeaInit 完整成功（引擎拉起后设置才应生效）。
+	seed := gaeaConfig.Default()
+	seed.DefaultModel = "gaea"
+	seed.Workspace = t.TempDir()
+	seed.Providers = []gaeaConfig.ProviderEntry{{
+		Name:          "gaea",
+		Kind:          "wubigrok",
+		Model:         "",
+		ContextWindow: 1_000_000,
+	}}
+	seed.Tools.Enabled = nil
+	seed.Sandbox.Bash = "off"
+	if err := gaeaConfig.Save(seed); err != nil {
+		t.Fatalf("种子配置保存失败: %v", err)
+	}
+
+	a := &App{core: &core{
+		ctx:    context.Background(),
+		cfg:    config.Load(),
+		client: ai.NewClient(config.Load()),
+	}}
+
+	// 快照全局 gaea 运行时（同包测试互不污染）；超时分支不走 defer——
+	// 修复前本用例挂在 ga.mu 重入，defer 的 ga.mu.Lock() 会再次挂起进程。
+	ga.mu.Lock()
+	oldCtrl, oldCfg := ga.ctrl, ga.cfg
+	ga.ctrl, ga.cfg = nil, nil
+	ga.mu.Unlock()
+
+	done := make(chan error, 1)
+	go func() { done <- a.GaeaMemorySetRetentionDays(30) }()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("未初始化时设置保留期: %v", err)
+		}
+	case <-time.After(30 * time.Second):
+		t.Log("SetRetentionDays 超时：持 ga.mu 调 GaeaInit 自死锁（回归）")
+		os.Exit(1)
+	}
+	defer func() {
+		ga.mu.Lock()
+		defer ga.mu.Unlock()
+		if ga.ctrl != nil && ga.ctrl != oldCtrl {
+			ga.ctrl.Close()
+		}
+		ga.ctrl, ga.cfg = oldCtrl, oldCfg
+		_ = db.CloseDatabase(gaeaConfig.MemoryUserDir())
+	}()
+
+	ga.mu.Lock()
+	d := ga.cfg.Memory.ArchivedRetentionDays
+	ctrl := ga.ctrl
+	ga.mu.Unlock()
+	if d != 30 {
+		t.Fatalf("设置后保留期 = %d, want 30", d)
+	}
+	if ctrl == nil {
+		t.Fatal("未初始化路径应先在锁外拉起引擎（ctrl 非 nil）")
 	}
 }
