@@ -2,7 +2,7 @@
 // 纯展示面板：人格卡片 / 当前模型 / 上下文摘要 / 快捷建议 —— 全部取自现有真实状态，
 // 无数据时渲染优雅空态，不造假数据；不新增后端调用（当前模型复用 useFeatureModel('chat')，
 // 与 FeatureModelBar 同数据源）。可折叠收起（宽度过渡，reduced-motion 下关停）。
-import React from 'react'
+import React, { useMemo } from 'react'
 import { Button, Popconfirm, Tooltip } from 'antd'
 import {
   ApiOutlined, AudioOutlined, BulbOutlined, ClearOutlined, ExportOutlined,
@@ -43,7 +43,7 @@ const SectionEmpty: React.FC<{ icon: React.ReactNode; title: string; sub?: strin
   </div>
 )
 
-export const ChatInspector: React.FC<ChatInspectorProps> = ({
+const ChatInspectorInner: React.FC<ChatInspectorProps> = ({
   mode, personalities, activePersonality, companionName, emoColor,
   messages, speaking, thinking, quickReplies, collapsed, onToggle,
   onFillInput, onSwitchPersonality, onExport, onClear, onOpenVoiceSettings, onNavigateLib,
@@ -53,10 +53,16 @@ export const ChatInspector: React.FC<ChatInspectorProps> = ({
     ? personalities.find(p => p.id === mode) ?? personalities.find(p => p.id === activePersonality)
     : undefined
 
-  // ── 上下文摘要（真实数据，只读统计） ──
-  const totalChars = messages.reduce((n, m) => n + (m.content?.length || 0), 0)
-  const userCount = messages.filter(m => m.role === 'user').length
-  const assistantCount = messages.length - userCount
+  // ── 上下文摘要（真实数据，只读统计；v4.365 三遍全文遍历合并为单趟 reduce） ──
+  const { totalChars, userCount, assistantCount } = useMemo(() => {
+    let chars = 0
+    let users = 0
+    for (const m of messages) {
+      chars += m.content?.length || 0
+      if (m.role === 'user') users++
+    }
+    return { totalChars: chars, userCount: users, assistantCount: messages.length - users }
+  }, [messages])
   const hasMessages = messages.length > 0
 
   // ── 模型状态（三重传达：色点 + 图标 + 文案） ──
@@ -228,3 +234,6 @@ export const ChatInspector: React.FC<ChatInspectorProps> = ({
     </div>
   )
 }
+
+// v4.365 性能轮：流式高频重渲染下本组件经 memo 跳过（props 稳定性由 ChatPage useCallback 保证）
+export const ChatInspector = React.memo(ChatInspectorInner)

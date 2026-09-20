@@ -60,7 +60,7 @@ const ComposerTool: React.FC<{
   </Tooltip>
 )
 
-export const ChatComposer: React.FC<ChatComposerProps> = ({
+const ChatComposerInner: React.FC<ChatComposerProps> = ({
   mode, input, onInputChange, onKeyDown, inputRef,
   voiceOn, voiceTranscript, onToggleVoice, sending,
   forceSearch, onToggleForceSearch, thinking, onToggleThinking, onSend, onFillInput,
@@ -121,3 +121,6 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
     </div>
   </div>
 )
+
+// v4.365 性能轮：流式高频重渲染下本组件经 memo 跳过（props 稳定性由 ChatPage useCallback 保证）
+export const ChatComposer = React.memo(ChatComposerInner)

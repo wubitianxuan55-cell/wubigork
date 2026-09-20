@@ -32,7 +32,8 @@ section("E16 QUICK_REPLIES 常量化位置");
 {
   const src = read("frontend/src/components/chat/ChatComposer.tsx");
   const declIdx = src.indexOf("const QUICK_REPLIES = [");
-  const compIdx = src.indexOf("export const ChatComposer:");
+  // v4.366：组件改为 const ChatComposerInner 声明 + 文件尾 React.memo 导出
+  const compIdx = Math.max(src.indexOf("export const ChatComposer:"), src.indexOf("const ChatComposerInner: React.FC"));
   if (declIdx < 0) bad("ChatComposer.tsx 找不到 QUICK_REPLIES 声明");
   else ok("QUICK_REPLIES 声明存在");
   if (compIdx < 0) bad("ChatComposer.tsx 找不到组件声明（无法校验作用域）");

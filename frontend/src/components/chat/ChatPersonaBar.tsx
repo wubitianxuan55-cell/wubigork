@@ -16,7 +16,7 @@ export interface ChatPersonaBarProps {
   onManage: () => void
 }
 
-export const ChatPersonaBar: React.FC<ChatPersonaBarProps> = ({
+const ChatPersonaBarInner: React.FC<ChatPersonaBarProps> = ({
   companionName, emoColor, speaking, thinking, activeId, onSelect, onManage,
 }) => (
   <div className="chat-persona-bar">
@@ -39,3 +39,6 @@ export const ChatPersonaBar: React.FC<ChatPersonaBarProps> = ({
     </PersonaPicker>
   </div>
 )
+
+// v4.365 性能轮：流式高频重渲染下本组件经 memo 跳过（props 稳定性由 ChatPage useCallback 保证）
+export const ChatPersonaBar = React.memo(ChatPersonaBarInner)

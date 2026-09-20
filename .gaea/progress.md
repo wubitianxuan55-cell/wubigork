@@ -1,3 +1,14 @@
+## 最新发布：v4.366.0（2026-09-21）「性能轮收官：聊天组件 memo 化专项 + StoryStream 行级 memo」
+
+- **动机**：用户口径「继续」——性能八项留池中「聊天组件 memo 化」的 props 链梳理完成，落地收官；StoryStream 行级 memo 同步根修。前端 7 源文件+1 守卫适配，绑定面 706 不动。
+- **刀1 聊天组件 memo 化**：ChatPage 五个内联箭头回调 useCallback 化（handleToggleSearch/handleToggleForceSearch/handleToggleThinking/handleOpenVoiceSettings/handleSwitchPersona）；`quickReplies={mode !== 'plain' ? QUICK_REPLIES : []}` 的内联 [] 提模块级 EMPTY_REPLIES 常量（内联数组是 memo 恒失效典型来源）；四组件（ChatModeBar/ChatPersonaBar/ChatComposer/ChatInspector）React.memo 包裹（XInner 声明+文件尾 memo 导出）；ChatInspector 统计三遍全文遍历合并单趟 useMemo。memo 语义安全：props 梳理不完整只损失收益无正确性风险。
+- **刀2 StoryStream 行级 memo**：抽 SinAssistantRow memo 行组件（storyId/m/两插图回调为 props），parseStorySegments 下沉行内。前提核实：useSinStory 流式 patch（prev.map 只换流式行引用）+showNotice/setIllustration 均 useCallback 稳定。效果：流式期间每 delta 只重渲染流式中的那一行（原 O(消息数×分段)/token 且 keepAlive 后台照跑）。
+- **守卫适配**：E16（frontend-e-check.mjs）QUICK_REPLIES 作用域断言按 memo 化声明形态适配（ChatComposerInner 或 memo 导出取 max 位置）——守卫意图（常量在组件之前）不变。
+- **门禁**：tsc 0+eslint 0+全量 ci.ps1 绿 EXIT=0（vitest 387 文件 3309 例+E16 PASS）+drift OK@706+版本三处 4.366.0。
+- **坑**：①改组件导出形态先查源断言守卫——E16 按 `export const ChatComposer:` 文本定位组件声明，memo 化改名后守卫失明；守卫与被守代码同 commit 演进但断言意图不变；②memo 化顺序纪律——先稳定 props（useCallback/常量）再包 memo，顺序反了 memo 全部空转且无报错只有性能损失。
+- **产物**：exe 50,951,168B SHA256=a6d7be9a917339e4d010ceb17fa3b10c594f4225f845a0f9e3b2fbaa222b10c1（releases/gaea-v4.366.0.exe+SHA256SUMS-v4.366.0.txt 仅本地；桌面副本同哈希实测一致；冒烟 /api/health 200 过）；保留策略 5 版留 v4.362~v4.366 删 v4.361.0.exe（SUMS 身份档案全保留）。
+- **文档**：releases/v4.366.0.md+CHANGELOG/README+releases/README（计数 387→388+34 席插 v4.366 裁 v4.332）+AGENTS 迁 1 插 1（八十一迁：v4.363 入 archive）+progress/todos（性能八项消两项：聊天组件 memo 化+StoryStream 行级 memo）。
+
 ## 最新发布：v4.365.0（2026-09-21）「前端性能轮：流式节流 + 后台空转治理 + 缓存统一」
 
 - **动机**：用户口径「继续」——前端换新镜头性能审计（三路：React 渲染性能/长列表与流式渲染/桥接与数据面），全落行为等价低风险刀。前端 22 源文件+1 测试，绑定面 706 不动。

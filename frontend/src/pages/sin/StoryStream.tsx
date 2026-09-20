@@ -4,7 +4,7 @@
 // 与办公消息同一条渲染链：本地文件链接 / 代码 / mermaid / genui 全继承）；
 // 插图段交 SinIllustration（绘梦后端出图）。本组件只负责分段与排布。
 
-import { forwardRef } from 'react'
+import { forwardRef, memo } from 'react'
 import { Markdown } from '../../gaea/components/Markdown'
 import { EmptyState } from '../../gaea/components/EmptyState'
 import { SinIllustration } from './SinIllustration'
@@ -22,6 +22,52 @@ export interface StoryStreamProps {
   /** 空态引导文案（首入时提示怎么开写）。 */
   emptyHint?: string
 }
+
+
+// SinAssistantRow：单条助手消息行（v4.365 行级 memo）——流式期间 setMessages
+// 只换流式行引用（其余行引用稳定），memo 使历史行不再每 delta 重跑
+// parseStorySegments + 全部段落 Markdown 重渲染；插图回调须由父层保证引用稳定。
+const SinAssistantRow = memo(function SinAssistantRow({
+  storyId,
+  m,
+  onIllustrationGenerated,
+  onIllustrationError,
+}: {
+  storyId: string
+  m: SinMessageView
+  onIllustrationGenerated: (messageKey: string, cueKey: string, path: string) => void
+  onIllustrationError: (message: string) => void
+}) {
+  const segments = parseStorySegments(m.content)
+  return (
+    <div className={`sin-row is-assistant${m.error ? ' is-error' : ''}`}>
+      <div className="sin-assistant-card">
+        {/* 过程先于结果：思考过程与工具调用在正文之上（无内容时自行不渲染） */}
+        <SinProcessCard reasoning={m.reasoning} tools={m.tools ?? []} running={!!m.streaming} />
+        {segments.map((seg, i) => (
+          seg.kind === 'text' ? (
+            <div className="sin-text" key={`t${i}`}>
+              <Markdown text={seg.text} />
+            </div>
+          ) : (
+            <SinIllustration
+              key={`${m.key}_art_${seg.cueKey}`}
+              storyId={storyId}
+              messageId={m.messageId}
+              cueKey={seg.cueKey}
+              prompt={seg.prompt}
+              path={m.illustrations[seg.cueKey]}
+              ready={!m.streaming}
+              onGenerated={(cueKey, path) => onIllustrationGenerated(m.key, cueKey, path)}
+              onError={onIllustrationError}
+            />
+          )
+        ))}
+        {m.streaming && <span className="sin-caret" aria-label="正在续写" />}
+      </div>
+    </div>
+  )
+})
 
 export const StoryStream = forwardRef<HTMLDivElement, StoryStreamProps>(function StoryStream(
   { storyId, messages, onIllustrationGenerated, onIllustrationError, onScroll, emptyHint }, ref,
@@ -45,34 +91,14 @@ export const StoryStream = forwardRef<HTMLDivElement, StoryStreamProps>(function
             </div>
           )
         }
-        const segments = parseStorySegments(m.content)
         return (
-          <div className={`sin-row is-assistant${m.error ? ' is-error' : ''}`} key={m.key}>
-            <div className="sin-assistant-card">
-              {/* 过程先于结果：思考过程与工具调用在正文之上（无内容时自行不渲染） */}
-              <SinProcessCard reasoning={m.reasoning} tools={m.tools ?? []} running={!!m.streaming} />
-              {segments.map((seg, i) => (
-                seg.kind === 'text' ? (
-                  <div className="sin-text" key={`t${i}`}>
-                    <Markdown text={seg.text} />
-                  </div>
-                ) : (
-                  <SinIllustration
-                    key={`${m.key}_art_${seg.cueKey}`}
-                    storyId={storyId}
-                    messageId={m.messageId}
-                    cueKey={seg.cueKey}
-                    prompt={seg.prompt}
-                    path={m.illustrations[seg.cueKey]}
-                    ready={!m.streaming}
-                    onGenerated={(cueKey, path) => onIllustrationGenerated(m.key, cueKey, path)}
-                    onError={onIllustrationError}
-                  />
-                )
-              ))}
-              {m.streaming && <span className="sin-caret" aria-label="正在续写" />}
-            </div>
-          </div>
+          <SinAssistantRow
+            key={m.key}
+            storyId={storyId}
+            m={m}
+            onIllustrationGenerated={onIllustrationGenerated}
+            onIllustrationError={onIllustrationError}
+          />
         )
       })}
     </div>

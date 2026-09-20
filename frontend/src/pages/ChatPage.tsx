@@ -23,6 +23,7 @@ import { ChatPersonaBar } from '../components/chat/ChatPersonaBar'
 import { MessageList } from '../components/chat/MessageList'
 import { WelcomeScreen } from '../components/chat/WelcomeScreen'
 import { ChatComposer, QUICK_REPLIES } from '../components/chat/ChatComposer'
+const EMPTY_REPLIES: Array<{ label: string; text: string }> = []
 import { ChatInspector } from '../components/chat/ChatInspector'
 import { STREAM_SILENCE_TIMEOUT_MS, EMO_COLORS } from './chat/constants'
 import { navigateToCharacterLib, loadCompanionName, toUpdatedAt, loadPersonality } from './chat/utils'
@@ -89,6 +90,12 @@ const ChatPage: React.FC = () => {
   const [inspectorCollapsed, setInspectorCollapsed] = useState<boolean>(() => {
     try { return localStorage.getItem('gaea.chatInspectorCollapsed') === '1' } catch { return false }
   })
+  // v4.365 性能轮：传给 memo 子组件的回调全部 useCallback 稳定（内联箭头使 memo 恒失效）
+  const handleToggleSearch = useCallback(() => setSearchEnabled(v => !v), [])
+  const handleToggleForceSearch = useCallback(() => setForceSearch(v => !v), [])
+  const handleToggleThinking = useCallback(() => setThinking(v => !v), [])
+  const handleOpenVoiceSettings = useCallback(() => setShowVoiceSettings(true), [])
+  const handleSwitchPersona = useCallback(() => { if (mode === 'plain') switchMode(activePersonality) }, [mode, activePersonality, switchMode])
   const toggleChatInspector = useCallback(() => {
     setInspectorCollapsed((c) => {
       const next = !c
@@ -346,12 +353,12 @@ const ChatPage: React.FC = () => {
       currentPersonalityLabel={currentPersonality?.label}
       personaPickerActiveId={mode !== 'plain' ? mode : activePersonality}
       searchEnabled={searchEnabled}
-      onToggleSearch={() => setSearchEnabled(!searchEnabled)}
+      onToggleSearch={handleToggleSearch}
       onNavigateLib={navigateToCharacterLib}
       onSwitchPlain={() => switchMode('plain')}
-      onSwitchPersona={() => { if (mode === 'plain') switchMode(activePersonality) }}
+      onSwitchPersona={handleSwitchPersona}
       onSwitchPersonality={handleSwitchPersonality}
-      onOpenVoiceSettings={() => setShowVoiceSettings(true)}
+      onOpenVoiceSettings={handleOpenVoiceSettings}
       speakEmotion={speakEmotion}
       sessionEmotion={emotion}
       onChangeSpeakEmotion={setSpeakEmotion}
@@ -454,9 +461,9 @@ const ChatPage: React.FC = () => {
           onToggleVoice={toggleVoice}
           sending={sending}
           forceSearch={forceSearch}
-          onToggleForceSearch={() => setForceSearch(v => !v)}
+          onToggleForceSearch={handleToggleForceSearch}
           thinking={thinking}
-          onToggleThinking={() => setThinking(v => !v)}
+          onToggleThinking={handleToggleThinking}
           onSend={handleSend}
           onFillInput={handleFillInput}
         />
@@ -473,14 +480,14 @@ const ChatPage: React.FC = () => {
         messages={messages}
         speaking={speakingId !== null}
         thinking={sending}
-        quickReplies={mode !== 'plain' ? QUICK_REPLIES : []}
+        quickReplies={mode !== 'plain' ? QUICK_REPLIES : EMPTY_REPLIES}
         collapsed={inspectorCollapsed}
         onToggle={toggleChatInspector}
         onFillInput={handleFillInput}
         onSwitchPersonality={handleSwitchPersonality}
         onExport={handleExport}
         onClear={handleClearMessages}
-        onOpenVoiceSettings={() => setShowVoiceSettings(true)}
+        onOpenVoiceSettings={handleOpenVoiceSettings}
         onNavigateLib={navigateToCharacterLib}
       />
 

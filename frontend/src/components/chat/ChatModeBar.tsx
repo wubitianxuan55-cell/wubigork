@@ -34,7 +34,7 @@ export interface ChatModeBarProps {
   onClear: () => void
 }
 
-export const ChatModeBar: React.FC<ChatModeBarProps> = ({
+const ChatModeBarInner: React.FC<ChatModeBarProps> = ({
   variant = 'panel', mode, personaLabel, currentPersonalityLabel, personaPickerActiveId, searchEnabled,
   onToggleSearch, onNavigateLib, onSwitchPlain, onSwitchPersona, onSwitchPersonality,
   onOpenVoiceSettings, speakEmotion, sessionEmotion, onChangeSpeakEmotion, hasMessages, onExport, onClear,
@@ -97,3 +97,6 @@ export const ChatModeBar: React.FC<ChatModeBarProps> = ({
     </Space>
   </div>
 )
+
+// v4.365 性能轮：流式高频重渲染下本组件经 memo 跳过（props 稳定性由 ChatPage useCallback 保证）
+export const ChatModeBar = React.memo(ChatModeBarInner)
