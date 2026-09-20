@@ -96,7 +96,23 @@ export function useChatStream(opts: UseChatStreamOptions) {
     if (mode === 'plain') {
       let unsub: (() => void) | null = null
       let reasoningAcc = ''
-      const cleanup = () => { if (unsub) { const f = unsub; unsub = null; f() } }
+      // v4.365 流式节流：每 chunk 一次 setState 使 ChatPage 以 chunk 频率（30~120/s）
+      // 全页重渲染+每帧强制 reflow（吸底）。改为 buffer + rAF flush——一帧最多一刷，
+      // 最终文本一致（done/error/超时路径 flush 前先取消挂起帧）。
+      let deltaBuf = ''
+      let deltaRaf = 0
+      const cancelPendingDelta = () => {
+        if (deltaRaf) { cancelAnimationFrame(deltaRaf); deltaRaf = 0 }
+        deltaBuf = ''
+      }
+      const flushDelta = () => {
+        deltaRaf = 0
+        if (!deltaBuf) return
+        const chunk = deltaBuf
+        deltaBuf = ''
+        setStreamText(prev => prev + chunk)
+      }
+      const cleanup = () => { cancelPendingDelta(); if (unsub) { const f = unsub; unsub = null; f() } }
       streamCleanupRef.current = cleanup
       try {
         // T6-3.1：流 Promise 自带「无帧超时 + 终态兜底」。runID 一到立即在
@@ -116,6 +132,7 @@ export function useChatStream(opts: UseChatStreamOptions) {
           streamFinishRef.current = finish
           // finish 仅在 timer 初始化之后被调用（事件/超时回调），闭包引用无 TDZ 问题
           const timer = setTimeout(() => {
+            cancelPendingDelta()
             setStreamText(''); setStreamKey(null)
             updateMessage(am.key, { content: `请求超时：${STREAM_SILENCE_TIMEOUT_MS / 1000} 秒内未收到回复，请重试`, streaming: false, error: true })
             finish(false)
@@ -127,7 +144,8 @@ export function useChatStream(opts: UseChatStreamOptions) {
                 if (settled) return
                 const p = payload || {}
                 if (p.type === 'delta') {
-                  setStreamText(prev => prev + (p.content || ''))
+                  deltaBuf += (p.content || '')
+                  if (!deltaRaf) deltaRaf = requestAnimationFrame(flushDelta)
                 } else if (p.type === 'reasoning') {
                   reasoningAcc += p.content || ''
                 } else if (p.type === 'done') {
@@ -139,10 +157,12 @@ export function useChatStream(opts: UseChatStreamOptions) {
                   if (ab && typeof ab === 'object' && typeof ab.engine === 'string' && typeof ab.model === 'string') {
                     extra.answered_by = ab
                   }
+                  cancelPendingDelta()
                   setStreamText(''); setStreamKey(null)
                   updateMessage(am.key, { content: reply, streaming: false, reasoning, extra })
                   finish(true)
                 } else if (p.type === 'error') {
+                  cancelPendingDelta()
                   setStreamText(''); setStreamKey(null)
                   updateMessage(am.key, { content: `请求失败：${p.error || '未知错误'}`, streaming: false, error: true })
                   finish(false)
@@ -151,6 +171,7 @@ export function useChatStream(opts: UseChatStreamOptions) {
             })
             .catch((err: unknown) => {
               // 启动失败（binding 拒绝）：直接按失败收尾，与事件错误终态一致
+              cancelPendingDelta()
               setStreamText(''); setStreamKey(null)
               updateMessage(am.key, { content: `请求失败：${err instanceof Error ? err.message : String(err)}`, streaming: false, error: true })
               finish(false)
@@ -175,13 +196,21 @@ export function useChatStream(opts: UseChatStreamOptions) {
       const reasoning = typeof res?.reasoning === 'string' ? res.reasoning : ''
       const reduced = typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
       if (!reduced && reply.length > 40) {
+        // v4.365：setTimeout(14ms) 循环≈71 次/秒 setState，改 rAF 驱动并按
+        // 时间推进——节奏与原实现一致（每 14ms 推进 step 字），刷新对齐显示器帧。
         const step = Math.max(2, Math.round(reply.length / 180))
-        for (let i = 0; i <= reply.length; i += step) {
-          // T6-3.3：切话题/卸载即中止模拟打字流（避免过期 setStreamText 持续写入）
-          if (typingCancelRef.current) break
-          setStreamText(reply.slice(0, i))
-          await new Promise(r => setTimeout(r, 14))
-        }
+        const started = performance.now()
+        await new Promise<void>((resolve) => {
+          const tick = () => {
+            // T6-3.3：切话题/卸载即中止模拟打字流（避免过期 setStreamText 持续写入）
+            if (typingCancelRef.current) { resolve(); return }
+            const idx = Math.min(reply.length, Math.floor(((performance.now() - started) / 14) * step))
+            setStreamText(reply.slice(0, idx))
+            if (idx >= reply.length) { resolve(); return }
+            requestAnimationFrame(tick)
+          }
+          requestAnimationFrame(tick)
+        })
       }
       // T6-3.3：循环被取消（话题已切换/组件已卸载）→ 不再更新消息与最终态，
       // 由 finally 复位 sending；旧消息 key 已随话题切换离开消息列表，更新无意义。

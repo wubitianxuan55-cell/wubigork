@@ -98,3 +98,36 @@ describe('可访问性守卫（v4.349）', () => {
     expect(src).not.toContain('<Button danger size="small" onClick={() => onDeleteAnnotation(noteTarget.id)}>')
   })
 })
+
+describe('后台空转与流式节流守卫（v4.365）', () => {
+  it('聊天流式 delta 走 rAF 合并 flush，不再每 chunk 一次 setStreamText', () => {
+    const src = read('hooks/useChatStream.ts')
+    expect(src).toContain('cancelPendingDelta')
+    expect(src).toContain('requestAnimationFrame(flushDelta)')
+    expect(src).not.toMatch(/setStreamText\(prev => prev \+ \(p\.content/)
+    // 角色模式打字机为 rAF 时间驱动，不再 setTimeout(14) 循环
+    expect(src).not.toContain('setTimeout(r, 14)')
+  })
+
+  it('五个常驻 canvas 循环都有隐藏挂起守卫（keepAlive 页后台不烧绘制）', () => {
+    for (const f of ['components/ParticleFlow.tsx', 'components/SoundWaveOverlay.tsx', 'components/CompanionAvatar.tsx']) {
+      const src = read(f)
+      expect(src).toMatch(/document\.hidden \|\| canvas\.offsetParent === null/)
+    }
+    expect(read('components/VoiceChatOrb.tsx')).toMatch(/document\.hidden \|\| canvasRef\.current\?\.offsetParent === null/)
+    expect(read('components/RelationGraph.tsx')).toMatch(/document\.hidden \|\| !canvas \|\| canvas\.offsetParent === null/)
+  })
+
+  it('AI 控制台走 subscribeWailsEvent 唯一入口且隐藏时丢事件（v4.62.2 EventsOff 事故纪律）', () => {
+    const src = read('components/novel/AIConsole.tsx')
+    expect(src).toContain('subscribeWailsEvent')
+    expect(src).toContain('if (document.hidden) return')
+    expect(src).not.toMatch(/EventsOff\s*\(/)
+  })
+
+  it('AOA 几何管线已 memo 化（缩放/选中变化不再全量重算）', () => {
+    const src = read('schedule/AoaView.tsx')
+    expect(src).toContain('const aoaGeo = useMemo(')
+    expect(src.indexOf('const aoaGeo = useMemo(')).toBeLessThan(src.indexOf('暂无任务或计划存在循环依赖'))
+  })
+})

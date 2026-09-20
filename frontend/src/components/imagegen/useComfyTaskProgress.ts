@@ -54,7 +54,11 @@ export function useComfyTaskProgress(active: boolean, intervalMs = 1000): ComfyT
       }
     }
     void tick()
-    const timer = setInterval(() => { void tick() }, intervalMs)
+    const timer = setInterval(() => {
+      // v4.365：页面隐藏时跳过本 tick（读帧+setState 不再后台空转）
+      if (document.hidden) return
+      void tick()
+    }, intervalMs)
     return () => {
       cancelled = true
       clearInterval(timer)

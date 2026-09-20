@@ -408,10 +408,21 @@ const MainLayout: React.FC = () => {
   // 启动默认首页（3.0：gaea 每次启动都从首页启动器落地，不再恢复上次页面）；
   // 会话内跨空间切换仍按空间恢复该空间最后页面（switchSpace 内 loadShellPage）。
   const [page, setPage] = useState<Page>(() => getActiveHomeBoard().id as Page)
-  const {
-    loggedIn, login, checkLogin, baseTheme, darkMode, setTheme, toggleDarkMode,
-    projectOpen, projectInfo, stats, loadProjectInfo, loadStats,
-  } = useAppStore()
+  // v4.365：整 store 订阅改逐字段选择器——zustand 任意 set() 都会换新 state
+  // 对象，粗订阅使本壳组件（及其 visitedPages 下全部 keepAlive 页元素）在
+  // 任意 store 变化时全量重渲染。
+  const loggedIn = useAppStore((s) => s.loggedIn)
+  const login = useAppStore((s) => s.login)
+  const checkLogin = useAppStore((s) => s.checkLogin)
+  const baseTheme = useAppStore((s) => s.baseTheme)
+  const darkMode = useAppStore((s) => s.darkMode)
+  const setTheme = useAppStore((s) => s.setTheme)
+  const toggleDarkMode = useAppStore((s) => s.toggleDarkMode)
+  const projectOpen = useAppStore((s) => s.projectOpen)
+  const projectInfo = useAppStore((s) => s.projectInfo)
+  const stats = useAppStore((s) => s.stats)
+  const loadProjectInfo = useAppStore((s) => s.loadProjectInfo)
+  const loadStats = useAppStore((s) => s.loadStats)
 
   const [searchOpen, setSearchOpen] = useState(false)
   // 附 B #10：visitedPages 初始 home = manifest.isHome

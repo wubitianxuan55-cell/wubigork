@@ -2,6 +2,7 @@ import { memo, useEffect, useState } from "react";
 import { File, FileImage, FilePpt, FileSpreadsheet, FileText } from "../icons";
 import { app } from "../lib/bridge";
 import type { XlsxPreview } from "../lib/types";
+import { getCachedAttachmentDataURL } from '../../components/characterlib/usePortraitUrl';
 
 // 交付物图片扩展名：命中后优先渲染缩略图，其余回退类型图标。
 export const IMAGE_EXT_RE = /\.(png|jpe?g|gif|webp|svg|bmp|ico)$/i;
@@ -38,7 +39,7 @@ export const FileThumb = memo(function FileThumb({
     setGrid(null);
     setTextLines(null);
     if (IMAGE_EXT_RE.test(ext)) {
-      app.AttachmentDataURL(path).then((url) => { if (live) setDataUrl(url); }).catch(() => {});
+      getCachedAttachmentDataURL(path).then((url) => { if (live) setDataUrl(url); }).catch(() => {});
     } else if (/\.(xlsx?|csv|et|ods)$/i.test(ext)) {
       // 复用 GaeaPreview 的结构化单元格 JSON：取首表前 4 行 × 前 4 列
       // （首行通常是表头，渲染时用强调色区分）

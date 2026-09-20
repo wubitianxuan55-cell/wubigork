@@ -223,6 +223,11 @@ const RelationGraph: React.FC<RelationGraphProps> = ({
     if (!ctx) return
 
     const render = () => {
+      // v4.365 后台空转治理：隐藏(keepAlive display:none/最小化)时挂起绘制
+      if (document.hidden || !canvas || canvas.offsetParent === null) {
+        rafRef.current = requestAnimationFrame(render)
+        return
+      }
       const { w, h } = size
       canvas!.width = w
       canvas!.height = h

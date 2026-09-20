@@ -52,7 +52,7 @@ function ThemeOrb({ color, size = 20 }: { color: string; size?: number }) {
 
 /** AppearancePreview — 主题 + 模式实时微缩预览（hover 下拉选项时预览该主题，离开恢复当前） */
 function AppearancePreview({ t, previewing }: { t: ThemeOption; previewing: boolean }) {
-  const { darkMode } = useAppStore()
+  const darkMode = useAppStore((s) => s.darkMode)
   const tr = useT()
   return (
     <div style={{
@@ -114,7 +114,8 @@ function AppearancePreview({ t, previewing }: { t: ThemeOption; previewing: bool
  *  主题下拉：optionRender 悬停即时预览，点击生效 */
 const AppearancePanel: React.FC = () => {
   const t = useT()
-  const { baseTheme, setTheme } = useAppStore()
+  const baseTheme = useAppStore((s) => s.baseTheme)
+  const setTheme = useAppStore((s) => s.setTheme)
   const [hovered, setHovered] = useState<ThemePreset | null>(null)
   const themeOptions = useThemeOptions()
 
@@ -221,7 +222,9 @@ function SegmentedRow<T extends string>({ value, onChange, options, ariaLabel }:
 /** DarkModePanel — 显示模式行式条目：暗色 / 亮色 / 跟随系统 */
 export const DarkModePanel: React.FC = () => {
   const t = useT()
-  const { mode, systemDark, setMode } = useAppStore()
+  const mode = useAppStore((s) => s.mode)
+  const systemDark = useAppStore((s) => s.systemDark)
+  const setMode = useAppStore((s) => s.setMode)
   return (
     <SettingsSection icon={<span style={{ fontSize: 15 }}><SwapOutlined /></span>} title={t('settings.appear.displayTitle')} desc={t('settings.appear.displayDesc')}>
       <SegmentedRow<DisplayMode>
@@ -249,7 +252,10 @@ const FONT_LABEL_KEYS: Record<string, DictKey> = {
 
 export const FontPanel: React.FC = () => {
   const t = useT()
-  const { fontFamily, fontSize, setFontFamily, setFontSize } = useAppStore()
+  const fontFamily = useAppStore((s) => s.fontFamily)
+  const fontSize = useAppStore((s) => s.fontSize)
+  const setFontFamily = useAppStore((s) => s.setFontFamily)
+  const setFontSize = useAppStore((s) => s.setFontSize)
   return (
     <SettingsSection icon={<span style={{ fontSize: 15 }}><FontSizeOutlined /></span>} title={t('settings.appear.fontTitle')} desc={t('settings.appear.fontDesc')}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -303,7 +309,8 @@ export const FontPanel: React.FC = () => {
 /** DensityPanel — 界面密度：标准 / 紧凑 */
 export const DensityPanel: React.FC = () => {
   const t = useT()
-  const { density, setDensity } = useAppStore()
+  const density = useAppStore((s) => s.density)
+  const setDensity = useAppStore((s) => s.setDensity)
   return (
     <SettingsSection icon={<span style={{ fontSize: 15 }}><DashboardOutlined /></span>} title={t('settings.appear.densityTitle')} desc={t('settings.appear.densityDesc')}>
       <SegmentedRow<Density>
@@ -322,7 +329,8 @@ export const DensityPanel: React.FC = () => {
 /** MotionPanel — 动效强度：完整 / 减弱（可访问性） */
 export const MotionPanel: React.FC = () => {
   const t = useT()
-  const { motion, setMotion } = useAppStore()
+  const motion = useAppStore((s) => s.motion)
+  const setMotion = useAppStore((s) => s.setMotion)
   return (
     <SettingsSection icon={<span style={{ fontSize: 15 }}><ThunderboltOutlined /></span>} title={t('settings.appear.motionTitle')} desc={t('settings.appear.motionDesc')}>
       <SegmentedRow<MotionPref>
@@ -342,7 +350,8 @@ export const MotionPanel: React.FC = () => {
  *  回退开关的正式位（首页 SpaceSwitch 条的快捷钮为另一入口，同源 appStore）。 */
 export const HomeLayoutPanel: React.FC = () => {
   const t = useT()
-  const { homeLayout, setHomeLayout } = useAppStore()
+  const homeLayout = useAppStore((s) => s.homeLayout)
+  const setHomeLayout = useAppStore((s) => s.setHomeLayout)
   return (
     <SettingsSection icon={<span style={{ fontSize: 15 }}><LayoutOutlined /></span>} title={t('settings.homeLayoutTitle')} desc={t('settings.homeLayoutDesc')}>
       <SegmentedRow<HomeLayout>
@@ -361,7 +370,8 @@ export const HomeLayoutPanel: React.FC = () => {
 /** AccentPanel — 强调色自定义：跟随主题 / 自定义取色 */
 export const AccentPanel: React.FC = () => {
   const t = useT()
-  const { accentColor, setAccentColor } = useAppStore()
+  const accentColor = useAppStore((s) => s.accentColor)
+  const setAccentColor = useAppStore((s) => s.setAccentColor)
   return (
     <SettingsSection icon={<span style={{ fontSize: 15 }}><AimOutlined /></span>} title={t('settings.appear.accentTitle')} desc={t('settings.appear.accentDesc')}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>

@@ -20,7 +20,7 @@
  * x 与时间解耦不画波形；G1 过桥法——竖直段垂直穿越他边水平段处画半圆跨过
  * （几何纯函数在 aoaLayout.ts，单代号视图共用）。
  */
-import React, { useRef, useState } from 'react'
+import React, { useRef, useState, useMemo } from 'react'
 import type { AoaGraph } from './aoa'
 import { AOA_COL_W, AOA_MARGIN, AOA_R, AOA_ROW_H } from './aoa'
 import { applyPins, assignChannels, edgeSegs, findBridgeArcs, prunePins, segsToPathSplit, snapPt, summarySegs } from './aoaLayout'
@@ -92,18 +92,62 @@ export const AoaView: React.FC<{ graph: AoaGraph; tasks: SchedTask[] }> = ({ gra
     if (Number.isFinite(z) && z > 0) applyZoom(z)
   }, [wEarly, hEarly])
 
+  const manual = mode === 'manual'
+  const shown = manual ? applyPins(graph, pins) : graph
+  // v4.365：nodeById/anchorById/taskName 查找表进 useMemo（原每次渲染重建 Map、
+  // taskName 每边线性扫 tasks——O(E×T)/帧）。注意全部 hooks 必须在 early
+  // return 之前调用（rules-of-hooks）。
+  const nodeById = useMemo(() => new Map(shown.nodes.map((n) => [n.id, n])), [shown])
+  const anchorById = useMemo(() => new Map(graph.nodes.map((n) => [n.id, n.anchor])), [graph])
+  const taskNameById = useMemo(() => new Map(tasks.map((t) => [t.id, t.name])), [tasks])
+  // v4.365：箭线几何管线（平行边计数/通道分配/分段/过桥弧）进 useMemo——
+  // 原 IIFE 内每次渲染全量重算（滚轮缩放/选中态任一变化都付一遍）；几何只
+  // 依赖 graph/pins/manual，zoom 走外层 scale 与此无关。
+  const aoaGeo = useMemo(() => {
+    const bandRange = new Map<number, { top: number; bottom: number }>()
+    for (const n of shown.nodes) {
+      const r = bandRange.get(n.band)
+      if (!r) bandRange.set(n.band, { top: n.y, bottom: n.y })
+      else {
+        r.top = Math.min(r.top, n.y)
+        r.bottom = Math.max(r.bottom, n.y)
+      }
+    }
+    const bandTopYOf = (b: number): number => (bandRange.get(b)?.top ?? 0) - AOA_ROW_H / 2
+    const pairCnt = new Map<string, number>()
+    for (const e of shown.edges) {
+      const k = `${e.from}>${e.to}`
+      pairCnt.set(k, (pairCnt.get(k) ?? 0) + 1)
+    }
+    const pairSeen = new Map<string, number>()
+    // 同行长边通道分配（v4.143 分行）：跨多列的同行边让到行间通道，
+    // x 区间重叠者分层，杜绝长线沿节点中心线重合/横穿节点
+    const channels = assignChannels(shown.edges, nodeById)
+    const geoms = shown.edges.map((e, i) => {
+      const k = `${e.from}>${e.to}`
+      const idx = pairSeen.get(k) ?? 0
+      pairSeen.set(k, idx + 1)
+      // 波形切点只对实/虚工作有意义；汇总箭线=横幅顶通长线（v4.160），无波形
+      const chY = channels.get(e.id)
+      const waveFromX = !manual && e.kind !== 'summary' ? nodeById.get(e.from)!.x + R + e.dur * AOA_COL_W : null
+      // 汇总箭线走横幅顶（归属带取两界点的较大 band=被汇总的分部）
+      const g = e.kind === 'summary'
+        ? summarySegs(nodeById.get(e.from)!, nodeById.get(e.to)!, bandTopYOf(Math.max(nodeById.get(e.from)!.band, nodeById.get(e.to)!.band)))
+        : edgeSegs(e, nodeById, { idx, cnt: pairCnt.get(k)! }, waveFromX, chY)
+      return { e, i, waveFromX, g }
+    })
+    // G1 过桥法：竖段垂直穿越他边横段处画半圆（水平段=时标轴不断）
+    const bridges = findBridgeArcs(geoms.map((it) => it.g.segs))
+    return { geoms, bridges }
+  }, [shown, manual, nodeById])
   if (!graph.ok || graph.nodes.length === 0) {
     return <div className="sched-empty">暂无任务或计划存在循环依赖，无法绘制双代号网络图</div>
   }
-
-  const manual = mode === 'manual'
-  const shown = manual ? applyPins(graph, pins) : graph
-  const nodeById = new Map(shown.nodes.map((n) => [n.id, n]))
-  const anchorById = new Map(graph.nodes.map((n) => [n.id, n.anchor]))
   const selectedEdge = selectedId ? graph.edges.find((e) => e.id === graph.taskEdge[selectedId]) : undefined
   const w = Math.max(...shown.nodes.map((n) => n.x)) + AOA_MARGIN + AOA_COL_W / 2
   const h = Math.max(...shown.nodes.map((n) => n.y)) + AOA_MARGIN + AOA_ROW_H / 2
-  const taskName = (id: string) => tasks.find((t) => t.id === id)?.name ?? ''
+  const taskName = (id: string) => taskNameById.get(id) ?? ''
+
   const critCount = graph.edges.filter((e) => e.critical && e.kind === 'task').length
   const dummyCount = graph.edges.filter((e) => e.kind === 'dummy').length
   // 工程标尺（v4.161，时间坐标框架）：auto=时标模式显示（手动布局 x 与时间
@@ -281,7 +325,6 @@ export const AoaView: React.FC<{ graph: AoaGraph; tasks: SchedTask[] }> = ({ gra
                 r.bottom = Math.max(r.bottom, n.y)
               }
             }
-            const bandTopY = (b: number): number => (bandRange.get(b)?.top ?? 0) - AOA_ROW_H / 2
             const tints = [...bandRange.entries()].map(([b, r]) => (
               <rect
                 key={`band-${b}`}
@@ -293,33 +336,9 @@ export const AoaView: React.FC<{ graph: AoaGraph; tasks: SchedTask[] }> = ({ gra
                 fill={b % 2 === 0 ? 'rgba(148,163,184,0.06)' : 'rgba(96,165,250,0.08)'}
               />
             ))
-            // 同 (from,to) 平行边计数（错位通道用）
-            const pairCnt = new Map<string, number>()
-            for (const e of shown.edges) {
-              const k = `${e.from}>${e.to}`
-              pairCnt.set(k, (pairCnt.get(k) ?? 0) + 1)
-            }
-            const pairSeen = new Map<string, number>()
-            // 同行长边通道分配（v4.143 分行）：跨多列的同行边让到行间通道，
-            // x 区间重叠者分层，杜绝长线沿节点中心线重合/横穿节点
-            const channels = assignChannels(shown.edges, nodeById)
-            // G4 波形线（auto=时标）：实体工期终点 x=源事件 x+R+工期×列宽；
-            // 手动布局 x 与时间解耦，波形失义不画；走通道的边无波形
-            const geoms = shown.edges.map((e, i) => {
-              const k = `${e.from}>${e.to}`
-              const idx = pairSeen.get(k) ?? 0
-              pairSeen.set(k, idx + 1)
-              // 波形切点只对实/虚工作有意义；汇总箭线=横幅顶通长线（v4.160），无波形
-              const chY = channels.get(e.id)
-              const waveFromX = !manual && e.kind !== 'summary' ? nodeById.get(e.from)!.x + R + e.dur * AOA_COL_W : null
-              // 汇总箭线走横幅顶（归属带取两界点的较大 band=被汇总的分部）
-              const g = e.kind === 'summary'
-                ? summarySegs(nodeById.get(e.from)!, nodeById.get(e.to)!, bandTopY(Math.max(nodeById.get(e.from)!.band, nodeById.get(e.to)!.band)))
-                : edgeSegs(e, nodeById, { idx, cnt: pairCnt.get(k)! }, waveFromX, chY)
-              return { e, i, waveFromX, g }
-            })
-            // G1 过桥法：竖段垂直穿越他边横段处画半圆（水平段=时标轴不断）
-            const bridges = findBridgeArcs(geoms.map((it) => it.g.segs))
+            // v4.365：几何管线已提升至组件级 useMemo（aoaGeo）——缩放/选中态
+            // 变化不再重算（几何只依赖 graph/pins/manual）
+            const { geoms, bridges } = aoaGeo
             return (
               <>
                 {tints}

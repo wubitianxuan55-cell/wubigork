@@ -12,6 +12,7 @@ import { openPaneFileOrPreview } from "../lib/paneFileOpen";
 import { useToast } from "./Toast";
 import type { Item } from "../lib/store";
 import { DeliverableCards } from "./DeliverableCards";
+import { getCachedAttachmentDataURL } from '../../components/characterlib/usePortraitUrl';
 
 // v4.26 契约：store 的 assistant item 将追加可选字段 subagentRef?: string
 // （后端把子代理最终答复以普通 assistant 消息回投主回合时打标）。store.ts
@@ -28,7 +29,7 @@ function InlineAttachment({ path }: { path: string }) {
     let live = true;
     if (/\.(png|jpg|jpeg|gif|webp|bmp|svg)$/i.test(path)) {
       setIsImage(true);
-      app.AttachmentDataURL(path).then((url) => { if (live) setDataUrl(url); }).catch(() => {});
+      getCachedAttachmentDataURL(path).then((url) => { if (live) setDataUrl(url); }).catch(() => {});
     } else {
       setIsImage(false);
     }

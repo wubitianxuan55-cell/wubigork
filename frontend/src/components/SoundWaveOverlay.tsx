@@ -40,6 +40,11 @@ export function SoundWaveOverlay({ active, aff = 50, aro = 0, className = '' }: 
     let lastTs = performance.now()
 
     const draw = () => {
+      // v4.365 后台空转治理：隐藏时挂起绘制（保留 rAF 链，恢复可见自动续绘）
+      if (document.hidden || canvas.offsetParent === null) {
+        raf = requestAnimationFrame(draw)
+        return
+      }
       const now = performance.now()
       const dt = Math.min((now - lastTs) / 1000, 0.05)
       lastTs = now

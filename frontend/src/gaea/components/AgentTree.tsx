@@ -159,7 +159,11 @@ export function AgentTree({ network, runs, onOpenThread }: {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     if (!hasRunning) return;
-    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    const timer = window.setInterval(() => {
+      // v4.365：页面隐藏时跳过，1s/次的整树重渲染不再后台空转
+      if (document.hidden) return;
+      setNow(Date.now());
+    }, 1000);
     return () => window.clearInterval(timer);
   }, [hasRunning]);
 

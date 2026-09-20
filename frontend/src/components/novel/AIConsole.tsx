@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ConsoleSqlOutlined, CloseOutlined } from "@ant-design/icons";
 import { useAppStore } from "../../stores/appStore";
+import { subscribeWailsEvent } from '../../gaea/lib/wailsEvents'
 
 // ── 小说板块专属：AI 控制台 ──────────────────────────────────────
 // 展示小说 AI 调用的实时输出（xai-output 事件）。从 MainLayout 抽出，
@@ -41,11 +42,16 @@ export function AIConsole() {
     setExpandedLog(null)
   }, [projectPath])
 
-  // 监听 XAI 实时输出事件
+  // 监听 XAI 实时输出事件（v4.365：改走 subscribeWailsEvent 唯一入口——此前直接
+  // 摸 window.runtime 且卸载时 EventsOff 全清该通道，违反 v4.62.2 事故纪律）
   useEffect(() => {
     if (!window.runtime?.EventsOn) return
-    const handler = (ev: XAIOutputEvent) => {
+    const handler = (raw: unknown) => {
+      const ev = raw as XAIOutputEvent
       if (!ev) return
+      // v4.365：页面隐藏时丢事件（控制台日志是观测面，可见时自然恢复），
+      // 小说页 keepAlive 隐藏期间高频 LLM 流式不再后台重渲染。
+      if (document.hidden) return
       const entry: LogEntry = {
         id: ++logId,
         type: ev.type || 'unknown',
@@ -59,12 +65,7 @@ export function AIConsole() {
       }
       setLogs((prev) => [...prev.slice(-99), entry])
     }
-    window.runtime.EventsOn('xai-output', handler)
-    return () => {
-      try {
-        window.runtime?.EventsOff?.('xai-output')
-      } catch (_) { /* EventsOff 可能不可用 */ }
-    }
+    return subscribeWailsEvent(window.runtime, 'xai-output', handler)
   }, [])
 
   // 自动滚动到底部

@@ -28,6 +28,11 @@ export function ParticleFlow({ aro = 0, className = '' }: Props) {
     const speedMul = 1 + (Math.max(0, aro) / 100) * 0.5
 
     const draw = () => {
+      // v4.365 后台空转治理：页面隐藏(keepAlive display:none)或窗口最小化时挂起绘制
+      if (document.hidden || canvas.offsetParent === null) {
+        raf = requestAnimationFrame(draw)
+        return
+      }
       const w = canvas.width
       const h = canvas.height
       ctx.clearRect(0, 0, w, h)

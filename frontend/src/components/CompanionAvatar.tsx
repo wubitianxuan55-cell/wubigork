@@ -65,6 +65,11 @@ export const CompanionAvatar: React.FC<Props> = ({
     let t = 0
 
     const draw = () => {
+      // v4.365 后台空转治理：隐藏时挂起绘制（聊天页常驻两个实例，idle 也别烧）
+      if (document.hidden || canvas.offsetParent === null) {
+        raf = requestAnimationFrame(draw)
+        return
+      }
       const cx = size / 2
       const cy = size / 2
       ctx.clearRect(0, 0, size, size)

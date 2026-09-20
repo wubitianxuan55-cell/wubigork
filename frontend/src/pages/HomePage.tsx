@@ -27,10 +27,19 @@ const SORT_OPTIONS: Array<{ value: SortKey; label: string }> = [
 ]
 
 const HomePage: React.FC = () => {
-  const {
-    loggedIn, login, projectOpen, projectPath, projectTitle, novelsDir,
-    projects, projectsError, loadProjects, openProject, deleteProject, loadNovelsDir,
-  } = useAppStore()
+  // v4.365：整 store 订阅改逐字段选择器——任意 store set() 不再触发整页重渲染
+  const loggedIn = useAppStore((s) => s.loggedIn)
+  const login = useAppStore((s) => s.login)
+  const projectOpen = useAppStore((s) => s.projectOpen)
+  const projectPath = useAppStore((s) => s.projectPath)
+  const projectTitle = useAppStore((s) => s.projectTitle)
+  const novelsDir = useAppStore((s) => s.novelsDir)
+  const projects = useAppStore((s) => s.projects)
+  const projectsError = useAppStore((s) => s.projectsError)
+  const loadProjects = useAppStore((s) => s.loadProjects)
+  const openProject = useAppStore((s) => s.openProject)
+  const deleteProject = useAppStore((s) => s.deleteProject)
+  const loadNovelsDir = useAppStore((s) => s.loadNovelsDir)
 
   // 新建小说表单
   const [newModal, setNewModal] = useState(false)

@@ -79,7 +79,11 @@ export function SinIllustration({
     if (status !== 'queued' && status !== 'generating') return
     setLocalElapsed(0)
     const started = Date.now()
-    const timer = setInterval(() => setLocalElapsed((Date.now() - started) / 1000), 1000)
+    const timer = setInterval(() => {
+      // v4.365：页面隐藏时跳过（秒表值基于 started 计算，恢复可见自动正确）
+      if (document.hidden) return
+      setLocalElapsed((Date.now() - started) / 1000)
+    }, 1000)
     return () => clearInterval(timer)
   }, [status])
 

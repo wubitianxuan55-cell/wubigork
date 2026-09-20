@@ -107,6 +107,8 @@ export function DagPanel() {
   useEffect(() => {
     if (!anyRunning) return;
     const h = setInterval(() => {
+      // v4.365：页面隐藏(keepAlive display:none)时跳过本 tick，空轮询不再后台重渲染
+      if (document.hidden) return;
       void (async () => {
         try {
           setRuns((await app.DagList()) ?? []);

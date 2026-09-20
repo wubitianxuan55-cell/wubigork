@@ -71,7 +71,9 @@ export function useComposerAttachments({ setText, running, onSend }: UseComposer
       try {
         const dataUrl = await new Promise<string>((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result)); r.onerror = () => rej(r.error); r.readAsDataURL(file) })
         const path = await app.SavePastedImage(dataUrl)
-        const previewUrl = await app.AttachmentDataURL(path)
+        // v4.365：落盘成功后直接复用内存中的 dataUrl 作预览——原再走一次
+        // AttachmentDataURL 把同一份 base64 从盘上读回（大截图=两次全量跨桥）。
+        const previewUrl = dataUrl
         setAttachments((prev) => [...prev, { path, previewUrl, type: "image", size: file.size || dataUrlBytes(dataUrl) }])
       } catch {} finally { setPendingPaste((n) => Math.max(0, n - 1)) }
     }
@@ -130,8 +132,8 @@ export function useComposerAttachments({ setText, running, onSend }: UseComposer
     setPendingPaste((n) => n + 1)
     try {
       const path = await app.SavePastedImage(dataUrl)
-      const previewUrl = await app.AttachmentDataURL(path)
-      setAttachments((prev) => [...prev, { path, previewUrl, type: "image" }])
+      // v4.365：同粘贴路径——复用内存 dataUrl 作预览，省第二次全量回读
+      setAttachments((prev) => [...prev, { path, previewUrl: dataUrl, type: "image" }])
     } catch (e: unknown) {
       toast.show(String((e as Error)?.message ?? e), "warn")
     } finally {

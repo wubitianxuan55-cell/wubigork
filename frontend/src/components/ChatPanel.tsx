@@ -108,10 +108,18 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
       if (typeof result === 'string') {
         const text = result
         setStreamText('')
-        for (let i = 0; i < text.length; i++) {
-          setStreamText(text.slice(0, i + 1))
-          await new Promise((r) => setTimeout(r, 12))
-        }
+        // v4.365：12ms/字符≈83 次/秒 setState 且每步 O(n) slice——改 rAF 驱动，
+        // 每帧推进 3 字符（视觉节奏几乎不变，setState 频率降 ~4 倍）。
+        await new Promise<void>((resolve) => {
+          let i = 0
+          const tick = () => {
+            i = Math.min(text.length, i + 3)
+            setStreamText(text.slice(0, i))
+            if (i >= text.length) { resolve(); return }
+            requestAnimationFrame(tick)
+          }
+          requestAnimationFrame(tick)
+        })
         aiMsg.content = text
         aiMsg.streaming = false
         setStreamText('')

@@ -1,6 +1,6 @@
 # 任务进度
 
-> 最后更新: 2026-09-21（v4.364.0 真机走查班：v4.361~v4.363 三轮验收全绿+withinReadRoots 绘梦图误伤修复〔走查拽出〕；前端余池=大工程四项+别名重指向两目见「前端·视觉与交互」行。前次：v4.363.0 后端留池终审〔后端挂池清零〕。本表只留**仍开放**项）
+> 最后更新: 2026-09-21（v4.365.0 前端性能轮：流式节流+后台空转治理+缓存统一五线；性能大工程八项挂池见「前端·性能」行。前次：v4.364.0 真机走查班。本表只留**仍开放**项）
 
 ## 当前开放（按域）
 
@@ -13,6 +13,7 @@
 | ⬜ | 办公·pptx：刀2 真机走查（mock 无 pptx 预览分支）；刀4 修改队列泛化（待使用反馈拍板）；Verifier 通道 B 对 docx_apply 复核口径 |
 | 🔄 | 前端·视觉与交互（v4.361.0 审计后余池）：**已清=file:// 头像残留 4 处/longtask 阈值/schedule outline 弱化文字**（v4.361.0）；**大工程候立项**（镜头A 审计结论，需专项排期勿顺手做）=①字号阶梯全量替换（裸 px ~700 处，先补 10.5/11.5/12.5 档）②玻璃配方收敛（4 套 .gp/.md-glass/.void-card + 58 处裸 backdrop-filter → 2~3 档，需逐板块截图对照）③canvas 图表调色板集中 resolveToken（RelationGraph 等 canvas 拿不到 CSS 变量）④次级文本 6 别名收敛（--v3-fg-soft/--whisper-ink-muted/--fg-faint/--w-ink-3 → 单一 M3 源+tertiary 进 ThemeTokens 机检）⑤canvas AoaView 亮色兜底值统一（理论死角低优）|
 | 🔄 | 前端·令牌别名重指向（v4.362 tertiary 收敛后余项，均独立拍板）：①--fg-faint 重指向 tertiary（消费链千级=视觉面大，需逐板块截图对照）②module-launcher.css --w-ink-3 重指向 tertiary（现 color-mix 46% 半透明非纯转发，:330 当底色用需目检）；低优=MemoryHubPage 左轨计数失败「—」占位 |
+| 🔄 | 前端·性能（v4.365.0 审计后余池，均行为级需专项）：①流式分段渲染（gaea 侧稳定分段设计移植聊天线，涉及 genui fence 契约）②聊天消息真虚拟化（现尾部窗口 80 条覆盖 95%）③StoryStream 行级 memo 重构（原罪流式 O(消息数×分段)）④ChapterEditor 受控下沉⑤Gantt 行组件化+memo⑥聊天历史/造价库分页绑定⑦base64→blob URL 会话资源管理⑧ChatInspector/ChatModeBar/ChatPersonaBar/ChatComposer memo 化（props 链梳理）|
 | ⬜ | 办公·思维导图/多维表：B2 后半（字段类型面板/画廊视图/可选 validate 工具）待拍板（M2 已于 v4.108 落地） |
 | ✅ | 办公·无参绑定审计收官（v4.338.0，审计档 docs/gaea-session-binding-audit-2026-09.md）：**需修 0 项**——会话模型=「看历史必经 ResumeSession 切内核」，主流水线无参读内核构造性自洽；v4.181 旁路看板族（轨迹/网络/上下文）无同构残余；顺手删两条死链 GaeaCheckpoints（UI 回退实走 GaeaRewind）+GaeaTCCAReport（state.tcca 零渲染消费），绑定面 707→705；**拍板池新候选=GaeaSkillDraftFromSession 参数化**（唯一无参读全会话做加工点，「从历史会话蒸馏技能」候拍板） |
 | ✅ | 办公·任务管理：TaskCenter 会话关联结构刀**已落（v4.229.0，2026-09-19 对账发现未关）**——SchemaV20 tasks.session_id+SubmitSpaceSession 能力层，6 创建点全 cron/设置类诚实留空不造假接线，TaskCenter「本会话/全部」过滤面就位；chip 显形等首个会话上下文创建点（门控） |

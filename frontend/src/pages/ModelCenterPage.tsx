@@ -47,7 +47,10 @@ function runtimeOn(event: string, handler: (data: unknown) => void): (() => void
 // 右 = 统计/资源检查器（v3-panel，可折叠，InspectorPanel）。
 // 头部收敛为细条：板块名已在左侧指挥轨道/面包屑，仅保留账号连接状态与必要操作。
 const ModelCenterPage: React.FC = () => {
-  const { loggedIn, login, logout } = useAppStore()
+  // v4.365：粗订阅改选择器
+  const loggedIn = useAppStore((s) => s.loggedIn)
+  const login = useAppStore((s) => s.login)
+  const logout = useAppStore((s) => s.logout)
   // T6-6.4：顶层仅保留全局状态（分类/统计抽屉/登录中），
   // 42 个 useState 按 5 分类（引擎管理/调用统计/图片生成/语音模型/功能绑定）
   // 下沉到独立 Hook；各 Section 经共享 Context 消费同一份状态。

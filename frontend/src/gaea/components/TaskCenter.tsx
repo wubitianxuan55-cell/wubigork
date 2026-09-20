@@ -85,6 +85,8 @@ export function TaskCenter({ sessionPath }: { sessionPath?: string } = {}) {
     load();
     // v4.5.1a：事件订阅层按 work 过滤（play 任务事件不打扰工位任务中心）
     const off = onTaskEvent((t) => {
+      // v4.365：页面隐藏时事件照常丢弃（下次可见由轮询兜底刷新），后台不再整组件重渲染
+      if (!gate) return;
       setTasks((prev) => {
         const next = prev.filter((x) => x.id !== t.id);
         return [t, ...next].slice(0, 50);
@@ -96,7 +98,7 @@ export function TaskCenter({ sessionPath }: { sessionPath?: string } = {}) {
       }
     }, "work");
     return off;
-  }, [load]);
+  }, [load, gate]);
 
   // C1：选中任务后回放输出；running/stopping/queued 时 2s 轮询（整尾回放，不消费游标）。
   // 任务到达终态后停止轮询（保留最后回放，便于复核）。

@@ -103,6 +103,11 @@ const VoiceChatOrb: React.FC<Props> = ({
     const sv = { v: 0 }
 
     const frame = () => {
+      // v4.365 后台空转治理：隐藏(display:none/最小化)时挂起绘制
+      if (document.hidden || canvasRef.current?.offsetParent === null) {
+        animRef.current = requestAnimationFrame(frame)
+        return
+      }
       tmRef.current += 0.016
       const t = tmRef.current
       const { volume: vr, listening: lis, speaking: spk, aiSpeaking: ai } = propsRef.current

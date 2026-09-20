@@ -284,7 +284,11 @@ export function useImageGenQueue({ setHistory, setLightboxIndex, config }: UseIm
   useEffect(() => {
     if (!generating) { setElapsed(0); return }
     const start = Date.now()
-    const timer = setInterval(() => setElapsed(Math.round((Date.now() - start) / 1000)), 1000)
+    const timer = setInterval(() => {
+      // v4.365：页面隐藏时跳过（生成照跑，只是秒表不后台重渲染；恢复可见自然跳到正确值）
+      if (document.hidden) return
+      setElapsed(Math.round((Date.now() - start) / 1000))
+    }, 1000)
     return () => clearInterval(timer)
   }, [generating])
 

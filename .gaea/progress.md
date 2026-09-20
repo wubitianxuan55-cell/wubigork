@@ -1,3 +1,18 @@
+## 最新发布：v4.365.0（2026-09-21）「前端性能轮：流式节流 + 后台空转治理 + 缓存统一」
+
+- **动机**：用户口径「继续」——前端换新镜头性能审计（三路：React 渲染性能/长列表与流式渲染/桥接与数据面），全落行为等价低风险刀。前端 22 源文件+1 测试，绑定面 706 不动。
+- **线1 流式节流**：useChatStream delta 改 buffer+rAF flush——原每 chunk 一次 setState 使 ChatPage 以 30~120/s 全页重渲染+吸底强制 reflow；四条终态路径（done/error/超时/启动失败）flush 前 cancelPendingDelta 防挂起帧污染已清空文本。角色模式打字机 setTimeout(14ms)≈71 次/秒改 rAF 时间驱动（每 14ms 推进 step 字的节奏不变）。ChatPanel 打字机 12ms/字符且每步 O(n) slice 改 rAF 每帧 3 字符。
+- **线2 后台空转治理**：keepAlive 13 页 display:none 常驻——五个 canvas rAF 循环（ParticleFlow/SoundWaveOverlay/CompanionAvatar/VoiceChatOrb/RelationGraph）加 `document.hidden || offsetParent===null` 挂起守卫（保留 rAF 链恢复自动续绘）；DagPanel/AgentTree/useComfyTaskProgress/useImageGenQueue/SinIllustration 轮询秒表加 hidden 跳过（时间值基于 start 计算恢复自动正确）；TaskCenter onTaskEvent 接 gate；AIConsole 隐藏丢事件。
+- **线3 渲染链**：MainLayout（根壳）/HomePage/ModelCenterPage/AppearancePanel(8 处) 整 store 订阅改逐字段选择器——任意 store set() 不再触发根壳与全部 keepAlive 页元素重渲染；MemoryHubPage 检索 hits key 稳定化。
+- **线4 缓存统一**：usePortraitUrl 导出 getCachedAttachmentDataURL（共享成功缓存+方法缺失防御）；Message/FileThumb/inspector 三处直调接线；粘贴/截图落盘后复用内存 dataUrl 作预览（原三重 base64 往返）。
+- **线5 AOA 几何**：nodeById/anchorById/taskNameById 查找表 useMemo（taskName 原每边线性扫 tasks O(E×T)/帧）；箭线几何管线整段提升组件级 useMemo（缩放/选中变化不再全量重算，zoom 走外层 scale 与几何无关）；hooks 全部移 early return 前。
+- **顺手修真 bug**：AIConsole 违反 v4.62.2 EventsOff 事故纪律（直接摸 window.runtime 且卸载 EventsOff 全清通道）改 subscribeWailsEvent 唯一入口；TaskCenter 事件通道 gate 漏接接上。
+- **门禁**：定向 +4 源断言（perf-guards）+tsc/eslint 0+全量 ci.ps1 绿 EXIT=0（vitest 387 文件 3309 例）+drift OK@706+版本三处 4.365.0。
+- **留池**（行为级/需设计，审计已给证据）：流式分段渲染/聊天真虚拟化/StoryStream 行级 memo/ChapterEditor 受控下沉/Gantt 行组件化/聊天历史与造价库分页绑定/base64→blob URL/聊天组件 memo 化（props 链需梳理）。
+- **坑**：①组件 memo 非免费午餐——内联 props 使 memo 恒失效，须先梳 props 链；②rules-of-hooks 硬约束——提升 useMemo 连同 manual/shown 计算移 early return 前（eslint 当场拦）；③测试 mock 缺方法时可选链与直接调语义差——共享工具要有方法缺失防御（ContextView 空渲染 5s 超时教训）；④整 store 订阅代价被 keepAlive 放大——根壳粗订阅优先治理。
+- **产物**：exe 50,951,168B SHA256=c2d09a937841630a46052517ea750cd16ac975d26e242d026c06f26296653948（releases/gaea-v4.365.0.exe+SHA256SUMS-v4.365.0.txt 仅本地；桌面副本同哈希实测一致；冒烟 /api/health 200 过）；保留策略 5 版留 v4.361~v4.365 删 v4.360.0.exe（SUMS 身份档案全保留）。
+- **文档**：releases/v4.365.0.md+CHANGELOG/README+releases/README（计数 386→387+34 席插 v4.365 裁 v4.331）+AGENTS 迁 1 插 1（八十迁：v4.362 入 archive）+progress/todos（性能大工程八项挂池）。
+
 ## 最新发布：v4.364.0（2026-09-21）「真机走查班：v4.361~v4.363 前端三轮验收 + withinReadRoots 绘梦图误伤修复」
 
 - **动机**：用户口径「继续」（授权闲置窗口）——按 v4.355 先例前端优化三轮后开真机走查班（CDP 9333 附着 v4.363.0 壳，只读纪律），走查拽出 v4.358 读侧收口真机才现形的误伤，修复发版。Go 1 源文件+1 测试，绑定面 706 不动。

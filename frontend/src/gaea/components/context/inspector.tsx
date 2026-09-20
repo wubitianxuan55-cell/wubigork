@@ -20,6 +20,7 @@ import { loadContextPrefs, saveContextPref, type CtxBrowserSort, type CtxFileSor
 import { usePreviewStore } from "../../lib/store";
 import type { DictKey } from "../../locales/en";
 import type { ContextNodeDetailView, ContextNodeImage, ContextSurfaceNode, FileActivity } from "../../lib/types";
+import { getCachedAttachmentDataURL } from '../../../components/characterlib/usePortraitUrl';
 
 // 分类折叠组定义（来源：ContextView.tsx 的 CATS / CAT_BROWSE_LABELS，未导出故本地
 // 重声明；i18n 键复用 contextview.cat*（组行全名）与 contextview.browse*（节点行短名））。
@@ -95,7 +96,7 @@ function NodeImageCard({ img }: { img: ContextNodeImage }) {
     let live = true;
     setDataUrl(null);
     if (img.exists) {
-      app.AttachmentDataURL?.(img.path)
+      getCachedAttachmentDataURL(img.path)
         .then((u: string) => {
           if (live) setDataUrl(u);
         })

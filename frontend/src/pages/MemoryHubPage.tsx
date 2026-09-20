@@ -395,7 +395,7 @@ function MemoryHubPage() {
               </div>
               {hits.map((h, i) => (
                 <div
-                  key={i}
+                  key={`${h.kind}:${h.brain}:${h.entity}:${i}`}
                   className="hub-hit"
                   role="button"
                   tabIndex={0}
