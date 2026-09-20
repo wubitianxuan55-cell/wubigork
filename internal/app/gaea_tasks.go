@@ -401,6 +401,12 @@ func (a *App) startFileWatch() {
 		a.officeState.fileWatchPollStop = a.startWatchPollingFallback("new-failed")
 		return
 	}
+	// 先关旧 watcher 再换新（2026-09-20 审计：Startup 不幂等，直接覆盖泄漏
+	// 旧 fsnotify 句柄与事件循环）。
+	if old := a.officeState.fileWatch; old != nil {
+		_ = old.Close()
+		a.officeState.fileWatch = nil
+	}
 	a.officeState.fileWatch = w
 	go a.fileWatchLoop()
 	if err := w.Start(); err != nil {

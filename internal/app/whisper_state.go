@@ -22,6 +22,16 @@ func (w *whisperState) initWeixin() {
 			w.assistantMgr = assistant.NewEmpty(w.whisperDataRoot)
 		}
 	}
+	// 先停旧表再重建（2026-09-20 审计：Startup 不幂等，直接覆盖会让旧
+	// Server 的 pollLoop 失去引用仍在跑——复用 Shutdown 同款清扫）。
+	if w.weixinServers != nil {
+		w.weixinMu.Lock()
+		for id, srv := range w.weixinServers {
+			srv.Stop()
+			delete(w.weixinServers, id)
+		}
+		w.weixinMu.Unlock()
+	}
 	w.weixinServers = make(map[string]*weixin.Server)
 
 	// 确保核心 AI 助手 gaea 始终存在（角色中心必须有 gaea；

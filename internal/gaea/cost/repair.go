@@ -314,13 +314,58 @@ func (s *Store) RepairCategoryPaths() (fixed, left int, err error) {
 			entries = append(entries, e)
 		}
 	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return 0, 0, err
+	}
 	rows.Close()
+
+	// 分类树一次捞进内存（2026-09-20 审计：原 pathResolves 对每条目每段逐条
+	// QueryRow——千条库×2~3 段=数千次点查，每次启动 SelfHeal 都付一遍）。
+	tree := map[struct {
+		parent int
+		name   string
+	}]int{}
+	if trows, e := s.db.Query("SELECT id, parent_id, name FROM cost_categories"); e == nil {
+		for trows.Next() {
+			var id, parent int
+			var name string
+			if trows.Scan(&id, &parent, &name) == nil {
+				tree[struct {
+					parent int
+					name   string
+				}{parent, name}] = id
+			}
+		}
+		trows.Close()
+		if e := trows.Err(); e != nil {
+			return 0, 0, e
+		}
+	}
+	pathOK := func(path string) bool {
+		parent := 0
+		for _, seg := range strings.Split(strings.TrimSpace(path), "/") {
+			seg = strings.TrimSpace(seg)
+			if seg == "" {
+				return false
+			}
+			id, ok := tree[struct {
+				parent int
+				name   string
+			}{parent, seg}]
+			if !ok {
+				return false
+			}
+			parent = id
+		}
+		return true
+	}
 
 	// 阶段一（事务外）：解析非法路径 → 目标。
 	type fix struct{ name, target string }
 	var fixes []fix
 	for _, e := range entries {
-		if s.pathResolves(e.path) {
+		if pathOK(e.path) {
 			continue
 		}
 		if target := legacyCategoryTarget(e.source, e.title, e.path); target != "" {

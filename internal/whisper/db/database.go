@@ -5,7 +5,7 @@ package db
 import (
 	"database/sql"
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sync"
@@ -33,7 +33,7 @@ func GetDatabase(dataRoot string) (*sql.DB, error) {
 	}
 
 	if err := EnsureDataRoot(dataRoot); err != nil {
-		log.Printf("[whisper-db] 创建 dataRoot 失败: %v", err)
+		slog.Error("[whisper-db] 创建 dataRoot 失败", "error", err)
 		return nil, fmt.Errorf("创建 dataRoot 失败: %w", err)
 	}
 
@@ -45,7 +45,7 @@ func GetDatabase(dataRoot string) (*sql.DB, error) {
 	// sql.Open 时逐连接生效，不再重复执行 PRAGMA 循环，避免双来源漂移。
 	db, err := sql.Open("sqlite", dbPath+"?_journal_mode=WAL&_synchronous=NORMAL&_foreign_keys=ON&_busy_timeout=5000&_cache_size=-8000")
 	if err != nil {
-		log.Printf("[whisper-db] 打开数据库失败: %v", err)
+		slog.Error("[whisper-db] 打开数据库失败", "error", err)
 		return nil, fmt.Errorf("打开数据库失败: %w", err)
 	}
 
@@ -54,7 +54,7 @@ func GetDatabase(dataRoot string) (*sql.DB, error) {
 
 	// 执行迁移
 	if err := runMigrations(db); err != nil {
-		log.Printf("[whisper-db] 迁移失败: %v", err)
+		slog.Error("[whisper-db] 迁移失败", "error", err)
 		db.Close()
 		return nil, fmt.Errorf("迁移失败: %w", err)
 	}
@@ -75,7 +75,7 @@ func CloseDatabase(dataRoot string) error {
 
 	// WAL checkpoint
 	if _, err := db.Exec("PRAGMA wal_checkpoint(TRUNCATE)"); err != nil {
-		log.Printf("[whisper-db] WAL checkpoint 失败: %v", err)
+		slog.Error("[whisper-db] WAL checkpoint 失败", "error", err)
 	}
 
 	if err := db.Close(); err != nil {
@@ -230,8 +230,12 @@ func ClearStructuredData(dataRoot string) error {
 	})
 }
 
-// migrateLegacyDB 将旧库 whisper.db（含 WAL/SHM）复制为 hermes.db。
+// migrateLegacyDB 将旧库 whisper.db（含 WAL）复制为 hermes.db。
 // 仅当新库不存在且旧库存在时执行一次；保留旧文件作备份，不删除。
+// 2026-09-20 审计：主文件与 WAL 逐文件直接 WriteFile 可能拼出不一致快照，
+// 改为各文件「写同目录临时文件 + rename 原子落位」（rename 同盘原子，中途
+// 失败不会留下半个目标文件）；-shm 不拷贝——打开时自动重建。
+// 此时点在新库首次打开之前（GetDatabase 入口），无并发写者。
 func migrateLegacyDB(dataRoot string) {
 	newPath := DatabasePath(dataRoot)
 	oldPath := filepath.Join(dataRoot, LegacyDBFilename)
@@ -241,7 +245,7 @@ func migrateLegacyDB(dataRoot string) {
 	if _, err := os.Stat(oldPath); err != nil {
 		return // 无旧库，全新安装
 	}
-	for _, suffix := range []string{"", "-wal", "-shm"} {
+	for _, suffix := range []string{"", "-wal"} {
 		src := oldPath + suffix
 		dst := newPath + suffix
 		if _, err := os.Stat(src); err != nil {
@@ -249,11 +253,18 @@ func migrateLegacyDB(dataRoot string) {
 		}
 		data, err := os.ReadFile(src)
 		if err != nil {
+			slog.Error("[whisper-db] 旧库迁移读取失败", "src", src, "error", err)
 			continue
 		}
-		if err := os.WriteFile(dst, data, 0o644); err != nil {
-			log.Printf("[whisper-db] 旧库迁移失败 (%s): %v", src, err)
+		tmp := dst + ".migrating"
+		if err := os.WriteFile(tmp, data, 0o644); err != nil {
+			slog.Error("[whisper-db] 旧库迁移写临时文件失败", "dst", tmp, "error", err)
+			continue
+		}
+		if err := os.Rename(tmp, dst); err != nil {
+			slog.Error("[whisper-db] 旧库迁移落位失败", "dst", dst, "error", err)
+			_ = os.Remove(tmp)
 		}
 	}
-	log.Printf("[whisper-db] 已迁移旧库 %s -> %s", LegacyDBFilename, HermesDBFilename)
+	slog.Info("[whisper-db] 已迁移旧库", "from", LegacyDBFilename, "to", HermesDBFilename)
 }

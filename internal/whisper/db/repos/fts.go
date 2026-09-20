@@ -293,76 +293,58 @@ func escapeLike(s string) string {
 	return s
 }
 
-// searchFactsByLike LIKE 降级搜索（整句 + 2-gram 多模式 OR）
+// searchFactsByLike LIKE 降级搜索（整句 + 2-gram 多模式）。
+// 2026-09-20 审计：原实现拼「字段×模式」多列长 OR 链——正是 cost.go 在册的
+// modernc/sqlite「特定形状长 OR 链返回空集」高危形状，且这里是 FTS 失败时的
+// 可靠性兜底（兜底自己返回空集=彻底失明）。改为按模式分轮单列 LIKE、Go 侧
+// 合并去重，凑满 limit 提前收工；降级路径本就是慢路径，多次点查可接受。
 func searchFactsByLike(sqldb *sql.DB, query string, limit int) ([]string, error) {
-	pats := buildLikePatterns(query)
-	if len(pats) == 0 {
-		return nil, nil
-	}
-	// subject/summary/triggers_text 三字段 × N 模式，全部 OR
-	fields := []string{"subject", "summary", "triggers_text"}
-	var conds []string
-	var args []interface{}
-	for _, p := range pats {
-		like := "%" + escapeLike(p) + "%"
-		for _, f := range fields {
-			conds = append(conds, f+" LIKE ? ESCAPE '\\'")
-			args = append(args, like)
-		}
-	}
-	rows, err := sqldb.Query(
-		fmt.Sprintf("SELECT id FROM memory_facts WHERE %s LIMIT %d", strings.Join(conds, " OR "), limit),
-		args...,
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var ids []string
-	for rows.Next() {
-		var id string
-		if err := rows.Scan(&id); err != nil {
-			continue
-		}
-		ids = append(ids, id)
-	}
-	return ids, nil
+	return likeSearch(sqldb, "memory_facts", []string{"subject", "summary", "triggers_text"}, query, limit)
 }
 
-// searchEpisodesByLike LIKE 降级搜索（整句 + 2-gram 多模式 OR）
+// searchEpisodesByLike LIKE 降级搜索（分轮单列，同 searchFactsByLike）。
 func searchEpisodesByLike(sqldb *sql.DB, query string, limit int) ([]string, error) {
+	return likeSearch(sqldb, "episodes", []string{"summary", "dominant_emotion"}, query, limit)
+}
+
+// likeSearch 分轮单列 LIKE 搜索：模式×字段逐条查询（单列 LIKE 不触发在册
+// 空集怪癖），命中去重合并，凑满 limit 提前返回。
+func likeSearch(sqldb *sql.DB, table string, fields []string, query string, limit int) ([]string, error) {
 	pats := buildLikePatterns(query)
 	if len(pats) == 0 {
 		return nil, nil
 	}
-	// summary/dominant_emotion 两字段 × N 模式，全部 OR
-	fields := []string{"summary", "dominant_emotion"}
-	var conds []string
-	var args []interface{}
+	seen := map[string]bool{}
+	var ids []string
 	for _, p := range pats {
 		like := "%" + escapeLike(p) + "%"
 		for _, f := range fields {
-			conds = append(conds, f+" LIKE ? ESCAPE '\\'")
-			args = append(args, like)
+			rows, err := sqldb.Query(
+				fmt.Sprintf("SELECT id FROM %s WHERE %s LIKE ? ESCAPE '\\' LIMIT ?", table, f),
+				like, limit-len(ids),
+			)
+			if err != nil {
+				return nil, err
+			}
+			for rows.Next() {
+				var id string
+				if err := rows.Scan(&id); err != nil {
+					continue
+				}
+				if !seen[id] {
+					seen[id] = true
+					ids = append(ids, id)
+				}
+			}
+			if err := rows.Err(); err != nil {
+				rows.Close()
+				return nil, err
+			}
+			rows.Close()
+			if len(ids) >= limit {
+				return ids, nil
+			}
 		}
-	}
-	rows, err := sqldb.Query(
-		fmt.Sprintf("SELECT id FROM episodes WHERE %s LIMIT %d", strings.Join(conds, " OR "), limit),
-		args...,
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var ids []string
-	for rows.Next() {
-		var id string
-		if err := rows.Scan(&id); err != nil {
-			continue
-		}
-		ids = append(ids, id)
 	}
 	return ids, nil
 }

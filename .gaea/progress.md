@@ -1,3 +1,14 @@
+## 最新发布：v4.359.0（2026-09-20）「后端优化轮第四弹：挂池清账——v4.358 审计辨伪项落地 7 刀」
+
+- **动机**：用户口径「继续继续」——v4.358 三路审计留下的挂池逐项再取证定刀：可落地 7 刀全清，需设计/需重构/需复现的 4 项如实留池。纯 Go 7 源文件，绑定面 706 不动，前端零改动。
+- **刀A SQL**：①SelfHeal 启动期 N+1 点查（repair.go）——分类树一次捞内存 map，pathResolves 逐条目逐段 QueryRow 改纯查表+补 entries rows.Err；②migrateLegacyDB（whisper db）——只拷主文件+wal（-shm 自动重建不拷）、.migrating 临时文件+rename 原子落位+残留 log.Printf 收口 slog（vet 参数错位同修）；③FTS 降级 LIKE 多列长 OR 链（fts.go）——在册 modernc 空集坑高危形状且是 FTS 失败的兜底（兜底自己失明），抽 likeSearch 助手按模式分轮单列查询+Go 合并去重+凑满 limit 提前收工+rows.Err。
+- **刀B 启动链**：④Startup 幂等三处（app.go/whisper_state.go/gaea_tasks.go）——logClose 先关旧再换新、initWeixin 先按 Shutdown 同款清扫 weixinServers 再重建、startFileWatch 先 Close 旧 watcher；⑤ai.Client 双构造+桥接早启窗口（app.go）——Startup 复用 New() 实例（nil 才新建），同一 client 贯穿进程生命周期，configureClient 统一接线，Login 重建路径不变；⑥filewatch 同步 Walk——**addTree 异步化试错证伪回退**（测试 5s 超时=监听就绪前事件真丢，核实「全量索引兜底」不成立：正常启动成功路径不做全量索引），改为 app 层 `go a.startFileWatch()` 整体移出 Startup 临界路径，filewatch 保持「Start 返回=监听就绪」同步契约（测试零改动零丢事件）。
+- **刀C 校验**：⑦GaeaListDir 相对路径拒 .. 穿越（gaea_listdir.go）——前端四调用方逐一核对全工作区相对路径零误伤；IsAbs 分支保留（v4.98 冻结面拍板+resolvePreviewPath 口径对齐）。
+- **留池 4 项**：ImportProjectCharacters 事务化（需三助手 tx 化中型重构）/prompt 引擎双构造（毫秒级+agent 持 eng 指针时序风险）/SaveVersion 并发窗口（待复现）/GaeaConvertToPdf 绝对路径（需统一设计）——todos 已给原因。
+- **门禁**：go build/vet 0+受影响 6 包测试绿（app 96s 全量/cost/whisper db+repos/filewatch）+全量 ci.ps1 绿+bindings drift OK@706+版本三处 4.359.0。
+ - **坑**：⓪vitest 连续两轮 CI 失败病根=.tmp 堆积 2.4GB（go test 残留+旧浏览器 profile），清到 157MB 后稳过；「.tmp 定期清理进卫生守卫」挂池①审计论断「事件丢失有全量索引兜底」要核实兜底是否真存在——本例正常启动成功路径不做全量索引，照抄审计建议就是真回归；filewatch 测试 5s 超时是免费的反证②挂池再取证≠照单全收——留池 4 项与落地 7 刀同等重要，留池注明原因让下次取证不必重查。
+- **产物**：exe 50931200B SHA256=acd0851d4cbdcbfcac9801ffb59411418ad2530a32a0a8f8f8ba90e18c5fa89f（时间戳 2026-09-20 20:21:39 新鲜；桌面副本同哈希实测一致；冒烟 /api/health 200 过）；保留策略 5 版留 v4.355~v4.359 删 v4.354.exe。
+
 ## 最新发布：v4.358.0（2026-09-20）「后端优化轮第三弹：三路审计（SQL 存储层/启动链路/输入校验）——分类改名 P0 根修+读侧收口+FTS 增量」
 
 - **动机**：用户口径「继续优化后端」——v4.356~v4.357 已扫 panic 防线/并发锁/资源句柄/错误吞噬四条轴，本轮换新镜头开三路并行只读审计（线1 SQL/存储层、线2 启动链路、线3 输入校验），按证据定刀。纯 Go 36 源文件+3 新测试文件，绑定面 706 不动，前端零改动。

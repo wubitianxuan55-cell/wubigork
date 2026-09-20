@@ -352,6 +352,11 @@ func (a *App) Startup(ctx context.Context) {
 	// 前端诊断（GaeaLogFrontendError → slog）自动落同一文件。
 	a.startedAt = time.Now()
 	if closeLog, err := setupLogging(config.DataRoot(), AppVersion); err == nil {
+		// 先关旧句柄再换新（2026-09-20 审计：Startup 不幂等，二次调用覆盖
+		// 式赋值会让首个日志句柄永不关闭）。
+		if a.logClose != nil {
+			a.logClose()
+		}
 		a.logClose = closeLog
 	} else {
 		fmt.Fprintf(os.Stderr, "[gaea] 日志初始化失败: %v\n", err)
@@ -361,8 +366,13 @@ func (a *App) Startup(ctx context.Context) {
 		slog.Warn("启动早期数据操作结论回放", "summary", a.restoreSummary)
 	}
 	stage("logging")
-	// 创建 AI client（仅此一次；token 由 GetToken 懒加载）
-	a.client = ai.NewClient(a.cfg)
+	// AI client 复用 New() 构造的实例（2026-09-20 审计：此前 Startup 整个换
+	// 新——HTTP 桥接在 OnStartup 前已开始服务，窗口内请求拿到的是未挂
+	// engineMgr/OnEvent 的旧实例；复用后同一实例贯穿进程生命周期，下方
+	// configureClient 统一接线。Login 重建路径不变）。token 由 GetToken 懒加载。
+	if a.client == nil {
+		a.client = ai.NewClient(a.cfg)
+	}
 
 	// 密钥保护：旧版明文一次性迁移为 DPAPI 密文，再解密供内存使用
 	encryptSecretIfLegacy(config.KeyDeepseekAPIKey, &a.cfg.DeepseekAPIKey)
@@ -508,7 +518,10 @@ func (a *App) Startup(ctx context.Context) {
 	// 可用时轮询仅作兜底，见 startFileWatch）。
 	a.startFileIndexCron()
 	// 阶段 5 T5-2：工作区实时文件监听（fsnotify 增量索引，秒级可搜）。
-	a.startFileWatch()
+	// go 化（2026-09-20 审计）：startFileWatch 内部对整树同步 WalkDir+逐目录
+	// Add，大工作区拖慢 Startup 临界路径——移入 goroutine；进程退出路径
+	// （Shutdown）下若 goroutine 尚未建好 watcher，随进程退出回收，无泄漏。
+	go a.startFileWatch()
 	stage("schedulers")
 
 	slog.Info("startup 阶段耗时（冷启动基线，总=Synchronous Startup 链；模型刷新/预载/巡检为异步不计）",

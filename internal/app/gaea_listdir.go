@@ -20,6 +20,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // GAEADIR_* 结构化错误码：前端据此路由恢复路径（不存在/非目录 → 降级
@@ -44,9 +45,11 @@ var (
 )
 
 // listDirEntries 列出目录条目。rel 为空 = 工作区根；相对路径 Join 工作区根
-// （旧行为逐字节一致）；绝对路径 Clean 后直接使用（新分支，含正斜杠写法的
-// Windows 盘符路径，与前端 ToSlash 口径互通）。错误带 GAEADIR_* 码透传，
-// 不再吞成空切片。
+// （拒 .. 穿越——2026-09-20 审计：全盘目录枚举原语，与其他读口的收口对齐；
+// 前端四个调用方 FileTree/useComposerMenus/deliverablesTurn/
+// VerifyArtifactsThumbs 全部传工作区相对路径，零误伤）；绝对路径 Clean 后
+// 直接使用（保留——口径对齐 resolvePreviewPath 的 IsAbs 分支，含正斜杠写法
+// 的 Windows 盘符路径，与前端 ToSlash 口径互通）。错误带 GAEADIR_* 码透传。
 func listDirEntries(rel string) ([]DirEntry, error) {
 	root := gaeaCwd()
 	dir := root
@@ -54,7 +57,11 @@ func listDirEntries(rel string) ([]DirEntry, error) {
 		if filepath.IsAbs(rel) {
 			dir = filepath.Clean(rel)
 		} else {
-			dir = filepath.Join(root, rel)
+			cleanRel := filepath.Clean(filepath.FromSlash(rel))
+			if strings.HasPrefix(cleanRel, "..") || strings.Contains(cleanRel, ".."+string(filepath.Separator)) {
+				return nil, listDirError(errCodeDirRead, "路径越出工作区: %s", rel)
+			}
+			dir = filepath.Join(root, cleanRel)
 		}
 	}
 	info, err := osStat(dir)

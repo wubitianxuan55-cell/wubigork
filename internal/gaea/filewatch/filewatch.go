@@ -104,6 +104,9 @@ func (w *Watcher) closeOut() {
 
 // Start 开始监听：递归添加目录（跳过 skipDirs），启动事件循环。
 // 目录添加失败不致命（记录 WatchErr，仍监听已成功的子树）。
+// 保持同步：addTree 完成前到达的文件事件会丢——调用方要异步化应把整个
+// Start 挪出临界路径（app 层 go startFileWatch），而不是这里拆散
+// 「监听就绪」语义（2026-09-20 审计试错：拆散后测试超时+生产丢启动期增量）。
 func (w *Watcher) Start() error {
 	if err := w.addTree(w.root); err != nil {
 		w.setErr(err)
