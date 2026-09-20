@@ -91,17 +91,29 @@ export const GanttView: React.FC<{ project: SchedProject; cpm: CpmResult; onInsp
   React.useEffect(() => {
     const pane = canvasPaneRef.current
     if (!pane) return
+    // v4.371：rAF 合并——高分辨率触控板每秒 60~120 次 wheel 事件各触发一次
+    // setDayW 全三窗格重渲染；合并为每帧最多一次（帧内累积因子，锚点以累积
+    // 后的目标日宽换算，终态与逐事件处理一致）。
+    let wheelRaf = 0
+    let pendingW = 0
     const onWheel = (e: WheelEvent) => {
       if (!e.ctrlKey && !e.metaKey) return // 普通滚轮=滚动行（原生）
       e.preventDefault()
-      const w0 = dayWRef.current
+      pendingW = (pendingW || dayWRef.current) * (e.deltaY < 0 ? ZOOM_FACTOR : 1 / ZOOM_FACTOR)
       const rect = pane.getBoundingClientRect()
       const px = e.clientX - rect.left
-      ganttAnchorRef.current = { px, dayG: (pane.scrollLeft + px) / w0 }
-      setDayWAt(w0 * (e.deltaY < 0 ? ZOOM_FACTOR : 1 / ZOOM_FACTOR))
+      ganttAnchorRef.current = { px, dayG: (pane.scrollLeft + px) / pendingW }
+      if (wheelRaf) return
+      wheelRaf = requestAnimationFrame(() => {
+        wheelRaf = 0
+        if (pendingW) { setDayWAt(pendingW); pendingW = 0 }
+      })
     }
     pane.addEventListener('wheel', onWheel, { passive: false })
-    return () => pane.removeEventListener('wheel', onWheel)
+    return () => {
+      if (wheelRaf) cancelAnimationFrame(wheelRaf)
+      pane.removeEventListener('wheel', onWheel)
+    }
   }, [])
   const [showFront, setShowFront] = useState(false)
   /** 行筛选（刀C 余项）：全部/关键/手动 + 名称文本；仅作用于横道（网络图=逻辑图不筛选） */

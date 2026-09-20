@@ -1,3 +1,13 @@
+## 最新发布：v4.372.0（2026-09-21）「Gantt 缩放性能：Ctrl+滚轮 rAF 合并」
+
+- **动机**：用户口径「继续」——性能留池「Gantt 行组件化」的可安全子集落地：Ctrl+滚轮缩放的 wheel 事件 rAF 合并（一帧最多一次 setDayW，终态一致）。schedule 1 源文件+1 测试适配，绑定面 707 不动。
+- **落地**：GanttView 的 Ctrl+滚轮缩放路径——高分辨率触控板每秒 60~120 次 wheel 事件，原实现每次事件立即 setDayW→三窗格（横道/表格/时间轴）全量重渲染同频发生。改 rAF 合并——帧内累积缩放因子（pendingW），每帧最多提交一次 setDayWAt；锚点（缩放时光标处对应工程日）以累积后的目标日宽换算，滚动位置恢复与逐事件处理终态一致。清理路径补 cancelAnimationFrame。「GanttBars 行组件化+dayW 走 CSS transform」的结构性改造仍留池：条形定位从 dayW 像素改为 scale 变换涉及拖拽坐标换算（鼠标位置→日期）重写，属核心交互高风险区，需专门的拖拽真机回归轮。
+- **测试**：GanttView 测试适配——缩放断言等待 rAF 帧提交（jsdom 下 rAF 为 16ms 模拟 setTimeout），33 例全绿；drag.test 7 例绿。
+- **门禁**：tsc 0+eslint 0+全量 ci.ps1 绿 EXIT=0（vitest 387 文件 3315 例；首跑 BookHealthPanel 1 例 flaky 与本轮足迹零交叠，单跑 7/7 复绿后全量复跑 OK）+drift OK@707+版本三处 4.372.0。
+- **坑**：①rAF 合并后同步断言失效——jsdom 下 rAF 为 16ms 模拟 setTimeout，fireEvent.wheel 后同步断言拿到的还是旧值，测试需 await act 等待帧提交；②it 回调补 async 时易引连环括号错误——手工补 async( 后遗漏原闭合括号层级，esbuild 语法错误逐层暴露；脚本化改写测试文件时优先整段重写而非点状替换。
+- **产物**：exe 50,988,032B SHA256=cf94c096112e9c177f6e46f040fe315acf82e5ebc3fb5b4a765ee78057bab7b8（releases/gaea-v4.372.0.exe+SHA256SUMS-v4.372.0.txt 仅本地；桌面副本同哈希实测一致；冒烟 /api/health 200 过）；保留策略 5 版留 v4.368~v4.372 删 v4.367.0.exe（SUMS 身份档案全保留）。
+- **文档**：releases/v4.372.0.md+CHANGELOG/README+releases/README（计数 393→394+34 席插 v4.372 裁 v4.338）+AGENTS 迁 1 插 1（八十七迁：v4.369 入 archive）+progress/todos（Gantt 缩放 rAF 合并销号；行组件化+transform 结构改造留池）。
+
 ## 最新发布：v4.371.0（2026-09-21）「聊天历史分页绑定（游标式，绑定面 706→707）」
 
 - **动机**：用户口径「继续」——性能留池「聊天历史分页绑定」设计并落地：大话题切会话不再全量拉取，首屏最新 200 条+向上翻页游标续拉。Go 3 源文件+1 测试+前端 6 源文件。

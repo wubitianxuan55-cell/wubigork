@@ -631,7 +631,7 @@ describe('GanttView Ctrl+滚轮缩放（v4.159）', () => {
     useScheduleStore.setState({ project: chainProject(), selectedId: null, hydrated: true, sync: 'saved', syncError: null })
   })
 
-  it('Ctrl+滚轮放大日宽（20→27），普通滚轮不缩放（保持滚动行）', () => {
+  it('Ctrl+滚轮放大日宽（20→27），普通滚轮不缩放（保持滚动行）', async () => {
     const p = chainProject()
     render(<GanttView project={p} cpm={computeCpm(p.tasks, p.links)} />)
     const pane = screen.getByTestId('sched-gantt-canvas')
@@ -639,9 +639,12 @@ describe('GanttView Ctrl+滚轮缩放（v4.159）', () => {
     const inner = pane.querySelector<HTMLElement>('.sched-gantt-canvas-inner')!
     expect(inner.style.width).toBe('420px')
     fireEvent.wheel(pane, { deltaY: -100, ctrlKey: true, clientX: 30 })
+    // v4.371：wheel→setDayW 走 rAF 合并（一帧最多一次），jsdom 下等待帧提交
+    await act(async () => { await new Promise((r) => setTimeout(r, 20)) })
     expect(inner.style.width).toBe('567px') // 21×27
     // 普通滚轮：原生滚动行，日宽不动
     fireEvent.wheel(pane, { deltaY: -100, clientX: 30 })
     expect(inner.style.width).toBe('567px')
   })
 })
+
