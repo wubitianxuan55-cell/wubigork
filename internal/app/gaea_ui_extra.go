@@ -672,12 +672,23 @@ func (a *App) GaeaWriteFile(rel string, content string) error {
 }
 
 // withinReadRoots 判断绝对路径是否落在任一可读数据根内（工作区 + 应用数据
-// 根）。2026-09-19 审计新增：读侧附件/预览绑定共用的根白名单（剧照 portraits、
-// 绘梦资产、附件 uploads 均落在这两根内）。
-func withinReadRoots(abs string) bool {
+// 根 + 图片保存目录）。2026-09-19 审计新增：读侧附件/预览绑定共用的根白名单。
+// v4.363 真机走查补：绘梦历史图实际落 cfg.ImageSaveDir（默认 %USERPROFILE%
+// Pictures\gaea），不在工作区/数据根两根内——当时「绘梦资产均落两根内」的
+// 论断不成立，聊天消息内联图/画廊读图被误拒，此处补第三根。
+func (a *App) withinReadRoots(abs string) bool {
 	roots := []string{gaeaCwd()}
 	if dr := config.DataRoot(); dr != "" {
 		roots = append(roots, dr)
+	}
+	if a != nil && a.core != nil && a.cfg != nil {
+		if sd := strings.TrimSpace(a.cfg.ImageSaveDir); sd != "" {
+			roots = append(roots, sd)
+		}
+	}
+	// 与 image_handler 的兜底一致：未配置时生成图仍会落 %USERPROFILE%\Pictures\gaea。
+	if up := os.Getenv("USERPROFILE"); up != "" {
+		roots = append(roots, filepath.Join(up, "Pictures", "gaea"))
 	}
 	abs = filepath.Clean(abs)
 	for _, r := range roots {
@@ -945,7 +956,7 @@ func (a *App) GaeaSaveFileAs(defaultName string, base64Data string) (string, err
 // （工作区 + 数据根：剧照 portraits/绘梦资产/附件 uploads 均落在这两根内）
 // + 32MB 上限（头像/资产/截图远小于此，防注入读大文件撑爆内存）。
 func (a *App) GaeaAttachmentDataURL(path string) (string, error) {
-	if !withinReadRoots(path) {
+	if !a.withinReadRoots(path) {
 		return "", fmt.Errorf("路径不在可读数据范围内（工作区/应用数据根）: %s", path)
 	}
 	b, err := os.ReadFile(path)

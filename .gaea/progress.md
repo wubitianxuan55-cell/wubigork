@@ -1,3 +1,13 @@
+## 最新发布：v4.364.0（2026-09-21）「真机走查班：v4.361~v4.363 前端三轮验收 + withinReadRoots 绘梦图误伤修复」
+
+- **动机**：用户口径「继续」（授权闲置窗口）——按 v4.355 先例前端优化三轮后开真机走查班（CDP 9333 附着 v4.363.0 壳，只读纪律），走查拽出 v4.358 读侧收口真机才现形的误伤，修复发版。Go 1 源文件+1 测试，绑定面 706 不动。
+- **走查结论**：双空间 14 板块（工作 6+闲庭 7+设置/进度计划 navigate 直达）错误边界 0/空白 0/console.error 0/exception 0/`img[src^="file://"]` 残留 0。深验=①聊天 PersonaPicker popover「31 个可聊天角色」26 头像全渲染零裂图零 file://（v4.355 报 27 条告警同场景，v4.361 头像收口确证）②schedule `.sched-row-no` 行号实测 rgb(74,64,96)=Violet 亮态 onSurfaceVariant #4a4060（v4.361 收口生效）③tertiary 双态 #5b6472↔#8b93a0 明暗切换正确④longtask 走查全程仅 1 条 800ms 真长任务（阈值 200ms 后 69~165ms 噪音归零）。
+- **修复 withinReadRoots 遗漏图片保存目录**：走查日志 6 条 `[AttachmentDataURLError]`（Pictures\gaea 绘梦历史图被拒）——v4.358 论断「绘梦资产均落两根内」不成立：绘梦图实际落 cfg.ImageSaveDir（默认 %USERPROFILE%\Pictures\gaea）。修=withinReadRoots 改 App 方法补第三根（ImageSaveDir 非空时+默认兜底，与 image_handler 落盘口径一致）。真机复验同一张被拒图成功读回 2.89MB data URL。定向 +1=TestWithinReadRootsCoversImageSaveDir（配置根命中+兜底根纯前缀断言不写用户真实目录）。顺手修=方法化后 &App{} 裸构造既有测试 TestGaeaAttachmentRoundTrip panic（nil core 解引用）加 a.core!=nil 守卫回归绿。
+- **门禁**：定向 +1+internal/app 全量绿（102s）+tsc 0+eslint 0+全量 ci.ps1 绿 EXIT=0（vitest 387 文件 3305 例）+drift OK@706+版本三处 4.364.0。
+- **坑**：①mock/单测测不出路径语义——v4.358 白名单论断没经真机验证就写进注释，读侧白名单变更必须真机过一遍真实数据路径；②走查拽错要看壳日志不只看页面——AttachmentDataURL 失败前端有占位兜底页面全绿，问题只在壳日志里；③包级函数改方法先 grep 裸构造测试（&App{} 是合法测试惯用形，方法化后嵌入指针解引用即 panic）；④CDP 探针传 Windows 路径的转义陷阱（多层引号反斜杠被 JS 转义吃掉、 成 formfeed），用 join(String.fromCharCode(92)) 或正斜杠（Windows API 皆收）。
+- **产物**：exe 50,948,096B SHA256=e026857b8c74d1667b9d5606267d93bffd94d03a3678008073deca4d4f76b976（releases/gaea-v4.364.0.exe+SHA256SUMS-v4.364.0.txt 仅本地；桌面副本同哈希实测一致；冒烟 /api/health 200 过）；保留策略 5 版留 v4.360~v4.364 删 v4.359.0.exe（SUMS 身份档案全保留）。
+- **文档**：releases/v4.364.0.md+CHANGELOG/README+releases/README（计数 385→386+34 席插 v4.364 裁 v4.330）+AGENTS 迁 1 插 1（七十九迁：v4.361 入 archive）+progress/todos（走查班清账+误伤修复销号）。
+
 ## 最新发布：v4.363.0（2026-09-21）「后端留池终审：ConvertToPdf 读侧收口落地 + prompt 双构造辨伪关闭」
 
 - **动机**：用户口径「继续」——后端挂池仅剩 2 项（均标「需设计」）逐项终审：一项设计落地、一项证据辨伪关闭，**后端挂池清零**。Go 1 源文件+1 测试+前端 1 小刀，绑定面 706 不动。

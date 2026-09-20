@@ -113,3 +113,36 @@ func TestConvertToPdfPathGuard(t *testing.T) {
 		t.Fatalf("工作区文件应过守卫并命中扩展名分支, got %v", err)
 	}
 }
+
+// v4.363 真机走查补：绘梦历史图落 cfg.ImageSaveDir / 默认 Pictures\gaea，
+// 不在「工作区+数据根」两根内——withinReadRoots 必须覆盖第三根（v4.358 误伤修复）。
+func TestWithinReadRootsCoversImageSaveDir(t *testing.T) {
+	restore := workspaceTestIsolate(t)
+	defer restore()
+
+	a := &App{core: &core{cfg: &config.Config{}}}
+	dir := filepath.Join(t.TempDir(), "Pictures", "gaea")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	p := filepath.Join(dir, "gen.png")
+	if err := os.WriteFile(p, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// 未配置 ImageSaveDir：默认兜底根（真实 %USERPROFILE%\Pictures\gaea）纯前缀
+	// 判断命中（不写用户真实目录）。
+	if !a.withinReadRoots(filepath.Join(os.Getenv("USERPROFILE"), "Pictures", "gaea", "gen.png")) {
+		t.Fatalf("默认图片目录兜底根应命中")
+	}
+
+	// 显式配置 ImageSaveDir：配置根命中。
+	custom := filepath.Join(t.TempDir(), "custom-img")
+	if err := os.MkdirAll(custom, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	a.cfg.ImageSaveDir = custom
+	if !a.withinReadRoots(filepath.Join(custom, "x.png")) {
+		t.Fatalf("配置的图片目录应可读: %s", custom)
+	}
+}
