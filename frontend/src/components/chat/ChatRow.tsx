@@ -17,6 +17,7 @@ import type { AnsweredByInfo } from './AnsweredByLine'
 import type { ChatMsg } from '../../pages/chat/types'
 import { useGenuiScope } from '../../genui/scope'
 import { buildMarkdownGenuiOverrides } from './genuiAdapter'
+import { findStableCut } from '../../gaea/components/MemoMarkdown'
 
 export interface ChatRowProps {
   /** 行对应的消息对象：未更新的行保持同一对象引用（updateMessage 仅替换被补丁的行），memo 才能命中 */
@@ -43,6 +44,10 @@ export const ChatRow: React.FC<ChatRowProps> = ({
   copied, speaking, onCopy, onSpeak, onRetry,
 }) => {
   const display = text
+  // v4.368 流式分段渲染：把累积文本切成「稳定段（段落边界，不再变化）+ 增长尾段」，
+  // 稳定段字符串不变时其 MarkdownContent 子树被 memo 跳过——每 chunk 实际重解析的
+  // 只有尾段（通常一段），消除原「每 chunk 全量 reparse」的 O(n²)。
+  const [stablePart, pendingPart] = React.useMemo(() => findStableCut(display), [display])
   const genuiScope = useGenuiScope()
   const genuiOverrides = React.useMemo(
     () => buildMarkdownGenuiOverrides(genuiScope, msg.key),
@@ -94,7 +99,7 @@ export const ChatRow: React.FC<ChatRowProps> = ({
         <div className="chat-assistant-text">
           {isStreaming ? (
             <span className="chat-streaming">
-              {display ? <><MarkdownContent source={display} className="md-content" /><span className="cursor-blink" /></> : <span className="typing-dots"><span className="typing-dot" /><span className="typing-dot" /><span className="typing-dot" /></span>}
+              {display ? <><MarkdownContent source={stablePart} className="md-content" /><MarkdownContent source={pendingPart} className="md-content" /><span className="cursor-blink" /></> : <span className="typing-dots"><span className="typing-dot" /><span className="typing-dot" /><span className="typing-dot" /></span>}
             </span>
           ) : (
             mode === 'plain'

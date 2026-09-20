@@ -1,3 +1,15 @@
+## 最新发布：v4.368.0（2026-09-21）「性能轮深水区：聊天流式分段渲染 O(n²) 根修」
+
+- **动机**：用户口径「继续」——性能留池最大项落地。前端 3 源文件+1 新测试，绑定面 706 不动。
+- **问题**：聊天流式回复时每个 delta chunk 都对全量累积文本重跑 react-markdown（remarkGfm+remarkMath+rehypeKatex），O(n²)——5KB 尾段单次 parse 5~20ms × 30+ chunk/s = 主线程持续高占用与 GC 压力。
+- **方案**：三选一定方案 A（ChatRow 流式分支分段，影响面锁死一处）。方案 B（MarkdownContent 内部分段）会冲击 t74 测试精确的 ReactMarkdown 调用计数断言且波及非流式消费方；限频只降频率不降单次 parse 规模。
+- **落地**：①findStableCut（gaea/components/MemoMarkdown.tsx）导出+盲区修复——原只扫切点后 suffix 判断 fence 状态，fence body 含空行（代码极常见）时计数偶数误判可切、把代码块拦腰切断（稳定段含悬挂 fence+尾段代码行被当正文的瞬时错排）；改全量行扫描候选切点前 fence 状态，切点在未闭合 fence 内回退到打开行前（切分更保守，稳定段永不含悬挂 fence）；既有 MemoMarkdown 测试零改动通过。②ChatRow 流式分支 stable+pending 两段渲染——stable 段字符串不变时 react-markdown 子树被 memo 整体跳过，pending 段（通常 KB 级）每帧重解析；终态回既有路径零变化。
+- **契约与兼容**：genui 零破坏（fence 当普通 fence，闭合落稳定段；流式分支本就不传 overrides——流式中 genui 显示原始 JSON 面板现状不变）；已知接受折衷=松散列表流式序号短暂重排终态自愈+streaming 翻转 DOM 重建一次（与 gaea 同款）；相比 gaea 原设计改进=尾段走完整 react-markdown 管线，未闭合 fence 流式中显示为持续增长代码块更接近终态。
+- **门禁**：定向 +6（findStableCut.test.ts：无空行全不稳定/多段落切分/切点后未闭合 fence 留尾/fence body 含空行不拦腰〔盲区修复〕/闭合 fence 入稳定段/空文本）+MemoMarkdown 既有 2 例零改动通过+ChatMarkdown.genui/聊天组件/genui.walkthrough 回归全绿+tsc 0+eslint 0+全量 ci.ps1 绿 EXIT=0（vitest 387 文件 3315 例）+drift OK@706+版本三处 4.368.0。
+- **坑**：①正则整段替换函数体非贪婪匹配会吞闭合括号——替换串忘了带 `}`，tsc 当场暴露；②性能改造的行为等价是「终态等价」——流式中间态 DOM 从单块变两块（stable+pending），验收口径=终态一致+中间态不劣化，不能拿中间态 DOM 逐字节比。
+- **产物**：exe 50,951,680B SHA256=e1bc4358584f6c0c70dacb2c9ac18cd545dd831f8dc6157a9b3d88b7cf2849a0（releases/gaea-v4.368.0.exe+SHA256SUMS-v4.368.0.txt 仅本地；桌面副本同哈希实测一致；冒烟 /api/health 200 过）；保留策略 5 版留 v4.364~v4.368 删 v4.363.0.exe（SUMS 身份档案全保留）。
+- **文档**：releases/v4.368.0.md+CHANGELOG/README+releases/README（计数 389→390+34 席插 v4.368 裁 v4.334）+AGENTS 迁 1 插 1（八十三迁：v4.365 入 archive）+progress/todos（性能八项消一项：流式分段渲染收官——余七项）。
+
 ## 最新发布：v4.367.0（2026-09-21）「编辑输入性能：章节编辑 memo 化 + 设定页预览/统计防抖」
 
 - **动机**：用户口径「继续」——性能轮延续：编辑输入链路每击键全页重渲染与全文重解析治理，全部行为等价。前端 4 源文件+1 新 hook，绑定面 706 不动。

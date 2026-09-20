@@ -15,41 +15,45 @@ interface MemoMarkdownProps {
  * findStableCut — 找到"稳定"切分点。
  *
  * 规则（按优先级）：
- *   1. 如果最后一个 \n\n 之后的区间内包含未闭合的代码围栏（奇数个 ```），
- *      回退到代码围栏开始前。
+ *   1. 若候选切点落在未闭合的代码围栏内（fence body 含空行时原 suffix 扫描
+ *      的盲区——计数偶数误判可切，把代码块拦腰切断），切点回退到该围栏打开
+ *      行之前（v4.368：改为全量行扫描 fence 状态）。
  *   2. 否则在最后一个 \n\n 处切分。
  *   3. 没有 \n\n 则全部视为不稳定。
  *
- * 返回 [stablePrefix, unstableSuffix]。
+ * 返回 [stablePrefix, unstableSuffix]。导出供聊天流式行（ChatRow）复用同一
+ * 切分语义（v4.368 流式分段渲染）。
  */
-function findStableCut(text: string): [string, string] {
+export function findStableCut(text: string): [string, string] {
   const lastGap = text.lastIndexOf("\n\n");
   if (lastGap < 0) return ["", text];
 
-  // Check for unclosed code fence in the suffix
-  const suffix = text.slice(lastGap + 2);
-  let fenceCount = 0;
-  let i = 0;
-  while (i < suffix.length) {
-    const idx = suffix.indexOf("```", i);
-    if (idx < 0) break;
-    // A fence is a line that starts with ``` (possibly with a language tag)
-    const lineStart = suffix.lastIndexOf("\n", idx - 1);
-    const before = lineStart >= 0 ? suffix.slice(lineStart + 1, idx) : suffix.slice(0, idx);
-    if (before.trim() === "") {
-      fenceCount++;
-      if (fenceCount % 2 !== 0) {
-        // Found opening fence; roll back to before this block
-        const fenceStart = lastGap + 2 + idx;
-        const preFenceNL = text.lastIndexOf("\n\n", fenceStart - 1);
-        if (preFenceNL >= 0) return [text.slice(0, preFenceNL + 2), text.slice(preFenceNL + 2)];
-        return ["", text];
-      }
+  // v4.368：全量行扫描候选切点之前的行首 ``` 标记，跟踪 fence 状态——
+  // 原实现只扫切点之后的 suffix，fence body 含空行时计数为偶数误判「可切」，
+  // 把代码块拦腰切断（盲区）。现若切点落在未闭合 fence 内，回退切点到该
+  // fence 打开行之前（切分只会更保守，稳定段永不含悬挂 fence）。导出供
+  // 聊天流式行（ChatRow）复用同一切分语义（v4.368 流式分段渲染）。
+  const FENCE = "```";
+  let inFence = false;
+  let fenceOpenStart = -1;
+  let pos = 0;
+  while (pos <= lastGap) {
+    const nl = text.indexOf("\n", pos);
+    const lineEnd = nl < 0 ? text.length : nl;
+    const line = text.slice(pos, lineEnd);
+    if (line.trimStart().startsWith(FENCE)) {
+      inFence = !inFence;
+      fenceOpenStart = inFence ? pos : -1;
     }
-    i = idx + 3;
+    if (nl < 0 || nl >= lastGap) break;
+    pos = nl + 1;
   }
-
-  return [text.slice(0, lastGap + 2), text.slice(lastGap + 2)];
+  let cut = lastGap + 2;
+  if (inFence && fenceOpenStart >= 0) {
+    const preFenceNL = text.lastIndexOf("\n\n", fenceOpenStart - 1);
+    cut = preFenceNL >= 0 ? preFenceNL + 2 : 0;
+  }
+  return [text.slice(0, cut), text.slice(cut)];
 }
 
 /**
