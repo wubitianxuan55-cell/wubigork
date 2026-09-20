@@ -1,1 +1,2 @@
 cf94c096112e9c177f6e46f040fe315acf82e5ebc3fb5b4a765ee78057bab7b8 *releases/gaea-v4.372.0.exe
+SHA256=b848ffb70bca40cc7cc73a31c9eb9897e03a3541dbc1f4329fe17339193e476e  wubigork-v4.372.0-source.tar.gz (12714425 B, git archive @v4.372.0 排除旧源码包, 4626 files)
