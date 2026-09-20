@@ -1,3 +1,14 @@
+## 最新发布：v4.360.0（2026-09-20）「后端优化轮第五弹：挂池再清 3 刀——.tmp 卫生守卫 / 导入事务化 / 版本号原子化」
+
+- **动机**：用户口径「继续」——v4.359 清完 v4.358 池后余量再取证：本轮落地 3 刀（含 v4.359 发现的 .tmp 病根本身入闸），绑定面 706 不动，前端零改动。
+- **刀1 .tmp 卫生守卫**：scripts/clean-tmp.ps1 新增+ci.ps1 在设置 TMP/TEMP 重定向前接入——.tmp 超 512MB 阈值时只清「已知安全」瞬态模式（Test*/*.log/edge-*·walk-*·ui-sweep*·dsh-context* 旧诊断 profile/smoke-*.exe/go-build*），其余不动。**坑=.ps1 含非 ASCII 必须带 UTF-8 BOM**（check-docs 在册守卫④）——无 BOM 时 powershell.exe 按 GBK 解析，中文注释乱码破坏 param 行，阈值默认值静默失效变成「每次都清」（151MB 就触发），加 BOM 后语义恢复。
+- **刀2 ImportProjectCharacters 整体事务化**（characterlib/store.go）：原每角色 Get+Upsert+Associate 三次独立 autocommit，百级导入=三百多次写，中途失败=部分导入。修法=抽 execer 接口（*sql.DB/*sql.Tx 公共 SQL 子集）+ getOn/prepareUpsert（校验+时间戳+剧照本地化，磁盘 IO 不入事务）/upsertOn（序列化+UPSERT）/associateOn 四助手拆分；Get/Upsert/Associate 改薄包装签名不变（绑定面零影响），导入循环 Begin→tx 循环→Commit，任一步失败 Rollback。既有 4 个 Import 测试零改动全绿=事务化等价性证明。
+- **刀3 SaveVersion 版本号原子化+SchemaV22**（costproject/gaea db）：原「先 MAX 后 INSERT」两步无事务无约束，并发保存同项目落重复版本号。①INSERT 内 SELECT COALESCE(MAX(version),0)+1 自算——单语句在 SQLite 写锁下天然原子，读改写窗口消除；回读实际落库版本填返回值（与预估值并发错位以库为准）②SchemaV22 先清历史重复（bug 产物保留每组最新 rowid）再建 idx_cost_versions_proj_ver 唯一索引硬约束背书。定向 +1=TestSaveVersionSequenceAndUniqueIndex（序列 1,2 连续+直插重复被拒）。
+- **留池仅剩 2 项**（均需设计）：prompt 引擎双构造（agent 构造捕获 eng 指针、SetPromptFS 必须先行的时序风险）/GaeaConvertToPdf 绝对路径（preview→convert 链有合法绝对路径用途，需 Pick/白名单统一设计）。
+- **门禁**：go build/vet 0+受影响 4 包测试绿+全量 ci.ps1 绿（clean-tmp 步首次随 CI 运行；首跑因 Invoke-Native 插在函数定义前即插即炸，移到版本漂移闸门后修复）+bindings drift OK@706+版本三处 4.360.0。
+- **坑**：①.ps1 无 BOM 的乱码是语义问题非显示问题——症状是「守卫每次都触发」而非报错②execer 接口（Exec+QueryRow 公共子集）是 Go 事务化标准姿势，磁盘 IO 留事务外③「单语句天然原子」优先于「包事务」——INSERT...SELECT MAX+1 零锁成本，事务留给多语句组合④ci.ps1 的 Invoke-Native 调用必须在其函数定义之后（插早了 CommandNotFoundException）。
+- **产物**：exe 50936832B SHA256=3c42f42929ee734a49e4c3921800b9065719e14c2a56f3e661f4661f7f3abd58（时间戳 2026-09-20 22:13:30 新鲜；桌面副本同哈希实测一致；冒烟 /api/health 200 过）；保留策略 5 版留 v4.356~v4.360 删 v4.355.exe。
+
 ## 最新发布：v4.359.0（2026-09-20）「后端优化轮第四弹：挂池清账——v4.358 审计辨伪项落地 7 刀」
 
 - **动机**：用户口径「继续继续」——v4.358 三路审计留下的挂池逐项再取证定刀：可落地 7 刀全清，需设计/需重构/需复现的 4 项如实留池。纯 Go 7 源文件，绑定面 706 不动，前端零改动。

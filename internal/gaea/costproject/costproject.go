@@ -306,14 +306,24 @@ func (s *Store) SaveVersion(projectID, note string) (*Version, error) {
 		Note:      note,
 		CreatedAt: time.Now().UTC(),
 	}
+	// 版本号由 INSERT 内 SELECT MAX+1 自算（2026-09-19 审计 P2 落地）：单语句
+	// 在 SQLite 写锁下天然原子，先 MAX 后 INSERT 的读改写窗口消除；并发双保存
+	// 时后到者拿到 MAX+2 而非落重复版本（SchemaV22 唯一索引为硬约束背书）。
+	// 回读实际落库版本填返回值（与预估 maxVer+1 并发错位时以库为准）。
 	res, err := s.db.Exec(`
 INSERT INTO cost_estimate_versions(project_id, version, total, snapshot, note, created_at)
-VALUES(?,?,?,?,?,?)`,
-		v.ProjectID, v.Version, v.Total, v.Snapshot, v.Note, v.CreatedAt.Format(time.RFC3339))
+SELECT ?, COALESCE(MAX(version), 0) + 1, ?, ?, ?, ? FROM cost_estimate_versions WHERE project_id = ?`,
+		v.ProjectID, v.Total, v.Snapshot, v.Note, v.CreatedAt.Format(time.RFC3339), v.ProjectID)
 	if err != nil {
 		return nil, err
 	}
 	v.ID, _ = res.LastInsertId()
+	if v.ID > 0 {
+		var actual int
+		if e := s.db.QueryRow("SELECT version FROM cost_estimate_versions WHERE id=?", v.ID).Scan(&actual); e == nil {
+			v.Version = actual
+		}
+	}
 	return v, nil
 }
 

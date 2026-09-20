@@ -490,3 +490,15 @@ ALTER TABLE tasks ADD COLUMN session_id TEXT NOT NULL DEFAULT '';
 const SchemaV21 = `
 ALTER TABLE memory_events ADD COLUMN recorded_at INTEGER NOT NULL DEFAULT 0;
 `
+
+// SchemaV22 测算版本号防重（2026-09-19 审计 P2 落地）：先 MAX 后 INSERT 两步
+// 无事务+无唯一约束，并发保存同项目会落重复版本号。先清历史重复（bug 产物，
+// 保留每组最新 rowid），再建唯一索引做硬约束背书；SaveVersion 写入侧同步改
+// 单语句自算版本号（INSERT...SELECT MAX+1 原子，读改写窗口消除）。
+const SchemaV22 = `
+DELETE FROM cost_estimate_versions WHERE rowid NOT IN (
+  SELECT MAX(rowid) FROM cost_estimate_versions GROUP BY project_id, version
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_cost_versions_proj_ver
+  ON cost_estimate_versions(project_id, version);
+`

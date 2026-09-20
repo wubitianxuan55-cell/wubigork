@@ -28,6 +28,10 @@ function Invoke-Native {
 # 版本停在 4.323.0 而闸门不在 CI 内从未拦截——收进 CI 防再犯）
 Invoke-Native 'version drift check' 'powershell' @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', (Join-Path $PSScriptRoot 'check-version-drift.ps1'))
 
+# .tmp 卫生守卫（v4.360，2026-09-20 发现）：堆积超阈值时清理瞬态模式——
+# v4.359 实证 .tmp 堆到 2.4GB 后 vitest worker 间歇失败（连续两轮 CI 挂）。
+Invoke-Native '.tmp hygiene guard' 'powershell' @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', (Join-Path $PSScriptRoot 'clean-tmp.ps1'))
+
 Invoke-Native 'go build' 'go' @('build', './...')
 Invoke-Native 'go vet' 'go' @('vet', './...')
 Invoke-Native 'go test' 'go' @('test', './...', '-count=1')

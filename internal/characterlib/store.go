@@ -142,6 +142,18 @@ func (s *Store) Upsert(c *Character) error {
 	if s == nil || s.db == nil {
 		return fmt.Errorf("角色库未初始化")
 	}
+	if err := s.prepareUpsert(c); err != nil {
+		return err
+	}
+	return upsertOn(s.db, c)
+}
+
+// prepareUpsert 校验 + 时间戳 + 剧照/参考图本地化（磁盘 IO，不入事务）——
+// Upsert 的 SQL 前半，供事务路径复用。
+func (s *Store) prepareUpsert(c *Character) error {
+	if s == nil || s.db == nil {
+		return fmt.Errorf("角色库未初始化")
+	}
 	if c == nil || c.ID == "" || c.Name == "" {
 		return fmt.Errorf("角色 ID 与名称不能为空")
 	}
@@ -161,7 +173,12 @@ func (s *Store) Upsert(c *Character) error {
 	base := portraitFileBase(c.ID)
 	c.ReferenceImages = localizeImageList(s.dataDir, base+"_ref", c.ReferenceImages)
 	c.GalleryImages = localizeImageList(s.dataDir, base+"_gallery", c.GalleryImages)
+	return nil
+}
 
+// upsertOn 在给定执行器（库或事务）上写角色行——Upsert 的 SQL 后半
+// （序列化 + UPSERT，2026-09-20 审计：事务化批量导入用）。
+func upsertOn(x execer, c *Character) error {
 	tags, _ := json.Marshal(c.Tags)
 	samples, _ := json.Marshal(c.DialogueSamples)
 	dims, _ := json.Marshal(c.Dims)
@@ -169,7 +186,7 @@ func (s *Store) Upsert(c *Character) error {
 	refs := marshalStringList(c.ReferenceImages)
 	gallery := marshalStringList(c.GalleryImages)
 
-	_, err := s.db.Exec(`
+	_, err := x.Exec(`
 		INSERT INTO characters (
 			id, name, kind, gender, age, tags, portrait_url,
 			reference_images, gallery_images,
@@ -225,7 +242,20 @@ func (s *Store) Get(id string) (*Character, error) {
 	if s == nil || s.db == nil || id == "" {
 		return nil, fmt.Errorf("角色库未初始化或 ID 为空")
 	}
-	row := s.db.QueryRow(`
+	return getOn(s.db, id)
+}
+
+// execer 是 *sql.DB 与 *sql.Tx 的公共 SQL 子集（事务化批量导入用，2026-09-20
+// 审计：ImportProjectCharacters 此前每角色 Get+Upsert+Associate 三次独立
+// autocommit 往返，中途失败=部分导入）。
+type execer interface {
+	Exec(query string, args ...any) (sql.Result, error)
+	QueryRow(query string, args ...any) *sql.Row
+}
+
+// getOn 在给定执行器（库或事务）上按 ID 读角色——Get 的查询核心。
+func getOn(x execer, id string) (*Character, error) {
+	row := x.QueryRow(`
 		SELECT id, name, kind, gender, age, tags, portrait_url,
 			reference_images, gallery_images,
 			role_type, personality, background, appearance, figure, motivation, arc, status, notes, dialogue_samples,
@@ -350,10 +380,15 @@ func (s *Store) Associate(projectID, charID, role, arcState, status string) erro
 	if s == nil || s.db == nil {
 		return fmt.Errorf("角色库未初始化")
 	}
+	return associateOn(s.db, projectID, charID, role, arcState, status)
+}
+
+// associateOn 在给定执行器（库或事务）上建立项目关联——Associate 的 SQL 核心。
+func associateOn(x execer, projectID, charID, role, arcState, status string) error {
 	if projectID == "" || charID == "" {
 		return fmt.Errorf("项目与角色 ID 不能为空")
 	}
-	_, err := s.db.Exec(`
+	_, err := x.Exec(`
 		INSERT INTO project_characters (project_id, character_id, role_in_project, arc_state, status, joined_at)
 		VALUES (?,?,?,?,?,?)
 		ON CONFLICT(project_id, character_id) DO UPDATE SET
@@ -430,8 +465,16 @@ func (s *Store) ImportProjectCharacters(projectID string, chars []types.Characte
 	if s == nil || s.db == nil {
 		return 0, 0, 0, fmt.Errorf("角色库未初始化")
 	}
+	// 整体单事务（2026-09-20 审计留池项落地）：原每角色 Get+Upsert+Associate
+	// 三次独立 autocommit，百级角色=三百多次往返，中途失败=部分导入。读写
+	// 全走 tx（execer 助手），任一步失败整体回滚=导入要么全成要么不动。
+	tx, err := s.db.Begin()
+	if err != nil {
+		return 0, 0, 0, fmt.Errorf("开启导入事务失败: %w", err)
+	}
+	defer tx.Rollback()
 	for _, ch := range chars {
-		target, err := s.Get(ch.ID)
+		target, err := getOn(tx, ch.ID)
 		if err != nil {
 			return imported, filled, overwritten, err
 		}
@@ -450,7 +493,10 @@ func (s *Store) ImportProjectCharacters(projectID string, chars []types.Characte
 			target.Arc = ch.Arc
 			target.Status = ch.Status
 			target.Notes = ch.Notes
-			if err := s.Upsert(target); err != nil {
+			if err := s.prepareUpsert(target); err != nil {
+				return imported, filled, overwritten, err
+			}
+			if err := upsertOn(tx, target); err != nil {
 				return imported, filled, overwritten, err
 			}
 			imported++
@@ -487,7 +533,10 @@ func (s *Store) ImportProjectCharacters(projectID string, chars []types.Characte
 				overwritten++
 			}
 			if didChange {
-				if err := s.Upsert(target); err != nil {
+				if err := s.prepareUpsert(target); err != nil {
+					return imported, filled, overwritten, err
+				}
+				if err := upsertOn(tx, target); err != nil {
 					return imported, filled, overwritten, err
 				}
 			}
@@ -495,9 +544,12 @@ func (s *Store) ImportProjectCharacters(projectID string, chars []types.Characte
 				filled++
 			}
 		}
-		if err := s.Associate(projectID, target.ID, ch.RoleType, ch.Arc, ch.Status); err != nil {
+		if err := associateOn(tx, projectID, target.ID, ch.RoleType, ch.Arc, ch.Status); err != nil {
 			return imported, filled, overwritten, err
 		}
+	}
+	if err := tx.Commit(); err != nil {
+		return imported, filled, overwritten, fmt.Errorf("提交导入事务失败: %w", err)
 	}
 	return imported, filled, overwritten, nil
 }
