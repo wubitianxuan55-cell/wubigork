@@ -283,7 +283,10 @@ export function useSinStory(): UseSinStoryResult {
     const story = storiesRef.current.find((s) => s.id === storyId)
     if (story && (story.title === '新故事' || story.title.trim() === '')) {
       const title = suggestStoryTitle(content)
-      void app.SinTopicRename(storyId, title).then(() => refreshStories().then(setStories)).catch(() => {})
+      // v4.362：自动命名失败可见化（原故事名停留「新故事」无原因）。
+      void app.SinTopicRename(storyId, title).then(() => refreshStories().then(setStories)).catch((err: unknown) => {
+        setNotice(`自动命名失败：${err instanceof Error ? err.message : String(err)}`)
+      })
     }
 
     const userKey = nextKey('sin_user')

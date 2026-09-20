@@ -35,3 +35,9 @@ describe('亮态弱化文字对比度（v4.361 观察池清账）', () => {
     expect(pred).not.toContain('--md-sys-color-outline,')
   })
 })
+
+  it('App.tsx 不再硬编码 tertiary 文本色（v4.362 收敛进 ThemeTokens.colorTextTertiary）', () => {
+    const app = readFileSync(resolve(__dirname, 'App.tsx'), 'utf8')
+    expect(app).not.toMatch(/set\('--(?:md-sys-color-text-tertiary|v3-fg-soft|color-text-tertiary)',\s*darkMode\s*\?/)
+    expect(app).toContain("set('--md-sys-color-text-tertiary', effTokens.colorTextTertiary)")
+  })

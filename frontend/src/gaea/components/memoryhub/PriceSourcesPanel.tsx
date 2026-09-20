@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Modal } from "antd";
+import { Modal, message } from "antd";
 import { CloudUpload, Coins, Copy, ExternalLink, Pencil, Plus, RefreshCw, Trash2 } from "../../icons";
 import { app, onTaskEvent, openExternal } from "../../lib/bridge";
 import { classifyExternalLink } from "../../lib/browserPolicy";
@@ -46,6 +46,8 @@ export function PriceSourcesPanel({ onChanged }: { onChanged?: () => void }) {
   const [editOpen, setEditOpen] = useState(false);
   const [editing, setEditing] = useState<PriceSource | null>(null);
   const [deleting, setDeleting] = useState<PriceSource | null>(null);
+  // v4.362：加载失败可见化——原失败伪装成空面板。
+  const [loadFailed, setLoadFailed] = useState(false);
   const [checked, setChecked] = useState<Record<string, Set<string>>>({});
   // 进行中的抓取任务（taskId → 元信息：单源抓取记 sourceId，一键抓取记 all）。
   // 用 ref 保存，避免 onTaskEvent 闭包拿不到最新的任务集合。
@@ -66,8 +68,14 @@ export function PriceSourcesPanel({ onChanged }: { onChanged?: () => void }) {
       .then(([s, f]) => {
         setSources(s ?? []);
         setFetches(f ?? []);
+        setLoadFailed(false);
       })
-      .catch(() => {})
+      .catch(() => {
+        // v4.362：加载失败可见化——原伪装成空面板。
+        setSources([]);
+        setFetches([]);
+        setLoadFailed(true);
+      })
       .finally(() => setLoading(false));
   }, [withTimeout]);
 
@@ -306,6 +314,13 @@ export function PriceSourcesPanel({ onChanged }: { onChanged?: () => void }) {
       <div className="flex-1 min-h-0 overflow-y-auto p-2 flex flex-col gap-1.5">
         {loading ? (
           <div className="py-8 text-center text-fg-faint text-[11px]">加载中…</div>
+        ) : loadFailed ? (
+          <div className="py-8 text-center text-[11px]" role="status" data-testid="price-sources-load-failed">
+            <span className="text-fg-dim">价格源列表读取失败</span>
+            <button type="button" className="ml-2 px-2 h-6 rounded-full bg-accent text-accent-fg text-[10.5px] cursor-pointer" onClick={() => load()}>
+              重试
+            </button>
+          </div>
         ) : (
           <>
             {/* 订阅源 */}
@@ -484,7 +499,14 @@ export function PriceSourcesPanel({ onChanged }: { onChanged?: () => void }) {
         maskTransitionName=""
         onCancel={() => setDeleting(null)}
         onOk={async () => {
-          if (deleting) await app.PriceSourceDelete(deleting.id).catch(() => {});
+          // v4.362：删除失败不再吞成假成功——原条目刷新复活无原因。
+          if (deleting) {
+            const ok = await app.PriceSourceDelete(deleting.id).then(() => true).catch(() => false);
+            if (!ok) {
+              message.error(`删除价格源「${deleting.name}」失败，请重试`);
+              return;
+            }
+          }
           setDeleting(null);
           load();
         }}

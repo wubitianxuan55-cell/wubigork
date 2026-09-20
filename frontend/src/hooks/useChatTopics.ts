@@ -72,24 +72,35 @@ export function useChatTopics({ setMessages, setPersonalities }: UseChatTopicsOp
     initRef.current = true
     ;(async () => {
       let list: chat.Topic[] = []
+      // v4.362：初始化失败可见化——原只进后端日志，侧栏空白像历史会话全丢。
+      let loadFailed = false
       const errText = (err: unknown) => err instanceof Error ? err.message : String(err)
       try { list = (await app.ChatTopicsList()) || [] } catch (err: unknown) {
         // T6-3.2：话题列表读取失败不再静默——记录后按空列表继续初始化
         logFrontendError('话题列表读取失败: ' + errText(err))
+        loadFailed = true
       }
       if (list.length === 0) {
         const imported = await migrateLegacyTopics()
         try { list = (await app.ChatTopicsList()) || [] } catch (err: unknown) {
           logFrontendError('话题列表读取失败（迁移后）: ' + errText(err))
+          loadFailed = true
         }
         if (!imported && list.length === 0) {
           try { await app.ChatTopicCreate('新对话', 'plain') } catch (err: unknown) {
             logFrontendError('话题创建失败: ' + errText(err))
+            loadFailed = true
           }
           try { list = (await app.ChatTopicsList()) || [] } catch (err: unknown) {
             logFrontendError('话题列表读取失败（创建后）: ' + errText(err))
+            loadFailed = true
           }
         }
+      }
+      if (loadFailed) {
+        message.error(list.length === 0
+          ? '会话列表读取失败，历史会话可能暂不可见，请重启应用重试'
+          : '会话列表读取失败，部分历史会话可能未显示')
       }
       // 最近活跃优先：默认把最新会话排到顶部。
       list = sortByUpdatedAtDesc(list, (t) => toUpdatedAt(t))

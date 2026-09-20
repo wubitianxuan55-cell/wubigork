@@ -192,12 +192,17 @@ export function CostProjectsView({ onChanged }: { onChanged?: () => void }) {
       cancelText: "取消",
       onOk: async () => {
         if (it.id) {
-          await app.CostEstimateItemDelete(it.id).catch(() => {});
+          // v4.362：删除失败不再吞成假成功——原行本地消失、刷新复活无原因。
+          const ok = await app.CostEstimateItemDelete(it.id).then(() => true).catch(() => false);
+          if (!ok) {
+            toast.show("删除明细行失败，请重试", "error");
+            return;
+          }
         }
         setItems((prev) => prev.filter((x) => x.id !== it.id));
       },
     });
-  }, []);
+  }, [toast]);
 
   // ── v4.2 AI 组价 ─────────────────────────────────────────────
   // openCompose 预填：选中行优先，否则第一行（描述/单位带入弹窗）。
@@ -270,8 +275,17 @@ export function CostProjectsView({ onChanged }: { onChanged?: () => void }) {
         onOk: async () => {
           try {
             const rows: CostEstimateItem[] = JSON.parse(v.snapshot);
+            // v4.362：旧行删除失败须中止恢复——原吞错后继续插新行=删半截+重复行。
+            let delFailed = 0;
             for (const it of items) {
-              if (it.id) await app.CostEstimateItemDelete(it.id).catch(() => {});
+              if (it.id) {
+                const ok = await app.CostEstimateItemDelete(it.id).then(() => true).catch(() => false);
+                if (!ok) delFailed++;
+              }
+            }
+            if (delFailed > 0) {
+              toast.show(`恢复中止：${delFailed} 条旧行删除失败，请重试`, "error");
+              return;
             }
             for (const r of rows) {
               const { id: _old, ...rest } = r;

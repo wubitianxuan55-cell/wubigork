@@ -67,7 +67,12 @@ export function PriceSourcesRepository() {
 
   const removeSource = async () => {
     if (!deleting) return;
-    await app.PriceSourceDelete(deleting.id).catch(() => {});
+    // v4.362：删除失败不再吞成假成功——原吞错后无条件报「已删除」，条目刷新复活。
+    const ok = await app.PriceSourceDelete(deleting.id).then(() => true).catch(() => false);
+    if (!ok) {
+      toast.show(`删除价格源「${deleting.name}」失败，请重试`, "error");
+      return;
+    }
     toast.show(`已删除价格源「${deleting.name}」`, "info");
     setDeleting(null);
     load();

@@ -130,8 +130,11 @@ const ProgrammingPage: React.FC = () => {
     try {
       const s = (await app.GetProgrammingWebStatus()) as ProgrammingWebStatus
       setStatus(s)
+      setError('') // v4.362：恢复成功即清横幅
     } catch {
-      /* 后端未就绪时静默，等待下一次轮询 */
+      // v4.362：失败可见化——原永久「检测中…」假加载（3s 轮询静默失败用户
+      // 全程不可知）；只置一次不随轮询刷屏，恢复自动清除。
+      setError((prev) => prev || '状态获取失败，正在重试…')
     }
   }, [])
 

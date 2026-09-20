@@ -1,3 +1,13 @@
+## 最新发布：v4.362.0（2026-09-21）「前端优化轮第二弹：吞错可见化收尾 + tertiary 文本令牌收敛」
+
+- **动机**：用户口径「继续」——v4.361 前端优化轮余量再取证：镜头B 剩余吞错项全量复核 + 次级文本别名收敛影响面，两路并行只读后定刀。纯前端 17 源文件+2 测试+3 语言文件，绑定面 706 不动。
+- **刀线一 吞错可见化收尾（12 刀）**：①**OfficePanel 读失败防覆盖**（置顶数据覆盖风险——gaeaSettings 失败被吞后草稿留全默认值 permMode 'ask'/sandboxBash 'enforce'，用户点保存就把默认配置覆盖真实引擎 config.toml，NovelSettingPage 同族）→loadFailed+Alert 重试+保存禁用+handleSave 入口拦截，定向 +2；②**「删除假成功」家族 5 刀**（PriceSourcesRepository/PriceSourcesPanel〔加载失败空面板→错误态+重试〕/CostProjectsView 删明细行/CostProjectsView restoreVersion 旧行删除失败中止恢复〔原吞错继续插新行=删半截+重复行〕/CostNotesView）——失败 message/toast 且不推进「已删」语义；③OfficeMemoryLibrary doMergeAll 串行计数分报，失败对保留可重试；④useChatTopics 初始化失败一次性 message.error（原只进后端日志，侧栏空白像历史全丢）；⑤ProgrammingPage 状态轮询首败 setError 复用 prog-error 横幅成功即清（原永久「检测中…」假加载）；⑥ModelSwitcher 失败态「读取失败点击重试」与「未配置任何模型」分流；⑦TaskInboxPanel 状态变更失败提示；⑧小刀 3 处（ChatPanel 人格清单/AboutPanel 版本「v—」→「版本读取失败」/useSinStory 自动命名 setNotice）。低优挂账=MemoryHubPage 左轨计数「—」占位（空缺非假成功）。
+- **刀线二 tertiary 文本令牌收敛**：ThemeTokens 新增 colorTextTertiary 正式字段（6 暗工厂 #8b93a0 原值平移/6 亮工厂 #5b6472——原 App.tsx 三别名硬编码 #6b7280 不在 lightFn，Violet 亮 surface 实测 4.41:1 不达 AA；#5b6472 全 surface ≥5.45 连 Violet 容器高层 4.65 过线；不取 TERTIARY 表——暖容器配对色不当正文中性灰）；App.tsx 三别名（--md-sys-color-text-tertiary/--v3-fg-soft/--color-text-tertiary）改由 effTokens 下发**变量名全保留**=25 消费点+softTextStyle 7 文件零改动；机检扩面=contrast BODY_TOKENS +tertiary（12 主题×2 背景 24 条新断言）+明暗锁值+App.tsx 防回流源断言。别名层裁决：--whisper-ink-muted/--fg-faint 纯转发保留；--fg-faint 千级消费重指向 tertiary 是独立视觉拍板项；--w-ink-3（color-mix 非纯转发）重指向需目检挂池。
+- **门禁**：定向 +4+tsc 0+eslint 0 error 0 warn（新增 4 处 exhaustive-deps 全数补齐）+全量 ci.ps1 绿 EXIT=0（vitest 387 文件 3305 例）+bindings drift OK@706+版本三处 4.362.0。
+- **坑**：①LocaleProvider 默认跟随 localStorage（gaea-lang），beforeAll loadLocale('zh') 不稳固——组件重渲染（失败态→重试成功）后 t() 翻回 en 中文断言飘，测试须 beforeEach setItem；②antd disabled Button 的 accessible name 在 jsdom 不稳定（getByRole 正则失配），按钮定位走 testid/textContent 直查；③zh-TW.ts 必须补齐全部 DictKey（类型从 en.ts 推导全键校验，tsc 当场拦）；④恢复类操作「先删后插」的吞错=删半截+重复行，失败要中止而非吞掉继续；⑤对比度选值要喂最差场景背景（Violet 亮 surface 4.41，不是白底 4.83）。
+- **产物**：exe 50,946,048B SHA256=c26432852cdcb9211edf0c3e4bb6d6831a6be8a9dd57e09331276783aa3cd274（releases/gaea-v4.362.0.exe+SHA256SUMS-v4.362.0.txt 仅本地；桌面副本同哈希实测一致；冒烟 /api/health 200 过）；保留策略 5 版留 v4.358~v4.362 删 v4.357.0.exe（SUMS 身份档案全保留）。
+- **文档**：releases/v4.362.0.md+CHANGELOG/README+releases/README（计数 383→384+34 席插 v4.362 裁 v4.328）+AGENTS 迁 1 插 1（七十七迁：v4.359 入 archive）+progress/todos。
+
 ## 最新发布：v4.361.0（2026-09-20）「前端优化轮：失败可见化 + 观察池清账 + 令牌卫生」
 
 - **动机**：用户口径「优化gaea前端UI」——后端优化五连发后换前端镜头，三路并行只读审计（令牌一致性/交互三态覆盖/观察池取证）后定刀落地。纯前端 34 源文件+4 测试+2 新工具文件，绑定面 706 不动（零 Go 改动），零删功能（UI 简化红线）。

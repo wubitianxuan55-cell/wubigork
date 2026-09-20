@@ -89,13 +89,16 @@ const App: React.FC = () => {
     // Text
     set('--md-sys-color-text', effTokens.colorText)
     set('--md-sys-color-text-secondary', effTokens.colorTextSecondary)
-    set('--md-sys-color-text-tertiary', darkMode ? '#8b93a0' : '#6b7280') // hex-exempt
+    // v4.362：tertiary 文本档进 ThemeTokens（原三别名硬编码 dark '#8b93a0' /
+    // light '#6b7280'——Violet 亮态 surface 仅 4.41:1 不达 AA 且改不到）。
+    // 三个变量名保留（25 个消费点零改动），值统一由 colorTextTertiary 下发。
+    set('--md-sys-color-text-tertiary', effTokens.colorTextTertiary)
     // 幽灵令牌补定义（v4.350）：--v3-fg-soft/--v3-line-soft/--color-text-tertiary
     // 此前全仓零定义，所有消费点恒走 fallback 亮色值——暗主题下 11~12px 次要
-    // 文字/边框对比不足（gray-500 暗底约 3.9:1 < AA）。明暗分档，hex-exempt 同上。
-    set('--v3-fg-soft', darkMode ? '#8b93a0' : '#6b7280') // hex-exempt
+    // 文字/边框对比不足（gray-500 暗底约 3.9:1 < AA）。
+    set('--v3-fg-soft', effTokens.colorTextTertiary)
     set('--v3-line-soft', darkMode ? 'rgba(255,255,255,0.10)' : '#e5e7eb') // hex-exempt
-    set('--color-text-tertiary', darkMode ? '#8b93a0' : '#6b7280') // hex-exempt
+    set('--color-text-tertiary', effTokens.colorTextTertiary)
     set('--md-sys-color-border', effTokens.colorBorder)
 
     // Semantic

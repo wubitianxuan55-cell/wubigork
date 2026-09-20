@@ -192,6 +192,7 @@ export const en = {
   "status.connecting": "connecting…",
   "status.switchModel": "Switch model",
   "status.noModels": "no models configured",
+  "status.modelsLoadFailedRetry": "failed to load models — click to retry",
   "status.switchFolder": "{cwd}\nClick to switch project folder",
   "status.jobsTitle": "Background jobs",
 
@@ -780,6 +781,7 @@ export const en = {
   "settings.instantBadge": "Instant",
   // ChatPanel — AI 伴侣 / 默认人格 / 语音对话
   "settings.chat.companionTitle": "AI companion",
+  "settings.chat.personalitiesLoadFailed": "failed to load personalities — restart to retry",
   "settings.chat.companionDesc": "Basics for your chat AI companion (name/gender). Applies in the chat board.",
   "settings.chat.nameLabel": "Name",
   "settings.chat.namePlaceholder": "Name your AI…",
@@ -862,6 +864,10 @@ export const en = {
   // OfficePanel — 办公引擎完整设置
   "settings.office.title": "Office engine settings",
   "settings.office.desc": "Full settings (models / agent parameters / permissions / sandbox), persisted to ~/.config/gaea/config.toml.",
+  "settings.office.loadFailedTitle": "Failed to load office engine settings",
+  "settings.office.loadFailedDesc": "Saving is paused to prevent overwriting real engine settings with the default draft.",
+  "settings.office.loadFailedNoSave": "Settings failed to load — saving is paused to prevent overwriting. Retry first.",
+  "settings.office.loadRetry": "Retry",
   "settings.office.defaultModel": "Default model",
   "settings.office.defaultModelPh": "Choose a default model",
   "settings.office.maxSteps": "Max steps",
@@ -1188,6 +1194,7 @@ export const en = {
   "tasks.inbox.delete": "Delete",
   "tasks.inbox.deleteConfirm": "Delete this task? This cannot be undone.",
   "tasks.inbox.deleteFail": "Delete failed, please retry",
+  "tasks.inbox.statusFail": "status update failed",
   "tasks.inbox.add": "Add",
   "tasks.inbox.addPlaceholder": "Type a task title, press Enter or click Add",
   "tasks.inbox.source.ctrlk": "Ctrl+K",

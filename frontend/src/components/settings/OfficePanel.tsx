@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react'
-import { Button, Input, InputNumber, Select, Space, Switch, Typography, message } from 'antd'
+import React, { useCallback, useEffect, useState } from 'react'
+import { Alert, Button, Input, InputNumber, Select, Space, Switch, Typography, message } from 'antd'
 import { SaveOutlined, ReloadOutlined, FileTextOutlined } from '@ant-design/icons'
 import { gaeaSettings } from '../../api/settings'
 import SettingsSection from './SettingsSection'
@@ -60,7 +60,12 @@ const OfficePanel: React.FC = () => {
     }
   }
 
-  useEffect(() => {
+  // v4.362：读取失败可见化+防覆盖——此前失败吞掉后草稿留全默认值（permMode
+  // 'ask'/sandboxBash 'enforce' 等），用户点保存就把默认配置覆盖真实引擎配置
+  // （NovelSettingPage 同族数据覆盖风险）。失败期间禁保存，横幅提供重试。
+  const [loadFailed, setLoadFailed] = useState(false)
+  const loadSettings = useCallback(() => {
+    setLoadFailed(false)
     gaeaSettings().then((v) => {
       setView(v || {})
       const agent = (v.agent || {}) as {
@@ -86,13 +91,22 @@ const OfficePanel: React.FC = () => {
         sandboxNetwork: sandbox.network !== false,
         workspaceRoot: sandbox.workspaceRoot || '',
       })
-    }).catch(() => {}).finally(() => setLoading(false))
+    }).catch(() => {
+      setDraft({ ...emptyDraft })
+      setLoadFailed(true)
+    }).finally(() => setLoading(false))
   }, [])
+
+  useEffect(() => { loadSettings() }, [loadSettings])
 
   const providers = (view.providers || []) as Array<{ name?: string; models?: string[] }>
   const modelOptions = providers.flatMap((p) => (p.models || []).map((m: string) => ({ value: m, label: `${p.name} / ${m}` })))
 
   const handleSave = async () => {
+    if (loadFailed) {
+      message.warning(t('settings.office.loadFailedNoSave'))
+      return
+    }
     setSaving(true)
     try {
       await gaeaApp.SaveSettings({
@@ -265,7 +279,7 @@ const OfficePanel: React.FC = () => {
         <Button icon={<ReloadOutlined />} loading={reloading} onClick={handleReload}>
           {t('settings.office.reload')}
         </Button>
-        <Button type="primary" icon={<SaveOutlined />} loading={saving} onClick={handleSave}
+        <Button type="primary" icon={<SaveOutlined />} loading={saving} disabled={loadFailed} onClick={handleSave}
           style={{ background: 'var(--md-sys-color-primary)', borderColor: 'var(--md-sys-color-primary)', borderRadius: 'var(--md-sys-radius-md)' }}>
           {t('settings.office.save')}
         </Button>
@@ -315,6 +329,15 @@ const OfficePanel: React.FC = () => {
         )}
       </SettingsSection>
 
+      {loadFailed && (
+        <Alert
+          type="error" showIcon style={{ marginBottom: 12 }}
+          data-testid="office-settings-load-failed"
+          message={t('settings.office.loadFailedTitle')}
+          description={t('settings.office.loadFailedDesc')}
+          action={<Button size="small" danger onClick={loadSettings}>{t('settings.office.loadRetry')}</Button>}
+        />
+      )}
       {loading && <Typography.Text style={{ color: 'var(--md-sys-color-text-secondary)', fontSize: 12 }}>{t('common.loading')}</Typography.Text>}
     </>
   )

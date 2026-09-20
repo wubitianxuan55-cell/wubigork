@@ -20,11 +20,13 @@ const AboutPanel: React.FC = () => {
   const [config, setConfig] = useState<Record<string, string>>({})
   const [appInfo, setAppInfo] = useState<{ name: string; version: string; tagline: string; releases: ReleaseInfo[] } | null>(null)
 
+  // v4.362：版本信息读取失败可见化——原 Tag 显「v—」无从分辨。
+  const [infoLoadFailed, setInfoLoadFailed] = useState(false)
   useEffect(() => {
     getConfig().then(setConfig).catch(() => {})
     try {
-      app.GetAppInfo().then((r) => setAppInfo(r as { name: string; version: string; tagline: string; releases: ReleaseInfo[] })).catch(() => {})
-    } catch (_) { /* 忽略 */ }
+      app.GetAppInfo().then((r) => setAppInfo(r as { name: string; version: string; tagline: string; releases: ReleaseInfo[] })).catch(() => setInfoLoadFailed(true))
+    } catch (_) { setInfoLoadFailed(true) }
   }, [])
 
   return (
@@ -50,7 +52,7 @@ const AboutPanel: React.FC = () => {
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
               <Typography.Text strong style={{ color: 'var(--md-sys-color-text)', fontSize: 15 }}>gaea</Typography.Text>
-              <Tag style={{ margin: 0, borderRadius: 8 }}>v{appInfo?.version || '—'}</Tag>
+              <Tag style={{ margin: 0, borderRadius: 8 }} color={infoLoadFailed ? 'warning' : 'default'}>{infoLoadFailed ? '版本读取失败' : `v${appInfo?.version || '—'}`}</Tag>
             </div>
             <Typography.Text style={{ color: 'var(--md-sys-color-text-secondary)', fontSize: 12, display: 'block', marginTop: 2 }}>
               {appInfo?.tagline || t('settings.about.taglineFallback')}

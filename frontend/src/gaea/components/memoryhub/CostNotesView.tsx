@@ -94,13 +94,18 @@ export function CostNotesView() {
         cancelText: "取消",
         onOk: async () => {
           if (n.id) {
-            await app.CostNoteDelete(n.id).catch(() => {});
+            // v4.362：删除失败不再吞成假成功——原笔记刷新复活无原因。
+            const ok = await app.CostNoteDelete(n.id).then(() => true).catch(() => false);
+            if (!ok) {
+              toast.show("删除笔记失败，请重试", "error");
+              return;
+            }
           }
           await load();
-        },
+        }
       });
     },
-    [load],
+    [load, toast],
   );
 
   return (

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Modal } from "antd";
 import { Check, ChevronsUpDown } from "../icons";
 import { app } from "../lib/bridge";
@@ -25,10 +25,29 @@ export function ModelSwitcher({
   const t = useT();
   const [open, setOpen] = useState(false);
   const [models, setModels] = useState<ModelInfo[]>([]);
+  // v4.362：读取失败不再伪装「未配置任何模型」——区分失败态（可重试）与真空。
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  const fetchModels = useCallback(() => {
+    if (!open) return;
+    setLoading(true);
+    app
+      .Models()
+      .then((m) => {
+        setModels(m);
+        setLoadFailed(false);
+      })
+      .catch(() => {
+        setModels([]);
+        setLoadFailed(true);
+      })
+      .finally(() => setLoading(false));
+  }, [open]);
 
   useEffect(() => {
-    if (open) app.Models().then(setModels).catch(() => {});
-  }, [open]);
+    fetchModels();
+  }, [fetchModels]);
 
   // 分组视图：本地引擎在前（组内保持后端返回序），云端在后。
   // provider 兜底从 ref 解析（Go 恒填，防御 mock/旧数据缺省）。
@@ -100,7 +119,15 @@ export function ModelSwitcher({
         <>
           <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
           <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 w-64 max-h-72 overflow-y-auto bg-bg-elev-2 border border-border rounded-lg z-20 p-1" role="listbox" style={{boxShadow: "var(--ds-shadow-dropdown)"}}>
-            {models.length === 0 && <div className="px-3 py-4 text-fg-faint text-xs text-center">{t("status.noModels")}</div>}
+            {loadFailed ? (
+              <button
+                type="button"
+                className="px-3 py-4 text-fg-dim text-xs text-center w-full bg-transparent border-0 cursor-pointer hover:bg-bg-soft"
+                onClick={(e) => { e.stopPropagation(); fetchModels() }}
+              >
+                {loading ? t("common.loading") : t("status.modelsLoadFailedRetry")}
+              </button>
+            ) : models.length === 0 && <div className="px-3 py-4 text-fg-faint text-xs text-center">{t("status.noModels")}</div>}
             {allowInherit && (
               <button
                 role="option"

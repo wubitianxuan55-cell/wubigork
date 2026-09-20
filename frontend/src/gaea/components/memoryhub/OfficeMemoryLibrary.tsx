@@ -162,11 +162,26 @@ export function OfficeMemoryLibrary() {
   const doMergeAll = useCallback(async () => {
     setMerging("all");
     try {
+      // v4.362：失败可见化——原逐条吞错后无条件清空+报「已合并 N 对」=假成功，
+      // 失败对保留在列表里可重试。
+      let ok = 0;
+      const failedPairs: typeof dups = [];
       for (const d of [...dups]) {
-        await app.MemoryMerge(d.keep, [d.dup]).catch(() => {});
+        try {
+          await app.MemoryMerge(d.keep, [d.dup]);
+          ok++;
+        } catch {
+          failedPairs.push(d);
+        }
       }
-      setDups([]);
-      setDupMsg(`已合并 ${dups.length} 对重复记忆`);
+      const failed = dups.length - ok;
+      if (failed === 0) {
+        setDups([]);
+        setDupMsg(`已合并 ${ok} 对重复记忆`);
+      } else {
+        setDups(failedPairs);
+        setDupMsg(`已合并 ${ok} 对，${failed} 对失败，请重试`);
+      }
       await refresh();
     } finally {
       setMerging(null);

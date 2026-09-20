@@ -77,7 +77,10 @@ const ChatPanel: React.FC = () => {
 
   useEffect(() => {
     try {
-      app.WhisperGetPersonalities().then((p) => setPersonalities(p || [])).catch(() => {})
+      // v4.362：人格清单读取失败可见化——原下拉空白伪装「没配人格」。
+      app.WhisperGetPersonalities().then((p) => setPersonalities(p || [])).catch(() => {
+        message.error(t('settings.chat.personalitiesLoadFailed'))
+      })
     } catch (_) { /* 未初始化时静默 */ }
     getVoiceSettings().then((v) => setVoice(v || {})).catch(() => {})
     // bridge 调用在浏览器/?mock=1 下走 dev mock（空态返回、不同步抛），`?.` 去
@@ -96,7 +99,7 @@ const ChatPanel: React.FC = () => {
         }
       }).catch(() => {})
     } catch (_) { /* 未初始化时静默 */ }
-  }, [])
+  }, [t])
 
   const isHerdsmanVoice = ttsModel.toLowerCase().includes('qwen3') || ttsModel.toLowerCase().includes('customvoice')
   const isXaiVoice = ttsModel.toLowerCase().includes('grok-tts')

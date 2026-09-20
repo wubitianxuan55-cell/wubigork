@@ -314,10 +314,11 @@ export function TaskInboxBoard({
       app
         .GaeaTaskInboxSetStatus(id, status)
         .then(() => load())
-        .catch(() => {})
+        // v4.362：状态变更失败不再静默——原「点了没反应」UI 停旧状态。
+        .catch(() => message.error(t("tasks.inbox.statusFail")))
         .finally(() => setBusyId(null));
     },
-    [busyId, load],
+    [busyId, load, t],
   );
 
   const remove = useCallback(

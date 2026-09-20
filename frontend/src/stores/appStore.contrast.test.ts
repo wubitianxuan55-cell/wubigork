@@ -41,7 +41,7 @@ function contrast(a: string, b: string): number {
 }
 
 /** 正文语义令牌（必须过 AA 4.5:1 的那些）。 */
-const BODY_TOKENS = ['colorText', 'colorTextSecondary', 'colorPrimary', 'colorSuccess', 'colorWarning'] as const
+const BODY_TOKENS = ['colorText', 'colorTextSecondary', 'colorTextTertiary', 'colorPrimary', 'colorSuccess', 'colorWarning'] as const
 
 describe('令牌对比度契约（12 主题 × 正文语义令牌 × 承载背景 ≥ 4.5:1）', () => {
   for (const preset of PRESETS) {
@@ -72,6 +72,13 @@ describe('亮态 accent/语义色不回流 Tailwind-600 亮阶（v4.349 回归�
     expect(getThemeTokens('nightJade', false).colorPrimary).toBe('#0f766e') // hex-exempt 测试锁值（令牌契约）
     expect(getThemeTokens('nightRose', false).colorPrimary).toBe('#be123c') // hex-exempt 测试锁值
     expect(getThemeTokens('nightAmber', false).colorPrimary).toBe('#b45309') // hex-exempt 测试锁值
+  })
+
+  it('tertiary 文本档锁值（v4.362）：亮 #5b6472（Violet 亮 surface 5.45:1）/ 暗 #8b93a0，防回流硬编码', () => {
+    for (const preset of PRESETS) {
+      expect(getThemeTokens(preset, false).colorTextTertiary, `${preset} 亮态 tertiary`).toBe('#5b6472') // hex-exempt 测试锁值
+      expect(getThemeTokens(preset, true).colorTextTertiary, `${preset} 暗态 tertiary`).toBe('#8b93a0') // hex-exempt 测试锁值
+    }
   })
 
   it('亮态 success/warning 全预设统一深阶（#047857 / #92400e），Moss success 保留自有 lime 阶', () => {
