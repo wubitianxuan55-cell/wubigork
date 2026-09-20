@@ -33,7 +33,7 @@ const OVER_COLOR = 'var(--sched-critical, #e02020)'
 /** 左列与格子的分隔线 */
 const SEP = '1px solid var(--md-sys-color-border, #e5e7eb)'
 /** 次级小字颜色 */
-const DIM_COLOR = 'var(--md-sys-color-outline, #8a8f98)'
+const DIM_COLOR = 'var(--md-sys-color-on-surface-variant, #6b7280)'
 
 /** sticky 左列底色 + 行悬浮同亮（注入组件内 <style>，等价一段私有样式） */
 const USAGE_CSS = `

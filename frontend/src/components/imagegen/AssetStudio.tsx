@@ -18,10 +18,37 @@ import { C } from '../../utils/theme'
 import { chatCharacters, imageHubAssets, readFileAsDataURL, type ChatCharacterView, type ImageHubAssetView } from '../../api/image'
 import type { Template } from '../../data/imageTemplates'
 import { useT } from '../../gaea/lib/i18n'
+import { usePortraitUrl } from '../characterlib/usePortraitUrl'
 
 const CHARS_PAGE_SIZE = 12
 const TPL_PAGE_SIZE = 18
 const WORKS_LIMIT = 12
+
+// CharGridPortrait：角色网格头像——本地落盘路径须经 AttachmentDataURL 转
+// data URL（WebView2 拒绝 file://，v4.361 观察池清账）；无图/取数失败回退
+// 占位块。fallback 文案经 prop 传入（组件在 map 内实例化）。
+const CharGridPortrait: React.FC<{
+  src?: string
+  name: string
+  noPortraitText: string
+}> = ({ src, name, noPortraitText }) => {
+  const { url } = usePortraitUrl(src)
+  if (url) {
+    return <img src={url} alt={name || ''} style={{ width: '100%', aspectRatio: '1 / 1', objectFit: 'cover', borderRadius: 7, display: 'block' }} />
+  }
+  return (
+    <div style={{
+      width: '100%', aspectRatio: '1 / 1', borderRadius: 7, display: 'flex',
+      flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4,
+      background: 'color-mix(in srgb, var(--color-text) 4%, transparent)',
+    }}>
+      <UserOutlined style={{ fontSize: 18, color: C('color-text-secondary'), opacity: 0.6 }} />
+      <span style={{ fontSize: 10, color: C('color-text-secondary') }}>
+        {noPortraitText}
+      </span>
+    </div>
+  )
+}
 
 interface WorkThumb extends ImageHubAssetView {
   url: string
@@ -43,6 +70,8 @@ export const AssetStudio: React.FC<{
   const [charPage, setCharPage] = useState(1)
   const [charsLoading, setCharsLoading] = useState(false)
   const [selectedChar, setSelectedChar] = useState<ChatCharacterView | null>(null)
+  // 选中角色立绘：hook 顶层无条件调用（规则约束），src 为空时内部直返。
+  const selectedPortrait = usePortraitUrl(selectedChar?.portraitUrl)
 
   const loadChars = useCallback(async (page: number) => {
     setCharsLoading(true)
@@ -181,21 +210,7 @@ export const AssetStudio: React.FC<{
                     borderColor: selectedChar?.id === c.id ? 'var(--color-primary)' : 'var(--border-subtle)',
                     borderRadius: 10, background: 'color-mix(in srgb, var(--color-text) 3%, transparent)',
                   }}>
-                  {c.portraitUrl ? (
-                    <img src={c.portraitUrl} alt={c.name || ''}
-                      style={{ width: '100%', aspectRatio: '1 / 1', objectFit: 'cover', borderRadius: 7, display: 'block' }} />
-                  ) : (
-                    <div style={{
-                      width: '100%', aspectRatio: '1 / 1', borderRadius: 7, display: 'flex',
-                      flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4,
-                      background: 'color-mix(in srgb, var(--color-text) 4%, transparent)',
-                    }}>
-                      <UserOutlined style={{ fontSize: 18, color: C('color-text-secondary'), opacity: 0.6 }} />
-                      <span style={{ fontSize: 10, color: C('color-text-secondary') }}>
-                        {t('imagehubT1.studioCharNoPortrait')}
-                      </span>
-                    </div>
-                  )}
+                  <CharGridPortrait src={c.portraitUrl} name={c.name || ''} noPortraitText={t('imagehubT1.studioCharNoPortrait')} />
                   <div style={{ fontSize: 12, fontWeight: 600, marginTop: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {c.name || '-'}
                   </div>
@@ -224,8 +239,8 @@ export const AssetStudio: React.FC<{
               border: '1px solid var(--border-subtle)', background: 'color-mix(in srgb, var(--color-text) 3%, transparent)',
               display: 'flex', gap: 12,
             }}>
-              {selectedChar.portraitUrl ? (
-                <img src={selectedChar.portraitUrl} alt={selectedChar.name || ''}
+              {selectedPortrait.url ? (
+                <img src={selectedPortrait.url} alt={selectedChar.name || ''}
                   style={{ width: 96, height: 96, objectFit: 'cover', borderRadius: 8, flexShrink: 0 }} />
               ) : (
                 <div style={{

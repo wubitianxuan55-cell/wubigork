@@ -3,11 +3,11 @@
 // hiddenFacts=不知情且不得泄露）此前只在生成链内部消费——本抽屉把它亮给
 // 作者审视：POV 头 + 已知（绿）/不知情（红）对照 + 出场角色卡 + 伏笔约束 +
 // 时间锚点/主线。空区段如实空展示（编译静默降级契约），不编造。
+import { softTextStyle } from '../../utils/uiStyles'
 import React, { useCallback, useEffect, useState } from 'react'
 import { Alert, Drawer, Empty, Spin, Tag, Typography } from 'antd'
 import { app } from '../../gaea/lib/bridge'
 
-const softTextStyle: React.CSSProperties = { fontSize: 12, color: 'var(--v3-fg-soft, #6b7280)' }
 const labelTextStyle: React.CSSProperties = { fontSize: 12, color: 'var(--v3-fg-soft, #6b7280)', marginBottom: 4, fontWeight: 600 }
 
 /** 场景圣经视图（Go SceneBibleView 镜像；全字段可缺省防御）。 */

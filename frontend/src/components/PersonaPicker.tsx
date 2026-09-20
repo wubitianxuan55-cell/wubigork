@@ -7,8 +7,24 @@ import { app } from '../gaea/lib/bridge'
 import type { characterlib } from '../../wailsjs/go/models'
 import { C } from '../utils/theme'
 import V3Empty from './V3Empty'
+import { usePortraitUrl } from './characterlib/usePortraitUrl'
 
 type LibraryCharacter = characterlib.Character
+
+// PersonaAvatar：角色剧照头像——本地落盘路径须经 AttachmentDataURL 转 data URL
+// （WebView2 拒绝 file://，v4.361 观察池清账：popover 全量渲染时这里是 console
+// file:// 拒载告警的最大来源）；无图/取数失败回退品牌粉底首字占位。
+const PersonaAvatar: React.FC<{ c: LibraryCharacter }> = ({ c }) => {
+  const { url } = usePortraitUrl(c.portraitUrl)
+  if (url) {
+    return <img src={url} alt={c.name} style={{ width: 32, height: 32, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }} />
+  }
+  return (
+    <div style={{ width: 32, height: 32, borderRadius: 8, background: 'rgba(244,114,182,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+      <UserOutlined style={{ fontSize: 14, color: '#f472b6' }} /> {/* hex-exempt 品牌识别色（轻语玫红） */}
+    </div>
+  )
+}
 
 const KIND_LABELS: Record<string, { label: string; color: string }> = {
   builtin: { label: '内置', color: 'gold' },
@@ -79,11 +95,7 @@ const PersonaPicker: React.FC<Props> = ({ children, activeId, onSelect, onManage
               onMouseEnter={e => { if (!active) e.currentTarget.style.background = 'color-mix(in srgb, var(--color-text) 5%, transparent)' }}
               onMouseLeave={e => { if (!active) e.currentTarget.style.background = 'transparent' }}
             >
-              {c.portraitUrl
-                ? <img src={c.portraitUrl} alt={c.name} style={{ width: 32, height: 32, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }} />
-                : <div style={{ width: 32, height: 32, borderRadius: 8, background: 'rgba(244,114,182,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    <UserOutlined style={{ fontSize: 14, color: '#f472b6' }} /> {/* hex-exempt 品牌识别色（轻语玫红） */}
-                  </div>}
+              <PersonaAvatar c={c} />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                   <span style={{ fontSize: 12.5, fontWeight: 600, color: C('color-text'), whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name}</span>

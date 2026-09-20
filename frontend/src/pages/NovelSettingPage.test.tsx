@@ -66,6 +66,30 @@ describe('NovelSettingPage 纯文本设定编辑', () => {
     expect(vi.mocked(app.SaveWorldview)).toHaveBeenCalledWith('蒸汽纪元')
   })
 
+  it('读取失败：横幅可见、保存禁用、Ctrl+S 被拦截；重试成功后恢复（v4.361 防覆盖）', async () => {
+    vi.mocked(app.GetWorldview).mockRejectedValueOnce(new Error('db locked'))
+    render(<NovelSettingPage />)
+
+    const banner = await screen.findByTestId('novel-setting-load-failed')
+    expect(banner.textContent).toContain('设定读取失败')
+
+    const saveBtn = (await screen.findByRole('button', { name: /保存/ })) as HTMLButtonElement
+    expect(saveBtn.disabled).toBe(true)
+
+    // Ctrl+S 走 handleSave 同一入口，读失败期间必须被拦
+    fireEvent.keyDown(window, { key: 's', ctrlKey: true })
+    expect(vi.mocked(app.SaveWorldview)).not.toHaveBeenCalled()
+
+    // 重试成功后横幅消失、保存恢复可用
+    vi.mocked(app.GetWorldview).mockResolvedValue('# 世界观\n\n重试恢复')
+    fireEvent.click(banner.querySelector('button')!)
+    await waitFor(() => {
+      expect(screen.queryByTestId('novel-setting-load-failed')).toBeNull()
+    })
+    const saveBtn2 = (screen.getByRole('button', { name: /保存/ })) as HTMLButtonElement
+    expect(saveBtn2.disabled).toBe(false)
+  })
+
   it('切换到渲染模式直接渲染设定文本', async () => {
     render(<NovelSettingPage />)
     await screen.findByPlaceholderText(/在此撰写或粘贴小说设定/)

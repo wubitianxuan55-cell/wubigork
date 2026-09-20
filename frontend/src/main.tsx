@@ -147,7 +147,10 @@ let mainThreadBeatAt = Date.now()
     }
   }, 8000)
 
-  // longtask：单次 >50ms 的主线程长任务（死循环/巨量渲染的元凶）。
+  // longtask：单次主线程长任务（死循环/巨量渲染的元凶）。浏览器对 entryType
+  // 固定只报 >50ms；v4.361 起日志阈值提到 200ms——真机走查 69~165ms 的常规
+  // 渲染抖动占了日志大头（v4.355 观察池），200ms 以上才值得留痕。
+  const LONGTASK_LOG_THRESHOLD_MS = 200
   let longLogAt = 0
   try {
     const obs = new PerformanceObserver((list) => {
@@ -155,6 +158,7 @@ let mainThreadBeatAt = Date.now()
       if (now - longLogAt < 10000) return
       for (const entry of list.getEntries()) {
         const e = entry as unknown as { duration: number; attribution?: { name?: string; containerType?: string }[] }
+        if (e.duration < LONGTASK_LOG_THRESHOLD_MS) continue
         const culprit = e.attribution?.length
           ? e.attribution.map((a) => a.name || a.containerType || '').filter(Boolean).join(';')
           : ''

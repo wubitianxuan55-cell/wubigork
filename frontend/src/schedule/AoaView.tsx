@@ -236,13 +236,13 @@ export const AoaView: React.FC<{ graph: AoaGraph; tasks: SchedTask[] }> = ({ gra
           <svg width={w} height={RULER_TOP_H} style={{ position: 'absolute', top: 0, left: 0 }} data-testid="sched-aoa-ruler-top">
             <line x1={0} y1={RULER_TOP_H - 1} x2={w} y2={RULER_TOP_H - 1} stroke="var(--md-sys-color-border, #e5e7eb)" />
             <line x1={AOA_MARGIN} y1={10} x2={w - AOA_COL_W / 2} y2={10} stroke="var(--md-sys-color-border, #e5e7eb)" />
-            <text x={AOA_MARGIN - 6} y={14} textAnchor="end" fontSize="9" fill="var(--md-sys-color-outline, #8a8f98)">工程日</text>
-            <text x={AOA_MARGIN - 6} y={30} textAnchor="end" fontSize="9" fill="var(--md-sys-color-outline, #8a8f98)">月</text>
-            <text x={AOA_MARGIN - 6} y={45} textAnchor="end" fontSize="9" fill="var(--md-sys-color-outline, #8a8f98)">日</text>
+            <text x={AOA_MARGIN - 6} y={14} textAnchor="end" fontSize="9" fill="var(--md-sys-color-on-surface-variant, #6b7280)">工程日</text>
+            <text x={AOA_MARGIN - 6} y={30} textAnchor="end" fontSize="9" fill="var(--md-sys-color-on-surface-variant, #6b7280)">月</text>
+            <text x={AOA_MARGIN - 6} y={45} textAnchor="end" fontSize="9" fill="var(--md-sys-color-on-surface-variant, #6b7280)">日</text>
             {ruler.dayTicks.map((t) => (
               <g key={`t${t.x}`}>
                 <line x1={t.x} y1={0} x2={t.x} y2={10} stroke="var(--md-sys-color-border, #e5e7eb)" />
-                <text x={t.x} y={14} textAnchor="middle" fontSize="9" fill={t.total ? 'var(--sched-critical, #e02020)' : 'var(--md-sys-color-outline, #8a8f98)'} fontWeight={t.total ? 600 : 400}>{t.label}</text>
+                <text x={t.x} y={14} textAnchor="middle" fontSize="9" fill={t.total ? 'var(--sched-critical, #e02020)' : 'var(--md-sys-color-on-surface-variant, #6b7280)'} fontWeight={t.total ? 600 : 400}>{t.label}</text>
               </g>
             ))}
             {ruler.monthLabels.map((m) => (
@@ -384,13 +384,13 @@ export const AoaView: React.FC<{ graph: AoaGraph; tasks: SchedTask[] }> = ({ gra
         {ruler && (
           <svg width={w} height={RULER_BOT_H} style={{ position: 'absolute', top: rulerTop + h, left: 0 }} data-testid="sched-aoa-ruler-bot">
             <line x1={0} y1={0} x2={w} y2={0} stroke="var(--md-sys-color-border, #e5e7eb)" />
-            <text x={AOA_MARGIN - 6} y={14} textAnchor="end" fontSize="9" fill="var(--md-sys-color-outline, #8a8f98)">星期</text>
-            <text x={AOA_MARGIN - 6} y={28} textAnchor="end" fontSize="9" fill="var(--md-sys-color-outline, #8a8f98)">工程周</text>
+            <text x={AOA_MARGIN - 6} y={14} textAnchor="end" fontSize="9" fill="var(--md-sys-color-on-surface-variant, #6b7280)">星期</text>
+            <text x={AOA_MARGIN - 6} y={28} textAnchor="end" fontSize="9" fill="var(--md-sys-color-on-surface-variant, #6b7280)">工程周</text>
             {ruler.weekdays.map((d) => (
               <text key={`w${d.x}`} x={d.x} y={14} textAnchor="middle" fontSize="9" fill="var(--md-sys-color-on-surface, #374151)">{d.label}</text>
             ))}
             {ruler.weeks.map((d) => (
-              <text key={`k${d.x}`} x={d.x} y={28} textAnchor="middle" fontSize="9" fill="var(--md-sys-color-outline, #8a8f98)">{d.label}</text>
+              <text key={`k${d.x}`} x={d.x} y={28} textAnchor="middle" fontSize="9" fill="var(--md-sys-color-on-surface-variant, #6b7280)">{d.label}</text>
             ))}
           </svg>
         )}

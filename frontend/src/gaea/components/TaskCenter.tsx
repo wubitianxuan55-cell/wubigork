@@ -113,7 +113,10 @@ export function TaskCenter({ sessionPath }: { sessionPath?: string } = {}) {
       workApp
         .TaskOutput(selectedId)
         .then((o) => setOutput(o))
-        .catch(() => {});
+        .catch(() => {
+          // v4.361：读取失败不再留白/停留旧内容——输出区明示错误。
+          setOutput({ tail: "输出读取失败，请重试。", truncated: false });
+        });
     };
     loadOutput();
     if (selectedActive) {

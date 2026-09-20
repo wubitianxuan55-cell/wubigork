@@ -3,7 +3,7 @@
 // 后端语义（宁漏勿误 / dry-run 零副作用 / 执行层一致性）由 Go TestGaeaRouteIntent* 覆盖；
 // 这里走真实 mock 层（mock/retrieval.ts 的 RouteIntent 演示规则与 internal/intent 同向）。
 import { describe, expect, it, beforeEach, afterEach, beforeAll, vi } from "vitest";
-import { render, screen, fireEvent, act } from "@testing-library/react";
+import { render, screen, fireEvent, act, waitFor } from "@testing-library/react";
 import SearchModal from "./SearchModal";
 import { LocaleProvider } from "../gaea/lib/i18n";
 import { waitMockReady } from "../gaea/lib/bridge";
@@ -15,11 +15,15 @@ const taskInboxMocks = vi.hoisted(() => ({
   save: vi.fn(),
 }));
 
+// v4.361 失败可见化：可注入的 UnifiedSearch 覆盖（null=走真实 mock 层）。
+const searchOverride = vi.hoisted(() => ({ unified: null as ((q: string, n: number, scope: string) => Promise<unknown>) | null }));
+
 vi.mock("../gaea/lib/bridge", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../gaea/lib/bridge")>();
   const wrappedApp: typeof actual.app = new Proxy(actual.app, {
     get(target, prop) {
       if (prop === "GaeaTaskInboxSave") return taskInboxMocks.save;
+      if (prop === "UnifiedSearch" && searchOverride.unified) return searchOverride.unified;
       return Reflect.get(target, prop);
     },
   });
@@ -195,5 +199,27 @@ describe("SearchModal 存为任务（7.3-1）", () => {
     expect(screen.queryByTestId("intent-card")).toBeNull();
     expect(document.querySelector('[data-testid="intent-save-task"]')).toBeNull();
     expect(taskInboxMocks.save).not.toHaveBeenCalled();
+  });
+});
+
+describe("检索失败可见化（v4.361）", () => {
+  beforeEach(() => {
+    localStorage.setItem("gaea-lang", "zh");
+    searchOverride.unified = null;
+  });
+
+  it("统一检索失败显示「检索失败，请重试」而非伪装「未找到」", async () => {
+    searchOverride.unified = vi.fn().mockRejectedValue(new Error("backend down"));
+    renderModal();
+    await search("预算");
+    expect(await screen.findByTestId("search-failed-empty")).toBeTruthy();
+    expect(screen.getByTestId("search-failed-empty").textContent).toContain("检索失败");
+    expect(screen.queryByText(/未找到/)).toBeNull();
+  });
+
+  it("检索正常时不误报失败", async () => {
+    renderModal();
+    await search("预算");
+    await waitFor(() => expect(screen.queryByTestId("search-failed-empty")).toBeNull(), { timeout: 3000 });
   });
 });

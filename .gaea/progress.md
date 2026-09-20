@@ -1,3 +1,14 @@
+## 最新发布：v4.361.0（2026-09-20）「前端优化轮：失败可见化 + 观察池清账 + 令牌卫生」
+
+- **动机**：用户口径「优化gaea前端UI」——后端优化五连发后换前端镜头，三路并行只读审计（令牌一致性/交互三态覆盖/观察池取证）后定刀落地。纯前端 34 源文件+4 测试+2 新工具文件，绑定面 706 不动（零 Go 改动），零删功能（UI 简化红线）。
+- **刀线一 失败可见化（7 刀）**：审计撞出 6 处「失败被伪装」缺陷——NovelSettingPage 读失败吞成空编辑器可覆盖保存真实设定（唯一真丢数据风险→loadFailed+Alert 重试+禁保存+Ctrl+S 拦截）；SearchModal 三路 `.catch(()=>null)` 后端全挂显示「未找到」（v4.350 漏网面→参与线全败才报错、单路降级；顺补存任务失败提示）；ConsistencyPanel 检查失败渲染绿色「全部通过」假阴性（→ruleError 横幅+「结果不可信」）；CostLibraryView batchStatus 吞错后无条件报成功（batchDelete v4.350 同函数漏网兄弟→计数口径+busy 闸）；CostLibraryPage 概览失败伪装「空库新手引导」（→全失败错误态+重试）；WeixinPage 提醒静默+首拉闪空态（→v4.351 范式+loadedOnce）；批量吞错 6 处（审核无反馈/开关静默回弹/清空失败消息复活/语音发送石沉大海/任务输出留白/语音设置假保存）。
+- **刀线二 观察池清账（3 项全清）**：①file:// 头像——v4.355 走查 27 条 console 告警清零：PortraitImg 抽 usePortraitUrl hook（独立文件 react-refresh 合规+成功缓存防 popover 数百次绑定调用），PersonaPicker/AssetStudio×2/WeixinPage×4 残留直连全部接线（Avatar 场景失败自然回退首字）；②longtask 日志阈值 50→200ms（69~165ms 常规抖动不再刷屏，10s 窗口判定前置 continue）；③schedule 弱化文字——对比度普查遗留「视觉拍板项」落地：12 处把 outline（0.25 alpha 边框令牌）当文字色全换 on-surface-variant（亮态 1.3~1.8:1→≥6:1，有 v4.127 先例；border 用途合法保留），回归锁进 contrast-hex。
+- **刀线三 令牌卫生**：softTextStyle 7 文件逐字重复→utils/uiStyles.ts 单源；情绪色 map 2 处重复→utils/emotionColors.ts（no-raw-hex 豁免名单随文件迁移登记）；novel-workspace #fff 反向兜底→currentColor；tailwind --transition 注明被 App.tsx 注入覆盖。
+- **门禁**：定向 +6+eslint 0 error 0 warn+全量 ci.ps1 绿（vitest 386 文件 3301 例+E 系列守卫+卫生守卫）+drift OK@706+版本三处 4.361.0。
+- **坑**：①「参与者全失败」合取式里不参与的路贡献 true（vacuous truth）——写反两次被定向测试当场抓出；②源断言行首锚定+令牌名后带标点（border-color/outline-variant 前缀误伤）；③no-raw-hex 豁免按文件名，色板迁新文件要同步登记；④hook 别与组件同文件（react-refresh 0 warn 门禁）；⑤select 测试按 option 文本定位、value 必须是 STATUSES 合法值否则 jsdom 静默回落空串短路 onChange。
+- **产物**：exe 50,941,440B SHA256=a2c695b3b6b375c309fa6ecb3dac0942b31e8a49e00cea6c2c7e1484b0f9b5da（releases/gaea-v4.361.0.exe+SHA256SUMS-v4.361.0.txt 仅本地；桌面副本同哈希实测一致；冒烟 /api/health 200 过）；保留策略 5 版留 v4.357~v4.361 删 v4.356.0.exe（SUMS 身份档案全保留）。
+- **文档**：releases/v4.361.0.md+CHANGELOG/README+releases/README（计数 382→383+34 席插 v4.361 裁 v4.327）+AGENTS 迁 1 插 1（七十六迁：v4.358 入 archive，顺带补记七十二~七十五迁案行漏记）+progress/todos。
+
 ## 最新发布：v4.360.0（2026-09-20）「后端优化轮第五弹：挂池再清 3 刀——.tmp 卫生守卫 / 导入事务化 / 版本号原子化」
 
 - **动机**：用户口径「继续」——v4.359 清完 v4.358 池后余量再取证：本轮落地 3 刀（含 v4.359 发现的 .tmp 病根本身入闸），绑定面 706 不动，前端零改动。

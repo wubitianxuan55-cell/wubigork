@@ -299,15 +299,22 @@ const ChatPage: React.FC = () => {
     stickToBottomRef.current = true
     setAtBottom(true)
     invalidateLoads() // v4.354：失效在途话题载入，防旧响应把清空后的视图重新填满
+    const snapshot = messages // v4.361：清空失败时恢复（此前吞错后消息在切会话回来时「复活」）
     setMessages([]); resetPersonaMeta()
     if (activeIdRef.current) {
-      try { await app.ChatTopicClear(activeIdRef.current) } catch (_) {}
+      try {
+        await app.ChatTopicClear(activeIdRef.current)
+      } catch (_) {
+        setMessages(snapshot)
+        message.error('清空失败，请重试')
+        return
+      }
     }
     setTopics(prev => prev.map(t => t.id === activeIdRef.current ? { ...t, preview: '' } : t))
     if (modeRef.current !== 'plain') {
       try { await app.WhisperClearSession(modeRef.current) } catch (_) {}
     }
-  }, [resetPersonaMeta, activeIdRef, modeRef, setTopics, invalidateLoads])
+  }, [resetPersonaMeta, activeIdRef, modeRef, setTopics, invalidateLoads, messages])
 
   const handleExport = useCallback(async () => {
     if (!activeIdRef.current) return

@@ -1,6 +1,6 @@
 import { BookOpen, Check, ChevronRight, Clock, CloudUpload, PanelRightOpen, Pencil, Plus, Save, ScrollText, Search, Trash2, X, X as XIcon } from "../icons";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Popconfirm } from "antd";
+import { Popconfirm, message } from "antd";
 import type { FilePickResult, KnowledgeEntry, KnowledgeHistoryView, KnowledgeSaveRequest, KnowledgeSummary, SimilarView } from "../lib/types";
 import { app } from "../lib/bridge";
 import { useT } from "../lib/i18n";
@@ -154,7 +154,9 @@ export function KnowledgePanel(p: { onClose: () => void; variant?: "modal" | "pa
   }, []);
 
   const doReview = useCallback(async (entry: KnowledgeEntry) => {
-    await app.KnowledgeReview(entry.name, true, "").catch(() => {});
+    // v4.361：审核失败不再静默——按钮像没反应、行内状态不动，用户无从分辨。
+    const ok = await app.KnowledgeReview(entry.name, true, "").then(() => true).catch(() => false);
+    if (!ok) message.error("审核失败，请重试");
     const fresh = await app.KnowledgeGet(entry.name).catch(() => null);
     if (fresh) setExpandedEntry(fresh);
     loadList();

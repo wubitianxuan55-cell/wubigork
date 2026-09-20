@@ -76,6 +76,8 @@
   --font-size-lg: 14px;
 
   /* ── animation durations ── */
+  /* 注意：--transition-* 会被 App.tsx 启动时以 ThemeTokens 完整 timing 值
+     （时长+缓动曲线）内联注入覆盖，此处静态值仅兜首帧；勿在此调参。 */
   --transition-fast: 120ms;
   --transition-normal: 150ms;
   --transition-slow: 200ms;

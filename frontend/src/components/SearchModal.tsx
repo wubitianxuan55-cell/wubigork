@@ -1,6 +1,6 @@
 import { wailsApp } from '../lib/wailsApp';
 import React, { useRef, useState } from 'react'
-import { Typography, Space, Tag, Modal, Input, Spin, Button } from 'antd'
+import { Typography, Space, Tag, Modal, Input, Spin, Button, message } from 'antd'
 import { SearchOutlined, FileTextOutlined, UserOutlined, ThunderboltOutlined } from '@ant-design/icons'
 
 import { C } from '../utils/theme'
@@ -126,6 +126,9 @@ const SearchModal: React.FC<SearchModalProps> = ({ open, onClose, space }) => {
   const searchSeqRef = useRef(0)
   const [sections, setSections] = useState<SearchSection[]>([])
   const [searched, setSearched] = useState(false)
+  // v4.361：检索失败可见化——此前三路调用逐个 .catch(()=>null)，后端整体失败
+  // 与「无结果」不可区分，搜索坏了看起来像没这内容（v4.350 只修了记忆中枢漏了这里）。
+  const [searchFailed, setSearchFailed] = useState(false)
   const [scope, setScope] = useState<SearchScope>(space)
   const [filterCategory, setFilterCategory] = useState<string | null>(null)
   // S4.6 命令面板接统一意图路由：intent=dry-run 预览（零副作用）；intentReply=
@@ -140,7 +143,7 @@ const SearchModal: React.FC<SearchModalProps> = ({ open, onClose, space }) => {
   }, [open, space])
 
   const resetQuery = () => {
-    setQuery(''); setSections([]); setSearched(false)
+    setQuery(''); setSections([]); setSearched(false); setSearchFailed(false)
     setIntent(null); setIntentReply(null)
   }
 
@@ -150,6 +153,7 @@ const SearchModal: React.FC<SearchModalProps> = ({ open, onClose, space }) => {
     const seq = ++searchSeqRef.current
     setLoading(true)
     setSearched(true)
+    setSearchFailed(false)
     setFilterCategory(null)
     setIntentReply(null)
     try {
@@ -162,6 +166,14 @@ const SearchModal: React.FC<SearchModalProps> = ({ open, onClose, space }) => {
       ])
       if (seq !== searchSeqRef.current) return
       setIntent(intentHit?.handled ? intentHit : null)
+      // 失败判定：null=调用失败。只统计参与本 scope 的线（scope 外的线是
+      // Promise.resolve(null)）——「参与者全部失败」才报错；单路失败按可得
+      // 结果降级显示。不参与的路对合取式贡献 true（vacuous）。
+      const novelFailed = scope !== 'work' && novel === null
+      const unifiedFailed = scope !== 'play' && unified === null
+      setSearchFailed(
+        (scope === 'work' || novelFailed) && (scope === 'play' || unifiedFailed),
+      )
       const all: SearchSection[] = []
       if (novel) all.push(...sectionsFromNovel(novel, t))
       if (unified) all.push(...sectionsFromUnified(unified, t))
@@ -170,6 +182,7 @@ const SearchModal: React.FC<SearchModalProps> = ({ open, onClose, space }) => {
       if (seq !== searchSeqRef.current) return
       setSections([])
       setIntent(null)
+      setSearchFailed(true)
     } finally {
       if (seq === searchSeqRef.current) setLoading(false)
     }
@@ -195,7 +208,8 @@ const SearchModal: React.FC<SearchModalProps> = ({ open, onClose, space }) => {
       }))
       setIntentReply(t('tasks.inbox.saved'))
     } catch (_) {
-      /* 落库失败静默：按钮可再点（宁漏勿误，不打断搜索流） */
+      // v4.361：落库失败不再静默——用户以为任务入了收件箱，收件箱里永远不出现。
+      message.error('任务保存失败，请重试')
     } finally {
       setIntentBusy(false)
     }
@@ -325,7 +339,11 @@ const SearchModal: React.FC<SearchModalProps> = ({ open, onClose, space }) => {
                 </Space>
               </div>
             )}
-            {totalResults === 0 ? (
+            {searchFailed && !intent ? (
+              <div data-testid="search-failed-empty">
+                <V3Empty description="检索失败，请重试" />
+              </div>
+            ) : totalResults === 0 ? (
               !intent && (
                 <V3Empty description={t('shell.search.noResults', { q: query })} />
               )

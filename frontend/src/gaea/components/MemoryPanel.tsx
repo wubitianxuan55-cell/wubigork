@@ -130,7 +130,11 @@ export function MemoryPanel(p: {
           "info",
         );
       })
-      .catch(() => setMemoryEnabled(!next));
+      .catch(() => {
+        // v4.361：失败回滚可见化——开关静默弹回像 UI 抽风。
+        setMemoryEnabled(!next);
+        toast.show("设置失败，已还原", "error");
+      });
   }, [memoryEnabled, toast]);
 
   const toggleMorningPreload = useCallback(() => {
@@ -146,7 +150,10 @@ export function MemoryPanel(p: {
           "info",
         );
       })
-      .catch(() => setMorningPreload(!next));
+      .catch(() => {
+        setMorningPreload(!next);
+        toast.show("设置失败，已还原", "error");
+      });
   }, [morningPreload, toast]);
 
   const toggleProjectBrief = useCallback(() => {
@@ -162,7 +169,10 @@ export function MemoryPanel(p: {
           "info",
         );
       })
-      .catch(() => setProjectBrief(!next));
+      .catch(() => {
+        setProjectBrief(!next);
+        toast.show("设置失败，已还原", "error");
+      });
   }, [projectBrief, toast]);
 
   const normalizedQuery = query.trim().toLowerCase();

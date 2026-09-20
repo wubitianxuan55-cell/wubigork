@@ -9,7 +9,7 @@
 // 项目记忆（localStorage），被忽略条目以计数横幅保持可见、可一键恢复显示。
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { Alert, Button, Empty, InputNumber, Spin, Tag } from 'antd'
-import { CheckCircleOutlined, CloseOutlined, ReloadOutlined, SafetyCertificateOutlined, ThunderboltOutlined } from '@ant-design/icons'
+import { CheckCircleOutlined, CloseOutlined, ExclamationCircleOutlined, ReloadOutlined, SafetyCertificateOutlined, ThunderboltOutlined } from '@ant-design/icons'
 import { app } from '../../gaea/lib/bridge'
 // 注意：用 i18n 模块的非响应式 t（根级 LocaleProvider 每次渲染同步 currentLocale
 // 镜像），而非 useT —— NovelSettingPage 测试直接渲染本组件且外层无 Provider，
@@ -70,6 +70,9 @@ const ConsistencyPanel: React.FC<ConsistencyPanelProps> = ({ disabled }) => {
   const projectPath = useAppStore((s) => s.projectPath)
   const [report, setReport] = useState<ConsistencyCheckReport | null>(null)
   const [loading, setLoading] = useState(true)
+  // v4.361：规则层检查失败标志——首查失败若无此态，空 issues 会渲染成绿色
+  // 「全部通过」假阴性；质检失败必须可见。
+  const [ruleError, setRuleError] = useState(false)
   const [deepResult, setDeepResult] = useState<ConsistencyDeepResult | null>(null)
   const [deepLoading, setDeepLoading] = useState(false)
   const [deepError, setDeepError] = useState('')
@@ -86,6 +89,7 @@ const ConsistencyPanel: React.FC<ConsistencyPanelProps> = ({ disabled }) => {
     const token = ++loadToken.current
     if (disabled) {
       setReport(null)
+      setRuleError(false)
       setLoading(false)
       return
     }
@@ -94,12 +98,16 @@ const ConsistencyPanel: React.FC<ConsistencyPanelProps> = ({ disabled }) => {
       const res = await app.CheckConsistency()
       if (token !== loadToken.current) return
       setReport(normalizeReport(res))
+      setRuleError(false)
     } catch {
-      // 沿用既有行为：规则层检查失败不展示错误（原 error 状态从未接入任何渲染通道，
-      // 属死状态已移除），面板保持上次报告结果，仅由 deepError 展示 AI 深检失败。
+      // v4.361：规则层检查失败可见化——此前静默保持旧报告（或初始空），首查
+      // 失败会渲染成绿色「全部通过」假阴性，质检工具不可信比无结果更糟。
+      if (token !== loadToken.current) return
+      setRuleError(true)
     } finally {
       if (token === loadToken.current) setLoading(false)
     }
+    // 沿用既有语义：失败保留上次报告展示，仅以 ruleError 横幅+空态文案提示本次未完成。
   }, [disabled])
 
   useEffect(() => { void load() }, [load])
@@ -215,11 +223,33 @@ const ConsistencyPanel: React.FC<ConsistencyPanelProps> = ({ disabled }) => {
                 )}
               />
             )}
+            {ruleError && (
+              <Alert
+                type="warning" showIcon style={{ width: '100%' }}
+                data-testid="consistency-rule-error"
+                message="最近一次检查未完成，以下结果可能不是最新"
+                action={(
+                  <Button size="small" type="text" icon={<ReloadOutlined />} onClick={() => void load()} data-testid="consistency-rule-retry">
+                    重新检查
+                  </Button>
+                )}
+              />
+            )}
             {issues.length === 0 ? (
               ignoredCount > 0 ? (
                 <Empty
                   image={Empty.PRESENTED_IMAGE_SIMPLE}
                   description={<span data-testid="consistency-all-ignored">{t('novelDeep.allIgnored', { count: ignoredCount })}</span>}
+                  style={{ margin: 'auto' }}
+                />
+              ) : ruleError ? (
+                <Empty
+                  image={Empty.PRESENTED_IMAGE_SIMPLE}
+                  description={
+                    <span style={{ color: 'var(--color-warning, #f59e0b)' }} data-testid="consistency-check-failed">
+                      <ExclamationCircleOutlined /> 检查失败，结果不可信——请重新检查
+                    </span>
+                  }
                   style={{ margin: 'auto' }}
                 />
               ) : (

@@ -560,9 +560,10 @@ const DeskHome: React.FC<{
     setUserText(text)
     setAiReply('')
     setTypedText('')
+    // v4.361：失败可见化——此前输入被清空、回复区空白无提示，消息石沉大海。
     try {
-      app.VoiceChatText(text).catch(() => {})
-    } catch { /* 后端未就绪 */ }
+      app.VoiceChatText(text).catch(() => setAiReply('发送失败，请稍后再试'))
+    } catch { setAiReply('发送失败，请稍后再试') }
   }, [typedText])
 
   const voiceStateLabel = voice.aiSpeaking

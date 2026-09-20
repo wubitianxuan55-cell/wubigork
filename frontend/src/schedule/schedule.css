@@ -82,7 +82,7 @@
 .sched-empty {
   padding: 48px 0;
   text-align: center;
-  color: var(--md-sys-color-outline, #8a8f98);
+  color: var(--md-sys-color-on-surface-variant, #6b7280);
 }
 
 /* ── 横道图 ───────────────────────────────────────────────── */
@@ -100,7 +100,7 @@
 }
 .sched-gantt-stats {
   font-size: 12px;
-  color: var(--md-sys-color-outline, #8a8f98);
+  color: var(--md-sys-color-on-surface-variant, #6b7280);
 }
 /* 刀C 双栏：表格窗格 | 分隔条 | 画布窗格（表格纵滚随画布同步，横滚各自独立） */
 .sched-gantt-frame {
@@ -355,7 +355,7 @@
   height: 20px;
 }
 .sched-mode-manual {
-  color: var(--md-sys-color-on-surface-variant, #64748b);
+  color: var(--md-sys-color-on-surface-variant, #6b7280);
 }
 .sched-bar-progress {
   height: 100%;
@@ -405,7 +405,7 @@
 }
 .sched-milestone-tag {
   font-size: 10px;
-  color: var(--md-sys-color-on-surface-variant, var(--color-text-secondary));
+  color: var(--md-sys-color-on-surface-variant, #6b7280);
   border: 1px solid var(--md-sys-color-outline, var(--color-border));
   border-radius: 4px;
   padding: 0 3px;
@@ -606,7 +606,7 @@
 /* 滚轮缩放操作提示（v4.159，网络图图例内） */
 .sched-net-hint {
   font-size: 11px;
-  color: var(--md-sys-color-outline, #8a8f98);
+  color: var(--md-sys-color-on-surface-variant, #6b7280);
 }
 /* 虚拟起点/终点节点（v4.128 刀F：JGJ/T 121 多起点/多终点口径，虚线框） */
 .sched-pdm-virtual {
@@ -711,7 +711,7 @@
 .sched-aoa-time {
   font-size: 10px;
   line-height: 1;
-  color: var(--md-sys-color-outline, #8a8f98);
+  color: var(--md-sys-color-on-surface-variant, #6b7280);
 }
 .sched-aoa-time-shift {
   color: var(--sched-critical);
@@ -780,7 +780,7 @@
 }
 .sched-row-no {
   justify-content: center;
-  color: var(--md-sys-color-outline, #8a8f98);
+  color: var(--md-sys-color-on-surface-variant, #6b7280);
   font-size: 11px;
 }
 
@@ -837,7 +837,7 @@
 }
 .sched-net-badge .nb-label {
   font-size: 11px;
-  color: var(--md-sys-color-outline, #8a8f98);
+  color: var(--md-sys-color-on-surface-variant, #6b7280);
 }
 
 /* 非工作日表头列底纹（与图区底纹呼应） */
@@ -947,7 +947,7 @@
 }
 .sched-chat-sub {
   font-size: 11px;
-  color: var(--md-sys-color-outline, #8a8f98);
+  color: var(--md-sys-color-on-surface-variant, #6b7280);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -995,7 +995,7 @@
 }
 .sched-res-head {
   font-size: 11px;
-  color: var(--md-sys-color-outline, #8a8f98);
+  color: var(--md-sys-color-on-surface-variant, #6b7280);
 }
 .sched-res-num {
   text-align: right;
@@ -1020,7 +1020,7 @@
   padding: 0 2px;
   height: 20px;
   font-size: 11px;
-  color: var(--md-sys-color-outline, #8a8f98);
+  color: var(--md-sys-color-on-surface-variant, #6b7280);
 }
 
 /* ── AOA 手动布局（v4.123 刀1）：布局开关 + 拖拽 tip ────────────────────── */.sched-aoa-mode {
@@ -1033,7 +1033,7 @@
 }
 .sched-aoa-mode-btn {
   font-size: 11px;
-  color: var(--md-sys-color-on-surface-variant, #64748b);
+  color: var(--md-sys-color-on-surface-variant, #6b7280);
   border: 0;
   background: transparent;
   padding: 1px 8px;

@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from 'react'
+import { emotionColor } from '../utils/emotionColors'
 import { Typography } from 'antd'
 import { EmotionStarMap } from './EmotionStarMap'
 import { C } from '../utils/theme'
@@ -117,17 +118,11 @@ const labelZH: Record<string, string> = {
   FEARFUL_OBEDIENT: '不安顺从', QUIET_FOND: '安静的喜欢', CALM_RATIONAL: '平静理性',
 }
 
-const emotionColorMap: Record<string, string> = {
-  SWEET_ATTACHMENT: '#f472b6', SHY_HEARTBEAT: '#fb7185', TSUNDERE: '#f59e0b',
-  HURT_GRIEVANCE: '#a78bfa', ANGRY_ATTACK: '#ef4444', COLD_DETACHED: '#94a3b8',
-  FEARFUL_OBEDIENT: '#c084fc', QUIET_FOND: '#fbbf24', CALM_RATIONAL: '#60a5fa',
-}
-
 export const WhisperEmotionPanel: React.FC<EmotionPanelProps> = (props) => {
   const { emotion, stage, trust, rifts, aff, sec, aro, dom, T, I, S, O, R, totalTurns, personalityLabel } = props
   const hasData = emotion !== ''
   const moodHint = aff > 20 ? '心情很好' : aff < -15 ? '有些低落' : '气氛平稳'
-  const emoColor = emotionColorMap[emotion] || '#60a5fa'
+  const emoColor = emotionColor(emotion)
 
   // 用户六维（对齐 ackem — 当前使用模拟数据，后续接后端 API）
   const userSixDims = hasData ? {

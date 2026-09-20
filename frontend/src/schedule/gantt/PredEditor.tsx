@@ -22,7 +22,7 @@ export const PredEditor: React.FC<{ task: SchedTask }> = ({ task }) => {
 
   return (
     <div style={{ display: 'grid', gap: 6, minWidth: 280 }}>
-      {drafts.length === 0 && <span style={{ color: 'var(--md-sys-color-outline, #999)', fontSize: 12 }}>暂无前置任务</span>}
+      {drafts.length === 0 && <span style={{ color: 'var(--md-sys-color-on-surface-variant, #6b7280)', fontSize: 12 }}>暂无前置任务</span>}
       {drafts.map((d, i) => (
         <div key={i} style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
           <Select

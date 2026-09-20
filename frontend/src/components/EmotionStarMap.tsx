@@ -1,21 +1,11 @@
 import React from 'react'
+import { emotionColor } from '../utils/emotionColors'
 
 // ─── 四维情绪星图（对齐 ackem EmotionStarMap） ─────────────────
 
 interface Props {
   aff: number; sec: number; aro: number; dom: number
   primaryLabel: string; size?: number
-}
-
-function emotionColor(label: string): string {
-  const map: Record<string, string> = {
-    SWEET_ATTACHMENT: '#f472b6', SHY_HEARTBEAT: '#fb7185',
-    TSUNDERE: '#f59e0b', HURT_GRIEVANCE: '#a78bfa',
-    ANGRY_ATTACK: '#ef4444', COLD_DETACHED: '#94a3b8',
-    FEARFUL_OBEDIENT: '#c084fc', QUIET_FOND: '#fbbf24',
-    CALM_RATIONAL: '#60a5fa',
-  }
-  return map[label] || '#60a5fa'
 }
 
 export const EmotionStarMap: React.FC<Props> = ({ aff, sec, aro, dom, primaryLabel, size = 160 }) => {

@@ -4,7 +4,7 @@
 // v4.3e/f：新增「维度化」模式（6 维度卡片分卡片编辑）与伏笔登记表 / 一致性检查面板。
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
-  Button, Input, Modal, Segmented, Space, Spin, Tag, message,
+  Alert, Button, Input, Modal, Segmented, Space, Spin, Tag, message,
 } from 'antd'
 import {
   ColumnWidthOutlined, EditOutlined, ExportOutlined, EyeOutlined,
@@ -32,6 +32,9 @@ const NovelSettingPage: React.FC = () => {
   const [content, setContent] = useState('')
   const [savedSnapshot, setSavedSnapshot] = useState('')
   const [loading, setLoading] = useState(true)
+  // v4.361：读取失败可见化——此前失败被吞成空编辑器，用户随手输入再 Ctrl+S
+  // 会把真实设定文件覆盖成残文。失败期间禁用保存，横幅提供重试。
+  const [loadFailed, setLoadFailed] = useState(false)
   const [saving, setSaving] = useState(false)
   const [mode, setMode] = useState<EditorMode>('split')
   const [messages, setMessages] = useState<Message[]>([])
@@ -44,6 +47,7 @@ const NovelSettingPage: React.FC = () => {
     if (!projectPath) {
       setContent('')
       setSavedSnapshot('')
+      setLoadFailed(false)
       setLoading(false)
       return
     }
@@ -53,10 +57,12 @@ const NovelSettingPage: React.FC = () => {
       if (token !== loadToken.current) return
       setContent(text || '')
       setSavedSnapshot(text || '')
+      setLoadFailed(false)
     } catch {
       if (token !== loadToken.current) return
       setContent('')
       setSavedSnapshot('')
+      setLoadFailed(true)
     } finally {
       if (token === loadToken.current) setLoading(false)
     }
@@ -73,6 +79,10 @@ const NovelSettingPage: React.FC = () => {
   const wordCount = useMemo(() => countTextChars(content.trim()), [content])
 
   const handleSave = useCallback(async () => {
+    if (loadFailed) {
+      message.warning('设定读取失败，已暂停保存以防覆盖，请先重试')
+      return
+    }
     setSaving(true)
     try {
       await app.SaveWorldview(content)
@@ -84,7 +94,7 @@ const NovelSettingPage: React.FC = () => {
     } finally {
       setSaving(false)
     }
-  }, [content])
+  }, [content, loadFailed])
 
   // Ctrl/Cmd+S 保存
   useEffect(() => {
@@ -237,11 +247,21 @@ const NovelSettingPage: React.FC = () => {
                 style={{ borderColor: 'var(--color-warning)', color: 'var(--color-warning)' }}>
                 导出
               </Button>
-              <Button size="small" type="primary" icon={<SaveOutlined />} onClick={handleSave} loading={saving}>
+              <Button size="small" type="primary" icon={<SaveOutlined />} onClick={handleSave} loading={saving} disabled={loadFailed}>
                 保存
               </Button>
             </Space>
           </div>
+
+          {loadFailed && (
+            <Alert
+              type="error" showIcon style={{ margin: '8px 12px 0' }}
+              data-testid="novel-setting-load-failed"
+              message="设定读取失败"
+              description="为防把真实设定文件覆盖成空稿，保存已暂停。"
+              action={<Button size="small" danger onClick={() => loadContent()}>重试</Button>}
+            />
+          )}
 
           <input
             ref={fileInputRef}

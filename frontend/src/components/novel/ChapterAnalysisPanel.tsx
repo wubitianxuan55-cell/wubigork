@@ -5,13 +5,13 @@
 // （AnalyzeChapter 慢路径 loading，落盘后重拉 V2+标注）；标注区双模式
 // （列表 / 只读高亮视图，rune 偏移→code-unit 换算后按段 mark，不动编辑器）。
 // 直调 app.* 同 RewriteModal 先例；视图类型从 bridge/novel.ts 导入。
+import { softTextStyle } from '../../utils/uiStyles'
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { Alert, Button, Empty, Modal, Segmented, Select, Spin, Tag, Typography, message } from 'antd'
 import { app } from '../../gaea/lib/bridge'
 import type { ChapterAnalysisV2View, ChapterAnnotation } from '../../gaea/lib/bridge/novel'
 import { buildAnnSegments } from './create/annotationMarks'
 
-const softTextStyle: React.CSSProperties = { fontSize: 12, color: 'var(--v3-fg-soft, #6b7280)' }
 const cmpThStyle: React.CSSProperties = { textAlign: 'left', fontWeight: 500, padding: '2px 10px 2px 0', color: 'var(--v3-fg-soft, #6b7280)', fontSize: 11.5 }
 const cmpTdStyle: React.CSSProperties = { padding: '2px 10px 2px 0', borderTop: '1px dashed rgba(0,0,0,0.10)', fontSize: 12.5 }
 const labelTextStyle: React.CSSProperties = { fontSize: 12, color: 'var(--v3-fg-soft, #6b7280)', marginBottom: 4 }

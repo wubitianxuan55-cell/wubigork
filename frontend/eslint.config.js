@@ -55,6 +55,8 @@ export default defineConfig([
           'herdsmanTemplates.ts',
           'imageTemplates.ts',
           'constants.ts',
+          // 情绪识别色板（情绪星图/情绪面板共用，跨主题恒定语义色）
+          'emotionColors.ts',
           // 图表工具：mermaid 渲染配色
           'mermaidPng.ts',
           // 图面导出（进度计划上报件）：独立打印调色板，不随主题

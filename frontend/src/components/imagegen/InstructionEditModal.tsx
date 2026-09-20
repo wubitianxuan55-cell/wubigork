@@ -3,12 +3,12 @@
 // （OpenAI 兼容 /images/edits；云端先行）。与既有「改图」（=把结果填回图生图
 // 整幅重绘）互补。对照区原图|新图并排；「用到画布」把编辑结果并入 results/
 // history（后端已落盘+登记台账，走既有保存/溯源链）。
+import { softTextStyle } from '../../utils/uiStyles'
 import React, { useState } from 'react'
 import { Alert, Button, Input, Modal, Spin, Typography, message } from 'antd'
 import { generateMedia } from '../../api/image'
 import type { GenResult } from './types'
 
-const softTextStyle: React.CSSProperties = { fontSize: 12, color: 'var(--v3-fg-soft, #6b7280)' }
 
 export default function InstructionEditModal({ open, source, onClose, onApply }: {
   open: boolean

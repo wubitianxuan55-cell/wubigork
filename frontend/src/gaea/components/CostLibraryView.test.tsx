@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { CostLibraryView, CostRow, ListView } from "./CostLibraryView";
+import { message } from "antd";
 
 const CAT_TREE = [
   {
@@ -193,5 +194,32 @@ describe("CostLibraryView 多级分类 + 列表/表格", () => {
     expect(chip.textContent).toContain("未启用");
     expect(chip.tagName).toBe("SPAN");
     expect(backfillSpy.mock.calls.length).toBe(callsBefore);
+  });
+});
+
+describe("批量改状态失败可见化（v4.361）", () => {
+  it("逐条失败时计数警告提示而非假成功", async () => {
+    const warnSpy = vi.spyOn(message, "warning");
+    const infoSpy = vi.spyOn(message, "info");
+    render(<CostLibraryView />);
+    await waitFor(() => expect(screen.getByText("H 型钢")).toBeTruthy());
+
+    // 勾选第一条（CostGet mock 返回 null=读取失败→该条计入失败）
+    fireEvent.click(screen.getAllByRole("checkbox")[0]);
+    expect(screen.getByText(/已选 1/)).toBeTruthy();
+
+    // 触发批量改状态（工具条上的「改状态…」select——页内有多个 select，按
+    // option 文本精确定位）
+    const select = Array.from(document.querySelectorAll("select")).find(
+      (el) => el.textContent?.includes("改状态"),
+    ) as HTMLSelectElement | undefined;
+    expect(select).toBeTruthy();
+    fireEvent.change(select!, { target: { value: "草稿" } });
+
+    await waitFor(() => expect(warnSpy).toHaveBeenCalled(), { timeout: 3000 });
+    expect(String(warnSpy.mock.calls[0][0])).toContain("1 条失败");
+    expect(infoSpy).not.toHaveBeenCalled();
+    warnSpy.mockRestore();
+    infoSpy.mockRestore();
   });
 });

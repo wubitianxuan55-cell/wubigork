@@ -7,6 +7,7 @@
 // t6-C2：顶栏「导出/导入模板包」——导出走 saveExportBlob 双门落盘；导入
 // 双门选文件后三态决策在 Go 侧，结果弹窗逐行展示（规格
 // 进度计划/gaea-prompt-bundle-t6c2-20260916.md §5）。
+import { softTextStyle } from '../../utils/uiStyles'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Alert, Button, Collapse, Empty, Input, Modal, Popconfirm, Spin, Switch, Tag, Typography, message } from 'antd'
 import {
@@ -41,7 +42,6 @@ interface DraftForm {
 
 const EMPTY_FORM: DraftForm = { system: '', task: '', outputDesc: '', category: '', description: '', isActive: true }
 
-const softTextStyle: React.CSSProperties = { fontSize: 12, color: 'var(--v3-fg-soft, #6b7280)' }
 const labelTextStyle: React.CSSProperties = { fontSize: 12, color: 'var(--v3-fg-soft, #6b7280)', marginBottom: 2 }
 
 /** 导入 action → 结果弹窗标签（Go promptstore.Action*；skipped_* 用警示色）。 */

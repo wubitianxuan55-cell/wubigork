@@ -136,7 +136,8 @@ export default function VoiceSettingsPanel() {
   useEffect(() => { checkHealth(); loadSettings() }, [])
 
   const applyVoiceSettings = (patch: Record<string, unknown>) => {
-    app.VoiceApplySettings(patch).catch(() => {})
+    // v4.361：失败可见化——此前静默不落盘，用户调了音色/语速重进发现没保存。
+    app.VoiceApplySettings(patch).catch(() => message.error('语音设置保存失败，请重试'))
   }
 
   // 保存实时语音配置（S1）：key 只在用户填了新值时下发（空=不改动；填空格并

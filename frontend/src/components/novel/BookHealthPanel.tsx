@@ -5,12 +5,12 @@
 // + 逐章表（章号/字数/契约/质量/AI 味，越线红标）+ 伏笔 findings 列表。
 // v4.340：情感曲线区（t7 观察池）——按需逐章拉分析 V2 的情感弧线强度，
 // 纯 SVG 折线（零新依赖）；未分析章诚实跳过并计数。
+import { softTextStyle } from '../../utils/uiStyles'
 import React, { useCallback, useEffect, useState } from 'react'
 import { Alert, Button, Empty, Modal, Spin, Table, Tag, Typography, message } from 'antd'
 import { app } from '../../gaea/lib/bridge'
 import type { BookHealthReportView, ChapterAnalysisV2View } from '../../gaea/lib/bridge/novel'
 
-const softTextStyle: React.CSSProperties = { fontSize: 12, color: 'var(--v3-fg-soft, #6b7280)' }
 
 /** 逐章体检行（JSX 泛型不认索引访问，抽别名）。 */
 type HealthRow = BookHealthReportView['chapters'][number]

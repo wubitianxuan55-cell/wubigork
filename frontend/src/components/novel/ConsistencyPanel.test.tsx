@@ -125,4 +125,18 @@ describe('深检模式三档分级', () => {
     expect(screen.getByTestId('consistency-all-ignored').textContent).toContain('1')
     expect(screen.queryByText('全部通过，未发现一致性问题')).toBeNull()
   })
+
+  it('规则层检查失败：横幅+「结果不可信」，不伪装「全部通过」；重试恢复（v4.361）', async () => {
+    vi.mocked(app.CheckConsistency).mockRejectedValueOnce(new Error('db gone'))
+    render(<ConsistencyPanel />)
+
+    await waitFor(() => expect(screen.getByTestId('consistency-rule-error')).toBeTruthy())
+    expect(screen.getByTestId('consistency-check-failed').textContent).toContain('检查失败')
+    expect(screen.queryByText('全部通过，未发现一致性问题')).toBeNull()
+
+    vi.mocked(app.CheckConsistency).mockResolvedValue({ issues: [], total_issues: 0, summary: '✅ 未发现一致性问题' })
+    fireEvent.click(screen.getByTestId('consistency-rule-retry'))
+    await waitFor(() => expect(screen.queryByTestId('consistency-rule-error')).toBeNull())
+    expect(screen.getByText('全部通过，未发现一致性问题')).toBeTruthy()
+  })
 })

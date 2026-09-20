@@ -4,6 +4,7 @@
 // 复用件：SpaceSwitch/SessionList（ModuleLauncher 导出）+ TaskInboxBoard
 // （TaskInboxPanel 内联板）+ deriveLauncherModules（manifest 驱动机制零改动）。
 // 纯同步口径脚注：任务是清单不是调度器，应用关闭一切停止。
+import { softTextStyle } from '../utils/uiStyles'
 import React, { useMemo } from 'react'
 import { useSyncExternalStore } from 'react'
 import { Button, Tooltip } from 'antd'
@@ -16,7 +17,6 @@ import { SHELL_SPACES, type ShellSpace } from '../boards/space'
 import { SpaceSwitch, SessionList, type LauncherData } from './ModuleLauncher'
 import { TaskInboxBoard } from '../gaea/components/TaskInboxPanel'
 
-const softTextStyle: React.CSSProperties = { fontSize: 12, color: 'var(--v3-fg-soft, #6b7280)' }
 
 /** 能力 chip：板块入口的紧凑形态（icon+名称，点击直达板块页）。 */
 const CapabilityChip: React.FC<{ m: LauncherModule; onOpen: () => void }> = ({ m, onOpen }) => {

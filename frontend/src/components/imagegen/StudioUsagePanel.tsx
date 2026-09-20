@@ -2,12 +2,12 @@
 // 进度计划/gaea-studio-usage-20260917.md）：本月创作记录聚合（张数×单价），
 // 只读台账零计费动作。默认收起；标题带总数与合计；展开=按模型行+免费/未定价
 // 注记。文案「画室消耗/创作记录」，不用积分话术（规格原文）。
+import { softTextStyle } from '../../utils/uiStyles'
 import React, { useEffect, useState } from 'react'
 import { Collapse, Spin, Tag, Typography } from 'antd'
 import { app } from '../../gaea/lib/bridge'
 import type { StudioUsageView } from '../../gaea/lib/bridge/image'
 
-const softTextStyle: React.CSSProperties = { fontSize: 12, color: 'var(--v3-fg-soft, #6b7280)' }
 
 export default function StudioUsagePanel() {
   const [usage, setUsage] = useState<StudioUsageView | null>(null)

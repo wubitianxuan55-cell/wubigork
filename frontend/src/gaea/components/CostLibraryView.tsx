@@ -45,6 +45,7 @@ export function CostLibraryView() {
   const [compare, setCompare] = useState<{ name: string; title: string; price: number } | null>(null);
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
   const [sortDir, setSortDir] = useState<1 | -1>(1);
+  const [statusBusy, setStatusBusy] = useState(false);
   const treeInited = useRef(false);
 
   // 分类树 → 节点/路径索引（多级路径：一级/二级/…/叶子）。
@@ -217,14 +218,27 @@ export function CostLibraryView() {
     load();
   };
   const batchStatus = async (next: string) => {
-    if (selected.size === 0 || !next) return;
-    for (const name of selected) {
-      const e = await app.CostGet(name).catch(() => null);
-      if (e) await app.CostSave({ ...e, status: next }).catch(() => {});
+    if (selected.size === 0 || !next || statusBusy) return;
+    setStatusBusy(true);
+    try {
+      // v4.361：失败可见化——照 batchDelete 计数口径（v4.350），逐条 Get+Save
+      // 失败不再吞成假成功「已把 N 条改为…」，后端全挂时用户能看见。
+      const results = await Promise.all(
+        [...selected].map(async (n) => {
+          const e = await app.CostGet(n).catch(() => null);
+          if (!e) return false;
+          return app.CostSave({ ...e, status: next }).then(() => true).catch(() => false);
+        }),
+      );
+      const ok = results.filter(Boolean).length;
+      const failed = results.length - ok;
+      if (failed === 0) message.info(`已把 ${ok} 条改为「${next}」`);
+      else message.warning(`已把 ${ok} 条改为「${next}」，${failed} 条失败，请重试`);
+      setSelected(new Set());
+      load();
+    } finally {
+      setStatusBusy(false);
     }
-    message.info(`已把 ${selected.size} 条改为「${next}」`);
-    setSelected(new Set());
-    load();
   };
   const openHistory = useCallback(async (name: string) => {
     setHistoryName(name);
@@ -448,6 +462,7 @@ export function CostLibraryView() {
               <span className="text-amber-300 text-[11px]">已选 {selected.size}</span>
               <select
                 value=""
+                disabled={statusBusy}
                 onChange={(e) => {
                   if (e.target.value) void batchStatus(e.target.value);
                 }}

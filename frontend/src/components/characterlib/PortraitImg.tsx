@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { app } from '../../gaea/lib/bridge'
+import { usePortraitUrl } from './usePortraitUrl'
 
 // PortraitImg 角色剧照渲染：远程 URL / data URL 直接用；
 // 本地文件路径（剧照落盘后 characters.json 只存路径）通过
@@ -15,30 +15,19 @@ export function PortraitImg({
   className?: string
   style?: React.CSSProperties
 }) {
-  const [url, setUrl] = useState<string | undefined>(undefined)
-  const [failed, setFailed] = useState(false)
+  const { url: fetchedUrl, failed: fetchFailed } = usePortraitUrl(src)
+  // broken：已上墙的 <img> 再加载失败（远程 URL 过期等）——与取数失败分开记，
+  // 二者都落到占位首字。
+  const [broken, setBroken] = useState(false)
+  const url = broken ? undefined : fetchedUrl
 
   useEffect(() => {
-    let live = true
-    setFailed(false)
-    if (!src) {
-      setUrl(undefined)
-      return
-    }
-    if (/^(https?:|data:)/i.test(src)) {
-      setUrl(src)
-      return
-    }
-    app
-      .AttachmentDataURL(src)
-      .then((u) => { if (live) setUrl(u) })
-      .catch(() => { if (live) { setUrl(undefined); setFailed(true) } })
-    return () => { live = false }
+    setBroken(false)
   }, [src])
 
   if (!url) {
     // 剧照不可用（本地文件缺失 / 远程 URL 已过期）：显示占位首字，避免裂图
-    if (!failed) return null
+    if (!broken && !fetchFailed) return null
     return (
       <div
         aria-label={alt || '剧照缺失'}
@@ -67,7 +56,7 @@ export function PortraitImg({
       alt={alt ?? ''}
       className={className}
       style={style}
-      onError={() => { setUrl(undefined); setFailed(true) }}
+      onError={() => setBroken(true)}
     />
   )
 }

@@ -4,7 +4,7 @@ import {
   FolderTree, Gauge, PieChart, Plus, Shield, TrendingUp,
 } from "../gaea/icons";
 import { app } from "../gaea/lib/bridge";
-import type { CostCategory, CostSummary, FilePickResult, PriceSource } from "../gaea/lib/types";
+import type { CostCategory, CostSummary, FilePickResult } from "../gaea/lib/types";
 import { CostLibraryView } from "../gaea/components/CostLibraryView";
 import { CostEntryModal } from "../gaea/components/memoryhub/CostEntryModal";
 import { CostImportModal } from "../gaea/components/memoryhub/CostImportModal";
@@ -112,17 +112,28 @@ export function CostLibraryPage() {
   const [priceView, setPriceView] = useState<PriceView>("sources");
   const [stats, setStats] = useState<CostOverviewStats>(EMPTY_STATS);
   const [loading, setLoading] = useState(true);
+  // v4.361：全源读取失败不再伪装成「空库新手引导」——失败是数据库读不到，
+  // 不是库是空的，两者给用户的下一步动作完全不同。
+  const [statsFailed, setStatsFailed] = useState(false);
   const [entryOpen, setEntryOpen] = useState(false);
   const [importFile, setImportFile] = useState<FilePickResult | null>(null);
 
   const loadStats = useCallback(async () => {
     setLoading(true);
+    setStatsFailed(false);
     try {
+      // 单路失败降级为空数组（部分可得照常渲染）；三路全失败=读不到库，
+      // 置 statsFailed 走错误态而非「空库引导」（v4.361）。
       const [entries, categories, sources] = await Promise.all([
-        app.CostSearch("", "", "").catch(() => [] as CostSummary[]),
-        app.CostCategories().catch(() => [] as CostCategory[]),
-        app.PriceSources().catch(() => [] as PriceSource[]),
+        app.CostSearch("", "", "").catch(() => null),
+        app.CostCategories().catch(() => null),
+        app.PriceSources().catch(() => null),
       ]);
+      if (entries === null && categories === null && sources === null) {
+        setStats(EMPTY_STATS);
+        setStatsFailed(true);
+        return;
+      }
       const list = entries ?? [];
       const sorted = [...list].sort((a, b) => (b.updatedAt ?? "").localeCompare(a.updatedAt ?? ""));
       const missingPrice = list.filter((e) => e.price <= 0).length;
@@ -157,6 +168,7 @@ export function CostLibraryPage() {
       });
     } catch {
       setStats(EMPTY_STATS);
+      setStatsFailed(true);
     } finally {
       setLoading(false);
     }
@@ -287,6 +299,18 @@ export function CostLibraryPage() {
           <div className="h-full overflow-y-auto px-5 py-4 space-y-3">
             {loading ? (
               <OverviewSkeleton />
+            ) : statsFailed ? (
+              <div className="v3-panel rounded-2xl p-10 flex flex-col items-center gap-3" data-testid="cost-stats-failed">
+                <div className="text-[13px] text-fg">造价库读取失败</div>
+                <div className="text-[11.5px] text-fg-faint">数据库暂时读不到，请重试；若持续失败请查看日志</div>
+                <button
+                  type="button"
+                  onClick={() => void loadStats()}
+                  className="px-3 h-7 rounded-full bg-accent text-accent-fg text-[11.5px]"
+                >
+                  重试
+                </button>
+              </div>
             ) : stats.total === 0 ? (
               <GettingStarted onImport={pickImport} onNew={() => setEntryOpen(true)} onSources={() => setModule("prices")} />
             ) : (

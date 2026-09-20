@@ -15,7 +15,23 @@ import type {
 import { isPageVisible } from '../lib/pollingGate'
 import { FRONTEND_EVENTS } from '../events'
 import { takeWxFocusAssistant } from './wxFocus'
+import { usePortraitUrl } from '../components/characterlib/usePortraitUrl'
 import './weixin-page.css'
+
+// WxPortraitAvatar：角色剧照头像——本地落盘路径须经 AttachmentDataURL 转
+// data URL 上墙（WebView2 拒绝 file://，v4.361 观察池清账）；取数失败/无图
+// 时 Avatar 自然回退到 children 首字。
+const WxPortraitAvatar: React.FC<{ src?: string; name: string; size?: number }> = ({ src, name, size = 26 }) => {
+  const { url } = usePortraitUrl(src)
+  return <Avatar size={size} src={url}>{name.slice(0, 1)}</Avatar>
+}
+
+// WxPortraitImg：人格详情立绘同通道；无图/取数失败回退首字占位。
+const WxPortraitImg: React.FC<{ src?: string; name: string }> = ({ src, name }) => {
+  const { url } = usePortraitUrl(src)
+  if (!url) return <span className="wx-pk-portrait-fallback" aria-hidden="true">{name.slice(0, 1)}</span>
+  return <img src={url} alt={`${name} 立绘`} />
+}
 
 /**
  * WeixinPage — 青鸟（微信助手）「通讯枢纽」工作台（v4.47 星枢化重构；
@@ -204,6 +220,10 @@ const WeixinPage: React.FC = () => {
   const [newTime, setNewTime] = useState<Dayjs | null>(null)
   const [adding, setAdding] = useState(false)
   const [assistantsLoadFailed, setAssistantsLoadFailed] = useState(false)
+  // v4.361：首拉完成标志——首拉到达前不再把「载入中」渲染成「暂无助手」空态；
+  // 提醒列表同款失败可见化（照 v4.351 loadAssistants 范式）。
+  const [assistantsLoadedOnce, setAssistantsLoadedOnce] = useState(false)
+  const [remindersLoadFailed, setRemindersLoadFailed] = useState(false)
   const [togglingId, setTogglingId] = useState<string | null>(null)
 
   const loadAssistants = useCallback(async () => {
@@ -223,18 +243,28 @@ const WeixinPage: React.FC = () => {
     ])
     if (statuses === null && list === null) {
       setAssistantsLoadFailed(true)
+      setAssistantsLoadedOnce(true)
       return
     }
     setAssistantsLoadFailed(false)
+    setAssistantsLoadedOnce(true)
     setRows(mergeAssistantRows(list ?? [], statuses ?? []))
   }, [])
 
   const loadReminders = useCallback(async () => {
-    try {
-      const [list, config] = await Promise.all([app.WeixinReminderList(), app.WeixinReminderConfig()])
-      setReminders(list)
-      setCfg(config)
-    } catch { /* 静默 */ }
+    // v4.361：失败可见化——此前静默吞错，失败时显示「暂无提醒」误导用户
+    // 去微信创建；两路全失败置 failed 走错误条（照 loadAssistants v4.351 范式）。
+    const [list, config] = await Promise.all([
+      app.WeixinReminderList().then((v) => v, () => null),
+      app.WeixinReminderConfig().then((v) => v, () => null),
+    ])
+    if (list === null && config === null) {
+      setRemindersLoadFailed(true)
+      return
+    }
+    setRemindersLoadFailed(false)
+    if (list !== null) setReminders(list)
+    if (config !== null) setCfg(config)
   }, [])
 
   // 可见时轮询助手管理数据 + 提醒列表（keepAlive 页面隐藏时空转）
@@ -423,10 +453,12 @@ const WeixinPage: React.FC = () => {
   // 「编辑助手」保存：以 viewOf 为底（enabled/wxToken 等原样保留，空 token
   // 字段后端按契约保留现值），叠加新名字/人格/立绘。立绘契约：仅当用户新选
   // 了带立绘的选项才覆写，否则透传原值、绝不传空串（空值后端不覆写）。
+  const [savingEdit, setSavingEdit] = useState(false)
   const saveEdit = async () => {
-    if (!editTarget) return
+    if (!editTarget || savingEdit) return
     const base = viewOf(editTarget)
     const sel = personaOpts.find((o) => o.id === editSel)
+    setSavingEdit(true)
     try {
       await app.WhisperAssistantSave({
         ...base,
@@ -440,6 +472,8 @@ const WeixinPage: React.FC = () => {
       loadAssistants()
     } catch (e) {
       message.error(`保存失败：${e instanceof Error ? e.message : String(e)}`)
+    } finally {
+      setSavingEdit(false)
     }
   }
 
@@ -532,14 +566,17 @@ const WeixinPage: React.FC = () => {
                   title={`${row.name || row.id} · ${st.text}`}
                   onClick={() => { setSelectedId(row.id); setView('channel') }}
                 >
-                  <Avatar size={26} src={row.portraitUrl || undefined}>{(row.name || row.id).slice(0, 1)}</Avatar>
+                  <WxPortraitAvatar src={row.portraitUrl} name={row.name || row.id} />
                   <span className="wx-rail-name">{row.name || row.id}</span>
                   <span className="wx-rail-status">{st.text}<span className={`wx-dot is-${st.kind}`} aria-hidden="true" /></span>
                 </button>
               )
             })}
-            {rows.length === 0 && !assistantsLoadFailed && (
+            {rows.length === 0 && !assistantsLoadFailed && assistantsLoadedOnce && (
               <div className="wx-rail-empty">暂无青鸟助手——点上方 + 新增</div>
+            )}
+            {rows.length === 0 && !assistantsLoadFailed && !assistantsLoadedOnce && (
+              <div className="wx-rail-empty" role="status">正在载入助手…</div>
             )}
             {assistantsLoadFailed && (
               <div className="wx-rail-empty" role="status">助手列表载入失败，稍后自动重试</div>
@@ -587,7 +624,7 @@ const WeixinPage: React.FC = () => {
                   onDelete={() => removeAssistant(selected)}
                   onEdit={() => openEdit(selected)}
                 />
-              ) : (
+              ) : assistantsLoadedOnce ? (
                 <div className="wx-empty">
                   <span className="wx-empty-icon"><WechatOutlined aria-hidden="true" /></span>
                   <span className="wx-empty-title">还没有青鸟助手</span>
@@ -595,6 +632,10 @@ const WeixinPage: React.FC = () => {
                     新增助手并扫码绑定微信后，即可在微信里与 gaea 对话、设提醒、收推送。
                   </span>
                   <Button type="primary" icon={<PlusOutlined />} onClick={() => setAddOpen(true)}>新增青鸟助手</Button>
+                </div>
+              ) : (
+                <div className="wx-empty" role="status">
+                  <span className="wx-empty-title">正在载入助手…</span>
                 </div>
               )
             )}
@@ -660,6 +701,10 @@ const WeixinPage: React.FC = () => {
                       </div>
                     ))}
                   </div>
+                ) : remindersLoadFailed ? (
+                  <Typography.Text type="warning" role="status" style={{ display: 'block', marginTop: 14, fontSize: 12 }} data-testid="wx-reminders-failed">
+                    提醒列表载入失败，稍后自动重试。
+                  </Typography.Text>
                 ) : (
                   <Typography.Text type="secondary" style={{ display: 'block', marginTop: 14, fontSize: 12 }}>
                     暂无提醒——在微信里对助手说「提醒我 30分钟后 喝水」即可创建。
@@ -730,7 +775,7 @@ const WeixinPage: React.FC = () => {
         title={editTarget ? `编辑助手 · ${editTarget.name || editTarget.id}` : '编辑助手'}
         open={editOpen} width={680}
         okText="保存修改" cancelText="取消"
-        onOk={saveEdit} onCancel={() => setEditOpen(false)}
+        confirmLoading={savingEdit} onOk={saveEdit} onCancel={() => { if (!savingEdit) setEditOpen(false) }}
       >
         <Space direction="vertical" size={10} style={{ width: '100%', marginTop: 8 }}>
           <Input
@@ -809,7 +854,7 @@ const PersonaRow: React.FC<{
     aria-label={`选择人格 ${opt.name}`}
     onClick={() => onPick(opt.id)}
   >
-    <Avatar size={30} src={opt.portraitUrl || undefined}>{opt.name.slice(0, 1)}</Avatar>
+    <WxPortraitAvatar src={opt.portraitUrl} name={opt.name} size={30} />
     <span className="wx-pk-item-name">{opt.name}</span>
     <span className="wx-pk-item-kind">{opt.group === 'preset' ? '预设' : '角色库'}</span>
   </button>
@@ -857,9 +902,7 @@ const PersonaPickerPanel: React.FC<{
         {selOpt ? (
           <>
             <div className="wx-pk-portrait">
-              {selOpt.portraitUrl
-                ? <img src={selOpt.portraitUrl} alt={`${selOpt.name} 立绘`} />
-                : <span className="wx-pk-portrait-fallback" aria-hidden="true">{selOpt.name.slice(0, 1)}</span>}
+              <WxPortraitImg src={selOpt.portraitUrl} name={selOpt.name} />
             </div>
             <div className="wx-pk-detail-name">
               {selOpt.name}
@@ -904,7 +947,7 @@ const ChannelDetail: React.FC<{
   return (
     <>
       <div className="wx-main-head">
-        <Avatar size={44} src={row.portraitUrl || undefined}>{name.slice(0, 1)}</Avatar>
+        <WxPortraitAvatar src={row.portraitUrl} name={name} size={44} />
         <div style={{ minWidth: 0 }}>
           <div className="wx-main-title">
             {name}
