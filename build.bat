@@ -25,8 +25,20 @@ if exist build\bin\gaea.exe (
 )
 
 REM Release strip: -s -w drops symbol/DWARF tables, -trimpath drops local paths.
-REM Dev iteration needing symbols can run plain `wails build` directly.
-call wails build -ldflags "-s -w" -trimpath
+REM Build the frontend first, then skip wails' own frontend step (-s): wails
+REM captures the frontend tool output through a pipe (can hang, see AGENTS)
+REM and its implicit `npm install` is environment-sensitive (peer deps blow up
+REM on lockfile-less trees). v4.369: build frontend explicitly via npm run.
+echo === frontend build ===
+cd frontend
+call npm.cmd run build
+if errorlevel 1 (
+    echo [FAIL] frontend build failed
+    exit /b 1
+)
+cd ..
+
+call wails build -s -ldflags "-s -w" -trimpath
 if errorlevel 1 (
     echo [FAIL] wails build failed
     exit /b 1

@@ -66,7 +66,25 @@ type CellStyle struct {
 }
 
 // Render 解析 xlsx 为预览 JSON。
+// Render 带 panic 防线：excelize（v2.11.0，GO-2026-6452 上游未修）解析恶意
+// 构造的 xlsx 可能在 GetCellFormula/GetCellType 等处 panic——预览是用户可控
+// 输入面，panic 会被 Wails dispatcher 兜住但表现为整次调用失败；这里转成
+// error 让前端按「预览失败」呈现（v4.369 安全轮，上游修复后可移除）。
 func Render(path string) (string, error) {
+	return renderGuarded(path)
+}
+
+func renderGuarded(path string) (result string, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			result = ""
+			err = fmt.Errorf("xlsx 预览失败（文档结构异常）: %v", r)
+		}
+	}()
+	return renderXlsx(path)
+}
+
+func renderXlsx(path string) (string, error) {
 	f, err := excelize.OpenFile(path, excelize.Options{UnzipXMLSizeLimit: 1 << 30})
 	if err != nil {
 		return "", fmt.Errorf("打开 xlsx 失败: %w", err)
@@ -95,7 +113,13 @@ func Render(path string) (string, error) {
 // NeedsRecalc 检测工作簿是否存在无缓存值的公式单元格。
 // 这类单元格（openpyxl 等直接写公式未重算的文件）需要 LibreOffice
 // 重算后才带计算结果，否则预览只能显示 fx 标记。
-func NeedsRecalc(path string) (bool, error) {
+func NeedsRecalc(path string) (need bool, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			need = false
+			err = fmt.Errorf("xlsx 检查失败（文档结构异常）: %v", r)
+		}
+	}()
 	f, err := excelize.OpenFile(path, excelize.Options{UnzipXMLSizeLimit: 1 << 30})
 	if err != nil {
 		return false, fmt.Errorf("打开 xlsx 失败: %w", err)

@@ -1,3 +1,13 @@
+## 最新发布：v4.370.0（2026-09-21）「工程健康轮：依赖漏洞清零 + Go 工具链升级 + 构建管线修正」
+
+- **动机**：用户口径「继续」——十轮快跑后工程健康整固：govulncheck+npm audit 双扫描按发现修复。Go 1 源文件+依赖升级+构建脚本修正，绑定面 706 不动。
+- **扫描与处置**：①Go 标准库 5 处（net/url 二次复杂度/crypto-tls 握手/net-http ReadHeaderTimeout/encoding-xml·asn1 递归）→工具链 1.26.5→1.26.6（go.mod toolchain 指令，构建自动拉取，exe 实测 go1.26.6）；②golang.org/x/image v0.40→v0.46（webp/bmp 解码 panic、VP8L 越界内存分配 4 处——图片解码是用户可控输入面，连带 x/sys/x/text）；③excelize GO-2026-6452 恶意 xlsx panic（上游 Fixed in: N/A）→应用层防线：xlsxpreview Render/NeedsRecalc 入口 defer recover 转错误「xlsx 预览失败（文档结构异常）」（上游修复后可移除），govulncheck 复扫 11→1 仅剩此条；④npm @vitest/mocker 2 moderate（路径遍历，dev-only）→vitest ^4.1.10→4.1.11，audit 归零；⑤**新增 pnpm-lock.yaml**（前端依赖历史上从未锁定，vitest 4.1.11 锁定，CI 实测兼容）。
+- **构建管线修正（在册坑落地）**：build.bat 的 wails 命令此前未带 -s（跳过前端），wails 内部隐式 npm install 在 lockfile 缺失+peer 依赖冲突（eslint-plugin-prettier ^4.2.5）时直接失败——本轮 vitest 升级触碰 package.json 即暴露。按在册坑配方修正 build.bat：先 `npm.cmd run build` 显式构建前端，再 `wails build -s`（wails 捕获前端输出走管道会挂起+隐式 install 环境敏感，AGENTS 在册坑原文配方）。
+- **门禁**：govulncheck 复扫 11→1+npm audit 归零+go build/vet 0+office 包全量绿+全量 ci.ps1 绿 EXIT=0（vitest 388 文件 3315 例，vitest 4.1.11 兼容）+drift OK@706+版本三处 4.370.0。
+- **坑**：①pnpm 项目里 npm install 会生成 package-lock.json 形成双轨——发现后立即删除并 pnpm install 恢复单轨；②lockfile 缺失是环境敏感炸弹——任何依赖树变动触发重新解析，peer 冲突在 wails 隐式 install 中爆炸，lockfile 入库后不再复现；③wails 隐式 npm install 依赖环境解析成功——显式前端构建+-s 是在册坑配方，build.bat 此前未遵守本轮落地。
+- **产物**：exe 50,979,328B SHA256=785a740a681d410dfff9c8744d09cb37698ca6d756e0808f31b42edbae8de95f（releases/gaea-v4.370.0.exe+SHA256SUMS-v4.370.0.txt 仅本地；桌面副本同哈希实测一致；冒烟 /api/health 200 过；go1.26.6 构建）；保留策略 5 版留 v4.366~v4.370 删 v4.365.0.exe（SUMS 身份档案全保留）。
+- **文档**：releases/v4.370.0.md+CHANGELOG/README+releases/README（计数 391→392+34 席插 v4.370 裁 v4.336）+AGENTS 迁 1 插 1（八十五迁：v4.367 入 archive）+progress/todos（excelize 上游未修留观）。
+
 ## 最新发布：v4.369.0（2026-09-21）「真机走查班第二班：流式分段渲染真机验收 + --w-ink-3 重指向」
 
 - **动机**：用户口径「继续」——走查班第二班：v4.366~v4.368 三轮（聊天组件 memo 化/编辑输入性能/流式分段渲染）真机验收；顺手落地别名重指向小刀 --w-ink-3。前端 1 css 文件，绑定面 706 不动。
