@@ -29,7 +29,9 @@
   --w-line-soft: color-mix(in srgb, var(--color-border) 42%, transparent);
   --w-ink: var(--color-text);
   --w-ink-2: var(--color-text-secondary);
-  --w-ink-3: color-mix(in srgb, var(--color-text) 46%, transparent);
+  /* v4.368：重指向 tertiary 实色（原 color-mix 46% 半透明属「六个次级文本
+     别名」之一，实色后随主题令牌走）；.ml-avatar-user 的二次混色底同步微调。 */
+  --w-ink-3: var(--md-sys-color-text-tertiary);
   --w-accent: var(--gaea-glow);
   --w-plate: var(--color-surface-container);
   --w-plate-2: var(--color-surface-container-high);
@@ -327,7 +329,7 @@
 }
 .ml-avatar-user {
   color: var(--w-ink-3);
-  background: color-mix(in srgb, var(--w-ink-3) 12%, transparent);
+  background: color-mix(in srgb, var(--w-ink-3) 14%, transparent);
 }
 
 .ml-col-empty {
