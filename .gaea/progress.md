@@ -1,3 +1,14 @@
+## 最新发布：v4.363.0（2026-09-21）「后端留池终审：ConvertToPdf 读侧收口落地 + prompt 双构造辨伪关闭」
+
+- **动机**：用户口径「继续」——后端挂池仅剩 2 项（均标「需设计」）逐项终审：一项设计落地、一项证据辨伪关闭，**后端挂池清零**。Go 1 源文件+1 测试+前端 1 小刀，绑定面 706 不动。
+- **刀1 ConvertToPdf 读侧收口**（挂池设计项落地）：取证确认前端生产调用点仅 FilePreviewModal exportPdf 一处，三类路径来源（工作区相对/uploads 绝对/对话框工作区外素材）全部被现有机制覆盖。收口=①相对路径 Clean 拒 .. 穿越（原 `filepath.Join(gaeaCwd(), rel)` Clean 掉 .. 可逃逸工作区，对齐 GaeaReadFile 口径）②统一门 `!withinReadRoots(path) && !isPickedFile(path)` fail-closed（对话框素材经 GaeaPickFiles 登记时已入表，isPickedFile 现成覆盖——唯一真·合法绝对路径场景无需新设计）；写侧 exports 目录/文件名全服务端拼装无越界。三类合法调用方零误伤；前端 exportPdf 已有 toast 错误呈现零改动；内存登记表重启即清=重启后历史会话工作区外附件导出被拒，fail-closed 可接受。定向 +1=TestConvertToPdfPathGuard（相对穿越拒绝/未登记绝对路径拒绝/登记路径过守卫/工作区路径过守卫，四场景零外部进程）。
+- **刀2 prompt 双构造辨伪关闭**（不修，证据留档）：复核「双构造」实为 New() 构造后立即被 SetPromptFS 换新（main.go:32→34 同步单线程、Startup/httpbridge 全部之前）——第一实例存活期零读者，无正确性影响；换新是 embed FS 注入的唯一无锁安全手段（prompt.Engine 显式无锁契约 override 只写一次）；收益=省一次 20 文件/92KB 解析≈个位数毫秒一次性 vs 成本=改 New 签名（波及测试/CLI）或 Engine 加锁（违反契约）+绑定生成面三处登记——风险>收益辨伪关闭。日后低风险形态=New() 可选 embed-FS 参数+SetPromptFS 幂等短路，排池尾不单独开刀。
+- **刀3 前端小刀**：MemoryHubPage 总览读取失败 rail 计数显「—」占位（title 提示，恢复自动清除；原 catch 静默空缺）。
+- **门禁**：定向 +1+internal/app 全量绿（99.9s）+tsc 0+eslint 0+全量 ci.ps1 绿 EXIT=0（vitest 387 文件 3305 例）+drift OK@706+版本三处 4.363.0。
+- **坑**：①收口测试的「放行」断言不能借真实转换——.docx 在装了 LibreOffice 的测试机会真转成功（err==nil）断言失效，借「.doc 显式拒绝」这类转换前确定性分支验证过门，四场景零外部进程；②辨伪关闭也要证据链写进留档（风险侧+收益侧），下次取证不必重查。
+- **产物**：exe 50,947,584B SHA256=5a2bdafa10858b913df40604d9428be5adb3969dfeae8205eecf274a5b68b0fa（releases/gaea-v4.363.0.exe+SHA256SUMS-v4.363.0.txt 仅本地；桌面副本同哈希实测一致；冒烟 /api/health 200 过）；保留策略 5 版留 v4.359~v4.363 删 v4.358.0.exe（SUMS 身份档案全保留）。
+- **文档**：releases/v4.363.0.md+CHANGELOG/README+releases/README（计数 384→385+34 席插 v4.363 裁 v4.329）+AGENTS 迁 1 插 1（七十八迁：v4.360 入 archive）+progress/todos（后端挂池清零销号）。
+
 ## 最新发布：v4.362.0（2026-09-21）「前端优化轮第二弹：吞错可见化收尾 + tertiary 文本令牌收敛」
 
 - **动机**：用户口径「继续」——v4.361 前端优化轮余量再取证：镜头B 剩余吞错项全量复核 + 次级文本别名收敛影响面，两路并行只读后定刀。纯前端 17 源文件+2 测试+3 语言文件，绑定面 706 不动。

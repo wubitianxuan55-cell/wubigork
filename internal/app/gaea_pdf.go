@@ -44,7 +44,21 @@ func (a *App) GaeaConvertToPdf(rel string) (ConvertPdfResult, error) {
 	}
 	path := rel
 	if !filepath.IsAbs(rel) {
-		path = filepath.Join(gaeaCwd(), rel)
+		// v4.363：相对路径拒 .. 穿越——Join 会 Clean 掉 ..，..\..\x.docx 可
+		// 逃逸工作区；对齐 GaeaReadFile 口径。
+		clean := filepath.Clean(filepath.FromSlash(rel))
+		if clean == "." || strings.HasPrefix(clean, "..") || strings.Contains(clean, ".."+string(filepath.Separator)) {
+			return ConvertPdfResult{}, fmt.Errorf("非法工作区相对路径: %s", rel)
+		}
+		path = filepath.Join(gaeaCwd(), clean)
+	}
+	// v4.363：读侧收口——本绑定是「读任意路径喂外部转换进程」的原语，此前
+	// 绝对路径直通无约束（v4.358 审计挂池）。统一门 = 工作区/数据根白名单
+	// ∪ 文件对话框登记（附件 chip 的工作区外素材正是经 GaeaPickFiles 进来、
+	// 登记时已入表），fail-closed 对齐 GaeaReadFileB64。写侧 exports 目录
+	// 与文件名全服务端拼装，无越界面。
+	if !withinReadRoots(path) && !isPickedFile(path) {
+		return ConvertPdfResult{}, fmt.Errorf("文件不在可读范围（工作区/数据根），且未经文件对话框选取: %s", rel)
 	}
 	if _, err := os.Stat(path); err != nil {
 		return ConvertPdfResult{}, fmt.Errorf("文件不存在：%s", rel)

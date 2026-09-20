@@ -69,3 +69,47 @@ func TestSnapshotSceneIDGuard(t *testing.T) {
 		t.Fatalf("合法 sceneID 应通过: %v", err)
 	}
 }
+
+// v4.363：ConvertToPdf 读侧收口——相对穿越拒绝、任意绝对路径 fail-closed、
+// 登记路径与工作区路径放行（放行断言用 .doc 扩展名拒绝分支，零外部进程）。
+func TestConvertToPdfPathGuard(t *testing.T) {
+	restore := workspaceTestIsolate(t)
+	defer restore()
+	a := &App{core: &core{cfg: &config.Config{}}}
+
+	// 相对穿越拒绝（Join 会 Clean 掉 ..，必须显式拦）。
+	for _, rel := range []string{`..\..\secret.docx`, "../../secret.docx", `..\secret.docx`} {
+		if _, err := a.GaeaConvertToPdf(rel); err == nil || !strings.Contains(err.Error(), "非法") {
+			t.Fatalf("穿越路径 %q 应拒绝, got %v", rel, err)
+		}
+	}
+
+	// 未登记的任意绝对路径拒绝（fail-closed——此前绝对路径直通）。
+	outside := filepath.Join(t.TempDir(), "outside.docx")
+	if err := os.WriteFile(outside, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.GaeaConvertToPdf(outside); err == nil || !strings.Contains(err.Error(), "文件对话框") {
+		t.Fatalf("未登记绝对路径应拒绝, got %v", err)
+	}
+
+	// 经 GaeaPickFiles 登记后过守卫（用 .doc 命中扩展名拒绝分支——证明已过
+	// 路径门且不触发真实 LibreOffice 转换；.docx 会真转，测试机装了
+	// soffice 时反而无法断言）。
+	outsideDoc := filepath.Join(t.TempDir(), "outside.doc")
+	if err := os.WriteFile(outsideDoc, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	registerPickedFile(outsideDoc)
+	if _, err := a.GaeaConvertToPdf(outsideDoc); err == nil || !strings.Contains(err.Error(), ".doc") {
+		t.Fatalf("登记路径应过守卫并命中扩展名分支, got %v", err)
+	}
+
+	// 工作区内相对路径照常过守卫（同样以 .doc 分支验证，不触发真实转换）。
+	if err := os.WriteFile("local.doc", []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.GaeaConvertToPdf("local.doc"); err == nil || !strings.Contains(err.Error(), ".doc") {
+		t.Fatalf("工作区文件应过守卫并命中扩展名分支, got %v", err)
+	}
+}

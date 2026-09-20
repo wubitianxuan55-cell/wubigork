@@ -136,7 +136,7 @@ function RailItem(p: {
   onClick: () => void;
   label: string;
   icon: React.ReactNode;
-  count?: number;
+  count?: number | "—";
   title: string;
 }) {
   const { active, onClick, label, icon, count, title } = p;
@@ -151,7 +151,7 @@ function RailItem(p: {
     >
       <span className="hub-rail-icon" aria-hidden="true">{icon}</span>
       <span className="hub-rail-label">{label}</span>
-      {typeof count === "number" && <span className="hub-rail-count">{count}</span>}
+      {(typeof count === "number" || count === "—") && <span className="hub-rail-count" title={count === "—" ? "总览读取失败" : undefined}>{count}</span>}
     </button>
   );
 }
@@ -304,11 +304,16 @@ function MemoryHubPage() {
     setDetail(null); // 切换分类时清空详情，避免展示陈旧条目
   };
 
+  // v4.363：总览读取失败不再让计数徽标静默空缺——rail 显「—」占位。
+  const [overviewError, setOverviewError] = useState(false);
   useEffect(() => {
-    app.MemoryHubOverview().then(setOverview).catch(() => {});
+    setOverviewError(false);
+    app.MemoryHubOverview().then(setOverview).catch(() => setOverviewError(true));
   }, [active]);
 
-  const counts: Partial<Record<LibraryKey, number>> = overview
+  const counts: Partial<Record<LibraryKey, number | "—">> = overviewError
+    ? { knowledge: "—", profile: "—", office: "—", materials: "—", whisper: "—" }
+    : overview
     ? {
         knowledge: overview.knowledgeCount,
         profile: overview.profileCount,
