@@ -22,6 +22,7 @@ import { countTextChars, extractSettingText } from '../utils/text'
 import { app } from '../gaea/lib/bridge'
 import { inShellEnv, pickFileAsFile } from '../gaea/lib/pickFile'
 import { saveExportBlob } from '../gaea/lib/saveFile'
+import { useDebouncedValue } from '../hooks/useDebouncedValue'
 
 type EditorMode = 'edit' | 'split' | 'preview' | 'sections'
 
@@ -76,7 +77,10 @@ const NovelSettingPage: React.FC = () => {
     () => !needsProject && content !== savedSnapshot,
     [content, savedSnapshot, needsProject],
   )
-  const wordCount = useMemo(() => countTextChars(content.trim()), [content])
+  // v4.365 性能轮：渲染/统计防抖——受控编辑器每键 setState 全文，分屏预览的
+  // Markdown 全文重解析与字数全文扫描按 300ms 防抖跟随（最终值一致）。
+  const debouncedContent = useDebouncedValue(content, 300)
+  const wordCount = useMemo(() => countTextChars(debouncedContent.trim()), [debouncedContent])
 
   const handleSave = useCallback(async () => {
     if (loadFailed) {
@@ -197,7 +201,7 @@ const NovelSettingPage: React.FC = () => {
 
   const previewPane = (
     <div className="novel-setting-preview md-content">
-      <MarkdownContent source={content} />
+      <MarkdownContent source={debouncedContent} />
     </div>
   )
 

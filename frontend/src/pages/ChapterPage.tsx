@@ -133,6 +133,9 @@ const ChapterPage: React.FC = () => {
       window.dispatchEvent(new CustomEvent('novel:chapter-active', { detail: {} }))
       return
     }
+    // v4.365：上报防抖 250ms——原每击键（activeTab 引用变）全文 join+countTextChars
+    // 并派发事件拖动壳层 inspector 重渲染；防抖后输入期间不付全文遍历。
+    const timer = window.setTimeout(() => {
     window.dispatchEvent(new CustomEvent('novel:chapter-active', {
       detail: {
         id: activeTab.node.id,
@@ -143,6 +146,8 @@ const ChapterPage: React.FC = () => {
         chapterNum: activeTab.chapterNum,
       },
     }))
+    }, 250)
+    return () => window.clearTimeout(timer)
   }, [activeTab])
 
   // 专注模式：通知壳层收起左右 zone
@@ -305,7 +310,8 @@ const ChapterPage: React.FC = () => {
     closeTab(key)
   }
 
-  function updateTab<K extends keyof ChapterTabData>(field: K, value: ChapterTabData[K]) {
+  // v4.365：useCallback 稳定 onUpdate 引用——ChapterEditor memo 才能命中
+  const updateTab = useCallback(function updateTab<K extends keyof ChapterTabData>(field: K, value: ChapterTabData[K]) {
     setTabs((prev) => {
       const i = prev.findIndex((t) => t.node.id === activeKey)
       if (i < 0) return prev
@@ -313,7 +319,7 @@ const ChapterPage: React.FC = () => {
       c[i] = { ...c[i], [field]: value }
       return c
     })
-  }
+  }, [activeKey])
 
   const handleSave = async () => {
     if (!activeTab || activeTab.chapterNum < 1) return

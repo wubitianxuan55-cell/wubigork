@@ -59,7 +59,7 @@ function sceneMetaOf(value: unknown): { aiTaste?: number; beforeScore?: number; 
  * ChapterEditor — 章节场景多文本框编辑区
  * 包含场景新增/删除、右键菜单 AI 操作、Cmd+K 命令面板、GhostText
  */
-const ChapterEditor: React.FC<ChapterEditorProps> = ({ tab, onUpdate, sceneTextareaRefs, ghostEnabled }) => {
+const ChapterEditorInner: React.FC<ChapterEditorProps> = ({ tab, onUpdate, sceneTextareaRefs, ghostEnabled }) => {
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; text: string } | null>(null)
   const [cmdKVisible, setCmdKVisible] = useState(false)
   const [cmdKText, setCmdKText] = useState('')
@@ -519,4 +519,5 @@ const ChapterEditor: React.FC<ChapterEditorProps> = ({ tab, onUpdate, sceneTexta
   )
 }
 
-export default ChapterEditor
+// v4.365 性能轮：memo——父页其它 state（focus/ghost/多开 tab）变化不再重渲染编辑区
+export default React.memo(ChapterEditorInner)

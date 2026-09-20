@@ -1,3 +1,14 @@
+## 最新发布：v4.367.0（2026-09-21）「编辑输入性能：章节编辑 memo 化 + 设定页预览/统计防抖」
+
+- **动机**：用户口径「继续」——性能轮延续：编辑输入链路每击键全页重渲染与全文重解析治理，全部行为等价。前端 4 源文件+1 新 hook，绑定面 706 不动。
+- **①ChapterEditor memo+updateTab useCallback**：章节编辑每击键 onUpdate('scenes')+'saved' 两次 setTabs 使 959 行 ChapterPage 整页重渲染，未 memo 的编辑区全场景框陪跑。修=updateTab 改 useCallback（依赖 activeKey）稳定 onUpdate 引用；ChapterEditor 包 React.memo——父页无关 state（focus/ghost/其它 tab）不再重渲染编辑区。
+- **②ChapterPage 上报防抖**：novel:chapter-active 事件 effect 依赖 activeTab（每击键引用变），每次全文 join+countTextChars 并派发事件拖动壳层 inspector 重渲染。修=250ms 防抖（cleanup clearTimeout），输入期间不付全文遍历，停顿后上报一次最终值。
+- **③NovelSettingPage 预览/字数防抖**：分屏/渲染模式每击键对全文跑 react-markdown+KaTeX 重解析（10k 字约 10~30ms/键，输入明显卡顿）；wordCount 每键 trim+countTextChars 全文扫描。修=新增 useDebouncedValue 通用 hook（300ms），MarkdownContent 与字数统计消费防抖镜像值；编辑器保持逐键受控（输入零延迟）。
+- **门禁**：tsc 0+eslint 0+全量 ci.ps1 绿 EXIT=0（vitest 387 文件 3309 例；ChapterPage/NovelSettingPage/novel 组件 187 例定向全绿）+drift OK@706+版本三处 4.367.0。
+- **坑**：①跨层字符串转义地狱——python 补丁多层传递中 \n 被吃成真实换行写进源码（TS Unterminated string literal），构造含反斜杠字面量用 chr(92) 拼接彻底避开转义层级；②防抖的正确姿势是「镜像值」而非「延迟源」——编辑器保持逐键受控（输入零延迟），只有下游重计算（Markdown 解析/字数）消费防抖镜像；防抖放 onChange 上游=输入回显延迟，那是 bug 不是优化。
+- **产物**：exe 50,951,680B SHA256=177331f52125c531ba4096e7e2e121cc1e653083d77912ebce6d935d2be8ac38（releases/gaea-v4.367.0.exe+SHA256SUMS-v4.367.0.txt 仅本地；桌面副本同哈希实测一致；冒烟 /api/health 200 过）；保留策略 5 版留 v4.363~v4.367 删 v4.362.0.exe（SUMS 身份档案全保留）。
+- **文档**：releases/v4.367.0.md+CHANGELOG/README+releases/README（计数 388→389+34 席插 v4.367 裁 v4.333）+AGENTS 迁 1 插 1（八十二迁：v4.364 入 archive）+progress/todos（性能八项再消两目——ChapterEditor 受控下沉被 memo+防抖等效覆盖大半，下沉本体留池）。
+
 ## 最新发布：v4.366.0（2026-09-21）「性能轮收官：聊天组件 memo 化专项 + StoryStream 行级 memo」
 
 - **动机**：用户口径「继续」——性能八项留池中「聊天组件 memo 化」的 props 链梳理完成，落地收官；StoryStream 行级 memo 同步根修。前端 7 源文件+1 守卫适配，绑定面 706 不动。
