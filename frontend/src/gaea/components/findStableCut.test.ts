@@ -1,7 +1,7 @@
 // findStableCut.test.ts — v4.368 流式分段渲染：切分函数契约
 // （段落边界切分 / 未闭合 fence 回退 / fence body 含空行不拦腰切断 / 无空行全不稳定）
 import { describe, expect, it } from 'vitest'
-import { findStableCut } from './MemoMarkdown'
+import { findStableCut } from '../lib/markdownCut'
 
 describe('findStableCut 稳定切分', () => {
   it('无空行：全部不稳定', () => {

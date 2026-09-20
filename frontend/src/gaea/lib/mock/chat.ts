@@ -17,7 +17,7 @@ type ChatMethods = Pick<
   | "ListSessions" | "ListProjectSessions" | "ArchiveSession" | "UnarchiveSession"
   | "PinSession" | "ResumeSession" | "DeleteSession" | "RenameSession"
   | "SessionStats"
-  | "ChatTopicsList" | "ChatMessagesList" | "ChatAppendMessages"
+  | "ChatTopicsList" | "ChatMessagesList" | "ChatMessagesPage" | "ChatAppendMessages"
   // 批次二 legacy 直调转正（ChatB 门面）：话题管理 + 发送 + 导出。
   | "ChatTopicCreate" | "ChatTopicDelete" | "ChatTopicRename" | "ChatTopicSetMode"
   | "ChatImportTopic" | "ChatSend" | "ChatStreamPlain"
@@ -443,6 +443,10 @@ export function buildChat(s: MakeMockState): ChatMethods {
     },
     async ChatMessagesList(_topicID: string): Promise<chat.Message[]> {
       return [];
+    },
+    async ChatMessagesPage(_topicID: string, _limit: number, _beforeSeq: number) {
+      // mock: 开发环境无历史库——空页且无更早历史。
+      return { messages: [], hasMore: false, oldestSeq: 0 };
     },
     async ChatAppendMessages(_topicID: string, _messages: AppModels.ChatMessageInput[]) {
       // mock: 浏览器开发环境不落库（no-op）——无真实 whisper 库，语义与

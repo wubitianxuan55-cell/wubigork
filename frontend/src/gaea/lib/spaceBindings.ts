@@ -88,6 +88,7 @@ export const GAEA_METHOD_FACETS = {
   HerdsmanOperations: "shared",
   ChatTopicsList: "shared",
   ChatMessagesList: "shared",
+  ChatMessagesPage: "shared",
   ChatAppendMessages: "shared",
   // 统一检索：隔离由 scope 参数承担（S1.2-C），搜索面板两空间都会调用 → shared
   UnifiedSearch: "shared",

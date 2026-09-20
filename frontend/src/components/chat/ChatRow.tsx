@@ -17,7 +17,7 @@ import type { AnsweredByInfo } from './AnsweredByLine'
 import type { ChatMsg } from '../../pages/chat/types'
 import { useGenuiScope } from '../../genui/scope'
 import { buildMarkdownGenuiOverrides } from './genuiAdapter'
-import { findStableCut } from '../../gaea/components/MemoMarkdown'
+import { findStableCut } from '../../gaea/lib/markdownCut'
 
 export interface ChatRowProps {
   /** 行对应的消息对象：未更新的行保持同一对象引用（updateMessage 仅替换被补丁的行），memo 才能命中 */

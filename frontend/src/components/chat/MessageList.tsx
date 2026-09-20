@@ -21,6 +21,12 @@ import type { ChatMsg } from '../../pages/chat/types'
 
 export interface MessageListProps {
   messages: ChatMsg[]
+  /** v4.370 历史分页：是否还有更早历史（true 且窗口到达数据头时触发 onLoadOlder） */
+  hasOlder?: boolean
+  loadingOlder?: boolean
+  onLoadOlder?: () => void
+  /** 头部追加通知：{id 递增, count 新增条数}——区分「分页追加」与「切话题整体替换」 */
+  prepend?: { id: number; count: number } | null
   streamKey: string | null
   streamText: string
   mode: string
@@ -47,6 +53,7 @@ const MemoChatRow = React.memo(ChatRow)
 export const MessageList: React.FC<MessageListProps> = ({
   messages, streamKey, streamText, mode, companionName,
   copiedId, speakingId, onCopy, onSpeak, onRetry,
+  hasOlder, loadingOlder, onLoadOlder, prepend,
 }) => {
   // ── 稳定回调桥：ChatPage 侧 handleCopy/handleSpeak 每次渲染都是新引用、
   // handleRetry 依赖 messages 数组，直接透传会让行 memo 全部失效。经 latest-ref
@@ -63,12 +70,26 @@ export const MessageList: React.FC<MessageListProps> = ({
   // 清空/重试移除首条）时重置窗口，避免旧会话扩载出的窗口尺寸泄漏到新会话。
   const [win, setWin] = useState<{ anchor: string; size: number }>(
     () => ({ anchor: messages[0]?.key ?? '', size: WINDOW_INITIAL }))
+  const winRef = useRef(win)
+  winRef.current = win
   const firstKey = messages[0]?.key ?? ''
+  // v4.370：头部追加（分页加载更早历史）时窗口尺寸随新增条数扩大而非重置，
+  // 用户正在顶部附近翻阅不被弹回尾部；prepSeq 标记已处理的追加通知。
+  const prepSeqRef = useRef(0)
+  let prependHandled = false
   if (win.anchor !== firstKey) {
-    // 渲染期同步修正（React 官方「props 变化时重置 state」模式）：立即以新
-    // anchor 重渲染，首帧即按新窗口渲染，不闪烁。
-    setWin({ anchor: firstKey, size: WINDOW_INITIAL })
+    if (prepend && prepend.id !== prepSeqRef.current) {
+      // 渲染期同步修正（React 官方「props 变化时重置 state」模式）
+      prepSeqRef.current = prepend.id
+      prependHandled = true
+      setWin({ anchor: firstKey, size: Math.min(win.size + prepend.count, messages.length) })
+    } else {
+      // 渲染期同步修正（React 官方「props 变化时重置 state」模式）：立即以新
+      // anchor 重渲染，首帧即按新窗口渲染，不闪烁。
+      setWin({ anchor: firstKey, size: WINDOW_INITIAL })
+    }
   }
+  if (prependHandled) prependHandled = false
 
   const virtualized = messages.length > VIRTUALIZE_THRESHOLD
   const shown = virtualized
@@ -88,13 +109,18 @@ export const MessageList: React.FC<MessageListProps> = ({
     if (!host) return
     const onHostScroll = () => {
       if (host.scrollTop > TOP_GROW_PX) return
+      // v4.370：窗口已覆盖全部已加载消息（到达数据头）且仍有更早历史 → 分页拉取
+      if (winRef.current.size >= messages.length) {
+        if (hasOlder && !loadingOlder && onLoadOlder) onLoadOlder()
+        return
+      }
       setWin(prev => prev.size >= messages.length
         ? prev
         : { ...prev, size: Math.min(prev.size + WINDOW_GROW_STEP, messages.length) })
     }
     host.addEventListener('scroll', onHostScroll, { passive: true })
     return () => host.removeEventListener('scroll', onHostScroll)
-  }, [virtualized, messages])
+  }, [virtualized, messages, hasOlder, loadingOlder, onLoadOlder])
 
   return (
     <div ref={flowRef} className="chat-flow v3-reading">

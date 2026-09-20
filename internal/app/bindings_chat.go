@@ -21,6 +21,7 @@ func (b *ChatB) ChatCharacterDetail(charID string, userMsg string) (map[string]i
 func (b *ChatB) ChatGeneral(userMsg string) (map[string]interface{}, error) { return b.a.ChatGeneral(userMsg) }
 func (b *ChatB) ChatImportTopic(title string, mode string, messages []ChatMessageInput) (chat.Topic, error) { return b.a.ChatImportTopic(title, mode, messages) }
 func (b *ChatB) ChatMessagesList(topicID string) ([]chat.Message, error) { return b.a.ChatMessagesList(topicID) }
+func (b *ChatB) ChatMessagesPage(topicID string, limit int, beforeSeq int64) (ChatMessagesPageResult, error) { return b.a.ChatMessagesPage(topicID, limit, beforeSeq) }
 func (b *ChatB) ChatOutline(userMsg string) (map[string]interface{}, error) { return b.a.ChatOutline(userMsg) }
 func (b *ChatB) ChatOutlineNode(nodeID string, userMsg string) (map[string]interface{}, error) { return b.a.ChatOutlineNode(nodeID, userMsg) }
 func (b *ChatB) ChatSend(topicID string, message string, mode string, searchEnabled bool, thinking bool, forceSearch bool) (map[string]interface{}, error) { return b.a.ChatSend(topicID, message, mode, searchEnabled, thinking, forceSearch) }

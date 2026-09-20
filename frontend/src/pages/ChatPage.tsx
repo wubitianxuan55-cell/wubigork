@@ -51,6 +51,7 @@ const ChatPage: React.FC = () => {
     emotion, setEmotion, aff, setAff, aro, setAro,
     initializing, resetPersonaMeta, selectTopic: selectTopicData,
     createTopic, deleteTopic, renameTopic, switchMode, finalizeTopicAfterSend, invalidateLoads,
+    hasOlder, loadingOlder, loadOlder, prepend,
   } = topicsApi
 
   const [input, setInput] = useState('')
@@ -427,6 +428,10 @@ const ChatPage: React.FC = () => {
             <GenuiScopeProvider scope={activeId ? { scope: 'chat', sessionKey: activeId } : null}>
               <GenuiActionProvider onAction={genuiChatAction}>
                 <MessageList
+                  hasOlder={hasOlder}
+                  loadingOlder={loadingOlder}
+                  onLoadOlder={loadOlder}
+                  prepend={prepend}
                   messages={messages}
                   streamKey={streamKey}
                   streamText={streamText}

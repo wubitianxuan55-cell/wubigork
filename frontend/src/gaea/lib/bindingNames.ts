@@ -41,6 +41,7 @@ export const bindingNames = [
   "ChatGeneral",
   "ChatImportTopic",
   "ChatMessagesList",
+  "ChatMessagesPage",
   "ChatOutline",
   "ChatOutlineNode",
   "ChatSend",

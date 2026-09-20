@@ -69,6 +69,8 @@ const bindingsBridge = vi.hoisted(() => ({
   VoiceStop: vi.fn(),
   ChatTopicsList: vi.fn(),
   ChatMessagesList: vi.fn(),
+  // v4.370 分页：默认把 renderChat 注入的初始消息整页返回（无更早历史）
+  ChatMessagesPage: vi.fn(),
   ChatStreamPlain: vi.fn(),
   ChatSend: vi.fn(),
   ChatImportTopic: vi.fn(),
@@ -88,6 +90,7 @@ const bindingsBridge = vi.hoisted(() => ({
 vi.mock('../../src/wailsjsCompat', () => ({
   ChatTopicsList: bindingsBridge.ChatTopicsList,
   ChatMessagesList: bindingsBridge.ChatMessagesList,
+  ChatMessagesPage: bindingsBridge.ChatMessagesPage,
   ChatAppendMessages: bindingsBridge.ChatAppendMessages,
   ChatStreamPlain: bindingsBridge.ChatStreamPlain,
   ChatSend: bindingsBridge.ChatSend,
@@ -117,6 +120,7 @@ vi.mock('../gaea/lib/bridge', async (importOriginal) => {
         if (prop === 'VoiceStop') return bindingsBridge.VoiceStop
         if (prop === 'ChatTopicsList') return bindingsBridge.ChatTopicsList
         if (prop === 'ChatMessagesList') return bindingsBridge.ChatMessagesList
+        if (prop === 'ChatMessagesPage') return bindingsBridge.ChatMessagesPage
         if (prop === 'ChatStreamPlain') return bindingsBridge.ChatStreamPlain
         if (prop === 'ChatSend') return bindingsBridge.ChatSend
         if (prop === 'ChatImportTopic') return bindingsBridge.ChatImportTopic
@@ -151,7 +155,7 @@ import ChatPage, { STREAM_SILENCE_TIMEOUT_MS } from './ChatPage'
 import { EventsOn } from '../../wailsjs/runtime/runtime'
 // P3 版3 终局：wailsjsCompat shim 已退役——测试经 bindingsBridge 共享 vi.fn 直取。
 const {
-  ChatTopicsList, ChatMessagesList, ChatStreamPlain,
+  ChatTopicsList, ChatMessagesList, ChatMessagesPage, ChatStreamPlain,
   ChatSend, ChatImportTopic, ChatTopicCreate, TTSSpeakBase64,
   TTSSpeakBase64WithParams,
 } = bindingsBridge
@@ -180,6 +184,11 @@ async function renderChat(opts: { topics?: ChatTopicLike[]; messages?: ChatMessa
     if (id === topics[0]?.id) return messages
     return []
   })
+  // v4.370 分页：ChatMessagesPage 返回同一份消息（page 形状，无更早历史）
+  vi.mocked(ChatMessagesPage).mockImplementation(async (id: string) => {
+    if (id === topics[0]?.id) return { messages, hasMore: false, oldestSeq: messages[0]?.seq ?? 0 }
+    return { messages: [], hasMore: false, oldestSeq: 0 }
+  })
   const view = render(<ChatPage />)
   await flushAsync()
   return view
@@ -194,6 +203,7 @@ beforeEach(() => {
   // 默认实现（clearAllMocks 只清调用记录，这里显式重设保证用例间隔离）
   vi.mocked(ChatTopicsList).mockResolvedValue([TOPIC_PLAIN])
   vi.mocked(ChatMessagesList).mockResolvedValue([])
+  vi.mocked(ChatMessagesPage).mockResolvedValue({ messages: [], hasMore: false, oldestSeq: 0 })
   vi.mocked(ChatAppendMessages).mockResolvedValue(undefined)
   vi.mocked(ChatStreamPlain).mockResolvedValue('run-1')
   vi.mocked(ChatSend).mockResolvedValue({ reply: LONG_REPLY, reasoning: '' })

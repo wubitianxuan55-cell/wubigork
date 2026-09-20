@@ -9,6 +9,9 @@ export interface ChatBindings {
   // 已修正为数组（调用点用 try/catch 防失败，不能 || [] 吞错）。
   ChatTopicsList(): Promise<chat.Topic[]>;
   ChatMessagesList(topicID: string): Promise<chat.Message[]>;
+  // ChatMessagesPage 游标分页（v4.370）：beforeSeq<=0 从最新向前取 limit 条；
+  // 返回升序消息+hasMore（是否还有更早历史）+本批最早 seq（下次游标）。
+  ChatMessagesPage(topicID: string, limit: number, beforeSeq: number): Promise<{ messages: chat.Message[]; hasMore: boolean; oldestSeq: number }>;
   // ChatAppendMessages 语音消息持久化（T6-3.3）：单事务批量追加，
   // role 仅接受 user/assistant（其余后端跳过）。
   ChatAppendMessages(topicID: string, messages: AppModels.ChatMessageInput[]): Promise<void>;

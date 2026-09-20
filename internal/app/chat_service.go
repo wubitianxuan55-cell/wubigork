@@ -309,6 +309,33 @@ func (a *App) ChatTopicDelete(id string) error {
 }
 
 // ChatMessagesList 列出话题全部消息（T6-3.2：读错返回 error，前端可见失败而非空列表）。
+// ChatMessagesPageResult 分页拉取结果：Messages 升序（旧→新），HasMore 表示
+// 是否还存在更早的历史（v4.370 聊天历史分页）。
+type ChatMessagesPageResult struct {
+	Messages []chat.Message `json:"messages"`
+	HasMore  bool           `json:"hasMore"`
+	OldestSeq int64         `json:"oldestSeq"`
+}
+
+// ChatMessagesPage 游标式分页拉取话题消息：beforeSeq<=0 从最新一条向前取
+// limit 条；否则取 seq<beforeSeq 的最新 limit 条。前端首屏取最新 200 条，
+// 向上翻页时以本批最早 seq 为游标继续拉。
+func (a *App) ChatMessagesPage(topicID string, limit int, beforeSeq int64) (ChatMessagesPageResult, error) {
+	if a.chatStore == nil {
+		return ChatMessagesPageResult{}, fmt.Errorf("chat store 未初始化")
+	}
+	msgs, hasMore, err := a.chatStore.ListMessagesPage(topicID, limit, beforeSeq)
+	if err != nil {
+		slog.Error("chat 消息分页读取失败", "topicID", topicID, "error", err)
+		return ChatMessagesPageResult{}, err
+	}
+	var oldest int64
+	if len(msgs) > 0 {
+		oldest = int64(msgs[0].Seq)
+	}
+	return ChatMessagesPageResult{Messages: msgs, HasMore: hasMore, OldestSeq: oldest}, nil
+}
+
 func (a *App) ChatMessagesList(topicID string) ([]chat.Message, error) {
 	if a.chatStore == nil {
 		return nil, fmt.Errorf("chat store 未初始化")

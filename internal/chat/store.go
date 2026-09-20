@@ -346,6 +346,46 @@ func (s *Store) ImportTopicTx(id, title, mode string, msgs []MessageInput) error
 }
 
 // ListMessages 列出话题全部消息（按 seq）。
+// ListMessagesPage 分页读取话题消息（v4.370：游标式，limit+beforeSeq）。
+// beforeSeq<=0 表示从最新一条向前取 limit 条；否则取 seq<beforeSeq 的最新
+// limit 条。返回升序消息（旧→新）与 hasMore（是否还存在更早的历史）。
+func (s *Store) ListMessagesPage(topicID string, limit int, beforeSeq int64) ([]Message, bool, error) {
+	if s == nil || s.db == nil {
+		return nil, false, fmt.Errorf("chat store 未初始化")
+	}
+	if limit <= 0 || limit > 1000 {
+		limit = 200
+	}
+	rows, err := s.db.Query(
+		"SELECT id, topic_id, role, content, extra, seq, created_at FROM chat_messages"+
+			" WHERE topic_id = ? AND (? <= 0 OR seq < ?) ORDER BY seq DESC LIMIT ?",
+		topicID, beforeSeq, beforeSeq, limit+1)
+	if err != nil {
+		return nil, false, err
+	}
+	defer rows.Close()
+	var out []Message
+	for rows.Next() {
+		var m Message
+		if err := rows.Scan(&m.ID, &m.TopicID, &m.Role, &m.Content, &m.Extra, &m.Seq, &m.CreatedAt); err != nil {
+			return nil, false, err
+		}
+		out = append(out, m)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, false, err
+	}
+	hasMore := len(out) > limit
+	if hasMore {
+		out = out[:limit]
+	}
+	// 反转为升序（旧→新），与 ListMessages 排序契约一致
+	for i, j := 0, len(out)-1; i < j; i, j = i+1, j-1 {
+		out[i], out[j] = out[j], out[i]
+	}
+	return out, hasMore, nil
+}
+
 func (s *Store) ListMessages(topicID string) ([]Message, error) {
 	if s == nil || s.db == nil {
 		return nil, fmt.Errorf("chat store 未初始化")

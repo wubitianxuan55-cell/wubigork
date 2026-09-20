@@ -1,3 +1,14 @@
+## 最新发布：v4.371.0（2026-09-21）「聊天历史分页绑定（游标式，绑定面 706→707）」
+
+- **动机**：用户口径「继续」——性能留池「聊天历史分页绑定」设计并落地：大话题切会话不再全量拉取，首屏最新 200 条+向上翻页游标续拉。Go 3 源文件+1 测试+前端 6 源文件。
+- **契约**：store 层 ListMessagesPage(topicID, limit, beforeSeq)——beforeSeq<=0 从最新一条向前取 limit 条，否则取 seq<beforeSeq 的最新 limit 条；返回升序消息+hasMore（取 limit+1 条探测后丢弃多余的）。App 层 ChatMessagesPage 绑定返回 {messages, hasMore, oldestSeq}（oldestSeq=本批最早 seq，前端下一次游标）；ChatB 门面+gen_bindings 再生（合计 707 方法→11 门面）+bindingNames/spaceBindings(shared) 手工同步+spaceBindings.test 数量 529→530。
+- **前端**：useChatTopics.loadTopic 首屏改拉 ChatMessagesPage(id, 200, 0)，记录 hasMore/oldestSeq；新增 loadOlder（每次 120 条 prepend 到消息头部）；MessageList 接 hasOlder/loadingOlder/onLoadOlder/prepend 四 props——滚动宿主接近顶部且窗口已覆盖全部已加载消息时触发 loadOlder。**关键交互**：头部追加会改变 messages[0].key，沿用既有 anchor 重置逻辑会把用户弹回尾部——新增 prepend 通知（{id 递增, count}）让 MessageList 区分「分页头部追加」（窗口随新增条数扩大）与「切话题整体替换」（重置窗口）。全量路径 ChatMessagesList 保留不动（导出 Markdown 等场景）。
+- **测试**：定向 +1（Go TestListMessagesPage——首屏截断/hasMore/游标续拉/拉到底四场景）+前端 ChatPage.test mock 接线（ChatMessagesPage 返回 page 形状镜像消息，15 例全绿）。
+- **门禁**：go build/vet 0+internal/chat 全量绿+tsc 0+eslint 0+全量 ci.ps1 绿 EXIT=0（vitest 387 文件 3315 例）+bindings drift OK@707+版本三处 4.371.0。
+- **坑**：①头部追加 vs 整体替换的窗口语义——MessageList 的 anchor 重置逻辑原本不区分「切话题」与「分页头部追加」，直接接分页会把用户弹回尾部；②mock 契约必须跟随签名演进——ChatMessagesList 返回数组而 ChatMessagesPage 返回 page 对象，测试 mock 若只镜像数组形态，loadTopic 的 page?.messages 提取会静默得到空。
+- **产物**：exe 50,987,520B SHA256=59cfc300918fd55521a58ad8619884ecf0441795cda15a81fd84b607da19a200（releases/gaea-v4.371.0.exe+SHA256SUMS-v4.371.0.txt 仅本地；桌面副本同哈希实测一致；冒烟 /api/health 200 过）；保留策略 5 版留 v4.367~v4.371 删 v4.366.0.exe（SUMS 身份档案全保留）。
+- **文档**：releases/v4.371.0.md+CHANGELOG/README+releases/README（计数 392→393+34 席插 v4.371 裁 v4.337）+AGENTS 迁 1 插 1（八十六迁：v4.368 入 archive）+progress/todos（性能八项消一项：分页绑定收官——余项均需更深的契约设计）。
+
 ## 最新发布：v4.370.0（2026-09-21）「工程健康轮：依赖漏洞清零 + Go 工具链升级 + 构建管线修正」
 
 - **动机**：用户口径「继续」——十轮快跑后工程健康整固：govulncheck+npm audit 双扫描按发现修复。Go 1 源文件+依赖升级+构建脚本修正，绑定面 706 不动。

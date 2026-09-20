@@ -57,7 +57,7 @@ func (a *App) GaeaConvertToPdf(rel string) (ConvertPdfResult, error) {
 	// ∪ 文件对话框登记（附件 chip 的工作区外素材正是经 GaeaPickFiles 进来、
 	// 登记时已入表），fail-closed 对齐 GaeaReadFileB64。写侧 exports 目录
 	// 与文件名全服务端拼装，无越界面。
-	if !withinReadRoots(path) && !isPickedFile(path) {
+	if !a.withinReadRoots(path) && !isPickedFile(path) {
 		return ConvertPdfResult{}, fmt.Errorf("文件不在可读范围（工作区/数据根），且未经文件对话框选取: %s", rel)
 	}
 	if _, err := os.Stat(path); err != nil {

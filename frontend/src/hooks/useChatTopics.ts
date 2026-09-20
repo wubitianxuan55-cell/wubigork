@@ -39,12 +39,24 @@ export function useChatTopics({ setMessages, setPersonalities }: UseChatTopicsOp
     setEmotion(''); setAff(0); setAro(0)
   }, [])
 
-  // 载入话题消息并恢复模式/情绪元数据（初始进入与切换话题共用）。
+  // v4.370：历史分页——首屏只拉最新 PAGE_FIRST_SIZE 条（游标 beforeSeq=0），
+  // 向上翻页经 loadOlder 以本批最早 seq 为游标续拉；全量加载路径保留
+  // ChatMessagesList（导出等场景）不变。
+  const [hasOlder, setHasOlder] = useState(false)
+  const [loadingOlder, setLoadingOlder] = useState(false)
+  const oldestSeqRef = useRef(0)
+  // 头部追加通知（MessageList 用它区分「分页追加」与「切话题整体替换」）
+  const [prepend, setPrepend] = useState<{ id: number; count: number } | null>(null)
+  const prependIdRef = useRef(0)
   const loadTopic = useCallback(async (id: string, list: chat.Topic[]) => {
     const seq = ++topicLoadSeqRef.current
     let ms: chat.Message[] = []
     try {
-      ms = (await app.ChatMessagesList(id)) || []
+      const page = await app.ChatMessagesPage(id, 200, 0)
+      ms = page?.messages || []
+      if (seq !== topicLoadSeqRef.current) return
+      setHasOlder(!!page?.hasMore)
+      oldestSeqRef.current = page?.messages?.length ? Number(page.messages[0].seq ?? 0) : 0
     } catch (err: unknown) {
       // T6-3.2：消息列表读取失败不再静默——记录后按空消息继续（不打断页面功能）
       logFrontendError('话题消息读取失败: ' + (err instanceof Error ? err.message : String(err)))
@@ -55,6 +67,7 @@ export function useChatTopics({ setMessages, setPersonalities }: UseChatTopicsOp
       content: m.content || '', createdAt: m.created_at || '', extra: parseExtra(m.extra),
     }))
     setMessages(loaded)
+    setPrepend(null)
     const topic = list.find(t => t.id === id)
     const topicMode = topic?.mode || 'plain'
     if (topicMode !== modeRef.current) setMode(topicMode)
@@ -213,11 +226,35 @@ export function useChatTopics({ setMessages, setPersonalities }: UseChatTopicsOp
     topicLoadSeqRef.current++
   }, [])
 
+  // v4.370：向上翻页拉取更早历史（MessageList 窗口到达数据头时回调）
+  const loadOlder = useCallback(async () => {
+    const id = activeIdRef.current
+    if (!id || loadingOlder || !hasOlder) return
+    setLoadingOlder(true)
+    try {
+      const page = await app.ChatMessagesPage(id, 120, oldestSeqRef.current)
+      const older: ChatMsg[] = (page?.messages || []).map((m: chat.Message) => ({
+        key: `db_${m.id}`, role: m.role === 'user' ? 'user' : 'assistant',
+        content: m.content || '', createdAt: m.created_at || '', extra: parseExtra(m.extra),
+      }))
+      if (older.length === 0) { setHasOlder(false); return }
+      setHasOlder(!!page?.hasMore)
+      if (page?.messages?.length) oldestSeqRef.current = Number(page.messages[0].seq ?? 0)
+      prependIdRef.current += 1
+      setPrepend({ id: prependIdRef.current, count: older.length })
+      setMessages(prev => [...older, ...prev])
+    } catch (err: unknown) {
+      logFrontendError('更早消息读取失败: ' + (err instanceof Error ? err.message : String(err)))
+    } finally {
+      setLoadingOlder(false)
+    }
+  }, [activeIdRef, loadingOlder, hasOlder, setMessages])
+
   return {
     topics, setTopics, activeId, activeIdRef, mode, modeRef, topicsRef,
     emotion, setEmotion, aff, setAff, aro, setAro,
     initializing, resetPersonaMeta, loadTopic, selectTopic,
     createTopic, deleteTopic, renameTopic, switchMode, finalizeTopicAfterSend,
-    invalidateLoads,
+    invalidateLoads, hasOlder, loadingOlder, loadOlder, prepend,
   }
 }
