@@ -1,3 +1,13 @@
+## 最新发布：v4.380.0（2026-09-22）「dsh 蒸馏第三弹·子代理编排：Fork 型子代理 + 结构化输出补完 + V10.36 对齐复活」
+
+- **动机**：用户口径「继续」——dsh 留池两把可安全落地的编排刀凑一组（委派上下文继承 + 结构化结果回收），留池余 5。全 Go，绑定面 711 零变更。
+- **落地**：①Fork 型子代理（task 新增 fork；TaskTool 实现 ContextualTool 取父历史做种子；种子自带父 system 字节同源、不注模板提示=子请求前缀与父逐字节一致→KV 缓存继承第一轮近乎免费；组合禁忌 background/continue_from/retry_until；runSubSession 会话持有上移）②结构化输出补完（schema 注入子代理 prompt+[OUTPUT FORMAT] 指令；terminal guard 非 JSON 同会话纠偏重入有界 2 次，热前缀缓存成本极低，耗尽诚实降级诊断前缀+原样；stripJSONFences 剥围栏）③根修 V10.36 对齐复活（P0-1 每轮重置 activeSchemas 无条件清 nil 把构造期父对齐 schema 第一轮抹掉=死代码；New 存 baseSchemas 基线、重置恢复基线，主代理基线 nil 行为不变；V6.0 两测试钉死形态改写为「请求目录父全量缓存对齐+执行面过滤 buildSubReg」双断言）。
+- **测试**：Go +6（fork 种子字节同源+缓存形状+模板提示不注入/组合禁忌四态+无父上下文/schema 注入可见/guard 同会话恢复含剥围栏/guard 耗尽诚实降级/stripJSONFences 三态）+改写 2（V6.0 双断言重构）。
+- **门禁**：go build/vet 0+gofmt（触碰文件）+全量 ci.ps1 绿 EXIT=0（E 系列守卫 OK+仓库卫生守卫 OK）+版本漂移闸 OK@4.380.0。
+- **坑**：①「每轮重置」类清理会把构造期注入的配置一起抹掉——重置要回基线不是零值，死代码靠端到端断言请求形状辨识（schema 数 1 vs 2 当场暴露）②V6.0/V10.36 两代测试钉矛盾行为各活各的（对齐是死的两边都绿）——修复一处另一处断言爆开，改断言不是改实现③RunSubAgent 把会话藏在内部——需同会话二次进入/会话预置的功能都要把会话持有上移调用方④executeOne 把工具结果包信封 JSON——测试透信封断言别假设裸文本。
+- **产物**：exe 51117568 B SHA256=1a3a237214d1805c337530bf53481f1d516003d6f2de8c2cb883e61b0b878b27（releases/gaea-v4.380.0.exe+SHA256SUMS-v4.380.0.txt，exe 仅本地不入库；桌面副本同哈希实测一致；冒烟 /api/health 200 过）；保留策略留 v4.376~v4.380 删 v4.375.0.exe（SUMS 身份档案全保留）。
+- **文档**：dsh 蒸馏文档 fork/结构化输出销号回填（余 5）+releases/v4.380.0.md（含升级说明）+CHANGELOG/README+releases/README（计数 401→402+34 席插 v4.380 裁 v4.346）+AGENTS 迁 1 插 1（九十五迁：v4.377 入 archive）+progress/todos。
+
 ## 最新发布：v4.379.0（2026-09-21）「dsh 蒸馏第二弹：spill 泄洪 + 中断流结构化块保全」
 
 - **动机**：用户口径「继续」——dsh 留池可安全落地的两把内核刀（spill 泄洪 + 中断流结构化块保全），留池余 7。全 Go，绑定面 711 零变更（read_spill 是 agent 工具目录新增非 App 绑定）。

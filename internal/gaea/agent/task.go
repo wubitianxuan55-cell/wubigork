@@ -52,6 +52,45 @@ func wrapTaskResult(text string) string {
 	return taskResultTagOpen + "\n" + strings.TrimSpace(text) + "\n" + taskResultTagClose
 }
 
+// ── 结构化输出（v4.380 刀2，dsh outputSchema/两阶段捕获/terminal guard 蒸馏）──
+
+// schemaGuardRetries 是 terminal guard 的纠偏重入上限：同会话热前缀缓存，
+// 每次成本极低；有界防死循环。仍不合法如实降级为诊断前缀。
+const schemaGuardRetries = 2
+
+// schemaRetryNudge 是 guard 纠偏重入的合成用户消息。
+const schemaRetryNudge = "[system] Your previous final answer was not valid JSON for the requested output_schema. Respond again with ONLY a single JSON object matching the schema — no markdown fences, no commentary before or after."
+
+// schemaFormatInstruction 是注入子代理 prompt 尾部的格式指令：schema 必须让
+// 子代理在运行时看见，否则它不知道要产 JSON（原实现只在父级事后验）。
+func schemaFormatInstruction(schema json.RawMessage) string {
+	return "\n\n[OUTPUT FORMAT] Your final answer must be a single valid JSON object (no markdown fences, no prose) matching this JSON Schema:\n" + string(schema)
+}
+
+// stripJSONFences 剥掉模型常见的 markdown 代码围栏（```json ... ```）后再验。
+func stripJSONFences(s string) string {
+	t := strings.TrimSpace(s)
+	if !strings.HasPrefix(t, "```") {
+		return s
+	}
+	t = strings.TrimPrefix(t, "```json")
+	t = strings.TrimPrefix(t, "```")
+	if i := strings.LastIndex(t, "```"); i >= 0 {
+		t = t[:i]
+	}
+	return strings.TrimSpace(t)
+}
+
+// isValidJSONValue 报告 s 是否整体为合法 JSON（与既有校验同口径的宽松形状
+// 检查——逐键 schema 校验需要库，明确不做）。
+func isValidJSONValue(s string) bool {
+	if !json.Valid([]byte(s)) {
+		return false
+	}
+	var v any
+	return json.Unmarshal([]byte(s), &v) == nil
+}
+
 // RetryUntilConfig enables automatic retry loop for a task sub-agent.
 // After the sub-agent returns, the check command is executed. If it fails
 // (non-zero exit), the failure output is injected as context and the sub-agent
@@ -188,9 +227,10 @@ func (t *TaskTool) Schema() json.RawMessage {
   "tools":{"type":"array","items":{"type":"string"},"description":"Optional tool whitelist. Subagent/skill meta-tools are still excluded so delegation stays one layer deep."},
   "max_steps":{"type":"integer","description":"Optional cap on tool-call rounds. Defaults to half the parent's cap (min 5).","minimum":1},
   "run_in_background":{"type":"boolean","description":"Run the sub-agent asynchronously: returns a job id immediately and keeps working across turns. Collect its final answer with wait, and you'll be notified when it finishes. Use for long, independent sub-tasks you don't need to block on right now."},
-  "output_schema":{"type":"object","description":"Optional JSON Schema the sub-agent MUST return its result in. If set, the parent will attempt to parse the final answer as JSON. If the result is valid JSON matching the expected shape, it is returned verbatim; otherwise a diagnostic note is prefixed. Use when the parent needs structured data from the sub-agent."},
+  "output_schema":{"type":"object","description":"Optional JSON Schema the sub-agent MUST return its result in. The schema is injected into the sub-agent's instructions, and if its final answer is not valid JSON the sub-agent is corrected in-session (bounded retries) before anything reaches you. Valid results are returned verbatim as JSON. Use when you need structured data from the sub-agent."},
   "retry_until":{"type":"object","properties":{"check":{"type":"string","description":"Shell command to verify success, e.g. 'go test ./...'. Non-zero exit = retry."},"max_retries":{"type":"integer","description":"Maximum retry attempts (default 3, max 10).","minimum":1,"maximum":10}},"required":["check"]},
-  "continue_from":{"type":"string","description":"Continue a prior compatible subagent transcript in the current conversation context. Pass only the 'sa_...' value from the prior result's 'Subagent reference: ...' line."}
+  "continue_from":{"type":"string","description":"Continue a prior compatible subagent transcript in the current conversation context. Pass only the 'sa_...' value from the prior result's 'Subagent reference: ...' line."},
+  "fork":{"type":"boolean","description":"Seed the sub-agent with this conversation's full history so it works with complete context instead of a pasted summary. The parent request prefix is byte-identical, so the provider KV cache carries over (cheap first turn). Incompatible with run_in_background, continue_from and retry_until. Use when the sub-task depends on what happened in this conversation."}
 },
 "required":["prompt"]
 }`)
@@ -206,10 +246,18 @@ func (t *TaskTool) CompactDescription() string {
 	return "派发隔离子代理执行子任务(可设置output_schema获取结构化JSON)"
 }
 func (t *TaskTool) CompactSchema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"prompt":{"type":"string"},"description":{"type":"string"},"tools":{"type":"array","items":{"type":"string"}},"max_steps":{"type":"integer"},"run_in_background":{"type":"boolean"},"output_schema":{"type":"object"},"retry_until":{"type":"object","properties":{"check":{"type":"string"},"max_retries":{"type":"integer"}},"required":["check"]},"continue_from":{"type":"string"}},"required":["prompt"]}`)
+	return json.RawMessage(`{"type":"object","properties":{"prompt":{"type":"string"},"description":{"type":"string"},"tools":{"type":"array","items":{"type":"string"}},"max_steps":{"type":"integer"},"run_in_background":{"type":"boolean"},"output_schema":{"type":"object"},"retry_until":{"type":"object","properties":{"check":{"type":"string"},"max_retries":{"type":"integer"}},"required":["check"]},"continue_from":{"type":"string"},"fork":{"type":"boolean"}},"required":["prompt"]}`)
 }
 
+// Execute 满足 tool.Tool 接口（无父上下文的直接调用方——技能/测试路径）。
+// fork 在此形态下不可用（无父会话可种子）。
 func (t *TaskTool) Execute(ctx context.Context, args json.RawMessage) (string, error) {
+	return t.ExecuteWithContext(ctx, tool.ToolContext{}, args)
+}
+
+// ExecuteWithContext 满足 tool.ContextualTool：fork 需要父会话完整历史做
+// 种子（tc.Messages 由 executeOne 盖章注入，字节即父会话真相）。
+func (t *TaskTool) ExecuteWithContext(ctx context.Context, tc tool.ToolContext, args json.RawMessage) (string, error) {
 	var p struct {
 		Prompt          string            `json:"prompt"`
 		Description     string            `json:"description"`
@@ -219,12 +267,33 @@ func (t *TaskTool) Execute(ctx context.Context, args json.RawMessage) (string, e
 		OutputSchema    json.RawMessage   `json:"output_schema,omitempty"`
 		RetryUntil      *RetryUntilConfig `json:"retry_until,omitempty"`
 		ContinueFrom    string            `json:"continue_from,omitempty"`
+		Fork            bool              `json:"fork,omitempty"`
 	}
 	if err := json.Unmarshal(args, &p); err != nil {
 		return "", fmt.Errorf("invalid args: %w", err)
 	}
 	if p.Prompt == "" {
 		return "", fmt.Errorf("prompt is required")
+	}
+	// v4.380 刀1（dsh subagent-fork-in-process 蒸馏）：fork=父会话平衡前缀做
+	// 种子，子代理带完整上下文开跑。组合禁忌：background（种子会话生命周期
+	// 与回合绑定）/continue_from（续跑自带历史，种子冲突）/retry_until
+	// （重试循环自管会话包装）。
+	var seed []provider.Message
+	if p.Fork {
+		if p.RunInBackground {
+			return "", fmt.Errorf("fork cannot be used with run_in_background")
+		}
+		if p.ContinueFrom != "" {
+			return "", fmt.Errorf("fork cannot be used with continue_from")
+		}
+		if p.RetryUntil != nil {
+			return "", fmt.Errorf("fork cannot be used with retry_until")
+		}
+		if len(tc.Messages) == 0 {
+			return "", fmt.Errorf("fork requires parent conversation context (unavailable in this call)")
+		}
+		seed = append(make([]provider.Message, 0, len(tc.Messages)), tc.Messages...)
 	}
 
 	maxSteps := p.MaxSteps
@@ -250,7 +319,7 @@ func (t *TaskTool) Execute(ctx context.Context, args json.RawMessage) (string, e
 
 	// retry_until: foreground only (background retry doesn't make sense across turns).
 	if p.RetryUntil != nil && !p.RunInBackground {
-		result, err := t.runSubWithRetrySession(ctx, p.Prompt, p.RetryUntil, subReg, run, maxSteps, p.OutputSchema)
+		result, err := t.runSubWithRetrySession(ctx, p.Prompt, p.RetryUntil, subReg, run, maxSteps, p.OutputSchema, seed)
 		return t.finalizeRun(result, err, run)
 	}
 
@@ -263,7 +332,7 @@ func (t *TaskTool) Execute(ctx context.Context, args json.RawMessage) (string, e
 			// No jobs manager in this context (e.g. headless sub-agent).
 			// Fall back to foreground execution — sub-agents are short-lived
 			// and don't persist across turns.
-			result, err := t.runSubSession(ctx, p.Prompt, subReg, subSink(ctx, run), run, maxSteps, p.OutputSchema)
+			result, err := t.runSubSession(ctx, p.Prompt, subReg, subSink(ctx, run), run, maxSteps, p.OutputSchema, nil)
 			return t.finalizeRun(result, err, run)
 		}
 		parentID, parent, _, _ := CallContext(ctx)
@@ -277,7 +346,7 @@ func (t *TaskTool) Execute(ctx context.Context, args json.RawMessage) (string, e
 			// S3 双空间：jobCtx 由 jobs.Manager 的 root（context.Background 派生）
 			// 新建，不继承父调用 ctx 的 value——空间会在此丢失。显式补注父空间，
 			// 后台子代理与前台一样继承（缺省 work）。
-			result, runErr := t.runSubSession(WithSpace(jobCtx, SpaceFromContext(ctx)), p.Prompt, subReg, nested, run, maxSteps, p.OutputSchema)
+			result, runErr := t.runSubSession(WithSpace(jobCtx, SpaceFromContext(ctx)), p.Prompt, subReg, nested, run, maxSteps, p.OutputSchema, nil)
 			// 后台任务必须在此收尾 transcript（父 Execute 已返回，等不到回合末
 			// finalizeRun 代跑；此前 store 模式下后台子代理从不落盘）。
 			return t.finalizeRun(result, runErr, run)
@@ -285,7 +354,7 @@ func (t *TaskTool) Execute(ctx context.Context, args json.RawMessage) (string, e
 		return fmt.Sprintf("Started background task %q (%s). It runs across turns; collect its final answer with wait (or wait will return it once done), and you'll be notified when it finishes.", job.ID, label), nil
 	}
 
-	result, err := t.runSubSession(ctx, p.Prompt, subReg, subSink(ctx, run), run, maxSteps, p.OutputSchema)
+	result, err := t.runSubSession(ctx, p.Prompt, subReg, subSink(ctx, run), run, maxSteps, p.OutputSchema, seed)
 	return t.finalizeRun(result, err, run)
 }
 
@@ -397,7 +466,7 @@ func (t *TaskTool) RunNew(ctx context.Context, prompt string, emit func(ref, tex
 		if maxSteps < 5 {
 			maxSteps = 5
 		}
-		result, err := t.runSubSession(ctx, prompt, t.buildSubReg(nil), sink, nil, maxSteps, nil)
+		result, err := t.runSubSession(ctx, prompt, t.buildSubReg(nil), sink, nil, maxSteps, nil, nil)
 		return result, "", err
 	}
 	defer run.Release()
@@ -413,7 +482,7 @@ func (t *TaskTool) RunNew(ctx context.Context, prompt string, emit func(ref, tex
 	if maxSteps < 5 {
 		maxSteps = 5
 	}
-	result, err := t.runSubSession(ctx, prompt, subReg, sink, run, maxSteps, nil)
+	result, err := t.runSubSession(ctx, prompt, subReg, sink, run, maxSteps, nil, nil)
 	final, ferr := t.finalizeRun(result, err, run)
 	return final, ref, ferr
 }
@@ -468,7 +537,7 @@ func (t *TaskTool) runFollowUp(ctx context.Context, ref, prompt string, sink eve
 	if maxSteps < 5 {
 		maxSteps = 5
 	}
-	_, err = t.runSubSession(ctx, prompt, subReg, sink, run, maxSteps, nil)
+	_, err = t.runSubSession(ctx, prompt, subReg, sink, run, maxSteps, nil, nil)
 	if err != nil {
 		_ = t.transcripts.SaveFailed(run)
 		return err
@@ -503,7 +572,7 @@ func (t *TaskTool) WithHooks(h ToolHooks) *TaskTool {
 // runSubSession executes the sub-agent with the given session (from a SubagentRun if
 // non-nil, otherwise creates an ephemeral session). When run is non-nil the session
 // from the store is used directly (supporting continue_from).
-func (t *TaskTool) runSubSession(ctx context.Context, prompt string, subReg *tool.Registry, sink event.Sink, run *SubagentRun, maxSteps int, outputSchema json.RawMessage) (string, error) {
+func (t *TaskTool) runSubSession(ctx context.Context, prompt string, subReg *tool.Registry, sink event.Sink, run *SubagentRun, maxSteps int, outputSchema json.RawMessage, seed []provider.Message) (string, error) {
 	// V6.0: sub-agent does NOT inherit parent L1+L2 — uses DefaultTaskSystemPrompt independently.
 	// This saves ~50K tokens per sub-agent call (97% reduction) and keeps cache stats separate.
 	sysPrompt := t.sysPrompt
@@ -545,34 +614,63 @@ func (t *TaskTool) runSubSession(ctx context.Context, prompt string, subReg *too
 	}
 
 	var subUsage provider.Usage
-	var result string
-	var err error
+	subOpts := Options{
+		MaxSteps:      maxSteps,
+		Temperature:   t.temperature,
+		Pricing:       subPrice,
+		Gate:          t.gate,
+		ContextWindow: subCtxWin,
+		Compaction:    CompactionConfig{ArchiveDir: t.archiveDir},
+		ActiveSchemas: t.parentReg.Schemas(), // V10.36: align tools JSON with parent for cache
+		JournalDir:    subJournal,
+		SessionID:     subagentRunRef(run),
+		Spill:         t.spill, // v4.379 泄洪随父配置：子代理大结果同样可取回
+	}
+	// v4.380：会话统一在本地持有——fork 种子（刀1）与 schema terminal guard
+	// 的同会话纠偏重入（刀2）都需要 sess 本体（RunSubAgent 把会话藏在内部，
+	// 拿不到）。行为与 RunSubAgent/RunSubAgentWithSession 逐字节一致。
+	var sess *Session
 	if run != nil && run.Session != nil {
-		result, err = RunSubAgentWithSession(ctx, subProv, subReg, run.Session, prompt, Options{
-			MaxSteps:      maxSteps,
-			Temperature:   t.temperature,
-			Pricing:       subPrice,
-			Gate:          t.gate,
-			ContextWindow: subCtxWin,
-			Compaction:    CompactionConfig{ArchiveDir: t.archiveDir},
-			ActiveSchemas: t.parentReg.Schemas(), // V10.36: align tools JSON with parent for cache
-			JournalDir:    subJournal,
-			SessionID:     subagentRunRef(run),
-			Spill:         t.spill, // v4.379 泄洪随父配置：子代理大结果同样可取回
-		}, sink, &subUsage)
+		sess = run.Session
 	} else {
-		result, err = RunSubAgent(ctx, subProv, subReg, sysPrompt, prompt, Options{
-			MaxSteps:      maxSteps,
-			Temperature:   t.temperature,
-			Pricing:       subPrice,
-			Gate:          t.gate,
-			ContextWindow: subCtxWin,
-			Compaction:    CompactionConfig{ArchiveDir: t.archiveDir},
-			ActiveSchemas: t.parentReg.Schemas(), // V10.36: align tools JSON with parent for cache
-			JournalDir:    subJournal,
-			SessionID:     subagentRunRef(run),
-			Spill:         t.spill, // v4.379 泄洪随父配置：子代理大结果同样可取回
-		}, sink, &subUsage)
+		sys := sysPrompt
+		if len(seed) > 0 {
+			// fork 种子自带父 system 首消息（字节同源），不再注模板系统提示
+			// ——前缀与父请求逐字节一致才有 KV 缓存继承（上游「平衡前缀做
+			// 种子」的本义）。
+			sys = ""
+		}
+		sess = NewSession(sys)
+	}
+	if !spaces.Valid(sess.Space()) {
+		sess.SetSpace(SpaceFromContext(ctx))
+	}
+	if len(seed) > 0 {
+		sess.Seed(seed)
+	}
+	if len(outputSchema) > 0 {
+		// 刀2：schema 必须让子代理看见——注入格式指令（原实现只在父级验，
+		// 子代理根本不知道要产 JSON）。
+		prompt += schemaFormatInstruction(outputSchema)
+	}
+	result, err := runSubAgentInternal(ctx, subProv, subReg, sess, prompt, subOpts, sink, &subUsage)
+	if err == nil && len(outputSchema) > 0 {
+		// 刀2 terminal guard：终答不是合法 JSON 时在同一会话纠偏重入（同会话
+		// 热前缀缓存，成本远低于丢回父级重派）。有界 schemaGuardRetries 次，
+		// 仍不合法如实降级为诊断前缀（宁带原样文本不造假）。
+		result = stripJSONFences(strings.TrimSpace(result))
+		for i := 0; i < schemaGuardRetries && !isValidJSONValue(result); i++ {
+			r2, e2 := runSubAgentInternal(ctx, subProv, subReg, sess, schemaRetryNudge, subOpts, sink, &subUsage)
+			if e2 != nil {
+				break
+			}
+			result = stripJSONFences(strings.TrimSpace(r2))
+		}
+		if !isValidJSONValue(result) {
+			result = "[output_schema: sub-agent returned non-JSON; parent should retry]" + "\n" + result
+		}
+		t.mergeSubUsage(&subUsage)
+		return result, nil
 	}
 	if err == nil && strings.TrimSpace(result) != "" {
 		// v4.26 对话流式重造（对标 Codex 2026-08 "Report completed sub-agent
@@ -611,7 +709,7 @@ func (t *TaskTool) runSubSession(ctx context.Context, prompt string, subReg *too
 // The run parameter provides the session for continue_from; if nil a fresh session
 // is created per RunSubAgent default. After each retry the same session accumulates
 // messages so the sub-agent sees the full failure history.
-func (t *TaskTool) runSubWithRetrySession(ctx context.Context, prompt string, cfg *RetryUntilConfig, subReg *tool.Registry, run *SubagentRun, maxSteps int, outputSchema json.RawMessage) (string, error) {
+func (t *TaskTool) runSubWithRetrySession(ctx context.Context, prompt string, cfg *RetryUntilConfig, subReg *tool.Registry, run *SubagentRun, maxSteps int, outputSchema json.RawMessage, seed []provider.Message) (string, error) {
 	maxRetries := cfg.MaxRetries
 	if maxRetries <= 0 {
 		maxRetries = 3
@@ -627,7 +725,7 @@ func (t *TaskTool) runSubWithRetrySession(ctx context.Context, prompt string, cf
 		subSession = run.Session
 	}
 	for attempt := 0; attempt <= maxRetries; attempt++ {
-		result, err := t.runSubSession(ctx, currentPrompt, subReg, subSink(ctx, run), run, maxSteps, outputSchema)
+		result, err := t.runSubSession(ctx, currentPrompt, subReg, subSink(ctx, run), run, maxSteps, outputSchema, seed)
 		if err != nil {
 			return result, err
 		}

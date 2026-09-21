@@ -409,7 +409,12 @@ type AgentRunner struct {
 
 	// activeSchemas, when non-nil, overrides the full tool registry for this
 	// session. Set by the controller after GoalRouter classifies the task.
-	activeSchemas   []provider.ToolSchema
+	activeSchemas []provider.ToolSchema
+	// baseSchemas 是 opts.ActiveSchemas 的构造期基线（v4.380 修复：runDirect
+	// 每轮重置 activeSchemas 时恢复基线——否则子代理的父对齐 schema（V10.36
+	// 缓存对齐）在第一轮就被抹成子注册表）。主代理无基线（nil）时重置语义
+	// 与历史一致（动态过滤 SetActiveSchemas 照旧回合间失效）。
+	baseSchemas     []provider.ToolSchema
 	activeSchemasMu sync.RWMutex
 
 	// storm tracks repeated failures to detect death spirals (V3.0).
@@ -756,6 +761,7 @@ func New(prov provider.LLMProvider, tools *tool.Registry, session *Session, opts
 	// V5.30: override tools JSON sent to API for cache alignment with parent.
 	if opts.ActiveSchemas != nil {
 		r.activeSchemas = opts.ActiveSchemas
+		r.baseSchemas = opts.ActiveSchemas
 	}
 	return r
 }

@@ -47,6 +47,14 @@ func (s *Session) Add(m provider.Message) {
 	s.Messages = append(s.Messages, m)
 }
 
+// Seed 用给定的消息历史初始化会话（Fork 型子代理，v4.380）：切片深拷贝，
+// 与父会话共享底层数组的写互不串扰。父历史自带 system 首消息时不再另注。
+func (s *Session) Seed(msgs []provider.Message) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.Messages = append(make([]provider.Message, 0, len(msgs)), msgs...)
+}
+
 // PrependSystem inserts a system message at the front of the message log,
 // before any existing messages. Used by sub-agents to inject a cache-stable
 // template prefix that same-kind sub-agents can share.

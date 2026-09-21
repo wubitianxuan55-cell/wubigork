@@ -59,7 +59,10 @@ func (a *AgentRunner) runDirect(ctx context.Context, input string) (*TurnResult,
 
 	// P0-1: reset tool filter from previous turn (prefix must be immutable).
 	a.activeSchemasMu.Lock()
-	a.activeSchemas = nil
+	// P0-1 reset（v4.380 修正）：恢复构造期基线而非一律 nil——子代理的
+	// 父对齐 schema（V10.36）此前在第一轮就被这里抹成子注册表，fork 测试
+	// 当场抓出；主代理无基线时恢复 nil，与历史行为逐字节一致。
+	a.activeSchemas = a.baseSchemas
 	a.activeSchemasMu.Unlock()
 
 	// reset pre-execution cache and tool result cache for new turn

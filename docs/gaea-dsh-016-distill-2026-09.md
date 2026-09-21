@@ -24,8 +24,8 @@
 2. **锚定式 token 计量**（`packages/llm/token-meter`）：压力=上次真实 usage 锚点+当前表面有符号差值，剪枝/压缩重写后估计不再漂移。gaea 现为裸字符估算，需 per-message 估价缓存。
 3. ~~**中断流结构化块保全**~~ → **已落地 v4.379.0（刀2）**：终态流错误/预算阻断路径 assistant（含 calls）+成对结果行落库（预执行只读用真实结果，其余合成「received but not executed」占位，信封 JSON 同约定）；恢复路径（重试采样）刻意不落 calls——落了就是悬空 assistant(tool_calls) 非法历史形态，两路径分流是关键辨析。
 4. **子代理控制面**（`tool-subagent-control`）：send_message/interrupt_agent/双向消息/cold-resume/委派深度记账——gaea 有 continue_from 底座，补控制面是「发射后只能等」→「可纠偏可叫停」的一步。上游 09-16/17 活跃大改，等其稳定。
-5. **Fork 型子代理**（`subagent-fork-in-process`）：父会话平衡前缀做种子，子代理带完整上下文开跑（~百行机制）。
-6. **子代理结构化输出**（outputSchema+两阶段捕获+terminal guard）：批量编排结果可靠性。
+5. ~~**Fork 型子代理**~~ → **已落地 v4.380.0（刀1）**：task 新增 `fork` 参数，TaskTool 实现 ContextualTool 取父历史做种子（字节同源含父 system，不注模板提示——子请求前缀与父请求逐字节一致=KV 缓存继承）；组合禁忌 background/continue_from/retry_until；runSubSession 会话持有上移。顺带根修：V10.36 父对齐 schema 此前被 P0-1 回合重置抹成死代码（New 存 baseSchemas、重置恢复基线修复）。
+6. ~~**子代理结构化输出**~~ → **已落地 v4.380.0（刀2 补完）**：原 output_schema 只在父级事后验（子代理不知道要产 JSON）——补 schema 注入子代理 prompt + terminal guard（非 JSON 同会话纠偏重入，热缓存成本极低，有界 2 次，耗尽诚实降级诊断前缀+原样）+ stripJSONFences 剥围栏。
 7. **Plan mode 审批门**（`plan-mode`）：log-only 模式+exit_plan_mode+审批流（非 GoalCard 卡片，不触红线）；需前端 intent 渲染配套。
 8. **session-query 检索**（FTS5+live-preferred corpus+谱系追踪）：模型可检索本机过往会话；与 memory space 互补。
 9. **session-projection-cache**：投影单元按 session 落盘冷启动加速（收益待评估）。

@@ -99,18 +99,26 @@ func TestTaskToolFiltersTools(t *testing.T) {
 	if _, err := task.Execute(context.Background(), args); err != nil {
 		t.Fatalf("Execute: %v", err)
 	}
-	// V6.0: 子代理 API 请求发送过滤后工具（排除 meta-tools），
-	// 参数白名单 [read_file, task, write_file, run_skill, research]
-	// 过滤 meta-tools（task/run_skill）后 → [read_file, write_file, research]
+	// v4.380 修正后（V10.36 对齐复活）：子代理 API 请求发送**父注册表全量
+	// schema**（与父请求逐一同形=KV 缓存对齐的前提）；执行面过滤（白名单+
+	// 排除 meta-tools）由 buildSubReg 的注册表承担——模型调到未授权工具会
+	// 得 unknown tool 错误，一层委派红线不破。
 	got := map[string]bool{}
 	for _, s := range sub.lastReq.Tools {
 		got[s.Name] = true
 	}
-	if !got["read_file"] || !got["write_file"] || !got["research"] {
-		t.Errorf("V6.0: API request tools = %v, want [read_file, write_file, research]", got)
+	if !got["read_file"] || !got["task"] || !got["write_file"] || !got["run_skill"] || !got["research"] {
+		t.Errorf("aligned request tools = %v, want the full parent registry", got)
 	}
-	if got["task"] || got["run_skill"] {
-		t.Errorf("V6.0: meta-tools should be excluded, got %v", got)
+	exec := map[string]bool{}
+	for _, tl := range task.buildSubReg([]string{"read_file", "task", "write_file", "run_skill", "research"}).Names() {
+		exec[tl] = true
+	}
+	if !exec["read_file"] || !exec["write_file"] || !exec["research"] {
+		t.Errorf("execution registry tools = %v, want [read_file, write_file, research]", exec)
+	}
+	if exec["task"] || exec["run_skill"] {
+		t.Errorf("V6.0: meta-tools should be excluded from the execution registry, got %v", exec)
 	}
 }
 
@@ -134,21 +142,28 @@ func TestTaskToolDefaultsToParentToolsWithoutMetaTools(t *testing.T) {
 	if _, err := task.Execute(context.Background(), []byte(`{"prompt":"x"}`)); err != nil {
 		t.Fatalf("Execute: %v", err)
 	}
-	// 子代理默认继承父工具但排除 meta-tools 与持久化写入工具。
+	// v4.380 修正后：请求目录=父注册表全量（缓存对齐）；执行面由 buildSubReg
+	// 过滤（meta-tools + 持久化写入工具不继承）。
 	// 父工具: [read_file, grep, task, run_skill, research, remember]
-	// 排除 meta-tools（task/run_skill）+ 持久化写入后 → [read_file, grep, research]
 	got := map[string]bool{}
 	for _, s := range sub.lastReq.Tools {
 		got[s.Name] = true
 	}
-	if !got["read_file"] || !got["grep"] || !got["research"] {
-		t.Errorf("default sub-agent API request tools = %v, want [read_file, grep, research]", got)
+	if !got["read_file"] || !got["grep"] || !got["remember"] || !got["research"] || !got["task"] {
+		t.Errorf("aligned request tools = %v, want the full parent registry", got)
 	}
-	if got["remember"] {
-		t.Errorf("persistent-write tool remember should be stripped from sub-agent, got %v", got)
+	exec := map[string]bool{}
+	for _, tl := range task.buildSubReg(nil).Names() {
+		exec[tl] = true
 	}
-	if got["task"] || got["run_skill"] {
-		t.Errorf("V6.0: meta-tools should be excluded, got %v", got)
+	if !exec["read_file"] || !exec["grep"] || !exec["research"] {
+		t.Errorf("execution registry tools = %v, want [read_file, grep, research]", exec)
+	}
+	if exec["remember"] {
+		t.Errorf("persistent-write tool remember should be stripped from sub-agent execution registry, got %v", exec)
+	}
+	if exec["task"] || exec["run_skill"] {
+		t.Errorf("V6.0: meta-tools should be excluded from the execution registry, got %v", exec)
 	}
 }
 
