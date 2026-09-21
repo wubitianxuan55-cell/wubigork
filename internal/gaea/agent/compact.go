@@ -103,6 +103,12 @@ func (a *AgentRunner) maybeCompact(ctx context.Context, u *provider.Usage) {
 	if prompt == 0 {
 		return
 	}
+	// v4.381 锚定式计量（dsh token-meter 蒸馏）：真实 usage 到手即落锚。
+	// 此刻会话表面恰为刚被 answered 的请求（新 assistant/tool 结果尚未入账），
+	// 锚点无系统偏差；此后的 mid-turn 压力=锚点+表面差值（见 tokenmeter.go）。
+	if u != nil && u.PromptTokens > 0 && a.meter != nil {
+		a.meter.anchor(a, u.PromptTokens, a.session.Messages)
+	}
 	a.compactIfOver(ctx, prompt, "auto")
 }
 

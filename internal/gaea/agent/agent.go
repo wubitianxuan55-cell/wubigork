@@ -316,6 +316,11 @@ type AgentRunner struct {
 	// [agent] tool_spill（默认开）装配。
 	spill *spill.Store
 
+	// meter 是锚定式 token 计量表（v4.381，dsh token-meter 蒸馏，见
+	// tokenmeter.go）：压力=上次真实 usage 锚点+表面差值，per-message memo
+	// 化保证剪枝/压缩重写后估计不漂移。无锚时回退裸字符估算（旧口径）。
+	meter *tokenMeter
+
 	// V6.0 P7: session goal (set via /goal), enforced by stop gate
 	goal string
 
@@ -635,9 +640,15 @@ func (a *AgentRunner) SeedUsage(u provider.Usage) { a.lastUsage.Store(&u) }
 // EstimateContextTokens 估算当前会话的提示词 token 数（字节数 × 当前
 // tokens/字节 比率，未校准前用 ~4 字节/token 兜底）。恢复会话后用于
 // 初始化上下文读数，真实用量会在下一轮由 provider 上报后覆盖。
+// EstimateContextTokens 返回当前上下文压力（tokens）。v4.381 锚定式计量：
+// 有真实 usage 锚点时=锚点+表面差值（per-message memo，剪枝/压缩重写后不
+// 漂移）；无锚（首轮前）=裸字符估算（旧口径）。见 tokenmeter.go。
 func (a *AgentRunner) EstimateContextTokens() int {
 	if a.session == nil {
 		return 0
+	}
+	if a.meter != nil {
+		return a.meter.estimate(a)
 	}
 	return int(float64(charsOfMessages(a.session.Messages)) * a.tokPerChar())
 }
@@ -736,6 +747,9 @@ func New(prov provider.LLMProvider, tools *tool.Registry, session *Session, opts
 	if opts.Spill {
 		r.spill = spill.NewStore()
 	}
+	// v4.381 锚定式 token 计量（dsh token-meter 蒸馏）：恒装配，无锚时行为
+	// 与旧口径一致（首个真实 usage 到手后开始锚定）。
+	r.meter = newTokenMeter()
 	// Audit P1: install the gate atomically (zero value = no gate).
 	if gate != nil {
 		r.gate.Store(&gateWrapper{g: gate})

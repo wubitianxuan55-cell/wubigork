@@ -21,7 +21,7 @@
 ## 留池（下轮候选，按价值排序）
 
 1. ~~**spill 主动泄洪**~~ → **已落地 v4.379.0（刀1）**：`internal/gaea/spill` 内存泄洪库+`executeOne` 压缩前捕获+`read_spill` 取回工具+`[agent] tool_spill` 配置门（子代理随父）。取道不取器：泄洪必须在按工具压缩/全局截断**之前**保原文（上游泄洪对象是最终文本，gaea 压缩管线更激进）；locator 前置是截断生存性结论（单行 JSON 信封头部裁切，尾缀必死）；存储取 runner 内存+64MB FIFO 驱逐（磁盘版唯一收益是重启幸存，不值无主痕迹文件卫生面）；豁免 read_file/read_spill/task；best-effort 纪律照单全收。
-2. **锚定式 token 计量**（`packages/llm/token-meter`）：压力=上次真实 usage 锚点+当前表面有符号差值，剪枝/压缩重写后估计不再漂移。gaea 现为裸字符估算，需 per-message 估价缓存。
+2. ~~**锚定式 token 计量**~~ → **已落地 v4.381.0**：`agent/tokenmeter.go`——压力=上次真实 usage 锚点+表面有符号差值；per-message 估价 memo（FNV-64，与 msgChars 同记账面）让差值只统计新增/删除/改写，未变消息锚点估价逐项相消（剪枝/压缩重写后不漂移）；落锚点=maybeCompact 收到真实 usage 时（表面恰=刚被 answered 的请求，无系统偏差）；负差值钳非负，无锚回退裸字符估算旧口径。EstimateContextTokens 委托计量表，mid-turn/compactIfOver/force 检查全过同一口径。
 3. ~~**中断流结构化块保全**~~ → **已落地 v4.379.0（刀2）**：终态流错误/预算阻断路径 assistant（含 calls）+成对结果行落库（预执行只读用真实结果，其余合成「received but not executed」占位，信封 JSON 同约定）；恢复路径（重试采样）刻意不落 calls——落了就是悬空 assistant(tool_calls) 非法历史形态，两路径分流是关键辨析。
 4. **子代理控制面**（`tool-subagent-control`）：send_message/interrupt_agent/双向消息/cold-resume/委派深度记账——gaea 有 continue_from 底座，补控制面是「发射后只能等」→「可纠偏可叫停」的一步。上游 09-16/17 活跃大改，等其稳定。
 5. ~~**Fork 型子代理**~~ → **已落地 v4.380.0（刀1）**：task 新增 `fork` 参数，TaskTool 实现 ContextualTool 取父历史做种子（字节同源含父 system，不注模板提示——子请求前缀与父请求逐字节一致=KV 缓存继承）；组合禁忌 background/continue_from/retry_until；runSubSession 会话持有上移。顺带根修：V10.36 父对齐 schema 此前被 P0-1 回合重置抹成死代码（New 存 baseSchemas、重置恢复基线修复）。

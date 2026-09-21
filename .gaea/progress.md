@@ -1,3 +1,13 @@
+## 最新发布：v4.381.0（2026-09-22）「dsh 蒸馏第四弹：锚定式 token 计量（压缩触发时机去漂移）」
+
+- **动机**：用户口径「继续」——按上轮承诺对 dsh ②锚定式 token 计量单独一版精修（compression 域最后一块精度拼图），留池余 4。全 Go，绑定面 711 零变更，单刀版。
+- **落地**：agent/tokenmeter.go 锚定压力表——压力=上次真实 usage 锚点+表面有符号差值；per-message 估价 memo（FNV-64 与 msgChars 同记账面，ReasoningContent 不入账）让差值只统计新增/删除/改写，未变消息锚点估价逐项相消（剪枝/压缩重写后不漂移）；落锚点=maybeCompact 收到真实 usage 时（表面恰=刚被 answered 的请求、assistant/tool 结果未入账，无系统偏差；LastPrompt 回退不落锚）；估压有锚=锚点+差值（负差值钳非负），无锚=裸字符估算旧口径不变；恒装配无配置面，EstimateContextTokens 委托计量表（midTurn/compactIfOver/force 检查同口径）。
+- **测试**：Go +5（比率源漂移下未变消息不重算+新增移除精确移动+重复读取零漂移/压缩重写精确移动/负差值钳/无锚回退/maybeCompact 落锚而回退不落）。
+- **门禁**：go build/vet 0+gofmt（触碰文件）+全量 ci.ps1 绿 EXIT=0（E 系列守卫 OK+仓库卫生守卫 OK）+版本漂移闸 OK@4.381.0。
+- **坑**：①锚点时点对齐「刚被 answered 的请求面」——maybeCompact 在 session.Add(assistant) 前调用才无系统偏差，挪后差一整轮②新消息按当前比率估、老消息按锚点时点比率消是刻意的（memo 键只含内容不含比率，比率演化不影响一致性）③sync.Mutex 不可重入——持锁调内部无锁变体，别再走公开方法。
+- **产物**：exe 51128320 B SHA256=42b574026869c84f0d9ae31203b3cdd6d7036fc4907d4c04a313e078dc316647（releases/gaea-v4.381.0.exe+SHA256SUMS-v4.381.0.txt，exe 仅本地不入库；桌面副本同哈希实测一致；冒烟 /api/health 200 过）；保留策略留 v4.377~v4.381 删 v4.376.0.exe（SUMS 身份档案全保留）。
+- **文档**：dsh 蒸馏文档②销号回填（余 4）+releases/v4.381.0.md（含升级说明）+CHANGELOG/README+releases/README（计数 402→403+34 席插 v4.381 裁 v4.347）+AGENTS 迁 1 插 1（九十六迁：v4.378 入 archive）+progress/todos。
+
 ## 最新发布：v4.380.0（2026-09-22）「dsh 蒸馏第三弹·子代理编排：Fork 型子代理 + 结构化输出补完 + V10.36 对齐复活」
 
 - **动机**：用户口径「继续」——dsh 留池两把可安全落地的编排刀凑一组（委派上下文继承 + 结构化结果回收），留池余 5。全 Go，绑定面 711 零变更。
