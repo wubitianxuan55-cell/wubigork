@@ -1,3 +1,10 @@
+## 非版本刀（2026-09-22）projection-cache 收益评估：辨伪销号（dsh ⑪）
+
+- **动机**：dsh 留池③「session-projection-cache 冷启动加速（收益待评估）」——评估债清偿，用基准实测代替拍脑袋。
+- **结论**：**辨伪销号，不立项**。gaea checkpoint 机制（每轮模型调用前 flush 消息投影+seq，fail-closed）已是投影缓存的等价物——Restore 只投影 checkpoint 之后的尾差；基准实测（合成日志 user/assistant 交替 ~1.5KB/条）：2MB≈20ms / 10MB≈64ms / 50MB≈267ms（有 checkpoint；无 checkpoint 也仅 +15~45%），真实会话多在 1-5MB=几十 ms。成本主导项是全文件 read+parse（不换文件格式无法省，而换格式牵动 append-only 不变量），投影缓存的增量收益不可感知。
+- **产物**：基准在案 internal/gaea/agent/session/restore_bench_test.go（go test -bench BenchmarkRestoreSynthetic，2/10/50MB × 有无 checkpoint 六组，可复跑）。
+- **文档**：dsh 蒸馏文档⑪辨伪销号回填（留池余 2=子代理控制面等上游稳定+Plan mode 需前端配套，全为等条件型）+todos 头部行更新。
+
 ## 最新发布：v4.385.0（2026-09-22）「工程健康轮 #2：excelize 防线扩面 + 死代码清欠 + 双扫描报告」
 
 - **动机**：用户口径「继续」——距 v4.370 工程健康轮 15 版，按惯例复扫三面。Go 2 文件+前端 4 文件，绑定面 711 零变更。

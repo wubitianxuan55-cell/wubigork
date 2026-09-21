@@ -28,7 +28,7 @@
 6. ~~**子代理结构化输出**~~ → **已落地 v4.380.0（刀2 补完）**：原 output_schema 只在父级事后验（子代理不知道要产 JSON）——补 schema 注入子代理 prompt + terminal guard（非 JSON 同会话纠偏重入，热缓存成本极低，有界 2 次，耗尽诚实降级诊断前缀+原样）+ stripJSONFences 剥围栏。
 7. **Plan mode 审批门**（`plan-mode`）：log-only 模式+exit_plan_mode+审批流（非 GoalCard 卡片，不触红线）；需前端 intent 渲染配套。
 8. ~~**session-query 检索**~~ → **首刀已落地 v4.384.0**：`internal/gaea/sessionquery`+SchemaV24 FTS5 虚表——过往会话 user/assistant 正文全文索引（装配空间会话目录，空间隔离由目录构造），`session_search` 只读工具 newest-first+snippet；增量按 (size,mtime) 新鲜度惰性刷新零 boot 成本；中文 MATCH 零命中回退 LIKE 子串扫描+手工裁窗（whisper 先例）。未取：live-preferred 排序与谱系追踪（gaea 无多消费者语义；跨会话语谱系场景待真实需求）。
-9. **session-projection-cache**：投影单元按 session 落盘冷启动加速（收益待评估）。
+9. ~~**session-projection-cache**~~ → **辨伪销号（v4.386 基准实测）**：gaea checkpoint 机制（每轮模型调用前 flush 消息投影+seq）已是投影缓存的等价物——Restore 只投影 checkpoint 之后的尾差；基准实测（agent/session/restore_bench_test.go，合成日志 user/assistant 交替 ~1.5KB/条）：2MB≈20ms / 10MB≈64ms / 50MB≈267ms（有 checkpoint，极端规模），真实会话多在 1-5MB=几十 ms——成本主导项是全文件 read+parse（不换文件格式无法省），投影缓存增量收益不可感知，不立项。
 
 已销号（2026-09-21，v4.378.0 同日对账）：
 
