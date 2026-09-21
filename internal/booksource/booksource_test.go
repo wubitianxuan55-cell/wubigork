@@ -823,13 +823,13 @@ func TestHTTPFetcherZeroValueLocalServer(t *testing.T) {
 		_, _ = w.Write([]byte(`<html><title>t</title><body><p>正文段落</p></body></html>`))
 	}))
 	defer srv.Close()
+	// v4.374（Reasonix SSRF parity 蒸馏）：零值 fetcher 的默认 client 换守卫版
+	// ——内网/loopback 目标拒绝（书源 URL 可被诱导注入，不得摸本机服务）；
+	// UA/Referer 行为由显式 client 路径覆盖（acceptance 测试）。
 	f := &HTTPFetcher{}
-	page, err := f.Fetch(context.Background(), Request{URL: srv.URL})
-	if err != nil {
-		t.Fatalf("零值 HTTPFetcher 本地取页失败: %v", err)
-	}
-	if page == nil || !strings.Contains(string(page.Body), "正文段落") {
-		t.Fatalf("取回内容不符: %+v", page)
+	_, err := f.Fetch(context.Background(), Request{URL: srv.URL})
+	if err == nil || !strings.Contains(err.Error(), "internal address") {
+		t.Fatalf("零值 fetcher 应被 SSRF 守卫拒绝本地目标，got %v", err)
 	}
 }
 
@@ -838,7 +838,10 @@ func TestHTTPFetcherZeroValueLocalServer(t *testing.T) {
 // 空清单拒绝。
 func TestDownloadChaptersExplicitList(t *testing.T) {
 	m := newMapServer(t)
-	e := New(baseRule(m), Options{Sleeper: func(context.Context, time.Duration) error { return nil }})
+	// v4.374：默认零值 fetcher 已被 SSRF 守卫拒绝 loopback——假站测试
+	// 统一走 testOptions 的显式 client（与其余用例一致）。
+	opt, _ := testOptions(m)
+	e := New(baseRule(m), Options{Fetcher: opt.Fetcher, Sleeper: func(context.Context, time.Duration) error { return nil }})
 
 	var prog []string
 	rep, err := e.DownloadChapters(context.Background(), []TocEntry{

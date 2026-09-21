@@ -43,7 +43,8 @@
 
 | 文档 | 状态 |
 |---|---|
-| gaea-reasonix-dsh016-kernel-distill-2026-09.md | 🔄 dsh 0.1.6-alpha.2 内核蒸馏：五刀已落地（v4.373.0：溢出自愈/缓存对齐摘要/shrink 校验/force 多轮/repeat 分级）；留池 12 项（spill 泄洪/锚定计量/子代理控制面/plan mode/session-query 等） |
+| gaea-reasonix-v138-distill-2026-09.md | 🔄 Reasonix 真身蒸馏（esengine/DeepSeek-Reasonix v1.15→v1.38）：七刀已落地（v4.374.0：Host 守卫/只读表修正/clean-filter 中和/SSRF 补洞/收尾判定/输出内存上限/stuck 解锁）；留池 9 项（执行序批次/live file observations/采样恢复状态机/压缩救援阶梯/PTY 等） |
+| gaea-dsh-016-distill-2026-09.md | 🔄 dsh（deepseek-harness TS monorepo）蒸馏（原误题 Reasonix，已勘误更名）：五刀已落地（v4.373.0：溢出自愈/缓存对齐摘要/shrink 校验/force 多轮/repeat 分级）；留池 12 项按 dsh 口径有效 |
 | gaea-dsh-univer-office-distill-plan-2026-09.md | ✅ 已蒸馏收官（U 系落地 v4.97~v4.109；Univer 零引入） |
 | gaea-dsh-genui-distill-plan-2026-09.md | ✅ 已收官（P0–P5 全部发布，止于 v4.97.0） |
 | gaea-dsh-better-sidebar-long-term-distill-plan-2026.md | 🔄 滚动权威：阶段一/二/二.5/三(3a/3b) 已全销账；3c 与阶段四/五维持「拍板后/若做」 |

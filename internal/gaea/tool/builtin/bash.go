@@ -154,7 +154,8 @@ func (b bash) Execute(ctx context.Context, args json.RawMessage) (string, error)
 	cmd.Dir = b.workDir // "" lets exec use the process working directory
 
 	// V10.5: json 模式下分离 stdout/stderr；plain 模式保持合并
-	var stdoutBuf, stderrBuf bytes.Buffer
+	// （v4.374 刀6：运行中即封顶的有界缓冲，防 `yes` 等失控命令打爆内存）
+	var stdoutBuf, stderrBuf boundedOutput
 	if p.OutputFormat == "json" {
 		cmd.Stdout = &stdoutBuf
 		cmd.Stderr = &stderrBuf
@@ -496,4 +497,76 @@ func truncateStream(s string, maxBytes int) (string, bool) {
 		return s, false
 	}
 	return result, true
+}
+
+// ── 刀6: 运行中即封顶的前台输出缓冲（v4.374，Reasonix shellrun/bounded.go
+// 蒸馏）──────────────────────────────────────────────────────────────────
+
+const (
+	// outputHeadKeep 是截断后保留的头部字节预算。
+	outputHeadKeep = 1 << 20 // 1 MiB
+	// outputTailKeep 是截断后滚动保留的尾部字节预算。
+	outputTailKeep = 64 << 10 // 64 KiB
+)
+
+// boundedOutput 是 Write 即封顶的输出缓冲：内存峰值恒有界（约 1.07 MiB/
+// 流），与「进程退出后再截断」有本质区别——`yes`、失控构建这类不退出的
+// 命令不再能把 app 内存吃穿。超预算后保留头部 + 滚动尾部，丢弃中段并
+// 记数；String() 输出「头 + 截断标记（含丢弃字节数）+ 尾」。
+type boundedOutput struct {
+	head      []byte
+	tail      []byte // outputTailKeep 固定环形
+	tailStart int
+	tailLen   int
+	total     int
+	doneHead  bool // head 写满后转尾环
+}
+
+func (b *boundedOutput) Write(p []byte) (int, error) {
+	n := len(p)
+	b.total += n
+	if !b.doneHead {
+		room := outputHeadKeep - len(b.head)
+		if n <= room {
+			b.head = append(b.head, p...)
+			return n, nil
+		}
+		b.head = append(b.head, p[:room]...)
+		p = p[room:]
+		b.doneHead = true
+	}
+	if b.tail == nil {
+		b.tail = make([]byte, outputTailKeep)
+	}
+	for len(p) > 0 {
+		c := copy(b.tail[b.tailStart:], p)
+		b.tailStart = (b.tailStart + c) % outputTailKeep
+		if b.tailLen < outputTailKeep {
+			b.tailLen += c
+			if b.tailLen > outputTailKeep {
+				b.tailLen = outputTailKeep
+			}
+		}
+		p = p[c:]
+	}
+	return n, nil
+}
+
+func (b *boundedOutput) String() string {
+	if !b.doneHead {
+		return string(b.head)
+	}
+	var out []byte
+	out = append(out, b.head...)
+	tail := make([]byte, 0, b.tailLen)
+	if b.tailLen == outputTailKeep {
+		tail = append(tail, b.tail[b.tailStart:]...)
+		tail = append(tail, b.tail[:b.tailStart]...)
+	} else {
+		tail = append(tail, b.tail[:b.tailLen]...)
+	}
+	dropped := b.total - len(b.head) - b.tailLen
+	out = append(out, fmt.Sprintf("\n[... output truncated while running — %d bytes dropped (head/tail kept) ...]\n", dropped)...)
+	out = append(out, tail...)
+	return string(out)
 }

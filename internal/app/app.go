@@ -576,7 +576,9 @@ func startDebugServer() {
 				slog.Error("debug server panic recovered", "panic", r)
 			}
 		}()
-		srv := &http.Server{Addr: debugServerPort, Handler: mux}
+		// v4.374（Reasonix hostguard 蒸馏）：/stack 会倾倒全部 goroutine 栈，
+		// Host 白名单挡 DNS-rebinding（恶意网页把域名解析到 127.0.0.1 变同源）。
+		srv := &http.Server{Addr: debugServerPort, Handler: httpbridge.HostGuard(debugServerPort, mux)}
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			slog.Warn("诊断端口启动失败（不影响主程序）", "error", err)
 		}

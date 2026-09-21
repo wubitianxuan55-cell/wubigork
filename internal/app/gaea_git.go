@@ -53,6 +53,12 @@ func gitRun(args ...string) (string, error) {
 			return "", err
 		}
 	}
+	// v4.374（Reasonix gitcmd 蒸馏）：中和仓库本地 .git/config 里的
+	// filter.<driver>——diff 是唯一会在工作树内容上跑 clean filter 的子命令，
+	// 而 .gitattributes 是不可信输入（克隆来的仓库可借查看 diff 执行任意
+	// clean 程序）。置空 clean/process 并关 required 后 filter 是恒等直通，
+	// diff 仍渲染真实变更。失败尽力而为（非 repo 等场景无 filter 可中和）。
+	args = append(cleanFilterOverrides(cwd), args...)
 	cmd := exec.Command("git", append([]string{"-C", cwd}, args...)...)
 	var stderr strings.Builder
 	cmd.Stderr = &stderr
@@ -65,6 +71,44 @@ func gitRun(args ...string) (string, error) {
 		return "", errGit(msg)
 	}
 	return string(out), nil
+}
+
+// cleanFilterOverrides enumerates the repo-local filter.<name> sections and
+// returns `-c` overrides that neutralize each one (clean/process emptied,
+// required off). Best-effort: any error (not a repo, git missing, no
+// filters) yields nil and the caller proceeds without overrides.
+func cleanFilterOverrides(cwd string) []string {
+	list, err := exec.Command("git", "-C", cwd, "config", "--local", "--name-only", "--get-regexp", `^filter\.`).Output()
+	if err != nil {
+		// git config 在无匹配时以 exit 1 退出——输出可能仍为空，二者都视为
+		// 「无 filter」。解析失败同样静默放弃（fail-open：不阻塞正常 git 面）。
+		return nil
+	}
+	seen := map[string]bool{}
+	var out []string
+	for _, line := range strings.Split(string(list), "\n") {
+		line = strings.TrimSpace(line)
+		// 形如 filter.<name>.<key>；name 可含点（section 子级），取首段后全段。
+		if !strings.HasPrefix(line, "filter.") {
+			continue
+		}
+		rest := strings.TrimPrefix(line, "filter.")
+		dot := strings.Index(rest, ".")
+		if dot <= 0 {
+			continue
+		}
+		name := rest[:dot]
+		if seen[name] {
+			continue
+		}
+		seen[name] = true
+		out = append(out,
+			"-c", "filter."+name+".clean=",
+			"-c", "filter."+name+".process=",
+			"-c", "filter."+name+".required=false",
+		)
+	}
+	return out
 }
 
 // errGit 把 git/环境错误包装为面板可读文案（git 未安装时 CombinedOutput

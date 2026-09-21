@@ -78,14 +78,6 @@ func streamRecoveryMessage(hasPartialText bool) string {
 	return "The previous assistant response was interrupted during streaming before visible answer text was completed. Continue the same task now and provide the next useful response."
 }
 
-// emptyFinalRetryMessage generates a retry prompt when the model returns
-// no tool calls and no visible text. It nudges the model to produce a
-// visible answer.
-// (Design adopted from DeepSeek-Reasonix-V1.12)
-func emptyFinalRetryMessage() string {
-	return "The previous assistant response finished without any visible answer text. Continue the same task now and provide a concise visible answer to the user. Do not send reasoning only."
-}
-
 func midTurnSteerMessage(text string) string {
 	return MidTurnSteerPrefix + "\n" + text
 }

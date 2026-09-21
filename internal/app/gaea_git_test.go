@@ -1,6 +1,7 @@
 package app
 
 import (
+	"reflect"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -174,5 +175,43 @@ func TestGaeaGitNotARepo(t *testing.T) {
 	}
 	if _, err := a.GaeaGitLog(5); err == nil {
 		t.Fatal("非仓库 log 应报错")
+	}
+}
+
+// v4.374（Reasonix gitcmd 蒸馏）：clean-filter 中和——仓库本地 .git/config
+// 里的 filter.<driver> 必须在 git 面调用前置空（.gitattributes 是不可信
+// 输入，查看 diff 不得执行攻击者配置的 clean 程序）。
+func TestCleanFilterOverrides(t *testing.T) {
+	dir := t.TempDir()
+	run := func(args ...string) (string, error) {
+		cmd := exec.Command("git", append([]string{"-C", dir}, args...)...)
+		out, err := cmd.CombinedOutput()
+		return string(out), err
+	}
+	if out, err := run("init", "-q"); err != nil {
+		t.Skipf("git init 不可用: %v (%s)", err, out)
+	}
+	if out, err := run("config", "--local", "filter.big.clean", "sed s/a/b/g"); err != nil {
+		t.Fatalf("配置 filter: %v (%s)", err, out)
+	}
+	if _, err := run("config", "--local", "filter.big.required", "true"); err != nil {
+		t.Fatalf("配置 required: %v", err)
+	}
+
+	got := cleanFilterOverrides(dir)
+	want := []string{
+		"-c", "filter.big.clean=",
+		"-c", "filter.big.process=",
+		"-c", "filter.big.required=false",
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("cleanFilterOverrides = %v, want %v", got, want)
+	}
+}
+
+// 非 git 仓库：尽力而为返回空（fail-open，不阻塞正常 git 面）。
+func TestCleanFilterOverridesNonRepo(t *testing.T) {
+	if got := cleanFilterOverrides(t.TempDir()); got != nil {
+		t.Fatalf("non-repo should yield nil, got %v", got)
 	}
 }

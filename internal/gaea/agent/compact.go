@@ -114,7 +114,9 @@ func (a *AgentRunner) maybeCompact(ctx context.Context, u *provider.Usage) {
 // and is superseded by the next sampling round's real usage; before the first
 // real usage there is nothing calibrated to compact against.
 func (a *AgentRunner) midTurnMaybeCompact(ctx context.Context) {
-	if a.compaction.Window <= 0 || a.compactStuck {
+	// compactStuck 不在此短路——compactIfOver 内的刀7解锁（新消息=新折叠
+	// 边界）需要走到才能生效。
+	if a.compaction.Window <= 0 {
 		return
 	}
 	if a.lastUsage.Load() == nil {
@@ -150,7 +152,15 @@ func (a *AgentRunner) compactIfOver(ctx context.Context, prompt int, trigger str
 		return
 	}
 	if a.compactStuck {
-		return
+		// 刀7（Reasonix context_manager stuckInputHash 蒸馏）：卡死绑定的是
+		// 当时的会话形状——之后新增的消息产生新折叠边界，压缩可能有救了，
+		// 自动解锁重试；会话未变才维持熔断。
+		if len(a.session.Messages) != a.stuckAtMessages {
+			a.compactStuck = false
+			a.consecutiveCompacts = 0
+		} else {
+			return
+		}
 	}
 
 	force := prompt >= int(float64(a.compaction.Window)*a.forceRatio())
@@ -192,6 +202,7 @@ func (a *AgentRunner) compactIfOver(ctx context.Context, prompt int, trigger str
 	}
 	if a.consecutiveCompacts >= 2 {
 		a.compactStuck = true
+		a.stuckAtMessages = len(a.session.Messages)
 		a.sink.Emit(event.Event{Kind: event.Notice, Level: event.LevelWarn,
 			Text: fmt.Sprintf("context_window=%d is too small for compaction to help; auto-compaction paused until prompt drops.",
 				a.compaction.Window)})

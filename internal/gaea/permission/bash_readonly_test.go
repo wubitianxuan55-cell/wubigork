@@ -123,3 +123,39 @@ func TestBashDangerWarning(t *testing.T) {
 		})
 	}
 }
+
+// v4.374（Reasonix shellsafe/bash_approval 蒸馏）：间接执行与只读表修正——
+// awk/sed/env 移出只读面；cargo check/doc 执行 build.rs 非只读；
+// git --ext-diff/--textconv/--filters/--open-files-in-pager 会执行外部程序。
+func TestIsReadOnlyBashSubjectIndirectExecution(t *testing.T) {
+	tests := []struct {
+		cmd  string
+		want bool
+	}{
+		{"awk '{print $1}' f.txt", false},
+		{"awk 'BEGIN{system(\"rm -rf /\")}' f", false},
+		{"gawk -f prog.awk", false},
+		{"sed -n '1p' f.txt", false},
+		{"sed 's/a/b/e' f.txt", false},
+		{"env ls", false},
+		{"env FOO=1 rm -rf /", false},
+		{"printenv HOME", true},
+		{"cargo check", false},
+		{"cargo doc --open", false},
+		{"cargo search serde", true},
+		{"git diff --ext-diff", false},
+		{"git log -p --textconv", false},
+		{"git cat-file --filters blob HEAD", false},
+		{"git grep --open-files-in-pager TODO", false},
+		{"git diff --no-ext-diff", true},
+		{"find . -ok", false},
+		{"find . -name x -okdir rm {}", false},
+		{"find . -name '*.go'", true},
+		{"git diff", true},
+	}
+	for _, tt := range tests {
+		if got := isReadOnlyBashSubject(tt.cmd); got != tt.want {
+			t.Errorf("isReadOnlyBashSubject(%q) = %v, want %v", tt.cmd, got, tt.want)
+		}
+	}
+}

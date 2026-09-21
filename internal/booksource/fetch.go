@@ -15,6 +15,7 @@ import (
 	"github.com/PuerkitoBio/goquery"
 
 	"github.com/gaea/gaea/internal/bookimport"
+	"github.com/gaea/gaea/internal/netclient"
 )
 
 // ── 抓取纪律（规格 §2.3：抖动 / 线性退避重试 / 并发钳制 / 每请求超时）───────
@@ -57,7 +58,7 @@ type Fetcher interface {
 
 // HTTPFetcher 生产实现：随机 UA + Referer=host + 每请求独立超时。
 type HTTPFetcher struct {
-	Client  *http.Client  // 缺省 http.DefaultClient 的浅改造（app 层会注入带代理的）
+	Client  *http.Client  // 缺省 netclient.GuardedClient（SSRF 守卫：内网/元数据 IP 拒绝）
 	Timeout time.Duration // 每请求；缺省 DefaultTimeout 秒
 }
 
@@ -73,7 +74,10 @@ var userAgents = []string{
 func (f *HTTPFetcher) Fetch(ctx context.Context, req Request) (*Page, error) {
 	client := f.Client
 	if client == nil {
-		client = http.DefaultClient
+		// v4.374（Reasonix installsource SSRF parity 蒸馏）：默认 client 换
+		// 守卫版——书源 URL 是用户配置但可被诱导注入规则的输入，原
+		// http.DefaultClient 零守卫可被引向内网/云元数据。
+		client = netclient.GuardedClient(DefaultTimeout * time.Second)
 	}
 	timeout := f.Timeout
 	if timeout <= 0 {

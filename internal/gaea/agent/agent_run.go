@@ -185,10 +185,6 @@ func (a *AgentRunner) runDirect(ctx context.Context, input string) (*TurnResult,
 		if a.maybeContinueOutputLength(usage, calls) {
 			continue
 		}
-		// invalid output — handle empty reasoning/text after retry
-		if a.maybeRetryInvalidOutput(text, reasoning, calls) {
-			continue
-		}
 
 		if usage != nil && usage.TotalTokens > 0 {
 			a.sink.Emit(event.Event{Kind: event.Usage, Usage: usage, Pricing: a.pricing,
@@ -265,16 +261,23 @@ func (a *AgentRunner) runDirect(ctx context.Context, input string) (*TurnResult,
 				return buildTurnResult(turnFilesCreated, turnFilesModified, turnToolErrors, turnLastSummary), nil
 			}
 
-			// empty final detection — model returned no tool calls
-			// and no visible text. Inject retry prompt; fail after 3 blocks.
+			// 刀5（Reasonix v1.37 蒸馏，Deterministic natural-turn
+			// completion）：reasoning-only 的干净 stop 即最终回答——思考完整
+			// 收束而正文为空时不再强制可见文本、不再注 nudge 重试（上游实测
+			// 重试无收益）。assistant 消息（含 reasoning）已持久化。
+			// 真零内容（无文本无思考无工具调用）= 冻结请求原样重放——不注
+			// 入合成 user 消息污染缓存前缀、不落库空历史；上限不变，超限
+			// 如实报错。
 			if strings.TrimSpace(text) == "" {
+				if strings.TrimSpace(reasoning) != "" {
+					return buildTurnResult(turnFilesCreated, turnFilesModified, turnToolErrors, turnLastSummary), nil
+				}
 				emptyFinalBlocks++
 				if emptyFinalBlocks >= maxEmptyFinalBlocks {
 					return buildTurnResult(turnFilesCreated, turnFilesModified, turnToolErrors, turnLastSummary), fmt.Errorf("model finished without a visible final answer %d times", emptyFinalBlocks)
 				}
 				a.sink.Emit(event.Event{Kind: event.Notice, Level: event.LevelWarn,
 					Text: fmt.Sprintf("empty final answer blocked: retrying (%d/%d)", emptyFinalBlocks, maxEmptyFinalBlocks)})
-				a.session.Add(provider.Message{Role: provider.RoleUser, Content: emptyFinalRetryMessage()})
 				a.maybeCompact(ctx, usage)
 				continue
 			}

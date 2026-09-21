@@ -80,8 +80,15 @@ var fallbackSeq uint64
 
 // Handler returns the HTTP routes with CORS enabled for browser clients.
 // /api/health 保持开放（存活探针，不含数据）；/api/rpc 与 /api/stream
-// 在配置了 token 时校验请求携带的 token（S2-2）。
+// 在配置了 token 时校验请求携带的 token（S2-2）。全桥挂 loopback Host
+// 白名单守卫（v4.374，Reasonix hostguard 蒸馏）；经 Serve/ServeWithToken
+// 启动时改按监听地址派生名单（通配绑定自动豁免）。
 func (b *Bridge) Handler() http.Handler {
+	return HostGuard("127.0.0.1", b.routes())
+}
+
+// routes 是未加守卫的裸路由（Host 守卫由外层按监听地址派生，避免嵌套）。
+func (b *Bridge) routes() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -130,8 +137,9 @@ func Serve(addr string, app any) error {
 
 // ServeWithToken starts the bridge on addr and requires token on data
 // endpoints. Call in a goroutine; it blocks until the server is closed.
+// Host 白名单按监听地址派生（通配绑定自动豁免校验）。
 func ServeWithToken(addr string, app any, token string) error {
-	return http.ListenAndServe(addr, NewWithToken(app, token).Handler())
+	return http.ListenAndServe(addr, HostGuard(addr, NewWithToken(app, token).routes()))
 }
 
 // Publish routes a runtime event to every SSE subscriber of that name. Safe to

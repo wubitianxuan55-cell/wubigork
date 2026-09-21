@@ -267,8 +267,7 @@ type AgentRunner struct {
 	digestCache DigestCache
 
 	// V5.31: ����������Ƚضϼ�����output_continue.go��
-	lenContCount    int
-	invalidOutCount int
+	lenContCount int
 
 	// V5.31: 重复检测（repeat_detect.go）
 	repeatSig   string
@@ -388,6 +387,7 @@ type AgentRunner struct {
 	consecutiveCompacts int
 	compactStuck        bool
 
+	stuckAtMessages int // 刀7：卡死时的会话长度——新消息=新折叠边界，自动解锁
 	// 刀1（Reasonix/dsh 蒸馏）：连续溢出自愈计数——采样成功即清零，
 	// 上限 maxOverflowRecoveries，防止对同一请求反复空转。
 	overflowRecoveries int

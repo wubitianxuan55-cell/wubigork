@@ -1,4 +1,6 @@
-# Reasonix (dsh) 0.1.6-alpha.2 内核蒸馏 —— 侦察与刀池（2026-09-21）
+# DSH (deepseek-harness) 0.1.6-alpha.2 蒸馏 —— 侦察与刀池（2026-09-21）
+
+> **勘误（v4.374 同日）**：本档原题「Reasonix (dsh) 0.1.6 内核蒸馏」——**对象认定有误**。gaea 注释里的 Reasonix 真身是 GitHub **esengine/DeepSeek-Reasonix**（Go 单二进制终端 agent，V1.12/V1.15 端口出处），并非本仓 dsh（TS monorepo）。本档更名并保留：dsh 与 Reasonix 同属 DeepSeek harness 血统、机制互相借鉴，当轮五刀本身有效（v4.373.0 已发布），留池项仍按 dsh 口径有效。真身 Reasonix v1.15→v1.38 的蒸馏见 `docs/gaea-reasonix-v138-distill-2026-09.md`。**教训=蒸馏对象先经 GitHub 搜索核实真身，勿凭代码注释里的版本号猜本地克隆。**
 
 - 源：`/c/AI/deepseek-harness`（dsh v0.1.6-alpha.2，上游同步 2026-09-19）
 - 背景：gaea agent 内核曾蒸馏过 Reasonix 旧版（V1.12/V1.15 时代）的多组机制（repeatedSuccessBlock、malformed-args 回显、PrefixShape、cold_resume_prune、canonical todo、reasoning_language 等，见各源文件注释）。本次对 dsh 0.1.6 的 TS monorepo 做全量三域侦察（压缩/上下文、循环控制/护栏、子代理/计划/技能/记忆），对出真增量。

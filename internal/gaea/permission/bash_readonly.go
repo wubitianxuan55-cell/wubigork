@@ -7,18 +7,25 @@ import "strings"
 // entry is the first word of a bash command (lowercased). Commands not in
 // this set that might also be read-only (e.g. "git log") are handled
 // separately by isReadOnlyBashSubject.
+//
+// v4.374（Reasonix v1.15→v1.38 蒸馏，对齐上游 shellsafe/effect.go 与
+// permission/bash_approval.go 的修正）：
+//   - 移除 "env"——env 可包装任意命令（`env VAR=x rm …`），属间接执行。
+//   - 移除 "awk"/"sed"——两者程序体是一门可执行 shell 的迷你语言（awk 的
+//     system()/`| getline`、GNU sed 的 `e` 命令；`-f` 脚本文件同样可以），
+//     字符串层无法安全分类，fail-closed 一律交回审批（上游同洞已修；
+//     上游保留 -f 例外依赖其「已记忆规则」模型，gaea 自动放行无此前提）。
 var readOnlyBashCommands = map[string]bool{
 	"cat": true, "head": true, "tail": true, "less": true, "more": true,
 	"ls": true, "find": true, "locate": true, "which": true, "whereis": true, "type": true,
 	"grep": true, "egrep": true, "fgrep": true, "rg": true,
 	"echo": true, "printf": true,
 	"pwd": true, "whoami": true, "id": true, "uname": true, "hostname": true,
-	"date": true, "env": true, "printenv": true,
+	"date": true, "printenv": true,
 	"wc": true, "sort": true, "uniq": true, "cut": true, "tr": true,
 	"stat": true, "file": true, "du": true, "df": true,
 	"ps": true, "top": true, "htop": true,
 	"diff": true, "cmp": true, "comm": true,
-	"awk": true, "sed": true,
 	"man": true, "info": true, "help": true,
 	"true": true, "false": true, "test": true, "[": true,
 	"basename": true, "dirname": true, "realpath": true, "readlink": true,
@@ -27,6 +34,9 @@ var readOnlyBashCommands = map[string]bool{
 // readOnlyBashPrefixes are command prefixes where the second word
 // determines read-only status. Each maps to the set of read-only
 // subcommands.
+//
+// v4.374（Reasonix 蒸馏）：cargo 移除 check/doc——两者会执行 crate 的
+// build.rs（任意代码），上游只保留 search（shellsafe effect.go 同口径）。
 var readOnlyBashPrefixes = map[string]map[string]bool{
 	"git": {
 		"log": true, "status": true, "diff": true, "show": true,
@@ -45,7 +55,7 @@ var readOnlyBashPrefixes = map[string]map[string]bool{
 		"outdated": true, "audit": true,
 	},
 	"cargo": {
-		"check": true, "doc": true, "search": true,
+		"search": true,
 	},
 	"docker": {
 		"ps": true, "images": true, "inspect": true, "logs": true,
@@ -99,13 +109,8 @@ func containsShellSyntax(cmd string) bool {
 func hasUnsafeReadOnlyArgs(base string, args []string) bool {
 	switch base {
 	case "find":
-		return hasAnyArg(args, "-exec", "-execdir", "-delete")
-	case "sed":
-		for _, arg := range args {
-			if strings.HasPrefix(arg, "-i") || strings.HasPrefix(arg, "--in-place") {
-				return true
-			}
-		}
+		// v4.374: 补 -ok/-okdir（交互式执行，同 -exec 危险；Reasonix 同口径）。
+		return hasAnyArg(args, "-exec", "-execdir", "-delete", "-ok", "-okdir")
 	case "sort":
 		return hasArgWithPrefix(args, "-o") || hasAnyArg(args, "--output") || hasArgWithPrefix(args, "--output=")
 	}
@@ -116,8 +121,19 @@ func hasUnsafePrefixArgs(base, subcmd string, args []string) bool {
 	switch base {
 	case "git":
 		switch subcmd {
-		case "diff", "show", "log":
-			return hasAnyArg(args, "--output") || hasArgWithPrefix(args, "--output=")
+		case "diff", "show", "log", "whatchanged":
+			// v4.374（Reasonix shellsafe 同口径）：--ext-diff/--textconv 会
+			// 执行仓库 .gitattributes 配置的外部程序；--output 已有守卫。
+			if hasAnyArg(args, "--output", "--ext-diff", "--textconv") ||
+				hasArgWithPrefix(args, "--output=") {
+				return true
+			}
+		case "cat-file":
+			// --filters 走 clean/smudge filter=可执行外部程序。
+			return hasAnyArg(args, "--filters")
+		case "grep":
+			// --open-files-in-pager 打开 pager=可执行外部程序。
+			return hasAnyArg(args, "--open-files-in-pager")
 		}
 	case "go":
 		if subcmd == "env" {

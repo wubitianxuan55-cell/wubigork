@@ -1,3 +1,13 @@
+## 最新发布：v4.374.0（2026-09-21）「Reasonix 真身蒸馏：安全四刀 + 内核三刀」
+
+- **动机**：用户纠偏 v4.373 对象认定（dsh 非 reasonix）并指路 GitHub 搜索——真身=esengine/DeepSeek-Reasonix（Go 单二进制终端 agent，V1.12/V1.15 端口出处），本版蒸馏 v1.15→v1.38.11 增量（5227 提交，源码入 clones/deepseek-reasonix）；v4.373 dsh 档勘误更名保留。
+- **落地**：安全四刀=①Host 白名单 421（httpbridge+诊断端口，挡 DNS-rebinding）②只读表修正（env/awk/sed 移出只读、cargo 仅留 search、find -ok 族、git 四类执行旗标）③git clean-filter 中和（repo 本地 filter.* 置空三件套）④SSRF 共享件（netclient 三导出）+booksource 默认 client 守卫化。内核三刀=⑤收尾判定（reasoning-only=final；零内容冻结重放不注合成消息）⑥bash 输出运行中封顶（head 1MiB+滚动尾 64KiB）⑦compactStuck 新消息解锁（stuckAtMessages）。
+- **测试**：Go +10（HostGuard 10 子例/BlockedInternalIP+GuardedClient/cleanFilterOverrides 真仓/间接执行 20 例/收尾两例/stuck 两态/bounded 三例）；行为变更适配 3 处。
+- **门禁**：go build/vet 0+全量 ci 绿 EXIT=0+版本三处 4.374.0。
+- **坑**：①蒸馏判据带上「上游机制的前提本地是否成立」（awk -f 例外依赖上游已记忆规则模型，gaea 自动放行无此前提）②安全刀落地先 grep 假站/httptest 用例 client 来源。
+- **产物**：exe 51004928 B SHA256=85149421d0098b19dc28fbf66e4a0c7a5e52281fdf86b1e97b8ef35d9aed0a90（releases+SUMS 仅本地；桌面副本同哈希；冒烟 200 过）；保留策略删 v4.369.exe。
+- **文档**：docs/gaea-reasonix-v138-distill-2026-09.md 新增+gaea-dsh-016 勘误更名+releases/v4.374.0.md+CHANGELOG/README+releases/README（计数 395→396+34 席插 v4.374 裁 v4.340）+AGENTS 迁 1 插 1（八十九迁：v4.371 入 archive）+progress/todos。
+
 ## 最新发布：v4.373.0（2026-09-21）「Reasonix (dsh) 0.1.6 内核蒸馏：溢出自愈 + 缓存对齐摘要等五刀」
 
 - **动机**：用户口径「继续优化迭代 gaea，本次优化进行蒸馏最新版的 reasonix」——对 /c/AI/deepseek-harness（dsh v0.1.6-alpha.2，上游同步 2026-09-19）三域全量侦察后落地五刀，全 Go 内核，绑定面 707 零变更。
@@ -6,7 +16,7 @@
 - **门禁**：go build/vet 0+agent/provider 全包绿+全量 ci.ps1 绿 EXIT=0+drift OK@707+版本三处 4.373.0。
 - **坑**：①折叠区含旧 digest（kept）时重放到第一个 kept 消息即与上一请求分歧——system+tools 最贵前缀仍全命中，部分对齐可接受②无进展判定必须看 session.RewriteVersion 而非 compact 返回值（compact 对无可折叠区返回 nil，按返回值判会把空转当成功）。
 - **产物**：exe 50995712 B SHA256=363b40e7450e95a6a9089bfe7d3900c9edbb791fb50a2fc163b0098c0f29ac30（releases+SUMS 仅本地；桌面副本同哈希；冒烟 200 过）；保留策略删 v4.368.exe。
-- **文档**：docs/gaea-reasonix-dsh016-kernel-distill-2026-09.md（侦察+五刀+留池 12 项）+releases/v4.373.0.md+CHANGELOG/README+releases/README（计数 394→395+34 席插 v4.373 裁 v4.339）+AGENTS 迁 1 插 1（八十八迁：v4.370 入 archive）+progress/todos。
+- **文档**：docs/gaea-dsh-016-distill-2026-09.md（侦察+五刀+留池 12 项）+releases/v4.373.0.md+CHANGELOG/README+releases/README（计数 394→395+34 席插 v4.373 裁 v4.339）+AGENTS 迁 1 插 1（八十八迁：v4.370 入 archive）+progress/todos。
 
 ## 最新发布：v4.372.0（2026-09-21）「Gantt 缩放性能：Ctrl+滚轮 rAF 合并」
 
