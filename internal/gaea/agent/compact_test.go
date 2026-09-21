@@ -250,15 +250,16 @@ func TestBuildCompactSummaryPendingNoFenceRegression(t *testing.T) {
 }
 
 // 审计 #4：summarizer 提示词快照——UI 围栏口径指引必须存在（保守口径：提示词
-// 增补而非 renderTranscript 剥离，正文保留供回看）。若调整措辞请同步本断言。
-func TestSummarySystemPromptUIFenceGuidance(t *testing.T) {
-	if !strings.Contains(summarySystemPrompt, "genui") || !strings.Contains(summarySystemPrompt, "dsh-ui") {
-		t.Fatal("summarySystemPrompt 应包含 UI 围栏语言指引（genui / dsh-ui）")
+// 增补而非剥离，正文保留供回看）。若调整措辞请同步本断言。
+// v4.373 缓存对齐改造：指令从 system 角色改为最后一条 user 消息（summaryInstruction）。
+func TestSummaryInstructionUIFenceGuidance(t *testing.T) {
+	if !strings.Contains(summaryInstruction, "genui") || !strings.Contains(summaryInstruction, "dsh-ui") {
+		t.Fatal("summaryInstruction 应包含 UI 围栏语言指引（genui / dsh-ui）")
 	}
-	if !strings.Contains(summarySystemPrompt, "never reproduce their JSON in the summary") {
-		t.Fatal("summarySystemPrompt 应明确禁止把围栏 JSON 原样收进摘要")
+	if !strings.Contains(summaryInstruction, "never reproduce their JSON in the summary") {
+		t.Fatal("summaryInstruction 应明确禁止把围栏 JSON 原样收进摘要")
 	}
-	if !strings.Contains(summarySystemPrompt, "interactive components were used") {
-		t.Fatal("summarySystemPrompt 应给出「使用了交互组件」的概括口径")
+	if !strings.Contains(summaryInstruction, "interactive components were used") {
+		t.Fatal("summaryInstruction 应给出「使用了交互组件」的概括口径")
 	}
 }

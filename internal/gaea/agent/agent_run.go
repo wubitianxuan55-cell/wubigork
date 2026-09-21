@@ -88,6 +88,7 @@ func (a *AgentRunner) runDirect(ctx context.Context, input string) (*TurnResult,
 	if a.paramStorm != nil {
 		a.paramStorm.Reset()
 	}
+	a.overflowRecoveries = 0 // 刀1: 每轮重置溢出自愈预算
 	// the clear() method resets mtime caches auto-expired entries
 
 	// recall-reminder lets the model know mid-turn context remains
@@ -107,6 +108,9 @@ func (a *AgentRunner) runDirect(ctx context.Context, input string) (*TurnResult,
 		if text, ok := a.consumeSteer(); ok {
 			a.session.Add(provider.Message{Role: provider.RoleUser, Content: midTurnSteerMessage(text)})
 			a.sink.Emit(event.Event{Kind: event.Steer, Text: text})
+			// 用户插话重置重复链（Distilled from Reasonix/dsh
+			// repeat-tool-reminder：新指引值得新绳子）。
+			a.repeatSig, a.repeatCount = "", 0
 		}
 		// mid-turn compaction — before the next sampling round, check whether
 		// the tool batch (or a mid-turn steer) pushed the estimated prompt past
@@ -124,6 +128,15 @@ func (a *AgentRunner) runDirect(ctx context.Context, input string) (*TurnResult,
 		a.sink.Emit(event.Event{Kind: event.Phase, Text: "思考中"})
 		text, reasoning, signature, calls, usage, interrupted, err := a.stream(ctx, step+1)
 		if err != nil {
+			// 刀1: provider 确认的上下文溢出——剪枝+强制压缩后重试同一轮
+			// （Distilled from Reasonix/dsh compaction-basic）。不恢复才走
+			// 既有的中断/终局路径。
+			if !interrupted && a.tryOverflowRecovery(ctx, err) {
+				if step > 0 {
+					step--
+				}
+				continue
+			}
 			// stream recovery — save partial output and inject recovery prompt
 			if interrupted && streamRecoveries < maxStreamRecoveries {
 				streamRecoveries++
@@ -166,6 +179,7 @@ func (a *AgentRunner) runDirect(ctx context.Context, input string) (*TurnResult,
 			return buildTurnResult(turnFilesCreated, turnFilesModified, turnToolErrors, turnLastSummary), err
 		}
 		streamRecoveries = 0
+		a.overflowRecoveries = 0 // 采样成功即清零溢出自愈预算（dsh 语义）
 
 		// length-truncation — inject nudge when finish_reason="length" and no tool calls
 		if a.maybeContinueOutputLength(usage, calls) {

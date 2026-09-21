@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
-	"strings"
 	"time"
 	"unicode/utf8"
 
@@ -64,45 +62,9 @@ func estimateMessagesTokens(msgs []provider.Message) int {
 }
 
 // ─── Transcript rendering ───
-
-func renderTranscript(msgs []provider.Message) string {
-	var b strings.Builder
-	for _, m := range msgs {
-		switch m.Role {
-		case provider.RoleUser:
-			fmt.Fprintf(&b, "[user]\n%s\n\n", m.Content)
-		case provider.RoleAssistant:
-			if m.Content != "" {
-				fmt.Fprintf(&b, "[assistant]\n%s\n", m.Content)
-			}
-			for _, tc := range m.ToolCalls {
-				fmt.Fprintf(&b, "[assistant calls %s] %s\n", tc.Name, summarizeToolArgs(tc.Arguments))
-			}
-			b.WriteString("\n")
-		case provider.RoleTool:
-			fmt.Fprintf(&b, "[tool %s result]\n%s\n\n", m.Name, m.Content)
-		case provider.RoleSystem:
-			fmt.Fprintf(&b, "[system]\n%s\n\n", m.Content)
-		}
-	}
-	return b.String()
-}
-
-func summarizeToolArgs(args string) string {
-	if args == "" {
-		return "(no arguments)"
-	}
-	var parsed map[string]any
-	if err := json.Unmarshal([]byte(args), &parsed); err != nil {
-		return fmt.Sprintf("(%d bytes)", len(args))
-	}
-	keys := make([]string, 0, len(parsed))
-	for k := range parsed {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	return fmt.Sprintf("{%s} (%d keys)", strings.Join(keys, ", "), len(parsed))
-}
+// （缓存对齐摘要改造后 transcript 平铺已弃用：摘要请求直接逐字重放被折叠
+// 区间的原消息，见 compact.go summarize——平铺文本既破坏 provider 缓存
+// 对齐，又丢掉对话内结构。archiveMessages 仍是剪枝/压缩的落盘底座。）
 
 func archiveMessages(dir string, msgs []provider.Message) (string, error) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {

@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"testing"
 	"time"
@@ -177,6 +178,34 @@ func TestIsTransientNetErr(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := IsTransientNetErr(tt.err); got != tt.want {
 				t.Errorf("IsTransientNetErr(%v) = %v, want %v", tt.err, got, tt.want)
+			}
+		})
+	}
+}
+
+// 刀1（Reasonix/dsh 蒸馏）：IsContextOverflow 分类器——各家 provider 的
+// 上下文超限措辞都要命中，输出预算（max_tokens）绝不能误判。
+func TestIsContextOverflow(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{"nil", nil, false},
+		{"openai code", errors.New("400 This model's maximum context length is 16385 tokens, context_length_exceeded"), true},
+		{"openai text", errors.New("This model's maximum context length is 8192 tokens"), true},
+		{"anthropic", errors.New("invalid_request_error: prompt is too long: 210000 tokens > 200000 maximum"), true},
+		{"gemini", errors.New("The input token count (1200000) exceeds the maximum number of tokens allowed (1000000)"), true},
+		{"generic window", errors.New("request exceeds the model context window"), true},
+		{"generic limit", errors.New("prompt exceeds context limit"), true},
+		{"output budget not overflow", errors.New("max_tokens must be at least 1"), false},
+		{"truncated output", errors.New("response truncated: hit max output tokens"), false},
+		{"rate limit", errors.New("429 too many requests"), false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := IsContextOverflow(tt.err); got != tt.want {
+				t.Errorf("IsContextOverflow(%v) = %v, want %v", tt.err, got, tt.want)
 			}
 		})
 	}

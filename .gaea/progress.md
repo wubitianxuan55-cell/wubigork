@@ -1,3 +1,13 @@
+## 最新发布：v4.373.0（2026-09-21）「Reasonix (dsh) 0.1.6 内核蒸馏：溢出自愈 + 缓存对齐摘要等五刀」
+
+- **动机**：用户口径「继续优化迭代 gaea，本次优化进行蒸馏最新版的 reasonix」——对 /c/AI/deepseek-harness（dsh v0.1.6-alpha.2，上游同步 2026-09-19）三域全量侦察后落地五刀，全 Go 内核，绑定面 707 零变更。
+- **落地**：①上下文溢出自愈（IsContextOverflow 七措辞分类器+剪枝+强制压缩+rewrite version 验持久进展+有界重试，连续上限 1）②缓存对齐摘要（摘要请求=会话 system+被折叠区间逐字重放+指令作末条 user 消息，命中热 KV 缓存；renderTranscript 退役）③shrink 硬校验（摘要必须小于被折叠区间否则退机械摘要）④force 多轮压缩（压缩后重测仍超再压一轮，空转不计入 compactStuck）⑤repeat 分级提醒（[3,5,8] 三档递进+deny 计数+插话重置）。
+- **测试**：Go +7（IsContextOverflow 9 子例/溢出自愈四路/摘要请求前缀逐字稳定/shrink 两路/force 有界/repeat 三档）；summaryInstruction 快照断言适配。
+- **门禁**：go build/vet 0+agent/provider 全包绿+全量 ci.ps1 绿 EXIT=0+drift OK@707+版本三处 4.373.0。
+- **坑**：①折叠区含旧 digest（kept）时重放到第一个 kept 消息即与上一请求分歧——system+tools 最贵前缀仍全命中，部分对齐可接受②无进展判定必须看 session.RewriteVersion 而非 compact 返回值（compact 对无可折叠区返回 nil，按返回值判会把空转当成功）。
+- **产物**：exe 50995712 B SHA256=363b40e7450e95a6a9089bfe7d3900c9edbb791fb50a2fc163b0098c0f29ac30（releases+SUMS 仅本地；桌面副本同哈希；冒烟 200 过）；保留策略删 v4.368.exe。
+- **文档**：docs/gaea-reasonix-dsh016-kernel-distill-2026-09.md（侦察+五刀+留池 12 项）+releases/v4.373.0.md+CHANGELOG/README+releases/README（计数 394→395+34 席插 v4.373 裁 v4.339）+AGENTS 迁 1 插 1（八十八迁：v4.370 入 archive）+progress/todos。
+
 ## 最新发布：v4.372.0（2026-09-21）「Gantt 缩放性能：Ctrl+滚轮 rAF 合并」
 
 - **动机**：用户口径「继续」——性能留池「Gantt 行组件化」的可安全子集落地：Ctrl+滚轮缩放的 wheel 事件 rAF 合并（一帧最多一次 setDayW，终态一致）。schedule 1 源文件+1 测试适配，绑定面 707 不动。

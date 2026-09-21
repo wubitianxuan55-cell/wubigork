@@ -10,17 +10,28 @@ import (
 	"github.com/gaea/gaea/internal/gaea/provider"
 )
 
-func (a *AgentRunner) stream(ctx context.Context, turn int) (string, string, string, []provider.ToolCall, *provider.Usage, bool, error) {
-	// Build tools and messages. L4 conversation messages always come from
-	// Session �� NOT from ctxMgr.AssemblePrompt() which reads FlowLayer.
-	// FlowLayer is only updated during compact, so reading it on every turn
-	// would send stale/empty messages to the model (information pollution).
+// currentSchemas resolves the tool schemas exactly as stream() sends them —
+// the summarizer request must mirror the real request's tools block for the
+// provider prefix cache to hit.
+func (a *AgentRunner) currentSchemas() []provider.ToolSchema {
+	if a.tools == nil {
+		return nil
+	}
 	tools := a.tools.Schemas()
 	a.activeSchemasMu.RLock()
 	if a.activeSchemas != nil {
 		tools = a.activeSchemas
 	}
 	a.activeSchemasMu.RUnlock()
+	return tools
+}
+
+func (a *AgentRunner) stream(ctx context.Context, turn int) (string, string, string, []provider.ToolCall, *provider.Usage, bool, error) {
+	// Build tools and messages. L4 conversation messages always come from
+	// Session �� NOT from ctxMgr.AssemblePrompt() which reads FlowLayer.
+	// FlowLayer is only updated during compact, so reading it on every turn
+	// would send stale/empty messages to the model (information pollution).
+	tools := a.currentSchemas()
 	msgs := a.session.Messages
 
 	// V3.4: request header 事件——把本次请求实际发给模型的 system prompt 与

@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/gaea/gaea/internal/gaea/nilutil"
 )
@@ -386,4 +387,32 @@ func (e *StreamInterruptedError) Unwrap() error {
 func IsStreamInterrupted(err error) bool {
 	var interrupted *StreamInterruptedError
 	return errors.As(err, &interrupted)
+}
+
+// contextOverflowMarkers 列出各家 provider 报「上下文超限」的常见措辞。
+// 只匹配输入侧超限，绝不匹配 "max_tokens"（那是输出预算，重试无益）。
+var contextOverflowMarkers = []string{
+	"context_length_exceeded", // OpenAI/DeepSeek 错误码
+	"maximum context length",  // OpenAI/DeepSeek 消息正文
+	"context window",          // 泛用（context window exceeded）
+	"prompt is too long",      // Anthropic
+	"input token count",       // Gemini（input token count exceeds the maximum）
+	"input length exceeds",    // 泛用
+	"context limit",           // 泛用
+}
+
+// IsContextOverflow 检查 error 是否为 provider 确认的上下文超限。
+// 蒸馏自 Reasonix/dsh compaction-basic 的 CONTEXT_WINDOW_EXCEEDED 自愈：
+// agent 层识别到这类错误后可以剪枝+压缩+重试，把致命错误变成可恢复路径。
+func IsContextOverflow(err error) bool {
+	if err == nil {
+		return false
+	}
+	s := strings.ToLower(err.Error())
+	for _, marker := range contextOverflowMarkers {
+		if strings.Contains(s, marker) {
+			return true
+		}
+	}
+	return false
 }

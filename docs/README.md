@@ -43,6 +43,7 @@
 
 | 文档 | 状态 |
 |---|---|
+| gaea-reasonix-dsh016-kernel-distill-2026-09.md | 🔄 dsh 0.1.6-alpha.2 内核蒸馏：五刀已落地（v4.373.0：溢出自愈/缓存对齐摘要/shrink 校验/force 多轮/repeat 分级）；留池 12 项（spill 泄洪/锚定计量/子代理控制面/plan mode/session-query 等） |
 | gaea-dsh-univer-office-distill-plan-2026-09.md | ✅ 已蒸馏收官（U 系落地 v4.97~v4.109；Univer 零引入） |
 | gaea-dsh-genui-distill-plan-2026-09.md | ✅ 已收官（P0–P5 全部发布，止于 v4.97.0） |
 | gaea-dsh-better-sidebar-long-term-distill-plan-2026.md | 🔄 滚动权威：阶段一/二/二.5/三(3a/3b) 已全销账；3c 与阶段四/五维持「拍板后/若做」 |

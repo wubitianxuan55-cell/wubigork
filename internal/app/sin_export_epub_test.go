@@ -24,7 +24,11 @@ var sinTestPNG = []byte{
 // 未生成标记；第二回合带 webp 附件路径（go-epub 不支持，应保留占位）。
 func seedSinEpubStory(t *testing.T) (*App, string) {
 	t.Helper()
-	t.Setenv("USERPROFILE", t.TempDir())
+	// APPDATA 才是 os.UserConfigDir 在 Windows 的读取源——只改 USERPROFILE
+	// 会把 sin 导出写进用户真实 exports 目录（v4.373 修：残留 99 件顶爆 -99 上限）。
+	home := t.TempDir()
+	t.Setenv("USERPROFILE", home)
+	t.Setenv("APPDATA", home)
 	a := newSinTestApp(t)
 	topic, err := a.SinTopicCreate("雨夜站台")
 	if err != nil {
@@ -154,7 +158,11 @@ func TestSinExportEpubFullChain(t *testing.T) {
 
 // TestSinExportEpubGuards 空故事拒绝导出；非 sin 话题拒绝（守卫复用）。
 func TestSinExportEpubGuards(t *testing.T) {
-	t.Setenv("USERPROFILE", t.TempDir())
+	// APPDATA 才是 os.UserConfigDir 在 Windows 的读取源——只改 USERPROFILE
+	// 会把 sin 导出写进用户真实 exports 目录（v4.373 修：残留 99 件顶爆 -99 上限）。
+	home := t.TempDir()
+	t.Setenv("USERPROFILE", home)
+	t.Setenv("APPDATA", home)
 	a := newSinTestApp(t)
 	topic, err := a.SinTopicCreate("")
 	if err != nil {

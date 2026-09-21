@@ -388,6 +388,10 @@ type AgentRunner struct {
 	consecutiveCompacts int
 	compactStuck        bool
 
+	// 刀1（Reasonix/dsh 蒸馏）：连续溢出自愈计数——采样成功即清零，
+	// 上限 maxOverflowRecoveries，防止对同一请求反复空转。
+	overflowRecoveries int
+
 	// activeSchemas, when non-nil, overrides the full tool registry for this
 	// session. Set by the controller after GoalRouter classifies the task.
 	activeSchemas   []provider.ToolSchema

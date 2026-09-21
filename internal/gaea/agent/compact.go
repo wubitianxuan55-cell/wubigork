@@ -52,10 +52,13 @@ const (
 // summaryTimeout bounds one summarizer call.
 const summaryTimeout = 90 * time.Second
 
-// summarySystemPrompt steers the summarizer to produce a structured briefing.
-const summarySystemPrompt = `You are compacting the earlier part of an engineering office assistant's conversation to save context.
+// summaryInstruction steers the summarizer to produce a structured briefing.
+// It rides as the LAST user message of a cache-aligned request (see
+// summarize) — dynamic content is safe here because the replayed prefix
+// above it stays byte-stable.
+const summaryInstruction = `You are compacting the earlier part of an engineering office assistant's conversation to save context.
 The agent keeps your summary alongside the user's own turns (kept verbatim) and the recent tail; your job is to fold the assistant/tool work into a briefing it can resume from.
-Write under these exact headings, omitting a heading only if it has no content:
+The messages above are the conversation itself, replayed verbatim. Write the briefing under these exact headings, omitting a heading only if it has no content:
 
 ## Standing facts & constraints
 Everything the user stated that still governs the work — names, paths, IDs, versions, tokens, preferences, and hard "never do X" rules — in their own words. Be exhaustive; this is the durable contract, so prefer over- to under-including.
@@ -176,12 +179,64 @@ func (a *AgentRunner) compactIfOver(ctx context.Context, prompt int, trigger str
 	}
 
 	a.consecutiveCompacts++
+	// 刀4: force 路径压缩后重测，仍高于强制水位就立刻再来一轮（Distilled
+	// from Reasonix/dsh compaction-basic compactionRetries）——单轮压缩常被
+	// 尾预算和保护消息顶住，第二轮才真正落到水位下。consecutiveCompacts
+	// 达 2 触发既有的 compactStuck 熔断，封顶失控。
+	if force && a.consecutiveCompacts < 2 &&
+		a.EstimateContextTokens() >= int(float64(a.compaction.Window)*a.forceRatio()) {
+		v2 := a.session.RewriteVersion()
+		if err := a.compact(ctx, trigger, instructions, true); err == nil && a.session.RewriteVersion() != v2 {
+			a.consecutiveCompacts++ // 只计真实落地的压缩，空转不计入熔断
+		}
+	}
 	if a.consecutiveCompacts >= 2 {
 		a.compactStuck = true
 		a.sink.Emit(event.Event{Kind: event.Notice, Level: event.LevelWarn,
 			Text: fmt.Sprintf("context_window=%d is too small for compaction to help; auto-compaction paused until prompt drops.",
 				a.compaction.Window)})
 	}
+}
+
+// ─── 刀1: provider 确认的上下文溢出自愈（Distilled from Reasonix/dsh
+// compaction-basic agent/request-error CONTEXT_WINDOW_EXCEEDED）──────────────
+
+// maxOverflowRecoveries bounds the consecutive overflow self-heals: a
+// successful sampling round resets the counter, so a long turn may heal
+// repeatedly over its lifetime but never loops on the same request.
+const maxOverflowRecoveries = 1
+
+// tryOverflowRecovery answers a context-overflow provider error with the
+// cheapest durable shrink: prune stale tool results first (free), then a
+// forced compaction. Progress is verified by the session rewrite version
+// advancing (dsh: surface replaceGeneration) — when nothing changed the
+// turn ends with the real error instead of looping on a futile retry.
+func (a *AgentRunner) tryOverflowRecovery(ctx context.Context, err error) bool {
+	if a.compaction.Window <= 0 || a.overflowRecoveries >= maxOverflowRecoveries {
+		return false
+	}
+	if !provider.IsContextOverflow(err) {
+		return false
+	}
+	a.overflowRecoveries++
+	version := a.session.RewriteVersion()
+	if st, perr := a.PruneStaleToolResults(); perr == nil && st.Results > 0 {
+		a.sink.Emit(event.Event{Kind: event.Notice, Level: event.LevelInfo,
+			Text: fmt.Sprintf("context overflow: pruned %d stale tool results (~%d tokens est.)",
+				st.Results, int(float64(st.SavedChars)*a.tokPerChar()))})
+	}
+	if cerr := a.compact(ctx, "overflow", "", true); cerr != nil {
+		a.sink.Emit(event.Event{Kind: event.Notice, Level: event.LevelWarn,
+			Text: "overflow compaction skipped: " + cerr.Error()})
+	}
+	if a.session.RewriteVersion() == version {
+		a.sink.Emit(event.Event{Kind: event.Notice, Level: event.LevelWarn,
+			Text: "context overflow recovery made no progress; ending the turn"})
+		return false
+	}
+	a.sink.Emit(event.Event{Kind: event.Notice, Level: event.LevelWarn,
+		Text: "context overflow recovered: history shrunk, retrying the request"})
+	return true
 }
 
 // compact summarizes the older middle of the session and replaces it in place.
@@ -228,15 +283,28 @@ func (a *AgentRunner) compact(ctx context.Context, trigger, instructions string,
 		summary = mechanicalFoldDigest(len(fold), archived)
 	}
 
+	content := summaryTagOpen + "\n" +
+		"Summary of earlier conversation (older messages were compacted to save context):\n" +
+		summary + "\n" +
+		summaryTagClose
+	// 刀3: shrink 硬校验（Distilled from Reasonix/dsh region.ts）——摘要消息的
+	// 估算体积必须小于被折叠区间的估算体积，否则这次「压缩」反而让上下文
+	// 更贵。不达标时退回机械摘要（确定性、必然更短），保证压缩永不膨胀。
+	if msgChars(provider.Message{Content: content}) >= charsOfMessages(fold) {
+		a.sink.Emit(event.Event{Kind: event.Notice, Level: event.LevelWarn,
+			Text: "compaction summary did not shrink the folded region; folded mechanically"})
+		content = summaryTagOpen + "\n" +
+			"Summary of earlier conversation (older messages were compacted to save context):\n" +
+			mechanicalFoldDigest(len(fold), archived) + "\n" +
+			summaryTagClose
+	}
+
 	compacted := make([]provider.Message, 0, head+len(kept)+1+len(msgs)-start)
 	compacted = append(compacted, msgs[:head]...)
 	compacted = append(compacted, kept...)
 	compacted = append(compacted, provider.Message{
-		Role: provider.RoleUser,
-		Content: summaryTagOpen + "\n" +
-			"Summary of earlier conversation (older messages were compacted to save context):\n" +
-			summary + "\n" +
-			summaryTagClose,
+		Role:    provider.RoleUser,
+		Content: content,
 	})
 	compacted = append(compacted, msgs[start:]...)
 	a.session.Replace(compacted)
@@ -571,19 +639,29 @@ func (a *AgentRunner) summarize(ctx context.Context, fold []provider.Message, in
 	ctx, cancel := context.WithTimeout(ctx, summaryTimeout)
 	defer cancel()
 
-	sysPrompt := summarySystemPrompt
+	// 缓存对齐的摘要调用（Distilled from Reasonix/dsh compaction-basic
+	// summarizer）：请求 = 会话真实 system 消息 + 被折叠区间消息按原样原序
+	// 重放 + 压缩指令作为最后一条 user 消息。前缀与上一真实请求逐字一致，
+	// 命中 provider 热 KV 缓存——摘要输入按 cache-read 计价而非全价重付，
+	// 且模型在原生对话格式里做摘要。前缀不变量：system + fold 必须逐字
+	// 重放（会话消息即上线消息，reasoning_content 由 provider 装配时丢弃）；
+	// 动态内容只允许出现在最后一条指令消息里。
+	instr := summaryInstruction
 	if instructions != "" {
-		sysPrompt = instructions + "\n\n" + sysPrompt
+		instr = instructions + "\n\n" + instr
 	}
-	// 缓存前缀不变性：禁止向 summarizer prompt 注入任何动态内容（含 BuildCompactSummary），
-	// 否则摘要输出变化 → 注入的 user 消息变化 → 前缀断裂。
+	msgs := make([]provider.Message, 0, len(fold)+3)
+	for _, m := range a.session.Messages {
+		if m.Role == provider.RoleSystem {
+			msgs = append(msgs, m)
+		}
+	}
+	msgs = append(msgs, fold...)
+	msgs = append(msgs, provider.Message{Role: provider.RoleUser, Content: instr})
 
-	transcript := renderTranscript(fold)
 	req := provider.Request{
-		Messages: []provider.Message{
-			{Role: provider.RoleSystem, Content: sysPrompt},
-			{Role: provider.RoleUser, Content: transcript},
-		},
+		Messages:    msgs,
+		Tools:       a.currentSchemas(),
 		Temperature: 0,
 	}
 

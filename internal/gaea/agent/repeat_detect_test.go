@@ -2,6 +2,7 @@ package agent
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/gaea/gaea/internal/gaea/provider"
@@ -215,4 +216,55 @@ func stringsIndex(s, substr string) int {
 		}
 	}
 	return -1
+}
+
+// 刀5（Reasonix/dsh repeat-tool-reminder 蒸馏）：[3,5,8] 三档分级，
+// 档间沉默，第 9 次起不再注入。
+func TestRepeatNudgeTiers(t *testing.T) {
+	s := NewSession("")
+	a := &AgentRunner{session: s}
+	calls := []provider.ToolCall{
+		{ID: "1", Name: "read_file", Arguments: `{"path":"a.txt"}`},
+	}
+
+	if a.detectRepeatedSteps(calls) {
+		t.Fatal("count 1: no nudge")
+	}
+	if a.detectRepeatedSteps(calls) {
+		t.Fatal("count 2: no nudge")
+	}
+	if !a.detectRepeatedSteps(calls) {
+		t.Fatal("count 3: level-1 nudge")
+	}
+	if last := s.Messages[len(s.Messages)-1]; last.Content != repeatedStepNudge {
+		t.Fatalf("level 1 text mismatch: %q", last.Content)
+	}
+	if a.detectRepeatedSteps(calls) {
+		t.Fatal("count 4: between tiers, silent")
+	}
+	if !a.detectRepeatedSteps(calls) {
+		t.Fatal("count 5: level-2 nudge")
+	}
+	last := s.Messages[len(s.Messages)-1]
+	if !strings.Contains(last.Content, "read_file") || !strings.Contains(last.Content, "a.txt") {
+		t.Fatalf("level 2 must name the tool and args: %q", last.Content)
+	}
+	if len(last.Content) > len(repeatedStepNudge)+repeatPreviewLimit+200 {
+		t.Fatalf("level-2 preview must stay bounded, got %d chars", len(last.Content))
+	}
+	if a.detectRepeatedSteps(calls) {
+		t.Fatal("count 6: silent")
+	}
+	if a.detectRepeatedSteps(calls) {
+		t.Fatal("count 7: silent")
+	}
+	if !a.detectRepeatedSteps(calls) {
+		t.Fatal("count 8: level-3 nudge")
+	}
+	if last := s.Messages[len(s.Messages)-1]; last.Content != repeatedStepFinalNudge {
+		t.Fatalf("level 3 text mismatch: %q", last.Content)
+	}
+	if a.detectRepeatedSteps(calls) {
+		t.Fatal("count 9: escalation exhausted, silent")
+	}
 }
