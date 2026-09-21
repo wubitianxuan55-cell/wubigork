@@ -128,12 +128,6 @@ export const ModelCenterStateContext = createContext<ModelCenterStateValue | nul
 export const ModelCenterActionsContext = createContext<ModelCenterActionsValue | null>(null)
 export const ModelCenterContext = createContext<ModelCenterContextValue | null>(null)
 
-export function useModelCenter(): ModelCenterContextValue {
-  const v = useContext(ModelCenterContext)
-  if (!v) throw new Error('useModelCenter 必须在 ModelCenterPage 内使用')
-  return v
-}
-
 /** state-only 消费者走此口：动作引用变化不触发重渲染（v4.352 拆分通道） */
 export function useModelCenterState(): ModelCenterStateValue {
   const v = useContext(ModelCenterStateContext)

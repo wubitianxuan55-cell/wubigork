@@ -93,11 +93,3 @@ export interface SinBookSourceBook {
   modifiedAt: string;
 }
 
-/** 成书结果（done 事件载荷；failed 为引擎重试穷尽后的失败章，如实透出）。 */
-export interface SinBookSourceDownloadResult {
-  title: string;
-  path: string;
-  chapters: number;
-  words: number;
-  failed?: Array<{ title: string; url: string; error: string }>;
-}

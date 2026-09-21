@@ -133,7 +133,7 @@ const ModelCenterPage: React.FC = () => {
 
   // v4.352：ctx 拆 state/actions 两通道——五 hook 返回对象字面量每渲染新引用，
   // deps 无法建立（v4.350 辨伪），拆分后 state 通道由各 hook 的状态字段组成
-  // （内容变化才重渲染），动作通道单独承载函数引用波动；useModelCenter 兼容口
+  // （内容变化才重渲染），动作通道单独承载函数引用波动；兼容口已随死代码清理移除（v4.385）
   // 继续提供全量值（settingGlmEndpoint 归 state 补位）。
   const stateCtx: ModelCenterStateValue = useMemo(() => ({
     category,

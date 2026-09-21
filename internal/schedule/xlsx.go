@@ -424,7 +424,16 @@ func tryParse(s string) (time.Time, bool) {
 // 最早开始作开工日），交回 CPM 引擎重算；解析失败给出可读错误。
 // customLabels 可选传入项目自定义列名覆盖（v4.138 #14：改名槽按覆盖名识别，
 // 缺省 label 恒识别）；不传即按缺省名。
-func ImportXlsx(data []byte, customLabels ...map[string]string) (Project, error) {
+func ImportXlsx(data []byte, customLabels ...map[string]string) (project Project, err error) {
+	// v4.385 工程健康轮#2：excelize GO-2026-6452（负 shared-string 下标 panic，
+	// 上游 Fixed in N/A）符号追踪 GetRows 可达面——入口 defer 兜底转可读错误
+	// （对齐 v4.370 xlsxpreview 同款防线）。
+	defer func() {
+		if r := recover(); r != nil {
+			project = Project{}
+			err = fmt.Errorf("Excel 解析失败（文档结构异常）: %v", r)
+		}
+	}()
 	labels := map[string]string{}
 	if len(customLabels) > 0 && customLabels[0] != nil {
 		labels = customLabels[0]

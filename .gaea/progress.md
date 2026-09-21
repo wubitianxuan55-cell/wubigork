@@ -1,3 +1,14 @@
+## 最新发布：v4.385.0（2026-09-22）「工程健康轮 #2：excelize 防线扩面 + 死代码清欠 + 双扫描报告」
+
+- **动机**：用户口径「继续」——距 v4.370 工程健康轮 15 版，按惯例复扫三面。Go 2 文件+前端 4 文件，绑定面 711 零变更。
+- **扫描报告**：govulncheck 1 项在案（GO-2026-6452 excelize，上游 N/A）/pnpm audit 0/knip 1 未用导出+3 未用类型+3 重复+5 提示。
+- **落地**：①excelize 防线扩面（v4.370 只防 xlsxpreview；本轮符号追踪新可达面 schedule.ImportXlsx GetRows+GaeaXlsxRowOps/ColOps InsertRows/Cols/RemoveRow/Col——同款 named-return+defer recover 转可读错误）②knip 清欠 4 项（useModelCenter 兼容口零消费+桥接死类型 ForeshadowUrgencyPayload/NovelRewriteRequest/SinBookSourceDownloadResult；tsc+grep 双验证；stale 注释同步更新；重复导出/配置提示 KEEP 不动）。
+- **测试**：app/schedule 全量绿（纯增量 defer 零行为变化）+tsc 0+modelcenter 112 例绿。
+- **门禁**：全量 ci.ps1 绿 EXIT=0（E 系列守卫 OK+仓库卫生守卫 OK）+版本漂移闸 OK@4.385.0。
+- **坑**：①「已防御」≠「全防御」——符号追踪随代码演化增长，扫描要周期性复跑②Fixed in N/A 常驻项——新增 excelize 消费面必须同步配 recover 入口③knip 未用导出区分死代码与契约哨兵（重复导出 KEEP 不跟风删）。
+- **产物**：exe 51153920 B SHA256=9d8de0811f3aa6de298ed4b9ee5b78d3159a735bebbf4a48189580d2f6b5a72e（releases/gaea-v4.385.0.exe+SHA256SUMS-v4.385.0.txt，exe 仅本地不入库；桌面副本同哈希实测一致；冒烟 /api/health 200 过）；保留策略留 v4.381~v4.385 删 v4.380.0.exe（SUMS 身份档案全保留）。
+- **文档**：releases/v4.385.0.md（含升级说明）+CHANGELOG/README+releases/README（计数 406→407+34 席插 v4.385 裁 v4.351）+AGENTS 迁 1 插 1（一百迁：v4.382 入 archive）+progress/todos。
+
 ## 最新发布：v4.384.0（2026-09-22）「dsh 蒸馏第五弹：session_query 会话检索（跨会话记忆首刀）」
 
 - **动机**：用户口径「继续」——dsh 余 4 中唯一可独立推进的大工程项⑧ session-query 首刀落地，留池余 3。全 Go，绑定面 711 零变更。

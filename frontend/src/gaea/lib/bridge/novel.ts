@@ -76,15 +76,6 @@ export interface ForeshadowStatsReport {
   currentChapter?: number;
 }
 
-/** 运行时紧急度投影（后端按计划回收章实时算，不落库；前端不自算阈值 D7）。
- *  level: 0=不紧急 1=需关注 2=急需回收 3=已超期；mustResolve=进入「本章必须回收」集合。 */
-export interface ForeshadowUrgencyPayload {
-  level: number;
-  remainingChapters: number;
-  overdueChapters?: number;
-  resolveStatus: 'must_resolve_now' | 'overdue' | 'not_yet' | 'no_plan' | string;
-  mustResolve: boolean;
-}
 /** 最近一轮章节分析的伏笔同步结果（GetLastForeshadowSync；D3 跳过原因可见不静默）。 */
 export interface ForeshadowSyncSkipReason {
   kind: 'invalid_reference' | 'already_resolved' | 'not_planted' | 'no_match' | 'limit_reached' | 'empty_content' | string;
@@ -209,19 +200,6 @@ export interface BookHealthReportView {
     longTerm: number;
     findings: Array<{ code?: string; message?: string; [k: string]: unknown }>;
   };
-}
-export interface NovelRewriteRequest {
-  source?: 'custom' | 'analysis_suggestions' | 'mixed';
-  suggestion_indices?: number[];
-  custom_instructions?: string;
-  focus_areas?: string[];
-  preserve_elements?: {
-    preserve_structure?: boolean;
-    preserve_dialogues?: string[];
-    preserve_plot_points?: string[];
-    preserve_character_traits?: boolean;
-  };
-  target_word_count?: number;
 }
 
 export interface NovelBindings {

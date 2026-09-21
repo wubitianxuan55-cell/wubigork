@@ -286,7 +286,16 @@ func (a *App) GaeaXlsxRecalc(rel string) (XlsxEditResult, error) {
 //	insert_before 在选中行上方插入空行；insert_after 在下方插入；delete 删除该行。
 //
 // 同表公式/合并区域由 excelize 平移，随后 LibreOffice 重算刷新结果。
-func (a *App) GaeaXlsxRowOps(rel, sheet, action, ref string) (XlsxEditResult, error) {
+func (a *App) GaeaXlsxRowOps(rel, sheet, action, ref string) (res XlsxEditResult, err error) {
+	// v4.385 工程健康轮#2：excelize GO-2026-6452（负 shared-string 下标 panic，
+	// 上游 Fixed in N/A）符号追踪的可达面——入口 defer 兜底转可读错误
+	// （对齐 v4.370 xlsxpreview 同款防线）。
+	defer func() {
+		if r := recover(); r != nil {
+			res = XlsxEditResult{}
+			err = fmt.Errorf("操作失败（文档结构异常）: %v", r)
+		}
+	}()
 	if rel == "" || ref == "" {
 		return XlsxEditResult{}, fmt.Errorf("缺少文件路径或单元格")
 	}
@@ -340,7 +349,14 @@ func (a *App) GaeaXlsxRowOps(rel, sheet, action, ref string) (XlsxEditResult, er
 // GaeaXlsxColOps 列级操作（基于选中单元格所在列）：
 //
 //	insert_before 在选中列左侧插入空列；insert_after 在右侧插入；delete 删除该列。
-func (a *App) GaeaXlsxColOps(rel, sheet, action, ref string) (XlsxEditResult, error) {
+func (a *App) GaeaXlsxColOps(rel, sheet, action, ref string) (res XlsxEditResult, err error) {
+	// 同 RowOps：GO-2026-6452 可达面入口兜底。
+	defer func() {
+		if r := recover(); r != nil {
+			res = XlsxEditResult{}
+			err = fmt.Errorf("操作失败（文档结构异常）: %v", r)
+		}
+	}()
 	if rel == "" || ref == "" {
 		return XlsxEditResult{}, fmt.Errorf("缺少文件路径或单元格")
 	}
