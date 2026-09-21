@@ -540,6 +540,10 @@ export const zh: Record<DictKey, string> = {
   "memory.savedBadge": "✓ 已保存",
   "memory.createdBadge": "✓ 已创建",
   "memory.generatedAt": "生成于",
+  // v4.377 自动做梦建议制：待确认建议忽略 + 直写清污
+  "memory.ignore": "忽略",
+  "memory.purgeAutoDream": "清理自动做梦写入的记忆",
+  "memory.purgeConfirm": "确认删除 {n} 条自动写入的记忆？（再点一次执行）",
   // 流程蒸馏（阶段七 7.2-2：journal 历史挖掘 → 技能结晶建议）
   "memory.distill.title": "流程蒸馏",
   "memory.distill.hint": "从历史执行记录中挖掘跨会话重复流程，一键结晶为可复用技能",

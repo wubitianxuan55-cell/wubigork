@@ -28,6 +28,8 @@ export interface MakeMockState {
   keepWarm: boolean;
   preloadPlan: boolean;
   morningPreload: boolean;
+  // v4.377 建议制：自动做梦模式（off/suggest/auto，默认 suggest）。
+  dreamMode: string;
   // 故障转移开关（模型中心「调度」段，C 刀）：布尔为原始值必须经 setter
   // 重绑（与 keepWarm 同因）；默认 false 对齐后端「默认关」契约。
   engineFailover: boolean;
@@ -35,6 +37,7 @@ export interface MakeMockState {
   setKeepWarm(v: boolean): void;
   setPreloadPlan(v: boolean): void;
   setMorningPreload(v: boolean): void;
+  setDreamMode(v: string): void;
   setEngineFailover(v: boolean): void;
 }
 
@@ -160,6 +163,7 @@ export function createMockState(): MakeMockState {
     keepWarm: true,
     preloadPlan: true,
     morningPreload: true,
+    dreamMode: "suggest",
     // 故障转移默认关（Go 侧默认 false；Get/SetEngineFailover 见 mock/model.ts）。
     engineFailover: false,
     setCapServers(v) {
@@ -173,6 +177,9 @@ export function createMockState(): MakeMockState {
     },
     setMorningPreload(v) {
       s.morningPreload = v;
+    },
+    setDreamMode(v) {
+      s.dreamMode = v;
     },
     setEngineFailover(v) {
       s.engineFailover = v;

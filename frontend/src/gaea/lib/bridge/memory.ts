@@ -183,4 +183,15 @@ export interface MemoryBindings {
   AcceptMemorySuggestion(candidate: MemorySuggestion): Promise<string>;
   AcceptMergeSuggestion(keep: string, archive: string): Promise<string>;
   AcceptSkillSuggestion(candidate: SkillSuggestion): Promise<string>;
+  // ── v4.377 自动做梦建议制 ──
+  // SetDreamMode 设置自动做梦模式（off=不整理 | suggest=提炼进待确认建议，
+  // 默认 | auto=旧直写行为），持久化立即生效。
+  SetDreamMode(mode: string): Promise<void>;
+  // DismissMemorySuggestion 忽略一条待确认建议（出队即丢弃，不写记忆）。
+  DismissMemorySuggestion(id: string): Promise<void>;
+  // DreamPurgePreview 预览「清理自动做梦直写」：auto_dream 审计记录过且当前
+  // 仍存在的事实名（用户确认后交 DreamPurge 批量删除）。
+  DreamPurgePreview(): Promise<string[]>;
+  // DreamPurge 批量删除自动做梦直写过的事实（仅限预览交集），返回删除条数。
+  DreamPurge(names: string[]): Promise<number>;
 }

@@ -475,6 +475,96 @@ func (c *Controller) SessionFacts() []memory.Memory {
 	return out
 }
 
+// DreamAutoWritten 返回「自动做梦」旧直写路径（source=auto_dream）写过的、
+// 且当前仍存在的事实名列表（v4.377 清污预览：用户据此批量删除被自动整理
+// 污染的条目）。按 store 现存顺序返回（确定性）；审计读最近 2000 条。
+func (c *Controller) DreamAutoWritten() []string {
+	c.mu.Lock()
+	mem := c.mem
+	c.mu.Unlock()
+	if mem == nil {
+		return nil
+	}
+	autoWritten := map[string]bool{}
+	for _, e := range DreamAuditEntries(mem.UserDir, 2000) {
+		if e.Source != "auto_dream" {
+			continue
+		}
+		for _, n := range e.Names {
+			autoWritten[n] = true
+		}
+	}
+	var out []string
+	for _, m := range mem.Store.List() {
+		if autoWritten[m.Name] {
+			out = append(out, m.Name)
+		}
+	}
+	return out
+}
+
+// ForgetFacts 批量删除事实，仅允许删 DreamAutoWritten 交集内的名字——
+// 绑定面不可用于删除任意记忆（防误删用户手工沉淀的条目）；交集外的名字
+// 静默跳过。单条删除失败不中断其余（继续删，最后如实返回错误）。
+// 返回实际删除条数；审计 source=dream_purge 留痕。
+func (c *Controller) ForgetFacts(names []string) (int, error) {
+	if len(names) == 0 {
+		return 0, nil
+	}
+	c.mu.Lock()
+	if c.mem == nil {
+		c.mu.Unlock()
+		return 0, fmt.Errorf("记忆未就绪")
+	}
+	allowed := map[string]bool{}
+	for _, e := range DreamAuditEntries(c.mem.UserDir, 2000) {
+		if e.Source != "auto_dream" {
+			continue
+		}
+		for _, n := range e.Names {
+			allowed[n] = true
+		}
+	}
+	exist := map[string]bool{}
+	for _, m := range c.mem.Store.List() {
+		exist[m.Name] = true
+	}
+	n := 0
+	var deleted []string
+	var firstErr error
+	for _, name := range names {
+		name = strings.TrimSpace(name)
+		if !allowed[name] || !exist[name] {
+			continue
+		}
+		if err := c.mem.Store.Delete(name); err != nil {
+			if firstErr == nil {
+				firstErr = fmt.Errorf("删除记忆 %q 失败: %w", name, err)
+			}
+			continue
+		}
+		c.pendingMemory = append(c.pendingMemory,
+			"Deleted memory \""+name+"\" — disregard its line still shown in the saved-memories index until next session.")
+		n++
+		deleted = append(deleted, name)
+	}
+	userDir := c.mem.UserDir
+	opts, gen := c.beginMemoryReloadLocked()
+	c.mu.Unlock()
+	c.finishMemoryReload(opts, gen)
+	if n > 0 {
+		if err := appendDreamAudit(userDir, DreamAuditEntry{
+			TS:     time.Now().UTC().Format(time.RFC3339),
+			Source: "dream_purge",
+			Saved:  0,
+			Names:  deleted,
+		}); err != nil {
+			slog.Warn("dream purge audit write failed", "error", err)
+		}
+	}
+	return n, firstErr
+}
+
 // SaveSession implements memory.SessionSaver. The remember tool calls this
 // when session=true to save a fact to session-only memory (not on disk).
 func (c *Controller) SaveSession(m memory.Memory) string {

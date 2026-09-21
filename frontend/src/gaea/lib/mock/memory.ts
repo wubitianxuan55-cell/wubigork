@@ -17,6 +17,7 @@ type MemoryMethods = Pick<
   | "Remember" | "Forget" | "SaveDoc" | "UpdateFact" | "ChangeFactType"
   | "SetMemoryEnabled" | "MemorySuggestions" | "MorningPreload" | "SetMorningPreload"
   | "AcceptMemorySuggestion" | "AcceptSkillSuggestion" | "AcceptMergeSuggestion"
+  | "SetDreamMode" | "DismissMemorySuggestion" | "DreamPurgePreview" | "DreamPurge"
   | "FactBase" | "FactBaseClear" | "FactBasePromote"
   | "MemoryHubOverview" | "ProfileList" | "ProfileSave" | "ProfileDelete"
   | "ProfileConflicts" | "ProfileResolveConflict"
@@ -59,6 +60,7 @@ export function buildMemory(_s: MakeMockState): MemoryMethods {
           },
         ],
         enabled: true,
+        dreamMode: _s.dreamMode,
         scopes: [
           { scope: "user", path: "~/.config/gaea/REASONIX.md" },
           { scope: "project", path: "REASONIX.md" },
@@ -146,6 +148,19 @@ export function buildMemory(_s: MakeMockState): MemoryMethods {
     },
     async AcceptSkillSuggestion(_candidate: SkillSuggestion) {
       return "mock-skill-path";
+    },
+    // ── v4.377 自动做梦建议制 ──
+    async SetDreamMode(mode: string) {
+      _s.setDreamMode(mode);
+    },
+    async DismissMemorySuggestion(_id: string) {
+      // browser dev mock: 队列在 Go 侧，丢弃为 no-op
+    },
+    async DreamPurgePreview() {
+      return []; // browser dev mock: 无审计日志，无可清理项
+    },
+    async DreamPurge(_names: string[]) {
+      return 0;
     },
     async FactBase() {
       return { facts: [], markdown: "", count: 0, path: "" };

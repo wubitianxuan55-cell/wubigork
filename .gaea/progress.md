@@ -1,3 +1,11 @@
+## 最新发布：v4.377.0（2026-09-21）「办公记忆/成本库写入纠偏：自动做梦建议制 + 存量清污 + 成本劝写改口」
+
+- **动机**：用户反馈「不管什么都自己记入记忆和成本库，根本不询问，大量错误污染数据」——主源=auto-dream 每轮直写（设计上豁免审批且记忆开关管不住），次源=成本工具文案劝写。
+- **落地**：①自动做梦建议制（[dream] mode：suggest 默认/auto 旧直写/off；待确认队列 FIFO 30+接受才入库 source=explicit/忽略丢弃；DREAM_WRITE_POLICY §5 修订；记忆开关收口）②存量清污（GaeaDreamPurgePreview/GaeaDreamPurge 按审计交集删，explicit 与手工沉淀不动）③成本劝写改口（cost_save 描述+cost_search/compose 文案 4 处+compact 2 行）④默认 system prompt 记忆段改口（仅用户明确要求才 remember；自定义提示词需自查）⑤面板 UI（自动做梦三态按钮+建议忽略+清污两步确认+i18n 三语+mock 4 绑定）。
+- **测试**：Go +8（模式归一化/队列 FIFO 上限出队三态空间隔离/入队分流/视图转换/接受幂等+忽略不写库/清污交集审计留痕）+前端 MemoryPanel +3（三态循环/忽略/清污两步）。绑定面 707→711。
+- **门禁**：go build/vet 0+全量 ci.ps1 绿+版本漂移闸 OK@4.377.0。
+- **坑**：①bindingNames.ts 重生成必须保 as const（丢则 drift 报 never 不指向真凶）②jsdom LocaleProvider 默认 en——i18n 断言双语正则③出队失败不得静默落旧写入路径④清污按钮不能只在建议非空分支渲染⑤Proxy mock 方法必须 mockResolvedValue（裸 vi.fn() 返回 undefined 接 .then 崩，单文件假绿全量才炸）。
+- **文档**：DREAM_WRITE_POLICY §5+releases/v4.377.0.md（含升级说明）+CHANGELOG/README+releases/README（计数 399）+AGENTS 迁 1 插 1（九十二迁：v4.374 入 archive）+todos。
 ## 最新发布：v4.376.0（2026-09-21）「Reasonix 真身蒸馏第三弹：压缩救援阶梯 + 重复调用裁决 + 技能目录预算化」
 
 - **动机**：续 v4.375 真身留池第三弹——压缩/恢复域两把主刀+技能目录一把小刀，辨伪销号一批收口留池。全 Go，绑定面 707 零变更。

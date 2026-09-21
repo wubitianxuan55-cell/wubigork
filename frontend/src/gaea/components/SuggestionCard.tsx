@@ -1,4 +1,4 @@
-import { memo } from "react";
+import { memo, useState } from "react";
 import type { MemorySuggestion, SkillSuggestion } from "../lib/types";
 
 export const SuggestionCard = memo(function SuggestionCard(p: {
@@ -8,8 +8,12 @@ export const SuggestionCard = memo(function SuggestionCard(p: {
   acceptedBadge: string;
   actionLabel: string;
   onAccept: () => Promise<void>;
+  // v4.377 建议制：可选忽略按钮（待确认记忆建议——丢弃即出队，不写库）。
+  onIgnore?: () => Promise<void> | void;
+  ignoreLabel?: string;
 }) {
-  const { item, accepted, badge, acceptedBadge, actionLabel, onAccept } = p;
+  const { item, accepted, badge, acceptedBadge, actionLabel, onAccept, onIgnore, ignoreLabel } = p;
+  const [ignoring, setIgnoring] = useState(false);
   const name = "name" in item ? item.name : "";
   const title = "title" in item ? (item.title || item.name) : name;
   const type = "type" in item ? item.type : undefined;
@@ -37,13 +41,32 @@ export const SuggestionCard = memo(function SuggestionCard(p: {
           )}
         </div>
         {!accepted && (
-          <button
-            className="shrink-0 px-3 py-1 text-[11px] font-medium border border-accent/50 rounded-lg text-accent bg-transparent cursor-pointer hover:bg-accent hover:text-accent-fg transition-colors"
-            onClick={onAccept}
-            type="button"
-          >
-            {actionLabel}
-          </button>
+          <div className="shrink-0 flex items-center gap-1.5">
+            <button
+              className="px-3 py-1 text-[11px] font-medium border border-accent/50 rounded-lg text-accent bg-transparent cursor-pointer hover:bg-accent hover:text-accent-fg transition-colors"
+              onClick={onAccept}
+              type="button"
+            >
+              {actionLabel}
+            </button>
+            {onIgnore && (
+              <button
+                className="px-2 py-1 text-[11px] border border-border-soft rounded-lg text-fg-faint bg-transparent cursor-pointer hover:text-fg hover:border-fg-faint transition-colors disabled:opacity-40"
+                disabled={ignoring}
+                onClick={async () => {
+                  setIgnoring(true);
+                  try {
+                    await onIgnore();
+                  } finally {
+                    setIgnoring(false);
+                  }
+                }}
+                type="button"
+              >
+                {ignoreLabel || "忽略"}
+              </button>
+            )}
+          </div>
         )}
       </div>
     </div>

@@ -259,3 +259,78 @@ func TestRefreshMemorySpaceIsolation(t *testing.T) {
 		t.Fatalf("mode=off List = %v, want [work-fact play-fact]", got)
 	}
 }
+
+// v4.377 清污：DreamAutoWritten 只圈 auto_dream 审计写过的现存事实；
+// ForgetFacts 仅允许删该交集（绑定面不可删任意记忆），交集外静默跳过，
+// 删除后落 dream_purge 审计。
+func TestDreamAutoWrittenAndForgetFacts(t *testing.T) {
+	userDir := t.TempDir()
+	c := New(Options{Sink: event.FuncSink(func(event.Event) {})})
+	c.mem = memory.Load(memory.Options{
+		CWD:     t.TempDir(),
+		UserDir: userDir,
+		DB:      nil,
+	})
+
+	// auto_dream 写 2 条；explicit（用户显式接受）写 1 条
+	if _, err := c.SaveDreamFacts("", "auto_dream", []memory.Memory{
+		{Name: "bad-fact-1", Type: memory.TypeProject, Kind: memory.KindSemantic, Description: "污染1", Body: "错误事实"},
+		{Name: "bad-fact-2", Type: memory.TypeProject, Kind: memory.KindSemantic, Description: "污染2", Body: "错误事实"},
+	}); err != nil {
+		t.Fatalf("SaveDreamFacts auto: %v", err)
+	}
+	if _, err := c.SaveDreamFacts("", "explicit", []memory.Memory{
+		{Name: "kept-fact", Type: memory.TypeProject, Kind: memory.KindSemantic, Description: "用户接受", Body: "保留"},
+	}); err != nil {
+		t.Fatalf("SaveDreamFacts explicit: %v", err)
+	}
+
+	// 预览：只圈 auto_dream 的 2 条（explicit 不在）
+	preview := c.DreamAutoWritten()
+	if len(preview) != 2 {
+		t.Fatalf("DreamAutoWritten = %v, want 2 条", preview)
+	}
+	in := func(n string) bool {
+		for _, x := range preview {
+			if x == n {
+				return true
+			}
+		}
+		return false
+	}
+	if !in("bad-fact-1") || !in("bad-fact-2") || in("kept-fact") {
+		t.Fatalf("preview = %v", preview)
+	}
+
+	// 清除：混入交集外名字（kept-fact=用户接受过、no-such=不存在）→ 只删 2 条
+	n, err := c.ForgetFacts([]string{"bad-fact-1", "bad-fact-2", "kept-fact", "no-such"})
+	if err != nil {
+		t.Fatalf("ForgetFacts: %v", err)
+	}
+	if n != 2 {
+		t.Fatalf("ForgetFacts n = %d, want 2", n)
+	}
+	left := map[string]bool{}
+	for _, m := range c.Memory().Store.List() {
+		left[m.Name] = true
+	}
+	if len(left) != 1 || !left["kept-fact"] {
+		t.Fatalf("after purge List = %v, want [kept-fact]", left)
+	}
+
+	// 审计留痕：dream_purge 一行
+	var purged bool
+	for _, e := range DreamAuditEntries(userDir, 50) {
+		if e.Source == "dream_purge" && len(e.Names) == 2 {
+			purged = true
+		}
+	}
+	if !purged {
+		t.Fatal("dream_purge 审计缺失")
+	}
+
+	// 再预览：auto_dream 名字已被删，交集为空
+	if preview := c.DreamAutoWritten(); len(preview) != 0 {
+		t.Fatalf("purge 后 DreamAutoWritten = %v, want 空", preview)
+	}
+}

@@ -111,7 +111,7 @@ func (costSearch) Execute(ctx context.Context, args json.RawMessage) (string, er
 		}
 	}
 	if len(list) == 0 {
-		return "未找到匹配的成本条目。可先按合理估价测算，完成后用 cost_save 把采用的单价沉淀进成本库。", nil
+		return "未找到匹配的成本条目。可先按合理估价测算；如需沉淀进成本库，先征得用户确认再用 cost_save。", nil
 	}
 	// 本地语义精排（Herdsman bge-reranker-v2-m3）：候选多时提升排序精度；
 	// 模型不可用或失败时自动回退 SQL 结果。纯本地推理，不消耗云端 token。
@@ -132,7 +132,7 @@ func (costSearch) Execute(ctx context.Context, args json.RawMessage) (string, er
 			cell(e.Spec), cell(e.Region), cell(e.PriceDate), cell(e.PriceType),
 			cell(e.Source), cell(e.Status))
 	}
-	b.WriteString("\n同名条目可用 cost_save 覆盖更新（name 同上）。")
+	b.WriteString("\n同名条目可在征得用户确认后用 cost_save 覆盖更新（name 同上）。")
 	return tool.WrapText(b.String()), nil
 }
 
@@ -382,7 +382,7 @@ func costOverview(store *cost.Store) string {
 		}
 	}
 	fmt.Fprintf(&b, "| **合计** | **%d** |\n\n", total)
-	b.WriteString("测算前用 `cost_search` 按科目查单价，完成后用 `cost_save` 沉淀新单价。")
+	b.WriteString("测算前用 `cost_search` 按科目查单价；沉淀新单价须先经用户确认（`cost_save`）。")
 	return b.String()
 }
 
@@ -396,7 +396,7 @@ type costSave struct{}
 
 func (costSave) Name() string { return "cost_save" }
 func (costSave) Description() string {
-	return "写入/更新成本库条目（同名覆盖）：测算完成后把采用的单价沉淀为成本条目，来源标注本次项目/文件。"
+	return "写入/更新成本库条目（同名覆盖）。**仅在用户明确要求保存/沉淀单价时调用**：先向用户说明采用的价并征得确认，再保存；不要在测算完成后自行沉淀。来源标注本次项目/文件。"
 }
 func (costSave) Schema() json.RawMessage {
 	return json.RawMessage(`{

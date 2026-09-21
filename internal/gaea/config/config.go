@@ -49,6 +49,8 @@ type Config struct {
 	Retrieval         RetrievalConfig         `toml:"retrieval"`
 	Vision            VisionConfig            `toml:"vision"`
 	MarkdownConverter MarkdownConverterConfig `toml:"markdown_converter"`
+	// Dream 是自动做梦（轮次后记忆整理）模式开关（v4.377 建议制口径）。
+	Dream DreamConfig `toml:"dream"`
 }
 
 // SessionConfig 是会话持久化行为配置（3.0 Step 1 回退开关）。
@@ -70,6 +72,33 @@ type SpaceConfig struct {
 	// 忽略空间（新会话回平铺目录、日志不写 space 字段），行为整体回退；
 	// 旧分区数据仍可读（读端按目录归属降级）。
 	Mode string `toml:"mode"`
+}
+
+// DreamConfig 是「自动做梦」（auto-dream，轮次结束后台记忆整理）配置。
+// v4.377 口径：未经用户确认不写记忆——默认 suggest（提炼结果进「记忆建议」
+// 待确认队列，用户在记忆面板逐条接受才入库）。
+type DreamConfig struct {
+	// Mode 控制自动整理的写入方式：
+	//   ""/"suggest"（默认）= 提炼结果进待确认建议队列（dream-pending.json），
+	//     用户逐条接受才入库，拒绝/忽略即丢弃；
+	//   "auto" = 旧行为（v4.376 及以前）：提炼结果直接写入长期记忆与项目
+	//     记忆文档，不询问（审计日志留痕）；
+	//   "off" = 完全关闭轮次后的自动整理（手动 /dream extract 仍可用）。
+	// 记忆总开关 [memory] enabled=false 时任何模式都不整理。
+	Mode string `toml:"mode"`
+}
+
+// DreamMode 归一化返回自动做梦模式："suggest"（默认/空/非法）| "auto" | "off"。
+func (c *Config) DreamMode() string {
+	if c == nil {
+		return "suggest"
+	}
+	switch strings.TrimSpace(c.Dream.Mode) {
+	case "auto", "off":
+		return strings.TrimSpace(c.Dream.Mode)
+	default:
+		return "suggest"
+	}
 }
 
 // TasksConfig 是通用任务调度器配置（S1.4 按空间分账）。
@@ -735,11 +764,11 @@ const DefaultSystemPrompt = `你是 gaea（盖亚）——用户的通用办公 
 不会撑大你的上下文。犹豫时直接派发。内置子代理技能见下方 Skills 索引。
 
 **记忆：**
-用 remember/forget 跨会话持久化事实：
-- 用户纠正偏好或事实：记住，避免后续重复犯错
-- 发现非显而易见的项目事实（关键参数、约定、决策依据）：记住供后续参考
+用 remember/forget 跨会话持久化事实。**只在用户明确要求记住时才调用 remember**（remember 会弹用户确认卡），不要主动记录：
+- 用户明确说「记住这个」「以后都按这个口径」等：用 remember 保存
+- 用户纠正偏好或事实并要求记住：用 remember 保存，避免后续重复犯错
 - 记忆被证明错误：用 forget 删除
-不要记录瞬时状态或用户明确要求不保存的内容。记忆是持久的——只保存跨会话不变的事实。`
+不要记录瞬时状态、用户明确要求不保存的内容、或未经用户确认的信息。记忆是持久的——只保存跨会话不变的事实。`
 
 // LanguagePolicy is the forced language directive appended to the system prompt.
 // Always Chinese — the user is a native Chinese speaker and cannot read English.
@@ -774,6 +803,9 @@ func Default() *Config {
 		// 办公记忆默认开启；用户在记忆面板可一键关闭（记忆可控性）。
 		// 归档保留期默认 90 天（0 = 走默认值，见 memoryRetentionDays）。
 		Memory: MemoryConfig{Enabled: true, ArchivedRetentionDays: 90},
+		// 自动做梦默认建议制：提炼结果进待确认队列，用户接受才入库
+		//（v4.377 口径：未经确认不写记忆）。
+		Dream: DreamConfig{Mode: "suggest"},
 		// Sandbox on by default: bash is jailed (macOS), network allowed so
 		// builds/downloads work. Set bash = "off" to disable. Network=true here
 		// so an absent [sandbox] in a user's file keeps egress (zero value would

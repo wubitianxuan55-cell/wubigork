@@ -544,6 +544,10 @@ export const zhTW: Record<DictKey, string> = {
   "memory.savedBadge": "✓ 已儲存",
   "memory.createdBadge": "✓ 已建立",
   "memory.generatedAt": "生成於",
+  // v4.377 自動做夢建議制：待確認建議忽略 + 直寫清污
+  "memory.ignore": "忽略",
+  "memory.purgeAutoDream": "清理自動做夢寫入的記憶",
+  "memory.purgeConfirm": "確認刪除 {n} 條自動寫入的記憶？（再點一次執行）",
   // 流程蒸餾（階段七 7.2-2：journal 歷史挖掘 → 技能結晶建議）
   "memory.distill.title": "流程蒸餾",
   "memory.distill.hint": "從歷史執行記錄中挖掘跨會話重複流程，一鍵結晶為可複用技能",

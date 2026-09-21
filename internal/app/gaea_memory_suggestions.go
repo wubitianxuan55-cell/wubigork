@@ -11,10 +11,11 @@ import (
 )
 
 // ── 记忆建议（方法论自动候选 P1-⑥）──────────────────────────────
-// 记忆面板「建议」标签页的真实后端：从已沉淀的 procedural 记忆（规则/方法论）
-// 聚类出「多次出现同一主题词」的候选，供用户一键沉淀为可复用技能
-// （对标千问办公组织级 Skill 的个人版）。记忆候选由「自动做梦」直接入库，
-// 这里不再重复提议，避免噪音。
+// 记忆面板「建议」标签页的真实后端：
+//   - memories：自动做梦（suggest 模式）的待确认建议——提炼结果先入队
+//     （dream-pending.json），用户逐条接受才入库（v4.377 建议制口径）；
+//   - skills：从已沉淀的 procedural 记忆（规则/方法论）聚类出「多次出现
+//     同一主题词」的候选，供用户一键沉淀为可复用技能。
 
 // MemorySuggestionView 是记忆候选（面板「记忆」建议卡片）。
 type MemorySuggestionView struct {
@@ -41,24 +42,24 @@ type SkillSuggestionView struct {
 
 // MemorySuggestionsView 是记忆建议完整负载（与前端契约一致）。
 type MemorySuggestionsView struct {
-	Memories    []MemorySuggestionView `json:"memories"`
-	Skills      []SkillSuggestionView  `json:"skills"`
+	Memories []MemorySuggestionView `json:"memories"`
+	Skills   []SkillSuggestionView  `json:"skills"`
 	// Merges 是蒸馏合并候选（做梦 2.0 第一刀）：确定性重复记忆，用户批准后
 	// 归档较旧条。可选项——旧前端/旧 mock 不读此字段不受影响。
-	Merges      []MergeSuggestionView  `json:"merges,omitempty"`
-	GeneratedAt string                 `json:"generatedAt"`
-	Available   bool                   `json:"available"`
-	Source      string                 `json:"source"`
+	Merges      []MergeSuggestionView `json:"merges,omitempty"`
+	GeneratedAt string                `json:"generatedAt"`
+	Available   bool                  `json:"available"`
+	Source      string                `json:"source"`
 }
 
-// GaeaMemorySuggestions 返回记忆面板建议：技能候选来自 procedural 记忆
-// 的主题聚类；记忆候选为空（自动做梦已直接入库，宁缺毋滥）。
+// GaeaMemorySuggestions 返回记忆面板建议：memories 来自自动做梦待确认队列
+//（suggest 模式，空间过滤）；skills 来自 procedural 记忆的主题聚类。
 func (a *App) GaeaMemorySuggestions() MemorySuggestionsView {
 	view := MemorySuggestionsView{
 		Memories:    []MemorySuggestionView{},
 		Skills:      []SkillSuggestionView{},
 		GeneratedAt: time.Now().Format(time.RFC3339),
-		Source:      "自动做梦沉淀的记忆",
+		Source:      "自动做梦待确认建议（接受才入库）",
 	}
 	c := gaeaCtrl()
 	if c == nil {
@@ -69,10 +70,46 @@ func (a *App) GaeaMemorySuggestions() MemorySuggestionsView {
 		return view
 	}
 	view.Available = true
+	view.Memories = dreamPendingViews(set.UserDir, gaeaEffectiveSpace())
 	ms := set.Store.List()
 	view.Skills = suggestSkillsFromMemories(ms)
 	view.Merges = distillMergeViews(ms)
 	return view
+}
+
+// dreamPendingViews 把待确认队列转成面板建议视图（note 型 Type="note"，
+// 接受时走 QuickAdd）。空队列返回空切片（不返回 nil——前端 JSON 序列化
+// 契约，v4.354 同坑）。
+func dreamPendingViews(userDir, space string) []MemorySuggestionView {
+	items := dreamPendingList(userDir, space)
+	out := make([]MemorySuggestionView, 0, len(items))
+	for _, it := range items {
+		if it.Kind == "note" {
+			scope := strings.TrimSpace(it.NoteScope)
+			if scope == "" {
+				scope = "local"
+			}
+			out = append(out, MemorySuggestionView{
+				ID:          it.ID,
+				Name:        "note-" + it.ID,
+				Description: "项目笔记建议（" + scope + " 作用域）",
+				Type:        "note",
+				Body:        it.Note,
+				Reason:      "自动做梦提炼的零散经验，接受后追加到记忆文档",
+			})
+			continue
+		}
+		out = append(out, MemorySuggestionView{
+			ID:          it.ID,
+			Name:        it.Name,
+			Title:       it.Title,
+			Description: it.Description,
+			Type:        it.Type,
+			Body:        it.Body,
+			Reason:      "自动做梦提炼的事实，接受后写入长期记忆（未接受不入库）",
+		})
+	}
+	return out
 }
 
 // skillNameWords 是技能名提炼时的停用词（避免「步骤/使用」这类通用词当主题）。
@@ -184,7 +221,9 @@ func displayTitleLocal(title, name string) string {
 }
 
 // GaeaAcceptMemorySuggestion 接受一条记忆建议：写入长期记忆（按 name 去重，
-// 与自动做梦同一写入路径，source=explicit 落 dream 审计日志）。
+// source=explicit 落 dream 审计日志）。待确认队列命中的建议按队列项内容
+// 写入并出队（note 型走 QuickAdd 追加记忆文档）；非队列建议（旧路径）按
+// 传入内容写入。
 func (a *App) GaeaAcceptMemorySuggestion(candidate interface{}) (string, error) {
 	raw, err := json.Marshal(candidate)
 	if err != nil {
@@ -194,13 +233,45 @@ func (a *App) GaeaAcceptMemorySuggestion(candidate interface{}) (string, error) 
 	if err := json.Unmarshal(raw, &c); err != nil {
 		return "", err
 	}
-	if strings.TrimSpace(c.Name) == "" {
+	if strings.TrimSpace(c.Name) == "" && strings.TrimSpace(c.ID) == "" {
 		return "", fmt.Errorf("建议缺少 name")
 	}
 	ctrl := gaeaCtrl()
 	if ctrl == nil {
 		return "", fmt.Errorf("办公引擎未初始化")
 	}
+	set := ctrl.Memory()
+	if set == nil {
+		return "", fmt.Errorf("记忆未就绪")
+	}
+	// 待确认队列命中（v4.377 建议制主路径）：按队列项写入并出队。出队失败
+	// 不得静默落入旧路径——那会把未经确认的内容写进记忆且队列残留。
+	if it, ok, terr := dreamPendingTake(set.UserDir, c.ID); terr != nil {
+		return "", fmt.Errorf("移除待确认建议失败: %w", terr)
+	} else if ok {
+		if it.Kind == "note" {
+			if _, err := ctrl.QuickAdd(parseScope(it.NoteScope), it.Note); err != nil {
+				return "", err
+			}
+			return "saved:note:" + it.ID, nil
+		}
+		n, err := ctrl.SaveDreamFacts(it.Space, "explicit", []memory.Memory{{
+			Name:        it.Name,
+			Title:       it.Title,
+			Description: it.Description,
+			Type:        memory.NormalizeType(it.Type),
+			Kind:        memory.NormalizeKind(it.MemoryKind),
+			Body:        it.Body,
+		}})
+		if err != nil {
+			return "", err
+		}
+		if n == 0 {
+			return "", fmt.Errorf("记忆建议内容为空，未写入")
+		}
+		return "saved:" + it.Name, nil
+	}
+	// 非队列建议（旧路径，行为保持）：type 缺省 reference、kind 语义记忆。
 	// S1.2 A：显式接受路径与自动做梦同点盖章——按勘察锚点取 gaeaEffectiveSpace()
 	//（配置生效空间；mode=off 得 ""，SaveDreamFacts 写侧 Normalize 兜底 work），
 	// source=explicit 落 dream 审计日志（含 Space 列）。
@@ -219,6 +290,26 @@ func (a *App) GaeaAcceptMemorySuggestion(candidate interface{}) (string, error) 
 		return "", fmt.Errorf("记忆建议内容为空，未写入")
 	}
 	return "saved:" + c.Name, nil
+}
+
+// GaeaDismissMemorySuggestion 忽略一条待确认建议：出队即丢弃，不写记忆。
+func (a *App) GaeaDismissMemorySuggestion(id string) error {
+	ctrl := gaeaCtrl()
+	if ctrl == nil {
+		return fmt.Errorf("办公引擎未初始化")
+	}
+	set := ctrl.Memory()
+	if set == nil {
+		return fmt.Errorf("记忆未就绪")
+	}
+	_, ok, err := dreamPendingTake(set.UserDir, id)
+	if err != nil {
+		return fmt.Errorf("移除待确认建议失败: %w", err)
+	}
+	if !ok {
+		return fmt.Errorf("建议不存在或已处理")
+	}
+	return nil
 }
 
 // GaeaAcceptSkillSuggestion 接受技能候选：固化为工作区技能并热加载

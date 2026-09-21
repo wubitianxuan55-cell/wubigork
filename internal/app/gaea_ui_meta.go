@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"sort"
 	"strings"
 	"time"
@@ -313,7 +314,8 @@ type MemoryView struct {
 	Scopes    []MemoryScope `json:"scopes"`
 	StoreDir  string        `json:"storeDir"`
 	Available bool          `json:"available"`
-	Enabled   bool          `json:"enabled"` // 记忆开关（当前生效值）
+	Enabled   bool          `json:"enabled"`   // 记忆开关（当前生效值）
+	DreamMode string        `json:"dreamMode"` // 自动做梦模式（off/suggest/auto，v4.377 建议制）
 }
 
 var writableScopes = []memory.Scope{memory.ScopeUser, memory.ScopeProject, memory.ScopeLocal}
@@ -352,6 +354,7 @@ func (a *App) GaeaMemory() MemoryView {
 		}
 	}
 	view.Enabled = memoryEnabled()
+	view.DreamMode = gaeaDreamMode()
 	return view
 }
 
@@ -427,6 +430,20 @@ func (a *App) GaeaSaveDoc(path, body string) (string, error) {
 func (a *App) GaeaSetMemoryEnabled(enabled bool) error {
 	return a.gaeaApplyCfg(func(cfg *gaeaConfig.Config) {
 		cfg.Memory.Enabled = enabled
+	})
+}
+
+// GaeaSetDreamMode 设置自动做梦模式（v4.377 建议制）：off=关闭自动整理 |
+// suggest=提炼结果进待确认建议队列（默认）| auto=旧直写行为。持久化立即
+// 生效（runDream 每轮现读，无需重建引擎）。
+func (a *App) GaeaSetDreamMode(mode string) error {
+	switch strings.TrimSpace(mode) {
+	case "off", "suggest", "auto":
+	default:
+		return fmt.Errorf("无效的做梦模式 %q（可选 off/suggest/auto）", mode)
+	}
+	return a.gaeaApplyCfg(func(cfg *gaeaConfig.Config) {
+		cfg.Dream.Mode = strings.TrimSpace(mode)
 	})
 }
 

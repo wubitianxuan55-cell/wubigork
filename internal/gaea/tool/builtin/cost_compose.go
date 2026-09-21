@@ -25,7 +25,7 @@ type costCompose struct{}
 
 func (costCompose) Name() string { return "cost_compose" }
 func (costCompose) Description() string {
-	return "AI 组价：按清单描述检索相似成本条目，计算价格带（P25/中位/P75+样本数+置信度+离群数）并给出推荐价与证据链（来源/地区/期数/口径）。只读不落库：人材机拆解与定价结论由你给出，采用后用 cost_save 确认沉淀。"
+	return "AI 组价：按清单描述检索相似成本条目，计算价格带（P25/中位/P75+样本数+置信度+离群数）并给出推荐价与证据链（来源/地区/期数/口径）。只读不落库：人材机拆解与定价结论由你给出，**用户确认采用后**再用 cost_save 沉淀（不要自行沉淀）。"
 }
 func (costCompose) Schema() json.RawMessage {
 	return json.RawMessage(`{
@@ -73,7 +73,7 @@ func (costCompose) Execute(ctx context.Context, args json.RawMessage) (string, e
 		}
 	}
 	if len(similar) == 0 {
-		return fmt.Sprintf("成本库中没有「%s」的相似条目，无法组价。可先按合理估价测算，完成后用 cost_save 沉淀，下次即可组价引用。", desc), nil
+		return fmt.Sprintf("成本库中没有「%s」的相似条目，无法组价。可先按合理估价测算；经用户确认沉淀（cost_save）后，下次即可组价引用。", desc), nil
 	}
 	if reranked := rerankCostResults(ctx, desc, similar, 12); len(reranked) > 0 {
 		similar = reranked
@@ -124,7 +124,7 @@ func (costCompose) Execute(ctx context.Context, args json.RawMessage) (string, e
 	if band.Outliers > 0 {
 		fmt.Fprintf(&b, "其中 %d 条离群（P25-1.5IQR/P75+1.5IQR 之外）。", band.Outliers)
 	}
-	b.WriteString("\n\n人材机拆解由你基于以上证据给出；**采用某个价后用 cost_save 沉淀**")
-	b.WriteString("（title=清单描述、source 建议标「AI组价」+本次上下文；保存会走确认门），下次 cost_search/组价即可直接引用。")
+	b.WriteString("\n\n人材机拆解由你基于以上证据给出；**用户确认采用后**才可用 cost_save 沉淀")
+	b.WriteString("（title=清单描述、source 建议标「AI组价」+本次上下文；保存会走用户确认门，不要自行沉淀），下次 cost_search/组价即可直接引用。")
 	return tool.WrapText(b.String()), nil
 }

@@ -413,6 +413,11 @@ export const GAEA_METHOD_FACETS = {
   SetMorningPreload: "work",
   MemorySuggestions: "work",
   AcceptMemorySuggestion: "work",
+  // v4.377 建议制：待确认建议忽略 + 自动做梦直写清污 + 模式开关，恒 work。
+  DismissMemorySuggestion: "work",
+  DreamPurgePreview: "work",
+  DreamPurge: "work",
+  SetDreamMode: "work",
   AcceptMergeSuggestion: "work",
   AcceptSkillSuggestion: "work",
   // journal 历史蒸馏（7.2-2）：journal 证据链恒 work 空间，建议/蒸馏/决定同域。

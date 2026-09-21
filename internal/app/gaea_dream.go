@@ -1,19 +1,23 @@
 package app
 
 // gaea 自动做梦（空闲自整理）：会话轮次成功结束后，后台把本轮对话归纳为
-// 可长期记忆的事实/笔记，写入主脑记忆（memory.Store，按 name 去重）。
-// 对标 WPS 灵犀「自动做梦」、Codex 后台会话总结。
+// 可长期记忆的事实/笔记。对标 WPS 灵犀「自动做梦」、Codex 后台会话总结。
 //
 // 写入纪律（对齐调研结论）：
 //   - 只提炼稳定事实与偏好，不做实时逐句记录（Kimi 二问思路：先过滤再入库）；
 //   - 同轮只跑一次、有实质内容才跑、单飞（并发安全）；
 //   - 归纳失败静默跳过，不打扰用户。
 //
-// 审批决策（T6-8.1）：后台自动做梦**不**走 hardAskTools 逐条审批——异步
-// goroutine 无法等待人工确认，且 /dream extract 与记忆建议接受本身就是用户
-// 显式触发。补偿机制：每次实际写入都经 SaveDreamFacts(source, …) 落审计
-// 日志（source=auto_dream|explicit，条数+名称），全程可追溯。详见
-// docs/DREAM_WRITE_POLICY.md。
+// 落点模式（v4.377 建议制，[dream] mode）：
+//   - suggest（默认）：提炼结果进待确认建议队列（dream-pending.json），
+//     记忆面板「建议」页逐条接受才入库（source=explicit）——未经用户确认
+//     不写记忆。此为对 v4.376 及以前「直写不询问」的纠偏：自动提炼把大量
+//     错误/噪音当事实污染记忆与成本口径，用户无从拦截。
+//   - auto：旧行为直写（SaveDreamFacts source=auto_dream + QuickAdd notes），
+//     审计日志留痕（docs/DREAM_WRITE_POLICY.md 的旧决策，仅显式配置保留）。
+//   - off：不整理。记忆总开关关闭时任何模式都不整理。
+//   - 异步 goroutine 无法等待人工确认——建议制把「确认」移到面板接受动作，
+//     不阻塞对话流（这是对旧决策「无法等待确认所以放行直写」的根修）。
 
 import (
 	"context"
@@ -102,6 +106,10 @@ func gaeaSessionSpace() string {
 // 会话的空间（gaeaSessionSpace()）：整轮整理（指纹、落库、notes 分流）都限定
 // 在该空间内进行，防 play 会话内容写进 work 记忆。
 func (a *App) maybeDreamAfterTurn(space string) {
+	// 早退（免起 goroutine）：模式关闭或记忆总开关关闭都不整理。
+	if gaeaDreamMode() == "off" || !memoryEnabled() {
+		return
+	}
 	gaeaDreamState.Lock()
 	if gaeaDreamState.running {
 		gaeaDreamState.Unlock()
@@ -126,9 +134,22 @@ func (a *App) maybeDreamAfterTurn(space string) {
 	}()
 }
 
-// runDream 执行一轮记忆整理：取最后一轮对话 → 模型提炼 → 写入长期记忆。
+// runDream 执行一轮记忆整理：取最后一轮对话 → 模型提炼 → 按模式落点。
 // space 为触发会话的空间（""=space.mode=off 平铺形态，行为与改造前一致）。
+//
+// v4.377 建议制：模式由 [dream] mode 控制（off/suggest/auto，默认 suggest）——
+// suggest=提炼结果进待确认建议队列（用户在记忆面板接受才入库）；
+// auto=旧行为直写长期记忆+项目文档；off=不整理。记忆总开关
+// [memory] enabled=false 时任何模式都不整理（此前只关注入、管不住 dream 的
+// 缺口在此收口）。
 func (a *App) runDream(space string) error {
+	mode := gaeaDreamMode()
+	if mode == "off" {
+		return fmt.Errorf("dream off")
+	}
+	if !memoryEnabled() {
+		return fmt.Errorf("memory disabled")
+	}
 	c := gaeaCtrl()
 	if c == nil || c.Memory() == nil {
 		return fmt.Errorf("memory unavailable")
@@ -173,17 +194,33 @@ func (a *App) runDream(space string) error {
 		return err
 	}
 
-	saved, err := c.SaveDreamFacts(space, "auto_dream", toDreamMemories(res.Facts))
-	if err != nil {
-		return err
-	}
-	notes := dreamWriteNotes(c, space, res.Notes)
-	if saved > 0 || notes > 0 {
-		a.emit("gaea-event", gaeaEventMap(event.Event{
-			Kind:  event.Notice,
-			Level: event.LevelInfo,
-			Text:  fmt.Sprintf("已自动整理记忆：新增 %d 条事实、%d 条笔记", saved, notes),
-		}))
+	if mode == "auto" {
+		saved, err := c.SaveDreamFacts(space, "auto_dream", toDreamMemories(res.Facts))
+		if err != nil {
+			return err
+		}
+		notes := dreamWriteNotes(c, space, res.Notes)
+		if saved > 0 || notes > 0 {
+			a.emit("gaea-event", gaeaEventMap(event.Event{
+				Kind:  event.Notice,
+				Level: event.LevelInfo,
+				Text:  fmt.Sprintf("已自动整理记忆：新增 %d 条事实、%d 条笔记", saved, notes),
+			}))
+		}
+	} else {
+		// suggest：入待确认队列，不写记忆/文档（v4.377 口径）。
+		queued, err := dreamEnqueueSuggestions(c.Memory().UserDir, space, res)
+		if err != nil {
+			return err
+		}
+		if queued > 0 {
+			a.emit("gaea-event", gaeaEventMap(event.Event{
+				Kind:  event.Notice,
+				Level: event.LevelInfo,
+				Text: fmt.Sprintf("本轮提炼出 %d 条记忆建议：已放入记忆面板「建议」待确认（未写入记忆）",
+					queued),
+			}))
+		}
 	}
 	// 完整处理成功（含「模型判定无可记内容」）才记录指纹：写入失败不记录，
 	// 下次同内容重试不受影响。
@@ -191,6 +228,50 @@ func (a *App) runDream(space string) error {
 	gaeaDreamState.lastHash = hash
 	gaeaDreamState.Unlock()
 	return nil
+}
+
+// gaeaDreamMode 返回当前生效的自动做梦模式（off/suggest/auto）。
+func gaeaDreamMode() string {
+	ga.mu.Lock()
+	cfg := ga.cfg
+	ga.mu.Unlock()
+	if cfg != nil {
+		return cfg.DreamMode()
+	}
+	if c, err := gaeaLoadConfig(); err == nil {
+		return c.DreamMode()
+	}
+	return "suggest"
+}
+
+// dreamEnqueueSuggestions 把一轮提炼结果转成待确认建议入队，返回入队条数。
+// play 空间的 notes 不入队（接受路径 QuickAdd 只写 work 项目文档，与旧直写
+// 行为的 play 丢弃纪律一致）；facts 照常（接受走 SaveDreamFacts 按 space 落）。
+func dreamEnqueueSuggestions(userDir, space string, res dreamResult) (int, error) {
+	now := time.Now().Format(time.RFC3339)
+	var items []dreamPendingItem
+	for _, f := range res.Facts {
+		items = append(items, dreamPendingItem{
+			ID: newDreamPendingID(), Kind: "fact",
+			Name: f.Name, Type: f.Type, MemoryKind: f.Kind,
+			Description: f.Description, Body: f.Body,
+			Space: space, CreatedAt: now,
+		})
+	}
+	if space != spaces.SpacePlay {
+		for _, n := range res.Notes {
+			note := strings.TrimSpace(n.Note)
+			if note == "" {
+				continue
+			}
+			items = append(items, dreamPendingItem{
+				ID: newDreamPendingID(), Kind: "note",
+				NoteScope: n.Scope, Note: note,
+				Space: space, CreatedAt: now,
+			})
+		}
+	}
+	return dreamPendingAppend(userDir, items)
 }
 
 // dreamInputHash 返回整理输入的内容指纹（sha256 hex，sha256 无空串歧义）。

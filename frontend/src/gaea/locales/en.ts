@@ -539,6 +539,10 @@ export const en = {
   "memory.savedBadge": "✓ Saved",
   "memory.createdBadge": "✓ Created",
   "memory.generatedAt": "Generated at",
+  // v4.377 dream suggest mode: dismiss pending suggestion + purge auto-written facts
+  "memory.ignore": "Ignore",
+  "memory.purgeAutoDream": "Purge auto-dream written memories",
+  "memory.purgeConfirm": "Delete {n} auto-written memories? (click again to confirm)",
   // Flow distill (stage 7.2-2: journal mining → skill crystallization)
   "memory.distill.title": "Flow distill",
   "memory.distill.hint": "Mines repeated cross-session flows from execution history into reusable skills",

@@ -15,6 +15,7 @@ export interface MemoryView {
   storeDir: string;
   available: boolean;
   enabled?: boolean; // 记忆开关（当前生效值）
+  dreamMode?: string; // 自动做梦模式（off/suggest/auto，v4.377 建议制默认 suggest）
   archives?: MemoryArchive[];
 }
 export interface MemoryArchive {

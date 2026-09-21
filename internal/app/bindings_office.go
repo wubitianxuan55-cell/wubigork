@@ -70,9 +70,12 @@ func (b *OfficeB) GaeaDataBackupRollback() (bool, error) { return b.a.GaeaDataBa
 func (b *OfficeB) GaeaDeleteProvider(name string) error { return b.a.GaeaDeleteProvider(name) }
 func (b *OfficeB) GaeaDeleteSession(path string) error { return b.a.GaeaDeleteSession(path) }
 func (b *OfficeB) GaeaDeliverableRegistry(sessionPath string) DeliverableRegistryView { return b.a.GaeaDeliverableRegistry(sessionPath) }
+func (b *OfficeB) GaeaDismissMemorySuggestion(id string) error { return b.a.GaeaDismissMemorySuggestion(id) }
 func (b *OfficeB) GaeaDocumentLint(rel string) (standard.LintReport, error) { return b.a.GaeaDocumentLint(rel) }
 func (b *OfficeB) GaeaDocxAcceptChanges(rel string, accept bool) (PreviewResult, error) { return b.a.GaeaDocxAcceptChanges(rel, accept) }
 func (b *OfficeB) GaeaDocxApplyEdit(rel string, selectedText string, replacement string) (PreviewResult, error) { return b.a.GaeaDocxApplyEdit(rel, selectedText, replacement) }
+func (b *OfficeB) GaeaDreamPurge(names []string) (int, error) { return b.a.GaeaDreamPurge(names) }
+func (b *OfficeB) GaeaDreamPurgePreview() ([]string, error) { return b.a.GaeaDreamPurgePreview() }
 func (b *OfficeB) GaeaExportDeliverable(in ExportDeliverableInput) (ExportDeliverableResult, error) { return b.a.GaeaExportDeliverable(in) }
 func (b *OfficeB) GaeaFactBase() FactBaseView { return b.a.GaeaFactBase() }
 func (b *OfficeB) GaeaFactBaseClear() error { return b.a.GaeaFactBaseClear() }
@@ -160,6 +163,7 @@ func (b *OfficeB) GaeaSend(input string) { b.a.GaeaSend(input) }
 func (b *OfficeB) GaeaSessionStats(path string) SessionStatsView { return b.a.GaeaSessionStats(path) }
 func (b *OfficeB) GaeaSetAgentParams(temperature float64, maxSteps int, systemPrompt string) error { return b.a.GaeaSetAgentParams(temperature, maxSteps, systemPrompt) }
 func (b *OfficeB) GaeaSetDefaultModel(ref string) error { return b.a.GaeaSetDefaultModel(ref) }
+func (b *OfficeB) GaeaSetDreamMode(mode string) error { return b.a.GaeaSetDreamMode(mode) }
 func (b *OfficeB) GaeaSetMCPServerEnabled(name string, enabled bool) error { return b.a.GaeaSetMCPServerEnabled(name, enabled) }
 func (b *OfficeB) GaeaSetMemoryBrief(enabled bool) error { return b.a.GaeaSetMemoryBrief(enabled) }
 func (b *OfficeB) GaeaSetMemoryEnabled(enabled bool) error { return b.a.GaeaSetMemoryEnabled(enabled) }
