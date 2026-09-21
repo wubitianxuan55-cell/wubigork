@@ -210,6 +210,16 @@
   gap: 14px;
 }
 
+/* v4.383 绘制层虚拟化（v4.365 池②收口·与尾部窗口分层）：超阈值会话的行
+   启用 content-visibility:auto——离屏行跳过 layout/paint（React 渲染层的
+   窗口约束由 VIRTUALIZE_THRESHOLD/WINDOW_* 管，本规则只省绘制成本）。
+   contain-intrinsic-size 的 auto 关键字让浏览器记住首次渲染后的实际高度，
+   滚动条估算与滚动锚定不受影响；≤阈值会话不挂类，零影响。 */
+.chat-flow-cv > * {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 120px;
+}
+
 .chat-row {
   display: flex;
   flex-direction: column;

@@ -228,3 +228,22 @@ describe('v4.15 消息级回显（extra.answered_by）', () => {
     expect(screen.queryByText(/由 .* 回答/)).toBeNull()
   })
 })
+
+// ── 绘制层虚拟化（v4.383，v4.365 池②收口的第二形态）────────────────────────
+// 超阈值会话根节点挂 chat-flow-cv（行级 content-visibility:auto，CSS 层离屏
+// 跳过 layout/paint）；≤阈值不挂类，零影响。类挂载是纯声明，jsdom 无布局，
+// 断言类存在性即完整契约。
+describe('绘制层虚拟化（v4.383）', () => {
+  it(`消息数 ≤ ${VIRTUALIZE_THRESHOLD}：不挂 chat-flow-cv`, () => {
+    render(<MessageList {...baseProps} messages={makeMessages(VIRTUALIZE_THRESHOLD)} />)
+    const flow = document.querySelector('.chat-flow')
+    expect(flow).not.toBeNull()
+    expect(flow!.className).not.toContain('chat-flow-cv')
+  })
+
+  it(`消息数 > ${VIRTUALIZE_THRESHOLD}：挂 chat-flow-cv`, () => {
+    render(<MessageList {...baseProps} messages={makeMessages(VIRTUALIZE_THRESHOLD + 1)} />)
+    const flow = document.querySelector('.chat-flow')
+    expect(flow!.className).toContain('chat-flow-cv')
+  })
+})

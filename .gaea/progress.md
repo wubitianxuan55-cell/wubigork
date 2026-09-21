@@ -1,3 +1,13 @@
+## 最新发布：v4.383.0（2026-09-22）「聊天虚拟化第二层：绘制层 content-visibility + 挂池考古销号一批」
+
+- **动机**：用户口径「继续」——v4.365 池②「聊天消息真虚拟化」收口（两形态分层），顺带一批过时挂池条目考古销号（零代码）。前端 2 文件+测试 +2，绑定面 711 零变更。
+- **落地**：①绘制层虚拟化（超阈值会话根节点挂 chat-flow-cv，行级 content-visibility:auto 离屏跳 layout/paint；contain-intrinsic-size:auto 120px 记住行实际高度；≤阈值不挂类零影响；流式吸底/antd portal 菜单不受影响；react-window 被 v4.370 侦察否决有案=滚动宿主/动态行高/流式吸底三冲突）②挂池考古销号（零代码）=v4.355②file:// 头像（v4.361 已清账）/v4.355③longtask 阈值（v4.361 已提 200ms）/v4.349⑤initRuntimePolyfill（辨伪同步成本≈0）+vendor manualChunks（无新证据）。
+- **测试**：前端 +2（>阈值挂 chat-flow-cv/≤阈值不挂——类挂载即完整契约）；全量 vitest 389 文件 3322 例绿+tsc 0。
+- **门禁**：全量 ci.ps1 绿 EXIT=0（E 系列守卫 OK+仓库卫生守卫 OK）+版本漂移闸 OK@4.383.0。
+- **坑**：①content-visibility 的行内 fixed/portal 子元素语义要先查——containment 裁剪 fixed 后代，聊天行菜单 portal 到 body 不受影响，novel selbar 不在作用面②「真虚拟化」不等于 react-window——三冲突场景下渲染层窗口+绘制层 CV 分层零结构风险达成同目标，池条目按目标销号不按实现手段。
+- **产物**：exe 51128320 B SHA256=4453235ab91e5a39187e4e4112e363df89937e66e96731f43f6f7bd0a310e588（releases/gaea-v4.383.0.exe+SHA256SUMS-v4.383.0.txt，exe 仅本地不入库；桌面副本同哈希实测一致；冒烟 /api/health 200 过）；保留策略留 v4.379~v4.383 删 v4.378.0.exe（SUMS 身份档案全保留）。
+- **文档**：池②收口+三条考古销号回填+releases/v4.383.0.md（含升级说明）+CHANGELOG/README+releases/README（计数 404→405+34 席插 v4.383 裁 v4.349）+AGENTS 迁 1 插 1（九十八迁：v4.380 入 archive）+progress/todos。
+
 ## 最新发布：v4.382.0（2026-09-22）「前端挂池清欠：整店订阅清零 + 交付物缓存失效接线」
 
 - **动机**：用户口径「继续」——dsh 余 4 项全是「等条件」型，转前端挂池清欠（v4.349 池④+v4.354 池④）。前端 4 文件+测试，绑定面 711 零变更。

@@ -8,6 +8,10 @@
 //  2) 尾部窗口：消息数超过 VIRTUALIZE_THRESHOLD 后仅渲染最近 WINDOW_INITIAL 条
 //     （真实约束 DOM 节点规模）；用户翻到窗口顶部附近时按 WINDOW_GROW_STEP 向上
 //     扩载更早消息（渐进式历史加载，Chromium 原生滚动锚定补偿上方插入的高度差）。
+//  3) 绘制层虚拟化（v4.383，v4.365 池②收口的第二形态）：超阈值会话根节点挂
+//     chat-flow-cv，行级 content-visibility:auto——离屏行跳过 layout/paint，
+//     窗口扩载到全量历史后滚动依旧顺滑（React 渲染层约束由窗口管，绘制成本
+//     由浏览器原生管，两层互不干扰）。
 //
 // 采用尾部窗口而非 react-window 的原因：react-window v2 的 List 根节点必须自身
 // 是滚动容器（行绝对定位由其内部 scroll 事件驱动），而本页滚动容器是 ChatPage
@@ -123,7 +127,7 @@ export const MessageList: React.FC<MessageListProps> = ({
   }, [virtualized, messages, hasOlder, loadingOlder, onLoadOlder])
 
   return (
-    <div ref={flowRef} className="chat-flow v3-reading">
+    <div ref={flowRef} className={`chat-flow v3-reading${virtualized ? ' chat-flow-cv' : ''}`}>
       {shown.map((msg, idx) => {
         const isStreaming = !!msg.streaming && msg.key === streamKey
         const prev = messages[startIdx + idx - 1]
