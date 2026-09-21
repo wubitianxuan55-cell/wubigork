@@ -937,11 +937,24 @@ func (c *Controller) NewSession() error {
 	if c.ctxMgr != nil {
 		c.ctxMgr.Flow().ReplaceMessages(nil)
 	}
+	// v4.378：清空持有会话级状态的工具（bash 状态锚），防 cwd/env 跨会话泄漏。
+	c.resetSessionToolState()
 	c.mu.Lock()
 	c.startedOnce = true // NewSession fires SessionStart itself; don't re-fire on the next turn
 	c.mu.Unlock()
 	c.hooks.SessionStart(context.Background())
 	return nil
+}
+
+// resetSessionToolState clears per-session mutable state on tools that opt in
+// via tool.SessionStateResetter (currently the bash shell anchor). Nil-safe and
+// a no-op for tools that don't implement it.
+func (c *Controller) resetSessionToolState() {
+	for _, t := range c.Tools() {
+		if r, ok := t.(tool.SessionStateResetter); ok {
+			r.ResetSessionState()
+		}
+	}
 }
 
 // RewindScope selects what a Rewind restores.
@@ -964,6 +977,9 @@ func (c *Controller) Resume(s *agent.Session, path string) {
 	if c.executor != nil {
 		c.executor.SetCheckpointFlusher(c.flushCheckpoint)
 	}
+	// v4.378：换会话即清 bash 状态锚（恢复的是对话历史，shell 锚定态从不
+	// 持久化——磁盘上没有它的真相，重置是唯一诚实态）。
+	c.resetSessionToolState()
 }
 
 // ResumeFromDisk 从磁盘恢复会话并接管为当前会话。事件日志模式下：

@@ -502,3 +502,12 @@ DELETE FROM cost_estimate_versions WHERE rowid NOT IN (
 CREATE UNIQUE INDEX IF NOT EXISTS idx_cost_versions_proj_ver
   ON cost_estimate_versions(project_id, version);
 `
+
+// SchemaV23 记忆事实单值键 v4.378.0（reasonix memory subject keys 蒸馏）：
+// facts 增加 subject_key 列（事实回答的单值问题，如 project.package_manager）。
+// 同空间同键仅一条活跃事实——Store.Save 写入侧拒绝撞键并回报持有者（修订走
+// 原条目重写而非制造自相矛盾的新记忆）；空串=叙事型事实不参与约束。
+// ADD COLUMN NOT NULL DEFAULT 空串，对既有行零成本回填（V19 pinned 同口径）。
+const SchemaV23 = `
+ALTER TABLE facts ADD COLUMN subject_key TEXT NOT NULL DEFAULT '';
+`

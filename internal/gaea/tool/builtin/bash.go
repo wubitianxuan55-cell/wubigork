@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"os"
 	"os/exec"
 	"runtime"
 	"strconv"
@@ -34,6 +35,10 @@ type bash struct {
 	sb      sandbox.Spec
 	shell   sandbox.Shell
 	workDir string
+	// st 是会话状态锚（v4.378，shellstate.go）：cwd/env 跨调用存活。组装点
+	// （Workspace.Tools / ConfineBash）每注册表挂一个；nil=无状态（零值兜底
+	// 实例与测试）。
+	st *shellState
 }
 
 func (bash) Name() string { return "bash" }
@@ -45,7 +50,12 @@ func (b bash) Description() string {
 			"so write PowerShell syntax (e.g. $null not /dev/null; ';' or separate calls, not '&&'; " +
 			"Get-ChildItem/Select-String, not ls/grep). Use for builds, tests, git, etc."
 	}
-	return "Execute a shell command. 5-minute timeout. For long-running commands, use run_in_background=true. Set output_format=json to get structured result with separated stdout/stderr fields."
+	return "Execute a shell command. 5-minute timeout. Shell state persists across calls in this session: " +
+		"the working directory and exported variables/functions carry over — cd once and later calls start there. " +
+		"State is captured when a command finishes; a timed-out or interrupted command does not update it, " +
+		"and a deleted working directory falls back to the workspace root. " +
+		"For long-running commands, use run_in_background=true (background jobs start in the current directory but do not update state). " +
+		"Set output_format=json to get structured result with separated stdout/stderr fields."
 }
 
 // resolved returns the bound shell, resolving lazily for the zero-value instance
@@ -69,6 +79,11 @@ func (bash) ReadOnly() bool { return false }
 func (bash) CompactDescription() string     { return compactDesc["bash"] }
 func (bash) CompactSchema() json.RawMessage { return compactSchema["bash"] }
 
+// ResetSessionState 清空会话状态锚（cwd/env/探针目录）。controller 在会话
+// 切换（NewSession/Resume）时经 tool.SessionStateResetter 调用，防跨会话
+// cwd/env 泄漏。nil 锚（零值实例）为 no-op。
+func (b bash) ResetSessionState() { b.st.reset() }
+
 func (b bash) Execute(ctx context.Context, args json.RawMessage) (string, error) {
 	var p struct {
 		Command         string `json:"command"`
@@ -89,8 +104,28 @@ func (b bash) Execute(ctx context.Context, args json.RawMessage) (string, error)
 			"conditional chaining, or issue the commands as separate calls")
 	}
 
+	// v4.378 会话状态锚定：仅 bash 壳启用（PowerShell 语法不通）。前台调用包
+	// 状态采集前缀；后台任务不回写状态但起始目录仍锚定。WSL enforce 见下——
+	// 壳内 cwd/env 是另一个世界，host 侧锚定整体退回旧行为。
+	useState := b.st != nil && sh.Kind == sandbox.ShellBash
+	cmdText := p.Command
+	var extraEnv []string
+	var probe string
+	fgDir := b.workDir
+	if useState && !p.RunInBackground {
+		fgDir = b.st.workDir(b.workDir)
+		cmdText, extraEnv, probe = b.st.begin(p.Command)
+	}
+
 	// Wrap in the OS sandbox when configured; otherwise argv is just the shell.
-	argv, _ := sandbox.Command(b.sb, sh, p.Command)
+	argv, sbEnforced := sandbox.Command(b.sb, sh, cmdText)
+	if sbEnforced && useState {
+		useState = false
+		extraEnv, probe, fgDir, cmdText = nil, "", b.workDir, p.Command
+	}
+	if probe != "" {
+		defer os.Remove(probe) // adopt/abandon 之后兜底清探针文件
+	}
 
 	if p.RunInBackground {
 		jm, ok := jobs.FromContext(ctx)
@@ -98,6 +133,9 @@ func (b bash) Execute(ctx context.Context, args json.RawMessage) (string, error)
 			return "", fmt.Errorf("background execution is not available in this context")
 		}
 		workDir := b.workDir
+		if useState {
+			workDir = b.st.workDir(b.workDir)
+		}
 		// The job runs under the manager's session context (no 120s timeout), so it
 		// survives this turn; its combined output streams to the job buffer.
 		// StartIn：在嵌套场景（后台 task 的子会话里再开后台命令）自动挂到父 job，
@@ -151,7 +189,12 @@ func (b bash) Execute(ctx context.Context, args json.RawMessage) (string, error)
 
 	cmd := exec.Command(argv[0], argv[1:]...)
 	hideBashWindow(cmd) // Windows: 防止弹出 cmd 黑框
-	cmd.Dir = b.workDir // "" lets exec use the process working directory
+	cmd.Dir = fgDir     // "" lets exec use the process working directory
+	if probe != "" {
+		// 状态锚定的调用才注入探针路径/上次 env 转储；其余调用保持 nil（继承
+		// 进程环境，与旧行为逐字节一致）。
+		cmd.Env = append(os.Environ(), extraEnv...)
+	}
 
 	// V10.5: json 模式下分离 stdout/stderr；plain 模式保持合并
 	// （v4.374 刀6：运行中即封顶的有界缓冲，防 `yes` 等失控命令打爆内存）
@@ -210,8 +253,12 @@ func (b bash) Execute(ctx context.Context, args json.RawMessage) (string, error)
 
 		select {
 		case waitErr := <-waitCh:
-			// 进程正常退出
+			// 进程自然退出（含命令里的显式 exit——EXIT trap 已采集终态）：
+			// 采纳 cwd/env 锚定。
 			err = waitErr
+			if probe != "" {
+				b.st.adopt(probe)
+			}
 		case <-time.After(earlyWait):
 			// 8 秒后进程仍在运行 → 判断是否为长期运行进程
 			output := stdoutBuf.String()
@@ -253,6 +300,9 @@ func (b bash) Execute(ctx context.Context, args json.RawMessage) (string, error)
 			select {
 			case waitErr := <-waitCh:
 				err = waitErr
+				if probe != "" {
+					b.st.adopt(probe)
+				}
 			case <-ctx.Done():
 				err = ctx.Err()
 			}

@@ -296,6 +296,7 @@ func parseArchiveTimestamp(name string, fallback time.Time) time.Time {
 	}
 	return fallback
 }
+
 // dirs returns the non-empty store directories to scan. Project-scoped Dir
 // takes priority; GlobalDir (when set) is also included for cross-project facts.
 func (b *fileBackend) dirs() []string {
@@ -374,6 +375,11 @@ func render(m Memory, name string) string {
 	}
 	if len(m.Tags) > 0 {
 		b.WriteString("  tags: [" + strings.Join(m.Tags, ", ") + "]\n")
+	}
+	// subject_key 仅在声明时写出（v4.378 subject keys）——旧文件逐字节不变，
+	// frontmatter.Split 的嵌套扁平化让 loadMemory 以 fm["subject_key"] 读回。
+	if sk := NormalizeSubjectKey(m.SubjectKey); sk != "" {
+		b.WriteString("  subject_key: " + sk + "\n")
 	}
 	b.WriteString("---\n\n")
 	b.WriteString(strings.TrimSpace(m.Body))
@@ -463,6 +469,7 @@ func loadMemory(path string) (Memory, bool) {
 		Type:        NormalizeType(fm["type"]),
 		Kind:        NormalizeKind(fm["kind"]),
 		Tags:        parseTags(fm["tags"]),
+		SubjectKey:  NormalizeSubjectKey(fm["subject_key"]),
 		Body:        strings.TrimSpace(body),
 	}
 	if m.Name == "" {
@@ -470,6 +477,7 @@ func loadMemory(path string) (Memory, bool) {
 	}
 	return m, true
 }
+
 // splitFrontmatter is a thin wrapper; the real parser lives in
 // internal/frontmatter.
 func splitFrontmatter(s string) (map[string]string, string) {

@@ -11,9 +11,10 @@ import (
 
 // ConfineBash returns the bash built-in bound to an OS-sandbox spec, overriding
 // the unconfined instance registered at init. When the spec enforces, bash runs
-// each command through the sandbox (see package sandbox).
+// each command through the sandbox (see package sandbox). The instance carries
+// a session state anchor (shellstate.go) so cwd/env persist across calls.
 func ConfineBash(spec sandbox.Spec) tool.Tool {
-	return bash{sb: spec, shell: sandbox.ResolveShell()}
+	return bash{sb: spec, shell: sandbox.ResolveShell(), st: newShellState()}
 }
 
 // ConfineWriters returns the file-writing built-ins (write_file, edit_file,

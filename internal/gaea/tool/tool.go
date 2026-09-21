@@ -74,6 +74,16 @@ type PersistWriteTool interface {
 	PersistWrite() bool
 }
 
+// SessionStateResetter is an optional capability a Tool may implement when it
+// holds mutable state that spans calls within one session (the bash shell
+// anchor: cwd + exported env). The controller clears such state on session
+// switches (NewSession / Resume) so it never leaks across conversations.
+// Value-receiver implementations keep registry-stored copies sharing the same
+// underlying state.
+type SessionStateResetter interface {
+	ResetSessionState()
+}
+
 // IsPersistWrite reports whether t is marked as a persistent-write tool.
 func IsPersistWrite(t Tool) bool {
 	pw, ok := t.(PersistWriteTool)

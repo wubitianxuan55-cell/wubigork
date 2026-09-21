@@ -2,6 +2,7 @@ package memory
 
 import (
 	"database/sql"
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -58,6 +59,17 @@ func NormalizeKind(s string) Kind {
 	return KindSemantic
 }
 
+// NormalizeSubjectKey coerces an arbitrary string to a subject key（v4.378，
+// reasonix memory subject keys 蒸馏）：trim 后 ASCII 小写化，内部空白折叠为
+// '-'（中文等非空白字符原样保留——单值语义不依赖字符集）。空串=未声明。
+func NormalizeSubjectKey(s string) string {
+	k := strings.TrimSpace(s)
+	if k == "" {
+		return ""
+	}
+	return strings.ToLower(strings.Join(strings.Fields(k), "-"))
+}
+
 // Memory is one stored fact.
 type Memory struct {
 	Name        string   // kebab-case slug; also the file stem (<name>.md)
@@ -66,7 +78,12 @@ type Memory struct {
 	Type        Type     // category: user / feedback / project / reference
 	Kind        Kind     // cognitive function: semantic / episodic / procedural
 	Tags        []string // trigger tags for episodic memories (empty for others)
-	Body        string   // the fact itself (Markdown)
+	// SubjectKey 是事实回答的单值问题键（v4.378，reasonix subject keys 蒸馏，
+	// 如 project.package_manager / user.response_style）：同空间同键仅一条
+	// 活跃事实，保存撞键即拒绝并回报持有者——修订单值事实应走原条目重写，
+	// 而不是制造一篇自相矛盾的新记忆。空=叙事型事实，不参与单值约束。
+	SubjectKey string
+	Body       string // the fact itself (Markdown)
 	// 空间归属（S1 双空间列落库，facts.space_id）：写入端携带，零值缺省
 	// "work"；SQLite 后端落列，file 后端不落盘（按项目目录天然隔离）。
 	// S1.2 B：读端 SELECT 回填 space_id（ListInSpace/Get），供展示/调试与
@@ -193,7 +210,38 @@ func (s Store) Path(name string) string { return s.engine().Path(name) }
 // single mutation entry point — the `remember` tool, the desktop editor, and
 // any future importer all go through here so the index never drifts. Returns
 // the location written.
-func (s Store) Save(m Memory) (string, error) { return s.engine().Save(m) }
+// v4.378 subject keys：声明了 SubjectKey 的保存先做单值冲突检查——同空间同键
+// 已被另一条活跃事实持有时拒绝（错误点名持有者），修订单值事实必须走原条目
+// 重写（revision，不是 contradiction）。同名保存（自己顶自己）不受限。
+func (s Store) Save(m Memory) (string, error) {
+	if holder := s.subjectHolder(m); holder != "" {
+		return "", fmt.Errorf(
+			"subject key %q is already held by memory %q — one active value per subject: "+
+				"update that memory (call remember with its name) or forget it first",
+			m.SubjectKey, holder)
+	}
+	return s.engine().Save(m)
+}
+
+// subjectHolder 返回同空间内持有同一 SubjectKey 的另一条活跃记忆名；无冲突
+// 返回空串。SubjectKey 未声明（规范化后为空）恒无冲突。
+func (s Store) subjectHolder(m Memory) string {
+	key := NormalizeSubjectKey(m.SubjectKey)
+	if key == "" {
+		return ""
+	}
+	space := m.Space
+	if space == "" {
+		space = defaultFactSpace
+	}
+	name := slug(m.Name)
+	for _, e := range s.engine().ListInSpace(space) {
+		if NormalizeSubjectKey(e.SubjectKey) == key && e.Name != name {
+			return e.Name
+		}
+	}
+	return ""
+}
 
 // Archive moves a memory out of active memory instead of permanently deleting
 // it, so wrong memories remain traceable and recoverable. A missing memory is
@@ -256,8 +304,10 @@ func (s Store) CleanupArchived(cutoff time.Time) ([]ArchivedMemory, error) {
 func (s Store) Get(name string) (Memory, bool) { return s.engine().Get(name) }
 
 // GetInSpace 是 Get 的空间谓词版（S1.2 B 读端隔离器）：space 为空 = 旧行为
-//（全空间）；非空时仅命中该空间的活跃事实，跨空间键返回 false。
-func (s Store) GetInSpace(name, space string) (Memory, bool) { return s.engine().GetInSpace(name, space) }
+// （全空间）；非空时仅命中该空间的活跃事实，跨空间键返回 false。
+func (s Store) GetInSpace(name, space string) (Memory, bool) {
+	return s.engine().GetInSpace(name, space)
+}
 
 // TouchInSpace 是 Touch 的空间谓词版：space 为空 = 旧行为；非空时仅触达该
 // 空间的活跃事实——跨空间键不命中、不动行。

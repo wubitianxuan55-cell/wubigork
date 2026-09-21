@@ -8,9 +8,7 @@
 
 CHANGELOG.md（行 7~220 Unreleased=v1.21+，221~455=v1.20.0 详版，456+=早期摘要）+ `git log v1.15.0..HEAD -- internal/<pkg>` 变更密度定位（run_loop.go 140 commits、execute_batch.go 44、compact.go 58、permission 35 为高频区）。三路并行：agent 内核与收尾、工具执行层、provider/安全/memory/skill。
 
-## 本轮已落地（v4.374.0，七刀）
-
-| 刀 | 源机制（上游文件） | gaea 落点 |
+## 本轮已落地（v4.374.0，七刀）| 刀 | 源机制（上游文件） | gaea 落点 |
 |---|---|---|
 | 刀1 Host 白名单 | `internal/serve/hostguard.go`：loopback 服务被 DNS-rebinding 变同源后可无预检驱动 RPC→421 拒绝 | `httpbridge/hostguard.go`（通配绑定豁免；Handler 默认 loopback 名单；ServeWithToken 按监听地址派生）+ app 诊断端口 /healthz·/stack 同挂 |
 | 刀2 只读表修正 | `shellsafe/effect.go`+`permission/bash_approval.go`：cargo check/doc 跑 build.rs 非只读；awk 内联程序 system() 执行 shell；env 包装任意命令 | `permission/bash_readonly.go`：移除 env/awk/sed（程序体是可执行 shell 的迷你语言，字符串层不可分类，fail-closed 交审批）；cargo 仅留 search；find 补 -ok/-okdir；git 补 --ext-diff/--textconv/cat-file --filters/grep --open-files-in-pager 守卫 |
@@ -34,17 +32,28 @@ CHANGELOG.md（行 7~220 Unreleased=v1.21+，221~455=v1.20.0 详版，456+=早�
 
   测试：Go +13（slim 截头/参数封顶/oversized 请求收缩/fits 逐字不变/provider 拒绝后降档重试/rescue 抹结果/丢单元装 marker/KeepErrors 豁免/无窗无区无靶三态/溢出恢复落到截断终级/advisory 越线注入一次性两条改钉/目录压缩保全员/fitting 目录零变更）+2 处适配（summarize 加 forceSlim 形参）。**坑**=①rescue 的可达带=「compact 尾钳与 rescue 尾钳之间的盲区」——大块 assistant 正文是 prune 永远够不到（只抹 RoleTool）、compact 尾保护又留下的内容，E2E 场景必须用这类内容构造②estimator 是 max(bytes/4, runes/2)——纯 ASCII 按 2 字符/token 计，构造 fits/over 边界时按这个口径算。
 
+- **第四弹（v4.378.0，三刀，留池收官）**：
+  | 刀 | 源机制 | gaea 落点 |
+  |---|---|---|
+  | 刀1 bash 会话状态锚定 | `persistentshell/`：cd/env/函数跨调用存活（单进程 PTY+marker 协议+分帧，Windows 需 conpty） | `tool/builtin/shellstate.go`：**取道不取器——进程不持久，状态持久**。cwd=命令结束时 EXIT trap 经 cygpath 捕获 Windows 形路径（MSYS $PWD 是 /c/... 形，exec.Cmd.Dir 不认）落 cmd.Dir；env=同时点 export -p 全量转储、下次调用前置 eval 重放（导出函数同享）。漂移治理在「观测」不在「推断」（上游廉价近似盲缓存的病根）：只在 shell 真实退出时采集（显式 exit 走 trap 照采、退出码 `exit $__gaea_rc` 原样传播），被杀（超时/取消 taskkill /F 硬杀 trap 不跑）/trap 被覆盖/exec 换身一律不采纳——缓存永不超前于现实；并行批次各用独立探针文件完成序采纳；锚定目录消失自愈回落工作空间。豁免=PowerShell 壳（语法不通）/WSL enforce（壳内 cwd/env 是另一世界）/run_in_background（不回写但起始目录锚定）。会话切换经新接口 `tool.SessionStateResetter`（controller NewSession/Resume 钩子）整体重置，防跨会话泄漏 |
+  | 刀2 activation 二维·固化正文注入 | `memory/activation.go`：activation 管事实「怎么触达」且与 scope 正交——pinned=正文随会话快照装配，relevant=仅索引+检索可达 | `memory/activation.go BuildPinnedFactsBlock`：固化事实正文预算化（块 1200 rune/单条 400 rune 截断留标）注入缓存稳定前缀——「固化」动作从此有功能后果（standing context），不再只是排序信号。排序刻意 Name 升序而非 recency：块 ride 稳定前缀，touch 不能翻动它（晨报块容忍翻动是因为它本就按近用排）；门控仅记忆总开关（两空间各注入各的收窄视图——activation 与 scope 正交）；空集合零注入 |
+  | 刀3 memory subject keys | `memory/remember.go`+`store_v2.go`：subject_key 点名事实回答的单值问题，同 scope+subject 仅一条活跃值，撞键保存被拒并回报持有者 id——修订走原条目重写而非制造自相矛盾的新记忆 | `memory/store.go`：Memory.SubjectKey+NormalizeSubjectKey（trim/ASCII 小写/空白折叠'-'，中文原样保留）；`Store.Save` 统一写入侧冲突检查（同空间同键被另一活跃条持有→拒绝点名持有者，同名重存=修订放行，置空=释放键）；remember 工具新增 `subject_key` 参数+描述引导；SQLite SchemaV23 落列+双 SELECT 回填；文件后端 metadata.subject_key 嵌套键往返（frontmatter.Split 扁平化），仅声明时写出=旧文件逐字节不变 |
+
+  测试：Go +13（shellstate 9：cwd/env 端到端存活/显式 exit 采纳+退出码传播/保守采纳四态〔缺失·畸形·目录消失·超限〕/合法形状采纳/消失自愈/reset 整树删/nil 锚全链路/Resetter 接口契约；activation 3：过滤排序截断/预算诚实/空集合零注入；subject keys 4：SQLite 撞键拒绝点名持有者+修订+跨空间+释放键+叙事放行/文件后端往返+旧文件空键/remember 工具端到端/NormalizeSubjectKey）+装配 1（pinned 正文 work/play 各见各的+未固化不进+开关关零注入）。**坑**=①bash printf 的 %s 是 Go Sprintf 的动词——wrapper 模板里要写 %%s 否则 vet 拒编②MSYS 路径形态：探针必须经 cygpath -w 转 host 形，直接采 $PWD 会让下次 cmd.Dir chdir 失败③事件日志列与 Event 结构一一对应——不为审计「顺手」加字段，subject_key 真相归 facts 表（与 body 同待遇：日志只留摘要）。
+
 ## 留池（按价值排序，未做）
 
 1. ~~**执行序批次**~~ → **已落地 v4.375.0（刀1 同路径资源键统一+对应性守卫）**：`read:/file:` 双键统一为 `file:<path>` 资源键——同批「读 A→改 A」拆批保序，跨路径共存并行的延迟收益保留；call/result 对应性守卫兜底双重 recover 间的逃逸路径。上游的全序严格执行（writer 一律屏障）未全取——gaea 冲突键模型已编码资源隔离，统一键即消真竞态且不退 v4.63 并行子代理特性。
 2. ~~**Live file observations**~~ → **已落地 v4.375.0（刀2）**：会话级版本观察（size+mtime 指纹）——read_file 真实读后记录、写前比对、自身写后刷新；外部修改/删除 `blocked: [stale version]`；从未观察不拦；缓存命中不假装观察。与 V10.28 stale-anchor 规则并存（锚点新鲜度 vs 外部篡改）。
 3. ~~**采样恢复状态机+预算学习**~~ → **辨伪销号（v4.376）**：四路重试逐对账——中断（stream recovery 在册）、溢出（v4.373 刀1 在册）已有；超限无靶子（gaea 主链路**从不发送 max_tokens**，provider 默认输出预算自己管，请求侧裁剪+共享窗 admission 无锚点）；thinking-400 无靶子（reasoning 不回放——openai provider 装配时丢弃 reasoning_content，没有「重放被 API 拒」的形态）；输出预算学习依附于请求侧 max_tokens，同无锚点。
 4. ~~**压缩救援阶梯**~~ → **已落地 v4.376.0（第三弹刀1）**：slim 摘要档+投影截断终级+target/4 保护区收窄。未取：`maximumSafeSummaryPrefixEnd` 安全前缀二分（gaea 摘要请求非 live 前缀，降 slim 档即达同等效果且更简单）与 chunked fragment 多请求路径（gaea 无片段形态）——取道不取器。
-5. **Persistent bash PTY**（`persistentshell/`）：cd/env/函数跨调用存活；marker 协议+PTY+分帧是全套工程，Windows 需 conpty。廉价近似=每会话缓存 cwd+env 前缀注入（缓存与真实 shell 状态漂移风险高，须专门设计——留池）。
+5. ~~**Persistent bash PTY**~~ → **主值已落地 v4.378.0（第四弹刀1：cwd/env/导出函数跨调用存活，会话切换重置）；进程持久残留辨伪销号**：PTY+marker 协议+分帧的全套工程与 gaea「每调用新进程」链路处处相克（Windows Job Object 灭树、boundedOutput 运行中封顶、超时硬杀都假定进程可随时整体回收，长活 shell 会话直接对抗三者的安全语义），且 Windows 需 conpty 额外依赖；残余价值只剩 shell options（set -e 等）/alias/未导出函数——不值 conpty 全套。状态维度的等价收益已由探针观测式锚定兑现。
 6. ~~**重复调用降级**~~ → **已裁决 v4.376.0（第三弹刀2）**：硬阻断退役改批后 advisory（每签名每轮一条），与上游实测结论对齐。
-7. **memory 事实生命周期**：subject keys 冲突更新/freshness 三档/expiry 硬过期/pinned-relevant 二维。~~auto_recall 免责前缀~~ → 已落地 v4.375.0（刀4：memory_search 结果前置低权威免责声明）；本地路径抹除仍留池（gaea 记忆内容不含机器路径，收益待证）。
+7. ~~**memory 事实生命周期**~~ → **已收官 v4.378.0（第四弹刀2+刀3）**：freshness 三档**辨伪=早已在册**（gaea 5.3 三态 pinned/decaying/archived + DecayScore 半衰期评分，v4.213.0 落地，领先上游）；expiry 硬过期**辨伪=已在册**（CleanupArchived 归档保留期硬删+pinned 豁免；per-fact TTL 无用户场景无靶子）；subject keys 冲突更新**已落地**（刀3）；pinned-relevant 二维**已落地**（刀2 activation：pinned 正文随快照/relevant 检索可达）。本地路径抹除仍留辨伪（gaea 记忆内容不含机器路径，收益待证）。
 8. ~~**skill catalog 预算化渲染**（二分压缩描述行）+引用按需分页+watcher 热重载~~ → **渲染已落地 v4.376.0（第三弹刀3）**；引用按需分页辨伪销号（read_skill 即按需加载，无预灌形态）；watcher 热重载辨伪销号（目录在 system prompt 缓存稳定前缀内，热重载必破前缀——新会话即得新目录，单用户桌面够用）。
 9. 杂项：~~read_tasks 续读游标~~（辨伪：gaea read_file 已有 offset/limit 分页，task 工具无长列表形态）/steer 持久化（辨伪：gaea consumeSteer 即 session.Add=持久，上游缺口在其事件账本架构，gaea 无靶子）/~~会话私有临时目录 env 重定向~~（辨伪 v4.376：Git Bash 下 TMP/TEMP 注入牵动 /tmp 映射与 MSYS 语义，单用户桌面并行会话临时互踩稀薄——风险收益比不成立）/~~压缩状态跨重启保留~~（辨伪 v4.376：重启丢 compactStuck 熔断=天然解锁救援，持久化反而把这条路堵死）/jobs 路径段校验（gaea jobs 无 artifact 落盘路径拼接，无靶子）/websearch 有界编码循环（gaea truncateToolOutput 事后截断已兜，编码中顶破上限形态不存在）/~~git 硬化基线~~ → 已落地 v4.375.0（刀3：GIT_TERMINAL_PROMPT=0/GIT_OPTIONAL_LOCKS=0/GIT_CONFIG_NOSYSTEM=1 + -c fsmonitor/maintenance 关闭 + diff 强制 --no-ext-diff --no-textconv）。
+
+**结论（2026-09-21，v4.378.0 第四弹后）：留池 9 项全部销号（落地 8+辨伪并入既有），真身蒸馏线收官。**
 
 ## 否定结论（不跟进）
 

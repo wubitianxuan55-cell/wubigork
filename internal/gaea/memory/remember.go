@@ -38,6 +38,7 @@ func (rememberTool) Description() string {
 		"Do NOT save what the repo already records (code structure, git history) or facts that only matter to the current conversation; " +
 		"if asked to remember one of those, save instead the non-obvious point behind it. " +
 		"Before saving, check the loaded memory index for an entry that already covers this — reuse that name to update it rather than create a near-duplicate, and use `forget` to drop one that is now wrong. " +
+		"For single-valued facts (one right answer per question, like the package manager or the release branch), set subject_key — saving against a held subject is rejected so you update the holder instead of contradicting it. " +
 		"The saved index loads into context at the start of each session. " +
 		"Set session=true to save tentatively — the fact is visible this session but not persisted to disk until you call promote_session_facts. " +
 		"Kind: \"semantic\" (default, facts/prefs), \"episodic\" (past experiences with trigger tags), \"procedural\" (always-active rules)."
@@ -53,6 +54,7 @@ func (rememberTool) Schema() json.RawMessage {
   "type": {"type": "string", "enum": ["user", "feedback", "project", "reference"], "description": "Category of the fact."},
   "kind": {"type": "string", "enum": ["semantic", "episodic", "procedural"], "description": "Cognitive function. semantic (default): facts/prefs searchable. episodic: past experiences with trigger tags. procedural: always-active rules."},
   "tags": {"type": "array", "items": {"type": "string"}, "description": "Trigger keywords for episodic memories. When user input matches, the memory is injected as a few-shot example."},
+  "subject_key": {"type": "string", "description": "Optional dotted key naming the single-valued question this fact answers, e.g. \"project.package_manager\" or \"user.response_style\". One active value per subject per space: saving against a held subject is rejected with the holder's name — update that memory instead. Omit for narrative facts that are not a single right answer."},
   "body": {"type": "string", "description": "The fact itself (Markdown). For episodic, use pattern: observation -> action -> result."},
   "session": {"type": "boolean", "description": "If true, save to session-only memory (not permanent)."}
 },
@@ -68,6 +70,7 @@ func (t rememberTool) Execute(ctx context.Context, args json.RawMessage) (string
 		Type        string   `json:"type"`
 		Kind        string   `json:"kind"`
 		Tags        []string `json:"tags"`
+		SubjectKey  string   `json:"subject_key"`
 		Body        string   `json:"body"`
 		Session     bool     `json:"session"`
 	}
@@ -94,6 +97,7 @@ func (t rememberTool) Execute(ctx context.Context, args json.RawMessage) (string
 		Type:        NormalizeType(in.Type),
 		Kind:        NormalizeKind(in.Kind),
 		Tags:        in.Tags,
+		SubjectKey:  NormalizeSubjectKey(in.SubjectKey),
 		Body:        in.Body,
 		Space:       SpaceFromContext(ctx),
 	}
@@ -132,5 +136,5 @@ func (t rememberTool) Execute(ctx context.Context, args json.RawMessage) (string
 	return fmt.Sprintf("Saved memory to %s (it applies now and loads automatically in future sessions).", path), nil
 }
 
-func (rememberTool) ReadOnly() bool    { return false }
+func (rememberTool) ReadOnly() bool     { return false }
 func (rememberTool) PersistWrite() bool { return true }

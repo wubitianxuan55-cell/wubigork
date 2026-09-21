@@ -1,3 +1,14 @@
+## 最新发布：v4.378.0（2026-09-21）「Reasonix 真身蒸馏第四弹·留池收官：bash 会话状态锚定 + memory activation 二维 + subject keys」
+
+- **动机**：用户口径「继续优化完善 gaea」——Reasonix 真身蒸馏第四弹，清掉最后 2 项留池（Persistent bash PTY + memory 事实生命周期）收官整条蒸馏线；同日对账 dsh 留池销 3（12→9）。全 Go，绑定面 711 零变更。
+- **落地**：①bash 会话状态锚定（cd/export 含导出函数跨调用存活；取道不取器=进程不持久状态持久；EXIT trap 观测式采集：cwd 经 cygpath -w 转 host 形+env 用 export -p 全量转储前置 eval 重放；显式 exit 照采退出码原样传播；被杀/覆盖/exec 换身不采纳；并行批次独立探针完成序采纳；目录消失自愈；豁免=PowerShell/WSL enforce/后台；会话切换经新接口 tool.SessionStateResetter 由 controller NewSession/Resume 重置）②memory activation 二维（pinned=正文随会话快照预算化注入稳定前缀 1200/单条 400、Name 升序保 touch 不翻前缀；relevant=仅检索可达；门控仅记忆总开关，空集合零注入）③memory subject keys（remember 可选 subject_key 单值问题键；Store.Save 撞键拒绝点名持有者，同名=修订放行，置空=释放；SchemaV23+文件后端 metadata.subject_key 往返）。
+- **辨伪销号**：PTY 进程持久残留（与 Job Object 灭树/boundedOutput/超时硬杀相克+conpty 不值残余价值）/freshness 三档+expiry（早已在册 decay.go 三态+CleanupArchived）/dsh 三项（timeout-policy=工具内错误串无外层 deadline 通道、skill digest 重发布=缓存稳定前缀同判、contextBreakdown=ContextView 已有）。
+- **测试**：Go +15（shellstate 9：端到端存活/显式 exit/保守四态/合法采纳/自愈/reset/nil 锚/Resetter 契约；activation 3；subject keys 4）+装配 1（pinned 正文双空间各见各的+未固化不进+开关关零注入）；Git Bash 真机验证 trap 采集+eval 重放。
+- **门禁**：go build/vet 0+gofmt（触碰文件）+全量 ci.ps1 绿 EXIT=0（E 系列守卫 OK+仓库卫生守卫 OK）+版本漂移闸 OK@4.378.0。
+- **坑**：①bash printf 的 %s 是 Go Sprintf 动词——wrapper 模板写 %%s 否则 vet 拒编②MSYS 路径形态——探针必须 cygpath -w 转 host 形否则下次 cmd.Dir chdir 失败③事件日志列与 Event 结构一一对应——subject_key 真相归 facts 表（与 body 同待遇），不为审计单独开列④NormalizeSubjectKey 空白折叠与下划线不是一回事——键等价只走 trim+ASCII 小写+空白折叠'-'一条路。
+- **产物**：exe 51089920 B SHA256=3f65aafb6c69ae807f394c3f34a0272fcbf39f7326a2d6789423376f60e48622（releases/gaea-v4.378.0.exe+SHA256SUMS-v4.378.0.txt，exe 仅本地不入库；桌面副本同哈希实测一致；冒烟 /api/health 200 过）；保留策略留 v4.374~v4.378 删 v4.373.0.exe（SUMS 身份档案全保留）。
+- **文档**：docs/gaea-reasonix-v138-distill-2026-09.md 第四弹三刀+留池⑤⑦收官回填（池清空）+docs/gaea-dsh-016-distill-2026-09.md 销号 3 项（12→9）+releases/v4.378.0.md+CHANGELOG/README+releases/README（保留策略行+发布说明计数 399→400+34 席索引插 v4.378 裁 v4.344）+AGENTS 迁 1 插 1（九十三迁：v4.375 入 archive；补记九十二迁漏登）+progress/todos（reasonix 行翻✅收官）。
+
 ## 最新发布：v4.377.0（2026-09-21）「办公记忆/成本库写入纠偏：自动做梦建议制 + 存量清污 + 成本劝写改口」
 
 - **动机**：用户反馈「不管什么都自己记入记忆和成本库，根本不询问，大量错误污染数据」——主源=auto-dream 每轮直写（设计上豁免审批且记忆开关管不住），次源=成本工具文案劝写。

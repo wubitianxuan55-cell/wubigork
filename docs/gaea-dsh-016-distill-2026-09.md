@@ -28,10 +28,13 @@
 6. **子代理结构化输出**（outputSchema+两阶段捕获+terminal guard）：批量编排结果可靠性。
 7. **Plan mode 审批门**（`plan-mode`）：log-only 模式+exit_plan_mode+审批流（非 GoalCard 卡片，不触红线）；需前端 intent 渲染配套。
 8. **session-query 检索**（FTS5+live-preferred corpus+谱系追踪）：模型可检索本机过往会话；与 memory space 互补。
-9. **timeout-policy TOOL_TIMEOUT 域隔离**：区分本插件定时器与外层嵌套 deadline，防误判为普通取消。
-10. **技能目录 digest 重发布+热加载**（`tool-skill`）：目录变了才重发完整替换；skill-filesystem watch 热加载。
-11. **session-projection-cache**：投影单元按 session 落盘冷启动加速（收益待评估）。
-12. **contextBreakdown 投影**：system/tools/message 三分上下文构成，前端可直接白嫖思路。
+9. **session-projection-cache**：投影单元按 session 落盘冷启动加速（收益待评估）。
+
+已销号（2026-09-21，v4.378.0 同日对账）：
+
+- ~~⑨ timeout-policy TOOL_TIMEOUT 域隔离~~ → **辨伪销号**：gaea 工具超时是工具内自管（bash 300s 倒计时到期后以错误字符串「command timed out」返回模型，不取消外层 ctx），不存在「嵌套 deadline 被外层误判为用户取消」的共享通道——上游的 TOOL_TIMEOUT 哨兵错误域在 gaea 无靶子。
+- ~~⑩ 技能目录 digest 重发布+热加载~~ → **辨伪销号**：与 reasonix watcher 热重载同判——技能目录在 system prompt 缓存稳定前缀内，mid-session 重发布必破前缀；新会话即得新目录，单用户桌面够用。
+- ~~⑫ contextBreakdown 三分上下文构成~~ → **辨伪销号（已有等价物）**：gaea ContextView 折叠器按 catSystem/catTools/消息类目建节点（contextview/fold.go applyHeader：system prompt 与工具 schema 估算+变化才新增节点），构成视图已在面板可见——「前端可白嫖」的部分早就是现房。
 
 ## 侦察附注（不需要跟进的否定结论）
 

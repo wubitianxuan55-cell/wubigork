@@ -91,6 +91,16 @@ func buildSystemPrompt(cfg *config.Config, cwd, space string, morningPreload boo
 			sysPrompt = strings.TrimRight(sysPrompt, "\n") + "\n\n" + block
 		}
 	}
+	// 固化正文注入（v4.378，activation 二维：pinned=正文随会话快照装配，
+	// relevant=仅检索可达——reasonix memory/activation.go 蒸馏）：固化事实
+	// 正文预算化进入缓存稳定前缀，「固化」动作有功能后果。仅门控记忆总开关
+	// （两空间各自的空间收窄视图都注入——activation 与 scope 正交）；排序
+	// Name 升序保证 touch 不翻动前缀；空集合零注入。
+	if cfg.Memory.Enabled {
+		if block := memory.BuildPinnedFactsBlock(mem.Store.List(), 0); block != "" {
+			sysPrompt = strings.TrimRight(sysPrompt, "\n") + "\n\n" + block
+		}
+	}
 	// 常用资料（已固定）：工作区 .gaea/pinned.json 清单自动带入新会话，
 	// 文本类附正文摘要、办公文档列名按需读取（装配而非灌输）。
 	if block := pins.Block(cwd); block != "" {

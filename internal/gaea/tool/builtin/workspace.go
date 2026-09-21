@@ -35,6 +35,10 @@ func (w Workspace) Tools(enabled ...string) []tool.Tool {
 		writeRoots = []string{w.Dir}
 	}
 	roots := realRoots(writeRoots)
+	// bash 会话状态锚（v4.378）：每次装配一枚，同一注册表内的 bash 调用共享
+	// cwd/env（含 task 子代理——与父共用一个「终端」的语义）；会话切换由
+	// controller 经 ResetSessionState 整体重置。
+	st := newShellState()
 
 	all := []tool.Tool{
 		readFile{workDir: w.Dir},
@@ -44,7 +48,7 @@ func (w Workspace) Tools(enabled ...string) []tool.Tool {
 		editLines{workDir: w.Dir, roots: roots},
 		moveFile{workDir: w.Dir, roots: roots},
 		grepTool{workDir: w.Dir},
-		bash{workDir: w.Dir, sb: w.Bash},
+		bash{workDir: w.Dir, sb: w.Bash, st: st},
 		listDir{workDir: w.Dir},
 		screenCapture{workDir: w.Dir},
 		webFetch{proxySpec: w.ProxySpec},

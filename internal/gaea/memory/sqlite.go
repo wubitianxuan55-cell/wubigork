@@ -96,8 +96,8 @@ func (b *sqliteBackend) Save(m Memory) (string, error) {
 		space = defaultFactSpace
 	}
 	_, err := b.commitWithEvent(`
-INSERT INTO facts(project, name, title, description, type, kind, tags, body, archived, created_at, updated_at, last_used_at, source_session, source_message, space_id)
-VALUES(?,?,?,?,?,?,?,?,0,?,?,?,?,?,?)
+INSERT INTO facts(project, name, title, description, type, kind, tags, body, archived, created_at, updated_at, last_used_at, source_session, source_message, space_id, subject_key)
+VALUES(?,?,?,?,?,?,?,?,0,?,?,?,?,?,?,?)
 ON CONFLICT(project, name) DO UPDATE SET
   title=excluded.title, description=excluded.description,
   type=excluded.type, kind=excluded.kind, tags=excluded.tags,
@@ -105,13 +105,15 @@ ON CONFLICT(project, name) DO UPDATE SET
   last_used_at=CASE WHEN excluded.last_used_at != '' THEN excluded.last_used_at ELSE facts.last_used_at END,
   source_session=excluded.source_session,
   source_message=excluded.source_message,
-  space_id=excluded.space_id`,
+  space_id=excluded.space_id,
+  subject_key=excluded.subject_key`,
 		[]any{b.project, name, m.Title, m.Description,
 			string(NormalizeType(string(m.Type))), string(NormalizeKind(string(m.Kind))),
-			tags, m.Body, now, now, fmtTime(m.LastUsedAt), m.SourceSession, m.SourceMessage, space},
+			tags, m.Body, now, now, fmtTime(m.LastUsedAt), m.SourceSession, m.SourceMessage, space, m.SubjectKey},
 		func(sql.Result) *Event {
 			// 事件带投影所需元数据（kind/type/title/desc/tags/space/互引
-			// refs），body 只留摘要——内容真相在 facts 表，日志是事件真相。
+			// refs），body 只留摘要——内容真相在 facts 表（subject_key 同待遇），
+			// 日志是事件真相。
 			return &Event{
 				At: time.Now().UnixMilli(), Op: OpSave, Name: name, Project: b.project, Space: space,
 				Kind: string(NormalizeKind(string(m.Kind))), Type: string(NormalizeType(string(m.Type))),
@@ -319,7 +321,8 @@ func (b *sqliteBackend) ListInSpace(space string) []Memory {
 func (b *sqliteBackend) listInSpace(space string) []Memory {
 	// S1.2 B：SELECT 补回 space_id 列并回填 m.Space（供展示/调试与跨空间
 	// 冲突审计读取）；空间谓词语义不变——space 为空不过滤（旧行为恒真）。
-	query := `SELECT name, title, description, type, kind, tags, body, space_id, created_at, updated_at, last_used_at, source_session, source_message, pinned
+	// subject_key 一并回填（v4.378 subject keys 单值约束的事实真相）。
+	query := `SELECT name, title, description, type, kind, tags, body, space_id, created_at, updated_at, last_used_at, source_session, source_message, pinned, subject_key
 		 FROM facts WHERE project=? AND archived=0`
 	args := []any{b.project}
 	if space != "" {
@@ -338,7 +341,7 @@ func (b *sqliteBackend) listInSpace(space string) []Memory {
 		var typ, kind, tags, created, updated, lastUsed, srcSession, srcMessage string
 		var pinned int
 		if err := rows.Scan(&m.Name, &m.Title, &m.Description, &typ, &kind, &tags, &m.Body, &m.Space,
-			&created, &updated, &lastUsed, &srcSession, &srcMessage, &pinned); err != nil {
+			&created, &updated, &lastUsed, &srcSession, &srcMessage, &pinned, &m.SubjectKey); err != nil {
 			continue
 		}
 		m.Pinned = pinned != 0
@@ -500,8 +503,9 @@ func (b *sqliteBackend) getInSpace(name, space string) (Memory, bool) {
 	name = slug(name)
 	var m Memory
 	var typ, kind, tags, lastUsed, srcSession, srcMessage string
-	// space_id 一并回填（S1.2 B，供跨空间同名冲突审计读取归属）。
-	query := `SELECT name, title, description, type, kind, tags, body, space_id, last_used_at, source_session, source_message, pinned
+	// space_id 一并回填（S1.2 B，供跨空间同名冲突审计读取归属）；subject_key
+	// 回填（v4.378 subject keys）。
+	query := `SELECT name, title, description, type, kind, tags, body, space_id, last_used_at, source_session, source_message, pinned, subject_key
 		 FROM facts WHERE project=? AND name=? AND archived=0`
 	args := []any{b.project, name}
 	if space != "" {
@@ -510,7 +514,7 @@ func (b *sqliteBackend) getInSpace(name, space string) (Memory, bool) {
 	}
 	var pinned int
 	err := b.db.QueryRow(query, args...).Scan(&m.Name, &m.Title, &m.Description, &typ, &kind, &tags, &m.Body,
-		&m.Space, &lastUsed, &srcSession, &srcMessage, &pinned)
+		&m.Space, &lastUsed, &srcSession, &srcMessage, &pinned, &m.SubjectKey)
 	if err != nil {
 		return Memory{}, false
 	}
