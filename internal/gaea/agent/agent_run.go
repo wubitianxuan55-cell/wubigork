@@ -12,6 +12,7 @@ import (
 	"github.com/gaea/gaea/internal/gaea/event"
 	"github.com/gaea/gaea/internal/gaea/evidence"
 	"github.com/gaea/gaea/internal/gaea/provider"
+	"github.com/gaea/gaea/internal/gaea/tool"
 )
 
 func (a *AgentRunner) Run(ctx context.Context, input string) (*TurnResult, error) {
@@ -168,14 +169,23 @@ func (a *AgentRunner) runDirect(ctx context.Context, input string) (*TurnResult,
 			// not drop already-received partial output. Persist it to the session
 			// and to the result summary so the user and the next turn still see
 			// the content the model produced before the failure.
-			if strings.TrimSpace(text) != "" {
+			// 刀2（v4.379，dsh 中断流结构化块保全蒸馏）：calls 一并落库——
+			// 此前只存文本，模型已声明的调用意图从历史消失。assistant 带
+			// tool_calls 必须成对补 tool 结果行（否则下次请求是非法历史形态），
+			// 见 persistInterruptedCalls。真零内容（无文本无思考无调用）不落库
+			// 空历史（v4.374 刀5 纪律不变）。
+			if strings.TrimSpace(text) != "" || strings.TrimSpace(reasoning) != "" || len(calls) > 0 {
 				a.session.Add(provider.Message{
 					Role:               provider.RoleAssistant,
 					Content:            text,
 					ReasoningContent:   reasoning,
 					ReasoningSignature: signature,
+					ToolCalls:          calls,
 				})
-				turnLastSummary = text
+				if strings.TrimSpace(text) != "" {
+					turnLastSummary = text
+				}
+				a.persistInterruptedCalls(calls, "stream aborted before dispatch")
 			}
 			return buildTurnResult(turnFilesCreated, turnFilesModified, turnToolErrors, turnLastSummary), err
 		}
@@ -202,6 +212,21 @@ func (a *AgentRunner) runDirect(ctx context.Context, input string) (*TurnResult,
 					a.sink.Emit(event.Event{Kind: event.Notice, Level: event.LevelWarn,
 						Text: a.budgetGate.StatusMessage()})
 					a.preWG.Wait()
+					// 刀2（v4.379）：预算阻断同样保全已收到的部分输出——
+					// assistant（含 calls）+成对结果行，非法悬空形态不产生。
+					if strings.TrimSpace(text) != "" || strings.TrimSpace(reasoning) != "" || len(calls) > 0 {
+						a.session.Add(provider.Message{
+							Role:               provider.RoleAssistant,
+							Content:            text,
+							ReasoningContent:   reasoning,
+							ReasoningSignature: signature,
+							ToolCalls:          calls,
+						})
+						if strings.TrimSpace(text) != "" {
+							turnLastSummary = text
+						}
+						a.persistInterruptedCalls(calls, "budget exceeded")
+					}
 					return buildTurnResult(turnFilesCreated, turnFilesModified, turnToolErrors, turnLastSummary), fmt.Errorf("budget exceeded: %s", a.budgetGate.StatusMessage())
 				}
 			}
@@ -440,6 +465,50 @@ func (a *AgentRunner) runDirect(ctx context.Context, input string) (*TurnResult,
 	// is already in the session, so the user can just send another message to pick
 	// up where it left off.
 	return buildTurnResult(turnFilesCreated, turnFilesModified, turnToolErrors, turnLastSummary), fmt.Errorf("paused after %d tool-call rounds (agent.max_steps)", a.maxSteps)
+}
+
+// persistInterruptedCalls 在回合异常终止（终态流错误/预算阻断）时为已收到
+// 但未派发的工具调用补齐结果行（v4.379 刀2，dsh 中断流结构化块保全蒸馏）。
+// assistant(tool_calls) 后面必须有 tool 结果——否则下次请求是非法历史形态
+// （provider 拒绝），这正是此前「只存文本不存 calls」的根因。结果两路：
+// 流式预执行（只读工具在 ChunkToolCall 即开跑）有真实结果用真实；其余合成
+// 「已收到未执行」占位（与 executeBatch 的 correspondence guard 同纪律）。
+// ToolResult 事件照发，前端半开的工具卡片得以收口。调用方已 preWG.Wait()。
+func (a *AgentRunner) persistInterruptedCalls(calls []provider.ToolCall, reason string) {
+	if len(calls) == 0 {
+		return
+	}
+	a.preMu.Lock()
+	pre := a.preOutcomes
+	a.preOutcomes = make(map[string]toolOutcome)
+	a.preMu.Unlock()
+	for _, c := range calls {
+		out, ok := pre[c.ID]
+		if !ok {
+			// 与正常路径同约定：会话里的 tool 结果一律是信封 JSON。
+			env := tool.WrapError(tool.CodeExecError,
+				"stream interrupted: this call was received but not executed ("+reason+"); re-issue it if still needed",
+				map[string]any{"tool": c.Name})
+			out = toolOutcome{output: env, errMsg: "not executed: " + reason}
+		}
+		a.session.Add(provider.Message{
+			Role:       provider.RoleTool,
+			Content:    out.output,
+			ToolCallID: c.ID,
+			Name:       c.Name,
+		})
+		if t, tok := a.tools.Get(c.Name); tok {
+			a.sink.Emit(event.Event{Kind: event.ToolResult, Tool: event.Tool{
+				ID:          c.ID,
+				Name:        c.Name,
+				Args:        c.Arguments,
+				Output:      out.output,
+				Err:         out.errMsg,
+				Recoverable: out.recoverable,
+				ReadOnly:    t.ReadOnly(),
+			}})
+		}
+	}
 }
 
 // flushJournal 回合收尾：把本回合 work 空间的变更证据卡写入 Journal

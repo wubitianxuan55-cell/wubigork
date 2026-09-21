@@ -20,9 +20,9 @@
 
 ## 留池（下轮候选，按价值排序）
 
-1. **spill 主动泄洪**（`packages/spill/spill-policy`）：大文本工具结果进上下文**之前**落盘全文，模型只见 head/tail 预览+locator 取回指引；`read` 工具豁免防循环。gaea 现有 PruneStaleToolResults 是压缩时被动归档，spill 把经济性提前到执行时。需要配套一个取回工具。
+1. ~~**spill 主动泄洪**~~ → **已落地 v4.379.0（刀1）**：`internal/gaea/spill` 内存泄洪库+`executeOne` 压缩前捕获+`read_spill` 取回工具+`[agent] tool_spill` 配置门（子代理随父）。取道不取器：泄洪必须在按工具压缩/全局截断**之前**保原文（上游泄洪对象是最终文本，gaea 压缩管线更激进）；locator 前置是截断生存性结论（单行 JSON 信封头部裁切，尾缀必死）；存储取 runner 内存+64MB FIFO 驱逐（磁盘版唯一收益是重启幸存，不值无主痕迹文件卫生面）；豁免 read_file/read_spill/task；best-effort 纪律照单全收。
 2. **锚定式 token 计量**（`packages/llm/token-meter`）：压力=上次真实 usage 锚点+当前表面有符号差值，剪枝/压缩重写后估计不再漂移。gaea 现为裸字符估算，需 per-message 估价缓存。
-3. **中断流结构化块保全**（agent-loop step catch）：abort 时已收到的 tool-call 块随 partial assistant 消息持久化（gaea v4.26 只存文本）。
+3. ~~**中断流结构化块保全**~~ → **已落地 v4.379.0（刀2）**：终态流错误/预算阻断路径 assistant（含 calls）+成对结果行落库（预执行只读用真实结果，其余合成「received but not executed」占位，信封 JSON 同约定）；恢复路径（重试采样）刻意不落 calls——落了就是悬空 assistant(tool_calls) 非法历史形态，两路径分流是关键辨析。
 4. **子代理控制面**（`tool-subagent-control`）：send_message/interrupt_agent/双向消息/cold-resume/委派深度记账——gaea 有 continue_from 底座，补控制面是「发射后只能等」→「可纠偏可叫停」的一步。上游 09-16/17 活跃大改，等其稳定。
 5. **Fork 型子代理**（`subagent-fork-in-process`）：父会话平衡前缀做种子，子代理带完整上下文开跑（~百行机制）。
 6. **子代理结构化输出**（outputSchema+两阶段捕获+terminal guard）：批量编排结果可靠性。

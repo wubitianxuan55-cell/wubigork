@@ -18,6 +18,7 @@ import (
 	"github.com/gaea/gaea/internal/gaea/nilutil"
 	"github.com/gaea/gaea/internal/gaea/provider"
 	"github.com/gaea/gaea/internal/gaea/spaces"
+	"github.com/gaea/gaea/internal/gaea/spill"
 	"github.com/gaea/gaea/internal/gaea/tool"
 )
 
@@ -309,6 +310,11 @@ type AgentRunner struct {
 	goalGateReentry int  // Gate 2: goal-judge reentries
 	verifyGateFired bool // Gate 3: orchestrate verify fired
 	disableVerify   bool // V10.22: suppress verify nudge (for sub-agents)
+
+	// spill 是泄洪库（v4.379，dsh spill-policy 蒸馏，见 spill.go 策略与
+	// internal/gaea/spill 存储）。nil = 关闭（零行为变化）；boot 按
+	// [agent] tool_spill（默认开）装配。
+	spill *spill.Store
 
 	// V6.0 P7: session goal (set via /goal), enforced by stop gate
 	goal string
@@ -719,6 +725,11 @@ func New(prov provider.LLMProvider, tools *tool.Registry, session *Session, opts
 		auditFunc:     opts.AuditFunc,
 		tc:            cache.New(-1), // V5.8: session 缓存，mtime 校验器
 		disableVerify: opts.DisableVerify,
+	}
+	// v4.379 spill 泄洪库（dsh spill-policy 蒸馏）：opts.Spill 开启时装配，
+	// 缺省 nil = 零行为变化（既有测试/子代理不受影响）。
+	if opts.Spill {
+		r.spill = spill.NewStore()
 	}
 	// Audit P1: install the gate atomically (zero value = no gate).
 	if gate != nil {

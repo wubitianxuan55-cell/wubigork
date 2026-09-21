@@ -84,6 +84,12 @@ type Options struct {
 	// 行为与历史逐字节一致）。改写只作用于收尾全文——流式增量原样透传，前端
 	// 收到 Message 事件整泡替换，不新增事件形态。
 	FinalizeText func(text string) string
+
+	// Spill 开启泄洪库（v4.379，dsh spill-policy 蒸馏）：≥24KB 的成功工具
+	// 结果全文进 runner 内存泄洪库，内联文本附 locator，模型经 read_spill
+	// 分页取回。缺省 false = 零行为变化（既有截断管线原样）；装配点（boot）
+	// 按配置 [agent] tool_spill（默认开）传入。
+	Spill bool
 }
 
 // StormBreaker tracks repeated failures to detect death spirals (V3.0 Phase 4).

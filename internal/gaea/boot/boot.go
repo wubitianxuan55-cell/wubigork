@@ -289,6 +289,8 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 	// 分文件）——文件工作台版本时间线/回滚与 DAG 节点产物归因由此供给。与主
 	// 执行器 JournalDir 同目录（下方 Options.JournalDir 同源路径）。
 	taskTool.SetSubagentJournalDir(filepath.Join(cwd, ".gaea", "work", "journal"))
+	// v4.379 泄洪随父配置：子代理 runner 各持独立泄洪库（read_spill 同注册表可达）。
+	taskTool.SetSpill(cfg.Agent.ToolSpillEnabled())
 
 	// V10.22: resolve subagent model from config. When SubagentModel names a
 	// configured provider, sub-agents use that provider (typically a cheaper
@@ -454,6 +456,9 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 		Dispatcher:    toolDispatcher,
 		// v4.1 证据链 Journal 目录（work 空间；play 回合由 agent 红线过滤不落盘）。
 		JournalDir: filepath.Join(cwd, ".gaea", "work", "journal"),
+		// v4.379 泄洪库（dsh spill-policy 蒸馏）：大工具结果全文存会话库+
+		// read_spill 取回；[agent] tool_spill 缺省开，false 回旧行为。
+		Spill: cfg.Agent.ToolSpillEnabled(),
 	}, sink)
 
 	// v4.211 记忆 5.1 出口闸：最终回复定稿时剥离悬空 [MEM:] 引用键（真·发送前

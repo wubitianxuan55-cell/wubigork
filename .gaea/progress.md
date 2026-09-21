@@ -1,3 +1,12 @@
+## 最新发布：v4.379.0（2026-09-21）「dsh 蒸馏第二弹：spill 泄洪 + 中断流结构化块保全」
+
+- **动机**：用户口径「继续」——dsh 留池可安全落地的两把内核刀（spill 泄洪 + 中断流结构化块保全），留池余 7。全 Go，绑定面 711 零变更（read_spill 是 agent 工具目录新增非 App 绑定）。
+- **落地**：①spill 主动泄洪（新叶子包 internal/gaea/spill 内存库：单条 4MB/总量 64MB FIFO 驱逐；executeOne 在 SmartCompress **之前**捕获原文——gaea 压缩管线会先销毁中段；内联文本**前置** locator；新工具 read_spill 分页取回；豁免 read_file/read_spill/task；best-effort 纪律；[agent] tool_spill 默认开，子代理 taskTool.SetSpill 随父）②中断流结构化块保全（终态流错误/预算阻断路径 assistant 含 calls 落库 + persistInterruptedCalls 成对补结果行：预执行只读用真实结果、其余 WrapError 信封合成占位；ToolResult 事件照发收口前端卡片；恢复路径刻意不落 calls=悬空非法形态辨析）。
+- **测试**：Go +12（spill 包 4：分页/剩余字节/FIFO 驱逐/超限拒收/ctx 往返；agent 5：泄洪全文锚点/豁免与开关/截断生存性/read_spill 端到端跨回合保序/未知 id 报错；中断保全 3：成对落库+悬空检查/预执行真实结果/恢复不落 calls）。
+- **门禁**：go build/vet 0+gofmt（触碰文件）+全量 ci.ps1 绿 EXIT=0（E 系列守卫 OK+仓库卫生守卫 OK）+版本漂移闸 OK@4.379.0。
+- **产物**：exe 51111424 B SHA256=affb81cd23963555085479c6bd47adbf716abd3762b10e7ce92fcd7b661e3385（releases/gaea-v4.379.0.exe+SHA256SUMS-v4.379.0.txt，exe 仅本地不入库；桌面副本同哈希实测一致；冒烟 /api/health 200 过）；保留策略留 v4.375~v4.379 删 v4.374.0.exe（SUMS 身份档案全保留）。
+- **坑**：①信封是单行紧凑 JSON——截断按「行」选择按「字节」裁切，行数不超限时全行保留后首行被**头部**裁切：要活的内容（locator 指引）必须放头部，尾缀版被测试当场抓出假绿②混合批执行序非调用序（v4.375 分区并行不同资源键共存）——「先泄洪再取回」端到端测试同批会竞态假红，跨回合才有全序③agent 测试引 builtin + builtin 引 agent=测试期 import cycle（生产编译不报 go test 才炸）——SpillStore 下沉叶子包，策略留 agent④preOutcomes 存已包信封 output——合成占位同信封约定，否则回放两种形态混存。
+- **文档**：dsh 蒸馏文档①③销号回填（余 7）+releases/v4.379.0.md（含升级说明：tool_spill 关闭回旧行为/中断续聊占位语义）+CHANGELOG/README+releases/README（计数 400→401+34 席插 v4.379 裁 v4.345）+AGENTS 迁 1 插 1（九十四迁：v4.376 入 archive）+progress/todos。
 ## 最新发布：v4.378.0（2026-09-21）「Reasonix 真身蒸馏第四弹·留池收官：bash 会话状态锚定 + memory activation 二维 + subject keys」
 
 - **动机**：用户口径「继续优化完善 gaea」——Reasonix 真身蒸馏第四弹，清掉最后 2 项留池（Persistent bash PTY + memory 事实生命周期）收官整条蒸馏线；同日对账 dsh 留池销 3（12→9）。全 Go，绑定面 711 零变更。

@@ -14,6 +14,7 @@ import (
 	"github.com/gaea/gaea/internal/gaea/jobs"
 	"github.com/gaea/gaea/internal/gaea/memory"
 	"github.com/gaea/gaea/internal/gaea/provider"
+	"github.com/gaea/gaea/internal/gaea/spill"
 	"github.com/gaea/gaea/internal/gaea/tool"
 )
 
@@ -161,6 +162,8 @@ func (a *AgentRunner) executeOne(ctx context.Context, call provider.ToolCall) to
 	if a.sessionSaver != nil {
 		cctx = memory.WithSessionSaver(cctx, a.sessionSaver)
 	}
+	// v4.379 spill 泄洪库盖章（read_spill 工具经 ctx 取库，与 jobs/queue 同注入点）。
+	cctx = spill.WithStore(cctx, a.spill)
 	if a.promoter != nil {
 		cctx = memory.WithPromoter(cctx, a.promoter)
 	}
@@ -331,7 +334,21 @@ func (a *AgentRunner) executeOne(ctx context.Context, call provider.ToolCall) to
 	if a.hooks != nil && call.Name == "task" && !isBackgroundTaskCall(call.Arguments) {
 		a.hooks.SubagentStop(ctx, result)
 	}
+	// 刀1（v4.379，dsh spill-policy 蒸馏）：泄洪捕获必须在 SmartCompress 之前
+	// ——按工具压缩与全局截断都会销毁中段，泄洪保的是原文；预览仍交给既有
+	// 压缩管线。best-effort：库关着/工具豁免/不足阈值/超限拒收一律返回 ""
+	// 零影响，泄洪失败绝不把成功调用变错误或藏掉内联结果。
+	rawBytes := len(result)
+	spillID := ""
+	if a.spill != nil && spillCandidate(call.Name) && rawBytes >= spillMinBytes {
+		spillID = a.spill.Save(call.Name, result)
+	}
 	result = SmartCompress(call.Name, result)
+	if spillID != "" {
+		// locator 前置：单行 JSON 信封被字节帽头部截断、多行结果 head+tail
+		// 两种形态下头部都必保（见 spillNotice 注释的生存性结论）。
+		result = spillNotice(spillID, rawBytes) + "\n" + result
+	}
 	env := tool.WrapResult(tool.CodeOK, map[string]any{"tool": call.Name, "result": result})
 	body, truncMsg := truncateToolOutput(env)
 	return toolOutcome{output: body, truncated: truncMsg != "", truncMsg: truncMsg}

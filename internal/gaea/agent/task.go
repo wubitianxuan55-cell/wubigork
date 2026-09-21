@@ -135,7 +135,14 @@ type TaskTool struct {
 	// 文件工作台的版本时间线/回滚与 DAG 节点产物归因（按会话）由此供给。
 	// 空 = 子代理不落证据卡（CLI/测试旧行为）。
 	journalDir string
+
+	// spill 随父配置开启子代理泄洪（v4.379）：子代理 runner 各持独立泄洪库，
+	// 大结果同样可经 read_spill 取回。缺省 false = 零行为变化。
+	spill bool
 }
+
+// SetSpill 开启子代理泄洪（boot 装配点按 [agent] tool_spill 调用）。
+func (t *TaskTool) SetSpill(on bool) { t.spill = on }
 
 // NewTaskTool wires a task tool to the parent agent's environment so its
 // sub-agents can use the same provider and tools. sysPrompt is the system
@@ -551,6 +558,7 @@ func (t *TaskTool) runSubSession(ctx context.Context, prompt string, subReg *too
 			ActiveSchemas: t.parentReg.Schemas(), // V10.36: align tools JSON with parent for cache
 			JournalDir:    subJournal,
 			SessionID:     subagentRunRef(run),
+			Spill:         t.spill, // v4.379 泄洪随父配置：子代理大结果同样可取回
 		}, sink, &subUsage)
 	} else {
 		result, err = RunSubAgent(ctx, subProv, subReg, sysPrompt, prompt, Options{
@@ -563,6 +571,7 @@ func (t *TaskTool) runSubSession(ctx context.Context, prompt string, subReg *too
 			ActiveSchemas: t.parentReg.Schemas(), // V10.36: align tools JSON with parent for cache
 			JournalDir:    subJournal,
 			SessionID:     subagentRunRef(run),
+			Spill:         t.spill, // v4.379 泄洪随父配置：子代理大结果同样可取回
 		}, sink, &subUsage)
 	}
 	if err == nil && strings.TrimSpace(result) != "" {

@@ -14,6 +14,7 @@ var compactDesc = map[string]string{
 	"grep":               "正则搜索文件内容(path:line: content,跳过二进制/噪声目录)",
 	"ls":                 "列出目录条目(子目录带/)",
 	"bash":               "执行shell命令(5分超时,output_format=json得结构化输出)",
+	"read_spill":         "取回泄洪全文(工具结果过大时按locator分页读回,offset字节偏移)",
 	"bash_output":        "读取后台任务增量输出",
 	"kill_shell":         "终止后台任务",
 	"wait":               "阻塞等待后台任务结束",
@@ -69,6 +70,8 @@ var compactSchema = map[string]json.RawMessage{
 		`{"type":"object","properties":{"path":{"type":"string"}}}`),
 	"bash": json.RawMessage(
 		`{"type":"object","properties":{"command":{"type":"string"},"run_in_background":{"type":"boolean"}},"required":["command"]}`),
+	"read_spill": json.RawMessage(
+		`{"type":"object","properties":{"id":{"type":"string"},"offset":{"type":"integer"},"max_bytes":{"type":"integer"}},"required":["id"]}`),
 	"bash_output": json.RawMessage(
 		`{"type":"object","properties":{"job_id":{"type":"string"},"filter":{"type":"string"}},"required":["job_id"]}`),
 	"kill_shell": json.RawMessage(

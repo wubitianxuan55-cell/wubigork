@@ -567,6 +567,15 @@ type AgentConfig struct {
 	// ReviewDecision::TimedOut）：无人值守场景下审批请求等待超过该秒数按拒绝
 	// 处理并发 Notice（回合继续，不静默放行）。0 = 不超时（默认，交互等待）。
 	ApprovalTimeoutSecs int `toml:"approval_timeout_secs"`
+	// ToolSpill 开启泄洪（v4.379，dsh spill-policy 蒸馏）：≥24KB 的成功工具
+	// 结果全文存会话泄洪库、内联文本附 locator，模型经 read_spill 分页取回，
+	// 大结果不再被截断管线销毁中段。缺省开（nil = true），false 关闭=旧行为。
+	ToolSpill *bool `toml:"tool_spill"`
+}
+
+// ToolSpillEnabled 返回泄洪的生效开关：nil（未配置）= 默认开。
+func (a AgentConfig) ToolSpillEnabled() bool {
+	return a.ToolSpill == nil || *a.ToolSpill
 }
 
 // SubagentTemp returns the effective temperature for task-tool sub-agents.
