@@ -1,3 +1,13 @@
+## 最新发布：v4.382.0（2026-09-22）「前端挂池清欠：整店订阅清零 + 交付物缓存失效接线」
+
+- **动机**：用户口径「继续」——dsh 余 4 项全是「等条件」型，转前端挂池清欠（v4.349 池④+v4.354 池④）。前端 4 文件+测试，绑定面 711 零变更。
+- **落地**：①无 selector 整店订阅清零（全仓扫描四家 store 仅剩 WorkspacePanel/FilePreviewModal 2 处 selector 化；审计对账=MainLayout/HomePage/AppearancePanel 已被中间轮次 selector 化行号过时，本轮后全仓归零；gaea useController 的 useShallow 整面订阅保留=App.tsx 消费近乎全量字段，热字段 items 流式本就逐 chunk 变化）②交付物缓存失效接线（invalidateTurnCaches 接到 turn_done 事件消费点+loadSessionData 会话切换；新轮交付物/新建文件不再被 TTL 内旧目录探测误标缺失；纯内存清空零桥接成本）。
+- **测试**：前端 +2（turn_done 后 ensureTurnRegistry 重拉打桥的调用计数断言/会话装载同语义）；全量 vitest 389 文件 3320 例绿+tsc 0。
+- **门禁**：全量 ci.ps1 绿 EXIT=0（E 系列守卫 OK+仓库卫生守卫 OK）+版本漂移闸 OK@4.382.0。
+- **坑**：①挂池审计行号会过时——清欠前先全仓重扫，销号写清哪些本轮修哪些中间轮已修②恰好一次的事件绑定是模块级单例——从可观测面（bridge 调用计数）断言行为不 mock 内部③缓存失效时机在事件边界——reducer 保持纯函数，副作用接既存非纯区（turn_done 块本就有 ContextUsage/Balance 副作用）。
+- **产物**：exe 51128320 B SHA256=a44212dc84ddcdad14c54c7a1c0bd91783858d9907efa377e0362c72f0b0139f（releases/gaea-v4.382.0.exe+SHA256SUMS-v4.382.0.txt，exe 仅本地不入库；桌面副本同哈希实测一致；冒烟 /api/health 200 过）；保留策略留 v4.378~v4.382 删 v4.377.0.exe（SUMS 身份档案全保留）。
+- **文档**：挂池④/dirListingsCache 销号回填+releases/v4.382.0.md（含升级说明）+CHANGELOG/README+releases/README（计数 403→404+34 席插 v4.382 裁 v4.348）+AGENTS 迁 1 插 1（九十七迁：v4.379 入 archive）+progress/todos。
+
 ## 最新发布：v4.381.0（2026-09-22）「dsh 蒸馏第四弹：锚定式 token 计量（压缩触发时机去漂移）」
 
 - **动机**：用户口径「继续」——按上轮承诺对 dsh ②锚定式 token 计量单独一版精修（compression 域最后一块精度拼图），留池余 4。全 Go，绑定面 711 零变更，单刀版。

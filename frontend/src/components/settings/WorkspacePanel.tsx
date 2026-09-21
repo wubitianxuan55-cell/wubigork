@@ -9,7 +9,9 @@ import { useT } from '../../gaea/lib/i18n'
 /** WorkspacePanel — 小说：小说存储目录 + 写作风格 Skill 管理 */
 const WorkspacePanel: React.FC = () => {
   const t = useT()
-  const { novelsDir, setNovelsDir } = useAppStore()
+  // v4.382：selector 化订阅（整店订阅=任意键变化重渲染，v4.349 挂池④余量）
+  const novelsDir = useAppStore((st) => st.novelsDir)
+  const setNovelsDir = useAppStore((st) => st.setNovelsDir)
   const [wsDir, setWsDir] = useState(novelsDir)
   const [wsSaving, setWsSaving] = useState(false)
   const [skillOpen, setSkillOpen] = useState(false)

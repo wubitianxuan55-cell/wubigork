@@ -3,6 +3,7 @@
 
 
 import { useCallback, useEffect } from "react";
+import { invalidateTurnCaches } from "../deliverablesTurn";
 import { create } from "zustand";
 import { useShallow } from "zustand/shallow";
 import { app, onEvent, onReady } from "../bridge";
@@ -561,6 +562,10 @@ function ensureEventsBound(deps: EventBindDeps): void {
       dispatch({ type: "event", e });
     }
     if (e.kind === "turn_done") {
+      // v4.382 失效接线（v4.354 记录的 dirListingsCache 欠账）：轮完成后
+      // 登记与目录探测缓存整包失效——新轮交付物/新建文件不再被 TTL 内的
+      // 旧探测误标缺失。invalidateTurnCaches 纯内存清空，零桥接成本。
+      invalidateTurnCaches();
       app.ContextUsage().then(c => dispatch({ type: "context", context: c })).catch((err) => logBridgeError("turn_done ContextUsage", err));
       app.Balance().then(b => dispatch({ type: "balance", balance: b })).catch((err) => logBridgeError("turn_done Balance", err));
       reconcileFinalAnswer();
@@ -614,6 +619,8 @@ export function useController() {
   }, [dispatch]);
 
   const loadSessionData = useCallback(async () => {
+    // v4.382 失效接线：会话切换/恢复即清空登记与目录探测缓存（缓存随会话走）。
+    invalidateTurnCaches();
     try {
       dispatch({ type: "meta", meta: await app.Meta() });
       dispatch({ type: "context", context: await app.ContextUsage() });

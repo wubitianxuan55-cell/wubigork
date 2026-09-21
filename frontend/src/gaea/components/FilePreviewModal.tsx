@@ -48,7 +48,10 @@ const KIND_LABEL: Record<PreviewResult["kind"], string> = {
 };
 
 export function FilePreviewModal() {
-  const { previewFile, closeFilePreview, openFilePreview } = usePreviewStore();
+  // v4.382：selector 化订阅（整店订阅=任意键变化重渲染，v4.349 挂池④余量）
+  const previewFile = usePreviewStore((st) => st.previewFile);
+  const closeFilePreview = usePreviewStore((st) => st.closeFilePreview);
+  const openFilePreview = usePreviewStore((st) => st.openFilePreview);
   const [preview, setPreview] = useState<PreviewResult | null>(null);
   const [loading, setLoading] = useState(false);
   const ocrProgress = usePreviewProgress(previewFile);
