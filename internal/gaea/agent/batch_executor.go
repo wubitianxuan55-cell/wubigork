@@ -105,6 +105,17 @@ func (a *AgentRunner) executeBatch(ctx context.Context, calls []provider.ToolCal
 		}
 	}
 
+	// 刀1（Reasonix v1.38 execute_batch 蒸馏）：call/result 对应性守卫——
+	// 每个调用必须恰好落一个结果。并行 goroutine 的双重 recover 之间若仍有
+	// 逃逸路径（如 run 自身 defer 中再 panic），results[i] 会停在空串；此处
+	// 合成结构化错误结果，保证回放永不悬空。
+	for i := range calls {
+		if !suppressed[i] && results[i] == "" {
+			results[i] = "error: tool produced no result (correspondence guard)"
+			outcomes[i] = toolOutcome{output: results[i], errMsg: "no result produced"}
+		}
+	}
+
 	for i, c := range calls {
 		o := outcomes[i]
 		t, ok := a.tools.Get(c.Name)
@@ -196,6 +207,11 @@ func partitionToolCalls(r *tool.Registry, calls []provider.ToolCall) []toolCallB
 // V6.0: getConflictKey returns a conflict key for a tool call.
 // Two calls with the same key cannot run in parallel.
 // Prefix ! marks global conflict keys (always serial).
+//
+// 刀1（Reasonix v1.38 执行序蒸馏）：read_file/grep 与文件写工具统一用
+// "file:<path>" 资源键——同批次「先读 A 再改 A」是模型声明的顺序依赖，
+// 旧的 read:/file: 双键会让两者落进同一并行批产生读写竞态。统一后同路径
+// 读写必然串行且保序；跨路径的读写仍共存并行（延迟收益保留）。
 func getConflictKey(call provider.ToolCall) string {
 	switch call.Name {
 	// 子代理入口收敛（v4.61）：只保留 task / run_skill / install_skill——
@@ -207,7 +223,7 @@ func getConflictKey(call provider.ToolCall) string {
 	case "task", "run_skill":
 		// v4.63 并行子代理：每次调用是独立运行（独立 Session、独立 sa_/mt_
 		// transcript、事件经 syncSink 串行落盘、用量经 usageMu 合并记账），
-		// 相互无共享可变状态——用「每调用唯一键」让同一回合的 N 路派生全部
+		// 相互无共享可变状态——用「每调用唯一键」让同一回合的 N 路派发全部
 		// 落进同一并行批（注意空键语义是「独立串行批」，不能用来表达可并行；
 		// ID 缺失时退化为共享键 "spawn:"，按冲突串行，宁慢勿错）。本地模型
 		// 场景 LLM 推理在模型服务端仍可能排队，但工具执行段（检索/读文件等）
@@ -231,10 +247,10 @@ func getConflictKey(call provider.ToolCall) string {
 		// parallel (S0.6 risk 3).
 		return "!write"
 	case "grep":
-		// Read-only, but two greps of the same tree are pure duplicate work —
-		// serialize on the searched path (suggested by S0.6, optional).
+		// 只读，但同一目标的重复 grep 是纯重复劳动——按目标路径串行
+		// （S0.6 建议，可选）。键与写工具同族：同路径「读→改」保序。
 		if path := extractFilePath(call.Name, call.Arguments); path != "" {
-			return "read:" + path
+			return "file:" + path
 		}
 		return ""
 	case "bash", "bash_output":
@@ -242,7 +258,7 @@ func getConflictKey(call provider.ToolCall) string {
 	case "read_file":
 		path := extractFilePath(call.Name, call.Arguments)
 		if path != "" {
-			return "read:" + path
+			return "file:" + path
 		}
 		return ""
 	default:

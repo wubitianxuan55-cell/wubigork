@@ -108,6 +108,11 @@ func (a *AgentRunner) executeOne(ctx context.Context, call provider.ToolCall) to
 	// V10.28: stale anchor 守卫 — 同一轮内已编辑的文件必须先 read_file 才能再编辑
 	if !t.ReadOnly() && isFileWriter(call.Name) {
 		if path := extractFilePath(call.Name, call.Arguments); path != "" {
+			// 刀2（Reasonix fileops observation 蒸馏）：跨轮外部修改检测——
+			// 模型观察过的版本与磁盘当前版本不一致即拦，防静默覆盖外部修改。
+			if msg := a.checkFileStale(path); msg != "" {
+				return toolOutcome{output: msg, blocked: true, errMsg: msg}
+			}
 			// turnMu guards the per-turn stale maps against the other executeOne
 			// goroutines running this batch (audit P0 race fix). Only the map
 			// reads happen under the lock; the message is built outside it.
@@ -213,6 +218,22 @@ func (a *AgentRunner) executeOne(ctx context.Context, call provider.ToolCall) to
 				if ma.Destination != "" {
 					a.tc.InvalidatePath(ma.Destination)
 				}
+			}
+		}
+	}
+
+	// 刀2（Reasonix fileops observation 蒸馏）：版本观察记账——真实磁盘读
+	// 成功后记录指纹（缓存命中早退不经过这里，不假装观察过）；写成功后刷新
+	// 指纹（后续编辑站在自己刚写的内容上，自身写入不算「外部修改」）。
+	if err == nil {
+		switch {
+		case call.Name == "read_file":
+			if p := extractFilePath(call.Name, call.Arguments); p != "" {
+				a.observeFile(p)
+			}
+		case isFileWriter(call.Name):
+			if p := extractFilePath(call.Name, call.Arguments); p != "" {
+				a.observeFile(p)
 			}
 		}
 	}

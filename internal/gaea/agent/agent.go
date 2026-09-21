@@ -388,6 +388,11 @@ type AgentRunner struct {
 	compactStuck        bool
 
 	stuckAtMessages int // 刀7：卡死时的会话长度——新消息=新折叠边界，自动解锁
+
+	// 刀2（Reasonix fileops observation 蒸馏）：会话级文件版本观察——
+	// 读后记录指纹，写前比对磁盘当前版本，外部修改即 FS_STALE_VERSION。
+	// 会话级不随轮重置；turnMu 保护（executeOne 并发协程共写）。
+	fileObs map[string]string
 	// 刀1（Reasonix/dsh 蒸馏）：连续溢出自愈计数——采样成功即清零，
 	// 上限 maxOverflowRecoveries，防止对同一请求反复空转。
 	overflowRecoveries int

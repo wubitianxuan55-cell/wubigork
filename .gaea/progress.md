@@ -1,3 +1,13 @@
+## 最新发布：v4.375.0（2026-09-21）「Reasonix 真身蒸馏第二弹：执行序批次 + 文件观察 + 杂项加固」
+
+- **动机**：续 v4.374 真身留池第二弹——执行序与数据正确性两把主刀+两把小刀。全 Go，绑定面 707 零变更。
+- **落地**：①执行序批次修正（read:/file: 统一 file:<path> 资源键同路径拆批保序，跨路径共存并行保留；call/result 对应性守卫）②Live file observations（会话级版本指纹：读后记录/写前比对/自身写后刷新；外部修改 blocked:[stale version]；与 stale-anchor 并存）③git 硬化基线（-c fsmonitor/maintenance 关闭+三个 env+diff 强制 --no-ext-diff --no-textconv）④memory_search 低权威免责前置。
+- **测试**：Go +5（保序/共存回归锁成对/观察三态）+键名适配。
+- **门禁**：go build/vet 0+全量 ci 绿 EXIT=0+版本三处 4.375.0。
+- **坑**：①批次分区改动必须带共存收益回归锁（只测拆批不测共存=延迟优化静默回退）②观察类机制防「假装观察过」——观察点绑真实 I/O 成功路径。
+- **产物**：exe 51011072 B SHA256=88499e001577a49b184f8e754a1f1a879e38c13e3affe86dab9572e48c3e09a6（releases+SUMS 仅本地；桌面副本同哈希；冒烟 200 过）；保留策略删 v4.370.exe。
+- **文档**：蒸馏文档留池四项销号/辨伪回填+releases/v4.375.0.md+CHANGELOG/README+releases/README（计数 396→397+34 席插 v4.375 裁 v4.341）+AGENTS 迁 1 插 1（九十迁：v4.372 入 archive）+progress/todos。
+
 ## 最新发布：v4.374.0（2026-09-21）「Reasonix 真身蒸馏：安全四刀 + 内核三刀」
 
 - **动机**：用户纠偏 v4.373 对象认定（dsh 非 reasonix）并指路 GitHub 搜索——真身=esengine/DeepSeek-Reasonix（Go 单二进制终端 agent，V1.12/V1.15 端口出处），本版蒸馏 v1.15→v1.38.11 增量（5227 提交，源码入 clones/deepseek-reasonix）；v4.373 dsh 档勘误更名保留。

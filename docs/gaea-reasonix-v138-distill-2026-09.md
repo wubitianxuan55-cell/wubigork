@@ -24,15 +24,15 @@ CHANGELOG.md（行 7~220 Unreleased=v1.21+，221~455=v1.20.0 详版，456+=早�
 
 ## 留池（按价值排序，未做）
 
-1. **执行序批次**（`agent/execute_batch.go`）：保持 provider 顺序、连续只读段并行、writer 串行；每调用落库屏障；取消 15s 残尾宽限记「效应未知」advisory。gaea batch_executor 是 v1.15 形态（只读并行/writer 串行已有，无屏障/残尾/对应性校验）。
-2. **Live file observations**（`fileops/observation.go`，~370 行自包含）：host-owned 版本观察 `{Target,Version(元数据哈希)}`，外部修改 FS_STALE_VERSION、未读 FS_NOT_OBSERVED。gaea stale anchor 只是轮内 bool map。数据正确性一等公民。
+1. ~~**执行序批次**~~ → **已落地 v4.375.0（刀1 同路径资源键统一+对应性守卫）**：`read:/file:` 双键统一为 `file:<path>` 资源键——同批「读 A→改 A」拆批保序，跨路径共存并行的延迟收益保留；call/result 对应性守卫兜底双重 recover 间的逃逸路径。上游的全序严格执行（writer 一律屏障）未全取——gaea 冲突键模型已编码资源隔离，统一键即消真竞态且不退 v4.63 并行子代理特性。
+2. ~~**Live file observations**~~ → **已落地 v4.375.0（刀2）**：会话级版本观察（size+mtime 指纹）——read_file 真实读后记录、写前比对、自身写后刷新；外部修改/删除 `blocked: [stale version]`；从未观察不拦；缓存命中不假装观察。与 V10.28 stale-anchor 规则并存（锚点新鲜度 vs 外部篡改）。
 3. **采样恢复状态机+预算学习**（`sampling_recovery.go`/`output_budget.go`）：frozen request 统一重试流（中断/溢出/超限/thinking-400），学习模型真实 output budget（24h TTL）。
 4. **压缩救援阶梯**（`fold_ladder.go`/`truncate.go`）：PromptTokens 校准 replan→slim 摘要→投影截断终级+`maximumSafeSummaryPrefixEnd` 二分。gaea 溢出自愈止于剪枝+强制压缩。
 5. **Persistent bash PTY**（`persistentshell/`）：cd/env/函数跨调用存活；marker 协议+PTY+分帧是全套工程，Windows 需 conpty。廉价近似=每会话缓存 cwd+env 前缀注入。
 6. **重复调用降级**：reasonix 把硬阻断全退役改 3/5/8 纯 advisory（实测硬阻断误伤多于收益）。gaea repeatedSuccessBlock（同签名写工具 ≥2 阻）与上游方向相反——观察一个版本再定。
-7. **memory 事实生命周期**：subject keys 冲突更新/freshness 三档/expiry 硬过期/pinned-relevant 二维/auto_recall 免责前缀+本地路径抹除（最后两件近零成本）。
+7. **memory 事实生命周期**：subject keys 冲突更新/freshness 三档/expiry 硬过期/pinned-relevant 二维。~~auto_recall 免责前缀~~ → 已落地 v4.375.0（刀4：memory_search 结果前置低权威免责声明）；本地路径抹除仍留池（gaea 记忆内容不含机器路径，收益待证）。
 8. **skill catalog 预算化渲染**（二分压缩描述行）+引用按需分页+watcher 热重载。
-9. 杂项：read_tasks 续读游标/steer 持久化/会话私有临时目录 env 重定向/压缩状态跨重启保留/jobs 路径段校验/websearch 有界编码循环/git 硬化基线（fsmonitor=false 等）。
+9. 杂项：read_tasks 续读游标/steer 持久化（辨伪：gaea consumeSteer 即 session.Add=持久，上游缺口在其事件账本架构，gaea 无靶子）/会话私有临时目录 env 重定向/压缩状态跨重启保留/jobs 路径段校验（gaea jobs 无 artifact 落盘路径拼接，无靶子）/websearch 有界编码循环（gaea truncateToolOutput 事后截断已兜，编码中顶破上限形态不存在）/~~git 硬化基线~~ → 已落地 v4.375.0（刀3：GIT_TERMINAL_PROMPT=0/GIT_OPTIONAL_LOCKS=0/GIT_CONFIG_NOSYSTEM=1 + -c fsmonitor/maintenance 关闭 + diff 强制 --no-ext-diff --no-textconv）。
 
 ## 否定结论（不跟进）
 

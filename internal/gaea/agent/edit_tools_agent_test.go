@@ -81,7 +81,7 @@ func TestGetConflictKeyEditTools(t *testing.T) {
 		{"move_file", `{"source":"a.txt","destination":"b.txt"}`, "!write"},
 		{"edit_lines", `{"path":"x.txt","start_line":1,"end_line":1,"new_content":"y"}`, "file:x.txt"},
 		{"edit_lines", `{"start_line":1,"end_line":1}`, "!write"},
-		{"grep", `{"pattern":"x","path":"src"}`, "read:src"},
+		{"grep", `{"pattern":"x","path":"src"}`, "file:src"}, // 刀1：与写工具统一资源键，同路径读写保序
 		{"grep", `{"pattern":"x"}`, ""},
 	}
 	for _, tc := range cases {

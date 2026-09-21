@@ -58,8 +58,18 @@ func gitRun(args ...string) (string, error) {
 	// 而 .gitattributes 是不可信输入（克隆来的仓库可借查看 diff 执行任意
 	// clean 程序）。置空 clean/process 并关 required 后 filter 是恒等直通，
 	// diff 仍渲染真实变更。失败尽力而为（非 repo 等场景无 filter 可中和）。
-	args = append(cleanFilterOverrides(cwd), args...)
-	cmd := exec.Command("git", append([]string{"-C", cwd}, args...)...)
+	// v4.375：-c 硬化对（fsmonitor/maintenance 关后台钩子）注入每次调用。
+	argv := make([]string, 0, 4+len(args)+len(cleanFilterOverrides(cwd)))
+	argv = append(argv, "-C", cwd)
+	argv = append(argv, gitHardeningArgs()...)
+	argv = append(argv, cleanFilterOverrides(cwd)...)
+	argv = append(argv, args...)
+	cmd := exec.Command("git", argv...)
+	cmd.Env = append(os.Environ(),
+		"GIT_TERMINAL_PROMPT=0", // 永不交互式要凭据（面板场景无 TTY 可答）
+		"GIT_OPTIONAL_LOCKS=0",  // 只读面不写 index.lock 副锁
+		"GIT_CONFIG_NOSYSTEM=1", // 系统级 gitconfig 不参与（不可信面收敛）
+	)
 	var stderr strings.Builder
 	cmd.Stderr = &stderr
 	out, err := cmd.Output()
@@ -71,6 +81,12 @@ func gitRun(args ...string) (string, error) {
 		return "", errGit(msg)
 	}
 	return string(out), nil
+}
+
+// gitHardeningArgs 返回每次 git 调用前注入的 -c 硬化对（须位于子命令前）：
+// fsmonitor/maintenance 关掉后台钩子与守护进程，后台线程不因面板查询被拉起。
+func gitHardeningArgs() []string {
+	return []string{"-c", "core.fsmonitor=false", "-c", "maintenance.auto=false"}
 }
 
 // cleanFilterOverrides enumerates the repo-local filter.<name> sections and
@@ -187,7 +203,10 @@ func (a *App) GaeaGitDiff(path string, staged bool) (string, error) {
 	if strings.TrimSpace(path) == "" {
 		return "", errGit("path 为空")
 	}
-	args := []string{"diff", "--no-color"}
+	// --no-ext-diff/--no-textconv（v4.375，Reasonix gitcmd 基线）：外置 diff
+	// 驱动与 textconv 会执行 .gitattributes 配置的外部程序，查看面板 diff
+	// 时一律关闭（clean filter 由 gitRun 层统一中和）。
+	args := []string{"diff", "--no-color", "--no-ext-diff", "--no-textconv"}
 	if staged {
 		args = append(args, "--cached")
 	}
