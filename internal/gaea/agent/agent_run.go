@@ -78,6 +78,7 @@ func (a *AgentRunner) runDirect(ctx context.Context, input string) (*TurnResult,
 	a.staleWrittenFiles = nil // 每轮重置 stale anchor 追踪
 	a.staleReadFiles = nil
 	a.repeatSuccessCounts = nil // 每轮重置成功循环计数
+	a.repeatSuccessNudged = nil // 每轮重置 advisory 去重
 	a.turnMu.Unlock()
 	// per-turn TurnResult tracking — accumulated here and returned by Run().
 	var turnFilesCreated []string
@@ -411,6 +412,12 @@ func (a *AgentRunner) runDirect(ctx context.Context, input string) (*TurnResult,
 		// repeat-detection — inject nudge after 3 same-tool calls
 		if a.detectRepeatedSteps(calls) {
 			continue // nudge injected, skip compaction and continue loop
+		}
+
+		// 刀2（Reasonix 裁决蒸馏）：同签名写工具成功循环 advisory——硬阻断
+		// 已退役，真实结果照落会话，越线时注入一次性提醒换思路。
+		if a.advisoryRepeatSuccess() {
+			continue // advisory injected, skip compaction and continue loop
 		}
 
 		// Grace Round — when maxSteps is reached, give one extra final turn.

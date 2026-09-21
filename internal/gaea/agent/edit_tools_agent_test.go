@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/gaea/gaea/internal/gaea/agent/cache"
+	"github.com/gaea/gaea/internal/gaea/event"
 	"github.com/gaea/gaea/internal/gaea/provider"
 	"github.com/gaea/gaea/internal/gaea/tool"
 	_ "github.com/gaea/gaea/internal/gaea/tool/builtin" // 注册 builtin 工具（含 S0.6 编辑系）
@@ -110,14 +111,33 @@ func TestRepeatSuccessSignatureCoversEditTools(t *testing.T) {
 
 func TestMoveFileLoopGuardAfterTwoSuccesses(t *testing.T) {
 	tl := lookupEditTool(t, "move_file")
-	a := &AgentRunner{}
+	a := &AgentRunner{sink: event.Discard, session: NewSession("sys")}
 	call := provider.ToolCall{ID: "c1", Name: "move_file",
 		Arguments: `{"source":"a.txt","destination":"b.txt"}`}
 	for i := 0; i < repeatSuccessAllowed; i++ {
 		a.recordRepeatSuccess(call, tl)
 	}
-	if _, blocked := a.repeatedSuccessBlock(call, tl); !blocked {
-		t.Fatal("move_file repeated with identical args must trip the loop guard")
+	// v4.376 降级裁决：硬阻断退役——越线前既不 advisory 也不阻止。
+	if a.advisoryRepeatSuccess() {
+		t.Fatal("below the threshold no advisory may fire")
+	}
+	a.recordRepeatSuccess(call, tl)
+	if !a.advisoryRepeatSuccess() {
+		t.Fatal("crossing the threshold must inject the advisory")
+	}
+	// advisory 是合成 user 提醒，不是 blocked 结果。
+	var adv string
+	for _, m := range a.session.Messages {
+		if strings.Contains(m.Content, "succeeded 3 times with identical arguments") {
+			adv = m.Content
+		}
+	}
+	if adv == "" || !strings.Contains(adv, "move_file") {
+		t.Fatalf("advisory must name the tool and count, got %q", adv)
+	}
+	// 每签名每轮至多一条。
+	if a.advisoryRepeatSuccess() {
+		t.Fatal("advisory must fire once per signature per turn")
 	}
 }
 
@@ -235,14 +255,24 @@ func TestStaleGuardBlocksMoveFileWithoutRead(t *testing.T) {
 
 func TestEditLinesLoopGuardAfterTwoSuccesses(t *testing.T) {
 	tl := lookupEditTool(t, "edit_lines")
-	a := &AgentRunner{}
+	a := &AgentRunner{sink: event.Discard, session: NewSession("sys")}
 	call := provider.ToolCall{ID: "c1", Name: "edit_lines",
 		Arguments: `{"path":"a.txt","start_line":1,"end_line":1,"new_content":"x"}`}
 	for i := 0; i < repeatSuccessAllowed; i++ {
 		a.recordRepeatSuccess(call, tl)
 	}
-	if _, blocked := a.repeatedSuccessBlock(call, tl); !blocked {
-		t.Fatal("edit_lines repeated with identical args must trip the loop guard")
+	// 降级后计数器只在越线时触发一次性 advisory，不再产生 blocked 结果。
+	if a.advisoryRepeatSuccess() {
+		t.Fatal("below the threshold no advisory may fire")
+	}
+	a.recordRepeatSuccess(call, tl)
+	if !a.advisoryRepeatSuccess() {
+		t.Fatal("edit_lines crossing the threshold must inject the advisory")
+	}
+	for _, m := range a.session.Messages {
+		if strings.Contains(m.Content, "succeeded 3 times") && !strings.Contains(m.Content, "edit_lines") {
+			t.Fatalf("advisory must name the tool: %q", m.Content)
+		}
 	}
 }
 

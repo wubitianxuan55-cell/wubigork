@@ -96,7 +96,7 @@ func TestSummarizeRequestCacheAlignedShape(t *testing.T) {
 	prov := &mockProvider{name: "sum", chunks: []provider.Chunk{{Type: provider.ChunkText, Text: "brief"}}}
 	a := &AgentRunner{session: s, sink: event.Discard, prov: prov}
 
-	out, err := a.summarize(context.Background(), fold, "")
+	out, err := a.summarize(context.Background(), fold, "", false)
 	if err != nil {
 		t.Fatalf("summarize: %v", err)
 	}
@@ -132,7 +132,7 @@ func TestSummarizeRequestCacheAlignedShape(t *testing.T) {
 	// 动态注入只允许进最后一条指令消息
 	prov2 := &mockProvider{name: "sum2", chunks: []provider.Chunk{{Type: provider.ChunkText, Text: "ok"}}}
 	b := &AgentRunner{session: s, sink: event.Discard, prov: prov2}
-	if _, err := b.summarize(context.Background(), fold, "EXTRA-CONTEXT-123"); err != nil {
+	if _, err := b.summarize(context.Background(), fold, "EXTRA-CONTEXT-123", false); err != nil {
 		t.Fatalf("summarize with instructions: %v", err)
 	}
 	m2 := prov2.lastReq.Messages

@@ -1,3 +1,14 @@
+## 最新发布：v4.376.0（2026-09-21）「Reasonix 真身蒸馏第三弹：压缩救援阶梯 + 重复调用裁决 + 技能目录预算化」
+
+- **动机**：续 v4.375 真身留池第三弹——压缩/恢复域两把主刀+技能目录一把小刀，辨伪销号一批收口留池。全 Go，绑定面 707 零变更。
+- **落地**：①压缩救援阶梯（1a slim 摘要档=估算超 window−预留−5% 边际即逐消息截头换有界转录，provider 真实拒绝后重试也降半预算 slim，fits 逐字重放不变；1b 投影截断终级 truncateRescue=压缩无进展或压缩后仍超窗时保护区收窄 target/4→抹大工具结果→整单元丢最老装 marker，先归档 fail-closed）②重复调用硬阻断降级 advisory（repeatedSuccessBlock 退役，第 3 次同签名成功起批后一次性合成提醒，真实结果不再被 blocked 替换）③skill 目录预算化渲染（超 4000 字符二分收缩描述宽度保全员可见，压缩态尾注计入预算，纯名行仍超才退硬截断）。
+- **辨伪销号一批**：采样恢复状态机+预算学习（主链路不发 max_tokens、reasoning 不回放，无靶子）/skill 引用按需分页+watcher 热重载/read_tasks 续读游标/会话私有临时目录 env 重定向（Git Bash TMP 注入牵动 /tmp 映射）/压缩状态跨重启保留（重启丢熔断=天然解锁）。余池=Persistent bash PTY+memory 事实生命周期。
+- **测试**：Go +13（slim 截头/参数封顶/请求收缩/fits 逐字/拒绝后降档/rescue 抹结果丢单装 marker/KeepErrors 豁免/三态无靶/溢出落到截断终级/advisory 越线一次性+改钉两条/目录压缩保全员/fitting 零变更）+2 处适配（summarize 加 forceSlim 形参）。
+- **门禁**：go build/vet 0+全量 ci.ps1 绿 EXIT=0 首跑即绿+版本三处 4.376.0。
+- **坑**：①救援机制的可达带先算清再写测试——可达带=compact 尾钳与 rescue 尾钳间盲区，prune 够不到、compact 尾保护又留下的大块 assistant 正文才是构造素材，否则前置清场测试假绿②token 估算器 max(bytes/4, runes/2)——纯 ASCII 按 2 字符/token 计，边界按此口径算③破坏性截断必须 fail-closed 于归档——三级都先归档再动手，archive 坏=整体拒绝。
+- **产物**：exe 51030528 B SHA256=8c0febb68f936ed247a317baa6bb86d714474e9f96b9a2c50a3724f7d59b4aef（releases+SUMS 仅本地；桌面副本同哈希实测一致；冒烟 /api/health 200 过）；保留策略删 v4.371.0.exe。
+- **文档**：蒸馏文档第三弹三刀+留池销号回填+releases/v4.376.0.md+CHANGELOG/README+releases/README（计数 397→398+34 席插 v4.376 裁 v4.342）+AGENTS 迁 1 插 1（九十一迁：v4.373 入 archive）+progress/todos。
+
 ## 最新发布：v4.375.0（2026-09-21）「Reasonix 真身蒸馏第二弹：执行序批次 + 文件观察 + 杂项加固」
 
 - **动机**：续 v4.374 真身留池第二弹——执行序与数据正确性两把主刀+两把小刀。全 Go，绑定面 707 零变更。

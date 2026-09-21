@@ -288,8 +288,12 @@ type AgentRunner struct {
 	staleReadFiles    map[string]bool // 本轮已读取的文件路径
 
 	// V10.13: 成功循环检测 — 移植自 Reasonix repeatedSuccessBlock。
-	// 检测写工具在同一用户轮次中重复成功调用，阈值 2 次后阻止。
+	// v4.376 裁决：硬阻断退役（上游实测硬阻断误伤多于收益，reasonix 全量
+	// 改纯 advisory），计数保留给批后 advisory（execute_one.go
+	// advisoryRepeatSuccess），真实工具结果不再被 blocked 替换。
 	repeatSuccessCounts map[string]int
+	// repeatSuccessNudged 记录已注入过 advisory 的签名（每签名每轮一条）。
+	repeatSuccessNudged map[string]bool
 
 	// turnMu guards per-turn mutable state updated concurrently by executeOne
 	// goroutines (stale maps, repeat-success counts, bg start/kill flags).

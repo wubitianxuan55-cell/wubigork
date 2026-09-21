@@ -1,6 +1,7 @@
 package skill
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -290,6 +291,45 @@ func TestApplyIndexTruncates(t *testing.T) {
 	out := ApplyIndex("BASE", skills)
 	if !strings.Contains(out, "truncated") {
 		t.Error("oversized index should be truncated")
+	}
+}
+
+// 刀3 预算化渲染：目录超预算先二分压缩描述宽度保全员可见，硬截断退为
+// 纯名行也放不下的极端兜底（Distilled from Reasonix skill catalog）。
+func TestApplyIndexCompressesInsteadOfTruncating(t *testing.T) {
+	var skills []Skill
+	for i := 0; i < 60; i++ {
+		skills = append(skills, Skill{
+			Name:        fmt.Sprintf("skill%02d", i),
+			Description: strings.Repeat("d", 200),
+		})
+	}
+	out := ApplyIndex("BASE", skills)
+	if strings.Contains(out, "(truncated") {
+		t.Fatal("when name-only lines fit, the catalog must compress, not truncate")
+	}
+	if !strings.Contains(out, compressedIndexNote) {
+		t.Fatal("compressed catalog must carry the squeeze note")
+	}
+	for i := 0; i < 60; i++ {
+		if !strings.Contains(out, fmt.Sprintf("- skill%02d", i)) {
+			t.Fatalf("skill%02d must stay visible in the compressed catalog", i)
+		}
+	}
+	// 描述确实被收缩了（不再是全宽 130）。
+	if strings.Contains(out, strings.Repeat("d", 130)) {
+		t.Fatal("descriptions should be clipped below full width in the compressed catalog")
+	}
+}
+
+func TestApplyIndexFittingCatalogUnchanged(t *testing.T) {
+	skills := []Skill{{Name: "alpha", Description: strings.Repeat("d", 100)}}
+	out := ApplyIndex("BASE", skills)
+	if strings.Contains(out, compressedIndexNote) || strings.Contains(out, "(truncated") {
+		t.Fatal("a fitting catalog must render at full width with no notes")
+	}
+	if !strings.Contains(out, "- alpha — "+strings.Repeat("d", 100)) {
+		t.Fatalf("fitting catalog lines must be unchanged, got %s", out)
 	}
 }
 

@@ -220,8 +220,12 @@ const maxOverflowRecoveries = 1
 // tryOverflowRecovery answers a context-overflow provider error with the
 // cheapest durable shrink: prune stale tool results first (free), then a
 // forced compaction. Progress is verified by the session rewrite version
-// advancing (dsh: surface replaceGeneration) — when nothing changed the
-// turn ends with the real error instead of looping on a futile retry.
+// advancing (dsh: surface replaceGeneration) — when nothing changed the turn
+// ends with the real error instead of looping on a futile retry.
+//
+// 刀1b 压缩救援阶梯终级（Distilled from Reasonix rescueByTruncation）：压缩
+// 无进展或压缩后估算仍在窗口之上时，投影截断兜底——抹大工具结果、整单元
+// 丢最老（先归档），换回合继续而不是带真实错误死掉。
 func (a *AgentRunner) tryOverflowRecovery(ctx context.Context, err error) bool {
 	if a.compaction.Window <= 0 || a.overflowRecoveries >= maxOverflowRecoveries {
 		return false
@@ -240,7 +244,15 @@ func (a *AgentRunner) tryOverflowRecovery(ctx context.Context, err error) bool {
 		a.sink.Emit(event.Event{Kind: event.Notice, Level: event.LevelWarn,
 			Text: "overflow compaction skipped: " + cerr.Error()})
 	}
-	if a.session.RewriteVersion() == version {
+	progressed := a.session.RewriteVersion() != version
+	// 仍在窗口之上（压缩了但没压够）同样走截断救援——上游 rescueOrFail 的
+	// 「at or above the ceiling → truncation rescue」语义。
+	if !progressed || a.EstimateContextTokens() >= a.compaction.Window {
+		if a.truncateRescue() {
+			progressed = true
+		}
+	}
+	if !progressed {
 		a.sink.Emit(event.Event{Kind: event.Notice, Level: event.LevelWarn,
 			Text: "context overflow recovery made no progress; ending the turn"})
 		return false
@@ -635,15 +647,21 @@ func toolCallIDs(m provider.Message) map[string]bool {
 
 // ─── Summarizer ───
 
+// summarizeWithRetry runs one cache-aligned summary attempt and, on failure
+// (typically the summary request itself overflowing on a huge fold — 刀1a
+// 阶梯的真实触发面), one slim rerun. Context cancellation is never retried.
 func (a *AgentRunner) summarizeWithRetry(ctx context.Context, fold []provider.Message, instructions string) (string, error) {
-	summary, err := a.summarize(ctx, fold, instructions)
+	summary, err := a.summarize(ctx, fold, instructions, false)
 	if err == nil || errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
 		return summary, err
 	}
-	return a.summarize(ctx, fold, instructions)
+	return a.summarize(ctx, fold, instructions, true)
 }
 
-func (a *AgentRunner) summarize(ctx context.Context, fold []provider.Message, instructions string) (string, error) {
+// summarize calls the summarizer over the fold region. forceSlim skips the
+// size check and renders the bounded-transcript form directly (the retry rung
+// after a failed full attempt — Distilled from Reasonix fold_ladder.go slim).
+func (a *AgentRunner) summarize(ctx context.Context, fold []provider.Message, instructions string, forceSlim bool) (string, error) {
 	if a.prov == nil {
 		return "", fmt.Errorf("no provider available for summarization")
 	}
@@ -667,7 +685,25 @@ func (a *AgentRunner) summarize(ctx context.Context, fold []provider.Message, in
 			msgs = append(msgs, m)
 		}
 	}
-	msgs = append(msgs, fold...)
+	// 刀1a 压缩救援阶梯 slim 档：折叠区本身大到来不及重放时（估算摘要请求
+	// 超出 window−预留−边际），逐消息截头换有界转录——溢出场景里全量重放
+	// 的命运是摘要请求自己 400，slim 档把机械裸计数救回真摘要。fits 时
+	// 逐字重放不变（缓存对齐是首选档，slim 永远是降档不是默认）；forceSlim
+	// 是全量档被 provider 真实拒绝后的重试档（估算没料到的溢出）。
+	foldRendered := fold
+	if budget := a.summaryPromptBudget(); budget > 0 {
+		overhead := estimateMessagesTokens(msgs) + estimateMessagesTokens([]provider.Message{{Content: instr}})
+		if slimmed := slimFoldForSummary(a, fold, budget-overhead); slimmed != nil {
+			foldRendered = slimmed
+		} else if forceSlim {
+			// 估算判 fits 但 provider 真实拒绝了全量档——半预算再裁一次；
+			// 半预算仍 fits（nil）时保持全量形态=既有的同形重试语义。
+			if slimmed := slimFoldForSummary(a, fold, (budget-overhead)/2); slimmed != nil {
+				foldRendered = slimmed
+			}
+		}
+	}
+	msgs = append(msgs, foldRendered...)
 	msgs = append(msgs, provider.Message{Role: provider.RoleUser, Content: instr})
 
 	req := provider.Request{

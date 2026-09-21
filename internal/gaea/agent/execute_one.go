@@ -5,9 +5,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
+	"github.com/gaea/gaea/internal/gaea/event"
 	"github.com/gaea/gaea/internal/gaea/evidence"
 	"github.com/gaea/gaea/internal/gaea/jobs"
 	"github.com/gaea/gaea/internal/gaea/memory"
@@ -24,15 +26,9 @@ func (a *AgentRunner) executeOne(ctx context.Context, call provider.ToolCall) to
 		}
 	}
 
-	// V10.13: 成功循环检测 — 移植自 Reasonix repeatedSuccessBlock。
-	// 写工具在同一用户轮次中重复成功 ≥2 次即阻止，防止模型无意义循环。
-	if out, blocked := a.repeatedSuccessBlock(call, t); blocked {
-		return toolOutcome{
-			output:  out,
-			blocked: true,
-			errMsg:  "blocked by loop guard",
-		}
-	}
+	// V10.13 → v4.376: 成功循环检测降级 advisory — 硬阻断已退役（上游
+	// reasonix 裁决：实测硬阻断误伤多于收益），计数照记、提醒走批后的
+	// advisoryRepeatSuccess，真实工具结果不再被 blocked 替换。
 
 	// Centralised pre-execution checks via the ToolDispatcher (production path).
 	// When dispatcher is nil (test/benchmark paths), gate/hooks are
@@ -358,31 +354,56 @@ func (a *AgentRunner) toolReadOnly(name string) bool {
 
 // ── V10.13: 成功循环检测 — 移植自 Reasonix ──────────────────────────
 
-// repeatSuccessAllowed 是同一写工具签名允许成功的最大次数。
-// 2 次给模型自我修正的空间；第 3 次通常是空转/写循环，应阻止。
+// repeatSuccessAllowed 是同一写工具签名触发 advisory 的成功次数阈值。
+// 2 次给模型自我修正的空间；第 3 次起提醒（不再阻止执行——v4.376 降级
+// 裁决，Distilled from Reasonix repeat-tool-reminder 纯 advisory 立场）。
 const repeatSuccessAllowed = 2
 
-// repeatedSuccessBlock 检测写工具是否在同轮中重复成功过多次。
-// 命中时返回阻止消息，防止模型无意义循环消耗 token。
-func (a *AgentRunner) repeatedSuccessBlock(call provider.ToolCall, t tool.Tool) (string, bool) {
-	sig, ok := repeatSuccessSignature(call, t)
-	if !ok {
-		return "", false
+// repeatSuccessAdvisory 是同签名写工具第 3 次成功后的批后提醒。合成 user
+// 消息（turn 尾，不动缓存稳定前缀），每签名每轮至多一条。
+const repeatSuccessAdvisory = "[system] The same write tool call has now succeeded %d times with identical arguments in this turn (tool %q). The writes are real — re-running the identical call again is unlikely to help. Verify the result with a read or test command, change the approach, or explain the blocker in your final answer."
+
+// advisoryRepeatSuccess scans the repeat-success counter for signatures that
+// just crossed the threshold and injects one advisory per signature. Returns
+// true when a nudge was injected (caller continues the loop). Counting
+// happened in executeOne; the injection happens here on the run-loop
+// goroutine because session.Add is not goroutine-safe with the batch.
+func (a *AgentRunner) advisoryRepeatSuccess() bool {
+	type crossed struct {
+		name  string
+		count int
 	}
-	// turnMu guards repeatSuccessCounts: sibling executeOne goroutines increment
-	// it concurrently (audit P0 race fix). A nil map simply means count 0.
+	var newly []crossed
 	a.turnMu.Lock()
-	count := 0
-	if a.repeatSuccessCounts != nil {
-		count = a.repeatSuccessCounts[sig]
+	for sig, count := range a.repeatSuccessCounts {
+		if count <= repeatSuccessAllowed || a.repeatSuccessNudged[sig] {
+			continue
+		}
+		if a.repeatSuccessNudged == nil {
+			a.repeatSuccessNudged = make(map[string]bool)
+		}
+		a.repeatSuccessNudged[sig] = true
+		name := sig
+		if i := strings.IndexByte(sig, 0); i >= 0 {
+			name = sig[:i]
+		}
+		newly = append(newly, crossed{name: name, count: count})
 	}
 	a.turnMu.Unlock()
-	if count < repeatSuccessAllowed {
-		return "", false
+	if len(newly) == 0 {
+		return false
 	}
-	return fmt.Sprintf(
-		"blocked: [loop guard] %q has already succeeded %d times with the same write-like arguments in this user turn. Re-running it is unlikely to help and may burn tokens or repeat file writes. Change approach: use edit_file or multi_edit for file changes, verify with a read/test command, or explain the blocker in your final answer.",
-		call.Name, count), true
+	// 确定性序：多签名同批越线时注入顺序稳定。
+	sort.Slice(newly, func(i, j int) bool { return newly[i].name < newly[j].name })
+	for _, c := range newly {
+		a.session.Add(provider.Message{
+			Role:    provider.RoleUser,
+			Content: fmt.Sprintf(repeatSuccessAdvisory, c.count, c.name),
+		})
+		a.sink.Emit(event.Event{Kind: event.Notice, Level: event.LevelInfo,
+			Text: fmt.Sprintf("repeat-success advisory: %q succeeded %d times with identical arguments", c.name, c.count)})
+	}
+	return true
 }
 
 // recordRepeatSuccess 记录一次成功的写工具调用，用于循环检测。

@@ -31,25 +31,82 @@ const indexHeader = "# Skills — playbooks you MUST consult before acting\n\n" 
 // ApplyIndex appends the skills index to basePrompt, or returns it unchanged
 // when there are no skills. Only names + descriptions (+ a subagent tag) are
 // listed; bodies load on demand via run_skill.
+//
+// 刀3 预算化渲染（Distilled from Reasonix skill catalog 二分压缩描述行）：
+// 目录超预算时先二分收缩描述宽度让全部条目挤进预算——尾部技能被硬截断
+// 意味着模型永远看不见它们；只有纯名行仍超预算的极端才退回硬截断。
 func ApplyIndex(basePrompt string, skills []Skill) string {
 	if len(skills) == 0 {
 		return basePrompt
 	}
-	lines := make([]string, 0, len(skills))
-	for _, sk := range skills {
-		lines = append(lines, indexLine(sk))
+	join := func(descWidth int) string {
+		lines := make([]string, 0, len(skills))
+		for _, sk := range skills {
+			lines = append(lines, indexLineAt(sk, descWidth))
+		}
+		return strings.Join(lines, "\n")
 	}
-	joined := strings.Join(lines, "\n")
+	runes := func(s string) int { return len([]rune(s)) }
+	joined := join(maxDescWidth)
+	if runes(joined) <= IndexMaxChars {
+		return basePrompt + "\n\n" + indexHeader + "\n\n```\n" + joined + "\n```"
+	}
+	// 二分最大可容纳的描述宽度；width 0 = 纯名行。压缩态在清单尾附一行
+	// 说明（一并计入预算），模型知道描述是缩写、细节走 run_skill。
+	fits := func(width int) bool {
+		s := join(width)
+		if width < maxDescWidth {
+			s += compressedIndexNote
+		}
+		return runes(s) <= IndexMaxChars
+	}
+	lo, hi, best := 0, maxDescWidth, -1
+	for lo <= hi {
+		mid := (lo + hi) / 2
+		if fits(mid) {
+			best = mid
+			lo = mid + 1
+		} else {
+			hi = mid - 1
+		}
+	}
+	if best >= 0 {
+		joined = join(best) + compressedIndexNote
+		return basePrompt + "\n\n" + indexHeader + "\n\n```\n" + joined + "\n```"
+	}
+	// 极端兜底：纯名行也放不下（超长技能名/技能数极多）——旧行为硬截断。
 	if r := []rune(joined); len(r) > IndexMaxChars {
 		joined = string(r[:IndexMaxChars]) + fmt.Sprintf("\n… (truncated %d chars)", len(r)-IndexMaxChars)
 	}
 	return basePrompt + "\n\n" + indexHeader + "\n\n```\n" + joined + "\n```"
 }
 
-// indexLine renders one skill as "- name [tag] — description", clipped to a
-// stable width. The subagent tag goes after the name so a model copying the line
-// into run_skill's `name` arg still yields a clean identifier.
+// compressedIndexNote 是压缩态目录的尾注，让模型知道描述被缩写、可经
+// run_skill 取全文。计入 IndexMaxChars 预算。
+const compressedIndexNote = "\n(descriptions compressed to fit the index budget; run_skill loads full details)"
+
+// maxDescWidth 是目录条目描述的单行宽度上限（rune）。
+const maxDescWidth = 130
+
+// indexLine renders one skill at full width (unsqueezed catalog).
 func indexLine(sk Skill) string {
+	return indexLineAt(sk, maxDescWidth)
+}
+
+// indexLineAt renders one skill as "- name [tag] — description" with the
+// description clipped to width (and the per-line base cap) runes. The subagent
+// tag goes after the name so a model copying the line into run_skill's `name`
+// arg still yields a clean identifier. width 0 renders the bare name line.
+func indexLineAt(sk Skill, width int) string {
+	if width <= 0 {
+		tag := ""
+		if sk.RunAs == RunSubagent {
+			tag = " [🧬 subagent]"
+		} else if sk.RunAs == RunPipeline {
+			tag = " [🔗 pipeline]"
+		}
+		return "- " + sk.Name + tag
+	}
 	desc := strings.TrimSpace(strings.ReplaceAll(sk.Description, "\n", " "))
 	if desc == "" {
 		desc = missingDescPlaceholder
@@ -60,8 +117,11 @@ func indexLine(sk Skill) string {
 	} else if sk.RunAs == RunPipeline {
 		tag = " [🔗 pipeline]"
 	}
-	max := 130 - len([]rune(sk.Name)) - len([]rune(tag))
-	clipped := clipRunes(desc, max)
+	base := 130 - len([]rune(sk.Name)) - len([]rune(tag))
+	if width < base {
+		base = width
+	}
+	clipped := clipRunes(desc, base)
 	if clipped == "" {
 		return "- " + sk.Name + tag
 	}
