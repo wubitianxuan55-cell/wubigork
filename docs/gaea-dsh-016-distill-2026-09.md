@@ -27,7 +27,7 @@
 5. ~~**Fork 型子代理**~~ → **已落地 v4.380.0（刀1）**：task 新增 `fork` 参数，TaskTool 实现 ContextualTool 取父历史做种子（字节同源含父 system，不注模板提示——子请求前缀与父请求逐字节一致=KV 缓存继承）；组合禁忌 background/continue_from/retry_until；runSubSession 会话持有上移。顺带根修：V10.36 父对齐 schema 此前被 P0-1 回合重置抹成死代码（New 存 baseSchemas、重置恢复基线修复）。
 6. ~~**子代理结构化输出**~~ → **已落地 v4.380.0（刀2 补完）**：原 output_schema 只在父级事后验（子代理不知道要产 JSON）——补 schema 注入子代理 prompt + terminal guard（非 JSON 同会话纠偏重入，热缓存成本极低，有界 2 次，耗尽诚实降级诊断前缀+原样）+ stripJSONFences 剥围栏。
 7. **Plan mode 审批门**（`plan-mode`）：log-only 模式+exit_plan_mode+审批流（非 GoalCard 卡片，不触红线）；需前端 intent 渲染配套。
-8. **session-query 检索**（FTS5+live-preferred corpus+谱系追踪）：模型可检索本机过往会话；与 memory space 互补。
+8. ~~**session-query 检索**~~ → **首刀已落地 v4.384.0**：`internal/gaea/sessionquery`+SchemaV24 FTS5 虚表——过往会话 user/assistant 正文全文索引（装配空间会话目录，空间隔离由目录构造），`session_search` 只读工具 newest-first+snippet；增量按 (size,mtime) 新鲜度惰性刷新零 boot 成本；中文 MATCH 零命中回退 LIKE 子串扫描+手工裁窗（whisper 先例）。未取：live-preferred 排序与谱系追踪（gaea 无多消费者语义；跨会话语谱系场景待真实需求）。
 9. **session-projection-cache**：投影单元按 session 落盘冷启动加速（收益待评估）。
 
 已销号（2026-09-21，v4.378.0 同日对账）：

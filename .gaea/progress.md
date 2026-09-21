@@ -1,3 +1,13 @@
+## 最新发布：v4.384.0（2026-09-22）「dsh 蒸馏第五弹：session_query 会话检索（跨会话记忆首刀）」
+
+- **动机**：用户口径「继续」——dsh 余 4 中唯一可独立推进的大工程项⑧ session-query 首刀落地，留池余 3。全 Go，绑定面 711 零变更。
+- **落地**：①索引器（新包 internal/gaea/sessionquery：索引面=装配空间会话目录 *.gaea-log.jsonl 的 user_message/assistant_message 正文，system/工具结果/流式 delta 噪声面不入索引；增量按 (size,mtime) 新鲜度指纹惰性刷新零 boot 成本；重索引=DELETE 旧行再全量插；空间隔离由目录构造，双空间红线同构）②session_search 只读工具（query+limit 默认 8 上限 32，newest-first 带 session id/role/时间/snippet；中文降级=FTS5 unicode61 不切 CJK 子串 MATCH 零命中回退 LIKE 子串+手工裁窗，whisper 先例；MATCH 短语引号化）。
+- **测试**：Go +5（FTS 命中+噪声面排除+ts 倒序/CJK 子串降级/增量新鲜度/目录隔离/工具面格式化+空查询+零命中诚实）。
+- **门禁**：go build/vet 0+gofmt（触碰文件）+全量 ci.ps1 绿 EXIT=0（E 系列守卫 OK+仓库卫生守卫 OK）+版本漂移闸 OK@4.384.0。
+- **坑**：①ReadLogRepaired 的 torn-tail 修复截断「未以换行收尾」的最后一行——手工构造日志必须换行收尾（真实 LogWriter 恒换行收尾）②FTS5 标准表（非 contentless）才支持普通 DELETE——UNINDEXED 元数据列建虚表免联表可重索引③LIKE 路径 snippet 手工裁窗——两路径 Scan 形状不同，共用 Scan 助手静默拿空原文（首写即犯测试当场抓出）。
+- **产物**：exe 51150848 B SHA256=221d26d35d9bd7eeaf5a4fcb15afa647cb30cfaf0ff1a498c4ae68fea5967d25（releases/gaea-v4.384.0.exe+SHA256SUMS-v4.384.0.txt，exe 仅本地不入库；桌面副本同哈希实测一致；冒烟 /api/health 200 过）；保留策略留 v4.380~v4.384 删 v4.379.0.exe（SUMS 身份档案全保留）。
+- **文档**：dsh 蒸馏文档⑧首刀销号回填（余 3）+releases/v4.384.0.md（含升级说明：首检索全量索引一次）+CHANGELOG/README+releases/README（计数 405→406+34 席插 v4.384 裁 v4.350）+AGENTS 迁 1 插 1（九十九迁：v4.381 入 archive）+progress/todos。
+
 ## 最新发布：v4.383.0（2026-09-22）「聊天虚拟化第二层：绘制层 content-visibility + 挂池考古销号一批」
 
 - **动机**：用户口径「继续」——v4.365 池②「聊天消息真虚拟化」收口（两形态分层），顺带一批过时挂池条目考古销号（零代码）。前端 2 文件+测试 +2，绑定面 711 零变更。

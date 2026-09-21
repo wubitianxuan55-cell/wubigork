@@ -36,6 +36,7 @@ import (
 	"github.com/gaea/gaea/internal/gaea/plugin"
 	"github.com/gaea/gaea/internal/gaea/provider"
 	"github.com/gaea/gaea/internal/gaea/sandbox"
+	"github.com/gaea/gaea/internal/gaea/sessionquery"
 	"github.com/gaea/gaea/internal/gaea/skill"
 	"github.com/gaea/gaea/internal/gaea/tool"
 	"github.com/gaea/gaea/internal/gaea/tool/builtin"
@@ -307,6 +308,12 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 		}
 	}
 	reg.Add(taskTool)
+	// v4.384 会话检索（dsh ⑧ session-query 蒸馏首刀）：过往会话 user/assistant
+	// 正文的 FTS5 索引（绑定装配空间会话目录——空间隔离由目录构造），模型经
+	// session_search 检索跨会话记忆；搜索时惰性增量索引，零 boot 成本。
+	if gdb := db.GetDatabase(config.MemoryUserDir()); gdb != nil {
+		reg.Add(sessionquery.NewSearchTool(gdb, orDefault(opts.SessionDir, config.SessionDir())))
+	}
 	// v4.61：真实引擎接线——task 工具派发的子代理从现在起真正落盘 transcript
 	// （此前 WithTranscripts 只有测试调用，真机子代理 tab 无数据可显示）。
 	taskTool.WithTranscripts(subagentStore)

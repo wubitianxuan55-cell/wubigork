@@ -511,3 +511,23 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_cost_versions_proj_ver
 const SchemaV23 = `
 ALTER TABLE facts ADD COLUMN subject_key TEXT NOT NULL DEFAULT '';
 `
+
+// SchemaV24 会话检索索引 v4.384.0（dsh ⑧ session-query 蒸馏首刀）：过往会话
+// 事件日志正文的 FTS5 全文索引（keyed by 日志路径，UNINDEXED 列承载元数据，
+// 免联表）+ 新鲜度指纹表（size+mtime，搜索时惰性增量索引）。中文降级：FTS5
+// unicode61 不切 CJK 子串，MATCH 零命中回退 LIKE 子串扫描（whisper 先例）。
+const SchemaV24 = `
+CREATE VIRTUAL TABLE IF NOT EXISTS session_fts USING fts5(
+  content,
+  path UNINDEXED,
+  session_id UNINDEXED,
+  role UNINDEXED,
+  seq UNINDEXED,
+  ts UNINDEXED
+);
+CREATE TABLE IF NOT EXISTS session_index_meta (
+  path TEXT PRIMARY KEY,
+  size INTEGER NOT NULL,
+  mtime INTEGER NOT NULL
+);
+`
