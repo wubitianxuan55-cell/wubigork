@@ -7,11 +7,10 @@ import {
 } from 'antd'
 import {
   SaveOutlined, CloseOutlined, PictureOutlined, ThunderboltOutlined,
-  ExperimentOutlined, RetweetOutlined, LoadingOutlined,
-} from '@ant-design/icons'
+  ExperimentOutlined, RetweetOutlined, LoadingOutlined, IdcardOutlined } from '@ant-design/icons'
 import TisorRadar from '../TisorRadar'
 import {
-  saveCharacter, generateFill, generateRandom, generatePortrait, generatePortraitWithRef,
+  saveCharacter, generateFill, generateRandom, generatePortrait, generatePortraitWithRef, generateCharacterSheet,
   type LibraryCharacter,
 } from '../../api/characterlib'
 import { readFileAsDataURL } from '../../api/image'
@@ -124,6 +123,7 @@ const CharacterLibEditor: React.FC<Props> = ({
   const [fieldGen, setFieldGen] = useState<string | null>(null)
   const [genPortrait, setGenPortrait] = useState(false)
   const [refGenIdx, setRefGenIdx] = useState<number | null>(null)
+  const [sheetGen, setSheetGen] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -322,6 +322,30 @@ const CharacterLibEditor: React.FC<Props> = ({
     }
   }
 
+  // 生成设定卡（阶段三刀 C）：qedit 以首张参考图锚定人物 → 三视图并排；
+  // 产物直接追加进参考图列表（设定卡即最佳参考，画廊=参考图列表）。
+  const handleGenerateSheet = async () => {
+    if (busy) return
+    if (!form.name?.trim()) {
+      message.warning('角色名称不能为空')
+      return
+    }
+    if (!(form.referenceImages?.length) && !form.portraitUrl) {
+      message.warning('设定卡生成需要至少一张参考图或剧照（以参考锚定人物）')
+      return
+    }
+    setSheetGen(true)
+    try {
+      const img = await generateCharacterSheet(form)
+      patch({ referenceImages: [...(form.referenceImages ?? []), img] })
+      message.success('设定卡已生成并加入参考图（保存后落盘）')
+    } catch (err: unknown) {
+      message.error(`设定卡生成失败：${err instanceof Error ? err.message : String(err)}`)
+    } finally {
+      setSheetGen(false)
+    }
+  }
+
   const removeRef = (i: number) => {
     const refs = [...(form.referenceImages ?? [])]
     refs.splice(i, 1)
@@ -448,6 +472,18 @@ const CharacterLibEditor: React.FC<Props> = ({
                   title="按角色设定生成剧照"
                 >
                   生成剧照
+                </Button>
+                <Button
+                  size="small"
+                  icon={<IdcardOutlined />}
+                  loading={sheetGen}
+                  disabled={busy}
+                  onClick={() => void handleGenerateSheet()}
+                  className="cd-hero-gen"
+                  data-testid="gen-character-sheet"
+                  title="以首张参考图生成三视图设定卡（Qwen 参考编辑，本地 ComfyUI）"
+                >
+                  生成设定卡
                 </Button>
                 <div className="cd-hero-info">
                   <h2 className="cd-hero-name">{form.name || '未命名角色'}</h2>

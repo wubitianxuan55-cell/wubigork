@@ -1,3 +1,13 @@
+## 最新发布：v4.400.0（2026-09-23）「角色设定卡生成（三视图，qedit 通道 · T2 角色资产 v2 首刀）」
+
+- **刀型**：T2 角色资产 v2 首刀；复用 qedit+参考图画廊零 schema。绑定面 715→716（play）。规格 进度计划/gaea-char-sheet-20260923.md。
+- **落地**：buildCharacterSheetPrompt+CharacterGenerateSheet（qedit 首参考锚定→三视图设定卡）+Editor 按钮（产物追加参考图列表）。
+- **测试**：Go 纯函数+假 ComfyUI 全链+两态报错；前端按钮两态；全量 ci 绿。
+- **坑**：buildPortraitClient 独立建客户端注入不生效须假 ComfyUI/renderEditor 包装对象传裸静默不命中/prompt 文案断言用词对齐。
+- **产物**：exe 见 SHA256SUMS-v4.400.0.txt；保留策略留 v4.396~v4.400 删 v4.395.0.exe。
+- **文档**：releases/v4.400.0.md+CHANGELOG/README+releases/README（421→422+裁 v4.366）+AGENTS 迁 1 插 1（一百一十五迁：v4.395 入 archive）+todos。
+- **观察池**：一致性评分（vision 文本锚点法）；多姿势模板；设定卡分张；sin 侧入口；评分驱动补参考。
+
 ## 最新发布：v4.399.0（2026-09-23）「原罪插图参考升级 qedit（T2 第二消费方）」
 
 - **刀型**：v4.398 观察池头名小刀。纯 Go 2 文件，绑定面 715 零变更。

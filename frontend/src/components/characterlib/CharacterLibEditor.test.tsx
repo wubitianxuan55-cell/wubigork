@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react'
 import CharacterLibEditor from './CharacterLibEditor'
 import type { LibraryCharacter } from '../../api/characterlib'
 
@@ -12,6 +12,7 @@ vi.mock('../../api/characterlib', () => ({
   generateFill: vi.fn(),
   generatePortrait: vi.fn(),
   generatePortraitWithRef: vi.fn(),
+  generateCharacterSheet: vi.fn(),
   generateRandom: vi.fn(),
 }))
 
@@ -19,12 +20,13 @@ vi.mock('../../api/image', () => ({
   readFileAsDataURL: readFileAsDataURLMock,
 }))
 
-import { saveCharacter, generateFill, generatePortrait, generatePortraitWithRef, generateRandom } from '../../api/characterlib'
+import { saveCharacter, generateFill, generatePortrait, generatePortraitWithRef, generateRandom, generateCharacterSheet } from '../../api/characterlib'
 
 const mockedSave = vi.mocked(saveCharacter)
 const mockedFill = vi.mocked(generateFill)
 const mockedPortrait = vi.mocked(generatePortrait)
 const mockedPortraitWithRef = vi.mocked(generatePortraitWithRef)
+const mockedCharacterSheet = vi.mocked(generateCharacterSheet)
 const mockedRandom = vi.mocked(generateRandom)
 
 function makeCharacter(overrides: Partial<LibraryCharacter> = {}): LibraryCharacter {
@@ -75,6 +77,7 @@ beforeEach(() => {
   mockedFill.mockReset()
   mockedPortrait.mockReset()
   mockedPortraitWithRef.mockReset()
+  mockedCharacterSheet.mockReset()
   mockedRandom.mockReset()
   readFileAsDataURLMock.mockReset()
   readFileAsDataURLMock.mockResolvedValue('data:image/png;base64,PATHREF')
@@ -372,5 +375,24 @@ describe('CharacterLibEditor（档案详情）', () => {
       expect(screen.getByText(/参考图生成失败/)).toBeTruthy()
     })
     expect(document.body.querySelector('.cd-hero-img')).toBeNull()
+  })
+})
+
+describe('CharacterLibEditor 生成设定卡（阶段三刀 C）', () => {
+  it('点击按钮：qedit 产物追加进参考图列表；无参考 warning 不触发生成', async () => {
+    mockedCharacterSheet.mockClear()
+    mockedCharacterSheet.mockResolvedValue('data:image/png;base64,SHEET')
+    // 无参考图：warning 不触发
+    renderEditor({ character: makeCharacter({ name: '林晚', referenceImages: [] }) })
+    fireEvent.click(screen.getByTestId('gen-character-sheet'))
+    await vi.waitFor(() => expect(screen.getByText(/至少一张参考图/)).toBeTruthy())
+    expect(mockedCharacterSheet).not.toHaveBeenCalled()
+    // 带参考图：产物追加（success 消息为证）
+    cleanup()
+    renderEditor({ character: makeCharacter({ name: '林晚', referenceImages: ['data:image/png;base64,R1'] }) })
+    fireEvent.click(screen.getByTestId('gen-character-sheet'))
+    await vi.waitFor(() => expect(mockedCharacterSheet).toHaveBeenCalledTimes(1))
+    expect(mockedCharacterSheet.mock.calls[0][0]?.name).toBe('林晚')
+    await vi.waitFor(() => expect(screen.getByText(/设定卡已生成并加入参考图/)).toBeTruthy())
   })
 })

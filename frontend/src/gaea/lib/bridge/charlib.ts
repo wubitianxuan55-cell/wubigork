@@ -30,4 +30,7 @@ export interface CharLibBindings {
   CharacterFillAll(): Promise<Record<string, unknown>>;
   CharacterGeneratePortrait(chJSON: string, model: string): Promise<string>;
   CharacterGeneratePortraitWithRef(chJSON: string, model: string, refImageDataURL: string): Promise<string>;
+  // CharacterGenerateSheet 角色设定卡（三视图，qedit 参考编辑，阶段三刀 C）：
+  // 以首张参考图锚定人物 → 三视图并排设定卡，返回 data URL 不自动保存。
+  CharacterGenerateSheet(chJSON: string): Promise<string>;
 }

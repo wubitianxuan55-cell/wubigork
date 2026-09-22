@@ -1,3 +1,6 @@
+## v4.400.0 · 角色设定卡生成（三视图，qedit 通道 · T2 角色资产 v2 首刀）（2026-09-23）
+> 复用 v4.398 qedit 通道+characterlib 参考图画廊（零 schema）。绑定面 715→716（+CharacterGenerateSheet，play；spaceBindings 538→539）。【落地】①buildCharacterSheetPrompt 纯函数（三视图并排+外观锚点 160 rune）②CharacterGenerateSheet：首张参考图（其次剧照）→qedit→data URL；非 comfyui/无参考如实报错③前端 Editor「生成设定卡」按钮——产物追加进参考图列表（设定卡即最佳参考，保存时后端落盘同手动上传管线）。【测试】Go prompt 纯函数+httptest 假 ComfyUI 全链（prompt 含三视图+锚点/产物回传/两态报错）+前端按钮两态；全量 ci 绿 398 文件 3366 例（首轮 BookHealthPanel 1 例负载 flaky 隔离+复跑全绿在案）+tsc 0+eslint 0。【坑】①buildPortraitClient 独立建客户端——App 级绑定测试注入 core.client 不生效，须 httptest 假 ComfyUI 全链（构建不拨号但 qedit 上传会）②renderEditor 助手吃 {character} 包装对象——传裸角色 overrides 静默不命中走默认夹具（handler enter 日志才定位）③prompt 文案与断言用词先对齐（「三视图」vs「三个视图」）。【产物】exe 见 SHA256SUMS-v4.400.0.txt（仅本地；冒烟 200 过）；保留策略留 v4.396~v4.400 删 v4.395.0.exe。【文档】规格 进度计划/gaea-char-sheet-20260923.md+releases/v4.400.0.md+CHANGELOG/README+releases/README（421→422+34 席插 v4.400 裁 v4.366）+AGENTS 迁 1 插 1（一百一十五迁：v4.395 入 archive）+progress/todos。
+
 ## 非版本刀（2026-09-23）源码包归档推送：wubigork-v4.399.0-source.tar.gz + v4.373~v4.399 tag 对账全量上 remote
 > 里程碑打包（画室编辑力八连发 v4.392~v4.399：本地编辑/蒙版/扩图/变体簇/台账根修/抠图/qedit 通道/sin 第二消费方）。源码包 13028977B/4744 files（git archive v4.399.0，排除历史源码包），SHA256SUMS-v4.399.0.txt 双行登记（exe d56aa12a… + source 9b6d15a4…）。同批推送 29 个未推 commit（v4.372 后）与未推 tag。README/releases 归档惯例行更新。
 

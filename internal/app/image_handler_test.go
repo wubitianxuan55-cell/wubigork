@@ -8,12 +8,16 @@ import (
 	"image"
 	"image/color"
 	"image/png"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/gaea/gaea/internal/ai"
+	"github.com/gaea/gaea/internal/characterlib"
 	"github.com/gaea/gaea/internal/config"
 	"github.com/gaea/gaea/internal/modelengine"
 )
@@ -713,4 +717,82 @@ func TestGenerateMedia_QeditMetadata(t *testing.T) {
 	if items[0].Model != "krea2" {
 		t.Fatalf("img2img 近似元数据应保持 krea2: %+v", items)
 	}
+}
+
+// TestCharacterGenerateSheet 角色设定卡（阶段三刀 C）：qedit 请求形状/无参考
+// 报错/非 comfyui 报错/prompt 模板三要素。
+func TestCharacterGenerateSheet(t *testing.T) {
+	// 纯函数：模板三要素+锚点+无外观可用
+	p := buildCharacterSheetPrompt(characterlib.Character{Name: "林晚", Appearance: "黑色长发", Figure: "高挑"})
+	for _, want := range []string{"三视图", "正面全身", "纯白背景", "黑色长发", "高挑"} {
+		if !strings.Contains(p, want) {
+			t.Fatalf("prompt 应含 %q: %s", want, p)
+		}
+	}
+	p2 := buildCharacterSheetPrompt(characterlib.Character{Name: "X"})
+	if !strings.Contains(p2, "三视图") {
+		t.Fatal("无外观锚点也应可用")
+	}
+
+	// 绑定路径：httptest 假 ComfyUI 全链（buildPortraitClient 独立建客户端，
+	// 注入 core.client 不生效——qedit 上传/提交/取图走假服务器断言 prompt）
+	dir := t.TempDir()
+	ref := filepath.Join(dir, "ref.png")
+	if err := os.WriteFile(ref, []byte{0x89, 'P', 'N', 'G'}, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var gotPrompt string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/upload/image":
+			_, _ = w.Write([]byte(`{"name":"ref.png"}`))
+		case r.URL.Path == "/prompt":
+			body, _ := io.ReadAll(r.Body)
+			var req struct {
+				Prompt map[string]interface{} `json:"prompt"`
+			}
+			_ = json.Unmarshal(body, &req)
+			if enc, ok := req.Prompt["7"].(map[string]interface{}); ok {
+				in := enc["inputs"].(map[string]interface{})
+				gotPrompt, _ = in["prompt"].(string)
+			}
+			_, _ = w.Write([]byte(`{"prompt_id":"pid-sheet"}`))
+		case r.URL.Path == "/history/pid-sheet":
+			_, _ = w.Write([]byte(`{"pid-sheet":{"outputs":{"12":{"images":[{"filename":"s.png","subfolder":"","type":"output"}]}}}}`))
+		default:
+			w.Header().Set("Content-Type", "image/png")
+			_, _ = w.Write([]byte{0x89, 0x50, 0x4e, 0x47})
+		}
+	}))
+	defer srv.Close()
+	a := &App{core: &core{ctx: context.Background(), cfg: &config.Config{
+		ImageBackend: "comfyui", ComfyUIURL: srv.URL, ImageModel: "krea2",
+	}}}
+	ch := characterlib.Character{ID: "c1", Name: "林晚", Appearance: "黑色长发", ReferenceImages: []string{ref}}
+	out, err := a.CharacterGenerateSheet(mustJSON(ch))
+	if err != nil {
+		t.Fatalf("CharacterGenerateSheet: %v", err)
+	}
+	if !strings.HasPrefix(out, "data:image") {
+		t.Fatalf("应返回产物 data URL: %s", out[:20])
+	}
+	if !strings.Contains(gotPrompt, "三视图") || !strings.Contains(gotPrompt, "黑色长发") {
+		t.Fatalf("提交的 prompt 应为设定卡模板+锚点: %s", gotPrompt)
+	}
+
+	// 无参考图
+	if _, err := a.CharacterGenerateSheet(mustJSON(characterlib.Character{Name: "无图"})); err == nil || !strings.Contains(err.Error(), "参考图") {
+		t.Fatalf("无参考应报错: %v", err)
+	}
+	// 非 comfyui 后端
+	a2 := &App{core: &core{cfg: &config.Config{ImageBackend: "herdsman"}}}
+	if _, err := a2.CharacterGenerateSheet(mustJSON(ch)); err == nil || !strings.Contains(err.Error(), "ComfyUI") {
+		t.Fatalf("非 comfyui 应报错: %v", err)
+	}
+}
+
+// mustJSON 测试助手。
+func mustJSON(v interface{}) string {
+	b, _ := json.Marshal(v)
+	return string(b)
 }

@@ -25,6 +25,7 @@ export const bindingNames = [
   "CharacterGenerateFill",
   "CharacterGeneratePortrait",
   "CharacterGeneratePortraitWithRef",
+  "CharacterGenerateSheet",
   "CharacterGenerateRandom",
   "CharacterGet",
   "CharacterImportPreview",

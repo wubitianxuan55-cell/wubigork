@@ -734,3 +734,100 @@ func buildPortraitPrompt(c characterlib.Character) string {
 	parts = append(parts, "半身像，居中构图，干净简洁背景，高细节，唯美光影")
 	return strings.Join(parts, "。")
 }
+
+// charSheetAnchorRunes 设定卡模板里外观锚点的最大长度（提示词预算）。
+const charSheetAnchorRunes = 160
+
+// buildCharacterSheetPrompt 角色设定卡提示词（纯函数，阶段三刀 C）：
+// 三视图并排（正面/侧面/背面全身）+白背景+外观锚点。qedit 通道下人物形象
+// 由参考图锚定，锚点文字补细节冗余。
+func buildCharacterSheetPrompt(c characterlib.Character) string {
+	var b strings.Builder
+	b.WriteString("角色设定卡（character sheet），同一人物的三视图（three-view）水平并排：正面全身、左侧面全身、背面全身，")
+	b.WriteString("姿态一致站立，纯白背景，全身可见，细节清晰，专业角色设计参考图")
+	anchor := strings.TrimSpace(c.Appearance)
+	if figure := strings.TrimSpace(c.Figure); figure != "" {
+		if anchor != "" {
+			anchor += "；"
+		}
+		anchor += figure
+	}
+	if anchor != "" {
+		b.WriteString("。人物外观：")
+		b.WriteString(truncateRunes(anchor, charSheetAnchorRunes))
+	}
+	if name := strings.TrimSpace(c.Name); name != "" {
+		b.WriteString("（" + name + "）")
+	}
+	return b.String()
+}
+
+// CharacterGenerateSheet 角色设定卡生成（阶段三刀 C，T2 角色资产 v2 首刀）：
+// 以角色第一张参考图（其次剧照）走 qedit（Qwen 参考编辑——参考图进编辑引擎
+// image1 槽，人物形象锚定）产出三视图设定卡；返回 data URL 不自动保存。
+// 仅 ComfyUI 本地档（qedit 通道当前唯一后端）；无参考图如实报错。
+func (a *App) CharacterGenerateSheet(chJSON string) (string, error) {
+	var c characterlib.Character
+	if err := json.Unmarshal([]byte(chJSON), &c); err != nil {
+		return "", fmt.Errorf("解析角色数据失败: %w", err)
+	}
+	if strings.TrimSpace(c.Name) == "" {
+		return "", fmt.Errorf("角色名称不能为空")
+	}
+	backend := a.cfg.PortraitBackend
+	if backend == "" {
+		backend = a.cfg.ImageBackend
+	}
+	if backend != "comfyui" {
+		return "", fmt.Errorf("设定卡生成（Qwen 参考编辑）当前仅 ComfyUI 本地档（当前后端：%s）", backend)
+	}
+	refPath := ""
+	for _, p := range c.ReferenceImages {
+		if strings.TrimSpace(p) != "" {
+			refPath = p
+			break
+		}
+	}
+	if refPath == "" {
+		refPath = strings.TrimSpace(c.PortraitURL)
+	}
+	if refPath == "" {
+		return "", fmt.Errorf("设定卡生成需要至少一张参考图或剧照（qedit 以参考锚定人物）")
+	}
+	refData, ok := sinRefDataURL(refPath)
+	if !ok {
+		return "", fmt.Errorf("参考图读取失败（本地文件缺失或为远端 URL）：%s", refPath)
+	}
+	client, err := a.buildPortraitClient()
+	if err != nil {
+		return "", err
+	}
+	req := &ai.ImageGenerationRequest{
+		Model:     a.cfg.ImageModel,
+		Prompt:    buildCharacterSheetPrompt(c),
+		Negative:  "文字, 水印, 签名, 低质量, 模糊, 肢体变形, 多余手指, 多眼多嘴",
+		N:         1,
+		Mode:      "txt2img",
+		RefImages: []string{refData},
+		RefMethod: "qedit",
+	}
+	ctx := a.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	resp, err := client.GenerateImage(ctx, req)
+	if err != nil {
+		return "", fmt.Errorf("设定卡生成失败: %w", err)
+	}
+	if len(resp.Data) == 0 {
+		return "", fmt.Errorf("设定卡生成返回为空")
+	}
+	img := resp.Data[0].URL
+	if img == "" {
+		img = resp.Data[0].B64JSON
+	}
+	if img == "" {
+		return "", fmt.Errorf("设定卡生成返回为空")
+	}
+	return img, nil
+}

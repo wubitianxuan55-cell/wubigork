@@ -596,6 +596,7 @@ export const GAEA_METHOD_FACETS = {
   CharacterFillAll: "play",
   CharacterGeneratePortrait: "play",
   CharacterGeneratePortraitWithRef: "play",
+  CharacterGenerateSheet: "play",
   // 批次三b legacy 直调转正（Go NovelB 门面，同名前缀）：章节族/叙事状态族/
   // 场景族/项目角色族——小说创作间数据面（ChapterPage/CreatePage/小说角色面板
   // 消费），同书封/NovelSearch/批次二 NovelB 族归 play。
