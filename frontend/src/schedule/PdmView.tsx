@@ -217,7 +217,7 @@ export const PdmView: React.FC<{ project: SchedProject; cpm: CpmResult }> = ({ p
                 <path d="M0,0 L8,4 L0,8 z" fill="var(--sched-link, #94a3b8)" />
               </marker>
               <marker id="pdm-arrow-crit" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
-                <path d="M0,0 L8,4 L0,8 z" fill="var(--sched-critical, #dc2626)" />
+                <path d="M0,0 L8,4 L0,8 z" fill="var(--sched-critical, #e02020)" />
               </marker>
             </defs>
             {links.map((l, i) => {

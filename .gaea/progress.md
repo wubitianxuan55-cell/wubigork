@@ -1,3 +1,14 @@
+## 最新发布：v4.390.0（2026-09-22）「canvas 调色板集中化：resolveThemeColor 收口三份手写解析器 + 主题切换跟随缺陷根修」
+
+- **刀型**：视觉池③+⑤专项（v4.361 审计留池大工程候立项中可代码级收口的两项；①②④仍需逐板块截图对照拍板）。纯前端 7 文件+3 新测试，绑定面 714 零变更。
+- **侦察发现**：三份手写 CSS 变量解析器各缺一块（RelationGraph 模块级求值不随主题刷新/GraphView 只解析一个变量且 once/CompanionAvatar 字符串手拆不支持 color-mix）；RelationGraph 真缺陷=角色色/组织色/关系色/画布底模块级顶层求值，v4.350 只修组件内 canvasColors 漏网模块常量。
+- **落地**：①resolveThemeColor/RGB（utils/theme.ts）span 探针法——浏览器自己算，支持 color-mix/嵌套 var/fallback 链；RGB 元组版拼 rgba()②RelationGraph palette=useMemo([darkMode]) 全量收口+graphData/decoratedNodes/edges 依赖补 palette+图例改 var() 活解析③GraphView 背景跟随（探针+MutationObserver 监听 :root 内联 style，不引老栈 store）④CompanionAvatar 删手拆改探针+withAlpha（hex 后缀拼接遇 rgb() 串拼非法色被 canvas 静默忽略）⑤AoaView/PdmView critical 兜底 #dc2626→#e02020。
+- **测试**：+3 文件 9 例（theme 5+RelationGraph 2〔darkMode 切换后 fillStyle 先暗后亮=重解析链路钉死〕+CompanionAvatar 2）+目检（esbuild 挂具+Edge 无头暗/亮两页：两态节点+连线+图例全渲染，亮=浅底深字走重解析路径，改造前停留暗色）；全量 394 文件 3341 例绿+tsc 0+eslint 0。
+- **门禁**：全量 ci.ps1 绿 EXIT=0（E 系列守卫 OK+仓库卫生守卫 OK）+版本漂移闸 OK@4.390.0。
+- **坑**：①canvas 测试 jsdom 三连坑——offsetParent 恒 null 触发 v4.365 空转挂起/首绘 rAF 等帧 flush/ctx 桩 Proxy 兜底任意方法②hex 后缀拼接只兼容 6 位 hex——非法色被 canvas 静默忽略不报错③模块级求值=主题切换隐形死角④getPropertyValue 读 custom property 只到引用替换层⑤Edge --screenshot 单帧不跑 rAF——canvas rAF 组件截图全空须 --virtual-time-budget⑥gaea 侧主题跟随不引老栈 store。
+- **产物**：exe 51181568B SHA256=0ad223995fc7816bbaf810f1cff82d41942390bcdc8958464a85f79f05335404（SHA256SUMS-v4.390.0.txt，仅本地；冒烟 /api/health 200 过；桌面副本同哈希实测一致；字节数与 v4.389 巧合相同哈希不同）；保留策略 5 版留 v4.386~v4.390 删 v4.385.0.exe（SUMS 身份档案全保留）。
+- **文档**：releases/v4.390.0.md（含升级说明）+CHANGELOG/README+releases/README（保留策略行+计数 411→412+34 席插 v4.390 裁 v4.356）+AGENTS 迁 1 插 1（一百零五迁：v4.387 入 archive）+todos。
+
 ## 最新发布：v4.389.0（2026-09-22）「模型中心统计重设计：右栏检查器遥测读出式 + 详细统计抽屉信息分层」
 
 - **动机**：用户指令「重新设计模型中心右侧面板的统计和详细统计」。

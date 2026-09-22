@@ -2,7 +2,7 @@ import React, { useMemo, useState, useRef, useEffect, useCallback } from 'react'
 import {
   forceSimulation, forceLink, forceManyBody, forceCenter, forceCollide,
 } from 'd3-force'
-import { ROLE_LABELS, RELATION_LABELS } from '../utils/theme'
+import { ROLE_LABELS, RELATION_LABELS, resolveThemeColor } from '../utils/theme'
 import { useAppStore } from '../stores/appStore'
 import {
   buildGraphData, EDGE_CATEGORY_LABEL,
@@ -19,20 +19,9 @@ interface RelationGraphProps {
 // 分类可见性默认全开（§7.5 分类筛选）
 const ALL_CATEGORIES: EdgeCategory[] = ['organization', 'career_group', 'career_main', 'career_sub', 'interpersonal']
 
-// ── 颜色常量（令牌派生：canvas 不解析 var()，挂载时经 getComputedStyle 解析为具体色；
-//    解析失败回退到原 hex，保证可用性） ──
-function resolveCSSColor(v: string): string {
-  if (!v.includes('var(') || typeof document === 'undefined') return v
-  try {
-    const el = document.createElement('span')
-    el.style.color = v
-    document.body.appendChild(el)
-    const c = getComputedStyle(el).color
-    el.remove()
-    return c || v
-  } catch { return v }
-}
-
+// ── 颜色令牌表（canvas 不解析 var()，经 resolveThemeColor 探针解析为具体色；
+//    解析在组件内随 darkMode memo——v4.390 前此处是模块级求值，模块加载后
+//    主题切换永不重解析，角色色/关系色/画布底停留在旧主题） ──
 const roleColorTokens: Record<string, string> = {
   protagonist: 'var(--color-warning)', antagonist: 'var(--color-destructive)',
   supporting: 'var(--color-primary)', minor: 'var(--color-text-secondary)',
@@ -44,16 +33,9 @@ const relColorTokens: Record<string, string> = {
   rival: 'var(--color-warning)', lover: 'color-mix(in srgb, var(--color-destructive) 45%, var(--color-primary))',
   member: 'var(--color-text-secondary)', leader: 'var(--gaea-glow)',
 }
-const roleColors: Record<string, string> = Object.fromEntries(
-  Object.entries(roleColorTokens).map(([k, v]) => [k, resolveCSSColor(v)]),
-)
-const orgColor = resolveCSSColor(orgColorToken)
-const relColors: Record<string, string> = Object.fromEntries(
-  Object.entries(relColorTokens).map(([k, v]) => [k, resolveCSSColor(v)]),
-)
 const roleCN = ROLE_LABELS
 const relCN = RELATION_LABELS
-const BG = resolveCSSColor('color-mix(in srgb, var(--color-surface, #0f0f0f) 92%, #000)')
+const BG_SPEC = 'color-mix(in srgb, var(--color-surface, #0f0f0f) 92%, #000)'
 
 // ── d3-force 二维仿真 ──
 function runSimulation(
@@ -99,14 +81,25 @@ const RelationGraph: React.FC<RelationGraphProps> = ({
   })
   const [scale, setScale] = useState(1)
   const [offset, setOffset] = useState({ x: 0, y: 0 })
-  // canvas 主题色（v4.350）：标签/淡化元素此前写死深色值（#ddd/#555/#333/#444），
-  // 亮色主题下画布是浅底，节点名与淡化层不可见；darkMode 入 deps 使切主题即重解析。
+  // canvas 主题色（v4.350 首修标签/淡化层；v4.390 收口全量调色板进组件 memo——
+  // 此前角色/组织/关系/背景色是模块级求值，主题切换后停留在旧主题）。
   const darkMode = useAppStore((s) => s.darkMode)
-  const canvasColors = useMemo(() => ({
-    labelBright: resolveCSSColor('var(--color-text)'),
-    labelDim: resolveCSSColor('var(--color-text-secondary)'),
-    edgeDim: resolveCSSColor('var(--color-border)'),
-    nodeDim: resolveCSSColor('var(--color-text-secondary)'),
+  const palette = useMemo(() => ({
+    roleColors: Object.fromEntries(
+      Object.entries(roleColorTokens).map(([k, v]) => [k, resolveThemeColor(v)]),
+    ) as Record<string, string>,
+    orgColor: resolveThemeColor(orgColorToken),
+    relColors: Object.fromEntries(
+      Object.entries(relColorTokens).map(([k, v]) => [k, resolveThemeColor(v)]),
+    ) as Record<string, string>,
+    bg: resolveThemeColor(BG_SPEC),
+    careerMain: resolveThemeColor('var(--color-primary)'),
+    careerSub: resolveThemeColor('var(--color-warning)'),
+    group: resolveThemeColor('var(--color-text-tertiary)'),
+    labelBright: resolveThemeColor('var(--color-text)'),
+    labelDim: resolveThemeColor('var(--color-text-secondary)'),
+    edgeDim: resolveThemeColor('var(--color-border)'),
+    nodeDim: resolveThemeColor('var(--color-text-secondary)'),
     // darkMode 仅作变更触发器：令牌值随主题写入 :root，需按明暗重新解析
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }), [darkMode])
@@ -124,36 +117,32 @@ const RelationGraph: React.FC<RelationGraphProps> = ({
     return () => ro.disconnect()
   }, [])
 
-  // 节点/边构建（graphData 纯函数：三类节点+四层边，§7.5）
+  // 节点/边构建（graphData 纯函数：三类节点+四层边，§7.5；palette 入 deps 使主题切换重建）
   const { nodes: graphNodes, edges: allEdges } = useMemo(() => buildGraphData(
     characters, organizations, relationships,
-    {
-      careerMain: resolveCSSColor('var(--color-primary)'),
-      careerSub: resolveCSSColor('var(--color-warning)'),
-      group: resolveCSSColor('var(--color-text-tertiary)'),
-    },
-  ), [characters, organizations, relationships])
+    { careerMain: palette.careerMain, careerSub: palette.careerSub, group: palette.group },
+  ), [characters, organizations, relationships, palette])
 
   // 角色节点着色沿用定位色；组织节点沿用组织色
   const decoratedNodes = useMemo(() => graphNodes.map((n) => {
-    if (n.kind === 'character') return { ...n, color: roleColors[n.role_type || ''] || '#6b7280' }
-    if (n.kind === 'organization') return { ...n, color: orgColor }
+    if (n.kind === 'character') return { ...n, color: palette.roleColors[n.role_type || ''] || '#6b7280' }
+    if (n.kind === 'organization') return { ...n, color: palette.orgColor }
     return n
-  }), [graphNodes])
+  }), [graphNodes, palette])
 
   const edges: (GraphEdge & { color: string })[] = useMemo(() => allEdges
     .map((e) => ({
       ...e,
       color: e.category === 'interpersonal'
-        ? (relColors[e.label] || '#6b7280')
-        : e.category === 'organization' ? orgColor
-        : e.category === 'career_main' ? resolveCSSColor('var(--color-primary)')
-        : e.category === 'career_sub' ? resolveCSSColor('var(--color-warning)')
-        : resolveCSSColor('var(--color-text-tertiary)'),
+        ? (palette.relColors[e.label] || '#6b7280')
+        : e.category === 'organization' ? palette.orgColor
+        : e.category === 'career_main' ? palette.careerMain
+        : e.category === 'career_sub' ? palette.careerSub
+        : palette.group,
       label: e.category === 'interpersonal' ? (relCN[e.label] || e.label) : e.label,
     }))
     .filter((e) => visible[e.category]),
-  [allEdges, visible])
+  [allEdges, visible, palette])
 
   const visibleNodes = useMemo(() => {
     const live = new Set<string>()
@@ -234,7 +223,7 @@ const RelationGraph: React.FC<RelationGraphProps> = ({
       ctx!.clearRect(0, 0, w, h)
 
       // 背景
-      ctx!.fillStyle = BG
+      ctx!.fillStyle = palette.bg
       ctx!.fillRect(0, 0, w, h)
 
       ctx!.save()
@@ -253,7 +242,7 @@ const RelationGraph: React.FC<RelationGraphProps> = ({
         ctx!.quadraticCurveTo(mx, my, to.x, to.y)
         ctx!.setLineDash(e.dashed ? [6, 3] : [])
         const structural = e.category !== 'interpersonal'
-        ctx!.strokeStyle = dim ? canvasColors.edgeDim : e.color
+        ctx!.strokeStyle = dim ? palette.edgeDim : e.color
         ctx!.lineWidth = dim ? 0.5 : structural ? 1.2 : 1.5
         ctx!.globalAlpha = dim ? 0.15 : structural ? 0.55 : 0.7
         ctx!.stroke()
@@ -276,7 +265,7 @@ const RelationGraph: React.FC<RelationGraphProps> = ({
         if (!p) continue
         const r = nodeRadiusFor(n)
         const dim = hovered !== null && !hoverRelated.has(n.id)
-        const color = dim ? canvasColors.nodeDim : n.color || '#6b7280'
+        const color = dim ? palette.nodeDim : n.color || '#6b7280'
         const alpha = dim ? 0.3 : 1
 
         const isCareer = n.kind === 'career'
@@ -333,7 +322,7 @@ const RelationGraph: React.FC<RelationGraphProps> = ({
         ctx!.globalAlpha = 1
 
         // 名称标签
-        ctx!.fillStyle = dim ? canvasColors.labelDim : canvasColors.labelBright
+        ctx!.fillStyle = dim ? palette.labelDim : palette.labelBright
         ctx!.font = `${10 + Math.min(2, Math.log10(allNodes.length + 1))}px sans-serif`
         ctx!.textAlign = 'center'
         ctx!.textBaseline = 'top'
@@ -347,7 +336,7 @@ const RelationGraph: React.FC<RelationGraphProps> = ({
 
     rafRef.current = requestAnimationFrame(render)
     return () => cancelAnimationFrame(rafRef.current)
-  }, [size, positions, edges, allNodes, hovered, hoverRelated, selected, selectRelated, scale, offset, nodeRadiusFor, canvasColors])
+  }, [size, positions, edges, allNodes, hovered, hoverRelated, selected, selectRelated, scale, offset, nodeRadiusFor, palette])
 
   // ── 交互事件 ──
   const handleWheel = useCallback((e: React.WheelEvent) => {
@@ -423,7 +412,7 @@ const RelationGraph: React.FC<RelationGraphProps> = ({
   return (
     <div
       ref={containerRef}
-      style={{ width: '100%', height: '100%', position: 'relative', borderRadius: 8, overflow: 'hidden', background: BG }}
+      style={{ width: '100%', height: '100%', position: 'relative', borderRadius: 8, overflow: 'hidden', background: palette.bg }}
     >
       <canvas
         ref={canvasRef}
@@ -548,7 +537,7 @@ const Legend: React.FC = () => (
       <div style={{ color: 'var(--color-text)', fontWeight: 600, marginBottom: 4, fontSize: 11 }}>角色</div>
       {Object.entries(roleCN).map(([k, v]) => (
         <div key={k} style={{ display: 'flex', alignItems: 'center', gap: 6, lineHeight: '18px' }}>
-          <span style={{ width: 8, height: 8, borderRadius: '50%', background: roleColors[k], flexShrink: 0 }} />
+          <span style={{ width: 8, height: 8, borderRadius: '50%', background: roleColorTokens[k], flexShrink: 0 }} />
           <span>{v}</span>
         </div>
       ))}
@@ -556,26 +545,26 @@ const Legend: React.FC = () => (
     <div>
       <div style={{ color: 'var(--color-text)', fontWeight: 600, marginBottom: 4, fontSize: 11 }}>组织</div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, lineHeight: '18px' }}>
-        <span style={{ width: 10, height: 10, borderRadius: '50%', background: orgColor, flexShrink: 0 }} />
+        <span style={{ width: 10, height: 10, borderRadius: '50%', background: orgColorToken, flexShrink: 0 }} />
         <span>势力/组织</span>
       </div>
       <div style={{ color: 'var(--color-text)', fontWeight: 600, marginBottom: 4 }}>结构边（§7.5）</div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, lineHeight: '18px' }}>
-        <span style={{ width: 14, height: 0, borderTop: '2px dashed ' + orgColor, flexShrink: 0 }} />
+        <span style={{ width: 14, height: 0, borderTop: '2px dashed ' + orgColorToken, flexShrink: 0 }} />
         <span>组织成员</span>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, lineHeight: '18px' }}>
-        <span style={{ width: 8, height: 8, borderRadius: 1, background: resolveCSSColor('var(--color-primary)'), flexShrink: 0 }} />
+        <span style={{ width: 8, height: 8, borderRadius: 1, background: 'var(--color-primary)', flexShrink: 0 }} />
         <span>主职业（方形节点）</span>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, lineHeight: '18px' }}>
-        <span style={{ width: 8, height: 8, borderRadius: 1, background: resolveCSSColor('var(--color-warning)'), flexShrink: 0 }} />
+        <span style={{ width: 8, height: 8, borderRadius: 1, background: 'var(--color-warning)', flexShrink: 0 }} />
         <span>副职业（虚线边）</span>
       </div>
       <div style={{ marginTop: 6, color: 'var(--color-text)', fontWeight: 600, marginBottom: 4 }}>关系</div>
       {Object.entries(relCN).map(([k, v]) => (
         <div key={k} style={{ display: 'flex', alignItems: 'center', gap: 6, lineHeight: '18px' }}>
-          <span style={{ width: 12, height: 2, background: relColors[k], flexShrink: 0, borderRadius: 1 }} />
+          <span style={{ width: 12, height: 2, background: relColorTokens[k], flexShrink: 0, borderRadius: 1 }} />
           <span>{v}</span>
         </div>
       ))}

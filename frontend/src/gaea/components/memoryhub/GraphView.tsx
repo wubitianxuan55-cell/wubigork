@@ -3,6 +3,7 @@ import ForceGraph3D from "3d-force-graph";
 import type { ForceGraph3DInstance } from "3d-force-graph";
 import { Modal, Spin } from "antd";
 import { app } from "../../lib/bridge";
+import { resolveThemeColor } from "../../../utils/theme";
 import { DOMAIN_COLORS, DOMAIN_KEYS, DOMAIN_LABELS } from "../../lib/domainColors";
 import type { GraphLink, GraphNode, MemoryGraphView, SemanticGraphView } from "../../lib/types";
 
@@ -69,11 +70,11 @@ export function GraphView(p: {
   // 初始化 ForceGraph3D（once）
   useEffect(() => {
     if (!containerRef.current || graphRef.current) return;
-    // 图谱背景跟随主题（读 gaea 令牌 --bg-soft，亮暗切换时首帧一致）
-    const themeBg =
-      getComputedStyle(document.documentElement).getPropertyValue("--bg-soft").trim() || "#1B2336";
+    // 图谱背景跟随主题：span 探针解析 --bg-soft（引用链 var(--md-sys-color-*)）
+    // 为终值——getPropertyValue 读 custom property 只到引用替换层，探针拿计算色更稳。
+    const themeBg = () => resolveThemeColor("var(--bg-soft, #1B2336)");
     const fg = createGraph()(containerRef.current)
-      .backgroundColor(themeBg)
+      .backgroundColor(themeBg())
       .nodeVal((d) => d.val ?? 1)
       .nodeColor((d) => TYPE_COLORS[d.type] ?? "#64748b")
       .nodeLabel(
@@ -108,6 +109,16 @@ export function GraphView(p: {
     };
     resizeGraph();
     window.addEventListener("resize", resizeGraph);
+    // 主题切换跟随：gaea 令牌全部引用主应用写入 :root 的 M3 令牌（App.tsx
+    // setProperty），亮暗/主题色切换即触发 documentElement 内联 style 变更——
+    // 在此重读背景色推给实例（backgroundColor 支持运行时更新）。不引老栈
+    // store，保持 gaea 与主应用仅经 CSS 变量耦合。
+    const themeObserver = new MutationObserver(() => {
+      graphRef.current?.backgroundColor(themeBg());
+    });
+    themeObserver.observe(document.documentElement, {
+      attributes: true, attributeFilter: ["style"],
+    });
     // 容器尺寸变化（如侧栏/窗口布局调整）时同步画布。
     let ro: ResizeObserver | null = null;
     if (typeof ResizeObserver !== "undefined") {
@@ -119,6 +130,7 @@ export function GraphView(p: {
     if (dataRef.current) applyFilter(fg, dataRef.current, typeFilter);
     return () => {
       window.removeEventListener("resize", resizeGraph);
+      themeObserver.disconnect();
       ro?.disconnect();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- 图初始化 effect 只应运行一次：typeFilter 为随过滤变化的状态、onSelect 为父组件回调、applyFilter 为普通函数，均非稳定值；补依赖会在其变化时先执行 cleanup（断开 ResizeObserver、移除 resize 监听）再因 graphRef 已存在而早退，画布将失去自适应

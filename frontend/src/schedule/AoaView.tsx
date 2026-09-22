@@ -303,7 +303,7 @@ export const AoaView: React.FC<{ graph: AoaGraph; tasks: SchedTask[] }> = ({ gra
               <path d="M0,0 L9,4.5 L0,9 z" fill="var(--sched-link, #94a3b8)" />
             </marker>
             <marker id="aoa-arrow-crit" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto">
-              <path d="M0,0 L9,4.5 L0,9 z" fill="var(--sched-critical, #dc2626)" />
+              <path d="M0,0 L9,4.5 L0,9 z" fill="var(--sched-critical, #e02020)" />
             </marker>
             <marker id="aoa-arrow-summary" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto">
               <path d="M0,0 L9,4.5 L0,9 z" fill="var(--sched-group, #1f2937)" />

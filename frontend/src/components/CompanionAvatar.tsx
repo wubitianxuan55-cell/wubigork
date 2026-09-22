@@ -2,6 +2,7 @@
 // 100% 对齐 ackem AIVatar 的核心视觉效果：旋转粒子球 + 呼吸脉冲 + 状态变色
 
 import React, { useEffect, useRef } from 'react'
+import { resolveThemeColorRGB } from '../utils/theme'
 
 interface Props {
   size?: number
@@ -12,24 +13,6 @@ interface Props {
 
 const N = 64 // 粒子数
 const R = 0.55 // 球半径
-
-// canvas 不支持 CSS 变量，这里把 var(--x[, fallback]) 解析成具体颜色再拼透明度后缀；
-// 支持嵌套 fallback（如 var(--gaea-glow, var(--md-sys-color-primary))），递归解析。
-function resolveCanvasColor(raw: string): string {
-  const s = (raw || '').trim()
-  const m = s.match(/^var\(\s*(--[\w-]+)\s*(?:,\s*(.*))?\)$/)
-  if (m) {
-    try {
-      const computed = getComputedStyle(document.documentElement).getPropertyValue(m[1]).trim()
-      if (computed && !computed.startsWith('var(')) return computed
-    } catch {
-      /* 非浏览器环境（测试等）忽略 */
-    }
-    // fallback 存在 → 递归解析（可能仍是 var(...)）
-    if (m[2] !== undefined) return resolveCanvasColor(m[2])
-  }
-  return s
-}
 
 export const CompanionAvatar: React.FC<Props> = ({
   size = 280,
@@ -50,7 +33,12 @@ export const CompanionAvatar: React.FC<Props> = ({
     canvas.width = size * dpr
     canvas.height = size * dpr
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-    const baseColor = resolveCanvasColor(emotionColor)
+    // canvas 需要具体色 + 半透明派生：探针解析令牌（含 color-mix，旧手拆实现
+    // 不支持）为 RGB 元组，拼 rgba()——hex 后缀拼接只兼容 6 位 hex 输入，探针
+    // 返回 rgb() 串时会拼出非法色被 canvas 静默忽略。解析失败回退原串。
+    const rgb = resolveThemeColorRGB(emotionColor)
+    const withAlpha = (a: number) =>
+      rgb ? `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${a})` : emotionColor
 
     // 生成球面点云
     const points: { theta: number; phi: number; r: number; baseR: number }[] = []
@@ -84,8 +72,8 @@ export const CompanionAvatar: React.FC<Props> = ({
       // 外发光
       const grd = ctx.createRadialGradient(cx, cy, R * size * 0.3, cx, cy, R * size * 0.8)
       grd.addColorStop(0, 'transparent')
-      grd.addColorStop(0.5, `${baseColor}22`)
-      grd.addColorStop(1, `${baseColor}${Math.round(glow * 255).toString(16).padStart(2, '0')}`)
+      grd.addColorStop(0.5, withAlpha(0x22 / 255))
+      grd.addColorStop(1, withAlpha(glow))
       ctx.fillStyle = grd
       ctx.beginPath()
       ctx.arc(cx, cy, R * size * 0.8, 0, Math.PI * 2)
@@ -111,7 +99,7 @@ export const CompanionAvatar: React.FC<Props> = ({
 
         ctx.beginPath()
         ctx.arc(sx, sy, r, 0, Math.PI * 2)
-        ctx.fillStyle = `${baseColor}${Math.round(alpha * 255).toString(16).padStart(2, '0')}`
+        ctx.fillStyle = withAlpha(alpha)
         ctx.fill()
       }
 
