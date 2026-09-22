@@ -16,17 +16,24 @@ const STATUSES = ["现行", "草稿", "已归档"];
 
 type SortKey = "title" | "price" | "updatedAt";
 
+// v4.386 分页：首屏 100 条 + 「加载更多」100 条/批——全表拉取时代的桥载荷
+// 与 DOM 行数双降（用户库 1500+ 条时每次搜索全量渲染的根治）；排序在
+// 服务端排序后切片（name tie-break 全序保证翻页不漂移），客户端不再重排。
+const PAGE_SIZE = 100;
+
 /**
  * CostLibraryView 成本库主视图（造价数据库「成本条目」模块）：
  * - 左侧多级分类树（可增删改分类、子树过滤、节点计数）；
- * - 右侧 列表 / 表格 双视图，表格支持排序与多选批量操作；
+ * - 右侧 列表 / 表格 双视图，表格支持排序与多选批量操作（服务端排序）；
  * - 条目按「分类路径」多级保存（一级/二级/…/叶子）。
  * 询价库不在本视图（v4.50 起归「价格数据」模块，与价格源/价格仓库同域）。
  */
 export function CostLibraryView() {
   const [entries, setEntries] = useState<CostSummary[]>([]);
+  const [total, setTotal] = useState(0);
   const [categories, setCategories] = useState<CostCategory[]>([]);
   const [loading, setLoading] = useState(true);
+  const [moreBusy, setMoreBusy] = useState(false);
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("all");
   const [selectedPath, setSelectedPath] = useState("");
@@ -47,6 +54,8 @@ export function CostLibraryView() {
   const [sortDir, setSortDir] = useState<1 | -1>(1);
   const [statusBusy, setStatusBusy] = useState(false);
   const treeInited = useRef(false);
+  // 分页请求序号：新 load 递增后，在途的过期响应（含 loadMore）按序号丢弃。
+  const reqSeq = useRef(0);
 
   // 分类树 → 节点/路径索引（多级路径：一级/二级/…/叶子）。
   const { pathById, allPaths } = useMemo(() => {
@@ -70,17 +79,46 @@ export function CostLibraryView() {
   const debouncedQuery = useDebouncedValue(query, 250);
 
   const load = useCallback(() => {
+    const seq = ++reqSeq.current;
     setLoading(true);
     app
-      .CostSearch(debouncedQuery, selectedPath, status)
-      .then((list) => {
-        const items = list ?? [];
+      .CostSearchPage(debouncedQuery, selectedPath, status, sortKey ?? "", sortDir, PAGE_SIZE, 0)
+      .then((r) => {
+        if (seq !== reqSeq.current) return; // 过期响应（筛选已变）丢弃
+        const items = r?.items ?? [];
         setEntries(items);
+        setTotal(r?.total ?? items.length);
         setSelected((prev) => new Set([...prev].filter((n) => items.some((e) => e.name === n))));
       })
-      .catch(() => setEntries([]))
-      .finally(() => setLoading(false));
-  }, [debouncedQuery, selectedPath, status]);
+      .catch(() => {
+        if (seq !== reqSeq.current) return;
+        setEntries([]);
+        setTotal(0);
+      })
+      .finally(() => {
+        if (seq === reqSeq.current) setLoading(false);
+      });
+  }, [debouncedQuery, selectedPath, status, sortKey, sortDir]);
+
+  // 追加下一页：offset=已载条数；跨页去重（翻页期间数据增删的偏移漂移兜底）。
+  const loadMore = useCallback(() => {
+    if (moreBusy || loading || entries.length >= total) return;
+    const seq = reqSeq.current;
+    setMoreBusy(true);
+    app
+      .CostSearchPage(debouncedQuery, selectedPath, status, sortKey ?? "", sortDir, PAGE_SIZE, entries.length)
+      .then((r) => {
+        if (seq !== reqSeq.current) return;
+        const items = r?.items ?? [];
+        setEntries((prev) => {
+          const seen = new Set(prev.map((e) => e.name));
+          return [...prev, ...items.filter((e) => !seen.has(e.name))];
+        });
+        setTotal(r?.total ?? entries.length);
+      })
+      .catch(() => {})
+      .finally(() => setMoreBusy(false));
+  }, [moreBusy, loading, entries.length, total, debouncedQuery, selectedPath, status, sortKey, sortDir]);
 
   // v4.196 语义索引显形+显式补齐（成本条目向量覆盖；不做后台守护协程）。
   const [index, setIndex] = useState<SemanticIndexStatus | null>(null);
@@ -147,25 +185,13 @@ export function CostLibraryView() {
     return (p: number) => "¥" + fmt.format(p);
   }, []);
 
-  const sorted = useMemo(() => {
-    if (!sortKey) return entries;
-    const arr = [...entries];
-    arr.sort((a, b) => {
-      let r = 0;
-      if (sortKey === "price") r = a.price - b.price;
-      else if (sortKey === "title") r = a.title.localeCompare(b.title, "zh-CN");
-      else r = (a.updatedAt ?? "").localeCompare(b.updatedAt ?? "");
-      return r * sortDir;
-    });
-    return arr;
-  }, [entries, sortKey, sortDir]);
-
   const toggleSort = (k: SortKey) => {
     if (sortKey === k) setSortDir((d) => (d === 1 ? -1 : 1));
     else {
       setSortKey(k);
       setSortDir(1);
     }
+    // 排序键/方向变化经 load 的依赖自动回到第 1 页重拉（服务端排序）。
   };
 
   const openCreate = () => {
@@ -306,7 +332,7 @@ export function CostLibraryView() {
             >
               <ChevronDown size={12} className="opacity-0" />
               <span className="text-[12px] font-medium">全部条目</span>
-              <span className="ml-auto text-[10px] text-fg-faint tabular-nums">{entries.length || ""}</span>
+              <span className="ml-auto text-[10px] text-fg-faint tabular-nums">{total || ""}</span>
             </div>
             {categories.map((n) => (
               <CategoryNode
@@ -456,7 +482,9 @@ export function CostLibraryView() {
               </button>
             ))}
           </div>
-          <span className="ml-auto text-fg-faint text-[11px] tabular-nums">{entries.length} 条</span>
+          <span className="ml-auto text-fg-faint text-[11px] tabular-nums" data-testid="cost-count">
+            {entries.length < total ? `已载 ${entries.length} / 共 ${total} 条` : `${total} 条`}
+          </span>
           {selected.size > 0 && (
             <span className="flex items-center gap-1.5">
               <span className="text-amber-300 text-[11px]">已选 {selected.size}</span>
@@ -500,13 +528,13 @@ export function CostLibraryView() {
                 <div key={i} className="h-11 rounded-lg bg-bg-elev/60" />
               ))}
             </div>
-          ) : sorted.length === 0 ? (
+          ) : entries.length === 0 ? (
             <div className="h-full flex items-center justify-center">
               <EmptyState message="暂无成本条目 — 新建、导入报价单，或测算完成后沉淀到成本库" />
             </div>
           ) : view === "table" ? (
             <TableView
-              rows={sorted}
+              rows={entries}
               selected={selected}
               toggleSelect={toggleSelect}
               sortKey={sortKey}
@@ -521,7 +549,7 @@ export function CostLibraryView() {
             />
           ) : (
             <ListView
-              rows={sorted}
+              rows={entries}
               selected={selected}
               toggleSelect={toggleSelect}
               priceText={priceText}
@@ -530,6 +558,20 @@ export function CostLibraryView() {
               onHistory={openHistory}
               onCompare={openCompare}
             />
+          )}
+          {/* v4.386 分页尾：未载完时「加载更多」 */}
+          {!loading && entries.length < total && (
+            <div className="px-4 pb-4 pt-1 flex justify-center">
+              <button
+                type="button"
+                data-testid="cost-load-more"
+                disabled={moreBusy}
+                onClick={loadMore}
+                className="px-3 h-7 rounded-lg border border-border text-fg-dim text-[11.5px] hover:bg-bg-soft disabled:opacity-60 transition-colors"
+              >
+                {moreBusy ? "加载中…" : `加载更多（余 ${total - entries.length} 条）`}
+              </button>
+            </div>
           )}
         </div>
       </div>

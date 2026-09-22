@@ -54,6 +54,13 @@ func (b *CostB) GaeaCostProjectList() []costproject.ProjectSummary { return b.a.
 func (b *CostB) GaeaCostProjectSave(p costproject.Project) (string, error) { return b.a.GaeaCostProjectSave(p) }
 func (b *CostB) GaeaCostSave(e CostEntry) error { return b.a.GaeaCostSave(e) }
 func (b *CostB) GaeaCostSearch(query string, category string, status string) []CostSummary { return b.a.GaeaCostSearch(query, category, status) }
+
+// GaeaCostSearchPage 分页检索（v4.386）：多行委托与文件内其他长签名一致
+// （本文件历史为手工单行风格，非 gofmt 全量形态）。
+func (b *CostB) GaeaCostSearchPage(query string, category string, status string, sortKey string, sortDir int, limit int, offset int) CostSearchPage {
+	return b.a.GaeaCostSearchPage(query, category, status, sortKey, sortDir, limit, offset)
+}
+
 func (b *CostB) GaeaCostStageCompare(projectID string) []coststage.CompareRow { return b.a.GaeaCostStageCompare(projectID) }
 func (b *CostB) GaeaCostStageDeviations(projectID string) []coststage.Deviation { return b.a.GaeaCostStageDeviations(projectID) }
 func (b *CostB) GaeaCostStageSave(v coststage.StageValue) error { return b.a.GaeaCostStageSave(v) }

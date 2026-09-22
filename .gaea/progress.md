@@ -1,3 +1,14 @@
+## 最新发布：v4.386.0（2026-09-22）「造价库分页绑定：成本条目列表/表格分页 + 检索下拉载荷降载」
+
+- **动机**：用户口径「继续优化迭代」——todos 扫一遍，可自主推进的工程项=前端性能池⑥余项（造价库全表留池；其余多为等真机/等拍板/等上游的等条件型）。成本库「成本条目」每次搜索/筛选全表拉回全量渲染，用户真实库 1553 条时每次 250ms 防抖击键=全量桥载荷+1553 行 DOM。Go 3 文件+前端 10 文件，绑定面 711→712（+1）。
+- **落地**：①**GaeaCostSearchPage 分页绑定**（App 层实现，cost.Store 零改动）——检索管线（SQL→Go 关键词过滤→语义召回→本地精排）提为 costSearchAll 助手两绑定共用，分页与非分页口径一致、工具面 cost_search 零影响；排序进服务端 title/price/updatedAt（空=管线序）**tie-break 恒定 name**（全序=跨页不漂移前提）；limit 钳 [1,200]（≤0→100）、offset 负归零、Total=过滤后总数；未知 sortKey 不排序②**CostLibraryView 分页改造**——首屏 100+「加载更多（余 N 条）」100/批、计数如实「已载 X / 共 Y 条」、分类树计数用 total；**客户端排序删除**（分页时代只排已载子集是静默错误答案）改服务端排序重拉第 1 页；过期响应 reqSeq 丢弃+追加页跨页 name 去重③**EntryPicker 切分页**（top8 载荷降载）；loadStats 总览仍全量（聚合需要，开页一次非热路径）；mock 同口径。
+- **测试**：Go +5（切片连续+total/全序 tie-break+降序镜像/钳制四态/零命中空页/未知键管线序/过滤×排序组合〔updated_at RFC3339 秒级落盘→SQL 直铺确定时间序〕）+前端 +1（150 条分页补齐）+迁移断言（7 参形态/排序异步等待）。全量 vitest 389 文件 3323 例绿+tsc 0。
+- **门禁**：全量 ci.ps1 绿 EXIT=0（E 系列守卫 OK+仓库卫生守卫 OK）+版本漂移闸 OK@4.386.0+bindingNames 再生 712+spaceBindings 锁 534→535。
+- **事故与修复（本轮最大坑）**：Go 测试零命中查询触发**真实语义管线**——NewManager 种子目录 herdsman 恒 Enabled+localhost:8080，本机 embedding 服务在跑时 SQL 召回<3 即走语义补召回：Stale("cost",keep) 按测试条目集清掉真实库 cost 向量行+Ensure 写假向量。**已修复**：假行 DELETE 清污+走应用自身 GaeaSemanticIndexBackfill 全量重建 1553/1553=24s（复核实测）；测试侧 SaveEngine 禁用 herdsman 断通道。教训：hubCostStore/hubSemanticStore override 只护一半，resolveHerdsmanSearchModel 引擎目录在测试环境是活的；App 嵌 *core 裸 &App{} 字段访问即 panic（须 &App{core:&core{…}}）。
+- **产物**：exe 51160576B SHA256=4201619c…458cd（全文见 SHA256SUMS-v4.386.0.txt，仅本地；桌面副本同哈希实测一致；冒烟 /api/health 200 过）；保留策略 5 版留 v4.382~v4.386 删 v4.381.0.exe（SUMS 全保留）。
+- **文档**：性能池⑥销号回填+releases/v4.386.0.md（含升级说明：标题排序改字节序、列表默认 100 条）+CHANGELOG/README+releases/README（保留策略行+计数 407→408+34 席插 v4.386 裁 v4.352）+AGENTS 迁 1 插 1（一百零一迁：v4.383 入 archive）+todos。
+- **下刀候选**：性能池⑦base64→blob 会话资源管理；视觉大工程（字号阶梯/玻璃收敛等，需专项+截图对照）；其余等条件型不动。
+
 ## 非版本刀（2026-09-22）projection-cache 收益评估：辨伪销号（dsh ⑪）
 
 - **动机**：dsh 留池③「session-projection-cache 冷启动加速（收益待评估）」——评估债清偿，用基准实测代替拍脑袋。

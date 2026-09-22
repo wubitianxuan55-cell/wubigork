@@ -32,8 +32,9 @@ const ENTRIES = [
   },
 ];
 
-const { searchSpy, statusSpy, backfillSpy } = vi.hoisted(() => ({
+const { searchSpy, pageSpy, statusSpy, backfillSpy } = vi.hoisted(() => ({
   searchSpy: vi.fn(),
+  pageSpy: vi.fn(),
   statusSpy: vi.fn(),
   backfillSpy: vi.fn(),
 }));
@@ -47,6 +48,7 @@ const COMPARE_ROWS = [
 vi.mock("../lib/bridge", () => ({
   app: {
     CostSearch: (...args: unknown[]) => searchSpy(...args),
+    CostSearchPage: (...args: unknown[]) => pageSpy(...args),
     SemanticIndexStatus: (...args: unknown[]) => statusSpy(...args),
     SemanticIndexBackfill: (...args: unknown[]) => backfillSpy(...args),
     CostCategories: async () => CAT_TREE,
@@ -70,6 +72,34 @@ describe("CostLibraryView 多级分类 + 列表/表格", () => {
   backfillSpy.mockResolvedValue({ total: 2, updated: 1, indexed: 2, missing: 0 });
     searchSpy.mockReset();
     searchSpy.mockResolvedValue(ENTRIES);
+    // pageSpy 迷你服务端：过滤（分类/状态）→ 排序（title/price/updatedAt，
+    // name tie-break）→ 切片，返回 {items,total}（对齐 Go GaeaCostSearchPage）。
+    pageSpy.mockReset();
+    pageSpy.mockImplementation(
+      (query: string, category: string, status: string, sortKey: string, sortDir: number, limit: number, offset: number) => {
+        let all = ENTRIES.filter((e) => {
+          const path = e.categoryPath || e.category || "";
+          if (category && category !== "all" && path !== category && !path.startsWith(category + "/")) return false;
+          if (status && status !== "all" && e.status !== status) return false;
+          return true;
+        });
+        if (sortKey === "title" || sortKey === "price" || sortKey === "updatedAt") {
+          const dir = sortDir < 0 ? -1 : 1;
+          const key = sortKey as "title" | "price" | "updatedAt";
+          all = [...all].sort((a, b) => {
+            const d =
+              key === "price"
+                ? a.price - b.price
+                : String(a[key] ?? "").localeCompare(String(b[key] ?? ""), "zh-CN");
+            if (d !== 0) return d * dir;
+            return a.name.localeCompare(b.name) * dir;
+          });
+        }
+        if (limit <= 0) limit = 100;
+        if (offset < 0) offset = 0;
+        return Promise.resolve({ items: all.slice(offset, offset + limit), total: all.length });
+      },
+    );
   });
 
   it("渲染多级分类树与条目，点击分类按路径过滤", async () => {
@@ -84,10 +114,13 @@ describe("CostLibraryView 多级分类 + 列表/表格", () => {
     expect(screen.getByText("土建材料")).toBeTruthy();
     expect(screen.getByText("钢材")).toBeTruthy();
 
-    // 展开「材料」→ 选中「钢材」，搜索按完整路径过滤。
+    // 展开「材料」→ 选中「钢材」，分页检索按完整路径过滤（7 参：query/category/
+    // status/sortKey/sortDir/limit/offset；sortKey 空=管线序）。
     fireEvent.click(screen.getByTitle("材料"));
     fireEvent.click(screen.getByText("钢材"));
-    await waitFor(() => expect(searchSpy).toHaveBeenCalledWith("", "材料/土建材料/钢材", "all"));
+    await waitFor(() =>
+      expect(pageSpy).toHaveBeenCalledWith("", "材料/土建材料/钢材", "all", "", 1, 100, 0),
+    );
   });
 
   it("条目行比价按钮打开供应商比价弹层", async () => {
@@ -112,10 +145,36 @@ describe("CostLibraryView 多级分类 + 列表/表格", () => {
     expect(screen.getByText("H 型钢")).toBeTruthy();
     expect(screen.getByText("材料/土建材料/钢材")).toBeTruthy();
 
-    // 点单价表头排序（升序后 HP300 在前）。
+    // 点单价表头排序（服务端排序重拉第 1 页，升序后 HP300 在前）。
     fireEvent.click(screen.getByText(/单价（元）/));
-    const priceCells = screen.getAllByText(/^¥/);
-    expect(priceCells[0].textContent).toBe("¥3,200");
+    await waitFor(() => {
+      const priceCells = screen.getAllByText(/^¥/);
+      expect(priceCells[0].textContent).toBe("¥3,200");
+    });
+  });
+
+  it("分页：首屏 100 条 + 「加载更多」补齐（v4.386）", async () => {
+    const many = Array.from({ length: 150 }, (_, i) => ({
+      ...ENTRIES[0],
+      name: `entry-${String(i).padStart(3, "0")}`,
+      title: `条目 ${i}`,
+    }));
+    pageSpy.mockImplementation(
+      (_q: string, _c: string, _s: string, _k: string, _d: number, limit: number, offset: number) =>
+        Promise.resolve({ items: many.slice(offset, offset + limit), total: many.length }),
+    );
+    render(<CostLibraryView />);
+
+    // 首屏：只渲染第 1 页 100 条，计数如实显示部分加载。
+    await screen.findByText("条目 0");
+    expect(screen.getByTestId("cost-count").textContent).toBe("已载 100 / 共 150 条");
+    expect(screen.queryByText("条目 149")).toBeNull();
+
+    // 加载更多 → 追加剩余 50 条，计数收口、按钮消失。
+    fireEvent.click(screen.getByTestId("cost-load-more"));
+    await screen.findByText("条目 149");
+    expect(screen.getByTestId("cost-count").textContent).toBe("150 条");
+    expect(screen.queryByTestId("cost-load-more")).toBeNull();
   });
   it("CostRow memo：相同 props 不重渲染，selected 变化才重渲染", () => {
     const priceSpy = vi.fn((p: number) => "¥" + p);

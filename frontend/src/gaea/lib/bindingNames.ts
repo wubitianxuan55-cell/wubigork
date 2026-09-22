@@ -151,6 +151,7 @@ export const bindingNames = [
   "GaeaCostProjectSave",
   "GaeaCostSave",
   "GaeaCostSearch",
+  "GaeaCostSearchPage",
   "GaeaCostStageCompare",
   "GaeaCostStageDeviations",
   "GaeaCostStageSave",

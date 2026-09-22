@@ -200,6 +200,7 @@ export const gaeaToGaea = {
   MemoryMorningBrief: "GaeaMemoryMorningBrief",
   CostList: "GaeaCostList",
   CostSearch: "GaeaCostSearch",
+  CostSearchPage: "GaeaCostSearchPage",
   CostGet: "GaeaCostGet",
   CostSave: "GaeaCostSave",
   CostDelete: "GaeaCostDelete",

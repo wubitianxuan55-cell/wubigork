@@ -31,6 +31,13 @@ export interface CostSummary {
   // 新建/导入时前端不发送时间戳（Go 端 time.Time 不接受空串），留空由后端置零。
   updatedAt?: string;
 }
+
+// v4.386 分页检索结果：items=当前页（排序后切片），total=过滤后总数
+// （与分页无关）；hasMore 由调用方以 items 累计数 < total 推导。
+export interface CostSearchPageResult {
+  items: CostSummary[];
+  total: number;
+}
   // 综合单价子目的人材机组成明细行（二级）。
   export interface CostComponent {
     kind: string; // 人工/材料/机械（可组合标签，如 人工+机械）

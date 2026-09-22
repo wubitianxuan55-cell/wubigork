@@ -1,6 +1,6 @@
 // mock/cost.ts — 成本库/价格域（T6-10.1 拆分自 lib/mock.ts，方法体零改动）。
 import type { AppBindings } from "../bridge";
-import type { CostCategory, CostEntry, CostEstimateItem, CostEstimateVersion, CostGraphView, CostIndicator, CostProject, CostProjectSummary, CostReviewNote, CostInquiryRecord, CostAdjustSuggestion, CostInquiryScanFinding, CostStageValue, CostStageCompareRow, CostStageDeviation, PriceFetchRecord, PriceSource } from "../types";
+import type { CostCategory, CostEntry, CostEstimateItem, CostEstimateVersion, CostGraphView, CostIndicator, CostProject, CostProjectSummary, CostReviewNote, CostInquiryRecord, CostAdjustSuggestion, CostInquiryScanFinding, CostStageValue, CostStageCompareRow, CostStageDeviation, PriceFetchRecord, PriceSource, CostSummary } from "../types";
 import {
   costCategoriesMock,
   costMock,
@@ -15,7 +15,7 @@ import type { MakeMockState } from "./state";
 
 type CostMethods = Pick<
   AppBindings,
-  | "CostList" | "CostSearch" | "CostCategories" | "CostCategorySave" | "CostCategoryDelete"
+  | "CostList" | "CostSearch" | "CostSearchPage" | "CostCategories" | "CostCategorySave" | "CostCategoryDelete"
   | "SemanticIndexStatus" | "SemanticIndexBackfill"
   | "CostGet" | "CostSave" | "CostDelete"
   | "CostImportPreview" | "CostImportAIParse" | "CostImportVisionPreview" | "CostImportApply"
@@ -54,6 +54,18 @@ let mockStageSeq = 1;
 function isoDaysFromNow(days: number): string {
   const d = new Date(Date.now() + days * 86400000);
   return d.toISOString().slice(0, 10);
+}
+
+// 成本库检索过滤（CostSearch 与 CostSearchPage 共用，v4.386 抽出）。
+function filterCostMock(query: string, category: string, status: string): CostSummary[] {
+  const q = (query ?? "").toLowerCase();
+  return costMock.filter((e) => {
+    const path = e.categoryPath || e.category || "";
+    if (category && category !== "all" && path !== category && !path.startsWith(category + "/")) return false;
+    if (status && status !== "all" && e.status !== status) return false;
+    if (!q) return true;
+    return [e.name, e.title, e.code, e.spec, e.source].some((s) => (s ?? "").toLowerCase().includes(q));
+  });
 }
 function seedInquiry(r: Partial<CostInquiryRecord>): CostInquiryRecord {
   const now = new Date().toISOString();
@@ -143,14 +155,29 @@ export function buildCost(_s: MakeMockState): CostMethods {
       return { total: costMock.length, updated: 0, indexed: costMock.length, missing: 0 };
     },
     async CostSearch(query: string, category: string, status: string) {
-      const q = (query ?? "").toLowerCase();
-      return costMock.filter((e) => {
-        const path = e.categoryPath || e.category || "";
-        if (category && category !== "all" && path !== category && !path.startsWith(category + "/")) return false;
-        if (status && status !== "all" && e.status !== status) return false;
-        if (!q) return true;
-        return [e.name, e.title, e.code, e.spec, e.source].some((s) => (s ?? "").toLowerCase().includes(q));
-      });
+      return filterCostMock(query, category, status);
+    },
+    // v4.386 分页检索：与 Go GaeaCostSearchPage 同口径——过滤后排序
+    // （title/price/updatedAt，name tie-break）再切片，total=过滤后总数。
+    async CostSearchPage(query: string, category: string, status: string, sortKey: string, sortDir: number, limit: number, offset: number) {
+      const all = filterCostMock(query, category, status);
+      if (sortKey === "title" || sortKey === "price" || sortKey === "updatedAt") {
+        const dir = sortDir < 0 ? -1 : 1;
+        const key = sortKey;
+        all.sort((a, b) => {
+          const av = a[key] ?? (key === "price" ? 0 : "");
+          const bv = b[key] ?? (key === "price" ? 0 : "");
+          const d = typeof av === "number" && typeof bv === "number"
+            ? av - bv
+            : String(av).localeCompare(String(bv), "zh-CN");
+          if (d !== 0) return d * dir;
+          return a.name.localeCompare(b.name) * dir;
+        });
+      }
+      if (limit <= 0) limit = 100;
+      if (limit > 200) limit = 200;
+      if (offset < 0) offset = 0;
+      return { items: all.slice(offset, offset + limit), total: all.length };
     },
     async CostCategories() {
       return costCategoriesMock;

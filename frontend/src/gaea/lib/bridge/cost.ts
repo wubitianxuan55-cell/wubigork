@@ -17,6 +17,7 @@ import type {
   CostProject,
   CostProjectSummary,
   CostReviewNote,
+  CostSearchPageResult,
   CostStageCompareRow,
   CostStageDeviation,
   CostStageValue,
@@ -33,6 +34,18 @@ export interface CostBindings {
   // ── 成本库 ──
   CostList(): Promise<CostSummary[]>;
   CostSearch(query: string, category: string, status: string): Promise<CostSummary[]>;
+  // CostSearchPage 分页检索（v4.386）：全量管线排序后切片，total=过滤后总数。
+  // sortKey："" 管线序 | title | price | updatedAt；sortDir：1 升 / -1 降。
+  // limit 钳制 [1,200]（<=0 → 100），offset 负数归零。
+  CostSearchPage(
+    query: string,
+    category: string,
+    status: string,
+    sortKey: string,
+    sortDir: number,
+    limit: number,
+    offset: number,
+  ): Promise<CostSearchPageResult>;
   CostGet(name: string): Promise<CostEntry | null>;
   CostSave(e: CostEntry): Promise<void>;
   CostDelete(name: string): Promise<void>;

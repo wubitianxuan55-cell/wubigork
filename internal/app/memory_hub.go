@@ -558,6 +558,13 @@ func (a *App) GaeaCostList() []CostSummary {
 
 // GaeaCostSearch 检索成本条目（关键词 + 分类/状态过滤）。
 func (a *App) GaeaCostSearch(query, category, status string) []CostSummary {
+	return a.costSearchAll(query, category, status)
+}
+
+// costSearchAll 完整检索管线（全量）：SQL 过滤 → 关键词包含过滤 →
+// 语义召回补召回 → 本地语义精排。分页绑定（GaeaCostSearchPage）复用
+// 本管线后再排序切片，保证分页结果与非分页口径一致。
+func (a *App) costSearchAll(query, category, status string) []CostSummary {
 	list := a.hubCostStore().Search(query, category, status)
 	// 语义召回：关键词召回不足（<3）时用本地 bge-m3 补召回（别名/口语表达）。
 	if len(list) < 3 && strings.TrimSpace(query) != "" {
@@ -575,6 +582,92 @@ func (a *App) GaeaCostSearch(query, category, status string) []CostSummary {
 		out = append(out, toCostSummary(s))
 	}
 	return out
+}
+
+// CostSearchPage 分页检索结果（v4.386 造价库分页绑定）。
+type CostSearchPage struct {
+	Items []CostSummary `json:"items"`
+	Total int           `json:"total"`
+}
+
+// 分页与排序钳制常量：limit 缺省/非法=100，上限 200（成本行摘要 ~300B，
+// 200 条≈60KB 单页载荷已远超人工浏览节奏；更大批量走导出/工具面）。
+const (
+	costSearchPageDefault = 100
+	costSearchPageMax     = 200
+)
+
+// GaeaCostSearchPage 分页检索成本条目（v4.386）：全量管线后按 sortKey
+// 排序再切片。sortKey ∈ title|price|updatedAt（空=管线序：BM25 精排/
+// name 序）；sortDir 1 升序 -1 降序；tie-break 恒定 name——跨页翻页时
+// 数据不漂移的前提是全序确定。limit 钳制 [1,200]（<=0 → 100），offset
+// 负数归零。Total 为过滤后总数（与分页无关）。
+func (a *App) GaeaCostSearchPage(query, category, status, sortKey string, sortDir, limit, offset int) CostSearchPage {
+	all := a.costSearchAll(query, category, status)
+	page := CostSearchPage{Items: []CostSummary{}, Total: len(all)}
+	if cmp := costSummaryComparator(sortKey); cmp != nil {
+		dir := 1
+		if sortDir < 0 {
+			dir = -1
+		}
+		sort.SliceStable(all, func(i, j int) bool {
+			return cmp(all[i], all[j])*dir < 0
+		})
+	}
+	if limit <= 0 {
+		limit = costSearchPageDefault
+	}
+	if limit > costSearchPageMax {
+		limit = costSearchPageMax
+	}
+	if offset < 0 {
+		offset = 0
+	}
+	if offset >= len(all) {
+		return page
+	}
+	end := offset + limit
+	if end > len(all) {
+		end = len(all)
+	}
+	page.Items = append(page.Items, all[offset:end]...)
+	return page
+}
+
+// costSummaryComparator 返回全序比较器（负=a 前）；键名不认识返回 nil
+// （保持管线序，防御前端传错键）。同名条目以 name 收尾保证全序。
+func costSummaryComparator(sortKey string) func(a, b CostSummary) int {
+	switch sortKey {
+	case "title":
+		return func(a, b CostSummary) int {
+			if d := strings.Compare(a.Title, b.Title); d != 0 {
+				return d
+			}
+			return strings.Compare(a.Name, b.Name)
+		}
+	case "price":
+		return func(a, b CostSummary) int {
+			if a.Price != b.Price {
+				if a.Price < b.Price {
+					return -1
+				}
+				return 1
+			}
+			return strings.Compare(a.Name, b.Name)
+		}
+	case "updatedAt":
+		return func(a, b CostSummary) int {
+			if !a.UpdatedAt.Equal(b.UpdatedAt) {
+				if a.UpdatedAt.Before(b.UpdatedAt) {
+					return -1
+				}
+				return 1
+			}
+			return strings.Compare(a.Name, b.Name)
+		}
+	default:
+		return nil
+	}
 }
 
 // GaeaCostGet 返回单条成本条目（未找到返回 nil）。

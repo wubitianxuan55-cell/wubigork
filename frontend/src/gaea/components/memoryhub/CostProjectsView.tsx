@@ -713,10 +713,11 @@ function EntryPicker({ query, onPick }: { query: string; onPick: (e: CostSummary
       return;
     }
     let alive = true;
+    // v4.386 切分页绑定：只要 top 8，不再全表拉回后客户端截断。
     app
-      .CostSearch(debounced, "", "")
+      .CostSearchPage(debounced, "", "", "", 1, 8, 0)
       .then((r) => {
-        if (alive) setResults((r ?? []).slice(0, 8));
+        if (alive) setResults(r?.items ?? []);
       })
       .catch(() => {});
     return () => {
