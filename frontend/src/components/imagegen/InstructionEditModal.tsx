@@ -1,8 +1,9 @@
 // InstructionEditModal.tsx — 指令编辑弹窗（绘梦阶段一刀 C，规格
-// 进度计划/gaea-instruct-edit-20260917.md）：原图 + 人话指令 → 局部语义编辑
-// （OpenAI 兼容 /images/edits；云端先行）。与既有「改图」（=把结果填回图生图
-// 整幅重绘）互补。对照区原图|新图并排；「用到画布」把编辑结果并入 results/
-// history（后端已落盘+登记台账，走既有保存/溯源链）。
+// 进度计划/gaea-instruct-edit-20260917.md；阶段二刀 A 补 ComfyUI 本地档，规格
+// 进度计划/gaea-comfyui-edit-20260922.md）：原图 + 人话指令 → 局部语义编辑
+// （云端 OpenAI 兼容 /images/edits；本地 ComfyUI Qwen-Image-Edit 2511 官方工作流）。
+// 与既有「改图」（=把结果填回图生图整幅重绘）互补。对照区原图|新图并排；
+// 「用到画布」把编辑结果并入 results/history（后端已落盘+登记台账，走既有保存/溯源链）。
 import { softTextStyle } from '../../utils/uiStyles'
 import React, { useState } from 'react'
 import { Alert, Button, Input, Modal, Spin, Typography, message } from 'antd'
@@ -119,8 +120,8 @@ export default function InstructionEditModal({ open, source, onClose, onApply }:
             </div>
           )}
           {error && <Alert type="error" showIcon data-testid="instruct-edit-error" message={error} />}
-          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-            指令编辑走云端 OpenAI 兼容引擎的 /images/edits（如 Qwen-Image-Edit 系）；本地 ComfyUI 与 GLM 档暂不支持（会如实报错）。
+          <Typography.Text type="secondary" style={{ fontSize: 12 }} data-testid="instruct-edit-hint">
+            云端走 OpenAI 兼容引擎的 /images/edits（如 Qwen-Image-Edit 系）；本地 ComfyUI 走 Qwen-Image-Edit 2511 官方工作流（需在 ComfyUI models 目录放置模型文件，缺失时错误会列出所需文件与下载地址）；GLM 档暂不支持（会如实报错）。
           </Typography.Text>
         </div>
       )}

@@ -503,6 +503,12 @@ func (a *mediaState) GenerateMedia(paramsJSON string) (map[string]interface{}, e
 		if p.Model != "" {
 			imgModel = p.Model
 		}
+		// 指令编辑本地档（阶段二刀 A）：ComfyUI 编辑工作流固定走 Qwen-Image-Edit 族
+		// ——请求 model 字段是生图模型名（krea2 等），不代表编辑引擎；元数据/台账
+		// 如实记 qwen-image-edit（ai 层 edit 分支本就不消费该字段）。
+		if mode == "edit" && a.cfg.ImageBackend == "comfyui" {
+			imgModel = "qwen-image-edit"
+		}
 		imgReq := &ai.ImageGenerationRequest{
 			Model:     imgModel,
 			Prompt:    safePrompt,

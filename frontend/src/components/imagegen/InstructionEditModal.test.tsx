@@ -79,4 +79,12 @@ describe('InstructionEditModal 指令编辑（阶段一刀 C）', () => {
     fireEvent.click(screen.getByTestId('instruct-edit-run'))
     expect(mocks.generateMedia).not.toHaveBeenCalled()
   })
+
+  it('说明文案：本地 ComfyUI 档已支持（阶段二刀 A），缺权重行为如实描述', () => {
+    open()
+    const hint = screen.getByTestId('instruct-edit-hint').textContent ?? ''
+    expect(hint).toContain('Qwen-Image-Edit 2511')
+    expect(hint).toContain('缺失时错误会列出所需文件')
+    expect(hint).toContain('GLM')
+  })
 })

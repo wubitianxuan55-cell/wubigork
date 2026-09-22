@@ -1,3 +1,15 @@
+## 最新发布：v4.392.0（2026-09-22）「绘梦·指令编辑本地档：ComfyUI 接入 Qwen-Image-Edit 2511 官方工作流」
+
+- **刀型**：图像域长期规划 T3「本地档（B 计划）」第一刀；阶段一刀 C（v4.327 指令编辑云端先行）观察池第 2 项销号。会话主线=乐园画室欠账盘点→「画室三件套」头号=编辑力补全。Go 2 文件+前端 1 文件，绑定面 714 零变更。规格 进度计划/gaea-comfyui-edit-20260922.md。
+- **病根**：指令编辑只有云端档（OpenAI 兼容 /images/edits），ComfyUI 诚实拒绝——而用户本机全局生图后端=comfyui，编辑在日用后端上不可用，与本地优先基本盘直接冲突。
+- **落地**：①buildQwenImageEditWorkflow 蒸馏官方 comfyui-workflow-templates image_qwen_image_edit_2511（取道不取器，API-format 构建器与 krea2/z-image 同范式）：LoadImage→FluxKontextImageScale（按原图宽高比重标，编辑不套 1024×1024）→缩放图同时进 TextEncodeQwenImageEditPlus×2（image1+vae）与 VAEEncode→KSampler.latent_image；UNET→ModelSamplingAuraFlow(3.1)→CFGNorm(1)→KSampler（20 步/CFG 4.0/euler/simple/denoise 恒 1.0=语义编辑非整幅重绘）②缺权重可操作提示——gaea 从不自动下载模型，value_not_in_list 时错误追加三件文件名+HF 链接+目录（VAE 与 krea2 共用），错误即安装指引；普通错误不追加③GenerateMedia edit+comfyui 时 imgModel 如实改写 qwen-image-edit（结果卡/台账记真实引擎）④InstructionEditModal 说明改口。编辑链全继承既有基建：进度回调/取消/ComfyUI 自动拉起（v4.387）/落盘+台账登记零新增路径。FluxKontextMultiReferenceLatentMethod（官方明示官方权重不需要）与 Lightning 4 步 LoRA（可选加速）均不接。
+- **测试**：ai 层改写 ComfyUI edit 拒绝测试为三件（全链 httptest 工作流形状/缺原图/缺权重提示含 HF 链接且普通 500 不追加）+app 层 +1（元数据改写）+前端 +1（说明文案）；全量 395 文件 3347 例绿+tsc 0+eslint 0。
+- **门禁**：全量 ci.ps1 绿 EXIT=0+版本漂移闸 OK@4.392.0。
+- **坑**：官方模板新 subgraph 格式——节点图要从 definitions.subgraphs 展开+interface 槽位对射，顶层只有 4 节点/CLIPLoader 的 clip_name 查 text_encoders 目录非 clip/编辑不套请求 size——FluxKontextImageScale 按原图重标/提示锚 value_not_in_list+模型名双匹配防误挂。
+- **产物**：exe 见 SHA256SUMS-v4.392.0.txt（仅本地；冒烟 200 过）；保留策略 5 版留 v4.388~v4.392 删 v4.387.0.exe。
+- **文档**：releases/v4.392.0.md（含升级说明：ComfyUI 档编辑需先放模型文件，错误即指引）+CHANGELOG/README+releases/README（413→414+34 席插 v4.392 裁 v4.358）+AGENTS 迁 1 插 1（一百零七迁：v4.387 入 archive）+todos。
+- **观察池**：Lightning 4 步加速 LoRA；image2/3 多图编辑；蒙版局部重绘/扩图/抠图；编辑历史变体簇（ParentID 链）；模型文件名 config 化；FLUX.2 Klein 编辑族第二档；编辑产物回填角色库。
+
 ## 最新发布：v4.391.0（2026-09-22）「附件 URL 缓存 blob 化：base64 大字符串迁出 JS 堆 + selbar z 防御修」
 
 - **刀型**：性能池⑦「base64→blob URL 会话资源管理」收口（v4.365 审计留池最后一项免拍板性能项）+selbar z 防御修+todos 考古。纯前端 3 文件+2 测试（改 1 新 1），绑定面 714 零变更。

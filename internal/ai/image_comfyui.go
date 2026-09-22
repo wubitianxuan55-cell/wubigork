@@ -219,10 +219,18 @@ func (b *ComfyUIBackend) GenerateImage(ctx context.Context, req *ImageGeneration
 	if mode == "" {
 		mode = "txt2img"
 	}
+	// 指令编辑本地档（阶段二刀 A）：Qwen-Image-Edit 2511 官方模板蒸馏——
+	// 原图上 → FluxKontextImageScale 重标 → 语义编辑（非图生图整幅重绘）。
+	var editImageName string
 	if mode == "edit" {
-		// 指令编辑（阶段一刀 C）：本地档未接（B 计划），诚实拒绝不静默降级
-		// 为图生图（编辑语义≠整幅重绘）。
-		return nil, fmt.Errorf("指令编辑暂未接入 ComfyUI 本地档（规划中），请使用云端 OpenAI 兼容引擎的 /images/edits")
+		if req.InitImage == "" {
+			return nil, fmt.Errorf("指令编辑需要原图（data URL）")
+		}
+		name, err := b.uploadImage(ctx, req.InitImage)
+		if err != nil {
+			return nil, err
+		}
+		editImageName = name
 	}
 	// T2 参考槽 v0：文生图带参考图且方法为 img2img 近似时转图生图（krea2/z-image）；
 	// ipadapter/pulid 未实现 → 诚实报错，不静默忽略参考图。
@@ -251,6 +259,10 @@ func (b *ComfyUIBackend) GenerateImage(ctx context.Context, req *ImageGeneration
 	var workflow map[string]interface{}
 	kind := "image"
 	switch mode {
+	case "edit":
+		// 指令编辑本地档：单编辑族 Qwen-Image-Edit 2511（req.Model 是生图模型名，
+		// 不代表编辑引擎——app 层已把元数据如实改写为 qwen-image-edit）。
+		workflow = b.buildQwenImageEditWorkflow(req.Prompt, seed, editImageName)
 	case "img2img":
 		// 图生图：上传参考图 → LoadImage + VAEEncode → 低 denoise 重绘
 		if req.InitImage == "" {
@@ -301,6 +313,9 @@ func (b *ComfyUIBackend) GenerateImage(ctx context.Context, req *ImageGeneration
 	// 1. 提交任务
 	promptID, err := b.queuePrompt(ctx, workflow)
 	if err != nil {
+		if mode == "edit" {
+			return nil, fmt.Errorf("ComfyUI 提交失败（指令编辑本地档）: %w%s", err, qwenEditMissingModelHint(err.Error()))
+		}
 		return nil, fmt.Errorf("ComfyUI 提交失败: %w", err)
 	}
 	b.mu.Lock()
@@ -585,6 +600,69 @@ func (b *ComfyUIBackend) buildZImageImg2ImgWorkflow(prompt, negative string, wid
 	wf["11"] = map[string]interface{}{"class_type": "VAEDecode", "inputs": map[string]interface{}{"samples": []interface{}{"10", 0}, "vae": []interface{}{"6", 0}}}
 	wf["12"] = map[string]interface{}{"class_type": "SaveImage", "inputs": map[string]interface{}{"filename_prefix": "gaea", "images": []interface{}{"11", 0}}}
 	return wf
+}
+
+// Qwen-Image-Edit 2511 官方模板文件名（comfyui-workflow-templates
+// image_qwen_image_edit_2511 蒸馏，2026-09-22 实读）。单点维护——后续
+// 配置化（config 键覆盖）在此扩展；VAE 与 krea2 共用。
+const (
+	qwenEditUNET = "qwen_image_edit_2511_fp8mixed.safetensors"
+	qwenEditCLIP = "qwen_2.5_vl_7b_fp8_scaled.safetensors"
+	qwenEditVAE  = "qwen_image_vae.safetensors"
+)
+
+// buildQwenImageEditWorkflow 构建 Qwen-Image-Edit 2511 指令编辑工作流
+// （官方模板 API 图还原，取道不取器）：
+//
+//	LoadImage → FluxKontextImageScale（按原图宽高比重标，不套 1024×1024）
+//	  ├→ TextEncodeQwenImageEditPlus(正) image1=缩放图 + vae
+//	  ├→ TextEncodeQwenImageEditPlus(负) image1=缩放图 + vae
+//	  └→ VAEEncode(缩放图) → KSampler.latent_image
+//	UNETLoader → ModelSamplingAuraFlow(shift 3.1) → CFGNorm(1) → KSampler
+//	KSampler(steps 20 / cfg 4.0 / euler / simple / denoise 1.0) → VAEDecode → SaveImage
+//
+// 官方 Note「Comfy」列参数（20 步 CFG 4.0）；denoise 恒 1.0=语义编辑非整幅重绘；
+// FluxKontextMultiReferenceLatentMethod 官方明示「用 Comfy 官方权重不需要」不接；
+// Lightning 4 步 LoRA 为可选加速件，v1 不接（观察池）。
+func (b *ComfyUIBackend) buildQwenImageEditWorkflow(prompt string, seed int, imageName string) map[string]interface{} {
+	wf := map[string]interface{}{
+		"4":   map[string]interface{}{"class_type": "UNETLoader", "inputs": map[string]interface{}{"unet_name": qwenEditUNET, "weight_dtype": "default"}},
+		"5":   map[string]interface{}{"class_type": "CLIPLoader", "inputs": map[string]interface{}{"clip_name": qwenEditCLIP, "type": "qwen_image", "device": "default"}},
+		"6":   map[string]interface{}{"class_type": "VAELoader", "inputs": map[string]interface{}{"vae_name": qwenEditVAE}},
+		"145": map[string]interface{}{"class_type": "ModelSamplingAuraFlow", "inputs": map[string]interface{}{"model": []interface{}{"4", 0}, "shift": 3.1}},
+		"152": map[string]interface{}{"class_type": "CFGNorm", "inputs": map[string]interface{}{"model": []interface{}{"145", 0}, "strength": 1.0, "pre_cfg": false}},
+		"1":   map[string]interface{}{"class_type": "LoadImage", "inputs": map[string]interface{}{"image": imageName}},
+		// FluxKontextImageScale：把原图重标到 Kontext 系最优分辨率（保宽高比）
+		"160": map[string]interface{}{"class_type": "FluxKontextImageScale", "inputs": map[string]interface{}{"image": []interface{}{"1", 0}}},
+		"7":   map[string]interface{}{"class_type": "TextEncodeQwenImageEditPlus", "inputs": map[string]interface{}{"clip": []interface{}{"5", 0}, "vae": []interface{}{"6", 0}, "image1": []interface{}{"160", 0}, "prompt": prompt}},
+		"8":   map[string]interface{}{"class_type": "TextEncodeQwenImageEditPlus", "inputs": map[string]interface{}{"clip": []interface{}{"5", 0}, "vae": []interface{}{"6", 0}, "image1": []interface{}{"160", 0}, "prompt": ""}},
+		"15":  map[string]interface{}{"class_type": "VAEEncode", "inputs": map[string]interface{}{"pixels": []interface{}{"160", 0}, "vae": []interface{}{"6", 0}}},
+	}
+	wf["10"] = map[string]interface{}{"class_type": "KSampler", "inputs": map[string]interface{}{
+		"seed": seed, "steps": 20, "cfg": 4.0, "sampler_name": "euler", "scheduler": "simple", "denoise": 1.0,
+		"model": []interface{}{"152", 0}, "positive": []interface{}{"7", 0}, "negative": []interface{}{"8", 0}, "latent_image": []interface{}{"15", 0},
+	}}
+	wf["11"] = map[string]interface{}{"class_type": "VAEDecode", "inputs": map[string]interface{}{"samples": []interface{}{"10", 0}, "vae": []interface{}{"6", 0}}}
+	wf["12"] = map[string]interface{}{"class_type": "SaveImage", "inputs": map[string]interface{}{"filename_prefix": "gaea", "images": []interface{}{"11", 0}}}
+	return wf
+}
+
+// qwenEditMissingModelHint 指令编辑提交失败时的缺权重提示：ComfyUI 对不在列表的
+// 模型回 value_not_in_list——gaea 从不自动下载模型，这里给出三件文件名 + HF 链接
+// + 存放目录（可操作）；错误不匹配时返回空串零影响。
+func qwenEditMissingModelHint(errMsg string) string {
+	if !strings.Contains(errMsg, "value_not_in_list") &&
+		!strings.Contains(errMsg, "qwen_image_edit") &&
+		!strings.Contains(errMsg, "qwen_2_5_vl") &&
+		!strings.Contains(errMsg, "missing") {
+		return ""
+	}
+	return "\n💡 指令编辑本地档（Qwen-Image-Edit 2511）需要以下模型文件（放入 ComfyUI 对应目录后重试）：\n" +
+		"   models/diffusion_models/" + qwenEditUNET + "\n" +
+		"     ← https://huggingface.co/Comfy-Org/Qwen-Image-Edit_ComfyUI（split_files/diffusion_models；bf16 版同名替换亦可）\n" +
+		"   models/text_encoders/" + qwenEditCLIP + "\n" +
+		"     ← https://huggingface.co/Comfy-Org/HunyuanVideo_1.5_repackaged（split_files/text_encoders）\n" +
+		"   models/vae/" + qwenEditVAE + "（与 krea2 共用，通常已存在）"
 }
 
 // buildLTXVideoWorkflow 构建 LTX-Video 文生视频工作流（ComfyUI ≥0.30 节点组）：

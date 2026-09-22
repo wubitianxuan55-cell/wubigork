@@ -455,3 +455,31 @@ func TestGenerateMedia_EditMode(t *testing.T) {
 		t.Fatalf("编辑结果应落盘带回路径: %+v", results)
 	}
 }
+
+// TestGenerateMedia_EditComfyuiModelOverride 指令编辑本地档（阶段二刀 A）：
+// backend=comfyui 时元数据如实改写 qwen-image-edit——请求 model 字段是生图模型名
+// （krea2 等），不代表编辑引擎；结果卡/台账按真实引擎记。
+func TestGenerateMedia_EditComfyuiModelOverride(t *testing.T) {
+	dir := t.TempDir()
+	fake := &fakeImageBackend{result: &ai.ImageGenerationResponse{
+		Data: []ai.ImageData{{B64JSON: pngDataURLApp("fake-edit-c"), Kind: "image"}},
+	}}
+	c := &ai.Client{}
+	c.SetImageBackend(fake, "comfyui")
+	ms := &mediaState{core: &core{cfg: &config.Config{ImageBackend: "comfyui", ImageModel: "krea2", ImageSaveDir: dir}, client: c}}
+
+	res, err := ms.GenerateMedia(`{"prompt":"把外套改成红色","mode":"edit","model":"krea2","initImage":"data:image/png;base64,AAAA","count":1}`)
+	if err != nil {
+		t.Fatalf("GenerateMedia: %v", err)
+	}
+	if msg, _ := res["error"].(string); msg != "" {
+		t.Fatalf("comfyui 编辑应出结果，得到: %s", msg)
+	}
+	results := res["results"].([]imageItem)
+	if len(results) != 1 {
+		t.Fatalf("应出一图: %+v", results)
+	}
+	if results[0].Model != "qwen-image-edit" {
+		t.Fatalf("comfyui 编辑元数据应如实记 qwen-image-edit: %s", results[0].Model)
+	}
+}
