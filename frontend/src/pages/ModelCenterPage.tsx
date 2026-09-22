@@ -165,6 +165,8 @@ const ModelCenterPage: React.FC = () => {
     featureEnabled: bind.featureEnabled, modelRoutes: bind.modelRoutes,
     portraitCfg: bind.portraitCfg, portraitDraft: bind.portraitDraft,
     portraitModelOptions: bind.portraitModelOptions, portraitSaving: bind.portraitSaving,
+    sinImageCfg: bind.sinImageCfg, sinImageDraft: bind.sinImageDraft,
+    sinImageModelOptions: bind.sinImageModelOptions, sinImageSaving: bind.sinImageSaving,
     llmModels: engine.llmModels, ttsModels: engine.ttsModels, sttModels: engine.sttModels,
     imageModels: engine.imageModels, specialtyModels: engine.specialtyModels,
   }), [category, engine, stats, image, voice, bind])
@@ -187,6 +189,7 @@ const ModelCenterPage: React.FC = () => {
     setChatVoiceDraft: voice.setChatVoiceDraft,
     setFeatureDraft: bind.setFeatureDraft,
     setPortraitDraft: bind.setPortraitDraft,
+    setSinImageDraft: bind.setSinImageDraft,
     makeModels: engine.makeModels, isModelActive: engine.isModelActive,
     handleTestConnection: engine.handleTestConnection,
     handleRefreshModels: engine.handleRefreshModels,
@@ -208,6 +211,7 @@ const ModelCenterPage: React.FC = () => {
     handleSetVoiceModel: voice.handleSetVoiceModel, handleSetOCRModel: voice.handleSetOCRModel,
     handleSaveFeature: bind.handleSaveFeature, handleToggleFeatureEnabled: bind.handleToggleFeatureEnabled,
     handleSavePortrait: bind.handleSavePortrait,
+    handleSaveSinImage: bind.handleSaveSinImage,
     handleSaveChatVoice: voice.handleSaveChatVoice, handleClearChatVoice: voice.handleClearChatVoice,
   }), [setCategory, engine, stats, image, voice, bind])
 

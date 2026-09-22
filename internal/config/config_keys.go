@@ -26,6 +26,8 @@ const (
 	KeyImageModel          = "image_model"
 	KeyPortraitBackend     = "portrait_backend" // 角色库剧照独立后端（空=跟随绘梦）
 	KeyPortraitModel       = "portrait_model"   // 角色库剧照独立模型（空=跟随绘梦）
+	KeySinImageBackend     = "sin_image_backend" // 原罪插图独立生图后端（空=跟随全局生图设置）
+	KeySinImageModel       = "sin_image_model"   // 原罪插图独立生图模型（空=跟随全局生图设置）
 	KeyComfyUIPath         = "comfyui_path"
 	KeyComfyUIPythonPath   = "comfyui_python_path"
 	KeyActiveEngineID      = "active_engine_id"

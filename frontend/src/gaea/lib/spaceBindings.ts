@@ -105,6 +105,9 @@ export const GAEA_METHOD_FACETS = {
   GetImageBackendInfo: "play",
   GetPortraitConfig: "play",
   SetPortraitConfig: "play",
+  // v4.388 原罪插图独立生图绑定（模型中心功能绑定卡，play 数据面）。
+  GetSinImageConfig: "play",
+  SetSinImageConfig: "play",
   GetComfyUIStatus: "play",
   GetComfyUILoras: "play",
   GetComfyUITaskProgress: "play",

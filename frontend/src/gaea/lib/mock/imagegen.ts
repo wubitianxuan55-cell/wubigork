@@ -8,6 +8,7 @@ type ImagegenMethods = Pick<
   AppBindings,
   | "GenerateFreeImage" | "CancelImageGeneration" | "GenerateMedia" | "GenerateDiagram"
   | "GetImageBackendInfo" | "GetPortraitConfig" | "SetPortraitConfig"
+  | "GetSinImageConfig" | "SetSinImageConfig"
   | "GetComfyUIStatus" | "GetComfyUILoras" | "GetComfyUITaskProgress"
   | "StartComfyUI" | "StopComfyUI" | "GetSystemStats"
   | "OpenImageSaveDir" | "OpenNovelImagesDir" | "GetCharacters" | "SetCharacterPortrait"
@@ -46,6 +47,12 @@ export function buildImagegenTools(): ImagegenMethods {
     },
     async SetPortraitConfig(_backend: string, _model: string) {
       // 浏览器内存 no-op：无持久化（诚实语义，配置面板保存后不假装已落盘）。
+    },
+    async GetSinImageConfig() {
+      return {};
+    },
+    async SetSinImageConfig(_backend: string, _model: string) {
+      // 浏览器内存 no-op（同 SetPortraitConfig）。
     },
     async GetComfyUIStatus() {
       return {};

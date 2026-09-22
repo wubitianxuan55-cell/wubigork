@@ -25,6 +25,7 @@ func (b *ImageB) GetImageBackend() string { return b.a.GetImageBackend() }
 func (b *ImageB) GetImageBackendConfig() map[string]interface{} { return b.a.GetImageBackendConfig() }
 func (b *ImageB) GetImageBackendInfo() map[string]string { return b.a.GetImageBackendInfo() }
 func (b *ImageB) GetPortraitConfig() map[string]string { return b.a.GetPortraitConfig() }
+func (b *ImageB) GetSinImageConfig() map[string]string { return b.a.GetSinImageConfig() }
 func (b *ImageB) GetSystemStats() map[string]interface{} { return b.a.GetSystemStats() }
 func (b *ImageB) GetTTSConfig() map[string]interface{} { return b.a.GetTTSConfig() }
 func (b *ImageB) GetTTSSpeakers(model string) ([]string, error) { return b.a.GetTTSSpeakers(model) }
@@ -41,6 +42,7 @@ func (b *ImageB) SetCharacterPortrait(charID string, imageData string) error { r
 func (b *ImageB) SetChatVoiceModel(engineID string, modelID string) error { return b.a.SetChatVoiceModel(engineID, modelID) }
 func (b *ImageB) SetImageBackend(backend string, comfyUIURL string, imageModel string, imageSaveDir string) error { return b.a.SetImageBackend(backend, comfyUIURL, imageModel, imageSaveDir) }
 func (b *ImageB) SetPortraitConfig(backend string, model string) error { return b.a.SetPortraitConfig(backend, model) }
+func (b *ImageB) SetSinImageConfig(backend string, model string) error { return b.a.SetSinImageConfig(backend, model) }
 func (b *ImageB) StartComfyUI() error { return b.a.StartComfyUI() }
 func (b *ImageB) StartLocalTTSService(engineID string) map[string]interface{} { return b.a.StartLocalTTSService(engineID) }
 func (b *ImageB) StartTTSServer(modelPath string, port int, backend string) error { return b.a.StartTTSServer(modelPath, port, backend) }

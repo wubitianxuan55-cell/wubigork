@@ -9,7 +9,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { Dispatch, SetStateAction } from 'react'
 import { message } from 'antd'
 import { app } from '../../../gaea/lib/bridge'
-import { getPortraitConfig, setPortraitConfig } from '../../../api/image'
+import { getPortraitConfig, setPortraitConfig, getSinImageConfig, setSinImageConfig } from '../../../api/image'
 import { FEATURES, imageModelOptionsFor } from '../utils'
 import type { EngineConfig } from '../../../api/engines'
 import type { AppFacade } from '../../../types/wails'
@@ -30,11 +30,17 @@ export interface BindState {
   setPortraitDraft: Dispatch<SetStateAction<{ backend: string; model: string }>>
   portraitModelOptions: { label: string; value: string }[]
   portraitSaving: boolean
+  sinImageCfg: { backend: string; model: string }
+  sinImageDraft: { backend: string; model: string }
+  setSinImageDraft: Dispatch<SetStateAction<{ backend: string; model: string }>>
+  sinImageModelOptions: { label: string; value: string }[]
+  sinImageSaving: boolean
   loadFeatureCfg: () => Promise<void>
   refreshRoutes: () => Promise<void>
   handleSaveFeature: (key: string) => Promise<void>
   handleToggleFeatureEnabled: (key: string, enabled: boolean) => Promise<void>
   handleSavePortrait: () => Promise<void>
+  handleSaveSinImage: () => Promise<void>
 }
 
 export function useBindState(engines: EngineConfig[]): BindState {
@@ -45,6 +51,10 @@ export function useBindState(engines: EngineConfig[]): BindState {
   const [portraitCfg, setPortraitCfg] = useState<{ backend: string; model: string }>({ backend: '', model: '' })
   const [portraitDraft, setPortraitDraft] = useState<{ backend: string; model: string }>({ backend: '', model: '' })
   const [portraitSaving, setPortraitSaving] = useState(false)
+  // 原罪插图独立生图绑定（v4.388，镜像剧照）
+  const [sinImageCfg, setSinImageCfg] = useState<{ backend: string; model: string }>({ backend: '', model: '' })
+  const [sinImageDraft, setSinImageDraft] = useState<{ backend: string; model: string }>({ backend: '', model: '' })
+  const [sinImageSaving, setSinImageSaving] = useState(false)
 
   // 当前生效路由（后端 routeModel 降级链结果：feature / global / fallback）
   const refreshRoutes = useCallback(async () => {
@@ -100,6 +110,19 @@ export function useBindState(engines: EngineConfig[]): BindState {
     })()
   }, [])
 
+  // 原罪插图独立生图配置读取（v4.388，镜像剧照）
+  useEffect(() => {
+    (async () => {
+      try {
+        const p = await getSinImageConfig()
+        setSinImageCfg(p)
+        setSinImageDraft(p)
+      } catch (err: unknown) {
+        message.error(errText(err, '读取原罪插图配置失败'))
+      }
+    })()
+  }, [])
+
   const handleSaveFeature = async (key: string) => {
     const d = featureDraft[key]
     if (!d?.engine || !d?.model) { message.warning('请先选择引擎和模型'); return }
@@ -149,6 +172,23 @@ export function useBindState(engines: EngineConfig[]): BindState {
     }
   }
 
+  const handleSaveSinImage = async () => {
+    setSinImageSaving(true)
+    try {
+      await setSinImageConfig(sinImageDraft.backend, sinImageDraft.model)
+      setSinImageCfg({ ...sinImageDraft })
+      message.success(
+        sinImageDraft.backend
+          ? `原罪插图已绑定：${sinImageDraft.backend} / ${sinImageDraft.model || '跟随全局'}`
+          : '原罪插图已恢复为跟随全局生图设置',
+      )
+    } catch (err: unknown) {
+      message.error(errText(err, '保存失败'))
+    } finally {
+      setSinImageSaving(false)
+    }
+  }
+
   // 角色库剧照独立后端/模型选项（空 = 跟随绘梦）
   const portraitModelOptions = useMemo(() => {
     const b = portraitDraft.backend
@@ -159,6 +199,16 @@ export function useBindState(engines: EngineConfig[]): BindState {
     ]
   }, [portraitDraft.backend, portraitDraft.model, engines])
 
+  // 原罪插图独立生图后端/模型选项（v4.388，镜像剧照；空 = 跟随全局）
+  const sinImageModelOptions = useMemo(() => {
+    const b = sinImageDraft.backend
+    if (!b) return [{ label: '跟随全局', value: '' }]
+    return [
+      { label: '跟随全局', value: '' },
+      ...imageModelOptionsFor(b, engines, sinImageDraft.model),
+    ]
+  }, [sinImageDraft.backend, sinImageDraft.model, engines])
+
   return {
     featureCfg,
     featureDraft, setFeatureDraft,
@@ -168,10 +218,15 @@ export function useBindState(engines: EngineConfig[]): BindState {
     portraitDraft, setPortraitDraft,
     portraitModelOptions,
     portraitSaving,
+    sinImageCfg,
+    sinImageDraft, setSinImageDraft,
+    sinImageModelOptions,
+    sinImageSaving,
     loadFeatureCfg,
     refreshRoutes,
     handleSaveFeature,
     handleToggleFeatureEnabled,
     handleSavePortrait,
+    handleSaveSinImage,
   }
 }

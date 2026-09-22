@@ -244,6 +244,12 @@ func Load() *Config {
 			if cf.PortraitModel != "" {
 				cfg.PortraitModel = cf.PortraitModel
 			}
+			if cf.SinImageBackend != "" {
+				cfg.SinImageBackend = cf.SinImageBackend
+			}
+			if cf.SinImageModel != "" {
+				cfg.SinImageModel = cf.SinImageModel
+			}
 			if cf.ComfyUIPath != "" {
 				cfg.ComfyUIPath = cf.ComfyUIPath
 			}

@@ -1,3 +1,13 @@
+## 最新发布：v4.388.0（2026-09-22）「原罪插图独立生图绑定：功能绑定卡新增『原罪插图』后端/模型选择」
+
+- **动机**：用户反馈「原罪的功能绑定卡片内增加生图模型选择，这么多模型为什么没有候选，只能使用 comfyui？」。
+- **诊断**：原罪生图此前无独立绑定，跟随全局生图设置（本机全局后端=comfyui，所以看起来「只能 comfyui」）；模型中心「功能绑定」原罪卡只绑故事文本模型；跨引擎生图候选其实一直在（剧照卡同款 imageModelOptionsFor），原罪没有入口。
+- **落地**（镜像「角色库剧照」先例，Go 6 文件+前端 9 文件，绑定面 712→714）：①GetSinImageConfig/SetSinImageConfig（sin_image_backend/model，空=跟随全局，任一项可单独回退）+shelf 热更新②生成路由——buildImageClientFor 从 buildPortraitClient 通用化（comfyui/herdsman/ollama/glm/xai 五后端独立客户端，不动绘梦全局）；generateImageInternal 加 clientOverride/backendOverride 通道（进度回调/size 裁剪/ComfyUI 自动恢复与拉起分支统一按生效后端判定）；SinIllustrate 级联 sinImageBinding（绑定>全局）+sinRefPlan 用生效值+绑定后端≠全局时独立客户端；sin_illustrate 工具同入口受益③模型中心新增「原罪插图」卡（六后端下拉+跨引擎模型候选），原罪故事卡注释补指引。
+- **测试**：Go +4 组（级联四态/Get 回读/buildImageClientFor 分支/override 通道 override=1 全局零触碰）+前端 +1（卡渲染+保存+已绑定态）。坑：config.Save 直写真实 ~/.gaea_config.json 无隔离钩子——Set roundtrip 不能真调，测读映射+纯函数级联；种子引擎目录恒 Enabled 须 SaveEngine 禁用再测未启用分支；override 后端语义要跟到底（三处判定原读全局配置）。
+- **门禁**：全量 ci.ps1 绿 EXIT=0 + 版本漂移闸 OK@4.388.0 + spaceBindings 锁 535→537 + bindingNames 714。
+- **产物**：exe 51171328B SHA256=48f1a288eaadb80a6a8632a81ac6d0dbff0fd110b87318947c4682a37bb141e1（SHA256SUMS-v4.388.0.txt，仅本地；冒烟 200 过；桌面副本同哈希实测一致——用户已关 gaea 连跳两版直更 v4.388）；保留策略 5 版留 v4.384~v4.388 删 v4.383.0.exe（SUMS 全保留）。
+- **文档**：releases/v4.388.0.md（含升级说明）+CHANGELOG/README+releases/README（保留策略行+计数 409→410+34 席插 v4.388 裁 v4.354）+AGENTS 迁 1 插 1（一百零三迁：v4.385 入 archive）+todos。
+
 ## 最新发布：v4.387.0（2026-09-22）「ComfyUI 未运行自动拉起：原罪插图/绘梦生成连接被拒自愈」
 
 - **动机**：用户报障「原罪生图失败，插图失败：ComfyUI 提交失败…connectex: No connection could be made because the target machine actively refused it」。

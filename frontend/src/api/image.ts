@@ -31,6 +31,8 @@ type ImageHubFacade = {
   GetImageBackendInfo(): Promise<Partial<BackendInfo>>
   GetPortraitConfig(): Promise<{ backend?: string; model?: string }>
   SetPortraitConfig(backend: string, model: string): Promise<void>
+  GetSinImageConfig(): Promise<{ backend?: string; model?: string }>
+  SetSinImageConfig(backend: string, model: string): Promise<void>
   GetComfyUIStatus(): Promise<Record<string, unknown>>
   GetComfyUILoras(): Promise<Array<string>>
   GetComfyUITaskProgress(): Promise<Partial<ComfyTaskProgress>>
@@ -144,6 +146,21 @@ export async function getPortraitConfig(): Promise<{ backend: string; model: str
 /** 设置角色库剧照独立后端/模型（空 = 跟随绘梦） */
 export async function setPortraitConfig(backend: string, model: string): Promise<void> {
   await appFacade().SetPortraitConfig(backend, model)
+}
+
+/** 获取原罪插图独立生图后端/模型（空 = 跟随全局生图设置） */
+export async function getSinImageConfig(): Promise<{ backend: string; model: string }> {
+  try {
+    const r = await appFacade().GetSinImageConfig()
+    return (r || { backend: '', model: '' }) as { backend: string; model: string }
+  } catch (_) {
+    return { backend: '', model: '' }
+  }
+}
+
+/** 设置原罪插图独立生图后端/模型（空 = 跟随全局生图设置） */
+export async function setSinImageConfig(backend: string, model: string): Promise<void> {
+  await appFacade().SetSinImageConfig(backend, model)
 }
 
 /** 生成图片 */

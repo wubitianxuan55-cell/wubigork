@@ -143,6 +143,8 @@ var saveSetters = map[string]func(cf *configFile, value string) error{
 	KeyImageModel:        func(cf *configFile, v string) error { cf.ImageModel = v; return nil },
 	KeyPortraitBackend:   func(cf *configFile, v string) error { cf.PortraitBackend = v; return nil },
 	KeyPortraitModel:     func(cf *configFile, v string) error { cf.PortraitModel = v; return nil },
+	KeySinImageBackend:   func(cf *configFile, v string) error { cf.SinImageBackend = v; return nil },
+	KeySinImageModel:     func(cf *configFile, v string) error { cf.SinImageModel = v; return nil },
 	KeyComfyUIPath:       func(cf *configFile, v string) error { cf.ComfyUIPath = v; return nil },
 	KeyComfyUIPythonPath: func(cf *configFile, v string) error { cf.ComfyUIPythonPath = v; return nil },
 	KeyTTSPort: func(cf *configFile, v string) error {

@@ -199,6 +199,10 @@ func (a *App) SaveConfig(key, value string) error {
 		a.cfg.PortraitBackend = value
 	case config.KeyPortraitModel:
 		a.cfg.PortraitModel = value
+	case config.KeySinImageBackend:
+		a.cfg.SinImageBackend = value
+	case config.KeySinImageModel:
+		a.cfg.SinImageModel = value
 	case config.KeyComfyUIPath:
 		a.cfg.ComfyUIPath = value
 	case config.KeyComfyUIPythonPath:

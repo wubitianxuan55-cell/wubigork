@@ -10,6 +10,9 @@ export interface ImageBindings {
   GetImageBackendInfo(): Promise<Record<string, string>>;
   GetPortraitConfig(): Promise<Record<string, string>>;
   SetPortraitConfig(backend: string, model: string): Promise<void>;
+  // v4.388 原罪插图独立生图绑定（空 = 跟随全局生图设置）。
+  GetSinImageConfig(): Promise<Record<string, string>>;
+  SetSinImageConfig(backend: string, model: string): Promise<void>;
   GetComfyUIStatus(): Promise<Record<string, unknown>>;
   GetComfyUILoras(): Promise<Array<string>>;
   GetComfyUITaskProgress(): Promise<Record<string, unknown>>;

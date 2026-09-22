@@ -21,6 +21,8 @@ type configFile struct {
 	ImageModel          string            `json:"image_model,omitempty"`            // 图片模型
 	PortraitBackend     string            `json:"portrait_backend,omitempty"`       // 角色库剧照后端（空=跟随绘梦）
 	PortraitModel       string            `json:"portrait_model,omitempty"`         // 角色库剧照模型（空=跟随绘梦）
+	SinImageBackend     string            `json:"sin_image_backend,omitempty"`      // 原罪插图生图后端（空=跟随全局生图设置）
+	SinImageModel       string            `json:"sin_image_model,omitempty"`        // 原罪插图生图模型（空=跟随全局生图设置）
 	ComfyUIPath         string            `json:"comfyui_path,omitempty"`           // ComfyUI 安装目录
 	ComfyUIPythonPath   string            `json:"comfyui_python_path,omitempty"`    // Python 解释器路径
 	TTSPort             int               `json:"tts_port,omitempty"`               // TTS 服务端口
@@ -159,6 +161,8 @@ type Config struct {
 	ImageModel        string // 图片模型: "grok-imagine-image-quality" (xAI默认) | "flux" | "z-image-turbo"
 	PortraitBackend   string // 角色库剧照后端（空=跟随绘梦）
 	PortraitModel     string // 角色库剧照模型（空=跟随绘梦）
+	SinImageBackend   string // 原罪插图生图后端（空=跟随全局生图设置）
+	SinImageModel     string // 原罪插图生图模型（空=跟随全局生图设置）
 	ComfyUIPath       string // ComfyUI 安装目录（main.py 所在路径），空=需手动启动
 	ComfyUIPythonPath string // Python 解释器路径（留空则自动查找）
 

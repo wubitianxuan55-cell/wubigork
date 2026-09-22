@@ -598,12 +598,20 @@ func (a *App) characterGeneratePortrait(chJSON, model, refImageDataURL string) (
 }
 
 // buildPortraitClient 为角色剧照构建独立图片客户端（不改变绘梦当前后端）。
-// backend: comfyui / herdsman / ollama / glm 走对应后端，xai 或空走 xAI 原生管线。
+// backend 解析：剧照绑定（空=绘梦全局后端）。
 func (a *App) buildPortraitClient() (*ai.Client, error) {
 	backend := a.cfg.PortraitBackend
 	if backend == "" {
 		backend = a.cfg.ImageBackend
 	}
+	return a.buildImageClientFor(backend, "剧照")
+}
+
+// buildImageClientFor 按后端名构建独立图片客户端（不改变全局当前后端；
+// v4.388 从 buildPortraitClient 通用化，角色剧照与原罪插图共用）。
+// backend: comfyui / herdsman / ollama / glm 走对应后端，xai 或空走 xAI
+// 原生管线；featureLabel 仅用于未启用/缺 Key 的报错文案点名。
+func (a *App) buildImageClientFor(backend, featureLabel string) (*ai.Client, error) {
 	if backend == "" {
 		backend = "xai"
 	}
@@ -617,7 +625,7 @@ func (a *App) buildPortraitClient() (*ai.Client, error) {
 	case "herdsman", "ollama":
 		eng, ok := a.engineMgr.GetEngine(backend)
 		if !ok || !eng.Enabled {
-			return nil, fmt.Errorf("剧照引擎 %s 未启用，请先在模型中心启用", backend)
+			return nil, fmt.Errorf("%s引擎 %s 未启用，请先在模型中心启用", featureLabel, backend)
 		}
 		client.SetImageBackend(ai.NewOpenAIImageBackend(eng.BaseURL, eng.APIKey), backend)
 	case "glm":

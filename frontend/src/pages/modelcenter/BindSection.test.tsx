@@ -25,6 +25,10 @@ function renderBind(overrides: Partial<ModelCenterContextValue> = {}) {
     portraitDraft: { backend: '', model: '' },
     portraitModelOptions: [],
     portraitSaving: false,
+    sinImageCfg: { backend: '', model: '' },
+    sinImageDraft: { backend: '', model: '' },
+    sinImageModelOptions: [{ label: '跟随全局', value: '' }],
+    sinImageSaving: false,
     llmModels: [
       { engineId: 'herdsman', modelId: 'qwen3-8b', modelName: 'qwen3-8b' },
       { engineId: 'xai', modelId: 'grok-4.20', modelName: 'grok-4.20' },
@@ -33,11 +37,13 @@ function renderBind(overrides: Partial<ModelCenterContextValue> = {}) {
     setFeatureDraft: () => {},
     setChatVoiceDraft: () => {},
     setPortraitDraft: () => {},
+    setSinImageDraft: () => {},
     handleSaveFeature: () => {},
     handleToggleFeatureEnabled: () => {},
     handleSaveChatVoice: () => {},
     handleClearChatVoice: () => {},
     handleSavePortrait: () => {},
+    handleSaveSinImage: () => {},
     ...overrides,
   } as unknown as ModelCenterContextValue
   return render(
@@ -77,5 +83,23 @@ describe('BindSection', () => {
     const option = await screen.findByText('Herdsman 本地')
     fireEvent.click(option)
     expect(setFeatureDraft).toHaveBeenCalled()
+  })
+
+  // v4.388 原罪插图卡：默认跟随全局；绑定后端选择走 setSinImageDraft、保存走 handleSaveSinImage。
+  it('renders sin illustration card and wires draft/save (v4.388)', async () => {
+    const setSinImageDraft = vi.fn()
+    const handleSaveSinImage = vi.fn()
+    renderBind({ setSinImageDraft, handleSaveSinImage })
+
+    expect(screen.getByText('原罪插图')).toBeTruthy()
+    expect(screen.getByText('跟随全局')).toBeTruthy()
+
+    // 卡内「绑定插图后端」按钮触发保存动作。
+    fireEvent.click(screen.getByText('绑定插图后端'))
+    expect(handleSaveSinImage).toHaveBeenCalled()
+
+    // 已绑定态显示生效后端/模型。
+    renderBind({ sinImageCfg: { backend: 'herdsman', model: 'qwen-image' } })
+    expect(screen.getByText('herdsman / qwen-image')).toBeTruthy()
   })
 })

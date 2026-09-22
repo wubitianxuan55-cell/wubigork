@@ -62,6 +62,10 @@ export interface ModelCenterStateValue {
   portraitDraft: { backend: string; model: string }
   portraitModelOptions: { label: string; value: string }[]
   portraitSaving: boolean
+  sinImageCfg: { backend: string; model: string }
+  sinImageDraft: { backend: string; model: string }
+  sinImageModelOptions: { label: string; value: string }[]
+  sinImageSaving: boolean
   llmModels: ModelCardData[]
   ttsModels: ModelCardData[]
   sttModels: ModelCardData[]
@@ -89,6 +93,7 @@ export interface ModelCenterActionsValue {
   setChatVoiceDraft: Dispatch<SetStateAction<{ engine: string; model: string }>>
   setFeatureDraft: Dispatch<SetStateAction<Record<string, { engine: string; model: string }>>>
   setPortraitDraft: Dispatch<SetStateAction<{ backend: string; model: string }>>
+  setSinImageDraft: Dispatch<SetStateAction<{ backend: string; model: string }>>
   makeModels: (engine: EngineConfig) => ModelCardData[]
   isModelActive: (card: ModelCardData) => boolean
   handleTestConnection: (id: string) => Promise<void>
@@ -116,6 +121,7 @@ export interface ModelCenterActionsValue {
   handleSaveFeature: (key: string) => Promise<void>
   handleToggleFeatureEnabled: (key: string, enabled: boolean) => Promise<void>
   handleSavePortrait: () => Promise<void>
+  handleSaveSinImage: () => Promise<void>
   handleSaveChatVoice: () => Promise<void>
   handleClearChatVoice: () => Promise<void>
 }

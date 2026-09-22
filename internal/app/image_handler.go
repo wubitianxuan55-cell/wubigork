@@ -234,6 +234,11 @@ type imageGenInternal struct {
 	refMethod   string
 	denoise     float64
 	characterID string
+	// 独立生图绑定（v4.388 原罪插图）：clientOverride 非空时本链走该客户端
+	// （buildImageClientFor 按绑定后端构建，不改变全局绘梦后端）；backendOverride
+	// 记录生效后端类型（进度回调/尺寸参数/自动拉起分支的判定依据），空=全局。
+	clientOverride  *ai.Client
+	backendOverride string
 }
 
 // generateFreeImageProvenanced 与 GenerateFreeImage 同一条生成链，把「产物
@@ -259,9 +264,17 @@ func (a *mediaState) generateImageInternal(o imageGenInternal) (map[string]inter
 	}
 	prompt, negative, size, style, model, seed, n, lora := o.prompt, o.negative, o.size, o.style, o.model, o.seed, o.n, o.lora
 	sourceBoard, saveDir := o.sourceBoard, o.saveDir
+	// 独立生图绑定（v4.388）：override 客户端非空走绑定后端，否则全局客户端；
+	// backendType 是本链生效后端（进度回调/尺寸参数/自动拉起分支的判定依据）。
+	client := a.client
+	backendType := a.cfg.ImageBackend
+	if o.clientOverride != nil {
+		client = o.clientOverride
+		backendType = o.backendOverride
+	}
 	genCtx, cancel, genID := a.beginImageGen(a.ctx)
 	defer a.endImageGen(genID, cancel)
-	if a.cfg.ImageBackend == "comfyui" {
+	if backendType == "comfyui" {
 		a.updateComfyTaskProgress("queued", 0, 0, "")
 		a.resetComfyCancel()
 	}
@@ -314,34 +327,34 @@ func (a *mediaState) generateImageInternal(o imageGenInternal) (map[string]inter
 			RefMethod: o.refMethod,
 			Denoise:   o.denoise,
 		}
-		if a.cfg.ImageBackend == "comfyui" {
+		if backendType == "comfyui" {
 			imgReq.ProgressCallback = a.updateComfyTaskProgress
 		}
 
 		// xAI / Ollama 后端不接受 size 参数（xAI 返回 400）；herdsman 文档明确支持
 		// size；GLM 官方 schema 同样接受 size（glm-image 默认 1280x1280）
-		if a.cfg.ImageBackend != "comfyui" && a.cfg.ImageBackend != "herdsman" && a.cfg.ImageBackend != "glm" {
+		if backendType != "comfyui" && backendType != "herdsman" && backendType != "glm" {
 			imgReq.Size = ""
 		}
 		start := time.Now()
-		resp, err := a.client.GenerateImage(genCtx, imgReq)
+		resp, err := client.GenerateImage(genCtx, imgReq)
 		// 孤儿 ComfyUI 实例（stderr 失效）会在执行时报 [Errno 22]：
 		// 自动重启一次后重试，避免用户手动处理
-		if err != nil && !comfyRecovered && a.cfg.ImageBackend == "comfyui" && strings.Contains(err.Error(), "[Errno 22]") {
+		if err != nil && !comfyRecovered && backendType == "comfyui" && strings.Contains(err.Error(), "[Errno 22]") {
 			slog.Warn("ComfyUI stderr 失效（疑似孤儿实例），自动重启后重试", "error", err)
 			a.recoverComfyUI()
 			comfyRecovered = true
-			resp, err = a.client.GenerateImage(genCtx, imgReq)
+			resp, err = client.GenerateImage(genCtx, imgReq)
 		}
 		// ComfyUI 压根没跑（dial 连接被拒）且配置了安装路径：自动拉起+就绪
 		// 等待后重试一次（本轮一次）。原罪插图与绘梦生成共用本链，此前
 		// 服务未运行时直接以 connectex 原始错误失败，用户在原罪页无任何
 		// 恢复入口（绘梦页才有启动按钮）。
-		if err != nil && !comfyBooted && a.cfg.ImageBackend == "comfyui" && strings.Contains(err.Error(), "连接 ComfyUI 失败") {
+		if err != nil && !comfyBooted && backendType == "comfyui" && strings.Contains(err.Error(), "连接 ComfyUI 失败") {
 			comfyBooted = true
 			if a.ensureComfyUIRunning() {
 				slog.Info("ComfyUI 未运行，已自动拉起，重试生成")
-				resp, err = a.client.GenerateImage(genCtx, imgReq)
+				resp, err = client.GenerateImage(genCtx, imgReq)
 			}
 		}
 		elapsed := time.Since(start).Seconds()
@@ -727,6 +740,31 @@ func (a *App) SetPortraitConfig(backend, model string) error {
 		return err
 	}
 	slog.Info("角色库剧照绑定已设置", "backend", backend, "model", model)
+	return nil
+}
+
+// GetSinImageConfig 获取原罪插图独立生图后端/模型（v4.388；空 = 跟随全局
+// 生图设置，即绘梦页当前后端）。
+func (a *App) GetSinImageConfig() map[string]string {
+	return map[string]string{
+		"backend": a.cfg.SinImageBackend,
+		"model":   a.cfg.SinImageModel,
+	}
+}
+
+// SetSinImageConfig 设置原罪插图独立生图后端/模型（空 = 跟随全局）。
+func (a *App) SetSinImageConfig(backend, model string) error {
+	a.cfg.SinImageBackend = backend
+	a.cfg.SinImageModel = model
+	if err := config.Save(config.KeySinImageBackend, backend); err != nil {
+		slog.Warn("保存原罪插图后端失败", "error", err)
+		return err
+	}
+	if err := config.Save(config.KeySinImageModel, model); err != nil {
+		slog.Warn("保存原罪插图模型失败", "error", err)
+		return err
+	}
+	slog.Info("原罪插图生图绑定已设置", "backend", backend, "model", model)
 	return nil
 }
 

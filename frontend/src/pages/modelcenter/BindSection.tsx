@@ -25,7 +25,7 @@ const FEATURE_NOTES: Record<string, string> = {
   chat: '聊天语音：TTS 与 STT 跟随语音管道，绑定的是对话大模型',
   office: '通用 + 方案 + 知识库',
   characterlib: '生成 / 补全',
-  sin: '原罪（闲庭图文故事）：故事文本生成；未绑定跟随全局；角色库角色随故事走，不读办公工具与办公记忆',
+  sin: '原罪（闲庭图文故事）：故事文本生成；未绑定跟随全局；角色库角色随故事走，不读办公工具与办公记忆。插图生图模型在下方「原罪插图」卡独立绑定',
   routine: '纯文本摘要/归一化/抽取/改写等无专业工具覆盖的活，由云端 agent 通过 routine_llm 兜底调用（识图/OCR/检索/转换走各自专业工具）；未绑定默认本地 herdsman',
 }
 
@@ -50,6 +50,10 @@ export function BindSection() {
     portraitDraft,
     portraitModelOptions,
     portraitSaving,
+    sinImageCfg,
+    sinImageDraft,
+    sinImageModelOptions,
+    sinImageSaving,
     llmModels,
     ttsModels,
   } = useModelCenterState()
@@ -64,6 +68,8 @@ export function BindSection() {
     handleSaveChatVoice,
     handleClearChatVoice,
     handleSavePortrait,
+    setSinImageDraft,
+    handleSaveSinImage,
   } = useModelCenterActions()
 
   return (
@@ -296,6 +302,55 @@ export function BindSection() {
             onClick={handleSavePortrait}
           >
             {portraitCfg.backend ? '更新剧照绑定' : '绑定剧照后端'}
+          </Button>
+        </div>
+
+        {/* 原罪插图：独立生图后端/模型（v4.388，镜像剧照卡） */}
+        <div className={`mc-bind-card${sinImageCfg.backend ? ' is-bound' : ' is-soft'}`}>
+          <div className="mc-bind-head">
+            <span className="mc-bind-title"><FireOutlined /> 原罪插图</span>
+            <StatusChip tone={sinImageCfg.backend ? 'accent' : 'neutral'} dot>
+              {sinImageCfg.backend ? `${sinImageCfg.backend} / ${sinImageCfg.model || '跟随全局'}` : '跟随全局'}
+            </StatusChip>
+          </div>
+          <div className="mc-bind-desc">
+            原罪故事的插图/生图使用独立后端与模型（跨引擎可选：xAI / ComfyUI / Herdsman / Ollama / GLM）；留空则跟随全局生图设置
+          </div>
+          <div className="mc-bind-row">
+            <Select
+              size="small"
+              placeholder="后端"
+              value={sinImageDraft.backend || undefined}
+              getPopupContainer={popupContainer}
+              onChange={(v: string) => setSinImageDraft({ backend: v, model: '' })}
+              style={{ flex: 1, minWidth: 0 }}
+              options={[
+                { value: '', label: '跟随全局' },
+                { value: 'xai', label: 'xAI 云端' },
+                { value: 'comfyui', label: 'ComfyUI 本地' },
+                { value: 'herdsman', label: 'Herdsman 本地' },
+                { value: 'ollama', label: 'Ollama 本地' },
+                { value: 'glm', label: 'GLM 云端' },
+              ]}
+            />
+            <Select
+              size="small"
+              placeholder="模型"
+              value={sinImageDraft.model || undefined}
+              getPopupContainer={popupContainer}
+              onChange={(v: string) => setSinImageDraft(p => ({ ...p, model: v }))}
+              style={{ flex: 1, minWidth: 0 }}
+              options={sinImageModelOptions}
+            />
+          </div>
+          <Button
+            size="small"
+            type={sinImageCfg.backend ? 'primary' : 'default'}
+            block
+            loading={sinImageSaving}
+            onClick={handleSaveSinImage}
+          >
+            {sinImageCfg.backend ? '更新插图绑定' : '绑定插图后端'}
           </Button>
         </div>
       </div>

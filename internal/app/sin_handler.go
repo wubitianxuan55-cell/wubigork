@@ -29,6 +29,7 @@ import (
 
 	"github.com/gaea/gaea/internal/ai"
 	"github.com/gaea/gaea/internal/chat"
+	"github.com/gaea/gaea/internal/config"
 	"github.com/gaea/gaea/internal/modelengine"
 )
 
@@ -424,6 +425,19 @@ func (a *App) runSinStream(runID, topicID, userMessage, eng, model, source strin
 
 // ── 插图 ──────────────────────────────────────────────────────
 
+// sinImageBinding 原罪插图生图绑定级联（v4.388）：绑定 > 全局生图设置，
+// 任一项空即各自回退（可只绑模型不换后端，反之亦然）。
+func sinImageBinding(cfg *config.Config) (backend, model string) {
+	backend, model = cfg.SinImageBackend, cfg.SinImageModel
+	if backend == "" {
+		backend = cfg.ImageBackend
+	}
+	if model == "" {
+		model = cfg.ImageModel
+	}
+	return backend, model
+}
+
 // SinIllustrate 为故事中的一处插图标记生成画面，并把产物路径回写到该轮
 // 助手消息的 extra.illustrations[cue]（重开故事直接按映射渲染，不重新生成）。
 //
@@ -438,11 +452,14 @@ func (a *App) SinIllustrate(topicID string, messageID int64, cue string, prompt 
 	}
 	// ── 角色一致性（v4.258）：先做文本锚点（所有后端受益），再按后端能力决定
 	//    是否加 T2 图像参考槽（ComfyUI krea2/z-image-turbo · Herdsman 图生图）。
+	// v4.388 原罪插图独立生图绑定：后端/模型级联（绑定 > 全局生图设置），
+	// 参考槽能力判定用生效值（绑了 Herdsman 就按 Herdsman 判，不再看全局）。
+	effBackend, effModel := sinImageBinding(a.cfg)
 	cast := a.sinCastCharacters(topicID)
 	picked := sinPickRefCharacters(cast, prompt)
 	promptUsed, anchorNames := sinAugmentPromptWithCast(prompt, picked)
-	refModel := a.mediaState.cfg.ImageModel
-	refMode, refMethod, refOK, refReason := sinRefPlan(a.mediaState.cfg.ImageBackend, refModel)
+	refModel := effModel
+	refMode, refMethod, refOK, refReason := sinRefPlan(effBackend, refModel)
 	refs := sinResolveRefImages(picked)
 	switch {
 	case !refOK:
@@ -474,6 +491,17 @@ func (a *App) SinIllustrate(topicID string, messageID int64, cue string, prompt 
 		prompt: strings.TrimSpace(promptUsed), size: size,
 		sourceBoard: sinSourceBoard, saveDir: sinArtDir(),
 		mode: refMode, refImages: refs.images, refMethod: refMethod, denoise: sinRefDenoise,
+		model: effModel, // 生成链内 model 非空即覆盖全局 ImageModel
+	}
+	// 绑定后端 ≠ 全局后端时走独立客户端（不改变绘梦全局后端；相同后端
+	// 复用全局客户端即可，模型差异由 gen.model 承担）。
+	if a.cfg.SinImageBackend != "" && a.cfg.SinImageBackend != a.cfg.ImageBackend {
+		oc, cerr := a.buildImageClientFor(a.cfg.SinImageBackend, "原罪插图")
+		if cerr != nil {
+			return nil, cerr
+		}
+		gen.clientOverride = oc
+		gen.backendOverride = a.cfg.SinImageBackend
 	}
 	if len(refs.names) == 1 {
 		gen.characterID = refs.charID // 单角色锚定：台账按「真正带参考图」的角色回溯
