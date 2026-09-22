@@ -1,6 +1,6 @@
 # 任务进度
 
-> 最后更新: 2026-09-22（v4.386.0 造价库分页绑定：性能池⑥全清——GaeaCostSearchPage 绑定 712+CostLibraryView 首屏 100/加载更多+客户端排序删除+EntryPicker top8；坑=App 层检索测试必须断死语义通道〔herdsman 种子引擎活连接真实库，本轮误触已 backfill 重建 1553/1553〕；前次 v4.385.0 工程健康轮 #2。本表只留**仍开放**项）
+> 最后更新: 2026-09-22（v4.387.0 ComfyUI 未运行自动拉起：原罪插图/绘梦连接被拒自愈——ensureComfyUIRunning 拉起+就绪等待 120s 接线生成链重试分支；环境侧顺手修 ComfyUI standalone-env 一族过期包〔aimdo/kitchen 等按钉版补齐〕并拉起就绪；前次 v4.386.0 造价库分页绑定性能池⑥全清。本表只留**仍开放**项）
 
 ## 当前开放（按域）
 

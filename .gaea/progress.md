@@ -1,3 +1,14 @@
+## 最新发布：v4.387.0（2026-09-22）「ComfyUI 未运行自动拉起：原罪插图/绘梦生成连接被拒自愈」
+
+- **动机**：用户报障「原罪生图失败，插图失败：ComfyUI 提交失败…connectex: No connection could be made because the target machine actively refused it」。
+- **诊断（两层根因）**：①环境层——8188 无监听、ComfyUI 进程不在；手动拉起又暴露 standalone-env 落后于仓库 requirements（comfy-aimdo 0.4.13<0.5.5 缺 storage、comfy-kitchen 0.2.28<0.2.35 缺 int8_attention 等，一族过期，起都起不来）②产品层——gaea 生成链只对「孤儿实例 [Errno 22]」自动恢复，服务压根没跑直接 connectex 原始错误失败；原罪插图页无恢复入口（绘梦页才有 StartComfyUI 按钮）。
+- **环境修复（用户本机随刀处置）**：按 requirements 钉版精确补 comfy-aimdo==0.5.5/kitchen 0.2.35/embedded-docs 0.5.11/frontend-package 1.52.7/workflow-templates 0.11.62（**刻意不 pip install -r**——torch 无钉版行会重解析，ROCm 特制 torch 可能被 PyPI 通用版顶掉）；修后以 gaea 同配方（standalone-env python+--windows-standalone-build，日志同 ~/.gaea/logs/comfyui.log）拉起 ~30s 就绪（ComfyUI 0.36.0，/system_stats 200）——**用户当前会话重试插图即恢复**。
+- **落地（gaea 根修，Go 1 文件+测试，绑定面 712 零变更）**：ensureComfyUIRunning 助手（未运行→StartComfyUI→/system_stats 就绪轮询有界 120s；未配置路径/启动失败/超时=返回 false，**原始错误如实上抛不吞错**）接线 generateImageInternal 重试分支——错误含「连接 ComfyUI 失败」（dial 层文案，服务不可达才出现，服务在但卡死不进防误杀）+backend=comfyui 时拉起成功后重试一次（comfyBooted 闸）；并发竞态由 StartComfyUI 端口占用守卫兜底（「已被占用」转就绪等待）；原罪插图与绘梦共用本链，一处接线双板块受益。
+- **测试**：Go +3（image_boot_test.go 零真进程：连接被拒→假就绪端点→重试恰一次〔计数=2〕/未配置路径不重试且原始错误上抛/ensure 三分支契约——已运行即真·未配置即假·无 main.py 启动失败即假快速返回）；internal/app 全量绿。坑=测试成功路径必设 ImageSaveDir 指临时目录（否则 saveToNovelImages 撞装配态 nil）。
+- **门禁**：全量 ci.ps1 绿 EXIT=0 + 版本漂移闸 OK@4.387.0。
+- **产物**：exe 51163136B SHA256=f7ec8eb3c30260104a180beb81ba6354399aecc6bece6962c70bf9ba85a2e17b（SHA256SUMS-v4.387.0.txt，仅本地；冒烟 /api/health 200 过；桌面副本因用户会话在跑未覆盖——关闭 gaea 后替换，当前会话靠环境修复已可用）；保留策略 5 版留 v4.383~v4.387 删 v4.382.0.exe（SUMS 全保留）。
+- **文档**：releases/v4.387.0.md（含升级说明：首次冷启动生图多等一段属预期）+CHANGELOG/README+releases/README（保留策略行+计数 408→409+34 席插 v4.387 裁 v4.353）+AGENTS 迁 1 插 1（一百零二迁：v4.384 入 archive）+todos。
+
 ## 最新发布：v4.386.0（2026-09-22）「造价库分页绑定：成本条目列表/表格分页 + 检索下拉载荷降载」
 
 - **动机**：用户口径「继续优化迭代」——todos 扫一遍，可自主推进的工程项=前端性能池⑥余项（造价库全表留池；其余多为等真机/等拍板/等上游的等条件型）。成本库「成本条目」每次搜索/筛选全表拉回全量渲染，用户真实库 1553 条时每次 250ms 防抖击键=全量桥载荷+1553 行 DOM。Go 3 文件+前端 10 文件，绑定面 711→712（+1）。

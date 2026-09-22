@@ -280,6 +280,7 @@ func (a *mediaState) generateImageInternal(o imageGenInternal) (map[string]inter
 	images := make([]imageItem, 0, n)
 	var lastErr string
 	comfyRecovered := false
+	comfyBooted := false
 	// S1.5-B play 内容护栏：image_safe_mode 提交前注入提示词安全段（后端
 	// NSFW 开关位：ai 图片后端无 NSFW 透传字段，按后端能力缺省关，无法
 	// 透传时仅注入 prompt 安全段）。未配置 = 零值 = 提示词原样。
@@ -331,6 +332,17 @@ func (a *mediaState) generateImageInternal(o imageGenInternal) (map[string]inter
 			a.recoverComfyUI()
 			comfyRecovered = true
 			resp, err = a.client.GenerateImage(genCtx, imgReq)
+		}
+		// ComfyUI 压根没跑（dial 连接被拒）且配置了安装路径：自动拉起+就绪
+		// 等待后重试一次（本轮一次）。原罪插图与绘梦生成共用本链，此前
+		// 服务未运行时直接以 connectex 原始错误失败，用户在原罪页无任何
+		// 恢复入口（绘梦页才有启动按钮）。
+		if err != nil && !comfyBooted && a.cfg.ImageBackend == "comfyui" && strings.Contains(err.Error(), "连接 ComfyUI 失败") {
+			comfyBooted = true
+			if a.ensureComfyUIRunning() {
+				slog.Info("ComfyUI 未运行，已自动拉起，重试生成")
+				resp, err = a.client.GenerateImage(genCtx, imgReq)
+			}
 		}
 		elapsed := time.Since(start).Seconds()
 
@@ -1088,6 +1100,37 @@ func (a *mediaState) recoverComfyUI() {
 		}
 	}
 	slog.Warn("ComfyUI 自动恢复超时")
+}
+
+// ensureComfyUIRunning ComfyUI 未运行时拉起并等待就绪（v4.387）。有界等待
+// 120s（冷启动 Python+节点注册可能 30~90s）；未配置安装路径/启动失败/等待
+// 超时一律返回 false，调用方保留原错误口径失败——不吞错不换错。就绪判定
+// 与 WarmComfyUI/isComfyUIRunning 同口径（/system_stats 200）。并发拉起竞
+// 态由 StartComfyUI 的端口占用守卫兜底：第二个调用方拿到「端口已被占用」
+// 后转入就绪等待（第一个实例正在起来）而非直接放弃。
+func (a *mediaState) ensureComfyUIRunning() bool {
+	if a.isComfyUIRunning() {
+		return true
+	}
+	if strings.TrimSpace(a.cfg.ComfyUIPath) == "" {
+		slog.Warn("ComfyUI 未运行且未配置安装路径，放弃自动拉起")
+		return false
+	}
+	if err := a.StartComfyUI(); err != nil {
+		if !strings.Contains(err.Error(), "已被") && !strings.Contains(err.Error(), "已在运行") {
+			slog.Warn("ComfyUI 自动拉起失败", "error", err)
+			return false
+		}
+		// 端口已被占用（并发拉起/实例正在启动）或刚好已在运行：转入就绪等待。
+	}
+	for i := 0; i < 40; i++ {
+		time.Sleep(3 * time.Second)
+		if a.isComfyUIRunning() {
+			return true
+		}
+	}
+	slog.Warn("ComfyUI 自动拉起后等待就绪超时（120s）")
+	return false
 }
 
 // findProcessByPort 查找监听指定端口的进程 PID（Windows netstat -ano）。
