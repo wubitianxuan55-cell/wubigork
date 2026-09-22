@@ -1,9 +1,13 @@
 package app
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"image"
+	"image/color"
+	"image/png"
 	"os"
 	"path/filepath"
 	"strings"
@@ -518,4 +522,74 @@ func TestGenerateMedia_MaskGateAndPassthrough(t *testing.T) {
 	if fake.lastReq == nil || fake.lastReq.Mask != "data:image/png;base64,BBBB" {
 		t.Fatalf("Mask 应透传到后端请求: %+v", fake.lastReq)
 	}
+}
+
+// TestGenerateMedia_OutpaintConvert 扩图（阶段二刀 C）：转换为 edit 请求
+// （合成画布+蒙版经 fake 捕获断言尺寸）；mode 回显 outpaint；用户 mask 拒绝。
+func TestGenerateMedia_OutpaintConvert(t *testing.T) {
+	dir := t.TempDir()
+	fake := &fakeImageBackend{result: &ai.ImageGenerationResponse{
+		Data: []ai.ImageData{{B64JSON: pngDataURLApp("fake-outpaint"), Kind: "image"}},
+	}}
+	c := &ai.Client{}
+	c.SetImageBackend(fake, "openai")
+	ms := &mediaState{core: &core{cfg: &config.Config{ImageBackend: "openai", ImageSaveDir: dir}, client: c}}
+
+	// 缺原图
+	res, _ := ms.GenerateMedia(`{"prompt":"扩展背景","mode":"outpaint","expand":{"left":50},"count":1}`)
+	if msg, _ := res["error"].(string); msg != "扩图需要原图" {
+		t.Fatalf("缺原图应拒绝，得到: %v", res["error"])
+	}
+	// 用户 mask 与扩图蒙版互斥
+	res, _ = ms.GenerateMedia(`{"prompt":"扩展背景","mode":"outpaint","initImage":"data:image/png;base64,AAAA","mask":"data:image/png;base64,BBBB","expand":{"left":50},"count":1}`)
+	if msg, _ := res["error"].(string); msg != "扩图不需要蒙版（扩展区由扩展量决定）" {
+		t.Fatalf("扩图+用户蒙版应拒绝，得到: %v", res["error"])
+	}
+
+	// 真图（2×1 红）+ 左右各 100 → 画布 6×1；请求应为 edit + 合成图 + 合成蒙版
+	src := solidOutpaintSrc(t, 2, 1)
+	res, err := ms.GenerateMedia(`{"prompt":"扩展背景","mode":"outpaint","initImage":"` + src + `","expand":{"left":100,"right":100},"count":1}`)
+	if err != nil {
+		t.Fatalf("GenerateMedia: %v", err)
+	}
+	if msg, _ := res["error"].(string); msg != "" {
+		t.Fatalf("扩图应出结果，得到: %s", msg)
+	}
+	if res["mode"] != "outpaint" {
+		t.Fatalf("mode 应回显 outpaint: %v", res["mode"])
+	}
+	if fake.lastReq == nil || fake.lastReq.Mode != "edit" {
+		t.Fatalf("请求应转换为 edit: %+v", fake.lastReq)
+	}
+	if fake.lastReq.Mask == "" {
+		t.Fatal("请求应带合成蒙版")
+	}
+	payload := strings.TrimPrefix(fake.lastReq.InitImage, "data:image/png;base64,")
+	imgBytes, err := base64.StdEncoding.DecodeString(payload)
+	if err != nil {
+		t.Fatalf("合成画布应可解码: %v", err)
+	}
+	cfgImg, _, err := image.Decode(bytes.NewReader(imgBytes))
+	if err != nil {
+		t.Fatalf("合成画布 decode: %v", err)
+	}
+	if cfgImg.Bounds().Dx() != 6 || cfgImg.Bounds().Dy() != 1 {
+		t.Fatalf("合成画布应 6x1: %v", cfgImg.Bounds())
+	}
+}
+
+// solidOutpaintSrc 纯色 PNG data URL（app 层扩图测试夹具）。
+func solidOutpaintSrc(t *testing.T, w, h int) string {
+	t.Helper()
+	img := image.NewRGBA(image.Rect(0, 0, w, h))
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			img.Set(x, y, color.RGBA{R: 255, A: 255})
+		}
+	}
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, img); err != nil {
+		t.Fatalf("png.Encode: %v", err)
+	}
+	return "data:image/png;base64," + base64.StdEncoding.EncodeToString(buf.Bytes())
 }

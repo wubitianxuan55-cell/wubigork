@@ -126,4 +126,26 @@ describe('InstructionEditModal 指令编辑（阶段一刀 C）', () => {
     const params = (mocks.generateMedia as Mock).mock.calls[0][0]
     expect(params.mask).toBeUndefined()
   })
+
+  it('扩图模式（阶段二刀 C）：零扩展 warning；预设后 params 带 mode=outpaint+expand', async () => {
+    mocks.generateMedia.mockResolvedValue({ results: [EDITED], mode: 'outpaint' })
+    open()
+    fireEvent.change(screen.getByTestId('instruct-edit-input'), { target: { value: '补全背景' } })
+    // 切扩图（第三个 Radio）；预览框与面板在位
+    fireEvent.click(screen.getByTestId('instruct-edit-scope').querySelectorAll('label')[2])
+    expect(screen.getByTestId('outpaint-panel')).toBeTruthy()
+    expect(screen.getByTestId('outpaint-preview')).toBeTruthy()
+    // 零扩展：不触发生成
+    fireEvent.click(screen.getByTestId('instruct-edit-run'))
+    expect(mocks.generateMedia).not.toHaveBeenCalled()
+    // 预设「右 50%」→ 生成参数带 expand
+    fireEvent.click(screen.getByTestId('outpaint-preset-right'))
+    expect(screen.getByTestId('outpaint-total').textContent).toContain('扩展 50%')
+    fireEvent.click(screen.getByTestId('instruct-edit-run'))
+    await waitFor(() => expect(mocks.generateMedia).toHaveBeenCalledTimes(1))
+    const params = (mocks.generateMedia as Mock).mock.calls[0][0]
+    expect(params.mode).toBe('outpaint')
+    expect(params.expand).toEqual({ left: 0, top: 0, right: 50, bottom: 0 })
+    expect(params.mask).toBeUndefined()
+  })
 })

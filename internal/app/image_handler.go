@@ -416,19 +416,20 @@ func (a *mediaState) generateImageInternal(o imageGenInternal) (map[string]inter
 
 // mediaGenParams 绘梦多模式生成参数（GenerateMedia 入参，JSON 字符串）
 type mediaGenParams struct {
-	Prompt    string  `json:"prompt"`
-	Negative  string  `json:"negative"`
-	Size      string  `json:"size"`
-	Model     string  `json:"model"`
-	Seed      int     `json:"seed"`
-	Lora      string  `json:"lora"`
-	Count     int     `json:"count"`
-	Mode      string  `json:"mode"`      // txt2img | img2img | edit | t2v
-	InitImage string  `json:"initImage"` // 图生图参考图 / 指令编辑原图（data URL）
-	Mask      string  `json:"mask"`      // 蒙版局部重绘（阶段二刀 B）：灰度 PNG data URL，白=重绘区；仅 edit 消费
-	Denoise   float64 `json:"denoise"`   // 重绘幅度 0-1
-	Frames    int     `json:"frames"`    // 视频帧数
-	FPS       int     `json:"fps"`       // 视频帧率
+	Prompt    string             `json:"prompt"`
+	Negative  string             `json:"negative"`
+	Size      string             `json:"size"`
+	Model     string             `json:"model"`
+	Seed      int                `json:"seed"`
+	Lora      string             `json:"lora"`
+	Count     int                `json:"count"`
+	Mode      string             `json:"mode"`             // txt2img | img2img | edit | outpaint | t2v
+	InitImage string             `json:"initImage"`        // 图生图参考图 / 指令编辑原图 / 扩图原图（data URL）
+	Mask      string             `json:"mask"`             // 蒙版局部重绘（阶段二刀 B）：灰度 PNG data URL，白=重绘区；仅 edit 消费
+	Expand    *ai.OutpaintExpand `json:"expand,omitempty"` // 扩图四边百分比（阶段二刀 C）；仅 mode=outpaint 消费
+	Denoise   float64            `json:"denoise"`          // 重绘幅度 0-1
+	Frames    int                `json:"frames"`           // 视频帧数
+	FPS       int                `json:"fps"`              // 视频帧率
 	// T2 角色参考槽：角色 ID + 参考图（data URL；首张作图生图种子）+ 一致性方法。
 	CharacterID string   `json:"characterId"`
 	RefImages   []string `json:"refImages"`
@@ -467,6 +468,27 @@ func (a *mediaState) GenerateMedia(paramsJSON string) (map[string]interface{}, e
 	// 报错（OpenAI 兼容=edits 端点；GLM/ComfyUI 拒绝文案见 internal/ai）。
 	if mode == "edit" && strings.TrimSpace(p.InitImage) == "" {
 		return map[string]interface{}{"error": "指令编辑需要原图"}, nil
+	}
+	// 扩图（阶段二刀 C）：合成画布+蒙版后转 edit 请求（复用 v4.393 edit+mask
+	// 双后端通道）；用户 mask 与扩图蒙版是两条通道不混用（fail-closed，先于通用
+	// mask 门给出定向文案）。
+	var outpaintCanvas, outpaintMask string
+	if mode == "outpaint" {
+		if strings.TrimSpace(p.InitImage) == "" {
+			return map[string]interface{}{"error": "扩图需要原图"}, nil
+		}
+		if p.Mask != "" {
+			return map[string]interface{}{"error": "扩图不需要蒙版（扩展区由扩展量决定）"}, nil
+		}
+		var expand ai.OutpaintExpand
+		if p.Expand != nil {
+			expand = *p.Expand
+		}
+		canvas, mask, err := ai.ComposeOutpaint(p.InitImage, expand)
+		if err != nil {
+			return map[string]interface{}{"error": err.Error()}, nil
+		}
+		outpaintCanvas, outpaintMask = canvas, mask
 	}
 	// 蒙版局部重绘（阶段二刀 B）：fail-closed——蒙版仅与指令编辑组合；
 	// img2img+蒙版（纯局部重绘无指令语义）留观察池，不静默忽略。
@@ -511,9 +533,22 @@ func (a *mediaState) GenerateMedia(paramsJSON string) (map[string]interface{}, e
 		}
 		// 指令编辑本地档（阶段二刀 A）：ComfyUI 编辑工作流固定走 Qwen-Image-Edit 族
 		// ——请求 model 字段是生图模型名（krea2 等），不代表编辑引擎；元数据/台账
-		// 如实记 qwen-image-edit（ai 层 edit 分支本就不消费该字段）。
-		if mode == "edit" && a.cfg.ImageBackend == "comfyui" {
-			imgModel = "qwen-image-edit"
+		// 如实记 qwen-image-edit（ai 层 edit 分支本就不消费该字段）。扩图（刀 C）
+		// 转发同一编辑引擎，同口径。
+		if mode == "edit" || mode == "outpaint" {
+			if a.cfg.ImageBackend == "comfyui" {
+				imgModel = "qwen-image-edit"
+			}
+		}
+		// 扩图转换（刀 C）：合成画布+蒙版后按 edit 请求下发——ai 层 fail-closed
+		// （mask 仅 edit）天然满足；引擎层零改动。
+		reqMode := mode
+		reqInit := p.InitImage
+		reqMask := p.Mask
+		if mode == "outpaint" {
+			reqMode = "edit"
+			reqInit = outpaintCanvas
+			reqMask = outpaintMask
 		}
 		imgReq := &ai.ImageGenerationRequest{
 			Model:     imgModel,
@@ -523,9 +558,9 @@ func (a *mediaState) GenerateMedia(paramsJSON string) (map[string]interface{}, e
 			Size:      size,
 			Seed:      genSeed,
 			Lora:      p.Lora,
-			Mode:      mode,
-			InitImage: p.InitImage,
-			Mask:      p.Mask,
+			Mode:      reqMode,
+			InitImage: reqInit,
+			Mask:      reqMask,
 			Denoise:   p.Denoise,
 			Frames:    p.Frames,
 			FPS:       p.FPS,
@@ -538,6 +573,10 @@ func (a *mediaState) GenerateMedia(paramsJSON string) (map[string]interface{}, e
 		// xAI / Ollama 后端不接受 size 参数（xAI 返回 400）；herdsman 文档明确支持
 		// size；GLM 官方 schema 同样接受 size（glm-image 默认 1280x1280）
 		if a.cfg.ImageBackend != "comfyui" && a.cfg.ImageBackend != "herdsman" && a.cfg.ImageBackend != "glm" {
+			imgReq.Size = ""
+		}
+		// 扩图（刀 C）：画布尺寸即输出尺寸——size 会把结果强制重设，清空。
+		if mode == "outpaint" {
 			imgReq.Size = ""
 		}
 		start := time.Now()

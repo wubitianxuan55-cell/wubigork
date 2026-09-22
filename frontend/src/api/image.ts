@@ -402,10 +402,12 @@ export interface MediaParams {
   seed: number
   lora: string
   count: number
-  mode: 'txt2img' | 'img2img' | 'edit' | 't2v'
+  mode: 'txt2img' | 'img2img' | 'edit' | 'outpaint' | 't2v'
   initImage?: string
   /** 蒙版局部重绘（阶段二刀 B）：灰度 PNG data URL，白=重绘区；仅 mode='edit' 消费 */
   mask?: string
+  /** 扩图（阶段二刀 C）：四边扩展百分比（0-200，相对原图对应边长）；仅 mode='outpaint' */
+  expand?: { left: number; top: number; right: number; bottom: number }
   denoise?: number
   frames?: number
   fps?: number
