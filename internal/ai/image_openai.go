@@ -7,6 +7,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/gaea/gaea/internal/netclient"
+	"image"
+	"image/color"
+	"image/png"
 	"io"
 	"log/slog"
 	"mime/multipart"
@@ -122,6 +125,21 @@ func (b *OpenAIImageBackend) editImage(ctx context.Context, req *ImageGeneration
 	}
 	if _, err := fw.Write(imgBytes); err != nil {
 		return nil, fmt.Errorf("构造编辑请求失败: %w", err)
+	}
+	// 蒙版局部重绘（阶段二刀 B）：gaea 统一灰度契约（白=重绘）→ OpenAI 口径
+	// （透明=编辑区）转换后以 mask 字段附加；转换失败诚实报错不静默丢弃。
+	if req.Mask != "" {
+		maskBytes, err := grayMaskToOpenAIMask(req.Mask)
+		if err != nil {
+			return nil, fmt.Errorf("蒙版转换失败: %w", err)
+		}
+		mw, err := w.CreateFormFile("mask", "mask.png")
+		if err != nil {
+			return nil, fmt.Errorf("构造编辑请求失败: %w", err)
+		}
+		if _, err := mw.Write(maskBytes); err != nil {
+			return nil, fmt.Errorf("构造编辑请求失败: %w", err)
+		}
 	}
 	if err := w.Close(); err != nil {
 		return nil, fmt.Errorf("构造编辑请求失败: %w", err)
@@ -279,4 +297,37 @@ func fetchToDataURL(ctx context.Context, client *http.Client, rawURL, bearer str
 		mimeType = http.DetectContentType(data)
 	}
 	return "data:" + mimeType + ";base64," + base64.StdEncoding.EncodeToString(data), nil
+}
+
+// grayMaskToOpenAIMask 蒙版口径转换（阶段二刀 B）：gaea 统一灰度契约
+// （白 255=重绘区、黑 0=保留区）→ OpenAI /images/edits 的 mask 语义
+// （完全透明区=编辑区）。红通道即灰度（>127 判重绘），输出 RGBA PNG：
+// 重绘区 alpha=0、保留区不透明黑。尺寸与输入一致（OpenAI 要求 mask 与
+// image 同尺寸——前端同一画布坐标产出，构造性成立）。
+func grayMaskToOpenAIMask(maskDataURL string) ([]byte, error) {
+	raw, _, err := decodeDataURLBytes(maskDataURL)
+	if err != nil {
+		return nil, fmt.Errorf("蒙版须为 data URL: %w", err)
+	}
+	img, _, err := image.Decode(bytes.NewReader(raw))
+	if err != nil {
+		return nil, fmt.Errorf("蒙版 PNG 解析失败: %w", err)
+	}
+	b := img.Bounds()
+	out := image.NewRGBA(image.Rect(0, 0, b.Dx(), b.Dy()))
+	for y := 0; y < b.Dy(); y++ {
+		for x := 0; x < b.Dx(); x++ {
+			r, _, _, _ := img.At(b.Min.X+x, b.Min.Y+y).RGBA()
+			if uint8(r>>8) > 127 {
+				out.SetRGBA(x, y, color.RGBA{R: 0, G: 0, B: 0, A: 0}) // 重绘区 → 透明
+			} else {
+				out.SetRGBA(x, y, color.RGBA{R: 0, G: 0, B: 0, A: 255}) // 保留区 → 不透明
+			}
+		}
+	}
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, out); err != nil {
+		return nil, fmt.Errorf("蒙版 PNG 编码失败: %w", err)
+	}
+	return buf.Bytes(), nil
 }

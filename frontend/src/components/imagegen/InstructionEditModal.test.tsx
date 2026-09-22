@@ -16,6 +16,17 @@ vi.mock('../../api/image', async (importOriginal) => {
   }
 })
 
+// 蒙版编辑器桩（阶段二刀 B）：真组件在 jsdom 无 2d ctx 导不出蒙版——
+// 桩按钮直接回调 onMaskChange 模拟「已涂抹」。
+vi.mock('./MaskBrushEditor', () => ({
+  default: ({ onMaskChange }: { onMaskChange: (m: string | null) => void }) => (
+    <div data-testid="mask-editor-stub">
+      <button data-testid="stub-set-mask" onClick={() => onMaskChange('data:image/png;base64,MOCKMASK')}>set</button>
+      <button data-testid="stub-clear-mask" onClick={() => onMaskChange(null)}>clear</button>
+    </div>
+  ),
+}))
+
 import InstructionEditModal from './InstructionEditModal'
 import type { GenResult } from './types'
 
@@ -86,5 +97,33 @@ describe('InstructionEditModal 指令编辑（阶段一刀 C）', () => {
     expect(hint).toContain('Qwen-Image-Edit 2511')
     expect(hint).toContain('缺失时错误会列出所需文件')
     expect(hint).toContain('GLM')
+  })
+
+  it('局部模式（阶段二刀 B）：未涂抹 warning 不触发生成；涂后 mask 透传 params', async () => {
+    mocks.generateMedia.mockResolvedValue({ results: [EDITED], mode: 'edit' })
+    open()
+    fireEvent.change(screen.getByTestId('instruct-edit-input'), { target: { value: '只改外套' } })
+    // 切局部：出现蒙版编辑器；未涂抹 → 不触发生成
+    fireEvent.click(screen.getByTestId('instruct-edit-scope').querySelectorAll('label')[1])
+    expect(screen.getByTestId('mask-editor-stub')).toBeTruthy()
+    fireEvent.click(screen.getByTestId('instruct-edit-run'))
+    expect(mocks.generateMedia).not.toHaveBeenCalled()
+    // 涂抹后生成：params.mask 透传
+    fireEvent.click(screen.getByTestId('stub-set-mask'))
+    fireEvent.click(screen.getByTestId('instruct-edit-run'))
+    await waitFor(() => expect(mocks.generateMedia).toHaveBeenCalledTimes(1))
+    const params = (mocks.generateMedia as Mock).mock.calls[0][0]
+    expect(params.mode).toBe('edit')
+    expect(params.mask).toBe('data:image/png;base64,MOCKMASK')
+  })
+
+  it('全图模式（默认）：params 不带 mask 键', async () => {
+    mocks.generateMedia.mockResolvedValue({ results: [EDITED], mode: 'edit' })
+    open()
+    fireEvent.change(screen.getByTestId('instruct-edit-input'), { target: { value: '全图改' } })
+    fireEvent.click(screen.getByTestId('instruct-edit-run'))
+    await waitFor(() => expect(mocks.generateMedia).toHaveBeenCalledTimes(1))
+    const params = (mocks.generateMedia as Mock).mock.calls[0][0]
+    expect(params.mask).toBeUndefined()
   })
 })

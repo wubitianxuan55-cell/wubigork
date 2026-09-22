@@ -404,6 +404,8 @@ export interface MediaParams {
   count: number
   mode: 'txt2img' | 'img2img' | 'edit' | 't2v'
   initImage?: string
+  /** 蒙版局部重绘（阶段二刀 B）：灰度 PNG data URL，白=重绘区；仅 mode='edit' 消费 */
+  mask?: string
   denoise?: number
   frames?: number
   fps?: number

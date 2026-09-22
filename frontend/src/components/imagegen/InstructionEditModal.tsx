@@ -1,13 +1,16 @@
 // InstructionEditModal.tsx — 指令编辑弹窗（绘梦阶段一刀 C，规格
 // 进度计划/gaea-instruct-edit-20260917.md；阶段二刀 A 补 ComfyUI 本地档，规格
-// 进度计划/gaea-comfyui-edit-20260922.md）：原图 + 人话指令 → 局部语义编辑
-// （云端 OpenAI 兼容 /images/edits；本地 ComfyUI Qwen-Image-Edit 2511 官方工作流）。
-// 与既有「改图」（=把结果填回图生图整幅重绘）互补。对照区原图|新图并排；
-// 「用到画布」把编辑结果并入 results/history（后端已落盘+登记台账，走既有保存/溯源链）。
+// 进度计划/gaea-comfyui-edit-20260922.md；阶段二刀 B 补蒙版局部重绘，规格
+// 进度计划/gaea-mask-inpaint-20260923.md）：原图 + 人话指令 → 语义改图
+// （云端 OpenAI 兼容 /images/edits；本地 ComfyUI Qwen-Image-Edit 2511 官方工作流）；
+// 范围可切「全图 / 局部（涂选要改的区域）」。与既有「改图」（=把结果填回图生图
+// 整幅重绘）互补。对照区原图|新图并排；「用到画布」把编辑结果并入 results/
+// history（后端已落盘+登记台账，走既有保存/溯源链）。
 import { softTextStyle } from '../../utils/uiStyles'
 import React, { useState } from 'react'
-import { Alert, Button, Input, Modal, Spin, Typography, message } from 'antd'
+import { Alert, Button, Input, Modal, Radio, Spin, Typography, message } from 'antd'
 import { generateMedia } from '../../api/image'
+import MaskBrushEditor from './MaskBrushEditor'
 import type { GenResult } from './types'
 
 
@@ -23,10 +26,16 @@ export default function InstructionEditModal({ open, source, onClose, onApply }:
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [edited, setEdited] = useState<GenResult | null>(null)
+  const [scope, setScope] = useState<'full' | 'partial'>('full')
+  const [mask, setMask] = useState<string | null>(null)
 
   const run = async () => {
     if (!source || !instruction.trim()) {
       message.warning('请输入编辑指令（如：把外套改成红色）')
+      return
+    }
+    if (scope === 'partial' && !mask) {
+      message.warning('局部模式请先在图上涂抹要修改的区域')
       return
     }
     setBusy(true)
@@ -42,6 +51,7 @@ export default function InstructionEditModal({ open, source, onClose, onApply }:
         count: 1,
         mode: 'edit',
         initImage: source.image,
+        mask: scope === 'partial' ? (mask ?? undefined) : undefined,
       })
       if (res.error) {
         setError(res.error)
@@ -65,6 +75,8 @@ export default function InstructionEditModal({ open, source, onClose, onApply }:
     setEdited(null)
     setError('')
     setBusy(false)
+    setScope('full')
+    setMask(null)
   }
 
   const imgBox: React.CSSProperties = {
@@ -98,6 +110,19 @@ export default function InstructionEditModal({ open, source, onClose, onApply }:
               placeholder="例如：把外套改成红色；移除背景里的路人；让她看向镜头"
               onChange={e => setInstruction(e.target.value)} />
           </div>
+          {/* 范围切换（阶段二刀 B）：全图 / 局部（蒙版涂选） */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <Typography.Text type="secondary" style={{ fontSize: 12 }}>范围</Typography.Text>
+            <Radio.Group
+              size="small" value={scope} data-testid="instruct-edit-scope"
+              onChange={e => setScope(e.target.value as 'full' | 'partial')}>
+              <Radio.Button value="full">全图</Radio.Button>
+              <Radio.Button value="partial">局部（涂选）</Radio.Button>
+            </Radio.Group>
+          </div>
+          {scope === 'partial' && (
+            <MaskBrushEditor src={source.image} onMaskChange={setMask} />
+          )}
           {/* 对照区：原图 | 新图 */}
           <div style={{ display: 'flex', gap: 10, alignItems: 'stretch', minHeight: 220 }}>
             <div style={imgBox}>
@@ -121,7 +146,7 @@ export default function InstructionEditModal({ open, source, onClose, onApply }:
           )}
           {error && <Alert type="error" showIcon data-testid="instruct-edit-error" message={error} />}
           <Typography.Text type="secondary" style={{ fontSize: 12 }} data-testid="instruct-edit-hint">
-            云端走 OpenAI 兼容引擎的 /images/edits（如 Qwen-Image-Edit 系）；本地 ComfyUI 走 Qwen-Image-Edit 2511 官方工作流（需在 ComfyUI models 目录放置模型文件，缺失时错误会列出所需文件与下载地址）；GLM 档暂不支持（会如实报错）。
+            云端走 OpenAI 兼容引擎的 /images/edits（如 Qwen-Image-Edit 系）；本地 ComfyUI 走 Qwen-Image-Edit 2511 官方工作流（需在 ComfyUI models 目录放置模型文件，缺失时错误会列出所需文件与下载地址）；GLM 档暂不支持（会如实报错）。局部=只重绘涂红区域。
           </Typography.Text>
         </div>
       )}

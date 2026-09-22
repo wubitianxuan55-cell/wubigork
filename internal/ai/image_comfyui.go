@@ -7,8 +7,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/gaea/gaea/internal/netclient"
+	"image"
 	"io"
 	"log/slog"
+	"math"
 	"math/rand"
 	"mime/multipart"
 	"net/http"
@@ -221,7 +223,10 @@ func (b *ComfyUIBackend) GenerateImage(ctx context.Context, req *ImageGeneration
 	}
 	// 指令编辑本地档（阶段二刀 A）：Qwen-Image-Edit 2511 官方模板蒸馏——
 	// 原图上 → FluxKontextImageScale 重标 → 语义编辑（非图生图整幅重绘）。
-	var editImageName string
+	// 阶段二刀 B：Mask 非空时走蒙版局部重绘（白=重绘区）——SetLatentNoiseMask
+	// 限制重采样区域，蒙版与缩放图同尺寸对齐（kontextScaleSize）。
+	var editImageName, editMaskName string
+	editTargetW, editTargetH := 0, 0
 	if mode == "edit" {
 		if req.InitImage == "" {
 			return nil, fmt.Errorf("指令编辑需要原图（data URL）")
@@ -231,6 +236,22 @@ func (b *ComfyUIBackend) GenerateImage(ctx context.Context, req *ImageGeneration
 			return nil, err
 		}
 		editImageName = name
+		if req.Mask != "" {
+			imgBytes, _, err := decodeDataURLBytes(req.InitImage)
+			if err != nil {
+				return nil, fmt.Errorf("蒙版编辑需要可解析的原图尺寸: %w", err)
+			}
+			cfg, _, err := image.DecodeConfig(bytes.NewReader(imgBytes))
+			if err != nil || cfg.Width <= 0 || cfg.Height <= 0 {
+				return nil, fmt.Errorf("蒙版编辑需要可解析的原图尺寸（decode 失败）")
+			}
+			editTargetW, editTargetH = kontextScaleSize(cfg.Width, cfg.Height)
+			maskName, err := b.uploadImage(ctx, req.Mask)
+			if err != nil {
+				return nil, err
+			}
+			editMaskName = maskName
+		}
 	}
 	// T2 参考槽 v0：文生图带参考图且方法为 img2img 近似时转图生图（krea2/z-image）；
 	// ipadapter/pulid 未实现 → 诚实报错，不静默忽略参考图。
@@ -262,7 +283,7 @@ func (b *ComfyUIBackend) GenerateImage(ctx context.Context, req *ImageGeneration
 	case "edit":
 		// 指令编辑本地档：单编辑族 Qwen-Image-Edit 2511（req.Model 是生图模型名，
 		// 不代表编辑引擎——app 层已把元数据如实改写为 qwen-image-edit）。
-		workflow = b.buildQwenImageEditWorkflow(req.Prompt, seed, editImageName)
+		workflow = b.buildQwenImageEditWorkflow(req.Prompt, seed, editImageName, editMaskName, editTargetW, editTargetH)
 	case "img2img":
 		// 图生图：上传参考图 → LoadImage + VAEEncode → 低 denoise 重绘
 		if req.InitImage == "" {
@@ -621,10 +642,19 @@ const (
 //	UNETLoader → ModelSamplingAuraFlow(shift 3.1) → CFGNorm(1) → KSampler
 //	KSampler(steps 20 / cfg 4.0 / euler / simple / denoise 1.0) → VAEDecode → SaveImage
 //
+// 蒙版局部重绘（阶段二刀 B，maskName 非空时）：
+//
+//	LoadImage(mask 灰度：白=重绘) → ImageScale(lanczos, targetW/H) → ImageToMask(red)
+//	  → SetLatentNoiseMask(VAEEncode) → KSampler.latent_image
+//
+//	蒙版与缩放图同尺寸（targetW/H=kontextScaleSize(原图)，与 FluxKontextImageScale
+//	的目标一致）——SetLatentNoiseMask 只做裁剪不 resize，尺寸不对齐会错位；
+//	TextEncode 的 image1 保持全图（语义参考需全图上下文，重绘区域由 noise_mask 限制）。
+//
 // 官方 Note「Comfy」列参数（20 步 CFG 4.0）；denoise 恒 1.0=语义编辑非整幅重绘；
 // FluxKontextMultiReferenceLatentMethod 官方明示「用 Comfy 官方权重不需要」不接；
 // Lightning 4 步 LoRA 为可选加速件，v1 不接（观察池）。
-func (b *ComfyUIBackend) buildQwenImageEditWorkflow(prompt string, seed int, imageName string) map[string]interface{} {
+func (b *ComfyUIBackend) buildQwenImageEditWorkflow(prompt string, seed int, imageName, maskName string, maskTargetW, maskTargetH int) map[string]interface{} {
 	wf := map[string]interface{}{
 		"4":   map[string]interface{}{"class_type": "UNETLoader", "inputs": map[string]interface{}{"unet_name": qwenEditUNET, "weight_dtype": "default"}},
 		"5":   map[string]interface{}{"class_type": "CLIPLoader", "inputs": map[string]interface{}{"clip_name": qwenEditCLIP, "type": "qwen_image", "device": "default"}},
@@ -638,13 +668,52 @@ func (b *ComfyUIBackend) buildQwenImageEditWorkflow(prompt string, seed int, ima
 		"8":   map[string]interface{}{"class_type": "TextEncodeQwenImageEditPlus", "inputs": map[string]interface{}{"clip": []interface{}{"5", 0}, "vae": []interface{}{"6", 0}, "image1": []interface{}{"160", 0}, "prompt": ""}},
 		"15":  map[string]interface{}{"class_type": "VAEEncode", "inputs": map[string]interface{}{"pixels": []interface{}{"160", 0}, "vae": []interface{}{"6", 0}}},
 	}
+	// 蒙版链：latent 源改接 SetLatentNoiseMask 输出（"163"），无蒙版时直连 VAEEncode
+	latentNode := []interface{}{"15", 0}
+	if maskName != "" {
+		wf["2"] = map[string]interface{}{"class_type": "LoadImage", "inputs": map[string]interface{}{"image": maskName}}
+		wf["161"] = map[string]interface{}{"class_type": "ImageScale", "inputs": map[string]interface{}{
+			"image": []interface{}{"2", 0}, "upscale_method": "lanczos",
+			"width": maskTargetW, "height": maskTargetH, "crop": "disabled",
+		}}
+		wf["162"] = map[string]interface{}{"class_type": "ImageToMask", "inputs": map[string]interface{}{"image": []interface{}{"161", 0}, "channel": "red"}}
+		wf["163"] = map[string]interface{}{"class_type": "SetLatentNoiseMask", "inputs": map[string]interface{}{"samples": []interface{}{"15", 0}, "mask": []interface{}{"162", 0}}}
+		latentNode = []interface{}{"163", 0}
+	}
 	wf["10"] = map[string]interface{}{"class_type": "KSampler", "inputs": map[string]interface{}{
 		"seed": seed, "steps": 20, "cfg": 4.0, "sampler_name": "euler", "scheduler": "simple", "denoise": 1.0,
-		"model": []interface{}{"152", 0}, "positive": []interface{}{"7", 0}, "negative": []interface{}{"8", 0}, "latent_image": []interface{}{"15", 0},
+		"model": []interface{}{"152", 0}, "positive": []interface{}{"7", 0}, "negative": []interface{}{"8", 0}, "latent_image": latentNode,
 	}}
 	wf["11"] = map[string]interface{}{"class_type": "VAEDecode", "inputs": map[string]interface{}{"samples": []interface{}{"10", 0}, "vae": []interface{}{"6", 0}}}
 	wf["12"] = map[string]interface{}{"class_type": "SaveImage", "inputs": map[string]interface{}{"filename_prefix": "gaea", "images": []interface{}{"11", 0}}}
 	return wf
+}
+
+// preferredKontextResolutions ComfyUI FluxKontextImageScale 的分辨率预设表
+// （本机 ComfyUI 0.36 comfy_extras/nodes_flux.py:105 实读，17 档）。
+var preferredKontextResolutions = [][2]int{
+	{672, 1568}, {688, 1504}, {720, 1456}, {752, 1392}, {800, 1328},
+	{832, 1248}, {880, 1184}, {944, 1104}, {1024, 1024}, {1104, 944},
+	{1184, 880}, {1248, 832}, {1328, 800}, {1392, 752}, {1456, 720},
+	{1504, 688}, {1568, 672},
+}
+
+// kontextScaleSize 复刻 FluxKontextImageScale 的尺寸选择：宽高比最接近的
+// 预设档（平手取先出现者，与 Python min 语义一致）；退化输入兜底 1024²。
+// 蒙版链用它把灰度蒙版对齐到缩放图的目标尺寸。
+func kontextScaleSize(w, h int) (int, int) {
+	if w <= 0 || h <= 0 {
+		return 1024, 1024
+	}
+	aspect := float64(w) / float64(h)
+	bestW, bestH := 1024, 1024
+	bestDiff := math.MaxFloat64
+	for _, r := range preferredKontextResolutions {
+		if d := math.Abs(aspect - float64(r[0])/float64(r[1])); d < bestDiff {
+			bestDiff, bestW, bestH = d, r[0], r[1]
+		}
+	}
+	return bestW, bestH
 }
 
 // qwenEditMissingModelHint 指令编辑提交失败时的缺权重提示：ComfyUI 对不在列表的

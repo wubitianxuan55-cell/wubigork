@@ -3,11 +3,18 @@ package ai
 // 指令编辑测试：阶段一刀 C（规格 进度计划/gaea-instruct-edit-20260917.md）——
 // OpenAI 兼容后端 /images/edits multipart 形状与响应解析、缺原图/非 data URL
 // 诚实报错、GLM 拒绝文案；阶段二刀 A（规格 进度计划/gaea-comfyui-edit-20260922.md）
-// ——ComfyUI 本地档工作流形状（Qwen-Image-Edit 2511 官方模板）与缺权重提示。
+// ——ComfyUI 本地档工作流形状（Qwen-Image-Edit 2511 官方模板）与缺权重提示；
+// 阶段二刀 B（规格 进度计划/gaea-mask-inpaint-20260923.md）——蒙版口径转换/
+// 尺寸对齐复刻/双后端蒙版形状。
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
+	"image"
+	"image/color"
+	"image/png"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -281,5 +288,201 @@ func TestComfyUIBackend_EditMissingModelHint(t *testing.T) {
 	_, err2 := b2.GenerateImage(context.Background(), &ImageGenerationRequest{Mode: "edit", Prompt: "改", InitImage: editDataURL()})
 	if err2 == nil || strings.Contains(err2.Error(), "huggingface") {
 		t.Fatalf("普通错误不应追加缺权重提示: %v", err2)
+	}
+}
+
+// realGrayPNGDataURL 生成真实灰度 PNG data URL（阶段二刀 B 测试用）：
+// leftWhite=true 时左半白（重绘区）、右半黑（保留区）。
+func realGrayPNGDataURL(t *testing.T, w, h int, leftWhite bool) string {
+	t.Helper()
+	img := image.NewGray(image.Rect(0, 0, w, h))
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			v := uint8(0)
+			if leftWhite && x < w/2 {
+				v = 255
+			}
+			img.SetGray(x, y, color.Gray{Y: v})
+		}
+	}
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, img); err != nil {
+		t.Fatalf("png.Encode: %v", err)
+	}
+	return "data:image/png;base64," + base64.StdEncoding.EncodeToString(buf.Bytes())
+}
+
+// TestGrayMaskToOpenAIMask 蒙版口径转换：gaea 灰度（白=重绘）→ OpenAI
+// （透明=编辑区）：白区 alpha=0、黑区 alpha=255、尺寸不变。
+func TestGrayMaskToOpenAIMask(t *testing.T) {
+	out, err := grayMaskToOpenAIMask(realGrayPNGDataURL(t, 2, 1, true))
+	if err != nil {
+		t.Fatalf("转换失败: %v", err)
+	}
+	m, _, err := image.Decode(bytes.NewReader(out))
+	if err != nil {
+		t.Fatalf("转换产物不可解码: %v", err)
+	}
+	if m.Bounds().Dx() != 2 || m.Bounds().Dy() != 1 {
+		t.Fatalf("尺寸应不变: %v", m.Bounds())
+	}
+	_, _, _, a0 := m.At(0, 0).RGBA()
+	_, _, _, a1 := m.At(1, 0).RGBA()
+	if a0 != 0 || a1 != 0xffff {
+		t.Fatalf("白区应透明(0)、黑区应不透明(65535): %d %d", a0, a1)
+	}
+	// 非 data URL 蒙版：诚实报错
+	if _, err := grayMaskToOpenAIMask("/tmp/m.png"); err == nil || !strings.Contains(err.Error(), "data URL") {
+		t.Fatalf("非 data URL 应报错，得到: %v", err)
+	}
+}
+
+// TestKontextScaleSize FluxKontextImageScale 尺寸选择复刻：方图→1024²；
+// 2:1→1456×720（表内宽高比 2.0222 最近）；退化输入兜底 1024²。
+func TestKontextScaleSize(t *testing.T) {
+	for _, tc := range []struct {
+		w, h, ew, eh int
+	}{
+		{1024, 1024, 1024, 1024},
+		{200, 100, 1456, 720},
+		{100, 200, 720, 1456},
+		{0, 0, 1024, 1024},
+		{-3, 7, 1024, 1024},
+	} {
+		w, h := kontextScaleSize(tc.w, tc.h)
+		if w != tc.ew || h != tc.eh {
+			t.Fatalf("kontextScaleSize(%d,%d) = %dx%d, 期望 %dx%d", tc.w, tc.h, w, h, tc.ew, tc.eh)
+		}
+	}
+}
+
+// TestOpenAIImageBackend_EditMaskMultipart 蒙版 multipart 形状：mask 字段
+// 携带转换后的透明 PNG（白区 alpha=0）；image 字段原样在位。
+func TestOpenAIImageBackend_EditMaskMultipart(t *testing.T) {
+	var maskBytes []byte
+	var hasImage bool
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1/images/edits" {
+			http.NotFound(w, r)
+			return
+		}
+		if err := r.ParseMultipartForm(1 << 20); err != nil {
+			t.Errorf("ParseMultipartForm: %v", err)
+			return
+		}
+		if _, hdr, err := r.FormFile("image"); err == nil && hdr != nil {
+			hasImage = true
+		}
+		if f, _, err := r.FormFile("mask"); err == nil {
+			maskBytes, _ = io.ReadAll(f)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"created":1,"data":[{"b64_json":"` + "iVBORw0KGgo=" + `"}` + `]}`))
+	}))
+	defer srv.Close()
+
+	b := NewOpenAIImageBackend(srv.URL+"/v1", "k1")
+	maskURL := realGrayPNGDataURL(t, 4, 2, true)
+	_, err := b.GenerateImage(context.Background(), &ImageGenerationRequest{
+		Model: "qwen-image-edit", Prompt: "只改左半", Mode: "edit",
+		InitImage: editDataURL(), Mask: maskURL,
+	})
+	if err != nil {
+		t.Fatalf("edit+mask 失败: %v", err)
+	}
+	if !hasImage {
+		t.Fatal("image 字段缺失")
+	}
+	if len(maskBytes) == 0 {
+		t.Fatal("mask 字段缺失")
+	}
+	m, _, err := image.Decode(bytes.NewReader(maskBytes))
+	if err != nil {
+		t.Fatalf("mask 产物不可解码: %v", err)
+	}
+	if m.Bounds().Dx() != 4 || m.Bounds().Dy() != 2 {
+		t.Fatalf("mask 尺寸应 4x2: %v", m.Bounds())
+	}
+	_, _, _, aLeft := m.At(0, 0).RGBA()
+	_, _, _, aRight := m.At(3, 0).RGBA()
+	if aLeft != 0 || aRight != 0xffff {
+		t.Fatalf("mask 白区应透明、黑区不透明: %d %d", aLeft, aRight)
+	}
+}
+
+// TestComfyUIBackend_EditMaskWorkflowShape 蒙版局部重绘工作流形状：
+// 蒙版链 2→161(ImageScale 对齐缩放尺寸)→162(ImageToMask red)→163(SetLatentNoiseMask)；
+// KSampler.latent_image 改接 163；无蒙版时零蒙版节点、latent 仍接 15（回归）。
+func TestComfyUIBackend_EditMaskWorkflowShape(t *testing.T) {
+	png := []byte{0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a}
+	var workflow map[string]interface{}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/upload/image":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"name":"gaea_init_9.png"}`))
+		case r.URL.Path == "/prompt":
+			body, _ := io.ReadAll(r.Body)
+			var req struct {
+				Prompt map[string]interface{} `json:"prompt"`
+			}
+			_ = json.Unmarshal(body, &req)
+			workflow = req.Prompt
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"prompt_id":"pid-mask"}`))
+		case r.URL.Path == "/history/pid-mask":
+			_, _ = w.Write([]byte(`{"pid-mask":{"outputs":{"12":{"images":[{"filename":"e.png","subfolder":"","type":"output"}]}}}}`))
+		case r.URL.Path == "/view":
+			w.Header().Set("Content-Type", "image/png")
+			_, _ = w.Write(png)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+
+	b := NewComfyUIBackend(srv.URL)
+	b.pollInterval = 5 * time.Millisecond
+	if _, err := b.GenerateImage(context.Background(), &ImageGenerationRequest{
+		Mode: "edit", Prompt: "只改涂选区",
+		InitImage: realGrayPNGDataURL(t, 200, 100, false), // 2:1 真图（DecodeConfig 需可解析）
+		Mask:      realGrayPNGDataURL(t, 200, 100, true),
+	}); err != nil {
+		t.Fatalf("edit+mask 失败: %v", err)
+	}
+	inputs := func(id string) map[string]interface{} {
+		n, _ := workflow[id].(map[string]interface{})
+		if n == nil {
+			t.Fatalf("工作流缺节点 %s", id)
+		}
+		in, _ := n["inputs"].(map[string]interface{})
+		if in == nil {
+			t.Fatalf("节点 %s 缺 inputs", id)
+		}
+		return in
+	}
+	if got, _ := inputs("2")["image"].(string); got != "gaea_init_9.png" {
+		t.Fatalf("蒙版 LoadImage 应吃上传蒙版: %v", got)
+	}
+	is161 := inputs("161")
+	if is161["upscale_method"] != "lanczos" || is161["width"] != float64(1456) || is161["height"] != float64(720) {
+		t.Fatalf("ImageScale 应对齐 2:1 → 1456x720: %v", is161)
+	}
+	if n, _ := workflow["162"].(map[string]interface{}); n["class_type"] != "ImageToMask" || inputs("162")["channel"] != "red" {
+		t.Fatalf("ImageToMask 形状不对: %+v", n)
+	}
+	if n, _ := workflow["163"].(map[string]interface{}); n["class_type"] != "SetLatentNoiseMask" {
+		t.Fatalf("SetLatentNoiseMask 缺失: %+v", n)
+	} else {
+		if ref, _ := inputs("163")["samples"].([]interface{}); len(ref) == 0 || ref[0] != "15" {
+			t.Fatalf("SetLatentNoiseMask.samples 应接 VAEEncode: %v", inputs("163")["samples"])
+		}
+	}
+	if ref, _ := inputs("10")["latent_image"].([]interface{}); len(ref) == 0 || ref[0] != "163" {
+		t.Fatalf("KSampler.latent_image 应接蒙版 latent: %v", inputs("10")["latent_image"])
+	}
+	// TextEncode image1 保持全图缩放图（语义参考不受蒙版限制）
+	if ref, _ := inputs("7")["image1"].([]interface{}); len(ref) == 0 || ref[0] != "160" {
+		t.Fatalf("TextEncode image1 应保持全图缩放图: %v", inputs("7")["image1"])
 	}
 }

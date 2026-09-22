@@ -192,6 +192,7 @@ type ImageGenerationRequest struct {
 	Lora           string   `json:"lora,omitempty"`       // LoRA 文件名（逗号分隔多个）
 	Mode           string   `json:"mode,omitempty"`       // txt2img | img2img | t2v
 	InitImage      string   `json:"init_image,omitempty"` // img2img 参考图（base64 data URL）
+	Mask           string   `json:"mask,omitempty"`      // 蒙版局部重绘（阶段二刀 B）：灰度 PNG data URL，白=重绘区、黑=保留区；仅 mode=edit 消费
 	RefImages      []string `json:"ref_images,omitempty"` // T2 一致性参考槽（data URL/本地路径）
 	RefMethod      string   `json:"ref_method,omitempty"` // ""|"img2img" 现支持；"ipadapter"|"pulid" 排期中
 	Denoise        float64  `json:"denoise,omitempty"`    // img2img 重绘幅度 0-1

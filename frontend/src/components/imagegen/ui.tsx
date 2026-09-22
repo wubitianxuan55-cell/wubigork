@@ -116,3 +116,38 @@ export const PickerGroup = <T extends string | number,>(props: {
   )
 }
 
+
+/** 蒙版笔画（阶段二刀 B MaskBrushEditor 导出契约） */
+export interface MaskStroke {
+  points: Array<[number, number]>
+  size: number
+}
+
+/**
+ * 导出灰度蒙版 PNG data URL（gaea 统一蒙版契约：白=重绘区、黑=保留区——
+ * Go 侧按后端口径各自适配：ComfyUI ImageToMask(red) 白→1；OpenAI 转透明区）。
+ * 黑白是蒙版数据语义非主题色（hex-exempt）。canvas/2d ctx 不可用（jsdom）返回 null。
+ */
+export function renderMaskDataURL(strokes: MaskStroke[], width: number, height: number): string | null {
+  if (!strokes.length || typeof document === 'undefined') return null
+  const canvas = document.createElement('canvas')
+  canvas.width = width
+  canvas.height = height
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return null
+  ctx.fillStyle = '#000' // hex-exempt: 蒙版数据语义（黑=保留区）
+  ctx.fillRect(0, 0, width, height)
+  ctx.fillStyle = '#fff' // hex-exempt: 蒙版数据语义（白=重绘区）
+  for (const s of strokes) {
+    for (const [x, y] of s.points) {
+      ctx.beginPath()
+      ctx.arc(x, y, s.size / 2, 0, Math.PI * 2)
+      ctx.fill()
+    }
+  }
+  try {
+    return canvas.toDataURL('image/png')
+  } catch {
+    return null
+  }
+}

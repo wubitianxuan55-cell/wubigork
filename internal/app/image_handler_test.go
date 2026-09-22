@@ -483,3 +483,39 @@ func TestGenerateMedia_EditComfyuiModelOverride(t *testing.T) {
 		t.Fatalf("comfyui 编辑元数据应如实记 qwen-image-edit: %s", results[0].Model)
 	}
 }
+
+// TestGenerateMedia_MaskGateAndPassthrough 蒙版局部重绘（阶段二刀 B）：
+// mask+img2img fail-closed 拒绝；mask+edit 透传到后端请求。
+func TestGenerateMedia_MaskGateAndPassthrough(t *testing.T) {
+	dir := t.TempDir()
+	fake := &fakeImageBackend{result: &ai.ImageGenerationResponse{
+		Data: []ai.ImageData{{B64JSON: pngDataURLApp("fake-edit-m"), Kind: "image"}},
+	}}
+	c := &ai.Client{}
+	c.SetImageBackend(fake, "herdsman")
+	ms := &mediaState{core: &core{cfg: &config.Config{ImageBackend: "herdsman", ImageSaveDir: dir}, client: c}}
+
+	// mask + img2img：拒绝（不触后端）
+	res, err := ms.GenerateMedia(`{"prompt":"改","mode":"img2img","initImage":"data:image/png;base64,AAAA","mask":"data:image/png;base64,BBBB","count":1}`)
+	if err != nil {
+		t.Fatalf("GenerateMedia: %v", err)
+	}
+	if msg, _ := res["error"].(string); msg != "蒙版仅支持指令编辑模式（局部重绘）" {
+		t.Fatalf("mask+img2img 应拒绝，得到: %v", res["error"])
+	}
+	if fake.lastReq != nil {
+		t.Fatal("拒绝路径不应触达后端")
+	}
+
+	// mask + edit：透传
+	res, err = ms.GenerateMedia(`{"prompt":"把外套改成红色","mode":"edit","initImage":"data:image/png;base64,AAAA","mask":"data:image/png;base64,BBBB","count":1}`)
+	if err != nil {
+		t.Fatalf("GenerateMedia: %v", err)
+	}
+	if msg, _ := res["error"].(string); msg != "" {
+		t.Fatalf("mask+edit 应透传出结果，得到: %s", msg)
+	}
+	if fake.lastReq == nil || fake.lastReq.Mask != "data:image/png;base64,BBBB" {
+		t.Fatalf("Mask 应透传到后端请求: %+v", fake.lastReq)
+	}
+}

@@ -425,6 +425,7 @@ type mediaGenParams struct {
 	Count     int     `json:"count"`
 	Mode      string  `json:"mode"`      // txt2img | img2img | edit | t2v
 	InitImage string  `json:"initImage"` // 图生图参考图 / 指令编辑原图（data URL）
+	Mask      string  `json:"mask"`      // 蒙版局部重绘（阶段二刀 B）：灰度 PNG data URL，白=重绘区；仅 edit 消费
 	Denoise   float64 `json:"denoise"`   // 重绘幅度 0-1
 	Frames    int     `json:"frames"`    // 视频帧数
 	FPS       int     `json:"fps"`       // 视频帧率
@@ -466,6 +467,11 @@ func (a *mediaState) GenerateMedia(paramsJSON string) (map[string]interface{}, e
 	// 报错（OpenAI 兼容=edits 端点；GLM/ComfyUI 拒绝文案见 internal/ai）。
 	if mode == "edit" && strings.TrimSpace(p.InitImage) == "" {
 		return map[string]interface{}{"error": "指令编辑需要原图"}, nil
+	}
+	// 蒙版局部重绘（阶段二刀 B）：fail-closed——蒙版仅与指令编辑组合；
+	// img2img+蒙版（纯局部重绘无指令语义）留观察池，不静默忽略。
+	if p.Mask != "" && mode != "edit" {
+		return map[string]interface{}{"error": "蒙版仅支持指令编辑模式（局部重绘）"}, nil
 	}
 	if strings.TrimSpace(p.Prompt) == "" {
 		return map[string]interface{}{"error": "请输入画面描述"}, nil
@@ -519,6 +525,7 @@ func (a *mediaState) GenerateMedia(paramsJSON string) (map[string]interface{}, e
 			Lora:      p.Lora,
 			Mode:      mode,
 			InitImage: p.InitImage,
+			Mask:      p.Mask,
 			Denoise:   p.Denoise,
 			Frames:    p.Frames,
 			FPS:       p.FPS,

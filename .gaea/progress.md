@@ -1,3 +1,15 @@
+## 最新发布：v4.393.0（2026-09-23）「绘梦·蒙版局部重绘：涂选要改的区域，其余保持原样」
+
+- **刀型**：图像域长期规划 T3「蒙版局部重绘」；v4.392 观察池销号第 2 项。Go 4 文件+前端 4 文件，绑定面 714 零变更。规格 进度计划/gaea-mask-inpaint-20260923.md。
+- **病根**：双编辑档都有蒙版通道但从未接线——前端没有涂选交互、后端请求没有 Mask 字段；全图编辑对已满意区域有回归风险（蒙版局部重绘是 NovelAI V5/即梦/可灵全系标配）。
+- **落地**：①统一蒙版契约（灰度 PNG 白=重绘黑=保留；ComfyUI ImageToMask(red) 零转换，OpenAI grayMaskToOpenAIMask 白→透明一处转换）②ComfyUI 蒙版链 LoadImage→ImageScale(lanczos,targetW/H)→ImageToMask(red)→SetLatentNoiseMask→KSampler——targetW/H 复刻 PREFERRED_KONTEXT_RESOLUTIONS 17 档（nodes_flux.py:105 实读）对齐缩放图；TextEncode image1 保持全图③app fail-closed（mask 非 edit 拒绝）④MaskBrushEditor（strokes 状态+红笔刷显示/黑底白笔刷导出同坐标+比例映射+jsdom 守卫）+Modal 范围切换+未涂 warning。
+- **测试**：Go +4 组+app +1+前端 +4+2；全量 396 文件 3353 例绿+tsc 0+eslint 0。
+- **门禁**：全量 ci.ps1 绿 EXIT=0+版本漂移闸 OK@4.393.0。
+- **坑**：蒙版黑白数据语义要 hex-exempt/SetLatentNoiseMask 裁剪不 resize 须显式对齐/JSON 往返数字变 float64/vi.mock 工厂 hoisting 不能引顶层标识/antd Slider 不转发 testid。
+- **产物**：exe 见 SHA256SUMS-v4.393.0.txt（仅本地；冒烟 200 过）；保留策略 5 版留 v4.389~v4.393 删 v4.388.0.exe。
+- **文档**：releases/v4.393.0.md+CHANGELOG/README+releases/README（414→415+34 席插 v4.393 裁 v4.359）+AGENTS 迁 1 插 1（一百零八迁：v4.388 入 archive）+todos。
+- **观察池**：扩图（outpaint 画布扩边）；抠图/透明底导出；img2img+mask 纯局部重绘；蒙版反选/羽化；编辑历史变体簇；Lightning LoRA；多图编辑。
+
 ## 最新发布：v4.392.0（2026-09-22）「绘梦·指令编辑本地档：ComfyUI 接入 Qwen-Image-Edit 2511 官方工作流」
 
 - **刀型**：图像域长期规划 T3「本地档（B 计划）」第一刀；阶段一刀 C（v4.327 指令编辑云端先行）观察池第 2 项销号。会话主线=乐园画室欠账盘点→「画室三件套」头号=编辑力补全。Go 2 文件+前端 1 文件，绑定面 714 零变更。规格 进度计划/gaea-comfyui-edit-20260922.md。
