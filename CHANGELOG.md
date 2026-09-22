@@ -1,3 +1,6 @@
+## 非版本刀（2026-09-23）源码包归档推送：wubigork-v4.399.0-source.tar.gz + v4.373~v4.399 tag 对账全量上 remote
+> 里程碑打包（画室编辑力八连发 v4.392~v4.399：本地编辑/蒙版/扩图/变体簇/台账根修/抠图/qedit 通道/sin 第二消费方）。源码包 13028977B/4744 files（git archive v4.399.0，排除历史源码包），SHA256SUMS-v4.399.0.txt 双行登记（exe d56aa12a… + source 9b6d15a4…）。同批推送 29 个未推 commit（v4.372 后）与未推 tag。README/releases 归档惯例行更新。
+
 ## v4.399.0 · 原罪插图参考升级 qedit（T2 第二消费方）（2026-09-23）
 > v4.398 观察池头名小刀：sinRefPlan 单点升级——原罪插图的角色一致性从 img2img 整幅重绘近似升到 Qwen 参考编辑（参考图进编辑引擎三图槽，prompt 即场景描述，构图不再被参考图锁死）。纯 Go 2 文件，绑定面 715 零变更。【落地】①sinRefPlan comfyui 分支 → (txt2img, qedit)：编辑引擎独立于生图模型（req.Model 不消费），不再按 krea2/z-image 判型（flux 等模型下插图参考也可用）；herdsman 维持 img2img 近似（无编辑引擎）②编辑权重缺失由既有 refFallback 链兜底（失败→退纯文本重试+如实标注）——无权重环境插图不断流③文本锚点/角色选择/多角色互串防护（v4.258 纪律）全部不动；denoise 照传无害（qedit 固定 1.0 不读）；caption 徽标语义不变。【测试】矩阵更新（comfyui 全模型含 flux-dev → qedit；refMethod 断言补强 backendWants）+透传期望更新（txt2img+qedit）+TestSin 全量回归绿；全量 398 文件 3365 例绿+tsc 0+eslint 0。【门禁】全量 ci 绿 EXIT=0+漂移闸 OK@4.399.0。【产物】exe 见 SHA256SUMS-v4.399.0.txt（仅本地；冒烟 200 过）；保留策略留 v4.395~v4.399 删 v4.394.0.exe。【文档】规格 进度计划/gaea-sin-qedit-20260923.md+releases/v4.399.0.md+CHANGELOG/README+releases/README（420→421+34 席插 v4.399 裁 v4.365）+AGENTS 迁 1 插 1（一百一十四迁：v4.394 入 archive）+progress/todos（观察池=sin 参考方法可配/两级回退/徽标区分方法/prompt 模板）。
 

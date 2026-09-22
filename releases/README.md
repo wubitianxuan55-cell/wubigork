@@ -24,7 +24,8 @@
 里程碑版本随发版打源码包入库：`git archive --format=tar.gz v<X.Y.Z> -- . ':(exclude)releases/wubigork-*'`
 → `wubigork-vX.Y.Z-source.tar.gz`，在当版 `SHA256SUMS-vX.Y.Z.txt` 双行登记
 （exe 行 + source 行含大小/文件数）。已有：v4.219 / v4.292 / v4.304 / v4.323 /
-v4.333 / v4.345 / v4.355 / v4.372。
+v4.333 / v4.345 / v4.355 / v4.372 / v4.399（2026-09-23 补打：画室编辑力八连发
+v4.392~v4.399 里程碑）。
 注：`releases/archive/` 只放「非当前 5 版」的历史件，`releases/` 根放最新一版。
 
 ## 当前版本线（v4，2026-08 起）
