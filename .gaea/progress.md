@@ -1,3 +1,14 @@
+## 最新发布：v4.391.0（2026-09-22）「附件 URL 缓存 blob 化：base64 大字符串迁出 JS 堆 + selbar z 防御修」
+
+- **刀型**：性能池⑦「base64→blob URL 会话资源管理」收口（v4.365 审计留池最后一项免拍板性能项）+selbar z 防御修+todos 考古。纯前端 3 文件+2 测试（改 1 新 1），绑定面 714 零变更。
+- **病根**：usePortraitUrl 的 dataUrlCache=全局无界 Map，值是 MB 级 base64 data URL 字符串——消息内联图/缩略图/inspector/角色头像/剧照全部经此通道（v4.365 已消重复桥调用，但字符串驻留 JS 堆的问题在）。
+- **落地**：①缓存值 data URL→blob: object URL（atob→Uint8Array→Blob→createObjectURL——字节迁浏览器侧 blob 存储脱离 JS 堆，原字符串即被 GC；转换在既有 then 异步回调；消费方零改动）②LRU 96+命中刷新+淘汰延迟 120s revoke③无 createObjectURL 回退 data URL④selbar z 1080→990。
+- **测试**：+1 文件 5 例+PortraitImg 断言按新行为收口；全量 395 文件 3346 例绿（一轮 1 例无足迹 flaky 复跑全绿）+tsc 0+eslint 0。
+- **门禁**：全量 ci.ps1 绿 EXIT=0+版本漂移闸 OK@4.391.0。
+- **坑**：jsdom 30 原生 createObjectURL（钉 data: 断言真挂）/LRU 淘汰即 revoke 裂在屏图（条目被组件 state 持有）/data URL→blob 别用 fetch(dataURL)（jsdom 不支持）/后台测试命令只留 tail 丢失败详情。
+- **产物**：exe 见 SHA256SUMS-v4.391.0.txt（仅本地；冒烟 200 过）；保留策略 5 版留 v4.387~v4.391 删 v4.386.exe。
+- **文档**：性能池⑦销号回填+releases/v4.391.0.md+CHANGELOG/README+releases/README（412→413+34 席插 v4.391 裁 v4.357）+AGENTS 迁 1 插 1（一百零六迁：v4.388 入 archive）+todos。
+
 ## 最新发布：v4.390.0（2026-09-22）「canvas 调色板集中化：resolveThemeColor 收口三份手写解析器 + 主题切换跟随缺陷根修」
 
 - **刀型**：视觉池③+⑤专项（v4.361 审计留池大工程候立项中可代码级收口的两项；①②④仍需逐板块截图对照拍板）。纯前端 7 文件+3 新测试，绑定面 714 零变更。

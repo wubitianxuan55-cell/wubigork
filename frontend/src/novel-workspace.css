@@ -1561,9 +1561,12 @@
 .novel-reading-mark[data-ann-color='blue'] { --ann-color: var(--ann-blue); }
 .novel-reading-mark[data-ann-color='pink'] { --ann-color: var(--ann-pink); }
 
+/* v4.391：z 由 1080 降 990——原值越过 antd 全部弹层（Modal 1000/Select 1050/
+   Tooltip 1060），弹层内选中文本时浮条会盖在弹层之上；990=内容之上、
+   ai-console-fab(1000) 与全部弹层之下。 */
 .novel-read-selbar {
   position: fixed;
-  z-index: 1080;
+  z-index: 990;
   display: flex;
   align-items: center;
   gap: 6px;

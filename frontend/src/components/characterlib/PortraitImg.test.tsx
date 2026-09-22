@@ -23,11 +23,11 @@ describe('PortraitImg 剧照渲染', () => {
     expect(screen.queryByRole('img')).toBeNull()
   })
 
-  it('本地文件路径经 AttachmentDataURL 读取后渲染', async () => {
+  it('本地文件路径经 AttachmentDataURL 读取后渲染（v4.391：缓存层 blob URL 化，jsdom 原生 createObjectURL 生效）', async () => {
     attachmentDataURLMock.mockResolvedValue('data:image/png;base64,AAA')
     render(<PortraitImg src="C:/x/portraits/c1.png" alt="陈恪" />)
     await waitFor(() => expect(attachmentDataURLMock).toHaveBeenCalledWith('C:/x/portraits/c1.png'))
     const img = (await screen.findByRole('img', { name: '陈恪' })) as HTMLImageElement
-    expect(img.src).toContain('data:image/png')
+    expect(img.src).toMatch(/^(blob:|data:image\/png)/)
   })
 })
