@@ -33,20 +33,23 @@ const (
 )
 
 // sinRefPlan 图像后端 × 模型 → 参考槽可用性（纯函数，便于测试矩阵）。
-// 返回 mode（img2img=走图生图）/ refMethod / 是否可用 / 不可用原因。
+// 返回 mode / refMethod / 是否可用 / 不可用原因。
+//
+// 阶段三刀 B（v4.399）路线升级：ComfyUI 改走 qedit（Qwen-Image-Edit 参考编辑，
+// v4.398 通道）——参考图进编辑引擎 image1..3 槽，prompt 即场景描述，人物一致
+// 性远优于 img2img 整幅重绘近似（构图不再被参考图锁死）；编辑引擎独立于生图
+// 模型（req.Model 不消费），不再按 krea2/z-image 判型。编辑权重缺失时由
+// sin_handler 既有 refFallback 链兜底（退纯文本重试+如实标注）。
 func sinRefPlan(backend, model string) (mode string, refMethod string, ok bool, reason string) {
 	switch backend {
 	case "comfyui":
-		// 与 ai/image_comfyui.go 的图生图工作流支持面一致（其余模型禁止静默降级）
-		if model == "z-image-turbo" || model == "krea2" || strings.HasPrefix(model, "krea2") {
-			return "img2img", "img2img", true, ""
-		}
-		return "", "", false, "ComfyUI 当前模型不支持图生图参考（支持 krea2 / z-image-turbo）"
+		// qedit 走编辑引擎（Qwen-Image-Edit 2511），生图模型不影响通道可用性
+		return "txt2img", "qedit", true, ""
 	case "herdsman":
-		// herdsman 参考槽只走 /images/img2img（文生图端点明确拒绝参考图）
+		// herdsman 无编辑引擎：维持 img2img 近似（/images/img2img）
 		return "img2img", "img2img", true, ""
 	default:
-		return "", "", false, "当前图像后端不支持参考图（参考槽仅 ComfyUI / Herdsman 图生图可用）"
+		return "", "", false, "当前图像后端不支持参考图（参考槽仅 ComfyUI（Qwen 参考编辑）/ Herdsman（图生图）可用）"
 	}
 }
 

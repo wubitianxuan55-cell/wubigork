@@ -1,3 +1,13 @@
+## 最新发布：v4.399.0（2026-09-23）「原罪插图参考升级 qedit（T2 第二消费方）」
+
+- **刀型**：v4.398 观察池头名小刀。纯 Go 2 文件，绑定面 715 零变更。
+- **落地**：sinRefPlan comfyui→(txt2img,qedit)（不判生图模型）；herdsman 维持 img2img；refFallback 链兜底权重缺失。
+- **测试**：矩阵+透传+TestSin 回归绿；全量 398 文件 3365 例绿+tsc 0+eslint 0。
+- **门禁**：全量 ci 绿 EXIT=0+漂移闸 OK@4.399.0。
+- **产物**：exe 见 SHA256SUMS-v4.399.0.txt；保留策略留 v4.395~v4.399 删 v4.394.0.exe。
+- **文档**：releases/v4.399.0.md+CHANGELOG/README+releases/README（420→421+裁 v4.365）+AGENTS 迁 1 插 1（一百一十四迁：v4.394 入 archive）+todos。
+- **观察池**：sin 参考方法可配；两级回退；徽标区分方法；qedit 语义 prompt 模板。
+
 ## 最新发布：v4.398.0（2026-09-23）「绘梦·参考槽 Qwen-Edit 通道（T2 一致性首刀）」
 
 - **刀型**：T2 一致性首刀；路线修订（Qwen 架构走编辑参考不走 IP-Adapter）。Go 3+前端 5 文件，绑定面 715 零变更。规格 进度计划/gaea-qedit-ref-20260923.md。

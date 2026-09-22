@@ -24,17 +24,21 @@ func TestSinRefPlanCapabilityMatrix(t *testing.T) {
 		wantOK         bool
 		wantMode       string
 	}{
-		{"comfyui", "krea2", true, "img2img"},
-		{"comfyui", "krea2-turbo", true, "img2img"}, // 前缀匹配
-		{"comfyui", "z-image-turbo", true, "img2img"},
-		{"comfyui", "flux-dev", false, ""}, // 该模型没有图生图工作流：如实跳过
+		// 阶段三刀 B（v4.399）：comfyui 升级 qedit（编辑引擎参考，不再按生图模型判型）
+		{"comfyui", "krea2", true, "txt2img"},
+		{"comfyui", "krea2-turbo", true, "txt2img"},
+		{"comfyui", "z-image-turbo", true, "txt2img"},
+		{"comfyui", "flux-dev", true, "txt2img"}, // qedit 走编辑引擎：生图模型不影响通道
 		{"herdsman", "whatever", true, "img2img"},
 		{"xai", "grok-image", false, ""},
 		{"glm", "glm-image", false, ""},
 		{"", "", false, ""},
 	}
 	for _, c := range cases {
-		mode, _, ok, reason := sinRefPlan(c.backend, c.model)
+		mode, method, ok, reason := sinRefPlan(c.backend, c.model)
+		if ok && backendWants(c.backend) != "" && method != backendWants(c.backend) {
+			t.Errorf("sinRefPlan(%q,%q) refMethod = %q, want %q", c.backend, c.model, method, backendWants(c.backend))
+		}
 		if ok != c.wantOK || mode != c.wantMode {
 			t.Errorf("sinRefPlan(%q,%q) = (%q,%v,%q), want (%q,%v)", c.backend, c.model, mode, ok, reason, c.wantMode, c.wantOK)
 		}
@@ -183,7 +187,8 @@ func TestSinIllustratePassesCharacterRef(t *testing.T) {
 		t.Fatalf("应只调用一次生成: %d", len(fake.requests))
 	}
 	req := fake.requests[0]
-	if req.Mode != "img2img" || len(req.RefImages) != 1 || req.RefMethod != "img2img" {
+	// 阶段三刀 B（v4.399）：comfyui 参考升级 qedit（txt2img+参考→编辑引擎三图槽）
+	if req.Mode != "txt2img" || len(req.RefImages) != 1 || req.RefMethod != "qedit" {
 		t.Fatalf("参考槽未透传: mode=%q refs=%d method=%q", req.Mode, len(req.RefImages), req.RefMethod)
 	}
 	if !strings.Contains(req.Prompt, "人物锚点（林晚）") {
@@ -411,4 +416,15 @@ func TestSinIllustrateStaysTxt2ImgWithoutUsableRef(t *testing.T) {
 			}
 		})
 	}
+}
+
+// backendWants 各后端期望的 refMethod（矩阵断言用）。
+func backendWants(backend string) string {
+	switch backend {
+	case "comfyui":
+		return "qedit"
+	case "herdsman":
+		return "img2img"
+	}
+	return ""
 }
