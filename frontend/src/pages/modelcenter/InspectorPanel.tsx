@@ -1,17 +1,19 @@
 import { useState } from 'react'
 import { Button, Segmented, Space, Tooltip } from 'antd'
-import { BarChartOutlined, FundOutlined, LeftOutlined, ReloadOutlined, RightOutlined, ThunderboltOutlined } from '@ant-design/icons'
+import { ArrowRightOutlined, BarChartOutlined, FundOutlined, LeftOutlined, ReloadOutlined, RightOutlined } from '@ant-design/icons'
 import { ResourceMonitor } from './ResourceMonitor'
-import { EmptyState, KpiTile } from './ui'
-import { RequestsTrendChart, TokenTrendChart, type TrendRange } from './charts'
-import { fmtCost } from './utils'
+import { EmptyState } from './ui'
+import { RequestsSpark, TokenMiniBars, type TrendRange } from './charts'
+import { fmtCompact, fmtCost } from './utils'
 import { useModelCenterActions, useModelCenterState } from './context'
 
 /**
  * 引擎控制台右侧「统计与资源」检查器（§2.7，v3-panel，可折叠）：
  * - 资源占用：ResourceMonitor（本地资源实时条，走 --color-* 与 --v3-* 令牌色）
- * - 调用统计：紧凑 KPI 摘要 + 请求/Token 趋势图（charts.tsx 保留实现，仅配色令牌化，
- *   主色 --v3-telemetry）。完整明细仍由头部「详细统计」抽屉（StatsSection）承载。
+ * - 调用统计：遥测读出式重设计——三格主指标 + Token 读数行 + 窄柱专用迷你图
+ *   （RequestsSpark/TokenMiniBars 按 ~276px 视口设计，字标 1:1 渲染可读；
+ *   旧全尺寸图压进窄柱会把 10px 轴字缩到 ~4px）。完整明细仍由
+ *   头部/本块「详细统计」入口（StatsSection 抽屉）承载。
  */
 export function InspectorPanel() {
   const [collapsed, setCollapsed] = useState(false)
@@ -56,11 +58,14 @@ export function InspectorPanel() {
   )
 }
 
-/** 检查器内紧凑调用统计：KPI 摘要 + 趋势图（趋势范围与「详细统计」抽屉共享） */
+/** 检查器内紧凑调用统计：主指标读出 + 窄柱迷你趋势（趋势范围与「详细统计」抽屉共享） */
 function StatsInspector() {
-    const { callStats, trendData, trendRange, loadError } = useModelCenterState()
-  const { setTrendRange, loadCallStats } = useModelCenterActions()
+  const { callStats, trendData, trendRange, loadError } = useModelCenterState()
+  const { setTrendRange, loadCallStats, openStatsDrawer } = useModelCenterActions()
   const hasStats = !!callStats && callStats.total_calls > 0
+  const rate = hasStats ? (callStats.success_calls / callStats.total_calls) * 100 : 0
+  const rateColor = !hasStats ? 'var(--mc-text)' : rate >= 100 ? 'var(--mc-ok)' : rate >= 90 ? 'var(--mc-text)' : 'var(--mc-danger)'
+  const peak = trendData.reduce((a, b) => Math.max(a, b.calls), 0)
   return (
     <section className="mc-inspector-block" aria-label="模型调用统计">
       <div className="mc-inspector-block-head">
@@ -104,40 +109,62 @@ function StatsInspector() {
         />
       ) : (
         <>
-          <div className="mc-inspector-kpis">
-            <KpiTile
-              icon={<ThunderboltOutlined />}
-              label="总调用"
-              value={callStats.total_calls}
-              hint={`成功 ${callStats.success_calls} · 失败 ${callStats.fail_calls}`}
-            />
-            <KpiTile
-              icon={<ThunderboltOutlined />}
-              label="Token 用量"
-              value={callStats.total_tokens.toLocaleString()}
-              hint={`入 ${callStats.input_tokens.toLocaleString()} / 出 ${callStats.output_tokens.toLocaleString()}`}
-            />
-            <KpiTile
-              icon={<ThunderboltOutlined />}
-              label="估算费用"
-              value={fmtCost(callStats.total_cost, 'CNY')}
-              hint="按当前汇率折算"
-            />
-            <KpiTile
-              icon={<ThunderboltOutlined />}
-              label="成功率"
-              value={`${((callStats.success_calls / callStats.total_calls) * 100).toFixed(1)}%`}
-              hint={`${callStats.per_model.length} 个模型`}
-            />
+          {/* 主指标读出：调用 / 成功率 / 费用（窄柱三列，值大标签小，tabular 对齐） */}
+          <div className="mc-stat-hero">
+            <div className="mc-stat-cell">
+              <div className="mc-stat-value">{callStats.total_calls.toLocaleString()}</div>
+              <div className="mc-stat-label">总调用</div>
+              <div className="mc-stat-sub">
+                成功 {callStats.success_calls}
+                {callStats.fail_calls > 0 && <span className="is-bad"> · 失败 {callStats.fail_calls}</span>}
+              </div>
+            </div>
+            <div className="mc-stat-cell">
+              <div className="mc-stat-value" style={{ color: rateColor }}>{rate.toFixed(1)}%</div>
+              <div className="mc-stat-label">成功率</div>
+              <div className="mc-stat-sub">{callStats.per_model.length} 个模型</div>
+            </div>
+            <div className="mc-stat-cell">
+              <div className="mc-stat-value" style={{ color: 'var(--mc-warn)' }}>{fmtCost(callStats.total_cost, 'CNY')}</div>
+              <div className="mc-stat-label">估算费用</div>
+              <div className="mc-stat-sub">按当前汇率折算</div>
+            </div>
           </div>
+
+          {/* Token 读数行：总量 + 入/出拆分（紧凑单行，k/M 缩写） */}
+          <div className="mc-stat-strip">
+            <span className="mc-stat-strip-main">Token {fmtCompact(callStats.total_tokens)}</span>
+            <span className="mc-stat-strip-sep" />
+            <span>入 {fmtCompact(callStats.input_tokens)}</span>
+            <span>出 {fmtCompact(callStats.output_tokens)}</span>
+          </div>
+
           {trendData.length > 0 && (
-            <div className="mc-inspector-charts">
-              <div className="mc-inspector-chart-title">请求趋势</div>
-              <RequestsTrendChart data={trendData} color="var(--v3-telemetry)" />
-              <div className="mc-inspector-chart-title">Token 趋势</div>
-              <TokenTrendChart data={trendData} />
+            <div className="mc-mini-chart">
+              <div className="mc-mini-chart-head">
+                <span className="mc-mini-chart-title">请求趋势</span>
+                <span className="mc-mini-chart-meta">峰值 {peak.toLocaleString()}</span>
+              </div>
+              <RequestsSpark data={trendData} color="var(--v3-telemetry)" />
             </div>
           )}
+          {trendData.length > 0 && (
+            <div className="mc-mini-chart">
+              <div className="mc-mini-chart-head">
+                <span className="mc-mini-chart-title">Token 分布</span>
+                <span className="mc-mini-chart-meta">
+                  <i className="mc-legend-swatch is-in" aria-hidden="true" />入
+                  <i className="mc-legend-swatch is-out" aria-hidden="true" />出
+                </span>
+              </div>
+              <TokenMiniBars data={trendData} />
+            </div>
+          )}
+
+          <button type="button" className="mc-stat-more" onClick={openStatsDrawer}>
+            查看详细统计（按引擎 / 模型明细）
+            <ArrowRightOutlined />
+          </button>
         </>
       )}
     </section>

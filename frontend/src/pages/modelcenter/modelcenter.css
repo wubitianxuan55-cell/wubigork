@@ -343,31 +343,165 @@
   font-weight: 600;
 }
 
-.mc-inspector-kpis {
+/* ── 检查器统计：遥测读出式（窄柱重设计） ──
+   三格主指标 + Token 读数行 + 迷你图，替代旧 2×2 KPI 卡（窄柱里卡壳太厚、
+   hint 被省略号截断）与压扁的全尺寸图（轴字缩到不可读）。 */
+.mc-stat-hero {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: 1.25fr 1fr 1fr;
   gap: 8px;
-}
-
-.mc-inspector .mc-kpi {
-  min-height: 74px;
   padding: 10px 12px;
+  border: 1px solid var(--mc-border);
+  border-radius: var(--mc-radius-md);
+  background:
+    radial-gradient(120% 110% at 100% 0%, color-mix(in srgb, var(--mc-accent) 6%, transparent), transparent 44%),
+    var(--mc-surface);
 }
 
-.mc-inspector .mc-kpi-value {
-  font-size: 18px;
+.mc-stat-cell {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
 }
 
-.mc-inspector-charts {
+.mc-stat-value {
+  color: var(--mc-text);
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mc-stat-label {
+  color: var(--mc-muted);
+  font-size: 10.5px;
+}
+
+.mc-stat-sub {
+  color: var(--mc-muted);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mc-stat-sub .is-bad {
+  color: var(--mc-danger);
+}
+
+/* Token 读数行：总量加粗 + 入/出拆分 */
+.mc-stat-strip {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  color: var(--mc-muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.mc-stat-strip-main {
+  color: var(--mc-text);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.mc-stat-strip-sep {
+  flex: 0 0 1px;
+  align-self: center;
+  height: 10px;
+  background: var(--mc-border);
+}
+
+/* 迷你图块：标题行 + 图（requests spark / token mini bars） */
+.mc-mini-chart {
   display: flex;
   flex-direction: column;
   gap: 4px;
 }
 
-.mc-inspector-chart-title {
+.mc-mini-chart-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.mc-mini-chart-title {
   color: var(--mc-muted);
   font-size: 11px;
   font-weight: 500;
+}
+
+.mc-mini-chart-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--mc-muted);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* 「查看详细统计」入口（右栏 → 抽屉联动） */
+.mc-stat-more {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  width: 100%;
+  padding: 7px 10px;
+  border: 1px solid var(--mc-border);
+  border-radius: var(--mc-radius-sm);
+  background: transparent;
+  color: var(--mc-muted);
+  font-size: 11px;
+  cursor: pointer;
+  transition: color 160ms ease, border-color 160ms ease, background 160ms ease;
+}
+
+.mc-stat-more:hover {
+  color: var(--mc-text);
+  border-color: color-mix(in srgb, var(--mc-accent) 40%, var(--mc-border));
+  background: color-mix(in srgb, var(--mc-accent) 6%, transparent);
+}
+
+.mc-stat-more:focus-visible {
+  outline: 2px solid var(--mc-accent);
+  outline-offset: 2px;
+}
+
+/* 图例色片（检查器 Token 分布 / 抽屉 Token 趋势 / 分流条共用） */
+.mc-legend-swatch {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  background: var(--color-primary);
+  margin-right: 3px;
+}
+
+.mc-legend-swatch.is-in,
+.mc-legend-swatch.is-cloud {
+  background: var(--color-primary);
+}
+
+.mc-legend-swatch.is-out,
+.mc-legend-swatch.is-local {
+  background: var(--color-success);
+}
+
+.mc-legend-swatch.is-cost {
+  width: 12px;
+  height: 0;
+  border-radius: 0;
+  border-top: 2px dashed var(--color-destructive);
 }
 
 /* ── 本地资源实时块（3.0 迁入右侧检查器，纵向堆叠；资源占用 + 本地引擎 + ComfyUI） ── */
@@ -1155,7 +1289,7 @@
   font-size: 11px;
 }
 
-/* ── 统计抽屉 ── */
+/* ── 统计抽屉（重设计：工具条 + 分流带 + 图例类） ── */
 .mc-drawer-body {
   padding: 18px;
   display: flex;
@@ -1163,12 +1297,171 @@
   gap: 16px;
 }
 
-.mc-stats-head {
+/* 工具条：左 = 口径元信息芯片，右 = 排序/刷新/清空（标题由抽屉自承载） */
+.mc-stats-toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
   flex-wrap: wrap;
+}
+
+.mc-stats-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.mc-meta-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border: 1px solid var(--mc-border);
+  border-radius: 999px;
+  color: var(--mc-muted);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* 云端/本地分流带：占比条 + 三列读出 + KV 命中率行 */
+.mc-splitbar {
+  display: flex;
+  height: 10px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--mc-text) 8%, transparent);
+}
+
+.mc-splitbar-seg {
+  height: 100%;
+  min-width: 2px;
+  transition: width 240ms ease;
+}
+
+.mc-splitbar-seg.is-cloud {
+  background: var(--color-primary);
+  opacity: 0.8;
+}
+
+.mc-splitbar-seg.is-local {
+  background: var(--color-success);
+  opacity: 0.85;
+}
+
+.mc-splitbar-legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--mc-muted);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.mc-splitbar-legend > span {
+  display: inline-flex;
+  align-items: center;
+}
+
+.mc-split-cols {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.mc-split-col {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  border: 1px solid var(--mc-border);
+  border-radius: var(--mc-radius-md);
+  background: var(--mc-surface);
+}
+
+.mc-split-col.is-save {
+  background:
+    radial-gradient(120% 110% at 100% 0%, color-mix(in srgb, var(--color-success) 9%, transparent), transparent 46%),
+    var(--mc-surface);
+}
+
+.mc-split-col-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--mc-muted);
+  font-size: 11px;
+}
+
+.mc-split-col-value {
+  color: var(--mc-text);
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mc-split-col.is-save .mc-split-col-value {
+  color: var(--mc-ok);
+}
+
+.mc-split-col-hint {
+  color: var(--mc-muted);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mc-cache-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 7px 12px;
+  border: 1px dashed var(--mc-border);
+  border-radius: var(--mc-radius-sm);
+  color: var(--mc-muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.mc-cache-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+}
+
+.mc-cache-item {
+  white-space: nowrap;
+}
+
+.mc-split-note {
+  color: var(--mc-muted);
+  font-size: 10.5px;
+}
+
+/* 趋势图图例（替代内联样式） */
+.mc-chart-legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 10px;
+  color: var(--mc-muted);
+}
+
+.mc-chart-legend > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .mc-stats-metrics {

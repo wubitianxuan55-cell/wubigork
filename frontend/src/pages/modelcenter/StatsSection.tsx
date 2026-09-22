@@ -1,8 +1,11 @@
 import React from 'react'
 import { Button, Popconfirm, Segmented } from 'antd'
-import { CloudOutlined, DatabaseOutlined, DesktopOutlined, ReloadOutlined, SaveOutlined, ThunderboltOutlined } from '@ant-design/icons'
+import {
+  CheckCircleOutlined, ClockCircleOutlined, CloudOutlined, DatabaseOutlined, DesktopOutlined,
+  NumberOutlined, PayCircleOutlined, ReloadOutlined, SaveOutlined, ThunderboltOutlined,
+} from '@ant-design/icons'
 import { EmptyState, KpiTile, StatusChip } from './ui'
-import { billingModeLabel, costToCNY, engineColor, engineIcons, engineLabel, estimatePoints, findModelMeta, fmtCost, hasPointsCoef, isLocalEngine, USD_TO_CNY } from './utils'
+import { billingModeLabel, costToCNY, engineColor, engineIcons, engineLabel, estimatePoints, findModelMeta, fmtCompact, fmtCost, hasPointsCoef, isLocalEngine, USD_TO_CNY } from './utils'
 import { RequestsTrendChart, TokenTrendChart, type StatsSort, type TrendRange } from './charts'
 import { useModelCenterActions, useModelCenterState } from './context'
 import { getUsageOverview, type UsageOverview, type UsageSide } from '../../api/engines'
@@ -56,10 +59,17 @@ export function StatsSection() {
 
   return (
     <div className="mc-drawer-body">
-      <div className="mc-stats-head">
-        <span className="mc-panel-title">
-          <ThunderboltOutlined /> 模型调用统计
-        </span>
+      {/* 工具条：口径元信息 + 排序/刷新/清空（抽屉自带「模型调用统计」标题，块内不再重复） */}
+      <div className="mc-stats-toolbar">
+        <div className="mc-stats-meta">
+          {callStats?.since && <span className="mc-meta-chip">统计自 {callStats.since}</span>}
+          {/* B 刀：价格目录来源小注（估算费用/积分系数依据；旧 stats.json 无此字段时不显示） */}
+          {callStats?.catalog_version && (
+            <span className="mc-meta-chip" title="估算费用 / 积分系数依据">
+              价格目录 {callStats.catalog_source || '内置'}（{callStats.catalog_version}）
+            </span>
+          )}
+        </div>
         <span className="mc-section-extra">
           <Segmented
             size="small"
@@ -84,53 +94,69 @@ export function StatsSection() {
         </span>
       </div>
 
-      {callStats?.since && (
-        <div style={{ color: 'var(--mc-muted)', fontSize: 11 }}>
-          统计自 {callStats.since} · 按引擎 / 模型维度统计调用情况与估算费用
-        </div>
-      )}
-      {/* B 刀：价格目录来源小注（估算费用/积分系数依据；旧 stats.json 无此字段时不显示） */}
-      {callStats?.catalog_version && (
-        <div style={{ color: 'var(--mc-muted)', fontSize: 11 }}>
-          价格目录 {callStats.catalog_source || '内置'}（{callStats.catalog_version}）
-        </div>
-      )}
-
-      {/* D3-2 本地 vs 云端分流对比 */}
-      {overview && (overview.cloud.total_tokens > 0 || overview.local.total_tokens > 0) && (
-        <div className="mc-panel" style={{ marginTop: 10 }}>
-          <div className="mc-panel-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <CloudOutlined /> 本地 vs 云端 · 节省对比
-            <span style={{ flex: 1 }} />
-            <Button size="small" type="text" icon={<ReloadOutlined spin={overviewLoading} />}
-              onClick={() => void loadOverview()} title="刷新分流统计" />
+      {/* D3-2 本地 vs 云端分流：占比条 + 三列读出 + KV 命中率紧凑行（重设计：单卡叙事替代 6 卡平铺） */}
+      {overview && (overview.cloud.total_tokens > 0 || overview.local.total_tokens > 0) && (() => {
+        const cloudTok = overview.cloud.total_tokens
+        const localTok = overview.local.total_tokens
+        const totalTok = cloudTok + localTok
+        const cloudPct = totalTok > 0 ? Math.round((cloudTok / totalTok) * 100) : 0
+        const localPct = 100 - cloudPct
+        const ov = overviewCache(overview)
+        const cacheTitle = ov.cache_hit_tokens + ov.cache_miss_tokens > 0
+          ? `${ov.cache_hit_tokens.toLocaleString()} 命中 / ${ov.cache_miss_tokens.toLocaleString()} 未命中`
+          : undefined
+        return (
+          <div className="mc-panel">
+            <div className="mc-panel-body" style={{ gap: 10 }}>
+              <div className="mc-field-row">
+                <span className="mc-panel-title"><CloudOutlined /> 云端 / 本地分流</span>
+                <span className="mc-splitbar-legend">
+                  <span><i className="mc-legend-swatch is-cloud" aria-hidden="true" />云端 {cloudPct}%</span>
+                  <span><i className="mc-legend-swatch is-local" aria-hidden="true" />本地 {localPct}%</span>
+                </span>
+                <span style={{ flex: 1 }} />
+                <Button size="small" type="text" icon={<ReloadOutlined spin={overviewLoading} />}
+                  onClick={() => void loadOverview()} title="刷新分流统计" />
+              </div>
+              <div
+                className="mc-splitbar"
+                role="img"
+                aria-label={`Token 分流：云端 ${cloudPct}%，本地 ${localPct}%`}
+              >
+                {cloudPct > 0 && <div className="mc-splitbar-seg is-cloud" style={{ width: `${cloudPct}%` }} />}
+                {localPct > 0 && <div className="mc-splitbar-seg is-local" style={{ width: `${localPct}%` }} />}
+              </div>
+              <div className="mc-split-cols">
+                <div className="mc-split-col">
+                  <div className="mc-split-col-label"><CloudOutlined /> 云端费用</div>
+                  <div className="mc-split-col-value">{fmtCost(overview.cloud.cost, 'CNY')}</div>
+                  <div className="mc-split-col-hint" title={overview.cloud.engines.join(' / ')}>
+                    {overview.cloud.calls} 次 · {overview.cloud.total_tokens.toLocaleString()} token · {overview.cloud.engines.join(' / ') || '—'}
+                  </div>
+                </div>
+                <div className="mc-split-col">
+                  <div className="mc-split-col-label"><DesktopOutlined /> 本地用量</div>
+                  <div className="mc-split-col-value">{overview.local.total_tokens.toLocaleString()}</div>
+                  <div className="mc-split-col-hint">{overview.local.calls} 次 · 免费（Herdsman 等本地引擎）</div>
+                </div>
+                <div className="mc-split-col is-save">
+                  <div className="mc-split-col-label"><SaveOutlined /> 已节省</div>
+                  <div className="mc-split-col-value">{fmtCost(overview.savings.saved, 'CNY')}</div>
+                  <div className="mc-split-col-hint">若走云端约需 {fmtCost(overview.savings.would_cost_cloud, 'CNY')}（参考 ¥{overview.savings.ref_price_per_mtok.toFixed(2)}/百万 token）</div>
+                </div>
+              </div>
+              {/* T5-3 KV 缓存命中率：全局（title 带 hit/miss 明细）+ 云端/本地，紧凑单行 */}
+              <div className="mc-cache-row">
+                <span className="mc-cache-label"><DatabaseOutlined /> KV 命中率</span>
+                <span className="mc-cache-item" title={cacheTitle}>全局 {fmtCacheRate(ov.cache_hit_tokens, ov.cache_miss_tokens, ov.cache_hit_rate)}</span>
+                <span className="mc-cache-item">云端 {fmtCacheRate(sideCache(overview.cloud).cache_hit_tokens, sideCache(overview.cloud).cache_miss_tokens)}</span>
+                <span className="mc-cache-item">本地 {fmtCacheRate(sideCache(overview.local).cache_hit_tokens, sideCache(overview.local).cache_miss_tokens)}</span>
+              </div>
+              <div className="mc-split-note">{overview.savings.note}</div>
+            </div>
           </div>
-          <div className="mc-overview-grid" style={{ gridTemplateColumns: 'repeat(3, minmax(0,1fr))' }}>
-            <KpiTile icon={<CloudOutlined />} label="云端用量"
-              value={fmtCost(overview.cloud.cost, 'CNY')}
-              hint={`${overview.cloud.calls} 次 · ${overview.cloud.total_tokens.toLocaleString()} token · ${overview.cloud.engines.join(' / ') || '—'}`} />
-            <KpiTile icon={<DesktopOutlined />} label="本地用量"
-              value={overview.local.total_tokens.toLocaleString()}
-              hint={`${overview.local.calls} 次 · 免费（Herdsman 等本地引擎）`} />
-            <KpiTile icon={<SaveOutlined />} label="已节省"
-              value={fmtCost(overview.savings.saved, 'CNY')}
-              hint={`若走云端约需 ${fmtCost(overview.savings.would_cost_cloud, 'CNY')}（参考 ¥${overview.savings.ref_price_per_mtok.toFixed(2)}/百万 token）`} />
-          </div>
-          {/* T5-3 KV 缓存命中率：全局 + 云端/本地各自命中率（无数据时显示占位） */}
-          <div className="mc-overview-grid" style={{ gridTemplateColumns: 'repeat(3, minmax(0,1fr))', marginTop: 10 }}>
-            <KpiTile icon={<DatabaseOutlined />} label="全局 KV 命中率"
-              value={fmtCacheRate(overviewCache(overview).cache_hit_tokens, overviewCache(overview).cache_miss_tokens, overviewCache(overview).cache_hit_rate)}
-              hint={overviewCache(overview).cache_hit_tokens + overviewCache(overview).cache_miss_tokens > 0
-                ? `${overviewCache(overview).cache_hit_tokens.toLocaleString()} 命中 / ${overviewCache(overview).cache_miss_tokens.toLocaleString()} 未命中`
-                : undefined} />
-            <KpiTile icon={<CloudOutlined />} label="云端命中率"
-              value={fmtCacheRate(sideCache(overview.cloud).cache_hit_tokens, sideCache(overview.cloud).cache_miss_tokens)} />
-            <KpiTile icon={<DesktopOutlined />} label="本地命中率"
-              value={fmtCacheRate(sideCache(overview.local).cache_hit_tokens, sideCache(overview.local).cache_miss_tokens)} />
-          </div>
-          <div style={{ color: 'var(--mc-muted)', fontSize: 11, marginTop: 6 }}>{overview.savings.note}</div>
-        </div>
-      )}
+        )
+      })()}
 
       {!callStats || callStats.total_calls === 0 ? (
         <EmptyState
@@ -144,29 +170,33 @@ export function StatsSection() {
             <KpiTile
               icon={<ThunderboltOutlined />}
               label="总调用"
-              value={callStats.total_calls}
+              value={callStats.total_calls.toLocaleString()}
               hint={`成功 ${callStats.success_calls} · 失败 ${callStats.fail_calls}`}
             />
             <KpiTile
-              icon={<ThunderboltOutlined />}
+              icon={<NumberOutlined />}
               label="Token 用量"
               value={callStats.total_tokens.toLocaleString()}
-              hint={`入 ${callStats.input_tokens.toLocaleString()} / 出 ${callStats.output_tokens.toLocaleString()}`}
+              hint={`入 ${fmtCompact(callStats.input_tokens)} / 出 ${fmtCompact(callStats.output_tokens)}`}
             />
             <KpiTile
-              icon={<ThunderboltOutlined />}
+              icon={<PayCircleOutlined />}
               label="估算费用"
               value={fmtCost(callStats.total_cost, 'CNY')}
               hint={`美元按 1:${callStats?.usd_to_cny ?? USD_TO_CNY} 折算`}
             />
             <KpiTile
-              icon={<ThunderboltOutlined />}
+              icon={<CheckCircleOutlined />}
               label="成功率"
-              value={`${((callStats.success_calls / callStats.total_calls) * 100).toFixed(1)}%`}
+              value={(() => {
+                const r = (callStats.success_calls / callStats.total_calls) * 100
+                const color = r >= 100 ? 'var(--mc-ok)' : r >= 90 ? 'var(--mc-text)' : 'var(--mc-danger)'
+                return <span style={{ color }}>{r.toFixed(1)}%</span>
+              })()}
               hint={`${callStats.per_model.length} 个模型`}
             />
             <KpiTile
-              icon={<ThunderboltOutlined />}
+              icon={<ClockCircleOutlined />}
               label="平均耗时"
               value={`${(callStats.avg_duration_ms / 1000).toFixed(1)}s`}
               hint={`累计 ${(callStats.total_duration_ms / 1000).toFixed(1)}s`}
@@ -253,10 +283,10 @@ export function StatsSection() {
                   <div className="mc-panel-body" style={{ gap: 8 }}>
                     <div className="mc-field-row">
                       <span className="mc-panel-title">Token 趋势</span>
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10, fontSize: 10, color: 'var(--mc-muted)' }}>
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><i style={{ width: 8, height: 8, borderRadius: 2, background: 'var(--color-primary)', display: 'inline-block' }} />输入</span>
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><i style={{ width: 8, height: 8, borderRadius: 2, background: 'var(--color-success)', display: 'inline-block' }} />输出</span>
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><i style={{ width: 14, height: 0, borderTop: '2px dashed var(--color-destructive)', display: 'inline-block' }} />费用</span>
+                      <span className="mc-chart-legend">
+                        <span><i className="mc-legend-swatch is-in" aria-hidden="true" />输入</span>
+                        <span><i className="mc-legend-swatch is-out" aria-hidden="true" />输出</span>
+                        <span><i className="mc-legend-swatch is-cost" aria-hidden="true" />费用</span>
                       </span>
                     </div>
                     {trendData.length > 0 ? (

@@ -114,6 +114,8 @@ export interface ModelCenterActionsValue {
   handleSetGlmEndpoint: (family: 'std' | 'coding') => Promise<void>
   handleResetCallStats: () => Promise<void>
   loadCallStats: () => Promise<void>
+  /** 重设计（v4.389 候选）：检查器统计块入口——从右栏直开「详细统计」抽屉 */
+  openStatsDrawer: () => void
   handleToggleComfy: () => Promise<void>
   handleSaveImageBackend: () => Promise<void>
   handleSetVoiceModel: (kind: 'asr' | 'tts', engineId: string, modelId: string) => Promise<void>

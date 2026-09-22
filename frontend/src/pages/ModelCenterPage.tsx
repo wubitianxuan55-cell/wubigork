@@ -207,6 +207,7 @@ const ModelCenterPage: React.FC = () => {
     handleRemoveCustomEngine: engine.handleRemoveCustomEngine,
     handleSetGlmEndpoint: engine.handleSetGlmEndpoint,
     handleResetCallStats: stats.handleResetCallStats, loadCallStats: stats.loadCallStats,
+    openStatsDrawer: () => setStatsOpen(true),
     handleToggleComfy: image.handleToggleComfy, handleSaveImageBackend: image.handleSaveImageBackend,
     handleSetVoiceModel: voice.handleSetVoiceModel, handleSetOCRModel: voice.handleSetOCRModel,
     handleSaveFeature: bind.handleSaveFeature, handleToggleFeatureEnabled: bind.handleToggleFeatureEnabled,

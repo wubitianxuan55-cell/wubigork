@@ -16,6 +16,7 @@ export default defineConfig([
     'node_modules',
     'wailsjs', // Wails 生成代码，不进 lint
     '.eslint-out.json',
+    '.tmp', // 瞬态产物（esbuild 目检挂具等，gitignored）：bundle 内 legal comments 会触发 eslint 指令错
   ]),
   {
     files: ['**/*.{ts,tsx}'],

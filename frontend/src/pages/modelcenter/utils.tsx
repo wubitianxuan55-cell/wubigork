@@ -376,6 +376,13 @@ export const COSYVOICE_FALLBACK_VOICES = ['中文女', '中文男', '英文女',
 
 // ── 费用展示工具（汇率单一来源：优先取后端下发的 usd_to_cny） ───
 export const USD_TO_CNY = 7.2
+
+// 紧凑数字（k/M 缩写）：检查器统计读数行 / 抽屉 KPI hint / 趋势图轴标共用
+export const fmtCompact = (v: number): string => {
+  if (v >= 1e6) return `${(v / 1e6).toFixed(1)}M`
+  if (v >= 1e3) return `${(v / 1e3).toFixed(1)}k`
+  return `${Math.round(v)}`
+}
 export const isLocalEngine = (id: string) => id === 'ollama' || id === 'herdsman' || id === 'cosyvoice' || id === 'modelhub'
 export const costToCNY = (cost: number, currency?: string, rate: number = USD_TO_CNY) => (currency === 'USD' ? cost * rate : cost)
 
