@@ -96,14 +96,16 @@ func newImageHubAssetID() string {
 }
 
 // imageHubRuntimeArmed 运行态武装标记：仅真实 App 生命周期（Startup）置位。
-// 只看 gaeaCfgSnapshot() != nil 不够——app 包内测试会初始化全局配置快照，
-// 已实测导致登记写进源码树（internal/app/.gaea/），故叠加显式武装位。
 var imageHubRuntimeArmed atomic.Bool
 
 // imageHubLedgerRuntimeCheck 运行态闸：真实 App 启动后登记才落盘。
 // 单测/未初始化环境（如既有 handler 测试）跳过，避免污染目录且不影响主流程。
+// v4.396 修订（真机走查抓出）：判据只留 armed 位——原叠加的 gaeaCfgSnapshot()!=nil
+// 会把「纯绘梦会话」误判非运行态（ga.cfg 仅办公引擎 GaeaInit 赋值，不碰办公的
+// 会话恒 nil），台账静默跳过、素材库/变体簇全断。测试进程不调 Startup，
+// armed 位本身已是测试/运行的可靠判据。
 var imageHubLedgerRuntimeCheck = func() bool {
-	return imageHubRuntimeArmed.Load() && gaeaCfgSnapshot() != nil
+	return imageHubRuntimeArmed.Load()
 }
 
 // recordImageHubGeneratedAsset 生图原语产物登记（media.generate 统一入口）。

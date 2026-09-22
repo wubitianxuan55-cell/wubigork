@@ -312,3 +312,31 @@ func TestVariantChainParentIDRoundtrip(t *testing.T) {
 		t.Fatalf("空路径应空串: %s", got)
 	}
 }
+
+// TestImageHubLedgerGatePureImagegenSession 纯绘梦会话登记回归（v4.396 走查抓出）：
+// ga.cfg 仅办公引擎 GaeaInit 赋值——不碰办公的会话恒 nil，旧判据
+// gaeaCfgSnapshot()!=nil 把合法运行态误判非运行态致台账静默跳过。
+// 修复后 armed 位即判据：置位 + cfg==nil（测试进程天然）→ 登记落盘。
+func TestImageHubLedgerGatePureImagegenSession(t *testing.T) {
+	imageHubRuntimeArmed.Store(true)
+	defer imageHubRuntimeArmed.Store(false)
+	if gaeaCfgSnapshot() != nil {
+		t.Skip("本测试要求 cfg 快照为 nil（纯绘梦会话形态）")
+	}
+	cwd := t.TempDir()
+	exports := filepath.Join(cwd, ".gaea", "play", "exports")
+	if err := os.MkdirAll(exports, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	img := filepath.Join(exports, "pure.png")
+	if err := os.WriteFile(img, []byte("png"), 0o644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	if err := recordImageHubGeneratedAsset(cwd, "play", "imagegen", "comfyui", "krea2", "p",
+		nil, imageHubAsset{Path: img}, nil, ""); err != nil {
+		t.Fatalf("record: %v", err)
+	}
+	if got := len(newImageHubLedger(cwd).list("play", 0)); got != 1 {
+		t.Fatalf("纯绘梦会话（cfg==nil）应正常登记，got %d 条", got)
+	}
+}
