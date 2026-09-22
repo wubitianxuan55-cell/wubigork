@@ -47,6 +47,8 @@ export interface GenTask {
   /** T2 角色参考槽：角色 ID 与全部参考图（data URL；首张作图生图种子） */
   characterId?: string
   refImages?: string[]
+  /** T2 一致性方法（阶段三刀 A）：img2img 近似（默认）/ qedit（Qwen 参考编辑） */
+  refMethod?: 'img2img' | 'qedit'
 }
 
 export type QueueStatus = 'pending' | 'running' | 'done' | 'failed' | 'canceled'

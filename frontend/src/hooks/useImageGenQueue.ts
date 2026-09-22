@@ -32,6 +32,8 @@ export interface ImageGenQueueConfig {
   /** T2 角色参考槽：角色 ID 与参考图（首张同时作 initImage） */
   characterId?: string
   refImages?: string[]
+  /** T2 一致性方法（阶段三刀 A）：img2img 近似（默认）/ qedit（Qwen 参考编辑） */
+  refMethod?: 'img2img' | 'qedit'
 }
 
 export interface UseImageGenQueueOptions {
@@ -126,6 +128,13 @@ export function useImageGenQueue({ setHistory, setLightboxIndex, config }: UseIm
         mediaParams.characterId = task.characterId
         mediaParams.refImages = task.refImages
         mediaParams.refMethod = 'img2img'
+      }
+      // Qwen 参考编辑（阶段三刀 A）：txt2img+参考 → 编辑引擎 image1..3 槽——
+      // 「描述新场景+人物一致」的正路通道（此前 txt2img 丢参考）。
+      if (task.mode === 'txt2img' && task.refMethod === 'qedit' && (task.refImages?.length ?? 0) > 0) {
+        mediaParams.characterId = task.characterId
+        mediaParams.refImages = task.refImages
+        mediaParams.refMethod = 'qedit'
       }
       if (task.mode === 't2v') { mediaParams.frames = task.frames; mediaParams.fps = task.fps }
       const res: { error?: string; images?: GenResult[]; results?: GenResult[] } = task.mode === 'txt2img'
@@ -238,7 +247,8 @@ export function useImageGenQueue({ setHistory, setLightboxIndex, config }: UseIm
       selectedLoras: config.selectedLoras, mode: config.mode, initImage: config.initImage,
       denoise: config.denoise, frames: config.frames, fps: config.fps,
       characterId: config.mode === 'img2img' ? config.characterId : undefined,
-      refImages: config.mode === 'img2img' ? config.refImages : undefined,
+      refImages: (config.mode === 'img2img' || config.refMethod === 'qedit') ? config.refImages : undefined,
+      refMethod: config.refMethod,
     }
     enqueueTask(task)
   }, [config, enqueueTask])

@@ -1,5 +1,5 @@
 import React from 'react'
-import { Input, InputNumber, Button, Typography, Slider, Select, Tooltip, message } from 'antd'
+import { Input, InputNumber, Button, Typography, Slider, Select, Tooltip, message, Radio } from 'antd'
 import {
   CloudOutlined, DesktopOutlined, RocketOutlined, KeyOutlined,
   EditOutlined, SlidersOutlined, CloudServerOutlined, DashboardOutlined,
@@ -129,6 +129,9 @@ export interface ControlPanelProps {
   /** T2 角色参考槽 v0：全局角色库中有参考图的角色（可选，缺省不渲染） */
   refChars?: { id: string; name: string; refCount: number }[]
   onApplyRef?: (id: string) => void
+  /** T2 一致性方法（阶段三刀 A）：img2img 近似（默认）/ qedit（Qwen 参考编辑） */
+  refMethod?: 'img2img' | 'qedit'
+  onRefMethodChange?: (m: 'img2img' | 'qedit') => void
 }
 
 export const ControlPanel: React.FC<ControlPanelProps> = ({
@@ -143,7 +146,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
   backend, backendSwitching, engineRunning, engineStarting, engineModelCount,
   onSwitchBackend, onStartEngine, onStopEngine,
   sysStats,
-  refChars, onApplyRef,
+  refChars, onApplyRef, refMethod, onRefMethodChange,
 }) => {
   const [showNegative, setShowNegative] = React.useState(false)
   const fileRef = React.useRef<HTMLInputElement>(null)
@@ -251,8 +254,19 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                 if (v && onApplyRef) onApplyRef(String(v))
               }}
             />
+            <div style={{ display: 'flex', gap: 8, marginTop: 5, alignItems: 'center' }} data-testid="ref-method-row">
+              <Typography.Text style={{ ...labelStyle, flexShrink: 0 }}>一致性</Typography.Text>
+              <Radio.Group
+                size="small" value={refMethod ?? 'img2img'} data-testid="ref-method-group"
+                onChange={(e) => onRefMethodChange?.(e.target.value as 'img2img' | 'qedit')}>
+                <Radio.Button value="img2img">图生图近似</Radio.Button>
+                <Radio.Button value="qedit">Qwen 参考编辑</Radio.Button>
+              </Radio.Group>
+            </div>
             <div style={{ fontSize: 11, color: C('color-text-secondary'), lineHeight: 1.5, marginTop: 5 }}>
-              当前为 v0 图生图近似：选定后自动切到图生图并载入该角色第一张参考图（ComfyUI / Herdsman）。
+              {refMethod === 'qedit'
+                ? 'Qwen 参考编辑（推荐）：prompt 描述新场景，人物形象与参考图保持一致（本地 ComfyUI 编辑引擎，最多 3 张参考）。'
+                : '图生图近似：选定后自动切到图生图并载入该角色第一张参考图（构图跟随参考图）。'}
             </div>
           </div>
         )}

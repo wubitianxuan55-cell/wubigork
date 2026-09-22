@@ -182,3 +182,33 @@ describe('ControlPanel 壳内上传参考图（刀C-1）', () => {
     }
   })
 })
+
+describe('ControlPanel 一致性方法选择（阶段三刀 A）', () => {
+  it('带参考角色时渲染方法 Radio；qedit 态文案指向 Qwen 参考编辑', () => {
+    const onRefMethodChange = vi.fn()
+    const { rerender } = render(<ControlPanel
+      {...baseProps}
+      refChars={[{ id: 'c1', name: '苏离', refCount: 2 }]}
+      refMethod="qedit"
+      onRefMethodChange={onRefMethodChange}
+    />)
+    expect(screen.getByTestId('ref-method-row')).toBeTruthy()
+    expect(screen.getByTestId('ref-method-group')).toBeTruthy()
+    expect(screen.getByText(/Qwen 参考编辑（推荐）/)).toBeTruthy()
+    // 切回 img2img：文案切换 + 回调
+    fireEvent.click(screen.getAllByText('图生图近似')[0])
+    expect(onRefMethodChange).toHaveBeenCalledWith('img2img')
+    rerender(<ControlPanel
+      {...baseProps}
+      refChars={[{ id: 'c1', name: '苏离', refCount: 2 }]}
+      refMethod="img2img"
+      onRefMethodChange={onRefMethodChange}
+    />)
+    expect(screen.getByText(/自动切到图生图/)).toBeTruthy()
+  })
+
+  it('无参考角色时不渲染方法选择（缺省不渲染惯例）', () => {
+    render(<ControlPanel {...baseProps} refMethod="qedit" />)
+    expect(screen.queryByTestId('ref-method-row')).toBeNull()
+  })
+})

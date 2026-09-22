@@ -221,11 +221,34 @@ func (b *ComfyUIBackend) GenerateImage(ctx context.Context, req *ImageGeneration
 	if mode == "" {
 		mode = "txt2img"
 	}
+	// T2 参考槽：img2img 近似（v0 行为）/ qedit 参考编辑（阶段三刀 A）。
+	// qedit：参考图由 edit 分支上传（三图槽），此处只路由不改 InitImage。
+	if len(req.RefImages) > 0 {
+		nm, err := comfyResolveRefMode(mode, req.RefMethod)
+		if err != nil {
+			return nil, err
+		}
+		mode = nm
+		if mode == "qedit" {
+			if req.Mask != "" {
+				return nil, fmt.Errorf("参考编辑（qedit）不支持蒙版——蒙版仅与指令编辑组合")
+			}
+			if len(req.RefImages) > 3 {
+				return nil, fmt.Errorf("Qwen 参考编辑最多 3 张参考图（image1..3），当前 %d 张", len(req.RefImages))
+			}
+		} else if req.InitImage == "" {
+			req.InitImage = req.RefImages[0]
+		}
+	}
+
 	// 指令编辑本地档（阶段二刀 A）：Qwen-Image-Edit 2511 官方模板蒸馏——
 	// 原图上 → FluxKontextImageScale 重标 → 语义编辑（非图生图整幅重绘）。
 	// 阶段二刀 B：Mask 非空时走蒙版局部重绘（白=重绘区）——SetLatentNoiseMask
 	// 限制重采样区域，蒙版与缩放图同尺寸对齐（kontextScaleSize）。
-	var editImageName, editMaskName string
+	// 阶段三刀 A：qedit 参考编辑共用本链——参考图 1..3 进 image1..3 槽
+	//（TextEncodeQwenImageEditPlus 三图参考，人物一致性正路）。
+	var editImages []string
+	var editMaskName string
 	editTargetW, editTargetH := 0, 0
 	if mode == "edit" {
 		if req.InitImage == "" {
@@ -235,7 +258,7 @@ func (b *ComfyUIBackend) GenerateImage(ctx context.Context, req *ImageGeneration
 		if err != nil {
 			return nil, err
 		}
-		editImageName = name
+		editImages = []string{name}
 		if req.Mask != "" {
 			imgBytes, _, err := decodeDataURLBytes(req.InitImage)
 			if err != nil {
@@ -253,16 +276,16 @@ func (b *ComfyUIBackend) GenerateImage(ctx context.Context, req *ImageGeneration
 			editMaskName = maskName
 		}
 	}
-	// T2 参考槽 v0：文生图带参考图且方法为 img2img 近似时转图生图（krea2/z-image）；
-	// ipadapter/pulid 未实现 → 诚实报错，不静默忽略参考图。
-	if len(req.RefImages) > 0 {
-		nm, err := comfyResolveRefMode(mode, req.RefMethod)
-		if err != nil {
-			return nil, err
+	if mode == "qedit" {
+		if len(req.RefImages) == 0 {
+			return nil, fmt.Errorf("参考编辑（qedit）需要至少 1 张参考图")
 		}
-		mode = nm
-		if req.InitImage == "" {
-			req.InitImage = req.RefImages[0]
+		for _, ref := range req.RefImages {
+			name, err := b.uploadImage(ctx, ref)
+			if err != nil {
+				return nil, err
+			}
+			editImages = append(editImages, name)
 		}
 	}
 
@@ -280,10 +303,10 @@ func (b *ComfyUIBackend) GenerateImage(ctx context.Context, req *ImageGeneration
 	var workflow map[string]interface{}
 	kind := "image"
 	switch mode {
-	case "edit":
-		// 指令编辑本地档：单编辑族 Qwen-Image-Edit 2511（req.Model 是生图模型名，
-		// 不代表编辑引擎——app 层已把元数据如实改写为 qwen-image-edit）。
-		workflow = b.buildQwenImageEditWorkflow(req.Prompt, seed, editImageName, editMaskName, editTargetW, editTargetH)
+	case "edit", "qedit":
+		// 指令编辑/参考编辑本地档：单编辑族 Qwen-Image-Edit 2511（req.Model 是
+		// 生图模型名，不代表编辑引擎——app 层已把元数据如实改写 qwen-image-edit）。
+		workflow = b.buildQwenImageEditWorkflow(req.Prompt, seed, editImages, editMaskName, editTargetW, editTargetH)
 	case "img2img":
 		// 图生图：上传参考图 → LoadImage + VAEEncode → 低 denoise 重绘
 		if req.InitImage == "" {
@@ -654,20 +677,32 @@ const (
 // 官方 Note「Comfy」列参数（20 步 CFG 4.0）；denoise 恒 1.0=语义编辑非整幅重绘；
 // FluxKontextMultiReferenceLatentMethod 官方明示「用 Comfy 官方权重不需要」不接；
 // Lightning 4 步 LoRA 为可选加速件，v1 不接（观察池）。
-func (b *ComfyUIBackend) buildQwenImageEditWorkflow(prompt string, seed int, imageName, maskName string, maskTargetW, maskTargetH int) map[string]interface{} {
+func (b *ComfyUIBackend) buildQwenImageEditWorkflow(prompt string, seed int, images []string, maskName string, maskTargetW, maskTargetH int) map[string]interface{} {
 	wf := map[string]interface{}{
 		"4":   map[string]interface{}{"class_type": "UNETLoader", "inputs": map[string]interface{}{"unet_name": qwenEditUNET, "weight_dtype": "default"}},
 		"5":   map[string]interface{}{"class_type": "CLIPLoader", "inputs": map[string]interface{}{"clip_name": qwenEditCLIP, "type": "qwen_image", "device": "default"}},
 		"6":   map[string]interface{}{"class_type": "VAELoader", "inputs": map[string]interface{}{"vae_name": qwenEditVAE}},
 		"145": map[string]interface{}{"class_type": "ModelSamplingAuraFlow", "inputs": map[string]interface{}{"model": []interface{}{"4", 0}, "shift": 3.1}},
 		"152": map[string]interface{}{"class_type": "CFGNorm", "inputs": map[string]interface{}{"model": []interface{}{"145", 0}, "strength": 1.0, "pre_cfg": false}},
-		"1":   map[string]interface{}{"class_type": "LoadImage", "inputs": map[string]interface{}{"image": imageName}},
+		"1":   map[string]interface{}{"class_type": "LoadImage", "inputs": map[string]interface{}{"image": images[0]}},
 		// FluxKontextImageScale：把原图重标到 Kontext 系最优分辨率（保宽高比）
 		"160": map[string]interface{}{"class_type": "FluxKontextImageScale", "inputs": map[string]interface{}{"image": []interface{}{"1", 0}}},
 		"7":   map[string]interface{}{"class_type": "TextEncodeQwenImageEditPlus", "inputs": map[string]interface{}{"clip": []interface{}{"5", 0}, "vae": []interface{}{"6", 0}, "image1": []interface{}{"160", 0}, "prompt": prompt}},
 		"8":   map[string]interface{}{"class_type": "TextEncodeQwenImageEditPlus", "inputs": map[string]interface{}{"clip": []interface{}{"5", 0}, "vae": []interface{}{"6", 0}, "image1": []interface{}{"160", 0}, "prompt": ""}},
-		"15":  map[string]interface{}{"class_type": "VAEEncode", "inputs": map[string]interface{}{"pixels": []interface{}{"160", 0}, "vae": []interface{}{"6", 0}}},
 	}
+	// 阶段三刀 A：参考槽 image2/3（qedit 多图参考；正/负 TextEncode 都接全部
+	// 参考槽——官方模板口径）。参考图各自 LoadImage+FluxKontextImageScale
+	//（与 image1 同款重标，编辑族输入尺寸规约一致）。
+	for i, name := range images[1:] {
+		loadID := fmt.Sprintf("2%d", i+1) // "21"/"22"
+		scaleID := fmt.Sprintf("17%d", i+1)
+		wf[loadID] = map[string]interface{}{"class_type": "LoadImage", "inputs": map[string]interface{}{"image": name}}
+		wf[scaleID] = map[string]interface{}{"class_type": "FluxKontextImageScale", "inputs": map[string]interface{}{"image": []interface{}{loadID, 0}}}
+		for _, encID := range []string{"7", "8"} {
+			wf[encID].(map[string]interface{})["inputs"].(map[string]interface{})[fmt.Sprintf("image%d", i+2)] = []interface{}{scaleID, 0}
+		}
+	}
+	wf["15"] = map[string]interface{}{"class_type": "VAEEncode", "inputs": map[string]interface{}{"pixels": []interface{}{"160", 0}, "vae": []interface{}{"6", 0}}}
 	// 蒙版链：latent 源改接 SetLatentNoiseMask 输出（"163"），无蒙版时直连 VAEEncode
 	latentNode := []interface{}{"15", 0}
 	if maskName != "" {
@@ -948,8 +983,13 @@ func (b *ComfyUIBackend) waitForResult(ctx context.Context, promptID string, req
 	}
 }
 
-// comfyResolveRefMode 解析参考槽的一致性方法：""/"img2img" → 图生图近似；
-// 其余方法（ipadapter/pulid）在 ComfyUI 工作流注入实现前诚实拒绝。
+// comfyResolveRefMode 解析参考槽的一致性方法（阶段三刀 A 起）：
+//   - ""/"img2img" → 图生图近似（v0 行为不动）；
+//   - "qedit" → Qwen-Image-Edit 参考编辑（阶段三刀 A）：txt2img+参考 → 编辑
+//     引擎多图参考槽（TextEncodeQwenImageEditPlus image1..3），人物一致性正路
+//     （Qwen 架构族无 IP-Adapter 生态）；
+//   - "ipadapter"/"pulid" → 诚实拒绝并改口指向 qedit（路线修订：Qwen 架构族
+//     无此生态，不再「排期中」）。
 func comfyResolveRefMode(mode, refMethod string) (string, error) {
 	if mode == "img2img" {
 		return mode, nil
@@ -957,8 +997,10 @@ func comfyResolveRefMode(mode, refMethod string) (string, error) {
 	switch refMethod {
 	case "", "img2img":
 		return "img2img", nil
+	case "qedit":
+		return "qedit", nil
 	case "ipadapter", "pulid":
-		return mode, fmt.Errorf("一致性方法 %s 尚未支持（排期中；当前可用 img2img 近似）", refMethod)
+		return mode, fmt.Errorf("一致性方法 %s 不适用于当前模型族（krea2/z-image 为 Qwen-Image 架构，无 IP-Adapter 生态）；人物一致请用 qedit（Qwen 参考编辑）或 img2img 近似", refMethod)
 	default:
 		return mode, fmt.Errorf("未知一致性方法: %s", refMethod)
 	}

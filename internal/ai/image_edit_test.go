@@ -12,6 +12,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"image"
 	"image/color"
 	"image/png"
@@ -484,5 +485,109 @@ func TestComfyUIBackend_EditMaskWorkflowShape(t *testing.T) {
 	// TextEncode image1 保持全图缩放图（语义参考不受蒙版限制）
 	if ref, _ := inputs("7")["image1"].([]interface{}); len(ref) == 0 || ref[0] != "160" {
 		t.Fatalf("TextEncode image1 应保持全图缩放图: %v", inputs("7")["image1"])
+	}
+}
+
+// TestComfyUIResolveRefModeQedit 一致性方法路由（阶段三刀 A）：qedit 新分支、
+// ipadapter/pulid 改口指向 qedit、img2img 模式优先。
+func TestComfyUIResolveRefModeQedit(t *testing.T) {
+	if m, err := comfyResolveRefMode("txt2img", "qedit"); err != nil || m != "qedit" {
+		t.Fatalf("txt2img+qedit 应路由 qedit: %s %v", m, err)
+	}
+	if m, err := comfyResolveRefMode("txt2img", ""); err != nil || m != "img2img" {
+		t.Fatalf("缺省应 img2img 近似: %s %v", m, err)
+	}
+	if m, err := comfyResolveRefMode("img2img", "qedit"); err != nil || m != "img2img" {
+		t.Fatalf("img2img 模式应优先自身: %s %v", m, err)
+	}
+	_, err := comfyResolveRefMode("txt2img", "ipadapter")
+	if err == nil || !strings.Contains(err.Error(), "qedit") {
+		t.Fatalf("ipadapter 应改口指向 qedit: %v", err)
+	}
+}
+
+// TestComfyUIBackend_QeditWorkflowShape 参考编辑工作流形状（阶段三刀 A）：
+// 参考 1..3 各自 LoadImage+FluxKontextImageScale 进正/负 TextEncode 的
+// image1/2/3；latent=VAEEncode(参考1 缩放)；无蒙版节点。
+func TestComfyUIBackend_QeditWorkflowShape(t *testing.T) {
+	png := []byte{0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a}
+	var workflow map[string]interface{}
+	var uploads int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/upload/image":
+			uploads++
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(fmt.Sprintf(`{"name":"gaea_ref_%d.png"}`, uploads)))
+		case r.URL.Path == "/prompt":
+			body, _ := io.ReadAll(r.Body)
+			var req struct {
+				Prompt map[string]interface{} `json:"prompt"`
+			}
+			_ = json.Unmarshal(body, &req)
+			workflow = req.Prompt
+			_, _ = w.Write([]byte(`{"prompt_id":"pid-qedit"}`))
+		case r.URL.Path == "/history/pid-qedit":
+			_, _ = w.Write([]byte(`{"pid-qedit":{"outputs":{"12":{"images":[{"filename":"q.png","subfolder":"","type":"output"}]}}}}`))
+		case r.URL.Path == "/view":
+			w.Header().Set("Content-Type", "image/png")
+			_, _ = w.Write(png)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+
+	b := NewComfyUIBackend(srv.URL)
+	b.pollInterval = 5 * time.Millisecond
+	if _, err := b.GenerateImage(context.Background(), &ImageGenerationRequest{
+		Mode:      "txt2img",
+		Prompt:    "人物形象与 image1 保持一致，站在雪山前",
+		RefImages: []string{editDataURL(), editDataURL(), editDataURL()},
+		RefMethod: "qedit",
+	}); err != nil {
+		t.Fatalf("qedit 失败: %v", err)
+	}
+	if uploads != 3 {
+		t.Fatalf("应上传 3 张参考: %d", uploads)
+	}
+	inputs := func(id string) map[string]interface{} {
+		n, _ := workflow[id].(map[string]interface{})
+		in, _ := n["inputs"].(map[string]interface{})
+		return in
+	}
+	// image2/3：LoadImage "21"/"22" → FluxKontextImageScale "171"/"172" → 正负 TextEncode
+	for i, pair := range [][2]string{{"21", "171"}, {"22", "172"}} {
+		loadID, scaleID := pair[0], pair[1]
+		if got, _ := inputs(loadID)["image"].(string); got == "" {
+			t.Fatalf("参考 LoadImage %s 缺失", loadID)
+		}
+		if ref, _ := inputs(scaleID)["image"].([]interface{}); len(ref) == 0 || ref[0] != loadID {
+			t.Fatalf("参考 Scale %s 应接 %s", scaleID, loadID)
+		}
+		for _, enc := range []string{"7", "8"} {
+			if ref, _ := inputs(enc)[fmt.Sprintf("image%d", i+2)].([]interface{}); len(ref) == 0 || ref[0] != scaleID {
+				t.Fatalf("TextEncode %s 的 image%d 应接 %s", enc, i+2, scaleID)
+			}
+		}
+	}
+	// latent=VAEEncode(参考1)；无蒙版节点
+	if ref, _ := inputs("10")["latent_image"].([]interface{}); len(ref) == 0 || ref[0] != "15" {
+		t.Fatalf("latent 应直连 VAEEncode: %v", inputs("10")["latent_image"])
+	}
+	if _, has := workflow["163"]; has {
+		t.Fatal("qedit 无蒙版不应有 SetLatentNoiseMask")
+	}
+	// >3 参考拒绝；qedit+mask 拒绝
+	if _, err := b.GenerateImage(context.Background(), &ImageGenerationRequest{
+		Mode: "txt2img", RefImages: []string{editDataURL(), editDataURL(), editDataURL(), editDataURL()}, RefMethod: "qedit",
+	}); err == nil || !strings.Contains(err.Error(), "最多 3 张") {
+		t.Fatalf(">3 参考应拒绝，得到: %v", err)
+	}
+	if _, err := b.GenerateImage(context.Background(), &ImageGenerationRequest{
+		Mode: "txt2img", RefImages: []string{editDataURL()}, RefMethod: "qedit",
+		Mask: editDataURL(),
+	}); err == nil || !strings.Contains(err.Error(), "不支持蒙版") {
+		t.Fatalf("qedit+mask 应拒绝，得到: %v", err)
 	}
 }

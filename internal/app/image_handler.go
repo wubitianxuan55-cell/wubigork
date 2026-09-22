@@ -546,7 +546,7 @@ func (a *mediaState) GenerateMedia(paramsJSON string) (map[string]interface{}, e
 		// ——请求 model 字段是生图模型名（krea2 等），不代表编辑引擎；元数据/台账
 		// 如实记 qwen-image-edit（ai 层 edit 分支本就不消费该字段）。扩图（刀 C）
 		// 转发同一编辑引擎，同口径。
-		if mode == "edit" || mode == "outpaint" {
+		if mode == "edit" || mode == "outpaint" || (mode == "txt2img" && p.RefMethod == "qedit") {
 			if a.cfg.ImageBackend == "comfyui" {
 				imgModel = "qwen-image-edit"
 			}

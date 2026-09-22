@@ -1,3 +1,14 @@
+## 最新发布：v4.398.0（2026-09-23）「绘梦·参考槽 Qwen-Edit 通道（T2 一致性首刀）」
+
+- **刀型**：T2 一致性首刀；路线修订（Qwen 架构走编辑参考不走 IP-Adapter）。Go 3+前端 5 文件，绑定面 715 零变更。规格 进度计划/gaea-qedit-ref-20260923.md。
+- **病根**：参考槽 v0=img2img 整幅重绘（构图被锁死）+队列 txt2img 丢参考（新场景+角色一致无通道）。
+- **落地**：qedit 路由+builder 三图槽（正负 TextEncode image1/2/3）+元数据如实化+ControlPanel 方法 Radio+applyRefCharacter 分流+queue 打通。
+- **测试**：ai +2+回归绿+app +1+前端 +2；全量 398 文件 3365 例绿+tsc 0+eslint 0。
+- **坑**：代码块搬家块尾注释找边界/regex 中插截断泛型/缺省行为是契约新方法并列露出。
+- **产物**：exe 见 SHA256SUMS-v4.398.0.txt；保留策略留 v4.394~v4.398 删 v4.393.0.exe。
+- **文档**：releases/v4.398.0.md+CHANGELOG/README+releases/README（419→420+裁 v4.364）+AGENTS 迁 1 插 1（一百一十三迁：v4.393 入 archive）+todos。
+- **观察池**：sin 参考槽升级；云端多图编辑；角色资产 v2（三视图/一致性评分）；LoRA 向导；导演 Agent；per-image 权重。
+
 ## 最新发布：v4.397.0（2026-09-23）「绘梦·抠图/透明底导出（T3 编辑力收官）」
 
 - **刀型**：T3 最后一件。零新模型：蒙版即 alpha。Go 3 文件+前端 5 文件，绑定面 714→715（+ImageCutout，play）。

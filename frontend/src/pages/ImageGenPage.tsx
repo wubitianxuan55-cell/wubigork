@@ -64,7 +64,7 @@ const ImageGenPage: React.FC = () => {
     loraOptions, loraLoading, loraError, refreshComfyLoras,
     backendSwitching, engineRunning, engineStarting, engineModelCount, sysStats,
     modelOptions, characters,
-    refChars, applyRefCharacter, refSlot, clearRefSlot,
+    refChars, applyRefCharacter, refSlot, clearRefSlot, refMethod, setRefMethod,
     handleSwitchBackend, handleStartEngine, handleStopEngine,
     handleOpenDir, handleOpenNovelDir,
   } = cfg
@@ -93,6 +93,7 @@ const ImageGenPage: React.FC = () => {
       denoise, frames, fps,
       refImages: refSlot?.refs ?? [],
       characterId: refSlot?.characterId,
+      refMethod,
     },
   })
   const {
@@ -411,6 +412,8 @@ const ImageGenPage: React.FC = () => {
             sysStats={sysStats}
             refChars={refChars}
             onApplyRef={(id) => { void applyRefCharacter(id) }}
+            refMethod={refMethod}
+            onRefMethodChange={setRefMethod}
           />
         </aside>
 

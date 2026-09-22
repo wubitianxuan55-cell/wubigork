@@ -1,5 +1,5 @@
 // ImageGenPage 拆分产物：生成配置/引擎/模型状态机（行为零变化，T6-10.1）
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { message } from 'antd'
 import {
   getImageBackendInfo, getCharacters, getComfyUIStatus, getSystemStats,
@@ -56,6 +56,11 @@ export function useImageGenConfig() {
   const [refChars, setRefChars] = useState<{ id: string; name: string; refCount: number }[]>([])
   // T2 角色参考槽：当前选中的角色（ID + 已解析参考图 + 名称；随生成进入溯源）。
   const [refSlot, setRefSlot] = useState<{ characterId: string; refs: string[]; name: string } | null>(null)
+  // T2 一致性方法（阶段三刀 A）：img2img 近似（v0 默认）/ qedit（Qwen 参考编辑——
+  // 参考图进编辑引擎 image1..3 槽，prompt 描述新场景，不切图生图）。
+  const [refMethod, setRefMethod] = useState<'img2img' | 'qedit'>('img2img')
+  const refMethodRef = useRef<'img2img' | 'qedit'>('img2img')
+  refMethodRef.current = refMethod
 
   // 系统级后台轮询治理：页面不可见（窗口最小化/切走）时各轮询空转零成本
   const pollable = usePollingGate()
@@ -241,8 +246,14 @@ export function useImageGenConfig() {
         return
       }
       setRefSlot({ characterId: id, refs: resolved, name: detail?.character?.name || '角色' })
-      setMode('img2img')
-      setInitImage(resolved[0])
+      if (refMethodRef.current === 'qedit') {
+        // Qwen 参考编辑（阶段三刀 A）：保持文生图（prompt 描述新场景），参考图
+        // 进编辑引擎 image1..3 槽；不切图生图、不占 initImage。
+        setMode('txt2img')
+      } else {
+        setMode('img2img')
+        setInitImage(resolved[0])
+      }
       setDenoise(0.65)
       message.success(`已载入「${detail?.character?.name || '角色'}」${resolved.length} 张参考图，输入修改/场景描述后生成`)
     } catch (err: unknown) {
@@ -339,7 +350,7 @@ export function useImageGenConfig() {
     comfyLoras, loraOptions, loraLoading, loraError, refreshComfyLoras,
     engines, backendSwitching, engineRunning, engineStarting, engineModelCount, sysStats,
     modelOptions, characters,
-    refChars, applyRefCharacter, refSlot, clearRefSlot,
+    refChars, applyRefCharacter, refSlot, clearRefSlot, refMethod, setRefMethod,
     handleSwitchBackend, handleStartEngine, handleStopEngine,
     handleOpenDir, handleOpenNovelDir,
   }

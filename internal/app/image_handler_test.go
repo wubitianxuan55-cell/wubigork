@@ -678,3 +678,39 @@ func solidGrayMaskSrc(t *testing.T, w, h int) string {
 	}
 	return "data:image/png;base64," + base64.StdEncoding.EncodeToString(buf.Bytes())
 }
+
+// TestGenerateMedia_QeditMetadata qedit 参考编辑（阶段三刀 A）：txt2img+refs+
+// qedit 透传（ai 层路由）；comfyui 元数据如实记 qwen-image-edit。
+func TestGenerateMedia_QeditMetadata(t *testing.T) {
+	dir := t.TempDir()
+	fake := &fakeImageBackend{result: &ai.ImageGenerationResponse{
+		Data: []ai.ImageData{{B64JSON: pngDataURLApp("fake-qedit"), Kind: "image"}},
+	}}
+	c := &ai.Client{}
+	c.SetImageBackend(fake, "comfyui")
+	ms := &mediaState{core: &core{cfg: &config.Config{ImageBackend: "comfyui", ImageModel: "krea2", ImageSaveDir: dir}, client: c}}
+
+	res, err := ms.GenerateMedia(`{"prompt":"人物与参考一致，站在雪山前","mode":"txt2img","refImages":["data:image/png;base64,AAAA"],"refMethod":"qedit","count":1}`)
+	if err != nil {
+		t.Fatalf("GenerateMedia: %v", err)
+	}
+	if msg, _ := res["error"].(string); msg != "" {
+		t.Fatalf("qedit 应出结果，得到: %s", msg)
+	}
+	if fake.lastReq == nil || fake.lastReq.RefMethod != "qedit" || len(fake.lastReq.RefImages) != 1 {
+		t.Fatalf("refs/refMethod 应透传: %+v", fake.lastReq)
+	}
+	items := res["results"].([]imageItem)
+	if len(items) != 1 || items[0].Model != "qwen-image-edit" {
+		t.Fatalf("qedit+comfyui 元数据应如实记 qwen-image-edit: %+v", items)
+	}
+	// 非 qedit 的 txt2img+refs：元数据保持生图模型（krea2）
+	res, err = ms.GenerateMedia(`{"prompt":"p","mode":"txt2img","refImages":["data:image/png;base64,AAAA"],"refMethod":"img2img","count":1}`)
+	if err != nil {
+		t.Fatalf("GenerateMedia: %v", err)
+	}
+	items = res["results"].([]imageItem)
+	if items[0].Model != "krea2" {
+		t.Fatalf("img2img 近似元数据应保持 krea2: %+v", items)
+	}
+}
