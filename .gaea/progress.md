@@ -1,3 +1,13 @@
+## 最新发布：v4.397.0（2026-09-23）「绘梦·抠图/透明底导出（T3 编辑力收官）」
+
+- **刀型**：T3 最后一件。零新模型：蒙版即 alpha。Go 3 文件+前端 5 文件，绑定面 714→715（+ImageCutout，play）。
+- **落地**：ComposeCutout（白=保留主体）→ImageCutout 绑定（落盘+台账+{path,asset_id}）→CutoutModal+ResultStage「抠图」动作。
+- **测试**：ai +2+app +1+前端 +3；全量 398 文件 3363 例绿+tsc 0+eslint 0。
+- **坑**：bindingNames 两份（真实消费 gaea/lib 那份）/bindings_image.go 单行风格勿 gofmt -w 整文件/JSX 锚点替换嵌条件块插完必 tsc。
+- **产物**：exe 见 SHA256SUMS-v4.397.0.txt；保留策略留 v4.393~v4.397 删 v4.392.0.exe。
+- **文档**：releases/v4.397.0.md+CHANGELOG/README+releases/README（418→419+裁 v4.363）+AGENTS 迁 1 插 1（一百一十二迁：v4.392 入 archive）+todos。
+- **观察池**：羽化；角色库参考图管线对接；模型推理抠图；透明产物展示语义；**画室线转 T2 一致性**（ipadapter/pulid、角色资产 v2、LoRA 向导、导演 Agent）。
+
 ## 最新发布：v4.396.0（2026-09-23）「纯绘梦会话台账登记根修（真机走查抓出）+ 编辑四件套真机验收班」
 
 - **刀型**：真机验收班抓出的真缺陷根修。Go 1 文件+1 测试，绑定面 714 零变更。

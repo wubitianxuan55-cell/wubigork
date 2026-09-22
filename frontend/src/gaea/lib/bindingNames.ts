@@ -499,6 +499,7 @@ export const bindingNames = [
   "HerdsmanOperations",
   "HerdsmanProbe",
   "HerdsmanSecurityCheck",
+  "ImageCutout",
   "ImageHubAssets",
   "ImageHubMonthlyUsage",
   "ImportNovelBook",

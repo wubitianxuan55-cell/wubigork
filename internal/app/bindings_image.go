@@ -15,6 +15,7 @@ func (b *ImageB) GenerateDefaultCanvas() (map[string]interface{}, error) { retur
 func (b *ImageB) GenerateDiagram(prompt string) (map[string]interface{}, error) { return b.a.GenerateDiagram(prompt) }
 func (b *ImageB) GenerateFreeImage(prompt string, negative string, size string, style string, model string, seed int, n int, lora string) (map[string]interface{}, error) { return b.a.GenerateFreeImage(prompt, negative, size, style, model, seed, n, lora) }
 func (b *ImageB) GenerateMedia(paramsJSON string) (map[string]interface{}, error) { return b.a.GenerateMedia(paramsJSON) }
+func (b *ImageB) ImageCutout(initImage string, maskData string) map[string]interface{} { return b.a.ImageCutout(initImage, maskData) }
 func (b *ImageB) GetActiveASRModel() map[string]string { return b.a.GetActiveASRModel() }
 func (b *ImageB) GetActiveTTSModel() map[string]string { return b.a.GetActiveTTSModel() }
 func (b *ImageB) GetChatVoiceModel() map[string]string { return b.a.GetChatVoiceModel() }

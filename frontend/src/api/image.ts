@@ -18,6 +18,7 @@ type ImageHubFacade = {
   ChapterArtList(chapterNum: number): Promise<Array<Record<string, unknown>>>
   AttachmentDataURL(path: string): Promise<string>
   SavePastedImage(dataUrl: string): Promise<string>
+  ImageCutout(initImage: string, maskData: string): Promise<{ path?: string; asset_id?: string; error?: string }>
   RecognizeImage(imagePath: string, prompt: string): Promise<unknown>
   OCRText(imagePath: string): Promise<unknown>
   CharacterList(query: string, kind: string, chatOnly: boolean, page: number, pageSize: number):
@@ -484,4 +485,12 @@ export async function openNovelImagesDir(): Promise<void> {
 /** 设置角色剧照 */
 export async function setCharacterPortrait(charID: string, imageData: string): Promise<void> {
   await appFacade().SetCharacterPortrait(charID, imageData)
+}
+
+
+/** 抠图/透明底导出（阶段二刀 E，T3 收官）：涂选保留主体（蒙版白=保留）→
+ * 透明 PNG 落盘 ImageSaveDir+台账登记，返回路径与资产 id。零模型调用。 */
+export async function imageCutout(initImage: string, maskData: string): Promise<{ path?: string; asset_id?: string; error?: string }> {
+  const r = await appFacade().ImageCutout(initImage, maskData)
+  return r ?? {}
 }

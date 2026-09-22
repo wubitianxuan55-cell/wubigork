@@ -618,3 +618,63 @@ func TestGenerateMedia_VariantChain(t *testing.T) {
 		t.Fatalf("闸关时变体字段应为空: %+v", items[0])
 	}
 }
+
+// TestImageCutoutBinding 抠图绑定（阶段二刀 E）：空参拒绝；闸开落盘+台账+
+// 返回 path/asset_id；闸关（默认测试态）落盘仍出 path、台账字段空。
+func TestImageCutoutBinding(t *testing.T) {
+	dir := t.TempDir()
+	c := &ai.Client{}
+	c.SetImageBackend(&fakeImageBackend{}, "openai")
+	ms := &mediaState{core: &core{cfg: &config.Config{ImageBackend: "openai", ImageSaveDir: dir}, client: c}}
+
+	// 空参
+	res := ms.ImageCutout("", "")
+	if msg, _ := res["error"].(string); msg != "抠图需要原图与涂选蒙版（涂抹要保留的主体）" {
+		t.Fatalf("空参应拒绝，得到: %v", res["error"])
+	}
+
+	src := solidOutpaintSrc(t, 2, 2)
+	mask := solidGrayMaskSrc(t, 2, 2)
+
+	// 闸关（默认）：落盘出 path，asset_id 空（台账不落）
+	res = ms.ImageCutout(src, mask)
+	if msg, _ := res["error"].(string); msg != "" {
+		t.Fatalf("闸关应仍出结果: %s", msg)
+	}
+	path, _ := res["path"].(string)
+	if path == "" {
+		t.Fatal("应返回落盘路径")
+	}
+	if id, _ := res["asset_id"].(string); id != "" {
+		t.Fatalf("闸关时 asset_id 应空: %s", id)
+	}
+	if _, err := os.Stat(path); err != nil {
+		t.Fatalf("产物应落盘: %v", err)
+	}
+
+	// 尺寸不一致：如实报错
+	res = ms.ImageCutout(src, solidGrayMaskSrc(t, 4, 2))
+	if msg, _ := res["error"].(string); msg == "" || msg[:6] != "蒙版与原图尺寸"[:6] {
+		t.Fatalf("尺寸不一致应报错，得到: %v", res["error"])
+	}
+}
+
+// solidGrayMaskSrc 灰度蒙版 PNG data URL（app 层夹具；左半白右半黑）。
+func solidGrayMaskSrc(t *testing.T, w, h int) string {
+	t.Helper()
+	img := image.NewGray(image.Rect(0, 0, w, h))
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			v := uint8(0)
+			if x < w/2 {
+				v = 255
+			}
+			img.SetGray(x, y, color.Gray{Y: v})
+		}
+	}
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, img); err != nil {
+		t.Fatalf("png.Encode: %v", err)
+	}
+	return "data:image/png;base64," + base64.StdEncoding.EncodeToString(buf.Bytes())
+}

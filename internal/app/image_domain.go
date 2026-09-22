@@ -10,10 +10,13 @@ package app
 import (
 	"fmt"
 	"log/slog"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"time"
+
+	"github.com/gaea/gaea/internal/ai"
 )
 
 // ImageCapability 图像域能力原语。
@@ -388,4 +391,42 @@ func truncatePromptForView(p string, n int) string {
 		return p
 	}
 	return string(runes[:n]) + "…"
+}
+
+// ImageCutout 抠图/透明底导出（阶段二刀 E 绑定入口，T3 收官）：涂选保留主体
+// → 蒙版即 alpha → 透明 PNG 落盘 ImageSaveDir + 台账登记（v4.396 修复后闸
+// 正常）→ 返回 {path, asset_id}。零模型调用不设引擎门；校验/合成失败如实报错。
+func (m *mediaState) ImageCutout(initImage, maskData string) map[string]interface{} {
+	if strings.TrimSpace(initImage) == "" || strings.TrimSpace(maskData) == "" {
+		return map[string]interface{}{"error": "抠图需要原图与涂选蒙版（涂抹要保留的主体）"}
+	}
+	png, err := ai.ComposeCutout(initImage, maskData)
+	if err != nil {
+		return map[string]interface{}{"error": err.Error()}
+	}
+	dir := m.cfg.ImageSaveDir
+	if dir == "" {
+		dir = defaultImageSaveDir()
+	}
+	path := m.saveMediaToDisk(png, "抠图-透明底", dir)
+	if path == "" {
+		return map[string]interface{}{"error": "抠图产物落盘失败（保存目录不可写）"}
+	}
+	// 台账登记（mode=cutout 入 params；asset_id 按路径回填——v4.395 链路复用）
+	item := imageItem{Image: png, Prompt: "抠图-透明底", Model: "cutout", Kind: "image", FilePath: path}
+	m.recordImageHubGeneratedFor(item, "cutout", "", "imagegen", "")
+	return map[string]interface{}{
+		"path":     path,
+		"asset_id": imageHubAssetIDByPath(gaeaCwd(), gaeaEffectiveSpace(), path),
+	}
+}
+
+// defaultImageSaveDir ImageSaveDir 未配置时的兜底（与 saveToNovelImages 落点
+// 分区不同：抠图产物是绘梦工作台资产，走用户图片目录惯例）。
+func defaultImageSaveDir() string {
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" {
+		return "."
+	}
+	return filepath.Join(home, "Pictures", "gaea")
 }

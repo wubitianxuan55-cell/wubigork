@@ -24,6 +24,7 @@ import { AssetLibrary } from '../components/imagegen/AssetLibrary'
 import { AssetStudio } from '../components/imagegen/AssetStudio'
 import { VisionTrial } from '../components/imagegen/VisionTrial'
 import InstructionEditModal from '../components/imagegen/InstructionEditModal'
+import CutoutModal from '../components/imagegen/CutoutModal'
 import StudioUsagePanel from '../components/imagegen/StudioUsagePanel'
 import type { GenResult } from '../components/imagegen/types'
 import { ModelDirectory } from '../components/imagegen/ModelDirectory'
@@ -118,6 +119,8 @@ const ImageGenPage: React.FC = () => {
   const [visionTrialOpen, setVisionTrialOpen] = useState(false)
   // 指令编辑源图（刀 C：结果卡「指令编辑」→ InstructionEditModal）
   const [instructEditSource, setInstructEditSource] = useState<GenResult | null>(null)
+  // 抠图源图（刀 E，T3 收官：结果卡「抠图」→ CutoutModal 涂选保留主体）
+  const [cutoutSource, setCutoutSource] = useState<GenResult | null>(null)
   // T1 模型目录：创作语境视图（读模型中心目录，与素材库同模式，激活时替换工作台）。
   const [modelDirectoryOpen, setModelDirectoryOpen] = useState(false)
 
@@ -423,6 +426,7 @@ const ImageGenPage: React.FC = () => {
             onReuse={handleReuseResult}
             onEditImage={handleEditImage}
             onInstructEdit={handleInstructEdit}
+            onCutout={i => setCutoutSource(results[i] ?? null)}
             onDelete={handleDeleteResult}
             onRetry={handleGenerate}
             onOpenTemplatePicker={() => setTemplatePickerOpen(true)}
@@ -489,6 +493,11 @@ const ImageGenPage: React.FC = () => {
         source={instructEditSource}
         onClose={() => setInstructEditSource(null)}
         onApply={handleApplyEdited}
+      />
+      <CutoutModal
+        open={cutoutSource !== null}
+        source={cutoutSource}
+        onClose={() => setCutoutSource(null)}
       />
       <CustomTemplateModal
         open={customModalOpen}

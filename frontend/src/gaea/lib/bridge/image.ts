@@ -6,6 +6,9 @@ export interface ImageBindings {
   GenerateFreeImage(prompt: string, negative: string, size: string, initImage: string, model: string, seed: number, count: number, lora: string): Promise<Record<string, unknown>>;
   CancelImageGeneration(): Promise<boolean>;
   GenerateMedia(params: string): Promise<Record<string, unknown>>;
+  // ImageCutout 抠图/透明底导出（阶段二刀 E，T3 收官）：涂选保留主体（蒙版
+  // 白=保留）→透明 PNG 落盘+台账登记，返回 {path, asset_id}。零模型调用。
+  ImageCutout(initImage: string, maskData: string): Promise<{ path?: string; asset_id?: string; error?: string }>;
   GenerateDiagram(prompt: string): Promise<Record<string, unknown>>;
   GetImageBackendInfo(): Promise<Record<string, string>>;
   GetPortraitConfig(): Promise<Record<string, string>>;
