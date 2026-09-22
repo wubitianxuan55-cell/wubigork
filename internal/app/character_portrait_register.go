@@ -32,7 +32,7 @@ func registerCharacterPortraitAsset(cwd string, chars []types.Character, charID 
 		}
 		err := recordImageHubGeneratedAsset(cwd, "play", "characterlib", "", "", "",
 			map[string]interface{}{"character_id": charID},
-			imageHubAsset{Kind: ImageHubAssetKindImage, Path: p}, nil)
+			imageHubAsset{Kind: ImageHubAssetKindImage, Path: p}, nil, "")
 		if err != nil {
 			slog.Warn("角色剧照登记失败（不影响保存）", "character_id", charID, "path", p, "error", err)
 		}

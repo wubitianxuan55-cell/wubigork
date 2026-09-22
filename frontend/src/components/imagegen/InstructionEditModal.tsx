@@ -9,9 +9,10 @@
 // history（后端已落盘+登记台账，走既有保存/溯源链）。
 import { softTextStyle } from '../../utils/uiStyles'
 import React, { useState } from 'react'
-import { Alert, Button, Input, InputNumber, Modal, Radio, Spin, Typography, message } from 'antd'
+import { Alert, Button, Input, InputNumber, Modal, Radio, Spin, Tag, Typography, message } from 'antd'
 import { generateMedia } from '../../api/image'
 import MaskBrushEditor from './MaskBrushEditor'
+import VariantChainModal from './VariantChainModal'
 import type { GenResult } from './types'
 
 type ScopeMode = 'full' | 'partial' | 'outpaint'
@@ -43,6 +44,7 @@ export default function InstructionEditModal({ open, source, onClose, onApply }:
   const [scope, setScope] = useState<ScopeMode>('full')
   const [mask, setMask] = useState<string | null>(null)
   const [expand, setExpand] = useState<ExpandEdges>({ left: 0, top: 0, right: 0, bottom: 0 })
+  const [chainOpen, setChainOpen] = useState(false)
 
   const expandTotal = expand.left + expand.top + expand.right + expand.bottom
 
@@ -91,6 +93,7 @@ export default function InstructionEditModal({ open, source, onClose, onApply }:
         count: 1,
         mode: scope === 'outpaint' ? 'outpaint' : 'edit',
         initImage: source.image,
+        sourcePath: source.file_path,
         mask: scope === 'partial' ? (mask ?? undefined) : undefined,
         expand: scope === 'outpaint' ? expand : undefined,
       })
@@ -217,8 +220,17 @@ export default function InstructionEditModal({ open, source, onClose, onApply }:
             </div>
           </div>
           {edited && (
-            <div style={softTextStyle} data-testid="instruct-edit-meta">
-              模型 {edited.model || '—'} · {edited.time ?? '—'}s{edited.size ? ` · ${edited.size}` : ''}
+            <div style={{ ...softTextStyle, display: 'flex', alignItems: 'center', gap: 8 }} data-testid="instruct-edit-meta">
+              <span>
+                模型 {edited.model || '—'} · {edited.time ?? '—'}s{edited.size ? ` · ${edited.size}` : ''}
+              </span>
+              {edited.parent_id && (
+                <>
+                  <Tag color="blue" style={{ marginRight: 0 }} data-testid="instruct-edit-variant-badge">变体</Tag>
+                  <Button size="small" type="link" style={{ padding: 0, height: 'auto' }}
+                    data-testid="instruct-edit-trace" onClick={() => setChainOpen(true)}>溯源</Button>
+                </>
+              )}
             </div>
           )}
           {error && <Alert type="error" showIcon data-testid="instruct-edit-error" message={error} />}
@@ -227,6 +239,12 @@ export default function InstructionEditModal({ open, source, onClose, onApply }:
           </Typography.Text>
         </div>
       )}
+      <VariantChainModal
+        open={chainOpen}
+        assetId={edited?.asset_id ?? ''}
+        onClose={() => setChainOpen(false)}
+        onApply={r => { if (edited) { onApply(r); reset(); onClose() } }}
+      />
     </Modal>
   )
 }

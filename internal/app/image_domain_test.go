@@ -163,7 +163,7 @@ func TestRecordImageHubGeneratedAssetRootAndGate(t *testing.T) {
 	}
 	err := recordImageHubGeneratedAsset(cwd, "play", "novel", "xai", "grok-imagine-image-quality",
 		"封面 prompt", map[string]interface{}{"size": "768x1024"},
-		imageHubAsset{Path: img}, []string{exports})
+		imageHubAsset{Path: img}, []string{exports}, "")
 	if err != nil {
 		t.Fatalf("record: %v", err)
 	}
@@ -187,7 +187,7 @@ func TestRecordImageHubGeneratedAssetRootAndGate(t *testing.T) {
 		t.Fatalf("write outside: %v", err)
 	}
 	if err := recordImageHubGeneratedAsset(cwd, "play", "novel", "", "krea2", "p", nil,
-		imageHubAsset{Path: outside}, []string{exports}); err == nil {
+		imageHubAsset{Path: outside}, []string{exports}, ""); err == nil {
 		t.Fatalf("根外产物应拒绝登记")
 	}
 }
@@ -252,5 +252,63 @@ func TestImageHubAssetSummariesFilterAndOrder(t *testing.T) {
 func TestImageHubLedgerGateDisarmedInTests(t *testing.T) {
 	if imageHubLedgerRuntimeCheck() {
 		t.Fatal("测试进程登记闸应为未武装（imageHubRuntimeArmed 只在 App.Startup 置位）")
+	}
+}
+
+// TestVariantChainParentIDRoundtrip 变体簇（阶段二刀 D）：登记带 parentID →
+// list/view 双侧可见；byPath 查找倒序取最新；未命中空串。
+func TestVariantChainParentIDRoundtrip(t *testing.T) {
+	origGate := imageHubLedgerRuntimeCheck
+	imageHubLedgerRuntimeCheck = func() bool { return true }
+	defer func() { imageHubLedgerRuntimeCheck = origGate }()
+
+	cwd := t.TempDir()
+	exports := filepath.Join(cwd, ".gaea", "play", "exports")
+	if err := os.MkdirAll(exports, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	src := filepath.Join(exports, "v1.png")
+	child := filepath.Join(exports, "v2.png")
+	for _, f := range []string{src, child} {
+		if err := os.WriteFile(f, []byte("png"), 0o644); err != nil {
+			t.Fatalf("write: %v", err)
+		}
+	}
+	if err := recordImageHubGeneratedAsset(cwd, "play", "imagegen", "comfyui", "krea2", "p1",
+		nil, imageHubAsset{Path: src}, nil, ""); err != nil {
+		t.Fatalf("record v1: %v", err)
+	}
+	parentID := imageHubAssetIDByPath(cwd, "play", src)
+	if parentID == "" {
+		t.Fatal("byPath 应命中 v1")
+	}
+	if err := recordImageHubGeneratedAsset(cwd, "play", "imagegen", "comfyui", "qwen-image-edit", "p2",
+		nil, imageHubAsset{Path: child}, nil, parentID); err != nil {
+		t.Fatalf("record v2: %v", err)
+	}
+	recs := newImageHubLedger(cwd).list("play", 0)
+	if len(recs) != 2 || recs[1].Meta.ParentID != parentID {
+		t.Fatalf("v2 应带 ParentID=%s: %+v", parentID, recs[1].Meta)
+	}
+	views := imageHubAssetSummaries(cwd, "play", "imagegen", "", 0)
+	if len(views) != 2 || views[0].ParentID != parentID {
+		t.Fatalf("视图应透出 parent_id（最新在前）: %+v", views[0])
+	}
+	// byPath：同路径再登记一条 → 倒序取最新
+	if err := recordImageHubGeneratedAsset(cwd, "play", "imagegen", "comfyui", "krea2", "p1b",
+		nil, imageHubAsset{Path: src}, nil, ""); err != nil {
+		t.Fatalf("record v1b: %v", err)
+	}
+	newest := imageHubAssetIDByPath(cwd, "play", src)
+	recs = newImageHubLedger(cwd).list("play", 0)
+	if newest == parentID || newest == "" {
+		t.Fatalf("byPath 应取最新条目: %s vs %s", newest, parentID)
+	}
+	// 未命中/空入参
+	if got := imageHubAssetIDByPath(cwd, "play", filepath.Join(exports, "nope.png")); got != "" {
+		t.Fatalf("未命中应空串: %s", got)
+	}
+	if got := imageHubAssetIDByPath(cwd, "play", ""); got != "" {
+		t.Fatalf("空路径应空串: %s", got)
 	}
 }

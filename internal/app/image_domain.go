@@ -67,7 +67,7 @@ type imageHubAsset struct {
 	MIME string `json:"mime,omitempty"`
 }
 
-// imageHubAssetMeta 产物溯源元数据（v1 最小集）。
+// imageHubAssetMeta 产物溯源元数据（v1 最小集 + 阶段二刀 D 变体簇）。
 type imageHubAssetMeta struct {
 	Space       string                 `json:"space"`
 	SourceBoard string                 `json:"source_board"`
@@ -80,6 +80,10 @@ type imageHubAssetMeta struct {
 	CreatedAt   string                 `json:"created_at"`
 	LicenseHint string                 `json:"license_hint,omitempty"`
 	AIFlag      bool                   `json:"ai_flag"`
+	// ParentID 变体簇（阶段二刀 D）：编辑/扩图产物指向源图条目——A→A'→A'' 同源
+	// 链；空=非派生产物或源图不在台账（导入图，链条诚实断开）。旧 JSONL 无此
+	// 字段反序列化零值空，向后兼容。
+	ParentID string `json:"parent_id,omitempty"`
 }
 
 // imageHubAssetSeq 资产 ID 自增源（进程内原子，防同一纳秒并发重号）。
@@ -107,7 +111,7 @@ var imageHubLedgerRuntimeCheck = func() bool {
 //   - allowRoots 非空时校验路径必须落在允许根内（防穿越）；
 //   - 空 allowRoots = 信任调用方已自持的保存路径（绘梦 ImageSaveDir 等外部根）。
 func recordImageHubGeneratedAsset(cwd, space, sourceBoard, backend, model, prompt string,
-	params map[string]interface{}, asset imageHubAsset, allowRoots []string) error {
+	params map[string]interface{}, asset imageHubAsset, allowRoots []string, parentID string) error {
 
 	if !imageHubLedgerRuntimeCheck() {
 		return nil // 非运行态：不落盘（行为保持，登记是辅助视图）
@@ -145,6 +149,7 @@ func recordImageHubGeneratedAsset(cwd, space, sourceBoard, backend, model, promp
 		Prompt:      prompt,
 		Params:      params,
 		CreatedAt:   time.Now().Format(time.RFC3339),
+		ParentID:    strings.TrimSpace(parentID),
 		LicenseHint: license,
 		AIFlag:      true,
 	}
@@ -214,15 +219,30 @@ func imageHubMIMEByExt(path string) string {
 }
 
 // recordImageHubGenerated 绘梦工作台/媒体落盘后的登记（mediaState 便捷方法）。
-func (m *mediaState) recordImageHubGenerated(item imageItem, mode, characterID string) {
-	m.recordImageHubGeneratedFor(item, mode, characterID, "imagegen")
+func (m *mediaState) recordImageHubGenerated(item imageItem, mode, characterID, parentID string) {
+	m.recordImageHubGeneratedFor(item, mode, characterID, "imagegen", parentID)
+}
+
+// imageHubAssetIDByPath 按产物路径在台账同空间查最近条目 ID（变体簇溯源键，
+// 阶段二刀 D）。倒序扫描（最新在前）；未命中返回空串=链条诚实断开。
+func imageHubAssetIDByPath(cwd, space, path string) string {
+	if strings.TrimSpace(path) == "" {
+		return ""
+	}
+	recs := newImageHubLedger(cwd).list(space, 0)
+	for i := len(recs) - 1; i >= 0; i-- {
+		if recs[i].Asset.Path == path {
+			return recs[i].Asset.ID
+		}
+	}
+	return ""
 }
 
 // recordImageHubGeneratedFor 与 recordImageHubGenerated 同语义，但把来源板块
 // 参数化：绘梦/媒体走 "imagegen"（原行为逐字节），原罪板块走 "sin"。
 // 动机（v4.257 硬隔离刀）：一个产物只登记一条——生成链内部登记，调用方
 // 不得再补第二条（否则画室同一张图会以两个来源重复出现）。
-func (m *mediaState) recordImageHubGeneratedFor(item imageItem, mode, characterID, sourceBoard string) {
+func (m *mediaState) recordImageHubGeneratedFor(item imageItem, mode, characterID, sourceBoard, parentID string) {
 	if item.FilePath == "" {
 		return
 	}
@@ -242,7 +262,7 @@ func (m *mediaState) recordImageHubGeneratedFor(item imageItem, mode, characterI
 	if err := recordImageHubGeneratedAsset(gaeaCwd(), space, sourceBoard, m.cfg.ImageBackend,
 		item.Model, item.Prompt,
 		params,
-		imageHubAsset{Kind: kind, Path: item.FilePath}, nil); err != nil {
+		imageHubAsset{Kind: kind, Path: item.FilePath}, nil, parentID); err != nil {
 		slog.Warn("绘梦产物登记失败（不影响生成）", "path", item.FilePath, "error", err)
 	}
 }
@@ -316,6 +336,7 @@ type imageHubAssetView struct {
 	CreatedAt      string                 `json:"created_at"`
 	PromptTruncate string                 `json:"prompt_truncate,omitempty"`
 	Params         map[string]interface{} `json:"params,omitempty"`
+	ParentID       string                 `json:"parent_id,omitempty"`
 }
 
 // imageHubAssetSummaries 读取某空间最近的登记（可按来源板块/能力过滤；按时间倒序）。
@@ -346,6 +367,7 @@ func imageHubAssetSummaries(cwd, space, sourceBoard string, capability ImageCapa
 			CreatedAt:      r.Meta.CreatedAt,
 			PromptTruncate: truncatePromptForView(r.Meta.Prompt, 80),
 			Params:         r.Meta.Params,
+			ParentID:       r.Meta.ParentID,
 		})
 		if limit > 0 && len(out) >= limit {
 			break

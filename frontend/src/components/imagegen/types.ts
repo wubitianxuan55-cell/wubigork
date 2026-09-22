@@ -11,6 +11,10 @@ export interface GenResult {
   kind?: 'image' | 'video'
   /** 本地保存路径（后端 T6-4.3 写入；历史图片经此恢复，下载/剧照优先取此） */
   file_path?: string
+  /** 变体簇（阶段二刀 D）：本图台账条目 id */
+  asset_id?: string
+  /** 变体簇（阶段二刀 D）：源图条目 id（A→A' 同源链；空=非派生产物） */
+  parent_id?: string
   mode?: 'txt2img' | 'img2img' | 't2v'
   count?: number
   selectedLoras?: string[]

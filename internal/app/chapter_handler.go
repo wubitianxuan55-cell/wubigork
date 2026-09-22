@@ -211,7 +211,7 @@ func (a *writingState) GenerateSceneIllustration(chapterNum int, optsJSON string
 		regErr := recordImageHubGeneratedAsset(gaeaCwd(), "play", "novel", "",
 			"grok-imagine-image-quality", revised,
 			map[string]interface{}{"chapter": chapterNum, "size": "1024x576", "n": 1},
-			asset, nil)
+			asset, nil, "")
 		if regErr != nil {
 			slog.Warn("章节配图登记失败（不影响生成）", "path", outPath, "error", regErr)
 		}

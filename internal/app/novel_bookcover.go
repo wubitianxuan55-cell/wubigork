@@ -164,7 +164,7 @@ func (a *App) GaeaGenerateBookCover(projectID, promptHint string) (string, error
 	if err := recordImageHubGeneratedAsset(gaeaCwd(), "play", "novel", "", coverImageModel,
 		b.String(),
 		map[string]interface{}{"project_id": id, "size": "768x1024", "n": 1},
-		asset, []string{playExports}); err != nil {
+		asset, []string{playExports}, ""); err != nil {
 		slog.Warn("书封产物登记失败（不影响生成）", "path", abs, "error", err)
 	}
 	return abs, nil

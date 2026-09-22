@@ -33,6 +33,7 @@ import type { GenResult } from './types'
 const SOURCE: GenResult = {
   image: 'data:image/png;base64,SOURCE',
   seed: 1, time: 1.2, prompt: '原图描述', model: 'qwen-image', size: '1024x1024',
+  file_path: 'C:/Pictures/gaea/src.png',
 }
 
 const EDITED: GenResult = {
@@ -147,5 +148,29 @@ describe('InstructionEditModal 指令编辑（阶段一刀 C）', () => {
     expect(params.mode).toBe('outpaint')
     expect(params.expand).toEqual({ left: 0, top: 0, right: 50, bottom: 0 })
     expect(params.mask).toBeUndefined()
+  })
+
+  it('变体簇（阶段二刀 D）：sourcePath 透传；带 parent_id 的结果出变体徽标+溯源入口', async () => {
+    mocks.generateMedia.mockResolvedValue({
+      results: [{ ...EDITED, asset_id: 'ih-c', parent_id: 'ih-b' }],
+      mode: 'edit',
+    })
+    open()
+    fireEvent.change(screen.getByTestId('instruct-edit-input'), { target: { value: '改' } })
+    fireEvent.click(screen.getByTestId('instruct-edit-run'))
+    await waitFor(() => expect(screen.getByTestId('instruct-edit-result')).toBeTruthy())
+    const params = (mocks.generateMedia as Mock).mock.calls[0][0]
+    expect(params.sourcePath).toBe(SOURCE.file_path)
+    expect(screen.getByTestId('instruct-edit-variant-badge').textContent).toContain('变体')
+    expect(screen.getByTestId('instruct-edit-trace')).toBeTruthy()
+  })
+
+  it('非派生结果（无 parent_id）：不出变体徽标', async () => {
+    mocks.generateMedia.mockResolvedValue({ results: [EDITED], mode: 'edit' })
+    open()
+    fireEvent.change(screen.getByTestId('instruct-edit-input'), { target: { value: '改' } })
+    fireEvent.click(screen.getByTestId('instruct-edit-run'))
+    await waitFor(() => expect(screen.getByTestId('instruct-edit-result')).toBeTruthy())
+    expect(screen.queryByTestId('instruct-edit-variant-badge')).toBeNull()
   })
 })

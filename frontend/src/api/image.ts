@@ -83,6 +83,8 @@ interface GenImageLike {
   size?: string
   kind?: string
   file_path?: string
+  asset_id?: string
+  parent_id?: string
 }
 
 /** 获取后端信息 */
@@ -220,6 +222,8 @@ export interface ImageHubAssetView {
   created_at?: string
   prompt_truncate?: string
   params?: Record<string, unknown>
+  /** 变体簇（阶段二刀 D）：源图条目 id（A→A' 同源链）；空=非派生产物 */
+  parent_id?: string
 }
 
 /** 章节插图清单条目（ChapterArtList 绑定，T1）。 */
@@ -408,6 +412,8 @@ export interface MediaParams {
   mask?: string
   /** 扩图（阶段二刀 C）：四边扩展百分比（0-200，相对原图对应边长）；仅 mode='outpaint' */
   expand?: { left: number; top: number; right: number; bottom: number }
+  /** 编辑源图落盘路径（阶段二刀 D 变体簇）：后端按 path 关联台账 ParentID */
+  sourcePath?: string
   denoise?: number
   frames?: number
   fps?: number
@@ -434,6 +440,8 @@ export async function generateMedia(
       negative: params.negative,
       kind: (img.kind || 'image') as 'image' | 'video',
       file_path: img.file_path || undefined,
+      asset_id: img.asset_id || undefined,
+      parent_id: img.parent_id || undefined,
     }))
     return { results, mode: res.mode }
   }

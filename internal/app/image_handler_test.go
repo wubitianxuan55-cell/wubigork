@@ -593,3 +593,28 @@ func solidOutpaintSrc(t *testing.T, w, h int) string {
 	}
 	return "data:image/png;base64," + base64.StdEncoding.EncodeToString(buf.Bytes())
 }
+
+// TestGenerateMedia_VariantChain GenerateMedia 变体簇传递：edit+sourcePath 在
+// 运行态闸开时登记带 ParentID 且 item 回填；闸关时零 panic 字段空（测试态默认）。
+func TestGenerateMedia_VariantChain(t *testing.T) {
+	dir := t.TempDir()
+	fake := &fakeImageBackend{result: &ai.ImageGenerationResponse{
+		Data: []ai.ImageData{{B64JSON: pngDataURLApp("fake-edit-vc"), Kind: "image"}},
+	}}
+	c := &ai.Client{}
+	c.SetImageBackend(fake, "openai")
+	ms := &mediaState{core: &core{cfg: &config.Config{ImageBackend: "openai", ImageSaveDir: dir}, client: c}}
+
+	// 闸关（默认测试态）：sourcePath 查得空 → item 回填空，不 panic 不报错
+	res, err := ms.GenerateMedia(`{"prompt":"改","mode":"edit","initImage":"data:image/png;base64,AAAA","sourcePath":"C:/nope/v1.png","count":1}`)
+	if err != nil {
+		t.Fatalf("GenerateMedia: %v", err)
+	}
+	if msg, _ := res["error"].(string); msg != "" {
+		t.Fatalf("闸关应正常出结果: %s", msg)
+	}
+	items := res["results"].([]imageItem)
+	if len(items) != 1 || items[0].ParentID != "" || items[0].AssetID != "" {
+		t.Fatalf("闸关时变体字段应为空: %+v", items[0])
+	}
+}

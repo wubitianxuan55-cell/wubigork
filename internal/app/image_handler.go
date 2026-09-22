@@ -34,6 +34,10 @@ type imageItem struct {
 	Size     string  `json:"size"`
 	Kind     string  `json:"kind,omitempty"`      // image | video
 	FilePath string  `json:"file_path,omitempty"` // T6-4.3：本地保存路径（历史图片可恢复）
+	// 变体簇（阶段二刀 D）：登记回填——asset_id 本图台账条目；parent_id 源图
+	// 条目（A→A' 同源链；空=非派生产物或源图不在台账）。
+	AssetID  string `json:"asset_id,omitempty"`
+	ParentID string `json:"parent_id,omitempty"`
 }
 
 // CU1（蒸馏 unsloth §六-2）ComfyUI 预热：运行态武装位（Startup 置位，同
@@ -397,7 +401,7 @@ func (a *mediaState) generateImageInternal(o imageGenInternal) (map[string]inter
 		if modeLabel == "" {
 			modeLabel = "txt2img"
 		}
-		a.recordImageHubGeneratedFor(item, modeLabel, o.characterID, sourceBoard)
+		a.recordImageHubGeneratedFor(item, modeLabel, o.characterID, sourceBoard, "")
 		images = append(images, item)
 	}
 
@@ -416,20 +420,21 @@ func (a *mediaState) generateImageInternal(o imageGenInternal) (map[string]inter
 
 // mediaGenParams 绘梦多模式生成参数（GenerateMedia 入参，JSON 字符串）
 type mediaGenParams struct {
-	Prompt    string             `json:"prompt"`
-	Negative  string             `json:"negative"`
-	Size      string             `json:"size"`
-	Model     string             `json:"model"`
-	Seed      int                `json:"seed"`
-	Lora      string             `json:"lora"`
-	Count     int                `json:"count"`
-	Mode      string             `json:"mode"`             // txt2img | img2img | edit | outpaint | t2v
-	InitImage string             `json:"initImage"`        // 图生图参考图 / 指令编辑原图 / 扩图原图（data URL）
-	Mask      string             `json:"mask"`             // 蒙版局部重绘（阶段二刀 B）：灰度 PNG data URL，白=重绘区；仅 edit 消费
-	Expand    *ai.OutpaintExpand `json:"expand,omitempty"` // 扩图四边百分比（阶段二刀 C）；仅 mode=outpaint 消费
-	Denoise   float64            `json:"denoise"`          // 重绘幅度 0-1
-	Frames    int                `json:"frames"`           // 视频帧数
-	FPS       int                `json:"fps"`              // 视频帧率
+	Prompt     string             `json:"prompt"`
+	Negative   string             `json:"negative"`
+	Size       string             `json:"size"`
+	Model      string             `json:"model"`
+	Seed       int                `json:"seed"`
+	Lora       string             `json:"lora"`
+	Count      int                `json:"count"`
+	Mode       string             `json:"mode"`             // txt2img | img2img | edit | outpaint | t2v
+	InitImage  string             `json:"initImage"`        // 图生图参考图 / 指令编辑原图 / 扩图原图（data URL）
+	Mask       string             `json:"mask"`             // 蒙版局部重绘（阶段二刀 B）：灰度 PNG data URL，白=重绘区；仅 edit 消费
+	Expand     *ai.OutpaintExpand `json:"expand,omitempty"` // 扩图四边百分比（阶段二刀 C）；仅 mode=outpaint 消费
+	SourcePath string             `json:"sourcePath"`       // 编辑源图落盘路径（阶段二刀 D 变体簇）：edit/outpaint 消费，台账按 path 关联 ParentID
+	Denoise    float64            `json:"denoise"`          // 重绘幅度 0-1
+	Frames     int                `json:"frames"`           // 视频帧数
+	FPS        int                `json:"fps"`              // 视频帧率
 	// T2 角色参考槽：角色 ID + 参考图（data URL；首张作图生图种子）+ 一致性方法。
 	CharacterID string   `json:"characterId"`
 	RefImages   []string `json:"refImages"`
@@ -489,6 +494,12 @@ func (a *mediaState) GenerateMedia(paramsJSON string) (map[string]interface{}, e
 			return map[string]interface{}{"error": err.Error()}, nil
 		}
 		outpaintCanvas, outpaintMask = canvas, mask
+	}
+	// 变体簇（阶段二刀 D）：编辑/扩图按源图落盘路径在台账同空间查 ParentID；
+	// 查不到留空=诚实断链（源图非 gaea 产物/跨空间），不造假。
+	variantParentID := ""
+	if (mode == "edit" || mode == "outpaint") && strings.TrimSpace(p.SourcePath) != "" {
+		variantParentID = imageHubAssetIDByPath(gaeaCwd(), gaeaEffectiveSpace(), p.SourcePath)
 	}
 	// 蒙版局部重绘（阶段二刀 B）：fail-closed——蒙版仅与指令编辑组合；
 	// img2img+蒙版（纯局部重绘无指令语义）留观察池，不静默忽略。
@@ -616,8 +627,14 @@ func (a *mediaState) GenerateMedia(paramsJSON string) (map[string]interface{}, e
 				item.FilePath = a.saveMediaToNovelImages(imageData, p.Prompt)
 			}
 		}
-		// T0 图像域试点：多模式媒体落盘后登记（imagegen/media.generate；失败只 warn）。
-		a.recordImageHubGenerated(item, mode, p.CharacterID)
+		// T0 图像域试点：多模式媒体落盘后登记（imagegen/media.generate；失败只 warn）；
+		// 变体簇（刀 D）：编辑/扩图带 ParentID，登记后按路径回填 asset_id/parent_id
+		// （运行态闸关闭时 lookup 空=字段空，不影响主流程）。
+		a.recordImageHubGenerated(item, mode, p.CharacterID, variantParentID)
+		if mode == "edit" || mode == "outpaint" {
+			item.AssetID = imageHubAssetIDByPath(gaeaCwd(), gaeaEffectiveSpace(), item.FilePath)
+			item.ParentID = variantParentID
+		}
 		results = append(results, item)
 	}
 
