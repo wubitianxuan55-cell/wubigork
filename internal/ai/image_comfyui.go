@@ -1069,6 +1069,39 @@ func (b *ComfyUIBackend) pollComfyProgress(ctx context.Context, promptID string,
 				continue
 			}
 			switch ev.Type {
+			case "status": // 队列深度（v4.405）：前有任务时让「排队可见」而不是干等
+				var d struct {
+					Status struct {
+						ExecInfo struct {
+							QueueRemaining int `json:"queue_remaining"`
+						} `json:"exec_info"`
+					} `json:"status"`
+				}
+				if json.Unmarshal(ev.Data, &d) != nil {
+					continue
+				}
+				if d.Status.ExecInfo.QueueRemaining > 1 {
+					cb("queued", int(time.Since(start).Seconds()), -1, "queue")
+				}
+			case "executing": // 节点开始执行（v4.405）：载入模型等无百分比阶段也可见
+				var d struct {
+					Node interface{} `json:"node"`
+					ID   string      `json:"prompt_id"`
+				}
+				if json.Unmarshal(ev.Data, &d) != nil {
+					continue
+				}
+				if d.ID != "" && d.ID != promptID {
+					continue
+				}
+				node, ok := d.Node.(string)
+				if !ok || node == "" || node == "null" { // null=整单结束，历史轮询接管
+					continue
+				}
+				if ct, ok := nodeClasses[node]; ok {
+					node = ct
+				}
+				cb("running", int(time.Since(start).Seconds()), -1, node)
 			case "progress": // node 字段可能是节点 id（新版）或 class_type（旧版）
 				var d struct {
 					Value float64 `json:"value"`
@@ -1103,10 +1136,29 @@ func (b *ComfyUIBackend) pollComfyProgress(ctx context.Context, promptID string,
 				if d.ID != "" && d.ID != promptID {
 					continue
 				}
+				// 先找带进度的运行节点；没有则退而求其次报「正在执行某节点」——
+				// 载入模型阶段 value/max 恒 0，不能因此整段不可见（v4.405）
+				var runningID string
+				var runningNoMax bool
 				for id, n := range d.Nodes {
-					if n.State == "running" && n.Max > 0 {
-						cb("running", int(time.Since(start).Seconds()), clampPercent(n.Value/n.Max), nodeClasses[id])
+					if n.State != "running" {
+						continue
+					}
+					if n.Max > 0 {
+						runningID = id
+						runningNoMax = false
 						break
+					}
+					if runningID == "" {
+						runningID = id
+						runningNoMax = true
+					}
+				}
+				if runningID != "" {
+					if runningNoMax {
+						cb("running", int(time.Since(start).Seconds()), -1, nodeClasses[runningID])
+					} else {
+						cb("running", int(time.Since(start).Seconds()), clampPercent(d.Nodes[runningID].Value/d.Nodes[runningID].Max), nodeClasses[runningID])
 					}
 				}
 			}

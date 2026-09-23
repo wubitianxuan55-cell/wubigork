@@ -50,6 +50,7 @@ export function GenerationProgress({
 
 /** ComfyUI 节点 class_type → 中文阶段名（未知节点回退原始名）。 */
 export const COMFY_NODE_LABELS: Record<string, string> = {
+  queue: '排队中（前有任务）',
   CheckpointLoaderSimple: '加载模型',
   CheckpointLoader: '加载模型',
   UNETLoader: '加载模型',
