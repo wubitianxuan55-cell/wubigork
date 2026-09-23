@@ -35,4 +35,8 @@ export interface CharLibBindings {
   // front/side/back 单视图分张、sitting/action 姿势扩展），返回 data URL
   // 不自动保存。
   CharacterGenerateSheet(chJSON: string, variant: string): Promise<string>;
+  // CharacterScoreConsistency 角色形象一致性评分（v4.404，文字锚点 v1）：
+  // 视觉模型拿 image（本地路径/data URL）对照文字设定打分，返回
+  // {"score":0-100,"summary","issues"} JSON 字符串。
+  CharacterScoreConsistency(chJSON: string, image: string): Promise<string>;
 }

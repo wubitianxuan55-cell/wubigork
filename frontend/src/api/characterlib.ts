@@ -196,3 +196,23 @@ export async function generateCharacterSheet(
 ): Promise<string> {
   return app.CharacterGenerateSheet(JSON.stringify(c), variant)
 }
+
+/** 一致性评分结果（后端规范化 JSON）。 */
+export interface ConsistencyScore {
+  score: number
+  summary: string
+  issues: string[]
+}
+
+/**
+ * 角色形象一致性评分（v4.404，T2 一致性 v1 文字锚点方案）：视觉模型拿
+ * image（本地路径或 data URL）对照角色文字设定（Appearance/Figure）打分。
+ * 返回 {score:0-100, summary, issues}；视觉模型不可用/回复不可解析如实报错。
+ */
+export async function scoreCharacterConsistency(
+  c: Partial<LibraryCharacter>,
+  image: string,
+): Promise<ConsistencyScore> {
+  const raw = await app.CharacterScoreConsistency(JSON.stringify(c), image)
+  return JSON.parse(raw) as ConsistencyScore
+}

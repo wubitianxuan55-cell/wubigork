@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { Modal } from 'antd'
 import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react'
 import CharacterLibEditor from './CharacterLibEditor'
 import type { LibraryCharacter } from '../../api/characterlib'
@@ -14,13 +15,14 @@ vi.mock('../../api/characterlib', () => ({
   generatePortraitWithRef: vi.fn(),
   generateCharacterSheet: vi.fn(),
   generateRandom: vi.fn(),
+  scoreCharacterConsistency: vi.fn(),
 }))
 
 vi.mock('../../api/image', () => ({
   readFileAsDataURL: readFileAsDataURLMock,
 }))
 
-import { saveCharacter, generateFill, generatePortrait, generatePortraitWithRef, generateRandom, generateCharacterSheet } from '../../api/characterlib'
+import { saveCharacter, generateFill, generatePortrait, generatePortraitWithRef, generateRandom, generateCharacterSheet, scoreCharacterConsistency } from '../../api/characterlib'
 
 const mockedSave = vi.mocked(saveCharacter)
 const mockedFill = vi.mocked(generateFill)
@@ -28,6 +30,7 @@ const mockedPortrait = vi.mocked(generatePortrait)
 const mockedPortraitWithRef = vi.mocked(generatePortraitWithRef)
 const mockedCharacterSheet = vi.mocked(generateCharacterSheet)
 const mockedRandom = vi.mocked(generateRandom)
+const mockedScore = vi.mocked(scoreCharacterConsistency)
 
 function makeCharacter(overrides: Partial<LibraryCharacter> = {}): LibraryCharacter {
   return {
@@ -474,5 +477,44 @@ describe('CharacterLibEditor 生成设定卡（阶段三刀 C）', () => {
     await vi.waitFor(() => expect(mockedCharacterSheet).toHaveBeenCalledTimes(3))
     expect(mockedCharacterSheet.mock.calls.map(c => c[1])).toEqual(['front', 'side', 'back'])
     await vi.waitFor(() => expect(screen.getByText(/左侧面失败/)).toBeTruthy())
+  })
+})
+
+describe('CharacterLibEditor 一致性评分（v4.404）', () => {
+  beforeEach(() => {
+    Modal.destroyAll()
+  })
+
+  it('参考图评分钮：调用 api（透传参考图）并 Modal 呈现分数与不一致点', async () => {
+    mockedScore.mockClear()
+    mockedScore.mockResolvedValue({ score: 82, summary: '基本一致', issues: ['鼻梁略宽'] })
+    renderEditor({ character: makeCharacter({ name: '苏念', referenceImages: ['data:image/png;base64,R1'] }) })
+    fireEvent.click(screen.getByTestId('score-ref-0'))
+    await vi.waitFor(() => expect(mockedScore).toHaveBeenCalledTimes(1))
+    expect(mockedScore.mock.calls[0][1]).toBe('data:image/png;base64,R1')
+    await vi.waitFor(() => expect(document.querySelector('.ant-modal-title')?.textContent).toContain('一致性评分：82 分'))
+    expect(screen.getByText(/鼻梁略宽/)).toBeTruthy()
+    // 高分不提示补参考
+    expect(screen.queryByText(/建议补充/)).toBeNull()
+  })
+
+  it('低分（<60）Modal 提示补参考；api 失败 message 透出且不复位卡死', async () => {
+    mockedScore.mockClear()
+    mockedScore.mockResolvedValueOnce({ score: 45, summary: '偏差明显', issues: [] })
+    renderEditor({ character: makeCharacter({ name: '苏念', referenceImages: ['data:image/png;base64,R1'] }) })
+    fireEvent.click(screen.getByTestId('score-ref-0'))
+    await vi.waitFor(() => {
+      const titles = document.querySelectorAll('.ant-modal-title')
+      expect(titles[titles.length - 1]?.textContent).toContain('一致性评分：45 分')
+    })
+    expect(screen.getByText(/建议补充/)).toBeTruthy()
+    cleanup()
+    Modal.destroyAll()
+    mockedScore.mockRejectedValueOnce(new Error('视觉模型未启用'))
+    renderEditor({ character: makeCharacter({ name: '苏念', referenceImages: ['data:image/png;base64,R1'] }) })
+    fireEvent.click(screen.getByTestId('score-ref-0'))
+    await vi.waitFor(() => expect(screen.getByText(/一致性评分失败/)).toBeTruthy())
+    // 失败后按钮复位可再点
+    expect(screen.getByTestId('score-ref-0').hasAttribute('disabled')).toBe(false)
   })
 })

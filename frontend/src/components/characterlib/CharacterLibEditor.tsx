@@ -7,10 +7,11 @@ import {
 } from 'antd'
 import {
   SaveOutlined, CloseOutlined, PictureOutlined, ThunderboltOutlined,
-  ExperimentOutlined, RetweetOutlined, LoadingOutlined, IdcardOutlined } from '@ant-design/icons'
+  ExperimentOutlined, RetweetOutlined, LoadingOutlined, IdcardOutlined,
+  AimOutlined } from '@ant-design/icons'
 import TisorRadar from '../TisorRadar'
 import {
-  saveCharacter, generateFill, generateRandom, generatePortrait, generatePortraitWithRef, generateCharacterSheet,
+  saveCharacter, generateFill, generateRandom, generatePortrait, generatePortraitWithRef, generateCharacterSheet, scoreCharacterConsistency,
   type LibraryCharacter,
 } from '../../api/characterlib'
 import { readFileAsDataURL } from '../../api/image'
@@ -124,6 +125,8 @@ const CharacterLibEditor: React.FC<Props> = ({
   const [genPortrait, setGenPortrait] = useState(false)
   const [refGenIdx, setRefGenIdx] = useState<number | null>(null)
   const [sheetGen, setSheetGen] = useState(false)
+  // 一致性评分进行中的参考图下标（v4.404，文字锚点 v1）
+  const [scoreIdx, setScoreIdx] = useState<number | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -402,6 +405,35 @@ const CharacterLibEditor: React.FC<Props> = ({
     patch({ referenceImages: refs })
   }
 
+  // 一致性评分（v4.404）：视觉模型拿这张参考图对照角色文字设定打分；
+  // 结果 Modal 呈现（总评+不一致点），score<60 提示补参考。
+  const handleScoreRef = async (i: number) => {
+    if (busy || scoreIdx !== null) return
+    const ref = (form.referenceImages ?? [])[i]
+    if (!ref) return
+    setScoreIdx(i)
+    try {
+      const res = await scoreCharacterConsistency(form, ref)
+      const low = res.score < 60
+      Modal.info({
+        title: `一致性评分：${res.score} 分`,
+        content: (
+          <div data-testid="consistency-score-modal">
+            <p>{res.summary || '（无总评）'}</p>
+            {(res.issues?.length ?? 0) > 0 && (
+              <ul>{res.issues.map((it, k) => <li key={k}>{it}</li>)}</ul>
+            )}
+            {low && <p>建议补充不同角度/光照的参考图后再生成，提高一致性。</p>}
+          </div>
+        ),
+      })
+    } catch (err: unknown) {
+      message.error(`一致性评分失败：${err instanceof Error ? err.message : String(err)}`)
+    } finally {
+      setScoreIdx(null)
+    }
+  }
+
   // 选择本地图片 → data URL 追加进参考图列表（保存时后端会本地化落盘）。
   const onPickRefFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -672,6 +704,17 @@ const CharacterLibEditor: React.FC<Props> = ({
                         <div key={`${ref}-${i}`} className="cd-ref">
                           <PortraitImg className="cd-ref-img" src={ref} alt={`参考图 ${i + 1}`} />
                           <div className="cd-ref-actions">
+                            <Button
+                              size="small"
+                              type="text"
+                              className="cd-dice"
+                              icon={scoreIdx === i ? <LoadingOutlined /> : <AimOutlined />}
+                              loading={scoreIdx === i}
+                              disabled={(busy && scoreIdx !== i) || (scoreIdx !== null && scoreIdx !== i)}
+                              title="一致性评分（视觉模型对照文字设定）"
+                              data-testid={`score-ref-${i}`}
+                              onClick={() => void handleScoreRef(i)}
+                            />
                             <Button
                               size="small"
                               type="text"

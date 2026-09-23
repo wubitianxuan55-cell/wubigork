@@ -20,6 +20,7 @@ func (b *CharlibB) CharacterGenerateFill(chJSON string) (string, error) { return
 func (b *CharlibB) CharacterGeneratePortrait(chJSON string, model string) (string, error) { return b.a.CharacterGeneratePortrait(chJSON, model) }
 func (b *CharlibB) CharacterGeneratePortraitWithRef(chJSON string, model string, refImageDataURL string) (string, error) { return b.a.CharacterGeneratePortraitWithRef(chJSON, model, refImageDataURL) }
 func (b *CharlibB) CharacterGenerateSheet(chJSON string, variant string) (string, error) { return b.a.CharacterGenerateSheet(chJSON, variant) }
+func (b *CharlibB) CharacterScoreConsistency(chJSON string, image string) (string, error) { return b.a.CharacterScoreConsistency(chJSON, image) }
 func (b *CharlibB) CharacterGenerateRandom(chJSON string, fields string) (string, error) { return b.a.CharacterGenerateRandom(chJSON, fields) }
 func (b *CharlibB) CharacterGet(id string) (map[string]interface{}, error) { return b.a.CharacterGet(id) }
 func (b *CharlibB) CharacterImportPreview() (*characterlib.ImportPreview, error) { return b.a.CharacterImportPreview() }
