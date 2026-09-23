@@ -322,20 +322,26 @@ const CharacterLibEditor: React.FC<Props> = ({
     }
   }
 
+  // 设定卡生成共用前置守卫（单张/连发同口径）：名称非空+至少一张参考或剧照。
+  const sheetGuard = (): boolean => {
+    if (busy) return false
+    if (!form.name?.trim()) {
+      message.warning('角色名称不能为空')
+      return false
+    }
+    if (!(form.referenceImages?.length) && !form.portraitUrl) {
+      message.warning('设定卡生成需要至少一张参考图或剧照（以参考锚定人物）')
+      return false
+    }
+    return true
+  }
+
   // 生成设定卡（阶段三刀 C）：qedit 以参考图（最多 3 张）锚定人物；
   // variant 选模板（triptych 三视图并排默认/front·side·back 单视图分张/
   // sitting·action 姿势扩展）。产物直接追加进参考图列表（设定卡即最佳参考，
   // 画廊=参考图列表）。
   const handleGenerateSheet = async (variant: string) => {
-    if (busy) return
-    if (!form.name?.trim()) {
-      message.warning('角色名称不能为空')
-      return
-    }
-    if (!(form.referenceImages?.length) && !form.portraitUrl) {
-      message.warning('设定卡生成需要至少一张参考图或剧照（以参考锚定人物）')
-      return
-    }
+    if (!sheetGuard()) return
     setSheetGen(true)
     try {
       const img = await generateCharacterSheet(form, variant)
@@ -344,6 +350,48 @@ const CharacterLibEditor: React.FC<Props> = ({
     } catch (err: unknown) {
       message.error(`设定卡生成失败：${err instanceof Error ? err.message : String(err)}`)
     } finally {
+      setSheetGen(false)
+    }
+  }
+
+  // 三视图分张连发（v4.402）：正/侧/背三张排队生成，逐张追加进参考图列表
+  // （每张完整分辨率，可单独作参考）。首张失败即中止（系统性故障：后端/权重，
+  // 连发只会重复报错）；中途失败继续其余，结束如实汇总。
+  const sheetSplitViews: Array<{ key: string; label: string }> = [
+    { key: 'front', label: '正面' },
+    { key: 'side', label: '左侧面' },
+    { key: 'back', label: '背面' },
+  ]
+  const handleGenerateSheetSplit = async () => {
+    if (!sheetGuard()) return
+    setSheetGen(true)
+    const failed: string[] = []
+    let current = [...(form.referenceImages ?? [])]
+    const closeLoading = message.loading(`分张生成中 0/${sheetSplitViews.length}…`, 0)
+    try {
+      for (let i = 0; i < sheetSplitViews.length; i++) {
+        const view = sheetSplitViews[i]
+        try {
+          const img = await generateCharacterSheet(form, view.key)
+          current = [...current, img]
+          patch({ referenceImages: current })
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : String(err)
+          if (i === 0) {
+            // 首张失败=系统性故障（后端/权重/参考），中止连发
+            message.error(`分张中止（${view.label}失败：${msg}）——可先单张生成排查`)
+            return
+          }
+          failed.push(view.label)
+        }
+      }
+      if (failed.length) {
+        message.warning(`分张完成，${failed.join('、')}失败（可从菜单单张重试）`)
+      } else {
+        message.success('三视图分张已全部生成并加入参考图（保存后落盘）')
+      }
+    } finally {
+      closeLoading()
       setSheetGen(false)
     }
   }
@@ -490,8 +538,11 @@ const CharacterLibEditor: React.FC<Props> = ({
                         { key: 'back', label: '背面全身' },
                         { key: 'sitting', label: '坐姿' },
                         { key: 'action', label: '动态姿势' },
+                        { type: 'divider' },
+                        { key: 'split3', label: '三视图分张（连发）' },
                       ],
-                      onClick: e => void handleGenerateSheet(e.key),
+                      onClick: e =>
+                        void (e.key === 'split3' ? handleGenerateSheetSplit() : handleGenerateSheet(e.key)),
                     }}
                     className="cd-hero-gen"
                     data-testid="gen-character-sheet"

@@ -417,4 +417,62 @@ describe('CharacterLibEditor 生成设定卡（阶段三刀 C）', () => {
     await vi.waitFor(() => expect(mockedCharacterSheet).toHaveBeenCalledTimes(1))
     expect(mockedCharacterSheet.mock.calls[0][1]).toBe('sitting')
   })
+
+  it('分张连发：正/侧/背三张排队调用并全部加入参考图（v4.402）', async () => {
+    mockedCharacterSheet.mockClear()
+    mockedCharacterSheet.mockResolvedValue('data:image/png;base64,SPLIT')
+    renderEditor({ character: makeCharacter({ name: '林晚', referenceImages: ['data:image/png;base64,R1'] }) })
+    const [, arrow] = Array.from(screen.getByTestId('gen-character-sheet').querySelectorAll('button'))
+    fireEvent.mouseEnter(arrow)
+    await vi.waitFor(() => {
+      expect(document.querySelector('.ant-dropdown:not(.ant-dropdown-hidden) .ant-dropdown-menu')).toBeTruthy()
+    })
+    const split = Array.from(
+      document.querySelectorAll('.ant-dropdown:not(.ant-dropdown-hidden) .ant-dropdown-menu-item'),
+    ).find(i => i.textContent?.includes('分张'))
+    expect(split).toBeTruthy()
+    fireEvent.click(split!)
+    await vi.waitFor(() => expect(mockedCharacterSheet).toHaveBeenCalledTimes(3))
+    expect(mockedCharacterSheet.mock.calls.map(c => c[1])).toEqual(['front', 'side', 'back'])
+    await vi.waitFor(() => expect(screen.getByText(/三视图分张已全部生成/)).toBeTruthy())
+  })
+
+  it('分张连发：首张失败中止（系统性故障不再连发）；中途失败继续并如实汇总', async () => {
+    mockedCharacterSheet.mockClear()
+    // 首张失败：只调 1 次，报「分张中止」
+    mockedCharacterSheet.mockRejectedValue(new Error('仅 ComfyUI 本地档'))
+    renderEditor({ character: makeCharacter({ name: '林晚', referenceImages: ['data:image/png;base64,R1'] }) })
+    let [, arrow] = Array.from(screen.getByTestId('gen-character-sheet').querySelectorAll('button'))
+    fireEvent.mouseEnter(arrow)
+    await vi.waitFor(() => {
+      expect(document.querySelector('.ant-dropdown:not(.ant-dropdown-hidden) .ant-dropdown-menu')).toBeTruthy()
+    })
+    let split = Array.from(
+      document.querySelectorAll('.ant-dropdown:not(.ant-dropdown-hidden) .ant-dropdown-menu-item'),
+    ).find(i => i.textContent?.includes('分张'))
+    fireEvent.click(split!)
+    await vi.waitFor(() => expect(mockedCharacterSheet).toHaveBeenCalledTimes(1))
+    await vi.waitFor(() => expect(screen.getByText(/分张中止/)).toBeTruthy())
+    expect(mockedCharacterSheet).toHaveBeenCalledTimes(1)
+
+    // 中途失败（第 2 张）：3 张都发起，结尾 warning 点名失败视图
+    cleanup()
+    mockedCharacterSheet.mockReset()
+    mockedCharacterSheet.mockResolvedValueOnce('data:image/png;base64,F')
+      .mockRejectedValueOnce(new Error('队列超时'))
+      .mockResolvedValueOnce('data:image/png;base64,B')
+    renderEditor({ character: makeCharacter({ name: '林晚', referenceImages: ['data:image/png;base64,R1'] }) })
+    ;[, arrow] = Array.from(screen.getByTestId('gen-character-sheet').querySelectorAll('button'))
+    fireEvent.mouseEnter(arrow)
+    await vi.waitFor(() => {
+      expect(document.querySelector('.ant-dropdown:not(.ant-dropdown-hidden) .ant-dropdown-menu')).toBeTruthy()
+    })
+    split = Array.from(
+      document.querySelectorAll('.ant-dropdown:not(.ant-dropdown-hidden) .ant-dropdown-menu-item'),
+    ).find(i => i.textContent?.includes('分张'))
+    fireEvent.click(split!)
+    await vi.waitFor(() => expect(mockedCharacterSheet).toHaveBeenCalledTimes(3))
+    expect(mockedCharacterSheet.mock.calls.map(c => c[1])).toEqual(['front', 'side', 'back'])
+    await vi.waitFor(() => expect(screen.getByText(/左侧面失败/)).toBeTruthy())
+  })
 })
