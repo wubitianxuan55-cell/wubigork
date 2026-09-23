@@ -720,18 +720,32 @@ func TestGenerateMedia_QeditMetadata(t *testing.T) {
 }
 
 // TestCharacterGenerateSheet 角色设定卡（阶段三刀 C）：qedit 请求形状/无参考
-// 报错/非 comfyui 报错/prompt 模板三要素。
+// 报错/非 comfyui 报错/prompt 模板三要素/模板矩阵与多参考锚定（v4.401）。
 func TestCharacterGenerateSheet(t *testing.T) {
 	// 纯函数：模板三要素+锚点+无外观可用
-	p := buildCharacterSheetPrompt(characterlib.Character{Name: "林晚", Appearance: "黑色长发", Figure: "高挑"})
+	p := buildCharacterSheetPrompt(characterlib.Character{Name: "林晚", Appearance: "黑色长发", Figure: "高挑"}, "")
 	for _, want := range []string{"三视图", "正面全身", "纯白背景", "黑色长发", "高挑"} {
 		if !strings.Contains(p, want) {
 			t.Fatalf("prompt 应含 %q: %s", want, p)
 		}
 	}
-	p2 := buildCharacterSheetPrompt(characterlib.Character{Name: "X"})
+	p2 := buildCharacterSheetPrompt(characterlib.Character{Name: "X"}, "triptych")
 	if !strings.Contains(p2, "三视图") {
 		t.Fatal("无外观锚点也应可用")
+	}
+	// 模板矩阵：单视图分张与姿势扩展各自的关键词，且不含三视图字样
+	for variant, want := range map[string]string{
+		"front": "正面全身站姿", "side": "左侧面全身站姿", "back": "背面全身站姿",
+		"sitting": "坐姿", "action": "动态姿势",
+	} {
+		pv := buildCharacterSheetPrompt(characterlib.Character{Name: "X"}, variant)
+		if !strings.Contains(pv, want) || strings.Contains(pv, "三视图") {
+			t.Fatalf("variant %s prompt 应含 %q 且非三视图: %s", variant, want, pv)
+		}
+	}
+	// 非法 variant 纯函数回落默认三视图（绑定层负责报错）
+	if pb := buildCharacterSheetPrompt(characterlib.Character{Name: "X"}, "bogus"); !strings.Contains(pb, "三视图") {
+		t.Fatalf("非法 variant 纯函数应回落默认: %s", pb)
 	}
 
 	// 绑定路径：httptest 假 ComfyUI 全链（buildPortraitClient 独立建客户端，
@@ -741,10 +755,17 @@ func TestCharacterGenerateSheet(t *testing.T) {
 	if err := os.WriteFile(ref, []byte{0x89, 'P', 'N', 'G'}, 0o644); err != nil {
 		t.Fatal(err)
 	}
+	ref2 := filepath.Join(dir, "ref2.png")
+	if err := os.WriteFile(ref2, []byte{0x89, 'P', 'N', 'G', 0x02}, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	missing := filepath.Join(dir, "missing.png")
+	var uploadCount int
 	var gotPrompt string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.URL.Path == "/upload/image":
+			uploadCount++
 			_, _ = w.Write([]byte(`{"name":"ref.png"}`))
 		case r.URL.Path == "/prompt":
 			body, _ := io.ReadAll(r.Body)
@@ -768,8 +789,10 @@ func TestCharacterGenerateSheet(t *testing.T) {
 	a := &App{core: &core{ctx: context.Background(), cfg: &config.Config{
 		ImageBackend: "comfyui", ComfyUIURL: srv.URL, ImageModel: "krea2",
 	}}}
-	ch := characterlib.Character{ID: "c1", Name: "林晚", Appearance: "黑色长发", ReferenceImages: []string{ref}}
-	out, err := a.CharacterGenerateSheet(mustJSON(ch))
+	// 多参考：两张可用+一张缺失（跳过不算失败）——qedit 上传应发生 2 次
+	ch := characterlib.Character{ID: "c1", Name: "林晚", Appearance: "黑色长发",
+		ReferenceImages: []string{ref, missing, ref2}}
+	out, err := a.CharacterGenerateSheet(mustJSON(ch), "")
 	if err != nil {
 		t.Fatalf("CharacterGenerateSheet: %v", err)
 	}
@@ -779,14 +802,29 @@ func TestCharacterGenerateSheet(t *testing.T) {
 	if !strings.Contains(gotPrompt, "三视图") || !strings.Contains(gotPrompt, "黑色长发") {
 		t.Fatalf("提交的 prompt 应为设定卡模板+锚点: %s", gotPrompt)
 	}
+	if uploadCount != 2 {
+		t.Fatalf("两张可用参考应各上传一次（缺失跳过），得到 %d 次", uploadCount)
+	}
+
+	// variant 透传：back 模板 prompt 应含背面全身站姿
+	if _, err := a.CharacterGenerateSheet(mustJSON(ch), "back"); err != nil {
+		t.Fatalf("back variant: %v", err)
+	}
+	if !strings.Contains(gotPrompt, "背面全身站姿") {
+		t.Fatalf("back variant prompt 应透传: %s", gotPrompt)
+	}
+	// 非法 variant 报错
+	if _, err := a.CharacterGenerateSheet(mustJSON(ch), "bogus"); err == nil || !strings.Contains(err.Error(), "未知设定卡模板") {
+		t.Fatalf("非法 variant 应报错: %v", err)
+	}
 
 	// 无参考图
-	if _, err := a.CharacterGenerateSheet(mustJSON(characterlib.Character{Name: "无图"})); err == nil || !strings.Contains(err.Error(), "参考图") {
+	if _, err := a.CharacterGenerateSheet(mustJSON(characterlib.Character{Name: "无图"}), ""); err == nil || !strings.Contains(err.Error(), "参考图") {
 		t.Fatalf("无参考应报错: %v", err)
 	}
 	// 非 comfyui 后端
 	a2 := &App{core: &core{cfg: &config.Config{ImageBackend: "herdsman"}}}
-	if _, err := a2.CharacterGenerateSheet(mustJSON(ch)); err == nil || !strings.Contains(err.Error(), "ComfyUI") {
+	if _, err := a2.CharacterGenerateSheet(mustJSON(ch), ""); err == nil || !strings.Contains(err.Error(), "ComfyUI") {
 		t.Fatalf("非 comfyui 应报错: %v", err)
 	}
 }

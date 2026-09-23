@@ -738,13 +738,50 @@ func buildPortraitPrompt(c characterlib.Character) string {
 // charSheetAnchorRunes 设定卡模板里外观锚点的最大长度（提示词预算）。
 const charSheetAnchorRunes = 160
 
+// charSheetVariantDefault 设定卡默认模板 key：三视图并排。
+const charSheetVariantDefault = "triptych"
+
+// charSheetVariantLabels 设定卡模板的展示名（错误文案点名可选项）。
+var charSheetVariantLabels = map[string]string{
+	"triptych": "三视图并排", "front": "正面全身", "side": "左侧面全身",
+	"back": "背面全身", "sitting": "坐姿", "action": "动态姿势",
+}
+
+// charSheetVariantBody 设定卡模板的主体构图指令（variant → 描述）。
+// 视图类（front/side/back）为分张单视图——每张完整分辨率可单独作参考；
+// 姿势类（sitting/action）扩展站姿以外的资产覆盖。
+var charSheetVariantBody = map[string]string{
+	"triptych": "同一人物的三视图（three-view）水平并排：正面全身、左侧面全身、背面全身，姿态一致站立",
+	"front":    "正面全身站姿（front view），面朝镜头",
+	"side":     "左侧面全身站姿（left side view）",
+	"back":     "背面全身站姿（back view），背朝镜头",
+	"sitting":  "坐姿（seated pose）全身，自然坐在无靠背简约长凳上",
+	"action":   "动态姿势（action pose）全身，动作舒展富有张力",
+}
+
+// validCharSheetVariant 判定设定卡模板 key（空串合法=默认三视图）。
+func validCharSheetVariant(v string) bool {
+	_, ok := charSheetVariantLabels[strings.TrimSpace(v)]
+	return ok || strings.TrimSpace(v) == ""
+}
+
+// charSheetVariantKeyList 模板 key 的稳定顺序（错误文案用）。
+func charSheetVariantKeyList() []string {
+	return []string{"triptych", "front", "side", "back", "sitting", "action"}
+}
+
 // buildCharacterSheetPrompt 角色设定卡提示词（纯函数，阶段三刀 C）：
-// 三视图并排（正面/侧面/背面全身）+白背景+外观锚点。qedit 通道下人物形象
-// 由参考图锚定，锚点文字补细节冗余。
-func buildCharacterSheetPrompt(c characterlib.Character) string {
+// 按模板 variant 展开主体构图（默认三视图并排）+白背景+外观锚点。
+// qedit 通道下人物形象由参考图锚定，锚点文字补细节冗余。
+func buildCharacterSheetPrompt(c characterlib.Character, variant string) string {
+	body, ok := charSheetVariantBody[strings.TrimSpace(variant)]
+	if !ok {
+		body = charSheetVariantBody[charSheetVariantDefault]
+	}
 	var b strings.Builder
-	b.WriteString("角色设定卡（character sheet），同一人物的三视图（three-view）水平并排：正面全身、左侧面全身、背面全身，")
-	b.WriteString("姿态一致站立，纯白背景，全身可见，细节清晰，专业角色设计参考图")
+	b.WriteString("角色设定卡（character sheet），")
+	b.WriteString(body)
+	b.WriteString("，纯白背景，全身可见，细节清晰，专业角色设计参考图")
 	anchor := strings.TrimSpace(c.Appearance)
 	if figure := strings.TrimSpace(c.Figure); figure != "" {
 		if anchor != "" {
@@ -762,17 +799,22 @@ func buildCharacterSheetPrompt(c characterlib.Character) string {
 	return b.String()
 }
 
-// CharacterGenerateSheet 角色设定卡生成（阶段三刀 C，T2 角色资产 v2 首刀）：
-// 以角色第一张参考图（其次剧照）走 qedit（Qwen 参考编辑——参考图进编辑引擎
-// image1 槽，人物形象锚定）产出三视图设定卡；返回 data URL 不自动保存。
-// 仅 ComfyUI 本地档（qedit 通道当前唯一后端）；无参考图如实报错。
-func (a *App) CharacterGenerateSheet(chJSON string) (string, error) {
+// CharacterGenerateSheet 角色设定卡生成（阶段三刀 C，T2 角色资产 v2）：
+// variant 选模板（空=三视图并排；front/side/back 单视图分张、sitting/action
+// 姿势扩展）。以角色参考图（最多 3 张，qedit 三图槽上限；其次剧照兜底）走
+// qedit（Qwen 参考编辑——参考图进编辑引擎 image1..3 槽，人物形象锚定）产出
+// 设定卡；返回 data URL 不自动保存。仅 ComfyUI 本地档（qedit 通道当前唯一
+// 后端）；无可用参考图如实报错。
+func (a *App) CharacterGenerateSheet(chJSON, variant string) (string, error) {
 	var c characterlib.Character
 	if err := json.Unmarshal([]byte(chJSON), &c); err != nil {
 		return "", fmt.Errorf("解析角色数据失败: %w", err)
 	}
 	if strings.TrimSpace(c.Name) == "" {
 		return "", fmt.Errorf("角色名称不能为空")
+	}
+	if !validCharSheetVariant(variant) {
+		return "", fmt.Errorf("未知设定卡模板：%s（可选：%s）", variant, strings.Join(charSheetVariantKeyList(), "、"))
 	}
 	backend := a.cfg.PortraitBackend
 	if backend == "" {
@@ -781,22 +823,24 @@ func (a *App) CharacterGenerateSheet(chJSON string) (string, error) {
 	if backend != "comfyui" {
 		return "", fmt.Errorf("设定卡生成（Qwen 参考编辑）当前仅 ComfyUI 本地档（当前后端：%s）", backend)
 	}
-	refPath := ""
+	// 收集可用参考：参考图列表优先（最多 3 张），其次剧照兜底；
+	// 远端 URL/读取失败按 sinRefDataURL 口径跳过，一张可用即可。
+	var refs []string
 	for _, p := range c.ReferenceImages {
-		if strings.TrimSpace(p) != "" {
-			refPath = p
+		if len(refs) >= 3 {
 			break
 		}
+		if data, ok := sinRefDataURL(p); ok {
+			refs = append(refs, data)
+		}
 	}
-	if refPath == "" {
-		refPath = strings.TrimSpace(c.PortraitURL)
+	if len(refs) == 0 {
+		if data, ok := sinRefDataURL(c.PortraitURL); ok {
+			refs = append(refs, data)
+		}
 	}
-	if refPath == "" {
+	if len(refs) == 0 {
 		return "", fmt.Errorf("设定卡生成需要至少一张参考图或剧照（qedit 以参考锚定人物）")
-	}
-	refData, ok := sinRefDataURL(refPath)
-	if !ok {
-		return "", fmt.Errorf("参考图读取失败（本地文件缺失或为远端 URL）：%s", refPath)
 	}
 	client, err := a.buildPortraitClient()
 	if err != nil {
@@ -804,11 +848,11 @@ func (a *App) CharacterGenerateSheet(chJSON string) (string, error) {
 	}
 	req := &ai.ImageGenerationRequest{
 		Model:     a.cfg.ImageModel,
-		Prompt:    buildCharacterSheetPrompt(c),
+		Prompt:    buildCharacterSheetPrompt(c, variant),
 		Negative:  "文字, 水印, 签名, 低质量, 模糊, 肢体变形, 多余手指, 多眼多嘴",
 		N:         1,
 		Mode:      "txt2img",
-		RefImages: []string{refData},
+		RefImages: refs,
 		RefMethod: "qedit",
 	}
 	ctx := a.ctx

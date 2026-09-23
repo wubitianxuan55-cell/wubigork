@@ -379,20 +379,42 @@ describe('CharacterLibEditor（档案详情）', () => {
 })
 
 describe('CharacterLibEditor 生成设定卡（阶段三刀 C）', () => {
-  it('点击按钮：qedit 产物追加进参考图列表；无参考 warning 不触发生成', async () => {
+  // Dropdown.Button：data-testid 挂在按钮组 wrapper 上，主按钮=组内第一个 button
+  const sheetMainBtn = () => screen.getByTestId('gen-character-sheet').querySelector('button')!
+
+  it('点击主按钮：默认三视图 qedit 产物追加进参考图列表；无参考 warning 不触发生成', async () => {
     mockedCharacterSheet.mockClear()
     mockedCharacterSheet.mockResolvedValue('data:image/png;base64,SHEET')
     // 无参考图：warning 不触发
     renderEditor({ character: makeCharacter({ name: '林晚', referenceImages: [] }) })
-    fireEvent.click(screen.getByTestId('gen-character-sheet'))
+    fireEvent.click(sheetMainBtn())
     await vi.waitFor(() => expect(screen.getByText(/至少一张参考图/)).toBeTruthy())
     expect(mockedCharacterSheet).not.toHaveBeenCalled()
-    // 带参考图：产物追加（success 消息为证）
+    // 带参考图：产物追加（success 消息为证），主按钮=triptych 默认模板
     cleanup()
     renderEditor({ character: makeCharacter({ name: '林晚', referenceImages: ['data:image/png;base64,R1'] }) })
-    fireEvent.click(screen.getByTestId('gen-character-sheet'))
+    fireEvent.click(sheetMainBtn())
     await vi.waitFor(() => expect(mockedCharacterSheet).toHaveBeenCalledTimes(1))
     expect(mockedCharacterSheet.mock.calls[0][0]?.name).toBe('林晚')
+    expect(mockedCharacterSheet.mock.calls[0][1]).toBe('triptych')
     await vi.waitFor(() => expect(screen.getByText(/设定卡已生成并加入参考图/)).toBeTruthy())
+  })
+
+  it('模板菜单：箭头展开选「坐姿」，按 sitting variant 调用（v4.401 模板矩阵）', async () => {
+    mockedCharacterSheet.mockClear()
+    mockedCharacterSheet.mockResolvedValue('data:image/png;base64,SHEET2')
+    renderEditor({ character: makeCharacter({ name: '林晚', referenceImages: ['data:image/png;base64,R1'] }) })
+    const [, arrow] = Array.from(screen.getByTestId('gen-character-sheet').querySelectorAll('button'))
+    fireEvent.mouseEnter(arrow)
+    await vi.waitFor(() => {
+      expect(document.querySelector('.ant-dropdown:not(.ant-dropdown-hidden) .ant-dropdown-menu')).toBeTruthy()
+    })
+    const item = Array.from(
+      document.querySelectorAll('.ant-dropdown:not(.ant-dropdown-hidden) .ant-dropdown-menu-item'),
+    ).find(i => i.textContent?.includes('坐姿'))
+    expect(item).toBeTruthy()
+    fireEvent.click(item!)
+    await vi.waitFor(() => expect(mockedCharacterSheet).toHaveBeenCalledTimes(1))
+    expect(mockedCharacterSheet.mock.calls[0][1]).toBe('sitting')
   })
 })

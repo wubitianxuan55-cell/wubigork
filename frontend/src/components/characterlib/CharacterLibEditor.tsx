@@ -3,7 +3,7 @@
 // 随机生成：顶部「随机补全 / 全部随机」，每个字段旁 ↻ 可单独随机（含性格）
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import {
-  Modal, Input, Select, Switch, Slider, Typography, message, Button,
+  Modal, Input, Select, Switch, Slider, Typography, message, Button, Dropdown,
 } from 'antd'
 import {
   SaveOutlined, CloseOutlined, PictureOutlined, ThunderboltOutlined,
@@ -322,9 +322,11 @@ const CharacterLibEditor: React.FC<Props> = ({
     }
   }
 
-  // 生成设定卡（阶段三刀 C）：qedit 以首张参考图锚定人物 → 三视图并排；
-  // 产物直接追加进参考图列表（设定卡即最佳参考，画廊=参考图列表）。
-  const handleGenerateSheet = async () => {
+  // 生成设定卡（阶段三刀 C）：qedit 以参考图（最多 3 张）锚定人物；
+  // variant 选模板（triptych 三视图并排默认/front·side·back 单视图分张/
+  // sitting·action 姿势扩展）。产物直接追加进参考图列表（设定卡即最佳参考，
+  // 画廊=参考图列表）。
+  const handleGenerateSheet = async (variant: string) => {
     if (busy) return
     if (!form.name?.trim()) {
       message.warning('角色名称不能为空')
@@ -336,7 +338,7 @@ const CharacterLibEditor: React.FC<Props> = ({
     }
     setSheetGen(true)
     try {
-      const img = await generateCharacterSheet(form)
+      const img = await generateCharacterSheet(form, variant)
       patch({ referenceImages: [...(form.referenceImages ?? []), img] })
       message.success('设定卡已生成并加入参考图（保存后落盘）')
     } catch (err: unknown) {
@@ -462,29 +464,42 @@ const CharacterLibEditor: React.FC<Props> = ({
                   <div className="cd-hero-ph">{form.name?.slice(0, 1) || '?'}</div>
                 )}
                 <div className="cd-hero-shade" />
-                <Button
-                  size="small"
-                  icon={<PictureOutlined />}
-                  loading={genPortrait}
-                  disabled={busy}
-                  onClick={handleGeneratePortrait}
-                  className="cd-hero-gen"
-                  title="按角色设定生成剧照"
-                >
-                  生成剧照
-                </Button>
-                <Button
-                  size="small"
-                  icon={<IdcardOutlined />}
-                  loading={sheetGen}
-                  disabled={busy}
-                  onClick={() => void handleGenerateSheet()}
-                  className="cd-hero-gen"
-                  data-testid="gen-character-sheet"
-                  title="以首张参考图生成三视图设定卡（Qwen 参考编辑，本地 ComfyUI）"
-                >
-                  生成设定卡
-                </Button>
+                <div className="cd-hero-gens">
+                  <Button
+                    size="small"
+                    icon={<PictureOutlined />}
+                    loading={genPortrait}
+                    disabled={busy}
+                    onClick={handleGeneratePortrait}
+                    className="cd-hero-gen"
+                    title="按角色设定生成剧照"
+                  >
+                    生成剧照
+                  </Button>
+                  <Dropdown.Button
+                    size="small"
+                    icon={<IdcardOutlined />}
+                    loading={sheetGen}
+                    disabled={busy}
+                    onClick={() => void handleGenerateSheet('triptych')}
+                    menu={{
+                      items: [
+                        { key: 'triptych', label: '三视图并排' },
+                        { key: 'front', label: '正面全身' },
+                        { key: 'side', label: '左侧面全身' },
+                        { key: 'back', label: '背面全身' },
+                        { key: 'sitting', label: '坐姿' },
+                        { key: 'action', label: '动态姿势' },
+                      ],
+                      onClick: e => void handleGenerateSheet(e.key),
+                    }}
+                    className="cd-hero-gen"
+                    data-testid="gen-character-sheet"
+                    title="以参考图生成设定卡（Qwen 参考编辑，本地 ComfyUI）——主按钮三视图并排，箭头选模板"
+                  >
+                    生成设定卡
+                  </Dropdown.Button>
+                </div>
                 <div className="cd-hero-info">
                   <h2 className="cd-hero-name">{form.name || '未命名角色'}</h2>
                   {heroMeta && <p className="cd-hero-meta">{heroMeta}</p>}

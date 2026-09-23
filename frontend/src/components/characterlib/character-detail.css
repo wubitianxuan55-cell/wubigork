@@ -132,11 +132,20 @@
   background: linear-gradient(0deg, rgba(0, 0, 0, 0.72), transparent 55%);
 }
 
-.cd-hero-gen {
+/* 生成按钮组（剧照 + 设定卡）：垂直堆叠容器（v4.401 前两按钮各自 absolute
+   同点位重叠，收进容器根修） */
+.cd-hero-gens {
   position: absolute;
   top: 12px;
   right: 12px;
   z-index: 4;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.cd-hero-gen {
   border-radius: 10px;
   background: rgba(10, 10, 20, 0.55);
   border: 1px solid rgba(255, 255, 255, 0.22);
@@ -146,7 +155,31 @@
   backdrop-filter: blur(8px);
 }
 
-.cd-hero-gen:hover {
+/* Dropdown.Button（设定卡模板菜单）：className 挂在按钮组 wrapper 上，
+   玻璃样式落到组内两个按钮并合并圆角 */
+.cd-hero-gen.ant-btn-group .ant-btn {
+  border-radius: 10px;
+  background: rgba(10, 10, 20, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  color: rgb(255 255 255);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+
+.cd-hero-gen.ant-btn-group .ant-btn:first-child {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.cd-hero-gen.ant-btn-group .ant-btn:last-child {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  border-left-color: rgba(255, 255, 255, 0.22);
+}
+
+.cd-hero-gen:hover,
+.cd-hero-gen.ant-btn-group .ant-btn:hover {
   color: rgb(255 255 255) !important;
   border-color: var(--gaea-glow) !important;
 }

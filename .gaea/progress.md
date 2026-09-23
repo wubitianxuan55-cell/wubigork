@@ -1,3 +1,12 @@
+## 最新发布：v4.401.0（2026-09-23）「设定卡模板矩阵 + 多参考锚定（T2 角色资产 v2 第二刀）」
+
+- **刀型**：v4.400 观察池头名（多姿势/分张）+qedit 三图槽自然消费。签名扩展 (chJSON, variant)，绑定面 716 零变更、spaceBindings 539。规格 进度计划/gaea-char-sheet-v2-20260923.md。
+- **落地**：charSheetVariantBody 六模板（triptych 默认/front·side·back 分张/sitting/action）+多参考锚定（≤3 填满 qedit 三图槽，剧照兜底，单张失败跳过）+前端 Dropdown.Button 模板菜单+**顺手根修 v4.400 剧照/设定卡按钮同点位重叠**（.cd-hero-gens 堆叠容器）。
+- **测试**：Go 纯函数矩阵+假 ComfyUI（2 可用 1 缺失→上传恰 2 次/variant 透传/非法报错/两态回归）+前端主按钮默认 triptych+菜单坐姿两态；全量 ci 绿 398 文件 3367 例。
+- **坑**：NodeList 解构 tsc -b 报 TS2488 须 Array.from/Dropdown.Button 的 testid 挂 wrapper 须 querySelector 取真按钮/新按钮抄旧 class 先核对是否承担布局定位。
+- **产物**：exe 见 SHA256SUMS-v4.401.0.txt；保留策略留 v4.397~v4.401 删 v4.396.0.exe。
+- **文档**：releases/v4.401.0.md+CHANGELOG/README+releases/README（422→423+裁 v4.367）+AGENTS 迁 1 插 1（一百一十六迁：v4.396 入 archive；头部记录行补 105~115 漏登案）+todos。
+- **观察池**：一致性评分（vision 文本锚点法待拍板）；分张一键连发（三张排队+单张失败重试）；sin 侧设定卡入口；评分驱动补参考。
 ## 最新发布：v4.400.0（2026-09-23）「角色设定卡生成（三视图，qedit 通道 · T2 角色资产 v2 首刀）」
 
 - **刀型**：T2 角色资产 v2 首刀；复用 qedit+参考图画廊零 schema。绑定面 715→716（play）。规格 进度计划/gaea-char-sheet-20260923.md。

@@ -184,10 +184,15 @@ export async function generatePortraitWithRef(
 }
 
 /**
- * 角色设定卡生成（阶段三刀 C，T2 角色资产 v2 首刀）：以首张参考图走 qedit
- * （Qwen 参考编辑）产出三视图并排设定卡；返回 data URL 不自动保存（调用方
- * 追加进参考图列表，保存时后端本地化落盘）。仅 ComfyUI 本地档。
+ * 角色设定卡生成（阶段三刀 C，T2 角色资产 v2）：以参考图（最多 3 张）走
+ * qedit（Qwen 参考编辑）产出设定卡；variant 选模板（triptych=三视图并排
+ * 默认 / front·side·back 单视图分张 / sitting·action 姿势扩展）；返回
+ * data URL 不自动保存（调用方追加进参考图列表，保存时后端本地化落盘）。
+ * 仅 ComfyUI 本地档。
  */
-export async function generateCharacterSheet(c: Partial<LibraryCharacter>): Promise<string> {
-  return app.CharacterGenerateSheet(JSON.stringify(c))
+export async function generateCharacterSheet(
+  c: Partial<LibraryCharacter>,
+  variant = 'triptych',
+): Promise<string> {
+  return app.CharacterGenerateSheet(JSON.stringify(c), variant)
 }
