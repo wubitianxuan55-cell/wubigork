@@ -36,6 +36,7 @@ func newCharacterLibTestApp(t *testing.T) *App {
 	t.Cleanup(func() { _ = wdb.CloseDatabase(root) })
 
 	a := &App{core: c}
+	a.mediaState = &mediaState{core: c, app: a}
 	a.writingState = &writingState{core: c, app: a, mu: sync.RWMutex{}}
 	a.whisperState = &whisperState{core: c, app: a, whisperDataRoot: root}
 	a.assistantMgr = assistant.NewEmpty(root)

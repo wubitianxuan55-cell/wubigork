@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gaea/gaea/internal/ai"
 	"github.com/gaea/gaea/internal/characterlib"
 )
 
@@ -153,5 +154,31 @@ func TestCharacterScoreConsistency(t *testing.T) {
 	}
 	if _, err := a.CharacterScoreConsistency(ch, "data:image/png;base64,AA"); err == nil || !strings.Contains(err.Error(), "无法解析") {
 		t.Fatalf("坏回复应报错: %v", err)
+	}
+}
+
+// TestAttachComfyProgress 角色库生成进度接线（v4.406）：ComfyUI 后端预置
+// queued 并挂回调；其他后端不挂；清理后快照为空。
+func TestAttachComfyProgress(t *testing.T) {
+	a := &App{core: &core{ctx: context.Background()}, mediaState: &mediaState{}}
+
+	req := &ai.ImageGenerationRequest{}
+	a.attachComfyProgress(req, "comfyui")
+	if req.ProgressCallback == nil {
+		t.Fatal("comfyui 后端应挂进度回调")
+	}
+	if snap := a.GetComfyUITaskProgress(); snap["status"] != "queued" {
+		t.Fatalf("应预置 queued: %v", snap)
+	}
+
+	req2 := &ai.ImageGenerationRequest{}
+	a.attachComfyProgress(req2, "herdsman")
+	if req2.ProgressCallback != nil {
+		t.Fatal("非 comfyui 后端不应挂回调")
+	}
+
+	a.clearComfyTaskProgress()
+	if snap := a.GetComfyUITaskProgress(); snap["status"] != "" {
+		t.Fatalf("清理后应为空: %v", snap)
 	}
 }

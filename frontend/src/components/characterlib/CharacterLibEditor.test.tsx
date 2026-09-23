@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { Modal } from 'antd'
+import { getComfyUITaskProgress } from '../../api/image'
 import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react'
 import CharacterLibEditor from './CharacterLibEditor'
 import type { LibraryCharacter } from '../../api/characterlib'
@@ -20,6 +21,7 @@ vi.mock('../../api/characterlib', () => ({
 
 vi.mock('../../api/image', () => ({
   readFileAsDataURL: readFileAsDataURLMock,
+  getComfyUITaskProgress: vi.fn().mockResolvedValue({ status: '', elapsed: 0, percent: -1, node: '' }),
 }))
 
 import { saveCharacter, generateFill, generatePortrait, generatePortraitWithRef, generateRandom, generateCharacterSheet, scoreCharacterConsistency } from '../../api/characterlib'
@@ -516,5 +518,24 @@ describe('CharacterLibEditor 一致性评分（v4.404）', () => {
     await vi.waitFor(() => expect(screen.getByText(/一致性评分失败/)).toBeTruthy())
     // 失败后按钮复位可再点
     expect(screen.getByTestId('score-ref-0').hasAttribute('disabled')).toBe(false)
+  })
+})
+
+describe('CharacterLibEditor 生成进度行（v4.406）', () => {
+  it('设定卡生成中：轮询快照显示当前节点与用时；结束后消失', async () => {
+    const mockedProgress = vi.mocked(getComfyUITaskProgress)
+    mockedProgress.mockClear()
+    mockedProgress.mockResolvedValue({ status: 'running', elapsed: 42, percent: -1, node: 'UNETLoader' })
+    let resolveSheet!: (v: string) => void
+    mockedCharacterSheet.mockClear()
+    mockedCharacterSheet.mockImplementation(() => new Promise<string>((r) => (resolveSheet = r)))
+    renderEditor({ character: makeCharacter({ name: '苏念', referenceImages: ['data:image/png;base64,R1'] }) })
+    const mainBtn = screen.getByTestId('gen-character-sheet').querySelector('button')!
+    fireEvent.click(mainBtn)
+    await vi.waitFor(() => expect(screen.getByTestId('cd-comfy-progress')).toBeTruthy())
+    expect(screen.getByTestId('cd-comfy-progress').textContent).toContain('加载模型')
+    expect(screen.getByTestId('cd-comfy-progress').textContent).toContain('42')
+    resolveSheet('data:image/png;base64,DONE')
+    await vi.waitFor(() => expect(screen.queryByTestId('cd-comfy-progress')).toBeNull())
   })
 })

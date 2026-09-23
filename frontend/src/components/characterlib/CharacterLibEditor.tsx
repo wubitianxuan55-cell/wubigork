@@ -15,6 +15,8 @@ import {
   type LibraryCharacter,
 } from '../../api/characterlib'
 import { readFileAsDataURL } from '../../api/image'
+import { getComfyUITaskProgress } from '../../api/image'
+import { COMFY_NODE_LABELS } from '../imagegen/GenerationProgress'
 import { PortraitImg } from './PortraitImg'
 import { CHARACTER_STATUS_OPTIONS, characterStatusLabel } from '../../utils/characterStatus'
 import { inShellEnv, pickImageAsDataUrl } from '../../gaea/lib/pickFile'
@@ -127,6 +129,26 @@ const CharacterLibEditor: React.FC<Props> = ({
   const [sheetGen, setSheetGen] = useState(false)
   // 一致性评分进行中的参考图下标（v4.404，文字锚点 v1）
   const [scoreIdx, setScoreIdx] = useState<number | null>(null)
+  // ComfyUI 生成进度（v4.406）：剧照/设定卡生成期间轮询同源快照，载入/排队可见
+  const [comfyProgress, setComfyProgress] = useState<{ status: string; elapsed: number; node: string } | null>(null)
+  const imageGenBusy = !!genPortrait || sheetGen
+  useEffect(() => {
+    if (!imageGenBusy) {
+      setComfyProgress(null)
+      return
+    }
+    let live = true
+    const tick = () => {
+      getComfyUITaskProgress()
+        .then(p => {
+          if (live) setComfyProgress({ status: p.status || '', elapsed: p.elapsed || 0, node: p.node || '' })
+        })
+        .catch(() => { /* 读不到按无进度处理，不阻断生成 */ })
+    }
+    tick()
+    const t = setInterval(tick, 1000)
+    return () => { live = false; clearInterval(t) }
+  }, [imageGenBusy])
   const fileRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -583,6 +605,15 @@ const CharacterLibEditor: React.FC<Props> = ({
                     生成设定卡
                   </Dropdown.Button>
                 </div>
+                {imageGenBusy && comfyProgress && (comfyProgress.status === 'running' || comfyProgress.status === 'queued') && (
+                  <div className="cd-hero-progress" data-testid="cd-comfy-progress" aria-live="polite">
+                    {comfyProgress.status === 'queued'
+                      ? '排队中（前有任务）'
+                      : comfyProgress.node
+                        ? `${COMFY_NODE_LABELS[comfyProgress.node] || comfyProgress.node} · 已用时 ${comfyProgress.elapsed}s`
+                        : `生成中 · 已用时 ${comfyProgress.elapsed}s`}
+                  </div>
+                )}
                 <div className="cd-hero-info">
                   <h2 className="cd-hero-name">{form.name || '未命名角色'}</h2>
                   {heroMeta && <p className="cd-hero-meta">{heroMeta}</p>}

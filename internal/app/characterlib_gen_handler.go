@@ -545,6 +545,17 @@ func buildPortraitImageRequest(c characterlib.Character, imgModel, backend, refI
 	return req
 }
 
+// attachComfyProgress 角色库生成链的进度接线（v4.406）：ComfyUI 后端时预置
+// queued 状态并挂回调（GetComfyUITaskProgress 轮询面与绘梦同源）；其余后端
+// 无实时进度语义，不挂。
+func (a *App) attachComfyProgress(req *ai.ImageGenerationRequest, backend string) {
+	if backend != "comfyui" {
+		return
+	}
+	a.updateComfyTaskProgress("queued", 0, 0, "")
+	req.ProgressCallback = a.updateComfyTaskProgress
+}
+
 // characterGeneratePortrait 剧照生成核心实现：无参考图走 txt2img（原行为），
 // 有参考图（refImageDataURL 非空）走 img2img 低 denoise 重绘。
 func (a *App) characterGeneratePortrait(chJSON, model, refImageDataURL string) (string, error) {
@@ -576,6 +587,8 @@ func (a *App) characterGeneratePortrait(chJSON, model, refImageDataURL string) (
 		return "", err
 	}
 	req := buildPortraitImageRequest(c, imgModel, backend, refImageDataURL)
+	a.attachComfyProgress(req, backend)
+	defer a.clearComfyTaskProgress()
 	ctx := a.ctx
 	if ctx == nil {
 		ctx = context.Background()
@@ -855,6 +868,8 @@ func (a *App) CharacterGenerateSheet(chJSON, variant string) (string, error) {
 		RefImages: refs,
 		RefMethod: "qedit",
 	}
+	a.attachComfyProgress(req, "comfyui")
+	defer a.clearComfyTaskProgress()
 	ctx := a.ctx
 	if ctx == nil {
 		ctx = context.Background()

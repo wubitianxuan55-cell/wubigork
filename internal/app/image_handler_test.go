@@ -788,7 +788,7 @@ func TestCharacterGenerateSheet(t *testing.T) {
 	defer srv.Close()
 	a := &App{core: &core{ctx: context.Background(), cfg: &config.Config{
 		ImageBackend: "comfyui", ComfyUIURL: srv.URL, ImageModel: "krea2",
-	}}}
+	}}, mediaState: &mediaState{}}
 	// 多参考：两张可用+一张缺失（跳过不算失败）——qedit 上传应发生 2 次
 	ch := characterlib.Character{ID: "c1", Name: "林晚", Appearance: "黑色长发",
 		ReferenceImages: []string{ref, missing, ref2}}
