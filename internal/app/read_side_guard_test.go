@@ -146,3 +146,56 @@ func TestWithinReadRootsCoversImageSaveDir(t *testing.T) {
 		t.Fatalf("配置的图片目录应可读: %s", custom)
 	}
 }
+
+// TestAttachmentDataURLRelativePath 相对路径根修（v4.405.1）：工作区相对形态
+// （.gaea/work/<文档>/插图/x.png）曾因 withinReadRoots 只认绝对路径被整类拒绝
+// （2026-09-23 18:49 用户真机实录）。解析到工作区根后：根内放行+真实读出
+// data URL；相对穿越仍拒；写侧同惯例。
+func TestAttachmentDataURLRelativePath(t *testing.T) {
+	restore := workspaceTestIsolate(t)
+	defer restore()
+
+	a := &App{core: &core{cfg: &config.Config{}}}
+	rel := filepath.Join(".gaea", "work", "中秋朗诵", "插图", "04提灯.png")
+	abs := filepath.Join(mustCwd(t), rel)
+	if err := os.MkdirAll(filepath.Dir(abs), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(abs, []byte("PNGDATA"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// 相对路径：根内放行
+	if !a.withinReadRoots(rel) {
+		t.Fatalf("工作区相对路径应可读: %s", rel)
+	}
+	// 端到端：真实读出 data URL
+	got, err := a.GaeaAttachmentDataURL(rel)
+	if err != nil {
+		t.Fatalf("GaeaAttachmentDataURL 相对路径: %v", err)
+	}
+	if !strings.HasPrefix(got, "data:image/png;base64,") || !strings.Contains(got, "UE5HREFUQQ==") {
+		t.Fatalf("应返回内容 data URL: %.60s", got)
+	}
+	// 相对穿越：解析后逃出工作区仍拒
+	if a.withinReadRoots(filepath.Join("..", "outside.png")) {
+		t.Fatal("相对穿越应拒")
+	}
+	if _, err := a.GaeaAttachmentDataURL(filepath.Join("..", "outside.png")); err == nil || !strings.Contains(err.Error(), "可读数据范围") {
+		t.Fatalf("相对穿越应报范围错: %v", err)
+	}
+	// 写侧同惯例：根内相对路径可写判定
+	if !withinWriteRoots(filepath.Join(".gaea", "work", "out.png")) {
+		t.Fatal("写侧相对路径应命中工作区根")
+	}
+}
+
+// mustCwd 返回当前进程工作目录（workspaceTestIsolate 已 chdir 到临时根）。
+func mustCwd(t *testing.T) string {
+	t.Helper()
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return wd
+}

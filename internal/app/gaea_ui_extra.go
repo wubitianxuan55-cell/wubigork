@@ -8,8 +8,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"sync"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gaea/gaea/internal/ai"
@@ -676,6 +676,17 @@ func (a *App) GaeaWriteFile(rel string, content string) error {
 // v4.363 真机走查补：绘梦历史图实际落 cfg.ImageSaveDir（默认 %USERPROFILE%
 // Pictures\gaea），不在工作区/数据根两根内——当时「绘梦资产均落两根内」的
 // 论断不成立，聊天消息内联图/画廊读图被误拒，此处补第三根。
+// resolveAgainstWorkspace 相对路径按工作区根解析（与 GaeaListDir 同惯例；
+// v4.405.1 根修：GaeaAttachmentDataURL 曾把工作区相对路径直接拒之门外——
+// .gaea/work/<文档>/插图/x.png 相对形态合法存在）。绝对路径原样返回。
+func resolveAgainstWorkspace(p string) string {
+	p = filepath.Clean(filepath.FromSlash(p))
+	if filepath.IsAbs(p) {
+		return p
+	}
+	return filepath.Clean(filepath.Join(gaeaCwd(), p))
+}
+
 func (a *App) withinReadRoots(abs string) bool {
 	roots := []string{gaeaCwd()}
 	if dr := config.DataRoot(); dr != "" {
@@ -690,7 +701,7 @@ func (a *App) withinReadRoots(abs string) bool {
 	if up := os.Getenv("USERPROFILE"); up != "" {
 		roots = append(roots, filepath.Join(up, "Pictures", "gaea"))
 	}
-	abs = filepath.Clean(abs)
+	abs = resolveAgainstWorkspace(abs)
 	for _, r := range roots {
 		root := filepath.Clean(filepath.FromSlash(r))
 		if strings.HasPrefix(abs, root+string(filepath.Separator)) {
@@ -701,12 +712,13 @@ func (a *App) withinReadRoots(abs string) bool {
 }
 
 // withinWriteRoots 判断绝对路径是否落在任一可写根（工作区 + allow_write）内。
+// 相对路径按工作区根解析（v4.405.1，与读侧同惯例）。
 func withinWriteRoots(abs string) bool {
 	roots := []string{gaeaCwd()}
 	if ga.cfg != nil {
 		roots = ga.cfg.WriteRoots()
 	}
-	abs = filepath.Clean(abs)
+	abs = resolveAgainstWorkspace(abs)
 	for _, r := range roots {
 		root := filepath.Clean(filepath.FromSlash(r))
 		if root == abs {
@@ -956,10 +968,11 @@ func (a *App) GaeaSaveFileAs(defaultName string, base64Data string) (string, err
 // （工作区 + 数据根：剧照 portraits/绘梦资产/附件 uploads 均落在这两根内）
 // + 32MB 上限（头像/资产/截图远小于此，防注入读大文件撑爆内存）。
 func (a *App) GaeaAttachmentDataURL(path string) (string, error) {
-	if !a.withinReadRoots(path) {
+	resolved := resolveAgainstWorkspace(path)
+	if !a.withinReadRoots(resolved) {
 		return "", fmt.Errorf("路径不在可读数据范围内（工作区/应用数据根）: %s", path)
 	}
-	b, err := os.ReadFile(path)
+	b, err := os.ReadFile(resolved)
 	if err != nil {
 		return "", err
 	}
@@ -967,7 +980,7 @@ func (a *App) GaeaAttachmentDataURL(path string) (string, error) {
 		return "", fmt.Errorf("文件过大（上限 32MB）: %s", path)
 	}
 	mime := "application/octet-stream"
-	switch strings.ToLower(filepath.Ext(path)) {
+	switch strings.ToLower(filepath.Ext(resolved)) {
 	case ".png":
 		mime = "image/png"
 	case ".jpg", ".jpeg":
