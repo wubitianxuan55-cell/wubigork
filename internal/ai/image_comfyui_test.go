@@ -1,9 +1,13 @@
 package ai
 
 import (
+	"context"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
 
 // 工作流节点断言辅助：读取 map 里嵌套的 inputs 字段
@@ -318,5 +322,48 @@ func TestComfyExecutionHint(t *testing.T) {
 				t.Fatalf("comfyExecutionHint(%q) = %q, want 包含 %q", tc.msg, got, tc.want)
 			}
 		})
+	}
+}
+
+// TestHarvestOnTimeout 超时收割（v4.404.1）：历史已完成→下载产物返回；
+// 未完成→如实报超时（上限 30 分钟文案）。
+func TestHarvestOnTimeout(t *testing.T) {
+	png := []byte{0x89, 0x50, 0x4e, 0x47}
+	mux := http.NewServeMux()
+	var historyJSON string
+	mux.HandleFunc("/history/p1", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(historyJSON))
+	})
+	mux.HandleFunc("/view", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "image/png")
+		_, _ = w.Write(png)
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	b := NewComfyUIBackend(srv.URL)
+	ctx := context.Background()
+
+	// 未完成：报超时（带 30 分钟文案）
+	historyJSON = `{}`
+	_, _, err := b.harvestOnTimeout(ctx, "p1", 30*time.Minute)
+	if err == nil || !strings.Contains(err.Error(), "30分钟") {
+		t.Fatalf("未完成应报超时: %v", err)
+	}
+
+	// 已完成：收割产物（不报错）
+	historyJSON = `{"p1":{"outputs":{"12":{"images":[{"filename":"a.png","subfolder":"","type":"output"}]}},"status":{"status_str":"success","completed":true}}}`
+	dataURL, kind, err := b.harvestOnTimeout(ctx, "p1", 30*time.Minute)
+	if err != nil {
+		t.Fatalf("已完成应收割: %v", err)
+	}
+	if !strings.HasPrefix(dataURL, "data:image") || kind == "" {
+		t.Fatalf("应返回产物 data URL 与类型: %q %q", dataURL[:20], kind)
+	}
+
+	// 生产默认上限已放宽 30 分钟
+	if NewComfyUIBackend("http://127.0.0.1:1").genTimeout != 30*time.Minute {
+		t.Fatal("genTimeout 默认应为 30 分钟")
 	}
 }

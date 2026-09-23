@@ -32,6 +32,11 @@ type ComfyUIBackend struct {
 	// 轮询间隔（测试可缩短；生产保持 2 秒）
 	pollInterval time.Duration
 
+	// 生成等待上限（测试可缩短；生产 30 分钟）——v4.404.1 由 15 分钟放宽：
+	// 实录 krea2 img2img 在 iGPU 共享内存被换出后冷载 20.5 分钟（19:32:54 提交
+	// 19:53:25 出图），15 分钟固定上限先到误报失败。
+	genTimeout time.Duration
+
 	// 本地取消标记（T6-4.1）：ComfyUI 无删除排队任务的 API，取消后拒绝新提交
 	mu              sync.Mutex
 	cancelled       bool
@@ -44,6 +49,7 @@ func NewComfyUIBackend(baseURL string) *ComfyUIBackend {
 		baseURL:      strings.TrimSuffix(baseURL, "/"),
 		httpClient:   netclient.NewSimpleClient(30 * time.Minute), // CPU 模式可能很慢
 		pollInterval: 2 * time.Second,
+		genTimeout:   30 * time.Minute,
 	}
 }
 
@@ -946,7 +952,7 @@ func (b *ComfyUIBackend) waitForResult(ctx context.Context, promptID string, req
 		})
 	}
 
-	timeout := time.After(15 * time.Minute)
+	timeout := time.After(b.genTimeout)
 	start := time.Now()
 
 	for {
@@ -954,7 +960,8 @@ func (b *ComfyUIBackend) waitForResult(ctx context.Context, promptID string, req
 		case <-ctx.Done():
 			return "", "", ctx.Err()
 		case <-timeout:
-			return "", "", fmt.Errorf("ComfyUI 生成超时 (15分钟)")
+			// 超时前最后一搏：服务端可能刚完成（模型冷载尾差），收割产物不浪费
+			return b.harvestOnTimeout(ctx, promptID, time.Since(start))
 		case <-ticker.C:
 			if req.ProgressCallback != nil {
 				// percent=-1 / node=""：真实进度由 ws 回调推送，这里只保底刷新 elapsed
@@ -1004,6 +1011,20 @@ func comfyResolveRefMode(mode, refMethod string) (string, error) {
 	default:
 		return mode, fmt.Errorf("未知一致性方法: %s", refMethod)
 	}
+}
+
+// harvestOnTimeout 超时前最后一搏：再查一次历史，服务端已完成则收割产物
+// （v4.404.1——服务端已做的工作不因客户端上限白等浪费）；否则如实报超时。
+func (b *ComfyUIBackend) harvestOnTimeout(ctx context.Context, promptID string, waited time.Duration) (string, string, error) {
+	files, done, err := b.checkHistory(ctx, promptID)
+	if err == nil && done && len(files) > 0 {
+		dataURL, derr := b.downloadFile(ctx, files[0])
+		if derr == nil {
+			slog.Info("ComfyUI 生成超时前收割到已完成产物", "promptID", promptID, "waited", waited.String())
+			return dataURL, files[0].kind, nil
+		}
+	}
+	return "", "", fmt.Errorf("ComfyUI 生成超时 (%d分钟)", int(b.genTimeout.Minutes()))
 }
 
 // pollComfyProgress 订阅 ComfyUI /ws 实时进度（尽力而为，失败静默）。
