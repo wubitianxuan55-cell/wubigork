@@ -1,3 +1,11 @@
+## 最新发布：v4.403.0（2026-09-23）「sin 侧设定卡入口（T2 角色资产 v2 收尾刀）」
+
+- **刀型**：观察池在册项。纯前端编排，绑定面 716 零变更、spaceBindings 539。规格 进度计划/gaea-sin-sheet-entry-20260923.md。
+- **落地**：原罪右栏角色 chip 设定卡钮（单击 triptych 快路径）→getCharacter 全量→qedit→追加 referenceImages→saveCharacter 自动存回→reloadLibrary；chip 级单飞；面板吞错页面层 message；prop 可选向后兼容。
+- **测试**：SinCastPanel 3 例+SidePanel 夹具补 prop；全量 ci 绿 399 文件 3372 例（首轮 ProgrammingPage 负载 flaky 隔离绿+复跑全绿在案）。
+- **产物**：exe 见 SHA256SUMS-v4.403.0.txt；保留策略留 v4.399~v4.403 删 v4.398.0.exe。
+- **文档**：releases/v4.403.0.md+CHANGELOG/README+releases/README（424→425+裁 v4.369）+AGENTS 迁 1 插 1（一百一十八迁：v4.398 入 archive）+todos。
+- **观察池**：一致性评分（vision 待拍板）；chip 模板菜单；分张并发档；评分驱动补参考。
 ## 最新发布：v4.402.0（2026-09-23）「设定卡分张连发（T2 角色资产 v2 第三刀）」
 
 - **刀型**：v4.401 观察池头名。纯前端编排，绑定面 716 零变更、spaceBindings 539。规格 进度计划/gaea-char-sheet-split3-20260923.md。

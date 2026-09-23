@@ -30,6 +30,7 @@ import { useSinCast } from './sin/useSinCast'
 import { useSinNotes } from './sin/useSinNotes'
 import { readSinPanelOpen, writeSinPanelOpen } from './sin/sinPanelState'
 import { SinSidePanel } from './sin/SinSidePanel'
+import { generateCharacterSheet, getCharacter, saveCharacter } from '../api/characterlib'
 import { SinCastPicker } from './sin/SinCastPicker'
 import { suggestStoryTitle, type SinGalleryItem } from './sin/storyText'
 import { enqueueIllustration } from './sin/illustrationQueue'
@@ -50,6 +51,22 @@ const OriginalSinPage: React.FC = () => {
   const model = useFeatureModel('sin')
   const [castPickerOpen, setCastPickerOpen] = useState(false)
   const [panelOpen, setPanelOpen] = useState<boolean>(() => readSinPanelOpen())
+
+  // 生成设定卡（v4.403，sin 侧入口）：取全量角色（参考图列表在库内）→qedit
+  // 三视图并排→追加进参考图→存回角色库（保存时后端本地化落盘，与角色库
+  // 编辑器同管线）；成功刷新库列表。错误如实透出（无参考/仅 ComfyUI 等）。
+  const handleCastSheet = async (id: string) => {
+    try {
+      const detail = await getCharacter(id)
+      const full = detail.character
+      const img = await generateCharacterSheet(full, 'triptych')
+      await saveCharacter({ ...full, referenceImages: [...(full.referenceImages ?? []), img] })
+      cast.reloadLibrary()
+      message.success(`${full.name || '角色'} 的设定卡已生成并存入角色库参考图`)
+    } catch (err: unknown) {
+      message.error(`设定卡生成失败：${err instanceof Error ? err.message : String(err)}`)
+    }
+  }
   const [renameTarget, setRenameTarget] = useState('')
   const [renameDraft, setRenameDraft] = useState('')
   const [exporting, setExporting] = useState(false)
@@ -305,6 +322,7 @@ const OriginalSinPage: React.FC = () => {
               castSaving={cast.saving}
               onOpenPicker={() => setCastPickerOpen(true)}
               onRemoveCast={(id) => void cast.saveCast(cast.castIds.filter((x) => x !== id))}
+              onGenerateSheet={handleCastSheet}
               notesDoc={notes.doc}
               notesError={notes.error}
               notesLoading={notes.loading}

@@ -72,6 +72,8 @@ export interface SinSidePanelProps {
   castSaving: boolean
   onOpenPicker: () => void
   onRemoveCast: (id: string) => void
+  /** 生成设定卡（v4.403，sin 侧入口）：页内取全量角色→qedit 三视图→存回角色库；未传不渲染入口。 */
+  onGenerateSheet?: (id: string) => Promise<void>
   notesDoc: SinNotesDoc
   notesError: string
   notesLoading: boolean
@@ -85,7 +87,7 @@ export interface SinSidePanelProps {
 }
 
 export function SinSidePanel({
-  cast, castSaving, onOpenPicker, onRemoveCast,
+  cast, castSaving, onOpenPicker, onRemoveCast, onGenerateSheet,
   notesDoc, notesError, notesLoading, messages, sending, onRegenerate, onSaveNotes,
 }: SinSidePanelProps) {
   const [tab, setTab] = useState<SinSideTabId>(() => readSinPanelTab())
@@ -273,6 +275,7 @@ export function SinSidePanel({
                   saving={castSaving}
                   onOpenPicker={onOpenPicker}
                   onRemove={onRemoveCast}
+                  onGenerateSheet={onGenerateSheet}
                 />
             </div>
           )}

@@ -43,6 +43,7 @@ function renderPanel(over: Partial<Parameters<typeof SinSidePanel>[0]> = {}) {
       castSaving={false}
       onOpenPicker={vi.fn()}
       onRemoveCast={vi.fn()}
+      onGenerateSheet={vi.fn().mockResolvedValue(undefined)}
       notesDoc={{ notes: ['女主：林晚，地方台记者'], outline: '第一章：雨夜站台相遇' }}
       notesError=""
       notesLoading={false}
