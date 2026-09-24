@@ -15,7 +15,7 @@ import {
   type LibraryCharacter,
 } from '../../api/characterlib'
 import { readFileAsDataURL } from '../../api/image'
-import { getComfyUITaskProgress } from '../../api/image'
+import { getComfyUITaskProgress, cancelImageGeneration } from '../../api/image'
 import { COMFY_NODE_LABELS } from '../imagegen/GenerationProgress'
 import { PortraitImg } from './PortraitImg'
 import { CHARACTER_STATUS_OPTIONS, characterStatusLabel } from '../../utils/characterStatus'
@@ -132,6 +132,12 @@ const CharacterLibEditor: React.FC<Props> = ({
   // ComfyUI 生成进度（v4.406）：剧照/设定卡生成期间轮询同源快照，载入/排队可见
   const [comfyProgress, setComfyProgress] = useState<{ status: string; elapsed: number; node: string } | null>(null)
   const imageGenBusy = !!genPortrait || sheetGen
+  // 取消生成（v4.407）：走全局 CancelImageGeneration（context+/interrupt 双达）
+  const handleCancelImageGen = async () => {
+    try {
+      await cancelImageGeneration()
+    } catch { /* 取消失败静默——生成自身会结束或超时 */ }
+  }
   useEffect(() => {
     if (!imageGenBusy) {
       setComfyProgress(null)
@@ -318,7 +324,9 @@ const CharacterLibEditor: React.FC<Props> = ({
       patch({ portraitUrl: img })
       message.success('剧照已生成，检查后保存')
     } catch (err: unknown) {
-      message.error(`剧照生成失败：${err instanceof Error ? err.message : String(err)}`)
+      const msg = err instanceof Error ? err.message : String(err)
+      if (msg.includes('context canceled')) { message.info('已取消生成'); return }
+      message.error(`剧照生成失败：${msg}`)
     } finally {
       setGenPortrait(false)
     }
@@ -373,7 +381,9 @@ const CharacterLibEditor: React.FC<Props> = ({
       patch({ referenceImages: [...(form.referenceImages ?? []), img] })
       message.success('设定卡已生成并加入参考图（保存后落盘）')
     } catch (err: unknown) {
-      message.error(`设定卡生成失败：${err instanceof Error ? err.message : String(err)}`)
+      const msg = err instanceof Error ? err.message : String(err)
+      if (msg.includes('context canceled')) { message.info('已取消生成'); return }
+      message.error(`设定卡生成失败：${msg}`)
     } finally {
       setSheetGen(false)
     }
@@ -612,6 +622,17 @@ const CharacterLibEditor: React.FC<Props> = ({
                       : comfyProgress.node
                         ? `${COMFY_NODE_LABELS[comfyProgress.node] || comfyProgress.node} · 已用时 ${comfyProgress.elapsed}s`
                         : `生成中 · 已用时 ${comfyProgress.elapsed}s`}
+                    <Button
+                      size="small"
+                      type="text"
+                      className="cd-progress-cancel"
+                      data-testid="cd-cancel-gen"
+                      aria-label="取消生成"
+                      title="取消生成（中断 ComfyUI 当前任务）"
+                      onClick={() => void handleCancelImageGen()}
+                    >
+                      取消
+                    </Button>
                   </div>
                 )}
                 <div className="cd-hero-info">

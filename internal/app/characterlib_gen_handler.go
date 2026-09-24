@@ -588,11 +588,12 @@ func (a *App) characterGeneratePortrait(chJSON, model, refImageDataURL string) (
 	}
 	req := buildPortraitImageRequest(c, imgModel, backend, refImageDataURL)
 	a.attachComfyProgress(req, backend)
-	defer a.clearComfyTaskProgress()
-	ctx := a.ctx
-	if ctx == nil {
-		ctx = context.Background()
-	}
+	// v4.407：接入全局可取消机制（与绘梦队列同槽）——begin/end 对带 ID 守卫，
+	// 完成清理（含进度快照）由 endImageGen 承担；CancelImageGeneration 取消
+	// 最近一次提交（并发时编辑器后提交=取消目标是它，符合直觉）。
+	ctx, cancel, genID := a.beginImageGen(a.ctx)
+	defer a.endImageGen(genID, cancel)
+	a.resetComfyCancel()
 	resp, err := client.GenerateImage(ctx, req)
 	if err != nil {
 		return "", fmt.Errorf("剧照生成失败: %w", err)
@@ -869,11 +870,10 @@ func (a *App) CharacterGenerateSheet(chJSON, variant string) (string, error) {
 		RefMethod: "qedit",
 	}
 	a.attachComfyProgress(req, "comfyui")
-	defer a.clearComfyTaskProgress()
-	ctx := a.ctx
-	if ctx == nil {
-		ctx = context.Background()
-	}
+	// v4.407：接入全局可取消机制（同剧照链注释）。
+	ctx, cancel, genID := a.beginImageGen(a.ctx)
+	defer a.endImageGen(genID, cancel)
+	a.resetComfyCancel()
 	resp, err := client.GenerateImage(ctx, req)
 	if err != nil {
 		return "", fmt.Errorf("设定卡生成失败: %w", err)

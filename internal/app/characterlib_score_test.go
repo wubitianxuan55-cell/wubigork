@@ -4,12 +4,18 @@ import (
 	"context"
 	"encoding/base64"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/gaea/gaea/internal/ai"
 	"github.com/gaea/gaea/internal/characterlib"
+	"github.com/gaea/gaea/internal/config"
 )
 
 // TestBuildConsistencyScorePrompt 一致性评分提示词纯函数：评审维度/JSON 契约/
@@ -180,5 +186,90 @@ func TestAttachComfyProgress(t *testing.T) {
 	a.clearComfyTaskProgress()
 	if snap := a.GetComfyUITaskProgress(); snap["status"] != "" {
 		t.Fatalf("清理后应为空: %v", snap)
+	}
+}
+
+// TestCharacterGenerateSheetCancel 设定卡生成取消（v4.407）：接入全局可取消
+// 机制后，CancelImageGeneration 可中断编辑器生成链（ctx 退出+/interrupt 达
+// 服务端）。
+func TestCharacterGenerateSheetCancel(t *testing.T) {
+	submitted := make(chan struct{})
+	release := make(chan struct{})
+	var interruptHits int32
+	mux := http.NewServeMux()
+	mux.HandleFunc("/upload/image", func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"name":"ref.png"}`))
+	})
+	mux.HandleFunc("/prompt", func(w http.ResponseWriter, r *http.Request) {
+		close(submitted)
+		_, _ = w.Write([]byte(`{"prompt_id":"pid-cancel"}`))
+	})
+	mux.HandleFunc("/history/pid-cancel", func(w http.ResponseWriter, r *http.Request) {
+		<-release // 挂起模拟长时间生成（含冷载），取消后随 ctx 立即返回
+		_, _ = w.Write([]byte(`{}`))
+	})
+	mux.HandleFunc("/interrupt", func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&interruptHits, 1)
+		_, _ = w.Write([]byte(`{}`))
+	})
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "image/png")
+		_, _ = w.Write([]byte{0x89, 0x50, 0x4e, 0x47})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	dir := t.TempDir()
+	ref := filepath.Join(dir, "ref.png")
+	if err := os.WriteFile(ref, []byte{0x89, 'P', 'N', 'G'}, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	c := &ai.Client{}
+	c.SetImageBackend(ai.NewComfyUIBackend(srv.URL), "comfyui")
+	a := &App{core: &core{ctx: context.Background(), cfg: &config.Config{
+		ImageBackend: "comfyui", ComfyUIURL: srv.URL, ImageModel: "krea2",
+	}, client: c}, mediaState: &mediaState{core: &core{cfg: &config.Config{
+		ImageBackend: "comfyui", ComfyUIURL: srv.URL, ImageModel: "krea2",
+	}, client: c}}}
+	// mediaState 也须持有同款 client（interruptComfyUI 走 a.client）；上面对
+	// core 与 mediaState 各配了一份，避免嵌套初始化顺序问题。
+
+	ch := mustJSON(characterlib.Character{ID: "c1", Name: "林晚",
+		ReferenceImages: []string{ref}})
+	type result struct {
+		img string
+		err error
+	}
+	done := make(chan result, 1)
+	go func() {
+		img, err := a.CharacterGenerateSheet(ch, "")
+		done <- result{img, err}
+	}()
+
+	select {
+	case <-submitted:
+	case <-time.After(3 * time.Second):
+		t.Fatal("提交超时")
+	}
+	time.Sleep(80 * time.Millisecond) // 让 beginImageGen/poll 稳定进入等待
+
+	if ok := a.CancelImageGeneration(); !ok {
+		t.Fatal("生成中应可取消")
+	}
+	close(release)
+	select {
+	case r := <-done:
+		if r.err == nil || !strings.Contains(r.err.Error(), "context canceled") {
+			t.Fatalf("取消后应返回 context canceled: %v", r.err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("取消后生成未退出")
+	}
+	if atomic.LoadInt32(&interruptHits) != 1 {
+		t.Fatalf("/interrupt 应恰好命中一次: %d", interruptHits)
+	}
+	// 取消后可再次提交（本地取消标记被 resetComfyCancel 复位）
+	if a.imageGenRunning {
+		t.Fatal("结束后 imageGenRunning 应复位")
 	}
 }

@@ -624,3 +624,13 @@
     transition: none !important;
   }
 }
+
+/* 进度行内取消钮（v4.407） */
+.cd-progress-cancel {
+  margin-left: 6px;
+  padding: 0 4px;
+  height: auto;
+  font-size: 11px;
+  color: rgb(255 255 255) !important;
+  pointer-events: auto;
+}
