@@ -552,6 +552,7 @@ func (a *App) attachComfyProgress(req *ai.ImageGenerationRequest, backend string
 	if backend != "comfyui" {
 		return
 	}
+	a.noteImageGenMemoryPressure()
 	a.updateComfyTaskProgress("queued", 0, 0, "")
 	req.ProgressCallback = a.updateComfyTaskProgress
 }

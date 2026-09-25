@@ -13,6 +13,8 @@ initBridge()
 initRuntimePolyfill()
 
 import { ensureLightContrast } from './lib/accent'
+import { subscribeWailsEvent } from './gaea/lib/wailsEvents'
+import { handleImageGenPressureEvent } from './utils/imagegenPressure'
 
 /** hex 颜色 → 'r,g,b' 字符串（用于 --accent-rgb 覆盖） */
 function hexToRgb(hex: string): string {
@@ -48,6 +50,14 @@ const App: React.FC = () => {
     const eff = darkMode ? accentColor : ensureLightContrast(accentColor)
     return { ...tokens, glow: eff, colorPrimary: eff, accentRgb: hexToRgb(eff) || tokens.accentRgb }
   }, [tokens, accentColor, darkMode])
+
+  // 图像生成内存压力预检（v4.409）：后端 comfyui 提交口命中低内存即发
+  // imagegen:pressure——App 级全局订阅一次（2 分钟节流在 handler 内），
+  // 覆盖绘梦/角色库/sin 全部提交口，卸载只摘自己不碰他人监听。
+  useEffect(() => {
+    if (!window.runtime?.EventsOn) return
+    return subscribeWailsEvent(window.runtime, 'imagegen:pressure', handleImageGenPressureEvent)
+  }, [])
 
   // 同步 M3 CSS 变量到 :root
   useEffect(() => {

@@ -279,6 +279,7 @@ func (a *mediaState) generateImageInternal(o imageGenInternal) (map[string]inter
 	genCtx, cancel, genID := a.beginImageGen(a.ctx)
 	defer a.endImageGen(genID, cancel)
 	if backendType == "comfyui" {
+		a.noteImageGenMemoryPressure()
 		a.updateComfyTaskProgress("queued", 0, 0, "")
 		a.resetComfyCancel()
 	}
@@ -449,6 +450,7 @@ func (a *mediaState) GenerateMedia(paramsJSON string) (map[string]interface{}, e
 	genCtx, cancel, genID := a.beginImageGen(a.ctx)
 	defer a.endImageGen(genID, cancel)
 	if a.cfg.ImageBackend == "comfyui" {
+		a.noteImageGenMemoryPressure()
 		a.updateComfyTaskProgress("queued", 0, 0, "")
 		a.resetComfyCancel()
 	}
