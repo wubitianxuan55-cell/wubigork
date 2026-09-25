@@ -361,6 +361,13 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 	// PermissionRequester，工具返回非交互降级结果，不阻塞自治。
 	reg.Add(agent.NewRequestPermissionTool())
 
+	// exit_plan_mode 计划审批门（v4.414，dsh plan-mode 蒸馏取道不取器）：恒
+	// 注册（工具目录跨模式切换稳定），计划模式（/plan on）下把 markdown 计划
+	// 提交 ask 通道审批；非计划模式调用如实报错。与 ask 同路径直接注册（会话
+	// 级元工具，work/play 均可见）；子代理经 SubagentMetaTools 排除。headless
+	// 无 Asker 时诚实拒绝（执行闸必须人来开，不仿 ask 的自选降级）。
+	reg.Add(agent.NewExitPlanModeTool())
+
 	// Skill tools: run_skill / install_skill are the ONLY skill entry points —
 	// 子代理入口收敛为 task + run_skill 两级（v4.61 用户拍板，对标 Codex 的
 	// 「父代理发一条任务消息」）。此前为 format-convert/chart-builder/

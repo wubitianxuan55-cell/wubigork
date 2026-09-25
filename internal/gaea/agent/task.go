@@ -104,6 +104,9 @@ var subagentMetaTools = []string{
 	"task",
 	"run_skill",
 	"install_skill",
+	// exit_plan_mode（v4.414 计划审批门）：审批对象是父会话的计划模式闸——
+	// 子代理不该见到审批出口，防其代替父会话退出计划模式。
+	"exit_plan_mode",
 }
 
 // SubagentMetaTools returns the tool names that spawned agents should not inherit

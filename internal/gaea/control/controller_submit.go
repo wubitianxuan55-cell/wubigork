@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/gaea/gaea/internal/gaea/agent"
 	"github.com/gaea/gaea/internal/gaea/config"
 	"github.com/gaea/gaea/internal/gaea/memory"
 )
@@ -13,6 +14,44 @@ import (
 func (c *Controller) Submit(input string) {
 	trimmed := strings.TrimSpace(input)
 	switch {
+	case trimmed == "/plan" || strings.HasPrefix(trimmed, "/plan "):
+		// 计划模式（v4.414，dsh plan-mode 蒸馏）：/plan on|off|status。翻转即
+		// 注入政策/叙事 user 消息（系统前缀冻结纪律）；状态 v1 内存态。
+		sub := strings.TrimSpace(strings.TrimPrefix(trimmed, "/plan"))
+		if c.Running() {
+			c.notice("cannot toggle plan mode while a turn is running")
+			return
+		}
+		if c.executor == nil {
+			c.notice("plan mode unavailable: no executor")
+			return
+		}
+		switch sub {
+		case "on":
+			if c.executor.PlanMode() {
+				c.notice("计划模式已处于开启状态")
+				return
+			}
+			c.executor.SetPlanMode(true)
+			c.executor.AppendUserMessage(agent.PlanPolicyNotice)
+			c.notice("计划模式已开启：模型只做研究和方案设计，exit_plan_mode 提交计划审批；/plan off 退出")
+		case "off":
+			if !c.executor.PlanMode() {
+				c.notice("计划模式未开启")
+				return
+			}
+			c.executor.SetPlanMode(false)
+			c.executor.AppendUserMessage(agent.PlanExitByUserNotice)
+			c.notice("已退出计划模式")
+		default:
+			// 裸 /plan 与 /plan status 同义；未知子命令也回落到状态展示，
+			// 避免拼错命令静默无反馈。
+			state := "关"
+			if c.executor.PlanMode() {
+				state = "开"
+			}
+			c.notice("计划模式：" + state + "（/plan on 开启，/plan off 退出）")
+		}
 	case trimmed == "/compact" || strings.HasPrefix(trimmed, "/compact "):
 		focus := strings.TrimSpace(strings.TrimPrefix(trimmed, "/compact"))
 		go func() {

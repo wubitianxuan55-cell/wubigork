@@ -1,3 +1,12 @@
+## 最新发布：v4.414.0（2026-09-26）「Plan mode 计划审批门（dsh plan-mode 蒸馏）」
+
+- **刀型**：DSH 留池⑦（实质头名：①子代理控制面等上游稳定）。蒸馏=取道不取器：471 行上游 → 内核 1 新文件（agent/plan_mode.go）+2 挂点（executeOne 盖章/boot 注册）+1 斜杠动词（/plan）。绑定面 720 零变更，前端零改动。规格 进度计划/gaea-plan-mode-20260926.md。
+- **落地**：①exit_plan_mode 恒注册（工具目录跨模式切换稳定）：计划模式下 markdown 计划（# 标题强制）提交 ask 通道审批——批准=闸翻转 off+叙事落历史/继续计划=错误带回反馈/headless 无 Asker=诚实拒绝（执行闸必须人来开，刻意不仿 ask 自选降级）②PlanGate 窄接口经 callContext 盖章（asker 同位同纪律）+SubagentMetaTools 排除子代理③/plan on|off|status（on 注入 `[plan mode]` 政策 user 消息/off 退出叙事/status 回落，running 拒绝）④与上游两偏离：**系统前缀冻结（V10.36）→政策走 user 消息注入**（mid-session 改 system 段必破缓存，技能目录热重载同判先例）；**状态 v1=runner 内存态**（事件日志 kind=plan_mode+恢复折叠留二刀，最敏感面零碰）；沙箱/权限独立不做硬工具门（与上游同判）。
+- **测试**：Go plan_mode_test 六例（inactive 错误/批准翻转+叙事/继续计划语义/headless 拒绝/标题校验含六级合法七级拒/真闸直测含前缀不动+两条注入断言）；agent/control/boot 三包回归绿；全量 ci 绿。
+- **产物**：exe 见 SHA256SUMS-v4.414.0.txt；保留策略留 v4.410~v4.414 删 v4.409.0.exe。
+- **文档**：规格+releases/v4.414.0.md+CHANGELOG/README+releases/README（437→438+裁 v4.382）+AGENTS 迁 1 插 1（一百三十一迁：v4.409.0 入 archive）+todos（dsh 留池⑦清账，余①子代理控制面=等上游稳定）。
+- **坑**：①工具契约=Execute(ctx, json.RawMessage)+ReadOnly() bool（跟 string 签名走会炸 reg.Add）②包内测试桩撞名先查（stubGate 已被 gate_test.go 权限桩占用）③双引号 Go 串里的 \n 是真换行——拼 JSON 断言夹具须字面 \\n。
+
 ## 非版本刀：sin 书源一条龙实弹+常驻内存采集（2026-09-26，零代码）
 
 - **走查面**：书源一条龙观察池收官——真机 v4.413.0 壳+假站 walk_server.py(18099)+临时规则 zz-walkthrough-fake.json，桥接 SinB 全链（Search/Toc/Download/BooksList/BookExportEpub/BookDelete）+UI 书源卡+底稿直注+工具链+导出，全程 console 零新增错误。

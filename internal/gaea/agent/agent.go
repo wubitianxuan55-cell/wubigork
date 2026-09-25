@@ -245,6 +245,12 @@ type AgentRunner struct {
 	// run loop writes it while a frontend's status line reads it, so it is atomic.
 	lastUsage atomic.Pointer[provider.Usage]
 
+	// planMode 计划模式状态（v4.414 plan-mode 蒸馏，v1 内存态——事件日志持久化
+	// 留二刀）：/plan on|off 翻转，exit_plan_mode 审批出口读。政策/叙事走
+	// AppendUserMessage 的 user 消息（系统前缀冻结纪律）。
+	planMu   sync.Mutex
+	planMode bool
+
 	// sessCacheHit/sessCacheMiss accumulate cache tokens across every API call
 	// this session, so frontends can show the aggregate hit-rate (��hit/��(hit+miss))
 	// �� a steadier, cost-oriented number than the single-turn rate. They are NOT

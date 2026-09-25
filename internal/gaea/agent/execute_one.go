@@ -141,6 +141,9 @@ func (a *AgentRunner) executeOne(ctx context.Context, call provider.ToolCall) to
 	// asker 同纪律——SetPermissionRequester 在回合启动前注入，nil 不盖章，
 	// headless 运行保持「无交互用户」语义）。
 	cctx = WithPermissionRequester(cctx, a.permReq)
+	// plan gate：计划模式闸盖章（exit_plan_mode 经 PlanGateFromContext 读取；
+	// 与 asker 同位同纪律，runner 恒实现故不判空）。
+	cctx = WithPlanGate(cctx, a)
 	if a.evidence != nil {
 		// strictVerify 默认为 false（由 NewLedger 设定）。Plan Mode 下由外部
 		// 显式设为 true 后保留，不在每轮工具调用时重置。
