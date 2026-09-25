@@ -1,9 +1,11 @@
 // sin/SinCastPanel.tsx — 右栏「角色」卡：本故事已带入的角色库角色。
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Button, Tooltip } from 'antd'
 import { CloseOutlined, IdcardOutlined, PlusOutlined, TeamOutlined } from '@ant-design/icons'
 import { PortraitImg } from '../../components/characterlib/PortraitImg'
+import { COMFY_NODE_LABELS } from '../../components/imagegen/GenerationProgress'
+import { cancelImageGeneration, getComfyUITaskProgress } from '../../api/image'
 import type { SinCastCharacter } from './useSinCast'
 
 export interface SinCastPanelProps {
@@ -18,6 +20,8 @@ export interface SinCastPanelProps {
 export function SinCastPanel({ cast, saving, onOpenPicker, onRemove, onGenerateSheet }: SinCastPanelProps) {
   // 进行中的生成（单飞：同时只允许一张，本地 ComfyUI 串行）
   const [genId, setGenId] = useState<string | null>(null)
+  // ComfyUI 生成进度（v4.408）：生成期间 1s 轮询同源快照，载入/排队可见（与角色库编辑器同款）
+  const [comfyProgress, setComfyProgress] = useState<{ status: string; elapsed: number; node: string } | null>(null)
   const runSheet = async (id: string) => {
     if (!onGenerateSheet || genId) return
     setGenId(id)
@@ -28,6 +32,30 @@ export function SinCastPanel({ cast, saving, onOpenPicker, onRemove, onGenerateS
     } finally {
       setGenId(null)
     }
+  }
+  useEffect(() => {
+    if (!genId) {
+      setComfyProgress(null)
+      return
+    }
+    let live = true
+    const tick = () => {
+      getComfyUITaskProgress()
+        .then(p => {
+          if (live) setComfyProgress({ status: p.status || '', elapsed: p.elapsed || 0, node: p.node || '' })
+        })
+        .catch(() => { /* 读不到按无进度处理，不阻断生成 */ })
+    }
+    tick()
+    const t = setInterval(tick, 1000)
+    return () => { live = false; clearInterval(t) }
+  }, [genId])
+  // 取消生成（v4.408）：全局 CancelImageGeneration——设定卡链自 v4.407 起走
+  // beginImageGen/endImageGen（ctx+/interrupt 双达），此处取消即中止当次提交。
+  const handleCancel = async () => {
+    try {
+      await cancelImageGeneration()
+    } catch { /* 取消失败静默——生成自身会结束或超时 */ }
   }
 
   return (
@@ -73,6 +101,26 @@ export function SinCastPanel({ cast, saving, onOpenPicker, onRemove, onGenerateS
               </Tooltip>
             </span>
           ))}
+        </div>
+      )}
+      {genId && comfyProgress && (comfyProgress.status === 'running' || comfyProgress.status === 'queued') && (
+        <div className="sin-cast-progress" data-testid="sin-cast-progress" aria-live="polite">
+          {comfyProgress.status === 'queued'
+            ? '排队中（前有任务）'
+            : comfyProgress.node
+              ? `${COMFY_NODE_LABELS[comfyProgress.node] || comfyProgress.node} · 已用时 ${comfyProgress.elapsed}s`
+              : `生成中 · 已用时 ${comfyProgress.elapsed}s`}
+          <Button
+            size="small"
+            type="text"
+            className="sin-cast-progress-cancel"
+            data-testid="sin-cast-cancel"
+            aria-label="取消生成"
+            title="取消生成（中断 ComfyUI 当前任务）"
+            onClick={() => void handleCancel()}
+          >
+            取消
+          </Button>
         </div>
       )}
       <Button size="small" icon={<PlusOutlined />} onClick={onOpenPicker} disabled={saving} block>

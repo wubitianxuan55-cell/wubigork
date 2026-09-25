@@ -526,6 +526,17 @@
 /* ── 角色卡（角色库带入） ── */
 .sin-cast-count { float: right; font-size: 11px; color: var(--fg-faint); }
 .sin-cast-chips { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+/* 生成进度行（v4.408）：chip 设定卡生成期间显示当前节点+用时，尾部取消钮 */
+.sin-cast-progress {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: -2px 0 8px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--fg-dim);
+}
+.sin-cast-progress-cancel { margin-left: auto; font-size: 12px; }
 .sin-cast-chip {
   display: flex;
   align-items: center;

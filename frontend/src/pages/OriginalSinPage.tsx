@@ -64,7 +64,10 @@ const OriginalSinPage: React.FC = () => {
       cast.reloadLibrary()
       message.success(`${full.name || '角色'} 的设定卡已生成并存入角色库参考图`)
     } catch (err: unknown) {
-      message.error(`设定卡生成失败：${err instanceof Error ? err.message : String(err)}`)
+      const msg = err instanceof Error ? err.message : String(err)
+      // 用户主动取消（v4.408 取消钮）：语义化提示，不走错误样式
+      if (msg.includes('context canceled')) { message.info('已取消生成'); return }
+      message.error(`设定卡生成失败：${msg}`)
     }
   }
   const [renameTarget, setRenameTarget] = useState('')

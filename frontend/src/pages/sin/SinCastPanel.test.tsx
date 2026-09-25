@@ -1,8 +1,20 @@
 // SinCastPanel 生成设定卡（v4.403，sin 侧入口）：chip 级一键三视图→存回角色库。
-import { describe, expect, it, vi } from 'vitest'
+// v4.408：生成期进度行（节点中文+用时/排队）+行尾取消钮（全局 CancelImageGeneration）。
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { SinCastPanel } from './SinCastPanel'
 import type { SinCastCharacter } from './useSinCast'
+
+const apiMock = vi.hoisted(() => ({
+  getComfyUITaskProgress: vi.fn(),
+  cancelImageGeneration: vi.fn(),
+}))
+
+vi.mock('../../api/image', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../api/image')>()),
+  getComfyUITaskProgress: apiMock.getComfyUITaskProgress,
+  cancelImageGeneration: apiMock.cancelImageGeneration,
+}))
 
 const cast: SinCastCharacter[] = [
   { id: 'c1', name: '林晚', portraitUrl: 'data:image/png;base64,P1' },
@@ -20,6 +32,13 @@ const setup = (onGenerateSheet: (id: string) => Promise<void>) =>
     />,
   )
 
+beforeEach(() => {
+  apiMock.getComfyUITaskProgress.mockReset()
+  // 默认空快照：busy 期瞬时轮询不至于拿到 undefined（未在生成的用例也安全）
+  apiMock.getComfyUITaskProgress.mockResolvedValue({ status: '', elapsed: 0, node: '' })
+  apiMock.cancelImageGeneration.mockReset()
+})
+
 describe('SinCastPanel 生成设定卡（sin 侧入口）', () => {
   it('chip 设定卡按钮：点击按角色 id 调用，成功后复位', async () => {
     const onGenerateSheet = vi.fn().mockResolvedValue(undefined)
@@ -36,6 +55,7 @@ describe('SinCastPanel 生成设定卡（sin 侧入口）', () => {
       .fn()
       .mockImplementationOnce(() => new Promise<undefined>((r) => (resolve1 = r)))
       .mockRejectedValueOnce(new Error('仅 ComfyUI 本地档'))
+    apiMock.getComfyUITaskProgress.mockResolvedValue({ status: '', elapsed: 0, node: '' })
     setup(onGenerateSheet)
     const b1 = screen.getByLabelText('生成 林晚 的设定卡')
     const b2 = screen.getByLabelText('生成 沈砚 的设定卡')
@@ -54,5 +74,44 @@ describe('SinCastPanel 生成设定卡（sin 侧入口）', () => {
       <SinCastPanel cast={cast} saving={false} onOpenPicker={() => {}} onRemove={() => {}} />,
     )
     expect(screen.queryByLabelText('生成 林晚 的设定卡')).toBeNull()
+  })
+
+  it('生成中进度行：显示当前节点中文与用时，取消钮调用全局取消', async () => {
+    let resolveGen!: (v: undefined) => void
+    const onGenerateSheet = vi.fn().mockImplementation(() => new Promise<undefined>((r) => (resolveGen = r)))
+    apiMock.getComfyUITaskProgress.mockResolvedValue({ status: 'running', elapsed: 42, node: 'UNETLoader' })
+    setup(onGenerateSheet)
+    fireEvent.click(screen.getByLabelText('生成 林晚 的设定卡'))
+    const row = await screen.findByTestId('sin-cast-progress')
+    expect(row.textContent).toContain('加载模型')
+    expect(row.textContent).toContain('已用时 42s')
+    fireEvent.click(screen.getByTestId('sin-cast-cancel'))
+    await waitFor(() => expect(apiMock.cancelImageGeneration).toHaveBeenCalledTimes(1))
+    resolveGen(undefined)
+    await waitFor(() => expect(screen.queryByTestId('sin-cast-progress')).toBeNull())
+  })
+
+  it('排队中文案；结束后进度行消失', async () => {
+    let resolveGen!: (v: undefined) => void
+    const onGenerateSheet = vi.fn().mockImplementation(() => new Promise<undefined>((r) => (resolveGen = r)))
+    apiMock.getComfyUITaskProgress.mockResolvedValue({ status: 'queued', elapsed: 3, node: 'queue' })
+    setup(onGenerateSheet)
+    fireEvent.click(screen.getByLabelText('生成 沈砚 的设定卡'))
+    const row = await screen.findByTestId('sin-cast-progress')
+    expect(row.textContent).toContain('排队中（前有任务）')
+    resolveGen(undefined)
+    await waitFor(() => expect(screen.queryByTestId('sin-cast-progress')).toBeNull())
+  })
+
+  it('进度读取失败：不渲染进度行也不阻断生成', async () => {
+    let resolveGen!: (v: undefined) => void
+    const onGenerateSheet = vi.fn().mockImplementation(() => new Promise<undefined>((r) => (resolveGen = r)))
+    apiMock.getComfyUITaskProgress.mockRejectedValue(new Error('bridge down'))
+    setup(onGenerateSheet)
+    fireEvent.click(screen.getByLabelText('生成 林晚 的设定卡'))
+    await waitFor(() => expect(apiMock.getComfyUITaskProgress).toHaveBeenCalled())
+    expect(screen.queryByTestId('sin-cast-progress')).toBeNull()
+    resolveGen(undefined)
+    await waitFor(() => expect(screen.getByLabelText('生成 林晚 的设定卡').hasAttribute('disabled')).toBe(false))
   })
 })
