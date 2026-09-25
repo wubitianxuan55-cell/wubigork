@@ -1,3 +1,13 @@
+## 非版本刀：sin 实弹走查收官+v4.412 三页签真机（2026-09-25/26，ComfyUI 在跑窗口）
+
+- **窗口捕获**：ComfyUI 8188 探活 200+队列空而壳未运行→挂池最贵的「真机实弹走查」当场解锁。CDP 9333 附着 v4.412 壳（WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS 配方），临时角色 lib_1790352026650（64×64 canvas dataURL 参考图）+临时故事 sin_1790352026653_2+SinCastSet 挂 cast——用户真实故事/角色/配置全程零触碰，走查后临时数据全删（CharacterList 查 w413=0、架子只剩用户故事）。
+- **通过①（v4.412 三页签真机）**：中栏「故事/轨迹/上下文」真机渲染——轨迹诚实空态（暂无轨迹记录+Duration/Turn/Call 0）+上下文 hero「当前上下文 0/0 token —」六段估算+趋势+Token 统计全在位；console.error=0/pageError=0（页签切换全程）。坑=ChatTabs 页签钮不带 role=tab，选择器走 `.sin-tabs button`；SinCastSet 第二参直传数组（JSON.stringify 会踩 json: cannot unmarshal string into []string）。
+- **通过②（v4.408 未验项清账）**：chip「生成 走查临时角色-w413 的设定卡」实弹提交→ComfyUI 队列 running:1 实达；进度行实生成态「加载模型 · 已用时 2s+取消钮」真机在位（截图 walk-v4413-progress.png）；点取消→行消失+「已取消生成」info 语义 toast（非错误样式，walk-v4413-after-cancel.png）+ComfyUI 队列秒清（interrupt 双达实证）+壳日志 context canceled 全链传播；临时角色 referenceImages 保持 1 张=取消先于完成零写回。
+- **诚实闸验证（意外收获）**：portrait_backend=xai 时设定卡点击→「设定卡生成（Qwen 参考编辑）当前仅 ComfyUI 本地档（当前后端：xai）」fail-fast，console 仍零污染（v4.410 结论真机复现）。
+- **观察池新项**：①取消路径全局前端错误钩记 ERROR 级（[frontend] [CharacterGenerateSheetError]…context canceled）——UI 已语义化但错误日志通道被良性取消污染，候小刀（按 context canceled 降级）②走查期发现 bridge 平面 API 形状坑（NovelB.SaveCharacter 是项目角色须先开项目；全局库=CharacterSave 返回带 id 全量）已沉淀记忆。
+- **配置零漂移**：comfyui 本就是用户全局生图后端（09-24 启动日志「图片后端: ComfyUI」实证），走查中 image_backend 重写=原值；portrait_backend xai→comfyui→xai 精确还原；运行时配置真身在 ~/.gaea_config.json（config.toml 是 agent 配置，别看错文件）。壳杀净（gaea.exe+webview 过滤），ComfyUI 保持用户原状。
+- **顺带 P5 季度复测落档**：entry 755→970KB(+28%)/dist 10.0→11.1MB/exe 46.15→51.44MB——回涨属功能比例不立项刀；Go >50KB 0→4 破防挂观察池（详见 slim-masterplan §3）。
+
 ## 源码包推送：wubigork-v4.411.0（2026-09-25）
 
 - wubigork-v4.411.0-source.tar.gz @20b7204f 排除旧源码包，12951822 B / 4393 files / SHA256=248fd3bc…502ccb（SHA256SUMS-v4.411.0.txt 登记）。覆盖 v4.400~v4.411 十二版；随包推送 24 commit + v4.400.0~v4.411.0 14 tag 上 remote（origin/main 对齐，余 0 领先）。
