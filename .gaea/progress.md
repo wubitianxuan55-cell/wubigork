@@ -1,3 +1,6 @@
+## 源码包推送：wubigork-v4.411.0（2026-09-25）
+
+- wubigork-v4.411.0-source.tar.gz @20b7204f 排除旧源码包，12951822 B / 4393 files / SHA256=248fd3bc…502ccb（SHA256SUMS-v4.411.0.txt 登记）。覆盖 v4.400~v4.411 十二版；随包推送 24 commit + v4.400.0~v4.411.0 14 tag 上 remote（origin/main 对齐，余 0 领先）。
 ## 最新发布：v4.411.0（2026-09-25）「一致性评分写回元数据」
 
 - **刀型**：编辑器评分历史池①。绑定面 717 零变更，characterlib 迁移补 reference_scores 列。
