@@ -1,3 +1,14 @@
+## 最新发布：v4.414.1（2026-09-26）「桌面 Send 斜杠派发根修 + GaeaNewSession 诚实报错（真机走查实录）」
+
+- **刀型**：v4.414 plan-mode 真机走查拽出双缺陷根修（v4.405.1 先例）。Go 3 文件改+1 新测试，绑定面 720 零变更。
+- **根修一（长期缺口）**：桌面 Send 绕过全部斜杠动词——桥接 `app.Submit→GaeaSend→Controller.Send`，而动词面（/plan /compact /dream /memories /goal /perm /distill /new + `#<note>` 快记 + /mcp__ prompt + 自定义命令 + unknown 告知）只活在 `Controller.Submit`（HTTP 路径）；桌面主界面打任何斜杠动词都被当文本开回合发给模型。根修=动词面抽 `dispatchSlash(trimmed) bool`，Submit/SendWithRaw 共用。测试 TestSendDispatchesSlashVerbs 四段断言。
+- **根修二**：GaeaNewSession 引擎未初始化静默 no-op（假成功）→诚实报错；前端 catch 有可见提示（"新建失败不重置界面"）。
+- **plan-mode 实弹全通**：/plan on 派发（Notice 上 wire）→任务轮（模型只读研究，缓存命中 20096 tok）→模型真调 exit_plan_mode→ask 事件（计划审批 payload 正确）→桥接批准→批准叙事落历史→/plan status=关。console 全程 0。
+- **用户会话污染事故与复原（透明记录）**：走查回合写进用户真实会话（黄甲 0924）——根因=走查脚本在引擎初始化前调 GaeaNewSession（静默 no-op）+旧 exe 把 /plan on 当文本开回合。复原=杀壳离线手术按 RewindLog 同口径（事件日志截 seq≤469+镜像截 4 user 前+删检查点+state 摘要修正），重启验证 39 条历史零走查痕迹、末条=用户真实定稿、console 0；四源文件备份 .tmp/backup-*。全程只读（计划模式纪律生效）。教训=走查会话隔离必须落盘双确认，静默 no-op 会骗人。
+- **产物**：exe 见 SHA256SUMS-v4.414.1.txt；保留策略留 v4.411~v4.414.1 删 v4.410.0.exe。
+- **观察池新项**：审批卡渲染路由漂移下未可视确认（ask payload 正确，渲染留复走）；pre-turn 动词 Notice 上 wire 但办公流不可见。
+- **坑**：①Windows 文件锁——RewindLog 的 AtomicWrite rename 对活壳自身句柄退避×3 仍败，离线手术须先杀壳②taskkill /F 后 rmSync 有句柄释放竞态（检查点复活假象），删除后必须 existsSync 复核③node -e 内联脚本反斜杠路径会被吃——走查脚本路径用正斜杠。
+
 ## 最新发布：v4.414.0（2026-09-26）「Plan mode 计划审批门（dsh plan-mode 蒸馏）」
 
 - **刀型**：DSH 留池⑦（实质头名：①子代理控制面等上游稳定）。蒸馏=取道不取器：471 行上游 → 内核 1 新文件（agent/plan_mode.go）+2 挂点（executeOne 盖章/boot 注册）+1 斜杠动词（/plan）。绑定面 720 零变更，前端零改动。规格 进度计划/gaea-plan-mode-20260926.md。

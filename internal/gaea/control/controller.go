@@ -399,6 +399,11 @@ func (c *Controller) Send(input string) {
 // message with an explicit error Notice. With no turn in flight the message
 // starts a turn immediately (unchanged behaviour).
 func (c *Controller) SendWithRaw(input, raw string) {
+	// v4.414.1 根修：桌面 Send 与 Submit 共用斜杠语义——内建动词/自定义命令/
+	// # 快记此前会被当普通文本开回合发给模型（真机走查实录发现）。
+	if c.dispatchSlash(strings.TrimSpace(input)) {
+		return
+	}
 	c.mu.Lock()
 	if c.running {
 		if len(c.pendingSends) >= sendQueueLimit {

@@ -11,8 +11,32 @@ import (
 	"github.com/gaea/gaea/internal/gaea/memory"
 )
 
+// Submit 是 HTTP/SSE 简单前端的单入口。桌面端 Send 与本方法共用 dispatchSlash
+// 的斜杠语义（v4.414.1 根修：桌面 Send 此前绕过全部斜杠动词——/compact /new
+// /goal /plan 等会被当普通文本开回合发给模型；真机走查实录发现）。
 func (c *Controller) Submit(input string) {
 	trimmed := strings.TrimSpace(input)
+	if c.dispatchSlash(trimmed) {
+		return
+	}
+	// 非 slash 输入：正常回合（@ 引用解析语义不变）。
+	c.runGuarded(func(ctx context.Context) error {
+		block, errs := c.ResolveRefs(ctx, input)
+		for _, e := range errs {
+			c.notice(e)
+		}
+		sent := input
+		if block != "" {
+			sent = "Referenced context:\n\n" + block + "\n\n" + input
+		}
+		return c.runTurnWithRaw(ctx, sent, input)
+	})
+}
+
+// dispatchSlash 处理全部预输入标记：内建斜杠动词（/plan /compact /dream
+// /memories /goal /perm /distill /new）、"#<note>" 快记、/mcp__ prompt、
+// 自定义命令、技能与 unknown 告知。返回 false=非斜杠/井号输入，走正常回合。
+func (c *Controller) dispatchSlash(trimmed string) bool {
 	switch {
 	case trimmed == "/plan" || strings.HasPrefix(trimmed, "/plan "):
 		// 计划模式（v4.414，dsh plan-mode 蒸馏）：/plan on|off|status。翻转即
@@ -20,17 +44,17 @@ func (c *Controller) Submit(input string) {
 		sub := strings.TrimSpace(strings.TrimPrefix(trimmed, "/plan"))
 		if c.Running() {
 			c.notice("cannot toggle plan mode while a turn is running")
-			return
+			return true
 		}
 		if c.executor == nil {
 			c.notice("plan mode unavailable: no executor")
-			return
+			return true
 		}
 		switch sub {
 		case "on":
 			if c.executor.PlanMode() {
 				c.notice("计划模式已处于开启状态")
-				return
+				return true
 			}
 			c.executor.SetPlanMode(true)
 			c.executor.AppendUserMessage(agent.PlanPolicyNotice)
@@ -38,7 +62,7 @@ func (c *Controller) Submit(input string) {
 		case "off":
 			if !c.executor.PlanMode() {
 				c.notice("计划模式未开启")
-				return
+				return true
 			}
 			c.executor.SetPlanMode(false)
 			c.executor.AppendUserMessage(agent.PlanExitByUserNotice)
@@ -124,7 +148,7 @@ func (c *Controller) Submit(input string) {
 			matches := mem.Search.Search(query)
 			if len(matches) == 0 {
 				c.notice("no memories found")
-				return
+				return true
 			}
 			var sb strings.Builder
 			sb.WriteString(fmt.Sprintf("memories (%d found):\n", len(matches)))
@@ -142,16 +166,16 @@ func (c *Controller) Submit(input string) {
 		} else {
 			c.notice("memory search not available")
 		}
-		return
+		return true
 	case strings.HasPrefix(trimmed, "/goal "):
 		goal := strings.TrimSpace(strings.TrimPrefix(trimmed, "/goal"))
 		if goal == "" {
 			c.notice("usage: /goal <description> — sets the stopping condition")
-			return
+			return true
 		}
 		c.SetGoal(goal)
 		c.notice("goal set: " + goal)
-		return
+		return true
 	case strings.HasPrefix(trimmed, "/perm") || strings.HasPrefix(trimmed, "/perm "):
 		level := strings.TrimSpace(strings.TrimPrefix(trimmed, "/perm"))
 		switch level {
@@ -169,7 +193,7 @@ func (c *Controller) Submit(input string) {
 		default:
 			c.notice("未知权限级别: " + level + " — 使用 ask/auto/yolo (或 a/w/y)")
 		}
-		return
+		return true
 	case strings.HasPrefix(trimmed, "/distill"):
 		sub := strings.TrimSpace(strings.TrimPrefix(trimmed, "/distill"))
 		go func() {
@@ -234,7 +258,7 @@ func (c *Controller) Submit(input string) {
 		note := strings.TrimSpace(trimmed[1:])
 		if note == "" {
 			c.notice("nothing to remember")
-			return
+			return true
 		}
 		if path, err := c.QuickAdd(memory.ScopeProject, note); err != nil {
 			c.notice("memory: " + err.Error())
@@ -263,28 +287,22 @@ func (c *Controller) Submit(input string) {
 			c.runGuarded(func(ctx context.Context) error {
 				return c.runTurnWithRaw(ctx, sent, sent)
 			})
-			return
+			return true
 		}
 		if sent, ok := c.RunSkill(trimmed); ok {
 			c.runGuarded(func(ctx context.Context) error {
 				return c.runTurnWithRaw(ctx, sent, sent)
 			})
-			return
+			return true
 		}
 		c.notice("unknown command: " + trimmed)
 	default:
-		c.runGuarded(func(ctx context.Context) error {
-			block, errs := c.ResolveRefs(ctx, input)
-			for _, e := range errs {
-				c.notice(e)
-			}
-			sent := input
-			if block != "" {
-				sent = "Referenced context:\n\n" + block + "\n\n" + input
-			}
-			return c.runTurnWithRaw(ctx, sent, input)
-		})
+		// 非 slash 输入：由调用方走正常回合（dispatchSlash 返回 false）。
+		return false
 	}
+	// 走到这里=斜杠/井号预输入且 case 体未显式 return（/distill /new 等异步
+	// go func 形态）——已处理。
+	return strings.HasPrefix(trimmed, "/") || strings.HasPrefix(trimmed, "#")
 }
 
 // notice emits an informational Notice event.

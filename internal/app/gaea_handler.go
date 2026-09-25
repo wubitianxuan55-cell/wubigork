@@ -494,7 +494,11 @@ func (a *App) GaeaNewSession() error {
 	ga.mu.Lock()
 	defer ga.mu.Unlock()
 	if ga.ctrl == nil {
-		return nil
+		// v4.414.1：静默 no-op 改诚实报错——引擎未初始化时调用方（UI 新会话/
+		// 走查脚本）拿不到「后端会话未切换」的信号，后续消息会写进自动恢复的
+		// 旧会话（真机走查实录：走查脚本先 NewSession 后 Send，全部落进用户
+		// 上一个会话）。前端 catch 有可见提示路径，行为收紧无害。
+		return errors.New("办公引擎未初始化：先发送一条消息完成引擎装配，再新建会话")
 	}
 	// 运行闸（照 GaeaSubagentFollowUp 先例）：run loop 只在 idle 时换 session
 	//（agent.go 的调用方约定），回合中换会话=无锁直读 a.session 指针与
