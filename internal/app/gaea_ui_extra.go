@@ -842,7 +842,14 @@ func pickFileFilter(filters string) *runtime.FileFilter {
 
 // GaeaLogFrontendError 记录前端错误/卡死诊断到 gaea.log（前端全局
 // error handler、ErrorBoundary 与主线程冻结检测器调用）。
+// 用户主动取消（context canceled——取消钮链路经桥接失败统一入口上报）
+// 不是错误：UI 侧已语义化 info 提示，这里降级 INFO，避免良性取消污染
+// Error 级观测通道（v4.412 真机走查观察池项）；其余照旧 ERROR。
 func (a *App) GaeaLogFrontendError(message string) {
+	if strings.Contains(message, "context canceled") {
+		slog.Info("[frontend] " + message)
+		return
+	}
 	slog.Error("[frontend] " + message)
 }
 

@@ -1,3 +1,13 @@
+## 最新发布：v4.413.0（2026-09-26）「良性取消日志降级（前端错误观测通道降噪）」
+
+- **刀型**：观察池项落地（v4.412 sin 实弹走查收官时新挂）。Go 1 文件+1 测试，绑定面 720 零变更，版本三处 4.413.0（sync-version.ps1）。
+- **落地**：GaeaLogFrontendError 对 message 含 `context canceled` 降级 slog.Info，其余照旧 slog.Error——良性取消不再污染 Error 级观测通道，审计痕迹保留（INFO 在册）；剧照/设定卡/绘梦三条取消链路同时降噪；前端零改动（proxy.ts invoke 统一入口语义不变：仍上报、仍原拒绝语义抛出）。
+- **测试**：Go TestGaeaLogFrontendError_CancelDowngrade（slog 捕获两例：取消链 INFO/真错 ERROR，复用 captureLogs 基建）；全量 ci.ps1 绿 EXIT=0+绑定漂移闸 OK（720 方法）+版本漂移闸 OK@4.413.0。
+- **产物**：exe 51339264B SHA256=5d9b4b6ba2ce43c32e0d1e5d9f0a5dc473af1960b5c7eed6f7096f61cb7c2d24（SHA256SUMS-v4.413.0.txt，仅本地；build.bat 冒烟 200 过+桌面副本）；保留策略留 v4.409~v4.413 删 v4.408.0.exe。
+- **文档**：releases/v4.413.0.md+CHANGELOG/README+releases/README（436→437+34 席插 v4.413 裁 v4.381）+AGENTS 迁 1 插 1（一百三十迁：v4.408.0 入 archive）+todos（观察池「取消降级」清账）。
+- **顺带 P5 冷启动补采**：Go 同步链 43–110ms（十二样本中位 ~62ms，charlib+stores 40–47ms 恒大头）+前端 gaea:interactive=497ms（v4.413.0 壳 CDP 实测：gaea:boot 91ms→interactive 588ms，DCL 139ms）；常驻内存仍挂真机窗口——slim-masterplan §3 已回填。
+- **坑**：build.bat 是批处理——`powershell -File build.bat` 会 EXIT=127（旧 exe 原样未动），须 `cmd //c build.bat`。
+
 ## 非版本刀：sin 实弹走查收官+v4.412 三页签真机（2026-09-25/26，ComfyUI 在跑窗口）
 
 - **窗口捕获**：ComfyUI 8188 探活 200+队列空而壳未运行→挂池最贵的「真机实弹走查」当场解锁。CDP 9333 附着 v4.412 壳（WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS 配方），临时角色 lib_1790352026650（64×64 canvas dataURL 参考图）+临时故事 sin_1790352026653_2+SinCastSet 挂 cast——用户真实故事/角色/配置全程零触碰，走查后临时数据全删（CharacterList 查 w413=0、架子只剩用户故事）。

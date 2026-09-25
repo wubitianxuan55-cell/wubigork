@@ -1,6 +1,6 @@
 # 任务进度
 
-> 最后更新: 2026-09-25/26 非版本刀「sin 实弹走查收官」（ComfyUI 在跑窗口捕获：v4.412 三页签真机全过+v4.408 进度行实生成态/取消交互清账+诚实闸复现；临时数据零残留、配置零漂移。顺带 P5 季度复测落档：entry 970KB(+28%)/exe 51.4MB 回涨属功能比例，Go >50KB 0→4 破防挂观察池。本表只留**仍开放**项）
+> 最后更新: 2026-09-26 v4.413.0（良性取消日志降级=前端错误观测通道降噪，观察池清账；Go >50KB 破防挂观察池不动；P5 复测冷启动补采 Go 中位 ~62ms+前端 gaea:interactive 497ms；常驻内存仍挂真机窗口。本表只留**仍开放**项）
 
 ## 当前开放（按域）
 
@@ -25,7 +25,7 @@
 | ✅ | 小说域收尾：GenerationGate 闭环已收口（v4.326.0：生成后自动分析门+全书体检；观察池=chapter-gate 事件点击跳 t7 面板/auto 分析 kill-switch/review·consistency 自动化成本拍板/体检 LLM 深检档）；刀8 全清——race CI 扩面 v4.331+跨模块验收与回退演练 v4.334（生成主轴端到端/审批链 app 级/快照与迁移回退/性能与保真钉，Go +7），**revolution 刀 1–8 全线收官** |
 | ✅ | 死代码·whisper 域刀4 **已执行（12f77401，09-25）**：整文件死 88 文件 9,920 行净删（基线 590→196），调研档 docs/gaea-whisper-deadcode-survey-20260925.md §6 含方法论三教训；余 196 项=局部散件，建议不再追刀 |
 | 🔄 | 图域 T 线（longterm plan docs/gaea-image-domain-longterm-plan-2026.md）：T0 契约 v4.98+T1 画室 v1 v4.99~102+绘梦阶段一 A–E v4.329 全清+**T3 编辑力已开**（刀 C 云端指令编辑 v4.327.0+阶段二刀 A 本地档 v4.392.0：ComfyUI Qwen-Image-Edit 2511 官方工作流蒸馏+缺权重可操作提示）；**T3 已收官**（v4.327/392 指令编辑双档+v4.393 蒙版+v4.394 扩图+v4.395 变体簇+v4.397 抠图/透明底+**v4.396 台账纯绘梦根修**）；余观察池=img2img+mask、蒙版反选/羽化、多图编辑、Lightning LoRA、透明产物展示语义、角色库参考图管线对接；**T2 一致性**：qedit 参考编辑已落 v4.398.0+v4.399.0 sin 第二消费方+v4.400.0 角色设定卡（三视图，角色资产 v2 首刀）+v4.401.0 第二刀（六模板矩阵+多参考锚定≤3 张填满 qedit 三图槽+根修按钮重叠）+v4.402.0 第三刀（三视图分张连发）+v4.403.0 收尾刀（sin 右栏角色 chip 设定卡入口，单击 triptych 自动存回角色库）+v4.408.0 sin chip 进度行+取消钮（图像等待体验线程收官）+v4.411.0 评分写回元数据（reference_scores 列索引对齐+编辑器徽标，评分历史池①清账；余=图vs图评分〔视觉运行时验证门〕/自动重生成〔GPU 开销拍板〕）+v4.409.0 内存压力预检（comfyui 提交口命中低内存发 imagegen:pressure 事件，前端节流提示，只提示不拦截）+v4.410.0 sin 评分入口 v1（chip 评分钮评最新参考图，编辑器同款 Modal）+评分流式辨伪缓办（JSON 契约流式无增益；重开条件=图vs图 V2 长评）——线程观察池全部关账+v4.404.0 一致性评分 v1（文字锚点视觉评分 0-100+issues，编辑器参考图评分钮，<60 提示补参考；观察池=图vs图评分/sin 入口/评分写回）（路线修订：Qwen 架构走编辑引擎三图槽，ipadapter/pulid 改口否决）；**余项**=角色资产 v2（一致性评分挂池待拍板）、LoRA 训练向导；导演 Agent（并行池在册）；T4 叙事成篇未启 |
-| 🔄 | 闲庭·原罪：书源线 t1~t5 收官（v4.294~v4.296）+优化双刀已落（v4.348.0 底稿直注前情+EPUB 导出）+**看板复用已落（v4.412.0：中栏「故事/轨迹/上下文」页签，SinTrajectory/SinContextView/SinContextNodeDetail 三只读口折叠落库消息，TrajectoryView/ContextView 原组件估算口径复用）**；**真机实弹走查已收官（2026-09-25/26 非版本刀，ComfyUI 在跑窗口）：三页签真机渲染（轨迹诚实空态+上下文 hero 0/0 token —）+v4.408 未验项清账（进度行「加载模型 · 已用时 Ns+取消」实生成态→取消→行消失+「已取消生成」info 语义+ComfyUI 队列秒清 interrupt 双达+临时角色零写回）+诚实闸复现（xai 后端 fail-fast 零 console 污染）；临时角色/故事走查后全删，配置 xai 精确还原**；浏览器 mock 版面走查已验 2026-09-25（?mock=1+vite 9344/Edge 9345 CDP 配方；坑+=浏览器无 ?mock= 时 initBridge 挂 /api/rpc 代理 404 假红，走查必须带 ?mock=1；sin 属 play rail，书斋空间看不到原罪，须先切闲庭）；**余观察池**=sin 书源一条龙实弹（书源卡+工具链+导出下拉+底稿直注实写，状态化假站配方，等用户闲置窗口）/取消路径被全局前端错误钩记 ERROR 级（[frontend][CharacterGenerateSheetError] context canceled——UI 已语义化，日志通道被良性取消污染，候小刀按 context canceled 降级）/sin/art 3 张疑似走查孤儿图待人工确认删除/插图变体历史候立项/章节化结构候拍板 |
+| 🔄 | 闲庭·原罪：书源线 t1~t5 收官（v4.294~v4.296）+优化双刀已落（v4.348.0 底稿直注前情+EPUB 导出）+**看板复用已落（v4.412.0：中栏「故事/轨迹/上下文」页签，SinTrajectory/SinContextView/SinContextNodeDetail 三只读口折叠落库消息，TrajectoryView/ContextView 原组件估算口径复用）**；**真机实弹走查已收官（2026-09-25/26 非版本刀，ComfyUI 在跑窗口）：三页签真机渲染（轨迹诚实空态+上下文 hero 0/0 token —）+v4.408 未验项清账（进度行「加载模型 · 已用时 Ns+取消」实生成态→取消→行消失+「已取消生成」info 语义+ComfyUI 队列秒清 interrupt 双达+临时角色零写回）+诚实闸复现（xai 后端 fail-fast 零 console 污染）；临时角色/故事走查后全删，配置 xai 精确还原**；浏览器 mock 版面走查已验 2026-09-25（?mock=1+vite 9344/Edge 9345 CDP 配方；坑+=浏览器无 ?mock= 时 initBridge 挂 /api/rpc 代理 404 假红，走查必须带 ?mock=1；sin 属 play rail，书斋空间看不到原罪，须先切闲庭）；**余观察池**=sin 书源一条龙实弹（书源卡+工具链+导出下拉+底稿直注实写，状态化假站配方，等用户闲置窗口）~~取消路径被全局前端错误钩记 ERROR 级~~已落 v4.413.0〔GaeaLogFrontendError 按 context canceled 降级 INFO，三取消链路同时降噪〕/sin/art 3 张疑似走查孤儿图待人工确认删除/插图变体历史候立项/章节化结构候拍板 |
 
 ## 收敛计划 W1（2026-09-08 立项，权威= docs/gaea-convergence-plan-2026-09.md）
 
@@ -71,7 +71,7 @@
 | ✅ | v4.359 留池 4 项清账（v4.360.0）：①.tmp 卫生守卫进 CI（scripts/clean-tmp.ps1 超 512MB 清瞬态模式+ci.ps1 接入；坑=.ps1 无 BOM GBK 误读破坏 param 默认值静默失效，加 BOM 恢复）②ImportProjectCharacters 整体事务化（execer 接口+getOn/prepareUpsert/upsertOn/associateOn 四助手，Get/Upsert/Associate 薄包装签名不变，导入失败整体回滚；既有 4 Import 测试零改动全绿）③SaveVersion 原子化（INSERT 内 SELECT MAX+1 单语句原子+回读实际版本+SchemaV22 清重+唯一索引背书，定向 +1）。留池仅剩 2 项见下行 |
 
 | ⬜ | 观察池刀3（工作台内嵌办公）待评估——观察池审判归 P5 |
-| ⬜ | P5 维持：季度复测+观察池审判（cost 文档化/虚拟滚动/内嵌）——**2026-09-25 季度复测已做**（entry 970KB +28%/dist 11.1MB/exe 51.44MB 回涨属功能比例；Go >50KB 0→4 破防挂观察池；数据落 slim-masterplan §3） |
+| ⬜ | P5 维持：季度复测+观察池审判（cost 文档化/虚拟滚动/内嵌）——**2026-09-25/26 季度复测已做**（entry 970KB +28%/dist 11.1MB/exe 51.44MB 回涨属功能比例；Go >50KB 0→4 破防挂观察池；冷启动 Go 中位 ~62ms+前端 gaea:interactive 497ms；常驻内存未采；数据落 slim-masterplan §3） |
 
 ## 文档整理（2026-09-09）✅
 

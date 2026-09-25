@@ -175,3 +175,24 @@ func TestLoadPinned_CorruptFileLogs(t *testing.T) {
 		t.Fatalf("未记录置顶注册表解析失败日志, got %v", logMsgs(records))
 	}
 }
+
+// ── GaeaLogFrontendError 良性取消降级（v4.412 真机走查观察池项）──────
+
+// TestGaeaLogFrontendError_CancelDowngrade 用户主动取消（context canceled，
+// 取消钮链路）降级 INFO，不污染 Error 级观测通道；真错误照旧 ERROR。
+func TestGaeaLogFrontendError_CancelDowngrade(t *testing.T) {
+	a := &App{}
+	records := captureLogs(t, func() {
+		a.GaeaLogFrontendError("[CharacterGenerateSheetError] CharacterGenerateSheet 失败: 设定卡生成失败: ComfyUI 生成失败: context canceled")
+		a.GaeaLogFrontendError("[XxxError] Xxx 失败: 真实错误")
+	})
+	if len(records) != 2 {
+		t.Fatalf("应记录两条日志, got %d: %v", len(records), logMsgs(records))
+	}
+	if records[0].Level != slog.LevelInfo {
+		t.Errorf("取消链路应降级 INFO, got %v: %s", records[0].Level, records[0].Message)
+	}
+	if records[1].Level != slog.LevelError {
+		t.Errorf("真实错误应保持 ERROR, got %v: %s", records[1].Level, records[1].Message)
+	}
+}
