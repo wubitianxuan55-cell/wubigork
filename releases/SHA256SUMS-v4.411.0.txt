@@ -1,1 +1,2 @@
 5020b3762adcf12c979597484eaec2d15840dc07d6e57c143ea01f609d55dff6  gaea-v4.411.0.exe
+SHA256=248fd3bc3f4c4272cb01385c28cfa436a9004f3bc7554f6bc7ce146f5c502ccb  wubigork-v4.411.0-source.tar.gz (12951822 B, git archive @20b7204f 排除旧源码包, 4393 files)
