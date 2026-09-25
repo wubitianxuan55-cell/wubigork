@@ -115,3 +115,61 @@ describe('SinCastPanel 生成设定卡（sin 侧入口）', () => {
     await waitFor(() => expect(screen.getByLabelText('生成 林晚 的设定卡').hasAttribute('disabled')).toBe(false))
   })
 })
+
+describe('SinCastPanel 一致性评分（v4.410 sin 侧快路径）', () => {
+  const setupScore = (
+    onGenerateSheet: ((id: string) => Promise<void>) | undefined,
+    onScore: (id: string) => Promise<void>,
+  ) =>
+    render(
+      <SinCastPanel
+        cast={cast}
+        saving={false}
+        onOpenPicker={() => {}}
+        onRemove={() => {}}
+        onGenerateSheet={onGenerateSheet}
+        onScore={onScore}
+      />,
+    )
+
+  it('评分钮：点击按角色 id 调用，成功后复位', async () => {
+    const onScore = vi.fn().mockResolvedValue(undefined)
+    setupScore(undefined, onScore)
+    const btn = screen.getByLabelText('评分 林晚 的参考图')
+    fireEvent.click(btn)
+    expect(onScore).toHaveBeenCalledWith('c1')
+    await waitFor(() => expect(btn.hasAttribute('disabled')).toBe(false))
+  })
+
+  it('互斥：评分进行中禁设定卡钮；生成进行中禁评分钮', async () => {
+    let resolveScore!: (v: undefined) => void
+    const onScore = vi.fn().mockImplementation(() => new Promise<undefined>((r) => (resolveScore = r)))
+    let resolveGen!: (v: undefined) => void
+    const onGenerateSheet = vi.fn().mockImplementation(() => new Promise<undefined>((r) => (resolveGen = r)))
+    apiMock.getComfyUITaskProgress.mockResolvedValue({ status: '', elapsed: 0, node: '' })
+    setupScore(onGenerateSheet, onScore)
+    fireEvent.click(screen.getByLabelText('评分 林晚 的参考图'))
+    await waitFor(() =>
+      expect(screen.getByLabelText('生成 林晚 的设定卡').hasAttribute('disabled')).toBe(true),
+    )
+    resolveScore(undefined)
+    await waitFor(() =>
+      expect(screen.getByLabelText('生成 林晚 的设定卡').hasAttribute('disabled')).toBe(false),
+    )
+    fireEvent.click(screen.getByLabelText('生成 林晚 的设定卡'))
+    await waitFor(() =>
+      expect(screen.getByLabelText('评分 林晚 的参考图').hasAttribute('disabled')).toBe(true),
+    )
+    resolveGen(undefined)
+    await waitFor(() =>
+      expect(screen.getByLabelText('评分 林晚 的参考图').hasAttribute('disabled')).toBe(false),
+    )
+  })
+
+  it('未传 onScore：不渲染评分钮（向后兼容）', () => {
+    render(
+      <SinCastPanel cast={cast} saving={false} onOpenPicker={() => {}} onRemove={() => {}} />,
+    )
+    expect(screen.queryByLabelText('评分 林晚 的参考图')).toBeNull()
+  })
+})

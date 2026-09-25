@@ -30,7 +30,7 @@ import { useSinCast } from './sin/useSinCast'
 import { useSinNotes } from './sin/useSinNotes'
 import { readSinPanelOpen, writeSinPanelOpen } from './sin/sinPanelState'
 import { SinSidePanel } from './sin/SinSidePanel'
-import { generateCharacterSheet, getCharacter, saveCharacter } from '../api/characterlib'
+import { generateCharacterSheet, getCharacter, saveCharacter, scoreCharacterConsistency } from '../api/characterlib'
 import { SinCastPicker } from './sin/SinCastPicker'
 import { suggestStoryTitle, type SinGalleryItem } from './sin/storyText'
 import { enqueueIllustration } from './sin/illustrationQueue'
@@ -68,6 +68,37 @@ const OriginalSinPage: React.FC = () => {
       // 用户主动取消（v4.408 取消钮）：语义化提示，不走错误样式
       if (msg.includes('context canceled')) { message.info('已取消生成'); return }
       message.error(`设定卡生成失败：${msg}`)
+    }
+  }
+
+  // 一致性评分（v4.410，sin 侧快路径）：评角色最新一张参考图（通常是刚生成的
+  // 设定卡/剧照），渲染与角色库编辑器同款 Modal；逐张评分全功能留在编辑器。
+  const handleCastScore = async (id: string) => {
+    try {
+      const detail = await getCharacter(id)
+      const full = detail.character
+      const refs = full.referenceImages ?? []
+      const last = refs[refs.length - 1]
+      if (!last) {
+        message.info(`${full.name || '角色'} 暂无参考图——先用设定卡或剧照生成一张再评分`)
+        return
+      }
+      const res = await scoreCharacterConsistency(full, last)
+      const low = res.score < 60
+      Modal.info({
+        title: `一致性评分：${res.score} 分`,
+        content: (
+          <div data-testid="sin-consistency-score-modal">
+            <p>{res.summary || '（无总评）'}</p>
+            {(res.issues?.length ?? 0) > 0 && (
+              <ul>{res.issues.map((it, k) => <li key={k}>{it}</li>)}</ul>
+            )}
+            {low && <p>建议补充不同角度/光照的参考图后再生成，提高一致性。</p>}
+          </div>
+        ),
+      })
+    } catch (err: unknown) {
+      message.error(`一致性评分失败：${err instanceof Error ? err.message : String(err)}`)
     }
   }
   const [renameTarget, setRenameTarget] = useState('')
@@ -326,6 +357,7 @@ const OriginalSinPage: React.FC = () => {
               onOpenPicker={() => setCastPickerOpen(true)}
               onRemoveCast={(id) => void cast.saveCast(cast.castIds.filter((x) => x !== id))}
               onGenerateSheet={handleCastSheet}
+              onScore={handleCastScore}
               notesDoc={notes.doc}
               notesError={notes.error}
               notesLoading={notes.loading}

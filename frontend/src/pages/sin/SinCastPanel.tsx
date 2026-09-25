@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { Button, Tooltip } from 'antd'
-import { CloseOutlined, IdcardOutlined, PlusOutlined, TeamOutlined } from '@ant-design/icons'
+import { AimOutlined, CloseOutlined, IdcardOutlined, PlusOutlined, TeamOutlined } from '@ant-design/icons'
 import { PortraitImg } from '../../components/characterlib/PortraitImg'
 import { COMFY_NODE_LABELS } from '../../components/imagegen/GenerationProgress'
 import { cancelImageGeneration, getComfyUITaskProgress } from '../../api/image'
@@ -15,11 +15,15 @@ export interface SinCastPanelProps {
   onRemove: (id: string) => void
   /** 生成设定卡（v4.403，sin 侧入口）：取全量角色→qedit 三视图→存回角色库参考图。 */
   onGenerateSheet?: (id: string) => Promise<void>
+  /** 一致性评分（v4.410，sin 侧快路径）：评角色最新一张参考图，结果由页面层 Modal 呈现。 */
+  onScore?: (id: string) => Promise<void>
 }
 
-export function SinCastPanel({ cast, saving, onOpenPicker, onRemove, onGenerateSheet }: SinCastPanelProps) {
+export function SinCastPanel({ cast, saving, onOpenPicker, onRemove, onGenerateSheet, onScore }: SinCastPanelProps) {
   // 进行中的生成（单飞：同时只允许一张，本地 ComfyUI 串行）
   const [genId, setGenId] = useState<string | null>(null)
+  // 进行中的评分（单飞；与生成互斥——本地视觉模型与 ComfyUI 同 GPU）
+  const [scoreId, setScoreId] = useState<string | null>(null)
   // ComfyUI 生成进度（v4.408）：生成期间 1s 轮询同源快照，载入/排队可见（与角色库编辑器同款）
   const [comfyProgress, setComfyProgress] = useState<{ status: string; elapsed: number; node: string } | null>(null)
   const runSheet = async (id: string) => {
@@ -57,6 +61,18 @@ export function SinCastPanel({ cast, saving, onOpenPicker, onRemove, onGenerateS
       await cancelImageGeneration()
     } catch { /* 取消失败静默——生成自身会结束或超时 */ }
   }
+  // 一致性评分（v4.410）：面板只管 busy 复位，取图/调链/Modal 由页面层负责
+  const runScore = async (id: string) => {
+    if (!onScore || scoreId || genId) return
+    setScoreId(id)
+    try {
+      await onScore(id)
+    } catch {
+      // 错误提示由页面层实现负责，面板只管复位
+    } finally {
+      setScoreId(null)
+    }
+  }
 
   return (
     <section className="sin-card sin-cast-card">
@@ -84,8 +100,21 @@ export function SinCastPanel({ cast, saving, onOpenPicker, onRemove, onGenerateS
                     icon={<IdcardOutlined />}
                     aria-label={`生成 ${c.name} 的设定卡`}
                     loading={genId === c.id}
-                    disabled={saving || (genId !== null && genId !== c.id)}
+                    disabled={saving || scoreId !== null || (genId !== null && genId !== c.id)}
                     onClick={() => void runSheet(c.id)}
+                  />
+                </Tooltip>
+              )}
+              {onScore && (
+                <Tooltip title="一致性评分（对照角色文字设定评估最新参考图）">
+                  <Button
+                    size="small"
+                    type="text"
+                    icon={<AimOutlined />}
+                    aria-label={`评分 ${c.name} 的参考图`}
+                    loading={scoreId === c.id}
+                    disabled={saving || genId !== null || (scoreId !== null && scoreId !== c.id)}
+                    onClick={() => void runScore(c.id)}
                   />
                 </Tooltip>
               )}
