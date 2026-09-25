@@ -21,8 +21,3 @@ func (s *SessionModeStore) SetMode(sessionID string, enabled bool) {
 	s.mu.Lock(); defer s.mu.Unlock()
 	if enabled { s.modes[sessionID] = true } else { delete(s.modes, sessionID) }
 }
-
-func (s *SessionModeStore) ClearAll() {
-	s.mu.Lock(); defer s.mu.Unlock()
-	s.modes = make(map[string]bool)
-}

@@ -9,7 +9,6 @@ package app
 
 import (
 	"sort"
-	"strings"
 
 	"github.com/gaea/gaea/internal/modelengine"
 )
@@ -185,6 +184,3 @@ func sortedKeys(m map[string]bool) []string {
 	sort.Strings(out)
 	return out
 }
-
-// engineIsCloud 供前端/测试复用的引擎分类判断。
-func engineIsCloud(engineID string) bool { return cloudEngineSet[strings.TrimSpace(engineID)] }

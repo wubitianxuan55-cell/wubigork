@@ -120,14 +120,6 @@ const (
 	ForeshadowProphecy     = "prophecy"     // 预言
 )
 
-// ForeshadowCategories 返回 v2 的 7 值分类（供校验/UI）。
-func ForeshadowCategories() []string {
-	return []string{
-		ForeshadowIdentity, ForeshadowMystery, ForeshadowItem,
-		ForeshadowRelationship, ForeshadowEvent, ForeshadowAbility, ForeshadowProphecy,
-	}
-}
-
 // ForeshadowSourceType 伏笔来源，驱动清理语义。
 type ForeshadowSourceType string
 

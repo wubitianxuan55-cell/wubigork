@@ -33,12 +33,6 @@ func wavHeaderAt(dataLen, sampleRate int) []byte {
 	return h
 }
 
-// wavHeader builds the 44-byte RIFF/WAVE header for PCM16 / 16kHz / mono
-// audio, matching the format the frontend captures and Herdsman ASR expects.
-func wavHeader(dataLen int) []byte {
-	return wavHeaderAt(dataLen, SampleRate)
-}
-
 // wrapPCMAsWAV wraps raw PCM16 / 16kHz / mono bytes into a WAV container.
 // The frontend and VAD buffer work with raw PCM; the non-streaming ASR
 // endpoint requires a real WAV file, so the header is added before sending.

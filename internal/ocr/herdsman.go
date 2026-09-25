@@ -46,13 +46,6 @@ func New(baseURL, model string) *Client {
 	}
 }
 
-// SetModel 动态切换模型名。
-func (c *Client) SetModel(model string) {
-	if strings.TrimSpace(model) != "" {
-		c.model = model
-	}
-}
-
 // Line 是单行 OCR 结果。
 type Line struct {
 	Text  string      `json:"text"`

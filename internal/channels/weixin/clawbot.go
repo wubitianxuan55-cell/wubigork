@@ -38,10 +38,6 @@ type Config struct {
 	CapturePath string
 }
 
-func DefaultConfig() Config {
-	return Config{ILinkURL: "https://ilinkai.weixin.qq.com"}
-}
-
 // ─── 入站防线参数（v4.8 子项 d）─────────────────────────────
 
 const (

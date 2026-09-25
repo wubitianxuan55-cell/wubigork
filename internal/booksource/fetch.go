@@ -278,6 +278,3 @@ type Options struct {
 func New(rule *Rule, opt Options) *Engine {
 	return &Engine{crawler: newCrawler(rule.crawlConfig(), opt), rule: rule}
 }
-
-// Rule 只读访问规则（前端展示书源名等）。
-func (e *Engine) Rule() *Rule { return e.rule }

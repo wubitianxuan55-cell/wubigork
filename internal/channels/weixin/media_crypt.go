@@ -28,8 +28,6 @@ type ecbBlockMode struct {
 	decryptin bool
 }
 
-func (m ecbBlockMode) BlockSize() int { return m.b.BlockSize() }
-
 func (m ecbBlockMode) CryptBlocks(dst, src []byte) {
 	if len(src)%m.b.BlockSize() != 0 {
 		panic("crypto/cipher: input not full blocks (ECB)")

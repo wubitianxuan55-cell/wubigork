@@ -141,11 +141,6 @@ func (a *App) boardLabel(id string) string {
 	return ""
 }
 
-// intentPreview dry-run 预览（S4.6，无助手上下文入口）。
-func (a *App) intentPreview(it *intent.Intent) IntentResult {
-	return a.intentPreviewForAssistant(it, "")
-}
-
 // intentPreviewForAssistant dry-run 预览（v4.9 助手感知）：不执行任何能力，
 // 只给「将发生什么」的诚实描述。校验口径与执行层一致：板块不在 manifest /
 // 媒体域缺失 / 提醒域缺失都按未命中（零值）返回，避免面板预览出一个执行

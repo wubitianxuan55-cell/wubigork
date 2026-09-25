@@ -17,20 +17,3 @@ func Itoa(n int) string {
 	}
 	return string(buf[i:])
 }
-
-// TrimSpace drops leading and trailing ASCII whitespace from a byte slice
-// without allocating a new backing array (it returns a sub-slice of b).
-func TrimSpace(b []byte) []byte {
-	i, j := 0, len(b)
-	for i < j && isSpace(b[i]) {
-		i++
-	}
-	for j > i && isSpace(b[j-1]) {
-		j--
-	}
-	return b[i:j]
-}
-
-func isSpace(c byte) bool {
-	return c == ' ' || c == '\t' || c == '\n' || c == '\r'
-}

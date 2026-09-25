@@ -49,10 +49,3 @@ func (c *TTLCache[V]) Set(key string, value V) {
 	defer c.mu.Unlock()
 	c.items[key] = ttlItem[V]{value: value, expires: c.now().Add(c.ttl)}
 }
-
-// Len 当前条目数（测试/观测用）。
-func (c *TTLCache[V]) Len() int {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return len(c.items)
-}

@@ -10,7 +10,6 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strings"
 )
 
 // HerdsmanOperation 单条异步操作。
@@ -89,29 +88,4 @@ func (a *App) HerdsmanOperations() (HerdsmanOperations, error) {
 		items = items[:20]
 	}
 	return HerdsmanOperations{Total: len(items), Items: items, Source: "herdsman-operations"}, nil
-}
-
-// herdOpsKindLabel 供前端展示的 kind 中文化（保留英文原值亦可）。
-func herdOpsKindLabel(kind string) string {
-	switch strings.ToLower(kind) {
-	case "image_generate":
-		return "生图"
-	case "model_start":
-		return "模型启动"
-	case "model_download":
-		return "模型下载"
-	case "speech":
-		return "语音合成"
-	case "tts":
-		return "TTS"
-	case "asr":
-		return "语音识别"
-	case "music":
-		return "音乐生成"
-	default:
-		if kind == "" {
-			return "任务"
-		}
-		return kind
-	}
 }

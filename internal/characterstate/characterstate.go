@@ -27,22 +27,6 @@ var survivalDesc = map[string]string{
 	"Dead": "死亡", "Missing": "失踪", "Retired": "退场", "Alive": "复活回归",
 }
 
-// survivalFromAnalysis 分析侧 survival_status（active|deceased|missing|retired）
-// → gaea Character.Status 值域（Alive/Dead/Missing/Retired）。空返回空。
-func survivalFromAnalysis(s string) string {
-	switch strings.ToLower(strings.TrimSpace(s)) {
-	case "deceased":
-		return "Dead"
-	case "missing":
-		return "Missing"
-	case "retired":
-		return "Retired"
-	case "active":
-		return "Alive"
-	}
-	return ""
-}
-
 // ── 亲密度算法（§7.3：最长匹配优先，禁子串累加）────────────────
 
 // intimacyDict 亲密度词典（MuMu :13-26 全表；运行时按长度降序，最长匹配优先

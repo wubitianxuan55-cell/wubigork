@@ -289,6 +289,3 @@ func derefInt(p *int) int {
 	}
 	return *p
 }
-
-// baseName 测试友好的 filepath.Base 别名（保持上传流程文件名语义集中）。
-func baseName(path string) string { return filepath.Base(path) }
