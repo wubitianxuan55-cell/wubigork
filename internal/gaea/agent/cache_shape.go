@@ -14,6 +14,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/gaea/gaea/internal/gaea/agent/cache"
 	"github.com/gaea/gaea/internal/gaea/provider"
 )
 
@@ -54,7 +55,7 @@ func (a *AgentRunner) CaptureShape() PrefixShape {
 }
 
 func captureShape(systemPrompt string, schemas []provider.ToolSchema, rewriteVersion int) PrefixShape {
-	normalized := NormalizeToolSchemas(schemas)
+	normalized := cache.NormalizeToolSchemas(schemas)
 	toolsJSON, _ := json.Marshal(normalized)
 	return PrefixShape{
 		SystemHash:        shortHash(systemPrompt),

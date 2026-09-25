@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"sync"
+
+	"github.com/gaea/gaea/internal/gaea/agent/cache"
 )
 
 // ─── V5.13a: ParamStormBreaker (Kun tool-storm-breaker.ts 移植) ──────────
@@ -143,7 +145,7 @@ func canonicalizeArgs(raw string) string {
 	if err := json.Unmarshal([]byte(raw), &val); err != nil {
 		return raw // 解析失败，保留原样
 	}
-	canonical := CanonicalizeValue(val)
+	canonical := cache.CanonicalizeValue(val)
 	out, err := json.Marshal(canonical)
 	if err != nil {
 		return raw

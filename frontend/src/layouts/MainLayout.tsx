@@ -60,29 +60,17 @@ function pageReachableInSpace(p: Page, s: ShellSpace): boolean {
   return b.isHome || isBoardReachableInSpace(b, s)
 }
 
-// ─── 页面组件：PageRegistry 集中注册（main.tsx），此处保留旧 lazy import 作为
-//     过渡期 fallback（附 B #3/#5：PageRegistry 与旧 pageComponents 并行一个版本）。
-//     过渡期后仅保留 registerPage，删除本组 lazy。
-const legacyPageComponents: Record<string, React.ComponentType> = {
-  ChatPage: React.lazy(() => import('../pages/ChatPage')),
-  NovelPage: React.lazy(() => import('../pages/NovelPage')),
-  ImageGenPage: React.lazy(() => import('../pages/ImageGenPage')),
-  GaeaPage: React.lazy(() => import('../pages/GaeaPage')),
-  MemoryHubPage: React.lazy(() => import('../pages/MemoryHubPage')),
-  CostLibraryPage: React.lazy(() => import('../pages/CostLibraryPage')),
-  ModelCenterPage: React.lazy(() => import('../pages/ModelCenterPage')),
-  CharacterLibraryPage: React.lazy(() => import('../pages/CharacterLibraryPage')),
-  SettingsPage: React.lazy(() => import('../pages/SettingsPage')),
-}
+// ─── 页面组件：PageRegistry 集中注册（main.tsx），附 B #3/#5 过渡期已结束，
+//     旧 pageComponents lazy 兜底已删（registerPage 是唯一来源）。
 
 // 附 B #1：Page 类型由 manifest.id 派生（类型级断言锁死在 manifests.ts）
 type Page = BoardId
 
-/** 解析页面组件：PageRegistry（manifest.page）优先，旧 pageComponents 兜底（过渡期） */
+/** 解析页面组件：PageRegistry（manifest.page） */
 function resolvePageComponent(p: Page): React.ComponentType | undefined {
   const m = getActiveBoard(p)
   if (!m) return undefined
-  return getPageComponent(m.page) ?? legacyPageComponents[m.page]
+  return getPageComponent(m.page)
 }
 
 // 主题色点/标签：单一数据源 THEME_PRESETS（appStore，3.0 Wave 2 消除三处重复维护）

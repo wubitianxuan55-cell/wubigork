@@ -624,7 +624,7 @@ func (a *mediaState) GenerateMedia(paramsJSON string) (map[string]interface{}, e
 			if a.cfg.ImageSaveDir != "" {
 				item.FilePath = a.saveMediaToDisk(imageData, p.Prompt, a.cfg.ImageSaveDir)
 			} else {
-				item.FilePath = a.saveMediaToNovelImages(imageData, p.Prompt)
+				item.FilePath = a.saveToNovelImages(imageData, p.Prompt)
 			}
 		}
 		// T0 图像域试点：多模式媒体落盘后登记（imagegen/media.generate；失败只 warn）；
@@ -663,16 +663,6 @@ func (a *mediaState) saveMediaToDisk(imageData string, prompt string, dir string
 		return fullPath
 	}
 	return ""
-}
-
-// saveMediaToNovelImages 保存图片/视频到当前小说 images/ 目录，返回保存路径（失败返回空串）
-func (a *mediaState) saveMediaToNovelImages(imageData string, prompt string) string {
-	pm := a.app.getPM()
-	if pm == nil {
-		return ""
-	}
-	dir := filepath.Join(pm.Dir, "images")
-	return a.saveMediaToDisk(imageData, prompt, dir)
 }
 
 // mediaExt 从 data URL 推断扩展名
