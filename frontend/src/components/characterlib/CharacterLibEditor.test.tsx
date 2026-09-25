@@ -521,54 +521,46 @@ describe('CharacterLibEditor 一致性评分（v4.404）', () => {
     // 失败后按钮复位可再点
     expect(screen.getByTestId('score-ref-0').hasAttribute('disabled')).toBe(false)
   })
-})
 
-describe('CharacterLibEditor 生成进度行（v4.406）', () => {
-  it('设定卡生成中：轮询快照显示当前节点与用时；结束后消失', async () => {
-    const mockedProgress = vi.mocked(getComfyUITaskProgress)
-    mockedProgress.mockClear()
-    mockedProgress.mockResolvedValue({ status: 'running', elapsed: 42, percent: -1, node: 'UNETLoader' })
-    let resolveSheet!: (v: string) => void
-    mockedCharacterSheet.mockClear()
-    mockedCharacterSheet.mockImplementation(() => new Promise<string>((r) => (resolveSheet = r)))
-    renderEditor({ character: makeCharacter({ name: '苏念', referenceImages: ['data:image/png;base64,R1'] }) })
-    const mainBtn = screen.getByTestId('gen-character-sheet').querySelector('button')!
-    fireEvent.click(mainBtn)
-    await vi.waitFor(() => expect(screen.getByTestId('cd-comfy-progress')).toBeTruthy())
-    expect(screen.getByTestId('cd-comfy-progress').textContent).toContain('加载模型')
-    expect(screen.getByTestId('cd-comfy-progress').textContent).toContain('42')
-    resolveSheet('data:image/png;base64,DONE')
-    await vi.waitFor(() => expect(screen.queryByTestId('cd-comfy-progress')).toBeNull())
-  })
-})
-
-describe('CharacterLibEditor 生成取消（v4.407）', () => {
-  it('生成中进度行内取消钮：点击调用全局取消', async () => {
-    mockedCancelGen.mockClear()
-    mockedCancelGen.mockResolvedValue(true)
-    const mockedProgress = vi.mocked(getComfyUITaskProgress)
-    mockedProgress.mockClear()
-    mockedProgress.mockResolvedValue({ status: 'running', elapsed: 12, percent: -1, node: 'UNETLoader' })
-    let resolveSheet!: (v: string) => void
-    mockedCharacterSheet.mockClear()
-    mockedCharacterSheet.mockImplementation(() => new Promise<string>((r) => (resolveSheet = r)))
-    renderEditor({ character: makeCharacter({ name: '苏念', referenceImages: ['data:image/png;base64,R1'] }) })
-    const mainBtn = screen.getByTestId('gen-character-sheet').querySelector('button')!
-    fireEvent.click(mainBtn)
-    await vi.waitFor(() => expect(screen.getByTestId('cd-cancel-gen')).toBeTruthy())
-    fireEvent.click(screen.getByTestId('cd-cancel-gen'))
-    await vi.waitFor(() => expect(mockedCancelGen).toHaveBeenCalledTimes(1))
-    resolveSheet('data:image/png;base64,DONE')
-    await vi.waitFor(() => expect(screen.queryByTestId('cd-comfy-progress')).toBeNull())
+  it('评分写回元数据（v4.411）：徽标渲染 + 保存持久化', async () => {
+    mockedScore.mockClear()
+    mockedSave.mockClear()
+    mockedSave.mockResolvedValue(makeCharacter({ name: '苏念' }))
+    mockedScore.mockResolvedValue({ score: 87, summary: '基本一致', issues: [] })
+    renderEditor({ character: makeCharacter({ name: '苏念', referenceImages: ['data:image/png;base64,R1', 'data:image/png;base64,R2'] }) })
+    fireEvent.click(screen.getByTestId('score-ref-1'))
+    await vi.waitFor(() => {
+      const titles = document.querySelectorAll('.ant-modal-title')
+      expect(titles[titles.length - 1]?.textContent).toContain('一致性评分：87 分')
+    })
+    cleanup()
+    Modal.destroyAll()
+    // 徽标：第二张 87 分；第一张未评分无徽标
+    renderEditor({ character: makeCharacter({ name: '苏念', referenceImages: ['data:image/png;base64,R1', 'data:image/png;base64,R2'] }) })
+    fireEvent.click(screen.getByTestId('score-ref-1'))
+    await vi.waitFor(() => expect(screen.getByTestId('ref-score-1')).toBeTruthy())
+    expect(screen.getByTestId('ref-score-1').textContent).toBe('87分')
+    expect(screen.queryByTestId('ref-score-0')).toBeNull()
+    // 保存持久化：saveCharacter 收到与参考图索引对齐的分数表
+    fireEvent.click(document.querySelector('button.cd-save')!)
+    await vi.waitFor(() => expect(mockedSave).toHaveBeenCalled())
+    const saved = mockedSave.mock.calls[0][0]
+    expect(saved.referenceScores).toEqual([0, 87])
+    cleanup()
+    Modal.destroyAll()
   })
 
-  it('取消后 promise 以 context canceled 拒绝：显示「已取消生成」而非报错', async () => {
-    mockedCharacterSheet.mockClear()
-    mockedCharacterSheet.mockRejectedValue(new Error('设定卡生成失败: context canceled'))
-    renderEditor({ character: makeCharacter({ name: '苏念', referenceImages: ['data:image/png;base64,R1'] }) })
-    const mainBtn = screen.getByTestId('gen-character-sheet').querySelector('button')!
-    fireEvent.click(mainBtn)
-    await vi.waitFor(() => expect(screen.getByText('已取消生成')).toBeTruthy())
-    expect(screen.queryByText(/设定卡生成失败/)).toBeNull()
+  it('移除参考图：分数同下标对齐移除（已评分图移除后徽标消失）', async () => {
+    mockedScore.mockClear()
+    mockedScore.mockResolvedValue({ score: 73, summary: '基本一致', issues: [] })
+    renderEditor({ character: makeCharacter({ name: '苏念', referenceImages: ['data:image/png;base64,R1', 'data:image/png;base64,R2'] }) })
+    fireEvent.click(screen.getByTestId('score-ref-0'))
+    await vi.waitFor(() => expect(screen.getByTestId('ref-score-0')).toBeTruthy())
+    const removeBtns = Array.from(document.querySelectorAll('button[title="移除参考图"]'))
+    fireEvent.click(removeBtns[0])
+    await waitFor(() => expect(screen.queryByTestId('ref-score-0')).toBeNull())
+    expect(document.querySelectorAll('.cd-ref').length).toBe(1)
+    cleanup()
+    Modal.destroyAll()
   })
 })

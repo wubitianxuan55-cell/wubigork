@@ -104,13 +104,14 @@ function emptyDims() {
 }
 
 function toForm(c: LibraryCharacter | null): Partial<LibraryCharacter> {
-  if (!c) return { tags: [], dialogueSamples: [], dims: emptyDims(), referenceImages: [] }
+  if (!c) return { tags: [], dialogueSamples: [], dims: emptyDims(), referenceImages: [], referenceScores: [] }
   return {
     ...c,
     tags: c.tags ?? [],
     dialogueSamples: c.dialogueSamples ?? [],
     dims: c.dims ?? emptyDims(),
     referenceImages: c.referenceImages ?? [],
+    referenceScores: c.referenceScores ?? [],
   }
 }
 
@@ -434,7 +435,10 @@ const CharacterLibEditor: React.FC<Props> = ({
   const removeRef = (i: number) => {
     const refs = [...(form.referenceImages ?? [])]
     refs.splice(i, 1)
-    patch({ referenceImages: refs })
+    // 评分与参考图索引对齐（v4.411）：移除时同下标分数一并移除
+    const scores = [...(form.referenceScores ?? [])]
+    if (i < scores.length) scores.splice(i, 1)
+    patch({ referenceImages: refs, referenceScores: scores })
   }
 
   // 一致性评分（v4.404）：视觉模型拿这张参考图对照角色文字设定打分；
@@ -446,6 +450,11 @@ const CharacterLibEditor: React.FC<Props> = ({
     setScoreIdx(i)
     try {
       const res = await scoreCharacterConsistency(form, ref)
+      // 评分写回元数据（v4.411）：分数随 form 保存进角色库（与参考图索引对齐）
+      const scores = [...(form.referenceScores ?? [])]
+      while (scores.length < (form.referenceImages ?? []).length) scores.push(0)
+      scores[i] = res.score
+      patch({ referenceScores: scores })
       const low = res.score < 60
       Modal.info({
         title: `一致性评分：${res.score} 分`,
@@ -755,6 +764,14 @@ const CharacterLibEditor: React.FC<Props> = ({
                       {(form.referenceImages ?? []).map((ref, i) => (
                         <div key={`${ref}-${i}`} className="cd-ref">
                           <PortraitImg className="cd-ref-img" src={ref} alt={`参考图 ${i + 1}`} />
+                          {(form.referenceScores ?? [])[i] > 0 && (
+                            <span
+                              className={`cd-ref-score ${((form.referenceScores ?? [])[i] ?? 0) >= 80 ? 'cd-ref-score-good' : ((form.referenceScores ?? [])[i] ?? 0) >= 60 ? 'cd-ref-score-mid' : 'cd-ref-score-low'}`}
+                              data-testid={`ref-score-${i}`}
+                            >
+                              {(form.referenceScores ?? [])[i]}分
+                            </span>
+                          )}
                           <div className="cd-ref-actions">
                             <Button
                               size="small"

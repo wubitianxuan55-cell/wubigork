@@ -74,6 +74,16 @@ func migrateSchemaV2(db *sql.DB) error {
 			return fmt.Errorf("新增 gallery_images 列失败: %w", err)
 		}
 	}
+	// v4.411 一致性评分写回：与 reference_images 索引对齐的 JSON []int（0=未评分）。
+	has, err = hasColumn(db, "characters", "reference_scores")
+	if err != nil {
+		return err
+	}
+	if !has {
+		if _, err := db.Exec(`ALTER TABLE characters ADD COLUMN reference_scores TEXT NOT NULL DEFAULT '[]'`); err != nil {
+			return fmt.Errorf("新增 reference_scores 列失败: %w", err)
+		}
+	}
 	return nil
 }
 

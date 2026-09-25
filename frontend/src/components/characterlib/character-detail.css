@@ -520,6 +520,25 @@
   background: var(--md-sys-color-surface-container-high);
 }
 
+.cd-ref-score {
+  position: absolute;
+  left: 6px;
+  top: 6px;
+  z-index: 3;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  color: rgb(255 255 255);
+  background: rgba(10, 10, 20, 0.62);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  pointer-events: none;
+}
+
+.cd-ref-score-good { background: rgba(21, 128, 61, 0.85); }
+.cd-ref-score-mid { background: rgba(180, 83, 9, 0.85); }
+.cd-ref-score-low { background: rgba(185, 28, 28, 0.85); }
+
 .cd-ref-img {
   width: 100%;
   height: 100%;

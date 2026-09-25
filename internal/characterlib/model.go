@@ -28,6 +28,9 @@ type Character struct {
 	// 保存时 data URL 与远程 URL 会本地化为 portraits 目录下的文件路径）。
 	ReferenceImages []string `json:"referenceImages,omitempty"`
 	GalleryImages   []string `json:"galleryImages,omitempty"`
+	// v4.411 一致性评分写回：与 ReferenceImages 索引对齐的分数（0-100，
+	// 0=未评分不渲染徽标）。参考图增删/超限剔除时由读写两路同步维护对齐。
+	ReferenceScores []int `json:"referenceScores,omitempty"`
 
 	// ── 小说侧 ──
 	RoleType        string   `json:"roleType,omitempty"` // protagonist / antagonist / supporting / minor

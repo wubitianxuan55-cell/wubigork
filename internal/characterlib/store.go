@@ -189,15 +189,16 @@ func upsertOn(x execer, c *Character) error {
 	_, err := x.Exec(`
 		INSERT INTO characters (
 			id, name, kind, gender, age, tags, portrait_url,
-			reference_images, gallery_images,
+			reference_images, gallery_images, reference_scores,
 			role_type, personality, background, appearance, figure, motivation, arc, status, notes, dialogue_samples,
 			chat_enabled, dims, voice_guide, behavior_rules, emotion_logic, hidden_persona,
 			assistant_id, hidden, created_at, updated_at
-		) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+		) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 		ON CONFLICT(id) DO UPDATE SET
 			name=excluded.name, kind=excluded.kind, gender=excluded.gender, age=excluded.age,
 			tags=excluded.tags, portrait_url=excluded.portrait_url,
 			reference_images=excluded.reference_images, gallery_images=excluded.gallery_images,
+			reference_scores=excluded.reference_scores,
 			role_type=excluded.role_type, personality=excluded.personality, background=excluded.background,
 			appearance=excluded.appearance, figure=excluded.figure, motivation=excluded.motivation,
 			arc=excluded.arc, status=excluded.status, notes=excluded.notes, dialogue_samples=excluded.dialogue_samples,
@@ -206,7 +207,7 @@ func upsertOn(x execer, c *Character) error {
 			hidden_persona=excluded.hidden_persona, assistant_id=excluded.assistant_id,
 			hidden=excluded.hidden, updated_at=excluded.updated_at`,
 		c.ID, c.Name, c.Kind, c.Gender, c.Age, string(tags), c.PortraitURL,
-		refs, gallery,
+		refs, gallery, marshalIntList(c.ReferenceScores),
 		c.RoleType, c.Personality, c.Background, c.Appearance, c.Figure, c.Motivation, c.Arc, c.Status, c.Notes, string(samples),
 		boolInt(c.ChatEnabled), string(dims), c.VoiceGuide, c.BehaviorRules, c.EmotionLogic, string(hidden),
 		c.AssistantID, boolInt(c.Hidden), c.CreatedAt, c.UpdatedAt,
@@ -224,6 +225,15 @@ func marshalStringList(items []string) string {
 	return string(b)
 }
 
+// marshalIntList 整数列表序列化为 JSON；nil 序列化为 "[]"（同上）。
+func marshalIntList(items []int) string {
+	if items == nil {
+		return "[]"
+	}
+	b, _ := json.Marshal(items)
+	return string(b)
+}
+
 // capImageList 超大内联图片从列表剔除（正常保存已本地化为文件路径，此处只
 // 兜底历史遗留的巨型 base64，防止撑爆 Wails IPC；与剧照 capPortraitURL 同策略）。
 func capImageList(items []string) []string {
@@ -233,6 +243,26 @@ func capImageList(items []string) []string {
 			continue
 		}
 		out = append(out, it)
+	}
+	return out
+}
+
+// oversizedDataURL 超限内联图判定（capImageList 同谓词）。
+func oversizedDataURL(it string) bool {
+	return strings.HasPrefix(it, "data:") && len(it) > maxPortraitDataURL
+}
+
+// capScores 按 keptIdx 对齐分数：保留下标为 k → 取 scores[keptIdx[k]]；
+// 越界/缺失记 0（0=未评分，前端不渲染徽标）。
+func capScores(scores []int, keptIdx []int) []int {
+	if len(scores) == 0 {
+		return scores
+	}
+	out := make([]int, len(keptIdx))
+	for k, i := range keptIdx {
+		if i < len(scores) {
+			out[k] = scores[i]
+		}
 	}
 	return out
 }
@@ -257,7 +287,7 @@ type execer interface {
 func getOn(x execer, id string) (*Character, error) {
 	row := x.QueryRow(`
 		SELECT id, name, kind, gender, age, tags, portrait_url,
-			reference_images, gallery_images,
+			reference_images, gallery_images, reference_scores,
 			role_type, personality, background, appearance, figure, motivation, arc, status, notes, dialogue_samples,
 			chat_enabled, dims, voice_guide, behavior_rules, emotion_logic, hidden_persona,
 			assistant_id, hidden, created_at, updated_at
@@ -276,7 +306,7 @@ func (s *Store) FindByName(name string) (*Character, error) {
 	}
 	row := s.db.QueryRow(`
 		SELECT id, name, kind, gender, age, tags, portrait_url,
-			reference_images, gallery_images,
+			reference_images, gallery_images, reference_scores,
 			role_type, personality, background, appearance, figure, motivation, arc, status, notes, dialogue_samples,
 			chat_enabled, dims, voice_guide, behavior_rules, emotion_logic, hidden_persona,
 			assistant_id, hidden, created_at, updated_at
@@ -341,7 +371,7 @@ func (s *Store) List(query, kind string, chatOnly bool, limit, offset int) ([]Ch
 	}
 	rows, err := s.db.Query(`
 		SELECT id, name, kind, gender, age, tags, portrait_url,
-			reference_images, gallery_images,
+			reference_images, gallery_images, reference_scores,
 			role_type, personality, background, appearance, figure, motivation, arc, status, notes, dialogue_samples,
 			chat_enabled, dims, voice_guide, behavior_rules, emotion_logic, hidden_persona,
 			assistant_id, hidden, created_at, updated_at
@@ -579,7 +609,7 @@ func (s *Store) DrawRandom(count int, gender, tags string, chatOnly bool) ([]Cha
 	cond := strings.Join(where, " AND ")
 	rows, err := s.db.Query(`
 		SELECT id, name, kind, gender, age, tags, portrait_url,
-			reference_images, gallery_images,
+			reference_images, gallery_images, reference_scores,
 			role_type, personality, background, appearance, figure, motivation, arc, status, notes, dialogue_samples,
 			chat_enabled, dims, voice_guide, behavior_rules, emotion_logic, hidden_persona,
 			assistant_id, hidden, created_at, updated_at
@@ -657,11 +687,11 @@ func (s *Store) ProjectCharactersForNovel(projectID string) ([]types.Character, 
 func scanCharacter(row interface{ Scan(...any) error }) (*Character, error) {
 	var c Character
 	var tags, samples, dims, hidden string
-	var refs, gallery string
+	var refs, gallery, scores string
 	var chatEnabled, hiddenFlag int
 	err := row.Scan(
 		&c.ID, &c.Name, &c.Kind, &c.Gender, &c.Age, &tags, &c.PortraitURL,
-		&refs, &gallery,
+		&refs, &gallery, &scores,
 		&c.RoleType, &c.Personality, &c.Background, &c.Appearance, &c.Figure, &c.Motivation, &c.Arc, &c.Status, &c.Notes, &samples,
 		&chatEnabled, &dims, &c.VoiceGuide, &c.BehaviorRules, &c.EmotionLogic, &hidden,
 		&c.AssistantID, &hiddenFlag, &c.CreatedAt, &c.UpdatedAt,
@@ -678,7 +708,16 @@ func scanCharacter(row interface{ Scan(...any) error }) (*Character, error) {
 	}
 	_ = json.Unmarshal([]byte(refs), &c.ReferenceImages)
 	_ = json.Unmarshal([]byte(gallery), &c.GalleryImages)
+	_ = json.Unmarshal([]byte(scores), &c.ReferenceScores)
+	// v4.411 超限剔除时分数与参考图同索引对齐维护（按下标映射，非前 N 截断）
+	keptIdx := make([]int, 0, len(c.ReferenceImages))
+	for i, it := range c.ReferenceImages {
+		if !oversizedDataURL(it) {
+			keptIdx = append(keptIdx, i)
+		}
+	}
 	c.ReferenceImages = capImageList(c.ReferenceImages)
+	c.ReferenceScores = capScores(c.ReferenceScores, keptIdx)
 	c.GalleryImages = capImageList(c.GalleryImages)
 	c.ChatEnabled = chatEnabled != 0
 	c.Hidden = hiddenFlag != 0
