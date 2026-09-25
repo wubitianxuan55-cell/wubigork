@@ -129,7 +129,7 @@
 | dist/assets 全量 | 10.0MB | 11.1MB | +1.1MB | 大 chunk 均懒加载面（GraphView 1.38MB=GaeaPage 内 three.js、mermaid 640KB、cynefin 690KB 独立 chunk 按需） |
 | exe | 46.15MB | 51.44MB | +5.3MB（+11%） | Go 侧 245 版功能增重（whisper 死码刀 9.9k 行已削）；无嵌入资产异常 |
 | Go >50KB 源文件 | 0 | 4（image_comfyui 58K/image_handler 55K/controller 51.7K/config 50.9K；另 >40KB 共 9） | 回升 | T3 编辑力/角色资产 v2/sin 看板连发所致；拆分留观察池勿顺手做（P3 纪律=专项） |
-| 冷启动/常驻内存 | 未采 | Go 同步链 43–110ms（09-24/25 十二次自然启动样本，中位 ~62ms；大头 charlib+stores 40–47ms）；**前端 gaea:interactive=497ms**（v4.413.0 壳 CDP 实测，gaea:boot 91ms→interactive 588ms，DCL 139ms） | — | 常驻内存仍挂真机窗口 |
+| 冷启动/常驻内存 | 未采 | Go 同步链 43–110ms（09-24/25 十二次自然启动样本，中位 ~62ms；大头 charlib+stores 40–47ms）；**前端 gaea:interactive=497ms**（v4.413.0 壳 CDP 实测，gaea:boot 91ms→interactive 588ms，DCL 139ms）；**常驻内存（闲置态）WS=223MB/Private=235MB**（v4.413.0 壳 2026-09-26 实测） | — | 全采齐；季度复测时按同口径重测 |
 
 判读：回涨全部属功能比例（每版均值 entry +0.9KB/exe +22KB），P4 懒加载结构未破防（页面级 lazy 完整、entry 无重依赖回归）；唯 Go >50KB 0→4 破防，挂观察池待专项。下季复测随 P5 维持。
 

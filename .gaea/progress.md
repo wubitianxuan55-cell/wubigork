@@ -1,3 +1,15 @@
+## 非版本刀：sin 书源一条龙实弹+常驻内存采集（2026-09-26，零代码）
+
+- **走查面**：书源一条龙观察池收官——真机 v4.413.0 壳+假站 walk_server.py(18099)+临时规则 zz-walkthrough-fake.json，桥接 SinB 全链（Search/Toc/Download/BooksList/BookExportEpub/BookDelete）+UI 书源卡+底稿直注+工具链+导出，全程 console 零新增错误。
+- **SSRF 护栏实弹实证（头条发现）**：书源通道 netclient.GuardedClient 对假站 127.0.0.1 报 `refusing to fetch internal address`——v4.374 设计注释明说「书源=内网全禁，防提示注入的规则摸到本机服务」；**假站成功链路真机结构性不可行=护栏按设计工作**，成功路径由 Go 测试注入 Fetcher 覆盖（fetch.go Options.Fetcher）。实测三态全诚实：聚合搜索 total=0 静默+UI 卡片逐源显示失败原因（「书源「zz-walkthrough-fake」搜索失败: …refusing to fetch…」）+Toc 直接抛同错误；下载任务全章失败→成书清单诚实空（「还没有成书」）。
+- **底稿直注实写过**：SinNotesSave(baseline 底稿)→SinStream 轮（本地 herdsman Qwen3.6-35B）→上下文逐轮 `inject=45` token 注入段非零（system 919+inject 45+assistant 50），助手文案带注入特征（灰蓝长衫/短须）——v4.412 上下文口径真机自洽。
+- **工具链实弹过**：第二轮明示「用 book_search 工具搜索」→本地模型真调工具（轨迹第 3 轮「3 条记录 1 工具调用」UI 在位）+诚实回复「没有搜到候选…另外 1 条来源失败被略过」（即护栏拒假站）。
+- **导出双形态过**：SinExportMarkdown 全文（user/assistant 对+落款头）+SinExportEpub 落 `%APPDATA%\gaea\sin\exports\*.epub`；轨迹页签 Duration 77s/Turn 3/Call 1 渲染正常。
+- **清场零残留**：临时故事/角色（remaining=0）/规则文件/导出 EPUB 全删，书架空，rules 目录复原（模板+engines），壳+webview+假站杀净。**零碰 novelsDir**（书源卡下载自包含 sin 书架，与小说导入是两条链——本次链路勘误入档）。
+- **常驻内存首采**：v4.413.0 壳启动闲置态 WS=223MB/Private=235MB（slim-masterplan §3 已回填，P5 表「未采」全清）。
+- **观察池新项**：reload 后偶现 `Callback 'app.ModelB.GetModelMonitor-…' not registered!!!` console 告警×2——Wails 回调重注册竞态（轮询先于注册），无功能损害，候小刀（重注册前静默或幂等重放）。
+- **坑**：①SinStream 是异步流——返回流 ID（`ss_…`）即返回，消息经事件落库，勿当同步结果断言 ②SinMessages 空话题返回 null（非空数组），判空再取 length ③书源规则目录=$APPDATA/gaea/booksource/rules（模板+引擎+用户规则混装，搜索时逐文件装载）。
+
 ## 最新发布：v4.413.0（2026-09-26）「良性取消日志降级（前端错误观测通道降噪）」
 
 - **刀型**：观察池项落地（v4.412 sin 实弹走查收官时新挂）。Go 1 文件+1 测试，绑定面 720 零变更，版本三处 4.413.0（sync-version.ps1）。
