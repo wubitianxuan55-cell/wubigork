@@ -56,9 +56,7 @@ import {
   LoadingOutlined,
   MenuOutlined,
   MessageOutlined,
-  MobileOutlined,
   MoneyCollectOutlined,
-  MoonOutlined,
   NumberOutlined,
   PaperClipOutlined,
   PartitionOutlined,
@@ -67,27 +65,22 @@ import {
   PushpinOutlined,
   PlusOutlined,
   PullRequestOutlined,
-  QrcodeOutlined,
   ReloadOutlined,
   RightOutlined,
   RollbackOutlined,
   RobotOutlined,
   SafetyCertificateOutlined,
   SaveOutlined,
-  ScissorOutlined,
   ScanOutlined,
   SearchOutlined,
   SettingOutlined,
   StopOutlined,
-  SunOutlined,
   SwapOutlined,
   TableOutlined,
   TeamOutlined,
   ThunderboltOutlined,
   ToolOutlined,
   UserOutlined,
-  WalletOutlined,
-  WarningOutlined,
 } from "@ant-design/icons";
 import { createElement, type ComponentType, type ElementType, type SVGProps } from "react";
 
@@ -162,35 +155,25 @@ export const Loader: Icon = wrap(LoadingOutlined);
 export const LineChart: Icon = wrap(LineChartOutlined);
 export const PieChart: Icon = wrap(PieChartOutlined);
 export const MessageSquare: Icon = wrap(MessageOutlined);
-export const Moon: Icon = wrap(MoonOutlined);
 export const Palette: Icon = wrap(EditOutlined);
 export const Paperclip: Icon = wrap(PaperClipOutlined);
 export const Pin: Icon = wrap(PushpinOutlined);
 export const Pencil: Icon = wrap(EditOutlined);
-export const Plug: Icon = wrap(ThunderboltOutlined);
 export const Plus: Icon = wrap(PlusOutlined);
-export const Puzzle: Icon = wrap(ApartmentOutlined);
-export const QrCode: Icon = wrap(QrcodeOutlined);
 export const Rollback: Icon = wrap(RollbackOutlined);
 export const RefreshCw: Icon = wrap(ReloadOutlined);
 export const Save: Icon = wrap(SaveOutlined);
-export const Scissors: Icon = wrap(ScissorOutlined);
 export const ScrollText: Icon = wrap(FileTextOutlined);
 export const Scan: Icon = wrap(ScanOutlined);
 export const Search: Icon = wrap(SearchOutlined);
 export const Shield: Icon = wrap(SafetyCertificateOutlined);
-export const ShieldAlert: Icon = wrap(WarningOutlined);
-export const Smartphone: Icon = wrap(MobileOutlined);
 export const Square: Icon = wrap(AppstoreOutlined);
-export const Sun: Icon = wrap(SunOutlined);
 export const Trash2: Icon = wrap(DeleteOutlined);
 export const TrendingUp: Icon = wrap(LineChartOutlined);
 export const User: Icon = wrap(UserOutlined);
-export const Wallet: Icon = wrap(WalletOutlined);
 export const Wand2: Icon = wrap(BulbOutlined);
 export const Wrench: Icon = wrap(ToolOutlined);
 export const X: Icon = wrap(CloseOutlined);
-export const XasXIcon: Icon = wrap(CloseOutlined);
 export const XCircle: Icon = wrap(CloseCircleOutlined);
 
 export const SquarePen: Icon = wrap(EditOutlined);

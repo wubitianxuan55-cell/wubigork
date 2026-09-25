@@ -17,6 +17,3 @@ func LowPriority(cmd *exec.Cmd) {
 	}
 	cmd.SysProcAttr.CreationFlags |= belowNormalPriorityClass
 }
-
-// LowPriorityStarted is a no-op on Windows; priority is set at creation.
-func LowPriorityStarted(*exec.Cmd) {}

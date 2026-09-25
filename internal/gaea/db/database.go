@@ -104,20 +104,6 @@ func CloseDatabase(userDir string) error {
 	return nil
 }
 
-// CloseAllDatabases 关闭全部连接（应用退出时调用）。
-func CloseAllDatabases() {
-	poolsMu.Lock()
-	defer poolsMu.Unlock()
-	for userDir, db := range pools {
-		_, _ = db.Exec("PRAGMA wal_checkpoint(TRUNCATE)")
-		_ = db.Close()
-		dbPath := DatabasePath(userDir)
-		_ = os.Remove(dbPath + "-wal")
-		_ = os.Remove(dbPath + "-shm")
-	}
-	pools = make(map[string]*sql.DB)
-}
-
 // WithTransaction 在事务中执行 fn，自动 commit/rollback。
 func WithTransaction(userDir string, fn func(tx *sql.Tx) error) error {
 	db := GetDatabase(userDir)

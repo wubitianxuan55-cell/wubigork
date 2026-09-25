@@ -80,20 +80,6 @@ func listTargets(ctx context.Context, httpBase string) ([]Target, error) {
 	return targets, nil
 }
 
-// firstPageTarget 返回第一个 type=="page" 的目标；没有则 (nil, nil)。
-func firstPageTarget(ctx context.Context, httpBase string) (*Target, error) {
-	targets, err := listTargets(ctx, httpBase)
-	if err != nil {
-		return nil, fmt.Errorf("browser: 列举目标失败: %w", err)
-	}
-	for i := range targets {
-		if targets[i].Type == "page" {
-			return &targets[i], nil
-		}
-	}
-	return nil, nil
-}
-
 // newPageTarget 建一个新页面目标（Edge 新版要求 PUT；url 作为 query 传递）。
 func newPageTarget(ctx context.Context, httpBase, pageURL string) (*Target, error) {
 	var t Target

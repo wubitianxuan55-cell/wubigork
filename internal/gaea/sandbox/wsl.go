@@ -3,9 +3,7 @@
 package sandbox
 
 import (
-	"bytes"
 	"context"
-	"fmt"
 	"os/exec"
 	"strings"
 	"time"
@@ -64,34 +62,6 @@ func (d *WSL2Distro) WrapCommand(shellCmd string) ([]string, bool) {
 	// Use bash if available, otherwise sh
 	argv = append(argv, "bash", "-c", shellCmd)
 	return argv, true
-}
-
-// CommandViaWSL2 runs a command inside the WSL2 distribution. Returns stdout
-// content and any error. Adds a 5-minute timeout.
-func (d *WSL2Distro) CommandViaWSL2(ctx context.Context, shellCmd string) (string, error) {
-	argv, ok := d.WrapCommand(shellCmd)
-	if !ok {
-		return "", fmt.Errorf("WSL2 not available")
-	}
-
-	execCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
-	defer cancel()
-
-	cmd := exec.CommandContext(execCtx, argv[0], argv[1:]...)
-	proc.HideWindow(cmd) // Windows: 防止弹出 cmd 黑框
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-
-	if err := cmd.Run(); err != nil {
-		errMsg := strings.TrimSpace(stderr.String())
-		if errMsg != "" {
-			return "", fmt.Errorf("wsl: %s: %w", errMsg, err)
-		}
-		return "", fmt.Errorf("wsl: %w", err)
-	}
-
-	return strings.TrimSpace(stdout.String()), nil
 }
 
 // AvailableWSL2 returns true when WSL2 is available with at least one distro.

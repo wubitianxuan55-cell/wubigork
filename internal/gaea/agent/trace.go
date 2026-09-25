@@ -22,12 +22,3 @@ func NewTraceID() string {
 func WithTraceID(ctx context.Context, id string) context.Context {
 	return context.WithValue(ctx, traceIDKey{}, id)
 }
-
-// TraceID extracts the trace ID from the context.
-// Returns "" when no trace ID is set.
-func TraceID(ctx context.Context) string {
-	if id, ok := ctx.Value(traceIDKey{}).(string); ok {
-		return id
-	}
-	return ""
-}

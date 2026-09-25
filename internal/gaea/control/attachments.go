@@ -6,14 +6,11 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"sync/atomic"
 	"time"
 
-	"github.com/gaea/gaea/internal/gaea/proc"
 )
 
 const maxImageAttachmentBytes = 10 * 1024 * 1024
@@ -111,58 +108,6 @@ func SaveImageFile(path string) (string, error) {
 		return "", fmt.Errorf("pasted image changed while reading")
 	}
 	return SaveImageBytes("", raw)
-}
-
-func SaveClipboardImage() (string, error) {
-	switch runtime.GOOS {
-	case "darwin":
-		return saveDarwinClipboardImage()
-	case "windows":
-		return saveWindowsClipboardImage()
-	case "linux":
-		return saveLinuxClipboardImage()
-	default:
-		return "", fmt.Errorf("clipboard image paste is not supported on %s yet", runtime.GOOS)
-	}
-}
-
-func saveWindowsClipboardImage() (string, error) {
-	// Windows PowerShell 5.1 (preinstalled) reaches the GUI clipboard; pwsh (Core)
-	// lacks Get-Clipboard -Format Image, so invoke powershell.exe. The PNG is
-	// returned as base64 on stdout so no temp file is involved.
-	script := `Add-Type -AssemblyName System.Drawing
-$img = Get-Clipboard -Format Image
-if ($null -eq $img) { [Console]::Error.WriteLine('clipboard has no image'); exit 1 }
-$ms = New-Object System.IO.MemoryStream
-$img.Save($ms, [System.Drawing.Imaging.ImageFormat]::Png)
-[Convert]::ToBase64String($ms.ToArray())`
-	cmd := exec.Command("powershell", "-NoProfile", "-NonInteractive", "-Command", script)
-	proc.HideWindow(cmd) // Windows: 防止弹出 cmd 黑框
-	out, err := cmd.Output()
-	if err != nil {
-		if ee, ok := err.(*exec.ExitError); ok && len(ee.Stderr) > 0 {
-			return "", fmt.Errorf("read clipboard image: %s", strings.TrimSpace(string(ee.Stderr)))
-		}
-		return "", fmt.Errorf("read clipboard image: %w", err)
-	}
-	raw, err := base64.StdEncoding.DecodeString(strings.TrimSpace(string(out)))
-	if err != nil {
-		return "", fmt.Errorf("decode clipboard image: %w", err)
-	}
-	return SaveImageBytes("", raw)
-}
-
-func saveLinuxClipboardImage() (string, error) {
-	// Wayland (wl-paste) then X11 (xclip); both write image bytes to stdout.
-	for _, c := range [][]string{
-		{"wl-paste", "--type", "image/png", "--no-newline"},
-		{"xclip", "-selection", "clipboard", "-t", "image/png", "-o"},
-	} {
-		if out, err := exec.Command(c[0], c[1:]...).Output(); err == nil && len(out) > 0 {
-			return SaveImageBytes("", out)
-		}
-	}
-	return "", fmt.Errorf("clipboard image paste needs wl-paste (Wayland) or xclip (X11)")
 }
 
 func ImageDataURL(path string) (string, error) {
@@ -278,63 +223,6 @@ func ensureAttachmentRoot() error {
 		return fmt.Errorf("attachment directory is invalid")
 	}
 	return nil
-}
-
-func saveDarwinClipboardImage() (string, error) {
-	for _, class := range []string{"PNGf", "JPEG"} {
-		if rel, err := saveDarwinClipboardClass(class); err == nil {
-			return rel, nil
-		}
-	}
-	return "", fmt.Errorf("clipboard does not contain a supported image")
-}
-
-func saveDarwinClipboardClass(class string) (string, error) {
-	if err := ensureAttachmentRoot(); err != nil {
-		return "", err
-	}
-	rel, f, err := createAttachmentFile(".bin")
-	if err != nil {
-		return "", err
-	}
-	if err := f.Close(); err != nil {
-		_ = os.Remove(rel)
-		return "", err
-	}
-	abs, err := filepath.Abs(rel)
-	if err != nil {
-		_ = os.Remove(rel)
-		return "", err
-	}
-	script := fmt.Sprintf(`
-set outPath to POSIX file %q
-try
-	set img to the clipboard as «class %s»
-on error
-	error "clipboard does not contain this image type"
-end try
-set f to open for access outPath with write permission
-try
-	set eof f to 0
-	write img to f
-	close access f
-on error errMsg
-	try
-		close access f
-	end try
-	error errMsg
-end try
-`, abs, class)
-	if out, err := exec.Command("osascript", "-e", script).CombinedOutput(); err != nil {
-		_ = os.Remove(rel)
-		return "", fmt.Errorf("read clipboard image: %s", strings.TrimSpace(string(out)))
-	}
-	raw, err := os.ReadFile(rel)
-	_ = os.Remove(rel)
-	if err != nil {
-		return "", err
-	}
-	return SaveImageBytes("", raw)
 }
 
 func createAttachmentFile(ext string) (string, *os.File, error) {

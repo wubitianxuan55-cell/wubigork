@@ -45,19 +45,6 @@ func WriteCheckpoint(path string, seq int64, msgs []provider.Message, space stri
 	return fileutil.AtomicWrite(path, b, 0o644)
 }
 
-// WriteCheckpointFull 带重写版本写检查点（压缩协议用）。
-func WriteCheckpointFull(path string, cp Checkpoint) error {
-	if path == "" {
-		return errors.New("empty checkpoint path")
-	}
-	cp.Created = time.Now().Unix()
-	b, err := json.Marshal(cp)
-	if err != nil {
-		return fmt.Errorf("marshal checkpoint: %w", err)
-	}
-	return fileutil.AtomicWrite(path, b, 0o644)
-}
-
 // ReadCheckpoint 读回检查点。文件不存在时返回 nil, nil（无检查点 = 从日志头重放）。
 // 损坏的检查点同样按「无检查点」处理（防御：检查点只是加速恢复，不应阻塞）。
 func ReadCheckpoint(path string) (*Checkpoint, error) {
@@ -132,12 +119,4 @@ func Restore(checkpointPath, logPath string) ([]provider.Message, int64, error) 
 	tail = BalanceEntries(tail)
 	msgs = append(msgs, ProjectMessages(tail)...)
 	return msgs, last, nil
-}
-
-// FlushCheckpoint 是「模型调用前 flush 检查点（fail-closed）」的落盘动作：
-// 把当前消息投影 + 已消费 seq 写入检查点。事件日志模式下，调用方在每轮
-// 模型调用前调用它；失败返回错误（fail-closed），由调用方决定中止还是降级。
-// space 为会话空间自描述值（与日志行同源）。
-func FlushCheckpoint(checkpointPath string, msgs []provider.Message, consumedSeq int64, space string) error {
-	return WriteCheckpoint(checkpointPath, consumedSeq, msgs, space)
 }

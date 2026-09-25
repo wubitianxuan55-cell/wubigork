@@ -93,23 +93,6 @@ type RetryPolicy struct {
 	RetryAfterHeader *time.Duration
 }
 
-// DefaultRetryPolicy returns a policy suitable for most transient failures
-// (network errors, 408, 5xx): 3 attempts total, default backoff.
-func DefaultRetryPolicy() RetryPolicy {
-	return RetryPolicy{
-		MaxAttempts: 3,
-		Backoff:     DefaultBackoff(),
-	}
-}
-
-// RateLimitRetryPolicy returns a policy for 429 responses: 5 attempts, longer backoff.
-func RateLimitRetryPolicy() RetryPolicy {
-	return RetryPolicy{
-		MaxAttempts: 5,
-		Backoff:     RateLimitBackoff(),
-	}
-}
-
 // ParseRetryAfter reads the Retry-After header from an HTTP response and
 // returns the parsed duration. Returns 0 when the header is absent, malformed,
 // or exceeds the cap. The cap prevents a malicious/confused server from

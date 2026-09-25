@@ -150,29 +150,6 @@ func NewSpawnPolicy() *SpawnPolicy {
 	return &SpawnPolicy{maxForks: 8, minTaskLen: 10, domainCache: make(map[string]SpawnDomainEntry, 64)}
 }
 
-func (p *SpawnPolicy) ShouldFork(task string) bool {
-	trimmed := strings.TrimSpace(task)
-	if len(trimmed) < p.minTaskLen {
-		return false
-	}
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	return p.forkCount < p.maxForks
-}
-
-func (p *SpawnPolicy) Fork(compiler *Compiler, config ForkConfig) *Compiler {
-	if compiler == nil {
-		return nil
-	}
-	child := compiler.Fork()
-	domain := p.buildSpawnDomain(config)
-	p.mu.Lock()
-	p.forkCount++
-	p.recordHit(p.hashDomain(domain), config.TaskKind)
-	p.mu.Unlock()
-	return child
-}
-
 // BuildSpawnPrompt 构造子代理的完整 prompt。
 //
 // 新版：返回 (systemMessages, userMessage) 二元组。
@@ -248,46 +225,4 @@ func (p *SpawnPolicy) recordHit(hash string, kind TaskKind) {
 		}
 		delete(p.domainCache, oldestKey)
 	}
-}
-
-func (p *SpawnPolicy) RecordForkSavings(savedTokens int64, pricePerToken float64) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	p.savedTokens += savedTokens
-	if pricePerToken > 0 {
-		p.savedUSD += float64(savedTokens) * pricePerToken
-	}
-}
-
-func (p *SpawnPolicy) ForkMetrics() (active, max int, savedTokens int64, savedUSD float64) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	return p.forkCount, p.maxForks, p.savedTokens, p.savedUSD
-}
-
-func (p *SpawnPolicy) DomainReuseRate() (distinct, total int) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	distinct = len(p.domainCache)
-	for _, e := range p.domainCache {
-		total += e.HitCount
-	}
-	return distinct, total
-}
-
-func (p *SpawnPolicy) Reset() {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	p.forkCount = 0
-	p.savedTokens = 0
-	p.savedUSD = 0
-	p.domainCache = make(map[string]SpawnDomainEntry, 64)
-}
-
-func (p *SpawnPolicy) Report() SpawnReport {
-	active, max, savedTokens, savedUSD := p.ForkMetrics()
-	distinct, total := p.DomainReuseRate()
-	return SpawnReport{ActiveForks: active, MaxForks: max,
-		SavedTokens: savedTokens, SavedUSD: savedUSD,
-		DomainCount: distinct, TotalSpawns: total}
 }

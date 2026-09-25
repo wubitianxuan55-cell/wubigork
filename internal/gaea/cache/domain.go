@@ -66,21 +66,6 @@ func merge(slices ...[]string) []string {
 	return out
 }
 
-// mergeUnique appends unique elements from src to dst.
-func mergeUnique(dst, src []string) []string {
-	seen := make(map[string]bool, len(dst))
-	for _, t := range dst {
-		seen[t] = true
-	}
-	for _, t := range src {
-		if !seen[t] {
-			dst = append(dst, t)
-			seen[t] = true
-		}
-	}
-	return dst
-}
-
 // matchAnyWord reports whether s contains any keyword as a whole word.
 func matchAnyWord(s string, keywords ...string) bool {
 	for _, kw := range keywords {

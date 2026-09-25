@@ -479,24 +479,6 @@ func (s *Set) EpisodicMatches(input string) []Memory {
 	return out
 }
 
-// EpisodicBlock formats episodic memories as few-shot examples for turn-tail
-// injection. Uses the observation→action→result pattern where available.
-func EpisodicBlock(mm []Memory) string {
-	if len(mm) == 0 {
-		return ""
-	}
-	var b strings.Builder
-	b.WriteString("<episodic-memory>\n")
-	b.WriteString("Past experiences relevant to the current task:\n\n")
-	for _, m := range mm {
-		b.WriteString(fmt.Sprintf("## %s\n", m.Title))
-		b.WriteString(strings.TrimSpace(m.Body) + "\n\n")
-	}
-	b.WriteString("Use these past experiences to inform your approach — avoid repeating mistakes, apply successful patterns.\n")
-	b.WriteString("</episodic-memory>")
-	return b.String()
-}
-
 // InitDefaults creates default memory files when a project or user config has
 // none. It writes AGENTS.md at both the user-global level (shared across all
 // projects) and the project level (project-specific). Existing files are never

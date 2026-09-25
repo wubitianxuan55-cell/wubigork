@@ -259,21 +259,6 @@ func (r *Registry) HideUnlessOnly(names []string, alternatives []string) {
 // model-visible name is "mcp__<server>__<tool>".
 const MCPNamePrefix = "mcp__"
 
-// SplitMCPName splits a model-visible MCP tool name "mcp__<server>__<tool>" into
-// its server and tool parts. ok is false for non-MCP (built-in) names and for
-// malformed names missing either part.
-func SplitMCPName(name string) (server, tool string, ok bool) {
-	if !strings.HasPrefix(name, MCPNamePrefix) {
-		return "", "", false
-	}
-	rest := name[len(MCPNamePrefix):]
-	parts := strings.SplitN(rest, "__", 2)
-	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
-		return "", "", false
-	}
-	return parts[0], parts[1], true
-}
-
 // RemovePrefix unregisters every tool whose name starts with prefix — used to
 // drop an MCP server's "mcp__<server>__" namespace when it's disconnected — and
 // returns the count removed.
