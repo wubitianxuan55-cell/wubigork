@@ -212,7 +212,8 @@ describe("SummaryBar", () => {
     for (const label of ["系统提示词", "工具定义", "用户消息", "注入内容", "助手消息", "工具结果", "空闲窗口"]) {
       expect(screen.getByText(label)).toBeTruthy();
     }
-    expect(screen.getByText("0 / 0 · 0%")).toBeTruthy();
+    // v4.412 窗口未知（window=0）时百分比诚实「—」，不再伪造 0%
+    expect(screen.getByText("0 / 0 · —")).toBeTruthy();
     expect(screen.getByText("0 次请求")).toBeTruthy();
     expect(screen.getByText("累计费用 —")).toBeTruthy();
   });

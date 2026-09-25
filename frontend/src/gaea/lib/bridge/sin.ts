@@ -8,6 +8,7 @@
 // 插图：SinIllustrate 复用绘梦图像后端生成，产物落 imagehub 台账
 // （space=play / source_board=sin），并把路径回写到该轮消息 extra.illustrations。
 import type { chat } from "../../../../wailsjs/go/models";
+import type { ContextNodeDetailView, ContextTimeline, Trajectory } from "../types";
 import type { NovelBookSourceSearchResult, NovelBookSourceTocPreview } from "./novel";
 
 export interface SinBindings {
@@ -20,6 +21,19 @@ export interface SinBindings {
   SinTopicClear(id: string): Promise<void>;
   /** 故事全部消息（按 seq 升序）。 */
   SinMessages(topicID: string): Promise<chat.Message[]>;
+  /**
+   * 故事轨迹时间线（v4.412）：把落库消息 + extra 工具轨迹折叠成与办公
+   * Trajectory 同构的轮次视图，前端 TrajectoryView 原组件复用。
+   */
+  SinTrajectory(topicID: string): Promise<Trajectory>;
+  /**
+   * 故事上下文构成快照（v4.412，估算口径）：无 usage 上报 → 请求全部
+   * Estimated 标注、窗口未知（window=0，前端水位显示「—」）；前端
+   * ContextView 原组件复用。
+   */
+  SinContextView(topicID: string): Promise<ContextTimeline>;
+  /** 上下文浏览器节点「完整调用」详情（user/assistant 全文、tool 参数+输出）。 */
+  SinContextNodeDetail(topicID: string, seq: number): Promise<ContextNodeDetailView>;
   /** 故事续写流式入口：返回 runID，前端订阅 sin-stream:<runID>。 */
   SinStream(topicID: string, message: string): Promise<string>;
   /**

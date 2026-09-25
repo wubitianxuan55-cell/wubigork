@@ -1398,6 +1398,7 @@ export const zhTW: Record<DictKey, string> = {
   "contextview.loadFail": "上下文視圖載入失敗：{msg}",
   "contextview.toolResultShare": "工具結果 ≈{tokens} ({pct}%) 佔已用上下文",
   "contextview.pctUsed": "上下文已用",
+  "contextview.windowUnknown": "上下文視窗未知（無用量上報）",
   "contextview.idleWindow": "空閒視窗",
   "contextview.spaceWork": "辦公空間",
   "contextview.spacePlay": "娛樂空間",

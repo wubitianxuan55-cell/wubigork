@@ -31,6 +31,32 @@ describe("ChatTabs 对话标签栏（v4.73 记忆 tab 迁入主区）", () => {
     expect(trajectoryBtn.getAttribute("title")).toBe("工具调用/步骤时间线");
   });
 
+  it("v4.412 子集渲染：原罪只挂 对话/轨迹/上下文，缺省仍全量", () => {
+    const { unmount } = render(
+      <ChatTabs active="chat" onChange={() => {}} tabs={["chat", "trajectory", "context"]} />,
+    );
+    const labels = Array.from(document.querySelectorAll("button")).map((b) => b.textContent);
+    expect(labels).toEqual(["对话", "轨迹", "上下文"]);
+    unmount();
+    render(<ChatTabs active="chat" onChange={() => {}} />);
+    expect(Array.from(document.querySelectorAll("button")).map((b) => b.textContent)).toEqual(
+      ["对话", "轨迹", "上下文", "记忆"],
+    );
+  });
+
+  it("v4.412 标签覆盖：主 tab 显示「故事」，其余回落内置文案", () => {
+    render(
+      <ChatTabs
+        active="chat"
+        onChange={() => {}}
+        tabs={["chat", "trajectory", "context"]}
+        labelOverrides={{ chat: "故事" }}
+      />,
+    );
+    const labels = Array.from(document.querySelectorAll("button")).map((b) => b.textContent);
+    expect(labels).toEqual(["故事", "轨迹", "上下文"]);
+  });
+
   it("子代理会话 tab：状态点随运行态着色、title 显示完整详情（同主代理口径）", () => {
     render(
       <ChatTabs

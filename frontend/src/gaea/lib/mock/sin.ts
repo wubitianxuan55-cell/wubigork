@@ -7,6 +7,7 @@
 // AttachmentDataURL 占位色块让「图文混杂」版面可走查）；导出按内存消息渲染
 // Markdown（与 Go SinExportMarkdown 同规则：标记 → 图片/占位）。
 import type { AppBindings } from "../bridge";
+import type { ContextTimeline, Trajectory } from "../types";
 import type { chat } from "../../../../wailsjs/go/models";
 import { SIN_CUE_CLOSE, SIN_CUE_OPEN } from "../../../pages/sin/storyText";
 
@@ -16,6 +17,7 @@ type SinMethods = Pick<
   | "SinTopicClear" | "SinMessages" | "SinStream" | "SinIllustrate" | "SinExportMarkdown"
   | "SinExportEpub"
   | "SinCastGet" | "SinCastSet" | "SinCancel" | "SinNotesGet" | "SinNotesSave"
+  | "SinTrajectory" | "SinContextView" | "SinContextNodeDetail"
   | "SinBookSourceSearch" | "SinBookSourceToc" | "SinBookSourceDownload"
   | "SinBookSourceDownloadCancel" | "SinBookSourceBooksList" | "SinBookSourceBookDelete"
   | "SinBookSourceBookExportEpub"
@@ -70,6 +72,34 @@ const DEMO_TOOLS = [
     error: "", elapsed_ms: 5, read_only: false,
   },
 ];
+
+/** mock 消息 extra 读取投影（与 Go sinMsgExtra / 前端 storyText 同键名）。 */
+interface MockSinToolTrace {
+  id: string; name: string; args: string; output: string;
+  error?: string; elapsed_ms?: number; read_only?: boolean;
+}
+
+function mockExtra(raw: string): {
+  reasoning?: string;
+  tools: MockSinToolTrace[];
+  illustrations?: Record<string, string>;
+} {
+  try {
+    const p = JSON.parse(raw || "{}") as Record<string, unknown>;
+    return {
+      reasoning: typeof p.reasoning === "string" ? p.reasoning : undefined,
+      tools: Array.isArray(p.tools) ? (p.tools as MockSinToolTrace[]) : [],
+      illustrations: (p.illustrations as Record<string, string>) ?? {},
+    };
+  } catch {
+    return { tools: [], illustrations: {} };
+  }
+}
+
+/** 与 Go sinNodeSeq 同编址：消息 ID×10 + 槽位（0=user、1..8=tool、9=assistant）。 */
+function mockSeq(msgId: number, slot: number): number {
+  return msgId * 10 + slot;
+}
 
 export function buildSin(): SinMethods {
   let seq = 0;
@@ -153,6 +183,131 @@ export function buildSin(): SinMethods {
     async SinMessages(topicID: string) {
       seed();
       return (messages.get(topicID) ?? []) as unknown as chat.Message[];
+    },
+    // ── v4.412 看板复用：与 Go sin_insight 同规则的内存折叠（估算口径） ──
+    async SinTrajectory(topicID: string) {
+      seed();
+      const turns: Trajectory["turns"] = [];
+      let cur: Trajectory["turns"][number] | null = null;
+      for (const m of messages.get(topicID) ?? []) {
+        const ts = Math.floor(new Date(m.created_at + "Z").getTime() / 1000) || 0;
+        const ex = mockExtra(m.extra);
+        if (m.role === "user") {
+          if (cur) turns.push(cur);
+          cur = {
+            turn: turns.length + 1, startedAt: ts, records: [{
+              seq: mockSeq(m.id, 0), kind: "user", ts, user: { text: m.content },
+            }],
+          };
+          continue;
+        }
+        const recs: Trajectory["turns"][number]["records"] = ex.tools.map((t, i) => ({
+          seq: mockSeq(m.id, Math.min(i + 1, 8)), kind: "tool", ts,
+          durationMs: t.elapsed_ms || undefined,
+          tool: {
+            id: t.id, name: t.name, args: t.args, output: t.output, err: t.error || undefined,
+            readOnly: t.read_only || undefined, status: t.error ? "error" : "ok",
+          },
+        }));
+        recs.push({
+          seq: mockSeq(m.id, 9), kind: "assistant", ts,
+          assistant: { text: m.content, reasoning: ex.reasoning || undefined },
+        });
+        if (!cur) continue; // 孤儿助手消息：mock 走查态直接丢弃（真机归轮间）
+        cur.records.push(...recs);
+        const end = recs[recs.length - 1];
+        cur.end = { seq: end.seq, ts: end.ts };
+        if (end.ts > (cur.startedAt ?? 0)) cur.durationMs = (end.ts - (cur.startedAt ?? 0)) * 1000;
+      }
+      if (cur) turns.push(cur);
+      return { ok: true, turns };
+    },
+    async SinContextView(topicID: string) {
+      seed();
+      const list = messages.get(topicID) ?? [];
+      const est = (s: string) => Math.round(s.length * 0.25);
+      const catTotal = (c: ContextTimeline["current"]) => c.system + c.tools + c.user + c.inject + c.assistant + c.tool;
+      const nodes: ContextTimeline["nodes"] = [];
+      const requests: ContextTimeline["requests"] = [];
+      let cumUser = 0, cumAsst = 0, cumTool = 0, turn = 0, toolCalls = 0, images = 0;
+      let curUser = "";
+      let curUserId = 0;
+      let prevNodes = nodes.length;
+      const mockSystem = "你是原罪板块的图文故事合作写作者。";
+      nodes.push({ seq: 1, cat: "system", tokens: est(mockSystem), text: mockSystem });
+      for (const m of list) {
+        const ex = mockExtra(m.extra);
+        images += Object.keys(ex.illustrations ?? {}).length;
+        if (m.role === "user") {
+          turn += 1;
+          curUser = m.content;
+          curUserId = m.id;
+          cumUser += est(m.content);
+          nodes.push({ seq: mockSeq(m.id, 0), cat: "user", tokens: est(m.content), text: m.content.slice(0, 120) });
+          continue;
+        }
+        for (const [i, t] of ex.tools.entries()) {
+          cumTool += est(t.output);
+          toolCalls += 1;
+          nodes.push({
+            seq: mockSeq(m.id, Math.min(i + 1, 8)), cat: "tool", tokens: est(t.output),
+            text: t.output.slice(0, 120), tool: t.name, err: !!t.error,
+          });
+        }
+        cumAsst += est(m.content);
+        nodes.push({ seq: mockSeq(m.id, 9), cat: "assistant", tokens: est(m.content), text: m.content.slice(0, 120) });
+        if (turn === 0) continue;
+        const category = { system: est(mockSystem), tools: 0, user: cumUser, inject: 0, assistant: cumAsst, tool: cumTool };
+        const prev = requests[requests.length - 1]?.category;
+        requests.push({
+          seq: requests.length + 1, ts: Math.floor(new Date(m.created_at + "Z").getTime() / 1000) || 0,
+          turn, step: 1, category, estimated: true,
+          briefUser: curUser.split("\n")[0].slice(0, 48), briefUserSeq: mockSeq(curUserId, 0),
+          briefResp: m.content.split("\n")[0].slice(0, 48), briefRespSeq: mockSeq(m.id, 9),
+          delta: {
+            items: nodes.length - prevNodes, first: requests.length === 0,
+            tokens: requests.length === 0 ? catTotal(category) : catTotal(category) - catTotal(prev!),
+          },
+        });
+        prevNodes = nodes.length;
+      }
+      const timing = toolCalls > 0 ? {
+        toolsMs: (list.flatMap((m) => mockExtra(m.extra).tools)).reduce((a, t) => a + (t.elapsed_ms || 0), 0),
+        toolCalls,
+        tools: Object.entries(
+          (list.flatMap((m) => mockExtra(m.extra).tools)).reduce<Record<string, { calls: number; ms: number }>>((acc, t) => {
+            acc[t.name] = { calls: (acc[t.name]?.calls ?? 0) + 1, ms: (acc[t.name]?.ms ?? 0) + (t.elapsed_ms || 0) };
+            return acc;
+          }, {}),
+        ).map(([name, v]) => ({ name, ...v })).sort((a, b) => b.ms - a.ms),
+      } : undefined;
+      return {
+        ok: true, window: 0,
+        current: requests[requests.length - 1]?.category ?? { system: 0, tools: 0, user: 0, inject: 0, assistant: 0, tool: 0 },
+        stats: { turns: turn, steps: requests.length, injects: 0, compacts: 0, prunes: 0, toolCalls, images },
+        requests, events: [], nodes, archive: [], files: [], timing,
+      };
+    },
+    async SinContextNodeDetail(topicID: string, seq: number) {
+      seed();
+      for (const m of messages.get(topicID) ?? []) {
+        if (m.role === "user" && mockSeq(m.id, 0) === seq) {
+          return { seq, kind: "user_message", text: m.content, lines: m.content.split("\n").length };
+        }
+        if (m.role !== "assistant") continue;
+        if (mockSeq(m.id, 9) === seq) {
+          return { seq, kind: "assistant_message", text: m.content, lines: m.content.split("\n").length };
+        }
+        const tools = mockExtra(m.extra).tools;
+        for (const [i, t] of tools.entries()) {
+          if (mockSeq(m.id, Math.min(i + 1, 8)) !== seq) continue;
+          return {
+            seq, kind: "tool_result", tool: t.name, args: t.args, output: t.output,
+            err: t.error || undefined, lines: (t.output || "").split("\n").length,
+          };
+        }
+      }
+      throw new Error("未找到可展开的节点");
     },
     async SinStream(topicID: string, message: string) {
       seed();

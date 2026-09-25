@@ -4,6 +4,8 @@ package app
 
 import (
 	"github.com/gaea/gaea/internal/chat"
+	"github.com/gaea/gaea/internal/gaea/contextview"
+	"github.com/gaea/gaea/internal/gaea/trajectory"
 )
 
 // SinB 原罪（闲庭·图文故事创作）绑定门面（S2-3「App 绑定面拆分」）：仅暴露原罪（闲庭·图文故事创作）的方法，
@@ -20,6 +22,8 @@ func (b *SinB) SinBookSourceToc(source string, detailURL string) (NovelBookSourc
 func (b *SinB) SinCancel(topicID string) error { return b.a.SinCancel(topicID) }
 func (b *SinB) SinCastGet(topicID string) ([]string, error) { return b.a.SinCastGet(topicID) }
 func (b *SinB) SinCastSet(topicID string, ids []string) ([]string, error) { return b.a.SinCastSet(topicID, ids) }
+func (b *SinB) SinContextNodeDetail(topicID string, seq int64) (contextview.NodeDetail, error) { return b.a.SinContextNodeDetail(topicID, seq) }
+func (b *SinB) SinContextView(topicID string) (contextview.ContextTimeline, error) { return b.a.SinContextView(topicID) }
 func (b *SinB) SinExportEpub(topicID string) (string, error) { return b.a.SinExportEpub(topicID) }
 func (b *SinB) SinExportMarkdown(topicID string) (string, error) { return b.a.SinExportMarkdown(topicID) }
 func (b *SinB) SinIllustrate(topicID string, messageID int64, cue string, prompt string, size string) (map[string]interface{}, error) { return b.a.SinIllustrate(topicID, messageID, cue, prompt, size) }
@@ -32,3 +36,4 @@ func (b *SinB) SinTopicCreate(title string) (chat.Topic, error) { return b.a.Sin
 func (b *SinB) SinTopicDelete(id string) error { return b.a.SinTopicDelete(id) }
 func (b *SinB) SinTopicRename(id string, title string) error { return b.a.SinTopicRename(id, title) }
 func (b *SinB) SinTopicsList() ([]chat.Topic, error) { return b.a.SinTopicsList() }
+func (b *SinB) SinTrajectory(topicID string) (trajectory.Trajectory, error) { return b.a.SinTrajectory(topicID) }

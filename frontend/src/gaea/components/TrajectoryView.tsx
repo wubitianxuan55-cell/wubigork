@@ -310,7 +310,12 @@ function OverviewBar({ turns, onJump }: { turns: TrajectoryTurn[]; onJump: (turn
 }
 
 // ─── 容器：拉取 + 搜索 + 统计 + 布局 ────────────────────────
-export function TrajectoryView({ running, sessionPath }: { running: boolean; sessionPath?: string }) {
+export function TrajectoryView({ running, sessionPath, fetchTrajectory }: {
+  running: boolean;
+  sessionPath?: string;
+  /** 自定义数据源（v4.412 原罪复用：SinTrajectory 按故事 id 折叠）；缺省按会话路径。 */
+  fetchTrajectory?: () => Promise<Trajectory>;
+}) {
   const t = useT();
   const [trajectory, setTrajectory] = useState<Trajectory>(EMPTY);
   const [query, setQuery] = useState("");
@@ -322,9 +327,12 @@ export function TrajectoryView({ running, sessionPath }: { running: boolean; ses
   const rowHeights = useDynamicRowHeight({ defaultRowHeight: 29, key: "trajectory" });
 
   const load = useCallback(() => {
-    // 按 UI 会话读取（v4.181）：缺省=内核当前会话。会话切换经 load 依赖重建触发。
-    app.Trajectory(sessionPath ?? "")
-      // 老后端可能把空切片序列化成 null，按数组消费前统一归一化
+    // 自定义源优先（原罪按故事 id）；缺省按 UI 会话读取（v4.181），缺省=内核当前会话。
+    const p = fetchTrajectory
+      ? fetchTrajectory()
+      : app.Trajectory(sessionPath ?? "");
+    // 老后端可能把空切片序列化成 null，按数组消费前统一归一化
+    p
       .then((t) => {
         setTrajectory({
           ...t,
@@ -334,7 +342,7 @@ export function TrajectoryView({ running, sessionPath }: { running: boolean; ses
         setError(null);
       })
       .catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)));
-  }, [sessionPath]);
+  }, [fetchTrajectory, sessionPath]);
 
   useEffect(() => { load(); }, [load]);
   // 运行中随事件流节流刷新 + 回合结束立即刷新（useLiveReload）。

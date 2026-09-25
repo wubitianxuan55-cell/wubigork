@@ -585,3 +585,68 @@ describe("ContextView 2.5b 后半：工具结果图片缩略卡 + token 估算",
     expect(contextViewMock).toHaveBeenCalledWith("/sessions/hist.jsonl");
   });
 });
+
+describe("ContextView v4.412：窗口未知诚实化 + 复用门控", () => {
+  beforeEach(() => {
+    contextViewMock.mockReset();
+    contextViewMock.mockResolvedValue(TIMELINE);
+    contextNodeDetailMock.mockReset();
+    contextNodeDetailMock.mockResolvedValue({
+      seq: 4, kind: "tool_result", tool: "read_file", output: "out", lines: 1,
+    });
+    subscribeAgentNetworkMock.mockClear();
+    reloadAgentNetworkMock.mockClear();
+  });
+
+  const EMPTY_WINDOW_TIMELINE: ContextTimeline = {
+    ...TIMELINE,
+    window: 0,
+  };
+
+  it("窗口未知（window=0）时 hero 百分比显示「—」而非 0%", async () => {
+    contextViewMock.mockResolvedValue(EMPTY_WINDOW_TIMELINE);
+    const { ContextView } = await import("./ContextView");
+    renderT(<ContextView running={false} />);
+    await screen.findByText("当前上下文");
+    // 「—」大数字带窗口未知提示；不出现 0% 大数字
+    expect(screen.getByTitle("上下文窗口未知（无用量上报）").textContent).toBe("—");
+    expect(document.querySelector("b")?.textContent === "0%").toBe(false);
+  });
+
+  it("showAgentNetwork=false 不订阅 Agent 网络（原罪复用不串台）", async () => {
+    const { ContextView } = await import("./ContextView");
+    renderT(<ContextView running={false} showAgentNetwork={false} />);
+    await screen.findByText("当前上下文");
+    expect(subscribeAgentNetworkMock).not.toHaveBeenCalled();
+    expect(reloadAgentNetworkMock).not.toHaveBeenCalled();
+  });
+
+  it("缺省仍订阅 Agent 网络（既有消费方零破坏）", async () => {
+    const { ContextView } = await import("./ContextView");
+    renderT(<ContextView running={false} />);
+    await screen.findByText("当前上下文");
+    expect(subscribeAgentNetworkMock).toHaveBeenCalled();
+  });
+
+  it("spaceOverride 覆盖会话归属空间（原罪无路径可判，显式传值）", async () => {
+    const { ContextView } = await import("./ContextView");
+    renderT(<ContextView running={false} spaceOverride="娱乐空间" />);
+    await screen.findByText("会话信息");
+    expect(screen.getByText("娱乐空间")).toBeTruthy();
+  });
+
+  it("fetchNodeDetail 自定义源被节点展开消费（原罪 SinContextNodeDetail）", async () => {
+    const fetchNodeDetail = vi.fn().mockResolvedValue({
+      seq: 4, kind: "tool_result", tool: "read_file", output: "自定义源全文", lines: 1,
+    });
+    const { ContextView } = await import("./ContextView");
+    renderT(<ContextView running={false} fetchNodeDetail={fetchNodeDetail} />);
+    await screen.findByText("上下文浏览器");
+    fireEvent.click(screen.getByRole("button", { name: /工具结果/ }));
+    const detailBtns = await screen.findAllByTestId("ctx-node-detail-btn");
+    fireEvent.click(detailBtns[0]);
+    expect(await screen.findByText("自定义源全文")).toBeTruthy();
+    expect(fetchNodeDetail).toHaveBeenCalledWith(4);
+    expect(contextNodeDetailMock).not.toHaveBeenCalled();
+  });
+});

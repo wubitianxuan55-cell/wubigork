@@ -418,7 +418,8 @@ export function SummaryBar({
   rate?: { inputPer1M?: number; outputPer1M?: number; cacheHitPer1M?: number; currency?: string };
 }) {
   const t = useT();
-  const pct = win > 0 ? Math.min(100, Math.round((used / win) * 100)) : 0;
+  // 窗口未知（win=0）时百分比诚实「—」，与 hero 卡同口径。
+  const pct = win > 0 ? Math.min(100, Math.round((used / win) * 100)) : null;
   return (
     <div className="ctx-card ctx-summary shrink-0">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -426,7 +427,7 @@ export function SummaryBar({
           {sessionName}
         </span>
         <span className="font-mono text-[10px] tabular-nums text-fg-dim">
-          {fmtTokens(used)} / {fmtTokens(win)} · {pct}%
+          {fmtTokens(used)} / {fmtTokens(win)} · {pct != null ? `${pct}%` : "—"}
         </span>
         <span className="font-mono text-[10px] tabular-nums text-fg-faint">{t("contextview.summaryRequests", { n: requests.length })}</span>
         <span

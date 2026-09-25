@@ -17,6 +17,9 @@ import {
 } from '@ant-design/icons'
 import { PanelRightClose, PanelRightOpen } from '../gaea/icons'
 import { Composer } from '../gaea/components/Composer'
+import { ChatTabs } from '../gaea/components/ChatTabs'
+import { ContextView } from '../gaea/components/ContextView'
+import { TrajectoryView } from '../gaea/components/TrajectoryView'
 import { ToolbarButton } from '../gaea/components/ToolbarButton'
 import { LocaleProvider } from '../gaea/lib/i18n'
 import { saveExportBlob } from '../gaea/lib/saveFile'
@@ -51,6 +54,23 @@ const OriginalSinPage: React.FC = () => {
   const model = useFeatureModel('sin')
   const [castPickerOpen, setCastPickerOpen] = useState(false)
   const [panelOpen, setPanelOpen] = useState<boolean>(() => readSinPanelOpen())
+
+  // ── 主区视图页签（v4.412 复用办公同款 ChatTabs）：故事流 / 轨迹 / 上下文 ──
+  // 轨迹与上下文走 SinTrajectory/SinContextView 自定义数据源（估算口径），
+  // 组件本体与办公板块同一套（TrajectoryView/ContextView）。
+  const [sinTab, setSinTab] = useState<'chat' | 'trajectory' | 'context'>('chat')
+  const fetchSinTrajectory = useCallback(
+    () => app.SinTrajectory(story.activeId),
+    [story.activeId],
+  )
+  const fetchSinContext = useCallback(
+    () => app.SinContextView(story.activeId),
+    [story.activeId],
+  )
+  const fetchSinNodeDetail = useCallback(
+    (seq: number) => app.SinContextNodeDetail(story.activeId, seq),
+    [story.activeId],
+  )
 
   // 生成设定卡（v4.403，sin 侧入口）：取全量角色（参考图列表在库内）→qedit
   // 三视图并排→追加进参考图→存回角色库（保存时后端本地化落盘，与角色库
@@ -320,33 +340,65 @@ const OriginalSinPage: React.FC = () => {
             </div>
           </aside>
 
-          {/* ── 中：故事流 + 输入 ── */}
+          {/* ── 中：主区页签（故事/轨迹/上下文）+ 内容 ── */}
           <main className="sin-main">
-            <div className="sin-stream-host">
-              <StoryStream
-                ref={listRef}
-                storyId={story.activeId}
-                messages={story.messages}
-                onIllustrationGenerated={story.setIllustration}
-                onIllustrationError={story.showNotice}
-                onScroll={onScroll}
-              />
-            </div>
-            {story.notice && (
-              <div className="sin-notice" role="status">
-                <span className="sin-notice-text">{story.notice}</span>
-                <Button size="small" type="text" icon={<CloseOutlined />} onClick={story.clearNotice} aria-label="关闭提示" />
+            <ChatTabs
+              active={sinTab}
+              onChange={(id) => setSinTab(id as 'chat' | 'trajectory' | 'context')}
+              tabs={['chat', 'trajectory', 'context']}
+              labelOverrides={{ chat: '故事' }}
+              className="sin-tabs"
+            />
+            {sinTab === 'chat' && (
+              <>
+                <div className="sin-stream-host">
+                  <StoryStream
+                    ref={listRef}
+                    storyId={story.activeId}
+                    messages={story.messages}
+                    onIllustrationGenerated={story.setIllustration}
+                    onIllustrationError={story.showNotice}
+                    onScroll={onScroll}
+                  />
+                </div>
+                {story.notice && (
+                  <div className="sin-notice" role="status">
+                    <span className="sin-notice-text">{story.notice}</span>
+                    <Button size="small" type="text" icon={<CloseOutlined />} onClick={story.clearNotice} aria-label="关闭提示" />
+                  </div>
+                )}
+                <div className="sin-composer">
+                  <Composer
+                    running={story.sending}
+                    onSend={onSend}
+                    onCancel={story.cancel}
+                    onPickFolder={async () => ''}
+                    disabled={story.initializing}
+                  />
+                </div>
+              </>
+            )}
+            {sinTab === 'trajectory' && (
+              <div className="sin-insight-host">
+                <TrajectoryView
+                  running={story.sending}
+                  fetchTrajectory={fetchSinTrajectory}
+                />
               </div>
             )}
-            <div className="sin-composer">
-              <Composer
-                running={story.sending}
-                onSend={onSend}
-                onCancel={story.cancel}
-                onPickFolder={async () => ''}
-                disabled={story.initializing}
-              />
-            </div>
+            {sinTab === 'context' && (
+              <div className="sin-insight-host">
+                <ContextView
+                  running={story.sending}
+                  fetchTimeline={fetchSinContext}
+                  fetchNodeDetail={fetchSinNodeDetail}
+                  sessionName={story.activeStory?.title}
+                  model={modelText}
+                  spaceOverride="娱乐空间"
+                  showAgentNetwork={false}
+                />
+              </div>
+            )}
           </main>
 
           {/* ── 右：创作面板（办公同款标签页：角色/大纲/设定/插图 + 玩法气泡） ── */}

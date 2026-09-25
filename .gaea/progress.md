@@ -3,6 +3,7 @@
 - wubigork-v4.411.0-source.tar.gz @20b7204f 排除旧源码包，12951822 B / 4393 files / SHA256=248fd3bc…502ccb（SHA256SUMS-v4.411.0.txt 登记）。覆盖 v4.400~v4.411 十二版；随包推送 24 commit + v4.400.0~v4.411.0 14 tag 上 remote（origin/main 对齐，余 0 领先）。
 ## 最新发布：v4.411.0（2026-09-25）「一致性评分写回元数据」
 
+- **v4.412.0** 上下文页 UI 优化（hero 提位/窗口未知「—」/趋势 hover）+ 原罪复用轨迹/上下文页签（sin_insight 折叠三绑定 717→720，TrajectoryView/ContextView 原组件自定义数据源）
 - **刀型**：编辑器评分历史池①。绑定面 717 零变更，characterlib 迁移补 reference_scores 列。
 - **落地**：reference_scores 与参考图索引对齐（读写两路维护+读侧补 0）；编辑器评分写 form 保存持久化+缩略图分数徽标（≥80 绿/60-79 橙/<60 红）；移除同下标裁剪。
 - **测试**：Go 往返/对齐/短表三例；前端徽标/持久化/移除 35 例；全量 ci 绿。

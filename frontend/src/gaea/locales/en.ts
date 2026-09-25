@@ -1393,6 +1393,7 @@ export const en = {
   "contextview.loadFail": "Failed to load the context view: {msg}",
   "contextview.toolResultShare": "Tool results ≈{tokens} ({pct}%) of used context",
   "contextview.pctUsed": "context used",
+  "contextview.windowUnknown": "Context window unknown (no usage reporting)",
   "contextview.idleWindow": "Idle window",
   "contextview.spaceWork": "Work space",
   "contextview.spacePlay": "Play space",

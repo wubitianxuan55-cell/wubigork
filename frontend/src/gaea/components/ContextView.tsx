@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { app } from "../lib/bridge";
 import { useT } from "../lib/i18n";
 import type {
-  ContextCategory, ContextEvent, ContextRequestRecord, ContextTimeline,
+  ContextCategory, ContextEvent, ContextNodeDetailView, ContextRequestRecord, ContextTimeline,
 } from "../lib/types";
 import type { DictKey } from "../locales/en";
 import { fmtTokens } from "../lib/stats";
@@ -78,7 +78,8 @@ function CurrentContextCard({
     activeCat !== null && activeCat !== key ? "opacity-45" : "opacity-100";
   const leaveChip = (key: keyof ContextCategory | "idle") => setActiveCat((cur) => (cur === key ? null : cur));
   const total = used;
-  const pct = win > 0 ? Math.min(100, Math.round((total / win) * 100)) : 0;
+  // 窗口未知（win=0，如原罪估算口径）时百分比诚实显示「—」，不伪造 0%。
+  const pct = win > 0 ? Math.min(100, Math.round((total / win) * 100)) : null;
   const idle = Math.max(0, win - total);
   const toolPct = total > 0 ? Math.round((current.tool / total) * 100) : 0;
   return (
@@ -100,8 +101,14 @@ function CurrentContextCard({
         <span className="font-mono text-[26px] font-bold leading-none tracking-tight text-fg">{fmtTokens(total)}</span>
         <span className="text-[12px] text-fg-faint">/ {fmtTokens(win)} tokens</span>
         <span className="ml-auto flex items-baseline gap-1">
-          <b className="font-mono text-[26px] font-bold leading-none text-fg">{pct}%</b>
-          <span className="text-[11px] text-fg-faint">{t("contextview.pctUsed")}</span>
+          {pct != null ? (
+            <>
+              <b className="font-mono text-[26px] font-bold leading-none text-fg">{pct}%</b>
+              <span className="text-[11px] text-fg-faint">{t("contextview.pctUsed")}</span>
+            </>
+          ) : (
+            <b className="font-mono text-[26px] font-bold leading-none text-fg-faint" title={t("contextview.windowUnknown")}>—</b>
+          )}
         </span>
       </div>
       <div className="mt-2 flex h-4 w-full overflow-hidden rounded-md bg-bg-soft" role="img" aria-label={t("contextview.currentTitle")}>
@@ -117,7 +124,7 @@ function CurrentContextCard({
             />
           );
         })}
-        {idle > 0 && pct < 100 && (
+        {idle > 0 && (pct == null || pct < 100) && (
           <div
             data-testid="comp-seg-idle"
             className="h-full"
@@ -168,7 +175,7 @@ function CurrentContextCard({
           {t("contextview.idleWindow")}
         </span>
       </div>
-      {pct >= 70 && (
+      {pct != null && pct >= 70 && (
         <div className={`mt-1.5 text-[9.5px] ${pct >= 90 ? "text-err" : "text-warning"}`}>
           {pct >= 90 ? t("contextview.almostFull") : t("contextview.highUsage")}
           <span className="ml-2 opacity-80">{pct >= 90 ? t("contextview.almostFullHint") : t("contextview.highUsageHint")}</span>
@@ -345,7 +352,8 @@ export function ContextTrendChart({ requests, events, onPick, detail, focus }: {
                   className="cursor-pointer"
                   opacity={selected === i ? 1 : 0.85}
                 >
-                  <rect x={x} y={y} width={bw} height={Math.max(h, 1)} rx={1.5} fill={d >= 0 ? "#22c55e" : "#ef4444"}> {/* hex-exempt 增量图语义色（绿=净增/红=净减，可视化调色板） */}
+                  <rect x={x} y={y} width={bw} height={Math.max(h, 1)} rx={1.5} fill={d >= 0 ? "#22c55e" : "#ef4444"} /* hex-exempt 增量图语义色（绿=净增/红=净减，可视化调色板） */
+                    stroke={hovered === i ? "var(--color-primary, var(--md-sys-color-primary))" : undefined} strokeWidth={1.5}> {/* hover 主色描边=悬停可感知（v4.412） */}
                     <title>{t("contextview.deltaTitle", { turn: b.turn, step: b.step, delta: `${d >= 0 ? "+" : ""}${fmtTokens(d)}` })}</title>
                   </rect>
                 </g>
@@ -360,6 +368,7 @@ export function ContextTrendChart({ requests, events, onPick, detail, focus }: {
                 onMouseLeave={() => setHovered((cur) => (cur === i ? null : cur))}
                 className="cursor-pointer"
                 opacity={selected === i ? 1 : 0.9}
+                style={hovered === i ? { filter: "brightness(1.2)" } : undefined} /* hover 提亮=悬停可感知（v4.412，对齐 delta 柱描边语义） */
               >
                 {CATS.map((c) => {
                   const v = b.category[c.key];
@@ -567,6 +576,9 @@ export function ContextView({
   sessionName: sessionNameProp,
   model,
   fetchTimeline,
+  fetchNodeDetail,
+  spaceOverride,
+  showAgentNetwork = true,
   onViewSubagentContext,
 }: {
   running: boolean;
@@ -577,6 +589,12 @@ export function ContextView({
   model?: string;
   /** 2.5e 后半：自定义数据源（如子代理会话的 GaeaSubagentContextView）；缺省当前会话。 */
   fetchTimeline?: () => Promise<ContextTimeline>;
+  /** 节点详情自定义源（v4.412 原罪复用：SinContextNodeDetail 按故事 id 回读）；缺省会话日志。 */
+  fetchNodeDetail?: (seq: number) => Promise<ContextNodeDetailView>;
+  /** 会话归属空间覆盖（v4.412 原罪复用：无 sessionPath 可判，显式传「乐园」）；缺省按路径推断。 */
+  spaceOverride?: string;
+  /** Agent 网络径向图开关（v4.412 原罪复用关闭：网络属办公内核会话，不串台）。 */
+  showAgentNetwork?: boolean;
   /** Agent 网络子代理节点「查看上下文」回调（sa_ 节点；提供才渲染入口）。 */
   onViewSubagentContext?: (ref: string) => void;
 }) {
@@ -605,9 +623,10 @@ export function ContextView({
   const [net, setNet] = useState<AgentNetwork | null>(null);
   // Agent 网络：订阅共享 store（按 UI 会话读取，v4.181）；running 时
   // useLiveReload 驱动的 load() 顺带 reload。会话切换由依赖重建触发 declarePath。
+  // showAgentNetwork=false（原罪复用）不订阅不拉取——网络属办公内核会话，避免串台。
   useEffect(
-    () => subscribeAgentNetwork((n) => setNet(n), { path: sessionPath }),
-    [sessionPath],
+    () => (showAgentNetwork ? subscribeAgentNetwork((n) => setNet(n), { path: sessionPath }) : undefined),
+    [sessionPath, showAgentNetwork],
   );
   const sessionName = useMemo(() => {
     if (sessionNameProp) return sessionNameProp;
@@ -615,10 +634,11 @@ export function ContextView({
     const base = sessionPath.split(/[\\/]/).pop() ?? sessionPath;
     return base.replace(/\.jsonl$/, "");
   }, [sessionNameProp, sessionPath]);
-  const space = (sessionPath ?? "").includes("/play/") ? t("contextview.spacePlay") : t("contextview.spaceWork");
+  // 空间归属：显式覆盖（原罪复用）优先；缺省按会话路径推断（/play/ = 乐园）。
+  const space = spaceOverride ?? ((sessionPath ?? "").includes("/play/") ? t("contextview.spacePlay") : t("contextview.spaceWork"));
 
   const load = useCallback(() => {
-    void reloadAgentNetwork(sessionPath);
+    if (showAgentNetwork) void reloadAgentNetwork(sessionPath);
     const p = fetchTimeline
       ? fetchTimeline()
       : app.ContextView(sessionPath ?? "");
@@ -637,7 +657,7 @@ export function ContextView({
       })
       .catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)))
       .finally(() => {});
-  }, [fetchTimeline, sessionPath]);
+  }, [fetchTimeline, sessionPath, showAgentNetwork]);
 
   useEffect(() => {
     load();
@@ -685,9 +705,19 @@ export function ContextView({
       )}
       {!error && !isEmpty && (
         <>
-          {/* 行1：8 个统计小卡（v4.71 卡片化——每项独立成卡，不做 1 张大卡） */}
-          <StatsCard stats={timeline.stats} />
-          {/* 行2：三大仪表卡（Token 卡带「查看趋势」入口 → 行4 趋势卡锚点） */}
+          {/* 行1：当前上下文 hero（v4.412 提位——「用了多少」是第一问，进页即答；
+              与空态头部一致，窗口未知时百分比诚实「—」） */}
+          <CurrentContextCard used={catTotal(timeline.current)} window={timeline.window} current={timeline.current} />
+          {/* 行2：趋势卡（master-detail 单元——请求详情内联卡内，点柱/悬停联动；
+              focus=Token 卡锚点，仅定位+强调） */}
+          <ContextTrendChart
+            requests={timeline.requests}
+            events={timeline.events}
+            onPick={setPicked}
+            detail={picked ? <StepDetail record={picked} window={timeline.window} onJump={jumpToNode} /> : null}
+            focus={trendFocus}
+          />
+          {/* 行3：三大仪表卡（Token 卡带「查看趋势」入口 → 行2 趋势卡锚点） */}
           <div className="grid grid-cols-1 gap-3 min-[1100px]:grid-cols-3">
             <TokenCard requests={timeline.requests} onViewTrend={jumpToTrend} />
             <TimingCard timing={timeline.timing} />
@@ -699,34 +729,31 @@ export function ContextView({
               requests={timeline.requests.length}
             />
           </div>
-          {/* 行3：当前上下文 + 上下文浏览器 */}
-          <div className="grid grid-cols-1 gap-3 min-[1100px]:grid-cols-[3fr_2fr]">
-            <CurrentContextCard used={catTotal(timeline.current)} window={timeline.window} current={timeline.current} />
-            <ContextBrowserTree nodes={timeline.nodes} archive={timeline.archive} focus={focusNode} sessionPath={sessionPath} />
-          </div>
-          {/* 行4：趋势卡（master-detail 单元——请求详情内联卡内，点柱/悬停联动；
-              focus=Token 卡锚点，仅定位+强调） */}
-          <ContextTrendChart
-            requests={timeline.requests}
-            events={timeline.events}
-            onPick={setPicked}
-            detail={picked ? <StepDetail record={picked} window={timeline.window} onJump={jumpToNode} /> : null}
-            focus={trendFocus}
-          />
-          {/* 行5：事件流 + 文件活动 */}
-          <div className="grid grid-cols-1 gap-3 min-[1100px]:grid-cols-2">
-            <EventsList events={timeline.events} />
-            <FileActivityTree files={timeline.files} sessionPath={sessionPath} />
-          </div>
-          {/* 行6：Agent 网络径向图 */}
-          {net && (
-            <AgentRadial
-              network={net}
-              running={running}
+          {/* 行4：上下文浏览器 + 事件流（探索/审计相邻） */}
+          <div className="grid grid-cols-1 gap-3 min-[1100px]:grid-cols-[2fr_3fr]">
+            <ContextBrowserTree
+              nodes={timeline.nodes}
+              archive={timeline.archive}
+              focus={focusNode}
               sessionPath={sessionPath}
-              onViewContext={onViewSubagentContext}
+              fetchNodeDetail={fetchNodeDetail}
             />
-          )}
+            <EventsList events={timeline.events} />
+          </div>
+          {/* 行5：文件活动 + Agent 网络径向图（后者条件渲染；两者皆在时并排） */}
+          <div className={`grid grid-cols-1 gap-3 ${net ? "min-[1100px]:grid-cols-2" : ""}`}>
+            <FileActivityTree files={timeline.files} sessionPath={sessionPath} />
+            {net && (
+              <AgentRadial
+                network={net}
+                running={running}
+                sessionPath={sessionPath}
+                onViewContext={onViewSubagentContext}
+              />
+            )}
+          </div>
+          {/* 行6：8 个统计小卡（v4.412 下移——纯计数/审计口径，非第一眼信息） */}
+          <StatsCard stats={timeline.stats} />
           {/* 底部会话汇总条 + 估算口径 */}
           <SummaryBar
             sessionName={sessionName}

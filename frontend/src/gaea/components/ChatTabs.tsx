@@ -24,17 +24,26 @@ const TABS: { id: ChatTabId; label: string; icon: typeof MessageSquare }[] = [
   { id: "memory", label: "记忆", icon: Brain },
 ];
 
-export function ChatTabs({ active, onChange, extraTabs, onCloseExtra }: {
+export function ChatTabs({ active, onChange, tabs, labelOverrides, className, extraTabs, onCloseExtra }: {
   active: string;
   onChange: (id: string) => void;
+  /** 渲染的视图 tab 子集（按传入顺序；缺省全部四个——原罪复用只挂 对话/轨迹/上下文）。 */
+  tabs?: ChatTabId[];
+  /** 标签文案覆盖（原罪主 tab 显示「故事」；键缺省回落内置文案）。 */
+  labelOverrides?: Partial<Record<ChatTabId, string>>;
+  /** 外部追加类（宿主布局调整内边距用；不影响内部结构）。 */
+  className?: string;
   /** 独立会话 tab（如子代理会话），渲染在四视图之后。 */
   extraTabs?: ChatSessionTab[];
   /** 关闭动态会话 tab。 */
   onCloseExtra?: (id: string) => void;
 }) {
+  const visible = (tabs ?? TABS.map((t) => t.id))
+    .map((id) => TABS.find((t) => t.id === id))
+    .filter((t): t is (typeof TABS)[number] => !!t);
   return (
-    <div className="flex items-center gap-1 px-12 pt-2 pb-0 border-b border-border-soft bg-bg/80 select-none">
-      {TABS.map((t) => {
+    <div className={`flex items-center gap-1 px-12 pt-2 pb-0 border-b border-border-soft bg-bg/80 select-none ${className ?? ""}`}>
+      {visible.map((t) => {
         const Icon = t.icon;
         const selected = t.id === active;
         return (
@@ -47,7 +56,7 @@ export function ChatTabs({ active, onChange, extraTabs, onCloseExtra }: {
             title={t.id === "trajectory" ? "工具调用/步骤时间线" : undefined}
           >
             <Icon size={13} />
-            {t.label}
+            {labelOverrides?.[t.id] ?? t.label}
             {selected && <span className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-accent" />}
           </button>
         );

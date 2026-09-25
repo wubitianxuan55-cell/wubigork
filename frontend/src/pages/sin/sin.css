@@ -94,9 +94,14 @@
 }
 .sin-shelf-empty { padding: 18px 10px; font-size: 12px; color: var(--fg-faint); text-align: center; }
 
-/* 中：故事流 + 输入 */
+/* 中：主区页签（v4.412 复用办公 ChatTabs：故事/轨迹/上下文）+ 内容 */
 .sin-main { flex: 1; min-width: 0; display: flex; flex-direction: column; min-height: 0; }
+/* ChatTabs 办公默认 px-12 是全幅顶栏口径；原罪中栏收窄内边距即可（结构与交互零改动） */
+.sin-tabs { padding-left: 14px; padding-right: 14px; }
 .sin-stream-host { flex: 1; min-height: 0; display: flex; }
+/* 轨迹/上下文看板宿主：组件根自带 h-full 与滚动，宿主只给高度 */
+.sin-insight-host { flex: 1; min-height: 0; display: flex; }
+.sin-insight-host > * { flex: 1; min-width: 0; }
 .sin-stream {
   flex: 1;
   min-height: 0;

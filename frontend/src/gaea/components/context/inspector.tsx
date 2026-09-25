@@ -52,7 +52,7 @@ const ROW_LABELS: Record<ContextSurfaceNode["cat"], DictKey> = {
 
 // v4.81 节点详情懒加载 hook（浏览器与文件活动共用）：按 seq 懒加载 +
 // 缓存（Map 状态机 loading/ok/error）+ 开合集合。
-function useNodeDetails(sessionPath?: string) {
+function useNodeDetails(sessionPath?: string, fetchDetail?: (seq: number) => Promise<ContextNodeDetailView>) {
   const [details, setDetails] = useState<Map<number, NodeDetailState>>(() => new Map());
   const [open, setOpen] = useState<Set<number>>(() => new Set());
   useEffect(() => {
@@ -68,8 +68,12 @@ function useNodeDetails(sessionPath?: string) {
     });
     if (!details.has(seq)) {
       setDetails((cur) => new Map(cur).set(seq, { s: "loading" }));
-      app.ContextNodeDetail(seq, sessionPath ?? "")
-        .then((d) => setDetails((cur) => new Map(cur).set(seq, { s: "ok", d })))
+      // 自定义源优先（v4.412 原罪复用：SinContextNodeDetail 按故事 id 回读）；
+      // 缺省按会话日志回读（GaeaContextNodeDetail）。
+      const p = fetchDetail
+        ? fetchDetail(seq)
+        : app.ContextNodeDetail(seq, sessionPath ?? "");
+      p.then((d) => setDetails((cur) => new Map(cur).set(seq, { s: "ok", d })))
         .catch(() => setDetails((cur) => new Map(cur).set(seq, { s: "error" })));
     }
   };
@@ -294,11 +298,14 @@ export function ContextBrowserTree({
   archive,
   focus,
   sessionPath,
+  fetchNodeDetail,
 }: {
   nodes: ContextSurfaceNode[];
   archive: ContextSurfaceNode[];
   focus?: { seq: number; tick: number } | null;
   sessionPath?: string;
+  /** 节点详情自定义源（v4.412 原罪复用）；缺省 GaeaContextNodeDetail 按会话日志。 */
+  fetchNodeDetail?: (seq: number) => Promise<ContextNodeDetailView>;
 }) {
   const t = useT();
   const [query, setQuery] = useState("");
@@ -307,7 +314,7 @@ export function ContextBrowserTree({
   const [openText, setOpenText] = useState<Set<number>>(() => new Set());
   const [showAll, setShowAll] = useState<Set<string>>(() => new Set());
   const [sort, setSort] = useState<CtxBrowserSort>(() => loadContextPrefs().browserSort);
-  const { details, open: openDetails, toggle: toggleDetail } = useNodeDetails(sessionPath);
+  const { details, open: openDetails, toggle: toggleDetail } = useNodeDetails(sessionPath, fetchNodeDetail);
   // focus 跳转状态：handledFocus 去重（同一 tick 只处理一次）；focusedSeq
   // 高亮当前目标节点，3s 后自动清除。
   const listRef = useRef<HTMLDivElement | null>(null);
