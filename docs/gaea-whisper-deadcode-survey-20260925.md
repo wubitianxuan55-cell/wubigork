@@ -55,3 +55,4 @@ go run golang.org/x/tools/cmd/deadcode@latest -test ./internal/whisper/...
 - **方案 b 已执行**（cleanup 非版本刀）：A 簇 machine_map 4 文件（738 行）+ 编译强制级联剥壳investigation_runner/investigation_chat_turn 2 件（全死验证后删，-test 基线全 func 不可达+零外部消费），合计 **6 文件 1,178 行**，基线 590→549。
 - **级联发现**：A 簇并非严格自包含——investigation_runner（B 簇死件）引用 desktop_machine_map 的 IsGameDirectory，删 A 后编译强制连剥两件；「零接线」判断需含「死件消费方」维度，刀4 排期时按依赖闭包分批。
 - 余 B/C/D/E 簇 549 项维持待口径拍板（方案 a/c 之间）。
+- **刀4 主体已执行**（cleanup 12f77401）：整文件死枚举 100 候选全删 → 编译强制收敛环（活文件消费类型时恢复载体+裁死 func；app 反射可达链盲区 6 定义文件全量回滚）→ **净删 88 文件 9,920 行**，基线 549→196（-64%）。方法论三教训（type 依赖不可见/反射盲区/依赖闭包剥壳）落 commit。余 196 项=局部方法与散件，价值密度低建议不再追刀。
