@@ -98,10 +98,10 @@ function TraceRow({ entry, expanded, onToggle }: {
           {/* L2: 情绪 — 四列网格 + MiniBar */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 4 }}>
             {[
-              { label: 'aff', value: entry.l2.aff, color: '#818cf8' },
-              { label: 'sec', value: entry.l2.sec, color: '#4ade80' },
-              { label: 'aro', value: entry.l2.aro, color: '#f59e0b' },
-              { label: 'dom', value: entry.l2.dom, color: '#f472b6' },
+              { label: 'aff', value: entry.l2.aff, color: 'var(--md-sys-color-primary)' },
+              { label: 'sec', value: entry.l2.sec, color: 'var(--md-sys-color-success)' },
+              { label: 'aro', value: entry.l2.aro, color: 'var(--color-warning)' },
+              { label: 'dom', value: entry.l2.dom, color: 'var(--whisper-accent)' },
             ].map(d => (
               <div key={d.label}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>

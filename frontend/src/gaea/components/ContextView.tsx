@@ -307,7 +307,7 @@ export function ContextTrendChart({ requests, events, onPick, detail, focus }: {
       </div>
       <div className="mt-1 text-[10px] text-fg-faint">
         {t("contextview.trendLegend")}
-        {mode === "delta" && <span className="ml-2"><span className="text-[#22c55e]">■</span> {t("contextview.netIncrease")} <span className="ml-1 text-[#ef4444]">■</span> {t("contextview.netDecrease")}</span>}
+        {mode === "delta" && <span className="ml-2"><span className="text-(color:--color-success)">■</span> {t("contextview.netIncrease")} <span className="ml-1 text-(color:--color-destructive)">■</span> {t("contextview.netDecrease")}</span>}
       </div>
       {hovered !== null && bars[hovered] && (
         <div

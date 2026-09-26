@@ -191,7 +191,7 @@ export const WhisperEmotionPanel: React.FC<EmotionPanelProps> = (props) => {
                 <div style={{ flex: 1, height: 6, borderRadius: 999, background: C('color-bg-elevated'), overflow: 'hidden' }}>
                   <div style={{
                     height: '100%', width: `${Math.min(100, Math.max(0, (userSixDims as Record<string, number>)[dim]))}%`,
-                    borderRadius: 999, background: '#60a5fa', opacity: 0.6,
+                    borderRadius: 999, background: 'var(--whisper-accent)', opacity: 0.6,
                     transition: 'width 700ms cubic-bezier(0.4,0,0.2,1)',
                   }} />
                 </div>

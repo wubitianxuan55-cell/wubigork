@@ -549,6 +549,8 @@ const CharacterLibEditor: React.FC<Props> = ({
       closable={false}
       width={900}
       className="cd-modal"
+      // 自定义眉部无 antd title：给对话框补可访问名（a11y，纯 attribute 零视觉变化）
+      aria-label="角色档案编辑器"
       destroyOnHidden
       transitionName=""
       maskTransitionName=""

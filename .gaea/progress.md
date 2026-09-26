@@ -1,3 +1,13 @@
+## 最新发布：v4.417.0（2026-09-26）「前端 UI 完善批三：硬编码色值收口 + 可访问性补尾」
+
+- **刀型**：接 v4.415/v4.416 观察池。前端 6 文件，绑定面 720 零变更，Go 零改动，零功能删除。
+- **色值收口**：ContextView 趋势图例裸 hex（亮态绿白底 2:1）→语义令牌；WhisperTracePanel MiniBar 四色→primary/success/warning/--whisper-accent；WhisperEmotionPanel 六维条→--whisper-accent。
+- **可访问性补尾**：ChapterEditor 右键菜单键盘可达（role=menu/menuitem+聚焦+Esc+↑↓）；MemoryHub 计数「…」加载占位三态齐整；CharacterLibEditor Modal aria-label。
+- **证伪降级**：圆角令牌化专项前提不成立（--md-sys-radius-* 明暗恒 8/12/16/28px，迁移零收益）；RelationGraph/GraphView/TisorRadar hex=SVG/canvas 字面量域豁免在案。
+- **门禁**：定向 4 套件 80 例绿+tsc 0+eslint 0；全量 ci 绿+漂移闸 OK@4.417.0。
+- **产物**：见 SHA256SUMS-v4.417.0.txt（冒烟 200 过）；保留策略删 v4.413.0.exe。
+- **文档**：releases/v4.417.0.md+CHANGELOG/README+releases/README（441→442+裁 v4.386）+AGENTS 迁 1 插 1（一百三十五迁）。
+
 ## 最新发布：v4.416.0（2026-09-26）「前端 UI 完善批二：emoji 图标红线清零 + schedule 交互反馈补漏」
 
 - **刀型**：接 v4.415.0 观察池头名。前端 19 文件，绑定面 720 零变更，Go 零改动，零功能删除。

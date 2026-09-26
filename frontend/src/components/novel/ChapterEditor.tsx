@@ -61,6 +61,11 @@ function sceneMetaOf(value: unknown): { aiTaste?: number; beforeScore?: number; 
  */
 const ChapterEditorInner: React.FC<ChapterEditorProps> = ({ tab, onUpdate, sceneTextareaRefs, ghostEnabled }) => {
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; text: string } | null>(null)
+  // 右键菜单键盘可达：开启即聚焦，Esc 关闭，↑↓ 在菜单项间漫游（W3C menu 模式）
+  const ctxMenuRef = React.useRef<HTMLDivElement | null>(null)
+  React.useEffect(() => {
+    if (ctxMenu) ctxMenuRef.current?.querySelector<HTMLButtonElement>('[role=menuitem]')?.focus()
+  }, [ctxMenu])
   const [cmdKVisible, setCmdKVisible] = useState(false)
   const [cmdKText, setCmdKText] = useState('')
   const lastSelectedText = React.useRef('')
@@ -409,6 +414,20 @@ const ChapterEditorInner: React.FC<ChapterEditorProps> = ({ tab, onUpdate, scene
       {/* 右键菜单浮层 */}
       {ctxMenu && (
         <div
+          ref={ctxMenuRef}
+          role="menu"
+          aria-label="AI 段落操作"
+          tabIndex={-1}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') { e.stopPropagation(); setCtxMenu(null) }
+            if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+              e.preventDefault()
+              const items = Array.from(ctxMenuRef.current?.querySelectorAll<HTMLButtonElement>('[role=menuitem]') ?? [])
+              const cur = items.indexOf(document.activeElement as HTMLButtonElement)
+              const next = e.key === 'ArrowDown' ? (cur + 1) % items.length : (cur - 1 + items.length) % items.length
+              items[next]?.focus()
+            }
+          }}
           style={{
             position: 'fixed', left: ctxMenu.x, top: ctxMenu.y, zIndex: Z_INDEX.CONTEXT_MENU,
             background: C('color-bg-container'), border: '1px solid ' + C('color-border'),
@@ -422,24 +441,26 @@ const ChapterEditorInner: React.FC<ChapterEditorProps> = ({ tab, onUpdate, scene
               已选 {countTextChars(ctxMenu.text)} 字
             </Typography.Text>
           </div>
-          <div onClick={() => triggerAI('describe')}
-            style={{ padding: '8px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: C('color-text') }}
-            onMouseEnter={(e) => (e.currentTarget as HTMLElement).style.background = C('color-bg-layout')}
-            onMouseLeave={(e) => (e.currentTarget as HTMLElement).style.background = 'transparent'}>
-            <EditOutlined style={{ color: 'var(--color-success)' }} /> 丰富描写
-          </div>
-          <div onClick={() => triggerAI('expand')}
-            style={{ padding: '8px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: C('color-text') }}
-            onMouseEnter={(e) => (e.currentTarget as HTMLElement).style.background = C('color-bg-layout')}
-            onMouseLeave={(e) => (e.currentTarget as HTMLElement).style.background = 'transparent'}>
-            <ColumnWidthOutlined style={{ color: 'var(--color-primary)' }} /> 扩展场景
-          </div>
-          <div onClick={() => triggerAI('rewrite')}
-            style={{ padding: '8px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: C('color-text') }}
-            onMouseEnter={(e) => (e.currentTarget as HTMLElement).style.background = C('color-bg-layout')}
-            onMouseLeave={(e) => (e.currentTarget as HTMLElement).style.background = 'transparent'}>
-            <RedoOutlined style={{ color: 'var(--color-warning)' }} /> 重写此段
-          </div>
+          {([
+            { key: 'describe' as const, icon: <EditOutlined style={{ color: 'var(--color-success)' }} />, label: '丰富描写' },
+            { key: 'expand' as const, icon: <ColumnWidthOutlined style={{ color: 'var(--color-primary)' }} />, label: '扩展场景' },
+            { key: 'rewrite' as const, icon: <RedoOutlined style={{ color: 'var(--color-warning)' }} />, label: '重写此段' },
+          ]).map(item => (
+            <button
+              key={item.key}
+              type="button"
+              role="menuitem"
+              onClick={() => triggerAI(item.key)}
+              style={{
+                padding: '8px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8,
+                fontSize: 13, color: C('color-text'), width: '100%', textAlign: 'left',
+                background: 'none', border: 'none', font: 'inherit',
+              }}
+              onMouseEnter={(e) => (e.currentTarget as HTMLElement).style.background = C('color-bg-layout')}
+              onMouseLeave={(e) => (e.currentTarget as HTMLElement).style.background = 'transparent'}>
+              {item.icon} {item.label}
+            </button>
+          ))}
         </div>
       )}
 

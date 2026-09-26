@@ -136,7 +136,7 @@ function RailItem(p: {
   onClick: () => void;
   label: string;
   icon: React.ReactNode;
-  count?: number | "—";
+  count?: number | "—" | "…";
   title: string;
 }) {
   const { active, onClick, label, icon, count, title } = p;
@@ -151,7 +151,7 @@ function RailItem(p: {
     >
       <span className="hub-rail-icon" aria-hidden="true">{icon}</span>
       <span className="hub-rail-label">{label}</span>
-      {(typeof count === "number" || count === "—") && <span className="hub-rail-count" title={count === "—" ? "总览读取失败" : undefined}>{count}</span>}
+      {(typeof count === "number" || count === "—" || count === "…") && <span className="hub-rail-count" title={count === "—" ? "总览读取失败" : count === "…" ? "总览加载中" : undefined}>{count}</span>}
     </button>
   );
 }
@@ -311,7 +311,7 @@ function MemoryHubPage() {
     app.MemoryHubOverview().then(setOverview).catch(() => setOverviewError(true));
   }, [active]);
 
-  const counts: Partial<Record<LibraryKey, number | "—">> = overviewError
+  const counts: Partial<Record<LibraryKey, number | "—" | "…">> = overviewError
     ? { knowledge: "—", profile: "—", office: "—", materials: "—", whisper: "—" }
     : overview
     ? {
@@ -321,7 +321,7 @@ function MemoryHubPage() {
         materials: overview.pinnedCount,
         whisper: overview.whisperCount,
       }
-    : {};
+    : { knowledge: "…", profile: "…", office: "…", materials: "…", whisper: "…" };
 
   const activeDef = active === "home" ? null : LIBRARIES.find((l) => l.key === active) ?? null;
   const activeCount = activeDef ? counts[activeDef.key] : undefined;
