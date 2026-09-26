@@ -106,3 +106,28 @@ describe('CharacterPage 职业区块（t5 §7.6）', () => {
     })
   })
 })
+
+// v4.415.0 诚实错误态：loadData 失败此前仅 console 静默吞掉（列表空态与「本书
+// 没有角色」同貌，用户以为角色全丢了）；现在给出原因 + 重试入口（HomePage 口径）。
+describe('CharacterPage 诚实错误态（v4.415.0）', () => {
+  it('GetCharacters 拒绝 → 显示「角色数据读取失败」与重试按钮，而非空库话术', async () => {
+    bindings.GetCharacters.mockRejectedValue(new Error('磁盘打不开'))
+    render(<CharacterPage />)
+    await screen.findByText(/角色数据读取失败/)
+    expect(screen.getByText(/磁盘打不开/)).toBeTruthy()
+    expect(screen.getByText('重试')).toBeTruthy()
+    // 不应出现「本书还没有角色」的空库话术
+    expect(screen.queryByText(/本书还没有角色/)).toBeNull()
+  })
+
+  it('点「重试」→ 重新拉取，成功后错误态退场、角色卡渲染', async () => {
+    bindings.GetCharacters.mockRejectedValueOnce(new Error('boom'))
+    render(<CharacterPage />)
+    await screen.findByText(/角色数据读取失败/)
+    fireEvent.click(screen.getByText('重试'))
+    await screen.findByText('林晚')
+    expect(screen.queryByText(/角色数据读取失败/)).toBeNull()
+    // 初次失败 + 重试 = 至少两次调用
+    expect(bindings.GetCharacters.mock.calls.length).toBeGreaterThanOrEqual(2)
+  })
+})

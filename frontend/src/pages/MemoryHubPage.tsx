@@ -409,14 +409,14 @@ function MemoryHubPage() {
                     }
                   }}
                 >
-                  <span className={`shrink-0 px-1.5 rounded text-[10px] ${
+                  <span className={`hub-hit-tag ${
                     h.kind === "file"
-                      ? "bg-sky-500/20 text-sky-300"
+                      ? "hub-hit-tag--file"
                       : h.brain === "brain.right"
-                        ? "bg-pink-500/20 text-pink-300"
+                        ? "hub-hit-tag--right"
                         : h.brain === "brain.left"
-                          ? "bg-emerald-500/20 text-emerald-300"
-                          : "bg-violet-500/20 text-violet-300"
+                          ? "hub-hit-tag--left"
+                          : "hub-hit-tag--main"
                   }`}>
                     {h.kind === "file" ? "文件" : h.brain === "brain.right" ? "右脑" : h.brain === "brain.left" ? "左脑" : "主脑"}
                   </span>
@@ -452,7 +452,10 @@ function MemoryHubPage() {
           )}
           {hits.length === 0 && !searching && searchOutcome !== "idle" && (
             <div className="hub-search-pop" role="status">
-              <div className={`hub-search-pop-head ${searchOutcome === "error" ? "text-red-400" : ""}`}>
+              <div
+                className="hub-search-pop-head"
+                style={searchOutcome === "error" ? { color: "var(--md-sys-color-destructive)" } : undefined}
+              >
                 <span>{searchOutcome === "error" ? "检索失败，请重试" : "没有找到相关内容，换个关键词试试"}</span>
                 <button
                   type="button"

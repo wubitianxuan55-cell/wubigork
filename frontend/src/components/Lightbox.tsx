@@ -111,13 +111,13 @@ const Lightbox: React.FC<Props> = ({ results, index, characters, singleImage, on
 
       {/* 左右箭头 */}
       {!isSingle && index > 0 && (
-        <Button type="text" icon={<LeftOutlined />}
+        <Button type="text" icon={<LeftOutlined />} aria-label="上一张" title="上一张"
           onClick={(e) => { e.stopPropagation(); onIndexChange(index - 1) }}
           style={{ position: 'absolute', left: 16, top: '50%', color: '#fff', fontSize: 24, zIndex: 10 }} // hex-exempt 图片查看器深色覆盖层 chrome
         />
       )}
       {!isSingle && index < results.length - 1 && (
-        <Button type="text" icon={<RightOutlined />}
+        <Button type="text" icon={<RightOutlined />} aria-label="下一张" title="下一张"
           onClick={(e) => { e.stopPropagation(); onIndexChange(index + 1) }}
           style={{ position: 'absolute', right: 16, top: '50%', color: '#fff', fontSize: 24, zIndex: 10 }} // hex-exempt 图片查看器深色覆盖层 chrome
         />

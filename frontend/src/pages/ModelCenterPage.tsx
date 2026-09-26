@@ -313,7 +313,9 @@ const ModelCenterPage: React.FC = () => {
                   type="button"
                   key={tab.key}
                   className={`mc-rail-item${category === tab.key ? ' is-active' : ''}`}
-                  aria-selected={category === tab.key}
+                  // aria-selected 只允许出现在 tab/radio/option/gridcell 等角色上；此处
+                  // 分区按钮无 tablist 结构，用 aria-pressed（合法且语义同为「已选中」）
+                  aria-pressed={category === tab.key}
                   onClick={() => setCategory(tab.key)}
                 >
                   <span className="mc-rail-icon" aria-hidden="true">{tab.icon}</span>

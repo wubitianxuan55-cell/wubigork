@@ -115,7 +115,7 @@ const ChatComposerInner: React.FC<ChatComposerProps> = ({
         style={{ flex: 1, background: 'transparent', border: 'none', color: C('color-text'), borderRadius: 0, resize: 'none', fontSize: 14, lineHeight: 1.6, padding: '6px 2px', boxShadow: 'none' }}
       />
       <Tooltip title="发送 (Enter)">
-        <Button type="primary" icon={<SendOutlined />} onClick={onSend} loading={sending} disabled={!input.trim() || voiceOn}
+        <Button type="primary" icon={<SendOutlined />} onClick={onSend} loading={sending} disabled={!input.trim() || voiceOn} aria-label="发送"
           style={{ background: input.trim() ? 'var(--md-sys-color-primary)' : C('color-border'), borderColor: 'transparent', borderRadius: 14, width: 40, height: 40, minWidth: 40, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: input.trim() ? '0 0 16px color-mix(in srgb, var(--gaea-glow) 40%, transparent)' : 'none', flexShrink: 0 }} />
       </Tooltip>
     </div>

@@ -1,3 +1,14 @@
+## 最新发布：v4.415.0（2026-09-26）「前端 UI 完善批：绘梦整页崩根修 + 走查实证六项修复」
+
+- **刀型**：「优化完善系统的前端UI」整批：vite mock+无头 Edge 隔离目检（9 板块×明暗截图）+静态审计（Explore 全量扫描）双证据定刀。前端 15 文件+2 新测试文件，绑定面 720 零变更，Go 零改动，零功能删除。
+- **根修（P0）**：绘梦整页崩（`Cannot read properties of undefined (reading 'toFixed')`）——`GetSystemStats` 契约是 `Partial<SystemStats>`（facade 类型即如此）而 api 层零归一化直透，ControlPanel `memUsed.toFixed()` 字段缺失即抛 TypeError 连坐整页。根修=api 缝合处 statNum 归一化（缺字段补 0/非 string gpuName 收空串/null→null），消费方零改动。测试 `api/image.test.ts` 五例。
+- **走查实证修复**：①chat 欢迎屏建议卡被悬浮输入区工具行遮挡→`.chat-welcome` 底部预留 176px（明暗双主题截图复验；`.chat-empty` 是载入态溅屏勿动）②CharacterPage 读取失败静默仅 console→诚实错误态+重试（HomePage v4.349 口径，+2 测试）③schedule 亮色拖拽虚线/前锋线点白系不可见→on-surface 令牌+缩放手柄白芯深边双保险+竣工/前锋线收进 `--sched-deadline/--sched-front` 令牌（暗档原值零变化/亮档加深）④MemoryHub 检索命中标签 tailwind pastel 亮主题近不可见→hub.css `.hub-hit-tag--*` 领域色两档锁定+错误态 `--md-sys-color-destructive`⑤角色卡「白墨」浅海报白名对比不足→`.ccard-id` 黑纱中段 0.42→0.55⑥aria 包：ToolbarButton 组件级 ariaLabel 缺省回落 title（五处消费点自动达标）+灯箱上一张/下一张、sin 删除故事、chat 发送、角色卡九处+ModelCenter aria-selected→aria-pressed。
+- **审计证伪关账**：`--radius-*` 「未定义」不成立（App.tsx 早已内联注入，live DOM getComputedStyle 实测 `--radius-md`=12px 与 `--md-sys-radius-md` 同值）；modelcenter FEATURES emoji 字段=零渲染点死数据（BindSection 已走 FEATURE_ICONS antd）删字段了账；sin 页头 `.sin-mark` 本就是 17px 细条非重复大标题。
+- **观察池新挂**：whisper 子系统 emoji 图标群（WhisperDesirePanel/WhisperMemoryLibrary/WhisperTracePanel/WhisperMemoryModal 4 文件专项）；内联 borderRadius 222 处+CSS px 圆角 291 处令牌化（批替换专项）；间距 6/10/14 非栅格收敛；ChapterEditor 右键菜单键盘可达（可点 div 无 role/tabIndex）；SchedulePage 示例工程覆盖无确认（Popconfirm 候选）；CharacterLibEditor 大 Modal 可访问名复核。
+- **门禁**：定向 10 套件全绿（新增 7 例）+tsc 0+eslint 0；全量 ci 绿+漂移闸 OK@4.415.0；走查隔离目检不动用户壳与会话（v4.414.1 教训执行），console 0 新增错误。
+- **产物**：见 SHA256SUMS-v4.415.0.txt（仅本地；冒烟 200 过）；保留策略删 v4.411.0.exe。
+- **文档**：releases/v4.415.0.md+CHANGELOG/README+releases/README（439→440+34 席插 v4.415 裁 v4.384+清历史孤儿碎片行）+AGENTS 迁 1 插 1（一百三十三迁：v4.411.0 入 archive，头部补记 130~132 迁流水）。
+
 ## 最新发布：v4.414.1（2026-09-26）「桌面 Send 斜杠派发根修 + GaeaNewSession 诚实报错（真机走查实录）」
 
 - **刀型**：v4.414 plan-mode 真机走查拽出双缺陷根修（v4.405.1 先例）。Go 3 文件改+1 新测试，绑定面 720 零变更。

@@ -155,18 +155,18 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
           <TisorRadar dims={c.dims} size={52} color="var(--gaea-glow)" showLabels={false} />
         )}
         <div className="ccard-actions">
-          <Button size="small" type="text" icon={<EditOutlined />} title="编辑"
+          <Button size="small" type="text" icon={<EditOutlined />} title="编辑" aria-label={`编辑 ${c.name}`}
             onClick={e => { e.stopPropagation(); onEdit(c) }} />
-          <Button size="small" type="text" icon={<SwapOutlined />} title="设为当前聊天人格"
+          <Button size="small" type="text" icon={<SwapOutlined />} title="设为当前聊天人格" aria-label={`设为当前聊天人格 ${c.name}`}
             disabled={!c.chatEnabled}
             onClick={e => { e.stopPropagation(); onSetPersona(c) }} />
           {c.chatEnabled && (
-            <Button size="small" type="text" icon={<DatabaseOutlined />} title="查看状态 / 记忆 / 追踪"
+            <Button size="small" type="text" icon={<DatabaseOutlined />} title="查看状态 / 记忆 / 追踪" aria-label={`查看状态 / 记忆 / 追踪 ${c.name}`}
               onClick={e => { e.stopPropagation(); onMemory(c) }} />
           )}
           {inProject ? (
             hasProject && (
-              <Button size="small" type="text" icon={<ReadOutlined />} title="从当前项目移除"
+              <Button size="small" type="text" icon={<ReadOutlined />} title="从当前项目移除" aria-label={`从当前项目移除 ${c.name}`}
                 onClick={e => { e.stopPropagation(); onDissociate(c) }}>已加入</Button>
             )
           ) : (
@@ -187,7 +187,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
             title={c.kind === 'builtin' ? `隐藏「${c.name}」？` : `删除「${c.name}」？删除会同时清理项目引用与聊天通道`}
             okText={c.kind === 'builtin' ? '隐藏' : '删除'} cancelText="取消"
             onConfirm={() => onDelete(c)}>
-            <Button size="small" type="text" danger icon={<DeleteOutlined />} title="删除"
+            <Button size="small" type="text" danger icon={<DeleteOutlined />} title="删除" aria-label={`删除 ${c.name}`}
               onClick={e => e.stopPropagation()}
               style={{ color: C('color-text-secondary') }} />
           </Popconfirm>

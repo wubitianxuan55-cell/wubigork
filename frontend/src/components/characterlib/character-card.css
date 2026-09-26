@@ -177,8 +177,10 @@
   right: 0;
   bottom: 0;
   z-index: 3;
-  padding: 42px 14px 13px;
-  background: linear-gradient(0deg, rgba(0, 0, 0, 0.8), rgba(0, 0, 0, 0.42) 46%, transparent 76%);
+  /* 黑纱保证白名可读：亮色主题+浅色渐变海报时旧 0.42 中段纱被洗成中灰，
+     白字对比不足（v4.415 目检「白墨」卡）——中段加深至 0.55、收窄透明区。 */
+  padding: 46px 14px 13px;
+  background: linear-gradient(0deg, rgba(0, 0, 0, 0.88), rgba(0, 0, 0, 0.55) 50%, transparent 82%);
 }
 
 .ccard-name {

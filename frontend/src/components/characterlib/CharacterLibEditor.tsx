@@ -570,7 +570,7 @@ const CharacterLibEditor: React.FC<Props> = ({
                 <span className="cd-chat"><i className="cd-chat-dot" />可聊天</span>
               )}
               {isCurrentPersona && <span className="cd-current">当前人格</span>}
-              <Button type="text" size="small" icon={<CloseOutlined />} title="关闭" onClick={onClose} className="cd-close" />
+              <Button type="text" size="small" icon={<CloseOutlined />} title="关闭" aria-label="关闭" onClick={onClose} className="cd-close" />
             </div>
           </div>
 

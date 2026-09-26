@@ -97,6 +97,9 @@ const CharacterPage: React.FC = () => {
   const [filterStatus, setFilterStatus] = useState<string>('')
   const [filterOrg, setFilterOrg] = useState<string>('')
   const [loading, setLoading] = useState(true)
+  // 读取失败的诚实错误态：此前失败仅 console 静默吞掉，列表空态与「本书没有角色」
+  // 同貌——用户会以为角色全丢了；给出原因 + 重试入口（对齐 HomePage v4.349 口径）。
+  const [loadError, setLoadError] = useState('')
 
   // 抽卡
   const [drawOpen, setDrawOpen] = useState(false)
@@ -163,8 +166,11 @@ const CharacterPage: React.FC = () => {
       setCharacters(data.characters || [])
       setOrganizations(data.organizations || [])
       setRelationships(data.relationships || [])
-    } catch (err) { console.error('[CharacterPage] loadData:', err) }
-    finally {
+      setLoadError('')
+    } catch (err) {
+      console.error('[CharacterPage] loadData:', err)
+      if (token === dataLoadToken.current) setLoadError(errText(err, '角色数据读取失败'))
+    } finally {
       if (token === dataLoadToken.current) setLoading(false)
     }
   }, [])
@@ -183,6 +189,7 @@ const CharacterPage: React.FC = () => {
 
   useEffect(() => {
     setCharacters([]); setOrganizations([]); setRelationships([])
+    setLoadError('')
     if (projectPath) { loadData(); loadRefs() }
   }, [projectPath, loadData, loadRefs])
 
@@ -780,6 +787,11 @@ const CharacterPage: React.FC = () => {
                 </div>
               ))}
             </div>
+          ) : loadError && characters.length === 0 ? (
+            // 诚实错误态：失败 ≠ 空库（对齐 HomePage shelf-load-error 口径）
+            <V3Empty description={`角色数据读取失败：${loadError}`} style={{ marginTop: 80 }}>
+              <Button icon={<SyncOutlined />} onClick={() => { setLoading(true); loadData().finally(() => setLoading(false)) }}>重试</Button>
+            </V3Empty>
           ) : characters.length === 0 ? (
             <V3Empty description="本书还没有角色，去角色库抽卡吧" style={{ marginTop: 80 }}>
               <Button type="primary" icon={<ThunderboltOutlined />} onClick={() => setDrawOpen(true)}>抽卡</Button>

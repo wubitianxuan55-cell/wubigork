@@ -126,11 +126,28 @@ export async function getComfyUILoras(): Promise<ComfyLorasResult> {
   }
 }
 
-/** 获取系统状态 */
+/** 数值收窄：绑定侧契约是 Partial<SystemStats>（缺字段/非数值都可能），统一收成有限数，缺省 0 */
+function statNum(v: unknown): number {
+  const n = typeof v === 'number' ? v : Number(v)
+  return Number.isFinite(n) ? n : 0
+}
+
+/** 获取系统状态：Partial → 全字段归一化。此前缺字段直透消费方，ControlPanel 的
+ *  memUsed.toFixed 等在字段缺失时抛 TypeError 整页崩进 ErrorBoundary（走查实证）。 */
 export async function getSystemStats(): Promise<SystemStats | null> {
   try {
     const s = await appFacade().GetSystemStats()
-    return s as unknown as SystemStats
+    if (!s || typeof s !== 'object') return null
+    const r = s as Partial<SystemStats>
+    return {
+      cpu: statNum(r.cpu),
+      memTotal: statNum(r.memTotal),
+      memUsed: statNum(r.memUsed),
+      gpuName: typeof r.gpuName === 'string' ? r.gpuName : '',
+      gpuUsage: statNum(r.gpuUsage),
+      vramUsed: statNum(r.vramUsed),
+      vramTotal: statNum(r.vramTotal),
+    }
   } catch (_) {
     return null
   }

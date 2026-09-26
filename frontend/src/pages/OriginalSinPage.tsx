@@ -319,6 +319,8 @@ const OriginalSinPage: React.FC = () => {
                       type="text"
                       danger
                       icon={<DeleteOutlined />}
+                      aria-label={`删除故事 ${s.title}`}
+                      title="删除故事"
                       onClick={(e) => e.stopPropagation()}
                     />
                   </Popconfirm>

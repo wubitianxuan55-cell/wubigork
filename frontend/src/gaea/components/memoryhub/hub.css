@@ -610,3 +610,24 @@
 .ui-reduced-motion .hub-scanline { animation: none; }
 .ui-reduced-motion .hub-enter { animation: none; opacity: 1; transform: none; }
 .ui-reduced-motion .hub-card:hover { transform: none; }
+
+/* 检索命中来源标签（文件/右脑/左脑/主脑）：领域编码色明暗分档。
+   原 tailwind text-sky-300/pink-300/emerald-300/violet-300 是暗底浅色系，
+   亮色主题下近不可见（v4.415 审计 #3）。领域四色不绑主题令牌（主题预设会改色相），
+   分档锁定先例 schedule.css --sched-*。 */
+.hub-hit-tag {
+  flex-shrink: 0;
+  padding: 0 6px;
+  border-radius: 5px;
+  font-size: 10px;
+  line-height: 18px;
+  white-space: nowrap;
+}
+.hub-hit-tag--file  { background: rgba(14, 165, 233, 0.20); color: #7dd3fc; }  /* hex-exempt 领域编码色 */
+.hub-hit-tag--right { background: rgba(236, 72, 153, 0.20); color: #f9a8d4; }  /* hex-exempt */
+.hub-hit-tag--left  { background: rgba(16, 185, 129, 0.20); color: #6ee7b7; }  /* hex-exempt */
+.hub-hit-tag--main  { background: rgba(139, 92, 246, 0.20); color: #c4b5fd; }  /* hex-exempt */
+:root[data-hl="light"] .hub-hit-tag--file  { background: rgba(2, 132, 199, 0.12); color: #0369a1; }  /* hex-exempt */
+:root[data-hl="light"] .hub-hit-tag--right { background: rgba(190, 24, 93, 0.10);  color: #be185d; }  /* hex-exempt */
+:root[data-hl="light"] .hub-hit-tag--left  { background: rgba(4, 120, 87, 0.12);  color: #047857; }  /* hex-exempt */
+:root[data-hl="light"] .hub-hit-tag--main  { background: rgba(109, 40, 217, 0.10); color: #6d28d9; } /* hex-exempt */

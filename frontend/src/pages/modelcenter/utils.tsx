@@ -311,14 +311,16 @@ export function imageModelDefaultFor(backend: string, engines: EngineConfig[]): 
   return first?.id || ''
 }
 
-// 功能模型绑定（聊天/小说/办公/角色库，各自独立 LLM，持久化重启不丢）
-export const FEATURES: { key: string; label: string; icon: string; mergeKeys?: string[] }[] = [
-  { key: 'chat', label: '聊天', icon: '💬' },
-  { key: 'novel', label: '小说', icon: '📖' },
-  { key: 'office', label: '办公', icon: '🛠️', mergeKeys: ['gaea'] },
-  { key: 'characterlib', label: '角色库', icon: '🎭' },
-  { key: 'sin', label: '原罪', icon: '😈' },
-  { key: 'routine', label: '常规办公', icon: '⚙️' },
+// 功能模型绑定（聊天/小说/办公/角色库，各自独立 LLM，持久化重启不丢）。
+// 图标不在此维护：BindSection 用 FEATURE_ICONS（antd 组件），此处的 emoji
+// 字段曾是死数据（v4.415 审计发现零渲染点，已删——禁 emoji 当图标红线）。
+export const FEATURES: { key: string; label: string; mergeKeys?: string[] }[] = [
+  { key: 'chat', label: '聊天' },
+  { key: 'novel', label: '小说' },
+  { key: 'office', label: '办公', mergeKeys: ['gaea'] },
+  { key: 'characterlib', label: '角色库' },
+  { key: 'sin', label: '原罪' },
+  { key: 'routine', label: '常规办公' },
 ]
 
 // ── 功能绑定状态（绑定 + 启停 → 明确回退态） ─────────────────

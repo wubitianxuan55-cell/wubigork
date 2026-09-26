@@ -5,11 +5,14 @@ export const ToolbarButton = memo(function ToolbarButton({
   onClick,
   disabled,
   title,
+  /** 缺省回落 title：纯图标按钮必须带 aria-label（design-system MASTER 红线） */
+  ariaLabel,
   children,
 }: {
   onClick: () => void;
   disabled?: boolean;
   title?: string;
+  ariaLabel?: string;
   children: ReactNode;
 }) {
   return (
@@ -18,6 +21,7 @@ export const ToolbarButton = memo(function ToolbarButton({
       onClick={onClick}
       disabled={disabled}
       title={title}
+      aria-label={ariaLabel ?? title}
     >
       {children}
     </button>
