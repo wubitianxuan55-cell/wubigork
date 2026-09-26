@@ -859,6 +859,8 @@ func Load() (*Config, error) {
 	if err := mergeFile(cfg, "gaea.toml"); err != nil {
 		return nil, err
 	}
+	// GAEA_WALKTHROUGH=1 走查沙箱（真机走查防复发刀，壳侧 gaeaLoadConfig 同款）
+	ApplyWalkthroughOverride(cfg)
 	// Claude Code's .mcp.json (project root) is read last and merged into
 	// [[plugins]], so a server configured for Claude works here unchanged.
 	// gaea.toml wins on a name collision (see mergeMCPJSON).

@@ -68,6 +68,8 @@ func gaeaLoadConfig() (*gaeaConfig.Config, error) {
 			return nil, fmt.Errorf("gaea: 读取持久化配置 %s: %w", p, err)
 		}
 	}
+	// GAEA_WALKTHROUGH=1 走查沙箱：必须在用户 toml 合并后覆盖（v4.418，与 config.Load 同调一助手）
+	gaeaConfig.ApplyWalkthroughOverride(cfg)
 	cfg.DefaultModel = "gaea"
 	cfg.Providers = []gaeaConfig.ProviderEntry{{
 		Name:  "gaea",
@@ -140,7 +142,7 @@ func (a *App) gaeaBuildController() (*control.Controller, error) {
 			ga.followUpMu.Unlock()
 		},
 		// 7.2-2 判据②：read_skill/run_skill 工具级调用计数（包级函数无状态）。
-		OnSkillUse:  recordSkillUse,
+		OnSkillUse: recordSkillUse,
 		RequireKey: false,
 		Sink:       sink,
 		MaxSteps:   0,

@@ -1,3 +1,13 @@
+## 最新发布：v4.418.0（2026-09-26）「走查沙箱开关：GAEA_WALKTHROUGH=1 强制隔离工作区」
+
+- **刀型**：真机走查险情根因封堵（候产品刀当轮立项落地）。Go 1 文件改+1 新测试，绑定面 720 零变更，前端零改动。
+- **背景**：真机走查「先建专用会话再发消息」无效——装配前 NewSession 必然诚实报错，首条消息走自动装配+自动恢复，workspace 解析到哪回合落到哪（当日实证接进用户真实会话，模型调用即败未持久化）。
+- **落地**：GAEA_WALKTHROUGH=1 → config.Load() 强制 workspace=%TEMP%\gaea-walkthrough\workspace（自动创建），覆盖用户/项目配置；未设零变化；激活 slog.Warn 可审计；删沙箱目录即清场。
+- **测试**：walkthrough_test.go 两例（开=恒沙箱/关=零触碰）；config+app 包回归绿；全量 ci 绿（OriginalSinPage.tabs 负载 flaky 一轮隔离复跑绿，v4.414.0 同款）。
+- **真机验证实录**：沙箱模式启动→GaeaInit 装配→ListDir 探针=沙箱（14 真实会话零出现）；沙箱内 /plan on 实弹确认「pre-turn Notice 不可见」=真实缺陷（藏在过程折叠卡，候可见 chip 小刀）；/plan off 正常；清场=删沙箱目录。**诊断坑三连**：①壳侧 gaeaLoadConfig 不走 config.Load，开关双入口必须同调 ApplyWalkthroughOverride ②装配前 ga.cfg=nil 探针全假 ③CDP 探针可打在僵尸旧实例（gaea-v4.418.0.exe≠gaea.exe 按名漏杀）——跨实例诊断先对 PID。
+- **产物**：见 SHA256SUMS-v4.418.0.txt（冒烟 200 过）；保留策略删 v4.414.0.exe。
+- **文档**：releases/v4.418.0.md+CHANGELOG/README+releases/README（442→443+裁 v4.387）+AGENTS 走查配方增补+progress。
+
 ## 非版本刀（2026-09-26）真机走查尝试+污染预防实录（零代码；v4.417.0 壳）
 
 - **目的**：真机走查池三项（审批卡可视确认/pre-turn Notice 可见性/whisper 实数据观感）。
