@@ -1,3 +1,13 @@
+## 最新发布：v4.419.0（2026-09-26）「动词回执可见化：notice 摘出过程卡」
+
+- **刀型**：v4.418 真机走查池实锤的「pre-turn 动词 Notice 不可见」缺陷修复。前端 1 文件+1 测试，绑定面 720 零变更，Go 零改动，零功能删除。
+- **根因**：Transcript alternatingSegments 分组谓词把 notice 与 tool/phase/compaction 一并收进过程卡（v4.26 phase 收编时顺带），渲染即折叠。
+- **根修**：谓词摘出 notice——一律独立成行渲染（warn 仍走 ErrorCard；info 走既有 .notice 左缘线弱化行零新样式）；失败告警同样受益。
+- **测试**：ProcessCard.test 增 1 例（buildSegments 断言 notice 恒落 outsideItems，info+warn 双样本）13/13 绿；真机目检沙箱 /plan on 回执独立行可见（截图在案）；全量 ci 绿。
+- **门禁**：漂移闸 OK@4.419.0。
+- **产物**：见 SHA256SUMS-v4.419.0.txt（冒烟 200 过）；保留策略删 v4.414.1.exe。
+- **文档**：releases/v4.419.0.md+CHANGELOG/README+releases/README（443→444+裁 v4.388）+AGENTS 迁 1 插 1（一百三十七迁）+progress。
+
 ## 非版本刀（2026-09-26）真机走查池全清账：plan-mode 审批卡可视确认（零代码）
 
 - **环境**：xAI 重新登录后，v4.418.0 壳 + GAEA_WALKTHROUGH=1 沙箱（首刀实战）+ CDP。全程零触碰用户工作区（黄甲 mmin 复核零新文件）。

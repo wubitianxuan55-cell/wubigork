@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { render } from "@testing-library/react";
-import { ProcessCard } from "./Transcript";
+import { ProcessCard, buildSegments } from "./Transcript";
 import { deriveProcessStatus } from "../lib/processStatus";
 import { LocaleProvider } from "../lib/i18n";
 import type { Item } from "../lib/store";
@@ -125,5 +125,23 @@ describe("ProcessCard 状态徽标（色+图标+文字三重传达）", () => {
       wrap(<ProcessCard items={[tool("done")]} toolCount={1} thoughtCount={0} small={false} subcallsByParent={noSubcalls} />),
     );
     expect(view.container.textContent).toContain("完成");
+  });
+});
+
+// v4.419 notice 摘出过程卡分组：动词回执（/plan on 等）与失败告警此前被折叠
+// 进过程卡默认不可见（真机走查实锤）——notice 必须独立成行渲染（可见 chip 行）。
+describe("notice 独立可见（v4.419 摘出过程卡分组）", () => {
+  it("buildSegments：notice 落 outsideItems，绝不进 processItems", () => {
+    const items: Item[] = [
+      { kind: "user", id: "u1", text: "/plan on" } as Item,
+      { kind: "notice", id: "n1", level: "info", text: "计划模式已开启：模型只做研究和方案设计" } as Item,
+      { kind: "tool", id: "t1", name: "list_dir", args: "", readOnly: true, status: "done" } as Item,
+      { kind: "notice", id: "n2", level: "warn", text: "写入失败：请重试" } as Item,
+    ];
+    const segs = buildSegments(items);
+    const noticeInProcess = segs.some((s) => s.processItems.some((i) => i.kind === "notice"));
+    const noticeOutside = segs.some((s) => s.outsideItems.some((i) => i.kind === "notice"));
+    expect(noticeInProcess).toBe(false);
+    expect(noticeOutside).toBe(true);
   });
 });

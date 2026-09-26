@@ -114,7 +114,9 @@ function alternatingSegments(turn: Item[]): Segment[] {
     // v4.26 phase 收编：phase 不再独立成行走消息流（此前堆叠成一行行
     // 「.phase」弱存在感文本）——统一进过程卡：最新 phase 由 WorkHeader
     // 工作态头部展示，历史 phase 折叠在过程卡内。item 形态不变。
-    if (it.kind === "tool" || it.kind === "compaction" || it.kind === "notice" || it.kind === "phase") {
+    // v4.419 notice 摘出分组：动词回执（/plan on 等）与失败告警此前被折叠
+    // 进过程卡默认不可见（真机走查实锤）——notice 一律独立成行渲染。
+    if (it.kind === "tool" || it.kind === "compaction" || it.kind === "phase") {
       curProcess.push(it);
     } else {
       curOutside.push(it);
