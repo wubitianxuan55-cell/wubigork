@@ -366,6 +366,18 @@ export default function App() {
   });
 
   const { toolCounts, skillCounts } = useToolStats(state.items);
+  // v4.420 计划模式手动选择：状态由最近一条计划回执推导（/plan on→开，off/未开启→关），
+  // 点击走 handleSend 动词链（引擎装配前无回执=默认关，与非默认语义一致）
+  const planActive = useMemo(() => {
+    for (let i = state.items.length - 1; i >= 0; i--) {
+      const it = state.items[i];
+      if (it.kind !== "notice") continue;
+      const t = (it as { text?: string }).text ?? "";
+      if (/计划模式已开启|已处于开启状态/.test(t)) return true;
+      if (/已退出计划模式|计划模式未开启/.test(t)) return false;
+    }
+    return false;
+  }, [state.items]);
   // 会话产物/文件变更派生 + 新产物角标自动置前 → app/useDeliverables
   const { sessionDeliverables, sessionChanges, freshDeliverablePaths, freshDeliverableCount } = useDeliverables({ state, currentSessionKey, rightTab, openPaneView });
   // 预览浮窗状态机（U2）+ 写后预览实时跟随（U4）→ app/usePreviewAutoFront
@@ -849,6 +861,8 @@ export default function App() {
               onSetPermLevel={setPermLevel}
               thinkLevel={thinkLevel}
               onSetThinkLevel={handleThinkLevelChange}
+              planActive={planActive}
+              onTogglePlan={() => { if (!state.running) void handleSend(planActive ? "/plan off" : "/plan on") }}
               onPickFolder={switchFolder}
               disabled={state.meta?.ready === false || state.approval != null}
             />

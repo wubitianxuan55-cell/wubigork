@@ -1,3 +1,6 @@
+## v4.420.0 · 计划模式手动选择：Composer 工具栏「计划」chip（2026-09-26）
+> 用户拍板「计划模式不是默认模式，但可以选择手动」落地：给计划模式显式手动入口，不再要求输入 /plan on。前端 3 文件，绑定面 720 零变更，Go 零改动。【落地】ComposerToolbar 新增「计划」chip（ClipboardList 图标，思考深度右侧）：非默认（初始关）；点击翻转=发送 /plan on|off 走既有动词链（回执已由 v4.419 可见化）；状态由 App 层从最近一条计划回执推导（零新绑定、零轮询，与引擎真实状态经回执天然同步）；回合中置灰（引擎拒绝切换）；aria-pressed+title。复用既有链路零新增。【测试】composer 相关 5 套件 35 例绿+tsc 0+eslint 0；真机沙箱目检双向翻转同步（GAEA_WALKTHROUGH=1）；全量 ci 绿。【门禁】漂移闸 OK@4.420.0。【产物】见 SHA256SUMS-v4.420.0.txt（冒烟 200 过）；保留策略删 v4.415.0.exe（v4.417.0.exe 二进制此前误删，身份以 SUMS 在案）。【文档】releases/v4.420.0.md+CHANGELOG/README+releases/README（444→445+裁 v4.389）+progress。
+
 ## v4.419.0 · 动词回执可见化：notice 摘出过程卡（真机走查实锤缺陷修复）（2026-09-26）
 > v4.418 真机走查池实锤的「pre-turn 动词 Notice 不可见」缺陷修复。前端 1 文件+1 测试，绑定面 720 零变更，Go 零改动。【缺陷】/plan on 等斜杠动词回执（「计划模式已开启…」）藏在「过程」折叠卡内默认不可见。【根因】Transcript alternatingSegments 分组谓词把 notice 与 tool/phase/compaction 一并收进过程卡（v4.26 phase 收编时顺带）。【根修】分组谓词摘出 notice——一律独立成行渲染（warn 仍走 ErrorCard；info 走既有 .notice 左缘线弱化行，零新样式）；失败告警同样受益。【测试】ProcessCard.test 增 1 例（buildSegments 断言 notice 恒落 outsideItems，info+warn 双样本）13/13 绿；真机目检沙箱 /plan on 回执独立行可见（截图在案）；全量 ci 绿。【门禁】漂移闸 OK@4.419.0。【产物】见 SHA256SUMS-v4.419.0.txt（冒烟 200 过）；保留策略删 v4.414.1.exe。【文档】releases/v4.419.0.md+CHANGELOG/README+releases/README（443→444+裁 v4.388）+AGENTS 迁 1 插 1（一百三十七迁）+progress。
 

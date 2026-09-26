@@ -52,13 +52,15 @@ function loadComposerHeight(): number | null {
 }
 
 export function Composer({
-  running, cwd, onSend, onSteer, onCancel, permLevel, onSetPermLevel, thinkLevel, onSetThinkLevel, onPickFolder, disabled,
+  running, cwd, onSend, onSteer, onCancel, permLevel, onSetPermLevel, thinkLevel, onSetThinkLevel, onPickFolder, disabled, planActive, onTogglePlan,
 }: {
   running: boolean; cwd?: string;
   onSend: (displayText: string, submitText?: string) => void;
   onSteer?: (text: string) => void;
   onCancel: () => string | undefined; permLevel?: string; onSetPermLevel?: (p: "ask" | "auto" | "yolo") => void;
   thinkLevel?: string; onSetThinkLevel?: (level: "fast" | "normal" | "deep") => void;
+  /** 计划模式（v4.420）：状态由 App 层从计划回执推导，点击走动词链 */
+  planActive?: boolean; onTogglePlan?: () => void;
   onPickFolder: (path?: string) => Promise<string>; disabled?: boolean;
 }) {
   const t = useT();
@@ -523,6 +525,8 @@ export function Composer({
           onSetPermLevel={onSetPermLevel}
           thinkLevel={thinkLevel}
           onSetThinkLevel={onSetThinkLevel}
+          planActive={planActive}
+          onTogglePlan={onTogglePlan}
         />
       </div>
 

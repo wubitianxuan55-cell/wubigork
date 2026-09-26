@@ -1,5 +1,5 @@
 // Composer 拆分产物：底部工具栏（工作区/导入/截图/权限级别/思考深度/快捷键提示，行为零变化，T6-10.1）
-import { Camera, ChevronDown, FolderGit2, Gauge, Loader, Paperclip, Wand2, Zap } from "../../icons";
+import { Camera, ChevronDown, ClipboardList, FolderGit2, Gauge, Loader, Paperclip, Wand2, Zap } from "../../icons";
 import { useT } from "../../lib/i18n";
 import type { DictKey } from "../../locales/en";
 
@@ -19,6 +19,9 @@ export interface ComposerToolbarProps {
   onSetPermLevel?: (p: "ask" | "auto" | "yolo") => void
   thinkLevel?: string
   onSetThinkLevel?: (level: "fast" | "normal" | "deep") => void
+  /** 计划模式开/关（v4.420）：由最近一条计划回执推导，点击经 /plan on|off 动词链翻转 */
+  planActive?: boolean
+  onTogglePlan?: () => void
 }
 
 // 徽标/悬浮文案走三语字典（zh 原硬编码文案逐字收编）：键映射在模块层，
@@ -35,7 +38,7 @@ const THINK_DESCS: Record<string, DictKey> = {
 export function ComposerToolbar({
   cwd, workspaceName, workspaceMenuOpen, onToggleWorkspaceMenu, workspaceAnchorRef,
   running, pendingPaste, captureBusy, onPickFiles, onScreenshot, onRecordSkill,
-  permLevel, onSetPermLevel, thinkLevel, onSetThinkLevel,
+  permLevel, onSetPermLevel, thinkLevel, onSetThinkLevel, planActive, onTogglePlan,
 }: ComposerToolbarProps) {
   const t = useT()
   return (
@@ -127,6 +130,26 @@ export function ComposerToolbar({
             <span>{t(THINK_LABELS[level])}</span>
           </button>
         ))}
+      </div>
+
+      {/* 计划模式选择器（v4.420）：非默认、手动选择——点击经 /plan on|off 动词链
+          翻转，状态由最近一条计划回执推导；回合进行中引擎拒绝切换（置灰） */}
+      <div className="flex gap-[3px] shrink-0">
+        <button type="button"
+          className={`flex items-center gap-1 px-2 py-1 border rounded-md bg-transparent text-xs cursor-pointer whitespace-nowrap transition-[color,background,border,transform] duration-[var(--dur-fast)] active:scale-[0.97] ${
+            planActive
+              ? "text-accent bg-accent-soft border-accent/30 shadow-[0_0_0_1px_var(--accent-soft)]"
+              : "text-fg-faint border-transparent hover:text-fg hover:bg-bg-soft"
+          } ${running ? "opacity-50 cursor-not-allowed" : ""}`}
+          onClick={() => { if (!running && onTogglePlan) onTogglePlan() }}
+          title={planActive
+            ? "计划模式已开启：点击退出（模型回到正常执行）"
+            : "计划模式：模型只做研究和方案设计，提交计划审批后再执行"}
+          aria-pressed={!!planActive}
+        >
+          <ClipboardList size={11} className="shrink-0" />
+          <span>计划</span>
+        </button>
       </div>
 
       {/* 快捷提示 */}
