@@ -92,7 +92,7 @@ function ActivityFeed({ runs }: { runs: SubagentRunView[] }) {
           </span>
           {r.lastTool && (
             <span className="truncate pl-3 font-mono" title={r.lastTool} style={{ color: "var(--md-sys-color-text-secondary)" }}>
-              ⚙ {r.lastTool}
+              {r.lastTool}
             </span>
           )}
         </div>

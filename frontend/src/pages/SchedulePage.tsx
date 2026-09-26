@@ -204,14 +204,21 @@ const SchedulePage: React.FC = () => {
     }
   }
 
+  const [xmlBusy, setXmlBusy] = useState(false)
   const onImportFile = async (file: File) => {
-    const text = await file.text()
-    const r = parseProjectXml(text)
-    if (r.ok && r.project) {
-      importProject(r.project)
-      setImportMsg({ type: 'success', text: `已导入「${r.project.name}」：${r.project.tasks.length} 行 / ${r.project.links.length} 条搭接` })
-    } else {
-      setImportMsg({ type: 'error', text: r.error ?? '导入失败' })
+    // xmlBusy 与 xlsx/mpp 同口径：XML 导入此前无在途反馈，导入按钮 loading 盖不到（审计 #4）
+    setXmlBusy(true)
+    try {
+      const text = await file.text()
+      const r = parseProjectXml(text)
+      if (r.ok && r.project) {
+        importProject(r.project)
+        setImportMsg({ type: 'success', text: `已导入「${r.project.name}」：${r.project.tasks.length} 行 / ${r.project.links.length} 条搭接` })
+      } else {
+        setImportMsg({ type: 'error', text: r.error ?? '导入失败' })
+      }
+    } finally {
+      setXmlBusy(false)
     }
   }
 
@@ -577,7 +584,7 @@ const SchedulePage: React.FC = () => {
           }}
         />
         <Dropdown trigger={['click']} menu={importMenuCfg}>
-          <Button size="small" icon={<ImportOutlined />} loading={xlsxBusy || mppBusy} data-testid="sched-import-btn">导入 <DownOutlined /></Button>
+          <Button size="small" icon={<ImportOutlined />} loading={xlsxBusy || mppBusy || xmlBusy} data-testid="sched-import-btn">导入 <DownOutlined /></Button>
         </Dropdown>
         <Dropdown trigger={['click']} menu={exportMenuCfg}>
           <Button size="small" icon={<ExportOutlined />} data-testid="sched-export-menu-btn">导出 <DownOutlined /></Button>
@@ -589,9 +596,16 @@ const SchedulePage: React.FC = () => {
           </Tooltip>
         </Popover>
         <div className="sched-tool-divider" />
-        <Tooltip title="载入示例工程（办公楼施工），覆盖当前数据">
-          <Button size="small" icon={<ThunderboltOutlined />} onClick={() => { loadSample(); setImportMsg(null) }}>示例工程</Button>
-        </Tooltip>
+        {/* 示例工程覆盖当前数据且不可撤销：与「清空」同款二次确认（审计 #5） */}
+        <Popconfirm
+          title="载入示例工程？"
+          description="将覆盖当前全部任务与搭接，不可撤销。"
+          okText="覆盖载入"
+          cancelText="取消"
+          onConfirm={() => { loadSample(); setImportMsg(null) }}
+        >
+          <Button size="small" icon={<ThunderboltOutlined />}>示例工程</Button>
+        </Popconfirm>
         <Popconfirm title="清空全部任务与搭接？" onConfirm={() => { clearAll(); setImportMsg(null) }}>
           <Button size="small" icon={<ClearOutlined />}>清空</Button>
         </Popconfirm>

@@ -403,7 +403,7 @@ export function FilePreviewModal() {
             <>
               {preview.truncated && (
                 <div className="mb-3 px-3 py-2 rounded-md border border-amber-500/30 bg-amber-500/5 text-amber-500 text-[12px] leading-relaxed mx-8 mt-4">
-                  ⚠️ 预览已截断（{preview.totalPages ? `PDF 共 ${preview.totalPages} 页` : "文件过大"}），仅展示前部内容；可让 AI 调用 summarize_file 获取全文摘要。
+                  预览已截断（{preview.totalPages ? `PDF 共 ${preview.totalPages} 页` : "文件过大"}），仅展示前部内容；可让 AI 调用 summarize_file 获取全文摘要。
                 </div>
               )}
               {mdView === "mindmap" ? (
@@ -430,7 +430,7 @@ export function FilePreviewModal() {
             <div className="px-6 py-4">
               {preview.truncated && (
                 <div className="mb-2 px-3 py-2 rounded-md border border-amber-500/30 bg-amber-500/5 text-amber-500 text-[12px] leading-relaxed">
-                  ⚠️ 预览已截断（文件过大），仅展示前部内容。
+                  预览已截断（文件过大），仅展示前部内容。
                 </div>
               )}
               <div className="h-[64vh] overflow-hidden rounded-lg border border-border-soft">

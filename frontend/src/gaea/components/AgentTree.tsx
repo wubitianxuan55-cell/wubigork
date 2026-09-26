@@ -254,7 +254,7 @@ export function AgentTree({ network, runs, onOpenThread }: {
                 {(node.model || run?.model) && (
                   <span className="rounded bg-(color:--md-sys-color-surface-container-high) px-1 py-px">{node.model || run?.model}</span>
                 )}
-                <span>{`⚙${node.toolCalls}`}</span>
+                <span>{`工具×${node.toolCalls}`}</span>
                 {dur.label && (
                   <span style={{ color: dur.live ? "var(--gaea-glow)" : "var(--md-sys-color-text-secondary)" }}>
                     {dur.label}
@@ -309,7 +309,7 @@ export function AgentTree({ network, runs, onOpenThread }: {
             )}
             {run.lastTool && (
               <span className="truncate font-mono" title={run.lastTool} style={{ color: "var(--md-sys-color-text-secondary)" }}>
-                ⚙ {run.lastTool}
+                {run.lastTool}
               </span>
             )}
           </div>

@@ -88,7 +88,7 @@ describe("CostInquiryPanel 询价飞轮", () => {
     expiringSpy.mockResolvedValue(EXPIRING);
     render(wrap(<CostInquiryPanel />));
 
-    expect(await screen.findByText("⚠ 2 条询价到期预警")).toBeTruthy();
+    expect(await screen.findByText("2 条询价到期预警")).toBeTruthy();
     expect(screen.getByText("SBS 改性沥青卷材")).toBeTruthy();
     expect(screen.getByText("铝合金窗")).toBeTruthy();
     expect(screen.getByText("至 2026-09-10")).toBeTruthy();

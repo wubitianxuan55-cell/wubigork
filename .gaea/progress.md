@@ -1,3 +1,12 @@
+## 最新发布：v4.416.0（2026-09-26）「前端 UI 完善批二：emoji 图标红线清零 + schedule 交互反馈补漏」
+
+- **刀型**：接 v4.415.0 观察池头名。前端 19 文件，绑定面 720 零变更，Go 零改动，零功能删除。
+- **emoji 清零（19 site）**：whisper 四文件（DesirePanel 分类 emoji→antd 组件；MemoryLibrary 25 情绪 emoji→效价色点 EMOTION_TONES+EmotionDot，全语义令牌；TracePanel 🤫✍️🔧📊→AudioMuted/CheckCircle/Tool/LineChart；MemoryModal 🧠⭐💫📊→Database/文本/删/BarChart；VALENCE_LABEL 按「内容语义」先例保留）；零散 11 文件（🎤→AudioOutlined、🛠️→ToolOutlined、StatsSection ⚠→WarningOutlined，其余装饰字符删除/「工具×N」文本化）。
+- **schedule 补漏**：XML 导入 xmlBusy 合并按钮 loading；示例工程 Popconfirm 防呆（与「清空」同款）。
+- **门禁**：定向 7 套件绿+tsc 0+eslint 0；全量 ci 绿+漂移闸 OK@4.416.0。
+- **产物**：见 SHA256SUMS-v4.416.0.txt（冒烟 200 过）；保留策略删 v4.412.0.exe。
+- **文档**：releases/v4.416.0.md+CHANGELOG/README+releases/README（440→441+裁 v4.385）+AGENTS 迁 1 插 1（一百三十四迁）。
+
 ## 最新发布：v4.415.0（2026-09-26）「前端 UI 完善批：绘梦整页崩根修 + 走查实证六项修复」
 
 - **刀型**：「优化完善系统的前端UI」整批：vite mock+无头 Edge 隔离目检（9 板块×明暗截图）+静态审计（Explore 全量扫描）双证据定刀。前端 15 文件+2 新测试文件，绑定面 720 零变更，Go 零改动，零功能删除。

@@ -2,6 +2,7 @@
 // 增强：四列网格布局、MiniBar四色、信任/aff着色、轮数选择
 
 import React, { useState } from 'react'
+import { AudioMutedOutlined, CheckCircleOutlined, LineChartOutlined, ToolOutlined } from '@ant-design/icons'
 
 interface TraceEntry {
   turn: number
@@ -70,7 +71,7 @@ function TraceRow({ entry, expanded, onToggle }: {
         <span style={{ width: 44, flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {eventLabel}
         </span>
-        {entry.l3.silent && <span style={{ color: 'var(--md-sys-color-warning)', fontSize: 11 }}>🤫</span>}
+        {entry.l3.silent && <span style={{ color: 'var(--md-sys-color-warning)', fontSize: 11 }}><AudioMutedOutlined /></span>}
         <span style={{ color: tColor, fontWeight: 600, marginLeft: 'auto', marginRight: 8 }}>
           {Math.round(entry.l1.trust)}
         </span>
@@ -117,15 +118,15 @@ function TraceRow({ entry, expanded, onToggle }: {
             <span>TierB: {entry.l3.tierBChars}字</span>
             <span>事实: {entry.l3.factsUsed || 0}</span>
             <span>命中: {entry.l3.embeddingHits || 0}</span>
-            {entry.l3.silent && <span style={{ color: 'var(--md-sys-color-warning)' }}>🤫 沉默</span>}
+            {entry.l3.silent && <span style={{ color: 'var(--md-sys-color-warning)' }}><AudioMutedOutlined /> 沉默</span>}
           </div>
 
           {/* L4/L5 */}
           {(entry.l4?.wrote || entry.l5?.toolCalls?.length) && (
             <div style={{ display: 'flex', gap: 12 }}>
-              {entry.l4?.wrote && <span style={{ color: 'var(--md-sys-color-success)' }}>✍️ 已写入</span>}
+              {entry.l4?.wrote && <span style={{ color: 'var(--md-sys-color-success)' }}><CheckCircleOutlined /> 已写入</span>}
               {entry.l5?.toolCalls?.map((tc, i) => (
-                <span key={i} style={{ color: 'var(--md-sys-color-primary)' }}>🔧 {tc}</span>
+                <span key={i} style={{ color: 'var(--md-sys-color-primary)' }}><ToolOutlined /> {tc}</span>
               ))}
             </div>
           )}
@@ -160,7 +161,7 @@ export default function WhisperTracePanel({ traces }: Props) {
         display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px',
         borderBottom: '1px solid var(--md-sys-color-outline-variant)', fontSize: 12, color: 'var(--md-sys-color-text-secondary)',
       }}>
-        <span>📊 对话追踪</span>
+        <span><LineChartOutlined /> 对话追踪</span>
         <select
           value={count}
           onChange={e => setCount(Number(e.target.value))}

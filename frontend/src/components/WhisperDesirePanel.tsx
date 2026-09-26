@@ -2,6 +2,10 @@
 // 增强：折叠展示、dormant 态、dismiss 按钮
 
 import React, { useState } from 'react'
+import {
+  BulbOutlined, ClockCircleOutlined, FileTextOutlined, FireOutlined,
+  HeartOutlined, MessageOutlined, MoonOutlined, SearchOutlined, SmileOutlined, StarOutlined,
+} from '@ant-design/icons'
 
 interface Desire {
   id: string
@@ -27,13 +31,14 @@ interface Props {
 const CATEGORY_LABELS: Record<string, string> = {
   concern: '关心', curiosity: '好奇', share: '分享', tease: '捉弄', suggest: '建议',
 }
-const CATEGORY_EMOJI: Record<string, string> = {
-  concern: '💛', curiosity: '🔍', share: '💬', tease: '😏', suggest: '💡',
+// 禁 emoji 当图标（design-system MASTER）：分类 → antd 图标组件
+const CATEGORY_ICONS: Record<string, React.ComponentType> = {
+  concern: HeartOutlined, curiosity: SearchOutlined, share: MessageOutlined, tease: SmileOutlined, suggest: BulbOutlined,
 }
 
 function DesireBar({ desire, onDismiss }: { desire: Desire; onDismiss?: (id: string) => void }) {
   const pct = Math.min(100, (desire.urgency / 10) * 100)
-  const emoji = CATEGORY_EMOJI[desire.category] || '✨'
+  const CategoryIcon = CATEGORY_ICONS[desire.category] || StarOutlined
   const label = CATEGORY_LABELS[desire.category] || desire.category
   const isDormant = desire.status === 'dormant'
 
@@ -43,7 +48,7 @@ function DesireBar({ desire, onDismiss }: { desire: Desire; onDismiss?: (id: str
       opacity: isDormant ? 0.45 : 1, transition: 'opacity 0.3s',
       fontSize: 12,
     }}>
-      <span style={{ width: 20, textAlign: 'center' }}>{emoji}</span>
+      <span style={{ width: 20, textAlign: 'center', color: 'var(--whisper-accent)' }}><CategoryIcon /></span>
       <span style={{ width: 36, color: 'var(--whisper-ink-muted)', fontSize: 11 }}>{label}</span>
       <span style={{ flex: 1, color: 'var(--whisper-ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
         {desire.topic}
@@ -87,7 +92,7 @@ export default function WhisperDesirePanel({ desireStack, reunion, sharedEventsC
           borderRadius: 8, padding: '8px 10px', marginBottom: 10,
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
-            <span style={{ color: 'var(--whisper-accent)' }}>🕐</span>
+            <span style={{ color: 'var(--whisper-accent)' }}><ClockCircleOutlined /></span>
             <span style={{ color: 'var(--whisper-accent)', fontWeight: 600 }}>{reunion.timePhrase}没见了</span>
           </div>
           <p style={{ color: 'var(--whisper-ink-muted)', fontSize: 11, margin: '4px 0 0' }}>{reunion.moodPhrase}</p>
@@ -97,7 +102,7 @@ export default function WhisperDesirePanel({ desireStack, reunion, sharedEventsC
       {/* 共享事件计数 */}
       {sharedEventsCount !== undefined && sharedEventsCount > 0 && (
         <div style={{ color: 'var(--whisper-ink-muted)', fontSize: 11, display: 'flex', alignItems: 'center', gap: 4, marginBottom: 8 }}>
-          <span>📝 共同经历 {sharedEventsCount} 件事</span>
+          <span><FileTextOutlined /> 共同经历 {sharedEventsCount} 件事</span>
         </div>
       )}
 
@@ -107,7 +112,7 @@ export default function WhisperDesirePanel({ desireStack, reunion, sharedEventsC
           cursor: 'pointer', color: 'var(--whisper-ink-muted)', fontSize: 11, display: 'flex',
           alignItems: 'center', gap: 4, userSelect: 'none', marginBottom: 4,
         }}>
-          <span>💭 心里想着 ({activeDesires.length})</span>
+          <span><FireOutlined /> 心里想着 ({activeDesires.length})</span>
         </summary>
 
         {activeDesires.length > 0 ? (
@@ -125,7 +130,7 @@ export default function WhisperDesirePanel({ desireStack, reunion, sharedEventsC
         {/* dormant 欲望 */}
         {dormantDesires.length > 0 && (
           <div style={{ marginTop: 4 }}>
-            <div style={{ color: 'var(--whisper-ink-muted)', fontSize: 10, marginBottom: 2 }}>💤 休眠 ({dormantDesires.length})</div>
+            <div style={{ color: 'var(--whisper-ink-muted)', fontSize: 10, marginBottom: 2 }}><MoonOutlined /> 休眠 ({dormantDesires.length})</div>
             {dormantDesires.slice(0, 3).map(d => (
               <DesireBar key={d.id} desire={d} />
             ))}

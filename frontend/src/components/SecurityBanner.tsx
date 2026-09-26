@@ -77,7 +77,7 @@ const SecurityBanner: React.FC = () => {
       message={
         <Space size={8} wrap>
           <Typography.Text strong style={{ color: 'inherit' }}>
-            ⚠ Herdsman API 已开启局域网访问（端口 {exposure.port}）
+            Herdsman API 已开启局域网访问（端口 {exposure.port}）
           </Typography.Text>
           <Button
             size="small"

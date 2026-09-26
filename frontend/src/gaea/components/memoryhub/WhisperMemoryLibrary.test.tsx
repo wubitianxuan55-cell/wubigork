@@ -162,7 +162,7 @@ describe("WhisperMemoryLibrary 聊天记忆库", () => {
     expect(screen.getByText("深夜编程效率最高")).toBeTruthy();
   });
 
-  it("切到「情节」tab 显示情节列表：情绪 emoji / 强度条 / 关键词 chips / 轮次", async () => {
+  it("切到「情节」tab 显示情节列表：情绪色点 / 强度条 / 关键词 chips / 轮次（v4.416 emoji→色点）", async () => {
     render(<WhisperMemoryLibrary />);
     await screen.findByText("身份");
 
@@ -170,9 +170,9 @@ describe("WhisperMemoryLibrary 聊天记忆库", () => {
 
     expect(await screen.findByText("深夜一起改 bug 到天亮")).toBeTruthy();
     expect(screen.getByText("爬山途中的闲聊")).toBeTruthy();
-    // 情绪 emoji + 标签
-    expect(screen.getByText("🤩 兴奋")).toBeTruthy();
-    expect(screen.getByText("🙂 平静")).toBeTruthy();
+    // v4.416 情绪 emoji → 效价色点（aria-hidden）+ 纯文本标签
+    expect(screen.getByText("兴奋")).toBeTruthy();
+    expect(screen.getByText("平静")).toBeTruthy();
     // 强度条（title 带百分比）
     expect(screen.getByTitle("情绪强度 85%")).toBeTruthy();
     expect(screen.getByTitle("情绪强度 40%")).toBeTruthy();
@@ -293,10 +293,10 @@ describe("WhisperMemoryLibrary 聊天记忆库", () => {
 
     fireEvent.click(screen.getByText("深夜一起改 bug 到天亮"));
 
-    // 列表中已有「🤩 兴奋」，弹窗内又有一份 → 用 dialog 容器断言
+    // 列表中已有「兴奋」，弹窗内又有一份 → 用 dialog 容器断言
     const dialog = await screen.findByRole("dialog");
     expect(dialog.textContent).toContain("深夜一起改 bug 到天亮");
-    expect(dialog.textContent).toContain("🤩 兴奋");
+    expect(dialog.textContent).toContain("兴奋");
     expect(dialog.textContent).toContain("85%");
     expect(dialog.textContent).toContain("debug、熬夜");
     expect(dialog.textContent).toContain("s1");

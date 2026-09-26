@@ -1,7 +1,7 @@
 import React from 'react'
 import { Button, Popconfirm, Segmented } from 'antd'
 import {
-  CheckCircleOutlined, ClockCircleOutlined, CloudOutlined, DatabaseOutlined, DesktopOutlined,
+  CheckCircleOutlined, ClockCircleOutlined, WarningOutlined, CloudOutlined, DatabaseOutlined, DesktopOutlined,
   NumberOutlined, PayCircleOutlined, ReloadOutlined, SaveOutlined, ThunderboltOutlined,
 } from '@ant-design/icons'
 import { EmptyState, KpiTile, StatusChip } from './ui'
@@ -389,7 +389,7 @@ export function StatsSection() {
                                 <div style={{ color: 'var(--mc-text)', fontSize: 12, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                   {s.model}
                                   {s.last_error && (
-                                    <span style={{ color: 'var(--mc-danger)', marginLeft: 6 }} title={s.last_error}>⚠</span>
+                                    <span style={{ color: 'var(--mc-danger)', marginLeft: 6 }} title={s.last_error}><WarningOutlined /></span>
                                   )}
                                 </div>
                                 <div style={{ color: 'var(--mc-muted)', fontSize: 10 }}>

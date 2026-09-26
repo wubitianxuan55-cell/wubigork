@@ -175,7 +175,7 @@ const Lightbox: React.FC<Props> = ({ results, index, characters, singleImage, on
             {r.prompt}
           </Typography.Text>
           <Space size={8} wrap>
-            <Tag color="blue">🎲 种子: {r.seed}</Tag>
+            <Tag color="blue">种子: {r.seed}</Tag>
             <Tag color="green">{r.model}</Tag>
             <Tag>{r.size}</Tag>
             <Tag>⏱ {r.time}s</Tag>

@@ -501,7 +501,7 @@ const RelationGraph: React.FC<RelationGraphProps> = ({
         )}
       </div>
       <div style={{ position: 'absolute', top: 8, right: 12, fontSize: 10, color: 'var(--color-text-secondary)', pointerEvents: 'none' }}>
-        🖱 拖拽平移 · 滚轮缩放 · 悬停高亮 · 点击看详情
+        拖拽平移 · 滚轮缩放 · 悬停高亮 · 点击看详情
       </div>
       {/* 图例 */}
       <Legend />

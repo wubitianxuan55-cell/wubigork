@@ -1,7 +1,7 @@
 // WhisperMemoryModal.tsx — 角色记忆管理弹窗（角色库内使用）
 import React, { useState, useMemo, useCallback } from 'react'
 import { Input, Button, Modal, Tag, Select, Tooltip, message, Popconfirm } from 'antd'
-import { SearchOutlined, DeleteOutlined, EditOutlined, CloseOutlined, CheckOutlined, StarFilled } from '@ant-design/icons'
+import { BarChartOutlined, DatabaseOutlined, SearchOutlined, DeleteOutlined, EditOutlined, CloseOutlined, CheckOutlined, StarFilled } from '@ant-design/icons'
 import { app } from '../gaea/lib/bridge'
 
 export interface EmotionalCtx { valence?: number; intensity?: number; trust?: number; relStage?: string }
@@ -83,7 +83,7 @@ export default function WhisperMemoryModal({ facts, personalityID, onFactsChange
   return (
     <div style={{display:'flex',flexDirection:'column',height:'100%',gap:10}}>
       <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
-        <span style={{fontSize:15,fontWeight:700,color:'var(--whisper-ink)'}}>🧠 Memory</span>
+        <span style={{fontSize:15,fontWeight:700,color:'var(--whisper-ink)'}}><DatabaseOutlined /> Memory</span>
         <Tag color="blue">{facts.length}</Tag>
         {coreCount>0 && <Tag color="gold" icon={<StarFilled />}>{coreCount} core</Tag>}
         <span style={{flex:1}}/>
@@ -92,12 +92,12 @@ export default function WhisperMemoryModal({ facts, personalityID, onFactsChange
       <div style={{display:'flex',gap:6}}>
         <Input prefix={<SearchOutlined />} placeholder="Search…" size="small" value={search} onChange={e=>setSearch(e.target.value)} style={{flex:1,borderRadius:8}} allowClear/>
         <Select size="small" placeholder="Domain" value={domainFilter||undefined} onChange={v=>setDomainFilter(v||'')} allowClear style={{width:120}} options={DOMAIN_ORDER.map(d=>({value:d,label:DOMAIN_LABELS[d]||d})).concat(domains.filter(d=>!DOMAIN_ORDER.includes(d)).map(d=>({value:d,label:DOMAIN_LABELS[d]||d})))}/>
-        <Select size="small" placeholder="Tier" value={tierFilter||undefined} onChange={v=>setTierFilter(v||'')} allowClear style={{width:80}} options={[{value:'core',label:'⭐ Core'},{value:'memory',label:'Memory'}]}/>
+        <Select size="small" placeholder="Tier" value={tierFilter||undefined} onChange={v=>setTierFilter(v||'')} allowClear style={{width:80}} options={[{value:'core',label:'Core（核心）'},{value:'memory',label:'Memory'}]}/>
       </div>
       <div style={{flex:1,overflow:'auto',minHeight:0}}>
         {filtered.length===0 ? (
           <div style={{textAlign:'center',padding:40,color:'var(--whisper-ink-muted)',fontSize:13}}>
-            {facts.length===0 ? <><span style={{fontSize:32}}>🧠</span><br/><br/>No memories yet<br/>Chat more and I'll remember 💫</> : 'No matches'}
+            {facts.length===0 ? <><DatabaseOutlined style={{fontSize:32}} /><br/><br/>No memories yet<br/>Chat more and I'll remember</> : 'No matches'}
           </div>
         ) : filtered.map(f => (
           <div key={f.id} style={{padding:'10px 12px',marginBottom:6,borderRadius:10,background:'var(--whisper-surface)',border:f.tier==='core'?'1.5px solid var(--whisper-accent)':'1px solid var(--whisper-glass-border)'}}>
@@ -137,7 +137,7 @@ export default function WhisperMemoryModal({ facts, personalityID, onFactsChange
             </div>
             {detailFact.emotionalContext && (
               <div style={{marginTop:12,padding:10,borderRadius:8,background:'rgba(0,0,0,0.03)'}}>
-                <div style={{fontSize:12,fontWeight:600,marginBottom:6}}>📊 Emotional Snapshot</div>
+                <div style={{fontSize:12,fontWeight:600,marginBottom:6}}><BarChartOutlined /> Emotional Snapshot</div>
                 <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:4,fontSize:12}}>
                   <span>Valence: {detailFact.emotionalContext.valence?.toFixed(2)}</span><span>Intensity: {detailFact.emotionalContext.intensity?.toFixed(2)}</span>
                   <span>Trust: {detailFact.emotionalContext.trust?.toFixed(0)}</span><span>Stage: {detailFact.emotionalContext.relStage||'—'}</span>

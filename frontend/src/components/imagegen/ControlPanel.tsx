@@ -448,7 +448,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
           )}
           {model === 'diagram' && (
             <div style={{ marginTop: 6, fontSize: 11, color: C('color-text-secondary'), lineHeight: 1.6 }}>
-              ✨ 输入图表描述（如“订单处理流程图，含下单、支付、发货、售后”），
+              输入图表描述（如“订单处理流程图，含下单、支付、发货、售后”），
               AI 生成图表代码并渲染为图片，中文清晰，适合流程图 / 框架图 / 架构图。
             </div>
           )}

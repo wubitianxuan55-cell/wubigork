@@ -128,7 +128,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
     } catch (err: unknown) {
       const last = withAi[withAi.length - 1]
       if (last && last.role === 'assistant') {
-        last.content = `❌ 错误: ${err instanceof Error ? err.message : String(err)}`
+        last.content = `错误: ${err instanceof Error ? err.message : String(err)}`
         last.streaming = false
       }
       onMessagesChange?.([...withAi])

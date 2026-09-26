@@ -277,7 +277,7 @@ export default function VoiceSettingsPanel() {
             onChange={() => { setVoiceMode('ptt'); applyVoiceSettings({ voiceMode: 'ptt' }) }}
             style={{ fontSize: 12, padding: '4px 12px', borderRadius: 6 }}
           >
-            🎤 按住说话 (PTT)
+            <AudioOutlined /> 按住说话 (PTT)
           </Tag.CheckableTag>
         </div>
       </Card>

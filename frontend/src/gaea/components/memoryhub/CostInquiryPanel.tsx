@@ -219,7 +219,7 @@ export function CostInquiryPanel() {
         <div className="shrink-0 mx-3 mt-2 rounded-lg border border-err/40 bg-err/10 px-3 py-2">
           <div className="flex items-center gap-1.5">
             <AlertCircle size={13} className="text-err shrink-0" />
-            <span className="text-err text-[12px] font-semibold">⚠ {expiring.length} 条询价到期预警</span>
+            <span className="text-err text-[12px] font-semibold">{expiring.length} 条询价到期预警</span>
             <span className="text-err/80 text-[10.5px]">有效期 30 天内，请及时复核询价</span>
           </div>
           <div className="mt-1.5 space-y-1">

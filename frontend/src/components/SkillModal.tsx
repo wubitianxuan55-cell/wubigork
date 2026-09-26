@@ -2,7 +2,7 @@ import { wailsApp } from '../lib/wailsApp';
 import React, { useState, useEffect, useRef } from 'react'
 import { Typography, Button, Space, Tag, Modal, message } from 'antd'
 import {
-  ImportOutlined, FileMarkdownOutlined, BulbOutlined,
+  ImportOutlined, FileMarkdownOutlined, BulbOutlined, ToolOutlined,
 } from '@ant-design/icons'
 
 import { C } from '../utils/theme'
@@ -162,7 +162,7 @@ const SkillModal: React.FC<SkillModalProps> = ({ open, onClose }) => {
           border: '1px dashed var(--border-subtle)',
         }}>
           <Typography.Text strong style={{ color: C('color-text'), fontSize: 12, display: 'block', marginBottom: 6 }}>
-            🛠️ 如何创建自定义 Skill
+            <ToolOutlined /> 如何创建自定义 Skill
           </Typography.Text>
           <Typography.Text style={{ color: C('color-text-secondary'), fontSize: 11, fontFamily: 'monospace', whiteSpace: 'pre-wrap', lineHeight: 1.8 }}>
 {`---

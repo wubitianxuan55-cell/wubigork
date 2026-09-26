@@ -20,13 +20,19 @@ const DOMAIN_ICONS: Record<string, React.ReactNode> = {
 };
 const DOMAIN_ORDER = ["IDENTITY", "SOCIAL", "DAILY_LIFE", "PURSUITS", "INNER_WORLD", "TEMPORAL"];
 
-// 主导情绪 → emoji（轻量情绪色标，差异化而非对标）
-const EMOTION_EMOJI: Record<string, string> = {
-  开心: "😊", 喜悦: "😊", 快乐: "😄", 平静: "🙂", 温柔: "🥰",
-  爱: "😍", 亲密: "💗", 感动: "🥹", 难过: "😢", 低落: "😞",
-  悲伤: "😢", 生气: "😠", 愤怒: "😡", 害怕: "😨", 焦虑: "😰",
-  紧张: "😖", 惊喜: "😮", 惊讶: "😲", 兴奋: "🤩", 期待: "🤗",
-  疲惫: "😪", 孤独: "🫥", 感激: "🙏",
+// 主导情绪 → 效价色点（禁 emoji 当图标，MASTER 红线；色点+中文标签双通道，
+// 领域图标迁移同款先例见上 DOMAIN_ICONS）。色全走语义令牌，不手写 hex。
+const EMOTION_TONES: Record<string, string> = {
+  开心: "var(--md-sys-color-success)", 喜悦: "var(--md-sys-color-success)", 快乐: "var(--md-sys-color-success)",
+  兴奋: "var(--md-sys-color-success)", 期待: "var(--md-sys-color-success)", 惊喜: "var(--md-sys-color-success)",
+  温柔: "var(--whisper-accent)", 爱: "var(--whisper-accent)", 亲密: "var(--whisper-accent)",
+  感动: "var(--whisper-accent)", 感激: "var(--whisper-accent)",
+  平静: "var(--md-sys-color-text-secondary)",
+  惊讶: "var(--md-sys-color-primary)",
+  害怕: "var(--color-warning)", 焦虑: "var(--color-warning)", 紧张: "var(--color-warning)", 疲惫: "var(--color-warning)",
+  生气: "var(--md-sys-color-destructive)", 愤怒: "var(--md-sys-color-destructive)",
+  难过: "var(--md-sys-color-destructive)", 低落: "var(--md-sys-color-destructive)", 悲伤: "var(--md-sys-color-destructive)",
+  孤独: "var(--md-sys-color-destructive)",
 };
 
 const ANCHOR_TYPE_LABELS: Record<string, string> = {
@@ -36,9 +42,19 @@ const ANCHOR_TYPE_LABELS: Record<string, string> = {
   fuzzy: "模糊",
 };
 
-function emotionEmoji(label: string): string {
-  if (!label) return "✨";
-  return EMOTION_EMOJI[label] ?? EMOTION_EMOJI[label.trim()] ?? "✨";
+function emotionTone(label: string): string {
+  if (!label) return "var(--gaea-glow)";
+  return EMOTION_TONES[label] ?? EMOTION_TONES[label.trim()] ?? "var(--gaea-glow)";
+}
+
+/** 情绪色点：替代原 emoji 的视觉锚，语义由紧邻的中文标签承担 */
+function EmotionDot({ label }: { label: string }) {
+  return (
+    <span
+      aria-hidden="true"
+      style={{ display: "inline-block", width: 6, height: 6, borderRadius: "50%", background: emotionTone(label), flexShrink: 0 }}
+    />
+  );
 }
 
 function formatTime(iso: string): string {
@@ -261,7 +277,7 @@ export function WhisperMemoryLibrary() {
                   >
                     {/* 时间线节点 */}
                     <div className="absolute left-0 top-3 w-[18px] h-[18px] rounded-full border-2 border-accent/60 bg-bg flex items-center justify-center">
-                      <span className="text-[9px] leading-none">{emotionEmoji(ep.dominantEmotion)}</span>
+                      <EmotionDot label={ep.dominantEmotion} />
                     </div>
                     <div className="p-2.5 rounded-lg border border-border bg-bg-soft/50 group-hover:border-accent/50 transition-colors">
                       <div className="flex items-center gap-2">
@@ -270,7 +286,7 @@ export function WhisperMemoryLibrary() {
                       <div className="mt-1.5 flex items-center gap-2">
                         {/* 情绪 + 强度条 */}
                         <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-bg-elev text-fg-dim text-[10.5px]">
-                          {emotionEmoji(ep.dominantEmotion)} {ep.dominantEmotion || "平静"}
+                          <EmotionDot label={ep.dominantEmotion} /> {ep.dominantEmotion || "平静"}
                         </span>
                         <div className="w-16 h-1 rounded-full bg-bg-elev overflow-hidden" title={`情绪强度 ${pct}%`}>
                           <div className="h-full rounded-full bg-gradient-to-r from-amber-400/70 to-pink-400/80" style={{ width: `${pct}%` }} />
@@ -419,7 +435,7 @@ export function WhisperMemoryLibrary() {
               {selectedEp.summary}
             </div>
             <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-[12px]">
-              <RowItem label="情绪" value={`${emotionEmoji(selectedEp.dominantEmotion)} ${selectedEp.dominantEmotion || "平静"}`} />
+              <RowItem label="情绪" value={selectedEp.dominantEmotion || "平静"} />
               <RowItem label="强度" value={`${Math.round(selectedEp.emotionalIntensity * 100)}%`} />
               <RowItem label="时间" value={selectedEp.createdAt ? new Date(selectedEp.createdAt).toLocaleString() : ""} />
               <RowItem label="轮次" value={selectedEp.startTurn > 0 ? `第 ${selectedEp.startTurn}-${selectedEp.endTurn} 轮` : ""} />
