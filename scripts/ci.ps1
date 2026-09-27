@@ -5,6 +5,11 @@
 # (.github/workflows/ci.yml) 三 job（backend/race/frontend）为远端门禁：race
 # 检测在 ubuntu job（本机无 gcc 跑不了 -race）+ internal/app race 子集在
 # windows runner；两侧不等价，对外表述须写明是哪一侧（禁无定语「CI 绿」）。
+# 2026-09-27 追加：-Quick 迭代档——构建/vet/门禁 lint/静态守卫全保留，测试改
+# 「受影响面定向」（scripts/test-related.ps1：Go 吃结果缓存 + vitest related），
+# 跳前端 build 与全量 vitest。全量档行为不变（-count=1 + build + 全量 vitest），
+# push 前/发版前必跑全量档；两档口径见 AGENTS「CI 绿」定语。
+param([switch]$Quick)
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
@@ -49,19 +54,29 @@ if (-not (Test-Path $golangci)) {
 }
 Invoke-Native 'golangci-lint (pinned v2.14.0)' $golangci @('run', '--timeout=8m', './...')
 
-Invoke-Native 'go test' 'go' @('test', './...', '-count=1')
+if ($Quick) {
+    # 迭代档：受影响面定向测试（Go 包映射吃结果缓存 + 前端 vitest related）
+    & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'test-related.ps1')
+    if ($LASTEXITCODE -ne 0) { throw "test-related failed (exit $LASTEXITCODE)" }
+} else {
+    Invoke-Native 'go test' 'go' @('test', './...', '-count=1')
+}
 
 Push-Location frontend
 # 2026-09-27（审计 P0-1 证据①）：v4.371 起唯一 lockfile 是 pnpm-lock.yaml，
 # npm install 无锁可依＝依赖树漂移风险；改 pnpm --frozen-lockfile 与 ci.yml 同口径。
 if (-not (Test-Path node_modules)) { Invoke-Native 'frontend install' 'pnpm.cmd' @('install', '--frozen-lockfile') }
 Invoke-Native 'frontend lint' 'npm.cmd' @('run', 'lint')
-Invoke-Native 'frontend build' 'npm.cmd' @('run', 'build')
-Invoke-Native 'frontend tests (vitest)' 'npm.cmd' @('run', 'test')
+if (-not $Quick) {
+    Invoke-Native 'frontend build' 'npm.cmd' @('run', 'build')
+    Invoke-Native 'frontend tests (vitest)' 'npm.cmd' @('run', 'test')
+} else {
+    Write-Host '=== frontend build + full vitest (skipped in -Quick; related already run) ==='
+}
 Pop-Location
 
 Invoke-Native 'frontend E-series regression guard' 'node' @('scripts\frontend-e-check.mjs')
 Invoke-Native 'repo hygiene guard (docs + script encoding)' 'node' @('scripts\check-docs.mjs')
 
-if (-not (Test-Path (Join-Path $root 'dist\index.html'))) { throw 'dist/index.html missing' }
+if (-not $Quick -and -not (Test-Path (Join-Path $root 'dist\index.html'))) { throw 'dist/index.html missing' }
 Write-Host 'CI OK'
