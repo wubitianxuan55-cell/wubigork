@@ -31,9 +31,9 @@ type Source struct {
 	ID             string            `json:"id"`
 	Name           string            `json:"name"`
 	URL            string            `json:"url"`
-	Parser         string            `json:"parser"` // sc_table：造价信息网价格表
-	FrequencyHours int               `json:"frequencyHours"` // 0=仅手动
-	Area           string            `json:"area"`           // 地区过滤（如 成都市区）
+	Parser         string            `json:"parser"`            // sc_table：造价信息网价格表
+	FrequencyHours int               `json:"frequencyHours"`    // 0=仅手动
+	Area           string            `json:"area"`              // 地区过滤（如 成都市区）
 	Headers        map[string]string `json:"headers,omitempty"` // 自定义请求头（Cookie 等）
 	Enabled        bool              `json:"enabled"`
 	LastFetchAt    string            `json:"lastFetchAt"`

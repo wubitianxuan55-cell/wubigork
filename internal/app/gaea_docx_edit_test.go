@@ -232,9 +232,11 @@ func countDocxSnapshots(t *testing.T) int {
 }
 
 // TestGaeaDocxApplyEdit_EvidenceChain v4.157 小刀主用例：应用编辑后
-//   ① .gaea/work/rollback/ 出现 docx-*.before 且内容=应用前字节；
-//   ② .gaea/work/journal 的 JSONL 出现 Tool=docx_apply 记录，BaselinePath 非空
-//     且指向该快照，两个摘要含目标/替换文本。
+//
+//	① .gaea/work/rollback/ 出现 docx-*.before 且内容=应用前字节；
+//	② .gaea/work/journal 的 JSONL 出现 Tool=docx_apply 记录，BaselinePath 非空
+//	  且指向该快照，两个摘要含目标/替换文本。
+//
 // 返回值宽断言：GaeaDocxApplyEdit 尾部调 a.GaeaPreview(rel)，docx 预览走
 // base64 dataUrl（无 soffice 依赖），当前测试环境 err==nil；若 preview 实现
 // 变化导致 binding 返回 error，不影响上方已断言的副作用（编辑+证据链均已发生）。
@@ -334,7 +336,7 @@ func TestGaeaDocxApplyEdit_EvidenceSummaryTruncation(t *testing.T) {
 
 // TestGaeaDocxAcceptChanges_EvidenceChain v4.157 小刀：accept=true（接受修订=
 // 清除修订标记的不可逆整理）加快照 + Tool=docx_accept 记录；accept=false
-//（拒绝=恢复原文，天然回滚语义）既不加快照也不落记录。
+// （拒绝=恢复原文，天然回滚语义）既不加快照也不落记录。
 func TestGaeaDocxAcceptChanges_EvidenceChain(t *testing.T) {
 	t.Chdir(t.TempDir())
 	injectWorkSpace(t)

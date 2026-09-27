@@ -14,8 +14,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gaea/gaea/internal/gaea/provider"
 	"github.com/gaea/gaea/internal/docmd"
+	"github.com/gaea/gaea/internal/gaea/provider"
 )
 
 const (

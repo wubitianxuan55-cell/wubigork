@@ -13,10 +13,10 @@ import (
 
 	"github.com/xuri/excelize/v2"
 
+	"github.com/gaea/gaea/internal/docmd"
 	"github.com/gaea/gaea/internal/gaea/knowledge"
 	"github.com/gaea/gaea/internal/gaea/strutil"
 	"github.com/gaea/gaea/internal/gaea/textsim"
-	"github.com/gaea/gaea/internal/docmd"
 )
 
 const (
@@ -147,7 +147,7 @@ func Parse(path string, store *knowledge.Store) (*Preview, error) {
 		}
 		pv.Rows = MatchRows(buildRows(rows, colMap, filepath.Base(abs)), store)
 		if len(pv.Columns) == 0 {
-			pv.Message = strings.TrimSpace(pv.Message + " ") + "未识别到表头（缺少标题/正文等列）。"
+			pv.Message = strings.TrimSpace(pv.Message+" ") + "未识别到表头（缺少标题/正文等列）。"
 		}
 	default:
 		return nil, fmt.Errorf("暂不支持 %s 格式导入", ext)
@@ -197,10 +197,10 @@ func MatchRows(rows []Row, store *knowledge.Store) []Row {
 						best = e.Title
 					}
 				}
-			if bestScore >= 0.55 {
-				r.SimilarName = best
-				r.SimilarNote = fmt.Sprintf("与「%s」相似 %d%%，建议合并", best, int(bestScore*100))
-			}
+				if bestScore >= 0.55 {
+					r.SimilarName = best
+					r.SimilarNote = fmt.Sprintf("与「%s」相似 %d%%，建议合并", best, int(bestScore*100))
+				}
 			}
 		}
 		out = append(out, r)

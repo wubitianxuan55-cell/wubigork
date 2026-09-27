@@ -26,11 +26,11 @@ const (
 type TTSEngine string
 
 const (
-	TTSEngineAuto            TTSEngine = "auto"             // 自动选择
-	TTSEngineHerdsman        TTSEngine = "herdsman"         // 本地 Herdsman
-	TTSEngineEdge            TTSEngine = "edge-tts"         // 微软 Edge（在线）
-	TTSEngineSAPI            TTSEngine = "local-sapi"       // Windows SAPI
-	TTSEngineHerdsmanQwen3   TTSEngine = "qwen3-tts"        // Qwen3-TTS via Herdsman
+	TTSEngineAuto            TTSEngine = "auto"              // 自动选择
+	TTSEngineHerdsman        TTSEngine = "herdsman"          // 本地 Herdsman
+	TTSEngineEdge            TTSEngine = "edge-tts"          // 微软 Edge（在线）
+	TTSEngineSAPI            TTSEngine = "local-sapi"        // Windows SAPI
+	TTSEngineHerdsmanQwen3   TTSEngine = "qwen3-tts"         // Qwen3-TTS via Herdsman
 	TTSEngineHerdsmanEdgeTTS TTSEngine = "herdsman-edge-tts" // Edge TTS via Herdsman
 )
 
@@ -38,9 +38,9 @@ const (
 type ASRModel string
 
 const (
-	ASRModelWhisperBase    ASRModel = "whisper-base"                           // 通用 Whisper base
-	ASRModelSherpaOnnx     ASRModel = "sherpa-onnx-streaming-zipformer-zh-14m" // 实时流式
-	ASRModelFunASR         ASRModel = "funasr-nano"                            // FunASR 中文优化（2026-08-30 起官方模型名为 funasr-nano）
+	ASRModelWhisperBase ASRModel = "whisper-base"                           // 通用 Whisper base
+	ASRModelSherpaOnnx  ASRModel = "sherpa-onnx-streaming-zipformer-zh-14m" // 实时流式
+	ASRModelFunASR      ASRModel = "funasr-nano"                            // FunASR 中文优化（2026-08-30 起官方模型名为 funasr-nano）
 )
 
 // VoiceRuntimeConfig 语音运行时配置（对齐 Ackem voiceRuntimeConfig.ts）

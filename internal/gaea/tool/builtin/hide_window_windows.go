@@ -126,10 +126,10 @@ func assignToJobObject(cmd *exec.Cmd) (syscall.Handle, error) {
 		_ = closeHandle(job)
 		return 0, err
 	}
-	defer closeHandle(procHandle)
+	defer func() { _ = closeHandle(procHandle) }()
 
 	if err := assignProcessToJobObject(job, procHandle); err != nil {
-		closeHandle(job)
+		_ = closeHandle(job)
 		return 0, err
 	}
 
@@ -152,5 +152,5 @@ func assignJobObjectCleanup(cmd *exec.Cmd) (cleanup func(), ok bool) {
 	if err != nil {
 		return nil, false
 	}
-	return func() { closeHandle(job) }, true
+	return func() { _ = closeHandle(job) }, true
 }

@@ -89,9 +89,9 @@ func buildWithSpaceConfig(t *testing.T, mutate func(*config.Config), extra []too
 // image_gen、play 不含 edit 系/bash、shared 两空间都有、mode=off 全量回退。
 func TestBuildSpaceToolFiltering(t *testing.T) {
 	extra := []tool.Tool{
-		spaceTestTool{name: "image_gen"},                       // play（分类表）
-		spaceTestTool{name: "office_extra", tag: "work"},        // work（自声明）
-		spaceTestTool{name: "generic_extra"},                    // 未归类 → shared
+		spaceTestTool{name: "image_gen"},                 // play（分类表）
+		spaceTestTool{name: "office_extra", tag: "work"}, // work（自声明）
+		spaceTestTool{name: "generic_extra"},             // 未归类 → shared
 	}
 
 	// work（session.space 缺省 → work）：办公工具齐全，无生图。

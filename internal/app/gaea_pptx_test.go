@@ -228,7 +228,8 @@ func TestGaeaPreview_Pptx_RenderFallback(t *testing.T) {
 }
 
 // TestGaeaPptxOutline_Smoke 真机冒烟：导出真实 pptx 后解析大纲（默认跳过）：
-//   GAEA_SMOKE_EXPORT=1 go test ./internal/app -run TestGaeaPptxOutline_Smoke -v
+//
+//	GAEA_SMOKE_EXPORT=1 go test ./internal/app -run TestGaeaPptxOutline_Smoke -v
 func TestGaeaPptxOutline_Smoke(t *testing.T) {
 	if os.Getenv("GAEA_SMOKE_EXPORT") == "" {
 		t.Skip("未设置 GAEA_SMOKE_EXPORT")

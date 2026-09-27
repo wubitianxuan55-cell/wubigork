@@ -8,7 +8,7 @@ import "testing"
 // TestParse_SendLatestFile_V41412_Hits 放宽后新增命中样例（含指代式）。
 func TestParse_SendLatestFile_V41412_Hits(t *testing.T) {
 	cases := map[string]string{
-		"把它发给我":   "latest",
+		"把它发给我":    "latest",
 		"把这个文件发给我": "latest",
 		"把那个发我":    "latest",
 		"刚才的产物发给我": "latest",

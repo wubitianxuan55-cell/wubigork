@@ -3,9 +3,6 @@
 // 从 LLM 输出解析结构化任务计划
 package whisper
 
-import (
-)
-
 // TaskPlan 任务计划
 type TaskPlan struct {
 	ID        string     `json:"id"`
@@ -25,7 +22,3 @@ type TaskStep struct {
 	Status      string `json:"status"` // pending/in_progress/passed/failed
 	Result      string `json:"result,omitempty"`
 }
-
-
-
-

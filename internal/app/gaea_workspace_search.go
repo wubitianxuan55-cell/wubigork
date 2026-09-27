@@ -1,7 +1,5 @@
 package app
 
-import ()
-
 // WorkspaceSearchHit 是工作区全文搜索的一条命中（轻量 RAG）。
 type WorkspaceSearchHit struct {
 	Path    string  `json:"path"`    // 工作区相对路径（/ 分隔）

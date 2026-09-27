@@ -72,7 +72,7 @@ func (r *TemporalAnchorsRepo) List() ([]whisper.TemporalAnchor, error) {
 	if err != nil {
 		return nil, fmt.Errorf("查询 temporal_anchors 失败: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var out []whisper.TemporalAnchor
 	for rows.Next() {

@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"github.com/gaea/gaea/internal/config"
-	"github.com/gaea/gaea/internal/gaea/cost"
 	gconfig "github.com/gaea/gaea/internal/gaea/config"
+	"github.com/gaea/gaea/internal/gaea/cost"
 	"github.com/gaea/gaea/internal/gaea/db"
 	"github.com/gaea/gaea/internal/gaea/pricefeed"
 )
@@ -490,7 +490,10 @@ func TestGaeaCostCompareEmptyQuery(t *testing.T) {
 }
 
 func TestVisionTitleMatch(t *testing.T) {
-	cases := []struct{ title, query string; want bool }{
+	cases := []struct {
+		title, query string
+		want         bool
+	}{
 		{"HP300 高频液压振动锤", "HP300 高频液压振动锤", true},
 		{"HP300 高频液压振动锤", "HP300", true},
 		{"HP300", "HP300 高频液压振动锤", true},

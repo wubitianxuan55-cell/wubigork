@@ -10,54 +10,108 @@ import (
 // 方法体零改动——纯委托给 App 实例（b.a.<Method>）。
 type MemoryB struct{ a *App }
 
-func (b *MemoryB) GaeaKnowledgeDelete(name string) error { return b.a.GaeaKnowledgeDelete(name) }
+func (b *MemoryB) GaeaKnowledgeDelete(name string) error       { return b.a.GaeaKnowledgeDelete(name) }
 func (b *MemoryB) GaeaKnowledgeExport(dir string) (int, error) { return b.a.GaeaKnowledgeExport(dir) }
-func (b *MemoryB) GaeaKnowledgeFindSimilar(title string) []SimilarView { return b.a.GaeaKnowledgeFindSimilar(title) }
+func (b *MemoryB) GaeaKnowledgeFindSimilar(title string) []SimilarView {
+	return b.a.GaeaKnowledgeFindSimilar(title)
+}
 func (b *MemoryB) GaeaKnowledgeGet(name string) *KnowledgeEntry { return b.a.GaeaKnowledgeGet(name) }
-func (b *MemoryB) GaeaKnowledgeHistory(name string) []KnowledgeHistoryView { return b.a.GaeaKnowledgeHistory(name) }
-func (b *MemoryB) GaeaKnowledgeImportAIParse(path string) (KnowledgeImportPreview, error) { return b.a.GaeaKnowledgeImportAIParse(path) }
-func (b *MemoryB) GaeaKnowledgeImportApply(rows []KnowledgeEntry) (int, error) { return b.a.GaeaKnowledgeImportApply(rows) }
-func (b *MemoryB) GaeaKnowledgeImportPreview(path string) (KnowledgeImportPreview, error) { return b.a.GaeaKnowledgeImportPreview(path) }
+func (b *MemoryB) GaeaKnowledgeHistory(name string) []KnowledgeHistoryView {
+	return b.a.GaeaKnowledgeHistory(name)
+}
+func (b *MemoryB) GaeaKnowledgeImportAIParse(path string) (KnowledgeImportPreview, error) {
+	return b.a.GaeaKnowledgeImportAIParse(path)
+}
+func (b *MemoryB) GaeaKnowledgeImportApply(rows []KnowledgeEntry) (int, error) {
+	return b.a.GaeaKnowledgeImportApply(rows)
+}
+func (b *MemoryB) GaeaKnowledgeImportPreview(path string) (KnowledgeImportPreview, error) {
+	return b.a.GaeaKnowledgeImportPreview(path)
+}
 func (b *MemoryB) GaeaKnowledgeList() []KnowledgeSummary { return b.a.GaeaKnowledgeList() }
-func (b *MemoryB) GaeaKnowledgeMerge(targetName string, sourceNames []string) (string, error) { return b.a.GaeaKnowledgeMerge(targetName, sourceNames) }
-func (b *MemoryB) GaeaKnowledgeReview(name string, approve bool, reviewer string) error { return b.a.GaeaKnowledgeReview(name, approve, reviewer) }
+func (b *MemoryB) GaeaKnowledgeMerge(targetName string, sourceNames []string) (string, error) {
+	return b.a.GaeaKnowledgeMerge(targetName, sourceNames)
+}
+func (b *MemoryB) GaeaKnowledgeReview(name string, approve bool, reviewer string) error {
+	return b.a.GaeaKnowledgeReview(name, approve, reviewer)
+}
 func (b *MemoryB) GaeaKnowledgeSave(e KnowledgeEntry) error { return b.a.GaeaKnowledgeSave(e) }
-func (b *MemoryB) GaeaKnowledgeSearch(query string, category string, phase string, status string) []KnowledgeSummary { return b.a.GaeaKnowledgeSearch(query, category, phase, status) }
+func (b *MemoryB) GaeaKnowledgeSearch(query string, category string, phase string, status string) []KnowledgeSummary {
+	return b.a.GaeaKnowledgeSearch(query, category, phase, status)
+}
 func (b *MemoryB) GaeaMemory() MemoryView { return b.a.GaeaMemory() }
-func (b *MemoryB) GaeaMemoryArchivedList(limit int, offset int) (MemoryArchivedPage, error) { return b.a.GaeaMemoryArchivedList(limit, offset) }
-func (b *MemoryB) GaeaMemoryBrief() bool { return b.a.GaeaMemoryBrief() }
+func (b *MemoryB) GaeaMemoryArchivedList(limit int, offset int) (MemoryArchivedPage, error) {
+	return b.a.GaeaMemoryArchivedList(limit, offset)
+}
+func (b *MemoryB) GaeaMemoryBrief() bool                   { return b.a.GaeaMemoryBrief() }
 func (b *MemoryB) GaeaMemoryCleanupArchived() (int, error) { return b.a.GaeaMemoryCleanupArchived() }
-func (b *MemoryB) GaeaMemoryDuplicates(min float64) []MemoryDuplicateView { return b.a.GaeaMemoryDuplicates(min) }
+func (b *MemoryB) GaeaMemoryDuplicates(min float64) []MemoryDuplicateView {
+	return b.a.GaeaMemoryDuplicates(min)
+}
 func (b *MemoryB) GaeaMemoryEvalRun() (MemoryEvalReport, error) { return b.a.GaeaMemoryEvalRun() }
-func (b *MemoryB) GaeaMemoryFeedback(messageID string, rating string, excerpt string, space string) error { return b.a.GaeaMemoryFeedback(messageID, rating, excerpt, space) }
-func (b *MemoryB) GaeaMemoryGraph() MemoryGraphView { return b.a.GaeaMemoryGraph() }
+func (b *MemoryB) GaeaMemoryFeedback(messageID string, rating string, excerpt string, space string) error {
+	return b.a.GaeaMemoryFeedback(messageID, rating, excerpt, space)
+}
+func (b *MemoryB) GaeaMemoryGraph() MemoryGraphView         { return b.a.GaeaMemoryGraph() }
 func (b *MemoryB) GaeaMemoryHubOverview() MemoryHubOverview { return b.a.GaeaMemoryHubOverview() }
 func (b *MemoryB) GaeaMemoryLifecycle() MemoryLifecycleView { return b.a.GaeaMemoryLifecycle() }
-func (b *MemoryB) GaeaMemoryMerge(targetName string, sourceNames []string) (string, error) { return b.a.GaeaMemoryMerge(targetName, sourceNames) }
+func (b *MemoryB) GaeaMemoryMerge(targetName string, sourceNames []string) (string, error) {
+	return b.a.GaeaMemoryMerge(targetName, sourceNames)
+}
 func (b *MemoryB) GaeaMemoryMorningBrief() (string, error) { return b.a.GaeaMemoryMorningBrief() }
-func (b *MemoryB) GaeaMemoryPin(name string, pinned bool) error { return b.a.GaeaMemoryPin(name, pinned) }
+func (b *MemoryB) GaeaMemoryPin(name string, pinned bool) error {
+	return b.a.GaeaMemoryPin(name, pinned)
+}
 func (b *MemoryB) GaeaMemorySemanticGraph() SemanticGraphView { return b.a.GaeaMemorySemanticGraph() }
-func (b *MemoryB) GaeaMemorySetRetentionDays(days int) error { return b.a.GaeaMemorySetRetentionDays(days) }
+func (b *MemoryB) GaeaMemorySetRetentionDays(days int) error {
+	return b.a.GaeaMemorySetRetentionDays(days)
+}
 func (b *MemoryB) GaeaMemorySuggestions() MemorySuggestionsView { return b.a.GaeaMemorySuggestions() }
-func (b *MemoryB) GaeaMemoryUnarchive(name string) error { return b.a.GaeaMemoryUnarchive(name) }
-func (b *MemoryB) GaeaMemoryUnarchiveBatch(names []string) (int, error) { return b.a.GaeaMemoryUnarchiveBatch(names) }
-func (b *MemoryB) GaeaProfileConflicts() []string { return b.a.GaeaProfileConflicts() }
+func (b *MemoryB) GaeaMemoryUnarchive(name string) error        { return b.a.GaeaMemoryUnarchive(name) }
+func (b *MemoryB) GaeaMemoryUnarchiveBatch(names []string) (int, error) {
+	return b.a.GaeaMemoryUnarchiveBatch(names)
+}
+func (b *MemoryB) GaeaProfileConflicts() []string      { return b.a.GaeaProfileConflicts() }
 func (b *MemoryB) GaeaProfileDelete(name string) error { return b.a.GaeaProfileDelete(name) }
-func (b *MemoryB) GaeaProfileList() []ProfileFactView { return b.a.GaeaProfileList() }
-func (b *MemoryB) GaeaProfileResolveConflict(name string, prefer string) error { return b.a.GaeaProfileResolveConflict(name, prefer) }
+func (b *MemoryB) GaeaProfileList() []ProfileFactView  { return b.a.GaeaProfileList() }
+func (b *MemoryB) GaeaProfileResolveConflict(name string, prefer string) error {
+	return b.a.GaeaProfileResolveConflict(name, prefer)
+}
 func (b *MemoryB) GaeaProfileSave(f ProfileFactView) error { return b.a.GaeaProfileSave(f) }
-func (b *MemoryB) GaeaSemanticIndexBackfill() (map[string]interface{}, error) { return b.a.GaeaSemanticIndexBackfill() }
+func (b *MemoryB) GaeaSemanticIndexBackfill() (map[string]interface{}, error) {
+	return b.a.GaeaSemanticIndexBackfill()
+}
 func (b *MemoryB) GaeaSemanticIndexStatus() SemanticIndexStatus { return b.a.GaeaSemanticIndexStatus() }
-func (b *MemoryB) GaeaSemanticSearch(query string) ([]SemanticHitView, error) { return b.a.GaeaSemanticSearch(query) }
-func (b *MemoryB) GaeaWhisperAnchorReplay(anchorID string) (WhisperAnchorReplayView, error) { return b.a.GaeaWhisperAnchorReplay(anchorID) }
+func (b *MemoryB) GaeaSemanticSearch(query string) ([]SemanticHitView, error) {
+	return b.a.GaeaSemanticSearch(query)
+}
+func (b *MemoryB) GaeaWhisperAnchorReplay(anchorID string) (WhisperAnchorReplayView, error) {
+	return b.a.GaeaWhisperAnchorReplay(anchorID)
+}
 func (b *MemoryB) GaeaWhisperAnchors() []WhisperAnchorView { return b.a.GaeaWhisperAnchors() }
-func (b *MemoryB) GaeaWhisperCausalExplain(entity string, personalityID string) (string, error) { return b.a.GaeaWhisperCausalExplain(entity, personalityID) }
-func (b *MemoryB) GaeaWhisperEpisodeReplay(episodeID string) (WhisperEpisodeReplayView, error) { return b.a.GaeaWhisperEpisodeReplay(episodeID) }
+func (b *MemoryB) GaeaWhisperCausalExplain(entity string, personalityID string) (string, error) {
+	return b.a.GaeaWhisperCausalExplain(entity, personalityID)
+}
+func (b *MemoryB) GaeaWhisperEpisodeReplay(episodeID string) (WhisperEpisodeReplayView, error) {
+	return b.a.GaeaWhisperEpisodeReplay(episodeID)
+}
 func (b *MemoryB) GaeaWhisperEpisodes() []WhisperEpisodeView { return b.a.GaeaWhisperEpisodes() }
-func (b *MemoryB) GaeaWhisperExportArchive(dir string) (int, error) { return b.a.GaeaWhisperExportArchive(dir) }
-func (b *MemoryB) GaeaWhisperGraphSubgraph(personalityID string, entity string, hops int) (whisper.Subgraph, error) { return b.a.GaeaWhisperGraphSubgraph(personalityID, entity, hops) }
+func (b *MemoryB) GaeaWhisperExportArchive(dir string) (int, error) {
+	return b.a.GaeaWhisperExportArchive(dir)
+}
+func (b *MemoryB) GaeaWhisperGraphSubgraph(personalityID string, entity string, hops int) (whisper.Subgraph, error) {
+	return b.a.GaeaWhisperGraphSubgraph(personalityID, entity, hops)
+}
 func (b *MemoryB) GaeaWhisperMemories() []WhisperMemoryView { return b.a.GaeaWhisperMemories() }
-func (b *MemoryB) GaeaWhisperMemoryRetell(kind string, id string, personalityID string) (string, error) { return b.a.GaeaWhisperMemoryRetell(kind, id, personalityID) }
-func (b *MemoryB) GaeaWhisperProactiveConfig() (map[string]interface{}, error) { return b.a.GaeaWhisperProactiveConfig() }
-func (b *MemoryB) GaeaWhisperProactiveNow(personalityID string) (map[string]interface{}, error) { return b.a.GaeaWhisperProactiveNow(personalityID) }
-func (b *MemoryB) GaeaWhisperSetProactiveConfig(cfgJSON string) error { return b.a.GaeaWhisperSetProactiveConfig(cfgJSON) }
+func (b *MemoryB) GaeaWhisperMemoryRetell(kind string, id string, personalityID string) (string, error) {
+	return b.a.GaeaWhisperMemoryRetell(kind, id, personalityID)
+}
+func (b *MemoryB) GaeaWhisperProactiveConfig() (map[string]interface{}, error) {
+	return b.a.GaeaWhisperProactiveConfig()
+}
+func (b *MemoryB) GaeaWhisperProactiveNow(personalityID string) (map[string]interface{}, error) {
+	return b.a.GaeaWhisperProactiveNow(personalityID)
+}
+func (b *MemoryB) GaeaWhisperSetProactiveConfig(cfgJSON string) error {
+	return b.a.GaeaWhisperSetProactiveConfig(cfgJSON)
+}

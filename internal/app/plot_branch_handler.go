@@ -268,6 +268,7 @@ func (a *writingState) QuickBrainstormBranches(setting, prevSummary string) (map
 		"branches": branches,
 	}, nil
 }
+
 // ── 分支结果持久化（branches.json sidecar）───────────────────
 //
 // BrainstormBranches / QuickBrainstormBranches 成功后把本次 AI 生成的分支原子

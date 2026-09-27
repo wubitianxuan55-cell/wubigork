@@ -81,7 +81,7 @@ func TestSearchSkipsNoiseDirs(t *testing.T) {
 
 // S1.2 双空间（docs/gaea-memory-isolation-design.md §检索面地图）：play 产物
 // 分区（.gaea/play/exports）并入噪音规则——play 交付物不进共享关键词检索面
-//（工位搜索不可见乐园产物），.gaea/exports（work 交付产物）仍可被索引。
+// （工位搜索不可见乐园产物），.gaea/exports（work 交付产物）仍可被索引。
 func TestSearchSkipsPlayExports(t *testing.T) {
 	dir := t.TempDir()
 	write(t, filepath.Join(dir, "docs", "方案.md"), "成本方案正文")

@@ -79,12 +79,16 @@
 
 ### P0-1 门禁从纸面到落地（成本：0.5 天，收益：让「CI 绿」这句话重新可信）
 
+> **✅ 2026-09-27 落地（候选①+②混合）**：ci.yml 三 job 全修通（frontend 改 `pnpm install --frozen-lockfile`——v4.371 起唯一 lockfile 是 pnpm-lock；golangci action 钉 v2.14.0；race job 经 build-tag 收口后 ubuntu 可编译；backend job 增 internal/app race 子集步；另补审计漏项=main.go `go:embed all:dist` 在 fresh checkout 必炸，`dist/.gitkeep` 占位入库）；`.golangci.yml` v1→v2 迁移并钉 v2.14.0；`ci.ps1` 并入 golangci-lint（缺二进制自动 install 同版）+ pnpm + 本地快闸口径声明；`*.go eol=lf` 入 .gitattributes（工作树 CRLF 曾让 gofmt 闸本地全红 CI 全绿，两端必须同口径）。**附带清偿**：lint 债约 200 处（errcheck 显式化 ~170 + unused 23 + ineffassign 9 + SA 正确性类 6 + gofmt 全仓 164 文件）当日清零，风格族（QF1/S1/ST1）定向豁免=登记债非静默。**残项**：Go 测试 job「整批重试一次」未迁移在册 flaky 分类器（ci.yml 注释挂账）。
+
 - **论点**：「全量 ci 绿」在 CHANGELOG 出现 70+ 次，指的是本地 `scripts/ci.ps1` 绿；而该脚本不含 golangci-lint、不含 `scripts/check-bindings-drift.ps1`、不含 `-race`、不含冒烟、无覆盖率。`.github/workflows/ci.yml` 三个 job 里两个结构性跑不通。
 - **证据**：① frontend job 跑 `npm ci`，但仓库自 v4.371 起只有 `frontend/pnpm-lock.yaml`，无 `package-lock.json`（实测目录内只有 pnpm-lock.yaml）；② race job 在 ubuntu 上对 12 个包跑 `-race`，而 `internal/gaea/tool/builtin/hide_window_other.go:15`、`bash.go:174/238`、`bash.go:513`、`bgjobs.go:154` 使用 `syscall.Handle` / `SysProcAttr.HideWindow` —— `_other.go` 后缀不是有效 GOOS 约束，Linux 下实测 `[build failed]`；③ `.golangci.yml` 是 v1 配置结构而 action 用 `version: latest`，且 CHANGELOG 全文 `golangci` 零命中（无生效证据）。
 - **动作**：三选一并写进文档口径，不留下「声称有门禁」的模糊地带。① 把 drift + 钉版本的 golangci + 可跑的 race 并进 `ci.ps1`；② 修 workflow（补 `pnpm install --frozen-lockfile`、给 Windows-only 文件加 `//go:build windows`、钉 lint 版本、Go job 去掉「整批重试一次」改成与前端同款的在册 flaky 分类器）；③ 保留现状但把脚本改名「本地快闸」并在 `README.md` 与 `AGENTS.md` 明示 ≠ GitHub 门禁。
 - **验收**：`scripts/ci.ps1` 与 workflow 至少有一条路径能真正拦住「绑定面漂移 / 未使用符号 / 竞态」三类回归；文档不再出现无定语境的「CI 绿」。
 
 ### P0-2 修实测竞态，并把 `internal/app` 纳入 race（成本：0.5 天）
+
+> **✅ 2026-09-27 落地**：`comfyUICancel`/`comfyUICmd` 收进 `comfyProcMu` 四个 comfyProcRef* 方法；回收 goroutine 改 clearIfCurrent（cmd 指针做轮次判据，防快速停启后晚到回收误清 ABA）；`internal/app/comfyui_proc_test.go` 三例（ABA 语义/真进程杀停/并发压榨）。race 接入方式=ubuntu job 12 包（build-tag 收口后可编译）+ windows runner 的 internal/app race 子集步（TempDir flaky 用例不纳入），整包进 ubuntu 需先跨平台移植（kernel32 采集/x-sys 磁盘），归 P1-1 拆包一并评估。
 
 - **论点**：最大且最有状态的包被显式排除在 `-race` 之外（ci.yml 注释：race 下 TempDir 清理竞争 flaky 先例），而该包内存在确凿的无锁并发访问。
 - **证据**：`internal/app/app.go:141-142` 声明 `comfyUICancel` / `comfyUICmd`；写侧五处无锁——`internal/app/image_handler.go:1036`、`:1070`、`:1093`、`image_handler.go:1108-1109`（`cmd.Wait()` goroutine）、`image_handler.go:1295-1297`（UI 线程调用的 `GetComfyUIStatus`）；`:1161-1167` 读并清引用。

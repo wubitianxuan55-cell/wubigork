@@ -8,10 +8,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gaea/gaea/internal/gaea/config"
 	"github.com/gaea/gaea/internal/gaea/cost"
 	"github.com/gaea/gaea/internal/gaea/costproject"
 	"github.com/gaea/gaea/internal/gaea/db"
-	"github.com/gaea/gaea/internal/gaea/config"
 )
 
 // costProjectStoreOverride 测试注入的隔离测算项目存储。

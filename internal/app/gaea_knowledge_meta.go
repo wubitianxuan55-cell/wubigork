@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gaea/gaea/internal/gaea/db"
 	"github.com/gaea/gaea/internal/gaea/config"
+	"github.com/gaea/gaea/internal/gaea/db"
 	"github.com/gaea/gaea/internal/gaea/knowledge"
 	"github.com/gaea/gaea/internal/gaea/knowledgeimport"
 	"github.com/gaea/gaea/internal/gaea/spaces"
@@ -110,7 +110,7 @@ FROM knowledge_history WHERE name=? ORDER BY changed_at DESC, id DESC LIMIT 30`,
 	if err != nil {
 		return nil
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var out []KnowledgeHistoryView
 	for rows.Next() {
 		var v KnowledgeHistoryView

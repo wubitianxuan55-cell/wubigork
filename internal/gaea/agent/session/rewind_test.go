@@ -6,9 +6,11 @@ import (
 )
 
 // makeTwoTurnLog 写一个两轮会话的真实事件日志（OpenLog+Append，与运行期同构）：
-//   轮 0: user「帮我写周报」→ turn_started → tool_dispatch(write_file report.md)
-//         → tool_result → assistant_message「完成」→ turn_done
-//   轮 1: user「改成英文」→ turn_started → assistant_message「Done」→ turn_done
+//
+//	轮 0: user「帮我写周报」→ turn_started → tool_dispatch(write_file report.md)
+//	      → tool_result → assistant_message「完成」→ turn_done
+//	轮 1: user「改成英文」→ turn_started → assistant_message「Done」→ turn_done
+//
 // 返回日志路径。
 func makeTwoTurnLog(t *testing.T, dir string) string {
 	t.Helper()

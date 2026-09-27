@@ -333,16 +333,16 @@ func TestParseVerticalParamTable(t *testing.T) {
 		byTitle[r.Title] = r
 	}
 	for title, wantPrice := range map[string]float64{
-		"水泥单价 P.O42.5 散装 (元/t)":                450,
-		"膨润土单价 (元/t)":                      900,
-		"外加剂单价 (元/t)":                      3500,
-		"水费（每幅·米） (元)":                     1,
+		"水泥单价 P.O42.5 散装 (元/t)": 450,
+		"膨润土单价 (元/t)":           900,
+		"外加剂单价 (元/t)":           3500,
+		"水费（每幅·米） (元)":          1,
 		"桩机台班费（含制浆站/泵/空压机/吊车配套） (元/台班)": 6500,
-		"班组人工费 (元/台班)":                     1200,
-		"置换土外运单价 (元/m³)":                   67,
-		"检测费（每幅·米） (元)":                    10,
-		"综合单价（每幅·米，含税） (元)":               856.73,
-		"折合每立方米综合单价 (元/m³)":               573.11,
+		"班组人工费 (元/台班)":                  1200,
+		"置换土外运单价 (元/m³)":                67,
+		"检测费（每幅·米） (元)":                 10,
+		"综合单价（每幅·米，含税） (元)":             856.73,
+		"折合每立方米综合单价 (元/m³)":             573.11,
 	} {
 		r, ok := byTitle[title]
 		if !ok {
@@ -358,12 +358,12 @@ func TestParseVerticalParamTable(t *testing.T) {
 	}
 	// 自动归类：综合单价/材料/机械/人工/运输/检测。
 	for title, wantCat := range map[string]string{
-		"水泥单价 P.O42.5 散装 (元/t)":                "材料",
+		"水泥单价 P.O42.5 散装 (元/t)":         "材料",
 		"桩机台班费（含制浆站/泵/空压机/吊车配套） (元/台班)": "机械",
-		"班组人工费 (元/台班)":                        "人工",
-		"置换土外运单价 (元/m³)":                      "运输",
-		"检测费（每幅·米） (元)":                       "检测",
-		"综合单价（每幅·米，含税） (元)":                 "综合单价",
+		"班组人工费 (元/台班)":                  "人工",
+		"置换土外运单价 (元/m³)":                "运输",
+		"检测费（每幅·米） (元)":                 "检测",
+		"综合单价（每幅·米，含税） (元)":             "综合单价",
 	} {
 		if r, ok := byTitle[title]; !ok || r.Category != wantCat {
 			t.Errorf("%s category = %q, want %q", title, byTitle[title].Category, wantCat)
@@ -375,7 +375,8 @@ func TestParseVerticalParamTable(t *testing.T) {
 }
 
 // TestSmokeParseRealCostXlsx 用真实工作区测算表验证解析（默认跳过）：
-//   GAEA_SMOKE_COST_XLSX=<xlsx 路径> go test ./internal/gaea/costimport -run TestSmokeParseRealCostXlsx -v
+//
+//	GAEA_SMOKE_COST_XLSX=<xlsx 路径> go test ./internal/gaea/costimport -run TestSmokeParseRealCostXlsx -v
 func TestSmokeParseRealCostXlsx(t *testing.T) {
 	src := os.Getenv("GAEA_SMOKE_COST_XLSX")
 	if src == "" {

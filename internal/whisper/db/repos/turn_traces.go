@@ -48,7 +48,7 @@ func LoadTurnTracesFromDB(dataRoot, date string) ([]whisper.TurnTrace, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var traces []whisper.TurnTrace
 	for rows.Next() {
@@ -80,7 +80,7 @@ func LoadTurnTracesFromDBSession(dataRoot, sessionID string, limit int) ([]whisp
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var traces []whisper.TurnTrace
 	for rows.Next() {

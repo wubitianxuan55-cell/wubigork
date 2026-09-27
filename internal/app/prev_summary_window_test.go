@@ -64,9 +64,9 @@ func TestBuildPrevSummaryWindow_Truncate(t *testing.T) {
 // TestBuildPrevSummaryWindow_FallbackChain 回退链：大纲 Summary → 章节摘要文件 → 跳过。
 func TestBuildPrevSummaryWindow_FallbackChain(t *testing.T) {
 	nodes := []types.OutlineNode{
-		{OrderIndex: 1, Summary: ""},  // 大纲空 → 回退章节摘要「章摘1」
+		{OrderIndex: 1, Summary: ""}, // 大纲空 → 回退章节摘要「章摘1」
 		{OrderIndex: 2, Summary: "大纲摘要2"},
-		{OrderIndex: 3, Summary: ""},  // 两路都空 → 整章跳过
+		{OrderIndex: 3, Summary: ""}, // 两路都空 → 整章跳过
 		{OrderIndex: 4, Summary: "大纲摘要4"},
 	}
 	// 解析器模拟回退链：大纲空时返回章摘（章 1 有、章 3 无）

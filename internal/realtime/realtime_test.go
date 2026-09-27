@@ -300,9 +300,9 @@ func TestOpenAISession_EventParsing(t *testing.T) {
 	}
 
 	want := []struct {
-		typ  string
-		pcm  []byte
-		raw  string
+		typ string
+		pcm []byte
+		raw string
 	}{
 		{EventSessionCreated, nil, serverEvents[0]},
 		{EventInputAudioBufferSpeechStarted, nil, serverEvents[1]},

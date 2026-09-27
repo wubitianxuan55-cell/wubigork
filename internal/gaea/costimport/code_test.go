@@ -4,8 +4,8 @@ package costimport
 // （命中覆盖、带码未命中即新增、同标题不同编码不误覆盖）。
 
 import (
-	"testing"
 	"strings"
+	"testing"
 
 	"github.com/gaea/gaea/internal/gaea/cost"
 	"github.com/gaea/gaea/internal/gaea/db"

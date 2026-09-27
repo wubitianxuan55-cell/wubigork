@@ -158,7 +158,7 @@ func TestDecryptCustomEngineKeys(t *testing.T) {
 	got := decryptCustomEngineKeys(map[string]string{
 		"custom-a": enc1,
 		"custom-b": "dpapi:not-a-valid-blob!!", // 解密失败 → 丢弃
-		"custom-c": "",                        // 空 → 丢弃
+		"custom-c": "",                         // 空 → 丢弃
 	})
 	if got["custom-a"] != "sk-plain-1" {
 		t.Errorf("custom-a = %q, want sk-plain-1", got["custom-a"])

@@ -109,7 +109,8 @@ func TestGaeaExportDeliverable_SanitizeTitle(t *testing.T) {
 }
 
 // TestGaeaExportDeliverable_DocxPptxSmoke 真实调用 python 技能脚本（默认跳过）：
-//   GAEA_SMOKE_EXPORT=1 go test ./internal/app -run TestGaeaExportDeliverable_DocxPptxSmoke -v
+//
+//	GAEA_SMOKE_EXPORT=1 go test ./internal/app -run TestGaeaExportDeliverable_DocxPptxSmoke -v
 func TestGaeaExportDeliverable_DocxPptxSmoke(t *testing.T) {
 	if os.Getenv("GAEA_SMOKE_EXPORT") == "" {
 		t.Skip("未设置 GAEA_SMOKE_EXPORT")

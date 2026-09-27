@@ -41,7 +41,7 @@ func TestTouchRecentWorkspaceCap(t *testing.T) {
 	}()
 
 	for i := 0; i < maxRecentWorkspaces+3; i++ {
-		TouchRecentWorkspace(string(rune('a'+i)))
+		TouchRecentWorkspace(string(rune('a' + i)))
 	}
 	got := LoadRecentWorkspaces()
 	if len(got) != maxRecentWorkspaces {

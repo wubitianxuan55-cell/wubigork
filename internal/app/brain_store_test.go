@@ -71,6 +71,6 @@ func (f *fakeRightBrain) Search(query string) ([]Hit, error) {
 
 type fakeLeftBrain struct{ rows map[string]string }
 
-func (f *fakeLeftBrain) Read(entity string) ([]Fact, error) { return nil, nil }
+func (f *fakeLeftBrain) Read(entity string) ([]Fact, error)          { return nil, nil }
 func (f *fakeLeftBrain) Write(entity, attribute, value string) error { return nil }
-func (f *fakeLeftBrain) Search(query string) ([]Hit, error) { return nil, nil }
+func (f *fakeLeftBrain) Search(query string) ([]Hit, error)          { return nil, nil }

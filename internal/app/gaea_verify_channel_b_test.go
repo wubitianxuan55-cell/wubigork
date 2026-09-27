@@ -15,8 +15,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gaea/gaea/internal/gaea/evidence"
 	gaeaConfig "github.com/gaea/gaea/internal/gaea/config"
+	"github.com/gaea/gaea/internal/gaea/evidence"
 )
 
 // verifyChannelBFakeSeams 注入 fake 渲染链路：转换写假 PDF、渲染按页返回

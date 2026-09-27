@@ -105,7 +105,7 @@ func TestOpenAISession_SessionUpdateTurnDetection(t *testing.T) {
 }
 
 // TestOpenAISession_S2EventConstants S2 新增 7 个事件常量 → 白名单映射
-//（解析骨架零改动：映射后原样透传）。
+// （解析骨架零改动：映射后原样透传）。
 func TestOpenAISession_S2EventConstants(t *testing.T) {
 	srv, conns, _, _ := fakeServer(t)
 	sess := dialTestSession(t, Config{BaseURL: srv.URL, APIKey: "sk-test"})

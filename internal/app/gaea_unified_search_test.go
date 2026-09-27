@@ -264,12 +264,12 @@ type scopeFakeBrainAdapter struct {
 	hits []Hit
 }
 
-func (f *scopeFakeBrainAdapter) Read(string) ([]Fact, error)                { return nil, nil }
-func (f *scopeFakeBrainAdapter) Write(string, string, string) error         { return nil }
-func (f *scopeFakeBrainAdapter) Search(string) ([]Hit, error)               { return f.hits, nil }
+func (f *scopeFakeBrainAdapter) Read(string) ([]Fact, error)        { return nil, nil }
+func (f *scopeFakeBrainAdapter) Write(string, string, string) error { return nil }
+func (f *scopeFakeBrainAdapter) Search(string) ([]Hit, error)       { return f.hits, nil }
 
 // S1.2 B 读端隔离器：GaeaUnifiedSearch scope 过滤——工位搜索不见乐园记忆
-//（semantic office 按空间回查、cost/knowledge/file 恒 work、brain 右脑 play
+// （semantic office 按空间回查、cost/knowledge/file 恒 work、brain 右脑 play
 // 专属、keyword 共享工作区面不过滤）；scope 缺省 "" = 全部（旧行为）。
 func TestGaeaUnifiedSearchScopeIsolation(t *testing.T) {
 	t.Chdir(t.TempDir())

@@ -10,10 +10,10 @@ import (
 
 	"github.com/gaea/gaea/internal/ai"
 	"github.com/gaea/gaea/internal/config"
-	"github.com/gaea/gaea/internal/gaea/provider/bridge"
 	gaeaConfig "github.com/gaea/gaea/internal/gaea/config"
 	"github.com/gaea/gaea/internal/gaea/db"
 	"github.com/gaea/gaea/internal/gaea/memory"
+	"github.com/gaea/gaea/internal/gaea/provider/bridge"
 )
 
 // T6-8.2 归档清理绑定：超期归档硬删（溯源审计落盘），活跃事实不受影响。

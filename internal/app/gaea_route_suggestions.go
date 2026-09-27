@@ -85,11 +85,11 @@ func saveRouteSuggestionRecord(dataRoot, id, status string) error {
 		return err
 	}
 	if err := tmp.Close(); err != nil {
-		os.Remove(tmpName)
+		_ = os.Remove(tmpName)
 		return err
 	}
 	if err := fileutil.RenameWithRetry(tmpName, p); err != nil {
-		os.Remove(tmpName)
+		_ = os.Remove(tmpName)
 		return err
 	}
 	return nil

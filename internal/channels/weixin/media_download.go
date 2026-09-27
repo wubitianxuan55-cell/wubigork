@@ -350,7 +350,7 @@ func resolveInboundFile(fi fileItem) (localPath, fileName string, sizeBytes int6
 
 // resolveFileDownload 解析文件的下载地址与密钥（同 imageItem.resolveDownload
 // 口径）：url = media.full_url 否则留位字段 url；key = media.aes_key
-//（base64-of-hex）反解。aes_key 存在但解析失败是异常形态——显式报错（绝不把
+// （base64-of-hex）反解。aes_key 存在但解析失败是异常形态——显式报错（绝不把
 // 密文当明文消费）；无 media/无 aes_key 按明文 URL 处理（留位形态，宁漏勿误）。
 func resolveFileDownload(fi fileItem) (rawURL string, key []byte, err error) {
 	rawURL = fi.URL

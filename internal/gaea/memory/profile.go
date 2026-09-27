@@ -67,7 +67,7 @@ func (p *ProfileStore) All() []Memory {
 	if err != nil {
 		return nil
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var out []Memory
 	for rows.Next() {
 		var key, val string

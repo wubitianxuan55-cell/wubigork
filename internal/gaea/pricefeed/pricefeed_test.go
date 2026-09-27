@@ -75,7 +75,7 @@ func TestMatchRows(t *testing.T) {
 	}
 	rows := []Row{
 		{Title: "热轧光圆钢筋", Spec: "HPB300 Φ12", Unit: "t", Price: 3181, Tax: "不含税"}, // 更新
-		{Title: "螺纹钢", Spec: "HRB400 Φ20", Unit: "t", Price: 3420, Tax: "不含税"},        // 新增
+		{Title: "螺纹钢", Spec: "HRB400 Φ20", Unit: "t", Price: 3420, Tax: "不含税"},    // 新增
 	}
 	got := matchRows(rows, store)
 	if len(got) != 2 {
@@ -131,10 +131,10 @@ func TestDetectAnomalies(t *testing.T) {
 	lookup := func(name string) []History { return history[name] }
 
 	cands := []Candidate{
-		{Title: "螺纹钢", ExistingName: "rebar", ExistingPrice: 3000, Price: 3750, Status: "更新"},   // +25% 异常
-		{Title: "水泥", ExistingName: "cement", ExistingPrice: 480, Price: 504, Status: "更新"},      // +5% 正常
-		{Title: "碎石", ExistingName: "gravel", ExistingPrice: 0, Price: 80, Status: "更新"},         // 无基准，跳过
-		{Title: "新钢筋", ExistingName: "", ExistingPrice: 0, Price: 4000, Status: "新增"},           // 新增不判
+		{Title: "螺纹钢", ExistingName: "rebar", ExistingPrice: 3000, Price: 3750, Status: "更新"},  // +25% 异常
+		{Title: "水泥", ExistingName: "cement", ExistingPrice: 480, Price: 504, Status: "更新"},    // +5% 正常
+		{Title: "碎石", ExistingName: "gravel", ExistingPrice: 0, Price: 80, Status: "更新"},       // 无基准，跳过
+		{Title: "新钢筋", ExistingName: "", ExistingPrice: 0, Price: 4000, Status: "新增"},          // 新增不判
 		{Title: "旧水泥", ExistingName: "cement2", ExistingPrice: 480, Price: 480, Status: "无变化"}, // 无变化不判
 	}
 	got := DetectAnomalies(cands, lookup)
@@ -201,7 +201,7 @@ func TestFetchLiveSichuan(t *testing.T) {
 	}
 	res, err := Fetch(context.Background(), Source{
 		ID: "live-sc", Name: "四川造价信息网（期 758）",
-		URL: "http://202.61.90.35:8032/pubpages/pricelist.aspx?period=758",
+		URL:    "http://202.61.90.35:8032/pubpages/pricelist.aspx?period=758",
 		Parser: "sc_table", Enabled: true,
 	}, newTestStore(t))
 	if err != nil {

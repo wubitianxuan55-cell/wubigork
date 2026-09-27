@@ -98,7 +98,6 @@ func TestSinIllustrateToolRejectsBadArgs(t *testing.T) {
 	}
 }
 
-
 // TestSinIllustrateInToolSet sin_illustrate 在工具集（outline 之后、export 之前）。
 func TestSinIllustrateInToolSet(t *testing.T) {
 	a, _ := newSinCastTestApp(t)

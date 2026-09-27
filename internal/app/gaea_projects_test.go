@@ -298,8 +298,8 @@ func TestGaeaHistoryToolEvents(t *testing.T) {
 	s := agent.NewSession("you are gaea")
 	s.Add(provider.Message{Role: provider.RoleUser, Content: "帮我改方案"})
 	s.Add(provider.Message{
-		Role:    provider.RoleAssistant,
-		Content: "好的",
+		Role:      provider.RoleAssistant,
+		Content:   "好的",
 		ToolCalls: []provider.ToolCall{{ID: "call_1", Name: "edit_file", Arguments: `{"path":"方案.md","edits":[]}`}},
 	})
 	s.Add(provider.Message{Role: provider.RoleTool, Name: "edit_file", ToolCallID: "call_1", Content: "已更新 方案.md"})

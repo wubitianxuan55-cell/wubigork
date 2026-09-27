@@ -10,8 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/gaea/gaea/internal/gaea/tool"
 	"github.com/gaea/gaea/internal/docmd"
+	"github.com/gaea/gaea/internal/gaea/tool"
 )
 
 func init() { tool.RegisterBuiltin(formatConvert{}) }

@@ -13,9 +13,13 @@ var taskTriggers = []string{
 
 func IsTask(text string) bool {
 	text = strings.TrimSpace(strings.ToLower(text))
-	if text == "" { return false }
+	if text == "" {
+		return false
+	}
 	for _, trigger := range taskTriggers {
-		if strings.Contains(text, strings.ToLower(trigger)) { return true }
+		if strings.Contains(text, strings.ToLower(trigger)) {
+			return true
+		}
 	}
 	return false
 }

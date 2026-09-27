@@ -11,28 +11,66 @@ import (
 type ChatB struct{ a *App }
 
 func (b *ChatB) BrainCrossRefs(entity string) (string, error) { return b.a.BrainCrossRefs(entity) }
-func (b *ChatB) BrainSearch(query string, brains string) (string, error) { return b.a.BrainSearch(query, brains) }
-func (b *ChatB) BrainWrite(brain string, entity string, attribute string, value string) error { return b.a.BrainWrite(brain, entity, attribute, value) }
-func (b *ChatB) BrainstormBranches(nodeID string) (map[string]interface{}, error) { return b.a.BrainstormBranches(nodeID) }
-func (b *ChatB) Chat(systemPrompt string, userPrompt string) (string, error) { return b.a.Chat(systemPrompt, userPrompt) }
-func (b *ChatB) ChatAppendMessages(topicID string, messages []ChatMessageInput) error { return b.a.ChatAppendMessages(topicID, messages) }
-func (b *ChatB) ChatCharacter(userMsg string) (map[string]interface{}, error) { return b.a.ChatCharacter(userMsg) }
-func (b *ChatB) ChatCharacterDetail(charID string, userMsg string) (map[string]interface{}, error) { return b.a.ChatCharacterDetail(charID, userMsg) }
-func (b *ChatB) ChatGeneral(userMsg string) (map[string]interface{}, error) { return b.a.ChatGeneral(userMsg) }
-func (b *ChatB) ChatImportTopic(title string, mode string, messages []ChatMessageInput) (chat.Topic, error) { return b.a.ChatImportTopic(title, mode, messages) }
-func (b *ChatB) ChatMessagesList(topicID string) ([]chat.Message, error) { return b.a.ChatMessagesList(topicID) }
-func (b *ChatB) ChatMessagesPage(topicID string, limit int, beforeSeq int64) (ChatMessagesPageResult, error) { return b.a.ChatMessagesPage(topicID, limit, beforeSeq) }
-func (b *ChatB) ChatOutline(userMsg string) (map[string]interface{}, error) { return b.a.ChatOutline(userMsg) }
-func (b *ChatB) ChatOutlineNode(nodeID string, userMsg string) (map[string]interface{}, error) { return b.a.ChatOutlineNode(nodeID, userMsg) }
-func (b *ChatB) ChatSend(topicID string, message string, mode string, searchEnabled bool, thinking bool, forceSearch bool) (map[string]interface{}, error) { return b.a.ChatSend(topicID, message, mode, searchEnabled, thinking, forceSearch) }
-func (b *ChatB) ChatStreamPlain(topicID string, message string, searchEnabled bool, thinking bool, forceSearch bool) (string, error) { return b.a.ChatStreamPlain(topicID, message, searchEnabled, thinking, forceSearch) }
+func (b *ChatB) BrainSearch(query string, brains string) (string, error) {
+	return b.a.BrainSearch(query, brains)
+}
+func (b *ChatB) BrainWrite(brain string, entity string, attribute string, value string) error {
+	return b.a.BrainWrite(brain, entity, attribute, value)
+}
+func (b *ChatB) BrainstormBranches(nodeID string) (map[string]interface{}, error) {
+	return b.a.BrainstormBranches(nodeID)
+}
+func (b *ChatB) Chat(systemPrompt string, userPrompt string) (string, error) {
+	return b.a.Chat(systemPrompt, userPrompt)
+}
+func (b *ChatB) ChatAppendMessages(topicID string, messages []ChatMessageInput) error {
+	return b.a.ChatAppendMessages(topicID, messages)
+}
+func (b *ChatB) ChatCharacter(userMsg string) (map[string]interface{}, error) {
+	return b.a.ChatCharacter(userMsg)
+}
+func (b *ChatB) ChatCharacterDetail(charID string, userMsg string) (map[string]interface{}, error) {
+	return b.a.ChatCharacterDetail(charID, userMsg)
+}
+func (b *ChatB) ChatGeneral(userMsg string) (map[string]interface{}, error) {
+	return b.a.ChatGeneral(userMsg)
+}
+func (b *ChatB) ChatImportTopic(title string, mode string, messages []ChatMessageInput) (chat.Topic, error) {
+	return b.a.ChatImportTopic(title, mode, messages)
+}
+func (b *ChatB) ChatMessagesList(topicID string) ([]chat.Message, error) {
+	return b.a.ChatMessagesList(topicID)
+}
+func (b *ChatB) ChatMessagesPage(topicID string, limit int, beforeSeq int64) (ChatMessagesPageResult, error) {
+	return b.a.ChatMessagesPage(topicID, limit, beforeSeq)
+}
+func (b *ChatB) ChatOutline(userMsg string) (map[string]interface{}, error) {
+	return b.a.ChatOutline(userMsg)
+}
+func (b *ChatB) ChatOutlineNode(nodeID string, userMsg string) (map[string]interface{}, error) {
+	return b.a.ChatOutlineNode(nodeID, userMsg)
+}
+func (b *ChatB) ChatSend(topicID string, message string, mode string, searchEnabled bool, thinking bool, forceSearch bool) (map[string]interface{}, error) {
+	return b.a.ChatSend(topicID, message, mode, searchEnabled, thinking, forceSearch)
+}
+func (b *ChatB) ChatStreamPlain(topicID string, message string, searchEnabled bool, thinking bool, forceSearch bool) (string, error) {
+	return b.a.ChatStreamPlain(topicID, message, searchEnabled, thinking, forceSearch)
+}
 func (b *ChatB) ChatTopicClear(id string) error { return b.a.ChatTopicClear(id) }
-func (b *ChatB) ChatTopicCreate(title string, mode string) (chat.Topic, error) { return b.a.ChatTopicCreate(title, mode) }
+func (b *ChatB) ChatTopicCreate(title string, mode string) (chat.Topic, error) {
+	return b.a.ChatTopicCreate(title, mode)
+}
 func (b *ChatB) ChatTopicDelete(id string) error { return b.a.ChatTopicDelete(id) }
-func (b *ChatB) ChatTopicExportMarkdown(topicID string) (string, error) { return b.a.ChatTopicExportMarkdown(topicID) }
+func (b *ChatB) ChatTopicExportMarkdown(topicID string) (string, error) {
+	return b.a.ChatTopicExportMarkdown(topicID)
+}
 func (b *ChatB) ChatTopicRename(id string, title string) error { return b.a.ChatTopicRename(id, title) }
 func (b *ChatB) ChatTopicSetMode(id string, mode string) error { return b.a.ChatTopicSetMode(id, mode) }
-func (b *ChatB) ChatTopicsList() ([]chat.Topic, error) { return b.a.ChatTopicsList() }
-func (b *ChatB) ChatWorldview(userMsg string, currentContent string) (map[string]interface{}, error) { return b.a.ChatWorldview(userMsg, currentContent) }
+func (b *ChatB) ChatTopicsList() ([]chat.Topic, error)         { return b.a.ChatTopicsList() }
+func (b *ChatB) ChatWorldview(userMsg string, currentContent string) (map[string]interface{}, error) {
+	return b.a.ChatWorldview(userMsg, currentContent)
+}
 func (b *ChatB) MainBrainChat(message string) (string, error) { return b.a.MainBrainChat(message) }
-func (b *ChatB) RunModule(moduleID string, intent string, inputJSON string) (string, error) { return b.a.RunModule(moduleID, intent, inputJSON) }
+func (b *ChatB) RunModule(moduleID string, intent string, inputJSON string) (string, error) {
+	return b.a.RunModule(moduleID, intent, inputJSON)
+}

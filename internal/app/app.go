@@ -26,9 +26,9 @@ import (
 	"github.com/gaea/gaea/internal/characterlib"
 	"github.com/gaea/gaea/internal/chat"
 	"github.com/gaea/gaea/internal/config"
-	"github.com/gaea/gaea/internal/gaea/filewatch"
 	gaeacfg "github.com/gaea/gaea/internal/gaea/config"
 	gaeadb "github.com/gaea/gaea/internal/gaea/db"
+	"github.com/gaea/gaea/internal/gaea/filewatch"
 	"github.com/gaea/gaea/internal/gaea/secure"
 	"github.com/gaea/gaea/internal/gaea/tasks"
 	"github.com/gaea/gaea/internal/httpbridge"
@@ -139,9 +139,9 @@ type mediaState struct {
 
 	// ComfyUI 进程管理（comfyProcMu 保护；写侧有 UI 线程/回收 goroutine/状态轮询
 	// 三路并发，v4.421 P0-2 收口，访问一律走 comfyProcRef* 方法）
-	comfyProcMu    sync.Mutex
-	comfyUICancel  context.CancelFunc
-	comfyUICmd     *exec.Cmd
+	comfyProcMu   sync.Mutex
+	comfyUICancel context.CancelFunc
+	comfyUICmd    *exec.Cmd
 
 	// 当前图片/视频生成任务（前端生成队列逐条提交，这里只保留取消句柄）
 	imageGenMu      sync.Mutex

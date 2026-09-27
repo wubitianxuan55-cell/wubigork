@@ -470,7 +470,7 @@ func (a *whisperState) WeixinReminderList() []map[string]interface{} {
 	for _, r := range rs {
 		out = append(out, map[string]interface{}{
 			"id": r.ID, "text": r.Text,
-			"fireAt": r.FireAt.Format(time.RFC3339),
+			"fireAt":      r.FireAt.Format(time.RFC3339),
 			"assistantId": r.AssistantID, "source": r.Source,
 			"status": r.Status, "failCount": r.FailCount,
 			"createdAt": r.CreatedAt.Format(time.RFC3339),

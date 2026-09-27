@@ -16,7 +16,7 @@ func seedReplayEpisode(t *testing.T, root, sessionID, episodeID string) {
 	if err := repos.InsertEpisode(root, whisper.Episode{
 		ID: episodeID, Summary: "深夜一起改 bug 到天亮",
 		EmotionalIntensity: 0.85, DominantEmotion: "兴奋",
-		Keywords: []string{"debug", "熬夜"},
+		Keywords:        []string{"debug", "熬夜"},
 		SourceSessionID: sessionID, StartTurn: 2, EndTurn: 3,
 		CreatedAt: now,
 	}); err != nil {

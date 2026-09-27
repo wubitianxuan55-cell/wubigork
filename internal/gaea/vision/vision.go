@@ -243,4 +243,3 @@ func mimeByExt(path string) string {
 		return "image/png"
 	}
 }
-

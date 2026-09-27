@@ -584,7 +584,7 @@ func TestSendFileCard_NoPeerSkipsUpload(t *testing.T) {
 // TestSendFileCard_FileCardFailFallsBackToText v4.9 文件卡链（探针制）失败
 // 逐级降级：非图片扩展名（docx）不再被白名单拒绝，而是先走 getuploadurl
 // （media_type=3）；该步失败时抓 file_getuploadurl err + 粗粒度 stage=upload
-//（card=file）记录后走文本降级（逐字节不变）——绝不影响主流程。
+// （card=file）记录后走文本降级（逐字节不变）——绝不影响主流程。
 func TestSendFileCard_FileCardFailFallsBackToText(t *testing.T) {
 	p := tempCapturePath(t)
 

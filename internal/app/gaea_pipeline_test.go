@@ -67,8 +67,9 @@ func TestOfficeFullPipeline(t *testing.T) {
 }
 
 // TestSmokeRealPipeline 真实文档全链路走查（默认跳过）：
-//   真实 docx → 修订式编辑 → 接受修订 → 提取 Markdown → 模板化导出 docx
-//   GAEA_SMOKE_PIPELINE=<真实 docx 路径> go test ./internal/app -run TestSmokeRealPipeline -v
+//
+//	真实 docx → 修订式编辑 → 接受修订 → 提取 Markdown → 模板化导出 docx
+//	GAEA_SMOKE_PIPELINE=<真实 docx 路径> go test ./internal/app -run TestSmokeRealPipeline -v
 func TestSmokeRealPipeline(t *testing.T) {
 	src := os.Getenv("GAEA_SMOKE_PIPELINE")
 	if src == "" {

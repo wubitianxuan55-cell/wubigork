@@ -14,8 +14,10 @@ import (
 )
 
 // buildRewindSession 构造一个带真实事件日志的两轮会话（与运行期 sink 写入同构）：
-//   轮 0: user「帮我写周报」→ write_file report.md → assistant「完成」→ turn_done
-//   轮 1: user「改成英文」→ assistant「Done」→ turn_done
+//
+//	轮 0: user「帮我写周报」→ write_file report.md → assistant「完成」→ turn_done
+//	轮 1: user「改成英文」→ assistant「Done」→ turn_done
+//
 // 返回会话路径（日志已落盘；镜像由投影消息 Save 生成）。
 func buildRewindSession(t *testing.T, sessionDir string) string {
 	t.Helper()

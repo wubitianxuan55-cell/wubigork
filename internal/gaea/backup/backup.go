@@ -94,11 +94,11 @@ func isSQLite(rel string) bool {
 // Manifest 备份清单元数据（zip 内 manifest.json）。
 type Manifest struct {
 	App        string    `json:"app"`
-	Version    string    `json:"version"`     // gaea 版本
-	CreatedAt  time.Time `json:"created_at"`  // 备份时间
-	DataRoot   string    `json:"data_root"`   // 备份时的数据根（信息用）
-	EntryCount int       `json:"entry_count"` // 文件条目数
-	TotalBytes int64     `json:"total_bytes"` // 文件总大小
+	Version    string    `json:"version"`            // gaea 版本
+	CreatedAt  time.Time `json:"created_at"`         // 备份时间
+	DataRoot   string    `json:"data_root"`          // 备份时的数据根（信息用）
+	EntryCount int       `json:"entry_count"`        // 文件条目数
+	TotalBytes int64     `json:"total_bytes"`        // 文件总大小
 	Warnings   []string  `json:"warnings,omitempty"` // 备份不完整告警（如快照失败回退）
 }
 

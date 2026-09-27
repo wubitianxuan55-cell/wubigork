@@ -15,16 +15,16 @@ func TestBlockedInternalIP(t *testing.T) {
 		ip   string
 		want bool
 	}{
-		{"127.0.0.1", true},            // loopback（全禁变体）
-		{"127.8.8.8", true},            // loopback 网段
-		{"::1", true},                  // IPv6 loopback
-		{"10.0.0.5", true},             // RFC1918
-		{"192.168.1.1", true},          // RFC1918
-		{"169.254.169.254", true},      // 云元数据
-		{"100.100.100.200", true},      // 阿里云元数据（CGNAT 段）
-		{"0.0.0.0", true},              // 未指定
-		{"8.8.8.8", false},             // 公网
-		{"1.1.1.1", false},             // 公网
+		{"127.0.0.1", true},       // loopback（全禁变体）
+		{"127.8.8.8", true},       // loopback 网段
+		{"::1", true},             // IPv6 loopback
+		{"10.0.0.5", true},        // RFC1918
+		{"192.168.1.1", true},     // RFC1918
+		{"169.254.169.254", true}, // 云元数据
+		{"100.100.100.200", true}, // 阿里云元数据（CGNAT 段）
+		{"0.0.0.0", true},         // 未指定
+		{"8.8.8.8", false},        // 公网
+		{"1.1.1.1", false},        // 公网
 	}
 	for _, tt := range tests {
 		if got := BlockedInternalIP(net.ParseIP(tt.ip)); got != tt.want {

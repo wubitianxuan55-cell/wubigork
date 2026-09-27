@@ -32,8 +32,8 @@ import (
 	"github.com/gaea/gaea/internal/gaea/provider"
 	"github.com/gaea/gaea/internal/gaea/spaces"
 	"github.com/gaea/gaea/internal/gaea/trajectory"
-	"github.com/gaea/gaea/internal/screen"
 	"github.com/gaea/gaea/internal/intent"
+	"github.com/gaea/gaea/internal/screen"
 	"github.com/gaea/gaea/internal/taskinbox"
 )
 
@@ -390,6 +390,7 @@ func (a *App) execSendLatestFile(it *intent.Intent) (string, bool, string) {
 //     （voice）；
 //   - title=it.Target 经 NormalizeTitle（意图层 .{1,120} 已挡空标题，这里
 //     二次校验兜底）；Action/Target 存意图原值（来源审计链）。
+//
 // Ctrl+K/命令面板不走此执行路径落库——dry-run 预览照常命中，前端点「执行/
 // 存为任务」直接调 GaeaTaskInboxSave。回复文本即回执（语音 TTS/微信回推
 // 天然可用）。
@@ -497,14 +498,14 @@ func (a *App) execReadScreen(it *intent.Intent) (string, bool) {
 	path := tmp.Name()
 	if _, err := tmp.Write(buf.Bytes()); err != nil {
 		_ = tmp.Close()
-		os.Remove(path)
+		_ = os.Remove(path)
 		return "截屏暂存失败：" + err.Error() + "。", true
 	}
 	if err := tmp.Close(); err != nil {
-		os.Remove(path)
+		_ = os.Remove(path)
 		return "截屏暂存失败：" + err.Error() + "。", true
 	}
-	defer os.Remove(path)
+	defer func() { _ = os.Remove(path) }()
 	text, err := a.GaeaOCRText(path)
 	if err != nil {
 		slog.Warn("[intent] 屏幕文字识别失败", "err", err)

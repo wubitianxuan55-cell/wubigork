@@ -394,7 +394,7 @@ type NovelBookSourceAppendResult struct {
 
 // NovelBookSourceEnginesPayload 引擎规则清单 + 落盘路径（编辑器的只读面）。
 type NovelBookSourceEnginesPayload struct {
-	Path  string                        `json:"path"`
+	Path  string                         `json:"path"`
 	Rules []*booksource.SearchEngineRule `json:"rules"`
 }
 

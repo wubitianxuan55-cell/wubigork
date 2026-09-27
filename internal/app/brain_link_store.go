@@ -55,7 +55,7 @@ func (l *LinkStore) ListByEntity(entity string) ([]Ref, error) {
 		if err != nil {
 			return nil, err
 		}
-		defer rows.Close()
+		defer func() { _ = rows.Close() }()
 		var out []Ref
 		for rows.Next() {
 			var r Ref

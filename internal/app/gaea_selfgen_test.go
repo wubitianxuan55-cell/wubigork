@@ -21,7 +21,8 @@ import (
 
 // TestGaeaSelfGenerateCost 让 gaea 智能体自主生成成本测算表（真实模型 + 完整
 // 工具链：bash/python/openpyxl + LibreOffice 重算），验证产物含公式与原生图表。
-//   GAEA_SELFGEN=1 go test ./internal/app -run TestGaeaSelfGenerateCost -v -timeout 20m
+//
+//	GAEA_SELFGEN=1 go test ./internal/app -run TestGaeaSelfGenerateCost -v -timeout 20m
 func TestGaeaSelfGenerateCost(t *testing.T) {
 	if os.Getenv("GAEA_SELFGEN") == "" {
 		t.Skip("未设置 GAEA_SELFGEN（真实模型自生成测试）")

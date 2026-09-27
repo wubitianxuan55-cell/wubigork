@@ -11,14 +11,14 @@ func TestIsShortQuestion(t *testing.T) {
 		msg  string
 		want bool
 	}{
-		{"你好", false},            // 寒暄：保留短镜像
-		{"嗯", false},              // 应答：保留短镜像
-		{"你是谁", true},           // 短问题：豁免
-		{"你会什么", true},          // 短问题：豁免
-		{"在吗？", true},           // 带问号：豁免
-		{"现在用什么模型", true},    // 含「什么」：豁免
-		{"画一张猫", false},         // 短祈使：保留短镜像
-		{"今天天气怎么样", true},     // 疑问：豁免
+		{"你好", false},     // 寒暄：保留短镜像
+		{"嗯", false},      // 应答：保留短镜像
+		{"你是谁", true},     // 短问题：豁免
+		{"你会什么", true},    // 短问题：豁免
+		{"在吗？", true},     // 带问号：豁免
+		{"现在用什么模型", true}, // 含「什么」：豁免
+		{"画一张猫", false},   // 短祈使：保留短镜像
+		{"今天天气怎么样", true}, // 疑问：豁免
 	}
 	for _, c := range cases {
 		if got := isShortQuestion(c.msg); got != c.want {

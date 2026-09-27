@@ -11,10 +11,10 @@ import (
 // v4.6.1 归因对标纯函数：带宽判定、贡献金额、TopDrivers 排序与 Summary。
 func TestComputeAttribution(t *testing.T) {
 	items := []costproject.Item{
-		{Title: "C30 混凝土", Unit: "m³", Quantity: 10, Price: 600}, // 高于 P75(550) → 高
+		{Title: "C30 混凝土", Unit: "m³", Quantity: 10, Price: 600},  // 高于 P75(550) → 高
 		{Title: "HRB400 钢筋", Unit: "t", Quantity: 5, Price: 3000}, // P25-P75 内 → 正常
 		{Title: "模板", Unit: "m²", Quantity: 8, Price: 40},         // 低于 P25(42) → 低
-		{Title: "无参考项", Unit: "m", Quantity: 2, Price: 999},      // 无指标 → 无参考
+		{Title: "无参考项", Unit: "m", Quantity: 2, Price: 999},       // 无指标 → 无参考
 	}
 	indicators := []Indicator{
 		{Key: "C30 混凝土", Samples: 10, Median: 500, P25: 450, P75: 550},

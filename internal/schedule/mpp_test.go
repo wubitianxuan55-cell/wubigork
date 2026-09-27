@@ -123,8 +123,8 @@ func mppFixedMetaOf(itemSize int, items []struct {
 func TestMppTimestamp(t *testing.T) {
 	// days=8337 → 1983-12-31 + 8337 天 = 2006-10-27(epoch 实证口径)
 	b := make([]byte, 4)
-	pu16(b, 0, 4800)  // 08:00(十分之一分钟)
-	pu16(b, 2, 8337)  // 天数
+	pu16(b, 0, 4800) // 08:00(十分之一分钟)
+	pu16(b, 2, 8337) // 天数
 	ts := mppTimestamp(b, 0)
 	if ts == nil {
 		t.Fatal("有效时间戳被判空")
@@ -287,7 +287,7 @@ func TestMppSyntheticMPP9(t *testing.T) {
 		row   []byte
 	}{
 		{0, 0, mkCons(1, 101, 102, 1, 0)},
-		{0, 0, mkCons(2, 102, 103, 1, -1 * dayTenths)},
+		{0, 0, mkCons(2, 102, 103, 1, -1*dayTenths)},
 	}
 	consMeta, consData := mppFixedMetaOf(10, consItems, 0)
 

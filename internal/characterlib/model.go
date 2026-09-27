@@ -46,7 +46,7 @@ type Character struct {
 
 	// ── 聊天侧 ──
 	ChatEnabled   bool                     `json:"chatEnabled"`
-	Dims          whisper.PersonalityDims `json:"dims"`
+	Dims          whisper.PersonalityDims  `json:"dims"`
 	VoiceGuide    string                   `json:"voiceGuide,omitempty"`
 	BehaviorRules string                   `json:"behaviorRules,omitempty"`
 	EmotionLogic  string                   `json:"emotionLogic,omitempty"`

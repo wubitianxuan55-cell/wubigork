@@ -62,7 +62,7 @@ func TestReadSystemMemoryMBWindows(t *testing.T) {
 }
 
 // TestNoteImageGenMemoryPressure 预检接线两态：命中→恰一帧 imagegen:pressure
-//（含文案）；不命中/读不到→零帧。经 httpbridge SSE 捕获 emit。
+// （含文案）；不命中/读不到→零帧。经 httpbridge SSE 捕获 emit。
 func TestNoteImageGenMemoryPressure(t *testing.T) {
 	orig := systemMemoryReader
 	t.Cleanup(func() { systemMemoryReader = orig })

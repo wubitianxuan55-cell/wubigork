@@ -154,4 +154,3 @@ func TestGaeaDataBackupRollback(t *testing.T) {
 		t.Fatalf("回滚后应为 old-note: %q", data)
 	}
 }
-

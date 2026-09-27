@@ -243,7 +243,7 @@ func (a *App) GaeaCostComposeRecords(entryName string) ([]CostComposeRecord, err
 	if err != nil {
 		return nil, fmt.Errorf("查询组价留痕失败: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var out []CostComposeRecord
 	for rows.Next() {
 		var (

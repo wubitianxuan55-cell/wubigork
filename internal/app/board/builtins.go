@@ -138,8 +138,8 @@ var builtinManifests = []Manifest{
 	},
 	{
 		ID: "weixin", Label: "青鸟", Icon: "WechatOutlined",
-		Page: "WeixinPage", // v4.4 触点落地（扫码绑定 + 离线代办提醒）
-		Lazy: true,
+		Page:      "WeixinPage", // v4.4 触点落地（扫码绑定 + 离线代办提醒）
+		Lazy:      true,
 		KeepAlive: Bool(true), Layout: "padded",
 		MenuOrder: 11, InMenu: Bool(true), // v4.4：进 rail + 首页左翼书房格
 		Space: SpaceWork, // 书房触点（微信远程任务入口，§10.3/§10.4）

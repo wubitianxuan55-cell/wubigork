@@ -3,7 +3,6 @@ package novelcontext
 import (
 	"strings"
 	"testing"
-
 )
 
 // TestRenderMemories t3-P2：相关记忆区段渲染 + 单行截断 + 区段预算。

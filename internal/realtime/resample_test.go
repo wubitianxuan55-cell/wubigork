@@ -47,7 +47,7 @@ func TestResample_SingleSample(t *testing.T) {
 }
 
 // TestResample_ExactKnownValues 已知精确插值：[0,300] → [0,200,300]
-//（中间样本 = 0×1/3 + 300×2/3 = 200；末样本保持）。
+// （中间样本 = 0×1/3 + 300×2/3 = 200；末样本保持）。
 func TestResample_ExactKnownValues(t *testing.T) {
 	got := pcm16Samples(Resample16kTo24k(pcm16Bytes([]int16{0, 300})))
 	want := []int16{0, 200, 300}

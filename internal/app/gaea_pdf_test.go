@@ -65,7 +65,8 @@ func TestFindSoffice_NoPanic(t *testing.T) {
 }
 
 // TestConvertToPdf_Smoke 真实 soffice 转换（默认跳过）：
-//   GAEA_SMOKE_PDF=1 go test ./internal/app -run TestConvertToPdf_Smoke -v
+//
+//	GAEA_SMOKE_PDF=1 go test ./internal/app -run TestConvertToPdf_Smoke -v
 func TestConvertToPdf_Smoke(t *testing.T) {
 	if os.Getenv("GAEA_SMOKE_PDF") != "1" {
 		t.Skip("设置 GAEA_SMOKE_PDF=1 运行真实 PDF 转换 smoke")

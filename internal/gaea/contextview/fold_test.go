@@ -8,7 +8,6 @@ import (
 	"github.com/gaea/gaea/internal/gaea/agent/session"
 )
 
-
 func entry(seq int64, kind string, payload any) session.LogEntry {
 	b, _ := json.Marshal(payload)
 	return session.LogEntry{Seq: seq, Ts: 1700000000 + seq, Kind: kind, Payload: b}

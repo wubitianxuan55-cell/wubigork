@@ -359,7 +359,8 @@ func TestBuildContext(t *testing.T) {
 }
 
 // TestSmokeRecalc 真实调用 recalc.py（LibreOffice 重算），默认跳过：
-//   GAEA_SMOKE_RECALC=1 go test ./internal/office/xlsxedit -run TestSmokeRecalc -v
+//
+//	GAEA_SMOKE_RECALC=1 go test ./internal/office/xlsxedit -run TestSmokeRecalc -v
 func TestSmokeRecalc(t *testing.T) {
 	if os.Getenv("GAEA_SMOKE_RECALC") == "" {
 		t.Skip("未设置 GAEA_SMOKE_RECALC")

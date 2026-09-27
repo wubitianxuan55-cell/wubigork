@@ -79,8 +79,8 @@ type Attribution struct {
 	RefTotal     float64           `json:"refTotal"`
 	TotalDiff    float64           `json:"totalDiff"`
 	TotalDiffPct float64           `json:"totalDiffPct"`
-	Unmatched    int               `json:"unmatched"`        // 无参考的明细条数
-	UnmatchedAmt float64           `json:"unmatchedAmt"`     // 无参考明细的金额（未参与归因）
+	Unmatched    int               `json:"unmatched"`    // 无参考的明细条数
+	UnmatchedAmt float64           `json:"unmatchedAmt"` // 无参考明细的金额（未参与归因）
 	Items        []AttributionItem `json:"items"`
 	TopDrivers   []AttributionItem `json:"topDrivers"`
 	Summary      string            `json:"summary"`

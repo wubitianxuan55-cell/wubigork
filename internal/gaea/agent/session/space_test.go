@@ -19,14 +19,14 @@ import (
 
 func TestSpaceForPath(t *testing.T) {
 	cases := map[string]string{
-		filepath.Join(`C:\ws`, ".gaea", "sessions", "s.jsonl"):                     spaces.SpaceWork, // 平铺 = work 兼容
-		filepath.Join(`C:\ws`, ".gaea", "sessions", "work", "s.jsonl"):             spaces.SpaceWork,
-		filepath.Join(`C:\ws`, ".gaea", "sessions", "play", "s.jsonl"):             spaces.SpacePlay,
-		filepath.Join(`C:\ws`, ".gaea", "sessions", "archive", "s.jsonl"):          spaces.SpaceWork,
-		filepath.Join(`C:\ws`, ".gaea", "sessions", "play", "archive", "s.jsonl"):  spaces.SpacePlay,
-		filepath.Join(`C:\ws`, ".gaea", "sessions", "work", "archive", "s.jsonl"):  spaces.SpaceWork,
-		"":                                                                         spaces.SpaceWork, // 空路径防御
-		filepath.Join(t.TempDir(), "loose.jsonl"):                                  spaces.SpaceWork, // 非会话目录不误判
+		filepath.Join(`C:\ws`, ".gaea", "sessions", "s.jsonl"):                    spaces.SpaceWork, // 平铺 = work 兼容
+		filepath.Join(`C:\ws`, ".gaea", "sessions", "work", "s.jsonl"):            spaces.SpaceWork,
+		filepath.Join(`C:\ws`, ".gaea", "sessions", "play", "s.jsonl"):            spaces.SpacePlay,
+		filepath.Join(`C:\ws`, ".gaea", "sessions", "archive", "s.jsonl"):         spaces.SpaceWork,
+		filepath.Join(`C:\ws`, ".gaea", "sessions", "play", "archive", "s.jsonl"): spaces.SpacePlay,
+		filepath.Join(`C:\ws`, ".gaea", "sessions", "work", "archive", "s.jsonl"): spaces.SpaceWork,
+		"": spaces.SpaceWork, // 空路径防御
+		filepath.Join(t.TempDir(), "loose.jsonl"): spaces.SpaceWork, // 非会话目录不误判
 	}
 	for path, want := range cases {
 		if got := SpaceForPath(path); got != want {
@@ -314,9 +314,9 @@ func TestListDirEnumeratesSpaces(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	writeSession(base, "flat", 3000)                                         // 平铺兜底
-	writeSession(filepath.Join(base, "work"), "inwork", 2000)                // work 分区
-	writeSession(filepath.Join(base, "play"), "inplay", 1000)                // play 分区
+	writeSession(base, "flat", 3000)                          // 平铺兜底
+	writeSession(filepath.Join(base, "work"), "inwork", 2000) // work 分区
+	writeSession(filepath.Join(base, "play"), "inplay", 1000) // play 分区
 
 	infos, err := List(base)
 	if err != nil {

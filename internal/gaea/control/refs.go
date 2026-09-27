@@ -12,8 +12,8 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/gaea/gaea/internal/gaea/vision"
 	"github.com/gaea/gaea/internal/docmd"
+	"github.com/gaea/gaea/internal/gaea/vision"
 )
 
 // maxFileRefBytes caps how much of an @-referenced file is injected into a

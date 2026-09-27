@@ -168,7 +168,7 @@ func TestResumeFromDiskRejectsSpaceCrossing(t *testing.T) {
 }
 
 // TestForkInheritsSpace 验证 Fork 天然继承：分支文件落在父会话同目录
-//（同空间），分支会话与分支 meta 的空间自描述与父一致。
+// （同空间），分支会话与分支 meta 的空间自描述与父一致。
 func TestForkInheritsSpace(t *testing.T) {
 	playDir := filepath.Join(t.TempDir(), "sessions", "play")
 	if err := os.MkdirAll(playDir, 0o755); err != nil {

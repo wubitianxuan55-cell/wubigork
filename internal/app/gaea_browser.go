@@ -26,5 +26,6 @@ var browserObserve = func(ctx context.Context) browser.ObserveView {
 func (a *App) GaeaBrowserObserve() browser.ObserveView {
 	return browserObserve(context.Background())
 }
+
 // OfficeB 门面 wrapper 已由 gen_bindings 写入 bindings_office.go（v4.27.2 起的
 // 契约测试锁方法集一致；v4.28 集成时曾临时手补、生成后已删除）。

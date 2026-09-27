@@ -17,11 +17,11 @@ import (
 type EntityType string
 
 const (
-	EntityCharacter  EntityType = "character"
-	EntityLocation   EntityType = "location"
-	EntityItem       EntityType = "item"
-	EntityEvent      EntityType = "event"
-	EntityConcept    EntityType = "concept"
+	EntityCharacter    EntityType = "character"
+	EntityLocation     EntityType = "location"
+	EntityItem         EntityType = "item"
+	EntityEvent        EntityType = "event"
+	EntityConcept      EntityType = "concept"
 	EntityOrganization EntityType = "organization"
 )
 
@@ -45,7 +45,7 @@ type Entity struct {
 	Name        string            `json:"name"`
 	Type        EntityType        `json:"type"`
 	Description string            `json:"description,omitempty"`
-	Properties  map[string]string `json:"properties,omitempty"` // 自由属性
+	Properties  map[string]string `json:"properties,omitempty"`   // 自由属性
 	ChapterRefs []string          `json:"chapter_refs,omitempty"` // 出场章节
 }
 
@@ -95,13 +95,13 @@ func (db *EntityDB) SyncFromProject(pm *project.Manager) error {
 				Type:        EntityCharacter,
 				Description: fmt.Sprintf("%s [%s] %s %s", ch.RoleType, ch.Gender, ch.Personality, ch.Background),
 				Properties: map[string]string{
-					"role_type":   ch.RoleType,
-					"gender":      ch.Gender,
-					"age":         ch.Age,
-					"status":      ch.Status,
-					"appearance":  ch.Appearance,
-					"motivation":  ch.Motivation,
-					"arc":         ch.Arc,
+					"role_type":  ch.RoleType,
+					"gender":     ch.Gender,
+					"age":        ch.Age,
+					"status":     ch.Status,
+					"appearance": ch.Appearance,
+					"motivation": ch.Motivation,
+					"arc":        ch.Arc,
 				},
 			})
 		}

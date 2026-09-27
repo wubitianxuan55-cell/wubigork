@@ -18,7 +18,7 @@ func TestPruneExpiredLogs(t *testing.T) {
 	}
 	old := now.AddDate(0, 0, -400).Format("20060102")
 	recent := now.AddDate(0, 0, -3).Format("20060102")
-	mk("gaea-" + old + ".log")   // 过期 → 删
+	mk("gaea-" + old + ".log")    // 过期 → 删
 	mk("gaea-" + recent + ".log") // 近期 → 留
 	mk("gaea-legacy.log")         // 名字解析失败 → 留（历史豁免）
 	mk("gaea-legacy.log.bak")     // 异物 → 留

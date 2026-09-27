@@ -125,11 +125,12 @@ func TestDirCreateTriggersFull(t *testing.T) {
 // 首个事件读起，flush 后计数清零），全量门禁高负载下 fsnotify 投递散布可跨
 // 过 100ms 窗口——风暴被劈成 ≤stormN 的多批（按语义合法地不置 Full）或首批
 // 非 Full 被立即判死 → 全量 FAIL、隔离 PASS。两处修复（不动生产语义）：
-//  ① 合批窗口 100ms→1s：60 次写本身毫秒级完成，只有投递散布能劈窗，1s 是
-//     对旧窗口 10 倍余量；等待上限 8s（对窗口 8:1，v3.3.0「显式超时放宽」先例）。
-//  ② 断言改「排空到 Full 或 deadline」的条件等待：不因首个非 Full 批次立即
-//     判死（散布劈窗时后续批次仍可能 >stormN 置 Full），deadline 内无 Full 才
-//     失败——终态条件等待，非固定 sleep，断言不放宽。
+//
+//	① 合批窗口 100ms→1s：60 次写本身毫秒级完成，只有投递散布能劈窗，1s 是
+//	   对旧窗口 10 倍余量；等待上限 8s（对窗口 8:1，v3.3.0「显式超时放宽」先例）。
+//	② 断言改「排空到 Full 或 deadline」的条件等待：不因首个非 Full 批次立即
+//	   判死（散布劈窗时后续批次仍可能 >stormN 置 Full），deadline 内无 Full 才
+//	   失败——终态条件等待，非固定 sleep，断言不放宽。
 func TestStormMergesToFull(t *testing.T) {
 	root := t.TempDir()
 	w, err := New(root, nil, 1*time.Second)

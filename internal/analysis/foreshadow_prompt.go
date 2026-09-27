@@ -21,11 +21,11 @@ import (
 
 const (
 	// 候选清单渲染上限（MuMu 分析注入折叠：超期 5 / 其他 10）。
-	candidateOverdueMax  = 5
-	candidateOthersMax   = 10
-	candidateContentMax  = 200 // L1 内容截断（MuMu :230）
-	candidateHintMax     = 100 // L1 暗示截断（MuMu :238）
-	candidateTitleMax    = 20   // 无标题条目的展示名回退截断
+	candidateOverdueMax = 5
+	candidateOthersMax  = 10
+	candidateContentMax = 200 // L1 内容截断（MuMu :230）
+	candidateHintMax    = 100 // L1 暗示截断（MuMu :238）
+	candidateTitleMax   = 20  // 无标题条目的展示名回退截断
 )
 
 // RenderForeshadowCandidates 渲染分析侧「已埋入伏笔列表」三层候选清单。

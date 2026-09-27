@@ -167,12 +167,12 @@ func TestKeepWarmProbeFailureSkipped(t *testing.T) {
 func TestPreloadTargetPriority(t *testing.T) {
 	// gaea 优先：三域都绑 herdsman 时选 gaea。
 	cfg := &config.Config{
-		FuncGaeaEngine:    "herdsman",
-		FuncGaeaModel:     "gaea-m",
-		FuncOfficeEngine:  "herdsman",
-		FuncOfficeModel:   "office-m",
-		FuncChatEngine:    "herdsman",
-		FuncChatModel:     "chat-m",
+		FuncGaeaEngine:   "herdsman",
+		FuncGaeaModel:    "gaea-m",
+		FuncOfficeEngine: "herdsman",
+		FuncOfficeModel:  "office-m",
+		FuncChatEngine:   "herdsman",
+		FuncChatModel:    "chat-m",
 	}
 	model, ok := preloadTarget(cfg)
 	if !ok || model != "gaea-m" {
@@ -255,11 +255,11 @@ func TestAutoPreloadDisabledSkips(t *testing.T) {
 // TestRunAutoPreloadStartsTarget 命中「已安装且未运行」→ 后台启动目标模型。
 func TestRunAutoPreloadStartsTarget(t *testing.T) {
 	a := scheduleTestApp(&config.Config{
-		AutoPreload:     true,
-		FuncGaeaEngine:  "herdsman",
-		FuncGaeaModel:   "gaea-m",
+		AutoPreload:      true,
+		FuncGaeaEngine:   "herdsman",
+		FuncGaeaModel:    "gaea-m",
 		FuncOfficeEngine: "herdsman",
-		FuncOfficeModel: "office-m",
+		FuncOfficeModel:  "office-m",
 	})
 
 	oldCLI := herdsmanCLI
@@ -573,4 +573,3 @@ func TestScheduleConfigBindings(t *testing.T) {
 		t.Error("配置缺失时开关应默认开启")
 	}
 }
-

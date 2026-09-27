@@ -55,7 +55,8 @@ func fakeEmbedServer(t *testing.T) *httptest.Server {
 	}))
 }
 
-func TestEnsureIncrementalAndSearch(t *testing.T) {	srv := fakeEmbedServer(t)
+func TestEnsureIncrementalAndSearch(t *testing.T) {
+	srv := fakeEmbedServer(t)
 	defer srv.Close()
 	e := retrieval.NewEmbedder(srv.URL, "bge-m3")
 	ctx := context.Background()

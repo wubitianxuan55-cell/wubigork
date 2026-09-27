@@ -53,7 +53,7 @@ type MemorySuggestionsView struct {
 }
 
 // GaeaMemorySuggestions 返回记忆面板建议：memories 来自自动做梦待确认队列
-//（suggest 模式，空间过滤）；skills 来自 procedural 记忆的主题聚类。
+// （suggest 模式，空间过滤）；skills 来自 procedural 记忆的主题聚类。
 func (a *App) GaeaMemorySuggestions() MemorySuggestionsView {
 	view := MemorySuggestionsView{
 		Memories:    []MemorySuggestionView{},

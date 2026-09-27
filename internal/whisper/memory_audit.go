@@ -1,7 +1,5 @@
 package whisper
 
-import ()
-
 // AuditMode represents the audit report mode
 type AuditMode string
 

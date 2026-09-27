@@ -11,9 +11,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gaea/gaea/internal/config"
 	gaeaBackup "github.com/gaea/gaea/internal/gaea/backup"
 	gaeadb "github.com/gaea/gaea/internal/gaea/db"
-	"github.com/gaea/gaea/internal/config"
 )
 
 // ── P4-3 数据可迁移（2026-08-14，个人使用收口）────────────────────

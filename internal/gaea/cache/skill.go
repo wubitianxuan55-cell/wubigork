@@ -159,7 +159,6 @@ func (l *SkillLayer) CurrentProfile() SkillProfile { return l.current }
 // CurrentVersion returns the current profile version.
 func (l *SkillLayer) CurrentVersion() int { return l.version }
 
-
 // classifyIntent is the core classification logic (extracted from GoalRouter.Route).
 func classifyIntent(input string) TaskKind {
 	lower := strings.ToLower(input)

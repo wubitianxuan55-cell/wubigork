@@ -23,6 +23,6 @@ func (a *officeState) OfficeReadFile(p string) officecore.ExecResult {
 	return a.OfficeExecute("read_text", p, "", "", "", "")
 }
 func (a *officeState) OfficeGetJobState(s string) *officecore.AgentJobState { return jm.GetState(s) }
-func (a *officeState) OfficeCancelJob(s string)                            { jm.Cancel(s) }
-func (a *officeState) OfficeGetMode(s string) bool                         { return sm.GetMode(s) }
-func (a *officeState) OfficeSetMode(s string, e bool)                      { sm.SetMode(s, e) }
+func (a *officeState) OfficeCancelJob(s string)                             { jm.Cancel(s) }
+func (a *officeState) OfficeGetMode(s string) bool                          { return sm.GetMode(s) }
+func (a *officeState) OfficeSetMode(s string, e bool)                       { sm.SetMode(s, e) }

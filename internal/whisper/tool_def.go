@@ -33,6 +33,3 @@ var UseComputerActions = []string{
 	"download_file", "download_and_install", "run_installer",
 	"import_to_ackem", "focus_app",
 }
-
-
-

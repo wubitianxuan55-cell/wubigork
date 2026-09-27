@@ -7,15 +7,15 @@ package trajectory
 
 // Trajectory 是整份轨迹快照（GaeaTrajectory 返回值）。
 type Trajectory struct {
-	Ok          bool     `json:"ok"`
-	Turns       []Turn   `json:"turns"`
+	Ok           bool     `json:"ok"`
+	Turns        []Turn   `json:"turns"`
 	BetweenTurns []Record `json:"betweenTurns,omitempty"` // 轮次之间的独立压缩等
 }
 
 // Turn 是一轮用户回合：粗分割线边界 + 扁平记录列表。
 type Turn struct {
-	Turn      int      `json:"turn"`
-	StartedAt int64    `json:"startedAt,omitempty"`
+	Turn      int   `json:"turn"`
+	StartedAt int64 `json:"startedAt,omitempty"`
 	// DurationMs 是轮级耗时（ms）= turn_done.Ts − turn_started.Ts 再 ×1000，
 	// 对齐 Record.DurationMs 的换算与命名（日志 Ts 为 unix 秒）。仅 turn_done
 	// 到达且 Ts > StartedAt 时计算；悬挂轮/时钟异常保持 0，omitempty 省略——
@@ -143,9 +143,9 @@ type AgentNetwork struct {
 
 // AgentNode 是一个 agent 节点。
 type AgentNode struct {
-	ID        string      `json:"id"`   // "root" | 工具调用 ID
-	Name      string      `json:"name"` // 主 agent | 子代理工具名
-	Kind      string      `json:"kind"` // root | subagent
+	ID        string      `json:"id"`     // "root" | 工具调用 ID
+	Name      string      `json:"name"`   // 主 agent | 子代理工具名
+	Kind      string      `json:"kind"`   // root | subagent
 	Status    string      `json:"status"` // running | completed | error
 	Model     string      `json:"model,omitempty"`
 	Task      string      `json:"task,omitempty"` // 子代理任务摘要（prompt/description 预览）

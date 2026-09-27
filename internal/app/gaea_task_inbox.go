@@ -33,17 +33,17 @@ import (
 // 字段与 internal/taskinbox.Task 完全同 json 标签（camelCase，与状态文件
 // 契约一致；herdsman 防环先例——视图层不直接暴露内部包类型别名之外的形状）。
 type TaskInboxView struct {
-	ID        string           `json:"id"`                  // "ti-"+12hex
-	Title     string           `json:"title"`               // NormalizeTitle 产物
-	Space     string           `json:"space"`               // "work"|"play"
-	Status    taskinbox.Status `json:"status"`              // pending|doing|done|abandoned
-	Source    string           `json:"source"`              // ctrlk|palette|voice|weixin|inbox
-	Action    string           `json:"action,omitempty"`    // 意图动作（save_task/…；手动空）
-	Target    string           `json:"target,omitempty"`    // 意图目标（任务标题文本等）
-	Session   string           `json:"session,omitempty"`   // 源会话（审计链）
-	Note      string           `json:"note,omitempty"`      // 备注（唯一可编辑副字段）
-	CreatedAt int64            `json:"createdAt"`           // 毫秒
-	UpdatedAt int64            `json:"updatedAt"`           // 毫秒
+	ID        string           `json:"id"`                // "ti-"+12hex
+	Title     string           `json:"title"`             // NormalizeTitle 产物
+	Space     string           `json:"space"`             // "work"|"play"
+	Status    taskinbox.Status `json:"status"`            // pending|doing|done|abandoned
+	Source    string           `json:"source"`            // ctrlk|palette|voice|weixin|inbox
+	Action    string           `json:"action,omitempty"`  // 意图动作（save_task/…；手动空）
+	Target    string           `json:"target,omitempty"`  // 意图目标（任务标题文本等）
+	Session   string           `json:"session,omitempty"` // 源会话（审计链）
+	Note      string           `json:"note,omitempty"`    // 备注（唯一可编辑副字段）
+	CreatedAt int64            `json:"createdAt"`         // 毫秒
+	UpdatedAt int64            `json:"updatedAt"`         // 毫秒
 }
 
 // taskInboxToView 内部任务 → 绑定视图（字段一一对应）。
@@ -105,15 +105,15 @@ func saveTaskInbox(dataRoot string, tasks []taskinbox.Task) error {
 	tmpName := tmp.Name()
 	if _, err := tmp.Write(b); err != nil {
 		_ = tmp.Close()
-		os.Remove(tmpName)
+		_ = os.Remove(tmpName)
 		return err
 	}
 	if err := tmp.Close(); err != nil {
-		os.Remove(tmpName)
+		_ = os.Remove(tmpName)
 		return err
 	}
 	if err := fileutil.RenameWithRetry(tmpName, p); err != nil {
-		os.Remove(tmpName)
+		_ = os.Remove(tmpName)
 		return err
 	}
 	return nil

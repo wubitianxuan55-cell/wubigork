@@ -234,7 +234,6 @@ func TestSHA256Stable(t *testing.T) {
 	}
 }
 
-
 // TestApplyPendingRetryIdempotent 验证 #1：部分失败后重试可成功且不破坏数据（幂等）。
 func TestApplyPendingRetryIdempotent(t *testing.T) {
 	rootA := setupDataRoot(t)
@@ -354,4 +353,3 @@ func TestSafeZipRelRejectsDriveLetter(t *testing.T) {
 		}
 	}
 }
-

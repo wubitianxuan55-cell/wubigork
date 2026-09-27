@@ -190,7 +190,7 @@ func TestAfterTurn_EpisodeGeneratedAtHighInterval(t *testing.T) {
 		CompanionMsg:    "不客气",
 		L1:              L1State{Trust: 80},
 		L2:              EmotionState{Aff: 80, Sec: 60}, // 高强度 → 高间隔 6
-		TotalTurns:      EpisodeIntervalTurns,            // 6
+		TotalTurns:      EpisodeIntervalTurns,           // 6
 		EpisodicStore:   es,
 		RecentExchanges: exchanges,
 		Opts:            IngestOptions{SkipLlmExtraction: true},

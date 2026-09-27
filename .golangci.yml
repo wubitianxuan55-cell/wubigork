@@ -39,3 +39,8 @@ formatters:
 
 run:
   tests: true
+
+# 不设报告上限：截断会让「每次修一批又冒一批」制造已清零假象（2026-09-27 实证）。
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0

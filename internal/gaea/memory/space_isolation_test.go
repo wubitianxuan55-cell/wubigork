@@ -101,7 +101,7 @@ func TestListInSpaceBackfillsSpaceColumn(t *testing.T) {
 }
 
 // InSpace 视图 / Load Space 选项：Space 非空时 Set 的 Store 只在该空间读
-//（List/Index/Get 收窄）；空 = 不过滤（既有调用零行为变化）。
+// （List/Index/Get 收窄）；空 = 不过滤（既有调用零行为变化）。
 func TestLoadSpaceOptionScopesReads(t *testing.T) {
 	dir := t.TempDir()
 	gdb := db.GetDatabase(dir)

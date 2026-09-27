@@ -334,7 +334,7 @@ func (b *sqliteBackend) listInSpace(space string) []Memory {
 	if err != nil {
 		return nil
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var out []Memory
 	for rows.Next() {
 		var m Memory
@@ -364,7 +364,7 @@ func (b *sqliteBackend) ListArchived() []ArchivedMemory {
 	if err != nil {
 		return nil
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var out []ArchivedMemory
 	for rows.Next() {
 		var m Memory
@@ -408,7 +408,7 @@ func (b *sqliteBackend) ListArchivedPaged(limit, offset int) ([]ArchivedMemory, 
 	if err != nil {
 		return nil, 0, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var out []ArchivedMemory
 	for rows.Next() {
 		var m Memory
@@ -444,7 +444,7 @@ func (b *sqliteBackend) CleanupArchived(cutoff time.Time) ([]ArchivedMemory, err
 		var m Memory
 		var typ, kind, tags, archivedAt, srcSession, srcMessage string
 		if err := rows.Scan(&m.Name, &m.Title, &m.Description, &typ, &kind, &tags, &m.Body, &archivedAt, &srcSession, &srcMessage); err != nil {
-			rows.Close()
+			_ = rows.Close()
 			return nil, err
 		}
 		m.Type = NormalizeType(typ)
@@ -459,10 +459,10 @@ func (b *sqliteBackend) CleanupArchived(cutoff time.Time) ([]ArchivedMemory, err
 		})
 	}
 	if err := rows.Err(); err != nil {
-		rows.Close()
+		_ = rows.Close()
 		return nil, err
 	}
-	rows.Close()
+	_ = rows.Close()
 	if len(doomed) == 0 {
 		return nil, nil
 	}

@@ -103,10 +103,10 @@ func TestCanonicalizeSchemaStripsNestedDescriptions(t *testing.T) {
 // json.RawMessage: invalid character '}' after top-level value"）。
 func TestCanonicalizeSchemaInvalidInput(t *testing.T) {
 	bad := []json.RawMessage{
-		json.RawMessage(`{"type":"object"}{`),               // 顶层后多余字符
-		json.RawMessage(`{"type":"object"}{"a":1}`),         // 双顶层值
-		json.RawMessage(`{"properties":{"x":{}}}`),          // 缺闭合括号
-		json.RawMessage(`not json at all`),                  // 完全非 JSON
+		json.RawMessage(`{"type":"object"}{`),       // 顶层后多余字符
+		json.RawMessage(`{"type":"object"}{"a":1}`), // 双顶层值
+		json.RawMessage(`{"properties":{"x":{}}}`),  // 缺闭合括号
+		json.RawMessage(`not json at all`),          // 完全非 JSON
 	}
 	for _, raw := range bad {
 		got := CanonicalizeSchema(raw)

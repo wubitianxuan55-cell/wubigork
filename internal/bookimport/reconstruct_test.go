@@ -97,13 +97,13 @@ func TestNormalizeOutlineBatch_PositionalAlignmentAndForcedTitles(t *testing.T) 
 func TestNormalizeOutlineBatch_FieldLevelFallbacks(t *testing.T) {
 	batch := []ParsedChapter{{Title: "第一章", Content: "他推开门，雨还在下。"}}
 	raw := []any{map[string]any{
-		"summary":  strings.Repeat("概", summaryMaxRunes+50),
-		"scenes":   []any{"场景一", "", 42, "场景二", "场景三", "场景四", "场景五", "场景六", "场景七"},
+		"summary": strings.Repeat("概", summaryMaxRunes+50),
+		"scenes":  []any{"场景一", "", 42, "场景二", "场景三", "场景四", "场景五", "场景六", "场景七"},
 		"characters": []any{
 			map[string]any{"name": "林晚", "type": "organization"},
 			map[string]any{"name": "沈砚", "type": "Person"},
 			map[string]any{"type": "character"}, // 无 name ⇒ 丢
-			"裸字符串",                             // 非对象 ⇒ 丢
+			"裸字符串",                              // 非对象 ⇒ 丢
 		},
 		"key_points": []any{"要点1", "要点2", "要点3", "要点4", "要点5", "要点6", "要点7", "要点8", "要点9"},
 		"emotion":    strings.Repeat("情", emotionMaxRunes+10),

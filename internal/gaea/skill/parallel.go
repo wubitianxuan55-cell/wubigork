@@ -1,9 +1,9 @@
 package skill
 
 import (
-	"log/slog"
 	"context"
 	"fmt"
+	"log/slog"
 	"strings"
 	"sync"
 	"time"

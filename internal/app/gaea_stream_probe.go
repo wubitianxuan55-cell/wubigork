@@ -22,18 +22,18 @@ import (
 
 // StreamProbeResult 一次流式探针的结果。
 type StreamProbeResult struct {
-	Model         string  `json:"model"`
-	OK            bool    `json:"ok"`
-	TTFTMS        int64   `json:"ttft_ms"`        // 首块延迟（首 token 前）
-	Chunks        int     `json:"chunks"`         // 收到的数据分块数（不含 [DONE]）
-	Tokens        int64   `json:"tokens"`         // usage.completion_tokens（有则填）
-	DurationMS    int64   `json:"duration_ms"`    // 从请求发出到 [DONE]
-	MaxGapMS      int64   `json:"max_gap_ms"`     // 相邻分块最大间隔（卡顿指示）
-	AvgGapMS      int64   `json:"avg_gap_ms"`     // 平均分块间隔
-	Completed     bool    `json:"completed"`      // 收到 [DONE] 正常结束
-	Interrupted   bool    `json:"interrupted"`    // 提前断流（未收 [DONE] 但连接关闭）
-	Error         string  `json:"error,omitempty"`
-	ResponseStart string  `json:"response_start,omitempty"` // 回答开头（预览）
+	Model         string `json:"model"`
+	OK            bool   `json:"ok"`
+	TTFTMS        int64  `json:"ttft_ms"`     // 首块延迟（首 token 前）
+	Chunks        int    `json:"chunks"`      // 收到的数据分块数（不含 [DONE]）
+	Tokens        int64  `json:"tokens"`      // usage.completion_tokens（有则填）
+	DurationMS    int64  `json:"duration_ms"` // 从请求发出到 [DONE]
+	MaxGapMS      int64  `json:"max_gap_ms"`  // 相邻分块最大间隔（卡顿指示）
+	AvgGapMS      int64  `json:"avg_gap_ms"`  // 平均分块间隔
+	Completed     bool   `json:"completed"`   // 收到 [DONE] 正常结束
+	Interrupted   bool   `json:"interrupted"` // 提前断流（未收 [DONE] 但连接关闭）
+	Error         string `json:"error,omitempty"`
+	ResponseStart string `json:"response_start,omitempty"` // 回答开头（预览）
 }
 
 // GaeaBenchmarkStreamProbe 对指定 Herdsman 模型做一次流式探针（约 10-20s）。

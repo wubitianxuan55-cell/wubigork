@@ -8,18 +8,18 @@ import (
 
 // mockEmitter 记录事件调用
 type mockEmitter struct {
-	mu             sync.Mutex
-	states         []VoiceState
-	listening      []bool
-	thinking       []bool
-	errors         []error
-	transcripts    []string // EmitVoiceTranscript 最终文本（isFinal=true）
-	replies        []string // EmitVoiceReply 文本
-	ttsAudioCnt    int
-	ttsAudioLast   []byte
-	ttsMimeLast    string
-	ttsCancelCnt   int
-	listenCalls    int
+	mu           sync.Mutex
+	states       []VoiceState
+	listening    []bool
+	thinking     []bool
+	errors       []error
+	transcripts  []string // EmitVoiceTranscript 最终文本（isFinal=true）
+	replies      []string // EmitVoiceReply 文本
+	ttsAudioCnt  int
+	ttsAudioLast []byte
+	ttsMimeLast  string
+	ttsCancelCnt int
+	listenCalls  int
 }
 
 func (e *mockEmitter) EmitVoiceState(s VoiceState) {
@@ -335,9 +335,9 @@ func TestManager_SpeakingSilenceResetsInterrupt(t *testing.T) {
 		voice[i] = byte(v)
 		voice[i+1] = byte(v >> 8)
 	}
-	_ = m.PushAudioChunk(voice) // +200ms
+	_ = m.PushAudioChunk(voice)              // +200ms
 	_ = m.PushAudioChunk(make([]byte, 6400)) // 静音重置
-	_ = m.PushAudioChunk(voice) // +200ms（重置后重新累积）
+	_ = m.PushAudioChunk(voice)              // +200ms（重置后重新累积）
 
 	m.mu.Lock()
 	acc := m.interruptSpeechMs

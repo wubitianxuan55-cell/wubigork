@@ -141,9 +141,9 @@ func TestPlayGuardrailsSnapshotConfigured(t *testing.T) {
 
 // lockTestPreset 快照测试用固定人格。
 var lockTestPreset = whisper.PersonalityPreset{
-	ID:    "lock-test",
-	Label: "测试人格",
-	Dims:  whisper.PersonalityDims{T: 60, I: 50, S: 50, O: 60, R: 50},
+	ID:         "lock-test",
+	Label:      "测试人格",
+	Dims:       whisper.PersonalityDims{T: 60, I: 50, S: 50, O: 60, R: 50},
 	VoiceGuide: "测试口吻：简洁温和。",
 }
 

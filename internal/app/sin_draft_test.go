@@ -8,7 +8,7 @@ import (
 )
 
 // TestBuildSinUserPromptEmptyDraftIsIdentical 空底稿 = 与无底稿行为逐字一致
-//（底稿直注是增量，不是格式变更；老故事/没写过底稿的会话提示词零漂移）。
+// （底稿直注是增量，不是格式变更；老故事/没写过底稿的会话提示词零漂移）。
 func TestBuildSinUserPromptEmptyDraftIsIdentical(t *testing.T) {
 	history := []chat.Message{
 		{Role: "user", Content: "写个开头"},

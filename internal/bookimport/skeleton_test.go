@@ -67,4 +67,3 @@ func TestAggregateSkeleton(t *testing.T) {
 		t.Fatal("空条目不应聚合")
 	}
 }
-

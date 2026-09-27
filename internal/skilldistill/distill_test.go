@@ -88,11 +88,11 @@ func TestCollapseFoldsConsecutiveSameShape(t *testing.T) {
 
 func TestShapeOf(t *testing.T) {
 	cases := []struct{ target, want string }{
-		{"docs/周报.MD", ".md"},   // 大写扩展名归一
-		{"a.b.xlsx", ".xlsx"},     // 最后一个扩展名
-		{"noext", "*"},            // 无扩展名
-		{"path/", "*"},            // 目录形
-		{".hidden", ".hidden"},    // 点开头即扩展名（filepath.Ext 口径）
+		{"docs/周报.MD", ".md"},  // 大写扩展名归一
+		{"a.b.xlsx", ".xlsx"},  // 最后一个扩展名
+		{"noext", "*"},         // 无扩展名
+		{"path/", "*"},         // 目录形
+		{".hidden", ".hidden"}, // 点开头即扩展名（filepath.Ext 口径）
 	}
 	for _, c := range cases {
 		if got := shapeOf(c.target); got != c.want {

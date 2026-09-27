@@ -84,7 +84,8 @@ func TestExtractRangeChartData_Validation(t *testing.T) {
 }
 
 // TestGaeaXlsxChart_Smoke 真实嵌入原生图表（默认跳过）：
-//   GAEA_SMOKE_CHART=1 go test ./internal/app -run TestGaeaXlsxChart_Smoke -v
+//
+//	GAEA_SMOKE_CHART=1 go test ./internal/app -run TestGaeaXlsxChart_Smoke -v
 func TestGaeaXlsxChart_Smoke(t *testing.T) {
 	if os.Getenv("GAEA_SMOKE_CHART") != "1" {
 		t.Skip("设置 GAEA_SMOKE_CHART=1 运行真实图表 smoke")
@@ -133,9 +134,9 @@ func TestGaeaZipDeliverables(t *testing.T) {
 	}
 	// 造两个产物文件（含子目录同名文件验证相对路径保留）
 	files := map[string]string{
-		filepath.Join(exportsDir, "报告.docx"):            "docx content",
-		filepath.Join(exportsDir, "成本测算.xlsx"):        "xlsx content",
-		filepath.Join("sub", "报告.docx"):                 "sub docx",
+		filepath.Join(exportsDir, "报告.docx"):             "docx content",
+		filepath.Join(exportsDir, "成本测算.xlsx"):           "xlsx content",
+		filepath.Join("sub", "报告.docx"):                  "sub docx",
 		filepath.Join(exportsDir, "not-a-real-file.pdf"): "",
 	}
 	for p, content := range files {

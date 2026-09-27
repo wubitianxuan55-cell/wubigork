@@ -26,11 +26,11 @@ func (v spaceView) Path(name string) string { return v.inner.Path(name) }
 // 视图只收窄读、不改写写侧语义。
 func (v spaceView) Save(m Memory) (string, error) { return v.inner.Save(m) }
 
-func (v spaceView) Archive(name string) (string, error)       { return v.inner.Archive(name) }
-func (v spaceView) Unarchive(name string) error               { return v.inner.Unarchive(name) }
-func (v spaceView) Delete(name string) error                  { return v.inner.Delete(name) }
-func (v spaceView) ChangeType(name string, t Type) error      { return v.inner.ChangeType(name, t) }
-func (v spaceView) ListArchived() []ArchivedMemory            { return v.inner.ListArchived() }
+func (v spaceView) Archive(name string) (string, error)  { return v.inner.Archive(name) }
+func (v spaceView) Unarchive(name string) error          { return v.inner.Unarchive(name) }
+func (v spaceView) Delete(name string) error             { return v.inner.Delete(name) }
+func (v spaceView) ChangeType(name string, t Type) error { return v.inner.ChangeType(name, t) }
+func (v spaceView) ListArchived() []ArchivedMemory       { return v.inner.ListArchived() }
 func (v spaceView) ListArchivedPaged(l, o int) ([]ArchivedMemory, int, error) {
 	return v.inner.ListArchivedPaged(l, o)
 }
@@ -42,7 +42,7 @@ func (v spaceView) CleanupArchived(cutoff time.Time) ([]ArchivedMemory, error) {
 func (v spaceView) List() []Memory { return v.inner.ListInSpace(v.space) }
 
 // ListInSpace 在视图空间内再按 space 收窄：空 = 视图空间全量，非空 = 交集
-//（即内层谓词；视图空间与请求空间不一致时结果为空集，读端降级语义一致）。
+// （即内层谓词；视图空间与请求空间不一致时结果为空集，读端降级语义一致）。
 func (v spaceView) ListInSpace(space string) []Memory {
 	if space == "" {
 		return v.inner.ListInSpace(v.space)

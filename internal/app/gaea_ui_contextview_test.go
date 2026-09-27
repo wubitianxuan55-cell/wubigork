@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	gaeaConfig "github.com/gaea/gaea/internal/gaea/config"
 	"github.com/gaea/gaea/internal/gaea/agent/session"
+	gaeaConfig "github.com/gaea/gaea/internal/gaea/config"
 	"github.com/gaea/gaea/internal/gaea/trajectory"
 )
 

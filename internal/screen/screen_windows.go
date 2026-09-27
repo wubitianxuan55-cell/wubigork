@@ -75,10 +75,10 @@ type gdiRect struct {
 
 // monitorInfo 与 Win32 MONITORINFO 对齐（GetMonitorInfoW 用）。
 type monitorInfo struct {
-	CbSize   uint32
+	CbSize    uint32
 	RcMonitor gdiRect
 	RcWork    gdiRect
-	DwFlags  uint32
+	DwFlags   uint32
 }
 
 // Monitors 枚举所有显示器（虚拟桌面坐标系）。单屏机器返回 1 条且 Primary=true；

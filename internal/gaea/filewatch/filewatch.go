@@ -269,4 +269,3 @@ func skipRel(skip map[string]bool, rel string) bool {
 	}
 	return skip[parts[0]]
 }
-

@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/gaea/gaea/internal/novelstyle"
 	"github.com/gaea/gaea/internal/novelgate"
+	"github.com/gaea/gaea/internal/novelstyle"
 	"github.com/gaea/gaea/internal/project"
 	"github.com/gaea/gaea/internal/types"
 	"github.com/gaea/gaea/internal/util"

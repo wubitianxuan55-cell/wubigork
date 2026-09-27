@@ -9,7 +9,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-)// fakeApp mirrors the Wails binding surface shape: plain args, (T, error)
+) // fakeApp mirrors the Wails binding surface shape: plain args, (T, error)
 // returns, error-only returns, and no-arg methods.
 type fakeApp struct{}
 
@@ -227,4 +227,3 @@ func TestSessionToken(t *testing.T) {
 		}
 	}
 }
-

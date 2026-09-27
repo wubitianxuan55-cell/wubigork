@@ -19,7 +19,7 @@ import (
 type Profile struct {
 	Name        string            `json:"name"`
 	Description string            `json:"description"`
-	Traits      map[string]string `json:"traits"` // 风格特征
+	Traits      map[string]string `json:"traits"`       // 风格特征
 	RawMarkdown string            `json:"raw_markdown"` // 原始风格指导
 }
 
@@ -176,14 +176,14 @@ func buildStyleGuide(p Profile) string {
 	sb.WriteString(fmt.Sprintf("%s\n\n", p.Description))
 
 	labels := map[string]string{
-		"narrative_voice":    "叙事声音",
-		"sentence_style":     "句式特点",
-		"pacing":             "节奏感",
+		"narrative_voice":     "叙事声音",
+		"sentence_style":      "句式特点",
+		"pacing":              "节奏感",
 		"description_density": "描写密度",
-		"dialogue_style":     "对话风格",
-		"vocabulary_level":   "词汇层次",
-		"emotional_tone":     "情感基调",
-		"chinese_style":      "中文特色",
+		"dialogue_style":      "对话风格",
+		"vocabulary_level":    "词汇层次",
+		"emotional_tone":      "情感基调",
+		"chinese_style":       "中文特色",
 	}
 
 	for key, label := range labels {
@@ -194,7 +194,6 @@ func buildStyleGuide(p Profile) string {
 
 	return sb.String()
 }
-
 
 // ── 导出/导入 ────────────────────────────────────────────────
 

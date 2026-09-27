@@ -32,7 +32,7 @@ import (
 type PptxSlideOutline struct {
 	Index      int      `json:"index"`
 	Title      string   `json:"title"`
-	Texts      []string `json:"texts"`     // 正文文本框（标题除外，单条截断）
+	Texts      []string `json:"texts"`      // 正文文本框（标题除外，单条截断）
 	ShapeCount int      `json:"shapeCount"` // 该页 shape 总数（含图片等非文本）
 }
 
@@ -261,12 +261,13 @@ type PreviewPage struct {
 }
 
 // previewPptx 是 GaeaPreview 的 .pptx 分支（gaea_preview.go 转接进来）：
-//   soffice→PDF（verifyConvertToPdf seam，产物落 .gaea/cache/pptx-preview/
-//   <hash>.pdf，二次预览命中缓存）→ poppler pdftoppm 低 DPI 逐页 PNG（同目录
-//   <hash>-pages/，同样缓存）→ Pages 随 PreviewResult 回传，前端纵向铺页 +
-//   大纲卡页锚点滚动。pdftoppm 不可用/渲染失败时回退整本 PDF dataUrl（交给
-//   WebView 内嵌 PDF 查看器）；soffice 不可用/转换失败 → Kind=error 带原因。
-//   Hint="outline" 提示前端另行拉取 GaeaPptxOutline 大纲卡。
+//
+//	soffice→PDF（verifyConvertToPdf seam，产物落 .gaea/cache/pptx-preview/
+//	<hash>.pdf，二次预览命中缓存）→ poppler pdftoppm 低 DPI 逐页 PNG（同目录
+//	<hash>-pages/，同样缓存）→ Pages 随 PreviewResult 回传，前端纵向铺页 +
+//	大纲卡页锚点滚动。pdftoppm 不可用/渲染失败时回退整本 PDF dataUrl（交给
+//	WebView 内嵌 PDF 查看器）；soffice 不可用/转换失败 → Kind=error 带原因。
+//	Hint="outline" 提示前端另行拉取 GaeaPptxOutline 大纲卡。
 func previewPptx(path string, info os.FileInfo, base PreviewResult) PreviewResult {
 	base.Kind = "pdf"
 	base.Hint = pptxOutlineHint

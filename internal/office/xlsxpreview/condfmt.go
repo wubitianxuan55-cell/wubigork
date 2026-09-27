@@ -54,7 +54,7 @@ type cfRuleXML struct {
 }
 
 type condFmtXML struct {
-	SQRef  string      `xml:"sqref,attr"`
+	SQRef  string       `xml:"sqref,attr"`
 	CfRule []*cfRuleXML `xml:"cfRule"`
 }
 
@@ -70,14 +70,14 @@ type cfColorXML struct {
 }
 
 type cfFontXML struct {
-	B     *struct{}    `xml:"b"`
-	Color *cfColorXML  `xml:"color"`
+	B     *struct{}   `xml:"b"`
+	Color *cfColorXML `xml:"color"`
 }
 
 type cfPatternFillXML struct {
-	PatternType string       `xml:"patternType,attr"`
-	FgColor     *cfColorXML  `xml:"fgColor"`
-	BgColor     *cfColorXML  `xml:"bgColor"`
+	PatternType string      `xml:"patternType,attr"`
+	FgColor     *cfColorXML `xml:"fgColor"`
+	BgColor     *cfColorXML `xml:"bgColor"`
 }
 
 // dxf 的 fill 元素内还有一层 patternFill（ECMA-376 §18.8.21）
@@ -86,8 +86,8 @@ type cfFillXML struct {
 }
 
 type cfDxfXML struct {
-	Font *cfFontXML  `xml:"font"`
-	Fill *cfFillXML  `xml:"fill"`
+	Font *cfFontXML `xml:"font"`
+	Fill *cfFillXML `xml:"fill"`
 }
 
 type cfDxfsXML struct {

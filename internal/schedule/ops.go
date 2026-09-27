@@ -16,13 +16,13 @@ import (
 // patchTask 部分更新载荷（指针三态：nil=不动；Mode 指针区分「不改」与「改 auto」；
 // DurationUnit 指针三态，空串 no-op 同 Mode，v4.151 双工期刀2）。
 type patchTask struct {
-	Name        *string       `json:"name,omitempty"`
-	Level       *int          `json:"level,omitempty"`
-	Duration    *int          `json:"duration,omitempty"`
-	Progress    *int          `json:"progress,omitempty"`
-	IsMilestone *bool         `json:"isMilestone,omitempty"`
-	Mode        *TaskMode     `json:"mode,omitempty"`
-	ManualStart *int          `json:"manualStart,omitempty"`
+	Name        *string   `json:"name,omitempty"`
+	Level       *int      `json:"level,omitempty"`
+	Duration    *int      `json:"duration,omitempty"`
+	Progress    *int      `json:"progress,omitempty"`
+	IsMilestone *bool     `json:"isMilestone,omitempty"`
+	Mode        *TaskMode `json:"mode,omitempty"`
+	ManualStart *int      `json:"manualStart,omitempty"`
 	// DurationUnit 工期单位（wd|cd；v4.151 双工期刀2）。cd 仅限叶任务非里程碑。
 	DurationUnit *DurationUnit `json:"durationUnit,omitempty"`
 	// FixedCost 任务固定成本（元，叶任务专属；v4.122 资源成本刀2。

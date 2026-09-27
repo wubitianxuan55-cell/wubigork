@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gaea/gaea/internal/gaea/knowledge"
 	"github.com/gaea/gaea/internal/gaea/db"
+	"github.com/gaea/gaea/internal/gaea/knowledge"
 	"github.com/gaea/gaea/internal/gaea/retrieval"
 	"github.com/gaea/gaea/internal/gaea/semantic"
 )

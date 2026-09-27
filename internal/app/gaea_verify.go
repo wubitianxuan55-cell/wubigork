@@ -12,8 +12,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gaea/gaea/internal/gaea/evidence"
 	"github.com/gaea/gaea/internal/docmd"
+	"github.com/gaea/gaea/internal/gaea/evidence"
 	"github.com/gaea/gaea/internal/office/xlsxedit"
 	"github.com/xuri/excelize/v2"
 )
@@ -280,12 +280,12 @@ func rollbackRecord(st *evidence.JournalStore, rec evidence.ChangeRecord) error 
 		return err
 	}
 	newRec := evidence.ChangeRecord{
-		SessionID:     rec.SessionID,
-		Space:         "work",
-		Tool:          "rollback",
-		Target:        rec.Target,
-		Status:        evidence.StatusPendingVerify,
-		AfterSummary:  evidence.ClampSummary(string(baseline)),
+		SessionID:    rec.SessionID,
+		Space:        "work",
+		Tool:         "rollback",
+		Target:       rec.Target,
+		Status:       evidence.StatusPendingVerify,
+		AfterSummary: evidence.ClampSummary(string(baseline)),
 	}
 	if snapshot != "" {
 		newRec.BaselinePath = snapshot

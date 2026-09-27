@@ -83,15 +83,15 @@ type Result struct {
 
 // 阈值（对齐规格 §8.1）。
 const (
-	minWindowRunes    = 3000 // 兜底窗口下界
-	maxWindowRunes    = 5000 // 兜底窗口上界
-	prefaceMinRunes   = 200  // 前置内容成「前言」章的门槛
-	titleMaxRunes     = 200  // 标题截断上限
-	weakTitleMaxRunes = 25   // 弱标题长度上限
-	shortChapterRunes = 300  // 过短告警线
+	minWindowRunes    = 3000  // 兜底窗口下界
+	maxWindowRunes    = 5000  // 兜底窗口上界
+	prefaceMinRunes   = 200   // 前置内容成「前言」章的门槛
+	titleMaxRunes     = 200   // 标题截断上限
+	weakTitleMaxRunes = 25    // 弱标题长度上限
+	shortChapterRunes = 300   // 过短告警线
 	longChapterRunes  = 12000 // 过长告知线
-	tailMaxChapters   = 50   // tail 模式上限（超过降级 full）
-	tailStep          = 5    // tail 章数步长
+	tailMaxChapters   = 50    // tail 模式上限（超过降级 full）
+	tailStep          = 5     // tail 章数步长
 )
 
 var (

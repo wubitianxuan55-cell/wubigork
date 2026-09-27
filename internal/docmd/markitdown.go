@@ -20,8 +20,8 @@ const markItDownTimeout = 60 * time.Second
 // markitdownAvailable lazily probes `python -m markitdown` once per process and
 // caches the result, so conversions don't pay exec overhead every call.
 var (
-	markitdownOnce     sync.Once
-	markitdownReady    bool
+	markitdownOnce  sync.Once
+	markitdownReady bool
 )
 
 func markitdownAvailable() bool {

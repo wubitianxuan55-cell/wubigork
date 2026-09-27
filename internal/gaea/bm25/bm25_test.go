@@ -15,9 +15,9 @@ func TestTokenizeCJK(t *testing.T) {
 
 func TestRankerOrdersByRelevance(t *testing.T) {
 	docs := []Doc{
-		{ID: 0, Text: "通用配件 台班 振动锤 桩基"},          // 命中 2 个查询二元组
-		{ID: 1, Text: "HP300 高频液压振动锤 台班 300kW"},   // 命中 4 个查询二元组
-		{ID: 2, Text: "P.O 42.5 水泥 吨"},                 // 不命中
+		{ID: 0, Text: "通用配件 台班 振动锤 桩基"},         // 命中 2 个查询二元组
+		{ID: 1, Text: "HP300 高频液压振动锤 台班 300kW"}, // 命中 4 个查询二元组
+		{ID: 2, Text: "P.O 42.5 水泥 吨"},          // 不命中
 	}
 	r := NewRanker(docs)
 	got := r.Rank("液压振动锤")

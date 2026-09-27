@@ -27,12 +27,12 @@ const MaxRows = 500
 
 // Row 是导入预览中的一条候选成本条目（含与既有库的匹配信息）。
 type Row struct {
-	Name         string
-	Title        string
-	Code         string // 定额编码/清单编码（表头「编码/定额编号/清单编码」等列）
-	Category     string
-	Unit         string
-	Price        float64
+	Name     string
+	Title    string
+	Code     string // 定额编码/清单编码（表头「编码/定额编号/清单编码」等列）
+	Category string
+	Unit     string
+	Price    float64
 	// 综合单价架构（用户定调）：人材机二级 = 三个金额合计 + 组成明细行。
 	LaborFee      float64
 	MaterialFee   float64
@@ -43,16 +43,16 @@ type Row struct {
 	TaxRate       float64 // 税率（%，仅展示追溯）
 	Components    []cost.Component
 	Body          string
-	Spec         string
-	Source       string
-	SourceRow    int     // 原始工作表物理行号（1-based；0=无法确定，如纵向参数表/AI 解析）
-	Status       string
-	ExistingName string  // 匹配到的既有条目名称（空=新增）
+	Spec          string
+	Source        string
+	SourceRow     int // 原始工作表物理行号（1-based；0=无法确定，如纵向参数表/AI 解析）
+	Status        string
+	ExistingName  string  // 匹配到的既有条目名称（空=新增）
 	ExistingPrice float64 // 既有条目现价（覆盖提示用）
-	MatchNote    string  // "新增" / "将覆盖更新（现价 ¥3200）"
-	Raw          string  // 原始行摘要，供前端核对
-	Skip         bool
-	SkipReason   string
+	MatchNote     string  // "新增" / "将覆盖更新（现价 ¥3200）"
+	Raw           string  // 原始行摘要，供前端核对
+	Skip          bool
+	SkipReason    string
 }
 
 // Preview 是导入解析结果视图。
@@ -180,7 +180,7 @@ func Parse(path string, store *cost.Store) (*Preview, error) {
 
 	if len(dataRows) > MaxRows {
 		dataRows = dataRows[:MaxRows]
-		pv.Message = strings.TrimSpace(pv.Message + " ") + fmt.Sprintf("仅展示前 %d 行，其余请分批导入。", MaxRows)
+		pv.Message = strings.TrimSpace(pv.Message+" ") + fmt.Sprintf("仅展示前 %d 行，其余请分批导入。", MaxRows)
 	}
 	// 物理行号：表头之后的第一条数据行在原始表中的 1-based 行号。
 	firstDataRow := 2

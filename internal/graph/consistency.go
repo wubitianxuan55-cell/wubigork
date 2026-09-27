@@ -21,10 +21,10 @@ type ConsistencyIssue struct {
 	Category    string `json:"category"` // attribute / timeline / status / relationship
 	EntityName  string `json:"entity_name"`
 	Description string `json:"description"`
-	Location    string `json:"location"`    // 发现问题的章节
-	Evidence    string `json:"evidence"`    // 证据
-	Suggestion  string `json:"suggestion"`  // 修复建议
-	Branch      string `json:"branch"`      // 分支标记：""=主线章节，"a"/"b"/"c"=分支章节
+	Location    string `json:"location"`   // 发现问题的章节
+	Evidence    string `json:"evidence"`   // 证据
+	Suggestion  string `json:"suggestion"` // 修复建议
+	Branch      string `json:"branch"`     // 分支标记：""=主线章节，"a"/"b"/"c"=分支章节
 }
 
 // ConsistencyReport 一致性检查报告

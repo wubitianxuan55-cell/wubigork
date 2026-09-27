@@ -312,9 +312,9 @@ func (a *App) ChatTopicDelete(id string) error {
 // ChatMessagesPageResult 分页拉取结果：Messages 升序（旧→新），HasMore 表示
 // 是否还存在更早的历史（v4.370 聊天历史分页）。
 type ChatMessagesPageResult struct {
-	Messages []chat.Message `json:"messages"`
-	HasMore  bool           `json:"hasMore"`
-	OldestSeq int64         `json:"oldestSeq"`
+	Messages  []chat.Message `json:"messages"`
+	HasMore   bool           `json:"hasMore"`
+	OldestSeq int64          `json:"oldestSeq"`
 }
 
 // ChatMessagesPage 游标式分页拉取话题消息：beforeSeq<=0 从最新一条向前取

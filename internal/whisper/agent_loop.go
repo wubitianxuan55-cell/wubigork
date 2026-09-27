@@ -37,7 +37,6 @@ type AgentLoopConfig struct {
 	RequireConfirm         bool `json:"requireConfirm"`         // 写操作需要确认
 }
 
-
 // ─── AgentLoop ────────────────────────────────────────────────
 
 // AgentLoop 通用 Agent 多轮循环
@@ -48,10 +47,3 @@ type AgentLoop struct {
 	RoundCount int
 	TotalCost  int // token 估算
 }
-
-
-
-
-
-
-

@@ -19,22 +19,22 @@ import (
 
 // 事件类型常量（Event.Type；值与 OpenAI Realtime API 服务端事件名一致）。
 const (
-	EventSessionCreated                = "session.created"
-	EventSessionUpdated                = "session.updated"
-	EventInputAudioBufferSpeechStarted = "input_audio_buffer.speech_started"
-	EventInputAudioBufferSpeechStopped = "input_audio_buffer.speech_stopped"
-	EventInputAudioBufferCommitted     = "input_audio_buffer.committed"
-	EventResponseCreated               = "response.created"
-	EventResponseAudioDelta            = "response.audio.delta"
-	EventResponseAudioDone             = "response.audio.done"
-	EventResponseAudioTranscriptDelta  = "response.audio_transcript.delta"
-	EventResponseAudioTranscriptDone   = "response.audio_transcript.done"
-	EventResponseTextDelta             = "response.text.delta"
-	EventResponseDone                  = "response.done"
+	EventSessionCreated                   = "session.created"
+	EventSessionUpdated                   = "session.updated"
+	EventInputAudioBufferSpeechStarted    = "input_audio_buffer.speech_started"
+	EventInputAudioBufferSpeechStopped    = "input_audio_buffer.speech_stopped"
+	EventInputAudioBufferCommitted        = "input_audio_buffer.committed"
+	EventResponseCreated                  = "response.created"
+	EventResponseAudioDelta               = "response.audio.delta"
+	EventResponseAudioDone                = "response.audio.done"
+	EventResponseAudioTranscriptDelta     = "response.audio_transcript.delta"
+	EventResponseAudioTranscriptDone      = "response.audio_transcript.done"
+	EventResponseTextDelta                = "response.text.delta"
+	EventResponseDone                     = "response.done"
 	EventInputAudioTranscriptionCompleted = "conversation.item.input_audio_transcription.completed"
 	EventInputAudioTranscriptionFailed    = "conversation.item.input_audio_transcription.failed"
-	EventError                         = "error"
-	EventUnknown                       = "unknown"
+	EventError                            = "error"
+	EventUnknown                          = "unknown"
 )
 
 // Event 实时会话事件（服务端 JSON 事件的规范化载体）。

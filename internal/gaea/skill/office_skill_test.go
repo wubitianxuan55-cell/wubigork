@@ -30,12 +30,12 @@ func TestOfficeEditBuiltinSkill(t *testing.T) {
 		"先读后写",
 		"工具成功 ≠ 正确",
 		"宁拒不误改",
-		"soffice",           // 渲染取证通道
-		"逐 run",             // docx/pptx 防摊平
-		".gbase.json",       // 多维表视图口径
-		`"version":1`,       // schema 锚点
-		"Error [FORMAT_",    // 错误码路由
-		"思维导图",             // markdown 大纲口径
+		"soffice",        // 渲染取证通道
+		"逐 run",          // docx/pptx 防摊平
+		".gbase.json",    // 多维表视图口径
+		`"version":1`,    // schema 锚点
+		"Error [FORMAT_", // 错误码路由
+		"思维导图",           // markdown 大纲口径
 		"openpyxl",
 		"python-pptx",
 	}

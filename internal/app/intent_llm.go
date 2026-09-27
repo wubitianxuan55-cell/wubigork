@@ -24,7 +24,6 @@ import (
 	"github.com/gaea/gaea/internal/modelengine"
 )
 
-
 // classifyIntentFallback 规则未命中时的兜底入口；返回 nil = 走原聊天管道。
 func (a *App) classifyIntentFallback(text string) *intent.Intent {
 	if a == nil || a.core == nil || a.cfg == nil || a.client == nil {

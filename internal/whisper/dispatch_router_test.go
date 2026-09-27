@@ -160,9 +160,9 @@ func TestIsComplexTaskRequest(t *testing.T) {
 
 func TestExtractComplexTopic(t *testing.T) {
 	cases := map[string]string{
-		"帮我写一份周报":   "一份周报",
-		"帮我做一顿饭":     "一顿饭",
-		"帮我整理一下桌面":   "一下桌面",
+		"帮我写一份周报":  "一份周报",
+		"帮我做一顿饭":   "一顿饭",
+		"帮我整理一下桌面": "一下桌面",
 	}
 	for msg, want := range cases {
 		if got := extractComplexTopic(msg); got != want {

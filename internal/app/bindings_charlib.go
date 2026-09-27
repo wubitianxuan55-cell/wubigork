@@ -10,23 +10,55 @@ import (
 // 方法体零改动——纯委托给 App 实例（b.a.<Method>）。
 type CharlibB struct{ a *App }
 
-func (b *CharlibB) CharacterAssociate(charID string, role string) error { return b.a.CharacterAssociate(charID, role) }
-func (b *CharlibB) CharacterAssociateTo(projectDir string, charID string, role string) error { return b.a.CharacterAssociateTo(projectDir, charID, role) }
-func (b *CharlibB) CharacterDelete(id string) error { return b.a.CharacterDelete(id) }
+func (b *CharlibB) CharacterAssociate(charID string, role string) error {
+	return b.a.CharacterAssociate(charID, role)
+}
+func (b *CharlibB) CharacterAssociateTo(projectDir string, charID string, role string) error {
+	return b.a.CharacterAssociateTo(projectDir, charID, role)
+}
+func (b *CharlibB) CharacterDelete(id string) error         { return b.a.CharacterDelete(id) }
 func (b *CharlibB) CharacterDissociate(charID string) error { return b.a.CharacterDissociate(charID) }
-func (b *CharlibB) CharacterDrawRandom(count int, gender string, tags string, chatOnly bool) []characterlib.Character { return b.a.CharacterDrawRandom(count, gender, tags, chatOnly) }
+func (b *CharlibB) CharacterDrawRandom(count int, gender string, tags string, chatOnly bool) []characterlib.Character {
+	return b.a.CharacterDrawRandom(count, gender, tags, chatOnly)
+}
 func (b *CharlibB) CharacterFillAll() (map[string]interface{}, error) { return b.a.CharacterFillAll() }
-func (b *CharlibB) CharacterGenerateFill(chJSON string) (string, error) { return b.a.CharacterGenerateFill(chJSON) }
-func (b *CharlibB) CharacterGeneratePortrait(chJSON string, model string) (string, error) { return b.a.CharacterGeneratePortrait(chJSON, model) }
-func (b *CharlibB) CharacterGeneratePortraitWithRef(chJSON string, model string, refImageDataURL string) (string, error) { return b.a.CharacterGeneratePortraitWithRef(chJSON, model, refImageDataURL) }
-func (b *CharlibB) CharacterGenerateSheet(chJSON string, variant string) (string, error) { return b.a.CharacterGenerateSheet(chJSON, variant) }
-func (b *CharlibB) CharacterScoreConsistency(chJSON string, image string) (string, error) { return b.a.CharacterScoreConsistency(chJSON, image) }
-func (b *CharlibB) CharacterGenerateRandom(chJSON string, fields string) (string, error) { return b.a.CharacterGenerateRandom(chJSON, fields) }
-func (b *CharlibB) CharacterGet(id string) (map[string]interface{}, error) { return b.a.CharacterGet(id) }
-func (b *CharlibB) CharacterImportPreview() (*characterlib.ImportPreview, error) { return b.a.CharacterImportPreview() }
-func (b *CharlibB) CharacterImportProject(overwritesJSON string) (map[string]interface{}, error) { return b.a.CharacterImportProject(overwritesJSON) }
-func (b *CharlibB) CharacterList(query string, kind string, chatOnly bool, page int, pageSize int) map[string]interface{} { return b.a.CharacterList(query, kind, chatOnly, page, pageSize) }
-func (b *CharlibB) CharacterListByProject() []characterlib.ProjectCharacter { return b.a.CharacterListByProject() }
-func (b *CharlibB) CharacterSave(cJSON string) (characterlib.Character, error) { return b.a.CharacterSave(cJSON) }
-func (b *CharlibB) CharacterSetProjectState(charID string, role string, arcState string, status string) error { return b.a.CharacterSetProjectState(charID, role, arcState, status) }
+func (b *CharlibB) CharacterGenerateFill(chJSON string) (string, error) {
+	return b.a.CharacterGenerateFill(chJSON)
+}
+func (b *CharlibB) CharacterGeneratePortrait(chJSON string, model string) (string, error) {
+	return b.a.CharacterGeneratePortrait(chJSON, model)
+}
+func (b *CharlibB) CharacterGeneratePortraitWithRef(chJSON string, model string, refImageDataURL string) (string, error) {
+	return b.a.CharacterGeneratePortraitWithRef(chJSON, model, refImageDataURL)
+}
+func (b *CharlibB) CharacterGenerateSheet(chJSON string, variant string) (string, error) {
+	return b.a.CharacterGenerateSheet(chJSON, variant)
+}
+func (b *CharlibB) CharacterScoreConsistency(chJSON string, image string) (string, error) {
+	return b.a.CharacterScoreConsistency(chJSON, image)
+}
+func (b *CharlibB) CharacterGenerateRandom(chJSON string, fields string) (string, error) {
+	return b.a.CharacterGenerateRandom(chJSON, fields)
+}
+func (b *CharlibB) CharacterGet(id string) (map[string]interface{}, error) {
+	return b.a.CharacterGet(id)
+}
+func (b *CharlibB) CharacterImportPreview() (*characterlib.ImportPreview, error) {
+	return b.a.CharacterImportPreview()
+}
+func (b *CharlibB) CharacterImportProject(overwritesJSON string) (map[string]interface{}, error) {
+	return b.a.CharacterImportProject(overwritesJSON)
+}
+func (b *CharlibB) CharacterList(query string, kind string, chatOnly bool, page int, pageSize int) map[string]interface{} {
+	return b.a.CharacterList(query, kind, chatOnly, page, pageSize)
+}
+func (b *CharlibB) CharacterListByProject() []characterlib.ProjectCharacter {
+	return b.a.CharacterListByProject()
+}
+func (b *CharlibB) CharacterSave(cJSON string) (characterlib.Character, error) {
+	return b.a.CharacterSave(cJSON)
+}
+func (b *CharlibB) CharacterSetProjectState(charID string, role string, arcState string, status string) error {
+	return b.a.CharacterSetProjectState(charID, role, arcState, status)
+}
 func (b *CharlibB) CharacterSyncProject() error { return b.a.CharacterSyncProject() }

@@ -1,7 +1,6 @@
 package agent
 
 import (
-
 	"github.com/gaea/gaea/internal/gaea/provider"
 )
 
@@ -39,4 +38,3 @@ func (a *AgentRunner) maybeContinueOutputLength(u *provider.Usage, calls []provi
 	})
 	return true
 }
-

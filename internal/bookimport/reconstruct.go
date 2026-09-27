@@ -51,23 +51,23 @@ const (
 
 // 字数与长度夹取阈值（规格 §8.2 Stage1 归一化）。
 const (
-	minTargetWords = 1000
-	maxTargetWords = 3000000
-	summaryMaxRunes = 2000
-	emotionMaxRunes = 200
-	goalMaxRunes    = 300
-	scenesMax       = 6
-	keyPointsMax    = 8
+	minTargetWords   = 1000
+	maxTargetWords   = 3000000
+	summaryMaxRunes  = 2000
+	emotionMaxRunes  = 200
+	goalMaxRunes     = 300
+	scenesMax        = 6
+	keyPointsMax     = 8
 	charNameMaxRunes = 80
 )
 
 // 兜底文案（规格 §3.7 的规则兜底结构，逐字对齐）。
 const (
-	fallbackSummary    = "本章围绕主要人物与核心冲突推进剧情。"
-	fallbackEmotion    = "紧张递进"
-	fallbackGoal       = "承接前章并推动后续剧情发展"
-	fallbackKeyPointA  = "推进主线冲突"
-	fallbackKeyPointB  = "呈现角色动机与关系变化"
+	fallbackSummary   = "本章围绕主要人物与核心冲突推进剧情。"
+	fallbackEmotion   = "紧张递进"
+	fallbackGoal      = "承接前章并推动后续剧情发展"
+	fallbackKeyPointA = "推进主线冲突"
+	fallbackKeyPointB = "呈现角色动机与关系变化"
 )
 
 var fallbackScenes = []string{"主角在当前处境中做出关键选择", "冲突升级并形成新的悬念"}

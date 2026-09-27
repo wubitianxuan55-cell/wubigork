@@ -60,7 +60,7 @@ func LocateText(path string) ([]SlideText, error) {
 }
 
 // ApplyTextReplace 在第 slideIdx 页（1 起）查找 target 并替换为 replacement
-//（首个命中）。跨 run 文本可命中；新文本继承最后受影响 run 的 rPr 原字节。
+// （首个命中）。跨 run 文本可命中；新文本继承最后受影响 run 的 rPr 原字节。
 // 返回人类可读摘要。
 func ApplyTextReplace(path string, slideIdx int, target, replacement string) (string, error) {
 	if slideIdx < 1 {
@@ -275,19 +275,18 @@ func slideParts(doc *pptxFile) ([]string, error) {
 
 // ── slide XML 字节级手术（DrawingML） ─────────────────────────────
 
-
 func isDML(name xml.Name, local string) bool {
 	return name.Local == local && strings.Contains(name.Space, "drawingml")
 }
 
 // textSeg 是段落中一个可编辑文本单元（a:t 的文本内容，隶属 a:r run）。
 type textSeg struct {
-	text              string
-	runTagStart       int // a:r 起始标签起点
-	runTagEnd         int // a:r 起始标签终点
-	runEnd            int // </a:r> 终点
-	rPrStart, rPrEnd  int // a:rPr 原始字节区间；无则 -1
-	tAttrs            string
+	text             string
+	runTagStart      int // a:r 起始标签起点
+	runTagEnd        int // a:r 起始标签终点
+	runEnd           int // </a:r> 终点
+	rPrStart, rPrEnd int // a:rPr 原始字节区间；无则 -1
+	tAttrs           string
 }
 
 type blocker struct {
@@ -544,9 +543,9 @@ func rebuildParagraph(data []byte, p paragraph, s, e int, replacement string) ([
 	}
 
 	type runSpan struct {
-		g                    *runGroup
-		start, end           int
-		delFrom, delTo       int
+		g              *runGroup
+		start, end     int
+		delFrom, delTo int
 	}
 	var affected []*runSpan
 	cursor := 0

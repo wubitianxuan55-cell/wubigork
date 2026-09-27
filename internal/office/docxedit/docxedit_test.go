@@ -263,7 +263,8 @@ func TestApplyTrackedReplace_InTableCell(t *testing.T) {
 }
 
 // TestSmokeRealDocx 用真实 Word 文档做端到端冒烟（默认跳过）：
-//   GAEA_SMOKE_DOCX=<真实 docx 路径> go test ./internal/office/docxedit -run TestSmokeRealDocx -v
+//
+//	GAEA_SMOKE_DOCX=<真实 docx 路径> go test ./internal/office/docxedit -run TestSmokeRealDocx -v
 func TestSmokeRealDocx(t *testing.T) {
 	path := os.Getenv("GAEA_SMOKE_DOCX")
 	if path == "" {

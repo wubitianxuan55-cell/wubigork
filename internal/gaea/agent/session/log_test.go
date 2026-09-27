@@ -309,7 +309,9 @@ func TestToLogEntries(t *testing.T) {
 	// 合成 request_header 携带真实 system 与工具名
 	var hdr struct {
 		System string `json:"system"`
-		Tools  []struct{ Name string `json:"name"` } `json:"tools"`
+		Tools  []struct {
+			Name string `json:"name"`
+		} `json:"tools"`
 	}
 	if err := json.Unmarshal(entries[3].Payload, &hdr); err != nil {
 		t.Fatalf("decode header: %v", err)

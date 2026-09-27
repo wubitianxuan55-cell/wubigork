@@ -52,9 +52,13 @@ func (costIndicators) Schema() json.RawMessage {
 }
 }`)
 }
-func (costIndicators) ReadOnly() bool                 { return true }
-func (costIndicators) CompactDescription() string     { return "查询造价参考指标（案例单价分位数/均值，按科目或分类），供测算对标。" }
-func (costIndicators) CompactSchema() json.RawMessage { return json.RawMessage(`{"type":"object","properties":{"group":{"type":"string"},"category":{"type":"string"}}}`) }
+func (costIndicators) ReadOnly() bool { return true }
+func (costIndicators) CompactDescription() string {
+	return "查询造价参考指标（案例单价分位数/均值，按科目或分类），供测算对标。"
+}
+func (costIndicators) CompactSchema() json.RawMessage {
+	return json.RawMessage(`{"type":"object","properties":{"group":{"type":"string"},"category":{"type":"string"}}}`)
+}
 
 func (costIndicators) Execute(_ context.Context, args json.RawMessage) (string, error) {
 	var p struct {

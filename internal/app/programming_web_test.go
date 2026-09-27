@@ -23,7 +23,6 @@ func restoreProbe(t *testing.T, set func(v interface{}), cur interface{}) {
 	t.Cleanup(func() { set(cur) })
 }
 
-
 // ── GetProgrammingWebStatus ───────────────────────────────────────────────
 
 func TestProgrammingWebStatusIdle(t *testing.T) {

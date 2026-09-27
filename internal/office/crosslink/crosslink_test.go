@@ -81,7 +81,8 @@ func TestBuildSpecs(t *testing.T) {
 }
 
 // TestSmokeGenerateChart 真实 matplotlib 生成图表（默认跳过）：
-//   GAEA_SMOKE_CHART=1 go test ./internal/office/crosslink -run TestSmokeGenerateChart -v
+//
+//	GAEA_SMOKE_CHART=1 go test ./internal/office/crosslink -run TestSmokeGenerateChart -v
 func TestSmokeGenerateChart(t *testing.T) {
 	if os.Getenv("GAEA_SMOKE_CHART") == "" {
 		t.Skip("未设置 GAEA_SMOKE_CHART")

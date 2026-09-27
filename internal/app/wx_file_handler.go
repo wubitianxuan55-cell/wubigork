@@ -291,7 +291,7 @@ func copyFileBounded(src, dst string, max int64) (err error) {
 	defer func() {
 		_ = out.Close()
 		if err != nil {
-			os.Remove(dst) // 半成品不留盘
+			_ = os.Remove(dst) // 半成品不留盘
 		}
 	}()
 	n, err := io.Copy(out, io.LimitReader(in, max+1))

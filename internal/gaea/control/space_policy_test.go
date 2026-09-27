@@ -14,11 +14,11 @@ import (
 // spaceStubTool 最小 tool.Tool（空间策略测试用）。
 type spaceStubTool struct{ name string }
 
-func (s spaceStubTool) Name() string                                             { return s.name }
-func (s spaceStubTool) Description() string                                      { return "" }
-func (s spaceStubTool) Schema() json.RawMessage                                  { return json.RawMessage(`{"type":"object"}`) }
+func (s spaceStubTool) Name() string                                                 { return s.name }
+func (s spaceStubTool) Description() string                                          { return "" }
+func (s spaceStubTool) Schema() json.RawMessage                                      { return json.RawMessage(`{"type":"object"}`) }
 func (s spaceStubTool) Execute(_ context.Context, _ json.RawMessage) (string, error) { return "", nil }
-func (s spaceStubTool) ReadOnly() bool                                           { return false }
+func (s spaceStubTool) ReadOnly() bool                                               { return false }
 
 // TestHardAskSetParameterized hardAsk 参数化（S1.5-A）：Options.HardAskTools
 // 非 nil 快照生效（含空集），nil 回退包级默认集（现状）。
@@ -102,9 +102,9 @@ func TestPlayPolicyNoApprovalCard(t *testing.T) {
 // 空间保留、mode=off（空空间）全保留。
 func TestSpaceAllowedTools(t *testing.T) {
 	tools := []tool.Tool{
-		spaceStubTool{name: "edit_file"},   // work（名字表）
-		spaceStubTool{name: "image_gen"},   // play（名字表）
-		spaceStubTool{name: "memory_search"}, // shared（名字表）
+		spaceStubTool{name: "edit_file"},       // work（名字表）
+		spaceStubTool{name: "image_gen"},       // play（名字表）
+		spaceStubTool{name: "memory_search"},   // shared（名字表）
 		spaceStubTool{name: "mcp__gh__search"}, // MCP 动态名缺省 shared
 	}
 	work := spaceAllowedTools(tools, "work")

@@ -111,11 +111,11 @@ func TestSinExportEpubFullChain(t *testing.T) {
 
 	text, names := readSinEpubText(t, path)
 	for _, want := range []string{
-		"夜雨落在站台上。",           // 正文
+		"夜雨落在站台上。",                 // 正文
 		"<blockquote><p>我：写一个雨夜开头", // 用户指令引块
-		`<img src="`,                     // 插图内嵌
-		"（插图未生成：睫毛特写）",        // 未生成占位（cue 次序键无映射）
-		"她没有回头。",              // 标记后的正文不丢
+		`<img src="`,   // 插图内嵌
+		"（插图未生成：睫毛特写）", // 未生成占位（cue 次序键无映射）
+		"她没有回头。",       // 标记后的正文不丢
 	} {
 		if !strings.Contains(text, want) {
 			t.Errorf("EPUB 缺少 %q", want)

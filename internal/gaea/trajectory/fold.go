@@ -48,9 +48,9 @@ type folding struct {
 	lastTools  int
 
 	headerTs  int64
-	assistant *Record          // 正在累积的 assistant 记录
+	assistant *Record            // 正在累积的 assistant 记录
 	toolByID  map[string]*Record // tool ID → 记录
-	toolStart map[string]int64 // tool ID → dispatch ts（duration 计算）
+	toolStart map[string]int64   // tool ID → dispatch ts（duration 计算）
 }
 
 func (f *folding) apply(e session.LogEntry) {

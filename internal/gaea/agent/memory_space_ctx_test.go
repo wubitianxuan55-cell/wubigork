@@ -19,7 +19,7 @@ import (
 
 // memSpaceProbeTool 记录 Execute 时 memory.SpaceFromContext(ctx) 的观察哨：
 // 值必须穿过 TaskTool.Execute → runSubSession → 子 runDirect → executeOne
-//（memory.WithSpace 盖章点）才能到达这里。
+// （memory.WithSpace 盖章点）才能到达这里。
 type memSpaceProbeTool struct {
 	space atomic.Value
 	calls int32
@@ -44,7 +44,7 @@ func (p *memSpaceProbeTool) seenSpace() string {
 }
 
 // TestExecuteOneStampsMemorySpaceCtx：play 父的子代理工具调用 ctx 携带 play
-//（memory 空间管线）；无标注 ctx（headless 直调）缺省 work。
+// （memory 空间管线）；无标注 ctx（headless 直调）缺省 work。
 func TestExecuteOneStampsMemorySpaceCtx(t *testing.T) {
 	probe := &memSpaceProbeTool{}
 	sub := &scriptedProvider{name: "sub", turns: [][]provider.Chunk{

@@ -818,9 +818,9 @@ func mppOpenStreams(data []byte) (map[string][]byte, string, error) {
 		return nil, "", fmt.Errorf("不是有效的 MPP 文件(OLE2 打开失败):%w", err)
 	}
 	out := map[string][]byte{}
-	projDir := "" // 当前工程/视图目录("   19"/"   112"/"   114"/"   29")
+	projDir := ""  // 当前工程/视图目录("   19"/"   112"/"   114"/"   29")
 	foundDir := "" // 首个工程目录（版本回退探测用）
-	tb := ""      // 当前 TBknd* 存储
+	tb := ""       // 当前 TBknd* 存储
 	awaitProps := false
 	for {
 		entry, err := r.Next()

@@ -16,11 +16,11 @@ import (
 // navigable conversation tree. The conversation itself remains in the .jsonl
 // file; metadata lives beside it at <session>.meta.
 type BranchMeta struct {
-	ID               string    `json:"id"`
-	Name             string    `json:"name,omitempty"`
-	ParentID         string    `json:"parent_id,omitempty"`
-	ForkTurn         int       `json:"fork_turn,omitempty"`
-	ForkMessageIndex int       `json:"fork_message_index,omitempty"`
+	ID               string `json:"id"`
+	Name             string `json:"name,omitempty"`
+	ParentID         string `json:"parent_id,omitempty"`
+	ForkTurn         int    `json:"fork_turn,omitempty"`
+	ForkMessageIndex int    `json:"fork_message_index,omitempty"`
 	// Space 是会话空间自描述（S2）：分支 meta 随会话目录归属写入，读端空值
 	// 降级 work（旧 meta 无此字段）。
 	Space     string    `json:"space,omitempty"`

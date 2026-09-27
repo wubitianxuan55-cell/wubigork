@@ -315,10 +315,10 @@ func (s *Store) RepairCategoryPaths() (fixed, left int, err error) {
 		}
 	}
 	if err := rows.Err(); err != nil {
-		rows.Close()
+		_ = rows.Close()
 		return 0, 0, err
 	}
-	rows.Close()
+	_ = rows.Close()
 
 	// 分类树一次捞进内存（2026-09-20 审计：原 pathResolves 对每条目每段逐条
 	// QueryRow——千条库×2~3 段=数千次点查，每次启动 SelfHeal 都付一遍）。
@@ -451,7 +451,7 @@ func (s *Store) BackfillPriceMeta() (regionCount, dateCount int, err error) {
 			entries = append(entries, e)
 		}
 	}
-	rows.Close()
+	_ = rows.Close()
 
 	tx, err := s.db.Begin()
 	if err != nil {

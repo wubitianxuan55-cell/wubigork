@@ -9,4 +9,3 @@ DROP TABLE IF EXISTS weixin_sync;
 DROP TABLE IF EXISTS weixin_context;
 DROP TABLE IF EXISTS weixin_seen;
 `
-

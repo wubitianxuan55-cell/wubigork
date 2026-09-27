@@ -1,6 +1,10 @@
-﻿# gaea 2.0 P0 基线闸门：构建 + 静态检查 + 全量测试 + 前端 lint/build/test + E 系列守卫
+﻿# gaea 本地快闸：构建 + 静态检查 + lint + 全量测试 + 前端 lint/build/test + E 系列守卫 + 绑定漂移闸
 # 2026-09-10：补齐前端 lint/vitest（此前本脚本不跑——本地「CI OK」与 GitHub
 # Actions 门禁不等价），并把原生命令的 stderr 处理修正（见 Invoke-Native）。
+# 2026-09-27（审计 P0-1）：口径声明——本脚本=「本地快闸」，GitHub Actions
+# (.github/workflows/ci.yml) 三 job（backend/race/frontend）为远端门禁：race
+# 检测在 ubuntu job（本机无 gcc 跑不了 -race）+ internal/app race 子集在
+# windows runner；两侧不等价，对外表述须写明是哪一侧（禁无定语「CI 绿」）。
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
@@ -34,10 +38,23 @@ Invoke-Native '.tmp hygiene guard' 'powershell' @('-NoProfile', '-ExecutionPolic
 
 Invoke-Native 'go build' 'go' @('build', './...')
 Invoke-Native 'go vet' 'go' @('vet', './...')
+
+# golangci-lint 门禁（2026-09-27 入：审计 P0-1 证据③——v1 配置 + action「version:
+# latest」此前从未跑通，CHANGELOG 零 golangci 生效记录）。钉 v2.14.0 与 ci.yml
+# 同版；本机缺二进制时一次性 go install 补齐（首次需网络）。
+$gopath = (go env GOPATH | Select-Object -First 1).Trim()
+$golangci = Join-Path $gopath 'bin\golangci-lint.exe'
+if (-not (Test-Path $golangci)) {
+    Invoke-Native 'install golangci-lint v2.14.0' 'go' @('install', 'github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.14.0')
+}
+Invoke-Native 'golangci-lint (pinned v2.14.0)' $golangci @('run', '--timeout=8m', './...')
+
 Invoke-Native 'go test' 'go' @('test', './...', '-count=1')
 
 Push-Location frontend
-if (-not (Test-Path node_modules)) { Invoke-Native 'frontend install' 'npm.cmd' @('install') }
+# 2026-09-27（审计 P0-1 证据①）：v4.371 起唯一 lockfile 是 pnpm-lock.yaml，
+# npm install 无锁可依＝依赖树漂移风险；改 pnpm --frozen-lockfile 与 ci.yml 同口径。
+if (-not (Test-Path node_modules)) { Invoke-Native 'frontend install' 'pnpm.cmd' @('install', '--frozen-lockfile') }
 Invoke-Native 'frontend lint' 'npm.cmd' @('run', 'lint')
 Invoke-Native 'frontend build' 'npm.cmd' @('run', 'build')
 Invoke-Native 'frontend tests (vitest)' 'npm.cmd' @('run', 'test')

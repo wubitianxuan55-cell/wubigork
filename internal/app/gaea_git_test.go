@@ -1,10 +1,10 @@
 package app
 
 import (
-	"reflect"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 )

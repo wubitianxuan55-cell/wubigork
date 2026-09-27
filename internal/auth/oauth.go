@@ -208,7 +208,7 @@ func buildAuthURL(authEndpoint string, cfg *config.Config, redirectURI, challeng
 		"code_challenge_method": {"S256"},
 		"state":                 {state},
 		"nonce":                 {nonce},
-		"plan":                  {"generic"}, // 关键！没有此参数 xAI 拒绝 loopback OAuth
+		"plan":                  {"generic"},  // 关键！没有此参数 xAI 拒绝 loopback OAuth
 		"referrer":              {"wubigork"}, // 归因标识：xAI client 注册值，勿改（改则 token 阶段 500）
 	}
 

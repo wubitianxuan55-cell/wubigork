@@ -23,12 +23,12 @@ import (
 // failoverServers 一对测试引擎服务：bad（失败引擎）/ good（转移目标）。
 // 两个服务的 /models 都返回可用列表（供 RefreshModels 置 Connected）。
 type failoverServers struct {
-	badSrv, goodSrv    *httptest.Server
-	badID, goodID      string
-	mgr                *modelengine.Manager
-	goodChatHits       atomic.Int32
-	goodChatLastModel  string
-	mu                 sync.Mutex
+	badSrv, goodSrv   *httptest.Server
+	badID, goodID     string
+	mgr               *modelengine.Manager
+	goodChatHits      atomic.Int32
+	goodChatLastModel string
+	mu                sync.Mutex
 }
 
 // newFailoverSetup 构造带引擎管理器的 Client 与两个自定义引擎：

@@ -36,13 +36,13 @@ type KnowledgeImportRowView struct {
 
 // KnowledgeImportPreview 是知识导入解析结果视图（无确认不落库）。
 type KnowledgeImportPreview struct {
-	Path     string                    `json:"path"`
-	FileName string                    `json:"fileName"`
-	Columns  []string                  `json:"columns"`
-	Unmapped []string                  `json:"unmapped"`
-	Rows     []KnowledgeImportRowView  `json:"rows"`
-	Message  string                    `json:"message"`
-	AIUsed   bool                      `json:"aiUsed"`
+	Path     string                   `json:"path"`
+	FileName string                   `json:"fileName"`
+	Columns  []string                 `json:"columns"`
+	Unmapped []string                 `json:"unmapped"`
+	Rows     []KnowledgeImportRowView `json:"rows"`
+	Message  string                   `json:"message"`
+	AIUsed   bool                     `json:"aiUsed"`
 }
 
 // hubKnowledgeStore 打开知识库（与面板/工具同一实例）。

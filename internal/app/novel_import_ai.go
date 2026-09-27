@@ -60,7 +60,7 @@ type OutlineReconstructPreview struct {
 	NarrativePerspective string                   `json:"narrativePerspective,omitempty"`
 	TargetWords          int                      `json:"targetWords,omitempty"`
 	Items                []OutlineReconstructItem `json:"items"`
-	Tier                 string                   `json:"tier,omitempty"`       // 篇幅档位 short|mid|long（T4 篇幅路由）
+	Tier                 string                   `json:"tier,omitempty"`        // 篇幅档位 short|mid|long（T4 篇幅路由）
 	SegmentSize          int                      `json:"segmentSize,omitempty"` // >0 = items 已按每 N 章聚合
 	Warnings             []string                 `json:"warnings,omitempty"`
 }

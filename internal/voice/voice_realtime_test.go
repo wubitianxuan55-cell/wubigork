@@ -134,7 +134,7 @@ func realtimeSpeechChunk() []byte {
 // ── 推送分支 ──
 
 // TestManager_RealtimePushBypassesVAD realtime 分支：重采样后直发
-//（16k 6400 字节 → 24k 9600 字节），本地 VAD 缓冲零累积（旁路）。
+// （16k 6400 字节 → 24k 9600 字节），本地 VAD 缓冲零累积（旁路）。
 func TestManager_RealtimePushBypassesVAD(t *testing.T) {
 	m, em := newTestManager()
 	f := newFakeRealtimeSession()
@@ -169,7 +169,7 @@ func TestManager_RealtimePushBypassesVAD(t *testing.T) {
 }
 
 // TestManager_RealtimeNotInjectedLegacyGuard 守护测试：未注入会话 = 走老路
-//（VAD 缓冲照常累积，无任何 realtime 帧下发）。
+// （VAD 缓冲照常累积，无任何 realtime 帧下发）。
 func TestManager_RealtimeNotInjectedLegacyGuard(t *testing.T) {
 	m, _ := newTestManager()
 	if err := m.Start(); err != nil {
@@ -264,7 +264,7 @@ func TestManager_RealtimeEventPumpMapping(t *testing.T) {
 }
 
 // TestManager_RealtimeResponseDoneCancelledDiscardsAudio 被打断的 response
-//（status=cancelled）不冲洗半截音频，聚合器复位。
+// （status=cancelled）不冲洗半截音频，聚合器复位。
 func TestManager_RealtimeResponseDoneCancelledDiscardsAudio(t *testing.T) {
 	m, em := newTestManager()
 	f := newFakeRealtimeSession()
@@ -458,7 +458,7 @@ func TestManager_RealtimeDialFailureFallsBack(t *testing.T) {
 // ── TurnControl / PTT ──
 
 // TestManager_RealtimePTTReleaseCommits PTT 释放 → input_audio_buffer.commit
-//（有音频流入时），旁路本地 VAD/ASR 识别路径。
+// （有音频流入时），旁路本地 VAD/ASR 识别路径。
 func TestManager_RealtimePTTReleaseCommits(t *testing.T) {
 	m, em := newTestManager()
 	f := newFakeRealtimeSession()
@@ -485,7 +485,7 @@ func TestManager_RealtimePTTReleaseCommits(t *testing.T) {
 }
 
 // TestManager_RealtimePTTReleaseEmptyNoCommit 无音频流入时 PTT 释放不 commit
-//（防服务端空缓冲协议错误）。
+// （防服务端空缓冲协议错误）。
 func TestManager_RealtimePTTReleaseEmptyNoCommit(t *testing.T) {
 	m, _ := newTestManager()
 	f := newFakeRealtimeSession()

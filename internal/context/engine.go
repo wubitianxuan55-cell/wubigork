@@ -19,8 +19,8 @@ type InjectionRule struct {
 
 // Budget 上下文 Token 预算追踪
 type Budget struct {
-	Capacity int            `json:"capacity"` // 总容量（模型上下文窗口）
-	Used     int            `json:"used"`     // 已使用
+	Capacity int             `json:"capacity"` // 总容量（模型上下文窗口）
+	Used     int             `json:"used"`     // 已使用
 	Sections []BudgetSection `json:"sections"` // 各分区用量
 }
 
@@ -216,12 +216,12 @@ func (e *Engine) BuildFullContext(opts BuildOptions) (string, string, *Budget) {
 
 // BuildOptions 上下文构建选项
 type BuildOptions struct {
-	SystemPrompt   string
-	CurrentScene   string
-	PreviousScene  string
-	CharacterInfo  string
-	MemoryInfo     string
-	ModelCapacity  int // 模型上下文窗口大小（默认 128000）
+	SystemPrompt  string
+	CurrentScene  string
+	PreviousScene string
+	CharacterInfo string
+	MemoryInfo    string
+	ModelCapacity int // 模型上下文窗口大小（默认 128000）
 }
 
 func formatLorebookEntry(entry types.LorebookEntry) string {
@@ -229,4 +229,3 @@ func formatLorebookEntry(entry types.LorebookEntry) string {
 		"词条: " + entry.Key + " [" + entry.Category + "]\n" +
 		entry.Content
 }
-

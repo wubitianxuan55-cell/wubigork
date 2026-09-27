@@ -13,11 +13,17 @@ func NewSessionModeStore() *SessionModeStore {
 }
 
 func (s *SessionModeStore) GetMode(sessionID string) bool {
-	s.mu.RLock(); defer s.mu.RUnlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	return s.modes[sessionID]
 }
 
 func (s *SessionModeStore) SetMode(sessionID string, enabled bool) {
-	s.mu.Lock(); defer s.mu.Unlock()
-	if enabled { s.modes[sessionID] = true } else { delete(s.modes, sessionID) }
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if enabled {
+		s.modes[sessionID] = true
+	} else {
+		delete(s.modes, sessionID)
+	}
 }

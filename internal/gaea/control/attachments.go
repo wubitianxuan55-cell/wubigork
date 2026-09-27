@@ -10,7 +10,6 @@ import (
 	"strings"
 	"sync/atomic"
 	"time"
-
 )
 
 const maxImageAttachmentBytes = 10 * 1024 * 1024

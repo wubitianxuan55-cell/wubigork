@@ -123,6 +123,7 @@ func GetEdgeTTSParams(emotionLabel string) (rate string, pitch string) {
 //     Speed 1.1（≈+10% 语速）、Pitch +2 半音、Emotion "angry"（透传引擎情绪）；
 //   - CALM_RATIONAL（冷静，EdgeRate "0%"/EdgePitch "0Hz"）：放缓 + 微降调，
 //     Speed 0.9、Pitch -1 半音、Emotion "calm"。
+//
 // 其余 7 个标签（SWEET_ATTACHMENT/SHY_HEARTBEAT/QUIET_FOND/TSUNDERE/
 // COLD_DETACHED/HURT_GRIEVANCE/FEARFUL_OBEDIENT）暂不指定结构化参数，
 // 走引擎中性默认，避免过度调参；需要时按同一方向增量补表。
@@ -144,36 +145,36 @@ func GetEmotionVoiceParams(emotion string) tts.TTSParams {
 // 对齐 Ackem emotionVoiceMap.ts 中的人格修饰逻辑
 // 例如：tsundere 人格会插入 "傲娇又"
 var PersonalityVoiceModifier = map[string]string{
-	"gaea":      "温厚又",
-	"tsundere":  "傲娇又",
-	"yandere":   "病态又",
-	"kuudere":   "更",
-	"deredere":  "超级",
-	"himedere":  "高傲又",
-	"dandere":   "更",
-	"kamidere":  "傲慢又",
-	"mayadere":  "更",
-	"darudere":  "懒洋洋又",
-	"hinedere":  "更",
-	"sadodere":  "更",
-	"bakadere":  "更天真又",
-	"goudere":   "更强势又",
-	"shundere":  "更悲伤又",
-	"biridere":  "更紧张又",
-	"nyandere":  "更猫猫又",
-	"kanedere":  "更拜金又",
-	"oji-dere":  "更宠溺又",
-	"ero-dere":  "更色气又",
-	"oni-dere":  "更强势又",
+	"gaea":        "温厚又",
+	"tsundere":    "傲娇又",
+	"yandere":     "病态又",
+	"kuudere":     "更",
+	"deredere":    "超级",
+	"himedere":    "高傲又",
+	"dandere":     "更",
+	"kamidere":    "傲慢又",
+	"mayadere":    "更",
+	"darudere":    "懒洋洋又",
+	"hinedere":    "更",
+	"sadodere":    "更",
+	"bakadere":    "更天真又",
+	"goudere":     "更强势又",
+	"shundere":    "更悲伤又",
+	"biridere":    "更紧张又",
+	"nyandere":    "更猫猫又",
+	"kanedere":    "更拜金又",
+	"oji-dere":    "更宠溺又",
+	"ero-dere":    "更色气又",
+	"oni-dere":    "更强势又",
 	"zettai-dere": "绝对",
-	"hajidere":  "更害羞又",
-	"megadere":  "更狂热又",
-	"utsudere":  "更忧郁又",
-	"undere":    "更",
-	"bokodere":  "更暴力又",
-	"otokodere": "更男子气又",
-	"tennodere": "更天使又",
-	"shindere":  "更温柔又",
+	"hajidere":    "更害羞又",
+	"megadere":    "更狂热又",
+	"utsudere":    "更忧郁又",
+	"undere":      "更",
+	"bokodere":    "更暴力又",
+	"otokodere":   "更男子气又",
+	"tennodere":   "更天使又",
+	"shindere":    "更温柔又",
 }
 
 // ModifyWithPersonality 用人格修饰情绪指令

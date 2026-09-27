@@ -653,7 +653,7 @@ func (a *App) GaeaWriteFile(rel string, content string) error {
 		return fmt.Errorf("创建临时文件失败: %w", err)
 	}
 	tmpName := tmp.Name()
-	defer os.Remove(tmpName)
+	defer func() { _ = os.Remove(tmpName) }()
 	if _, err := tmp.WriteString(content); err != nil {
 		_ = tmp.Close()
 		return fmt.Errorf("写入失败: %w", err)

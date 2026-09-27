@@ -10,7 +10,7 @@ import (
 // 式部分保存不得清空扫码凭据：incoming WxToken/WxUserID 为空串时保留 existing 现值。
 // 种子助手直接经 assistantMgr.Add 落库（不走 WhisperAssistantSave，避免 Add 路径
 // 拉起微信轮询）；更新用 Enabled=false，保证 Update 后也不会 startAssistantWx
-//（Server.Start 对非空 token 会起 pollLoop 打 ilinkai 外网，测试必须离线）。
+// （Server.Start 对非空 token 会起 pollLoop 打 ilinkai 外网，测试必须离线）。
 func TestWhisperAssistantSave_EmptyTokenPreservesCredentials(t *testing.T) {
 	a := newChatServiceTestApp(t)
 	if err := a.assistantMgr.Add(assistant.Assistant{

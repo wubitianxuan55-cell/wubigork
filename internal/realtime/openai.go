@@ -169,11 +169,11 @@ type sessionTurnDetection struct {
 }
 
 type sessionUpdateVoice struct {
-	Instructions     string                `json:"instructions,omitempty"`
-	Voice            string                `json:"voice"`
-	InputAudioFormat string                `json:"input_audio_format"`
-	OutputAudioFormat string               `json:"output_audio_format"` // 显式防漂移
-	TurnDetection    *sessionTurnDetection `json:"turn_detection"`
+	Instructions      string                `json:"instructions,omitempty"`
+	Voice             string                `json:"voice"`
+	InputAudioFormat  string                `json:"input_audio_format"`
+	OutputAudioFormat string                `json:"output_audio_format"` // 显式防漂移
+	TurnDetection     *sessionTurnDetection `json:"turn_detection"`
 }
 
 // sendSessionUpdate 下发会话配置（instructions / voice / pcm16 输入输出音频 /
@@ -182,9 +182,9 @@ func (s *OpenAISession) sendSessionUpdate() error {
 	return s.writeJSON(sessionUpdate{
 		Type: "session.update",
 		Session: sessionUpdateVoice{
-			Instructions:     s.cfg.Instructions,
-			Voice:            s.cfg.Voice,
-			InputAudioFormat: openAIInputAudioFormat,
+			Instructions:      s.cfg.Instructions,
+			Voice:             s.cfg.Voice,
+			InputAudioFormat:  openAIInputAudioFormat,
 			OutputAudioFormat: openAIOutputAudioFormat,
 			TurnDetection: &sessionTurnDetection{
 				Type:              "server_vad",

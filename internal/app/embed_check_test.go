@@ -3,8 +3,8 @@ package app
 import (
 	"testing"
 
-	"github.com/gaea/gaea/internal/modelengine"
 	officecore "github.com/gaea/gaea/internal/core"
+	"github.com/gaea/gaea/internal/modelengine"
 )
 
 // 编译期验证：各子服务方法经 App 嵌入提升（前端 window.go.app.* 绑定不变）。

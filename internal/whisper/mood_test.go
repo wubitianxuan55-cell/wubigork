@@ -214,8 +214,8 @@ func TestApplyMemoryEcho_PreservesMood(t *testing.T) {
 
 // TestMoodLowAroAffMean_Threshold 低落判定阈值常量语义：均值 = (Aro+Aff)/2。
 func TestMoodLowAroAffMean_Threshold(t *testing.T) {
-	low := [4]float64{-30, 0, -25, 0}   // (Aro+Aff)/2 = -27.5 < -20 → 低落
-	calm := [4]float64{-10, 0, -10, 0}  // (Aro+Aff)/2 = -10 ≥ -20 → 正常
+	low := [4]float64{-30, 0, -25, 0}  // (Aro+Aff)/2 = -27.5 < -20 → 低落
+	calm := [4]float64{-10, 0, -10, 0} // (Aro+Aff)/2 = -10 ≥ -20 → 正常
 	mean := func(m [4]float64) float64 { return (m[2] + m[0]) / 2 }
 	if !(mean(low) < MoodLowAroAffMean) {
 		t.Fatalf("低落样本均值 %v 应低于阈值 %v", mean(low), MoodLowAroAffMean)

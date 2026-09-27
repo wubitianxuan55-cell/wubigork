@@ -350,6 +350,7 @@ func IsDeliverableTool(name string) bool {
 //     （multi_edit/edit_file 编辑片段）；
 //   - 生成/导出类（isProducerTool）：output 落盘参数——path 在这三类工具里
 //     是输入源文件（如 format_convert 的 docx），不是交付物，不登记。
+//
 // 去重保持出现顺序，空白路径跳过。
 func ExtractDeliverablePaths(name string, args json.RawMessage) []string {
 	if len(args) == 0 {

@@ -9,7 +9,8 @@ import (
 )
 
 // TestSmokeCostPreview 用真实成本测算文件验证 GaeaPreview（默认跳过）：
-//   GAEA_SMOKE_COST=<xlsx 路径> go test ./internal/app -run TestSmokeCostPreview -v
+//
+//	GAEA_SMOKE_COST=<xlsx 路径> go test ./internal/app -run TestSmokeCostPreview -v
 func TestSmokeCostPreview(t *testing.T) {
 	src := os.Getenv("GAEA_SMOKE_COST")
 	if src == "" {

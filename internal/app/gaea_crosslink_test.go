@@ -48,7 +48,8 @@ func TestGaeaCrossEmbed_Validation(t *testing.T) {
 }
 
 // TestSmokeCrossEmbed 真实图表嵌入 docx/pptx（默认跳过）：
-//   GAEA_SMOKE_CROSS=1 go test ./internal/app -run TestSmokeCrossEmbed -v
+//
+//	GAEA_SMOKE_CROSS=1 go test ./internal/app -run TestSmokeCrossEmbed -v
 func TestSmokeCrossEmbed(t *testing.T) {
 	if os.Getenv("GAEA_SMOKE_CROSS") == "" {
 		t.Skip("未设置 GAEA_SMOKE_CROSS")

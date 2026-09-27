@@ -16,11 +16,11 @@ import (
 
 // NovelOutlineReconstructTaskState 反推任务状态（轮询返回）。
 type NovelOutlineReconstructTaskState struct {
-	TaskID  string                      `json:"taskId"`
-	Status  string                      `json:"status"`
-	Message string                      `json:"message,omitempty"`
-	Error   string                      `json:"error,omitempty"`
-	Preview *OutlineReconstructPreview  `json:"preview,omitempty"` // succeeded 时携带
+	TaskID  string                     `json:"taskId"`
+	Status  string                     `json:"status"`
+	Message string                     `json:"message,omitempty"`
+	Error   string                     `json:"error,omitempty"`
+	Preview *OutlineReconstructPreview `json:"preview,omitempty"` // succeeded 时携带
 }
 
 // outlineReconstructTaskHandler 反推任务 handler：跑与同步绑定同一套

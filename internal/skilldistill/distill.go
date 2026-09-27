@@ -69,7 +69,7 @@ type PatternStep struct {
 
 // Candidate 一个重复模式候选（上层据此提议「结晶为技能」）。
 type Candidate struct {
-	ID       string   // "jd-"+sha256(模式串接)[:8hex]，确定性、复算幂等
+	ID       string // "jd-"+sha256(模式串接)[:8hex]，确定性、复算幂等
 	Pattern  []PatternStep
 	Repeat   int      // 出现该模式的不同会话数
 	Sessions []string // 证据会话（最近优先，≤5）

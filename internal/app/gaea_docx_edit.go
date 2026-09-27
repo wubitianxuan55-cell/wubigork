@@ -124,7 +124,7 @@ func docxBaselineSnapshot(path string) string {
 // v4.157 小刀：对齐 pptx_apply/xlsx_apply 证据链口径，回滚走
 // GaeaRollbackRecord（VersionTimeline kind "docx" 已支持）。
 // 红线：非 work 空间（play）不落证据链；journal 目录不可用/写失败静默
-//（对齐 appendPptxEvidence/appendXlsxEvidence 口径）。
+// （对齐 appendPptxEvidence/appendXlsxEvidence 口径）。
 func appendDocxEvidence(rel, tool, beforeSummary, afterSummary, baseline string) {
 	if gaeaEffectiveSpace() != "work" {
 		return

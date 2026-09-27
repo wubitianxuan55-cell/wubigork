@@ -10,11 +10,11 @@ import (
 
 func mkQueryNode() *types.OutlineNode {
 	return &types.OutlineNode{
-		Title:     "真相之夜",
-		Summary:   "林晚在祠堂确认身世",
-		Emotion:   "悲怆",
+		Title:      "真相之夜",
+		Summary:    "林晚在祠堂确认身世",
+		Emotion:    "悲怆",
 		Characters: []string{"char_a", "char_b", "char_c", "char_d", "char_e", "char_f", "char_g", "char_h", "char_i", "char_j"},
-		KeyPoints: []string{"点1", "点2", "点3", "点4", "点5", "点6", "点7"},
+		KeyPoints:  []string{"点1", "点2", "点3", "点4", "点5", "点6", "点7"},
 	}
 }
 

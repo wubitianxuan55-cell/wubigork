@@ -147,7 +147,7 @@ func markdownToPdf(in ExportDeliverableInput, title, outPath string) error {
 
 // convertToPdfFile 用 soffice 把单个文档转成 outPath 指定的 PDF。
 // soffice 以源文件名命名输出，所以先转进临时目录再搬到 outPath
-//（临时目录与工作区可能跨盘，rename 失败时回退复制）。
+// （临时目录与工作区可能跨盘，rename 失败时回退复制）。
 func convertToPdfFile(src, outPath string) error {
 	soffice := findSoffice()
 	if soffice == "" {
@@ -182,7 +182,7 @@ func convertToPdfFile(src, outPath string) error {
 }
 
 // findSoffice 定位 soffice：PATH 优先，再补常见安装位置
-//（Windows 下 PATH 通常没有 soffice）。
+// （Windows 下 PATH 通常没有 soffice）。
 func findSoffice() string {
 	if p, err := exec.LookPath("soffice"); err == nil {
 		return p

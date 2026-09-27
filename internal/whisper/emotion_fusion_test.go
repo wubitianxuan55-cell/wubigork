@@ -258,7 +258,7 @@ func TestEmotionFusion_BuildCharacterStateBlock_Full(t *testing.T) {
 func TestEmotionFusion_BuildCharacterStateBlock_TerseMirror(t *testing.T) {
 	p := PersonalityTemplate{
 		Label: "平静理性", CoreContradiction: "无", SpeakingStyle: "平稳",
-		Prohibitions: []string{"禁止项"},
+		Prohibitions:   []string{"禁止项"},
 		ExamplesMedium: []string{"m1"},
 	}
 	emotion := EmotionStateFusion{Aff: 0, Sec: 0, Aro: 0, Dom: 0, PrimaryLabel: "CALM_RATIONAL"}
@@ -271,7 +271,7 @@ func TestEmotionFusion_BuildCharacterStateBlock_TerseMirror(t *testing.T) {
 func TestEmotionFusion_BuildCharacterStateBlock_ApologyFilters(t *testing.T) {
 	p := PersonalityTemplate{
 		Label: "傲娇", CoreContradiction: "口是心非", SpeakingStyle: "简短",
-		Prohibitions: []string{"禁止道歉", "示弱", "常规禁止"},
+		Prohibitions:   []string{"禁止道歉", "示弱", "常规禁止"},
 		ExamplesMedium: []string{"m1"},
 	}
 	emotion := EmotionStateFusion{Aff: 50, Sec: 50, Aro: 50, Dom: 50, PrimaryLabel: "ANGRY_ATTACK"}

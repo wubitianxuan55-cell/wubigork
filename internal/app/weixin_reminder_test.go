@@ -22,11 +22,11 @@ func reminderNow() time.Time {
 func TestParseReminderWhen(t *testing.T) {
 	now := reminderNow()
 	cases := []struct {
-		name    string
-		text    string
-		want    time.Time
-		stale   bool
-		wantOK  bool
+		name   string
+		text   string
+		want   time.Time
+		stale  bool
+		wantOK bool
 	}{
 		{name: "N分钟后", text: "30分钟后 喝水", want: now.Add(30 * time.Minute), wantOK: true},
 		{name: "N分后", text: "5分后 起身", want: now.Add(5 * time.Minute), wantOK: true},
