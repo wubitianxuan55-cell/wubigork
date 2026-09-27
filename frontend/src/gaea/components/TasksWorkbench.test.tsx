@@ -234,6 +234,8 @@ describe("TasksWorkbench 任务视图（双源入共享 store）", () => {
   });
 
   it("新子代理检测：首拉只记基线不触发；基线上新增 ref 触发一次；重复快照不重复触发", () => {
+    // 检测机制用例：显式开启偏好（2026-09-27 默认改关，此处钉机制非默认值）
+    window.localStorage.setItem("gaea.subagentAutoOpen", "1");
     const onStarted = vi.fn();
     renderT(<TasksWorkbench sessionPath="s1.jsonl" onSubagentStarted={onStarted} />);
     emitRuns([runCompleted], metaReady(0));
@@ -242,6 +244,16 @@ describe("TasksWorkbench 任务视图（双源入共享 store）", () => {
     expect(onStarted).toHaveBeenCalledTimes(1);
     emitRuns([runCompleted, runNew], metaReady(1));
     expect(onStarted).toHaveBeenCalledTimes(1);
+    window.localStorage.removeItem("gaea.subagentAutoOpen");
+  });
+
+  it("默认关（2026-09-27 拍板）：新子代理出现不触发 onSubagentStarted", () => {
+    // beforeEach 已清 localStorage = 未设置 = 默认关
+    const onStarted = vi.fn();
+    renderT(<TasksWorkbench sessionPath="s1.jsonl" onSubagentStarted={onStarted} />);
+    emitRuns([runCompleted], metaReady(0));
+    emitRuns([runCompleted, runNew], metaReady(1));
+    expect(onStarted).not.toHaveBeenCalled();
   });
 
   it("偏好关闭（gaea.subagentAutoOpen=0）：新子代理只更新数据，不触发 onSubagentStarted", () => {

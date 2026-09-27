@@ -12,8 +12,8 @@ import { loadDeliverableAutoOpen, saveDeliverableAutoOpen } from '../../gaea/lib
  *
  * gaea 工作台有一批「自动展开 / 自动切换」偏好此前只能靠 localStorage 键控
  * （各面板头部的胶囊开关不可发现），本卡在设置中心补齐入口：
- *  - gaea.subagentAutoOpen      新子代理自动展开（默认开）
- *  - gaea.tasks.autoOpenSubagent 新任务自动切任务视图（默认开）
+ *  - gaea.subagentAutoOpen      新子代理自动展开（2026-09-27 起默认关）
+ *  - gaea.tasks.autoOpenSubagent 新任务自动切任务视图（2026-09-27 起默认关）
  *  - gaea.browserAutoOpen       浏览器自动弹出（默认开）
  *  - gaea.deliverableAutoOpen   产物自动弹出（默认关）
  *

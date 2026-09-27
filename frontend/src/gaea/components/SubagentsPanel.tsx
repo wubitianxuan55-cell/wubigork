@@ -24,7 +24,7 @@ import { SubagentThread, type SubagentThreadStatus } from "./SubagentThread";
 //  ②树形实时拓扑：整棵子代理树（AgentTree 组件，GaeaAgentNetwork 嵌套
 //    Children，此前只渲染两层）+ 节点量化 + 新节点自动展开父链 + 下钻链
 //    （节点 → 详情 → 完整 transcript → 工具行点击定位）；
-//  ③新子代理自动展开（可关，默认开）：检测到新子代理 ref 出现时调用
+//  ③新子代理自动展开（2026-09-27 起默认关，设置中心可开）：检测到新子代理 ref 出现时调用
 //    props.onSubagentStarted 回调——面板只负责检测 + 回调，是否切换 tab/
 //    亮出面板由 App 接线决定（偏好键 gaea.subagentAutoOpen 持久化）。
 // 数据源两个（v4.64/v4.65 起全部入共享 store，本组件零自管定时器）：
@@ -122,7 +122,7 @@ export function SubagentsPanel({ sessionPath, onSubagentStarted }: {
     task?: string;
     model?: string;
   } | null>(null);
-  // 新子代理自动展开偏好（默认开，localStorage 持久化，键 gaea.subagentAutoOpen）
+  // 新子代理自动展开偏好（2026-09-27 起默认关，localStorage 持久化，键 gaea.subagentAutoOpen）
   const [autoOpen, setAutoOpen] = useState(() => loadSubagentAutoOpen());
   const autoOpenRef = useRef(autoOpen);
   autoOpenRef.current = autoOpen;

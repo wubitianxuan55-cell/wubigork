@@ -1,30 +1,31 @@
 // tasksPrefs — v4.63「新任务自动切任务视图」的轻量用户偏好。
 //
 // 当前会话出现新子代理/本地模型工具运行时，App 自动把右栏切到「任务」视图
-// （对标 dsh better-sidebar 的 0→N 触发 + 500ms 去抖重臂）。默认开；可关
-// （关后只记角标语义，不抢右栏焦点）。
+// （对标 dsh better-sidebar 的 0→N 触发 + 500ms 去抖重臂）。**默认关**
+// （2026-09-27 用户拍板「右侧面板启动默认隐藏，不要打开办公板块就打开」——
+// v4.63 的默认开在实机上表现为进板块/切会话右栏被自动撑开，用户明确否决）。
+// 设置中心「办公工作台偏好」卡显式开启后恢复自动切换；关闭时只记角标语义，
+// 不抢右栏焦点。
 //
-// 存储键 gaea.tasks.autoOpenSubagent 由 v4.63 落地时即存在于 App.tsx
-// （触发时机处 inline localStorage 直读，只认 "0" 为关）。此前无独立 prefs
-// 模块、也无设置中心入口；本模块为设置中心（办公分组「办公工作台偏好」卡）
-// 补齐 load/save 入口，写值与 App 侧读取约定兼容（"1"/"0"，App 只认 "0" 为关）。
+// 存储键 gaea.tasks.autoOpenSubagent 由 v4.63 落地时即存在于 App.tsx（触发
+// 时机处 inline localStorage 直读，2026-09-27 起与 App 侧同口径：只认显式
+// 开启值 "1"/"true" 为开，其余一律默认关）。
 //
 // 模式对齐 lib/subagentPrefs：localStorage 直读 + try/catch 静默降级
-// （隐私模式/存储禁用不影响主功能），读不到或值损坏时回落默认开；
-// 只有显式关闭值（"0"/"false"）视为关，其余（"1"/"true"/垃圾值）一律开。
+// （隐私模式/存储禁用不影响主功能），读不到或值损坏时回落默认关。
 
 const STORAGE_KEY = "gaea.tasks.autoOpenSubagent";
 
-/** 读取「新任务自动切任务视图」偏好；未设置/损坏/无 window 时默认开。 */
+/** 读取「新任务自动切任务视图」偏好；未设置/损坏/无 window 时默认关。 */
 export function loadTasksAutoOpenSubagent(): boolean {
-  if (typeof window === "undefined") return true;
+  if (typeof window === "undefined") return false;
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (raw === null) return true;
-    // 与 App.tsx 触发端约定一致：只认显式关闭值，其余回落默认开。
-    return !(raw === "0" || raw === "false");
+    if (raw === null) return false;
+    // 与 App.tsx 触发端约定一致：只认显式开启值，其余默认关。
+    return raw === "1" || raw === "true";
   } catch {
-    return true;
+    return false;
   }
 }
 

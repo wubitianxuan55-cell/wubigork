@@ -2,8 +2,12 @@
 // v4.63 对标 dsh better-sidebar 的 0→N 触发 + 500ms 去抖重臂 + 偏好开关；
 // 会话切换首个快照只建基线不触发（detectNewRunRefs 纯函数）。执行顺序与
 // deps 原样迁自 App.tsx。
+// 2026-09-27 用户拍板「右侧面板启动默认隐藏，不要打开办公板块就打开」：
+// 偏好默认改关（设置中心显式开启才生效），且会话切换改挂起基线——
+// 等新会话首个快照建基线，旧会话/空集基线不再把新会话子代理误判为「新」。
 import { useCallback, useEffect, useRef } from "react";
 import { onTaskEvent, workApp } from "../lib/bridge";
+import { loadTasksAutoOpenSubagent } from "../lib/tasksPrefs";
 import { isWorkSpaceTask } from "../lib/taskSpace";
 import { detectNewRunRefs } from "../lib/subagentRunsStore";
 import type { SubagentRunView, TaskView } from "../lib/types";
@@ -17,17 +21,11 @@ interface UseTasksAutoOpenParams {
 }
 
 export function useTasksAutoOpen({ rightTab, openPaneView, currentSessionPath, subagentRuns }: UseTasksAutoOpenParams) {
-  // v4.63 自动展开（对标 dsh better-sidebar 的 0→N 触发 + 500ms 去抖重臂 +
-  // 偏好开关）：当前会话出现新子代理/本地模型工具运行 → 自动切右栏「任务」
-  // 视图（已在任务视图则只记角标语义，不打扰）。去抖的 Why 与 dsh #314 同源：
-  // 派发帧与标题/状态帧分帧到达，立即判定会误触发/漏触发，等快照稳定后重评。
-  // 偏好走 localStorage（默认开）；会话切换的首个快照只建立基线不触发。
-  // v4.77 窄屏不强制展开：桌面宽度 < 1240 时 workspace-pane 被 CSS 隐藏，
-  // 自动激活不切右栏（用户可手动打开，设置开关仍可整体关闭）。
+  // 2026-09-27 默认改关（用户拍板「右侧面板启动默认隐藏，不要打开办公板块
+  // 就打开」）：只在设置中心显式开启（"1"）后，新任务/子代理才自动切任务视图。
+  // 判定单一源 = lib/tasksPrefs（"1"/"true" 为开，其余默认关）。
   const openTasksAuto = useCallback(() => {
-    try {
-      if (localStorage.getItem("gaea.tasks.autoOpenSubagent") === "0") return;
-    } catch { /* 私有模式：按默认开处理 */ }
+    if (!loadTasksAutoOpenSubagent()) return;
     if (window.innerWidth < 1240) return;
     if (rightTab !== "tasks") openPaneView("tasks");
   }, [rightTab, openPaneView]);
@@ -82,8 +80,8 @@ export function useTasksAutoOpen({ rightTab, openPaneView, currentSessionPath, s
     // 内联进回调：会话切换后新事件按新会话判定
   }, [currentSessionPath]);
 
-  const seenSubagentRefsRef = useRef<{ path: string; initialized: boolean; refs: Set<string> }>({
-    path: "", initialized: false, refs: new Set(),
+  const seenSubagentRefsRef = useRef<{ path: string; pendingBaseline: boolean; refs: Set<string> }>({
+    path: "", pendingBaseline: false, refs: new Set(),
   });
   const autoOpenTasksTimerRef = useRef(0);
   const subagentRunsRef = useRef<SubagentRunView[]>([]);
@@ -92,11 +90,20 @@ export function useTasksAutoOpen({ rightTab, openPaneView, currentSessionPath, s
     const path = currentSessionPath ?? "";
     const seen = seenSubagentRefsRef.current;
     if (seen.path !== path) {
-      // 会话切换：以当前快照建立基线，绝不把历史子代理当「新」触发
+      // 会话切换：作废旧基线并挂起，等新会话的首个快照只建基线不触发。
+      // 此刻 subagentRunsRef 可能还是旧会话的（快照在途），立刻照它建基线
+      // 会把空/旧集当基线——新会话的真实子代理全被判「新」误触发
+      // （2026-09-27 用户实锤：进板块/切会话右栏被撑开）。
       seen.path = path;
-      seen.initialized = true;
-      seen.refs = new Set(subagentRunsRef.current.map((r) => r.ref));
+      seen.pendingBaseline = true;
+      seen.refs = new Set();
       window.clearTimeout(autoOpenTasksTimerRef.current);
+      return;
+    }
+    if (seen.pendingBaseline) {
+      // 新会话首个快照：只建基线（若快照缺失/失败则下个快照补建）
+      seen.pendingBaseline = false;
+      seen.refs = new Set(subagentRunsRef.current.map((r) => r.ref));
       return;
     }
     const fresh = detectNewRunRefs(seen.refs, subagentRunsRef.current);

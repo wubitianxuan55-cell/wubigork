@@ -228,17 +228,22 @@ describe("SubagentsPanel 子代理工作台（v4.24 A1 三段式）", () => {
     expect(screen.getByTestId("agent-tree")).toBeTruthy();
   });
 
-  it("自动展开偏好开关：切换持久化到 localStorage", async () => {
+  it("自动展开偏好开关：默认关（2026-09-27 拍板），切换持久化到 localStorage", async () => {
     renderT(<SubagentsPanel sessionPath="s1.jsonl" />);
     await screen.findByText("主 agent");
     const toggle = screen.getByTestId("subagent-auto-open-toggle");
-    expect(toggle.textContent).toContain("自动展开 开");
+    expect(toggle.textContent).toContain("自动展开 关");
+    fireEvent.click(toggle);
+    expect(screen.getByText("自动展开 开")).toBeTruthy();
+    expect(window.localStorage.getItem("gaea.subagentAutoOpen")).toBe("1");
     fireEvent.click(toggle);
     expect(screen.getByText("自动展开 关")).toBeTruthy();
     expect(window.localStorage.getItem("gaea.subagentAutoOpen")).toBe("0");
   });
 
   it("会话切换重建基线不误触发；同会话新出现的子代理才回调", async () => {
+    // 检测机制用例：显式开启偏好（默认关；此处钉基线与触发语义）
+    window.localStorage.setItem("gaea.subagentAutoOpen", "1");
     const onStarted = vi.fn();
     const { rerender } = renderT(<SubagentsPanel sessionPath="s1.jsonl" onSubagentStarted={onStarted} />);
     await screen.findByText("主 agent");

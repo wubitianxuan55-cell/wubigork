@@ -1,7 +1,8 @@
 /**
  * WorkbenchPrefsPanel.test.tsx — 设置中心「办公工作台偏好」卡（v4.65 欠账收口）
  *
- * 覆盖：四项自动展开/自动切换偏好逐项渲染；默认值一个不改（三项开、产物关）；
+ * 覆盖：四项自动展开/自动切换偏好逐项渲染；默认值一个不改（2026-09-27 起
+ * 子代理/任务两项默认关——用户拍板「右侧面板启动默认隐藏」，浏览器开、产物关）；
  * 切换即时写入既有 localStorage 键（消费方既有约定不变）；损坏存储值回落默认。
  */
 import { fireEvent, render, screen, within } from '@testing-library/react'
@@ -45,44 +46,45 @@ describe('WorkbenchPrefsPanel 办公工作台偏好卡', () => {
     expect(screen.getAllByText(/即时生效/).length).toBeGreaterThanOrEqual(4)
   })
 
-  it('未设置时开关状态 = 既有默认值（三项开、产物关，一个不改）', () => {
+  it('未设置时开关状态 = 既有默认值（子代理/任务关，浏览器开、产物关）', () => {
     render(wrap(<WorkbenchPrefsPanel />))
-    expect(switchOf('新子代理自动展开').getAttribute('aria-checked')).toBe('true')
-    expect(switchOf('新任务自动切任务视图').getAttribute('aria-checked')).toBe('true')
+    expect(switchOf('新子代理自动展开').getAttribute('aria-checked')).toBe('false')
+    expect(switchOf('新任务自动切任务视图').getAttribute('aria-checked')).toBe('false')
     expect(switchOf('浏览器自动弹出').getAttribute('aria-checked')).toBe('true')
     expect(switchOf('产物自动弹出').getAttribute('aria-checked')).toBe('false')
   })
 
   it('切换即时写入既有 localStorage 键（"1"/"0" 约定不变）', () => {
     render(wrap(<WorkbenchPrefsPanel />))
+    // 子代理/任务默认关 → 开
     fireEvent.click(switchOf('新子代理自动展开'))
-    expect(window.localStorage.getItem(KEYS.subagent)).toBe('0')
+    expect(window.localStorage.getItem(KEYS.subagent)).toBe('1')
     fireEvent.click(switchOf('新任务自动切任务视图'))
-    expect(window.localStorage.getItem(KEYS.tasks)).toBe('0')
+    expect(window.localStorage.getItem(KEYS.tasks)).toBe('1')
+    // 浏览器默认开 → 关
     fireEvent.click(switchOf('浏览器自动弹出'))
     expect(window.localStorage.getItem(KEYS.browser)).toBe('0')
-    // 产物默认关 → 开
     fireEvent.click(switchOf('产物自动弹出'))
     expect(window.localStorage.getItem(KEYS.deliverable)).toBe('1')
   })
 
-  it('损坏存储值回落既有默认（三项开、产物关），不崩面板', () => {
+  it('损坏存储值回落既有默认（子代理/任务关，浏览器开、产物关），不崩面板', () => {
     window.localStorage.setItem(KEYS.subagent, 'garbage!!')
     window.localStorage.setItem(KEYS.tasks, '{broken json')
     window.localStorage.setItem(KEYS.browser, '??')
     window.localStorage.setItem(KEYS.deliverable, 'not-a-bool')
     render(wrap(<WorkbenchPrefsPanel />))
-    expect(switchOf('新子代理自动展开').getAttribute('aria-checked')).toBe('true')
-    expect(switchOf('新任务自动切任务视图').getAttribute('aria-checked')).toBe('true')
+    expect(switchOf('新子代理自动展开').getAttribute('aria-checked')).toBe('false')
+    expect(switchOf('新任务自动切任务视图').getAttribute('aria-checked')).toBe('false')
     expect(switchOf('浏览器自动弹出').getAttribute('aria-checked')).toBe('true')
     expect(switchOf('产物自动弹出').getAttribute('aria-checked')).toBe('false')
   })
 
-  it('已存储的关闭值如实显示为关（与面板内胶囊读同一键）', () => {
-    window.localStorage.setItem(KEYS.subagent, '0')
+  it('已存储的开启值如实显示为开（与面板内胶囊读同一键）', () => {
+    window.localStorage.setItem(KEYS.subagent, '1')
     window.localStorage.setItem(KEYS.deliverable, '1')
     render(wrap(<WorkbenchPrefsPanel />))
-    expect(switchOf('新子代理自动展开').getAttribute('aria-checked')).toBe('false')
+    expect(switchOf('新子代理自动展开').getAttribute('aria-checked')).toBe('true')
     expect(switchOf('产物自动弹出').getAttribute('aria-checked')).toBe('true')
   })
 })
