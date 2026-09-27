@@ -137,9 +137,11 @@ type mediaState struct {
 	// 语音管道
 	voiceManager *voice.Manager
 
-	// ComfyUI 进程管理
-	comfyUICancel context.CancelFunc
-	comfyUICmd    *exec.Cmd
+	// ComfyUI 进程管理（comfyProcMu 保护；写侧有 UI 线程/回收 goroutine/状态轮询
+	// 三路并发，v4.421 P0-2 收口，访问一律走 comfyProcRef* 方法）
+	comfyProcMu    sync.Mutex
+	comfyUICancel  context.CancelFunc
+	comfyUICmd     *exec.Cmd
 
 	// 当前图片/视频生成任务（前端生成队列逐条提交，这里只保留取消句柄）
 	imageGenMu      sync.Mutex
@@ -215,7 +217,6 @@ type officeState struct {
 	app *App
 
 	// 价格源定时抓取调度（P1-⑥）：app 启动后按订阅频率检查到期源。
-	priceMu       sync.Mutex
 	priceCronStop chan struct{}
 	priceCronOnce sync.Once
 	priceStopOnce sync.Once
@@ -562,13 +563,13 @@ const debugServerPort = "127.0.0.1:18123"
 func startDebugServer() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
-		w.Write([]byte("ok"))
+		_, _ = w.Write([]byte("ok"))
 	})
 	mux.HandleFunc("/stack", func(w http.ResponseWriter, _ *http.Request) {
 		buf := make([]byte, 1<<20)
 		n := goruntime.Stack(buf, true)
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-		w.Write(buf[:n])
+		_, _ = w.Write(buf[:n])
 	})
 	go func() {
 		defer func() {
@@ -858,7 +859,7 @@ func copyPath(src, dst string) error {
 	if err != nil {
 		return err
 	}
-	defer in.Close()
+	defer func() { _ = in.Close() }()
 	out, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, info.Mode().Perm())
 	if err != nil {
 		return err

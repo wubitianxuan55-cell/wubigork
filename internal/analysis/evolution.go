@@ -144,10 +144,9 @@ func (a *Agent) EvolveAfterChapter(chapterNum int, chapterContent string, summar
 
 // extractLocations 简单提取章节中可能的地名（2-4个汉字+常见后缀）
 func extractLocations(content string) []string {
-	suffixes := []rune("城/镇/村/山/海/湖/谷/林/殿/阁/楼/院/宗/宫/寺/堂/国/界/域/府/")
 	// 构建后缀集合
 	suffixSet := make(map[rune]bool)
-	for _, r := range suffixes {
+	for _, r := range "城/镇/村/山/海/湖/谷/林/殿/阁/楼/院/宗/宫/寺/堂/国/界/域/府/" {
 		if r != '/' {
 			suffixSet[r] = true
 		}

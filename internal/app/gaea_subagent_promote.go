@@ -112,7 +112,7 @@ func (a *App) GaeaPromoteSubagent(sessionPath, ref string) (string, error) {
 	}
 	for _, e := range entries {
 		if _, err := w.AppendRaw(e.Kind, e.Payload); err != nil {
-			w.Close()
+			_ = w.Close()
 			removePromotedSessionFiles(newPath)
 			return "", fmt.Errorf("写会话日志失败: %w", err)
 		}

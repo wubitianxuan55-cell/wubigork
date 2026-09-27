@@ -201,7 +201,7 @@ func firstSheetName(path string) string {
 	if err != nil {
 		return ""
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	if list := f.GetSheetList(); len(list) > 0 {
 		return list[0]
 	}
@@ -232,7 +232,7 @@ func (a *App) GaeaXlsxSetCell(rel, sheet, ref, value string) (XlsxEditResult, er
 	if err != nil {
 		return XlsxEditResult{}, fmt.Errorf("打开文件失败：%w", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	trimmed := strings.TrimSpace(value)
 	if strings.HasPrefix(trimmed, "=") {
@@ -318,7 +318,7 @@ func (a *App) GaeaXlsxRowOps(rel, sheet, action, ref string) (res XlsxEditResult
 	if err != nil {
 		return XlsxEditResult{}, fmt.Errorf("打开文件失败：%w", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	var summary string
 	switch action {
@@ -383,7 +383,7 @@ func (a *App) GaeaXlsxColOps(rel, sheet, action, ref string) (res XlsxEditResult
 	if err != nil {
 		return XlsxEditResult{}, fmt.Errorf("打开文件失败：%w", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	var summary string
 	switch action {

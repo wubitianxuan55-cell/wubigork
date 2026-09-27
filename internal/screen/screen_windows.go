@@ -155,8 +155,8 @@ func CaptureArea(x, y, w, h int) (image.Image, error) {
 	}
 	defer deleteObject(hbm)
 
-	procSelectObject.Call(hdcMem, hbm)
-	procBitBlt.Call(hdcMem, 0, 0, uintptr(w), uintptr(h), hdcScreen, uintptr(x), uintptr(y), srcCopy)
+	_, _, _ = procSelectObject.Call(hdcMem, hbm)
+	_, _, _ = procBitBlt.Call(hdcMem, 0, 0, uintptr(w), uintptr(h), hdcScreen, uintptr(x), uintptr(y), srcCopy)
 
 	stride := w * 4
 	img := image.NewRGBA(image.Rect(0, 0, w, h))

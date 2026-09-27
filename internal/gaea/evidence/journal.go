@@ -251,7 +251,7 @@ func (s *JournalStore) Append(rec ChangeRecord) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	_, err = f.Write(append(b, '\n'))
 	return err
 }
@@ -332,7 +332,7 @@ func (s *JournalStore) AppendVerdict(v Verdict) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	_, err = f.Write(append(b, '\n'))
 	return err
 }

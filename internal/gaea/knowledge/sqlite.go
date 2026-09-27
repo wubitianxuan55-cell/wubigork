@@ -80,7 +80,7 @@ func (b *sqliteBackend) List() []EntrySummary {
 	if err != nil {
 		return nil
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var out []EntrySummary
 	for rows.Next() {
 		var s EntrySummary
@@ -100,7 +100,7 @@ func (b *sqliteBackend) Index() string {
 	if err != nil {
 		return "# 知识库索引\n\n（索引不可用）\n"
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var buf strings.Builder
 	buf.WriteString("# 知识库索引\n\n")
 	type row struct {
@@ -139,7 +139,7 @@ FROM knowledge`)
 	if err != nil {
 		return nil
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var out []Entry
 	for rows.Next() {
 		var e Entry

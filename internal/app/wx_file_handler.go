@@ -283,13 +283,13 @@ func copyFileBounded(src, dst string, max int64) (err error) {
 	if err != nil {
 		return err
 	}
-	defer in.Close()
+	defer func() { _ = in.Close() }()
 	out, err := os.Create(dst)
 	if err != nil {
 		return err
 	}
 	defer func() {
-		out.Close()
+		_ = out.Close()
 		if err != nil {
 			os.Remove(dst) // 半成品不留盘
 		}

@@ -119,7 +119,7 @@ func extractPPTXText(path string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer zr.Close()
+	defer func() { _ = zr.Close() }()
 	var parts []string
 	for _, f := range zr.File {
 		name := filepath.ToSlash(f.Name)

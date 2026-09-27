@@ -25,7 +25,6 @@ type comfyHTTPServer struct {
 
 	interruptHits int
 	queueHits     int
-	uploadHits    int
 	viewHits      int
 	historyHits   int
 }

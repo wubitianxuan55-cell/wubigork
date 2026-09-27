@@ -119,8 +119,6 @@ type SpawnPolicy struct {
 	maxForks    int
 	minTaskLen  int
 	domainCache map[string]SpawnDomainEntry
-	savedTokens int64
-	savedUSD    float64
 }
 
 type SpawnDomainEntry struct {

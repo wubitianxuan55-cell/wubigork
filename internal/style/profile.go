@@ -1,6 +1,7 @@
 package style
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -98,7 +99,7 @@ func (a *Analyzer) Analyze() (*Profile, error) {
 	userPrompt := fmt.Sprintf("请分析以下小说的写作风格：\n\n%s", sampleText)
 
 	reply, err := a.client.ChatSimpleStreamWithOptions(
-		nil,
+		context.TODO(),
 		a.model,
 		systemPrompt,
 		userPrompt,

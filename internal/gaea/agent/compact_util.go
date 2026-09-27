@@ -75,7 +75,7 @@ func archiveMessages(dir string, msgs []provider.Message) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	enc := json.NewEncoder(f)
 	for _, m := range msgs {
 		if err := enc.Encode(m); err != nil {

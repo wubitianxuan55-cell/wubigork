@@ -380,7 +380,7 @@ func (s *Store) List(query, kind string, chatOnly bool, limit, offset int) ([]Ch
 	if err != nil {
 		return nil, 0, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var out []Character
 	for rows.Next() {
 		c, err := scanCharacter(rows)
@@ -447,7 +447,7 @@ func (s *Store) ListByProject(projectID string) ([]ProjectCharacter, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var out []ProjectCharacter
 	for rows.Next() {
 		var p ProjectCharacter
@@ -468,7 +468,7 @@ func (s *Store) ProjectIDsForCharacter(charID string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var out []string
 	for rows.Next() {
 		var id string
@@ -502,7 +502,7 @@ func (s *Store) ImportProjectCharacters(projectID string, chars []types.Characte
 	if err != nil {
 		return 0, 0, 0, fmt.Errorf("开启导入事务失败: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 	for _, ch := range chars {
 		target, err := getOn(tx, ch.ID)
 		if err != nil {
@@ -618,7 +618,7 @@ func (s *Store) DrawRandom(count int, gender, tags string, chatOnly bool) ([]Cha
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var out []Character
 	for rows.Next() {
 		c, err := scanCharacter(rows)
@@ -649,7 +649,7 @@ func (s *Store) ProjectCharactersForNovel(projectID string) ([]types.Character, 
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var out []types.Character
 	for rows.Next() {
 		var c Character

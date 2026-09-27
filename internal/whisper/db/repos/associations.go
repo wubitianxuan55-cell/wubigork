@@ -50,7 +50,7 @@ func (r *AssociationsRepo) List() ([]whisper.Association, error) {
 	if err != nil {
 		return nil, fmt.Errorf("查询 memory_associations 失败: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var out []whisper.Association
 	for rows.Next() {
@@ -78,7 +78,7 @@ func (r *AssociationsRepo) SaveAll(items []whisper.Association) error {
 	if err != nil {
 		return fmt.Errorf("开启事务失败: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	// 外键预检：收集当前库中全部事实 ID（同一周期内 app 先存状态后存事实，
 	// 本轮新事实尚未落库，其关联边需跳过，下轮补写）。
@@ -93,7 +93,7 @@ func (r *AssociationsRepo) SaveAll(items []whisper.Association) error {
 			factIDs[id] = true
 		}
 	}
-	rows.Close()
+	_ = rows.Close()
 	if err := rows.Err(); err != nil {
 		return fmt.Errorf("遍历 memory_facts 失败: %w", err)
 	}

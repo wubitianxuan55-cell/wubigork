@@ -32,7 +32,7 @@ func Save(key, value string) error {
 
 	var cf configFile
 	if data, err := os.ReadFile(configPath); err == nil {
-		json.Unmarshal(data, &cf)
+		_ = json.Unmarshal(data, &cf)
 	}
 
 	setter, ok := saveSetters[key]

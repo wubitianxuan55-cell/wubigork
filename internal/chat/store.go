@@ -85,7 +85,7 @@ func (s *Store) ListTopics() ([]Topic, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var out []Topic
 	for rows.Next() {
 		var t Topic
@@ -246,7 +246,7 @@ func (s *Store) AppendExchange(topicID, userContent, assistantContent, assistant
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	ts := now()
 	nextSeq := func() (int, error) {
@@ -312,7 +312,7 @@ func (s *Store) AppendMessagesTx(topicID string, msgs []MessageInput) error {
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 	if err := appendMessagesTx(tx, topicID, msgs, now()); err != nil {
 		return err
 	}
@@ -332,7 +332,7 @@ func (s *Store) ImportTopicTx(id, title, mode string, msgs []MessageInput) error
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 	ts := now()
 	if _, err := tx.Exec(
 		"INSERT INTO chat_topics(id, title, mode, created_at, updated_at) VALUES(?,?,?,?,?)",
@@ -363,7 +363,7 @@ func (s *Store) ListMessagesPage(topicID string, limit int, beforeSeq int64) ([]
 	if err != nil {
 		return nil, false, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var out []Message
 	for rows.Next() {
 		var m Message
@@ -396,7 +396,7 @@ func (s *Store) ListMessages(topicID string) ([]Message, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var out []Message
 	for rows.Next() {
 		var m Message

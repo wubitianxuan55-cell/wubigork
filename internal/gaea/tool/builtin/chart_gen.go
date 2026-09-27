@@ -257,7 +257,7 @@ func (chartGen) Execute(ctx context.Context, args json.RawMessage) (string, erro
 	}
 	// 确保输出目录存在
 	if dir := filepath.Dir(p.Output); dir != "." {
-		os.MkdirAll(dir, 0755)
+		_ = os.MkdirAll(dir, 0755)
 	}
 
 	// 查找 Python：Windows 优先 python（python3 常被商店别名劫持）

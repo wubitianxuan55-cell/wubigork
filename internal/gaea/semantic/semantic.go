@@ -56,7 +56,7 @@ func (s *Store) Counts() (map[string]int, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	out := map[string]int{}
 	for rows.Next() {
 		var kind string
@@ -179,7 +179,7 @@ func (s *Store) SearchReady(ctx context.Context, e *retrieval.Embedder, kind, qu
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	type item struct {
 		id   string
 		text string
@@ -222,7 +222,7 @@ func (s *Store) vectorDocs(kind string) (map[string]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	out := map[string]string{}
 	for rows.Next() {
 		var id, doc string
@@ -259,7 +259,7 @@ func (s *Store) Stale(kind string, keep map[string]bool) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var del []string
 	for rows.Next() {
 		var id string
@@ -275,7 +275,7 @@ func (s *Store) Stale(kind string, keep map[string]bool) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 	for _, id := range del {
 		if _, err := tx.Exec(`DELETE FROM semantic_vectors WHERE kind=? AND id=?`, kind, id); err != nil {
 			return 0, err

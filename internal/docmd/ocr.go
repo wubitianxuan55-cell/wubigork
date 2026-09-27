@@ -75,12 +75,12 @@ func startOvisServer(c *http.Client, base string) bool {
 	handle, err := proc.StartTracked(cmd)
 	if err != nil {
 		if logf != nil {
-			logf.Close()
+			_ = logf.Close()
 		}
 		return false
 	}
 	if logf != nil {
-		logf.Close() // 子进程已持有文件句柄，父进程可立即释放
+		_ = logf.Close() // 子进程已持有文件句柄，父进程可立即释放
 	}
 	deadline := time.Now().Add(ovisStartWait)
 	for time.Now().Before(deadline) {
@@ -486,7 +486,7 @@ func ocrPDFRange(path, pages string, first, last, total int, progress func(done,
 	if err != nil {
 		return "", fmt.Errorf("创建临时目录失败: %w", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// pdftoppm: PDF → PNG（逐页）
 	pngPrefix := filepath.Join(tmpDir, "page")

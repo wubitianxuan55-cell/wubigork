@@ -13,8 +13,8 @@ import (
 
 // Windows TTS 使用系统自带 SAPI 语音合成（微软慧慧中文语音，零延迟）
 type WinTTS struct {
-	voice    string
-	tempDir  string
+	voice   string
+	tempDir string
 }
 
 func NewWinTTS() *WinTTS {
@@ -30,14 +30,14 @@ func (w *WinTTS) Synthesize(text string) ([]byte, error) {
 	}
 
 	outputPath := filepath.Join(w.tempDir, "speech_win.wav")
-	defer os.Remove(outputPath)
+	defer func() { _ = os.Remove(outputPath) }()
 
 	// 将中文文本写入临时文件，避免 PowerShell 编码问题
 	textPath := filepath.Join(w.tempDir, "tts_text.txt")
 	if err := os.WriteFile(textPath, []byte(text), 0644); err != nil {
 		return nil, err
 	}
-	defer os.Remove(textPath)
+	defer func() { _ = os.Remove(textPath) }()
 
 	script := fmt.Sprintf(
 		`Add-Type -AssemblyName System.Speech
@@ -94,7 +94,7 @@ func init() {
 }
 
 // escapePath 转义路径中的单引号，供 PowerShell 单引号字符串使用
-// PowerShell 单引号字符串中 ' → ''
+// PowerShell 单引号字符串中 ' → ”
 func escapePath(p string) string {
 	return strings.ReplaceAll(p, "'", "''")
 }

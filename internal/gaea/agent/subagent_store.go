@@ -499,7 +499,7 @@ func appendMessageLine(path string, m provider.Message) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	b, err := json.Marshal(m)
 	if err != nil {
 		return err
@@ -644,14 +644,6 @@ func (s *SubagentStore) transcriptPathUnlocked(ref string) string {
 		return "" // callers surface their own error
 	}
 	return filepath.Join(dir, ref+".jsonl")
-}
-
-func (s *SubagentStore) metaPathUnlocked(ref string) string {
-	dir, err := s.dirResolved()
-	if err != nil {
-		return ""
-	}
-	return filepath.Join(dir, ref+".meta.json")
 }
 
 // metaPath 保留给同包测试/续跑校验：按当前目录解析（无锁读取安全）。

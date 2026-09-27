@@ -43,7 +43,7 @@ func encryptPlatform(plain string) (string, error) {
 	if r1 == 0 {
 		return "", fmt.Errorf("CryptProtectData: %v", err)
 	}
-	defer syscall.LocalFree((syscall.Handle)(unsafe.Pointer(outBlob.pbData)))
+	defer func() { _, _ = syscall.LocalFree((syscall.Handle)(unsafe.Pointer(outBlob.pbData))) }()
 	return base64.StdEncoding.EncodeToString(unsafe.Slice(outBlob.pbData, outBlob.cbData)), nil
 }
 
@@ -70,6 +70,6 @@ func decryptPlatform(b64 string) (string, error) {
 	if r1 == 0 {
 		return "", fmt.Errorf("CryptUnprotectData: %v", err)
 	}
-	defer syscall.LocalFree((syscall.Handle)(unsafe.Pointer(outBlob.pbData)))
+	defer func() { _, _ = syscall.LocalFree((syscall.Handle)(unsafe.Pointer(outBlob.pbData))) }()
 	return string(unsafe.Slice(outBlob.pbData, outBlob.cbData)), nil
 }

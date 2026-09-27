@@ -144,7 +144,7 @@ func resolveNodeImages(d *contextview.NodeDetail, cwd string) {
 			continue
 		}
 		cfg, _, err := image.DecodeConfig(f)
-		f.Close()
+		_ = f.Close()
 		if err != nil || cfg.Width <= 0 || cfg.Height <= 0 {
 			// 文件在但尺寸未知（svg/ico 等非栅格或不受支持格式）。
 			img.Exists = true

@@ -23,12 +23,6 @@ func restoreProbe(t *testing.T, set func(v interface{}), cur interface{}) {
 	t.Cleanup(func() { set(cur) })
 }
 
-// fakeCmd 返回一个带假 Pid、未真正启动的 *exec.Cmd（供 probeStartCmd 注入）。
-func fakeCmd(pid int) *exec.Cmd {
-	c := exec.Command("echo")
-	c.Process = &os.Process{Pid: pid}
-	return c
-}
 
 // ── GetProgrammingWebStatus ───────────────────────────────────────────────
 

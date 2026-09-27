@@ -24,8 +24,6 @@ import (
 	"github.com/gaea/gaea/internal/modelengine"
 )
 
-// intentClassifierFn 兜底分类 seam：非 nil 时替代内置 LLM 分类器（测试注入）。
-type intentClassifierFn func(text string) *intent.Intent
 
 // classifyIntentFallback 规则未命中时的兜底入口；返回 nil = 走原聊天管道。
 func (a *App) classifyIntentFallback(text string) *intent.Intent {

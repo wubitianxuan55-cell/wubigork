@@ -160,7 +160,7 @@ FROM cost_review_notes WHERE `+strings.Join(conds, " AND ")+` ORDER BY updated_a
 	if err != nil {
 		return nil
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var out []Note
 	for rows.Next() {
 		var n Note

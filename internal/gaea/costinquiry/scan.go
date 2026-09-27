@@ -46,7 +46,7 @@ func (s *Store) ScanAnomalies() []ScanFinding {
 	if err != nil {
 		return nil
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	byTitle := map[string][]Record{}
 	var out []ScanFinding
 	for rows.Next() {

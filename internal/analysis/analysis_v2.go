@@ -244,7 +244,7 @@ func (a *Agent) syncCharacterStatesV2(chapterNum int, v2 *types.AnalysisResultV2
 			"orgStateUpdated", res.OrgStateUpdated, "orgMemberUpdated", res.OrgMemberUpdated,
 			"skipped", len(res.Skipped))
 		if len(res.Changes) > 0 {
-			a.pm.WriteCharacters(chars)
+			_ = a.pm.WriteCharacters(chars)
 		}
 	}
 }

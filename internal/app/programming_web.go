@@ -192,7 +192,7 @@ func (a *App) StartProgrammingWeb() error {
 	if err != nil {
 		return fmt.Errorf("无法打开 dsh web 日志 %s: %w", logPath, err)
 	}
-	defer logFile.Close()
+	defer func() { _ = logFile.Close() }()
 
 	cmd := exec.Command(pnpm, "dsh", "web")
 	cmd.Dir = root

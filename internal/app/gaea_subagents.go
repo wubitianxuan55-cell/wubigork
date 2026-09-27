@@ -159,7 +159,7 @@ func summarizeSubagentTranscript(path string) (task, answer string, toolCalls in
 	if err != nil {
 		return "", "", 0, "", ""
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	dec := json.NewDecoder(f)
 	for {
 		var m provider.Message
@@ -241,7 +241,7 @@ func (a *App) GaeaSubagentTranscript(sessionPath, ref string) (SubagentTranscrip
 	if err != nil {
 		return SubagentTranscriptView{}, err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	dec := json.NewDecoder(f)
 	view := SubagentTranscriptView{Ref: ref, FollowUpError: metaFollowUpErr, Messages: []SubagentTranscriptMessage{}}
 	for {

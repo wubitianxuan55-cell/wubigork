@@ -88,9 +88,9 @@ func (s *Sink) Emit(e event.Event) {
 		s.flushAggregatedErrors()
 		s.finalizeReasoning()
 		if s.wroteReasoningHeader && s.wroteReasoningBody && !s.textWritten {
-			s.out.Write(newline)
+			_, _ = s.out.Write(newline)
 		}
-		s.out.Write([]byte(e.Text))
+		_, _ = s.out.Write([]byte(e.Text))
 		s.textWritten = true
 		s.wroteAnything = true
 
@@ -126,7 +126,7 @@ func (s *Sink) Emit(e event.Event) {
 		s.flushAggregatedErrors()
 		s.finalizeReasoning()
 		if s.textWritten {
-			s.out.Write(newline)
+			_, _ = s.out.Write(newline)
 			s.textWritten = false
 		}
 		s.usageLine(e.Usage, e.Pricing)
@@ -139,7 +139,7 @@ func (s *Sink) Emit(e event.Event) {
 		if e.Level == event.LevelWarn {
 			glyph = "!"
 		}
-		fmt.Fprintf(s.out, "  %s %s\n", glyph, e.Text)
+		_, _ = fmt.Fprintf(s.out, "  %s %s\n", glyph, e.Text)
 		s.wroteAnything = true
 
 	case event.Phase:
@@ -147,9 +147,9 @@ func (s *Sink) Emit(e event.Event) {
 		s.flushAggregatedErrors()
 		s.finalizeReasoning()
 		if s.wroteAnything {
-			s.out.Write(newline)
+			_, _ = s.out.Write(newline)
 		}
-		fmt.Fprintf(s.out, "[%s]\n", e.Text)
+		_, _ = fmt.Fprintf(s.out, "[%s]\n", e.Text)
 		s.wroteAnything = true
 
 	case event.CompactionStarted:
@@ -157,7 +157,7 @@ func (s *Sink) Emit(e event.Event) {
 		s.flushAggregatedErrors()
 		s.finalizeReasoning()
 		writeDim(s.out, "  ⋯ compacting conversation…")
-		s.out.Write(newline)
+		_, _ = s.out.Write(newline)
 		s.wroteAnything = true
 
 	case event.CompactionDone:
@@ -170,10 +170,10 @@ func (s *Sink) Emit(e event.Event) {
 		}
 		s2 := fmt.Sprintf("  ⋯ compacted %d messages (%s)", c.Messages, c.Trigger)
 		writeDim(s.out, s2)
-		s.out.Write(newline)
+		_, _ = s.out.Write(newline)
 		for _, ln := range strings.Split(strings.TrimRight(c.Summary, "\n"), "\n") {
 			writeDim(s.out, "    "+ln)
-			s.out.Write(newline)
+			_, _ = s.out.Write(newline)
 		}
 		s.wroteAnything = true
 	}
@@ -183,7 +183,7 @@ func (s *Sink) finalizeReasoning() {
 	if !s.reasoningActive {
 		return
 	}
-	fmt.Fprintf(s.out, "\r  ▎ thinking ··· %d chars\n", s.reasoningChars)
+	_, _ = fmt.Fprintf(s.out, "\r  ▎ thinking ··· %d chars\n", s.reasoningChars)
 	s.reasoningActive = false
 }
 
@@ -191,7 +191,7 @@ func (s *Sink) flushReasoningProgress() {
 	if !s.reasoningActive {
 		return
 	}
-	fmt.Fprintf(s.out, "\r  ▎ thinking ··· %d chars", s.reasoningChars)
+	_, _ = fmt.Fprintf(s.out, "\r  ▎ thinking ··· %d chars", s.reasoningChars)
 }
 
 func (s *Sink) flushBatchedTools() {
@@ -200,10 +200,10 @@ func (s *Sink) flushBatchedTools() {
 		return
 	}
 	if n >= 3 {
-		fmt.Fprintf(s.out, "  ▸ %d tools running...\n", n)
+		_, _ = fmt.Fprintf(s.out, "  ▸ %d tools running...\n", n)
 	} else {
 		for _, t := range s.pendingTools {
-			fmt.Fprintf(s.out, "  -> %s\n", t)
+			_, _ = fmt.Fprintf(s.out, "  -> %s\n", t)
 		}
 	}
 	s.pendingTools = nil
@@ -215,9 +215,9 @@ func (s *Sink) flushAggregatedErrors() {
 		return
 	}
 	if n >= 2 {
-		fmt.Fprintf(s.out, "  ⊘ %d tools failed: %s\n", n, strings.Join(s.pendingErrors, "; "))
+		_, _ = fmt.Fprintf(s.out, "  ⊘ %d tools failed: %s\n", n, strings.Join(s.pendingErrors, "; "))
 	} else {
-		fmt.Fprintf(s.out, "  ⊘ %s\n", s.pendingErrors[0])
+		_, _ = fmt.Fprintf(s.out, "  ⊘ %s\n", s.pendingErrors[0])
 	}
 	s.pendingErrors = nil
 }
@@ -234,22 +234,22 @@ func (s *Sink) closeTextStream(text, reasoning string) {
 	if len(text) > 0 && s.renderer != nil {
 		if moved := textutils.StreamedRows(text, s.termWidth); moved < 200 {
 			if moved == 0 {
-				fmt.Fprint(s.out, "\r\033[0J")
+				_, _ = fmt.Fprint(s.out, "\r\033[0J")
 			} else {
-				fmt.Fprintf(s.out, "\r\033[%dA\033[0J", moved)
+				_, _ = fmt.Fprintf(s.out, "\r\033[%dA\033[0J", moved)
 			}
-			fmt.Fprint(s.out, s.renderer.Render(text))
+			_, _ = fmt.Fprint(s.out, s.renderer.Render(text))
 			return
 		}
 	}
 	if len(text) > 0 || (len(reasoning) > 0 && s.wroteReasoningBody) {
-		s.out.Write(newline)
+		_, _ = s.out.Write(newline)
 	}
 }
 
 func (s *Sink) usageLine(u *provider.Usage, p *provider.Pricing) {
 	if line := FormatUsageLine(u, p); line != "" {
-		fmt.Fprintln(s.out, line)
+		_, _ = fmt.Fprintln(s.out, line)
 		s.wroteAnything = true
 	}
 }
@@ -286,9 +286,9 @@ func FormatUsageLine(u *provider.Usage, p *provider.Pricing) string {
 func DimText(s string) string { return "\x1b[2m" + s + "\x1b[0m" }
 
 func writeDim(w io.Writer, s string) {
-	w.Write(dimPrefix)
-	w.Write([]byte(s))
-	w.Write(dimSuffix)
+	_, _ = w.Write(dimPrefix)
+	_, _ = w.Write([]byte(s))
+	_, _ = w.Write(dimSuffix)
 }
 
 // CompactArgs truncates tool args for display.

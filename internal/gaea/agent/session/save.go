@@ -77,7 +77,7 @@ func Load(path string) (*Session, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	s := &Session{}
 	// Decode a stream of JSON values rather than scanning lines: a single
@@ -148,7 +148,7 @@ func appendMessageLog(logPath, legacyPath, space string, payload any, kind strin
 	if err != nil {
 		return 0, err
 	}
-	defer w.Close()
+	defer func() { _ = w.Close() }()
 	return w.Append(kind, payload)
 }
 
@@ -269,7 +269,7 @@ func previewSession(path string) (string, int) {
 	if err != nil {
 		return "", 0
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	dec := json.NewDecoder(f)
 	first := ""
 	turns := 0

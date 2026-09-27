@@ -161,15 +161,15 @@ func writePptxOutlineScript() (path string, cleanup func(), err error) {
 		return "", nil, err
 	}
 	if _, werr := tmp.WriteString(pptxOutlinePy); werr != nil {
-		tmp.Close()
-		os.Remove(tmp.Name())
+		_ = tmp.Close()
+		_ = os.Remove(tmp.Name())
 		return "", nil, werr
 	}
 	if cerr := tmp.Close(); cerr != nil {
-		os.Remove(tmp.Name())
+		_ = os.Remove(tmp.Name())
 		return "", nil, cerr
 	}
-	return tmp.Name(), func() { os.Remove(tmp.Name()) }, nil
+	return tmp.Name(), func() { _ = os.Remove(tmp.Name()) }, nil
 }
 
 // runPythonOut 是 runPython 的带 stdout 版本（gaea_export.go runProcess 同款
@@ -196,7 +196,7 @@ func runPythonOut(args []string, timeoutSec int) (string, error) {
 		}
 		return stdout.String(), nil
 	case <-time.After(time.Duration(timeoutSec) * time.Second):
-		cmd.Process.Kill()
+		_ = cmd.Process.Kill()
 		<-done
 		return "", fmt.Errorf("超时（%d 秒）", timeoutSec)
 	}

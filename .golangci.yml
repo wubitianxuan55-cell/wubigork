@@ -1,26 +1,41 @@
+# golangci-lint v2 配置（2026-09-27 自 v1 迁移：v1 配置结构 + action「version: latest」
+# 实际从未跑通过——审计 P0-1 证据③。现钉 v2.14.0 于 ci.yml 与 scripts/ci.ps1 两处）。
+version: "2"
+
 linters:
   enable:
     - errcheck
-    - gosimple
     - govet
     - ineffassign
     - staticcheck
     - unused
     - misspell
+  settings:
+    errcheck:
+      exclude-functions:
+        - (*github.com/wailsapp/wails/v2/pkg/application.WailsEvent).Emit
+        - (io.Closer).Close
+  exclusions:
+    paths:
+      - frontend
+      - dist
+      - build
+      - novels
+    rules:
+      # 测试文件：清理路径的 Close/Remove/Setenv 不值得逐个断言（2026-09-27 口径落档）。
+      - path: _test\.go$
+        linters:
+          - errcheck
+      # 风格族显式豁免 = 登记债而非静默：QF 重构建议 / S1 简化 / ST 错误串文案；
+      # 正确性类 SA 全开。清偿后逐条移除（docs/gaea-optimization-direction-2026-09.md P0-1）。
+      - path: \.go$
+        linters:
+          - staticcheck
+        text: '^(QF1|S1|ST1)'
+
+formatters:
+  enable:
     - gofmt
 
-linters-settings:
-  errcheck:
-    exclude-functions:
-      - (*github.com/wailsapp/wails/v2/pkg/application.WailsEvent).Emit
-
 run:
-  timeout: 3m
   tests: true
-
-issues:
-  exclude-dirs:
-    - frontend
-    - dist
-    - build
-    - novels

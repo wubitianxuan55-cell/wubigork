@@ -28,7 +28,6 @@ type failoverServers struct {
 	mgr                *modelengine.Manager
 	goodChatHits       atomic.Int32
 	goodChatLastModel  string
-	goodChatLastEngine string
 	mu                 sync.Mutex
 }
 

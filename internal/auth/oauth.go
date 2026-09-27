@@ -99,7 +99,7 @@ func DoLogin(cfg *config.Config) (*OAuthResult, error) {
 		if gotState != state {
 			errCh <- fmt.Errorf("state 不匹配，可能的 CSRF 攻击")
 			w.WriteHeader(http.StatusBadRequest)
-			w.Write([]byte(oauthErrorHTML("State 校验失败")))
+			_, _ = w.Write([]byte(oauthErrorHTML("State 校验失败")))
 			return
 		}
 
@@ -107,13 +107,13 @@ func DoLogin(cfg *config.Config) (*OAuthResult, error) {
 		if errDesc := q.Get("error_description"); errDesc != "" {
 			errCh <- fmt.Errorf("授权失败: %s", errDesc)
 			w.WriteHeader(http.StatusBadRequest)
-			w.Write([]byte(oauthErrorHTML(errDesc)))
+			_, _ = w.Write([]byte(oauthErrorHTML(errDesc)))
 			return
 		}
 		if errParam := q.Get("error"); errParam != "" {
 			errCh <- fmt.Errorf("授权失败: %s", errParam)
 			w.WriteHeader(http.StatusBadRequest)
-			w.Write([]byte(oauthErrorHTML(errParam)))
+			_, _ = w.Write([]byte(oauthErrorHTML(errParam)))
 			return
 		}
 
@@ -121,7 +121,7 @@ func DoLogin(cfg *config.Config) (*OAuthResult, error) {
 		if code == "" {
 			errCh <- fmt.Errorf("未收到授权码")
 			w.WriteHeader(http.StatusBadRequest)
-			w.Write([]byte(oauthErrorHTML("未收到授权码")))
+			_, _ = w.Write([]byte(oauthErrorHTML("未收到授权码")))
 			return
 		}
 
@@ -141,7 +141,7 @@ func DoLogin(cfg *config.Config) (*OAuthResult, error) {
 			resultCh <- &OAuthResult{Token: token, RawPayload: raw, BaseURL: baseURL}
 		}()
 
-		w.Write([]byte(oauthSuccessHTML()))
+		_, _ = w.Write([]byte(oauthSuccessHTML()))
 	})
 
 	server = &http.Server{Addr: addr, Handler: mux}
@@ -166,7 +166,7 @@ func DoLogin(cfg *config.Config) (*OAuthResult, error) {
 	defer func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 		defer cancel()
-		server.Shutdown(ctx)
+		_ = server.Shutdown(ctx)
 	}()
 
 	// ── 4. 构建授权 URL 并打开浏览器 ───────────────────────────────

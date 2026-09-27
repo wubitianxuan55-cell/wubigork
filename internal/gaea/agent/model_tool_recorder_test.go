@@ -40,9 +40,8 @@ func TestUnwrapModelToolOutput(t *testing.T) {
 	// v4.64.1 双层嵌套：外层 data.result 里又装着工具自身信封（message 字段）
 	// ——实机转义墙的真身。递归拆到纯文本为止。注意内层的 \n 是字面两字符
 	//（外层 JSON 编码转义），拆包后应还原为真实换行。
-	nested := "{\n  \"data\": { \"result\": \"{\\\"message\\\": \\\"第一段\\n\\n第二段\\\"}\" } }\n"
 	// 手工构造：外层为 JSON 文本，内层 result 值是转义后的 JSON 字符串。
-	nested = fmt.Sprintf(`{"data":{"result":%s}}`, strconv.Quote(`{"message":"第一段\n\n第二段"}`))
+	nested := fmt.Sprintf(`{"data":{"result":%s}}`, strconv.Quote(`{"message":"第一段\n\n第二段"}`))
 	if got := unwrapModelToolOutput(nested); got != "第一段\n\n第二段" {
 		t.Fatalf("双层信封拆包失败：%q", got)
 	}

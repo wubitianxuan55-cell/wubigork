@@ -129,18 +129,18 @@ func copyFileContents(src, dst string, perm os.FileMode) error {
 	if err != nil {
 		return err
 	}
-	defer in.Close()
+	defer func() { _ = in.Close() }()
 	out, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o666)
 	if err != nil {
 		return err
 	}
 	if _, err := io.Copy(out, in); err != nil {
-		out.Close()
-		os.Remove(dst) // don't leave a partial copy behind
+		_ = out.Close()
+		_ = os.Remove(dst) // don't leave a partial copy behind
 		return err
 	}
 	if err := out.Close(); err != nil {
-		os.Remove(dst)
+		_ = os.Remove(dst)
 		return err
 	}
 	if err := os.Chmod(dst, perm); err != nil {

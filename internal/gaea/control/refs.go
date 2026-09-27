@@ -242,7 +242,7 @@ func readFileRef(path string) (content string, isDir bool, err error) {
 	if err != nil {
 		return "", false, err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	buf := make([]byte, maxFileRefBytes+1)
 	n, rerr := io.ReadFull(f, buf)

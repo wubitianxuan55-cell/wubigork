@@ -100,7 +100,7 @@ func (s *EventLogSink) logTo(path string, e event.Event) {
 	}
 	if s.writer == nil || s.logPath != lp {
 		if s.writer != nil {
-			s.closeWriterLocked()
+			_ = s.closeWriterLocked()
 		}
 		s.logPath = lp
 		s.openErr = nil
@@ -131,7 +131,7 @@ func (s *EventLogSink) logTo(path string, e event.Event) {
 	// 工具删除/迁移的状态；下一事件再懒打开（OpenLogResuming 凭续接点 O(1)
 	// 续 seq，外部触碰时回落全量修复+计数）。
 	if entry.Kind == "turn_done" {
-		s.closeWriterLocked()
+		_ = s.closeWriterLocked()
 	}
 }
 

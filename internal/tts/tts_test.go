@@ -142,7 +142,7 @@ func TestRandomHex_LengthAndFormat(t *testing.T) {
 }
 
 func TestRandomHex_NonDeterministic(t *testing.T) {
-	if randomHex(16) == randomHex(16) {
+	if randomHex(16) == randomHex(16) { //nolint:staticcheck // SA4000: 同一表达式两次求值比不同正是本测试意图
 		t.Error("两次随机应不同")
 	}
 }

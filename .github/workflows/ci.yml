@@ -16,6 +16,9 @@ jobs:
         with:
           go-version-file: go.mod
 
+      # dist/ 不入库（只提交 .gitkeep 占位）：main.go 的 go:embed all:dist
+      # 要求该目录存在，fresh checkout 上 go build 才不炸；真实内容由
+      # golangci 之外的发布流程（wails build）生成。
       - run: go build ./...
 
       - run: go vet ./...
@@ -24,6 +27,8 @@ jobs:
       # flaky 治理（2026-08-27）：整体失败后重试一次——filewatch 等时间敏感测试
       # 在 windows-latest 高负载下偶发假红（本地复跑即绿），重试可消除环境抖动；
       # 重试后仍失败则正常红，不掩盖真实缺陷。
+      # 残项（docs/gaea-optimization-direction-2026-09.md P0-1）：整批重试仍可能
+      # 洗白真回归，迁移到与前端同款的在册 flaky 分类器候选。
       - name: Go tests (with flaky retry)
         shell: bash
         run: |
@@ -33,9 +38,20 @@ jobs:
             go test $pkgs -count=1
           fi
 
+      # internal/app 竞态用例 -race（审计 P0-2：comfyUI 进程引用三路并发写收口）。
+      # internal/app 整包尚未跨平台（kernel32 原生采集/x/sys/windows），故 -race
+      # 放在 windows runner 上跑（自带 gcc）；先用窄 -run 起步，逐步扩面，
+      # TempDir 清理竞争 flaky 先例的用例不纳入。
+      - name: Race detector (internal/app subset)
+        shell: bash
+        run: |
+          command -v gcc >/dev/null 2>&1 || choco install mingw -y --no-progress
+          CGO_ENABLED=1 go test -race -count=1 ./internal/app -run 'TestComfyUIProc'
+
       - uses: golangci/golangci-lint-action@v7
         with:
-          version: latest
+          version: v2.14.0
+          args: --timeout=5m
 
       # T6-10.3 绑定面漂移检查：frontend/src/gaea/lib/bindingNames.ts 必须与
       # Go 侧全部导出绑定方法一致（gen_bindings -names 对照，不一致 exit 1）。
@@ -46,8 +62,11 @@ jobs:
   # S0.5 并发门禁：办公引擎核心包 -race（审计 P0 竞态回归防线）。
   # v4.331 扩面：小说 revolution 期新生包六件（chapter/analysis/promptstore/
   # novelgate/rewrite/characterstate——自动门/覆盖缓存/状态机的并发路径）。
-  # internal/app 不进：race 下已知 TempDir 清理竞争 flaky 先例，扩面候单独评估。
+  # internal/app 不进：race 下已知 TempDir 清理竞争 flaky 先例，扩面候单独评估
+  #（其新增竞态用例改由上方 backend job 的 windows race step 承担）。
   # 独立 ubuntu job：windows-latest 无 gcc，-race 不可用；ubuntu-latest 自带 gcc。
+  # 2026-09-27 修复：tool/builtin 的 Windows-only syscall（HideWindow/syscall.Handle）
+  # 收进 build-tag 变体后，本 job 恢复可编译（此前 ubuntu 上结构性 build failed）。
   race:
     runs-on: ubuntu-latest
     steps:
@@ -67,16 +86,23 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # v4.371 起唯一 lockfile 是 pnpm-lock.yaml：npm ci 结构性跑不通
+      #（审计 P0-1），改 pnpm + frozen-lockfile 保证 CI 与本地依赖树一致。
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
 
-      # package-lock.json 已入库：npm ci 保证 CI 与本地依赖树一致。
-      - run: npm ci
+      - run: pnpm install --frozen-lockfile
 
-      - run: npm run lint
+      - run: pnpm lint
 
-      - run: npm run build
+      - run: pnpm build
 
       # 假红治理（2026-09-10 收口）：原先对全量套件无条件「失败重试一次」——
       # 真回归会被复跑洗白，红灯因此不可信。现在只允许**在册 flaky 文件**
@@ -88,7 +114,7 @@ jobs:
         shell: bash
         run: |
           set +e
-          npm run test -- --reporter=json --outputFile=vitest-report.json
+          pnpm run test -- --reporter=json --outputFile=vitest-report.json
           code=$?
           set -e
           if [ $code -eq 0 ]; then

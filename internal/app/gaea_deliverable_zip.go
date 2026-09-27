@@ -96,12 +96,12 @@ func (a *App) GaeaZipDeliverables(paths []string) (ZipDeliverableResult, error) 
 		total += int64(len(raw))
 	}
 	if err := zw.Close(); err != nil {
-		fz.Close()
-		os.Remove(zipPath)
+		_ = fz.Close()
+		_ = os.Remove(zipPath)
 		return ZipDeliverableResult{}, err
 	}
 	if err := fz.Close(); err != nil {
-		os.Remove(zipPath)
+		_ = os.Remove(zipPath)
 		return ZipDeliverableResult{}, err
 	}
 

@@ -190,7 +190,7 @@ FROM cost_inquiry_records ORDER BY updated_at DESC, id DESC`)
 	if err != nil {
 		return nil
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var out []Record
 	for rows.Next() {
 		if r, ok := scanRecord(rows.Scan); ok {
@@ -265,7 +265,7 @@ FROM cost_inquiry_records WHERE valid_until != '' ORDER BY valid_until ASC, id A
 	if err != nil {
 		return nil
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var out []Record
 	for rows.Next() {
 		r, ok := scanRecord(rows.Scan)
@@ -297,7 +297,7 @@ func (s *Store) SuggestAdjustments(entries []cost.Summary) []AdjustSuggestion {
 	if err != nil {
 		return nil
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	// 按归一化标题分组(同一标题可能多条数据点)。
 	byTitle := map[string][]Record{}
 	for rows.Next() {

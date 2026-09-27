@@ -57,7 +57,7 @@ func saveSkillStats(dataRoot string, f skillstats.File) error {
 	}
 	tmpName := tmp.Name()
 	if _, err := tmp.Write(b); err != nil {
-		tmp.Close()
+		_ = tmp.Close()
 		os.Remove(tmpName)
 		return err
 	}

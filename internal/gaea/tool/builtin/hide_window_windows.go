@@ -117,13 +117,13 @@ func assignToJobObject(cmd *exec.Cmd) (syscall.Handle, error) {
 		},
 	}
 	if err := setInformationJobObject(job, jobObjectInfoClassExtendedLimitInformation, unsafe.Pointer(&info), uint32(unsafe.Sizeof(info))); err != nil {
-		closeHandle(job)
+		_ = closeHandle(job)
 		return 0, err
 	}
 
 	procHandle, err := getProcessHandle(cmd.Process.Pid)
 	if err != nil {
-		closeHandle(job)
+		_ = closeHandle(job)
 		return 0, err
 	}
 	defer closeHandle(procHandle)
@@ -141,4 +141,16 @@ func assignToJobObject(cmd *exec.Cmd) (syscall.Handle, error) {
 // The caller must call syscall.CloseHandle on the returned handle.
 func getProcessHandle(pid int) (syscall.Handle, error) {
 	return syscall.OpenProcess(processAllAccess, false, uint32(pid))
+}
+
+// assignJobObjectCleanup 在 cmd.Start() 后把进程加入 Job Object；成功时返回
+// 关闭句柄的 cleanup（句柄关闭触发内核递归终止整棵进程树）。失败返回 ok=false，
+// 调用方退回 killProcessTree。平台无关签名——syscall.Handle 不外泄到调用方，
+// 非 Windows 变体见 hide_window_other.go（race job 在 Linux 下也须可编译）。
+func assignJobObjectCleanup(cmd *exec.Cmd) (cleanup func(), ok bool) {
+	job, err := assignToJobObject(cmd)
+	if err != nil {
+		return nil, false
+	}
+	return func() { closeHandle(job) }, true
 }

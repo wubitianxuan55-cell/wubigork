@@ -244,7 +244,7 @@ func (s *Store) Save(e Entry) error {
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 	_, err = tx.Exec(`
 INSERT INTO cost_entries(name, title, code, category, category_path, unit, price, labor_fee, material_fee, machine_fee, management_fee, profit_fee, advance_fee, tax_rate, spec, source, region, price_date, price_type, valid_until, source_row, tags, status, body, created_at, updated_at)
 VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
@@ -326,7 +326,7 @@ FROM cost_entry_components WHERE entry_name=? ORDER BY sort, id`, name)
 	if err != nil {
 		return nil
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var out []Component
 	for rows.Next() {
 		var c Component
@@ -350,7 +350,7 @@ func (s *Store) Delete(name string) error {
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 	if _, err := tx.Exec("DELETE FROM cost_entry_components WHERE entry_name=?", name); err != nil {
 		return err
 	}
@@ -400,7 +400,7 @@ func (s *Store) Search(query, category, status string) []Summary {
 	if err != nil {
 		return nil
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var all []Summary
 	for rows.Next() {
 		var sm Summary
@@ -594,7 +594,7 @@ func (s *Store) Categories() []CategoryView {
 	if err != nil {
 		return nil
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	type node struct {
 		view   CategoryView
@@ -658,7 +658,7 @@ func (s *Store) Categories() []CategoryView {
 		if err := crow.Err(); err != nil {
 			slog.Warn("cost: 条目计数迭代中断", "error", err)
 		}
-		crow.Close()
+		_ = crow.Close()
 	}
 
 	byParent := map[int][]*CategoryView{}
@@ -776,7 +776,7 @@ func (s *Store) SaveCategory(parentID int, name string, sort int, id int) (int, 
 	if err != nil {
 		return 0, fmt.Errorf("开启分类更新事务失败: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 	if _, err := tx.Exec("UPDATE cost_categories SET name=?, parent_id=?, sort=?, updated_at=? WHERE id=?",
 		name, parentID, sort, now, id); err != nil {
 		return 0, fmt.Errorf("更新分类失败: %w", err)

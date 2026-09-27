@@ -1,7 +1,6 @@
 package whisper
 
-import (
-)
+import ()
 
 // AuditMode represents the audit report mode
 type AuditMode string
@@ -11,15 +10,6 @@ const (
 	AuditCurated    AuditMode = "curated_audit"
 	AuditSelfReport AuditMode = "self_report"
 	AuditFullDump   AuditMode = "full_dump"
-)
-
-const (
-	curatedMaxFacts    = 20
-	curatedMinWeight   = 2.0
-	curatedMinConf     = 0.65
-	curatedMaxEpisodes = 5
-	curatedMaxChars    = 2000
-	fullDumpPageSize   = 40
 )
 
 // MemoryAuditStats contains statistics for the memory audit
@@ -76,10 +66,3 @@ var subcatLabels = map[string]string{
 	"BELIEFS":       "Beliefs",
 	"GOALS":         "Goals",
 }
-
-
-
-
-
-
-

@@ -12,7 +12,6 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
-	"syscall"
 	"time"
 	"unicode/utf8"
 
@@ -121,10 +120,10 @@ func (b bash) Execute(ctx context.Context, args json.RawMessage) (string, error)
 	argv, sbEnforced := sandbox.Command(b.sb, sh, cmdText)
 	if sbEnforced && useState {
 		useState = false
-		extraEnv, probe, fgDir, cmdText = nil, "", b.workDir, p.Command
+		extraEnv, probe, fgDir = nil, "", b.workDir
 	}
 	if probe != "" {
-		defer os.Remove(probe) // adopt/abandon 之后兜底清探针文件
+		defer func() { _ = os.Remove(probe) }() // adopt/abandon 之后兜底清探针文件
 	}
 
 	if p.RunInBackground {
@@ -169,12 +168,12 @@ func (b bash) Execute(ctx context.Context, args json.RawMessage) (string, error)
 			// Try Windows Job Object for reliable process-tree cleanup.
 			// When the job handle closes (defer), Windows kills all child/grandchild
 			// processes recursively — even on kill_shell cancel or session close.
-			job, jobErr := assignToJobObject(cmd)
-			if jobErr == nil {
-				defer syscall.CloseHandle(job)
+			jobCleanup, jobOK := assignJobObjectCleanup(cmd)
+			if jobOK {
+				defer jobCleanup()
 			}
 			err := cmd.Wait()
-			if jobErr != nil {
+			if !jobOK {
 				// Job Object failed (e.g. sandbox restriction); fall back to taskkill.
 				killProcessTree(cmd)
 			}
@@ -233,9 +232,9 @@ func (b bash) Execute(ctx context.Context, args json.RawMessage) (string, error)
 		// Try Windows Job Object for reliable process-tree cleanup.
 		// When the job handle closes (defer), Windows kills all child/grandchild
 		// processes recursively — even on timeout or abrupt cancel.
-		job, jobErr := assignToJobObject(cmd)
-		if jobErr == nil {
-			defer syscall.CloseHandle(job)
+		jobCleanup, jobOK := assignJobObjectCleanup(cmd)
+		if jobOK {
+			defer jobCleanup()
 		}
 
 		// ── 双路径等待：先等 8 秒，再判断是否长期运行进程 ──
@@ -311,7 +310,7 @@ func (b bash) Execute(ctx context.Context, args json.RawMessage) (string, error)
 		}
 
 		// 进程已退出或 ctx 已取消——清理进程树
-		if jobErr != nil {
+		if !jobOK {
 			killProcessTree(cmd)
 		}
 	}
@@ -505,12 +504,10 @@ func killProcessTree(cmd *exec.Cmd) {
 		return
 	}
 	if runtime.GOOS != "windows" {
-	}
-	if runtime.GOOS != "windows" {
 		return
 	}
 	killCmd := exec.Command("taskkill", "/T", "/F", "/PID", strconv.Itoa(cmd.Process.Pid))
-	killCmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+	hideBashWindow(killCmd) // 防止 taskkill 弹黑框（非 Windows 为空操作）
 	killCmd.Stdout = io.Discard
 	killCmd.Stderr = io.Discard
 	_ = killCmd.Run() // 忽略错误（进程可能已正常退出）

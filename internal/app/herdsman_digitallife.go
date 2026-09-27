@@ -123,7 +123,7 @@ func loadHerdsmanDigitalLife(path string) (HerdsmanDigitalLife, error) {
 	if err != nil {
 		return out, fmt.Errorf("打开数字生命库失败: %w", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	out.CharacterCount = digitalCount(db, "characters")
 	out.TimelineEvents = digitalCount(db, "life_timeline_events")

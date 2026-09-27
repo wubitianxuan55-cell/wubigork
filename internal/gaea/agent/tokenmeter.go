@@ -43,9 +43,9 @@ func newTokenMeter() *tokenMeter { return &tokenMeter{memo: make(map[uint64]int)
 // msgChars 同一记账面——ReasoningContent 不回传 API，不入账）。
 func msgKey(m provider.Message) uint64 {
 	h := fnv.New64a()
-	fmt.Fprintf(h, "%s\x00%s\x00", m.Role, m.Content)
+	_, _ = fmt.Fprintf(h, "%s\x00%s\x00", m.Role, m.Content)
 	for _, tc := range m.ToolCalls {
-		fmt.Fprintf(h, "%s\x00%s\x00", tc.Name, tc.Arguments)
+		_, _ = fmt.Fprintf(h, "%s\x00%s\x00", tc.Name, tc.Arguments)
 	}
 	return h.Sum64()
 }

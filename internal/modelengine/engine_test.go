@@ -531,7 +531,7 @@ func TestModelHub_BuildChatURL(t *testing.T) {
 		t.Errorf("未配置 Key 时 = (%q, %q), want URL + 空 Key", url, key)
 	}
 	m.UpdateModelHubKey("sk-unsloth-test")
-	url, key, err = m.BuildChatURL("modelhub")
+	_, key, err = m.BuildChatURL("modelhub")
 	if err != nil {
 		t.Fatalf("BuildChatURL(modelhub, 有 Key): %v", err)
 	}

@@ -201,7 +201,7 @@ func setField(e *Entry, key, value string) {
 	case "status":
 		e.Status = value
 	case "version":
-		fmt.Sscanf(value, "%d", &e.Version)
+		_, _ = fmt.Sscanf(value, "%d", &e.Version)
 	case "author":
 		e.Author = value
 	case "reviewer":

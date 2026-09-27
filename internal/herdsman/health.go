@@ -103,7 +103,7 @@ func HealthCheck(baseURL string, models []ModelInfo, timeout time.Duration) Heal
 		result.PortError = err.Error()
 	} else {
 		result.PortOpen = true
-		conn.Close()
+		_ = conn.Close()
 	}
 
 	// 2. API 存活探测（端口关闭则跳过）

@@ -125,7 +125,7 @@ func (a *Agent) applyUpdates(reply string) {
 			cf = &types.CharacterFile{}
 		}
 		a.mergeCharacters(cf, updates)
-		a.pm.WriteCharacters(cf)
+		_ = a.pm.WriteCharacters(cf)
 	}
 }
 
@@ -452,11 +452,11 @@ func (a *Agent) GenerateCharacters(ctx context.Context, count int, genre string,
 		}
 		currentCF.Organizations = append(currentCF.Organizations, generated.Organizations...)
 		currentCF.Relationships = append(currentCF.Relationships, generated.Relationships...)
-		a.pm.WriteCharacters(currentCF)
+		_ = a.pm.WriteCharacters(currentCF)
 		return currentCF, nil
 	}
 
-	a.pm.WriteCharacters(&generated)
+	_ = a.pm.WriteCharacters(&generated)
 	return &generated, nil
 }
 

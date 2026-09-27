@@ -101,7 +101,7 @@ func (a *App) DeleteProject(dir string) error {
 
 	// 如果该项目当前已打开，先关闭
 	if pm := a.getPM(); pm != nil && pm.Dir == dir {
-		a.closePM()
+		_ = a.closePM()
 	}
 
 	if err := os.RemoveAll(dir); err != nil {
@@ -129,7 +129,7 @@ func (a *App) SaveConfig(key, value string) error {
 		oldDir := a.cfg.NovelsDir
 		if oldDir != value {
 			if pm := a.getPM(); pm != nil {
-				a.closePM()
+				_ = a.closePM()
 			}
 		}
 		a.cfg.NovelsDir = value

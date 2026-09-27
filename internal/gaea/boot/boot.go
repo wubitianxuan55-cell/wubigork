@@ -135,13 +135,13 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 	// 配置世界解析；引用不可解析时告警并回退现状，不阻断装配。
 	if space != "" {
 		if prof, perr := cfg.SpaceProfile(space); perr != nil {
-			fmt.Fprintf(stderr, "warning: space_profiles.%s: %v（现状模型继续生效）\n", space, perr)
+			_, _ = fmt.Fprintf(stderr, "warning: space_profiles.%s: %v（现状模型继续生效）\n", space, perr)
 		} else if ref := strings.TrimSpace(prof.Gaea); ref != "" {
 			if e, ok := cfg.ResolveModel(ref); ok {
 				entry = e
 				modelName = ref
 			} else {
-				fmt.Fprintf(stderr, "warning: space_profiles.%s.gaea = %q 无法解析（现状模型继续生效）\n", space, ref)
+				_, _ = fmt.Fprintf(stderr, "warning: space_profiles.%s.gaea = %q 无法解析（现状模型继续生效）\n", space, ref)
 			}
 		}
 	}
@@ -218,12 +218,12 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 	bashSpec := sandbox.Spec{Mode: cfg.BashMode(), WriteRoots: cfg.WriteRoots(), Network: cfg.Sandbox.Network}
 	if bashSpec.Mode == "enforce" && !sandbox.Available() {
 		sandboxWarnOnce.Do(func() {
-			fmt.Fprintln(stderr, "warning: bash sandbox requested but unavailable on this platform; running bash unconfined")
+			_, _ = fmt.Fprintln(stderr, "warning: bash sandbox requested but unavailable on this platform; running bash unconfined")
 		})
 	}
 	if sandbox.ResolveShell().Kind == sandbox.ShellPowerShell {
 		bashWarnOnce.Do(func() {
-			fmt.Fprintln(stderr, "warning: bash not found on PATH; the shell tool will run commands under Windows PowerShell. Install Git for Windows or WSL to use bash.")
+			_, _ = fmt.Fprintln(stderr, "warning: bash not found on PATH; the shell tool will run commands under Windows PowerShell. Install Git for Windows or WSL to use bash.")
 		})
 	}
 	addBuiltins(reg, opts.Cwd, cfg.Tools.Enabled, cfg.WriteRoots(), bashSpec, cfg.NetworkProxySpec(), stderr, space)
@@ -586,7 +586,7 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 		sink.Emit(event.Event{Kind: event.Notice, Level: event.LevelInfo,
 			Text: "cache warm: L1 identity matches previous session"})
 	}
-	compiler.IdentityLayer().SaveHash(cacheDir) // best-effort
+	_ = compiler.IdentityLayer().SaveHash(cacheDir) // best-effort
 
 	// C4 TimedOut：审批等待超时贯通（0 = 不超时，交互场景默认等待）。
 	// S1.5-A：空间权限段的 approval_timeout_secs 显式配置（>0）时优先于
@@ -760,7 +760,7 @@ func addBuiltins(reg *tool.Registry, dir string, enabled, writeRoots []string, b
 		for _, name := range enabled {
 			t, ok := tool.LookupBuiltin(name)
 			if !ok {
-				fmt.Fprintf(stderr, "warning: unknown built-in tool %q\n", name)
+				_, _ = fmt.Fprintf(stderr, "warning: unknown built-in tool %q\n", name)
 				continue
 			}
 			if builtin.AllowsSpace(t, space) {

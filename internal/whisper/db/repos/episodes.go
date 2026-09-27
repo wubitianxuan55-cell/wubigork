@@ -42,7 +42,7 @@ func (r *episodeRow) toEpisode() whisper.Episode {
 		ep.PrevEpisodeID = &s
 	}
 
-	json.Unmarshal([]byte(r.Keywords), &ep.Keywords)
+	_ = json.Unmarshal([]byte(r.Keywords), &ep.Keywords)
 
 	t, err := time.Parse(time.RFC3339, r.CreatedAt)
 	if err == nil {
@@ -87,7 +87,7 @@ func queryEpisodes(dataRoot, where string, args ...interface{}) ([]whisper.Episo
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var episodes []whisper.Episode
 	for rows.Next() {

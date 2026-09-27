@@ -655,11 +655,11 @@ func (a *App) GaeaWriteFile(rel string, content string) error {
 	tmpName := tmp.Name()
 	defer os.Remove(tmpName)
 	if _, err := tmp.WriteString(content); err != nil {
-		tmp.Close()
+		_ = tmp.Close()
 		return fmt.Errorf("写入失败: %w", err)
 	}
 	if err := tmp.Sync(); err != nil {
-		tmp.Close()
+		_ = tmp.Close()
 		return fmt.Errorf("落盘失败: %w", err)
 	}
 	if err := tmp.Close(); err != nil {

@@ -453,14 +453,14 @@ func writeFileAtomic(path string, data []byte) error {
 	}
 	tmpPath := tmp.Name()
 	// 无论成败都清理临时文件（rename 成功后该路径已不存在，Remove 报错可忽略）
-	defer os.Remove(tmpPath)
+	defer func() { _ = os.Remove(tmpPath) }()
 
 	if _, err := tmp.Write(data); err != nil {
-		tmp.Close()
+		_ = tmp.Close()
 		return fmt.Errorf("写入临时文件失败 (%s): %w", path, err)
 	}
 	if err := tmp.Sync(); err != nil {
-		tmp.Close()
+		_ = tmp.Close()
 		return fmt.Errorf("同步临时文件失败 (%s): %w", path, err)
 	}
 	if err := tmp.Close(); err != nil {
@@ -581,7 +581,7 @@ func (m *Manager) MigrateV3ToV4() error {
 		oldSummaryPath := filepath.Join(chaptersDir, fmt.Sprintf("%03d-summary.json", chapterNum))
 		if summaryData, err := os.ReadFile(oldSummaryPath); err == nil {
 			backupSummaryPath := filepath.Join(backupDir, fmt.Sprintf("%03d-summary.json", chapterNum))
-			os.WriteFile(backupSummaryPath, summaryData, 0644)
+			_ = os.WriteFile(backupSummaryPath, summaryData, 0644)
 		}
 	}
 

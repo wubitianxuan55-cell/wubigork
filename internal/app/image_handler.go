@@ -1004,6 +1004,45 @@ func (a *mediaState) GetImageBackendConfig() map[string]interface{} {
 
 // ── ComfyUI 进程管理 ──────────────────────────────────────────
 
+// comfyProcRefSet 登记一轮 ComfyUI 进程引用（cancel/cmd，cmd 可先为 nil 再补）。
+func (a *mediaState) comfyProcRefSet(cancel context.CancelFunc, cmd *exec.Cmd) {
+	a.comfyProcMu.Lock()
+	a.comfyUICancel, a.comfyUICmd = cancel, cmd
+	a.comfyProcMu.Unlock()
+}
+
+// comfyProcRefClearIfCurrent 仅当登记的仍是 want 这一轮进程时清空引用。
+// 快速「停-启」后上一轮的 cmd.Wait 回收 goroutine 可能晚到，不得误清新一轮登记。
+// 身份判据用 cmd 指针（每轮 Start 必新建 exec.Cmd，func 值不可比较）；
+// 仅在 cmd.Start 成功后调用，故 cmd 恒非 nil。
+func (a *mediaState) comfyProcRefClearIfCurrent(cancel context.CancelFunc, cmd *exec.Cmd) {
+	a.comfyProcMu.Lock()
+	if cmd != nil && a.comfyUICmd == cmd {
+		a.comfyUICancel, a.comfyUICmd = nil, nil
+	}
+	a.comfyProcMu.Unlock()
+}
+
+// comfyProcRefStop 杀掉登记的进程并清空引用（StopComfyUI 的内部引用路径）。
+func (a *mediaState) comfyProcRefStop() {
+	a.comfyProcMu.Lock()
+	if a.comfyUICmd != nil && a.comfyUICmd.Process != nil {
+		_ = a.comfyUICmd.Process.Kill()
+	}
+	if a.comfyUICancel != nil {
+		a.comfyUICancel()
+	}
+	a.comfyUICancel, a.comfyUICmd = nil, nil
+	a.comfyProcMu.Unlock()
+}
+
+// comfyProcRefClear 无条件清空引用（GetComfyUIStatus 探活失败时的监控清理）。
+func (a *mediaState) comfyProcRefClear() {
+	a.comfyProcMu.Lock()
+	a.comfyUICancel, a.comfyUICmd = nil, nil
+	a.comfyProcMu.Unlock()
+}
+
 // StartComfyUI 启动 ComfyUI 服务
 func (a *mediaState) StartComfyUI() error {
 	if a.cfg.ComfyUIPath == "" {
@@ -1033,13 +1072,13 @@ func (a *mediaState) StartComfyUI() error {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	a.comfyUICancel = cancel
+	a.comfyProcRefSet(cancel, nil)
 
 	// 构建启动参数
 	args := []string{"main.py", "--listen", "127.0.0.1", "--port", extractPort(a.cfg.ComfyUIURL)}
 	// 使用内置 Python / standalone-env 时加 --windows-standalone-build
 	//（standalone-env 是 ROCm PyTorch 环境，Krea2/Z-Image-Turbo 必需；系统 Python 为 CPU-only）
-	if strings.Contains(pythonExe, "python\\python.exe") || strings.Contains(pythonExe, "python_embeded") || strings.Contains(pythonExe, "standalone-env") {
+	if strings.Contains(pythonExe, "python\\python.exe") || strings.Contains(pythonExe, "python_embeded") || strings.Contains(pythonExe, "standalone-env") { //nolint:misspell // python_embeded 系上游真实目录名
 		args = append(args, "--windows-standalone-build")
 	}
 	// 不强制指定 GPU 后端，让 ComfyUI 自动检测（支持 NVIDIA CUDA / AMD ROCm / DirectML）
@@ -1067,9 +1106,9 @@ func (a *mediaState) StartComfyUI() error {
 
 	if err := cmd.Start(); err != nil {
 		cancel()
-		a.comfyUICancel = nil
+		a.comfyProcRefClear()
 		if logFile != nil {
-			logFile.Close()
+			_ = logFile.Close()
 		}
 		errMsg := ""
 		if home, err := os.UserHomeDir(); err == nil {
@@ -1090,7 +1129,7 @@ func (a *mediaState) StartComfyUI() error {
 	}
 
 	slog.Info("ComfyUI 已启动", "python", pythonExe, "dir", a.cfg.ComfyUIPath, "pid", cmd.Process.Pid)
-	a.comfyUICmd = cmd
+	a.comfyProcRefSet(cancel, cmd)
 
 	// 后台等待进程结束，记录退出原因
 	go func() {
@@ -1099,14 +1138,13 @@ func (a *mediaState) StartComfyUI() error {
 				slog.Error("image: comfyui wait goroutine panic recovered", "panic", r)
 			}
 			if logFile != nil {
-				logFile.Close()
+				_ = logFile.Close()
 			}
 		}()
 		if err := cmd.Wait(); err != nil {
 			slog.Warn("ComfyUI 进程退出", "error", err)
 		}
-		a.comfyUICancel = nil
-		a.comfyUICmd = nil
+		a.comfyProcRefClearIfCurrent(cancel, cmd)
 	}()
 
 	return nil
@@ -1128,7 +1166,7 @@ func findPython(comfyUIPath string, cfgPythonPath string) string {
 		candidates := []string{
 			filepath.Join(comfyUIPath, "..", "standalone-env", "python.exe"), // standalone-env（ROCm PyTorch）
 			filepath.Join(comfyUIPath, "..", "python", "python.exe"),         // 整合包 python/
-			filepath.Join(comfyUIPath, "python_embeded", "python.exe"),       // 便携版
+			filepath.Join(comfyUIPath, "python_embeded", "python.exe"),       //nolint:misspell // python_embeded 系上游真实目录名
 			filepath.Join(comfyUIPath, "venv", "Scripts", "python.exe"),
 			filepath.Join(comfyUIPath, ".venv", "Scripts", "python.exe"),
 		}
@@ -1158,20 +1196,13 @@ func (a *mediaState) StopComfyUI() error {
 	port := extractPort(a.cfg.ComfyUIURL)
 
 	// 1. 先通过 gaea 内部引用杀进程
-	if a.comfyUICmd != nil && a.comfyUICmd.Process != nil {
-		a.comfyUICmd.Process.Kill()
-		a.comfyUICmd = nil
-	}
-	if a.comfyUICancel != nil {
-		a.comfyUICancel()
-		a.comfyUICancel = nil
-	}
+	a.comfyProcRefStop()
 
 	// 2. 通过端口查找进程（不管是谁启动的），强制杀
 	if pid := findProcessByPort(port); pid > 0 {
 		proc, err := os.FindProcess(pid)
 		if err == nil {
-			proc.Kill()
+			_ = proc.Kill()
 		}
 	}
 
@@ -1292,9 +1323,8 @@ func isValidPort(port string) bool {
 func (a *mediaState) GetComfyUIStatus() map[string]interface{} {
 	running := a.isComfyUIRunning()
 	// 监控：如果进程不在运行但引用还在，自动清理
-	if !running && (a.comfyUICancel != nil || a.comfyUICmd != nil) {
-		a.comfyUICancel = nil
-		a.comfyUICmd = nil
+	if !running {
+		a.comfyProcRefClear()
 	}
 	p, _ := strconv.Atoi(extractPort(a.cfg.ComfyUIURL))
 	return map[string]interface{}{

@@ -59,7 +59,7 @@ func CheckLanExposure(configPath string) LanExposure {
 		}
 		return res
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	lanAccessible := false
 	port := defaultPort

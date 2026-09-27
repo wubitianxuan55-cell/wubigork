@@ -670,7 +670,7 @@ func (m *Manager) handleReply(text string) {
 		canListen := m.state == StateIdle && m.running
 		m.mu.RUnlock()
 		if canListen {
-			m.Start()
+			_ = m.Start()
 		}
 	}
 }
@@ -911,7 +911,7 @@ func (m *Manager) SetPTTActive(active bool) {
 	if active {
 		// 按下：开始录音
 		if state == StateIdle {
-			m.Start()
+			_ = m.Start()
 		}
 	} else {
 		// 释放：结束录音并识别

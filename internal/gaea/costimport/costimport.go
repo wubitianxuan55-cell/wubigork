@@ -380,7 +380,7 @@ func readSheet(path string) ([]string, [][]string, error) {
 	if err != nil {
 		return nil, nil, fmt.Errorf("打开 xlsx 失败: %w", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	sheets := f.GetSheetList()
 	if len(sheets) == 0 {
 		return nil, nil, fmt.Errorf("xlsx 无工作表")
@@ -694,7 +694,7 @@ func detectManualFormat(path string) bool {
 	if err != nil {
 		return false
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	for _, sn := range f.GetSheetList() {
 		raw, err := f.GetRows(sn)
 		if err != nil {
@@ -714,7 +714,7 @@ func parseManualSheets(path string) []Row {
 	if err != nil {
 		return nil
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	var out []Row
 	used := map[string]bool{}

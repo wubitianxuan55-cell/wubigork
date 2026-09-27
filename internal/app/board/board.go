@@ -30,10 +30,10 @@ type staticBoard struct {
 	manifest Manifest
 }
 
-func (b *staticBoard) ID() string       { return b.manifest.ID }
-func (b *staticBoard) Name() string     { return b.manifest.Label }
-func (b *staticBoard) Icon() string     { return b.manifest.Icon }
-func (b *staticBoard) PageKey() string  { return b.manifest.Page }
+func (b *staticBoard) ID() string         { return b.manifest.ID }
+func (b *staticBoard) Name() string       { return b.manifest.Label }
+func (b *staticBoard) Icon() string       { return b.manifest.Icon }
+func (b *staticBoard) PageKey() string    { return b.manifest.Page }
 func (b *staticBoard) Bindings() []string { return b.manifest.Bindings }
 func (b *staticBoard) Intents() []string {
 	return b.manifest.IntentIDs()

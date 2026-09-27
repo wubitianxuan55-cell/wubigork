@@ -44,10 +44,10 @@ type Freeze struct {
 
 // Cell 是单元格渲染信息。
 type Cell struct {
-	Ref     string    `json:"ref"` // "A1"
-	Value   string    `json:"value"`
-	Formula string    `json:"formula,omitempty"`
-	Type    string    `json:"type,omitempty"` // number|string|bool|date|formula|error
+	Ref     string     `json:"ref"` // "A1"
+	Value   string     `json:"value"`
+	Formula string     `json:"formula,omitempty"`
+	Type    string     `json:"type,omitempty"` // number|string|bool|date|formula|error
 	Style   *CellStyle `json:"style,omitempty"`
 }
 
@@ -89,7 +89,7 @@ func renderXlsx(path string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("打开 xlsx 失败: %w", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	pr := Preview{}
 	for _, name := range f.GetSheetList() {
@@ -124,7 +124,7 @@ func NeedsRecalc(path string) (need bool, err error) {
 	if err != nil {
 		return false, fmt.Errorf("打开 xlsx 失败: %w", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	for _, name := range f.GetSheetList() {
 		rows, err := f.GetRows(name)
 		if err != nil {

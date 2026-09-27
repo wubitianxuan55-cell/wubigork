@@ -117,10 +117,6 @@ func (a *App) herdsmanParseImage(imagePath string) (string, error) {
 			return "", fmt.Errorf("Herdsman 模型列表中没有文档解析模型")
 		}
 	}
-	mode := strings.TrimSpace(os.Getenv("HERDSMAN_PARSE_MODE"))
-	if mode == "" {
-		mode = "pipeline"
-	}
 	return a.parseImageWithEngine(eng, model, imagePath)
 }
 

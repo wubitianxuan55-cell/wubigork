@@ -88,11 +88,6 @@ const compressedIndexNote = "\n(descriptions compressed to fit the index budget;
 // maxDescWidth 是目录条目描述的单行宽度上限（rune）。
 const maxDescWidth = 130
 
-// indexLine renders one skill at full width (unsqueezed catalog).
-func indexLine(sk Skill) string {
-	return indexLineAt(sk, maxDescWidth)
-}
-
 // indexLineAt renders one skill as "- name [tag] — description" with the
 // description clipped to width (and the per-line base cap) runes. The subagent
 // tag goes after the name so a model copying the line into run_skill's `name`

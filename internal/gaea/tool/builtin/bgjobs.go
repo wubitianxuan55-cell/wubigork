@@ -10,7 +10,6 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
-	"syscall"
 
 	"github.com/gaea/gaea/internal/gaea/jobs"
 	"github.com/gaea/gaea/internal/gaea/tool"
@@ -151,7 +150,7 @@ func (killShell) Execute(ctx context.Context, args json.RawMessage) (string, err
 	if runtime.GOOS == "windows" {
 		if pid := jm.Pid(p.JobID); pid > 0 {
 			killCmd := exec.Command("taskkill", "/T", "/F", "/PID", strconv.Itoa(pid))
-			killCmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+			hideBashWindow(killCmd) // 防止 taskkill 弹黑框（非 Windows 为空操作）
 			killCmd.Stdout = io.Discard
 			killCmd.Stderr = io.Discard
 			if err := killCmd.Run(); err == nil {

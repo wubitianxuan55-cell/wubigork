@@ -131,7 +131,7 @@ func embedDocxWithChart(title, chartPng string, header []string, rows [][]string
 	if err := os.WriteFile(specPath, b, 0o644); err != nil {
 		return err
 	}
-	defer os.Remove(specPath)
+	defer func() { _ = os.Remove(specPath) }()
 	return runPython([]string{script, specPath, outPath, "--spec"}, 120)
 }
 
@@ -149,6 +149,6 @@ func embedPptxWithChart(title, chartPng string, header []string, rows [][]string
 	if err := os.WriteFile(specPath, b, 0o644); err != nil {
 		return err
 	}
-	defer os.Remove(specPath)
+	defer func() { _ = os.Remove(specPath) }()
 	return runPython([]string{script, specPath, outPath}, 120)
 }

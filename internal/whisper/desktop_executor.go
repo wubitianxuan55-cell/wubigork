@@ -72,13 +72,13 @@ func ExecuteDesktopAgentAction(action DesktopAgentAction, path, pathTo, target, 
 	case ActionCloseApp, ActionCloseFile:
 		return closeAppTarget(coalesce(target, filepath.Base(path)))
 	case ActionCopyPath:
-		os.MkdirAll(filepath.Dir(pathTo), 0755)
+		_ = os.MkdirAll(filepath.Dir(pathTo), 0755)
 		if err := copyFile(path, pathTo); err != nil {
 			return ExecuteResult{OK: false, Content: err.Error(), Summary: "复制失败"}
 		}
 		return ExecuteResult{OK: true, Content: "已复制到 " + pathTo, Summary: "已复制 " + filepath.Base(path)}
 	case ActionMovePath:
-		os.MkdirAll(filepath.Dir(pathTo), 0755)
+		_ = os.MkdirAll(filepath.Dir(pathTo), 0755)
 		if err := os.Rename(path, pathTo); err != nil {
 			return ExecuteResult{OK: false, Content: err.Error(), Summary: "移动失败"}
 		}
@@ -89,7 +89,7 @@ func ExecuteDesktopAgentAction(action DesktopAgentAction, path, pathTo, target, 
 		}
 		return ExecuteResult{OK: true, Content: "已创建 " + path, Summary: "已创建目录 " + filepath.Base(path)}
 	case ActionWriteText:
-		os.MkdirAll(filepath.Dir(path), 0755)
+		_ = os.MkdirAll(filepath.Dir(path), 0755)
 		if err := os.WriteFile(path, []byte(content), 0644); err != nil {
 			return ExecuteResult{OK: false, Content: err.Error(), Summary: "写入失败"}
 		}
@@ -105,7 +105,7 @@ func ExecuteDesktopAgentAction(action DesktopAgentAction, path, pathTo, target, 
 		return downloadHTTPS(url, dest)
 	case ActionDownloadAndInstall:
 		dir := defaultDownloadDir(ctx.DownloadDir)
-		os.MkdirAll(dir, 0755)
+		_ = os.MkdirAll(dir, 0755)
 		fileName := filepath.Base(url)
 		if fileName == "" || fileName == "." {
 			fileName = "installer.exe"
@@ -122,7 +122,7 @@ func ExecuteDesktopAgentAction(action DesktopAgentAction, path, pathTo, target, 
 		return shellOpen(path)
 	case ActionImportToAckem:
 		importsDir := filepath.Join(ctx.DataRoot, "imports")
-		os.MkdirAll(importsDir, 0755)
+		_ = os.MkdirAll(importsDir, 0755)
 		dest := filepath.Join(importsDir, filepath.Base(path))
 		if err := copyFile(path, dest); err != nil {
 			return ExecuteResult{OK: false, Content: err.Error(), Summary: "导入失败"}
@@ -224,7 +224,7 @@ func searchFiles(root, query, cwd string) ExecuteResult {
 
 	var hits []string
 	walkLimit := 0
-	filepath.WalkDir(root, func(p string, d os.DirEntry, err error) error {
+	_ = filepath.WalkDir(root, func(p string, d os.DirEntry, err error) error {
 		if err != nil || walkLimit >= searchLimit {
 			return nil
 		}
@@ -262,7 +262,7 @@ func grepText(root, query, cwd string) ExecuteResult {
 
 	var hits []string
 	walkLimit := 0
-	filepath.WalkDir(root, func(p string, d os.DirEntry, err error) error {
+	_ = filepath.WalkDir(root, func(p string, d os.DirEntry, err error) error {
 		if err != nil || walkLimit >= 50 {
 			return nil
 		}
@@ -362,7 +362,7 @@ func downloadHTTPS(url, destPath string) ExecuteResult {
 		return ExecuteResult{OK: false, Content: "仅支持 HTTPS 下载", Summary: "下载被拒绝"}
 	}
 
-	os.MkdirAll(filepath.Dir(destPath), 0755)
+	_ = os.MkdirAll(filepath.Dir(destPath), 0755)
 
 	resp, err := http.Get(url)
 	if err != nil {

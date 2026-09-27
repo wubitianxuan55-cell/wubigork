@@ -12,23 +12,23 @@ import (
 
 // TimelineEvent 时间线上的一个事件
 type TimelineEvent struct {
-	ChapterNum  int      `json:"chapter_num"`
-	Title       string   `json:"title"`
-	Summary     string   `json:"summary"`
-	Emotion     string   `json:"emotion"`
-	Characters  []string `json:"characters"`
-	POV         string   `json:"pov"`        // 推测 POV 角色
-	WordCount   int      `json:"word_count"`
-	KeyEvents   []string `json:"key_events"`
-	QualityScore int     `json:"quality_score"`
+	ChapterNum   int      `json:"chapter_num"`
+	Title        string   `json:"title"`
+	Summary      string   `json:"summary"`
+	Emotion      string   `json:"emotion"`
+	Characters   []string `json:"characters"`
+	POV          string   `json:"pov"` // 推测 POV 角色
+	WordCount    int      `json:"word_count"`
+	KeyEvents    []string `json:"key_events"`
+	QualityScore int      `json:"quality_score"`
 }
 
 // Timeline 完整时间线
 type Timeline struct {
-	Events     []TimelineEvent `json:"events"`
-	TotalWords int             `json:"total_words"`
-	ChapterCount int           `json:"chapter_count"`
-	POVChars   []string        `json:"pov_chars"` // 所有 POV 角色
+	Events       []TimelineEvent `json:"events"`
+	TotalWords   int             `json:"total_words"`
+	ChapterCount int             `json:"chapter_count"`
+	POVChars     []string        `json:"pov_chars"` // 所有 POV 角色
 }
 
 // ExtractTimeline 从项目提取时间线数据
@@ -92,10 +92,10 @@ func ExtractTimeline(pm *project.Manager) (*Timeline, error) {
 // EmotionPoint 情绪曲线上的一个点
 type EmotionPoint struct {
 	ChapterNum int     `json:"chapter_num"`
-	Label      string  `json:"label"`      // 章节标题
-	Emotion    string  `json:"emotion"`    // 原始情感标签
-	Tension    float64 `json:"tension"`    // 紧张度 0-10
-	Valence    float64 `json:"valence"`    // 正负情感 -5~+5
+	Label      string  `json:"label"`   // 章节标题
+	Emotion    string  `json:"emotion"` // 原始情感标签
+	Tension    float64 `json:"tension"` // 紧张度 0-10
+	Valence    float64 `json:"valence"` // 正负情感 -5~+5
 	WordCount  int     `json:"word_count"`
 }
 
@@ -254,16 +254,16 @@ func ExtractCharacterHeatmap(pm *project.Manager) ([]CharacterHeatmapCell, []str
 
 // CanvasCard 画布上的一张卡片
 type CanvasCard struct {
-	ID        string  `json:"id"`
-	Type      string  `json:"type"` // scene / character / location / note
-	Title     string  `json:"title"`
-	Content   string  `json:"content"`
-	X         float64 `json:"x"`
-	Y         float64 `json:"y"`
-	Width     float64 `json:"width"`
-	Height    float64 `json:"height"`
-	Color     string  `json:"color"`
-	ChapterRef int    `json:"chapter_ref,omitempty"`
+	ID         string  `json:"id"`
+	Type       string  `json:"type"` // scene / character / location / note
+	Title      string  `json:"title"`
+	Content    string  `json:"content"`
+	X          float64 `json:"x"`
+	Y          float64 `json:"y"`
+	Width      float64 `json:"width"`
+	Height     float64 `json:"height"`
+	Color      string  `json:"color"`
+	ChapterRef int     `json:"chapter_ref,omitempty"`
 }
 
 // CanvasEdge 画布上的一条连线

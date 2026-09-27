@@ -84,13 +84,13 @@ func (r *factRow) toFact() whisper.MemoryFact {
 		}
 	}
 	if r.Triggers.Valid {
-		json.Unmarshal([]byte(r.Triggers.String), &f.Triggers)
+		_ = json.Unmarshal([]byte(r.Triggers.String), &f.Triggers)
 	}
 	if r.UpdateTrail.Valid {
-		json.Unmarshal([]byte(r.UpdateTrail.String), &f.UpdateTrail)
+		_ = json.Unmarshal([]byte(r.UpdateTrail.String), &f.UpdateTrail)
 	}
 	if r.DerivedFrom.Valid {
-		json.Unmarshal([]byte(r.DerivedFrom.String), &f.DerivedFrom)
+		_ = json.Unmarshal([]byte(r.DerivedFrom.String), &f.DerivedFrom)
 	}
 
 	// AgeMeta
@@ -173,7 +173,7 @@ func queryFacts(dataRoot, where string, args ...interface{}) []whisper.MemoryFac
 	if err != nil {
 		return nil
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var facts []whisper.MemoryFact
 	for rows.Next() {

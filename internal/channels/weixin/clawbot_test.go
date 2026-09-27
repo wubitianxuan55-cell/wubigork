@@ -212,8 +212,11 @@ func TestRateLimiter_SlidingWindow(t *testing.T) {
 	rl := newRateLimiter(2, time.Minute)
 	rl.clock = func() time.Time { return now }
 
-	if !rl.Allow("u1") || !rl.Allow("u1") {
-		t.Fatal("窗口内前 2 条应放行")
+	if !rl.Allow("u1") {
+		t.Fatal("窗口内第 1 条应放行")
+	}
+	if !rl.Allow("u1") {
+		t.Fatal("窗口内第 2 条应放行")
 	}
 	if rl.Allow("u1") {
 		t.Fatal("窗口内第 3 条应被拒")

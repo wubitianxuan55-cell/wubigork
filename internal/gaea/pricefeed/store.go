@@ -31,7 +31,7 @@ func (s *Store) ListSources() []Source {
 	if err != nil {
 		return nil
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var out []Source
 	for rows.Next() {
 		var src Source
@@ -59,7 +59,7 @@ func (s *Store) GetSource(id string) (Source, bool) {
 	if err != nil {
 		return Source{}, false
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	for rows.Next() {
 		var src Source
 		var headers string
@@ -176,7 +176,7 @@ func (s *Store) ListFetches(limit int) []FetchRecord {
 	if err != nil {
 		return nil
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var out []FetchRecord
 	for rows.Next() {
 		var f FetchRecord
@@ -245,7 +245,7 @@ func (s *Store) ListHistory(name string, limit int) []History {
 	if err != nil {
 		return nil
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var out []History
 	for rows.Next() {
 		var h History

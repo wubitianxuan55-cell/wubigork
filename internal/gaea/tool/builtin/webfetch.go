@@ -162,17 +162,17 @@ func ssrfGuardedTransport(proxyURL string) *http.Transport {
 						connectReq.Header.Set("Proxy-Authorization", "Basic "+auth)
 					}
 					if err := connectReq.Write(proxyConn); err != nil {
-						proxyConn.Close()
+						_ = proxyConn.Close()
 						return nil, fmt.Errorf("write CONNECT to proxy: %w", err)
 					}
 					br := bufio.NewReader(proxyConn)
 					resp, err := http.ReadResponse(br, connectReq)
 					if err != nil {
-						proxyConn.Close()
+						_ = proxyConn.Close()
 						return nil, fmt.Errorf("read CONNECT response: %w", err)
 					}
 					if resp.StatusCode != http.StatusOK {
-						proxyConn.Close()
+						_ = proxyConn.Close()
 						return nil, fmt.Errorf("proxy CONNECT failed: %s", resp.Status)
 					}
 					return proxyConn, nil
@@ -234,7 +234,7 @@ func isTransientError(err error) bool {
 	}
 	// net.Error with Timeout() or Temporary() is transient
 	if ne, ok := err.(net.Error); ok {
-		return ne.Timeout() || ne.Temporary()
+		return ne.Timeout() || ne.Temporary() //nolint:staticcheck // SA1019: Temporary 已弃用但旧错误路径仍依赖，替换候选单独评估
 	}
 	return false
 }

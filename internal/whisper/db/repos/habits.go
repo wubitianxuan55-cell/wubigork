@@ -38,7 +38,7 @@ func (r *HabitsRepo) List() ([]whisper.UserHabit, error) {
 	if err != nil {
 		return nil, fmt.Errorf("查询 user_habits 失败: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var out []whisper.UserHabit
 	for rows.Next() {
@@ -106,7 +106,7 @@ func (r *HabitsRepo) SaveAll(items []whisper.UserHabit) error {
 	if err != nil {
 		return fmt.Errorf("开启事务失败: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	for _, h := range items {
 		if h.ID == "" {

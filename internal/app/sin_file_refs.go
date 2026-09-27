@@ -103,7 +103,7 @@ func sinReadFileRef(path string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	buf := make([]byte, sinFileRefMaxBytes+1)
 	n, err := f.Read(buf)
 	if err != nil && n == 0 {

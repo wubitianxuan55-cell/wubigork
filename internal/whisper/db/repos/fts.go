@@ -37,7 +37,7 @@ func RebuildFactsFTS(dataRoot string) error {
 		}
 		facts = append(facts, r)
 	}
-	rows.Close()
+	_ = rows.Close()
 	if err := rows.Err(); err != nil {
 		return err
 	}
@@ -45,7 +45,7 @@ func RebuildFactsFTS(dataRoot string) error {
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 	if _, err := tx.Exec("DELETE FROM memory_facts_fts"); err != nil {
 		return err
 	}
@@ -86,7 +86,7 @@ func RebuildEpisodesFTS(dataRoot string) error {
 		}
 		eps = append(eps, r)
 	}
-	rows.Close()
+	_ = rows.Close()
 	if err := rows.Err(); err != nil {
 		return err
 	}
@@ -94,7 +94,7 @@ func RebuildEpisodesFTS(dataRoot string) error {
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 	if _, err := tx.Exec("DELETE FROM episodes_fts"); err != nil {
 		return err
 	}
@@ -198,7 +198,7 @@ func SearchFactIDsFTS(dataRoot, query string, limit int) ([]string, error) {
 		}
 		ids = append(ids, id)
 	}
-	rows.Close()
+	_ = rows.Close()
 	if len(ids) == 0 {
 		// FTS 整词匹配对中文子串召回弱（如「美式」匹配不到「美式咖啡」整词），
 		// MATCH 成功但空结果时同样降级到 LIKE 子串匹配
@@ -238,7 +238,7 @@ func SearchEpisodeIDsFTS(dataRoot, query string, limit int) ([]string, error) {
 		}
 		ids = append(ids, id)
 	}
-	rows.Close()
+	_ = rows.Close()
 	if len(ids) == 0 {
 		// 同 SearchFactIDsFTS：中文子串召回降级 LIKE
 		return searchEpisodesByLike(sqlDB, query, limit)
@@ -337,10 +337,10 @@ func likeSearch(sqldb *sql.DB, table string, fields []string, query string, limi
 				}
 			}
 			if err := rows.Err(); err != nil {
-				rows.Close()
+				_ = rows.Close()
 				return nil, err
 			}
-			rows.Close()
+			_ = rows.Close()
 			if len(ids) >= limit {
 				return ids, nil
 			}

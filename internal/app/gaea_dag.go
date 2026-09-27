@@ -563,7 +563,7 @@ func (a *App) dagExecute(ctx context.Context, id string, waves [][]dag.Node) {
 					}
 				}()
 				if ctx.Err() != nil {
-					a.dagMarkNode(id, node.ID, func(n *dag.Node) {
+					_ = a.dagMarkNode(id, node.ID, func(n *dag.Node) {
 						n.Status = dag.StatusSkipped
 						n.Error = "已取消"
 					})
@@ -607,7 +607,7 @@ func (a *App) dagExecute(ctx context.Context, id string, waves [][]dag.Node) {
 					failed = true
 					failMu.Unlock()
 				}
-				a.dagMarkNode(id, node.ID, func(n *dag.Node) {
+				_ = a.dagMarkNode(id, node.ID, func(n *dag.Node) {
 					n.Status = status
 					n.Error = errMsg
 					n.Ref = ref
@@ -626,7 +626,7 @@ func (a *App) dagExecute(ctx context.Context, id string, waves [][]dag.Node) {
 		if failed {
 			for _, later := range waves[wi+1:] {
 				for _, node := range later {
-					a.dagMarkNode(id, node.ID, func(n *dag.Node) {
+					_ = a.dagMarkNode(id, node.ID, func(n *dag.Node) {
 						if n.Status == dag.StatusPending || n.Status == dag.StatusRunning || n.Status == dag.StatusHold {
 							n.Status = dag.StatusSkipped
 							n.Error = "上游失败跳过"

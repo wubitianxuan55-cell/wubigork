@@ -73,7 +73,7 @@ func GetDatabase(userDir string) *sql.DB {
 
 	if err := runMigrations(db); err != nil {
 		slog.Error("[hephaestus-db] 迁移失败", "error", err)
-		db.Close()
+		_ = db.Close()
 		return nil
 	}
 

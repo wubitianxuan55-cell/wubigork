@@ -27,7 +27,7 @@ const (
 	edgeHost             = "speech.platform.bing.com"
 	edgePath             = "/consumer/speech/synthesize/readaloud/edge/v1"
 	trustedClientToken   = "6A5AA1D4EAFF4E9FB37E23D68491D6F4"
-	secMSGECVersion     = "1-143.0.3650.75"
+	secMSGECVersion      = "1-143.0.3650.75"
 	chromiumMajorVersion = "143"
 	winEpoch             = 11644473600 // Windows file time epoch offset (1601→1970)
 )
@@ -56,7 +56,7 @@ func (e *EdgeTTS) SynthesizeWithParams(text string, p TTSParams) ([]byte, string
 	if err != nil {
 		return nil, "", err
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	// 1. 发送配置消息
 	now := dateToEdgeString()
@@ -88,7 +88,7 @@ func (e *EdgeTTS) SynthesizeWithParams(text string, p TTSParams) ([]byte, string
 
 	// 3. 接收响应
 	var audio []byte
-	conn.SetReadDeadline(time.Now().Add(15 * time.Second))
+	_ = conn.SetReadDeadline(time.Now().Add(15 * time.Second))
 	for {
 		frameType, data, err := wsRecv(conn)
 		if err != nil {
@@ -108,10 +108,7 @@ func (e *EdgeTTS) SynthesizeWithParams(text string, p TTSParams) ([]byte, string
 				}
 			}
 		case wsTextFrame:
-			msg := string(data)
-			if strings.Contains(msg, "Path:turn.end") {
-				// 流正常结束
-			}
+			// Path:turn.end 文本帧标志流正常结束（该帧不带音频，据下方组合条件 break 收尾）
 		case wsCloseFrame:
 			return audio, "audio/mp3", nil
 		}
@@ -206,25 +203,25 @@ func (e *EdgeTTS) dial() (*tls.Conn, error) {
 	req += "\r\n"
 
 	if _, err := conn.Write([]byte(req)); err != nil {
-		conn.Close()
+		_ = conn.Close()
 		return nil, fmt.Errorf("WebSocket 握手发送失败: %w", err)
 	}
 
-	conn.SetReadDeadline(time.Now().Add(10 * time.Second))
+	_ = conn.SetReadDeadline(time.Now().Add(10 * time.Second))
 	resp, err := http.ReadResponse(bufio.NewReader(conn), nil)
 	if err != nil {
-		conn.Close()
+		_ = conn.Close()
 		return nil, fmt.Errorf("WebSocket 握手响应失败: %w", err)
 	}
 	if resp.StatusCode != 101 {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
-		conn.Close()
+		_ = conn.Close()
 		return nil, fmt.Errorf("WebSocket 握手失败: %d %s", resp.StatusCode, string(body))
 	}
 
 	expectedAccept := computeAcceptKey(secKey)
 	if resp.Header.Get("Sec-WebSocket-Accept") != expectedAccept {
-		conn.Close()
+		_ = conn.Close()
 		return nil, fmt.Errorf("WebSocket Accept 校验失败")
 	}
 

@@ -8,14 +8,6 @@ import (
 	"github.com/gaea/gaea/internal/gaea/agent/session"
 )
 
-func mustJSON(t *testing.T, v any) json.RawMessage {
-	t.Helper()
-	b, err := json.Marshal(v)
-	if err != nil {
-		t.Fatalf("marshal: %v", err)
-	}
-	return b
-}
 
 func entry(seq int64, kind string, payload any) session.LogEntry {
 	b, _ := json.Marshal(payload)

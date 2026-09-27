@@ -26,7 +26,7 @@ func ExtractChartData(path, sheet, rng string) (labels []string, values []float6
 	if err != nil {
 		return nil, nil, nil, nil, fmt.Errorf("打开 xlsx 失败: %w", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	if sheet == "" {
 		if list := f.GetSheetList(); len(list) > 0 {
 			sheet = list[0]
@@ -142,7 +142,7 @@ func GenerateChartPNG(labels []string, values []float64, chartType, title, outpu
 		"title": title, "output": output,
 	})
 	if dir := dirOf(output); dir != "" {
-		os.MkdirAll(dir, 0o755)
+		_ = os.MkdirAll(dir, 0o755)
 	}
 	cmd := exec.Command(python, "-c", chartScript)
 	hideWindow(cmd)

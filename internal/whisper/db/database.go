@@ -55,7 +55,7 @@ func GetDatabase(dataRoot string) (*sql.DB, error) {
 	// 执行迁移
 	if err := runMigrations(db); err != nil {
 		slog.Error("[whisper-db] 迁移失败", "error", err)
-		db.Close()
+		_ = db.Close()
 		return nil, fmt.Errorf("迁移失败: %w", err)
 	}
 
@@ -98,12 +98,12 @@ func CloseAllDatabases() {
 	defer poolsMu.Unlock()
 
 	for dataRoot, db := range pools {
-		db.Exec("PRAGMA wal_checkpoint(TRUNCATE)")
-		db.Close()
+		_, _ = db.Exec("PRAGMA wal_checkpoint(TRUNCATE)")
+		_ = db.Close()
 
 		dbPath := DatabasePath(dataRoot)
-		os.Remove(dbPath + "-wal")
-		os.Remove(dbPath + "-shm")
+		_ = os.Remove(dbPath + "-wal")
+		_ = os.Remove(dbPath + "-shm")
 	}
 
 	pools = make(map[string]*sql.DB)
@@ -124,7 +124,7 @@ func WithTransaction(dataRoot string, fn func(tx *sql.Tx) error) error {
 	}
 
 	if err := fn(tx); err != nil {
-		tx.Rollback()
+		_ = tx.Rollback()
 		return err
 	}
 

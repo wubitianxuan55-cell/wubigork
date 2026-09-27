@@ -137,7 +137,7 @@ func (a *App) GaeaVerifyRecord(id string) (evidence.Verdict, error) {
 				break
 			}
 			deep := verifyXlsxChannelADeep(f, rec)
-			f.Close()
+			_ = f.Close()
 			if strings.HasPrefix(deep, "；fail:") {
 				v.ChannelA = "fail: 公式重算零错误，" + strings.TrimPrefix(deep, "；")
 			} else {

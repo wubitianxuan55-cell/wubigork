@@ -4,9 +4,9 @@ package repos
 
 import (
 	"database/sql"
-	"log/slog"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/gaea/gaea/internal/whisper"
@@ -39,7 +39,7 @@ func (r *tripleRow) toTriple() whisper.Triple {
 	}
 
 	if r.SourceFactIDs.Valid {
-		json.Unmarshal([]byte(r.SourceFactIDs.String), &t.SourceFactIDs)
+		_ = json.Unmarshal([]byte(r.SourceFactIDs.String), &t.SourceFactIDs)
 	}
 
 	parsed, err := time.Parse(time.RFC3339, r.CreatedAt)
@@ -76,7 +76,7 @@ func LoadTriplesFromDB(dataRoot string) ([]whisper.Triple, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var triples []whisper.Triple
 	for rows.Next() {

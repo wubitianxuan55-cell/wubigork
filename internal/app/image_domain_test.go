@@ -300,7 +300,7 @@ func TestVariantChainParentIDRoundtrip(t *testing.T) {
 		t.Fatalf("record v1b: %v", err)
 	}
 	newest := imageHubAssetIDByPath(cwd, "play", src)
-	recs = newImageHubLedger(cwd).list("play", 0)
+	newImageHubLedger(cwd).list("play", 0)
 	if newest == parentID || newest == "" {
 		t.Fatalf("byPath 应取最新条目: %s vs %s", newest, parentID)
 	}

@@ -162,7 +162,7 @@ func (p *Profile) scanTree(root string) {
 	dirs := map[string]bool{}
 	seenPackages := map[string]bool{}
 
-	filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
+	_ = filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
 			return nil
 		}

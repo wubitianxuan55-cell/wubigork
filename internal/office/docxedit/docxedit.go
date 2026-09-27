@@ -97,7 +97,7 @@ func readDocx(path string) (*docxFile, error) {
 	if err != nil {
 		return nil, fmt.Errorf("打开 docx 失败: %w", err)
 	}
-	defer r.Close()
+	defer func() { _ = r.Close() }()
 
 	doc := &docxFile{files: map[string][]byte{}}
 	for _, f := range r.File {
@@ -128,25 +128,25 @@ func writeDocx(path string, doc *docxFile) error {
 		return fmt.Errorf("创建临时文件失败: %w", err)
 	}
 	tmpName := tmp.Name()
-	defer os.Remove(tmpName)
+	defer func() { _ = os.Remove(tmpName) }()
 
 	zw := zip.NewWriter(tmp)
 	for _, name := range doc.order {
 		b := doc.files[name]
 		w, err := zw.CreateHeader(&zip.FileHeader{Name: name, Method: zip.Deflate})
 		if err != nil {
-			zw.Close()
-			tmp.Close()
+			_ = zw.Close()
+			_ = tmp.Close()
 			return fmt.Errorf("写回 %s 失败: %w", name, err)
 		}
 		if _, err := w.Write(b); err != nil {
-			zw.Close()
-			tmp.Close()
+			_ = zw.Close()
+			_ = tmp.Close()
 			return fmt.Errorf("写回 %s 失败: %w", name, err)
 		}
 	}
 	if err := zw.Close(); err != nil {
-		tmp.Close()
+		_ = tmp.Close()
 		return fmt.Errorf("打包 docx 失败: %w", err)
 	}
 	if err := tmp.Close(); err != nil {
@@ -253,8 +253,9 @@ type changeSpan struct {
 }
 
 // flattenDocumentXML 把指定作者的 w:del/w:ins 扁平化：
-//   accept=true  → 接受：删 w:del、保留 w:ins 内容；
-//   accept=false → 拒绝：删 w:ins、还原 w:del（delText → t）。
+//
+//	accept=true  → 接受：删 w:del、保留 w:ins 内容；
+//	accept=false → 拒绝：删 w:ins、还原 w:del（delText → t）。
 func flattenDocumentXML(data []byte, author string, accept bool) ([]byte, bool, error) {
 	spans, err := parseChangeSpans(data)
 	if err != nil {
@@ -543,7 +544,6 @@ func locateSpan(p paragraph, target string) (int, int, bool) {
 	}
 	// 折叠空白兜底：需要 rune 级别映射
 	runes := []rune(p.text)
-	tRunes := []rune(target)
 	norm := make([]int, 0, len(runes))
 	for i, r := range runes {
 		if unicode.IsSpace(r) {
@@ -560,7 +560,7 @@ func locateSpan(p paragraph, target string) (int, int, bool) {
 	// 同样折叠 target
 	var tNorm []rune
 	prevSpace := false
-	for _, r := range tRunes {
+	for _, r := range target {
 		if unicode.IsSpace(r) {
 			if prevSpace {
 				continue
@@ -620,9 +620,9 @@ func rebuildParagraph(data []byte, p paragraph, s, e int, replacement, author st
 	// 按 run 分组：runTagStart → segs
 	type runGroup struct {
 		tagStart, tagEnd, end int
-		rPrStart, rPrEnd     int
-		tAttrs               string
-		segs                 []textSeg
+		rPrStart, rPrEnd      int
+		tAttrs                string
+		segs                  []textSeg
 	}
 	var groups []*runGroup
 	groupByRun := map[[2]int]*runGroup{}

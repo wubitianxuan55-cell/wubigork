@@ -26,9 +26,9 @@ type Kind string
 
 // 内置任务类型：价格抓取（单源/全部+定时）、工作区语义索引重建。
 const (
-	KindPriceFetch    Kind = "price_fetch"
-	KindPriceFetchAll Kind = "price_fetch_all"
-	KindFileIndex     Kind = "file_index"
+	KindPriceFetch         Kind = "price_fetch"
+	KindPriceFetchAll      Kind = "price_fetch_all"
+	KindFileIndex          Kind = "file_index"
 	KindOutlineReconstruct Kind = "outline_reconstruct"
 )
 
@@ -223,7 +223,7 @@ type taskOutput struct {
 	lines     []string
 	bytes     int
 	trunc     bool
-	lastSeq   int   // 预留：将来可按 seq 增量拉取（当前整尾回放）
+	lastSeq   int   //nolint:unused // 预留：将来可按 seq 增量拉取（当前整尾回放）
 	lastWrite int64 // 最近一次写入的全局序号（LRU 时钟：缓冲表超限时淘汰最旧者）
 }
 
@@ -567,7 +567,7 @@ func (m *Manager) ListInSpace(limit int, space string) ([]*Task, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var out []*Task
 	for rows.Next() {
 		t, err := scanTask(rows)
@@ -802,7 +802,7 @@ func (m *Manager) resumeInterrupted() (int, error) {
 					m.emitView(t)
 				}
 			}
-			rows.Close()
+			_ = rows.Close()
 		}
 	}
 	return int(n), nil
@@ -871,7 +871,7 @@ func (m *Manager) pickNext() *Task {
 	if err != nil {
 		return nil
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var best *Task
 	for rows.Next() {
 		t, err := scanTask(rows)

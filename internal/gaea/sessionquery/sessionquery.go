@@ -180,7 +180,7 @@ func (s *Store) searchFTS(query string, limit int) ([]Hit, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	return collectHits(rows)
 }
 
@@ -191,7 +191,7 @@ func (s *Store) searchLike(query string, limit int) ([]Hit, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var out []Hit
 	for rows.Next() {
 		var h Hit

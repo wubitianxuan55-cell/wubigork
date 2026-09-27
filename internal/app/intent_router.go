@@ -496,7 +496,7 @@ func (a *App) execReadScreen(it *intent.Intent) (string, bool) {
 	}
 	path := tmp.Name()
 	if _, err := tmp.Write(buf.Bytes()); err != nil {
-		tmp.Close()
+		_ = tmp.Close()
 		os.Remove(path)
 		return "截屏暂存失败：" + err.Error() + "。", true
 	}

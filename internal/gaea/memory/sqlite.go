@@ -473,7 +473,7 @@ func (b *sqliteBackend) CleanupArchived(cutoff time.Time) ([]ArchivedMemory, err
 	if err != nil {
 		return nil, err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 	for _, am := range doomed {
 		if _, err := tx.Exec(
 			`DELETE FROM facts WHERE project=? AND name=? AND archived=1`, b.project, slug(am.Name)); err != nil {

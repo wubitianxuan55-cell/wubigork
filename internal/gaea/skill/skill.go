@@ -322,7 +322,7 @@ func (s *Store) parse(path, stem string, scope Scope) (Skill, bool) {
 	}
 	desc := strings.TrimSpace(fm["description"])
 	if desc == "" {
-		fmt.Fprintf(s.stderr, "warning: skill %q at %s has no description: — it will load but won't appear in the skills index\n", name, path)
+		_, _ = fmt.Fprintf(s.stderr, "warning: skill %q at %s has no description: — it will load but won't appear in the skills index\n", name, path)
 	}
 	return Skill{
 		Name:         name,
@@ -374,7 +374,7 @@ func (s *Store) CreateWithContent(name string, scope Scope, content string) (str
 		}
 		return "", err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	if _, err := f.WriteString(content); err != nil {
 		return "", err
 	}

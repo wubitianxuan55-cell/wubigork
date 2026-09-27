@@ -95,7 +95,7 @@ func (r *TemporalAnchorsRepo) SaveAll(items []whisper.TemporalAnchor) error {
 	if err != nil {
 		return fmt.Errorf("开启事务失败: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	for _, a := range items {
 		if a.ID == "" || a.AnchorDate == "" {

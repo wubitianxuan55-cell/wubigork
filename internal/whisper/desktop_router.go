@@ -45,7 +45,7 @@ func ExecuteUseComputer(args UseComputerArgs, ctx RouterContext) UseComputerResu
 
 	// 第1层：设置级拦截
 	if blockReason := checkActionSettings(action, ctx); blockReason != "" {
-		AppendDesktopAgentAudit(ctx.DataRoot, DesktopAgentAuditEntry{
+		_ = AppendDesktopAgentAudit(ctx.DataRoot, DesktopAgentAuditEntry{
 			TS: now, Action: string(action),
 			Path: args.Path, PathTo: args.PathTo, Target: args.Target, URL: args.URL,
 			Result: "blocked", Summary: blockReason,
@@ -61,7 +61,7 @@ func ExecuteUseComputer(args UseComputerArgs, ctx RouterContext) UseComputerResu
 		}
 		if isBlockedCloseTarget(strings.TrimSpace(target)) {
 			msg := "系统关键进程不可关闭"
-			AppendDesktopAgentAudit(ctx.DataRoot, DesktopAgentAuditEntry{
+			_ = AppendDesktopAgentAudit(ctx.DataRoot, DesktopAgentAuditEntry{
 				TS: now, Action: string(action), Target: target,
 				Result: "blocked", Summary: msg,
 			})
@@ -72,7 +72,7 @@ func ExecuteUseComputer(args UseComputerArgs, ctx RouterContext) UseComputerResu
 	// 第3层：路径策略评估
 	policy := evaluatePathPolicy(action, args.Path, args.PathTo, ctx.CWD)
 	if !policy.OK {
-		AppendDesktopAgentAudit(ctx.DataRoot, DesktopAgentAuditEntry{
+		_ = AppendDesktopAgentAudit(ctx.DataRoot, DesktopAgentAuditEntry{
 			TS: now, Action: string(action),
 			Path: args.Path, PathTo: args.PathTo,
 			Result: "blocked", Summary: policy.HardBlockReason,
@@ -89,7 +89,7 @@ func ExecuteUseComputer(args UseComputerArgs, ctx RouterContext) UseComputerResu
 		allowed := ctx.RequestConfirm(label, policy.NormalizedPath, args.Target, policy.SensitiveWarning)
 		if !allowed {
 			msg := "用户未允许该操作"
-			AppendDesktopAgentAudit(ctx.DataRoot, DesktopAgentAuditEntry{
+			_ = AppendDesktopAgentAudit(ctx.DataRoot, DesktopAgentAuditEntry{
 				TS: now, Action: string(action),
 				Path: policy.NormalizedPath, PathTo: policy.NormalizedPathTo,
 				Target: args.Target, URL: args.URL,
@@ -123,7 +123,7 @@ func ExecuteUseComputer(args UseComputerArgs, ctx RouterContext) UseComputerResu
 		CWD:         ctx.CWD,
 	})
 
-	AppendDesktopAgentAudit(ctx.DataRoot, DesktopAgentAuditEntry{
+	_ = AppendDesktopAgentAudit(ctx.DataRoot, DesktopAgentAuditEntry{
 		TS: now, Action: string(action),
 		Path: execPath, PathTo: execPathTo,
 		Target: args.Target, URL: args.URL,

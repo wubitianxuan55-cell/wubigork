@@ -34,8 +34,6 @@ type goldenFile struct {
 	Cases []goldenCase `json:"cases"`
 }
 
-const goldenRelPath = "../../frontend/src/schedule/ops_golden.fixture.json"
-
 func cloneProject(p Project) Project {
 	raw, err := json.Marshal(p)
 	if err != nil {

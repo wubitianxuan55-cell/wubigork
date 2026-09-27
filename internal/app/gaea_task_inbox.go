@@ -104,7 +104,7 @@ func saveTaskInbox(dataRoot string, tasks []taskinbox.Task) error {
 	}
 	tmpName := tmp.Name()
 	if _, err := tmp.Write(b); err != nil {
-		tmp.Close()
+		_ = tmp.Close()
 		os.Remove(tmpName)
 		return err
 	}

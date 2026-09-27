@@ -491,13 +491,13 @@ func InitDefaults(s *Set) {
 	if s.UserDir != "" {
 		userPath := filepath.Join(s.UserDir, defaultDocName)
 		if _, err := os.Stat(userPath); os.IsNotExist(err) {
-			os.WriteFile(userPath, []byte(userDefaultContent), 0644)
+			_ = os.WriteFile(userPath, []byte(userDefaultContent), 0644)
 		}
 	}
 	// 项目级记忆：当前项目专属
 	projPath := s.DocPath(ScopeProject)
 	if _, err := os.Stat(projPath); os.IsNotExist(err) {
-		os.WriteFile(projPath, []byte(projectDefaultContent), 0644)
+		_ = os.WriteFile(projPath, []byte(projectDefaultContent), 0644)
 	}
 	// Reload so the new docs appear immediately
 	s.Docs = discoverDocs(s.CWD, s.UserDir)

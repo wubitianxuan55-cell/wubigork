@@ -27,6 +27,7 @@ func (a *writingState) CreateChapter(setting, prevSummary, plotReq string, chapt
 	if a.client == nil {
 		return nil, fmt.Errorf("AI client not ready")
 	}
+	_ = prevSummary // 参数弃用占位：摘要改由下方 buildPrevSummaryWindow 滑窗推导，保留签名稳定绑定面
 
 	pm := a.getPM()
 	if pm == nil {
@@ -564,7 +565,7 @@ func (a *writingState) ensureChapterNode(pm *project.Manager, of *types.OutlineF
 			ID: nodeID, Title: fmt.Sprintf("第%d章", targetNum),
 			OrderIndex: targetNum, Status: types.OutlineWriting,
 		})
-		pm.WriteOutlines(of)
+		_ = pm.WriteOutlines(of)
 		return
 	}
 	if branchFromNodeID != "" {
@@ -601,7 +602,7 @@ func (a *writingState) ensureChapterNode(pm *project.Manager, of *types.OutlineF
 			OrderIndex: targetNum, Branch: branch,
 			Status: types.OutlineWriting, ChapterFile: fmt.Sprintf("%03d%s.md", targetNum, branch),
 		})
-		pm.WriteOutlines(of)
+		_ = pm.WriteOutlines(of)
 		return
 	}
 	targetNum = len(of.Nodes) + 1
@@ -610,7 +611,7 @@ func (a *writingState) ensureChapterNode(pm *project.Manager, of *types.OutlineF
 		ID: nodeID, Title: fmt.Sprintf("第%d章", targetNum),
 		OrderIndex: targetNum, Status: types.OutlineWriting,
 	})
-	pm.WriteOutlines(of)
+	_ = pm.WriteOutlines(of)
 	return
 }
 

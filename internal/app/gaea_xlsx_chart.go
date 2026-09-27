@@ -103,7 +103,7 @@ func extractChartRegion(path, sheet, refs string) (region chartRegion, labels []
 	if err != nil {
 		return region, nil, nil, fmt.Errorf("打开 xlsx 失败: %w", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	if sheet == "" {
 		if list := f.GetSheetList(); len(list) > 0 {
 			sheet = list[0]
@@ -189,7 +189,7 @@ func embedNativeChart(path string, region chartRegion, chartType, title string) 
 	if err != nil {
 		return "", fmt.Errorf("打开 xlsx 失败: %w", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	typeByName := map[string]excelize.ChartType{
 		"bar":     excelize.Col,

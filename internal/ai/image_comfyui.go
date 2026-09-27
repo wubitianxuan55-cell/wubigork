@@ -1050,7 +1050,7 @@ func (b *ComfyUIBackend) pollComfyProgress(ctx context.Context, promptID string,
 	if err != nil {
 		return
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	start := time.Now()
 	readErr := make(chan error, 1)

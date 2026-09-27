@@ -123,7 +123,7 @@ func (p *Plan) Create(zipPath, appVersion string) (Manifest, error) {
 	if err != nil {
 		return m, fmt.Errorf("创建临时目录失败: %w", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	type fileEntry struct {
 		rel string
@@ -199,7 +199,7 @@ func (p *Plan) Create(zipPath, appVersion string) (Manifest, error) {
 	if err != nil {
 		return m, fmt.Errorf("创建备份文件失败: %w", err)
 	}
-	defer out.Close()
+	defer func() { _ = out.Close() }()
 
 	zw := zip.NewWriter(out)
 
@@ -257,7 +257,7 @@ func addFileToZip(zw *zip.Writer, rel, abs string) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	_, err = io.Copy(w, f)
 	return err
 }
@@ -271,7 +271,7 @@ func snapshotSQLite(src, dst string) error {
 	if err != nil {
 		return err
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	stmt := "VACUUM INTO '" + strings.ReplaceAll(filepath.ToSlash(dst), "'", "''") + "'"
 	if _, err := db.Exec(stmt); err != nil {
 		// 重试一次（等锁释放）
@@ -291,7 +291,7 @@ func checkpointThenCopy(src, dst string) bool {
 	if err != nil {
 		return false
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	if _, err := db.Exec("PRAGMA wal_checkpoint(TRUNCATE)"); err != nil {
 		return false
 	}
@@ -307,7 +307,7 @@ func ReadManifest(zipPath string) (Manifest, error) {
 	if err != nil {
 		return m, fmt.Errorf("打开备份文件失败: %w", err)
 	}
-	defer zr.Close()
+	defer func() { _ = zr.Close() }()
 	for _, f := range zr.File {
 		if f.Name != "manifest.json" {
 			continue
@@ -358,7 +358,7 @@ func Extract(zipPath, destDir string) (Manifest, error) {
 	if err != nil {
 		return m, err
 	}
-	defer zr.Close()
+	defer func() { _ = zr.Close() }()
 	// #13：两阶段解压——先建全部目录（含父目录），再写文件；同名冲突文件覆盖目录条目，
 	// 不依赖 zip 内条目顺序。
 	var dirs []string
@@ -399,11 +399,11 @@ func Extract(zipPath, destDir string) (Manifest, error) {
 			return m, err
 		}
 		if _, err := io.Copy(out, rc); err != nil {
-			out.Close()
+			_ = out.Close()
 			rc.Close()
 			return m, err
 		}
-		out.Close()
+		_ = out.Close()
 		rc.Close()
 	}
 	return m, nil
@@ -697,7 +697,7 @@ func copyFile(src, dst string) error {
 	if err != nil {
 		return err
 	}
-	defer in.Close()
+	defer func() { _ = in.Close() }()
 	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
 		return err
 	}
@@ -705,7 +705,7 @@ func copyFile(src, dst string) error {
 	if err != nil {
 		return err
 	}
-	defer out.Close()
+	defer func() { _ = out.Close() }()
 	_, err = io.Copy(out, in)
 	return err
 }
@@ -718,7 +718,7 @@ func SHA256(path string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	h := sha256.New()
 	if _, err := io.Copy(h, f); err != nil {
 		return "", err

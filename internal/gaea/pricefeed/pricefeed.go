@@ -128,9 +128,7 @@ func decodeHTML(body []byte, contentType string) string {
 	if utf8.Valid(body) {
 		return string(body)
 	}
-	if strings.Contains(strings.ToLower(contentType), "charset=utf-8") && !utf8.Valid(body) {
-		// 页面声明 utf-8 但字节非法时仍尝试探测
-	}
+	// 页面声明 utf-8 但字节非法时仍走内容探测（下方 Detect）
 	enc, _ := fileenc.Detect(body)
 	return string(fileenc.Decode(body, enc))
 }

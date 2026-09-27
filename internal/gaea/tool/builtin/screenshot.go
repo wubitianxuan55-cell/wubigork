@@ -114,7 +114,7 @@ func saveScreenshot(workDir string, img image.Image) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	if err := png.Encode(f, img); err != nil {
 		return "", err
 	}

@@ -100,7 +100,7 @@ func (r readFile) Execute(ctx context.Context, args json.RawMessage) (string, er
 	if err != nil {
 		return "", fmt.Errorf("read %s: %w", p.Path, err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	peek := make([]byte, readFileBinaryPeek)
 	pn, perr := io.ReadFull(f, peek)

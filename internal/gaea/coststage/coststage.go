@@ -172,7 +172,7 @@ FROM cost_stage_values WHERE project_id=?`, projectID)
 	if err != nil {
 		return nil
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	byStage := make(map[string]StageValue)
 	for rows.Next() {
 		var v StageValue

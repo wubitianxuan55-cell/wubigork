@@ -129,7 +129,7 @@ func exportDocx(in ExportDeliverableInput, title, outPath string) error {
 	if err := os.WriteFile(mdPath, []byte(in.Markdown), 0o644); err != nil {
 		return err
 	}
-	defer os.Remove(mdPath)
+	defer func() { _ = os.Remove(mdPath) }()
 
 	args := []string{script, mdPath, outPath, "--title", title}
 	if in.Cover {
@@ -166,7 +166,7 @@ func exportPptx(in ExportDeliverableInput, title, outPath string) error {
 	if err := os.WriteFile(specPath, b, 0o644); err != nil {
 		return err
 	}
-	defer os.Remove(specPath)
+	defer func() { _ = os.Remove(specPath) }()
 	if err := runPython([]string{script, specPath, outPath}, 120); err != nil {
 		return fmt.Errorf("PPT 导出失败: %w", err)
 	}
@@ -245,9 +245,9 @@ func markdownToSlides(md, title string) map[string]interface{} {
 // exportXlsx 把 Markdown 中的表格提取为工作表（无表格时正文写入 Sheet1）。
 func exportXlsx(in ExportDeliverableInput, outPath string) error {
 	f := excelize.NewFile()
-	defer f.Close()
-	f.SetSheetName("Sheet1", "摘要")
-	f.SetCellValue("摘要", "A1", firstLine(in.Title))
+	defer func() { _ = f.Close() }()
+	_ = f.SetSheetName("Sheet1", "摘要")
+	_ = f.SetCellValue("摘要", "A1", firstLine(in.Title))
 
 	tableIdx := 0
 	var curTable []string
@@ -259,16 +259,16 @@ func exportXlsx(in ExportDeliverableInput, outPath string) error {
 		sheet := "表" + strconv.Itoa(tableIdx)
 		if tableIdx == 1 {
 			sheet = "数据"
-			f.SetSheetName("摘要", sheet)
+			_ = f.SetSheetName("摘要", sheet)
 		} else {
-			f.NewSheet(sheet)
+			_, _ = f.NewSheet(sheet)
 		}
 		for ri, line := range curTable {
 			line = strings.Trim(line, "|")
 			cells := strings.Split(line, "|")
 			for ci, c := range cells {
 				axis, _ := excelize.CoordinatesToCellName(ci+1, ri+1)
-				f.SetCellValue(sheet, axis, strings.TrimSpace(c))
+				_ = f.SetCellValue(sheet, axis, strings.TrimSpace(c))
 			}
 		}
 		curTable = nil
@@ -286,13 +286,13 @@ func exportXlsx(in ExportDeliverableInput, outPath string) error {
 		flushTable()
 		text := strings.TrimSpace(line)
 		if text != "" && !strings.HasPrefix(text, "#") {
-			f.SetCellValue("数据", "A"+strconv.Itoa(bodyRow), text)
+			_ = f.SetCellValue("数据", "A"+strconv.Itoa(bodyRow), text)
 			bodyRow++
 		}
 	}
 	flushTable()
 	if tableIdx == 0 {
-		f.SetSheetName("摘要", "数据")
+		_ = f.SetSheetName("摘要", "数据")
 	}
 	return f.SaveAs(outPath)
 }

@@ -89,7 +89,7 @@ func (a *App) GaeaConvertToPdf(rel string) (ConvertPdfResult, error) {
 			Footer:   "第 {page} 页",
 		}
 		if err := exportDocx(in, base, docxPath); err != nil {
-			os.RemoveAll(tmpDir)
+			_ = os.RemoveAll(tmpDir)
 			return ConvertPdfResult{}, err
 		}
 		src = docxPath
@@ -102,7 +102,7 @@ func (a *App) GaeaConvertToPdf(rel string) (ConvertPdfResult, error) {
 		}
 	}
 	if tmpDir != "" {
-		defer os.RemoveAll(tmpDir)
+		defer func() { _ = os.RemoveAll(tmpDir) }()
 	}
 
 	// S4 产物路径分区：work 恒 .gaea/exports（现状不动），play 落 .gaea/play/exports。
@@ -137,7 +137,7 @@ func markdownToPdf(in ExportDeliverableInput, title, outPath string) error {
 	if err != nil {
 		return err
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 	docxPath := filepath.Join(tmpDir, safeDeliverableName(title)+".docx")
 	if err := exportDocx(in, title, docxPath); err != nil {
 		return err
@@ -157,12 +157,12 @@ func convertToPdfFile(src, outPath string) error {
 	if err != nil {
 		return err
 	}
-	defer os.RemoveAll(tmpOut)
+	defer func() { _ = os.RemoveAll(tmpOut) }()
 	profile, err := os.MkdirTemp("", "gaea-soffice-profile-*")
 	if err != nil {
 		return err
 	}
-	defer os.RemoveAll(profile)
+	defer func() { _ = os.RemoveAll(profile) }()
 	// 独立 profile：与 recalc/用户已开的 LibreOffice 互不抢锁
 	profileURL := "file:///" + strings.ReplaceAll(filepath.ToSlash(profile), " ", "%20")
 
@@ -221,12 +221,12 @@ func moveOrCopyFile(src, dst string) error {
 	if err != nil {
 		return err
 	}
-	defer in.Close()
+	defer func() { _ = in.Close() }()
 	out, err := os.Create(dst)
 	if err != nil {
 		return err
 	}
-	defer out.Close()
+	defer func() { _ = out.Close() }()
 	if _, err := io.Copy(out, in); err != nil {
 		return err
 	}
@@ -255,7 +255,7 @@ func runProcess(exe string, args []string, timeoutSec int) error {
 		}
 		return nil
 	case <-time.After(time.Duration(timeoutSec) * time.Second):
-		cmd.Process.Kill()
+		_ = cmd.Process.Kill()
 		<-done
 		return fmt.Errorf("超时（%d 秒）", timeoutSec)
 	}

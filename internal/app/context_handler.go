@@ -120,7 +120,7 @@ func (a *writingState) BuildContextBudget(systemPrompt string, currentScene stri
 	}
 
 	engine := context.NewEngine(pm)
-	engine.Load()
+	_ = engine.Load()
 
 	sys, usr, budget := engine.BuildFullContext(context.BuildOptions{
 		SystemPrompt:  systemPrompt,

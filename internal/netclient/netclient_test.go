@@ -601,6 +601,9 @@ func TestNewSimpleClientTimeoutAndTransport(t *testing.T) {
 	// 实际请求本地服务器验证可用
 	// 实际请求本地服务器验证可用
 	ln, err := net.Listen("tcp4", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer ln.Close()
 	go func() {
 		for {

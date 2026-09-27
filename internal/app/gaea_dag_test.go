@@ -101,23 +101,6 @@ func appendCard(t *testing.T, dir, session, target string) {
 	}
 }
 
-func waitDerived(t *testing.T, id, want string) dag.Run {
-	t.Helper()
-	deadline := time.Now().Add(5 * time.Second)
-	for time.Now().Before(deadline) {
-		r, err := (&App{}).dagStore().Get(id)
-		if err != nil {
-			t.Fatalf("Get %s: %v", id, err)
-		}
-		if dag.Derived(r) == want {
-			return r
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-	t.Fatalf("等待派生态 %s 超时", want)
-	return dag.Run{}
-}
-
 // waitDagDone 等执行器 goroutine 收尾（dagCancels 在途登记消失，defer 删除时
 // 级联 marking 已完成），返回最终 run——终态断言用它，避免读到中间态。
 func waitDagDone(t *testing.T, id string) dag.Run {
@@ -624,7 +607,7 @@ func TestDagPlanEditInPlace(t *testing.T) {
 
 // TestDagNodePanicMarkedFailed 节点级 panic 防线（2026-09-19 后端审计）：
 // runner panic（子代理执行链 LLM 流式/工具/事件回投的漏网异常）转节点 failed
-//（与 err 路径同形：置 failed+Error 带证据+下游 skipped），不带崩进程不悬挂本波。
+// （与 err 路径同形：置 failed+Error 带证据+下游 skipped），不带崩进程不悬挂本波。
 func TestDagNodePanicMarkedFailed(t *testing.T) {
 	injectDagEnv(t)
 	id := planChain(t)

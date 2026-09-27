@@ -125,7 +125,7 @@ func readPptx(path string) (*pptxFile, error) {
 	if err != nil {
 		return nil, fmt.Errorf("打开 pptx 失败: %w", err)
 	}
-	defer r.Close()
+	defer func() { _ = r.Close() }()
 	doc := &pptxFile{files: map[string][]byte{}}
 	for _, f := range r.File {
 		rc, err := f.Open()
@@ -152,23 +152,23 @@ func writePptx(path string, doc *pptxFile) error {
 		return fmt.Errorf("创建临时文件失败: %w", err)
 	}
 	tmpName := tmp.Name()
-	defer os.Remove(tmpName)
+	defer func() { _ = os.Remove(tmpName) }()
 	zw := zip.NewWriter(tmp)
 	for _, name := range doc.order {
 		w, err := zw.CreateHeader(&zip.FileHeader{Name: name, Method: zip.Deflate})
 		if err != nil {
-			zw.Close()
-			tmp.Close()
+			_ = zw.Close()
+			_ = tmp.Close()
 			return fmt.Errorf("写回 %s 失败: %w", name, err)
 		}
 		if _, err := w.Write(doc.files[name]); err != nil {
-			zw.Close()
-			tmp.Close()
+			_ = zw.Close()
+			_ = tmp.Close()
 			return fmt.Errorf("写回 %s 失败: %w", name, err)
 		}
 	}
 	if err := zw.Close(); err != nil {
-		tmp.Close()
+		_ = tmp.Close()
 		return fmt.Errorf("打包 pptx 失败: %w", err)
 	}
 	if err := tmp.Close(); err != nil {
@@ -275,7 +275,6 @@ func slideParts(doc *pptxFile) ([]string, error) {
 
 // ── slide XML 字节级手术（DrawingML） ─────────────────────────────
 
-const dmlNS = "http://schemas.openxmlformats.org/drawingml/2006/main"
 
 func isDML(name xml.Name, local string) bool {
 	return name.Local == local && strings.Contains(name.Space, "drawingml")
@@ -444,7 +443,6 @@ func locateSpan(p paragraph, target string) (int, int, bool) {
 		return s, s + len([]rune(target)), true
 	}
 	runes := []rune(p.text)
-	tRunes := []rune(target)
 	norm := make([]int, 0, len(runes))
 	for i, r := range runes {
 		if unicode.IsSpace(r) {
@@ -460,7 +458,7 @@ func locateSpan(p paragraph, target string) (int, int, bool) {
 	}
 	var tNorm []rune
 	prevSpace := false
-	for _, r := range tRunes {
+	for _, r := range target {
 		if unicode.IsSpace(r) {
 			if prevSpace {
 				continue

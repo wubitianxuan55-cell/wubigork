@@ -110,7 +110,7 @@ func TestCompressGrepWindowsPath(t *testing.T) {
 	input := strings.Join([]string{
 		`C:\Users\dev\src\app.go:10: func handler() {`,
 		`C:\Users\dev\src\app.go:25: return result`,
-		`D:\other\lib.go:5: import "fmt"`,
+		`D:\other\lib.go:5: import "fmt"`, //nolint:misspell // 夹具假路径，other 非 typo
 	}, "\n")
 
 	result := compressGrep(input)

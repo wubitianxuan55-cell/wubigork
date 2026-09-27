@@ -173,7 +173,7 @@ func extractDocxParagraph(pXML string) string {
 		}
 		// 也检查 heading 前缀
 		if strings.HasPrefix(style, "Heading") || strings.HasPrefix(style, "heading") {
-			levelStr := strings.TrimLeft(style, "Headingheading ")
+			levelStr := strings.TrimLeft(style, "Heading ")
 			level := 1
 			if len(levelStr) == 1 && levelStr[0] >= '1' && levelStr[0] <= '9' {
 				level = int(levelStr[0] - '0')
@@ -387,7 +387,7 @@ func xlsxToMarkdown(path string) (string, error) {
 			rc, _ := f.Open()
 			wbXML, _ := io.ReadAll(rc)
 			rc.Close()
-			xml.Unmarshal(wbXML, &wb)
+			_ = xml.Unmarshal(wbXML, &wb)
 			break
 		}
 	}

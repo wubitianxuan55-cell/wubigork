@@ -123,7 +123,7 @@ func (a *Agent) SyncForeshadows(chapterNum int, hits []types.ForeshadowHit) Sync
 	ff.Items = deduped
 	ff.SchemaVersion = 2
 
-	a.pm.WriteForeshadows(ff)
+	_ = a.pm.WriteForeshadows(ff)
 
 	a.syncMu.Lock()
 	a.lastSync = &res

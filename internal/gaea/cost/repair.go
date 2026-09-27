@@ -337,7 +337,7 @@ func (s *Store) RepairCategoryPaths() (fixed, left int, err error) {
 				}{parent, name}] = id
 			}
 		}
-		trows.Close()
+		_ = trows.Close()
 		if e := trows.Err(); e != nil {
 			return 0, 0, e
 		}
@@ -384,7 +384,7 @@ func (s *Store) RepairCategoryPaths() (fixed, left int, err error) {
 	if err != nil {
 		return 0, left, err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 	for _, f := range fixes {
 		if err := ensurePathTx(tx, f.target, now); err != nil {
 			return fixed, left, fmt.Errorf("创建分类路径 %q 失败: %w", f.target, err)
@@ -457,7 +457,7 @@ func (s *Store) BackfillPriceMeta() (regionCount, dateCount int, err error) {
 	if err != nil {
 		return 0, 0, err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 	for _, e := range entries {
 		r, d := priceMetaFromSource(e.source)
 		if (r == "" || e.region != "") && (d == "" || e.priceDate != "") {

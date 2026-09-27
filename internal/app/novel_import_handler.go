@@ -228,7 +228,7 @@ func parseEpubChapters(filePath string) ([]importChapter, error) {
 	if err != nil {
 		return nil, fmt.Errorf("打开 EPUB 失败: %w", err)
 	}
-	defer zr.Close()
+	defer func() { _ = zr.Close() }()
 
 	opfName, err := findEpubOpf(zr)
 	if err != nil {

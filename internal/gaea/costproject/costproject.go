@@ -138,7 +138,7 @@ FROM cost_projects p ORDER BY p.updated_at DESC`)
 	if err != nil {
 		return nil
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var out []ProjectSummary
 	for rows.Next() {
 		var s ProjectSummary
@@ -185,7 +185,7 @@ func (s *Store) DeleteProject(id string) error {
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 	for _, q := range []string{
 		"DELETE FROM cost_estimate_items WHERE project_id=?",
 		"DELETE FROM cost_estimate_versions WHERE project_id=?",
@@ -247,7 +247,7 @@ FROM cost_estimate_items WHERE project_id=? ORDER BY sort, id`, projectID)
 	if err != nil {
 		return nil
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var out []Item
 	for rows.Next() {
 		var i Item
@@ -338,7 +338,7 @@ FROM cost_estimate_versions WHERE project_id=? ORDER BY version DESC`, projectID
 	if err != nil {
 		return nil
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var out []Version
 	for rows.Next() {
 		var v Version

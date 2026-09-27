@@ -412,7 +412,7 @@ func (diagramGen) Execute(ctx context.Context, args json.RawMessage) (string, er
 		p.Output = "diagram.png"
 	}
 	if dir := filepath.Dir(p.Output); dir != "." {
-		os.MkdirAll(dir, 0755)
+		_ = os.MkdirAll(dir, 0755)
 	}
 
 	// 查找 Python：Windows 优先 python（python3 常被商店别名劫持）

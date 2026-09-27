@@ -65,7 +65,6 @@ func RetryJSON(ctx context.Context, caller LLMCaller, systemPrompt, userPrompt s
 	return "", fmt.Errorf("JSON 解析重试耗尽 (%d 次)", maxRetries+1)
 }
 
-
 // SafeGo 安全启动 goroutine，自动 recover panic 并记录日志。
 // 用于替代 handler 中重复的 goroutine + panic recover 模式。
 func SafeGo(fn func()) {
@@ -153,9 +152,8 @@ func MustMarshalCompact(v interface{}) []byte {
 
 // EstimateTokens 粗略估算文本的 token 数：中文 1 字 ≈ 1.5 tokens, 英文 1 词 ≈ 1.3 tokens
 func EstimateTokens(text string) int {
-	runes := []rune(text)
 	chineseCount := 0
-	for _, r := range runes {
+	for _, r := range text {
 		if r >= 0x4e00 && r <= 0x9fff {
 			chineseCount++
 		}

@@ -407,12 +407,11 @@ func (m *Manager) SwitchTab(ctx context.Context, id string) (TabInfo, error) {
 	if target == nil {
 		return TabInfo{}, fmt.Errorf("%w: 未知 tab %q（用 browser_tabs 查看当前标签）", ErrInvalidInput, id)
 	}
-	conn, ok := m.tabs[id]
-	if !ok { // 已列举但未拨号（如页面内 window.open 的目标）：按需 dial
+	if _, ok := m.tabs[id]; !ok { // 已列举但未拨号（如页面内 window.open 的目标）：按需 dial
 		if target.WSURL == "" {
 			return TabInfo{}, fmt.Errorf("browser: page target %s 缺少 webSocketDebuggerUrl", target.ID)
 		}
-		conn, err = Dial(ctx, target.WSURL)
+		conn, err := Dial(ctx, target.WSURL)
 		if err != nil {
 			return TabInfo{}, err
 		}

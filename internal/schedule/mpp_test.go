@@ -42,7 +42,7 @@ func mppPropsOf(items map[int64][]byte) []byte {
 	for k := range items {
 		keys = append(keys, k)
 	}
-	for len(keys) > 1 { // 稳定序(仅测试可比对)
+	if len(keys) > 1 { // 稳定序(仅测试可比对)
 		if keys[0] > keys[1] {
 			keys[0], keys[1] = keys[1], keys[0]
 		}
@@ -51,7 +51,6 @@ func mppPropsOf(items map[int64][]byte) []byte {
 				keys[i], keys[i+1] = keys[i+1], keys[i]
 			}
 		}
-		break
 	}
 	for _, k := range keys {
 		data := items[k]

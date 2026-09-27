@@ -42,7 +42,7 @@ func (s *FileStore) Append(msg provider.Message) error {
 	if s.f != nil {
 		data, _ := json.Marshal(msg)
 		data = append(data, '\n')
-		s.f.Write(data)
+		_, _ = s.f.Write(data)
 	}
 	return nil
 }
@@ -92,7 +92,7 @@ func (s *FileStore) Truncate(n int) error {
 		for _, m := range s.msgs {
 			data, _ := json.Marshal(m)
 			data = append(data, '\n')
-			s.f.Write(data)
+			_, _ = s.f.Write(data)
 		}
 	}
 	return nil

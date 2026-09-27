@@ -1048,7 +1048,7 @@ func (s *Server) notifyStart() {
 		return
 	}
 	body, _ := json.Marshal(map[string]interface{}{"base_info": s.baseInfo()})
-	s.apiPost("/ilink/bot/msg/notifystart", body, 10*time.Second)
+	_, _ = s.apiPost("/ilink/bot/msg/notifystart", body, 10*time.Second)
 }
 
 // notifyStop 通知服务器通道已停止。Shutdown 链上同步 POST 网络不可达时
@@ -1060,7 +1060,7 @@ func (s *Server) notifyStop() {
 		return
 	}
 	body, _ := json.Marshal(map[string]interface{}{"base_info": s.baseInfo()})
-	s.apiPost("/ilink/bot/msg/notifystop", body, 10*time.Second)
+	_, _ = s.apiPost("/ilink/bot/msg/notifystop", body, 10*time.Second)
 }
 
 func (s *Server) apiPost(endpoint string, body []byte, timeout time.Duration) ([]byte, error) {

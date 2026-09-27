@@ -21,7 +21,10 @@ frontend/package.json.md5
 # vitest 门禁产物（CI 分类器读写，复跑清单同目录）
 frontend/vitest-report.json
 frontend/vitest-retry-files.txt
-dist/
+# dist/ 是 wails 构建产物（main.go go:embed all:dist），只保留 .gitkeep 占位——
+# fresh checkout / go build ./... 需要 dist 目录存在（2026-09-27 审计 P0-1）。
+dist/*
+!dist/.gitkeep
 
 # Token
 .gaea_token.json

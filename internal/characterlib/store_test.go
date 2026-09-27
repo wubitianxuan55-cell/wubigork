@@ -72,17 +72,17 @@ func TestUpsertGetList_SearchFilterPagination(t *testing.T) {
 		t.Fatalf("搜索「林」= %d/%d %v", len(items), total, err)
 	}
 	// 搜索标签
-	items, total, _ = s.List("剑修", "", false, 50, 0)
+	_, total, _ = s.List("剑修", "", false, 50, 0)
 	if total != 1 {
 		t.Fatalf("标签搜索 = %d", total)
 	}
 	// 类型过滤
-	items, total, _ = s.List("", KindCustom, false, 50, 0)
+	_, total, _ = s.List("", KindCustom, false, 50, 0)
 	if total != 3 {
 		t.Fatalf("custom 过滤 = %d", total)
 	}
 	// 仅聊天角色
-	items, total, _ = s.List("", "", true, 50, 0)
+	_, total, _ = s.List("", "", true, 50, 0)
 	if total != 2 {
 		t.Fatalf("chatOnly = %d", total)
 	}

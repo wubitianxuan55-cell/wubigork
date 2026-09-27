@@ -442,7 +442,7 @@ func ImportXlsx(data []byte, customLabels ...map[string]string) (project Project
 	if err != nil {
 		return Project{}, fmt.Errorf("Excel 打开失败：%w", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	sheets := f.GetSheetList()
 	if len(sheets) == 0 {
 		return Project{}, fmt.Errorf("Excel 无工作表")

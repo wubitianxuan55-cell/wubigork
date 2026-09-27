@@ -133,7 +133,7 @@ func MaterializedGraph(db *sql.DB) (*Graph, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer erows.Close()
+	defer func() { _ = erows.Close() }()
 	for erows.Next() {
 		var e GraphEdge
 		if err := erows.Scan(&e.Src, &e.Tgt, &e.EType); err != nil {
@@ -226,7 +226,6 @@ func GraphNeighbors(db *sql.DB, start string, hops int) []Neighbor {
 	type queued struct {
 		id  string
 		hop int
-		via string
 	}
 	frontier := []queued{{id: startID, hop: 0}}
 	seen := map[string]bool{startID: true}

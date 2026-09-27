@@ -36,9 +36,9 @@ func scoreImageToLocalPath(image string) (path string, cleanup func(), err error
 		return "", func() {}, fmt.Errorf("评分图片临时文件创建失败: %w", err)
 	}
 	tmpPath := tmp.Name()
-	cleanup = func() { os.Remove(tmpPath) }
+	cleanup = func() { _ = os.Remove(tmpPath) }
 	if _, err := tmp.Write(raw); err != nil {
-		tmp.Close()
+		_ = tmp.Close()
 		cleanup()
 		return "", func() {}, fmt.Errorf("评分图片临时文件写入失败: %w", err)
 	}

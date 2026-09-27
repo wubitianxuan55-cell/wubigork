@@ -237,7 +237,7 @@ var reSaveTask = regexp.MustCompile(
 // 优先，宽匹配殿后；save_task 排在提醒之后——提醒让位，7.3-1）。
 func Parse(text string) *Intent {
 	t := strings.TrimSpace(text)
-	t = strings.TrimRight(t, "。.！!？?？")
+	t = strings.TrimRight(t, "。.！!？?")
 	t = strings.TrimSpace(t)
 	if t == "" {
 		return nil

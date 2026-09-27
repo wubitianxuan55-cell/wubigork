@@ -35,8 +35,8 @@ type Op struct {
 	Trim    bool        `json:"trim,omitempty"`
 	Upper   bool        `json:"upper,omitempty"`
 	Lower   bool        `json:"lower,omitempty"`
-	Style   *Style      `json:"style,omitempty"`  // set_style 样式载荷
-	Width   float64     `json:"width,omitempty"`  // set_col_width 列宽
+	Style   *Style      `json:"style,omitempty"` // set_style 样式载荷
+	Width   float64     `json:"width,omitempty"` // set_col_width 列宽
 }
 
 // Style 是 set_style 的样式载荷：指针/空串字段表示「不改」，叠加到单元格
@@ -68,7 +68,7 @@ func BuildContext(path, sheet string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("打开 xlsx 失败: %w", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	sheets := f.GetSheetList()
 	ctx := Context{Sheets: sheets, Active: sheet}
@@ -118,7 +118,7 @@ func ApplyOps(path string, ops []Op) ([]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("打开 xlsx 失败: %w", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	validSheets := map[string]bool{}
 	for _, name := range f.GetSheetList() {
@@ -179,8 +179,8 @@ func PlanOps(path string, ops []Op) (summary []string, changes []Change, total i
 		return nil, nil, 0, false, fmt.Errorf("创建规划副本失败: %w", err)
 	}
 	tmpName := tmp.Name()
-	tmp.Close()
-	defer os.Remove(tmpName)
+	_ = tmp.Close()
+	defer func() { _ = os.Remove(tmpName) }()
 	if err := copyFile(path, tmpName); err != nil {
 		return nil, nil, 0, false, fmt.Errorf("复制规划副本失败: %w", err)
 	}
@@ -201,12 +201,12 @@ func diffOps(origPath, tmpPath string, ops []Op) ([]Change, int, bool, error) {
 	if err != nil {
 		return nil, 0, false, fmt.Errorf("打开原文件失败: %w", err)
 	}
-	defer orig.Close()
+	defer func() { _ = orig.Close() }()
 	tmp, err := excelize.OpenFile(tmpPath, excelize.Options{UnzipXMLSizeLimit: 1 << 30})
 	if err != nil {
 		return nil, 0, false, fmt.Errorf("打开副本失败: %w", err)
 	}
-	defer tmp.Close()
+	defer func() { _ = tmp.Close() }()
 
 	sheetList := tmp.GetSheetList()
 	first := ""
@@ -315,12 +315,12 @@ func copyFile(src, dst string) error {
 	if err != nil {
 		return err
 	}
-	defer in.Close()
+	defer func() { _ = in.Close() }()
 	out, err := os.Create(dst)
 	if err != nil {
 		return err
 	}
-	defer out.Close()
+	defer func() { _ = out.Close() }()
 	if _, err := io.Copy(out, in); err != nil {
 		return err
 	}

@@ -116,7 +116,7 @@ func (s *OpenAISession) Dial(ctx context.Context) error {
 	}
 	s.mu.Unlock()
 	if loserClosed || loserConnected {
-		conn.Close()
+		_ = conn.Close()
 		if loserClosed {
 			return fmt.Errorf("realtime/openai: session closed")
 		}
@@ -126,7 +126,7 @@ func (s *OpenAISession) Dial(ctx context.Context) error {
 	go s.readLoop()
 
 	if err := s.sendSessionUpdate(); err != nil {
-		s.Close()
+		_ = s.Close()
 		return fmt.Errorf("realtime/openai: send session.update: %w", err)
 	}
 	return nil
@@ -253,7 +253,7 @@ func (s *OpenAISession) writeJSON(v interface{}) error {
 	if s.closed || s.conn == nil {
 		return fmt.Errorf("realtime/openai: not connected")
 	}
-	s.conn.SetWriteDeadline(time.Now().Add(writeTimeout))
+	_ = s.conn.SetWriteDeadline(time.Now().Add(writeTimeout))
 	return s.conn.WriteJSON(v)
 }
 

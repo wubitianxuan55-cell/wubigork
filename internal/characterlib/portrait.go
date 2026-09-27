@@ -184,7 +184,7 @@ func (s *Store) MigrateRemotePortraits() int {
 		}
 		todo = append(todo, pending{id: id, url: url})
 	}
-	rows.Close()
+	_ = rows.Close()
 
 	migrated := 0
 	for _, p := range todo {
@@ -255,7 +255,7 @@ func (s *Store) MigratePortraitsToFiles() int {
 		}
 		todo = append(todo, pending{id: id, portrait: portrait})
 	}
-	rows.Close()
+	_ = rows.Close()
 
 	migrated := 0
 	for _, p := range todo {

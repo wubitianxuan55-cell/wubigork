@@ -95,7 +95,7 @@ func (h *HerdsmanASR) TranscribeBytes(audioData []byte, filename string) (*Trans
 	if _, err := part.Write(audioData); err != nil {
 		return nil, fmt.Errorf("asr: write audio: %w", err)
 	}
-	writer.Close()
+	_ = writer.Close()
 
 	req, err := http.NewRequest("POST", url, &buf)
 	if err != nil {

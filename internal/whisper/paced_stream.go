@@ -303,6 +303,6 @@ func (p *PacedStreamEmitter) pump() {
 			p.finishBubble()
 		}
 		p.mu.Unlock()
-		return
+		return //nolint:staticcheck // SA4004: 泵循环各分支显式收束，保留 for-select 骨架
 	}
 }

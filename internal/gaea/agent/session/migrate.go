@@ -66,7 +66,7 @@ func MigrateLegacyToLog(logPath, legacyPath, space string) (int, error) {
 	if err != nil {
 		return 0, fmt.Errorf("open new log: %w", err)
 	}
-	defer w.Close()
+	defer func() { _ = w.Close() }()
 	for _, e := range entries {
 		if _, err := w.AppendRaw(e.Kind, e.Payload); err != nil {
 			return 0, fmt.Errorf("append migrated entry: %w", err)
