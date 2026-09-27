@@ -58,10 +58,12 @@ export function TaskCenter({ sessionPath }: { sessionPath?: string } = {}) {
   const [tasks, setTasks] = useState<TaskView[]>([]);
   const [loading, setLoading] = useState(true);
   const toast = useToast();
-  // v4.180 结构刀：「本会话」过滤 chip（有当前会话标识时显示）——点击后只显示
-  // session_id 匹配当前会话的任务，默认「全部」保持现状。过滤在渲染层做（原始
-  // 清单仍全量入 state），chip 切换零请求、事件增量天然随之生效。
-  const [sessionOnly, setSessionOnly] = useState(false);
+  // v4.180 结构刀：「本会话」过滤 chip（有当前会话标识时显示）——只显示
+  // session_id 匹配当前会话的任务。过滤在渲染层做（原始清单仍全量入 state），
+  // chip 切换零请求、事件增量天然随之生效。
+  // 2026-09-27 用户拍板：默认跟随当前会话（此前默认「全部」——跨会话任务混入
+  // 当前视图，子代理/本地工具运行看不出归属）。无会话标识（草稿态）回退「全部」。
+  const [sessionOnly, setSessionOnly] = useState(() => Boolean(sessionPath));
   // C1：选中任务 → 底部共享输出 dock
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [output, setOutput] = useState<TaskOutputView>({ tail: "", truncated: false });

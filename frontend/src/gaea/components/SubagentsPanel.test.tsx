@@ -2,6 +2,7 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, act, waitFor, within } from "@testing-library/react";
 import type { ReactElement } from "react";
 import { SubagentsPanel } from "./SubagentsPanel";
+import { reloadSubagentRuns } from "../lib/subagentRunsStore";
 import { LocaleProvider } from "../lib/i18n";
 import type { AgentNetwork, SubagentRunsView, SubagentTranscriptView } from "../lib/types";
 
@@ -120,6 +121,23 @@ const runsB: SubagentRunsView = {
   ],
 };
 
+// 会话 B 内再新增一个子代理（同会话新 ref 触发用）。
+const runsC: SubagentRunsView = {
+  ...runsB,
+  total: 4,
+  runs: [
+    ...runsB.runs,
+    {
+      ref: "sa_5_e5e5e5e5",
+      status: "running",
+      task: "新增并行任务：汇总竞品对比结论",
+      toolCalls: 0,
+      createdAt: "2026-08-17T12:05:00+08:00",
+      updatedAt: "2026-08-17T12:05:10+08:00",
+    },
+  ],
+};
+
 const transcript: SubagentTranscriptView = {
   ref: "sa_2_b2b2b2b2",
   task: "调研竞品表格 Agent 能力并总结可蒸馏点",
@@ -220,14 +238,21 @@ describe("SubagentsPanel 子代理工作台（v4.24 A1 三段式）", () => {
     expect(window.localStorage.getItem("gaea.subagentAutoOpen")).toBe("0");
   });
 
-  it("新子代理出现（跨会话路径触发）→ onSubagentStarted 回调", async () => {
+  it("会话切换重建基线不误触发；同会话新出现的子代理才回调", async () => {
     const onStarted = vi.fn();
     const { rerender } = renderT(<SubagentsPanel sessionPath="s1.jsonl" onSubagentStarted={onStarted} />);
     await screen.findByText("主 agent");
-    // 切到会话 B：mock 返回带新 ref 的分工列表 → 检测到新子代理（面板只负责
-    // 检测 + 回调，亮出面板由 App 接线决定——此处只钉回调触发）。
+    // 切到会话 B：mock 返回带新 ref 的分工列表 → 会话切换只重建基线，不把
+    // 新会话的既有子代理当「新」误触发（2026-09-27 用户实锤：切会话/进板块
+    // 右栏被误撑开；面板只负责检测 + 回调，亮出面板由 App 接线决定）。
     mocks.SubagentRuns.mockResolvedValue(runsB);
     rerender(<LocaleProvider><SubagentsPanel sessionPath="s2.jsonl" onSubagentStarted={onStarted} /></LocaleProvider>);
+    await act(async () => { await Promise.resolve(); });
+    await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+    expect(onStarted).not.toHaveBeenCalled();
+    // 同会话（s2）内新出现的 ref → 正常触发
+    mocks.SubagentRuns.mockResolvedValue(runsC);
+    reloadSubagentRuns("s2.jsonl");
     await waitFor(() => expect(onStarted).toHaveBeenCalledTimes(1));
   });
 

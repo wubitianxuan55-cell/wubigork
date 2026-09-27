@@ -1483,4 +1483,16 @@ body::after {
 .composer-glow {
   max-width: var(--maxw);
   width: 100%;
+  /* 输入框与对话列同缘（2026-09-27 用户实锤「输入框没有居中」）：对话列居中
+     时 glow 也居中（此前缺 margin:auto——glow 贴左，与居中的 .v3-reading 错位）；
+     右栏开启时同样镜像 .v3-reading 的左对齐，保持正文与输入框同缘。 */
+  margin-left: auto;
+  margin-right: auto;
+}
+@media (min-width: 1240px) {
+  .gaea-app-layout .layout--workspace-open .composer-glow,
+  .gaea-app-layout .layout--preview-open .composer-glow {
+    margin-left: 0;
+    margin-right: 0;
+  }
 }

@@ -3,9 +3,10 @@
 // 会话切换首个快照只建基线不触发（detectNewRunRefs 纯函数）。执行顺序与
 // deps 原样迁自 App.tsx。
 import { useCallback, useEffect, useRef } from "react";
-import { onTaskEvent } from "../lib/bridge";
+import { onTaskEvent, workApp } from "../lib/bridge";
+import { isWorkSpaceTask } from "../lib/taskSpace";
 import { detectNewRunRefs } from "../lib/subagentRunsStore";
-import type { SubagentRunView } from "../lib/types";
+import type { SubagentRunView, TaskView } from "../lib/types";
 import type { WorkspaceTabId } from "../lib/workspaceTabs";
 
 interface UseTasksAutoOpenParams {
@@ -31,16 +32,55 @@ export function useTasksAutoOpen({ rightTab, openPaneView, currentSessionPath, s
     if (rightTab !== "tasks") openPaneView("tasks");
   }, [rightTab, openPaneView]);
 
-  // 新后台任务（queued/running/stopping 事件）→ 自动激活任务页（宽屏；可关）
+  // 新后台任务（queued/running/stopping 事件）→ 自动激活任务页（宽屏；可关）。
+  // 2026-09-27 两道收口（用户拍板「右侧面板默认隐藏，不要打开办公板块就打开」）：
+  //  ① 挂载基线——先拉一次既有任务表把已存在的 id 记为已见，连接后引擎补推的
+  //     既有任务快照事件不再当「新」触发；种子未落定前事件进缓冲，落定后统一
+  //     入册（真正新出现的任务仍照常触发，v4.63 设计行为不变）。
+  //  ② 会话跟随——事件带 session_id 且当前 UI 会话已定时，他 session 的任务
+  //     不触发本会话的右栏自动展开。
   const seenTaskIdsRef = useRef<Set<string>>(new Set());
+  const taskSeedDoneRef = useRef(false);
+  const pendingTaskEventsRef = useRef<TaskView[]>([]);
+  const openTasksAutoRef = useRef(openTasksAuto);
+  openTasksAutoRef.current = openTasksAuto;
   useEffect(() => {
-    return onTaskEvent((t) => {
+    let off: (() => void) | null = null;
+    let cancelled = false;
+    workApp
+      .TaskList("")
+      .then((list) => {
+        if (cancelled) return;
+        for (const t of (list ?? []).filter(isWorkSpaceTask)) seenTaskIdsRef.current.add(t.id);
+        for (const t of pendingTaskEventsRef.current) seenTaskIdsRef.current.add(t.id);
+        pendingTaskEventsRef.current = [];
+        taskSeedDoneRef.current = true;
+      })
+      .catch(() => {
+        // 种子失败：按「无既有任务」处理，直接放行缓冲事件（保持自动展开可用）
+        if (cancelled) return;
+        for (const t of pendingTaskEventsRef.current) seenTaskIdsRef.current.add(t.id);
+        pendingTaskEventsRef.current = [];
+        taskSeedDoneRef.current = true;
+      });
+    off = onTaskEvent((t) => {
       if (t.status !== "queued" && t.status !== "running" && t.status !== "stopping") return;
+      if (currentSessionPath && t.session_id && t.session_id !== currentSessionPath) return;
+      if (!taskSeedDoneRef.current) {
+        pendingTaskEventsRef.current.push(t);
+        return;
+      }
       if (seenTaskIdsRef.current.has(t.id)) return;
       seenTaskIdsRef.current.add(t.id);
-      openTasksAuto();
+      openTasksAutoRef.current();
     }, "work");
-  }, [openTasksAuto]);
+    return () => {
+      cancelled = true;
+      off?.();
+    };
+    // openTasksAuto 经 ref 取最新（避免为订阅而重拉种子）；currentSessionPath
+    // 内联进回调：会话切换后新事件按新会话判定
+  }, [currentSessionPath]);
 
   const seenSubagentRefsRef = useRef<{ path: string; initialized: boolean; refs: Set<string> }>({
     path: "", initialized: false, refs: new Set(),

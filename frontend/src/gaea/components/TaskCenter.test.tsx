@@ -248,19 +248,26 @@ describe("TaskCenter 会话过滤（v4.180 结构刀：session_id 维度）", ()
     expect(screen.getByText("定时任务")).toBeTruthy();
   });
 
-  it("有会话标识显示 chip；默认「全部」全量展示（cron 空串任务不丢）", async () => {
+  it("有会话标识显示 chip；默认跟随当前会话（他 session/定时任务不混入），切「全部」恢复全量", async () => {
     tasks.list = [
       makeTask({ id: "s1", label: "会话任务", session_id: SESSION }),
+      makeTask({ id: "s2", label: "他会话任务", session_id: "/sessions/other.jsonl" }),
       makeTask({ id: "c1", label: "定时任务", session_id: "" }),
     ];
     render(wrap(<TaskCenter sessionPath={SESSION} />));
     expect(await screen.findByTestId("task-filter-all")).toBeTruthy();
     expect(screen.getByTestId("task-filter-session")).toBeTruthy();
-    expect(screen.getByText("会话任务")).toBeTruthy();
-    expect(screen.getByText("定时任务")).toBeTruthy();
+    // 2026-09-27 用户拍板：默认「本会话」——跨会话任务/定时任务不混入当前视图
+    expect(await screen.findByText("会话任务")).toBeTruthy();
+    expect(screen.queryByText("他会话任务")).toBeNull();
+    expect(screen.queryByText("定时任务")).toBeNull();
+
+    fireEvent.click(screen.getByTestId("task-filter-all"));
+    expect(await screen.findByText("定时任务")).toBeTruthy();
+    expect(screen.getByText("他会话任务")).toBeTruthy();
   });
 
-  it("点击「本会话」只显示 session_id 匹配当前会话的任务；切回「全部」恢复", async () => {
+  it("默认即「本会话」：再点「本会话」保持过滤；「全部↔本会话」往返", async () => {
     tasks.list = [
       makeTask({ id: "s1", label: "本会话任务", session_id: SESSION }),
       makeTask({ id: "s2", label: "他会话任务", session_id: "/sessions/other.jsonl" }),
@@ -268,16 +275,17 @@ describe("TaskCenter 会话过滤（v4.180 结构刀：session_id 维度）", ()
     ];
     render(wrap(<TaskCenter sessionPath={SESSION} />));
     await screen.findByText("本会话任务");
-
-    fireEvent.click(screen.getByTestId("task-filter-session"));
-    expect(await screen.findByText("本会话任务")).toBeTruthy();
     expect(screen.queryByText("他会话任务")).toBeNull();
-    expect(screen.queryByText("定时任务")).toBeNull();
 
     fireEvent.click(screen.getByTestId("task-filter-all"));
     expect(await screen.findByText("定时任务")).toBeTruthy();
     expect(screen.getByText("本会话任务")).toBeTruthy();
     expect(screen.getByText("他会话任务")).toBeTruthy();
+
+    fireEvent.click(screen.getByTestId("task-filter-session"));
+    expect(await screen.findByText("本会话任务")).toBeTruthy();
+    expect(screen.queryByText("他会话任务")).toBeNull();
+    expect(screen.queryByText("定时任务")).toBeNull();
   });
 
   it("过滤在渲染层：本会话开启时事件增量同受过滤，会话任务事件仍进入", async () => {

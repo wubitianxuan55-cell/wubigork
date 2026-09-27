@@ -147,7 +147,10 @@ export function SubagentsPanel({ sessionPath, onSubagentStarted }: {
 
   // runs：订阅共享 store（live 订阅——随 store 5s tick 实时刷新，不可见跳过）。
   // 新子代理检测只对成功快照（ready）做，与既有「成功拉取才检测」口径一致。
+  // 会话切换时基线作废（同 TasksWorkbench）：旧会话 refs 留存会把新会话的
+  // 子代理全判成「新」，误触发自动展开（2026-09-27 用户实锤）。
   useEffect(() => {
+    knownRefsRef.current = null;
     if (!sessionPath) {
       setRuns([]);
       setRunsMeta(null);
