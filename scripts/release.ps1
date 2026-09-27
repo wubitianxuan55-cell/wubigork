@@ -97,7 +97,7 @@ if ((Test-Path $relExe) -and ($SkipBuild)) {
 }
 Copy-Item $binExe $relExe -Force
 $hash = (Get-FileHash $relExe -Algorithm SHA256).Hash.ToLower()
-Write-Text (Join-Path $root "releases\SHA256SUMS-$tag.txt") "$hash  gaea-$tag.exe`n"
+Write-Text (Join-Path $root "releases\SHA256SUMS-$tag.txt") "$hash  gaea-$tag.exe"
 Write-Host "  SHA256 = $hash"
 
 # ── 5. 保留策略：删第 6 新 ─────────────────────────────────────────────────
