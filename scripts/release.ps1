@@ -20,6 +20,10 @@
 #   powershell -NoProfile -File scripts\release.ps1 -Version 4.421.0
 #   powershell -NoProfile -File scripts\release.ps1 -Version 4.421.0 -DryRun   # 只预检+打印计划
 #   powershell -NoProfile -File scripts\release.ps1 -Version 4.421.0 -SkipBuild # 用 build\bin 现有产物
+#
+# 幂等性注记（2026-09-27 实证）：对已发版本重跑，内容零变化（SUMS 逐字节一致、
+# 表/计数/骨架均跳过）；git status 可能报 releases/* 幻影 M——autocrlf EOL 伪影，
+# 内容 diff 为空，git add 后即净，勿当真回归。
 param(
     [Parameter(Mandatory = $true)][string]$Version,
     [switch]$SkipBuild,
@@ -97,7 +101,8 @@ if ((Test-Path $relExe) -and ($SkipBuild)) {
 }
 Copy-Item $binExe $relExe -Force
 $hash = (Get-FileHash $relExe -Algorithm SHA256).Hash.ToLower()
-Write-Text (Join-Path $root "releases\SHA256SUMS-$tag.txt") "$hash  gaea-$tag.exe"
+# 尾换行与历史 SUMS 格式逐字节一致（HEAD 版本带 \n，勿删）
+Write-Text (Join-Path $root "releases\SHA256SUMS-$tag.txt") "$hash  gaea-$tag.exe`n"
 Write-Host "  SHA256 = $hash"
 
 # ── 5. 保留策略：删第 6 新 ─────────────────────────────────────────────────

@@ -97,6 +97,8 @@
 
 ### P0-3 发版台账自动化（成本：1 天，收益：每版固定开销从 9 个文件降到 1）
 
+> **✅ 2026-09-27 落地（`scripts/release.ps1`）**：一条命令收拢发版机械动作——预检（git 干净+漂移闸）→ sync-version 三处 → `cmd /c build.bat`（含冒烟+桌面副本）→ 产物搬运 + `SHA256SUMS-v<X>.txt`（两空格格式，`sha256sum -c` 实测可验）→ 保留策略删第 6 新 → releases/README 四处维护（实存二进制行由磁盘实况重生成/校验和与发布说明计数实数化/V4_RECENT 插行裁 34 席）→ 根 README 当前行 → CHANGELOG 骨架去重插入。人手收尾 ≤3 件：写 `releases\v<X>.md` 正文、填 CHANGELOG 骨架、commit+tag。防覆盖闸：-SkipBuild 下已有同版 exe 哈希不符即拒绝（防身份漂移）；-DryRun 预演。幂等性已实证（对 v4.420.0 重跑内容零变化；git 幻影 M=autocrlf EOL 伪影，脚本头注记在案）。
+
 - **论点**：近 200 次提交的 churn 前 10 名全是台账文件，第一个真代码文件排第 11；单版提交 12 个文件里 9 个是台账（75%）。
 - **证据**：v4.420.0（`f4028968`）代码只改 3 个前端文件，提交含 12 文件 9 台账；版本号散在 `internal/app/app_info.go`、`wails.json`、`versioninfo.rc` 三处手改，靠 `scripts/check-version-drift.ps1` 互锁（该闸本身是「v4.324~v4.333 十版未跑 sync-version」事故的产物）；`SHA256SUMS-*.txt` 历史上有四种格式，`scripts/` 下零引用它（无自动核验）。
 - **动作**：一条 `scripts/release.ps1`：读版本 → 同步三处 + `releases/README.md` 版本表 → 追加 CHANGELOG 骨架条目 → 构建产物并生成固定格式 SUMS（`<sha256>  <文件名>`，可被 `sha256sum -c` 直接校验）→ 按保留策略删第 6 新版 exe。人手只写发布说明正文。
