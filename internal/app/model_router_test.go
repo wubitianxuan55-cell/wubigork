@@ -320,3 +320,42 @@ func TestOfficeLocalDefaultOn(t *testing.T) {
 		t.Fatal("OfficeLocal 默认应为 true")
 	}
 }
+
+// 陈旧默认模型（已卸载仍留在引擎记录）→ 本地优先回退常规路由（办公当前
+// 模型），不再直发必 400 model_not_installed 的请求（2026-09-27 用户实锤：
+// 选中文本 AI 编辑路由到已卸载的 Qwen3.6-35B-…）。
+func TestRouteHerdsmanLocalStaleDefaultFallsBack(t *testing.T) {
+	c := newRouterTestCore(t)
+	enableHerdsmanBaseURL(t, c, true)
+	c.cfg.OfficeLocal = true
+	if err := c.SetFeatureModel("office", "xai", "grok-4.20"); err != nil {
+		t.Fatal(err)
+	}
+	// 引擎记录默认模型指向已不在安装清单里的模型（卸载/换库后的陈旧持久化值；
+	// 走 SaveEngine 写入——生产上陈旧值正是从 SaveEngine/状态恢复这两条
+	// 不校验的路径进来的，SetDefaultModel 自带校验拦不住它们）
+	herd, _ := c.engineMgr.GetEngine("herdsman")
+	herd.DefaultModel = "Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive-Q4_K_P-2"
+	if err := c.engineMgr.SaveEngine(*herd); err != nil {
+		t.Fatal(err)
+	}
+	eng, model, source := c.routeOfficeLocal("office")
+	// 常规路由落点 = 办公当前模型（本夹具 feature 绑定与全局同为 xai/grok-4.20）
+	if eng != "xai" || model != "grok-4.20" || source == "office-local" {
+		t.Fatalf("route = (%q,%q,%q)，期望回退办公当前模型 (xai,grok-4.20,非 office-local)", eng, model, source)
+	}
+}
+
+// 默认模型仍在安装清单 → 本地优先照常生效（既有行为回归保护）。
+func TestRouteHerdsmanLocalInstalledDefaultKept(t *testing.T) {
+	c := newRouterTestCore(t)
+	enableHerdsmanBaseURL(t, c, true)
+	c.cfg.OfficeLocal = true
+	if err := c.engineMgr.SetDefaultModel("herdsman", "qwen3-8b"); err != nil {
+		t.Fatal(err)
+	}
+	eng, model, source := c.routeOfficeLocal("office")
+	if eng != "herdsman" || model != "qwen3-8b" || source != "office-local" {
+		t.Fatalf("route = (%q,%q,%q)，期望 (herdsman,qwen3-8b,office-local)", eng, model, source)
+	}
+}

@@ -102,17 +102,31 @@ func (c *core) routeOfficeLocal(feature string) (engine, model, source string) {
 // routeHerdsmanLocal 公共实现：开关已开时，若本地 Herdsman 引擎可用则强制
 // 路由本地，否则回退常规路由。source 由调用方指定（sensitive-local /
 // office-local），前端与诊断据此区分策略来源。
+//
+// 2026-09-27 实证修复：引擎记录里的 DefaultModel 是持久化值，模型卸载/换库
+// 后不跟着清——直发 Herdsman 必 400 model_not_installed（用户实锤：选中文本
+// AI 编辑路由到已卸载的陈旧模型）。现对显式默认模型校验「已安装清单」，不在
+// 即回退常规路由（= 办公当前模型，用户期望口径）；从未设默认时保留既有
+// 「首个已安装」兜底（清单本身来自安装集，无陈旧风险）。
 func (c *core) routeHerdsmanLocal(feature, source string) (engine, model, sourceOut string) {
 	if c.engineMgr != nil {
 		if eng, ok := c.engineMgr.GetEngine("herdsman"); ok && eng.Enabled && eng.BaseURL != "" {
-			m := eng.DefaultModel
-			if m == "" {
-				if dm, err := c.engineMgr.GetDefaultModel("herdsman"); err == nil {
-					m = dm
-				}
+			installed := make(map[string]bool, len(eng.Models))
+			for _, m := range eng.Models {
+				installed[m.ID] = true
 			}
-			if m == "" && len(eng.Models) > 0 {
+			m := eng.DefaultModel
+			switch {
+			case m == "" && len(eng.Models) > 0:
 				m = eng.Models[0].ID
+			case m != "" && !installed[m]:
+				slog.Warn("herdsman 默认模型未安装，本地优先回退常规路由（办公当前模型）",
+					"feature", feature, "stale_model", m, "installed", len(installed))
+				c.emitModelRoute(feature, "herdsman", m, source+"-stale-model")
+				return c.routeModel(feature)
+			}
+			if m == "" {
+				return c.routeModel(feature)
 			}
 			c.emitModelRoute(feature, "herdsman", m, source)
 			return "herdsman", m, source
