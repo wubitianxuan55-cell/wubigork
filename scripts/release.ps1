@@ -121,7 +121,7 @@ $relReadmePath = Join-Path $root 'releases\README.md'
 $relReadme = Read-Text $relReadmePath
 
 # 6a. 实存二进制行（从磁盘实况重生成，历史对账注记不再手维护）
-$keepNames = ($exes | Select-Object -First $RecentExeKeep).Name -replace '^gaea-v|\.exe$', '' -join ' / '
+$keepNames = (($exes | Select-Object -First $RecentExeKeep).Name -replace '^gaea-', '' -replace '\.exe$', '') -join ' / '
 $relReadme = [regex]::Replace($relReadme,
     '\*\*只保留最近 5 个版本的 exe\*\*（当前实存二进制 = [^）]*）',
     "**只保留最近 $RecentExeKeep 个版本的 exe**（当前实存二进制 = $keepNames）")
@@ -145,7 +145,7 @@ if (-not ($rows | Where-Object { $_ -match [regex]::Escape("./$tag.md") })) {
     Write-Host "  V4_RECENT 已含 $tag 行，跳过插入"
 }
 $rows = $rows | Select-Object -First $RecentSeats
-$newBlock = "`n" + ($rows -join "`n") + "`n"
+$newBlock = "`n`n" + ($rows -join "`n") + "`n`n"
 $relReadme = $relReadme.Remove($sx + $startM.Length, $ex - $sx - $startM.Length).Insert($sx + $startM.Length, $newBlock)
 Write-Text $relReadmePath $relReadme
 
