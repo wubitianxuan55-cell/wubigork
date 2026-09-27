@@ -39,6 +39,15 @@ foreach ($p in $patterns) {
         if (-not (Test-Path $_.FullName)) { $freed += $sz }
     }
 }
+# 2026-09-26 补洞：无头 Edge 走查 profile 常驻在**子目录**里（.tmp/uiwalk/edgeprofile*），
+# 上面的根级模式扫不到——实测 577MB 全在那里。新增按名递归删 profile 目录，
+# 同级的探针脚本（*.js/*.mjs）与目检截图（*.png）一律保留。
+Get-ChildItem $tmp -Recurse -Directory -Filter 'edgeprofile*' -Force -ErrorAction SilentlyContinue | ForEach-Object {
+    $sz = [math]::Round((Get-ChildItem $_.FullName -Recurse -Force -ErrorAction SilentlyContinue |
+        Measure-Object -Property Length -Sum).Sum / 1MB)
+    Remove-Item $_.FullName -Recurse -Force -ErrorAction SilentlyContinue
+    if (-not (Test-Path $_.FullName)) { $freed += $sz }
+}
 $after = [math]::Round((Get-ChildItem $tmp -Recurse -Force -ErrorAction SilentlyContinue |
     Measure-Object -Property Length -Sum).Sum / 1MB)
 Write-Host "[clean-tmp] 清理约 ${freed}MB，.tmp 现为 ${after}MB"

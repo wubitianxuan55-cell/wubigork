@@ -1,5 +1,12 @@
 # 记忆质量受控测评题集（Memory Eval Set · 三脑 + 经验习得）
 
+> **⚠️ 2026-09-26 状态校正（必读）**：本档配套的评测包 `internal/memoryeval`（733 行，四域 runner + 种子语料）
+> 已在提交 `68c56bc1`（2026-09-25「cleanup: 死代码第一刀」）中作为**零引用死代码整体删除**。
+> 因此下文「配 `internal/memoryeval` 内置种子语料，CI（`go test ./internal/memoryeval`）一键跑出四域基线」
+> **不再是有效入口**（本机实测该包已不存在）；下方四域 `recall@10=1.000` 基线表转为**历史数据**（2026-09-15 采样）。
+> 记忆质量门禁的恢复或口径修正见 `docs/gaea-optimization-direction-2026-09.md` §3 P1-4。题集内容本身仍有价值——
+> 它是「哪些记忆该被召回」的验收口径，可用作重建评测入口时的种子。
+
 > 用途：阶段七 7.1-1 记忆质量可评测的**零外部依赖**受控题集（docs/gaea-stage7-plan-2026-09.md §1）。
 > 与 `docs/retrieval-eval-set.md`（书斋四库·运行态·需 Herdsman embedding）分层：
 > 本题集配 `internal/memoryeval` 内置种子语料，CI（`go test ./internal/memoryeval`）

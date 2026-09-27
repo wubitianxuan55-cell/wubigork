@@ -1,6 +1,6 @@
 # docs/ 文档索引
 
-> 2026-09-09 立索引（同日状态大清算）；**2026-09-10 复核重建**——45 份顶层文档 + 2 个子目录**全部登记**（补回 7 份漏登记件），状态行与 git log 逐版核对。**归档件在 `docs/archive/`**；发布物全文在 `releases/`；版本动态速览在 `.gaea/AGENTS.md`（其历史版本段已分流至 `docs/archive/agents-version-history-2026-09.md`）。
+> 2026-09-09 立索引（同日状态大清算）；**2026-09-10 复核重建**——**2026-09-26 计数校正：65 份顶层文档（守卫口径，不含本 README）+ 3 个子目录（`archive/` `distill/` `snapshots/`）全部登记**（计数以 `node scripts/check-docs.mjs` 输出为准，勿在文中硬写）。状态行与 git log 逐版核对。**归档件在 `docs/archive/`**；发布物全文在 `releases/`；版本动态速览在 `.gaea/AGENTS.md`（其历史版本段已分流至 `docs/archive/agents-version-history-2026-09.md`）。
 >
 > **维护规则（防孤儿）**：新增/移动文档必须同步本索引；**未登记文档视同孤儿**，下一轮整理按「未登记 = 待归档或待登记」处理。引用任文档前先读其头部状态行。**守卫**：`node scripts/check-docs.mjs`（孤儿登记 / `docs/` 悬空引用 / `.gaea/AGENTS.md` 指令预算 / **含非 ASCII 的 .ps1 必须带 BOM** 四查），已接入 `scripts/ci.ps1` 全门禁。
 
@@ -25,6 +25,12 @@
 | gaea-memory-injection-eval-design-2026-09.md | 🔄 **记忆注入质量评测设计（市场调研候选2，v4.241 落地）**：与检索评测分立——对真实库 work 视图跑装配点同款构建器（晨报预载+项目本体），断言预算/泄漏/悬空结构不变量，门槛=零违规；纯核 memory.EvalInjectionBlocks + 绑定 GaeaMemoryEvalRun + 办公记忆库「注入体检」Drawer |
 | gaea-office-dag-63-design-2026-09.md | 🔄 **办公多文件 DAG 6.3 设计（阶段六域内基线）**：dag_plan 规划→run 档→拓扑分波执行器（每节点=TaskTool.RunNew 子代理会话）→7 绑定→任务中心流水线区——首刀 v4.219.0 判据「≥3 节点链全节点可控」满足，**阶段六收官**；余项（波内并行/运行中 steer 直穿/分级审批/模板库）在档续写 |
 | gaea-outlook-longterm-plan-2026-09.md | ✅ **长期规划（已收官）**：接通已有→总闸画面→造价开口→闲庭同一人设；阶段一~四出口已于 v4.184~v4.196 全数满足；后续阶段由 gaea-next-stage-plan-2026-09.md 接棒 |
+
+## 下一阶段优化方向（审计衍生 · 候选池）
+
+| 文档 | 一句话 |
+|---|---|
+| gaea-optimization-direction-2026-09.md | 🆕 **2026-09-26 全仓审计衍生的优化方向候选池（未排刀、未抬版本）**：本次实测基线（构建/测试/产物/启动）＋ 分维与 14 模块评分 ＋ P0~P2 优化项（门禁落地 / internal-app 竞态 / 台账自动化 / 上帝包拆分 / 281 遮蔽绑定 / 平行实现收敛 / 效果验证闭环 / 甘特库评估 / 仓库体积）＋ 仓库整理清单 ＋ 未验证项观察池。**不改写 `gaea-next-stage-plan-2026-09.md` 与 `gaea-stage7-plan-2026-09.md` 的优先级**，排刀权在用户 |
 
 ## 域方案与域盘点
 
@@ -95,7 +101,7 @@ gaea-space-shell-design.md（S2.1，v3.9.0）· gaea-space-dimension-design.md�
 
 ## 政策 / 约定 / 数据集
 
-ADULT_MODE.md · DREAM_WRITE_POLICY.md · MEMORY_ARCHITECTURE.md · evaluation-set.md · retrieval-eval-set.md（12 条查询集，代码运行时直接解析）· memory-eval-set.md（三脑+经验习得题集，阶段七 7.1-1；internal/memoryeval 解析跑批，四域基线 recall@10=1.000）· ilink-non-text-protocol.md · 2026-08-15-gaea3-architecture-design.md（历史基准：内核架构事件日志/Manifest/Seam，仍有效）
+ADULT_MODE.md · DREAM_WRITE_POLICY.md · MEMORY_ARCHITECTURE.md · evaluation-set.md · retrieval-eval-set.md（12 条查询集，代码运行时直接解析）· memory-eval-set.md（三脑+经验习得题集，阶段七 7.1-1；**⚠️ 2026-09-26 状态校正：其配套包 `internal/memoryeval` 已于提交 68c56bc1 作为死代码删除，文中「`go test ./internal/memoryeval` 一键跑出四域基线」不再是有效入口，四域基线转历史数据；恢复门禁或改口径见 docs/gaea-optimization-direction-2026-09.md §3 P1-4**）· ilink-non-text-protocol.md · 2026-08-15-gaea3-architecture-design.md（历史基准：内核架构事件日志/Manifest/Seam，仍有效）
 
 ## 归档区（不在此处展开）
 
