@@ -1,3 +1,16 @@
+## 最新发布：v4.422.0（2026-09-28）「小说·长篇创作刀1：故事脊椎 + 章节计划闭环（写前硬闸）」
+
+- **刀型**：用户指令「你要解决的是如何实现写一个优秀的长篇小说，不是修修补补」的落地第一刀（《长篇小说创作系统》七刀刀序）。Go 新增 6 文件改 6 文件、前端新增 2 改 7、提示词 4 个，绑定面 720→726（+6）。
+- **论点**：长篇写不好不是句子问题，是**结构/意图/状态没有闭环**——写一章的意图输入只有一句 `plot_req`；`ChapterPlan` 契约自 v4.278 落库零消费；`StoryThread` 字段全仓只有读取没有写入（五卷规划实际以空主线为输入，主题每次临时编）；生成单位是整章 blob（v4 场景事后物化单场景）；分析九维只有伏笔/角色状态/记忆三条回流；写前契约只查大纲空字段且「不阻断」；质量门全是写后报告；张力曲线读的字段生产端从不写入；前文窗口固定 10 章×180 rune。诊断十四条全部带 file:line（规格 §1）。
+- **落地**：①故事主线写入路径修复（`Continue/ExpandNode` 回收 `story_thread`，非空才覆盖）+提示词输出契约补漏；②`chapters/plans.json` + `analysis/plan-deviation/NNN.json` 落盘三态（原子写/缺失空态/损坏不覆盖）；③计划生产 `NovelChapterPlanPropose`（主线+节点+前文窗口+已有 key_events+本章分析载荷 → 七字段；不落盘、零兜底）+作者审批落盘 `NovelChapterPlanSave`（齐备性+跨章去重，S1/S2 即拒并点名）；④写前硬闸（`novelgate.PlanContractIssues` + `planPrecheck` 唯一判据来源；缺计划拒绝且**模型调用 0 次**；`CreateChapter` 八参签名不变，新增 `CreateChapterWithOverride` 第九参显式覆盖默认关）；⑤生成注入 `chapter_plan`/`outline_points` 槽位 + must（大纲 `KeyPoints`/`Emotion` 此前零进 prompt）；⑥写后偏差四判据 + summary + 下一章计划建议；⑦摘要写回护栏（漏输出 `---CHAPTER_SUMMARY---` 不得清空节点 Summary，否则同章下次预检自锁，用 overlay 负向对照验证用例有效）。前端 `ChapterPlanCard`（硬闸横幅/草案进编辑态/保守保存/偏差报告 + seq 守卫）+ CreatePage 过闸三选弹窗。
+- **证据**：端到端 `TestPlanLoopE2E_PlanMissingToDeviation`（3 章夹具 + 单 SSE 假 LLM 双链）六步：缺计划被拦（0 次模型调用）→ 草案不落盘 → 审批落盘 → 预检放行 → 落章（prompt 含「本章计划」区段）→ 偏差四判据 + 落盘回读（命令与输出见发布说明）。
+- **测试**：Go 新增 6 测试文件（novelgate 6 / app 15+10+1 / project 9 / outline 7）；`internal/app` 全包 121.8s 绿、`go test ./internal/... .` 全绿；`gofmt`/`vet`/`build` 0。前端小说域 31 文件 233 例绿、tsc 0、eslint 0。
+- **门禁**：漂移闸 OK@4.422.0（`bindingNames.ts` 726 一致、`spaceBindings` 锁 549）；`ci.ps1 -Quick` 绿。
+- **产物**：exe 51,513,344 B SHA256=059f16a87c2ef1593a7020d86057efb12987a399fbd69c63569eb693f515aca4（releases/gaea-v4.422.0.exe + SHA256SUMS-v4.422.0.txt；桌面副本同哈希；冒烟 /api/health 200 过）；实存 5 版（422/421/420/419/418）正好在保留策略内。
+- **文档**：规格 `docs/gaea-longform-novel-system-2026-09.md` + 机制调研 `docs/gaea-longform-craft-mechanics-2026-09.md`（均登记 docs/README）+ releases/v4.422.0.md + CHANGELOG/README + releases/README + AGENTS 速览 + progress（本条）。
+- **坑/教训**：①`gen_bindings` 重生成会把全部门面文件压平重排（噪音）——按历史处置还原 10 个文件、只留最小增量（bindings_novel.go +24/−0）；②并行在制会话会让全项目 `tsc` 短暂变红（本次 `sin/storyText.test.ts` 的 `parseCancelled` 未 import 是它的中间态，几分钟后自愈）——**不要代它修**，也不要为了发版去 stash 别人的在制；③发版脚本要求工作树干净，与并行在制天然冲突——本次改走手工发版（sync-version + build.bat + 产物搬运 + 台账），`release.ps1` 幂等可后续补齐。
+- **观察池**：跨章去重第二来源（已写但无计划条目的旧章其 `ChapterSummary.KeyEvents` 未参与去重，根因无章号字段，修法=带章号的批量摘要读接口，随刀2）/ 刀2 场景卡与逐场景生成 / 刀3 故事层骨架 / 刀4 质量收敛闭环 / 刀5 风格学习回灌 / 刀6 上下文编译器 / 刀7 评测基线（`baseline.json` + `promptSetHash` + 夹具）。
+
 ## 最新发布：v4.421.0（2026-09-28）「小说板块优化批：未保存保护 + 常驻页副作用治理 + 取消防覆盖」
 
 - **刀型**：用户指令「优化小说板块」（拍板 A+B 合并批＝正确性修复 + 体验收口）。定刀依据=三线并行只读审计（小说前端 15 项 / Go 后端 14 项 / 计划台账清账与 STALE 校正）+主代理读码复核，落地 20 项、其余入观察池。前端 15 文件（3 新增）+Go 4 文件（2 新增测试），绑定面 720 零变更，零功能删除。
