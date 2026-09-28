@@ -39,6 +39,7 @@ const MESSAGES: SinMessageView[] = [
 function renderPanel(over: Partial<Parameters<typeof SinSidePanel>[0]> = {}) {
   return render(
     <SinSidePanel
+      storyId="s_a"
       cast={CAST}
       castSaving={false}
       onOpenPicker={vi.fn()}
@@ -236,6 +237,7 @@ describe('SinSidePanel 画廊重新生成（v4.265）', () => {
     resolveRegen()
     rerender(
       <SinSidePanel
+        storyId="s_a"
         cast={CAST} castSaving={false} onOpenPicker={vi.fn()} onRemoveCast={vi.fn()}
         notesDoc={{ notes: ['女主：林晚，地方台记者'], outline: '第一章：雨夜站台相遇' }}
         notesError="" notesLoading={false} messages={msNext}
@@ -296,6 +298,52 @@ describe('SinSidePanel 底稿编辑（v4.266）', () => {
     expect(onSaveNotes.mock.calls[0][2]).toEqual(['顾城是三年前的线人'])
   })
 
+  it('脏上报：改动即 onDirtyChange(true)，取消/保存后回落 false', async () => {
+    const onDirtyChange = vi.fn()
+    const onSaveNotes = vi.fn().mockResolvedValue({ ok: true, conflict: false, message: '' })
+    renderPanel({ onSaveNotes, onDirtyChange })
+    expect(onDirtyChange).toHaveBeenLastCalledWith(false)
+    fireEvent.click(screen.getByRole('tab', { name: /大纲/ }))
+    fireEvent.click(screen.getByTitle('编辑大纲'))
+    fireEvent.change(screen.getByPlaceholderText('章节走向、时间线、伏笔…'), { target: { value: '改了走向' } })
+    await waitFor(() => expect(onDirtyChange).toHaveBeenLastCalledWith(true))
+    fireEvent.click(screen.getByRole('button', { name: /取\s*消/ }))
+    await waitFor(() => expect(onDirtyChange).toHaveBeenLastCalledWith(false))
+  })
+
+  it('切故事丢草稿：storyId 变化后编辑态复位（旧草稿不可保存进别的故事）', async () => {
+    const onSaveNotes = vi.fn().mockResolvedValue({ ok: true, conflict: false, message: '' })
+    const { rerender } = renderPanel({ onSaveNotes })
+    fireEvent.click(screen.getByRole('tab', { name: /大纲/ }))
+    fireEvent.click(screen.getByTitle('编辑大纲'))
+    fireEvent.change(screen.getByPlaceholderText('章节走向、时间线、伏笔…'), { target: { value: 'A 故事的修改' } })
+    // 切到另一个故事：编辑态必须退出（保存闭包已绑定新故事，留着只会串写）
+    rerender(
+      <SinSidePanel
+        storyId="s_b"
+        cast={CAST}
+        castSaving={false}
+        onOpenPicker={vi.fn()}
+        onRemoveCast={vi.fn()}
+        notesDoc={{ notes: [], outline: '' }}
+        notesError=""
+        notesLoading={false}
+        messages={MESSAGES}
+        sending={false}
+        onRegenerate={vi.fn().mockResolvedValue(undefined)}
+        onSaveNotes={onSaveNotes}
+      />,
+    )
+    expect(screen.queryByPlaceholderText('章节走向、时间线、伏笔…')).toBeNull()
+    expect(screen.getByText('写大纲')).toBeTruthy()
+    fireEvent.click(screen.getByTitle('编辑大纲'))
+    fireEvent.change(screen.getByPlaceholderText('章节走向、时间线、伏笔…'), { target: { value: 'B 故事的内容' } })
+    fireEvent.click(screen.getByRole('button', { name: /保\s*存/ }))
+    await waitFor(() => expect(onSaveNotes).toHaveBeenCalledTimes(1))
+    // 保存落点是新故事的内容，A 故事的修改没有跟进
+    expect(onSaveNotes.mock.calls[0][1]).toBe('B 故事的内容')
+  })
+
   it('sending 中：编辑入口禁用并给原因；草稿中保存按钮也禁用', async () => {
     const onSaveNotes = vi.fn().mockResolvedValue({ ok: true, conflict: false, message: '' })
     const { rerender } = renderPanel({ onSaveNotes, sending: true })
@@ -305,6 +353,7 @@ describe('SinSidePanel 底稿编辑（v4.266）', () => {
     // 放开 sending 进入编辑，再恢复 sending → 保存禁用
     rerender(
       <SinSidePanel
+        storyId="s_a"
         cast={CAST} castSaving={false} onOpenPicker={vi.fn()} onRemoveCast={vi.fn()}
         notesDoc={{ notes: ['女主：林晚，地方台记者'], outline: '第一章：雨夜站台相遇' }}
         notesError="" notesLoading={false} messages={MESSAGES}
@@ -315,6 +364,7 @@ describe('SinSidePanel 底稿编辑（v4.266）', () => {
     fireEvent.click(screen.getByTitle('编辑大纲'))
     rerender(
       <SinSidePanel
+        storyId="s_a"
         cast={CAST} castSaving={false} onOpenPicker={vi.fn()} onRemoveCast={vi.fn()}
         notesDoc={{ notes: ['女主：林晚，地方台记者'], outline: '第一章：雨夜站台相遇' }}
         notesError="" notesLoading={false} messages={MESSAGES}

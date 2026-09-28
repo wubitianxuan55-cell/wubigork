@@ -23,6 +23,7 @@ import (
 
 	"github.com/bmaupin/go-epub"
 	"github.com/gaea/gaea/internal/booksource"
+	"github.com/gaea/gaea/internal/gaea/fileutil"
 )
 
 // sinBooksDir 原罪成书目录（书源下载的整本 TXT；sin 数据面，与办公工作区隔离）。
@@ -106,8 +107,14 @@ func sinDownloadBook(ctx context.Context, rulesDir, booksDir string, p bookImpor
 		return SinBookSourceDownloadResult{}, err
 	}
 	path := sinUniqueBookPath(booksDir, title)
-	if err := os.WriteFile(path, raw, 0o644); err != nil {
+	// 原子写（v4.422，与便签/导出同一纪律）：崩溃不留半截 TXT 进成书清单。
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, raw, 0o644); err != nil {
 		return SinBookSourceDownloadResult{}, fmt.Errorf("写成书文件失败: %w", err)
+	}
+	if err := fileutil.RenameWithRetry(tmp, path); err != nil {
+		_ = os.Remove(tmp)
+		return SinBookSourceDownloadResult{}, fmt.Errorf("保存成书文件失败: %w", err)
 	}
 	words := 0
 	for _, ch := range report.Chapters {

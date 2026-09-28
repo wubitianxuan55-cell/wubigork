@@ -25,6 +25,7 @@ interface Job {
 
 let seq = 0
 let running = false
+let runningToken = 0
 const queue: Job[] = []
 const listeners = new Set<() => void>()
 
@@ -40,19 +41,22 @@ function drain() {
     return
   }
   running = true
+  runningToken = job.token
   notify()
   job.run()
     .then((v) => job.resolve(v))
     .catch((e) => job.reject(e))
     .finally(() => {
       running = false
+      runningToken = 0
       drain()
     })
 }
 
 /**
  * 入队一个插图生成任务，返回 { promise, token }。
- * token 用于查询自己在队列中的位次（配合 subscribeIllustrationQueue 重渲染）。
+ * token 用于查询自己在队列中的位次（配合 subscribeIllustrationQueue 重渲染），
+ * 也是取消的定位键（cancelIllustration）。
  */
 export function enqueueIllustration<T>(run: () => Promise<T>): { promise: Promise<T>; token: number } {
   const token = ++seq
@@ -61,6 +65,27 @@ export function enqueueIllustration<T>(run: () => Promise<T>): { promise: Promis
   })
   drain()
   return { promise, token }
+}
+
+/** generate 的 catch 据此把「用户取消」与真实失败分开（取消不进错误样式）。 */
+export const SIN_ILLUSTRATION_CANCELLED = '插图已取消'
+
+/**
+ * 取消排队/在跑任务。返回：
+ *   'removed' — 还在排队，已从队列摘除（promise 以 SIN_ILLUSTRATION_CANCELLED 拒绝）；
+ *   'active'  — 正在生成（调用方对后端当前任务执行取消）；
+ *   'none'    — 已结束/未知 token，无需处理。
+ */
+export function cancelIllustration(token: number): 'removed' | 'active' | 'none' {
+  if (token <= 0) return 'none'
+  const idx = queue.findIndex((j) => j.token === token)
+  if (idx >= 0) {
+    const [job] = queue.splice(idx, 1)
+    job.reject(new Error(SIN_ILLUSTRATION_CANCELLED))
+    notify()
+    return 'removed'
+  }
+  return running && runningToken === token ? 'active' : 'none'
 }
 
 /** 订阅队列变化（在跑状态/等待数；组件用它重算自己的位次）。 */
@@ -86,6 +111,7 @@ export function illustrationQueueSnapshot(): IllustrationQueueSnapshot {
 export function __resetIllustrationQueueForTest(): void {
   queue.length = 0
   running = false
+  runningToken = 0
   seq = 0
   listeners.clear()
 }

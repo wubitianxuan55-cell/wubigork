@@ -54,6 +54,13 @@ const OriginalSinPage: React.FC = () => {
   const model = useFeatureModel('sin')
   const [castPickerOpen, setCastPickerOpen] = useState(false)
   const [panelOpen, setPanelOpen] = useState<boolean>(() => readSinPanelOpen())
+  // 底稿未保存修改（SinSidePanel 上报）：切/删故事前先确认，防草稿静默丢失
+  const [panelDirty, setPanelDirty] = useState(false)
+  const handlePanelDirtyChange = useCallback((dirty: boolean) => setPanelDirty(dirty), [])
+  // 首次需要展示角色库（面板展开/选择器打开）才拉全量列表——进板块零额外请求
+  useEffect(() => {
+    if (panelOpen || castPickerOpen) cast.ensureLibrary()
+  }, [panelOpen, castPickerOpen, cast])
 
   // ── 主区视图页签（v4.412 复用办公同款 ChatTabs）：故事流 / 轨迹 / 上下文 ──
   // 轨迹与上下文走 SinTrajectory/SinContextView 自定义数据源（估算口径），
@@ -145,7 +152,9 @@ const OriginalSinPage: React.FC = () => {
     if (!el) return
     stickRef.current = isNearBottom(el.scrollHeight - el.scrollTop - el.clientHeight)
   }, [])
-  const lastLen = story.messages.reduce((n, m) => n + m.content.length, 0)
+  // 只跟踪最后一条消息的长度（整列表 reduce 在长故事流式期间是每帧 O(总字数)）
+  const lastMsg = story.messages[story.messages.length - 1]
+  const lastLen = lastMsg ? lastMsg.content.length : 0
   useEffect(() => {
     const el = listRef.current
     if (el && stickRef.current) el.scrollTop = el.scrollHeight
@@ -156,9 +165,35 @@ const OriginalSinPage: React.FC = () => {
     stickRef.current = true
   }, [story.activeId])
 
-  const onSend = useCallback((display: string) => {
-    void story.send(display)
+  const onSend = useCallback((display: string, submit?: string) => {
+    void story.send(display, submit)
   }, [story])
+
+  // 切故事统一入口：底稿有未保存修改时先确认（放弃修改才切）。
+  // 删除当前故事同样会切走，走同一道闸。
+  const confirmSwitchThen = useCallback((action: () => void) => {
+    if (!panelDirty) {
+      action()
+      return
+    }
+    Modal.confirm({
+      title: '底稿有未保存的修改',
+      content: '设定/大纲的编辑还没保存，切换故事后会丢弃。',
+      okText: '放弃修改并继续',
+      okButtonProps: { danger: true },
+      cancelText: '先不切',
+      onOk: action,
+    })
+  }, [panelDirty])
+
+  const handleSelectStory = useCallback((id: string) => {
+    if (id === story.activeId) return
+    confirmSwitchThen(() => { void story.selectStory(id) })
+  }, [confirmSwitchThen, story])
+
+  const handleDeleteStory = useCallback((id: string) => {
+    confirmSwitchThen(() => { void story.deleteStory(id) })
+  }, [confirmSwitchThen, story])
 
   // 画廊「重新生成」：与流内插图同一串行队列（一次一张）→ SinIllustrate 按
   // messageId+cue 覆盖回写 → 消息重载刷新画廊与流内。失败/未回写如实提示，
@@ -297,10 +332,15 @@ const OriginalSinPage: React.FC = () => {
                 <div
                   key={s.id}
                   className={`sin-shelf-item${s.id === story.activeId ? ' is-active' : ''}`}
-                  onClick={() => void story.selectStory(s.id)}
+                  onClick={() => handleSelectStory(s.id)}
                   role="button"
                   tabIndex={0}
-                  onKeyDown={(e) => { if (e.key === 'Enter') void story.selectStory(s.id) }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      handleSelectStory(s.id)
+                    }
+                  }}
                 >
                   <MessageOutlined className="sin-shelf-icon" />
                   <div className="sin-shelf-text">
@@ -312,7 +352,7 @@ const OriginalSinPage: React.FC = () => {
                     description="故事与其消息会一并删除，不可恢复。"
                     okText="删除"
                     cancelText="取消"
-                    onConfirm={() => void story.deleteStory(s.id)}
+                    onConfirm={() => handleDeleteStory(s.id)}
                   >
                     <Button
                       size="small"
@@ -342,7 +382,9 @@ const OriginalSinPage: React.FC = () => {
             </div>
           </aside>
 
-          {/* ── 中：主区页签（故事/轨迹/上下文）+ 内容 ── */}
+          {/* ── 中：主区页签（故事/轨迹/上下文）+ 内容 ──
+              故事列常驻挂载（display:none 切换）：切页签不卸载 Composer/StoryStream
+              ——输入框草稿、插图生成进度、流式订阅都不因看一眼轨迹而丢。 */}
           <main className="sin-main">
             <ChatTabs
               active={sinTab}
@@ -351,35 +393,34 @@ const OriginalSinPage: React.FC = () => {
               labelOverrides={{ chat: '故事' }}
               className="sin-tabs"
             />
-            {sinTab === 'chat' && (
-              <>
-                <div className="sin-stream-host">
-                  <StoryStream
-                    ref={listRef}
-                    storyId={story.activeId}
-                    messages={story.messages}
-                    onIllustrationGenerated={story.setIllustration}
-                    onIllustrationError={story.showNotice}
-                    onScroll={onScroll}
-                  />
-                </div>
-                {story.notice && (
-                  <div className="sin-notice" role="status">
-                    <span className="sin-notice-text">{story.notice}</span>
-                    <Button size="small" type="text" icon={<CloseOutlined />} onClick={story.clearNotice} aria-label="关闭提示" />
-                  </div>
-                )}
-                <div className="sin-composer">
-                  <Composer
-                    running={story.sending}
-                    onSend={onSend}
-                    onCancel={story.cancel}
-                    onPickFolder={async () => ''}
-                    disabled={story.initializing}
-                  />
-                </div>
-              </>
+            {story.notice && (
+              <div className="sin-notice" role="status">
+                <span className="sin-notice-text">{story.notice}</span>
+                <Button size="small" type="text" icon={<CloseOutlined />} onClick={story.clearNotice} aria-label="关闭提示" />
+              </div>
             )}
+            <div className={`sin-chat-pane${sinTab === 'chat' ? '' : ' is-hidden'}`}>
+              <div className="sin-stream-host">
+                <StoryStream
+                  ref={listRef}
+                  storyId={story.activeId}
+                  messages={story.messages}
+                  onIllustrationGenerated={story.setIllustration}
+                  onIllustrationError={story.showNotice}
+                  onScroll={onScroll}
+                />
+              </div>
+              <div className="sin-composer">
+                <Composer
+                  key={story.activeId}
+                  running={story.sending}
+                  onSend={onSend}
+                  onCancel={story.cancel}
+                  onPickFolder={async () => ''}
+                  disabled={story.initializing}
+                />
+              </div>
+            </div>
             {sinTab === 'trajectory' && (
               <div className="sin-insight-host">
                 <TrajectoryView
@@ -403,9 +444,12 @@ const OriginalSinPage: React.FC = () => {
             )}
           </main>
 
-          {/* ── 右：创作面板（办公同款标签页：角色/大纲/设定/插图 + 玩法气泡） ── */}
-          {panelOpen && (
+          {/* ── 右：创作面板（办公同款标签页：角色/大纲/设定/插图 + 玩法气泡） ──
+              常驻挂载 + display:none 切换：收面板不丢底稿草稿与书源下载进度。
+              display:contents 让宿主不参与布局，aside 自身的 width/flexBasis 照常生效。 */}
+          <div className={`sin-side-host${panelOpen ? '' : ' is-hidden'}`}>
             <SinSidePanel
+              storyId={story.activeId}
               cast={cast.cast}
               castSaving={cast.saving}
               onOpenPicker={() => setCastPickerOpen(true)}
@@ -419,8 +463,9 @@ const OriginalSinPage: React.FC = () => {
               sending={story.sending}
               onRegenerate={onRegenerate}
               onSaveNotes={notes.save}
+              onDirtyChange={handlePanelDirtyChange}
             />
-          )}
+          </div>
         </div>
 
         <SinCastPicker

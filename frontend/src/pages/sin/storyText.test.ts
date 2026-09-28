@@ -3,7 +3,7 @@
 // 否则导出与重开时插图映射对不上。
 import { describe, expect, it } from 'vitest'
 import {
-  SIN_CUE_CLOSE, SIN_CUE_OPEN, parseIllustrations, parseReasoning,
+  SIN_CUE_CLOSE, SIN_CUE_OPEN, parseCancelled, parseIllustrations, parseReasoning,
   parseStorySegments, parseTools, pendingIllustrations, sinCueKey,
   stripCuesForDisplay, suggestStoryTitle, toToolViews,
 } from './storyText'
@@ -107,5 +107,15 @@ describe('parseTools / toToolViews（工具轨迹）', () => {
       { id: 'b', name: 'sin_notes', error: '工具执行失败：x' },
     ])
     expect(views.map((v) => v.status)).toEqual(['done', 'failed'])
+  })
+
+  it('parseCancelled：extra.cancelled === true 才算手动停止（坏 JSON/缺字段一律 false）', () => {
+    expect(parseCancelled('{"cancelled":true}')).toBe(true)
+    expect(parseCancelled({ cancelled: true })).toBe(true)
+    expect(parseCancelled('{"cancelled":false}')).toBe(false)
+    expect(parseCancelled('{"illustrations":{"0":"a.png"}}')).toBe(false)
+    expect(parseCancelled('not json')).toBe(false)
+    expect(parseCancelled('')).toBe(false)
+    expect(parseCancelled(null)).toBe(false)
   })
 })

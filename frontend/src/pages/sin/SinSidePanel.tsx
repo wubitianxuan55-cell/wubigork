@@ -68,6 +68,8 @@ function EmptyHint({ description, hint }: { description: string; hint: string })
 }
 
 export interface SinSidePanelProps {
+  /** 草稿归属的故事 id：切故事时未保存的底稿编辑按归属丢弃（防串写进别的故事文件）。 */
+  storyId: string
   cast: SinCastCharacter[]
   castSaving: boolean
   onOpenPicker: () => void
@@ -86,11 +88,13 @@ export interface SinSidePanelProps {
   onRegenerate: (item: SinGalleryItem) => Promise<void>
   /** 底稿编辑保存（v4.266，useSinNotes.save）：冲突返回 conflict=true。 */
   onSaveNotes: (baseline: SinNotesDoc, outline: string, notes: string[], force: boolean) => Promise<{ ok: boolean; conflict: boolean; message: string }>
+  /** 底稿有无未保存修改（页面据此在切故事前弹确认）。 */
+  onDirtyChange?: (dirty: boolean) => void
 }
 
 export function SinSidePanel({
-  cast, castSaving, onOpenPicker, onRemoveCast, onGenerateSheet, onScore,
-  notesDoc, notesError, notesLoading, messages, sending, onRegenerate, onSaveNotes,
+  storyId, cast, castSaving, onOpenPicker, onRemoveCast, onGenerateSheet, onScore,
+  notesDoc, notesError, notesLoading, messages, sending, onRegenerate, onSaveNotes, onDirtyChange,
 }: SinSidePanelProps) {
   const [tab, setTab] = useState<SinSideTabId>(() => readSinPanelTab())
   const [preview, setPreview] = useState<SinGalleryItem | null>(null)
@@ -118,8 +122,11 @@ export function SinSidePanel({
   // ── 底稿编辑会话（v4.266）──
   // baseline = 进入编辑时的 doc 快照（SinNotesSave 锁内比对锚）；sending 中保存
   // 禁用（AI 回合可能写底稿），冲突走「覆盖确认」——设计档 §14.7，不做字段级 merge。
+  // draft 记录归属故事 id：保存与 dirty 判定都只在归属故事内生效——切故事后
+  // 旧草稿一律丢弃（保存闭包绑定的是当前故事，留着只会把 A 故事内容写进 B 故事）。
   const [draft, setDraft] = useState<{
     tab: 'outline' | 'notes'
+    storyId: string
     baseline: SinNotesDoc
     outline: string
     notes: string[]
@@ -130,11 +137,36 @@ export function SinSidePanel({
   const startDraft = useCallback((tab: 'outline' | 'notes') => {
     if (sending) return
     setDraftError('')
-    setDraft({ tab, baseline: { notes: [...notesDoc.notes], outline: notesDoc.outline }, outline: notesDoc.outline, notes: [...notesDoc.notes] })
-  }, [notesDoc, sending])
+    setDraft({
+      tab, storyId,
+      baseline: { notes: [...notesDoc.notes], outline: notesDoc.outline },
+      outline: notesDoc.outline, notes: [...notesDoc.notes],
+    })
+  }, [notesDoc, sending, storyId])
+
+  // 未保存修改上报（页面在切故事/删故事前弹确认；无修改时静默放行）
+  const draftDirty = useMemo(() => {
+    if (!draft || draft.storyId !== storyId) return false
+    if (draft.outline !== draft.baseline.outline) return true
+    return draft.notes.length !== draft.baseline.notes.length ||
+      draft.notes.some((n, i) => n !== draft.baseline.notes[i])
+  }, [draft, storyId])
+  useEffect(() => {
+    onDirtyChange?.(draftDirty)
+  }, [draftDirty, onDirtyChange])
+
+  // 切故事即丢弃草稿：页面已对 dirty 情形弹过确认；未 dirty 时静默清。
+  // （保存闭包绑定当前故事，旧草稿留着只会跨故事串写。）
+  useEffect(() => {
+    setDraft((prev) => (prev && prev.storyId !== storyId ? null : prev))
+  }, [storyId])
 
   const saveDraft = (d: NonNullable<typeof draft>, force = false) => {
     if (draftSaving) return
+    if (d.storyId !== storyId) {
+      setDraft(null) // 旧故事草稿：不可再保存（落点已是别的故事），直接丢弃
+      return
+    }
     setDraftSaving(true)
     setDraftError('')
     onSaveNotes(d.baseline, d.outline, d.notes, force)

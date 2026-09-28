@@ -39,15 +39,21 @@ const sinIllustrationsExtraKey = "illustrations"
 // sinRunSeq 流式 runID 进程内序号：同一毫秒并发/连发不撞名（v4.219 同坑）。
 var sinRunSeq atomic.Uint64
 
-// ── 在途故事流登记（取消支持，v4.258）──
+// ── 在途故事流登记（取消支持，v4.258；并发互斥 v4.422）──
 //
 // 每个话题同时最多一个在途流（前端一次一轮），登记句柄供 SinCancel 精确取消：
 // 取消 = ctx 中止（底层 HTTP 请求断开）+ 标记 cancelled —— 收尾按「保留已生成的
 // 部分」落库（用户消息 + 部分正文 + extra.cancelled），不静默丢内容。
+// v4.422：register 命中在途即拒绝（对齐 novel create_chapter 同款口径）——
+// 历史实现无条件覆盖 map，双客户端（httpbridge 网页端/双开壳）连发两轮会双写
+// 同一故事，且第一个流失联不可取消；cancel 改为登记时同一锁内写入（修复
+// SinCancel 无锁读 run.cancel 与流 goroutine 迟写之间的数据竞争）。
 type sinRun struct {
 	topicID   string
 	cancel    context.CancelFunc
 	cancelled atomic.Bool
+	// done 在流 goroutine 完全退出时关闭（读侧可等待收尾，不留半途写入）。
+	done chan struct{}
 }
 
 var (
@@ -55,12 +61,17 @@ var (
 	sinRuns   = map[string]*sinRun{}
 )
 
-func registerSinRun(topicID string) *sinRun {
-	run := &sinRun{topicID: topicID}
+// registerSinRun 登记在途流：ctx/cancel 由调用方创建、同一锁内写入（SinCancel
+// 读到的 cancel 要么为 nil 要么可用，不存在中间态）。话题已有在途流 → 拒绝。
+func registerSinRun(topicID string, cancel context.CancelFunc) (*sinRun, error) {
 	sinRunsMu.Lock()
+	defer sinRunsMu.Unlock()
+	if old := sinRuns[topicID]; old != nil {
+		return nil, fmt.Errorf("当前故事正在生成中，请先停止再发起")
+	}
+	run := &sinRun{topicID: topicID, cancel: cancel, done: make(chan struct{})}
 	sinRuns[topicID] = run
-	sinRunsMu.Unlock()
-	return run
+	return run, nil
 }
 
 func unregisterSinRun(topicID string, run *sinRun) {
@@ -69,6 +80,7 @@ func unregisterSinRun(topicID string, run *sinRun) {
 		delete(sinRuns, topicID)
 	}
 	sinRunsMu.Unlock()
+	close(run.done)
 }
 
 func takeSinRun(topicID string) *sinRun {
@@ -144,17 +156,25 @@ func (a *App) SinTopicRename(id, title string) error {
 }
 
 // SinTopicDelete 删除故事（消息级联删除；仅 sin 话题）。
+// 在途流中如实拒绝：流收尾会无条件落库，删完再插 = 「复活」或 FK 报错。
 func (a *App) SinTopicDelete(id string) error {
 	if err := a.sinTopicGuard(id); err != nil {
 		return err
+	}
+	if run := takeSinRun(id); run != nil {
+		return fmt.Errorf("该故事正在生成中，请先停止再删除")
 	}
 	return a.chatStore.DeleteTopic(id)
 }
 
 // SinTopicClear 清空故事消息（保留话题本身；仅 sin 话题）。
+// 在途流中如实拒绝（理由同 Delete：清空后收尾落库会把刚清掉的内容插回来）。
 func (a *App) SinTopicClear(id string) error {
 	if err := a.sinTopicGuard(id); err != nil {
 		return err
+	}
+	if run := takeSinRun(id); run != nil {
+		return fmt.Errorf("该故事正在生成中，请先停止再清空")
 	}
 	return a.chatStore.ClearMessages(id)
 }
@@ -208,12 +228,20 @@ func (a *App) SinStream(topicID, message string) (string, error) {
 		return "", fmt.Errorf("未找到可用模型（可能处于离线模式且无本地模型）")
 	}
 	runID := fmt.Sprintf("ss_%d_%d", time.Now().UnixMilli(), sinRunSeq.Add(1))
-	run := registerSinRun(topicID)
-	go a.runSinStream(runID, topicID, message, eng, model, source, run)
+	// 整轮可取消：SinCancel 取消的是这一整轮（底层流式请求 + 正在执行的工具）。
+	// ctx 在登记前创建、cancel 在登记锁内写入——SinCancel 读到的句柄无中间态
+	// （v4.422：历史实现在流 goroutine 里迟写 run.cancel，存在无同步读写的竞态）。
+	runCtx, runCancel := context.WithCancel(a.ctx)
+	run, err := registerSinRun(topicID, runCancel)
+	if err != nil {
+		runCancel()
+		return "", err
+	}
+	go a.runSinStream(runID, topicID, message, eng, model, source, runCtx, run)
 	return runID, nil
 }
 
-func (a *App) runSinStream(runID, topicID, userMessage, eng, model, source string, run *sinRun) {
+func (a *App) runSinStream(runID, topicID, userMessage, eng, model, source string, runCtx context.Context, run *sinRun) {
 	defer unregisterSinRun(topicID, run)
 	defer func() {
 		if r := recover(); r != nil {
@@ -223,8 +251,9 @@ func (a *App) runSinStream(runID, topicID, userMessage, eng, model, source strin
 	}()
 
 	// 前情装配：历史消息在写入本轮交换之前读取（本轮用户消息由 userMessage
-	// 直接带入提示，避免重复）。
-	history, err := a.chatStore.ListMessages(topicID)
+	// 直接带入提示，避免重复）。只取提示词窗口（最近 sinHistoryTurns 条，
+	// buildSinUserPrompt 也只用这段）——千回合老故事不再整表加载。
+	history, _, err := a.chatStore.ListMessagesPage(topicID, sinHistoryTurns, 0)
 	if err != nil {
 		slog.Warn("原罪前情读取失败，按无历史继续", "topicID", topicID, "error", err)
 		history = nil
@@ -251,15 +280,6 @@ func (a *App) runSinStream(runID, topicID, userMessage, eng, model, source strin
 	// 注册表为空时本循环退化为改造前的单轮行为（请求不带 tools 字段）。
 	tools := a.sinToolSet(topicID)
 	schemas := sinToolSchemas(tools)
-
-	// 整轮可取消：SinCancel 取消的是这一整轮（底层流式请求 + 正在执行的工具），
-	// 且起手即登记——改造前要等首个请求建立成功才可取消，存在一个窄窗口。
-	runCtx, runCancel := context.WithCancel(a.ctx)
-	defer runCancel()
-	run.cancel = runCancel
-	if run.cancelled.Load() {
-		runCancel() // 极窄竞态：注册与取消同帧 → 立即中止
-	}
 
 	// 附件 @引用展开（@路径 → 本轮可读内容块）：Composer 提交的附件只带路径
 	// 文本，模型没有文件工具、读不到本地盘——不展开就等于「原罪无法访问附件」。
@@ -303,10 +323,19 @@ func (a *App) runSinStream(runID, topicID, userMessage, eng, model, source strin
 		res, err := a.sinStreamRound(runCtx, runID, model, opts, messages, roundSchemas, run)
 		if err != nil {
 			if run.cancelled.Load() {
+				// 取消引发的读错误按「已停止」收尾；本轮已流出的增量照样并入
+				// （取消路径的口径就是保留已生成部分，正文一个字不丢）。
+				reply.WriteString(res.content)
+				reasoning.WriteString(res.reasoning)
 				break
 			}
+			// 中途流错误：已逐帧下发到前端的正文增量必须并入 reply（与取消同口径
+			// ——历史实现在这里整段丢弃，用户屏幕上的故事重开就消失）。失败轮的
+			// usage 不可信，不计入。
+			reply.WriteString(res.content)
+			reasoning.WriteString(res.reasoning)
 			switch {
-			case roundSchemas != nil && len(trace) == 0 && reply.Len() == 0:
+			case roundSchemas != nil && len(trace) == 0 && reply.Len() == 0 && res.content == "":
 				// 首轮带工具直接失败（模型/端点不支持 tools）→ 去掉工具重试一次，
 				// 并如实告知。工具是增强不是前置条件：不支持工具不该让写作整单失败。
 				useTools = false
@@ -315,9 +344,9 @@ func (a *App) runSinStream(runID, topicID, userMessage, eng, model, source strin
 				})
 				continue
 			case reply.Len() > 0:
-				// 已经有正文：中断的是工具轮，用已写出来的内容收尾（不吞掉故事）。
+				// 已经有正文：中断的是工具轮或首轮后段，用已写出来的内容收尾（不吞掉故事）。
 				a.emit("sin-stream:"+runID, map[string]interface{}{
-					"type": "notice", "message": "工具轮中断，已用已生成的内容收尾",
+					"type": "notice", "message": "生成中断，已保留已生成的部分",
 				})
 			default:
 				a.emit("sin-stream:"+runID, map[string]interface{}{"type": "error", "error": err.Error()})
@@ -361,6 +390,21 @@ func (a *App) runSinStream(runID, topicID, userMessage, eng, model, source strin
 	replyStr := reply.String()
 	reasoningStr := reasoning.String()
 	cancelled := run.cancelled.Load()
+
+	// 零正文取消：不落一条空 assistant 消息（历史/导出/轨迹都会被空行污染），
+	// 只保留用户指令落库——残稿一个字没有，「保留部分」无从谈起。
+	if cancelled && strings.TrimSpace(replyStr) == "" {
+		if _, err := a.chatStore.AppendMessage(topicID, "user", userMessage, ""); err != nil {
+			slog.Error("原罪故事落库失败（仅用户消息）", "runID", runID, "topicID", topicID, "error", err)
+		}
+		a.emit("sin-stream:"+runID, map[string]interface{}{
+			"type": "done", "reply": "", "reasoning": reasoningStr, "topicID": topicID,
+			"message_id": int64(0), "cancelled": true, "tools": trace,
+			"answered_by": map[string]interface{}{"engine": eng, "model": model, "source": source, "cost_cny": 0.0},
+		})
+		return
+	}
+
 	extra := ""
 	extraMap := map[string]interface{}{"reasoning": reasoningStr}
 	if len(trace) > 0 {
@@ -386,7 +430,11 @@ func (a *App) runSinStream(runID, topicID, userMessage, eng, model, source strin
 	// 落库后取回本轮助手消息 id：插图回写（SinIllustrate）按 id 定位。
 	// 单写者（本话题同轮次）下取最后一条 assistant 即本轮回复。
 	messageID := int64(0)
-	if msgs, err := a.chatStore.ListMessages(topicID); err == nil {
+	msgs, _, listErr := a.chatStore.ListMessagesPage(topicID, 1, 0)
+	if listErr != nil {
+		// 静默吞掉会让工具插图不回写且无迹可循（v4.422：补告警，轨迹里可对账）。
+		slog.Warn("原罪回写定位读取失败（本轮工具插图不回写）", "runID", runID, "topicID", topicID, "error", listErr)
+	} else {
 		for i := len(msgs) - 1; i >= 0; i-- {
 			if msgs[i].Role == "assistant" {
 				messageID = msgs[i].ID
@@ -621,6 +669,11 @@ func (a *App) SinExportMarkdown(topicID string) (string, error) {
 		arts := sinIllustrationMap(m.Extra)
 		if m.Role == "user" {
 			b.WriteString("**我：**\n\n" + strings.TrimSpace(m.Content) + "\n\n")
+			continue
+		}
+		// 空 assistant 行跳过（历史遗留的零正文取消行）：正文与分隔线都不写，
+		// 导出里不留「空一段 + 孤立分隔线」的残迹。
+		if strings.TrimSpace(m.Content) == "" && len(arts) == 0 {
 			continue
 		}
 		b.WriteString(renderSinStoryMarkdown(m.Content, arts))

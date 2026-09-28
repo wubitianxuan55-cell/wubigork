@@ -82,6 +82,22 @@ export function parseReasoning(extra: unknown): string {
   return typeof r === 'string' ? r : ''
 }
 
+/** 该条回复是否被用户手动停止（extra.cancelled，后端取消落库时写入）。 */
+export function parseCancelled(extra: unknown): boolean {
+  let obj: unknown = extra
+  if (typeof extra === 'string') {
+    const raw = extra.trim()
+    if (!raw) return false
+    try {
+      obj = JSON.parse(raw)
+    } catch {
+      return false
+    }
+  }
+  if (!obj || typeof obj !== 'object') return false
+  return (obj as Record<string, unknown>).cancelled === true
+}
+
 /**
  * 从 extra 里取工具轨迹（后端落库的 tools 字段）。
  * 容错口径与 parseIllustrations 同源：坏 JSON / 缺字段 / 单条畸形一律跳过，

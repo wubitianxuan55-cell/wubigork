@@ -11,7 +11,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { app } from '../../gaea/lib/bridge'
 import { subscribe, sinStreamChannel } from '../../events'
-import { parseIllustrations, parseReasoning, parseTools, suggestStoryTitle, toToolViews } from './storyText'
+import {
+  parseCancelled, parseIllustrations, parseReasoning, parseTools, suggestStoryTitle, toToolViews,
+} from './storyText'
 import type { SinMessageView, SinStoryView, SinStreamPayload, SinToolTraceView } from './types'
 
 /** 无帧超时：故事单次输出可长达数千字，比聊天（30s）放宽到 90s。 */
@@ -44,7 +46,7 @@ function toStoryView(raw: Record<string, unknown>): SinStoryView {
   }
 }
 
-/** Go chat.Message → 视图（extra 里的插图映射/reasoning 解析出来）。 */
+/** Go chat.Message → 视图（extra 里的插图映射/reasoning/cancelled 解析出来）。 */
 function toMessageView(raw: Record<string, unknown>): SinMessageView {
   const id = typeof raw.id === 'number' ? raw.id : 0
   return {
@@ -55,6 +57,7 @@ function toMessageView(raw: Record<string, unknown>): SinMessageView {
     illustrations: parseIllustrations(raw.extra),
     reasoning: parseReasoning(raw.extra),
     tools: toToolViews(parseTools(raw.extra)),
+    cancelled: parseCancelled(raw.extra),
     createdAt: typeof raw.created_at === 'string' ? raw.created_at : '',
   }
 }
@@ -90,7 +93,11 @@ export interface UseSinStoryResult {
   renameStory: (id: string, title: string) => Promise<void>
   deleteStory: (id: string) => Promise<void>
   clearStory: (id: string) => Promise<void>
-  send: (text: string) => Promise<void>
+  /**
+   * 发送一轮：display 是输入框展示文本（粘贴块折叠态），submit 是实际发给
+   * 模型的展开文本（Composer 折叠长文的 submitText）——只传 display 时二者同文。
+   */
+  send: (display: string, submit?: string) => Promise<void>
   /**
    * 停止当前生成（Composer 停止按钮）：后端中止 + 本地立即解封输入。
    * 返回 undefined = 不回填输入框（原罪的指令已在发出时消费，无草稿可还）。
@@ -118,6 +125,8 @@ export function useSinStory(): UseSinStoryResult {
   const cleanupRef = useRef<(() => void) | null>(null)
   // 在流的助手消息 key（取消时把「正在写」标记收掉）
   const streamingKeyRef = useRef('')
+  // 在途流归属的故事 id（切故事时据此对旧故事执行后端取消，而非只解绑订阅）
+  const streamTopicRef = useRef('')
   // v4.354：消息载入序号——快速切故事时旧故事 SinMessages 慢响应会覆盖当前
   // 视图（同 useChatTopics.loadTopic 守卫范式），此后发送会把两故事内容同屏串台
   const loadSeqRef = useRef(0)
@@ -142,33 +151,47 @@ export function useSinStory(): UseSinStoryResult {
     }
   }, [])
 
-  const refreshStories = useCallback(async (): Promise<SinStoryView[]> => {
+  /** 故事列表重读：null = 读取失败（错误已入 notice），[] = 真的没有故事。
+   *  区分二者：初始化时列表读取失败不该触发「自动建故事」制造垃圾数据。 */
+  const refreshStories = useCallback(async (): Promise<SinStoryView[] | null> => {
     try {
       const list = await app.SinTopicsList()
       return (list || []).map((t) => toStoryView(t as unknown as Record<string, unknown>))
     } catch (err) {
       setNotice(errText(err, '故事列表读取失败'))
-      return []
+      return null
     }
   }, [])
 
-  // ── 初始化：故事列表 + 自动选中（无故事则建一个空故事） ──
+  /** 列表重读并落 state（失败时保留现有列表，不把架子清空），返回重读结果。 */
+  const reloadStoriesInto = useCallback(async (): Promise<SinStoryView[]> => {
+    const list = await refreshStories()
+    if (list) setStories(list)
+    return list ?? []
+  }, [refreshStories])
+
+  // ── 初始化：故事列表 + 自动选中（确认为空才建一个空故事） ──
   useEffect(() => {
     let live = true
     ;(async () => {
-      let list = await refreshStories()
+      const list = await refreshStories()
       if (!live) return
-      if (list.length === 0) {
+      if (list === null) {
+        setInitializing(false)
+        return
+      }
+      let finalList = list
+      if (finalList.length === 0) {
         try {
           await app.SinTopicCreate('新故事')
-          list = await refreshStories()
+          finalList = (await refreshStories()) ?? []
         } catch (err) {
           if (live) setNotice(errText(err, '新建故事失败'))
         }
         if (!live) return
       }
-      setStories(list)
-      const first = list[0]
+      setStories(finalList)
+      const first = finalList[0]
       if (first) {
         setActiveId(first.id)
         await loadMessages(first.id)
@@ -188,7 +211,13 @@ export function useSinStory(): UseSinStoryResult {
 
   const selectStory = useCallback(async (id: string) => {
     if (!id || id === activeIdRef.current) return
-    // 切故事 = 中止在途流（其消息已不在视图内，继续写只会串台）
+    // 切故事 = 中止在途流：对旧故事执行后端取消（残稿照常落库，后台不再白烧
+    // token），本地解绑订阅并复位 sending。只解绑不取消的话，后端会把整轮跑完。
+    const prevTopic = streamTopicRef.current
+    if (prevTopic && prevTopic !== id) {
+      app.SinCancel(prevTopic).catch(() => { /* 无在途流：本地照常收尾 */ })
+    }
+    streamTopicRef.current = ''
     finishRef.current?.(false)
     finishRef.current = null
     cleanupRef.current?.()
@@ -204,8 +233,8 @@ export function useSinStory(): UseSinStoryResult {
       loadSeqRef.current++ // 失效在途故事消息载入（v4.354）
       const t = await app.SinTopicCreate('新故事')
       const list = await refreshStories()
-      setStories(list)
-      const id = typeof (t as { id?: unknown })?.id === 'string' ? String((t as { id: string }).id) : list[0]?.id ?? ''
+      setStories(list ?? [])
+      const id = typeof (t as { id?: unknown })?.id === 'string' ? String((t as { id: string }).id) : list?.[0]?.id ?? ''
       if (id) {
         setActiveId(id)
         activeIdRef.current = id
@@ -219,17 +248,16 @@ export function useSinStory(): UseSinStoryResult {
   const renameStory = useCallback(async (id: string, title: string) => {
     try {
       await app.SinTopicRename(id, title)
-      setStories(await refreshStories())
+      await reloadStoriesInto()
     } catch (err) {
       setNotice(errText(err, '重命名失败'))
     }
-  }, [refreshStories])
+  }, [reloadStoriesInto])
 
   const deleteStory = useCallback(async (id: string) => {
     try {
       await app.SinTopicDelete(id)
-      const list = await refreshStories()
-      setStories(list)
+      const list = await reloadStoriesInto()
       if (id === activeIdRef.current) {
         const next = list[0]
         setActiveId(next?.id ?? '')
@@ -239,7 +267,7 @@ export function useSinStory(): UseSinStoryResult {
     } catch (err) {
       setNotice(errText(err, '删除失败'))
     }
-  }, [loadMessages, refreshStories])
+  }, [loadMessages, reloadStoriesInto])
 
   const clearStory = useCallback(async (id: string) => {
     try {
@@ -260,8 +288,8 @@ export function useSinStory(): UseSinStoryResult {
     await loadMessages(activeIdRef.current)
   }, [loadMessages])
 
-  const send = useCallback(async (text: string) => {
-    const content = (text ?? '').trim()
+  const send = useCallback(async (display: string, submit?: string) => {
+    const content = (submit ?? display ?? '').trim()
     let storyId = activeIdRef.current
     if (!content || sending) return
     // 没有故事时先建一个（首次进来直接开写不该被拦住）
@@ -270,7 +298,7 @@ export function useSinStory(): UseSinStoryResult {
         const t = await app.SinTopicCreate('新故事')
         storyId = typeof (t as { id?: unknown })?.id === 'string' ? String((t as { id: string }).id) : ''
         if (!storyId) throw new Error('新建故事失败')
-        setStories(await refreshStories())
+        await reloadStoriesInto()
         setActiveId(storyId)
         activeIdRef.current = storyId
       } catch (err) {
@@ -279,12 +307,12 @@ export function useSinStory(): UseSinStoryResult {
       }
     }
 
-    // 首轮用户消息即故事标题建议（仅当仍是默认名）
+    // 首轮用户消息即故事标题建议（仅当仍是默认名；展示文本定名，与用户所见一致）
     const story = storiesRef.current.find((s) => s.id === storyId)
     if (story && (story.title === '新故事' || story.title.trim() === '')) {
-      const title = suggestStoryTitle(content)
+      const title = suggestStoryTitle(display)
       // v4.362：自动命名失败可见化（原故事名停留「新故事」无原因）。
-      void app.SinTopicRename(storyId, title).then(() => refreshStories().then(setStories)).catch((err: unknown) => {
+      void app.SinTopicRename(storyId, title).then(() => reloadStoriesInto()).catch((err: unknown) => {
         setNotice(`自动命名失败：${err instanceof Error ? err.message : String(err)}`)
       })
     }
@@ -294,7 +322,7 @@ export function useSinStory(): UseSinStoryResult {
     streamingKeyRef.current = asstKey
     setMessages((prev) => [
       ...prev,
-      { key: userKey, messageId: 0, role: 'user', content, illustrations: {}, createdAt: nowStr() },
+      { key: userKey, messageId: 0, role: 'user', content: display, illustrations: {}, createdAt: nowStr() },
       { key: asstKey, messageId: 0, role: 'assistant', content: '', streaming: true, illustrations: {}, createdAt: nowStr() },
     ])
     setSending(true)
@@ -365,9 +393,11 @@ export function useSinStory(): UseSinStoryResult {
       }
       finishRef.current = finish
       armSilenceTimer()
+      streamTopicRef.current = storyId // 发流前即登记归属（runID 迟到/挂住也能被切故事取消）
 
       app.SinStream(storyId, content)
         .then((runID: string) => {
+          if (settled) return // SinStream 落定前已被取消/切故事：不再注册订阅（孤儿监听器）
           if (!runID) {
             patch(asstKey, { streaming: false, error: true, content: '请求失败：未取得流通道' })
             finish()
@@ -440,10 +470,11 @@ export function useSinStory(): UseSinStoryResult {
     cleanupRef.current = null
     // 无论是否卸载/取消，都必须收尾（v4.258 修复：历史实现用 deadRef 跳过收尾，
     // 在 StrictMode 双挂载/空间剪枝重挂后 sending 会永久卡 true，输入框被锁死）。
+    streamTopicRef.current = ''
     setSending(false)
     streamingKeyRef.current = ''
-    setStories(await refreshStories())
-  }, [refreshStories, sending])
+    await reloadStoriesInto()
+  }, [reloadStoriesInto, sending])
 
   // 停止：先让后端中止（保留已生成部分落库），再本地立刻解封输入
   const cancel = useCallback((): string | undefined => {
@@ -451,6 +482,7 @@ export function useSinStory(): UseSinStoryResult {
     if (topicID) {
       app.SinCancel(topicID).catch(() => { /* 无在途流/取消失败：本地照常收尾 */ })
     }
+    streamTopicRef.current = ''
     const key = streamingKeyRef.current
     if (key) {
       setMessages((prev) => prev.map((m) => (

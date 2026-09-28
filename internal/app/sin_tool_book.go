@@ -156,13 +156,17 @@ func (sinBookDownloadTool) Execute(ctx context.Context, args json.RawMessage) (s
 }
 
 // sinBookExcerpt 成书开头节选（自截 ~5000 rune，工具循环外层还有 6000 总闸）。
+// 只读文件头部 32KB（v4.422：整本读进内存只为取开头，长书是纯浪费）。
 func sinBookExcerpt(res SinBookSourceDownloadResult) string {
-	raw, err := os.ReadFile(res.Path)
+	f, err := os.Open(res.Path)
 	if err != nil {
 		return "（节选读取失败，但整本已在成书清单）"
 	}
+	defer func() { _ = f.Close() }()
+	buf := make([]byte, 32*1024)
+	n, _ := f.Read(buf)
 	const limit = 5000
-	r := []rune(string(raw))
+	r := []rune(strings.ToValidUTF8(string(buf[:n]), ""))
 	if len(r) > limit {
 		return string(r[:limit]) + "\n……（节选到此，整本在成书清单）"
 	}

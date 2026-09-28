@@ -14,7 +14,8 @@ import { cancelImageGeneration, readFileAsDataURL } from '../../api/image'
 import { GenerationProgress } from '../../components/imagegen/GenerationProgress'
 import { useComfyTaskProgress } from '../../components/imagegen/useComfyTaskProgress'
 import {
-  enqueueIllustration, illustrationQueueSnapshot, subscribeIllustrationQueue,
+  cancelIllustration, enqueueIllustration, illustrationQueueSnapshot,
+  SIN_ILLUSTRATION_CANCELLED, subscribeIllustrationQueue,
 } from './illustrationQueue'
 
 type Status = 'idle' | 'queued' | 'generating' | 'loading' | 'ready' | 'error'
@@ -147,6 +148,12 @@ export function SinIllustration({
       onGenerated(cueKey, p)
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : '插图生成失败'
+      // 用户在排队中取消：任务被摘除、promise 以取消哨兵拒绝——回空闲态，不进错误样式
+      if (msg === SIN_ILLUSTRATION_CANCELLED) {
+        setStatus('idle')
+        setError('')
+        return
+      }
       setStatus('error')
       setError(msg)
       onError?.(msg)
@@ -155,12 +162,17 @@ export function SinIllustration({
     }
   }, [cueKey, messageId, onError, onGenerated, prompt, storyId])
 
-  // 取消：后端取消的是当前在跑的那一个任务；排队中（还没开跑）取消只标记本卡片
+  // 取消：按队列 token 精确制导——排队中只把自己摘出队列（不碰后端）；只有
+  // 自己的任务真的在跑（token = 队列在跑位）才取消后端当前任务。历史实现
+  // 无条件 cancelImageGeneration()，排队卡点取消会误杀正在生成的另一张。
   const onCancel = useCallback(async () => {
-    try {
-      await cancelImageGeneration()
-    } catch {
-    // 取消失败不阻断本地状态收敛（下方仍回到可重试态）
+    const mode = cancelIllustration(tokenRef.current)
+    if (mode === 'active') {
+      try {
+        await cancelImageGeneration()
+      } catch {
+        // 取消失败不阻断本地状态收敛（下方仍回到可重试态）
+      }
     }
     startedRef.current = false
     // 阻断自动出图再触发（取消 = 用户明确不要这张，不该被自动重跑覆盖）

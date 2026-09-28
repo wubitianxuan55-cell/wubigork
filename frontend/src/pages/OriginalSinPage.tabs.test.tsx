@@ -49,10 +49,15 @@ vi.mock("./sin/useSinStory", () => ({
   }),
 }));
 vi.mock("./sin/useSinCast", () => ({
-  useSinCast: () => ({ cast: [], castIds: [], library: [], saving: false, libraryLoading: false, libraryError: "", saveCast: async () => [], reloadLibrary: () => {} }),
+  useSinCast: () => ({ cast: [], castIds: [], library: [], saving: false, libraryLoading: false, libraryError: "", saveCast: async () => [], reloadLibrary: () => {}, ensureLibrary: () => {} }),
 }));
 vi.mock("./sin/useSinNotes", () => ({
   useSinNotes: () => ({ doc: null, error: "", loading: false, save: async () => ({}), reload: () => {} }),
+}));
+// v4.422 起右栏面板常驻挂载（display:none 切换）：本测试只验页签接线，
+// 面板整体 stub 掉（重组件不进本文件的渲染面，与 Composer stub 同口径）。
+vi.mock("./sin/SinSidePanel", () => ({
+  SinSidePanel: () => <div data-testid="sin-side-stub" />,
 }));
 vi.mock("../hooks/useFeatureModel", () => ({
   useFeatureModel: () => ({ engine: "", model: "", enabled: false }),

@@ -207,6 +207,11 @@ func TestSinNotesCorruptFileFallsBackToEmpty(t *testing.T) {
 		!strings.Contains(out, "还没有便签") {
 		t.Fatalf("损坏文件应回退空文档: %q, err=%v", out, err)
 	}
+	// 损坏留档（v4.422）：旧文件改名 .corrupt-<ts>，后续写不再静默清掉旧数据
+	archives, _ := filepath.Glob(path + ".corrupt-*")
+	if len(archives) != 1 {
+		t.Errorf("损坏文件应留档一份 .corrupt-*: %v", archives)
+	}
 	if _, err := tl.Execute(context.Background(), json.RawMessage(`{"action":"write","content":"重来"}`)); err != nil {
 		t.Fatalf("写入应自愈: %v", err)
 	}

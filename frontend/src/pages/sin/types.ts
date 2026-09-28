@@ -26,6 +26,8 @@ export interface SinMessageView {
   reasoning?: string
   /** 本轮工具调用轨迹（流式累积，落库后由 extra.tools 还原）。 */
   tools?: SinToolTraceView[]
+  /** 用户手动停止（extra.cancelled）：重开后与完整回复可区分。 */
+  cancelled?: boolean
   createdAt?: string
 }
 

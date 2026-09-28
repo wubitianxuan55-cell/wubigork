@@ -107,6 +107,10 @@ func buildSinUserPrompt(history []chat.Message, userMessage string, cast []*char
 	if turns := sinHistoryMessages(history); len(turns) > 0 {
 		b.WriteString("【前情回顾（越靠后越近，仅作上下文）】\n")
 		for _, m := range turns {
+			// 空消息不进前情（历史遗留的零正文取消行）：空「原罪：」行只会教坏模型。
+			if strings.TrimSpace(m.Content) == "" {
+				continue
+			}
 			who := "用户"
 			if m.Role == "assistant" {
 				who = "原罪"
@@ -182,14 +186,20 @@ func writeCastField(b *strings.Builder, label, value string) {
 
 // sinDraftBlock 渲染「故事底稿」块：大纲（write 时已限长，防御性再截一次）
 // + 设定便签（按写入顺序，合计 sinPromptNotesBudgetRunes 预算内从头带）。
-// 带不下的条目如实报数，引导模型用 sin_notes read 看全文——不静默丢。
+// 便签序号是 doc.Notes 的**原始下标**（v4.422：按展示序重编号会和工具 set/delete
+// 的 index 参数错位——空条目/预算截除会让模型改错条）；带不下的条目如实报数，
+// 引导模型用 sin_notes read 看全文——不静默丢。
 // 底稿为空 = 空串（提示词与无底稿行为逐字一致）。
 func sinDraftBlock(doc sinNotesDoc) string {
 	outline := strings.TrimSpace(truncateRunes(doc.Outline, sinOutlineMaxRunes))
-	var notes []string
+	type noteLine struct {
+		idx  int
+		text string
+	}
+	var notes []noteLine
 	used := 0
 	omitted := 0
-	for _, n := range doc.Notes {
+	for i, n := range doc.Notes {
 		n = strings.TrimSpace(n)
 		if n == "" {
 			continue
@@ -200,11 +210,11 @@ func sinDraftBlock(doc sinNotesDoc) string {
 		}
 		runes := len([]rune(n))
 		if room := sinPromptNotesBudgetRunes - used; runes > room {
-			notes = append(notes, truncateRunes(n, room)+"…")
+			notes = append(notes, noteLine{idx: i, text: truncateRunes(n, room) + "…"})
 			used = sinPromptNotesBudgetRunes
 			continue
 		}
-		notes = append(notes, n)
+		notes = append(notes, noteLine{idx: i, text: n})
 		used += runes
 	}
 	if outline == "" && len(notes) == 0 {
@@ -216,9 +226,9 @@ func sinDraftBlock(doc sinNotesDoc) string {
 		b.WriteString("▸ 大纲：\n" + outline + "\n")
 	}
 	if len(notes) > 0 {
-		fmt.Fprintf(&b, "▸ 设定便签（共 %d 条）：\n", len(notes)+omitted)
-		for i, n := range notes {
-			fmt.Fprintf(&b, "#%d %s\n", i, n)
+		fmt.Fprintf(&b, "▸ 设定便签（共 %d 条，序号即工具 index）：\n", len(doc.Notes))
+		for _, ln := range notes {
+			fmt.Fprintf(&b, "#%d %s\n", ln.idx, ln.text)
 		}
 		if omitted > 0 {
 			fmt.Fprintf(&b, "（其余 %d 条未展示，需要全文用 sin_notes read 查看）\n", omitted)

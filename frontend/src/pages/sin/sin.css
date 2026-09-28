@@ -98,7 +98,15 @@
 .sin-main { flex: 1; min-width: 0; display: flex; flex-direction: column; min-height: 0; }
 /* ChatTabs 办公默认 px-12 是全幅顶栏口径；原罪中栏收窄内边距即可（结构与交互零改动） */
 .sin-tabs { padding-left: 14px; padding-right: 14px; }
+/* 故事列常驻容器（v4.422）：切页签 display:none，不卸载 Composer/StoryStream
+   ——输入框草稿、插图生成进度、流式订阅不因看一眼轨迹/上下文而丢。 */
+.sin-chat-pane { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.sin-chat-pane.is-hidden { display: none; }
 .sin-stream-host { flex: 1; min-height: 0; display: flex; }
+/* 右栏常驻容器：display:contents 让宿主不参与布局（aside 的 width/flexBasis
+   照常生效）；收面板 = display:none，底稿草稿与书源下载进度不丢。 */
+.sin-side-host { display: contents; }
+.sin-side-host.is-hidden { display: none; }
 /* 轨迹/上下文看板宿主：组件根自带 h-full 与滚动，宿主只给高度 */
 .sin-insight-host { flex: 1; min-height: 0; display: flex; }
 .sin-insight-host > * { flex: 1; min-width: 0; }
@@ -143,6 +151,19 @@
   animation: sin-blink 1s steps(2, start) infinite;
 }
 @keyframes sin-blink { to { opacity: 0 } }
+
+/* 用户手动停止的回复（extra.cancelled）：与完整回复可区分 */
+.sin-stopped {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 6px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border-soft);
+  color: var(--fg-faint);
+  font-size: 11px;
+}
 
 .sin-composer {
   flex: 0 0 auto;

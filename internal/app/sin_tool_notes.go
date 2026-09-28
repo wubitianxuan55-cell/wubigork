@@ -21,6 +21,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/gaea/gaea/internal/gaea/fileutil"
 )
@@ -84,7 +85,7 @@ type sinNotesDoc struct {
 	Outline string   `json:"outline"`
 }
 
-// loadSinNotes 读取便签文档（不存在/损坏 → 空文档；损坏时告警不阻断）。
+// loadSinNotes 读取便签文档（不存在/损坏 → 空文档；损坏时先留档再告警）。
 func loadSinNotes(path string) sinNotesDoc {
 	doc := sinNotesDoc{Version: sinNotesVersion, Notes: []string{}}
 	raw, err := os.ReadFile(path)
@@ -92,7 +93,14 @@ func loadSinNotes(path string) sinNotesDoc {
 		return doc
 	}
 	if err := json.Unmarshal(raw, &doc); err != nil {
-		slog.Warn("原罪便签文件损坏，按空文档继续", "path", path, "error", err)
+		// 损坏留档（v4.422）：按空文档继续没错，但下一次成功写会把旧数据永久
+		// 清零——先改名 .corrupt-<ts> 留底，用户还能手工找回。
+		stamp := path + ".corrupt-" + time.Now().Format("20060102-150405")
+		if renameErr := os.Rename(path, stamp); renameErr == nil {
+			slog.Warn("原罪便签文件损坏，已留档后按空文档继续", "archived", stamp, "error", err)
+		} else {
+			slog.Warn("原罪便签文件损坏，按空文档继续（留档失败）", "path", path, "error", err)
+		}
 		return sinNotesDoc{Version: sinNotesVersion, Notes: []string{}}
 	}
 	if doc.Notes == nil {

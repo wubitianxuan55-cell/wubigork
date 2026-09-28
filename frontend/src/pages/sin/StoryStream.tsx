@@ -5,7 +5,7 @@
 // 插图段交 SinIllustration（绘梦后端出图）。本组件只负责分段与排布。
 
 import { forwardRef, memo } from 'react'
-import { Markdown } from '../../gaea/components/Markdown'
+import { MemoMarkdown } from '../../gaea/components/MemoMarkdown'
 import { EmptyState } from '../../gaea/components/EmptyState'
 import { SinIllustration } from './SinIllustration'
 import { SinProcessCard } from './SinProcessCard'
@@ -47,7 +47,9 @@ const SinAssistantRow = memo(function SinAssistantRow({
         {segments.map((seg, i) => (
           seg.kind === 'text' ? (
             <div className="sin-text" key={`t${i}`}>
-              <Markdown text={seg.text} />
+              {/* MemoMarkdown（办公消息同款）：流式行 RAF 节流 + 稳定段切分，
+                  数千字正文不再每个 delta 全量重跑渲染管线 */}
+              <MemoMarkdown text={seg.text} streaming={!!m.streaming} />
             </div>
           ) : (
             <SinIllustration
@@ -64,6 +66,7 @@ const SinAssistantRow = memo(function SinAssistantRow({
           )
         ))}
         {m.streaming && <span className="sin-caret" aria-label="正在续写" />}
+        {!m.streaming && m.cancelled && <span className="sin-stopped">已手动停止 · 内容不完整</span>}
       </div>
     </div>
   )

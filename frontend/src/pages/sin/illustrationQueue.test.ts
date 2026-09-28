@@ -2,8 +2,8 @@
 // 失败不阻断后续（进度归属可信的前提）。
 import { beforeEach, describe, expect, it } from 'vitest'
 import {
-  __resetIllustrationQueueForTest, enqueueIllustration, illustrationQueueSnapshot,
-  subscribeIllustrationQueue,
+  __resetIllustrationQueueForTest, cancelIllustration, enqueueIllustration,
+  illustrationQueueSnapshot, SIN_ILLUSTRATION_CANCELLED, subscribeIllustrationQueue,
 } from './illustrationQueue'
 
 const tick = () => new Promise((r) => setTimeout(r, 0))
@@ -52,5 +52,32 @@ describe('illustrationQueue', () => {
     await tick() // 让 finally 里的收尾通知跑完（resolve 先于 finally）
     unsub()
     expect(calls).toBeGreaterThanOrEqual(2)
+  })
+
+  it('取消排队任务：从队列摘除（promise 以取消哨兵拒绝），后续任务照常', async () => {
+    let releaseA: (v: string) => void = () => {}
+    const a = enqueueIllustration(() => new Promise<string>((res) => { releaseA = res }))
+    const b = enqueueIllustration(async () => {
+      expect(illustrationQueueSnapshot().waiting).toBe(0) // 已被摘除，不再入位
+      return 'b-done'
+    })
+    await tick()
+    expect(cancelIllustration(b.token)).toBe('removed')
+    await expect(b.promise).rejects.toThrow(SIN_ILLUSTRATION_CANCELLED)
+    expect(illustrationQueueSnapshot().waiting).toBe(0)
+    releaseA('a-done')
+    await expect(a.promise).resolves.toBe('a-done')
+    await expect(b.promise).rejects.toThrow(SIN_ILLUSTRATION_CANCELLED) // 拒绝幂等，不抛未处理
+  })
+
+  it('取消在跑任务：返回 active（由调用方对后端当前任务执行取消）', async () => {
+    let releaseA: (v: string) => void = () => {}
+    const a = enqueueIllustration(() => new Promise<string>((res) => { releaseA = res }))
+    await tick()
+    expect(cancelIllustration(a.token)).toBe('active')
+    releaseA('a-done')
+    await expect(a.promise).resolves.toBe('a-done')
+    expect(cancelIllustration(a.token)).toBe('none') // 已结束
+    expect(cancelIllustration(0)).toBe('none')
   })
 })

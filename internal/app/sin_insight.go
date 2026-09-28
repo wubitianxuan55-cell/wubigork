@@ -9,8 +9,9 @@ package app
 //   - sin 无 usage 上报 → 请求一律 Estimated=true，token 按 bytes×0.25 估算
 //     （与 contextview/agent 同一口径）；
 //   - 窗口大小未知 → Window=0（前端水位百分比显示「—」而非 0%）；
-//   - 每次请求 = system + 角色卡/底稿注入 + 截至该轮的全部落库内容
-//     （sinStreamRound 语义：buildSinUserPrompt 带全量前情），逐请求累计；
+//   - 每次请求 = system + 角色卡/底稿注入 + 最近 sinHistoryTurns 条前情
+//     （单条截断，与 buildSinUserPrompt 的窗口口径一致，v4.422 起按窗口折算
+//     而非落库全量累计——长故事的上下文柱不再线性高估）；
 //   - 无压缩/剪枝/文件活动事件 → events/files 恒空。
 
 import (
@@ -183,9 +184,10 @@ func foldSinTrajectory(ins *sinInsight) trajectory.Trajectory {
 	return out
 }
 
-// foldSinContext 把落库消息折叠成上下文构成快照：逐请求累计（每轮请求 =
-// system + 注入 + 截至该轮全部落库内容，与 sinStreamRound 的 buildSinUserPrompt
-// 全量前情语义对齐），current = 最后一根请求柱；节点与 brief 锚点同编址。
+// foldSinContext 把落库消息折叠成上下文构成快照：逐请求折算（每轮请求 =
+// system + 注入 + 最近 sinHistoryTurns 条前情，与 buildSinUserPrompt 的窗口
+// 口径对齐；节点列表仍按落库全量统计），current = 最后一根请求柱；节点与
+// brief 锚点同编址。
 func foldSinContext(ins *sinInsight) contextview.ContextTimeline {
 	tl := contextview.EmptyTimeline()
 	tl.Window = 0 // 窗口大小未知：前端水位显示「—」，不伪造 0%
@@ -205,7 +207,6 @@ func foldSinContext(ins *sinInsight) contextview.ContextTimeline {
 		tl.Nodes = append(tl.Nodes, contextview.SurfaceNode{Seq: sinSeqCast, Cat: "inject", Tokens: sinEstTokens(ins.castBlk), Text: sinBrief(c, 120)})
 	}
 
-	var cumUser, cumAsst, cumTool int64
 	var toolCalls int
 	toolsMs := map[string]struct {
 		calls int
@@ -217,6 +218,30 @@ func foldSinContext(ins *sinInsight) contextview.ContextTimeline {
 	prevNodes := len(tl.Nodes)
 	first := true
 	var curUser chat.Message
+
+	// 请求柱按真实请求语义折算（v4.422 对齐 buildSinUserPrompt 的窗口口径：
+	// 最近 sinHistoryTurns 条、单条截断 sinHistoryMessageRunes rune，空消息不计；
+	// 工具结果只在当轮请求里出现，不跨轮累计）——长故事的上下文柱不再线性高估。
+	type winMsg struct {
+		role string
+		tok  int64
+	}
+	var win []winMsg
+	windowCat := func() (user, asst int64) {
+		start := len(win) - sinHistoryTurns
+		if start < 0 {
+			start = 0
+		}
+		for _, w := range win[start:] {
+			if w.role == "user" {
+				user += w.tok
+			} else {
+				asst += w.tok
+			}
+		}
+		return user, asst
+	}
+	var turnToolTok int64
 
 	// appendRequest 追加本轮请求柱：累计构成 + 对比上一步（首个请求基线=空；
 	// system/inject 取现值恒定，天然不出现在 delta 里）+ user 侧 brief 锚点
@@ -266,7 +291,10 @@ func foldSinContext(ins *sinInsight) contextview.ContextTimeline {
 		case "user":
 			turn++
 			curUser = m
-			cumUser += sinEstTokens(m.Content)
+			turnToolTok = 0 // 工具结果不跨轮：新回合起算
+			if strings.TrimSpace(m.Content) != "" {
+				win = append(win, winMsg{role: "user", tok: sinEstTokens(truncateRunes(m.Content, sinHistoryMessageRunes))})
+			}
 			tl.Nodes = append(tl.Nodes, contextview.SurfaceNode{
 				Seq: sinNodeSeq(m.ID, 0), Cat: "user", Tokens: sinEstTokens(m.Content), Text: sinBrief(m.Content, 120),
 			})
@@ -279,7 +307,7 @@ func foldSinContext(ins *sinInsight) contextview.ContextTimeline {
 					slot = 8
 				}
 				tok := sinEstTokens(t.Output)
-				cumTool += tok
+				turnToolTok += tok
 				toolCalls++
 				agg := toolsMs[t.Name]
 				agg.calls++
@@ -290,16 +318,19 @@ func foldSinContext(ins *sinInsight) contextview.ContextTimeline {
 					Text: sinBrief(t.Output, 120), Tool: t.Name, Err: t.Error != "",
 				})
 			}
-			cumAsst += sinEstTokens(m.Content)
+			if strings.TrimSpace(m.Content) != "" {
+				win = append(win, winMsg{role: "assistant", tok: sinEstTokens(truncateRunes(m.Content, sinHistoryMessageRunes))})
+			}
 			tl.Nodes = append(tl.Nodes, contextview.SurfaceNode{
 				Seq: sinNodeSeq(m.ID, 9), Cat: "assistant", Tokens: sinEstTokens(m.Content), Text: sinBrief(m.Content, 120),
 			})
 			if turn == 0 {
 				continue // 孤儿助手消息：计内容不计请求柱（无对应回合起点）
 			}
+			winUser, winAsst := windowCat()
 			cat := contextview.Category{
 				System: sysTok, Inject: injTok,
-				User: cumUser, Assistant: cumAsst, Tool: cumTool,
+				User: winUser, Assistant: winAsst, Tool: turnToolTok,
 			}
 			appendRequest(ts, cat)
 			last := len(tl.Requests) - 1

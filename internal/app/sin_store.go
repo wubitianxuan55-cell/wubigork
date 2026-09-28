@@ -22,6 +22,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/gaea/gaea/internal/characterlib"
 	gaeaConfig "github.com/gaea/gaea/internal/gaea/config"
@@ -66,7 +67,13 @@ func loadSinCast() sinCastDoc {
 		return doc
 	}
 	if err := json.Unmarshal(raw, &doc); err != nil {
-		slog.Warn("原罪角色配置损坏，按空表继续", "path", sinCastPath(), "error", err)
+		// 损坏留档（与便签同口径）：否则下一次成功写把全部故事的选角静默清零。
+		stamp := sinCastPath() + ".corrupt-" + time.Now().Format("20060102-150405")
+		if renameErr := os.Rename(sinCastPath(), stamp); renameErr == nil {
+			slog.Warn("原罪角色配置损坏，已留档后按空表继续", "archived", stamp, "error", err)
+		} else {
+			slog.Warn("原罪角色配置损坏，按空表继续（留档失败）", "path", sinCastPath(), "error", err)
+		}
 		return sinCastDoc{Version: sinCastVersion, Casts: map[string][]string{}}
 	}
 	if doc.Casts == nil {
@@ -226,9 +233,17 @@ func (a *App) SinNotesSave(topicID string, baseline string, outline string, note
 	if len(newNotes) > sinNotesMaxItems {
 		return SinNotesView{}, fmt.Errorf("便签条数超上限（%d > %d）", len(newNotes), sinNotesMaxItems)
 	}
-	for i, n := range newNotes {
-		newNotes[i] = truncateRunes(n, sinNoteMaxRunes)
+	// 空白便签不落盘（v4.422）：面板加行没填就保存会在 doc.Notes 留空串，把
+	// 工具 set/delete 与底稿块的原始下标对齐搅乱（工具 write 本就拒绝空串）。
+	cleaned := make([]string, 0, len(newNotes))
+	for _, n := range newNotes {
+		t := truncateRunes(n, sinNoteMaxRunes)
+		if strings.TrimSpace(t) == "" {
+			continue
+		}
+		cleaned = append(cleaned, t)
 	}
+	newNotes = cleaned
 	newOutline := truncateRunes(strings.TrimSpace(outline), sinOutlineMaxRunes)
 
 	var base sinNotesDoc

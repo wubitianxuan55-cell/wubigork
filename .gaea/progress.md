@@ -1,3 +1,15 @@
+## 最新发布：v4.423.0（2026-09-28）「原罪板块优化批：底稿串写根修 + 流互斥收口 + 常驻面板治理」
+
+- **刀型**：用户指令「优化原罪板块」，复用 v4.421 小说批方法论（双线并行只读审计 25+24 项 + 主代理读码复核，落地 24 项、余入观察池）。前端 11 文件 + Go 10 文件（含 1 新增测试），绑定面 726 零变更，零功能删除。
+- **论点**：①底稿草稿跨故事串写（P0，draft 无归属+保存闭包绑定当前故事，双空 baseline 静默覆盖）；②三条入口静默销毁/误投输入（卸载丢草稿、排队消息派发到新故事、粘贴块 submitText 被丢）；③流生命周期裸奔（register 覆盖登记双写、cancel 数据竞争、切故事不取消后端、Delete/Clear 不查在途、错误路径丢已流出正文）。
+- **落地**：前端=draft.storyId 归属+脏上报确认切故事／故事列与面板常驻挂载（display:none）／Composer key=activeId／send 双参／切故事 SinCancel（streamTopicRef 发流前登记）／初始化区分读失败与真空／插图队列取消制导／MemoMarkdown 流式渲染／角色库懒加载／提示条移出页签／已停止徽标（extra.cancelled）／Space 键。Go=流互斥（register 拒绝+cancel 锁内写入）／Delete/Clear 在途拒绝／错误路径保底（builder 提前 return 真凶）／零正文取消只落用户消息／前情 ListMessagesPage(12)／上下文柱窗口折算／底稿块原始下标+Save 丢空白／损坏留档 .corrupt-<ts>／未知工具不扣预算／rune 边界截断／成书原子写+节选头读／回写定位失败告警。
+- **测试**：Go 新增 sin_stream_guard_test 7 例 + 既有损坏用例补留档断言；internal/app sin 全族 + 全包 105s 绿。前端 sin 域 12 文件 110 例绿（tabs 测试按常驻挂载改 stub 口径）；tsc 0、eslint 0。
+- **门禁**：全量 ci.ps1 绿；漂移闸 OK@4.423.0。同树并行会话（v4.422.0 刀1）全程零交叠；其 CHANGELOG 引用的本线在制 tsc 报错（storyText.test TS2304）随本批落定清零——延续「不代对方修在制、不 stash 别人文件」纪律，本批提交面严格限定 sin 域+版本/文档。
+- **产物**：exe 51,519,488 B SHA256=c22d2220cfdba400e135da2f75d48397250cf5ecfe76377e9d8d75c970700025（releases/gaea-v4.423.0.exe + SHA256SUMS-v4.423.0.txt；build.bat 冒烟 /api/health 200 过；保留策略删 v4.418.0.exe，实存 5 版 423/422/421/420/419）。
+- **文档**：releases/v4.423.0.md + CHANGELOG/README + releases/README + AGENTS 速览 + progress（本条）。
+- **坑/教训**：①sinStreamRound 错误分支提前 return 时 res.content 尚未从 builder 赋值——「错误路径带部分内容」必须在 return 前显式落值，审计报告的「res 带部分 content」描述与实际代码不符（读码复核抓出并新增测试钉住）；②前台 Edit 工具与后台 python 批量替换混用同一文件会触发「file modified since read」——同文件多处改动要么全 Edit 要么全脚本；③并行会话已发版占号（421→422 两连发）——动版本号前先 git log 核对最新台账，本批到场即改号 4.423.0。
+- **观察池**：Composer 排队清空提示 / SinMessages 分页绑定 / sinExportUniquePath 并发窗口 / SinIllustrate cfg nil 口径 / 书源下载卡级失附 / ChatTabs tab 语义（办公共用组件）/ illustration merge 无 per-message 锁（多客户端并发丢更新，串行队列下不触发）。
+
 ## 最新发布：v4.422.0（2026-09-28）「小说·长篇创作刀1：故事脊椎 + 章节计划闭环（写前硬闸）」
 
 - **刀型**：用户指令「你要解决的是如何实现写一个优秀的长篇小说，不是修修补补」的落地第一刀（《长篇小说创作系统》七刀刀序）。Go 新增 6 文件改 6 文件、前端新增 2 改 7、提示词 4 个，绑定面 720→726（+6）。

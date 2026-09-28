@@ -56,19 +56,25 @@ export interface UseSinCastResult {
   saving: boolean
   /** 保存选择（去重/悬空 id 由后端过滤，返回生效清单）。 */
   saveCast: (ids: string[]) => Promise<void>
+  /** 角色库重读（设定卡生成后刷新等）。首拉前调用会直接触发首次加载。 */
   reloadLibrary: () => void
+  /** 首次需要展示库列表时调用（面板展开/选择器打开）：懒加载，进板块不拉 200 条。 */
+  ensureLibrary: () => void
 }
 
 export function useSinCast(activeId: string): UseSinCastResult {
   const [library, setLibrary] = useState<SinCastCharacter[]>([])
-  const [libraryLoading, setLibraryLoading] = useState(true)
+  const [libraryLoading, setLibraryLoading] = useState(false)
   const [libraryError, setLibraryError] = useState('')
   const [castIds, setCastIds] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
   const [reloadTick, setReloadTick] = useState(0)
+  // 懒加载闸：面板从未展开/选择器从未打开时不拉全量库（进板块零额外请求）
+  const [libRequested, setLibRequested] = useState(false)
 
-  // ── 角色库列表 ──
+  // ── 角色库列表（首次 ensureLibrary 或显式 reloadLibrary 后才拉） ──
   useEffect(() => {
+    if (!libRequested && reloadTick === 0) return
     let live = true
     setLibraryLoading(true)
     app.CharacterList('', '', false, 1, LIBRARY_PAGE_SIZE)
@@ -88,7 +94,7 @@ export function useSinCast(activeId: string): UseSinCastResult {
       })
       .finally(() => { if (live) setLibraryLoading(false) })
     return () => { live = false }
-  }, [reloadTick])
+  }, [reloadTick, libRequested])
 
   // ── 当前故事的角色选择（切故事即重读；无故事清空） ──
   useEffect(() => {
@@ -120,6 +126,7 @@ export function useSinCast(activeId: string): UseSinCastResult {
   )
 
   const reloadLibrary = useCallback(() => setReloadTick((n) => n + 1), [])
+  const ensureLibrary = useCallback(() => setLibRequested(true), [])
 
-  return { library, libraryLoading, libraryError, castIds, cast, saving, saveCast, reloadLibrary }
+  return { library, libraryLoading, libraryError, castIds, cast, saving, saveCast, reloadLibrary, ensureLibrary }
 }

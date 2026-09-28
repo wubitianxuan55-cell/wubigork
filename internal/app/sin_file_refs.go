@@ -118,7 +118,13 @@ func sinReadFileRef(path string) (string, error) {
 		return "[二进制文件，不注入内容]", nil
 	}
 	if n > sinFileRefMaxBytes {
-		content = content[:sinFileRefMaxBytes] + "\n\n[已截断：仅注入前 64KB]"
+		// 字节上限回退到 rune 边界再切（v4.422：硬切会把多字节字符劈成
+		// 半个，模型看到的是乱码尾巴）。
+		cut := sinFileRefMaxBytes
+		for cut > 0 && buf[cut]&0xC0 == 0x80 {
+			cut--
+		}
+		content = string(buf[:cut]) + "\n\n[已截断：仅注入前 64KB]"
 	}
 	return content, nil
 }
@@ -144,7 +150,9 @@ func sinAppendImageBlock(ctx context.Context, b *strings.Builder, path, raw stri
 		return
 	}
 	if len(desc) > sinFileRefMaxVisionBytes {
-		desc = desc[:sinFileRefMaxVisionBytes] + "…[已截断]"
+		// 按 rune 截断（识别文本是中文为主的多字节内容，字节硬切劈字符）
+		r := []rune(desc)
+		desc = string(r[:sinFileRefMaxVisionBytes]) + "…[已截断]"
 	}
 	sinAppendRefBlock(b, "image", `path="`+path+`"`, "【图片识别】\n"+desc)
 }

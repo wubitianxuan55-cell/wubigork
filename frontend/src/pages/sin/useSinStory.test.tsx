@@ -256,4 +256,40 @@ describe('useSinStory', () => {
     expect(last.streaming).toBe(false)
     expect(last.content).toBe('（已停止）')
   })
+
+  it('send 双参：回显 display、后端拿 submit（Composer 折叠长文正文不丢）', async () => {
+    bridgeMock.SinStream.mockImplementation(() => new Promise<string>(() => {}))
+    const { result } = renderHook(() => useSinStory())
+    await waitFor(() => expect(result.current.initializing).toBe(false))
+    await act(async () => { void result.current.send('[粘贴块 1 · 30 行]', '第一行\n第二行\n……') })
+    await waitFor(() => expect(bridgeMock.SinStream).toHaveBeenCalled())
+    expect(bridgeMock.SinStream).toHaveBeenCalledWith('sin_1', '第一行\n第二行\n……')
+    const user = result.current.messages[result.current.messages.length - 2]
+    expect(user.role).toBe('user')
+    expect(user.content).toBe('[粘贴块 1 · 30 行]')
+  })
+
+  it('初始化：列表读取失败不自动建故事（区分「读失败」与「真空」）', async () => {
+    bridgeMock.SinTopicsList.mockRejectedValue(new Error('chat store 未初始化'))
+    const { result } = renderHook(() => useSinStory())
+    await waitFor(() => expect(result.current.initializing).toBe(false))
+    expect(bridgeMock.SinTopicCreate).not.toHaveBeenCalled()
+    expect(result.current.notice).toContain('chat store 未初始化')
+  })
+
+  it('切故事：对旧故事执行后端取消（后台不再白烧整轮）', async () => {
+    bridgeMock.SinStream.mockImplementation(() => new Promise<string>(() => {}))
+    bridgeMock.SinTopicsList.mockResolvedValue([
+      STORY,
+      { ...STORY, id: 'sin_2', title: '另一夜' },
+    ])
+    const { result } = renderHook(() => useSinStory())
+    await waitFor(() => expect(result.current.initializing).toBe(false))
+    await act(async () => { void result.current.send('写一段') })
+    await waitFor(() => expect(result.current.sending).toBe(true))
+    await act(async () => { await result.current.selectStory('sin_2') })
+    expect(bridgeMock.SinCancel).toHaveBeenCalledWith('sin_1')
+    expect(result.current.sending).toBe(false)
+    expect(result.current.activeId).toBe('sin_2')
+  })
 })

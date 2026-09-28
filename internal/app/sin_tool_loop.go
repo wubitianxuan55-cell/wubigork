@@ -95,6 +95,10 @@ func (a *App) sinStreamRound(ctx context.Context, runID, model string, opts ai.C
 			if run.cancelled.Load() {
 				break
 			}
+			// 错误返回也带上已累积的部分内容（调用方按「保留已生成部分」落库
+			// ——已逐帧下发到前端的正文，收尾时不能凭空消失）。
+			res.content = content.String()
+			res.reasoning = reasoning.String()
 			return res, fmt.Errorf("%s", chunk.Error)
 		}
 		if chunk.Done {
@@ -138,16 +142,18 @@ func (a *App) sinRunToolCall(ctx context.Context, runID string, tools []sinTool,
 	start := time.Now()
 	var output string
 	allowed, refuse := true, ""
-	if budget != nil {
+	// 预算只对真实存在的工具扣（v4.422：模型编造工具名不再白烧总量闸之一，
+	// 可用的 8 次配额留给能执行的工具）。
+	if t != nil && budget != nil {
 		allowed, refuse = budget.allow(name)
 	}
 	switch {
-	case !allowed:
-		tr.Error = refuse
-		output = "工具未执行：" + refuse
 	case t == nil:
 		tr.Error = "未知工具：" + name
 		output = "工具 " + name + " 不存在。可用工具：" + strings.Join(sinToolNames(tools), "、")
+	case !allowed:
+		tr.Error = refuse
+		output = "工具未执行：" + refuse
 	default:
 		out, err := t.Execute(ctx, json.RawMessage(args))
 		if err != nil {

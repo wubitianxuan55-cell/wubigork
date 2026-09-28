@@ -1,6 +1,7 @@
-// SinIllustration.progress.test.tsx — 插图卡的进度动画（排队 → 生成 → 百分比/阶段）。
+// SinIllustration.progress.test.tsx — 插图卡的进度动画（排队 → 生成 → 百分比/阶段）
+// 与取消制导（v4.422：排队取消只摘队列不碰后端，在跑取消才 cancelImageGeneration）。
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 const apiMock = vi.hoisted(() => ({
   getComfyUITaskProgress: vi.fn(),
@@ -31,7 +32,7 @@ vi.mock('../../gaea/lib/bridge', async (importOriginal) => ({
 }))
 
 import { SinIllustration } from './SinIllustration'
-import { __resetIllustrationQueueForTest } from './illustrationQueue'
+import { __resetIllustrationQueueForTest, enqueueIllustration } from './illustrationQueue'
 
 beforeEach(() => {
   __resetIllustrationQueueForTest()
@@ -117,6 +118,38 @@ describe('SinIllustration 生成进度', () => {
       />,
     )
     await waitFor(() => expect(screen.getByText('参考图不可用 · 已按纯文本生成')).toBeTruthy())
+  })
+
+  it('排队中取消：只把自己摘出队列，不碰后端（别的卡还在生成）', async () => {
+    let releaseBlocker: (v: unknown) => void = () => {}
+    enqueueIllustration(() => new Promise((res) => { releaseBlocker = res })) // 队首挂住 = 本卡在排队
+    render(
+      <SinIllustration
+        storyId="sin_1" messageId={2} cueKey="0" prompt="雨夜站台" ready
+        onGenerated={vi.fn()}
+      />,
+    )
+    await waitFor(() => expect(screen.getByText(/排队中/)).toBeTruthy())
+    fireEvent.click(screen.getByRole('button', { name: '取消' }))
+    await waitFor(() => expect(screen.getByText('生成插图')).toBeTruthy()) // 回到空闲位
+    expect(apiMock.cancelImageGeneration).not.toHaveBeenCalled()
+    expect(bridgeMock.SinIllustrate).not.toHaveBeenCalled() // 轮到之前就被摘除
+    releaseBlocker(undefined)
+  })
+
+  it('生成中取消：对后端当前任务执行取消，卡片回空闲', async () => {
+    bridgeMock.SinIllustrate.mockImplementation(() => new Promise(() => {})) // 挂住 = 生成中
+    apiMock.cancelImageGeneration.mockResolvedValue(undefined)
+    render(
+      <SinIllustration
+        storyId="sin_1" messageId={2} cueKey="0" prompt="雨夜站台" ready
+        onGenerated={vi.fn()}
+      />,
+    )
+    await waitFor(() => expect(screen.getByText(/已用时|生成中/)).toBeTruthy())
+    fireEvent.click(screen.getByRole('button', { name: '取消' }))
+    await waitFor(() => expect(apiMock.cancelImageGeneration).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(screen.getByText('生成插图')).toBeTruthy())
   })
 })
 
