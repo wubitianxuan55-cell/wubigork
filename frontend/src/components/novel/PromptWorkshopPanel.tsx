@@ -16,6 +16,7 @@ import {
 } from './api/prompt'
 import { saveExportBlob } from '../../gaea/lib/saveFile'
 import { inShellEnv, pickFileAsFile } from '../../gaea/lib/pickFile'
+import { confirmDiscard } from './unsavedGuard'
 
 /** category → 分组标题（小说域口径；未知分类回落「其它」）。 */
 const CATEGORY_LABELS: Record<string, string> = {
@@ -42,6 +43,12 @@ interface DraftForm {
 
 const EMPTY_FORM: DraftForm = { system: '', task: '', outputDesc: '', category: '', description: '', isActive: true }
 
+/** 草稿与基线是否逐字段相同（dirty 判定；见 v4.421.0 切模板保护）。 */
+function sameForm(a: DraftForm, b: DraftForm): boolean {
+  return a.system === b.system && a.task === b.task && a.outputDesc === b.outputDesc
+    && a.category === b.category && a.description === b.description && a.isActive === b.isActive
+}
+
 const labelTextStyle: React.CSSProperties = { fontSize: 12, color: 'var(--v3-fg-soft, #6b7280)', marginBottom: 2 }
 
 /** 导入 action → 结果弹窗标签（Go promptstore.Action*；skipped_* 用警示色）。 */
@@ -65,6 +72,8 @@ export default function PromptWorkshopPanel({ open, onClose }: {
   const [detail, setDetail] = useState<PromptTemplateDetail | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
   const [form, setForm] = useState<DraftForm>(EMPTY_FORM)
+  // 该模板拉取时的原始草稿（基线）：dirty = 表单 != 基线（v4.421.0 切模板保护）
+  const [baseline, setBaseline] = useState<DraftForm>(EMPTY_FORM)
   const [issues, setIssues] = useState<PromptTemplateIssue[]>([])
   const [vars, setVars] = useState<Record<string, string>>({})
   const [preview, setPreview] = useState<{ systemPrompt: string; warnings: string[] } | null>(null)
@@ -112,20 +121,39 @@ export default function PromptWorkshopPanel({ open, onClose }: {
       const d = await getTemplate(key)
       if (seq !== selectSeqRef.current) return
       setDetail(d)
-      setForm({
+      const next: DraftForm = {
         system: d.template?.system ?? '',
         task: d.template?.task ?? '',
         outputDesc: d.template?.output?.description ?? '',
         category: d.meta?.category || d.template?.category || '',
         description: d.meta?.description || d.template?.description || '',
         isActive: d.meta?.source === 'override' ? d.meta.overrideActive : true,
-      })
+      }
+      setForm(next)
+      setBaseline(next) // 基线随详情落地：此后任何字段改动即 dirty
     } catch (e) {
       if (seq !== selectSeqRef.current) return
       message.error(`模板详情加载失败：${e instanceof Error ? e.message : String(e)}`)
     } finally {
       if (seq === selectSeqRef.current) setDetailLoading(false)
     }
+  }
+
+  /** 当前草稿是否偏离基线（保存/恢复/导入后的程序化重载会同步基线，不会误报）。 */
+  const dirty = detail !== null && !sameForm(form, baseline)
+
+  /**
+   * 列表行点击入口（v4.421.0）：切模板会整表覆盖表单，脏草稿经共享原语
+   * confirmDiscard 二次确认（✕/Esc 一律＝取消：既不切换也不丢草稿）。
+   * 保存 / 恢复内置 / 导入模板包后的程序化重载仍走 select() 本体，不打扰用户。
+   */
+  const selectRow = (key: string) => {
+    if (key === selectedKey || !dirty) { void select(key); return }
+    confirmDiscard({
+      title: '提示词草稿尚未保存',
+      message: `切换到「${key}」会丢弃当前模板的未保存修改（未保存的修改会丢失，且无法恢复）。`,
+      onDiscard: () => void select(key),
+    })
   }
 
   /** 当前草稿组装为完整模板正文（保留 parameters/constraints 等未编辑字段）。 */
@@ -260,7 +288,7 @@ export default function PromptWorkshopPanel({ open, onClose }: {
     const selected = m.key === selectedKey
     return (
       <div key={m.key} data-testid="prompt-workshop-row"
-        onClick={() => void select(m.key)}
+        onClick={() => selectRow(m.key)}
         style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 8px', borderRadius: 6, cursor: 'pointer', background: selected ? 'rgba(0,0,0,0.05)' : undefined }}>
         <span style={{ fontSize: 13 }}>{m.key}</span>
         {m.source === 'override'

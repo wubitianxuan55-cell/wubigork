@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { wailsApp } from '../lib/wailsApp'
 import type { ProjectCard } from '../stores/appStore'
 
@@ -12,7 +12,7 @@ vi.mock('../components/WelcomePage', () => ({
 }))
 
 vi.mock('../components/novel/CreateNovelModal', () => ({
-  default: () => null,
+  default: ({ open }: { open: boolean }) => (open ? <div>createnovel-stub</div> : null),
 }))
 
 vi.mock('../components/novel/BookSearchModal', () => ({
@@ -107,6 +107,30 @@ describe('HomePage 书房书架', () => {
     expect(screen.queryByText('booksearch-stub')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: /在线搜书/ }))
     expect(screen.getByText('booksearch-stub')).toBeTruthy()
+  })
+
+  // ── 线2 防复发守卫：书架页常驻隐藏时不得抢窗口级快捷键（v4.421.0）──
+  // 书架在 NovelPage 里常驻挂载（CSS display:none 隐藏，隐藏 ≠ 卸载），若不按
+  // active 门控，用户在设定/阅读页按 Ctrl+N 会莫名弹出「新建小说」。
+  it('Ctrl+N：不传 active（默认 true）打开新建小说弹窗并 preventDefault', async () => {
+    render(<HomePage />)
+    await waitFor(() => expect(screen.getByText('风雪夜归')).toBeTruthy())
+    expect(screen.queryByText('createnovel-stub')).toBeNull()
+
+    const ev = new KeyboardEvent('keydown', { key: 'n', ctrlKey: true, cancelable: true })
+    await act(async () => { window.dispatchEvent(ev) })
+    expect(ev.defaultPrevented).toBe(true)
+    expect(screen.getByText('createnovel-stub')).toBeTruthy()
+  })
+
+  it('Ctrl+N：active=false 时不开弹窗、也不 preventDefault', async () => {
+    render(<HomePage active={false} />)
+    await waitFor(() => expect(screen.getByText('风雪夜归')).toBeTruthy())
+
+    const ev = new KeyboardEvent('keydown', { key: 'n', ctrlKey: true, cancelable: true })
+    await act(async () => { window.dispatchEvent(ev) })
+    expect(ev.defaultPrevented).toBe(false)
+    expect(screen.queryByText('createnovel-stub')).toBeNull()
   })
 })
 

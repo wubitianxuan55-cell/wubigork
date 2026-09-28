@@ -2,7 +2,7 @@
 // 覆盖：手工登记→全量写回→列表出现；状态流转写回 hinted；保存失败回滚提示；删除（confirm）；
 // 一致性体检（LintForeshadows）：概要行渲染 / findings Tag+说明+章节引用 / 空 findings 提示。
 import { describe, expect, it, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { act, render, screen, fireEvent, waitFor } from '@testing-library/react'
 
 // 屏蔽 Wails 绑定：jsdom 中没有 window.go。
 // 组件经 gaea/lib/bridge 的 app 调用 GetForeshadows / SaveForeshadows / LintForeshadows。
@@ -26,8 +26,17 @@ vi.mock('../../gaea/lib/bridge', async (importOriginal) => {
 
 import ForeshadowPanel from './ForeshadowPanel'
 import { app } from '../../gaea/lib/bridge'
+import { useAppStore } from '../../stores/appStore'
 import type { ForeshadowItemData } from '../../types'
 import type { ForeshadowLintReport } from '../../gaea/lib/bridge/novel'
+
+/** 已打开项目路径：v4.421 线3 起面板以 useAppStore.projectPath 作加载门控
+ *  （无项目路径 → 引导态不拉取），直接渲染面板的既有用例统一给一个项目。 */
+const PROJ = 'C:/novel/test'
+
+beforeEach(() => {
+  useAppStore.setState({ projectOpen: true, projectPath: PROJ })
+})
 
 const EXISTING: ForeshadowItemData = {
   id: 'plot_001_abc',
@@ -164,16 +173,44 @@ describe('ForeshadowPanel 手工登记闭环', () => {
     expect(await screen.findByText('已暗示')).toBeTruthy()
   })
 
-  it('保存失败：回滚列表并提示', async () => {
+  it('保存失败：如实报错并重读登记表（v4.421.0 起不做旧快照回滚——那会覆盖排队中的改动）', async () => {
     vi.mocked(app.SaveForeshadows).mockRejectedValueOnce(new Error('磁盘已满'))
     render(<ForeshadowPanel />)
     await screen.findByText('主角左臂旧伤')
+    const loadsBefore = vi.mocked(app.GetForeshadows).mock.calls.length
 
     fireEvent.click(screen.getByRole('button', { name: '标记暗示' }))
 
-    expect(await screen.findByText(/伏笔保存失败，已回滚/)).toBeTruthy()
-    // 回滚后状态徽标恢复 planted
+    expect(await screen.findByText(/伏笔保存失败：磁盘已满/)).toBeTruthy()
+    // 重读磁盘真实状态（mock 仍是 planted）→ 状态徽标回到「已埋设」
+    await waitFor(() => expect(vi.mocked(app.GetForeshadows).mock.calls.length).toBeGreaterThan(loadsBefore))
     expect(await screen.findByText('已埋设')).toBeTruthy()
+  })
+
+  it('整表写回串行化：快速连续流转不会互相覆盖（后一次写盘以最新状态为准）', async () => {
+    vi.mocked(app.GetForeshadows).mockResolvedValue({
+      items: [EXISTING, { ...EXISTING, id: 'f2', description: '第二处伏笔' }],
+    })
+    let release: () => void = () => {}
+    vi.mocked(app.SaveForeshadows).mockImplementationOnce(
+      () => new Promise<void>((res) => { release = () => res() }) as never,
+    )
+    render(<ForeshadowPanel />)
+    await screen.findByText('主角左臂旧伤')
+
+    const flowBtns = screen.getAllByRole('button', { name: '标记暗示' })
+    fireEvent.click(flowBtns[0])
+    // 第一次写已发出（挂起中）
+    await waitFor(() => expect(vi.mocked(app.SaveForeshadows)).toHaveBeenCalledTimes(1))
+    fireEvent.click(flowBtns[1])
+    await new Promise((r) => setTimeout(r, 0))
+    // 第二次写必须排队（此前会并发发出两份基于同一旧快照的整表写）
+    expect(vi.mocked(app.SaveForeshadows)).toHaveBeenCalledTimes(1)
+
+    act(() => { release() })
+    await waitFor(() => expect(vi.mocked(app.SaveForeshadows)).toHaveBeenCalledTimes(2))
+    const second = JSON.parse(vi.mocked(app.SaveForeshadows).mock.calls[1][0] as string) as ForeshadowItemData[]
+    expect(second.filter((i) => i.status === 'hinted').length).toBe(2)
   })
 
   it('删除：confirm 后全量写回剩余条目', async () => {
@@ -348,5 +385,60 @@ describe('ForeshadowPanel 调度可视面（t1-P4）', () => {
 
     await waitFor(() => expect(vi.mocked(app.CleanChapterAnalysisForeshadows)).toHaveBeenCalledTimes(1))
     expect(vi.mocked(app.CleanChapterAnalysisForeshadows)).toHaveBeenCalledWith('001.md')
+  })
+})
+
+// ── v4.421 线3 P1：面板在小说五子页常驻挂载，上下文必须随项目切换刷新 ──
+// 反向守卫：切书后 display 的必须是新书的伏笔表；无项目时不打绑定、不报红。
+describe('ForeshadowPanel 项目上下文（v4.421 线3）', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.mocked(app.GetForeshadows).mockResolvedValue({ items: [EXISTING] })
+    vi.mocked(app.SaveForeshadows).mockResolvedValue(undefined)
+  })
+
+  it('切换项目（projectPath 变化）后重新拉取，不再显示上一本伏笔表', async () => {
+    render(<ForeshadowPanel />)
+    expect(await screen.findByText('主角左臂旧伤')).toBeTruthy()
+    const callsBefore = vi.mocked(app.GetForeshadows).mock.calls.length
+    expect(callsBefore).toBeGreaterThan(0)
+
+    vi.mocked(app.GetForeshadows).mockResolvedValue({
+      items: [{ ...EXISTING, id: 'plot_other_001', description: '第二本的伏笔' }],
+    })
+    act(() => { useAppStore.setState({ projectPath: 'C:/novel/another' }) })
+
+    await waitFor(() => expect(vi.mocked(app.GetForeshadows).mock.calls.length).toBeGreaterThan(callsBefore))
+    expect(await screen.findByText('第二本的伏笔')).toBeTruthy()
+    expect(screen.queryByText('主角左臂旧伤')).toBeNull()
+  })
+
+  it('切回「无项目路径」清空列表并回到引导态（不残留上一本）', async () => {
+    render(<ForeshadowPanel />)
+    expect(await screen.findByText('主角左臂旧伤')).toBeTruthy()
+
+    act(() => { useAppStore.setState({ projectPath: '' }) })
+
+    expect(await screen.findByText('请先在「书架」打开一部小说项目')).toBeTruthy()
+    expect(screen.queryByText('主角左臂旧伤')).toBeNull()
+  })
+
+  it('disabled：显示引导态、不调绑定、不出现红色「伏笔加载失败」', async () => {
+    vi.mocked(app.GetForeshadows).mockRejectedValue(new Error('无项目上下文'))
+    render(<ForeshadowPanel disabled />)
+
+    expect(await screen.findByText('请先在「书架」打开一部小说项目')).toBeTruthy()
+    expect(vi.mocked(app.GetForeshadows)).not.toHaveBeenCalled()
+    expect(screen.queryByText('伏笔加载失败')).toBeNull()
+  })
+
+  it('无项目路径（projectOpen 但路径为空）同样走引导态而非红色失败态', async () => {
+    useAppStore.setState({ projectPath: '' })
+    vi.mocked(app.GetForeshadows).mockRejectedValue(new Error('no project'))
+    render(<ForeshadowPanel />)
+
+    expect(await screen.findByText('请先在「书架」打开一部小说项目')).toBeTruthy()
+    expect(vi.mocked(app.GetForeshadows)).not.toHaveBeenCalled()
+    expect(screen.queryByText('伏笔加载失败')).toBeNull()
   })
 })

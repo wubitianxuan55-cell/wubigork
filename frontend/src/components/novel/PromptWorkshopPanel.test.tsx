@@ -1,7 +1,9 @@
 // 提示词工坊面板（t6 首刀：模板可编辑覆盖层）：列表分组徽标/详情基线对照/
-// 保存闭环（参数+Issues+message）/恢复内置二次确认/预览变量与 warnings/空态。
-import { describe, expect, it, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+// 保存闭环（参数+Issues+message）/恢复内置二次确认/预览变量与 warnings/空态/
+// 切模板脏草稿保护（v4.421.0：脏→共享原语 confirmDiscard，取消不切换）。
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
+import { Modal } from 'antd'
 import type { Mock } from 'vitest'
 
 // 五绑定 + t6-C2 模板包两绑定 mock 以 vi.hoisted 引用持有（vi.mock 工厂被提升
@@ -278,5 +280,68 @@ describe('PromptWorkshopPanel 提示词工坊（t6 首刀）', () => {
     fireEvent.click(screen.getByTestId('prompt-workshop-bundle-import'))
     await waitFor(() => expect(mocks.pickFileAsFile).toHaveBeenCalledTimes(1))
     expect(mocks.bundleImport).not.toHaveBeenCalled()
+  })
+})
+
+// v4.421.0 切模板脏草稿保护。坑复训：imperative Modal（Modal.confirm）不随
+// cleanup() 卸载 → 弹窗断言限定在最新 .ant-modal-confirm（within），且
+// afterEach 必须 Modal.destroyAll()；两字按钮一律正则（「取 消」「放 弃 修 改」）。
+describe('PromptWorkshopPanel 切模板脏草稿保护（v4.421.0）', () => {
+  afterEach(async () => {
+    Modal.destroyAll()
+    await new Promise((r) => setTimeout(r, 0))
+  })
+
+  const confirms = () => Array.from(document.querySelectorAll<HTMLElement>('.ant-modal-confirm'))
+
+  const twoTemplates = () => {
+    mocks.list.mockResolvedValue([
+      mkMeta('create-chapter', 'chapter', 'override', true, true, 3),
+      mkMeta('chapter-summary', 'summary', 'override', true, true, 2),
+    ] as never)
+    mocks.get.mockImplementation(async (key: string) => mkDetail(key) as never)
+  }
+
+  it('草稿脏时切模板：先弹确认；取消则不切换且草稿原样保留；确认放弃才切换', async () => {
+    twoTemplates()
+    openPanel()
+    await waitFor(() => expect(screen.getAllByTestId('prompt-workshop-row')).toHaveLength(2))
+    fireEvent.click(screen.getByText('create-chapter'))
+    await waitFor(() => expect(screen.getByTestId('prompt-workshop-system')).toBeTruthy())
+    // 改了 System → dirty
+    fireEvent.change(screen.getByTestId('prompt-workshop-system'), { target: { value: '脏草稿' } })
+
+    const before = confirms().length
+    fireEvent.click(screen.getByText('chapter-summary'))
+    await waitFor(() => expect(confirms().length).toBeGreaterThan(before))
+    const scoped = within(confirms()[confirms().length - 1])
+    expect(scoped.getByText(/会丢弃当前模板的未保存修改/)).toBeTruthy()
+
+    // 取消（✕/Esc 同义）：不切换、不重拉详情、草稿保持
+    fireEvent.click(scoped.getByRole('button', { name: /取\s*消/ }))
+    await new Promise((r) => setTimeout(r, 0))
+    expect(mocks.get).toHaveBeenCalledTimes(1)
+    expect((screen.getByTestId('prompt-workshop-system') as HTMLTextAreaElement).value).toBe('脏草稿')
+
+    // 再次切换并确认「放弃修改」→ 才真正拉新模板
+    const before2 = confirms().length
+    fireEvent.click(screen.getByText('chapter-summary'))
+    await waitFor(() => expect(confirms().length).toBeGreaterThan(before2))
+    fireEvent.click(within(confirms()[confirms().length - 1]).getByRole('button', { name: /放\s*弃\s*修\s*改/ }))
+    await waitFor(() => expect(mocks.get).toHaveBeenLastCalledWith('chapter-summary'))
+  })
+
+  it('未改动（草稿==基线）切模板：不弹确认、直接切换', async () => {
+    twoTemplates()
+    openPanel()
+    await waitFor(() => expect(screen.getAllByTestId('prompt-workshop-row')).toHaveLength(2))
+    fireEvent.click(screen.getByText('create-chapter'))
+    await waitFor(() => expect(screen.getByTestId('prompt-workshop-detail')).toBeTruthy())
+
+    // 打开前后比对数量（imperative Modal 的旧 DOM 不保证被清掉，不用绝对 0）
+    const before = confirms().length
+    fireEvent.click(screen.getByText('chapter-summary'))
+    await waitFor(() => expect(mocks.get).toHaveBeenLastCalledWith('chapter-summary'))
+    expect(confirms().length).toBe(before)
   })
 })

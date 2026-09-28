@@ -81,12 +81,15 @@ type writingState struct {
 
 	// 章节生成互斥与取消（T6-7.2）：key = chapterGenKey(chapterNum, branch)，
 	// 记录进行中的章节生成任务。同一章节（同一 NNN.md 目标文件）并发生成被拒绝，
-	// 不同章节可并行；CancelCreateChapter 取出并调用取消函数中断流式生成。
+	// 不同章节可并行；CancelCreateChapter 只调取消函数（v4.421.0：条目置 nil 占位，
+	// 不再提前摘表——协程退出时由 unregisterChapterGen 独占清理，否则取消后立即
+	// 重开会绕过互斥并发出两个写者；nil 占位期间 register 以中文错误如实拒绝）。
 	chapterGenMu      sync.Mutex
 	chapterGenCancels map[string]context.CancelFunc
-	// 进行中章节生成协程数：登记表在取消路径会被先删（取消后协程仍有
-	// 「已生成部分落盘」尾步），表空 ≠ 协程退出；测试等协程真正退出要等它
-	// （v4.233 根治 TempDir 清理与尾步写盘的 Windows unlinkat 竞态）。
+	// 进行中章节生成协程数：登记表**协程退出才清**（v4.421.0 起；取消路径置 nil
+	// 占位而非删除）——取消后协程仍有「已生成部分落盘」尾步，表项为 nil ≠ 已退出；
+	// 测试等协程真正退出要等它（v4.233 根治 TempDir 清理与尾步写盘的
+	// Windows unlinkat 竞态）。
 	chapterGenWG sync.WaitGroup
 
 	// 项目管理

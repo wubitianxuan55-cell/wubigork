@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
+import { Modal } from 'antd'
 
 // 屏蔽 Wails 绑定：jsdom 中没有 window.go。页面及其子面板（WorldviewSectionsEditor/
 // ForeshadowPanel/ConsistencyPanel）经 gaea/lib/bridge 的 app 调用 NovelBindings。
@@ -40,6 +41,24 @@ vi.mock('../gaea/lib/bridge', async (importOriginal) => {
 import NovelSettingPage from './NovelSettingPage'
 import { useAppStore } from '../stores/appStore'
 import { app } from '../gaea/lib/bridge'
+
+// 坑复训（unsavedGuard.test 同款）：imperative Modal 的 DOM 不随 cleanup() 卸载，
+// 跨用例残留会让「最新弹窗」定位错位——每例后显式销毁 + 让销毁提交一帧。
+afterEach(async () => {
+  Modal.destroyAll()
+  await new Promise((r) => setTimeout(r, 0))
+})
+
+const confirmModals = () => Array.from(document.querySelectorAll<HTMLElement>('.ant-modal-confirm'))
+
+/** 触发动作并返回**最新弹窗**的限定查询器（按弹窗数量增量定位，避免旧弹窗干扰）。 */
+async function latestConfirm(trigger: () => void) {
+  const before = confirmModals().length
+  trigger()
+  await waitFor(() => expect(confirmModals().length).toBeGreaterThan(before))
+  const all = confirmModals()
+  return within(all[all.length - 1])
+}
 
 describe('NovelSettingPage 纯文本设定编辑', () => {
   beforeEach(() => {
@@ -333,5 +352,148 @@ describe('NovelSettingPage 导入/导出双门（审计刀B b）', () => {
     fireEvent.click(screen.getByRole('button', { name: /导入/ }))
     expect(inputClick).toHaveBeenCalledTimes(1)
     inputClick.mockRestore()
+  })
+
+  // ── v4.421 线3 P2：dirty 时导入会静默覆盖未保存设定 → 走共享确认原语 ──
+  // 坑复训：imperative Modal 关闭后 DOM 仍留在 document（隐藏态），跨用例会污染
+  // 「按可见文案/角色」的全局查询——本组一律把页面查询限定在 render 容器内。
+  it('dirty 时导入先确认，点「覆盖导入」才替换内容', async () => {
+    stubShell(
+      [{ path: 'C:/novel/覆盖导入.md', name: '覆盖导入.md', type: 'file', size: 5 }],
+      b64Of('# 导入的设定'),
+    )
+    const page = render(<NovelSettingPage />)
+    const editor = (await screen.findByPlaceholderText(/在此撰写或粘贴小说设定/)) as HTMLTextAreaElement
+    fireEvent.change(editor, { target: { value: '# 未保存的草稿' } })
+    expect(screen.getByText('有未保存修改')).toBeTruthy()
+
+    const scoped = await latestConfirm(() =>
+      fireEvent.click(within(page.container).getByRole('button', { name: /导\s*入$/ })))
+    // 标题父子双匹配（antd 弹窗 wrapper + 内层 div）→ 取集合断言，不用 getByText
+    expect(scoped.getAllByText('导入会覆盖未保存的设定', { exact: false }).length).toBeGreaterThan(0)
+    expect(scoped.getByText(/会用文件内容覆盖编辑器/)).toBeTruthy()
+    // 确认前内容保持未保存草稿（未静默覆盖）
+    expect(editor.value).toBe('# 未保存的草稿')
+
+    fireEvent.click(scoped.getByRole('button', { name: /覆盖\s*导入/ }))
+    await waitFor(() => expect(editor.value).toContain('# 导入的设定'))
+    expect(await screen.findByText(/已导入「覆盖导入.md」/)).toBeTruthy()
+  })
+
+  it('dirty 时导入确认点「取消」：内容与未保存修改都不变（✕/Esc 同义）', async () => {
+    stubShell(
+      [{ path: 'C:/novel/新设定.md', name: '新设定.md', type: 'file', size: 5 }],
+      b64Of('# 导入的设定'),
+    )
+    const page = render(<NovelSettingPage />)
+    const editor = (await screen.findByPlaceholderText(/在此撰写或粘贴小说设定/)) as HTMLTextAreaElement
+    fireEvent.change(editor, { target: { value: '# 未保存的草稿' } })
+
+    const scoped = await latestConfirm(() =>
+      fireEvent.click(within(page.container).getByRole('button', { name: /导\s*入$/ })))
+    fireEvent.click(scoped.getByRole('button', { name: /^取\s*消$/ }))
+    await new Promise((r) => setTimeout(r, 0))
+
+    // 选取/读取确实发生过（证明走到了导入确认），但内容未被替换
+    expect(readFileB64).toHaveBeenCalledWith('C:/novel/新设定.md')
+    expect(editor.value).toBe('# 未保存的草稿')
+    expect(screen.getByText('有未保存修改')).toBeTruthy()
+  })
+})
+
+// ── v4.421 跨线契约：窗口级 Ctrl+S 按「本页是否当前子页」门控 ──
+// 反向守卫：小说五子页常驻挂载，若设定页无条件挂 window keydown，则在创作页/
+// 阅读页按下 Ctrl+S 会「顺带保存设定」并吞掉别页的默认行为。
+describe('NovelSettingPage Ctrl+S 门控（active，v4.421 跨线契约）', () => {
+  beforeEach(() => {
+    useAppStore.setState({ projectOpen: true, projectPath: 'C:/novel/test' })
+    vi.clearAllMocks()
+    vi.mocked(app.GetWorldview).mockResolvedValue('# 世界观\n\n架空中世纪')
+    vi.mocked(app.GetForeshadows).mockResolvedValue({ items: [] })
+    vi.mocked(app.CheckConsistency).mockResolvedValue({ issues: [], total_issues: 0, summary: '✅ 未发现一致性问题' })
+  })
+
+  /** 派发一次窗口级 Ctrl+S，返回事件本体（用于断言 preventDefault 是否发生） */
+  const pressCtrlS = () => {
+    const ev = new KeyboardEvent('keydown', { key: 's', ctrlKey: true, bubbles: true, cancelable: true })
+    window.dispatchEvent(ev)
+    return ev
+  }
+
+  it('active={false}：Ctrl+S 既不保存也不 preventDefault（不吞别页快捷键）', async () => {
+    render(<NovelSettingPage active={false} />)
+    const editor = (await screen.findByPlaceholderText(/在此撰写或粘贴小说设定/)) as HTMLTextAreaElement
+    fireEvent.change(editor, { target: { value: '# 未保存的新设定' } })
+    expect(screen.getByText('有未保存修改')).toBeTruthy()
+
+    const ev = pressCtrlS()
+    await new Promise((r) => setTimeout(r, 0))
+
+    expect(ev.defaultPrevented).toBe(false)
+    expect(vi.mocked(app.SaveWorldview)).not.toHaveBeenCalled()
+    expect(screen.getByText('有未保存修改')).toBeTruthy()
+  })
+
+  it('不传 active（默认 true）：Ctrl+S 保存并 preventDefault（既有口径不变）', async () => {
+    render(<NovelSettingPage />)
+    const editor = (await screen.findByPlaceholderText(/在此撰写或粘贴小说设定/)) as HTMLTextAreaElement
+    fireEvent.change(editor, { target: { value: '蒸汽纪元' } })
+
+    const ev = pressCtrlS()
+
+    expect(ev.defaultPrevented).toBe(true)
+    await waitFor(() => expect(vi.mocked(app.SaveWorldview)).toHaveBeenCalledWith('蒸汽纪元'))
+  })
+})
+
+// ── v4.421 体验项：下行「伏笔 + 一致性」区可折叠（默认展开 + 持久化） ──
+describe('NovelSettingPage 下行面板折叠（v4.421）', () => {
+  const COLLAPSED_KEY = 'gaea.novel.settingPanelsCollapsed'
+
+  beforeEach(() => {
+    localStorage.removeItem(COLLAPSED_KEY)
+    useAppStore.setState({ projectOpen: true, projectPath: 'C:/novel/test' })
+    vi.clearAllMocks()
+    vi.mocked(app.GetWorldview).mockResolvedValue('# 世界观\n\n架空中世纪')
+    vi.mocked(app.GetForeshadows).mockResolvedValue({ items: [] })
+    vi.mocked(app.CheckConsistency).mockResolvedValue({ issues: [], total_issues: 0, summary: '✅ 未发现一致性问题' })
+  })
+
+  afterEach(() => { localStorage.removeItem(COLLAPSED_KEY) })
+
+  it('默认展开；点「收起」隐藏双面板并写入 localStorage（aria 齐备）', async () => {
+    render(<NovelSettingPage />)
+    await screen.findByPlaceholderText(/在此撰写或粘贴小说设定/)
+
+    expect(await screen.findByText('伏笔登记')).toBeTruthy()
+    expect(screen.getByTestId('novel-setting-panels')).toBeTruthy()
+    const toggle = screen.getByTestId('novel-setting-panels-toggle')
+    expect(toggle.getAttribute('aria-expanded')).toBe('true')
+    expect(screen.getByLabelText('收起伏笔与一致性面板')).toBeTruthy()
+
+    fireEvent.click(toggle)
+
+    expect(screen.queryByTestId('novel-setting-panels')).toBeNull()
+    expect(screen.queryByText('伏笔登记')).toBeNull()
+    expect(screen.getByTestId('novel-setting-panels-toggle').getAttribute('aria-expanded')).toBe('false')
+    expect(screen.getByLabelText('展开伏笔与一致性面板')).toBeTruthy()
+    expect(localStorage.getItem(COLLAPSED_KEY)).toBe('1')
+  })
+
+  it('折叠态持久化：重新渲染（刷新）后仍保持收起，再点即展开', async () => {
+    const first = render(<NovelSettingPage />)
+    await screen.findByPlaceholderText(/在此撰写或粘贴小说设定/)
+    fireEvent.click(screen.getByTestId('novel-setting-panels-toggle'))
+    expect(localStorage.getItem(COLLAPSED_KEY)).toBe('1')
+    first.unmount()
+
+    render(<NovelSettingPage />)
+    await screen.findByPlaceholderText(/在此撰写或粘贴小说设定/)
+    expect(screen.getByTestId('novel-setting-panels-toggle').getAttribute('aria-expanded')).toBe('false')
+    expect(screen.queryByTestId('novel-setting-panels')).toBeNull()
+
+    fireEvent.click(screen.getByTestId('novel-setting-panels-toggle'))
+    expect(await screen.findByTestId('novel-setting-panels')).toBeTruthy()
+    expect(localStorage.getItem(COLLAPSED_KEY)).toBe('0')
   })
 })

@@ -68,6 +68,10 @@ interface ConsistencyPanelProps {
 const ConsistencyPanel: React.FC<ConsistencyPanelProps> = ({ disabled }) => {
   const t = dictT
   const projectPath = useAppStore((s) => s.projectPath)
+  // v4.421 线3 P1：与 ForeshadowPanel 同因——面板常驻挂载，`load` 此前只依赖
+  // `disabled`，切书后仍显示上一本的一致性报告。projectPath 既作重拉依赖，
+  // 也作引导态门控（无项目路径时不打绑定，避免报红）。
+  const noProject = !!disabled || !projectPath
   const [report, setReport] = useState<ConsistencyCheckReport | null>(null)
   const [loading, setLoading] = useState(true)
   // v4.361：规则层检查失败标志——首查失败若无此态，空 issues 会渲染成绿色
@@ -87,7 +91,8 @@ const ConsistencyPanel: React.FC<ConsistencyPanelProps> = ({ disabled }) => {
 
   const load = useCallback(async () => {
     const token = ++loadToken.current
-    if (disabled) {
+    // projectPath 显式参与判断：换书必重拉 + 无项目走引导态
+    if (disabled || !projectPath) {
       setReport(null)
       setRuleError(false)
       setLoading(false)
@@ -108,14 +113,21 @@ const ConsistencyPanel: React.FC<ConsistencyPanelProps> = ({ disabled }) => {
       if (token === loadToken.current) setLoading(false)
     }
     // 沿用既有语义：失败保留上次报告展示，仅以 ruleError 横幅+空态文案提示本次未完成。
-  }, [disabled])
+  }, [disabled, projectPath])
 
   useEffect(() => { void load() }, [load])
+
+  // 换书即丢弃上一本的 AI 深检结果（否则新书页面会挂着旧书的深检告警）；
+  // 忽略指纹同因随项目切换加载（见上）。
+  useEffect(() => {
+    setDeepResult(null)
+    setDeepError('')
+  }, [projectPath])
 
   // AI 深检：AI 逐章提取状态卡 + 本地跨章比对，后端已合并规则层结果（source 字段区分）。
   const runDeep = useCallback(async () => {
     const token = ++loadToken.current
-    if (disabled) return
+    if (disabled || !projectPath) return
     setDeepLoading(true)
     setDeepError('')
     const maxChapters = clampDeepChapters(deepChapters)
@@ -135,7 +147,7 @@ const ConsistencyPanel: React.FC<ConsistencyPanelProps> = ({ disabled }) => {
     } finally {
       if (token === loadToken.current) setDeepLoading(false)
     }
-  }, [deepChapters, disabled])
+  }, [deepChapters, disabled, projectPath])
 
   const allIssues: ConsistencyCheckIssue[] = deepResult?.issues ?? report?.issues ?? []
   // 忽略记忆只在深检视图生效（指纹按项目隔离）；被忽略条目以计数横幅保持可见
@@ -170,7 +182,7 @@ const ConsistencyPanel: React.FC<ConsistencyPanelProps> = ({ disabled }) => {
           size="small" min={1} max={50} step={5}
           value={deepChapters}
           onChange={(v) => { if (typeof v === 'number') setDeepChapters(v) }}
-          disabled={disabled || deepLoading}
+          disabled={noProject || deepLoading}
           style={{ width: 88 }}
           addonAfter="章"
           data-testid="consistency-deep-chapters"
@@ -178,17 +190,17 @@ const ConsistencyPanel: React.FC<ConsistencyPanelProps> = ({ disabled }) => {
         <Button
           size="small" icon={<ThunderboltOutlined />}
           onClick={() => void runDeep()} loading={deepLoading}
-          disabled={disabled}
+          disabled={noProject}
           data-testid="consistency-deep-run"
         >
           AI 深检
         </Button>
-        <Button size="small" icon={<ReloadOutlined />} onClick={() => void load()} loading={loading} disabled={disabled}>
+        <Button size="small" icon={<ReloadOutlined />} onClick={() => void load()} loading={loading} disabled={noProject}>
           重新检查
         </Button>
       </div>
       <div className="novel-setting-body" style={{ padding: 8, gap: 6 }}>
-        {disabled ? (
+        {noProject ? (
           <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="请先在「书架」打开一部小说项目" style={{ margin: 'auto' }} />
         ) : loading ? (
           <div style={{ margin: 'auto' }}><Spin size="small" /></div>

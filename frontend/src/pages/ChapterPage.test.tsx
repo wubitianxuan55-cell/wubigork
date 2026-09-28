@@ -294,6 +294,94 @@ describe('ChapterPage 阅读页场景化（V4 主线章读场景、逐场景保�
   })
 })
 
+// ── 线2 防复发守卫：常驻隐藏页不得抢窗口级快捷键（v4.421.0）──
+// 背景：小说五个子页在 NovelPage 里常驻挂载（只靠 CSS display:none 隐藏，隐藏 ≠ 卸载），
+// 阅读页的 window keydown 在隐藏期间依然活着。active=false 时必须「既不干活、
+// 也不 preventDefault」——否则隐藏页吞掉浏览器 F11 全屏、与设定页抢一次 Ctrl+S 的
+// 归属（正文反而不保存）、readMode 残留时在书架/设定页翻隐藏阅读页的章。
+// 默认（不传 active）必须与改前完全一致：这是既有用例 + 本组 T2/T3 共同锁的零回归。
+describe('窗口级快捷键按 active 门控（隐藏常驻页不抢键）', () => {
+  const leaf2 = { id: 'ch-2', title: '第二回 灯下白头人', order_index: 2 } as unknown as OutlineNode
+
+  /** 记录 novel:focus-mode 上报（专注模式翻转的唯一外部可观测面） */
+  const watchFocusMode = () => {
+    const seen: Array<boolean | undefined> = []
+    const spy = (e: Event) => seen.push((e as CustomEvent<{ active?: boolean }>).detail?.active)
+    window.addEventListener('novel:focus-mode', spy)
+    return { seen, off: () => window.removeEventListener('novel:focus-mode', spy) }
+  }
+
+  /** 打开第 1 章并进入阅读模式（render 由调用方先行；用于「切走后 readMode 残留」真实场景） */
+  async function openChapterAndRead() {
+    useOutlineStore.setState({ outlines: [leaf, leaf2] })
+    window.dispatchEvent(new CustomEvent('novel:open-chapter', { detail: { node: leaf } }))
+    await screen.findByTestId('chapter-editor-stub')
+    await screen.findByText('已保存')
+    fireEvent.click(screen.getByRole('button', { name: '进入阅读模式' }))
+    await screen.findByText('夜色沉沉，雨落在窗台上。')
+  }
+
+  it('active=false：Ctrl+S 不保存、F11 不翻转专注、阅读模式 ←/→ 不翻章，且三者都不 preventDefault', async () => {
+    const focus = watchFocusMode()
+    const { rerender } = render(<ChapterPage />)
+    await openChapterAndRead()
+    // 切走 tab：本页变成隐藏常驻页（readMode 残留，正是缺陷场景）
+    rerender(<ChapterPage active={false} />)
+
+    const saveEv = new KeyboardEvent('keydown', { key: 's', ctrlKey: true, cancelable: true })
+    await act(async () => { window.dispatchEvent(saveEv) })
+    expect(saveEv.defaultPrevented).toBe(false)
+    expect(bindingsBridge.SaveChapterContent).not.toHaveBeenCalled()
+    expect(novelB.SaveScene).not.toHaveBeenCalled()
+
+    const f11Ev = new KeyboardEvent('keydown', { key: 'F11', cancelable: true })
+    await act(async () => { window.dispatchEvent(f11Ev) })
+    expect(f11Ev.defaultPrevented).toBe(false)
+    // 只应有挂载时上报的初始 false，没有 F11 翻转出的 true
+    expect(focus.seen).not.toContain(true)
+
+    const rightEv = new KeyboardEvent('keydown', { key: 'ArrowRight', cancelable: true })
+    await act(async () => { window.dispatchEvent(rightEv) })
+    expect(rightEv.defaultPrevented).toBe(false)
+    // 仍停在第 1 章：隐藏页没有翻到下一章
+    expect(document.querySelector('.novel-reading-title')?.textContent).toBe('第一回 风雪夜归人')
+    focus.off()
+  })
+
+  it('不传 active（默认 true）：Ctrl+S 照常保存、F11 照常翻转并 preventDefault（零回归）', async () => {
+    const focus = watchFocusMode()
+    render(<ChapterPage />)
+    useOutlineStore.setState({ outlines: [leaf, leaf2] })
+    window.dispatchEvent(new CustomEvent('novel:open-chapter', { detail: { node: leaf } }))
+    await screen.findByTestId('chapter-editor-stub')
+    await screen.findByText('已保存')
+
+    const saveEv = new KeyboardEvent('keydown', { key: 's', ctrlKey: true, cancelable: true })
+    await act(async () => { window.dispatchEvent(saveEv) })
+    expect(saveEv.defaultPrevented).toBe(true)
+    await waitFor(() => expect(bindingsBridge.SaveChapterContent)
+      .toHaveBeenCalledWith(1, '夜色沉沉，雨落在窗台上。\n\n他推门而入，灯还亮着。'))
+
+    const f11Ev = new KeyboardEvent('keydown', { key: 'F11', cancelable: true })
+    await act(async () => { window.dispatchEvent(f11Ev) })
+    expect(f11Ev.defaultPrevented).toBe(true)
+    expect(focus.seen).toContain(true)
+    expect(await screen.findByText(/专注模式已开启/)).toBeTruthy()
+    focus.off()
+  })
+
+  it('不传 active（默认 true）时阅读模式 ←/→ 照常翻章（门控不误伤）', async () => {
+    render(<ChapterPage />)
+    await openChapterAndRead()
+
+    const rightEv = new KeyboardEvent('keydown', { key: 'ArrowRight', cancelable: true })
+    await act(async () => { window.dispatchEvent(rightEv) })
+    expect(rightEv.defaultPrevented).toBe(true)
+    await waitFor(() => expect(document.querySelector('.novel-reading-title')?.textContent)
+      .toBe('第二回 灯下白头人'))
+  })
+})
+
 // ── v4 场景章整章重写入口（t4-C3 收官）──
 describe('ChapterPage 场景章重写入口', () => {
   it('v4 场景章：chrome 渲染「整章重写」「重写历史」按钮', async () => {

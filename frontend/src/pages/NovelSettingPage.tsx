@@ -9,6 +9,7 @@ import {
 import {
   ColumnWidthOutlined, EditOutlined, ExportOutlined, EyeOutlined,
   FileTextOutlined, ImportOutlined, SaveOutlined, AppstoreOutlined,
+  DownOutlined, FlagOutlined, UpOutlined,
 } from '@ant-design/icons'
 import ChatPanel from '../components/ChatPanel'
 import type { Message } from '../components/ChatPanel'
@@ -17,6 +18,7 @@ import WorldviewSectionsEditor from '../components/novel/WorldviewSectionsEditor
 import V3Empty from '../components/V3Empty'
 import ForeshadowPanel from '../components/novel/ForeshadowPanel'
 import ConsistencyPanel from '../components/novel/ConsistencyPanel'
+import { confirmDiscard } from '../components/novel/unsavedGuard'
 import { useAppStore } from '../stores/appStore'
 import { countTextChars, extractSettingText } from '../utils/text'
 import { app } from '../gaea/lib/bridge'
@@ -26,7 +28,21 @@ import { useDebouncedValue } from '../hooks/useDebouncedValue'
 
 type EditorMode = 'edit' | 'split' | 'preview' | 'sections'
 
-const NovelSettingPage: React.FC = () => {
+/** 下行「伏笔 + 一致性」折叠态持久化键（本域 gaea.novel.* 命名风格） */
+const PANELS_COLLAPSED_KEY = 'gaea.novel.settingPanelsCollapsed'
+
+function loadPanelsCollapsed(): boolean {
+  try { return localStorage.getItem(PANELS_COLLAPSED_KEY) === '1' } catch { return false }
+}
+
+interface NovelSettingPageProps {
+  /** 本页是否为当前可见子页（NovelPage 五 pane 常驻挂载，按 activeTab 下发）。
+   *  默认 true：既有测试/独立渲染一律按可见处理；仅 `active === false` 时窗口级
+   *  Ctrl+S 不响应、也不 preventDefault（否则在创作页/阅读页按 Ctrl+S 会顺带存设定）。 */
+  active?: boolean
+}
+
+const NovelSettingPage: React.FC<NovelSettingPageProps> = ({ active = true }) => {
   const projectPath = useAppStore((s) => s.projectPath)
   const projectOpen = useAppStore((s) => s.projectOpen)
 
@@ -38,6 +54,8 @@ const NovelSettingPage: React.FC = () => {
   const [loadFailed, setLoadFailed] = useState(false)
   const [saving, setSaving] = useState(false)
   const [mode, setMode] = useState<EditorMode>('split')
+  // v4.421 体验项：下行双面板可收起（默认展开，仅持久化折叠态）
+  const [panelsCollapsed, setPanelsCollapsed] = useState(loadPanelsCollapsed)
   const [messages, setMessages] = useState<Message[]>([])
   const [lastSavedAt, setLastSavedAt] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -100,8 +118,10 @@ const NovelSettingPage: React.FC = () => {
     }
   }, [content, loadFailed])
 
-  // Ctrl/Cmd+S 保存
+  // Ctrl/Cmd+S 保存——仅在「本页为当前子页」时挂监听：五子页常驻挂载，
+  // 无条件挂 window 会让在创作页/阅读页按下的 Ctrl+S 顺带保存设定（规格线2/线3）。
   useEffect(() => {
+    if (!active) return
     const handler = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
         e.preventDefault()
@@ -110,17 +130,39 @@ const NovelSettingPage: React.FC = () => {
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [handleSave])
+  }, [active, handleSave])
+
+  const togglePanelsCollapsed = useCallback(() => {
+    setPanelsCollapsed((prev) => {
+      const next = !prev
+      try { localStorage.setItem(PANELS_COLLAPSED_KEY, next ? '1' : '0') } catch { /* 存储不可用则仅本会话生效 */ }
+      return next
+    })
+  }, [])
 
   /** 导入内容进编辑器（FileReader 读文本回填）——壳内 PickFiles 与浏览器 input 共用管线 */
-  const readFileIntoContent = (file: File) => {
+  const readFileIntoContent = useCallback((file: File) => {
     const reader = new FileReader()
     reader.onload = () => {
       setContent((reader.result as string) || '')
       message.success(`已导入「${file.name}」`)
     }
     reader.readAsText(file)
-  }
+  }, [])
+
+  /** 导入入口统一走这里：dirty 时先经共享原语确认（✕/Esc＝取消，绝不静默覆盖）。 */
+  const importFile = useCallback((file: File) => {
+    if (dirty) {
+      confirmDiscard({
+        title: '导入会覆盖未保存的设定',
+        message: `当前设定有未保存的修改，导入「${file.name}」会用文件内容覆盖编辑器，这些修改将丢失。`,
+        discardLabel: '覆盖导入',
+        onDiscard: () => readFileIntoContent(file),
+      })
+      return
+    }
+    readFileIntoContent(file)
+  }, [dirty, readFileIntoContent])
 
   // 审计刀B b：壳内 <input type=file> 不弹框（v4.162）→ pickFileAsFile 系统
   // 对话框（扩展名同 input accept 口径）还原 File 喂原 FileReader 管线；
@@ -129,7 +171,7 @@ const NovelSettingPage: React.FC = () => {
     if (!inShellEnv()) { fileInputRef.current?.click(); return }
     try {
       const file = await pickFileAsFile(['md', 'txt', 'json'])
-      if (file) readFileIntoContent(file)
+      if (file) importFile(file)
     } catch (err: unknown) {
       message.error('导入失败: ' + (err instanceof Error ? err.message : String(err)))
     }
@@ -138,7 +180,7 @@ const NovelSettingPage: React.FC = () => {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
-    readFileIntoContent(file)
+    importFile(file)
     e.target.value = ''
   }
 
@@ -315,11 +357,35 @@ const NovelSettingPage: React.FC = () => {
         </div>
       </div>
 
-      {/* 下行：伏笔登记表 + 一致性检查 */}
+      {/* 下行：伏笔登记表 + 一致性检查（可折叠；折叠态持久化，收起时仅留一行标题） */}
       {!needsProject && (
-        <div style={{ display: 'flex', flexDirection: 'row', gap: 14, height: 300, flexShrink: 0, minHeight: 0 }}>
-          <ForeshadowPanel />
-          <ConsistencyPanel />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flexShrink: 0, minHeight: 0 }}>
+          <div className="novel-panel-head" style={{ flexShrink: 0 }}>
+            <span className="novel-panel-title"><FlagOutlined />伏笔 + 一致性</span>
+            <div style={{ flex: 1 }} />
+            <span className="novel-setting-meta">
+              {panelsCollapsed ? '已收起（内容未变）' : '伏笔登记表 · 一致性检查'}
+            </span>
+            <Button
+              size="small" type="text"
+              icon={panelsCollapsed ? <DownOutlined /> : <UpOutlined />}
+              onClick={togglePanelsCollapsed}
+              aria-expanded={!panelsCollapsed}
+              aria-label={panelsCollapsed ? '展开伏笔与一致性面板' : '收起伏笔与一致性面板'}
+              data-testid="novel-setting-panels-toggle"
+            >
+              {panelsCollapsed ? '展开' : '收起'}
+            </Button>
+          </div>
+          {!panelsCollapsed && (
+            <div
+              data-testid="novel-setting-panels"
+              style={{ display: 'flex', flexDirection: 'row', gap: 14, height: 300, flexShrink: 0, minHeight: 0 }}
+            >
+              <ForeshadowPanel disabled={needsProject} />
+              <ConsistencyPanel disabled={needsProject} />
+            </div>
+          )}
         </div>
       )}
     </div>

@@ -1,7 +1,11 @@
 import React, { useEffect, useState } from 'react'
 import { Button, Checkbox, Input, Modal, Tag, Typography, message } from 'antd'
 import { app } from '../../../gaea/lib/bridge'
+import { subscribeWailsEvent } from '../../../gaea/lib/wailsEvents'
 import { associateToProject, syncProjectCharacters } from '../../../api/characterlib'
+
+/** 新角色发现通道（对齐 events.ts BACKEND_EVENTS.NEW_CHARACTERS_DISCOVERED）。 */
+const NEW_CHARACTERS_CHANNEL = 'new-characters-discovered'
 
 // 新角色条目（可编辑名称 + 可选择）
 interface NewCharEntry {
@@ -41,11 +45,15 @@ const NewCharactersModal: React.FC = () => {
   const [libMatches, setLibMatches] = useState<LibMatchEntry[]>([])
   const [adding, setAdding] = useState(false)
 
-  // 监听新角色发现事件
+  // 监听新角色发现事件（v4.421.0：退订走 subscribeWailsEvent 的「只摘除自己」
+  // 清理函数——此前裸 EventsOff('new-characters-discovered') 会把同通道别人
+  // 的监听一起炸掉，见 gaea/lib/wailsEvents.ts 事故纪律）
   useEffect(() => {
-    const handler = (event: { detail?: NewCharactersPayload } | NewCharactersPayload) => {
-      const raw = event as { detail?: NewCharactersPayload } | null | undefined
-      const data = (raw?.detail || raw) as NewCharactersPayload | undefined
+    const rt = window.runtime
+    if (!rt?.EventsOn) return // 事件通道缺失时弹窗不可用
+    const handler = (raw: unknown) => {
+      const ev = raw as { detail?: NewCharactersPayload } | NewCharactersPayload | null | undefined
+      const data = ((ev as { detail?: NewCharactersPayload } | null)?.detail || ev) as NewCharactersPayload | undefined
       if ((data?.characters?.length ?? 0) > 0 || (data?.libraryMatches?.length ?? 0) > 0) {
         setNewCharsList((data?.characters || []).map((name: string) => ({
           original: name, name, selected: true,
@@ -57,8 +65,12 @@ const NewCharactersModal: React.FC = () => {
         setOpen(true)
       }
     }
-    try { window.runtime?.EventsOn?.('new-characters-discovered', handler) } catch { /* 事件通道缺失时弹窗不可用 */ }
-    return () => { try { window.runtime?.EventsOff?.('new-characters-discovered') } catch { /* 清理失败无害 */ } }
+    try {
+      return subscribeWailsEvent(rt, NEW_CHARACTERS_CHANNEL, handler)
+    } catch {
+      // 订阅失败：无监听可退（不抛给 React 渲染链）
+      return undefined
+    }
   }, [])
 
   const selectedCount = newCharsList.filter(c => c.selected).length + libMatches.filter(m => m.selected).length

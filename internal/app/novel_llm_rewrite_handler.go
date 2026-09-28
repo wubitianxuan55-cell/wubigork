@@ -8,8 +8,54 @@ import (
 
 	"github.com/gaea/gaea/internal/ai"
 	"github.com/gaea/gaea/internal/novelstyle"
+	"github.com/gaea/gaea/internal/project"
 	"github.com/gaea/gaea/internal/util"
 )
+
+// ── 重写/去味写回 helper（N3/N4/N5 收敛点）──────────────────────────
+//
+// 旧实现（LLM 重写与一键去味各自内联）把写盘错误直接丢掉：
+// `_ = sm.Write(sc)` / `_ = pm.WriteChapter(...)`，随后照旧回报
+// `done:true, rewritten:N`——前端据此提示「已改写 N 句」，磁盘其实没变。
+// 且 v4 路径写场景后没有 syncBlobFromScenes，阅读页/全文检索/导出读的整章
+// blob 仍是旧文，用户以为改写没生效。收敛为单一写回入口：
+//   - 写失败 → 返回中文可读 error（调用方如实报失败，不再谎报 done）；
+//   - 写成功 → v4 场景路径同步整章 blob 投影。
+
+// writeBackRewritten 把重写/去味后的正文写回磁盘，成功后同步整章 blob 投影。
+//   - isScene=true（v4 场景制）：写回场景 sceneID 后 syncBlobFromScenes
+//     （与 SaveScene / GenerateScene / RestoreSnapshot 同口径）；
+//   - isScene=false（v3 整章）：直接写章节文件（blob 即正稿，无需同步）。
+//
+// blob 同步失败沿用 syncBlobFromScenes 的既有口径（warn 不阻断，下一次场景写
+// 自愈），此处不额外放大为错误。
+func writeBackRewritten(pm *project.Manager, chapterNum int, sceneID string, isScene bool, text string) error {
+	if pm == nil {
+		return fmt.Errorf("请先打开项目")
+	}
+	if isScene {
+		sm := pm.SceneManager(chapterNum)
+		sc, err := sm.Read(sceneID)
+		if err != nil {
+			return fmt.Errorf("读取场景失败（第%d章 %s）：%w", chapterNum, sceneID, err)
+		}
+		sc.Content = text
+		if err := sm.Write(sc); err != nil {
+			return fmt.Errorf("保存场景失败（第%d章 %s）：%w", chapterNum, sceneID, err)
+		}
+		syncBlobFromScenes(pm, chapterNum)
+		return nil
+	}
+	if err := pm.WriteChapter(chapterNum, text); err != nil {
+		return fmt.Errorf("保存章节失败（第%d章）：%w", chapterNum, err)
+	}
+	return nil
+}
+
+// writeBackRewrittenFn 写回执行体（测试注入写失败桩的窄 seam，验证「写失败
+// 返回 error 且不再谎报 done」；生产路径恒为 writeBackRewritten，与
+// diskFreeFn / wxAgentExecToolFn 同款注入手法）。
+var writeBackRewrittenFn = writeBackRewritten
 
 // ── 刀 5 再续 · LLM 受限重写（高质量句级去 AI 味）──────────────────────
 //
@@ -64,21 +110,21 @@ func (a *writingState) RewriteChapterAiTaste(chapterNum int) (map[string]interfa
 			continue
 		}
 		units[i].text = rw
+		units[i].applied = applied
 		totalApplied += applied
 		totalBefore += before
 		totalAfter += after
 	}
 
-	// 写回（只要有任何场景/整章改善）。
-	for _, u := range units {
-		if u.isScene {
-			sm := pm.SceneManager(chapterNum)
-			if sc, err := sm.Read(u.id); err == nil {
-				sc.Content = u.text
-				_ = sm.Write(sc)
-			}
-		} else if u.id == "" && u.text != "" {
-			_ = pm.WriteChapter(chapterNum, u.text)
+	// 写回：只写真正改善的单元；写失败即如实返回 error（旧实现吞错后仍回报
+	// done:true + rewritten:N，前端提示「已改写 N 句」而磁盘没变）。v4 场景
+	// 写回由 helper 统一同步整章 blob，阅读页/检索/导出不再读旧文。
+	for i := range units {
+		if units[i].applied == 0 {
+			continue // 未改善的单元不落盘（写回同文本只徒增 mtime 与误覆盖风险）
+		}
+		if err := writeBackRewrittenFn(pm, chapterNum, units[i].id, units[i].isScene, units[i].text); err != nil {
+			return nil, err
 		}
 	}
 
@@ -98,6 +144,8 @@ type rewriteUnit struct {
 	id      string
 	isScene bool
 	text    string
+	// applied 本单元实际替换的句数（0 = 未改善/未命中，写回阶段跳过）。
+	applied int
 }
 
 // rewriteUnit 对单个文本单元做「打分→定位命中句→LLM 批量重写→安全替换→复测」。

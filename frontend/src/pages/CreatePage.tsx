@@ -24,9 +24,33 @@ import type { EditorPanelHandle } from '../components/novel/create/EditorPanel'
 import CreateInspector from '../components/novel/create/CreateInspector'
 import NewCharactersModal from '../components/novel/create/NewCharactersModal'
 import BranchWizardModal, { type Branch } from '../components/novel/create/BranchWizardModal'
+import { chooseAction, chooseUnsavedAction } from '../components/novel/unsavedGuard'
 
 interface WizardRequest { prevChapter: number; overwriteChapter: number; branchFromID: string }
 const BRAINSTORM_MSG_KEY = 'novel-brainstorm-loading'
+
+// ── 创作参数持久化（v4.421.0）──
+// 目标字数/温度/写作技能此前每次进页都回默认值，作者每章都要重设一遍。
+const GEN_PREFS_KEY = 'gaea.novel.genPrefs'
+interface NovelGenPrefs { minWords: number; temperature: number; skill: string }
+const GEN_PREFS_DEFAULT: NovelGenPrefs = { minWords: 5000, temperature: 0, skill: 'story-deslop' }
+
+/** 读创作参数（畸形/越界一律回落默认值——本地存储不可信）。 */
+function loadGenPrefs(): NovelGenPrefs {
+  try {
+    const raw = localStorage.getItem(GEN_PREFS_KEY)
+    if (!raw) return GEN_PREFS_DEFAULT
+    const v = JSON.parse(raw) as Partial<NovelGenPrefs>
+    const minWords = typeof v.minWords === 'number' && Number.isFinite(v.minWords) && v.minWords >= 500 && v.minWords <= 20000
+      ? Math.round(v.minWords) : GEN_PREFS_DEFAULT.minWords
+    const temperature = typeof v.temperature === 'number' && Number.isFinite(v.temperature) && v.temperature >= 0 && v.temperature <= 2
+      ? v.temperature : GEN_PREFS_DEFAULT.temperature
+    const skill = typeof v.skill === 'string' ? v.skill : GEN_PREFS_DEFAULT.skill
+    return { minWords, temperature, skill }
+  } catch {
+    return GEN_PREFS_DEFAULT
+  }
+}
 
 // ── 全文脑图：实体关系图类型 + 纯 SVG 渲染（零依赖、零硬编码 hex）──
 interface EntityGraphNode { id?: string; name?: string; type?: string; group?: string | number }
@@ -110,9 +134,22 @@ const EntityGraphSvg: React.FC<{ graph: EntityGraph }> = ({ graph }) => {
   )
 }
 
+/**
+ * 创作工具轨分组（v4.421.0）：12 个按钮平铺无层次 → 三组语义（质检 / 文本 / 结构）。
+ * 只做视觉分组：功能零删除、零点击成本（刻意不做折叠菜单）。
+ */
+const RailGroup: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => (
+  <div style={{ display: 'flex', alignItems: 'center', gap: 6, paddingRight: 10 }}>
+    <span style={{ fontSize: 11, color: 'var(--color-text-secondary)', whiteSpace: 'nowrap' }}>{label}</span>
+    {children}
+  </div>
+)
+
 // T6-7.5 拆分后的编排层（≤300 行）：持有页面状态与生成编排；视图拆到 5 个子组件；
 // 流式事件经 useChapterStream + chapterStreamTypes 判别联合分发（T6-7.2 停止按钮 + cancelled）。
-const CreatePage: React.FC = () => {
+// v4.421.0：新增 `active`（本 pane 是否当前可见页——隐藏≠卸载，窗口级副作用按它门控）
+// 与未保存正文保护（loadedSnapshot/dirty + unsavedGuard 三选确认）。
+const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
   const [setting, setSetting] = useState('')
   const outlines = useOutlineStore(s => s.outlines)
   const loadOutlines = useOutlineStore(s => s.loadOutlines)
@@ -120,6 +157,16 @@ const CreatePage: React.FC = () => {
 
   const [activeId, setActiveId] = useState('')
   const [content, setContent] = useState('')
+  // 未保存保护（v4.421.0）：loadedSnapshot = 最近一次「载入成功 / 保存成功 / 生成落盘」
+  // 之后的正文快照；content 与之不同即 dirty。ref 版本供异步回调（确认弹窗、流式事件）读最新值。
+  const [loadedSnapshot, setLoadedSnapshot] = useState('')
+  const loadedSnapshotRef = useRef('')
+  const contentRef = useRef('')
+  // 本页是否当前可见（供 window 级监听门控；事件到达时 prop 可能还没更新，故走 ref）
+  const activeRef = useRef(active)
+  activeRef.current = active
+  loadedSnapshotRef.current = loadedSnapshot
+  contentRef.current = content
 
   // 生成后自动门轻通知（v4.331：chapter-gate 事件消费——契约/质量/AI 味/分析同步）
   // v4.336：通知可点击→跳章节分析面板；跨章时拉该章正文供标注锚定（失败回退空）
@@ -143,8 +190,8 @@ const CreatePage: React.FC = () => {
   const [genPercent, setGenPercent] = useState(0)
   const [stopping, setStopping] = useState(false)
 
-  const [minWords, setMinWords] = useState(5000)
-  const [temperature, setTemperature] = useState(0)
+  const [minWords, setMinWords] = useState(() => loadGenPrefs().minWords)
+  const [temperature, setTemperature] = useState(() => loadGenPrefs().temperature)
   const [directPlot, setDirectPlot] = useState('')
   const [stats, setStats] = useState<{ totalWords: number; chapterCount: number } | null>(null)
   // 整章重写弹窗（t4-C3 前端消费）
@@ -169,7 +216,13 @@ const CreatePage: React.FC = () => {
   // 局部重写选区（t4-C3 余项：EditorPanel 选段回调 → PartialRewriteModal；rune 偏移）
   const [pSel, setPSel] = useState<{ start: number; end: number; text: string } | null>(null)
   // 默认启用 story-deslop 去 AI 味润色技能；可在右侧创作设置中切换或清空
-  const [selectedSkill, setSelectedSkill] = useState<string | undefined>('story-deslop')
+  const [selectedSkill, setSelectedSkill] = useState<string | undefined>(() => loadGenPrefs().skill || undefined)
+  // 创作参数持久化（改一次即记住；读取失败静默回落默认值）
+  useEffect(() => {
+    try {
+      localStorage.setItem(GEN_PREFS_KEY, JSON.stringify({ minWords, temperature, skill: selectedSkill ?? '' }))
+    } catch { /* 持久化失败不影响创作 */ }
+  }, [minWords, temperature, selectedSkill])
   // 生成完成后 novelstyle 的 AI 味检测结果（分数 + 命中问题），展示给作者
   const [aiTaste, setAiTaste] = useState<AiTasteResult | null>(null)
   // 叙事状态账本（narrative 审批制结算）UI
@@ -204,6 +257,11 @@ const CreatePage: React.FC = () => {
   const [reconstructCancellable, setReconstructCancellable] = useState(false)
   const reconstructCancelRef = useRef(false)
   const reconstructTaskIdRef = useRef('')
+  /** 已等待秒数（v4.421.0：长任务可见化——12 分钟轮询期间此前只有一个静态提示） */
+  const [reconstructElapsed, setReconstructElapsed] = useState(0)
+  /** 组件是否还在（v4.421.0：卸载/切走后停止轮询，避免对已卸载组件 setState 与空跑请求） */
+  const reconstructAliveRef = useRef(true)
+  useEffect(() => () => { reconstructAliveRef.current = false }, [])
   const [fpMsg, setFpMsg] = useState('')
 
   const openGraph = async () => {
@@ -235,6 +293,11 @@ const CreatePage: React.FC = () => {
   const chapterLoadToken = useRef(0)
   const generatingRef = useRef(false)
   const brainstormingRef = useRef(false)
+  /** 最新「保存当前章」实现（供确认弹窗的异步回调调用，避开闭包过期） */
+  const saveActiveRef = useRef<() => Promise<boolean>>(async () => false)
+  /** 当前激活章节 id 的 ref 版本（同理由：异步回调读最新值） */
+  const activeIdRef = useRef('')
+  activeIdRef.current = activeId
 
   const handleEditorFontSizeChange = useCallback((v: number) => {
     setEditorFontSize(v)
@@ -246,15 +309,20 @@ const CreatePage: React.FC = () => {
 
   const { attach, detach } = useChapterStream()
 
-  // 拉取最新小说设定；projectPath 变化（切换小说）时重新拉取
-  const refreshSetting = useCallback(async () => {
+  // 拉取最新小说设定；projectPath 变化（切换小说）时重新拉取。
+  // v4.421.0：返回 ok 旗——「读取失败」与「设定确实为空」是两件事，旧实现混为一谈，
+  // 生成前会把一次磁盘/绑定失败误报成「设定为空，请先在设定页填写」，把作者引到错地方。
+  const refreshSetting = useCallback(async (): Promise<{ text: string; ok: boolean }> => {
     const token = ++settingLoadToken.current
     const requestedPath = useAppStore.getState().projectPath
     let fresh = ''
-    try { fresh = await app.GetWorldview() || '' } catch { /* 设定拉取失败按空处理 */ }
-    if (token !== settingLoadToken.current || requestedPath !== useAppStore.getState().projectPath) return ''
-    setSetting(fresh)
-    return fresh
+    let ok = true
+    try { fresh = await app.GetWorldview() || '' } catch { ok = false }
+    if (token !== settingLoadToken.current || requestedPath !== useAppStore.getState().projectPath) {
+      return { text: '', ok: false }
+    }
+    if (ok) setSetting(fresh)
+    return { text: fresh, ok }
   }, [])
 
   // 创作统计（章节数 / 总字数）
@@ -269,27 +337,62 @@ const CreatePage: React.FC = () => {
     ;(async () => { loadOutlines(); await refreshSetting(); refreshStats() })()
   }, [projectPath, loadOutlines, refreshSetting, refreshStats])
 
-  // 切换小说时清空编辑区与选中节点，避免展示上一个项目的内容
-  useEffect(() => { setActiveId(''); setContent('') }, [projectPath])
+  // 切换小说时清空编辑区与选中节点，避免展示上一个项目的内容；若上一个项目还有
+  // 未保存正文，切书由书架发起、跨页无法拦截——至少如实告知，不静默吞掉。
+  useEffect(() => {
+    if (contentRef.current !== loadedSnapshotRef.current) {
+      message.warning('已切换小说：上一本未保存的正文修改未保留')
+    }
+    setActiveId(''); setContent(''); setLoadedSnapshot('')
+    // 仅在项目变化时执行（content/snapshot 走 ref，不进依赖）
+  }, [projectPath])
 
-  const selectChapter = async (node: OutlineNode) => {
+  /** 真正载入章节正文（不做脏保护——重写应用后的刷新也走它）。 */
+  const loadChapter = useCallback(async (node: OutlineNode) => {
     const token = ++chapterLoadToken.current
     const requestedPath = useAppStore.getState().projectPath
     setActiveId(node.id); setChapterLoading(true)
     try {
       const branch = node.branch || ''
       const result = await app.GetChapterBranch(node.order_index || 1, branch)
-      if (token === chapterLoadToken.current && requestedPath === useAppStore.getState().projectPath) setContent((result?.content as string) || '')
-    } catch {
-      if (token === chapterLoadToken.current && requestedPath === useAppStore.getState().projectPath) setContent('')
+      if (token === chapterLoadToken.current && requestedPath === useAppStore.getState().projectPath) {
+        const text = (result?.content as string) || ''
+        setContent(text)
+        setLoadedSnapshot(text)
+      }
+    } catch (err: unknown) {
+      // v4.421.0 载入失败可见化：旧实现静默清空编辑区，作者会以为该章是空的，
+      // 接着保存/生成就覆盖掉真实正文（阅读页 v4.350 已修同类缺陷，创作页此前是漏网点）。
+      if (token === chapterLoadToken.current && requestedPath === useAppStore.getState().projectPath) {
+        setContent(''); setLoadedSnapshot('')
+        message.error(`第 ${node.order_index || '?'} 章载入失败：${err instanceof Error ? err.message : String(err)}（编辑区已留空，请勿直接保存）`)
+      }
     } finally {
       if (token === chapterLoadToken.current) setChapterLoading(false)
     }
-  }
+  }, [])
+
+  /**
+   * 用户主动切章：生成中拒绝；有未保存修改先确认（先保存 / 放弃修改 / 取消）。
+   * v4.421.0：此前直接 setContent 覆盖，未保存的正文静默丢失。
+   */
+  const selectChapter = useCallback((node: OutlineNode) => {
+    if (generatingRef.current) { message.warning('正在生成，请先停止生成再切换章节'); return }
+    if (contentRef.current !== loadedSnapshotRef.current) {
+      chooseUnsavedAction({
+        title: '正文有未保存的修改',
+        message: `切到「${node.title || `第${node.order_index || '?'}章`}」会丢弃当前修改。`,
+        onSave: () => { void saveActiveRef.current().then((ok) => { if (ok) void loadChapter(node) }) },
+        onDiscard: () => { void loadChapter(node) },
+      })
+      return
+    }
+    void loadChapter(node)
+  }, [loadChapter])
 
   // 向导拉取 AI 构思分支（注入最新设定与前文摘要）
   const fetchWizardBranches = useCallback(async (prevChapter: number): Promise<Branch[]> => {
-    const freshSetting = await refreshSetting()
+    const freshSetting = (await refreshSetting()).text
     const prevSummary = prevChapter > 0 ? buildPrevSummary(outlines, prevChapter) : ''
     const res = (await app.QuickBrainstormBranches(freshSetting, prevSummary || '')) as { branches?: Array<{ title?: string; summary?: string }> }
     const list = res?.branches || []
@@ -328,11 +431,11 @@ const CreatePage: React.FC = () => {
   }, [detach])
 
   // 直接开始生成：注册流式监听并调用后端（带目标字数/温度/技能设置）
-  const startGeneration = async (plotReq: string, overwriteChapter = 0, branchFromID = '') => {
+  const runGeneration = async (plotReq: string, overwriteChapter = 0, branchFromID = '') => {
     if (generatingRef.current) return
-    if (!plotReq.trim()) { message.warning('请选择分支或输入剧情要求'); return }
     generatingRef.current = true
-    setGenerating(true); setGenPhase('正在生成…'); setGenPercent(0); setContent(''); setStopping(false); setAiTaste(null)
+    setGenerating(true); setGenPhase('正在生成…'); setGenPercent(0); setContent(''); setLoadedSnapshot(''); setStopping(false); setAiTaste(null)
+    contentRef.current = ''
 
     attach({
       onEvent: (ev) => {
@@ -345,12 +448,19 @@ const CreatePage: React.FC = () => {
             }
             break
           case 'chunk':
-            setContent((prev) => prev + ev.content)
+            setContent((prev) => {
+              const next = prev + ev.content
+              // 同步镜像到 ref：done/cancelled 可能紧随其后（同 tick）读最新正文
+              contentRef.current = next
+              return next
+            })
             setGenPercent(Math.min(100, Math.round(((ev.total || 0) / Math.max(minWords, 1)) * 100)))
             setGenPhase(`正在生成… ${(ev.total || 0).toLocaleString()}/${minWords.toLocaleString()} 字`)
             break
           case 'done': {
             finishStream()
+            // 生成完成＝后端已落盘：把当前正文视为已保存（否则切章会误弹「未保存」确认）
+            setLoadedSnapshot(contentRef.current)
             setAiTaste(ev.aiTaste ?? null)
             const chNum = ev.chapterNum || 0
             const branch = ev.branch || ''
@@ -368,11 +478,22 @@ const CreatePage: React.FC = () => {
             break
           case 'cancelled': {
             finishStream()
-            // 取消：后端已落盘部分正文（事件携带 content）；保留编辑器已累积正文可继续编辑/保存
-            if (typeof ev.content === 'string' && ev.content.length > 0) setContent(ev.content)
+            // 取消：后端已落盘部分正文（事件携带 content）；保留编辑器已累积正文可继续编辑/保存。
+            // 事件**不带** content＝后端未落盘（空稿/落盘失败）→ 保持 dirty（不假装已保存）。
+            // v4.421.0：正稿已存在时后端把残稿另存侧车（partialSaved）——此时正稿未变，
+            // 前端不得把残稿标成「已保存」，须如实提示落点。
+            if (typeof ev.content === 'string' && ev.content.length > 0) {
+              setContent(ev.content)
+              if (!ev.partialSaved) setLoadedSnapshot(ev.content)
+            }
             const chNum = ev.chapterNum || 0
             const branch = ev.branch || ''
-            message.info(`${branch ? `第${chNum}${branch}章` : `第${chNum}章`} 已停止生成（已保留 ${(ev.total || 0).toLocaleString()} 字）`)
+            const chapLabel = branch ? `第${chNum}${branch}章` : `第${chNum}章`
+            if (ev.partialSaved) {
+              message.warning(`${chapLabel} 已有正文，本次取消的 ${(ev.total || 0).toLocaleString()} 字未覆盖正稿，已另存为残稿：${ev.partialPath || '见小说目录'}`)
+            } else {
+              message.info(`${chapLabel} 已停止生成（已保留 ${(ev.total || 0).toLocaleString()} 字）`)
+            }
             refreshStats()
             break
           }
@@ -382,8 +503,11 @@ const CreatePage: React.FC = () => {
 
     try {
       // 生成前再读一次最新设定，确保正文提示词注入当前小说设定
-      const freshSetting = await refreshSetting()
-      if (!freshSetting.trim()) { throw new Error('小说设定为空，请先在「设定」页填写世界观') }
+      const { text: freshSetting, ok: settingReadOk } = await refreshSetting()
+      // v4.421.0：读取失败与「设定确实为空」分开报——旧实现把一次读取失败说成
+      // 「设定为空，请先去设定页填写」，把作者引到错地方。
+      if (!settingReadOk) throw new Error('小说设定读取失败，请稍后重试（本次未开始生成）')
+      if (!freshSetting.trim()) throw new Error('小说设定为空，请先在「设定」页填写世界观')
       const result = (await app.CreateChapter(freshSetting, '', plotReq, overwriteChapter, branchFromID, selectedSkill || '', minWords, temperature)) as { nodeId?: string; chapterNum?: number; branch?: string }
       // 预创建节点已由后端同步完成，立即激活；记录章节号供停止按钮
       const nodeId = result?.nodeId
@@ -401,6 +525,26 @@ const CreatePage: React.FC = () => {
       finishStream()
       message.error(err instanceof Error ? err.message : '生成失败')
     }
+  }
+
+  /**
+   * 生成入口（含未保存保护，v4.421.0）：生成会清空编辑区，dirty 时先让作者选择
+   * 「先保存 / 放弃修改 / 取消」——旧实现直接 `setContent('')`，手写正文静默丢失。
+   */
+  const startGeneration = (plotReq: string, overwriteChapter = 0, branchFromID = '') => {
+    if (generatingRef.current) return
+    if (!plotReq.trim()) { message.warning('请选择分支或输入剧情要求'); return }
+    const run = () => { void runGeneration(plotReq, overwriteChapter, branchFromID) }
+    if (contentRef.current !== loadedSnapshotRef.current) {
+      chooseUnsavedAction({
+        title: '正文有未保存的修改',
+        message: '开始生成会清空编辑区（生成完成后新正文自动落盘）。',
+        onSave: () => { void saveActiveRef.current().then((ok) => { if (ok) run() }) },
+        onDiscard: run,
+      })
+      return
+    }
+    run()
   }
 
   // CancelCreateChapter 契约（后端批 1）：wails 再生成的 NovelB 绑定已提供类型化签名，直接调用。
@@ -426,48 +570,97 @@ const CreatePage: React.FC = () => {
     const chapNum = activeNode?.order_index || 0
     const next = outlines.find(nx => nx.order_index === chapNum + 1 && !nx.parent_id)
     if (next) {
-      Modal.confirm({
+      // v4.421.0：并列分支不再挂在 Modal.confirm 的 onCancel 上——✕/Esc（用户想退出）
+      // 此前会触发「作为分支追加」，等于误开一次 AI 生成。
+      chooseAction({
         title: `第${chapNum + 1}章已存在「${next.title || `第${chapNum + 1}章`}」`,
-        content: '选择生成方式：', okText: '覆盖下一章', cancelText: '作为分支追加',
-        onOk: () => startGeneration(directPlot, chapNum + 1, ''),
-        onCancel: () => startGeneration(directPlot, 0, next.id),
+        message: '选择生成方式：',
+        options: [
+          { label: '覆盖下一章', tone: 'danger', run: () => startGeneration(directPlot, chapNum + 1, '') },
+          { label: '作为分支追加', tone: 'primary', run: () => startGeneration(directPlot, 0, next.id) },
+        ],
       })
     } else { startGeneration(directPlot, 0, '') }
   }
 
-  const handleDelete = async (node: OutlineNode) => {
-    try {
-      await app.DeleteOutlineNode(node.id)
-      if (activeId === node.id) { setActiveId(''); setContent('') }
-      await loadOutlines(); refreshStats()
-      message.success('已删除')
-    } catch (err: unknown) { message.error(err instanceof Error ? err.message : '失败') }
+  const handleDelete = (node: OutlineNode) => {
+    const deleteNow = async () => {
+      try {
+        await app.DeleteOutlineNode(node.id)
+        if (activeIdRef.current === node.id) { setActiveId(''); setContent(''); setLoadedSnapshot('') }
+        await loadOutlines(); refreshStats()
+        message.success('已删除')
+      } catch (err: unknown) { message.error(err instanceof Error ? err.message : '删除失败') }
+    }
+    // 删除正在编辑的章节会连未保存正文一起清掉——先确认（v4.421.0）
+    if (activeIdRef.current === node.id && contentRef.current !== loadedSnapshotRef.current) {
+      chooseUnsavedAction({
+        title: '正文有未保存的修改',
+        message: '删除本章会连同未保存的正文一起清除。',
+        onSave: () => { void saveActiveRef.current().then((ok) => { if (ok) void deleteNow() }) },
+        onDiscard: () => { void deleteNow() },
+      })
+      return
+    }
+    void deleteNow()
   }
 
   const handleRegenerate = (node: OutlineNode) => openWizard((node.order_index || 1) - 1, node.order_index || 1)
 
-  const handleSave = async () => {
-    const node = outlines.find(n => n.id === activeId)
-    if (!node || !content.trim()) return
+  /**
+   * 保存当前章正文；返回是否成功。失败/无内容都有可见反馈（旧实现静默 return，
+   * 作者点了保存却不知道发生了什么）。走 ref 读最新值，供确认弹窗的异步回调复用。
+   */
+  const saveActive = useCallback(async (): Promise<boolean> => {
+    const text = contentRef.current
+    const node = useOutlineStore.getState().outlines.find(n => n.id === activeIdRef.current)
+    if (!node) { message.warning('请先在左侧选择要保存的章节'); return false }
+    if (!text.trim()) { message.warning('正文为空，无需保存'); return false }
     setSaving(true)
     try {
       const branch = node.branch || ''
-      await app.SaveChapterBranchContent(node.order_index || 1, branch, content)
+      await app.SaveChapterBranchContent(node.order_index || 1, branch, text)
+      setLoadedSnapshot(text)
       message.success('已保存')
-    } catch (err: unknown) { message.error(err instanceof Error ? err.message : '失败') }
-    finally { setSaving(false) }
-  }
+      return true
+    } catch (err: unknown) {
+      message.error(err instanceof Error ? err.message : '保存失败')
+      return false
+    } finally {
+      setSaving(false)
+    }
+  }, [])
+  saveActiveRef.current = saveActive
+
+  const handleSave = () => { void saveActive() }
+
+  /** 打开整章重写前先保护未保存正文（重写结果应用后会整章覆盖）。 */
+  const openRewriteModal = useCallback(() => {
+    if (contentRef.current !== loadedSnapshotRef.current) {
+      chooseUnsavedAction({
+        title: '正文有未保存的修改',
+        message: '重写结果应用后会覆盖本章正文，建议先保存当前修改。',
+        onSave: () => { void saveActiveRef.current().then((ok) => { if (ok) setRwOpen(true) }) },
+        onDiscard: () => setRwOpen(true),
+      })
+      return
+    }
+    setRwOpen(true)
+  }, [])
 
   // 节点后生成下一章/分支（含覆盖确认）
   const handleAddNext = (node: OutlineNode) => {
     const chapNum = node.order_index || 1
     const next = outlines.find(nx => nx.order_index === chapNum + 1 && !nx.parent_id)
     if (next) {
-      Modal.confirm({
+      // 同 handleDirectGenerate：并列分支显式成按钮，取消就是取消（v4.421.0）
+      chooseAction({
         title: `第${chapNum}章后已有「${next.title || `第${chapNum + 1}章`}」`,
-        content: '选择生成方式：', okText: '覆盖下一章', cancelText: '末尾追加',
-        onOk: () => openWizard(chapNum, chapNum + 1),
-        onCancel: () => openWizard(chapNum, 0, node.id),
+        message: '选择生成方式：',
+        options: [
+          { label: '覆盖下一章', tone: 'danger', run: () => openWizard(chapNum, chapNum + 1) },
+          { label: '末尾追加', tone: 'primary', run: () => openWizard(chapNum, 0, node.id) },
+        ],
       })
     } else { openWizard(chapNum, 0, '') }
   }
@@ -517,23 +710,37 @@ const CreatePage: React.FC = () => {
     finally { setStateBusy(false) }
   }, [statePatch, loadState])
   // 手动「一键去味」：对当前章节跑确定性 DeSlopRewrite（任意章节可用，不只生成时）。
+  // v4.421.0：成功后刷新编辑区（旧实现只更新提示，作者看到的仍是旧文，以为去味没生效）；
+  // 若编辑区有未保存的手写修改则不刷新，如实提示，避免把作者的字覆盖掉。
+  const refreshEditorAfterServerRewrite = useCallback(() => {
+    const node = useOutlineStore.getState().outlines.find(n => n.id === activeIdRef.current)
+    if (!node) return
+    if (contentRef.current !== loadedSnapshotRef.current) {
+      message.info('章节已在磁盘更新；编辑区有未保存修改，未刷新显示（保存后重新打开本章可看到新版）')
+      return
+    }
+    void loadChapter(node)
+  }, [loadChapter])
+
   const deslopChapter = useCallback(async () => {
     setStateBusy(true); setStateMsg('')
     try {
       const r = (await DeSlopChapterAiTaste(activeChapterNum)) as { changes?: number; beforeScore?: number; afterScore?: number; done?: boolean }
       setStateMsg(r?.done ? `已去味 ${r.changes} 处，分数 ${r.beforeScore}→${r.afterScore}` : '未命中 AI 套路，无需去味')
+      if (r?.done) refreshEditorAfterServerRewrite()
     } catch (err: unknown) { setStateMsg(err instanceof Error ? err.message : '去味失败') }
     finally { setStateBusy(false) }
-  }, [activeChapterNum])
+  }, [activeChapterNum, refreshEditorAfterServerRewrite])
   // 高级去味：LLM 受限重写命中句（质量更高，需模型调用）。
   const llmDeslop = useCallback(async () => {
     setStateBusy(true); setStateMsg('')
     try {
       const r = (await RewriteChapterAiTaste(activeChapterNum)) as { done?: boolean; rewritten?: number; beforeScore?: number; afterScore?: number; reason?: string }
       setStateMsg(r?.done ? `已高级去味 ${r.rewritten} 句，分数 ${r.beforeScore}→${r.afterScore}` : (r?.reason ?? '无命中句'))
+      if (r?.done) refreshEditorAfterServerRewrite()
     } catch (err: unknown) { setStateMsg(err instanceof Error ? err.message : '高级去味失败') }
     finally { setStateBusy(false) }
-  }, [activeChapterNum])
+  }, [activeChapterNum, refreshEditorAfterServerRewrite])
 
   // ── 文风指纹（参考档构建 + 章节体检；wailsjs 再生前 NovelB 三方法直接 import）──
   // 打开即拉参考档状态（刷新并入 open 时自动加载）；失败落 rail 消息（stateMsg）。
@@ -541,7 +748,7 @@ const CreatePage: React.FC = () => {
     setFpOpen(true); setFpBusy(true); setFpMsg(''); setFpScore(null)
     try {
       setFpStatus(await NovelFingerprintStatus())
-    } catch (err: unknown) { setStateMsg(err instanceof Error ? err.message : '加载文风指纹失败') }
+    } catch (err: unknown) { setFpMsg(err instanceof Error ? err.message : '加载文风指纹失败') }
     finally { setFpBusy(false) }
   }, [])
   // 构建/重建参考档：用全部已写章节生成风格基线（样本不足时后端 reject 中文提示）。
@@ -611,13 +818,20 @@ const CreatePage: React.FC = () => {
         reconstructTaskIdRef.current = started.taskId || ''
         reconstructCancelRef.current = false
         setReconstructCancellable(true)
-        const deadline = Date.now() + 12 * 60_000
+        const startedAt = Date.now()
+        const deadline = startedAt + 12 * 60_000
         for (;;) {
+          if (!reconstructAliveRef.current) return
           if (reconstructCancelRef.current) { cancelled = true; break }
           if (Date.now() > deadline) throw new Error('反推任务超时（12 分钟）')
           await new Promise((r) => setTimeout(r, 3000))
+          if (!reconstructAliveRef.current) return
+          const waited = Math.floor((Date.now() - startedAt) / 1000)
+          setReconstructElapsed(waited)
+          setStateMsg(`AI 反推大纲中…已等待 ${Math.floor(waited / 60)} 分 ${waited % 60} 秒`)
           if (reconstructCancelRef.current) { cancelled = true; break }
           const st = await NovelOutlineReconstructTaskGet()
+          if (!reconstructAliveRef.current) return
           if (st.status === 'failed') throw new Error(st.error || '反推任务失败')
           if (st.status === 'succeeded' && st.preview) {
             preview = st.preview as Awaited<ReturnType<typeof NovelOutlineReconstruct>>
@@ -628,7 +842,11 @@ const CreatePage: React.FC = () => {
         const msg = taskErr instanceof Error ? taskErr.message : ''
         const fallbackable = msg.includes('任务队列不可用') || msg.includes('尚无反推任务')
         if (!fallbackable) throw taskErr
+        if (!reconstructAliveRef.current) return
+        // 回退路径是同步绑定，没有取消面——如实告知，不让「取消反推」按钮假消失
+        setStateMsg('任务队列不可用：已回退同步反推（该路径不可取消，完成后会弹确认）')
         preview = await NovelOutlineReconstruct()
+        if (!reconstructAliveRef.current) return
       }
       if (cancelled) {
         // 用户取消：停止等待并请求后端协作取消（任务恰已完成时后端报错，
@@ -669,13 +887,27 @@ const CreatePage: React.FC = () => {
     } finally {
       setReconstructBusy(false)
       setReconstructCancellable(false)
+      setReconstructElapsed(0)
     }
   }, [loadOutlines])
 
   // tail×反推串联（v4.292）：导入向导 tail 模式完成后由书架派发本事件，
   // 本页自动开跑反推（任务化后台执行）。
+  // v4.421.0 门控：本页不可见时**挂起**而不是直接开跑——书架流程里
+  // `novel:goto-tab{create}` 与 `novel:auto-reconstruct` 同 tick 连发，
+  // 事件到达时 active prop 还没翻转，直接按 active 拦会把正常流程拦掉。
+  const pendingReconstructRef = useRef(false)
   React.useEffect(() => {
-    const handler = () => { void reconstructOutlines() }
+    if (!active || !pendingReconstructRef.current) return
+    pendingReconstructRef.current = false
+    void reconstructOutlines()
+  }, [active, reconstructOutlines])
+
+  React.useEffect(() => {
+    const handler = () => {
+      if (activeRef.current) { void reconstructOutlines(); return }
+      pendingReconstructRef.current = true
+    }
     window.addEventListener('novel:auto-reconstruct', handler)
     return () => window.removeEventListener('novel:auto-reconstruct', handler)
   }, [reconstructOutlines])
@@ -697,35 +929,43 @@ const CreatePage: React.FC = () => {
         </div>
       )}
       <div className="novel-create-rail">
-        <Button size="small" onClick={() => { setStateOpen(true); void loadState() }}>叙事状态</Button>
-        <Button size="small" loading={stateBusy} onClick={() => void deslopChapter()}>一键去味</Button>
-        <Button size="small" loading={stateBusy} onClick={() => void llmDeslop()}>高级去味</Button>
-        <Button size="small" loading={graphBusy} onClick={() => void openGraph()}>全文脑图</Button>
-        <Button size="small" onClick={() => void openFingerprint()}>文风指纹</Button>
-        <Button size="small" onClick={() => void openReview()}>平台评审</Button>
-        <Button size="small" loading={reconstructBusy} onClick={() => void reconstructOutlines()}>AI 反推大纲</Button>
-        {reconstructCancellable && (
-          <Button size="small" danger data-testid="reconstruct-cancel"
-            onClick={() => { reconstructCancelRef.current = true }}>取消反推</Button>
-        )}
-        <Button size="small" onClick={() => setRwOpen(true)}>整章重写</Button>
-        <Button size="small" onClick={() => setRwHistOpen(true)}>重写历史</Button>
-        <Button size="small" onClick={() => setPromptWsOpen(true)}>提示词工坊</Button>
-        <Button size="small" onClick={() => setAnalysisOpen(true)}>章节分析</Button>
-        <Button size="small" onClick={() => setHealthOpen(true)}>全书体检</Button>
+        <RailGroup label="质检">
+          <Button size="small" onClick={() => setAnalysisOpen(true)}>章节分析</Button>
+          <Button size="small" onClick={() => setHealthOpen(true)}>全书体检</Button>
+          <Button size="small" onClick={() => void openReview()}>平台评审</Button>
+          <Button size="small" onClick={() => void openFingerprint()}>文风指纹</Button>
+        </RailGroup>
+        <RailGroup label="文本">
+          <Button size="small" loading={stateBusy} onClick={() => void deslopChapter()}>一键去味</Button>
+          <Button size="small" loading={stateBusy} onClick={() => void llmDeslop()}>高级去味</Button>
+          <Button size="small" onClick={openRewriteModal}>整章重写</Button>
+          <Button size="small" onClick={() => setRwHistOpen(true)}>重写历史</Button>
+        </RailGroup>
+        <RailGroup label="结构">
+          <Button size="small" loading={reconstructBusy} onClick={() => void reconstructOutlines()}>
+            {reconstructBusy && reconstructElapsed > 0 ? `AI 反推大纲（已等待 ${reconstructElapsed}s）` : 'AI 反推大纲'}
+          </Button>
+          {reconstructCancellable && (
+            <Button size="small" danger data-testid="reconstruct-cancel"
+              onClick={() => { reconstructCancelRef.current = true }}>取消反推</Button>
+          )}
+          <Button size="small" onClick={() => { setStateOpen(true); void loadState() }}>叙事状态</Button>
+          <Button size="small" loading={graphBusy} onClick={() => void openGraph()}>全文脑图</Button>
+          <Button size="small" onClick={() => setPromptWsOpen(true)}>提示词工坊</Button>
+        </RailGroup>
         {stateMsg ? <span className="novel-create-rail-msg">{stateMsg}</span> : null}
       </div>
       <RewriteModal
         open={rwOpen}
         chapterNum={activeChapterNum || null}
         onClose={() => setRwOpen(false)}
-        onApplied={() => { if (activeNode) void selectChapter(activeNode) }}
+        onApplied={() => { if (activeNode) void loadChapter(activeNode) }}
       />
       <RewriteHistoryPanel
         open={rwHistOpen}
         chapterNum={activeChapterNum || null}
         onClose={() => setRwHistOpen(false)}
-        onApplied={() => { if (activeNode) void selectChapter(activeNode) }}
+        onApplied={() => { if (activeNode) void loadChapter(activeNode) }}
       />
       <BookHealthPanel open={healthOpen} onClose={() => setHealthOpen(false)} />
       <ChapterAnalysisPanel
@@ -745,7 +985,7 @@ const CreatePage: React.FC = () => {
         chapterNum={activeChapterNum || null}
         selection={pSel}
         onClose={() => setPSel(null)}
-        onApplied={() => { if (activeNode) void selectChapter(activeNode) }}
+        onApplied={() => { if (activeNode) void loadChapter(activeNode) }}
       />
 
       <div className="novel-workspace">

@@ -101,8 +101,11 @@ func (a *writingState) DeSlopChapterAiTaste(chapterNum int) (map[string]interfac
 			novelstyle.ApplyWhitelist(b, sc.Content, wl)
 			rw, rep, derr := novelstyle.DeSlopRewriteEx(sc.Content, b, wl)
 			if derr == nil && rep != nil && rep.AfterScore < rep.BeforeScore && rw != "" {
-				sc.Content = rw
-				_ = sm.Write(sc)
+				// 写回走共用 helper：写失败如实返回 error（旧实现 `_ = sm.Write(sc)`
+				// 吞错后仍累计 changes 回报 done），写成功后同步整章 blob 投影。
+				if werr := writeBackRewrittenFn(pm, chapterNum, meta.ID, true, rw); werr != nil {
+					return nil, werr
+				}
 				totalChanges += len(rep.Changes)
 				avantScore += rep.BeforeScore
 				apresScore += rep.AfterScore
@@ -117,8 +120,8 @@ func (a *writingState) DeSlopChapterAiTaste(chapterNum int) (map[string]interfac
 		novelstyle.ApplyWhitelist(b, content, wl)
 		rw, rep, derr := novelstyle.DeSlopRewriteEx(content, b, wl)
 		if derr == nil && rep != nil && rep.AfterScore < rep.BeforeScore && rw != "" {
-			if werr := pm.WriteChapter(chapterNum, rw); werr != nil {
-				return nil, fmt.Errorf("保存章节失败: %w", werr)
+			if werr := writeBackRewrittenFn(pm, chapterNum, "", false, rw); werr != nil {
+				return nil, werr
 			}
 			totalChanges += len(rep.Changes)
 			avantScore = rep.BeforeScore

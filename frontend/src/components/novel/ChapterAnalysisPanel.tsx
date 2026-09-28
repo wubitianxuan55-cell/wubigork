@@ -6,7 +6,7 @@
 // （列表 / 只读高亮视图，rune 偏移→code-unit 换算后按段 mark，不动编辑器）。
 // 直调 app.* 同 RewriteModal 先例；视图类型从 bridge/novel.ts 导入。
 import { softTextStyle } from '../../utils/uiStyles'
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Alert, Button, Empty, Modal, Segmented, Select, Spin, Tag, Typography, message } from 'antd'
 import { app } from '../../gaea/lib/bridge'
 import type { ChapterAnalysisV2View, ChapterAnnotation } from '../../gaea/lib/bridge/novel'
@@ -66,6 +66,10 @@ export default function ChapterAnalysisPanel({ open, onClose, chapterNum, conten
   const [cmpV2, setCmpV2] = useState<ChapterAnalysisV2View | null>(null)
   const [cmpMissing, setCmpMissing] = useState(false)
   const [cmpLoading, setCmpLoading] = useState(false)
+  // v4.421.0：对比章与目录/模板切换同款 seq 守卫（先例 BookSearchModal.pickSeqRef
+  // / PromptWorkshopPanel.selectSeqRef）——表头用当前 cmpNum、行数据用迟到的 cmpV2
+  // 会让「第 9 章」的表头挂着第 5 章的分数（对比结论错位）。
+  const cmpSeqRef = useRef(0)
 
   const load = useCallback(async (num: number) => {
     setLoading(true)
@@ -93,6 +97,7 @@ export default function ChapterAnalysisPanel({ open, onClose, chapterNum, conten
       setCmpNum(null)
       setCmpV2(null)
       setCmpMissing(false)
+      cmpSeqRef.current += 1 // 失效在途对比响应（切章后旧章数据不得落到新面板）
       void load(chapterNum)
     }
     if (open && !chapterNum) {
@@ -102,20 +107,25 @@ export default function ChapterAnalysisPanel({ open, onClose, chapterNum, conten
     }
   }, [open, chapterNum, load])
 
-  /** 加载对比章的 V2（尚未分析→行内提示；其他错误→toast）。 */
+  /** 加载对比章的 V2（尚未分析→行内提示；其他错误→toast）。seq 守卫：只有
+   *  最后一次选择的响应能写状态（表头 cmpNum 与行数据 cmpV2 必须同源）。 */
   const cmpLoad = async (num: number) => {
+    const seq = ++cmpSeqRef.current
     setCmpNum(num)
     setCmpLoading(true)
     setCmpV2(null)
     setCmpMissing(false)
     try {
-      setCmpV2(await app.NovelChapterAnalysisV2(num))
+      const res = await app.NovelChapterAnalysisV2(num)
+      if (seq !== cmpSeqRef.current) return
+      setCmpV2(res)
     } catch (e) {
+      if (seq !== cmpSeqRef.current) return
       const msg = e instanceof Error ? e.message : String(e)
       if (msg.includes('尚未分析')) setCmpMissing(true)
       else message.error(`读取第 ${num} 章分析失败：${msg}`)
     } finally {
-      setCmpLoading(false)
+      if (seq === cmpSeqRef.current) setCmpLoading(false)
     }
   }
 

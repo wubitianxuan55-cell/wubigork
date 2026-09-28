@@ -4,6 +4,7 @@
 // 生成后不自动落章（对齐后端语义）：应用 = 写回正文并刷新编辑器。
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { Button, Checkbox, Input, InputNumber, Modal, Spin, Tag, message } from 'antd'
+import { confirmDiscard } from './unsavedGuard'
 import { app } from '../../gaea/lib/bridge'
 import type { NovelRewriteResult } from '../../gaea/lib/bridge/novel'
 
@@ -132,11 +133,27 @@ const RewriteModal: React.FC<RewriteModalProps> = ({ open, chapterNum, onClose, 
     }
   }, [chapterNum, result, onApplied])
 
+  /**
+   * 关闭策略（v4.421.0 统一口径）：运行中**允许关闭但先确认**——本调用没有取消接口
+   * （前端不断言可取消），关闭不会中断后端，重写结果进版本库，可在「重写历史」查看并应用。
+   * 与 PartialRewriteModal 的差异：局部重写结果不落版本库，故那边运行中禁止关闭，
+   * 只如实提示「请等待完成」。
+   */
+  const handleCancel = () => {
+    if (!running) { onClose(); return }
+    confirmDiscard({
+      title: '重写仍在进行',
+      message: '关闭窗口不会中断后端；完成后可在「重写历史」查看并应用结果。',
+      discardLabel: '关闭窗口',
+      onDiscard: onClose,
+    })
+  }
+
   return (
     <Modal
       title={`整章重写 · 第 ${chapterNum ?? ''} 章`}
       open={open}
-      onCancel={onClose}
+      onCancel={handleCancel}
       width={720}
       footer={null}
       destroyOnClose

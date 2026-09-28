@@ -26,7 +26,20 @@ const SORT_OPTIONS: Array<{ value: SortKey; label: string }> = [
   { value: 'title', label: '书名' },
 ]
 
-const HomePage: React.FC = () => {
+/**
+ * HomePage props（跨线契约，规格线2）。
+ *
+ * `active` 语义：**本 pane 是否为当前可见页**（由 NovelPage 的 activeTab 下发，
+ * 默认 `true`）。书架页在 NovelPage 里是常驻挂载 + CSS 隐藏（隐藏 ≠ 卸载），
+ * 它挂在 window 上的 Ctrl+N 在隐藏期间同样会触发——用户在设定/阅读页按 Ctrl+N
+ * 会莫名弹出「新建小说」。故窗口级监听必须按 active 门控；默认 true 保证
+ * 单独渲染本页（既有测试写法）行为不变。
+ */
+interface HomePageProps {
+  active?: boolean
+}
+
+const HomePage: React.FC<HomePageProps> = ({ active = true }) => {
   // v4.365：整 store 订阅改逐字段选择器——任意 store set() 不再触发整页重渲染
   const loggedIn = useAppStore((s) => s.loggedIn)
   const login = useAppStore((s) => s.login)
@@ -75,8 +88,9 @@ const HomePage: React.FC = () => {
     }
   }, [loggedIn, loadNovelsDir, loadProjects])
 
-  // Ctrl+N 快捷键
+  // Ctrl+N 快捷键（仅当前页生效：隐藏常驻时既不开弹窗、也不 preventDefault 吞键）
   useEffect(() => {
+    if (!active) return
     const handler = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
         e.preventDefault()
@@ -85,7 +99,7 @@ const HomePage: React.FC = () => {
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [loggedIn])
+  }, [loggedIn, active])
 
   // ── 新建小说 ──
   const resetForm = () => {

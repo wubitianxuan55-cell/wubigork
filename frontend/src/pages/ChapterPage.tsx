@@ -64,7 +64,24 @@ import RewriteHistoryPanel from '../components/novel/RewriteHistoryPanel'
 import ReadingPanel from './chapter/readingPanel'
 import ReadingOverlays from './chapter/readingOverlays'
 
-const ChapterPage: React.FC = () => {
+/**
+ * ChapterPage props（跨线契约，规格线2）。
+ *
+ * `active` 语义：**本 pane 是否为当前可见页**（由 NovelPage 的 activeTab 下发，
+ * 默认 `true`）。隐藏 ≠ 卸载——小说五个子页在 NovelPage 里常驻挂载、仅靠 CSS
+ * `display:none` 隐藏，本页的 window 级监听在隐藏期间依然活着；因此所有
+ * **窗口级副作用**（window keydown 快捷键、novel:open-chapter 全局事件）都要按
+ * `active` 门控，否则会出现：F11 在书架/设定页翻转隐藏阅读页的专注模式并
+ * `preventDefault` 吞掉浏览器全屏、一次 Ctrl+S 同时保存设定与本页章节、
+ * readMode 残留时 ←/→ 在别的子页翻章。
+ *
+ * 默认 `true`：不传即按「当前页」处理——孤立渲染本页（既有测试写法）行为不变。
+ */
+interface ChapterPageProps {
+  active?: boolean
+}
+
+const ChapterPage: React.FC<ChapterPageProps> = ({ active = true }) => {
   const outlines = useOutlineStore((s) => s.outlines)
   const loadOutlines = useOutlineStore((s) => s.loadOutlines)
   const [tabs, setTabs] = useState<ChapterTabData[]>([])
@@ -115,11 +132,27 @@ const ChapterPage: React.FC = () => {
   const handleNavRef = useRef<{ prev: () => void; next: () => void }>({ prev: () => {}, next: () => {} })
   const sceneTextareaRefs = useRef<Map<number, HTMLTextAreaElement>>(new Map())
 
+  // active 的最新值镜像（每渲染同步写）。window 级监听的注册只做一次（或只依赖
+  // 少量状态），闭包若直接捕获 active 会永远读到首渲染的值 → 门控形同虚设；
+  // 经 ref 读取即可保证「当前是否可见」总是最新，且不因切 tab 重挂监听。
+  const activeRef = useRef(active)
+  activeRef.current = active
+
   // 世界构建工作台：大纲树位于壳层左 zone，点击经 novel:open-chapter 事件进入
   const handleSelectNodeRef = useRef<(node: OutlineNode) => void>(() => {})
   useEffect(() => { handleSelectNodeRef.current = handleSelectNode })
   useEffect(() => {
     const handler = (e: Event) => {
+      // 按 active 门控（规格线2）：隐藏时收下事件会在不可见的阅读页里凭空多出 tab。
+      // 风险判断（已读码核实，不是静默不改）：本事件**唯一**派发点是
+      // NovelPage.handleOpenChapter，而目录树所在的 .novel-side-zone 在书架/设定/
+      // 角色/创作 tab 上是 `display:none`（novel-workspace.css:272-291），只有阅读
+      // tab 才可见——即真人可点到的路径上 active 早已为 true，所以这项门控是**防御性**
+      // 的（挡程序化派发 / 将来 CSS 放开左侧 zone 的情形），不是当下可复现的缺陷。
+      // 与之配套：NovelPage 把派发推迟到切 tab commit 之后（pendingChapter effect），
+      // 否则同 tick 同步派发时隐藏页拿到的 active 仍是 false，会被这里丢掉、点目录树失效；
+      // NovelPage.test 有一条守卫用例锁这个时序。
+      if (!activeRef.current) return
       const node = (e as CustomEvent<{ node?: OutlineNode }>).detail?.node
       if (node) void handleSelectNodeRef.current(node)
     }
@@ -157,6 +190,16 @@ const ChapterPage: React.FC = () => {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      // ── 窗口级快捷键的 active 门控（规格线2）──────────────────────────
+      // 「一个 Ctrl+S 只能有一个归属」：阅读 tab ＝ 保存当前阅读章、设定 tab ＝
+      // 保存设定、其余子页不响应。本页常驻挂载，若不门控就会与设定页各存一份；
+      // 且创作页正在写的正文反而不保存。F11 同理（隐藏页吞掉浏览器全屏），
+      // readMode 残留时 ←/→ 同理（在书架/设定页翻隐藏阅读页的章）。
+      //
+      // 非当前页时**直接返回**：连 preventDefault 都不做——否则隐藏页仍会吞掉
+      // 浏览器 F11 全屏与 Ctrl+S 的默认行为，只是「自己什么都不干」，用户侧
+      // 表现依然是快捷键失效。（Esc 一并门控：隐藏页不该被别页的 Esc 改状态。）
+      if (!activeRef.current) return
       if (e.key === 'Escape') {
         if (readMode) { setReadMode(false); return }
         if (focusMode) { setFocusMode(false); return }

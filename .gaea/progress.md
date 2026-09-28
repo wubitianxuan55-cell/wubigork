@@ -1,3 +1,15 @@
+## 最新发布：v4.421.0（2026-09-28）「小说板块优化批：未保存保护 + 常驻页副作用治理 + 取消防覆盖」
+
+- **刀型**：用户指令「优化小说板块」（拍板 A+B 合并批＝正确性修复 + 体验收口）。定刀依据=三线并行只读审计（小说前端 15 项 / Go 后端 14 项 / 计划台账清账与 STALE 校正）+主代理读码复核，落地 20 项、其余入观察池。前端 15 文件（3 新增）+Go 4 文件（2 新增测试），绑定面 720 零变更，零功能删除。
+- **论点**：小说五子页常驻挂载（NovelPage 全 pane 同挂 + CSS 隐藏，隐藏≠卸载）衍生三类真实缺陷（读码确证）：①窗口级副作用不随页隐藏——ChapterPage 与 NovelSettingPage 各挂一份无条件 Ctrl+S（全仓仅此两处 `key==='s'`）：一次按键同存「设定」与阅读页那章，创作页手写正文反而不保存；F11 在任意子页翻转不可见阅读页专注模式；阅读模式残留时 ←/→ 在书架/设定页翻章②面板不随书刷新——ForeshadowPanel/ConsistencyPanel 的 load 只依赖恒 undefined 的 disabled，切书仍显上一本伏笔表/一致性报告（引导态死代码，无项目反报红）③未保存缓冲无脏保护——创作页切章/切项目/生成/删除直接 setContent 覆盖（阅读页早有 needsCloseConfirm 先例）。
+- **P0（Go）**：取消生成覆盖已完成章节——取消落盘残稿此前无条件覆盖 chapters/NNN.md，对已写完的章再生成并中途取消即整章被半截替换、无备份。改为「生成开局快照 existedBefore + 取消时复查 chapterBodyExists」：已存在则残稿另存 NNN[分支].partial-<ts>.md（fileutil.AtomicWrite 原子写，**绝不回落覆盖正稿**），事件增 partialSaved/partialPath/notice 可选字段，前端如实提示落点且不把残稿标成已保存。
+- **落地**：线1 创作页（共享原语 components/novel/unsavedGuard.tsx 两选/三选/并列多分支 + 切章·生成·删除·整章重写全覆盖 + 载入失败可见化 + 并列分支不再绑 Esc + 反推轮询卸载守卫与已等待时长 + 设定读取失败归因 + 去味成功后刷新编辑区 + 创作参数持久化 + 工具轨 12 钮分三组零功能删除）；线2 常驻页快捷键门控（NovelPage 五 pane 下发 active，非当前页不响应也不 preventDefault，Ctrl+S 单一归属；目录点章改「先切 tab、commit 后派发」）；线3 设定页与两面板（load 依赖 projectPath+换书清 AI 深检 + 导入覆盖未保存设定先确认 + 下行双面板可折叠持久化）；线4 组件批（在线导入进度事件失落兜底：后端在返回 jobId 前已发终态事件→改 3s 无事件即按成书清单对账+如实提示 + 章际对比 seq 守卫 + 三处裸 EventsOff 改 subscribeWailsEvent + 提示词工坊切模板脏保护 + 新建小说空标题禁用与在途防双击）；Go 同刀（写回路径收敛 writeBackRewritten：写失败报 error + v4 场景写回后 syncBlobFromScenes；取消互斥改 nil 占位、register 见「正在取消中」如实拒绝、清理归 unregisterChapterGen 独占）。
+- **测试**：Go 新增 create_chapter_partial_test.go（残稿三态 + v4 场景不覆盖）与 novel_writeback_test.go（写失败报错 / v4 blob 与场景一致）；internal/app 定向 `Chapter|Deslop|Rewrite|Cancel` PASS 82/FAIL 0 + 场景族 17 例绿；gofmt 空 / go vet / go build 全 0。前端新增 unsavedGuard 7 例 + NovelPage.test 3 例 + 各线守卫 30 余例（线2 灵敏度实测：门控改 false 恰 3 条守卫变红）；线4 报告小说域 32 文件 222 例绿；tsc 0 / eslint 0。
+- **门禁**：全量 ci（本地快闸）绿；漂移闸 OK@4.421.0。
+- **产物**：见 SHA256SUMS-v4.421.0.txt（冒烟 200 过）。
+- **文档**：规格 进度计划/gaea-novel-polish-20260928.md + releases/v4.421.0.md + CHANGELOG/README + releases/README + AGENTS 速览 + progress（本条）。
+- **观察池**：跨页切书确认（需跨页共享脏态）/ EditorPanel 内 rune↔code-unit 换算收敛 + 单测 / 板块级 keepAlive（切到别的板块时小说页仍常驻→阅读 tab 的 Ctrl+S·F11 仍吞键，全仓各页共有，需「板块级可见」信号）/ Go 余 9 项（搜索标题命中抑制正文扫描·生成后协程未托管·建章忽略 WriteOutlines 错误·ForEachChapter 缺口即停·分支摘要混入·书架全库全章 IO·迁移跳章仍落 v4 标记·嵌套大纲节点不可见·11 个零调用者导出绑定）/ 残稿文件名秒级时间戳（同秒两次取消会覆盖前一个残稿）。
+
 ## 最新发布：v4.420.0（2026-09-26）「计划模式手动选择：Composer 工具栏『计划』chip」
 
 - **刀型**：用户拍板「计划模式不是默认模式，但可以选择手动」落地。前端 3 文件，绑定面 720 零变更，Go 零改动，零功能删除。

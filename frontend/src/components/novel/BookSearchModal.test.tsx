@@ -2,8 +2,8 @@
 // bridge app 代理 mock（ConsistencyPanel.test 同款）+ window.runtime 桩捕事件：
 // 覆盖候选表 HasRule 打标与免规则禁用、目录预览与范围默认/收窄、导入起跑参数、
 // 进度/完成/失败三路事件与取消。
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import React from 'react'
 
 vi.mock('../../gaea/lib/bridge', async (importOriginal) => {
@@ -18,6 +18,8 @@ vi.mock('../../gaea/lib/bridge', async (importOriginal) => {
       NovelBookSourceImportChapters: vi.fn(),
       NovelBookSourceEnginesGet: vi.fn(),
       NovelBookSourceEnginesSave: vi.fn(),
+      // v4.421.0 失落兜底：唯一可用于对账的既有绑定（书架成书清单）
+      ListProjects: vi.fn(),
     },
   }
 })
@@ -31,6 +33,7 @@ const toc = vi.mocked(app.NovelBookSourceToc)
 const importStart = vi.mocked(app.NovelBookSourceImport)
 const cancelJob = vi.mocked(app.NovelBookSourceImportCancel)
 const retryChapters = vi.mocked(app.NovelBookSourceImportChapters)
+const listProjects = vi.mocked(app.ListProjects)
 
 // window.runtime 桩：subscribe() 走 EventsOn，这里捕获 handler 手工投递事件。
 let deliver: ((data: unknown) => void) | null = null
@@ -242,5 +245,143 @@ describe('导入进度与终态', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /取\s*消/ }))
     await waitFor(() => expect(cancelJob).toHaveBeenCalledWith('job-11'))
+  })
+})
+
+// v4.421.0 失落兜底（P1）：后端 NovelBookSourceImport 先起 goroutine 再返回 jobId
+// （novel_booksource_handler.go:332/:359），快速失败/瞬时完成的终态事件会在前端
+// 订阅建立前就 emit 完 → UI 曾永远停在「后台下载中…」。前端无 job 状态绑定，唯一可用于
+// 对账的既有绑定是书架成书清单（CoreB.ListProjects）；兜底只按清单如实对账，不假装成功。
+describe('导入进度事件失落兜底（v4.421.0）', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  /** fake timers 下不用 waitFor（只推进定时器 + 冲 microtask）。 */
+  const flush = async () => { await act(async () => { await vi.advanceTimersByTimeAsync(0) }) }
+
+  function renderControlled() {
+    const props: ModalProps = { open: true, onClose: vi.fn(), onImported: vi.fn(), onAppended: vi.fn() }
+    const view = render(<BookSearchModal {...props} />)
+    return { props, view }
+  }
+
+  /** 走到「已选书 + 已填书名」的导入表单（全程 fake timers）。 */
+  async function toImportForm() {
+    search.mockResolvedValue({ candidates, warnings: [] })
+    toc.mockResolvedValue(tocPreview)
+    const out = renderControlled()
+    fireEvent.change(screen.getByLabelText('在线搜书关键字'), { target: { value: '风雪夜归' } })
+    fireEvent.click(screen.getByRole('button', { name: /搜\s*书/ }))
+    await flush()
+    fireEvent.click(screen.getAllByRole('button', { name: /选\s*书/ })[0])
+    await flush()
+    fireEvent.change(screen.getByPlaceholderText('书名（必填）'), { target: { value: '风雪夜归' } })
+    return out
+  }
+
+  it('3s 内无任何进度事件 → 轮询成书清单对账：命中即如实报已入库 + 给「完成」', async () => {
+    vi.useFakeTimers()
+    listProjects.mockResolvedValue([{ title: '风雪夜归', path: 'C:/novels/风雪夜归', chapter_count: 12 }])
+    const { props } = await toImportForm()
+    importStart.mockResolvedValue({ jobId: 'job-lost-1' })
+
+    fireEvent.click(screen.getByRole('button', { name: /开始导入/ }))
+    await flush()
+    expect(deliver).not.toBeNull()
+    expect(listProjects).not.toHaveBeenCalled()
+
+    // 3s 到点：进入兜底 → 按清单对账命中
+    await act(async () => { await vi.advanceTimersByTimeAsync(3000) })
+    const lost = screen.getByTestId('import-progress-lost')
+    expect(listProjects).toHaveBeenCalledTimes(1)
+    expect(within(lost).getByText(/已按书架成书清单确认《风雪夜归》入库（12 章）/)).toBeTruthy()
+    expect(screen.getByTestId('import-shelf-done')).toBeTruthy()
+
+    fireEvent.click(screen.getByTestId('import-shelf-done'))
+    expect(props.onClose).toHaveBeenCalled()
+  })
+
+  it('清单查不到：如实提示未确认 + 刷新清单按钮；刷新后命中才报已入库', async () => {
+    vi.useFakeTimers()
+    listProjects.mockResolvedValue([])
+    await toImportForm()
+    importStart.mockResolvedValue({ jobId: 'job-lost-2' })
+
+    fireEvent.click(screen.getByRole('button', { name: /开始导入/ }))
+    await flush()
+    await act(async () => { await vi.advanceTimersByTimeAsync(3000) })
+
+    // 未命中：如实说「无法确认」，不假装成功，也不静默
+    const lost = screen.getByTestId('import-progress-lost')
+    expect(within(lost).getByText(/未收到导入进度回调，无法确认后台状态/)).toBeTruthy()
+    expect(screen.getByTestId('import-shelf-close')).toBeTruthy()
+    expect(screen.queryByTestId('import-shelf-done')).toBeNull()
+
+    // 手动刷新清单：此时下载已落库 → 报实章数
+    listProjects.mockResolvedValue([{ title: '风雪夜归', path: 'C:/novels/风雪夜归', chapter_count: 12 }])
+    fireEvent.click(screen.getByTestId('import-shelf-refresh'))
+    await flush()
+    expect(within(screen.getByTestId('import-progress-lost')).getByText(/已按书架成书清单确认《风雪夜归》入库（12 章）/)).toBeTruthy()
+    expect(screen.getByTestId('import-shelf-done')).toBeTruthy()
+  })
+
+  it('兜底期间真实事件到达：撤销兜底、回到正常进度（真实事件优先于清单对账）', async () => {
+    vi.useFakeTimers()
+    listProjects.mockResolvedValue([])
+    await toImportForm()
+    importStart.mockResolvedValue({ jobId: 'job-lost-3' })
+
+    fireEvent.click(screen.getByRole('button', { name: /开始导入/ }))
+    await flush()
+    await act(async () => { await vi.advanceTimersByTimeAsync(3000) })
+    expect(screen.getByTestId('import-progress-lost')).toBeTruthy()
+
+    await act(async () => { deliver?.({ type: 'progress', done: 6, total: 12 }) })
+    expect(screen.queryByTestId('import-progress-lost')).toBeNull()
+    expect(screen.getByText('6/12 章')).toBeTruthy()
+  })
+
+  it('兜底态关闭弹窗：清掉 importing（重开不残留「后台下载中…」）', async () => {
+    vi.useFakeTimers()
+    listProjects.mockResolvedValue([])
+    const { props, view } = await toImportForm()
+    importStart.mockResolvedValue({ jobId: 'job-lost-4' })
+
+    fireEvent.click(screen.getByRole('button', { name: /开始导入/ }))
+    await flush()
+    await act(async () => { await vi.advanceTimersByTimeAsync(3000) })
+
+    fireEvent.click(screen.getByTestId('import-shelf-close'))
+    expect(props.onClose).toHaveBeenCalled()
+
+    // 父层关窗 → 打开：导入态已被清掉，回到搜索起点
+    view.rerender(<BookSearchModal {...props} open={false} />)
+    await flush()
+    view.rerender(<BookSearchModal {...props} open />)
+    await flush()
+    expect(screen.queryByText('后台下载中…')).toBeNull()
+    expect(screen.getByLabelText('在线搜书关键字')).toBeTruthy()
+  })
+
+  it('补下（append-done）同款竞态：无回调时按清单章数如实对账，不谎称补下成功', async () => {
+    vi.useFakeTimers()
+    listProjects.mockResolvedValue([{ title: '风雪夜归', path: 'C:/novels/风雪夜归', chapter_count: 25 }])
+    await toImportForm()
+    importStart.mockResolvedValue({ jobId: 'job-lost-5' })
+    retryChapters.mockResolvedValue({ jobId: 'job-lost-6' })
+
+    fireEvent.click(screen.getByRole('button', { name: /开始导入/ }))
+    await flush()
+    // 整本 done 带失败章 → 留失败面板
+    await act(async () => {
+      deliver?.({ type: 'done', result: { path: 'C:/novels/风雪夜归', title: '风雪夜归', chapter_count: 12, total_words: 34000 }, failed: [{ title: '第7章', url: 'u7', error: '超时' }] })
+    })
+    fireEvent.click(screen.getByRole('button', { name: /重试补下 1 章/ }))
+    await flush()
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(3000) })
+    expect(within(screen.getByTestId('import-progress-lost'))
+      .getByText(/未收到补下进度回调；书架清单显示《风雪夜归》现有 25 章/)).toBeTruthy()
   })
 })

@@ -16,6 +16,7 @@ import {
   CheckCircleOutlined, ClearOutlined, DeleteOutlined, EditOutlined, FlagOutlined, PlusOutlined, ReloadOutlined, SafetyCertificateOutlined,
 } from '@ant-design/icons'
 import { app } from '../../gaea/lib/bridge'
+import { useAppStore } from '../../stores/appStore'
 import type { ForeshadowLintReport, ForeshadowStatsReport, ForeshadowSyncResult } from '../../gaea/lib/bridge/novel'
 import type { ForeshadowItemData, ForeshadowStatus } from '../../types'
 import {
@@ -164,10 +165,22 @@ interface ForeshadowPanelProps {
 }
 
 const ForeshadowPanel: React.FC<ForeshadowPanelProps> = ({ disabled }) => {
+  // v4.421 线3 P1：面板在小说五子页里**常驻挂载**，`load` 此前只依赖 `disabled`
+  // 且调用点不传 props → 切换小说后仍显示上一本的伏笔表。改为依赖 projectPath
+  // （项目切换即重拉），并以「无项目路径」作为引导态门控——此前无项目时会直接
+  // 调绑定、失败后渲染红色「伏笔加载失败」，引导分支反成死代码。
+  const projectPath = useAppStore((s) => s.projectPath)
+  const noProject = !!disabled || !projectPath
   const [items, setItems] = useState<ForeshadowItemData[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const loadToken = useRef(0)
+  // v4.421.0：整表写回串行化所需的最新值/写入链（SaveForeshadows 全量替换，
+  // 并发写会互相覆盖，见 persist 注释）
+  const itemsRef = useRef<ForeshadowItemData[]>([])
+  itemsRef.current = items
+  const writeChainRef = useRef<Promise<void>>(Promise.resolve())
+  const [savingWrite, setSavingWrite] = useState(false)
 
   // 登记表单
   const [formOpen, setFormOpen] = useState(false)
@@ -190,7 +203,8 @@ const ForeshadowPanel: React.FC<ForeshadowPanelProps> = ({ disabled }) => {
 
   const load = useCallback(async () => {
     const token = ++loadToken.current
-    if (disabled) {
+    // projectPath 显式参与判断：它既是「换书必重拉」的依赖，也是引导态门控
+    if (disabled || !projectPath) {
       setItems([])
       setBeStats(null)
       setLastSync(null)
@@ -223,9 +237,12 @@ const ForeshadowPanel: React.FC<ForeshadowPanelProps> = ({ disabled }) => {
     } finally {
       if (token === loadToken.current) setLoading(false)
     }
-  }, [disabled])
+  }, [disabled, projectPath])
 
   useEffect(() => { void load() }, [load])
+  // persist 失败时重读用（走 ref 避免把 load 加进 persist 依赖、破坏其稳定引用）
+  const loadRef = useRef(load)
+  loadRef.current = load
 
   // 一致性体检：拉报告直显（Go 侧字段可能 omitempty/findings 可能为 null，渲染处 ?. ?? 防御）
   const runLint = useCallback(async () => {
@@ -240,18 +257,28 @@ const ForeshadowPanel: React.FC<ForeshadowPanelProps> = ({ disabled }) => {
     }
   }, [])
 
-  // persist 全量写回（乐观更新 + 失败回滚提示）
-  const persist = useCallback(async (prev: ForeshadowItemData[], next: ForeshadowItemData[]) => {
+  // persist 全量写回（乐观更新；v4.421.0 改为**串行队列**）。
+  // 为什么串行：SaveForeshadows 是整表替换，此前快速连点（流转/删除/编辑）会各自
+  // 基于同一旧快照发请求 → 后写覆盖先写、先前的改动被静默回滚。现在请求按序发出、
+  // 每次读**最新** items（多次操作合并为最后一次写），失败不再回滚到旧快照
+  // （那会覆盖排队中的改动），而是如实报错并重读磁盘真实状态。
+  const persist = useCallback((_prev: ForeshadowItemData[], next: ForeshadowItemData[]) => {
     setItems(next)
-    try {
-      // A5：urgency 是运行时投影不落库，写回载荷剥离
-      await app.SaveForeshadows(JSON.stringify(stripForeshadowUrgency(next)))
-      return true
-    } catch (err: unknown) {
-      setItems(prev)
-      message.error(`伏笔保存失败，已回滚：${err instanceof Error ? err.message : '未知错误'}`)
-      return false
-    }
+    itemsRef.current = next
+    setSavingWrite(true)
+    const run = writeChainRef.current.then(async () => {
+      try {
+        // A5：urgency 是运行时投影不落库，写回载荷剥离
+        await app.SaveForeshadows(JSON.stringify(stripForeshadowUrgency(itemsRef.current)))
+      } catch (err: unknown) {
+        message.error(`伏笔保存失败：${err instanceof Error ? err.message : '未知错误'}（已重读登记表）`)
+        await loadRef.current()
+      }
+    })
+    writeChainRef.current = run
+    return run.finally(() => {
+      if (writeChainRef.current === run) setSavingWrite(false)
+    })
   }, [])
 
   // 生命周期清理（t1-P3 绑定，t1-P4 面板消费）：后端护栏=手动条目只重置不删除。
@@ -353,29 +380,29 @@ const ForeshadowPanel: React.FC<ForeshadowPanelProps> = ({ disabled }) => {
         <span className="novel-panel-title"><FlagOutlined />伏笔登记</span>
         <div style={{ flex: 1 }} />
         <span className="novel-setting-meta">
-          回收率 {stats.rate}%（{stats.revealed}/{stats.total}）
+          {savingWrite ? '保存中…' : `回收率 ${stats.rate}%（${stats.revealed}/${stats.total}）`}
         </span>
-        <Button size="small" icon={<PlusOutlined />} disabled={disabled} onClick={() => setFormOpen((o) => !o)}>
+        <Button size="small" icon={<PlusOutlined />} disabled={noProject} onClick={() => setFormOpen((o) => !o)}>
           登记伏笔
         </Button>
         <Button
-          size="small" icon={<SafetyCertificateOutlined />} loading={linting} disabled={disabled}
+          size="small" icon={<SafetyCertificateOutlined />} loading={linting} disabled={noProject}
           onClick={() => void runLint()}
         >
           一致性体检
         </Button>
         <Button
-          size="small" icon={<ClearOutlined />} disabled={disabled}
+          size="small" icon={<ClearOutlined />} disabled={noProject}
           onClick={() => setCleanOpen((o) => !o)}
         >
           清理
         </Button>
-        <Button size="small" icon={<ReloadOutlined />} onClick={() => void load()} loading={loading} disabled={disabled}>
+        <Button size="small" icon={<ReloadOutlined />} onClick={() => void load()} loading={loading} disabled={noProject}>
           刷新
         </Button>
       </div>
       <div className="novel-setting-body" style={{ padding: 8 }}>
-        {disabled ? (
+        {noProject ? (
           <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="请先在「书架」打开一部小说项目" style={{ margin: 'auto' }} />
         ) : loading ? (
           <div style={{ margin: 'auto' }}><Spin size="small" /></div>

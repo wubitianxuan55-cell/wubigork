@@ -3,7 +3,7 @@
 // 直调 app.* 的 mock 手法同 PromptWorkshopPanel.test（bridge 桩 + saveFile/pickFile
 // 无关；这里只桩 bridge）。
 import { describe, expect, it, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, act, within } from '@testing-library/react'
 
 const mocks = vi.hoisted(() => ({
   v2: vi.fn(),
@@ -217,5 +217,43 @@ describe('章际对比（t7 多章对比最小形态）', () => {
     fireEvent.click(await screen.findByTitle('第 3 章'))
     expect(await screen.findByText(/尚未分析——先在章节页运行分析后再对比/)).toBeTruthy()
     expect(screen.queryByTestId('analysis-compare-table')).toBeNull()
+  })
+
+  it('对比章 seq 守卫：先选 5 再快速选 9，5 的迟到响应被丢弃（表头与行数据同源）', async () => {
+    const mkOverall = (overall: number, chapter: number): ChapterAnalysisV2View => {
+      const v = mkV2()
+      v.chapter_num = chapter
+      v.result!.scores!.overall = overall
+      return v
+    }
+    let resolve5: (v: ChapterAnalysisV2View) => void = () => {}
+    let resolve9: (v: ChapterAnalysisV2View) => void = () => {}
+    const p5 = new Promise<ChapterAnalysisV2View>((r) => { resolve5 = r })
+    const p9 = new Promise<ChapterAnalysisV2View>((r) => { resolve9 = r })
+    mocks.v2.mockImplementation(async (num: number) => {
+      if (num === 5) return p5 as never
+      if (num === 9) return p9 as never
+      return mkV2() as never
+    })
+    render(<ChapterAnalysisPanel open onClose={vi.fn()} chapterNum={2} content="零一二三" chapterOptions={[5, 9]} />)
+    await waitFor(() => expect(screen.getByTestId('analysis-body')).toBeTruthy())
+
+    // 先选 5（挂起不返回）再快速改选 9
+    fireEvent.mouseDown(screen.getByRole('combobox'))
+    fireEvent.click(await screen.findByTitle('第 5 章'))
+    fireEvent.mouseDown(screen.getByRole('combobox'))
+    fireEvent.click(await screen.findByTitle('第 9 章'))
+
+    // 9 先返回 → 表格用第 9 章数据
+    await act(async () => { resolve9(mkOverall(9.9, 9)); await Promise.resolve() })
+    const table = await screen.findByTestId('analysis-compare-table')
+    expect(screen.getByText('9.9')).toBeTruthy()
+    expect(within(table).getByText('第 9 章')).toBeTruthy()
+
+    // 5 迟到返回 → 必须被 seq 守卫丢弃：表头第 9 章不得挂第 5 章的分
+    await act(async () => { resolve5(mkOverall(5.5, 5)); await Promise.resolve() })
+    expect(screen.queryByText('5.5')).toBeNull()
+    expect(screen.getByText('9.9')).toBeTruthy()
+    expect(within(screen.getByTestId('analysis-compare-table')).getByText('第 9 章')).toBeTruthy()
   })
 })

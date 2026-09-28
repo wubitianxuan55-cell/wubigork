@@ -15,11 +15,24 @@ import { PortraitImg } from '../components/characterlib/PortraitImg'
 import '../novel-workspace.css'
 import type { OutlineNode } from '../types'
 
-const HomePage = React.lazy(() => import('./HomePage'))
-const NovelSettingPage = React.lazy(() => import('./NovelSettingPage'))
-const CharacterPage = React.lazy(() => import('./CharacterPage'))
-const CreatePage = React.lazy(() => import('./CreatePage'))
-const ChapterPage = React.lazy(() => import('./ChapterPage'))
+/** 五个子页统一的 pane props（跨线契约，规格线2「常驻页快捷键门控」）。
+ *
+ *  `active` 语义：**本 pane 是否为当前可见页**（由 NovelPage 按 activeTab 下发）。
+ *  为什么需要它：五个 pane 是**常驻挂载**的（下方 map 一次全挂，只靠
+ *  `.novel-tab-pane{display:none}` 隐藏），**隐藏 ≠ 卸载**——被隐藏的子页仍在监听
+ *  window。于是任何**窗口级副作用**（window keydown、全局自定义事件）都必须按
+ *  `active` 门控，否则：F11 在任意子页被隐藏的阅读页 preventDefault 吞掉（浏览器
+ *  全屏失效）、一次 Ctrl+S 同时保存设定与阅读页那章（归属不明）、在书架/设定页
+ *  点目录树会往隐藏的阅读页塞 tab。
+ *
+ *  默认 `true`：子页不传也按「当前页」工作，保证既有测试/既有「单独渲染子页」
+ *  用法零回归；只有 NovelPage 这个常驻壳层才显式下发。 */
+type NovelPaneProps = { active?: boolean }
+const HomePage = React.lazy(() => import('./HomePage')) as React.ComponentType<NovelPaneProps>
+const NovelSettingPage = React.lazy(() => import('./NovelSettingPage')) as React.ComponentType<NovelPaneProps>
+const CharacterPage = React.lazy(() => import('./CharacterPage')) as React.ComponentType<NovelPaneProps>
+const CreatePage = React.lazy(() => import('./CreatePage')) as React.ComponentType<NovelPaneProps>
+const ChapterPage = React.lazy(() => import('./ChapterPage')) as React.ComponentType<NovelPaneProps>
 
 export type NovelTab = 'home' | 'novelsetting' | 'character' | 'create' | 'chapter'
 const NOVEL_TAB_KEY = 'gaea.novel.activeTab'
@@ -127,10 +140,23 @@ const NovelPage: React.FC = () => {
     return () => window.removeEventListener('novel:goto-tab', handler)
   }, [])
 
+  // 目录树点章：先切到阅读 tab，**等本次切换提交后**再派发 novel:open-chapter。
+  // 为什么不能同 tick 派发：阅读页的全局监听已按 active 门控（`ChapterPage` 的
+  // open-chapter handler 只在当前页为阅读 tab 时收下事件），而同一事件处理器里
+  // setActiveTab 尚未提交——此刻隐藏的阅读页拿到的 active 仍是 false，同步派发
+  // 会被直接丢弃、点目录树失效。改由下方 effect 在 commit 之后派发；每次点击都
+  // 塞一个新对象（引用必变），保证「已在该 tab 时再点同一个节点」也会重新派发。
+  const [pendingChapter, setPendingChapter] = useState<{ node: OutlineNode } | null>(null)
+
   const handleOpenChapter = useCallback((node: OutlineNode) => {
     changeTab('chapter')
-    window.dispatchEvent(new CustomEvent('novel:open-chapter', { detail: { node } }))
+    setPendingChapter({ node })
   }, [])
+
+  useEffect(() => {
+    if (!pendingChapter || activeTab !== 'chapter') return
+    window.dispatchEvent(new CustomEvent('novel:open-chapter', { detail: { node: pendingChapter.node } }))
+  }, [pendingChapter, activeTab])
 
   const sortedOutlines = React.useMemo(() => sortNodes(outlines), [outlines])
 
@@ -215,7 +241,8 @@ const NovelPage: React.FC = () => {
               className={`novel-tab-pane${activeTab === t.key ? ' is-active' : ''}`}
             >
               <React.Suspense fallback={<div className="novel-tab-skeleton" aria-hidden />}>
-                <t.component />
+                {/* active 门控的唯一来源：当前 tab 为 true，其余四个常驻隐藏页为 false */}
+                <t.component active={activeTab === t.key} />
               </React.Suspense>
             </div>
           ))}

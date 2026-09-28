@@ -3,7 +3,7 @@
 import { beforeAll, describe, expect, it, vi, beforeEach } from 'vitest'
 // P4-H7：en 字典按需加载后，默认 locale=en 的模块级 t() 需先等 chunk 就绪
 import { loadLocale } from '../../gaea/lib/i18n'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 // 屏蔽 Wails 绑定：jsdom 中没有 window.go。
 // 组件经 gaea/lib/bridge 的 app 调用 CheckConsistency / CheckConsistencyDeep。
@@ -138,5 +138,49 @@ describe('深检模式三档分级', () => {
     fireEvent.click(screen.getByTestId('consistency-rule-retry'))
     await waitFor(() => expect(screen.queryByTestId('consistency-rule-error')).toBeNull())
     expect(screen.getByText('全部通过，未发现一致性问题')).toBeTruthy()
+  })
+})
+
+// ── v4.421 线3 P1：面板常驻挂载，上下文必须随项目切换刷新 ──
+describe('项目上下文（v4.421 线3：切书必重查）', () => {
+  beforeEach(() => {
+    // 本文件其余用例不清 mock 调用记录 → 本组先清，保证「未调用」断言可信
+    vi.clearAllMocks()
+    vi.mocked(app.CheckConsistency).mockResolvedValue({ issues: [], total_issues: 0, summary: '✅ 未发现一致性问题' })
+  })
+
+  it('切换项目（projectPath 变化）后重新检查，不再显示上一本报告', async () => {
+    vi.mocked(app.CheckConsistency).mockResolvedValue({ issues: [], total_issues: 0, summary: '第一本：未发现一致性问题' })
+    render(<ConsistencyPanel />)
+    expect(await screen.findByText('第一本：未发现一致性问题')).toBeTruthy()
+    const callsBefore = vi.mocked(app.CheckConsistency).mock.calls.length
+    expect(callsBefore).toBeGreaterThan(0)
+
+    vi.mocked(app.CheckConsistency).mockResolvedValue({ issues: [], total_issues: 0, summary: '第二本：未发现一致性问题' })
+    act(() => { useAppStore.setState({ projectPath: 'C:/books/另一本' }) })
+
+    await waitFor(() => expect(vi.mocked(app.CheckConsistency).mock.calls.length).toBeGreaterThan(callsBefore))
+    expect(await screen.findByText('第二本：未发现一致性问题')).toBeTruthy()
+    expect(screen.queryByText('第一本：未发现一致性问题')).toBeNull()
+  })
+
+  it('disabled：引导态、不调检查绑定、不出现「检查失败」态', async () => {
+    vi.mocked(app.CheckConsistency).mockRejectedValue(new Error('无项目上下文'))
+    render(<ConsistencyPanel disabled />)
+
+    expect(await screen.findByText('请先在「书架」打开一部小说项目')).toBeTruthy()
+    expect(vi.mocked(app.CheckConsistency)).not.toHaveBeenCalled()
+    expect(screen.queryByTestId('consistency-check-failed')).toBeNull()
+    expect(screen.queryByTestId('consistency-rule-error')).toBeNull()
+  })
+
+  it('无项目路径（projectOpen 但路径为空）同样走引导态而非「检查失败」', async () => {
+    useAppStore.setState({ projectPath: '' })
+    vi.mocked(app.CheckConsistency).mockRejectedValue(new Error('no project'))
+    render(<ConsistencyPanel />)
+
+    expect(await screen.findByText('请先在「书架」打开一部小说项目')).toBeTruthy()
+    expect(vi.mocked(app.CheckConsistency)).not.toHaveBeenCalled()
+    expect(screen.queryByTestId('consistency-check-failed')).toBeNull()
   })
 })

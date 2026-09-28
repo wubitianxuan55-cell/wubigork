@@ -139,6 +139,9 @@ const PartialRewriteModal: React.FC<PartialRewriteModalProps> = ({ open, chapter
       width={640}
       footer={null}
       destroyOnClose
+      // 关闭策略（v4.421.0 统一口径）：局部重写结果不落版本库，运行中一旦关闭结果即丢失，
+      // 故运行中禁止关闭（✕/遮罩/Esc 全关），并在正文里如实说明「请等待完成」——
+      // 与 RewriteModal（运行中可确认关闭，结果在重写历史）刻意不同，理由见两处注释。
       closable={!running}
       maskClosable={!running}
       keyboard={!running}
@@ -148,6 +151,9 @@ const PartialRewriteModal: React.FC<PartialRewriteModalProps> = ({ open, chapter
           <div style={{ textAlign: 'center', padding: '48px 0' }} data-testid="partial-rewrite-running">
             <Spin size="large" />
             <div style={{ marginTop: 12 }}>正在重写选中段落（选段外一字不动）…</div>
+            <div style={{ marginTop: 6, fontSize: 12, color: 'var(--color-text-secondary)' }}>
+              该窗口需等待本次重写完成（结果不会写入重写历史，中途关闭会丢失）
+            </div>
           </div>
         ) : result ? (
           <div data-testid="partial-rewrite-result">

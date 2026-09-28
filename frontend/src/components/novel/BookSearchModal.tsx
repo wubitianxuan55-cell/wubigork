@@ -46,6 +46,11 @@ type ImportProgressEvent =
 
 const secondaryStyle = { color: C('color-text-secondary'), fontSize: 12 } as const
 
+/** 失落兜底窗口：起跑成功后多久没收到任何进度事件就认定回调丢了（v4.421.0 P1）。 */
+const PROGRESS_LOST_MS = 3000
+/** 兜底态下按书架成书清单对账的轮询间隔。 */
+const RECONCILE_INTERVAL_MS = 3000
+
 /** 在线搜书 Modal：自包含 搜索→目录→范围→进度 流程；完成/失败经回调与全局提示上报。 */
 const BookSearchModal: React.FC<BookSearchModalProps> = ({ open, onClose, onImported, onAppended }) => {
   // ── 搜索 ──
@@ -77,6 +82,23 @@ const BookSearchModal: React.FC<BookSearchModalProps> = ({ open, onClose, onImpo
   const unsubRef = useRef<(() => void) | null>(null)
   const cancelRequestedRef = useRef(false)
 
+  // ── 失落兜底（v4.421.0 P1：进度事件可能在订阅建立前就已发出）──
+  // 后端 NovelBookSourceImport 是「先起 goroutine 再返回 jobId」
+  // （internal/app/novel_booksource_handler.go:332 起协程 / :359 回执），快速失败或
+  // 瞬时完成的终态事件在 subscribe 之前就 emit 完毕 → UI 曾永远停在「后台下载中…」。
+  // 前端没有 job 状态绑定，唯一可用于对账的既有绑定是书架成书清单（CoreB.ListProjects）：
+  // PROGRESS_LOST_MS 内没有任何进度事件即进入兜底，轮询清单按书名对账；确认入库如实
+  // 上报，查不到就如实提示未确认并给刷新按钮——既不假装成功，也不静默卡死。
+  const [progressLost, setProgressLost] = useState(false)
+  const [lostKind, setLostKind] = useState<'import' | 'retry'>('import')
+  /** 清单对账命中时的章数（null=尚未确认入库）。 */
+  const [shelfHit, setShelfHit] = useState<number | null>(null)
+  const [shelfChecking, setShelfChecking] = useState(false)
+  const [importedTitle, setImportedTitle] = useState('')
+  const gotEventRef = useRef(false)
+  const lostWatchRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const lostPollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
   // ── 搜索历史（t3 余项）+ 引擎规则编辑器入口 ──
   const [history, setHistory] = useState<string[]>([])
   const [enginesOpen, setEnginesOpen] = useState(false)
@@ -87,10 +109,83 @@ const BookSearchModal: React.FC<BookSearchModalProps> = ({ open, onClose, onImpo
   const [retrying, setRetrying] = useState(false)
   const [appendMsg, setAppendMsg] = useState('')
 
+  /** 停掉失落兜底的计时器（关闭弹窗、终态事件到达、对账命中都要停）。 */
+  const stopLostWatch = useCallback(() => {
+    if (lostWatchRef.current !== null) {
+      clearTimeout(lostWatchRef.current)
+      lostWatchRef.current = null
+    }
+    if (lostPollRef.current !== null) {
+      clearInterval(lostPollRef.current)
+      lostPollRef.current = null
+    }
+  }, [])
+
   const detachProgress = useCallback(() => {
     unsubRef.current?.()
     unsubRef.current = null
+    stopLostWatch()
+  }, [stopLostWatch])
+
+  /** 书架成书清单对账（唯一可用于对账的既有绑定）：命中返回该卡章数，否则 null。
+   *  查询失败同样返回 null——宁可如实报「未确认」，也不假装成功。 */
+  const findOnShelf = useCallback(async (wantTitle: string): Promise<number | null> => {
+    try {
+      const cards = await app.ListProjects()
+      const hit = (cards ?? []).find(c => String(c?.title ?? '') === wantTitle)
+      if (!hit) return null
+      const n = Number(hit.chapter_count)
+      return Number.isFinite(n) ? n : 0
+    } catch {
+      return null
+    }
   }, [])
+
+  /** 对账一次：命中→如实上报并停轮询；未命中且 announce→如实提示「还没入清单」。 */
+  const checkShelf = useCallback(async (kind: 'import' | 'retry', wantTitle: string, announce: boolean) => {
+    setShelfChecking(true)
+    try {
+      const chapters = await findOnShelf(wantTitle)
+      if (chapters === null) {
+        if (announce) {
+          message.info(`书架清单里还没有《${wantTitle}》：请稍后刷新，或确认后台是否仍在下载`)
+        }
+        return null
+      }
+      stopLostWatch()
+      setShelfHit(chapters)
+      message.success(kind === 'retry'
+        ? `未收到补下进度回调；书架清单显示《${wantTitle}》现有 ${chapters} 章（补下结果以章数为准）`
+        : `未收到进度回调，已按书架成书清单确认《${wantTitle}》入库（${chapters} 章）`)
+      return chapters
+    } finally {
+      setShelfChecking(false)
+    }
+  }, [findOnShelf, stopLostWatch])
+
+  /** 起跑成功后起表：PROGRESS_LOST_MS 内无任何事件即进入兜底（轮询成书清单对账）。 */
+  const armLostWatch = useCallback((kind: 'import' | 'retry', wantTitle: string) => {
+    stopLostWatch()
+    gotEventRef.current = false
+    setLostKind(kind)
+    lostWatchRef.current = setTimeout(() => {
+      lostWatchRef.current = null
+      if (gotEventRef.current) return // 订阅有效：事件已到，无需兜底
+      setProgressLost(true)
+      // 先挂轮询再首查：checkShelf 命中时会 stopLostWatch 把这个 interval 一并清掉
+      lostPollRef.current = setInterval(() => { void checkShelf(kind, wantTitle, false) }, RECONCILE_INTERVAL_MS)
+      void checkShelf(kind, wantTitle, false)
+    }, PROGRESS_LOST_MS)
+  }, [checkShelf, stopLostWatch])
+
+  /** 兜底态下的逃生门：如实说明后台不因关窗而停止，并在关闭时清掉在途标记。 */
+  const dismissLost = () => {
+    setImporting(false)
+    setRetrying(false)
+    setProgressLost(false)
+    setShelfHit(null)
+    onClose()
+  }
 
   // 打开时载入搜索历史
   useEffect(() => {
@@ -109,6 +204,9 @@ const BookSearchModal: React.FC<BookSearchModalProps> = ({ open, onClose, onImpo
     setLastImported(null); setFailedList([]); setRetrying(false); setAppendMsg('')
     setEnginesOpen(false)
     cancelRequestedRef.current = false
+    // 失落兜底态随弹窗关闭一并清掉（含在途标记，杜绝「重开后仍显示下载中」）
+    setProgressLost(false); setShelfHit(null); setShelfChecking(false); setImportedTitle('')
+    gotEventRef.current = false
   }, [open, detachProgress])
   useEffect(() => detachProgress, [detachProgress])
 
@@ -169,9 +267,15 @@ const BookSearchModal: React.FC<BookSearchModalProps> = ({ open, onClose, onImpo
         title.trim(), genre.join('、') || '未分类', style.join('、') || '默认',
       )
       setJobId(started.jobId)
+      setImportedTitle(title.trim())
       detachProgress()
       unsubRef.current = subscribe(bookImportProgressChannel(started.jobId), (data) => {
         const ev = data as ImportProgressEvent
+        // 任何事件都证明订阅有效：撤销失落兜底（真实事件永远优先于清单对账）
+        gotEventRef.current = true
+        stopLostWatch()
+        setProgressLost(false)
+        setShelfHit(null)
         if (ev?.type === 'progress') {
           setProgress({ done: ev.done, total: ev.total })
           return
@@ -199,6 +303,8 @@ const BookSearchModal: React.FC<BookSearchModalProps> = ({ open, onClose, onImpo
           }
         }
       })
+      // 订阅已建立 → 起「失落兜底」表（订阅之前就 emit 掉的终态事件由清单对账补上）
+      armLostWatch('import', title.trim())
     } catch (err: unknown) {
       setImporting(false)
       message.error(err instanceof Error ? err.message : '导入起跑失败')
@@ -230,12 +336,18 @@ const BookSearchModal: React.FC<BookSearchModalProps> = ({ open, onClose, onImpo
         JSON.stringify(failedList.map(({ title, url }) => ({ title, url }))),
       )
       setJobId(started.jobId)
+      setImportedTitle(lastImported.title)
       detachProgress()
       unsubRef.current = subscribe(bookImportProgressChannel(started.jobId), (data) => {
         const ev = data as {
           type?: string; done?: number; total?: number
           error?: string; failed?: number; result?: NovelBookSourceAppendResult
         }
+        // 同导入路径：任何事件都撤销失落兜底
+        gotEventRef.current = true
+        stopLostWatch()
+        setProgressLost(false)
+        setShelfHit(null)
         if (ev?.type === 'progress') {
           setProgress({ done: ev.done ?? 0, total: ev.total ?? 0 })
           return
@@ -257,6 +369,8 @@ const BookSearchModal: React.FC<BookSearchModalProps> = ({ open, onClose, onImpo
           }
         }
       })
+      // 补下的终态事件（append-done）同款竞态：3s 无事件即按成书清单章数如实对账
+      armLostWatch('retry', lastImported.title)
     } catch (err: unknown) {
       setRetrying(false)
       message.error(err instanceof Error ? err.message : '补下起跑失败')
@@ -303,7 +417,11 @@ const BookSearchModal: React.FC<BookSearchModalProps> = ({ open, onClose, onImpo
     <Modal
       title={<span style={{ color: C('color-text') }}>在线搜书</span>}
       open={open}
-      onCancel={() => { if (!importing && !retrying) onClose() }}
+      onCancel={() => {
+        // 导入/补下在途默认不许误关；进入失落兜底后必须留逃生门
+        //（dismissLost 会清掉在途标记，避免重开后仍显示「后台下载中…」）
+        if (progressLost || (!importing && !retrying)) dismissLost()
+      }}
       footer={null}
       width={640}
       destroyOnHidden
@@ -458,6 +576,35 @@ const BookSearchModal: React.FC<BookSearchModalProps> = ({ open, onClose, onImpo
                 </Space>
               )}
               {startError && <Alert type="error" showIcon message={startError} />}
+
+              {/* 失落兜底面板（v4.421.0）：进度事件可能在订阅建立前就已发出。
+                  只按书架成书清单如实对账——命中报章数，查不到就报未确认。 */}
+              {progressLost && (
+                <Alert
+                  type={shelfHit === null ? 'warning' : 'success'}
+                  showIcon
+                  data-testid="import-progress-lost"
+                  message={shelfHit === null
+                    ? `未收到${lostKind === 'retry' ? '补下' : '导入'}进度回调，无法确认后台状态`
+                    : lostKind === 'retry'
+                      ? `未收到补下进度回调；书架清单显示《${importedTitle}》现有 ${shelfHit} 章`
+                      : `已按书架成书清单确认《${importedTitle}》入库（${shelfHit} 章）`}
+                  description={shelfHit === null
+                    ? '快速完成或快速失败的终态事件可能在进度订阅建立前就已发出。可刷新成书清单核对结果——本窗口不会假装成功，也不会静默卡住。'
+                    : '结果以书架成书清单为准，可以关闭本窗口。'}
+                  action={(
+                    <Space size={6}>
+                      <Button size="small" loading={shelfChecking} data-testid="import-shelf-refresh"
+                        onClick={() => void checkShelf(lostKind, importedTitle, true)}>
+                        刷新清单
+                      </Button>
+                      {shelfHit === null
+                        ? <Button size="small" data-testid="import-shelf-close" onClick={dismissLost}>关闭（后台继续）</Button>
+                        : <Button size="small" type="primary" data-testid="import-shelf-done" onClick={dismissLost}>完成</Button>}
+                    </Space>
+                  )}
+                />
+              )}
 
               {failedList.length > 0 && !importing && (
                 <Space direction="vertical" size={8} style={{ width: '100%' }}>

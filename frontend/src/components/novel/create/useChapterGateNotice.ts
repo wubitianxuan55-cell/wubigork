@@ -2,11 +2,13 @@
 // 进度计划/gaea-gate-notice-race-20260917.md）：订阅 chapter-gate 通道
 // （v4.326 后端 emit，此前零前端消费），把异步自动门结果轻通知给作者
 // （antd message.info，key 防叠，6s 自动消失，零弹窗打扰）。
-// 通道模式同 useChapterStream（window.runtime.EventsOn/EventsOff——浏览器
-// mock 无通道静默跳过）。v4.336：通知可点击——onOpen(chapterNum) 跳章节
-// 分析面板（观察池头名收口）。
+// 订阅/退订统一走 gaea/lib/wailsEvents.subscribeWailsEvent（v4.421.0 起：此前
+// 卸载时裸 EventsOff(CHAPTER_GATE_CHANNEL) 会把同通道别人的监听一起注销，
+// 违反该模块开篇记的事故纪律）；浏览器 mock 无通道静默跳过。
+// v4.336：通知可点击——onOpen(chapterNum) 跳章节分析面板（观察池头名收口）。
 import { useEffect, useRef } from 'react'
 import { message } from 'antd'
+import { subscribeWailsEvent } from '../../../gaea/lib/wailsEvents'
 
 export const CHAPTER_GATE_CHANNEL = 'chapter-gate'
 
@@ -33,13 +35,16 @@ export function gateNoticeText(r: ChapterGateReport): string {
   return parts.length > 0 ? `${label} 生成后自动体检：${parts.join(' · ')}` : `${label} 生成后自动体检完成`
 }
 
-/** 订阅 chapter-gate：组件挂载期监听，卸载退订（EventsOff 只清本通道）。
+/** 订阅 chapter-gate：组件挂载期监听，卸载退订（只摘本 hook 注册的那一个
+ *  监听者，同通道其他消费者不受影响——subscribeWailsEvent 纪律）。
  *  onOpen：点击通知回调（传报告章号；无回调=纯通知不跳转，既有行为零变化）。 */
 export function useChapterGateNotice(onOpen?: (chapterNum: number) => void): void {
   // ref 保最新回调（防过期闭包——[] 依赖订阅一次，回调可能引用异步态）
   const onOpenRef = useRef(onOpen)
   onOpenRef.current = onOpen
   useEffect(() => {
+    const rt = window.runtime
+    if (!rt?.EventsOn) return // 非 Wails 环境无通道（浏览器 mock）：静默跳过
     const handler = (payload: unknown) => {
       // 兼容 CustomEvent 包装（event.detail）与 Wails 直传负载
       const raw = (payload as { detail?: unknown } | null)?.detail ?? payload
@@ -55,17 +60,10 @@ export function useChapterGateNotice(onOpen?: (chapterNum: number) => void): voi
       })
     }
     try {
-      window.runtime?.EventsOn?.(CHAPTER_GATE_CHANNEL, handler as (data: unknown) => void)
+      return subscribeWailsEvent(rt, CHAPTER_GATE_CHANNEL, handler)
     } catch {
-      // 非 Wails 环境无通道（浏览器 mock）：静默跳过
-      return
-    }
-    return () => {
-      try {
-        window.runtime?.EventsOff?.(CHAPTER_GATE_CHANNEL)
-      } catch {
-        // 退订失败无害（通道不存在/已卸载）
-      }
+      // 订阅失败：无监听可退（不抛给 React 渲染链）
+      return undefined
     }
   }, [])
 }

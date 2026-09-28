@@ -14,6 +14,7 @@ import (
 
 	"github.com/gaea/gaea/internal/ai"
 	"github.com/gaea/gaea/internal/characterlib"
+	"github.com/gaea/gaea/internal/gaea/fileutil"
 	"github.com/gaea/gaea/internal/novelcontext"
 	"github.com/gaea/gaea/internal/novelstyle"
 	"github.com/gaea/gaea/internal/project"
@@ -164,17 +165,24 @@ func chapterGenKey(chapterNum int, branch string) string {
 }
 
 // registerChapterGen 登记进行中的章节生成并创建请求级 context。
-// 同一章节已在生成时返回明确错误（拒绝并发写同一 NNN.md）。
+// 同一章节已在生成时返回明确错误（拒绝并发写同一 NNN.md）。取消已请求但
+// 生成协程尚未退出（登记值为 nil，见 CancelCreateChapter）同样如实拒绝——
+// 协程仍活着，放行会并发出两个写者（P1 修复）。
 func (a *writingState) registerChapterGen(key string, chapterNum int, branch string) (context.Context, context.CancelFunc, error) {
 	a.chapterGenMu.Lock()
 	defer a.chapterGenMu.Unlock()
 	if a.chapterGenCancels == nil {
 		a.chapterGenCancels = make(map[string]context.CancelFunc)
 	}
-	if _, running := a.chapterGenCancels[key]; running {
+	if prev, running := a.chapterGenCancels[key]; running {
 		label := fmt.Sprintf("第%d章", chapterNum)
 		if branch != "" {
 			label = fmt.Sprintf("第%d%s章", chapterNum, branch)
+		}
+		if prev == nil {
+			// 取消已请求、生成协程尚未退出：登记表清理由 unregisterChapterGen
+			// 独占（协程退出时才删），此窗口内不放行同章再生成。
+			return nil, nil, fmt.Errorf("%s 的生成正在取消中，请等它退出后再重新生成", label)
 		}
 		return nil, nil, fmt.Errorf("%s 正在生成中，请等待完成或先取消", label)
 	}
@@ -187,7 +195,9 @@ func (a *writingState) registerChapterGen(key string, chapterNum int, branch str
 	return ctx, cancel, nil
 }
 
-// unregisterChapterGen 生成结束（成功/失败/取消）后移除登记并释放取消函数。
+// unregisterChapterGen 生成结束（成功/失败/取消）后移除登记并释放取消函数：
+// 登记表清理由本函数独占（取消路径只置 nil 占位，不删条目），故表项的消失
+// 恒等于「生成协程已退出」，register 的并发判定因此不会误放行。
 // cancel 幂等：生成已结束，仅释放 context 资源。
 func (a *writingState) unregisterChapterGen(key string, cancel context.CancelFunc) {
 	a.chapterGenMu.Lock()
@@ -198,16 +208,21 @@ func (a *writingState) unregisterChapterGen(key string, cancel context.CancelFun
 
 // CancelCreateChapter 取消指定章节的进行中生成（T6-7.2）。
 // 取消后 streamCreateChapter 会把已生成部分落盘并向前端发 cancelled 事件。
-// 幂等：目标章节没有进行中生成时返回 false。
+// 幂等：目标章节没有进行中生成、或本次取消已请求过时返回 false。
+//
+// P1 修复：取消只调用 cancel，不动登记表的条目——条目改置 nil（「已请求取消、
+// 协程未退出」的窄状态），由 unregisterChapterGen 在协程真正退出时独占清除。
+// 旧实现此处 delete 会在协程还活着时摘掉互斥，取消后立刻再生成同章即放行，
+// 造成同一 NNN.md 两个写者。幂等仍成立：重复取消看到 nil 占位即返回 false。
 func (a *writingState) CancelCreateChapter(chapterNum int, branch string) bool {
 	key := chapterGenKey(chapterNum, branch)
 	a.chapterGenMu.Lock()
 	cancel, running := a.chapterGenCancels[key]
-	if running {
-		delete(a.chapterGenCancels, key)
+	if running && cancel != nil {
+		a.chapterGenCancels[key] = nil // 占位：已请求取消，等 unregisterChapterGen 清
 	}
 	a.chapterGenMu.Unlock()
-	if !running {
+	if !running || cancel == nil {
 		return false
 	}
 	cancel()
@@ -246,11 +261,87 @@ func chapterCurrentBody(fullText, bodyText string, attempt int, summaryStarted b
 	return fullText
 }
 
-// saveCancelledPartial 取消生成时把已生成部分原子落盘并通知前端（T6-7.2）。
+// chapterPartialFileSuffix 取消生成残稿的文件名标记：NNN.partial-<yyyyMMddHHmmss>.md。
+const chapterPartialFileSuffix = ".partial-"
+
+// chapterBodyExists 目标章是否已有正文：
+//   - 分支章：NNN{branch}.md 非空即算；
+//   - 主线：blob（chapters/NNN.md）非空，或（v4 场景制）该章已有承载非空正文的场景。
+//
+// 供取消生成时的覆盖保护使用：生成开始时快照一次（existedBefore），取消落盘前
+// 再复查一次（生成期间目标章可能被其他写者补上正文）。读取失败按「无正文」处理
+// ——保护判定只用于「不覆盖」，宁可直接写正稿也不额外阻断既有落盘路径。
+func chapterBodyExists(pm *project.Manager, targetNum int, branch string) bool {
+	if pm == nil || targetNum <= 0 {
+		return false
+	}
+	if branch != "" {
+		blob, err := pm.ReadChapterBranch(targetNum, branch)
+		return err == nil && strings.TrimSpace(blob) != ""
+	}
+	if blob, err := pm.ReadChapter(targetNum); err == nil && strings.TrimSpace(blob) != "" {
+		return true
+	}
+	if !pm.IsV4() {
+		return false // 场景制之外没有独立正文载体
+	}
+	sm := pm.SceneManager(targetNum)
+	metas, err := sm.List()
+	if err != nil {
+		return false
+	}
+	for _, meta := range metas {
+		if sc, rerr := sm.Read(meta.ID); rerr == nil && strings.TrimSpace(sc.Content) != "" {
+			return true
+		}
+	}
+	return false
+}
+
+// chapterPartialPath 取消残稿落点：与正稿同目录、同基名 + .partial-<ts>.md。
+// 目录一律取自 project.Manager 的章节路径（沿用 chapters/ 布局护栏，不自行
+// 拼接项目路径）；分支章用分支正稿路径派生。
+func chapterPartialPath(pm *project.Manager, targetNum int, branch string) string {
+	base := pm.ChapterPath(targetNum)
+	if branch != "" {
+		base = pm.ChapterBranchPath(targetNum, branch)
+	}
+	return strings.TrimSuffix(base, ".md") + chapterPartialFileSuffix + time.Now().Format("20060102150405") + ".md"
+}
+
+// writeCancelledPartialSidecar 把取消残稿另存为侧车文件（不覆盖正稿），返回落点。
+// 原子写复用 kernel 共享实现 fileutil.AtomicWrite——project.Manager 的
+// writeFileAtomic 走的是同一套临时文件 + RenameWithRetry 语义。
+func writeCancelledPartialSidecar(pm *project.Manager, targetNum int, branch, partial string) (string, error) {
+	if pm == nil {
+		return "", fmt.Errorf("project not open")
+	}
+	path := chapterPartialPath(pm, targetNum, branch)
+	if err := fileutil.AtomicWrite(path, []byte(partial), 0o644); err != nil {
+		return "", err
+	}
+	return path, nil
+}
+
+// saveCancelledPartial 取消生成时把已生成部分落盘并通知前端（T6-7.2）。
 // 保持正常完成的落盘路径不变，仅补充取消场景的部分写入；未生成任何内容
 // （partial 为空）时只发 cancelled 事件、不写空文件，避免覆盖既有章节。
-func (a *writingState) saveCancelledPartial(pm *project.Manager, fullText, bodyText string, attempt int, summaryStarted bool, targetNum int, nodeID, branch string) {
+//
+// 覆盖保护（P0）：existedBefore 为「本次生成开始时目标章是否已有正文」的
+// 快照（由 streamCreateChapter 在生成开始时记录），取消时再复查一次。只要
+// 目标章已有正文（blob 非空 / v4 场景承载正文），残稿绝不覆盖正稿：
+//   - 残稿另存为 NNN.partial-<yyyyMMddHHmmss>.md，正稿字节原样保留；
+//   - 事件补 partialSaved / partialPath / notice 三个可选字段，前端据此
+//     如实提示「正文已存在，残稿另存为 …」（不再谎称正文已被部分保存）；
+//   - slog.Info 记录落点。
+//
+// 目标章此前不存在时才保持现行为：把已生成部分写入正稿。
+func (a *writingState) saveCancelledPartial(pm *project.Manager, fullText, bodyText string, attempt int, summaryStarted bool, targetNum int, nodeID, branch string, existedBefore bool) {
 	partial := strings.TrimSpace(chapterCurrentBody(fullText, bodyText, attempt, summaryStarted))
+	label := fmt.Sprintf("第%d章", targetNum)
+	if branch != "" {
+		label = fmt.Sprintf("第%d%s章", targetNum, branch)
+	}
 	payload := map[string]interface{}{
 		"type":       "cancelled",
 		"chapterNum": targetNum,
@@ -258,18 +349,36 @@ func (a *writingState) saveCancelledPartial(pm *project.Manager, fullText, bodyT
 		"nodeId":     nodeID,
 		"total":      len([]rune(partial)),
 	}
-	if partial != "" {
-		var err error
-		if branch != "" {
-			err = pm.WriteChapterBranch(targetNum, branch, partial)
-		} else {
-			err = pm.WriteChapter(targetNum, partial)
-		}
+	if partial == "" {
+		a.emit("create-chapter-stream", payload)
+		return
+	}
+	if existedBefore || chapterBodyExists(pm, targetNum, branch) {
+		path, err := writeCancelledPartialSidecar(pm, targetNum, branch, partial)
 		if err != nil {
-			slog.Warn("取消生成：已生成部分落盘失败", "chapter", targetNum, "branch", branch, "error", err)
-		} else {
-			payload["content"] = partial
+			// 另存失败也绝不回落到覆盖正稿：如实报失败（不带 content）。
+			slog.Warn("取消生成：正文已存在，残稿另存失败", "chapter", targetNum, "branch", branch, "error", err)
+			a.emit("create-chapter-stream", payload)
+			return
 		}
+		payload["content"] = partial
+		payload["partialSaved"] = true
+		payload["partialPath"] = path
+		payload["notice"] = fmt.Sprintf("%s正文已存在，残稿未覆盖正稿，已另存为 %s", label, filepath.Base(path))
+		slog.Info("取消生成：正文已存在，残稿另存未覆盖正稿", "chapter", targetNum, "branch", branch, "path", path)
+		a.emit("create-chapter-stream", payload)
+		return
+	}
+	var err error
+	if branch != "" {
+		err = pm.WriteChapterBranch(targetNum, branch, partial)
+	} else {
+		err = pm.WriteChapter(targetNum, partial)
+	}
+	if err != nil {
+		slog.Warn("取消生成：已生成部分落盘失败", "chapter", targetNum, "branch", branch, "error", err)
+	} else {
+		payload["content"] = partial
 	}
 	a.emit("create-chapter-stream", payload)
 }
@@ -288,6 +397,12 @@ func (a *writingState) streamCreateChapter(ctx context.Context, pm *project.Mana
 	var fullText string // 全部原始内容（含摘要标记，用于提取 summary）
 	var bodyText string // 纯正文（不含 ---CHAPTER_SUMMARY--- 及摘要，用于字数和最终保存）
 	currentPrompt := userPrompt
+
+	// 生成开始时的目标章状态快照（P0 覆盖保护）：本次生成开始前已有正文时，
+	// 取消残稿绝不覆盖正稿（另存 NNN.partial-<ts>.md）。必须在此处记录而非
+	// 等到取消时判文件是否存在——正常完成路径同样会写正稿，取消时目标文件
+	// 已存在并不等于「本次产物」。
+	existedBefore := chapterBodyExists(pm, targetNum, branch)
 
 	// S1.5-B play 内容护栏：temperature_max/max_output_tokens 钳制（未配置
 	// = 零值 = 请求与现状逐字节一致），每次续写尝试均按同一钳制值下发。
@@ -356,7 +471,7 @@ func (a *writingState) streamCreateChapter(ctx context.Context, pm *project.Mana
 			select {
 			case <-ctx.Done():
 				// T6-7.2 用户取消：把已生成部分落盘后退出（不再续写）
-				a.saveCancelledPartial(pm, fullText, bodyText, attempt, summaryStarted, targetNum, nodeID, branch)
+				a.saveCancelledPartial(pm, fullText, bodyText, attempt, summaryStarted, targetNum, nodeID, branch, existedBefore)
 				return
 			case chunk, ok := <-chunks:
 				if !ok {
@@ -366,7 +481,7 @@ func (a *writingState) streamCreateChapter(ctx context.Context, pm *project.Mana
 					if ctx.Err() != nil {
 						// 取消导致的流中断（parseStreamEvents 在 ctx 取消时发 error 帧）：
 						// 与上方 ctx.Done 分支等价，同样落盘已生成部分。
-						a.saveCancelledPartial(pm, fullText, bodyText, attempt, summaryStarted, targetNum, nodeID, branch)
+						a.saveCancelledPartial(pm, fullText, bodyText, attempt, summaryStarted, targetNum, nodeID, branch, existedBefore)
 						return
 					}
 					a.emit("create-chapter-stream", map[string]interface{}{"type": "error", "error": chunk.Error})

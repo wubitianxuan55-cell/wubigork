@@ -1,5 +1,6 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
+import { render, screen, fireEvent, waitFor, act, within } from '@testing-library/react'
+import { Modal } from 'antd'
 
 // Wails 绑定 mock：7 个 wailsjsCompat 直调（GetWorldview/GetStats/GetChapterBranch/
 // QuickBrainstormBranches/CreateChapter/DeleteOutlineNode/SaveChapterBranchContent）
@@ -91,7 +92,13 @@ import { useAppStore } from '../stores/appStore'
 
 type Listener = (data: unknown) => void
 const runtimeListeners = new Map<string, Listener>()
-const EventsOn = vi.fn((name: string, handler: Listener) => { runtimeListeners.set(name, handler) })
+// v4.421.0 契约：事件订阅走 subscribeWailsEvent，退订用 EventsOn 返回的「只摘自己」
+// 的 off 函数（仓规禁止 EventsOff 全清通道）——故断言改为记录 off 调用。
+const runtimeOffs: string[] = []
+const EventsOn = vi.fn((name: string, handler: Listener) => {
+  runtimeListeners.set(name, handler)
+  return () => { runtimeOffs.push(name); runtimeListeners.delete(name) }
+})
 const EventsOff = vi.fn((name: string) => { runtimeListeners.delete(name) })
 
 function emit(name: string, payload: unknown) {
@@ -101,6 +108,7 @@ function emit(name: string, payload: unknown) {
 
 beforeEach(() => {
   runtimeListeners.clear()
+  runtimeOffs.length = 0
   EventsOn.mockClear()
   EventsOff.mockClear()
   Object.defineProperty(window, 'runtime', { configurable: true, writable: true, value: { EventsOn, EventsOff } })
@@ -146,7 +154,7 @@ describe('CreatePage 生成控制（T6-7.2 停止按钮 + cancelled 事件）', 
     const editor = screen.getByPlaceholderText(/AI 将在此流式呈现正文/) as HTMLTextAreaElement
     expect(editor.value).toContain('第一段正文')
     // 终态收尾：退订流式监听
-    expect(EventsOff).toHaveBeenCalledWith('create-chapter-stream')
+    expect(runtimeOffs).toContain('create-chapter-stream')
   })
 
   it.each([
@@ -157,7 +165,7 @@ describe('CreatePage 生成控制（T6-7.2 停止按钮 + cancelled 事件）', 
     await startGeneration()
     emit('create-chapter-stream', payload)
     await waitFor(() => expect(screen.queryByRole('button', { name: /停止生成/ })).toBeNull())
-    expect(EventsOff).toHaveBeenCalledWith('create-chapter-stream')
+    expect(runtimeOffs).toContain('create-chapter-stream')
   })
 
   it('生成中卸载组件：流式监听被退订（无悬挂）', async () => {
@@ -167,7 +175,7 @@ describe('CreatePage 生成控制（T6-7.2 停止按钮 + cancelled 事件）', 
     fireEvent.click(screen.getByRole('button', { name: /按剧情要求直接生成/ }))
     await screen.findByRole('button', { name: /停止生成/ })
     unmount()
-    expect(EventsOff).toHaveBeenCalledWith('create-chapter-stream')
+    expect(runtimeOffs).toContain('create-chapter-stream')
   })
 
   it('CancelCreateChapter 返回 false（幂等/未开始）：本地兜底收尾，UI 不悬挂', async () => {
@@ -175,7 +183,7 @@ describe('CreatePage 生成控制（T6-7.2 停止按钮 + cancelled 事件）', 
     await startGeneration()
     fireEvent.click(screen.getByRole('button', { name: /停止生成/ }))
     await waitFor(() => expect(screen.queryByRole('button', { name: /停止生成/ })).toBeNull())
-    expect(EventsOff).toHaveBeenCalledWith('create-chapter-stream')
+    expect(runtimeOffs).toContain('create-chapter-stream')
   })
 
   it('构思剧情分支在后台进行（不弹阻塞弹窗），完成后弹窗确认并生成', async () => {
@@ -336,5 +344,133 @@ describe('CreatePage 反推取消', () => {
     expect(await screen.findByText(/反推结果为空/)).toBeTruthy()
     expect(screen.queryByTestId('reconstruct-cancel')).toBeNull()
     expect(mocks.taskCancel).not.toHaveBeenCalled()
+  })
+})
+
+// ── v4.421.0 小说板块优化批（线1）：未保存保护 / 并列分支不绑 Esc / 载入失败可见化 /
+// 创作参数持久化。每条都是防复发守卫（旧行为见各用例注释）。
+describe('CreatePage 未保存保护与体验收口（v4.421.0）', () => {
+  const confirms = () => Array.from(document.querySelectorAll<HTMLElement>('.ant-modal-confirm'))
+  /** 取「最新弹窗」的限定查询器（imperative Modal 的 DOM 不随 destroy 立即卸载）。 */
+  async function latestConfirm(before: number) {
+    await waitFor(() => expect(confirms().length).toBeGreaterThan(before))
+    const all = confirms()
+    return within(all[all.length - 1])
+  }
+  const editorText = () => (screen.getByPlaceholderText(/AI 将在此流式呈现正文/) as HTMLTextAreaElement).value
+
+  beforeEach(() => {
+    Modal.destroyAll()
+    mocks.GetChapterBranch.mockClear().mockResolvedValue({ content: '第一章正文' })
+    mocks.SaveChapterBranchContent.mockClear().mockResolvedValue(undefined)
+    mocks.CreateChapter.mockClear().mockResolvedValue({ streaming: true, chapterNum: 1, nodeId: 'n1', branch: '' })
+    useOutlineStore.setState({
+      outlines: [
+        { id: 'n1', order_index: 1, title: '第1章', status: 'done', parent_id: '', summary: '' },
+        { id: 'n2', order_index: 2, title: '第2章', status: 'done', parent_id: '', summary: '' },
+      ] as never,
+    })
+  })
+  afterEach(async () => {
+    Modal.destroyAll()
+    localStorage.removeItem('gaea.novel.genPrefs')
+    await new Promise((r) => setTimeout(r, 0))
+  })
+
+  it('切章前有未保存修改：弹三选确认；点「取消」不切换、正文不丢', async () => {
+    render(<CreatePage />)
+    fireEvent.click(await screen.findByRole('button', { name: '选择章节 第1章' }))
+    await waitFor(() => expect(editorText()).toBe('第一章正文'))
+    fireEvent.change(screen.getByPlaceholderText(/AI 将在此流式呈现正文/), { target: { value: '我手写的改动' } })
+
+    const before = confirms().length
+    fireEvent.click(screen.getByRole('button', { name: '选择章节 第2章' }))
+    const scoped = await latestConfirm(before)
+    expect(scoped.getByText(/切到「第2章」会丢弃当前修改/)).toBeTruthy()
+
+    fireEvent.click(scoped.getByRole('button', { name: /取\s*消/ }))
+    await new Promise((r) => setTimeout(r, 0))
+    // 未切换：仍是第 1 章的正文，且没有第二次载入请求
+    expect(editorText()).toBe('我手写的改动')
+    expect(mocks.GetChapterBranch).toHaveBeenCalledTimes(1)
+  })
+
+  it('切章确认点「先保存」：先落盘当前章，再载入目标章', async () => {
+    render(<CreatePage />)
+    fireEvent.click(await screen.findByRole('button', { name: '选择章节 第1章' }))
+    await waitFor(() => expect(editorText()).toBe('第一章正文'))
+    fireEvent.change(screen.getByPlaceholderText(/AI 将在此流式呈现正文/), { target: { value: '我手写的改动' } })
+
+    const before = confirms().length
+    fireEvent.click(screen.getByRole('button', { name: '选择章节 第2章' }))
+    const scoped = await latestConfirm(before)
+    fireEvent.click(scoped.getByRole('button', { name: /先\s*保\s*存/ }))
+
+    await waitFor(() => expect(mocks.SaveChapterBranchContent).toHaveBeenCalledWith(1, '', '我手写的改动'))
+    await waitFor(() => expect(mocks.GetChapterBranch).toHaveBeenCalledTimes(2))
+  })
+
+  it('生成下一章：并列分支显式成按钮，点「取消」不触发生成（旧实现把追加挂在 onCancel 上）', async () => {
+    render(<CreatePage />)
+    const plot = await screen.findByPlaceholderText(/或直接输入剧情要求/)
+    fireEvent.change(plot, { target: { value: '主角觉醒' } })
+
+    const before = confirms().length
+    fireEvent.click(screen.getByRole('button', { name: /按剧情要求直接生成/ }))
+    const scoped = await latestConfirm(before)
+    expect(scoped.getByRole('button', { name: '覆盖下一章' })).toBeTruthy()
+    expect(scoped.getByRole('button', { name: '作为分支追加' })).toBeTruthy()
+
+    fireEvent.click(scoped.getByRole('button', { name: /取\s*消/ }))
+    await new Promise((r) => setTimeout(r, 0))
+    expect(mocks.CreateChapter).not.toHaveBeenCalled()
+  })
+
+  it('章节载入失败：如实报错（旧实现静默清空编辑区，作者会误以为该章为空）', async () => {
+    mocks.GetChapterBranch.mockRejectedValueOnce(new Error('磁盘读取失败'))
+    render(<CreatePage />)
+    fireEvent.click(await screen.findByRole('button', { name: '选择章节 第1章' }))
+    expect(await screen.findByText(/第 1 章载入失败/)).toBeTruthy()
+  })
+
+  it('创作参数持久化：预置值生效，且改动后写回 localStorage', async () => {
+    localStorage.setItem('gaea.novel.genPrefs', JSON.stringify({ minWords: 7777, temperature: 0.8, skill: 'story-deslop' }))
+    render(<CreatePage />)
+    expect(await screen.findByDisplayValue('7777')).toBeTruthy()
+    await waitFor(() => {
+      const saved = JSON.parse(localStorage.getItem('gaea.novel.genPrefs') || '{}')
+      expect(saved.minWords).toBe(7777)
+      expect(saved.temperature).toBe(0.8)
+    })
+  })
+
+  it('cancelled 残稿另存（线0 Go 侧语义）：提示落点，且不把残稿标成已保存', async () => {
+    useOutlineStore.setState({ outlines: [] })
+    render(<CreatePage />)
+    const plot = await screen.findByPlaceholderText(/或直接输入剧情要求/)
+    fireEvent.change(plot, { target: { value: '主角觉醒' } })
+    fireEvent.click(screen.getByRole('button', { name: /按剧情要求直接生成/ }))
+    await screen.findByRole('button', { name: /停止生成/ })
+
+    emit('create-chapter-stream', {
+      type: 'cancelled', chapterNum: 1, branch: '', total: 120,
+      content: '半截正文', partialSaved: true, partialPath: 'D:/novel/001.partial-20260928.md',
+    })
+    expect(await screen.findByText(/未覆盖正稿，已另存为残稿/)).toBeTruthy()
+    expect(screen.getByText(/001\.partial-20260928\.md/)).toBeTruthy()
+  })
+
+  it('工具轨分组：三组语义标签在册，12 个入口一个不少', async () => {
+    render(<CreatePage />)
+    expect(await screen.findByText('质检')).toBeTruthy()
+    expect(screen.getByText('文本')).toBeTruthy()
+    expect(screen.getByText('结构')).toBeTruthy()
+    for (const label of [
+      '章节分析', '全书体检', '平台评审', '文风指纹',
+      '一键去味', '高级去味', '整章重写', '重写历史',
+      'AI 反推大纲', '叙事状态', '全文脑图', '提示词工坊',
+    ]) {
+      expect(screen.getByRole('button', { name: label })).toBeTruthy()
+    }
   })
 })

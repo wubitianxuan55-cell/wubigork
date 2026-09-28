@@ -7,7 +7,9 @@
  *  - done     生成完成（后端已落盘）
  *  - error    生成失败
  *  - cancelled 生成被取消（后端批 1 新增：取消时已把部分正文落盘，
- *              事件携带 content；仅部分为空或落盘失败时不携带）
+ *              事件携带 content；仅部分为空或落盘失败时不携带。
+ *              线0 补：目标章已有正文时残稿不覆盖正稿，另存侧车并携带
+ *              partialSaved / partialPath / notice 供如实提示）
  *
  * 旧实现用 (data as any) 做字符串 switch，无任何类型保障；这里收敛为
  * 判别联合（discriminated union），负载先经 parseCreateChapterEvent 校验
@@ -71,6 +73,16 @@ export interface CreateChapterCancelledEvent {
   nodeId?: string
   total?: number
   content?: string
+  /**
+   * 目标章在本次生成开始前已有正文：残稿未覆盖正稿，已另存为侧车文件。
+   * 此时 content 仍是本次已生成的残稿文本（正稿未被改动），提示须以
+   * notice / partialPath 为准，不能声称「已保存到本章」。
+   */
+  partialSaved?: boolean
+  /** 残稿另存落点（NNN.partial-<yyyyMMddHHmmss>.md 的绝对路径）。 */
+  partialPath?: string
+  /** 后端如实给出的中文提示（正文已存在，残稿另存为 …）。 */
+  notice?: string
 }
 
 export type CreateChapterStreamEvent =
@@ -165,6 +177,10 @@ export function parseCreateChapterEvent(payload: unknown): CreateChapterStreamEv
         nodeId: str(payload.nodeId),
         total: num(payload.total),
         content: str(payload.content),
+        // 可选字段：残稿另存（正稿被保护时的如实提示渠道），缺省不影响既有语义
+        partialSaved: payload.partialSaved === true ? true : undefined,
+        partialPath: str(payload.partialPath),
+        notice: str(payload.notice),
       }
     default:
       return null
