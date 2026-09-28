@@ -166,6 +166,11 @@ func (a *Agent) Continue(ctx context.Context, count int) (*types.OutlineFile, er
 		return nil, fmt.Errorf("解析 AI 生成的大纲 JSON 失败: %w", err)
 	}
 
+	// 故事主线回收（规格 §1.11/§7.1-1）：本函数此前只回收 newOF.Nodes，
+	// story_thread 被丢弃 → 五卷规划的【故事主线 P0】输入恒为空。模型输出
+	// 非空才覆盖（空/缺字段不擦除已有主线，见 mergeStoryThread）。
+	mergeStoryThread(of, newOF.StoryThread)
+
 	if of != nil {
 		// 恰好 5 卷 → 全量替换（五阶段固定卷模式）
 		if count == 5 {
@@ -311,10 +316,15 @@ func (a *Agent) ExpandNode(ctx context.Context, nodeID string, subCount int) (*t
 
 	var expandResult struct {
 		Children []types.OutlineNode `json:"children"`
+		// 展开模板的输出契约只声明 children；若模型附带顶层 story_thread
+		// （全局主线的新版本/细化），一并回收，不丢（同上「非空才覆盖」）。
+		StoryThread string `json:"story_thread"`
 	}
 	if err := json.Unmarshal([]byte(util.ExtractJSON(reply)), &expandResult); err != nil {
 		return nil, fmt.Errorf("解析展开结果 JSON 失败: %w", err)
 	}
+
+	mergeStoryThread(of, expandResult.StoryThread)
 
 	target.Children = append(target.Children, expandResult.Children...)
 	reindexOutlineNodes(of.Nodes, "")
@@ -425,6 +435,21 @@ func (a *Agent) GetOutlines() *types.OutlineFile {
 }
 
 // ── 辅助 ────────────────────────────────────────────────────
+
+// mergeStoryThread 把模型回复里的故事主线并入已有大纲文件（规格 §7.1-1）。
+//
+// 语义严格限定为「非空才覆盖」：
+//   - thread 为空或仅空白（模型漏输出 / 输出空串）→ 保持 dst.StoryThread 原值，
+//     绝不擦除已有主线——否则一次漏字段的续写就会把整本书的主题清空；
+//   - thread 非空 → 原样覆盖（多行文本保留原文，本刀不做结构化拆分）。
+//
+// dst 为 nil 时安全返回（Continue 的兜底路径理论上不会传 nil，防御式处理）。
+func mergeStoryThread(dst *types.OutlineFile, thread string) {
+	if dst == nil || strings.TrimSpace(thread) == "" {
+		return
+	}
+	dst.StoryThread = thread
+}
 
 // sortOutlineNodes 递归按 order_index 排序，并对子节点排序
 func sortOutlineNodes(nodes []types.OutlineNode) {

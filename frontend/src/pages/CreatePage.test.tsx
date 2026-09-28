@@ -19,6 +19,18 @@ const mocks = vi.hoisted(() => ({
   SaveChapterBranchContent: vi.fn().mockResolvedValue(undefined),
   SaveCharactersBatch: vi.fn().mockResolvedValue({}),
   NovelChapterAnnotations: vi.fn().mockResolvedValue([]),
+  // 章节计划闭环（刀1 线D）：Get/Save/Propose/Deviation + 硬闸预检（经 app 代理调用）
+  NovelChapterPlanGet: vi.fn().mockResolvedValue(null),
+  NovelChapterPlanSave: vi.fn().mockResolvedValue(undefined),
+  NovelChapterPlanPropose: vi.fn().mockResolvedValue(null),
+  NovelChapterPlanDeviation: vi.fn().mockResolvedValue(null),
+  NovelChapterGatePrecheck: vi.fn().mockResolvedValue({
+    chapterNum: 1, allowed: true, hasPlan: true, missing: [], planProblems: [], outlineIssues: [], blocking: false,
+  }),
+  // 刀1 线B：写前硬闸显式覆盖入口（9 参 allowOverride）
+  CreateChapterWithOverride: vi.fn().mockResolvedValue({ streaming: true, chapterNum: 1, nodeId: 'n1', branch: '' }),
+  /** true = 模拟「覆盖入口绑定未就绪」（收口前的构建），用于断言诚实降级 */
+  noOverrideBinding: false,
   // NovelB 门面具名导入（批次三组2 cast 族）
   GetNovelState: vi.fn().mockResolvedValue({ version: 1, entities: {} }),
   BuildNovelStatePatch: vi.fn().mockResolvedValue({ patch: 'ok' }),
@@ -59,11 +71,19 @@ vi.mock('../gaea/lib/bridge', async (importOriginal) => {
     SaveCharactersBatch: mocks.SaveCharactersBatch,
     NovelChapterAnnotations: mocks.NovelChapterAnnotations,
     TaskCancel: mocks.taskCancel,
+    NovelChapterPlanGet: mocks.NovelChapterPlanGet,
+    NovelChapterPlanSave: mocks.NovelChapterPlanSave,
+    NovelChapterPlanPropose: mocks.NovelChapterPlanPropose,
+    NovelChapterPlanDeviation: mocks.NovelChapterPlanDeviation,
+    NovelChapterGatePrecheck: mocks.NovelChapterGatePrecheck,
+    CreateChapterWithOverride: mocks.CreateChapterWithOverride,
   }
   return {
     ...actual,
     app: new Proxy(appStubs, {
       get(target, prop) {
+        // 覆盖入口绑定未就绪的模拟（收口前的构建）：类型检测应落到普通入口
+        if (prop === 'CreateChapterWithOverride' && mocks.noOverrideBinding) return undefined
         if (prop in target) return Reflect.get(target, prop)
         return (actual.app as unknown as Record<string, unknown>)[String(prop)]
       },
@@ -115,6 +135,11 @@ beforeEach(() => {
   useOutlineStore.setState({ outlines: [] })
   useAppStore.setState({ projectOpen: true, projectPath: 'C:/novel/test' })
   vi.mocked(mocks.CancelCreateChapter).mockResolvedValue(true)
+  // 硬闸预检默认放行（缺计划用例自行覆盖）；CreateChapter 默认成功
+  vi.mocked(mocks.NovelChapterGatePrecheck).mockResolvedValue({
+    chapterNum: 1, allowed: true, hasPlan: true, missing: [], planProblems: [], outlineIssues: [], blocking: false,
+  })
+  mocks.noOverrideBinding = false
 })
 
 /** 渲染页面并触发一次直接生成（CreateChapter 返回 chapterNum=1） */
@@ -460,7 +485,7 @@ describe('CreatePage 未保存保护与体验收口（v4.421.0）', () => {
     expect(screen.getByText(/001\.partial-20260928\.md/)).toBeTruthy()
   })
 
-  it('工具轨分组：三组语义标签在册，12 个入口一个不少', async () => {
+  it('工具轨分组：三组语义标签在册，13 个入口一个不少', async () => {
     render(<CreatePage />)
     expect(await screen.findByText('质检')).toBeTruthy()
     expect(screen.getByText('文本')).toBeTruthy()
@@ -468,9 +493,112 @@ describe('CreatePage 未保存保护与体验收口（v4.421.0）', () => {
     for (const label of [
       '章节分析', '全书体检', '平台评审', '文风指纹',
       '一键去味', '高级去味', '整章重写', '重写历史',
-      'AI 反推大纲', '叙事状态', '全文脑图', '提示词工坊',
+      '章节计划', 'AI 反推大纲', '叙事状态', '全文脑图', '提示词工坊',
     ]) {
       expect(screen.getByRole('button', { name: label })).toBeTruthy()
     }
+  })
+})
+
+// ── 章节计划闭环硬闸（刀1 线D）：生成前预检 blocking → 不发起生成，改为弹窗二选；
+// 「立即生成计划草案」展开章节计划卡；「仍然生成（跳过硬闸）」走线B 的专用覆盖入口
+// NovelB.CreateChapterWithOverride(..., allowOverride=true)（旧 8 参 CreateChapter 恒等于
+// allowOverride=false，覆盖若走旧入口会被后端硬闸照拒）。
+describe('CreatePage 章节计划硬闸（刀1 线D）', () => {
+  const blockedGate = {
+    chapterNum: 1, allowed: false, hasPlan: false, missing: ['叙事目标', '冲突类型'],
+    planProblems: [{ code: 'plan_goal_empty', severity: 'S1', message: '叙事目标为空' }],
+    outlineIssues: [], blocking: true,
+  }
+
+  beforeEach(() => {
+    useOutlineStore.setState({ outlines: [] })
+    useAppStore.setState({ projectOpen: true, projectPath: 'C:/novel/test' })
+    vi.mocked(mocks.CreateChapter).mockClear().mockResolvedValue({ streaming: true, chapterNum: 1, nodeId: 'n1', branch: '' })
+    vi.mocked(mocks.CreateChapterWithOverride).mockClear().mockResolvedValue({ streaming: true, chapterNum: 1, nodeId: 'n1', branch: '' })
+    mocks.noOverrideBinding = false
+    vi.mocked(mocks.NovelChapterGatePrecheck).mockReset()
+    vi.mocked(mocks.NovelChapterGatePrecheck).mockResolvedValue(blockedGate)
+  })
+
+  /** 页面渲染 → 填剧情要求 → 点「按剧情要求直接生成」（触发硬闸预检）。 */
+  async function clickDirectGenerate() {
+    render(<CreatePage />)
+    const plot = await screen.findByPlaceholderText(/或直接输入剧情要求/)
+    fireEvent.change(plot, { target: { value: '主角觉醒' } })
+    fireEvent.click(screen.getByRole('button', { name: /按剧情要求直接生成/ }))
+  }
+
+  /**
+   * 取最新硬闸弹窗的限定查询器。坑复训：antd Modal 的 DOM 不随 destroy 立即卸载
+   * （rc-motion 的离场动画在 jsdom 下不结束），且所有弹窗共用同一个 aria-labelledby
+   * id —— 前序用例残留的 Modal.confirm 会让 `role=dialog + name` 解析到**旧弹窗的标题**。
+   * 故按 rootClassName 定位并取最后一个，断言一律 within 限定。
+   */
+  async function latestGateModal() {
+    await waitFor(() => expect(document.querySelectorAll('.novel-plan-gate-modal').length).toBeGreaterThan(0))
+    const all = document.querySelectorAll<HTMLElement>('.novel-plan-gate-modal')
+    return within(all[all.length - 1])
+  }
+
+  it('缺计划：「仍然生成（跳过硬闸）」经 CreateChapterWithOverride(allowOverride=true) 放行', async () => {
+    await clickDirectGenerate()
+    const gate = await latestGateModal()
+    expect(gate.getByText(/本章尚未制定章节计划/)).toBeTruthy()
+    expect(gate.getByText(/缺失：叙事目标、冲突类型/)).toBeTruthy()
+    expect(gate.getByText(/\[S1\] 叙事目标为空/)).toBeTruthy()
+    expect(mocks.CreateChapter).not.toHaveBeenCalled()
+    expect(mocks.CreateChapterWithOverride).not.toHaveBeenCalled()
+    // 预检按目标章号调用（空大纲 → 顺延第 1 章）
+    expect(mocks.NovelChapterGatePrecheck).toHaveBeenCalledWith(1)
+
+    fireEvent.click(gate.getByRole('button', { name: '仍然生成（跳过硬闸）' }))
+    await waitFor(() => expect(mocks.CreateChapterWithOverride).toHaveBeenCalledTimes(1))
+    // 覆盖走专用入口（旧 8 参 CreateChapter 恒等于 allowOverride=false）
+    expect(mocks.CreateChapterWithOverride).toHaveBeenCalledWith(
+      expect.any(String), '', '主角觉醒', 0, '', 'story-deslop', 5000, 0, true,
+    )
+    expect(mocks.CreateChapter).not.toHaveBeenCalled()
+  })
+
+  it('覆盖入口绑定未就绪：如实警告并回落普通入口（不假装已覆盖）', async () => {
+    mocks.noOverrideBinding = true
+    await clickDirectGenerate()
+    const gate = await latestGateModal()
+    fireEvent.click(gate.getByRole('button', { name: '仍然生成（跳过硬闸）' }))
+    expect(await screen.findByText(/跳过计划硬闸的绑定未就绪/)).toBeTruthy()
+    await waitFor(() => expect(mocks.CreateChapter).toHaveBeenCalledTimes(1))
+    expect(mocks.CreateChapterWithOverride).not.toHaveBeenCalled()
+  })
+
+  it('缺计划：弹窗「立即生成计划草案」展开章节计划卡（草案入口在卡内，落盘仍待审批）', async () => {
+    await clickDirectGenerate()
+    const gate = await latestGateModal()
+    fireEvent.click(gate.getByRole('button', { name: '立即生成计划草案' }))
+
+    // 卡片与硬闸弹窗同页共存：弹窗 DOM 不随关闭立即卸载（rc-motion），断言一律 within 限定
+    const card = await screen.findByTestId('chapter-plan-card')
+    await act(async () => { await new Promise((r) => setTimeout(r, 30)) })
+    expect(within(card).getByText(/缺失：叙事目标、冲突类型/)).toBeTruthy()
+    expect(within(card).getByRole('button', { name: /生成计划草案/ })).toBeTruthy()
+    // 计划卡章号与硬闸目标章号同源（空大纲 → 第 1 章）
+    expect(mocks.NovelChapterPlanGet).toHaveBeenCalledWith(1)
+    expect(mocks.NovelChapterPlanSave).not.toHaveBeenCalled()
+    expect(mocks.CreateChapter).not.toHaveBeenCalled()
+  })
+
+  it('硬闸弹窗点「取消」：不生成、不落盘', async () => {
+    await clickDirectGenerate()
+    const gate = await latestGateModal()
+    fireEvent.click(gate.getByRole('button', { name: /取\s*消/ }))
+    await new Promise((r) => setTimeout(r, 0))
+    expect(mocks.CreateChapter).not.toHaveBeenCalled()
+  })
+
+  it('预检接口不可用：不锁死作者——如实提示后照常生成', async () => {
+    vi.mocked(mocks.NovelChapterGatePrecheck).mockRejectedValue(new Error('章节计划预检接口未就绪'))
+    await clickDirectGenerate()
+    expect(await screen.findByText(/章节计划预检未执行/)).toBeTruthy()
+    await waitFor(() => expect(mocks.CreateChapter).toHaveBeenCalledTimes(1))
   })
 })

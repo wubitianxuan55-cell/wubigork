@@ -38,7 +38,7 @@ type NovelMethods = Pick<
   // 批次三b legacy 直调转正（NovelB 门面，同名前缀）：章节族/叙事状态族/场景族/
   // 项目角色族。
   | "GetChapter" | "GetChapterBranch" | "SaveChapterContent" | "SaveChapterBranchContent"
-  | "QuickBrainstormBranches" | "CreateChapter" | "DeleteOutlineNode"
+  | "QuickBrainstormBranches" | "CreateChapter" | "CreateChapterWithOverride" | "DeleteOutlineNode"
   | "GetNovelState" | "BuildNovelStatePatch" | "SettleNovelState"
   | "DeSlopChapterAiTaste" | "RewriteChapterAiTaste" | "GetEntityRelations"
   | "GetChapterScenes" | "GenerateScene" | "CreateScene" | "SaveSceneMeta" | "CancelCreateChapter"
@@ -55,6 +55,9 @@ type NovelMethods = Pick<
   | "NovelListRewriteVersions" | "NovelGetRewriteVersion"
   | "NovelApplyRewriteVersion" | "NovelDiscardRewriteVersion"
   | "NovelRestoreRewriteVersion"
+  // 章节计划闭环批次（v4.422 刀1：故事脊椎 + 章节计划；规格 docs/gaea-longform-novel-system-2026-09.md）。
+  | "NovelChapterPlanGet" | "NovelChapterPlanSave" | "NovelChapterPlanPropose"
+  | "NovelChapterPlanDeviation" | "NovelChapterGatePrecheck"
   // 书源在线搜书批次（v4.283，书源取书→拆书导入 t2；HomePage「在线搜书」）。
   | "NovelBookSourceSearch" | "NovelBookSourceToc"
   | "NovelBookSourceImport" | "NovelBookSourceImportCancel"
@@ -109,6 +112,28 @@ export function buildNovel(): NovelMethods {
     async NovelChapterSuggestions(_chapterNum: number) {
       // 浏览器演示无分析产物：空数组（UI 提示先分析，锁自定义指令）。
       return [];
+    },
+    // ── 章节计划闭环（v4.422 刀1）：浏览器走查只验版面，不假装能生成/落盘 ──
+    async NovelChapterPlanGet(_chapterNum: number) {
+      // 未制定计划 = 正常态（前端据此显示硬闸引导）。
+      return null;
+    },
+    async NovelChapterPlanSave(_chapterNum: number, _planJSON: string) {
+      throw new Error("dev mock：浏览器演示不写 plans.json");
+    },
+    async NovelChapterPlanPropose(_chapterNum: number) {
+      throw new Error("dev mock：计划草案需本地模型调用");
+    },
+    async NovelChapterPlanDeviation(_chapterNum: number) {
+      return { chapterNum: _chapterNum, hasPlan: false, analyzed: false };
+    },
+    async NovelChapterGatePrecheck(_chapterNum: number) {
+      // 与真实后端同口径：无计划即硬闸（前端应给"先补章节计划"引导而非发起生成）。
+      return {
+        chapterNum: _chapterNum, allowed: false, hasPlan: false, blocking: true,
+        missing: ["叙事目标", "关键事件", "冲突类型", "结尾类型"],
+        planProblems: [{ code: "plan_missing", severity: "S1", message: "dev mock：本章尚未制定计划" }],
+      };
     },
     async NovelChapterRewrite(_chapterNum: number, _reqJSON: string) {
       throw new Error("dev mock：整章重写需本地模型调用");
@@ -239,6 +264,11 @@ export function buildNovel(): NovelMethods {
       return { branches: [] };
     },
     async CreateChapter(_setting: string, _prevSummary: string, _plotReq: string, _chapterNum: number, _branchFromNodeID: string, _skillName: string, _minWords: number, _temperature: number) {
+      return { ok: true };
+    },
+    // 写前硬闸显式覆盖入口（v4.422 刀1）：mock 与 CreateChapter 同款（浏览器演示不跑真实硬闸；
+    // 真实后端的拒绝语义由 CreatePage 的计划卡与 GatePrecheck mock 承载）。
+    async CreateChapterWithOverride(_setting: string, _prevSummary: string, _plotReq: string, _chapterNum: number, _branchFromNodeID: string, _skillName: string, _minWords: number, _temperature: number, _allowOverride: boolean) {
       return { ok: true };
     },
     async DeleteOutlineNode(_nodeID: string) {

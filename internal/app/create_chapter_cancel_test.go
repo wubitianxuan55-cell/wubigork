@@ -124,24 +124,28 @@ func waitGensDone(t *testing.T, a *App) {
 // TestCreateChapter_SameChapterConcurrentRejected 并发写同一章节仅一次成功：
 // 同章节第二次 CreateChapter 被明确拒绝（不会同时写同一 NNN.md），
 // 不同章节可并行。
+//
+// 本文件各用例只测取消/并发/落盘时序，不测写前硬闸；而无计划时硬闸按设计拒绝生成，
+// 故统一走 CreateChapterWithOverride(..., allowOverride=true) 显式跳过预检
+// （硬闸自身的拒绝/放行断言见 create_chapter_plan_gate_test.go）。
 func TestCreateChapter_SameChapterConcurrentRejected(t *testing.T) {
 	ready := make(chan struct{})
 	a, _, _ := newCreateChapterSuspendingApp(t, ready, "并发测试正文")
 
-	if _, err := a.CreateChapter("设定", "", "剧情", 1, "", "", 3000, 0); err != nil {
+	if _, err := a.CreateChapterWithOverride("设定", "", "剧情", 1, "", "", 3000, 0, true); err != nil {
 		t.Fatalf("第一次 CreateChapter: %v", err)
 	}
 	<-ready // 第一个流已开始（挂起中，登记生效）
 
 	// 同章节并发生成必须被拒绝，错误须明确
-	if _, err := a.CreateChapter("设定", "", "剧情", 1, "", "", 3000, 0); err == nil {
+	if _, err := a.CreateChapterWithOverride("设定", "", "剧情", 1, "", "", 3000, 0, true); err == nil {
 		t.Fatalf("同章节并发生成应被拒绝")
 	} else if !strings.Contains(err.Error(), "正在生成") {
 		t.Fatalf("拒绝错误应指明正在生成, got: %v", err)
 	}
 
 	// 不同章节可并行
-	if _, err := a.CreateChapter("设定", "", "剧情", 2, "", "", 3000, 0); err != nil {
+	if _, err := a.CreateChapterWithOverride("设定", "", "剧情", 2, "", "", 3000, 0, true); err != nil {
 		t.Fatalf("不同章节并行生成应成功: %v", err)
 	}
 
@@ -161,7 +165,7 @@ func TestCreateChapter_CancelPreservesPartial(t *testing.T) {
 	ready := make(chan struct{})
 	a, pm, _ := newCreateChapterSuspendingApp(t, ready, firstChunk)
 
-	if _, err := a.CreateChapter("设定", "", "剧情", 1, "", "", 3000, 0); err != nil {
+	if _, err := a.CreateChapterWithOverride("设定", "", "剧情", 1, "", "", 3000, 0, true); err != nil {
 		t.Fatalf("CreateChapter: %v", err)
 	}
 	<-ready // mock 已发出首个 chunk
@@ -198,7 +202,7 @@ func TestCreateChapter_CancelNoContentNoWrite(t *testing.T) {
 	// firstChunk 为空：mock 只挂起，从不发送正文
 	a, pm, _ := newCreateChapterSuspendingApp(t, ready, "")
 
-	if _, err := a.CreateChapter("设定", "", "剧情", 1, "", "", 3000, 0); err != nil {
+	if _, err := a.CreateChapterWithOverride("设定", "", "剧情", 1, "", "", 3000, 0, true); err != nil {
 		t.Fatalf("CreateChapter: %v", err)
 	}
 	<-ready
@@ -226,7 +230,7 @@ func TestCancelCreateChapter_Idempotent(t *testing.T) {
 		t.Fatalf("未开始的分支生成取消应返回 false")
 	}
 
-	if _, err := a.CreateChapter("设定", "", "剧情", 1, "", "", 3000, 0); err != nil {
+	if _, err := a.CreateChapterWithOverride("设定", "", "剧情", 1, "", "", 3000, 0, true); err != nil {
 		t.Fatalf("CreateChapter: %v", err)
 	}
 	<-ready

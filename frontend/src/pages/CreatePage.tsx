@@ -24,6 +24,7 @@ import type { EditorPanelHandle } from '../components/novel/create/EditorPanel'
 import CreateInspector from '../components/novel/create/CreateInspector'
 import NewCharactersModal from '../components/novel/create/NewCharactersModal'
 import BranchWizardModal, { type Branch } from '../components/novel/create/BranchWizardModal'
+import ChapterPlanCard, { type PlanGateReport, type PlanProblem } from '../components/novel/ChapterPlanCard'
 import { chooseAction, chooseUnsavedAction } from '../components/novel/unsavedGuard'
 
 interface WizardRequest { prevChapter: number; overwriteChapter: number; branchFromID: string }
@@ -49,6 +50,52 @@ function loadGenPrefs(): NovelGenPrefs {
     return { minWords, temperature, skill }
   } catch {
     return GEN_PREFS_DEFAULT
+  }
+}
+
+// ── 章节计划硬闸（刀1 线D，规格 docs/gaea-longform-novel-system-2026-09.md §7.2/§7.6）──
+// 生成前预检 NovelChapterGatePrecheck 是硬闸唯一判据来源；线C 落地绑定、主代理收口时
+// 才生成 wails/bridge 类型面，故此处用本地 interface + `app as unknown as ...` 收窄
+// （同 ChapterPlanCard.tsx；不碰 bridge/**、wailsjs/**、bindingNames.ts）。
+interface PlanGateBridge {
+  NovelChapterGatePrecheck(chapterNum: number): Promise<unknown>
+}
+
+/**
+ * 写前硬闸的显式覆盖入口（Go NovelB.CreateChapterWithOverride，9 参 allowOverride）。
+ * 线B 落地：CreateChapter 保持 8 参且恒等于 allowOverride=false（internal/app/
+ * create_chapter_handler.go），覆盖必须走本入口，否则后端硬闸照样拒绝。
+ */
+interface CreateChapterBridge {
+  CreateChapterWithOverride(
+    setting: string, prevSummary: string, plotReq: string, chapterNum: number,
+    branchFromNodeID: string, skillName: string, minWords: number, temperature: number,
+    allowOverride: boolean,
+  ): Promise<{ nodeId?: string; chapterNum?: number; branch?: string }>
+}
+
+/** 防御式收窄 PlanGateReport（json tag 见 internal/types/plan_v1.go:44-52）；非对象 → null。 */
+function toPlanGateReport(value: unknown): PlanGateReport | null {
+  if (typeof value !== 'object' || value === null) return null
+  const rec = value as Record<string, unknown>
+  const problems = (raw: unknown): PlanProblem[] => Array.isArray(raw)
+    ? raw
+      .filter((x): x is Record<string, unknown> => typeof x === 'object' && x !== null)
+      .map((x) => ({
+        code: typeof x.code === 'string' ? x.code : '',
+        severity: typeof x.severity === 'string' ? x.severity : '',
+        message: typeof x.message === 'string' ? x.message : '',
+        ...(typeof x.evidence === 'string' ? { evidence: x.evidence } : {}),
+      }))
+    : []
+  return {
+    chapterNum: typeof rec.chapterNum === 'number' ? rec.chapterNum : 0,
+    allowed: rec.allowed === true,
+    hasPlan: rec.hasPlan === true,
+    missing: Array.isArray(rec.missing) ? rec.missing.filter((x): x is string => typeof x === 'string') : [],
+    planProblems: problems(rec.planProblems),
+    outlineIssues: problems(rec.outlineIssues),
+    blocking: rec.blocking === true,
   }
 }
 
@@ -200,6 +247,12 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
   const [rwHistOpen, setRwHistOpen] = useState(false)
   // 提示词工坊面板（t6 首刀：模板可编辑覆盖层；打开才拉一次）
   const [promptWsOpen, setPromptWsOpen] = useState(false)
+  // 章节计划卡（刀1 线D）：工具轨「章节计划」与硬闸弹窗共用同一展开位
+  const [planOpen, setPlanOpen] = useState(false)
+  /** 硬闸弹窗（生成前预检 blocking 时）：缺失清单 + 「立即生成计划草案」/「仍然生成」 */
+  const [planGate, setPlanGate] = useState<{ chapterNum: number; missing: string[]; problems: string[]; proceed: () => void } | null>(null)
+  /** 本次生成是否经作者显式覆盖硬闸（随 CreateChapterWithOverride 的 allowOverride 下发） */
+  const planOverrideRef = useRef(false)
   const [analysisOpen, setAnalysisOpen] = useState(false)
   // 标注定位编辑器（t7 观察池）：面板「编辑器定位」→ 关面板 → 编辑器光标
   // 选区定位到标注区间（rune 偏移，EditorPanel 内部换算 code-unit）。
@@ -508,7 +561,26 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
       // 「设定为空，请先去设定页填写」，把作者引到错地方。
       if (!settingReadOk) throw new Error('小说设定读取失败，请稍后重试（本次未开始生成）')
       if (!freshSetting.trim()) throw new Error('小说设定为空，请先在「设定」页填写世界观')
-      const result = (await app.CreateChapter(freshSetting, '', plotReq, overwriteChapter, branchFromID, selectedSkill || '', minWords, temperature)) as { nodeId?: string; chapterNum?: number; branch?: string }
+      // 硬闸覆盖意图（刀1 线D）：作者在硬闸弹窗点「仍然生成（跳过硬闸）」后落此标志。
+      // 线B 已落地专用入口 CreateChapterWithOverride(..., allowOverride)（旧 CreateChapter
+      // 保持 8 参、恒等于 allowOverride=false）——覆盖必须走它，否则后端写前硬闸照样拒绝。
+      // 绑定面（AppBindings / wailsjs 生成物）由主代理收口，故此处仍用本地 interface 收窄；
+      // 真机上两者都不会缺，缺的只可能是「收口前的构建」——那时如实提示并走普通入口。
+      const allowOverride = planOverrideRef.current
+      planOverrideRef.current = false
+      const overrideBridge = app as unknown as Partial<CreateChapterBridge>
+      let result: { nodeId?: string; chapterNum?: number; branch?: string }
+      if (allowOverride && typeof overrideBridge.CreateChapterWithOverride === 'function') {
+        message.info('已按你的选择跳过章节计划硬闸')
+        result = await overrideBridge.CreateChapterWithOverride(
+          freshSetting, '', plotReq, overwriteChapter, branchFromID, selectedSkill || '', minWords, temperature, true,
+        )
+      } else {
+        if (allowOverride) {
+          message.warning('跳过计划硬闸的绑定未就绪（CreateChapterWithOverride），本次仍走后端硬闸判定')
+        }
+        result = (await app.CreateChapter(freshSetting, '', plotReq, overwriteChapter, branchFromID, selectedSkill || '', minWords, temperature)) as { nodeId?: string; chapterNum?: number; branch?: string }
+      }
       // 预创建节点已由后端同步完成，立即激活；记录章节号供停止按钮
       const nodeId = result?.nodeId
       const chapNum = result?.chapterNum
@@ -528,23 +600,61 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
   }
 
   /**
+   * 章节计划硬闸（刀1 线D）：生成前调 NovelChapterGatePrecheck；blocking 且作者未显式
+   * 覆盖时不发起生成，改为弹「立即生成计划草案 / 仍然生成（跳过硬闸）」。目标章号与
+   * 后端 resolveTargetChapterNum 同源（internal/app/create_chapter_handler.go:654）：
+   * 显式章号 > 分支父节点章号 > 顺延新章。
+   *
+   * 预检自身不可用（绑定未就绪 / 读取失败）**不拦生成**——硬闸只拦「没有抓手」，
+   * 不因预检故障把作者锁死；但如实告知本次未做检查（诚实降级，不假装已预检）。
+   */
+  const guardPlanGate = async (overwriteChapter: number, branchFromID: string, proceed: () => void) => {
+    const target = overwriteChapter > 0
+      ? overwriteChapter
+      : branchFromID
+        ? (useOutlineStore.getState().outlines.find(n => n.id === branchFromID)?.order_index || 0)
+        : nextMainChapterNum
+    let report: PlanGateReport | null = null
+    try {
+      const bridge = app as unknown as Partial<PlanGateBridge>
+      if (typeof bridge.NovelChapterGatePrecheck !== 'function') {
+        throw new Error('章节计划预检接口未就绪')
+      }
+      report = toPlanGateReport(await bridge.NovelChapterGatePrecheck(target))
+    } catch (err: unknown) {
+      message.warning(`章节计划预检未执行（${err instanceof Error ? err.message : String(err)}），本次生成未做硬闸检查`)
+      proceed()
+      return
+    }
+    if (report === null || !report.blocking) { proceed(); return }
+    setPlanGate({
+      chapterNum: report.chapterNum || target,
+      missing: report.missing,
+      problems: [...report.planProblems, ...report.outlineIssues].map(p => `[${p.severity}] ${p.message}`),
+      proceed,
+    })
+  }
+
+  /**
    * 生成入口（含未保存保护，v4.421.0）：生成会清空编辑区，dirty 时先让作者选择
    * 「先保存 / 放弃修改 / 取消」——旧实现直接 `setContent('')`，手写正文静默丢失。
+   * 刀1 线D：脏保护通过后再过章节计划硬闸（预检 → 允许 / 弹窗二选）。
    */
   const startGeneration = (plotReq: string, overwriteChapter = 0, branchFromID = '') => {
     if (generatingRef.current) return
     if (!plotReq.trim()) { message.warning('请选择分支或输入剧情要求'); return }
     const run = () => { void runGeneration(plotReq, overwriteChapter, branchFromID) }
+    const gated = () => { void guardPlanGate(overwriteChapter, branchFromID, run) }
     if (contentRef.current !== loadedSnapshotRef.current) {
       chooseUnsavedAction({
         title: '正文有未保存的修改',
         message: '开始生成会清空编辑区（生成完成后新正文自动落盘）。',
-        onSave: () => { void saveActiveRef.current().then((ok) => { if (ok) run() }) },
-        onDiscard: run,
+        onSave: () => { void saveActiveRef.current().then((ok) => { if (ok) gated() }) },
+        onDiscard: gated,
       })
       return
     }
-    run()
+    gated()
   }
 
   // CancelCreateChapter 契约（后端批 1）：wails 再生成的 NovelB 绑定已提供类型化签名，直接调用。
@@ -672,6 +782,9 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
 
   // ── 叙事状态账本（作者审批制）──
   const activeChapterNum = activeNode?.order_index || lastMainChapter
+  // 计划卡章号（刀1 线D）：未选章时取「下一章」——与硬闸预检同源
+  // （guardPlanGate 的目标章号），否则卡里显示「先选章节」而生成却被拦，作者无处补计划。
+  const planChapterNum = activeChapterNum > 0 ? activeChapterNum : nextMainChapterNum
   // 持久标注高亮（t7 overlay）：本章标注清单随激活章加载传给编辑器镜像；
   // 正文编辑的失效由 EditorPanel 内部 dirty 纪律处理（编辑即整体退场）。
   const [editorAnns, setEditorAnns] = useState<ChapterAnnotation[]>([])
@@ -942,6 +1055,7 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
           <Button size="small" onClick={() => setRwHistOpen(true)}>重写历史</Button>
         </RailGroup>
         <RailGroup label="结构">
+          <Button size="small" onClick={() => setPlanOpen(v => !v)}>章节计划</Button>
           <Button size="small" loading={reconstructBusy} onClick={() => void reconstructOutlines()}>
             {reconstructBusy && reconstructElapsed > 0 ? `AI 反推大纲（已等待 ${reconstructElapsed}s）` : 'AI 反推大纲'}
           </Button>
@@ -955,6 +1069,17 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
         </RailGroup>
         {stateMsg ? <span className="novel-create-rail-msg">{stateMsg}</span> : null}
       </div>
+      {/* 章节计划卡（刀1 线D）：工具轨展开位；章号 = 当前激活章，未选章时取「下一章」 */}
+      {planOpen && (
+        <div style={{ flexShrink: 0, padding: '0 12px 8px', maxHeight: 340, overflow: 'auto' }}>
+          <ChapterPlanCard
+            chapterNum={planChapterNum || null}
+            disabled={generating}
+            onNeedPlan={() => setPlanOpen(true)}
+            onPlanSaved={() => { void loadOutlines() }}
+          />
+        </div>
+      )}
       <RewriteModal
         open={rwOpen}
         chapterNum={activeChapterNum || null}
@@ -1017,6 +1142,44 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
         branchFromID={wizard?.branchFromID ?? ''} onClose={() => { setWizard(null); setWizardBranches([]) }}
         preloadedBranches={wizardBranches}
         onFetchBranches={fetchWizardBranches} onStart={startGeneration} />
+      <Modal
+        title="本章尚未制定章节计划"
+        rootClassName="novel-plan-gate-modal"
+        open={planGate !== null}
+        onCancel={() => setPlanGate(null)}
+        footer={[
+          <Button key="cancel" size="small" onClick={() => setPlanGate(null)}>取消</Button>,
+          <Button key="override" size="small" danger
+            onClick={() => {
+              // 覆盖意图：本次生成跳过硬闸（走 NovelB.CreateChapterWithOverride 的
+              // allowOverride=true 下发；缺绑定时如实警告并回落普通入口）
+              const go = planGate?.proceed
+              planOverrideRef.current = true
+              setPlanGate(null)
+              go?.()
+            }}>仍然生成（跳过硬闸）</Button>,
+          <Button key="plan" size="small" type="primary"
+            onClick={() => {
+              setPlanGate(null)
+              setPlanOpen(true)
+              message.info('已展开章节计划卡，请点「生成计划草案」')
+            }}>立即生成计划草案</Button>,
+        ]}
+      >
+        <div style={{ fontSize: 13 }}>
+          {planGate && planGate.missing.length > 0
+            ? `本章尚未制定计划（缺失：${planGate.missing.join('、')}），先去补计划。`
+            : '本章尚未制定计划，先去补计划。'}
+          {planGate && planGate.problems.length > 0 && (
+            <ul style={{ margin: '6px 0 0 16px', padding: 0, fontSize: 12 }}>
+              {planGate.problems.map((t, i) => <li key={i}>{t}</li>)}
+            </ul>
+          )}
+          <div style={{ marginTop: 8, fontSize: 12, color: 'var(--color-text-secondary)' }}>
+            硬闸只拦「没有抓手」，不评判计划质量；「仍然生成」会跳过本次预检。
+          </div>
+        </div>
+      </Modal>
       <Modal
         title="叙事状态账本（作者审批制）"
         open={stateOpen}

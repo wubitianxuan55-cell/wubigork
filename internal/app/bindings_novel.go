@@ -53,6 +53,12 @@ func (b *NovelB) ContinueOutline(count int) (map[string]interface{}, error) {
 func (b *NovelB) CreateChapter(setting string, prevSummary string, plotReq string, chapterNum int, branchFromNodeID string, skillName string, minWords int, temperature float64) (map[string]interface{}, error) {
 	return b.a.CreateChapter(setting, prevSummary, plotReq, chapterNum, branchFromNodeID, skillName, minWords, temperature)
 }
+
+// CreateChapterWithOverride 章节生成 + 写前硬闸显式覆盖开关（v4.422 刀1：缺计划时
+// 默认拒绝生成；allowOverride=true 由作者显式承担「无计划开写」）。
+func (b *NovelB) CreateChapterWithOverride(setting string, prevSummary string, plotReq string, chapterNum int, branchFromNodeID string, skillName string, minWords int, temperature float64, allowOverride bool) (map[string]interface{}, error) {
+	return b.a.CreateChapterWithOverride(setting, prevSummary, plotReq, chapterNum, branchFromNodeID, skillName, minWords, temperature, allowOverride)
+}
 func (b *NovelB) CreateScene(chapterNum int, slug string, title string) (map[string]interface{}, error) {
 	return b.a.CreateScene(chapterNum, slug, title)
 }
@@ -182,6 +188,24 @@ func (b *NovelB) NovelChapterAnalysisV2(chapterNum int) (types.ChapterAnalysisRe
 }
 func (b *NovelB) NovelChapterAnnotations(chapterNum int) ([]types.Annotation, error) {
 	return b.a.NovelChapterAnnotations(chapterNum)
+}
+
+// ── 章节计划闭环（v4.422 刀1：故事脊椎 + 章节计划；规格 docs/gaea-longform-novel-system-2026-09.md）──
+// 计划=生成前的意图输入 + 写前硬闸唯一判据来源；Get 无计划返回 (nil,nil) 正常态。
+func (b *NovelB) NovelChapterGatePrecheck(chapterNum int) (*types.PlanGateReport, error) {
+	return b.a.NovelChapterGatePrecheck(chapterNum)
+}
+func (b *NovelB) NovelChapterPlanDeviation(chapterNum int) (*types.PlanDeviation, error) {
+	return b.a.NovelChapterPlanDeviation(chapterNum)
+}
+func (b *NovelB) NovelChapterPlanGet(chapterNum int) (*types.ChapterPlan, error) {
+	return b.a.NovelChapterPlanGet(chapterNum)
+}
+func (b *NovelB) NovelChapterPlanPropose(chapterNum int) (*types.ChapterPlan, error) {
+	return b.a.NovelChapterPlanPropose(chapterNum)
+}
+func (b *NovelB) NovelChapterPlanSave(chapterNum int, planJSON string) error {
+	return b.a.NovelChapterPlanSave(chapterNum, planJSON)
 }
 func (b *NovelB) NovelChapterReview(chapterNum int, platform string) (ChapterReviewPayload, error) {
 	return b.a.NovelChapterReview(chapterNum, platform)

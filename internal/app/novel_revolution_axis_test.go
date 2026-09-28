@@ -264,7 +264,9 @@ func TestKnife8_GenerationAxis_EndToEnd(t *testing.T) {
 		t.Fatalf("写旧场景: %v", err)
 	}
 
-	res, err := a.CreateChapter("大陆设定", "", "雨夜夺符", 1, "", "", 1000, 0)
+	// 主轴端到端用例不测写前硬闸（硬闸断言见 create_chapter_plan_gate_test.go）：
+	// 夹具无章节计划，显式覆盖以免预检按设计拒绝。
+	res, err := a.CreateChapterWithOverride("大陆设定", "", "雨夜夺符", 1, "", "", 1000, 0, true)
 	if err != nil {
 		t.Fatalf("CreateChapter: %v", err)
 	}

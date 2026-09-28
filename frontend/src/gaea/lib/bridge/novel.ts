@@ -202,6 +202,58 @@ export interface BookHealthReportView {
   };
 }
 
+// ── 章节计划闭环（v4.422 刀1，规格 docs/gaea-longform-novel-system-2026-09.md §7）──
+// 计划 = 生成前的意图输入 + 写前硬闸的唯一判据来源。字段口径与 Go `types.ChapterPlan`
+// 一致（**snake_case**），因为该结构走 Go 既有 json tag 直出。
+export interface ChapterPlanView {
+  sub_index?: number;
+  title?: string;
+  plot_summary?: string;
+  key_events?: string[];
+  character_focus?: string[];
+  emotional_tone?: string;
+  narrative_goal?: string;
+  conflict_type?: string;
+  ending_type?: string;
+  estimated_words?: number;
+}
+
+/** 计划问题单条（齐备性 / 跨章去重 / 大纲契约）。S1|S2 视为阻断。 */
+export interface PlanProblemView {
+  code?: string;
+  severity?: string;
+  message?: string;
+  evidence?: string;
+}
+
+/** 生成前预检报告（硬闸唯一判据来源）。 */
+export interface PlanGateReportView {
+  chapterNum?: number;
+  allowed?: boolean;
+  hasPlan?: boolean;
+  missing?: string[];
+  planProblems?: PlanProblemView[];
+  outlineIssues?: PlanProblemView[];
+  blocking?: boolean;
+}
+
+/** 计划 vs 实际偏差（写后回写；无计划/未分析均为正常态）。 */
+export interface PlanDeviationView {
+  chapterNum?: number;
+  hasPlan?: boolean;
+  analyzed?: boolean;
+  missingEvents?: string[];
+  endingMismatch?: boolean;
+  plannedEnding?: string;
+  actualEnding?: string;
+  emotionDrift?: boolean;
+  plannedEmotion?: string;
+  actualEmotion?: string;
+  duplicateEvents?: string[];
+  summary?: string;
+  nextSuggestion?: string;
+}
+
 export interface NovelBindings {
   // GenerateBookCover 生成项目书封（3:4，play exports），返回封面路径。
   GenerateBookCover(projectId: string, promptHint: string): Promise<string>;
@@ -258,6 +310,17 @@ export interface NovelBindings {
   // NovelChapterAnalysisV2 读取该章 V2 分析（analysis-v2.json 条目直连）；
   // 缺档 reject（message=「尚未分析」，面板空态引导先分析）。
   NovelChapterAnalysisV2(chapterNum: number): Promise<ChapterAnalysisV2View>;
+  // ── 章节计划闭环（v4.422 刀1，规格 §7.2）──────────────────
+  // Get：不存在返回 null（正常态，「未制定计划」由前端引导）；Save：作者审批落盘，
+  // 齐备性/跨章去重校验失败 reject（message 中文点名缺失项与重复事件）；Propose：AI
+  // 草案**不落盘**（模型不可用如实 reject，不兜底伪造）；Deviation：计划 vs 实际
+  // （无计划/未分析返回 hasPlan/analyzed=false 的正常结构）；GatePrecheck：生成前
+  // 预检，是硬闸唯一判据来源（blocking=true 时前端不得发起生成，除非作者显式覆盖）。
+  NovelChapterPlanGet(chapterNum: number): Promise<ChapterPlanView | null>;
+  NovelChapterPlanSave(chapterNum: number, planJSON: string): Promise<void>;
+  NovelChapterPlanPropose(chapterNum: number): Promise<ChapterPlanView>;
+  NovelChapterPlanDeviation(chapterNum: number): Promise<PlanDeviationView>;
+  NovelChapterGatePrecheck(chapterNum: number): Promise<PlanGateReportView>;
   // AnalyzeChapter 触发该章 LLM 分析（原 Legacy 面绑定转正；V1 wire 返回
   // 面板忽略——真相源是 analysis-v2.json 落盘，完成后重拉 V2；顺带伏笔
   // 同步/记忆回填既有链路）。
@@ -287,6 +350,10 @@ export interface NovelBindings {
   // DeleteOutlineNode(nodeID) 仅 error）。
   QuickBrainstormBranches(setting: string, prevSummary: string): Promise<Record<string, unknown>>;
   CreateChapter(setting: string, prevSummary: string, plotReq: string, chapterNum: number, branchFromNodeID: string, skillName: string, minWords: number, temperature: number): Promise<Record<string, unknown>>;
+  // CreateChapterWithOverride = 同族入口 + 写前硬闸显式覆盖开关（v4.422 刀1）。
+  // 第 9 参 allowOverride=true 表示作者显式承担「本章没有计划也照写」；默认 false 时
+  // 缺计划会被后端硬闸拒绝（错误消息含「先补章节计划」与缺失项清单，模型调用 0 次）。
+  CreateChapterWithOverride(setting: string, prevSummary: string, plotReq: string, chapterNum: number, branchFromNodeID: string, skillName: string, minWords: number, temperature: number, allowOverride: boolean): Promise<Record<string, unknown>>;
   DeleteOutlineNode(nodeID: string): Promise<void>;
   // 叙事状态族：v4.7x 小说革命状态结算（BuildNovelStatePatch 构造 patch，
   // SettleNovelState 结算写回，均返回 map）。

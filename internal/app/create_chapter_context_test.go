@@ -310,7 +310,9 @@ data: [DONE]
 	defer cancel()
 	a.ctx = ctx
 
-	if _, err := a.CreateChapter("九州大陆，灵气复苏。", "", "主角踏上旅途", 1, "", "", 1200, 0); err != nil {
+	// 本用例只验证增强区段注入（伏笔/世界观/角色卡），不测写前硬闸；无计划时硬闸按
+	// 设计拒绝生成，故显式跳过预检（硬闸断言见 create_chapter_plan_gate_test.go）。
+	if _, err := a.CreateChapterWithOverride("九州大陆，灵气复苏。", "", "主角踏上旅途", 1, "", "", 1200, 0, true); err != nil {
 		t.Fatalf("CreateChapter: %v", err)
 	}
 

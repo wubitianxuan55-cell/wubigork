@@ -18,6 +18,7 @@ import (
 	"github.com/gaea/gaea/internal/modelengine"
 	"github.com/gaea/gaea/internal/project"
 	"github.com/gaea/gaea/internal/prompt"
+	"github.com/gaea/gaea/internal/types"
 	"github.com/gaea/gaea/internal/worldview"
 )
 
@@ -83,6 +84,11 @@ data: [DONE]
 	if got == "" {
 		t.Fatalf("GetWorldview 返回空，设定未保存成功")
 	}
+
+	// 2b. 写前硬闸默认开（规格 §7.3）：备齐本章计划与大纲节点，否则 CreateChapter 按
+	//     设计拒绝生成。本用例走「无覆盖」的真实路径，顺带守住注入链不被硬闸误伤。
+	gateSeedPlan(t, pm, map[int]types.ChapterPlan{1: gatePlan(1)})
+	gateSeedOutline(t, pm, gateOutlineNode(1, []string{"拾起玄铁剑"}, "沉重"))
 
 	// 3. 生成章节，捕获实际发送给 AI 的请求
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)

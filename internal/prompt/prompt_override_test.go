@@ -102,13 +102,13 @@ func TestEngineThreeLevelResolution(t *testing.T) {
 }
 
 // TestNamesSorted Names 返回内置 templates map 全部键、字典序稳定：
-// 仓库 20 个模板全量在册、严格升序、与 Get 存在性互证；乱序源（map 遍历）
-// 不影响输出序。
+// 仓库 21 个模板全量在册、严格升序、与 Get 存在性互证；乱序源（map 遍历）
+// 不影响输出序。（v4.422 刀1 新增 prompts/chapter-plan.json：章节计划草案模板。）
 func TestNamesSorted(t *testing.T) {
 	eng := NewEngine("../../prompts")
 	names := eng.Names()
-	if len(names) != 20 {
-		t.Fatalf("仓库磁盘模板应恰 20 个，得到 %d: %v", len(names), names)
+	if len(names) != 21 {
+		t.Fatalf("仓库磁盘模板应恰 21 个，得到 %d: %v", len(names), names)
 	}
 	for i := 1; i < len(names); i++ {
 		if names[i-1] >= names[i] {

@@ -16,6 +16,7 @@ import (
 	"github.com/gaea/gaea/internal/characterlib"
 	"github.com/gaea/gaea/internal/gaea/fileutil"
 	"github.com/gaea/gaea/internal/novelcontext"
+	"github.com/gaea/gaea/internal/novelgate"
 	"github.com/gaea/gaea/internal/novelstyle"
 	"github.com/gaea/gaea/internal/project"
 	"github.com/gaea/gaea/internal/types"
@@ -24,7 +25,24 @@ import (
 
 // CreateChapter 生成章节。minWords 为单章目标字数（<=0 使用默认 5000）；
 // temperature 为生成温度（<=0 使用模型服务端默认值）。
+//
+// 写前硬闸默认开（规格 docs/gaea-longform-novel-system-2026-09.md §7.3）：章节计划不齐备 /
+// 跨章关键事件重复 / 大纲节点契约缺项一律拒绝生成。签名保持不变（绑定面稳定），
+// 该入口恒等于 allowOverride=false；显式覆盖走 CreateChapterWithOverride。
 func (a *writingState) CreateChapter(setting, prevSummary, plotReq string, chapterNum int, branchFromNodeID string, skillName string, minWords int, temperature float64) (map[string]interface{}, error) {
+	return a.createChapter(setting, prevSummary, plotReq, chapterNum, branchFromNodeID, skillName, minWords, temperature, false)
+}
+
+// CreateChapterWithOverride 显式覆盖写前硬闸的生成入口（§7.3 的 AllowOverride，默认关）。
+// allowOverride=true 表示作者确认「没有计划也要生成」：预检照跑、结论照记日志，但不阻断。
+// 绑定层要把覆盖意图透传给前端时转发本方法即可——新增参数不触碰既有 CreateChapter 调用点。
+func (a *writingState) CreateChapterWithOverride(setting, prevSummary, plotReq string, chapterNum int, branchFromNodeID string, skillName string, minWords int, temperature float64, allowOverride bool) (map[string]interface{}, error) {
+	return a.createChapter(setting, prevSummary, plotReq, chapterNum, branchFromNodeID, skillName, minWords, temperature, allowOverride)
+}
+
+// createChapter 章节生成实现：章号定号 → 写前硬闸（planPrecheck）→ 意图注入
+// （章节计划 + 大纲要点）→ 上下文增强 → 流式生成。
+func (a *writingState) createChapter(setting, prevSummary, plotReq string, chapterNum int, branchFromNodeID string, skillName string, minWords int, temperature float64, allowOverride bool) (map[string]interface{}, error) {
 	if a.client == nil {
 		return nil, fmt.Errorf("AI client not ready")
 	}
@@ -76,7 +94,43 @@ func (a *writingState) CreateChapter(setting, prevSummary, plotReq string, chapt
 		minWords = 5000
 	}
 
-	// 4. 构建 prompt（通过模板 + Skill 注入）
+	// 4. 本章章号（生成前口径，与 ensureChapterNode 定号逻辑同源）：显式指定直接用；
+	//    分支续写取父节点章号；否则顺延为新章。硬闸与意图注入都按它取计划/大纲节点。
+	ctxChapterNum := resolveTargetChapterNum(of, chapterNum, branchFromNodeID)
+
+	// 5. 写前硬闸（规格 §7.3）：在真正调用模型**之前**判定「有没有抓手」——计划齐备性 +
+	//    跨章关键事件去重 + 大纲节点契约。判据唯一来源是 planPrecheck（线C 的
+	//    NovelChapterGatePrecheck 走同一入口，两处结论必然一致）；存在 S1/S2 即拒绝，
+	//    只有调用方显式覆盖（allowOverride）才放行——放行也照记日志，不假装没这回事。
+	if ctxChapterNum > 0 {
+		report, perr := a.planPrecheck(ctxChapterNum)
+		if perr != nil {
+			return nil, fmt.Errorf("生成前预检失败（第%d章）：%w", ctxChapterNum, perr)
+		}
+		if report.Blocking && !allowOverride {
+			return nil, planGateError(report)
+		}
+		if report.Blocking {
+			slog.Warn("CreateChapter 显式覆盖写前硬闸", "chapter", ctxChapterNum,
+				"missing", strings.Join(report.Missing, "、"))
+		}
+	}
+
+	// 6. 意图注入（规格 §7.3）：把「这一章为什么存在」变成 prompt 区段——章节计划
+	//    （六项判据字段全量渲染）+ 大纲节点 KeyPoints/Emotion（此前零进入 prompt）。
+	//    两者为空时渲染空串，模板按空跳过（prompt 中不出现空区段）；此时硬闸已在
+	//    上一步拦下（除非显式覆盖）。读计划失败静默跳过注入——绝不因注入失败中断主链路。
+	planSec, outlineSec := "", ""
+	if ctxChapterNum > 0 {
+		if plans, err := readChapterPlansForGate(pm); err == nil && plans != nil {
+			if p, ok := plans.Plans[strconv.Itoa(ctxChapterNum)]; ok {
+				planSec = buildChapterPlanSection(&p)
+			}
+		}
+		outlineSec = buildOutlinePointsSection(findOutlineNodeByNum(of.Nodes, ctxChapterNum))
+	}
+
+	// 7. 构建 prompt（通过模板 + Skill 注入）
 	tmpl := a.eng.Get("create-chapter")
 	if tmpl == nil {
 		return nil, fmt.Errorf("缺少 create-chapter 模板文件")
@@ -88,14 +142,16 @@ func (a *writingState) CreateChapter(setting, prevSummary, plotReq string, chapt
 		"characters":       a.buildCharacterSummary(pm),
 		"character_states": a.buildCharacterStatesSection(pm), // t5 §7.4 状态机回灌（P1，空则不渲染）
 		"prev_summary":     prevSummary,
+		"chapter_plan":     planSec,    // 刀1 §7.3（P0）：本章计划区段，空则不渲染
+		"outline_points":   outlineSec, // 刀1 §7.3（P1）：大纲 KeyPoints/Emotion，空则不渲染
 	})
 	// 上下文增强：追加分层伏笔调度 + 世界观要点区段。全部容错注入——读取失败或
 	// 无数据时静默跳过（不追加空区段），绝不因增强失败中断章节生成主链路；
 	// 新增区段合计受 ctxBudgetTotal 预算约束，超出逐段截断。
-	// 伏笔分层按「本章章号」判定（t1-P1）：显式指定章号直接用；分支续写取父
-	// 节点章号；否则顺延为新章（与 ensureChapterNode 定号逻辑同源）。
-	ctxChapterNum := resolveTargetChapterNum(of, chapterNum, branchFromNodeID)
-	if extra := buildChapterContextSections(pm, ctxChapterNum); extra != "" {
+	// 本章计划/大纲要点两个新区段先按各自上限占用额度，剩余额度再给伏笔/文风/世界观
+	// （同一 ctxBudgetTotal 口径，不叠加成第二套预算）。
+	ctxBudgetLeft := ctxBudgetTotal - runeLen(planSec) - runeLen(outlineSec)
+	if extra := buildChapterContextSectionsWithin(pm, ctxChapterNum, ctxBudgetLeft); extra != "" {
 		userPrompt += extra + "\n"
 	}
 
@@ -113,13 +169,14 @@ func (a *writingState) CreateChapter(setting, prevSummary, plotReq string, chapt
 		}
 	}
 	const maxContinues = 20
-	// 5. 确定/创建节点（同步，前端立即可用）
+	// 8. 确定/创建节点（同步，前端立即可用）——硬闸已通过（或已显式覆盖）才走到这里，
+	//    被拒绝的请求不建节点、不落盘。
 	targetNum, nodeID, branch := a.ensureChapterNode(pm, of, chapterNum, branchFromNodeID)
 	if nodeID == "" {
 		return nil, fmt.Errorf("创建章节节点失败")
 	}
 
-	// 6. 场景圣经注入（novelcontext，POV 感知）：把本场景/本章的世界状态 +
+	// 9. 场景圣经注入（novelcontext，POV 感知）：把本场景/本章的世界状态 +
 	//    按 POV 裁剪的知识视图 + 未回收伏笔 + 时间锚点 + 文风，编译成一段紧凑
 	//    场景圣经注入生成 prompt，替代「扁平截断前文摘要」的失忆问题。
 	//    任何编译失败都静默跳过——绝不因增强失败中断生成主链路。
@@ -134,7 +191,7 @@ func (a *writingState) CreateChapter(setting, prevSummary, plotReq string, chapt
 		}
 	}
 
-	// 7. 按章节互斥（T6-7.2）：同一章节（同一 NNN.md 目标文件）并发生成直接拒绝，
+	// 10. 按章节互斥（T6-7.2）：同一章节（同一 NNN.md 目标文件）并发生成直接拒绝，
 	//    不同章节可并行。登记时创建请求级 context，供前端 CancelCreateChapter 取消，
 	//    取消经该 context 传播到 ChatStream 与流读取循环。
 	genKey := chapterGenKey(targetNum, branch)
@@ -577,10 +634,18 @@ func (a *writingState) streamCreateChapter(ctx context.Context, pm *project.Mana
 		}
 	}
 
-	// 更新节点摘要并保存
+	// 更新节点摘要并保存。
+	//
+	// 护栏（线C E2E 取证）：模型这次可能漏输出 ---CHAPTER_SUMMARY---，此时 summary 为空；
+	// 若照写会清空节点既有摘要，而写前硬闸的 outline_summary_empty（S2）随即把**同一章**
+	// 的重新生成拦下——作者看到的是「去补大纲摘要」，真实原因被掩盖。故摘要**非空才覆盖**
+	// （同款纪律见线A mergeStoryThread），空/纯空白保留原值；Status 仍推进到 done
+	// （本章正文已落盘），只有摘要不回退。
 	for i := range of.Nodes {
 		if of.Nodes[i].ID == nodeID {
-			of.Nodes[i].Summary = summary
+			if s := strings.TrimSpace(summary); s != "" {
+				of.Nodes[i].Summary = s
+			}
 			of.Nodes[i].Status = types.OutlineDone
 			break
 		}
@@ -745,6 +810,10 @@ const (
 	ctxForeshadowMaxItems = 15   // 最多注入的伏笔条数
 	ctxWorldviewDimLen    = 150  // 世界观单维度截断
 	ctxSceneBibleBudget   = 2200 // 场景圣经（POV 感知上下文）注入上限（rune）
+	// 刀1 §7.3 意图注入：章节计划 / 大纲要点两个新区段各自的上限。它们与伏笔/
+	// 文风/世界观共用一个 ctxBudgetTotal 口径（见 createChapter 的余额扣减）。
+	ctxChapterPlanBudget   = 1200 // 本章计划区段上限（rune）
+	ctxOutlinePointsBudget = 800  // 大纲要点（KeyPoints/Emotion）区段上限（rune）
 )
 
 // 角色摘要字段预算。性格截断由原 20 rune 放宽到 60，另补身份/目标/关系要点。
@@ -817,6 +886,16 @@ func truncateBudget(s string, budget int) string {
 // （分层伏笔调度 + 世界观要点）。无数据或读取失败时返回 ""，调用方不追加
 // 任何内容（prompt 中不出现空区段）。分层伏笔渲染见 foreshadow_context.go。
 func buildChapterContextSections(pm *project.Manager, currentChapter int) string {
+	return buildChapterContextSectionsWithin(pm, currentChapter, ctxBudgetTotal)
+}
+
+// buildChapterContextSectionsWithin 同 buildChapterContextSections，但预算可调：
+// 刀1 的章节计划/大纲要点区段已经从 ctxBudgetTotal 里先占额度，剩余额度经本函数
+// 传给伏笔/文风/世界观，保证「计划 + 大纲 + 增强区段」合计不超过同一个 ctxBudgetTotal。
+func buildChapterContextSectionsWithin(pm *project.Manager, currentChapter, budget int) string {
+	if budget <= 0 {
+		return "" // 额度耗尽：不追加任何区段（宁缺毋滥，不写半截截断文本）
+	}
 	sections := make([]string, 0, 3)
 	if body := buildForeshadowSection(pm, currentChapter); body != "" {
 		sections = append(sections, "## 未回收伏笔（创作约束）\n"+
@@ -828,7 +907,279 @@ func buildChapterContextSections(pm *project.Manager, currentChapter int) string
 	if body := buildWorldviewSection(pm); body != "" {
 		sections = append(sections, "## 世界观要点\n"+body)
 	}
-	return joinWithBudget(ctxBudgetTotal, sections...)
+	return joinWithBudget(budget, sections...)
+}
+
+// ── 章节计划写前硬闸与意图注入（刀1 线B，规格 §7.1-3 / §7.3）────────────
+//
+// 判据全在 novelgate（确定性、零 IO）；本段只做 IO 与组装：
+//
+//	chapters/plans.json → PlanContractIssues（六项齐备性 + 跨章关键事件去重）
+//	outline.json 节点   → OutlineContractIssues（既有写前契约，转换为 PlanProblem）
+//	                    → PlanGateReport（Blocking = 存在 S1/S2）
+//
+// planPrecheck 是硬闸的**唯一判据来源**：CreateChapter 与线C 的
+// NovelChapterGatePrecheck 走同一入口，两处结论必然一致。
+
+// readChapterPlansForGate 读全库章节计划（线A 接口 internal/project/plan_store.go:56
+// ReadChapterPlans() (*types.ChapterPlanFile, error)：缺失=空正常态 / 损坏=error 不覆盖）。
+// JSON 损坏一律返回 error——如实报错，绝不假装「没有计划」。
+func readChapterPlansForGate(pm *project.Manager) (*types.ChapterPlanFile, error) {
+	if pm == nil {
+		return nil, fmt.Errorf("项目未打开：无法读取章节计划")
+	}
+	f, err := pm.ReadChapterPlans()
+	if err != nil {
+		return nil, fmt.Errorf("读取章节计划失败：%w", err)
+	}
+	if f == nil {
+		return &types.ChapterPlanFile{Version: 1, Plans: map[string]types.ChapterPlan{}}, nil
+	}
+	if f.Plans == nil {
+		f.Plans = map[string]types.ChapterPlan{}
+	}
+	return f, nil
+}
+
+// planPrecheck 生成前预检（硬闸唯一判据来源）：计划齐备性 + 跨章去重 + 大纲节点契约。
+//
+// chapterNum 为**本章章号**（生成前口径，见 resolveTargetChapterNum）。
+// 无项目 / 计划损坏 / 大纲读失败 → 返回 error（前端据此如实提示，不假装可生成）；
+// plans.json 缺失 = 空正常态（HasPlan=false → PlanContractIssues 出 S1 阻断）。
+func (a *writingState) planPrecheck(chapterNum int) (*types.PlanGateReport, error) {
+	pm := a.getPM()
+	if pm == nil {
+		return nil, fmt.Errorf("项目未打开：无法做写前预检")
+	}
+	if chapterNum <= 0 {
+		return nil, fmt.Errorf("章号无效（%d）：无法做写前预检", chapterNum)
+	}
+	plans, err := readChapterPlansForGate(pm)
+	if err != nil {
+		return nil, err
+	}
+
+	report := &types.PlanGateReport{ChapterNum: chapterNum}
+	key := strconv.Itoa(chapterNum)
+	var plan *types.ChapterPlan
+	if plans != nil {
+		if p, ok := plans.Plans[key]; ok {
+			plan = &p
+		}
+	}
+	report.HasPlan = plan != nil
+
+	// others = 其它章节的计划（用于跨章关键事件去重）。
+	others := make([]types.ChapterPlan, 0)
+	if plans != nil {
+		for k, p := range plans.Plans {
+			if k == key {
+				continue
+			}
+			// 跨章重复要点名「第 N 章」：ChapterPlan 里只有 SubIndex 承载全局序。
+			// 计划自身没写时用 plans.json 的 key（章号）补齐，不编造、不覆盖已有值。
+			if p.SubIndex <= 0 {
+				if n, cerr := strconv.Atoi(k); cerr == nil {
+					p.SubIndex = n
+				}
+			}
+			others = append(others, p)
+		}
+	}
+	// 稳定序：SubIndex 升序——重复点名结果不随 map 遍历顺序漂移。
+	sort.Slice(others, func(i, j int) bool { return others[i].SubIndex < others[j].SubIndex })
+
+	report.PlanProblems = novelgate.PlanContractIssues(chapterNum, plan, others)
+
+	// 大纲节点契约（既有判据，行为不变）：节点存在才判——「节点不存在」是尚未进入
+	// 大纲的正常态（生成流程本身会建节点），预检不臆造缺项；节点存在则缺项照报。
+	of, oerr := pm.ReadOutlines()
+	if oerr != nil {
+		if !os.IsNotExist(oerr) {
+			return nil, fmt.Errorf("读取大纲失败：%w", oerr)
+		}
+		of = &types.OutlineFile{}
+	}
+	if of != nil {
+		if node := findOutlineNodeByNum(of.Nodes, chapterNum); node != nil {
+			for _, is := range novelgate.OutlineContractIssues(*node) {
+				code := is.Code
+				if !strings.HasPrefix(code, "outline_") {
+					code = "outline_" + code
+				}
+				report.OutlineIssues = append(report.OutlineIssues, types.PlanProblem{
+					Code: code, Severity: is.Severity, Message: is.Message, Evidence: is.Evidence,
+				})
+			}
+		}
+	}
+
+	// 阻断判定：计划问题 + 大纲问题合并；S1/S2 阻断（与 types.PlanProblem 注释一致）。
+	for _, p := range report.PlanProblems {
+		if planSeverityBlocking(p.Severity) {
+			report.Blocking = true
+		}
+	}
+	for _, p := range report.OutlineIssues {
+		if planSeverityBlocking(p.Severity) {
+			report.Blocking = true
+		}
+	}
+	report.Allowed = !report.Blocking
+	report.Missing = planMissingLabels(report)
+	return report, nil
+}
+
+// planSeverityBlocking S1/S2 视为阻断（S3/S4 仅提示）。
+func planSeverityBlocking(severity string) bool {
+	return severity == "S1" || severity == "S2"
+}
+
+// planFieldLabels 问题码 → 缺失项中文标签（前端「一键补计划」按这些词给入口）。
+// 只收「字段缺失」类码：跨章重复（plan_event_duplicated）不是缺字段，故不进 Missing，
+// 它由 PlanProblems 的消息 + planGateError 的明细直接点名。
+var planFieldLabels = map[string]string{
+	novelgate.PlanMissingCode:          "章节计划",
+	types.PlanProblemMissingGoal:       "叙事目标",
+	types.PlanProblemMissingKeyEvents:  "关键事件（≥2 条）",
+	types.PlanProblemMissingConflict:   "冲突类型",
+	types.PlanProblemMissingEnding:     "结尾类型",
+	types.PlanProblemMissingEmotion:    "情绪基调",
+	types.PlanProblemMissingCharacters: "角色焦点",
+	"outline_title_empty":              "章节标题",
+	"outline_summary_empty":            "章节摘要（谁·在哪·发生什么）",
+	"outline_keypoints_empty":          "关键要点",
+	"outline_emotion_empty":            "情感基调",
+}
+
+// planMissingLabels 汇总「缺什么」的中文标签（计划字段 + 大纲节点字段，去重、稳定序）。
+func planMissingLabels(report *types.PlanGateReport) []string {
+	if report == nil {
+		return nil
+	}
+	out := make([]string, 0, 6)
+	seen := map[string]bool{}
+	add := func(code string) {
+		label, ok := planFieldLabels[code]
+		if !ok || seen[label] {
+			return
+		}
+		seen[label] = true
+		out = append(out, label)
+	}
+	for _, p := range report.PlanProblems {
+		add(p.Code)
+	}
+	for _, p := range report.OutlineIssues {
+		add(p.Code)
+	}
+	return out
+}
+
+// planGateError 把预检报告转成可执行的中文错误：缺什么、去哪补、怎么放行。
+// 文案必须含「先补章节计划」与缺失项（前端/作者据此找到补计划的入口）。
+func planGateError(report *types.PlanGateReport) error {
+	if report == nil {
+		return fmt.Errorf("写前预检未通过：先补章节计划后再生成")
+	}
+	var details []string
+	for _, p := range report.PlanProblems {
+		if planSeverityBlocking(p.Severity) {
+			details = append(details, p.Message)
+		}
+	}
+	for _, p := range report.OutlineIssues {
+		if planSeverityBlocking(p.Severity) {
+			details = append(details, p.Message)
+		}
+	}
+	msg := fmt.Sprintf("第%d章写前预检未通过：先补章节计划", report.ChapterNum)
+	if len(report.Missing) > 0 {
+		msg += "（缺：" + strings.Join(report.Missing, "、") + "）"
+	}
+	msg += "。请到「创作页 → 章节计划」补齐本章计划（并补上大纲节点的标题/摘要），再重新生成；" +
+		"确无计划也要生成时需显式开启覆盖。"
+	if len(details) > 0 {
+		msg += "明细：" + strings.Join(details, "；")
+	}
+	return fmt.Errorf("%s", msg)
+}
+
+// findOutlineNodeByNum 按章号取主线大纲节点（分支章不参与主线意图注入；同名分支
+// 节点在 ensureChapterNode 里才会建，此处只认 Branch==""）。
+func findOutlineNodeByNum(nodes []types.OutlineNode, num int) *types.OutlineNode {
+	for i := range nodes {
+		if nodes[i].OrderIndex == num && nodes[i].Branch == "" {
+			return &nodes[i]
+		}
+	}
+	return nil
+}
+
+// trimPlanItems 去空白并丢弃空条目（渲染与判据共用同一口径）。
+func trimPlanItems(items []string) []string {
+	out := make([]string, 0, len(items))
+	for _, it := range items {
+		if s := strings.TrimSpace(it); s != "" {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
+// buildChapterPlanSection 把本章计划渲染成紧凑中文区段（§7.3 槽位 chapter_plan）：
+// 叙事目标 / 关键事件（逐条）/ 冲突类型 / 结尾类型 / 情绪基调 / 角色焦点。
+// 无计划或六项全空 → 返回 ""（模板按空跳过，不渲染空区段）。
+func buildChapterPlanSection(plan *types.ChapterPlan) string {
+	if plan == nil {
+		return ""
+	}
+	var body strings.Builder
+	if v := strings.TrimSpace(plan.NarrativeGoal); v != "" {
+		body.WriteString("叙事目标：" + v + "\n")
+	}
+	if events := trimPlanItems(plan.KeyEvents); len(events) > 0 {
+		body.WriteString("关键事件（逐条必须落地，不得遗漏或跳过）：\n")
+		for _, ev := range events {
+			body.WriteString("- " + ev + "\n")
+		}
+	}
+	if v := strings.TrimSpace(plan.ConflictType); v != "" {
+		body.WriteString("冲突类型：" + v + "\n")
+	}
+	if v := strings.TrimSpace(plan.EndingType); v != "" {
+		body.WriteString("结尾类型：" + v + "\n")
+	}
+	if v := strings.TrimSpace(plan.EmotionalTone); v != "" {
+		body.WriteString("情绪基调：" + v + "\n")
+	}
+	if focus := trimPlanItems(plan.CharacterFocus); len(focus) > 0 {
+		body.WriteString("角色焦点：" + strings.Join(focus, "、") + "\n")
+	}
+	if strings.TrimSpace(body.String()) == "" {
+		return ""
+	}
+	return truncateBudget("## 本章计划（本章的意图契约，必须完成）\n"+body.String(), ctxChapterPlanBudget)
+}
+
+// buildOutlinePointsSection 渲染大纲节点的 KeyPoints 与 Emotion（§7.3 槽位
+// outline_points——这两项此前零进入生成 prompt）。node 为 nil 或两者皆空 → 返回 ""。
+func buildOutlinePointsSection(node *types.OutlineNode) string {
+	if node == nil {
+		return ""
+	}
+	var parts []string
+	if pts := trimPlanItems(node.KeyPoints); len(pts) > 0 {
+		parts = append(parts, "必须落地的要点：\n- "+strings.Join(pts, "\n- "))
+	}
+	if v := strings.TrimSpace(node.Emotion); v != "" {
+		parts = append(parts, "情感基调："+v)
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	return truncateBudget("## 本章大纲要点（细纲口径，逐条落地）\n"+strings.Join(parts, "\n"),
+		ctxOutlinePointsBudget)
 }
 
 // buildStyleSection 书级文风档案（oh-story T6 风格档案协议对齐，上游

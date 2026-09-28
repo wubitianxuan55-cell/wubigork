@@ -219,6 +219,16 @@ export const GAEA_METHOD_FACETS = {
   // 章节分析标注（t4-C4：keyword→正文偏移，前端内联高亮数据源）。
   NovelChapterAnnotations: "play",
   NovelChapterAnalysisV2: "play",
+  // 章节生成 + 写前硬闸显式覆盖开关（v4.422 刀1：缺计划时默认拒绝生成；
+  // allowOverride=true 由作者显式承担「没有计划也照写」）。
+  CreateChapterWithOverride: "play",
+  // 章节计划闭环（v4.422 刀1：故事脊椎 + 章节计划；规格 docs/gaea-longform-novel-system-2026-09.md §7.2）。
+  // 计划=生成前的意图输入 + 写前硬闸唯一判据来源；草案由 AI 提、落盘一律经作者审批。
+  NovelChapterPlanGet: "play",
+  NovelChapterPlanSave: "play",
+  NovelChapterPlanPropose: "play",
+  NovelChapterPlanDeviation: "play",
+  NovelChapterGatePrecheck: "play",
   ClearProjectForeshadowsForReset: "play",
   DeleteChapterForeshadows: "play",
   GetForeshadowStats: "play",
