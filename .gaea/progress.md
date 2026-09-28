@@ -1,3 +1,13 @@
+## 最新发布：v4.424.0（2026-09-28）「原罪提示词批：工具教学面与注册表同步 + 反 AI 腔对齐蒸馏判据」
+
+- **刀型**：用户指令「继续优化原罪，你应该看看原罪的提示词」。提示词面只读审计（system prompt / 9 工具 description / buildSinUserPrompt 装配 / 钉文本测试），Go 2 文件，绑定面 726 零变更，前端零改动。
+- **审计结论**：①工具教学面与注册表脱节（9 工具只教 4；sin_illustrate 与标记协议二义；书源两工具零约束）；②反 AI 腔弱于 novelstyle 蒸馏判据（解释腔标记/否定翻转未点名）；③插图协议「一次」含糊+重复表述。
+- **落地**：【工具】补 5 工具纪律（点名要图=sin_illustrate、正文配图=标记、同图不双路径；书源素材化不照搬；导出明确才调+本回合未落库拿不到）；【写作规范】补解释腔五标记禁用+否定翻转偶尔一用（对齐 novelstyle patterns.json 门禁 B/G 同源判据——提示词劝阻+内核门禁同判据）；【插图协议】重写（一轮至多 2 张）。防回归闸 ×2：CoversToolRegistry（加工具忘教直接红）+AntiAIFlavorRules。
+- **测试/门禁**：Go（worktree 隔离取证，v4.422.0 同款处置——共享树被并行在制 60 脏文件打红 lint 闸）build/vet/sin 全族+全包 111s 绿；前端面本批零改动=v4.423.0 全量绿同字节；漂移闸 OK@4.424.0。
+- **产物**：exe 51,521,024 B SHA256=b65dbfb782ac21fb75566a93506558da637cec03d2175503df3acc2e07ad7e3a（worktree 内构建；SUMS-v4.424.0.txt；删 v4.419.0.exe）。
+- **坑/教训**：①提示词与工具注册表是两份独立维护的面——加工具只写 description 不进 system prompt，模型只受 description 单层约束；本批用注册表覆盖闸把同步变成硬门禁。②仓库已有蒸馏判据（novelstyle patterns.json）先于提示词层存在——新板块的反 AI 腔文本应从判据文件取材，不要自造示例。③**build.bat 硬编码 `cd /d C:\AI\wubigrok`**——在 worktree 里跑它会静默构建主树（产物新鲜度检查还先把主树旧 exe 删了），第一版产物险些带着并行在制前端出货；worktree 构建必须先改副本里的根路径。④**frontend/wailsjs 是 gitignore 的生成物**——fresh worktree 缺它，npm run build 报 TS2307；先 `wails generate module`（「Not found: time.Time」是已知噪音，exit 2 不影响生成）。⑤worktree 跑 pnpm install --frozen-lockfile 走全局 store 硬链接，15s 完成，不亏。
+- **观察池**：sin 正文接 novelstyle rewrite 链（写后去味，需拍板成人向 whitelist 语义）/真机观察解释腔出现率与工具误用率。
+
 ## 最新发布：v4.423.0（2026-09-28）「原罪板块优化批：底稿串写根修 + 流互斥收口 + 常驻面板治理」
 
 - **刀型**：用户指令「优化原罪板块」，复用 v4.421 小说批方法论（双线并行只读审计 25+24 项 + 主代理读码复核，落地 24 项、余入观察池）。前端 11 文件 + Go 10 文件（含 1 新增测试），绑定面 726 零变更，零功能删除。

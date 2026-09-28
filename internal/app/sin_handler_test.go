@@ -224,3 +224,27 @@ func TestSinSystemPromptHasHardBoundaries(t *testing.T) {
 		}
 	}
 }
+
+// TestSinSystemPromptCoversToolRegistry 工具清单同步闸（v4.424）：注册表
+// sinToolOrder 里的每个工具都必须在系统提示词里点名——模型拿到的 schema
+// 集合与提示词教学面不一致时，未教过的工具只剩自身 description 一层约束
+// （v4.423 前的实际状态：9 个工具只教了 4 个）。新增工具必须同步【工具】节。
+func TestSinSystemPromptCoversToolRegistry(t *testing.T) {
+	p := sinSystemPrompt()
+	for _, name := range sinToolOrder {
+		if !strings.Contains(p, name) {
+			t.Errorf("系统提示词未覆盖注册表工具 %q（新增工具须在【工具】节补使用纪律）", name)
+		}
+	}
+}
+
+// TestSinSystemPromptAntiAIFlavorRules 反 AI 腔规则锚（v4.424，对齐 novelstyle
+// 蒸馏判据）：解释腔标记与否定翻转句式必须在提示词里点名劝阻。
+func TestSinSystemPromptAntiAIFlavorRules(t *testing.T) {
+	p := sinSystemPrompt()
+	for _, want := range []string{"解释腔", "她不知道的是", "殊不知", "否定翻转"} {
+		if !strings.Contains(p, want) {
+			t.Errorf("系统提示词缺少反 AI 腔判据 %q", want)
+		}
+	}
+}
