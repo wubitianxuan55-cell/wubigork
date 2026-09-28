@@ -48,6 +48,11 @@ func whitelisted(hit string, entries []string) bool {
 
 // ApplyWhitelist 打分豁免：摘除命中白名单的 issue，并按剩余 issue 重算分数
 // （与 ScoreText 同一权重合成口径）。返回新分数；issues 原地过滤。
+//
+// 整篇 span（Start=0 且 End=全文 rune 数）**不参与豁免**（G7）：句长均匀 /
+// 形副密度 / 标点滥用这类 issue 的判据是全篇统计量，span 覆盖全文只是「整篇」
+// 的表示。若把它交给互含判定，白名单里任一句文案出现在正文中就会把整项全篇
+// 扣分整体摘除——作者授权一句，代价是关掉一整条门禁。定位型 span 照旧豁免。
 func ApplyWhitelist(score *TasteScore, text string, entries []string) int {
 	if score == nil {
 		return 0
@@ -59,7 +64,8 @@ func ApplyWhitelist(score *TasteScore, text string, entries []string) int {
 	kept := score.Issues[:0:0]
 	for _, iss := range score.Issues {
 		if iss.Start >= 0 && iss.End <= len(runes) && iss.Start < iss.End {
-			if whitelisted(string(runes[iss.Start:iss.End]), entries) {
+			wholeText := iss.Start == 0 && iss.End == len(runes)
+			if !wholeText && whitelisted(string(runes[iss.Start:iss.End]), entries) {
 				continue
 			}
 		}

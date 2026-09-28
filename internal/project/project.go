@@ -307,8 +307,16 @@ func (m *Manager) ChapterBranchSummaryPath(num int, branch string) string {
 	return filepath.Join(m.Dir, "chapters", fmt.Sprintf("%03d%s-summary.json", num, branch))
 }
 
-// ReadAllChapterSummaries 一次扫描读取所有章节摘要（替代逐个文件探测）
-func (m *Manager) ReadAllChapterSummaries() ([]types.ChapterSummary, error) {
+// chapterSummaryWithFile 一次扫描得到的一条章摘要及其来源文件名。
+type chapterSummaryWithFile struct {
+	File    string // chapters/ 下的摘要文件名（章号由此解析）
+	Summary types.ChapterSummary
+}
+
+// readChapterSummariesWithFiles 扫描 chapters/ 取全部章摘要及其文件名，按文件名
+// 升序（零填充数字 = 章号升序；分支章的字母后缀排在数字之后）。单个文件读失败
+// 或 JSON 损坏跳过不中断（摘要缺失是增强面，不因脏档丢掉全库）。
+func (m *Manager) readChapterSummariesWithFiles() ([]chapterSummaryWithFile, error) {
 	entries, err := os.ReadDir(filepath.Join(m.Dir, "chapters"))
 	if err != nil {
 		return nil, err
@@ -323,7 +331,7 @@ func (m *Manager) ReadAllChapterSummaries() ([]types.ChapterSummary, error) {
 	}
 	sort.Strings(names)
 
-	summaries := make([]types.ChapterSummary, 0, len(names))
+	out := make([]chapterSummaryWithFile, 0, len(names))
 	for _, name := range names {
 		data, err := os.ReadFile(filepath.Join(m.Dir, "chapters", name))
 		if err != nil {
@@ -331,10 +339,172 @@ func (m *Manager) ReadAllChapterSummaries() ([]types.ChapterSummary, error) {
 		}
 		var s types.ChapterSummary
 		if json.Unmarshal(data, &s) == nil {
-			summaries = append(summaries, s)
+			out = append(out, chapterSummaryWithFile{File: name, Summary: s})
 		}
 	}
+	return out, nil
+}
+
+// ReadAllChapterSummaries 一次扫描读取所有章节摘要（替代逐个文件探测）。
+// 只返回摘要本身；需要按章号过滤的调用方走 ReadLatestChapterSummaryBefore。
+func (m *Manager) ReadAllChapterSummaries() ([]types.ChapterSummary, error) {
+	items, err := m.readChapterSummariesWithFiles()
+	if err != nil {
+		return nil, err
+	}
+	summaries := make([]types.ChapterSummary, 0, len(items))
+	for _, it := range items {
+		summaries = append(summaries, it.Summary)
+	}
 	return summaries, nil
+}
+
+// ReadLatestChapterSummaryBefore 取章号严格小于 chapterNum 的最近一章摘要；
+// 没有合格摘要（含 chapterNum<=1 的第一章）返回 (nil, nil)。
+//
+// 章号取自**文件名**（chapters/NNN-summary.json / NNN{a,b,c}-summary.json 的前导
+// 数字）：ChapterSummary 本身没有章号字段，而按文件名升序读出来的「最后一个」
+// 是全书最后一章——生成第 1 章时若拿它当「上一章」，prompt 里会塞进全书结局
+// （G5）。故这里显式解析文件名过滤，不用「取最后一个」的兜底。
+// chapters/ 目录缺失视为「无摘要」（新项目正常态），不报错。
+func (m *Manager) ReadLatestChapterSummaryBefore(chapterNum int) (*types.ChapterSummary, error) {
+	if chapterNum <= 1 {
+		return nil, nil
+	}
+	items, err := m.readChapterSummariesWithFiles()
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	// 文件名升序 = 章号升序，正向扫描时「最后一个合格者」即最近一章。
+	// 只认主线摘要（NNN-summary.json）：分支摘要 NNN{a,b,c}-summary.json 与主线
+	// 同章号却排在后面，收进来会把分支剧情当成主线的「上一章」（N5 的放大器）。
+	var best *types.ChapterSummary
+	for i := range items {
+		cn := mainChapterSummaryNum(items[i].File)
+		if cn > 0 && cn < chapterNum {
+			best = &items[i].Summary
+		}
+	}
+	return best, nil
+}
+
+// mainChapterSummaryNum 解析主线章摘要文件名（"006-summary.json" → 6）；
+// 分支摘要（"006a-summary.json"）与其它形状一律返回 0（不参与主线口径）。
+func mainChapterSummaryNum(name string) int {
+	const suffix = "-summary.json"
+	if !strings.HasSuffix(name, suffix) {
+		return 0
+	}
+	num := strings.TrimSuffix(name, suffix)
+	if num == "" {
+		return 0
+	}
+	for _, r := range num {
+		if r < '0' || r > '9' {
+			return 0
+		}
+	}
+	return leadDigits(num)
+}
+
+// MaxChapterBodyNum 扫描 chapters/ 目录，返回**磁盘上已有正文**的最大章号；
+// 一个正稿都没有时返回 0。
+//
+// 「已有正文」= 主线正稿 chapters/NNN.md 非空，或 v4 场景制下该章已有承载非空
+// 正文的场景（只有场景、没有 blob 的章同样算占用）。分支章 NNNa.md 不计入
+// 主线章号口径。目录缺失 = 0（新项目正常态）。
+//
+// 供补下等「续编章号」场景做磁盘侧基准（G2）：只按大纲 OrderIndex 续编会在
+// 大纲被「续写」重排后撞上已有正稿。
+func (m *Manager) MaxChapterBodyNum() (int, error) {
+	return m.maxChapterNumMatching(m.chapterHasBodyContent)
+}
+
+// MaxChapterNum 扫描 chapters/ 目录，返回任意章文件（NNN.md / NNNa.md，含空文件）
+// 的最大前导章号；无文件返回 0。目录缺失 = 0（新项目正常态）。
+func (m *Manager) MaxChapterNum() (int, error) {
+	return m.maxChapterNumMatching(func(int) bool { return true })
+}
+
+// maxChapterNumMatching 扫描 chapters/，返回满足 keep 的最大章号。章号有两个来源：
+//   - 章文件 NNN[字母].md 的前导章号；
+//   - v4 场景制章目录 chapters/NNN/（只有场景、没有 blob 的章同样占用章号——
+//     只看 .md 会让「场景承载正文的章」在补下基准里消失，G2 又回到撞车）。
+//
+// 目录缺失视为空集（新项目正常态），不报错。
+func (m *Manager) maxChapterNumMatching(keep func(num int) bool) (int, error) {
+	entries, err := os.ReadDir(filepath.Join(m.Dir, "chapters"))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return 0, nil
+		}
+		return 0, err
+	}
+	maxNum := 0
+	consider := func(num int) {
+		if num <= 0 || num <= maxNum || !keep(num) {
+			return
+		}
+		maxNum = num
+	}
+	for _, e := range entries {
+		name := e.Name()
+		if e.IsDir() {
+			// 纯数字目录名 = 主线章目录（场景制，%03d）；「001a」这类分支目录不算主线章号。
+			num := leadDigits(name)
+			if num <= 0 || fmt.Sprintf("%03d", num) != name {
+				continue
+			}
+			if m.chapterHasBodyContent(num) {
+				consider(num)
+			}
+			continue
+		}
+		if !strings.HasSuffix(name, ".md") {
+			continue
+		}
+		consider(leadDigits(name))
+	}
+	return maxNum, nil
+}
+
+// chapterHasBodyContent 该章是否已有非空正文（主线 blob 或 v4 场景承载）。
+func (m *Manager) chapterHasBodyContent(num int) bool {
+	if blob, err := m.ReadChapter(num); err == nil && strings.TrimSpace(blob) != "" {
+		return true
+	}
+	sm := m.SceneManager(num)
+	metas, err := sm.List()
+	if err != nil {
+		return false
+	}
+	for _, meta := range metas {
+		if sc, rerr := sm.Read(meta.ID); rerr == nil && strings.TrimSpace(sc.Content) != "" {
+			return true
+		}
+	}
+	return false
+}
+
+// leadDigits 取字符串前导十进制数字；没有前导数字返回 0
+// （"006-summary.json" → 6，"006a-summary.json" → 6）。
+func leadDigits(s string) int {
+	n, started := 0, false
+	for _, r := range s {
+		if r >= '0' && r <= '9' {
+			n = n*10 + int(r-'0')
+			started = true
+			continue
+		}
+		if started {
+			break
+		}
+		return 0
+	}
+	return n
 }
 
 // ── Lorebook ──────────────────────────────────────────────

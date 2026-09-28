@@ -22,8 +22,8 @@ import (
 
 // ── 预算常量 ────────────────────────────────────────────────
 //
-// 各区段单独截断用的小预算，合计有意控制在 DefaultMaxRunes 之下，
-// 再由 Render 做一次全局兜底截断，保证输出字符数绝不超过调用方给定的 maxRunes。
+// 各区段单独截断用的小预算，再由 Render 按调用方给的 maxRunes 做一次全局
+// 配账（Render 注释里有配账规则），保证输出字符数绝不超过调用方给定的 maxRunes。
 const (
 	// DefaultMaxRunes Render 在未显式传预算时使用的默认总预算（约 2000 rune）。
 	DefaultMaxRunes = 2000
@@ -44,6 +44,12 @@ const (
 	characterLineMax  = 140 // 单条出场角色行截断
 	charItemsMax      = 4   // 每个角色最多渲染的持有物数量
 	charKnownByMax    = 4   // 每个角色最多渲染的知晓者数量
+
+	// tailReserveRatio 尾部脊椎段（文风 / 故事主线）在总预算里的保底占比。
+	// 这两段是 callers 明确要求「必须在场」的内容（v4.422 建的脊椎），
+	// 故预算再紧也只按比例压缩它们，绝不整段丢弃（G4）。
+	tailReserveRatioNum = 2
+	tailReserveRatioDen = 5
 )
 
 // SceneBible 一场景的「场景圣经」——按 POV 裁剪后的紧凑上下文。
@@ -121,42 +127,96 @@ func BuildSceneBibleFromChapter(pm *project.Manager, chapterNum int) (*SceneBibl
 }
 
 // Render 把场景圣经渲染成一段可直接注入 prompt 的 markdown 文本。
-// 任何区段为空时都不输出其标题（绝不出现空区段标题）。整体字数用 util.Truncate
-// 兜底截断至 maxRunes（省略号预算已扣除），保证 len(返回) ≤ maxRunes。
+// 任何区段为空时都不输出其标题（绝不出现空区段标题）。
+//
+// 预算是**配账**而不是尾部截断（G4）：旧实现先把所有区段无上限拼起来，再对
+// 整段做一次尾部 util.Truncate——而文风 / 故事主线排在末尾，一旦前面的
+// HiddenFacts / 伏笔 / 角色块超量，被砍掉的正是这两段脊椎。现在的规则：
+//  1. 先给尾部脊椎段（文风 / 故事主线）预留 maxRunes 的 tailReserveRatio 额度，
+//     它们各自仍受 styleBudget / threadBudget 约束，且这两段排在产物最前、
+//     额度先扣，永不被其余区段顶掉；
+//  2. 其余区段按各自的既有常量（charBudget / hiddenBudget / foreshadowBudget /
+//     memoryBudget / povViewBudget / settingBudget / sceneBudget / timeAnchorBudget）
+//     截断，并在剩余额度内累加；额度耗尽时后续区段整体不输出（宁缺毋滥，不给
+//     半截截断文本）；
+//  3. 仍保留一次总长兜底截断（口径校准用），此时尾部脊椎段在最前，兜底也不会
+//     砍到它们。
 func (b *SceneBible) Render(maxRunes int) string {
 	if maxRunes <= 0 {
 		maxRunes = DefaultMaxRunes
 	}
 
+	// 尾部脊椎段的预留额度：先按 styleBudget/threadBudget 限长，再把两段的**整段
+	// 渲染成本**（含标题与空行——那是不会随正文缩短的固定开销）从总预算里扣掉。
+	// 旧实现只按正文字数扣，标题开销会把脊椎段挤出预算，于是它照样被丢弃。
+	reserve := maxRunes * tailReserveRatioNum / tailReserveRatioDen
+	style := clipToRunes(strings.TrimSpace(b.Style), styleBudget, reserve)
+	thread := clipToRunes(strings.TrimSpace(b.Thread), threadBudget, reserve)
+	// 两段都非空时对半分，否则一段会把另一段挤出预留额度。
+	if style != "" && thread != "" {
+		half := reserve / 2
+		style = clipToRunes(style, styleBudget, half)
+		thread = clipToRunes(thread, threadBudget, half)
+	}
+	reservedCost := 0
+	if style != "" {
+		reservedCost += sectionCost("文风", style)
+	}
+	if thread != "" {
+		reservedCost += sectionCost("故事主线", thread)
+	}
+	// 预留段永不被后面的区段顶掉（G4 的核心保证）：它们排在最前、额度先扣，
+	// 剩余额度不足时其余区段一律跳过——只会丢非脊椎段。
+	left := maxRunes - reservedCost
+	if left < 0 {
+		left = 0
+	}
+
 	var sb strings.Builder
-	addSection := func(title, body string) {
+	if style != "" {
+		sb.WriteString("## 文风\n\n" + style + "\n\n")
+	}
+	if thread != "" {
+		sb.WriteString("## 故事主线\n\n" + thread + "\n\n")
+	}
+	add := func(title, body string, budget int) {
 		body = strings.TrimSpace(body)
+		if body == "" || left <= 0 {
+			return
+		}
+		body = clipToRunes(body, budget, left)
 		if body == "" {
 			return
 		}
+		cost := sectionCost(title, body)
+		if cost > left {
+			return
+		}
 		sb.WriteString("## " + title + "\n\n" + body + "\n\n")
+		left -= cost
 	}
 
-	addSection("世界观要点", b.Setting)
-	addSection("本场景", formatScene(b.Scene))
+	add("世界观要点", b.Setting, settingBudget)
+	add("本场景", formatScene(b.Scene), sceneBudget)
 
 	if len(b.Characters) > 0 {
 		var lines []string
 		for _, c := range b.Characters {
 			lines = append(lines, formatSceneChar(c))
 		}
-		addSection("出场角色", strings.Join(lines, "\n"))
+		add("出场角色", strings.Join(lines, "\n"), charBudget)
 	}
 
-	addSection("POV 已知事实", b.POVView)
+	add("POV 已知事实", b.POVView, povViewBudget)
 
 	if len(b.HiddenFacts) > 0 {
 		// 这是给生成过程 / 一致性闸门的硬约束：当前 POV 不知情，绝不能写进正文。
-		addSection("生成约束 · 当前 POV 不知情（不得泄露）", strings.Join(b.HiddenFacts, "\n"))
+		// 旧实现直接 join 不加限，事实条数一多就把后面区段全部挤出预算（G4）。
+		add("生成约束 · 当前 POV 不知情（不得泄露）", strings.Join(b.HiddenFacts, "\n"), hiddenBudget)
 	}
 
 	if len(b.Foreshadows) > 0 {
-		addSection("未回收伏笔（分层约束）", strings.Join(b.Foreshadows, "\n"))
+		add("未回收伏笔（分层约束）", strings.Join(b.Foreshadows, "\n"), foreshadowBudget)
 	}
 
 	if len(b.Memories) > 0 {
@@ -167,14 +227,15 @@ func (b *SceneBible) Render(maxRunes int) string {
 				memLines = append(memLines, util.Truncate(m, memoryLineMax))
 			}
 		}
-		addSection("相关记忆（按相关度）", util.Truncate(strings.Join(memLines, "\n"), memoryBudget))
+		add("相关记忆（按相关度）", util.Truncate(strings.Join(memLines, "\n"), memoryBudget), memoryBudget)
 	}
 
-	addSection("时间锚点", b.TimeAnchor)
-	addSection("文风", b.Style)
-	addSection("故事主线", b.Thread)
+	add("时间锚点", b.TimeAnchor, timeAnchorBudget)
 
 	rendered := sb.String()
+	// 兜底：上面的配账已保证不超，但 clipToRunes 把省略号算进正文、sectionCost
+	// 按整段（标题+空行）计，两者口径略有出入，留一道最终校验。此时尾部脊椎段
+	// 排在最前，兜底截断不会砍到它们。
 	if runeLen := len([]rune(rendered)); runeLen > maxRunes {
 		// util.Truncate 会追加 "..."，这里把预算提前扣掉省略号长度，
 		// 从而保证最终长度不超过 maxRunes。
@@ -185,6 +246,27 @@ func (b *SceneBible) Render(maxRunes int) string {
 		rendered = util.Truncate(rendered, budget)
 	}
 	return rendered
+}
+
+// sectionCost 一段区段渲染后的实际 rune 开销（标题 + 空行）。
+func sectionCost(title, body string) int {
+	return len([]rune("## " + title + "\n\n" + body + "\n\n"))
+}
+
+// clipToRunes 把 s 截断到 min(budget, room) 个 rune（省略号计入预算）。
+// 返回 "" 表示额度不足 3 rune，调用方应整体跳过该区段。
+func clipToRunes(s string, budget, room int) string {
+	limit := budget
+	if room < limit {
+		limit = room
+	}
+	if limit < 3 {
+		return ""
+	}
+	if len([]rune(s)) <= limit {
+		return s
+	}
+	return util.Truncate(s, limit-3)
 }
 
 // ── 世界观 / 风格 / 主线 / 伏笔 ────────────────────────────
@@ -921,24 +1003,21 @@ func sortedKeys(m map[string]string) []string {
 	return keys
 }
 
-// readPrevSummary 读取上一章摘要：优先 chapterNum-1，退化为任何小于本章的最近摘要。
+// readPrevSummary 读取「上一章」摘要：只认章号**严格小于** chapterNum 的最近一章。
+//
+// 按章号过滤在 project 侧完成（文件名解析，见 ReadLatestChapterSummaryBefore）：
+// 旧兜底遍历所有摘要取「最后一个有 Title 的」，而摘要文件按文件名升序返回、
+// 末尾是全书最后一章——重生成第 1 章时会把全书结局当成「上一章」注入 prompt
+// （G5）。找不到更早的摘要（含第 1 章）如实返回 nil，不拿后面的章充数。
 func readPrevSummary(pm *project.Manager, chapterNum int) *types.ChapterSummary {
-	if chapterNum > 1 {
-		if s, err := pm.ReadChapterSummary(chapterNum - 1); err == nil && s != nil {
-			return s
-		}
-	}
-	all, err := pm.ReadAllChapterSummaries()
-	if err != nil {
+	if pm == nil || chapterNum <= 1 {
 		return nil
 	}
-	var best *types.ChapterSummary
-	for i := range all {
-		if s := &all[i]; s != nil && s.Title != "" {
-			best = s // ReadAllChapterSummaries 已是章节序，取最后一个即最近已写章
-		}
+	s, err := pm.ReadLatestChapterSummaryBefore(chapterNum)
+	if err != nil || s == nil || strings.TrimSpace(s.Title) == "" {
+		return nil
 	}
-	return best
+	return s
 }
 
 // containsFold 是否包含子串（忽略大小写）。

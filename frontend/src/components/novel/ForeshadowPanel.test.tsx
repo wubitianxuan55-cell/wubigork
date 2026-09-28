@@ -199,15 +199,19 @@ describe('ForeshadowPanel 手工登记闭环', () => {
     await screen.findByText('主角左臂旧伤')
 
     const flowBtns = screen.getAllByRole('button', { name: '标记暗示' })
-    fireEvent.click(flowBtns[0])
+    fireEvent.click(flowBtns[1])
     // 第一次写已发出（挂起中）
     await waitFor(() => expect(vi.mocked(app.SaveForeshadows)).toHaveBeenCalledTimes(1))
-    fireEvent.click(flowBtns[1])
-    await new Promise((r) => setTimeout(r, 0))
-    // 第二次写必须排队（此前会并发发出两份基于同一旧快照的整表写）
-    expect(vi.mocked(app.SaveForeshadows)).toHaveBeenCalledTimes(1)
+
+    // M4 反向守卫：整表写回在途时行内写回按钮必须禁用（此前 savingWrite 只用于文案，
+    // 用户可继续改动造成语义混乱）。
+    const busyBtn = screen.getAllByRole('button', { name: '标记暗示' })[0] as HTMLButtonElement
+    expect(busyBtn.disabled).toBe(true)
 
     act(() => { release() })
+    // 在途结束 → 按钮恢复可用，此时再点第二次（与用户真实操作时序一致）
+    await waitFor(() => expect((screen.getAllByRole('button', { name: '标记暗示' })[0] as HTMLButtonElement).disabled).toBe(false))
+    fireEvent.click(screen.getAllByRole('button', { name: '标记暗示' })[0])
     await waitFor(() => expect(vi.mocked(app.SaveForeshadows)).toHaveBeenCalledTimes(2))
     const second = JSON.parse(vi.mocked(app.SaveForeshadows).mock.calls[1][0] as string) as ForeshadowItemData[]
     expect(second.filter((i) => i.status === 'hinted').length).toBe(2)
@@ -295,6 +299,19 @@ describe('ForeshadowPanel 一致性体检', () => {
     fireEvent.click(screen.getByRole('button', { name: /一致性体检/ }))
 
     expect(await screen.findByText('未发现一致性问题')).toBeTruthy()
+  })
+
+  // v4.425 B4 反向守卫：lintReport 是唯一不被 load 换掉的派生态，切书必须清空。
+  it('切书清掉体检报告（不把上一本的体检结论留在新书上）', async () => {
+    render(<ForeshadowPanel />)
+    await screen.findByText(/还没有伏笔登记/)
+    fireEvent.click(screen.getByRole('button', { name: /一致性体检/ }))
+    expect(await screen.findByText(/全书 12 章 · 登记 5 条/)).toBeTruthy()
+
+    act(() => { useAppStore.setState({ projectPath: 'C:/novel/another' }) })
+
+    await waitFor(() => expect(screen.queryByText(/全书 12 章 · 登记 5 条/)).toBeNull())
+    expect(screen.queryByText('重')).toBeNull()
   })
 })
 

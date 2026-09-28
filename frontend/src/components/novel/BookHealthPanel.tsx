@@ -9,6 +9,7 @@ import { softTextStyle } from '../../utils/uiStyles'
 import React, { useCallback, useEffect, useState } from 'react'
 import { Alert, Button, Empty, Modal, Spin, Table, Tag, Typography, message } from 'antd'
 import { app } from '../../gaea/lib/bridge'
+import { useAppStore } from '../../stores/appStore'
 import type { BookHealthReportView, ChapterAnalysisV2View } from '../../gaea/lib/bridge/novel'
 
 
@@ -56,19 +57,28 @@ export default function BookHealthPanel({ open, onClose }: {
 }) {
   const [loading, setLoading] = useState(false)
   const [report, setReport] = useState<BookHealthReportView | null>(null)
+  // v4.425：失败与「确实没有结果」必须分开——此前 catch 里 setReport(null)，弹窗只剩
+  // Empty「没有体检结果」，把一次失败说成「无数据」且没有任何重试入口（B10）。
+  const [error, setError] = useState('')
   const [curveLoading, setCurveLoading] = useState(false)
   const [curve, setCurve] = useState<CurvePoint[] | null>(null)
   const [curveSkipped, setCurveSkipped] = useState(0)
+  // 弹窗由 CreatePage 控制开关、面板常驻挂载：报告属该书的数据，切书必须失效，
+  // 否则整屏显示的是上一本的体检结论（弹窗若开着更明显）。
+  const projectPath = useAppStore((s) => s.projectPath)
 
   const run = useCallback(async () => {
     setLoading(true)
+    setError('')
     setCurve(null) // 重跑体检后曲线失效（章数可能变化），需重新生成
     setCurveSkipped(0)
     try {
       setReport(await app.RunBookHealthCheck())
     } catch (e) {
-      message.error(`全书体检失败：${e instanceof Error ? e.message : String(e)}`)
+      const msg = e instanceof Error ? e.message : String(e)
+      message.error(`全书体检失败：${msg}`)
       setReport(null)
+      setError(msg)
     } finally {
       setLoading(false)
     }
@@ -77,6 +87,15 @@ export default function BookHealthPanel({ open, onClose }: {
   useEffect(() => {
     if (open) void run()
   }, [open, run])
+
+  // 切书即清报告态（含曲线与失败原因）：不额外发请求，重新打开弹窗时 effect 自然重拉。
+  useEffect(() => {
+    setReport(null)
+    setError('')
+    setCurve(null)
+    setCurveSkipped(0)
+    setLoading(false)
+  }, [projectPath])
 
   // 情感曲线：逐章读分析 V2（缺档/无情感弧线跳过并计数；后端缺档只报
   // 「尚未分析」，不触发重建，循环安全）。体检触发式口径一致：按钮按需生成。
@@ -118,6 +137,14 @@ export default function BookHealthPanel({ open, onClose }: {
       ]}>
       {loading ? (
         <div style={{ padding: '48px 0', textAlign: 'center' }}><Spin /><div style={{ ...softTextStyle, marginTop: 8 }}>全量编译中（逐章写前契约 / 写后质量 / AI 味 / 伏笔登记）…</div></div>
+      ) : error ? (
+        <Alert
+          type="error" showIcon data-testid="book-health-error"
+          message="全书体检失败"
+          description={error}
+          action={<Button size="small" danger onClick={() => void run()}>重试</Button>}
+          style={{ margin: '24px 0' }}
+        />
       ) : !report ? (
         <Empty description="没有体检结果" style={{ padding: '32px 0' }} />
       ) : (

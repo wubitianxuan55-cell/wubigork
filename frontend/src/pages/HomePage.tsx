@@ -16,6 +16,7 @@ import ProjectCardItem from '../components/ProjectCardItem'
 import V3Empty from '../components/V3Empty'
 import { readReadingProgress } from '../utils/readingProgress'
 import { formatImportSuccess, formatImportWarnings } from '../utils/novelImportReport'
+import { guardNovelSwitch } from '../components/novel/novelSwitchGuard'
 
 type SortKey = 'recent' | 'words' | 'chapters' | 'title'
 
@@ -110,20 +111,24 @@ const HomePage: React.FC<HomePageProps> = ({ active = true }) => {
 
   const handleCreate = async () => {
     if (!newTitle.trim()) return
-    try {
-      const dir = `${novelsDir}\\${newTitle.replace(/[/\\:*?"<>|]/g, '_')}`
-      const genreStr = newGenre.join('、') || '未分类'
-      const styleStr = newStyle.join('、') || '默认'
-
-      await wailsApp().CreateProject(dir, newTitle, genreStr, styleStr)
-
-      openProject(dir, newTitle)
-      await loadProjects()
-      setNewModal(false)
-      resetForm()
-    } catch (err: unknown) {
-      message.error(err instanceof Error ? err.message : '创建失败')
+    const dir = `${novelsDir}\\${newTitle.replace(/[/\\:*?"<>|]/g, '_')}`
+    const apply = async () => {
+      try {
+        const genreStr = newGenre.join('、') || '未分类'
+        const styleStr = newStyle.join('、') || '默认'
+        await wailsApp().CreateProject(dir, newTitle, genreStr, styleStr)
+        openProject(dir, newTitle)
+        await loadProjects()
+        setNewModal(false)
+        resetForm()
+      } catch (err: unknown) {
+        message.error(err instanceof Error ? err.message : '创建失败')
+      }
     }
+    // 跨页切书闸门（novelSwitchGuard）：当前打开的书若还有未保存正文/未保存阅读
+    // 标签，先让作者选择「先保存 / 放弃修改 / 取消」——新建会切走当前项目。
+    if (guardNovelSwitch(() => { void apply() }, newTitle)) return
+    await apply()
   }
 
   // ── 导入成品小说 ──
@@ -143,6 +148,14 @@ const HomePage: React.FC<HomePageProps> = ({ active = true }) => {
   }
 
   const handleImport = async () => {
+    if (!importFile || !importTitle.trim() || importing) return
+    // 跨页切书闸门放在**导入开始前**（导入可能跑几分钟，且导入完成即切走当前项目）：
+    // 让作者在等待前就决定「先保存 / 放弃修改 / 取消」。
+    if (guardNovelSwitch(() => { void runImport() }, importTitle.trim())) return
+    await runImport()
+  }
+
+  const runImport = async () => {
     if (!importFile || !importTitle.trim() || importing) return
     setImporting(true)
     try {
@@ -187,11 +200,16 @@ const HomePage: React.FC<HomePageProps> = ({ active = true }) => {
   // ── 在线搜书导入完成：与文件导入同款落书架 + 报告直显（t2）。
   // 不在此关 Modal：全部成功由 Modal 自关，带失败章时留失败面板可重试（t3）。
   const handleOnlineImported = async (res: Parameters<typeof formatImportSuccess>[0]) => {
-    openProject(res.path, res.title)
-    await loadProjects()
-    message.success(formatImportSuccess(res))
-    const warnText = formatImportWarnings(res)
-    if (warnText) message.warning(warnText)
+    const apply = async () => {
+      openProject(res.path, res.title)
+      await loadProjects()
+      message.success(formatImportSuccess(res))
+      const warnText = formatImportWarnings(res)
+      if (warnText) message.warning(warnText)
+    }
+    // 跨页切书闸门：在线导入完成即切走当前项目，同样可能丢未保存内容。
+    if (guardNovelSwitch(() => { void apply() }, res.title)) return
+    await apply()
   }
 
   // ── 失败章补下完成（t3）：刷新书架 + 增量提示 ──
@@ -212,21 +230,35 @@ const HomePage: React.FC<HomePageProps> = ({ active = true }) => {
       }
       return
     }
-    try {
-      await wailsApp().OpenProject(card.path)
-      openProject(card.path, card.title)
-      if (goRead) {
-        window.dispatchEvent(new CustomEvent('novel:goto-tab', { detail: { tab: 'chapter' } }))
+    const apply = async () => {
+      try {
+        await wailsApp().OpenProject(card.path)
+        openProject(card.path, card.title)
+        if (goRead) {
+          window.dispatchEvent(new CustomEvent('novel:goto-tab', { detail: { tab: 'chapter' } }))
+        }
+      } catch (err: unknown) {
+        message.error(err instanceof Error ? err.message : '打开失败')
       }
-    } catch (err: unknown) {
-      message.error(err instanceof Error ? err.message : '打开失败')
     }
+    // 跨页切书闸门（放在后端 OpenProject 之前）：这是**唯一会丢作者正文**的一类动作，
+    // 此前切完只给一句事后 warning（创作页）/连提示都没有（阅读页多标签静默清空）。
+    if (guardNovelSwitch(() => { void apply() }, card.title)) return
+    await apply()
   }
 
   // ── 删除项目 ──
   const handleDelete = async (card: ProjectCard) => {
     try {
       await deleteProject(card.path)
+      // 删掉「正在编辑」的那本书时后端已 closePM，但 store 的 projectOpen/projectPath/
+      // projectTitle 会原样留着 → 顶栏与「正在编辑」继续挂着已不存在的书，其余子页
+      // 随后的任何保存都报「请先打开项目」。这里如实关闭项目上下文（v4.425）。
+      if (card.path === projectPath) {
+        useAppStore.getState().closeProject()
+        message.success(`已删除「${card.title}」，并关闭了正在编辑的这本书`)
+        return
+      }
       message.success(`已删除「${card.title}」`)
     } catch (err: unknown) {
       message.error(err instanceof Error ? err.message : '删除失败')
@@ -457,6 +489,10 @@ const HomePage: React.FC<HomePageProps> = ({ active = true }) => {
         onClose={() => setBookSearchModal(false)}
         onImported={(res) => void handleOnlineImported(res)}
         onAppended={(res) => void handleChaptersAppended(res)}
+        // B9（v4.425）：搜书「进度事件失落」兜底对账命中书架时，正常 done 分支是不会跑的，
+        // 面板只报了成功却没走 onImported → 书架的 projects 不刷新，用户回书架看不到新书。
+        // 这里只重拉书架清单（不 openProject：兜底路径拿不到可靠的项目路径/标题）。
+        onShelfReconciled={() => { void loadProjects() }}
       />
     </div>
   )

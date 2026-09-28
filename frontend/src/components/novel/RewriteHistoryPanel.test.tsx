@@ -111,4 +111,27 @@ describe('RewriteHistoryPanel 重写版本历史（t4-C3 余项）', () => {
     await waitFor(() => expect(onApplied).toHaveBeenCalledTimes(1))
     await waitFor(() => expect(app.NovelListRewriteVersions).toHaveBeenCalledTimes(2))
   })
+
+  it('详情拉取失败：行内渲染错误与重试（不再永久转圈），重试成功即恢复详情', async () => {
+    vi.mocked(app.NovelListRewriteVersions).mockResolvedValue([mkRow('v2', 'whole', 'completed')] as never)
+    vi.mocked(app.NovelGetRewriteVersion)
+      .mockRejectedValueOnce(new Error('版本文件已损坏') as never)
+      .mockResolvedValue({
+        originalWordCount: 3000, newWordCount: 2880, originalContent: '原文。', newContent: '新文。',
+      } as never)
+    render(<RewriteHistoryPanel open chapterNum={2} onClose={onClose} />)
+    await waitFor(() => expect(screen.getAllByTestId('rewrite-history-row')).toHaveLength(1))
+
+    fireEvent.click(screen.getByText('详情'))
+    // B11 反向守卫：失败必须有可见错误 + 重试入口，而不是永远转圈
+    const err = await screen.findByTestId('rewrite-history-detail-error')
+    expect(err.textContent).toContain('版本文件已损坏')
+    expect(err.textContent).toContain('版本详情加载失败')
+
+    fireEvent.click(screen.getByTestId('rewrite-history-detail-retry'))
+    await waitFor(() => expect(screen.getByTestId('rewrite-history-metrics')).toBeTruthy())
+    expect(screen.queryByTestId('rewrite-history-detail-error')).toBeNull()
+    expect(screen.getByTestId('rewrite-history-new').textContent).toContain('新文。')
+    expect(app.NovelGetRewriteVersion).toHaveBeenCalledTimes(2)
+  })
 })

@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 	"unicode/utf8"
 
@@ -170,8 +171,13 @@ func (a *writingState) createChapter(setting, prevSummary, plotReq string, chapt
 	}
 	const maxContinues = 20
 	// 8. 确定/创建节点（同步，前端立即可用）——硬闸已通过（或已显式覆盖）才走到这里，
-	//    被拒绝的请求不建节点、不落盘。
-	targetNum, nodeID, branch := a.ensureChapterNode(pm, of, chapterNum, branchFromNodeID)
+	//    被拒绝的请求不建节点、不落盘。落盘失败必须**中止本次生成**：把节点当成
+	//    已建好继续跑流式生成，正文会落到一个大纲里不存在的章号上，作者看到的
+	//    「已建好」是假的（N8）。
+	targetNum, nodeID, branch, err := a.ensureChapterNode(pm, of, chapterNum, branchFromNodeID)
+	if err != nil {
+		return nil, err
+	}
 	if nodeID == "" {
 		return nil, fmt.Errorf("创建章节节点失败")
 	}
@@ -318,8 +324,11 @@ func chapterCurrentBody(fullText, bodyText string, attempt int, summaryStarted b
 	return fullText
 }
 
-// chapterPartialFileSuffix 取消生成残稿的文件名标记：NNN.partial-<yyyyMMddHHmmss>.md。
+// chapterPartialFileSuffix 取消生成残稿的文件名标记（NNN.partial-<时间戳>-<序号>.md）。
 const chapterPartialFileSuffix = ".partial-"
+
+// chapterPartialSeq 残稿文件名自增序号：同进程内保证同一刻两次取消不撞名。
+var chapterPartialSeq atomic.Uint64
 
 // chapterBodyExists 目标章是否已有正文：
 //   - 分支章：NNN{branch}.md 非空即算；
@@ -358,12 +367,18 @@ func chapterBodyExists(pm *project.Manager, targetNum int, branch string) bool {
 // chapterPartialPath 取消残稿落点：与正稿同目录、同基名 + .partial-<ts>.md。
 // 目录一律取自 project.Manager 的章节路径（沿用 chapters/ 布局护栏，不自行
 // 拼接项目路径）；分支章用分支正稿路径派生。
+//
+// 时间戳到纳秒 + 进程内自增序号：旧的秒级时间戳（20060102150405）在同一秒内
+// 两次取消会落到同一文件名，后一份残稿覆盖前一份（M5）。纳秒尾在 Windows 上
+// 仍可能取到同值，故再用序号兜底，保证每次取消各留一份残稿。
 func chapterPartialPath(pm *project.Manager, targetNum int, branch string) string {
 	base := pm.ChapterPath(targetNum)
 	if branch != "" {
 		base = pm.ChapterBranchPath(targetNum, branch)
 	}
-	return strings.TrimSuffix(base, ".md") + chapterPartialFileSuffix + time.Now().Format("20060102150405") + ".md"
+	ts := time.Now().Format("20060102150405.000000000")
+	return strings.TrimSuffix(base, ".md") + chapterPartialFileSuffix + ts +
+		fmt.Sprintf("-%d", chapterPartialSeq.Add(1)) + ".md"
 }
 
 // writeCancelledPartialSidecar 把取消残稿另存为侧车文件（不覆盖正稿），返回落点。
@@ -601,7 +616,11 @@ func (a *writingState) streamCreateChapter(ctx context.Context, pm *project.Mana
 	if deSlop {
 		ensureNovelStyleWords()    // 惯例目录词表覆盖每进程加载一次
 		ensureNovelStylePatterns() // 模式级门禁覆盖（oh-story T2）
-		if rx, rep, err := novelstyle.DeSlopRewriteEx(content, nil, bookWhitelist(pm)); err == nil && rep != nil && rep.AfterScore < rep.BeforeScore {
+		// 打分口径与手动「一键去味」路径一致（G8）：先算 before 分并应用书级白名单，
+		// 再传入 DeSlopRewriteEx。旧实现传 nil，内部自行算的 before 分**不含白名单
+		// 豁免**，而 after 分含——before 被抬高，AfterScore < BeforeScore 这道安全闸
+		// 偏松，同一文本两条路径还能得到不同的 before 分。
+		if rx, rep, err := deSlopRewriteWithin(content, bookWhitelist(pm)); err == nil && rep != nil && rep.AfterScore < rep.BeforeScore {
 			if rx != "" {
 				content = rx
 				deSlopReport = rep
@@ -634,26 +653,15 @@ func (a *writingState) streamCreateChapter(ctx context.Context, pm *project.Mana
 		}
 	}
 
-	// 更新节点摘要并保存。
+	// 更新节点摘要并保存（读-改-写 + 按 nodeID 定点合并，见 mergeChapterWriteBack）。
 	//
 	// 护栏（线C E2E 取证）：模型这次可能漏输出 ---CHAPTER_SUMMARY---，此时 summary 为空；
 	// 若照写会清空节点既有摘要，而写前硬闸的 outline_summary_empty（S2）随即把**同一章**
 	// 的重新生成拦下——作者看到的是「去补大纲摘要」，真实原因被掩盖。故摘要**非空才覆盖**
 	// （同款纪律见线A mergeStoryThread），空/纯空白保留原值；Status 仍推进到 done
-	// （本章正文已落盘），只有摘要不回退。
-	for i := range of.Nodes {
-		if of.Nodes[i].ID == nodeID {
-			if s := strings.TrimSpace(summary); s != "" {
-				of.Nodes[i].Summary = s
-			}
-			of.Nodes[i].Status = types.OutlineDone
-			break
-		}
-	}
-	if err := pm.WriteOutlines(of); err != nil {
-		a.emit("create-chapter-stream", map[string]interface{}{"type": "error", "error": fmt.Sprintf("save outline: %v", err)})
-		return
-	}
+	// （本章正文已落盘），只有摘要不回退。回写只作用于目标节点，生成期间作者对
+	// 其它节点/其它章的并发编辑以最新快照为准（G1）。
+	a.mergeChapterWriteBack(pm, nodeID, summary, types.OutlineDone)
 	if branch != "" {
 		if err := pm.WriteChapterBranch(targetNum, branch, content); err != nil {
 			a.emit("create-chapter-stream", map[string]interface{}{"type": "error", "error": fmt.Sprintf("save chapter: %v", err)})
@@ -703,13 +711,23 @@ func (a *writingState) streamCreateChapter(ctx context.Context, pm *project.Mana
 		"aiTaste":    aiTaste,
 	})
 
-	// 异步提取章节角色（不阻塞 done 事件）
-	go a.extractCharactersAfterChapter(pm, content, targetNum)
+	// 异步提取章节角色 + 生成后自动门：两者共用章节生成的 WaitGroup（N7），
+	// 取消/切书后不残留无主协程——chapterGenWG 的归零即「本章生成链全部收尾」，
+	// waitGensDone 这类以 WG 为准的调用方才不会在清理中途提前放行。
+	a.chapterGenWG.Add(1)
+	go func() {
+		defer a.chapterGenWG.Done()
+		a.extractCharactersAfterChapter(pm, content, targetNum)
+	}()
 
 	// 生成后自动门（GenerationGate 闭环收口，规格 进度计划/gaea-gen-gate-closure-
 	// 20260916.md）：确定性三路+分析路（V2 落盘/伏笔同步/记忆回填）异步过水；
 	// 分支章在门内跳分析路（登记表是主线口径）。
-	go a.runAutoGateAfterGeneration(pm, targetNum, content, branch)
+	a.chapterGenWG.Add(1)
+	go func() {
+		defer a.chapterGenWG.Done()
+		a.runAutoGateAfterGeneration(pm, targetNum, content, branch)
+	}()
 }
 
 // resolveTargetChapterNum 计算「本章章号」：显式指定（>0）直接用；分支续写
@@ -731,13 +749,16 @@ func resolveTargetChapterNum(of *types.OutlineFile, chapterNum int, branchFromNo
 	return len(of.Nodes) + 1
 }
 
-// ensureChapterNode 确定章节号并创建/复用节点（同步，在 AI 生成前执行）
-func (a *writingState) ensureChapterNode(pm *project.Manager, of *types.OutlineFile, chapterNum int, branchFromNodeID string) (targetNum int, nodeID string, branch string) {
+// ensureChapterNode 确定章节号并创建/复用节点（同步，在 AI 生成前执行）。
+//
+// 新建节点时节点落盘失败返回 error（N8）：调用方据此中止本次生成，
+// 绝不把「没写进 outline.json 的章」当成已建好继续生成正文。
+func (a *writingState) ensureChapterNode(pm *project.Manager, of *types.OutlineFile, chapterNum int, branchFromNodeID string) (targetNum int, nodeID string, branch string, err error) {
 	if chapterNum > 0 {
 		targetNum = chapterNum
 		for _, n := range of.Nodes {
 			if n.OrderIndex == chapterNum && n.Branch == "" {
-				return targetNum, n.ID, ""
+				return targetNum, n.ID, "", nil
 			}
 		}
 		nodeID = fmt.Sprintf("n_%d", time.Now().UnixMilli())
@@ -745,8 +766,10 @@ func (a *writingState) ensureChapterNode(pm *project.Manager, of *types.OutlineF
 			ID: nodeID, Title: fmt.Sprintf("第%d章", targetNum),
 			OrderIndex: targetNum, Status: types.OutlineWriting,
 		})
-		_ = pm.WriteOutlines(of)
-		return
+		if werr := pm.WriteOutlines(of); werr != nil {
+			return 0, "", "", fmt.Errorf("章节节点落盘失败（第%d章）：%w", targetNum, werr)
+		}
+		return targetNum, nodeID, "", nil
 	}
 	if branchFromNodeID != "" {
 		var parent *types.OutlineNode
@@ -757,7 +780,7 @@ func (a *writingState) ensureChapterNode(pm *project.Manager, of *types.OutlineF
 			}
 		}
 		if parent == nil {
-			return 0, "", ""
+			return 0, "", "", nil
 		}
 		targetNum = parent.OrderIndex
 		used := map[string]bool{}
@@ -773,7 +796,7 @@ func (a *writingState) ensureChapterNode(pm *project.Manager, of *types.OutlineF
 			}
 		}
 		if branch == "" {
-			return 0, "", ""
+			return 0, "", "", nil
 		}
 		nodeID = fmt.Sprintf("n_%d", time.Now().UnixMilli())
 		of.Nodes = append(of.Nodes, types.OutlineNode{
@@ -782,8 +805,10 @@ func (a *writingState) ensureChapterNode(pm *project.Manager, of *types.OutlineF
 			OrderIndex: targetNum, Branch: branch,
 			Status: types.OutlineWriting, ChapterFile: fmt.Sprintf("%03d%s.md", targetNum, branch),
 		})
-		_ = pm.WriteOutlines(of)
-		return
+		if werr := pm.WriteOutlines(of); werr != nil {
+			return 0, "", "", fmt.Errorf("分支节点落盘失败（第%d%s章）：%w", targetNum, branch, werr)
+		}
+		return targetNum, nodeID, branch, nil
 	}
 	targetNum = len(of.Nodes) + 1
 	nodeID = fmt.Sprintf("n_%d", time.Now().UnixMilli())
@@ -791,8 +816,48 @@ func (a *writingState) ensureChapterNode(pm *project.Manager, of *types.OutlineF
 		ID: nodeID, Title: fmt.Sprintf("第%d章", targetNum),
 		OrderIndex: targetNum, Status: types.OutlineWriting,
 	})
-	_ = pm.WriteOutlines(of)
-	return
+	if werr := pm.WriteOutlines(of); werr != nil {
+		return 0, "", "", fmt.Errorf("章节节点落盘失败（第%d章）：%w", targetNum, werr)
+	}
+	return targetNum, nodeID, "", nil
+}
+
+// mergeChapterWriteBack 把本次生成真正产生的事实（节点摘要 + done 状态）
+// 定点合并回**最新**大纲快照并落盘，绝不整表回写生成开始时的旧快照。
+//
+// 为什么不能整表写回：一次流式生成持续数分钟，期间作者会在阅读页保存正文、
+// 在大纲页增删节点/续写/改摘要（全部写同一个 outline.json）。生成收尾时拿
+// 分钟前的快照覆盖，会静默回滚期间的全部编辑——删掉的节点复活、其它章状态
+// 退回、摘要编辑丢失（G1）。故此处重新读盘取最新快照：
+//   - 只写目标节点（nodeID 命中者）的 Summary 与 Status；
+//   - 其余节点的一切字段（含期间新增/删除的节点、其它章 Status、KeyPoints、
+//     Emotion）以最新快照为准，一律不被本次生成触碰；
+//   - Summary 空/纯空白不覆盖（沿用既有的硬闸反噬护栏：模型漏输出摘要时若
+//     写空会清掉节点摘要，写前硬闸随即把同一章拦下）；
+//   - 目标节点已被并发删除时**不加回**，如实记日志并跳过本次回写
+//     （宁可不写，不复活已删节点）。
+func (a *writingState) mergeChapterWriteBack(pm *project.Manager, nodeID, summary string, status types.OutlineNodeStatus) {
+	if pm == nil || nodeID == "" {
+		return
+	}
+	latest, err := pm.ReadOutlines()
+	if err != nil || latest == nil {
+		slog.Warn("生成收尾：重读最新大纲失败，跳过本次大纲回写", "node", nodeID, "error", err)
+		return
+	}
+	target := findOutlineNodeByID(latest.Nodes, nodeID)
+	if target == nil {
+		slog.Warn("生成收尾：目标节点在最新大纲中已不存在（生成期间被删除），跳过本次回写",
+			"node", nodeID)
+		return
+	}
+	if s := strings.TrimSpace(summary); s != "" {
+		target.Summary = s
+	}
+	target.Status = status
+	if werr := pm.WriteOutlines(latest); werr != nil {
+		slog.Warn("生成收尾：大纲回写失败（本次生成事实未落盘）", "node", nodeID, "error", werr)
+	}
 }
 
 // ── 章节生成上下文增强（伏笔 / 世界观 / 角色卡）──────────────────────

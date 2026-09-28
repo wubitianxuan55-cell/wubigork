@@ -24,6 +24,7 @@ vi.mock('../../gaea/lib/bridge', async (importOriginal) => {
 })
 
 import ChapterAnalysisPanel from './ChapterAnalysisPanel'
+import { useAppStore } from '../../stores/appStore'
 import type { ChapterAnalysisV2View } from '../../gaea/lib/bridge/novel'
 
 const mkV2 = (): ChapterAnalysisV2View => ({
@@ -134,6 +135,61 @@ describe('ChapterAnalysisPanel 章节分析 V2（t7 收官）', () => {
     open(null)
     expect(screen.getByText('先在左侧选择一章')).toBeTruthy()
     expect(mocks.v2).not.toHaveBeenCalled()
+  })
+})
+
+// ── v4.425 B3：主 load 的 seq + projectPath 守卫 ──
+// 反向守卫：去掉 seq 守卫 / 去掉 projectPath 依赖，本组必红。
+describe('ChapterAnalysisPanel 主 load 竞态与切书守卫（v4.425 B3）', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.annotations.mockResolvedValue([])
+    useAppStore.setState({ projectOpen: true, projectPath: 'C:/novel/book-a' })
+  })
+
+  it('旧章迟到响应被丢弃：不回填已切换的新章（分数不串章）', async () => {
+    const mkOverall = (overall: number, chapter: number): ChapterAnalysisV2View => {
+      const v = mkV2()
+      v.chapter_num = chapter
+      v.result!.scores!.overall = overall
+      return v
+    }
+    let resolveOld: (v: ChapterAnalysisV2View) => void = () => {}
+    const pOld = new Promise<ChapterAnalysisV2View>((r) => { resolveOld = r })
+    mocks.v2.mockImplementation(async (num: number) => {
+      if (num === 5) return pOld as never
+      return mkOverall(9.9, 9) as never
+    })
+    const view = render(<ChapterAnalysisPanel open onClose={vi.fn()} chapterNum={5} content="" />)
+    await act(async () => { await Promise.resolve() })
+
+    // 切到第 9 章 → 旧响应（第 5 章）随后返回
+    view.rerender(<ChapterAnalysisPanel open onClose={vi.fn()} chapterNum={9} content="" />)
+    await waitFor(() => expect(screen.getByTestId('analysis-body')).toBeTruthy())
+    expect(screen.getByText('9.9')).toBeTruthy()
+
+    await act(async () => { resolveOld(mkOverall(1.1, 5)); await Promise.resolve() })
+    expect(screen.queryByText('1.1')).toBeNull()
+    expect(screen.getByText('9.9')).toBeTruthy()
+  })
+
+  it('切书后主 load 重拉（章号相同也不吃上一本的缓存）', async () => {
+    mocks.v2.mockImplementation(async (num: number) => {
+      const path = useAppStore.getState().projectPath
+      const v = mkV2()
+      v.chapter_num = num
+      v.result!.scores!.overall = path === 'C:/novel/book-b' ? 1.2 : 7.8
+      return v as never
+    })
+    render(<ChapterAnalysisPanel open onClose={vi.fn()} chapterNum={2} content="" />)
+    await waitFor(() => expect(screen.getByText('7.8')).toBeTruthy())
+    const before = mocks.v2.mock.calls.length
+
+    act(() => { useAppStore.setState({ projectPath: 'C:/novel/book-b' }) })
+
+    await waitFor(() => expect(screen.getByText('1.2')).toBeTruthy())
+    expect(mocks.v2.mock.calls.length).toBeGreaterThan(before)
+    expect(screen.queryByText('7.8')).toBeNull()
   })
 })
 

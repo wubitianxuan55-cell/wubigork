@@ -79,7 +79,8 @@ export interface CreateChapterCancelledEvent {
    * notice / partialPath 为准，不能声称「已保存到本章」。
    */
   partialSaved?: boolean
-  /** 残稿另存落点（NNN.partial-<yyyyMMddHHmmss>.md 的绝对路径）。 */
+  /** 残稿另存落点（NNN.partial-<yyyyMMddHHmmss.nnnnnnnnn>-<序号>.md 的绝对路径；
+   *  v4.425 起加了纳秒尾与进程内序号——旧的秒级时间戳在同一秒内两次取消会互相覆盖）。 */
   partialPath?: string
   /** 后端如实给出的中文提示（正文已存在，残稿另存为 …）。 */
   notice?: string

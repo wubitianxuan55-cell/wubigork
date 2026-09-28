@@ -19,6 +19,7 @@ import V3Empty from '../components/V3Empty'
 import ForeshadowPanel from '../components/novel/ForeshadowPanel'
 import ConsistencyPanel from '../components/novel/ConsistencyPanel'
 import { confirmDiscard } from '../components/novel/unsavedGuard'
+import { registerNovelDirtyProvider, takeDiscardConfirmed } from '../components/novel/novelSwitchGuard'
 import { useAppStore } from '../stores/appStore'
 import { countTextChars, extractSettingText } from '../utils/text'
 import { app } from '../gaea/lib/bridge'
@@ -60,27 +61,52 @@ const NovelSettingPage: React.FC<NovelSettingPageProps> = ({ active = true }) =>
   const [lastSavedAt, setLastSavedAt] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
   const loadToken = useRef(0)
+  // v4.425 跨页切书保护：脏探针与切书兜底提示都跑在 effect / 闸门回调里，必须读
+  // **最新**的 content/snapshot（走 ref），否则闭包里的旧值会让「脏」判定失真。
+  const contentRef = useRef('')
+  contentRef.current = content
+  const savedSnapshotRef = useRef('')
+  savedSnapshotRef.current = savedSnapshot
+  const loadFailedRef = useRef(false)
+  loadFailedRef.current = loadFailed
+  const savingRef = useRef(false)
+  savingRef.current = saving
+  // 「当前快照属于哪本书」：切书后的异步窗口里 content/savedSnapshot 都还停在上一本，
+  // 单看两者相等会漏判脏；挂上快照所属路径后，快照不属于当前书即一律不脏。
+  const snapshotPathRef = useRef(projectPath)
 
   const loadContent = useCallback(async () => {
     const token = ++loadToken.current
     if (!projectPath) {
       setContent('')
       setSavedSnapshot('')
+      snapshotPathRef.current = ''
       setLoadFailed(false)
       setLoading(false)
       return
     }
+    // 切书闸门已确认「放弃修改并切换」时静默换书；否则上一本的未保存设定会
+    // 被 setContent 直接覆盖——连提示都没有（对齐 CreatePage 口径：不静默、也不对
+    // 已确认的切书重复惊吓）。
+    const discardConfirmed = takeDiscardConfirmed('settings-worldview')
+    if (!discardConfirmed && contentRef.current !== savedSnapshotRef.current) {
+      message.warning('已切换小说：上一本未保存的设定修改未保留')
+    }
+    // 脏态随书本上下文失效（本次拉取结束前不许再判脏）：否则「上一本脏 + 新书内容
+    // 恰与本地缓冲相同」会让脏标志悬挂在已切换的新书上。
     setLoading(true)
     try {
       const text = await app.GetWorldview()
       if (token !== loadToken.current) return
       setContent(text || '')
       setSavedSnapshot(text || '')
+      snapshotPathRef.current = projectPath
       setLoadFailed(false)
     } catch {
       if (token !== loadToken.current) return
       setContent('')
       setSavedSnapshot('')
+      snapshotPathRef.current = projectPath
       setLoadFailed(true)
     } finally {
       if (token === loadToken.current) setLoading(false)
@@ -91,32 +117,55 @@ const NovelSettingPage: React.FC<NovelSettingPageProps> = ({ active = true }) =>
   useEffect(() => { setMessages([]) }, [projectPath])
 
   const needsProject = !projectOpen && !projectPath
+  // 脏判定要连「快照属于哪本书」一起看：切书后的异步窗口里 content/savedSnapshot 还是
+  // 上一本的值（此时不得判脏，否则会把上一本的脏挂到新书上）。
+  const snapshotBelongsToCurrent = snapshotPathRef.current === projectPath
   const dirty = useMemo(
-    () => !needsProject && content !== savedSnapshot,
-    [content, savedSnapshot, needsProject],
+    () => !needsProject && snapshotBelongsToCurrent && content !== savedSnapshot,
+    [content, savedSnapshot, needsProject, snapshotBelongsToCurrent],
   )
   // v4.365 性能轮：渲染/统计防抖——受控编辑器每键 setState 全文，分屏预览的
   // Markdown 全文重解析与字数全文扫描按 300ms 防抖跟随（最终值一致）。
   const debouncedContent = useDebouncedValue(content, 300)
   const wordCount = useMemo(() => countTextChars(debouncedContent.trim()), [debouncedContent])
 
-  const handleSave = useCallback(async () => {
+  const handleSave = useCallback(async (): Promise<boolean> => {
     if (loadFailed) {
       message.warning('设定读取失败，已暂停保存以防覆盖，请先重试')
-      return
+      return false
     }
     setSaving(true)
     try {
       await app.SaveWorldview(content)
       setSavedSnapshot(content)
+      snapshotPathRef.current = projectPath
       setLastSavedAt(new Date().toLocaleTimeString())
       message.success('设定已保存')
+      return true
     } catch (err: unknown) {
       message.error('保存失败: ' + (err instanceof Error ? err.message : String(err)))
+      return false
     } finally {
       setSaving(false)
     }
-  }, [content, loadFailed])
+  }, [content, loadFailed, projectPath])
+
+  // 跨页切书未保存保护（`novelSwitchGuard` 的登记端）：把「设定页 markdown 脏不脏、
+  // 能否先保存」暴露给书架页的切书闸门。本页有显式保存钮（handleSave）故一并提供
+  // save 能力（三选）；读失败期间不能保存 → canSave=false 自动降级两选。
+  // dirty/save 经 ref 读最新值，故只登记一次。
+  const handleSaveRef = useRef(handleSave)
+  handleSaveRef.current = handleSave
+  useEffect(() => registerNovelDirtyProvider({
+    id: 'settings-worldview',
+    label: () => '设定页未保存的设定',
+    // 快照不属于当前书时一律不脏（切书异步窗口内 content/snapshot 仍是上一本的值）
+    dirty: () => !loadFailedRef.current
+      && snapshotPathRef.current === useAppStore.getState().projectPath
+      && contentRef.current !== savedSnapshotRef.current,
+    canSave: () => !loadFailedRef.current && !savingRef.current,
+    save: () => handleSaveRef.current(),
+  }), [])
 
   // Ctrl/Cmd+S 保存——仅在「本页为当前子页」时挂监听：五子页常驻挂载，
   // 无条件挂 window 会让在创作页/阅读页按下的 Ctrl+S 顺带保存设定（规格线2/线3）。
@@ -248,7 +297,7 @@ const NovelSettingPage: React.FC<NovelSettingPageProps> = ({ active = true }) =>
   )
 
   const sectionsPane = (
-    <WorldviewSectionsEditor disabled={needsProject} />
+    <WorldviewSectionsEditor disabled={needsProject} projectPath={projectPath} />
   )
 
   const editorBody = needsProject ? (

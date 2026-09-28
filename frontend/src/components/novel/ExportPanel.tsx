@@ -23,8 +23,20 @@ const ExportPanel: React.FC = () => {
       const next = res || {}
       setResults(next)
       setExported(true)
-      if (Object.keys(next).length === 0) {
+      const entries = Object.entries(next)
+      if (entries.length === 0) {
         message.warning('导出完成，但没有生成文件。请先确认项目中有已写章节。')
+        return
+      }
+      // v4.425：后端把逐格式失败写进 value（"失败: …"）而不是返回 error，故此前
+      // 「四种格式全失败」也走 Object.keys 非空分支 → 绿色「导出完成」。这里按同一前缀
+      // 口径统计失败项（渲染处 :96 已认这个前缀），全失败报 error、部分失败报 warning
+      // 并带上实数，不再出现「全失败但成功提示」。
+      const failed = entries.filter(([, v]) => String(v ?? '').startsWith('失败'))
+      if (failed.length === entries.length) {
+        message.error(`导出失败：${failed.length}/${entries.length} 个格式全部失败（${failed.map(([ext]) => ext.toUpperCase()).join('、')}）`)
+      } else if (failed.length > 0) {
+        message.warning(`导出完成，但 ${failed.length}/${entries.length} 个格式失败（${failed.map(([ext]) => ext.toUpperCase()).join('、')}）`)
       } else {
         message.success('导出完成')
       }

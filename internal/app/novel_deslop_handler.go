@@ -70,6 +70,24 @@ func bookWhitelist(pm *project.Manager) []string {
 	return wl
 }
 
+// deSlopRewriteWithin 去味改写唯一入口：先按书级白名单算 before 分，再把
+// 同一份 before 分交给 DeSlopRewriteEx（G8）。
+//
+// 为什么必须传算好的 before：DeSlopRewriteEx 只在 score==nil 时内部自行算
+// before，而那个分数**不应用白名单**；它的 after 分却应用了白名单。生成链
+// 旧实现正是传 nil，于是「after < before」这道安全闸被抬高的 before 撑松，
+// 同一段文本在手动去味（先算分 + ApplyWhitelist）与生成链两条路径上 before
+// 分还不一致。两条路径共用本函数即可保证同文本同口径。
+func deSlopRewriteWithin(text string, whitelist []string) (string, *novelstyle.RewriteReport, error) {
+	score, err := novelstyle.ScoreTextNoRef(text)
+	if err != nil {
+		return "", nil, fmt.Errorf("去味前打分失败: %w", err)
+	}
+	novelstyle.ApplyWhitelist(score, text, whitelist)
+	return novelstyle.DeSlopRewriteEx(text, score, whitelist)
+}
+
+// DeSlopChapterAiTaste 手动「一键去味」：v4 逐场景 / v3 整章过确定性去味并落盘。
 func (a *writingState) DeSlopChapterAiTaste(chapterNum int) (map[string]interface{}, error) {
 	ensureNovelStyleWords()
 	ensureNovelStylePatterns()
@@ -86,6 +104,7 @@ func (a *writingState) DeSlopChapterAiTaste(chapterNum int) (map[string]interfac
 	avantScore := 0
 	apresScore := 0
 
+	// 两条路径都走 deSlopRewriteWithin（同一 before 分口径，见该函数注释）。
 	if pm.IsV4() {
 		sm := pm.SceneManager(chapterNum)
 		metas, err := sm.List()
@@ -97,9 +116,7 @@ func (a *writingState) DeSlopChapterAiTaste(chapterNum int) (map[string]interfac
 			if rerr != nil || strings.TrimSpace(sc.Content) == "" {
 				continue
 			}
-			b, _ := novelstyle.ScoreTextNoRef(sc.Content)
-			novelstyle.ApplyWhitelist(b, sc.Content, wl)
-			rw, rep, derr := novelstyle.DeSlopRewriteEx(sc.Content, b, wl)
+			rw, rep, derr := deSlopRewriteWithin(sc.Content, wl)
 			if derr == nil && rep != nil && rep.AfterScore < rep.BeforeScore && rw != "" {
 				// 写回走共用 helper：写失败如实返回 error（旧实现 `_ = sm.Write(sc)`
 				// 吞错后仍累计 changes 回报 done），写成功后同步整章 blob 投影。
@@ -116,9 +133,7 @@ func (a *writingState) DeSlopChapterAiTaste(chapterNum int) (map[string]interfac
 		if err != nil {
 			return nil, fmt.Errorf("读取章节失败: %w", err)
 		}
-		b, _ := novelstyle.ScoreTextNoRef(content)
-		novelstyle.ApplyWhitelist(b, content, wl)
-		rw, rep, derr := novelstyle.DeSlopRewriteEx(content, b, wl)
+		rw, rep, derr := deSlopRewriteWithin(content, wl)
 		if derr == nil && rep != nil && rep.AfterScore < rep.BeforeScore && rw != "" {
 			if werr := writeBackRewrittenFn(pm, chapterNum, "", false, rw); werr != nil {
 				return nil, werr

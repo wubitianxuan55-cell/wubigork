@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { Button, Tooltip } from 'antd'
 import {
   ControlOutlined, MenuFoldOutlined,
@@ -80,6 +80,10 @@ const NovelInspector: React.FC<NovelInspectorProps> = ({
   const projectTitle = useAppStore((s) => s.projectTitle)
   const projectPath = useAppStore((s) => s.projectPath)
   const [chapter, setChapter] = useState<ChapterActivePayload | null>(null)
+  // 当前章号的 ref 镜像：换章事件与在途体检响应可能交错，
+  // 回填前必须读**最新**章号而不是发起时闭包里的值（v4.425 B12）。
+  const chapterNumRef = useRef<number | null>(null)
+  chapterNumRef.current = chapter?.chapterNum ?? null
   // 章节体检（RunChapterGate 单章合并报告；手动触发，非每章盖章向导）
   const [gate, setGate] = useState<GateReport>(null)
   const [gateBusy, setGateBusy] = useState(false)
@@ -105,8 +109,14 @@ const NovelInspector: React.FC<NovelInspectorProps> = ({
     setGateBusy(true)
     setGateErr('')
     try {
-      setGate(await RunChapterGate(num))
+      const report = await RunChapterGate(num)
+      // v4.425：换章事件会清 gate，但**在途**响应此前会随后把它回填回来——体检报告
+      // 便挂到了已切换的章上（标题是第 N 章、数据是第 M 章）。回填前校验当前章仍是发起
+      // 时那一章，否则丢弃（busy 态照常收尾）。
+      if (chapterNumRef.current !== num) return
+      setGate(report)
     } catch (e) {
+      if (chapterNumRef.current !== num) return
       setGateErr(e instanceof Error ? e.message : '体检运行失败')
     } finally {
       setGateBusy(false)

@@ -83,6 +83,16 @@ export default function PromptWorkshopPanel({ open, onClose }: {
   const [exporting, setExporting] = useState(false)
   const [importing, setImporting] = useState(false)
   const [importResult, setImportResult] = useState<BundleImportResult | null>(null)
+  // v4.425（B7）：关闭与重开都要能判脏，而 dirty 依赖渲染期的 detail/baseline。
+  // 用 ref 镜像「当前草稿属于哪个模板 + 是否未保存 + 最近一次提交的草稿值」，供 onCancel
+  // 回调与重开 effect 在**同一帧**读到最新值（effect 里 setDetail(null) 之后再判 dirty
+  // 会恒为 false，重开即绕开守卫静默丢草稿）。
+  const draftOwnerRef = useRef<string | null>(null)
+  const lastDraftRef = useRef<{ key: string; form: DraftForm } | null>(null)
+  const dirtyRef = useRef(false)
+  // 重开时草稿基线对齐的标志：置位期间 select 只刷新 detail（基线/表单保持草稿），
+  // 否则 awaited 的详情回填会把刚恢复的草稿覆盖回模板原文（等于又静默丢了）。
+  const preserveDraftRef = useRef(false)
 
   const refreshList = useCallback(async () => {
     setLoading(true)
@@ -97,12 +107,26 @@ export default function PromptWorkshopPanel({ open, onClose }: {
   }, [])
 
   useEffect(() => {
-    if (open) {
-      setSelectedKey(null)
-      setDetail(null)
-      setIssues([])
-      setPreview(null)
-      void refreshList()
+    if (!open) return
+    const keep = dirtyRef.current && lastDraftRef.current !== null ? lastDraftRef.current : null
+    setSelectedKey(null)
+    setDetail(null)
+    setIssues([])
+    setPreview(null)
+    void refreshList()
+    if (keep) {
+      // 「重开清 detail → dirty 恒 false → 再选同一模板绕过守卫」的堵法：把未保存草稿
+      // **保留**下来（不静默丢弃）。先落 form/detail 让 dirty 重新成立，再拉详情把基线
+      // 刷新为磁盘现状（若用户这期间已在别处保存过，脏态会如实继续成立，不会误报干净）。
+      // 注意：此时 React 19 的 effect 内 setState 会同步刷新，渲染紧随其后，故
+      // `render 期镜像 ref` 用到的 detail/baseline 会先被 select 清成 null，拖慢一拍
+      // 会吞掉草稿——故这里直接**押**到 ref 上，再让 select 的详情落地去对基线。
+      dirtyRef.current = true
+      preserveDraftRef.current = true
+      setForm(keep.form)
+      setSelectedKey(keep.key)
+      setDetail({} as PromptTemplateDetail)
+      void select(keep.key)
     }
   }, [open, refreshList])
 
@@ -121,6 +145,12 @@ export default function PromptWorkshopPanel({ open, onClose }: {
       const d = await getTemplate(key)
       if (seq !== selectSeqRef.current) return
       setDetail(d)
+      // 保留草稿的重开路径：详情只用来刷新 detail（内置基线对照），不得回填表单，
+      // 否则刚恢复的未保存草稿会被模板原文覆盖（等于又静默丢了一次）。
+      if (preserveDraftRef.current) {
+        preserveDraftRef.current = false
+        return
+      }
       const next: DraftForm = {
         system: d.template?.system ?? '',
         task: d.template?.task ?? '',
@@ -141,6 +171,27 @@ export default function PromptWorkshopPanel({ open, onClose }: {
 
   /** 当前草稿是否偏离基线（保存/恢复/导入后的程序化重载会同步基线，不会误报）。 */
   const dirty = detail !== null && !sameForm(form, baseline)
+  // 同帧镜像：onCancel（事件回调）与重开 effect 都要在 detail 被清掉**之前**读到脏态。
+  // detail 尚未落地时不算脏——否则「切了模板但详情还在途中」关闭也会弹确认。
+  draftOwnerRef.current = detail === null ? null : selectedKey
+  dirtyRef.current = detail !== null && dirty
+  lastDraftRef.current = detail !== null && selectedKey ? { key: selectedKey, form } : null
+
+  /** 关闭入口统一走这里（✕/Esc 与「取消」同义）：有未保存草稿先问过，绝不静默丢弃；
+   *  保存/恢复/导入在途时早退（在途动作已按当前 form 组装载荷，此时关窗会造成语义混乱）。 */
+  const requestClose = () => {
+    if (saving || resetting || importing) {
+      message.warning('当前操作进行中，请稍候再关闭')
+      return
+    }
+    if (!dirtyRef.current) { onClose(); return }
+    confirmDiscard({
+      title: '提示词草稿尚未保存',
+      message: '关闭会丢弃当前模板的未保存修改（不会写入模板文件）；重新打开本面板时草稿仍在编辑区，可直接保存。',
+      discardLabel: '关闭面板',
+      onDiscard: onClose,
+    })
+  }
 
   /**
    * 列表行点击入口（v4.421.0）：切模板会整表覆盖表单，脏草稿经共享原语
@@ -302,7 +353,7 @@ export default function PromptWorkshopPanel({ open, onClose }: {
   }
 
   return (
-    <Modal open={open} title="提示词工坊" onCancel={onClose} footer={null} width={920} destroyOnHidden>
+    <Modal open={open} title="提示词工坊" onCancel={requestClose} footer={null} width={920} destroyOnHidden>
       {/* t6-C2 工具栏：空态也可见（导入正是空环境的恢复路径） */}
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginBottom: 10 }}>
         <Button size="small" loading={exporting} data-testid="prompt-workshop-bundle-export" onClick={() => void doExport()}>导出模板包</Button>

@@ -25,6 +25,7 @@ import { getPageComponent } from '../boards/pageRegistry'
 import { subscribe, subscribeForSpace, BACKEND_EVENTS, FRONTEND_EVENTS } from '../events'
 import { useFeatureModel } from '../hooks/useFeatureModel'
 import { usePollingGate } from '../hooks/usePollingGate'
+import { notifyBoardActive } from '../lib/boardActive'
 import { useT, type Translator } from '../gaea/lib/i18n'
 
 const { Content } = Layout
@@ -452,6 +453,14 @@ const MainLayout: React.FC = () => {
       next.add(page)
       return next
     })
+  }, [page])
+
+  // 板块级可见信号（lib/boardActive）：keepAlive 下访问过的板块**常驻挂载**，只靠
+  // display:none 隐藏（下方 visitedPages 渲染段），页面组件无法从自身生命周期区分
+  // 「当前可见」与「后台保活」——于是后台板块的 window 级副作用照样生效。这里由壳层
+  // 声明唯一可见板块，页面据此门控（典型：小说阅读子页在别的板块里仍抢 Ctrl+S/F11）。
+  React.useEffect(() => {
+    notifyBoardActive(page)
   }, [page])
 
   const [activeModel, setActiveModel] = useState('')

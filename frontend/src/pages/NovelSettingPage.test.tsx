@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, within, act } from '@testing-library/react'
 import { Modal } from 'antd'
 
 // 屏蔽 Wails 绑定：jsdom 中没有 window.go。页面及其子面板（WorldviewSectionsEditor/
@@ -41,6 +41,10 @@ vi.mock('../gaea/lib/bridge', async (importOriginal) => {
 import NovelSettingPage from './NovelSettingPage'
 import { useAppStore } from '../stores/appStore'
 import { app } from '../gaea/lib/bridge'
+import { resetNovelDirtyProviders } from '../components/novel/novelSwitchGuard'
+
+// 跨用例清空切书闸门登记表与「已确认放弃」记账（模块级单例，否则脏态跨用例串味）
+afterEach(() => { resetNovelDirtyProviders() })
 
 // 坑复训（unsavedGuard.test 同款）：imperative Modal 的 DOM 不随 cleanup() 卸载，
 // 跨用例残留会让「最新弹窗」定位错位——每例后显式销毁 + 让销毁提交一帧。
@@ -107,6 +111,32 @@ describe('NovelSettingPage 纯文本设定编辑', () => {
     })
     const saveBtn2 = (screen.getByRole('button', { name: /保存/ })) as HTMLButtonElement
     expect(saveBtn2.disabled).toBe(false)
+  })
+
+  // ── v4.425 B2：切书静默丢未保存设定 → 至少如实提示（对齐 CreatePage 口径） ──
+  it('切书丢弃未保存设定：给出可见提示', async () => {
+    render(<NovelSettingPage />)
+    const editor = (await screen.findByPlaceholderText(/在此撰写或粘贴小说设定/)) as HTMLTextAreaElement
+    fireEvent.change(editor, { target: { value: '# 第一本的未保存草稿' } })
+    expect(screen.getByText('有未保存修改')).toBeTruthy()
+
+    act(() => { useAppStore.setState({ projectPath: 'C:/novel/第二本' }) })
+
+    expect(await screen.findByText(/已切换小说：上一本未保存的设定修改未保留/)).toBeTruthy()
+  })
+
+  it('切书后不把上一本的脏态挂到新书上（新书内容与草稿相同也不喊脏）', async () => {
+    render(<NovelSettingPage />)
+    const editor = (await screen.findByPlaceholderText(/在此撰写或粘贴小说设定/)) as HTMLTextAreaElement
+    fireEvent.change(editor, { target: { value: '# 第二本的设定' } })
+    expect(screen.getByText('有未保存修改')).toBeTruthy()
+
+    // 第二本磁盘上的内容恰与本地草稿相同：切过去后不得残留「有未保存修改」
+    vi.mocked(app.GetWorldview).mockResolvedValue('# 第二本的设定')
+    act(() => { useAppStore.setState({ projectPath: 'C:/novel/第二本' }) })
+
+    await waitFor(() => expect(screen.getByText('无修改')).toBeTruthy())
+    expect(screen.queryByText('有未保存修改')).toBeNull()
   })
 
   it('切换到渲染模式直接渲染设定文本', async () => {
@@ -204,6 +234,45 @@ describe('NovelSettingPage 维度化编辑器（v4.3e）', () => {
     expect(screen.getByRole('button', { name: /重试/ })).toBeTruthy()
     expect(screen.getByText('时代背景')).toBeTruthy()
     expect(screen.getByRole('radio', { name: /维度化/ })).toBeTruthy()
+  })
+
+  // ── v4.425 B1（P0）：切书必须重拉六维，否则「保存全部维度」会把 A 书写进 B 书 ──
+  it('切书后六维重拉：显示新书内容且不残留上一本（B1 反向守卫）', async () => {
+    vi.mocked(app.GetWorldviewSections).mockResolvedValue({
+      sections: [{ id: 'era', title: '时代背景', content: '第一本的洪荒纪元', order: 1 }],
+    })
+    render(<NovelSettingPage />)
+    await screen.findByPlaceholderText(/在此撰写或粘贴小说设定/)
+    fireEvent.click(screen.getByRole('radio', { name: /维度化/ }))
+    const eraA = await screen.findByPlaceholderText(/撰写「时代背景」设定/) as HTMLTextAreaElement
+    expect(eraA.value).toBe('第一本的洪荒纪元')
+    const callsBefore = vi.mocked(app.GetWorldviewSections).mock.calls.length
+
+    vi.mocked(app.GetWorldviewSections).mockResolvedValue({
+      sections: [{ id: 'era', title: '时代背景', content: '第二本的蒸汽纪元', order: 1 }],
+    })
+    act(() => { useAppStore.setState({ projectPath: 'C:/novel/第二本' }) })
+
+    await waitFor(() => expect(vi.mocked(app.GetWorldviewSections).mock.calls.length).toBeGreaterThan(callsBefore))
+    await waitFor(() => {
+      expect((screen.getByPlaceholderText(/撰写「时代背景」设定/) as HTMLTextAreaElement).value).toBe('第二本的蒸汽纪元')
+    })
+    expect(screen.queryByDisplayValue('第一本的洪荒纪元')).toBeNull()
+  })
+
+  it('清空项目路径：回到引导态且六维不残留上一本', async () => {
+    vi.mocked(app.GetWorldviewSections).mockResolvedValue({
+      sections: [{ id: 'era', title: '时代背景', content: '第一本的洪荒纪元', order: 1 }],
+    })
+    render(<NovelSettingPage />)
+    await screen.findByPlaceholderText(/在此撰写或粘贴小说设定/)
+    fireEvent.click(screen.getByRole('radio', { name: /维度化/ }))
+    expect(await screen.findByDisplayValue('第一本的洪荒纪元')).toBeTruthy()
+
+    act(() => { useAppStore.setState({ projectOpen: false, projectPath: '' }) })
+
+    expect(await screen.findByText(/请先在「书架」打开或创建一部小说项目/)).toBeTruthy()
+    expect(screen.queryByDisplayValue('第一本的洪荒纪元')).toBeNull()
   })
 })
 

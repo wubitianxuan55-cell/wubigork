@@ -37,9 +37,14 @@ function normalizeSections(raw: unknown): WorldviewSectionData[] {
 interface WorldviewSectionsEditorProps {
   /** 未打开项目时仅展示空态引导，不触发加载 */
   disabled?: boolean
+  /** 当前项目路径。本编辑器在设定页常驻挂载，且「保存全部维度」是整表替换
+   *  （无备份）——切书后若不重拉，A 书的六维内容会被原样写进 B 书的
+   *  worldview.json。故 projectPath 既是「换书必重拉」的依赖，也是引导态门控
+   *  （对齐 ForeshadowPanel 的 `disabled || !projectPath` 先例）。 */
+  projectPath?: string
 }
 
-const WorldviewSectionsEditor: React.FC<WorldviewSectionsEditorProps> = ({ disabled }) => {
+const WorldviewSectionsEditor: React.FC<WorldviewSectionsEditorProps> = ({ disabled, projectPath }) => {
   const [sections, setSections] = useState<WorldviewSectionData[]>(DEFAULT_SECTIONS)
   const [savedSnapshot, setSavedSnapshot] = useState('')
   const [loading, setLoading] = useState(true)
@@ -50,7 +55,11 @@ const WorldviewSectionsEditor: React.FC<WorldviewSectionsEditorProps> = ({ disab
 
   const load = useCallback(async () => {
     const token = ++loadToken.current
-    if (disabled) {
+    // projectPath 必须显式参与：它既是「换书必重拉」的依赖，也是引导态门控
+    // （无项目路径时直接调绑定会失败并把引导分支变成死代码）。
+    if (disabled || !projectPath) {
+      // 清空而非保留：上一本的六维若留在表单里，用户在 B 书点「保存全部维度」
+      // 就会把 A 书内容整表覆盖进 B 书（后端 SaveAllWorldviewSections 无备份）。
       setSections(DEFAULT_SECTIONS)
       setSavedSnapshot('')
       setLoading(false)
@@ -73,13 +82,13 @@ const WorldviewSectionsEditor: React.FC<WorldviewSectionsEditorProps> = ({ disab
     } finally {
       if (token === loadToken.current) setLoading(false)
     }
-  }, [disabled])
+  }, [disabled, projectPath])
 
   useEffect(() => { void load() }, [load])
 
   const dirty = useMemo(
-    () => !disabled && savedSnapshot !== '' && JSON.stringify(sections) !== savedSnapshot,
-    [sections, savedSnapshot, disabled],
+    () => !disabled && !!projectPath && savedSnapshot !== '' && JSON.stringify(sections) !== savedSnapshot,
+    [sections, savedSnapshot, disabled, projectPath],
   )
 
   const updateContent = useCallback((id: string, content: string) => {

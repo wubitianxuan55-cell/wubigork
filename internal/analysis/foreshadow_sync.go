@@ -70,6 +70,15 @@ func (a *Agent) SyncForeshadows(chapterNum int, hits []types.ForeshadowHit) Sync
 		SkippedReasons: []SkipReason{},
 		Errors:         []string{},
 	}
+	// lastSync 在**函数退出时**统一登记（含读盘失败等早退路径）：消费端
+	// （生成后自动门的 chapter-gate 报告、GetLastForeshadowSync）拿到的必须是
+	// 本轮的真实结论——旧实现只在正常收尾赋值，早退时 lastSync 停留在上一轮，
+	// 前端看到的「上一轮成功」会掩盖本轮失败（G3）。
+	defer func() {
+		a.syncMu.Lock()
+		a.lastSync = &res
+		a.syncMu.Unlock()
+	}()
 	ff, err := a.pm.ReadForeshadows()
 	if err != nil {
 		if !errors.Is(err, fs.ErrNotExist) {
@@ -123,13 +132,21 @@ func (a *Agent) SyncForeshadows(chapterNum int, hits []types.ForeshadowHit) Sync
 	ff.Items = deduped
 	ff.SchemaVersion = 2
 
-	_ = a.pm.WriteForeshadows(ff)
+	// 写盘失败必须如实进 Errors，且**不能**把落盘后的计数照报成功（G3）：
+	// 消费端（生成后自动门的 chapter-gate 报告）拿 LastSync 的 planted/resolved/
+	// created/skipped 计数直接展示，旧实现 `_ = WriteForeshadows(ff)` 吞掉写盘
+	// 错误后前端照样显示「已回收 N 条」——内存里改了、盘上没有，重启即丢。
+	if werr := a.pm.WriteForeshadows(ff); werr != nil {
+		res.Errors = append(res.Errors, fmt.Sprintf("伏笔落盘失败，本轮变更未保存: %v", werr))
+		slog.Warn("syncForeshadows: 落盘失败，本轮变更未保存", "chapter", chapterNum, "error", werr)
+	}
 
-	a.syncMu.Lock()
-	a.lastSync = &res
-	a.syncMu.Unlock()
 	return res
 }
+
+// SyncPersisted 报告最近一轮伏笔同步的计数是否真正落盘：Errors 非空即视为
+// 本轮未落盘（调用方据此别把计数当成功展示）。
+func (r SyncResult) SyncPersisted() bool { return len(r.Errors) == 0 }
 
 // syncResolve 回收路径三级匹配（spec §3.3 resolved 流程，严格按序）：
 // 精确 ID → 内容兜底 → 跳过不新建。

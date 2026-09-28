@@ -7,8 +7,9 @@
 // 本组件纯展示、props 驱动直测（见 StyleFingerprintPanel.test.tsx）。
 // 契约：NovelFingerprint* 三绑定（gaea/lib/bridge/novel.ts，Go NovelB 门面）；
 // 后端 omitempty 字段可能缺省，数值/列表展示一律 ?. 与 ?? 防御。
-import React from 'react'
+import React, { useEffect, useRef } from 'react'
 import { Button, Modal, Tag } from 'antd'
+import { useAppStore } from '../../stores/appStore'
 import type { FingerprintScorePayload, FingerprintStatusPayload, FingerprintSummary } from '../../gaea/lib/bridge/novel'
 
 /** FingerprintSummary 中的数值字段键（排除 topBigrams/topTrigrams/authorSignWords 等 string[] 源）。 */
@@ -81,16 +82,26 @@ interface StyleFingerprintPanelProps {
 const StyleFingerprintPanel: React.FC<StyleFingerprintPanelProps> = ({
   open, onClose, busy, msg, status, score, onBuild, onScore, hasChapter,
 }) => {
-  const exists = status?.exists ?? false
-  const summary = status?.summary
+  // v4.425：参考档 / 章节体检报告都不含书名，切书后整屏仍是上一本的分数且看不出归属。
+  // 数据由 CreatePage 持有（本组件纯展示），父层清得掉；这里再按 projectPath 兜一道：
+  // 报告绑在切换前那本书的上下文里，切书即视为失效。用 ref 记录「这份报告出自哪本书」，
+  // 并在 effect 里随本次提交更新——切书的下一次渲染当帧就看到不一致，不经过 setState
+  // 的二次渲染，避免一帧旧报告闪现。
+  const projectPath = useAppStore((s) => s.projectPath)
+  const reportPathRef = useRef(projectPath)
+  useEffect(() => { reportPathRef.current = projectPath }, [projectPath])
+  const status1 = reportPathRef.current === projectPath ? status : null
+  const score1 = reportPathRef.current === projectPath ? score : null
+  const exists = status1?.exists ?? false
+  const summary = status1?.summary
   // 口头禅 = 双字组合 + 三字组合 + 签名词平铺；三源全空则不显区块
   const signWords = [
     ...(summary?.topBigrams ?? []),
     ...(summary?.topTrigrams ?? []),
     ...(summary?.authorSignWords ?? []),
   ]
-  const issues = score?.issues ?? []
-  const sem = scoreSemantics(score?.score ?? 0)
+  const issues = score1?.issues ?? []
+  const sem = scoreSemantics(score1?.score ?? 0)
 
   return (
     <Modal
@@ -117,7 +128,7 @@ const StyleFingerprintPanel: React.FC<StyleFingerprintPanelProps> = ({
         ) : (
           <>
             <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginBottom: 6 }}>
-              {status?.chapters ?? 0} 章 · {(status?.chars ?? 0).toLocaleString()} 字 · 构建于 {fmtBuiltAt(status?.builtAt) || '—'}
+              {status1?.chapters ?? 0} 章 · {(status1?.chars ?? 0).toLocaleString()} 字 · 构建于 {fmtBuiltAt(status1?.builtAt) || '—'}
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 6, marginBottom: 8 }}>
               {SUMMARY_METRICS.map(({ key, label }) => (
@@ -142,18 +153,18 @@ const StyleFingerprintPanel: React.FC<StyleFingerprintPanelProps> = ({
       {/* 2. 章节体检 */}
       <div style={{ marginBottom: 14 }}>
         <div style={{ fontWeight: 600, marginBottom: 6 }}>章节体检</div>
-        {!score ? (
+        {!score1 ? (
           <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', padding: '8px 0' }}>
             点击「体检当前章」获取本章 AI 味评分；构建参考档后同时给出与基线的距离。
           </div>
         ) : (
           <>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 4 }}>
-              <span style={{ fontSize: 32, fontWeight: 700, color: sem.color }}>{score.score}</span>
+              <span style={{ fontSize: 32, fontWeight: 700, color: sem.color }}>{score1.score}</span>
               <span style={{ color: sem.color }}>AI 味 {sem.label}</span>
             </div>
-            {typeof score.delta === 'number' ? (
-              <div style={{ fontSize: 12, marginBottom: 4 }}>与你的基线距离 Δ {score.delta.toFixed(2)}（越小越像你）</div>
+            {typeof score1.delta === 'number' ? (
+              <div style={{ fontSize: 12, marginBottom: 4 }}>与你的基线距离 Δ {score1.delta.toFixed(2)}（越小越像你）</div>
             ) : (
               <div style={{ fontSize: 12, marginBottom: 4, color: 'var(--color-text-secondary)' }}>未构建参考档，按通用阈值打分</div>
             )}

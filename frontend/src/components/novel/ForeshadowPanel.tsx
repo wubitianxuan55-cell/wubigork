@@ -82,6 +82,9 @@ interface ForeshadowRowProps {
   it: ForeshadowItemData
   editing: boolean
   editDesc: string
+  /** 整表写回在途（SaveForeshadows 是全量替换）：在途期间禁用触发写回的按钮，
+   *  避免用户在「基于最新 items 的整表写」未落盘时继续改动造成语义混乱。 */
+  writeBusy: boolean
   onEditChange: (id: string, desc: string) => void
   onSaveEdit: () => void
   onCancelEdit: () => void
@@ -91,7 +94,7 @@ interface ForeshadowRowProps {
 }
 
 const ForeshadowRow = memo(function ForeshadowRow({
-  it, editing, editDesc, onEditChange, onSaveEdit, onCancelEdit, onFlow, onStartEdit, onRemove,
+  it, editing, editDesc, writeBusy, onEditChange, onSaveEdit, onCancelEdit, onFlow, onStartEdit, onRemove,
 }: ForeshadowRowProps) {
   return (
     <div className="fs-item">
@@ -130,25 +133,27 @@ const ForeshadowRow = memo(function ForeshadowRow({
         <div style={{ flex: 1 }} />
         {editing ? (
           <>
-            <Button size="small" type="link" style={{ padding: 0 }} onClick={onSaveEdit}>保存</Button>
+            <Button size="small" type="link" style={{ padding: 0 }} disabled={writeBusy} onClick={onSaveEdit}>保存</Button>
             <Button size="small" type="link" style={{ padding: 0 }} onClick={onCancelEdit}>取消</Button>
           </>
         ) : (
           <>
             {/* ② 状态流转：planted→hinted→revealed，revealed 可回退 */}
-            <Button size="small" type="link" style={{ padding: 0 }} onClick={() => onFlow(it.id)}>
+            <Button size="small" type="link" style={{ padding: 0 }} disabled={writeBusy} onClick={() => onFlow(it.id)}>
               {foreshadowFlowLabel(it.status)}
             </Button>
             {/* ④ 描述编辑 */}
             <Button
               size="small" type="link" icon={<EditOutlined />}
+              disabled={writeBusy}
               aria-label={`编辑伏笔：${it.description}`}
               onClick={() => onStartEdit(it)}
             />
             {/* ③ 删除（confirm） */}
-            <Popconfirm title="删除该伏笔？" okText="删除" cancelText="取消" onConfirm={() => onRemove(it.id)}>
+            <Popconfirm title="删除该伏笔？" okText="删除" cancelText="取消" onConfirm={() => onRemove(it.id)} disabled={writeBusy}>
               <Button
                 size="small" type="link" danger icon={<DeleteOutlined />}
+                disabled={writeBusy}
                 aria-label={`删除伏笔：${it.description}`}
               />
             </Popconfirm>
@@ -240,6 +245,10 @@ const ForeshadowPanel: React.FC<ForeshadowPanelProps> = ({ disabled }) => {
   }, [disabled, projectPath])
 
   useEffect(() => { void load() }, [load])
+  // v4.425：体检报告是唯一不随 load 换掉的派生态（items/beStats/lastSync 都在 load 内
+  // 被覆盖），切书后仍整块显示上一本的一致性体检结论——按项目路径显式失效（对齐
+  // ConsistencyPanel 先例：清空即可，重开时用户自己再点体检）。
+  useEffect(() => { setLintReport(null) }, [projectPath])
   // persist 失败时重读用（走 ref 避免把 load 加进 persist 依赖、破坏其稳定引用）
   const loadRef = useRef(load)
   loadRef.current = load
@@ -433,7 +442,7 @@ const ForeshadowPanel: React.FC<ForeshadowPanelProps> = ({ disabled }) => {
                   onChange={(e) => setDescription(e.target.value)}
                 />
                 <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-                  <Button size="small" type="primary" icon={<FlagOutlined />} onClick={register}>登记</Button>
+                  <Button size="small" type="primary" icon={<FlagOutlined />} disabled={savingWrite} onClick={register}>登记</Button>
                   <Button size="small" onClick={() => setFormOpen(false)}>取消</Button>
                 </div>
               </div>
@@ -582,6 +591,7 @@ const ForeshadowPanel: React.FC<ForeshadowPanelProps> = ({ disabled }) => {
                     it={it}
                     editing={editing?.id === it.id}
                     editDesc={editing?.id === it.id ? editing.desc : ''}
+                    writeBusy={savingWrite}
                     onEditChange={handleEditChange}
                     onSaveEdit={saveEdit}
                     onCancelEdit={cancelEdit}

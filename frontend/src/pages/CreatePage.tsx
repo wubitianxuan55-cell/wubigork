@@ -26,6 +26,7 @@ import NewCharactersModal from '../components/novel/create/NewCharactersModal'
 import BranchWizardModal, { type Branch } from '../components/novel/create/BranchWizardModal'
 import ChapterPlanCard, { type PlanGateReport, type PlanProblem } from '../components/novel/ChapterPlanCard'
 import { chooseAction, chooseUnsavedAction } from '../components/novel/unsavedGuard'
+import { registerNovelDirtyProvider, takeDiscardConfirmed } from '../components/novel/novelSwitchGuard'
 
 interface WizardRequest { prevChapter: number; overwriteChapter: number; branchFromID: string }
 const BRAINSTORM_MSG_KEY = 'novel-brainstorm-loading'
@@ -351,6 +352,20 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
   /** 当前激活章节 id 的 ref 版本（同理由：异步回调读最新值） */
   const activeIdRef = useRef('')
   activeIdRef.current = activeId
+  /**
+   * 章节载入在途（A4）：`loadChapter` 在 await **之前**就把 activeId 指向新章，
+   * 而 content 仍是上一章正文——此刻保存会拿「新章号 + 旧章正文」组装载荷，把第 5 章
+   * 正文写进第 6 章。走 ref 是因为 state 更新是异步的：只在 render 里镜像
+   * `chapterLoading` 会留下「已开始载入但仍可保存」的窗口。
+   */
+  const chapterLoadingRef = useRef(false)
+  /** 最新 finishStream（切书 effect 的声明早于该回调，走 ref 规避 TDZ）。 */
+  const finishStreamRef = useRef<() => void>(() => {})
+  /**
+   * 本次生成是否已就「切换小说导致结果失效」提示过（A3）：projectPath effect 与
+   * 晚到的流事件都会发现「旧书任务作废」，两处都提示就成了二次惊吓。
+   */
+  const staleStreamNotifiedRef = useRef(false)
 
   const handleEditorFontSizeChange = useCallback((v: number) => {
     setEditorFontSize(v)
@@ -390,20 +405,53 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
     ;(async () => { loadOutlines(); await refreshSetting(); refreshStats() })()
   }, [projectPath, loadOutlines, refreshSetting, refreshStats])
 
-  // 切换小说时清空编辑区与选中节点，避免展示上一个项目的内容；若上一个项目还有
-  // 未保存正文，切书由书架发起、跨页无法拦截——至少如实告知，不静默吞掉。
+  // 切换小说时清空编辑区与选中节点，避免展示上一个项目的内容。跨页切书已由书架经
+  // `novelSwitchGuard` 先行确认（三选：先保存 / 放弃修改 / 取消），故此处只在
+  // **未经闸门**的切书路径上兜底告知——不能静默吞掉，也不能对已确认的重复惊吓。
   useEffect(() => {
-    if (contentRef.current !== loadedSnapshotRef.current) {
+    const confirmed = takeDiscardConfirmed('create-body')
+    if (!confirmed && contentRef.current !== loadedSnapshotRef.current) {
       message.warning('已切换小说：上一本未保存的正文修改未保留')
     }
+    // A3：在途生成属于**上一本书**。切书后它的 done 会把旧书正文挂到新书同号章节点、
+    // 甚至 `setLoadedSnapshot` 标「已保存」，作者一点保存就写进新书文件。故这里主动停掉
+    // 后端任务并本地收尾（不这样做则 generating=true 悬挂：停止按钮留在界面上但任务已换书）。
+    // 事件侧另有 requestedPath 守卫，兜住「effect 尚未跑完」的窗口（见 runGeneration）。
+    if (generatingRef.current) {
+      const { chapterNum, branch } = streamTargetRef.current
+      if (chapterNum) void CancelCreateChapter(chapterNum, branch).catch(() => { /* 换书后取消失败可忽略，本地已收尾 */ })
+      finishStreamRef.current()
+      if (!staleStreamNotifiedRef.current) {
+        staleStreamNotifiedRef.current = true
+        message.warning('已切换小说：正在进行的生成已停止，该次结果未写入当前书')
+      }
+    }
     setActiveId(''); setContent(''); setLoadedSnapshot('')
-    // 仅在项目变化时执行（content/snapshot 走 ref，不进依赖）
+    // B5a：评审报告 / 文风指纹状态与提示语都取自上一本书——不清则切书后弹窗仍整屏显示
+    // 上一本的内容（审计确证）。两个弹窗一并关闭：留在屏上比「需要重开一次」更糟。
+    setReviewReport(null); setReviewMsg(''); setReviewOpen(false)
+    setFpStatus(null); setFpScore(null); setFpMsg(''); setFpOpen(false)
+    // 仅在项目变化时执行（content/snapshot/finishStream 均走 ref，不进依赖）
   }, [projectPath])
+
+  // 跨页切书未保存保护（`novelSwitchGuard` 的登记端）：把「创作页正文脏不脏、
+  // 能否先保存」暴露给书架页的切书闸门。dirty/save 均经 ref 读最新值，故只登记一次。
+  useEffect(() => registerNovelDirtyProvider({
+    id: 'create-body',
+    label: () => '创作页正文',
+    dirty: () => contentRef.current !== loadedSnapshotRef.current,
+    // 没有选中节点时无从保存（saveActive 会自己给出可见提示并返回 false）
+    canSave: () => !!activeIdRef.current,
+    save: () => saveActiveRef.current(),
+  }), [])
 
   /** 真正载入章节正文（不做脏保护——重写应用后的刷新也走它）。 */
   const loadChapter = useCallback(async (node: OutlineNode) => {
     const token = ++chapterLoadToken.current
     const requestedPath = useAppStore.getState().projectPath
+    // A4：同步置位（不能只靠 render 镜像 chapterLoading——state 更新是异步的），
+    // 让「载入在途」对 saveActive 立刻可见。
+    chapterLoadingRef.current = true
     setActiveId(node.id); setChapterLoading(true)
     try {
       const branch = node.branch || ''
@@ -421,7 +469,8 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
         message.error(`第 ${node.order_index || '?'} 章载入失败：${err instanceof Error ? err.message : String(err)}（编辑区已留空，请勿直接保存）`)
       }
     } finally {
-      if (token === chapterLoadToken.current) setChapterLoading(false)
+      // token 不匹配＝已有更新的载入在跑，在途标志归它管，不得提前解除
+      if (token === chapterLoadToken.current) { chapterLoadingRef.current = false; setChapterLoading(false) }
     }
   }, [])
 
@@ -454,6 +503,9 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
 
   // 后台构思剧情分支：不弹阻塞弹窗，构思完成后弹窗确认选择
   const openWizard = useCallback(async (prevChapter: number, overwriteChapter = 0, branchFromID = '') => {
+    // A7：生成中开向导＝在同一章上叠第二写者，且向导末尾的「生成」会被 startGeneration
+    // 的在途早退静默吞掉（作者以为点了没反应）。此处给可见提示，文案口径对齐 selectChapter。
+    if (generatingRef.current) { message.warning('正在生成，请先停止生成再生成下一章'); return }
     if (brainstormingRef.current) return
     brainstormingRef.current = true
     setWizard({ prevChapter, overwriteChapter, branchFromID })
@@ -482,16 +534,32 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
     generatingRef.current = false
     detach()
   }, [detach])
+  finishStreamRef.current = finishStream
 
   // 直接开始生成：注册流式监听并调用后端（带目标字数/温度/技能设置）
   const runGeneration = async (plotReq: string, overwriteChapter = 0, branchFromID = '') => {
     if (generatingRef.current) return
+    // A3：记下本任务属于哪本书。旧书生成完成时事件若照单全收，正文会被挂到**新书**同号章
+    // 节点（`loadOutlines` 按 order_index 找节点），并 `setLoadedSnapshot` 标「已保存」——
+    // 作者此后一点保存就写进新书文件。故事件回调全程按发起时的 projectPath 校验。
+    const requestedPath = useAppStore.getState().projectPath
+    staleStreamNotifiedRef.current = false
     generatingRef.current = true
     setGenerating(true); setGenPhase('正在生成…'); setGenPercent(0); setContent(''); setLoadedSnapshot(''); setStopping(false); setAiTaste(null)
     contentRef.current = ''
 
     attach({
       onEvent: (ev) => {
+        // 本任务已不属于当前书：整体忽略（不 setState 到新书上下文）。三路终态额外如实提示
+        // 一次「结果未写入当前书」——收尾（Cancel + finishStream）由 projectPath effect 负责，
+        // 那里一定会跑；此处若擅自 finishStream 反而会摘掉监听、让 effect 误判为无在途任务。
+        if (useAppStore.getState().projectPath !== requestedPath) {
+          if (ev.type !== 'chunk' && !staleStreamNotifiedRef.current) {
+            staleStreamNotifiedRef.current = true
+            message.warning('已切换小说：该次生成因切书已失效，结果未写入当前书')
+          }
+          return
+        }
         switch (ev.type) {
           case 'phase':
             if (ev.phase === 'continuing') {
@@ -641,7 +709,8 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
    * 刀1 线D：脏保护通过后再过章节计划硬闸（预检 → 允许 / 弹窗二选）。
    */
   const startGeneration = (plotReq: string, overwriteChapter = 0, branchFromID = '') => {
-    if (generatingRef.current) return
+    // A7：在途早退此前是静默 return——作者点了「生成」却毫无反馈，只会反复点。
+    if (generatingRef.current) { message.warning('正在生成，请先停止生成再开始新的生成'); return }
     if (!plotReq.trim()) { message.warning('请选择分支或输入剧情要求'); return }
     const run = () => { void runGeneration(plotReq, overwriteChapter, branchFromID) }
     const gated = () => { void guardPlanGate(overwriteChapter, branchFromID, run) }
@@ -722,6 +791,10 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
    * 作者点了保存却不知道发生了什么）。走 ref 读最新值，供确认弹窗的异步回调复用。
    */
   const saveActive = useCallback(async (): Promise<boolean> => {
+    // A4：载入在途时 activeId 已是新章、content 还是上一章正文——保存会把上一章正文写进
+    // 新章文件（旧实现静默执行）。返回 false 是既有契约：chooseUnsavedAction 的 onSave
+    // 依赖它中止后续动作（如切章/生成），不会「保存失败却继续切走」。
+    if (chapterLoadingRef.current) { message.warning('正在载入章节，请稍候再保存'); return false }
     const text = contentRef.current
     const node = useOutlineStore.getState().outlines.find(n => n.id === activeIdRef.current)
     if (!node) { message.warning('请先在左侧选择要保存的章节'); return false }
@@ -746,6 +819,8 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
 
   /** 打开整章重写前先保护未保存正文（重写结果应用后会整章覆盖）。 */
   const openRewriteModal = useCallback(() => {
+    // A6：生成中重写＝同一章上两个写者（半章 / 全文谁最后到谁生效，取决于到达顺序）。
+    if (generatingRef.current) { message.warning('正在生成，请先停止生成再重写本章'); return }
     if (contentRef.current !== loadedSnapshotRef.current) {
       chooseUnsavedAction({
         title: '正文有未保存的修改',
@@ -756,6 +831,44 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
       return
     }
     setRwOpen(true)
+  }, [])
+
+  /**
+   * A2a：「重写历史」入口同 A1——应用版本 / 恢复原文都会写回本章正文，此前**入口无脏检查**
+   * （对照整章重写的 openRewriteModal 早已有），审计确证为漏网点。取消（含 ✕/Esc）＝不打开。
+   */
+  const openRewriteHistory = useCallback(() => {
+    if (generatingRef.current) { message.warning('正在生成，请先停止生成再查看重写历史'); return }
+    if (contentRef.current !== loadedSnapshotRef.current) {
+      chooseUnsavedAction({
+        title: '正文有未保存的修改',
+        message: '在重写历史里应用版本 / 恢复原文都会写回本章正文，建议先保存当前修改。',
+        onSave: () => { void saveActiveRef.current().then((ok) => { if (ok) setRwHistOpen(true) }) },
+        onDiscard: () => setRwHistOpen(true),
+      })
+      return
+    }
+    setRwHistOpen(true)
+  }, [])
+
+  /**
+   * A1：打开局部重写前过同一道脏闸。局部重写的选区坐标取自编辑器缓冲，后端却按**磁盘**
+   * 正文定位——`saveActive` 之后两者才对齐，故「先保存」是这里的主推动作。
+   * 「放弃修改」＝不先保存直接发起：本地未保存正文仍留在编辑区（重写结果不覆盖它，
+   * 见 refreshEditorAfterRewriteApplied），所以这不是一次真实的丢弃。
+   */
+  const openPartialRewrite = useCallback((selection: { start: number; end: number; text: string }) => {
+    if (generatingRef.current) { message.warning('正在生成，请先停止生成再局部重写'); return }
+    if (contentRef.current !== loadedSnapshotRef.current) {
+      chooseUnsavedAction({
+        title: '正文有未保存的修改',
+        message: '局部重写按磁盘正文定位选区：先保存可让选区与磁盘正文对齐；不保存则按当前编辑区选区发起，编辑区里的本地修改仍会保留。',
+        onSave: () => { void saveActiveRef.current().then((ok) => { if (ok) setPSel(selection) }) },
+        onDiscard: () => setPSel(selection),
+      })
+      return
+    }
+    setPSel(selection)
   }, [])
 
   // 节点后生成下一章/分支（含覆盖确认）
@@ -835,7 +948,27 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
     void loadChapter(node)
   }, [loadChapter])
 
+  /**
+   * A1/A2a：重写类动作「服务端已生效」后的编辑区刷新闸。与 refreshEditorAfterServerRewrite
+   * 同纪律（脏则只提示不刷新），区别在文案必须点明**此时保存会覆盖服务端的重写结果**——
+   * 旧实现（局部重写 / 重写历史）直接 loadChapter 灌回磁盘正文，作者的未保存手写正文被
+   * 覆盖**且 loadedSnapshot 被对齐、脏标志一并抹掉**，此后切章/关标签都不再提示。
+   */
+  const refreshEditorAfterRewriteApplied = useCallback(() => {
+    const node = useOutlineStore.getState().outlines.find(n => n.id === activeIdRef.current)
+    if (!node) return
+    if (contentRef.current !== loadedSnapshotRef.current) {
+      message.warning('重写已在服务端生效；编辑区有未保存的修改，已保留你的本地版本，未刷新（此时保存会覆盖服务端的重写结果）')
+      return
+    }
+    void loadChapter(node)
+  }, [loadChapter])
+
   const deslopChapter = useCallback(async () => {
+    // A6：生成中途去味会把**半章**写盘，随后流式 done 再写全文——两写者的最终结果取决于
+    // 到达顺序（旧实现不禁用，rail 按钮在生成中照常可点）。rail 上另外加了 disabled 门控，
+    // 这里保留早退以覆盖非按钮调用点。
+    if (generatingRef.current) { message.warning('正在生成，请先停止生成再去味'); return }
     setStateBusy(true); setStateMsg('')
     try {
       const r = (await DeSlopChapterAiTaste(activeChapterNum)) as { changes?: number; beforeScore?: number; afterScore?: number; done?: boolean }
@@ -846,6 +979,8 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
   }, [activeChapterNum, refreshEditorAfterServerRewrite])
   // 高级去味：LLM 受限重写命中句（质量更高，需模型调用）。
   const llmDeslop = useCallback(async () => {
+    // A6：同 deslopChapter——生成中改写同一章，两个写者会互相覆盖。
+    if (generatingRef.current) { message.warning('正在生成，请先停止生成再去味'); return }
     setStateBusy(true); setStateMsg('')
     try {
       const r = (await RewriteChapterAiTaste(activeChapterNum)) as { done?: boolean; rewritten?: number; beforeScore?: number; afterScore?: number; reason?: string }
@@ -1049,10 +1184,10 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
           <Button size="small" onClick={() => void openFingerprint()}>文风指纹</Button>
         </RailGroup>
         <RailGroup label="文本">
-          <Button size="small" loading={stateBusy} onClick={() => void deslopChapter()}>一键去味</Button>
-          <Button size="small" loading={stateBusy} onClick={() => void llmDeslop()}>高级去味</Button>
-          <Button size="small" onClick={openRewriteModal}>整章重写</Button>
-          <Button size="small" onClick={() => setRwHistOpen(true)}>重写历史</Button>
+          <Button size="small" loading={stateBusy} disabled={generating} onClick={() => void deslopChapter()}>一键去味</Button>
+          <Button size="small" loading={stateBusy} disabled={generating} onClick={() => void llmDeslop()}>高级去味</Button>
+          <Button size="small" disabled={generating} onClick={openRewriteModal}>整章重写</Button>
+          <Button size="small" disabled={generating} onClick={openRewriteHistory}>重写历史</Button>
         </RailGroup>
         <RailGroup label="结构">
           <Button size="small" onClick={() => setPlanOpen(v => !v)}>章节计划</Button>
@@ -1090,7 +1225,8 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
         open={rwHistOpen}
         chapterNum={activeChapterNum || null}
         onClose={() => setRwHistOpen(false)}
-        onApplied={() => { if (activeNode) void loadChapter(activeNode) }}
+        // A2a：应用版本 / 恢复原文都在服务端改了盘，此处再过一道脏闸（脏则保留本地版本）
+        onApplied={refreshEditorAfterRewriteApplied}
       />
       <BookHealthPanel open={healthOpen} onClose={() => setHealthOpen(false)} />
       <ChapterAnalysisPanel
@@ -1110,7 +1246,9 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
         chapterNum={activeChapterNum || null}
         selection={pSel}
         onClose={() => setPSel(null)}
-        onApplied={() => { if (activeNode) void loadChapter(activeNode) }}
+        // A1：重写已在服务端生效——脏时不重载（旧实现在这里无条件 loadChapter，把作者
+        // 未保存的手写正文连同脏标志一起抹掉）
+        onApplied={refreshEditorAfterRewriteApplied}
       />
 
       <div className="novel-workspace">
@@ -1125,7 +1263,7 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
         onRegenerate={() => activeNode && handleRegenerate(activeNode)} onSave={handleSave} onStop={handleStop}
         hasChapters={flatNodes.length > 0} nextChapterNum={nextMainChapterNum} onOpenWizard={openWizard}
         editorFontSize={editorFontSize} onEditorFontSizeChange={handleEditorFontSizeChange}
-        onPartialRewrite={setPSel} />
+        onPartialRewrite={openPartialRewrite} />
       <div className="v3-grip" aria-hidden="true" />
       <CreateInspector setting={setting} onRefreshSetting={() => void refreshSetting()}
         selectedSkill={selectedSkill} onSelectSkill={(v) => setSelectedSkill(v)}
@@ -1136,7 +1274,8 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
         prevChapterHint={activeNode?.order_index || lastMainChapter}
         stats={stats} chapterCount={flatNodes.length} />
       </div>
-      <NewCharactersModal />
+      {/* A8：本弹窗常驻挂载，事件通道一直在听——不按 active 门控就会在别的子页上盖出遮罩 */}
+      <NewCharactersModal active={active} />
       <BranchWizardModal open={!!wizard && wizardBranches.length > 0}
         prevChapter={wizard?.prevChapter ?? 0} overwriteChapter={wizard?.overwriteChapter ?? 0}
         branchFromID={wizard?.branchFromID ?? ''} onClose={() => { setWizard(null); setWizardBranches([]) }}

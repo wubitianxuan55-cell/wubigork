@@ -107,3 +107,43 @@ describe('NewCharactersModal 新角色发现（T6-7.5）', () => {
     expect(() => render(<NewCharactersModal />)).not.toThrow()
   })
 })
+
+// ── A8（v4.425.0 优化批 2 线2）：常驻挂载的弹窗必须按 active 门控 ──
+// 小说子页同挂 + CSS 隐藏，Modal 走 portal 盖不住，旧实现收到事件就 setOpen(true)
+// 会在**别的子页**上凭空弹一层遮罩。反向守卫：去掉 active 门控即变红。
+describe('NewCharactersModal active 门控（A8）', () => {
+  it('active=false 期间不弹窗（事件挂起），切回创作页补弹——反向守卫：去掉门控即变红', async () => {
+    const { rerender } = render(<NewCharactersModal active={false} />)
+    act(() => { rt.emit(CHANNEL, { characters: ['林昭'], chapterNum: 3 }) })
+    expect(screen.queryByText(/第3章发现了/)).toBeNull()
+
+    rerender(<NewCharactersModal active />)
+    expect(await screen.findByText(/第3章发现了 1 个新角色/)).toBeTruthy()
+    expect(screen.getByDisplayValue('林昭')).toBeTruthy()
+  })
+
+  it('挂起期间连发多批：按名字 / 角色 id 去重合并，切回后一批不少（只留最后一批即变红）', async () => {
+    const { rerender } = render(<NewCharactersModal active={false} />)
+    act(() => { rt.emit(CHANNEL, { characters: ['甲'], chapterNum: 1 }) })
+    act(() => {
+      rt.emit(CHANNEL, {
+        characters: ['甲', '乙'],
+        libraryMatches: [{ id: 'c1', name: '丙', roleType: 'supporting' }],
+        chapterNum: 2,
+      })
+    })
+
+    rerender(<NewCharactersModal active />)
+    // 甲（两批重复）+ 乙 + 库内角色 丙 = 3
+    expect(await screen.findByText(/第2章发现了 3 个新角色/)).toBeTruthy()
+    expect(screen.getByDisplayValue('甲')).toBeTruthy()
+    expect(screen.getByDisplayValue('乙')).toBeTruthy()
+    expect(screen.getByText('丙')).toBeTruthy()
+  })
+
+  it('默认 active=true：事件直接弹窗（既有调用方零改动）', async () => {
+    render(<NewCharactersModal />)
+    act(() => { rt.emit(CHANNEL, { characters: ['甲'], chapterNum: 1 }) })
+    expect(await screen.findByText(/第1章发现了 1 个新角色/)).toBeTruthy()
+  })
+})

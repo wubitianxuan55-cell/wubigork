@@ -2,10 +2,11 @@
 // 纯 props 驱动：数据获取全在 CreatePage，这里不需要 mock NovelB 绑定，
 // 直接给 report/platforms fixture 断言结论区、逐维排序与证据渲染、跳过口径与按钮行为。
 import { describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import React from 'react'
 
 import ChapterReviewPanel from './ChapterReviewPanel'
+import { useAppStore } from '../../stores/appStore'
 import type { ChapterReviewPayload, ReviewPlatform } from '../../gaea/lib/bridge/novel'
 
 type PanelProps = React.ComponentProps<typeof ChapterReviewPanel>
@@ -108,5 +109,20 @@ describe('ChapterReviewPanel', () => {
     renderPanel({ busy: true, msg: '第 7 章评审完成' })
     expect(screen.getByText('第 7 章评审完成')).toBeTruthy()
     expect(screen.getByRole('button', { name: /评审当前章/ })).toBeTruthy()
+  })
+})
+
+// ── v4.425 B5b：报告不含书名，切书必须失效（父层清得掉，这里再兜一道） ──
+describe('ChapterReviewPanel 切书失效（v4.425 B5b）', () => {
+  it('切换项目后不再展示上一本的评审报告', () => {
+    useAppStore.setState({ projectPath: 'C:/novel/book-a' })
+    renderPanel({ report })
+    expect(screen.getByText('打回')).toBeTruthy()
+
+    act(() => { useAppStore.setState({ projectPath: 'C:/novel/book-b' }) })
+
+    expect(screen.queryByText('打回')).toBeNull()
+    expect(screen.queryByText(/第 42 段：「反击才刚刚开始。」/)).toBeNull()
+    expect(screen.getByText(/点「评审当前章」按所选平台档位逐维体检/)).toBeTruthy()
   })
 })

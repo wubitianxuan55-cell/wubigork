@@ -37,6 +37,9 @@ export default function RewriteHistoryPanel({ open, chapterNum, onClose, onAppli
   const [loading, setLoading] = useState(false)
   const [expandedIds, setExpandedIds] = useState<Set<string>>(() => new Set())
   const [details, setDetails] = useState<Record<string, VersionDetail>>({})
+  // v4.425：详情拉取失败此前只弹 toast，details[id] 仍为空 → 行内永远转圈，既没有
+  // 文案也没有重试入口。失败原因按 id 记账，展开时优先渲染错误 + 重试。
+  const [detailErrors, setDetailErrors] = useState<Record<string, string>>({})
   const [busyId, setBusyId] = useState<string | null>(null)
 
   const refresh = useCallback(async () => {
@@ -53,22 +56,34 @@ export default function RewriteHistoryPanel({ open, chapterNum, onClose, onAppli
   }, [chapterNum])
 
   useEffect(() => {
-    if (open) { setExpandedIds(new Set()); setDetails({}); void refresh() }
+    if (open) { setExpandedIds(new Set()); setDetails({}); setDetailErrors({}); void refresh() }
   }, [open, refresh])
+
+  /** 拉一次版本详情（展开时懒拉；重试按钮复用同一入口）。失败记入 detailErrors[id]。 */
+  const loadDetail = useCallback(async (id: string) => {
+    if (chapterNum == null) return
+    setDetailErrors((prev) => {
+      if (!(id in prev)) return prev
+      const next = { ...prev }
+      delete next[id]
+      return next
+    })
+    try {
+      const v = await app.NovelGetRewriteVersion(chapterNum, id) as unknown as VersionDetail
+      setDetails(d => ({ ...d, [id]: v }))
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      message.error(`版本详情加载失败：${msg}`)
+      setDetailErrors(prev => ({ ...prev, [id]: msg }))
+    }
+  }, [chapterNum])
 
   const toggleDetail = async (id: string) => {
     const next = new Set(expandedIds)
     if (next.has(id)) { next.delete(id); setExpandedIds(next); return }
     next.add(id)
     setExpandedIds(next)
-    if (!details[id] && chapterNum != null) {
-      try {
-        const v = await app.NovelGetRewriteVersion(chapterNum, id) as unknown as VersionDetail
-        setDetails(d => ({ ...d, [id]: v }))
-      } catch (e) {
-        message.error(`版本详情加载失败：${e instanceof Error ? e.message : String(e)}`)
-      }
-    }
+    if (!details[id] && chapterNum != null) await loadDetail(id)
   }
 
   const apply = async (id: string) => {
@@ -170,6 +185,13 @@ export default function RewriteHistoryPanel({ open, chapterNum, onClose, onAppli
                           <div style={{ maxHeight: 200, overflowY: 'auto', whiteSpace: 'pre-wrap', fontSize: 13, lineHeight: 1.7 }}>{d.originalContent || '（无原文快照）'}</div>
                         ) }]} />
                       </>
+                    ) : detailErrors[v.id] ? (
+                      <div data-testid="rewrite-history-detail-error"
+                        style={{ padding: '8px 10px', borderRadius: 6, borderLeft: '2px solid var(--color-destructive, #ef4444)', fontSize: 12.5 }}>
+                        <div>版本详情加载失败：{detailErrors[v.id]}</div>
+                        <Button size="small" style={{ marginTop: 6 }} data-testid="rewrite-history-detail-retry"
+                          onClick={() => void loadDetail(v.id)}>重试</Button>
+                      </div>
                     ) : (
                       <div style={{ padding: '12px 0', textAlign: 'center' }}><Spin size="small" /></div>
                     )}

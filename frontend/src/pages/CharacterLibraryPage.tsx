@@ -22,6 +22,7 @@ import {
   fillAllCharacters, type LibraryCharacter, type ShelfProject,
 } from '../api/characterlib'
 import '../components/characterlib/character-library.css'
+import { subscribeWailsEvent } from '../gaea/lib/wailsEvents'
 
 /** 提取错误消息（unknown 收窄；无 message 用 fallback） */
 function errText(err: unknown, fallback: string): string {
@@ -229,8 +230,14 @@ const CharacterLibraryPage: React.FC = () => {
       const d = (raw && typeof raw === 'object' && 'detail' in raw && raw.detail ? raw.detail : raw) as { current?: number; total?: number; name?: string } | null | undefined
       if (d && d.current && d.total) setFillProgress(`正在补齐 ${d.current}/${d.total}：${d.name || ''}`)
     }
+    // v4.425：改走 subscribeWailsEvent 唯一入口。此前 `EventsOn` + finally 里
+    // `EventsOff('character-fill-progress')` —— EventsOff 会注销该通道上的**全部**
+    // 监听者（v4.62.2 事故形态，见 gaea/lib/wailsEvents.ts 头注）：本页一次补齐结束
+    // 就会连带炸掉同一通道上的其它订阅者。
+    const off = window.runtime?.EventsOn
+      ? subscribeWailsEvent(window.runtime, 'character-fill-progress', onProgress)
+      : () => { /* 无 wails runtime（浏览器 mock/测试）：不订阅也不报错 */ }
     try {
-      window.runtime?.EventsOn?.('character-fill-progress', onProgress)
       setFillingAll(true)
       setFillProgress('准备中…')
       const res = await fillAllCharacters()
@@ -248,7 +255,7 @@ const CharacterLibraryPage: React.FC = () => {
     } catch (err: unknown) {
       message.error(`补齐失败：${errText(err, String(err))}`)
     } finally {
-      window.runtime?.EventsOff?.('character-fill-progress')
+      off()
       setFillingAll(false)
       setFillProgress('')
     }

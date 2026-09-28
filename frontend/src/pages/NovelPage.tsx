@@ -9,6 +9,7 @@ import {
 } from '@ant-design/icons'
 import { useAppStore } from '../stores/appStore'
 import { useOutlineStore } from '../stores/outlineStore'
+import { useBoardActive } from '../lib/boardActive'
 import { sortNodes } from '../utils/outline'
 import { app } from '../gaea/lib/bridge'
 import { PortraitImg } from '../components/characterlib/PortraitImg'
@@ -26,7 +27,12 @@ import type { OutlineNode } from '../types'
  *  点目录树会往隐藏的阅读页塞 tab。
  *
  *  默认 `true`：子页不传也按「当前页」工作，保证既有测试/既有「单独渲染子页」
- *  用法零回归；只有 NovelPage 这个常驻壳层才显式下发。 */
+ *  用法零回归；只有 NovelPage 这个常驻壳层才显式下发。
+ *
+ *  **板块级门控（lib/boardActive）**：`active` 还 AND 了「小说板块本身是否为壳层
+ *  当前可见板块」——壳层 keepAlive 让小说板块在切到办公/原罪等板块后仍常驻挂载
+ *  （`MainLayout` 的 visitedPages 只 display:none），只按子页判断的话，隐藏的阅读页
+ *  照样吞 Ctrl+S/F11（v4.421 观察池「板块级 keepAlive」）。 */
 type NovelPaneProps = { active?: boolean }
 const HomePage = React.lazy(() => import('./HomePage')) as React.ComponentType<NovelPaneProps>
 const NovelSettingPage = React.lazy(() => import('./NovelSettingPage')) as React.ComponentType<NovelPaneProps>
@@ -82,6 +88,9 @@ const NovelPage: React.FC = () => {
   const projectTitle = useAppStore((s) => s.projectTitle)
   const outlines = useOutlineStore((s) => s.outlines)
   const loadOutlines = useOutlineStore((s) => s.loadOutlines)
+  // 板块级可见（manifest id='novel'，boards/manifests.ts）：未收到壳层通知时恒 true，
+  // 所以「单独渲染 NovelPage」的既有写法/测试行为不变。
+  const boardVisible = useBoardActive('novel')
 
   const changeTab = (key: NovelTab) => {
     setActiveTab(key)
@@ -241,8 +250,9 @@ const NovelPage: React.FC = () => {
               className={`novel-tab-pane${activeTab === t.key ? ' is-active' : ''}`}
             >
               <React.Suspense fallback={<div className="novel-tab-skeleton" aria-hidden />}>
-                {/* active 门控的唯一来源：当前 tab 为 true，其余四个常驻隐藏页为 false */}
-                <t.component active={activeTab === t.key} />
+                {/* active 门控的唯一来源：当前 tab 为 true，其余四个常驻隐藏页为 false；
+                    再 AND「小说板块当前是否可见」（切到别的板块＝全部 pane 非当前页） */}
+                <t.component active={activeTab === t.key && boardVisible} />
               </React.Suspense>
             </div>
           ))}

@@ -29,6 +29,10 @@ interface BookSearchModalProps {
   onImported: (res: ImportReportLike) => void
   /** 失败章补下完成（append-done 事件）：HomePage 刷新书架 + 提示。 */
   onAppended: (res: NovelBookSourceAppendResult) => void
+  /** 兜底对账命中书架成书清单时回调（v4.425）：此前只弹 toast，父层书架列表仍无这本
+   *  新书（`loadProjects` 只在登录/新建/导入/补下/重试时调用）——由 HomePage 接线为
+   *  刷新书架。可选，缺省时行为与既有完全一致。 */
+  onShelfReconciled?: () => void
 }
 
 /** 下载失败章（引擎重试穷尽后如实上报，不占位；对齐 booksource.FailedChapter）。 */
@@ -52,7 +56,7 @@ const PROGRESS_LOST_MS = 3000
 const RECONCILE_INTERVAL_MS = 3000
 
 /** 在线搜书 Modal：自包含 搜索→目录→范围→进度 流程；完成/失败经回调与全局提示上报。 */
-const BookSearchModal: React.FC<BookSearchModalProps> = ({ open, onClose, onImported, onAppended }) => {
+const BookSearchModal: React.FC<BookSearchModalProps> = ({ open, onClose, onImported, onAppended, onShelfReconciled }) => {
   // ── 搜索 ──
   const [keyword, setKeyword] = useState('')
   const [searching, setSearching] = useState(false)
@@ -109,6 +113,11 @@ const BookSearchModal: React.FC<BookSearchModalProps> = ({ open, onClose, onImpo
   const [retrying, setRetrying] = useState(false)
   const [appendMsg, setAppendMsg] = useState('')
 
+  // 对账回调走 ref 读最新值：checkShelf 是 useCallback（被 armLostWatch 依赖），
+  // 把 prop 收进依赖会让定时器链路重建，得不偿失。
+  const onShelfReconciledRef = useRef(onShelfReconciled)
+  onShelfReconciledRef.current = onShelfReconciled
+
   /** 停掉失落兜底的计时器（关闭弹窗、终态事件到达、对账命中都要停）。 */
   const stopLostWatch = useCallback(() => {
     if (lostWatchRef.current !== null) {
@@ -157,6 +166,9 @@ const BookSearchModal: React.FC<BookSearchModalProps> = ({ open, onClose, onImpo
       message.success(kind === 'retry'
         ? `未收到补下进度回调；书架清单显示《${wantTitle}》现有 ${chapters} 章（补下结果以章数为准）`
         : `未收到进度回调，已按书架成书清单确认《${wantTitle}》入库（${chapters} 章）`)
+      // v4.425（B9）：命中即确认入库，父层书架列表需要同步刷新，否则这本新书在书架上
+      // 仍不可见（对账只发生在本 Modal 内部，父层无从得知）。
+      onShelfReconciledRef.current?.()
       return chapters
     } finally {
       setShelfChecking(false)

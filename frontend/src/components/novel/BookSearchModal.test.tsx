@@ -302,6 +302,33 @@ describe('导入进度事件失落兜底（v4.421.0）', () => {
     expect(props.onClose).toHaveBeenCalled()
   })
 
+  // v4.425 B9 反向守卫：兜底对账命中书架时必须通知父层刷新书架（否则这本新书在
+  // 书架上仍不可见——对账只发生在本 Modal 内部，父层无从得知）。
+  it('兜底对账命中：回调 onShelfReconciled 通知父层刷新书架', async () => {
+    vi.useFakeTimers()
+    listProjects.mockResolvedValue([{ title: '风雪夜归', path: 'C:/novels/风雪夜归', chapter_count: 12 }])
+    const onShelfReconciled = vi.fn()
+    const props: ModalProps = {
+      open: true, onClose: vi.fn(), onImported: vi.fn(), onAppended: vi.fn(), onShelfReconciled,
+    }
+    search.mockResolvedValue({ candidates, warnings: [] })
+    toc.mockResolvedValue(tocPreview)
+    render(<BookSearchModal {...props} />)
+    fireEvent.change(screen.getByLabelText('在线搜书关键字'), { target: { value: '风雪夜归' } })
+    fireEvent.click(screen.getByRole('button', { name: /搜\s*书/ }))
+    await flush()
+    fireEvent.click(screen.getAllByRole('button', { name: /选\s*书/ })[0])
+    await flush()
+    fireEvent.change(screen.getByPlaceholderText('书名（必填）'), { target: { value: '风雪夜归' } })
+    importStart.mockResolvedValue({ jobId: 'job-lost-9' })
+
+    fireEvent.click(screen.getByRole('button', { name: /开始导入/ }))
+    await flush()
+    await act(async () => { await vi.advanceTimersByTimeAsync(3000) })
+
+    expect(onShelfReconciled).toHaveBeenCalledTimes(1)
+  })
+
   it('清单查不到：如实提示未确认 + 刷新清单按钮；刷新后命中才报已入库', async () => {
     vi.useFakeTimers()
     listProjects.mockResolvedValue([])
@@ -364,8 +391,7 @@ describe('导入进度事件失落兜底（v4.421.0）', () => {
     expect(screen.getByLabelText('在线搜书关键字')).toBeTruthy()
   })
 
-  it('补下（append-done）同款竞态：无回调时按清单章数如实对账，不谎称补下成功', async () => {
-    vi.useFakeTimers()
+  it('补下（append-done）同款竞态：无回调时按清单章数如实对账，不谎称补下成功', async () => {    vi.useFakeTimers()
     listProjects.mockResolvedValue([{ title: '风雪夜归', path: 'C:/novels/风雪夜归', chapter_count: 25 }])
     await toImportForm()
     importStart.mockResolvedValue({ jobId: 'job-lost-5' })

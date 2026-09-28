@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import {
-  message, Modal,
+  message, Modal, Spin,
 } from 'antd'
 import type { TabsProps } from 'antd'
 import {
@@ -48,6 +48,9 @@ import {
   readSavedScrollTop, saveScrollTop, scrollPct,
 } from './chapter/readingScrollMemory'
 import { createTabData, needsCloseConfirm } from './chapter/chapterTabData'
+import { registerNovelDirtyProvider, takeDiscardConfirmed } from '../components/novel/novelSwitchGuard'
+// 重写历史入口的未保存闸门复用共享三选原语（只消费，不改该文件语义）。
+import { chooseUnsavedAction } from '../components/novel/unsavedGuard'
 import { IsProjectV4, GetChapterScenes, SaveScene, CreateScene } from '../../wailsjs/go/app/NovelB'
 import ExportPanel from '../components/novel/ExportPanel'
 import { ChapterIllustration } from './chapter/ChapterIllustration'
@@ -86,6 +89,26 @@ const ChapterPage: React.FC<ChapterPageProps> = ({ active = true }) => {
   const loadOutlines = useOutlineStore((s) => s.loadOutlines)
   const [tabs, setTabs] = useState<ChapterTabData[]>([])
   const [activeKey, setActiveKey] = useState<string>('')
+  // 跨页切书闸门（novelSwitchGuard）的同步探针需要读最新 tabs/activeKey；state 闭包
+  // 在登记时是旧值，故镜像到 ref（与 activeRef 同款纪律）。
+  const tabsRef = useRef<ChapterTabData[]>([])
+  tabsRef.current = tabs
+  const activeKeyRef = useRef('')
+  activeKeyRef.current = activeKey
+  // 载入在途的标签（key = node.id）：置位期间该标签的编辑区渲染 loading 占位而非编辑区。
+  // 为什么需要：章节是「先塞空 tab 让编辑器立即可输入、再异步灌正文」，载入完成时无条件
+  // 覆盖 scenes 并把 saved 置 true——作者在载入窗口里敲的字无声消失、脏标志还被抹掉
+  // （此后再关标签连确认都不弹）。用独立 state 而不进 ChapterTabData，是为了不动跨线共享的
+  // 类型契约。
+  const [loadingKeys, setLoadingKeys] = useState<Record<string, boolean>>({})
+  const setTabLoading = (key: string, loading: boolean) => {
+    setLoadingKeys((prev) => {
+      const next = { ...prev }
+      if (loading) next[key] = true
+      else delete next[key]
+      return next
+    })
+  }
   const [focusMode, setFocusMode] = useState(false)
   const [readMode, setReadMode] = useState(false)
   const [readPrefs, setReadPrefs] = useState<ReadingSettings>(readReadingSettings)
@@ -103,6 +126,12 @@ const ChapterPage: React.FC<ChapterPageProps> = ({ active = true }) => {
   const [summaryLoading, setSummaryLoading] = useState(false)
   const [summaryError, setSummaryError] = useState<string | null>(null)
   const summaryCache = useRef<Record<string, string>>({})
+  // 摘要/问书都是「发起章 → 迟到响应」的异步面：发起时自增 epoch 并快照章号，回填前
+  // 两者都要校验（守卫形态对齐同页 searchSeqRef）。切章会自增 epoch，旧响应因此必然
+  // 被丢弃——否则上一章的摘要被回填进新章后，toggleSummary 见 summaryText 非空就不再
+  // 发请求，错章内容长期驻留；问书答案同理会串进新章的会话。
+  const summarySeqRef = useRef(0)
+  const askSeqRef = useRef(0)
   const [askTarget, setAskTarget] = useState<{ selection: string } | null>(null)
   const [askQuestion, setAskQuestion] = useState('')
   // 会话式问书：同一章内的问答按序累积（user/assistant 区分样式），追问时随请求回传后端
@@ -128,7 +157,7 @@ const ChapterPage: React.FC<ChapterPageProps> = ({ active = true }) => {
   const autoScrollRef = useRef<number | null>(null)
   // 当前激活章节（须在首个引用它的 useEffect 依赖数组之前定义，避免 TDZ）
   const activeTab = tabs.find((t) => t.node.id === activeKey) ?? null
-  const handleSaveRef = useRef<() => void>(() => {})
+  const handleSaveRef = useRef<() => Promise<boolean>>(() => Promise.resolve(false))
   const handleNavRef = useRef<{ prev: () => void; next: () => void }>({ prev: () => {}, next: () => {} })
   const sceneTextareaRefs = useRef<Map<number, HTMLTextAreaElement>>(new Map())
 
@@ -207,7 +236,7 @@ const ChapterPage: React.FC<ChapterPageProps> = ({ active = true }) => {
       if (e.key === 'F11') { e.preventDefault(); setFocusMode((p) => !p) }
       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
         e.preventDefault()
-        handleSaveRef.current()
+        void handleSaveRef.current()
       }
       if (readMode && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
         e.preventDefault()
@@ -277,7 +306,14 @@ const ChapterPage: React.FC<ChapterPageProps> = ({ active = true }) => {
   }, [])
 
   useEffect(() => {
-    setTabs([]); setActiveKey(''); setReadMode(false)
+    // 跨页切书（书架经 `novelSwitchGuard` 确认过）→ 不再重复提示；未经闸门的切书
+    // 路径仍如实告知。此前这里是**无条件** `setTabs([])`：多标签里未保存的正文
+    // 静默蒸发，是全板块最后一条没有任何提示的丢稿路径。
+    const confirmed = takeDiscardConfirmed('chapter-tabs')
+    if (!confirmed && tabsRef.current.some(needsCloseConfirm)) {
+      message.warning('已切换小说：阅读页未保存的章节修改未保留')
+    }
+    setTabs([]); setActiveKey(''); setReadMode(false); setLoadingKeys({})
     if (!projectPath) return
     void (async () => {
       let v4 = false
@@ -289,12 +325,41 @@ const ChapterPage: React.FC<ChapterPageProps> = ({ active = true }) => {
       const node = findAllLeaves(sortNodes(useOutlineStore.getState().outlines))
         .find((n) => n.id === progress.nodeId)
       if (!node) return
+      // 「恢复上次阅读章」是迟到的异步回填：上面两处 await（IsProjectV4 / loadOutlines）
+      // 期间作者完全可能已经从目录点了章（handleSelectNode 往缓冲里追加了标签）。此处
+      // `setTabs([...])` 是**整体替换**缓冲——照写就会把作者刚打开的标签连同其载入结果
+      // 一起换掉（updateTabByKey 随后找不到 key 而静默 no-op）。已有标签＝用户意图优先，
+      // 恢复动作放弃（同族纪律：迟到的异步结果不得覆盖更新的状态）。
+      if (tabsRef.current.length > 0) return
       setActiveKey(node.id)
       setTabs([createTabData(node)])
       const chNum = node.order_index || 0
-      if (chNum > 0) await loadChapterIntoTab(node.id, node, chNum, v4 && !node.branch)
+      if (chNum > 0) {
+        // 自动恢复的章节同样是「空 tab → 异步灌正文」：载入在途期该 tab 只读 + loading
+        // （见 handleSelectNode 的因果说明）。
+        setTabLoading(node.id, true)
+        try { await loadChapterIntoTab(node.id, node, chNum, v4 && !node.branch) } finally { setTabLoading(node.id, false) }
+      }
     })().catch((e) => console.error('load project failed:', e))
   }, [projectPath, loadOutlines, loadChapterIntoTab])
+
+  // 跨页切书未保存保护（`novelSwitchGuard` 的登记端）：阅读页是**多标签缓冲**，
+  // 脏的可能是非当前标签——只有「恰好一个脏标签且它就是当前标签」才具备一键保存
+  // 能力，其余情况 canSave=false，闸门如实降级为两选（放弃修改并切换 / 取消），
+  // 不假装能一次存齐。
+  useEffect(() => registerNovelDirtyProvider({
+    id: 'chapter-tabs',
+    label: () => {
+      const n = tabsRef.current.filter(needsCloseConfirm).length
+      return n > 1 ? `阅读页 ${n} 个未保存章节` : '阅读页未保存的章节'
+    },
+    dirty: () => tabsRef.current.some(needsCloseConfirm),
+    canSave: () => {
+      const d = tabsRef.current.filter(needsCloseConfirm)
+      return d.length === 1 && d[0].node.id === activeKeyRef.current
+    },
+    save: () => handleSaveRef.current(),
+  }), [])
 
   // 记住当前项目最后阅读的章节，下一次切回该书时自动恢复
   useEffect(() => {
@@ -318,7 +383,17 @@ const ChapterPage: React.FC<ChapterPageProps> = ({ active = true }) => {
     if (tabs.some((t) => t.node.id === key)) return
     const newTab = createTabData(node)
     setTabs((prev) => [...prev, newTab])
-    if (chNum > 0) await loadChapterIntoTab(key, node, chNum, projectV4Ref.current && !node.branch)
+    if (chNum <= 0) return
+    // 载入在途期该 tab 的编辑区只读 + loading（渲染占位而非编辑区）：空 tab 先落到
+    // 屏幕上，编辑器立即可输入，而载入完成会无条件覆盖 scenes 并置 saved=true——
+    // 作者的输入被静默覆盖后连脏标志都没有。占位渲染从根上消除「可输入窗口」，
+    // 比「载入完成时检测并保留输入」更不易漏（后者仍要面对输入与回填的交错时序）。
+    setTabLoading(key, true)
+    try {
+      await loadChapterIntoTab(key, node, chNum, projectV4Ref.current && !node.branch)
+    } finally {
+      setTabLoading(key, false)
+    }
   }
 
   function updateTabByKey<K extends keyof ChapterTabData>(key: string, field: K, value: ChapterTabData[K]) {
@@ -334,6 +409,8 @@ const ChapterPage: React.FC<ChapterPageProps> = ({ active = true }) => {
   const closeTab = (key: string) => {
     const n = tabs.filter((t) => t.node.id !== key)
     setTabs(n)
+    // 关掉的标签若仍在载入，其 loading 标记留着会污染同名节点日后的复用
+    setTabLoading(key, false)
     if (key === activeKey) setActiveKey(n.length > 0 ? n[n.length - 1].node.id : '')
   }
 
@@ -353,6 +430,57 @@ const ChapterPage: React.FC<ChapterPageProps> = ({ active = true }) => {
     closeTab(key)
   }
 
+  // ── 重写历史 / 整章重写：服务端写盘后的前端刷新护栏 ──
+  /** 重写历史面板按「章号」工作，而阅读页是**多标签缓冲**：脏的可能是非当前标签。
+   *  判脏一律按章号扫整个缓冲——只看 activeTab 既会漏掉别的标签的未保存正文，
+   *  也会把别的章的脏算到当前章头上（弹窗给不出对得上的理由）。 */
+  const dirtyTabsOfChapter = (chNum: number): ChapterTabData[] =>
+    tabsRef.current.filter((t) => t.chapterNum === chNum && needsCloseConfirm(t))
+
+  // 面板按 activeTab.chapterNum 取章，而它可能在面板打开期间被切走；用 ref 记住
+  // 「面板当前操作的章」，onApplied 时按它判脏，而不是读回填时刻的 activeTab。
+  const rwHistChapterRef = useRef<number | null>(null)
+  if (rwHistOpen) rwHistChapterRef.current = activeTab?.chapterNum ?? null
+  const rwModalChapterRef = useRef<number | null>(null)
+  if (rwOpen) rwModalChapterRef.current = activeTab?.chapterNum ?? null
+
+  /** 应用重写 / 恢复原文后刷新正文。脏则**不刷新**并如实提示：`loadChapterIntoTab`
+   *  会把磁盘正文整章灌回缓冲并把 saved 置 true，作者的本地版本被无声覆盖、脏标志被
+   *  抹掉（此后再关标签连确认都不弹）。口径对齐创作页 `refreshEditorAfterServerRewrite`
+   *  （同样脏则不重载）；「重写已在服务端生效」这句必须留着——否则作者会以为重写失败。 */
+  const refreshChapterAfterServerRewrite = (chNum: number | null) => {
+    if (chNum == null) return
+    if (dirtyTabsOfChapter(chNum).length > 0) {
+      message.warning('重写已在服务端生效；当前标签有未保存的修改，已保留你的本地版本，未刷新')
+      return
+    }
+    const tab = tabsRef.current.find((t) => t.node.id === activeKeyRef.current && t.chapterNum === chNum)
+      ?? tabsRef.current.find((t) => t.chapterNum === chNum)
+    if (!tab) return
+    void loadChapterIntoTab(tab.node.id, tab.node, chNum, true)
+  }
+
+  /** 打开「重写历史」前过脏闸：面板里的「应用此版本 / 恢复原文」会覆盖本章正文，
+   *  先让作者保存（与创作页 `openRewriteModal` 同款口径；✕/Esc 一律＝取消）。 */
+  const openRewriteHistory = () => {
+    if (!activeTab) return
+    const chNum = activeTab.chapterNum
+    const dirty = dirtyTabsOfChapter(chNum)
+    const proceedToPanel = () => setRwHistOpen(true)
+    if (dirty.length === 0) { proceedToPanel(); return }
+    // 「先保存」只在「唯一脏标签且正是当前标签」时成立（与切书闸门 canSave 同口径）：
+    // 脏在别的标签上无法一次存齐，如实降级为两选（不提供 onSave），不假装能一次存齐。
+    const canSaveOneShot = dirty.length === 1 && dirty[0].node.id === activeKeyRef.current
+    chooseUnsavedAction({
+      title: '正文有未保存的修改',
+      message: `第 ${chNum} 章有未保存的修改，重写历史里的「应用此版本 / 恢复原文」会覆盖正文。先保存，或继续打开（本地版本仍会保留）。`,
+      onSave: canSaveOneShot
+        ? () => { void handleSaveRef.current().then((ok) => { if (ok) proceedToPanel() }) }
+        : undefined,
+      onDiscard: proceedToPanel,
+    })
+  }
+
   // v4.365：useCallback 稳定 onUpdate 引用——ChapterEditor memo 才能命中
   const updateTab = useCallback(function updateTab<K extends keyof ChapterTabData>(field: K, value: ChapterTabData[K]) {
     setTabs((prev) => {
@@ -364,10 +492,13 @@ const ChapterPage: React.FC<ChapterPageProps> = ({ active = true }) => {
     })
   }, [activeKey])
 
-  const handleSave = async () => {
-    if (!activeTab || activeTab.chapterNum < 1) return
+  const handleSave = async (): Promise<boolean> => {
+    // 返回值供跨页切书闸门（novelSwitchGuard 的 save）判断「先保存再切换」是否成立；
+    // 同时把静默 return 改成可见提示——点了保存却什么都没发生是 v4.421 已修过的
+    // 同类缺陷（CreatePage.saveActive 口径）。
+    if (!activeTab || activeTab.chapterNum < 1) { message.warning('当前没有可保存的章节'); return false }
     const c = activeTab.scenes.join('\n\n')
-    if (!c) return
+    if (!c) { message.warning('正文为空，无需保存'); return false }
     // v4.354：保存快照——V4 场景章逐场景串行 N 次后端往返（数百 ms 起步），
     // 期间继续打字后「完成侧强制 saved=true」会把未保存保护打掉（关闭不弹
     // 确认→新增文字静默丢失）。完成侧只有快照仍与当前缓冲一致才置 saved。
@@ -401,7 +532,11 @@ const ChapterPage: React.FC<ChapterPageProps> = ({ active = true }) => {
       )))
       const unchanged = tabs.some((t) => t.node.id === keyAtSave && t.scenes.join('\u0000') === savedSnapshot)
       message.success(unchanged ? '已保存' : '已保存（保存期间有新改动，请再次保存）')
-    } catch { message.error('保存失败') }
+      return true
+    } catch (e: unknown) {
+      message.error(`保存失败：${e instanceof Error ? e.message : String(e)}`)
+      return false
+    }
   }
   handleSaveRef.current = handleSave
 
@@ -422,6 +557,11 @@ const ChapterPage: React.FC<ChapterPageProps> = ({ active = true }) => {
 
   const totalWords = countTextChars(activeTab?.scenes?.join('\n') || '')
   const readNodeId = activeTab?.node.id ?? ''
+  // 迟到的异步响应只能读到发起那一刻的闭包值，无法据此判断「还是不是同一章」——
+  // 镜像到 ref，回填前与发起时快照比对（epoch 之外的第二道守卫：epoch 只保证
+  // 「没有更新的请求」，章号还保证「不是同一标签换章后的一系列请求」）。
+  const readNodeIdRef = useRef('')
+  readNodeIdRef.current = readNodeId
 
   // ── 阅读偏好（字号 / 行距 / 版宽，全局持久化） ──
   const patchReadPrefs = (p: Partial<ReadingSettings>) => {
@@ -610,18 +750,26 @@ const ChapterPage: React.FC<ChapterPageProps> = ({ active = true }) => {
 
   const runSummary = async () => {
     if (summaryLoading || !activeTab || !readNodeId) return
-    const cached = summaryCache.current[readNodeId]
+    // 发起时快照：缓存键与回填校验都用这一章，绝不读执行时刻的 readNodeId
+    // （否则 A 章的摘要会写进 B 章的缓存键，B 章再也拿不到自己的摘要）。
+    const nodeId = readNodeId
+    const cached = summaryCache.current[nodeId]
     if (cached) { setSummaryText(cached); return }
+    const seq = ++summarySeqRef.current
     setSummaryLoading(true)
     setSummaryError(null)
     try {
       const text = await askReadingAssistant('summary', activeTab.node.title || '', chapterText, '', '')
-      summaryCache.current[readNodeId] = text
+      if (seq !== summarySeqRef.current || readNodeIdRef.current !== nodeId) return
+      summaryCache.current[nodeId] = text
       setSummaryText(text)
     } catch (err) {
+      if (seq !== summarySeqRef.current || readNodeIdRef.current !== nodeId) return
       setSummaryError(errText(err, '摘要生成失败'))
     } finally {
-      setSummaryLoading(false)
+      // loading 按发起时的 seq 收尾：切章时已由切章 effect 清掉，旧响应不得再动它
+      // （否则会清掉新请求的 loading——ChapterAnalysisPanel 的 cmpSeqRef 同款先例）。
+      if (seq === summarySeqRef.current) setSummaryLoading(false)
     }
   }
 
@@ -633,7 +781,13 @@ const ChapterPage: React.FC<ChapterPageProps> = ({ active = true }) => {
 
   // 会话清空策略：问书会话按章保留（同章内划不同段落也能连续追问），切章即清空；
   // 关闭弹窗保留会话，弹窗内提供「清空会话」手动重置。
+  // 切章同时作废在途请求（epoch 自增 → 回填校验必然失败）并在此收尾 loading：
+  // 旧响应被守卫拦下后不会再走到 finally，否则新章会永远停在「问书加载中」。
   useEffect(() => {
+    summarySeqRef.current++
+    askSeqRef.current++
+    setSummaryLoading(false)
+    setAskLoading(false)
     setAskMessages([])
     setAskError(null)
   }, [readNodeId])
@@ -648,21 +802,27 @@ const ChapterPage: React.FC<ChapterPageProps> = ({ active = true }) => {
   const runAsk = async () => {
     const q = askQuestion.trim()
     if (!q || !askTarget || askLoading || !activeTab) return
+    // 发起时快照章号：迟到答案只能落回它提问的那一章（切章后直接丢弃）。
+    const nodeId = readNodeId
     const history = buildAskHistory(askMessages)
     setAskQuestion('')
     setAskError(null)
     setAskMessages((m) => [...m, { role: 'user', content: q }])
+    const seq = ++askSeqRef.current
     setAskLoading(true)
     try {
       const answer = await askReadingAssistant('ask', activeTab.node.title || '', chapterText, askTarget.selection, q, history)
+      if (seq !== askSeqRef.current || readNodeIdRef.current !== nodeId) return
       setAskMessages((m) => [...m, { role: 'assistant', content: answer }])
     } catch (err) {
-      // 失败回滚本轮提问（半截问答不混入后续历史），问题放回输入框便于重试
+      // 失败回滚本轮提问（半截问答不混入后续历史），问题放回输入框便于重试；
+      // 已切章则整体丢弃——回滚/提示都只对新章的会话有意义。
+      if (seq !== askSeqRef.current || readNodeIdRef.current !== nodeId) return
       setAskMessages(rollbackLastUserMessage)
       setAskQuestion(q)
       setAskError(errText(err, '提问失败'))
     } finally {
-      setAskLoading(false)
+      if (seq === askSeqRef.current) setAskLoading(false)
     }
   }
 
@@ -881,7 +1041,7 @@ const ChapterPage: React.FC<ChapterPageProps> = ({ active = true }) => {
                     canSave={totalWords > 0}
                     canRewrite={!!activeTab.sceneBacked && activeTab.chapterNum >= 1}
                     onRewrite={() => setRwOpen(true)}
-                    onRewriteHistory={() => setRwHistOpen(true)}
+                    onRewriteHistory={openRewriteHistory}
                   />
                 )}
               </div>
@@ -915,12 +1075,31 @@ const ChapterPage: React.FC<ChapterPageProps> = ({ active = true }) => {
             ) : (
               /* ── 编辑模式：场景多文本框 ── */
               <>
-                <ChapterEditor
-                  tab={activeTab}
-                  onUpdate={updateTab}
-                  sceneTextareaRefs={sceneTextareaRefs}
-                  ghostEnabled={false}
-                />
+                {loadingKeys[activeTab.node.id] ? (
+                  /* 载入在途：渲染只读占位而不渲染编辑区（见 handleSelectNode 的因果说明）。
+                     载入完成前没有可输入的表面，「作者输入被服务端正文静默覆盖」不可达。 */
+                  <div
+                    data-testid="chapter-editor-loading"
+                    role="status"
+                    aria-busy="true"
+                    style={{
+                      flex: 1, display: 'flex', flexDirection: 'column',
+                      alignItems: 'center', justifyContent: 'center', gap: 8,
+                      color: C('color-text-secondary'),
+                    }}
+                  >
+                    <Spin size="small" />
+                    <span>正在载入第 {activeTab.chapterNum} 章正文…</span>
+                    <span style={{ fontSize: 11, opacity: 0.7 }}>载入完成前编辑区不可用，以免你的输入被正文覆盖</span>
+                  </div>
+                ) : (
+                  <ChapterEditor
+                    tab={activeTab}
+                    onUpdate={updateTab}
+                    sceneTextareaRefs={sceneTextareaRefs}
+                    ghostEnabled={false}
+                  />
+                )}
                 {focusMode && (
                   <div style={{ padding: '2px 12px', display: 'flex', alignItems: 'center', gap: 16, fontSize: 11, color: C('color-text-secondary'), opacity: 0.7 }}>
                     <span><kbd className="novel-kbd">F11</kbd> 专注模式</span>
@@ -988,13 +1167,13 @@ const ChapterPage: React.FC<ChapterPageProps> = ({ active = true }) => {
         open={rwOpen}
         chapterNum={activeTab?.chapterNum ?? null}
         onClose={() => setRwOpen(false)}
-        onApplied={() => { if (activeTab) void loadChapterIntoTab(activeTab.node.id, activeTab.node, activeTab.chapterNum, true) }}
+        onApplied={() => refreshChapterAfterServerRewrite(rwModalChapterRef.current)}
       />
       <RewriteHistoryPanel
         open={rwHistOpen}
         chapterNum={activeTab?.chapterNum ?? null}
         onClose={() => setRwHistOpen(false)}
-        onApplied={() => { if (activeTab) void loadChapterIntoTab(activeTab.node.id, activeTab.node, activeTab.chapterNum, true) }}
+        onApplied={() => refreshChapterAfterServerRewrite(rwHistChapterRef.current)}
       />
       {illusOpen && activeTab && activeTab.chapterNum >= 1 && (
         <ChapterIllustration

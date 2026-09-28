@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { afterEach } from 'vitest'
+import { Modal } from 'antd'
 import { wailsApp } from '../lib/wailsApp'
 import type { ProjectCard } from '../stores/appStore'
 
@@ -22,8 +24,18 @@ vi.mock('../components/novel/BookSearchModal', () => ({
 import HomePage from './HomePage'
 import { useAppStore } from '../stores/appStore'
 import { writeReadingProgress } from '../utils/readingProgress'
+import { registerNovelDirtyProvider, resetNovelDirtyProviders } from '../components/novel/novelSwitchGuard'
 
 const mockedWailsApp = vi.mocked(wailsApp)
+
+// imperative Modal 的 DOM 不随 destroy()/cleanup 卸载（仓内实测坑）→ 断言一律
+// 「取最新 .ant-modal-confirm + within」，afterEach 只 destroyAll + 清脏状态登记。
+const confirms = () => Array.from(document.querySelectorAll<HTMLElement>('.ant-modal-confirm'))
+afterEach(async () => {
+  Modal.destroyAll()
+  resetNovelDirtyProviders()
+  await new Promise((r) => setTimeout(r, 0))
+})
 
 const sample: ProjectCard = {
   title: '风雪夜归',
@@ -132,6 +144,65 @@ describe('HomePage 书房书架', () => {
     expect(ev.defaultPrevented).toBe(false)
     expect(screen.queryByText('createnovel-stub')).toBeNull()
   })
+
+  // B13（v4.425 审计）：删除「正在编辑」的那本书后，后端已 closePM，但 store 的
+  // projectOpen/projectPath 原样留着 → 顶栏继续挂着已删的书，其余子页随后的保存
+  // 全报「请先打开项目」。守卫：删到当前项目即关闭项目上下文。
+  it('删除正在编辑的书：一并关闭项目上下文（不留已删除的书在「正在编辑」）', async () => {
+    useAppStore.setState({
+      projectOpen: true, projectPath: sample.path, projectTitle: sample.title,
+    })
+    render(<HomePage />)
+    await waitFor(() => expect(screen.getByText('风雪夜归')).toBeTruthy())
+
+    fireEvent.click(screen.getByRole('button', { name: '删除「风雪夜归」' }))
+    // Popconfirm 的确认按钮（antd 会给两字按钮插空格 → 用正则）
+    const del = await screen.findByRole('button', { name: /^删\s*除$/ })
+    fireEvent.click(del)
+
+    await waitFor(() => expect(useAppStore.getState().projectOpen).toBe(false))
+    expect(useAppStore.getState().projectPath).toBe('')
+    expect(useAppStore.getState().projectTitle).toBe('')
+  })
+
+  it('删除非当前项目：不动项目上下文', async () => {
+    useAppStore.setState({
+      projectOpen: true, projectPath: 'C:/novels/other', projectTitle: '另一本',
+    })
+    render(<HomePage />)
+    await waitFor(() => expect(screen.getByText('风雪夜归')).toBeTruthy())
+
+    fireEvent.click(screen.getByRole('button', { name: '删除「风雪夜归」' }))
+    const del = await screen.findByRole('button', { name: /^删\s*除$/ })
+    fireEvent.click(del)
+
+    await waitFor(() => expect(mockedWailsApp().DeleteProject).toHaveBeenCalled())
+    expect(useAppStore.getState().projectOpen).toBe(true)
+    expect(useAppStore.getState().projectPath).toBe('C:/novels/other')
+  })
+
+  // M2（v4.425）跨页切书闸门在**调用点**的接线守卫：单元测试已覆盖闸门逻辑，
+  // 但「书架真的把 openProject 包进 guardNovelSwitch 了吗」会静默回归。
+  it('有未保存内容时打开另一本书：先弹确认，不直接切（放弃修改后才切）', async () => {
+    useAppStore.setState({
+      projectOpen: true, projectPath: 'C:/novels/old', projectTitle: '旧书',
+    })
+    registerNovelDirtyProvider({
+      id: 'create-body', label: () => '创作页正文',
+      dirty: () => true, save: async () => true,
+    })
+    render(<HomePage />)
+    await waitFor(() => expect(screen.getByText('风雪夜归')).toBeTruthy())
+    const open = mockedWailsApp().OpenProject as ReturnType<typeof vi.fn>
+
+    fireEvent.click(screen.getByRole('button', { name: '打开小说「风雪夜归」' }))
+    await waitFor(() => expect(confirms().length).toBeGreaterThan(0))
+    expect(open).not.toHaveBeenCalled()
+
+    const scoped = within(confirms()[confirms().length - 1])
+    fireEvent.click(scoped.getByRole('button', { name: /放\s*弃\s*修\s*改\s*并\s*切\s*换/ }))
+    await waitFor(() => expect(open).toHaveBeenCalledWith(sample.path))
+  })
 })
 
 // tail×反推串联（v4.292）：tail 导入完成后弹「立即反推」确认，
@@ -171,7 +242,10 @@ describe('HomePage tail 导入串联反推', () => {
     fireEvent.click(opt.closest('.ant-select-item-option') ?? opt)
 
     fireEvent.change(screen.getByPlaceholderText('小说标题（必填）'), { target: { value: '长书' } })
-    const modalEl = document.querySelector('.ant-modal')
+    // 必须排除 imperative confirm 弹窗：`Modal.confirm` 的 DOM **不随 destroy 卸载**
+    // （仓内实测坑），本文件前面的跨页切书闸门用例会留下 `.ant-modal-confirm` 残影，
+    // 裸 `document.querySelector('.ant-modal')` 会取到它而不是导入弹窗。
+    const modalEl = document.querySelector('.ant-modal:not(.ant-modal-confirm)')
     expect(modalEl).toBeTruthy()
     const importBtn = Array.from(modalEl!.querySelectorAll('button')).find(
       (b) => b.textContent !== null && /导\s*入/.test(b.textContent),

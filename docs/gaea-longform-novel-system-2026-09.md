@@ -300,7 +300,7 @@ SceneBible 内文风区段）。各池独立、互不知情，没有"总预算 +
 | 线B 生成链与硬闸 | 子代理 | `internal/app/create_chapter_handler.go` · `internal/novelgate/*`（PlanContractIssues/跨章去重）· `prompts/create-chapter.json` |
 | 线C 计划生产与偏差 | 子代理 | 新 `internal/app/novel_plan_handler.go`（Get/Save/Propose/Deviation/Precheck）· `internal/app/bindings_novel.go` 委托 |
 | 线D 前端计划卡 | 子代理 | 新 `frontend/src/components/novel/ChapterPlanCard.tsx` · `pages/CreatePage.tsx` 挂载与硬闸提示 |
-| 契约面（生成物） | 主代理 | `frontend/src/wailsjs/go/app/NovelB.*`（gen_bindings）· `bindingNames.ts` · `spaceBindings` 锁 · `frontend/src/gaea/lib/bridge/novel.ts` · `mock/novel.ts` |
+| 契约面（生成物） | 主代理 | `frontend/wailsjs/go/app/NovelB.js`（gen_bindings；**注意不是 `frontend/src/wailsjs/`**——该目录不存在，v4.425 台账对账更正）· `bindingNames.ts` · `spaceBindings` 锁 · `frontend/src/gaea/lib/bridge/novel.ts` · `mock/novel.ts` |
 
 ### 7.6 验收
 

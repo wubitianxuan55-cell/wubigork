@@ -11,6 +11,7 @@ import { Alert, Button, Empty, Modal, Segmented, Select, Spin, Tag, Typography, 
 import { app } from '../../gaea/lib/bridge'
 import type { ChapterAnalysisV2View, ChapterAnnotation } from '../../gaea/lib/bridge/novel'
 import { buildAnnSegments } from './create/annotationMarks'
+import { useAppStore } from '../../stores/appStore'
 
 const cmpThStyle: React.CSSProperties = { textAlign: 'left', fontWeight: 500, padding: '2px 10px 2px 0', color: 'var(--v3-fg-soft, #6b7280)', fontSize: 11.5 }
 const cmpTdStyle: React.CSSProperties = { padding: '2px 10px 2px 0', borderTop: '1px dashed rgba(0,0,0,0.10)', fontSize: 12.5 }
@@ -70,25 +71,40 @@ export default function ChapterAnalysisPanel({ open, onClose, chapterNum, conten
   // / PromptWorkshopPanel.selectSeqRef）——表头用当前 cmpNum、行数据用迟到的 cmpV2
   // 会让「第 9 章」的表头挂着第 5 章的分数（对比结论错位）。
   const cmpSeqRef = useRef(0)
+  // v4.425：主 load 同款 seq 守卫。此前主 load 既无 token 也不依赖 projectPath：
+  // 旧章响应会回填新章面板（分数/章号错位），且旧响应的 `finally` 会提前把新章的
+  // loading 清掉（表现为「新章在加载却显示没有可展示的分析结果」）；切书且章号相同
+  // 时更是完全不重拉（同一面板显示上一本的分析）。
+  const loadSeqRef = useRef(0)
+  const projectPath = useAppStore((s) => s.projectPath)
 
   const load = useCallback(async (num: number) => {
+    const seq = ++loadSeqRef.current
     setLoading(true)
     setMissing(false)
     setData(null)
+    // data 与 anns 是两次 await，两次回填都要守卫（否则旧章的标注会落到新章）
     try {
-      setData(await app.NovelChapterAnalysisV2(num))
+      const v2 = await app.NovelChapterAnalysisV2(num)
+      if (seq !== loadSeqRef.current) return
+      setData(v2)
     } catch (e) {
+      if (seq !== loadSeqRef.current) return
       const msg = e instanceof Error ? e.message : String(e)
       if (msg.includes('尚未分析')) setMissing(true)
       else message.error(`读取分析失败：${msg}`)
     } finally {
-      setLoading(false)
+      if (seq === loadSeqRef.current) setLoading(false)
     }
     try {
-      setAnns((await app.NovelChapterAnnotations(num)) ?? [])
+      const anns = await app.NovelChapterAnnotations(num)
+      if (seq !== loadSeqRef.current) return
+      setAnns(anns ?? [])
     } catch {
+      if (seq !== loadSeqRef.current) return
       setAnns([]) // 标注缺档是正常态（空列表；重建由后端按需做）
     }
+    return undefined
   }, [])
 
   useEffect(() => {
@@ -101,11 +117,12 @@ export default function ChapterAnalysisPanel({ open, onClose, chapterNum, conten
       void load(chapterNum)
     }
     if (open && !chapterNum) {
+      loadSeqRef.current += 1 // 失效在途主响应（面板已无当前章，迟到数据不得回填）
       setData(null)
       setMissing(false)
       setAnns([])
     }
-  }, [open, chapterNum, load])
+  }, [open, chapterNum, load, projectPath])
 
   /** 加载对比章的 V2（尚未分析→行内提示；其他错误→toast）。seq 守卫：只有
    *  最后一次选择的响应能写状态（表头 cmpNum 与行数据 cmpV2 必须同源）。 */

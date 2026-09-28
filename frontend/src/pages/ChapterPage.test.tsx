@@ -4,9 +4,10 @@
 // 只锁：组件可渲染、章节 Tab 出现、阅读模式正文渲染，全程不抛错——不追求深覆盖。
 // 另锁搜索定位接线（第三批）：阅读模式内点命中可定位、同章再点仍能重新定位（回归修复）。
 // 第四批补锁：搜索命中「落为划线」→ 划线 state/持久化/正文回渲染，标题命中按钮禁用。
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { message } from 'antd'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { message, Modal } from 'antd'
+import { writeReadingProgress } from '../utils/readingProgress'
 
 // 屏蔽 Wails 绑定：jsdom 中没有 window.go，章节读写全部给确定性返回。
 // P3 版3 双轨退役（终局）：wailsjsCompat shim 已退役——NovelSearch/章节族全部
@@ -14,6 +15,8 @@ import { message } from 'antd'
 // 断言两端皆命中。
 const bindingsBridge = vi.hoisted(() => ({
   NovelSearch: vi.fn(),
+  // AI 伴读（摘要 / 问书）：迟到响应守卫（A9）用例需要挂起在途请求
+  NovelReadingAsk: vi.fn(),
   GetChapter: vi.fn().mockResolvedValue({ content: '夜色沉沉，雨落在窗台上。\n\n他推门而入，灯还亮着。' }),
   GetChapterBranch: vi.fn().mockResolvedValue({ content: '' }),
   SaveChapterContent: vi.fn().mockResolvedValue(undefined),
@@ -49,15 +52,45 @@ vi.mock('../gaea/lib/bridge', async (importOriginal) => {
   }
 })
 
-// 重型子组件桩：冒烟只关心 ChapterPage 自身的装配与状态流转
+// 重型子组件桩：冒烟只关心 ChapterPage 自身的装配与状态流转。
+// 编辑器桩额外暴露「当前缓冲正文」与一次「模拟输入」——A2b/A10 的护栏要断言
+// 「本地未保存正文没有被服务端正文覆盖」，而真实编辑器不在本文件的渲染面内。
 vi.mock('../components/TTSPlayer', () => ({ default: () => <div data-testid="tts-player-stub" /> }))
-vi.mock('../components/novel/ChapterEditor', () => ({ default: () => <div data-testid="chapter-editor-stub" /> }))
+vi.mock('../components/novel/ChapterEditor', () => ({
+  default: ({ tab, onUpdate }: { tab: { scenes: string[] }; onUpdate: (field: string, value: unknown) => void }) => (
+    <div data-testid="chapter-editor-stub">
+      <span data-testid="chapter-editor-scenes">{tab.scenes.join('|')}</span>
+      <button
+        type="button"
+        data-testid="chapter-editor-type"
+        onClick={() => {
+          onUpdate('scenes', [...tab.scenes, '作者手写的新段落。'])
+          onUpdate('saved', false)
+        }}
+      >
+        模拟输入
+      </button>
+    </div>
+  ),
+}))
 vi.mock('../components/novel/ExportPanel', () => ({ default: () => <div /> }))
 vi.mock('./chapter/ChapterIllustration', () => ({ default: () => <div /> }))
+// 重写历史面板桩：只保留「打开与否」与「服务端已应用 → onApplied」两个接线面，
+// 面板自身的列表/详情交互由 RewriteHistoryPanel.test 覆盖（其文件归属另一条线）。
+vi.mock('../components/novel/RewriteHistoryPanel', () => ({
+  default: ({ open, chapterNum, onApplied }: { open: boolean; chapterNum: number | null; onApplied?: () => void }) => (
+    open ? (
+      <div data-testid="rw-hist-panel" data-chapter={String(chapterNum)}>
+        <button type="button" data-testid="rw-hist-apply" onClick={() => onApplied?.()}>应用此版本</button>
+      </div>
+    ) : null
+  ),
+}))
 
 import ChapterPage from './ChapterPage'
 import { useAppStore } from '../stores/appStore'
 import { useOutlineStore } from '../stores/outlineStore'
+import { dirtyNovelProviders } from '../components/novel/novelSwitchGuard'
 import type { OutlineNode } from '../types'
 
 // NovelSearch 断言引用 = bindingsBridge 共享 vi.fn（shim 已退役）
@@ -411,5 +444,315 @@ describe('ChapterPage 场景章重写入口', () => {
     expect(await screen.findByTestId('chapter-editor-stub')).toBeTruthy()
     expect(screen.queryByText('整章重写')).toBeNull()
     expect(screen.queryByText('重写历史')).toBeNull()
+  })
+})
+
+// ── 线3 防复发守卫（小说优化批 2）──────────────────────────────────────────
+// 坑复训（本轮实测沿用）：imperative Modal 的 DOM 不随 destroy()/cleanup 立即卸载 →
+// 断言一律「取最新 .ant-modal-confirm + within()」，并且必须「等弹窗数量变多」而不是
+// 等「存在」（旧弹窗残留会让 waitFor 立刻通过、拿到已销毁的那个）；两字按钮被插空格
+// （「取 消」）→ 按钮名一律正则。
+const confirms = () => Array.from(document.querySelectorAll<HTMLElement>('.ant-modal-confirm'))
+const latestConfirm = () => {
+  const all = confirms()
+  return within(all[all.length - 1])
+}
+
+/** 触发后等「确认弹窗数量增加」，返回最新弹窗的限定查询器。 */
+async function clickAndAwaitConfirm(trigger: () => void) {
+  const before = confirms().length
+  trigger()
+  await waitFor(() => expect(confirms().length).toBeGreaterThan(before))
+  return latestConfirm()
+}
+
+// ── A2b（P1）：重写历史应用/恢复原文不问脏 ──
+// 因果：面板里的「应用此版本 / 恢复原文」在服务端写盘后回调 onApplied，旧实现无条件
+// loadChapterIntoTab(..., true)——该路径把磁盘正文灌回 scenes 并把 saved 置 true，
+// 作者未落盘的手写正文被覆盖**且脏标志被抹掉**（此后再关标签连确认都不弹）。
+describe('重写历史（A2b）：打开前过脏闸、应用后脏则不重载', () => {
+  const sceneLeaf = { id: 'ch-1', title: '第一回 风雪夜归人', order_index: 1 } as unknown as OutlineNode
+
+  beforeEach(() => {
+    localStorage.clear()
+    // vi.clearAllMocks 不清实现（含 mockResolvedValueOnce 队列）：「若护栏失效则会用到」
+    // 的那条一次性返回值在护栏生效时不会被消费，会泄漏给后续用例 → 本组显式复位。
+    novelB.GetChapterScenes.mockReset()
+  })
+  afterEach(async () => {
+    Modal.destroyAll()
+    await new Promise((r) => setTimeout(r, 0))
+  })
+
+  /** 场景章挂载：等 V4 探测完成（ref 镜像写入）后再派发开章事件（既有用例同款时序） */
+  async function mountSceneChapter(first: Array<{ id: string; content: string }>) {
+    novelB.IsProjectV4.mockResolvedValue(true)
+    novelB.GetChapterScenes.mockResolvedValueOnce(first)
+    useOutlineStore.setState({ outlines: [sceneLeaf] })
+    useAppStore.setState({ projectPath: 'C:/proj/rewrite-hist' })
+    render(<ChapterPage />)
+    await waitFor(() => expect(novelB.IsProjectV4).toHaveBeenCalled())
+    await act(async () => {})
+    window.dispatchEvent(new CustomEvent('novel:open-chapter', { detail: { node: sceneLeaf } }))
+    await screen.findByTestId('chapter-editor-stub')
+    await screen.findByText('已保存')
+  }
+
+  it('打开重写历史前过脏闸：三选弹窗；取消不开面板，「放弃修改」才开', async () => {
+    await mountSceneChapter([{ id: '001-s1', content: '磁盘正文。' }])
+    fireEvent.click(screen.getByTestId('chapter-editor-type'))
+    expect(await screen.findByText('未保存')).toBeTruthy()
+
+    const box = await clickAndAwaitConfirm(() => fireEvent.click(screen.getByText('重写历史')))
+    // 三选齐备 + 面板没被打开
+    expect(box.getByRole('button', { name: /先\s*保\s*存/ })).toBeTruthy()
+    expect(box.getByRole('button', { name: /放\s*弃\s*修\s*改/ })).toBeTruthy()
+    expect(box.getByRole('button', { name: /取\s*消/ })).toBeTruthy()
+    expect(screen.queryByTestId('rw-hist-panel')).toBeNull()
+
+    // ✕/Esc 同义＝取消：点取消不开面板、也不动缓冲（破坏性分支不许挂在 onCancel 上）
+    fireEvent.click(box.getByRole('button', { name: /取\s*消/ }))
+    await new Promise((r) => setTimeout(r, 0))
+    expect(screen.queryByTestId('rw-hist-panel')).toBeNull()
+    expect(screen.getByText('未保存')).toBeTruthy()
+
+    // 「放弃修改」＝继续打开；本地缓冲随后仍由 onApplied 的脏判保留
+    const box2 = await clickAndAwaitConfirm(() => fireEvent.click(screen.getByText('重写历史')))
+    fireEvent.click(box2.getByRole('button', { name: /放\s*弃\s*修\s*改/ }))
+    expect(await screen.findByTestId('rw-hist-panel')).toBeTruthy()
+  })
+
+  it('应用版本后本地有未保存正文：不重载、保留本地版本、脏标志保留', async () => {
+    const warn = vi.spyOn(message, 'warning')
+    await mountSceneChapter([{ id: '001-s1', content: '磁盘上的旧正文。' }])
+    // 若护栏失效而发生重载，服务端返回的是这段新正文——用它把「被覆盖」钉成可诊断的红
+    novelB.GetChapterScenes.mockResolvedValueOnce([{ id: '001-s1', content: '重写后落盘的新正文。' }])
+
+    // 打开面板时缓冲是干净的（所以不弹脏闸）；打开期间该章标签转脏（本轮由编辑器桩构造，
+    // 真实来源包括面板打开时仍在途的场景写入 / 程序化更新）——onApplied 必须再判一次。
+    fireEvent.click(screen.getByText('重写历史'))
+    expect(await screen.findByTestId('rw-hist-panel')).toBeTruthy()
+    fireEvent.click(screen.getByTestId('chapter-editor-type'))
+    expect(await screen.findByText('未保存')).toBeTruthy()
+
+    fireEvent.click(screen.getByTestId('rw-hist-apply'))
+
+    await waitFor(() => expect(warn).toHaveBeenCalledWith(
+      '重写已在服务端生效；当前标签有未保存的修改，已保留你的本地版本，未刷新'))
+    // 不重载：只有首次载入那一次 GetChapterScenes
+    expect(novelB.GetChapterScenes).toHaveBeenCalledTimes(1)
+    // 本地版本仍在、脏标志仍在（关标签仍会弹未保存确认）
+    expect(screen.getByTestId('chapter-editor-scenes').textContent).toContain('作者手写的新段落。')
+    expect(screen.getByText('未保存')).toBeTruthy()
+    expect(dirtyNovelProviders().some((p) => p.id === 'chapter-tabs')).toBe(true)
+    warn.mockRestore()
+  })
+})
+
+// ── A10（P3）：载入期间输入被覆盖后还标 saved=true ──
+// 因果：先塞空 tab 让编辑器立即可输入，载入完成无条件覆盖 scenes 并置 saved=true。
+// 采用「载入在途渲染只读 loading 占位而不渲染编辑区」：从根上不存在可输入窗口，
+// 比「完成时检测已输入并保留」更不易漏（后者仍要面对输入与回填的交错时序）。
+describe('章节载入在途（A10）：编辑区只读 loading，不静默覆盖输入', () => {
+  const leafA = { id: 'ch-1', title: '第一回 风雪夜归人', order_index: 1 } as unknown as OutlineNode
+
+  beforeEach(() => {
+    localStorage.clear()
+    // 同 A2b：清掉可能从上一组泄漏的一次性实现（本组自身用 mockResolvedValueOnce 排程）
+    novelB.GetChapterScenes.mockReset()
+  })
+  afterEach(async () => {
+    Modal.destroyAll()
+    await new Promise((r) => setTimeout(r, 0))
+  })
+
+  it('载入未完成时只有 loading 占位（无任何输入面），完成后才渲染编辑区', async () => {
+    const resolves: Array<(v: unknown) => void> = []
+    bindingsBridge.GetChapter.mockImplementationOnce(
+      () => new Promise((r) => { resolves.push(r as (v: unknown) => void) }) as never)
+    // 不设 projectPath：projectPath effect 的「恢复上次阅读章」是在途异步，若与本次
+    // 开章并发会 setTabs 覆盖本次标签（本用例只关心载入在途的编辑区形态）。
+    useOutlineStore.setState({ outlines: [leafA] })
+    render(<ChapterPage />)
+    window.dispatchEvent(new CustomEvent('novel:open-chapter', { detail: { node: leafA } }))
+    await waitFor(() => expect(bindingsBridge.GetChapter).toHaveBeenCalledWith(1))
+    await waitFor(() => expect(resolves.length).toBe(1))
+
+    // 载入在途：编辑区不存在（连文本框都没有）→「敲字后被服务端正文覆盖」不可达
+    expect(await screen.findByTestId('chapter-editor-loading')).toBeTruthy()
+    expect(screen.queryByTestId('chapter-editor-stub')).toBeNull()
+    expect(screen.queryByTestId('chapter-editor-type')).toBeNull()
+    expect(screen.getByText('正在载入第 1 章正文…')).toBeTruthy()
+
+    await act(async () => { resolves[0]({ content: '服务端最终正文。' }) })
+    expect(await screen.findByTestId('chapter-editor-stub')).toBeTruthy()
+    expect(screen.queryByTestId('chapter-editor-loading')).toBeNull()
+    expect(screen.getByTestId('chapter-editor-scenes').textContent).toBe('服务端最终正文。')
+    expect(await screen.findByText('已保存')).toBeTruthy()
+  })
+
+  it('脏闸按「面板当前操作的那一章」判：别的章的未保存标签不拦本章', async () => {
+    const leafB = { id: 'ch-2', title: '第二回 灯下白头人', order_index: 2 } as unknown as OutlineNode
+    novelB.IsProjectV4.mockResolvedValue(true)
+    novelB.GetChapterScenes
+      .mockResolvedValueOnce([{ id: '001-s1', content: '第一章场景正文。' }])
+      .mockResolvedValueOnce([{ id: '002-s1', content: '第二章场景正文。' }])
+    useOutlineStore.setState({ outlines: [leafA, leafB] })
+    useAppStore.setState({ projectPath: 'C:/proj/rewrite-hist-multi' })
+    render(<ChapterPage />)
+    await waitFor(() => expect(novelB.IsProjectV4).toHaveBeenCalled())
+    await act(async () => {})
+
+    window.dispatchEvent(new CustomEvent('novel:open-chapter', { detail: { node: leafA } }))
+    await waitFor(() => expect(screen.getByTestId('chapter-editor-scenes').textContent).toBe('第一章场景正文。'))
+    // 在第 2 章标签上制造未保存修改（多标签缓冲：脏的可能不是当前标签）
+    window.dispatchEvent(new CustomEvent('novel:open-chapter', { detail: { node: leafB } }))
+    await waitFor(() => expect(screen.getByTestId('chapter-editor-scenes').textContent).toBe('第二章场景正文。'))
+    fireEvent.click(screen.getByTestId('chapter-editor-type'))
+    expect(screen.getByTestId('chapter-editor-scenes').textContent).toContain('作者手写的新段落。')
+    // 切回干净的第 1 章：第 2 章的脏仍在缓冲里
+    window.dispatchEvent(new CustomEvent('novel:open-chapter', { detail: { node: leafA } }))
+    await waitFor(() => expect(screen.getByTestId('chapter-editor-scenes').textContent).toBe('第一章场景正文。'))
+
+    // 面板操作的是第 1 章 → 不该拿第 2 章的脏拦本章（判脏按章号，不看「缓冲里有没有脏」）
+    fireEvent.click(screen.getByText('重写历史'))
+    expect(await screen.findByTestId('rw-hist-panel')).toBeTruthy()
+    await new Promise((r) => setTimeout(r, 0))
+    expect(confirms().length).toBe(0)
+    expect(screen.getByTestId('rw-hist-panel').getAttribute('data-chapter')).toBe('1')
+  })
+})
+
+// ── A9（P2）：摘要 / 问书迟到响应错章 ──
+// 因果：runSummary/runAsk 在 await 后直接回填，没有任何「还属于当前章吗」的守卫；
+// 切章 effect 先把 summaryText 置 null，随后被旧响应回填 → toggleSummary 见 summaryText
+// 非空就不再发请求，上一章的摘要长期显示在新章；问书答案同型（串进新章会话）。
+describe('AI 伴读迟到响应（A9）：切章后旧摘要/旧答案不回填', () => {
+  const leafA = { id: 'ch-1', title: '第一回 风雪夜归人', order_index: 1 } as unknown as OutlineNode
+  const leafB = { id: 'ch-2', title: '第二回 灯下白头人', order_index: 2 } as unknown as OutlineNode
+
+  // jsdom 30 未实现 Range.getBoundingClientRect，而 readSelectionInRoot 读选区几何时调用
+  // （划词工具条/问书共用判定）→ 补零矩形，仅本文件需要真实划词路径。
+  beforeAll(() => {
+    Range.prototype.getBoundingClientRect = () => ({
+      x: 0, y: 0, top: 0, left: 0, right: 0, bottom: 0, width: 0, height: 0,
+      toJSON: () => ({}),
+    }) as DOMRect
+  })
+
+  beforeEach(() => {
+    localStorage.clear()
+    // vi.clearAllMocks 不清实现：显式复位，避免「在途」用例的一次性实现泄漏到后续用例
+    bindingsBridge.NovelReadingAsk.mockReset()
+  })
+  afterEach(async () => {
+    Modal.destroyAll()
+    await new Promise((r) => setTimeout(r, 0))
+  })
+
+  /** 开第 1 章并进入阅读模式（以正文段落渲染完成为准） */
+  async function openReading() {
+    useOutlineStore.setState({ outlines: [leafA, leafB] })
+    render(<ChapterPage />)
+    window.dispatchEvent(new CustomEvent('novel:open-chapter', { detail: { node: leafA } }))
+    await screen.findByTestId('chapter-editor-stub')
+    await screen.findByText('已保存')
+    fireEvent.click(screen.getByRole('button', { name: '进入阅读模式' }))
+    await screen.findByText('夜色沉沉，雨落在窗台上。')
+  }
+
+  it('切章后迟到的摘要被丢弃：不回填新章，也不吞掉新章的摘要请求', async () => {
+    const resolves: Array<(v: string) => void> = []
+    bindingsBridge.NovelReadingAsk
+      .mockImplementationOnce(() => new Promise<string>((r) => { resolves.push(r) }) as never)
+      .mockImplementationOnce(() => new Promise<string>((r) => { resolves.push(r) }) as never)
+    await openReading()
+
+    fireEvent.click(screen.getByRole('button', { name: /AI 摘要/ }))
+    await waitFor(() => expect(resolves.length).toBe(1))
+    expect(await screen.findByText('AI 正在阅读本章…')).toBeTruthy()
+
+    // 切到第 2 章：旧摘要请求仍在途
+    window.dispatchEvent(new CustomEvent('novel:open-chapter', { detail: { node: leafB } }))
+    await waitFor(() => expect(document.querySelector('.novel-reading-title')?.textContent)
+      .toBe('第二回 灯下白头人'))
+    // 切章即收尾 loading：新章不许停在「AI 正在阅读本章…」
+    await waitFor(() => expect(screen.queryByText('AI 正在阅读本章…')).toBeNull())
+
+    // 旧响应到达：整体丢弃（回填会让新章显示上一章的摘要）
+    await act(async () => { resolves[0]('第一章的摘要') })
+    expect(screen.queryByText('第一章的摘要')).toBeNull()
+
+    // 反向守卫核：旧摘要若被回填，summaryText 非空 → toggleSummary 不再发请求
+    fireEvent.click(screen.getByRole('button', { name: /AI 摘要/ }))
+    await waitFor(() => expect(bindingsBridge.NovelReadingAsk).toHaveBeenCalledTimes(2))
+    expect(screen.queryByText('第一章的摘要')).toBeNull()
+    await act(async () => { resolves[1]('第二章的摘要') })
+    expect(await screen.findByText('第二章的摘要')).toBeTruthy()
+  })
+
+  it('切章后迟到的问书答案被丢弃，且不在新章留下「正在思考」', async () => {
+    const resolves: Array<(v: string) => void> = []
+    bindingsBridge.NovelReadingAsk
+      .mockImplementationOnce(() => new Promise<string>((r) => { resolves.push(r) }) as never)
+    await openReading()
+
+    // 划词 → 浮动工具条 → 问书弹窗
+    const para = document.querySelector('.novel-reading-p') as HTMLElement
+    const range = document.createRange()
+    range.setStart(para.firstChild as Text, 0)
+    range.setEnd(para.firstChild as Text, 4)
+    const sel = window.getSelection() as Selection
+    sel.removeAllRanges(); sel.addRange(range)
+    fireEvent.mouseUp(document.querySelector('.novel-reading-scroll') as HTMLElement)
+    fireEvent.click(screen.getByRole('button', { name: /问书/ }))
+
+    fireEvent.change(screen.getByPlaceholderText('针对摘选内容提问，例如：这句话暗示了什么？'),
+      { target: { value: '这句话什么意思？' } })
+    // antd 两字按钮插空格（「提 问」）→ 按钮名一律正则
+    fireEvent.click(screen.getByRole('button', { name: /提\s*问/ }))
+    await waitFor(() => expect(resolves.length).toBe(1))
+    expect(await screen.findByText('正在思考…')).toBeTruthy()
+
+    window.dispatchEvent(new CustomEvent('novel:open-chapter', { detail: { node: leafB } }))
+    await waitFor(() => expect(document.querySelector('.novel-reading-title')?.textContent)
+      .toBe('第二回 灯下白头人'))
+    // loading 必须收尾：旧响应被守卫拦下后不会再走到 finally
+    await waitFor(() => expect(
+      document.querySelector('.novel-read-ask-actions .ant-btn-loading')).toBeNull())
+
+    await act(async () => { resolves[0]('第一轮的答案') })
+    expect(screen.queryByText('第一轮的答案')).toBeNull()
+    expect(document.querySelectorAll('.novel-read-ask-msg').length).toBe(0)
+  })
+})
+
+// 「恢复上次阅读章」也是**迟到的异步回填**：projectPath effect 里先 await IsProjectV4 /
+// loadOutlines，之后才 `setTabs([createTabData(恢复章)])`——那是**整体替换**缓冲。若作者在
+// 这段窗口里已经从目录点了章（或敲了字），照写就把刚打开的标签连同内容换掉。本组把
+// 「已有标签＝用户意图优先，恢复动作放弃」这条护栏钉死。
+// 灵敏度：把 `if (tabsRef.current.length > 0) return` 去掉，GetChapter 会被调用两次（本用例红）。
+describe('切书恢复上次阅读章（迟到回填不覆盖已打开标签）', () => {
+  it('恢复分支在途时作者已开章：不整体替换缓冲、不重复载入', async () => {
+    const PATH = 'C:/novel/race'
+    let releaseV4: (v: boolean) => void = () => { /* 由 render 后的 effect 赋值 */ }
+    novelB.IsProjectV4.mockImplementation(
+      () => new Promise<boolean>((resolve) => { releaseV4 = resolve }) as never,
+    )
+    useOutlineStore.setState({ outlines: [leaf] })
+    writeReadingProgress(PATH, { nodeId: leaf.id, chapterNum: 1, title: '第一回 风雪夜归人' })
+    useAppStore.setState({ projectPath: PATH })
+
+    render(<ChapterPage />)
+    // 恢复分支此刻卡在 IsProjectV4 上（未 resolve）；作者从目录点章
+    window.dispatchEvent(new CustomEvent('novel:open-chapter', { detail: { node: leaf } }))
+    await screen.findByRole('tab', { name: /第一回 风雪夜归人/ })
+    await waitFor(() => expect(bindingsBridge.GetChapter).toHaveBeenCalledTimes(1))
+
+    // 放行恢复分支：它现在读到的进度就是刚打开的这一章；无护栏则再整体替换 + 二次载入
+    await act(async () => { releaseV4(false) })
+    await new Promise((r) => setTimeout(r, 0))
+    expect(screen.getByRole('tab', { name: /第一回 风雪夜归人/ })).toBeTruthy()
+    expect(bindingsBridge.GetChapter).toHaveBeenCalledTimes(1)
   })
 })

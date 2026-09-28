@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { Button, Checkbox, Input, Modal, Tag, Typography, message } from 'antd'
 import { app } from '../../../gaea/lib/bridge'
 import { subscribeWailsEvent } from '../../../gaea/lib/wailsEvents'
@@ -30,20 +30,72 @@ interface NewCharactersPayload {
   chapterNum?: number
 }
 
+/** 待弹的发现（事件载荷归一而来的可编辑条目，active=false 期间挂起） */
+interface PendingDiscovery {
+  list: NewCharEntry[]
+  libs: LibMatchEntry[]
+  chapter: number
+}
+
+/** 事件载荷 → 可编辑条目（新角色默认全选，库内同名角色默认关联）。 */
+function toDiscovery(data: NewCharactersPayload | undefined): PendingDiscovery {
+  return {
+    list: (data?.characters || []).map((name: string) => ({ original: name, name, selected: true })),
+    libs: (data?.libraryMatches || []).map((m) => ({
+      id: m.id ?? '', name: m.name ?? '', roleType: m.roleType || '', portraitUrl: m.portraitUrl || '', selected: true,
+    })),
+    chapter: data?.chapterNum || 0,
+  }
+}
+
+/**
+ * 挂起期间可能连发多章（切页期间事件照发），按名字 / 角色 id 去重合并——
+ * 只留最后一批会把更早的发现永久丢掉，正是 A8 要避免的。
+ */
+function mergeDiscovery(prev: PendingDiscovery | null, next: PendingDiscovery): PendingDiscovery {
+  if (!prev) return next
+  const list = [...prev.list]
+  for (const e of next.list) if (!list.some((x) => x.name === e.name)) list.push(e)
+  const libs = [...prev.libs]
+  for (const m of next.libs) if (!libs.some((x) => x.id === m.id)) libs.push(m)
+  return { list, libs, chapter: next.chapter || prev.chapter }
+}
+
 const roleLabels: Record<string, string> = {
   protagonist: '主角', antagonist: '反派', supporting: '配角', minor: '次要',
 }
 
 /**
  * 新角色发现弹窗（T6-7.5 从 CreatePage 拆分）：自订阅 'new-characters-discovered'
- * 事件，自持弹窗/条目/选中/保存中状态，页面仅需渲染 <NewCharactersModal />。
+ * 事件，自持弹窗/条目/选中/保存中状态，页面仅需渲染 <NewCharactersModal active={active} />。
+ *
+ * A8：小说子页**常驻挂载**（NovelPage 全 pane 同挂 + CSS 隐藏），本组件的事件通道因此
+ * 一直在听。旧实现收到事件立即 setOpen(true)：带遮罩的 Modal 走 portal，父页的 CSS 隐藏
+ * 盖不住它，于是「新角色发现」会凭空盖在**别的子页**上抢焦点（同页 novel:auto-reconstruct
+ * 监听早已按 active 门控，此处是漏掉的一半）。故：
+ *   - `active=false` 时事件**挂起**（合并进 pending，不丢弃——切页期间的角色发现不能永久丢）；
+ *   - `active` 变真时再弹。
+ * （不做「已在屏上的弹窗随 active 变假自动收起」：遮罩本身拦截指针事件，作者在该状态下
+ * 根本点不动标签/板块，该路径不可达；多一条隐含路径反而让门控不可测。）
  */
-const NewCharactersModal: React.FC = () => {
+const NewCharactersModal: React.FC<{ active?: boolean }> = ({ active = true }) => {
   const [open, setOpen] = useState(false)
   const [newCharsList, setNewCharsList] = useState<NewCharEntry[]>([])
   const [newCharsChapter, setNewCharsChapter] = useState(0)
   const [libMatches, setLibMatches] = useState<LibMatchEntry[]>([])
   const [adding, setAdding] = useState(false)
+  // 事件回调只注册一次，故 active 走 ref 读最新值（同 CreatePage 的 activeRef 纪律）
+  const activeRef = useRef(active)
+  activeRef.current = active
+  /** active=false 期间挂起的发现（切回创作页再弹，绝不丢弃） */
+  const pendingRef = useRef<PendingDiscovery | null>(null)
+
+  const applyDiscovery = useCallback((d: PendingDiscovery) => {
+    setNewCharsList(d.list)
+    setLibMatches(d.libs)
+    setNewCharsChapter(d.chapter)
+    setOpen(true)
+  }, [])
 
   // 监听新角色发现事件（v4.421.0：退订走 subscribeWailsEvent 的「只摘除自己」
   // 清理函数——此前裸 EventsOff('new-characters-discovered') 会把同通道别人
@@ -55,14 +107,9 @@ const NewCharactersModal: React.FC = () => {
       const ev = raw as { detail?: NewCharactersPayload } | NewCharactersPayload | null | undefined
       const data = ((ev as { detail?: NewCharactersPayload } | null)?.detail || ev) as NewCharactersPayload | undefined
       if ((data?.characters?.length ?? 0) > 0 || (data?.libraryMatches?.length ?? 0) > 0) {
-        setNewCharsList((data?.characters || []).map((name: string) => ({
-          original: name, name, selected: true,
-        })))
-        setLibMatches((data?.libraryMatches || []).map((m) => ({
-          id: m.id ?? '', name: m.name ?? '', roleType: m.roleType || '', portraitUrl: m.portraitUrl || '', selected: true,
-        })))
-        setNewCharsChapter(data?.chapterNum || 0)
-        setOpen(true)
+        const d = toDiscovery(data)
+        if (activeRef.current) applyDiscovery(d)
+        else pendingRef.current = mergeDiscovery(pendingRef.current, d)
       }
     }
     try {
@@ -71,7 +118,16 @@ const NewCharactersModal: React.FC = () => {
       // 订阅失败：无监听可退（不抛给 React 渲染链）
       return undefined
     }
-  }, [])
+  }, [applyDiscovery])
+
+  // active 变真：把挂起的发现补弹出来（切页期间攒下的角色发现一笔都不能少）
+  useEffect(() => {
+    if (!active) return
+    const pending = pendingRef.current
+    if (!pending) return
+    pendingRef.current = null
+    applyDiscovery(pending)
+  }, [active, applyDiscovery])
 
   const selectedCount = newCharsList.filter(c => c.selected).length + libMatches.filter(m => m.selected).length
 

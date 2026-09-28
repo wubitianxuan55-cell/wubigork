@@ -2,7 +2,7 @@
 // 覆盖 v4.282（oh-story 蒸馏 T3）：确定性两路（写前大纲契约 outlineContract /
 // 写后硬信号 deterministic）与 AI 四路并列直显；四路缺省仍按「未启用」诚实降级。
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import React from 'react'
 
 const mocks = vi.hoisted(() => ({ RunChapterGate: vi.fn() }))
@@ -68,5 +68,31 @@ describe('NovelInspector 章节体检（确定性两路 + AI 四路）', () => {
     fireEvent.click(await screen.findByRole('button', { name: /运行/ }))
     expect(await screen.findByText('写前契约：齐备')).toBeTruthy()
     expect(screen.getByText('写后硬信号：未命中')).toBeTruthy()
+  })
+
+  // v4.425 B12 反向守卫：在途体检响应不得挂到已切换的章上。
+  it('体检在途换章：旧响应被丢弃，不把第 2 章的报告挂到第 5 章', async () => {
+    let resolveGate: (v: unknown) => void = () => {}
+    mocks.RunChapterGate.mockImplementationOnce(
+      () => new Promise((r) => { resolveGate = r }) as never,
+    )
+    render(<NovelInspector activeTab="chapter" collapsed={false} onToggleCollapse={vi.fn()} onNavigate={vi.fn()} stats={null} />)
+    emitChapterActive({ id: 'n2', chapterNum: 2, title: '第二章', words: 2300, saved: true })
+    fireEvent.click(await screen.findByRole('button', { name: /运行/ }))
+    await waitFor(() => expect(mocks.RunChapterGate).toHaveBeenCalledWith(2))
+
+    // 第 2 章的响应还在途中时用户切到第 5 章
+    emitChapterActive({ id: 'n5', chapterNum: 5, title: '第五章', words: 2600, saved: true })
+    await waitFor(() => expect(screen.getByText('第五章')).toBeTruthy())
+
+    await act(async () => {
+      resolveGate({ chapterNum: 2, analysis: null, review: { score: 7, weaknesses: ['对话偏说明文'] }, consistency: { total_issues: 0 }, aiTaste: { score: 42 } })
+      await Promise.resolve()
+    })
+
+    // 报告区不得出现第 2 章的分数（gate 仍为空态）
+    expect(screen.queryByText('写前契约：齐备')).toBeNull()
+    expect(screen.queryByText('42')).toBeNull()
+    expect(screen.getByText(/合并分析\/审查\/一致性\/AI 味四路/)).toBeTruthy()
   })
 })

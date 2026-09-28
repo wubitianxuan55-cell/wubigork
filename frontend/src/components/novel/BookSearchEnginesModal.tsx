@@ -4,12 +4,13 @@
 // 的结构化编辑；未知高级字段（link/linkParam/redirectHosts/crawl）按行原样保留
 // 不丢失。保存走后端整体替换：逐条 fail-closed 校验（CSS only、禁 @js:）+
 // 临时文件原子落盘；规则每次搜索现读，保存即生效，无缓存失效面。
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { Button, Input, Modal, Space, Switch, Typography, message } from 'antd'
 import { DeleteOutlined, PlusOutlined } from '@ant-design/icons'
 import { app } from '../../gaea/lib/bridge'
 import type { NovelBookSourceEngineRule } from '../../gaea/lib/bridge/novel'
 import { C } from '../../utils/theme'
+import { confirmDiscard } from './unsavedGuard'
 
 interface BookSearchEnginesModalProps {
   open: boolean
@@ -31,19 +32,45 @@ const fieldLabel = (text: string) => (
   <Typography.Text style={{ ...secondaryStyle, display: 'block', marginBottom: 2 }}>{text}</Typography.Text>
 )
 
+/** 逐行基线（按引擎名索引）：判断用户是否改过任何字段。 */
+type EngineBaseline = Record<string, string>
+
+/** 行 JSON 指纹。字段顺序稳定（patch 用 `{...r, [key]: v}` 展开原对象），
+ *  故 JSON.stringify 可直接作为「有没有改动」的判据。 */
+const rowFingerprint = (r: NovelBookSourceEngineRule): string => JSON.stringify(r)
+
 /** 泛搜索引擎规则编辑器：结构化编辑 + 整体替换保存（后端 fail-closed 校验）。 */
 const BookSearchEnginesModal: React.FC<BookSearchEnginesModalProps> = ({ open, onClose }) => {
   const [rows, setRows] = useState<NovelBookSourceEngineRule[]>([])
   const [path, setPath] = useState('')
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
+  // v4.425（B8）：打开即 reload() 覆盖 rows，关闭又无脏检查 → 编辑直接蒸发。
+  // 用「首次 reload 的逐行快照」当基线判脏；行在编辑中改名会让 key 对不上，
+  // 按索引兜底，避免改名后被误判为「没改过」而静默丢弃。
+  const baselineRef = useRef<EngineBaseline | null>(null)
+  const baselineOrderRef = useRef<string[]>([])
+
+  const isRowDirty = (r: NovelBookSourceEngineRule, idx: number): boolean => {
+    const base = baselineRef.current
+    if (!base) return false
+    const before = base[String(r.name)] ?? base[baselineOrderRef.current[idx] ?? '']
+    if (before === undefined) return true // 新增行：基线里查无此条
+    return before !== rowFingerprint(r)
+  }
+  const dirty = baselineRef.current !== null && rows.some((r, idx) => isRowDirty(r, idx))
 
   const reload = useCallback(async () => {
     setLoading(true)
     try {
       const res = await app.NovelBookSourceEnginesGet()
-      setRows(res.rules ?? [])
+      const list = res.rules ?? []
+      setRows(list)
       setPath(res.path ?? '')
+      const base: EngineBaseline = {}
+      for (const r of list) base[String(r.name)] = rowFingerprint(r)
+      baselineRef.current = base
+      baselineOrderRef.current = list.map((r) => String(r.name))
     } catch (err: unknown) {
       message.error(err instanceof Error ? err.message : '读取引擎规则失败')
     } finally {
@@ -73,11 +100,30 @@ const BookSearchEnginesModal: React.FC<BookSearchEnginesModalProps> = ({ open, o
     }
   }
 
+  /** 关闭入口（✕/Esc 与「取消」同义）：有未保存编辑先问过；保存在途禁止关闭。 */
+  const requestClose = () => {
+    if (saving) {
+      message.warning('规则保存中，请稍候再关闭')
+      return
+    }
+    if (!dirty) { onClose(); return }
+    confirmDiscard({
+      title: '引擎规则有未保存的修改',
+      message: '关闭会丢弃这些编辑（规则文件未写入，下次搜索仍用旧规则）。',
+      discardLabel: '放弃修改',
+      onDiscard: onClose,
+    })
+  }
+
   return (
     <Modal
       title={<span style={{ color: C('color-text') }}>搜索引擎规则</span>}
       open={open}
-      onCancel={onClose}
+      onCancel={requestClose}
+      confirmLoading={saving}
+      maskClosable={!saving}
+      closable={!saving}
+      keyboard={!saving}
       width={760}
       footer={[
         <Button key="add" icon={<PlusOutlined aria-hidden />} onClick={() => setRows((rs) => [...rs, { ...TEMPLATE, name: `新引擎 ${rs.length + 1}` }])}>

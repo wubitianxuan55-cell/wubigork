@@ -1,8 +1,9 @@
 // BookSearchEnginesModal.test.tsx — 泛搜索引擎规则编辑器（t3 余项）。
 // bridge mock：Get 返回夹具清单断言渲染；逐字段编辑/启停/新增/删除后保存，
 // 断言保存载荷整体替换且高级字段（linkParam 等）原样保留；保存失败如实透出。
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { Modal } from 'antd'
 import React from 'react'
 
 vi.mock('../../gaea/lib/bridge', async (importOriginal) => {
@@ -87,5 +88,63 @@ describe('搜索引擎规则编辑器', () => {
 
     fireEvent.click(screen.getByLabelText('删除引擎 1'))
     expect(screen.queryByDisplayValue('bing')).toBeNull()
+  })
+})
+
+// ── v4.425 B8：关闭即丢未保存编辑 → 走脏闸；保存在途禁止关闭 ──
+describe('搜索引擎规则编辑器 关闭脏闸（v4.425 B8）', () => {
+  afterEach(async () => {
+    Modal.destroyAll()
+    await new Promise((r) => setTimeout(r, 0))
+  })
+
+  const confirms = () => Array.from(document.querySelectorAll<HTMLElement>('.ant-modal-confirm'))
+
+  it('有未保存编辑时点关闭：先弹确认；取消则不关且编辑保留', async () => {
+    const { onClose } = renderModal()
+    await screen.findByDisplayValue('bing')
+    fireEvent.change(screen.getByLabelText('结果条目选择器 1'), { target: { value: '.b_algo.new' } })
+
+    const before = confirms().length
+    fireEvent.click(document.querySelector('.ant-modal-close') as HTMLElement)
+    await waitFor(() => expect(confirms().length).toBeGreaterThan(before))
+    const scoped = within(confirms()[confirms().length - 1])
+    expect(scoped.getAllByText(/引擎规则有未保存的修改/).length).toBeGreaterThan(0)
+
+    fireEvent.click(scoped.getByRole('button', { name: /取\s*消/ }))
+    await new Promise((r) => setTimeout(r, 0))
+    expect(onClose).not.toHaveBeenCalled()
+    expect(screen.getByDisplayValue('.b_algo.new')).toBeTruthy()
+  })
+
+  it('未编辑时点关闭：不弹确认、直接关闭', async () => {
+    const { onClose } = renderModal()
+    await screen.findByDisplayValue('bing')
+
+    const before = confirms().length
+    fireEvent.click(document.querySelector('.ant-modal-close') as HTMLElement)
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1))
+    expect(confirms().length).toBe(before)
+  })
+
+  it('保存在途：关闭被拒（不关窗、不弹确认），保存完成后才走正常关闭', async () => {
+    let release: () => void = () => {}
+    enginesSave.mockImplementationOnce(
+      () => new Promise<number>((res) => { release = () => res(2) }) as never,
+    )
+    const { onClose } = renderModal()
+    await screen.findByDisplayValue('bing')
+
+    fireEvent.click(screen.getByRole('button', { name: /保\s*存/ }))
+    await waitFor(() => expect(enginesSave).toHaveBeenCalledTimes(1))
+
+    const before = confirms().length
+    // antd 在 closable=false 时整体不渲染叉号 → 直接断言该开关确实关掉了关闭入口
+    expect(document.querySelector('.ant-modal-close')).toBeNull()
+    expect(onClose).not.toHaveBeenCalled()
+    expect(confirms().length).toBe(before)
+
+    act(() => { release() })
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1))
   })
 })

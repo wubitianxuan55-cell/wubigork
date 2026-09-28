@@ -1,7 +1,7 @@
 // 全书体检面板（GenerationGate 闭环收口）：聚合卡/最差 AI 味告警/逐章表越线
 // 红标/伏笔 findings/空书空态/打开即跑。
 import { describe, expect, it, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 
 const mocks = vi.hoisted(() => ({
   run: vi.fn(),
@@ -20,6 +20,7 @@ vi.mock('../../gaea/lib/bridge', async (importOriginal) => {
 })
 
 import BookHealthPanel from './BookHealthPanel'
+import { useAppStore } from '../../stores/appStore'
 
 const REPORT = {
   totalChapters: 2,
@@ -37,6 +38,10 @@ const REPORT = {
 describe('BookHealthPanel 全书体检（GenerationGate 闭环）', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    // 坑复训：vi.clearAllMocks() 不清 mockImplementation——跨用例必须复位，
+    // 否则「失败的实现」会泄漏给后续用例（本文件先前已踩过一次集体假红）。
+    mocks.run.mockReset()
+    mocks.run.mockResolvedValue(REPORT as never)
   })
 
   it('打开即跑：聚合卡 + 逐章表 + 伏笔 findings + 最差 AI 味告警', async () => {
@@ -77,11 +82,43 @@ describe('BookHealthPanel 全书体检（GenerationGate 闭环）', () => {
     expect(screen.getByText('还没有已写章节')).toBeTruthy()
   })
 
-  it('失败：错误提示 + 空态', async () => {
-    mocks.run.mockRejectedValue(new Error('请先打开项目') as never)
+  it('失败：错误横幅（不是「没有体检结果」空态）+ 重试按钮可再跑', async () => {
+    // 第一次失败、重试成功（mockReset 已在 beforeEach 统一做，此处只排队这一次的实现）
+    mocks.run.mockRejectedValueOnce(new Error('请先打开项目') as never)
     render(<BookHealthPanel open onClose={vi.fn()} />)
-    await waitFor(() => expect(screen.getByText(/请先打开项目/)).toBeTruthy())
-    expect(screen.getByText('没有体检结果')).toBeTruthy()
+    await waitFor(() => expect(screen.getByTestId('book-health-error')).toBeTruthy())
+    // B10 反向守卫：失败必须与「确实没有结果」区分开，且给出重试入口
+    expect(screen.queryByText('没有体检结果')).toBeNull()
+    expect(screen.getByText('全书体检失败')).toBeTruthy()
+    // 原子串同时出现在「失败原因」与 toast 文案里 → 用 getAllByText，不用 getByText
+    expect(screen.getAllByText(/请先打开项目/).length).toBeGreaterThan(0)
+
+    // 弹窗 footer 另有「重新体检」——这里用更精确的名字定位横幅按钮
+    fireEvent.click(screen.getByRole('button', { name: /^\s*重\s*试\s*$/ }))
+    await waitFor(() => expect(screen.getByTestId('book-health-body')).toBeTruthy())
+    expect(mocks.run).toHaveBeenCalledTimes(2)
+  })
+
+  it('后端返回 null（确实没有结果）：走空态而非错误横幅', async () => {
+    mocks.run.mockResolvedValue(null as never)
+    render(<BookHealthPanel open onClose={vi.fn()} />)
+    await waitFor(() => expect(screen.getByText('没有体检结果')).toBeTruthy())
+    expect(screen.queryByTestId('book-health-error')).toBeNull()
+  })
+
+  it('切换项目：清掉上一本的报告态（不额外发请求）', async () => {
+    useAppStore.setState({ projectPath: 'C:/novel/book-a' })
+    mocks.run.mockResolvedValue(REPORT as never)
+    render(<BookHealthPanel open onClose={vi.fn()} />)
+    await waitFor(() => expect(screen.getByTestId('book-health-body')).toBeTruthy())
+    const callsBefore = mocks.run.mock.calls.length
+
+    act(() => { useAppStore.setState({ projectPath: 'C:/novel/book-b' }) })
+
+    // 报告属上一本 → 清空；且只是清态，不触发新请求（重开弹窗时才重拉）
+    await waitFor(() => expect(screen.queryByTestId('book-health-body')).toBeNull())
+    expect(screen.queryByText('最差 AI 味 74（第 2 章）')).toBeNull()
+    expect(mocks.run.mock.calls.length).toBe(callsBefore)
   })
 })
 

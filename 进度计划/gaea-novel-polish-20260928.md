@@ -92,7 +92,7 @@
 | 线 | 负责人 | 文件足迹 |
 |----|--------|----------|
 | 线0 Go 正确性 | 子代理 G | `internal/app/create_chapter_handler.go`、`novel_llm_rewrite_handler.go`、`novel_deslop_handler.go`（+测试） |
-| 线1 创作页 | 主代理 | `pages/CreatePage.tsx`、`components/novel/RewriteModal.tsx`、`PartialRewriteModal.tsx`、`editor/EditorPanel.tsx`、`create/annotationMarks*` |
+| 线1 创作页 | 主代理 | `pages/CreatePage.tsx`、`components/novel/RewriteModal.tsx`、`PartialRewriteModal.tsx`、`create/EditorPanel.tsx`、`create/annotationMarks*` |
 | 线2 快捷键门控 | 子代理 A | `pages/NovelPage.tsx`、`pages/ChapterPage.tsx`、`pages/HomePage.tsx` |
 | 线3 设定页+两面板 | 子代理 B | `pages/NovelSettingPage.tsx`、`components/novel/ForeshadowPanel.tsx`、`ConsistencyPanel.tsx` |
 | 线4 组件修复批 | 子代理 C | `components/novel/BookSearchModal.tsx`、`ChapterAnalysisPanel.tsx`、`create/useChapterStream.ts`、`create/useChapterGateNotice.ts`、`create/NewCharactersModal.tsx`、`PromptWorkshopPanel.tsx`、`CreateNovelModal.tsx` |
@@ -135,6 +135,15 @@
 | 线2 快捷键 | 全部落地 | 5 pane `active` 下发 + 三处 keydown 门控 + 目录点章改 commit 后派发；新增 `NovelPage.test.tsx` 3 例；**灵敏度实测**=把门控改 `if (false)` 恰 3 条新守卫变红 |
 | 线3 设定页+面板 | 全部落地 | 两面板 `load` 依赖 `projectPath` + 换书清 AI 深检 + 导入确认 + 下行可折叠；三文件 15→21 / 18→22 / 4→7 例 |
 | 线4 组件批 | 6 项全部落地（项6 伏笔串行化由主代理补） | 导入进度失落兜底（3s 无事件→按成书清单对账 + 如实提示）/ 章际对比 seq 守卫 / 三处 `EventsOff`→`subscribeWailsEvent` / 工坊脏保护 / 新建防双击 / 伏笔整表写回串行化（23 例绿） |
+| 线5 重写弹窗关闭策略 | 全部落地（本表补登） | `RewriteModal` 运行中确认关闭 / `PartialRewriteModal` 运行中禁关（closable/maskClosable/keyboard）；v4.425 台账对账时发现本行**漏登**（少报，非多报） |
+
+> **台账更正（v4.425 对账，2026-09-29）**：
+> ① 线4 第 3 项的「三处裸 `EventsOff` 已改」**当时并未清零**——生产源码仍有 2 处整通道全清
+>    （`components/TTSPlayer.tsx`、`pages/CharacterLibraryPage.tsx`），v4.425 补齐并把
+>    「零整通道 `EventsOff`」写成源码守卫 `frontend/src/events-discipline.test.ts` 防复发。
+> ② 线4 第 6 项「在途禁用」**当时只落地了串行队列**（`savingWrite` 仅用于文案、未绑
+>    `disabled`），v4.425 补齐。
+> ③ 本文 §0 引用的行号是改动前快照（作历史证据可读，勿作当前状态引用）。
 
 **跨线契约落地**：`NovelPage` 向五 pane 传 `active?: boolean`（默认 `true`），
 `ChapterPage`/`HomePage`/`NovelSettingPage` 消费；Ctrl+S 单一归属成立（阅读 tab = 章节、

@@ -205,14 +205,28 @@ func dimWordcountExpr(p Platform, runes []rune, paras []paragraph) Dimension {
 			continue
 		}
 		// 先往后 20 rune 找引号实体，找不到再向前找（「…」这三个字 两种语序都覆盖）。
-		quoted, qlen, _, qend := quotedSpanAfter(runes, i+4, 20)
+		// 两个分支的坐标都要接住（G9）：旧实现丢弃 before 分支的 start/end，沿用了
+		// after 分支未命中时的 qend=0，于是回退路径产出 Start=i、End=0 的非法证据
+		// 区间（前端高亮按 Start<End 取文本时越界/空白）。证据区间统一取「引号实体
+		// 与‘这N个字’表述的并集」，保证 start < end 恒成立。
+		quoted, qlen, qstart, qend := quotedSpanAfter(runes, i+4, 20)
 		if quoted == "" {
-			quoted, qlen, _, _ = quotedSpanBefore(runes, i, 20)
+			quoted, qlen, qstart, qend = quotedSpanBefore(runes, i, 20)
 		}
 		if quoted == "" || qlen == n {
 			continue
 		}
-		bad = append(bad, EvidenceSpan{Start: i, End: qend, Paragraph: paragraphIndexOf(paras, i)})
+		start, end := i, i+4
+		if qstart < start {
+			start = qstart
+		}
+		if qend > end {
+			end = qend
+		}
+		if start >= end {
+			continue // 防御：坐标异常时宁可不给证据，也不产出非法区间
+		}
+		bad = append(bad, EvidenceSpan{Start: start, End: end, Paragraph: paragraphIndexOf(paras, i)})
 		details = append(details, fmt.Sprintf("「这%s个字」实际 %d 字（%s）", string(runes[i+1]), qlen, quoted))
 	}
 	if len(bad) == 0 {

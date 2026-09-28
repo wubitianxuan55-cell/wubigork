@@ -2,10 +2,11 @@
 // 纯 props 驱动：数据获取全在 CreatePage，这里不需要 mock NovelB 绑定，
 // 直接给 status/score fixture 断言三段 body 与 footer 按钮行为。
 import { describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import React from 'react'
 
 import StyleFingerprintPanel from './StyleFingerprintPanel'
+import { useAppStore } from '../../stores/appStore'
 import type { FingerprintScorePayload, FingerprintStatusPayload } from '../../gaea/lib/bridge/novel'
 
 type PanelProps = React.ComponentProps<typeof StyleFingerprintPanel>
@@ -117,5 +118,23 @@ describe('StyleFingerprintPanel 文风指纹面板', () => {
     renderPanel({ hasChapter: false })
     expect((screen.getByRole('button', { name: '体检当前章' }) as HTMLButtonElement).disabled).toBe(true)
     expect((screen.getByRole('button', { name: '构建/重建参考档' }) as HTMLButtonElement).disabled).toBe(false)
+  })
+})
+
+// ── v4.425 B5b：报告不含书名，切书必须失效（父层清得掉，这里再兜一道） ──
+describe('StyleFingerprintPanel 切书失效（v4.425 B5b）', () => {
+  it('切换项目后不再展示上一本的参考档与体检分数', () => {
+    useAppStore.setState({ projectPath: 'C:/novel/book-a' })
+    renderPanel({ status: builtStatus, score: scoreWithRef })
+    expect(screen.getByText('42')).toBeTruthy()
+    expect(screen.getByText(/与你的基线距离 Δ 0.31/)).toBeTruthy()
+
+    act(() => { useAppStore.setState({ projectPath: 'C:/novel/book-b' }) })
+
+    expect(screen.queryByText('42')).toBeNull()
+    expect(screen.queryByText(/与你的基线距离 Δ 0.31/)).toBeNull()
+    // 回到「未构建参考档 / 未体检」的引导文案
+    expect(screen.getByText(/用已有章节构建你自己的文风基线/)).toBeTruthy()
+    expect(screen.getByText(/点击「体检当前章」获取本章 AI 味评分/)).toBeTruthy()
   })
 })

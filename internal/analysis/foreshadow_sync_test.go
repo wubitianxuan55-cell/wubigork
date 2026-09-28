@@ -441,6 +441,69 @@ func TestSyncForeshadows_UnknownTypeError(t *testing.T) {
 	}
 }
 
+// TestSyncForeshadows_WriteFailureReported G3：落盘失败必须如实进 Errors，
+// 且 SyncPersisted 为 false——消费端（生成后自动门的 chapter-gate 报告）据此
+// 不再把 planted/resolved 计数当成功展示。
+//
+// 夹具：把 foreshadows.json 换成同名目录，原子写的改名覆盖必然失败。读路径在
+// Windows 上也会对该目录报错（"Incorrect function"），此时同步按既有纪律放弃
+// 并记 Errors——两条路径都属「本轮没落盘」，本用例钉的是**语义**：
+// 只要出错就不得被当成落盘成功。
+func TestSyncForeshadows_WriteFailureReported(t *testing.T) {
+	a := newSyncTestAgent(t)
+	if err := a.pm.WriteForeshadows(&types.ForeshadowFile{Items: []types.Foreshadow{}}); err != nil {
+		t.Fatalf("预置伏笔文件: %v", err)
+	}
+	path := filepath.Join(a.pm.Dir, "foreshadows.json")
+	if err := os.Remove(path); err != nil {
+		t.Fatalf("删 foreshadows.json: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(path, "block"), 0o755); err != nil {
+		t.Fatalf("造写盘失败夹具: %v", err)
+	}
+
+	res := a.SyncForeshadows(1, []types.ForeshadowHit{
+		{Type: "planted", Content: "落盘失败的伏笔"},
+	})
+	if len(res.Errors) == 0 {
+		t.Fatalf("落盘失败必须记入 Errors（旧实现 `_ = WriteForeshadows` 吞错后照报成功）: %+v", res)
+	}
+	if res.SyncPersisted() {
+		t.Fatalf("落盘失败时 SyncPersisted 必须为 false: %+v", res.Errors)
+	}
+	// lastSync 必须是如实结果：消费端（LastSync）拿到的就是它。
+	got, ok := a.LastSync()
+	if !ok || got.SyncPersisted() {
+		t.Fatalf("lastSync 应如实反映落盘失败: ok=%v %+v", ok, got)
+	}
+}
+
+// TestSyncPersisted_OnlyFalseWhenErrors 口径：Errors 为空即落盘成功，非空即失败
+// （消费端 novel_book_health 的 persisted 字段直接取它）。
+func TestSyncPersisted_OnlyFalseWhenErrors(t *testing.T) {
+	if !(SyncResult{}).SyncPersisted() {
+		t.Fatal("无错误应视为落盘成功")
+	}
+	if (SyncResult{Errors: []string{"boom"}}).SyncPersisted() {
+		t.Fatal("有错误不得视为落盘成功")
+	}
+}
+
+// TestSyncForeshadows_SuccessMarkedPersisted 反向守卫：正常盘况下 Errors 为空、
+// SyncPersisted 为 true（避免「永远返回未落盘」把成功也报成失败）。
+func TestSyncForeshadows_SuccessMarkedPersisted(t *testing.T) {
+	a := newSyncTestAgent(t)
+	res := a.SyncForeshadows(1, []types.ForeshadowHit{
+		{Type: "planted", Content: "正常落盘的伏笔"},
+	})
+	if !res.SyncPersisted() {
+		t.Fatalf("正常落盘不应有错误: %+v", res.Errors)
+	}
+	if len(readForeshadowItems(t, a)) != 1 {
+		t.Fatalf("条目应已落盘")
+	}
+}
+
 // TestSyncForeshadows_ScoreDerivedDefaults 评分派生唯一规则与缺省语义：
 // Importance=min(Strength/10,1)；Strength/Subtlety 0→缺省 5；>10 封顶。
 func TestSyncForeshadows_ScoreDerivedDefaults(t *testing.T) {

@@ -7,6 +7,7 @@ import {
   StopOutlined, LoadingOutlined,
 } from '@ant-design/icons'
 import { C } from '../utils/theme'
+import { subscribeWailsEvent } from '../gaea/lib/wailsEvents'
 
 interface TTSPlayerProps {
   getText: () => string
@@ -115,10 +116,15 @@ const TTSPlayer: React.FC<TTSPlayerProps> = ({ getText, onStatusChange, onSenten
   }, [playNextChunk])
 
   // 监听 Wails TTS 流式事件
+  // v4.425：改走 subscribeWailsEvent 唯一入口。此前是 EventsOn + 卸载时
+  // `EventsOff('tts-stream')` —— EventsOff 会注销该通道上的**全部**监听者
+  // （v4.62.2 事故形态，见 gaea/lib/wailsEvents.ts 头注），本组件销毁即会
+  // 连带炸掉别人在同一通道上的订阅。
   useEffect(() => {
     if (!window.runtime?.EventsOn) return
 
-    window.runtime.EventsOn('tts-stream', (ev: TTSStreamEvent) => {
+    const off = subscribeWailsEvent(window.runtime, 'tts-stream', (raw: unknown) => {
+      const ev = raw as TTSStreamEvent
       if (!ev?.type) return
 
       if (ev.type === 'progress') {
@@ -150,9 +156,7 @@ const TTSPlayer: React.FC<TTSPlayerProps> = ({ getText, onStatusChange, onSenten
     })
 
     return () => {
-      try {
-        window.runtime?.EventsOff?.('tts-stream')
-      } catch (_) {}
+      off()
       // v4.354：卸载回收播放中资源——此前 cleanupAudio 只在操作路径调用，
       // 播放中卸载组件（切章节/切页面）泄当前 chunk blob URL 且音频继续外放
       cleanupAudioRef.current()

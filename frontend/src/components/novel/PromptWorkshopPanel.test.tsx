@@ -345,3 +345,69 @@ describe('PromptWorkshopPanel 切模板脏草稿保护（v4.421.0）', () => {
     expect(confirms().length).toBe(before)
   })
 })
+// ── v4.425 B7：关闭弹窗也要判脏（此前 onCancel 直连 onClose，脏草稿静默丢弃） ──
+describe('PromptWorkshopPanel 关闭脏闸（v4.425 B7）', () => {
+  afterEach(async () => {
+    Modal.destroyAll()
+    await new Promise((r) => setTimeout(r, 0))
+  })
+
+  const confirms = () => Array.from(document.querySelectorAll<HTMLElement>('.ant-modal-confirm'))
+
+  const openTwoTemplates = () => {
+    mocks.list.mockResolvedValue([
+      mkMeta('create-chapter', 'chapter', 'override', true, true, 3),
+      mkMeta('chapter-summary', 'summary', 'override', true, true, 2),
+    ] as never)
+    mocks.get.mockImplementation(async (key: string) => mkDetail(key) as never)
+    const onClose = vi.fn()
+    const view = render(<PromptWorkshopPanel open onClose={onClose} />)
+    return { onClose, view }
+  }
+
+  it('草稿脏时点关闭：先弹确认；取消则不关且草稿保留；确认才关', async () => {
+    const { onClose, view } = openTwoTemplates()
+    await waitFor(() => expect(screen.getAllByTestId('prompt-workshop-row')).toHaveLength(2))
+    fireEvent.click(screen.getByText('create-chapter'))
+    await waitFor(() => expect(screen.getByTestId('prompt-workshop-system')).toBeTruthy())
+    fireEvent.change(screen.getByTestId('prompt-workshop-system'), { target: { value: '脏草稿' } })
+
+    const before = confirms().length
+    fireEvent.click(document.querySelector('.ant-modal-close') as HTMLElement)
+    await waitFor(() => expect(confirms().length).toBeGreaterThan(before))
+    const scoped = within(confirms()[confirms().length - 1])
+    // 弹窗标题父子双匹配（antd wrapper + 内层 div）→ 取集合断言，不用 getByText
+    expect(scoped.getAllByText(/提示词草稿尚未保存/).length).toBeGreaterThan(0)
+
+    // 取消（✕/Esc 同义）：不关窗、草稿保留
+    fireEvent.click(scoped.getByRole('button', { name: /取\s*消/ }))
+    await new Promise((r) => setTimeout(r, 0))
+    expect(onClose).not.toHaveBeenCalled()
+    expect((screen.getByTestId('prompt-workshop-system') as HTMLTextAreaElement).value).toBe('脏草稿')
+
+    // 再点关闭并确认：这次才真的关
+    const before2 = confirms().length
+    fireEvent.click(document.querySelector('.ant-modal-close') as HTMLElement)
+    await waitFor(() => expect(confirms().length).toBeGreaterThan(before2))
+    fireEvent.click(within(confirms()[confirms().length - 1]).getByRole('button', { name: /关闭面板/ }))
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1))
+
+    // 重开同一模板：未保存草稿保留在编辑区（不再因重开清 detail 而静默丢弃）
+    view.rerender(<PromptWorkshopPanel open={false} onClose={onClose} />)
+    view.rerender(<PromptWorkshopPanel open onClose={onClose} />)
+    await waitFor(() => expect(screen.getByTestId('prompt-workshop-system')).toBeTruthy())
+    expect((screen.getByTestId('prompt-workshop-system') as HTMLTextAreaElement).value).toBe('脏草稿')
+  })
+
+  it('未改动时点关闭：不弹确认、直接关闭', async () => {
+    const { onClose } = openTwoTemplates()
+    await waitFor(() => expect(screen.getAllByTestId('prompt-workshop-row')).toHaveLength(2))
+    fireEvent.click(screen.getByText('create-chapter'))
+    await waitFor(() => expect(screen.getByTestId('prompt-workshop-system')).toBeTruthy())
+
+    const before = confirms().length
+    fireEvent.click(document.querySelector('.ant-modal-close') as HTMLElement)
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1))
+    expect(confirms().length).toBe(before)
+  })
+})

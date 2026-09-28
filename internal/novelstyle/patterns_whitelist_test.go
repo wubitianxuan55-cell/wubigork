@@ -72,6 +72,41 @@ func TestRuleExplanatoryMarkers_AdvisoryCapped(t *testing.T) {
 	}
 }
 
+// TestApplyWhitelist_WholeTextSpanNotExempted G7：整篇 span（Start=0、End=全文
+// rune 数）不参与白名单豁免。句长均匀 / 形副密度 / 标点滥用这类判据是全篇统计
+// 量，span 覆盖全文只是「整篇」的表示；旧实现按互含判定，白名单里任一句出现在
+// 正文中就把整项全篇扣分摘掉——授权一句等于关掉一条门禁。
+func TestApplyWhitelist_WholeTextSpanNotExempted(t *testing.T) {
+	text := "天亮了。他起身。风吹过。树影摇晃。"
+	score := &TasteScore{Score: 40, Issues: []TasteIssue{
+		{Start: 0, End: len([]rune(text)), Reason: "句长方差过小：全篇句长过于均匀，缺少节奏变化", Severity: "medium"},
+	}}
+	// 定位 span（否定翻转等价物）：仍应被白名单摘除。
+	score.Issues = append(score.Issues, TasteIssue{
+		Start: 0, End: 5, Reason: "定位型问题", Severity: "high",
+	})
+	wholeWeight := severityToWeight("medium")
+	locWeight := severityToWeight("high")
+
+	// 白名单条目恰好是整篇 span 文本的一部分：整篇项不得被摘除。
+	n := ApplyWhitelist(score, text, []string{"天亮了。他起身。"})
+	if len(score.Issues) != 1 || score.Issues[0].Severity != "medium" {
+		t.Fatalf("整篇 span 不应被白名单摘除（定位 span 应被摘除）: %+v", score.Issues)
+	}
+	if n != wholeWeight {
+		t.Fatalf("重算分数应只含整篇项权重 %d，得到 %d", wholeWeight, n)
+	}
+
+	// 反向守卫：不带整篇项的定位 span 照旧豁免（避免「一刀切永不豁免」过头）。
+	loc := &TasteScore{Score: 99, Issues: []TasteIssue{
+		{Start: 0, End: 5, Reason: "定位型问题", Severity: "high"},
+	}}
+	if got := ApplyWhitelist(loc, text, []string{"天亮了。"}); got != 0 || len(loc.Issues) != 0 {
+		t.Fatalf("定位 span 应照旧被白名单摘除: score=%d issues=%+v", got, loc.Issues)
+	}
+	_ = locWeight
+}
+
 // ── 书级白名单 ──
 
 func TestApplyWhitelist_RescoresAndExempts(t *testing.T) {

@@ -11,7 +11,7 @@
 // 手法：五个子页替换为只暴露 `data-active` 的桩（线2 允许的两种手法之一），
 // 大纲树 OutlinePanel 替换为「点一下即 onSelectNode」的按钮。
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 
 vi.mock('./HomePage', () => ({
   default: ({ active }: { active?: boolean }) => <div data-testid="pane-home" data-active={String(active)} />,
@@ -48,6 +48,7 @@ vi.mock('../components/novel/OutlinePanel', () => ({
 import NovelPage from './NovelPage'
 import { useAppStore } from '../stores/appStore'
 import { useOutlineStore } from '../stores/outlineStore'
+import { notifyBoardActive, resetBoardActive } from '../lib/boardActive'
 import type { OutlineNode } from '../types'
 
 /** 最小消费面的大纲叶子（目录树点击只用到 id/title/order_index） */
@@ -66,6 +67,8 @@ const PANE_KEYS = ['home', 'novelsetting', 'character', 'create', 'chapter']
 describe('NovelPage 常驻 pane 的 active 下发', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    // 板块级可见信号是模块级状态：置回「未通知」（= 可见），避免用例间串味
+    resetBoardActive()
     // activeTab 从 localStorage 读（gaea.novel.activeTab），清掉保证默认书架页
     localStorage.clear()
     // 不开书：projectPath 空 → 不触发 loadOutlines/GetStats，用例只测 active 下发
@@ -122,5 +125,30 @@ describe('NovelPage 常驻 pane 的 active 下发', () => {
     } finally {
       window.removeEventListener('novel:open-chapter', listener)
     }
+  })
+
+  // ── 板块级门控（lib/boardActive，v4.425 补的「板块级 keepAlive」收口）──────────
+  // 反例（v4.421 只做到子页之间）：壳层对访问过的板块做 keepAlive（display:none），
+  // 小说板块被切走后本组件仍挂载，只按 activeTab 判断的话，隐藏的阅读页照样
+  // preventDefault 吞掉 Ctrl+S / F11——本条把「板块不可见 ⇒ 全部 pane 非当前页」钉死。
+  // 灵敏度：把 NovelPage 里的 `&& boardVisible` 去掉，本条必红。
+  it('板块被切走：全部 pane active=false（连带子页窗口级副作用一起停）', async () => {
+    render(<NovelPage />)
+    await screen.findByTestId('pane-home')
+
+    // 切到阅读 tab（最危险的一页：Ctrl+S/F11/←→ 都在它身上）
+    fireEvent.click(within(screen.getByRole('navigation', { name: '小说板块' }))
+      .getByRole('button', { name: /阅读/ }))
+    await waitFor(() => expect(paneActive('chapter')).toBe('true'))
+
+    // 壳层切到别的板块（如办公）→ 小说板块整体进入后台保活
+    act(() => { notifyBoardActive('gaea') })
+    expect(paneActive('chapter')).toBe('false')
+    expect(activePanes()).toEqual([])
+
+    // 切回小说板块 → 当前 tab（阅读）恢复 active
+    act(() => { notifyBoardActive('novel') })
+    expect(paneActive('chapter')).toBe('true')
+    expect(activePanes()).toEqual(['pane-chapter'])
   })
 })

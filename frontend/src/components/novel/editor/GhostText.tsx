@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
+import { subscribeWailsEvent } from '../../../gaea/lib/wailsEvents'
 
 /**
  * GhostText — 内联 AI 补全组件
@@ -37,10 +38,14 @@ const GhostText: React.FC<GhostTextProps> = ({ getCursorContext, enabled, styleP
   const overlayRef = useRef<HTMLDivElement>(null)
 
   // 清理 SSE 监听
+  // v4.425：`EventsOn` + `EventsOff(channel, handler)` 虽已是「精确摘除」，但仍绕过
+  // 唯一入口 `subscribeWailsEvent`（gaea/lib/wailsEvents.ts 头注要求「任何新的事件
+  // 订阅都必须经由本模块，不得直接摸 window.runtime」）——收敛之，行为不变。
   useEffect(() => {
-    if (!enabled) return
+    if (!enabled || !window.runtime?.EventsOn) return
 
-    const handleGhostStream = (ev: GhostStreamEvent) => {
+    const handleGhostStream = (raw: unknown) => {
+      const ev = raw as GhostStreamEvent
       if (!ev?.type) return
 
       if (ev.type === 'chunk') {
@@ -61,15 +66,7 @@ const GhostText: React.FC<GhostTextProps> = ({ getCursorContext, enabled, styleP
       }
     }
 
-    try {
-      window.runtime?.EventsOn?.('ghost-stream', handleGhostStream)
-    } catch (_) {}
-
-    return () => {
-      try {
-        window.runtime?.EventsOff?.('ghost-stream', handleGhostStream)
-      } catch (_) {}
-    }
+    return subscribeWailsEvent(window.runtime, 'ghost-stream', handleGhostStream)
   }, [enabled])
 
   // 接受补全：插入文本并清除 ghost

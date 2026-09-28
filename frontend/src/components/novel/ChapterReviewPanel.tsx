@@ -8,8 +8,9 @@
 // 本组件纯展示、props 驱动直测（见 ChapterReviewPanel.test.tsx）。
 // 契约：NovelReviewPlatforms / NovelChapterReview 两绑定（gaea/lib/bridge/novel.ts，Go NovelB 门面）；
 // 后端 omitempty 字段可能缺省，数值/列表展示一律 ?. 与 ?? 防御。
-import React from 'react'
+import React, { useEffect, useRef } from 'react'
 import { Button, Modal, Select, Tag } from 'antd'
+import { useAppStore } from '../../stores/appStore'
 import type { ChapterReviewPayload, ReviewPlatform } from '../../gaea/lib/bridge/novel'
 
 /** verdict → antd Tag 色（pass=green / warn=gold / fail=red / skip=default）。 */
@@ -72,9 +73,18 @@ interface ChapterReviewPanelProps {
 const ChapterReviewPanel: React.FC<ChapterReviewPanelProps> = ({
   open, onClose, busy, msg, platforms, platformId, onPlatformChange, report, onReview, hasChapter,
 }) => {
-  const sem = verdictSemantics(report?.verdict)
-  const counts = report?.counts ?? {}
-  const dims = report?.dimensions ?? []
+  // v4.425：报告不含书名，切书后整屏仍是上一本的评审结论且看不出归属。报告由
+  // CreatePage 持有（本组件纯展示），父层清得掉；这里再按 projectPath 兜一道：报告绑在
+  // 切换前那本书的上下文里，切书即视为失效。用 ref 记录「这份报告出自哪本书」，并在
+  // effect 里随本次提交更新——切书的下一次渲染当帧就看到不一致（不经过 setState 的
+  // 二次渲染），避免一帧旧报告闪现。
+  const projectPath = useAppStore((s) => s.projectPath)
+  const reportPathRef = useRef(projectPath)
+  useEffect(() => { reportPathRef.current = projectPath }, [projectPath])
+  const report1 = reportPathRef.current === projectPath ? report : null
+  const sem = verdictSemantics(report1?.verdict)
+  const counts = report1?.counts ?? {}
+  const dims = report1?.dimensions ?? []
   // 先列 fail/warn（按 S1→S4），再列 pass/skip——S1/S2 优先可见。
   const rank = (d: { verdict?: string; severity?: string }): number => {
     if (d.verdict === 'fail') return d.severity === 'S1' ? 0 : 1
@@ -121,7 +131,7 @@ const ChapterReviewPanel: React.FC<ChapterReviewPanelProps> = ({
 
       {/* 2. 结论 */}
       <div style={{ marginBottom: 14 }}>
-        {!report ? (
+        {!report1 ? (
           <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', padding: '8px 0' }}>
             点「评审当前章」按所选平台档位逐维体检；每条发现都带原文证据，可对照修改。
           </div>
@@ -130,7 +140,7 @@ const ChapterReviewPanel: React.FC<ChapterReviewPanelProps> = ({
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 4 }}>
               <span style={{ fontSize: 26, fontWeight: 700, color: sem.color }}>{sem.label}</span>
               <span style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>
-                {report.platformLabel} · 第 {report.chapterNum} 章 · {(report.words ?? 0).toLocaleString()} 字 · 命中 {problemCount} 项
+                {report1.platformLabel} · 第 {report1.chapterNum} 章 · {(report1.words ?? 0).toLocaleString()} 字 · 命中 {problemCount} 项
               </span>
             </div>
             {sem.hint ? (
@@ -148,7 +158,7 @@ const ChapterReviewPanel: React.FC<ChapterReviewPanelProps> = ({
       </div>
 
       {/* 3. 逐维结果 */}
-      {report ? (
+      {report1 ? (
         <div style={{ marginBottom: 14 }}>
           <div style={{ fontWeight: 600, marginBottom: 6 }}>逐维结果</div>
           <div style={{ maxHeight: 300, overflow: 'auto' }}>
@@ -182,11 +192,11 @@ const ChapterReviewPanel: React.FC<ChapterReviewPanelProps> = ({
       ) : null}
 
       {/* 4. 黄金三问 + 底部说明 */}
-      {(report?.advisories ?? []).length > 0 ? (
+      {(report1?.advisories ?? []).length > 0 ? (
         <div style={{ fontSize: 12, marginBottom: 8 }}>
           <div style={{ fontWeight: 600, marginBottom: 4 }}>黄金三问（逐问作答）</div>
           <ol style={{ margin: 0, paddingInlineStart: 18, color: 'var(--color-text-secondary)' }}>
-            {(report?.advisories ?? []).map((q, i) => (
+            {(report1?.advisories ?? []).map((q, i) => (
               <li key={`adv-${i}`}>{q}</li>
             ))}
           </ol>

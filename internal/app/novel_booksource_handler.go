@@ -441,12 +441,11 @@ func enginesSave(dir, rulesJSON string) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	tmp := filepath.Join(dir, enginesFileName+".tmp")
-	if err := os.WriteFile(tmp, raw, 0o644); err != nil {
-		return 0, err
-	}
-	if err := fileutil.RenameWithRetry(tmp, filepath.Join(dir, enginesFileName)); err != nil {
-		_ = os.Remove(tmp)
+	// 原子落盘走 kernel 共享实现（同 create_chapter_handler 的残稿写盘先例）：
+	// 旧实现手搓固定名 enginesFileName+".tmp"，并发保存会互写、失败时还会把
+	// 对方正在用来改名的那份临时文件 os.Remove 掉（G6）；AtomicWrite 用随机名
+	// 临时文件 + RenameWithRetry，天然无共享路径。
+	if err := fileutil.AtomicWrite(filepath.Join(dir, enginesFileName), raw, 0o644); err != nil {
 		return 0, err
 	}
 	return len(rules), nil
@@ -539,9 +538,16 @@ func (w *writingState) NovelBookSourceEnginesSave(rulesJSON string) (int, error)
 	return enginesSave(dir, rulesJSON)
 }
 
-// appendProjectChapters 把补下章节追加进既有项目：章号从现有最大 OrderIndex 续编，
-// 大纲节点（imp-NNN/done）同序追加、其余节点原样保留（outline.Agent 写路径每次
-// 调用均重读 outline.json，无缓存副本冲突面）。
+// appendProjectChapters 把补下章节追加进既有项目：章号从「递归大纲最大章号」与
+// 「chapters/ 磁盘已有最大章号」二者取大的续编，逐章挑真正空着的章号写入。
+//
+// 旧实现只取大纲**顶层** max(OrderIndex)+appended+1 且不查磁盘（G2）：作者用
+// 「续写大纲」把章节点整体替换成 5 个卷节点（OrderIndex 重新 1..5）后再点补下，
+// 新章直接从 006 起覆盖磁盘上已有的第 6 章起正文。故：
+//   - 基准两端都取（见 appendChapterBaseline，递归进 Children）；
+//   - 每个目标章号写入前判一次是否存在正稿（大纲节点 + 磁盘非空正文），命中即
+//     顺延到下一个空号——宁可不写，绝不覆盖既有正稿；
+//   - 大纲里已存在同 ID 节点时不再追加节点（防重复 ID 污染），正文仍照写。
 func appendProjectChapters(projectPath string, report booksource.DownloadReport) (NovelBookSourceAppendResult, error) {
 	pm, err := project.Open(projectPath)
 	if err != nil {
@@ -553,15 +559,14 @@ func appendProjectChapters(projectPath string, report booksource.DownloadReport)
 	if err != nil || of == nil {
 		return NovelBookSourceAppendResult{}, fmt.Errorf("读取项目大纲失败: %w", err)
 	}
-	maxNum := 0
-	for _, n := range of.Nodes {
-		if n.OrderIndex > maxNum {
-			maxNum = n.OrderIndex
-		}
+	baseline, err := appendChapterBaseline(pm, of)
+	if err != nil {
+		return NovelBookSourceAppendResult{}, err
 	}
-	appended, words := 0, 0
+	maxNum := baseline
+	num, appended, words := baseline, 0, 0
 	for _, ch := range report.Chapters {
-		num := maxNum + appended + 1
+		num = nextFreeChapterNum(pm, of, num)
 		content := strings.Join(ch.Paragraphs, "\n")
 		if strings.TrimSpace(content) == "" {
 			content = "（本章暂无内容）"
@@ -570,13 +575,18 @@ func appendProjectChapters(projectPath string, report booksource.DownloadReport)
 			return NovelBookSourceAppendResult{}, fmt.Errorf("写章节 %d 失败: %w", num, err)
 		}
 		words += utf8.RuneCountInString(content)
-		of.Nodes = append(of.Nodes, types.OutlineNode{
-			ID:          fmt.Sprintf("imp-%03d", num),
-			Title:       strings.TrimSpace(ch.Title),
-			OrderIndex:  num,
-			ChapterFile: fmt.Sprintf("%03d.md", num),
-			Status:      types.OutlineDone,
-		})
+		if findOutlineNodeByNumAny(of.Nodes, num) == nil {
+			nodeID := fmt.Sprintf("imp-%03d", num)
+			if findOutlineNodeByID(of.Nodes, nodeID) == nil {
+				of.Nodes = append(of.Nodes, types.OutlineNode{
+					ID:          nodeID,
+					Title:       strings.TrimSpace(ch.Title),
+					OrderIndex:  num,
+					ChapterFile: fmt.Sprintf("%03d.md", num),
+					Status:      types.OutlineDone,
+				})
+			}
+		}
 		appended++
 	}
 	if appended > 0 {
@@ -588,8 +598,119 @@ func appendProjectChapters(projectPath string, report booksource.DownloadReport)
 	if pm.Meta != nil {
 		title = pm.Meta.Title
 	}
+	total := maxNum
+	if num > total {
+		total = num
+	}
 	return NovelBookSourceAppendResult{
 		Path: projectPath, Title: title, Appended: appended,
-		TotalChapters: maxNum + appended, AddedWords: words, Failed: report.Failed,
+		TotalChapters: total, AddedWords: words, Failed: report.Failed,
 	}, nil
+}
+
+// appendChapterBaseline 补下章号基准：递归大纲最大章号与 chapters/ 磁盘已有最大
+// 章号取大（G2）。只读；磁盘侧读不出（目录缺失/无正稿）按 0 参与比较。
+func appendChapterBaseline(pm *project.Manager, of *types.OutlineFile) (int, error) {
+	maxNum := 0
+	if of != nil {
+		maxNum = maxOutlineChapterNum(of.Nodes)
+	}
+	diskMax, err := pm.MaxChapterBodyNum()
+	if err != nil {
+		return 0, fmt.Errorf("扫描已有章节失败: %w", err)
+	}
+	if diskMax > maxNum {
+		maxNum = diskMax
+	}
+	return maxNum, nil
+}
+
+// nextFreeChapterNum 从 start 起找第一个真正空着的章号：大纲里没有被任何节点
+// 占用、且磁盘上没有非空正文。两者任一命中即顺延，绝不落到既有正稿上。
+func nextFreeChapterNum(pm *project.Manager, of *types.OutlineFile, start int) int {
+	num := start
+	for {
+		num++
+		if !appendTargetOccupied(pm, of, num) {
+			return num
+		}
+	}
+}
+
+// appendTargetOccupied 目标章号是否已被占用（大纲节点占用 / 磁盘已有非空正文）。
+func appendTargetOccupied(pm *project.Manager, of *types.OutlineFile, num int) bool {
+	if of != nil && findOutlineNodeByNumAny(of.Nodes, num) != nil {
+		return true
+	}
+	if pm == nil {
+		return false
+	}
+	if blob, err := pm.ReadChapter(num); err == nil && strings.TrimSpace(blob) != "" {
+		return true
+	}
+	if pm.IsV4() {
+		sm := pm.SceneManager(num)
+		metas, err := sm.List()
+		if err == nil {
+			for _, meta := range metas {
+				if sc, rerr := sm.Read(meta.ID); rerr == nil && strings.TrimSpace(sc.Content) != "" {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+// maxOutlineChapterNum 递归取大纲树里的最大章号（顶层 + Children）。
+// 口径：ChapterFile（如 006.md）优先，取不到再退 OrderIndex。
+func maxOutlineChapterNum(nodes []types.OutlineNode) int {
+	maxNum := 0
+	for i := range nodes {
+		n := &nodes[i]
+		cn := 0
+		if p := strings.TrimSpace(n.ChapterFile); p != "" {
+			cn = chapterNumOfFile(p)
+		}
+		if cn <= 0 {
+			cn = n.OrderIndex
+		}
+		if cn > maxNum {
+			maxNum = cn
+		}
+		if c := maxOutlineChapterNum(n.Children); c > maxNum {
+			maxNum = c
+		}
+	}
+	return maxNum
+}
+
+// findOutlineNodeByNumAny 在（可能嵌套的）大纲树中按章号查找节点（不限分支）。
+func findOutlineNodeByNumAny(nodes []types.OutlineNode, num int) *types.OutlineNode {
+	for i := range nodes {
+		if nodes[i].OrderIndex == num {
+			return &nodes[i]
+		}
+		if child := findOutlineNodeByNumAny(nodes[i].Children, num); child != nil {
+			return child
+		}
+	}
+	return nil
+}
+
+// chapterNumOfFile 从章节文件名（"006.md" / "006a.md"）解析前导章号；无数字返回 0。
+func chapterNumOfFile(name string) int {
+	n, started := 0, false
+	for _, r := range strings.TrimSpace(name) {
+		if r >= '0' && r <= '9' {
+			n = n*10 + int(r-'0')
+			started = true
+			continue
+		}
+		if started {
+			break
+		}
+		return 0
+	}
+	return n
 }

@@ -74,11 +74,16 @@ func (a *writingState) buildAutoGateReport(pm *project.Manager, chapterNum int, 
 	}
 	report["analysisDone"] = true
 	if res, ok := a.analysisAgent.LastSync(); ok {
+		// 附带「本轮是否真正落盘」（G3）：写盘失败时同步计数虽已统计，但盘上
+		// 什么都没变，只报计数等于谎称「已回收 N 条」。errors 非空即未落盘，
+		// 前端可据此如实提示——不改变既有的四个计数字段（绑定面稳定）。
 		report["foreshadowSync"] = map[string]interface{}{
 			"plantedCount":  res.PlantedCount,
 			"resolvedCount": res.ResolvedCount,
 			"createdCount":  res.CreatedCount,
 			"skippedCount":  res.SkippedResolveCount,
+			"persisted":     res.SyncPersisted(),
+			"errors":        res.Errors,
 		}
 	}
 	return report

@@ -173,7 +173,9 @@ const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(function Edi
         <Button size="small" onClick={handlePartialRewrite}>局部重写</Button>
       )}
       {activeNode && (
-        <Button size="small" type="primary" icon={<SaveOutlined />} onClick={onSave} loading={saving}>保存</Button>
+        // A4：载入在途时 activeId 已指向新章而正文还是上一章——此刻保存会把上一章正文写进
+        // 新章文件，故载入期间保存一律不可点（saveActive 另有同判据的早退兜底）。
+        <Button size="small" type="primary" icon={<SaveOutlined />} disabled={chapterLoading} onClick={onSave} loading={saving}>保存</Button>
       )}
     </div>
 

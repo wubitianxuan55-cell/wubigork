@@ -56,6 +56,20 @@ const mocks = vi.hoisted(() => ({
     dimensions: [{ id: 'opening_freshness', label: '开篇钩子', verdict: 'warn', severity: 'S2', detail: '前 3 段只有悬念铺垫' }],
     advisories: ['读者为什么翻下一页？'],
   }),
+  // 优化批 2 线2（v4.425.0）：重写族（局部重写 / 重写历史）与文风指纹状态
+  // ——「服务端重写生效 → 前端是否重载」这条反向路径的守卫需要它们可达。
+  NovelChapterRewrite: vi.fn().mockResolvedValue({
+    versionId: 'v1', similarity: 82, selectedWordCount: 3, newSelectedWordCount: 4,
+    startPos: 0, newContent: '改写后的选段内容',
+  }),
+  NovelApplyRewriteVersion: vi.fn().mockResolvedValue({}),
+  NovelDiscardRewriteVersion: vi.fn().mockResolvedValue({}),
+  NovelListRewriteVersions: vi.fn().mockResolvedValue([]),
+  NovelGetRewriteVersion: vi.fn().mockResolvedValue({}),
+  NovelRestoreRewriteVersion: vi.fn().mockResolvedValue({}),
+  NovelFingerprintStatus: vi.fn().mockResolvedValue({ exists: true, chapters: 3, chars: 4321, builtAt: '2026-09-29T00:00:00Z' }),
+  NovelFingerprintBuild: vi.fn().mockResolvedValue({ exists: true, chapters: 3, chars: 4321 }),
+  NovelFingerprintScore: vi.fn().mockResolvedValue({ score: 20, issues: [] }),
 }))
 vi.mock('../gaea/lib/bridge', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../gaea/lib/bridge')>()
@@ -77,6 +91,13 @@ vi.mock('../gaea/lib/bridge', async (importOriginal) => {
     NovelChapterPlanDeviation: mocks.NovelChapterPlanDeviation,
     NovelChapterGatePrecheck: mocks.NovelChapterGatePrecheck,
     CreateChapterWithOverride: mocks.CreateChapterWithOverride,
+    // 优化批 2 线2：重写族（局部重写 / 重写历史）经 bridge app 调用
+    NovelChapterRewrite: mocks.NovelChapterRewrite,
+    NovelApplyRewriteVersion: mocks.NovelApplyRewriteVersion,
+    NovelDiscardRewriteVersion: mocks.NovelDiscardRewriteVersion,
+    NovelListRewriteVersions: mocks.NovelListRewriteVersions,
+    NovelGetRewriteVersion: mocks.NovelGetRewriteVersion,
+    NovelRestoreRewriteVersion: mocks.NovelRestoreRewriteVersion,
   }
   return {
     ...actual,
@@ -104,6 +125,10 @@ vi.mock('../../wailsjs/go/app/NovelB', () => ({
   NovelOutlineReconstructTaskGet: mocks.NovelOutlineReconstructTaskGet,
   NovelOutlineReconstructApply: mocks.NovelOutlineReconstructApply,
   NovelOutlineReconstruct: mocks.NovelOutlineReconstruct,
+  // 文风指纹（B5a：切书后报告态必须随之失效）
+  NovelFingerprintStatus: mocks.NovelFingerprintStatus,
+  NovelFingerprintBuild: mocks.NovelFingerprintBuild,
+  NovelFingerprintScore: mocks.NovelFingerprintScore,
 }))
 
 import CreatePage from './CreatePage'
@@ -600,5 +625,273 @@ describe('CreatePage 章节计划硬闸（刀1 线D）', () => {
     await clickDirectGenerate()
     expect(await screen.findByText(/章节计划预检未执行/)).toBeTruthy()
     await waitFor(() => expect(mocks.CreateChapter).toHaveBeenCalledTimes(1))
+  })
+})
+
+// ── 小说板块优化批 2 · 线2（v4.425.0，规格 进度计划/gaea-novel-audit-20260929.md §2）──
+// 未保存保护的**反向路径**（服务端重写 → 前端重载）、跨书失效（生成流 / 报告态）、
+// 载入在途的跨章写盘、生成中 rail 门控。每条都是防复发守卫：把对应护栏改坏即变红。
+describe('CreatePage 优化批 2 线2（A1/A2a/A3/A4/A6/A7/A8/B5a）', () => {
+  const confirms = () => Array.from(document.querySelectorAll<HTMLElement>('.ant-modal-confirm'))
+  /** 取「最新弹窗」的限定查询器（imperative Modal 的 DOM 不随 destroy 立即卸载）。 */
+  async function latestConfirm(before: number) {
+    await waitFor(() => expect(confirms().length).toBeGreaterThan(before))
+    const all = confirms()
+    return within(all[all.length - 1])
+  }
+  const editor = () => screen.getByPlaceholderText(/AI 将在此流式呈现正文/) as HTMLTextAreaElement
+  /** 取最后一个编辑器面板（imperative 弹窗/门户可能跨用例残留，故不用全局 getByRole）。 */
+  const editorPanel = () => {
+    const all = document.querySelectorAll<HTMLElement>('.novel-editor-panel')
+    return within(all[all.length - 1])
+  }
+  const saveButton = () => editorPanel().getByRole('button', { name: /保\s*存/ }) as HTMLButtonElement
+  const outline1 = { id: 'n1', order_index: 1, title: '第1章', status: 'done', parent_id: '', summary: '' }
+  const outline2 = { id: 'n2', order_index: 2, title: '第2章', status: 'done', parent_id: '', summary: '' }
+
+  beforeEach(() => {
+    Modal.destroyAll()
+    mocks.GetChapterBranch.mockClear().mockResolvedValue({ content: '第一章正文' })
+    mocks.SaveChapterBranchContent.mockClear().mockResolvedValue(undefined)
+    mocks.CreateChapter.mockClear().mockResolvedValue({ streaming: true, chapterNum: 1, nodeId: 'n1', branch: '' })
+    mocks.CancelCreateChapter.mockClear().mockResolvedValue(true)
+    mocks.DeSlopChapterAiTaste.mockClear().mockResolvedValue({ done: false })
+    mocks.RewriteChapterAiTaste.mockClear().mockResolvedValue({ done: false, reason: '无命中句' })
+    mocks.QuickBrainstormBranches.mockClear().mockResolvedValue({ branches: [] })
+    mocks.NovelApplyRewriteVersion.mockClear().mockResolvedValue({})
+    mocks.NovelListRewriteVersions.mockClear().mockResolvedValue([])
+    mocks.NovelFingerprintStatus.mockClear().mockResolvedValue({ exists: true, chapters: 3, chars: 4321, builtAt: '2026-09-29T00:00:00Z' })
+    useOutlineStore.setState({ outlines: [outline1, outline2] as never })
+    useAppStore.setState({ projectOpen: true, projectPath: 'C:/novel/test' })
+  })
+  afterEach(async () => {
+    Modal.destroyAll()
+    await new Promise((r) => setTimeout(r, 0))
+  })
+
+  /** 载入第 1 章并手写一处未保存修改（脏态基线）。 */
+  async function loadChapterOneWithEdits(edited = '第一章正文我加了一句') {
+    render(<CreatePage />)
+    fireEvent.click(await screen.findByRole('button', { name: '选择章节 第1章' }))
+    await waitFor(() => expect(editor().value).toBe('第一章正文'))
+    fireEvent.change(editor(), { target: { value: edited } })
+  }
+
+  /**
+   * 渲染并启动一次生成。第 1 章已存在 → handleDirectGenerate 会先弹
+   * 「覆盖下一章 / 作为分支追加」并列确认（旧实现把第二分支挂在 onCancel 上的那处），
+   * 走「覆盖下一章」才真正落到 startGeneration。
+   */
+  async function startDirectGeneration() {
+    render(<CreatePage />)
+    const plot = await screen.findByPlaceholderText(/或直接输入剧情要求/)
+    fireEvent.change(plot, { target: { value: '主角觉醒' } })
+    const before = confirms().length
+    fireEvent.click(screen.getByRole('button', { name: /按剧情要求直接生成/ }))
+    const choice = await latestConfirm(before)
+    fireEvent.click(choice.getByRole('button', { name: '覆盖下一章' }))
+    await screen.findByRole('button', { name: /停止生成/ })
+  }
+
+  it('A1 局部重写：入口先过脏闸，「放弃修改」不保存也能继续；应用后不覆盖未保存正文且脏标志保留', async () => {
+    await loadChapterOneWithEdits()
+    // 选区坐标取自编辑器缓冲（EditorPanel 换算 rune 偏移）
+    editor().setSelectionRange(0, 3)
+
+    const before = confirms().length
+    fireEvent.click(screen.getByRole('button', { name: /局部重写/ }))
+    const gate = await latestConfirm(before)
+    expect(gate.getByText(/局部重写按磁盘正文定位选区/)).toBeTruthy()
+    // 仓规：✕/Esc 一律＝取消——「放弃修改」必须是独立按钮，不是 onCancel 分支
+    expect(gate.getByRole('button', { name: /取\s*消/ })).toBeTruthy()
+    fireEvent.click(gate.getByRole('button', { name: /放\s*弃\s*修\s*改/ }))
+
+    fireEvent.change(await screen.findByPlaceholderText(/把这段对话改得更锋利/), { target: { value: '更锋利些' } })
+    fireEvent.click(screen.getByTestId('partial-rewrite-submit'))
+    fireEvent.click(await screen.findByTestId('partial-rewrite-apply'))
+
+    // 服务端已应用 → 脏则**不重载**：如实提示（含「保存会覆盖服务端重写结果」这条出路）
+    // 提示用 findAll（antd message 门户跨用例不过期，同一文案可能有多份）
+    await screen.findAllByText(/已保留你的本地版本，未刷新/)
+    expect((await screen.findAllByText(/此时保存会覆盖服务端的重写结果/)).length).toBeGreaterThan(0)
+    // 未重载：初始那一次取盘之外没有第二次（旧实现在这里 loadChapter 灌回磁盘正文）
+    expect(mocks.GetChapterBranch).toHaveBeenCalledTimes(1)
+    expect(editor().value).toBe('第一章正文我加了一句')
+
+    // 脏标志保留：再次切章仍会弹脏闸（旧实现 setLoadedSnapshot 会对齐快照 → 不再提示）
+    const before2 = confirms().length
+    fireEvent.click(screen.getByRole('button', { name: '选择章节 第2章' }))
+    const gate2 = await latestConfirm(before2)
+    expect(gate2.getByText(/切到「第2章」会丢弃当前修改/)).toBeTruthy()
+    fireEvent.click(gate2.getByRole('button', { name: /取\s*消/ }))
+  })
+
+  it('A1 局部重写入口选「先保存」：先落盘当前章再打开重写弹窗（选区与磁盘正文对齐）', async () => {
+    await loadChapterOneWithEdits('手写改动')
+    editor().setSelectionRange(0, 2)
+
+    const before = confirms().length
+    fireEvent.click(screen.getByRole('button', { name: /局部重写/ }))
+    const gate = await latestConfirm(before)
+    fireEvent.click(gate.getByRole('button', { name: /先\s*保\s*存/ }))
+
+    await waitFor(() => expect(mocks.SaveChapterBranchContent).toHaveBeenCalledWith(1, '', '手写改动'))
+    expect(await screen.findByTestId('partial-rewrite-modal')).toBeTruthy()
+  })
+
+  it('A2a 重写历史：入口先过脏闸；应用版本后不覆盖未保存正文（旧实现无条件 loadChapter）', async () => {
+    mocks.NovelListRewriteVersions.mockResolvedValue([{
+      id: 'v1', chapterNum: 1, mode: 'whole', status: 'completed', createdAt: '2026-09-29T00:00:00Z', similarity: 80,
+    }] as never)
+    await loadChapterOneWithEdits('手写改动')
+
+    const before = confirms().length
+    fireEvent.click(screen.getByRole('button', { name: '重写历史' }))
+    const gate = await latestConfirm(before)
+    expect(gate.getByText(/应用版本 \/ 恢复原文都会写回本章正文/)).toBeTruthy()
+    fireEvent.click(gate.getByRole('button', { name: /放\s*弃\s*修\s*改/ }))
+
+    // 展开版本行 → 应用此版本（Popconfirm 确认）。注意展开触点在行内层，点外层 testid 不会冒泡进去。
+    const row = await screen.findByTestId('rewrite-history-row')
+    fireEvent.click(within(row).getByText('详情'))
+    fireEvent.click(await screen.findByTestId('rewrite-history-apply'))
+    const okBtn = await waitFor(() => {
+      const b = Array.from(document.querySelectorAll<HTMLElement>('.ant-popconfirm-buttons button'))
+        .find((x) => /确\s*定/.test(x.textContent || ''))
+      expect(b).toBeTruthy()
+      return b as HTMLElement
+    })
+    fireEvent.click(okBtn)
+
+    await waitFor(() => expect(mocks.NovelApplyRewriteVersion).toHaveBeenCalledWith(1, 'v1'))
+    await screen.findAllByText(/已保留你的本地版本，未刷新/)
+    expect(mocks.GetChapterBranch).toHaveBeenCalledTimes(1)
+    expect(editor().value).toBe('手写改动')
+  })
+
+  it('A3 生成中切项目：旧书事件整体忽略、在途生成被取消（不落新书、不悬挂、只提示一次）', async () => {
+    await startDirectGeneration()
+    emit('create-chapter-stream', { type: 'chunk', content: '旧书正文', total: 3 })
+    // antd message 门户跨用例不过期，故用「成功提示条数增量」而非全局 toBeNull
+    const doneNotices = screen.queryAllByText(/生成完成/).length
+
+    // 切书与「旧书 done 到达」同一 tick：effect 收尾之前事件先到（真实竞态窗口）
+    await act(async () => {
+      useAppStore.setState({ projectPath: 'C:/novel/other' })
+      emit('create-chapter-stream', { type: 'done', chapterNum: 1, branch: '', nodeId: 'n1', total: 5000 })
+    })
+
+    // 旧书的 done 不得宣告成功、不得把正文挂到新书同号章
+    expect(screen.queryAllByText(/生成完成/).length).toBe(doneNotices)
+    expect(await screen.findByText(/该次生成因切书已失效，结果未写入当前书/)).toBeTruthy()
+    // 收尾只做一次：effect 不再重复提示
+    expect(screen.queryByText(/正在进行的生成已停止/)).toBeNull()
+    // 在途生成被取消 + 本地收尾（停止按钮消失＝generating 未悬挂）
+    await waitFor(() => expect(mocks.CancelCreateChapter).toHaveBeenCalledWith(1, ''))
+    await waitFor(() => expect(screen.queryByRole('button', { name: /停止生成/ })).toBeNull())
+    expect(runtimeOffs).toContain('create-chapter-stream')
+  })
+
+  it('A4 章节载入在途：保存按钮不可点，载入完成后恢复', async () => {
+    render(<CreatePage />)
+    fireEvent.click(await screen.findByRole('button', { name: '选择章节 第1章' }))
+    await waitFor(() => expect(editor().value).toBe('第一章正文'))
+
+    let release: (v: { content: string }) => void = () => { /* 由下面的挂起 Promise 接管 */ }
+    mocks.GetChapterBranch.mockImplementationOnce(() => new Promise<{ content: string }>((res) => { release = res }))
+    fireEvent.click(screen.getByRole('button', { name: '选择章节 第2章' }))
+
+    expect(saveButton().disabled).toBe(true)
+
+    await act(async () => { release({ content: '第二章正文' }); await Promise.resolve() })
+    await waitFor(() => expect(saveButton().disabled).toBe(false))
+    expect(editor().value).toBe('第二章正文')
+  })
+
+  it('A4 载入在途触发的保存：saveActive 早退返回 false，不把上一章正文写进新章', async () => {
+    await loadChapterOneWithEdits('第1章手写内容')
+
+    // 第二次载入挂起：activeId 已是第 2 章、content 仍是第 1 章手写正文——跨章写盘窗口
+    let release: (v: { content: string }) => void = () => { /* 由下面的挂起 Promise 接管 */ }
+    mocks.GetChapterBranch.mockImplementationOnce(() => new Promise<{ content: string }>((res) => { release = res }))
+
+    const before = confirms().length
+    fireEvent.click(screen.getByRole('button', { name: '选择章节 第2章' }))
+    const gate = await latestConfirm(before)
+    fireEvent.click(gate.getByRole('button', { name: /放\s*弃\s*修\s*改/ })) // 不保存 → 进入载入在途
+
+    // 在途期再点第 1 章：脏闸里选「先保存」→ saveActive 被调用（旧行为：写 第2章 ← 第1章正文）
+    const before2 = confirms().length
+    fireEvent.click(screen.getByRole('button', { name: '选择章节 第1章' }))
+    const gate2 = await latestConfirm(before2)
+    fireEvent.click(gate2.getByRole('button', { name: /先\s*保\s*存/ }))
+
+    expect(await screen.findByText(/正在载入章节，请稍候再保存/)).toBeTruthy()
+    expect(mocks.SaveChapterBranchContent).not.toHaveBeenCalled()
+    // 保存失败 → onSave 链中止，不会顺带切章（GetChapterBranch 仍是初始 1 次 + 在途 1 次）
+    expect(mocks.GetChapterBranch).toHaveBeenCalledTimes(2)
+
+    await act(async () => { release({ content: '第二章正文' }); await Promise.resolve() })
+  })
+
+  it('A6 生成中：rail 的去味/整章重写/重写历史禁用，重新生成给可见提示（不与流式抢写同一章）', async () => {
+    await startDirectGeneration()
+
+    for (const label of ['一键去味', '高级去味', '整章重写', '重写历史']) {
+      expect((screen.getByRole('button', { name: label }) as HTMLButtonElement).disabled).toBe(true)
+    }
+    // 早退兜底（disabled 只是 UI 门；handler 里也有 generating 早退。React 不向 disabled
+    // 按钮派发点击，故这里点不出效果——真正的 UI 门是上面的 disabled 断言）
+    fireEvent.click(screen.getByRole('button', { name: '一键去味' }))
+    expect(mocks.DeSlopChapterAiTaste).not.toHaveBeenCalled()
+
+    // 树里「重新生成」→ openWizard 早退并如实提示（旧实现静默无反应）
+    fireEvent.click(screen.getByRole('button', { name: '重新生成章节 第1章' }))
+    expect(await screen.findByText(/正在生成，请先停止生成再生成下一章/)).toBeTruthy()
+    expect(mocks.QuickBrainstormBranches).not.toHaveBeenCalled()
+
+    // 编辑器「重写」按钮同一条路径（handleRegenerate → openWizard）。按钮带图标，
+    // 可访问名含图标的 aria-label（"reload 重写"），故按文本取（同面板内唯一）。
+    fireEvent.click(editorPanel().getByText('重写'))
+    expect(mocks.QuickBrainstormBranches).not.toHaveBeenCalled()
+  })
+
+  it('A7 生成中再点「直接生成」：给可见提示而不是静默 return', async () => {
+    await startDirectGeneration()
+    expect(mocks.CreateChapter).toHaveBeenCalledTimes(1)
+
+    const plot = screen.getByPlaceholderText(/或直接输入剧情要求/)
+    fireEvent.change(plot, { target: { value: '再写一章' } })
+    const before = confirms().length
+    fireEvent.click(screen.getByRole('button', { name: /按剧情要求直接生成/ }))
+    const choice = await latestConfirm(before)
+    fireEvent.click(choice.getByRole('button', { name: '覆盖下一章' }))
+
+    expect(await screen.findByText(/正在生成，请先停止生成再开始新的生成/)).toBeTruthy()
+    expect(mocks.CreateChapter).toHaveBeenCalledTimes(1)
+  })
+
+  it('A8 CreatePage 把 active 透传给新角色弹窗：非创作页挂起不弹，切回才弹（发现不丢）', async () => {
+    const { rerender } = render(<CreatePage active={false} />)
+    act(() => { emit('new-characters-discovered', { characters: ['林昭'], chapterNum: 3 }) })
+    expect(screen.queryByText(/第3章发现了/)).toBeNull()
+
+    rerender(<CreatePage active />)
+    expect(await screen.findByText(/第3章发现了 1 个新角色/)).toBeTruthy()
+    expect(screen.getByDisplayValue('林昭')).toBeTruthy()
+  })
+
+  it('B5a 切项目：评审报告与文风指纹状态随书失效（旧实现切书后整屏显示上一本内容）', async () => {
+    render(<CreatePage />)
+    fireEvent.click(await screen.findByRole('button', { name: '平台评审' }))
+    fireEvent.click(await screen.findByRole('button', { name: '评审当前章' }))
+    expect(await screen.findByText('逐维结果')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: '文风指纹' }))
+    expect(await screen.findByText(/3 章 · \d/)).toBeTruthy()
+
+    await act(async () => { useAppStore.setState({ projectPath: 'C:/novel/other' }) })
+
+    await waitFor(() => expect(screen.queryByText('逐维结果')).toBeNull())
+    expect(screen.queryByText(/3 章 · \d/)).toBeNull()
   })
 })
