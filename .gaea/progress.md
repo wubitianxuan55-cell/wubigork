@@ -1,3 +1,17 @@
+## 最新发布：v4.434.0（2026-09-30）「长篇刀6：上下文编译器」
+
+- **刀型**：用户指令「继续」（长篇七刀线程次刀序，P2）。规格 §1.8「上下文是堆料不是按优先级编译——世界观至少三处、文风两处、各池独立、结构信息与整篇设定争预算」三缺口收口（刀1 已统一共预算）。Go 3 文件改造+Inventory 新文件；**绑定面 738→739（+1：NovelContextInventory）**、spaceBindings 562→563，零功能删除。规格=`进度计划/gaea-novel-ctx-compiler-20260930.md`。
+- **①setting 入预算**：CreateChapter 的 setting 入参（前端传整篇设定 markdown，此前**完全不裁剪**直进模板 P0 槽——预算外堆料最大残留）→ 超 3000 rune 截断并附「（设定过长已截断；分维度要点见下方『世界观要点』区段）」。
+- **②文风去重合并**：style.md（显式偏好）与刀5 digest（成稿学习）两个独立区段两个标题（§1.8「文风两处」延续）→ 单一「文风与表达」区段（【显式偏好】优先【成稿学习】跟随；单方在场保完整语义；双空零注入；合并预算 2000）；CreateChapter 的 digest 独立注入位移除。
+- **③世界观相关性**：buildWorldviewSection 增 relevanceHint（本章计划+大纲要点）——命中维度条目**稳定前移**（组内原序），前移≠丢弃（预算内未命中维度照旧）；中文无词边界（FieldsFunc 整句一个 token）→ **rune bigram 滑窗**匹配（宽匹配可接受：只排序不过滤）。
+- **④编译清单可见性**：NovelContextInventory(chapterNum) dry-run 零生成——区段清单（名称/rune/说明/80 字预览+合计行），「同样信息量下 prompt 更短」可量化（API/DSH 消费，暂无专门 UI）。
+- **测试**：Go 新增 4 例（joinStyleSections 合并矩阵含**单标题去重验收**〔「## 文风与表达」恰一处〕/相关性命中前移+零命中原序+预算内不丢弃/setting 超长 HTTP body 断言〔截断提示+前段保留〕/Inventory 清单）+bigram 永假反向验证必红还原；既有断言随合并标题同步（「本书文风」→「文风与表达」两处+刀5 HTTP 断言）。app 整包 -count=1 绿；小说域 38 文件/331 例；tsc 0。
+- **门禁**：全量 `ci.ps1` → CI OK（两轮修：①unused 兼容壳 buildStyleSection 零调用删除 ②gofmt 漏一处）；漂移闸 OK@4.434.0（739 一致）；spaceBindings 563。
+- **产物**：`releases/gaea-v4.434.0.exe` 51,777,536 B SHA256=`c87c5b06e6f88244225837683628d2d50ac1de0d05e14574869cde9353eb574a`（`SHA256SUMS-v4.434.0.txt`；冒烟 200 过）；保留策略删 v4.429.0.exe，实存 5 版（434/433/432/431/430）。
+- **文档**：`releases/v4.434.0.md` + 规格 `进度计划/gaea-novel-ctx-compiler-20260930.md`（含落地回填）+ CHANGELOG/README + releases/README + AGENTS 速览 + progress（本条）。
+- **坑/教训**：①**worldview 测试须直写结构化 json sections**——md 路径触发 ReadWorldviewFile 的 legacy 迁移（全文塞「旧版世界观」section 再拼默认六维，维度结构面目全非）。②**中文文本的关键词分词全部无效**（unicode.IsLetter 汉字=true，FieldsFunc 整句单 token）——相关性匹配用 rune bigram 滑窗。③CI 的 golangci unused 闸比 go vet 严（兼容壳零生产调用即报）——抽函数先查调用面。④后台 shell cwd 漂移复发（python FileNotFoundError 三连）——跨命令一律先 `python -c "import os;os.chdir(r'C:\AI\wubigrok')"` 或显式 cd。
+- **观察池**：设定语义级检索（向量/关键词召回升级）/SceneBible 与主链编译层统一（场景路径现独立）/Inventory 专门 UI（调参面板）/真机验证截断提示的实际体验。
+
 ## 最新发布：v4.433.0（2026-09-30）「长篇刀5：风格学习回灌」
 
 - **刀型**：用户指令「继续」（长篇七刀线程次刀序）。规格 §1.9「风格一致性靠事后打分与手写偏好——指纹参考档只用于体检打分，生成时不学习作者表达习惯」的正面解。Go 新 3 文件+注入两处+前端面板扩展；**绑定面 735→738（+3：NovelStyleDigestBuild/Get/Clear）**、spaceBindings 559→562，零功能删除。规格=`进度计划/gaea-novel-style-digest-20260930.md`。
