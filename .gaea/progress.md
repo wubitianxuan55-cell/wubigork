@@ -1,3 +1,15 @@
+## 最新发布：v4.428.1（2026-09-29）「走查沙箱隔离补漏：APPDATA 数据面同隔离（真机走查收官）」
+
+- **刀型**：v4.425~428 三批原罪改动的真机走查（非版本刀）+ 走查中实证安全缺口的根修。Go 2 文件（walkthrough.go + 测试），前端零改动，绑定面 727 零变更。
+- **走查全过**（GAEA_WALKTHROUGH=1 沙箱 + APPDATA 重定向 + CDP 9333，种 105 条消息/真实发送流）：ChatTabs tab 语义+方向键 ✓；手风琴 aria 配对+ArrowDown ✓；面板收起卸载卡体+展开恢复 ✓；画廊描述回退链（旧数据正文反解）✓；消息分页（首拉恰 100〔seq 6..105〕+提示行+点击载入 105+提示消失）✓；流链路（回复渲染+sending 复位+**console 零错误**）✓。沙箱流可用（沙箱 engines.json 默认种子含 herdsman localhost:8080，真机回复可达）。
+- **险情与根修**：`ApplyWalkthroughOverride` 只重定向 cfg.Workspace——sin/小说/角色库数据根在 `%APPDATA%\gaea`（os.UserConfigDir），沙箱壳**直连用户真实故事**（走查打开原罪看到用户实盘「写三国演义…」；该段全程只读，发现即停壳）＝v4.418 险情同族漏网（当时只封 workspace）。修=override 内 `os.Setenv("APPDATA", Temp\gaea-walkthroughppdata)`，此后所有 os.UserConfigDir 调用（whisperDataRoot/chat.db/engines.json/sin 数据根）全落沙箱；失败路径 slog.Warn 明示「数据面未隔离」；清场半径不变（删 gaea-walkthrough 整目录即清）。
+- **测试**：新增 `TestWalkthroughOverrideIsolatesAppData`（开=重定向+目录创建；关=原样不动；前序用例已重定向时先归位临时目录防串场——定值沙箱路径让断言依赖用例顺序）；config 包全绿。
+- **门禁**：全量 `ci.ps1` → CI OK；漂移闸 OK@4.428.1（727 一致）。
+- **产物**：`releases/gaea-v4.428.1.exe` 51,582,464 B SHA256=`380318d95e101f839e26d43061e21dc79c673a8e0744ca714b532a5e4072f746`（`SHA256SUMS-v4.428.1.txt`；build.bat 冒烟 `/api/health` 200 过）；保留策略删 v4.424.0.exe，实存 5 版（428.1/428.0/427/426/425）。
+- **文档**：`releases/v4.428.1.md` + CHANGELOG/README + releases/README + AGENTS 速览 + progress（本条）。
+- **坑/教训**：①**CDP dispatch 与读 DOM 必须分两次 evaluate**（React 批渲染的同步旧读假象——方向键导航两处一度误判 no-op，分开读全过）。②**验证卡体别用类选择器猜**：`sin-acc-panel-*` 是 **id** 不是类，类选择器查空是选择器错不是 bug（本轮差点误报「visible 门控失效」）。③**走查沙箱盲区要先探数据落点**：进板块前先确认沙箱目录里长出了数据文件（本次 workspace 空+有故事=直连实盘的信号）。④本修复后走查启动只需 `GAEA_WALKTHROUGH=1`（APPDATA 进程内自动重定向），不再需要手工 env。
+- **观察池**：设定卡排队体验需 ComfyUI 在线补走（本轮 ComfyUI 不在线，UI 态已由单测覆盖）/解释腔出现率·工具误用率需多轮真实生成人工评/novelstyle rewrite 链（需拍板成人向 whitelist 语义，v4.424 立案）/跨实例族+TOCTOU（需跨进程锁，权重低）。
+
 ## 最新发布：v4.428.0（2026-09-29）「原罪板块批5：消息分页拉取 + 插图值结构升级（绑定窗口批）」
 
 - **刀型**：用户指令「继续」（承接「继续优化原罪板块」线程）。刀型=**绑定窗口批**：清掉观察池最后两项可做项（SinMessages 分页〔v4.423 立案「需随下一批绑定窗口」〕+ illustrations 值结构升级 {path,caption}）。前端 9 文件 + Go 5 文件 + 6 个新测试锚，**绑定面 726→727（+1：SinMessagesPage）**，零功能删除。

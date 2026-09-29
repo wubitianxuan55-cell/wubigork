@@ -2559,6 +2559,10 @@
 
 ## 迁入记录
 
+- **一百四十二迁（v4.428.1 发版，2026-09-29）**：v4.419.0 速览条目迁入本档。
+
+- **最新发布：v4.419.0（2026-09-26）「动词回执可见化：notice 摘出过程卡（真机走查实锤缺陷修复）」**——v4.418 真机走查池实锤的「pre-turn 动词 Notice 不可见」修复。前端 1 文件+1 测试，绑定面 720 零变更，Go 零改动。**缺陷**=/plan on 等动词回执藏在「过程」折叠卡内默认不可见；**根因**=Transcript alternatingSegments 分组谓词把 notice 与 tool/phase/compaction 一并收编（v4.26 phase 收编时顺带）；**根修**=谓词摘出 notice，一律独立成行渲染（warn 仍走 ErrorCard；info 走既有 .notice 弱化行零新样式），失败告警同样受益。**测试**=ProcessCard.test 增 1 例（buildSegments 断言 notice 恒落 outsideItems）13/13 绿；真机目检沙箱 /plan on 回执独立行可见（截图在案）；全量 ci 绿。**门禁**=漂移闸 OK@4.419.0。**产物**=见 SHA256SUMS-v4.419.0.txt（冒烟 200 过）；保留策略删 v4.414.1.exe。**文档**=releases/v4.419.0.md+CHANGELOG/README+releases/README（443→444+裁 v4.388）+AGENTS 迁 1 插 1（一百三十七迁：v4.414.1 入 archive）+progress。
+
 - **一百四十一迁（v4.428.0 发版，2026-09-29）**：v4.418.0 速览条目迁入本档。
 
 - **最新发布：v4.418.0（2026-09-26）「走查沙箱开关：GAEA_WALKTHROUGH=1 强制隔离工作区（真机走查防复发刀）」**——2026-09-26 真机走查险情（首条消息自动装配把回合接进用户真实会话）根因封堵。Go 1 文件改+1 新测试（内部 2 文件+助手新件），绑定面 720 零变更，前端零改动。**背景**：真机走查「先建专用会话再发消息」无效——装配前 NewSession 必然诚实报错，首条消息走自动装配+自动恢复，workspace 解析到哪回合落到哪（当日实证接进用户真实会话，模型调用即败未持久化，已按 RewindLog 口径清场归零）。**落地**：GAEA_WALKTHROUGH=1 → ApplyWalkthroughOverride 强制 workspace=%TEMP%\\gaea-walkthrough\\workspace（自动创建、删目录即清场），覆盖用户/项目配置（走查隔离优先于一切）；未设零变化；激活 slog.Warn 可审计。**双入口必须同调**：壳内办公引擎不走 config.Load()，走 app 层 gaeaLoadConfig()（自带 Default+toml 合并）——当日首版漏壳侧即失效，真机验证抓出后补齐。**真机验证实录**：沙箱启动→GaeaInit→ListDir 探针=沙箱（14 真实会话零出现）；沙箱内 /plan on 实弹确认「pre-turn Notice 不可见」=真实缺陷（藏在过程折叠卡，候可见 chip 小刀）；/plan off 正常。**诊断坑三连**：①双入口漏一即失效②装配前 ga.cfg=nil 探针全假（gaeaCwd 走 Getwd 兜底），必须 GaeaInit 后再探③CDP 探针可打在僵尸旧实例（gaea-v4.418.0.exe≠gaea.exe 按名漏杀），跨实例诊断先对 PID。**测试**=config+app 包回归绿；全量 ci 绿（OriginalSinPage.tabs 负载 flaky 一轮隔离复跑绿，v4.414.0 同款）。**门禁**=漂移闸 OK@4.418.0。**产物**=见 SHA256SUMS-v4.418.0.txt（冒烟 200 过）；保留策略删 v4.414.0.exe。**文档**=releases/v4.418.0.md+CHANGELOG/README+releases/README（442→443+裁 v4.387）+AGENTS 走查配方增补沙箱用法+迁 1 插 1（一百三十六迁：v4.414.0 入 archive）+progress。
