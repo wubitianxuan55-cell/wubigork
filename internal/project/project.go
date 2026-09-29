@@ -347,6 +347,9 @@ func (m *Manager) readChapterSummariesWithFiles() ([]chapterSummaryWithFile, err
 
 // ReadAllChapterSummaries 一次扫描读取所有章节摘要（替代逐个文件探测）。
 // 只返回摘要本身；需要按章号过滤的调用方走 ReadLatestChapterSummaryBefore。
+// 注意：结果含分支摘要（NNN{a,b,c}-summary.json）——分支浏览器等需要分支
+// 剧情线的调用方用本入口；主线口径（大纲续写前情等）走
+// ReadMainlineChapterSummaries，否则分支剧情会被当主线参考注入（N5）。
 func (m *Manager) ReadAllChapterSummaries() ([]types.ChapterSummary, error) {
 	items, err := m.readChapterSummariesWithFiles()
 	if err != nil {
@@ -354,6 +357,24 @@ func (m *Manager) ReadAllChapterSummaries() ([]types.ChapterSummary, error) {
 	}
 	summaries := make([]types.ChapterSummary, 0, len(items))
 	for _, it := range items {
+		summaries = append(summaries, it.Summary)
+	}
+	return summaries, nil
+}
+
+// ReadMainlineChapterSummaries 读取全部**主线**章节摘要（NNN-summary.json），
+// 分支摘要（NNN{a,b,c}-summary.json）不参与——主线生成/续写的前情参考里
+// 混入分支剧情线会污染走向（N5）。
+func (m *Manager) ReadMainlineChapterSummaries() ([]types.ChapterSummary, error) {
+	items, err := m.readChapterSummariesWithFiles()
+	if err != nil {
+		return nil, err
+	}
+	summaries := make([]types.ChapterSummary, 0, len(items))
+	for _, it := range items {
+		if mainChapterSummaryNum(it.File) <= 0 {
+			continue
+		}
 		summaries = append(summaries, it.Summary)
 	}
 	return summaries, nil
@@ -702,6 +723,11 @@ func (m *Manager) MigrateV3ToV4() error {
 	}
 
 	// 读取所有已有章节，迁移到 v4 结构
+	//
+	// N12 修复：无法迁移的章（文件名解析不出章号 / 读失败）**收集后如实失败**，
+	// 绝不静默跳过再照落 v4 标记——标记一落，IsV4() 为真，未迁移的 v3 章从此
+	// 从读写视图里消失（ReadChapterAsStitch 优先 v4 视图），用户数据「没了」
+	// 却无任何提示。
 	chaptersDir := filepath.Join(m.Dir, "chapters")
 	entries, err := os.ReadDir(chaptersDir)
 	if err != nil {
@@ -711,6 +737,7 @@ func (m *Manager) MigrateV3ToV4() error {
 		return err
 	}
 
+	var skipped []string
 	for _, e := range entries {
 		if e.IsDir() || !strings.HasSuffix(e.Name(), ".md") {
 			continue
@@ -719,6 +746,7 @@ func (m *Manager) MigrateV3ToV4() error {
 		name := e.Name()
 		var chapterNum int
 		if _, err := fmt.Sscanf(name, "%03d.md", &chapterNum); err != nil {
+			skipped = append(skipped, name+"（文件名不是 NNN.md 章节格式）")
 			continue
 		}
 
@@ -726,6 +754,7 @@ func (m *Manager) MigrateV3ToV4() error {
 		oldPath := filepath.Join(chaptersDir, name)
 		content, err := os.ReadFile(oldPath)
 		if err != nil {
+			skipped = append(skipped, name+"（读取失败: "+err.Error()+"）")
 			continue
 		}
 
@@ -753,6 +782,13 @@ func (m *Manager) MigrateV3ToV4() error {
 			backupSummaryPath := filepath.Join(backupDir, fmt.Sprintf("%03d-summary.json", chapterNum))
 			_ = os.WriteFile(backupSummaryPath, summaryData, 0644)
 		}
+	}
+
+	// 有未迁移章则失败且不落 v4 标记。v3 原文件非破坏保留（未删除），用户
+	// 处理掉 listed 文件后重试即可。
+	if len(skipped) > 0 {
+		return fmt.Errorf("迁移中止：以下 %d 个章节文件无法迁移（未落 v4 标记，处理后可重试）：\n%s",
+			len(skipped), strings.Join(skipped, "\n"))
 	}
 
 	return m.finalizeV4Migration()
@@ -790,14 +826,19 @@ func (m *Manager) ReadChapterAsStitch(num int) (string, error) {
 }
 
 // ForEachChapter 遍历所有存在的章节，回调返回 error 时跳过该章（continue）
-// 用于替代 export/search/stats 等模块中 for i:=1;;i++ 的重复模式
+// 用于替代 export/search/stats 等模块中 for i:=1;;i++ 的重复模式。
+// 上界取磁盘最大章号（MaxChapterNum）：中间缺章（如 1、2、4）不再「缺口即停」
+// ——旧实现 ReadChapter 第一个 err 就 break，缺号后的章全部漏扫（导出断尾、
+// 体检漏章、总数低估）。缺口/空章/读失败按 continue 跳过续扫，不因一章坏档
+// 丢掉全书其余章。
 func (m *Manager) ForEachChapter(fn func(chapterNum int, content string) error) error {
-	for i := 1; ; i++ {
+	maxNum, err := m.MaxChapterNum()
+	if err != nil {
+		return err
+	}
+	for i := 1; i <= maxNum; i++ {
 		content, err := m.ReadChapter(i)
-		if err != nil {
-			break
-		}
-		if content == "" {
+		if err != nil || content == "" {
 			continue
 		}
 		if err := fn(i, content); err != nil {

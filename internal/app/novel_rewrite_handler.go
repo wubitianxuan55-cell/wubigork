@@ -160,7 +160,7 @@ func (a *writingState) novelChapterRewritePartial(pm *project.Manager, chapterNu
 		return nil, fmt.Errorf("读取章节失败: %w", err)
 	}
 	runes := []rune(original)
-	start, end, err := rewrite.ResolveSelection(original, req.StartPos, req.EndPos, req.SelectedText)
+	start, end, reanchored, err := rewrite.ResolveSelection(original, req.StartPos, req.EndPos, req.SelectedText)
 	if err != nil {
 		return nil, err
 	}
@@ -242,6 +242,9 @@ func (a *writingState) novelChapterRewritePartial(pm *project.Manager, chapterNu
 		"lengthMode":           req.LengthMode,
 		"startPos":             start,
 		"endPos":               end,
+		// 观察池#1 诚实化：选区在 ±50 rune 窗口内被重锚（编辑区有未保存
+		// 修改时选区与磁盘正文错位）——前端据此提示，不再静默接受。
+		"reanchored": reanchored,
 	}, nil
 }
 

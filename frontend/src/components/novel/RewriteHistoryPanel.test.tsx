@@ -1,6 +1,6 @@
 // 重写版本历史面板（t4-C3 余项）：列表渲染/状态门控镜像/详情懒拉/动作闭环。
 import { describe, expect, it, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 
 vi.mock('../../gaea/lib/bridge', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../gaea/lib/bridge')>()
@@ -18,6 +18,7 @@ vi.mock('../../gaea/lib/bridge', async (importOriginal) => {
 
 import RewriteHistoryPanel from './RewriteHistoryPanel'
 import { app } from '../../gaea/lib/bridge'
+import { useAppStore } from '../../stores/appStore'
 
 const mkRow = (id: string, mode: string, status: string, similarity = 60) => ({
   id, chapterNum: 2, mode, status, similarity, createdAt: '2026-09-16T00:00:00Z',
@@ -133,5 +134,24 @@ describe('RewriteHistoryPanel 重写版本历史（t4-C3 余项）', () => {
     expect(screen.queryByTestId('rewrite-history-detail-error')).toBeNull()
     expect(screen.getByTestId('rewrite-history-new').textContent).toContain('新文。')
     expect(app.NovelGetRewriteVersion).toHaveBeenCalledTimes(2)
+  })
+})
+
+// ── v4.429 观察池#5：版本列表属「当前书」，切书（同章号）必须失效重拉 ──
+// 旧缺陷：refresh 只依赖 chapterNum——切书且章号相同时残留上一本的版本列表。
+describe('RewriteHistoryPanel 跨书失效（观察池#5）', () => {
+  it('切书后同章号重拉新书版本列表（旧书行不再展示）', async () => {
+    useAppStore.setState({ projectPath: 'C:/novel/book-a' })
+    vi.mocked(app.NovelListRewriteVersions).mockResolvedValue([mkRow('vA', 'whole', 'completed')] as never)
+    render(<RewriteHistoryPanel open chapterNum={2} onClose={vi.fn()} onApplied={vi.fn()} />)
+    expect(await screen.findByText('整章')).toBeTruthy() // book-a 的版本行
+
+    // 切书：同章号 2，列表按当前书重拉（book-b 为空）
+    vi.mocked(app.NovelListRewriteVersions).mockResolvedValue([] as never)
+    act(() => { useAppStore.setState({ projectPath: 'C:/novel/book-b' }) })
+
+    await waitFor(() => expect(screen.queryByText('整章')).toBeNull())
+    // 切书触发了重拉（次数不少于初始一次之后的再一次；核心断言=旧书行已消失）
+    expect(vi.mocked(app.NovelListRewriteVersions).mock.calls.length).toBeGreaterThanOrEqual(2)
   })
 })

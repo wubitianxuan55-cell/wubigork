@@ -1,6 +1,6 @@
 // 全书体检面板（GenerationGate 闭环收口）：聚合卡/最差 AI 味告警/逐章表越线
 // 红标/伏笔 findings/空书空态/打开即跑。
-import { describe, expect, it, vi, beforeEach } from 'vitest'
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 
 const mocks = vi.hoisted(() => ({
@@ -21,6 +21,12 @@ vi.mock('../../gaea/lib/bridge', async (importOriginal) => {
 
 import BookHealthPanel from './BookHealthPanel'
 import { useAppStore } from '../../stores/appStore'
+import { Modal, message as antdMessage } from 'antd'
+
+afterEach(() => {
+  Modal.destroyAll()
+  antdMessage.destroy()
+})
 
 const REPORT = {
   totalChapters: 2,
@@ -170,6 +176,41 @@ describe('BookHealthPanel 情感曲线', () => {
     fireEvent.click(screen.getByTestId('health-curve-run'))
     expect(await screen.findByText(/可绘制的章不足/)).toBeTruthy()
     expect(screen.getByText(/1 章跳过/)).toBeTruthy()
+    expect(screen.queryByTestId('health-curve-svg')).toBeNull()
+  })
+})
+
+// ── v4.429 观察池#3：情感曲线在途循环的代际守卫 ──
+// 旧缺陷：buildCurve 逐章 await 无 token——重跑体检/切书后旧循环完成时仍
+// setCurve，把上一本书/上一轮的点写进新上下文。
+describe('BookHealthPanel 情感曲线代际守卫（观察池#3）', () => {
+  it('曲线生成在途重跑体检：迟到的旧轮结果不落（svg 不出现）', async () => {
+    vi.clearAllMocks()
+    mocks.run.mockResolvedValue(REPORT as never)
+    useAppStore.setState({ projectPath: 'C:/novel/book-a' })
+    // 第一章的 V2 挂起（在途）；旧轮循环停在第一章 await 上
+    let resolveV2!: (v: unknown) => void
+    mocks.v2.mockImplementation((num: number) => {
+      if (num === 1) return new Promise((r) => { resolveV2 = r }) as never
+      return Promise.resolve({
+        chapter_num: num,
+        result: { emotional_arc: { primary_emotion: '释然', intensity: 3 } },
+      }) as never
+    })
+    render(<BookHealthPanel open onClose={vi.fn()} />)
+    await waitFor(() => expect(screen.getByTestId('book-health-body')).toBeTruthy())
+    fireEvent.click(screen.getByTestId('health-curve-run'))
+    await waitFor(() => expect(mocks.v2).toHaveBeenCalled())
+
+    // 重跑体检：作废在途循环（seq++）。report 会被新结果替换（非空）——旧轮
+    // 迟到结果若未被守卫丢弃，svg 会渲染出来（这正是反向验证能红的前提：
+    // 切书场景 report 清空后断言恒真，测不出守卫缺失）。
+    fireEvent.click(screen.getByRole('button', { name: /重新体检/ }))
+    await waitFor(() => expect(mocks.run).toHaveBeenCalledTimes(2))
+
+    // 旧轮的迟到结果到达——不得渲染出曲线
+    resolveV2({ chapter_num: 1, result: { emotional_arc: { primary_emotion: '警觉', intensity: 9 } } })
+    await act(async () => { await new Promise((r) => setTimeout(r, 50)) })
     expect(screen.queryByTestId('health-curve-svg')).toBeNull()
   })
 })

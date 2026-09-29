@@ -123,13 +123,16 @@ func (a *writingState) RunBookHealthCheck() (BookHealthReport, error) {
 	}
 	report := BookHealthReport{Chapters: []BookHealthChapter{}}
 
-	for i := 1; ; i++ {
+	// 上界=磁盘最大章号：缺口/空章跳过续扫（N9——旧「读取失败即停」会让
+	// 中间缺号后的章整体漏检）。
+	maxNum, err := pm.MaxChapterNum()
+	if err != nil {
+		return BookHealthReport{}, fmt.Errorf("扫描章节数失败: %w", err)
+	}
+	for i := 1; i <= maxNum; i++ {
 		content, err := pm.ReadChapterAsStitch(i)
-		if err != nil {
-			break // 读取失败即停（countWrittenChapters 同口径）
-		}
-		if content == "" {
-			continue
+		if err != nil || content == "" {
+			continue // 缺口/空章跳过（countWrittenChapters 同口径）
 		}
 		row := BookHealthChapter{
 			ChapterNum:   i,

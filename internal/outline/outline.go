@@ -132,7 +132,9 @@ func (a *Agent) Continue(ctx context.Context, count int) (*types.OutlineFile, er
 	}
 	existingJSON := string(util.MustMarshal(of))
 
-	allSummaries, err := a.pm.ReadAllChapterSummaries()
+	// 主线口径（N5）：大纲续写是主线走向决策，分支摘要（NNN{a,b,c}）混进来
+	// 会把「作者试写的分支剧情」当主线前情参考，污染续写走向。
+	allSummaries, err := a.pm.ReadMainlineChapterSummaries()
 	if err != nil {
 		slog.Warn("outline: 读取章节摘要失败", "error", err)
 	}

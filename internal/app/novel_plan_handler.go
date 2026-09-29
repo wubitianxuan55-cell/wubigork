@@ -98,6 +98,9 @@ func (a *writingState) NovelChapterPlanSave(chapterNum int, planJSON string) err
 	if strings.TrimSpace(planJSON) == "" {
 		return fmt.Errorf("计划内容为空：请先填写计划（剧情概要 / 关键事件 / 叙事目标等）再保存")
 	}
+	// 整表读-改-写全程持锁（N7）：并发保存同一计划表会互相覆盖丢更新。
+	a.chapterPlanMu.Lock()
+	defer a.chapterPlanMu.Unlock()
 	pm := a.getPM()
 	if pm == nil {
 		return fmt.Errorf("请先打开项目")

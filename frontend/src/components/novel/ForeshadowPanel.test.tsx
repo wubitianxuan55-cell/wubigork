@@ -459,3 +459,52 @@ describe('ForeshadowPanel 项目上下文（v4.421 线3）', () => {
     expect(screen.queryByText('伏笔加载失败')).toBeNull()
   })
 })
+
+// ── v4.429 观察池#4：失败重读 × 排队写的交错窗口 ──
+// op1 保存失败→重读磁盘（itemsRef 被磁盘真相覆盖）后，排队的 op2 若照旧执行，
+// 写回的只是「重读后的磁盘内容」——op2 的改动静默丢失。修复后 op2 跳写并如实
+// 提示。窗口 = 同一渲染帧内连点（disabled 由 savingWrite 驱动，重渲染前不生效）。
+describe('ForeshadowPanel 写链代际短路（观察池#4）', () => {
+  it('op1 失败重读后：排队的 op2 跳过写盘并如实提示（不把磁盘旧内容再写一遍）', async () => {
+    vi.clearAllMocks()
+    vi.mocked(app.GetForeshadows).mockResolvedValue({ items: [] })
+    let rejectFirst!: (e: Error) => void
+    vi.mocked(app.SaveForeshadows).mockImplementationOnce(() => new Promise((_res, rej) => { rejectFirst = rej }))
+
+    render(<ForeshadowPanel />)
+    // 空态文案与按钮同名「登记伏笔」——按「在 button 内的 span」精确取
+    const openBtn = await waitFor(() => {
+      const span = screen.getAllByText(/^登记伏笔$/).find((el) => el.closest('button'))
+      if (!span) throw new Error('open form button not rendered yet')
+      return span.closest('button') as HTMLButtonElement
+    })
+    fireEvent.click(openBtn)
+    const box = await screen.findByPlaceholderText(/伏笔描述/)
+    fireEvent.change(box, { target: { value: '主角左臂旧伤' } })
+
+    // 同一渲染帧双击登记：op1 入链挂起（SaveForeshadows pending），op2 排队
+    //（第二次点击时 savingWrite 尚未重渲染成 disabled）。表单内登记按钮是
+    // 唯一的 primary 型「登记」按钮。
+    act(() => {
+      const btn = screen.getAllByRole('button')
+        .find((b) => b.className.includes('ant-btn-primary') && b.textContent?.includes('登记')) as HTMLButtonElement
+      expect(btn).toBeTruthy()
+      fireEvent.click(btn)
+      fireEvent.click(btn)
+    })
+
+    // 链任务是微任务：先 flush 让 op1 真正发出 SaveForeshadows（rejectFirst 就位）
+    await act(async () => { await Promise.resolve() })
+    expect(vi.mocked(app.SaveForeshadows)).toHaveBeenCalledTimes(1)
+
+    // op1 失败：error toast + 重读磁盘
+    act(() => { rejectFirst(new Error('disk error')) })
+    expect((await screen.findAllByText(/伏笔保存失败.*已重读登记表/)).length).toBeGreaterThan(0)
+
+    // op2 是旧代际：跳写（SaveForeshadows 仍只调过 1 次）+ 如实提示未保存
+    expect(await screen.findAllByText(/本项改动未保存，请重试/)).not.toHaveLength(0)
+    await waitFor(() => {
+      expect(vi.mocked(app.SaveForeshadows)).toHaveBeenCalledTimes(1)
+    })
+  })
+})

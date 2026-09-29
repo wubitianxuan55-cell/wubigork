@@ -305,19 +305,30 @@ func (a *writingState) NovelOutlineReconstructApply(itemsJSON string) (int, erro
 func reconstructProjectChapters(pm *project.Manager) []bookimport.ParsedChapter {
 	titleByFile := map[string]string{}
 	if outline, err := pm.ReadOutlines(); err == nil && outline != nil {
-		for _, n := range outline.Nodes {
-			if n.ChapterFile != "" && strings.TrimSpace(n.Title) != "" {
-				titleByFile[n.ChapterFile] = n.Title
+		// 递归收集（分卷大纲的章节点在 Children 里，顶层遍历会漏——N13 同型）。
+		var collectTitles func(nodes []types.OutlineNode)
+		collectTitles = func(nodes []types.OutlineNode) {
+			for _, n := range nodes {
+				if n.ChapterFile != "" && strings.TrimSpace(n.Title) != "" {
+					titleByFile[n.ChapterFile] = n.Title
+				}
+				collectTitles(n.Children)
 			}
 		}
+		collectTitles(outline.Nodes)
 	}
 	out := make([]bookimport.ParsedChapter, 0, reconstructMaxChapters)
-	for i := 1; i <= reconstructMaxChapters; i++ {
+	// 上界=磁盘最大章号（封顶反推上限）：缺口跳过续扫（N9），缺号后的章不再漏收。
+	maxNum, err := pm.MaxChapterNum()
+	if err != nil {
+		maxNum = 0
+	}
+	if maxNum > reconstructMaxChapters {
+		maxNum = reconstructMaxChapters
+	}
+	for i := 1; i <= maxNum; i++ {
 		content, err := pm.ReadChapterAsStitch(i)
-		if err != nil {
-			break
-		}
-		if strings.TrimSpace(content) == "" {
+		if err != nil || strings.TrimSpace(content) == "" {
 			continue
 		}
 		file := fmt.Sprintf("%03d.md", i)

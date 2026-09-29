@@ -185,6 +185,10 @@ const ForeshadowPanel: React.FC<ForeshadowPanelProps> = ({ disabled }) => {
   const itemsRef = useRef<ForeshadowItemData[]>([])
   itemsRef.current = items
   const writeChainRef = useRef<Promise<void>>(Promise.resolve())
+  // 写链代际（观察池#4）：失败重读后自增。排在其后的链任务若基于旧代际快照，
+  // 写回只会把「重读后的磁盘内容」原样写回——自身改动静默丢失。旧代际任务
+  // 必须跳过写并如实提示，而不是默默落盘。
+  const writeGenRef = useRef(0)
   const [savingWrite, setSavingWrite] = useState(false)
 
   // 登记表单
@@ -275,12 +279,22 @@ const ForeshadowPanel: React.FC<ForeshadowPanelProps> = ({ disabled }) => {
     setItems(next)
     itemsRef.current = next
     setSavingWrite(true)
+    // 记住本项改动所属代际：失败重读会作废旧代际（见 catch），旧代际的后续
+    // 排队任务再写只会落盘磁盘旧内容。
+    const myGen = writeGenRef.current
     const run = writeChainRef.current.then(async () => {
+      if (writeGenRef.current !== myGen) {
+        // 前一次保存失败已重读登记表（UI 已回到磁盘真相）；本项及其后排队
+        // 改动不在磁盘上——如实提示，不静默丢，也不把旧内容再写一遍。
+        message.warning('此前一次伏笔保存失败已重读登记表，本项改动未保存，请重试')
+        return
+      }
       try {
         // A5：urgency 是运行时投影不落库，写回载荷剥离
         await app.SaveForeshadows(JSON.stringify(stripForeshadowUrgency(itemsRef.current)))
       } catch (err: unknown) {
         message.error(`伏笔保存失败：${err instanceof Error ? err.message : '未知错误'}（已重读登记表）`)
+        writeGenRef.current++ // 作废排队中的旧代际任务（其改动未落盘，提示已如实告知）
         await loadRef.current()
       }
     })

@@ -6,7 +6,7 @@
 // v4.340：情感曲线区（t7 观察池）——按需逐章拉分析 V2 的情感弧线强度，
 // 纯 SVG 折线（零新依赖）；未分析章诚实跳过并计数。
 import { softTextStyle } from '../../utils/uiStyles'
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { Alert, Button, Empty, Modal, Spin, Table, Tag, Typography, message } from 'antd'
 import { app } from '../../gaea/lib/bridge'
 import { useAppStore } from '../../stores/appStore'
@@ -63,6 +63,9 @@ export default function BookHealthPanel({ open, onClose }: {
   const [curveLoading, setCurveLoading] = useState(false)
   const [curve, setCurve] = useState<CurvePoint[] | null>(null)
   const [curveSkipped, setCurveSkipped] = useState(0)
+  // 情感曲线在途代际（观察池#3）：重跑体检/切书自增作废旧循环——逐章 await
+  // 无守卫时，旧循环完成后会把上一本书/上一轮的曲线 setCurve 进新上下文。
+  const curveSeqRef = useRef(0)
   // 弹窗由 CreatePage 控制开关、面板常驻挂载：报告属该书的数据，切书必须失效，
   // 否则整屏显示的是上一本的体检结论（弹窗若开着更明显）。
   const projectPath = useAppStore((s) => s.projectPath)
@@ -70,6 +73,8 @@ export default function BookHealthPanel({ open, onClose }: {
   const run = useCallback(async () => {
     setLoading(true)
     setError('')
+    curveSeqRef.current++ // 作废在途曲线循环（章数可能变化，旧循环结果不得再落）
+    setCurveLoading(false) // 被作废的循环不再收尾，这里代收（否则按钮永远转圈）
     setCurve(null) // 重跑体检后曲线失效（章数可能变化），需重新生成
     setCurveSkipped(0)
     try {
@@ -90,10 +95,12 @@ export default function BookHealthPanel({ open, onClose }: {
 
   // 切书即清报告态（含曲线与失败原因）：不额外发请求，重新打开弹窗时 effect 自然重拉。
   useEffect(() => {
+    curveSeqRef.current++ // 作废在途曲线循环：切书后旧书的点不得写进新上下文
     setReport(null)
     setError('')
     setCurve(null)
     setCurveSkipped(0)
+    setCurveLoading(false) // 被作废的循环不再收尾，这里代收
     setLoading(false)
   }, [projectPath])
 
@@ -101,29 +108,37 @@ export default function BookHealthPanel({ open, onClose }: {
   // 「尚未分析」，不触发重建，循环安全）。体检触发式口径一致：按钮按需生成。
   const buildCurve = useCallback(async () => {
     if (!report) return
+    const seq = ++curveSeqRef.current
     setCurveLoading(true)
-    const pts: CurvePoint[] = []
-    let skipped = 0
-    for (const row of report.chapters ?? []) {
-      try {
-        const v2 = (await app.NovelChapterAnalysisV2(row.chapterNum)) as ChapterAnalysisV2View | null
-        const it = v2?.result?.emotional_arc?.intensity
-        if (typeof it === 'number' && Number.isFinite(it)) {
-          pts.push({
-            num: row.chapterNum,
-            intensity: Math.max(0, Math.min(10, it)),
-            emotion: String(v2?.result?.emotional_arc?.primary_emotion ?? ''),
-          })
-        } else {
+    try {
+      const pts: CurvePoint[] = []
+      let skipped = 0
+      for (const row of report.chapters ?? []) {
+        try {
+          const v2 = (await app.NovelChapterAnalysisV2(row.chapterNum)) as ChapterAnalysisV2View | null
+          if (curveSeqRef.current !== seq) return // 已被重跑/切书作废：丢弃迟到结果
+          const it = v2?.result?.emotional_arc?.intensity
+          if (typeof it === 'number' && Number.isFinite(it)) {
+            pts.push({
+              num: row.chapterNum,
+              intensity: Math.max(0, Math.min(10, it)),
+              emotion: String(v2?.result?.emotional_arc?.primary_emotion ?? ''),
+            })
+          } else {
+            skipped++
+          }
+        } catch {
           skipped++
         }
-      } catch {
-        skipped++
       }
+      if (curveSeqRef.current !== seq) return // 迟到的整轮结果不落（同上）
+      setCurve(pts)
+      setCurveSkipped(skipped)
+    } finally {
+      // 只有最新代际才收 loading：被作废的旧循环若在这里 setCurveLoading(false)，
+      // 会把新一轮（已在跑）的转圈提前关掉。
+      if (curveSeqRef.current === seq) setCurveLoading(false)
     }
-    setCurve(pts)
-    setCurveSkipped(skipped)
-    setCurveLoading(false)
   }, [report])
 
   const fs = report?.foreshadow

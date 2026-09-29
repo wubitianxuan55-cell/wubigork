@@ -172,6 +172,7 @@ func (a *writingState) GenerateScene(chapterNum int, sceneID string, plotReq str
 
 	content := strings.TrimSpace(reply)
 	var deslop *novelstyle.RewriteReport
+	var outlineWarning string
 	if rx, rep, derr := novelstyle.DeSlopRewrite(content, nil); derr == nil && rep != nil && rep.AfterScore < rep.BeforeScore && rx != "" {
 		content = rx
 		deslop = rep
@@ -182,7 +183,12 @@ func (a *writingState) GenerateScene(chapterNum int, sceneID string, plotReq str
 		return nil, fmt.Errorf("保存场景失败: %w", err)
 	}
 	syncBlobFromScenes(pm, chapterNum)
-	a.markOutlineDone(pm, chapterNum, "")
+	if err := a.markOutlineDone(pm, chapterNum, ""); err != nil {
+		// 场景已落盘，大纲标记失败不回滚正文——但必须如实带出（N8 同型：
+		// 原 `_ =` 吞错，作者以为本章已标完成，大纲面板却还是「未写」）。
+		slog.Warn("场景生成：大纲状态标记失败", "chapter", chapterNum, "error", err)
+		outlineWarning = fmt.Sprintf("正文已保存，但大纲状态标记失败：%v", err)
+	}
 
 	score := 0
 	if ts, terr := novelstyle.ScoreTextNoRef(content); terr == nil && ts != nil {
@@ -196,6 +202,9 @@ func (a *writingState) GenerateScene(chapterNum int, sceneID string, plotReq str
 	}
 	if deslop != nil {
 		res["deSlop"] = deslop
+	}
+	if outlineWarning != "" {
+		res["outlineWarning"] = outlineWarning
 	}
 	return res, nil
 }
@@ -218,14 +227,31 @@ func sceneToMap(s *types.Scene) map[string]interface{} {
 	}
 }
 
-func (a *writingState) markOutlineDone(pm *project.Manager, chapterNum int, branch string) {
-	if of, err := pm.ReadOutlines(); err == nil && of != nil {
-		for i := range of.Nodes {
-			if of.Nodes[i].OrderIndex == chapterNum && of.Nodes[i].Branch == branch {
-				of.Nodes[i].Status = types.OutlineDone
-				break
+// markOutlineDone 把本章大纲节点标为已写（递归找节点——分卷大纲的章节点在
+// Children 里，N13 同型）；写盘失败如实返回错误（调用方决定呈现方式）。
+func (a *writingState) markOutlineDone(pm *project.Manager, chapterNum int, branch string) error {
+	of, err := pm.ReadOutlines()
+	if err != nil {
+		return err
+	}
+	if of == nil {
+		return nil
+	}
+	var mark func(nodes []types.OutlineNode) bool
+	mark = func(nodes []types.OutlineNode) bool {
+		for i := range nodes {
+			if nodes[i].OrderIndex == chapterNum && nodes[i].Branch == branch {
+				nodes[i].Status = types.OutlineDone
+				return true
+			}
+			if mark(nodes[i].Children) {
+				return true
 			}
 		}
-		_ = pm.WriteOutlines(of)
+		return false
 	}
+	if !mark(of.Nodes) {
+		return nil // 大纲里没有该章节点（场景章未建节点）不算错
+	}
+	return pm.WriteOutlines(of)
 }

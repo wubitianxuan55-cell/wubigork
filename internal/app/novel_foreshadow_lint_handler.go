@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"strings"
 
+	"log/slog"
+
 	"github.com/gaea/gaea/internal/project"
 	"github.com/gaea/gaea/internal/types"
 )
@@ -163,15 +165,18 @@ func foreshadowStatusLabel(s types.ForeshadowStatus) string {
 }
 
 // countWrittenChapters 统计已写章节数（v4 场景工程走 Stitch，遍历口径与
-// collectChapterSamples 一致：读取失败即停）。
+// collectChapterSamples 一致：上界=磁盘最大章号，缺口/空章跳过续扫，
+// 不因中间缺章漏掉后面的章——N9 同族修复）。
 func countWrittenChapters(pm *project.Manager) int {
+	maxNum, err := pm.MaxChapterNum()
+	if err != nil {
+		slog.Warn("伏笔体检：扫描章节数失败，按 0 章继续", "error", err)
+		return 0
+	}
 	n := 0
-	for i := 1; ; i++ {
+	for i := 1; i <= maxNum; i++ {
 		content, err := pm.ReadChapterAsStitch(i)
-		if err != nil {
-			break
-		}
-		if content == "" {
+		if err != nil || content == "" {
 			continue
 		}
 		n++

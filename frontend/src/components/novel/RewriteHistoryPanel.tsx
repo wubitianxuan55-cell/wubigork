@@ -6,6 +6,7 @@ import React, { useCallback, useEffect, useState } from 'react'
 import { Button, Collapse, Empty, Modal, Popconfirm, Spin, Tag, message } from 'antd'
 import { app } from '../../gaea/lib/bridge'
 import type { RewriteVersionIndex } from '../../gaea/lib/bridge/novel'
+import { useAppStore } from '../../stores/appStore'
 
 const MODE_LABELS: Record<string, string> = { whole: '整章', partial: '局部', deslop: '去味' }
 const STATUS_LABELS: Record<string, string> = {
@@ -42,6 +43,11 @@ export default function RewriteHistoryPanel({ open, chapterNum, onClose, onAppli
   const [detailErrors, setDetailErrors] = useState<Record<string, string>>({})
   const [busyId, setBusyId] = useState<string | null>(null)
 
+  // 面板常驻挂载：列表属该书数据，projectPath 变化（切书）即失效重拉——
+  // 否则「切书且章号相同」时残留上一本的版本列表（应用会因版本 ID 不属于
+  // 当前书而报错，虽不写坏，但列表整体是错语境的）。
+  const projectPath = useAppStore((s) => s.projectPath)
+
   const refresh = useCallback(async () => {
     if (chapterNum == null) { setRows([]); return }
     setLoading(true)
@@ -55,9 +61,11 @@ export default function RewriteHistoryPanel({ open, chapterNum, onClose, onAppli
     }
   }, [chapterNum])
 
+  // projectPath 进依赖：切书（含同章号）时重拉并清展开/详情态——版本列表属
+  // 当前书（NovelListRewriteVersions 按 getPM() 取数）。
   useEffect(() => {
     if (open) { setExpandedIds(new Set()); setDetails({}); setDetailErrors({}); void refresh() }
-  }, [open, refresh])
+  }, [open, refresh, projectPath])
 
   /** 拉一次版本详情（展开时懒拉；重试按钮复用同一入口）。失败记入 detailErrors[id]。 */
   const loadDetail = useCallback(async (id: string) => {

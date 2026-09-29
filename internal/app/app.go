@@ -86,6 +86,11 @@ type writingState struct {
 	// 重开会绕过互斥并发出两个写者；nil 占位期间 register 以中文错误如实拒绝）。
 	chapterGenMu      sync.Mutex
 	chapterGenCancels map[string]context.CancelFunc
+
+	// 章节计划表（plans.json）整表读-改-写互斥（N7）：单 Wails 客户端下只有
+	// NovelChapterPlanSave 一个写者，但 httpbridge 本机面允许第二个调用方并发
+	// 进入「读旧表→改→写回」，后写覆盖先写丢更新。锁贯穿整个读-改-写临界区。
+	chapterPlanMu sync.Mutex
 	// 进行中章节生成协程数：登记表**协程退出才清**（v4.421.0 起；取消路径置 nil
 	// 占位而非删除）——取消后协程仍有「已生成部分落盘」尾步，表项为 nil ≠ 已退出；
 	// 测试等协程真正退出要等它（v4.233 根治 TempDir 清理与尾步写盘的

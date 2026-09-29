@@ -40,23 +40,26 @@ const (
 // rune 版）。start/end 为 rune 偏移；selected 为空时跳过重锚只做边界校验；
 // content[start:end] 与 selected 不一致时在 [start-50, end+50) 窗口内重新
 // 定位 selected（字节命中换算回 rune 偏移），窗口内仍不命中才报不匹配。
-func ResolveSelection(content string, start, end int, selected string) (int, int, error) {
+// 第四返回值 reanchored：是否发生了模糊重锚（新起点 != 请求起点）——调用方
+// 必须透传给前端（选区来自编辑器缓冲、定位按磁盘正文，重锚=作者看到的选区
+// 与实际改写的段落有偏差，静默接受是观察池#1 的「静默」一半）。
+func ResolveSelection(content string, start, end int, selected string) (int, int, bool, error) {
 	runes := []rune(content)
 	n := len(runes)
 	if start < 0 || start >= n {
-		return 0, 0, fmt.Errorf("起始位置超出内容范围")
+		return 0, 0, false, fmt.Errorf("起始位置超出内容范围")
 	}
 	if end > n {
-		return 0, 0, fmt.Errorf("结束位置超出内容范围")
+		return 0, 0, false, fmt.Errorf("结束位置超出内容范围")
 	}
 	if start >= end {
-		return 0, 0, fmt.Errorf("起始位置必须小于结束位置")
+		return 0, 0, false, fmt.Errorf("起始位置必须小于结束位置")
 	}
 	if selected == "" {
-		return start, end, nil
+		return start, end, false, nil
 	}
 	if string(runes[start:end]) == selected {
-		return start, end, nil
+		return start, end, false, nil
 	}
 	lo := start - partialReanchorWindow
 	if lo < 0 {
@@ -69,10 +72,10 @@ func ResolveSelection(content string, start, end int, selected string) (int, int
 	searchArea := string(runes[lo:hi])
 	byteIdx := strings.Index(searchArea, selected)
 	if byteIdx < 0 {
-		return 0, 0, fmt.Errorf("选中的文本与章节内容不匹配，请刷新后重试")
+		return 0, 0, false, fmt.Errorf("选中的文本与章节内容不匹配，请刷新后重试")
 	}
 	newStart := lo + len([]rune(searchArea[:byteIdx]))
-	return newStart, newStart + len([]rune(selected)), nil
+	return newStart, newStart + len([]rune(selected)), true, nil
 }
 
 // PartialSpec 局部重写长度区间（rune）与提示文案（规格 §1 的

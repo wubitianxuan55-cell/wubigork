@@ -566,3 +566,50 @@ describe('NovelSettingPage 下行面板折叠（v4.421）', () => {
     expect(localStorage.getItem(COLLAPSED_KEY)).toBe('0')
   })
 })
+
+// ── v4.429 观察池#2：设定 Agent 回填不得覆盖等待期的手改 ──
+// ChatPanel 输入区等待期已禁（disabled={loading}），但设定**编辑器**不禁——
+// 作者等待期手改正文后，AI worldview 照样 setContent 覆盖（旧缺陷）。
+describe('NovelSettingPage AI 回填守卫（观察池#2）', () => {
+  beforeEach(() => {
+    useAppStore.setState({ projectOpen: true, projectPath: 'C:/novel/test' })
+    vi.mocked(app.GetWorldview).mockResolvedValue('# 世界观\n\n架空中世纪')
+    vi.mocked(app.GetForeshadows).mockResolvedValue({ items: [] })
+  })
+
+  it('等待期正文已变：不覆盖编辑器，修改稿附在回复里走手动应用', async () => {
+    let resolveChat!: (v: { reply: string; worldview: string }) => void
+    vi.mocked(app.ChatWorldview).mockReturnValue(new Promise((r) => { resolveChat = r }))
+
+    render(<NovelSettingPage />)
+    const editor = (await screen.findByPlaceholderText(/在此撰写或粘贴小说设定/)) as HTMLTextAreaElement
+    expect(editor.value).toContain('架空中世纪')
+
+    // 发起对话（挂起中）
+    const chatInput = screen.getByPlaceholderText(/描述你想要的设定修改/)
+    fireEvent.change(chatInput, { target: { value: '重写设定' } })
+    fireEvent.keyDown(chatInput, { key: 'Enter' })
+
+    // 等待期作者手改正文
+    fireEvent.change(editor, { target: { value: '等待期手改的设定正文' } })
+
+    // AI 返回 worldview——编辑器不得被覆盖
+    await act(async () => { resolveChat({ reply: '改好了', worldview: '# AI 修改稿' }) })
+
+    expect(editor.value).toBe('等待期手改的设定正文')
+    // 修改稿进回复（markdown 围栏，手动「应用」可提取）+ 如实提示未自动应用
+    expect(await screen.findByText(/未自动应用/, {}, { timeout: 3000 })).toBeTruthy()
+  })
+
+  it('等待期正文未变：worldview 照旧直接回填编辑器', async () => {
+    vi.mocked(app.ChatWorldview).mockResolvedValue({ reply: '改好了', worldview: '# AI 新设定' })
+    render(<NovelSettingPage />)
+    const editor = (await screen.findByPlaceholderText(/在此撰写或粘贴小说设定/)) as HTMLTextAreaElement
+
+    const chatInput = screen.getByPlaceholderText(/描述你想要的设定修改/)
+    fireEvent.change(chatInput, { target: { value: '重写设定' } })
+    fireEvent.keyDown(chatInput, { key: 'Enter' })
+
+    await waitFor(() => expect(editor.value).toBe('# AI 新设定'), { timeout: 3000 })
+  })
+})

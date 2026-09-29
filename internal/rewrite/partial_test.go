@@ -19,31 +19,32 @@ func TestResolveSelection(t *testing.T) {
 	greekSel := "目标段落"
 
 	cases := []struct {
-		name      string
-		content   string
-		start     int
-		end       int
-		selected  string
-		wantStart int
-		wantEnd   int
-		wantErr   string
+		name           string
+		content        string
+		start          int
+		end            int
+		selected       string
+		wantStart      int
+		wantEnd        int
+		wantErr        string
+		wantReanchored bool
 	}{
-		{"精确命中", content, 30, 37, sel, 30, 37, ""},
-		{"selected 空跳过重锚", content, 0, 7, "", 0, 7, ""},
-		{"起始越界", content, 67, 70, sel, 0, 0, "起始位置超出内容范围"},
-		{"起始负数", content, -1, 5, sel, 0, 0, "起始位置超出内容范围"},
-		{"空内容", "", 0, 1, "", 0, 0, "起始位置超出内容范围"},
-		{"结束越界", content, 0, 68, sel, 0, 0, "结束位置超出内容范围"},
-		{"起始等于结束", content, 5, 5, sel, 0, 0, "起始位置必须小于结束位置"},
-		{"起始大于结束", content, 10, 3, sel, 0, 0, "起始位置必须小于结束位置"},
-		{"窗口重锚命中", content, 33, 40, sel, 30, 37, ""},
-		{"长文窗口内重锚", long, 20, 27, longSel, 10, 17, ""},
-		{"长文窗口外不命中", long, 100, 107, longSel, 0, 0, "选中的文本与章节内容不匹配，请刷新后重试"},
-		{"文本不存在", content, 0, 5, "根本不存在的句子", 0, 0, "选中的文本与章节内容不匹配，请刷新后重试"},
-		{"多字节重锚 rune 换算", greek, 7, 11, greekSel, 5, 9, ""},
+		{"精确命中", content, 30, 37, sel, 30, 37, "", false},
+		{"selected 空跳过重锚", content, 0, 7, "", 0, 7, "", false},
+		{"起始越界", content, 67, 70, sel, 0, 0, "起始位置超出内容范围", false},
+		{"起始负数", content, -1, 5, sel, 0, 0, "起始位置超出内容范围", false},
+		{"空内容", "", 0, 1, "", 0, 0, "起始位置超出内容范围", false},
+		{"结束越界", content, 0, 68, sel, 0, 0, "结束位置超出内容范围", false},
+		{"起始等于结束", content, 5, 5, sel, 0, 0, "起始位置必须小于结束位置", false},
+		{"起始大于结束", content, 10, 3, sel, 0, 0, "起始位置必须小于结束位置", false},
+		{"窗口重锚命中", content, 33, 40, sel, 30, 37, "", true},
+		{"长文窗口内重锚", long, 20, 27, longSel, 10, 17, "", true},
+		{"长文窗口外不命中", long, 100, 107, longSel, 0, 0, "选中的文本与章节内容不匹配，请刷新后重试", false},
+		{"文本不存在", content, 0, 5, "根本不存在的句子", 0, 0, "选中的文本与章节内容不匹配，请刷新后重试", false},
+		{"多字节重锚 rune 换算", greek, 7, 11, greekSel, 5, 9, "", true},
 	}
 	for _, tc := range cases {
-		gotStart, gotEnd, err := ResolveSelection(tc.content, tc.start, tc.end, tc.selected)
+		gotStart, gotEnd, gotReanchored, err := ResolveSelection(tc.content, tc.start, tc.end, tc.selected)
 		if tc.wantErr != "" {
 			if err == nil || err.Error() != tc.wantErr {
 				t.Fatalf("%s: want err %q got %v", tc.name, tc.wantErr, err)
@@ -56,6 +57,10 @@ func TestResolveSelection(t *testing.T) {
 		if gotStart != tc.wantStart || gotEnd != tc.wantEnd {
 			t.Fatalf("%s: got (%d,%d) want (%d,%d)",
 				tc.name, gotStart, gotEnd, tc.wantStart, tc.wantEnd)
+		}
+		if gotReanchored != tc.wantReanchored {
+			t.Fatalf("%s: reanchored got %v want %v（诚实化标志：重锚必须如实透传）",
+				tc.name, gotReanchored, tc.wantReanchored)
 		}
 	}
 }

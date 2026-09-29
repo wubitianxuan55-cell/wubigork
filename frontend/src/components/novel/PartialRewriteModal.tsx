@@ -3,7 +3,7 @@
 // 应用/放弃）；只重写选中片段，前后文原样拼接，版本库照常留全文快照（应用/放弃
 // 走与整章重写相同的版本三绑定）。选区偏移为 rune 口径（EditorPanel 已换算）。
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
-import { Button, Input, InputNumber, Modal, Radio, Spin, Tag, message } from 'antd'
+import { Alert, Button, Input, InputNumber, Modal, Radio, Spin, Tag, message } from 'antd'
 import { app } from '../../gaea/lib/bridge'
 import type { NovelRewriteResult } from '../../gaea/lib/bridge/novel'
 import { countTextChars } from '../../utils/text'
@@ -33,6 +33,8 @@ interface PartialRewriteResult extends NovelRewriteResult {
   lengthMode?: string
   startPos?: number
   endPos?: number
+  /** 选区在 ±50 rune 窗口内被重锚（选区取自编辑器缓冲、定位按磁盘正文） */
+  reanchored?: boolean
 }
 
 interface PartialRewriteModalProps {
@@ -161,6 +163,15 @@ const PartialRewriteModal: React.FC<PartialRewriteModalProps> = ({ open, chapter
               <Tag color="blue">相似度 {result.similarity?.toFixed?.(1) ?? result.similarity}%</Tag>
               <Tag>{`选段 ${result.selectedWordCount ?? '—'} 字 → 新 ${result.newSelectedWordCount ?? '—'} 字`}</Tag>
             </div>
+            {result.reanchored && (
+              <Alert
+                style={{ marginBottom: 8 }}
+                type="warning"
+                showIcon
+                message="选区已按已保存正文重新对齐"
+                description="你看到的选区与磁盘正文有偏移（编辑区可能有未保存修改），重写按对齐后的段落进行。应用前请核对预览内容。"
+              />
+            )}
             <div style={PREVIEW_STYLE}>{newSelectedText}</div>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 12 }}>
               <Button danger disabled={busyAction} onClick={() => void discard()}>放弃版本</Button>

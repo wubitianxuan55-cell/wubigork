@@ -66,6 +66,40 @@ describe('PartialRewriteModal 选段局部重写（t4-C3 余项）', () => {
     expect(screen.getByText('崭新的选段内容')).toBeTruthy()
   })
 
+  it('观察池#1：reanchored=true 如实提示选区已按已保存正文重新对齐', async () => {
+    vi.mocked(app.NovelChapterRewrite).mockResolvedValue({
+      versionId: 'rw-3-2', status: 'completed', similarity: 72.5,
+      change: 20, changePercent: 3.1, originalWordCount: 3000,
+      newWordCount: 3020, newContent: '前文。崭新的选段内容。后文。',
+      mode: 'partial', selectedWordCount: 6, newSelectedWordCount: 7,
+      startPos: 10, endPos: 16, reanchored: true,
+    } as never)
+    render(<PartialRewriteModal open chapterNum={3} selection={selection} onClose={onClose} onApplied={onApplied} />)
+    fireEvent.change(screen.getByPlaceholderText(/把这段对话改得更锋利/), { target: { value: '收紧节奏' } })
+    fireEvent.click(screen.getByTestId('partial-rewrite-submit'))
+
+    expect(await screen.findByTestId('partial-rewrite-result')).toBeTruthy()
+    expect(screen.getByText('选区已按已保存正文重新对齐')).toBeTruthy()
+    expect(screen.getByText(/未保存修改/)).toBeTruthy()
+  })
+
+  it('观察池#1：reanchored 缺省（精确命中）不渲染对齐提示', async () => {
+    // 上一用例的 mockResolvedValue 会跨用例泄漏（clearAllMocks 不清实现）——显式复位
+    vi.mocked(app.NovelChapterRewrite).mockResolvedValue({
+      versionId: 'rw-3-2', status: 'completed', similarity: 72.5,
+      change: 20, changePercent: 3.1, originalWordCount: 3000,
+      newWordCount: 3020, newContent: '前文。崭新的选段内容。后文。',
+      mode: 'partial', selectedWordCount: 6, newSelectedWordCount: 7,
+      startPos: 10, endPos: 16,
+    } as never)
+    render(<PartialRewriteModal open chapterNum={3} selection={selection} onClose={onClose} onApplied={onApplied} />)
+    fireEvent.change(screen.getByPlaceholderText(/把这段对话改得更锋利/), { target: { value: '收紧节奏' } })
+    fireEvent.click(screen.getByTestId('partial-rewrite-submit'))
+
+    expect(await screen.findByTestId('partial-rewrite-result')).toBeTruthy()
+    expect(screen.queryByText('选区已按已保存正文重新对齐')).toBeNull()
+  })
+
   it('应用并写回：逐参调用 Apply 且触发 onApplied + onClose', async () => {
     render(<PartialRewriteModal open chapterNum={3} selection={selection} onClose={onClose} onApplied={onApplied} />)
     fireEvent.change(screen.getByPlaceholderText(/把这段对话改得更锋利/), { target: { value: '收紧节奏' } })

@@ -533,6 +533,14 @@ func (a *writingState) streamCreateChapter(ctx context.Context, pm *project.Mana
 		applyChapterGuardrails(req, temperature, g)
 		chunks, err := a.client.ChatStream(ctx, req)
 		if err != nil {
+			// 连接建立阶段被取消（用户在流开始前点停止）：ChatStream 返回 ctx.Err()，
+			// 不能当「生成失败」报——与流读取循环里的取消分支等价，落盘已生成
+			// 部分并走 cancelled 事件（此时通常为空稿，后端只发事件不写空文件；
+			// 连接尚未建立，本轮必然没进入摘要段，summaryStarted 恒 false）。
+			if ctx.Err() != nil {
+				a.saveCancelledPartial(pm, fullText, bodyText, attempt, false, targetNum, nodeID, branch, existedBefore)
+				return
+			}
 			a.emit("create-chapter-stream", map[string]interface{}{"type": "error", "error": err.Error()})
 			return
 		}
@@ -1171,11 +1179,16 @@ func planGateError(report *types.PlanGateReport) error {
 }
 
 // findOutlineNodeByNum 按章号取主线大纲节点（分支章不参与主线意图注入；同名分支
-// 节点在 ensureChapterNode 里才会建，此处只认 Branch==""）。
+// 节点在 ensureChapterNode 里才会建，此处只认 Branch==""）。递归到 Children
+// （N13）：分卷大纲的章节点挂在卷节点下，只扫顶层会让分卷书的章计划/意图注入
+// 整体失明。
 func findOutlineNodeByNum(nodes []types.OutlineNode, num int) *types.OutlineNode {
 	for i := range nodes {
 		if nodes[i].OrderIndex == num && nodes[i].Branch == "" {
 			return &nodes[i]
+		}
+		if found := findOutlineNodeByNum(nodes[i].Children, num); found != nil {
+			return found
 		}
 	}
 	return nil

@@ -243,13 +243,22 @@ const NovelSettingPage: React.FC<NovelSettingPageProps> = ({ active = true }) =>
 
   const handleChatSend = async (userMsg: string): Promise<string> => {
     try {
-      const result = await app.ChatWorldview(userMsg, content)
+      // 回填守卫（观察池#2）：await 前记快照——等待期作者可能直接改设定正文
+      //（ChatPanel 输入区虽禁，编辑器不禁），AI 修改稿不得静默覆盖手改。
+      const contentBefore = contentRef.current
+      const result = await app.ChatWorldview(userMsg, contentBefore)
       // ChatWorldview 返回结构化 Record（reply/worldview 均为未知字段）——
       // reply 按 string 收窄取用，worldview 非空 string 时回填编辑器
       const reply = typeof result?.reply === 'string' ? result.reply : ''
       // AI 返回更新后的设定文本，直接回填编辑器（不解析、不拆分）
       if (typeof result?.worldview === 'string' && result.worldview) {
-        setContent(result.worldview)
+        if (contentRef.current === contentBefore) {
+          setContent(result.worldview)
+        } else {
+          // 等待期正文已变：不覆盖。全文附在回复里（markdown 围栏，可被
+          // 「应用」按钮的 extractSettingText 提取），由作者决定是否采纳。
+          return `${reply}\n\n你在等待期间修改过设定正文，AI 修改稿未自动应用。如需采纳，请点本条消息的「应用」：\n\n\`\`\`markdown\n${result.worldview}\n\`\`\``
+        }
       }
       return reply
     } catch (err: unknown) {

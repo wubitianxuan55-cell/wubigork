@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useRef, useState } from 'react'
 import { Button, Space, Tag, Input, Select, Modal, Typography, message } from 'antd'
 import { ArrowUpOutlined, ArrowDownOutlined, PlusOutlined, DeleteOutlined, EditOutlined, ColumnWidthOutlined, RedoOutlined, ThunderboltOutlined, InfoCircleOutlined, EyeOutlined } from '@ant-design/icons'
 import { GetChapterScenes, GenerateScene, CreateScene, SaveSceneMeta, ReorderScenes } from '../../../wailsjs/go/app/NovelB'
@@ -68,6 +68,11 @@ const ChapterEditorInner: React.FC<ChapterEditorProps> = ({ tab, onUpdate, scene
   }, [ctxMenu])
   const [cmdKVisible, setCmdKVisible] = useState(false)
   const [cmdKText, setCmdKText] = useState('')
+  // Cmd+K 插入目标（观察池#6）：旧实现接受时用 document.activeElement 找插入
+  // 目标，CommandBar 抢走焦点后静默不写入。打开时记住「场景下标+选区」，接受时
+  // 走受控数据流 updateScene——不做 DOM 赋值+input 派发（受控组件会被 React
+  // 恢复受控值，实测 onChange 收到旧值，值传不上去）。
+  const cmdKTargetRef = useRef<{ index: number; start: number; end: number } | null>(null)
   const lastSelectedText = React.useRef('')
   // 逐场景 AI 生成：sceneIds 与 tab.scenes 按索引对齐（V4 场景制由 ChapterPage
   // 载入时随场景正文一并读入；无 id 的场景按钮禁用）
@@ -372,7 +377,11 @@ const ChapterEditorInner: React.FC<ChapterEditorProps> = ({ tab, onUpdate, scene
                           e.preventDefault()
                           const ta = e.target as HTMLTextAreaElement
                           const selected = ta.value.slice(ta.selectionStart, ta.selectionEnd)
-                          if (selected) { setCmdKText(selected); setCmdKVisible(true) }
+                          if (selected) {
+                            cmdKTargetRef.current = { index: i, start: ta.selectionStart, end: ta.selectionEnd }
+                            setCmdKText(selected)
+                            setCmdKVisible(true)
+                          }
                         }
                       }}
                     />
@@ -397,14 +406,17 @@ const ChapterEditorInner: React.FC<ChapterEditorProps> = ({ tab, onUpdate, scene
         <CommandBar
           selectedText={cmdKText}
           onAccept={(editedText) => {
-            const ta = document.activeElement as HTMLTextAreaElement
-            if (ta?.tagName === 'TEXTAREA') {
-              const start = ta.selectionStart
-              const end = ta.selectionEnd
-              ta.value = ta.value.slice(0, start) + editedText + ta.value.slice(end)
-              ta.dispatchEvent(new Event('input', { bubbles: true }))
+            const target = cmdKTargetRef.current
+            if (target) {
+              const body = tab.scenes[target.index] ?? ''
+              const next = body.slice(0, target.start) + editedText + body.slice(target.end)
+              updateScene(target.index, next)
               message.success('已应用编辑')
+            } else {
+              // 打开时的来源已不可考（理论上不可达，防御路径）：如实提示，绝不静默丢。
+              message.warning('未找到插入目标，本次编辑未应用（请重选文本后再试）')
             }
+            cmdKTargetRef.current = null
             setCmdKVisible(false)
           }}
           onClose={() => setCmdKVisible(false)}

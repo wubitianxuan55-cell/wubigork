@@ -32,8 +32,8 @@ func TestPromptTemplatesEmbedded(t *testing.T) {
 	}
 	eng := prompt.NewEngineWithEmbedded("", promptTemplates)
 	names := []string{
-		"plot-branch-browser", "create-chapter", "chapter-generate",
-		"chapter-summary", "worldview-agent", "character-agent",
+		"plot-branch-browser", "create-chapter",
+		"chapter-summary", "worldview-agent", "character-agent", "chapter-review",
 	}
 	for _, name := range names {
 		if tmpl := eng.Get(name); tmpl == nil {

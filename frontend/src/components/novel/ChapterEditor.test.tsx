@@ -16,6 +16,15 @@ vi.mock('../../../wailsjs/go/app/NovelB', () => ({
   ReorderScenes: mocks.ReorderScenes,
 }))
 
+// CommandBar 桩（观察池#6 用例）：真实组件的指令→AI→接受流程与本测无关，
+// 只需一个按钮把 props.onAccept 直回调——测的是 ChapterEditor 记住来源
+// textarea 的 onAccept 逻辑（旧缺陷：activeElement 非 TEXTAREA 时静默丢）。
+vi.mock('./editor/CommandBar', () => ({
+  default: ({ onAccept }: { onAccept: (t: string) => void }) => (
+    <button data-testid="cmdk-stub-accept" onClick={() => onAccept('AI改写后的文本')}>桩-接受</button>
+  ),
+}))
+
 import ChapterEditor from './ChapterEditor'
 import type { ChapterTabData, OutlineNode } from '../../types'
 
@@ -155,5 +164,34 @@ describe('ChapterEditor 逐场景生成（阅读页场景化）', () => {
     // blob/分支章：无场景 API 语义，重排禁用
     const blob = renderEditor(makeTab({ sceneBacked: false, scenes: ['一', '二'], sceneIds: [] }))
     expect(disabledOf(blob.moveBtns(0).down)).toBe(true)
+  })
+})
+
+// ── v4.429 观察池#6：Cmd+K 接受必须写回「打开时的来源 textarea」──
+// 旧缺陷：accept 用 document.activeElement 取插入目标，CommandBar 抢走焦点后
+// 非 TEXTAREA → 静默不写入（作者以为已应用）。修复后打开时记住来源。
+describe('ChapterEditor Cmd+K 插入目标（观察池#6）', () => {
+  it('焦点不在来源 textarea 时接受仍写回来源（input 事件驱动 onUpdate）', async () => {
+    const tab = makeTab({ scenes: ['前段。被选中的目标句子。后段。'], saved: true })
+    const h = renderEditor(tab)
+    const ta = screen.getAllByRole('textbox')
+      .find((b) => (b as HTMLTextAreaElement).value.includes('被选中的目标句子。')) as HTMLTextAreaElement
+    expect(ta).toBeTruthy()
+    // 选中「被选中的目标句子。」
+    const start = ta.value.indexOf('被选中的目标句子。')
+    ta.setSelectionRange(start, start + '被选中的目标句子。'.length)
+    fireEvent.keyDown(ta, { key: 'k', metaKey: true })
+
+    const stub = await screen.findByTestId('cmdk-stub-accept')
+    // 模拟焦点已被 CommandBar 抢走（旧缺陷形态：activeElement 非 TEXTAREA）
+    ;(document.activeElement as HTMLElement | null)?.blur?.()
+    fireEvent.click(stub)
+
+    // 写回走受控数据流：scenes 更新上报 + saved 置脏 + 喂回后展示新正文
+    const scenesCall = h.onUpdate.mock.calls.find((c) => c[0] === 'scenes')
+    expect(scenesCall?.[1]).toEqual(['前段。AI改写后的文本后段。'])
+    const savedCall = h.onUpdate.mock.calls.find((c) => c[0] === 'saved')
+    expect(savedCall?.[1]).toBe(false)
+    await waitFor(() => expect(ta.value).toBe('前段。AI改写后的文本后段。'))
   })
 })

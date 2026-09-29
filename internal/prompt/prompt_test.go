@@ -12,12 +12,12 @@ func TestEngineGetExisting(t *testing.T) {
 		t.Fatal("NewEngine returned nil")
 	}
 
-	tmpl := eng.Get("chapter-generate")
+	tmpl := eng.Get("create-chapter")
 	if tmpl == nil {
-		t.Fatal("chapter-generate template should exist")
+		t.Fatal("create-chapter template should exist")
 	}
-	if tmpl.Name != "chapter-generate" {
-		t.Errorf("template Name = %q, want %q", tmpl.Name, "chapter-generate")
+	if tmpl.Name != "create-chapter" {
+		t.Errorf("template Name = %q, want %q", tmpl.Name, "create-chapter")
 	}
 }
 
@@ -32,7 +32,7 @@ func TestEngineGetMissing(t *testing.T) {
 func TestEngineGetAllTemplates(t *testing.T) {
 	eng := NewEngine("../../prompts")
 	names := []string{
-		"chapter-generate", "chapter-summary",
+		"create-chapter", "chapter-summary", "chapter-review",
 		"character-agent", "character-detail", "character-generate-single", "character-generate-batch",
 		"worldview-agent",
 		"outline-chat", "outline-chat-node", "outline-continue", "outline-expand",
@@ -83,16 +83,16 @@ func TestEngineEmbeddedDiskOverrides(t *testing.T) {
 	} else if strings.Contains(tmpl.System, "embedded") {
 		t.Error("磁盘模板应优先于内置模板")
 	}
-	if tmpl := eng.Get("chapter-generate"); tmpl == nil {
+	if tmpl := eng.Get("create-chapter"); tmpl == nil {
 		t.Error("磁盘其余模板应与内置叠加")
 	}
 }
 
 func TestBuildSystemPrompt(t *testing.T) {
 	eng := NewEngine("../../prompts")
-	tmpl := eng.Get("chapter-generate")
+	tmpl := eng.Get("create-chapter")
 	if tmpl == nil {
-		t.Fatal("chapter-generate not found")
+		t.Fatal("create-chapter not found")
 	}
 
 	result := tmpl.BuildSystemPrompt("")
@@ -112,9 +112,9 @@ func TestBuildSystemPrompt(t *testing.T) {
 
 func TestBuildSystemPromptWithSkill(t *testing.T) {
 	eng := NewEngine("../../prompts")
-	tmpl := eng.Get("chapter-generate")
+	tmpl := eng.Get("create-chapter")
 	if tmpl == nil {
-		t.Fatal("chapter-generate not found")
+		t.Fatal("create-chapter not found")
 	}
 
 	skillMD := "测试写作指导：多用比喻，避免平铺直叙。"
@@ -130,9 +130,9 @@ func TestBuildSystemPromptWithSkill(t *testing.T) {
 
 func TestBuildUserPromptPriorityOrder(t *testing.T) {
 	eng := NewEngine("../../prompts")
-	tmpl := eng.Get("chapter-generate")
+	tmpl := eng.Get("create-chapter")
 	if tmpl == nil {
-		t.Fatal("chapter-generate not found")
+		t.Fatal("create-chapter not found")
 	}
 
 	contexts := map[string]string{
@@ -149,9 +149,9 @@ func TestBuildUserPromptPriorityOrder(t *testing.T) {
 	result := tmpl.BuildUserPrompt(contexts)
 
 	// P0 应该出现在 P1 和 P2 之前
-	p0idx := strings.Index(result, "大纲内容")
-	p1idx := strings.Index(result, "全书摘要")
-	p2idx := strings.Index(result, "世界观")
+	p0idx := strings.Index(result, "用户请求")
+	p1idx := strings.Index(result, "世界观")
+	p2idx := strings.Index(result, "大纲")
 
 	if p0idx < 0 || p1idx < 0 || p2idx < 0 {
 		t.Logf("result:\n%s", result)
