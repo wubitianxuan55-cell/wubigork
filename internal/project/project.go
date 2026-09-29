@@ -237,6 +237,32 @@ func (m *Manager) ReadStyleFingerprint() (*types.StyleFingerprintFile, error) {
 }
 
 // WriteStyleFingerprint 写文风指纹参考档（原子写）
+// ReadStyleDigest 读风格摘要档（长篇刀5）；文件缺失返回 nil（未构建态）。
+func (m *Manager) ReadStyleDigest() (*types.StyleDigestFile, error) {
+	df, err := loadJSON[types.StyleDigestFile](filepath.Join(m.Dir, "style_digest.json"))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return df, nil
+}
+
+// WriteStyleDigest 写风格摘要档（原子写）。
+func (m *Manager) WriteStyleDigest(df *types.StyleDigestFile) error {
+	return writeJSON(filepath.Join(m.Dir, "style_digest.json"), df)
+}
+
+// ClearStyleDigest 删除风格摘要档（未构建时 no-op）。
+func (m *Manager) ClearStyleDigest() error {
+	err := os.Remove(filepath.Join(m.Dir, "style_digest.json"))
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return nil
+}
+
 func (m *Manager) WriteStyleFingerprint(sf *types.StyleFingerprintFile) error {
 	return writeJSON(m.StyleFingerprintPath(), sf)
 }

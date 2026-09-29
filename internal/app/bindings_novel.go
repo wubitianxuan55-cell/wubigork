@@ -167,6 +167,23 @@ func (b *NovelB) NovelChapterConvergePreview(chapterNum int, targetTaste int) (m
 func (b *NovelB) NovelChapterConverge(chapterNum int, maxRounds int, targetTaste int) (map[string]interface{}, error) {
 	return b.a.NovelChapterConverge(chapterNum, maxRounds, targetTaste)
 }
+
+// ── 长篇刀5：风格学习回灌 ──
+
+// NovelStyleDigestBuild 从成稿章节构建风格摘要档（可执行写作指令，生成时注入）。
+func (b *NovelB) NovelStyleDigestBuild() (map[string]interface{}, error) {
+	return b.a.NovelStyleDigestBuild()
+}
+
+// NovelStyleDigestGet 读风格摘要档（未构建 exists:false）。
+func (b *NovelB) NovelStyleDigestGet() (map[string]interface{}, error) {
+	return b.a.NovelStyleDigestGet()
+}
+
+// NovelStyleDigestClear 清除风格摘要档（指纹体检档不受影响）。
+func (b *NovelB) NovelStyleDigestClear() error {
+	return b.a.NovelStyleDigestClear()
+}
 func (b *NovelB) GenerateSingleCharacter(chJSON string) (map[string]interface{}, error) {
 	return b.a.GenerateSingleCharacter(chJSON)
 }

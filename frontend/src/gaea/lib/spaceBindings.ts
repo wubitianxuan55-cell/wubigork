@@ -248,6 +248,10 @@ export const GAEA_METHOD_FACETS = {
   // 长篇刀4：质量收敛闭环（NovelB 门面）。
   NovelChapterConverge: "play",
   NovelChapterConvergePreview: "play",
+  // 长篇刀5：风格学习回灌（NovelB 门面）。
+  NovelStyleDigestBuild: "play",
+  NovelStyleDigestGet: "play",
+  NovelStyleDigestClear: "play",
   // 批次二：语音对话文本入口（VoiceB 门面），轻语/语音聊天 play 数据面。
   VoiceChatText: "play",
   // 批次二：绘梦后端配置（SetImageBackend），同 GetImageBackendInfo/

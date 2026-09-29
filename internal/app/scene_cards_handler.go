@@ -308,6 +308,13 @@ func (a *writingState) sceneGenPlanSection(pm *project.Manager, chapterNum int) 
 		}
 		out += sp
 	}
+	// 刀5：作者风格约束——与整章生成同源；零 digest 零注入。
+	if dg := a.styleDigestSection(pm); dg != "" {
+		if out != "" {
+			out += "\n"
+		}
+		out += dg
+	}
 	return out
 }
 

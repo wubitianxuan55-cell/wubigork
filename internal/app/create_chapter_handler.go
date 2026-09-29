@@ -163,6 +163,10 @@ func (a *writingState) createChapter(setting, prevSummary, plotReq string, chapt
 	if spineSec != "" {
 		userPrompt += spineSec + "\n"
 	}
+	// 刀5：作者风格约束（从成稿学到的表达习惯）——零 digest 零注入。
+	if digestSec := a.styleDigestSection(pm); digestSec != "" {
+		userPrompt += digestSec + "\n"
+	}
 
 	systemPrompt := tmpl.BuildSystemPrompt("")
 	// create-chapter 模板以 {word_count} 占位符声明目标字数（prompts/create-chapter.json），

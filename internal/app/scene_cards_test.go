@@ -80,18 +80,21 @@ func TestNovelChapterScenesGenerate_Gate(t *testing.T) {
 		defer a.chapterGenMu.Unlock()
 		return len(a.chapterGenCancels) == 0
 	})
-	for _, ev := range snap() {
-		if ev["type"] == "done" {
-			if ev["done"] != float64(1) || ev["skipped"] != float64(1) {
-				t.Fatalf("done 事件应 done=1 skipped=1，得到 %v", ev)
+	// done 帧经 SSE flush 有延迟（协程退出≠订阅端已收到）：轮询事件快照。
+	waitFor(t, 10*time.Second, "done 事件到达", func() bool {
+		for _, ev := range snap() {
+			if ev["type"] == "error" {
+				t.Fatalf("不应有 error 事件: %v", ev["error"])
 			}
-			return
+			if ev["type"] == "done" {
+				if ev["done"] != float64(1) || ev["skipped"] != float64(1) {
+					t.Fatalf("done 事件应 done=1 skipped=1，得到 %v", ev)
+				}
+				return true
+			}
 		}
-		if ev["type"] == "error" {
-			t.Fatalf("不应有 error 事件: %v", ev["error"])
-		}
-	}
-	t.Fatal("未收到 done 事件")
+		return false
+	})
 }
 
 // TestNovelChapterScenesGenerate_FlowAndSceneRefs 两卡两场：逐场落盘（正文含
@@ -116,21 +119,20 @@ func TestNovelChapterScenesGenerate_FlowAndSceneRefs(t *testing.T) {
 		defer a.chapterGenMu.Unlock()
 		return len(a.chapterGenCancels) == 0
 	})
-	sawDone := false
-	for _, ev := range snap() {
-		if ev["type"] == "error" {
-			t.Fatalf("不应有 error 事件: %v", ev["error"])
-		}
-		if ev["type"] == "done" {
-			sawDone = true
-			if ev["done"] != float64(2) {
-				t.Fatalf("done 应为 2 场，得到 %v", ev["done"])
+	waitFor(t, 10*time.Second, "done 事件到达", func() bool {
+		for _, ev := range snap() {
+			if ev["type"] == "error" {
+				t.Fatalf("不应有 error 事件: %v", ev["error"])
+			}
+			if ev["type"] == "done" {
+				if ev["done"] != float64(2) {
+					t.Fatalf("done 应为 2 场，得到 %v", ev["done"])
+				}
+				return true
 			}
 		}
-	}
-	if !sawDone {
-		t.Fatal("未收到 done 事件")
-	}
+		return false
+	})
 
 	// 两场正文已落盘（每场即落）
 	sm := pm.SceneManager(1)

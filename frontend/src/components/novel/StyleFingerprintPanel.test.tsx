@@ -2,8 +2,29 @@
 // 纯 props 驱动：数据获取全在 CreatePage，这里不需要 mock NovelB 绑定，
 // 直接给 status/score fixture 断言三段 body 与 footer 按钮行为。
 import { describe, expect, it, vi } from 'vitest'
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import React from 'react'
+
+const digestMocks = vi.hoisted(() => ({
+  Get: vi.fn().mockResolvedValue({ exists: false }),
+  Build: vi.fn(),
+  Clear: vi.fn().mockResolvedValue(undefined),
+}))
+vi.mock('../../gaea/lib/bridge', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../gaea/lib/bridge')>()
+  return {
+    ...actual,
+    app: new Proxy(
+      { NovelStyleDigestGet: digestMocks.Get, NovelStyleDigestBuild: digestMocks.Build, NovelStyleDigestClear: digestMocks.Clear },
+      {
+        get(target, prop) {
+          if (prop in target) return Reflect.get(target, prop)
+          return (actual.app as unknown as Record<string, unknown>)[String(prop)]
+        },
+      },
+    ),
+  }
+})
 
 import StyleFingerprintPanel from './StyleFingerprintPanel'
 import { useAppStore } from '../../stores/appStore'
@@ -136,5 +157,30 @@ describe('StyleFingerprintPanel 切书失效（v4.425 B5b）', () => {
     // 回到「未构建参考档 / 未体检」的引导文案
     expect(screen.getByText(/用已有章节构建你自己的文风基线/)).toBeTruthy()
     expect(screen.getByText(/点击「体检当前章」获取本章 AI 味评分/)).toBeTruthy()
+  })
+})
+
+// ── 长篇刀5：风格学习回灌区 ──
+describe('StyleFingerprintPanel 风格回灌（长篇刀5）', () => {
+  it('未学习：给引导文案；构建按钮可点并调用 Build', async () => {
+    digestMocks.Get.mockResolvedValue({ exists: false })
+    digestMocks.Build.mockResolvedValue({ instructions: '- 四字格克制' })
+    render(<StyleFingerprintPanel open onClose={vi.fn()} busy={false} msg="" status={null} score={null} onBuild={vi.fn()} onScore={vi.fn()} hasChapter />)
+    expect(await screen.findByTestId('digest-empty')).toBeTruthy()
+    fireEvent.click(await screen.findByTestId('digest-build'))
+    await waitFor(() => expect(digestMocks.Build).toHaveBeenCalledTimes(1))
+    expect(await screen.findByText(/风格回灌已启用/)).toBeTruthy()
+  })
+
+  it('已学习：状态+查看注入指令', async () => {
+    digestMocks.Get.mockResolvedValue({
+      exists: true, builtAt: '2026-09-30T00:00:00Z', chapters: 5, chars: 12000,
+      instructions: '- 句子平均约 18 字，长短交错明显\n- 四字格克制',
+    })
+    render(<StyleFingerprintPanel open onClose={vi.fn()} busy={false} msg="" status={null} score={null} onBuild={vi.fn()} onScore={vi.fn()} hasChapter />)
+    expect(await screen.findByTestId('digest-section')).toBeTruthy()
+    expect(screen.getByText(/风格回灌已启用/)).toBeTruthy()
+    fireEvent.click(screen.getByTestId('digest-toggle'))
+    expect(screen.getByTestId('digest-instructions').textContent).toContain('四字格克制')
   })
 })

@@ -7,9 +7,10 @@
 // 本组件纯展示、props 驱动直测（见 StyleFingerprintPanel.test.tsx）。
 // 契约：NovelFingerprint* 三绑定（gaea/lib/bridge/novel.ts，Go NovelB 门面）；
 // 后端 omitempty 字段可能缺省，数值/列表展示一律 ?. 与 ?? 防御。
-import React, { useEffect, useRef } from 'react'
-import { Button, Modal, Tag } from 'antd'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
+import { Button, Modal, Tag, Typography, message } from 'antd'
 import { useAppStore } from '../../stores/appStore'
+import { app } from '../../gaea/lib/bridge'
 import type { FingerprintScorePayload, FingerprintStatusPayload, FingerprintSummary } from '../../gaea/lib/bridge/novel'
 
 /** FingerprintSummary 中的数值字段键（排除 topBigrams/topTrigrams/authorSignWords 等 string[] 源）。 */
@@ -103,6 +104,35 @@ const StyleFingerprintPanel: React.FC<StyleFingerprintPanelProps> = ({
   const issues = score1?.issues ?? []
   const sem = scoreSemantics(score1?.score ?? 0)
 
+  // ── 长篇刀5：风格学习回灌（自治 state：构建/预览/清除，生成时自动注入）──
+  const [digest, setDigest] = useState<{ exists?: boolean; builtAt?: string; chapters?: number; chars?: number; instructions?: string } | null>(null)
+  const [digestBusy, setDigestBusy] = useState(false)
+  const [digestOpen, setDigestOpen] = useState(false)
+  const loadDigest = useCallback(async () => {
+    try { setDigest((await app.NovelStyleDigestGet()) as never) } catch { /* 留旧态 */ }
+  }, [])
+  useEffect(() => { if (open) void loadDigest() }, [open, loadDigest])
+  const buildDigest = async () => {
+    setDigestBusy(true)
+    try {
+      const r = (await app.NovelStyleDigestBuild()) as { instructions?: string } | null
+      message.success('已学习你的成稿风格：生成（整章/逐场景）将自动按此口径约束')
+      setDigest((prev) => ({ ...prev, exists: true, builtAt: new Date().toISOString(), instructions: r?.instructions ?? prev?.instructions }))
+    } catch (e) {
+      message.error(e instanceof Error ? e.message : '学习失败')
+    } finally { setDigestBusy(false) }
+  }
+  const clearDigest = async () => {
+    setDigestBusy(true)
+    try {
+      await app.NovelStyleDigestClear()
+      message.info('已清除风格回灌（文风指纹体检档不受影响）')
+      setDigest({ exists: false })
+    } catch (e) {
+      message.error(e instanceof Error ? e.message : '清除失败')
+    } finally { setDigestBusy(false) }
+  }
+
   return (
     <Modal
       title="文风指纹"
@@ -110,6 +140,10 @@ const StyleFingerprintPanel: React.FC<StyleFingerprintPanelProps> = ({
       onCancel={onClose}
       width={640}
       footer={[
+        <Button key="digest" size="small" loading={digestBusy} onClick={() => void buildDigest()} data-testid="digest-build">
+          {digest?.exists ? '重建风格回灌' : '学习我的成稿（生成回灌）'}
+        </Button>,
+        digest?.exists ? <Button key="digest-clear" size="small" danger disabled={digestBusy} onClick={() => void clearDigest()}>停用回灌</Button> : null,
         <Button key="build" type="primary" size="small" loading={busy} onClick={onBuild}>构建/重建参考档</Button>,
         <Button key="score" size="small" loading={busy} disabled={!hasChapter} onClick={onScore}>体检当前章</Button>,
       ]}
@@ -193,6 +227,35 @@ const StyleFingerprintPanel: React.FC<StyleFingerprintPanelProps> = ({
               </div>
             )}
           </>
+        )}
+      </div>
+
+      {/* 2.5 风格学习回灌（长篇刀5）：已学习给状态+指令预览；未学习给引导 */}
+      <div style={{ marginTop: 12, borderTop: '1px solid var(--border-subtle)', paddingTop: 8 }} data-testid="digest-section">
+        {digest?.exists ? (
+          <>
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+              <Tag color="green">风格回灌已启用</Tag>
+              <Typography.Text style={{ fontSize: 12 }}>
+                {digest.chapters ?? 0} 章 · {(digest.chars ?? 0).toLocaleString()} 字 · 学习于 {fmtBuiltAt(digest.builtAt) || '—'}
+              </Typography.Text>
+              <Button size="small" type="link" style={{ padding: 0, fontSize: 12 }} onClick={() => setDigestOpen((v) => !v)} data-testid="digest-toggle">
+                {digestOpen ? '收起指令' : '查看注入的写作指令'}
+              </Button>
+            </div>
+            <Typography.Text style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>
+              生成（整章/逐场景）会自动带上这些从你成稿学到的表达习惯；不想用时点「停用回灌」。
+            </Typography.Text>
+            {digestOpen && (
+              <pre style={{ fontSize: 12, whiteSpace: 'pre-wrap', margin: '6px 0 0', padding: 8, background: 'var(--bg-subtle)', borderRadius: 6 }} data-testid="digest-instructions">
+                {digest.instructions ?? ''}
+              </pre>
+            )}
+          </>
+        ) : (
+          <Typography.Text style={{ fontSize: 12, color: 'var(--color-text-secondary)' }} data-testid="digest-empty">
+            风格回灌未启用：点「学习我的成稿」从已写章节提取你的句长节奏/对话占比/惯用词等表达习惯，生成时自动约束（与文风指纹体检相互独立）。
+          </Typography.Text>
         )}
       </div>
 
