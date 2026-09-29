@@ -3,6 +3,7 @@
 package app
 
 import (
+	"encoding/json"
 	"github.com/gaea/gaea/internal/promptstore"
 	"github.com/gaea/gaea/internal/types"
 )
@@ -119,6 +120,40 @@ func (b *NovelB) NovelSceneRewrite(chapterNum int, sceneID string, instruction s
 // NovelSceneCardsPropose 从章计划拆场景卡骨架（提案不落盘，确认制）。
 func (b *NovelB) NovelSceneCardsPropose(chapterNum int) ([]map[string]interface{}, error) {
 	return b.a.NovelSceneCardsPropose(chapterNum)
+}
+
+// ── 长篇刀3：故事层骨架 ──
+
+// NovelStorySpineGet 读故事脊椎（story_spine.json；缺失=空骨架）。
+func (b *NovelB) NovelStorySpineGet() (map[string]interface{}, error) {
+	return b.a.NovelStorySpineGet()
+}
+
+// NovelStorySpineSave 整表保存（确定性校验失败整单拒绝）。
+func (b *NovelB) NovelStorySpineSave(spineJSON string) error {
+	return b.a.NovelStorySpineSave(spineJSON)
+}
+
+// NovelStoryHealth 故事骨架结构体检（七维度确定性零 LLM）。
+func (b *NovelB) NovelStoryHealth() (map[string]interface{}, error) {
+	r, err := b.a.NovelStoryHealth()
+	if err != nil {
+		return nil, err
+	}
+	raw, mErr := json.Marshal(r)
+	if mErr != nil {
+		return nil, mErr
+	}
+	var out map[string]interface{}
+	if uErr := json.Unmarshal(raw, &out); uErr != nil {
+		return nil, uErr
+	}
+	return out, nil
+}
+
+// NovelStorySpinePropose AI 提炼骨架初稿（提案不落盘）。
+func (b *NovelB) NovelStorySpinePropose() (map[string]interface{}, error) {
+	return b.a.NovelStorySpinePropose()
 }
 func (b *NovelB) GenerateSingleCharacter(chJSON string) (map[string]interface{}, error) {
 	return b.a.GenerateSingleCharacter(chJSON)

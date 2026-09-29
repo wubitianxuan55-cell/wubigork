@@ -19,6 +19,7 @@ import RewriteHistoryPanel from '../components/novel/RewriteHistoryPanel'
 import PromptWorkshopPanel from '../components/novel/PromptWorkshopPanel'
 import ChapterAnalysisPanel from '../components/novel/ChapterAnalysisPanel'
 import BookHealthPanel from '../components/novel/BookHealthPanel'
+import StorySpinePanel from '../components/novel/StorySpinePanel'
 import EditorPanel from '../components/novel/create/EditorPanel'
 import type { EditorPanelHandle } from '../components/novel/create/EditorPanel'
 import CreateInspector from '../components/novel/create/CreateInspector'
@@ -267,6 +268,7 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
     if (!ok) message.info('请先在左侧选择该章，再定位标注')
   }
   const [healthOpen, setHealthOpen] = useState(false)
+  const [spineOpen, setSpineOpen] = useState(false)
   // 局部重写选区（t4-C3 余项：EditorPanel 选段回调 → PartialRewriteModal；rune 偏移）
   const [pSel, setPSel] = useState<{ start: number; end: number; text: string } | null>(null)
   // 默认启用 story-deslop 去 AI 味润色技能；可在右侧创作设置中切换或清空
@@ -1180,6 +1182,7 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
         <RailGroup label="质检">
           <Button size="small" onClick={() => setAnalysisOpen(true)}>章节分析</Button>
           <Button size="small" onClick={() => setHealthOpen(true)}>全书体检</Button>
+          <Button size="small" onClick={() => setSpineOpen(true)}>故事骨架</Button>
           <Button size="small" onClick={() => void openReview()}>平台评审</Button>
           <Button size="small" onClick={() => void openFingerprint()}>文风指纹</Button>
         </RailGroup>
@@ -1229,6 +1232,7 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
         onApplied={refreshEditorAfterRewriteApplied}
       />
       <BookHealthPanel open={healthOpen} onClose={() => setHealthOpen(false)} />
+      <StorySpinePanel open={spineOpen} onClose={() => setSpineOpen(false)} />
       <ChapterAnalysisPanel
         open={analysisOpen}
         onClose={() => { setAnalysisOpen(false); setGateChapter(null); setGateContent('') }}

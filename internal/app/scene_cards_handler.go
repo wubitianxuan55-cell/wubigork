@@ -290,20 +290,25 @@ func sceneCardMissingFields(m *types.SceneMeta) string {
 	return strings.Join(fields, "·")
 }
 
-// sceneGenPlanSection 逐场景生成的章计划区段（刀1 契约复用；无计划返回空）。
+// sceneGenPlanSection 逐场景生成的章计划区段（刀1 契约复用）+ 故事层切片（刀3）。
+// 两者皆空返回空（prompt 零变化）；空 spine 零注入。
 func (a *writingState) sceneGenPlanSection(pm *project.Manager, chapterNum int) string {
-	pf, err := pm.ReadChapterPlans()
-	if err != nil || pf == nil {
-		return ""
+	out := ""
+	if pf, err := pm.ReadChapterPlans(); err == nil && pf != nil {
+		if plan, ok := pf.Plans[fmt.Sprintf("%d", chapterNum)]; ok {
+			if sec := buildChapterPlanSection(&plan); sec != "" {
+				out = "## 本章计划（所有场景合力完成它，不得遗漏关键事件）\n" + sec
+			}
+		}
 	}
-	plan, ok := pf.Plans[fmt.Sprintf("%d", chapterNum)]
-	if !ok {
-		return ""
+	// 刀3：故事层切片（节拍位/活跃线程/未解问题/弧线水位）——与整章生成同源。
+	if sp := a.storySpineSection(pm, chapterNum); sp != "" {
+		if out != "" {
+			out += "\n"
+		}
+		out += sp
 	}
-	if sec := buildChapterPlanSection(&plan); sec != "" {
-		return "## 本章计划（所有场景合力完成它，不得遗漏关键事件）\n" + sec
-	}
-	return ""
+	return out
 }
 
 // syncSceneRefs 把章的场景 ID 列表回写进大纲节点 SceneRefs（G10 启用）。

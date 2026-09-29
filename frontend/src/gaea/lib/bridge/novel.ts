@@ -408,6 +408,15 @@ export interface NovelBindings {
   NovelSceneRewrite(chapterNum: number, sceneID: string, instruction: string): Promise<Record<string, unknown>>;
   // AI 拆场景卡骨架（提案不落盘，确认后走 CreateScene+SaveSceneMeta 落卡）。
   NovelSceneCardsPropose(chapterNum: number): Promise<Array<Record<string, unknown>>>;
+  // ── 长篇刀3：故事层骨架（story_spine.json）──
+  // 读故事脊椎（缺失=空骨架）。
+  NovelStorySpineGet(): Promise<Record<string, unknown>>;
+  // 整表保存（确定性校验失败整单拒绝）。
+  NovelStorySpineSave(spineJSON: string): Promise<void>;
+  // 结构体检（七维度确定性零 LLM）。
+  NovelStoryHealth(): Promise<Record<string, unknown>>;
+  // AI 提炼骨架初稿（提案不落盘）。
+  NovelStorySpinePropose(): Promise<Record<string, unknown>>;
   // SaveSceneMeta 保存场景元数据（标题/概要/POV/地点/时间/情感/标签/状态；正文走 SaveScene）。
   SaveSceneMeta(chapterNum: number, sceneID: string, metaJSON: string): Promise<void>;
   CancelCreateChapter(chapterNum: number, branch: string): Promise<boolean>;

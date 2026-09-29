@@ -156,6 +156,14 @@ func (a *writingState) createChapter(setting, prevSummary, plotReq string, chapt
 		userPrompt += extra + "\n"
 	}
 
+	// 刀3：故事层骨架切片（节拍位/活跃线程/未解问题/弧线水位）——空 spine 零注入，
+	// 读取失败静默跳过（同上容错纪律）。切片短且有独立结构价值：不挤占上方
+	// 伏笔/文风/世界观的 ctxBudget 额度，独立追加在增强区段之后。
+	spineSec := a.storySpineSection(pm, ctxChapterNum)
+	if spineSec != "" {
+		userPrompt += spineSec + "\n"
+	}
+
 	systemPrompt := tmpl.BuildSystemPrompt("")
 	// create-chapter 模板以 {word_count} 占位符声明目标字数（prompts/create-chapter.json），
 	// 用户可在创作页调整目标字数；用实际 minWords 精确替换占位符，避免模型仍按
