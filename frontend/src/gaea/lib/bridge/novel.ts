@@ -417,6 +417,11 @@ export interface NovelBindings {
   NovelStoryHealth(): Promise<Record<string, unknown>>;
   // AI 提炼骨架初稿（提案不落盘）。
   NovelStorySpinePropose(): Promise<Record<string, unknown>>;
+  // ── 长篇刀4：质量收敛闭环 ──
+  // 收敛预检（dry-run：当前判据状态+计划轮次，零修补）。
+  NovelChapterConvergePreview(chapterNum: number, targetTaste: number): Promise<Record<string, unknown>>;
+  // 收敛闭环（流式 converge-stream；三态判停，每轮版本留痕）。
+  NovelChapterConverge(chapterNum: number, maxRounds: number, targetTaste: number): Promise<Record<string, unknown>>;
   // SaveSceneMeta 保存场景元数据（标题/概要/POV/地点/时间/情感/标签/状态；正文走 SaveScene）。
   SaveSceneMeta(chapterNum: number, sceneID: string, metaJSON: string): Promise<void>;
   CancelCreateChapter(chapterNum: number, branch: string): Promise<boolean>;

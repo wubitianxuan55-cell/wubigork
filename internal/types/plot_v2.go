@@ -44,10 +44,11 @@ const (
 type RewriteMode string
 
 const (
-	RewriteModeWhole   RewriteMode = "whole"   // 整章重写
-	RewriteModePartial RewriteMode = "partial" // 局部重写（按 StartPos/EndPos 区间）
-	RewriteModeDeslop  RewriteMode = "deslop"  // 去 AI 味（复用 novelstyle.DeSlopRewrite）
-	RewriteModeScene   RewriteMode = "scene"   // 整场景重写（长篇刀2：单场景 whole，他场不动）
+	RewriteModeWhole    RewriteMode = "whole"    // 整章重写
+	RewriteModePartial  RewriteMode = "partial"  // 局部重写（按 StartPos/EndPos 区间）
+	RewriteModeDeslop   RewriteMode = "deslop"   // 去 AI 味（复用 novelstyle.DeSlopRewrite）
+	RewriteModeScene    RewriteMode = "scene"    // 整场景重写（长篇刀2：单场景 whole，他场不动）
+	RewriteModeConverge RewriteMode = "converge" // 收敛修补轮（长篇刀4：定向修补+复检闭环的每轮留痕）
 )
 
 // RewriteStatus 重写版本状态。

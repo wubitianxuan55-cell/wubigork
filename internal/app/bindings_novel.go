@@ -155,6 +155,18 @@ func (b *NovelB) NovelStoryHealth() (map[string]interface{}, error) {
 func (b *NovelB) NovelStorySpinePropose() (map[string]interface{}, error) {
 	return b.a.NovelStorySpinePropose()
 }
+
+// ── 长篇刀4：质量收敛闭环 ──
+
+// NovelChapterConvergePreview 收敛预检（dry-run：当前判据状态+计划轮次，零修补）。
+func (b *NovelB) NovelChapterConvergePreview(chapterNum int, targetTaste int) (map[string]interface{}, error) {
+	return b.a.NovelChapterConvergePreview(chapterNum, targetTaste)
+}
+
+// NovelChapterConverge 收敛闭环（流式 converge-stream；三态判停，每轮版本留痕）。
+func (b *NovelB) NovelChapterConverge(chapterNum int, maxRounds int, targetTaste int) (map[string]interface{}, error) {
+	return b.a.NovelChapterConverge(chapterNum, maxRounds, targetTaste)
+}
 func (b *NovelB) GenerateSingleCharacter(chJSON string) (map[string]interface{}, error) {
 	return b.a.GenerateSingleCharacter(chJSON)
 }
