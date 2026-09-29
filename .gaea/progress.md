@@ -1,3 +1,19 @@
+## 最新发布：v4.431.0（2026-09-30）「长篇刀3：故事层骨架」
+
+- **刀型**：用户指令「继续」（长篇七刀线程，v4.430 刀2 后按次刀序开刀3）。规格 §1.10「整书层没有任何持续状态——纵向结构（长篇命门）在系统里没有承载物」的正面解。Go 新 3 文件+注入两处接线+前端 StorySpinePanel；**绑定面 729→733（+4）**、spaceBindings 553→557，零功能删除。规格=`进度计划/gaea-novel-story-spine-20260930.md`。
+- **契约**：story_spine.json（项目根与 outline.json 平级）——主题论证（控制理念+反论最强陈述，M12 只报告不做闸）/人物弧线（want/need/misbelief+水位点 setup·provoke·escalate·proof）/结构节拍位（hook/first_plot_point/midpoint/second_plot_point/climax+自定义，绑章号 planned·hit）/支线开关表（MICE 类型+开启章+最后推进章+active·parked·closed·abandoned）/未解问题池（raised_chapter+open·answered）。确定性校验整单拒绝（章号/枚举/重复 ID/缺名点名）。
+- **体检**：NovelStoryHealth 七维度**零 LLM 确定性**——①支线遗忘（>10 章未推进，active S1/parked S2）②未解问题超期（>15 章）③节拍滞后（planned+3 容差）④中段塌陷（分析 V2 情感强度中段 30%~70% 均值<全书 75%，缺数据如实跳过该维度）⑤弧线水位覆盖（最后水位<进度 1/3）⑥终局未闭合（当前章≥climax 绑定（或 max×85%）仍有 active 线程/open 问题=收束清单）⑦主题缺失（S3 报告）。零 spine/零章=空报告不算错。
+- **注入**：CreateChapter 与 NovelChapterScenesGenerate 注入同源故事层切片——本章绑定的节拍位/活跃线程/未解问题（「不要无意中回答，也不要遗忘」）/主角弧线最近水位点；**空 spine 零注入**（测试钉死）；切片短且有独立结构价值，不挤占伏笔/文风/世界观 ctxBudget 额度。
+- **提案**：NovelStorySpinePropose 从故事主线（刀1 资产）+大纲+最近 8 章摘要提炼骨架初稿；**提案只填表单，落盘必须走「保存」**（确认红线同族）；主线为空诚实拒绝。
+- **前端**：CreatePage rail 新「故事骨架」按钮 → StorySpinePanel（主题两行+弧线/节拍/支线/问题四表行内增删改+AI 提炼填表单+体检报告按 S1/S2/S3 渲染+保存）。
+- **测试**：Go 新增 4 例（往返+拒绝矩阵 10 例/七维度造数含健康支线不误报+空 spine 空报告/切片渲染含空 spine 零注入+非绑定章不注入节拍行/**CreateChapter prompt HTTP body 断言含「故事层骨架」**）+**反向验证**（遗忘阈值 10→100 必红还原复绿）；前端新增 5 例（打开拉取空态/编辑保存 payload/提案填表单 Save 零调用/体检报告渲染/校验拒绝如实报错）。小说域 36 文件/321 例；tsc 0；eslint 0；internal/app+project+types 绿。
+- **门禁**：全量 `ci.ps1` → CI OK；漂移闸 OK@4.431.0（733 一致）；spaceBindings 数量锁 553→557。
+- **产物**：`releases/gaea-v4.431.0.exe` 51,712,512 B SHA256=`0d9023b372649056e54b4ead6c9157b0e0467f9bb6fb10da457712c01f14b94c`（`SHA256SUMS-v4.431.0.txt`；冒烟 200 过）；保留策略删 v4.427.0.exe，实存 5 版（431/430/429/428.1/428）。
+- **文档**：`releases/v4.431.0.md` + 规格 `进度计划/gaea-novel-story-spine-20260930.md`（含落地回填）+ CHANGELOG/README + releases/README + AGENTS 速览 + progress（本条）。
+- **坑/教训**：①python heredoc 写 Go 源码里的 `
+` 字面量（三重转义）在 bash 层必降级——Go 代码修改一律 Edit 工具或 node 行级操作（本批 sceneGenPlanSection 重写又踩一次）。②node 插入脚本的下标顺序要核对声明先后（spineSec 插到了 ctxBudgetLeft 声明前——编译器抓住，行级重排修复）。③**产物 SHA/体积别预写**：先跑 release.ps1 再从 SUMS 与 ls 读实际值回填（本批预写错一次靠 cat 纠正）。
+- **观察池**：M7 伏笔池不并入 spine（伏笔体系在产独立）/M8 认知三表完整形态/M9 因果 DAG·时间线台账/弧线水位闸门（只体检提示）/体检自动触发（按需按钮与全书体检口径一致）/骨架面板真机走查。
+
 ## 最新发布：v4.430.0（2026-09-29）「长篇刀2：场景卡与场景级生成」
 
 - **刀型**：用户指令「继续」（v4.429 小说板块观察池收官后按台账次刀序开长篇七刀的刀2）。规格 §1.3/§1.4 的正面解：生成单位从整章 blob 改为按场景卡逐场景、场景卡补创作学核心字段、解禁场景级重写。Go 8 文件+前端 4 文件，**绑定面 726→729（+3）**、spaceBindings 550→553，零功能删除。规格=`进度计划/gaea-novel-scene-cards-20260929.md`。
