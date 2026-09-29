@@ -16,7 +16,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Button, message, Modal, Popover } from 'antd'
 import { CaretRightOutlined, DeleteOutlined, EditOutlined, PlusOutlined, QuestionCircleOutlined } from '@ant-design/icons'
 import V3Empty from '../../components/V3Empty'
-import { readFileAsDataURL } from '../../api/image'
+import { readSinThumb } from './sinThumbCache'
 import { collectIllustrations, type SinGalleryItem } from './storyText'
 import {
   clampSinPanelWidth, readSinPanelTab, readSinPanelWidth, SIN_PANEL_DEFAULT_WIDTH,
@@ -33,7 +33,7 @@ const NOTE_MAX_RUNES = 2000
 const OUTLINE_MAX_RUNES = 4000
 const runeLen = (s: string) => Array.from(s).length
 
-/** 缩略图：本地路径经附件读取通道转 data URL（与流内插图同口径）。 */
+/** 缩略图：本地路径经附件读取通道转 data URL（有界 LRU 缓存，与流内插图同口径）。 */
 function SinGalleryThumb({ item, onOpen }: { item: SinGalleryItem; onOpen: (item: SinGalleryItem) => void }) {
   const [url, setUrl] = useState('')
   const [failed, setFailed] = useState(false)
@@ -41,7 +41,7 @@ function SinGalleryThumb({ item, onOpen }: { item: SinGalleryItem; onOpen: (item
     let live = true
     setUrl('')
     setFailed(false)
-    readFileAsDataURL(item.path)
+    readSinThumb(item.path)
       .then((u) => { if (live) setUrl(u) })
       .catch(() => { if (live) setFailed(true) })
     return () => { live = false }
@@ -90,13 +90,30 @@ export interface SinSidePanelProps {
   onSaveNotes: (baseline: SinNotesDoc, outline: string, notes: string[], force: boolean) => Promise<{ ok: boolean; conflict: boolean; message: string }>
   /** 底稿有无未保存修改（页面据此在切故事前弹确认）。 */
   onDirtyChange?: (dirty: boolean) => void
+  /** 面板可见（v4.427）：收起面板时卸载卡体——缩略图/下载卡不再以 display:none
+   *  常驻占内存；底稿草稿/书源下载会话分别在面板 state 与模块单例，不受影响。 */
+  visible?: boolean
 }
+
+const SIN_ACC_TABS: SinSideTabId[] = ['cast', 'outline', 'notes', 'gallery', 'books']
 
 export function SinSidePanel({
   storyId, cast, castSaving, onOpenPicker, onRemoveCast, onGenerateSheet, onScore,
-  notesDoc, notesError, notesLoading, messages, sending, onRegenerate, onSaveNotes, onDirtyChange,
+  notesDoc, notesError, notesLoading, messages, sending, onRegenerate, onSaveNotes, onDirtyChange, visible = true,
 }: SinSidePanelProps) {
   const [tab, setTab] = useState<SinSideTabId>(() => readSinPanelTab())
+  // 卡体渲染条件：面板可见且该卡展开（收起面板即卸载卡体，防缩略图常驻驻留）
+  const showBody = (id: SinSideTabId) => visible && tab === id
+  // 手风琴键盘导航：ArrowUp/Down 在五卡间循环（tablist 竖向）
+  const onTabsKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return
+    e.preventDefault()
+    const idx = SIN_ACC_TABS.indexOf(tab)
+    const delta = e.key === 'ArrowDown' ? 1 : -1
+    const next = SIN_ACC_TABS[(idx + delta + SIN_ACC_TABS.length) % SIN_ACC_TABS.length]
+    setTab(next)
+    document.getElementById(`sin-acc-tab-${next}`)?.focus()
+  }
   const [preview, setPreview] = useState<SinGalleryItem | null>(null)
   const [previewUrl, setPreviewUrl] = useState('')
   // 面板宽度：拖左缘手柄实时跟手，松手持久化（与办公 useWorkspaceLayout 同范式）
@@ -220,12 +237,12 @@ export function SinSidePanel({
     window.addEventListener('pointercancel', onDone)
   }, [])
 
-  // 大图预览：点击缩略图打开；关闭即丢弃 data URL
+  // 大图预览：点击缩略图打开；关闭即丢弃 data URL（重开走 LRU 缓存）
   useEffect(() => {
     if (!preview) return
     let live = true
     setPreviewUrl('')
-    readFileAsDataURL(preview.path)
+    readSinThumb(preview.path)
       .then((u) => { if (live) setPreviewUrl(u) })
       .catch(() => { if (live) setPreviewUrl('') })
     return () => { live = false }
@@ -289,12 +306,20 @@ export function SinSidePanel({
           </button>
         </Popover>
       </div>
-      <div className="sin-side-cards" role="tablist" aria-orientation="vertical" aria-label="创作面板">
+      <div
+        className="sin-side-cards"
+        role="tablist"
+        aria-orientation="vertical"
+        aria-label="创作面板"
+        onKeyDown={onTabsKeyDown}
+      >
         <section className={`sin-acc${tab === 'cast' ? ' is-open' : ''}`}>
           <button
             type="button"
             role="tab"
+            id="sin-acc-tab-cast"
             aria-selected={tab === 'cast'}
+            aria-controls="sin-acc-panel-cast"
             aria-expanded={tab === 'cast'}
             className="sin-acc-head"
             title={tab === 'cast' ? undefined : '展开角色'}
@@ -304,8 +329,8 @@ export function SinSidePanel({
             <span className="sin-acc-label">角色</span>
             {cast.length > 0 && <span className="sin-acc-count">{cast.length}</span>}
           </button>
-          {tab === 'cast' && (
-            <div className="sin-acc-body" role="tabpanel" aria-label="角色">
+          {showBody('cast') && (
+            <div className="sin-acc-body" role="tabpanel" id="sin-acc-panel-cast" aria-labelledby="sin-acc-tab-cast">
 
                 <SinCastPanel
                   cast={cast}
@@ -322,7 +347,9 @@ export function SinSidePanel({
           <button
             type="button"
             role="tab"
+            id="sin-acc-tab-outline"
             aria-selected={tab === 'outline'}
+            aria-controls="sin-acc-panel-outline"
             aria-expanded={tab === 'outline'}
             className="sin-acc-head"
             title={tab === 'outline' ? undefined : '展开大纲'}
@@ -332,8 +359,8 @@ export function SinSidePanel({
             <span className="sin-acc-label">大纲</span>
             {notesDoc.outline ? <span className="sin-acc-count">1</span> : null}
           </button>
-          {tab === 'outline' && (
-            <div className="sin-acc-body" role="tabpanel" aria-label="大纲">
+          {showBody('outline') && (
+            <div className="sin-acc-body" role="tabpanel" id="sin-acc-panel-outline" aria-labelledby="sin-acc-tab-outline">
 
                 <section className="sin-card">
                   {draft?.tab === 'outline' ? (
@@ -392,7 +419,9 @@ export function SinSidePanel({
           <button
             type="button"
             role="tab"
+            id="sin-acc-tab-notes"
             aria-selected={tab === 'notes'}
+            aria-controls="sin-acc-panel-notes"
             aria-expanded={tab === 'notes'}
             className="sin-acc-head"
             title={tab === 'notes' ? undefined : '展开设定'}
@@ -402,8 +431,8 @@ export function SinSidePanel({
             <span className="sin-acc-label">设定</span>
             {notesDoc.notes.length > 0 && <span className="sin-acc-count">{notesDoc.notes.length}</span>}
           </button>
-          {tab === 'notes' && (
-            <div className="sin-acc-body" role="tabpanel" aria-label="设定">
+          {showBody('notes') && (
+            <div className="sin-acc-body" role="tabpanel" id="sin-acc-panel-notes" aria-labelledby="sin-acc-tab-notes">
 
                 <section className="sin-card">
                   {draft?.tab === 'notes' ? (
@@ -496,7 +525,9 @@ export function SinSidePanel({
           <button
             type="button"
             role="tab"
+            id="sin-acc-tab-gallery"
             aria-selected={tab === 'gallery'}
+            aria-controls="sin-acc-panel-gallery"
             aria-expanded={tab === 'gallery'}
             className="sin-acc-head"
             title={tab === 'gallery' ? undefined : '展开插图'}
@@ -506,8 +537,8 @@ export function SinSidePanel({
             <span className="sin-acc-label">插图</span>
             {gallery.length > 0 && <span className="sin-acc-count">{gallery.length}</span>}
           </button>
-          {tab === 'gallery' && (
-            <div className="sin-acc-body" role="tabpanel" aria-label="插图">
+          {showBody('gallery') && (
+            <div className="sin-acc-body" role="tabpanel" id="sin-acc-panel-gallery" aria-labelledby="sin-acc-tab-gallery">
 
                 <section className="sin-card">
                   {gallery.length > 0 ? (
@@ -550,7 +581,9 @@ export function SinSidePanel({
           <button
             type="button"
             role="tab"
+            id="sin-acc-tab-books"
             aria-selected={tab === 'books'}
+            aria-controls="sin-acc-panel-books"
             aria-expanded={tab === 'books'}
             className="sin-acc-head"
             title={tab === 'books' ? undefined : '展开书源'}
@@ -559,8 +592,8 @@ export function SinSidePanel({
             <CaretRightOutlined className="sin-acc-caret" aria-hidden />
             <span className="sin-acc-label">书源</span>
           </button>
-          {tab === 'books' && (
-            <div className="sin-acc-body" role="tabpanel" aria-label="书源">
+          {showBody('books') && (
+            <div className="sin-acc-body" role="tabpanel" id="sin-acc-panel-books" aria-labelledby="sin-acc-tab-books">
       <SinBookSourcePanel />
             </div>
           )}

@@ -1,3 +1,4 @@
+import type React from "react";
 import { BarChart3, Brain, ListTree, MessageSquare } from "../icons";
 
 // 对话窗口上方的视图标签（dsh-context 移植，v4.17-v4.20 已完整接通）：
@@ -41,21 +42,47 @@ export function ChatTabs({ active, onChange, tabs, labelOverrides, className, ex
   const visible = (tabs ?? TABS.map((t) => t.id))
     .map((id) => TABS.find((t) => t.id === id))
     .filter((t): t is (typeof TABS)[number] => !!t);
+  // tablist 键盘导航（v4.427）：←/→（含 Home/End）在全部 tab（主视图+动态会话）
+  // 间循环。roving tabindex：仅选中项在 tab 序里，方向键/点击移动焦点。
+  const onListKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key !== "ArrowLeft" && e.key !== "ArrowRight" && e.key !== "Home" && e.key !== "End") return;
+    e.preventDefault();
+    const nodes = Array.from(
+      (e.currentTarget as HTMLElement).querySelectorAll<HTMLElement>('[role="tab"]'),
+    );
+    if (nodes.length === 0) return;
+    const idx = nodes.findIndex((n) => n.getAttribute("aria-selected") === "true");
+    let next = idx;
+    if (e.key === "Home") next = 0;
+    else if (e.key === "End") next = nodes.length - 1;
+    else if (idx < 0) next = 0;
+    else next = (idx + (e.key === "ArrowRight" ? 1 : -1) + nodes.length) % nodes.length;
+    nodes[next]?.focus();
+    nodes[next]?.click();
+  };
   return (
-    <div className={`flex items-center gap-1 px-12 pt-2 pb-0 border-b border-border-soft bg-bg/80 select-none ${className ?? ""}`}>
+    <div
+      className={`flex items-center gap-1 px-12 pt-2 pb-0 border-b border-border-soft bg-bg/80 select-none ${className ?? ""}`}
+      role="tablist"
+      onKeyDown={onListKeyDown}
+    >
       {visible.map((t) => {
         const Icon = t.icon;
         const selected = t.id === active;
         return (
           <button
             key={t.id}
+            type="button"
+            role="tab"
+            aria-selected={selected}
+            tabIndex={selected ? 0 : -1}
             className={`relative flex items-center gap-1.5 px-3 py-1.5 text-[12px] rounded-t-md border-0 bg-transparent cursor-pointer transition-colors ${
               selected ? "text-accent" : "text-fg-dim hover:text-fg"
             }`}
             onClick={() => onChange(t.id)}
             title={t.id === "trajectory" ? "工具调用/步骤时间线" : undefined}
           >
-            <Icon size={13} />
+            <Icon size={13} aria-hidden />
             {labelOverrides?.[t.id] ?? t.label}
             {selected && <span className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-accent" />}
           </button>
@@ -68,7 +95,7 @@ export function ChatTabs({ active, onChange, tabs, labelOverrides, className, ex
             key={s.id}
             role="tab"
             aria-selected={selected}
-            tabIndex={0}
+            tabIndex={selected ? 0 : -1}
             data-chat-session-tab={s.id}
             className={`relative flex items-center gap-1.5 px-3 py-1.5 text-[12px] rounded-t-md border-0 cursor-pointer transition-colors ${
               selected ? "text-accent" : "text-fg-dim hover:text-fg"

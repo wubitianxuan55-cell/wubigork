@@ -89,11 +89,10 @@ func sinNodeSeq(msgID int64, slot int) int64 {
 // 折叠，保证两看板对同一话题的内容一致）。
 type sinInsight struct {
 	msgs    []chat.Message
-	tools   map[int64][]sinToolTrace // 消息 ID → 工具轨迹
-	illus   map[int64]int            // 消息 ID → 插图数
-	system  string                   // 系统提示词现值
-	draft   string                   // 底稿（便签+大纲）块现值
-	castBlk string                   // 角色卡块现值
+	extras  map[int64]sinMsgExtra // 消息 ID → 解析后的 extra（折叠一次、两个视图共用）
+	system  string                // 系统提示词现值
+	draft   string                // 底稿（便签+大纲）块现值
+	castBlk string                // 角色卡块现值
 }
 
 func (a *App) foldSinInsight(topicID string) (*sinInsight, error) {
@@ -105,16 +104,11 @@ func (a *App) foldSinInsight(topicID string) (*sinInsight, error) {
 		return nil, err
 	}
 	ins := &sinInsight{
-		msgs:  msgs,
-		tools: map[int64][]sinToolTrace{},
-		illus: map[int64]int{},
+		msgs:   msgs,
+		extras: map[int64]sinMsgExtra{},
 	}
 	for _, m := range msgs {
-		ex := parseSinMsgExtra(m.Extra)
-		if len(ex.Tools) > 0 {
-			ins.tools[m.ID] = ex.Tools
-		}
-		ins.illus[m.ID] = len(ex.Illustrations)
+		ins.extras[m.ID] = parseSinMsgExtra(m.Extra)
 	}
 	ins.system = sinSystemPrompt()
 	draft := a.sinDraftForPrompt(topicID)
@@ -145,7 +139,7 @@ func foldSinTrajectory(ins *sinInsight) trajectory.Trajectory {
 			})
 			continue
 		}
-		ex := parseSinMsgExtra(m.Extra)
+		ex := ins.extras[m.ID]
 		recs := make([]trajectory.Record, 0, len(ex.Tools)+1)
 		for i, t := range ex.Tools {
 			slot := i + 1
@@ -299,7 +293,7 @@ func foldSinContext(ins *sinInsight) contextview.ContextTimeline {
 				Seq: sinNodeSeq(m.ID, 0), Cat: "user", Tokens: sinEstTokens(m.Content), Text: sinBrief(m.Content, 120),
 			})
 		case "assistant":
-			ex := parseSinMsgExtra(m.Extra)
+			ex := ins.extras[m.ID]
 			images += len(ex.Illustrations)
 			for i, t := range ex.Tools {
 				slot := i + 1
@@ -429,43 +423,49 @@ func (a *App) SinContextView(topicID string) (contextview.ContextTimeline, error
 // SinContextNodeDetail 返回上下文浏览器节点的「完整调用」详情：user/
 // assistant 取消息全文，tool 取 extra.tools 里的参数与输出；system/注入
 // 节点与办公同口径不提供详情（报错，前端诚实显示不可展开）。
+//
+// v4.427：seq 编址是确定性的（消息 ID×10+槽位），详情直接按 seq 反解消息 id
+// 单条查询——不再为找一个节点全量折叠整话题（千回合老故事每次点开一个节点
+// 都全表读库+全量解析 extra）。
 func (a *App) SinContextNodeDetail(topicID string, seq int64) (contextview.NodeDetail, error) {
-	ins, err := a.foldSinInsight(topicID)
-	if err != nil {
+	if err := a.sinTopicGuard(topicID); err != nil {
 		return contextview.NodeDetail{}, err
 	}
-	for _, m := range ins.msgs {
-		switch {
-		case m.Role == "user" && sinNodeSeq(m.ID, 0) == seq:
-			text, clamped := clampSinDetail(m.Content)
-			return contextview.NodeDetail{
-				Seq: seq, Kind: "user_message", Ts: sinTs(m.CreatedAt),
-				Text: text, Lines: sinCountLines(text), Clamped: clamped,
-			}, nil
-		case m.Role == "assistant" && sinNodeSeq(m.ID, 9) == seq:
-			text, clamped := clampSinDetail(m.Content)
-			return contextview.NodeDetail{
-				Seq: seq, Kind: "assistant_message", Ts: sinTs(m.CreatedAt),
-				Text: text, Lines: sinCountLines(text), Clamped: clamped,
-			}, nil
-		case m.Role == "assistant":
-			tools := parseSinMsgExtra(m.Extra).Tools
-			for i, t := range tools {
-				slot := i + 1
-				if slot > 8 {
-					slot = 8
-				}
-				if sinNodeSeq(m.ID, slot) != seq {
-					continue
-				}
-				out, clamped := clampSinDetail(t.Output)
-				return contextview.NodeDetail{
-					Seq: seq, Kind: "tool_result", Ts: sinTs(m.CreatedAt),
-					Tool: t.Name, Args: t.Args, Output: out, Err: t.Error,
-					Truncated: clamped, Lines: sinCountLines(out), Clamped: clamped,
-				}, nil
-			}
+	msgID, slot := seq/10, seq%10
+	if msgID <= 0 {
+		return contextview.NodeDetail{}, errSinNodeDetail // system/注入节点：与办公同口径不可展开
+	}
+	m, err := a.chatStore.GetMessage(msgID)
+	if err != nil || m.TopicID != topicID {
+		return contextview.NodeDetail{}, errSinNodeDetail // 他话题/不存在：与旧全量扫描行为一致
+	}
+	ts := sinTs(m.CreatedAt)
+	switch {
+	case slot == 0 && m.Role == "user":
+		text, clamped := clampSinDetail(m.Content)
+		return contextview.NodeDetail{
+			Seq: seq, Kind: "user_message", Ts: ts,
+			Text: text, Lines: sinCountLines(text), Clamped: clamped,
+		}, nil
+	case m.Role == "assistant" && slot == 9:
+		text, clamped := clampSinDetail(m.Content)
+		return contextview.NodeDetail{
+			Seq: seq, Kind: "assistant_message", Ts: ts,
+			Text: text, Lines: sinCountLines(text), Clamped: clamped,
+		}, nil
+	case m.Role == "assistant" && slot >= 1 && slot <= 8:
+		tools := parseSinMsgExtra(m.Extra).Tools
+		idx := int(slot) - 1
+		if idx >= len(tools) {
+			return contextview.NodeDetail{}, errSinNodeDetail
 		}
+		t := tools[idx]
+		out, clamped := clampSinDetail(t.Output)
+		return contextview.NodeDetail{
+			Seq: seq, Kind: "tool_result", Ts: ts,
+			Tool: t.Name, Args: t.Args, Output: out, Err: t.Error,
+			Truncated: clamped, Lines: sinCountLines(out), Clamped: clamped,
+		}, nil
 	}
 	return contextview.NodeDetail{}, errSinNodeDetail
 }

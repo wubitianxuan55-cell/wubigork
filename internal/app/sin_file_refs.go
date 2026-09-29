@@ -26,6 +26,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 
 	"github.com/gaea/gaea/internal/gaea/vision"
 )
@@ -48,40 +49,73 @@ var sinRefTokenRe = regexp.MustCompile(`@"([^"]+)"|@([^\s]+)`)
 // sinVisionRecognize 识图入口（可注入以便测试）。
 var sinVisionRecognize = vision.RecognizeImage
 
+// sinVisionConcurrency 图片附件识图的并发上限：识图是分钟级慢操作（每张至多
+// 90s），串行时 5 张图 = 7.5 分钟首帧前干等；并发 2 既压缩等待又不至于把本地
+// 视觉模型打满（与 CPU/GPU 占用的折中，进度提示照旧）。
+const sinVisionConcurrency = 2
+
 // sinFileRefBlock 解析 line 里的 @文件引用，返回拼装好的内容块与逐条失败原因。
 // 块为空 = 没有可解析的引用。 errs 非空的条目也已如实写入块内（模型看得见
-// 失败原因），调用方无需重复上报。
+// 失败原因），调用方无需重复上报。图片附件按 sinVisionConcurrency 有界并发
+// 识图，块序保持 token 出现序。
 func sinFileRefBlock(ctx context.Context, line string) (string, []string) {
 	toks := sinRefTokens(line)
 	if len(toks) == 0 {
 		return "", nil
 	}
+	type refItem struct {
+		block string // 空串 = 该 token 不是引用（stat 不中，零误伤跳过）
+		err   string
+	}
+	items := make([]refItem, len(toks))
 	var (
+		wg   sync.WaitGroup
+		sem  = make(chan struct{}, sinVisionConcurrency)
 		b    strings.Builder
 		errs []string
 	)
-	for _, tok := range toks {
+	for i, tok := range toks {
 		path := filepath.FromSlash(tok)
 		info, err := os.Stat(path)
 		if err != nil {
 			continue // 不存在的路径不是引用（@提及/正文 @字样零误伤，与办公同口径）
 		}
 		if info.IsDir() {
-			errs = append(errs, "@"+tok+" — 目录不注入附件内容（请引用具体文件）")
-			sinAppendRefBlock(&b, "dir", `path="`+path+`"`, "目录不注入内容。")
+			items[i] = refItem{
+				block: sinRefBlockText("dir", `path="`+path+`"`, "目录不注入内容。"),
+				err:   "@" + tok + " — 目录不注入附件内容（请引用具体文件）",
+			}
 			continue
 		}
 		if sinIsImagePath(path) {
-			sinAppendImageBlock(ctx, &b, path, tok)
+			wg.Add(1)
+			sem <- struct{}{}
+			go func(i int, path, tok string) {
+				defer wg.Done()
+				defer func() { <-sem }()
+				items[i] = refItem{block: sinImageBlock(ctx, path, tok)}
+			}(i, path, tok)
 			continue
 		}
 		content, err := sinReadFileRef(path)
 		if err != nil {
-			errs = append(errs, "@"+tok+" — "+err.Error())
-			sinAppendRefBlock(&b, "file", `path="`+path+`"`, "[读取失败："+err.Error()+"]")
+			items[i] = refItem{
+				block: sinRefBlockText("file", `path="`+path+`"`, "[读取失败："+err.Error()+"]"),
+				err:   "@" + tok + " — " + err.Error(),
+			}
 			continue
 		}
-		sinAppendRefBlock(&b, "file", `path="`+path+`"`, content)
+		items[i] = refItem{block: sinRefBlockText("file", `path="`+path+`"`, content)}
+	}
+	wg.Wait()
+	for _, it := range items {
+		if it.block == "" && it.err == "" {
+			continue
+		}
+		if it.err != "" {
+			errs = append(errs, it.err)
+		}
+		sinAppendRefText(&b, it.block)
 	}
 	return b.String(), errs
 }
@@ -197,29 +231,32 @@ func sinIsImagePath(path string) bool {
 	return false
 }
 
-// sinAppendImageBlock 识图注入；失败回退占位（图片引用始终可进上下文）。
-func sinAppendImageBlock(ctx context.Context, b *strings.Builder, path, raw string) {
+// sinImageBlock 识图注入块；失败回退占位（图片引用始终可进上下文）。
+func sinImageBlock(ctx context.Context, path, raw string) string {
 	desc, err := sinVisionRecognize(ctx, path, "")
 	switch {
 	case err != nil:
-		sinAppendRefBlock(b, "image", `path="`+path+`"`, "[图片附件识图失败："+err.Error()+"]")
-		return
+		return sinRefBlockText("image", `path="`+path+`"`, "[图片附件识图失败："+err.Error()+"]")
 	case strings.TrimSpace(desc) == "":
-		sinAppendRefBlock(b, "image", `path="`+path+`"`, "[图片附件 @"+raw+" 已就位；如需视觉理解请用识图工具]")
-		return
+		return sinRefBlockText("image", `path="`+path+`"`, "[图片附件 @"+raw+" 已就位；如需视觉理解请用识图工具]")
 	}
 	if len(desc) > sinFileRefMaxVisionBytes {
 		// 按 rune 截断（识别文本是中文为主的多字节内容，字节硬切劈字符）
 		r := []rune(desc)
 		desc = string(r[:sinFileRefMaxVisionBytes]) + "…[已截断]"
 	}
-	sinAppendRefBlock(b, "image", `path="`+path+`"`, "【图片识别】\n"+desc)
+	return sinRefBlockText("image", `path="`+path+`"`, "【图片识别】\n"+desc)
 }
 
-// sinAppendRefBlock 块拼装（与办公 appendRefBlock 同形：<tag attr>\nbody\n</tag>）。
-func sinAppendRefBlock(b *strings.Builder, tag, attr, body string) {
+// sinRefBlockText 单个引用块文本（<tag attr>\nbody\n</tag>，与办公 appendRefBlock 同形）。
+func sinRefBlockText(tag, attr, body string) string {
+	return fmt.Sprintf("<%s %s>\n%s\n</%s>", tag, attr, body, tag)
+}
+
+// sinAppendRefText 块拼装（多块之间以空行分隔）。
+func sinAppendRefText(b *strings.Builder, block string) {
 	if b.Len() > 0 {
 		b.WriteString("\n\n")
 	}
-	fmt.Fprintf(b, "<%s %s>\n%s\n</%s>", tag, attr, body, tag)
+	b.WriteString(block)
 }

@@ -52,7 +52,7 @@ function loadComposerHeight(): number | null {
 }
 
 export function Composer({
-  running, cwd, onSend, onSteer, onCancel, permLevel, onSetPermLevel, thinkLevel, onSetThinkLevel, onPickFolder, disabled, planActive, onTogglePlan,
+  running, cwd, onSend, onSteer, onCancel, permLevel, onSetPermLevel, thinkLevel, onSetThinkLevel, onPickFolder, disabled, planActive, onTogglePlan, onQueueDrop,
 }: {
   running: boolean; cwd?: string;
   onSend: (displayText: string, submitText?: string) => void;
@@ -62,6 +62,9 @@ export function Composer({
   /** 计划模式（v4.420）：状态由 App 层从计划回执推导，点击走动词链 */
   planActive?: boolean; onTogglePlan?: () => void;
   onPickFolder: (path?: string) => Promise<string>; disabled?: boolean;
+  /** 卸载时队列未清空（宿主用 key 重挂 = 队列被静默丢弃）——如实上报条数，
+   *  宿主可提示「排队 N 条已随切换清空」。可选；办公场景不传零影响。 */
+  onQueueDrop?: (count: number) => void;
 }) {
   const t = useT();
   const [text, setText] = useState("");
@@ -109,6 +112,13 @@ export function Composer({
     setQueue(next);
   };
   const queueLen = queue.length;
+  // 卸载时队列未清空如实上报（ref 读取，避免闭包过期；仅卸载触发一次）
+  const queueDropRef = useRef(onQueueDrop)
+  queueDropRef.current = onQueueDrop
+  useEffect(() => () => {
+    const n = queueRef.current.length
+    if (n > 0) queueDropRef.current?.(n)
+  }, [])
   const correctionRef = useRef<string | null>(null);               // 纠正模式待发送文本
   const onSendRef = useRef(onSend);
   onSendRef.current = onSend;

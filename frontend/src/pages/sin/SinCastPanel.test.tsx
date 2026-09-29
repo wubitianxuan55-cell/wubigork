@@ -3,6 +3,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { SinCastPanel } from './SinCastPanel'
+import { __resetIllustrationQueueForTest, enqueueIllustration } from './illustrationQueue'
 import type { SinCastCharacter } from './useSinCast'
 
 const apiMock = vi.hoisted(() => ({
@@ -33,6 +34,7 @@ const setup = (onGenerateSheet: (id: string) => Promise<void>) =>
   )
 
 beforeEach(() => {
+  __resetIllustrationQueueForTest()
   apiMock.getComfyUITaskProgress.mockReset()
   // 默认空快照：busy 期瞬时轮询不至于拿到 undefined（未在生成的用例也安全）
   apiMock.getComfyUITaskProgress.mockResolvedValue({ status: '', elapsed: 0, node: '' })
@@ -171,5 +173,41 @@ describe('SinCastPanel 一致性评分（v4.410 sin 侧快路径）', () => {
       <SinCastPanel cast={cast} saving={false} onOpenPicker={() => {}} onRemove={() => {}} />,
     )
     expect(screen.queryByLabelText('评分 林晚 的参考图')).toBeNull()
+  })
+})
+
+describe('SinCastPanel 设定卡入串行队列（v4.427：与流内插图/画廊重生成同队列）', () => {
+  it('生成走 illustrationQueue：与流内插图串行（后入者等先入者完成）', async () => {
+    const order: string[] = []
+    let releaseFirst!: () => void
+    const first = new Promise<void>((r) => (releaseFirst = r))
+    // 先占住队列（模拟流内插图在跑）
+    const { promise: occupying } = enqueueIllustration(() => first.then(() => order.push('illu')))
+    const onGenerateSheet = vi.fn().mockImplementation(async () => { order.push('sheet') })
+    setup(onGenerateSheet)
+    fireEvent.click(screen.getByLabelText('生成 林晚 的设定卡'))
+    // 占位未释放：设定卡不得开跑
+    await new Promise((r) => setTimeout(r, 10))
+    expect(onGenerateSheet).not.toHaveBeenCalled()
+    releaseFirst()
+    await occupying
+    await waitFor(() => expect(onGenerateSheet).toHaveBeenCalledWith('c1'))
+    expect(order).toEqual(['illu', 'sheet'])
+  })
+
+  it('排队位次显示：被占位时显示「排队中」，取消只摘自己的队位', async () => {
+    let release!: () => void
+    const first = new Promise<void>((r) => (release = r))
+    const { promise: occupying } = enqueueIllustration(() => first)
+    const onGenerateSheet = vi.fn().mockResolvedValue(undefined)
+    setup(onGenerateSheet)
+    fireEvent.click(screen.getByLabelText('生成 林晚 的设定卡'))
+    await screen.findByText(/排队中/)
+    fireEvent.click(screen.getByTestId('sin-cast-cancel'))
+    release()
+    await occupying
+    // 队位已摘：设定卡不再执行（取消语义，不是失败样式）
+    await new Promise((r) => setTimeout(r, 10))
+    expect(onGenerateSheet).not.toHaveBeenCalled()
   })
 })

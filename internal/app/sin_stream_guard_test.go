@@ -11,6 +11,7 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -452,5 +453,87 @@ func TestSinExportEpubSkipsLegacyEmptyRows(t *testing.T) {
 	}
 	if strings.Contains(text, "第三回") {
 		t.Fatalf("零正文行不应占回数: %s", text)
+	}
+}
+
+// TestSinFileRefVisionBoundedConcurrency 图片附件识图按 sinVisionConcurrency
+// 有界并发（v4.427：串行时 N 张图 = N×90s 首帧前干等），且块序保持出现序。
+func TestSinFileRefVisionBoundedConcurrency(t *testing.T) {
+	dir := t.TempDir()
+	var paths []string
+	for i := 0; i < 3; i++ {
+		p := filepath.Join(dir, fmt.Sprintf("img%d.png", i))
+		if err := os.WriteFile(p, []byte{0x89, 'P'}, 0o644); err != nil {
+			t.Fatal(err)
+		}
+		paths = append(paths, p)
+	}
+	var (
+		mu       sync.Mutex
+		cur, max int
+	)
+	orig := sinVisionRecognize
+	sinVisionRecognize = func(ctx context.Context, path, hint string) (string, error) {
+		mu.Lock()
+		cur++
+		if cur > max {
+			max = cur
+		}
+		mu.Unlock()
+		time.Sleep(30 * time.Millisecond)
+		mu.Lock()
+		cur--
+		mu.Unlock()
+		return "图" + filepath.Base(path), nil
+	}
+	t.Cleanup(func() { sinVisionRecognize = orig })
+
+	line := "看这三张 @" + paths[0] + " @" + paths[1] + " @" + paths[2]
+	block, errs := sinFileRefBlock(context.Background(), line)
+	if len(errs) != 0 {
+		t.Fatalf("识图不应报错: %v", errs)
+	}
+	if max > sinVisionConcurrency {
+		t.Fatalf("识图并发 %d 超上限 %d", max, sinVisionConcurrency)
+	}
+	if max < 2 {
+		t.Fatalf("并发未生效（max=%d，应≥2——否则还是串行）", max)
+	}
+	// 块序 = token 出现序（并发不乱序）
+	i0 := strings.Index(block, "图img0.png")
+	i1 := strings.Index(block, "图img1.png")
+	i2 := strings.Index(block, "图img2.png")
+	if i0 < 0 || i1 < 0 || i2 < 0 || !(i0 < i1 && i1 < i2) {
+		t.Fatalf("识图块应按出现序拼装: i0=%d i1=%d i2=%d", i0, i1, i2)
+	}
+}
+
+// TestSinContextNodeDetailRejectsForeignTopic 节点详情按 seq 反解消息 id 后
+// 校验归属（v4.427 单条查询路径）：他话题的消息 seq 与不存在 seq 同样报错，
+// 与旧全量扫描行为一致。
+func TestSinContextNodeDetailRejectsForeignTopic(t *testing.T) {
+	sinTestHome(t)
+	a := newSinTestApp(t)
+	tA, err := a.SinTopicCreate("甲")
+	if err != nil {
+		t.Fatalf("SinTopicCreate: %v", err)
+	}
+	tB, err := a.SinTopicCreate("乙")
+	if err != nil {
+		t.Fatalf("SinTopicCreate: %v", err)
+	}
+	if err := a.chatStore.AppendExchange(tA.ID, "问", "答。", ""); err != nil {
+		t.Fatalf("AppendExchange: %v", err)
+	}
+	msgs, err := a.SinMessages(tA.ID)
+	if err != nil || len(msgs) != 2 {
+		t.Fatalf("SinMessages = %+v err=%v", msgs, err)
+	}
+	// 甲的消息 seq：乙的看板拿去展开 → 拒绝（不能跨话题读正文）
+	if _, err := a.SinContextNodeDetail(tB.ID, sinNodeSeq(msgs[0].ID, 0)); err == nil {
+		t.Fatal("跨话题节点详情应被拒绝")
+	}
+	if _, err := a.SinContextNodeDetail(tA.ID, sinNodeSeq(msgs[0].ID, 0)); err != nil {
+		t.Fatalf("本话题 user 节点应可展开: %v", err)
 	}
 }

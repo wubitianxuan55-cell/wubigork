@@ -1,11 +1,14 @@
 // sin/SinCastPanel.tsx — 右栏「角色」卡：本故事已带入的角色库角色。
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Button, Tooltip } from 'antd'
 import { AimOutlined, CloseOutlined, IdcardOutlined, PlusOutlined, TeamOutlined } from '@ant-design/icons'
 import { PortraitImg } from '../../components/characterlib/PortraitImg'
 import { COMFY_NODE_LABELS } from '../../components/imagegen/GenerationProgress'
 import { cancelImageGeneration, getComfyUITaskProgress } from '../../api/image'
+import {
+  cancelIllustration, enqueueIllustration, illustrationQueueSnapshot, subscribeIllustrationQueue,
+} from './illustrationQueue'
 import type { SinCastCharacter } from './useSinCast'
 
 export interface SinCastPanelProps {
@@ -26,19 +29,39 @@ export function SinCastPanel({ cast, saving, onOpenPicker, onRemove, onGenerateS
   const [scoreId, setScoreId] = useState<string | null>(null)
   // ComfyUI 生成进度（v4.408）：生成期间 1s 轮询同源快照，载入/排队可见（与角色库编辑器同款）
   const [comfyProgress, setComfyProgress] = useState<{ status: string; elapsed: number; node: string } | null>(null)
+  // v4.427：设定卡与流内插图/画廊重生成走同一条串行队列（illustrationQueue）——
+  // 此前三条链各自直发 ComfyUI，进度互相串台（两条进度条跳同一个百分比）、
+  // 任一侧取消误杀另一侧的任务。入队后一次只跑一个，进度与取消都有归属。
+  const sheetTokenRef = useRef(0)
+  const [queuedAhead, setQueuedAhead] = useState(0)
   const runSheet = async (id: string) => {
     if (!onGenerateSheet || genId) return
     setGenId(id)
+    const { promise, token } = enqueueIllustration(() => onGenerateSheet(id))
+    sheetTokenRef.current = token
     try {
-      await onGenerateSheet(id)
+      await promise
     } catch {
-      // 错误提示由页面层实现负责（handleCastSheet 内 message.error），面板只管 busy 复位
+      // 错误提示由页面层实现负责（handleCastSheet 内 message.error）；
+      // 排队中取消的哨兵拒绝也走这里（busy 复位即可，取消不是失败）
     } finally {
       setGenId(null)
+      sheetTokenRef.current = 0
     }
   }
+  // 队列位次：排队中显示「前面还有 N 张」而不是错拿别人的 ComfyUI 进度
   useEffect(() => {
-    if (!genId) {
+    if (!genId) return
+    const sync = () => {
+      const pos = illustrationQueueSnapshot().positionOf(sheetTokenRef.current)
+      setQueuedAhead(pos > 1 ? pos - 1 : 0)
+    }
+    sync()
+    return subscribeIllustrationQueue(sync)
+  }, [genId])
+  const sheetQueued = genId !== null && illustrationQueueSnapshot().positionOf(sheetTokenRef.current) > 0
+  useEffect(() => {
+    if (!genId || sheetQueued) {
       setComfyProgress(null)
       return
     }
@@ -53,13 +76,16 @@ export function SinCastPanel({ cast, saving, onOpenPicker, onRemove, onGenerateS
     tick()
     const t = setInterval(tick, 1000)
     return () => { live = false; clearInterval(t) }
-  }, [genId])
-  // 取消生成（v4.408）：全局 CancelImageGeneration——设定卡链自 v4.407 起走
-  // beginImageGen/endImageGen（ctx+/interrupt 双达），此处取消即中止当次提交。
+  }, [genId, sheetQueued])
+  // 取消生成（v4.408）：排队中只摘自己的队位（不碰别人在跑的任务）；轮到自己
+  // 在跑才中断 ComfyUI 当前任务（ctx+/interrupt 双达，与流内插图取消同款制导）。
   const handleCancel = async () => {
-    try {
-      await cancelImageGeneration()
-    } catch { /* 取消失败静默——生成自身会结束或超时 */ }
+    const mode = cancelIllustration(sheetTokenRef.current)
+    if (mode === 'active') {
+      try {
+        await cancelImageGeneration()
+      } catch { /* 取消失败静默——生成自身会结束或超时 */ }
+    }
   }
   // 一致性评分（v4.410）：面板只管 busy 复位，取图/调链/Modal 由页面层负责
   const runScore = async (id: string) => {
@@ -132,7 +158,23 @@ export function SinCastPanel({ cast, saving, onOpenPicker, onRemove, onGenerateS
           ))}
         </div>
       )}
-      {genId && comfyProgress && (comfyProgress.status === 'running' || comfyProgress.status === 'queued') && (
+      {genId && sheetQueued && (
+        <div className="sin-cast-progress" data-testid="sin-cast-progress" aria-live="polite">
+          排队中{queuedAhead > 0 ? `（前面还有 ${queuedAhead} 张）` : '（即将开始）'}
+          <Button
+            size="small"
+            type="text"
+            className="sin-cast-progress-cancel"
+            data-testid="sin-cast-cancel"
+            aria-label="取消生成"
+            title="取消排队（不影响正在生成的任务）"
+            onClick={() => void handleCancel()}
+          >
+            取消
+          </Button>
+        </div>
+      )}
+      {genId && !sheetQueued && comfyProgress && (comfyProgress.status === 'running' || comfyProgress.status === 'queued') && (
         <div className="sin-cast-progress" data-testid="sin-cast-progress" aria-live="polite">
           {comfyProgress.status === 'queued'
             ? '排队中（前有任务）'

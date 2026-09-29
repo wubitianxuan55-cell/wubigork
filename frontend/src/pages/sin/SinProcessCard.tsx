@@ -9,7 +9,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { AlertCircle, CheckCircle, ChevronRight, Loader, Wrench } from '../../gaea/icons'
 import { boundedOutput } from '../../gaea/lib/tools'
-import { readFileAsDataURL } from '../../api/image'
+import { readSinThumb } from './sinThumbCache'
 import { TOOL_ICONS, fmtToolElapsed, sinToolLabel, sinToolSubject, sinToolSummary } from './sinToolMeta'
 import type { SinToolTraceView } from './types'
 
@@ -136,7 +136,7 @@ function SinProcArtifact({ path, caption }: { path: string; caption?: string }) 
   const [failed, setFailed] = useState(false)
   useEffect(() => {
     let live = true
-    readFileAsDataURL(path)
+    readSinThumb(path)
       .then((u) => { if (live) setUrl(u) })
       .catch(() => { if (live) setFailed(true) })
     return () => { live = false }

@@ -432,6 +432,7 @@ const OriginalSinPage: React.FC = () => {
                   onCancel={story.cancel}
                   onPickFolder={async () => ''}
                   disabled={story.initializing}
+                  onQueueDrop={(n) => story.showNotice(`排队的 ${n} 条消息已随故事切换清空（未发送）`)}
                 />
               </div>
             </div>
@@ -478,6 +479,7 @@ const OriginalSinPage: React.FC = () => {
               onRegenerate={onRegenerate}
               onSaveNotes={notes.save}
               onDirtyChange={handlePanelDirtyChange}
+              visible={panelOpen}
             />
           </div>
         </div>

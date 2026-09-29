@@ -1,3 +1,14 @@
+## 最新发布：v4.427.0（2026-09-29）「原罪板块观察池清账刀：队列统一 + 看板单条化 + 识图并发 + a11y 收口」
+
+- **刀型**：用户指令「继续」（承接「继续优化原罪板块」线程）。刀型=**池清账**：v4.423/424/426 三批审计积压的观察池立案项集中清账（免新审计——每项均已带读码证据），不做需拍板/需真机项（novelstyle rewrite 链、真机观察、跨实例族）。前端 8 文件（含 1 新增模块 sinThumbCache.ts）+ Go 4 文件 + 5 个新测试锚，绑定面 726 零变更，零功能删除。
+- **清账九项**：①设定卡链入 illustrationQueue（SinCastPanel 与流内插图/画廊重生成同队列——此前三链各自直发 ComfyUI，进度互串台+取消误杀；排队显示「前面还有 N 张」；取消按 token 制导=排队摘位/在跑才中断后端）；②画廊/大图/过程卡产物 data URL 统一 16 条 LRU 缓存（新模块 sinThumbCache.ts 三消费点接入）+面板收起卸载卡体（SinSidePanel visible 门控——底稿草稿在面板 state、书源下载会话在模块单例，收起/重开不受影响，v4.423「收面板不丢」承诺保持）；③ChatTabs 主 tab 语义（容器 role=tablist、主 tab role=tab+aria-selected+roving tabindex、←→/Home/End 键盘导航覆盖主视图+动态会话 tab；办公共用组件双板块受益；extraTabs tabIndex 同步 roving 化）；④sin 手风琴五卡 id/aria-controls/aria-labelledby 全配对+ArrowUp/Down 竖向循环；⑤Composer 可选 onQueueDrop 回调（卸载时队列未清空如实上报条数——key=activeId 重挂静默丢排队消息的可见化；原罪页接 notice，办公不传零影响）；⑥SinContextNodeDetail 按 seq 反解消息 id（seq/10）单条 GetMessage+TopicID 归属校验——不再为找一个节点全量折叠整话题（千回合老故事每次点节点都全表读库+全量解析 extra）；⑦foldSinInsight 单次解析 extra 存 ins.extras 两折叠视图共用（轨迹/上下文原先各自再解析一遍=双倍 JSON 开销；顺带清掉无消费者的 tools/illus 冗余 map）；⑧图片附件识图并发 2 fan-in（sinVisionConcurrency；块序保持 token 出现序——5 张图从至多 7.5 分钟压到约一半）；⑨sinAttachMu 互斥锁串行化插图回写读-改-写（流内插图+画廊重生成+工具产物落库并发收尾不再互相覆盖 cue）+SinIllustrate a.cfg nil 诚实报错（与其余写入口同口径）。
+- **测试**：Go 新增 2 锚（识图并发上限+保序〔注入假识图实测 max 并发=2〕/节点详情跨话题拒绝〔单条查询路径与旧全量扫描行为一致〕），既有折叠契约（TestSinContextNodeDetail/TestSinTrajectoryFold 等）在单条化路径全数通过；前端新增 5 锚（ChatTabs tablist/tab 语义+roving+方向键×3、设定卡入队串行〔被占位不得开跑〕+排队位次显示与取消摘位），既有 16 例（含取消/进度）在入队路径下原样通过；适配 1 处（产物缩略图测试 beforeEach 补 __resetSinThumbCacheForTest——模块级 LRU 跨用例命中会把上一例的成功结果喂给失败用例，新缓存模块的标准纪律）。sin 域前端 117/117 绿；internal/app sin 族 -count=1 绿；tsc 0；改动面 eslint 0 错 0 警。
+- **门禁**：全量 `ci.ps1` → CI OK；漂移闸 OK@4.427.0（726 一致）。
+- **产物**：`releases/gaea-v4.427.0.exe` 51,575,808 B SHA256=`50b245c823adc26a3ee2e8aa914dec1229c46b84c49f615e4d7039a33cc4d663`（`SHA256SUMS-v4.427.0.txt`；build.bat 冒烟 `/api/health` 200 过）；保留策略删 v4.422.0.exe，实存 5 版（427/426/425/424/423）。
+- **文档**：`releases/v4.427.0.md` + CHANGELOG/README + releases/README + AGENTS 速览 + progress（本条）。
+- **坑/教训**：①**模块级缓存进测试必须配复位出口**：LRU 命中让「读取失败」用例拿到上一例的成功结果——beforeEach 复位是标准纪律（先例 illustrationQueue/__resetBookDownloadForTest 同款）。②**队列包裹要保同步语义**：enqueueIllustration 的 drain 在入队点同步调用 job.run()，既有「点击即断言 called」的测试不破；若换异步调度会碎一片。③**池清账刀效率高**：三批审计的立案项都带读码证据，本批零新审计直接落地 9 项——审计批+清账批交替是可持续节奏。
+- **观察池（剩余，均需拍板或真机）**：novelstyle rewrite 链（需拍板成人向 whitelist 语义，v4.424 立案）/跨实例族+Delete·Clear TOCTOU（需跨进程锁，单用户桌面端权重低）/illustrations 值结构升级 {path,caption}/SinMessages 分页绑定（需绑定面窗口+UI 设计）/真机观察解释腔出现率·工具误用率·设定卡排队体验（需用户闲置窗口）。
+
 ## 最新发布：v4.426.0（2026-09-29）「原罪板块优化批3：切故事边界收口 + 插图落库闸门 + 工具产物链补全」
 
 - **刀型**：用户指令「继续优化原罪板块」（拍板审计优化批，对齐 v4.421/v4.423/v4.425 方法论）。定刀依据=**四线并行只读审计**（Go 流/存储 13 项 · Go 工具/导出/书源 11 项 · 前端状态层 13 项 · 前端渲染交互 15 项，约 50 项）+ 主代理读码逐项复核（证伪含「sin 不解析 @附件」误报——sin_file_refs.go 本就是解析器）。前端 14 文件（含 1 新增模块 sinBookDownload.ts）+ Go 13 文件 + 6 个新测试锚，绑定面 726 零变更，零功能删除。

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { ChatTabs } from "./ChatTabs";
 
 describe("ChatTabs 对话标签栏（v4.73 记忆 tab 迁入主区）", () => {
@@ -89,5 +89,35 @@ describe("ChatTabs 对话标签栏（v4.73 记忆 tab 迁入主区）", () => {
     expect(screen.getByTitle("收集竞品更新 ｜ 已完成").getAttribute("aria-selected")).toBe("false");
     const runningTabEl = document.querySelector('[data-chat-session-tab="sub:sa_1"]');
     expect(runningTabEl?.querySelector('button[aria-label^="关闭"]')).toBeTruthy();
+  });
+});
+
+describe("ChatTabs tab 语义（v4.427 a11y 收口）", () => {
+  it("容器 role=tablist；主 tab role=tab + aria-selected；仅选中项在 tab 序", () => {
+    render(<ChatTabs active="chat" onChange={() => {}} />);
+    const list = screen.getByRole("tablist");
+    const tabs = within(list).getAllByRole("tab");
+    expect(tabs).toHaveLength(4);
+    expect(tabs[0].getAttribute("aria-selected")).toBe("true");
+    expect(tabs.slice(1).every((t) => t.getAttribute("aria-selected") === "false")).toBe(true);
+    expect(tabs[0].tabIndex).toBe(0);
+    expect(tabs.slice(1).every((t) => t.tabIndex === -1)).toBe(true);
+  });
+
+  it("方向键导航：在 chat 上按 → 聚焦并选中轨迹", () => {
+    const onChange = vi.fn();
+    render(<ChatTabs active="chat" onChange={onChange} />);
+    const list = screen.getByRole("tablist");
+    fireEvent.keyDown(list, { key: "ArrowRight" });
+    expect(onChange).toHaveBeenCalledWith("trajectory");
+  });
+
+  it("Home/End 导航到首尾 tab", () => {
+    const onChange = vi.fn();
+    render(<ChatTabs active="chat" onChange={onChange} />);
+    fireEvent.keyDown(screen.getByRole("tablist"), { key: "End" });
+    expect(onChange).toHaveBeenCalledWith("memory");
+    fireEvent.keyDown(screen.getByRole("tablist"), { key: "Home" });
+    expect(onChange).toHaveBeenCalledWith("chat");
   });
 });

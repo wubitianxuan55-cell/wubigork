@@ -531,6 +531,10 @@ func (a *App) SinIllustrate(topicID string, messageID int64, cue string, prompt 
 	if strings.TrimSpace(prompt) == "" {
 		return nil, fmt.Errorf("缺少插图提示词")
 	}
+	if a.cfg == nil {
+		// 与其余写入口的 nil 防御同口径（生产 cfg 恒非 nil；一致性收口，不 panic）
+		return nil, fmt.Errorf("配置未初始化")
+	}
 	if a.mediaState == nil || a.mediaState.client == nil {
 		return nil, fmt.Errorf("图像后端未初始化")
 	}
@@ -654,11 +658,18 @@ func (a *App) SinIllustrate(topicID string, messageID int64, cue string, prompt 
 	}, nil
 }
 
+// sinAttachMu 插图回写读-改-写锁：GetMessage→改 extra→UpdateMessageExtra 非
+// 原子，并发回写（流内插图 + 画廊重新生成 + 工具产物落库同时收尾）会互相
+// 覆盖掉对方刚写入的 cue。进程内串行即可对齐前端串行队列的既有纪律。
+var sinAttachMu sync.Mutex
+
 // sinAttachIllustration 把 (cue → path) 并入指定消息 extra.illustrations。
 // 已有映射保留（多张插图逐张追加），其他 extra 字段（reasoning 等）不动。
 // topicID 归属校验 fail-closed：messageID 必须属于本话题——前端状态错位/双开
 // 壳时，陈旧的 messageID 不能把图片写进别的故事（甚至聊天板块）的消息 extra。
 func (a *App) sinAttachIllustration(topicID string, messageID int64, cue, path string) error {
+	sinAttachMu.Lock()
+	defer sinAttachMu.Unlock()
 	if a.chatStore == nil {
 		return fmt.Errorf("chat store 未初始化")
 	}

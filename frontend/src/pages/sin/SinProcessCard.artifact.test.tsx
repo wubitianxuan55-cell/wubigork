@@ -13,6 +13,7 @@ vi.mock('../../api/image', async (importOriginal) => ({
 }))
 
 import { SinProcessCard } from './SinProcessCard'
+import { __resetSinThumbCacheForTest } from './sinThumbCache'
 import type { SinToolTraceView } from './types'
 
 const TOOL: SinToolTraceView = {
@@ -31,6 +32,7 @@ function renderCard(tools: SinToolTraceView[]) {
 }
 
 beforeEach(() => {
+  __resetSinThumbCacheForTest() // 模块级 LRU 跨用例复位（上一例的成功结果不能喂给失败用例）
   apiMock.readFileAsDataURL.mockReset().mockResolvedValue('data:image/png;base64,AAA')
 })
 
