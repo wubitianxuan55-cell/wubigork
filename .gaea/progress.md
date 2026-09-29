@@ -1,3 +1,20 @@
+## 最新发布：v4.430.0（2026-09-29）「长篇刀2：场景卡与场景级生成」
+
+- **刀型**：用户指令「继续」（v4.429 小说板块观察池收官后按台账次刀序开长篇七刀的刀2）。规格 §1.3/§1.4 的正面解：生成单位从整章 blob 改为按场景卡逐场景、场景卡补创作学核心字段、解禁场景级重写。Go 8 文件+前端 4 文件，**绑定面 726→729（+3）**、spaceBindings 550→553，零功能删除。规格=`进度计划/gaea-novel-scene-cards-20260929.md`。
+- **数据契约**：SceneMeta 扩 6 字段（Goal 这场戏要什么/Conflict 谁在阻挡/Turn 价值翻转/Outcome 结果必须改变状态/Sequel 余波 reaction·dilemma·decision/ExitHook 退出钩子），omitempty 旧档零迁移；SaveSceneMeta 白名单 patch **指针语义**（未传=保留旧值防旧调用方抹卡、传空=清除——编辑面所见即所存）；OutlineNode.SceneRefs 启用（G10 死契约转正：逐场景生成完成按章号递归找节点回写场景 ID 列表）。
+- **生成链**：①GenerateScene 卡注入+上一场衔接（卡字段非空注入「本场景卡（工艺约束，正文必须落实）」区段+前场 Outcome/ExitHook 衔接段；**无卡场景 prompt 与旧版逐字节一致**——零回归由测试钉死；手动单场景路径不上闸）。②NovelChapterScenesGenerate 整章按卡逐场景生成：按 Order 逐场、**每场完成即落盘**；写前闸=卡缺 Goal/Conflict 拒绝并点名场景与缺失字段（allowMissingCard 显式跳过=刀1 覆盖语义复刻）；任意一场失败即停（已完成保留+如实报错）；全部完成 Stitch→WriteChapter blob（读路径零变化）+SceneRefs 回写+大纲标记；复用 chapterGenMu 同章互斥（与整章生成不并发）与 CancelCreateChapter 取消；新流事件通道 scene-gen-stream（scene-done/scene-skipped/done/error/cancelled）。③NovelSceneRewrite 单场景 whole 重写：快照先行+卡字段/前场衔接进指令+rewrite-chapter 模板+版本库 mode=scene 留痕（Original/New=整章前后 Stitch，回滚安全）+Stitch→blob 同步，**他场一字不动**（字节级测试）；局部重写仍禁场景章（选段↔场景映射维持观察池）。④NovelSceneCardsPropose AI 拆卡：章计划（刀1 资产）+大纲节点+前章摘要→2-5 张卡骨架，**提案不落盘**（确认红线同族），前端审批后走既有 CreateScene+SaveSceneMeta 落卡；既无计划也无大纲节点诚实拒绝。
+- **前端**：ⓘ 弹窗扩 6 卡字段（目标/冲突必填标注）+弹窗内「AI 重写本场景」区块（指令输入，重写历史可恢复）；场景区工具条「按卡生成全章」（闸拒绝弹「跳过缺卡」确认）+「AI 拆场景卡」（提案审批弹窗列表可编辑，确认逐张建场景+存卡）+逐场进度行（事件推进+终态整体重拉回喂 scenes/sceneIds）。
+- **测试**：Go 新增 5 例（卡区段三态零回归底线/闸点名+跳过+**关闸反向验证必红**/两卡两场全链 done 事件+Stitch→blob+SceneRefs 断言/**卡进 prompt 的 HTTP body 断言**（requests 通道捕获）/场景重写他场字节不动+mode=scene 版本留痕）；前端新增 4 例（卡字段编辑保存/闸拒绝确认弹窗/拆卡提案可编辑+落卡调用链/重写指令空提示+执行）。ChapterEditor 12/12；小说域 35 文件/316 例；tsc 0；eslint 0 错 0 警；internal/app 整包 -count=1 绿。
+- **门禁**：全量 `ci.ps1` → CI OK（首轮挂 SA1012：抽共享内核后 GenerateScene 传 nil ctx——改 context.Background 后复绿）；漂移闸 OK@4.430.0（729 一致）；spaceBindings 数量锁 550→553。
+- **产物**：`releases/gaea-v4.430.0.exe` 51,645,440 B SHA256=`74974d7ae9f1e1975dfe6d3363c2bac36380bd1f2cee8408939af29298ea8a11`（`SHA256SUMS-v4.430.0.txt`；冒烟 200 过）；保留策略删 v4.426.0.exe，实存 5 版（430/429/428.1/428/427）。
+- **文档**：`releases/v4.430.0.md` + 规格 `进度计划/gaea-novel-scene-cards-20260929.md`（含落地回填）+ CHANGELOG/README + releases/README + AGENTS 速览 + progress（本条）。
+- **坑/教训**：①**bash 内联 node -e 的模板字符串美元花括号被 shell 吞**（backtick 串里的 ${} 当 bad substitution）——多行前端补丁一律 .mjs 文件化执行（Write 工具写脚本→node 执行→删）。②**CRLF 文件的 python LF 锚不匹配**（read newline='' 保留 
+，replace('
+') 锚全 miss 静默）——跨行替换用 node split/join 或 Edit 工具（本批 Step3 补丁的 '
+
+' 转义被三重转义地狱吃掉，最终 Edit 工具直改）。③**antd Modal.confirm 的 title 渲染双节点**（.ant-modal-title+.ant-modal-confirm-title 两层都含文本）——getByText 必 multiple，断言用 findAllByText。④**SaveSceneMeta 白名单 patch 扩字段的抹除陷阱**：string 整覆盖会让不传该字段的旧调用方清空数据——指针（*string）区分「未传/传空」是标准解。⑤wailsjs 是 gitignore 生成物：新绑定前端 import 后，fresh checkout 须 wails generate module（既有惯例，本批 commit 不含 wailsjs）。
+- **观察池**：局部重写解禁（选段↔场景映射）/电荷翻转·义务绑定硬闸完整形态（随刀3·刀4）/逐场景生成真机走查（多场章节的流进度+取消手感）/拆卡质量真机观察。
+
 ## 最新发布：v4.429.0（2026-09-29）「小说板块收官刀：批2 观察池清账（修 15/关账 2/留池 2）」
 
 - **刀型**：用户指令「继续优化 gaea，本次完成小说板块」。对齐 v4.427 原罪观察池清账方法论：v4.425 规格 §4.1 观察池 19 项（前端 9+Go 10）逐项读码定性→可修的修/误报的关账/需拍板的留池。**小说板块观察池至此清空**（G10 SceneRefs 留给长篇刀2，次刀序不变）。前端 8 文件+Go 14 文件+prompts 增删各一，绑定面 726 零变更，零功能删除。规格=`进度计划/gaea-novel-watchpool-20260929.md`。
