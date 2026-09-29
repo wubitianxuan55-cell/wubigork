@@ -1,3 +1,17 @@
+## 最新发布：v4.432.0（2026-09-30）「长篇刀4：质量收敛闭环」
+
+- **刀型**：用户指令「继续」（长篇七刀线程次刀序）。规格 §1.7「写后质量信号全是报告、从报告到修复是人工动作、没有收敛判据」的正面解。Go 新 converge_handler.go + RewriteModeConverge + 前端 ConvergeModal；**绑定面 733→735（+2）**、spaceBindings 557→559，零功能删除。规格=`进度计划/gaea-novel-converge-20260930.md`。
+- **判据**：convergeCheck 纯函数零 LLM——**收敛 = AI 味 ≤ 目标（默认 40）且确定性 S1/S2 归零**（S3 提示不阻断，与门禁 severity 口径一致）。
+- **闭环**：NovelChapterConverge 流式 converge-stream，每轮=轮前**单元快照**（场景制=每场景一单元；v4 无场景混合态章回落 blob 单单元=ReadChapterAsStitch 口径）→定向修补（S1/S2 清单+AI 味要点拼指令→整单元重写〔rewrite-chapter 模板+单元级安全闸：分须降才采纳〕+既有 rewriteUnit 句级修补〔自带安全闸〕）→复检→**三态判停**：converged 即停（已收敛章零轮直答零模型零事件）/ no-improve（本轮分数未降且 S1/S2 未减→**按单元回滚本轮**并停——第一职责是不把稿子磨坏）/ max-rounds（剩余项如实报告不假称收敛）。每轮版本库留痕 mode=converge（Original=轮前/New=轮后，轨迹即版本历史可逐轮恢复）。
+- **预检**：NovelChapterConvergePreview dry-run（当前分/S1S2 清单/是否已收敛/计划轮次，零修补）；空章诚实报错。
+- **前端**：CreatePage rail「收敛修补」→ ConvergeModal（预览+目标分可调+S1/S2 清单前四条+逐轮轨迹行〔AI 味 before→after+改写句数〕+终态如实〔达标/无改善已回滚/轮次上限+剩余〕，终态回调刷新章节）。
+- **测试**：Go 新增 6 例（判据矩阵〔S3 不阻断/空正文 S1/严格目标〕/预检 dry-run+空章报错/零轮直答零事件/**no-improve 回滚**〔坏文本+安全闸拒收→stopped 事件+磁盘字节回轮前〕/指令拼装/**回滚函数直测**〔写脏→快照回滚→字节还原〕——no-improve 集成里安全闸常使回滚成 no-op，灵敏度靠直测钉；语义改坏〔空操作回滚〕复验必红后还原）；前端新增 4 例（预览渲染/已达标禁用/启动+零轮直答/预检失败）。小说域 37 文件/325 例；tsc 0；eslint 0；internal/app+types 绿。
+- **门禁**：全量 `ci.ps1` → CI OK；漂移闸 OK@4.432.0（735 一致）；spaceBindings 557。
+- **产物**：`releases/gaea-v4.432.0.exe` 51,744,256 B SHA256=`283cb4ee4664716b215459f50438e572cbf71bf40df0896cf230b263c43d8a71`（`SHA256SUMS-v4.432.0.txt`；冒烟 200 过）；保留策略删 v4.428.0.exe，实存 5 版（432/431/430/429/428.1）。
+- **文档**：`releases/v4.432.0.md` + 规格 `进度计划/gaea-novel-converge-20260930.md`（含落地回填）+ CHANGELOG/README + releases/README + AGENTS 速览 + progress（本条）。
+- **坑/教训**：①**反向验证的语义 mutate 要能被被测路径真的执行到**：no-improve 集成场景里 rewriteUnit 安全闸全程拒收→回滚是 no-op→改坏回滚函数集成测试仍绿——补回滚函数直测（写脏→回滚→字节还原）钉住函数本身。②bash 双引号内的 python f-string 花括号同样会被 shell 吞（{sha} command not found）——外插值一律先 shell 变量再单引号 heredoc 或 Edit 工具。③v4 项目无场景文件的混合态章（迁移/手写 blob）在场景 API 语义下是空集——收集单元必须回落 blob（ReadChapterAsStitch 同款口径），否则混合态章被功能拒之门外。
+- **观察池**：平台评审（novelreview 15 维）并入判据（外部标准报告制，另刀）/场景卡字段级修补/收敛闭环真机走查（真实模型的 no-improve 率与轮次分布）。
+
 ## 最新发布：v4.431.0（2026-09-30）「长篇刀3：故事层骨架」
 
 - **刀型**：用户指令「继续」（长篇七刀线程，v4.430 刀2 后按次刀序开刀3）。规格 §1.10「整书层没有任何持续状态——纵向结构（长篇命门）在系统里没有承载物」的正面解。Go 新 3 文件+注入两处接线+前端 StorySpinePanel；**绑定面 729→733（+4）**、spaceBindings 553→557，零功能删除。规格=`进度计划/gaea-novel-story-spine-20260930.md`。
