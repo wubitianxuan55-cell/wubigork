@@ -80,7 +80,7 @@ describe('useSinStory', () => {
     // 重开故事：过程卡从 extra.tools 还原（历史消息没有运行态）
     expect(assistant.tools).toEqual([{
       id: 'call_9', name: 'sin_cast', args: '{"name":"林晚"}', output: '角色卡：林晚',
-      error: '', elapsed_ms: 4, read_only: true, status: 'done',
+      error: '', elapsed_ms: 4, read_only: true, status: 'done', artifacts: [],
     }])
   })
 
@@ -177,7 +177,7 @@ describe('useSinStory', () => {
     // done.tools 是权威轨迹：整段覆盖（孤儿行被清掉，与落库一致）
     expect(lastMsg().tools).toEqual([{
       id: 'call_1', name: 'web_search', args: '{"query":"唐末长安"}',
-      output: '3 条结果', error: '', elapsed_ms: 900, read_only: true, status: 'done',
+      output: '3 条结果', error: '', elapsed_ms: 900, read_only: true, status: 'done', artifacts: [],
     }])
     expect(lastMsg().key).toBe('db_11')
   })
@@ -191,8 +191,12 @@ describe('useSinStory', () => {
     await act(async () => { await vi.advanceTimersByTimeAsync(SIN_STREAM_SILENCE_TIMEOUT_MS + 10) })
     const last = result.current.messages[result.current.messages.length - 1]
     expect(last.error).toBe(true)
-    expect(last.content).toContain('请求超时')
+    // v4.426：超时不再整段覆盖已流出正文（保留 + notice 提示），后端照常取消
+    expect(last.content).toBe('')
+    expect(result.current.notice).toContain('请求超时')
     expect(result.current.sending).toBe(false)
+    // fake timers 下不走 waitFor：超时回调已在 advanceTimersByTimeAsync 内同步执行
+    expect(bridgeMock.SinCancel).toHaveBeenCalledWith('sin_1')
   })
 
   it('setIllustration：把生成出的插图路径就地回填到对应消息', async () => {

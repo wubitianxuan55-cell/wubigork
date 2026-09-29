@@ -33,8 +33,10 @@ func init() {
 // sinIllustrateCaptionMaxRunes 过程卡标题的长度上限（caption 缺省取画面描述）。
 const sinIllustrateCaptionMaxRunes = 60
 
-// sinIllustrateTool 插图工具实例。注册表每轮新建实例，arts 只在本次执行内累积
-// （单次 Execute 内 append，无并发写）。
+// sinIllustrateTool 插图工具实例。注册表每个用户回合新建一次（同一回合内多次
+// 调用复用同实例），所以 Execute 入口先把 arts 清零——轨迹里每次调用只带
+// **本次**的产物；否则第二次「再画一张」的轨迹会重复携带第一张，落库回写按
+// toolN 编 cue 时同一张图占两个键。
 type sinIllustrateTool struct {
 	app     *App
 	topicID string
@@ -87,6 +89,7 @@ func (t *sinIllustrateTool) Execute(_ context.Context, args json.RawMessage) (st
 	if t.app == nil {
 		return "", fmt.Errorf("插图工具未接入应用（app 为空）")
 	}
+	t.arts = nil // 同回合多次调用：每次轨迹只带本次产物（见类型注释）
 
 	// messageID<=0 / cue 为空：只出图不落库——本轮助手消息 id 要等落库后才有，
 	// 回写由工具循环在落库后按轨迹里的产物补齐（见 sin_tool_loop.go）。
@@ -142,8 +145,9 @@ type sinToolArtifact struct {
 	Caption string `json:"caption,omitempty"` // 画面描述（过程卡标题 / 导出替代文本）
 }
 
-// sinToolArtifactProvider 可选能力：工具在 Execute 期间记录产物。注册表每轮新建
-// 实例，Execute 返回后立刻取走，不需要跨轮共享状态。
+// sinToolArtifactProvider 可选能力：工具在 Execute 期间记录产物。注册表每个
+// 用户回合新建实例，Execute 返回后立刻取走（工具循环每次调用后读一次），
+// 不需要跨回合共享状态。
 type sinToolArtifactProvider interface {
 	Artifacts() []sinToolArtifact
 }
@@ -152,7 +156,7 @@ type sinToolArtifactProvider interface {
 // 并入助手消息 extra.illustrations（画廊/导出与正文标记图同一存储，cue 前缀
 // toolN 避免与正文标记的数字 cue 互踩）。失败逐条告警不阻断（产物已在画室
 // 台账与磁盘上，轨迹里也有路径可寻回）。
-func (a *App) sinPersistToolArtifacts(messageID int64, trace []sinToolTrace) {
+func (a *App) sinPersistToolArtifacts(topicID string, messageID int64, trace []sinToolTrace) {
 	if messageID <= 0 {
 		return
 	}
@@ -164,7 +168,7 @@ func (a *App) sinPersistToolArtifacts(messageID int64, trace []sinToolTrace) {
 			}
 			cue := fmt.Sprintf("tool%d", idx)
 			idx++
-			if err := a.sinAttachIllustration(messageID, cue, art.Path); err != nil {
+			if err := a.sinAttachIllustration(topicID, messageID, cue, art.Path); err != nil {
 				slog.Warn("原罪工具插图回写失败", "messageID", messageID, "cue", cue, "path", art.Path, "error", err)
 			}
 		}

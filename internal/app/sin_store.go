@@ -94,11 +94,9 @@ func saveSinCast(doc sinCastDoc) error {
 	if err != nil {
 		return err
 	}
-	tmp := sinCastPath() + ".tmp"
-	if err := os.WriteFile(tmp, b, 0o644); err != nil {
-		return fmt.Errorf("写入角色配置失败: %w", err)
-	}
-	if err := fileutil.RenameWithRetry(tmp, sinCastPath()); err != nil {
+	// fileutil.AtomicWrite（CreateTemp 唯一临时名）：与便签同修，双开壳并发
+	// 保存不再互踩同一个固定名临时文件。
+	if err := fileutil.AtomicWrite(sinCastPath(), b, 0o644); err != nil {
 		return fmt.Errorf("保存角色配置失败: %w", err)
 	}
 	return nil

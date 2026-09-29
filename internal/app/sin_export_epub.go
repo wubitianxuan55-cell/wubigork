@@ -77,15 +77,38 @@ func (a *App) SinExportEpub(topicID string) (string, error) {
 	}
 
 	rounds := 0
-	directive := ""
+	var directives []string
 	for _, m := range msgs {
 		if m.Role != "assistant" {
-			directive = m.Content // 最近的用户指令，随下一条助手回合入书
+			// 最近的用户指令随下一条助手回合入书；连续多条（失败轮重发的历史
+			// 遗留）逐条累积，不再只留最后一条（与 Markdown 导出同口径）。
+			if c := strings.TrimSpace(m.Content); c != "" {
+				directives = append(directives, c)
+			}
+			continue
+		}
+		// 零正文历史行（历史遗留的零正文取消行）跳过：不占回数、不消耗指令
+		// 引块——不然它自己生成一节只有引块的空回，还把下一条真实回合的
+		// 指令吃掉（与 Markdown 导出同口径）。
+		if strings.TrimSpace(m.Content) == "" && len(sinIllustrationMap(m.Extra)) == 0 {
 			continue
 		}
 		rounds++
-		body := sinSectionHTML(m.Content, directive, sinIllustrationMap(m.Extra), embedIllu)
-		directive = ""
+		body := sinSectionHTML(m.Content, directives, sinIllustrationMap(m.Extra), embedIllu)
+		// 工具产物附录（sin_illustrate 不在正文标记里，正文渲染摸不到）：
+		// 与 Markdown 导出同口径，按调用序补进节尾。
+		for _, art := range sinToolArtifactsFromExtra(m.Extra) {
+			cap := strings.TrimSpace(art.Caption)
+			if cap == "" {
+				cap = "插图"
+			}
+			if internal := embedIllu(art.Path); internal != "" {
+				body += "<div><img src=\"" + html.EscapeString(internal) + "\" alt=\"" + html.EscapeString(cap) + "\"/></div>\n"
+			} else {
+				body += "<p><em>（插图未能内嵌：" + html.EscapeString(cap) + "）</em></p>\n"
+			}
+		}
+		directives = directives[:0]
 		if _, err := book.AddSection(body, sinSectionTitle(rounds), "", ""); err != nil {
 			return "", fmt.Errorf("写入第 %d 回失败: %w", rounds, err)
 		}
@@ -96,7 +119,10 @@ func (a *App) SinExportEpub(topicID string) (string, error) {
 
 	name, err := sinExportFileName(topic.Title, topicID, time.Now())
 	if err != nil {
-		return "", err
+		// 退化标题（如「///」净化后为空）不再整单失败：回退默认名，与导出
+		// 工具侧的默认名分支同语义——故事本身不该因为名字导不出 EPUB。
+		slog.Warn("原罪 EPUB 导出标题净化失败，回退默认名", "topicID", topicID, "error", err)
+		name = fmt.Sprintf("%s-%s", topicID, time.Now().Format("20060102-150405"))
 	}
 	dir := sinExportsDir()
 	if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -142,14 +168,17 @@ func sinCnNum(n int) string {
 	}
 }
 
-// sinSectionHTML 一条助手回合 → EPUB 小节 HTML：用户指令引块置首，正文按行
-// 成段，插图标记就地替换（已生成 → 内嵌 <img>；未生成 → 画面描述占位）。
+// sinSectionHTML 一条助手回合 → EPUB 小节 HTML：用户指令引块置首（连续多条
+// 指令逐条成段），正文按行成段，插图标记就地替换（已生成 → 内嵌 <img>；
+// 未生成 → 画面描述占位）。
 // cue 按消息内出现次序编键（sinCueKey），与 Markdown 导出/前端解析同一规则；
 // 标记旁的残留文字照常成段（协议要求标记独占一行，这里兜底不吞字）。
-func sinSectionHTML(content, directive string, arts map[string]string, embed func(string) string) string {
+func sinSectionHTML(content string, directives []string, arts map[string]string, embed func(string) string) string {
 	var b strings.Builder
-	if d := strings.TrimSpace(directive); d != "" {
-		b.WriteString("<blockquote><p>我：" + html.EscapeString(d) + "</p></blockquote>\n")
+	for _, d := range directives {
+		if d = strings.TrimSpace(d); d != "" {
+			b.WriteString("<blockquote><p>我：" + html.EscapeString(d) + "</p></blockquote>\n")
+		}
 	}
 	cueIdx := 0
 	for _, line := range strings.Split(content, "\n") {

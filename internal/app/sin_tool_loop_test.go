@@ -309,10 +309,11 @@ func TestSinToolLoopRoundCapAndUnknownTool(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SinMessages: %v", err)
 	}
-	// 整轮没有正文 = 失败收尾，不落半截（与既有失败路径同口径：正文 = 模型
-	// 输出，没有正文就没有可落的消息；前端收到 error 帧）。
-	if len(msgs) != 0 {
-		t.Errorf("无正文时不应落任何消息: %+v", msgs)
+	// 整轮没有正文 = 失败收尾：v4.426 起与零正文取消同口径——用户指令照常
+	// 落库（重开故事不留「说过的话凭空消失」），但不落空 assistant 行
+	//（正文 = 模型输出，没有正文就没有可落的回复）。
+	if len(msgs) != 1 || msgs[0].Role != "user" {
+		t.Errorf("无正文时应只落用户指令: %+v", msgs)
 	}
 }
 
@@ -396,5 +397,62 @@ func TestSinToolCallBudgetStopsRunawayCalls(t *testing.T) {
 	// 且轮次不会无限增长。
 	if got := llm.count(); got > sinToolRoundsMax {
 		t.Errorf("请求轮次 = %d, 超出上限 %d", got, sinToolRoundsMax)
+	}
+}
+
+// TestSinClampToolArgs 轨迹参数回显闸门：超长参数截断留标记（喂给模型执行的
+// 原始参数不受影响——闸门只作用在事件帧与落库 extra）。
+func TestSinClampToolArgs(t *testing.T) {
+	short := `{"action":"list"}`
+	if got := sinClampToolArgs(short); got != short {
+		t.Errorf("短参数应原样: %q", got)
+	}
+	long := `{"content":"` + strings.Repeat("长", sinToolArgsMaxRunes+50) + `"}`
+	got := sinClampToolArgs(long)
+	if !strings.Contains(got, "（参数过长已截断") {
+		t.Errorf("超长参数应截断留标记: len=%d", len([]rune(got)))
+	}
+}
+
+// TestSinToolFinalizeRoundRejectionContinuity 收尾轮仍要工具：不再静默——调用
+// 如实发 dispatch/result 帧，assistant 回合与未执行的 tool 结果照协议接回上下文，
+// 兜底收尾轮的请求里模型看得见自己刚说过什么（不再从同一条指令从零重写）。
+func TestSinToolFinalizeRoundRejectionContinuity(t *testing.T) {
+	call := sinSSEToolCall("c1", sinToolNotes, `{"action":"list"}`)
+	llm := &sinScriptLLM{rounds: []string{
+		call, call, call, // 3 个工具轮（真执行）
+		call, // 收尾轮：仍要工具 → 拒绝（v4.426 起可见化 + 接回上下文）
+		sinSSEContent("她推开门，雨气扑面。"), // 兜底收尾轮：正文
+	}}
+	a := newSinToolLoopApp(t, llm)
+	story, err := a.SinTopicCreate("收尾续写")
+	if err != nil {
+		t.Fatalf("SinTopicCreate: %v", err)
+	}
+	if _, err := a.SinStream(story.ID, "写开场"); err != nil {
+		t.Fatalf("SinStream: %v", err)
+	}
+	msgs := waitSinMessages(t, a, story.ID, 2, 5*time.Second)
+	if !strings.Contains(msgs[1].Content, "雨气扑面") {
+		t.Fatalf("兜底轮应写出正文: %q", msgs[1].Content)
+	}
+	// 兜底轮 = 第 5 个请求：末两条应是 assistant(tool_calls) + tool（未执行回执）
+	req := sinReqMessages(llm.request(4))
+	if len(req) < 2 {
+		t.Fatalf("兜底轮请求消息不足: %d", len(req))
+	}
+	asst, _ := req[len(req)-2].(map[string]interface{})
+	last, _ := req[len(req)-1].(map[string]interface{})
+	if role, _ := asst["role"].(string); role != "assistant" {
+		t.Errorf("倒数第二条应为 assistant（收尾轮回合）: %v", asst)
+	}
+	if _, ok := asst["tool_calls"].([]interface{}); !ok {
+		t.Errorf("assistant 回合应带 tool_calls: %v", asst)
+	}
+	if role, _ := last["role"].(string); role != "tool" {
+		t.Errorf("末条应为 tool 结果: %v", last)
+	}
+	if content, _ := last["content"].(string); !strings.Contains(content, "收尾轮") {
+		t.Errorf("tool 结果应说明收尾轮未执行: %q", content)
 	}
 }

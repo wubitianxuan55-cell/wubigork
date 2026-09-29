@@ -137,6 +137,18 @@ func uniqueProjectDir(novelsDir, title string) (string, error) {
 	return dir, nil
 }
 
+// sanitizeFileNameStem Windows 保留设备名避让：stem（首点前）大小写不敏感命中
+// windowsReservedNames（chat_service.go 同表）即加「_」前缀——stem=CON 一类
+// 会写到 DOS 设备而非磁盘。书名/标题可能来自远端站点内容与模型参数，不能假定
+// 它们是善意的文件名；sin 导出与小说导入共用这道净化。
+func sanitizeFileNameStem(name string) string {
+	stem := strings.ToUpper(strings.SplitN(name, ".", 2)[0])
+	if windowsReservedNames[stem] {
+		return "_" + name
+	}
+	return name
+}
+
 // sanitizeDirName 去除 Windows 非法文件名字符。
 func sanitizeDirName(s string) string {
 	re := regexp.MustCompile(`[\\/:*?"<>|\r\n\t]+`)
@@ -144,7 +156,7 @@ func sanitizeDirName(s string) string {
 	if out == "" || out == "." || out == ".." {
 		return "导入小说"
 	}
-	return out
+	return sanitizeFileNameStem(out)
 }
 
 // ── 章节解析 ──────────────────────────────────────────────

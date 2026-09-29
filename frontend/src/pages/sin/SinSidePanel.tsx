@@ -13,7 +13,7 @@
 // 纯文字+计数在密度与可读性上都是对的。
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Button, Modal, Popover } from 'antd'
+import { Button, message, Modal, Popover } from 'antd'
 import { CaretRightOutlined, DeleteOutlined, EditOutlined, PlusOutlined, QuestionCircleOutlined } from '@ant-design/icons'
 import V3Empty from '../../components/V3Empty'
 import { readFileAsDataURL } from '../../api/image'
@@ -165,6 +165,9 @@ export function SinSidePanel({
     if (draftSaving) return
     if (d.storyId !== storyId) {
       setDraft(null) // 旧故事草稿：不可再保存（落点已是别的故事），直接丢弃
+      // 显式动作要有回声（v4.426）：覆盖确认弹窗打开期间切了故事，用户点
+      // 「覆盖」不能静默什么都没发生——如实告知没写入任何故事。
+      message.info('已切换故事，这次保存没有写入任何故事')
       return
     }
     setDraftSaving(true)

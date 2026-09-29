@@ -35,7 +35,7 @@ import { readSinPanelOpen, writeSinPanelOpen } from './sin/sinPanelState'
 import { SinSidePanel } from './sin/SinSidePanel'
 import { generateCharacterSheet, getCharacter, saveCharacter, scoreCharacterConsistency } from '../api/characterlib'
 import { SinCastPicker } from './sin/SinCastPicker'
-import { suggestStoryTitle, type SinGalleryItem } from './sin/storyText'
+import { type SinGalleryItem } from './sin/storyText'
 import { enqueueIllustration } from './sin/illustrationQueue'
 import '../gaea/styles.css'
 import '../gaea/tailwind.css'
@@ -195,6 +195,14 @@ const OriginalSinPage: React.FC = () => {
     confirmSwitchThen(() => { void story.deleteStory(id) })
   }, [confirmSwitchThen, story])
 
+  // 角色保存统一入口：成功才收尾，失败如实透出（选择器关闭=保存成功的历史
+  // 假象根除）。移除单个角色走同一闸。
+  const handleSaveCast = useCallback(async (ids: string[]) => {
+    const res = await cast.saveCast(ids)
+    if (!res.ok) story.showNotice(res.message)
+    return res.ok
+  }, [cast, story])
+
   // 画廊「重新生成」：与流内插图同一串行队列（一次一张）→ SinIllustrate 按
   // messageId+cue 覆盖回写 → 消息重载刷新画廊与流内。失败/未回写如实提示，
   // 原图不受影响（回写失败时 extra 保留旧路径）。
@@ -292,7 +300,7 @@ const OriginalSinPage: React.FC = () => {
                 },
               }}
             >
-              <ToolbarButton title="导出故事" onClick={() => {}}>
+              <ToolbarButton title="导出故事" disabled={exporting || !story.activeId || story.messages.length === 0} onClick={() => {}}>
                 <ExportOutlined />
               </ToolbarButton>
             </Dropdown>
@@ -323,7 +331,13 @@ const OriginalSinPage: React.FC = () => {
           <aside className="sin-shelf">
             <div className="sin-shelf-head">
               <span>故事</span>
-              <Button size="small" type="text" icon={<PlusOutlined />} onClick={() => void story.createStory()}>
+              {/* 新建 = 切走当前故事：底稿有未保存修改先确认（与切/删故事同一道闸） */}
+              <Button
+                size="small"
+                type="text"
+                icon={<PlusOutlined />}
+                onClick={() => confirmSwitchThen(() => { void story.createStory() })}
+              >
                 新建
               </Button>
             </div>
@@ -453,7 +467,7 @@ const OriginalSinPage: React.FC = () => {
               cast={cast.cast}
               castSaving={cast.saving}
               onOpenPicker={() => setCastPickerOpen(true)}
-              onRemoveCast={(id) => void cast.saveCast(cast.castIds.filter((x) => x !== id))}
+              onRemoveCast={(id) => { void handleSaveCast(cast.castIds.filter((x) => x !== id)) }}
               onGenerateSheet={handleCastSheet}
               onScore={handleCastScore}
               notesDoc={notes.doc}
@@ -475,7 +489,7 @@ const OriginalSinPage: React.FC = () => {
           error={cast.libraryError}
           selectedIds={cast.castIds}
           saving={cast.saving}
-          onSave={(ids) => { void cast.saveCast(ids); setCastPickerOpen(false) }}
+          onSave={(ids) => { void handleSaveCast(ids).then((ok) => { if (ok) setCastPickerOpen(false) }) }}
           onClose={() => setCastPickerOpen(false)}
         />
 
@@ -487,7 +501,9 @@ const OriginalSinPage: React.FC = () => {
           cancelText="取消"
           onCancel={() => setRenameTarget('')}
           onOk={() => {
-            void story.renameStory(renameTarget, renameDraft.trim() || suggestStoryTitle(renameDraft))
+            // 空输入保留原标题（历史实现会静默改名叫「新故事」）
+            const title = renameDraft.trim() || (stories.find((s) => s.id === renameTarget)?.title ?? '')
+            if (title) void story.renameStory(renameTarget, title)
             setRenameTarget('')
           }}
         >

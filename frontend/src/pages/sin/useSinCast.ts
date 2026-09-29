@@ -5,7 +5,7 @@
 // （<用户配置目录>/gaea/sin/cast.json，不写办公工作区）。
 // 提示词侧：后端 SinStream 会把这些角色的设定注入故事上下文（见 sin_prompt.go）。
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { app } from '../../gaea/lib/bridge'
 
 /** 角色库角色最小展示面（对齐 characterlib.Character 的 JSON 字段）。 */
@@ -54,8 +54,9 @@ export interface UseSinCastResult {
   castIds: string[]
   cast: SinCastCharacter[]
   saving: boolean
-  /** 保存选择（去重/悬空 id 由后端过滤，返回生效清单）。 */
-  saveCast: (ids: string[]) => Promise<void>
+  /** 保存选择（去重/悬空 id 由后端过滤，返回生效清单）。
+   *  返回 ok=false 时 message 是失败原因（调用方透出，别让保存静默假成功）。 */
+  saveCast: (ids: string[]) => Promise<{ ok: boolean; message: string }>
   /** 角色库重读（设定卡生成后刷新等）。首拉前调用会直接触发首次加载。 */
   reloadLibrary: () => void
   /** 首次需要展示库列表时调用（面板展开/选择器打开）：懒加载，进板块不拉 200 条。 */
@@ -71,6 +72,9 @@ export function useSinCast(activeId: string): UseSinCastResult {
   const [reloadTick, setReloadTick] = useState(0)
   // 懒加载闸：面板从未展开/选择器从未打开时不拉全量库（进板块零额外请求）
   const [libRequested, setLibRequested] = useState(false)
+  // 最新 activeId（saveCast 归属校验用：闭包里的 activeId 是发起时的故事）
+  const activeIdRef = useRef(activeId)
+  activeIdRef.current = activeId
 
   // ── 角色库列表（首次 ensureLibrary 或显式 reloadLibrary 后才拉） ──
   useEffect(() => {
@@ -109,12 +113,23 @@ export function useSinCast(activeId: string): UseSinCastResult {
     return () => { live = false }
   }, [activeId])
 
-  const saveCast = useCallback(async (ids: string[]) => {
-    if (!activeId) return
+  const saveCast = useCallback(async (ids: string[]): Promise<{ ok: boolean; message: string }> => {
+    const storyId = activeId
+    if (!storyId) return { ok: false, message: '没有选中的故事' }
     setSaving(true)
     try {
-      const effective = await app.SinCastSet(activeId, ids)
+      const effective = await app.SinCastSet(storyId, ids)
+      // 归属校验（v4.426）：保存期间切了故事就不再回填——历史实现会把 A 故事
+      // 的生效清单写进 B 故事的面板状态，用户再点「带入故事」就把 B 覆盖成 A。
+      if (activeIdRef.current !== storyId) {
+        return { ok: true, message: '' }
+      }
       setCastIds(Array.isArray(effective) ? effective : [])
+      return { ok: true, message: '' }
+    } catch (err) {
+      // 失败如实透出（历史实现无 catch：chip 不动、选择器照关、unhandled rejection，
+      // 用户以为保存成功了）
+      return { ok: false, message: errText(err, '角色保存失败') }
     } finally {
       setSaving(false)
     }

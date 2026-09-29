@@ -32,6 +32,10 @@ const (
 	// 检索/抓取天然很长（web_fetch 单页上限 1 MiB），不设闸门一次就能把上下文
 	// 与费用打穿。
 	sinToolOutputMaxRunes = 6000
+	// sinToolArgsMaxRunes 轨迹里参数回显的上限。sin_notes 一类写工具的参数天然
+	// 是大段正文，不设闸一次就能把事件帧与落库 extra 撑出几十 KB，且每次重开
+	// 故事全量重放。只截轨迹回显：喂给模型执行的原始参数不受影响。
+	sinToolArgsMaxRunes = 2000
 	// sinToolCallMaxPerTool 同一个工具在一轮里的调用次数上限。真机走查实测：
 	// 不设闸门时模型会拿 web_search 一路查到轮次封顶（12 次），正文只剩几十字——
 	// 工具是手段，写作是目的。
@@ -120,6 +124,17 @@ func (a *App) sinStreamRound(ctx context.Context, runID, model string, opts ai.C
 	return res, nil
 }
 
+// sinErrSuggestsNoTools 错误串指向「模型/端点不支持工具」——首轮降级重试的判据。
+// 只认显式信号（端点 400 报文里的 tools/tool_use 字样）；断网/鉴权/限流/超时等
+// 无关错误不降级。历史实现只看「首轮+零内容」，网络抖动一次也会被谎报成
+// 「当前模型不支持工具调用」并静默关掉整轮工具。
+func sinErrSuggestsNoTools(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(strings.ToLower(err.Error()), "tool")
+}
+
 // sinRunToolCall 执行一次工具调用：下发 tool_dispatch / tool_result、登记轨迹，
 // 返回喂回模型的 tool 消息。未知工具如实回错（可用清单照列，不猜、不静默吞）。
 // budget 是调用预算：超限不执行（模型拿不到新结果，只能收尾），但照发 process 帧，
@@ -134,7 +149,7 @@ func (a *App) sinRunToolCall(ctx context.Context, runID string, tools []sinTool,
 	tr := sinToolTrace{
 		ID:       call.ID,
 		Name:     name,
-		Args:     args,
+		Args:     sinClampToolArgs(args),
 		ReadOnly: t != nil && t.ReadOnly(),
 	}
 	a.emit("sin-stream:"+runID, sinToolDispatchFrame(tr))
@@ -210,6 +225,15 @@ func sinClampToolOutput(s string) string {
 		return s
 	}
 	return truncateRunes(s, sinToolOutputMaxRunes) + "\n（结果过长已截断）"
+}
+
+// sinClampToolArgs 截断过长的轨迹参数回显（事件帧/过程卡/落库 extra 同一份）。
+// 执行用的是原始 args，不受影响。
+func sinClampToolArgs(s string) string {
+	if len([]rune(s)) <= sinToolArgsMaxRunes {
+		return s
+	}
+	return truncateRunes(s, sinToolArgsMaxRunes) + "…（参数过长已截断，仅影响过程卡回显）"
 }
 
 // sinToolNames 本轮工具名（未知工具回错时列给模型）。

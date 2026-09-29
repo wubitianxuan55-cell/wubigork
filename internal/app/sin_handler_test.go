@@ -147,7 +147,7 @@ func TestSinIllustrationAttachAndExport(t *testing.T) {
 	assistant := msgs[1]
 
 	// 第一张插图生成完成：按 cue 键（出现次序，0 起）回写。
-	if err := a.sinAttachIllustration(assistant.ID, "0", "C:/tmp/sin-1.png"); err != nil {
+	if err := a.sinAttachIllustration(topic.ID, assistant.ID, "0", "C:/tmp/sin-1.png"); err != nil {
 		t.Fatalf("sinAttachIllustration: %v", err)
 	}
 	got, err := a.chatStore.GetMessage(assistant.ID)

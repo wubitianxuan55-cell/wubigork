@@ -146,8 +146,9 @@ export function useSinStory(): UseSinStoryResult {
       setMessages((ms || []).map((m) => toMessageView(m as unknown as Record<string, unknown>)))
     } catch (err) {
       if (seq !== loadSeqRef.current) return
+      // 读失败不清空现有视图（瞬时失败不该把正在读的长故事整表吹掉）；
+      // 切故事场景下旧内容已由 selectStory 先行清空，这里只剩 notice。
       setNotice(errText(err, '故事内容读取失败'))
-      setMessages([])
     }
   }, [])
 
@@ -209,12 +210,12 @@ export function useSinStory(): UseSinStoryResult {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const selectStory = useCallback(async (id: string) => {
-    if (!id || id === activeIdRef.current) return
-    // 切故事 = 中止在途流：对旧故事执行后端取消（残稿照常落库，后台不再白烧
-    // token），本地解绑订阅并复位 sending。只解绑不取消的话，后端会把整轮跑完。
+  // 流收尾（切走/新建/卸载共用）：对旧故事执行后端取消（残稿照常落库，后台
+  // 不再白烧 token），解绑订阅并复位 sending。只解绑不取消的话，后端会把整轮
+  // 跑完；本地不等后端，立即解封输入。
+  const teardownStream = useCallback(() => {
     const prevTopic = streamTopicRef.current
-    if (prevTopic && prevTopic !== id) {
+    if (prevTopic) {
       app.SinCancel(prevTopic).catch(() => { /* 无在途流：本地照常收尾 */ })
     }
     streamTopicRef.current = ''
@@ -223,14 +224,25 @@ export function useSinStory(): UseSinStoryResult {
     cleanupRef.current?.()
     cleanupRef.current = null
     setSending(false)
+    streamingKeyRef.current = ''
+  }, [])
+
+  const selectStory = useCallback(async (id: string) => {
+    if (!id || id === activeIdRef.current) return
+    teardownStream()
+    // 先清视图再拉新故事：读取失败时不会把上一个故事的内容挂在新故事名下
     setActiveId(id)
     activeIdRef.current = id
+    setMessages([])
     await loadMessages(id)
-  }, [loadMessages])
+  }, [loadMessages, teardownStream])
 
   const createStory = useCallback(async () => {
+    // 新建 = 切走：在途流照 selectStory 同口径收尾（否则旧流继续烧 token，
+    // 新故事 Composer 还会被 sending 锁到旧流自然结束）
+    teardownStream()
+    loadSeqRef.current++ // 失效在途故事消息载入（v4.354）
     try {
-      loadSeqRef.current++ // 失效在途故事消息载入（v4.354）
       const t = await app.SinTopicCreate('新故事')
       const list = await refreshStories()
       setStories(list ?? [])
@@ -243,7 +255,7 @@ export function useSinStory(): UseSinStoryResult {
     } catch (err) {
       setNotice(errText(err, '新建故事失败'))
     }
-  }, [refreshStories])
+  }, [refreshStories, teardownStream])
 
   const renameStory = useCallback(async (id: string, title: string) => {
     try {
@@ -285,6 +297,9 @@ export function useSinStory(): UseSinStoryResult {
   }, [])
 
   const reloadMessages = useCallback(async () => {
+    // 流式进行中不整表替换（会把流式占位行换成 DB 行，后续 delta/done 按
+    // asstKey 找不到目标全部丢弃——本轮回复直到流结束都不上屏）。
+    if (streamTopicRef.current) return
     await loadMessages(activeIdRef.current)
   }, [loadMessages])
 
@@ -341,11 +356,13 @@ export function useSinStory(): UseSinStoryResult {
         if (p.type === 'tool_dispatch') {
           const view: SinToolTraceView = {
             id: p.id ?? '', name: p.name ?? '', args: p.args ?? '',
-            read_only: p.read_only === true, status: 'running',
+            read_only: p.read_only === true, status: 'running', artifacts: [],
           }
           return { ...m, tools: [...tools, view] }
         }
         const idx = findToolRow(tools, p)
+        // 产物随 result 帧到达（sin_illustrate 缩略图流中即可见）；无产物帧保底 []
+        const artifacts = p.artifacts ?? []
         const done: SinToolTraceView = idx >= 0
           ? {
             ...tools[idx],
@@ -353,12 +370,13 @@ export function useSinStory(): UseSinStoryResult {
             error: p.error ?? '',
             elapsed_ms: typeof p.elapsed_ms === 'number' ? p.elapsed_ms : tools[idx].elapsed_ms,
             status: p.error ? 'failed' : 'done',
+            ...(artifacts.length > 0 ? { artifacts } : {}),
           }
           : {
             id: p.id ?? '', name: p.name ?? '', args: '',
             output: p.output ?? '', error: p.error ?? '',
             elapsed_ms: typeof p.elapsed_ms === 'number' ? p.elapsed_ms : 0,
-            status: p.error ? 'failed' : 'done',
+            status: p.error ? 'failed' : 'done', artifacts,
           }
         const next = tools.slice()
         if (idx >= 0) next[idx] = done
@@ -376,11 +394,12 @@ export function useSinStory(): UseSinStoryResult {
       const armSilenceTimer = () => {
         if (timer) clearTimeout(timer)
         timer = setTimeout(() => {
-          patch(asstKey, {
-            streaming: false,
-            error: true,
-            content: `请求超时：${SIN_STREAM_SILENCE_TIMEOUT_MS / 1000} 秒内未收到回复，请重试`,
-          })
+          // 超时 = 后端可能还挂着：先取消（残稿照常落库），不再白烧。已流出
+          // 的正文保留不动（历史实现整段替换成超时文案，用户正读到一半的内容
+          // 凭空消失），提示走 notice。
+          app.SinCancel(streamTopicRef.current || storyId).catch(() => { /* 本地照常收尾 */ })
+          patch(asstKey, { streaming: false, error: true })
+          setNotice(`请求超时：${SIN_STREAM_SILENCE_TIMEOUT_MS / 1000} 秒内未收到回复，已停止本轮并保留已生成的部分`)
           finish()
         }, SIN_STREAM_SILENCE_TIMEOUT_MS)
       }
@@ -476,9 +495,11 @@ export function useSinStory(): UseSinStoryResult {
     await reloadStoriesInto()
   }, [reloadStoriesInto, sending])
 
-  // 停止：先让后端中止（保留已生成部分落库），再本地立刻解封输入
+  // 停止：先让后端中止（保留已生成部分落库），再本地立刻解封输入。
+  // 取消目标按在途流归属（streamTopicRef）而非当前选中故事：发送中新建/切换
+  // 过故事时 activeId 已不是在途流的主人，按 activeId 取消等于没取消。
   const cancel = useCallback((): string | undefined => {
-    const topicID = activeIdRef.current
+    const topicID = streamTopicRef.current || activeIdRef.current
     if (topicID) {
       app.SinCancel(topicID).catch(() => { /* 无在途流/取消失败：本地照常收尾 */ })
     }

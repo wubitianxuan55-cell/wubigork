@@ -3,8 +3,7 @@
 // 契约：标记 `@@插图|画面描述@@` 独占一行；一条消息内按出现次序编号（0 起），
 // 该编号即插图映射键（Go 侧 sinCueKey / SinIllustrate 的 cue 参数）。
 
-import type { SinMessageView, SinToolTrace, SinToolTraceView, StorySegment } from './types'
-
+import type { SinMessageView, SinToolArtifactView, SinToolTrace, SinToolTraceView, StorySegment } from './types'
 /** 插图标记定界符（与 Go 侧 sin_prompt.go 常量逐字一致）。 */
 export const SIN_CUE_OPEN = '@@插图|'
 export const SIN_CUE_CLOSE = '@@'
@@ -131,14 +130,33 @@ export function parseTools(extra: unknown): SinToolTrace[] {
       error: typeof t.error === 'string' ? t.error : '',
       elapsed_ms: typeof t.elapsed_ms === 'number' ? t.elapsed_ms : 0,
       read_only: t.read_only === true,
+      artifacts: parseArtifacts(t.artifacts),
     })
   }
   return out
 }
 
-/** 落库轨迹 → 过程卡视图：有 error 即失败，否则完成（历史消息没有 running 态）。 */
+/** 轨迹单条的产物列表容错解析（畸形条目跳过，不抛）。 */
+function parseArtifacts(raw: unknown): SinToolArtifactView[] {
+  if (!Array.isArray(raw)) return []
+  const out: SinToolArtifactView[] = []
+  for (const a of raw) {
+    if (!a || typeof a !== 'object') continue
+    const o = a as Record<string, unknown>
+    if (typeof o.path !== 'string' || !o.path) continue
+    out.push({
+      kind: typeof o.kind === 'string' ? o.kind : 'image',
+      path: o.path,
+      caption: typeof o.caption === 'string' ? o.caption : undefined,
+    })
+  }
+  return out
+}
+
+/** 落库轨迹 → 过程卡视图：有 error 即失败，否则完成（历史消息没有 running 态）。
+ *  artifacts 归一为数组（流式帧/落库轨迹/测试夹具都可能缺省）。 */
 export function toToolViews(traces: SinToolTrace[]): SinToolTraceView[] {
-  return traces.map((t) => ({ ...t, status: t.error ? 'failed' : 'done' }))
+  return traces.map((t) => ({ ...t, artifacts: t.artifacts ?? [], status: t.error ? 'failed' : 'done' }))
 }
 
 /** 该条消息里还没有插图产物的插图段（供自动生成排队）。 */
@@ -167,22 +185,79 @@ export interface SinGalleryItem {
   prompt: string
 }
 
+/** cue 排序：数字键（正文标记 0..N）升序在前，toolN 键（工具图）按序号随后；
+ *  Go map 序列化是字典序（"10"<"2"），≥11 张时画廊会错序——这里数值化归位。
+ *  返回 [类序, 类内序]：toolN 是独立类，不与正文标记的数字 cue 混排。 */
+function cueOrder(cue: string): [number, number] {
+  const plain = /^(\d+)$/.exec(cue)
+  if (plain) return [0, Number(plain[1])]
+  const tool = /^tool(\d+)$/.exec(cue)
+  if (tool) return [1, Number(tool[1])]
+  return [2, Number.MAX_SAFE_INTEGER]
+}
+
+// ── 每消息画廊解析缓存 ──
+// SinSidePanel 的 gallery useMemo 依赖整个 messages 数组，流式期间每个 delta
+// 都产出新数组——不缓存的话长篇每帧都对全部历史消息重跑 parseStorySegments
+//（O(全故事字数)/delta，流式期最大热点）。签名 = 影响画廊产物的最小字段集。
+const galleryCache = new Map<string, { sig: string; items: SinGalleryItem[] }>()
+
+function gallerySignature(m: Pick<SinMessageView, 'key' | 'messageId' | 'content' | 'illustrations'>): string {
+  const ills = Object.entries(m.illustrations ?? {}).map(([k, v]) => `${k}=${v}`).join(',')
+  return `${m.messageId}|${m.content.length}|${ills}`
+}
+
 /** 汇总一个故事的全部插图（消息序即时间序；同一消息内按 cue 序号）。 */
 export function collectIllustrations(
-  messages: Array<Pick<SinMessageView, 'key' | 'messageId' | 'content' | 'illustrations'>>,
+  messages: Array<Pick<SinMessageView, 'key' | 'messageId' | 'content' | 'illustrations' | 'tools'>>,
 ): SinGalleryItem[] {
   const out: SinGalleryItem[] = []
+  const liveKeys = new Set<string>()
   for (const m of messages) {
-    const entries = Object.entries(m.illustrations ?? {})
-    if (entries.length === 0) continue
-    const promptByCue = new Map<string, string>()
-    for (const s of parseStorySegments(m.content)) {
-      if (s.kind === 'illustration') promptByCue.set(s.cueKey, s.prompt)
+    liveKeys.add(m.key)
+    const sig = gallerySignature(m)
+    const hit = galleryCache.get(m.key)
+    let items: SinGalleryItem[]
+    if (hit && hit.sig === sig) {
+      items = hit.items
+    } else {
+      const entries = Object.entries(m.illustrations ?? {})
+        .filter(([, path]) => !!path)
+        .sort((a, b) => {
+          const [ca, na] = cueOrder(a[0])
+          const [cb, nb] = cueOrder(b[0])
+          return ca - cb || na - nb || (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0)
+        })
+      if (entries.length === 0) {
+        items = []
+      } else {
+        const promptByCue = new Map<string, string>()
+        for (const s of parseStorySegments(m.content)) {
+          if (s.kind === 'illustration') promptByCue.set(s.cueKey, s.prompt)
+        }
+        // 工具图（toolN）正文里没有标记，描述从轨迹产物反解（按调用序对号）
+        let toolIdx = 0
+        for (const t of m.tools ?? []) {
+          for (const art of t.artifacts ?? []) {
+            promptByCue.set(`tool${toolIdx}`, art.caption || '')
+            toolIdx++
+          }
+        }
+        items = entries.map(([cue, path]) => ({
+          key: `${m.key}:${cue}`,
+          messageId: m.messageId,
+          cue,
+          path,
+          prompt: promptByCue.get(cue) ?? '',
+        }))
+      }
+      galleryCache.set(m.key, { sig, items })
     }
-    for (const [cue, path] of entries) {
-      if (!path) continue
-      out.push({ key: `${m.key}:${cue}`, messageId: m.messageId, cue, path, prompt: promptByCue.get(cue) ?? '' })
-    }
+    out.push(...items)
+  }
+  // 只保留当前故事的消息缓存（切故事后旧键不驻留）
+  for (const k of galleryCache.keys()) {
+    if (!liveKeys.has(k)) galleryCache.delete(k)
   }
   return out
 }

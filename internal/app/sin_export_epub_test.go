@@ -51,7 +51,7 @@ func seedSinEpubStory(t *testing.T) (*App, string) {
 	if err := os.WriteFile(artPath, sinTestPNG, 0o644); err != nil {
 		t.Fatalf("WriteFile(art): %v", err)
 	}
-	if err := a.sinAttachIllustration(msgs[1].ID, "0", artPath); err != nil {
+	if err := a.sinAttachIllustration(topic.ID, msgs[1].ID, "0", artPath); err != nil {
 		t.Fatalf("sinAttachIllustration: %v", err)
 	}
 	if err := a.chatStore.AppendExchange(topic.ID,

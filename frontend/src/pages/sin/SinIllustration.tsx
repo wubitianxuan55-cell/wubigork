@@ -55,6 +55,8 @@ export function SinIllustration({
   // 自动生成只尝试一次（重试由按钮显式触发，防渲染重入导致重复烧算力）
   const autoTriedRef = useRef(false)
   const startedRef = useRef(false)
+  // 用户已点取消（在跑任务的取消回执按取消语义收敛，不进错误样式）
+  const cancelledRef = useRef(false)
   // 队列 token（>0 = 已入队；用于算位次与取消时定位）
   const tokenRef = useRef(0)
   const [queuedAhead, setQueuedAhead] = useState(0)
@@ -112,6 +114,7 @@ export function SinIllustration({
   const generate = useCallback(async () => {
     if (startedRef.current) return
     startedRef.current = true
+    cancelledRef.current = false
     setError('')
     setStatus('queued')
     const { promise, token } = enqueueIllustration(async () => {
@@ -154,6 +157,13 @@ export function SinIllustration({
         setError('')
         return
       }
+      // 用户在生成中取消：后端中断让在途 promise 拒绝——迟到的 rejection 不再
+      // 把空闲态翻成红色错误并弹全局 notice（用户主动取消 ≠ 失败）
+      if (cancelledRef.current) {
+        setStatus('idle')
+        setError('')
+        return
+      }
       setStatus('error')
       setError(msg)
       onError?.(msg)
@@ -166,6 +176,7 @@ export function SinIllustration({
   // 自己的任务真的在跑（token = 队列在跑位）才取消后端当前任务。历史实现
   // 无条件 cancelImageGeneration()，排队卡点取消会误杀正在生成的另一张。
   const onCancel = useCallback(async () => {
+    cancelledRef.current = true
     const mode = cancelIllustration(tokenRef.current)
     if (mode === 'active') {
       try {
@@ -181,12 +192,14 @@ export function SinIllustration({
     setError('')
   }, [])
 
-  // 自动出图：流式结束后且没有产物时触发一次
+  // 自动出图：流式结束后且没有产物时触发一次。messageId 闸（v4.426）：只有
+  // 落库行（id>0）才自动出图——手动停止/超时/报错的残行 id 恒为 0，出了图
+  // 也无处回写，刷新即退回占位还白烧一次算力；这类行降级为手动按钮。
   useEffect(() => {
-    if (!ready || path || autoTriedRef.current) return
+    if (!ready || messageId <= 0 || path || autoTriedRef.current) return
     autoTriedRef.current = true
     void generate()
-  }, [generate, path, ready])
+  }, [generate, messageId, path, ready])
 
   // 外部换图采纳（v4.265）：画廊「重新生成」经后端回写+消息重载带来新路径时，
   // 本组件采纳之，防「画廊新图 / 流内旧图」不同步。自己正在生成时只记录不采纳
@@ -231,13 +244,27 @@ export function SinIllustration({
           {status === 'idle' && (
             <>
               <span className="sin-figure-slot-text">插图位</span>
-              <Button size="small" onClick={() => void generate()}>生成插图</Button>
+              <Button
+                size="small"
+                disabled={!ready || messageId <= 0}
+                title={!ready ? '等本段写完再出图' : (messageId <= 0 ? '这段内容未落库，出图不会保存' : undefined)}
+                onClick={() => void generate()}
+              >
+                生成插图
+              </Button>
             </>
           )}
           {status === 'error' && (
             <>
               <span className="sin-figure-slot-text">插图失败：{error}</span>
-              <Button size="small" onClick={() => void generate()}>重试</Button>
+              <Button
+                size="small"
+                disabled={!ready || messageId <= 0}
+                title={!ready ? '等本段写完再出图' : (messageId <= 0 ? '这段内容未落库，出图不会保存' : undefined)}
+                onClick={() => void generate()}
+              >
+                重试
+              </Button>
             </>
           )}
         </div>

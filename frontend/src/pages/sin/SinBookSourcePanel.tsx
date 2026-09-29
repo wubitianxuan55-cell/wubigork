@@ -10,16 +10,15 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Button, Input, InputNumber, Popconfirm, Progress, message } from 'antd'
 import { DeleteOutlined, ExportOutlined, SearchOutlined, SendOutlined } from '@ant-design/icons'
 import { app } from '../../gaea/lib/bridge'
-import { emitFrontendEvent, FRONTEND_EVENTS, subscribe, sinBooksourceChannel } from '../../events'
+import { emitFrontendEvent, FRONTEND_EVENTS } from '../../events'
+import {
+  beginBookDownload, bookDownloadOutcome, bookDownloadSnapshot, cancelBookDownloadTracking,
+  subscribeBookDownload, __resetBookDownloadForTest,
+} from './sinBookDownload'
 import type { NovelBookSourceCandidate } from '../../gaea/lib/bridge/novel'
 import type { SinBookSourceBook, SinBookSourceDownloadStart } from '../../gaea/lib/bridge/sin'
 import type { NovelBookSourceTocPreview } from '../../gaea/lib/bridge/novel'
 import V3Empty from '../../components/V3Empty'
-
-type Phase =
-  | { kind: 'idle' }
-  | { kind: 'searching' }
-  | { kind: 'downloading'; jobId: string; done: number; total: number }
 
 function errText(err: unknown, fallback: string): string {
   return (err instanceof Error && err.message) || fallback
@@ -41,7 +40,9 @@ function fmtTime(rfc3339: string): string {
 
 export function SinBookSourcePanel() {
   const [keyword, setKeyword] = useState('')
-  const [phase, setPhase] = useState<Phase>({ kind: 'idle' })
+  const [searching, setSearching] = useState(false)
+  // 下载会话：模块单例快照（卡切换重挂载即恢复进度显示）
+  const [dl, setDl] = useState(bookDownloadSnapshot().state)
   const [candidates, setCandidates] = useState<NovelBookSourceCandidate[]>([])
   const [warnings, setWarnings] = useState<string[]>([])
   const [selected, setSelected] = useState<NovelBookSourceCandidate | null>(null)
@@ -52,8 +53,34 @@ export function SinBookSourcePanel() {
   const [downloadError, setDownloadError] = useState('')
   const [books, setBooks] = useState<SinBookSourceBook[]>([])
   const [booksLoading, setBooksLoading] = useState(false)
-  // 事件回调里要读到最新选中项/清单，闭包用 ref 兜底
-  const jobIdRef = useRef('')
+  // 起跑闸：SinBookSourceDownload 往返期间按钮仍可点——历史实现双击发两个 job
+  const startingRef = useRef(false)
+
+  // 订阅模块会话（快照同步；终态 tick 变化驱动清单刷新）
+  const [tick, setTick] = useState(bookDownloadSnapshot().tick)
+  useEffect(() => {
+    const sync = () => {
+      const snap = bookDownloadSnapshot()
+      setDl({ ...snap.state })
+      setTick(snap.tick)
+    }
+    sync()
+    return subscribeBookDownload(sync)
+  }, [])
+  // 终态去向回填组件态：done 清选中（回到可再搜状态，与历史行为一致）；
+  // error 回填行内原因（重试入口就在旁边）
+  const prevTickRef = useRef(bookDownloadSnapshot().tick)
+  useEffect(() => {
+    if (tick === prevTickRef.current) return
+    prevTickRef.current = tick
+    const oc = bookDownloadOutcome()
+    if (oc.outcome === 'done') {
+      setSelected(null)
+      setToc(null)
+    } else if (oc.outcome === 'error') {
+      setDownloadError(oc.error || '下载失败')
+    }
+  }, [tick])
 
   const refreshBooks = useCallback(() => {
     setBooksLoading(true)
@@ -64,11 +91,13 @@ export function SinBookSourcePanel() {
   }, [])
 
   useEffect(() => { refreshBooks() }, [refreshBooks])
+  // 下载终态（done/error/取消）后刷新成书清单
+  useEffect(() => { if (tick > 0) refreshBooks() }, [tick, refreshBooks])
 
   const handleSearch = useCallback(() => {
     const kw = keyword.trim()
-    if (!kw || phase.kind === 'searching') return
-    setPhase({ kind: 'searching' })
+    if (!kw || searching) return
+    setSearching(true)
     setSelected(null)
     setToc(null)
     app.SinBookSourceSearch(kw)
@@ -80,8 +109,8 @@ export function SinBookSourcePanel() {
         setCandidates([])
         setWarnings([errText(err, '搜索失败')])
       })
-      .finally(() => setPhase({ kind: 'idle' }))
-  }, [keyword, phase.kind])
+      .finally(() => setSearching(false))
+  }, [keyword, searching])
 
   const selectCandidate = useCallback((c: NovelBookSourceCandidate) => {
     if (!c.hasRule) return
@@ -104,7 +133,7 @@ export function SinBookSourcePanel() {
   }, [])
 
   const startDownload = useCallback(() => {
-    if (!selected || !toc || phase.kind === 'downloading') return
+    if (!selected || !toc || startingRef.current || dl.kind === 'downloading') return
     const total = toc.total
     const start = Math.min(Math.max(rangeStart ?? 1, 1), total)
     const end = Math.min(Math.max(rangeEnd ?? total, 1), total)
@@ -113,54 +142,30 @@ export function SinBookSourcePanel() {
       return
     }
     setDownloadError('')
+    startingRef.current = true
     app.SinBookSourceDownload(selected.source, selected.url, start, end, selected.title)
       .then((res: SinBookSourceDownloadStart) => {
-        jobIdRef.current = res.jobId
-        setPhase({ kind: 'downloading', jobId: res.jobId, done: 0, total: Math.max(end - start + 1, 0) })
+        startingRef.current = false
+        beginBookDownload(res.jobId, Math.max(end - start + 1, 0))
       })
-      .catch((err: unknown) => setDownloadError(errText(err, '下载起跑失败')))
-  }, [selected, toc, phase.kind, rangeStart, rangeEnd])
-
-  // 下载事件订阅：progress 更新进度；done 刷清单+收尾；error 直显可重试。
-  // 订阅随 downloading 态挂载/卸载（取消/完成后自动退订）。
-  const activeJobId = phase.kind === 'downloading' ? phase.jobId : ''
-  useEffect(() => {
-    if (phase.kind !== 'downloading' || !activeJobId) return
-    const jobId = activeJobId
-    const unsub = subscribe(sinBooksourceChannel(jobId), (data: unknown) => {
-      const payload = (data ?? {}) as { type?: string; done?: number; total?: number; error?: string; result?: { chapters?: number } }
-      if (payload.type === 'progress') {
-        setPhase((prev) => prev.kind === 'downloading'
-          ? { ...prev, done: payload.done ?? prev.done, total: payload.total ?? prev.total }
-          : prev)
-        return
-      }
-      if (payload.type === 'done') {
-        message.success(`成书完成${payload.result?.chapters ? `：${payload.result.chapters} 章` : ''}，已收进成书清单`)
-        setPhase({ kind: 'idle' })
-        setSelected(null)
-        setToc(null)
-        refreshBooks()
-        return
-      }
-      if (payload.type === 'error') {
-        setDownloadError(payload.error || '下载失败')
-        setPhase({ kind: 'idle' })
-      }
-    })
-    return unsub
-  }, [phase.kind, activeJobId, refreshBooks])
+      .catch((err: unknown) => {
+        startingRef.current = false
+        setDownloadError(errText(err, '下载起跑失败'))
+      })
+  }, [selected, toc, dl.kind, rangeStart, rangeEnd])
 
   const cancelDownload = useCallback(() => {
-    if (phase.kind !== 'downloading') return
-    app.SinBookSourceDownloadCancel(phase.jobId)
+    if (dl.kind !== 'downloading') return
+    const jobId = dl.jobId
+    app.SinBookSourceDownloadCancel(jobId)
       .then((ok) => {
         if (!ok) message.info('没有在途下载')
+        refreshBooks()
       })
-      .catch(() => { /* 取消失败：后台自然收尾后事件会处理 */ })
-    // 本地立即收尾（取消语义：后端中止，成书不落盘）
-    setPhase({ kind: 'idle' })
-  }, [phase])
+      .catch(() => refreshBooks())
+    // 本地立即收尾（取消语义：后端中止，成书不落盘）；清单按取消落定后刷新
+    cancelBookDownloadTracking()
+  }, [dl, refreshBooks])
 
   const removeBook = useCallback((book: SinBookSourceBook) => {
     app.SinBookSourceBookDelete(book.path)
@@ -197,8 +202,7 @@ export function SinBookSourcePanel() {
       .finally(() => setExportingKey(null))
   }, [exportingKey])
 
-  const searching = phase.kind === 'searching'
-  const downloading = phase.kind === 'downloading'
+  const downloading = dl.kind === 'downloading'
   const sample = toc?.sample ?? []
   const headCount = toc?.truncated ? Math.max(sample.length - 4, 0) : sample.length
 
@@ -304,11 +308,11 @@ export function SinBookSourcePanel() {
       {downloading && (
         <div className="sin-bs-progress" aria-label="下载进度">
           <Progress
-            percent={phase.total > 0 ? Math.round((phase.done / phase.total) * 100) : 0}
+            percent={dl.total > 0 ? Math.round((dl.done / dl.total) * 100) : 0}
             size="small"
           />
           <div className="sin-bs-progress-meta">
-            <span>{phase.done}/{phase.total || '?'} 章（进度按每 20 章上报）</span>
+            <span>{dl.done}/{dl.total || '?'} 章（进度按每 20 章上报）</span>
             <Button size="small" onClick={cancelDownload}>取消</Button>
           </div>
         </div>

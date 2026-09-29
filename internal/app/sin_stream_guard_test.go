@@ -10,11 +10,13 @@ package app
 //   - SinNotesSave 丢弃空白便签。
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -257,5 +259,198 @@ func TestSinNotesSaveDropsBlankNotes(t *testing.T) {
 	}
 	if strings.Contains(string(raw), `" "`) || strings.Contains(string(raw), `"",`) {
 		t.Errorf("落盘文件不应含空白条目: %s", raw)
+	}
+}
+
+// ── v4.426 审计落地锚 ──
+
+// TestSinStreamPlainErrorSavesUserMessage 首轮普通失败（错误与工具无关，如
+// 断网/5xx）：不降级重试（历史实现会谎报「模型不支持工具」并静默关工具）、
+// error 帧如实上报，用户指令照常落库（镜像零正文取消口径，刷新不丢话）。
+func TestSinStreamPlainErrorSavesUserMessage(t *testing.T) {
+	var mu sync.Mutex
+	reqs := 0
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		reqs++
+		mu.Unlock()
+		// 400（不可故障转移，与降级测试同通道）+ 与工具无关的错误文本：
+		// 历史实现会把它误判成「模型不支持工具」并静默关工具重试。
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`{"error":{"message":"upstream connect error"}}`))
+	})
+	sinTestHome(t)
+	a := newChatServiceTestAppWithHandler(t, handler)
+	if err := a.core.SetFeatureModel("sin", "herdsman", "qwen3-8b"); err != nil {
+		t.Fatalf("SetFeatureModel(sin): %v", err)
+	}
+	story, err := a.SinTopicCreate("普通失败")
+	if err != nil {
+		t.Fatalf("SinTopicCreate: %v", err)
+	}
+	if _, err := a.SinStream(story.ID, "写开场"); err != nil {
+		t.Fatalf("SinStream: %v", err)
+	}
+	waitSinRunGone(t, story.ID)
+	mu.Lock()
+	got := reqs
+	mu.Unlock()
+	if got != 1 {
+		t.Errorf("普通失败不应触发去工具重试，请求数 = %d, want 1", got)
+	}
+	msgs, err := a.SinMessages(story.ID)
+	if err != nil {
+		t.Fatalf("SinMessages: %v", err)
+	}
+	if len(msgs) != 1 || msgs[0].Role != "user" || msgs[0].Content != "写开场" {
+		t.Fatalf("失败轮应只落用户指令: %+v", msgs)
+	}
+}
+
+// TestSinAttachIllustrationRejectsForeignTopic 插图回写归属校验：messageID
+// 不属于目标话题时 fail-closed 拒绝（前端状态错位不能把图片写进别的故事）。
+func TestSinAttachIllustrationRejectsForeignTopic(t *testing.T) {
+	sinTestHome(t)
+	a := newSinTestApp(t)
+	tA, err := a.SinTopicCreate("甲")
+	if err != nil {
+		t.Fatalf("SinTopicCreate: %v", err)
+	}
+	tB, err := a.SinTopicCreate("乙")
+	if err != nil {
+		t.Fatalf("SinTopicCreate: %v", err)
+	}
+	if err := a.chatStore.AppendExchange(tA.ID, "画一张", "好的。", ""); err != nil {
+		t.Fatalf("AppendExchange: %v", err)
+	}
+	msgs, err := a.SinMessages(tA.ID)
+	if err != nil || len(msgs) != 2 {
+		t.Fatalf("SinMessages = %+v, err=%v", msgs, err)
+	}
+	if err := a.sinAttachIllustration(tB.ID, msgs[1].ID, "0", "C:/art/x.png"); err == nil {
+		t.Fatal("跨话题回写应被拒绝")
+	}
+	if err := a.sinAttachIllustration(tA.ID, msgs[1].ID, "0", "C:/art/x.png"); err != nil {
+		t.Fatalf("本话题回写不应报错: %v", err)
+	}
+}
+
+// TestSinFileRefQuotedToken 含空格路径走 @"..." 引号 token（Composer 对含空格
+// 路径注入引号形式）：内容照常注入；裸 token 在空格处截断后不是引用，原样保留。
+func TestSinFileRefQuotedToken(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "space dir")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	p := filepath.Join(dir, "设定集.txt")
+	if err := os.WriteFile(p, []byte("雨夜设定内容"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	block, errs := sinFileRefBlock(context.Background(), `先看 @"`+p+`" 再写`)
+	if len(errs) != 0 {
+		t.Fatalf("引号 token 不应报错: %v", errs)
+	}
+	if !strings.Contains(block, "雨夜设定内容") {
+		t.Fatalf("含空格路径应照常注入: %q", block)
+	}
+	// 裸 token（历史形态）在空格处截断后 stat 不中 → 不是引用，零误伤
+	block2, errs2 := sinFileRefBlock(context.Background(), `先看 @`+p+` 再写`)
+	if len(errs2) != 0 || strings.Contains(block2, "雨夜设定内容") {
+		t.Fatalf("裸 token 空格截断应按普通文本保留: block=%q errs=%v", block2, errs2)
+	}
+}
+
+// TestSinReadFileRefEmptyFile 空文件 = 空内容（io.EOF 不是读取失败）。
+func TestSinReadFileRefEmptyFile(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "empty.txt")
+	if err := os.WriteFile(p, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	got, err := sinReadFileRef(p)
+	if err != nil {
+		t.Fatalf("空文件不应报错: %v", err)
+	}
+	if got != "" {
+		t.Fatalf("空文件内容应为空: %q", got)
+	}
+}
+
+// TestSinExportFileNameReservedDeviceName Windows 保留设备名避让：stem 命中
+// 保留名表加「_」前缀（CON.md 打到 DOS 设备而非磁盘）。
+func TestSinExportFileNameReservedDeviceName(t *testing.T) {
+	now := time.Now()
+	for raw, want := range map[string]string{
+		"CON":    "_CON",
+		"aux.md": "_aux",
+		// stem 含空格不再是保留名（Windows 设备名只认纯 stem）
+		"con 记事": "con 记事",
+		"普通标题":   "普通标题",
+	} {
+		got, err := sinExportFileName(raw, "sin_1_1", now)
+		if err != nil {
+			t.Fatalf("sinExportFileName(%q): %v", raw, err)
+		}
+		if got != want {
+			t.Errorf("sinExportFileName(%q) = %q, want %q", raw, got, want)
+		}
+	}
+}
+
+// TestSinToolArtifactsInMarkdownExport 工具产物进导出：sin_illustrate 的图不在
+// 正文标记里，Markdown 导出按调用序附录（caption 作替代文本），不再整批消失。
+func TestSinToolArtifactsInMarkdownExport(t *testing.T) {
+	sinTestHome(t)
+	a := newSinTestApp(t)
+	topic, err := a.SinTopicCreate("工具图")
+	if err != nil {
+		t.Fatalf("SinTopicCreate: %v", err)
+	}
+	extra := `{"tools":[{"id":"c1","name":"sin_illustrate","artifacts":[{"kind":"image","path":"C:/art/x.png","caption":"雨夜站台"}]}]}`
+	if err := a.chatStore.AppendExchange(topic.ID, "画一张", "好的。", extra); err != nil {
+		t.Fatalf("AppendExchange: %v", err)
+	}
+	md, err := a.SinExportMarkdown(topic.ID)
+	if err != nil {
+		t.Fatalf("SinExportMarkdown: %v", err)
+	}
+	if !strings.Contains(md, "![雨夜站台](C:/art/x.png)") {
+		t.Fatalf("工具产物应进导出附录: %s", md)
+	}
+}
+
+// TestSinExportEpubSkipsLegacyEmptyRows 历史遗留零正文行：不占回数、不消耗
+// 指令引块；连续多条用户指令逐条入引块（与 Markdown 导出同口径）。
+func TestSinExportEpubSkipsLegacyEmptyRows(t *testing.T) {
+	sinTestHome(t)
+	a := newSinTestApp(t)
+	topic, err := a.SinTopicCreate("历史行")
+	if err != nil {
+		t.Fatalf("SinTopicCreate: %v", err)
+	}
+	if err := a.chatStore.AppendExchange(topic.ID, "指令一", "第一回正文。", ""); err != nil {
+		t.Fatalf("AppendExchange: %v", err)
+	}
+	// 失败轮遗留：用户指令 + 零正文 assistant 行（v4.423 前的历史数据形态）
+	if err := a.chatStore.AppendExchange(topic.ID, "指令二", "", ""); err != nil {
+		t.Fatalf("AppendExchange(空行): %v", err)
+	}
+	if err := a.chatStore.AppendExchange(topic.ID, "指令三", "第二回正文。", ""); err != nil {
+		t.Fatalf("AppendExchange(2): %v", err)
+	}
+	path, err := a.SinExportEpub(topic.ID)
+	if err != nil {
+		t.Fatalf("SinExportEpub: %v", err)
+	}
+	defer func() { _ = os.Remove(path) }()
+	text, _ := readSinEpubText(t, path)
+	if !strings.Contains(text, "第一回正文") || !strings.Contains(text, "第二回正文") {
+		t.Fatalf("两回正文都应入书: %s", text)
+	}
+	// 指令二（失败轮的）与指令三都应挂在第二回引块里，不再被零正文行吃掉
+	if !strings.Contains(text, "我：指令二") || !strings.Contains(text, "我：指令三") {
+		t.Fatalf("连续用户指令应逐条入引块: %s", text)
+	}
+	if strings.Contains(text, "第三回") {
+		t.Fatalf("零正文行不应占回数: %s", text)
 	}
 }

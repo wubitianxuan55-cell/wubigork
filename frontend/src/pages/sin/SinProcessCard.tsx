@@ -142,10 +142,12 @@ function SinProcArtifact({ path, caption }: { path: string; caption?: string }) 
     return () => { live = false }
   }, [path])
   return (
-    <figure className="sin-proc-art">
+    <figure className={`sin-proc-art${!url && !failed ? ' is-loading' : ''}`}>
       {failed
         ? <span className="sin-proc-art-missing">缩略图读取失败</span>
-        : <img className="sin-proc-art-img" src={url || undefined} alt={caption || '工具产物插图'} loading="lazy" />}
+        : url
+          ? <img className="sin-proc-art-img" src={url} alt={caption || '工具产物插图'} loading="lazy" />
+          : <span className="sin-proc-art-loading" aria-hidden="true" />}
       {caption && <figcaption className="sin-proc-art-cap">{caption}</figcaption>}
     </figure>
   )

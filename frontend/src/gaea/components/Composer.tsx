@@ -222,7 +222,10 @@ export function Composer({
     const converted = tableMode ? applyTableConversion(text, true) : text;
     const tTrim = converted.trim();
     if ((!tTrim && attachments.length === 0) || pendingPaste > 0) return null;
-    const refs = attachments.map((a) => `@${a.path}`).join(" ");
+    // 含空格路径用 @"..." 引号形式（消费端原罪 sin_file_refs 支持引号 token）：
+    // 裸 @token 在第一个空格处截断，"C:\Users\John Doe\a.txt" 这类路径注入后
+    // 静默失效。不含空格的路径保持裸形式（办公/原罪的既有解析口径零变化）。
+    const refs = attachments.map((a) => (/\s/.test(a.path) ? `@"${a.path}"` : `@${a.path}`)).join(" ");
     const displayText = [tTrim, refs].filter(Boolean).join(tTrim && refs ? " " : "");
     const submitText = [paste.expandBlocks(tTrim), refs].filter(Boolean).join(tTrim && refs ? " " : "");
     if (!displayText.trim()) return null;

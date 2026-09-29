@@ -3,8 +3,8 @@
 // 否则导出与重开时插图映射对不上。
 import { describe, expect, it } from 'vitest'
 import {
-  SIN_CUE_CLOSE, SIN_CUE_OPEN, parseCancelled, parseIllustrations, parseReasoning,
-  parseStorySegments, parseTools, pendingIllustrations, sinCueKey,
+  SIN_CUE_CLOSE, SIN_CUE_OPEN, collectIllustrations, parseCancelled, parseIllustrations,
+  parseReasoning, parseStorySegments, parseTools, pendingIllustrations, sinCueKey,
   stripCuesForDisplay, suggestStoryTitle, toToolViews,
 } from './storyText'
 
@@ -85,7 +85,7 @@ describe('parseTools / toToolViews（工具轨迹）', () => {
     const [t] = parseTools(extra)
     expect(t).toEqual({
       id: 'call_1', name: 'web_search', args: '{"query":"唐末长安"}',
-      output: '结果', error: '', elapsed_ms: 1240, read_only: true,
+      output: '结果', error: '', elapsed_ms: 1240, read_only: true, artifacts: [],
     })
     expect(parseTools(JSON.parse(extra))).toHaveLength(1)
   })
@@ -97,7 +97,7 @@ describe('parseTools / toToolViews（工具轨迹）', () => {
     expect(parseTools('{"tools":"nope"}')).toEqual([])
     // 无名条目渲染不出信息 → 丢弃；其余字段缺失按默认值补齐（不编造）。
     expect(parseTools('{"tools":[{"args":"{}"},{"name":"sin_notes"}]}')).toEqual([
-      { id: '', name: 'sin_notes', args: '', output: '', error: '', elapsed_ms: 0, read_only: false },
+      { id: '', name: 'sin_notes', args: '', output: '', error: '', elapsed_ms: 0, read_only: false, artifacts: [] },
     ])
   })
 
@@ -117,5 +117,37 @@ describe('parseTools / toToolViews（工具轨迹）', () => {
     expect(parseCancelled('not json')).toBe(false)
     expect(parseCancelled('')).toBe(false)
     expect(parseCancelled(null)).toBe(false)
+  })
+})
+
+describe('collectIllustrations（画廊）', () => {
+  const msg = (over: Partial<Parameters<typeof collectIllustrations>[0][number]> = {}) => ({
+    key: 'db_1', messageId: 1, content: '', illustrations: {} as Record<string, string>,
+    ...over,
+  })
+
+  it('cue 数值排序：Go map 字典序（"10"<"2"）在画廊归位（≥11 张不再错序）', () => {
+    const ills: Record<string, string> = { '0': '/a/0.png', '10': '/a/10.png', '2': '/a/2.png', tool0: '/a/t0.png' }
+    const items = collectIllustrations([msg({ illustrations: ills })])
+    expect(items.map((i) => i.cue)).toEqual(['0', '2', '10', 'tool0'])
+  })
+
+  it('工具图（toolN）描述从轨迹产物反解：caption 缺省为空串，不显示正文标记描述', () => {
+    const m = msg({
+      content: '@@插图|正文标记描述@@',
+      illustrations: { '0': '/a/0.png', tool0: '/a/t0.png' },
+      tools: [{ id: 'c1', name: 'sin_illustrate', status: 'done' as const, artifacts: [{ kind: 'image', path: '/a/t0.png', caption: '工具画的雨夜' }] }],
+    })
+    const items = collectIllustrations([m])
+    const byCue = new Map(items.map((i) => [i.cue, i.prompt]))
+    expect(byCue.get('0')).toBe('正文标记描述')
+    expect(byCue.get('tool0')).toBe('工具画的雨夜')
+  })
+
+  it('缓存签名失效：插图路径变化后重算（重新生成的回写不被旧缓存吃掉）', () => {
+    const base = msg({ illustrations: { '0': '/a/old.png' } })
+    expect(collectIllustrations([base])[0].path).toBe('/a/old.png')
+    const updated = msg({ illustrations: { '0': '/a/new.png' } })
+    expect(collectIllustrations([updated])[0].path).toBe('/a/new.png')
   })
 })

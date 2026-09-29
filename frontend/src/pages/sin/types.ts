@@ -78,6 +78,8 @@ export interface SinStreamPayload {
   read_only?: boolean
   output?: string
   elapsed_ms?: number
+  /** tool_result 帧携带的工具产物（sin_illustrate 图片；与轨迹 artifacts 同形）。 */
+  artifacts?: SinToolArtifactView[]
   message?: string
   /** done 帧携带的本轮工具轨迹（权威值：覆盖流式累积结果）。 */
   tools?: SinToolTrace[]

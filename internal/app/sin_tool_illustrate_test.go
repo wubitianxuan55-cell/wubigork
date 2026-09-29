@@ -149,7 +149,7 @@ func TestSinPersistToolArtifacts(t *testing.T) {
 	if err := json.Unmarshal([]byte(`[{"id":"c1","name":"sin_illustrate","artifacts":[{"kind":"image","path":"C:/art/x.png","caption":"雨夜"}]}]`), &trace); err != nil {
 		t.Fatalf("trace unmarshal: %v", err)
 	}
-	a.sinPersistToolArtifacts(mid, trace)
+	a.sinPersistToolArtifacts(story.ID, mid, trace)
 	msg, err := a.chatStore.GetMessage(mid)
 	if err != nil {
 		t.Fatalf("GetMessage: %v", err)
@@ -162,5 +162,36 @@ func TestSinPersistToolArtifacts(t *testing.T) {
 	}
 
 	// messageID<=0：不落库不报错
-	a.sinPersistToolArtifacts(0, trace)
+	a.sinPersistToolArtifacts(story.ID, 0, trace)
+}
+
+// TestSinIllustrateToolArtifactsResetPerCall 同一回合同一实例多次调用（「再画
+// 一张」）：每次轨迹只带**本次**产物——历史实现 arts 跨调用累积，第二次调用
+// 的轨迹重复携带第一张，落库回写按 toolN 编 cue 时同一张图占两个键。
+func TestSinIllustrateToolArtifactsResetPerCall(t *testing.T) {
+	fake := &sinRefBackend{}
+	a := newSinRefTestApp(t, "xai", "grok-image", fake)
+	story, err := a.SinTopicCreate("雨夜")
+	if err != nil {
+		t.Fatalf("SinTopicCreate: %v", err)
+	}
+	tool := sinToolByName(a.sinToolSet(story.ID), sinToolIllustrate)
+	p := tool.(sinToolArtifactProvider)
+	if _, err := tool.Execute(context.Background(), json.RawMessage(`{"prompt":"第一张"}`)); err != nil {
+		t.Fatalf("Execute(1): %v", err)
+	}
+	first := p.Artifacts()
+	if len(first) != 1 {
+		t.Fatalf("第一次调用产物 = %d, want 1", len(first))
+	}
+	if _, err := tool.Execute(context.Background(), json.RawMessage(`{"prompt":"第二张"}`)); err != nil {
+		t.Fatalf("Execute(2): %v", err)
+	}
+	second := p.Artifacts()
+	if len(second) != 1 {
+		t.Fatalf("第二次调用产物应只含本次 = %d, want 1（不重复携带第一张）", len(second))
+	}
+	if second[0].Path == first[0].Path {
+		t.Error("两次调用应产出两张不同的图")
+	}
 }

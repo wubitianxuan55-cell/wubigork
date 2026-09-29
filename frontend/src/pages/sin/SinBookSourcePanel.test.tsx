@@ -23,6 +23,7 @@ vi.mock('../../gaea/lib/bridge', async (importOriginal) => {
   }
 })
 
+import { __resetBookDownloadForTest } from './sinBookDownload'
 import { SinBookSourcePanel } from './SinBookSourcePanel'
 import { app } from '../../gaea/lib/bridge'
 import type { NovelBookSourceCandidate, NovelBookSourceTocPreview } from '../../gaea/lib/bridge/novel'
@@ -90,6 +91,7 @@ async function searchAndPick() {
 beforeEach(() => {
   vi.clearAllMocks()
   stubRuntime()
+  __resetBookDownloadForTest() // 模块会话跨测试复位（上一例的在途下载不串场）
   booksList.mockResolvedValue([])
 })
 

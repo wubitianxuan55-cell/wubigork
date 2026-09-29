@@ -30,6 +30,10 @@ const (
 	// sinRefDenoise 参考图 img2img 的重绘幅度：太低会锁死构图（场景出不来），
 	// 太高会丢掉人物特征；0.65 与绘梦 T2 参考槽默认一致。
 	sinRefDenoise = 0.65
+	// sinRefDataURLMaxBytes 参考图转 data URL 的体积上限。无闸整读会把几十 MB
+	// 的原图 base64（约 1.33 倍膨胀）塞进生成请求体，多角色叠加一次请求就能
+	// 上百 MB；超限跳过该参考（refFallback 链兜底纯文本，不整单失败）。
+	sinRefDataURLMaxBytes = 8 * 1024 * 1024
 )
 
 // sinRefPlan 图像后端 × 模型 → 参考槽可用性（纯函数，便于测试矩阵）。
@@ -130,7 +134,8 @@ func sinCharacterRefPath(c *characterlib.Character) string {
 
 // sinRefDataURL 把参考图转成后端可用的 data URL：
 //   - data: 开头原样返回；
-//   - 本地路径读文件转 data URL（与前端 GaeaAttachmentDataURL 同口径）；
+//   - 本地路径读文件转 data URL（与前端 GaeaAttachmentDataURL 同口径），超过
+//     sinRefDataURLMaxBytes 的原样跳过（base64 膨胀进请求体的代价不成比例）；
 //   - 远端 URL 跳过（不额外扩展网络面），文件缺失跳过。
 func sinRefDataURL(path string) (string, bool) {
 	p := strings.TrimSpace(path)
@@ -141,6 +146,13 @@ func sinRefDataURL(path string) (string, bool) {
 		return p, true
 	}
 	if strings.HasPrefix(p, "http://") || strings.HasPrefix(p, "https://") {
+		return "", false
+	}
+	if info, err := os.Stat(p); err != nil {
+		slog.Warn("原罪参考图读取失败（跳过该参考）", "path", p, "error", err)
+		return "", false
+	} else if info.Size() > sinRefDataURLMaxBytes {
+		slog.Warn("原罪参考图超过体积上限（跳过该参考）", "path", p, "size", info.Size(), "limit", sinRefDataURLMaxBytes)
 		return "", false
 	}
 	raw, err := os.ReadFile(p)

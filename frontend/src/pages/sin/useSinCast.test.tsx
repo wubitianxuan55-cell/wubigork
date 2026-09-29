@@ -64,6 +64,37 @@ describe('useSinCast', () => {
     expect(result.current.saving).toBe(false)
   })
 
+  it('保存失败如实返回 {ok:false,message}，不再静默假成功（v4.426）', async () => {
+    bridgeMock.SinCastSet.mockRejectedValue(new Error('写盘失败'))
+    const { result } = renderHook(() => useSinCast('sin_1'))
+    act(() => result.current.ensureLibrary())
+    await waitFor(() => expect(result.current.libraryLoading).toBe(false))
+    let res: { ok: boolean; message: string } | undefined
+    await act(async () => { res = await result.current.saveCast(['c_lin']) })
+    expect(res).toEqual({ ok: false, message: '写盘失败' })
+    expect(result.current.saving).toBe(false)
+  })
+
+  it('保存在途切故事：旧故事的生效清单不回填当前面板（跨故事串写根除，v4.426）', async () => {
+    let resolveSet!: (v: string[]) => void
+    bridgeMock.SinCastSet.mockImplementation(() => new Promise<string[]>((r) => { resolveSet = r }))
+    const { result, rerender } = renderHook(
+      (props: { id: string }) => useSinCast(props.id),
+      { initialProps: { id: 'sin_1' } },
+    )
+    await waitFor(() => expect(bridgeMock.SinCastGet).toHaveBeenCalledWith('sin_1'))
+    let promise!: Promise<{ ok: boolean; message: string }>
+    act(() => { promise = result.current.saveCast(['c_lin']) })
+    await act(async () => { rerender({ id: 'sin_2' }) })
+    await waitFor(() => expect(bridgeMock.SinCastGet).toHaveBeenCalledWith('sin_2'))
+    await act(async () => { resolveSet(['c_lin']) })
+    const res = await promise
+    expect(res.ok).toBe(true) // 保存本身已成功（落的是发起故事 sin_1）
+    // 关键断言：sin_2 的面板状态不被 sin_1 的生效清单污染
+    expect(result.current.castIds).toEqual([])
+    expect(result.current.saving).toBe(false)
+  })
+
   it('库中缺失的选择不进视图（视图侧过滤，后端返回什么就展示什么）', async () => {
     bridgeMock.SinCastGet.mockResolvedValue(['c_lin', 'c_removed'])
     const { result } = renderHook(() => useSinCast('sin_2'))

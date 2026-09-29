@@ -6,7 +6,7 @@
 // 便签/大纲）。写路径（v4.266）：SinNotesSave 整包写回，锁内基线比对防他端
 // 覆盖（冲突返回 conflict=true，调用方确认后 force 重试）。
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { app } from '../../gaea/lib/bridge'
 
 export interface SinNotesDoc {
@@ -41,6 +41,9 @@ export function useSinNotes(activeId: string): UseSinNotesResult {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [tick, setTick] = useState(0)
+  // 最新 activeId（save 回填归属校验用：闭包里的 activeId 是发起时的故事）
+  const activeIdRef = useRef(activeId)
+  activeIdRef.current = activeId
 
   useEffect(() => {
     let live = true
@@ -71,14 +74,21 @@ export function useSinNotes(activeId: string): UseSinNotesResult {
   const reload = useCallback(() => setTick((n) => n + 1), [])
 
   const save = useCallback(async (baseline: SinNotesDoc, outline: string, notes: string[], force: boolean) => {
+    const storyId = activeId
     try {
       const res = await app.SinNotesSave(
-        activeId,
+        storyId,
         JSON.stringify({ notes: baseline.notes, outline: baseline.outline }),
         outline,
         JSON.stringify(notes),
         force,
       )
+      // 归属校验（v4.426）：保存期间切了故事就不再回填——读路径 effect 有 live
+      // 守卫，写路径回填历史实现绕过了它，B 故事的面板会显示 A 故事的底稿。
+      // 保存本身已成功（落的是发起故事），照实返回 ok。
+      if (activeIdRef.current !== storyId) {
+        return { ok: true, conflict: false, message: '' }
+      }
       const nextNotes = Array.isArray(res?.notes)
         ? (res.notes as unknown[]).filter((n): n is string => typeof n === 'string')
         : []

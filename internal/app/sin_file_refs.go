@@ -19,7 +19,9 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -38,8 +40,10 @@ const (
 	sinFileRefBinaryScan = 8 * 1024
 )
 
-// sinRefTokenRe @引用 token：@ + 非空白串（与办公 refTokenRe 同形）。
-var sinRefTokenRe = regexp.MustCompile(`@([^\s]+)`)
+// sinRefTokenRe @引用 token：@ + 非空白串，或 @"带引号路径"（含空格的
+// Windows 路径——Composer 对含空格路径注入 @"..." 形式；裸 @token 在第一个
+// 空格处截断，历史实现在这类路径上静默失效且不报错）。
+var sinRefTokenRe = regexp.MustCompile(`@"([^"]+)"|@([^\s]+)`)
 
 // sinVisionRecognize 识图入口（可注入以便测试）。
 var sinVisionRecognize = vision.RecognizeImage
@@ -82,12 +86,21 @@ func sinFileRefBlock(ctx context.Context, line string) (string, []string) {
 	return b.String(), errs
 }
 
-// sinRefTokens 提取去重、去尾标的 @token（与办公 parseRefTokens 同语义）。
+// sinRefTokens 提取去重、去尾标的 @token（与办公 parseRefTokens 同语义；
+// 引号形式取引号内原文，不做尾标剔除——引号本身就是边界）。
 func sinRefTokens(line string) []string {
 	var toks []string
 	seen := map[string]bool{}
 	for _, g := range sinRefTokenRe.FindAllStringSubmatch(line, -1) {
-		t := strings.TrimRight(g[1], ".,;!?)]}")
+		quoted, bare := g[1], g[2]
+		if quoted != "" {
+			if !seen[quoted] {
+				seen[quoted] = true
+				toks = append(toks, quoted)
+			}
+			continue
+		}
+		t := strings.TrimRight(bare, ".,;!?)]}")
 		if t == "" || seen[t] {
 			continue
 		}
@@ -105,11 +118,16 @@ func sinReadFileRef(path string) (string, error) {
 	}
 	defer func() { _ = f.Close() }()
 	buf := make([]byte, sinFileRefMaxBytes+1)
-	n, err := f.Read(buf)
+	// io.ReadFull 读满：单次 f.Read 允许短读（历史实现大文件只注入半截且无
+	// 截断标记）；EOF 且零字节 = 空文件，按空内容处理（不当读取失败报）。
+	n, err := io.ReadFull(f, buf)
 	if err != nil && n == 0 {
+		if errors.Is(err, io.EOF) {
+			return "", nil
+		}
 		return "", err
 	}
-	content := string(buf[:n])
+	content := sinTrimPartialUTF8(buf[:n])
 	head := buf[:n]
 	if len(head) > sinFileRefBinaryScan {
 		head = head[:sinFileRefBinaryScan]
@@ -118,15 +136,56 @@ func sinReadFileRef(path string) (string, error) {
 		return "[二进制文件，不注入内容]", nil
 	}
 	if n > sinFileRefMaxBytes {
-		// 字节上限回退到 rune 边界再切（v4.422：硬切会把多字节字符劈成
-		// 半个，模型看到的是乱码尾巴）。
-		cut := sinFileRefMaxBytes
-		for cut > 0 && buf[cut]&0xC0 == 0x80 {
-			cut--
-		}
-		content = string(buf[:cut]) + "\n\n[已截断：仅注入前 64KB]"
+		content = append(content, []byte("\n\n[已截断：仅注入前 64KB]")...)
 	}
-	return content, nil
+	return string(content), nil
+}
+
+// sinTrimPartialUTF8 把字节切片尾部不完整的多字节字符削掉（截断在字节边界
+// 时防止半个 UTF-8 序列变成乱码尾巴；完整序列原样保留）。
+func sinTrimPartialUTF8(b []byte) []byte {
+	for i := 0; i < 3 && len(b) > 0; i++ {
+		last := b[len(b)-1]
+		if last < 0x80 {
+			break // ASCII 尾字节：完整
+		}
+		// 从尾往前找本字符的首字节，核对期望长度
+		start := len(b) - 1
+		for start > 0 && b[start]&0xC0 == 0x80 {
+			start--
+		}
+		if first := b[start]; first&0xC0 == 0xC0 {
+			expect := 0
+			switch {
+			case first&0xE0 == 0xC0:
+				expect = 2
+			case first&0xF0 == 0xE0:
+				expect = 3
+			case first&0xF8 == 0xF0:
+				expect = 4
+			default:
+				return b[:start] // 非法首字节：削掉
+			}
+			if len(b)-start < expect {
+				b = b[:start]
+				continue
+			}
+		}
+		break
+	}
+	return b
+}
+
+// sinImageRefCount 统计 line 里形如图片扩展名的 @引用数（识图等待提示用；
+// 只按扩展名计，存在性判定仍由 sinFileRefBlock 逐个做）。
+func sinImageRefCount(line string) int {
+	n := 0
+	for _, tok := range sinRefTokens(line) {
+		if sinIsImagePath(tok) {
+			n++
+		}
+	}
+	return n
 }
 
 // sinIsImagePath 按扩展名判断图片文件（与办公 isImagePath 同表）。

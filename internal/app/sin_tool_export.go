@@ -140,6 +140,8 @@ func sinExportFileName(raw, topicID string, now time.Time) (string, error) {
 	if cleaned == "" {
 		return "", fmt.Errorf("文件名不合法（净化后为空），换一个名字或留空用默认名")
 	}
+	// Windows 保留设备名避让（stem=CON 一类会打到 DOS 设备而非磁盘）
+	cleaned = sanitizeFileNameStem(cleaned)
 	return truncateRunes(cleaned, sinExportNameMaxRunes), nil
 }
 
@@ -158,13 +160,11 @@ func sinExportUniquePath(dir, base, ext string) (string, error) {
 	return "", fmt.Errorf("导出目录里同名文件太多（%s-2 ~ %s-99 已存在），换一个名字", base, base)
 }
 
-// sinWriteFileAtomic 原子写文件（临时文件 + rename，与原罪便签同一纪律）。
+// sinWriteFileAtomic 原子写文件。委托 fileutil.AtomicWrite（CreateTemp 唯一临时
+// 名 + 失败清理）：历史实现用固定 `path+".tmp"`，双开壳并发保存同一文件时
+// 两边互踩同一个临时文件（先 rename 的拿到对方的字节），残渣还会留在导出目录。
 func sinWriteFileAtomic(path string, data []byte) error {
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, data, 0o644); err != nil {
-		return fmt.Errorf("写入导出文件失败: %w", err)
-	}
-	if err := fileutil.RenameWithRetry(tmp, path); err != nil {
+	if err := fileutil.AtomicWrite(path, data, 0o644); err != nil {
 		return fmt.Errorf("保存导出文件失败: %w", err)
 	}
 	return nil

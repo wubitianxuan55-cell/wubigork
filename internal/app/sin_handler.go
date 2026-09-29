@@ -284,7 +284,18 @@ func (a *App) runSinStream(runID, topicID, userMessage, eng, model, source strin
 	// 附件 @引用展开（@路径 → 本轮可读内容块）：Composer 提交的附件只带路径
 	// 文本，模型没有文件工具、读不到本地盘——不展开就等于「原罪无法访问附件」。
 	// 引用块只进本轮提示，消息落库仍是 @路径 原文（历史不膨胀，与办公同口径）。
-	if refBlock, refErrs := sinFileRefBlock(runCtx, userMessage); refBlock != "" {
+	// 图片附件逐张识图（每张至多 90s，串行）都在首帧 delta 之前——先给一句
+	// 提示再展开，解析完即清，Composer 不至于干转几分钟。
+	if n := sinImageRefCount(userMessage); n > 0 {
+		a.emit("sin-stream:"+runID, map[string]interface{}{
+			"type": "notice", "message": fmt.Sprintf("正在解析 %d 个图片附件（每张数秒到数十秒），请稍候…", n),
+		})
+	}
+	refBlock, refErrs := sinFileRefBlock(runCtx, userMessage)
+	if sinImageRefCount(userMessage) > 0 {
+		a.emit("sin-stream:"+runID, map[string]interface{}{"type": "notice", "message": ""})
+	}
+	if refBlock != "" {
 		userPrompt += "\n\n" + refBlock
 		for _, e := range refErrs {
 			slog.Warn("原罪附件引用解析失败", "topicID", topicID, "detail", e)
@@ -335,9 +346,11 @@ func (a *App) runSinStream(runID, topicID, userMessage, eng, model, source strin
 			reply.WriteString(res.content)
 			reasoning.WriteString(res.reasoning)
 			switch {
-			case roundSchemas != nil && len(trace) == 0 && reply.Len() == 0 && res.content == "":
-				// 首轮带工具直接失败（模型/端点不支持 tools）→ 去掉工具重试一次，
-				// 并如实告知。工具是增强不是前置条件：不支持工具不该让写作整单失败。
+			case roundSchemas != nil && len(trace) == 0 && reply.Len() == 0 && res.content == "" && sinErrSuggestsNoTools(err):
+				// 首轮带工具直接失败且错误指向「工具不被支持」（400/invalid tools 等）
+				// → 去掉工具重试一次，并如实告知。工具是增强不是前置条件：不支持工具
+				// 不该让写作整单失败。断网/401/超时等无关错误不再误判成这句假话
+				//（历史实现只看「首轮+零内容」，任何错误都会关掉工具并谎报归因）。
 				useTools = false
 				a.emit("sin-stream:"+runID, map[string]interface{}{
 					"type": "notice", "message": "当前模型不支持工具调用，已按纯写作继续",
@@ -350,6 +363,12 @@ func (a *App) runSinStream(runID, topicID, userMessage, eng, model, source strin
 				})
 			default:
 				a.emit("sin-stream:"+runID, map[string]interface{}{"type": "error", "error": err.Error()})
+				// 整轮失败也要把用户指令落库（镜像零正文取消的口径）：不然这轮
+				// 指令只活在内存里，刷新即消失；且失败前工具可能已写过底稿，
+				// 没有任何消息记录这轮轨迹就是状态单向漂移。
+				if _, err := a.chatStore.AppendMessage(topicID, "user", userMessage, ""); err != nil {
+					slog.Error("原罪故事落库失败（失败轮仅用户消息）", "runID", runID, "topicID", topicID, "error", err)
+				}
 				return
 			}
 			break
@@ -365,7 +384,20 @@ func (a *App) runSinStream(runID, topicID, userMessage, eng, model, source strin
 		if finalize {
 			// 收尾轮本就不带 tools，若仍冒出工具调用：没有下一轮消费结果了——
 			// 不执行、不空转；这一轮没有正文时允许兜底轮再试一次（上限 +1）。
+			// 但不能静默：调用如实下发 dispatch/result 帧（错误态），且 assistant
+			// 回合与未执行的 tool 结果照协议接回上下文——下一轮模型看得见自己刚
+			// 说过什么，不再从同一条收尾令从零重写（正文重复的根因）。
 			slog.Warn("sin 收尾轮仍收到工具调用，忽略并要求收尾", "runID", runID, "calls", len(res.calls))
+			messages = append(messages, ai.ChatMessage{Role: "assistant", Content: res.content, ToolCalls: res.calls})
+			for _, call := range res.calls {
+				tr := sinToolTrace{ID: call.ID, Name: call.Function.Name, Error: "工具阶段已结束，本次调用未执行"}
+				a.emit("sin-stream:"+runID, sinToolDispatchFrame(tr))
+				a.emit("sin-stream:"+runID, sinToolResultFrame(tr))
+				messages = append(messages, ai.ChatMessage{
+					Role: "tool", ToolCallID: call.ID, Name: call.Function.Name,
+					Content: "（收尾轮：工具已停用，未执行。请直接输出这一轮的故事正文。）",
+				})
+			}
 			continue
 		}
 		// 工具轮：assistant(tool_calls) + 逐条 tool 结果接回消息数组后继续下一轮。
@@ -384,6 +416,10 @@ func (a *App) runSinStream(runID, topicID, userMessage, eng, model, source strin
 		a.emit("sin-stream:"+runID, map[string]interface{}{
 			"type": "error", "error": "模型没有返回内容，请重试",
 		})
+		// 与失败轮同口径：用户指令照常落库，重开故事不留「说过的话凭空消失」。
+		if _, err := a.chatStore.AppendMessage(topicID, "user", userMessage, ""); err != nil {
+			slog.Error("原罪故事落库失败（空回复仅用户消息）", "runID", runID, "topicID", topicID, "error", err)
+		}
 		return
 	}
 
@@ -446,7 +482,7 @@ func (a *App) runSinStream(runID, topicID, userMessage, eng, model, source strin
 	// 工具插图产物回写（v4.270）：本轮落库后把 sin_illustrate 的产物按
 	// tool0..toolN 写进 extra.illustrations——画廊/导出与正文标记图同一存储。
 	// cue 用 toolN 前缀：正文标记的 cue 是数字键，避免同键互踩。
-	a.sinPersistToolArtifacts(messageID, trace)
+	a.sinPersistToolArtifacts(topicID, messageID, trace)
 
 	costCNY := 0.0
 	if usage != nil {
@@ -596,7 +632,7 @@ func (a *App) SinIllustrate(topicID string, messageID int64, cue string, prompt 
 
 	persisted := false
 	if messageID > 0 && cue != "" {
-		if err := a.sinAttachIllustration(messageID, cue, path); err != nil {
+		if err := a.sinAttachIllustration(topicID, messageID, cue, path); err != nil {
 			slog.Warn("原罪插图回写失败（图片已生成）", "messageID", messageID, "error", err)
 		} else {
 			persisted = true
@@ -620,13 +656,18 @@ func (a *App) SinIllustrate(topicID string, messageID int64, cue string, prompt 
 
 // sinAttachIllustration 把 (cue → path) 并入指定消息 extra.illustrations。
 // 已有映射保留（多张插图逐张追加），其他 extra 字段（reasoning 等）不动。
-func (a *App) sinAttachIllustration(messageID int64, cue, path string) error {
+// topicID 归属校验 fail-closed：messageID 必须属于本话题——前端状态错位/双开
+// 壳时，陈旧的 messageID 不能把图片写进别的故事（甚至聊天板块）的消息 extra。
+func (a *App) sinAttachIllustration(topicID string, messageID int64, cue, path string) error {
 	if a.chatStore == nil {
 		return fmt.Errorf("chat store 未初始化")
 	}
 	msg, err := a.chatStore.GetMessage(messageID)
 	if err != nil {
 		return err
+	}
+	if msg.TopicID != topicID {
+		return fmt.Errorf("消息 %d 不属于故事 %s，拒绝回写", messageID, topicID)
 	}
 	extra := map[string]interface{}{}
 	if raw := strings.TrimSpace(msg.Extra); raw != "" {
@@ -677,6 +718,15 @@ func (a *App) SinExportMarkdown(topicID string) (string, error) {
 			continue
 		}
 		b.WriteString(renderSinStoryMarkdown(m.Content, arts))
+		// 工具产物附录（sin_illustrate 不在正文标记里，正文渲染摸不到）：
+		// 按调用序补图片行，caption 作替代文本——工具图不再从导出里消失。
+		for _, art := range sinToolArtifactsFromExtra(m.Extra) {
+			cap := strings.TrimSpace(art.Caption)
+			if cap == "" {
+				cap = "插图"
+			}
+			b.WriteString("\n![" + cap + "](" + art.Path + ")\n")
+		}
 		b.WriteString("\n---\n\n")
 	}
 	return b.String(), nil
@@ -698,6 +748,27 @@ func sinIllustrationMap(extra string) map[string]string {
 		if s, ok := v.(string); ok && s != "" {
 			out[k] = s
 		}
+	}
+	return out
+}
+
+// sinToolArtifactsFromExtra 从消息 extra.tools 轨迹取出图片产物（顺序=调用序）。
+// sin_illustrate 的产物不在正文标记里，正文渲染摸不到它们——导出（MD/EPUB）
+// 按调用序附录，caption 作替代文本；无轨迹/坏 JSON 返回空。
+func sinToolArtifactsFromExtra(extra string) []sinToolArtifact {
+	raw := strings.TrimSpace(extra)
+	if raw == "" {
+		return nil
+	}
+	var m struct {
+		Tools []sinToolTrace `json:"tools"`
+	}
+	if err := json.Unmarshal([]byte(raw), &m); err != nil {
+		return nil
+	}
+	var out []sinToolArtifact
+	for _, tr := range m.Tools {
+		out = append(out, tr.Artifacts...)
 	}
 	return out
 }

@@ -108,12 +108,9 @@ func sinDownloadBook(ctx context.Context, rulesDir, booksDir string, p bookImpor
 	}
 	path := sinUniqueBookPath(booksDir, title)
 	// 原子写（v4.422，与便签/导出同一纪律）：崩溃不留半截 TXT 进成书清单。
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, raw, 0o644); err != nil {
-		return SinBookSourceDownloadResult{}, fmt.Errorf("写成书文件失败: %w", err)
-	}
-	if err := fileutil.RenameWithRetry(tmp, path); err != nil {
-		_ = os.Remove(tmp)
+	// v4.426 换 fileutil.AtomicWrite（CreateTemp 唯一临时名）——固定名 .tmp 在
+	// 双开壳并发下载同一本书时互踩，失败路径还会在 books 目录留残渣。
+	if err := fileutil.AtomicWrite(path, raw, 0o644); err != nil {
 		return SinBookSourceDownloadResult{}, fmt.Errorf("保存成书文件失败: %w", err)
 	}
 	words := 0
@@ -264,9 +261,21 @@ func sinBookExportEpubAt(dir, path string) (string, error) {
 		}
 	}
 	epubPath := strings.TrimSuffix(absPath, ".txt") + ".epub"
-	if err := book.Write(epubPath); err != nil {
-		_ = os.Remove(epubPath) // 半截产物不落第
+	// 先写唯一临时文件再 rename（go-epub 内部是 os.Create 直写）：导出中途
+	// 崩溃/断电不再留半截 .epub，双客户端并发导出同一本书也不再双写同一路径。
+	tmp, err := os.CreateTemp(filepath.Dir(epubPath), filepath.Base(epubPath)+".*.tmp")
+	if err != nil {
+		return "", fmt.Errorf("创建临时文件失败: %w", err)
+	}
+	tmpPath := tmp.Name()
+	_ = tmp.Close()
+	if err := book.Write(tmpPath); err != nil {
+		_ = os.Remove(tmpPath)
 		return "", fmt.Errorf("写出 EPUB 失败: %w", err)
+	}
+	if err := fileutil.RenameWithRetry(tmpPath, epubPath); err != nil {
+		_ = os.Remove(tmpPath)
+		return "", fmt.Errorf("保存 EPUB 失败: %w", err)
 	}
 	return epubPath, nil
 }

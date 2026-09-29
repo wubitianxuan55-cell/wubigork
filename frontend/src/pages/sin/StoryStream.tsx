@@ -65,7 +65,7 @@ const SinAssistantRow = memo(function SinAssistantRow({
             />
           )
         ))}
-        {m.streaming && <span className="sin-caret" aria-label="正在续写" />}
+        {m.streaming && <span className="sin-caret" aria-hidden="true" />}
         {!m.streaming && m.cancelled && <span className="sin-stopped">已手动停止 · 内容不完整</span>}
       </div>
     </div>

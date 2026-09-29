@@ -128,9 +128,12 @@ func (e *Engine) nextChapterPage(doc *goquery.Document, cur string) (string, boo
 // DownloadOptions 下载编排选项。
 type DownloadOptions struct {
 	Start, End int // 1 起闭区间；0 = 全本（透传 Toc）
-	// OnProgress 每完成一章回调（done/total，done=成功数）；可为 nil。
-	// 串行发射（v4.338 后非版本刀根修）：done 非降、末次=成功总数，
+	// OnProgress 每处理完一章回调（done/total，done=已处理数=成功+失败）；
+	// 可为 nil。串行发射（v4.338 后非版本刀根修）：done 非降、末次=total，
 	// 并发 worker 不会同时进入回调——消费方无需自带同步，回调应保持轻量。
+	// v4.426 语义修正：v4.422 前口径是「成功数」，有失败章时末次到不了 total，
+	// 前端进度条会卡在 N-1 后瞬跳完成，观感像中断；失败明细仍由 Failed 清单
+	// 单独回传，进度语义回归「已处理/总数」。
 	OnProgress func(done, total int)
 }
 
@@ -171,13 +174,13 @@ func (e *Engine) fetchChapters(ctx context.Context, toc []TocEntry, opt Download
 	errs := e.runBounded(ctx, len(toc), e.cfg.Concurrency, func(i int) error {
 		ch, err := e.Chapter(ctx, toc[i])
 		if err == nil {
-			mu.Lock()
-			doneCnt++
-			mu.Unlock()
 			slots[i] = &ch
 		}
+		mu.Lock()
+		doneCnt++ // 已处理数（成功+失败）：进度条末次必须到 total，失败明细走 Failed 清单
+		mu.Unlock()
 		if opt.OnProgress != nil {
-			// 发射互斥下现读计数：回调序列非降、末次=成功总数；且并发
+			// 发射互斥下现读计数：回调序列非降、末次=total（已处理数）；且并发
 			// worker 不同时进入回调，消费方免同步。
 			emitMu.Lock()
 			mu.Lock()

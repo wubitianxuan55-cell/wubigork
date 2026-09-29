@@ -135,11 +135,9 @@ func saveSinNotes(path string, doc sinNotesDoc) error {
 	if err != nil {
 		return err
 	}
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, b, 0o644); err != nil {
-		return fmt.Errorf("写入故事便签失败: %w", err)
-	}
-	if err := fileutil.RenameWithRetry(tmp, path); err != nil {
+	// fileutil.AtomicWrite（CreateTemp 唯一临时名）：固定 `path+".tmp"` 在双开壳
+	// 并发保存同一故事时互踩同一个临时文件，rename 后落盘的是对方的字节。
+	if err := fileutil.AtomicWrite(path, b, 0o644); err != nil {
 		return fmt.Errorf("保存故事便签失败: %w", err)
 	}
 	return nil

@@ -729,8 +729,9 @@ func TestDownloadSkipsFailedKeepsOrder(t *testing.T) {
 	if len(report.Failed) != 2 || report.Failed[0].Title != "第二章 施展" || report.Failed[1].Title != "第三章 空章" {
 		t.Fatalf("失败章应如实上报: %+v", report.Failed)
 	}
-	if lastDone != 1 || lastTotal != 3 {
-		t.Fatalf("进度回调应到 (1,3): (%d,%d)", lastDone, lastTotal)
+	// v4.426 进度语义=已处理数（成功+失败）：末次必须到 total，失败明细走 Failed。
+	if lastDone != 3 || lastTotal != 3 {
+		t.Fatalf("进度回调应到 (3,3): (%d,%d)", lastDone, lastTotal)
 	}
 }
 
@@ -860,9 +861,10 @@ func TestDownloadChaptersExplicitList(t *testing.T) {
 	if len(rep.Failed) != 1 || !strings.HasSuffix(rep.Failed[0].URL, "/ch/3") {
 		t.Fatalf("空正文章应进 Failed: %+v", rep.Failed)
 	}
-	// 进度 done=成功数（失败章不计），3 章取回 2 → 终点 2/3；终态由 done 事件兜底。
-	if len(prog) == 0 || prog[len(prog)-1] != "2/3" {
-		t.Fatalf("进度回调应到 2/3: %v", prog)
+	// 进度 done=已处理数（成功+失败，v4.426 语义修正）：3 章处理完 → 终点 3/3，
+	// 有失败章也不再卡在 N-1；失败明细由 Failed 断言覆盖。
+	if len(prog) == 0 || prog[len(prog)-1] != "3/3" {
+		t.Fatalf("进度回调应到 3/3: %v", prog)
 	}
 
 	if _, err := e.DownloadChapters(context.Background(), nil, DownloadOptions{}); err == nil {

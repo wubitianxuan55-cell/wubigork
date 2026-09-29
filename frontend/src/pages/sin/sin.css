@@ -767,6 +767,9 @@
 .sin-proc-art-img { width: 100%; border-radius: 8px; border: 1px solid var(--border-soft); display: block; background: var(--bg-elev, var(--bg-soft)); }
 .sin-proc-art-missing { font-size: 10.5px; color: var(--fg-faint); }
 .sin-proc-art-cap { font-size: 10.5px; color: var(--fg-faint); line-height: 1.5; }
+/* 读取中占位（v4.426）：固定最小高度防布局跳动 */
+.sin-proc-art.is-loading { min-height: 56px; }
+.sin-proc-art-loading { display: block; width: 100%; min-height: 56px; border-radius: 8px; border: 1px dashed var(--border-soft); background: var(--bg-elev, var(--bg-soft)); }
 
 /* ── 书源页签（sin 书源线 t3）：搜书 → 候选 → 目录预览 → 进度 → 成书清单 ── */
 .sin-bs { display: flex; flex-direction: column; gap: 10px; }
