@@ -6,8 +6,6 @@ import (
 	"log/slog"
 	"strings"
 
-	"github.com/gaea/gaea/internal/ai"
-	"github.com/gaea/gaea/internal/novelcontext"
 	"github.com/gaea/gaea/internal/novelstyle"
 	"github.com/gaea/gaea/internal/project"
 	"github.com/gaea/gaea/internal/types"
@@ -130,59 +128,26 @@ func (a *writingState) CreateScene(chapterNum int, slug string, title string) (m
 
 // GenerateScene 用 novelcontext 场景圣经，为指定场景生成正文并落盘。
 // 非流式（返回完整正文 + AI 味分 + 去味报告）；minWords<=0 用默认 800。
+// GenerateScene 用 novelcontext 场景圣经，为指定场景生成正文并落盘。
+// 非流式（返回完整正文 + AI 味分 + 去味报告）；minWords<=0 用默认 800。
+// 长篇刀2起：场景卡字段（Goal/Conflict/Turn/Outcome/Sequel/ExitHook）非空时
+// 注入 prompt 作工艺约束，并注入上一场的衔接（Outcome/ExitHook）；无卡场景
+// prompt 与旧版逐字节一致（零回归）。手动路径不上卡闸（兼容既有流；整章
+// 逐场景流才闸——NovelChapterScenesGenerate）。
 func (a *writingState) GenerateScene(chapterNum int, sceneID string, plotReq string, minWords int) (map[string]interface{}, error) {
 	pm := a.getPM()
 	if pm == nil {
 		return nil, fmt.Errorf("请先打开项目")
 	}
-	if a.client == nil {
-		return nil, fmt.Errorf("AI client not ready")
-	}
 	sm := pm.SceneManager(chapterNum)
-	scene, err := sm.Read(sceneID)
+	prev := scenePrevMeta(sm, sceneID)
+	scene, deslop, err := a.generateSceneCore(context.Background(), pm, chapterNum, sceneID, plotReq, minWords, prev, "")
 	if err != nil {
-		return nil, fmt.Errorf("读取场景失败: %w", err)
+		return nil, err
 	}
-	if minWords <= 0 {
-		minWords = 800
-	}
+	content := scene.Content
 
-	// 编译 POV 感知场景圣经（失败静默降级，不阻断生成）。
-	bible := ""
-	if b, berr := novelcontext.CompileSceneBible(pm, chapterNum, scene); berr == nil && b != nil {
-		bible = b.Render(ctxSceneBibleBudget)
-	}
-
-	eng, model, _ := a.routeModel("novel")
-	if model == "" {
-		return nil, fmt.Errorf("未找到可用模型（可能离线）")
-	}
-
-	system := "你是正在写这本书的作者。用场景和动作说话，不解释，不煽情，让读者感受到发生了什么。" +
-		"严格遵守角色与领域设定，不 OOC，不提前揭穿伏笔。"
-	user := fmt.Sprintf("请写出本场景正文，直接开始，不要前言、标题或元信息，不少于%d字。\n\n场景：%s\n章节号：%d\n剧情要求：%s\n\n%s",
-		minWords, scene.Meta.Title, chapterNum, plotReq, bible)
-
-	reply, err := a.client.ChatSimpleStreamWithOptions(context.Background(), model, system, user, ai.ChatSimpleOptions{
-		EngineID: eng, Feature: "novel", Temperature: 0.8, MaxTokens: 4096,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("场景生成失败: %w", err)
-	}
-
-	content := strings.TrimSpace(reply)
-	var deslop *novelstyle.RewriteReport
 	var outlineWarning string
-	if rx, rep, derr := novelstyle.DeSlopRewrite(content, nil); derr == nil && rep != nil && rep.AfterScore < rep.BeforeScore && rx != "" {
-		content = rx
-		deslop = rep
-	}
-
-	scene.Content = content
-	if err := sm.Write(scene); err != nil {
-		return nil, fmt.Errorf("保存场景失败: %w", err)
-	}
-	syncBlobFromScenes(pm, chapterNum)
 	if err := a.markOutlineDone(pm, chapterNum, ""); err != nil {
 		// 场景已落盘，大纲标记失败不回滚正文——但必须如实带出（N8 同型：
 		// 原 `_ =` 吞错，作者以为本章已标完成，大纲面板却还是「未写」）。
@@ -224,6 +189,15 @@ func sceneToMap(s *types.Scene) map[string]interface{} {
 		"wordCount": s.Meta.WordCount,
 		"order":     s.Meta.Order,
 		"content":   s.Content,
+
+		// 场景卡创作学字段（长篇刀2；omitempty 语义——空值输出空串保持键在，
+		// 前端窄化统一按 string 收）
+		"goal":      s.Meta.Goal,
+		"conflict":  s.Meta.Conflict,
+		"turn":      s.Meta.Turn,
+		"outcome":   s.Meta.Outcome,
+		"sequel":    s.Meta.Sequel,
+		"exit_hook": s.Meta.ExitHook,
 	}
 }
 

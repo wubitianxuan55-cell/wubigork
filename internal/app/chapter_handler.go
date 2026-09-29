@@ -430,6 +430,16 @@ func (a *writingState) SaveSceneMeta(chapterNum int, sceneID string, metaJSON st
 		Emotion   string   `json:"emotion"`
 		Tags      []string `json:"tags"`
 		Status    string   `json:"status"`
+
+		// 场景卡创作学字段（长篇刀2）：指针区分「未传」（nil=保留旧值，旧
+		// 客户端/其他调用方不抹卡）与「传空串」（=清除该字段，编辑面所见
+		// 即所存）。
+		Goal     *string `json:"goal"`
+		Conflict *string `json:"conflict"`
+		Turn     *string `json:"turn"`
+		Outcome  *string `json:"outcome"`
+		Sequel   *string `json:"sequel"`
+		ExitHook *string `json:"exit_hook"`
 	}
 	if err := json.Unmarshal([]byte(metaJSON), &patch); err != nil {
 		return fmt.Errorf("元数据解析失败: %w", err)
@@ -456,6 +466,25 @@ func (a *writingState) SaveSceneMeta(chapterNum int, sceneID string, metaJSON st
 	}
 	if patch.Status != "" {
 		scene.Meta.Status = types.SceneStatus(patch.Status)
+	}
+	// 场景卡六字段（刀2）：传了才覆盖（含传空=清除）；未传保留
+	if patch.Goal != nil {
+		scene.Meta.Goal = strings.TrimSpace(*patch.Goal)
+	}
+	if patch.Conflict != nil {
+		scene.Meta.Conflict = strings.TrimSpace(*patch.Conflict)
+	}
+	if patch.Turn != nil {
+		scene.Meta.Turn = strings.TrimSpace(*patch.Turn)
+	}
+	if patch.Outcome != nil {
+		scene.Meta.Outcome = strings.TrimSpace(*patch.Outcome)
+	}
+	if patch.Sequel != nil {
+		scene.Meta.Sequel = strings.TrimSpace(*patch.Sequel)
+	}
+	if patch.ExitHook != nil {
+		scene.Meta.ExitHook = strings.TrimSpace(*patch.ExitHook)
 	}
 	return sm.Write(scene)
 }

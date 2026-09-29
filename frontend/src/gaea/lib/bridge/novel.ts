@@ -401,6 +401,13 @@ export interface NovelBindings {
   GetChapterScenes(chapterNum: number): Promise<Array<Record<string, unknown>>>;
   GenerateScene(chapterNum: number, sceneID: string, plotReq: string, minWords: number): Promise<Record<string, unknown>>;
   CreateScene(chapterNum: number, slug: string, title: string): Promise<Record<string, unknown>>;
+  // ── 长篇刀2：场景卡与场景级生成（Go scene_cards_handler.go）──
+  // 整章按场景卡逐场景生成（scene-gen-stream 流事件；卡缺目标/冲突写前闸可显式跳过）。
+  NovelChapterScenesGenerate(chapterNum: number, allowMissingCard: boolean): Promise<Record<string, unknown>>;
+  // 单场景 whole 重写（他场不动；版本库 mode=scene 留痕）。
+  NovelSceneRewrite(chapterNum: number, sceneID: string, instruction: string): Promise<Record<string, unknown>>;
+  // AI 拆场景卡骨架（提案不落盘，确认后走 CreateScene+SaveSceneMeta 落卡）。
+  NovelSceneCardsPropose(chapterNum: number): Promise<Array<Record<string, unknown>>>;
   // SaveSceneMeta 保存场景元数据（标题/概要/POV/地点/时间/情感/标签/状态；正文走 SaveScene）。
   SaveSceneMeta(chapterNum: number, sceneID: string, metaJSON: string): Promise<void>;
   CancelCreateChapter(chapterNum: number, branch: string): Promise<boolean>;

@@ -236,6 +236,10 @@ export const GAEA_METHOD_FACETS = {
   SaveCharactersBatch: "play",
   NovelReadingAsk: "play",
   GenerateSceneIllustration: "play",
+  // 长篇刀2：场景卡与场景级生成（NovelB 门面）。
+  NovelChapterScenesGenerate: "play",
+  NovelSceneRewrite: "play",
+  NovelSceneCardsPropose: "play",
   // 批次二：语音对话文本入口（VoiceB 门面），轻语/语音聊天 play 数据面。
   VoiceChatText: "play",
   // 批次二：绘梦后端配置（SetImageBackend），同 GetImageBackendInfo/

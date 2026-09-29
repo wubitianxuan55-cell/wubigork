@@ -1,10 +1,11 @@
 import React, { useRef, useState } from 'react'
-import { Button, Space, Tag, Input, Select, Modal, Typography, message } from 'antd'
+import { Button, Space, Tag, Input, Select, Modal, Typography, Spin, message } from 'antd'
 import { ArrowUpOutlined, ArrowDownOutlined, PlusOutlined, DeleteOutlined, EditOutlined, ColumnWidthOutlined, RedoOutlined, ThunderboltOutlined, InfoCircleOutlined, EyeOutlined } from '@ant-design/icons'
-import { GetChapterScenes, GenerateScene, CreateScene, SaveSceneMeta, ReorderScenes } from '../../../wailsjs/go/app/NovelB'
+import { GetChapterScenes, GenerateScene, CreateScene, SaveSceneMeta, ReorderScenes, NovelChapterScenesGenerate, NovelSceneRewrite, NovelSceneCardsPropose } from '../../../wailsjs/go/app/NovelB'
 import SceneBibleDrawer from './SceneBibleDrawer'
 import { getCharacters } from './api/character'
 import type { ChapterTabData } from '../../types'
+import { subscribeWailsEvent } from '../../gaea/lib/wailsEvents'
 import GhostText from './editor/GhostText'
 import CommandBar from './editor/CommandBar'
 import { C } from '../../utils/theme'
@@ -85,8 +86,8 @@ const ChapterEditorInner: React.FC<ChapterEditorProps> = ({ tab, onUpdate, scene
   const [moving, setMoving] = useState(false)
 
   // ── v4.199 场景元数据（POV/地点/时间/情感）编辑面：每场景 ⓘ 钮 → 弹窗 ──
-  interface SceneMetaDraft { title: string; summary: string; povCharId: string; location: string; timeOfDay: string; emotion: string; tags: string; status: string }
-  const emptyMeta: SceneMetaDraft = { title: '', summary: '', povCharId: '', location: '', timeOfDay: '', emotion: '', tags: '', status: 'draft' }
+  interface SceneMetaDraft { title: string; summary: string; povCharId: string; location: string; timeOfDay: string; emotion: string; tags: string; status: string; goal: string; conflict: string; turn: string; outcome: string; sequel: string; exitHook: string }
+  const emptyMeta: SceneMetaDraft = { title: '', summary: '', povCharId: '', location: '', timeOfDay: '', emotion: '', tags: '', status: 'draft', goal: '', conflict: '', turn: '', outcome: '', sequel: '', exitHook: '' }
   const [metaTarget, setMetaTarget] = useState<{ index: number; sceneId: string } | null>(null)
   const [metaDraft, setMetaDraft] = useState<SceneMetaDraft>(emptyMeta)
   const [metaLoading, setMetaLoading] = useState(false)
@@ -112,6 +113,12 @@ const ChapterEditorInner: React.FC<ChapterEditorProps> = ({ tab, onUpdate, scene
           emotion: typeof cur.emotion === 'string' ? cur.emotion : '',
           tags: Array.isArray(cur.tags) ? (cur.tags as string[]).join(',') : '',
           status: typeof cur.status === 'string' ? cur.status : 'draft',
+          goal: typeof cur.goal === 'string' ? cur.goal : '',
+          conflict: typeof cur.conflict === 'string' ? cur.conflict : '',
+          turn: typeof cur.turn === 'string' ? cur.turn : '',
+          outcome: typeof cur.outcome === 'string' ? cur.outcome : '',
+          sequel: typeof cur.sequel === 'string' ? cur.sequel : '',
+          exitHook: typeof cur.exit_hook === 'string' ? cur.exit_hook : '',
         })
       }
     } catch {
@@ -142,6 +149,12 @@ const ChapterEditorInner: React.FC<ChapterEditorProps> = ({ tab, onUpdate, scene
         emotion: d.emotion,
         tags: d.tags.split(/[,，]/).map((t) => t.trim()).filter(Boolean),
         status: d.status,
+        goal: d.goal,
+        conflict: d.conflict,
+        turn: d.turn,
+        outcome: d.outcome,
+        sequel: d.sequel,
+        exit_hook: d.exitHook,
       }
       await SaveSceneMeta(tab.chapterNum, metaTarget.sceneId, JSON.stringify(payload))
       message.success('场景信息已保存（POV 将影响本场景的 AI 生成视角）')
@@ -261,6 +274,150 @@ const ChapterEditorInner: React.FC<ChapterEditorProps> = ({ tab, onUpdate, scene
     }
   }
 
+  // ── 长篇刀2：场景卡与场景级生成 ──
+  // 整章逐场景生成流（NovelChapterScenesGenerate）：闸拒绝时给「跳过缺卡」确认；
+  // scene-gen-stream 事件推进度，done/error/cancelled 收口并整体重拉场景回喂。
+  const [scenesGen, setScenesGen] = useState<{ running: boolean; done: number; total: number; skipped: number; label: string } | null>(null)
+  const [cardsOpen, setCardsOpen] = useState(false)
+  const [cardsLoading, setCardsLoading] = useState(false)
+  const [cardDrafts, setCardDrafts] = useState<Array<{ title: string; goal: string; conflict: string; turn: string; outcome: string; sequel: string; exitHook: string }>>([])
+  const [cardsApplying, setCardsApplying] = useState(false)
+  const [rewriteDraft, setRewriteDraft] = useState('')
+
+  /** 场景列表整体重拉回喂（逐场景流/拆卡落卡后统一走这里，保 id 序同步） */
+  const reloadAllScenes = async () => {
+    try {
+      const scenes = (await GetChapterScenes(tab.chapterNum)) as Array<Record<string, unknown>>
+      if (Array.isArray(scenes) && scenes.length > 0) {
+        onUpdate('scenes', scenes.map((sc) => (typeof sc.content === 'string' ? sc.content : '')))
+        onUpdate('sceneIds', scenes.map((sc) => (typeof sc.id === 'string' ? sc.id : '')))
+        onUpdate('sceneBacked', true)
+        onUpdate('saved', false)
+      }
+    } catch { /* 重拉失败不打断主流程（下一次载入自然对齐） */ }
+  }
+
+  const startScenesGen = async (allowMissing: boolean) => {
+    if (scenesGen?.running) return
+    try {
+      const res = (await NovelChapterScenesGenerate(tab.chapterNum, allowMissing)) as { started?: boolean; scenes?: number } | null
+      if (res?.started) {
+        setScenesGen({ running: true, done: 0, total: res.scenes ?? 0, skipped: 0, label: '逐场景生成中…' })
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      if (!allowMissing && msg.includes('写前闸')) {
+        // 卡闸拒绝：给「跳过缺卡场景」的显式确认（刀1 覆盖语义复刻）
+        Modal.confirm({
+          title: '有场景缺场景卡',
+          content: msg + '。可以回去补卡（场景 ⓘ 弹窗填目标/冲突），或跳过缺卡场景只生成有卡的。',
+          okText: '跳过缺卡，生成有卡的',
+          cancelText: '回去补卡',
+          onOk: () => void startScenesGen(true),
+        })
+        return
+      }
+      message.error(msg)
+    }
+  }
+
+  // 订阅回调经 ref 取最新 reloadAllScenes（订阅只挂一次；依赖只留章号）
+  const reloadAllScenesRef = useRef(reloadAllScenes)
+  reloadAllScenesRef.current = reloadAllScenes
+
+  // 逐场景生成流事件订阅（挂载期常驻；终态收口后整体重拉）
+  React.useEffect(() => {
+    const rt = window.runtime
+    if (!rt?.EventsOn) return
+    let detach: (() => void) | null = null
+    try {
+      detach = subscribeWailsEvent(rt, 'scene-gen-stream', (payload: unknown) => {
+        const raw = (payload as { detail?: unknown } | null)?.detail ?? payload
+        const ev = (raw ?? {}) as { type?: string; chapterNum?: number; title?: string; index?: number; total?: number; done?: number; skipped?: number; words?: number; totalWords?: number; error?: string }
+        if (typeof ev.chapterNum === 'number' && ev.chapterNum !== tab.chapterNum) return
+        if (ev.type === 'scene-done') {
+          setScenesGen((prev) => prev ? { ...prev, done: (prev.done ?? 0) + 1, label: '第 ' + ev.index + '/' + ev.total + ' 场「' + ev.title + '」已完成（' + (ev.words ?? 0) + ' 字）' } : prev)
+        } else if (ev.type === 'scene-skipped') {
+          setScenesGen((prev) => prev ? { ...prev, skipped: (prev.skipped ?? 0) + 1, label: '第 ' + ev.index + '/' + ev.total + ' 场「' + ev.title + '」缺卡跳过' } : prev)
+        } else if (ev.type === 'done') {
+          setScenesGen(null)
+          message.success('逐场景生成完成：' + (ev.done ?? 0) + ' 场' + (ev.skipped ? '（跳过 ' + ev.skipped + ' 场）' : '') + '，整章 ' + (ev.totalWords ?? 0) + ' 字已落盘')
+          void reloadAllScenesRef.current()
+        } else if (ev.type === 'error') {
+          setScenesGen(null)
+          message.error(ev.error || '逐场景生成失败')
+          void reloadAllScenesRef.current()
+        } else if (ev.type === 'cancelled') {
+          setScenesGen(null)
+          message.info('逐场景生成已停止（已完成 ' + (ev.done ?? 0) + ' 场保留）')
+          void reloadAllScenesRef.current()
+        }
+      })
+    } catch { detach = null }
+    return () => { if (detach) detach() }
+  }, [tab.chapterNum])
+
+  // AI 拆场景卡（提案不落盘，审批后逐张建场景+存卡）
+  const proposeCards = async () => {
+    setCardsOpen(true); setCardsLoading(true); setCardDrafts([])
+    try {
+      const cards = (await NovelSceneCardsPropose(tab.chapterNum)) as Array<Record<string, unknown>> | null
+      const list = (cards ?? []).map((c) => ({
+        title: typeof c.title === 'string' ? c.title : '',
+        goal: typeof c.goal === 'string' ? c.goal : '',
+        conflict: typeof c.conflict === 'string' ? c.conflict : '',
+        turn: typeof c.turn === 'string' ? c.turn : '',
+        outcome: typeof c.outcome === 'string' ? c.outcome : '',
+        sequel: typeof c.sequel === 'string' ? c.sequel : '',
+        exitHook: typeof c.exit_hook === 'string' ? c.exit_hook : '',
+      }))
+      if (list.length === 0) { message.warning('AI 没有给出场景卡'); setCardsOpen(false) }
+      else setCardDrafts(list)
+    } catch (err: unknown) {
+      message.error(err instanceof Error ? err.message : '拆卡失败')
+      setCardsOpen(false)
+    } finally { setCardsLoading(false) }
+  }
+
+  const applyCards = async () => {
+    setCardsApplying(true)
+    try {
+      for (let i = 0; i < cardDrafts.length; i++) {
+        const c = cardDrafts[i]
+        const created = (await CreateScene(tab.chapterNum, 'scene-' + (i + 1), c.title || ('场景 ' + (i + 1)))) as { id?: string } | null
+        const sid = created?.id
+        if (!sid) throw new Error('场景建立失败：' + (c.title || (i + 1)))
+        await SaveSceneMeta(tab.chapterNum, sid, JSON.stringify({
+          title: c.title, summary: c.outcome || '', goal: c.goal, conflict: c.conflict,
+          turn: c.turn, outcome: c.outcome, sequel: c.sequel, exit_hook: c.exitHook, status: 'draft',
+        }))
+      }
+      message.success('已按卡建立 ' + cardDrafts.length + ' 个场景（正文用「按卡生成全章」或逐场生成）')
+      setCardsOpen(false)
+      await reloadAllScenes()
+    } catch (err: unknown) {
+      message.error(err instanceof Error ? err.message : '落卡中断（已建的场景保留）')
+    } finally { setCardsApplying(false) }
+  }
+
+  // AI 重写本场景（ⓘ 弹窗内入口；整场景 whole，他场不动）
+  const rewriteThisScene = async () => {
+    if (!metaTarget) return
+    const sceneId = metaTarget.sceneId
+    const instr = rewriteDraft.trim()
+    if (!instr) { message.warning('先写重写指令（这场戏要怎么改）'); return }
+    setMetaSaving(true)
+    try {
+      await NovelSceneRewrite(tab.chapterNum, sceneId, instr)
+      message.success('本场景已重写（重写历史留痕，可恢复）')
+      setRewriteDraft('')
+      setMetaTarget(null)
+      await reloadAllScenes()
+    } catch (err: unknown) {
+      message.error(err instanceof Error ? err.message : '场景重写失败')
+    } finally { setMetaSaving(false) }
+  }
+
   const onSceneContextMenu = (e: React.MouseEvent<HTMLTextAreaElement>) => {
     const sel = window.getSelection()?.toString().trim()
     if (!sel || sel.length < 10) return
@@ -307,6 +464,21 @@ const ChapterEditorInner: React.FC<ChapterEditorProps> = ({ tab, onUpdate, scene
           </div>
         ) : (
           <div>
+                  {/* 长篇刀2：场景卡工具条——拆卡 / 按卡生成全章 + 逐场景进度 */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 8 }} data-testid="scene-cards-toolbar">
+                    <Button size="small" icon={<ThunderboltOutlined />} disabled={tab.sceneBacked !== true || !!scenesGen?.running}
+                      onClick={() => void startScenesGen(false)} data-testid="scene-gen-all">按卡生成全章</Button>
+                    <Button size="small" disabled={tab.sceneBacked !== true || !!scenesGen?.running}
+                      onClick={() => void proposeCards()} data-testid="scene-cards-propose">AI 拆场景卡</Button>
+                    <Typography.Text style={{ fontSize: 11, color: C('color-text-secondary') }}>场景卡在 ⓘ 弹窗填写（目标/冲突必填才过写前闸）</Typography.Text>
+                  </div>
+                  {scenesGen?.running && (
+                    <div style={{ marginBottom: 8, padding: '4px 10px', borderRadius: 6, fontSize: 12, display: 'flex', alignItems: 'center', gap: 8 }}
+                      data-testid="scene-gen-progress">
+                      <Spin size="small" />
+                      <span>{scenesGen.label}（{scenesGen.done}/{scenesGen.total}{scenesGen.skipped ? '，跳过 ' + scenesGen.skipped : ''}）</span>
+                    </div>
+                  )}
             {tab.scenes.map((scene: string, i: number) => {
               const g = sceneGen[i]
               const aiHint = g?.loading
@@ -537,7 +709,100 @@ const ChapterEditorInner: React.FC<ChapterEditorProps> = ({ tab, onUpdate, scene
             <Input size="small" value={metaDraft.tags} disabled={metaLoading}
               onChange={(e) => setMetaDraft((d) => ({ ...d, tags: e.target.value }))} placeholder="climax, action" />
           </label>
+          {/* 长篇刀2：场景卡创作学字段（目标/冲突是逐场景生成的写前闸必填项） */}
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, gridColumn: '1 / -1', marginTop: 6, fontWeight: 600 }}>
+            场景卡（这场戏的工艺约束——「按卡生成全章」按此生成）
+          </label>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12 }}>
+            场景目标（必填*)
+            <Input size="small" value={metaDraft.goal} disabled={metaLoading} data-testid="card-goal"
+              onChange={(e) => setMetaDraft((d) => ({ ...d, goal: e.target.value }))} placeholder="这场戏要什么（POV 的欲望）" />
+          </label>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12 }}>
+            冲突（必填*）
+            <Input size="small" value={metaDraft.conflict} disabled={metaLoading} data-testid="card-conflict"
+              onChange={(e) => setMetaDraft((d) => ({ ...d, conflict: e.target.value }))} placeholder="谁·什么在阻挡" />
+          </label>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12 }}>
+            价值转折
+            <Input size="small" value={metaDraft.turn} disabled={metaLoading}
+              onChange={(e) => setMetaDraft((d) => ({ ...d, turn: e.target.value }))} placeholder="价值从什么变成什么" />
+          </label>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12 }}>
+            结果义务
+            <Input size="small" value={metaDraft.outcome} disabled={metaLoading}
+              onChange={(e) => setMetaDraft((d) => ({ ...d, outcome: e.target.value }))} placeholder="写完必须成立的状态变化" />
+          </label>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12 }}>
+            余波（反应·两难·决定）
+            <Input size="small" value={metaDraft.sequel} disabled={metaLoading}
+              onChange={(e) => setMetaDraft((d) => ({ ...d, sequel: e.target.value }))} placeholder="可空" />
+          </label>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12 }}>
+            退出钩子
+            <Input size="small" value={metaDraft.exitHook} disabled={metaLoading}
+              onChange={(e) => setMetaDraft((d) => ({ ...d, exitHook: e.target.value }))} placeholder="拉住读者进下一场" />
+          </label>
+          {/* AI 重写本场景（整场景 whole；他场不动；重写历史留痕） */}
+          <div style={{ gridColumn: '1 / -1', marginTop: 6, padding: 8, border: '1px solid ' + C('color-border'), borderRadius: 6 }}>
+            <Typography.Text style={{ fontSize: 12, fontWeight: 600 }}>AI 重写本场景</Typography.Text>
+            <Input.TextArea size="small" rows={2} style={{ marginTop: 6 }} value={rewriteDraft}
+              data-testid="scene-rewrite-instr"
+              onChange={(e) => setRewriteDraft(e.target.value)} placeholder="这场戏要怎么改（如：把正面冲突改成暗中试探，结尾钩子加强）" />
+            <Button size="small" type="primary" ghost style={{ marginTop: 6 }} loading={metaSaving}
+              onClick={() => void rewriteThisScene()} data-testid="scene-rewrite-run">重写本场景</Button>
+          </div>
         </div>
+      </Modal>
+      {/* 长篇刀2：AI 拆场景卡审批弹窗（提案不落盘；确认逐张建场景+存卡） */}
+      <Modal
+        open={cardsOpen}
+        title="AI 场景卡提案（可编辑，确认后才落库）"
+        onCancel={() => { if (!cardsApplying) setCardsOpen(false) }}
+        footer={null}
+        destroyOnHidden
+        transitionName=""
+        maskTransitionName=""
+        width={640}
+      >
+        {cardsLoading ? (
+          <div style={{ textAlign: 'center', padding: '32px 0' }}><Spin /> <div style={{ marginTop: 8, fontSize: 12 }}>正在从本章计划拆场景卡…</div></div>
+        ) : (
+          <div data-testid="scene-cards-list">
+            {cardDrafts.map((c, i) => (
+              <div key={i} style={{ marginBottom: 10, padding: 10, border: '1px solid ' + C('color-border'), borderRadius: 8 }}>
+                <div style={{ display: 'flex', gap: 8, marginBottom: 6 }}>
+                  <Input size="small" style={{ width: 140 }} value={c.title}
+                    onChange={(e) => setCardDrafts((prev) => prev.map((x, j) => j === i ? { ...x, title: e.target.value } : x))}
+                    placeholder={'场景 ' + (i + 1)} prefix={<Tag style={{ fontSize: 10, margin: 0 }}>{i + 1}</Tag>} />
+                  <Input size="small" value={c.goal} data-testid={'card-draft-goal-' + i}
+                    onChange={(e) => setCardDrafts((prev) => prev.map((x, j) => j === i ? { ...x, goal: e.target.value } : x))}
+                    placeholder="目标" />
+                  <Input size="small" value={c.conflict}
+                    onChange={(e) => setCardDrafts((prev) => prev.map((x, j) => j === i ? { ...x, conflict: e.target.value } : x))}
+                    placeholder="冲突" />
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <Input size="small" value={c.turn}
+                    onChange={(e) => setCardDrafts((prev) => prev.map((x, j) => j === i ? { ...x, turn: e.target.value } : x))}
+                    placeholder="价值转折" />
+                  <Input size="small" value={c.outcome}
+                    onChange={(e) => setCardDrafts((prev) => prev.map((x, j) => j === i ? { ...x, outcome: e.target.value } : x))}
+                    placeholder="结果义务" />
+                  <Input size="small" value={c.exitHook}
+                    onChange={(e) => setCardDrafts((prev) => prev.map((x, j) => j === i ? { ...x, exitHook: e.target.value } : x))}
+                    placeholder="退出钩子" />
+                </div>
+              </div>
+            ))}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+              <Button size="small" disabled={cardsApplying} onClick={() => setCardsOpen(false)}>取消</Button>
+              <Button size="small" type="primary" loading={cardsApplying} onClick={() => void applyCards()} data-testid="scene-cards-apply">
+                按卡建场景（{cardDrafts.length} 张）
+              </Button>
+            </div>
+          </div>
+        )}
       </Modal>
     {bibleScene != null && (
         <SceneBibleDrawer

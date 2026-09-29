@@ -244,15 +244,25 @@ const (
 
 // SceneMeta 场景元数据，存储为 scenes/MMM-slug.meta.json
 type SceneMeta struct {
-	ID        string      `json:"id"`                    // 唯一标识，如 "001-opening"
-	Slug      string      `json:"slug"`                  // URL 友好短名
-	Title     string      `json:"title"`                 // 场景名
-	Summary   string      `json:"summary"`               // 一句话概要
-	POVCharID string      `json:"pov_char_id,omitempty"` // POV 角色 ID
-	Location  string      `json:"location,omitempty"`    // 地点
-	TimeOfDay string      `json:"time_of_day,omitempty"` // 时间（黎明/早晨/下午/黄昏/夜晚/深夜）
-	Emotion   string      `json:"emotion,omitempty"`     // 情感基调
-	Tags      []string    `json:"tags,omitempty"`        // 标签: climax/action/dialogue/...
+	ID        string   `json:"id"`                    // 唯一标识，如 "001-opening"
+	Slug      string   `json:"slug"`                  // URL 友好短名
+	Title     string   `json:"title"`                 // 场景名
+	Summary   string   `json:"summary"`               // 一句话概要
+	POVCharID string   `json:"pov_char_id,omitempty"` // POV 角色 ID
+	Location  string   `json:"location,omitempty"`    // 地点
+	TimeOfDay string   `json:"time_of_day,omitempty"` // 时间（黎明/早晨/下午/黄昏/夜晚/深夜）
+	Emotion   string   `json:"emotion,omitempty"`     // 情感基调
+	Tags      []string `json:"tags,omitempty"`        // 标签: climax/action/dialogue/...
+
+	// ── 场景卡创作学字段（长篇刀2，规格 §1.4「坐标齐、工艺缺」的正面解）──
+	// 全部 omitempty：旧场景档零迁移；空字段不参与生成（无卡场景 prompt 零变化）。
+	Goal     string `json:"goal,omitempty"`      // 这场戏要什么（POV 视角的欲望）
+	Conflict string `json:"conflict,omitempty"`  // 谁·什么在阻挡
+	Turn     string `json:"turn,omitempty"`      // 价值翻转/转折（价值从什么变成什么）
+	Outcome  string `json:"outcome,omitempty"`   // 结果（必须改变某个状态：谁得到/失去了什么）
+	Sequel   string `json:"sequel,omitempty"`    // 余波（reaction·dilemma·decision）
+	ExitHook string `json:"exit_hook,omitempty"` // 退出钩子（拉住读者进下一场）
+
 	Status    SceneStatus `json:"status"`
 	WordCount int         `json:"word_count"`
 	Order     int         `json:"order"` // 在章节内的排序

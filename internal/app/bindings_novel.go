@@ -105,6 +105,21 @@ func (b *NovelB) GenerateScene(chapterNum int, sceneID string, plotReq string, m
 func (b *NovelB) GenerateSceneIllustration(chapterNum int, optsJSON string) (map[string]interface{}, error) {
 	return b.a.GenerateSceneIllustration(chapterNum, optsJSON)
 }
+
+// NovelChapterScenesGenerate 整章按场景卡逐场景生成（长篇刀2）。
+func (b *NovelB) NovelChapterScenesGenerate(chapterNum int, allowMissingCard bool) (map[string]interface{}, error) {
+	return b.a.NovelChapterScenesGenerate(chapterNum, allowMissingCard)
+}
+
+// NovelSceneRewrite 单场景 whole 重写（他场不动；版本库 mode=scene 留痕）。
+func (b *NovelB) NovelSceneRewrite(chapterNum int, sceneID string, instruction string) (map[string]interface{}, error) {
+	return b.a.NovelSceneRewrite(chapterNum, sceneID, instruction)
+}
+
+// NovelSceneCardsPropose 从章计划拆场景卡骨架（提案不落盘，确认制）。
+func (b *NovelB) NovelSceneCardsPropose(chapterNum int) ([]map[string]interface{}, error) {
+	return b.a.NovelSceneCardsPropose(chapterNum)
+}
 func (b *NovelB) GenerateSingleCharacter(chJSON string) (map[string]interface{}, error) {
 	return b.a.GenerateSingleCharacter(chJSON)
 }

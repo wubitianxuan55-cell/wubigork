@@ -47,6 +47,7 @@ const (
 	RewriteModeWhole   RewriteMode = "whole"   // 整章重写
 	RewriteModePartial RewriteMode = "partial" // 局部重写（按 StartPos/EndPos 区间）
 	RewriteModeDeslop  RewriteMode = "deslop"  // 去 AI 味（复用 novelstyle.DeSlopRewrite）
+	RewriteModeScene   RewriteMode = "scene"   // 整场景重写（长篇刀2：单场景 whole，他场不动）
 )
 
 // RewriteStatus 重写版本状态。
