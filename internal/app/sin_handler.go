@@ -187,6 +187,30 @@ func (a *App) SinMessages(topicID string) ([]chat.Message, error) {
 	return a.chatStore.ListMessages(topicID)
 }
 
+// SinMessagesPage 按窗口读取故事消息（v4.428，千回合老故事不再全量拉取）：
+// beforeSeq<=0 取最新一页；否则取 seq < beforeSeq 的更早一页。返回升序切片
+// 与 has_more（还有更早的消息）。页大小由调用方给定（0 用默认 200，上限 1000
+// ——与 chat.store 同一口径）。
+func (a *App) SinMessagesPage(topicID string, beforeSeq int64, limit int) (SinMessagesPageResult, error) {
+	if err := a.sinTopicGuard(topicID); err != nil {
+		return SinMessagesPageResult{}, err
+	}
+	msgs, hasMore, err := a.chatStore.ListMessagesPage(topicID, limit, beforeSeq)
+	if err != nil {
+		return SinMessagesPageResult{}, err
+	}
+	if msgs == nil {
+		msgs = []chat.Message{}
+	}
+	return SinMessagesPageResult{Messages: msgs, HasMore: hasMore}, nil
+}
+
+// SinMessagesPageResult 分页读取结果（messages 升序 + has_more）。
+type SinMessagesPageResult struct {
+	Messages []chat.Message `json:"messages"`
+	HasMore  bool           `json:"has_more"`
+}
+
 // sinTopicGuard 话题归属校验：话题必须存在且 mode=sin（fail-closed，
 // 防止前端误传聊天话题 id 后把其他板块的会话改写/删掉）。
 func (a *App) sinTopicGuard(id string) error {
@@ -636,7 +660,8 @@ func (a *App) SinIllustrate(topicID string, messageID int64, cue string, prompt 
 
 	persisted := false
 	if messageID > 0 && cue != "" {
-		if err := a.sinAttachIllustration(topicID, messageID, cue, path); err != nil {
+		// caption = 画面描述（标记图的画廊/导出描述第一来源，v4.428 起随图落库）
+		if err := a.sinAttachIllustration(topicID, messageID, cue, path, prompt); err != nil {
 			slog.Warn("原罪插图回写失败（图片已生成）", "messageID", messageID, "error", err)
 		} else {
 			persisted = true
@@ -663,11 +688,13 @@ func (a *App) SinIllustrate(topicID string, messageID int64, cue string, prompt 
 // 覆盖掉对方刚写入的 cue。进程内串行即可对齐前端串行队列的既有纪律。
 var sinAttachMu sync.Mutex
 
-// sinAttachIllustration 把 (cue → path) 并入指定消息 extra.illustrations。
-// 已有映射保留（多张插图逐张追加），其他 extra 字段（reasoning 等）不动。
+// sinAttachIllustration 把 (cue → {path, caption}) 并入指定消息
+// extra.illustrations。已有映射保留（多张插图逐张追加），其他 extra 字段
+// （reasoning 等）不动。v4.428 起值写对象形态 {path, caption}（caption 是
+// 画廊/导出的描述第一来源，不再依赖轨迹反解）；历史字符串值由读取侧归一。
 // topicID 归属校验 fail-closed：messageID 必须属于本话题——前端状态错位/双开
 // 壳时，陈旧的 messageID 不能把图片写进别的故事（甚至聊天板块）的消息 extra。
-func (a *App) sinAttachIllustration(topicID string, messageID int64, cue, path string) error {
+func (a *App) sinAttachIllustration(topicID string, messageID int64, cue, path, caption string) error {
 	sinAttachMu.Lock()
 	defer sinAttachMu.Unlock()
 	if a.chatStore == nil {
@@ -688,7 +715,8 @@ func (a *App) sinAttachIllustration(topicID string, messageID int64, cue, path s
 	if arts == nil {
 		arts = map[string]interface{}{}
 	}
-	arts[cue] = path
+	// v4.428 值形态升级：{path, caption}（caption 缺省空串，读取侧回退正文/轨迹）
+	arts[cue] = map[string]interface{}{"path": path, "caption": caption}
 	extra[sinIllustrationsExtraKey] = arts
 	b, err := json.Marshal(extra)
 	if err != nil {
@@ -744,6 +772,8 @@ func (a *App) SinExportMarkdown(topicID string) (string, error) {
 }
 
 // sinIllustrationMap 从消息 extra 解析插图映射（坏 JSON/缺字段 → 空映射）。
+// 值双形态归一：v4.428 前是纯路径字符串，之后是 {path, caption} 对象——
+// 这里统一取 path（caption 由 sinIllustrationCaption 单独取）。
 func sinIllustrationMap(extra string) map[string]string {
 	out := map[string]string{}
 	raw := strings.TrimSpace(extra)
@@ -758,9 +788,35 @@ func sinIllustrationMap(extra string) map[string]string {
 	for k, v := range arts {
 		if s, ok := v.(string); ok && s != "" {
 			out[k] = s
+			continue
+		}
+		if o, ok := v.(map[string]interface{}); ok {
+			if p, _ := o["path"].(string); p != "" {
+				out[k] = p
+			}
 		}
 	}
 	return out
+}
+
+// sinIllustrationCaption 从 extra 取某 cue 的 caption（对象形态才有；历史
+// 字符串值返回空——调用方回退正文标记/轨迹反解）。
+func sinIllustrationCaption(extra, cue string) string {
+	raw := strings.TrimSpace(extra)
+	if raw == "" {
+		return ""
+	}
+	var m map[string]interface{}
+	if err := json.Unmarshal([]byte(raw), &m); err != nil {
+		return ""
+	}
+	arts, _ := m[sinIllustrationsExtraKey].(map[string]interface{})
+	o, _ := arts[cue].(map[string]interface{})
+	if o == nil {
+		return ""
+	}
+	c, _ := o["caption"].(string)
+	return c
 }
 
 // sinToolArtifactsFromExtra 从消息 extra.tools 轨迹取出图片产物（顺序=调用序）。

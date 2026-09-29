@@ -22,6 +22,11 @@ export interface SinBindings {
   /** 故事全部消息（按 seq 升序）。 */
   SinMessages(topicID: string): Promise<chat.Message[]>;
   /**
+   * 按窗口读取故事消息（v4.428，千回合老故事不再全量拉取）：beforeSeq<=0 取
+   * 最新一页，否则取 seq < beforeSeq 的更早一页；返回升序切片 + has_more。
+   */
+  SinMessagesPage(topicID: string, beforeSeq: number, limit: number): Promise<{ messages: chat.Message[]; has_more: boolean }>;
+  /**
    * 故事轨迹时间线（v4.412）：把落库消息 + extra 工具轨迹折叠成与办公
    * Trajectory 同构的轮次视图，前端 TrajectoryView 原组件复用。
    */

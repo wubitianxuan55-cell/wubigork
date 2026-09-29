@@ -328,10 +328,10 @@ func TestSinAttachIllustrationRejectsForeignTopic(t *testing.T) {
 	if err != nil || len(msgs) != 2 {
 		t.Fatalf("SinMessages = %+v, err=%v", msgs, err)
 	}
-	if err := a.sinAttachIllustration(tB.ID, msgs[1].ID, "0", "C:/art/x.png"); err == nil {
+	if err := a.sinAttachIllustration(tB.ID, msgs[1].ID, "0", "C:/art/x.png", ""); err == nil {
 		t.Fatal("跨话题回写应被拒绝")
 	}
-	if err := a.sinAttachIllustration(tA.ID, msgs[1].ID, "0", "C:/art/x.png"); err != nil {
+	if err := a.sinAttachIllustration(tA.ID, msgs[1].ID, "0", "C:/art/x.png", ""); err != nil {
 		t.Fatalf("本话题回写不应报错: %v", err)
 	}
 }
@@ -535,5 +535,104 @@ func TestSinContextNodeDetailRejectsForeignTopic(t *testing.T) {
 	}
 	if _, err := a.SinContextNodeDetail(tA.ID, sinNodeSeq(msgs[0].ID, 0)); err != nil {
 		t.Fatalf("本话题 user 节点应可展开: %v", err)
+	}
+}
+
+// TestSinMessagesPage 分页契约（v4.428）：beforeSeq<=0 取最新一页（升序），
+// 依 oldest seq 翻页，尽头空页 + has_more=false；非 sin 话题 fail-closed。
+func TestSinMessagesPage(t *testing.T) {
+	sinTestHome(t)
+	a := newSinTestApp(t)
+	topic, err := a.SinTopicCreate("分页")
+	if err != nil {
+		t.Fatalf("SinTopicCreate: %v", err)
+	}
+	for i := 0; i < 5; i++ {
+		if err := a.chatStore.AppendExchange(topic.ID, fmt.Sprintf("问%d", i), fmt.Sprintf("答%d", i), ""); err != nil {
+			t.Fatalf("AppendExchange: %v", err)
+		}
+	}
+	p1, err := a.SinMessagesPage(topic.ID, 0, 2)
+	if err != nil {
+		t.Fatalf("SinMessagesPage: %v", err)
+	}
+	if len(p1.Messages) != 2 || !p1.HasMore {
+		t.Fatalf("首页应为最新 2 条 + has_more: len=%d more=%v", len(p1.Messages), p1.HasMore)
+	}
+	if p1.Messages[0].Content != "问4" || p1.Messages[1].Content != "答4" {
+		t.Fatalf("首页应含最新一轮（升序）: %+v", p1.Messages)
+	}
+	p2, err := a.SinMessagesPage(topic.ID, int64(p1.Messages[0].Seq), 2)
+	if err != nil || len(p2.Messages) != 2 || !p2.HasMore {
+		t.Fatalf("第二页: len=%d more=%v err=%v", len(p2.Messages), p2.HasMore, err)
+	}
+	// 游走翻页到尽头：5 轮 ×2 条 = 10 条，每页 2 条、跨页衔接不重不漏
+	total := len(p1.Messages)
+	before := int64(p1.Messages[0].Seq)
+	for i := 0; i < 10; i++ {
+		page, err := a.SinMessagesPage(topic.ID, before, 2)
+		if err != nil {
+			t.Fatalf("翻页 %d: %v", i, err)
+		}
+		total += len(page.Messages)
+		before = int64(page.Messages[0].Seq)
+		if !page.HasMore {
+			if len(page.Messages) != 2 {
+				t.Fatalf("末页应恰好装满（10=5×2）: len=%d", len(page.Messages))
+			}
+			break
+		}
+	}
+	if total != 10 {
+		t.Fatalf("翻页收集总数 = %d, want 10（不重不漏）", total)
+	}
+	// 尽头之后：空页 + has_more=false + 空切片（前端 JSON 归一为 []）
+	end, err := a.SinMessagesPage(topic.ID, before, 2)
+	if err != nil || len(end.Messages) != 0 || end.HasMore || end.Messages == nil {
+		t.Fatalf("尽头空页: len=%d more=%v nil=%v err=%v", len(end.Messages), end.HasMore, end.Messages == nil, err)
+	}
+}
+
+// TestSinIllustrationValueObjectForm v4.428 值形态升级：回写落 {path,caption}
+// 对象；读取侧（sinIllustrationMap/sinIllustrationCaption）对历史字符串与新
+// 对象双形态归一。
+func TestSinIllustrationValueObjectForm(t *testing.T) {
+	sinTestHome(t)
+	a := newSinTestApp(t)
+	topic, err := a.SinTopicCreate("值形态")
+	if err != nil {
+		t.Fatalf("SinTopicCreate: %v", err)
+	}
+	if err := a.chatStore.AppendExchange(topic.ID, "画一张", "好的。", ""); err != nil {
+		t.Fatalf("AppendExchange: %v", err)
+	}
+	msgs, err := a.SinMessages(topic.ID)
+	if err != nil || len(msgs) != 2 {
+		t.Fatalf("SinMessages = %+v err=%v", msgs, err)
+	}
+	// 新写：对象形态 + caption 随图
+	if err := a.sinAttachIllustration(topic.ID, msgs[1].ID, "0", "C:/art/new.png", "雨夜站台"); err != nil {
+		t.Fatalf("sinAttachIllustration: %v", err)
+	}
+	got := msgs[1]
+	msg2, err := a.chatStore.GetMessage(msgs[1].ID)
+	if err != nil {
+		t.Fatalf("GetMessage: %v", err)
+	}
+	if p := sinIllustrationMap(msg2.Extra)["0"]; p != "C:/art/new.png" {
+		t.Fatalf("对象形态应归一出 path: %q extra=%s", p, msg2.Extra)
+	}
+	if c := sinIllustrationCaption(msg2.Extra, "0"); c != "雨夜站台" {
+		t.Fatalf("caption 应随图可读: %q", c)
+	}
+	_ = got
+	// 历史字符串值：map 归一照旧、caption 为空（回退正文/轨迹）
+	legacy := `{"illustrations":{"0":"C:/art/old.png","1":{"path":"C:/art/obj.png","caption":"带说明"}}}`
+	m := sinIllustrationMap(legacy)
+	if m["0"] != "C:/art/old.png" || m["1"] != "C:/art/obj.png" {
+		t.Fatalf("双形态归一: %+v", m)
+	}
+	if sinIllustrationCaption(legacy, "0") != "" || sinIllustrationCaption(legacy, "1") != "带说明" {
+		t.Fatalf("caption 读取: %q / %q", sinIllustrationCaption(legacy, "0"), sinIllustrationCaption(legacy, "1"))
 	}
 }

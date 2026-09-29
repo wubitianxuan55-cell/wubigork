@@ -17,12 +17,16 @@ export interface SinStoryView {
 export interface SinMessageView {
   key: string
   messageId: number
+  /** 落库序号（分页拉取的 beforeSeq 游标；流式占位消息为 0）。 */
+  seq?: number
   role: 'user' | 'assistant'
   content: string
   streaming?: boolean
   error?: boolean
-  /** cue 键（出现次序，0 起）→ 插图本地路径。 */
+  /** cue 键（出现次序，0 起）→ 插图本地路径（v4.428 起后端值为 {path,caption}，这里已归一为 path）。 */
   illustrations: Record<string, string>
+  /** cue 键 → 落库 caption（v4.428 随图写入；历史消息无此字段——画廊回退正文/轨迹反解）。 */
+  illustrationCaptions?: Record<string, string>
   reasoning?: string
   /** 本轮工具调用轨迹（流式累积，落库后由 extra.tools 还原）。 */
   tools?: SinToolTraceView[]

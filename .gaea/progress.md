@@ -1,3 +1,17 @@
+## 最新发布：v4.428.0（2026-09-29）「原罪板块批5：消息分页拉取 + 插图值结构升级（绑定窗口批）」
+
+- **刀型**：用户指令「继续」（承接「继续优化原罪板块」线程）。刀型=**绑定窗口批**：清掉观察池最后两项可做项（SinMessages 分页〔v4.423 立案「需随下一批绑定窗口」〕+ illustrations 值结构升级 {path,caption}）。前端 9 文件 + Go 5 文件 + 6 个新测试锚，**绑定面 726→727（+1：SinMessagesPage）**，零功能删除。
+- **刀1 分页拉取**：Go 新绑定 `SinMessagesPage(topicID, beforeSeq, limit)`（chat.store 既有分页 API 的 sin 门面：beforeSeq<=0 取最新一页，否则取 seq < beforeSeq 的更早一页；升序切片 + has_more，空页空切片非 nil；全量 SinMessages 保留兼容）。前端 `useSinStory` 首拉只取最新一页（SIN_MESSAGES_PAGE_SIZE=100）；`loadOlder` 按 oldest seq 翻页前置（olderSeq 防并发乱序）；`reloadMessages` 已载更早页时合并重载（保窗口外前缀、按键去重——整页替换不再吹掉上滚载入的历史）；上滚到顶自动触发 + 流顶提示行（「还有更早的消息 · 向上滚动或点击载入」、加载中转圈）；前置后按高度差回锚滚动位置。绑定同步四处：SinB 门面手加（regen 噪音 11 文件按 HEAD 还原）、bindingNames.ts 重生成（727）、bridge/sin.ts 契约、mock/sin.ts 同源窗口实现、spaceBindings "play"（数量锁 549→550）；运行时派发走 realApp 动态 Proxy，wailsjs 零重生成。
+- **刀2 值结构**：`sinAttachIllustration` 值写 `{path, caption}`（标记图 caption=画面描述、工具图 caption=轨迹产物）；`sinIllustrationMap` 双形态归一（历史字符串/新对象）+ 新增 `sinIllustrationCaption`；前端 `parseIllustrations` 归一 + `parseIllustrationCaptions` + `SinMessageView` 增 `seq`/`illustrationCaptions`；画廊描述三级优先级=**落库 caption > 正文标记反解 > 轨迹产物反解**（历史消息行为不变）；导出链行为不变。
+- **测试**：Go 新增 2 锚（分页契约〔首页升序/游走翻页不重不漏 10 条/尽头空页〕+ 值形态双形态归一）+3 处调用点断言随签名更新；前端新增 4 锚（105 条真翻页/双形态归一/caption 只取对象/画廊三级优先级）+ reload 用例改分页 mock + SEED_MESSAGES 共享种子基建。sin 域 121/121 绿；internal/app 全包 -count=1 绿（100.8s）；spaceBindings 550；tsc 0；eslint 0 错 0 警。
+- **门禁**：全量 `ci.ps1` → CI OK（含绑定漂移闸：Go 727 ↔ bindingNames.ts 727 一致）；漂移闸 OK@4.428.0。
+- **产物**：`releases/gaea-v4.428.0.exe` 51,580,928 B SHA256=`b2bfe66d248b0701bbc3d4e9108e5440aab60ddd340d79f95bdf75585cde74e3`（`SHA256SUMS-v4.428.0.txt`；build.bat 冒烟 `/api/health` 200 过）；保留策略删 v4.423.0.exe，实存 5 版（428/427/426/425/424）。
+- **文档**：`releases/v4.428.0.md` + CHANGELOG/README + releases/README + AGENTS 速览 + progress（本条）。
+- **坑/教训**：①**Bash 工具 heredoc 的 `
+` 会降级成真实换行**：python heredoc 里往 TS 源码写字面量 `
+`，出现反复「改完又变回去」的假象（同进程回读 md5 相同=改动自我抵消），耗时数轮才定位——heredoc 内构造字面量反斜杠必须 `chr(92)+'n'` 或行级拼接。②分页测试的页大小是 hook 常量 100：造数必须 >100 条才能真翻页（4 条一页装满 hasOlder 恒 false）。③gen_bindings regen 会把 11 个门面文件重排版（多行→一行的全量噪音）——按既有纪律 HEAD 还原后只手加新方法行。
+- **观察池（剩余，均需拍板或真机）**：novelstyle rewrite 链（需拍板成人向 whitelist 语义，v4.424 立案）/跨实例族+TOCTOU（需跨进程锁）/真机观察解释腔出现率·工具误用率·设定卡排队体验·分页上滚手感（需用户闲置窗口）。
+
 ## 最新发布：v4.427.0（2026-09-29）「原罪板块观察池清账刀：队列统一 + 看板单条化 + 识图并发 + a11y 收口」
 
 - **刀型**：用户指令「继续」（承接「继续优化原罪板块」线程）。刀型=**池清账**：v4.423/424/426 三批审计积压的观察池立案项集中清账（免新审计——每项均已带读码证据），不做需拍板/需真机项（novelstyle rewrite 链、真机观察、跨实例族）。前端 8 文件（含 1 新增模块 sinThumbCache.ts）+ Go 4 文件 + 5 个新测试锚，绑定面 726 零变更，零功能删除。

@@ -59,7 +59,40 @@ export function parseIllustrations(extra: unknown): Record<string, string> {
   const arts = (obj as Record<string, unknown>).illustrations
   if (!arts || typeof arts !== 'object') return out
   for (const [k, v] of Object.entries(arts as Record<string, unknown>)) {
-    if (typeof v === 'string' && v) out[k] = v
+    if (typeof v === 'string' && v) {
+      out[k] = v
+      continue
+    }
+    // v4.428 值形态升级：{path, caption} 对象取 path（历史字符串值照旧）
+    if (v && typeof v === 'object') {
+      const p = (v as Record<string, unknown>).path
+      if (typeof p === 'string' && p) out[k] = p
+    }
+  }
+  return out
+}
+
+/** 解析 extra 里的插图 caption（v4.428 起随图落库；历史字符串值没有——画廊回退正文/轨迹反解）。 */
+export function parseIllustrationCaptions(extra: unknown): Record<string, string> {
+  const out: Record<string, string> = {}
+  let obj: unknown = extra
+  if (typeof extra === 'string') {
+    const raw = extra.trim()
+    if (!raw) return out
+    try {
+      obj = JSON.parse(raw)
+    } catch {
+      return out
+    }
+  }
+  if (!obj || typeof obj !== 'object') return out
+  const arts = (obj as Record<string, unknown>).illustrations
+  if (!arts || typeof arts !== 'object') return out
+  for (const [k, v] of Object.entries(arts as Record<string, unknown>)) {
+    if (v && typeof v === 'object') {
+      const c = (v as Record<string, unknown>).caption
+      if (typeof c === 'string' && c) out[k] = c
+    }
   }
   return out
 }
@@ -202,14 +235,16 @@ function cueOrder(cue: string): [number, number] {
 //（O(全故事字数)/delta，流式期最大热点）。签名 = 影响画廊产物的最小字段集。
 const galleryCache = new Map<string, { sig: string; items: SinGalleryItem[] }>()
 
-function gallerySignature(m: Pick<SinMessageView, 'key' | 'messageId' | 'content' | 'illustrations'>): string {
+function gallerySignature(m: Pick<SinMessageView, 'key' | 'messageId' | 'content' | 'illustrations' | 'illustrationCaptions'>): string {
   const ills = Object.entries(m.illustrations ?? {}).map(([k, v]) => `${k}=${v}`).join(',')
-  return `${m.messageId}|${m.content.length}|${ills}`
+  const caps = Object.entries(m.illustrationCaptions ?? {}).map(([k, v]) => `${k}=${v}`).join(',')
+  return `${m.messageId}|${m.content.length}|${ills}|${caps}`
 }
 
-/** 汇总一个故事的全部插图（消息序即时间序；同一消息内按 cue 序号）。 */
+/** 汇总一个故事的全部插图（消息序即时间序；同一消息内按 cue 序号）。
+ *  描述优先级：落库 caption（v4.428 随图写入）> 正文标记反解 > 轨迹产物反解。 */
 export function collectIllustrations(
-  messages: Array<Pick<SinMessageView, 'key' | 'messageId' | 'content' | 'illustrations' | 'tools'>>,
+  messages: Array<Pick<SinMessageView, 'key' | 'messageId' | 'content' | 'illustrations' | 'illustrationCaptions' | 'tools'>>,
 ): SinGalleryItem[] {
   const out: SinGalleryItem[] = []
   const liveKeys = new Set<string>()
@@ -243,12 +278,13 @@ export function collectIllustrations(
             toolIdx++
           }
         }
+        const capsByCue = m.illustrationCaptions ?? {}
         items = entries.map(([cue, path]) => ({
           key: `${m.key}:${cue}`,
           messageId: m.messageId,
           cue,
           path,
-          prompt: promptByCue.get(cue) ?? '',
+          prompt: capsByCue[cue] || promptByCue.get(cue) || '',
         }))
       }
       galleryCache.set(m.key, { sig, items })

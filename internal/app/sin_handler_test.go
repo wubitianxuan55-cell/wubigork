@@ -147,7 +147,7 @@ func TestSinIllustrationAttachAndExport(t *testing.T) {
 	assistant := msgs[1]
 
 	// 第一张插图生成完成：按 cue 键（出现次序，0 起）回写。
-	if err := a.sinAttachIllustration(topic.ID, assistant.ID, "0", "C:/tmp/sin-1.png"); err != nil {
+	if err := a.sinAttachIllustration(topic.ID, assistant.ID, "0", "C:/tmp/sin-1.png", ""); err != nil {
 		t.Fatalf("sinAttachIllustration: %v", err)
 	}
 	got, err := a.chatStore.GetMessage(assistant.ID)
@@ -162,7 +162,9 @@ func TestSinIllustrationAttachAndExport(t *testing.T) {
 		t.Errorf("回写插图不应丢失既有 extra 字段: %+v", extra)
 	}
 	arts, _ := extra[sinIllustrationsExtraKey].(map[string]interface{})
-	if arts["0"] != "C:/tmp/sin-1.png" {
+	// v4.428 值形态：{path, caption} 对象（本例 caption 传空）
+	obj, _ := arts["0"].(map[string]interface{})
+	if obj == nil || obj["path"] != "C:/tmp/sin-1.png" {
 		t.Errorf("illustrations = %+v", arts)
 	}
 

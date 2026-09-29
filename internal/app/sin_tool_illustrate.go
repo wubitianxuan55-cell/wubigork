@@ -168,7 +168,7 @@ func (a *App) sinPersistToolArtifacts(topicID string, messageID int64, trace []s
 			}
 			cue := fmt.Sprintf("tool%d", idx)
 			idx++
-			if err := a.sinAttachIllustration(topicID, messageID, cue, art.Path); err != nil {
+			if err := a.sinAttachIllustration(topicID, messageID, cue, art.Path, art.Caption); err != nil {
 				slog.Warn("原罪工具插图回写失败", "messageID", messageID, "cue", cue, "path", art.Path, "error", err)
 			}
 		}

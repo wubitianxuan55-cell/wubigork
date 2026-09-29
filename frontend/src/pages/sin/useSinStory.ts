@@ -12,7 +12,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { app } from '../../gaea/lib/bridge'
 import { subscribe, sinStreamChannel } from '../../events'
 import {
-  parseCancelled, parseIllustrations, parseReasoning, parseTools, suggestStoryTitle, toToolViews,
+  parseCancelled, parseIllustrationCaptions, parseIllustrations, parseReasoning, parseTools,
+  suggestStoryTitle, toToolViews,
 } from './storyText'
 import type { SinMessageView, SinStoryView, SinStreamPayload, SinToolTraceView } from './types'
 
@@ -46,15 +47,21 @@ function toStoryView(raw: Record<string, unknown>): SinStoryView {
   }
 }
 
-/** Go chat.Message → 视图（extra 里的插图映射/reasoning/cancelled 解析出来）。 */
+/** 单页消息条数（v4.428 分页拉取）：一轮故事几十条消息，一页装得下一整段
+ *  会话；千回合老故事打开只拉最新一页，上滚再取更早。 */
+export const SIN_MESSAGES_PAGE_SIZE = 100
+
+/** Go chat.Message → 视图（extra 里的插图映射/caption/reasoning/cancelled 解析出来）。 */
 function toMessageView(raw: Record<string, unknown>): SinMessageView {
   const id = typeof raw.id === 'number' ? raw.id : 0
   return {
     key: `db_${id}`,
     messageId: id,
+    seq: typeof raw.seq === 'number' ? raw.seq : 0,
     role: raw.role === 'user' ? 'user' : 'assistant',
     content: typeof raw.content === 'string' ? raw.content : '',
     illustrations: parseIllustrations(raw.extra),
+    illustrationCaptions: parseIllustrationCaptions(raw.extra),
     reasoning: parseReasoning(raw.extra),
     tools: toToolViews(parseTools(raw.extra)),
     cancelled: parseCancelled(raw.extra),
@@ -106,6 +113,12 @@ export interface UseSinStoryResult {
   setIllustration: (messageKey: string, cueKey: string, path: string) => void
   /** 从后端重读当前故事消息（画廊「重新生成」回写后刷新画廊与流内插图）。 */
   reloadMessages: () => Promise<void>
+  /** 还有更早的消息未载入（v4.428 分页）：上滚触发 loadOlder。 */
+  hasOlder: boolean
+  /** 正在取更早一页。 */
+  loadingOlder: boolean
+  /** 取更早一页并前置（无更早/取片中为 no-op）。 */
+  loadOlder: () => Promise<void>
 }
 
 export function useSinStory(): UseSinStoryResult {
@@ -115,9 +128,15 @@ export function useSinStory(): UseSinStoryResult {
   const [initializing, setInitializing] = useState(true)
   const [sending, setSending] = useState(false)
   const [notice, setNotice] = useState('')
+  // 分页（v4.428）：hasOlder=还有更早消息；olderSeq 防止并发取页乱序前置
+  const [hasOlder, setHasOlder] = useState(false)
+  const [loadingOlder, setLoadingOlder] = useState(false)
+  const olderSeqRef = useRef(0)
 
   const activeIdRef = useRef('')
   activeIdRef.current = activeId
+  const messagesRef = useRef<SinMessageView[]>([])
+  messagesRef.current = messages
   const storiesRef = useRef<SinStoryView[]>([])
   storiesRef.current = stories
   // 流收尾句柄（done/error/超时/卸载四路径收敛，sending 必复位）
@@ -136,14 +155,18 @@ export function useSinStory(): UseSinStoryResult {
 
   const loadMessages = useCallback(async (id: string) => {
     const seq = ++loadSeqRef.current
+    olderSeqRef.current++ // 在途「取更早」作废（页基准已变）
     if (!id) {
       setMessages([])
+      setHasOlder(false)
       return
     }
     try {
-      const ms = await app.SinMessages(id)
+      // v4.428 分页首拉：只取最新一页（千回合老故事不再全量载入），上滚取更早
+      const page = await app.SinMessagesPage(id, 0, SIN_MESSAGES_PAGE_SIZE)
       if (seq !== loadSeqRef.current) return
-      setMessages((ms || []).map((m) => toMessageView(m as unknown as Record<string, unknown>)))
+      setMessages((page.messages || []).map((m) => toMessageView(m as unknown as Record<string, unknown>)))
+      setHasOlder(page.has_more === true)
     } catch (err) {
       if (seq !== loadSeqRef.current) return
       // 读失败不清空现有视图（瞬时失败不该把正在读的长故事整表吹掉）；
@@ -300,8 +323,53 @@ export function useSinStory(): UseSinStoryResult {
     // 流式进行中不整表替换（会把流式占位行换成 DB 行，后续 delta/done 按
     // asstKey 找不到目标全部丢弃——本轮回复直到流结束都不上屏）。
     if (streamTopicRef.current) return
+    // 已载入更早页时合并重载（整页替换会把用户上滚载入的历史吹掉）：
+    // 取最新一页，保留其中窗口之外的已载入前缀，按键去重。
+    if (hasOlder) {
+      const seq = ++loadSeqRef.current
+      try {
+        const page = await app.SinMessagesPage(activeIdRef.current, 0, SIN_MESSAGES_PAGE_SIZE)
+        if (seq !== loadSeqRef.current) return
+        const fetched = (page.messages || []).map((m) => toMessageView(m as unknown as Record<string, unknown>))
+        const minSeq = fetched.length > 0 ? Math.min(...fetched.map((m) => m.seq ?? 0)) : Number.MAX_SAFE_INTEGER
+        const seen = new Set(fetched.map((m) => m.key))
+        const olderPrefix = messagesRef.current.filter((m) => (m.seq ?? 0) > 0 && (m.seq ?? 0) < minSeq && !seen.has(m.key))
+        setMessages([...olderPrefix, ...fetched])
+        setHasOlder(page.has_more === true)
+      } catch (err) {
+        setNotice(errText(err, '故事内容读取失败'))
+      }
+      return
+    }
     await loadMessages(activeIdRef.current)
-  }, [loadMessages])
+  }, [hasOlder, loadMessages])
+
+  const loadOlder = useCallback(async () => {
+    const id = activeIdRef.current
+    if (!id || !hasOlder || loadingOlder || streamTopicRef.current) return
+    const oldest = messagesRef.current.find((m) => (m.seq ?? 0) > 0)
+    const beforeSeq = oldest?.seq ?? 0
+    if (beforeSeq <= 0) {
+      setHasOlder(false)
+      return
+    }
+    const seq = ++olderSeqRef.current
+    setLoadingOlder(true)
+    try {
+      const page = await app.SinMessagesPage(id, beforeSeq, SIN_MESSAGES_PAGE_SIZE)
+      if (seq !== olderSeqRef.current || id !== activeIdRef.current) return
+      const fetched = (page.messages || []).map((m) => toMessageView(m as unknown as Record<string, unknown>))
+      setMessages((prev) => {
+        const seen = new Set(prev.map((m) => m.key))
+        return [...fetched.filter((m) => !seen.has(m.key)), ...prev]
+      })
+      setHasOlder(page.has_more === true)
+    } catch (err) {
+      setNotice(errText(err, '更早消息读取失败'))
+    } finally {
+      setLoadingOlder(false)
+    }
+  }, [hasOlder, loadingOlder])
 
   const send = useCallback(async (display: string, submit?: string) => {
     const content = (submit ?? display ?? '').trim()
@@ -526,7 +594,7 @@ export function useSinStory(): UseSinStoryResult {
   return {
     stories, activeId, activeStory, messages, initializing, sending, notice, clearNotice, showNotice,
     selectStory, createStory, renameStory, deleteStory, clearStory, send, setIllustration,
-    reloadMessages,
+    reloadMessages, hasOlder, loadingOlder, loadOlder,
     cancel,
   }
 }

@@ -147,11 +147,27 @@ const OriginalSinPage: React.FC = () => {
   }, [story.sending, reloadNotes])
 
   // ── 智能滚动：贴底时跟随流式输出；用户上翻阅读时不打断 ──
+  // v4.428：滚到顶部附近触发「取更早一页」（分页拉取）；前置后按高度差回锚，
+  // 用户读的位置不跳。
   const onScroll = useCallback(() => {
     const el = listRef.current
     if (!el) return
     stickRef.current = isNearBottom(el.scrollHeight - el.scrollTop - el.clientHeight)
-  }, [])
+    if (el.scrollTop <= 64) void story.loadOlder()
+  }, [story])
+  // 前置更早消息后恢复滚动位置（新内容插在上方，scrollTop 补上高度差）
+  const prevCountRef = useRef(story.messages.length)
+  const prevHeightRef = useRef(0)
+  useEffect(() => {
+    const el = listRef.current
+    if (!el) return
+    const grew = story.messages.length > prevCountRef.current
+    if (grew && prevHeightRef.current > 0) {
+      el.scrollTop += el.scrollHeight - prevHeightRef.current
+    }
+    prevCountRef.current = story.messages.length
+    prevHeightRef.current = el.scrollHeight
+  }, [story.messages.length])
   // 只跟踪最后一条消息的长度（整列表 reduce 在长故事流式期间是每帧 O(总字数)）
   const lastMsg = story.messages[story.messages.length - 1]
   const lastLen = lastMsg ? lastMsg.content.length : 0
@@ -419,6 +435,9 @@ const OriginalSinPage: React.FC = () => {
                   ref={listRef}
                   storyId={story.activeId}
                   messages={story.messages}
+                  hasOlder={story.hasOlder}
+                  loadingOlder={story.loadingOlder}
+                  onLoadOlder={() => void story.loadOlder()}
                   onIllustrationGenerated={story.setIllustration}
                   onIllustrationError={story.showNotice}
                   onScroll={onScroll}

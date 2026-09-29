@@ -134,6 +134,7 @@ export const GAEA_METHOD_FACETS = {
   SinTopicDelete: "play",
   SinTopicClear: "play",
   SinMessages: "play",
+  SinMessagesPage: "play",
   SinStream: "play",
   SinIllustrate: "play",
   SinExportMarkdown: "play",

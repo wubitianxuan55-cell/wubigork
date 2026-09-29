@@ -3,9 +3,9 @@
 // 否则导出与重开时插图映射对不上。
 import { describe, expect, it } from 'vitest'
 import {
-  SIN_CUE_CLOSE, SIN_CUE_OPEN, collectIllustrations, parseCancelled, parseIllustrations,
-  parseReasoning, parseStorySegments, parseTools, pendingIllustrations, sinCueKey,
-  stripCuesForDisplay, suggestStoryTitle, toToolViews,
+  SIN_CUE_CLOSE, SIN_CUE_OPEN, collectIllustrations, parseCancelled, parseIllustrationCaptions,
+  parseIllustrations, parseReasoning, parseStorySegments, parseTools, pendingIllustrations,
+  sinCueKey, stripCuesForDisplay, suggestStoryTitle, toToolViews,
 } from './storyText'
 
 describe('parseStorySegments', () => {
@@ -149,5 +149,40 @@ describe('collectIllustrations（画廊）', () => {
     expect(collectIllustrations([base])[0].path).toBe('/a/old.png')
     const updated = msg({ illustrations: { '0': '/a/new.png' } })
     expect(collectIllustrations([updated])[0].path).toBe('/a/new.png')
+  })
+})
+
+describe('插图值形态（v4.428 {path,caption} 升级）', () => {
+  it('parseIllustrations 双形态归一：字符串取原值、对象取 path、畸形跳过', () => {
+    const extra = JSON.stringify({
+      illustrations: {
+        '0': '/a/legacy.png',
+        '1': { path: '/a/new.png', caption: '雨夜' },
+        '2': { caption: '缺 path 的畸形值' },
+        '3': '',
+      },
+    })
+    expect(parseIllustrations(extra)).toEqual({ '0': '/a/legacy.png', '1': '/a/new.png' })
+  })
+
+  it('parseIllustrationCaptions 只取对象形态的 caption（历史字符串值为空）', () => {
+    const extra = JSON.stringify({
+      illustrations: { '0': '/a/legacy.png', '1': { path: '/a/new.png', caption: '雨夜' } },
+    })
+    expect(parseIllustrationCaptions(extra)).toEqual({ '1': '雨夜' })
+    expect(parseIllustrationCaptions('{"illustrations":{"0":"/a.png"}}')).toEqual({})
+  })
+
+  it('画廊描述优先级：落库 caption > 正文标记 > 轨迹反解', () => {
+    const m = {
+      key: 'db_1', messageId: 1,
+      content: '@@插图|正文里的描述@@',
+      illustrations: { '0': '/a/0.png', tool0: '/a/t0.png' },
+      illustrationCaptions: { '0': '落库的描述', tool1: '不该命中' },
+      tools: [{ id: 'c1', name: 'sin_illustrate', status: 'done' as const, artifacts: [{ kind: 'image', path: '/a/t0.png', caption: '轨迹描述' }] }],
+    }
+    const byCue = new Map(collectIllustrations([m as never]).map((i) => [i.cue, i.prompt]))
+    expect(byCue.get('0')).toBe('落库的描述')
+    expect(byCue.get('tool0')).toBe('轨迹描述')
   })
 })

@@ -653,6 +653,7 @@ export const bindingNames = [
   "SinExportMarkdown",
   "SinIllustrate",
   "SinMessages",
+  "SinMessagesPage",
   "SinNotesGet",
   "SinNotesSave",
   "SinStream",

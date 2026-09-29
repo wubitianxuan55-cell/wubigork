@@ -11,6 +11,7 @@ const bridgeMock = vi.hoisted(() => ({
   SinTopicDelete: vi.fn(),
   SinTopicClear: vi.fn(),
   SinMessages: vi.fn(),
+  SinMessagesPage: vi.fn(),
   SinStream: vi.fn(),
   SinCancel: vi.fn(),
 }))
@@ -40,21 +41,31 @@ import { SIN_STREAM_SILENCE_TIMEOUT_MS, useSinStory } from './useSinStory'
 
 const STORY = { id: 'sin_1', title: '夜行电车', mode: 'sin', created_at: '2026-09-12 10:00:00', updated_at: '2026-09-12 10:00:00', preview: '开场' }
 
+const SEED_MESSAGES: Array<Record<string, unknown>> = [
+  { id: 1, topic_id: 'sin_1', role: 'user', content: '开场', extra: '', seq: 1, created_at: '2026-09-12 10:00:00' },
+  {
+    id: 2, topic_id: 'sin_1', role: 'assistant',
+    content: '雨落在窗上。\n@@插图|灯下的女人@@',
+    extra: JSON.stringify({
+      illustrations: { '0': 'C:/tmp/art.png' },
+      reasoning: 'r',
+      tools: [{ id: 'call_9', name: 'sin_cast', args: '{"name":"林晚"}', output: '角色卡：林晚', error: '', elapsed_ms: 4, read_only: true }],
+    }),
+    seq: 2, created_at: '2026-09-12 10:00:01',
+  },
+]
+
 beforeEach(() => {
   bridgeMock.SinTopicsList.mockReset().mockResolvedValue([STORY])
-  bridgeMock.SinMessages.mockReset().mockResolvedValue([
-    { id: 1, topic_id: 'sin_1', role: 'user', content: '开场', extra: '', seq: 1, created_at: '2026-09-12 10:00:00' },
-    {
-      id: 2, topic_id: 'sin_1', role: 'assistant',
-      content: '雨落在窗上。\n@@插图|灯下的女人@@',
-      extra: JSON.stringify({
-        illustrations: { '0': 'C:/tmp/art.png' },
-        reasoning: 'r',
-        tools: [{ id: 'call_9', name: 'sin_cast', args: '{"name":"林晚"}', output: '角色卡：林晚', error: '', elapsed_ms: 4, read_only: true }],
-      }),
-      seq: 2, created_at: '2026-09-12 10:00:01',
+  bridgeMock.SinMessages.mockReset().mockResolvedValue(SEED_MESSAGES)
+  // 分页默认与全量同源（短故事一页装满；分页专项用例另行覆盖窗口行为）
+  bridgeMock.SinMessagesPage.mockReset().mockImplementation(
+    (_id: string, beforeSeq: number, limit: number) => {
+      const filtered = beforeSeq > 0 ? SEED_MESSAGES.filter((m) => (m as { seq: number }).seq < beforeSeq) : SEED_MESSAGES
+      const page = filtered.slice(Math.max(filtered.length - limit, 0))
+      return Promise.resolve({ messages: page, has_more: filtered.length > limit })
     },
-  ])
+  )
   bridgeMock.SinTopicCreate.mockReset().mockResolvedValue({ id: 'sin_2', title: '新故事', mode: 'sin' })
   bridgeMock.SinTopicRename.mockReset().mockResolvedValue(undefined)
   bridgeMock.SinStream.mockReset()
@@ -209,17 +220,49 @@ describe('useSinStory', () => {
   it('reloadMessages：从后端重读当前故事消息（画廊重新生成后刷新用）', async () => {
     const { result } = renderHook(() => useSinStory())
     await waitFor(() => expect(result.current.initializing).toBe(false))
-    bridgeMock.SinMessages.mockResolvedValue([
-      { id: 1, topic_id: 'sin_1', role: 'user', content: '开场', extra: '', seq: 1, created_at: '2026-09-12 10:00:00' },
-      {
-        id: 2, topic_id: 'sin_1', role: 'assistant',
-        content: '雨落在窗上。\n@@插图|灯下的女人@@',
-        extra: JSON.stringify({ illustrations: { '0': 'C:/tmp/art-regen.png' } }),
-        seq: 2, created_at: '2026-09-12 10:00:01',
-      },
-    ])
+    bridgeMock.SinMessagesPage.mockResolvedValue({
+      messages: [
+        { id: 1, topic_id: 'sin_1', role: 'user', content: '开场', extra: '', seq: 1, created_at: '2026-09-12 10:00:00' },
+        {
+          id: 2, topic_id: 'sin_1', role: 'assistant',
+          content: '雨落在窗上。\n@@插图|灯下的女人@@',
+          extra: JSON.stringify({ illustrations: { '0': 'C:/tmp/art-regen.png' } }),
+          seq: 2, created_at: '2026-09-12 10:00:01',
+        },
+      ],
+      has_more: false,
+    })
     await act(() => result.current.reloadMessages())
     expect(result.current.messages[1].illustrations).toEqual({ '0': 'C:/tmp/art-regen.png' })
+  })
+
+
+  it('分页（v4.428）：首拉只取最新一页；loadOlder 前置更早页；尽头 hasOlder 复位', async () => {
+    // 105 条（seq 1..105），页大小 100：首拉得最新 100 条且 hasOlder=true
+    const all = Array.from({ length: 105 }, (_, k) => ({
+      id: k + 1, topic_id: 'sin_1', role: (k % 2 === 0 ? 'user' : 'assistant') as 'user' | 'assistant',
+      content: `消息${k + 1}`, extra: '', seq: k + 1, created_at: '2026-09-12 10:00:00',
+    }))
+    bridgeMock.SinMessagesPage.mockReset().mockImplementation(
+      (_id: string, beforeSeq: number, limit: number) => {
+        const filtered = beforeSeq > 0 ? all.filter((m) => m.seq < beforeSeq) : all
+        const page = filtered.slice(Math.max(filtered.length - limit, 0))
+        return Promise.resolve({ messages: page, has_more: filtered.length > limit })
+      },
+    )
+    const { result } = renderHook(() => useSinStory())
+    await waitFor(() => expect(result.current.initializing).toBe(false))
+    expect(result.current.messages).toHaveLength(100)
+    expect(result.current.messages[0].content).toBe('消息6') // 最新一页从第 6 条起
+    expect(result.current.hasOlder).toBe(true)
+    // 前置更早页：5 条补齐、顺序旧→新、hasOlder 复位
+    await act(async () => { await result.current.loadOlder() })
+    expect(result.current.messages).toHaveLength(105)
+    expect(result.current.messages[0].content).toBe('消息1')
+    expect(result.current.hasOlder).toBe(false)
+    // 尽头再触发：no-op
+    await act(async () => { await result.current.loadOlder() })
+    expect(result.current.messages).toHaveLength(105)
   })
 
   it('帧到达会重置静默计时：工具循环的长回合不误判超时（v4.262）', async () => {
@@ -297,3 +340,5 @@ describe('useSinStory', () => {
     expect(result.current.activeId).toBe('sin_2')
   })
 })
+
+

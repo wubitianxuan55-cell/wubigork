@@ -157,7 +157,9 @@ func TestSinPersistToolArtifacts(t *testing.T) {
 	var ex map[string]any
 	_ = json.Unmarshal([]byte(msg.Extra), &ex)
 	ills, _ := ex["illustrations"].(map[string]any)
-	if ills == nil || ills["tool0"] != "C:/art/x.png" {
+	// v4.428 值形态：{path, caption} 对象，caption 来自轨迹产物
+	obj, _ := ills["tool0"].(map[string]any)
+	if obj == nil || obj["path"] != "C:/art/x.png" || obj["caption"] != "雨夜" {
 		t.Fatalf("回写后 extra.illustrations = %v", ex["illustrations"])
 	}
 

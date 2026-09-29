@@ -15,12 +15,34 @@ import type { SinMessageView } from './types'
 export interface StoryStreamProps {
   storyId: string
   messages: SinMessageView[]
+  /** 还有更早的消息未载入（v4.428 分页）：顶部显示加载提示。 */
+  hasOlder?: boolean
+  /** 正在取更早一页。 */
+  loadingOlder?: boolean
+  /** 手动取更早（顶部提示行可点；上滚自动触发由父层 onScroll 负责）。 */
+  onLoadOlder?: () => void
   onIllustrationGenerated: (messageKey: string, cueKey: string, path: string) => void
   onIllustrationError: (message: string) => void
   /** 滚动容器滚动回调（父层据此判断是否贴底跟随）。 */
   onScroll?: () => void
   /** 空态引导文案（首入时提示怎么开写）。 */
   emptyHint?: string
+}
+
+/** 顶部「更早消息」提示行：加载中转圈、可点击手动取、到底隐藏。 */
+function OlderHint({ hasOlder, loadingOlder, onLoadOlder }: { hasOlder?: boolean; loadingOlder?: boolean; onLoadOlder?: () => void }) {
+  if (!hasOlder) return null
+  return (
+    <div className="sin-older-hint">
+      {loadingOlder
+        ? <><span className="sin-figure-spinner" aria-hidden="true" /> 正在载入更早的消息…</>
+        : (
+          <button type="button" className="sin-older-btn" onClick={onLoadOlder}>
+            还有更早的消息 · 向上滚动或点击载入
+          </button>
+        )}
+    </div>
+  )
 }
 
 
@@ -73,7 +95,7 @@ const SinAssistantRow = memo(function SinAssistantRow({
 })
 
 export const StoryStream = forwardRef<HTMLDivElement, StoryStreamProps>(function StoryStream(
-  { storyId, messages, onIllustrationGenerated, onIllustrationError, onScroll, emptyHint }, ref,
+  { storyId, messages, hasOlder, loadingOlder, onLoadOlder, onIllustrationGenerated, onIllustrationError, onScroll, emptyHint }, ref,
 ) {
   if (messages.length === 0) {
     return (
@@ -86,6 +108,7 @@ export const StoryStream = forwardRef<HTMLDivElement, StoryStreamProps>(function
   }
   return (
     <div className="sin-stream" ref={ref} onScroll={onScroll}>
+      <OlderHint hasOlder={hasOlder} loadingOlder={loadingOlder} onLoadOlder={onLoadOlder} />
       {messages.map((m) => {
         if (m.role === 'user') {
           return (

@@ -14,7 +14,7 @@ import { SIN_CUE_CLOSE, SIN_CUE_OPEN } from "../../../pages/sin/storyText";
 type SinMethods = Pick<
   AppBindings,
   | "SinTopicsList" | "SinTopicCreate" | "SinTopicRename" | "SinTopicDelete"
-  | "SinTopicClear" | "SinMessages" | "SinStream" | "SinIllustrate" | "SinExportMarkdown"
+  | "SinTopicClear" | "SinMessages" | "SinMessagesPage" | "SinStream" | "SinIllustrate" | "SinExportMarkdown"
   | "SinExportEpub"
   | "SinCastGet" | "SinCastSet" | "SinCancel" | "SinNotesGet" | "SinNotesSave"
   | "SinTrajectory" | "SinContextView" | "SinContextNodeDetail"
@@ -183,6 +183,19 @@ export function buildSin(): SinMethods {
     async SinMessages(topicID: string) {
       seed();
       return (messages.get(topicID) ?? []) as unknown as chat.Message[];
+    },
+    // 分页窗口（v4.428 与 Go 同口径：beforeSeq<=0 取最新一页，升序 + has_more）
+    async SinMessagesPage(topicID: string, beforeSeq: number, limit: number) {
+      seed();
+      const all = (messages.get(topicID) ?? []) as unknown as Array<Record<string, unknown>>;
+      const seq = (m: Record<string, unknown>): number => (typeof m.seq === 'number' ? m.seq : 0);
+      const filtered = beforeSeq > 0 ? all.filter((m) => seq(m) < beforeSeq) : all.slice();
+      const lim = limit > 0 ? limit : 200;
+      const page = filtered.slice(Math.max(filtered.length - lim, 0));
+      return {
+        messages: page as unknown as chat.Message[],
+        has_more: filtered.length > lim,
+      };
     },
     // ── v4.412 看板复用：与 Go sin_insight 同规则的内存折叠（估算口径） ──
     async SinTrajectory(topicID: string) {
