@@ -134,8 +134,9 @@ func TestCreateChapterDigestInjection(t *testing.T) {
 	}
 	select {
 	case body := <-requests:
-		if !strings.Contains(string(body), "作者风格约束") || !strings.Contains(string(body), "四字格克制") {
-			t.Fatalf("prompt 应含风格约束区段（回灌验收），捕获体未见")
+		// 刀6：digest 并入「文风与表达」合并区段（去重单标题）。
+		if !strings.Contains(string(body), "文风与表达") || !strings.Contains(string(body), "四字格克制") {
+			t.Fatalf("prompt 应含文风合并区段与学习指令（回灌验收），捕获体未见")
 		}
 	case <-time.After(5 * time.Second):
 		t.Fatal("未捕获生成请求")

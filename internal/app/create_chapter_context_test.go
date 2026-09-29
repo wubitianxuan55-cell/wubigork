@@ -165,7 +165,7 @@ func TestChapterContextBudgetTruncation(t *testing.T) {
 	}}); err != nil {
 		t.Fatalf("写入世界观: %v", err)
 	}
-	ws := buildWorldviewSection(pm)
+	ws := buildWorldviewSection(pm, "")
 	if n := len([]rune(ws)); n > ctxWorldviewBudget {
 		t.Errorf("世界观区超预算: got %d rune, want <= %d", n, ctxWorldviewBudget)
 	}
@@ -374,7 +374,7 @@ func TestChapterContextInjectsBookStyle(t *testing.T) {
 	}
 
 	got := buildChapterContextSections(pm, 99)
-	if !strings.Contains(got, "本书文风（作者显式偏好") {
+	if !strings.Contains(got, "文风与表达（作者显式偏好") {
 		t.Fatalf("文风区段应注入: %s", got)
 	}
 	if !strings.Contains(got, "短句为主") || !strings.Contains(got, "结尾落在具体动作上") {
@@ -383,7 +383,7 @@ func TestChapterContextInjectsBookStyle(t *testing.T) {
 	if !strings.Contains(got, "事实") { // 事实与表达分开裁决的口径要写明
 		t.Fatal("区段应声明表达/事实裁决边界")
 	}
-	if strings.Contains(got, "# 本书文风") && strings.Count(got, "本书文风") != strings.Count(got, "本书文风（作者显式偏好") {
+	if strings.Contains(got, "# 本书文风") && strings.Count(got, "本书文风") != 0 {
 		// 标题行不应原样带进偏好正文（过滤 # 行）
 		t.Fatalf("# 标题行应被过滤: %s", got)
 	}
@@ -416,7 +416,7 @@ func TestChapterContextStyleTruncated(t *testing.T) {
 	long := strings.Repeat("这句偏好用来撑长度。", 200) // ~2000 字超 1200 上限
 	os.WriteFile(filepath.Join(pm.Dir, "style.md"), []byte(long), 0644)
 	got := buildChapterContextSections(pm, 99)
-	if !strings.Contains(got, "本书文风") {
+	if !strings.Contains(got, "文风与表达") {
 		t.Fatal("超长偏好仍应注入（截断版）")
 	}
 	if !strings.Contains(got, "……") {

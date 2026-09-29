@@ -538,6 +538,7 @@ export const bindingNames = [
   "NovelChapterConverge",
   "NovelChapterConvergePreview",
   "NovelChapterReview",
+  "NovelContextInventory",
   "NovelChapterScenesGenerate",
   "NovelChapterRewrite",
   "NovelChapterSuggestions",

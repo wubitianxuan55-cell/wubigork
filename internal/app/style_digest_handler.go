@@ -7,6 +7,7 @@ package app
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/gaea/gaea/internal/novelstyle"
@@ -85,7 +86,48 @@ func (a *writingState) NovelStyleDigestClear() error {
 	return pm.ClearStyleDigest()
 }
 
-// styleDigestSection 生成注入的作者风格约束区段（空档零注入）。
+// digestBody 读 digest 的指令正文（无标题；并入文风合并区段用；空档空串）。
+func (a *writingState) digestBody(pm styleDigestPM) string {
+	df, err := pm.ReadStyleDigest()
+	if err != nil || df == nil {
+		return ""
+	}
+	return df.Instructions
+}
+
+// joinStyleSections 文风合并区段（刀6）：style.md 显式偏好与成稿学习指令
+// 并为单一区段——偏好优先、学习跟随；只有一方时保持各自完整语义（标题仍
+// 单一）；双空返回空串（零注入）。合并预算 ctxStyleBudget+400（学习指令行短）。
+func joinStyleSections(styleBody, digestInstr string) string {
+	styleBody = strings.TrimSpace(styleBody)
+	digestInstr = strings.TrimSpace(digestInstr)
+	if styleBody == "" && digestInstr == "" {
+		return ""
+	}
+	if digestInstr == "" {
+		return "## 文风与表达（作者显式偏好，优先于通用默认写法）\n" +
+			"以下只约束表达方式（句长/视角/标点/对话/修辞/收尾等）；事件、事实与信息边界仍以细纲为准：\n" + styleBody
+	}
+	if styleBody == "" {
+		return "## 文风与表达（从你的成稿学到的习惯，按此口径写）\n" + digestInstr
+	}
+	merged := "## 文风与表达（作者显式偏好优先；成稿学习口径跟随）\n" +
+		"【显式偏好】（只约束表达方式；事件与信息边界以细纲为准）\n" + styleBody +
+		"\n【成稿学习】\n" + digestInstr
+	return truncateCtxStyle(merged)
+}
+
+// truncateCtxStyle 文风合并区段截断（偏好优先保留：先保 styleBody，学习指令收尾截断）。
+func truncateCtxStyle(merged string) string {
+	const budget = 1600 + 400
+	if len([]rune(merged)) <= budget {
+		return merged
+	}
+	return string([]rune(merged)[:budget]) + "……"
+}
+
+// styleDigestSection 生成注入的作者风格约束区段（空档零注入；独立消费面保留——
+// 逐场景流与 Inventory 用）。
 func (a *writingState) styleDigestSection(pm styleDigestPM) string {
 	df, err := pm.ReadStyleDigest()
 	if err != nil || df == nil || df.Instructions == "" {

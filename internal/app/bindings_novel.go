@@ -184,6 +184,11 @@ func (b *NovelB) NovelStyleDigestGet() (map[string]interface{}, error) {
 func (b *NovelB) NovelStyleDigestClear() error {
 	return b.a.NovelStyleDigestClear()
 }
+
+// NovelContextInventory 本章生成将注入的上下文区段清单（dry-run，刀6 可见性）。
+func (b *NovelB) NovelContextInventory(chapterNum int) ([]map[string]interface{}, error) {
+	return b.a.NovelContextInventory(chapterNum)
+}
 func (b *NovelB) GenerateSingleCharacter(chJSON string) (map[string]interface{}, error) {
 	return b.a.GenerateSingleCharacter(chJSON)
 }

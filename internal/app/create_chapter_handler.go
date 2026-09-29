@@ -58,6 +58,12 @@ func (a *writingState) createChapter(setting, prevSummary, plotReq string, chapt
 	if setting == "" {
 		return nil, fmt.Errorf("小说设定为空，请先在「设定」页面填写世界观")
 	}
+	// 刀6：setting 槽入预算——此前整篇设定无裁剪直进模板 P0 槽（预算外堆料的
+	// 最大残留）；超长截断并如实告知（分维度要点仍在「世界观要点」区段）。
+	if r := runeLen(setting); r > ctxSettingBudget {
+		setting = truncateBudget(setting, ctxSettingBudget) +
+			"\n（设定过长已截断；分维度要点见下方「世界观要点」区段）"
+	}
 
 	// 2. 加载 Skill 写作指导
 	skillMD := ""
@@ -152,7 +158,11 @@ func (a *writingState) createChapter(setting, prevSummary, plotReq string, chapt
 	// 本章计划/大纲要点两个新区段先按各自上限占用额度，剩余额度再给伏笔/文风/世界观
 	// （同一 ctxBudgetTotal 口径，不叠加成第二套预算）。
 	ctxBudgetLeft := ctxBudgetTotal - runeLen(planSec) - runeLen(outlineSec)
-	if extra := buildChapterContextSectionsWithin(pm, ctxChapterNum, ctxBudgetLeft); extra != "" {
+	// 刀6：hint=计划+大纲要点文本（世界观相关性排序）；digest 指令并入文风区段
+	// （此前独立追加=文风两处的延续，本刀合并为单一区段）。
+	ctxHint := planSec + "\n" + outlineSec
+	digestInstr := a.digestBody(pm)
+	if extra := buildChapterContextSectionsWithin(pm, ctxChapterNum, ctxBudgetLeft, ctxHint, digestInstr); extra != "" {
 		userPrompt += extra + "\n"
 	}
 
@@ -162,10 +172,6 @@ func (a *writingState) createChapter(setting, prevSummary, plotReq string, chapt
 	spineSec := a.storySpineSection(pm, ctxChapterNum)
 	if spineSec != "" {
 		userPrompt += spineSec + "\n"
-	}
-	// 刀5：作者风格约束（从成稿学到的表达习惯）——零 digest 零注入。
-	if digestSec := a.styleDigestSection(pm); digestSec != "" {
-		userPrompt += digestSec + "\n"
 	}
 
 	systemPrompt := tmpl.BuildSystemPrompt("")
@@ -899,6 +905,9 @@ const (
 	// 文风/世界观共用一个 ctxBudgetTotal 口径（见 createChapter 的余额扣减）。
 	ctxChapterPlanBudget   = 1200 // 本章计划区段上限（rune）
 	ctxOutlinePointsBudget = 800  // 大纲要点（KeyPoints/Emotion）区段上限（rune）
+	// 刀6：setting 槽入预算——此前前端传整篇设定完全无裁剪（预算外堆料的最大
+	// 残留）；截断后与「世界观要点」区段互补（要点仍在）。
+	ctxSettingBudget = 3000
 )
 
 // 角色摘要字段预算。性格截断由原 20 rune 放宽到 60，另补身份/目标/关系要点。
@@ -971,25 +980,28 @@ func truncateBudget(s string, budget int) string {
 // （分层伏笔调度 + 世界观要点）。无数据或读取失败时返回 ""，调用方不追加
 // 任何内容（prompt 中不出现空区段）。分层伏笔渲染见 foreshadow_context.go。
 func buildChapterContextSections(pm *project.Manager, currentChapter int) string {
-	return buildChapterContextSectionsWithin(pm, currentChapter, ctxBudgetTotal)
+	return buildChapterContextSectionsWithin(pm, currentChapter, ctxBudgetTotal, "", "")
 }
 
 // buildChapterContextSectionsWithin 同 buildChapterContextSections，但预算可调：
 // 刀1 的章节计划/大纲要点区段已经从 ctxBudgetTotal 里先占额度，剩余额度经本函数
 // 传给伏笔/文风/世界观，保证「计划 + 大纲 + 增强区段」合计不超过同一个 ctxBudgetTotal。
-func buildChapterContextSectionsWithin(pm *project.Manager, currentChapter, budget int) string {
+func buildChapterContextSectionsWithin(pm *project.Manager, currentChapter, budget int, relevanceHint, digestInstr string) string {
 	if budget <= 0 {
 		return "" // 额度耗尽：不追加任何区段（宁缺毋滥，不写半截截断文本）
 	}
 	sections := make([]string, 0, 3)
 	if body := buildForeshadowSection(pm, currentChapter); body != "" {
 		sections = append(sections, "## 未回收伏笔（创作约束）\n"+
-			"以下伏笔已埋设尚未回收，写作时不得与之矛盾；可自然推进，不要强行提前揭穿：\n"+body)
+			"以下伏笔已埋设尚未回收，写作时不得与之矛盾；可自然推进，不要强行揭穿：\n"+body)
 	}
-	if body := buildStyleSection(pm); body != "" {
+	// 刀6 文风去重合并：style.md（显式偏好）与成稿学习指令（刀5 digest）此前
+	// 是两个独立区段两个标题（§1.8「文风两处」的延续）——合并为单一区段，
+	// 偏好优先、学习跟随。
+	if body := joinStyleSections(styleSectionBody(pm), digestInstr); body != "" {
 		sections = append(sections, body)
 	}
-	if body := buildWorldviewSection(pm); body != "" {
+	if body := buildWorldviewSection(pm, relevanceHint); body != "" {
 		sections = append(sections, "## 世界观要点\n"+body)
 	}
 	return joinWithBudget(budget, sections...)
@@ -1277,7 +1289,9 @@ func buildOutlinePointsSection(node *types.OutlineNode) string {
 // 偏好也有效；空白/纯标题/「待补充」不算；无文件不建占位、不猜。
 // 协议口径：文风只裁决**表达维度**（句长/视角/标点/对话/修辞/收尾），
 // 事件、事实、信息揭露边界仍以细纲为准——事实与表达分开裁决。
-func buildStyleSection(pm *project.Manager) string {
+// styleSectionBody 抽正文（刀6 文风合并区段的偏好半边）；buildStyleSection 为
+// 兼容壳（带标题完整区段，旧消费面）。
+func styleSectionBody(pm *project.Manager) string {
 	if pm == nil {
 		return ""
 	}
@@ -1303,8 +1317,7 @@ func buildStyleSection(pm *project.Manager) string {
 	if r := utf8.RuneCountInString(body); r > ctxStyleBudget {
 		body = string([]rune(body)[:ctxStyleBudget]) + "……"
 	}
-	return "## 本书文风（作者显式偏好，优先于通用默认写法）\n" +
-		"以下只约束表达方式（句长/视角/标点/对话/修辞/收尾等）；事件、事实与信息边界仍以细纲为准：\n" + body
+	return body
 }
 
 // joinWithBudget 用空行拼接区段；合计超过 budget（rune）时对每段截断至
@@ -1329,7 +1342,7 @@ func joinWithBudget(budget int, sections ...string) string {
 // ctxWorldviewDimLen、整体不超过 ctxWorldviewBudget。复用 pm.ReadWorldview
 // （worldview.json 优先，旧 worldview.md 兜底）；旧 md 无 "## " 维度标题时
 // 整块压缩为单条要点。读失败或全空时返回 ""。
-func buildWorldviewSection(pm *project.Manager) string {
+func buildWorldviewSection(pm *project.Manager, relevanceHint string) string {
 	if pm == nil {
 		return ""
 	}
@@ -1362,7 +1375,37 @@ func buildWorldviewSection(pm *project.Manager) string {
 		// 旧 md 没有任何 "## " 维度标题：整块作为单条要点压缩注入
 		return "- 世界观：" + util.Truncate(strings.TrimSpace(md), ctxWorldviewDimLen*4)
 	}
+	// 刀6 相关性：维度标题命中本章计划/大纲要点的条目优先保留（稳定排序——
+	// 命中者前移、组内保持原序；预算内截断口径不变）。无 hint 或零命中=原序。
+	if strings.TrimSpace(relevanceHint) != "" {
+		scored := make([]string, len(lines))
+		copy(scored, lines)
+		sort.SliceStable(scored, func(i, j int) bool {
+			return worldviewDimHitsHint(scored[i], relevanceHint) && !worldviewDimHitsHint(scored[j], relevanceHint)
+		})
+		lines = scored
+	}
 	return truncateBudget(strings.Join(lines, "\n"), ctxWorldviewBudget)
+}
+
+// worldviewDimHitsHint 维度条目标题是否命中相关性提示的任一关键词
+// （hint 分词按空白/标点切 2+ 字词，标题子串匹配）。
+func worldviewDimHitsHint(dimLine, hint string) bool {
+	head := dimLine
+	if idx := strings.Index(head, "："); idx > 0 {
+		head = head[:idx]
+	}
+	// 中文无词边界（FieldsFunc 对整句只切出一个超长 token）：改 rune bigram 滑窗
+	// ——hint 的任意连续两字子串命中维度标题即视为相关（宽匹配可接受：本函数
+	// 只做排序不做过滤，误命中最多让无关维度排前）。
+	hrs := []rune(hint)
+	for i := 0; i+1 < len(hrs); i++ {
+		bigram := string(hrs[i : i+2])
+		if strings.Contains(head, bigram) {
+			return true
+		}
+	}
+	return false
 }
 
 // buildCharacterSummary 构建角色摘要字符串（用于注入章节生成 prompt）

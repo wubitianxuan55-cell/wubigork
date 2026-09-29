@@ -429,6 +429,8 @@ export interface NovelBindings {
   NovelStyleDigestGet(): Promise<Record<string, unknown>>;
   // 清除风格摘要档（指纹体检档不受影响）。
   NovelStyleDigestClear(): Promise<void>;
+  // 本章生成将注入的上下文区段清单（dry-run，刀6 可见性）。
+  NovelContextInventory(chapterNum: number): Promise<Array<Record<string, unknown>>>;
   // SaveSceneMeta 保存场景元数据（标题/概要/POV/地点/时间/情感/标签/状态；正文走 SaveScene）。
   SaveSceneMeta(chapterNum: number, sceneID: string, metaJSON: string): Promise<void>;
   CancelCreateChapter(chapterNum: number, branch: string): Promise<boolean>;
