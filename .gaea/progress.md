@@ -1,3 +1,13 @@
+## 最新发布：v4.436.0（2026-09-30）「P5 破防专项：Go >50KB 五文件拆分（纯搬移零功能）」
+
+- **刀型**：用户指令「继续」（长篇七刀收官后，P5 复测在册挂池清账——「Go >50KB 0→4 破防，拆分留观察池待专项（P3 纪律=专项勿顺手做）」本刀即该专项）。长篇七刀加码后实测**五文件**破防（create_chapter_handler 67.4K 居首）。**零功能变更、绑定面 742 零变更**——全部为同包文件搬移（按功能族移到新文件，函数/常量/类型签名不动）。
+- **拆分明细**：①create_chapter_handler 67.4K→43.8K（拆 `create_chapter_context.go` 24.3K：上下文预算常量/前文摘要窗口/增强区段组装/计划门辅助与区段渲染/世界观与文风构建/角色摘要）；②image_comfyui 59.4K→36.1K（拆 `image_comfyui_workflows.go` 23.7K：各模型 txt2img/img2img/edit/video 工作流拼装/LoRA 注入/Kontext 分辨率表）；③image_handler 57.9K→39.3K（拆 `image_comfyui_proc.go` 19.0K：ComfyUI 进程引用/启停恢复/端口探测/系统资源统计）；④controller 53.2K→42.3K（拆 `controller_session.go` 11.4K：会话新建/恢复/工具态复位/checkpoint/上下文用量）；⑤config 52.2K→41.7K（拆 `config_paths.go`：用户配置路径/归档会话目录/约定目录扫描/默认系统提示词与语言政策）。五文件全部回到 P4 纪律上限（50KB）以下；**P5 复测破防线归零**（>50KB 0 个；>40KB 仍 7 个留池下季复测）。
+- **验证**：go build ./... ./go vet/gofmt/golangci-lint 四包 0 issues；app+ai+control+config 四包测试 -count=1 绿。随版收口 TestCreateChapterDigestInjection 的 **Windows unlinkat 竞态**（刀5 测试漏补 waitGensDone——v4.435 总结「CreateChapter 真链测试收尾必等」完整套用，八连跑全绿）。
+- **门禁**：全量 `ci.ps1` → CI OK（**首轮挂在册负载 flaky OriginalSinPage.tabs**——v4.414/v4.418 同款，单跑 4/4 绿，重跑全绿；漂移闸 OK@4.436.0（742 零变更））。
+- **产物**：`releases/gaea-v4.436.0.exe` 51,804,160 B SHA256=`bde9b4652abb9cee52488e4b73181837cf8e1c5b9471460ee6edd999f78754ac`（`SHA256SUMS-v4.436.0.txt`；冒烟 200 过）；保留策略删 v4.431.0.exe，实存 5 版（436/435/434/433/432）。
+- **文档**：`releases/v4.436.0.md`（含拆分明细表）+ CHANGELOG/README + releases/README + AGENTS 速览 + progress（本条）。
+- **坑/教训**：①**大文件拆分的机械配方**：按顶层声明清单（grep '^func|^type|^const|^var'）定函数边界行号→整段行级搬移→新文件手写 import（编译器逐个报缺/报多余，两三轮收敛）→**段尾注释回填**（切点常落在文档注释中间，尾注释移回原文件对应 func 前）。②拆分切点选「功能族聚拢」而非对半切——新文件名即族名（context/workflows/proc/session/paths），下季复测可读性也受益。③后台 shell cwd 漂移再犯（git add 报 frontend/internal 不存在）——跨命令一律显式 cd。
+
 ## 最新发布：v4.435.0（2026-09-30）「长篇刀7：评测基线（七刀收官）」
 
 - **刀型**：用户指令「继续」（长篇七刀线程收官刀，P2）。规格 §4（评测闭环）按「单刀最小闭环」裁剪：**确定性聚合快照+基线落盘可比+逐指标 Δ**。Go 新 eval_baseline_handler.go；**绑定面 739→742（+3：NovelEvalSnapshot/NovelEvalBaselineSet/NovelEvalCompare）**、spaceBindings 563→566，零功能删除。规格=`进度计划/gaea-novel-eval-baseline-20260930.md`。
