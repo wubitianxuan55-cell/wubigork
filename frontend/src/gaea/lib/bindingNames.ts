@@ -47,6 +47,7 @@ export const bindingNames = [
   "ChatOutline",
   "ChatOutlineNode",
   "ChatSend",
+  "ChatStreamCancel",
   "ChatStreamPlain",
   "ChatTopicClear",
   "ChatTopicCreate",

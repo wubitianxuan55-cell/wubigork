@@ -49,6 +49,12 @@ import (
 // core 是所有子服务共享的基础依赖（ctx/client/cfg/engineMgr 等）。
 // 通过指针嵌入到 App 与各子服务，保证同一实例、方法体零改动。
 type core struct {
+	// 普通对话流式取消登记（P1-5 对话条：runID → cancel）。同章节生成同款纪律：
+	// 协程退出独占清表，取消只调 cancel 不删条目。归 core：chat 域生命周期与
+	// App 装配同步（writingState 仅小说域构造，裸 chat 测试桩不含它）。
+	chatStreamMu      sync.Mutex
+	chatStreamCancels map[string]context.CancelFunc
+
 	ctx    context.Context
 	cfg    *config.Config
 	client *ai.Client
@@ -91,6 +97,7 @@ type writingState struct {
 	// NovelChapterPlanSave 一个写者，但 httpbridge 本机面允许第二个调用方并发
 	// 进入「读旧表→改→写回」，后写覆盖先写丢更新。锁贯穿整个读-改-写临界区。
 	chapterPlanMu sync.Mutex
+
 	// 进行中章节生成协程数：登记表**协程退出才清**（v4.421.0 起；取消路径置 nil
 	// 占位而非删除）——取消后协程仍有「已生成部分落盘」尾步，表项为 nil ≠ 已退出；
 	// 测试等协程真正退出要等它（v4.233 根治 TempDir 清理与尾步写盘的

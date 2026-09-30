@@ -29,6 +29,8 @@ export interface ChatBindings {
   ChatImportTopic(title: string, mode: string, messages: Array<Record<string, unknown>>): Promise<Record<string, unknown>>;
   ChatSend(topicID: string, message: string, mode: string, searchEnabled: boolean, thinking: boolean, forceSearch: boolean): Promise<Record<string, unknown>>;
   ChatStreamPlain(topicID: string, message: string, searchEnabled: boolean, thinking: boolean, forceSearch: boolean): Promise<string>;
+  // P1-5：取消进行中的对话流（已生成部分落库并以 cancelled 收尾；未知 runID 返 false）。
+  ChatStreamCancel(runID: string): Promise<boolean>;
   ChatTopicClear(id: string): Promise<void>;
   ChatTopicExportMarkdown(topicID: string): Promise<string>;
 }

@@ -56,6 +56,11 @@ func (b *ChatB) ChatSend(topicID string, message string, mode string, searchEnab
 func (b *ChatB) ChatStreamPlain(topicID string, message string, searchEnabled bool, thinking bool, forceSearch bool) (string, error) {
 	return b.a.ChatStreamPlain(topicID, message, searchEnabled, thinking, forceSearch)
 }
+
+// ChatStreamCancel 取消进行中的对话流（P1-5：已生成部分落库并以 cancelled 收尾）。
+func (b *ChatB) ChatStreamCancel(runID string) bool {
+	return b.a.ChatStreamCancel(runID)
+}
 func (b *ChatB) ChatTopicClear(id string) error { return b.a.ChatTopicClear(id) }
 func (b *ChatB) ChatTopicCreate(title string, mode string) (chat.Topic, error) {
 	return b.a.ChatTopicCreate(title, mode)

@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -117,11 +118,51 @@ func (a *App) ChatStreamPlain(topicID, message string, searchEnabled, thinking, 
 	}
 	eng, model, source := a.routeModel("chat")
 	runID := newChatStreamRunID()
-	go a.runChatStreamPlain(runID, topicID, message, eng, model, source, searchEnabled, thinking, forceSearch)
+	// P1-5 对话条：请求级 ctx 登记进取消表（ChatStreamCancel 可中断——长回合
+	// 不再只能等 30s 静默超时）；协程退出独占清表（chapterGen 同款纪律）。
+	parent := a.ctx
+	if parent == nil {
+		parent = context.Background() // 裸构造（测试桩）防御；生产 a.ctx 恒就绪
+	}
+	streamCtx, cancel := context.WithCancel(parent)
+	a.chatStreamRegister(runID, cancel)
+	go a.runChatStreamPlain(streamCtx, runID, topicID, message, eng, model, source, searchEnabled, thinking, forceSearch)
 	return runID, nil
 }
 
-func (a *App) runChatStreamPlain(runID, topicID, userMessage, eng, model, source string, searchEnabled, thinking, forceSearch bool) {
+// chatStreamRegister 登记进行中的对话流取消函数。
+func (a *App) chatStreamRegister(runID string, cancel context.CancelFunc) {
+	a.chatStreamMu.Lock()
+	defer a.chatStreamMu.Unlock()
+	if a.chatStreamCancels == nil {
+		a.chatStreamCancels = make(map[string]context.CancelFunc)
+	}
+	a.chatStreamCancels[runID] = cancel
+}
+
+// chatStreamUnregister 协程退出时独占清表（幂等）。
+func (a *App) chatStreamUnregister(runID string) {
+	a.chatStreamMu.Lock()
+	delete(a.chatStreamCancels, runID)
+	a.chatStreamMu.Unlock()
+}
+
+// ChatStreamCancel 取消指定对话流（P1-5）：已生成部分照常落库并以 cancelled
+// 终态收尾（对齐章节生成取消语义——保留部分回复）；runID 未知（已结束/不存在）
+// 返回 false 不算错。
+func (a *App) ChatStreamCancel(runID string) bool {
+	a.chatStreamMu.Lock()
+	cancel, running := a.chatStreamCancels[runID]
+	a.chatStreamMu.Unlock()
+	if !running || cancel == nil {
+		return false
+	}
+	cancel()
+	return true
+}
+
+func (a *App) runChatStreamPlain(ctx context.Context, runID, topicID, userMessage, eng, model, source string, searchEnabled, thinking, forceSearch bool) {
+	defer a.chatStreamUnregister(runID)
 	defer func() {
 		if r := recover(); r != nil {
 			slog.Error("chat stream plain panic", "panic", r)
@@ -130,7 +171,7 @@ func (a *App) runChatStreamPlain(runID, topicID, userMessage, eng, model, source
 	}()
 
 	promptMessage := a.preparePlainChatMessage(userMessage, searchEnabled, forceSearch)
-	chunks, cancel, err := a.client.ChatStreamChunks(a.ctx, model, chatPlainSystemPrompt, promptMessage,
+	chunks, cancel, err := a.client.ChatStreamChunks(ctx, model, chatPlainSystemPrompt, promptMessage,
 		ai.ChatSimpleOptions{EngineID: eng, Feature: "chat", EnableThinking: thinking})
 	if err != nil {
 		a.emit("chat-stream:"+runID, map[string]interface{}{"type": "error", "error": err.Error()})
@@ -162,6 +203,9 @@ func (a *App) runChatStreamPlain(runID, topicID, userMessage, eng, model, source
 		}
 	}
 
+	// P1-5 用户取消：已生成部分照常走落库与终态——按 cancelled（而非 done/error）
+	// 如实告知前端（保留部分回复，对齐章节生成取消语义）。
+	cancelled := ctx.Err() != nil
 	replyStr := reply.String()
 	reasoningStr := reasoning.String()
 	extra := ""
@@ -191,8 +235,12 @@ func (a *App) runChatStreamPlain(runID, topicID, userMessage, eng, model, source
 		}
 		costCNY = modelengine.EstimateCostCNY(eng, model, usage.PromptTokens, usage.CompletionTokens, usdCny)
 	}
+	finalType := "done"
+	if cancelled {
+		finalType = "cancelled"
+	}
 	a.emit("chat-stream:"+runID, map[string]interface{}{
-		"type":      "done",
+		"type":      finalType,
 		"reply":     replyStr,
 		"reasoning": reasoningStr,
 		"topicID":   topicID,

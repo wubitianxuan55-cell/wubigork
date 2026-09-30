@@ -137,9 +137,9 @@
 | 模块 | 问题 | 证据 | 动作 |
 |---|---|---|---|
 | 角色库 | 自陈缺口未收口：副本→库无回写通道、外观锚点分裂 | `docs/gaea-character-domain-survey-2026-09.md`「这正是『角色在章节和出图里是同一个人』要防的事」；一致性评分是单次视觉 LLM 主观分，无金标/无校准 | 落「外观锚点单一来源 + 显式回写按钮 + 关联即快照」三条出口判据；评分加可信度标注 |
-| 对话 | 无「停止生成」入口 | `frontend/src/hooks/useChatStream.ts:76` sending 期间直接 return，长回合只能等 30s 超时或切话题 | 补停止按钮（复用既有取消链路）；顺带把 GenUI 预算常量合成单一来源 |
-| 小说 | 审查链恒走 fallback；「场景驱动」名不副实 | `internal/chapter/chapter.go:148-152` 取不到 `chapter-review` 模板即走内置 fallback，而 `prompts/` 无该文件、`internal/chapter` 是唯一零测试包；`create_chapter_handler.go:488` 是整章 blob 事后物化单场景 | 二选一：补 `prompts/chapter-review.json` 让它可被提示词工作坊接管，或承认 fallback 为正式路径并补测试；规划档把「场景驱动」从已完成改回进行中 |
-| 绘梦 | 前端契约无归一化层，缺字段即炸整页；前端用例密度 0.14 | CHANGELOG v4.415.0「GetSystemStats 契约是 Partial 而 api 层零归一化直透……整页崩」 | 把 Partial→default 归一化固化为 api 层纪律；给全部 `Get*Stats` 类绑定补「字段缺失」用例 |
+| 对话 | 无「停止生成」入口 | `frontend/src/hooks/useChatStream.ts:76` sending 期间直接 return，长回合只能等 30s 超时或切话题 | **✅ 2026-09-30 落地（v4.437.0）**：后端 chatStreamCancels 登记（runID→cancel，协程退出独占清表）+ `ChatStreamCancel(runID)` 绑定 + 取消时已生成部分照常落库并以 `cancelled` 终态收尾（对齐章节生成取消语义）；前端 useChatStream 暴露 stop、Composer 发送钮 sending 时变停止。GenUI 预算常量合并未做（P2-2 独立项） |
+| 小说 | 审查链恒走 fallback；「场景驱动」名不副实 | `internal/chapter/chapter.go:148-152` 取不到 `chapter-review` 模板即走内置 fallback，而 `prompts/` 无该文件、`internal/chapter` 是唯一零测试包；`create_chapter_handler.go:488` 是整章 blob 事后物化单场景 | **✅ 2026-09-29 落地**：v4.429 补 `prompts/chapter-review.json`（内置 fallback 提升为工坊可编辑真身）；「场景驱动」由长篇刀2（v4.430 场景卡+逐场景生成）正面落地 |
+| 绘梦 | 前端契约无归一化层，缺字段即炸整页；前端用例密度 0.14 | CHANGELOG v4.415.0「GetSystemStats 契约是 Partial 而 api 层零归一化直透……整页崩」 | **✅ 已落地（v4.415+）**：`frontend/src/api/image.ts` getSystemStats 已做 Partial→全字段归一化（statNum 兜底，走查实证后修复）；「全部 Get*Stats 类补字段缺失用例」未逐一面做，留 P1-5 尾池 |
 
 ### P1-6 whisper 死码口径拍板 + 「仅测试引用」单列一档（成本：0.5 天定口径）
 

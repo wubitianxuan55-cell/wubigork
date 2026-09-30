@@ -141,7 +141,7 @@ const ChatPage: React.FC = () => {
     setAro,
     finalizeTopicAfterSend,
   })
-  const { sending, streamKey, streamText, send, cancelTyping } = streamApi
+  const { sending, streamKey, streamText, send, stop, cancelTyping } = streamApi
 
   // ── 语音集成（T6-3.3 语音消息落库在 hook 内） ──
   const voiceApi = useChatVoice({
@@ -470,6 +470,7 @@ const ChatPage: React.FC = () => {
           thinking={thinking}
           onToggleThinking={handleToggleThinking}
           onSend={handleSend}
+          onStop={stop}
           onFillInput={handleFillInput}
         />
       </main>

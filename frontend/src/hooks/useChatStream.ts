@@ -68,6 +68,8 @@ export function useChatStream(opts: UseChatStreamOptions) {
   }, [])
 
   const cancelTyping = useCallback(() => { typingCancelRef.current = true }, [])
+  // P1-5：进行中流式回合的 runID（停止入口用；无流/角色模式为 null）。
+  const activeRunIDRef = useRef<string | null>(null)
   const resetTyping = useCallback(() => { typingCancelRef.current = false }, [])
 
   const send = useCallback(async (params: ChatSendParams) => {
@@ -76,6 +78,7 @@ export function useChatStream(opts: UseChatStreamOptions) {
     if (!trimmed || sending || !active) return
     // T6-3.3：新一轮发送复位模拟打字取消标志（旧循环已被切话题/卸载置 true）
     typingCancelRef.current = false
+    activeRunIDRef.current = null
     setInput(''); setSending(true)
     const um: ChatMsg = { key: nextMsgKey(), role: 'user', content: trimmed, createdAt: nowStr() }
     const am: ChatMsg = { key: nextMsgKey(), role: 'assistant', content: '', streaming: true, createdAt: nowStr() }
@@ -139,6 +142,7 @@ export function useChatStream(opts: UseChatStreamOptions) {
           }, STREAM_SILENCE_TIMEOUT_MS)
           app.ChatStreamPlain(active, trimmed, search, thinking, force)
             .then((runID: string) => {
+              activeRunIDRef.current = runID
               // 订阅注册紧跟 runID 解析：同一微任务内完成，先订阅后收帧，首帧不丢
               unsub = EventsOn(`chat-stream:${runID}`, (payload: ChatStreamPayload) => {
                 if (settled) return
@@ -161,6 +165,14 @@ export function useChatStream(opts: UseChatStreamOptions) {
                   setStreamText(''); setStreamKey(null)
                   updateMessage(am.key, { content: reply, streaming: false, reasoning, extra })
                   finish(true)
+                } else if (p.type === 'cancelled') {
+                  // P1-5 用户停止：已生成部分落库（后端已 appendChatExchange），
+                  // 前端如实展示部分回复 + 停止标注（不按失败处理）。
+                  cancelPendingDelta()
+                  const partial = typeof p.reply === 'string' ? p.reply : ''
+                  setStreamText(''); setStreamKey(null)
+                  updateMessage(am.key, { content: partial ? partial + '\n\n（已停止生成）' : '（已停止生成，未收到内容）', streaming: false, reasoning: reasoningAcc })
+                  finish(false)
                 } else if (p.type === 'error') {
                   cancelPendingDelta()
                   setStreamText(''); setStreamKey(null)
@@ -183,6 +195,7 @@ export function useChatStream(opts: UseChatStreamOptions) {
         updateMessage(am.key, { content: `请求失败：${err instanceof Error ? err.message : String(err)}`, streaming: false, error: true })
       } finally {
         cleanup()
+        activeRunIDRef.current = null
         if (streamCleanupRef.current === cleanup) streamCleanupRef.current = null
         setSending(false)
       }
@@ -237,5 +250,17 @@ export function useChatStream(opts: UseChatStreamOptions) {
     } finally { setSending(false) }
   }, [sending, updateMessage, setMessages, setInput, setEmotion, setAff, setAro, finalizeTopicAfterSend])
 
-  return { sending, streamKey, streamText, send, cancelTyping, resetTyping }
+  /** P1-5 停止生成：plain 流调后端取消（cancelled 帧收尾——部分回复保留落库）；
+   * 角色模式退化为取消模拟打字（整段返回无法中断，如实保留已到文本）。 */
+  const stop = useCallback(() => {
+    if (typingCancelRef.current !== null && !sending) return
+    typingCancelRef.current = true // 角色模式：中止模拟打字
+    const rid = activeRunIDRef.current
+    if (rid) {
+      activeRunIDRef.current = null
+      void app.ChatStreamCancel(rid).catch(() => { /* 取消失败由 30s 静默超时兜底收尾 */ })
+    }
+  }, [sending])
+
+  return { sending, streamKey, streamText, send, stop, cancelTyping, resetTyping }
 }

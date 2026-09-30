@@ -5,7 +5,7 @@
 import React from 'react'
 import { Input, Button, Tooltip } from 'antd'
 import {
-  GlobalOutlined, BulbOutlined, AudioOutlined, StopOutlined, SendOutlined,
+  GlobalOutlined, BulbOutlined, AudioOutlined, StopOutlined, PauseCircleOutlined, SendOutlined,
 } from '@ant-design/icons'
 import { C } from '../../utils/theme'
 
@@ -33,6 +33,8 @@ export interface ChatComposerProps {
   thinking: boolean
   onToggleThinking: () => void
   onSend: () => void
+  /** P1-5 停止生成（sending 时发送钮变停止） */
+  onStop: () => void
   onFillInput: (label: string) => void
 }
 
@@ -63,7 +65,7 @@ const ComposerTool: React.FC<{
 const ChatComposerInner: React.FC<ChatComposerProps> = ({
   mode, input, onInputChange, onKeyDown, inputRef,
   voiceOn, voiceTranscript, onToggleVoice, sending,
-  forceSearch, onToggleForceSearch, thinking, onToggleThinking, onSend, onFillInput,
+  forceSearch, onToggleForceSearch, thinking, onToggleThinking, onSend, onStop, onFillInput,
 }) => (
   <div className="chat-composer-wrap">
     {mode !== 'plain' && (
@@ -114,10 +116,17 @@ const ChatComposerInner: React.FC<ChatComposerProps> = ({
         className="chat-input-textarea"
         style={{ flex: 1, background: 'transparent', border: 'none', color: C('color-text'), borderRadius: 0, resize: 'none', fontSize: 14, lineHeight: 1.6, padding: '6px 2px', boxShadow: 'none' }}
       />
-      <Tooltip title="发送 (Enter)">
-        <Button type="primary" icon={<SendOutlined />} onClick={onSend} loading={sending} disabled={!input.trim() || voiceOn} aria-label="发送"
-          style={{ background: input.trim() ? 'var(--md-sys-color-primary)' : C('color-border'), borderColor: 'transparent', borderRadius: 14, width: 40, height: 40, minWidth: 40, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: input.trim() ? '0 0 16px color-mix(in srgb, var(--gaea-glow) 40%, transparent)' : 'none', flexShrink: 0 }} />
-      </Tooltip>
+      {sending ? (
+        <Tooltip title="停止生成（已生成部分保留）">
+          <Button icon={<PauseCircleOutlined />} onClick={onStop} aria-label="停止生成" data-testid="chat-stop"
+            style={{ borderRadius: 14, width: 40, height: 40, minWidth: 40, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }} />
+        </Tooltip>
+      ) : (
+        <Tooltip title="发送 (Enter)">
+          <Button type="primary" icon={<SendOutlined />} onClick={onSend} disabled={!input.trim() || voiceOn} aria-label="发送"
+            style={{ background: input.trim() ? 'var(--md-sys-color-primary)' : C('color-border'), borderColor: 'transparent', borderRadius: 14, width: 40, height: 40, minWidth: 40, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: input.trim() ? '0 0 16px color-mix(in srgb, var(--gaea-glow) 40%, transparent)' : 'none', flexShrink: 0 }} />
+        </Tooltip>
+      )}
     </div>
   </div>
 )

@@ -340,6 +340,8 @@ export const GAEA_METHOD_FACETS = {
   ChatImportTopic: "work",
   ChatSend: "work",
   ChatStreamPlain: "work",
+  // P1-5：对话流取消（ChatB 门面，work/play 共用通道）。
+  ChatStreamCancel: "work",
   ChatTopicClear: "work",
   ChatTopicExportMarkdown: "work",
   Submit: "work",

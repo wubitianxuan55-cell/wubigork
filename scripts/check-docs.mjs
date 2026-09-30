@@ -78,6 +78,34 @@ for (const p of [...walkPs1('scripts'), ...walkPs1('.gaea/skills')]) {
 }
 if (bomLess.length) fails.push(`.ps1 缺 BOM：\n      ` + bomLess.join('\n      '))
 
+// ── ⑤ 数字守卫（P1-7：计数类陈述不再靠手写——自述数 vs 实存数对账）────────
+// a) docs/README.md 顶层文档计数
+{
+  const rm = fs.readFileSync('docs/README.md', 'utf8')
+  const m = rm.match(/顶层文档\s*(\d+)\s*份/)
+  if (m) {
+    const claimed = Number(m[1])
+    if (claimed !== topDocs.length) {
+      fails.push(`docs/README.md 自述顶层文档 ${claimed} 份，实际 ${topDocs.length} 份——改 README 计数或补登新档`)
+    }
+  }
+}
+// b) releases/README.md 的「校验和 N 份」与「发布说明 N 份」
+{
+  const rm = fs.readFileSync('releases/README.md', 'utf8')
+  const sums = fs.readdirSync('releases').filter(f => /^SHA256SUMS-/.test(f)).length
+  const notes = fs.readdirSync('releases').filter(f => /^v\d+\.\d+\.\d+\.md$/.test(f)).length
+  for (const [re, actual, label] of [
+    [/校验和\s*(\d+)\s*份/, sums, `校验和（实存 SHA256SUMS-* ${sums} 份）`],
+    [/发布说明\s*(\d+)\s*份/, notes, `发布说明（实存 v*.md ${notes} 份）`],
+  ]) {
+    const m = rm.match(re)
+    if (m && Number(m[1]) !== actual) {
+      fails.push(`releases/README.md 自述${label.replace(/（.*/, '')} ${m[1]} 份，实际 ${actual} 份——跑 release.ps1 后手补或改口径`)
+    }
+  }
+}
+
 // ── 汇总 ───────────────────────────────────────────────────────────────
 console.log(`docs 顶层文档 ${topDocs.length} 份；.gaea/AGENTS.md ${agentsBytes} B / 预算 ${BUDGET} B；.ps1 编码检查 ${walkPs1('scripts').length + walkPs1('.gaea/skills').length} 份`)
 for (const w of warns) console.log('  WARN  ' + w)
