@@ -1,3 +1,7 @@
+## v4.438.0 · 维护小刀包：生成器遮蔽告警 + .tmp 守卫补洞 + tarball 出 VCS（2026-09-30）
+> 优化方向档 P1-2+P2-3①②。**零绑定面变更（743 不变）**。【P1-2】gen_bindings 去重处加 shadowed 计数显式报告+诊断脚本 shadow-diag 列全量对（实测 459 个，全为设计内 *B 门面委托无真实绕过面）。【P2-3①】clean-tmp patterns 补 uiwalk*/home-shots*/*-shots（审计实测 577MB 全在 uiwalk/edgeprofile，原守卫扫不到）。【P2-3②】11 个源码包 tarball（166.5MB 占跟踪体积 83%）git rm --cached+.gitignore（历史仍可找回，磁盘保留，仅新包不再入库）。【产物】releases/gaea-v4.438.0.exe 51,807,744B SHA256=`32ec625bd76adabd1a9dd68c3b39b97d484e2cc5266dc7e67e3fed1768d68beb`（冒烟 200 过；删 v4.433.0.exe）。
+
+
 ## v4.437.0 · P1 小刀包：对话停止入口 + 数字守卫 + 优化档关账三标注（2026-09-30）
 > 用户指令「继续」。优化方向档 P1-5 对话条（无停止生成入口——长回合只能等 30s 超时）+P1-7（check-docs 不校验数字）+P1-5 三条关账标注。**绑定面 742→743（+1：ChatStreamCancel）**。【①停止入口】后端 chatStreamCancels 登记表（**归 core**——裸 chat 测试桩不含 writingState，首放 writingState 即 nil 嵌入 panic 的坑）+请求级 ctx+ChatStreamCancel(runID)（已生成部分照常落库并以 cancelled 终态收尾=对齐章节生成取消语义；协程退出独占清表）；前端 useChatStream 暴露 stop+cancelled 帧处理（部分回复+停止标注不标 error）+Composer 发送钮 sending 时变停止钮。【②数字守卫】check-docs.mjs ⑤节：docs/README 顶层计数与 releases/README 校验和/发布说明份数自述 vs 实存对账失配即 FAIL——**首跑抓到真账**：AGENTS 66.6KB 超指令预算（七刀连发塞爆）→迁最老 6 条（v4.421~428.0）入 archive 回 47.4KB。【③关账】P1-5 对话条 ✅ 本版/小说条 ✅（v4.429+430）/绘梦条 ✅（v4.415，字段缺失用例留尾池）。【测试】Go 3 新例+cancel 改坏反向验证必红；app 整包绿；全量 ci CI OK。【产物】releases/gaea-v4.437.0.exe 51,807,744B SHA256=`3458cc6740eb2500a8e61342d52b37a2df33b2945571a3d7e43d02c1c065bb87`（冒烟 200 过；删 v4.432.0.exe）。【文档】releases/v4.437.0.md+CHANGELOG/README+releases/README+AGENTS 速览+progress。
 

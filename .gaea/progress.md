@@ -1,3 +1,8 @@
+## 最新发布：v4.438.0（2026-09-30）「维护小刀包：生成器遮蔽告警 + .tmp 守卫补洞 + tarball 出 VCS」
+
+- **刀型**：优化方向档 P1-2+P2-3①②。**零绑定面变更（743 不变）**。gen_bindings 去重处 shadowed 计数显式报告+诊断脚本 shadow-diag（459 个全为设计内 *B 门面委托）；clean-tmp 补 uiwalk*/home-shots*/*-shots（原守卫扫不到的 577MB 最大堆积源）；11 个 tarball 出 VCS（166.5MB→gitignore，磁盘保留）。gen_bindings golangci 0；全量 ci CI OK。
+- **产物**：`releases/gaea-v4.438.0.exe` 51,807,744 B SHA256=`32ec625bd76adabd1a9dd68c3b39b97d484e2cc5266dc7e67e3fed1768d68beb`（冒烟 200 过；删 v4.433.0.exe，实存 5 版 438/437/436/435/434）。
+
 ## 最新发布：v4.437.0（2026-09-30）「P1 小刀包：对话停止入口 + 数字守卫 + 优化档关账三标注」
 
 - **刀型**：用户指令「继续」。定刀=优化方向档 P1-5 对话条（无「停止生成」入口——useChatStream sending 期间直接 return，长回合只能等 30s 超时或切话题）+P1-7（check-docs 不校验任何数字）+P1-5 三条已被后续版本做掉的关账标注。**绑定面 742→743（+1：ChatStreamCancel）**、spaceBindings 566→567，零功能删除。
