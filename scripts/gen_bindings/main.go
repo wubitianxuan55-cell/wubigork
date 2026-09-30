@@ -391,15 +391,20 @@ func collectMethods(dir string) ([]method, error) {
 	}
 	seen := map[string]bool{}
 	dedup := make([]method, 0, len(out))
+	shadowed := 0 // P1-2：遮蔽计数显式报告（原静默去重——诊断脚本可列全量对）
 	for _, m := range out {
 		if seen[m.Name] {
 			continue
 		}
 		if hasApp[m.Name] && m.Receiver != "App" {
+			shadowed++
 			continue // 被 App 版本 shadow；不标记 seen，App 版本随后占用
 		}
 		seen[m.Name] = true
 		dedup = append(dedup, m)
+	}
+	if shadowed > 0 {
+		fmt.Fprintf(os.Stderr, "gen_bindings: %d 个方法被 App 同名声明遮蔽（设计内委托；诊断脚本 scripts/gen_bindings/shadow-diag 列全量对）\n", shadowed)
 	}
 	globalImports = imports
 	return dedup, nil

@@ -26,7 +26,7 @@ if ($sizeMB -le $ThresholdMB) {
 }
 
 Write-Host "[clean-tmp] .tmp ${sizeMB}MB > 阈值 ${ThresholdMB}MB，清理瞬态模式..."
-$patterns = @('Test*', '*.log', 'edge-*', 'walk-*', 'ui-sweep*', 'dsh-context*', 'smoke-*.exe', 'go-build*')
+$patterns = @('Test*', '*.log', 'edge-*', 'walk-*', 'ui-sweep*', 'dsh-context*', 'smoke-*.exe', 'go-build*', 'uiwalk*', 'home-shots*', '*-shots*')
 $freed = 0
 foreach ($p in $patterns) {
     Get-ChildItem $tmp -Filter $p -Force -ErrorAction SilentlyContinue | ForEach-Object {
