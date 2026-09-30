@@ -202,6 +202,9 @@ func TestCreateChapterSpineInjection(t *testing.T) {
 	if _, err := a.CreateChapterWithOverride("设定", "", "写第一章", 1, "", "", 10, 0.8, true); err != nil {
 		t.Fatalf("CreateChapter: %v", err)
 	}
+	// Windows unlinkat 竞态（在册）：生成协程尾步（自动门/摘要/SceneRefs）仍在写盘时
+	// TempDir 清理会撞 directory not empty——等登记表与协程组清空再返回。
+	waitGensDone(t, a)
 	select {
 	case body := <-requests:
 		if !strings.Contains(string(body), "故事层骨架") {

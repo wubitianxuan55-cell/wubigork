@@ -189,6 +189,23 @@ func (b *NovelB) NovelStyleDigestClear() error {
 func (b *NovelB) NovelContextInventory(chapterNum int) ([]map[string]interface{}, error) {
 	return b.a.NovelContextInventory(chapterNum)
 }
+
+// ── 长篇刀7：评测基线 ──
+
+// NovelEvalSnapshot 产出确定性指标快照（persist=true 落 eval/snapshots/ 留史）。
+func (b *NovelB) NovelEvalSnapshot(persist bool) (map[string]interface{}, error) {
+	return b.a.NovelEvalSnapshot(persist)
+}
+
+// NovelEvalBaselineSet 把当前状态快照设为基线（eval/baseline.json）。
+func (b *NovelB) NovelEvalBaselineSet() (map[string]interface{}, error) {
+	return b.a.NovelEvalBaselineSet()
+}
+
+// NovelEvalCompare 最近快照 vs 基线逐指标 Δ（promptSetHash 不一致标 stale）。
+func (b *NovelB) NovelEvalCompare() (map[string]interface{}, error) {
+	return b.a.NovelEvalCompare()
+}
 func (b *NovelB) GenerateSingleCharacter(chJSON string) (map[string]interface{}, error) {
 	return b.a.GenerateSingleCharacter(chJSON)
 }

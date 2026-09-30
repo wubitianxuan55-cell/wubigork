@@ -254,6 +254,10 @@ export const GAEA_METHOD_FACETS = {
   NovelStyleDigestClear: "play",
   // 长篇刀6：上下文编译清单（dry-run，NovelB 门面）。
   NovelContextInventory: "play",
+  // 长篇刀7：评测基线（NovelB 门面）。
+  NovelEvalSnapshot: "play",
+  NovelEvalBaselineSet: "play",
+  NovelEvalCompare: "play",
   // 批次二：语音对话文本入口（VoiceB 门面），轻语/语音聊天 play 数据面。
   VoiceChatText: "play",
   // 批次二：绘梦后端配置（SetImageBackend），同 GetImageBackendInfo/

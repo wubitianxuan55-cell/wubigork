@@ -431,6 +431,13 @@ export interface NovelBindings {
   NovelStyleDigestClear(): Promise<void>;
   // 本章生成将注入的上下文区段清单（dry-run，刀6 可见性）。
   NovelContextInventory(chapterNum: number): Promise<Array<Record<string, unknown>>>;
+  // ── 长篇刀7：评测基线 ──
+  // 产出确定性指标快照（persist=true 落 eval/snapshots/ 留史）。
+  NovelEvalSnapshot(persist: boolean): Promise<Record<string, unknown>>;
+  // 把当前状态快照设为基线。
+  NovelEvalBaselineSet(): Promise<Record<string, unknown>>;
+  // 最近快照 vs 基线逐指标 Δ（hash 不一致标 stale）。
+  NovelEvalCompare(): Promise<Record<string, unknown>>;
   // SaveSceneMeta 保存场景元数据（标题/概要/POV/地点/时间/情感/标签/状态；正文走 SaveScene）。
   SaveSceneMeta(chapterNum: number, sceneID: string, metaJSON: string): Promise<void>;
   CancelCreateChapter(chapterNum: number, branch: string): Promise<boolean>;
