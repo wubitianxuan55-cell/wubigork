@@ -1,3 +1,16 @@
+## 最新发布：v4.437.0（2026-09-30）「P1 小刀包：对话停止入口 + 数字守卫 + 优化档关账三标注」
+
+- **刀型**：用户指令「继续」。定刀=优化方向档 P1-5 对话条（无「停止生成」入口——useChatStream sending 期间直接 return，长回合只能等 30s 超时或切话题）+P1-7（check-docs 不校验任何数字）+P1-5 三条已被后续版本做掉的关账标注。**绑定面 742→743（+1：ChatStreamCancel）**、spaceBindings 566→567，零功能删除。
+- **①对话停止入口**：后端 `chatStreamMu/chatStreamCancels` 登记表（runID→cancel，**归 core**）+请求级 ctx（nil 防御）+`ChatStreamCancel(runID) bool` 绑定（命中调 cancel、未知返 false）；取消时**已生成部分照常落库**并以 `cancelled` 终态帧收尾（对齐章节生成取消语义——保留部分回复不按失败处理）；协程退出独占清表。前端 useChatStream 暴露 stop（activeRunIDRef 持 runID，取消失败由 30s 静默超时兜底）+cancelled 帧处理（部分回复+「（已停止生成）」标注）+Composer 发送钮 **sending 时变停止钮**（PauseCircle+「已生成部分保留」）；角色模式退化为中止模拟打字。
+- **②数字守卫**：check-docs.mjs ⑤节——docs/README 顶层文档计数/releases/README 校验和与发布说明份数，自述 vs 实存对账失配即 FAIL。**守卫首跑即抓到真账**：AGENTS.md 66,644B 超指令预算 65,536B（长篇七刀+三板块连发塞爆速览）→按纪律迁最老 6 条（v4.421~428.0）入 docs/archive/agents-version-history-2026-09.md，AGENTS 回 47,359B。
+- **③优化档关账三标注**：P1-5 表对话条 ✅ 本版；小说条 ✅（chapter-review 模板 v4.429+场景驱动刀2 v4.430）；绘梦条 ✅（getSystemStats 归一化 v4.415，全部 Get*Stats 字段缺失用例留尾池）。
+- **测试**：Go 新增 3 例（未知 runID 返 false/登记表生命周期 register→cancel 命中→unregister 后 false/**取消传播端到端**〔受控协程：真 ctx+登记+ChatStreamCancel→ctx.Done 传播→退出清表+二次取消幂等〕）+**反向验证**（cancel() 改 `_ = cancel` 必红还原）。app 整包 -count=1 绿（含既有 chat 域全部测试）。数字守卫实测抓真账。
+- **门禁**：全量 `ci.ps1` → CI OK；漂移闸 OK@4.437.0（743 一致）；spaceBindings 567。
+- **产物**：`releases/gaea-v4.437.0.exe` 51,807,744 B SHA256=`3458cc6740eb2500a8e61342d52b37a2df33b2945571a3d7e43d02c1c065bb87`（`SHA256SUMS-v4.437.0.txt`；冒烟 200 过）；保留策略删 v4.432.0.exe，实存 5 版（437/436/435/434/433）。
+- **文档**：`releases/v4.437.0.md` + CHANGELOG/README + releases/README + AGENTS 速览（迁 6 插 1）+ progress（本条）+ 优化方向档三标注。
+- **坑/教训**：①**登记表/锁字段放哪个 struct 要看消费方装配面**：chatStreamMu 首放 writingState（跟 chapterGenMu 同区块抄的）——裸 chat 测试桩（newChatServiceTestApp）不构造 writingState→nil 嵌入解引用 panic（mutex.Lock 在 nil 指针+字段偏移上炸）；chat 域字段归 core。②端到端取消测试对假站路由的依赖太深（chat feature 快速失败路径毫秒级退出清表）——受控协程（真 ctx+登记+传播断言）是更稳的端到端形态。③反向验证的 mutation 锚先 grep 确认再改（本次 python 替换锚没匹配上=假验证，改用 Edit 直改才真红）。
+- **观察池**：GenUI 预算常量合并（P2-2 独立项）/全部 Get*Stats 类字段缺失用例（P1-5 尾池）/停止入口真机走查（长回合停止手感+部分回复落库核验）。
+
 ## 最新发布：v4.436.0（2026-09-30）「P5 破防专项：Go >50KB 五文件拆分（纯搬移零功能）」
 
 - **刀型**：用户指令「继续」（长篇七刀收官后，P5 复测在册挂池清账——「Go >50KB 0→4 破防，拆分留观察池待专项（P3 纪律=专项勿顺手做）」本刀即该专项）。长篇七刀加码后实测**五文件**破防（create_chapter_handler 67.4K 居首）。**零功能变更、绑定面 742 零变更**——全部为同包文件搬移（按功能族移到新文件，函数/常量/类型签名不动）。
