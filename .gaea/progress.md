@@ -1,3 +1,18 @@
+## 最新发布：v4.435.0（2026-09-30）「长篇刀7：评测基线（七刀收官）」
+
+- **刀型**：用户指令「继续」（长篇七刀线程收官刀，P2）。规格 §4（评测闭环）按「单刀最小闭环」裁剪：**确定性聚合快照+基线落盘可比+逐指标 Δ**。Go 新 eval_baseline_handler.go；**绑定面 739→742（+3：NovelEvalSnapshot/NovelEvalBaselineSet/NovelEvalCompare）**、spaceBindings 563→566，零功能删除。规格=`进度计划/gaea-novel-eval-baseline-20260930.md`。
+- **快照**：NovelEvalSnapshot 零 LLM 全确定性——每章 AI 味（ScoreTextNoRef→mean/max/P90/最差章号）+每章确定性质量信号（ChapterQualityIssues S1/S2/S3 汇总）+伏笔（LintForeshadows→items/planted/hinted/revealed/回收率/findings）+结构（刀3 NovelStoryHealth findings 按 code 分桶）+文风 Delta（有 fingerprint 时全书对照，无档 skipped）+上下文合计（刀6 Inventory）+元数据（章数/字数/**promptSetHash**〔prompts/*.json 内容 sha256 按名稳定序——任一变更即 stale 禁止直接对比，§4 原则〕）。
+- **基线/历史**：eval/baseline.json（NovelEvalBaselineSet）+eval/snapshots/<RFC3339Compact>.json（persist=true 留史）；**body 不含时钟、全稳定序——同一状态两次产出逐字节相同**（§4 验收线达成）。
+- **对比**：NovelEvalCompare 最近状态 vs 基线逐指标 Δ+方向（better/worse/flat 按指标语义：AI 味降=better、回收率升=better）；promptSetHash 不一致→整份 stale（如实拒绝对比语义）。
+- **测试**：Go 新增 4 例（确定性〔两次 marshal 逐字节相同〕/聚合造数〔最差章=AI 味最重章+回收率 0.5+hash 非空〕/基线落盘→状态变化→Δ 方向〔AI 味升=worse〕→baseline hash 篡改必 stale/persist 落盘+零章空快照）+**方向语义反向验证**（lowerIsBetter 翻转必红还原）。app 整包 -count=1 绿。
+- **随版收口**：两处 HTTP 断言测试（SettingBudgetTrim/SpineInjection）全量负载下挂 **Windows unlinkat 竞态**——测试 return 后生成协程尾步（自动门/摘要/SceneRefs 回写）仍在写 chapters/，t.TempDir 清理撞 directory not empty（v4.233 在册坑复发）；补 waitGensDone（等登记表清空+chapterGenWG）。
+- **门禁**：全量 `ci.ps1` → CI OK（三轮修：errcheck Fprintf 返回值显式化/unused 类型删除/unlinkat 竞态）；漂移闸 OK@4.435.0（742 一致）；spaceBindings 566。
+- **产物**：`releases/gaea-v4.435.0.exe` 51,803,648 B SHA256=`f0262d5b4f57517512e4ac80e6900b6d1ec485e25a7895ef21570ceb336e4a4f`（`SHA256SUMS-v4.435.0.txt`；冒烟 200 过）；保留策略删 v4.430.0.exe，实存 5 版（435/434/433/432/431）。
+- **文档**：`releases/v4.435.0.md` + 规格 `进度计划/gaea-novel-eval-baseline-20260930.md` + CHANGELOG/README + releases/README + AGENTS 速览 + progress（本条）。
+- **坑/教训**：①**HTTP 断言型测试（捕获 requests 后即 return）在生成链有后台尾步协程时必挂 unlinkat**——测试收尾必须 waitGensDone（v4.233 坑的完整形态：不只取消型测试，任何 CreateChapter 真链测试都算）。②errcheck 对 fmt.Fprintf(hasher) 也报——写 hasher 的返回值显式丢弃 `_, _ =`。
+- **长篇七刀收官**：刀1 章节计划闭环（v4.422）→刀2 场景卡与场景级生成（v4.430）→刀3 故事层骨架（v4.431）→刀4 质量收敛闭环（v4.432）→刀5 风格学习回灌（v4.433）→刀6 上下文编译器（v4.434）→刀7 评测基线（本版）。诊断 §1.1~§1.14 的正面解全部落地。
+- **观察池（长篇线收尾）**：回归夹具 3×30 章人工病历（独立工程）/LLM 盲评+bootstrap/张力曲线聚合（随真机分析覆盖率）/真 A/B 双生成/七刀全链真机走查（多场景章+骨架+收敛+回灌联合体验）。
+
 ## 最新发布：v4.434.0（2026-09-30）「长篇刀6：上下文编译器」
 
 - **刀型**：用户指令「继续」（长篇七刀线程次刀序，P2）。规格 §1.8「上下文是堆料不是按优先级编译——世界观至少三处、文风两处、各池独立、结构信息与整篇设定争预算」三缺口收口（刀1 已统一共预算）。Go 3 文件改造+Inventory 新文件；**绑定面 738→739（+1：NovelContextInventory）**、spaceBindings 562→563，零功能删除。规格=`进度计划/gaea-novel-ctx-compiler-20260930.md`。
