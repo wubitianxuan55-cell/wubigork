@@ -8,8 +8,8 @@
 //   - play：乐园数据面（轻语聊天记忆）；
 //   - shared：两空间共用基础设施（元信息/更新/遥测/空间控制/模型与设置/对话/
 //     统一检索——UnifiedSearch 的隔离由 scope 参数承担，搜索面板两空间都会用）；
-//   - independent：编程 DSH 独立窗口（用户拍板：不并入工位、不共享工具面；
-//     壳层独立入口两空间均可达）。
+//   - independent：独立窗口板块（用户拍板：不并入工位、不共享工具面；壳层
+//     独立入口两空间均可达）。v4.439 编程板块删除后该分面暂为空集。
 // 全部方法必须显式分类（satisfies Record<keyof AppBindings, BindingSpace>），
 // 新方法未分类 tsc 直接报错，防止静默落入错误空间。
 import type { AppBindings } from "./bridge";
@@ -299,13 +299,6 @@ export const GAEA_METHOD_FACETS = {
   // VoiceApplySettings patch 写配对，同归 shared（语音设置面板/模型中心两空间共用）。
   VoiceGetSettings: "shared",
   StartLocalTTSService: "shared",
-
-  // ── independent：编程 DSH 独立窗口 ──────────────────────────
-  GetProgrammingWebStatus: "independent",
-  StartProgrammingWeb: "independent",
-  StopProgrammingWeb: "independent",
-  GetProgrammingWebPreflight: "independent",
-  ProgrammingWebLogTail: "independent",
 
   // ── work：gaea 工位工作台（会话/办公/记忆/知识库/造价/任务/文件）──
   // v4.4 微信触点（书房·离线代办）：扫码绑定/通道状态/助手管理/提醒管理，全部 work。

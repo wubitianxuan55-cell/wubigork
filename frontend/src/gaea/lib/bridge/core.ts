@@ -1,5 +1,5 @@
 // core.ts — CoreBindings（AppBindings 分域接口之一，Go CoreB 门面）：会话/工作区/
-// 上下文/文件/子代理/任务/证据/Git/编程进程等核心域（含 LogFrontendError 与更新域）。
+// 上下文/文件/子代理/任务/证据/Git 等核心域（含 LogFrontendError 与更新域）。
 import type {
   AgentNetwork,
   BalanceInfo,
@@ -28,9 +28,6 @@ import type {
   MCPServerInput,
   Meta,
   PreviewResult,
-  ProgrammingWebLogTail,
-  ProgrammingWebPreflight,
-  ProgrammingWebStatus,
   ProjectGroup,
   QuestionAnswer,
   RetrievalEvalReport,
@@ -278,7 +275,7 @@ export interface CoreBindings {
   TaskRetry(id: string): Promise<void>;
   TaskOutput(id: string): Promise<TaskOutputView>;
   // ── 阶段七 7.3-1 任务收件箱（多入口统一；Go OfficeB.GaeaTaskInbox*，同名
-  // 前缀无需映射——GetProgrammingWebStatus 先例）──
+  // 前缀无需映射——GaeaSpaceList 先例）──
   // GaeaTaskInboxList 按空间过滤收件箱（''=全部；状态组序+最近变化优先）；
   // Save 新建（id 空，pending）或只改 title/note（来源字段不可变——审计链）；
   // SetStatus 走状态机（pending→doing→done；pending|doing→abandoned）；
@@ -309,18 +306,6 @@ export interface CoreBindings {
   RollbackRecord(id: string): Promise<void>;
   // v4.1c：中文规范体检（GB/T 9704 红头要素 lint，md/txt/docx）。
   DocumentLint(rel: string): Promise<LintReportView>;
-  // ── 编程板块：DeepSeek Harness Web 进程管理 ──────────────
-  // GetProgrammingWebStatus 返回运行状态（running/owned/pid/url/root/log/uptime_s）；
-  // StartProgrammingWeb 启动 dsh web（已运行幂等返回）；StopProgrammingWeb
-  // 仅停止 gaea 自启实例（外部实例返回提示，不误杀）。
-  // GetProgrammingWebPreflight 返回启动前置条件逐项检查（harness 有效 / pnpm 可用 /
-  // 依赖已装 / 构建就绪 / 端口空闲 + all_ready）；ProgrammingWebLogTail(n) 读自启
-  // 日志尾部（n 钳制 [1,200]，默认 50），启动引导视图渲染真实清单与日志。
-  GetProgrammingWebStatus(): Promise<ProgrammingWebStatus>;
-  StartProgrammingWeb(): Promise<void>;
-  StopProgrammingWeb(): Promise<void>;
-  GetProgrammingWebPreflight(): Promise<ProgrammingWebPreflight>;
-  ProgrammingWebLogTail(n?: number): Promise<ProgrammingWebLogTail>;
   // LogFrontendError 记录前端错误/主线程卡死诊断到 gaea.log。
   LogFrontendError(message: string): Promise<void>;
   // ── 批次二 wailsjsCompat 双轨退役转正（Go CoreB 门面，同名前缀无需映射）──

@@ -5,8 +5,9 @@
  * 壳层视图空间（currentSpace）与 manifest 板块归属（space）分离：
  *   - ShellSpace 决定导航/首页/事件面（本地持久化，见 appStore）；
  *   - BoardSpace 是板块的静态归属：shared = 两空间均可达；
- *     independent = 独立窗口（编程 DSH，用户拍板：不并入工位、不共享工具面）——
- *     两空间导航/首页均不出现，壳层单独入口可达。
+ *     independent = 独立窗口（用户拍板：不并入工位、不共享工具面）——
+ *     两空间导航/首页均不出现，壳层单独入口可达。v4.439 编程板块删除后
+ *     该分面暂无成员（机制保留，供后续独立窗口类板块复用）。
  * 缺省语义：manifest 无 space 字段 → work（旧数据按 work 兼容回填，
  * 与阶段 1 S1.1 旧数据回填 work 同语义）；home 壳层恒 shared。
  */

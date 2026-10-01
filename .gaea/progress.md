@@ -1,3 +1,58 @@
+## 未发版刀：首页重设计 v11「玄墨」（十二轮）· 2026-09-30 ~ 10-01
+
+- **刀型**：用户指令「重新设计整个首页，太廉价」（v10 天玄卡片版被复判）→ 视觉层整刀 +
+  一屏自适应 + 系列真实数据缺陷根修。规格与全部轮次=进度计划/gaea-home-tianxuan-cards-20260930.md
+  §7.5~§7.16（根因/验证/SHA 逐轮可查）。
+- **落地**：`module-launcher.css` 整层重写（三层视觉层级/描边退场/金色三处点睛/排印三档/
+  栅格 8+4 对缝）；一屏自适应（board 高度定界 `flex:1 0 0`+`min-height:0`，fr 富余吸收、
+  不足回退滚动；高度档 ≤1060px 二级压缩）；浅色档补偿（卡线 6.5% + ink 派生影）；
+  页底色上移壳层列（`ml-shell-column`，左缘竖缝消除）；晨报卡撤出首页（组件/做梦 2.0
+  管线保留）；设置横条降权；文档空态引导；三语词典 +2 键。
+- **门禁**：全量 vitest 3568/3568 绿（410 文件）；tsc 0；eslint 0 error；重叠扫描器
+  `scripts/home-overlap-check.mjs` 三形态×多档全扫零重叠；真机 CDP 实数据终验（全屏
+  over=0、晨报消失、空间恢复）；exe 重建+冒烟过（现行 SHA `4df73688885710ef`）。
+- **坑（三条铁律，后续首页开发必守）**：①一屏 grid 的 fr 轨道必须显式 px 下限或给 item
+  留 auto min——item `min-height:0` 吞 auto min，矮窗压瘪轨道且 scrollHeight 不涨
+  （=重叠而非滚动，目检不可靠）；②fr 均分行不做大 min 卡片（用 auto 行+stretch）；
+  ③重叠扫描须等 v3-rise 终态（transform 中间帧污染矩形测量）。真实数据（文档 5 条/
+  晨报 169px/遥测带 176px）三族溢出全部是 dev 空态测不出、真机 CDP 才暴露的。
+
+## 未发版刀：删除编程板块（code / DeepSeek Harness 工作台）· 2026-09-30
+
+- **刀型**：用户指令「删除编程板块」。**功能删除刀**（唯一一类不做零删除担保的刀）：前端
+  manifest/页面/入口 + Go 侧 DSH Web 进程管理五绑定整块退役；规格=进度计划/gaea-remove-code-board-20260930.md。
+- **落地**：删 `internal/app/programming_web.go`（8.9KB）+ 其 16 例测试、`pages/ProgrammingPage.tsx`
+  （538 行）+ 12 例测试 + `programming-page.css`（17KB）；`board/builtins.go` 去 code（canonical
+  13→12，`GetBoardManifests` 14→13）、`bindings_core.go` 手删 5 委托、`bindingNames.ts` 再生
+  744→739、`bridge/core.ts`/`wailsjs CoreB`/`types/programming.ts`/`mock/core.ts` 同步；
+  前端 `manifests.ts`+`launcher.ts`+`main.tsx` 去注册，删 `MainLayout` 的 `v3-prog-host`
+  工具栏宿主与 `.v3-strip-prog`；spaceBindings 567→562（independent 分面归零）。
+- **取舍**：`independent` 独立窗口**机制保留**（BoardSpace/rail foot/分面表三处落点不减），
+  仅移除「编程」这一实例——该分面空集时 rail foot 段自动隐藏。
+- **门禁**：go build/vet 0；`go test ./internal/app/... ./internal/gaea/...` 全绿（app 122s）；
+  drift OK@739；tsc 0；eslint 0 error；**vitest 410 文件 / 3564 例全绿**；e-check + check-docs OK；
+  CDP 真机走查 `body.innerText` 无「编程」、rail 六项 + 深浅色切换、首页正常。
+- **坑**：①gen_bindings 全量再生会把 11 个门面文件格式化（多行→单行），混入 ~1000 行噪声——
+  处置=先 restore 再手删 core 五方法、只再生 bindingNames（漂移闸按方法名集合，与格式无关）。
+  ②删除板块的测试足迹=6 个文件（Go 2 + 前端 4）的夹具/计数/断言反转，顺序=先实现后按失败清单改。
+
+## 未发版修复：首页「最近文档」不实时更新（用户报障）· 2026-09-30
+
+- **现象**：办公里打开文档后回首页，「最近文档」纹丝不动。**定位**：订阅链实测是好的
+  （dev 页直接调 `recordRecentFile` → 首页立即出现新条目），缺口在**写入侧**——
+  记账只挂在 4 处冷门入口（@ 菜单选文件 / 右键「引用 @」/ 主区预览 / 点最近条），
+  而日常两条「打开文档」路径根本没记账：`usePaneTabsStore.openFile`（资源管理器行点击、
+  产物·变更·Git 行内打开）与 `usePreviewStore.openFilePreview`（右键预览、正文文件链接、
+  记忆中枢·进度计划·DAG·上下文检查器文件行、附件条）。
+- **修法**（单点记账，调用方零改动）：两个 store 动作各加一行 `recordRecentFile`
+  （pane 页签 / 预览队列 = 用户打开文档的唯二入口），并删掉 `usePreviewPanel` 里的
+  重复记账。**顺带修**：首页最近文档点行原本只跳办公板块不开文档（与 hint「在办公中打开」
+  不符）→ 改为 `openPaneFileOrPreview(path)` + 导航（已挂载开 pane 页签，未挂载落预览队列）。
+- **验收**：pane 路径 / 预览路径各自 dev 真机探针 → 首页首项即时变化 ✅；点行 → 办公 +
+  右侧文件预览面板（截图 click-after-office.png）；新增 `paneTabs.test.ts` +3、
+  `previewQueue.test.ts` +1；tsc 0 错、eslint 0 error、**vitest 410 文件 / 3568 例全绿**。
+- **规格**：进度计划/gaea-recent-docs-live-20260930.md。
+
 ## 最新发布：v4.438.0（2026-09-30）「维护小刀包：生成器遮蔽告警 + .tmp 守卫补洞 + tarball 出 VCS」
 
 - **刀型**：优化方向档 P1-2+P2-3①②。**零绑定面变更（743 不变）**。gen_bindings 去重处 shadowed 计数显式报告+诊断脚本 shadow-diag（459 个全为设计内 *B 门面委托）；clean-tmp 补 uiwalk*/home-shots*/*-shots（原守卫扫不到的 577MB 最大堆积源）；11 个 tarball 出 VCS（166.5MB→gitignore，磁盘保留）。gen_bindings golangci 0；全量 ci CI OK。

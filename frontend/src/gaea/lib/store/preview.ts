@@ -2,6 +2,7 @@
 // P4 结构刀：由原 lib/store.ts 按 store 域拆分而来（preview 域），导出名保留。
 
 import { create } from "zustand";
+import { recordRecentFile } from "../recentFiles";
 
 // 文件预览：全局 UI 状态，独立于 controller（对话内点击文件路径打开）。
 // P1-1 多文件预览队列（调研 2026-08-16）：previewFile 保持兼容（= 当前索引
@@ -29,6 +30,10 @@ export const usePreviewStore = create<PreviewState>()((set, get) => ({
   previewIndex: -1,
   openFilePreview: (rel: string) => {
     if (!rel) return;
+    // v4.439 修复「首页最近文档不更新」：预览通道（右键预览 / 正文文件链接 /
+    // 记忆中枢·进度计划·DAG·上下文检查器的文件行）是用户打开文档的另一半
+    // 入口，打开即记 lib/recentFiles 单源；首页与办公「最近」条据此实时刷新。
+    recordRecentFile(rel);
     const { previewList } = get();
     // 已在队列：移动为当前（不重复入列）
     const existIdx = previewList.indexOf(rel);

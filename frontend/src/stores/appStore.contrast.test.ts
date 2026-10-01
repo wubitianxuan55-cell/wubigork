@@ -21,7 +21,7 @@ import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { getThemeTokens, type ThemePreset } from './appStore'
 
-const PRESETS: ThemePreset[] = ['nightJade', 'nightViolet', 'nightRose', 'nightAmber', 'nightMoss', 'nightSlate']
+const PRESETS: ThemePreset[] = ['nightJade', 'nightViolet', 'nightRose', 'nightAmber', 'nightMoss', 'nightSlate', 'tianXuan']
 
 // ── WCAG 2.1 相对亮度 / 对比度 ──────────────────────────────────────────
 function srgbChannel(v: number): number {

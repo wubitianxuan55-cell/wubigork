@@ -1,7 +1,35 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { resetPaneTabsForTest, usePaneTabsStore } from "./paneTabs";
+import { clearRecentFilesForTest, loadRecentFiles } from "./recentFiles";
 
-beforeEach(() => resetPaneTabsForTest());
+beforeEach(() => {
+  resetPaneTabsForTest();
+  clearRecentFilesForTest();
+});
+
+// v4.439 修复「首页最近文档不更新」：pane 文件页签 = 资源管理器/产物/变更/Git
+// 行内打开的统一入口，打开即记 lib/recentFiles 单源（首页卡片订阅同一事件）。
+describe("paneTabs 打开文件即记最近文档（v4.439）", () => {
+  it("openFile 记入最近文档（路径 + 文件名，置顶）", () => {
+    usePaneTabsStore.getState().openFile("docs/方案.docx", "方案.docx");
+    const recent = loadRecentFiles();
+    expect(recent).toHaveLength(1);
+    expect(recent[0]).toMatchObject({ path: "docs/方案.docx", name: "方案.docx", isDir: false });
+  });
+
+  it("重复打开同一文件 → 去重置顶，不产生重复条目", () => {
+    const api = usePaneTabsStore.getState();
+    api.openFile("a.md", "a.md");
+    api.openFile("b.md", "b.md");
+    usePaneTabsStore.getState().openFile("a.md", "a.md");
+    expect(loadRecentFiles().map((e) => e.path)).toEqual(["a.md", "b.md"]);
+  });
+
+  it("空路径：不入最近文档（也不开 tab）", () => {
+    usePaneTabsStore.getState().openFile("", "");
+    expect(loadRecentFiles()).toEqual([]);
+  });
+});
 
 describe("paneTabs 右栏 pane tab 状态机（对标 better-sidebar）", () => {
   it("初始为空 = 欢迎卡片态", () => {

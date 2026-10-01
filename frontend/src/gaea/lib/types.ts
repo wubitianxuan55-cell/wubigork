@@ -1,7 +1,7 @@
 // gaea/lib/types — 纯类型声明域拆分入口（瘦身 P3 结构版1：巨文件拆分）。
 // 域类型模块见 ./types/（wire/session/context/git/trajectory/agent/shell/files/
 // office/subagent/deliverables/resync/capabilities/memory/knowledge/settings/
-// updater/whisper/weixin/cost/search/tasks/programming + shared）。
+// updater/whisper/weixin/cost/search/tasks + shared）。
 // 本文件仅做类型 re-export：不引入任何运行时值，消费方
 // `import type { X } from "./lib/types"` 行为不变。
 export * from "./types/shared";
@@ -27,7 +27,6 @@ export * from "./types/weixin";
 export * from "./types/cost";
 export * from "./types/search";
 export * from "./types/tasks";
-export * from "./types/programming";
 
 // ── 7.3-1 任务收件箱：本地重述（herdsman 防环先例，不依赖 AppModels 再生；
 // 字段名/顺序与后端 internal/app.TaskInboxView 的 json 标签逐一同——camelCase

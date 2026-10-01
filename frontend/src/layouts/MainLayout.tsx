@@ -281,8 +281,8 @@ const TelemetryRail: React.FC<{ stats: StatsData | null; info: ProjectInfo | nul
 // v4.182 空间切换器迁移首页顶栏（ModuleLauncher SpaceSwitch——用户拍板：切换在首页更顺手）；
 // rail 顶部改为当前空间指示徽标（非交互，title 提示切换入口在首页顶栏）。
 // rail 主体按当前空间分域（getActiveMenuBoardsForSpace——shared 恒在 / independent
-// 剔除 / settings inMenu:false 不在 rail）；independent（编程 DSH）仅经 foot 单列
-// ⇒ rail 全量 code 入口 = 1（基线 §3.1「code 主体+foot 双入口」缺陷闭合）。
+// 剔除 / settings inMenu:false 不在 rail）；independent 独立窗口板块仅经 foot 单列
+// （v4.439 编程板块删除后该分面暂为空集，foot 段自动隐藏）。
 export const CommandRail: React.FC<{
   page: Page
   onNavigate: (p: Page) => void
@@ -294,7 +294,7 @@ export const CommandRail: React.FC<{
   // 双空间分域：当前空间菜单（shared 恒在、independent 剔除、inMenu 过滤），
   // 键盘 roving/focus 逻辑不变，仅数据源按空间过滤。
   const boards = getActiveMenuBoardsForSpace(space)
-  // 独立窗口板块（编程 DSH）：单独入口，不混入任一空间导航（双入口消解后仅 footer 渲染 code）
+  // 独立窗口板块：单独入口，不混入任一空间导航（v4.439 起暂为空集）
   const independentBoards = getActiveIndependentBoards()
   const t = useT()
   const itemRefs = useRef<(HTMLButtonElement | null)[]>([])
@@ -562,7 +562,7 @@ const MainLayout: React.FC = () => {
 
   // v4.3.2c：统一导航入口——按目标板块的 manifest.space 自动切换壳层空间。
   // 首页三栏/rail 均走此入口：左翼书房板块 → work；右翼庭院板块 → play；
-  // 编程(independent)/设置(shared) 保持当前空间。空间切换持久化 + 页面落地。
+  // 独立窗口(independent)/设置(shared) 保持当前空间。空间切换持久化 + 页面落地。
   const navigateBoard = useCallback((target: Page) => {
     const b = getActiveBoard(target)
     if (!b) return
@@ -681,11 +681,6 @@ const MainLayout: React.FC = () => {
             <div id="v3-chatmode-host" className="v3-strip-chatmode"
               style={{ display: page === 'chat' ? undefined : 'none' }}
               aria-hidden={page !== 'chat' || undefined} />
-            {/* 编程工作台工具栏宿主（ProgrammingPage 经 portal 渲染进此容器；
-                仅编程板块激活时可见，其他板块隐藏） */}
-            <div id="v3-prog-host" className="v3-strip-prog"
-              style={{ display: page === 'code' ? undefined : 'none' }}
-              aria-hidden={page !== 'code' || undefined} />
             <div className="v3-strip-spacer" />
             {/* 模型 pill：当前板块功能绑定模型 / 全局活跃模型；点击进入模型中心 */}
             <Tooltip title={pillTip}>
@@ -747,9 +742,13 @@ const MainLayout: React.FC = () => {
           {/* Herdsman LAN 暴露安全告警 */}
           <SecurityBanner />
 
-          {/* 主体：面包屑 + 内容 */}
+          {/* 主体：面包屑 + 内容。
+              v11.4：首页态挂 ml-shell-column——首页页底色统一画在这一层
+              （module-launcher.css 三档主题规则），消除 .ml 半透底与 rail 保留带、
+              Content 内边距裸 aurora 的交界色阶缝；非首页态无类不上色 */}
           <Layout style={{ flex: 1, flexDirection: 'row', background: 'transparent', minHeight: 0 }}>
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+            <div className={isHomePage ? 'ml-shell-column' : undefined}
+              style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
               <Content style={{
                 padding: isFullLayout ? 0 : (isHomePage ? '16px' : '8px 16px 16px'),
                 paddingBottom: isFullLayout || isHomePage ? 0 : '16px',

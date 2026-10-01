@@ -14,7 +14,7 @@ import { useAppStore } from '../stores/appStore'
 import { getActiveBoards, subscribeBoards, resolveBoardIcon } from '../boards/manifests'
 import { deriveLauncherModules, LAUNCHER_DESC, type LauncherModule } from '../boards/launcher'
 import { SHELL_SPACES, type ShellSpace } from '../boards/space'
-import { SpaceSwitch, SessionList, type LauncherData } from './ModuleLauncher'
+import { CardHead, SpaceSwitch, SessionList, type LauncherData } from './ModuleLauncher'
 import { TaskInboxBoard } from '../gaea/components/TaskInboxPanel'
 
 
@@ -55,61 +55,52 @@ export default function TasksFirstHome({ data, onNavigate, space, onSwitchSpace,
   const spaceEntry = SHELL_SPACES.find((s) => s.id === space)
 
   return (
-    <div className="ml" data-testid="tasks-first-home">
-      <div className="w-dock">
-        <div className="w-main">
+    <div className="ml ml-tasks" data-testid="tasks-first-home">
+      <div className="w-board">
           <SpaceSwitch space={space} onSwitchSpace={onSwitchSpace} activeModel={activeModel} />
 
-          {/* 身份区（轻量）：印章 + 标题/lede + 切回经典（回退快捷位之一） */}
-          <header className="w-masthead v3-rise v3-rise-1">
-            <span className="w-seal" aria-hidden="true">{(spaceEntry ? spaceEntry.label : '')[0] || ''}</span>
-            <div className="w-mast-body">
-              <h1 className="w-mast-title">{t('home.tasksFirstTitle')}</h1>
-              <p className="w-mast-lede">{t('home.tasksFirstLede')}</p>
-            </div>
-            <span style={{ flex: 1 }} />
-            <Tooltip title={t('home.tasksFirstBackHint')}>
-              <Button size="small" icon={<RollbackOutlined />} data-testid="tasks-first-back"
-                onClick={() => setHomeLayout('classic')}>
-                {t('home.tasksFirstBack')}
-              </Button>
-            </Tooltip>
-          </header>
+          {/* 指挥卡（v10 卡片化）：印章 + 标题/lede + 切回经典（回退快捷位之一） */}
+          <section className="ml-card w-hero v3-rise v3-rise-1" aria-label={t('home.tasksFirstTitle')}>
+            <header className="w-hero-head">
+              <span className="w-seal" aria-hidden="true">{(spaceEntry ? spaceEntry.label : '')[0] || ''}</span>
+              <div className="w-hero-id">
+                <h1 className="w-hero-title">{t('home.tasksFirstTitle')}</h1>
+                <p className="w-hero-lede">{t('home.tasksFirstLede')}</p>
+              </div>
+              <div className="w-hero-side">
+                <Tooltip title={t('home.tasksFirstBackHint')}>
+                  <Button size="small" icon={<RollbackOutlined />} data-testid="tasks-first-back"
+                    onClick={() => setHomeLayout('classic')}>
+                    {t('home.tasksFirstBack')}
+                  </Button>
+                </Tooltip>
+              </div>
+            </header>
+          </section>
 
           {/* 首屏主体：收件箱大区（四档 tab+新建+状态机动作+板块跳转全量复用） */}
-          <section className="v3-rise v3-rise-2" aria-label={t('tasks.inbox.title')} data-testid="tasks-first-inbox">
-            <div className="ml-sec-head" style={{ marginBottom: 8 }}>
-              <span className="ml-sec-icon" aria-hidden="true"><InboxOutlined /></span>
-              <span className="ml-sec-title">{t('tasks.inbox.title')}</span>
-            </div>
+          <section className="ml-card t-inbox v3-rise v3-rise-2" aria-label={t('tasks.inbox.title')} data-testid="tasks-first-inbox">
+            <CardHead icon={<InboxOutlined />} title={t('tasks.inbox.title')} />
             <TaskInboxBoard space={space} active onNavigate={onNavigate} onResumeSession={onResumeSession} />
           </section>
 
           {/* 最近上下文：最近会话（点开进聊天板块续上现场） */}
-          <section className="v3-rise v3-rise-3" style={{ marginTop: 18 }} aria-label={t('shell.launcher.sessions')}>
-            <div className="ml-sec-head">
-              <span className="ml-sec-icon" aria-hidden="true"><ThunderboltOutlined /></span>
-              <span className="ml-sec-title">{t('shell.launcher.sessions')}</span>
-            </div>
+          <section className="ml-card t-sessions v3-rise v3-rise-3" aria-label={t('shell.launcher.sessions')}>
+            <CardHead icon={<ThunderboltOutlined />} title={t('shell.launcher.sessions')} />
             <SessionList sessions={data.sessions} onOpen={() => onNavigate('chat')} />
           </section>
 
           {/* 能力视图：全部板块紧凑 chips（藏≠删——manifest 全量，点击直达） */}
-          <section className="v3-rise v3-rise-3" style={{ marginTop: 18 }} aria-label={t('home.tasksFirstCaps')} data-testid="tasks-first-caps">
-            <div className="ml-sec-head" style={{ marginBottom: 8 }}>
-              <span className="ml-sec-icon" aria-hidden="true"><ThunderboltOutlined /></span>
-              <span className="ml-sec-title">{t('home.tasksFirstCaps')}</span>
-              <span style={{ ...softTextStyle, marginLeft: 8 }}>{t('home.capSub')}</span>
-            </div>
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          <section className="ml-card t-caps v3-rise v3-rise-3" aria-label={t('home.tasksFirstCaps')} data-testid="tasks-first-caps">
+            <CardHead icon={<ThunderboltOutlined />} title={t('home.tasksFirstCaps')} sub={t('home.capSub')} />
+            <div className="t-chips">
               {allModules.map((m) => (
                 <CapabilityChip key={m.key} m={m} onOpen={() => onNavigate(m.key)} />
               ))}
             </div>
           </section>
 
-          <p style={{ ...softTextStyle, marginTop: 20 }}>{t('home.tasksFirstFoot')}</p>
-        </div>
+          <p className="t-foot" style={softTextStyle}>{t('home.tasksFirstFoot')}</p>
       </div>
     </div>
   )

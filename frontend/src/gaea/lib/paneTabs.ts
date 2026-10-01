@@ -17,6 +17,7 @@
 import { create } from "zustand";
 import { normalizePreviewPath } from "./officeTurnProjection";
 import { WORKSPACE_TABS } from "./workspaceTabs";
+import { recordRecentFile } from "./recentFiles";
 
 /** 一个 pane tab：视图（如资源管理器/产物/任务/浏览器）或文件。 */
 export interface PaneTab {
@@ -104,6 +105,11 @@ export const usePaneTabsStore = create<PaneTabsState>()((set, get) => ({
 
   openFile: (path, title) => {
     if (!path) return;
+    // v4.439 修复「首页最近文档不更新」：pane 文件页签是资源管理器行点击 /
+    // 产物 / 变更 / Git 行内打开的统一入口（此前只开页签、不入最近文档，
+    // 只有「右键预览 / 引用 @」才记账）——打开即记 lib/recentFiles 单源，
+    // 首页卡片与办公「最近」条订阅同一事件即时刷新。
+    recordRecentFile(path, title);
     const { tabs, order } = get();
     const id = `file:${path}`;
     const existing = tabs.find((t) => t.id === id);

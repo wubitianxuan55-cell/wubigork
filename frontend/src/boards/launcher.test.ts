@@ -21,7 +21,7 @@ const getBoardManifestsMock = app.GetBoardManifests as unknown as {
 }
 
 // 后端 GetBoardManifests 契约形态（对齐 internal/app/board/builtins.go）：
-// 12 个业务板块（含 cost 造价数据库 + code 编程 + D7 knowledge），无 home 壳层，
+// 11 个业务板块（含 cost 造价数据库 + D7 knowledge；v4.439 删除 code 编程板块），无 home 壳层，
 // v4.4 起 weixin.page="WeixinPage"、inMenu=true；v4.48 label=青鸟（原微信助手）。
 const BACKEND_FIXTURE = [
   { id: 'chat', label: '聊天', icon: 'MessageOutlined', page: 'ChatPage', lazy: true, keepAlive: true, layout: 'full', shortcut: 'ctrl+1', menuOrder: 1, inMenu: true, featureModel: 'chat' },
@@ -29,7 +29,6 @@ const BACKEND_FIXTURE = [
   { id: 'imagegen', label: '绘梦', icon: 'PictureOutlined', page: 'ImageGenPage', lazy: true, keepAlive: true, layout: 'padded', shortcut: 'ctrl+3', menuOrder: 3, inMenu: true, featureModel: 'imagegen' },
   { id: 'gaea', label: '办公', icon: 'ToolOutlined', page: 'GaeaPage', lazy: true, keepAlive: true, layout: 'full', shortcut: 'ctrl+4', menuOrder: 4, inMenu: true, featureModel: 'gaea' },
   { id: 'cost', label: '造价数据库', icon: 'AccountBookOutlined', page: 'CostLibraryPage', lazy: true, keepAlive: true, layout: 'padded', menuOrder: 5, inMenu: true, featureModel: 'cost' },
-  { id: 'code', label: '编程', icon: 'CodeOutlined', page: 'ProgrammingPage', lazy: true, keepAlive: true, layout: 'full', menuOrder: 6, inMenu: true },
   { id: 'memoryhub', label: '记忆中枢', icon: 'DatabaseOutlined', page: 'MemoryHubPage', lazy: true, keepAlive: true, layout: 'padded', menuOrder: 7, inMenu: true },
   { id: 'modelcenter', label: '模型中心', icon: 'ApiOutlined', page: 'ModelCenterPage', lazy: true, keepAlive: true, layout: 'padded', menuOrder: 8, inMenu: true },
   { id: 'characterlib', label: '角色库', icon: 'TeamOutlined', page: 'CharacterLibraryPage', lazy: true, keepAlive: true, layout: 'padded', menuOrder: 9, inMenu: true, featureModel: 'characterlib' },
@@ -40,10 +39,10 @@ const BACKEND_FIXTURE = [
 ]
 
 describe('deriveLauncherModules（启动器清单纯函数）', () => {
-  it('静态清单 → 12 卡，顺序与 LAUNCHER_DESC 对齐（瘦身刀1 v4.168.0：schedule inMenu=false 移出启动器；v4.244 +原罪；不含 home）', () => {
+  it('静态清单 → 11 卡，顺序与 LAUNCHER_DESC 对齐（v4.439 编程板块删除后 11 卡；不含 home/schedule）', () => {
     const modules = deriveLauncherModules(canonicalBoards, LAUNCHER_DESC)
     expect(modules.map((m) => m.key)).toEqual([
-      'chat', 'novel', 'imagegen', 'gaea', 'cost', 'code', 'memoryhub', 'modelcenter', 'characterlib', 'settings', 'weixin', 'sin',
+      'chat', 'novel', 'imagegen', 'gaea', 'cost', 'memoryhub', 'modelcenter', 'characterlib', 'settings', 'weixin', 'sin',
     ])
     expect(modules.map((m) => m.key)).not.toContain('home')
     // 刀1 语义：schedule 并入办公文档面，inMenu=false 移出启动器（办公文件面/命令面板承接）
@@ -65,11 +64,11 @@ describe('deriveLauncherModules（启动器清单纯函数）', () => {
     expect(keys).toContain('settings')
   })
 
-  it('后端合并清单（normalizeManifests 后）→ 12 卡（knowledge 并入记忆中枢被过滤），desc 兜底 = label', () => {
+  it('后端合并清单（normalizeManifests 后）→ 11 卡（knowledge 并入记忆中枢被过滤），desc 兜底 = label', () => {
     const merged = normalizeManifests(BACKEND_FIXTURE)
     const modules = deriveLauncherModules(merged, LAUNCHER_DESC)
     expect(modules.map((m) => m.key)).toEqual([
-      'chat', 'novel', 'imagegen', 'gaea', 'cost', 'code', 'memoryhub', 'modelcenter', 'characterlib', 'settings', 'weixin', 'sin',
+      'chat', 'novel', 'imagegen', 'gaea', 'cost', 'memoryhub', 'modelcenter', 'characterlib', 'settings', 'weixin', 'sin',
     ])
     expect(modules.map((m) => m.key)).not.toContain('knowledge')
   })
@@ -99,7 +98,7 @@ describe('deriveLauncherModules（启动器清单纯函数）', () => {
     expect(workKeys).not.toContain('imagegen')
     expect(workKeys).not.toContain('characterlib')
     expect(workKeys).not.toContain('sin') // 原罪是闲庭（play）板块
-    expect(workKeys).not.toContain('code') // 编程独立窗口不进双首页
+    expect(workKeys).not.toContain('code') // 编程板块已删除（v4.439），不进双首页
     expect(workKeys).not.toContain('chat') // P1：对话降为对话流，工位首页不出聊天卡
   })
 
@@ -114,7 +113,7 @@ describe('deriveLauncherModules（启动器清单纯函数）', () => {
     expect(playKeys).not.toContain('gaea')
     expect(playKeys).not.toContain('cost')
     expect(playKeys).not.toContain('memoryhub')
-    expect(playKeys).not.toContain('code')
+    expect(playKeys).not.toContain('code') // 编程板块已删除（v4.439）
   })
 
   it('不传 space = 全量（旧调用语义不变）', () => {
@@ -130,28 +129,28 @@ describe('deriveLauncherModules（启动器清单纯函数）', () => {
     expect(Object.keys(LAUNCHER_FEATURED).sort()).toEqual(['play', 'work'])
   })
 
-  it('瘦身 P2：工位 Bento = shared（模型/设置）+ work（办公/造价/记忆/青鸟），排除乐园与编程', () => {
+  it('瘦身 P2：工位 Bento = shared（模型/设置）+ work（办公/造价/记忆/青鸟），排除乐园板块', () => {
     const work = deriveLauncherModules(canonicalBoards, LAUNCHER_DESC, 'work')
     const keys = work.map((m) => m.key)
     // 可达：当前空间 work 板块 + shared 板块
     for (const k of ['gaea', 'cost', 'memoryhub', 'weixin', 'modelcenter', 'settings']) {
       expect(keys, k).toContain(k)
     }
-    // 不可达：play 板块 + 编程 independent
+    // 不可达：play 板块（编程 independent 已随板块删除）
     for (const k of ['chat', 'novel', 'imagegen', 'characterlib', 'code', 'sin']) {
       expect(keys, k).not.toContain(k)
     }
     expect(keys.filter((k) => k === 'settings')).toHaveLength(1)
   })
 
-  it('瘦身 P2：乐园 Bento = shared（模型/设置）+ play（聊天/小说/绘梦/角色），排除工位与编程', () => {
+  it('瘦身 P2：乐园 Bento = shared（模型/设置）+ play（聊天/小说/绘梦/角色），排除工位板块', () => {
     const play = deriveLauncherModules(canonicalBoards, LAUNCHER_DESC, 'play')
     const keys = play.map((m) => m.key)
     // 可达：当前空间 play 板块 + shared 板块
     for (const k of ['chat', 'novel', 'imagegen', 'characterlib', 'modelcenter', 'settings', 'sin']) {
       expect(keys, k).toContain(k)
     }
-    // 不可达：work 板块（含青鸟）+ 编程 independent
+    // 不可达：work 板块（含青鸟；编程 independent 已随板块删除）
     for (const k of ['gaea', 'cost', 'memoryhub', 'weixin', 'code']) {
       expect(keys, k).not.toContain(k)
     }
@@ -165,20 +164,20 @@ describe('launcher 订阅联动（loadBoardManifests 通知 → 派生结果变�
     getBoardManifestsMock.mockReset()
   })
 
-  it('后端合并成功后 getActiveBoards 变化 → deriveLauncherModules 结果含 code（无需渲染组件）', async () => {
-    // 加载前：静态 fallback → 10 卡，含 cost/code
-    expect(deriveLauncherModules(getActiveBoards(), LAUNCHER_DESC).map((m) => m.key)).toContain('code')
+  it('后端合并成功后 getActiveBoards 变化 → deriveLauncherModules 结果跟随（无需渲染组件）', async () => {
+    // 加载前：静态 fallback 含 cost（编程板块 v4.439 已删除，不在任何清单）
     expect(deriveLauncherModules(getActiveBoards(), LAUNCHER_DESC).map((m) => m.key)).toContain('cost')
+    expect(deriveLauncherModules(getActiveBoards(), LAUNCHER_DESC).map((m) => m.key)).not.toContain('code')
     getBoardManifestsMock.mockResolvedValue(BACKEND_FIXTURE)
     const notified = vi.fn()
     const unsub = subscribeBoards(notified)
     await loadBoardManifests()
     unsub()
-    // 加载后：活动清单替换 → 订阅者收到通知，派生结果 12 卡含 cost/code（v4.4 起 +weixin；v4.244 +sin）
+    // 加载后：活动清单替换 → 订阅者收到通知，派生结果 11 卡含 cost（v4.4 起 +weixin；v4.244 +sin）
     expect(notified).toHaveBeenCalledTimes(1)
     const keys = deriveLauncherModules(getActiveBoards(), LAUNCHER_DESC).map((m) => m.key)
-    expect(keys).toHaveLength(12)
-    expect(keys).toContain('code')
+    expect(keys).toHaveLength(11)
+    expect(keys).not.toContain('code')
     expect(keys).toContain('cost')
   })
 })

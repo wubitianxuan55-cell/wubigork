@@ -251,8 +251,8 @@ const HERDSMAN_CATALOG_SAMPLE: HerdsmanCatalogModelMock[] = [
 
 // Model Hub（Unsloth）本地引擎（6cd891df 落库，legacy 直调面同款局部类型补足）。
 // 语义：Set 成功=浏览器内存态联动（makeMockApp 每次新建即回未配置，诚实无持久化）；
-// Start 无本地引擎进程，诚实失败（rejected promise）——照 GetProgrammingWebStatus
-// 「浏览器 mock 恒为未运行」先例。
+// Start 无本地引擎进程，诚实失败（rejected promise）——照 VoiceStart
+// 「浏览器 mock 无法真启服务」先例。
 type LegacyModelHubMethods = {
   SetModelHubKey(apiKey: string): Promise<void>;
   GetModelHubKeyStatus(): Promise<{ configured: boolean; masked: string }>;

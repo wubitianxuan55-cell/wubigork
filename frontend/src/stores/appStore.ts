@@ -10,8 +10,8 @@ export interface ProjectInfo { title: string; genre: string; style: string; path
 export interface StatsData { totalWords: number; chapterCount: number; avgWordsPerChapter: number; characterCount: number; charAlive: number; foreshadowTotal: number; foreshadowRevealed: number; foreshadowRate: number; plannedChapters?: number }
 export interface ProjectCard { title: string; genre: string; style: string; path: string; word_count: number; chapter_count: number; created_at: string; last_opened_at: string }
 
-// 暗夜系列 — 6套精心调色
-export type ThemePreset = 'nightJade' | 'nightViolet' | 'nightRose' | 'nightAmber' | 'nightMoss' | 'nightSlate'
+// 暗夜系列 — 7套精心调色（v10 新增「天玄」：玄穹墨蓝 + 月华金，首页卡片工作台的母题）
+export type ThemePreset = 'nightJade' | 'nightViolet' | 'nightRose' | 'nightAmber' | 'nightMoss' | 'nightSlate' | 'tianXuan'
 
 // 主题元数据单一数据源（3.0 Wave 2：MainLayout 色点 / AppearancePanel 选择卡从此派生，
 // 消除三处重复维护——appStore 色板表 + MainLayout themeDots + AppearancePanel themeOptions）。
@@ -30,6 +30,7 @@ export const THEME_PRESETS: ThemePresetMeta[] = [
   { key: 'nightAmber',  label: '暗夜金', desc: '深色暖灯 · 沉浸舒适', color: '#f59e0b' },
   { key: 'nightMoss',   label: '暗夜苔', desc: '深色林间 · 自然舒适', color: '#84cc16' },
   { key: 'nightSlate',  label: '暗夜墨', desc: '中性深灰 · 极简克制', color: '#94a3b8' },
+  { key: 'tianXuan',    label: '天玄',   desc: '玄穹墨蓝 · 月华为记', color: '#d9b26a' },
 ]
 
 /** 主题色点查表（MainLayout 等轻量消费，避免逐次 find） */
@@ -93,6 +94,11 @@ const nightMossD = (): Partial<ThemeTokens> => ({ surface:'#0a100f',surfaceDim:'
 // 暗夜墨 · Night Slate — 极简灰
 const nightSlateD = (): Partial<ThemeTokens> => ({ surface:'#0c0d10',surfaceDim:'#060608',surfaceBright:'#1e1f24',surfaceContainer:'#111216',surfaceContainerHigh:'#16171c',surfaceContainerHighest:'#1d1e23',surfaceVariant:'#15161b',colorPrimary:'#94a3b8',onPrimary:'#0f172a',primaryContainer:'#334155',onPrimaryContainer:'#cbd5e1',onSurface:'#e0e2e6',onSurfaceVariant:'#9ca3af',colorText:'#e0e2e6',colorTextSecondary:'#9ca3af',colorTextTertiary:'#8b93a0',outline:'rgba(148,163,184,0.15)',outlineVariant:'rgba(148,163,184,0.06)',colorBorder:'rgba(255,255,255,0.06)',colorSuccess:'#86efac',colorWarning:'#fbbf24',colorBgContainer:'#111216',colorBgLayout:'#0c0d10',accentRgb:'148,163,184',glow:'#cbd5e1',glassBg:'rgba(17,18,22,0.62)',auroraBg:'radial-gradient(1100px 700px at 12% -5%, rgba(148,163,184,0.13), transparent 60%), radial-gradient(900px 600px at 88% 110%, rgba(100,116,139,0.11), transparent 55%), radial-gradient(700px 500px at 70% 15%, rgba(56,189,248,0.05), transparent 50%), linear-gradient(160deg, #0c0d10 0%, #13151b 50%, #090a0d 100%)',...dS })
 
+// 天玄 · Tianxuan — 玄穹墨蓝（v10）：底色取「天地玄黄」之玄（墨蓝近黑，非纯黑），
+// 唯一强调色=月华金（低饱和暖金，夜空里的月亮），星霜蓝只作次级容器（闲庭母题）。
+// 首页卡片工作台（w-/p- 双空间）即以此母题设计：墨蓝穹顶 + 金线 + 留白。
+const tianXuanD = (): Partial<ThemeTokens> => ({ surface:'#05070f',surfaceDim:'#03050a',surfaceBright:'#1d2743',surfaceContainer:'#0e1528',surfaceContainerHigh:'#151f3a',surfaceContainerHighest:'#1c2748',surfaceVariant:'#111a31',colorPrimary:'#d9b26a',onPrimary:'#231a08',primaryContainer:'#3d3117',onPrimaryContainer:'#f6e3b8',onSurface:'#e5e9f6',onSurfaceVariant:'#a3adc7',colorText:'#e5e9f6',colorTextSecondary:'#a3adc7',colorTextTertiary:'#8b93a0',outline:'rgba(217,178,106,0.22)',outlineVariant:'rgba(217,178,106,0.10)',colorBorder:'rgba(255,255,255,0.07)',colorSuccess:'#5fd8a4',colorWarning:'#e0a94f',colorBgContainer:'#101830',colorBgLayout:'#05070f',accentRgb:'217,178,106',glow:'#f0d193',glassBg:'rgba(16,24,48,0.62)',auroraBg:'radial-gradient(1200px 760px at 12% -6%, rgba(217,178,106,0.13), transparent 62%), radial-gradient(900px 620px at 88% 108%, rgba(86,120,214,0.16), transparent 58%), radial-gradient(640px 440px at 72% 12%, rgba(168,196,255,0.07), transparent 52%), linear-gradient(160deg, #05080f 0%, #0a1020 52%, #060911 100%)',...dS })
+
 // ═══════════════════════════════════════════════════════════
 // 6 Light Themes
 // ═══════════════════════════════════════════════════════════
@@ -115,12 +121,15 @@ const nightAmberL = (): Partial<ThemeTokens> => ({ surface:'#fffdf5',surfaceDim:
 const nightMossL = (): Partial<ThemeTokens> => ({ surface:'#f5fdf7',surfaceDim:'#ddf2e2',surfaceBright:'#f5fdf7',surfaceContainer:'#ebf8ef',surfaceContainerHigh:'#ddf2e4',surfaceContainerHighest:'#cde8d6',surfaceVariant:'#d8eadc',colorPrimary:'#4d7c0f',onPrimary:'#fff',primaryContainer:'#ecfccb',onPrimaryContainer:'#1a2e05',onSurface:'#101a15',onSurfaceVariant:'#3a4c3c',colorText:'#101a15',colorTextSecondary:'#3a4c3c',colorTextTertiary:'#5b6472',outline:'rgba(77,124,15,0.25)',outlineVariant:'rgba(77,124,15,0.10)',colorBorder:'rgba(0,0,0,0.06)',colorSuccess:'#4d7c0f',colorWarning:'#92400e',colorBgContainer:'#fff',colorBgLayout:'#f5fdf7',accentRgb:'77,124,15',glow:'#4d7c0f',glassBg:'rgba(255,255,255,0.55)',auroraBg:'radial-gradient(1100px 700px at 12% -5%, rgba(132,204,22,0.16), transparent 60%), radial-gradient(900px 600px at 88% 110%, rgba(77,124,15,0.10), transparent 55%), linear-gradient(160deg, #f5fdf7 0%, #ecf9ee 50%, #fbfefb 100%)',...lS })
 const nightSlateL = (): Partial<ThemeTokens> => ({ surface:'#f8fafc',surfaceDim:'#e2e8f0',surfaceBright:'#f8fafc',surfaceContainer:'#f1f5f9',surfaceContainerHigh:'#e6ecf2',surfaceContainerHighest:'#d9e2ea',surfaceVariant:'#e0e6ec',colorPrimary:'#475569',onPrimary:'#fff',primaryContainer:'#e2e8f0',onPrimaryContainer:'#1e293b',onSurface:'#0f172a',onSurfaceVariant:'#475569',colorText:'#0f172a',colorTextSecondary:'#475569',colorTextTertiary:'#5b6472',outline:'rgba(71,85,105,0.25)',outlineVariant:'rgba(71,85,105,0.10)',colorBorder:'rgba(0,0,0,0.06)',colorSuccess:'#047857',colorWarning:'#92400e',colorBgContainer:'#fff',colorBgLayout:'#f8fafc',accentRgb:'71,85,105',glow:'#475569',glassBg:'rgba(255,255,255,0.55)',auroraBg:'radial-gradient(1100px 700px at 12% -5%, rgba(148,163,184,0.18), transparent 60%), radial-gradient(900px 600px at 88% 110%, rgba(100,116,139,0.12), transparent 55%), linear-gradient(160deg, #f8fafc 0%, #eef2f6 50%, #fcfdfe 100%)',...lS })
 
+// 天玄 · 月白（亮态）：月华落纸的冷白调，主色取深墨金 #8a5f16（白底/浅底 ≥5:1 达 AA）
+const tianXuanL = (): Partial<ThemeTokens> => ({ surface:'#f4f6fb',surfaceDim:'#e3e8f3',surfaceBright:'#ffffff',surfaceContainer:'#eaeef7',surfaceContainerHigh:'#dfe5f2',surfaceContainerHighest:'#d1d9ea',surfaceVariant:'#dde3f0',colorPrimary:'#8a5f16',onPrimary:'#fff',primaryContainer:'#f7ecd2',onPrimaryContainer:'#4a3410',onSurface:'#141a2b',onSurfaceVariant:'#48536b',colorText:'#141a2b',colorTextSecondary:'#48536b',colorTextTertiary:'#5b6472',outline:'rgba(138,95,22,0.25)',outlineVariant:'rgba(138,95,22,0.10)',colorBorder:'rgba(0,0,0,0.07)',colorSuccess:'#047857',colorWarning:'#92400e',colorBgContainer:'#fff',colorBgLayout:'#f4f6fb',accentRgb:'138,95,22',glow:'#8a5f16',glassBg:'rgba(255,255,255,0.55)',auroraBg:'radial-gradient(1100px 700px at 12% -5%, rgba(217,178,106,0.20), transparent 60%), radial-gradient(900px 600px at 88% 110%, rgba(86,120,214,0.12), transparent 55%), linear-gradient(160deg, #f4f6fb 0%, #eaeff9 50%, #fbfcff 100%)',...lS })
+
 // ═══════════════════════════════════════════════════════════
 // Registry
 // ═══════════════════════════════════════════════════════════
 
-const darkFn: Record<ThemePreset, () => Partial<ThemeTokens>> = { nightJade:nightJadeD, nightViolet:nightVioletD, nightRose:nightRoseD, nightAmber:nightAmberD, nightMoss:nightMossD, nightSlate:nightSlateD }
-const lightFn: Record<ThemePreset, () => Partial<ThemeTokens>> = { nightJade:nightJadeL, nightViolet:nightVioletL, nightRose:nightRoseL, nightAmber:nightAmberL, nightMoss:nightMossL, nightSlate:nightSlateL }
+const darkFn: Record<ThemePreset, () => Partial<ThemeTokens>> = { nightJade:nightJadeD, nightViolet:nightVioletD, nightRose:nightRoseD, nightAmber:nightAmberD, nightMoss:nightMossD, nightSlate:nightSlateD, tianXuan:tianXuanD }
+const lightFn: Record<ThemePreset, () => Partial<ThemeTokens>> = { nightJade:nightJadeL, nightViolet:nightVioletL, nightRose:nightRoseL, nightAmber:nightAmberL, nightMoss:nightMossL, nightSlate:nightSlateL, tianXuan:tianXuanL }
 
 /**
  * M3 tertiary 角色表（v4.183）：每预设 × 明暗的「暖伴侣色」对
@@ -135,6 +144,8 @@ const TERTIARY: Record<ThemePreset, { dark: [string, string]; light: [string, st
   nightAmber:  { dark: ['#4d2033', '#fda4af'], light: ['#ffe4e6', '#9f1239'] },
   nightMoss:   { dark: ['#46350f', '#fcd34d'], light: ['#fef9c3', '#854d0e'] },
   nightSlate:  { dark: ['#3f3540', '#d8b4fe'], light: ['#f3e8ff', '#6b21a8'] },
+  // 天玄的次级容器走「星霜蓝」（夜空冷调），与月华金主色冷暖分工
+  tianXuan:    { dark: ['#1f2a4d', '#c2d3f8'], light: ['#e6ecfb', '#2b3f73'] },
 }
 
 export function getThemeTokens(base: ThemePreset, darkMode: boolean): ThemeTokens {

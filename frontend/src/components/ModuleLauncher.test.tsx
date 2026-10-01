@@ -9,11 +9,12 @@ import { LocaleProvider } from '../gaea/lib/i18n'
 // 版式分化（书斋=文档流水面板；闲庭=旗舰横幅画廊+无遥测右舷）。
 // 数据 hooks（遥测/会话/记忆）后端未就绪时静默兜底，无需 mock；语音 hook 整体
 // mock（真实实现依赖 Wails EventsOn）。
-// v9 案头重设计追加断言：书斋 masthead 身份区（h1.w-mast-title 文书台 / w-mast-lede /
-// w-seal 印章 / w-mast-side 内空间 chip + w-mast-pill 就绪徽记）、能力目录改案牌
-// 网格（w-plaques / w-plaque 按钮，行式 w-index-item 退役）、脉息面板四节
-// （w-vitals 内 4×w-vital，aria-label 用 zh 精确文案）；命令台 w-cmd 保留而
-// v8 刊头行 w-deck-head 删除；闲庭版式不受 v9 影响。
+// v10 卡片工作台追加断言：书斋改卡片网格（w-board / ml-card）——指挥卡 w-hero
+// （h1.w-hero-title 文书台 / w-hero-lede / w-seal 印章 / w-hero-side 内空间 chip）、
+// 文档卡 desk-recent-docs（ml-card-head + w-docs 行）、能力卡网格 w-modules
+// （旗舰 w-mod.is-featured + 普通 w-mod，v9 案牌 w-plaque 退役）、状态卡排
+// w-stat-row（4×w-stat，aria-label 用 zh 精确文案）；命令条 w-cmd 保留而
+// v9 的 w-deck/w-masthead/w-plaques/w-vitals 在书斋全部退役；闲庭版式不受影响。
 
 const bridgeMocks = vi.hoisted(() => ({
   app: {
@@ -41,7 +42,6 @@ vi.mock('../hooks/useVoiceChat', () => ({
     interrupt: vi.fn(),
   }),
 }))
-vi.mock('../gaea/components/MorningBriefCard', () => ({ default: () => null }))
 
 const wrap = (ui: ReactElement) => {
   localStorage.setItem('gaea-lang', 'zh')
@@ -96,19 +96,20 @@ describe('ModuleLauncher 双空间首页（v4.182 书斋/闲庭）', () => {
   })
 })
 
-describe('书斋 v9 案头版式', () => {
+describe('书斋 v10 卡片工作台版式', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
-  it('masthead 身份区——文书台大标 + 印章装饰 + 就绪徽记（v8 刊头行 w-deck-head 退役）', () => {
+  it('指挥卡——台名大标 + 印章装饰 + 空间 chip + 就绪徽记（v9 开放排印身份区退役）', () => {
     render(wrap(<ModuleLauncher onNavigate={vi.fn()} space="work" onSwitchSpace={vi.fn()} />))
-    // 大标：h1.w-mast-title = home.title「文书台」
+    // 全宽指挥卡：h1.w-hero-title = home.title「文书台」
+    expect(document.querySelector('.w-hero')).toBeTruthy()
     const title = screen.getByText('文书台')
     expect(title.tagName.toLowerCase()).toBe('h1')
-    expect(title.classList.contains('w-mast-title')).toBe(true)
-    // 题辞：w-mast-lede 承载 home.sub 长文案（锁存在 + 非空，不锁全串避免实现侧标点级脆断）
-    const lede = document.querySelector('.w-mast-lede')
+    expect(title.classList.contains('w-hero-title')).toBe(true)
+    // 题辞：w-hero-lede 承载 home.sub 长文案（锁存在 + 非空，不锁全串避免实现侧标点级脆断）
+    const lede = document.querySelector('.w-hero-lede')
     expect(lede).toBeTruthy()
     expect((lede?.textContent ?? '').length).toBeGreaterThan(0)
     // 印章：纯装饰（aria-hidden），内容为空间名首字「书」
@@ -116,47 +117,64 @@ describe('书斋 v9 案头版式', () => {
     expect(seal).toBeTruthy()
     expect(seal?.getAttribute('aria-hidden')).toBe('true')
     expect(seal?.textContent).toBe('书')
-    // 侧翼：既有空间 chip 落位 w-mast-side，就绪徽记 = home.pill（zh.ts 精确串）
-    const side = document.querySelector('.w-mast-side')
+    // 侧翼：既有空间 chip 落位 w-hero-side，就绪徽记 = home.pill（zh.ts 精确串）
+    const side = document.querySelector('.w-hero-side')
     expect(side).toBeTruthy()
     expect(side?.querySelector('[data-testid="ml-space-chip"]')).toBeTruthy()
     expect(screen.getByText('GAEA 已就绪 · 本地 AI 创作中枢')).toBeTruthy()
-    // v8 刊头行删除；命令台本体保留
-    expect(document.querySelector('.w-deck-head')).toBeNull()
+    // v9 的 open-masthead 结构在书斋退役；命令条本体保留
+    expect(document.querySelector('.w-masthead')).toBeNull()
     expect(document.querySelector('.w-cmd')).toBeTruthy()
   })
 
-  it('能力目录为案牌网格，行式索引 w-index-item 不再出现', () => {
+  it('书斋首屏为卡片网格：指挥卡 + 文档卡 + 侧列 + 能力卡排 + 状态卡排', () => {
     render(wrap(<ModuleLauncher onNavigate={vi.fn()} space="work" onSwitchSpace={vi.fn()} />))
-    expect(document.querySelector('.w-plaques')).toBeTruthy()
+    expect(document.querySelector('.w-board')).toBeTruthy()
+    // 最近文档：卡片形态（卡头 + 行式文档流），testid 契约不变
+    const docs = screen.getByTestId('desk-recent-docs')
+    expect(docs.classList.contains('ml-card')).toBe(true)
+    expect(docs.querySelector('.ml-card-head')).toBeTruthy()
+    // 写作进度卡（侧列内，共享 ml-ring 原语）
+    const progress = document.querySelector('.w-progress')
+    expect(progress).toBeTruthy()
+    expect(progress?.querySelector('.ml-ring')).toBeTruthy()
+  })
+
+  it('能力矩阵为卡片网格：旗舰跨列大卡 + 模块卡，v9 案牌/行式索引退役', () => {
+    render(wrap(<ModuleLauncher onNavigate={vi.fn()} space="work" onSwitchSpace={vi.fn()} />))
+    expect(document.querySelector('.w-modules')).toBeTruthy()
     // fallback 清单派生：静态 canonicalBoards 在 work 空间可得 6 模块
-    // （gaea/cost/memoryhub/weixin/modelcenter/settings）；旗舰是否单列由实现定
-    // → 宽松断言只锁「非空 + 全部为按钮」。
-    const plaques = document.querySelectorAll('.w-plaque')
-    expect(plaques.length).toBeGreaterThan(0)
-    plaques.forEach((p) => expect(p.tagName.toLowerCase()).toBe('button'))
+    // （gaea/cost/memoryhub/weixin/modelcenter/settings）；旗舰是否跨列由实现定
+    // → 宽松断言只锁「非空 + 全部为按钮 + 恰有一张旗舰卡」。
+    const mods = document.querySelectorAll('.w-mod')
+    expect(mods.length).toBeGreaterThan(0)
+    mods.forEach((p) => expect(p.tagName.toLowerCase()).toBe('button'))
+    expect(document.querySelectorAll('.w-mod.is-featured').length).toBe(1)
+    expect(document.querySelector('.w-plaque')).toBeNull()
     expect(document.querySelector('.w-index-item')).toBeNull()
   })
 
-  it('脉息面板五节齐备（写作/内核/会话/记忆/任务，aria-label 对齐 zh 精确文案）', () => {
+  it('状态卡排四张卡齐备（内核/会话/记忆/任务，aria-label 对齐 zh 精确文案）', () => {
     render(wrap(<ModuleLauncher onNavigate={vi.fn()} space="work" onSwitchSpace={vi.fn()} />))
-    expect(document.querySelector('.w-vitals')).toBeTruthy()
-    const vitals = document.querySelectorAll('.w-vital')
-    // 7.3-1 起 w-vitals 为五节：新增任务收件箱节（desk-task-inbox）
-    expect(vitals.length).toBe(5)
-    // zh.ts 精确键值：shell.launcher.statWriting=项目写作进度（非简称「写作进度」）、
-    // home.kernel=内核状态、shell.launcher.sessions=最近会话、
+    expect(document.querySelector('.w-stat-row')).toBeTruthy()
+    const stats = document.querySelectorAll('.w-stat')
+    expect(stats.length).toBe(4)
+    // zh.ts 精确键值：home.kernel=内核状态、shell.launcher.sessions=最近会话、
     // shell.launcher.memoryPulse=记忆脉搏、shell.launcher.taskInbox=任务
-    const labels = Array.from(vitals).map((el) => el.getAttribute('aria-label'))
-    expect(labels).toContain('项目写作进度')
+    const labels = Array.from(stats).map((el) => el.getAttribute('aria-label'))
     expect(labels).toContain('内核状态')
     expect(labels).toContain('最近会话')
     expect(labels).toContain('记忆脉搏')
     expect(labels).toContain('任务')
+    // 状态卡同款卡片壳（与指挥卡/文档卡同一 .ml-card 基底）
+    stats.forEach((el) => expect(el.classList.contains('ml-card')).toBe(true))
   })
 
-  it('闲庭不受 v9 影响', () => {
+  it('闲庭不受 v10 卡片化影响', () => {
     render(wrap(<ModuleLauncher onNavigate={vi.fn()} space="play" onSwitchSpace={vi.fn()} />))
+    expect(document.querySelector('.w-hero')).toBeNull()
+    expect(document.querySelector('.w-modules')).toBeNull()
+    expect(document.querySelector('.w-stat-row')).toBeNull()
     expect(document.querySelector('.w-masthead')).toBeNull()
     expect(document.querySelector('.w-plaques')).toBeNull()
     expect(document.querySelector('.garden-banner')).toBeTruthy()

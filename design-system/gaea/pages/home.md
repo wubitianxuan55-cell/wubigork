@@ -2,21 +2,34 @@
 
 > 覆盖 MASTER（页面级优先）。实施参考 docs/2026-08-15-gaea3-ui-design-system.md §3/§4。
 >
-> **当前态**：`ModuleLauncher` 按 `space` 分发两套首页。
-> - 书斋（work）案头：命令条是工具，最近文档是主角，旗舰+目录是索引，右栏仪表。
-> - 闲庭（play）园庭：左问候/续聊，右会客厅横幅，房间不对称，园底进度/记忆/遥测。
-> 契约：`ml-space-*` / `desk-recent-docs` / `ml-space-chip` / `.garden-banner`。
+> **当前态（v11「玄墨」，2026-09-30）**：`ModuleLauncher` 按 `space` 分发两套首页，
+> 三层视觉层级（L1 主角金顶线+wash 特权 / L2 工作纯色面 / L3 状态通栏仪表带）。
+> - 书斋（work）：指挥卡（印章+34px 衬线台名+命令条）→ 文档卡 8 列+侧列 4 列
+>   （进度环+晨报）→ 能力矩阵 8+4／4+4+4 严格对缝 + 设置通栏横条 → 状态仪表带
+>   （通栏卡内四列 hairline 分节，.w-stat 契约类保留但视觉隐形化）。
+> - 闲庭（play）：展厅卡（月洞门+大字）→ 会客厅旗舰 7+会话 5 → 海报墙
+>   （首张 2×2，auto 行+stretch）→ 设置通栏 → 园底仪表带。
+> - 晨报卡 2026-10-01 起撤出首页（用户拍板），组件/做梦 2.0 管线保留。
+> - 金色三处点睛（hero 顶线+命令条 focus／旗舰 badge+hover 边／等宽数据值），
+>   图标章中性墨 hover 点亮；描边退场（4.5% 近无），深度靠表面色阶+投影令牌。
+> 契约：`ml-space-*` / `desk-recent-docs` / `ml-space-chip` / `.garden-banner` /
+> `garden-*` / `desk-task-inbox` / `home-layout-*`。
+> **一屏自适应（v11.4~7.16）**：board `flex:1 0 0`+`min-height:0` 高度定界，fr 轨道
+> 富余吸收/不足回退滚动；墙内行=auto+stretch；grid 铁律见
+> `进度计划/gaea-home-tianxuan-cards-20260930.md` §7.16。
+> 版本谱系 v6→v11 见 `进度计划/gaea-home-tianxuan-cards-20260930.md`（v10）与其
+> §7 v11 增量记录（§7.5~§7.16）。重叠门禁：`scripts/home-overlap-check.mjs`。
 >
 > 下文保留 v4「星枢港」历史骨架（能力矩阵单位核算），与当前渲染不完全一致。
 
 ## 现状（facts）
-- 组件：`frontend/src/components/ModuleLauncher.tsx`（ml-dock 双舷网格）
-- 样式：`frontend/src/components/module-launcher.css`（ml-* 前缀，全部令牌派生）
+- 组件：`frontend/src/components/ModuleLauncher.tsx`（v11 三态分发：DeskHome/GardenHome/TasksFirstHome）
+- 样式：`frontend/src/components/module-launcher.css`（ml-* 前缀，全部令牌派生；
+  v11 整层重写：卡片纯色面+近无边线、`.ml-card::before` 内芯金线退役、
+  `.w-stat-row`/`.p-stat-row` 通栏仪表带、`.w-mod` 8+4/4+4+4 对缝、
+  `.w-mod.is-settings`/`.p-poster.is-compact` 设置降权横条）
 - 数据源：manifest 驱动——`deriveLauncherModules(getActiveBoards(), LAUNCHER_DESC)`；
-  办公（gaea）为旗舰大卡，**编程自 v4.52 起以 span 4×1 宽瓦片（`BentoCard wide`
-  prop → `ml-bento--wide`）编入矩阵末行**（横向门廊条形态：图标+名称/描述+
-  「独立窗口」徽标+悬浮箭头一行排开，aria 用 `shell.launcher.progEntry`），
-  **设置以普通瓦片收尾**——宽瓦片 BentoCard 签名向后兼容（wide 可选 prop）
+  办公（gaea）为旗舰大卡（span 8），设置降权为节尾通栏横条（`is-settings`）
 - 入口：MainLayout home 特判渲染；语音入口 VOICE_LAUNCH_FLAG（useChatVoice 依赖，勿删导出）
 - 启动：`MainLayout` 每次启动默认落首页；`BootSplash` 全屏启动动画
 
@@ -137,3 +150,29 @@
   w-index-num 已删/vitals+80px 环/kicker 已退役/命令条实测 60px/账页 testid 在位/
   无横向溢出）+ 闲庭 5 项（garden-banner 在、v9 三件套均 null、aria-pressed 同步）；
   ModuleLauncher 8/8（4 既有 + 4 新增）+ AppearancePanel 6/6 + tsc/eslint 零错。
+
+## v10 首页重设计（2026-09-30 · 「天玄」卡片工作台，规格=进度计划/gaea-home-tianxuan-cards-20260930.md）
+**用户指令**：「重新设计整个首页，使用技能，主题定为天玄」——本轮显式覆盖 v6 的「卡片=廉价」
+判据，改卡片式；但把 v6 根因写成避坑清单（异质形态 / 双层工艺 / 一枚强调色 / 版式记号）。
+**技能**：redesign-existing-projects（审计先行）+ high-end-visual-design（Double-Bezel、
+弹性动效）+ ui-ux-pro-max（bento 形态 + midnight-blue/OLED 配色检索）。
+**结构**（三态首页统一卡片语言，`.ml-card` 为共用基底，令牌 `--ml-card-bg/-line/-line-soft/-radius`）：
+
+| 变体 | 卡片序列 |
+|---|---|
+| 书斋 `w-board`（12 列） | 指挥卡（全宽，印章+台名+命令条）→ 最近文档卡（7）+ 侧列（写作进度卡 + 晨报卡）（5）→ 能力矩阵（旗舰卡 6 + 模块卡 3）→ 状态卡排（内核/会话/记忆/任务） |
+| 闲庭 `p-board` | 展厅卡（月洞门+画廊大字）→ 会客厅旗舰卡 `.garden-banner`（7）+ 最近会话卡（5）→ 海报卡墙（首张 2×2 跨格）→ 园底状态卡排（进度/记忆/内核/任务） |
+| 任务优先 `ml-tasks` | 指挥卡 + 任务收件箱卡（全宽）+ 最近会话卡（7）+ 能力卡（5）+ 脚注 |
+
+**天玄主题**（`stores/appStore.ts` 新增 `tianXuan` 预设，明暗两档 + 三语文案）：
+玄穹墨蓝 `#05070f` / 卡片面 `#101830` / 月华金 `#d9b26a`（亮态下沉 `#8a5f16` 保 AA）/
+星霜蓝 tertiary；`App.tsx` 下发 `html[data-theme]`，首页亮态页底半透（82%）让壳层星穹
+（`.gaea-bg` 星点/微尘/网格）透出，暗态 96% 保卡片对比；卡片细线暗态走月华金 26%。
+**工艺**：`.ml-card` 双层（外壳细线+双档投影 / 内芯 `::before` 收一圈强调色细线）；
+可点卡片悬停 -3px + 金晕、按下 -1px + `scale(.995)`，统一 `--ml-ease =
+cubic-bezier(0.16,1,0.3,1)`；指挥卡/旗舰卡顶缘月华描线；指挥卡标题走中式衬线。
+**契约**：testid 与 `.garden-banner` 全保；i18n +2 键 × 三语；零硬编码色值（`.w-seal` 豁免）；
+旧 v9 类（`.w-masthead/.w-plaques/.w-vitals/.w-dock/.w-main/.p-wrap/.p-foot`）整体退役。
+**验收**：ModuleLauncher 15/15 + TasksFirstHome + AppearancePanel + 两处 appStore（含
+contrast 7 预设 × 明暗 AA）共 60 例全绿；tsc 0 错、eslint 0 error；无头 Edge CDP 截图
+8 张（天玄 暗/亮 × 书斋/闲庭/任务 + 暗夜青亮回归 + 1180 窄档）。

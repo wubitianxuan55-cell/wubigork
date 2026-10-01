@@ -2,9 +2,10 @@ package board
 
 // builtins 注册 canonical 板块（§3.1 清单 + 决策 D7）。
 //
-// canonical 集合 = §3.1 的 9 业务板块 + 编程板块（code，DeepSeek Harness Web
-// 进程管理）+ 成本库（cost，2026-08-19 从记忆中枢二级分类提升为一级板块）
-// + knowledge（决策 D7：恢复挂载为独立板块 = 3.0.0 最小 manifest 试点）。
+// canonical 集合 = §3.1 的 9 业务板块 + 成本库（cost，2026-08-19 从记忆中枢
+// 二级分类提升为一级板块）+ knowledge（决策 D7：恢复挂载为独立板块 = 3.0.0
+// 最小 manifest 试点）。v4.439 用户拍板「删除编程板块」：code（DeepSeek
+// Harness Web 进程管理）整块退役，independent 分面暂无成员。
 // home 是壳（启动器，不进 manifest 业务清单，见 §3.1 注；前端 manifests.ts 的
 // 静态清单含 home 属壳层数据）。
 //
@@ -81,14 +82,6 @@ var builtinManifests = []Manifest{
 		}},
 		FeatureModel: "cost",
 		Bindings:     []string{"CostB"},
-	},
-	{
-		ID: "code", Label: "编程", Icon: "CodeOutlined",
-		Page: "ProgrammingPage", Lazy: true,
-		KeepAlive: Bool(true), Layout: "full", // 桌面内嵌 Harness Web 工作台（全出血）
-		MenuOrder: 6, InMenu: Bool(true),
-		Space:    SpaceIndependent,  // 独立 DSH 窗口（用户拍板：不并入工位、不共享工具面）
-		Bindings: []string{"CoreB"}, // dsh web 进程管理（Get/Start/StopProgrammingWeb）
 	},
 	{
 		ID: "memoryhub", Label: "记忆中枢", Icon: "DatabaseOutlined",
@@ -201,5 +194,5 @@ func Builtins() []Board {
 // CanonicalIDs 返回 canonical 业务板块的 id（验收断言用；不含 knowledge——
 // knowledge 是 D7 独立板块，见 BuiltinManifests）。
 func CanonicalIDs() []string {
-	return []string{"chat", "novel", "imagegen", "gaea", "cost", "code", "memoryhub", "modelcenter", "characterlib", "settings", "weixin", "schedule", "sin"}
+	return []string{"chat", "novel", "imagegen", "gaea", "cost", "memoryhub", "modelcenter", "characterlib", "settings", "weixin", "schedule", "sin"}
 }

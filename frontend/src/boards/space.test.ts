@@ -51,12 +51,16 @@ describe('isBoardReachableInSpace / filterBoardsForSpace', () => {
     expect(isBoardReachableInSpace(play, 'work')).toBe(false)
   })
 
-  it('independent（编程 DSH 独立窗口）两空间均不可达、不进空间导航', () => {
-    const code = canonicalBoards.find((b) => b.id === 'code')!
-    expect(boardSpace(code)).toBe('independent')
-    expect(isIndependentBoard(code)).toBe(true)
-    expect(isBoardReachableInSpace(code, 'work')).toBe(false)
-    expect(isBoardReachableInSpace(code, 'play')).toBe(false)
+  it('independent（独立窗口分面）两空间均不可达、不进空间导航（v4.439 起 canonical 无成员，用合成板块守机制）', () => {
+    // 编程板块删除后 canonical 已无 independent 成员；机制本身仍需守住——
+    // 合成一个独立窗口板块，校验可达性/独立判定（未来独立窗口板块复用同一判据）。
+    const indep = { ...canonicalBoards[1], id: 'indep-probe', space: 'independent' as const }
+    expect(boardSpace(indep)).toBe('independent')
+    expect(isIndependentBoard(indep)).toBe(true)
+    expect(isBoardReachableInSpace(indep, 'work')).toBe(false)
+    expect(isBoardReachableInSpace(indep, 'play')).toBe(false)
+    // canonical 现状：无 independent 板块
+    expect(canonicalBoards.filter(isIndependentBoard)).toHaveLength(0)
   })
 
   it('canonical 空间归属表（docs §3）：工位含办公/造价/记忆/知识，乐园含小说/绘梦/角色', () => {

@@ -4,7 +4,7 @@
 import { describe, expect, it, beforeEach } from 'vitest'
 import { getThemeTokens, useAppStore, type ThemePreset, isHomeLayout } from './appStore'
 
-const PRESETS: ThemePreset[] = ['nightJade', 'nightViolet', 'nightRose', 'nightAmber', 'nightMoss', 'nightSlate']
+const PRESETS: ThemePreset[] = ['nightJade', 'nightViolet', 'nightRose', 'nightAmber', 'nightMoss', 'nightSlate', 'tianXuan']
 const HEX = /^#[0-9a-fA-F]{6}$/
 
 describe('getThemeTokens（3.0 设计系统 Wave 1 令牌契约）', () => {

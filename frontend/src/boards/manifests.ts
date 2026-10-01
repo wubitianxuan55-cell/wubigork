@@ -17,7 +17,7 @@
 import {
   HomeOutlined, MessageOutlined, ReadOutlined, PictureOutlined,
   ToolOutlined, DatabaseOutlined, ApiOutlined, TeamOutlined,
-  SettingOutlined, WechatOutlined, BookOutlined, CodeOutlined, AccountBookOutlined,
+  SettingOutlined, WechatOutlined, BookOutlined, AccountBookOutlined,
   ScheduleOutlined,
   FireOutlined,
 } from '@ant-design/icons'
@@ -30,7 +30,7 @@ import { filterBoardsForSpace, isIndependentBoard, type BoardSpace, type ShellSp
 const ICON_REGISTRY: Record<string, ComponentType> = {
   HomeOutlined, MessageOutlined, ReadOutlined, PictureOutlined,
   ToolOutlined, DatabaseOutlined, ApiOutlined, TeamOutlined,
-  SettingOutlined, WechatOutlined, BookOutlined, CodeOutlined, AccountBookOutlined,
+  SettingOutlined, WechatOutlined, BookOutlined, AccountBookOutlined,
   ScheduleOutlined, FireOutlined,
 }
 
@@ -104,11 +104,6 @@ export const canonicalBoards: BoardManifest[] = [
     id: 'cost', label: '造价数据库', icon: 'AccountBookOutlined', page: 'CostLibraryPage',
     lazy: true, keepAlive: true, layout: 'padded',
     menuOrder: 5, inMenu: true, nav: { children: COST_NAV }, featureModel: 'cost', space: 'work',
-  },
-  {
-    id: 'code', label: '编程', icon: 'CodeOutlined', page: 'ProgrammingPage',
-    lazy: true, keepAlive: true, layout: 'full', // 桌面内嵌 Harness Web 工作台（全出血）
-    menuOrder: 6, inMenu: true, space: 'independent', // 独立 DSH 窗口（用户拍板：不并入工位/乐园）
   },
   {
     id: 'memoryhub', label: '记忆中枢', icon: 'DatabaseOutlined', page: 'MemoryHubPage',
@@ -314,7 +309,7 @@ export function getActiveMenuBoards(): BoardManifest[] { return deriveMenuBoards
 export function getActiveMenuBoardsForSpace(space: ShellSpace): BoardManifest[] {
   return deriveMenuBoards(filterBoardsForSpace(activeBoards, space))
 }
-/** S2.1：独立窗口板块（编程 DSH）——两空间导航/首页均不出现，壳层单独入口 */
+/** S2.1：独立窗口板块——两空间导航/首页均不出现，壳层单独入口（v4.439 起暂为空集） */
 export function getActiveIndependentBoards(): BoardManifest[] {
   return deriveMenuBoards(activeBoards.filter(isIndependentBoard))
 }

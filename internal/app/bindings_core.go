@@ -65,12 +65,6 @@ func (b *CoreB) GetOpencodeZenKeyStatus() map[string]interface{} {
 	return b.a.GetOpencodeZenKeyStatus()
 }
 func (b *CoreB) GetPreloadPlan() bool { return b.a.GetPreloadPlan() }
-func (b *CoreB) GetProgrammingWebPreflight() map[string]interface{} {
-	return b.a.GetProgrammingWebPreflight()
-}
-func (b *CoreB) GetProgrammingWebStatus() map[string]interface{} {
-	return b.a.GetProgrammingWebStatus()
-}
 func (b *CoreB) GetProjectInfo() map[string]interface{}           { return b.a.GetProjectInfo() }
 func (b *CoreB) GetStats() map[string]interface{}                 { return b.a.GetStats() }
 func (b *CoreB) GetStyleProfile() (map[string]interface{}, error) { return b.a.GetStyleProfile() }
@@ -82,9 +76,6 @@ func (b *CoreB) ListSkills() []map[string]interface{}                   { return
 func (b *CoreB) Login() error                                           { return b.a.Login() }
 func (b *CoreB) Logout() error                                          { return b.a.Logout() }
 func (b *CoreB) OpenProject(dir string) (map[string]interface{}, error) { return b.a.OpenProject(dir) }
-func (b *CoreB) ProgrammingWebLogTail(n int) map[string]interface{} {
-	return b.a.ProgrammingWebLogTail(n)
-}
 func (b *CoreB) RefreshEngineModels(engineID string) ([]modelengine.ModelInfo, error) {
 	return b.a.RefreshEngineModels(engineID)
 }
@@ -113,9 +104,7 @@ func (b *CoreB) SetPreloadPlan(enabled bool) error       { return b.a.SetPreload
 func (b *CoreB) SetPromptFS(fsys fs.FS)                  { b.a.SetPromptFS(fsys) }
 func (b *CoreB) Shutdown(ctx context.Context)            { b.a.Shutdown(ctx) }
 func (b *CoreB) StartModelHubModel(modelID string) error { return b.a.StartModelHubModel(modelID) }
-func (b *CoreB) StartProgrammingWeb() error              { return b.a.StartProgrammingWeb() }
 func (b *CoreB) Startup(ctx context.Context)             { b.a.Startup(ctx) }
-func (b *CoreB) StopProgrammingWeb() error               { return b.a.StopProgrammingWeb() }
 func (b *CoreB) TestEngineConnection(engineID string) (*modelengine.EngineStatus, error) {
 	return b.a.TestEngineConnection(engineID)
 }

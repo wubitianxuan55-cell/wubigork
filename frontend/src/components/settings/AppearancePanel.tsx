@@ -18,6 +18,7 @@ const THEME_LABEL_KEYS: Record<ThemePreset, { label: DictKey; desc: DictKey }> =
   nightAmber: { label: 'settings.appear.themeNightAmberLabel', desc: 'settings.appear.themeNightAmberDesc' },
   nightMoss: { label: 'settings.appear.themeNightMossLabel', desc: 'settings.appear.themeNightMossDesc' },
   nightSlate: { label: 'settings.appear.themeNightSlateLabel', desc: 'settings.appear.themeNightSlateDesc' },
+  tianXuan: { label: 'settings.appear.themeTianXuanLabel', desc: 'settings.appear.themeTianXuanDesc' },
 }
 
 interface ThemeOption { key: ThemePreset; label: string; desc: string; color: string }

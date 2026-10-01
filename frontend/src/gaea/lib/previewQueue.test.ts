@@ -1,9 +1,23 @@
 import { describe, expect, it, beforeEach } from "vitest";
 import { usePreviewStore } from "./store";
+import { clearRecentFilesForTest, loadRecentFiles } from "./recentFiles";
 
 describe("usePreviewStore 多文件预览队列（P1-1）", () => {
   beforeEach(() => {
     usePreviewStore.setState({ previewFile: null, previewList: [], previewIndex: -1 });
+    clearRecentFilesForTest();
+  });
+
+  // v4.439 修复「首页最近文档不更新」：预览通道（右键预览 / 正文文件链接 /
+  // 记忆中枢·进度计划·DAG·上下文检查器文件行）打开即记最近文档单源。
+  it("openFilePreview 同步记入最近文档（首页卡片实时刷新同源）", () => {
+    usePreviewStore.getState().openFilePreview("docs/报告.docx");
+    const recent = loadRecentFiles();
+    expect(recent).toHaveLength(1);
+    expect(recent[0]).toMatchObject({ path: "docs/报告.docx", name: "报告.docx", isDir: false });
+    // 再开一个 → 置顶
+    usePreviewStore.getState().openFilePreview("docs/清单.xlsx");
+    expect(loadRecentFiles().map((e) => e.path)).toEqual(["docs/清单.xlsx", "docs/报告.docx"]);
   });
 
   it("openFilePreview 入队并设为当前", () => {

@@ -25,9 +25,6 @@ type CoreMethods = Pick<
   | "SlashArgs"
   | "Version" | "CheckUpdate" | "ApplyUpdate" | "OpenDownloadPage" | "SaveWindowState"
   | "LogFrontendError"
-  // 编程板块：DeepSeek Harness Web 进程管理（浏览器 mock 恒为未运行）。
-  | "GetProgrammingWebStatus" | "StartProgrammingWeb" | "StopProgrammingWeb"
-  | "GetProgrammingWebPreflight" | "ProgrammingWebLogTail"
   // v4.171 批次一 legacy 直调转正（CoreB 门面）：应用信息/板块清单/功能级模型读。
   | "GetAppInfo" | "GetBoardManifests" | "GetFeatureModel" | "GetFeatureModelEnabled"
   // 批次二 legacy 直调转正（CoreB 门面）：配置读写/统计/技能/全量导出。
@@ -425,49 +422,6 @@ export function buildCore(s: MakeMockState): CoreMethods {
     },
     async LogFrontendError(message: string) {
       console.error("[frontend]", message);
-    },
-    async GetProgrammingWebStatus() {
-      // 浏览器开发模式无 Go 进程，恒返回未运行（空状态引导正常展示）。
-      return {
-        running: false,
-        owned: false,
-        pid: 0,
-        url: "http://127.0.0.1:3080",
-        root: "C:\\AI\\deepseek-harness",
-        log: "gaea-dsh-web.log",
-        uptime_s: 0,
-      };
-    },
-    async GetProgrammingWebPreflight() {
-      // 浏览器开发模式：假定本机 harness 已就绪（未运行 → 端口空闲），
-      // 启动引导视图可完整演示。
-      return {
-        harness_valid: true,
-        pnpm_found: true,
-        deps_ready: true,
-        build_ready: true,
-        port_free: true,
-        all_ready: true,
-        root: "C:\\AI\\deepseek-harness",
-      };
-    },
-    async ProgrammingWebLogTail() {
-      // 浏览器开发模式无真实日志：返回未生成提示（面板空态展示）。
-      return {
-        exists: false,
-        path: "gaea-dsh-web.log",
-        lines: [],
-        error: "日志文件尚未生成（第一次启动后出现）",
-      };
-    },
-    async StartProgrammingWeb() {
-      // 延迟 3s 再报错：浏览器开发模式无法真实启动，但保留一段「启动动画」
-      // 演示窗口，让启动中视图可被看到（真实桌面版由 Go 侧驱动）。
-      await delay(3000);
-      throw new Error("浏览器开发模式不支持启动 DeepSeek Harness（请运行桌面版）");
-    },
-    async StopProgrammingWeb() {
-      throw new Error("浏览器开发模式无 gaea 自启进程");
     },
     // ── v4.171 批次一 legacy 直调转正（Go CoreB，同名前缀）────────────────
     async GetAppInfo() {

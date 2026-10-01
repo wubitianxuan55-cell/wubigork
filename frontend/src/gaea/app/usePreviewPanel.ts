@@ -11,7 +11,6 @@ import {
 } from "../lib/layoutPreferences";
 import { setPaneFileOpenHandler } from "../lib/paneFileOpen";
 import { usePaneTabsStore } from "../lib/paneTabs";
-import { recordRecentFile } from "../lib/recentFiles";
 import { SIDEBAR_REGISTRY } from "../lib/sidebarRegistry";
 import { usePreviewStore } from "../lib/store";
 import { readWorkbenchValue, writeWorkbenchValue } from "../lib/workbenchStorage";
@@ -72,10 +71,10 @@ export function usePreviewPanel({ effectiveSidebarWidth, setRightTab, handleWork
   }, []);
 
   // 点文件 → 收起右侧树，在主区域展开可拖宽的预览（Codex 式）
-  // P0-3：预览过的文件同步进「最近文件」快捷区（lib/recentFiles 单源）
+  // P0-3：预览过的文件同步进「最近文件」快捷区——v4.439 起记账收敛到
+  // usePreviewStore.openFilePreview 单点（本函数即其唯一调用口），此处不再重复写。
   // P1-1：经全局 store 入队，支持 ←/→ 多文件切换
   const openFilePreview = useCallback((rel: string) => {
-    recordRecentFile(rel);
     setRightTab("files");
     setWorkspacePanel(false);
     usePreviewStore.getState().openFilePreview(rel);

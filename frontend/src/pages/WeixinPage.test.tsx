@@ -33,7 +33,7 @@ vi.mock('../gaea/lib/bridge', () => ({ app: mocks }))
 import WeixinPage from './WeixinPage'
 import { WX_FOCUS_KEY } from './wxFocus'
 
-// 负载 flake 治理（同 ProgrammingPage.test 先例）：RTL 默认 1s 超时在全量套件
+// 负载 flake 治理（重组件用例通用先例）：RTL 默认 1s 超时在全量套件
 // 高负载下不够，显式放宽到 5s（仍有上界，不会掩盖真回归）。
 const LOAD = { timeout: 5000 }
 

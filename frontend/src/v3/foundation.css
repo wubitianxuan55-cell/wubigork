@@ -116,7 +116,8 @@
 /* v4.182：空间切换器迁移首页顶栏（ModuleLauncher SpaceSwitch）；rail 顶部
    改为当前空间指示徽标（非交互 is-indicator）。rail 主体分域语义不变
    （getActiveMenuBoardsForSpace：shared 恒在 / independent 剔除 /
-   settings inMenu:false 不在 rail），独立窗口（编程 DSH）仅经 foot 单列。 */
+   settings inMenu:false 不在 rail），独立窗口板块仅经 foot 单列
+   （v4.439 编程板块删除后该分面暂为空集）。 */
 .v3-rail-space {
   display: flex;
   flex-direction: column;
@@ -304,12 +305,6 @@
 }
 /* 聊天模式切换条宿主（ChatPage portal 目标）：自身不占布局宽度，只做对齐容器 */
 .v3-strip-chatmode {
-  display: flex;
-  align-items: center;
-  min-width: 0;
-}
-/* 编程工作台工具栏宿主（ProgrammingPage portal 目标）：自身不占布局宽度，只做对齐容器 */
-.v3-strip-prog {
   display: flex;
   align-items: center;
   min-width: 0;
