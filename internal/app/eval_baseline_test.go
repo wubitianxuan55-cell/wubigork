@@ -84,7 +84,7 @@ func TestEvalBaselineAndCompare(t *testing.T) {
 	a2 := newGateEmptyApp()
 	pm2 := newGateProject(t)
 	a2.setPM(pm2)
-	if _, err := a2.NovelEvalCompare(); err == nil || !strings.Contains(err.Error(), "基线") {
+	if _, err := a2.NovelEvalCompare("", ""); err == nil || !strings.Contains(err.Error(), "基线") {
 		t.Fatalf("无基线应报错：%v", err)
 	}
 
@@ -92,7 +92,7 @@ func TestEvalBaselineAndCompare(t *testing.T) {
 	if err := pm.WriteChapter(1, strings.Repeat("他感到无比的震惊。此外，这一切仿佛命运的安排。", 10)); err != nil {
 		t.Fatal(err)
 	}
-	res, err := a.NovelEvalCompare()
+	res, err := a.NovelEvalCompare("", "")
 	if err != nil {
 		t.Fatalf("对比: %v", err)
 	}
@@ -120,7 +120,7 @@ func TestEvalBaselineAndCompare(t *testing.T) {
 	if err := os.WriteFile(basePath, raw2, 0644); err != nil {
 		t.Fatal(err)
 	}
-	res2, err := a.NovelEvalCompare()
+	res2, err := a.NovelEvalCompare("", "")
 	if err != nil {
 		t.Fatalf("对比2: %v", err)
 	}
