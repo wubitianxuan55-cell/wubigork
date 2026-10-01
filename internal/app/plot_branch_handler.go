@@ -114,6 +114,7 @@ func (a *writingState) brainstormBranchesForNode(pm *project.Manager, target *ty
 
 	systemPrompt := tmpl.BuildSystemPrompt("")
 	userPrompt := tmpl.BuildUserPrompt(map[string]string{
+		"story_position":            branchPositionContext(target.OrderIndex, previousCtx),
 		"current_outline_node":      string(nodeJSON),
 		"previous_chapters_summary": previousCtx,
 		"worldview":                 wv,
@@ -240,6 +241,7 @@ func (a *writingState) QuickBrainstormBranches(setting, prevSummary string) (map
 
 	systemPrompt := tmpl.BuildSystemPrompt("")
 	userPrompt := tmpl.BuildUserPrompt(map[string]string{
+		"story_position":            branchPositionContext(0, prevSummary),
 		"current_outline_node":      "（请根据小说设定和前文摘要构思下一章方向）",
 		"previous_chapters_summary": prevSummary,
 		"worldview":                 setting,
