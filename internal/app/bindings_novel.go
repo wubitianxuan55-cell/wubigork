@@ -218,8 +218,8 @@ func (b *NovelB) NovelEvalBaselineSet() (map[string]interface{}, error) {
 }
 
 // NovelEvalCompare 最近快照 vs 基线逐指标 Δ（promptSetHash 不一致标 stale）。
-func (b *NovelB) NovelEvalCompare() (map[string]interface{}, error) {
-	return b.a.NovelEvalCompare()
+func (b *NovelB) NovelEvalCompare(baseName string, curName string) (map[string]interface{}, error) {
+	return b.a.NovelEvalCompare(baseName, curName)
 }
 func (b *NovelB) GenerateSingleCharacter(chJSON string) (map[string]interface{}, error) {
 	return b.a.GenerateSingleCharacter(chJSON)

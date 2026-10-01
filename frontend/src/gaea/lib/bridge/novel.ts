@@ -442,7 +442,9 @@ export interface NovelBindings {
   // NovelEvalSnapshotDelete 删除一份历史快照（v4.448；文件名白名单护栏）。
   NovelEvalSnapshotDelete(name: string): Promise<void>;
   // 最近快照 vs 基线逐指标 Δ（hash 不一致标 stale）。
-  NovelEvalCompare(): Promise<Record<string, unknown>>;
+  // v4.449 签名扩展：任意两份历史快照对比（空串=基线/实时构建既有口径；
+  // baseName==curName 且非空时后端拒绝）。
+  NovelEvalCompare(baseName: string, curName: string): Promise<Record<string, unknown>>;
   // SaveSceneMeta 保存场景元数据（标题/概要/POV/地点/时间/情感/标签/状态；正文走 SaveScene）。
   SaveSceneMeta(chapterNum: number, sceneID: string, metaJSON: string): Promise<void>;
   CancelCreateChapter(chapterNum: number, branch: string): Promise<boolean>;

@@ -169,7 +169,7 @@ func TestEvalCorpusBaselineCompareScale(t *testing.T) {
 	if _, err := a.NovelEvalBaselineSet(); err != nil {
 		t.Fatalf("设基线: %v", err)
 	}
-	res, err := a.NovelEvalCompare()
+	res, err := a.NovelEvalCompare("", "")
 	if err != nil {
 		t.Fatalf("无变化对比: %v", err)
 	}
@@ -186,7 +186,7 @@ func TestEvalCorpusBaselineCompareScale(t *testing.T) {
 	if err := pm.WriteChapter(15, evalFlavorChapter(15)); err != nil {
 		t.Fatal(err)
 	}
-	res2, err := a.NovelEvalCompare()
+	res2, err := a.NovelEvalCompare("", "")
 	if err != nil {
 		t.Fatalf("病变对比: %v", err)
 	}
@@ -251,7 +251,7 @@ func TestEvalCorpusTensionAggregation(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	res, err := a.NovelEvalCompare()
+	res, err := a.NovelEvalCompare("", "")
 	if err != nil {
 		t.Fatalf("对比: %v", err)
 	}
@@ -375,5 +375,78 @@ func TestEvalSnapshotDelete(t *testing.T) {
 	// 再删一次：不存在如实报错
 	if err := a.NovelEvalSnapshotDelete(name); err == nil {
 		t.Fatalf("删除不存在的快照必须报错")
+	}
+}
+
+// TestEvalCompareTwoSnapshots 任意两份历史快照对比（v4.449）：签名扩展后
+// base/cur 皆可点名持久化快照；同名拒绝；穿越名拒绝；口径回显。
+func TestEvalCompareTwoSnapshots(t *testing.T) {
+	a := newGateEmptyApp()
+	pm := buildEvalCorpusBook(t, a, "healthy", evalHealthyChapter, evalCorpusForeshadows(10, 8))
+
+	// 第一份：原始状态
+	if _, err := a.NovelEvalSnapshot(true); err != nil {
+		t.Fatalf("persist 1: %v", err)
+	}
+	// 病变后第二份
+	if err := pm.WriteChapter(15, evalFlavorChapter(15)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.NovelEvalSnapshot(true); err != nil {
+		t.Fatalf("persist 2: %v", err)
+	}
+	nameA := "20261001T000000.000Z.json"
+	_ = nameA
+	list, _ := a.NovelEvalSnapshotsList()
+	if len(list) != 2 {
+		t.Fatalf("应 2 份: %d", len(list))
+	}
+	newer := list[0]["name"].(string)
+	older := list[1]["name"].(string)
+
+	// 旧 → 新：AI 味均值 worse（第二份有病变章）
+	res, err := a.NovelEvalCompare(older, newer)
+	if err != nil {
+		t.Fatalf("双快照对比: %v", err)
+	}
+	if res["baseName"] != older || res["curName"] != newer {
+		t.Fatalf("口径回显不符: %v", res)
+	}
+	found := false
+	for _, it := range res["items"].([]map[string]interface{}) {
+		if it["metric"] == "AI 味均值" && it["dir"] == "worse" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("旧→新应检出 AI 味 worse: %v", res["items"])
+	}
+
+	// 反向（新 → 旧）：方向应翻转（better）
+	res2, err := a.NovelEvalCompare(newer, older)
+	if err != nil {
+		t.Fatalf("反向对比: %v", err)
+	}
+	found = false
+	for _, it := range res2["items"].([]map[string]interface{}) {
+		if it["metric"] == "AI 味均值" && it["dir"] == "better" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("新→旧应检出 AI 味 better: %v", res2["items"])
+	}
+
+	// 同名拒绝
+	if _, err := a.NovelEvalCompare(newer, newer); err == nil || !strings.Contains(err.Error(), "相同") {
+		t.Fatalf("同名对比应拒绝: %v", err)
+	}
+	// 穿越名拒绝
+	if _, err := a.NovelEvalCompare("../baseline.json", ""); err == nil || !strings.Contains(err.Error(), "非法") {
+		t.Fatalf("穿越名应拒绝: %v", err)
+	}
+	// 空串口径不受影响（基线 vs 实时）：无基线时如实报错
+	if _, err := a.NovelEvalCompare("", ""); err == nil || !strings.Contains(err.Error(), "基线") {
+		t.Fatalf("空串口径应回退基线语义: %v", err)
 	}
 }

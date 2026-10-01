@@ -7,7 +7,7 @@
 // 纯 SVG 折线（零新依赖）；未分析章诚实跳过并计数。
 import { softTextStyle } from '../../utils/uiStyles'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
-import { Alert, Button, Empty, Modal, Popconfirm, Spin, Table, Tag, Typography, message } from 'antd'
+import { Alert, Button, Empty, Modal, Popconfirm, Select, Spin, Table, Tag, Typography, message } from 'antd'
 import { app } from '../../gaea/lib/bridge'
 import { useAppStore } from '../../stores/appStore'
 import type { BookHealthReportView, ChapterAnalysisV2View } from '../../gaea/lib/bridge/novel'
@@ -86,6 +86,9 @@ export default function BookHealthPanel({ open, onClose }: {
   const [evalSnap, setEvalSnap] = useState<EvalSnapView | null>(null)
   const [evalCmp, setEvalCmp] = useState<EvalCmpView | null>(null)
   const [evalBusy, setEvalBusy] = useState<'' | 'snap' | 'base' | 'cmp'>('')
+  // v4.449 任意两份对比：空串=基线/实时构建既有口径；选了历史快照则点名对比。
+  const [evalCmpBase, setEvalCmpBase] = useState('')
+  const [evalCmpCur, setEvalCmpCur] = useState('')
   const [evalSavedAs, setEvalSavedAs] = useState('')
   const [evalHist, setEvalHist] = useState<EvalHistRow[] | null>(null)
   const [evalHistLoading, setEvalHistLoading] = useState(false)
@@ -132,6 +135,8 @@ export default function BookHealthPanel({ open, onClose }: {
     setEvalCmp(null)
     setEvalSavedAs('')
     setEvalHist(null)
+    setEvalCmpBase('')
+    setEvalCmpCur('')
   }, [projectPath])
 
   // 情感曲线：逐章读分析 V2（缺档/无情感弧线跳过并计数；后端缺档只报
@@ -226,13 +231,13 @@ export default function BookHealthPanel({ open, onClose }: {
   const runEvalCmp = useCallback(async () => {
     setEvalBusy('cmp')
     try {
-      setEvalCmp((await app.NovelEvalCompare()) as EvalCmpView)
+      setEvalCmp((await app.NovelEvalCompare(evalCmpBase, evalCmpCur)) as EvalCmpView)
     } catch (e) {
       message.error(`对比失败：${e instanceof Error ? e.message : String(e)}`)
     } finally {
       setEvalBusy('')
     }
-  }, [])
+  }, [evalCmpBase, evalCmpCur])
 
   return (
     <Modal open={open} title="全书体检（确定性 · 零模型调用）" onCancel={onClose} width={780} destroyOnHidden
@@ -392,6 +397,24 @@ export default function BookHealthPanel({ open, onClose }: {
                     },
                   ]} />
               )
+            )}
+            {/* v4.449 任意两份对比：基线/当前皆可选历史快照（空=基线/实时构建） */}
+            {evalHist !== null && evalHist.length > 0 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
+                <span style={softTextStyle}>对比口径：</span>
+                <Select size="small" style={{ width: 200 }} allowClear
+                  placeholder="基线（默认基线文件）"
+                  value={evalCmpBase || undefined}
+                  onChange={(v: string | undefined) => setEvalCmpBase(v ?? '')}
+                  options={evalHist.map(h => ({ value: h.name ?? '', label: `基线侧 ${h.name}` }))}
+                />
+                <Select size="small" style={{ width: 200 }} allowClear
+                  placeholder="当前（默认实时构建）"
+                  value={evalCmpCur || undefined}
+                  onChange={(v: string | undefined) => setEvalCmpCur(v ?? '')}
+                  options={evalHist.map(h => ({ value: h.name ?? '', label: `当前侧 ${h.name}` }))}
+                />
+              </div>
             )}
             {evalCmp && (
               evalCmp.stale ? (

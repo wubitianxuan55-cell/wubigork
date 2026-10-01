@@ -358,3 +358,42 @@ describe('BookHealthPanel 历史快照删除（v4.448）', () => {
     await waitFor(() => expect(mocks.evalList).toHaveBeenCalledTimes(2))
   })
 })
+
+describe('BookHealthPanel 任意两份对比（v4.449）', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.run.mockReset()
+    mocks.run.mockResolvedValue(REPORT as never)
+    mocks.evalSnap.mockReset()
+    mocks.evalBase.mockReset()
+    mocks.evalCmp.mockReset()
+    mocks.evalList.mockReset()
+    mocks.evalDelete.mockReset()
+  })
+
+  it('选历史快照为基线/当前侧：对比按点名调用（空串口径不受影响）', async () => {
+    mocks.evalList.mockResolvedValue([
+      { name: '20261002T120000.000Z.json', chapters: 30, tasteMean: 40, s1: 0, s2: 1, s3: 2, recall: 0.8, tensionMean: 5.5, tensionCover: 30 },
+      { name: '20261002T110000.000Z.json', chapters: 29, tasteMean: 52, s1: 1, s2: 0, s3: 0, recall: 0.4, tensionMean: 3, tensionCover: 20 },
+    ] as never)
+    mocks.evalCmp.mockResolvedValue({ stale: false, items: [] } as never)
+    render(<BookHealthPanel open onClose={vi.fn()} />)
+
+    // 先拉历史（选择器出现）
+    fireEvent.click(await screen.findByText('查看历史快照'))
+    await screen.findByText('20261002T120000.000Z.json')
+
+    // 不选：空串口径
+    fireEvent.click(screen.getByTestId('health-eval-cmp'))
+    await waitFor(() => expect(mocks.evalCmp).toHaveBeenCalledWith('', ''))
+
+    // 选基线侧/当前侧各一份
+    const selects = document.querySelectorAll('.ant-select-selector')
+    fireEvent.mouseDown(selects[0])
+    fireEvent.click(await screen.findByText('基线侧 20261002T110000.000Z.json'))
+    fireEvent.mouseDown(selects[1])
+    fireEvent.click(await screen.findByText('当前侧 20261002T120000.000Z.json'))
+    fireEvent.click(screen.getByTestId('health-eval-cmp'))
+    await waitFor(() => expect(mocks.evalCmp).toHaveBeenCalledWith('20261002T110000.000Z.json', '20261002T120000.000Z.json'))
+  })
+})

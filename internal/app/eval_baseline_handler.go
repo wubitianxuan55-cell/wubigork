@@ -303,22 +303,59 @@ func (a *writingState) NovelEvalBaselineSet() (map[string]interface{}, error) {
 	return map[string]interface{}{"ok": true, "promptSetHash": body.PromptSetHash}, nil
 }
 
-// NovelEvalCompare 最近快照 vs 基线的逐指标 Δ。promptSetHash 不一致 → stale=true
-// （如实拒绝对比语义，§4「哈希变更禁止直接对比」）；无基线/无快照如实报错。
-func (a *writingState) NovelEvalCompare() (map[string]interface{}, error) {
+// NovelEvalCompare 逐指标 Δ 对比（v4.448 签名扩展：任意两份历史快照）。
+// baseName/curName 皆空 = 既有语义（基线 vs 实时构建）；给名 = 读对应持久化
+// 快照（文件名白名单校验，同删除护栏）。两名相同如实拒绝（对比自身无意义）。
+// promptSetHash 不一致 → stale=true（§4「哈希变更禁止直接对比」）。
+func (a *writingState) NovelEvalCompare(baseName, curName string) (map[string]interface{}, error) {
 	pm := a.getPM()
 	if pm == nil {
 		return nil, fmt.Errorf("请先打开项目")
 	}
-	baseRaw, err := os.ReadFile(filepath.Join(pm.Dir, "eval", "baseline.json"))
-	if err != nil {
-		return nil, fmt.Errorf("尚无基线：先「设为基线」再做对比")
+	readNamed := func(name, label string) (evalSnapshotBody, error) {
+		var body evalSnapshotBody
+		if !evalSnapshotNameRe.MatchString(name) {
+			return body, fmt.Errorf("%s快照文件名非法: %q", label, name)
+		}
+		raw, err := os.ReadFile(filepath.Join(pm.Dir, "eval", "snapshots", name))
+		if err != nil {
+			return body, fmt.Errorf("%s快照不存在: %s", label, name)
+		}
+		if err := json.Unmarshal(raw, &body); err != nil {
+			return body, fmt.Errorf("%s快照解析失败（%s）: %w", label, name, err)
+		}
+		return body, nil
 	}
+
 	var base evalSnapshotBody
-	if err := json.Unmarshal(baseRaw, &base); err != nil {
-		return nil, fmt.Errorf("基线解析失败: %w", err)
+	if baseName == "" {
+		baseRaw, err := os.ReadFile(filepath.Join(pm.Dir, "eval", "baseline.json"))
+		if err != nil {
+			return nil, fmt.Errorf("尚无基线：先「设为基线」再做对比")
+		}
+		if err := json.Unmarshal(baseRaw, &base); err != nil {
+			return nil, fmt.Errorf("基线解析失败: %w", err)
+		}
+	} else {
+		b, err := readNamed(baseName, "基线")
+		if err != nil {
+			return nil, err
+		}
+		base = b
 	}
-	cur := a.buildEvalSnapshot(pm)
+	var cur evalSnapshotBody
+	if curName == "" {
+		cur = *a.buildEvalSnapshot(pm)
+	} else {
+		if baseName != "" && baseName == curName {
+			return nil, fmt.Errorf("两份快照相同，对比无意义")
+		}
+		c, err := readNamed(curName, "当前")
+		if err != nil {
+			return nil, err
+		}
+		cur = c
+	}
 
 	stale := base.PromptSetHash != cur.PromptSetHash
 	type pair struct {
@@ -362,7 +399,10 @@ func (a *writingState) NovelEvalCompare() (map[string]interface{}, error) {
 		}
 		items = append(items, map[string]interface{}{"metric": p.name, "from": p.from, "to": p.to, "delta": d, "dir": dir})
 	}
-	return map[string]interface{}{"stale": stale, "items": items}, nil
+	return map[string]interface{}{
+		"stale": stale, "items": items,
+		"baseName": baseName, "curName": curName, // 空串=基线/实时构建口径回显
+	}, nil
 }
 
 // writeEvalJSON 稳定序列化落盘（json.Marshal 已按字段序；无 map 无序问题——
