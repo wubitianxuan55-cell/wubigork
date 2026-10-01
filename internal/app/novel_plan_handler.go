@@ -170,7 +170,11 @@ func (a *writingState) NovelChapterPlanPropose(chapterNum int) (*types.ChapterPl
 	}
 	node := findOutlineNodeByChapter(of.Nodes, chapterNum)
 	if node == nil {
-		return nil, fmt.Errorf("未找到第 %d 章的大纲节点：请先在大纲页为本章补节点（标题 / 摘要 / 关键要点）", chapterNum)
+		// 指路必须是真实存在的入口：大纲节点目前没有独立创建 UI（自动建于
+		// 首次生成），草案又依赖节点编译——无节点时的两条真路径是手写计划
+		// （NovelChapterPlanSave 不依赖节点）与跳过硬闸先生成（ensureChapterNode
+		// 自动建节点）。
+		return nil, fmt.Errorf("未找到第 %d 章的大纲节点：计划草案由大纲节点编译而来（标题/摘要/要点）。当前还没有本章节点，两条路——①计划卡改用「手写计划」直接保存（不依赖节点，硬闸同样放行）；②生成正文时在硬闸弹窗显式跳过，系统会自动建本章节点，之后再来生成草案", chapterNum)
 	}
 
 	tmpl := a.eng.Get("chapter-plan")
