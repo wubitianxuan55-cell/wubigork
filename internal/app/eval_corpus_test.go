@@ -267,3 +267,29 @@ func TestEvalCorpusTensionAggregation(t *testing.T) {
 		t.Fatalf("波动收窄应为 worse: %v", dirs)
 	}
 }
+
+// TestEvalCorpusTensionExposed 绑定返回面：NovelEvalSnapshot 的 map 必须投影
+// tension 块（前端消费面）——body 有而 map 漏投影=面板拿不到张力数据。
+func TestEvalCorpusTensionExposed(t *testing.T) {
+	a := newGateEmptyApp()
+	pm := buildEvalCorpusBook(t, a, "healthy", evalHealthyChapter, evalCorpusForeshadows(10, 8))
+	if err := pm.UpsertAnalysisV2(types.ChapterAnalysisResult{
+		ChapterNum:     1,
+		ChapterFile:    "001.md",
+		AnalyzerSource: "manual",
+		Result:         types.AnalysisResultV2{EmotionalArc: types.EmotionalArc{PrimaryEmotion: "紧张", Intensity: 7}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	out, err := a.NovelEvalSnapshot(false)
+	if err != nil {
+		t.Fatalf("快照: %v", err)
+	}
+	tm, ok := out["tension"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("返回面缺 tension 块: %v", out)
+	}
+	if tm["mean"] != 7.0 || tm["covered"] != 1 {
+		t.Fatalf("tension 投影不符: %v", tm)
+	}
+}

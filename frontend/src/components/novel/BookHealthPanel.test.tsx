@@ -6,6 +6,9 @@ import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 const mocks = vi.hoisted(() => ({
   run: vi.fn(),
   v2: vi.fn(),
+  evalSnap: vi.fn(),
+  evalBase: vi.fn(),
+  evalCmp: vi.fn(),
 }))
 
 vi.mock('../../gaea/lib/bridge', async (importOriginal) => {
@@ -15,6 +18,9 @@ vi.mock('../../gaea/lib/bridge', async (importOriginal) => {
     app: {
       RunBookHealthCheck: mocks.run,
       NovelChapterAnalysisV2: mocks.v2,
+      NovelEvalSnapshot: mocks.evalSnap,
+      NovelEvalBaselineSet: mocks.evalBase,
+      NovelEvalCompare: mocks.evalCmp,
     },
   }
 })
@@ -212,5 +218,57 @@ describe('BookHealthPanel 情感曲线代际守卫（观察池#3）', () => {
     resolveV2({ chapter_num: 1, result: { emotional_arc: { primary_emotion: '警觉', intensity: 9 } } })
     await act(async () => { await new Promise((r) => setTimeout(r, 50)) })
     expect(screen.queryByTestId('health-curve-svg')).toBeNull()
+  })
+})
+
+describe('BookHealthPanel 评测基线区（v4.446）', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.run.mockReset()
+    mocks.run.mockResolvedValue(REPORT as never)
+    mocks.evalSnap.mockReset()
+    mocks.evalBase.mockReset()
+    mocks.evalCmp.mockReset()
+  })
+
+  it('生成快照：确定性指标行渲染（含张力块覆盖>0 才显示）', async () => {
+    mocks.evalSnap.mockResolvedValue({
+      chapters: 2, chars: 7300,
+      taste: { mean: 43, max: 74, p90: 74, worstChapter: 2 },
+      quality: { s1: 0, s2: 1, s3: 2 },
+      foreshadow: { items: 4, recall: 0, findings: 1 },
+      tension: { mean: 5.5, p90: 10, swing: 8, covered: 2 },
+      contextRunes: 620,
+    } as never)
+    render(<BookHealthPanel open onClose={vi.fn()} />)
+    fireEvent.click(await screen.findByTestId('health-eval-snap'))
+    expect(await screen.findByText('AI 味均值 43（P90 74）')).toBeTruthy()
+    expect(screen.getByText(/张力均值 5.5 · 极差 8（覆盖 2 章）$/)).toBeTruthy()
+    expect(screen.getByText(/伏笔回收率 0$/)).toBeTruthy()
+  })
+
+  it('与基线对比 stale：横幅如实提示且不出对比表（旧基线不可比）', async () => {
+    mocks.evalCmp.mockResolvedValue({
+      stale: true,
+      items: [{ metric: 'AI 味均值', from: 30, to: 45, delta: 15, dir: 'worse' }],
+    } as never)
+    render(<BookHealthPanel open onClose={vi.fn()} />)
+    fireEvent.click(await screen.findByTestId('health-eval-cmp'))
+    expect(await screen.findByText(/prompts 已变更，基线过期/)).toBeTruthy()
+    expect(screen.queryByText('AI 味均值')).toBeNull()
+  })
+
+  it('对比非 stale：方向着色（恶化红/改善绿）', async () => {
+    mocks.evalCmp.mockResolvedValue({
+      stale: false,
+      items: [
+        { metric: 'AI 味均值', from: 30, to: 45, delta: 15, dir: 'worse' },
+        { metric: '伏笔回收率', from: 0, to: 0.8, delta: 0.8, dir: 'better' },
+      ],
+    } as never)
+    render(<BookHealthPanel open onClose={vi.fn()} />)
+    fireEvent.click(await screen.findByTestId('health-eval-cmp'))
+    expect(await screen.findByText(/恶化/)).toBeTruthy()
+    expect(screen.getByText(/改善/)).toBeTruthy()
   })
 })

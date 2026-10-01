@@ -257,6 +257,10 @@ func (a *writingState) NovelEvalSnapshot(persist bool) (map[string]interface{}, 
 			"revealed": body.Foreshadow.Revealed, "recall": body.Foreshadow.Recall, "findings": body.Foreshadow.Findings,
 		},
 		"story":        map[string]interface{}{"findings": body.Story.Findings, "byCode": body.Story.ByCode},
+		"tension": map[string]interface{}{
+			"mean": body.Tension.Mean, "p90": body.Tension.P90,
+			"swing": body.Tension.Swing, "covered": body.Tension.Covered,
+		},
 		"contextRunes": body.ContextTotalRunes,
 	}
 	if body.StyleDelta != nil {

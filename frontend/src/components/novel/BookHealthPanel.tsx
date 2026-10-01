@@ -19,6 +19,19 @@ type HealthRow = BookHealthReportView['chapters'][number]
 /** 情感曲线数据点（章号 + 强度 0-10 + 主导情绪）。 */
 interface CurvePoint { num: number; intensity: number; emotion: string }
 
+/** 评测快照视图（v4.446；Go 侧 omitempty 字段可能缺省，消费方 ?. 与 ?? 防御）。 */
+interface EvalSnapView {
+  chapters?: number; chars?: number
+  taste?: { mean?: number; max?: number; p90?: number; worstChapter?: number }
+  quality?: { s1?: number; s2?: number; s3?: number }
+  foreshadow?: { items?: number; recall?: number; findings?: number }
+  tension?: { mean?: number; p90?: number; swing?: number; covered?: number }
+  contextRunes?: number
+}
+/** 对比行（dir: better|worse|flat）。 */
+interface EvalCmpItem { metric?: string; from?: number; to?: number; delta?: number; dir?: string }
+interface EvalCmpView { stale?: boolean; items?: EvalCmpItem[] }
+
 /** 情感曲线 SVG：x=章号线性、y=强度 0-10；相邻点直连（未分析章的间隙以长段如实呈现）。 */
 function EmotionCurveSvg({ pts }: { pts: CurvePoint[] }) {
   const W = 640, H = 150, PAD_L = 30, PAD_R = 16, PAD_T = 12, PAD_B = 24
@@ -63,6 +76,10 @@ export default function BookHealthPanel({ open, onClose }: {
   const [curveLoading, setCurveLoading] = useState(false)
   const [curve, setCurve] = useState<CurvePoint[] | null>(null)
   const [curveSkipped, setCurveSkipped] = useState(0)
+  // v4.446 评测基线区：快照/设基线/对比，全部按需点按（零 LLM 纯确定性聚合）。
+  const [evalSnap, setEvalSnap] = useState<EvalSnapView | null>(null)
+  const [evalCmp, setEvalCmp] = useState<EvalCmpView | null>(null)
+  const [evalBusy, setEvalBusy] = useState<'' | 'snap' | 'base' | 'cmp'>('')
   // 情感曲线在途代际（观察池#3）：重跑体检/切书自增作废旧循环——逐章 await
   // 无守卫时，旧循环完成后会把上一本书/上一轮的曲线 setCurve 进新上下文。
   const curveSeqRef = useRef(0)
@@ -102,6 +119,8 @@ export default function BookHealthPanel({ open, onClose }: {
     setCurveSkipped(0)
     setCurveLoading(false) // 被作废的循环不再收尾，这里代收
     setLoading(false)
+    setEvalSnap(null) // 评测基线区同属该书数据，切书一并失效（v4.446）
+    setEvalCmp(null)
   }, [projectPath])
 
   // 情感曲线：逐章读分析 V2（缺档/无情感弧线跳过并计数；后端缺档只报
@@ -143,6 +162,42 @@ export default function BookHealthPanel({ open, onClose }: {
 
   const fs = report?.foreshadow
   const findings = fs?.findings ?? []
+
+  // v4.446 评测基线区动作：快照 / 设基线 / 对比（零 LLM，点按触发）。
+  const runEvalSnap = useCallback(async () => {
+    setEvalBusy('snap')
+    try {
+      setEvalSnap((await app.NovelEvalSnapshot(false)) as EvalSnapView)
+      setEvalCmp(null)
+    } catch (e) {
+      message.error(`快照失败：${e instanceof Error ? e.message : String(e)}`)
+    } finally {
+      setEvalBusy('')
+    }
+  }, [])
+  const runEvalBase = useCallback(async () => {
+    setEvalBusy('base')
+    try {
+      await app.NovelEvalBaselineSet()
+      message.success('已设为基线（eval/baseline.json）')
+      setEvalSnap((await app.NovelEvalSnapshot(false)) as EvalSnapView)
+      setEvalCmp(null)
+    } catch (e) {
+      message.error(`设基线失败：${e instanceof Error ? e.message : String(e)}`)
+    } finally {
+      setEvalBusy('')
+    }
+  }, [])
+  const runEvalCmp = useCallback(async () => {
+    setEvalBusy('cmp')
+    try {
+      setEvalCmp((await app.NovelEvalCompare()) as EvalCmpView)
+    } catch (e) {
+      message.error(`对比失败：${e instanceof Error ? e.message : String(e)}`)
+    } finally {
+      setEvalBusy('')
+    }
+  }, [])
 
   return (
     <Modal open={open} title="全书体检（确定性 · 零模型调用）" onCancel={onClose} width={780} destroyOnHidden
@@ -238,6 +293,61 @@ export default function BookHealthPanel({ open, onClose }: {
                 点击「生成曲线」逐章读取情感弧线（仅读盘，不触发分析）。
               </Typography.Text>
             )}
+          </div>
+          {/* 评测基线区（v4.446）：确定性指标快照/基线/对比，零 LLM 点按触发 */}
+          <div style={{ marginTop: 14 }} data-testid="health-eval-section">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+              <span style={{ fontSize: 13, fontWeight: 600 }}>评测基线（确定性指标）</span>
+              <Button size="small" data-testid="health-eval-snap" loading={evalBusy === 'snap'} onClick={() => void runEvalSnap()}>
+                {evalSnap ? '刷新快照' : '生成快照'}
+              </Button>
+              <Button size="small" loading={evalBusy === 'base'} disabled={evalBusy !== ''} onClick={() => void runEvalBase()}>
+                设为基线
+              </Button>
+              <Button size="small" data-testid="health-eval-cmp" loading={evalBusy === 'cmp'} disabled={evalBusy !== ''} onClick={() => void runEvalCmp()}>
+                与基线对比
+              </Button>
+            </div>
+            {evalSnap && (
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 6 }}>
+                <Tag style={{ marginRight: 0 }}>章节 {evalSnap.chapters ?? 0}</Tag>
+                <Tag style={{ marginRight: 0 }}>字数 {(evalSnap.chars ?? 0).toLocaleString()}</Tag>
+                <Tag style={{ marginRight: 0 }}>AI 味均值 {evalSnap.taste?.mean ?? 0}（P90 {evalSnap.taste?.p90 ?? 0}）</Tag>
+                <Tag style={{ marginRight: 0 }}>S1 {evalSnap.quality?.s1 ?? 0} · S2 {evalSnap.quality?.s2 ?? 0} · S3 {evalSnap.quality?.s3 ?? 0}</Tag>
+                <Tag style={{ marginRight: 0 }}>伏笔回收率 {evalSnap.foreshadow?.recall ?? 0}</Tag>
+                {evalSnap.tension && (evalSnap.tension.covered ?? 0) > 0 && (
+                  <Tag style={{ marginRight: 0 }}>张力均值 {evalSnap.tension.mean} · 极差 {evalSnap.tension.swing}（覆盖 {evalSnap.tension.covered} 章）</Tag>
+                )}
+                <Tag style={{ marginRight: 0 }}>上下文合计 {evalSnap.contextRunes ?? 0} rune</Tag>
+              </div>
+            )}
+            {evalCmp && (
+              evalCmp.stale ? (
+                <Alert type="warning" showIcon style={{ marginBottom: 6 }}
+                  message="prompts 已变更，基线过期——重设基线后再对比（旧基线不可比）。" />
+              ) : (
+                <Table<EvalCmpItem> size="small" rowKey="metric"
+                  dataSource={evalCmp.items ?? []} pagination={false}
+                  columns={[
+                    { title: '指标', dataIndex: 'metric', width: 150 },
+                    { title: '基线', dataIndex: 'from', width: 90, render: (v: number) => <span style={{ fontVariantNumeric: 'tabular-nums' }}>{v}</span> },
+                    { title: '当前', dataIndex: 'to', width: 90, render: (v: number) => <span style={{ fontVariantNumeric: 'tabular-nums' }}>{v}</span> },
+                    { title: 'Δ', dataIndex: 'delta', width: 80, render: (v: number) => <span style={{ fontVariantNumeric: 'tabular-nums' }}>{v}</span> },
+                    {
+                      title: '方向', dataIndex: 'dir', width: 80,
+                      render: (v: string) => (
+                        <span style={{ color: v === 'worse' ? 'var(--color-error, var(--md-sys-color-error, #cf1322))' : v === 'better' ? 'var(--color-success)' : undefined }}>
+                          {v === 'worse' ? '↓ 恶化' : v === 'better' ? '↑ 改善' : '— 持平'}
+                        </span>
+                      ),
+                    },
+                  ]} />
+              )
+            )}
+            <Typography.Text type="secondary" style={{ fontSize: 12, display: 'block', marginTop: 4 }}>
+              快照=零 LLM 确定性聚合（AI 味/质量闸/伏笔回收/张力/上下文合计）；基线落 eval/baseline.json，
+              对比给出逐指标方向（张力均值/波动下降=节奏塌）。
+            </Typography.Text>
           </div>
           {/* 伏笔 findings */}
           {findings.length > 0 && (
