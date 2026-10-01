@@ -21,6 +21,8 @@ function renderInspector() {
     <CreateInspector
       setting=""
       onRefreshSetting={vi.fn()}
+      selectedSkill={undefined}
+      onSelectSkill={vi.fn()}
       minWords={5000}
       onMinWordsChange={vi.fn()}
       temperature={0.8}
