@@ -31,7 +31,6 @@ import { chooseAction, chooseUnsavedAction } from '../components/novel/unsavedGu
 import { registerNovelDirtyProvider, takeDiscardConfirmed } from '../components/novel/novelSwitchGuard'
 
 interface WizardRequest { prevChapter: number; overwriteChapter: number; branchFromID: string }
-const BRAINSTORM_MSG_KEY = 'novel-brainstorm-loading'
 
 // ── 创作参数持久化（v4.421.0）──
 // 目标字数/温度/写作技能此前每次进页都回默认值，作者每章都要重设一遍。
@@ -345,7 +344,6 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
     return 15
   })
   const [wizard, setWizard] = useState<WizardRequest | null>(null)
-  const [wizardBranches, setWizardBranches] = useState<Branch[]>([])
   // 选角会议数据源：项目名册 / 角色库候选 / 上一章出场（向导打开时拉取；失败静默降级）
   const [wizardCast, setWizardCast] = useState<string[]>([])
   const [wizardLibCast, setWizardLibCast] = useState<{ name: string; note?: string }[]>([])
@@ -354,7 +352,6 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
   const settingLoadToken = useRef(0)
   const chapterLoadToken = useRef(0)
   const generatingRef = useRef(false)
-  const brainstormingRef = useRef(false)
   /** 最新「保存当前章」实现（供确认弹窗的异步回调调用，避开闭包过期） */
   const saveActiveRef = useRef<() => Promise<boolean>>(async () => false)
   /** 当前激活章节 id 的 ref 版本（同理由：异步回调读最新值） */
@@ -510,16 +507,13 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
     return list.map((b: { title?: string; summary?: string }) => ({ title: b.title ?? '', pitch: b.summary ?? '' }))
   }, [refreshSetting, outlines])
 
-  // 后台构思剧情分支：不弹阻塞弹窗，构思完成后弹窗确认选择
+  // 打开分支向导：先选角后构思（选角会议在弹窗内完成，点「构思分支」才调模型）
   const openWizard = useCallback(async (prevChapter: number, overwriteChapter = 0, branchFromID = '') => {
     // A7：生成中开向导＝在同一章上叠第二写者，且向导末尾的「生成」会被 startGeneration
     // 的在途早退静默吞掉（作者以为点了没反应）。此处给可见提示，文案口径对齐 selectChapter。
     if (generatingRef.current) { message.warning('正在生成，请先停止生成再生成下一章'); return }
-    if (brainstormingRef.current) return
-    brainstormingRef.current = true
     setWizard({ prevChapter, overwriteChapter, branchFromID })
-    setWizardBranches([])
-    // 选角会议数据源：项目名册 + 角色库候选 + 上一章出场（失败静默降级，不阻断构思）
+    // 选角会议数据源：项目名册 + 角色库候选 + 上一章出场（失败静默降级，不阻断选角）
     void (async () => {
       try {
         const res = (await app.GetCharacters()) as { characters?: Array<{ name?: string }> } | null
@@ -538,23 +532,7 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
         setWizardPrevCast([])
       }
     })()
-    message.open({ key: BRAINSTORM_MSG_KEY, content: 'AI 正在构思剧情分支，你可以继续操作…', duration: 0 })
-    try {
-      const list = await fetchWizardBranches(prevChapter)
-      if (list.length === 0) {
-        setWizard(null)
-        message.warning('AI 未构思出剧情分支，可直接输入剧情要求')
-        return
-      }
-      setWizardBranches(list)
-    } catch (err: unknown) {
-      setWizard(null)
-      message.error(err instanceof Error ? err.message : '剧情构思失败，可手动输入剧情要求')
-    } finally {
-      message.destroy(BRAINSTORM_MSG_KEY)
-      brainstormingRef.current = false
-    }
-  }, [fetchWizardBranches])
+  }, [])
 
   // 流式生成收尾：三路终态（done/error/cancelled）与停止兜底共用
   const finishStream = useCallback(() => {
@@ -1308,12 +1286,11 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
       </div>
       {/* A8：本弹窗常驻挂载，事件通道一直在听——不按 active 门控就会在别的子页上盖出遮罩 */}
       <NewCharactersModal active={active} />
-      <BranchWizardModal open={!!wizard && wizardBranches.length > 0}
+      <BranchWizardModal open={!!wizard}
         prevChapter={wizard?.prevChapter ?? 0} overwriteChapter={wizard?.overwriteChapter ?? 0}
         branchFromID={wizard?.branchFromID ?? ''} characters={wizardCast}
         libraryCharacters={wizardLibCast} prevChapterCast={wizardPrevCast}
-        onClose={() => { setWizard(null); setWizardBranches([]) }}
-        preloadedBranches={wizardBranches}
+        onClose={() => setWizard(null)}
         onFetchBranches={fetchWizardBranches} onStart={startGeneration} />
       <Modal
         title="本章尚未制定章节计划"

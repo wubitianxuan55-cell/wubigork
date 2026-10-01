@@ -236,20 +236,26 @@ describe('CreatePage 生成控制（T6-7.2 停止按钮 + cancelled 事件）', 
     expect(runtimeOffs).toContain('create-chapter-stream')
   })
 
-  it('构思剧情分支在后台进行（不弹阻塞弹窗），完成后弹窗确认并生成', async () => {
+  it('分支向导先选角后构思：打开不自动调模型，点「构思分支」才携带选角生成', async () => {
     vi.mocked(mocks.QuickBrainstormBranches).mockResolvedValue({
       branches: [{ title: '帝国阴谋', summary: '朝堂暗流涌动' }],
     })
     render(<CreatePage />)
 
-    // 点击「构思剧情方向」：构思完成前不出现弹窗，可继续操作
+    // 打开向导：先停在选角会议，不自动构思（模型零调用、无分支）
     fireEvent.click(await screen.findByRole('button', { name: /构思剧情方向/ }))
-    expect(screen.queryByRole('dialog', { name: /剧情方向/ })).toBeNull()
-
-    // 构思完成后弹出确认弹窗，展示分支
     const dialog = await screen.findByRole('dialog', { name: /剧情方向/ })
-    expect(dialog.textContent).toContain('帝国阴谋')
+    expect(mocks.QuickBrainstormBranches).not.toHaveBeenCalled()
+    expect(screen.queryByText('帝国阴谋')).toBeNull()
+
+    // 点「构思分支」→ 以当前选角（空=不设限 '[]'）调用模型并展示分支
+    fireEvent.click(screen.getByRole('button', { name: /构思分支/ }))
+    await waitFor(() => expect(mocks.QuickBrainstormBranches).toHaveBeenCalled())
+    expect(await screen.findByText(/帝国阴谋/, {}, { timeout: 5000 })).toBeTruthy()
     expect(dialog.textContent).toContain('朝堂暗流涌动')
+    await waitFor(() => {
+      expect(mocks.QuickBrainstormBranches).toHaveBeenCalledWith(expect.any(String), '', '[]')
+    })
 
     // 选择分支并生成 → CreateChapter 携带分支拼装的剧情要求
     fireEvent.click(screen.getByText(/帝国阴谋/))
