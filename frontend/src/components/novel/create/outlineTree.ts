@@ -65,3 +65,30 @@ export function buildPrevSummary(outlines: OutlineNode[], upToChapter: number): 
   }
   return parts.join('\n\n')
 }
+
+/** 全树收集章节点（order_index>0；卷/分组节点 order 0 不算章），按章号升序。
+ *  卷结构：章挂在卷的 children 下——只扫顶层会把卷当章（用户实盘事故）。 */
+export function flattenChapters(outlines: OutlineNode[]): OutlineNode[] {
+  const out: OutlineNode[] = []
+  const walk = (ns: OutlineNode[]) => {
+    for (const n of ns) {
+      if ((n.order_index || 0) > 0) out.push(n)
+      if (n.children?.length) walk(n.children)
+    }
+  }
+  walk(outlines)
+  return out.sort((a, b) => (a.order_index || 0) - (b.order_index || 0))
+}
+
+/**
+ * 下一章=第一条从未生成过的章（status==='planned'）；全写过/无大纲顺延最大章号+1。
+ * 两条实弹教训：只扫顶层会撞卷结构（算出 1 反复覆盖第1章）；chapter_file 判「未写」
+ * 会误覆盖（ensureChapterNode 生成开始即写入，恒非空）——判据只用 status。
+ */
+export function nextToWriteChapter(outlines: OutlineNode[]): number {
+  const chapters = flattenChapters(outlines)
+  for (const c of chapters) {
+    if ((c.status || 'planned') === 'planned') return c.order_index
+  }
+  return (chapters.length ? chapters[chapters.length - 1].order_index || 0 : 0) + 1
+}

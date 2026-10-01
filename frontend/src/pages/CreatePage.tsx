@@ -1,11 +1,11 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Alert, Button, message, Modal } from 'antd'
 import { app } from '../gaea/lib/bridge'
 import { GetNovelState, BuildNovelStatePatch, SettleNovelState, DeSlopChapterAiTaste, RewriteChapterAiTaste, GetEntityRelations, CancelCreateChapter, NovelFingerprintStatus, NovelFingerprintBuild, NovelFingerprintScore, NovelOutlineReconstruct, NovelOutlineReconstructApply, NovelOutlineReconstructStart, NovelOutlineReconstructTaskGet, NovelReviewPlatforms, NovelChapterReview } from '../../wailsjs/go/app/NovelB'
 import { useOutlineStore } from '../stores/outlineStore'
 import { useAppStore } from '../stores/appStore'
 import type { OutlineNode } from '../types'
-import { buildTree, flattenTree, buildPrevSummary } from '../components/novel/create/outlineTree'
+import { buildTree, flattenTree, buildPrevSummary, flattenChapters, nextToWriteChapter } from '../components/novel/create/outlineTree'
 import { useChapterStream } from '../components/novel/create/useChapterStream'
 import { useChapterGateNotice } from '../components/novel/create/useChapterGateNotice'
 import type { AiTasteResult } from '../components/novel/create/chapterStreamTypes'
@@ -796,10 +796,10 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
     // chapter_file 不能当判据（生成开始时就写入，中断/已完成都有，误判会覆盖旧章
     // ——用户实测：第1章被覆盖）。生成过的节点（writing/done）走下一章语义。
     if (chapNum > 0) {
-      const active = outlines.find(nx => nx.order_index === chapNum && !nx.parent_id)
+      const active: OutlineNode | undefined = flatChapters.find(nx => nx.order_index === chapNum)
       if (active && (active.status || 'planned') === 'planned') { startGeneration(directPlot, chapNum, ''); return }
     }
-    const next = outlines.find(nx => nx.order_index === chapNum + 1 && !nx.parent_id)
+    const next: OutlineNode | undefined = flatChapters.find(nx => nx.order_index === chapNum + 1)
     if (next) {
       // v4.421.0：并列分支不再挂在 Modal.confirm 的 onCancel 上——✕/Esc（用户想退出）
       // 此前会触发「作为分支追加」，等于误开一次 AI 生成。
@@ -942,19 +942,13 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
 
   const flatNodes = flattenTree(buildTree(outlines))
   const activeNode = outlines.find(n => n.id === activeId)
-  const nextMainChapterNum = Math.max(0, ...outlines.filter(n => !n.parent_id).map(n => n.order_index || 0)) + 1
-  const lastMainChapter = nextMainChapterNum - 1
-  // 下一章=第一条从未生成过的主线节点（status==='planned'；生成过的节点在
-  // ensureChapterNode 时就置 writing+chapter_file，中断残留也是 writing——都不能再当
-  // 「未写」跳进新号）。全无 planned 才顺延 max+1。后端 0=「顺延 len(节点)+1」，
-  // 大纲有未写节点时会跳章（用户实测：生成第2章变第3章）——故入口显式带章号。
-  const nextToWrite = useCallback((): number => {
-    const main = outlines.filter(n => !n.parent_id).sort((a, b) => (a.order_index || 0) - (b.order_index || 0))
-    for (const n of main) {
-      if ((n.status || 'planned') === 'planned' && (n.order_index || 0) > 0) return n.order_index
-    }
-    return nextMainChapterNum
-  }, [outlines, nextMainChapterNum])
+  // 章节点全树展平 + 下一章计算：纯函数在 outlineTree.ts（卷结构/未写判据的
+  // 两次实弹教训都沉淀在那里并有单测）
+  const flatChapters = useMemo(() => flattenChapters(outlines), [outlines])
+  const maxChapterOrder = flatChapters.length ? flatChapters[flatChapters.length - 1].order_index || 0 : 0
+  const nextMainChapterNum = maxChapterOrder + 1
+  const lastMainChapter = maxChapterOrder
+  const nextToWrite = useCallback((): number => nextToWriteChapter(outlines), [outlines])
 
   // ── 叙事状态账本（作者审批制）──
   const activeChapterNum = activeNode?.order_index || lastMainChapter
