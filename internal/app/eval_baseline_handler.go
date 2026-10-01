@@ -256,7 +256,7 @@ func (a *writingState) NovelEvalSnapshot(persist bool) (map[string]interface{}, 
 			"items": body.Foreshadow.Items, "planted": body.Foreshadow.Planted, "hinted": body.Foreshadow.Hinted,
 			"revealed": body.Foreshadow.Revealed, "recall": body.Foreshadow.Recall, "findings": body.Foreshadow.Findings,
 		},
-		"story":        map[string]interface{}{"findings": body.Story.Findings, "byCode": body.Story.ByCode},
+		"story": map[string]interface{}{"findings": body.Story.Findings, "byCode": body.Story.ByCode},
 		"tension": map[string]interface{}{
 			"mean": body.Tension.Mean, "p90": body.Tension.P90,
 			"swing": body.Tension.Swing, "covered": body.Tension.Covered,
