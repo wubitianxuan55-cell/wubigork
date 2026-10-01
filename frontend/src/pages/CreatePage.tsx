@@ -25,7 +25,7 @@ import EditorPanel from '../components/novel/create/EditorPanel'
 import type { EditorPanelHandle } from '../components/novel/create/EditorPanel'
 import CreateInspector from '../components/novel/create/CreateInspector'
 import NewCharactersModal from '../components/novel/create/NewCharactersModal'
-import BranchWizardModal, { type Branch } from '../components/novel/create/BranchWizardModal'
+import BranchWizardModal, { type Branch, type BranchCastEntry } from '../components/novel/create/BranchWizardModal'
 import ChapterPlanCard, { type PlanGateReport, type PlanProblem } from '../components/novel/ChapterPlanCard'
 import { chooseAction, chooseUnsavedAction } from '../components/novel/unsavedGuard'
 import { registerNovelDirtyProvider, takeDiscardConfirmed } from '../components/novel/novelSwitchGuard'
@@ -346,8 +346,10 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
   })
   const [wizard, setWizard] = useState<WizardRequest | null>(null)
   const [wizardBranches, setWizardBranches] = useState<Branch[]>([])
-  // 角色选择器候选名册（向导打开时拉一次；失败静默=隐藏选择器，不阻断构思）
+  // 选角会议数据源：项目名册 / 角色库候选 / 上一章出场（向导打开时拉取；失败静默降级）
   const [wizardCast, setWizardCast] = useState<string[]>([])
+  const [wizardLibCast, setWizardLibCast] = useState<{ name: string; note?: string }[]>([])
+  const [wizardPrevCast, setWizardPrevCast] = useState<string[]>([])
 
   const settingLoadToken = useRef(0)
   const chapterLoadToken = useRef(0)
@@ -498,11 +500,12 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
     void loadChapter(node)
   }, [loadChapter])
 
-  // 向导拉取 AI 构思分支（注入最新设定与前文摘要；characters=向导里圈定的登场角色）
-  const fetchWizardBranches = useCallback(async (prevChapter: number, characters: string[] = []): Promise<Branch[]> => {
+  // 向导拉取 AI 构思分支（注入最新设定与前文摘要；cast=选角会议结果）
+  const fetchWizardBranches = useCallback(async (prevChapter: number, cast: BranchCastEntry[] = []): Promise<Branch[]> => {
     const freshSetting = (await refreshSetting()).text
     const prevSummary = prevChapter > 0 ? buildPrevSummary(outlines, prevChapter) : ''
-    const res = (await app.QuickBrainstormBranches(freshSetting, prevSummary || '', JSON.stringify(characters ?? []))) as { branches?: Array<{ title?: string; summary?: string }> }
+    const payload = (cast ?? []).map(e => ({ name: e.name, relation: e.relation || '', note: e.note || '' }))
+    const res = (await app.QuickBrainstormBranches(freshSetting, prevSummary || '', JSON.stringify(payload))) as { branches?: Array<{ title?: string; summary?: string }> }
     const list = res?.branches || []
     return list.map((b: { title?: string; summary?: string }) => ({ title: b.title ?? '', pitch: b.summary ?? '' }))
   }, [refreshSetting, outlines])
@@ -516,12 +519,24 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
     brainstormingRef.current = true
     setWizard({ prevChapter, overwriteChapter, branchFromID })
     setWizardBranches([])
-    // 角色选择器候选名册：向导打开时拉一次（失败静默隐藏选择器，不阻断构思）
+    // 选角会议数据源：项目名册 + 角色库候选 + 上一章出场（失败静默降级，不阻断构思）
     void (async () => {
       try {
         const res = (await app.GetCharacters()) as { characters?: Array<{ name?: string }> } | null
         setWizardCast((res?.characters || []).map(c => (c?.name || '').trim()).filter(Boolean))
       } catch { setWizardCast([]) }
+      try {
+        const lib = (await app.CharacterList('', '', false, 1, 50)) as { items?: Array<{ name?: string; personality?: string }> } | null
+        setWizardLibCast((lib?.items || []).map(c => ({ name: (c?.name || '').trim(), note: (c?.personality || '').trim().slice(0, 40) })).filter(c => c.name))
+      } catch { setWizardLibCast([]) }
+      if (prevChapter > 0) {
+        try {
+          const ch = (await app.GetChapter(prevChapter)) as { summary?: { characters_appeared?: string[] } } | null
+          setWizardPrevCast((ch?.summary?.characters_appeared || []).map(s => (s || '').trim()).filter(Boolean))
+        } catch { setWizardPrevCast([]) }
+      } else {
+        setWizardPrevCast([])
+      }
     })()
     message.open({ key: BRAINSTORM_MSG_KEY, content: 'AI 正在构思剧情分支，你可以继续操作…', duration: 0 })
     try {
@@ -1296,6 +1311,7 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
       <BranchWizardModal open={!!wizard && wizardBranches.length > 0}
         prevChapter={wizard?.prevChapter ?? 0} overwriteChapter={wizard?.overwriteChapter ?? 0}
         branchFromID={wizard?.branchFromID ?? ''} characters={wizardCast}
+        libraryCharacters={wizardLibCast} prevChapterCast={wizardPrevCast}
         onClose={() => { setWizard(null); setWizardBranches([]) }}
         preloadedBranches={wizardBranches}
         onFetchBranches={fetchWizardBranches} onStart={startGeneration} />

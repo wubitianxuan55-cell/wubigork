@@ -638,41 +638,91 @@ func focusMatches(focus []string, name string) bool {
 	return false
 }
 
-// parseCharacterNames 解析作者圈定的登场角色名单（JSON 字符串数组）；空缺/坏
-// JSON 一律返回 nil（不设限语义，绝不因载荷问题报错）。
-func parseCharacterNames(charactersJSON string) []string {
+// BranchCastEntry 分支选角会议的单条 cast：作者在向导里圈定的登场角色与主角关系。
+type branchCastEntry struct {
+	Name     string
+	Relation string // 与主角（男主）关系：师妹/死敌/恋人…
+	Note     string // 可选：一句话身份/来源标注（角色库卡摘要、新建说明）
+}
+
+// parseBranchCast 解析作者圈定的选角负载：对象数组 [{"name","relation","note"}]
+// 为准，兼容纯字符串数组（只有名字）；空缺/坏 JSON 返回 nil（全量名册不设限，
+// 绝不因载荷问题报错）。
+func parseBranchCast(charactersJSON string) []branchCastEntry {
 	s := strings.TrimSpace(charactersJSON)
 	if s == "" {
 		return nil
+	}
+	var objects []struct {
+		Name     string `json:"name"`
+		Relation string `json:"relation"`
+		Note     string `json:"note"`
+	}
+	if err := json.Unmarshal([]byte(s), &objects); err == nil && len(objects) > 0 {
+		out := make([]branchCastEntry, 0, len(objects))
+		for _, o := range objects {
+			if n := strings.TrimSpace(o.Name); n != "" {
+				out = append(out, branchCastEntry{n, strings.TrimSpace(o.Relation), strings.TrimSpace(o.Note)})
+			}
+		}
+		if len(out) > 0 {
+			return out
+		}
 	}
 	var names []string
 	if err := json.Unmarshal([]byte(s), &names); err != nil {
 		return nil
 	}
-	return trimPlanItems(names)
+	out := make([]branchCastEntry, 0, len(names))
+	for _, n := range names {
+		if n = strings.TrimSpace(n); n != "" {
+			out = append(out, branchCastEntry{Name: n})
+		}
+	}
+	return out
 }
 
-// buildCharacterSummaryFiltered 按作者圈定名单过滤名册：命中者给全量档案行；
-// 空选/未命中退回全量名册（分支围绕谁走由作者圈定，不圈定就不设限）。
-func (a *writingState) buildCharacterSummaryFiltered(pm *project.Manager, names []string) string {
-	if len(names) == 0 {
+// buildBranchCastSection 分支请求的选角区段：作者在向导里完成「选角会议」后
+// 装配——项目名册命中者给全量档案行并缀主角关系；未命中（角色库挑入/简单
+// 新建）按负载自带信息成行；未被圈定的名册角色不渲染（选角会议是权威名单）。
+// 空负载退回全量名册（不设限语义）。
+func (a *writingState) buildBranchCastSection(pm *project.Manager, cast []branchCastEntry) string {
+	if len(cast) == 0 {
 		return a.buildCharacterSummary(pm)
 	}
 	cf, err := pm.ReadCharacters()
-	if err != nil || cf == nil || len(cf.Characters) == 0 {
-		return a.buildCharacterSummary(pm)
+	if err != nil || cf == nil {
+		cf = &types.CharacterFile{}
 	}
 	relDigest := buildRelationDigest(cf)
-	var lines []string
-	for _, ch := range cf.Characters {
-		if focusMatches(names, ch.Name) {
-			lines = append(lines, characterSummaryLine(ch, relDigest))
+	lines := make([]string, 0, len(cast))
+	for _, e := range cast {
+		var hit *types.Character
+		for i := range cf.Characters {
+			if focusMatches([]string{e.Name}, cf.Characters[i].Name) {
+				hit = &cf.Characters[i]
+				break
+			}
 		}
+		if hit != nil {
+			line := characterSummaryLine(*hit, relDigest)
+			if e.Relation != "" {
+				line += "·与主角关系：" + e.Relation
+			}
+			lines = append(lines, line)
+			continue
+		}
+		line := fmt.Sprintf("- %s：新增角色", e.Name)
+		if e.Note != "" {
+			line += "·" + util.Truncate(e.Note, charFieldLen)
+		}
+		if e.Relation != "" {
+			line += "·与主角关系：" + e.Relation
+		}
+		lines = append(lines, line)
 	}
-	if len(lines) == 0 {
-		return a.buildCharacterSummary(pm)
-	}
-	return truncateBudget(strings.Join(lines, "\n"), charSummaryBudget)
+	body := truncateBudget(strings.Join(lines, "\n"), charSummaryBudget)
+	return "【本轮分支登场角色（作者圈定；关系为主角视角）】\n" + body
 }
 
 // buildRelationDigest 把 characters.json 的 relationships 折叠为

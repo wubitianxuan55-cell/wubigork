@@ -64,27 +64,38 @@ func TestBuildChapterCastSection_FocusTolerantMatch(t *testing.T) {
 	}
 }
 
-// TestBuildCharacterSummaryFiltered 分支角色选择器：圈定名单过滤名册；空选/
-// 未命中退回全量（不设限语义）；坏 JSON 不报错。
-func TestBuildCharacterSummaryFiltered(t *testing.T) {
+// TestBuildBranchCastSection 选角会议区段：名册命中者全量档案+主角关系缀行；
+// 未命中（库挑入/新建）按负载自带信息成行；未圈定角色不渲染；空负载退回全量；
+// 纯字符串数组兼容；坏 JSON 不报错。
+func TestBuildBranchCastSection(t *testing.T) {
 	pm := newCastTestProject(t)
 	a := &writingState{core: &core{}}
 
-	got := a.buildCharacterSummaryFiltered(pm, []string{"林晚", "鬼手"})
-	if !strings.Contains(got, "- 林晚") || !strings.Contains(got, "- 鬼手") || strings.Contains(got, "- 沈青") {
-		t.Errorf("圈定名单应只含命中角色:\n%s", got)
+	got := a.buildBranchCastSection(pm, parseBranchCast(`[{"name":"林晚","relation":"师妹"},{"name":"玄铁","relation":"死敌","note":"库·冷面刀客"}]`))
+	if !strings.Contains(got, "【本轮分支登场角色（作者圈定；关系为主角视角）】") {
+		t.Errorf("缺选角区段头:\n%s", got)
 	}
-	if full := a.buildCharacterSummary(pm); a.buildCharacterSummaryFiltered(pm, nil) != full {
-		t.Errorf("空选应退回全量名册")
+	if !strings.Contains(got, "- 林晚：主角") || !strings.Contains(got, "与主角关系：师妹") {
+		t.Errorf("名册命中应全量档案+关系缀行:\n%s", got)
 	}
-	if full := a.buildCharacterSummary(pm); a.buildCharacterSummaryFiltered(pm, []string{"路人甲"}) != full {
-		t.Errorf("未命中应退回全量名册")
+	if !strings.Contains(got, "- 玄铁：新增角色·库·冷面刀客·与主角关系：死敌") {
+		t.Errorf("未命中应按负载成行:\n%s", got)
 	}
-	if names := parseCharacterNames("not-json"); names != nil {
-		t.Errorf("坏 JSON 应返回 nil，got %v", names)
+	if strings.Contains(got, "沈青") {
+		t.Errorf("未圈定角色不应渲染:\n%s", got)
 	}
-	if names := parseCharacterNames(`["林晚"," 鬼手 "]`); len(names) != 2 || names[1] != "鬼手" {
-		t.Errorf("解析应去空白，got %v", names)
+
+	// 纯字符串数组兼容
+	got = a.buildBranchCastSection(pm, parseBranchCast(`["林晚"]`))
+	if !strings.Contains(got, "- 林晚：主角") || strings.Contains(got, "与主角关系：") {
+		t.Errorf("字符串负载=只圈名字不带关系:\n%s", got)
+	}
+	// 空负载/坏 JSON → 全量名册
+	if full := a.buildCharacterSummary(pm); a.buildBranchCastSection(pm, parseBranchCast("")) != full {
+		t.Errorf("空负载应退回全量名册")
+	}
+	if full := a.buildCharacterSummary(pm); a.buildBranchCastSection(pm, parseBranchCast("not-json")) != full {
+		t.Errorf("坏 JSON 应退回全量名册")
 	}
 }
 
