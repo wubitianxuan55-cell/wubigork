@@ -24,7 +24,8 @@ func Save(key, value string) error {
 	saveMu.Lock()
 	defer saveMu.Unlock()
 
-	home, err := os.UserHomeDir()
+	// v4.441.1 走查第三面：主目录派生路径与 Load 同走 userHome（沙箱态写沙箱）。
+	home, err := userHome()
 	if err != nil {
 		return err
 	}

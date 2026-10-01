@@ -11,6 +11,13 @@ func WalkthroughWorkspaceDir() string {
 	return filepath.Join(os.TempDir(), "gaea-walkthrough", "workspace")
 }
 
+// WalkthroughRootDir 返回走查沙箱根（workspace/appdata/home/novels 的公共父
+// 目录，整体删除即清场）。v4.441.1 起 internal/config 数据面（用户主目录派生
+// 配置+书架 NovelsDir）与办公面共用同根。
+func WalkthroughRootDir() string {
+	return filepath.Dir(WalkthroughWorkspaceDir())
+}
+
 // ApplyWalkthroughOverride 在 GAEA_WALKTHROUGH=1 时把 cfg.Workspace 强制指向
 // 走查沙箱。真机走查隔离（v4.418，2026-09-26 走查险情后的防复发刀）：强制
 // workspace 指向独立沙箱目录，会话/记忆/交付物与用户数据彻底解耦——首条消息

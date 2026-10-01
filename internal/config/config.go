@@ -25,7 +25,10 @@ var funcMu sync.RWMutex
 // Load 加载配置（只应调用一次）。
 // 优先级：config 文件 > 环境变量 > 默认值。
 func Load() *Config {
-	home, err := os.UserHomeDir()
+	// v4.441.1 走查第三面：走查态主目录重定向到沙箱（.gaea_config.json/
+	// .gaea_token.json 全部落 Temp\gaea-walkthrough\home，真实主目录配置不可
+	// 读不可写）；非走查态与 os.UserHomeDir 等价。
+	home, err := userHome()
 	if err != nil {
 		slog.Warn("获取用户主目录失败", "error", err)
 	}
@@ -462,6 +465,11 @@ func Load() *Config {
 
 	// 4. 解析资源目录（prompts/ skills/ 等）
 	cfg.ResourceDir = resolveResourceDir()
+
+	// 5. 走查书架隔离（v4.441.1 第三数据面）：最后一步强制覆盖——硬编码默认
+	//    （C:\AI\xiaoshuo）、WUBI_NOVELS_DIR、配置文件三个来源在走查态一律失效，
+	//    建档只能落 Temp\gaea-walkthrough\novels（隔离优先于一切）。
+	ApplyNovelsDirWalkthrough(cfg)
 
 	return cfg
 }
