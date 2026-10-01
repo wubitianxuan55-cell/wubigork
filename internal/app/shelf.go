@@ -13,6 +13,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/gaea/gaea/internal/config"
+	"github.com/gaea/gaea/internal/maturecraft"
 	"github.com/gaea/gaea/internal/types"
 )
 
@@ -27,8 +28,9 @@ type ProjectCard struct {
 	Path         string `json:"path"` // 项目完整路径
 	WordCount    int    `json:"word_count"`
 	ChapterCount int    `json:"chapter_count"`
-	CreatedAt    string `json:"created_at"`     // ISO8601
-	LastOpenedAt string `json:"last_opened_at"` // ISO8601
+	CreatedAt    string `json:"created_at"`       // ISO8601
+	LastOpenedAt string `json:"last_opened_at"`   // ISO8601
+	Mature       string `json:"mature,omitempty"` // v4.443 成人向档位（sensual/explicit，白名单归一后；空=非成人向）
 }
 
 // GetNovelsDir 返回小说书架根目录
@@ -78,6 +80,7 @@ func (a *App) ListProjects() ([]ProjectCard, error) {
 			ChapterCount: chapterCount,
 			CreatedAt:    meta.CreatedAt.Format(time.RFC3339),
 			LastOpenedAt: meta.LastOpenedAt.Format(time.RFC3339),
+			Mature:       maturecraft.NormalizeLevel(meta.Mature), // v4.443 徽标链；坏值不上墙
 		})
 	}
 
@@ -353,6 +356,7 @@ func loadProjectMeta(path string) (*types.ProjectMeta, error) {
 		Title        string    `json:"title"`
 		Genre        string    `json:"genre"`
 		Style        string    `json:"style"`
+		Mature       string    `json:"mature"`
 		CreatedAt    time.Time `json:"created_at"`
 		LastOpenedAt time.Time `json:"last_opened_at"`
 	}
@@ -363,6 +367,7 @@ func loadProjectMeta(path string) (*types.ProjectMeta, error) {
 		Title:        partial.Title,
 		Genre:        partial.Genre,
 		Style:        partial.Style,
+		Mature:       partial.Mature,
 		CreatedAt:    partial.CreatedAt,
 		LastOpenedAt: partial.LastOpenedAt,
 	}, nil

@@ -4,6 +4,9 @@ package app
 // 未知键报错路径）。
 
 import (
+	"fmt"
+	"os"
+	"path/filepath"
 	"sync"
 	"testing"
 
@@ -104,5 +107,49 @@ func TestSaveConfig_UnknownKeyReturnsError(t *testing.T) {
 	a := shelfTestApp(t)
 	if err := a.SaveConfig("no_such_setting", "x"); err == nil {
 		t.Fatal("未知配置键应返回错误")
+	}
+}
+
+// TestListProjectsMatureBadge 书架档位徽标链（v4.443）：合法档位上墙、手改盘
+// 坏值归一为空不上墙（maturecraft 白名单收口）。
+func TestListProjectsMatureBadge(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("USERPROFILE", home)
+	t.Setenv("HOME", home)
+	a := &App{core: &core{cfg: &config.Config{NovelsDir: filepath.Join(home, "shelf")}}}
+	a.writingState = &writingState{mu: sync.RWMutex{}}
+
+	seed := func(name, mature string) {
+		t.Helper()
+		dir := filepath.Join(a.cfg.NovelsDir, name)
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		meta := fmt.Sprintf(`{"schema_version":1,"title":%q,"genre":"都市","style":"默认","created_at":"2026-10-01T00:00:00Z","last_opened_at":"2026-10-01T00:00:00Z","word_count":0,"version":1,"mature":%q}`,
+			name, mature)
+		if err := os.WriteFile(filepath.Join(dir, "project.json"), []byte(meta), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	seed("直白书", "explicit")
+	seed("坏档书", "r18")
+	seed("普通书", "")
+
+	cards, err := a.ListProjects()
+	if err != nil {
+		t.Fatalf("ListProjects: %v", err)
+	}
+	byTitle := map[string]string{}
+	for _, c := range cards {
+		byTitle[c.Title] = c.Mature
+	}
+	if byTitle["直白书"] != "explicit" {
+		t.Fatalf("直白书 mature 应上墙: %v", byTitle)
+	}
+	if m, ok := byTitle["坏档书"]; ok && m != "" {
+		t.Fatalf("坏值必须归一为空不上墙: %q", m)
+	}
+	if m, ok := byTitle["普通书"]; ok && m != "" {
+		t.Fatalf("普通书应为空档位: %q", m)
 	}
 }

@@ -59,13 +59,22 @@ const ProjectCardItem: React.FC<ProjectCardItemProps> = ({
       </div>
 
       <div className="novel-shelf-body">
-        {/* 题材 / 风格标签 */}
+        {/* 题材 / 风格 / 定位标签 */}
         <div className="novel-shelf-tags">
           {card.genre && card.genre !== '未分类' && (
             <span className="novel-tag-tone is-primary">{card.genre}</span>
           )}
           {card.style && card.style !== '默认' && (
             <span className="novel-tag-tone is-neutral">{card.style}</span>
+          )}
+          {/* v4.443 成人向档位徽标：书架一眼分辨定位；非成人向不渲染（零噪声） */}
+          {(card.mature === 'sensual' || card.mature === 'explicit') && (
+            <span
+              className="novel-tag-tone is-mature"
+              title={card.mature === 'explicit' ? '成人向 · 直白（亲密戏正面直书）' : '成人向 · 含蓄（张力与留白）'}
+            >
+              {card.mature === 'explicit' ? '成人·直白' : '成人·含蓄'}
+            </span>
           )}
         </div>
 

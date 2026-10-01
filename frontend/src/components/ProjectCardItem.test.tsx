@@ -48,3 +48,21 @@ describe('ProjectCardItem 书房书封', () => {
     expect(onOpen).not.toHaveBeenCalled()
   })
 })
+
+describe('ProjectCardItem 成人向档位徽标（v4.443）', () => {
+  it('直白/含蓄档渲染徽标；非成人向不渲染（零噪声）', () => {
+    const { container, rerender } = render(
+      <ProjectCardItem card={{ ...card, mature: 'explicit' }} isActive={false} onOpen={() => {}} onDelete={() => {}} />,
+    )
+    expect(screen.getByText('成人·直白')).toBeTruthy()
+    expect(container.querySelector('.novel-tag-tone.is-mature')).toBeTruthy()
+
+    rerender(<ProjectCardItem card={{ ...card, mature: 'sensual' }} isActive={false} onOpen={() => {}} onDelete={() => {}} />)
+    expect(screen.getByText('成人·含蓄')).toBeTruthy()
+
+    rerender(<ProjectCardItem card={{ ...card }} isActive={false} onOpen={() => {}} onDelete={() => {}} />)
+    expect(screen.queryByText('成人·直白')).toBeNull()
+    expect(screen.queryByText('成人·含蓄')).toBeNull()
+    expect(container.querySelector('.novel-tag-tone.is-mature')).toBeNull()
+  })
+})

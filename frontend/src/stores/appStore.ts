@@ -8,7 +8,7 @@ import { isShellSpace, type ShellSpace } from '../boards/space'
 
 export interface ProjectInfo { title: string; genre: string; style: string; path: string; /** v4.439 成人向档位：''|sensual|explicit（Go 侧 omitempty，可能缺省） */ mature?: string }
 export interface StatsData { totalWords: number; chapterCount: number; avgWordsPerChapter: number; characterCount: number; charAlive: number; foreshadowTotal: number; foreshadowRevealed: number; foreshadowRate: number; plannedChapters?: number }
-export interface ProjectCard { title: string; genre: string; style: string; path: string; word_count: number; chapter_count: number; created_at: string; last_opened_at: string }
+export interface ProjectCard { title: string; genre: string; style: string; path: string; word_count: number; chapter_count: number; created_at: string; last_opened_at: string; /** v4.443 成人向档位（sensual/explicit；非成人向缺省） */ mature?: string }
 
 // 暗夜系列 — 7套精心调色（v10 新增「天玄」：玄穹墨蓝 + 月华金，首页卡片工作台的母题）
 export type ThemePreset = 'nightJade' | 'nightViolet' | 'nightRose' | 'nightAmber' | 'nightMoss' | 'nightSlate' | 'tianXuan'

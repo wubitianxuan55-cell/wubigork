@@ -2141,6 +2141,8 @@
 .novel-tag-tone.is-warning    { color: var(--color-warning);    background: color-mix(in srgb, var(--color-warning) 12%, transparent);    border-color: color-mix(in srgb, var(--color-warning) 28%, transparent); }
 .novel-tag-tone.is-destructive{ color: var(--color-destructive);background: color-mix(in srgb, var(--color-destructive) 12%, transparent); border-color: color-mix(in srgb, var(--color-destructive) 28%, transparent); }
 .novel-tag-tone.is-neutral    { color: var(--color-text-secondary); background: var(--color-surface-container-high); border-color: var(--color-border); }
+/* v4.443 成人向档位徽标：暖警示调（书架一眼分辨定位，非装饰性） */
+.novel-tag-tone.is-mature     { color: var(--color-warning);    background: color-mix(in srgb, var(--color-warning) 14%, transparent);    border-color: color-mix(in srgb, var(--color-warning) 34%, transparent); }
 
 /* 书架工具条输入（antd Input 光晕化） */
 .novel-shelf-search .ant-input-affix-wrapper {

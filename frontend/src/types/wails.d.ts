@@ -49,6 +49,8 @@ interface ProjectCard {
   chapter_count: number
   created_at: string // ISO8601
   last_opened_at: string // ISO8601
+  /** v4.443 成人向档位（sensual/explicit；Go 侧 omitempty+白名单归一，非成人向缺省） */
+  mature?: string
 }
 
 /** 原生文件选择结果（对齐 internal/app FilePickResult） */
