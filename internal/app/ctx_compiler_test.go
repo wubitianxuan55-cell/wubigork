@@ -120,3 +120,53 @@ func TestNovelContextInventory(t *testing.T) {
 		}
 	}
 }
+
+// TestNovelContextInventoryMatureRow 成人向档位可见性：档位注入发生在模板槽、
+// 清单必须恒列一行如实回显——explicit 带正文与档位名；未启用空正文+引导说明。
+func TestNovelContextInventoryMatureRow(t *testing.T) {
+	findRow := func(items []map[string]interface{}) map[string]interface{} {
+		for _, it := range items {
+			if it["name"] == "成人向工艺区段" {
+				return it
+			}
+		}
+		return nil
+	}
+
+	a := newGateEmptyApp()
+	pm := newContextTestProject(t)
+	a.setPM(pm)
+
+	// 未启用：恒在列，正文空，note 引导设置入口
+	items, err := a.NovelContextInventory(1)
+	if err != nil {
+		t.Fatalf("清单(未启用): %v", err)
+	}
+	row := findRow(items)
+	if row == nil {
+		t.Fatalf("清单必须恒含「成人向工艺区段」行（未启用也要如实回显）: %v", items)
+	}
+	if row["runes"].(int) != 0 {
+		t.Errorf("未启用时正文必须为空: %v", row)
+	}
+	if !strings.Contains(row["note"].(string), "未启用") {
+		t.Errorf("未启用 note 应含「未启用」: %v", row["note"])
+	}
+
+	// explicit：正文非空且带档位口径
+	pm.Meta.Mature = "explicit"
+	items, err = a.NovelContextInventory(1)
+	if err != nil {
+		t.Fatalf("清单(explicit): %v", err)
+	}
+	row = findRow(items)
+	if row == nil || row["runes"].(int) == 0 {
+		t.Fatalf("explicit 档正文不得为空: %v", row)
+	}
+	if !strings.Contains(row["preview"].(string), "直白") || !strings.Contains(row["preview"].(string), "成人向") {
+		t.Errorf("explicit 预览应含档位口径: %v", row["preview"])
+	}
+	if !strings.Contains(row["note"].(string), "档位=直白") {
+		t.Errorf("note 应含档位名: %v", row["note"])
+	}
+}

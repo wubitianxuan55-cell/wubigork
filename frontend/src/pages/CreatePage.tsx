@@ -21,6 +21,7 @@ import ChapterAnalysisPanel from '../components/novel/ChapterAnalysisPanel'
 import BookHealthPanel from '../components/novel/BookHealthPanel'
 import StorySpinePanel from '../components/novel/StorySpinePanel'
 import ConvergeModal from '../components/novel/ConvergeModal'
+import ContextInventoryPanel from '../components/novel/create/ContextInventoryPanel'
 import EditorPanel from '../components/novel/create/EditorPanel'
 import type { EditorPanelHandle } from '../components/novel/create/EditorPanel'
 import CreateInspector from '../components/novel/create/CreateInspector'
@@ -272,6 +273,7 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
   const [healthOpen, setHealthOpen] = useState(false)
   const [spineOpen, setSpineOpen] = useState(false)
   const [convergeOpen, setConvergeOpen] = useState(false)
+  const [ctxInvOpen, setCtxInvOpen] = useState(false)
   // 局部重写选区（t4-C3 余项：EditorPanel 选段回调 → PartialRewriteModal；rune 偏移）
   const [pSel, setPSel] = useState<{ start: number; end: number; text: string } | null>(null)
   // 默认启用 story-deslop 去 AI 味润色技能；可在右侧创作设置中切换或清空
@@ -1243,6 +1245,7 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
           <Button size="small" onClick={() => setHealthOpen(true)}>全书体检</Button>
           <Button size="small" onClick={() => setSpineOpen(true)}>故事骨架</Button>
           <Button size="small" onClick={() => setConvergeOpen(true)} disabled={!activeChapterNum}>收敛修补</Button>
+          <Button size="small" onClick={() => setCtxInvOpen(true)}>上下文清单</Button>
           <Button size="small" onClick={() => void openReview()}>平台评审</Button>
           <Button size="small" onClick={() => void openFingerprint()}>文风指纹</Button>
         </RailGroup>
@@ -1294,6 +1297,7 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
       <BookHealthPanel open={healthOpen} onClose={() => setHealthOpen(false)} />
       <StorySpinePanel open={spineOpen} onClose={() => setSpineOpen(false)} />
       <ConvergeModal open={convergeOpen} chapterNum={activeChapterNum ? activeChapterNum : null} onClose={() => setConvergeOpen(false)} onFinished={() => { if (activeNode) void loadChapter(activeNode as typeof activeNode) }} />
+      <ContextInventoryPanel open={ctxInvOpen} chapterNum={activeChapterNum || 0} onClose={() => setCtxInvOpen(false)} />
       <ChapterAnalysisPanel
         open={analysisOpen}
         onClose={() => { setAnalysisOpen(false); setGateChapter(null); setGateContent('') }}

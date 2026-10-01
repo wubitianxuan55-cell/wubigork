@@ -21,6 +21,8 @@ function renderModal(overrides: Partial<Props> = {}) {
     onGenreChange: vi.fn(),
     style: [],
     onStyleChange: vi.fn(),
+    mature: '',
+    onMatureChange: vi.fn(),
     ...overrides,
   }
   const view = render(<CreateNovelModal {...props} />)
@@ -76,5 +78,13 @@ describe('CreateNovelModal 新建小说（v4.421.0）', () => {
     fireEvent.click(okButton())
     await waitFor(() => expect(onCreate).toHaveBeenCalledTimes(1))
     expect(props.onClose).not.toHaveBeenCalled()
+  })
+})
+
+describe('CreateNovelModal 本书定位（v4.441 建档同址可选）', () => {
+  it('选直白档：onMatureChange 收到 explicit', () => {
+    const { props } = renderModal()
+    fireEvent.click(screen.getByText('成人向 · 直白（亲密戏正面直书）'))
+    expect(props.onMatureChange).toHaveBeenCalledWith('explicit')
   })
 })

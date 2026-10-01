@@ -60,6 +60,7 @@ const HomePage: React.FC<HomePageProps> = ({ active = true }) => {
   const [newTitle, setNewTitle] = useState('')
   const [newGenre, setNewGenre] = useState<string[]>([])
   const [newStyle, setNewStyle] = useState<string[]>([])
+  const [newMature, setNewMature] = useState('')
 
   // 导入成品小说
   const [importModal, setImportModal] = useState(false)
@@ -107,6 +108,7 @@ const HomePage: React.FC<HomePageProps> = ({ active = true }) => {
     setNewTitle('')
     setNewGenre([])
     setNewStyle([])
+    setNewMature('')
   }
 
   const handleCreate = async () => {
@@ -117,6 +119,15 @@ const HomePage: React.FC<HomePageProps> = ({ active = true }) => {
         const genreStr = newGenre.join('、') || '未分类'
         const styleStr = newStyle.join('、') || '默认'
         await wailsApp().CreateProject(dir, newTitle, genreStr, styleStr)
+        if (newMature) {
+          // v4.441 建档档位落盘（UpdateProjectMeta 首个消费方）：CreateProject 已
+          // 打开项目，失败只降级为空档位不阻断创建——默认值本就是合法态。
+          try {
+            await wailsApp().UpdateProjectMeta(newTitle, genreStr, styleStr, newMature)
+          } catch (metaErr: unknown) {
+            message.warning(`已创建，但本书定位保存失败：${metaErr instanceof Error ? metaErr.message : String(metaErr)}（可在创作页修改）`)
+          }
+        }
         openProject(dir, newTitle)
         await loadProjects()
         setNewModal(false)
@@ -468,6 +479,7 @@ const HomePage: React.FC<HomePageProps> = ({ active = true }) => {
         title={newTitle} onTitleChange={setNewTitle}
         genre={newGenre} onGenreChange={setNewGenre}
         style={newStyle} onStyleChange={setNewStyle}
+        mature={newMature} onMatureChange={setNewMature}
       />
       <ImportNovelModal
         open={importModal}

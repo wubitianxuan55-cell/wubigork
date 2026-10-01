@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/gaea/gaea/internal/maturecraft"
 	"github.com/gaea/gaea/internal/types"
 )
 
@@ -75,6 +76,14 @@ func (a *writingState) NovelContextInventory(chapterNum int) ([]map[string]inter
 	if body := a.buildCharacterSummary(pm); body != "" {
 		add("角色摘要", body, "出场角色画像")
 	}
+	// v4.441 成人向档位可见性：档位是用户设置、注入却发生在模板槽里——dry-run
+	// 清单必须恒列一行如实回显（含「未启用」），作者才能确认生效面。
+	level := pm.Meta.Mature
+	note := fmt.Sprintf("档位=%s；正文向纪律随整章/重写/收敛/场景注入", maturecraft.LevelName(level))
+	if level == "" {
+		note = "档位=未启用；非成人向零注入（创作页「本书定位」或建档时可选）"
+	}
+	add("成人向工艺区段", maturecraft.CraftSection(level), note)
 
 	out := make([]map[string]interface{}, 0, len(items))
 	total := 0

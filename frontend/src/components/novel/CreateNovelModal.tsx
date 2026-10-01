@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Typography, Space, Input, Modal, Checkbox, message } from 'antd'
+import { Typography, Space, Input, Modal, Checkbox, Radio, message } from 'antd'
 import { C } from '../../utils/theme'
 import { GENRE_OPTIONS, STYLE_OPTIONS } from './novelOptions'
 
@@ -10,6 +10,8 @@ interface CreateNovelModalProps {
   title: string; onTitleChange: (v: string) => void
   genre: string[]; onGenreChange: (v: string[]) => void
   style: string[]; onStyleChange: (v: string[]) => void
+  /** 成人向档位（v4.441 建档同址可选；''=非成人向。落盘走 HomePage 的 UpdateProjectMeta） */
+  mature: string; onMatureChange: (v: string) => void
 }
 
 /**
@@ -27,6 +29,7 @@ const CreateNovelModal: React.FC<CreateNovelModalProps> = ({
   title, onTitleChange,
   genre, onGenreChange,
   style, onStyleChange,
+  mature, onMatureChange,
 }) => {
   const [submitting, setSubmitting] = useState(false)
   const emptyTitle = !title.trim()
@@ -96,6 +99,23 @@ const CreateNovelModal: React.FC<CreateNovelModalProps> = ({
             options={STYLE_OPTIONS}
             value={style}
             onChange={(v) => onStyleChange(v as string[])}
+            style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 12px' }}
+          />
+        </div>
+
+        {/* 本书定位（成人向档位）——与创作页「本书定位」同口径，创建后可改 */}
+        <div>
+          <Typography.Text style={{ color: C('color-text-secondary'), fontSize: 12, marginBottom: 6, display: 'block' }}>
+            本书定位
+          </Typography.Text>
+          <Radio.Group
+            value={mature}
+            onChange={(e) => onMatureChange(e.target.value as string)}
+            options={[
+              { value: '', label: '非成人向' },
+              { value: 'sensual', label: '成人向 · 含蓄（张力与留白）' },
+              { value: 'explicit', label: '成人向 · 直白（亲密戏正面直书）' },
+            ]}
             style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 12px' }}
           />
         </div>
