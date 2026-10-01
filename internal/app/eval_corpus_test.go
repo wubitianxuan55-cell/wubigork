@@ -102,7 +102,9 @@ func TestEvalCorpusSnapshotDeterministic(t *testing.T) {
 	}{
 		{"healthy", evalHealthyChapter, evalCorpusForeshadows(10, 8)},
 		{"flavor", evalFlavorChapter, evalCorpusForeshadows(10, 8)},
-		{"hollow", func(i int) string { return evalHealthyChapter(i) + strings.Repeat("这一段长得没有道理，句号迟迟不来，念头一个接一个地往下坠，像是把整章的呼吸都压进了一口锅里，直到读者忘了换气。", 8) }, evalCorpusForeshadows(10, 0)},
+		{"hollow", func(i int) string {
+			return evalHealthyChapter(i) + strings.Repeat("这一段长得没有道理，句号迟迟不来，念头一个接一个地往下坠，像是把整章的呼吸都压进了一口锅里，直到读者忘了换气。", 8)
+		}, evalCorpusForeshadows(10, 0)},
 	}
 	for _, b := range books {
 		pm := buildEvalCorpusBook(t, a, b.name, b.chapter, b.fb)
@@ -195,5 +197,73 @@ func TestEvalCorpusBaselineCompareScale(t *testing.T) {
 	}
 	if !found {
 		t.Fatalf("第 15 章病变应使 AI 味均值 worse: %v", res2["items"])
+	}
+}
+
+// TestEvalCorpusTensionAggregation 张力聚合（v4.445）：注入 30 章分析夹具
+// （强度 1..10 各 3 次），断言精确聚合值（均值 5.5/P90 10/极差 8/覆盖 30）；
+// 基线后压低强度 → 张力均值 worse 方向（节奏塌启发式）。
+func TestEvalCorpusTensionAggregation(t *testing.T) {
+	a := newGateEmptyApp()
+	pm := buildEvalCorpusBook(t, a, "healthy", evalHealthyChapter, evalCorpusForeshadows(10, 8))
+
+	// 注入分析夹具：第 i 章强度 = (i-1)%10+1（1..10 各 3 次，稳定序）
+	for i := 1; i <= evalCorpusChapters; i++ {
+		intensity := (i-1)%10 + 1
+		if err := pm.UpsertAnalysisV2(types.ChapterAnalysisResult{
+			ChapterNum:     i,
+			ChapterFile:    fmt.Sprintf("%03d.md", i),
+			AnalyzerSource: "manual",
+			Result: types.AnalysisResultV2{
+				EmotionalArc: types.EmotionalArc{PrimaryEmotion: "紧张", Intensity: intensity},
+			},
+		}); err != nil {
+			t.Fatalf("注入分析 %d: %v", i, err)
+		}
+	}
+
+	body := a.buildEvalSnapshot(pm)
+	if body.Tension.Covered != evalCorpusChapters {
+		t.Fatalf("覆盖应 30: %v", body.Tension.Covered)
+	}
+	if body.Tension.Mean != 5.5 {
+		t.Fatalf("均值应 5.5: %v", body.Tension.Mean)
+	}
+	if body.Tension.P90 != 10 {
+		t.Fatalf("P90 应 10: %v", body.Tension.P90)
+	}
+	if body.Tension.Swing != 8 {
+		t.Fatalf("极差应 8 (10-2): %v", body.Tension.Swing)
+	}
+
+	// 基线后把全部强度压到 2 → 张力均值 worse（节奏塌）
+	if _, err := a.NovelEvalBaselineSet(); err != nil {
+		t.Fatalf("设基线: %v", err)
+	}
+	for i := 1; i <= evalCorpusChapters; i++ {
+		if err := pm.UpsertAnalysisV2(types.ChapterAnalysisResult{
+			ChapterNum:     i,
+			ChapterFile:    fmt.Sprintf("%03d.md", i),
+			AnalyzerSource: "manual",
+			Result:         types.AnalysisResultV2{EmotionalArc: types.EmotionalArc{PrimaryEmotion: "平", Intensity: 2}},
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	res, err := a.NovelEvalCompare()
+	if err != nil {
+		t.Fatalf("对比: %v", err)
+	}
+	dirs := map[string]string{}
+	for _, it := range res["items"].([]map[string]interface{}) {
+		if m, ok := it["metric"].(string); ok {
+			dirs[m] = it["dir"].(string)
+		}
+	}
+	if dirs["张力均值"] != "worse" {
+		t.Fatalf("张力均值下降应为 worse: %v", dirs)
+	}
+	if dirs["张力波动"] != "worse" {
+		t.Fatalf("波动收窄应为 worse: %v", dirs)
 	}
 }

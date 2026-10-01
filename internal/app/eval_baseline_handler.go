@@ -59,6 +59,15 @@ type evalSnapshotBody struct {
 
 	StyleDelta *float64 `json:"style_delta"` // nil=无参考档（skipped）
 
+	// v4.445 张力聚合：分析 V2 情感弧线强度（1-10）全书分布——零 LLM 纯聚合。
+	// Covered=0 即无分析数据（强度域 1-10，均值 0 不会与真实值混淆）。
+	Tension struct {
+		Mean    float64 `json:"mean"`
+		P90     float64 `json:"p90"`
+		Swing   float64 `json:"swing"`   // P90-P10：全书张力波动（变平=节奏塌）
+		Covered int     `json:"covered"` // 有强度数据的章数
+	} `json:"tension"`
+
 	ContextTotalRunes int `json:"context_total_runes"` // 刀6 清单合计
 }
 
@@ -188,6 +197,27 @@ func (a *writingState) buildEvalSnapshot(pm *project.Manager) *evalSnapshotBody 
 			}
 		}
 	}
+	// v4.445 张力聚合：ReadAnalysisV2File 保持章号升序（Upsert 纪律）→ 稳定序。
+	if af, err := pm.ReadAnalysisV2File(); err == nil && af != nil {
+		intensities := make([]int, 0, len(af.Items))
+		for i := range af.Items {
+			if v := af.Items[i].Result.EmotionalArc.Intensity; v > 0 {
+				intensities = append(intensities, v)
+			}
+		}
+		body.Tension.Covered = len(intensities)
+		if n := len(intensities); n > 0 {
+			sum := 0
+			for _, v := range intensities {
+				sum += v
+			}
+			body.Tension.Mean = round2(float64(sum) / float64(n))
+			sorted := append([]int(nil), intensities...)
+			sort.Ints(sorted)
+			body.Tension.P90 = round2(float64(sorted[(n*9)/10]))
+			body.Tension.Swing = round2(float64(sorted[n-1] - sorted[(n*1)/10]))
+		}
+	}
 	return body
 }
 
@@ -303,6 +333,14 @@ func (a *writingState) NovelEvalCompare() (map[string]interface{}, error) {
 	}
 	if base.StyleDelta != nil && cur.StyleDelta != nil {
 		mk = append(mk, pair{"文风 Delta", *base.StyleDelta, *cur.StyleDelta, true})
+	}
+	// v4.445 张力两向：均值下降/波动收窄=节奏塌（worse）——与体检「中段塌陷」
+	// 同族的节奏启发式；两侧都有数据才比（任一侧无分析数据=口径不齐，跳过）。
+	if base.Tension.Covered > 0 && cur.Tension.Covered > 0 {
+		mk = append(mk,
+			pair{"张力均值", base.Tension.Mean, cur.Tension.Mean, false},
+			pair{"张力波动", base.Tension.Swing, cur.Tension.Swing, false},
+		)
 	}
 	items := make([]map[string]interface{}, 0, len(mk))
 	for _, p := range mk {
