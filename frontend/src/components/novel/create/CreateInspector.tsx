@@ -8,6 +8,7 @@ import {
 import { C } from '../../../utils/theme'
 import { app } from '../../../gaea/lib/bridge'
 import { wailsApp } from '../../../lib/wailsApp'
+import { useAppStore } from '../../../stores/appStore'
 
 interface Skill { name: string; description: string; appliesTo?: string[] }
 
@@ -51,22 +52,41 @@ const CreateInspector: React.FC<CreateInspectorProps> = ({
 
   // 本书定位（v4.439 成人向档位）：书级元信息，改动即经 UpdateProjectMeta 落盘。
   // 标题/题材/文风随 GetProjectInfo 一次性带回存 ref——更新时原样回传，不在本面板改写。
+  // v4.440.1 切书边界收口（v4.429「切书重拉」同族）：NovelPage 五个 tab 常驻挂载、
+  // 切书不重挂本面板——effect 必须跟 projectPath 重跑；代际守卫挡「迟到的旧书
+  // GetProjectInfo 覆盖新书档位」；未就绪（含读取失败）禁用选择器——拿旧书
+  // title/genre/style 回传进新书是数据污染，宁可不写。
+  const projectPath = useAppStore((s) => s.projectPath)
   const [mature, setMature] = useState<string>('')
+  const [matureReady, setMatureReady] = useState(false)
   const metaRef = useRef<{ title: string; genre: string; style: string }>({ title: '', genre: '', style: '' })
   useEffect(() => {
+    if (!projectPath) {
+      // 无项目（或切到无项目态）：清场防串书
+      setMatureReady(false)
+      setMature('')
+      metaRef.current = { title: '', genre: '', style: '' }
+      return
+    }
+    setMatureReady(false)
+    const token = projectPath // 代际锚：响应回来时 store 已换书则丢弃
+    let cancelled = false
     ;(async () => {
       try {
         const info = (await wailsApp().GetProjectInfo()) as
           | { title?: string; genre?: string; style?: string; mature?: string }
           | null
-        if (!info) return
-        metaRef.current = { title: info.title || '', genre: info.genre || '', style: info.style || '' }
-        setMature(info.mature || '')
+        if (cancelled || useAppStore.getState().projectPath !== token) return
+        metaRef.current = { title: info?.title || '', genre: info?.genre || '', style: info?.style || '' }
+        setMature(info?.mature || '')
+        setMatureReady(true)
       } catch {
-        // 项目信息读取失败：定位选择保持默认，用户不改就零写盘
+        // 读取失败：保持未就绪（选择器禁用），不拿旧书元信息凑数
+        if (!cancelled) setMatureReady(false)
       }
     })()
-  }, [])
+    return () => { cancelled = true }
+  }, [projectPath])
 
   const handleMatureChange = async (v: string) => {
     const prev = mature
@@ -131,11 +151,14 @@ const CreateInspector: React.FC<CreateInspectorProps> = ({
             size="small"
             style={{ width: '100%' }}
             value={mature}
+            disabled={!matureReady}
             onChange={(v) => void handleMatureChange(v as string)}
             options={MATURE_OPTIONS}
           />
           <div className="novel-inspector-hint" style={{ fontSize: 11 }}>
-            成人向档位决定生成/重写时注入的亲密戏写作纪律；非成人向不注入，行为与旧版一致。
+            {matureReady
+              ? '成人向档位决定生成/重写时注入的亲密戏写作纪律；非成人向不注入，行为与旧版一致。'
+              : '正在读取本书定位…（读取到当前书之前禁用，防止把上一本书的元信息写进这本书）'}
           </div>
         </section>
 
