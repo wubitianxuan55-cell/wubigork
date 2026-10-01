@@ -103,6 +103,11 @@ func (b *NovelB) GenerateProjectCharacterFill(chJSON string) (string, error) {
 func (b *NovelB) GenerateScene(chapterNum int, sceneID string, plotReq string, minWords int) (map[string]interface{}, error) {
 	return b.a.GenerateScene(chapterNum, sceneID, plotReq, minWords)
 }
+
+// NovelGhostSuggest 场景编辑器内联续写建议（v4.444 GhostText 接线）。
+func (b *NovelB) NovelGhostSuggest(textBefore string) (string, error) {
+	return b.a.NovelGhostSuggest(textBefore)
+}
 func (b *NovelB) GenerateSceneIllustration(chapterNum int, optsJSON string) (map[string]interface{}, error) {
 	return b.a.GenerateSceneIllustration(chapterNum, optsJSON)
 }

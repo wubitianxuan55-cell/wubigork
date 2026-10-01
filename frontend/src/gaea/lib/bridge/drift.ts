@@ -143,6 +143,7 @@ type LegacySurfaceNames =
   | "HerdsmanProbe"
   | "HerdsmanSecurityCheck"
   | "ImportNovelBook"
+  | "NovelGhostSuggest" // v4.444 场景编辑器内联续写（GhostText；wailsApp 直调 legacy 面）
   | "NovelOutlineReconstructStart"
   | "NovelOutlineReconstructTaskGet"
   | "ImportStyleProfile"

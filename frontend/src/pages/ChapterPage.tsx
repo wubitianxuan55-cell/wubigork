@@ -1097,7 +1097,7 @@ const ChapterPage: React.FC<ChapterPageProps> = ({ active = true }) => {
                     tab={activeTab}
                     onUpdate={updateTab}
                     sceneTextareaRefs={sceneTextareaRefs}
-                    ghostEnabled={false}
+                    ghostEnabled
                   />
                 )}
                 {focusMode && (

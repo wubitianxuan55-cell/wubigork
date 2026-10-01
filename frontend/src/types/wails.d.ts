@@ -169,6 +169,8 @@ export interface AppAPI {
   ImportNovelBook(filePath: string, title: string, genre: string, style: string): Promise<NovelImportResult>
   /** v4.287 tail 出口：extractMode = full | tail；tailChapters 按 5 的倍数取整，>50 降级全本。 */
   ImportNovelBookEx(filePath: string, title: string, genre: string, style: string, extractMode: string, tailChapters: number): Promise<NovelImportResult>
+  /** v4.444 场景编辑器内联续写建议（单发非流式；<10 字上下文/无建议/离线时 reject）。 */
+  NovelGhostSuggest(textBefore: string): Promise<string>
 
   // ── 大纲 ──
   GetOutlines(): { nodes: OutlineNode[]; story_thread?: string }

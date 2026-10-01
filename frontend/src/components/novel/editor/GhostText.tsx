@@ -1,17 +1,20 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
-import { subscribeWailsEvent } from '../../../gaea/lib/wailsEvents'
+import { wailsApp } from '../../../lib/wailsApp'
 
 /**
- * GhostText — 内联 AI 补全组件
+ * GhostText — 内联 AI 补全组件（v4.444 接线：v4.425 的 UI 壳此前无请求路径、
+ * 无后端、挂载点禁用，实为半成品死代码；v4.429「受控值疑点」即 acceptGhost
+ * 的直接 DOM 赋值——本刀以原生 setter 修复（React 属性钩子会去重 onChange，
+ * 直接赋值后 dispatch input 收到旧值，v4.429 微实验实证））。
  *
- * 用法: 将 getCursorContext 绑定到 textarea/编辑器的光标位置获取函数
- * 当用户停止输入 800ms 后自动请求 AI 补全建议
- * 补全文本以灰色斜体显示在光标后，Tab 接受，Esc 取消
+ * 行为：所在 textarea 停止输入 800ms 且聚焦、上下文 ≥10 字时自动请求续写；
+ * 建议以灰色斜体悬浮在光标后，Tab 接受，Esc 取消，继续输入即弃。
+ * 单发非流式（1~2 句补全走 SSE 是过度设计），请求序号守卫弃迟到响应。
  *
  * Props:
- *   getCursorContext — 返回 { textBeforeCursor: string, textareaElement: HTMLTextAreaElement }
+ *   getCursorContext — 返回 { textBeforeCursor, textareaElement }（所属场景光标）
  *   enabled — 是否启用
- *   styleProfile — 可选的风格指导
+ *   styleProfile — 可选的风格指导（V1 未消费，接口保留）
  */
 interface GhostTextProps {
   getCursorContext: () => { textBeforeCursor: string; textareaElement: HTMLTextAreaElement | null } | null
@@ -26,50 +29,68 @@ interface GhostState {
   position: { top: number; left: number } | null
 }
 
-/** ghost-stream 事件动态载荷（最小消费面） */
-interface GhostStreamEvent {
-  type?: string
-  content?: string
-}
+const GHOST_DEBOUNCE_MS = 800
+const GHOST_MIN_CONTEXT = 10
 
 const GhostText: React.FC<GhostTextProps> = ({ getCursorContext, enabled, styleProfile: _styleProfile }) => {
   const [ghost, setGhost] = useState<GhostState>({ text: '', visible: false, loading: false, position: null })
-  const currentRequestRef = useRef<string>('')
-  const overlayRef = useRef<HTMLDivElement>(null)
+  // 请求序号：新输入/新请求即作废在途响应（多场景实例同挂，序号隔离各自的）
+  const reqSeqRef = useRef(0)
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // 清理 SSE 监听
-  // v4.425：`EventsOn` + `EventsOff(channel, handler)` 虽已是「精确摘除」，但仍绕过
-  // 唯一入口 `subscribeWailsEvent`（gaea/lib/wailsEvents.ts 头注要求「任何新的事件
-  // 订阅都必须经由本模块，不得直接摸 window.runtime」）——收敛之，行为不变。
+  const clearGhost = useCallback(() => {
+    reqSeqRef.current++
+    setGhost({ text: '', visible: false, loading: false, position: null })
+  }, [])
+
+  // 触发链：所在 textarea 的 input → 立即弃旧 ghost + 800ms 防抖请求。
+  // getCursorContext 是父级每次渲染新建的闭包（latest-ref 持有最新版，effect
+  // 只挂 [enabled]——否则每次渲染重挂监听且 cleanup 作废在途请求）；ta 由场景
+  // 卡 refs 持有、跨渲染稳定。
+  const ctxRef = useRef(getCursorContext)
+  ctxRef.current = getCursorContext
   useEffect(() => {
-    if (!enabled || !window.runtime?.EventsOn) return
+    if (!enabled) return
+    const ta = ctxRef.current()?.textareaElement
+    if (!ta) return
 
-    const handleGhostStream = (raw: unknown) => {
-      const ev = raw as GhostStreamEvent
-      if (!ev?.type) return
-
-      if (ev.type === 'chunk') {
-        setGhost(prev => {
-          const newText = prev.text + (ev.content || '')
-          return { ...prev, text: newText, loading: false, visible: true }
+    const request = () => {
+      const ctx = ctxRef.current()
+      if (!ctx?.textareaElement || document.activeElement !== ctx.textareaElement) return
+      const before = ctx.textBeforeCursor
+      if (before.trim().length < GHOST_MIN_CONTEXT) return
+      const seq = ++reqSeqRef.current
+      setGhost({ text: '', visible: false, loading: true, position: null })
+      wailsApp()
+        .NovelGhostSuggest(before)
+        .then((text) => {
+          if (seq !== reqSeqRef.current || !text) return // 迟到响应丢弃
+          setGhost({ text, visible: true, loading: false, position: null })
         })
-        currentRequestRef.current = ''
-      } else if (ev.type === 'done') {
-        setGhost(prev => {
-          const finalText = ev.content || prev.text
-          return { ...prev, text: finalText, loading: false, visible: finalText.length > 0 }
+        .catch(() => {
+          // 无建议/离线/上下文不足：静默不弹框（补全是助攻不是任务）
+          if (seq === reqSeqRef.current) setGhost({ text: '', visible: false, loading: false, position: null })
         })
-        currentRequestRef.current = ''
-      } else if (ev.type === 'error') {
-        setGhost(prev => ({ ...prev, loading: false, visible: false }))
-        currentRequestRef.current = ''
-      }
     }
 
-    return subscribeWailsEvent(window.runtime, 'ghost-stream', handleGhostStream)
+    const onInput = () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current)
+      reqSeqRef.current++ // 输入即作废在途响应
+      setGhost(prev => (prev.visible || prev.loading ? { text: '', visible: false, loading: false, position: null } : prev))
+      debounceRef.current = setTimeout(request, GHOST_DEBOUNCE_MS)
+    }
+
+    ta.addEventListener('input', onInput)
+    return () => {
+      ta.removeEventListener('input', onInput)
+      if (debounceRef.current) clearTimeout(debounceRef.current)
+      reqSeqRef.current++
+    }
   }, [enabled])
 
-  // 接受补全：插入文本并清除 ghost
+  // 接受补全：原生 setter 写值 + dispatch input（React 属性钩子对直接赋值
+  // 会去重 onChange——v4.429 微实验实证 onChange 收旧值；原生 setter 绕开钩子，
+  // v4.441.1 走查配方同款，已实证受控组件 onChange 收到新值）。
   const acceptGhost = useCallback(() => {
     const ctx = getCursorContext()
     const ta = ctx?.textareaElement
@@ -78,24 +99,25 @@ const GhostText: React.FC<GhostTextProps> = ({ getCursorContext, enabled, styleP
     const start = ta.selectionStart
     const before = ta.value.slice(0, start)
     const after = ta.value.slice(ta.selectionEnd ?? start)
-    ta.value = before + ghost.text + after
+    const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set
+    if (setter) {
+      setter.call(ta, before + ghost.text + after)
+    } else {
+      ta.value = before + ghost.text + after // 理论不可达：原型描述符恒在
+    }
+    ta.dispatchEvent(new Event('input', { bubbles: true }))
 
-    // 移动光标到补全文本之后
     const newPos = start + ghost.text.length
     ta.setSelectionRange(newPos, newPos)
     ta.focus()
-
-    // 触发 input 事件（React 受控组件需要）
-    ta.dispatchEvent(new Event('input', { bubbles: true }))
 
     setGhost({ text: '', visible: false, loading: false, position: null })
   }, [ghost.text, getCursorContext])
 
   // 取消补全
   const dismissGhost = useCallback(() => {
-    setGhost({ text: '', visible: false, loading: false, position: null })
-    currentRequestRef.current = ''
-  }, [])
+    clearGhost()
+  }, [clearGhost])
 
   // 键盘事件: Tab 接受, Esc 取消
   useEffect(() => {
@@ -160,7 +182,6 @@ const GhostText: React.FC<GhostTextProps> = ({ getCursorContext, enabled, styleP
 
   return (
     <div
-      ref={overlayRef}
       style={{
         position: 'absolute',
         top: ghost.position?.top ?? 0,
@@ -175,7 +196,7 @@ const GhostText: React.FC<GhostTextProps> = ({ getCursorContext, enabled, styleP
         overflow: 'hidden',
       }}
     >
-      {ghost.loading ? '...' : ghost.text}
+      {ghost.loading ? '…' : ghost.text}
     </div>
   )
 }

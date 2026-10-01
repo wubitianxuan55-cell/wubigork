@@ -549,6 +549,7 @@ export const bindingNames = [
   "NovelFingerprintScore",
   "NovelFingerprintStatus",
   "NovelGetRewriteVersion",
+  "NovelGhostSuggest",
   "NovelListRewriteVersions",
   "NovelOutlineReconstruct",
   "NovelOutlineReconstructApply",
