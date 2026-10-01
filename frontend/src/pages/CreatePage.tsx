@@ -792,11 +792,12 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
   const handleDirectGenerate = () => {
     if (!directPlot.trim()) { message.warning('请输入剧情要求'); return }
     const chapNum = activeNode?.order_index || 0
-    // 当前章在大纲里但还没写过正文（planned/中断残留）→ 直接生成它本人，
-    // 而不是「下一章」——用户实测：想生成第2章，因章号传 0 被顺延成第3章
+    // 当前章从未生成过（status==='planned'）→ 直接生成它本人，而不是「下一章」；
+    // chapter_file 不能当判据（生成开始时就写入，中断/已完成都有，误判会覆盖旧章
+    // ——用户实测：第1章被覆盖）。生成过的节点（writing/done）走下一章语义。
     if (chapNum > 0) {
       const active = outlines.find(nx => nx.order_index === chapNum && !nx.parent_id)
-      if (active && !active.chapter_file) { startGeneration(directPlot, chapNum, ''); return }
+      if (active && (active.status || 'planned') === 'planned') { startGeneration(directPlot, chapNum, ''); return }
     }
     const next = outlines.find(nx => nx.order_index === chapNum + 1 && !nx.parent_id)
     if (next) {
@@ -943,13 +944,14 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
   const activeNode = outlines.find(n => n.id === activeId)
   const nextMainChapterNum = Math.max(0, ...outlines.filter(n => !n.parent_id).map(n => n.order_index || 0)) + 1
   const lastMainChapter = nextMainChapterNum - 1
-  // 下一章=第一条没写过正文的主线节点（chapter_file 为空=大纲里有节点但从未成文）；
-  // 全部写过才顺延 max+1。后端 0=「顺延 len(节点)+1」，大纲有未写节点时会跳章
-  // （用户实测：生成第2章变第3章）——故所有生成入口显式带章号。
+  // 下一章=第一条从未生成过的主线节点（status==='planned'；生成过的节点在
+  // ensureChapterNode 时就置 writing+chapter_file，中断残留也是 writing——都不能再当
+  // 「未写」跳进新号）。全无 planned 才顺延 max+1。后端 0=「顺延 len(节点)+1」，
+  // 大纲有未写节点时会跳章（用户实测：生成第2章变第3章）——故入口显式带章号。
   const nextToWrite = useCallback((): number => {
     const main = outlines.filter(n => !n.parent_id).sort((a, b) => (a.order_index || 0) - (b.order_index || 0))
     for (const n of main) {
-      if (!n.chapter_file && (n.order_index || 0) > 0) return n.order_index
+      if ((n.status || 'planned') === 'planned' && (n.order_index || 0) > 0) return n.order_index
     }
     return nextMainChapterNum
   }, [outlines, nextMainChapterNum])

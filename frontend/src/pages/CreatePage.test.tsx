@@ -874,8 +874,9 @@ describe('CreatePage 优化批 2 线2（A1/A2a/A3/A4/A6/A7/A8/B5a）', () => {
     const before = confirms().length
     fireEvent.click(screen.getByRole('button', { name: /按剧情要求直接生成/ }))
 
-    // 生成中活动章已是本次生成的章（未成文）→ 走「生成本人」短路，不再弹覆盖框，
-    // 由 startGeneration 的在途守卫给可见提示
+    // 活动章已生成过（done）→ 走「下一章已存在」覆盖确认；选覆盖后被在途守卫拦下
+    const choice = await latestConfirm(before)
+    fireEvent.click(choice.getByRole('button', { name: '覆盖下一章' }))
     expect(await screen.findByText(/正在生成，请先停止生成再开始新的生成/)).toBeTruthy()
     expect(mocks.CreateChapter).toHaveBeenCalledTimes(1)
   })
