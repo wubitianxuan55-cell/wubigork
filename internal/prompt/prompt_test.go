@@ -32,11 +32,11 @@ func TestEngineGetMissing(t *testing.T) {
 func TestEngineGetAllTemplates(t *testing.T) {
 	eng := NewEngine("../../prompts")
 	names := []string{
-		"create-chapter", "chapter-summary", "chapter-review",
+		"create-chapter", "create-chapter-first", "chapter-summary", "chapter-review",
 		"character-agent", "character-detail", "character-generate-single", "character-generate-batch",
 		"worldview-agent",
 		"outline-chat", "outline-chat-node", "outline-continue", "outline-expand",
-		"analysis-chapter", "plot-branch-browser", "create-chapter",
+		"analysis-chapter", "plot-branch-browser",
 	}
 	for _, name := range names {
 		if tmpl := eng.Get(name); tmpl == nil {

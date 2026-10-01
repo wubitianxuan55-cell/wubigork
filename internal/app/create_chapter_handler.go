@@ -16,6 +16,7 @@ import (
 	"github.com/gaea/gaea/internal/novelcontext"
 	"github.com/gaea/gaea/internal/novelstyle"
 	"github.com/gaea/gaea/internal/project"
+	"github.com/gaea/gaea/internal/prompt"
 	"github.com/gaea/gaea/internal/types"
 	"github.com/gaea/gaea/internal/util"
 )
@@ -133,8 +134,9 @@ func (a *writingState) createChapter(setting, prevSummary, plotReq string, chapt
 		outlineSec = buildOutlinePointsSection(findOutlineNodeByNum(of.Nodes, ctxChapterNum))
 	}
 
-	// 7. 构建 prompt（通过模板 + Skill 注入）
-	tmpl := a.eng.Get("create-chapter")
+	// 7. 构建 prompt（通过模板 + Skill 注入）。第一章是全书开篇，走开篇专用
+	//    模板（缺失回落通用，见 pickCreateChapterTemplate）。
+	tmpl := pickCreateChapterTemplate(a.eng, ctxChapterNum)
 	if tmpl == nil {
 		return nil, fmt.Errorf("缺少 create-chapter 模板文件")
 	}
@@ -769,6 +771,19 @@ func resolveTargetChapterNum(of *types.OutlineFile, chapterNum int, branchFromNo
 		return 0
 	}
 	return len(of.Nodes) + 1
+}
+
+// pickCreateChapterTemplate 选章节正文生成模板：第一章是全书开篇，钩子铺设与
+// 设定释放节奏和常规章节不同，走专用模板 create-chapter-first；专用模板缺失时
+// 回落通用模板 create-chapter（旧磁盘 prompts/ 或测试桩只带通用模板也能跑）。
+func pickCreateChapterTemplate(eng *prompt.Engine, chapterNum int) *prompt.Template {
+	tmpl := eng.Get("create-chapter")
+	if chapterNum == 1 {
+		if first := eng.Get("create-chapter-first"); first != nil {
+			tmpl = first
+		}
+	}
+	return tmpl
 }
 
 // ensureChapterNode 确定章节号并创建/复用节点（同步，在 AI 生成前执行）。
