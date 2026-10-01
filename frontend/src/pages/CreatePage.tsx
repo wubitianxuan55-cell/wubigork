@@ -30,7 +30,7 @@ import ChapterPlanCard, { type PlanGateReport, type PlanProblem } from '../compo
 import { chooseAction, chooseUnsavedAction } from '../components/novel/unsavedGuard'
 import { registerNovelDirtyProvider, takeDiscardConfirmed } from '../components/novel/novelSwitchGuard'
 
-interface WizardRequest { prevChapter: number; overwriteChapter: number; branchFromID: string }
+interface WizardRequest { prevChapter: number; overwriteChapter: number; branchFromID: string; targetChapter: number }
 const BRAINSTORM_MSG_KEY = 'novel-brainstorm-loading'
 
 // ── 创作参数持久化（v4.421.0）──
@@ -522,7 +522,9 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
     if (brainstormingRef.current) { message.info('上一轮构思还在后台进行，完成后会自动弹出'); return }
     setWizardBranches([]) // 新章的选角会议从零开始（要延续走「延续上一章」）
     setWizardCastSelection([])
-    setWizard({ prevChapter, overwriteChapter, branchFromID })
+    // 目标章号显式化：覆盖=被覆盖章；分支=0（后端按分支节点定章）；新章=第一条未成文主线节点
+    const targetChapter = overwriteChapter > 0 ? overwriteChapter : (branchFromID ? 0 : nextToWrite())
+    setWizard({ prevChapter, overwriteChapter, branchFromID, targetChapter })
     // 选角会议数据源：项目名册 + 角色库候选 + 上一章出场（失败静默降级，不阻断选角）
     void (async () => {
       try {
@@ -547,7 +549,7 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
   // 后台构思分支：弹窗随即收起（可继续操作其他内容），完成后按原请求自动弹回分支步
   const startBrainstorm = useCallback((cast: BranchCastEntry[]) => {
     if (brainstormingRef.current) { message.info('上一轮构思还在后台进行，完成后会自动弹出'); return }
-    const req = wizard ?? { prevChapter: 0, overwriteChapter: 0, branchFromID: '' }
+    const req = wizard ?? { prevChapter: 0, overwriteChapter: 0, branchFromID: '', targetChapter: 0 }
     brainstormReqRef.current = req
     brainstormingRef.current = true
     setWizardCastSelection(cast)
@@ -790,6 +792,12 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
   const handleDirectGenerate = () => {
     if (!directPlot.trim()) { message.warning('请输入剧情要求'); return }
     const chapNum = activeNode?.order_index || 0
+    // 当前章在大纲里但还没写过正文（planned/中断残留）→ 直接生成它本人，
+    // 而不是「下一章」——用户实测：想生成第2章，因章号传 0 被顺延成第3章
+    if (chapNum > 0) {
+      const active = outlines.find(nx => nx.order_index === chapNum && !nx.parent_id)
+      if (active && !active.chapter_file) { startGeneration(directPlot, chapNum, ''); return }
+    }
     const next = outlines.find(nx => nx.order_index === chapNum + 1 && !nx.parent_id)
     if (next) {
       // v4.421.0：并列分支不再挂在 Modal.confirm 的 onCancel 上——✕/Esc（用户想退出）
@@ -802,7 +810,7 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
           { label: '作为分支追加', tone: 'primary', run: () => startGeneration(directPlot, 0, next.id) },
         ],
       })
-    } else { startGeneration(directPlot, 0, '') }
+    } else { startGeneration(directPlot, nextToWrite(), '') }
   }
 
   const handleDelete = (node: OutlineNode) => {
@@ -935,6 +943,16 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
   const activeNode = outlines.find(n => n.id === activeId)
   const nextMainChapterNum = Math.max(0, ...outlines.filter(n => !n.parent_id).map(n => n.order_index || 0)) + 1
   const lastMainChapter = nextMainChapterNum - 1
+  // 下一章=第一条没写过正文的主线节点（chapter_file 为空=大纲里有节点但从未成文）；
+  // 全部写过才顺延 max+1。后端 0=「顺延 len(节点)+1」，大纲有未写节点时会跳章
+  // （用户实测：生成第2章变第3章）——故所有生成入口显式带章号。
+  const nextToWrite = useCallback((): number => {
+    const main = outlines.filter(n => !n.parent_id).sort((a, b) => (a.order_index || 0) - (b.order_index || 0))
+    for (const n of main) {
+      if (!n.chapter_file && (n.order_index || 0) > 0) return n.order_index
+    }
+    return nextMainChapterNum
+  }, [outlines, nextMainChapterNum])
 
   // ── 叙事状态账本（作者审批制）──
   const activeChapterNum = activeNode?.order_index || lastMainChapter
@@ -1324,7 +1342,8 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
       {/* A8：本弹窗常驻挂载，事件通道一直在听——不按 active 门控就会在别的子页上盖出遮罩 */}
       <NewCharactersModal active={active} />
       <BranchWizardModal open={!!wizard}
-        prevChapter={wizard?.prevChapter ?? 0} overwriteChapter={wizard?.overwriteChapter ?? 0}
+        prevChapter={wizard?.prevChapter ?? 0} targetChapter={wizard?.targetChapter ?? 0}
+        overwriteChapter={wizard?.overwriteChapter ?? 0}
         branchFromID={wizard?.branchFromID ?? ''} characters={wizardCast}
         libraryCharacters={wizardLibCast} prevChapterCast={wizardPrevCast}
         cast={wizardCastSelection} onCastChange={setWizardCastSelection}

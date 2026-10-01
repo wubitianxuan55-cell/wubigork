@@ -180,7 +180,7 @@ describe('CreatePage 生成控制（T6-7.2 停止按钮 + cancelled 事件）', 
   it('默认使用 story-deslop 技能生成章节', async () => {
     await startGeneration()
     expect(mocks.CreateChapter).toHaveBeenCalledWith(
-      expect.any(String), '', '主角觉醒', 0, '', 'story-deslop', 5000, 0,
+      expect.any(String), '', '主角觉醒', 1, '', 'story-deslop', 5000, 0,
     )
   })
 
@@ -260,12 +260,13 @@ describe('CreatePage 生成控制（T6-7.2 停止按钮 + cancelled 事件）', 
       expect(screen.getByRole('dialog', { name: /剧情方向/ }).textContent).toContain('帝国阴谋')
     }, { timeout: 5000 })
 
-    // 选择分支并生成 → CreateChapter 携带分支拼装的剧情要求
+    // 选择分支并生成 → CreateChapter 携带分支拼装的剧情要求 + 显式章号
+    // （空大纲 nextToWrite=1；章号显式化修复「生成第2章变第3章」的顺延跳章）
     fireEvent.click(screen.getByText(/帝国阴谋/))
     fireEvent.click(screen.getByRole('button', { name: /^生\s*成$/ }))
     await waitFor(() => {
       expect(mocks.CreateChapter).toHaveBeenCalledWith(
-        expect.any(String), '', expect.stringContaining('帝国阴谋'), 0, '', 'story-deslop', 5000, 0,
+        expect.any(String), '', expect.stringContaining('帝国阴谋'), 1, '', 'story-deslop', 5000, 0,
       )
     })
     await waitFor(() => expect(screen.queryByRole('dialog', { name: /剧情方向/ })).toBeNull())
@@ -590,7 +591,7 @@ describe('CreatePage 章节计划硬闸（刀1 线D）', () => {
     await waitFor(() => expect(mocks.CreateChapterWithOverride).toHaveBeenCalledTimes(1))
     // 覆盖走专用入口（旧 8 参 CreateChapter 恒等于 allowOverride=false）
     expect(mocks.CreateChapterWithOverride).toHaveBeenCalledWith(
-      expect.any(String), '', '主角觉醒', 0, '', 'story-deslop', 5000, 0, true,
+      expect.any(String), '', '主角觉醒', 1, '', 'story-deslop', 5000, 0, true,
     )
     expect(mocks.CreateChapter).not.toHaveBeenCalled()
   })
@@ -687,9 +688,8 @@ describe('CreatePage 优化批 2 线2（A1/A2a/A3/A4/A6/A7/A8/B5a）', () => {
   }
 
   /**
-   * 渲染并启动一次生成。第 1 章已存在 → handleDirectGenerate 会先弹
-   * 「覆盖下一章 / 作为分支追加」并列确认（旧实现把第二分支挂在 onCancel 上的那处），
-   * 走「覆盖下一章」才真正落到 startGeneration。
+   * 渲染并启动一次生成。无活动章 → handleDirectGenerate 弹
+   * 「覆盖下一章 / 作为分支追加」并列确认，走「覆盖下一章」落到 startGeneration。
    */
   async function startDirectGeneration() {
     render(<CreatePage />)
@@ -873,9 +873,9 @@ describe('CreatePage 优化批 2 线2（A1/A2a/A3/A4/A6/A7/A8/B5a）', () => {
     fireEvent.change(plot, { target: { value: '再写一章' } })
     const before = confirms().length
     fireEvent.click(screen.getByRole('button', { name: /按剧情要求直接生成/ }))
-    const choice = await latestConfirm(before)
-    fireEvent.click(choice.getByRole('button', { name: '覆盖下一章' }))
 
+    // 生成中活动章已是本次生成的章（未成文）→ 走「生成本人」短路，不再弹覆盖框，
+    // 由 startGeneration 的在途守卫给可见提示
     expect(await screen.findByText(/正在生成，请先停止生成再开始新的生成/)).toBeTruthy()
     expect(mocks.CreateChapter).toHaveBeenCalledTimes(1)
   })

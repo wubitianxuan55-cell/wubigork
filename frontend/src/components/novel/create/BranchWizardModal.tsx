@@ -11,6 +11,8 @@ export interface BranchCastEntry { name: string; relation?: string; note?: strin
 interface BranchWizardModalProps {
   open: boolean
   prevChapter: number
+  /** 本次要生成的目标章号（页面层按「第一条未成文主线节点」显式算好；0=分支续写由后端定章） */
+  targetChapter: number
   overwriteChapter: number
   branchFromID: string
   /** 项目角色名册（选角候选） */
@@ -38,7 +40,7 @@ interface BranchWizardModalProps {
  * 操作其他内容；构思完成自动弹回分支步。分支步改选角会提示重新构思。
  */
 const BranchWizardModal: React.FC<BranchWizardModalProps> = ({
-  open, prevChapter, overwriteChapter, branchFromID, characters, libraryCharacters, prevChapterCast,
+  open, prevChapter, targetChapter, overwriteChapter, branchFromID, characters, libraryCharacters, prevChapterCast,
   cast, onCastChange, preloadedBranches, onStartBrainstorm, onClose, onStart,
 }) => {
   const [selectedBranch, setSelectedBranch] = useState<number | null>(null)
@@ -69,7 +71,10 @@ const BranchWizardModal: React.FC<BranchWizardModalProps> = ({
   const confirmGenerate = () => {
     const chosen = selectedBranch !== null ? preloadedBranches?.[selectedBranch] : undefined
     const plotReq = userInput.trim() || (chosen ? `${chosen.title}：${chosen.pitch}` : '')
-    onStart(plotReq, overwriteChapter, branchFromID)
+    // 章号显式化：覆盖=被覆盖章；分支=0（后端按分支节点定章）；新章=targetChapter
+    // （页面层按「第一条未成文主线节点」算好）——不传 0，后端顺延 len(节点)+1 会跳章
+    const chapter = overwriteChapter > 0 ? overwriteChapter : (branchFromID ? 0 : targetChapter)
+    onStart(plotReq, chapter, branchFromID)
     onClose()
   }
 
