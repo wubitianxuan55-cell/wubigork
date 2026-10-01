@@ -439,6 +439,8 @@ export interface NovelBindings {
   NovelEvalBaselineSet(): Promise<Record<string, unknown>>;
   // NovelEvalSnapshotsList 历史快照索引（v4.447；新→旧，坏档跳过；行键见面板消费）。
   NovelEvalSnapshotsList(): Promise<Array<Record<string, unknown>>>;
+  // NovelEvalSnapshotDelete 删除一份历史快照（v4.448；文件名白名单护栏）。
+  NovelEvalSnapshotDelete(name: string): Promise<void>;
   // 最近快照 vs 基线逐指标 Δ（hash 不一致标 stale）。
   NovelEvalCompare(): Promise<Record<string, unknown>>;
   // SaveSceneMeta 保存场景元数据（标题/概要/POV/地点/时间/情感/标签/状态；正文走 SaveScene）。

@@ -345,3 +345,35 @@ func TestEvalSnapshotsList(t *testing.T) {
 		t.Fatalf("无目录应返回空切片非 nil: %v", empty)
 	}
 }
+
+// TestEvalSnapshotDelete 删除护栏（v4.448）：白名单外（路径穿越/任意文件名）
+// 拒绝；白名单内删得掉且索引同步；不存在如实报错。
+func TestEvalSnapshotDelete(t *testing.T) {
+	a := newGateEmptyApp()
+	buildEvalCorpusBook(t, a, "healthy", evalHealthyChapter, evalCorpusForeshadows(10, 8))
+
+	if _, err := a.NovelEvalSnapshot(true); err != nil {
+		t.Fatalf("persist: %v", err)
+	}
+	list, _ := a.NovelEvalSnapshotsList()
+	name := list[0]["name"].(string)
+
+	// 白名单外一律拒绝（穿越/任意名/目录）
+	for _, bad := range []string{"../baseline.json", "foo.txt", "", "eval/snapshots/x.json", "."} {
+		if err := a.NovelEvalSnapshotDelete(bad); err == nil {
+			t.Fatalf("非法名必须拒绝: %q", bad)
+		}
+	}
+	// 白名单内删除成功且索引同步
+	if err := a.NovelEvalSnapshotDelete(name); err != nil {
+		t.Fatalf("删除: %v", err)
+	}
+	list2, _ := a.NovelEvalSnapshotsList()
+	if len(list2) != 0 {
+		t.Fatalf("删除后索引应为空: %d", len(list2))
+	}
+	// 再删一次：不存在如实报错
+	if err := a.NovelEvalSnapshotDelete(name); err == nil {
+		t.Fatalf("删除不存在的快照必须报错")
+	}
+}

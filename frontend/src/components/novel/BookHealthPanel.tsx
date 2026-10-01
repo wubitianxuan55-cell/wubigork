@@ -7,7 +7,7 @@
 // 纯 SVG 折线（零新依赖）；未分析章诚实跳过并计数。
 import { softTextStyle } from '../../utils/uiStyles'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
-import { Alert, Button, Empty, Modal, Spin, Table, Tag, Typography, message } from 'antd'
+import { Alert, Button, Empty, Modal, Popconfirm, Spin, Table, Tag, Typography, message } from 'antd'
 import { app } from '../../gaea/lib/bridge'
 import { useAppStore } from '../../stores/appStore'
 import type { BookHealthReportView, ChapterAnalysisV2View } from '../../gaea/lib/bridge/novel'
@@ -200,6 +200,16 @@ export default function BookHealthPanel({ open, onClose }: {
       setEvalHistLoading(false)
     }
   }, [])
+  // v4.448 删除一份历史快照（后端文件名白名单护栏；删除后刷新索引）。
+  const deleteEvalSnapshot = useCallback(async (name: string) => {
+    try {
+      await app.NovelEvalSnapshotDelete(name)
+      message.success('已删除快照')
+      await loadEvalHistory()
+    } catch (e) {
+      message.error(`删除失败：${e instanceof Error ? e.message : String(e)}`)
+    }
+  }, [loadEvalHistory])
   const runEvalBase = useCallback(async () => {
     setEvalBusy('base')
     try {
@@ -368,6 +378,18 @@ export default function BookHealthPanel({ open, onClose }: {
                     { title: 'S1/S2/S3', width: 100, render: (_v, r) => <span style={{ fontVariantNumeric: 'tabular-nums' }}>{r.s1}/{r.s2}/{r.s3}</span> },
                     { title: '回收率', dataIndex: 'recall', width: 70, render: (v: number) => <span style={{ fontVariantNumeric: 'tabular-nums' }}>{v}</span> },
                     { title: '张力均值', dataIndex: 'tensionMean', width: 80, render: (v: number, r) => (r.tensionCover ?? 0) > 0 ? <span style={{ fontVariantNumeric: 'tabular-nums' }}>{v}</span> : <span style={softTextStyle}>—</span> },
+                    {
+                      title: '', width: 56,
+                      render: (_v: number, r) => (
+                        <Popconfirm
+                          title={`删除快照 ${r.name}？`}
+                          okText="删除" cancelText="取消"
+                          onConfirm={() => { void deleteEvalSnapshot(r.name ?? '') }}
+                        >
+                          <Button size="small" type="text" danger aria-label={`删除快照 ${r.name}`}>删除</Button>
+                        </Popconfirm>
+                      ),
+                    },
                   ]} />
               )
             )}

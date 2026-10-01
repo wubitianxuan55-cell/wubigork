@@ -544,6 +544,7 @@ export const bindingNames = [
   "NovelDiscardRewriteVersion",
   "NovelEvalBaselineSet",
   "NovelEvalCompare",
+  "NovelEvalSnapshotDelete",
   "NovelEvalSnapshot",
   "NovelEvalSnapshotsList",
   "NovelFingerprintBuild",

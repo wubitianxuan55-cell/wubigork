@@ -113,6 +113,11 @@ func (b *NovelB) NovelGhostSuggest(textBefore string) (string, error) {
 func (b *NovelB) NovelEvalSnapshotsList() ([]map[string]interface{}, error) {
 	return b.a.NovelEvalSnapshotsList()
 }
+
+// NovelEvalSnapshotDelete 删除一份历史快照（v4.448；文件名白名单护栏）。
+func (b *NovelB) NovelEvalSnapshotDelete(name string) error {
+	return b.a.NovelEvalSnapshotDelete(name)
+}
 func (b *NovelB) GenerateSceneIllustration(chapterNum int, optsJSON string) (map[string]interface{}, error) {
 	return b.a.GenerateSceneIllustration(chapterNum, optsJSON)
 }

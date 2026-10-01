@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   evalBase: vi.fn(),
   evalCmp: vi.fn(),
   evalList: vi.fn(),
+  evalDelete: vi.fn(),
 }))
 
 vi.mock('../../gaea/lib/bridge', async (importOriginal) => {
@@ -23,6 +24,7 @@ vi.mock('../../gaea/lib/bridge', async (importOriginal) => {
       NovelEvalBaselineSet: mocks.evalBase,
       NovelEvalCompare: mocks.evalCmp,
       NovelEvalSnapshotsList: mocks.evalList,
+      NovelEvalSnapshotDelete: mocks.evalDelete,
     },
   }
 })
@@ -285,6 +287,7 @@ describe('BookHealthPanel 历史快照（v4.447）', () => {
     mocks.evalBase.mockReset()
     mocks.evalCmp.mockReset()
     mocks.evalList.mockReset()
+    mocks.evalDelete.mockReset()
   })
 
   it('生成快照走 persist 落盘并回显 savedAs；历史表按新→旧渲染、坏档行不出现', async () => {
@@ -317,5 +320,41 @@ describe('BookHealthPanel 历史快照（v4.447）', () => {
     render(<BookHealthPanel open onClose={vi.fn()} />)
     fireEvent.click(await screen.findByText('查看历史快照'))
     expect(await screen.findByText(/还没有持久化快照/)).toBeTruthy()
+  })
+})
+
+describe('BookHealthPanel 历史快照删除（v4.448）', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.run.mockReset()
+    mocks.run.mockResolvedValue(REPORT as never)
+    mocks.evalSnap.mockReset()
+    mocks.evalBase.mockReset()
+    mocks.evalCmp.mockReset()
+    mocks.evalList.mockReset()
+    mocks.evalDelete.mockReset()
+  })
+
+  it('Popconfirm 确认后调删除绑定并刷新索引；取消不删', async () => {
+    mocks.evalList.mockResolvedValue([
+      { name: '20261002T120000.000Z.json', chapters: 30, tasteMean: 40, s1: 0, s2: 1, s3: 2, recall: 0.8, tensionMean: 5.5, tensionCover: 30 },
+    ] as never)
+    mocks.evalDelete.mockResolvedValue(undefined as never)
+    render(<BookHealthPanel open onClose={vi.fn()} />)
+    fireEvent.click(await screen.findByText('查看历史快照'))
+    const del = await screen.findByRole('button', { name: '删除快照 20261002T120000.000Z.json' })
+    fireEvent.click(del)
+    // Popconfirm 取消：不删
+    fireEvent.click(await screen.findByText(/取\s*消/))
+    expect(mocks.evalDelete).not.toHaveBeenCalled()
+    // Popconfirm 确认：删 + 刷新索引
+    fireEvent.click(del)
+    const confirmBtn = screen
+      .getAllByText(/删\s*除/)
+      .map((el) => el.closest('button'))
+      .find((b) => b && b.closest('.ant-popover'))
+    fireEvent.click(confirmBtn!)
+    await waitFor(() => expect(mocks.evalDelete).toHaveBeenCalledWith('20261002T120000.000Z.json'))
+    await waitFor(() => expect(mocks.evalList).toHaveBeenCalledTimes(2))
   })
 })
