@@ -402,13 +402,111 @@ func TestNovelChapterRewrite_SceneChapterRoundtrip(t *testing.T) {
 	}
 }
 
-// TestNovelChapterRewrite_PartialRejectsSceneChapter partial 对 v4 场景章拒绝。
-func TestNovelChapterRewrite_PartialRejectsSceneChapter(t *testing.T) {
+// TestNovelChapterRewrite_PartialSceneChapterUnlocked v4.442 场景章局部重写解禁
+// 全链：提案按 blob 拼接语义定位归属场景（SceneID/SceneOriginal/SceneNew 落版本），
+// 应用只动归属场景（结构保持、他场字节不动、blob 同步），恢复对称还原。
+func TestNovelChapterRewrite_PartialSceneChapterUnlocked(t *testing.T) {
+	const rewritten = "新写的一幕。"
+	a := newRewriteTestApp(t, rewritten)
+	mustMakeV4SceneChapter(t, a, 2, "场景一原文。", "场景二原文。")
+
+	// 提案：选段=场景一全文（blob 起点 0，长度 6 rune）
+	resp, err := a.NovelChapterRewrite(2, `{"mode":"partial","source":"custom","custom_instructions":"收紧","start_pos":0,"end_pos":6,"selected_text":"场景一原文。"}`)
+	if err != nil {
+		t.Fatalf("场景章 partial 解禁后应放行: %v", err)
+	}
+	versionID, _ := resp["versionId"].(string)
+	if versionID == "" {
+		t.Fatalf("缺 versionId: %v", resp)
+	}
+	if resp["newContent"] != rewritten+"\n\n场景二原文。" {
+		t.Fatalf("newContent 应为 blob 拼接口径: %q", resp["newContent"])
+	}
+
+	v, err := a.NovelGetRewriteVersion(2, versionID)
+	if err != nil {
+		t.Fatalf("读版本: %v", err)
+	}
+	if v.SceneID == "" {
+		t.Fatalf("场景章 partial 版本必须落 SceneID")
+	}
+	if v.SceneOriginal != "场景一原文。" {
+		t.Fatalf("SceneOriginal 应为归属场景全文: %q", v.SceneOriginal)
+	}
+	if v.SceneNew != rewritten {
+		t.Fatalf("SceneNew 应为场景级拼接结果: %q", v.SceneNew)
+	}
+
+	// 应用：只动归属场景（结构保持、他场字节不动）
+	if _, err := a.NovelApplyRewriteVersion(2, versionID); err != nil {
+		t.Fatalf("应用: %v", err)
+	}
+	sm := a.getPM().SceneManager(2)
+	metas, _ := sm.List()
+	if len(metas) != 2 {
+		t.Fatalf("应用后场景结构必须保持（got %d scenes）", len(metas))
+	}
+	sc1, _ := sm.Read(metas[0].ID)
+	sc2, _ := sm.Read(metas[1].ID)
+	if sc1.Content != rewritten {
+		t.Fatalf("归属场景应更新: %q", sc1.Content)
+	}
+	if sc2.Content != "场景二原文。" {
+		t.Fatalf("他场必须字节不动: %q", sc2.Content)
+	}
+	blob, _ := a.getPM().ReadChapter(2)
+	if blob != rewritten+"\n\n场景二原文。" {
+		t.Fatalf("blob 投影应同步: %q", blob)
+	}
+
+	// 恢复：场景级对称还原
+	if _, err := a.NovelRestoreRewriteVersion(2, versionID); err != nil {
+		t.Fatalf("恢复: %v", err)
+	}
+	sc1, _ = sm.Read(metas[0].ID)
+	if sc1.Content != "场景一原文。" {
+		t.Fatalf("恢复后归属场景应还原: %q", sc1.Content)
+	}
+	metas, _ = sm.List()
+	if len(metas) != 2 {
+		t.Fatalf("恢复后场景结构必须保持")
+	}
+}
+
+// TestNovelChapterRewrite_PartialSceneSpanRejected 选段跨场景如实拒绝并点名。
+func TestNovelChapterRewrite_PartialSceneSpanRejected(t *testing.T) {
 	a := newRewriteTestApp(t, "不应被调用")
 	mustMakeV4SceneChapter(t, a, 2, "场景一原文。", "场景二原文。")
 
-	_, err := a.NovelChapterRewrite(2, `{"mode":"partial","source":"custom","custom_instructions":"收紧","start_pos":0,"end_pos":5,"selected_text":"场景一原文。"}`)
-	if err == nil || !strings.Contains(err.Error(), "局部重写") {
-		t.Fatalf("场景章 partial 应拒绝: %v", err)
+	// 选段横跨两场景（blob 全长 = 6+2+6=14 rune）
+	_, err := a.NovelChapterRewrite(2, `{"mode":"partial","source":"custom","custom_instructions":"收紧","start_pos":0,"end_pos":14,"selected_text":"场景一原文。\n\n场景二原文。"}`)
+	if err == nil || !strings.Contains(err.Error(), "跨越场景边界") {
+		t.Fatalf("跨场景选段应拒绝并点名: %v", err)
+	}
+}
+
+// TestNovelChapterRewrite_PartialSceneIntegrityReject 提案后归属场景被改 → 应用拒绝。
+func TestNovelChapterRewrite_PartialSceneIntegrityReject(t *testing.T) {
+	a := newRewriteTestApp(t, "新的一幕。")
+	mustMakeV4SceneChapter(t, a, 2, "场景一原文。", "场景二原文。")
+
+	resp, err := a.NovelChapterRewrite(2, `{"mode":"partial","source":"custom","custom_instructions":"收紧","start_pos":0,"end_pos":6,"selected_text":"场景一原文。"}`)
+	if err != nil {
+		t.Fatalf("提案: %v", err)
+	}
+	versionID, _ := resp["versionId"].(string)
+
+	// 提案后手改归属场景（旁路）
+	sm := a.getPM().SceneManager(2)
+	metas, _ := sm.List()
+	sc1, _ := sm.Read(metas[0].ID)
+	sc1.Content = "场景一被手改了。"
+	if err := sm.Write(sc1); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = a.NovelApplyRewriteVersion(2, versionID)
+	if err == nil || !strings.Contains(err.Error(), "修改过") {
+		t.Fatalf("提案后场景被改必须拒绝应用: %v", err)
 	}
 }

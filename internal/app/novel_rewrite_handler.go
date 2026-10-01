@@ -149,17 +149,31 @@ func (a *writingState) NovelChapterRewrite(chapterNum int, reqJSON string) (map[
 // 只重写选段 → 清理输出 → 前后文原样拼接 → 版本落全文快照（回滚=整章恢复，
 // 对齐 whole；MuMu 局部重写无快照无 undo 是 F5 缺陷）。
 // 口径：docs/distill/04-plot-analysis.md §5.3；rune 偏移由前端换算，后端全程 rune。
+// v4.442 场景章解禁：v4 场景章走「选段→归属场景映射」——blob 拼接语义（
+// syncBlobFromScenes 同款 "\n\n" join）定位归属场景，选段跨场景如实拒绝；
+// 提案/应用/恢复三路以 SceneID 分流（场景拼接语义，结构保持），前端契约零变更。
 func (a *writingState) novelChapterRewritePartial(pm *project.Manager, chapterNum int, req types.RewriteRequest) (map[string]interface{}, error) {
-	// v4 场景章守卫：选段拼接回写会破坏场景结构且无法对齐边界，V1 不做
-	//（观察池：选段→场景映射）。整章重写对场景章已开放（whole 路径）。
+	// v4 场景章：以场景真值重算 blob 投影（不直接信磁盘 blob——场景写路径每次
+	// 都 sync，但手工改场景文件等旁路可能失同步；以场景为准才配谈「归属场景」）。
+	var sceneSplice *sceneSplicePlan
 	if pm.IsV4() {
 		if metas, err := pm.SceneManager(chapterNum).List(); err == nil && len(metas) > 0 {
-			return nil, fmt.Errorf("场景工程章暂不支持局部重写（选段与场景边界无法对齐），请使用整章重写")
+			plan, perr := buildSceneSplicePlan(pm, chapterNum)
+			if perr != nil {
+				return nil, perr
+			}
+			sceneSplice = plan
 		}
 	}
-	original, err := pm.ReadChapter(chapterNum)
-	if err != nil {
-		return nil, fmt.Errorf("读取章节失败: %w", err)
+	original := ""
+	if sceneSplice != nil {
+		original = sceneSplice.blob
+	} else {
+		var err error
+		original, err = pm.ReadChapter(chapterNum)
+		if err != nil {
+			return nil, fmt.Errorf("读取章节失败: %w", err)
+		}
 	}
 	runes := []rune(original)
 	start, end, reanchored, err := rewrite.ResolveSelection(original, req.StartPos, req.EndPos, req.SelectedText)
@@ -167,9 +181,19 @@ func (a *writingState) novelChapterRewritePartial(pm *project.Manager, chapterNu
 		return nil, err
 	}
 	selected := string(runes[start:end])
-	// ±500 rune 前后文（仅进指令供参考，不进 chapter_content）
-	ctxBefore := string(runes[max(0, start-500):start])
-	ctxAfter := string(runes[end:min(len(runes), end+500)])
+	// ±500 rune 前后文（仅进指令供参考，不进 chapter_content）。场景章把上下文
+	// 限定在归属场景内——跨场景的前后文对本场景重写是噪声，还会泄下文剧透。
+	ctxBefore, ctxAfter := string(runes[max(0, start-500):start]), string(runes[end:min(len(runes), end+500)])
+	if sceneSplice != nil {
+		if err := sceneSplice.checkSpan(start, end); err != nil {
+			return nil, err
+		}
+		before, after, cerr := sceneSplice.contextAround(start, end, 500)
+		if cerr != nil {
+			return nil, cerr
+		}
+		ctxBefore, ctxAfter = before, after
+	}
 
 	spec := rewrite.PartialLengthSpec(req.LengthMode, len([]rune(selected)), req.TargetWordCount)
 	instruction := rewrite.BuildPartialInstruction(req.CustomInstructions, selected, ctxBefore, ctxAfter, spec)
@@ -220,6 +244,13 @@ func (a *writingState) novelChapterRewritePartial(pm *project.Manager, chapterNu
 		NewContent:        newFull,
 		NewWordCount:      len([]rune(newFull)),
 		Similarity:        diff.Similarity,
+	}
+	if sceneSplice != nil {
+		// 场景拼接语义：应用/恢复只动归属场景（SceneNew/SceneOriginal 是场景级
+		// 真值）；newFull 保持全文口径供前端 diff/预览，契约不变。
+		v.SceneID = sceneSplice.sceneID()
+		v.SceneOriginal, v.SceneNew = sceneSplice.splice(newSelected, start, end)
+		v.SceneStart, v.SceneEnd = sceneSplice.sceneOffsets(start, end)
 	}
 	if req.LengthMode == rewrite.LengthModeCustom {
 		v.TargetWords = req.TargetWordCount
@@ -291,6 +322,39 @@ func (a *writingState) NovelApplyRewriteVersion(chapterNum int, versionID string
 	if strings.TrimSpace(v.NewContent) == "" {
 		return nil, fmt.Errorf("版本无新内容，不可应用")
 	}
+	// v4.442 场景拼接语义：SceneID 非空 = 只动归属场景（结构保持），完整性
+	// 校验 SceneOriginal 逐字比对——提案后场景被改过就拒绝（偏移已失效），
+	// 应用前先落场景快照（同 NovelSceneRewrite 口径）。
+	if v.SceneID != "" {
+		sm := pm.SceneManager(chapterNum)
+		scene, err := sm.Read(v.SceneID)
+		if err != nil {
+			return nil, fmt.Errorf("读取归属场景失败: %w", err)
+		}
+		if scene.Content != v.SceneOriginal {
+			return nil, fmt.Errorf("归属场景「%s」在提案后被修改过，本版本不可应用（请重新选段重写）", scene.Meta.Title)
+		}
+		if strings.TrimSpace(v.SceneNew) == "" {
+			return nil, fmt.Errorf("版本缺场景新内容，不可应用")
+		}
+		if _, cerr := pm.SnapshotStore(chapterNum).Capture(v.SceneID, scene.Content, "局部重写应用前", "partial-apply"); cerr != nil {
+			slog.Warn("局部重写应用前快照失败（继续应用）", "scene", v.SceneID, "error", cerr)
+		}
+		scene.Content = v.SceneNew
+		scene.Meta.WordCount = len([]rune(v.SceneNew))
+		if err := sm.Write(scene); err != nil {
+			return nil, fmt.Errorf("写回归属场景失败: %w", err)
+		}
+		syncBlobFromScenes(pm, chapterNum)
+		now := time.Now()
+		v.Status = types.RewriteApplied
+		v.AppliedAt = &now
+		if err := pm.UpdateRewriteVersion(v); err != nil {
+			return nil, err
+		}
+		slog.Info("局部重写版本已应用（场景拼接）", "chapter", chapterNum, "version", v.ID, "scene", v.SceneID)
+		return map[string]interface{}{"applied": true}, nil
+	}
 	if err := pm.WriteChapter(chapterNum, v.NewContent); err != nil {
 		return nil, fmt.Errorf("写回正文失败: %w", err)
 	}
@@ -341,6 +405,31 @@ func (a *writingState) NovelRestoreRewriteVersion(chapterNum int, versionID stri
 	}
 	if strings.TrimSpace(v.OriginalContent) == "" {
 		return nil, fmt.Errorf("版本缺原文快照，无法恢复")
+	}
+	// v4.442 场景拼接语义：SceneOriginal 写回归属场景（结构保持），与 Apply 对称。
+	if v.SceneID != "" {
+		if strings.TrimSpace(v.SceneOriginal) == "" {
+			return nil, fmt.Errorf("版本缺场景原文快照，无法恢复")
+		}
+		sm := pm.SceneManager(chapterNum)
+		scene, err := sm.Read(v.SceneID)
+		if err != nil {
+			return nil, fmt.Errorf("读取归属场景失败: %w", err)
+		}
+		scene.Content = v.SceneOriginal
+		scene.Meta.WordCount = len([]rune(v.SceneOriginal))
+		if err := sm.Write(scene); err != nil {
+			return nil, fmt.Errorf("写回归属场景失败: %w", err)
+		}
+		syncBlobFromScenes(pm, chapterNum)
+		now := time.Now()
+		v.RestoredAt = &now
+		v.RestoredFrom = v.ID
+		if err := pm.UpdateRewriteVersion(v); err != nil {
+			return nil, err
+		}
+		slog.Info("局部重写版本已恢复原文（场景拼接）", "chapter", chapterNum, "version", v.ID, "scene", v.SceneID)
+		return map[string]interface{}{"restored": true}, nil
 	}
 	if err := pm.WriteChapter(chapterNum, v.OriginalContent); err != nil {
 		return nil, fmt.Errorf("恢复正文失败: %w", err)

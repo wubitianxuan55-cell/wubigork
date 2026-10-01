@@ -98,6 +98,17 @@ type RewriteVersion struct {
 	LengthMode  string `json:"length_mode,omitempty"` // similar|expand|condense|custom
 	TargetWords int    `json:"target_word_count,omitempty"`
 
+	// ── 场景章 partial 专用（v4.442 解禁：选段→归属场景映射）──
+	// SceneID 空 = blob 章旧语义（Apply/Restore 走整章写回+单场景重建）；
+	// 非空 = 场景拼接语义（Apply/Restore 只动归属场景，结构保持）。
+	// OriginalContent/NewContent 两字段在两种语义下都保持「全文」口径——
+	// 前端 diff/预览契约不变；场景级真值在 SceneOriginal/SceneNew。
+	SceneID       string `json:"scene_id,omitempty"`
+	SceneOriginal string `json:"scene_original,omitempty"` // 提案时归属场景全文（完整性基线+恢复源）
+	SceneNew      string `json:"scene_new,omitempty"`      // 应用时写回的场景全文
+	SceneStart    int    `json:"scene_start,omitempty"`    // 选段在场景内 rune 起（审计）
+	SceneEnd      int    `json:"scene_end,omitempty"`      // 选段在场景内 rune 止（审计）
+
 	// ── 内容与度量 ──
 	// OriginalContent 是**全文**快照（partial 模式也是全文，保证可回滚）。
 	OriginalContent   string `json:"original_content"`
