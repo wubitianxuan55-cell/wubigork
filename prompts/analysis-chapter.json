@@ -26,13 +26,10 @@
       "评分禁止打 7-8 分安全分：分数必须反映真实质量，且 suggestions 数量与 scores 联动——三维均值 <4.0 给 4-5 条建议，<6.0 给 3-4 条，<8.0 给 2-3 条，≥8.0 给 0-1 条",
       "keyword.text 必须从原文逐字复制 8-25 字，不得改写或概括",
       "hooks 最多 3 条，plot_points 最多 5 条，scenes 最多 3 条",
-      "【🔴 伏笔追踪任务（重要）】系统已提供【已埋入伏笔列表】，当你识别到章节中有回收伏笔时：1. 必须从列表中找出对应的伏笔ID；2. 在 foreshadows 数组中使用 type='resolved' 且 reference_stable_id 字段关联；3. 如果无法确定是哪个伏笔，reference_stable_id 填空字符串，禁止编造ID",
+      "【🔴 伏笔追踪任务（重要）】系统已提供【已埋入伏笔列表】，当你识别到章节中有回收伏笔时：1. 必须从列表中找出对应条目，在 foreshadows 数组中使用 type='resolved'，reference_stable_id 填该条目标注的【ID: xxx】；2. 如果无法确定是哪个伏笔，reference_stable_id 填空字符串，禁止编造ID",
       "⚠️ 回收伏笔时，标题应与原伏笔标题保持一致，不要添加「回收」「揭示」等后缀。示例：原伏笔「古钟之谜」→ 回收记录 title 填「古钟之谜」，不得填「古钟之谜·回收」",
-      "reference_stable_id：【回收时必填】已埋入伏笔的唯一标识。如果列表中有标注【ID: xxx】的伏笔，回收时必须使用该ID填写",
       "estimated_resolve_chapter：【埋入时必填】预估回收章节号（埋下时必须预估填写；回收时填当前章节号）",
-      "✅ 【伏笔ID追踪自检】回收伏笔时，必须从【已埋入伏笔列表】中查找匹配的ID填入 reference_stable_id",
-      "✅ 【稀疏差分纪律】character_states 只记录本章明确发生变化的角色：survival_status 仅当章节有明确死亡/失踪/退场描写时填写（active/deceased/missing/retired），默认 null；relationship_changes 仅记录本章发生明显变化的关系（对方角色名→变化描述，如「关系改善」「反目成仇」）；未提及的角色与关系一律不要输出",
-      "【稀疏差分纪律】character_states 与 organization_states 只记录本章明确变化的角色与组织，未提及的组织不输出；organization_states 的 org_name/character_name 必须与角色库中的名称精确一致，无法确定就省略该条，不得猜测或模糊匹配；destroyed=true 时该组织其他字段忽略"
+      "✅ 【稀疏差分纪律】character_states 与 organization_states 只记录本章明确发生变化的角色与组织，未提及的一律不输出：survival_status 仅当章节有明确死亡/失踪/退场描写时填写（active/deceased/missing/retired），默认 null；relationship_changes 仅记录本章发生明显变化的关系（对方角色名→变化描述，如「关系改善」「反目成仇」）；organization_states 的 org_name/character_name 必须与角色库中的名称精确一致，无法确定就省略该条，不得猜测或模糊匹配；destroyed=true 时该组织其他字段忽略"
     ],
     "forbidden": [
       "添加 markdown 代码块或 JSON 以外的注释"
