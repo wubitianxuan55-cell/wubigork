@@ -16,6 +16,7 @@ import (
 	"github.com/gaea/gaea/internal/ai"
 	"github.com/gaea/gaea/internal/characterstate"
 	"github.com/gaea/gaea/internal/config"
+	"github.com/gaea/gaea/internal/maturecraft"
 	"github.com/gaea/gaea/internal/project"
 	"github.com/gaea/gaea/internal/prompt"
 	"github.com/gaea/gaea/internal/types"
@@ -372,7 +373,8 @@ func (a *Agent) GenerateSingleCharacter(ctx context.Context, ch types.Character,
 	userPrompt := tmpl.BuildUserPrompt(map[string]string{
 		"genre_and_character": fmt.Sprintf("题材: %s\n当前角色: %s (ID: %s, 类型: %s)",
 			genre, ch.Name, ch.ID, ch.RoleType),
-		"worldview": wvCtx,
+		"worldview":    wvCtx,
+		"mature_craft": maturecraft.CharacterSection(a.pm.Meta.Mature), // v4.440 角色向纪律，非成人向零渲染（角色库级调用无项目档位同样零渲染）
 	})
 
 	reply, err := a.chat(ctx, systemPrompt, userPrompt)
@@ -411,6 +413,7 @@ func (a *Agent) GenerateCharacters(ctx context.Context, count int, genre string,
 	userPrompt := tmpl.BuildUserPrompt(map[string]string{
 		"genre_and_count": fmt.Sprintf("题材: %s\n生成 %d 个角色", genre, count),
 		"worldview":       wvCtx,
+		"mature_craft":    maturecraft.CharacterSection(a.pm.Meta.Mature), // v4.440 角色向纪律，非成人向零渲染
 	})
 	extraUser := "请生成角色。"
 	if currentCF != nil && len(currentCF.Characters) > 0 {

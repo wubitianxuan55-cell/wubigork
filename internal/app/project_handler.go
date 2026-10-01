@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/gaea/gaea/internal/maturecraft"
 	"github.com/gaea/gaea/internal/project"
 )
 
@@ -91,7 +92,7 @@ func (a *App) UpdateProjectMeta(title, genre, style, mature string) error {
 	if pm == nil {
 		return fmt.Errorf("请先打开项目")
 	}
-	if normalizeMatureLevel(mature) != mature {
+	if maturecraft.NormalizeLevel(mature) != mature {
 		return fmt.Errorf("成人向档位非法: %q（合法值：空/sensual/explicit）", mature)
 	}
 	pm.Meta.Title = strings.TrimSpace(title)

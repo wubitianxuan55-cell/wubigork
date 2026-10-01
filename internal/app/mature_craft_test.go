@@ -15,76 +15,12 @@ import (
 
 	"github.com/gaea/gaea/internal/ai"
 	"github.com/gaea/gaea/internal/config"
+	"github.com/gaea/gaea/internal/maturecraft"
 	"github.com/gaea/gaea/internal/modelengine"
 	"github.com/gaea/gaea/internal/project"
 	"github.com/gaea/gaea/internal/prompt"
 	"github.com/gaea/gaea/internal/types"
 )
-
-// TestNormalizeMatureLevel 档位白名单归一：合法值原样通过，其余（含用户手改
-// project.json 的坏值）一律落 ""——不允许半开半关。
-func TestNormalizeMatureLevel(t *testing.T) {
-	cases := map[string]string{
-		"":              "",
-		"sensual":       MatureSensual,
-		"explicit":      MatureExplicit,
-		"SENSUAL":       "", // 大小写敏感：写盘走白名单，读盘坏值不猜测
-		"explicit ":     "", // 带空格的坏值不洗白
-		"成人向":           "",
-		"r18":           "",
-		"explicit;drop": "",
-	}
-	for in, want := range cases {
-		if got := normalizeMatureLevel(in); got != want {
-			t.Errorf("normalizeMatureLevel(%q) = %q, want %q", in, got, want)
-		}
-	}
-}
-
-// TestBuildMatureCraftSection 正文向工艺区段矩阵：空档位零注入；两档各带档位
-// 专属工艺；硬线（成年/不美化胁迫）与功能闸两档都在。
-func TestBuildMatureCraftSection(t *testing.T) {
-	if got := buildMatureCraftSection(""); got != "" {
-		t.Errorf("非成人向必须零注入，got:\n%s", got)
-	}
-	if got := buildMatureCraftSection("坏值"); got != "" {
-		t.Errorf("坏值必须零注入，got:\n%s", got)
-	}
-
-	sensual := buildMatureCraftSection(MatureSensual)
-	for _, want := range []string{"含蓄", "张力优先", "留白不是黑幕", "功能闸", "必须是成年人", "不把胁迫包装成浪漫"} {
-		if !strings.Contains(sensual, want) {
-			t.Errorf("含蓄档缺「%s」\n%s", want, sensual)
-		}
-	}
-	if strings.Contains(sensual, "正面直书") {
-		t.Errorf("含蓄档不得携带直白档口径")
-	}
-
-	explicit := buildMatureCraftSection(MatureExplicit)
-	for _, want := range []string{"直白档", "正面直书", "感官纪律", "事后节拍", "同意节拍", "AI 腔限流", "功能闸", "必须是成年人", "不把胁迫包装成浪漫"} {
-		if !strings.Contains(explicit, want) {
-			t.Errorf("直白档缺「%s」\n%s", want, explicit)
-		}
-	}
-	if strings.Contains(explicit, "留白不是黑幕") {
-		t.Errorf("直白档不得携带含蓄档专属条目")
-	}
-}
-
-// TestBuildMaturePlanSection 计划向纪律矩阵：空档位零注入；非空档位要求计划把
-// 亲密戏当事件排（节拍+功能），并禁止空账表述。
-func TestBuildMaturePlanSection(t *testing.T) {
-	if got := buildMaturePlanSection(""); got != "" {
-		t.Errorf("非成人向计划纪律必须零注入，got:\n%s", got)
-	}
-	plan := buildMaturePlanSection(MatureExplicit)
-	for _, want := range []string{"成人向计划纪律", "节拍", "不得只写「两人关系升温」", "永久改变了什么"} {
-		if !strings.Contains(plan, want) {
-			t.Errorf("计划纪律缺「%s」\n%s", want, plan)
-		}
-	}
-}
 
 // TestUpdateProjectMeta 元信息更新绑定：合法更新落盘可回读；非法档位拒绝且不落盘；
 // 空书名拒绝。
@@ -103,11 +39,11 @@ func TestUpdateProjectMeta(t *testing.T) {
 	a.writingState = &writingState{core: a.core, app: a, mu: sync.RWMutex{}}
 	a.setPM(pm)
 
-	if err := a.UpdateProjectMeta("新书名", "都市", "甜宠", MatureExplicit); err != nil {
+	if err := a.UpdateProjectMeta("新书名", "都市", "甜宠", maturecraft.Explicit); err != nil {
 		t.Fatalf("UpdateProjectMeta: %v", err)
 	}
 	info := a.GetProjectInfo()
-	if info["title"] != "新书名" || info["mature"] != MatureExplicit {
+	if info["title"] != "新书名" || info["mature"] != maturecraft.Explicit {
 		t.Fatalf("内存元信息未更新: %v", info)
 	}
 	// 落盘验证：重新 Open 读盘
@@ -115,7 +51,7 @@ func TestUpdateProjectMeta(t *testing.T) {
 	if err != nil {
 		t.Fatalf("重新打开: %v", err)
 	}
-	if pm2.Meta.Title != "新书名" || pm2.Meta.Mature != MatureExplicit || pm2.Meta.Genre != "都市" {
+	if pm2.Meta.Title != "新书名" || pm2.Meta.Mature != maturecraft.Explicit || pm2.Meta.Genre != "都市" {
 		t.Fatalf("project.json 未落盘: %+v", pm2.Meta)
 	}
 
@@ -124,7 +60,7 @@ func TestUpdateProjectMeta(t *testing.T) {
 		t.Fatalf("非法档位必须拒绝")
 	}
 	pm3, _ := project.Open(dir)
-	if pm3.Meta.Mature != MatureExplicit {
+	if pm3.Meta.Mature != maturecraft.Explicit {
 		t.Fatalf("被拒绝的更新不得落盘: %+v", pm3.Meta)
 	}
 
@@ -224,7 +160,7 @@ data: [DONE]
 		}
 	}
 
-	userPrompt := runCreate(t, MatureExplicit)
+	userPrompt := runCreate(t, maturecraft.Explicit)
 	for _, want := range []string{"成人向写作纪律", "直白档", "必须是成年人"} {
 		if !strings.Contains(userPrompt, want) {
 			t.Errorf("成人向项目 user prompt 缺「%s」", want)

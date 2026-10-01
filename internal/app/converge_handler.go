@@ -15,6 +15,7 @@ import (
 	"strings"
 
 	"github.com/gaea/gaea/internal/ai"
+	"github.com/gaea/gaea/internal/maturecraft"
 	"github.com/gaea/gaea/internal/novelgate"
 	"github.com/gaea/gaea/internal/novelstyle"
 	"github.com/gaea/gaea/internal/project"
@@ -310,7 +311,7 @@ func (a *writingState) convergeRewriteUnit(text, instruction string) (string, er
 			"chapter_content":          text,
 			"modification_instruction": instruction + "\n（保持情节、人物与篇幅不变，只修文字层问题）",
 			"prev_summary":             "",
-			"mature_craft":             buildMatureCraftSection(matureLevel),
+			"mature_craft":             maturecraft.CraftSection(matureLevel),
 		}), ai.ChatSimpleOptions{EngineID: eng, Feature: "novel", Temperature: 0.7, MaxTokens: 8192, TimeoutMinutes: 10})
 	if err != nil {
 		return "", err

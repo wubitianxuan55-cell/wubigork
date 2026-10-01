@@ -10,6 +10,7 @@ import (
 
 	"github.com/gaea/gaea/internal/ai"
 	"github.com/gaea/gaea/internal/config"
+	"github.com/gaea/gaea/internal/maturecraft"
 	"github.com/gaea/gaea/internal/project"
 	"github.com/gaea/gaea/internal/prompt"
 	"github.com/gaea/gaea/internal/types"
@@ -73,6 +74,7 @@ func (a *Agent) Chat(ctx context.Context, userMsg string) (string, error) {
 	userPrompt := tmpl.BuildUserPrompt(map[string]string{
 		"current_outline": string(outlineJSON),
 		"user_request":    userMsg,
+		"mature_craft":    maturecraft.OutlineSection(a.pm.Meta.Mature), // v4.440 大纲向纪律，非成人向零渲染
 	})
 
 	return a.chat(ctx, systemPrompt, userPrompt)
@@ -113,6 +115,7 @@ func (a *Agent) ChatNode(ctx context.Context, nodeID, userMsg string) (string, e
 		"worldview":    wvCtx,
 		"characters":   charsCtx,
 		"user_request": userMsg,
+		"mature_craft": maturecraft.OutlineSection(a.pm.Meta.Mature), // v4.440 大纲向纪律，非成人向零渲染
 	})
 
 	return a.chat(ctx, systemPrompt, userPrompt)
@@ -158,6 +161,7 @@ func (a *Agent) Continue(ctx context.Context, count int) (*types.OutlineFile, er
 		"worldview":         a.loadWorldviewContext(),
 		"characters":        a.loadCharsContext(),
 		"story_thread":      of.StoryThread,
+		"mature_craft":      maturecraft.OutlineSection(a.pm.Meta.Mature), // v4.440 大纲向纪律，非成人向零渲染
 	})
 
 	reply, err := a.chat(ctx, systemPrompt, userPrompt)
@@ -323,6 +327,7 @@ func (a *Agent) ExpandNode(ctx context.Context, nodeID string, subCount int) (*t
 		"expand_count":      fmt.Sprintf("%d", subCount),
 		"worldview":         a.loadWorldviewContext(),
 		"story_thread":      of.StoryThread,
+		"mature_craft":      maturecraft.OutlineSection(a.pm.Meta.Mature), // v4.440 大纲向纪律，非成人向零渲染
 	})
 
 	reply, err := a.chat(ctx, systemPrompt, userPrompt)
@@ -646,6 +651,10 @@ func (a *Agent) GenerateOutlineWithDialogue(ctx context.Context, storyPrompt str
 2. 章节之间要有逻辑递进
 3. 每章摘要简洁（50-100字）
 4. 首章要有吸引人的开场\n5. 严格按照要求的章节数量生成，绝不多生成`
+	// v4.440：成人向大纲纪律（欲望线一等叙事线）随向导注入；非成人向零追加。
+	if sec := maturecraft.OutlineSection(a.pm.Meta.Mature); sec != "" {
+		writerSystem += "\n" + sec + "\n"
+	}
 
 	writerPrompt := fmt.Sprintf("故事设定：%s\n\n作者与编辑的对话：\n%s\n\n请**严格只生成 %d 章**的大纲，不要多也不要少。", storyPrompt, strings.Join(dialogue, "\n"), numChapters)
 

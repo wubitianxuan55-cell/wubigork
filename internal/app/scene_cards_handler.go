@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/gaea/gaea/internal/ai"
+	"github.com/gaea/gaea/internal/maturecraft"
 	"github.com/gaea/gaea/internal/novelcontext"
 	"github.com/gaea/gaea/internal/novelstyle"
 	"github.com/gaea/gaea/internal/project"
@@ -126,7 +127,7 @@ func (a *writingState) generateSceneCore(ctx context.Context, pm *project.Manage
 		"严格遵守角色与领域设定，不 OOC，不提前揭穿伏笔。"
 	// v4.439：成人向工艺区段（P1 槽同源文本）——场景路径无模板槽，system 追加，
 	// 非成人向零追加。
-	if sec := buildMatureCraftSection(pm.Meta.Mature); sec != "" {
+	if sec := maturecraft.CraftSection(pm.Meta.Mature); sec != "" {
 		system += "\n\n" + sec
 	}
 	user := buildSceneUserPrompt(minWords, scene, chapterNum, plotReq, bible, prev)
@@ -417,7 +418,7 @@ func (a *writingState) NovelSceneRewrite(chapterNum int, sceneID string, instruc
 		"chapter_content":          scene.Content,
 		"modification_instruction": strings.TrimRight(b.String(), "\n"),
 		"prev_summary":             "",
-		"mature_craft":             buildMatureCraftSection(pm.Meta.Mature), // v4.439：场景重写不洗掉成人向内容
+		"mature_craft":             maturecraft.CraftSection(pm.Meta.Mature), // v4.439：场景重写不洗掉成人向内容
 	})
 
 	reqCtx := a.ctx
