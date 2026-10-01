@@ -17,6 +17,7 @@ package app
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -291,5 +292,56 @@ func TestEvalCorpusTensionExposed(t *testing.T) {
 	}
 	if tm["mean"] != 7.0 || tm["covered"] != 1 {
 		t.Fatalf("tension 投影不符: %v", tm)
+	}
+}
+
+// TestEvalSnapshotsList 历史快照索引（v4.447）：persist 两份 → 索引新→旧且
+// 核心指标在位；坏档跳过；无目录返回空切片非 nil。
+func TestEvalSnapshotsList(t *testing.T) {
+	a := newGateEmptyApp()
+	pm := buildEvalCorpusBook(t, a, "healthy", evalHealthyChapter, evalCorpusForeshadows(10, 8))
+
+	if _, err := a.NovelEvalSnapshot(true); err != nil {
+		t.Fatalf("persist 1: %v", err)
+	}
+	if _, err := a.NovelEvalSnapshot(true); err != nil {
+		t.Fatalf("persist 2: %v", err)
+	}
+	// 坏档一枚（不给索引拖垮）
+	badDir := filepath.Join(pm.Dir, "eval", "snapshots")
+	if err := os.WriteFile(filepath.Join(badDir, "garbage.json"), []byte("{bad"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	list, err := a.NovelEvalSnapshotsList()
+	if err != nil {
+		t.Fatalf("索引: %v", err)
+	}
+	if len(list) != 2 {
+		t.Fatalf("应恰 2 份好快照（坏档跳过）: %d", len(list))
+	}
+	first := list[0]
+	for _, key := range []string{"name", "chapters", "tasteMean", "recall", "tensionMean", "tensionCover"} {
+		if _, ok := first[key]; !ok {
+			t.Fatalf("索引行缺 %s: %v", key, first)
+		}
+	}
+	if first["name"].(string) <= list[1]["name"].(string) {
+		t.Fatalf("索引应新→旧: %v %v", first["name"], list[1]["name"])
+	}
+	if first["chapters"].(int) != evalCorpusChapters {
+		t.Fatalf("快照章数应 30: %v", first["chapters"])
+	}
+
+	// 无目录项目：空切片非 nil
+	a2 := newGateEmptyApp()
+	pm2 := newGateProject(t)
+	a2.setPM(pm2)
+	empty, err := a2.NovelEvalSnapshotsList()
+	if err != nil {
+		t.Fatalf("无目录索引: %v", err)
+	}
+	if empty == nil || len(empty) != 0 {
+		t.Fatalf("无目录应返回空切片非 nil: %v", empty)
 	}
 }

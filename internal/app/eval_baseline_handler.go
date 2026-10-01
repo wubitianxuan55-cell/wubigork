@@ -274,7 +274,9 @@ func (a *writingState) NovelEvalSnapshot(persist bool) (map[string]interface{}, 
 		if err := os.MkdirAll(dir, 0755); err != nil {
 			return nil, fmt.Errorf("建快照目录失败: %w", err)
 		}
-		name := time.Now().UTC().Format("20060102T150405Z") + ".json"
+		// v4.447 毫秒精度：秒级时间戳下同秒两次 persist 静默互相覆盖（回归夹具
+		// 实测抓到）；定宽 .000 毫秒段不破坏字典序=时间序。
+		name := time.Now().UTC().Format("20060102T150405.000Z") + ".json"
 		if err := writeEvalJSON(filepath.Join(dir, name), body); err != nil {
 			return nil, fmt.Errorf("写快照失败: %w", err)
 		}

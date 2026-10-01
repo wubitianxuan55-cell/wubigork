@@ -437,6 +437,8 @@ export interface NovelBindings {
   NovelEvalSnapshot(persist: boolean): Promise<Record<string, unknown>>;
   // 把当前状态快照设为基线。
   NovelEvalBaselineSet(): Promise<Record<string, unknown>>;
+  // NovelEvalSnapshotsList 历史快照索引（v4.447；新→旧，坏档跳过；行键见面板消费）。
+  NovelEvalSnapshotsList(): Promise<Array<Record<string, unknown>>>;
   // 最近快照 vs 基线逐指标 Δ（hash 不一致标 stale）。
   NovelEvalCompare(): Promise<Record<string, unknown>>;
   // SaveSceneMeta 保存场景元数据（标题/概要/POV/地点/时间/情感/标签/状态；正文走 SaveScene）。

@@ -108,6 +108,11 @@ func (b *NovelB) GenerateScene(chapterNum int, sceneID string, plotReq string, m
 func (b *NovelB) NovelGhostSuggest(textBefore string) (string, error) {
 	return b.a.NovelGhostSuggest(textBefore)
 }
+
+// NovelEvalSnapshotsList 评测历史快照索引（v4.447；新→旧，坏档跳过）。
+func (b *NovelB) NovelEvalSnapshotsList() ([]map[string]interface{}, error) {
+	return b.a.NovelEvalSnapshotsList()
+}
 func (b *NovelB) GenerateSceneIllustration(chapterNum int, optsJSON string) (map[string]interface{}, error) {
 	return b.a.GenerateSceneIllustration(chapterNum, optsJSON)
 }

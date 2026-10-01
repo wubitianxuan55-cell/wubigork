@@ -31,6 +31,12 @@ interface EvalSnapView {
 /** 对比行（dir: better|worse|flat）。 */
 interface EvalCmpItem { metric?: string; from?: number; to?: number; delta?: number; dir?: string }
 interface EvalCmpView { stale?: boolean; items?: EvalCmpItem[] }
+/** 历史快照索引行（v4.447；Go NovelEvalSnapshotsList 行键）。 */
+interface EvalHistRow {
+  name?: string; chapters?: number; chars?: number; tasteMean?: number
+  s1?: number; s2?: number; s3?: number; recall?: number
+  tensionMean?: number; tensionCover?: number
+}
 
 /** 情感曲线 SVG：x=章号线性、y=强度 0-10；相邻点直连（未分析章的间隙以长段如实呈现）。 */
 function EmotionCurveSvg({ pts }: { pts: CurvePoint[] }) {
@@ -80,6 +86,9 @@ export default function BookHealthPanel({ open, onClose }: {
   const [evalSnap, setEvalSnap] = useState<EvalSnapView | null>(null)
   const [evalCmp, setEvalCmp] = useState<EvalCmpView | null>(null)
   const [evalBusy, setEvalBusy] = useState<'' | 'snap' | 'base' | 'cmp'>('')
+  const [evalSavedAs, setEvalSavedAs] = useState('')
+  const [evalHist, setEvalHist] = useState<EvalHistRow[] | null>(null)
+  const [evalHistLoading, setEvalHistLoading] = useState(false)
   // 情感曲线在途代际（观察池#3）：重跑体检/切书自增作废旧循环——逐章 await
   // 无守卫时，旧循环完成后会把上一本书/上一轮的曲线 setCurve 进新上下文。
   const curveSeqRef = useRef(0)
@@ -121,6 +130,8 @@ export default function BookHealthPanel({ open, onClose }: {
     setLoading(false)
     setEvalSnap(null) // 评测基线区同属该书数据，切书一并失效（v4.446）
     setEvalCmp(null)
+    setEvalSavedAs('')
+    setEvalHist(null)
   }, [projectPath])
 
   // 情感曲线：逐章读分析 V2（缺档/无情感弧线跳过并计数；后端缺档只报
@@ -164,10 +175,14 @@ export default function BookHealthPanel({ open, onClose }: {
   const findings = fs?.findings ?? []
 
   // v4.446 评测基线区动作：快照 / 设基线 / 对比（零 LLM，点按触发）。
+  // v4.447：快照 persist 落盘（eval/snapshots/，毫秒时间戳文件名），savedAs 如实
+  // 回显；历史索引按需拉取（新→旧，坏档后端跳过）。
   const runEvalSnap = useCallback(async () => {
     setEvalBusy('snap')
     try {
-      setEvalSnap((await app.NovelEvalSnapshot(false)) as EvalSnapView)
+      const snap = (await app.NovelEvalSnapshot(true)) as EvalSnapView & { savedAs?: string }
+      setEvalSnap(snap)
+      setEvalSavedAs(snap.savedAs || '')
       setEvalCmp(null)
     } catch (e) {
       message.error(`快照失败：${e instanceof Error ? e.message : String(e)}`)
@@ -175,12 +190,22 @@ export default function BookHealthPanel({ open, onClose }: {
       setEvalBusy('')
     }
   }, [])
+  const loadEvalHistory = useCallback(async () => {
+    setEvalHistLoading(true)
+    try {
+      setEvalHist((await app.NovelEvalSnapshotsList()) as EvalHistRow[])
+    } catch (e) {
+      message.error(`历史快照读取失败：${e instanceof Error ? e.message : String(e)}`)
+    } finally {
+      setEvalHistLoading(false)
+    }
+  }, [])
   const runEvalBase = useCallback(async () => {
     setEvalBusy('base')
     try {
       await app.NovelEvalBaselineSet()
       message.success('已设为基线（eval/baseline.json）')
-      setEvalSnap((await app.NovelEvalSnapshot(false)) as EvalSnapView)
+      setEvalSnap((await app.NovelEvalSnapshot(true)) as EvalSnapView)
       setEvalCmp(null)
     } catch (e) {
       message.error(`设基线失败：${e instanceof Error ? e.message : String(e)}`)
@@ -319,7 +344,32 @@ export default function BookHealthPanel({ open, onClose }: {
                   <Tag style={{ marginRight: 0 }}>张力均值 {evalSnap.tension.mean} · 极差 {evalSnap.tension.swing}（覆盖 {evalSnap.tension.covered} 章）</Tag>
                 )}
                 <Tag style={{ marginRight: 0 }}>上下文合计 {evalSnap.contextRunes ?? 0} rune</Tag>
+                {evalSavedAs && <Tag style={{ marginRight: 0 }}>已存 {evalSavedAs}</Tag>}
               </div>
+            )}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+              <Button size="small" loading={evalHistLoading} onClick={() => void loadEvalHistory()}>
+                {evalHist === null ? '查看历史快照' : '刷新历史'}
+              </Button>
+              {evalHist !== null && <span style={softTextStyle}>{evalHist.length} 份（eval/snapshots/，新→旧）</span>}
+            </div>
+            {evalHist !== null && (
+              evalHist.length === 0 ? (
+                <Typography.Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 6 }}>
+                  还没有持久化快照——上方的「生成快照 / 设为基线」会各存一份。
+                </Typography.Text>
+              ) : (
+                <Table<EvalHistRow> size="small" rowKey="name"
+                  dataSource={evalHist} pagination={false}
+                  columns={[
+                    { title: '快照', dataIndex: 'name', width: 190, render: (v: string) => <span style={{ fontSize: 12 }}>{v}</span> },
+                    { title: '章', dataIndex: 'chapters', width: 56 },
+                    { title: 'AI 味均值', dataIndex: 'tasteMean', width: 90, render: (v: number) => <span style={{ fontVariantNumeric: 'tabular-nums' }}>{v}</span> },
+                    { title: 'S1/S2/S3', width: 100, render: (_v, r) => <span style={{ fontVariantNumeric: 'tabular-nums' }}>{r.s1}/{r.s2}/{r.s3}</span> },
+                    { title: '回收率', dataIndex: 'recall', width: 70, render: (v: number) => <span style={{ fontVariantNumeric: 'tabular-nums' }}>{v}</span> },
+                    { title: '张力均值', dataIndex: 'tensionMean', width: 80, render: (v: number, r) => (r.tensionCover ?? 0) > 0 ? <span style={{ fontVariantNumeric: 'tabular-nums' }}>{v}</span> : <span style={softTextStyle}>—</span> },
+                  ]} />
+              )
             )}
             {evalCmp && (
               evalCmp.stale ? (

@@ -545,6 +545,7 @@ export const bindingNames = [
   "NovelEvalBaselineSet",
   "NovelEvalCompare",
   "NovelEvalSnapshot",
+  "NovelEvalSnapshotsList",
   "NovelFingerprintBuild",
   "NovelFingerprintScore",
   "NovelFingerprintStatus",

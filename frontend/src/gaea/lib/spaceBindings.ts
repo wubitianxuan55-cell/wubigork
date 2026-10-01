@@ -256,6 +256,7 @@ export const GAEA_METHOD_FACETS = {
   NovelContextInventory: "play",
   // 长篇刀7：评测基线（NovelB 门面）。
   NovelEvalSnapshot: "play",
+  NovelEvalSnapshotsList: "play",
   NovelEvalBaselineSet: "play",
   NovelEvalCompare: "play",
   // 批次二：语音对话文本入口（VoiceB 门面），轻语/语音聊天 play 数据面。

@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   evalSnap: vi.fn(),
   evalBase: vi.fn(),
   evalCmp: vi.fn(),
+  evalList: vi.fn(),
 }))
 
 vi.mock('../../gaea/lib/bridge', async (importOriginal) => {
@@ -21,6 +22,7 @@ vi.mock('../../gaea/lib/bridge', async (importOriginal) => {
       NovelEvalSnapshot: mocks.evalSnap,
       NovelEvalBaselineSet: mocks.evalBase,
       NovelEvalCompare: mocks.evalCmp,
+      NovelEvalSnapshotsList: mocks.evalList,
     },
   }
 })
@@ -229,6 +231,7 @@ describe('BookHealthPanel 评测基线区（v4.446）', () => {
     mocks.evalSnap.mockReset()
     mocks.evalBase.mockReset()
     mocks.evalCmp.mockReset()
+    mocks.evalList.mockReset()
   })
 
   it('生成快照：确定性指标行渲染（含张力块覆盖>0 才显示）', async () => {
@@ -270,5 +273,49 @@ describe('BookHealthPanel 评测基线区（v4.446）', () => {
     fireEvent.click(await screen.findByTestId('health-eval-cmp'))
     expect(await screen.findByText(/恶化/)).toBeTruthy()
     expect(screen.getByText(/改善/)).toBeTruthy()
+  })
+})
+
+describe('BookHealthPanel 历史快照（v4.447）', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.run.mockReset()
+    mocks.run.mockResolvedValue(REPORT as never)
+    mocks.evalSnap.mockReset()
+    mocks.evalBase.mockReset()
+    mocks.evalCmp.mockReset()
+    mocks.evalList.mockReset()
+  })
+
+  it('生成快照走 persist 落盘并回显 savedAs；历史表按新→旧渲染、坏档行不出现', async () => {
+    mocks.evalSnap.mockResolvedValue({
+      chapters: 30, chars: 15000,
+      taste: { mean: 40, p90: 74 },
+      quality: { s1: 0, s2: 1, s3: 2 },
+      foreshadow: { recall: 0.8 },
+      tension: { mean: 5.5, swing: 8, covered: 30 },
+      savedAs: '20261002T120000.000Z.json',
+    } as never)
+    mocks.evalList.mockResolvedValue([
+      { name: '20261002T120000.000Z.json', chapters: 30, tasteMean: 40, s1: 0, s2: 1, s3: 2, recall: 0.8, tensionMean: 5.5, tensionCover: 30 },
+      { name: '20261002T110000.000Z.json', chapters: 29, tasteMean: 52, s1: 1, s2: 0, s3: 0, recall: 0.4, tensionMean: 3, tensionCover: 20 },
+    ] as never)
+    render(<BookHealthPanel open onClose={vi.fn()} />)
+    fireEvent.click(await screen.findByTestId('health-eval-snap'))
+    expect(await screen.findByText(/已存 20261002T120000/)).toBeTruthy()
+    // persist 语义：生成快照必须请求落盘（persist=true）
+    expect(mocks.evalSnap).toHaveBeenCalledWith(true)
+
+    fireEvent.click(screen.getByText('查看历史快照'))
+    expect(await screen.findByText('20261002T120000.000Z.json')).toBeTruthy()
+    expect(screen.getByText('20261002T110000.000Z.json')).toBeTruthy()
+    expect(screen.getByText(/2 份（eval\/snapshots\/，新→旧）/)).toBeTruthy()
+  })
+
+  it('无历史：空态提示指向生成入口', async () => {
+    mocks.evalList.mockResolvedValue([] as never)
+    render(<BookHealthPanel open onClose={vi.fn()} />)
+    fireEvent.click(await screen.findByText('查看历史快照'))
+    expect(await screen.findByText(/还没有持久化快照/)).toBeTruthy()
   })
 })
