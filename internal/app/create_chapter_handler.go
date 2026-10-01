@@ -172,6 +172,13 @@ func (a *writingState) createChapter(setting, prevSummary, plotReq string, chapt
 		userPrompt += spineSec + "\n"
 	}
 
+	// 阶段开篇章（第 21/41/…章）：先合账再开新账——注入上一阶段总结（LLM 合成、
+	// 失败回落逐章摘要）与新阶段开篇纪律。非阶段开篇章零注入；内部任何失败都
+	// 降级不阻断主链路（同 spine 纪律）。
+	if sec := a.stageRecapSection(pm, ctxChapterNum); sec != "" {
+		userPrompt += "\n" + sec + "\n"
+	}
+
 	systemPrompt := tmpl.BuildSystemPrompt("")
 	// create-chapter 模板以 {word_count} 占位符声明目标字数（prompts/create-chapter.json），
 	// 用户可在创作页调整目标字数；用实际 minWords 精确替换占位符，避免模型仍按
