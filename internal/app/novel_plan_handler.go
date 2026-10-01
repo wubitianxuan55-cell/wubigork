@@ -331,6 +331,19 @@ func (a *writingState) NovelChapterPlanDeviation(chapterNum int) (*types.PlanDev
 // NovelChapterGatePrecheck 生成前硬闸预检：纯委托线B（判据唯一来源在
 // writingState.planPrecheck，本方法不做任何二次判定或包装）。
 func (a *writingState) NovelChapterGatePrecheck(chapterNum int) (*types.PlanGateReport, error) {
+	// 0=「生成下一章」：按磁盘大纲解析真实目标章（全树最大章号+1）——前端
+	// store 可能空/过期（实弹事故：空库算出 1 反复覆盖第1章），章号事实源在盘上
+	if chapterNum <= 0 {
+		pm := a.getPM()
+		if pm == nil {
+			return nil, fmt.Errorf("请先打开项目")
+		}
+		of, err := pm.ReadOutlines()
+		if err != nil {
+			of = &types.OutlineFile{Nodes: []types.OutlineNode{}}
+		}
+		chapterNum = resolveTargetChapterNum(of, chapterNum, "")
+	}
 	return a.planPrecheck(chapterNum)
 }
 

@@ -5,7 +5,7 @@ import { GetNovelState, BuildNovelStatePatch, SettleNovelState, DeSlopChapterAiT
 import { useOutlineStore } from '../stores/outlineStore'
 import { useAppStore } from '../stores/appStore'
 import type { OutlineNode } from '../types'
-import { buildTree, flattenTree, buildPrevSummary, flattenChapters, nextToWriteChapter } from '../components/novel/create/outlineTree'
+import { buildTree, flattenTree, buildPrevSummary, flattenChapters } from '../components/novel/create/outlineTree'
 import { useChapterStream } from '../components/novel/create/useChapterStream'
 import { useChapterGateNotice } from '../components/novel/create/useChapterGateNotice'
 import type { AiTasteResult } from '../components/novel/create/chapterStreamTypes'
@@ -30,7 +30,7 @@ import ChapterPlanCard, { type PlanGateReport, type PlanProblem } from '../compo
 import { chooseAction, chooseUnsavedAction } from '../components/novel/unsavedGuard'
 import { registerNovelDirtyProvider, takeDiscardConfirmed } from '../components/novel/novelSwitchGuard'
 
-interface WizardRequest { prevChapter: number; overwriteChapter: number; branchFromID: string; targetChapter: number }
+interface WizardRequest { prevChapter: number; overwriteChapter: number; branchFromID: string }
 const BRAINSTORM_MSG_KEY = 'novel-brainstorm-loading'
 
 // ── 创作参数持久化（v4.421.0）──
@@ -526,9 +526,9 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
     if (brainstormingRef.current) { message.info('上一轮构思还在后台进行，完成后会自动弹出'); return }
     setWizardBranches([]) // 新章的选角会议从零开始（要延续走「延续上一章」）
     setWizardCastSelection([])
-    // 目标章号显式化：覆盖=被覆盖章；分支=0（后端按分支节点定章）；新章=第一条未成文主线节点
-    const targetChapter = overwriteChapter > 0 ? overwriteChapter : (branchFromID ? 0 : nextToWrite())
-    setWizard({ prevChapter, overwriteChapter, branchFromID, targetChapter })
+    // 新章章号不在前端算（store 可能空/过期）：CreateChapter 传 0，后端按磁盘
+    // 大纲解析为「全树最大章号+1」
+    setWizard({ prevChapter, overwriteChapter, branchFromID })
     // 选角会议数据源：项目名册 + 角色库候选 + 上一章出场（失败静默降级，不阻断选角）
     void (async () => {
       try {
@@ -553,7 +553,7 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
   // 后台构思分支：弹窗随即收起（可继续操作其他内容），完成后按原请求自动弹回分支步
   const startBrainstorm = useCallback((cast: BranchCastEntry[]) => {
     if (brainstormingRef.current) { message.info('上一轮构思还在后台进行，完成后会自动弹出'); return }
-    const req = wizard ?? { prevChapter: 0, overwriteChapter: 0, branchFromID: '', targetChapter: 0 }
+    const req = wizard ?? { prevChapter: 0, overwriteChapter: 0, branchFromID: '' }
     brainstormReqRef.current = req
     brainstormingRef.current = true
     setWizardCastSelection(cast)
@@ -726,11 +726,12 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
    * 不因预检故障把作者锁死；但如实告知本次未做检查（诚实降级，不假装已预检）。
    */
   const guardPlanGate = async (overwriteChapter: number, branchFromID: string, proceed: () => void) => {
+    // 新章传 0：后端预检按磁盘大纲解析真实目标章（前端 store 可能空/过期）
     const target = overwriteChapter > 0
       ? overwriteChapter
       : branchFromID
         ? (useOutlineStore.getState().outlines.find(n => n.id === branchFromID)?.order_index || 0)
-        : nextMainChapterNum
+        : 0
     let report: PlanGateReport | null = null
     try {
       const bridge = app as unknown as Partial<PlanGateBridge>
@@ -815,7 +816,7 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
           { label: '作为分支追加', tone: 'primary', run: () => startGeneration(directPlot, 0, next.id) },
         ],
       })
-    } else { startGeneration(directPlot, nextToWrite(), '') }
+    } else { startGeneration(directPlot, 0, '') } // 0=后端按磁盘大纲顺延下一章
   }
 
   const handleDelete = (node: OutlineNode) => {
@@ -952,7 +953,6 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
   const maxChapterOrder = flatChapters.length ? flatChapters[flatChapters.length - 1].order_index || 0 : 0
   const nextMainChapterNum = maxChapterOrder + 1
   const lastMainChapter = maxChapterOrder
-  const nextToWrite = useCallback((): number => nextToWriteChapter(outlines), [outlines])
 
   // ── 叙事状态账本（作者审批制）──
   const activeChapterNum = activeNode?.order_index || lastMainChapter
@@ -1342,7 +1342,7 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
       {/* A8：本弹窗常驻挂载，事件通道一直在听——不按 active 门控就会在别的子页上盖出遮罩 */}
       <NewCharactersModal active={active} />
       <BranchWizardModal open={!!wizard}
-        prevChapter={wizard?.prevChapter ?? 0} targetChapter={wizard?.targetChapter ?? 0}
+        prevChapter={wizard?.prevChapter ?? 0}
         overwriteChapter={wizard?.overwriteChapter ?? 0}
         branchFromID={wizard?.branchFromID ?? ''} characters={wizardCast}
         libraryCharacters={wizardLibCast} prevChapterCast={wizardPrevCast}

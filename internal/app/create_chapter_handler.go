@@ -764,8 +764,10 @@ func (a *writingState) streamCreateChapter(ctx context.Context, pm *project.Mana
 }
 
 // resolveTargetChapterNum 计算「本章章号」：显式指定（>0）直接用；分支续写
-// 取父节点章号；否则顺延为新章（len+1）。与 ensureChapterNode 的定号逻辑
-// 同源（该函数内部也走本助手），供生成前注入按正确章号分层。
+// 取父节点章号；否则顺延为新章 = **全树最大 order_index + 1**。
+// 旧实现 len(顶层节点)+1 有两种实弹事故：卷结构（卷一→第1章，len=1 → 算出
+// 已存在的 1 反复覆盖）与缺节点跳章——磁盘大纲是唯一事实源，前端 store 同步
+// 缺口不再影响章号。
 // 分支父节点不存在时返回 0（调用方按无章号降级处理）。
 func resolveTargetChapterNum(of *types.OutlineFile, chapterNum int, branchFromNodeID string) int {
 	if chapterNum > 0 {
@@ -779,7 +781,20 @@ func resolveTargetChapterNum(of *types.OutlineFile, chapterNum int, branchFromNo
 		}
 		return 0
 	}
-	return len(of.Nodes) + 1
+	maxOrder := 0
+	var walk func(nodes []types.OutlineNode)
+	walk = func(nodes []types.OutlineNode) {
+		for i := range nodes {
+			if nodes[i].OrderIndex > maxOrder {
+				maxOrder = nodes[i].OrderIndex
+			}
+			if len(nodes[i].Children) > 0 {
+				walk(nodes[i].Children)
+			}
+		}
+	}
+	walk(of.Nodes)
+	return maxOrder + 1
 }
 
 // pickCreateChapterTemplate 选章节正文生成模板：第一章是全书开篇，钩子铺设与

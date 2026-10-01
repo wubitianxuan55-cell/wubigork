@@ -219,8 +219,16 @@ func TestResolveTargetChapterNum(t *testing.T) {
 	if got := resolveTargetChapterNum(of, 0, "missing"); got != 0 {
 		t.Errorf("父节点缺失应返回 0: got %d", got)
 	}
-	if got := resolveTargetChapterNum(of, 0, ""); got != 3 {
-		t.Errorf("无指定应顺延为 len+1: got %d", got)
+	// 顺延=全树最大章号+1（len(顶层) 在卷结构/缺节点时会跳章或归零——实弹事故）
+	if got := resolveTargetChapterNum(of, 0, ""); got != 8 {
+		t.Errorf("无指定应顺延为全树最大章号+1: got %d", got)
+	}
+	// 卷结构：顶层只有卷节点(0)，章在其 children 下（用户实盘形状）
+	vol := &types.OutlineFile{Nodes: []types.OutlineNode{
+		{ID: "vol", OrderIndex: 0, Children: []types.OutlineNode{{ID: "c1", OrderIndex: 1}}},
+	}}
+	if got := resolveTargetChapterNum(vol, 0, ""); got != 2 {
+		t.Errorf("卷结构应顺延为卷内最大章号+1: got %d", got)
 	}
 }
 

@@ -180,7 +180,7 @@ describe('CreatePage 生成控制（T6-7.2 停止按钮 + cancelled 事件）', 
   it('默认使用 story-deslop 技能生成章节', async () => {
     await startGeneration()
     expect(mocks.CreateChapter).toHaveBeenCalledWith(
-      expect.any(String), '', '主角觉醒', 1, '', 'story-deslop', 5000, 0,
+      expect.any(String), '', '主角觉醒', 0, '', 'story-deslop', 5000, 0,
     )
   })
 
@@ -266,7 +266,7 @@ describe('CreatePage 生成控制（T6-7.2 停止按钮 + cancelled 事件）', 
     fireEvent.click(screen.getByRole('button', { name: /^生\s*成$/ }))
     await waitFor(() => {
       expect(mocks.CreateChapter).toHaveBeenCalledWith(
-        expect.any(String), '', expect.stringContaining('帝国阴谋'), 1, '', 'story-deslop', 5000, 0,
+        expect.any(String), '', expect.stringContaining('帝国阴谋'), 0, '', 'story-deslop', 5000, 0,
       )
     })
     await waitFor(() => expect(screen.queryByRole('dialog', { name: /剧情方向/ })).toBeNull())
@@ -585,13 +585,13 @@ describe('CreatePage 章节计划硬闸（刀1 线D）', () => {
     expect(mocks.CreateChapter).not.toHaveBeenCalled()
     expect(mocks.CreateChapterWithOverride).not.toHaveBeenCalled()
     // 预检按目标章号调用（空大纲 → 顺延第 1 章）
-    expect(mocks.NovelChapterGatePrecheck).toHaveBeenCalledWith(1)
+    expect(mocks.NovelChapterGatePrecheck).toHaveBeenCalledWith(0)
 
     fireEvent.click(gate.getByRole('button', { name: '仍然生成（跳过硬闸）' }))
     await waitFor(() => expect(mocks.CreateChapterWithOverride).toHaveBeenCalledTimes(1))
     // 覆盖走专用入口（旧 8 参 CreateChapter 恒等于 allowOverride=false）
     expect(mocks.CreateChapterWithOverride).toHaveBeenCalledWith(
-      expect.any(String), '', '主角觉醒', 1, '', 'story-deslop', 5000, 0, true,
+      expect.any(String), '', '主角觉醒', 0, '', 'story-deslop', 5000, 0, true,
     )
     expect(mocks.CreateChapter).not.toHaveBeenCalled()
   })
