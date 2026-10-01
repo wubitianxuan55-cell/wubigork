@@ -12,6 +12,7 @@ type ProjectMeta struct {
 	Style         string    `json:"style"`
 	Author        string    `json:"author,omitempty"` // 作者名，导出（EPUB 等）使用；未配置时导出端回退品牌名
 	Description   string    `json:"description,omitempty"`
+	Mature        string    `json:"mature,omitempty"` // 成人向档位：sensual（含蓄）/ explicit（直白）；空=非成人向（生成链按此注入亲密戏工艺区段）
 	CreatedAt     time.Time `json:"created_at"`
 	LastOpenedAt  time.Time `json:"last_opened_at"`
 	WordCount     int       `json:"word_count"`

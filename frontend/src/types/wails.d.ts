@@ -158,6 +158,8 @@ export interface AppAPI {
   OpenProject(dir: string): Promise<unknown>
   CloseProject(): Promise<void>
   GetProjectInfo(): unknown
+  /** v4.439 更新当前项目元信息（标题/题材/文风/成人向档位）；mature 非法值后端拒绝。 */
+  UpdateProjectMeta(title: string, genre: string, style: string, mature: string): Promise<void>
   GetNovelsDir(): string
   ListProjects(): Promise<ProjectCard[]>
   DeleteProject(dir: string): Promise<void>

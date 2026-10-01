@@ -111,3 +111,8 @@ func (b *CoreB) TestEngineConnection(engineID string) (*modelengine.EngineStatus
 func (b *CoreB) UpdateCustomEngine(engineID string, name string, baseURL string, apiKey string) error {
 	return b.a.UpdateCustomEngine(engineID, name, baseURL, apiKey)
 }
+
+// UpdateProjectMeta 更新当前项目元信息（v4.439：标题/题材/文风/成人向档位可编辑）。
+func (b *CoreB) UpdateProjectMeta(title string, genre string, style string, mature string) error {
+	return b.a.UpdateProjectMeta(title, genre, style, mature)
+}

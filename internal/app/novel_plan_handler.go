@@ -202,7 +202,8 @@ func (a *writingState) NovelChapterPlanPropose(chapterNum int) (*types.ChapterPl
 		"prev_summary":        buildPrevSummaryWindow(of.Nodes, chapterNum, prevSummaryResolver(pm)),
 		"existing_key_events": planExistingKeyEventsText(others),
 		"chapter_analysis":    planAnalysisDigest(pm, chapterNum),
-		"roster":              a.buildCharacterSummary(pm), // 焦点选择池：计划层就按「每章宜少」点名
+		"roster":              a.buildCharacterSummary(pm),            // 焦点选择池：计划层就按「每章宜少」点名
+		"mature_craft":        buildMaturePlanSection(pm.Meta.Mature), // v4.439：成人向计划纪律（亲密戏当事件排），非成人向零渲染
 	})
 	systemPrompt := tmpl.BuildSystemPrompt("")
 

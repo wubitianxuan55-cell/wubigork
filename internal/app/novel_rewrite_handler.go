@@ -89,6 +89,7 @@ func (a *writingState) NovelChapterRewrite(chapterNum int, reqJSON string) (map[
 		"chapter_content":          original,
 		"modification_instruction": instruction,
 		"prev_summary":             buildPrevSummaryWindow(readOutlineNodes(pm), chapterNum, prevSummaryResolver(pm)),
+		"mature_craft":             buildMatureCraftSection(pm.Meta.Mature), // v4.439：重写不洗掉成人向内容
 	})
 
 	eng, model, _ := a.routeModel("novel")
@@ -181,6 +182,7 @@ func (a *writingState) novelChapterRewritePartial(pm *project.Manager, chapterNu
 		"chapter_content":          selected, // 只给选段；选区外上下文在修改指令里
 		"modification_instruction": instruction,
 		"prev_summary":             buildPrevSummaryWindow(readOutlineNodes(pm), chapterNum, prevSummaryResolver(pm)),
+		"mature_craft":             buildMatureCraftSection(pm.Meta.Mature), // v4.439：局部重写不洗掉成人向内容
 	})
 
 	eng, model, _ := a.routeModel("novel")

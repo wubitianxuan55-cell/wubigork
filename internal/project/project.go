@@ -119,6 +119,15 @@ func (m *Manager) Close() error {
 	return writeJSON(filepath.Join(m.Dir, "project.json"), m.Meta)
 }
 
+// WriteMeta 将当前元信息写回 project.json（UpdateProjectMeta 的落盘出口）。
+// Version 不动——递增语义归 Open 的「打开次数」口径。
+func (m *Manager) WriteMeta() error {
+	if m.Meta == nil {
+		return nil
+	}
+	return writeJSON(filepath.Join(m.Dir, "project.json"), m.Meta)
+}
+
 // ── 文件读写辅助 ──────────────────────────────────────────────
 
 // ReadWorldview 读世界观（优先 worldview.json，fallback worldview.md）

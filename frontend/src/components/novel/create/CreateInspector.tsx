@@ -1,14 +1,22 @@
-import React, { useEffect, useState } from 'react'
-import { Button, Input, InputNumber, Select, Tag } from 'antd'
+import React, { useEffect, useRef, useState } from 'react'
+import { Button, Input, InputNumber, Select, Tag, message } from 'antd'
 import {
   BulbOutlined, FileTextOutlined, ReloadOutlined, ExperimentOutlined,
-  SettingOutlined, ThunderboltOutlined, BarChartOutlined,
+  SettingOutlined, ThunderboltOutlined, BarChartOutlined, BookOutlined,
   MenuFoldOutlined, MenuUnfoldOutlined,
 } from '@ant-design/icons'
 import { C } from '../../../utils/theme'
 import { app } from '../../../gaea/lib/bridge'
+import { wailsApp } from '../../../lib/wailsApp'
 
 interface Skill { name: string; description: string; appliesTo?: string[] }
+
+/** 本书定位（成人向档位）选项：值与 Go 侧 ProjectMeta.Mature 白名单一致。 */
+const MATURE_OPTIONS = [
+  { value: '', label: '非成人向' },
+  { value: 'sensual', label: '成人向 · 含蓄（张力与留白）' },
+  { value: 'explicit', label: '成人向 · 直白（亲密戏正面直书）' },
+]
 
 interface CreateInspectorProps {
   setting: string
@@ -40,6 +48,37 @@ const CreateInspector: React.FC<CreateInspectorProps> = ({
 }) => {
   const [skills, setSkills] = useState<Skill[]>([])
   const [collapsed, setCollapsed] = useState(false)
+
+  // 本书定位（v4.439 成人向档位）：书级元信息，改动即经 UpdateProjectMeta 落盘。
+  // 标题/题材/文风随 GetProjectInfo 一次性带回存 ref——更新时原样回传，不在本面板改写。
+  const [mature, setMature] = useState<string>('')
+  const metaRef = useRef<{ title: string; genre: string; style: string }>({ title: '', genre: '', style: '' })
+  useEffect(() => {
+    ;(async () => {
+      try {
+        const info = (await wailsApp().GetProjectInfo()) as
+          | { title?: string; genre?: string; style?: string; mature?: string }
+          | null
+        if (!info) return
+        metaRef.current = { title: info.title || '', genre: info.genre || '', style: info.style || '' }
+        setMature(info.mature || '')
+      } catch {
+        // 项目信息读取失败：定位选择保持默认，用户不改就零写盘
+      }
+    })()
+  }, [])
+
+  const handleMatureChange = async (v: string) => {
+    const prev = mature
+    setMature(v)
+    try {
+      const m = metaRef.current
+      await wailsApp().UpdateProjectMeta(m.title, m.genre, m.style, v)
+    } catch (e) {
+      setMature(prev)
+      message.warning(`保存本书定位失败：${e instanceof Error ? e.message : String(e)}`)
+    }
+  }
 
   // 加载可用 Skill 列表
   useEffect(() => {
@@ -84,6 +123,20 @@ const CreateInspector: React.FC<CreateInspectorProps> = ({
           ) : (
             <div className="novel-inspector-hint">设定为空，请先在「设定」页填写世界观，创作提示词会注入最新设定。</div>
           )}
+        </section>
+
+        <section className="novel-inspector-section">
+          <div className="novel-inspector-section-title"><BookOutlined />本书定位</div>
+          <Select
+            size="small"
+            style={{ width: '100%' }}
+            value={mature}
+            onChange={(v) => void handleMatureChange(v as string)}
+            options={MATURE_OPTIONS}
+          />
+          <div className="novel-inspector-hint" style={{ fontSize: 11 }}>
+            成人向档位决定生成/重写时注入的亲密戏写作纪律；非成人向不注入，行为与旧版一致。
+          </div>
         </section>
 
         <section className="novel-inspector-section">

@@ -6,7 +6,7 @@ import { isShellSpace, type ShellSpace } from '../boards/space'
 // Types
 // ═══════════════════════════════════════════════════════════
 
-export interface ProjectInfo { title: string; genre: string; style: string; path: string }
+export interface ProjectInfo { title: string; genre: string; style: string; path: string; /** v4.439 成人向档位：''|sensual|explicit（Go 侧 omitempty，可能缺省） */ mature?: string }
 export interface StatsData { totalWords: number; chapterCount: number; avgWordsPerChapter: number; characterCount: number; charAlive: number; foreshadowTotal: number; foreshadowRevealed: number; foreshadowRate: number; plannedChapters?: number }
 export interface ProjectCard { title: string; genre: string; style: string; path: string; word_count: number; chapter_count: number; created_at: string; last_opened_at: string }
 

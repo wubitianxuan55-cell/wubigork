@@ -36,9 +36,10 @@ func (a *App) CreateProject(dir, title, genre, style string) (map[string]interfa
 	a.setPM(pm)
 	a.initAgents()
 	return map[string]interface{}{
-		"title": pm.Meta.Title,
-		"genre": pm.Meta.Genre,
-		"style": pm.Meta.Style,
+		"title":  pm.Meta.Title,
+		"genre":  pm.Meta.Genre,
+		"style":  pm.Meta.Style,
+		"mature": pm.Meta.Mature,
 	}, nil
 }
 
@@ -53,9 +54,10 @@ func (a *App) OpenProject(dir string) (map[string]interface{}, error) {
 	a.setPM(pm)
 	a.initAgents()
 	return map[string]interface{}{
-		"title": pm.Meta.Title,
-		"genre": pm.Meta.Genre,
-		"style": pm.Meta.Style,
+		"title":  pm.Meta.Title,
+		"genre":  pm.Meta.Genre,
+		"style":  pm.Meta.Style,
+		"mature": pm.Meta.Mature,
 	}, nil
 }
 
@@ -72,9 +74,32 @@ func (a *App) GetProjectInfo() map[string]interface{} {
 		return nil
 	}
 	return map[string]interface{}{
-		"title": pm.Meta.Title,
-		"genre": pm.Meta.Genre,
-		"style": pm.Meta.Style,
-		"path":  pm.Dir,
+		"title":  pm.Meta.Title,
+		"genre":  pm.Meta.Genre,
+		"style":  pm.Meta.Style,
+		"mature": pm.Meta.Mature,
+		"path":   pm.Dir,
 	}
+}
+
+// UpdateProjectMeta 更新当前项目可编辑元信息（标题/题材/文风/成人向档位）。
+// mature 取值白名单归一（""/sensual/explicit，非法值拒绝而不是静默洗白——
+// 档位挂错书是内容事故）。首个元信息更新绑定：此前 title/genre/style 均为
+// 建档即定格，v4.439.0 起书架/创作间可改。
+func (a *App) UpdateProjectMeta(title, genre, style, mature string) error {
+	pm := a.getPM()
+	if pm == nil {
+		return fmt.Errorf("请先打开项目")
+	}
+	if normalizeMatureLevel(mature) != mature {
+		return fmt.Errorf("成人向档位非法: %q（合法值：空/sensual/explicit）", mature)
+	}
+	pm.Meta.Title = strings.TrimSpace(title)
+	if pm.Meta.Title == "" {
+		return fmt.Errorf("书名不能为空")
+	}
+	pm.Meta.Genre = genre
+	pm.Meta.Style = style
+	pm.Meta.Mature = mature
+	return pm.WriteMeta()
 }

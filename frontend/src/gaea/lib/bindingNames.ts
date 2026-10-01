@@ -692,6 +692,7 @@ export const bindingNames = [
   "TestEngineConnection",
   "ToggleOrgMember",
   "UpdateCustomEngine",
+  "UpdateProjectMeta",
   "VoiceApplySettings",
   "VoiceCancelTTS",
   "VoiceChatText",

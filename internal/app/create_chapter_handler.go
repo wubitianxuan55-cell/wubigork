@@ -147,10 +147,11 @@ func (a *writingState) createChapter(setting, prevSummary, plotReq string, chapt
 		"plot_req":         plotReq,
 		"setting":          setting,
 		"characters":       a.buildChapterCastSection(pm, chapterPlan), // 焦点分级：计划角色焦点登场，其余降名册备查
-		"character_states": a.buildCharacterStatesSection(pm),      // t5 §7.4 状态机回灌（P1，空则不渲染）
+		"character_states": a.buildCharacterStatesSection(pm),          // t5 §7.4 状态机回灌（P1，空则不渲染）
 		"prev_summary":     prevSummary,
-		"chapter_plan":     planSec,    // 刀1 §7.3（P0）：本章计划区段，空则不渲染
-		"outline_points":   outlineSec, // 刀1 §7.3（P1）：大纲 KeyPoints/Emotion，空则不渲染
+		"chapter_plan":     planSec,                                 // 刀1 §7.3（P0）：本章计划区段，空则不渲染
+		"outline_points":   outlineSec,                              // 刀1 §7.3（P1）：大纲 KeyPoints/Emotion，空则不渲染
+		"mature_craft":     buildMatureCraftSection(pm.Meta.Mature), // v4.439 成人向工艺区段（P1）：非成人向为空串零渲染
 	})
 	// 上下文增强：追加分层伏笔调度 + 世界观要点区段。全部容错注入——读取失败或
 	// 无数据时静默跳过（不追加空区段），绝不因增强失败中断章节生成主链路；

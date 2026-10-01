@@ -291,6 +291,12 @@ func (a *writingState) convergeRewriteUnit(text, instruction string) (string, er
 	if tmpl == nil {
 		return "", fmt.Errorf("缺少 rewrite-chapter 模板文件")
 	}
+	// v4.439：成人向工艺区段随修补注入——收敛修补只修文字层，不得顺手把直白戏
+	// 洗成纯爱。pm 缺失（理论上不发生：主链已取过）按非成人向零注入降级。
+	matureLevel := ""
+	if pm := a.getPM(); pm != nil && pm.Meta != nil {
+		matureLevel = pm.Meta.Mature
+	}
 	eng, model, _ := a.routeModel("novel")
 	if model == "" {
 		return "", fmt.Errorf("未找到可用模型（可能离线）")
@@ -304,6 +310,7 @@ func (a *writingState) convergeRewriteUnit(text, instruction string) (string, er
 			"chapter_content":          text,
 			"modification_instruction": instruction + "\n（保持情节、人物与篇幅不变，只修文字层问题）",
 			"prev_summary":             "",
+			"mature_craft":             buildMatureCraftSection(matureLevel),
 		}), ai.ChatSimpleOptions{EngineID: eng, Feature: "novel", Temperature: 0.7, MaxTokens: 8192, TimeoutMinutes: 10})
 	if err != nil {
 		return "", err

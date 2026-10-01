@@ -32,6 +32,11 @@
       "priority": "P1",
       "label": "项目角色名册（character_focus 从中选，写名字全称；每章登场角色宜少不宜多）",
       "order": 6
+    },
+    "mature_craft": {
+      "priority": "P1",
+      "order": 90,
+      "label": "本书成人向计划纪律（成人向项目才会出现；计划涉及亲密戏时逐条遵守）"
     }
   },
   "output": {

@@ -226,6 +226,7 @@ type LegacySurfaceNames =
   | "WhisperGetEngines"
   | "WhisperGetImageModel"
   | "UpdateCustomEngine"
+  | "UpdateProjectMeta" // v4.439 项目元信息更新（小说创作间本书定位；wailsApp 直调 legacy 面）
   | "WhisperGetModel"
   | "WhisperSetEngine"
   | "WhisperSetImageModel"
