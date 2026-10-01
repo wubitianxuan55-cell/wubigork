@@ -18,8 +18,19 @@ $root = Split-Path -Parent $PSScriptRoot
 $tmp = Join-Path $root '.tmp'
 if (-not (Test-Path $tmp)) { Write-Host '[clean-tmp] .tmp 不存在，跳过'; exit 0 }
 
-$sizeMB = [math]::Round((Get-ChildItem $tmp -Recurse -Force -ErrorAction SilentlyContinue |
-    Measure-Object -Property Length -Sum).Sum / 1MB)
+# 2026-10-01 随版收口：目录体积一律按 -File 枚举 + 空集合兜底。此前直接对
+# Get-ChildItem -Recurse 的结果 Measure-Object -Property Length——枚举集里只有
+# 目录（无一有 Length 属性）时 Measure-Object 抛 PropertyNotFound，在
+# $ErrorActionPreference='Stop' 下整个守卫退出 1，CI 首闸就挂（v4.439.0 发版
+# 实测：edge-prof5 被僵尸进程锁住删不掉，文件删净后只剩目录树，复测必炸）。
+function Get-SizeMB([string]$path) {
+    $sum = (Get-ChildItem $path -Recurse -File -Force -ErrorAction SilentlyContinue |
+        Measure-Object -Property Length -Sum).Sum
+    if ($null -eq $sum) { return 0 }
+    return [math]::Round($sum / 1MB)
+}
+
+$sizeMB = Get-SizeMB $tmp
 if ($sizeMB -le $ThresholdMB) {
     Write-Host "[clean-tmp] .tmp ${sizeMB}MB <= 阈值 ${ThresholdMB}MB，无需清理"
     exit 0
@@ -31,10 +42,7 @@ $freed = 0
 foreach ($p in $patterns) {
     Get-ChildItem $tmp -Filter $p -Force -ErrorAction SilentlyContinue | ForEach-Object {
         $sz = 0
-        if ($_.PSIsContainer) {
-            $sz = [math]::Round((Get-ChildItem $_.FullName -Recurse -Force -ErrorAction SilentlyContinue |
-                Measure-Object -Property Length -Sum).Sum / 1MB)
-        } else { $sz = [math]::Round($_.Length / 1MB) }
+        if ($_.PSIsContainer) { $sz = Get-SizeMB $_.FullName } else { $sz = [math]::Round($_.Length / 1MB) }
         Remove-Item $_.FullName -Recurse -Force -ErrorAction SilentlyContinue
         if (-not (Test-Path $_.FullName)) { $freed += $sz }
     }
@@ -43,12 +51,10 @@ foreach ($p in $patterns) {
 # 上面的根级模式扫不到——实测 577MB 全在那里。新增按名递归删 profile 目录，
 # 同级的探针脚本（*.js/*.mjs）与目检截图（*.png）一律保留。
 Get-ChildItem $tmp -Recurse -Directory -Filter 'edgeprofile*' -Force -ErrorAction SilentlyContinue | ForEach-Object {
-    $sz = [math]::Round((Get-ChildItem $_.FullName -Recurse -Force -ErrorAction SilentlyContinue |
-        Measure-Object -Property Length -Sum).Sum / 1MB)
+    $sz = Get-SizeMB $_.FullName
     Remove-Item $_.FullName -Recurse -Force -ErrorAction SilentlyContinue
     if (-not (Test-Path $_.FullName)) { $freed += $sz }
 }
-$after = [math]::Round((Get-ChildItem $tmp -Recurse -Force -ErrorAction SilentlyContinue |
-    Measure-Object -Property Length -Sum).Sum / 1MB)
+$after = Get-SizeMB $tmp
 Write-Host "[clean-tmp] 清理约 ${freed}MB，.tmp 现为 ${after}MB"
 exit 0
