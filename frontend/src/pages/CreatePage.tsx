@@ -346,6 +346,8 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
   })
   const [wizard, setWizard] = useState<WizardRequest | null>(null)
   const [wizardBranches, setWizardBranches] = useState<Branch[]>([])
+  // 角色选择器候选名册（向导打开时拉一次；失败静默=隐藏选择器，不阻断构思）
+  const [wizardCast, setWizardCast] = useState<string[]>([])
 
   const settingLoadToken = useRef(0)
   const chapterLoadToken = useRef(0)
@@ -496,11 +498,11 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
     void loadChapter(node)
   }, [loadChapter])
 
-  // 向导拉取 AI 构思分支（注入最新设定与前文摘要）
-  const fetchWizardBranches = useCallback(async (prevChapter: number): Promise<Branch[]> => {
+  // 向导拉取 AI 构思分支（注入最新设定与前文摘要；characters=向导里圈定的登场角色）
+  const fetchWizardBranches = useCallback(async (prevChapter: number, characters: string[] = []): Promise<Branch[]> => {
     const freshSetting = (await refreshSetting()).text
     const prevSummary = prevChapter > 0 ? buildPrevSummary(outlines, prevChapter) : ''
-    const res = (await app.QuickBrainstormBranches(freshSetting, prevSummary || '')) as { branches?: Array<{ title?: string; summary?: string }> }
+    const res = (await app.QuickBrainstormBranches(freshSetting, prevSummary || '', JSON.stringify(characters ?? []))) as { branches?: Array<{ title?: string; summary?: string }> }
     const list = res?.branches || []
     return list.map((b: { title?: string; summary?: string }) => ({ title: b.title ?? '', pitch: b.summary ?? '' }))
   }, [refreshSetting, outlines])
@@ -514,6 +516,13 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
     brainstormingRef.current = true
     setWizard({ prevChapter, overwriteChapter, branchFromID })
     setWizardBranches([])
+    // 角色选择器候选名册：向导打开时拉一次（失败静默隐藏选择器，不阻断构思）
+    void (async () => {
+      try {
+        const res = (await app.GetCharacters()) as { characters?: Array<{ name?: string }> } | null
+        setWizardCast((res?.characters || []).map(c => (c?.name || '').trim()).filter(Boolean))
+      } catch { setWizardCast([]) }
+    })()
     message.open({ key: BRAINSTORM_MSG_KEY, content: 'AI 正在构思剧情分支，你可以继续操作…', duration: 0 })
     try {
       const list = await fetchWizardBranches(prevChapter)
@@ -1286,7 +1295,8 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
       <NewCharactersModal active={active} />
       <BranchWizardModal open={!!wizard && wizardBranches.length > 0}
         prevChapter={wizard?.prevChapter ?? 0} overwriteChapter={wizard?.overwriteChapter ?? 0}
-        branchFromID={wizard?.branchFromID ?? ''} onClose={() => { setWizard(null); setWizardBranches([]) }}
+        branchFromID={wizard?.branchFromID ?? ''} characters={wizardCast}
+        onClose={() => { setWizard(null); setWizardBranches([]) }}
         preloadedBranches={wizardBranches}
         onFetchBranches={fetchWizardBranches} onStart={startGeneration} />
       <Modal

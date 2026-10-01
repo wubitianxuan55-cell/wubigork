@@ -227,8 +227,10 @@ func (a *writingState) ApplyBranch(nodeID string, branchIndex int, userInput str
 	return res, nil
 }
 
-// QuickBrainstormBranches 轻量分支构思——直接接收小说设定和前文摘要，不需要大纲节点
-func (a *writingState) QuickBrainstormBranches(setting, prevSummary string) (map[string]interface{}, error) {
+// QuickBrainstormBranches 轻量分支构思——直接接收小说设定和前文摘要，不需要大纲节点。
+// charactersJSON 可选：作者在分支向导里圈定的登场角色（JSON 字符串数组）——
+// 空缺/未命中退回全量名册（分支围绕谁走由作者圈定，不圈定就不设限）。
+func (a *writingState) QuickBrainstormBranches(setting, prevSummary, charactersJSON string) (map[string]interface{}, error) {
 	pm := a.getPM()
 	if pm == nil {
 		return nil, fmt.Errorf("请先打开项目")
@@ -245,7 +247,7 @@ func (a *writingState) QuickBrainstormBranches(setting, prevSummary string) (map
 		"current_outline_node":      "（请根据小说设定和前文摘要构思下一章方向）",
 		"previous_chapters_summary": prevSummary,
 		"worldview":                 setting,
-		"characters":                a.buildCharacterSummary(pm),
+		"characters":                a.buildCharacterSummaryFiltered(pm, parseCharacterNames(charactersJSON)),
 	})
 
 	eng, model, _ := a.routeModel("novel")

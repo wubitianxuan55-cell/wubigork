@@ -6,6 +6,7 @@ package app
 // 功能变更）。
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -635,6 +636,43 @@ func focusMatches(focus []string, name string) bool {
 		}
 	}
 	return false
+}
+
+// parseCharacterNames 解析作者圈定的登场角色名单（JSON 字符串数组）；空缺/坏
+// JSON 一律返回 nil（不设限语义，绝不因载荷问题报错）。
+func parseCharacterNames(charactersJSON string) []string {
+	s := strings.TrimSpace(charactersJSON)
+	if s == "" {
+		return nil
+	}
+	var names []string
+	if err := json.Unmarshal([]byte(s), &names); err != nil {
+		return nil
+	}
+	return trimPlanItems(names)
+}
+
+// buildCharacterSummaryFiltered 按作者圈定名单过滤名册：命中者给全量档案行；
+// 空选/未命中退回全量名册（分支围绕谁走由作者圈定，不圈定就不设限）。
+func (a *writingState) buildCharacterSummaryFiltered(pm *project.Manager, names []string) string {
+	if len(names) == 0 {
+		return a.buildCharacterSummary(pm)
+	}
+	cf, err := pm.ReadCharacters()
+	if err != nil || cf == nil || len(cf.Characters) == 0 {
+		return a.buildCharacterSummary(pm)
+	}
+	relDigest := buildRelationDigest(cf)
+	var lines []string
+	for _, ch := range cf.Characters {
+		if focusMatches(names, ch.Name) {
+			lines = append(lines, characterSummaryLine(ch, relDigest))
+		}
+	}
+	if len(lines) == 0 {
+		return a.buildCharacterSummary(pm)
+	}
+	return truncateBudget(strings.Join(lines, "\n"), charSummaryBudget)
 }
 
 // buildRelationDigest 把 characters.json 的 relationships 折叠为

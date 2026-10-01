@@ -64,6 +64,30 @@ func TestBuildChapterCastSection_FocusTolerantMatch(t *testing.T) {
 	}
 }
 
+// TestBuildCharacterSummaryFiltered 分支角色选择器：圈定名单过滤名册；空选/
+// 未命中退回全量（不设限语义）；坏 JSON 不报错。
+func TestBuildCharacterSummaryFiltered(t *testing.T) {
+	pm := newCastTestProject(t)
+	a := &writingState{core: &core{}}
+
+	got := a.buildCharacterSummaryFiltered(pm, []string{"林晚", "鬼手"})
+	if !strings.Contains(got, "- 林晚") || !strings.Contains(got, "- 鬼手") || strings.Contains(got, "- 沈青") {
+		t.Errorf("圈定名单应只含命中角色:\n%s", got)
+	}
+	if full := a.buildCharacterSummary(pm); a.buildCharacterSummaryFiltered(pm, nil) != full {
+		t.Errorf("空选应退回全量名册")
+	}
+	if full := a.buildCharacterSummary(pm); a.buildCharacterSummaryFiltered(pm, []string{"路人甲"}) != full {
+		t.Errorf("未命中应退回全量名册")
+	}
+	if names := parseCharacterNames("not-json"); names != nil {
+		t.Errorf("坏 JSON 应返回 nil，got %v", names)
+	}
+	if names := parseCharacterNames(`["林晚"," 鬼手 "]`); len(names) != 2 || names[1] != "鬼手" {
+		t.Errorf("解析应去空白，got %v", names)
+	}
+}
+
 // TestBuildChapterCastSection_NoPlanOrNoMatch 无计划/焦点为空/焦点没命中任何
 // 角色时退回全量名册（旧口径），绝不空窗。
 func TestBuildChapterCastSection_NoPlanOrNoMatch(t *testing.T) {
