@@ -125,10 +125,12 @@ func (a *writingState) createChapter(setting, prevSummary, plotReq string, chapt
 	//    两者为空时渲染空串，模板按空跳过（prompt 中不出现空区段）；此时硬闸已在
 	//    上一步拦下（除非显式覆盖）。读计划失败静默跳过注入——绝不因注入失败中断主链路。
 	planSec, outlineSec := "", ""
+	var chapterPlan *types.ChapterPlan
 	if ctxChapterNum > 0 {
 		if plans, err := readChapterPlansForGate(pm); err == nil && plans != nil {
 			if p, ok := plans.Plans[strconv.Itoa(ctxChapterNum)]; ok {
 				planSec = buildChapterPlanSection(&p)
+				chapterPlan = &p
 			}
 		}
 		outlineSec = buildOutlinePointsSection(findOutlineNodeByNum(of.Nodes, ctxChapterNum))
@@ -144,8 +146,8 @@ func (a *writingState) createChapter(setting, prevSummary, plotReq string, chapt
 	userPrompt := tmpl.BuildUserPrompt(map[string]string{
 		"plot_req":         plotReq,
 		"setting":          setting,
-		"characters":       a.buildCharacterSummary(pm),
-		"character_states": a.buildCharacterStatesSection(pm), // t5 §7.4 状态机回灌（P1，空则不渲染）
+		"characters":       a.buildChapterCastSection(pm, chapterPlan), // 焦点分级：计划角色焦点登场，其余降名册备查
+		"character_states": a.buildCharacterStatesSection(pm),      // t5 §7.4 状态机回灌（P1，空则不渲染）
 		"prev_summary":     prevSummary,
 		"chapter_plan":     planSec,    // 刀1 §7.3（P0）：本章计划区段，空则不渲染
 		"outline_points":   outlineSec, // 刀1 §7.3（P1）：大纲 KeyPoints/Emotion，空则不渲染

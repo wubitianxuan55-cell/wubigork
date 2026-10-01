@@ -546,30 +546,95 @@ func (a *writingState) buildCharacterSummary(pm *project.Manager) string {
 		return "（暂无角色设定）"
 	}
 	relDigest := buildRelationDigest(cf)
-	var lines []string
+	lines := make([]string, 0, len(cf.Characters))
 	for _, ch := range cf.Characters {
-		roleLabel := map[string]string{
-			"protagonist": "主角", "antagonist": "反派",
-			"supporting": "配角", "minor": "次要",
-		}[ch.RoleType]
-		if roleLabel == "" {
-			roleLabel = ch.RoleType
-		}
-		personality := util.Truncate(strings.TrimSpace(ch.Personality), charPersonalityLen)
-		line := fmt.Sprintf("- %s：%s·%s", ch.Name, roleLabel, personality)
-		if bg := strings.TrimSpace(ch.Background); bg != "" {
-			line += "·身份：" + util.Truncate(bg, charFieldLen)
-		}
-		if mo := strings.TrimSpace(ch.Motivation); mo != "" {
-			line += "·目标：" + util.Truncate(mo, charFieldLen)
-		}
-		if rel := relDigest[ch.ID]; rel != "" {
-			line += "·关系：" + rel
-		}
-		line += "·" + ch.Status
-		lines = append(lines, line)
+		lines = append(lines, characterSummaryLine(ch, relDigest))
 	}
 	return truncateBudget(strings.Join(lines, "\n"), charSummaryBudget)
+}
+
+// characterSummaryLine 单角色摘要行（buildCharacterSummary 与焦点分级装配共用）。
+func characterSummaryLine(ch types.Character, relDigest map[string]string) string {
+	roleLabel := characterRoleLabel(ch.RoleType)
+	personality := util.Truncate(strings.TrimSpace(ch.Personality), charPersonalityLen)
+	line := fmt.Sprintf("- %s：%s·%s", ch.Name, roleLabel, personality)
+	if bg := strings.TrimSpace(ch.Background); bg != "" {
+		line += "·身份：" + util.Truncate(bg, charFieldLen)
+	}
+	if mo := strings.TrimSpace(ch.Motivation); mo != "" {
+		line += "·目标：" + util.Truncate(mo, charFieldLen)
+	}
+	if rel := relDigest[ch.ID]; rel != "" {
+		line += "·关系：" + rel
+	}
+	line += "·" + ch.Status
+	return line
+}
+
+// characterRoleLabel 角色定位中文名（未知类型原样回显）。
+func characterRoleLabel(roleType string) string {
+	label := map[string]string{
+		"protagonist": "主角", "antagonist": "反派",
+		"supporting": "配角", "minor": "次要",
+	}[roleType]
+	if label == "" {
+		return roleType
+	}
+	return label
+}
+
+// charRosterBudget 焦点外名册区的预算（rune）——名册只做备查提示，不挤占档案。
+const charRosterBudget = 800
+
+// buildChapterCastSection 按本章计划的角色焦点装配两级角色区段（用户实测教训：
+// 全量名册灌进第一章会让模型把所有角色一次性写登场）。焦点角色给全量档案行
+// （本章登场、剧情围绕他们展开）；其余角色降为紧凑名册——备查不登场。计划
+// 缺失或焦点没有命中任何角色时退回全量名册（行为与旧口径一致，绝不因此空窗）。
+func (a *writingState) buildChapterCastSection(pm *project.Manager, plan *types.ChapterPlan) string {
+	if plan == nil || len(trimPlanItems(plan.CharacterFocus)) == 0 {
+		return a.buildCharacterSummary(pm)
+	}
+	cf, err := pm.ReadCharacters()
+	if err != nil || cf == nil || len(cf.Characters) == 0 {
+		return "（暂无角色设定）"
+	}
+	focus := trimPlanItems(plan.CharacterFocus)
+	relDigest := buildRelationDigest(cf)
+	inFocus := make(map[int]bool)
+	var focusLines, rosterLines []string
+	for i, ch := range cf.Characters {
+		if focusMatches(focus, ch.Name) {
+			inFocus[i] = true
+			focusLines = append(focusLines, characterSummaryLine(ch, relDigest))
+		}
+	}
+	if len(focusLines) == 0 {
+		return a.buildCharacterSummary(pm)
+	}
+	for i, ch := range cf.Characters {
+		if !inFocus[i] {
+			rosterLines = append(rosterLines,
+				fmt.Sprintf("- %s：%s·%s", ch.Name, characterRoleLabel(ch.RoleType), ch.Status))
+		}
+	}
+	var b strings.Builder
+	b.WriteString("【本章出场角色（按计划角色焦点，剧情围绕他们展开）】\n")
+	b.WriteString(strings.Join(focusLines, "\n"))
+	if len(rosterLines) > 0 {
+		b.WriteString("\n\n【其余名册（备查——本章不登场：不给戏份、不进对话，至多行文提名，后续章节再出场）】\n")
+		b.WriteString(truncateBudget(strings.Join(rosterLines, "\n"), charRosterBudget))
+	}
+	return b.String()
+}
+
+// focusMatches 焦点项与角色名宽容匹配（作者手写焦点可能带缀饰，如「林晚（主角）」）。
+func focusMatches(focus []string, name string) bool {
+	for _, f := range focus {
+		if f == name || strings.Contains(name, f) || strings.Contains(f, name) {
+			return true
+		}
+	}
+	return false
 }
 
 // buildRelationDigest 把 characters.json 的 relationships 折叠为
