@@ -204,6 +204,7 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
   const outlines = useOutlineStore(s => s.outlines)
   const loadOutlines = useOutlineStore(s => s.loadOutlines)
   const projectPath = useAppStore(s => s.projectPath)
+  const projectOpen = useAppStore(s => s.projectOpen)
 
   const [activeId, setActiveId] = useState('')
   const [content, setContent] = useState('')
@@ -415,7 +416,10 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
 
   useEffect(() => {
     ;(async () => { loadOutlines(); await refreshSetting(); refreshStats() })()
-  }, [projectPath, loadOutlines, refreshSetting, refreshStats])
+    // projectOpen 必须在依赖里：应用重启后 projectPath 持久恢复、本 effect 在后端
+    // 项目尚未打开时就跑（GetOutlines 空返回）——等价路径打开项目不触发 projectPath
+    // 变化，大纲库永远空着，下一章恒算 1 反复覆盖第1章（实弹事故）。
+  }, [projectPath, projectOpen, loadOutlines, refreshSetting, refreshStats])
 
   // 切换小说时清空编辑区与选中节点，避免展示上一个项目的内容。跨页切书已由书架经
   // `novelSwitchGuard` 先行确认（三选：先保存 / 放弃修改 / 取消），故此处只在

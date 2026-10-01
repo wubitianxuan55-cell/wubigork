@@ -13,13 +13,18 @@ import (
 
 // GetOutlines 获取大纲树（已排序，安全返回）
 func (a *writingState) GetOutlines() map[string]interface{} {
-	if a.outlineAgent == nil {
-		slog.Warn("GetOutlines: outlineAgent 未初始化")
-		return map[string]interface{}{"nodes": []interface{}{}, "story_thread": ""}
+	var of *types.OutlineFile
+	if a.outlineAgent != nil {
+		of = a.outlineAgent.GetOutlines()
+	} else if pm := a.getPM(); pm != nil {
+		// 项目已开但子代理未就绪（启动竞态）：读路径不依赖 AI，直读盘——
+		// 否则前端大纲库空转，下一章恒算 1 反复覆盖第1章（实弹事故）。
+		if o, err := pm.ReadOutlines(); err == nil {
+			of = o
+		}
 	}
-	of := a.outlineAgent.GetOutlines()
 	if of == nil {
-		slog.Warn("GetOutlines: outlineAgent 返回 nil")
+		slog.Warn("GetOutlines: outlineAgent 未初始化且无已开项目")
 		return map[string]interface{}{"nodes": []interface{}{}, "story_thread": ""}
 	}
 	return map[string]interface{}{"nodes": of.Nodes, "story_thread": of.StoryThread}
