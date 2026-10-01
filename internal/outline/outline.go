@@ -16,7 +16,7 @@ import (
 	"github.com/gaea/gaea/internal/util"
 )
 
-// Agent 大纲子代理 — 卷-章分层规划、节点对话、续写展开
+// Agent 大纲子代理 — 平铺章规划（统一格式无卷层）、节点对话、续写展开
 type Agent struct {
 	client ai.LLMClient
 	pm     *project.Manager
@@ -120,7 +120,9 @@ func (a *Agent) ChatNode(ctx context.Context, nodeID, userMsg string) (string, e
 
 // ── 续写与展开 ──────────────────────────────────────────────
 
-// Continue 续写大纲节点
+// Continue 全量规划 N 章平铺大纲（统一大纲格式，无卷层）。
+// AI 若仍按旧卷式输出（顶层带 children），子章上提为顶层章、卷层丢弃——
+// 大纲格式一经此口就归一为平铺。
 func (a *Agent) Continue(ctx context.Context, count int) (*types.OutlineFile, error) {
 	of, err := a.pm.ReadOutlines()
 	if err != nil {
@@ -168,13 +170,25 @@ func (a *Agent) Continue(ctx context.Context, count int) (*types.OutlineFile, er
 		return nil, fmt.Errorf("解析 AI 生成的大纲 JSON 失败: %w", err)
 	}
 
+	// 统一大纲格式：平铺章。旧卷式输出（顶层带 children）→ 子章上提、卷层丢弃
+	flat := make([]types.OutlineNode, 0, len(newOF.Nodes))
+	for i := range newOF.Nodes {
+		n := newOF.Nodes[i]
+		if len(n.Children) > 0 {
+			flat = append(flat, n.Children...)
+			n.Children = nil
+		}
+		flat = append(flat, n)
+	}
+	newOF.Nodes = flat
+
 	// 故事主线回收（规格 §1.11/§7.1-1）：本函数此前只回收 newOF.Nodes，
 	// story_thread 被丢弃 → 五卷规划的【故事主线 P0】输入恒为空。模型输出
 	// 非空才覆盖（空/缺字段不擦除已有主线，见 mergeStoryThread）。
 	mergeStoryThread(of, newOF.StoryThread)
 
 	if of != nil {
-		// 恰好 5 卷 → 全量替换（五阶段固定卷模式）
+		// 恰好 count 章 → 全量替换（统一平铺格式；起承转合终作为阶段指导进 summary）
 		if count == 5 {
 			// 收集已有节点 ID，防御 AI 在"全量替换"模式下仍拷贝旧数据
 			oldIDs := make(map[string]bool)
