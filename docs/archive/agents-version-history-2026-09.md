@@ -2566,6 +2566,12 @@
 
 ## 迁入记录
 
+- **一百四十六迁（v4.448.0 发版，2026-10-02）**：v4.445.0、v4.444.0 速览条目迁入本档。
+
+- **最新发布：v4.445.0（2026-10-02）「评测快照张力聚合：情感弧线强度全书分布」**——用户指令「继续」。刀9（v4.435 留池落地，承接 3×30 语料非版本刀）。**绑定面 741 零变更**（快照/对比契约扩展）。【快照 Tension 四字段】分析 V2 情感弧线强度全书聚合（均值/P90/极差/覆盖），零 LLM 纯确定性，Covered=0 即无数据。【compare 张力两向】均值/波动下降=worse（中段塌陷同族节奏启发式），任一侧无分析数据跳过。【测试】语料链新例：30 章强度夹具（1..10 各 3 次）精确断言（均值 5.5/P90 10/极差 8/覆盖 30）+基线后全压 2 双 worse；全量 ci CI OK。**产物**=releases/gaea-v4.445.0.exe 51,865,600B SHA256=`ecc16d0ea1d58b21735a1e63685a7b5f9d6da96528f650fe8561d46893310f69`（冒烟 200 过；删 v4.441.0.exe）。**文档**=releases/v4.445.0.md+CHANGELOG/README+releases/README+AGENTS 速览。**留池**=张力聚合进体检面板 UI（eval 绑定零前端消费同 Inventory）/LLM 盲评/真 A/B。
+
+- **最新发布：v4.444.0（2026-10-02）「GhostText 接线：场景编辑器内联续写」**——用户指令「继续」。刀8（v4.429 挂池疑点关账）。**绑定面 740→741（+1：NovelGhostSuggest）**。【背景】GhostText 实为半成品死代码（v4.425 UI 壳无请求触发/无后端发射方/挂载点硬禁用），「受控值疑点」无从测起。【后端】NovelGhostSuggest 单发续写（800 rune 尾窗/1~2 句 ≤60 字/输出清理/成人向一行口径不降级/空建议与 <10 字拒）。【前端重写】input 防抖 800ms+焦点隔离（多场景实例）+latest-ref（依赖闭包=每渲染重挂+作废在途）+请求序号弃迟到+**Tab 接受走原生 setter**（受控值疑点正解：React 属性钩子对直接赋值去重 onChange 收旧值）+ChapterPage 启用+wailsApp 直调 legacy 面。【测试】Go 1+前端 3（核心疑点关账：受控 textarea 真链路 onChange 收新值）；全量 ci CI OK（漂移闸 741）。**坑**=受控 ref 用 useState 晚一渲染（须 useRef）/waitFor·findBy* 配 fake timers 挂死（act+getByText）/gen_bindings 重生成刷全部门面格式（只手加委托余者按 HEAD 还原）。**产物**=releases/gaea-v4.444.0.exe 51,863,040B SHA256=`33a5ecfaa4b4519b41afb3ab5afb8a5661cdcef05f2ca85314f62c21129c7d37`（冒烟 200 过；删 v4.440.1.exe）。**文档**=releases/v4.444.0.md+CHANGELOG/README+releases/README+AGENTS 速览。**留池**=styleProfile 消费（文风指纹联动池）/灵敏度可调/多 tab 并发焦点语义。
+
 - **一百四十五迁（v4.446.0 发版，2026-10-02）**：v4.443.0、v4.442.0 速览条目迁入本档。
 
 - **最新发布：v4.443.0（2026-10-02）「书架档位徽标：成人向书一眼分辨」**——用户指令「继续」。刀7（定位功能收官刀：建档可选→创作页可改→清单可见→**书架可辨**）。**绑定面 740 零变更**。【Go】ProjectCard 加 Mature（omitempty）+loadProjectMeta 补读+白名单归一（坏值不上墙）。【前端】卡片标签行「成人·直白/含蓄」徽标（is-mature 暖警示调变体+tooltip 全称），非成人向不渲染零噪声；类型声明同步。【测试】Go 1 新例（三态）+前端 1 新例；全量 ci CI OK。**坑**=loadProjectMeta 是 partial 结构——加读取字段漏补返回值透传即静默丢数据（首例当场抓到），读链扩字段须查返回组装。**产物**=releases/gaea-v4.443.0.exe 51,857,408B SHA256=`cf45983e114e0b79883b552e93c271bca885abc66afebdace01d656dc61f2baf`（冒烟 200 过；删 v4.440.0.exe）。**文档**=releases/v4.443.0.md+进度计划/gaea-novel-mature-badge-20261002.md+CHANGELOG/README+releases/README+AGENTS 速览。**留池**=导入流选档位/封面角标化。**定位功能全链收官**。
