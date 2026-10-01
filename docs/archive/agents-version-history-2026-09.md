@@ -2566,6 +2566,12 @@
 
 ## 迁入记录
 
+- **一百四十三迁（v4.442.0 发版，2026-10-02）**：v4.440.0、v4.440.1 速览条目迁入本档。
+
+- **最新发布：v4.440.1（2026-10-02）「本书定位切书边界收口」**——刀3（承接 v4.439/440，v4.440.0 发版后复查发现的切书串书窗口根修）。**绑定面 740 零变更、前端 2 文件**。【缺陷】NovelPage 五 tab 常驻挂载（只切 is-active 不卸载），切书回创作页面板不重挂——「本书定位」档位与元信息 ref 停在上一本书，写路径把旧书 title/genre/style 回传进新书 project.json（数据污染）；v4.429「切书重拉」同族，设定文本当年已有 settingLoadToken 代际守卫，本面板漏模式。【修】三件=effect 跟 projectPath 重跑（无项目态清场）+代际守卫（迟到旧书响应丢弃）+未就绪禁用选择器（拿旧书元信息凑数写盘宁可不写）。【测试】前端 3→5 例（切书重拉+迟到代际新增）；全量 ci CI OK。**产物**=releases/gaea-v4.440.1.exe 51,836,928B SHA256=`7fc4c859ffc7b9c82aa46b408ca58b103f14a83d975b65ef947228dd5f246a9e`（冒烟 200 过；删 v4.436.0.exe）。**文档**=releases/v4.440.1.md+CHANGELOG/README+releases/README+AGENTS 速览。成人编制线三刀收官（439/440/440.1），余项留池待真机反馈。
+
+- **最新发布：v4.440.0（2026-10-02）「成人编制链上游对齐：maturecraft 包抽取 + 大纲链/角色链注入」**——用户指令「继续」。刀2（承接 v4.439.0）。**绑定面 740 零变更、零功能删除**。**包抽取**=工艺文本自 internal/app 抽为 internal/maturecraft 单一源（正文/计划/大纲/角色四向纯函数），app 七处调用点换装文本逐字节未动。**大纲链五路**=OutlineSection（欲望线一等叙事线：每章关系位移进要点/亲密章节带节拍功能/张力对手性障碍/整章让位须推主线）注入 Continue/ExpandNode/Chat·ChatNode/对话式大纲向导（writerSystem 追加）。**角色链两路**=CharacterSection（角色卡欲望线供材+硬线：不生成涉未成年欲望设定、不美化胁迫）注入批量+单卡；**全局角色库级无书级档位槽天然零渲染**（同模板双消费方无串扰）。**纪律**=6 模板 mature_craft P1 槽，空档位零渲染；成人向口径贯通大纲→计划→正文→重写→收敛→场景全链。**测试**=maturecraft 矩阵 5 例+outline/character 注入断言各 1 例（含反向）；全量 ci CI OK。**坑**=RetryJSON 把纯 JSON 无包裹回复当未找到（测试桩须 ```json 围栏包裹）/python heredoc 改 Go raw string 截断字面量（Edit 修复，在册坑三犯）。**产物**=releases/gaea-v4.440.0.exe 51,827,712B SHA256=`7bb959f22e196f07c71c96335438bce0d893a605fb0a5fe0fe717f70db525d91`（冒烟 200 过；删 v4.435.0.exe）。**文档**=releases/v4.440.0.md+进度计划/gaea-novel-mature-upstream-20261002.md+CHANGELOG/README+releases/README+AGENTS 速览。**留池**=plot-branch-browser 注入（待真机）/worldview·叙事状态链/大纲向纪律非虚构适配。
+
 - **一百四十二迁（v4.428.1 发版，2026-09-29）**：v4.419.0 速览条目迁入本档。
 
 - **最新发布：v4.419.0（2026-09-26）「动词回执可见化：notice 摘出过程卡（真机走查实锤缺陷修复）」**——v4.418 真机走查池实锤的「pre-turn 动词 Notice 不可见」修复。前端 1 文件+1 测试，绑定面 720 零变更，Go 零改动。**缺陷**=/plan on 等动词回执藏在「过程」折叠卡内默认不可见；**根因**=Transcript alternatingSegments 分组谓词把 notice 与 tool/phase/compaction 一并收编（v4.26 phase 收编时顺带）；**根修**=谓词摘出 notice，一律独立成行渲染（warn 仍走 ErrorCard；info 走既有 .notice 弱化行零新样式），失败告警同样受益。**测试**=ProcessCard.test 增 1 例（buildSegments 断言 notice 恒落 outsideItems）13/13 绿；真机目检沙箱 /plan on 回执独立行可见（截图在案）；全量 ci 绿。**门禁**=漂移闸 OK@4.419.0。**产物**=见 SHA256SUMS-v4.419.0.txt（冒烟 200 过）；保留策略删 v4.414.1.exe。**文档**=releases/v4.419.0.md+CHANGELOG/README+releases/README（443→444+裁 v4.388）+AGENTS 迁 1 插 1（一百三十七迁：v4.414.1 入 archive）+progress。
