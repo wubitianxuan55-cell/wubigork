@@ -629,6 +629,7 @@ export const GAEA_METHOD_FACETS = {
   CharacterGenerateFill: "play",
   CharacterGenerateRandom: "play",
   CharacterFillAll: "play",
+  CharacterGenerateProtagonistRelations: "play",
   CharacterGeneratePortrait: "play",
   CharacterGeneratePortraitWithRef: "play",
   CharacterGenerateSheet: "play",

@@ -164,6 +164,26 @@ export async function fillAllCharacters(): Promise<FillAllResult> {
   return res as unknown as FillAllResult
 }
 
+export interface ProtagonistRelationResult {
+  mode: string
+  total: number
+  updated: number
+  failed: number
+  failNames: string[]
+}
+
+/**
+ * 批量 AI 生成「与主角的关系」（v4.453）：
+ * mode='all' 全部（覆盖重写）/ 'missing' 剩余全部（只补空白）/ 'one' 个人（name 指定）。
+ * 主角锚定库内 roleType=protagonist 卡；逐角色广播 character-fill-progress 进度。
+ */
+export async function generateProtagonistRelations(
+  mode: 'all' | 'missing' | 'one', name = '',
+): Promise<ProtagonistRelationResult> {
+  const res = await app.CharacterGenerateProtagonistRelations(mode, name)
+  return res as unknown as ProtagonistRelationResult
+}
+
 /** 生成角色剧照：按角色字段构建智能 prompt，返回图片 data URL / 远程 URL（不自动保存） */
 export async function generatePortrait(c: Partial<LibraryCharacter>, model = ''): Promise<string> {
   return app.CharacterGeneratePortrait(JSON.stringify(c), model)

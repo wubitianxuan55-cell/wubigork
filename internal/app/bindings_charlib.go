@@ -40,6 +40,9 @@ func (b *CharlibB) CharacterScoreConsistency(chJSON string, image string) (strin
 func (b *CharlibB) CharacterGenerateRandom(chJSON string, fields string) (string, error) {
 	return b.a.CharacterGenerateRandom(chJSON, fields)
 }
+func (b *CharlibB) CharacterGenerateProtagonistRelations(mode string, name string) (map[string]interface{}, error) {
+	return b.a.CharacterGenerateProtagonistRelations(mode, name)
+}
 func (b *CharlibB) CharacterGet(id string) (map[string]interface{}, error) {
 	return b.a.CharacterGet(id)
 }

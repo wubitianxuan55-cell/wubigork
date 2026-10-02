@@ -223,6 +223,17 @@ describe('CharacterLibEditor（档案详情）', () => {
     })
   })
 
+  it('与主角关系骰子：AI 单字段随机（v4.453）', async () => {
+    mockedRandom.mockResolvedValue(makeCharacter({ protagonistRelation: '青梅竹马' }))
+    renderEditor()
+    fireEvent.click(screen.getByTitle('随机生成与主角关系'))
+    await vi.waitFor(() => {
+      expect(mockedRandom).toHaveBeenCalledTimes(1)
+      expect(mockedRandom.mock.calls[0][1]).toBe('protagonistRelation')
+      expect(screen.getByDisplayValue('青梅竹马')).toBeTruthy()
+    })
+  })
+
   it('五维人格骰子调用 generateRandom(fields=dims) 并按性格回填', async () => {
     mockedRandom.mockResolvedValue(makeCharacter({ dims: { T: 20, I: 30, S: 40, O: 50, R: 80 } }))
     renderEditor()

@@ -84,6 +84,16 @@ func migrateSchemaV2(db *sql.DB) error {
 			return fmt.Errorf("新增 reference_scores 列失败: %w", err)
 		}
 	}
+	// v4.453 与主角的关系（2-8 字关系短语，AI 随机生成）。
+	has, err = hasColumn(db, "characters", "protagonist_relation")
+	if err != nil {
+		return err
+	}
+	if !has {
+		if _, err := db.Exec(`ALTER TABLE characters ADD COLUMN protagonist_relation TEXT NOT NULL DEFAULT ''`); err != nil {
+			return fmt.Errorf("新增 protagonist_relation 列失败: %w", err)
+		}
+	}
 	return nil
 }
 

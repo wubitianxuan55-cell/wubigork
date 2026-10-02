@@ -1,9 +1,9 @@
 // CharacterLibFilterBar.tsx — 角色档案库「检索与筛选」侧栏（左侧 v3-panel 玻璃面板）
 // 搜索（聚焦光晕）+ 类型筛选 chips（激活项 = 主色容器 + 左缘光条）+ 通道 chip + 数据操作入口。
 import React from 'react'
-import { Button, Input } from 'antd'
+import { Button, Dropdown, Input } from 'antd'
 import {
-  SearchOutlined, FilterOutlined, ThunderboltOutlined, ImportOutlined, SyncOutlined,
+  SearchOutlined, FilterOutlined, ThunderboltOutlined, ImportOutlined, SyncOutlined, UsergroupAddOutlined,
 } from '@ant-design/icons'
 
 const KIND_CHIPS = [
@@ -20,17 +20,19 @@ interface Props {
   total: number
   hasProject: boolean
   fillingAll: boolean
+  relBusy: boolean
   onQueryChange: (q: string) => void
   onKindChange: (k: string) => void
   onChatOnlyChange: (v: boolean) => void
   onFillAll: () => void
+  onGenRelations: (mode: 'all' | 'missing') => void
   onImportProject: () => void
   onSyncProject: () => void
 }
 
 const CharacterLibFilterBar: React.FC<Props> = ({
-  query, kind, chatOnly, total, hasProject, fillingAll,
-  onQueryChange, onKindChange, onChatOnlyChange, onFillAll, onImportProject, onSyncProject,
+  query, kind, chatOnly, total, hasProject, fillingAll, relBusy,
+  onQueryChange, onKindChange, onChatOnlyChange, onFillAll, onGenRelations, onImportProject, onSyncProject,
 }) => (
   <aside className="clib-side v3-panel" aria-label="角色检索与筛选">
     <div className="v3-panel-head">
@@ -95,6 +97,22 @@ const CharacterLibFilterBar: React.FC<Props> = ({
           title="为所有角色补齐空缺字段（基于已有设定推断）">
           {fillingAll ? '补齐中…' : '一键补齐'}
         </Button>
+        <Dropdown
+          menu={{
+            items: [
+              { key: 'all', label: '全部角色（覆盖重写）' },
+              { key: 'missing', label: '剩余全部（只补空白）' },
+            ],
+            onClick: ({ key }) => onGenRelations(key as 'all' | 'missing'),
+          }}
+          trigger={['click']}
+        >
+          <Button size="small" block icon={<UsergroupAddOutlined />} loading={relBusy}
+            data-testid="clib-gen-relations"
+            title="AI 随机生成各角色与主角的关系短语（锚定库内「主角」定位的角色）">
+            AI 主角关系
+          </Button>
+        </Dropdown>
         <Button size="small" block icon={<ImportOutlined />} disabled={!hasProject}
           onClick={onImportProject}
           title="把当前项目的 characters.json 导入全局库">导入项目</Button>

@@ -19,7 +19,8 @@ import {
   listCharacters, getCharacter, deleteCharacter, importProjectCharacters,
   listProjectCharacters, associateToProjectDir, listShelfProjects,
   dissociateFromProject, syncProjectCharacters,
-  fillAllCharacters, type LibraryCharacter, type ShelfProject,
+  fillAllCharacters, generateProtagonistRelations,
+  type LibraryCharacter, type ShelfProject,
 } from '../api/characterlib'
 import '../components/characterlib/character-library.css'
 import { subscribeWailsEvent } from '../gaea/lib/wailsEvents'
@@ -49,6 +50,9 @@ const CharacterLibraryPage: React.FC = () => {
   const [loading, setLoading] = useState(false)
   const [fillingAll, setFillingAll] = useState(false)
   const [fillProgress, setFillProgress] = useState('')
+  // v4.453 AI 主角关系批量生成（全部/剩余全部/个人）
+  const [relBusy, setRelBusy] = useState(false)
+  const [relProgress, setRelProgress] = useState('')
 
   const [projectRefs, setProjectRefs] = useState<Set<string>>(new Set())
   const [editorOpen, setEditorOpen] = useState(false)
@@ -261,6 +265,63 @@ const CharacterLibraryPage: React.FC = () => {
     }
   }
 
+  // ── AI 主角关系：批量生成「与主角的关系」短语（进度复用 character-fill-progress 通道）──
+  const runProtagonistRelations = async (mode: 'all' | 'missing' | 'one', name = '') => {
+    const onProgress = (ev: unknown) => {
+      const raw = ev as { detail?: unknown } | null | undefined
+      const d = (raw && typeof raw === 'object' && 'detail' in raw && raw.detail ? raw.detail : raw) as { current?: number; total?: number; name?: string } | null | undefined
+      if (d && d.current && d.total) setRelProgress(`正在生成 ${d.current}/${d.total}：${d.name || ''}`)
+    }
+    const off = window.runtime?.EventsOn
+      ? subscribeWailsEvent(window.runtime, 'character-fill-progress', onProgress)
+      : () => { /* 无 wails runtime（浏览器 mock/测试）：不订阅也不报错 */ }
+    try {
+      setRelBusy(true)
+      setRelProgress('准备中…')
+      const res = await generateProtagonistRelations(mode, name)
+      const { mode: m, updated, failed, failNames } = res || {}
+      const scopeLabel = m === 'all' ? '全部' : m === 'missing' ? '剩余全部' : `「${name}」`
+      if (failed > 0) {
+        message.warning(
+          `主角关系生成完成：更新 ${updated} 位，失败 ${failed} 位` +
+          (failNames?.length ? `（${failNames.slice(0, 3).join('、')}${failNames.length > 3 ? '…' : ''}）` : ''),
+        )
+      } else if (updated === 0) {
+        message.info(`${scopeLabel}没有需要生成的角色（剩余全部=已都有主角关系；或仅主角本人）`)
+      } else {
+        message.success(`已生成 ${updated} 位角色的主角关系`)
+      }
+      load()
+    } catch (err: unknown) {
+      message.error(`主角关系生成失败：${errText(err, String(err))}`)
+    } finally {
+      off()
+      setRelBusy(false)
+      setRelProgress('')
+    }
+  }
+
+  /** 批量入口（全部=覆盖重写须确认；剩余全部只补空白直接跑） */
+  const handleGenRelations = (mode: 'all' | 'missing') => {
+    if (!total) return
+    if (mode === 'all') {
+      Modal.confirm({
+        title: 'AI 重写全部角色的主角关系？',
+        content: '将为除主角本人外的全部可见角色重新随机「与主角的关系」（已有关系会被覆盖）。角色较多时耗时较长。',
+        okText: '开始生成',
+        cancelText: '取消',
+        onOk: () => { void runProtagonistRelations('all') },
+      })
+      return
+    }
+    void runProtagonistRelations('missing')
+  }
+
+  /** 个人入口（inspector）：单角色覆盖重写 */
+  const handleGenRelationOne = (c: LibraryCharacter) => {
+    void runProtagonistRelations('one', c.name)
+  }
+
   const handleSyncProject = async () => {
     if (!projectPath) { message.warning('请先打开小说项目'); return }
     try {
@@ -300,10 +361,12 @@ const CharacterLibraryPage: React.FC = () => {
           total={total}
           hasProject={hasProject}
           fillingAll={fillingAll}
+          relBusy={relBusy}
           onQueryChange={q => { setQuery(q); setPage(1) }}
           onKindChange={k => { setKind(k); setPage(1) }}
           onChatOnlyChange={v => { setChatOnly(v); setPage(1) }}
           onFillAll={handleFillAll}
+          onGenRelations={handleGenRelations}
           onImportProject={handleImportProject}
           onSyncProject={handleSyncProject}
         />
@@ -319,6 +382,11 @@ const CharacterLibraryPage: React.FC = () => {
           {fillingAll && fillProgress && (
             <div className="clib-hint">
               <Spin size="small" /> {fillProgress}（AI 逐个补齐中，可继续浏览其他页面）
+            </div>
+          )}
+          {relBusy && relProgress && (
+            <div className="clib-hint" data-testid="clib-rel-progress">
+              <Spin size="small" /> {relProgress}（AI 逐个生成主角关系中，可继续浏览其他页面）
             </div>
           )}
 
@@ -394,6 +462,8 @@ const CharacterLibraryPage: React.FC = () => {
           onAssociate={handleAssociate}
           onDissociate={handleDissociate}
           onDelete={handleDelete}
+          relBusy={relBusy}
+          onGenRelationOne={handleGenRelationOne}
         />
       </div>
 

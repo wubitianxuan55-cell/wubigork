@@ -16,7 +16,7 @@ import (
 var libFillKeys = []string{
 	"roleType", "gender", "age", "personality", "appearance", "figure",
 	"background", "motivation", "arc", "status", "notes",
-	"behaviorRules", "emotionLogic",
+	"behaviorRules", "emotionLogic", "protagonistRelation",
 }
 
 // libRandomKeys 所有可随机生成的字段（"all" 时全部重生成）。
@@ -29,6 +29,7 @@ var libFillLabels = map[string]string{
 	"appearance": "外貌", "figure": "身材", "background": "背景",
 	"motivation": "动机", "arc": "角色弧线", "status": "状态", "notes": "备注",
 	"behaviorRules": "行为规则", "emotionLogic": "情感逻辑",
+	"protagonistRelation": "与主角关系",
 }
 
 // libRandomLabels 随机字段的中文标签（all / 单字段随机时用于 prompt）。
@@ -38,7 +39,8 @@ var libRandomLabels = map[string]string{
 	"motivation": "动机", "arc": "角色弧线", "status": "状态", "notes": "备注",
 	"tags": "标签", "dialogueSamples": "对话样本", "voiceGuide": "口吻指南",
 	"behaviorRules": "行为规则", "emotionLogic": "情感逻辑",
-	"dims": "五维人格",
+	"protagonistRelation": "与主角关系",
+	"dims":                "五维人格",
 }
 
 // dimsKeys 五维人格的字段键（T/I/S/O/R，与 whisper.PersonalityDims 一致）。
@@ -357,6 +359,19 @@ func (a *App) characterGenerate(chJSON, mode string, targets []string) (string, 
 		}
 	}
 
+	// v4.453 与主角关系：涉及该字段时注入主角锚点与已用关系避重段。
+	needRelation := false
+	if mode == "fill" {
+		if v, _ := cur["protagonistRelation"].(string); strings.TrimSpace(v) == "" {
+			needRelation = true
+		}
+	} else if containsKey(targets, "protagonistRelation") || len(targets) == 0 || len(targets) == len(libRandomKeys) {
+		needRelation = true
+	}
+	if needRelation {
+		userPrompt += a.protagonistRelationBlock(name)
+	}
+
 	ctx := a.ctx
 	if ctx == nil {
 		ctx = context.Background()
@@ -434,6 +449,9 @@ func mergeRandom(cur, gen map[string]interface{}, targets []string) {
 		genVal, ok := gen[k]
 		if !ok && k == "roleType" {
 			genVal, ok = gen["role_type"]
+		}
+		if !ok && k == "protagonistRelation" {
+			genVal, ok = gen["protagonist_relation"]
 		}
 		if !ok {
 			continue
@@ -693,10 +711,11 @@ func mergeFill(cur, gen map[string]interface{}) {
 
 // libSnakeFallback AI 输出字段名 → 库内 camelCase 键的映射（模板输出常带下划线）。
 var libSnakeFallback = map[string]string{
-	"roleType":      "role_type",
-	"behaviorRules": "behavior_rules",
-	"emotionLogic":  "emotion_logic",
-	"voiceGuide":    "voice_guide",
+	"roleType":            "role_type",
+	"protagonistRelation": "protagonist_relation",
+	"behaviorRules":       "behavior_rules",
+	"emotionLogic":        "emotion_logic",
+	"voiceGuide":          "voice_guide",
 }
 
 // summarizeExisting 汇总当前非空字段（中文标签），供 AI 保持一致。
@@ -890,4 +909,160 @@ func (a *App) CharacterGenerateSheet(chJSON, variant string) (string, error) {
 		return "", fmt.Errorf("设定卡生成返回为空")
 	}
 	return img, nil
+}
+
+// ── v4.453 与主角的关系：AI 随机生成（个人/剩余全部/全部） ──────────────
+
+// protagonistRelationBlock 组装【与主角关系】prompt 段：主角锚点（库内
+// RoleType=protagonist 的角色）+ 库内已用关系避重。无主角卡时诚实告知模型
+// 自行虚构（单字段随机的编辑器路径不因缺主角卡而堵死）；主角本人的该字段
+// 恒输出空串。库未初始化/读取失败返回空串（零注入，不阻断其余字段生成）。
+func (a *App) protagonistRelationBlock(selfName string) string {
+	if a.charLib == nil {
+		return ""
+	}
+	all, _, err := a.charLib.List("", "", false, 100000, 0)
+	if err != nil {
+		return ""
+	}
+	var proto *characterlib.Character
+	used := make([]string, 0, 8)
+	seen := make(map[string]bool, 8)
+	for i := range all {
+		c := &all[i]
+		if c.RoleType == "protagonist" && proto == nil {
+			proto = c
+			continue
+		}
+		if r := strings.TrimSpace(c.ProtagonistRelation); r != "" && c.Name != selfName && !seen[r] {
+			used = append(used, r)
+			seen[r] = true
+		}
+	}
+	var b strings.Builder
+	b.WriteString("\n\n【与主角关系】protagonist_relation 字段=与主角的关系短语：2-8 字具体关系（如 师妹/宿敌/结拜兄弟/青梅竹马/同门对手），必须与该角色设定及主角设定自洽；只输出短语，不得写成句子或解释。")
+	if proto != nil {
+		if proto.Name == selfName {
+			b.WriteString("该角色本人即主角（" + proto.Name + "）：protagonist_relation 输出空字符串 \"\"。")
+			return b.String()
+		}
+		desc := strings.TrimSpace(proto.Personality)
+		if r := []rune(desc); len(r) > 60 {
+			desc = string(r[:60]) + "…"
+		}
+		b.WriteString("主角=「" + proto.Name + "」")
+		if desc != "" {
+			b.WriteString("（" + desc + "）")
+		}
+		b.WriteString("。")
+	} else {
+		b.WriteString("库内暂无主角（roleType=protagonist）卡：按世界观与该角色定位，虚构一位与之关系最自然的「主角」，再给出与其的关系短语。")
+	}
+	if len(used) > 0 {
+		b.WriteString("库内已用关系：" + strings.Join(used, "、") + "；尽量避免与之雷同。")
+	}
+	return b.String()
+}
+
+// CharacterGenerateProtagonistRelations 批量 AI 随机生成「与主角的关系」。
+// mode 语义：
+//
+//	"all"     → 全部：库内所有可见角色（除主角本人与助手人格）覆盖重写
+//	"missing" → 剩余全部：只生成该字段为空的角色
+//	"one"     → 个人：name 指定的单个角色（覆盖重写）
+//
+// 主角锚定库内 RoleType=protagonist 的角色，无主角卡时诚实报错指路；逐角色
+// 广播 character-fill-progress 进度事件（与 CharacterFillAll 同通道）。
+func (a *App) CharacterGenerateProtagonistRelations(mode, name string) (map[string]interface{}, error) {
+	if a.charLib == nil {
+		return nil, fmt.Errorf("角色库未初始化")
+	}
+	if a.client == nil || a.eng == nil {
+		return nil, fmt.Errorf("AI 客户端未初始化")
+	}
+	mode = strings.TrimSpace(mode)
+	all, _, err := a.charLib.List("", "", false, 100000, 0)
+	if err != nil {
+		return nil, fmt.Errorf("读取角色库失败: %w", err)
+	}
+	var proto *characterlib.Character
+	for i := range all {
+		if all[i].RoleType == "protagonist" {
+			proto = &all[i]
+			break
+		}
+	}
+	if proto == nil {
+		return nil, fmt.Errorf("未找到主角：先在角色库把某个角色的「定位」设为「主角」，再生成与主角的关系")
+	}
+	switch mode {
+	case "all", "missing", "one":
+	default:
+		return nil, fmt.Errorf("未知范围（%s）：可选 all（全部）/ missing（剩余全部）/ one（个人）", mode)
+	}
+
+	var targets []characterlib.Character
+	for _, c := range all {
+		if mode == "one" && c.Name == strings.TrimSpace(name) {
+			if c.Name == proto.Name {
+				return nil, fmt.Errorf("「%s」本人即主角：无需生成与主角的关系", c.Name)
+			}
+			targets = []characterlib.Character{c}
+			break
+		}
+		if c.Name == proto.Name || c.Kind == characterlib.KindAssistant {
+			continue // 主角本人与助手人格不参与
+		}
+		if mode == "missing" && strings.TrimSpace(c.ProtagonistRelation) != "" {
+			continue
+		}
+		if mode != "one" {
+			targets = append(targets, c)
+		}
+	}
+	if mode == "one" && len(targets) == 0 {
+		return nil, fmt.Errorf("未找到角色「%s」", strings.TrimSpace(name))
+	}
+
+	updated, failed := 0, 0
+	var failNames []string
+	for i, c := range targets {
+		a.emit("character-fill-progress", map[string]interface{}{
+			"current": i + 1,
+			"total":   len(targets),
+			"name":    c.Name,
+		})
+		merged, err := a.characterGenerate(string(util.MustMarshal(c)), "random", []string{"protagonistRelation"})
+		if err != nil {
+			failed++
+			failNames = append(failNames, c.Name)
+			continue
+		}
+		var next characterlib.Character
+		if err := json.Unmarshal([]byte(merged), &next); err != nil {
+			failed++
+			failNames = append(failNames, c.Name)
+			continue
+		}
+		// 保护身份与底层字段不被 AI 结果覆盖
+		next.ID = c.ID
+		next.Kind = c.Kind
+		next.CreatedAt = c.CreatedAt
+		next.AssistantID = c.AssistantID
+		next.ChatEnabled = c.ChatEnabled
+		next.Hidden = c.Hidden
+		if err := a.charLib.Upsert(&next); err != nil {
+			failed++
+			failNames = append(failNames, c.Name)
+			continue
+		}
+		updated++
+	}
+	return map[string]interface{}{
+		"mode":      mode,
+		"total":     len(targets),
+		"updated":   updated,
+		"failed":    failed,
+		"failNames": failNames,
+	}, nil
 }
