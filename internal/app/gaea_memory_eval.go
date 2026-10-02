@@ -39,14 +39,7 @@ func (a *App) GaeaMemoryEvalRun() (MemoryEvalReport, error) {
 	rep := MemoryEvalReport{}
 	store := a.hubOfficeStore()
 
-	ga.mu.Lock()
-	engineCfg := ga.cfg
-	ga.mu.Unlock()
-	if engineCfg == nil {
-		if c, err := gaeaLoadConfig(); err == nil {
-			engineCfg = c
-		}
-	}
+	engineCfg := gaeaCfgSnapshotOrLoad() // AP5-08：快照 nil 时读盘兜底（原内联同形）
 	spaceModeOn := engineCfg != nil && engineCfg.SpaceModeIsOn()
 	memoryEnabled := engineCfg != nil && engineCfg.Memory.Enabled
 	gates := MemoryEvalGates{

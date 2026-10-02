@@ -327,7 +327,9 @@ func (a *writingState) sceneGenPlanSection(pm *project.Manager, chapterNum int) 
 }
 
 // syncSceneRefs 把章的场景 ID 列表回写进大纲节点 SceneRefs（G10 启用）。
-// 递归找节点（N13 纪律）；读-改-写只动目标节点的 SceneRefs 字段。
+// AP1-06 收敛：递归找节点并入 findOutlineNode（N13 纪律），分支语义在谓词
+// （只认主线 Branch==""，与改前一致）；读-改-写只动目标节点的 SceneRefs 字段，
+// 找到节点即写盘（无变化只跳过字段赋值，磁盘照写——与改前行为一致）。
 func (a *writingState) syncSceneRefs(pm *project.Manager, chapterNum int, metas []types.SceneMeta) {
 	ids := make([]string, 0, len(metas))
 	for i := range metas {
@@ -337,24 +339,14 @@ func (a *writingState) syncSceneRefs(pm *project.Manager, chapterNum int, metas 
 	if err != nil || of == nil {
 		return
 	}
-	var sync func(nodes []types.OutlineNode) bool
-	sync = func(nodes []types.OutlineNode) bool {
-		for i := range nodes {
-			if nodes[i].OrderIndex == chapterNum && nodes[i].Branch == "" {
-				if strings.Join(nodes[i].SceneRefs, "\x00") == strings.Join(ids, "\x00") {
-					return true // 无变化不写盘
-				}
-				nodes[i].SceneRefs = ids
-				return true
-			}
-			if sync(nodes[i].Children) {
-				return true
-			}
-		}
-		return false
-	}
-	if !sync(of.Nodes) {
+	node := findOutlineNode(of.Nodes, func(n *types.OutlineNode) bool {
+		return n.OrderIndex == chapterNum && n.Branch == ""
+	})
+	if node == nil {
 		return // 大纲无该章节点（场景章未建节点）不算错
+	}
+	if strings.Join(node.SceneRefs, "\x00") != strings.Join(ids, "\x00") {
+		node.SceneRefs = ids // 无变化不动字段
 	}
 	if err := pm.WriteOutlines(of); err != nil {
 		slog.Warn("SceneRefs 回写失败", "chapter", chapterNum, "error", err)

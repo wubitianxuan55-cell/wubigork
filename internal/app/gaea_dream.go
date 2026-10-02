@@ -272,14 +272,8 @@ func (a *App) runDream(space string) error {
 
 // gaeaDreamMode 返回当前生效的自动做梦模式（off/suggest/auto）。
 func gaeaDreamMode() string {
-	ga.mu.Lock()
-	cfg := ga.cfg
-	ga.mu.Unlock()
-	if cfg != nil {
+	if cfg := gaeaCfgSnapshotOrLoad(); cfg != nil { // AP5-08：快照 nil 时读盘兜底
 		return cfg.DreamMode()
-	}
-	if c, err := gaeaLoadConfig(); err == nil {
-		return c.DreamMode()
 	}
 	return "suggest"
 }

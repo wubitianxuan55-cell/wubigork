@@ -327,8 +327,7 @@ func (b *ComfyUIBackend) GenerateImage(ctx context.Context, req *ImageGeneration
 		}
 		switch {
 		case req.Model == "z-image-turbo":
-			unetModel := "z_image_turbo_bf16_完整版_效果最好.safetensors"
-			workflow = b.buildZImageImg2ImgWorkflow(req.Prompt, req.Negative, width, height, seed, 8, unetModel, loras, imageName, denoise)
+			workflow = b.buildZImageImg2ImgWorkflow(req.Prompt, req.Negative, width, height, seed, 8, loras, imageName, denoise)
 		case req.Model == "krea2" || strings.HasPrefix(req.Model, "krea2"):
 			workflow = b.buildKreaImg2ImgWorkflow(req.Prompt, req.Negative, width, height, seed, 8, loras, imageName, denoise)
 		default:
@@ -356,7 +355,7 @@ func (b *ComfyUIBackend) GenerateImage(ctx context.Context, req *ImageGeneration
 		if !ok {
 			return nil, fmt.Errorf("不支持的模型: %s（ComfyUI 支持 krea2 / z-image-turbo / flux）", req.Model)
 		}
-		workflow = builder(b, req.Prompt, req.Negative, width, height, seed, loras)
+		workflow = builder(b, req.Prompt, req.Negative, width, height, seed, 8, loras)
 	}
 
 	// 1. 提交任务
@@ -428,19 +427,21 @@ func parseSize(size string) (int, int, error) {
 }
 
 // txt2imgWorkflowBuilder 文生图工作流构建器（模型 → 工作流显式映射）。
-type txt2imgWorkflowBuilder func(b *ComfyUIBackend, prompt, negative string, width, height, seed int, loras []string) map[string]interface{}
+// steps 由调用方给定：真实生成为 8，Warmup 空跑取 1（同一构建器保证
+// 预热加载的就是下次真实生成要用的模型文件）。
+type txt2imgWorkflowBuilder func(b *ComfyUIBackend, prompt, negative string, width, height, seed, steps int, loras []string) map[string]interface{}
 
 // txt2imgWorkflows 文生图模型 → 工作流映射表（T6-4.2 名实相符）。
 // 新增模型必须在此登记，未登记的模型在 GenerateImage 中直接返回中文错误，
 // 禁止静默降级到其他模型。
 var txt2imgWorkflows = map[string]txt2imgWorkflowBuilder{
-	"krea2": func(b *ComfyUIBackend, prompt, negative string, width, height, seed int, loras []string) map[string]interface{} {
-		return b.buildKreaWorkflow(prompt, width, height, seed, 8, loras)
+	"krea2": func(b *ComfyUIBackend, prompt, negative string, width, height, seed, steps int, loras []string) map[string]interface{} {
+		return b.buildKreaWorkflow(prompt, width, height, seed, steps, loras)
 	},
-	"z-image-turbo": func(b *ComfyUIBackend, prompt, negative string, width, height, seed int, loras []string) map[string]interface{} {
-		return b.buildZImageWorkflow(prompt, negative, width, height, seed, 8, "z_image_turbo_bf16_完整版_效果最好.safetensors", loras)
+	"z-image-turbo": func(b *ComfyUIBackend, prompt, negative string, width, height, seed, steps int, loras []string) map[string]interface{} {
+		return b.buildZImageWorkflow(prompt, width, height, seed, steps, loras)
 	},
-	"flux": func(b *ComfyUIBackend, prompt, negative string, width, height, seed int, loras []string) map[string]interface{} {
+	"flux": func(b *ComfyUIBackend, prompt, negative string, width, height, seed, steps int, loras []string) map[string]interface{} {
 		return b.buildFluxWorkflow(prompt, width, height, seed, loras)
 	},
 }
@@ -467,25 +468,19 @@ func ComfyUIWarmupSupported(model string) bool {
 // Warmup 提交一次极小空跑（64×64、1 步）把目标模型的 UNET/CLIP/VAE 预加载
 // 进显存——CU1（蒸馏 unsloth §六-2）：惰性加载是「首图几十秒」体感的根源，
 // 绘梦页首入时后台预热把「惰性首次」变「提前完成」。产出图直接丢弃。
-// 复用既有 workflow 构建器保证预热加载的就是下次真实生成要用的模型文件；
-// 步数取最低档（krea2/z-image 传 1，flux 固定 4 步），空跑算力开销可忽略，
+// 复用 txt2imgWorkflows 登记的同一构建器（lookupTxt2imgBuilder 分发，步数取 1）
+// 保证预热加载的就是下次真实生成要用的模型文件；空跑算力开销可忽略，
 // 加载才是目的。与真实生成共用 ComfyUI 队列：预热排队中用户提交真任务时，
 // 真任务只是排在极小空跑后面，天然串行无冲突。
 func (b *ComfyUIBackend) Warmup(ctx context.Context, model string) error {
 	if model == "" {
 		model = "krea2"
 	}
-	var workflow map[string]interface{}
-	switch {
-	case strings.HasPrefix(model, "krea2"):
-		workflow = b.buildKreaWorkflow("(warmup)", 64, 64, 0, 1, nil)
-	case model == "z-image-turbo":
-		workflow = b.buildZImageWorkflow("(warmup)", "", 64, 64, 0, 1, "z_image_turbo_bf16_完整版_效果最好.safetensors", nil)
-	case model == "flux":
-		workflow = b.buildFluxWorkflow("(warmup)", 64, 64, 0, nil)
-	default:
+	builder, ok := lookupTxt2imgBuilder(model)
+	if !ok {
 		return fmt.Errorf("模型 %s 未登记预热工作流", model)
 	}
+	workflow := builder(b, "(warmup)", "", 64, 64, 0, 1, nil)
 	promptID, err := b.queuePrompt(ctx, workflow)
 	if err != nil {
 		return fmt.Errorf("预热任务提交失败: %w", err)
@@ -659,24 +654,21 @@ func (b *ComfyUIBackend) waitForResult(ctx context.Context, promptID string, req
 				// percent=-1 / node=""：真实进度由 ws 回调推送，这里只保底刷新 elapsed
 				req.ProgressCallback("running", int(time.Since(start).Seconds()), -1, "")
 			}
-			files, done, err := b.checkHistory(ctx, promptID)
+			dataURL, kind, done, err := b.collectResult(ctx, promptID)
 			if err != nil {
 				// T6-4.1：取消后轮询即刻退出（checkHistory 携带 ctx）
 				if ctx.Err() != nil {
 					return "", "", ctx.Err()
 				}
 				if done {
-					return "", "", err
+					// done 时的 kind 保持原样返回（下载失败路径与历史返回形状一致）
+					return "", kind, err
 				}
 				slog.Warn("ComfyUI 轮询失败", "error", err)
 				continue
 			}
 			if done {
-				if len(files) == 0 {
-					return "", "", fmt.Errorf("ComfyUI 完成但无输出文件")
-				}
-				dataURL, err := b.downloadFile(ctx, files[0])
-				return dataURL, files[0].kind, err
+				return dataURL, kind, nil
 			}
 		}
 	}
@@ -705,16 +697,38 @@ func comfyResolveRefMode(mode, refMethod string) (string, error) {
 	}
 }
 
+// collectResult 收割一次任务状态并取回产物（AP7-10：正常轮询与超时收割
+// 共用的「checkHistory + downloadFile」——原来两处各写一遍，改一处漏一处）。
+// 返回 (dataURL, kind, done, err)：
+//   - done=false          → 任务未完成（err 为轮询失败原因，可为 nil）
+//   - done=true, err=nil  → dataURL/kind 为已下载产物
+//   - done=true, err!=nil → 执行错误 / 完成但无输出文件 / 下载失败
+//     （下载失败时 kind 仍带回首文件类型，与历史返回形状一致）
+func (b *ComfyUIBackend) collectResult(ctx context.Context, promptID string) (string, string, bool, error) {
+	files, done, err := b.checkHistory(ctx, promptID)
+	if err != nil {
+		return "", "", done, err
+	}
+	if !done {
+		return "", "", false, nil
+	}
+	if len(files) == 0 {
+		return "", "", true, fmt.Errorf("ComfyUI 完成但无输出文件")
+	}
+	dataURL, derr := b.downloadFile(ctx, files[0])
+	if derr != nil {
+		return "", files[0].kind, true, derr
+	}
+	return dataURL, files[0].kind, true, nil
+}
+
 // harvestOnTimeout 超时前最后一搏：再查一次历史，服务端已完成则收割产物
 // （v4.404.1——服务端已做的工作不因客户端上限白等浪费）；否则如实报超时。
 func (b *ComfyUIBackend) harvestOnTimeout(ctx context.Context, promptID string, waited time.Duration) (string, string, error) {
-	files, done, err := b.checkHistory(ctx, promptID)
-	if err == nil && done && len(files) > 0 {
-		dataURL, derr := b.downloadFile(ctx, files[0])
-		if derr == nil {
-			slog.Info("ComfyUI 生成超时前收割到已完成产物", "promptID", promptID, "waited", waited.String())
-			return dataURL, files[0].kind, nil
-		}
+	dataURL, kind, done, err := b.collectResult(ctx, promptID)
+	if err == nil && done {
+		slog.Info("ComfyUI 生成超时前收割到已完成产物", "promptID", promptID, "waited", waited.String())
+		return dataURL, kind, nil
 	}
 	return "", "", fmt.Errorf("ComfyUI 生成超时 (%d分钟)", int(b.genTimeout.Minutes()))
 }

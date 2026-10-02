@@ -1,7 +1,7 @@
 // 聊天 markdown 渲染缝的 GenUI 覆盖件：只替换 code/pre，保留默认样式。
 import { isValidElement, type ReactNode } from 'react'
 import type { Components } from 'react-markdown'
-import { GenuiMarkdownFence, genuiFenceStateKey, isGenuiFenceLang } from '../../genui/markdownFence'
+import { extractFence, GenuiMarkdownFence, genuiFenceStateKey, isGenuiFenceLang } from '../../genui/markdownFence'
 import type { GenuiScope } from '../../genui/scope'
 import { ChatCodeBlock } from '../ChatCodeBlock'
 
@@ -15,10 +15,8 @@ export function buildMarkdownGenuiOverrides(
       : undefined
 
   const GenuiCode = ({ className, children }: { className?: string; children?: ReactNode }) => {
-    const text = String(children ?? '').replace(/\n$/, '')
-    const match = /language-([\w-]+)/.exec(className ?? '')
-    const lang = match?.[1]
-    const isBlock = match !== null || text.includes('\n')
+    // FE6-05：language- 提取/去尾换行/块级判定走 extractFence 单源。
+    const { text, lang, isBlock } = extractFence(className, children)
     if (lang !== undefined && isGenuiFenceLang(lang) && isBlock) {
       return (
         <div data-genui-host="true">

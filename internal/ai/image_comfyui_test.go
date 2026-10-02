@@ -70,7 +70,7 @@ func TestBuildKreaWorkflow(t *testing.T) {
 
 func TestBuildZImageWorkflow(t *testing.T) {
 	b := &ComfyUIBackend{}
-	wf := b.buildZImageWorkflow("测试 prompt", "负面", 1024, 1024, 42, 8, "z_image_turbo_bf16_完整版_效果最好.safetensors", nil)
+	wf := b.buildZImageWorkflow("测试 prompt", 1024, 1024, 42, 8, nil)
 
 	// ZIT 关键差异：EmptySD3LatentImage + ModelSamplingAuraFlow(shift=3) + CLIP lumina2
 	if wf["9"].(map[string]interface{})["class_type"] != "EmptySD3LatentImage" {

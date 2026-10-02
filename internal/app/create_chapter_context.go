@@ -326,20 +326,29 @@ func planGateError(report *types.PlanGateReport) error {
 	return fmt.Errorf("%s", msg)
 }
 
-// findOutlineNodeByNum 按章号取主线大纲节点（分支章不参与主线意图注入；同名分支
-// 节点在 ensureChapterNode 里才会建，此处只认 Branch==""）。递归到 Children
-// （N13）：分卷大纲的章节点挂在卷节点下，只扫顶层会让分卷书的章计划/意图注入
-// 整体失明。
-func findOutlineNodeByNum(nodes []types.OutlineNode, num int) *types.OutlineNode {
+// findOutlineNode 按谓词在大纲树中找第一个命中节点（AP1-06 收敛：递归骨架全包
+// 只此一份， Children 递归——N13：分卷大纲的章节点挂在卷节点下，只扫顶层会让
+// 分卷书的各取节点路径整体失明）。前序遍历：先本层后子层，与改前各份手写递归
+// 的命中序一致。「认不认分支/按什么字段认」是各调用点的语义差异，进谓词显式
+// 化，不在此处顺手统一。
+func findOutlineNode(nodes []types.OutlineNode, pred func(*types.OutlineNode) bool) *types.OutlineNode {
 	for i := range nodes {
-		if nodes[i].OrderIndex == num && nodes[i].Branch == "" {
+		if pred(&nodes[i]) {
 			return &nodes[i]
 		}
-		if found := findOutlineNodeByNum(nodes[i].Children, num); found != nil {
+		if found := findOutlineNode(nodes[i].Children, pred); found != nil {
 			return found
 		}
 	}
 	return nil
+}
+
+// findOutlineNodeByNum 按章号取主线大纲节点（分支章不参与主线意图注入；同名分支
+// 节点在 ensureChapterNode 里才会建，此处只认 Branch==""——语义在谓词里）。
+func findOutlineNodeByNum(nodes []types.OutlineNode, num int) *types.OutlineNode {
+	return findOutlineNode(nodes, func(n *types.OutlineNode) bool {
+		return n.OrderIndex == num && n.Branch == ""
+	})
 }
 
 // trimPlanItems 去空白并丢弃空条目（渲染与判据共用同一口径）。

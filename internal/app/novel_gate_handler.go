@@ -173,44 +173,25 @@ func gateOutlineNodeTitle(n types.OutlineNode, target string) string {
 
 // gateOutlineIssues 取本章对应大纲节点的写前契约发现（零 LLM）。
 // 匹配口径：优先 ChapterFile 前导章号，其次 OrderIndex；找不到返回空表（不阻断）。
-// 两段匹配都**递归**（N13）：分卷大纲的章节点在 Children 里，只扫顶层会让
+// 两段匹配都递归（N13）：分卷大纲的章节点在 Children 里，只扫顶层会让
 // 分卷书的写前闸整体失明（gateOutlineTitle 同文件早已递归，两处口径必须一致）。
+// AP1-06 收敛：两段递归骨架并入 findOutlineNode，差异全在谓词——
+// 第二段**不看 Branch**（改前行为：OrderIndex 兜底连分支章也认）。
 func gateOutlineIssues(pm *project.Manager, chapterNum int) []novelgate.Issue {
 	outline, err := pm.ReadOutlines()
 	if err != nil || outline == nil {
 		return []novelgate.Issue{}
 	}
-	var match *types.OutlineNode
-	var findByFile func(nodes []types.OutlineNode) bool
-	findByFile = func(nodes []types.OutlineNode) bool {
-		for i := range nodes {
-			if nodes[i].ChapterFile != "" && types.ChapterNumOf(nodes[i].ChapterFile) == chapterNum {
-				match = &nodes[i]
-				return true
-			}
-			if findByFile(nodes[i].Children) {
-				return true
-			}
-		}
-		return false
-	}
-	if findByFile(outline.Nodes) {
+	match := findOutlineNode(outline.Nodes, func(n *types.OutlineNode) bool {
+		return n.ChapterFile != "" && types.ChapterNumOf(n.ChapterFile) == chapterNum
+	})
+	if match != nil {
 		return novelgate.OutlineContractIssues(*match)
 	}
-	var findByOrder func(nodes []types.OutlineNode) bool
-	findByOrder = func(nodes []types.OutlineNode) bool {
-		for i := range nodes {
-			if nodes[i].OrderIndex == chapterNum {
-				match = &nodes[i]
-				return true
-			}
-			if findByOrder(nodes[i].Children) {
-				return true
-			}
-		}
-		return false
-	}
-	if findByOrder(outline.Nodes) {
+	match = findOutlineNode(outline.Nodes, func(n *types.OutlineNode) bool {
+		return n.OrderIndex == chapterNum
+	})
+	if match != nil {
 		return novelgate.OutlineContractIssues(*match)
 	}
 	return []novelgate.Issue{}

@@ -7,22 +7,23 @@
  * （逻辑关系图不带时标，JGJ/T 121 口径）。
  * 几何复用刀H 纯函数：AOA 箭线=edgeSegs/findBridgeArcs/segsToPath（自定义
  * 日宽——图面按计划长度自适应 36~110px/天，长计划不爆画布）；PDM 分层=
- * layerByTopology、盒尺寸与连线三段式同 PdmView 口径（isLinkBinding 本地
- * 同构副本，判定口径：后继日期恰由该搭接决定）。
+ * layerByTopology、盒尺寸与连线三段式同 PdmView 口径（isLinkBinding 单源
+ * 导入，判定口径：后继日期恰由该搭接决定；FE7-06 收敛本地同构副本）。
  * 标题带/图签/调色板/编制说明注共用 ganttExport 导出件；全部纯函数零 DOM。
  * v4.137.0 刀D4：里程碑节点加小旗标——单代号六格盒右上角、双代号里程碑
- * 完成事件圈右上角（与横道菱形旗同款形状，本文件内重复实现，不建第三文件）。
+ * 完成事件圈右上角（与横道菱形旗同款形状，expFlagSvg 单源导入复用）。
  */
 import type { AoaGraph } from './aoa'
 import { AOA_R, AOA_ROW_H } from './aoa'
 import { edgeSegs, findBridgeArcs, segsToPath, segsToPathSplit, assignChannels, summarySegs } from './aoaLayout'
 import { layerByTopology } from './layout'
 import { wdToDate } from './calendar'
-import type { CpmResult, LinkType, SchedProject } from './types'
+import type { CpmResult, SchedProject } from './types'
 import {
-  EXP_COLORS, EXP_FONT, EXP_MARGIN, EXP_TITLE_H, esc, exportNotesBlockH, exportNotesSvg,
+  EXP_COLORS, EXP_FONT, EXP_MARGIN, EXP_TITLE_H, esc, expFlagSvg, exportNotesBlockH, exportNotesSvg,
   fitText, exportSignSvg, exportTitleSvg, type ExportMeta,
 } from './ganttExport'
+import { isLinkBinding } from './PdmView'
 
 const C = EXP_COLORS
 const FONT = EXP_FONT
@@ -38,19 +39,8 @@ export interface NetworkExportSvg {
 /** AOA 左侧留白：工程标尺行名（工程日/月/日/星期）右对齐落位 */
 const AOA_LGUT = 40
 
-/**
- * 里程碑小旗（与 ganttExport 内 expFlagSvg 同款形状的本文件副本）：旗杆竖线 +
- * 三角旗面，data-exp-flag 供导出图面测试断言。(x,y)=旗杆顶点，poleH=杆高，
- * fw/fh=旗面宽高（旗面自杆顶向右）；颜色传 EXP_COLORS 现成色（关键红）。
- */
-function expFlagSvg(x: number, y: number, poleH: number, fw: number, fh: number, color: string): string {
-  return (
-    `<g class="sched-exp-flag" data-exp-flag="1">` +
-    `<line x1="${x}" y1="${y}" x2="${x}" y2="${y + poleH}" stroke="${color}" stroke-width="1.5"/>` +
-    `<polygon points="${x},${y} ${x + fw},${y + fh / 2} ${x},${y + fh}" fill="${color}"/>` +
-    `</g>`
-  )
-}
+// 里程碑小旗：单源自 ganttExport.expFlagSvg 导入（FE7-06 收敛，本地同构
+// 副本已删）；data-exp-flag 供导出图面测试断言，形状与横道逐字节同款。
 
 /** PDM 节点盒尺寸（与 PdmView 同口径：六格标注法 150×92） */
 const PDM_NODE_W = 150
@@ -59,15 +49,7 @@ const PDM_COL_GAP = 74
 const PDM_ROW_GAP = 40
 const PDM_MARGIN = 28
 
-/** 该搭接当前是否为「绑定约束」（PdmView.isLinkBinding 同构副本；四型判定穷尽） */
-function isLinkBinding(type: LinkType, lag: number, f: { es: number; ef: number }, t: { es: number; ef: number }): boolean {
-  switch (type) {
-    case 'FS': return t.es === f.ef + lag
-    case 'SS': return t.es === f.es + lag
-    case 'FF': return t.ef === f.ef + lag
-    case 'SF': return t.ef === f.es + lag
-  }
-}
+// 该搭接当前是否为「绑定约束」：单源自 PdmView.isLinkBinding 导入（FE7-06 收敛，本地同构副本已删）
 
 /**
  * 双代号时标网络上报件。graph 未过（循环依赖）或空图抛错。

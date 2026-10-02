@@ -9,10 +9,13 @@ import (
 func TestRegressionE01ZImageWorkflowStable(t *testing.T) {
 	b := &ComfyUIBackend{}
 	build := func(steps int) map[string]interface{} {
-		return b.buildZImageWorkflow("提示词", "负面", 1024, 1024, 42, steps, "unet.safetensors", nil)
+		return b.buildZImageWorkflow("提示词", 1024, 1024, 42, steps, nil)
 	}
 	wf := build(0)
 	node := func(id string) map[string]interface{} { return wf[id].(map[string]interface{}) }
+	if got := node("4")["inputs"].(map[string]interface{})["unet_name"]; got != "z_image_turbo_bf16_完整版_效果最好.safetensors" {
+		t.Fatalf("unet_name = %v", got)
+	}
 	ks := node("10")["inputs"].(map[string]interface{})
 	if ks["seed"] != 42 {
 		t.Fatalf("seed = %v", ks["seed"])

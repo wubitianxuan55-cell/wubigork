@@ -92,6 +92,75 @@ var (
 	bookImportSeq  atomic.Int64
 )
 
+// bookJobEmit 书源后台任务的事件发射面（writingState/App 同经 core.emit，
+// 方法值直传同签名）。
+type bookJobEmit = func(eventName string, data map[string]interface{})
+
+// bookJobSpec 书源后台任务单一模板的差异面（AP2-02 收敛：整本导入/失败章补下/
+// 原罪成书三处同构——登记 cancel → defer recover 转 error 事件 → defer 注销+
+// cancel → onProgress 节流 → done/error emit——骨架只此一份，差异全在参数）。
+type bookJobSpec struct {
+	jobPrefix   string // jobID 前缀（bsi_/bsa_/bss_；取消簿键与日志标识）
+	eventPrefix string // 事件通道前缀（novel-import-progress: / sin-booksource:）
+	panicPrefix string // panic 转 error 事件的文案前缀（导入异常/下载异常）
+	doneType    string // 终态事件类型（done / append-done）
+	// errWithFailed / doneWithFailed：error / done 载荷是否带 failed 附带
+	// （整本导入两边都带；补下仅 error 带计数；原罪成书都不带——改前逐字段对齐）。
+	errWithFailed  bool
+	doneWithFailed bool
+	// work 后台主体：result 进 done 载荷 result 字段；failed 是失败章清单
+	//（error 载荷取计数、done 载荷原样透传）；err 非 nil 走 error 终态。
+	work func(ctx context.Context, onProgress func(done, total int)) (result any, failed []booksource.FailedChapter, err error)
+}
+
+// runBookJob 书源后台任务单一模板（AP2-02）：登记 cancel → 后台协程
+// （panic 防线→注销防线→节流进度→work→终态 emit）→ 返回 jobID 供起跑回执。
+// 事件通道名/文案/载荷字段与改前三处逐字段一致；超时上限统一 booksourceImportTimeout。
+func runBookJob(emit bookJobEmit, spec bookJobSpec) string {
+	ctx, cancel := context.WithTimeout(context.Background(), booksourceImportTimeout)
+	jobID := fmt.Sprintf("%s%d_%d", spec.jobPrefix, time.Now().UnixMilli(), bookImportSeq.Add(1))
+	bookImportMu.Lock()
+	bookImportRuns[jobID] = cancel
+	bookImportMu.Unlock()
+
+	go func() {
+		// panic 防线：逐章抓取+按用户书源规则解析远程内容，解析面对畸形内容
+		// panic 时转 error 事件（前端进度如实失败，不永久挂起），不带崩进程；
+		// 后续 defer 正常清 jobID/cancel。
+		defer func() {
+			if r := recover(); r != nil {
+				emit(spec.eventPrefix+jobID, map[string]interface{}{"type": "error", "error": fmt.Sprintf("%s: %v", spec.panicPrefix, r)})
+			}
+		}()
+		defer func() {
+			bookImportMu.Lock()
+			delete(bookImportRuns, jobID)
+			bookImportMu.Unlock()
+			cancel()
+		}()
+		onProgress := func(done, total int) {
+			if done%booksourceProgressStep == 0 || done == total {
+				emit(spec.eventPrefix+jobID, map[string]interface{}{"type": "progress", "done": done, "total": total})
+			}
+		}
+		res, failed, err := spec.work(ctx, onProgress)
+		if err != nil {
+			payload := map[string]interface{}{"type": "error", "error": err.Error()}
+			if spec.errWithFailed {
+				payload["failed"] = len(failed)
+			}
+			emit(spec.eventPrefix+jobID, payload)
+			return
+		}
+		payload := map[string]interface{}{"type": spec.doneType, "result": res}
+		if spec.doneWithFailed {
+			payload["failed"] = failed
+		}
+		emit(spec.eventPrefix+jobID, payload)
+	}()
+	return jobID
+}
+
 // ── 内部实现（目录与网络通道均可注入，测试走假站）──
 
 // loadBookSourceRules 装载启用中的书源规则：剔除引擎文件/坏规则/Disabled；
@@ -322,45 +391,20 @@ func (w *writingState) NovelBookSourceImport(source, detailURL string, start, en
 	if findRuleByName(loadBookSourceRules(booksourceRulesDir()), source) == nil {
 		return NovelBookSourceImportStart{}, fmt.Errorf("书源规则不存在或未启用：%s（免规则来源正文不可解析）", source)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), booksourceImportTimeout)
-	jobID := fmt.Sprintf("bsi_%d_%d", time.Now().UnixMilli(), bookImportSeq.Add(1))
-	bookImportMu.Lock()
-	bookImportRuns[jobID] = cancel
-	bookImportMu.Unlock()
-
 	params := bookImportParams{Source: source, URL: detailURL, Title: title, Genre: genre, Style: style, Start: start, End: end}
-	go func() {
-		// 导入链 panic 防线：逐章抓取+按用户书源规则解析远程内容，解析面
-		// 对畸形内容 panic 时转 error 事件（前端进度如实失败，不永久挂起），
-		// 不带崩进程；后续 defer 正常清 jobID/cancel。
-		defer func() {
-			if r := recover(); r != nil {
-				w.emit("novel-import-progress:"+jobID, map[string]interface{}{"type": "error", "error": fmt.Sprintf("导入异常: %v", r)})
-			}
-		}()
-		defer func() {
-			bookImportMu.Lock()
-			delete(bookImportRuns, jobID)
-			bookImportMu.Unlock()
-			cancel()
-		}()
-		onProgress := func(done, total int) {
-			if done%booksourceProgressStep == 0 || done == total {
-				w.emit("novel-import-progress:"+jobID, map[string]interface{}{"type": "progress", "done": done, "total": total})
-			}
-		}
-		res, failed, err := importBookSource(ctx, booksourceRulesDir(), w.cfg.NovelsDir, params, booksource.Options{}, onProgress)
-		if err != nil {
-			w.emit("novel-import-progress:"+jobID, map[string]interface{}{"type": "error", "error": err.Error(), "failed": failedCount(failed)})
-			return
-		}
-		w.emit("novel-import-progress:"+jobID, map[string]interface{}{"type": "done", "result": res, "failed": failed})
-	}()
+	// AP2-02 收敛：骨架（登记/panic 防线/注销/节流/终态）进 runBookJob；
+	// 差异=bsi_ 前缀、novel-import-progress: 通道、「导入异常」文案、done 终态
+	// 且 error/done 载荷都带 failed（error 取计数、done 原样清单）。
+	jobID := runBookJob(w.emit, bookJobSpec{
+		jobPrefix: "bsi_", eventPrefix: "novel-import-progress:", panicPrefix: "导入异常",
+		doneType: "done", errWithFailed: true, doneWithFailed: true,
+		work: func(ctx context.Context, onProgress func(done, total int)) (any, []booksource.FailedChapter, error) {
+			res, failed, err := importBookSource(ctx, booksourceRulesDir(), w.cfg.NovelsDir, params, booksource.Options{}, onProgress)
+			return res, failed, err
+		},
+	})
 	return NovelBookSourceImportStart{JobID: jobID}, nil
 }
-
-// failedCount 终态 error 事件只带失败计数（清单归 done/error 文案，避免载荷膨胀）。
-func failedCount(failed []booksource.FailedChapter) int { return len(failed) }
 
 // NovelBookSourceImportCancel 取消在途导入（精确到 job；未知 job 如实返回 false）。
 func (w *writingState) NovelBookSourceImportCancel(jobID string) bool {
@@ -473,47 +517,28 @@ func (w *writingState) NovelBookSourceImportChapters(source, projectPath, chapte
 		return NovelBookSourceImportStart{}, fmt.Errorf("项目不存在或无效：%s", projectPath)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), booksourceImportTimeout)
-	jobID := fmt.Sprintf("bsa_%d_%d", time.Now().UnixMilli(), bookImportSeq.Add(1))
-	bookImportMu.Lock()
-	bookImportRuns[jobID] = cancel
-	bookImportMu.Unlock()
-
-	go func() {
-		// 追加导入 panic 防线（同 NovelBookSourceImport）：转 error 事件不挂进度。
-		defer func() {
-			if r := recover(); r != nil {
-				w.emit("novel-import-progress:"+jobID, map[string]interface{}{"type": "error", "error": fmt.Sprintf("导入异常: %v", r)})
+	// AP2-02 收敛：同 runBookJob 骨架；差异=bsa_ 前缀、append-done 终态、
+	// error 载荷带 failed 计数（两条失败路径同形）而 done 不带。
+	jobID := runBookJob(w.emit, bookJobSpec{
+		jobPrefix: "bsa_", eventPrefix: "novel-import-progress:", panicPrefix: "导入异常",
+		doneType: "append-done", errWithFailed: true, doneWithFailed: false,
+		work: func(ctx context.Context, onProgress func(done, total int)) (any, []booksource.FailedChapter, error) {
+			toc := make([]booksource.TocEntry, len(items))
+			for i := range items {
+				toc[i] = booksource.TocEntry{Title: items[i].Title, URL: items[i].URL, Order: i + 1}
 			}
-		}()
-		defer func() {
-			bookImportMu.Lock()
-			delete(bookImportRuns, jobID)
-			bookImportMu.Unlock()
-			cancel()
-		}()
-		toc := make([]booksource.TocEntry, len(items))
-		for i := range items {
-			toc[i] = booksource.TocEntry{Title: items[i].Title, URL: items[i].URL, Order: i + 1}
-		}
-		engine := booksource.New(rule, booksource.Options{})
-		onProgress := func(done, total int) {
-			if done%booksourceProgressStep == 0 || done == total {
-				w.emit("novel-import-progress:"+jobID, map[string]interface{}{"type": "progress", "done": done, "total": total})
+			engine := booksource.New(rule, booksource.Options{})
+			report, err := engine.DownloadChapters(ctx, toc, booksource.DownloadOptions{OnProgress: onProgress})
+			if err != nil {
+				return nil, report.Failed, err
 			}
-		}
-		report, err := engine.DownloadChapters(ctx, toc, booksource.DownloadOptions{OnProgress: onProgress})
-		if err != nil {
-			w.emit("novel-import-progress:"+jobID, map[string]interface{}{"type": "error", "error": err.Error(), "failed": failedCount(report.Failed)})
-			return
-		}
-		res, err := appendProjectChapters(projectPath, report)
-		if err != nil {
-			w.emit("novel-import-progress:"+jobID, map[string]interface{}{"type": "error", "error": err.Error(), "failed": failedCount(report.Failed)})
-			return
-		}
-		w.emit("novel-import-progress:"+jobID, map[string]interface{}{"type": "append-done", "result": res})
-	}()
+			res, err := appendProjectChapters(projectPath, report)
+			if err != nil {
+				return nil, report.Failed, err
+			}
+			return res, nil, nil
+		},
+	})
 	return NovelBookSourceImportStart{JobID: jobID}, nil
 }
 

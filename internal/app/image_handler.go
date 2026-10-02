@@ -266,7 +266,151 @@ func (a *mediaState) generateFreeImageProvenanced(prompt string, negative string
 	})
 }
 
-// generateImageInternal 统一图片生成实现（含 T2 参考槽透传）。
+// imageGenLoopSpec 共享生成循环的链差异面（AP7-02 收敛：generateImageInternal
+// 与 GenerateMedia 两份近 100 行平行循环的骨架——种子派生→模型覆盖→size 清空→
+// 提交→落盘→登记——收拢为 runImageGenLoop 一份，差异全在此参数结构体；除注明
+// 「能力开关」的两位外均为两链既有语义，行为逐字段冻结）。
+type imageGenLoopSpec struct {
+	// 提交面：client/backend 是本链生效客户端与后端（internal 链=override 解析值；
+	// media 链恒全局 clientRef()+cfg.ImageBackend）。
+	client  *ai.Client
+	backend string
+	genCtx  context.Context
+	// reqTemplate 请求模板：除 Model/Seed/ProgressCallback/size 后端清空外全部
+	// 由调用方定死（Prompt 传提交值 safePrompt；Size 传归一值，链内特有清空如
+	// outpaint 已由调用方在模板置空）。循环每轮浅拷贝后只改 Model/Seed——改前
+	// 两链本就每轮新建请求、除 Seed 外字段轮间不变，语义一致。
+	reqTemplate ai.ImageGenerationRequest
+	// modelOverride 调用方显式模型（空=全局 cfg.ImageModel）；modelForced 链内
+	// 强制模型（media 链 edit/outpaint/qedit 在 comfyui 下强制 qwen-image-edit；
+	// internal 恒空）。非空时后者覆盖前者（与改前覆盖顺序一致）。
+	modelOverride string
+	modelForced   string
+	n             int
+	seed          int
+	// metaPrompt 历史/落盘/登记用的展示 prompt（internal 含风格后缀的 fullPrompt；
+	// media 为原文）——与提交给后端的 safePrompt 是两个字段，两链改前即如此。
+	metaPrompt string
+	// size 是归一后的展示尺寸：item.Size 恒取它，与 req.Size 的后端清空无关
+	//（两链改前一致：清空只影响下发请求，不回写历史元数据）。
+	size string
+	// 失败日志（internal：「图片生成失败」无附加字段；media：「媒体生成失败」
+	// 带 mode 字段；字段顺序 mode→attempt→error 与改前一致）。
+	logPrefix string
+	logAttrs  []any
+	// 能力开关（行为冻结，审计 AP7-02）：comfyRetries 仅 internal 链开——
+	// Errno22 孤儿实例 recover 重试 + 未运行自动拉起重试（各一次/整轮）。
+	// media 链历史无此防线；要不要补齐=行为新增，只申报不实施。
+	comfyRetries bool
+	// 能力开关：wantKind 仅 media 链开——提取 resp.Data[0].Kind（空→"image"）
+	// 写 item.Kind（json kind,omitempty，internal 不置即不出键，改前一致）。
+	wantKind bool
+	// save 落盘钩子（imageData 非空才调）：两链分支不同——internal 有 saveDir
+	// 覆盖三路（saveDir→ImageSaveDir→小说 images/）；media 两路（ImageSaveDir→
+	// 小说 images/，无覆盖通道）。返回 FilePath。
+	save func(imageData string) string
+	// register 登记钩子（两链登记口径不同：internal=recordImageHubGeneratedFor
+	// 带 sourceBoard/生效后端；media=recordImageHubGenerated+变体簇回填），返回
+	//（可能回填后的）item。
+	register func(item imageItem) imageItem
+}
+
+// runImageGenLoop 两链共享的生成循环（AP7-02）：种子派生→模型覆盖→size 清空→
+// 提交（comfyui 防线按能力开关）→落盘→登记。返回 (items, lastErr)；空结果
+// 文案/终态 map 组装仍归各链（两链终态文案与键不同，行为冻结）。
+func (a *mediaState) runImageGenLoop(spec imageGenLoopSpec) ([]imageItem, string) {
+	items := make([]imageItem, 0, spec.n)
+	var lastErr string
+	comfyRecovered := false
+	comfyBooted := false
+	for i := 0; i < spec.n; i++ {
+		genSeed := spec.seed
+		if genSeed == 0 {
+			genSeed = int(time.Now().UnixNano()%1000000) + i*777
+		} else if spec.n > 1 {
+			// 固定种子且一次生成多张时，每张用 seed+i，避免 n 张完全雷同
+			genSeed = spec.seed + i
+		}
+		imgModel := a.cfg.ImageModel
+		if spec.modelOverride != "" {
+			imgModel = spec.modelOverride
+		}
+		if spec.modelForced != "" {
+			imgModel = spec.modelForced
+		}
+		imgReq := spec.reqTemplate
+		imgReq.Model = imgModel
+		imgReq.Seed = genSeed
+		if spec.backend == "comfyui" {
+			imgReq.ProgressCallback = a.updateComfyTaskProgress
+		}
+		// xAI / Ollama 后端不接受 size 参数（xAI 返回 400）；herdsman 文档明确支持
+		// size；GLM 官方 schema 同样接受 size（glm-image 默认 1280x1280）
+		if spec.backend != "comfyui" && spec.backend != "herdsman" && spec.backend != "glm" {
+			imgReq.Size = ""
+		}
+		start := time.Now()
+		resp, err := spec.client.GenerateImage(spec.genCtx, &imgReq)
+		// 孤儿 ComfyUI 实例（stderr 失效）会在执行时报 [Errno 22]：
+		// 自动重启一次后重试，避免用户手动处理（能力开关：仅 internal 链）
+		if spec.comfyRetries && err != nil && !comfyRecovered && spec.backend == "comfyui" && strings.Contains(err.Error(), "[Errno 22]") {
+			slog.Warn("ComfyUI stderr 失效（疑似孤儿实例），自动重启后重试", "error", err)
+			a.recoverComfyUI(spec.genCtx)
+			comfyRecovered = true
+			resp, err = spec.client.GenerateImage(spec.genCtx, &imgReq)
+		}
+		// ComfyUI 压根没跑（dial 连接被拒）且配置了安装路径：自动拉起+就绪
+		// 等待后重试一次（本轮一次）。（能力开关：仅 internal 链）
+		if spec.comfyRetries && err != nil && !comfyBooted && spec.backend == "comfyui" && strings.Contains(err.Error(), "连接 ComfyUI 失败") {
+			comfyBooted = true
+			if a.ensureComfyUIRunning(spec.genCtx) {
+				slog.Info("ComfyUI 未运行，已自动拉起，重试生成")
+				resp, err = spec.client.GenerateImage(spec.genCtx, &imgReq)
+			}
+		}
+		elapsed := time.Since(start).Seconds()
+
+		if err != nil {
+			slog.Warn(spec.logPrefix, append(append([]any{}, spec.logAttrs...), "attempt", i+1, "error", err)...)
+			lastErr = err.Error()
+			continue
+		}
+		if len(resp.Data) == 0 {
+			lastErr = "API 返回空结果"
+			continue
+		}
+
+		imageData := resp.Data[0].URL
+		if imageData == "" {
+			imageData = resp.Data[0].B64JSON
+		}
+		item := imageItem{
+			Image:  imageData,
+			Seed:   genSeed,
+			Time:   math.Round(elapsed*10) / 10,
+			Prompt: spec.metaPrompt,
+			Model:  imgModel,
+			Size:   spec.size,
+		}
+		if spec.wantKind {
+			kind := resp.Data[0].Kind
+			if kind == "" {
+				kind = "image"
+			}
+			item.Kind = kind
+		}
+		// T6-4.3：保存路径写入历史元数据（前端历史图片据此恢复本地文件）
+		if imageData != "" {
+			item.FilePath = spec.save(imageData)
+		}
+		items = append(items, spec.register(item))
+	}
+	return items, lastErr
+}
+
+// generateImageInternal 统一图片生成实现（含 T2 参考槽透传）。生成循环走
+// runImageGenLoop（AP7-02 收敛）；本链差异面=clientOverride/后台 comfyui 防线
+// （能力开关开）/saveDir 三路落盘/台账按来源板块登记。
 func (a *mediaState) generateImageInternal(o imageGenInternal) (map[string]interface{}, error) {
 	if a.clientRef() == nil {
 		return map[string]interface{}{"error": "AI 客户端未初始化，请先登录"}, nil
@@ -303,119 +447,55 @@ func (a *mediaState) generateImageInternal(o imageGenInternal) (map[string]inter
 		n = 1
 	}
 
-	images := make([]imageItem, 0, n)
-	var lastErr string
-	comfyRecovered := false
-	comfyBooted := false
 	// S1.5-B play 内容护栏：image_safe_mode 提交前注入提示词安全段（后端
 	// NSFW 开关位：ai 图片后端无 NSFW 透传字段，按后端能力缺省关，无法
 	// 透传时仅注入 prompt 安全段）。未配置 = 零值 = 提示词原样。
 	safePrompt := applyImageSafeMode(fullPrompt, playGuardrails().ImageSafeMode)
 
-	for i := 0; i < n; i++ {
-		genSeed := seed
-		if genSeed == 0 {
-			genSeed = int(time.Now().UnixNano()%1000000) + i*777
-		} else if n > 1 {
-			// 固定种子且一次生成多张时，每张用 seed+i，避免 n 张完全雷同
-			genSeed = seed + i
-		}
-
-		imgModel := a.cfg.ImageModel
-		if model != "" {
-			imgModel = model
-		}
-
-		imgReq := &ai.ImageGenerationRequest{
-			Model:    imgModel,
+	images, lastErr := a.runImageGenLoop(imageGenLoopSpec{
+		client: client, backend: backendType, genCtx: genCtx,
+		reqTemplate: ai.ImageGenerationRequest{
 			Prompt:   safePrompt,
 			Negative: negative,
 			N:        1,
 			Size:     size,
-			Seed:     genSeed,
 			Lora:     lora,
 			// T2 参考槽：文生图 + 参考图时由后端按 refMethod 决定是否转图生图
 			Mode:      o.mode,
 			RefImages: o.refImages,
 			RefMethod: o.refMethod,
 			Denoise:   o.denoise,
-		}
-		if backendType == "comfyui" {
-			imgReq.ProgressCallback = a.updateComfyTaskProgress
-		}
-
-		// xAI / Ollama 后端不接受 size 参数（xAI 返回 400）；herdsman 文档明确支持
-		// size；GLM 官方 schema 同样接受 size（glm-image 默认 1280x1280）
-		if backendType != "comfyui" && backendType != "herdsman" && backendType != "glm" {
-			imgReq.Size = ""
-		}
-		start := time.Now()
-		resp, err := client.GenerateImage(genCtx, imgReq)
-		// 孤儿 ComfyUI 实例（stderr 失效）会在执行时报 [Errno 22]：
-		// 自动重启一次后重试，避免用户手动处理
-		if err != nil && !comfyRecovered && backendType == "comfyui" && strings.Contains(err.Error(), "[Errno 22]") {
-			slog.Warn("ComfyUI stderr 失效（疑似孤儿实例），自动重启后重试", "error", err)
-			a.recoverComfyUI(genCtx)
-			comfyRecovered = true
-			resp, err = client.GenerateImage(genCtx, imgReq)
-		}
-		// ComfyUI 压根没跑（dial 连接被拒）且配置了安装路径：自动拉起+就绪
-		// 等待后重试一次（本轮一次）。原罪插图与绘梦生成共用本链，此前
-		// 服务未运行时直接以 connectex 原始错误失败，用户在原罪页无任何
-		// 恢复入口（绘梦页才有启动按钮）。
-		if err != nil && !comfyBooted && backendType == "comfyui" && strings.Contains(err.Error(), "连接 ComfyUI 失败") {
-			comfyBooted = true
-			if a.ensureComfyUIRunning(genCtx) {
-				slog.Info("ComfyUI 未运行，已自动拉起，重试生成")
-				resp, err = client.GenerateImage(genCtx, imgReq)
+		},
+		modelOverride: model,
+		n:             n,
+		seed:          seed,
+		metaPrompt:    fullPrompt,
+		size:          size,
+		logPrefix:     "图片生成失败",
+		comfyRetries:  true,
+		save: func(imageData string) string {
+			if saveDir != "" {
+				return a.saveMediaToDisk(imageData, fullPrompt, saveDir)
+			} else if a.cfg.ImageSaveDir != "" {
+				return a.saveImageToDisk(imageData, fullPrompt)
 			}
-		}
-		elapsed := time.Since(start).Seconds()
-
-		if err != nil {
-			slog.Warn("图片生成失败", "attempt", i+1, "error", err)
-			lastErr = err.Error()
-			continue
-		}
-		if len(resp.Data) == 0 {
-			lastErr = "API 返回空结果"
-			continue
-		}
-
-		imageData := resp.Data[0].URL
-		if imageData == "" {
-			imageData = resp.Data[0].B64JSON
-		}
-
-		item := imageItem{
-			Image:  imageData,
-			Seed:   genSeed,
-			Time:   math.Round(elapsed*10) / 10,
-			Prompt: fullPrompt,
-			Model:  imgModel,
-			Size:   size,
-		}
-		// T6-4.3：保存路径写入历史元数据（前端历史图片据此恢复本地文件）
-		if saveDir != "" && imageData != "" {
-			item.FilePath = a.saveMediaToDisk(imageData, fullPrompt, saveDir)
-		} else if a.cfg.ImageSaveDir != "" && imageData != "" {
-			item.FilePath = a.saveImageToDisk(imageData, fullPrompt)
-		} else if imageData != "" {
 			// 未配置专用目录时，自动保存到小说 images/ 目录
-			item.FilePath = a.saveToNovelImages(imageData, fullPrompt)
-		}
-		// T0 图像域试点：落盘后登记（失败只 warn）；模式与角色 ID 如实登记，
-		// 供画室按来源/角色回溯（参考槽生成标 img2img）。后端/模型传**生效值**
-		// （审计 AP7-05）：backendType 是 override 客户端通道的解析结果，imgModel
-		// 是本轮真正下发的模型名——此前登记固定取全局 ImageBackend，会把独立绑定
-		// 的产物记成全局后端，消耗报表按 {model,backend} 分组即失真。
-		modeLabel := o.mode
-		if modeLabel == "" {
-			modeLabel = "txt2img"
-		}
-		a.recordImageHubGeneratedFor(item, modeLabel, o.characterID, sourceBoard, backendType, "")
-		images = append(images, item)
-	}
+			return a.saveToNovelImages(imageData, fullPrompt)
+		},
+		register: func(item imageItem) imageItem {
+			// T0 图像域试点：落盘后登记（失败只 warn）；模式与角色 ID 如实登记，
+			// 供画室按来源/角色回溯（参考槽生成标 img2img）。后端/模型传**生效值**
+			// （审计 AP7-05）：backendType 是 override 客户端通道的解析结果，imgModel
+			// 是本轮真正下发的模型名——此前登记固定取全局 ImageBackend，会把独立绑定
+			// 的产物记成全局后端，消耗报表按 {model,backend} 分组即失真。
+			modeLabel := o.mode
+			if modeLabel == "" {
+				modeLabel = "txt2img"
+			}
+			a.recordImageHubGeneratedFor(item, modeLabel, o.characterID, sourceBoard, backendType, "")
+			return item
+		},
+	})
 
 	if len(images) == 0 {
 		msg := "图片生成失败"
@@ -541,49 +621,33 @@ func (a *mediaState) GenerateMedia(paramsJSON string) (map[string]interface{}, e
 		n = 1 // 视频一次只生成一条
 	}
 
-	results := make([]imageItem, 0, n)
-	var lastErr string
 	// S1.5-B play 内容护栏：image_safe_mode 同 GenerateFreeImage（提交前
 	// 注入提示词安全段；未配置 = 零值 = 提示词原样）。
 	safePrompt := applyImageSafeMode(p.Prompt, playGuardrails().ImageSafeMode)
-	for i := 0; i < n; i++ {
-		genSeed := p.Seed
-		if genSeed == 0 {
-			genSeed = int(time.Now().UnixNano()%1000000) + i*777
-		} else if n > 1 {
-			// 固定种子且一次生成多张时，每张用 seed+i，避免 n 张完全雷同
-			genSeed = p.Seed + i
-		}
-		imgModel := a.cfg.ImageModel
-		if p.Model != "" {
-			imgModel = p.Model
-		}
+	results, lastErr := func() ([]imageItem, string) {
 		// 指令编辑本地档（阶段二刀 A）：ComfyUI 编辑工作流固定走 Qwen-Image-Edit 族
 		// ——请求 model 字段是生图模型名（krea2 等），不代表编辑引擎；元数据/台账
 		// 如实记 qwen-image-edit（ai 层 edit 分支本就不消费该字段）。扩图（刀 C）
-		// 转发同一编辑引擎，同口径。
+		// 转发同一编辑引擎，同口径。（收敛为 modelForced 传入共享循环）
+		modelForced := ""
 		if mode == "edit" || mode == "outpaint" || (mode == "txt2img" && p.RefMethod == "qedit") {
 			if a.cfg.ImageBackend == "comfyui" {
-				imgModel = "qwen-image-edit"
+				modelForced = "qwen-image-edit"
 			}
 		}
 		// 扩图转换（刀 C）：合成画布+蒙版后按 edit 请求下发——ai 层 fail-closed
 		// （mask 仅 edit）天然满足；引擎层零改动。
-		reqMode := mode
-		reqInit := p.InitImage
-		reqMask := p.Mask
+		reqMode, reqInit, reqMask := mode, p.InitImage, p.Mask
 		if mode == "outpaint" {
-			reqMode = "edit"
-			reqInit = outpaintCanvas
-			reqMask = outpaintMask
+			reqMode, reqInit, reqMask = "edit", outpaintCanvas, outpaintMask
 		}
-		imgReq := &ai.ImageGenerationRequest{
-			Model:     imgModel,
+		reqTemplate := ai.ImageGenerationRequest{
+			Model:     "", // 循环内按 全局/覆盖/强制 口径填（共享循环职责）
 			Prompt:    safePrompt,
 			Negative:  p.Negative,
 			N:         1,
 			Size:      size,
-			Seed:      genSeed,
+			Seed:      0,
 			Lora:      p.Lora,
 			Mode:      reqMode,
 			InitImage: reqInit,
@@ -594,65 +658,46 @@ func (a *mediaState) GenerateMedia(paramsJSON string) (map[string]interface{}, e
 			RefImages: p.RefImages,
 			RefMethod: p.RefMethod,
 		}
-		if a.cfg.ImageBackend == "comfyui" {
-			imgReq.ProgressCallback = a.updateComfyTaskProgress
-		}
-		// xAI / Ollama 后端不接受 size 参数（xAI 返回 400）；herdsman 文档明确支持
-		// size；GLM 官方 schema 同样接受 size（glm-image 默认 1280x1280）
-		if a.cfg.ImageBackend != "comfyui" && a.cfg.ImageBackend != "herdsman" && a.cfg.ImageBackend != "glm" {
-			imgReq.Size = ""
-		}
 		// 扩图（刀 C）：画布尺寸即输出尺寸——size 会把结果强制重设，清空。
 		if mode == "outpaint" {
-			imgReq.Size = ""
+			reqTemplate.Size = ""
 		}
-		start := time.Now()
-		resp, err := a.clientRef().GenerateImage(genCtx, imgReq)
-		elapsed := time.Since(start).Seconds()
-		if err != nil {
-			slog.Warn("媒体生成失败", "mode", mode, "attempt", i+1, "error", err)
-			lastErr = err.Error()
-			continue
-		}
-		if len(resp.Data) == 0 {
-			lastErr = "API 返回空结果"
-			continue
-		}
-		imageData := resp.Data[0].URL
-		if imageData == "" {
-			imageData = resp.Data[0].B64JSON
-		}
-		kind := resp.Data[0].Kind
-		if kind == "" {
-			kind = "image"
-		}
-		item := imageItem{
-			Image:  imageData,
-			Seed:   genSeed,
-			Time:   math.Round(elapsed*10) / 10,
-			Prompt: p.Prompt,
-			Model:  imgModel,
-			Size:   size,
-			Kind:   kind,
-		}
-		// T6-4.3：保存路径写入历史元数据（前端历史图片据此恢复本地文件）
-		if imageData != "" {
-			if a.cfg.ImageSaveDir != "" {
-				item.FilePath = a.saveMediaToDisk(imageData, p.Prompt, a.cfg.ImageSaveDir)
-			} else {
-				item.FilePath = a.saveToNovelImages(imageData, p.Prompt)
-			}
-		}
-		// T0 图像域试点：多模式媒体落盘后登记（imagegen/media.generate；失败只 warn）；
-		// 变体簇（刀 D）：编辑/扩图带 ParentID，登记后按路径回填 asset_id/parent_id
-		// （运行态闸关闭时 lookup 空=字段空，不影响主流程）。
-		a.recordImageHubGenerated(item, mode, p.CharacterID, variantParentID)
-		if mode == "edit" || mode == "outpaint" {
-			item.AssetID = imageHubAssetIDByPath(gaeaCwd(), gaeaEffectiveSpace(), item.FilePath)
-			item.ParentID = variantParentID
-		}
-		results = append(results, item)
-	}
+		// AP7-02 收敛：循环骨架（种子派生→模型覆盖→size 清空→提交→落盘→登记）
+		// 与 generateImageInternal 共用 runImageGenLoop；本链差异面=无 override
+		// 客户端、comfyui 错误重试防线历史不存在（能力开关关，要不要补=行为新增
+		// 只申报）/Kind 提取/两路落盘/台账按 mode 登记+变体簇回填。
+		return a.runImageGenLoop(imageGenLoopSpec{
+			client: a.clientRef(), backend: a.cfg.ImageBackend, genCtx: genCtx,
+			reqTemplate:   reqTemplate,
+			modelOverride: p.Model,
+			modelForced:   modelForced,
+			n:             n,
+			seed:          p.Seed,
+			metaPrompt:    p.Prompt,
+			size:          size,
+			logPrefix:     "媒体生成失败",
+			logAttrs:      []any{"mode", mode},
+			comfyRetries:  false,
+			wantKind:      true,
+			save: func(imageData string) string {
+				if a.cfg.ImageSaveDir != "" {
+					return a.saveMediaToDisk(imageData, p.Prompt, a.cfg.ImageSaveDir)
+				}
+				return a.saveToNovelImages(imageData, p.Prompt)
+			},
+			register: func(item imageItem) imageItem {
+				// T0 图像域试点：多模式媒体落盘后登记（imagegen/media.generate；失败只 warn）；
+				// 变体簇（刀 D）：编辑/扩图带 ParentID，登记后按路径回填 asset_id/parent_id
+				// （运行态闸关闭时 lookup 空=字段空，不影响主流程）。
+				a.recordImageHubGenerated(item, mode, p.CharacterID, variantParentID)
+				if mode == "edit" || mode == "outpaint" {
+					item.AssetID = imageHubAssetIDByPath(gaeaCwd(), gaeaEffectiveSpace(), item.FilePath)
+					item.ParentID = variantParentID
+				}
+				return item
+			},
+		})
+	}()
 
 	if len(results) == 0 {
 		msg := "生成失败"

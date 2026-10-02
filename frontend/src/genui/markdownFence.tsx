@@ -1,9 +1,12 @@
 /* eslint-disable react-refresh/only-export-components -- fence 辅助函数与组件同文件 */
 // react-markdown code 适配：三个渲染缝共用的 genui 围栏分支。
-// 用法（Markdown.tsx / ChatMarkdown.tsx / MarkdownContent 覆盖件）：
-//   const lang = /language-([\w-]+)/.exec(className ?? "")?.[1];
-//   if (lang && isGenuiFenceLang(lang)) return <GenuiMarkdownFence code={text} stateKey={...} />;
+// 用法（Markdown.tsx / ChatMarkdown.tsx / genuiAdapter 覆盖件）：
+//   const { text, lang, isBlock } = extractFence(className, children);
+//   if (lang !== undefined && isGenuiFenceLang(lang) && isBlock) return <GenuiMarkdownFence code={text} stateKey={...} />;
+// FE6-05：language- 提取 + 去尾换行 + 块级判定这段样板收敛为 extractFence
+// 单源（此前在 ChatMarkdown / genuiAdapter / Markdown 三处逐字重复）。
 
+import type { ReactNode } from "react";
 import { GENUI_FENCE_LANGS } from "./spec";
 import { parseGenuiFenceBody } from "./parse";
 import { GenuiBlock } from "./GenuiBlock";
@@ -12,6 +15,18 @@ import type { GenuiScope } from "./scope";
 
 export function isGenuiFenceLang(lang: string): boolean {
   return GENUI_FENCE_LANGS.has(lang);
+}
+
+/** code 组件样板单源：className 解出 language-*、children 去尾换行、块级判定。 */
+export function extractFence(
+  className: string | undefined,
+  children: ReactNode,
+): { text: string; lang: string | undefined; isBlock: boolean } {
+  const text = String(children ?? "").replace(/\n$/, "");
+  const match = /language-([\w-]+)/.exec(className ?? "");
+  const lang = match?.[1];
+  const isBlock = match !== null || text.includes("\n");
+  return { text, lang, isBlock };
 }
 
 export function GenuiMarkdownFence({

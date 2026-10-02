@@ -307,38 +307,17 @@ func (a *App) SinBookSourceDownload(source, detailURL string, start, end int, ti
 	if findRuleByName(loadBookSourceRules(booksourceRulesDir()), source) == nil {
 		return SinBookSourceDownloadStart{}, fmt.Errorf("书源规则不存在或未启用：%s（免规则来源正文不可解析）", source)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), booksourceImportTimeout)
-	jobID := fmt.Sprintf("bss_%d_%d", time.Now().UnixMilli(), bookImportSeq.Add(1))
-	bookImportMu.Lock()
-	bookImportRuns[jobID] = cancel
-	bookImportMu.Unlock()
-
 	params := bookImportParams{Source: source, URL: detailURL, Title: title, Start: start, End: end}
-	go func() {
-		// 下载链 panic 防线（同小说侧导入）：转 error 事件不挂进度，不带崩进程。
-		defer func() {
-			if r := recover(); r != nil {
-				a.emit("sin-booksource:"+jobID, map[string]interface{}{"type": "error", "error": fmt.Sprintf("下载异常: %v", r)})
-			}
-		}()
-		defer func() {
-			bookImportMu.Lock()
-			delete(bookImportRuns, jobID)
-			bookImportMu.Unlock()
-			cancel()
-		}()
-		onProgress := func(done, total int) {
-			if done%booksourceProgressStep == 0 || done == total {
-				a.emit("sin-booksource:"+jobID, map[string]interface{}{"type": "progress", "done": done, "total": total})
-			}
-		}
-		res, err := sinDownloadBook(ctx, booksourceRulesDir(), sinBooksDir(), params, booksource.Options{}, onProgress)
-		if err != nil {
-			a.emit("sin-booksource:"+jobID, map[string]interface{}{"type": "error", "error": err.Error()})
-			return
-		}
-		a.emit("sin-booksource:"+jobID, map[string]interface{}{"type": "done", "result": res})
-	}()
+	// AP2-02 收敛：同 runBookJob 骨架；差异=bss_ 前缀、sin-booksource: 通道、
+	// 「下载异常」文案、done 终态且 error/done 载荷都不带 failed（原罪成书无失败清单）。
+	jobID := runBookJob(a.emit, bookJobSpec{
+		jobPrefix: "bss_", eventPrefix: "sin-booksource:", panicPrefix: "下载异常",
+		doneType: "done", errWithFailed: false, doneWithFailed: false,
+		work: func(ctx context.Context, onProgress func(done, total int)) (any, []booksource.FailedChapter, error) {
+			res, err := sinDownloadBook(ctx, booksourceRulesDir(), sinBooksDir(), params, booksource.Options{}, onProgress)
+			return res, nil, err
+		},
+	})
 	return SinBookSourceDownloadStart{JobID: jobID}, nil
 }
 

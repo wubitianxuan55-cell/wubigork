@@ -1200,6 +1200,20 @@ func (c *Client) ChatStreamMessages(ctx context.Context, model string, messages 
 	return chunks, cancel, nil
 }
 
+// minThinkingBudget 思考模式最小生成预算（IN2-14 单点）：思考与正文共享
+// max_tokens，低于该值会出现「只有推理、无正文」（herdsman 模型测评报告
+// §8.1/§9；modelhub Studio 同款表现）。流式请求 max_tokens 的默认值与其同源。
+const minThinkingBudget = 4096
+
+// clampThinkingBudget 思考预算守护（modelhub 与 herdsman/ollama 分支共用，
+// IN2-14 收口——原来两处逐字复制）：开启思考且显式给出小预算时抬到
+// minThinkingBudget；未开思考或未显式配置（<=0）不动。
+func clampThinkingBudget(req *ChatRequest, wantThinking bool) {
+	if wantThinking && req.MaxTokens > 0 && req.MaxTokens < minThinkingBudget {
+		req.MaxTokens = minThinkingBudget
+	}
+}
+
 // prepareStreamRequest 装配一轮流式请求：模型名兜底、default 采样、modelhub 让位、
 // Qwen3 系思考预算守护。ChatStreamChunks 与 ChatStreamMessages 共用同一份实现。
 func (c *Client) prepareStreamRequest(model string, messages []ChatMessage, opts ChatSimpleOptions) *ChatRequest {
@@ -1231,7 +1245,9 @@ func (c *Client) prepareStreamRequest(model string, messages []ChatMessage, opts
 	}
 	maxTokens := opts.MaxTokens
 	if maxTokens <= 0 {
-		maxTokens = 4096
+		// 与思考预算守护同一常量（IN2-14）：默认 4096 本就是「思考+正文」
+		// 够用的最低档，两处同值不同源是漂移隐患。
+		maxTokens = minThinkingBudget
 	}
 
 	req := &ChatRequest{
@@ -1253,23 +1269,15 @@ func (c *Client) prepareStreamRequest(model string, messages []ChatMessage, opts
 		// chat_template_kwargs（A/B 实测证实的唯一有效通道），不发顶层
 		// enable_thinking。
 		req.ChatTemplateKwargs = map[string]any{"enable_thinking": opts.EnableThinking}
-		if opts.EnableThinking {
-			// 思考与正文共享 max_tokens：显式小预算抬到 4096（同 herdsman 守护）。
-			if req.MaxTokens > 0 && req.MaxTokens < 4096 {
-				req.MaxTokens = 4096
-			}
-		}
+		clampThinkingBudget(req, opts.EnableThinking)
 	} else if opts.EnableThinking {
 		if reqEngine == "herdsman" || reqEngine == "ollama" {
 			t := true
 			req.EnableThinking = &t
 			req.ChatTemplateKwargs = map[string]any{"enable_thinking": true}
-			// 测评结论：思考模式与正文共享 max_tokens，<4096 会出现
-			// 「只有推理、无正文」（herdsman 模型测评报告 §8.1/§9）。
-			// 守护：显式小预算抬到 4096。
-			if req.MaxTokens > 0 && req.MaxTokens < 4096 {
-				req.MaxTokens = 4096
-			}
+			// 守护：思考与正文共享 max_tokens，显式小预算抬到 minThinkingBudget
+			//（同 modelhub 分支，IN2-14 收口）。
+			clampThinkingBudget(req, true)
 		}
 	}
 

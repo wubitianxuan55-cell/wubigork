@@ -1,3 +1,15 @@
+## 非版本刀：全仓审计第 19 批·对账存量四线（8 条 duplication 收敛）· 2026-10-03
+
+- **刀型**：接续批 18（`305993c4`）。**先做全量对账**：512 条发现 × round-3~20 台账逐一对照，**106 条 P1 从未进任何批次视野**（分五类：可执行收敛 ~28 / god-file 大拆 ~27 / 耦合架构 ~20 / 死代码 ~6 / 语义冲突 ~5——地图在 round-21 §〇）。本批取 13 条收敛，**4 条互斥并行子代理线**（app / schedule+office / ai / 前端）。**不抬版本**。
+- **交付**：`docs/code-audit-2026-10-02/round-21-p1-batch19.md`（含 106 条分类地图）。
+- **收敛九条**：①AP1-06 大纲树递归 6 站点→`findOutlineNode(nodes, pred)`（分支语义进谓词；sync「无变化仍写盘」陷阱逐字段保留）；②AP2-02 书源任务模板三份→`runBookJob(spec)`（panic 防线/注销/节流/载荷钉子）；③AP5-08 配置快照兜底→`gaeaCfgSnapshotOrLoad()`（实际 5 处，审计 4+同型 2）；④AP7-02 生成链两份 ~100 行循环→`runImageGenLoop(spec)`（能力开关 comfyRetries/wantKind，8 项语义差异保留）；⑤AP4-11 MPP 三轨→4 张 mppLayout 表+具名魔数（+198/−92）；⑥AP3-02+IN3-06 docx↔pptx→新包 `internal/office/ooxml`（方言参数钉死两套历史字节；各包 −200 行）；⑦AP7-03 ComfyUI 四份节点表→`comfyQwenProfile` 表+共享构建器（Warmup 分发逐 case 等价表）；⑧AP7-10 超时收割复制→`collectResult`（**双通道收口经实测拒绝**——两通道无重复可收）；⑨IN2-14 思考预算两处→`clampThinkingBudget`+常量。**FE6-05** 三路围栏样板→`extractFence()`（**拒绝审计合并方案**：DOM 证据=行内 code 退化无样式+pre 解包语义变化；渲染分支均不同构只统一样板）；**FE7-06** 导出层副本→单源 import（字节钉证零漂移）。
+- **审计纠错 7 条**：AP1-06 站点数 6 非 5 / AP5-08 兜底差异夸大 / AP7-02 预检差异已失效（两链都有）/ AP3-02「xlsx 再叠一层」证伪（全程 excelize）/ AP7-10 双通道可收敛不成立 / FE6-05「仅差一层 div」不成立（三路均不同构）/ **FE2-03 整条证伪**（现状有正确调用点，零改动）。
+- **字节冻结硬证据**：线 2 临时镜像仓以 `git show HEAD` 旧版与新版同跑 17 项探针（docx 条目序+document.xml 字节/pptx 全文件/错误原文/4 真实 MPP 样本 JSON SHA）old/new 全一致。**测试盲区两处被反向变异暴露**：MPP9 真实样本门控弱判据（变异后总工期 344→1275769 天仍绿）、docx/pptx 既有测试对 zip 条目序不敏感——新钉子补位。
+- **反向证据（主代理亲手各重做一组，全红→绿）**：线1 Children 递归注释→2 钉红 / 线2 2013 taskDurOff+1→真实样本门控红（总工期 447406 vs 136）/ 线3 minThinkingBudget 减半→4 例红 / 线4 language-→langauge-→**三路全红 10 失败**（同时证明 extractFence 单源真被三路消费）。
+- **门禁**：前台 CI OK / exit 0（golangci 0 issues · vitest **430 文件 3731 例** · E 系列 · 卫生四查）；守卫四份全绿（bindings@744+死绑定 109 在册 / test-ctors 364 零新增 / primitives / contract）。**过程事故**：首轮 ci `go test` 红、明细未捕获即删日志（主代理疏漏），同树零改动复跑全绿——定性环境性瞬时（疑似 herdsman 8080 碰撞族），教训=**ci 重定向日志必须留到终值抄录之后**。
+- **坑/教训（进在册）**：①对账纳入的存量条目**移动靶属性更强**（从未预核）——13 条中 4 条表述有偏差+1 条整条证伪，「先复核后动手」在存量上必须是默认假设；②`go build -overlay` 钉 HEAD 版本=并行线破坏编译期的自验配方；③字节冻结的黄金标准=镜像仓 old/new 双跑探针（不是只靠既有测试——它们对条目序/弱判据是盲的）。
+- **留池/下一批**：对账余量（duplication ~15 / god-file ~27 每条独立刀 / coupling ~20 拍板 / 语义冲突 ~5 **下批优先预核：IN1-04 gate vs review 门槛相反、AP3-03 证据链空间红线恒 work**）；findOutlineNodeByNumAny/ByID 两同型未收敛；Media 链补 comfyui 重试（行为新增）；MarkdownContent 第四份样板；MPP9 门控补强；FE6-05 DOM 统一（产品级拍板候选）。待拍板池不变（109 绑定删除/桌面 agent 接线等）。
+
 ## 非版本刀：全仓审计第 18 批·FE3-03 死绑定检测 + GA6 族收尾（主代理直做）· 2026-10-03
 
 - **刀型**：接续批 17（`c0b30b87`）。两件量级小**主代理直做**（批 15 线 1 先例）。**不抬版本**。

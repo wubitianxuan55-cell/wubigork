@@ -201,8 +201,9 @@ func sceneToMap(s *types.Scene) map[string]interface{} {
 	}
 }
 
-// markOutlineDone 把本章大纲节点标为已写（递归找节点——分卷大纲的章节点在
-// Children 里，N13 同型）；写盘失败如实返回错误（调用方决定呈现方式）。
+// markOutlineDone 把本章大纲节点标为已写（AP1-06 收敛：递归找节点并入
+// findOutlineNode；分支语义在谓词——认调用方传入的 branch，主线传 ""）；
+// 写盘失败如实返回错误（调用方决定呈现方式）。
 func (a *writingState) markOutlineDone(pm *project.Manager, chapterNum int, branch string) error {
 	of, err := pm.ReadOutlines()
 	if err != nil {
@@ -211,21 +212,12 @@ func (a *writingState) markOutlineDone(pm *project.Manager, chapterNum int, bran
 	if of == nil {
 		return nil
 	}
-	var mark func(nodes []types.OutlineNode) bool
-	mark = func(nodes []types.OutlineNode) bool {
-		for i := range nodes {
-			if nodes[i].OrderIndex == chapterNum && nodes[i].Branch == branch {
-				nodes[i].Status = types.OutlineDone
-				return true
-			}
-			if mark(nodes[i].Children) {
-				return true
-			}
-		}
-		return false
-	}
-	if !mark(of.Nodes) {
+	node := findOutlineNode(of.Nodes, func(n *types.OutlineNode) bool {
+		return n.OrderIndex == chapterNum && n.Branch == branch
+	})
+	if node == nil {
 		return nil // 大纲里没有该章节点（场景章未建节点）不算错
 	}
+	node.Status = types.OutlineDone
 	return pm.WriteOutlines(of)
 }

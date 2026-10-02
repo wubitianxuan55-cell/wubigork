@@ -50,14 +50,7 @@ type MemoryArchivedPage struct {
 // 从常量改为可配置）。读取 ga.cfg.Memory.ArchivedRetentionDays，缺省/非法值
 // 回退 90（memory.ArchivedRetention），钳制 [1, 730]。
 func memoryRetentionDays() int {
-	ga.mu.Lock()
-	cfg := ga.cfg
-	ga.mu.Unlock()
-	if cfg == nil {
-		if c, err := gaeaLoadConfig(); err == nil {
-			cfg = c
-		}
-	}
+	cfg := gaeaCfgSnapshotOrLoad() // AP5-08：快照 nil 时读盘兜底（原内联同形）
 	d := 90
 	if cfg != nil && cfg.Memory.ArchivedRetentionDays > 0 {
 		d = cfg.Memory.ArchivedRetentionDays

@@ -13,17 +13,13 @@
 package pptxedit
 
 import (
-	"archive/zip"
 	"bytes"
 	"encoding/xml"
 	"fmt"
 	"io"
-	"os"
-	"path/filepath"
 	"strings"
-	"unicode"
 
-	"github.com/gaea/gaea/internal/gaea/fileutil"
+	"github.com/gaea/gaea/internal/office/ooxml"
 )
 
 // SlideText 是单页幻灯片的可编辑文本定位结果（页码 1 起）。
@@ -88,7 +84,7 @@ func ApplyTextReplace(path string, slideIdx int, target, replacement string) (st
 	}
 	// 找首个能安全命中的段落
 	for _, p := range paras {
-		s, e, ok := locateSpan(p, target)
+		s, e, ok := ooxml.LocateSpan(p.text, target)
 		if !ok {
 			continue
 		}
@@ -113,7 +109,10 @@ func ApplyTextReplace(path string, slideIdx int, target, replacement string) (st
 	return "", fmt.Errorf("第 %d 页未找到目标文本：%s", slideIdx, target)
 }
 
-// ── zip 读写（同 docxedit：条目序保留 + 临时文件原子替换） ──────────
+// ── zip 读写（容器/原子替换收拢在 ooxml；pptx 只留必需 part 校验） ──
+//
+// pptxFile 保留原字段形态（既有测试按 files 直探条目字节）；读写逻辑
+// 全部委托 ooxml.ReadZip / ooxml.WriteAtomic（与 docxedit 共用唯一实现）。
 
 type pptxFile struct {
 	files map[string][]byte
@@ -121,63 +120,18 @@ type pptxFile struct {
 }
 
 func readPptx(path string) (*pptxFile, error) {
-	r, err := zip.OpenReader(path)
+	files, order, err := ooxml.ReadZip(path, "pptx")
 	if err != nil {
-		return nil, fmt.Errorf("打开 pptx 失败: %w", err)
+		return nil, err
 	}
-	defer func() { _ = r.Close() }()
-	doc := &pptxFile{files: map[string][]byte{}}
-	for _, f := range r.File {
-		rc, err := f.Open()
-		if err != nil {
-			return nil, fmt.Errorf("读取 %s 失败: %w", f.Name, err)
-		}
-		b, err := io.ReadAll(rc)
-		rc.Close()
-		if err != nil {
-			return nil, fmt.Errorf("读取 %s 失败: %w", f.Name, err)
-		}
-		doc.files[f.Name] = b
-		doc.order = append(doc.order, f.Name)
-	}
-	if doc.files["ppt/presentation.xml"] == nil {
+	if files["ppt/presentation.xml"] == nil {
 		return nil, fmt.Errorf("pptx 缺少 ppt/presentation.xml")
 	}
-	return doc, nil
+	return &pptxFile{files: files, order: order}, nil
 }
 
 func writePptx(path string, doc *pptxFile) error {
-	tmp, err := os.CreateTemp(filepath.Dir(path), ".gaea-pptxedit-*.pptx")
-	if err != nil {
-		return fmt.Errorf("创建临时文件失败: %w", err)
-	}
-	tmpName := tmp.Name()
-	defer func() { _ = os.Remove(tmpName) }()
-	zw := zip.NewWriter(tmp)
-	for _, name := range doc.order {
-		w, err := zw.CreateHeader(&zip.FileHeader{Name: name, Method: zip.Deflate})
-		if err != nil {
-			_ = zw.Close()
-			_ = tmp.Close()
-			return fmt.Errorf("写回 %s 失败: %w", name, err)
-		}
-		if _, err := w.Write(doc.files[name]); err != nil {
-			_ = zw.Close()
-			_ = tmp.Close()
-			return fmt.Errorf("写回 %s 失败: %w", name, err)
-		}
-	}
-	if err := zw.Close(); err != nil {
-		_ = tmp.Close()
-		return fmt.Errorf("打包 pptx 失败: %w", err)
-	}
-	if err := tmp.Close(); err != nil {
-		return fmt.Errorf("关闭临时文件失败: %w", err)
-	}
-	if err := fileutil.RenameWithRetry(tmpName, path); err != nil {
-		return fmt.Errorf("替换原文件失败: %w", err)
-	}
-	return nil
+	return ooxml.WriteAtomic(path, doc.files, doc.order, ".gaea-pptxedit-*.pptx", "pptx")
 }
 
 // ── slide 序映射：presentation.xml sldIdLst + rels → 页码 → part 路径 ──
@@ -368,7 +322,7 @@ func parseSlideParagraphs(data []byte) ([]paragraph, error) {
 						text:        curTText,
 						runTagStart: curRun.start, runTagEnd: curRun.end, runEnd: curRun.end,
 						rPrStart: curRunPr.start, rPrEnd: curRunPr.end,
-						tAttrs: extractAttrs(data[curT.start:curT.end]),
+						tAttrs: ooxml.ExtractAttrs(data[curT.start:curT.end]),
 					})
 				}
 				if curT.start >= 0 {
@@ -417,97 +371,8 @@ func parseSlideParagraphs(data []byte) ([]paragraph, error) {
 	return paras, nil
 }
 
-// extractAttrs 从起始标签原始字节提取属性子串（不含标签名与 >）。
-func extractAttrs(raw []byte) string {
-	s := string(raw)
-	idx := strings.IndexAny(s, " \t\n>")
-	if idx < 0 {
-		return ""
-	}
-	if s[idx] == '>' {
-		return ""
-	}
-	rest := s[idx:]
-	end := strings.Index(rest, ">")
-	if end < 0 {
-		return ""
-	}
-	return strings.TrimSpace(rest[:end])
-}
-
-// locateSpan 返回 target 在段落拼接文本中的 rune 区间 [s,e)；精确优先，失败折叠空白兜底。
-func locateSpan(p paragraph, target string) (int, int, bool) {
-	if idx := strings.Index(p.text, target); idx >= 0 {
-		s := len([]rune(p.text[:idx]))
-		return s, s + len([]rune(target)), true
-	}
-	runes := []rune(p.text)
-	norm := make([]int, 0, len(runes))
-	for i, r := range runes {
-		if unicode.IsSpace(r) {
-			if i > 0 && unicode.IsSpace(runes[i-1]) {
-				continue
-			}
-		}
-		norm = append(norm, i)
-	}
-	normText := make([]rune, 0, len(norm))
-	for _, i := range norm {
-		normText = append(normText, runes[i])
-	}
-	var tNorm []rune
-	prevSpace := false
-	for _, r := range target {
-		if unicode.IsSpace(r) {
-			if prevSpace {
-				continue
-			}
-			prevSpace = true
-			tNorm = append(tNorm, ' ')
-		} else {
-			prevSpace = false
-			tNorm = append(tNorm, r)
-		}
-	}
-	if len(tNorm) == 0 {
-		return 0, 0, false
-	}
-	ni := indexRunes(normText, tNorm)
-	if ni < 0 {
-		return 0, 0, false
-	}
-	s := norm[ni]
-	e := norm[ni+len(tNorm)-1] + 1
-	for s < e && unicode.IsSpace(runes[s]) {
-		s++
-	}
-	for e > s && unicode.IsSpace(runes[e-1]) {
-		e--
-	}
-	if s >= e {
-		return 0, 0, false
-	}
-	return s, e, true
-}
-
-func indexRunes(hay, needle []rune) int {
-	if len(needle) == 0 {
-		return 0
-	}
-	for i := 0; i+len(needle) <= len(hay); i++ {
-		ok := true
-		for j := range needle {
-			if hay[i+j] != needle[j] {
-				ok = false
-				break
-			}
-		}
-		if ok {
-			return i
-		}
-	}
-	return -1
-}
+// extractAttrs/locateSpan/indexRunes 与 docxedit 同构，唯一实现收拢在
+// ooxml（ExtractAttrs/LocateSpan/IndexRunes）。
 
 // rebuildParagraph 直接替换（无修订制）：被选区覆盖的 run 重建为
 // 「前缀 +（最后受影响 run 处）replacement」，新 a:t 继承最后受影响 run 的
@@ -556,8 +421,8 @@ func rebuildParagraph(data []byte, p paragraph, s, e int, replacement string) ([
 		}
 		runLen := len([]rune(runText))
 		rs := runSpan{g: g, start: cursor, end: cursor + runLen}
-		df := maxInt(rs.start, s) - rs.start
-		dt := minInt(rs.end, e) - rs.start
+		df := ooxml.MaxInt(rs.start, s) - rs.start
+		dt := ooxml.MinInt(rs.end, e) - rs.start
 		if dt > df {
 			rs.delFrom, rs.delTo = df, dt
 			affected = append(affected, &rs)
@@ -605,7 +470,7 @@ func rebuildParagraph(data []byte, p paragraph, s, e int, replacement string) ([
 		if before != "" {
 			out.WriteString(runTag)
 			out.WriteString(rPrRaw)
-			out.WriteString(textElement("a:t", before, attrs))
+			out.WriteString(ooxml.TextElement("a:t", before, attrs, false))
 			out.WriteString("</a:r>")
 		}
 		// 替换文本挂在最后受影响 run（继承其 rPr）
@@ -613,13 +478,13 @@ func rebuildParagraph(data []byte, p paragraph, s, e int, replacement string) ([
 			if replacement != "" {
 				out.WriteString(runTag)
 				out.WriteString(rPrRaw)
-				out.WriteString(textElement("a:t", replacement, attrs))
+				out.WriteString(ooxml.TextElement("a:t", replacement, attrs, false))
 				out.WriteString("</a:r>")
 			}
 			if after != "" {
 				out.WriteString(runTag)
 				out.WriteString(rPrRaw)
-				out.WriteString(textElement("a:t", after, attrs))
+				out.WriteString(ooxml.TextElement("a:t", after, attrs, false))
 				out.WriteString("</a:r>")
 			}
 			insInserted = true
@@ -628,62 +493,11 @@ func rebuildParagraph(data []byte, p paragraph, s, e int, replacement string) ([
 			// 的 run 不受影响；这里守卫性保留）
 			out.WriteString(runTag)
 			out.WriteString(rPrRaw)
-			out.WriteString(textElement("a:t", after, attrs))
+			out.WriteString(ooxml.TextElement("a:t", after, attrs, false))
 			out.WriteString("</a:r>")
 		}
 		pos = g.end
 	}
 	out.Write(data[pos:p.end])
 	return out.Bytes(), nil
-}
-
-// textElement 生成 <a:t 属性>文本</a:t>；文本 XML 转义，首尾空白补 xml:space="preserve"。
-func textElement(elem, text, attrs string) string {
-	esc := xmlEscape(text)
-	if (strings.HasPrefix(text, " ") || strings.HasSuffix(text, " ")) && !strings.Contains(attrs, "xml:space") {
-		if attrs != "" {
-			attrs += ` xml:space="preserve"`
-		} else {
-			attrs = `xml:space="preserve"`
-		}
-	}
-	if attrs != "" {
-		return "<" + elem + " " + attrs + ">" + esc + "</" + elem + ">"
-	}
-	return "<" + elem + ">" + esc + "</" + elem + ">"
-}
-
-func xmlEscape(s string) string {
-	var b strings.Builder
-	for _, r := range s {
-		switch r {
-		case '&':
-			b.WriteString("&amp;")
-		case '<':
-			b.WriteString("&lt;")
-		case '>':
-			b.WriteString("&gt;")
-		case '"':
-			b.WriteString("&#34;")
-		case '\'':
-			b.WriteString("&#39;")
-		default:
-			b.WriteRune(r)
-		}
-	}
-	return b.String()
-}
-
-func maxInt(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
-}
-
-func minInt(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }

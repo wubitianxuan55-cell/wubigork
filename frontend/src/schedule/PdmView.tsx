@@ -14,6 +14,9 @@
  *    穿越他边水平段处画半圆跨过（findBridgeArcs/segsToPath 与双代号同源）。
  */
 import React, { useEffect, useMemo, useRef, useState } from 'react'
+/* eslint-disable react-refresh/only-export-components -- isLinkBinding 是 FE7-06
+   单源收敛的零依赖纯函数（networkExport 构图同口径复用），随唯一语义宿主导出；
+   与 genui/markdownFence.tsx 同款先例 */
 import { Button } from 'antd'
 import { AimOutlined, ZoomInOutlined, ZoomOutOutlined } from '@ant-design/icons'
 import type { CpmResult, LinkType, SchedProject } from './types'
@@ -28,8 +31,9 @@ const COL_GAP = 74
 const ROW_GAP = 40
 const MARGIN = 28
 
-/** 该搭接当前是否为「绑定约束」：后继日期恰由这条搭接决定（两端关键+绑定 ⇒ 关键线路贯通段） */
-function isLinkBinding(type: LinkType, lag: number, f: { es: number; ef: number }, t: { es: number; ef: number }): boolean {
+/** 该搭接当前是否为「绑定约束」：后继日期恰由这条搭接决定（两端关键+绑定 ⇒ 关键线路贯通段）。
+ * 单源导出：networkExport 构图同口径复用（FE7-06 消除本地同构副本）；零依赖纯函数。 */
+export function isLinkBinding(type: LinkType, lag: number, f: { es: number; ef: number }, t: { es: number; ef: number }): boolean {
   switch (type) {
     case 'FS': return t.es === f.ef + lag
     case 'SS': return t.es === f.es + lag

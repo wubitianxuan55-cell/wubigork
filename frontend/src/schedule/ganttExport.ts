@@ -114,8 +114,9 @@ function textWidth(s: string, fontPx: number): number {
  * 里程碑小旗（v4.137.0 刀D4）：旗杆竖线 + 三角旗面，data-exp-flag 供导出
  * 图面测试断言。(x,y)=旗杆顶点，poleH=杆高，fw/fh=旗面宽高（旗面自杆顶向右）；
  * 颜色由调用方传 EXP_COLORS 现成色（横道=关键红，网络图各图面同款）。
+ * 单源导出：networkExport 三图面同款复用（FE7-06 消除本地副本）；零依赖纯函数。
  */
-function expFlagSvg(x: number, y: number, poleH: number, fw: number, fh: number, color: string): string {
+export function expFlagSvg(x: number, y: number, poleH: number, fw: number, fh: number, color: string): string {
   return (
     `<g class="sched-exp-flag" data-exp-flag="1">` +
     `<line x1="${x}" y1="${y}" x2="${x}" y2="${y + poleH}" stroke="${color}" stroke-width="1.5"/>` +

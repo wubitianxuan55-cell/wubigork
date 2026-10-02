@@ -44,6 +44,21 @@ func gaeaCfgSnapshot() *gaeaConfig.Config {
 	return ga.cfg
 }
 
+// gaeaCfgSnapshotOrLoad 返回当前生效配置：快照（ga.cfg）非空直接用；未初始化时
+// 读盘兜底（gaeaLoadConfig 失败返回 nil，调用方按 nil 自行降级——与改前各处
+// 内联写法一致）。与 gaeaCfgSnapshot 的差别只有「未初始化是否落盘」，由函数名
+// 区分（AP5-08 收敛：dream/eval/lifecycle 与本文件两处内联兜底收拢为这一份）。
+func gaeaCfgSnapshotOrLoad() *gaeaConfig.Config {
+	if cfg := gaeaCfgSnapshot(); cfg != nil {
+		return cfg
+	}
+	loaded, err := gaeaLoadConfig()
+	if err != nil {
+		return nil
+	}
+	return loaded
+}
+
 // gaeaEffectiveSpace 返回产物路径分区使用的当前生效空间（S4 写死点统一取法）：
 //   - space.mode=on → session.space 归一值（"work"/"play"）；
 //   - space.mode=off → ""（spaces.ExportsDir/WorkDir 对 "" 恒回 work 现状路径，
@@ -77,12 +92,7 @@ func gaeaSetSessionSpace(space string) error {
 // gaeaSpaceActiveView 组装当前生效空间视图（磁盘配置兜底：引擎未初始化时
 // 读取持久化配置，避免「激活了 play 但重启前查询仍报 work」的假象）。
 func gaeaSpaceActiveView() SpaceActiveView {
-	cfg := gaeaCfgSnapshot()
-	if cfg == nil {
-		if loaded, err := gaeaLoadConfig(); err == nil {
-			cfg = loaded
-		}
-	}
+	cfg := gaeaCfgSnapshotOrLoad() // 引擎未初始化读盘兜底（AP5-08）
 	modeOn := cfg == nil || cfg.SpaceModeIsOn()
 	space := spaces.SpaceWork
 	if cfg != nil && modeOn {
@@ -205,12 +215,7 @@ func buildSpaceProfileViews(cfg *gaeaConfig.Config) []SpaceProfileView {
 // GaeaSpaceProfiles 返回双空间装配 profile 视图（引擎未初始化时读盘兜底，
 // gaeaSpaceActiveView 同款，避免「配置了但重启前查不到」的假空）。
 func (a *App) GaeaSpaceProfiles() []SpaceProfileView {
-	cfg := gaeaCfgSnapshot()
-	if cfg == nil {
-		if loaded, err := gaeaLoadConfig(); err == nil {
-			cfg = loaded
-		}
-	}
+	cfg := gaeaCfgSnapshotOrLoad() // 引擎未初始化读盘兜底，gaeaSpaceActiveView 同款（AP5-08）
 	return buildSpaceProfileViews(cfg)
 }
 

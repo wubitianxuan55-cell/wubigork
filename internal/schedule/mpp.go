@@ -42,19 +42,147 @@ const (
 )
 
 const (
-	mppMagic         = uint32(0xFADFADBA)  // VarMeta/FixedMeta 共用魔数
-	mppEpochMs       = int64(441676800000) // 1983-12-31T00:00:00Z
-	mppTaskMetaItem  = 47                  // 任务 FixedMeta 条目大小
-	mppTaskRowCap912 = 768                 // 任务行上限(MPXJ maxExpectedSize)
-	mppTaskRowCap14  = 1024
-	mppResMetaItem   = 37
-	mppCalMetaItem   = 10
-	mppConsMetaItem  = 10
-	mppConsRowSize   = 20
-	mppAsgMetaItem   = 34
-	mppAsgRow9       = 142
-	mppAsgRow14      = 110
+	mppMagic   = uint32(0xFADFADBA)  // VarMeta/FixedMeta 共用魔数
+	mppEpochMs = int64(441676800000) // 1983-12-31T00:00:00Z
+
+	// 根 Props 口令双轨键:打开口令标志位(bit0=1 即受保护)与口令加密码
+	// (0xFF-code=XOR 掩码,作用于工程 Props 与各 FixedData)。
+	mppPropsOpenPwdKey = int64(893386752)
+	mppPropsCryptKey   = int64(893386759)
+
+	// 工程 Props 键:分钟/天、工程开始日期、缺省日历周工时 blob。
+	mppPropsMinPerDayKey = int64(37748765)
+	mppPropsStartDateKey = int64(37748738)
+	mppPropsCalWeekKey   = int64(37753736)
+
+	// 资源/分配走 meta 定位时的行上限(MPXJ maxExpectedSize 口径)。
+	mppSmallRowCap = 256
 )
+
+// ── 版本布局表(AP4-11):同一语义字段按 (major, appVer) 各占一位 ─────
+
+// mppAsgMode 分配行的行定位模式。
+type mppAsgMode int
+
+const (
+	mppAsgMetaLocated mppAsgMode = iota // meta 定位(MPP12:定长行被弃)
+	mppAsgFixed                         // 纯定长(MPP14:110)
+	mppAsgFixedOrMeta                   // 定长优先,行数与 meta 计数不符回退 meta 定位(MPP9:142,MPP9Reader 同口径)
+)
+
+// mppLayout 单版本二进制布局表:FixedMeta 条目/行布局常量 + 语义字段偏移与
+// Var2Data 键位。选择键见 mppLayoutFor;偏移 -1 = 该版本无此字段。
+type mppLayout struct {
+	// ── 行布局(MPXJ FixedMeta/FixedData 口径) ──
+	taskMetaItem int // 任务 FixedMeta 条目大小
+	taskRowCap   int // 任务行上限(maxExpectedSize)
+	taskMinRow   int // 任务完整行字节数(幻影行判定:实际字节数×100 ≤ minRow×75 → 跳过)
+	resMetaItem  int // 资源 FixedMeta 条目大小
+	asgMetaItem  int // 分配 FixedMeta 条目大小
+	asgRowSize   int // 分配定长行字节数(mppAsgMetaLocated 时为 0)
+	asgMode      mppAsgMode
+	consMetaItem int // 搭接 FixedMeta 条目大小
+	consRowSize  int // 搭接定长行字节数
+
+	// ── 任务字段(行内偏移 / Var2Data 键) ──
+	taskNameKey         int64 // 名称键(MPP9=11;MPP12/14=字段 ID 低 16 位)
+	taskWbsKey          int64 // WBS 键
+	taskNameFallbackKey int64 // 名称主键未命中时的兜底键(MPP14 键位漂移);0=无
+	taskParentOff       int   // 父任务 UID i32;-1=无(2013+ 失效恒 0,层级栈重建)
+	taskDurOff          int   // 工期 i32(十分之一分钟)
+	taskPctOff          int   // 进度 i16
+	taskOutlineOff      int   // 大纲层级 i16;-1=无(仅 2013+)
+	taskUIDFromID       bool  // 2013+:行内 var 键整体换 ID 键空间,uid 统一取 ID 回链
+	milestoneByMetaBit  bool  // true=meta[8]&0x20;false=零工期即里程碑(2013+ meta 无独立位)
+	parentByStack       bool  // 2013+:父链由大纲层级栈重建(文件行序即 ID 升序)
+
+	// ── 分配/搭接/日历字段 ──
+	asgUnitsOff int   // 分配 Units f64 偏移(÷100,1.0=100%)
+	consLagOff  int   // 搭接 lag i32 偏移(2013+ 由 @16 移到 @14)
+	calVarKey   int64 // 缺省日历周工时 Var2Data 键(MPP9=3,其余=8)
+	calHoursOff int   // 周工时 7×60 块在 blob 内的偏移
+
+	// ── 能力开关 ──
+	parseResAsg bool // false=该变体资源/分配键位未钉死,不解析(宁缺勿错)
+}
+
+var (
+	// MPP9(Project 2000-2003):VarMeta 条目 8 字节;任务行上限 768、完整行
+	// 264 字节(字段表最大偏移 BaselineFixedCost@256+8);分配定长 142。
+	mppLayoutV9 = mppLayout{
+		taskMetaItem: 47, taskRowCap: 768, taskMinRow: 264,
+		resMetaItem: 37, asgMetaItem: 34,
+		asgRowSize: 142, asgMode: mppAsgFixedOrMeta,
+		consMetaItem: 10, consRowSize: 20, consLagOff: 16,
+		taskNameKey: 11, taskWbsKey: 10,
+		taskParentOff: 36, taskDurOff: 60, taskPctOff: 122, taskOutlineOff: -1,
+		milestoneByMetaBit: true,
+		asgUnitsOff:        54,
+		calVarKey:          3, calHoursOff: 4,
+		parseResAsg: true,
+	}
+	// MPP12(Project 2007):VarMeta 条目 12 字节、Var2Data 键=字段 ID 低 16 位;
+	// 行布局与 MPP9 一致;分配改 meta 定位。
+	mppLayoutV12 = mppLayout{
+		taskMetaItem: 47, taskRowCap: 768, taskMinRow: 264,
+		resMetaItem: 37, asgMetaItem: 34,
+		asgRowSize: 0, asgMode: mppAsgMetaLocated,
+		consMetaItem: 10, consRowSize: 20, consLagOff: 16,
+		taskNameKey: 14, taskWbsKey: 16,
+		taskParentOff: 36, taskDurOff: 60, taskPctOff: 122, taskOutlineOff: -1,
+		milestoneByMetaBit: true,
+		asgUnitsOff:        54,
+		calVarKey:          8, calHoursOff: 0,
+		parseResAsg: true,
+	}
+	// MPP14(Project 2010):工期移 @42、进度移 @90;任务行上限 1024、完整行
+	// 206 字节;名称键 11 作兜底;分配定长 110、Units@46。
+	mppLayoutV14 = mppLayout{
+		taskMetaItem: 47, taskRowCap: 1024, taskMinRow: 206,
+		resMetaItem: 37, asgMetaItem: 34,
+		asgRowSize: 110, asgMode: mppAsgFixed,
+		consMetaItem: 10, consRowSize: 20, consLagOff: 16,
+		taskNameKey: 14, taskWbsKey: 16, taskNameFallbackKey: 11,
+		taskParentOff: 36, taskDurOff: 42, taskPctOff: 90, taskOutlineOff: -1,
+		milestoneByMetaBit: true,
+		asgUnitsOff:        46,
+		calVarKey:          8, calHoursOff: 0,
+		parseResAsg: true,
+	}
+	// MPP14 × Project 2013+（appVer≥15）行内变体:工期 @84、进度 @90、大纲
+	// 层级 @172、var 键=ID、里程碑=零工期、父链层级栈重建、lag @14;资源/
+	// 分配键位未钉死不解析(宁缺勿错,下表分配字段为 2010 惰性拷贝)。
+	mppLayoutV142013 = mppLayout{
+		taskMetaItem: 47, taskRowCap: 1024, taskMinRow: 206,
+		resMetaItem: 37, asgMetaItem: 34,
+		asgRowSize: 110, asgMode: mppAsgFixed,
+		consMetaItem: 10, consRowSize: 20, consLagOff: 14,
+		taskNameKey: 14, taskWbsKey: 16, taskNameFallbackKey: 11,
+		taskParentOff: -1, taskDurOff: 84, taskPctOff: 90, taskOutlineOff: 172,
+		taskUIDFromID:      true,
+		milestoneByMetaBit: false,
+		parentByStack:      true,
+		asgUnitsOff:        46,
+		calVarKey:          8, calHoursOff: 0,
+		parseResAsg: false,
+	}
+)
+
+// mppLayoutFor 按 (major 版本, CompObj 应用主版本) 选布局表:2013+（appVer≥15）
+// 是 MPP14 的行内变体,其余 major 一表一版(未知版本已在 ParseMpp 挡在门外)。
+func mppLayoutFor(v mppVersion, appVer int) *mppLayout {
+	if v == mpp14 && appVer >= 15 {
+		return &mppLayoutV142013
+	}
+	switch v {
+	case mpp9:
+		return &mppLayoutV9
+	case mpp12:
+		return &mppLayoutV12
+	default:
+		return &mppLayoutV14
+	}
+}
 
 // ── 入口 ───────────────────────────────────────────────────────────
 
@@ -130,11 +258,11 @@ func mppParseFromStreams(streams map[string][]byte, v mppVersion, appVer int) (P
 			return Project{}, fmt.Errorf("MPP 工程属性读取失败:%w", err)
 		}
 	}
-	if mppPropsByte(rootProps, 893386752)&0x01 != 0 {
+	if mppPropsByte(rootProps, mppPropsOpenPwdKey)&0x01 != 0 {
 		return Project{}, fmt.Errorf("MPP 文件受打开口令保护:请先在 Project 中取消口令并另存,再导入")
 	}
 	mask := byte(0)
-	if code := mppPropsByte(rootProps, 893386759); code != 0 {
+	if code := mppPropsByte(rootProps, mppPropsCryptKey); code != 0 {
 		mask = 0xFF - code // 口令变换:作用于工程 Props 与各 FixedData
 	}
 
@@ -144,27 +272,30 @@ func mppParseFromStreams(streams map[string][]byte, v mppVersion, appVer int) (P
 	}
 
 	minPerDay := int64(480)
-	if n := int64(mppPropsInt(projProps, 37748765)); n > 0 {
+	if n := int64(mppPropsInt(projProps, mppPropsMinPerDayKey)); n > 0 {
 		minPerDay = n
 	}
 	dayTenths := minPerDay * 10 // 工期十分之一分钟 → 工作日除数
 
 	p := Project{}
-	if ts := mppPropsTimestamp(projProps, 37748738); ts != nil {
+	if ts := mppPropsTimestamp(projProps, mppPropsStartDateKey); ts != nil {
 		p.StartDate = ts.Format("2006-01-02")
 	}
 	if p.StartDate == "" {
 		p.StartDate = time.Now().Format("2006-01-02")
 	}
 
+	// 版本布局表:同一语义字段的偏移/键位一律查表(mppLayoutFor 按 major+appVer 选)。
+	lay := mppLayoutFor(v, appVer)
+
 	// ── 任务 ────────────────────────────────────────────────────────
-	tasks, err := mppParseTasks(streams, projDir, v, appVer, mask)
+	tasks, err := mppParseTasks(streams, projDir, v, lay, mask)
 	if err != nil {
 		return Project{}, err
 	}
 
 	// ── 搭接(TBkndCons:MPP9/12/14 唯一的链接来源,20 字节定长行)─────
-	rawLinks, err := mppParseLinks(streams, projDir, v, appVer, mask)
+	rawLinks, err := mppParseLinks(streams, projDir, lay, mask)
 	if err != nil {
 		return Project{}, fmt.Errorf("MPP 搭接表读取失败:%w", err)
 	}
@@ -172,12 +303,11 @@ func mppParseFromStreams(streams map[string][]byte, v mppVersion, appVer int) (P
 	// ── 资源(名称在 Var2Data 键 1,各版本一致)──────────────────────
 	// Project 2013+（appVer≥15）资源/分配行的键位与偏移尚未钉死（真机样本
 	// 实证与 2010 口径漂移）——宁缺勿错,不解析（诚实降级,任务/搭接/日历不受影响）。
-	is2013 := v == mpp14 && appVer >= 15
 	resources := []mppRawRes{}
 	rawAsgs := []mppRawAsg{}
-	if !is2013 {
+	if lay.parseResAsg {
 		resVar, _ := mppParseVarData(streams[projDir+"/TBkndRsc/VarMeta"], streams[projDir+"/TBkndRsc/Var2Data"], v)
-		resRows, _ := mppFixedRows(streams[projDir+"/TBkndRsc/FixedMeta"], streams[projDir+"/TBkndRsc/FixedData"], mppResMetaItem, 256, mask)
+		resRows, _ := mppFixedRows(streams[projDir+"/TBkndRsc/FixedMeta"], streams[projDir+"/TBkndRsc/FixedData"], lay.resMetaItem, mppSmallRowCap, mask)
 		for _, r := range resRows {
 			if len(r.data) < 48 {
 				continue
@@ -193,14 +323,11 @@ func mppParseFromStreams(streams map[string][]byte, v mppVersion, appVer int) (P
 
 		// ── 分配(MPP9 定长 142/计数不符回退 meta;MPP12 meta 定位;MPP14 定长 110)──
 		if asgMeta, ok := streams[projDir+"/TBkndAssn/FixedMeta"]; ok {
-			asgRows, err2 := mppAssignRows(asgMeta, streams[projDir+"/TBkndAssn/FixedData"], v, mask)
+			asgRows, err2 := mppAssignRows(asgMeta, streams[projDir+"/TBkndAssn/FixedData"], lay, mask)
 			if err2 != nil {
 				return Project{}, fmt.Errorf("MPP 分配表读取失败:%w", err2)
 			}
-			unitsOff := 54 // MPP9/12:Units double@54(÷100,1.0=100%)
-			if v == mpp14 {
-				unitsOff = 46
-			}
+			unitsOff := lay.asgUnitsOff // MPP9/12:54、MPP14:46(÷100,1.0=100%)
 			for _, r := range asgRows {
 				if r.flags&0xFF != 0 || len(r.data) < unitsOff+8 {
 					continue // meta 首字节非 0=已删除分配(MPXJ meta[0]!=0 口径)
@@ -217,13 +344,9 @@ func mppParseFromStreams(streams map[string][]byte, v mppVersion, appVer int) (P
 	// ── 默认日历周工作制(每周 7×60 字节;props 兜底;例外日不解析)────
 	workweek := mppDefaultWeek()
 	calVar, _ := mppParseVarData(streams[projDir+"/TBkndCal/VarMeta"], streams[projDir+"/TBkndCal/Var2Data"], v)
-	calKey, calHoursOff := int64(3), 4 // MPP9
-	if v != mpp9 {
-		calKey, calHoursOff = 8, 0
-	}
-	if blob := calVar.blob(1, calKey); len(blob) >= calHoursOff+7*60 {
-		workweek = mppWeekFromHours(blob[calHoursOff:])
-	} else if blob := mppPropsBlob(projProps, 37753736); len(blob) >= 4+7*60 {
+	if blob := calVar.blob(1, lay.calVarKey); len(blob) >= lay.calHoursOff+7*60 {
+		workweek = mppWeekFromHours(blob[lay.calHoursOff:])
+	} else if blob := mppPropsBlob(projProps, mppPropsCalWeekKey); len(blob) >= 4+7*60 {
 		workweek = mppWeekFromHours(blob[4:])
 	}
 
@@ -265,27 +388,20 @@ type mppRawAsg struct {
 }
 
 // mppParseTasks 任务表:跳过前 3 条 meta;flags bit0x02=删除(uid 占位防误挂);
-// 8 字节行=null 占位;<75% 满=幻影行。字段偏移 MPP9/12 相同,MPP14 自成一套;
-// Project 2013+（appVer≥15）MPP14 再变体:工期 @84、var 数据键=ID（uid@0 变
-// 陈旧键,真机样本实证）、大纲层级 @172、里程碑=零工期,父链由层级栈重建。
-func mppParseTasks(streams map[string][]byte, projDir string, v mppVersion, appVer int, mask byte) ([]*mppTask, error) {
+// 8 字节行=null 占位;<75% 满=幻影行。字段偏移与 Var2Data 键一律查 mppLayout:
+// MPP9/12 同位(父@36/工期@60/进度@122,名称/WBS 键 11/10),MPP14 自成一套
+// (父@36/工期@42/进度@90,键 14/16);Project 2013+（appVer≥15）MPP14 再变体:
+// 工期 @84、进度 @90、var 数据键=ID（uid@0 变陈旧键,真机样本实证）、大纲层级
+// @172、里程碑=零工期,父链由层级栈重建。
+func mppParseTasks(streams map[string][]byte, projDir string, v mppVersion, lay *mppLayout, mask byte) ([]*mppTask, error) {
 	taskVar, err := mppParseVarData(streams[projDir+"/TBkndTask/VarMeta"], streams[projDir+"/TBkndTask/Var2Data"], v)
 	if err != nil {
 		return nil, fmt.Errorf("MPP 任务数据读取失败:%w", err)
 	}
-	capSize := mppTaskRowCap912
-	if v == mpp14 {
-		capSize = mppTaskRowCap14
-	}
-	rows, err := mppFixedRows(streams[projDir+"/TBkndTask/FixedMeta"], streams[projDir+"/TBkndTask/FixedData"], mppTaskMetaItem, capSize, mask)
+	rows, err := mppFixedRows(streams[projDir+"/TBkndTask/FixedMeta"], streams[projDir+"/TBkndTask/FixedData"], lay.taskMetaItem, lay.taskRowCap, mask)
 	if err != nil {
 		return nil, fmt.Errorf("MPP 任务表读取失败:%w", err)
 	}
-	nameKey, wbsKey := int64(11), int64(10) // MPP9 var 键
-	if v != mpp9 {
-		nameKey, wbsKey = 14, 16 // MPP12/14 键=字段 ID 低 16 位
-	}
-	is2013 := v == mpp14 && appVer >= 15
 	tasks := []*mppTask{}
 	for i := 3; i < len(rows); i++ {
 		row, meta := rows[i].data, rows[i]
@@ -299,42 +415,36 @@ func mppParseTasks(streams map[string][]byte, projDir string, v mppVersion, appV
 		if len(row) == 8 { // null 占位任务
 			continue
 		}
-		minRow := 264 // 字段表最大偏移+尺寸(MPP9/12:BaselineFixedCost@256+8)
-		if v == mpp14 {
-			minRow = 206
-		}
-		if len(row)*100 <= minRow*75 { // <75% 满视为幻影行(MPXJ 同口径)
+		if len(row)*100 <= lay.taskMinRow*75 { // <75% 满视为幻影行(MPXJ 同口径)
 			continue
 		}
 		t := &mppTask{uid: int64(mppI32(row, 0)), id: int64(mppI32(row, 4))}
-		switch {
-		case is2013:
+		if lay.taskUIDFromID {
 			// 2013+ 变体:行内 var 键整体换 ID 键空间（uid@0 是陈旧键,与名字
 			// 表大面积错位——真机样本实证），统一取 ID 为回链键。
 			t.uid = t.id
-			t.durationTenths = int64(mppI32(row, 84))
-			t.pct = mppPct(mppI16(row, 90))
+		}
+		t.durationTenths = int64(mppI32(row, lay.taskDurOff))
+		t.pct = mppPct(mppI16(row, lay.taskPctOff))
+		if lay.milestoneByMetaBit {
+			t.milestone = meta.byte8&0x20 != 0
+		} else {
 			t.milestone = t.durationTenths == 0 // 零工期=里程碑(2013+ meta 无独立位)
-			t.outline = int(mppI16(row, 172))
-		case v == mpp14:
-			t.parentUID = int64(mppI32(row, 36))
-			t.milestone = meta.byte8&0x20 != 0
-			t.durationTenths = int64(mppI32(row, 42))
-			t.pct = mppPct(mppI16(row, 90))
-		default: // MPP9/12 偏移一致
-			t.parentUID = int64(mppI32(row, 36))
-			t.milestone = meta.byte8&0x20 != 0
-			t.durationTenths = int64(mppI32(row, 60))
-			t.pct = mppPct(mppI16(row, 122))
 		}
-		t.name = taskVar.unicode(t.uid, nameKey)
-		if t.name == "" && v == mpp14 {
-			t.name = taskVar.unicode(t.uid, 11) // MPP14 键位兜底
+		if lay.taskParentOff >= 0 {
+			t.parentUID = int64(mppI32(row, lay.taskParentOff))
 		}
-		t.wbs = taskVar.unicode(t.uid, wbsKey)
+		if lay.taskOutlineOff >= 0 {
+			t.outline = int(mppI16(row, lay.taskOutlineOff))
+		}
+		t.name = taskVar.unicode(t.uid, lay.taskNameKey)
+		if t.name == "" && lay.taskNameFallbackKey != 0 {
+			t.name = taskVar.unicode(t.uid, lay.taskNameFallbackKey) // MPP14 键位兜底
+		}
+		t.wbs = taskVar.unicode(t.uid, lay.taskWbsKey)
 		tasks = append(tasks, t)
 	}
-	if is2013 {
+	if lay.parentByStack {
 		// 父链重建:文件行序即 ID 升序（真机样本实证），层级栈配对——
 		// 每行的父=其前最近的更浅层级行（parentUID@36 在 2013+ 失效恒 0）。
 		stack := []*mppTask{}
@@ -355,20 +465,16 @@ func mppParseTasks(streams map[string][]byte, projDir string, v mppVersion, appV
 }
 
 // mppParseLinks 搭接行:constraintID 必须严格递增(去重);类型 0=FF 1=FS
-// 2=SF 3=SS;lag 有符号十分之一分钟(Project 2013+ 由 @16 移到 @14)。
-func mppParseLinks(streams map[string][]byte, projDir string, v mppVersion, appVer int, mask byte) ([]mppRawLink, error) {
-	rows, err := mppFixedRows(streams[projDir+"/TBkndCons/FixedMeta"], streams[projDir+"/TBkndCons/FixedData"], mppConsMetaItem, mppConsRowSize, mask)
+// 2=SF 3=SS;lag 有符号十分之一分钟(偏移查表:2013+ 由 @16 移到 @14)。
+func mppParseLinks(streams map[string][]byte, projDir string, lay *mppLayout, mask byte) ([]mppRawLink, error) {
+	rows, err := mppFixedRows(streams[projDir+"/TBkndCons/FixedMeta"], streams[projDir+"/TBkndCons/FixedData"], lay.consMetaItem, lay.consRowSize, mask)
 	if err != nil {
 		return nil, err
-	}
-	lagOff := 16
-	if v == mpp14 && appVer >= 15 {
-		lagOff = 14
 	}
 	links := []mppRawLink{}
 	lastCID := int64(-1)
 	for _, r := range rows {
-		if r.flags&0xFFFF != 0 || len(r.data) < mppConsRowSize {
+		if r.flags&0xFFFF != 0 || len(r.data) < lay.consRowSize {
 			continue // meta short@0 非 0=已删除(ConstraintFactory 口径)
 		}
 		cid := int64(mppI32(r.data, 0))
@@ -384,7 +490,7 @@ func mppParseLinks(streams map[string][]byte, projDir string, v mppVersion, appV
 			pred:      pred,
 			succ:      succ,
 			relType:   int64(mppI16(r.data, 12)),
-			lagTenths: int64(mppI32(r.data, lagOff)),
+			lagTenths: int64(mppI32(r.data, lay.consLagOff)),
 		})
 	}
 	return links, nil
@@ -724,22 +830,22 @@ func mppFixedRows(metaRaw, dataRaw []byte, itemSize, capSize int, mask byte) ([]
 	return out, nil
 }
 
-// mppAssignRows 分配行:MPP9=定长 142(行数与 meta 计数不符回退 meta 定位,
-// MPP9Reader 同口径);MPP12=meta 定位;MPP14=定长 110。
-func mppAssignRows(metaRaw, dataRaw []byte, v mppVersion, mask byte) ([]mppMetaRow, error) {
-	if v == mpp14 {
-		return mppFixedRowsEvenly(metaRaw, dataRaw, mppAsgMetaItem, mppAsgRow14, mask)
-	}
-	if v == mpp9 {
+// mppAssignRows 分配行:模式查 mppLayout.asgMode——MPP9=定长 142(行数与 meta
+// 计数不符回退 meta 定位,MPP9Reader 同口径);MPP12=meta 定位;MPP14=定长 110。
+func mppAssignRows(metaRaw, dataRaw []byte, lay *mppLayout, mask byte) ([]mppMetaRow, error) {
+	switch lay.asgMode {
+	case mppAsgFixed:
+		return mppFixedRowsEvenly(metaRaw, dataRaw, lay.asgMetaItem, lay.asgRowSize, mask)
+	case mppAsgFixedOrMeta:
 		metaCount := 0
 		if len(metaRaw) >= 16 && mppMagic == uint32(mppI32(metaRaw, 0)) {
-			metaCount = (len(metaRaw) - 16) / mppAsgMetaItem
+			metaCount = (len(metaRaw) - 16) / lay.asgMetaItem
 		}
-		if metaCount == 0 || len(dataRaw)/mppAsgRow9 == metaCount {
-			return mppFixedRowsEvenly(metaRaw, dataRaw, mppAsgMetaItem, mppAsgRow9, mask)
+		if metaCount == 0 || len(dataRaw)/lay.asgRowSize == metaCount {
+			return mppFixedRowsEvenly(metaRaw, dataRaw, lay.asgMetaItem, lay.asgRowSize, mask)
 		}
 	}
-	return mppFixedRows(metaRaw, dataRaw, mppAsgMetaItem, 256, mask)
+	return mppFixedRows(metaRaw, dataRaw, lay.asgMetaItem, mppSmallRowCap, mask)
 }
 
 // mppFixedRowsEvenly 定长切块(meta 仅取 flags;行 i = 数据[i*rs:(i+1)*rs])。

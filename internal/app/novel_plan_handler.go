@@ -176,7 +176,9 @@ func (a *writingState) NovelChapterPlanPropose(chapterNum int, direction string)
 		return nil, fmt.Errorf("读取大纲失败: %w", err)
 	}
 	direction = strings.TrimSpace(direction)
-	node := findOutlineNodeByChapter(of.Nodes, chapterNum)
+	// AP1-06 收敛：原 findOutlineNodeByChapter 与 findOutlineNodeByNum 逐行等价
+	// （章号 + Branch=="" 主线），取节点统一走后者一份实现。
+	node := findOutlineNodeByNum(of.Nodes, chapterNum)
 	if node == nil && direction == "" {
 		// 指路必须是真实存在的入口：大纲节点目前没有独立创建 UI（自动建于
 		// 首次生成），草案又依赖节点编译——无节点时的两条真路径是手写计划
@@ -472,20 +474,6 @@ func planJoinCapped(items []string, n int) string {
 		lines = append(lines, "- "+it)
 	}
 	return strings.Join(lines, "\n")
-}
-
-// findOutlineNodeByChapter 按章号找主线大纲节点（Branch=="" 为主线；与
-// ensureChapterNode 的定号口径同源）。递归进 Children（卷/章树）。
-func findOutlineNodeByChapter(nodes []types.OutlineNode, chapterNum int) *types.OutlineNode {
-	for i := range nodes {
-		if nodes[i].OrderIndex == chapterNum && nodes[i].Branch == "" {
-			return &nodes[i]
-		}
-		if got := findOutlineNodeByChapter(nodes[i].Children, chapterNum); got != nil {
-			return got
-		}
-	}
-	return nil
 }
 
 // planAnalysisItem 读取该章 V2 分析载荷；无该章条目或读取失败返回 nil（正常态，

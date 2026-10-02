@@ -39,7 +39,7 @@ import { useTOptional } from "../lib/i18n";
 import { CodeCollapse, type CodeCollapseLabels } from "./CodeCollapse";
 import { FileChip } from "./FileChip";
 import { MemCitationChip } from "./MemCitationChip";
-import { GenuiMarkdownFence, genuiFenceStateKey, isGenuiFenceLang } from "../../genui/markdownFence";
+import { extractFence, GenuiMarkdownFence, genuiFenceStateKey, isGenuiFenceLang } from "../../genui/markdownFence";
 import { parseGenuiFenceBody, splitGenuiFences } from "../../genui/parse";
 import { useGenuiScope } from "../../genui/scope";
 import { useGenuiPanelStore } from "../lib/genuiPanel";
@@ -422,10 +422,12 @@ function buildComponents(
       );
     },
     code: ({ className, children }) => {
-      const text = String(children ?? "").replace(/\n$/, "");
-      const match = /language-([\w-]+)/.exec(className ?? "");
-      const lang = match?.[1];
-      const isBlock = match !== null || text.includes("\n");
+      // FE6-05：样板（language- 提取/去尾换行/块级判定）走 extractFence 单源。
+      // 本文件分支语义与前两路并不同构，保留自有分支：mermaid 独占分支；
+      // genui 围栏不带块级闸（inline 亦按围栏体解析）、panelRender="chip"
+      // （panel:true 规格只出占位 chip，面板发布由上方 useEffect 负责）；
+      // 块级代码走 CodeBlockHeader+CodeCollapse+HlCode 文档面板。
+      const { text, lang, isBlock } = extractFence(className, children);
       if (lang === "mermaid") {
         return <MermaidBlock code={text} autoExport={autoExportMermaid} />;
       }

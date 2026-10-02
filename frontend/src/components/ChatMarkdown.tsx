@@ -6,7 +6,7 @@ import remarkMath from 'remark-math'
 import rehypeKatex from 'rehype-katex'
 import { C } from '../utils/theme'
 import { ensureKatexCss, hasMathContent, normalizeMath } from '../gaea/lib/mathText'
-import { genuiFenceStateKey, isGenuiFenceLang, GenuiMarkdownFence } from '../genui/markdownFence'
+import { genuiFenceStateKey, isGenuiFenceLang, GenuiMarkdownFence, extractFence } from '../genui/markdownFence'
 import { useGenuiScope } from '../genui/scope'
 import { ChatCodeBlock } from './ChatCodeBlock'
 
@@ -37,10 +37,10 @@ function chatMarkdownComponents(fenceKeyFor: ((body: string) => string | undefin
 return {
   pre: ({ children }) => <>{children}</>,
   code: ({ className, children }) => {
-    const text = String(children ?? '').replace(/\n$/, '')
-    const match = /language-([\w-]+)/.exec(className ?? '')
-    const lang = match?.[1]
-    const isBlock = match !== null || text.includes('\n')
+    // FE6-05：language- 提取/去尾换行/块级判定走 extractFence 单源；本组件的
+    // 分支语义与 genuiAdapter 并不同构（行内 code 显式令牌样式、块级无
+    // data-genui-host 包裹、pre 恒解包），故只共用样板、保留自有分支。
+    const { text, lang, isBlock } = extractFence(className, children)
     if (lang !== undefined && isGenuiFenceLang(lang) && isBlock) {
       return <GenuiMarkdownFence code={text} stateKey={fenceKeyFor?.(text)} />
     }

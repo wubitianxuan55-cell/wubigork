@@ -59,100 +59,134 @@ func injectLoraNodes(workflow map[string]interface{}, originalModelNodeID string
 	return currentNodeID
 }
 
-// buildZImageWorkflow 构建 Z-Image-Turbo 工作流（官方 Comfy-Org 模板）
-// CLIPLoader lumina2, SD3Latent, AuraFlow shift=3, ConditioningZeroOut, CFG 1.0, res_multistep/simple
-func (b *ComfyUIBackend) buildZImageWorkflow(prompt string, negative string, width int, height int, seed int, steps int, unetModel string, loras []string) map[string]interface{} {
-	if steps <= 0 {
-		steps = 8
-	}
-	if steps > 20 {
-		steps = 20
+// comfyQwenProfile krea2 / z-image-turbo 两族工作流的单点差异表（AP7-03）。
+// 两族节点拓扑逐节点相同：UNET → [LoRA 链] → [AuraFlow] → KSampler →
+// VAEDecode → SaveImage，负向走 ConditioningZeroOut；逐字段差异只有
+// 权重名 / CLIP type / 空 latent 类型 / 采样器 / AuraFlow shift / 步数钳制——
+// 原来四份节点表两两复制（txt2img/img2img × krea2/z-image），改一处漏一处。
+type comfyQwenProfile struct {
+	unetName     string // UNETLoader.unet_name
+	clipName     string // CLIPLoader.clip_name
+	clipType     string // CLIPLoader.type
+	vaeName      string // VAELoader.vae_name
+	latentClass  string // txt2img 空 latent 节点类（EmptyLatentImage / EmptySD3LatentImage）
+	samplerName  string // KSampler.sampler_name
+	auraShift    int    // >0 时接 ModelSamplingAuraFlow(shift)；0 不接（krea2 不需要）
+	defaultSteps int    // txt2img steps<=0 兜底步数（仅 clampSteps 族生效）
+	clampSteps   bool   // txt2img 步数钳制（<=0 兜底、>20 收 20）——z-image 历史行为，krea2 透传
+}
+
+var comfyQwenProfiles = map[string]comfyQwenProfile{
+	// Krea2 Turbo（官方 Comfy-Org 模板）：CLIPLoader krea2, EmptyLatentImage,
+	// 无 AuraFlow, CFG 1.0, euler/simple。VAE 用 qwen_image_vae（用 ae 会出灰紫图）。
+	"krea2": {
+		unetName:     "krea2_turbo_fp8_scaled.safetensors",
+		clipName:     "qwen3vl_4b_fp8_scaled.safetensors",
+		clipType:     "krea2",
+		vaeName:      "qwen_image_vae.safetensors",
+		latentClass:  "EmptyLatentImage",
+		samplerName:  "euler",
+		defaultSteps: 8,
+	},
+	// Z-Image-Turbo（官方 Comfy-Org 模板）：CLIPLoader lumina2, SD3Latent,
+	// AuraFlow shift=3, CFG 1.0, res_multistep/simple。
+	"z-image-turbo": {
+		unetName:     "z_image_turbo_bf16_完整版_效果最好.safetensors",
+		clipName:     "z-image\\qwen_3_4b.safetensors",
+		clipType:     "lumina2",
+		vaeName:      "z-image-qwen.safetensors",
+		latentClass:  "EmptySD3LatentImage",
+		samplerName:  "res_multistep",
+		auraShift:    3,
+		defaultSteps: 8,
+		clampSteps:   true,
+	},
+}
+
+// buildQwenProfileTxt2Img krea2/z-image 族共享 txt2img 节点表（AP7-03 收口）。
+// 负面词 txt2img 恒空文本（历史行为：KSampler 负向接 ConditioningZeroOut，
+// 传入的 negative 参数不进工作流）。
+func (b *ComfyUIBackend) buildQwenProfileTxt2Img(p comfyQwenProfile, prompt string, width, height, seed, steps int, loras []string) map[string]interface{} {
+	if p.clampSteps {
+		if steps <= 0 {
+			steps = p.defaultSteps
+		}
+		if steps > 20 {
+			steps = 20
+		}
 	}
 	wf := map[string]interface{}{
-		"4":  map[string]interface{}{"class_type": "UNETLoader", "inputs": map[string]interface{}{"unet_name": unetModel, "weight_dtype": "default"}},
-		"5":  map[string]interface{}{"class_type": "CLIPLoader", "inputs": map[string]interface{}{"clip_name": "z-image\\qwen_3_4b.safetensors", "type": "lumina2"}},
-		"6":  map[string]interface{}{"class_type": "VAELoader", "inputs": map[string]interface{}{"vae_name": "z-image-qwen.safetensors"}},
+		"4":  map[string]interface{}{"class_type": "UNETLoader", "inputs": map[string]interface{}{"unet_name": p.unetName, "weight_dtype": "default"}},
+		"5":  map[string]interface{}{"class_type": "CLIPLoader", "inputs": map[string]interface{}{"clip_name": p.clipName, "type": p.clipType}},
+		"6":  map[string]interface{}{"class_type": "VAELoader", "inputs": map[string]interface{}{"vae_name": p.vaeName}},
 		"7":  map[string]interface{}{"class_type": "CLIPTextEncode", "inputs": map[string]interface{}{"text": prompt, "clip": []interface{}{"5", 0}}},
 		"8":  map[string]interface{}{"class_type": "CLIPTextEncode", "inputs": map[string]interface{}{"text": "", "clip": []interface{}{"5", 0}}},
-		"9":  map[string]interface{}{"class_type": "EmptySD3LatentImage", "inputs": map[string]interface{}{"width": width, "height": height, "batch_size": 1}},
+		"9":  map[string]interface{}{"class_type": p.latentClass, "inputs": map[string]interface{}{"width": width, "height": height, "batch_size": 1}},
 		"13": map[string]interface{}{"class_type": "ConditioningZeroOut", "inputs": map[string]interface{}{"conditioning": []interface{}{"8", 0}}},
 	}
 	modelSourceID := injectLoraNodes(wf, "4", loras)
-	wf["14"] = map[string]interface{}{"class_type": "ModelSamplingAuraFlow", "inputs": map[string]interface{}{"model": []interface{}{modelSourceID, 0}, "shift": 3}}
+	modelInput := []interface{}{modelSourceID, 0}
+	if p.auraShift > 0 {
+		wf["14"] = map[string]interface{}{"class_type": "ModelSamplingAuraFlow", "inputs": map[string]interface{}{"model": []interface{}{modelSourceID, 0}, "shift": p.auraShift}}
+		modelInput = []interface{}{"14", 0}
+	}
 	wf["10"] = map[string]interface{}{"class_type": "KSampler", "inputs": map[string]interface{}{
-		"seed": seed, "steps": steps, "cfg": 1.0, "sampler_name": "res_multistep", "scheduler": "simple", "denoise": 1.0,
-		"model": []interface{}{"14", 0}, "positive": []interface{}{"7", 0}, "negative": []interface{}{"13", 0}, "latent_image": []interface{}{"9", 0},
+		"seed": seed, "steps": steps, "cfg": 1.0, "sampler_name": p.samplerName, "scheduler": "simple", "denoise": 1.0,
+		"model": modelInput, "positive": []interface{}{"7", 0}, "negative": []interface{}{"13", 0}, "latent_image": []interface{}{"9", 0},
 	}}
 	wf["11"] = map[string]interface{}{"class_type": "VAEDecode", "inputs": map[string]interface{}{"samples": []interface{}{"10", 0}, "vae": []interface{}{"6", 0}}}
 	wf["12"] = map[string]interface{}{"class_type": "SaveImage", "inputs": map[string]interface{}{"filename_prefix": "gaea", "images": []interface{}{"11", 0}}}
 	return wf
 }
 
-// buildKreaWorkflow 构建 Krea2 Turbo 工作流（官方 Comfy-Org 模板）
-// CLIPLoader krea2, EmptyLatentImage, 无 AuraFlow, CFG 1.0, euler/simple, 8步
-// 模型: UNET=krea2_turbo_fp8_scaled, CLIP=qwen3vl_4b_fp8_scaled, VAE=qwen_image_vae
+// buildQwenProfileImg2Img krea2/z-image 族共享 img2img 节点表（AP7-03 收口）：
+// LoadImage(参考图) → VAEEncode → KSampler(低 denoise) → VAEDecode → SaveImage。
+func (b *ComfyUIBackend) buildQwenProfileImg2Img(p comfyQwenProfile, prompt, negative string, width, height, seed, steps int, loras []string, imageName string, denoise float64) map[string]interface{} {
+	wf := map[string]interface{}{
+		"4":  map[string]interface{}{"class_type": "UNETLoader", "inputs": map[string]interface{}{"unet_name": p.unetName, "weight_dtype": "default"}},
+		"5":  map[string]interface{}{"class_type": "CLIPLoader", "inputs": map[string]interface{}{"clip_name": p.clipName, "type": p.clipType}},
+		"6":  map[string]interface{}{"class_type": "VAELoader", "inputs": map[string]interface{}{"vae_name": p.vaeName}},
+		"7":  map[string]interface{}{"class_type": "CLIPTextEncode", "inputs": map[string]interface{}{"text": prompt, "clip": []interface{}{"5", 0}}},
+		"8":  map[string]interface{}{"class_type": "CLIPTextEncode", "inputs": map[string]interface{}{"text": negative, "clip": []interface{}{"5", 0}}},
+		"13": map[string]interface{}{"class_type": "ConditioningZeroOut", "inputs": map[string]interface{}{"conditioning": []interface{}{"8", 0}}},
+		"1":  map[string]interface{}{"class_type": "LoadImage", "inputs": map[string]interface{}{"image": imageName}},
+		"15": map[string]interface{}{"class_type": "VAEEncode", "inputs": map[string]interface{}{"pixels": []interface{}{"1", 0}, "vae": []interface{}{"6", 0}}},
+	}
+	modelSourceID := injectLoraNodes(wf, "4", loras)
+	modelInput := []interface{}{modelSourceID, 0}
+	if p.auraShift > 0 {
+		wf["14"] = map[string]interface{}{"class_type": "ModelSamplingAuraFlow", "inputs": map[string]interface{}{"model": []interface{}{modelSourceID, 0}, "shift": p.auraShift}}
+		modelInput = []interface{}{"14", 0}
+	}
+	wf["10"] = map[string]interface{}{"class_type": "KSampler", "inputs": map[string]interface{}{
+		"seed": seed, "steps": steps, "cfg": 1.0, "sampler_name": p.samplerName, "scheduler": "simple", "denoise": denoise,
+		"model": modelInput, "positive": []interface{}{"7", 0}, "negative": []interface{}{"13", 0}, "latent_image": []interface{}{"15", 0},
+	}}
+	wf["11"] = map[string]interface{}{"class_type": "VAEDecode", "inputs": map[string]interface{}{"samples": []interface{}{"10", 0}, "vae": []interface{}{"6", 0}}}
+	wf["12"] = map[string]interface{}{"class_type": "SaveImage", "inputs": map[string]interface{}{"filename_prefix": "gaea", "images": []interface{}{"11", 0}}}
+	return wf
+}
+
+// buildZImageWorkflow 构建 Z-Image-Turbo 工作流（官方 Comfy-Org 模板）：
+// 差异字段见 comfyQwenProfiles["z-image-turbo"]。
+func (b *ComfyUIBackend) buildZImageWorkflow(prompt string, width int, height int, seed int, steps int, loras []string) map[string]interface{} {
+	return b.buildQwenProfileTxt2Img(comfyQwenProfiles["z-image-turbo"], prompt, width, height, seed, steps, loras)
+}
+
+// buildKreaWorkflow 构建 Krea2 Turbo 工作流（官方 Comfy-Org 模板）：
+// 差异字段见 comfyQwenProfiles["krea2"]。
 func (b *ComfyUIBackend) buildKreaWorkflow(prompt string, width, height, seed, steps int, loras []string) map[string]interface{} {
-	wf := map[string]interface{}{
-		"4":  map[string]interface{}{"class_type": "UNETLoader", "inputs": map[string]interface{}{"unet_name": "krea2_turbo_fp8_scaled.safetensors", "weight_dtype": "default"}},
-		"5":  map[string]interface{}{"class_type": "CLIPLoader", "inputs": map[string]interface{}{"clip_name": "qwen3vl_4b_fp8_scaled.safetensors", "type": "krea2"}},
-		"6":  map[string]interface{}{"class_type": "VAELoader", "inputs": map[string]interface{}{"vae_name": "qwen_image_vae.safetensors"}},
-		"7":  map[string]interface{}{"class_type": "CLIPTextEncode", "inputs": map[string]interface{}{"text": prompt, "clip": []interface{}{"5", 0}}},
-		"8":  map[string]interface{}{"class_type": "CLIPTextEncode", "inputs": map[string]interface{}{"text": "", "clip": []interface{}{"5", 0}}},
-		"9":  map[string]interface{}{"class_type": "EmptyLatentImage", "inputs": map[string]interface{}{"width": width, "height": height, "batch_size": 1}},
-		"13": map[string]interface{}{"class_type": "ConditioningZeroOut", "inputs": map[string]interface{}{"conditioning": []interface{}{"8", 0}}},
-	}
-	// LoRA 注入（如果有）
-	modelSourceID := injectLoraNodes(wf, "4", loras)
-	wf["10"] = map[string]interface{}{"class_type": "KSampler", "inputs": map[string]interface{}{"seed": seed, "steps": steps, "cfg": 1.0, "sampler_name": "euler", "scheduler": "simple", "denoise": 1.0, "model": []interface{}{modelSourceID, 0}, "positive": []interface{}{"7", 0}, "negative": []interface{}{"13", 0}, "latent_image": []interface{}{"9", 0}}}
-	wf["11"] = map[string]interface{}{"class_type": "VAEDecode", "inputs": map[string]interface{}{"samples": []interface{}{"10", 0}, "vae": []interface{}{"6", 0}}}
-	wf["12"] = map[string]interface{}{"class_type": "SaveImage", "inputs": map[string]interface{}{"filename_prefix": "gaea", "images": []interface{}{"11", 0}}}
-	return wf
+	return b.buildQwenProfileTxt2Img(comfyQwenProfiles["krea2"], prompt, width, height, seed, steps, loras)
 }
 
-// buildKreaImg2ImgWorkflow 构建 Krea2 Turbo 图生图工作流：
-// LoadImage(参考图) → VAEEncode → KSampler(低 denoise) → VAEDecode → SaveImage
+// buildKreaImg2ImgWorkflow 构建 Krea2 Turbo 图生图工作流。
 func (b *ComfyUIBackend) buildKreaImg2ImgWorkflow(prompt, negative string, width, height, seed, steps int, loras []string, imageName string, denoise float64) map[string]interface{} {
-	wf := map[string]interface{}{
-		"4":  map[string]interface{}{"class_type": "UNETLoader", "inputs": map[string]interface{}{"unet_name": "krea2_turbo_fp8_scaled.safetensors", "weight_dtype": "default"}},
-		"5":  map[string]interface{}{"class_type": "CLIPLoader", "inputs": map[string]interface{}{"clip_name": "qwen3vl_4b_fp8_scaled.safetensors", "type": "krea2"}},
-		"6":  map[string]interface{}{"class_type": "VAELoader", "inputs": map[string]interface{}{"vae_name": "qwen_image_vae.safetensors"}},
-		"7":  map[string]interface{}{"class_type": "CLIPTextEncode", "inputs": map[string]interface{}{"text": prompt, "clip": []interface{}{"5", 0}}},
-		"8":  map[string]interface{}{"class_type": "CLIPTextEncode", "inputs": map[string]interface{}{"text": negative, "clip": []interface{}{"5", 0}}},
-		"13": map[string]interface{}{"class_type": "ConditioningZeroOut", "inputs": map[string]interface{}{"conditioning": []interface{}{"8", 0}}},
-		"1":  map[string]interface{}{"class_type": "LoadImage", "inputs": map[string]interface{}{"image": imageName}},
-		"15": map[string]interface{}{"class_type": "VAEEncode", "inputs": map[string]interface{}{"pixels": []interface{}{"1", 0}, "vae": []interface{}{"6", 0}}},
-	}
-	modelSourceID := injectLoraNodes(wf, "4", loras)
-	wf["10"] = map[string]interface{}{"class_type": "KSampler", "inputs": map[string]interface{}{
-		"seed": seed, "steps": steps, "cfg": 1.0, "sampler_name": "euler", "scheduler": "simple", "denoise": denoise,
-		"model": []interface{}{modelSourceID, 0}, "positive": []interface{}{"7", 0}, "negative": []interface{}{"13", 0}, "latent_image": []interface{}{"15", 0},
-	}}
-	wf["11"] = map[string]interface{}{"class_type": "VAEDecode", "inputs": map[string]interface{}{"samples": []interface{}{"10", 0}, "vae": []interface{}{"6", 0}}}
-	wf["12"] = map[string]interface{}{"class_type": "SaveImage", "inputs": map[string]interface{}{"filename_prefix": "gaea", "images": []interface{}{"11", 0}}}
-	return wf
+	return b.buildQwenProfileImg2Img(comfyQwenProfiles["krea2"], prompt, negative, width, height, seed, steps, loras, imageName, denoise)
 }
 
-// buildZImageImg2ImgWorkflow 构建 Z-Image-Turbo 图生图工作流
-func (b *ComfyUIBackend) buildZImageImg2ImgWorkflow(prompt, negative string, width, height, seed, steps int, unetModel string, loras []string, imageName string, denoise float64) map[string]interface{} {
-	wf := map[string]interface{}{
-		"4":  map[string]interface{}{"class_type": "UNETLoader", "inputs": map[string]interface{}{"unet_name": unetModel, "weight_dtype": "default"}},
-		"5":  map[string]interface{}{"class_type": "CLIPLoader", "inputs": map[string]interface{}{"clip_name": "z-image\\qwen_3_4b.safetensors", "type": "lumina2"}},
-		"6":  map[string]interface{}{"class_type": "VAELoader", "inputs": map[string]interface{}{"vae_name": "z-image-qwen.safetensors"}},
-		"7":  map[string]interface{}{"class_type": "CLIPTextEncode", "inputs": map[string]interface{}{"text": prompt, "clip": []interface{}{"5", 0}}},
-		"8":  map[string]interface{}{"class_type": "CLIPTextEncode", "inputs": map[string]interface{}{"text": negative, "clip": []interface{}{"5", 0}}},
-		"13": map[string]interface{}{"class_type": "ConditioningZeroOut", "inputs": map[string]interface{}{"conditioning": []interface{}{"8", 0}}},
-		"1":  map[string]interface{}{"class_type": "LoadImage", "inputs": map[string]interface{}{"image": imageName}},
-		"15": map[string]interface{}{"class_type": "VAEEncode", "inputs": map[string]interface{}{"pixels": []interface{}{"1", 0}, "vae": []interface{}{"6", 0}}},
-	}
-	modelSourceID := injectLoraNodes(wf, "4", loras)
-	wf["14"] = map[string]interface{}{"class_type": "ModelSamplingAuraFlow", "inputs": map[string]interface{}{"model": []interface{}{modelSourceID, 0}, "shift": 3}}
-	wf["10"] = map[string]interface{}{"class_type": "KSampler", "inputs": map[string]interface{}{
-		"seed": seed, "steps": steps, "cfg": 1.0, "sampler_name": "res_multistep", "scheduler": "simple", "denoise": denoise,
-		"model": []interface{}{"14", 0}, "positive": []interface{}{"7", 0}, "negative": []interface{}{"13", 0}, "latent_image": []interface{}{"15", 0},
-	}}
-	wf["11"] = map[string]interface{}{"class_type": "VAEDecode", "inputs": map[string]interface{}{"samples": []interface{}{"10", 0}, "vae": []interface{}{"6", 0}}}
-	wf["12"] = map[string]interface{}{"class_type": "SaveImage", "inputs": map[string]interface{}{"filename_prefix": "gaea", "images": []interface{}{"11", 0}}}
-	return wf
+// buildZImageImg2ImgWorkflow 构建 Z-Image-Turbo 图生图工作流。
+func (b *ComfyUIBackend) buildZImageImg2ImgWorkflow(prompt, negative string, width, height, seed, steps int, loras []string, imageName string, denoise float64) map[string]interface{} {
+	return b.buildQwenProfileImg2Img(comfyQwenProfiles["z-image-turbo"], prompt, negative, width, height, seed, steps, loras, imageName, denoise)
 }
 
 // Qwen-Image-Edit 2511 官方模板文件名（comfyui-workflow-templates
