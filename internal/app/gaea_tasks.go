@@ -10,6 +10,7 @@ package app
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -366,17 +367,61 @@ func (a *App) fileIndexTaskHandler(ctx context.Context, t *tasks.Task, p *tasks.
 	return nil
 }
 
-// submitFileIndexTask 提交索引任务（去重：本空间已有 queued/running 则跳过）。
-// 索引为工作区级后台维护，无会话空间 → 显式 work（S1.4 cron 后台提交点铁律）。
-func (a *App) submitFileIndexTask(reason string) {
+// errFileIndexTaskUnavailable 是调度器未启动时给 manual 入口的人话错误
+// （与收敛前 GaeaFileIndexRebuild 的文案逐字一致：绑定面错误文本零变化）。
+var errFileIndexTaskUnavailable = errors.New("任务调度器未启动")
+
+// submitFileIndexTaskIn 是工作区语义索引任务的**唯一**入队入口（审计 AP4-07
+// 单源）：去重判据（HasActiveInSpace）与落库空间（SubmitSpaceSession）取同一个
+// space，三个入口（manual 绑定 / cron 轮询兜底 / watch 兜底与自愈）不再各写一份。
+//
+// 收敛前是三套口径：gaea_file_index.go 两处 HasActive（全局、跨空间）+ Submit
+// （space 落缺省 work），gaea_tasks.go 一处 HasActiveInSpace(work) +
+// SubmitSpace(work)——同一件事的判据空间与落库空间可以不同值。
+//
+//   - space：调用方所在空间（空/非法回退 work，与 spaces.Normalize 同侧）；
+//   - session：调用方会话标识（manual 绑定签名不含会话、cron/watch 无会话
+//     上下文 → 诚实留空，不造数；会话内索引调用方传自己的 session）；
+//   - 返回 (nil, nil) = 去重命中：**同一空间**已有 queued/running 的索引任务
+//     （调用方按「已在处理」处理：manual 转人话错误，后台入口静默跳过）；
+//   - 跨空间互不吞并：play 在途不挡 work 入队，反之亦然（S1.4 按空间去重）。
+func (a *App) submitFileIndexTaskIn(space, session, label, reason string) (*tasks.Task, error) {
+	m := a.taskMgr()
+	if m == nil || !m.Available() {
+		return nil, errFileIndexTaskUnavailable
+	}
+	space = spaces.SpaceOr(strings.ToLower(strings.TrimSpace(space)), spaces.SpaceWork)
+	if m.HasActiveInSpace(tasks.KindFileIndex, space) {
+		return nil, nil
+	}
+	return m.SubmitSpaceSession(tasks.KindFileIndex, label, map[string]any{"reason": reason}, space, session)
+}
+
+// fileIndexSpace 是工作区索引任务空间归属的单点取法（AP4-07）：取调用方当前
+// 生效空间（gaeaEffectiveSpace：play 会话 → play；space.mode=off 或引擎未初始化
+// 为 ""），空/非法经 spaces.SpaceOr 回退 work（与提交入口同一次归一）。
+//
+// 三个入口共用本函数，保证任意时刻「去重判据的空间」与「落库的空间」同值：
+// 收敛前 manual/cron 落 work 却按全局判重、watch 按 work 判重，play 空间的
+// 在途索引对 watch 不可见（并发扫同一工作区，Stale 互相覆盖 keep 集合）。
+//
+// 与价格抓取 cron（gaea_price_sources.go 显式 work）的差别是有意的：价格源是
+// 工作空间的领域数据，而文件索引扫的是**整个工作区**，其空间归属只能跟随当前
+// 生效空间，否则 play 模式下 manual（play）与 cron（work）会各起一个并发全量扫。
+func fileIndexSpace() string {
+	return spaces.SpaceOr(strings.ToLower(gaeaEffectiveSpace()), spaces.SpaceWork)
+}
+
+// submitFileIndexTask 后台维护入口（cron 轮询兜底 / watch 兜底与自愈；无会话
+// 空间，空间取 fileIndexSpace 与 manual 同点）：去重命中静默跳过（正常路径），
+// 提交失败只留日志（后台入口无接收方，不外抛；调度器未启动启动路径已告警，
+// 保持收敛前的静默）。
+func (a *App) submitFileIndexTask(label, reason string) {
 	m := a.taskMgr()
 	if m == nil || !m.Available() {
 		return
 	}
-	if m.HasActiveInSpace(tasks.KindFileIndex, spaces.SpaceWork) {
-		return
-	}
-	if _, err := m.SubmitSpace(tasks.KindFileIndex, "工作区语义索引", map[string]any{"reason": reason}, spaces.SpaceWork); err != nil {
+	if _, err := a.submitFileIndexTaskIn(fileIndexSpace(), "", label, reason); err != nil {
 		slog.Warn("tasks: 索引任务提交失败", "error", err)
 	}
 }
@@ -397,7 +442,7 @@ func (a *App) startFileWatch() {
 	w, err := filewatch.New(root, filewatch.DefaultSkipDirs, 2*time.Second)
 	if err != nil {
 		slog.Warn("filewatch: 实时监听不可用，回退轮询", "error", err)
-		a.submitFileIndexTask("watch-fallback-new")
+		a.submitFileIndexTask("工作区语义索引", "watch-fallback-new")
 		a.officeState.fileWatchPollStop = a.startWatchPollingFallback("new-failed")
 		return
 	}
@@ -411,7 +456,7 @@ func (a *App) startFileWatch() {
 	go a.fileWatchLoop()
 	if err := w.Start(); err != nil {
 		slog.Warn("filewatch: 启动失败，回退轮询", "error", err)
-		a.submitFileIndexTask("watch-fallback-start")
+		a.submitFileIndexTask("工作区语义索引", "watch-fallback-start")
 		a.officeState.fileWatchPollStop = a.startWatchPollingFallback("start-failed")
 		return
 	}
@@ -452,14 +497,14 @@ func (a *App) fileWatchLoopWith(w fileWatchSource, interval time.Duration) {
 			}
 			if ev.Full {
 				// 目录级变更/事件风暴：全量重建（经任务队列去重）
-				a.submitFileIndexTask("watch-full")
+				a.submitFileIndexTask("工作区语义索引", "watch-full")
 				continue
 			}
 			a.applyIncrementalFileIndex(ev)
 		case <-t.C:
 			if err := w.WatchErr(); err != nil {
 				slog.Warn("filewatch: 监听异常（WatchErr），触发全量重建兜底", "error", err)
-				a.submitFileIndexTask("watch-error")
+				a.submitFileIndexTask("工作区语义索引", "watch-error")
 			}
 		}
 	}
@@ -477,7 +522,7 @@ func (a *App) startWatchPollingFallback(reason string) func() {
 		for {
 			select {
 			case <-t.C:
-				a.submitFileIndexTask("watch-poll-" + reason)
+				a.submitFileIndexTask("工作区语义索引", "watch-poll-"+reason)
 			case <-stop:
 				return
 			}
@@ -522,7 +567,7 @@ func (a *App) applyIncrementalFileIndex(ev filewatch.Event) {
 		}
 		if _, err := st.Ensure(ctx, e, "file", []semantic.Doc{{ID: rel, Text: text}}); err != nil {
 			slog.Warn("filewatch: 增量索引失败，触发全量重建", "path", rel, "error", err)
-			a.submitFileIndexTask("watch-selfheal")
+			a.submitFileIndexTask("工作区语义索引", "watch-selfheal")
 			return
 		}
 	}

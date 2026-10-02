@@ -89,8 +89,8 @@ func Validate(p *Project) error {
 		if t.Level != 0 && t.Level != 1 {
 			return fmt.Errorf("任务 %s 层级非法（仅 0=分组/1=子任务）：%d", t.ID, t.Level)
 		}
-		if t.Duration < 0 {
-			return fmt.Errorf("任务 %s 工期为负", t.ID)
+		if err := validateDuration(t, true); err != nil {
+			return err
 		}
 		if t.Progress < 0 || t.Progress > 100 {
 			return fmt.Errorf("任务 %s 进度超出 0-100：%d", t.ID, t.Progress)
@@ -191,6 +191,33 @@ func Validate(p *Project) error {
 		}
 	}
 	return nil
+}
+
+// validateDuration 工期数值规则的**唯一实现**（批次十三 round15 收敛）：负工期
+// 三条调用路径共用本函数，保证「对话写入」与「文件保存」对同一计划给出同一
+// 合法性结论：
+//   - Validate：文件装载/保存（fail-closed 闸）；
+//   - ops.applyOne / upsert_task：对话路径整任务写入（批次十二实测缺口：
+//     旧实现完全没有这道闸，ApplyOps{Duration:-5} 返回 nil 且把 -5 写进计划，
+//     同一计划走 Save 才报「任务 N 工期为负」）；
+//   - ops.applyOne / patch_task：对话路径部分更新（走「生效态」投射，先于任何
+//     赋值校验，失败不留半改状态）。
+//
+// idInMsg 只控制错误文案是否带「任务 <id> 」前缀（判定规则完全一致，与
+// validateDurationUnit 同一范式）：
+//   - true  = 「任务 X 工期为负」（Validate 与 upsert_task 原文，agent 回执口径）；
+//   - false = 「工期为负」（patch 通道历史文案，被 frontend/src/schedule/
+//     ops_golden.fixture.json 的「patch 负工期」用例冻结）。
+//
+// 这是 ops 两条对话通道之间仅存的文案差异，已登记为余量。
+func validateDuration(t Task, idInMsg bool) error {
+	if t.Duration >= 0 {
+		return nil
+	}
+	if idInMsg {
+		return fmt.Errorf("任务 %s 工期为负", t.ID)
+	}
+	return fmt.Errorf("工期为负")
 }
 
 // validateDurationUnit 工期单位规则的**唯一实现**（v4.150 双工期刀1 + v4.151 刀2；

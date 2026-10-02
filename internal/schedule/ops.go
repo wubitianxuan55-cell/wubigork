@@ -116,6 +116,13 @@ func applyOne(p *Project, op Op) (string, error) {
 		if t.Level != 0 && t.Level != 1 {
 			return "", fmt.Errorf("任务 %s 层级非法（仅 0/1）：%d", t.ID, t.Level)
 		}
+		// 负工期（批次十三 round15；批次十二 D5 实测真缺口）：旧实现整任务写入
+		// 路径完全没有这道闸——ApplyOps(upsert_task{Duration:-5}) → err=nil 且把
+		// -5 落进计划，同一计划走 Save→Validate 才报「任务 N 工期为负」。判定与
+		// 文案收敛到 Validate 的同一实现 validateDuration（idInMsg=true）。
+		if err := validateDuration(*t, true); err != nil {
+			return "", err
+		}
 		if t.Progress < 0 || t.Progress > 100 {
 			return "", fmt.Errorf("任务 %s 进度超出 0-100", t.ID)
 		}
@@ -183,6 +190,22 @@ func applyOne(p *Project, op Op) (string, error) {
 				if err := validateDurationUnit(eff, false); err != nil {
 					return "", err
 				}
+				// 负工期（批次十三 round15）：与 Validate/upsert 共用同一判据
+				// validateDuration。放在生效态块内=先于任何赋值（含上面的
+				// DurationUnit），失败不留半改状态；文案沿用 patch 通道历史原文
+				//（idInMsg=false，被 ops_golden.fixture.json「patch 负工期」冻结）。
+				//
+				// **闸宽=本次 op 是否触及 duration**（与 D5 缺口同宽，不外溢）：
+				// 计划里已有一个 Duration<0 的任务、本次 patch 只改 level/isMilestone/
+				// 名称时**不在此拒绝**——那种「既有非法态」不是本次改动造成的，
+				// 按本文件头注的契约（ops 只校验自己的改动，「应用后由调用方统一
+				// 校验 + CPM fail-closed」）由调用方的 Validate/Save 兜底。否则一条
+				// 与工期无关的补丁会被无关字段绊住，且错误文案指向用户没碰的字段。
+				if pt.Duration != nil {
+					if err := validateDuration(eff, false); err != nil {
+						return "", err
+					}
+				}
 			}
 			if pt.DurationUnit != nil && *pt.DurationUnit != "" {
 				t.DurationUnit = *pt.DurationUnit
@@ -193,9 +216,7 @@ func applyOne(p *Project, op Op) (string, error) {
 				}
 			}
 			if pt.Duration != nil {
-				if *pt.Duration < 0 {
-					return "", fmt.Errorf("工期为负")
-				}
+				// 负工期已在上面生效态块内校验（validateDuration，统一判据）。
 				unit := "工作日"
 				if t.DurationUnit == UnitCd {
 					unit = "日历天"

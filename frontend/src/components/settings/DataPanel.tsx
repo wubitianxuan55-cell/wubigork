@@ -38,11 +38,43 @@ function fmtSize(n: number): string {
   return (n / 1024 / 1024 / 1024).toFixed(2) + ' GB'
 }
 
+/**
+ * 回滚未完成的可见态（GA4-11）。
+ *
+ * 后端 GaeaDataBackupRollback（internal/gaea/backup/backup.go RollbackBefore）在
+ * **部分失败**时返回非 nil error，形如
+ *   「回滚未完成：N/M 项失败（已回滚 K 项）: <逐项：项名 + 原因>」
+ * （批次十二前它用 moved>0 当成功，前端只会看到「已回滚到恢复前数据」——即
+ * 部分失败被静默报成成功）。此处把该 error 显式落成页面内持久提示条：
+ * 能解析出计数就点名「部分回滚失败 N/M（已回滚 K）」，否则退通用「回滚失败」，
+ * 原文逐字展示不吞。不弹 modal——只提示，不打断用户继续操作。
+ */
+interface RollbackFailure {
+  /** 解析出的计数（后端聚合 error 的标准形态）；非该形态为 null → 通用标题。 */
+  counts: { failed: number; total: number; moved: number } | null
+  /** 后端错误原文（含逐项失败原因），原样展示。 */
+  detail: string
+}
+
+// 与 backup.go 的 fmt.Errorf("回滚未完成：%d/%d 项失败（已回滚 %d 项）…") 对齐；
+// 后端换文案时只是退化为通用标题，不误报计数。
+const ROLLBACK_PARTIAL_RE = /回滚未完成：(\d+)\/(\d+) 项失败（已回滚 (\d+) 项）/
+
+function toRollbackFailure(err: unknown): RollbackFailure {
+  const detail = err instanceof Error ? err.message : String(err ?? '')
+  const m = ROLLBACK_PARTIAL_RE.exec(detail)
+  return {
+    counts: m ? { failed: Number(m[1]), total: Number(m[2]), moved: Number(m[3]) } : null,
+    detail: detail || '回滚失败',
+  }
+}
+
 const DataPanel: React.FC = () => {
   const [info, setInfo] = useState<BackupInfo | null>(null)
   const [creating, setCreating] = useState(false)
   const [restoring, setRestoring] = useState(false)
   const [restoreResult, setRestoreResult] = useState<Record<string, unknown> | null>(null)
+  const [rollbackFailure, setRollbackFailure] = useState<RollbackFailure | null>(null)
 
   const load = useCallback(async () => {
     try {
@@ -113,15 +145,36 @@ const DataPanel: React.FC = () => {
   const handleRollback = async () => {
     try {
       const done: boolean = await app.DataBackupRollback()
+      setRollbackFailure(null)
       message.success(done ? '已回滚到恢复前数据' : '没有可回滚的恢复前备份')
       await load()
     } catch (err: unknown) {
+      // 批次十二起：部分失败也走这里（非 nil error），不再是「成功但没动几项」。
+      // toast 给即时反馈，持久提示条（下方 Alert）保证用户回头仍看得到失败项。
+      setRollbackFailure(toRollbackFailure(err))
       message.error(err instanceof Error ? err.message : '回滚失败')
     }
   }
 
   return (
     <>
+      {/* 回滚失败/部分失败（GA4-11）：持久页面内提示条——不用 modal，不打断操作。
+          计数可解析时点名「部分回滚失败 N/M 项」，否则通用「回滚失败」+ 原文。 */}
+      {rollbackFailure && (
+        <Alert
+          type="error"
+          showIcon
+          data-testid="settings-rollback-failure"
+          message={rollbackFailure.counts
+            ? `部分回滚失败：${rollbackFailure.counts.failed}/${rollbackFailure.counts.total} 项失败（已回滚 ${rollbackFailure.counts.moved} 项）`
+            : '回滚失败'}
+          description={`${rollbackFailure.detail}。恢复前数据仍保留在 .restore-before，可再次回滚重试。`}
+          style={{ marginBottom: 16, borderRadius: 'var(--md-sys-radius-md)' }}
+          closable
+          onClose={() => setRollbackFailure(null)}
+        />
+      )}
+
       {/* 恢复结果提示（重启后） */}
       {restoreResult?.has_result && (
         restoreResult.applied ? (

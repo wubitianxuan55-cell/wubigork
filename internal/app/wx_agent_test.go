@@ -173,8 +173,8 @@ func TestWxAgentLoopToolCallThenText(t *testing.T) {
 
 	// 第一轮请求：tools 透传 + messages=[system,user]
 	first := log.reqs[0]
-	if len(first.Tools) != len(wxAgentTools) {
-		t.Errorf("tools 数 = %d, want %d", len(first.Tools), len(wxAgentTools))
+	if len(first.Tools) != len(a.wxAgentToolSchemas()) {
+		t.Errorf("tools 数 = %d, want %d", len(first.Tools), len(a.wxAgentToolSchemas()))
 	}
 	if len(first.Messages) != 2 || first.Messages[0].Role != "system" || first.Messages[1].Content != "画一只猫" {
 		t.Fatalf("首轮 messages = %+v", first.Messages)

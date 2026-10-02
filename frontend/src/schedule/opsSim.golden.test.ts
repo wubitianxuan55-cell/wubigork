@@ -62,3 +62,48 @@ describe('opsSim Go/TS 对拍（golden fixture，刀D 漂移主阵地）', () =>
     })
   }
 })
+
+// ── 批次十三 round15 闸宽边界（手工探针，非 fixture 驱动） ──
+//
+// patch_task 的负工期闸只在本 op **触及 duration** 时生效（与 Go 生效态块内的
+// `pt.Duration != nil` 门一致）：计划里既有 Duration<0 的任务 + 只改 level 的
+// 无关补丁**两侧都放行**——那不是本次改动造成的非法态，由 Go 侧 Validate/Save
+// 兜底。fixture 里的同名用例只比「双端是否失败」，若两侧一起改坏仍会绿，故这里
+// 显式钉住这条有意收窄的边界（改坏任一侧即红）。
+describe('opsSim 负工期闸宽边界（手工探针）', () => {
+  const brokenBase = () =>
+    ({
+      name: '既有负工期',
+      startDate: '2026-09-07',
+      tasks: [
+        { id: 'G', name: '分组', duration: 0, level: 0, progress: 0 },
+        { id: 'A', name: '挖土', duration: -5, level: 1, progress: 0 },
+      ],
+      links: [],
+    }) as unknown as SchedProject
+
+  it('既有负工期 + 只改 level：放行且改动落地（不被无关字段绊住）', () => {
+    const r = simulateOps(brokenBase(), [{ type: 'patch_task', id: 'A', patch: { level: 0 } }])
+    if (!r.ok) throw new Error(`不应被既有负工期绊住：${r.error}`)
+    expect(r.project.tasks[1].level).toBe(0)
+    expect(r.project.tasks[1].duration).toBe(-5)
+  })
+
+  it('同一探针触及 duration：仍按统一判据拒绝', () => {
+    const r = simulateOps(brokenBase(), [{ type: 'patch_task', id: 'A', patch: { duration: -1 } }])
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.error).toContain('工期为负')
+  })
+
+  it('upsert 缺 duration（零值语义→0）与显式 0 均放行，负值拒绝', () => {
+    const base = { name: 'p', startDate: '2026-09-07', tasks: [], links: [] } as unknown as SchedProject
+    for (const task of [{ id: 'C', name: '缺省', level: 1 }, { id: 'C', name: '零', duration: 0, level: 1 }, { id: 'C', name: '正', duration: 5, level: 1 }]) {
+      const r = simulateOps(base, [{ type: 'upsert_task', task }])
+      if (!r.ok) throw new Error(`合法态被拒：${r.error}`)
+      expect(r.project.tasks[0].duration).toBe(task.duration ?? 0)
+    }
+    const bad = simulateOps(base, [{ type: 'upsert_task', task: { id: 'C', name: '负', duration: -5, level: 1 } }])
+    expect(bad.ok).toBe(false)
+    if (!bad.ok) expect(bad.error).toContain('任务 C 工期为负')
+  })
+})

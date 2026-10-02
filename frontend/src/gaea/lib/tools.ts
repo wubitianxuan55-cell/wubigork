@@ -7,6 +7,7 @@
 import { diffLines } from "./diff";
 import { t } from "./i18n";
 import { extToLang } from "./lang";
+import { parseWriteArgs } from "./toolArgs";
 import type { DictKey } from "../locales/en";
 
 export interface ToolDiff {
@@ -84,59 +85,50 @@ export function subjectOf(name: string, args: string): string {
 // edit_file is one pair, write_file is an all-add (empty original), multi_edit is
 // one pair per step. Returns [] for non-writers, so the card folds args/output
 // away instead.
+// FE4-02：字段识别与降级口径取自 toolArgs.parseWriteArgs（与「变更」tab 同源）；
+// 本函数只决定**怎么摆**（原文不归一、write_file 视为全增、multi_edit 按原始
+// 下标标 "edit N"、edit_lines 用 "[lines s-e]" 占位原文行）。
 export function diffsFor(name: string, args: string): ToolDiff[] {
-  const a = parse(args);
-  const lang = extToLang(str(a, "path") || str(a, "file_path"));
+  const p = parseWriteArgs(name, args);
+  const lang = extToLang(p.path);
   if (name === "edit_file") {
-    if (typeof a.old_string === "string" && typeof a.new_string === "string") {
-      return [{ original: a.old_string, modified: a.new_string, lang }];
-    }
+    // hunks[0] 存在 ⟺ old_string/new_string 均为字符串（含 old 为空串的整段新增）
+    const h = p.hunks[0];
+    return h ? [{ original: h.old, modified: h.new, lang }] : [];
   }
-  if (name === "write_file" && typeof a.content === "string") {
-    return [{ original: "", modified: a.content, lang }];
+  if (name === "write_file") {
+    // 覆盖写入：旧内容未记录，按全增展示；无 content 则不出 diff
+    return p.content === undefined ? [] : [{ original: "", modified: p.content, lang }];
   }
   if (name === "edit_lines") {
-    if (typeof a.new_content === "string") {
-      const oldLines = `[lines ${a.start_line}-${a.end_line}]`;
-      return [{ original: oldLines, modified: a.new_content, lang }];
-    }
+    if (p.content === undefined) return [];
+    // 原行未记录：用「[lines s-e]」占位原文行（缺行号时逐字显示 undefined，历史口径）
+    const placeholder = `[lines ${String(p.lineRange?.start)}-${String(p.lineRange?.end)}]`;
+    return [{ original: placeholder, modified: p.content, lang }];
   }
-  if (name === "multi_edit" && Array.isArray(a.edits)) {
-    const out: ToolDiff[] = [];
-    (a.edits as unknown[]).forEach((e, i) => {
-      const step = e as Record<string, unknown>;
-      if (typeof step?.old_string === "string" && typeof step?.new_string === "string") {
-        out.push({ original: step.old_string, modified: step.new_string, lang, label: `edit ${i + 1}` });
-      }
-    });
-    return out;
+  if (name === "multi_edit") {
+    // 标注用**原始下标**（与变更 tab 的有效片段连号不同，见 toolArgs 分叉 C）
+    return p.hunks.map((h) => ({ original: h.old, modified: h.new, lang, label: `edit ${h.index + 1}` }));
   }
   return [];
 }
 
 // diffStatFor 汇总写工具的参数差异为 +N/−N 计数；非编辑类工具返回 null。
-// 与 diffsFor 同一参数口径：edit_file 一组、multi_edit 逐组累加、其余不适用。
+// 与 diffsFor 同一参数口径（toolArgs）：edit_file 一组、multi_edit 逐组累加。
 export function diffStatFor(name: string, args: string): DiffStat | null {
-  const a = parse(args);
-  if (name === "edit_file") {
-    if (typeof a.old_string === "string" && typeof a.new_string === "string") {
-      return plusMinus(a.old_string, a.new_string);
-    }
-    return null;
+  if (name !== "edit_file" && name !== "multi_edit") return null;
+  const p = parseWriteArgs(name, args);
+  // edits 字段缺失/非数组 → 不出芯片；edits 为空数组 → 仍出 0/0 芯片（历史口径）
+  if (name === "multi_edit" && p.editsCount === null) return null;
+  if (p.hunks.length === 0) return name === "multi_edit" ? { add: 0, del: 0 } : null;
+  let add = 0;
+  let del = 0;
+  for (const h of p.hunks) {
+    const pm = plusMinus(h.old, h.new);
+    add += pm.add;
+    del += pm.del;
   }
-  if (name === "multi_edit" && Array.isArray(a.edits)) {
-    let add = 0;
-    let del = 0;
-    for (const e of a.edits as Record<string, unknown>[]) {
-      if (typeof e?.old_string === "string" && typeof e?.new_string === "string") {
-        const pm = plusMinus(e.old_string, e.new_string);
-        add += pm.add;
-        del += pm.del;
-      }
-    }
-    return { add, del };
-  }
-  return null;
+  return { add, del };
 }
 
 export type TodoStatus = "pending" | "in_progress" | "completed";

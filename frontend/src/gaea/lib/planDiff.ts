@@ -8,9 +8,15 @@
 //   move_file / delete_range / delete_symbol 等              → 无内容片段，不伪造 diff。
 // （对齐 internal/gaea/tool/builtin/{editfile,multiedit,editlines}.go 的 Schema。）
 // 无 old/new 的调用一律显式标注降级原因，绝不拿新内容冒充红绿 diff。
+//
+// FE4-02：字段识别与降级文案已收进 toolArgs.parseWriteArgs（与工具卡内联 diff
+// 同源）；本文件只保留**展示策略**——CRLF 归一（normText）、「编辑 N」标注、
+// 空 old 片段过滤。两侧的历史分歧（CRLF、空 old、标注口径）由
+// toolArgs.test.ts 的等价矩阵逐条锁死。
 
 import { diffLines, type DiffRow } from "./diff";
 import { WRITE_TOOL_NAMES, extractChangedPaths } from "./changes";
+import { parseWriteArgs } from "./toolArgs";
 import type { Item, ToolStatus } from "./store";
 
 // 一段可 diff 的编辑片段（old → new 的行级 LCS 结果）。
@@ -39,79 +45,29 @@ function normText(s: string): string {
   return s.replace(/\r\n/g, "\n");
 }
 
-// 从一次写类工具调用的参数 JSON 构造内容级视图。解析失败/参数缺失时返回
-// kind="none" 并说明原因——降级是显式的，不静默吞掉。
+// 从一次写类工具调用的参数 JSON 构造内容级视图。字段识别/降级文案与工具卡
+// 内联 diff 同源（toolArgs.parseWriteArgs）；解析失败/参数缺失时返回 kind="none"
+// 并带上解析器给出的原因——降级是显式的，不静默吞掉。
 export function buildChangeDiff(tool: string, argsJson: string): ChangeDiff {
-  let parsed: Record<string, unknown>;
-  try {
-    parsed = JSON.parse(argsJson || "{}") as Record<string, unknown>;
-  } catch {
-    return { kind: "none", hunks: [], note: "调用参数未记录，无法还原内容变化" };
-  }
-
-  if (tool === "edit_file") {
-    const oldS = typeof parsed.old_string === "string" ? parsed.old_string : null;
-    const newS = typeof parsed.new_string === "string" ? parsed.new_string : null;
-    if (oldS === null || newS === null) {
-      return { kind: "none", hunks: [], note: "参数缺少 old_string/new_string，无法构造 diff" };
-    }
-    if (oldS === "") {
-      // edit_file 后端要求 old 非空；防御性兜底：空 old 视为纯写入。
-      return { kind: "content", hunks: [], content: newS, note: "写入内容预览（原文未记录）" };
-    }
-    return { kind: "diff", hunks: [{ rows: diffLines(normText(oldS), normText(newS)) }] };
-  }
-
-  if (tool === "multi_edit") {
-    const edits = Array.isArray(parsed.edits) ? parsed.edits : [];
-    const hunks: DiffHunk[] = [];
-    for (const e of edits) {
-      if (!e || typeof e !== "object") continue;
-      const rec = e as Record<string, unknown>;
-      if (typeof rec.old_string !== "string" || typeof rec.new_string !== "string") continue;
-      if (rec.old_string === "") continue;
-      hunks.push({
-        label: edits.length > 1 ? `编辑 ${hunks.length + 1}` : undefined,
-        rows: diffLines(normText(rec.old_string), normText(rec.new_string)),
-      });
-    }
-    if (hunks.length === 0) {
-      return { kind: "none", hunks: [], note: "edits 中没有可还原的 old_string/new_string 片段" };
-    }
+  const p = parseWriteArgs(tool, argsJson);
+  // 展示策略①：空 old 片段不构成「可还原的红绿」（工具卡相反，见 toolArgs 分叉 B）。
+  const usable = p.hunks.filter((h) => h.old !== "");
+  if (usable.length > 0) {
+    // 展示策略②：仅 multi_edit 多片段才标「编辑 N」，N 按**有效片段**连号
+    // （原始条目数与片段下标由解析器给出，见 toolArgs 分叉 C）。
+    const numbered = tool === "multi_edit" && p.editsCount !== null && p.editsCount > 1;
+    const hunks: DiffHunk[] = usable.map((h, i) => ({
+      label: numbered ? `编辑 ${i + 1}` : undefined,
+      // 展示策略③：CRLF 归一后再做行 diff（工具卡按原文，见 toolArgs 分叉 A）。
+      rows: diffLines(normText(h.old), normText(h.new)),
+    }));
     return { kind: "diff", hunks };
   }
-
-  if (tool === "edit_lines") {
-    const c = typeof parsed.new_content === "string" ? parsed.new_content : null;
-    if (c === null) return { kind: "none", hunks: [], note: "参数缺少 new_content，无法展示内容" };
-    const start = typeof parsed.start_line === "number" ? parsed.start_line : 0;
-    const end = typeof parsed.end_line === "number" ? parsed.end_line : 0;
-    const range = start > 0 && end >= start ? `第 ${start}–${end} 行` : "指定行范围";
-    return {
-      kind: "content",
-      hunks: [],
-      content: c,
-      note: `按行号替换（${range}）：原行内容未随事件记录，以下为新写入内容`,
-    };
+  // 有调用但无原文：降级为内容预览（原因由解析器给出，此处不另写文案）
+  if (p.content !== undefined) {
+    return { kind: "content", hunks: [], content: p.content, note: p.degrade };
   }
-
-  if (tool === "write_file") {
-    const c = typeof parsed.content === "string" ? parsed.content : null;
-    if (c === null) return { kind: "none", hunks: [], note: "参数缺少 content，无法展示内容" };
-    return { kind: "content", hunks: [], content: c, note: "覆盖写入：写入前内容未记录，以下为写入内容" };
-  }
-
-  if (tool === "move_file") {
-    return { kind: "none", hunks: [], note: "移动/重命名操作，无内容变化记录" };
-  }
-
-  // schedule_apply（v4.146 刀A）：整计划 JSON / ops 序列，无行级片段可还原——
-  // 显式降级说明（变更 tab 可见、可回滚），不伪造红绿 diff。
-  if (tool === "schedule_apply") {
-    return { kind: "none", hunks: [], note: "整计划替换/ops 调整：无行级 diff，结果以工具回执与进度计划板块为准" };
-  }
-
-  return { kind: "none", hunks: [], note: "该工具不携带 old/new 片段，无法构造行级 diff" };
+  return { kind: "none", hunks: [], note: p.degrade };
 }
 
 // 「变更」面板单文件下的单次调用记录（按会话顺序累积）。

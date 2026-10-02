@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   DataBackupCreate: vi.fn(),
   DataBackupRestore: vi.fn(),
   DataBackupCancel: vi.fn(),
+  DataBackupRollback: vi.fn(),
   PickDirectory: vi.fn(),
   PickFiles: vi.fn(),
 }))
@@ -39,6 +40,7 @@ describe('DataPanel 数据备份/恢复', () => {
     vi.clearAllMocks()
     mocks.DataBackupInfo.mockResolvedValue(baseInfo)
     mocks.DataBackupRestoreResult.mockResolvedValue({ has_result: false })
+    mocks.DataBackupRollback.mockResolvedValue(true)
     // 断言为中文文案：固定 zh 语言（jsdom 默认 en-US）
     Object.defineProperty(navigator, 'language', { value: 'zh-CN', configurable: true })
   })
@@ -82,5 +84,57 @@ describe('DataPanel 数据备份/恢复', () => {
     render(wrap(<DataPanel />))
     expect(await screen.findByText(/有待应用的恢复/)).toBeTruthy()
     expect(screen.getByRole('button', { name: /取消恢复/ })).toBeTruthy()
+  })
+
+  // ── GA4-11 备份/回滚可见性（批次十三 round15 线3）────────────────────
+  // 触发面：恢复结果 applied=false 的「数据恢复失败」告警里挂的回滚入口
+  // （Popconfirm → handleRollback）。后端 RollbackBefore 部分失败时返回非 nil
+  // error，前端必须按失败/部分失败显式呈现。
+  const failedRestore = { has_result: true, applied: false, error: '写入失败', zip_name: 'a.zip' }
+
+  async function clickRollback() {
+    render(wrap(<DataPanel />))
+    fireEvent.click(await screen.findByRole('button', { name: /回滚到恢复前/ }))
+    // Popconfirm 的 okText 是两字中文，antd Button 会在两字之间插空格（"回 滚"），
+    // 故正则容忍空白，同时用 ^$ 锚定避免误命中触发按钮「回滚到恢复前」。
+    fireEvent.click(await screen.findByRole('button', { name: /^回\s*滚$/ }))
+    await waitFor(() => expect(mocks.DataBackupRollback).toHaveBeenCalled())
+  }
+
+  it('回滚完整成功：成功提示，不出失败提示条', async () => {
+    mocks.DataBackupRestoreResult.mockResolvedValue(failedRestore)
+    mocks.DataBackupRollback.mockResolvedValue(true)
+    await clickRollback()
+    expect(await screen.findByText(/已回滚到恢复前数据/)).toBeTruthy()
+    expect(screen.queryByText(/回滚失败/)).toBeNull()
+    expect(screen.queryByTestId('settings-rollback-failure')).toBeNull()
+  })
+
+  it('回滚部分失败（返回 error）：按部分失败点名项数 + 原文，只出提示条不弹 modal', async () => {
+    mocks.DataBackupRestoreResult.mockResolvedValue(failedRestore)
+    mocks.DataBackupRollback.mockRejectedValue(
+      new Error('回滚未完成：1/3 项失败（已回滚 2 项）: whisper_data: 移回失败: Access is denied.'),
+    )
+    await clickRollback()
+
+    // 即时 toast + 持久提示条 description 两条通道都带后端原文
+    const rawMentions = await screen.findAllByText(/回滚未完成：1\/3 项失败（已回滚 2 项）/)
+    expect(rawMentions.length).toBeGreaterThanOrEqual(2)
+    // 持久提示条：点名「部分回滚失败 N/M 项」，并给出可重试的余量说明
+    expect(await screen.findByText('部分回滚失败：1/3 项失败（已回滚 2 项）')).toBeTruthy()
+    expect(screen.getByText(/恢复前数据仍保留在 \.restore-before/)).toBeTruthy()
+    expect(screen.getAllByText(/whisper_data: 移回失败: Access is denied\./).length).toBeGreaterThan(0)
+    // 不打断编辑：不得出现 modal
+    expect(document.querySelector('.ant-modal')).toBeNull()
+  })
+
+  it('回滚整体失败（非计数形态 error）：通用「回滚失败」+ 原文，不出计数文案', async () => {
+    mocks.DataBackupRestoreResult.mockResolvedValue(failedRestore)
+    mocks.DataBackupRollback.mockRejectedValue(new Error('.restore-before 不是目录'))
+    await clickRollback()
+    expect(await screen.findByText('回滚失败')).toBeTruthy()
+    expect(screen.getAllByText(/\.restore-before 不是目录/).length).toBeGreaterThan(0)
+    expect(screen.queryByText(/部分回滚失败/)).toBeNull()
+    expect(document.querySelector('.ant-modal')).toBeNull()
   })
 })

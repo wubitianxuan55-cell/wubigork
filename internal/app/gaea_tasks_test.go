@@ -432,7 +432,7 @@ func TestTaskSubmissionsTargetWorkSpace(t *testing.T) {
 		t.Fatalf("GaeaPriceFetch Space = %q, want work", tkOne.Space)
 	}
 	// ④ 后台维护：工作区语义索引
-	a.submitFileIndexTask("test")
+	a.submitFileIndexTask("工作区语义索引", "test")
 
 	list := a.GaeaTaskList()
 	kinds := map[string]int{}

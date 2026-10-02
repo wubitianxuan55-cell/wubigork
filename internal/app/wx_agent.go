@@ -59,21 +59,48 @@ const (
 // name 英文 snake_case（OpenAI 工具名规范），description 中文。参数即 exec
 // 适配所需的全部信息。
 
-var wxAgentTools = []ai.ChatToolSchema{
-	{
+// wxAgentBoardNavigateTool 构造 navigate_board 工具 schema：板块枚举（英文 id
+// 串 + 中文展示名串）由调用方从 manifest 单一来源取（审计 AP8-08：此前工具说明
+// 与失败回执各手写一份 id 清单，含已删的 code、缺 schedule/sin/knowledge——与
+// intent_llm.go 的提示词同族漂移）。清单为空时不打枚举约束（不编造）。
+func wxAgentBoardNavigateTool(ids, labels string) ai.ChatToolSchema {
+	boardHint := "板块 id，优先用英文 id"
+	if ids != "" {
+		boardHint += "：" + ids
+	}
+	boardHint += "；也可以传中文板块名（如「绘梦」）"
+	navDesc := "打开或切换桌面端的板块"
+	if labels != "" {
+		navDesc += "（" + labels + "）"
+	}
+	navDesc += "。用户想打开、进入、切换某个板块时调用。"
+	return ai.ChatToolSchema{
 		Type: "function",
 		Function: ai.ChatToolFunctionSpec{
 			Name:        "navigate_board",
-			Description: "打开或切换桌面端的板块（首页/轻语/小说/绘梦/办公/造价库/编程/记忆中枢/模型中心/角色库/设置/青鸟（微信助手））。用户想打开、进入、切换某个板块时调用。",
+			Description: navDesc,
 			Parameters: json.RawMessage(`{
 				"type": "object",
 				"properties": {
-					"board": {"type": "string", "description": "板块 id，优先用英文 id：home chat novel imagegen gaea cost code memoryhub modelcenter characterlib settings weixin；也可以传中文板块名（如「绘梦」）"}
+					"board": {"type": "string", "description": "` + boardHint + `"}
 				},
 				"required": ["board"]
 			}`),
 		},
-	},
+	}
+}
+
+// wxAgentToolSchemas 返回微信智能体的完整工具表（6 个能力，顺序与收敛前一致）：
+// navigate_board 的板块枚举动态取自 manifest 单一来源，其余 5 个静态工具原样。
+func (a *App) wxAgentToolSchemas() []ai.ChatToolSchema {
+	out := make([]ai.ChatToolSchema, 0, 1+len(wxAgentTools))
+	out = append(out, wxAgentBoardNavigateTool(a.boardIDList(), a.boardLabelList()))
+	return append(out, wxAgentTools...)
+}
+
+// wxAgentTools 是 5 个静态工具 schema（navigate_board 因板块枚举动态化，由
+// wxAgentBoardNavigateTool 单构造并置于表首）。
+var wxAgentTools = []ai.ChatToolSchema{
 	{
 		Type: "function",
 		Function: ai.ChatToolFunctionSpec{
@@ -216,7 +243,7 @@ func runWxAgent(a *App, assistantID, systemPrompt, userMsg string) (reply string
 			EngineID:    engine,
 			Feature:     "chat",
 			Messages:    msgs,
-			Tools:       wxAgentTools,
+			Tools:       a.wxAgentToolSchemas(),
 			MaxTokens:   4096,
 			Temperature: 0.7, // 与 ChatSimple 客户端缺省一致
 		}
@@ -312,7 +339,13 @@ func (a *App) wxAgentExecTool(assistantID string, call ai.ChatToolCall, userMsg 
 		it := wxAgentIntentNavigate(a.wxAgentResolveBoard(board), userMsg)
 		reply, ok := a.execNavigate(it)
 		if !ok {
-			return "打开失败：没有找到板块「" + board + "」。可用板块 id：home chat novel imagegen gaea cost code memoryhub modelcenter characterlib settings weixin。", ""
+			// 可用板块 id 动态取自 manifest（AP8-08 单一来源：此前手写清单含已删
+			// 的 code、缺 schedule/sin/knowledge）。
+			msg := "打开失败：没有找到板块「" + board + "」。"
+			if ids := a.boardIDList(); ids != "" {
+				msg += "可用板块 id：" + ids + "。"
+			}
+			return msg, ""
 		}
 		return reply, ""
 	case "generate_image":

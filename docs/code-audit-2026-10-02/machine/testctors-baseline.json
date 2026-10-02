@@ -1,15 +1,15 @@
 {
   "schema": "gaea-test-ctors-baseline/1",
-  "generatedAt": "2026-10-02T12:11:36.655Z",
+  "generatedAt": "2026-10-02T14:11:18.202Z",
   "generatedBy": "node scripts/check-test-ctors.mjs --write-baseline",
-  "head": "6fe5befa96c8",
+  "head": "03e0fc0cf47f",
   "audit": {
     "doc": "docs/code-audit-2026-10-02/round-1-p0-status.md",
     "finding": "P0#25 / 源 X1-03（三重以上 *core 嵌入 → nil 嵌入 panic 三犯）"
   },
   "inputs": {
     "root": "internal/app",
-    "testFiles": 273,
+    "testFiles": 280,
     "appPath": "internal/app/app.go",
     "embedded": [
       "core",
@@ -19,18 +19,18 @@
       "officeState"
     ],
     "embeddedSource": "internal/app/app.go 解析",
-    "totalHits": 359,
+    "totalHits": 363,
     "prodRefHits": 1
   },
   "classCounts": {
-    "bare": 226,
-    "core-only": 89,
+    "bare": 228,
+    "core-only": 91,
     "partial": 44,
     "full": 0
   },
   "classCountsLiteralOnly": {
-    "bare": 226,
-    "core-only": 116,
+    "bare": 228,
+    "core-only": 118,
     "partial": 17,
     "full": 0
   },
@@ -90,6 +90,46 @@
         "officeState"
       ],
       "text": "app := &App{}"
+    },
+    {
+      "key": "internal/app/board_id_single_source_test.go::TestIntentFallbackPromptBoardIDsMatchManifest#1",
+      "file": "internal/app/board_id_single_source_test.go",
+      "line": 69,
+      "func": "TestIntentFallbackPromptBoardIDsMatchManifest",
+      "class": "bare",
+      "classLiteralOnly": "bare",
+      "postAssigned": [],
+      "inHelper": false,
+      "helperAmplifier": false,
+      "embeddedSet": [],
+      "embeddedMissing": [
+        "core",
+        "writingState",
+        "mediaState",
+        "whisperState",
+        "officeState"
+      ],
+      "text": "a := &App{}"
+    },
+    {
+      "key": "internal/app/board_id_single_source_test.go::TestWxAgentToolSchemaBoardIDsMatchManifest#1",
+      "file": "internal/app/board_id_single_source_test.go",
+      "line": 89,
+      "func": "TestWxAgentToolSchemaBoardIDsMatchManifest",
+      "class": "bare",
+      "classLiteralOnly": "bare",
+      "postAssigned": [],
+      "inHelper": false,
+      "helperAmplifier": false,
+      "embeddedSet": [],
+      "embeddedMissing": [
+        "core",
+        "writingState",
+        "mediaState",
+        "whisperState",
+        "officeState"
+      ],
+      "text": "a := &App{}"
     },
     {
       "key": "internal/app/board_manifest_test.go::TestInitModulesManifestDriven#1",
@@ -2797,6 +2837,48 @@
         "officeState"
       ],
       "text": "a := &App{}"
+    },
+    {
+      "key": "internal/app/gaea_knowledge_migration_test.go::TestKnowledgeMigrationFailureVisible#1",
+      "file": "internal/app/gaea_knowledge_migration_test.go",
+      "line": 42,
+      "func": "TestKnowledgeMigrationFailureVisible",
+      "class": "core-only",
+      "classLiteralOnly": "core-only",
+      "postAssigned": [],
+      "inHelper": false,
+      "helperAmplifier": false,
+      "embeddedSet": [
+        "core"
+      ],
+      "embeddedMissing": [
+        "writingState",
+        "mediaState",
+        "whisperState",
+        "officeState"
+      ],
+      "text": "a := &App{core: &core{}}"
+    },
+    {
+      "key": "internal/app/gaea_knowledge_migration_test.go::TestKnowledgeMigrationSuccessSilent#1",
+      "file": "internal/app/gaea_knowledge_migration_test.go",
+      "line": 73,
+      "func": "TestKnowledgeMigrationSuccessSilent",
+      "class": "core-only",
+      "classLiteralOnly": "core-only",
+      "postAssigned": [],
+      "inHelper": false,
+      "helperAmplifier": false,
+      "embeddedSet": [
+        "core"
+      ],
+      "embeddedMissing": [
+        "writingState",
+        "mediaState",
+        "whisperState",
+        "officeState"
+      ],
+      "text": "a := &App{core: &core{}}"
     },
     {
       "key": "internal/app/gaea_listdir_test.go::TestListDirRelativeUnchanged#1",

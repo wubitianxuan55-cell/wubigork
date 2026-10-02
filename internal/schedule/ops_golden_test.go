@@ -106,6 +106,15 @@ func goldenBaseCd() Project {
 	return p
 }
 
+// goldenBaseBroken 既有负工期基座（批次十三 round15 闸宽探针）：计划里已存在
+// Duration<0 的任务（只能直接构造——Load/Save 都会拒），用于钉住「既有非法态
+// 不被无关补丁绊住」这条有意收窄的边界（两侧结论必须一致）。
+func goldenBaseBroken() Project {
+	p := goldenBase()
+	p.Tasks[0].Duration = -5 // A
+	return p
+}
+
 func goldenCases() []goldenCase {
 	return []goldenCase{
 		// ── upsert_task ──
@@ -117,6 +126,8 @@ func goldenCases() []goldenCase {
 		{"upsert 层级非法", goldenBase(), []Op{{Type: "upsert_task", Task: &Task{ID: "C", Name: "x", Duration: 1, Level: 2}}}, nil, nil},
 		{"upsert 分组行禁固定成本", goldenBase(), []Op{{Type: "upsert_task", Task: &Task{ID: "G", Name: "分组", Level: 0, FixedCost: 100}}}, nil, nil},
 		{"upsert 负固定成本", goldenBase(), []Op{{Type: "upsert_task", Task: &Task{ID: "C", Name: "x", Duration: 1, Level: 1, FixedCost: -5}}}, nil, nil},
+		// 批次十三 round15：upsert 整任务写入的负工期闸（批次十二 D5 实测缺口）。
+		{"upsert 负工期", goldenBase(), []Op{{Type: "upsert_task", Task: &Task{ID: "C", Name: "x", Duration: -5, Level: 1}}}, nil, nil},
 		// ── patch_task ──
 		{"patch 多字段", goldenBase(), []Op{{Type: "patch_task", ID: "A", Patch: &patchTask{Name: gStrPtr("挖土方"), Duration: gIntPtr(4), Progress: gIntPtr(50)}}}, nil, nil},
 		{"patch 模式手动+锁定开始", goldenBase(), []Op{{Type: "patch_task", ID: "A", Patch: &patchTask{Mode: (*TaskMode)(gStrPtr("manual")), ManualStart: gIntPtr(2)}}}, nil, nil},
@@ -126,6 +137,10 @@ func goldenCases() []goldenCase {
 		{"patch 任务不存在", goldenBase(), []Op{{Type: "patch_task", ID: "NOPE", Patch: &patchTask{Duration: gIntPtr(1)}}}, nil, nil},
 		{"patch 分组行禁固定成本", goldenBaseGrouped(), []Op{{Type: "patch_task", ID: "G", Patch: &patchTask{FixedCost: gF64Ptr(9)}}}, nil, nil},
 		{"patch 负工期", goldenBase(), []Op{{Type: "patch_task", ID: "A", Patch: &patchTask{Duration: gIntPtr(-1)}}}, nil, nil},
+		// 批次十三 round15 闸宽边界（主代理预审）：既有负工期 + 只改 level 的无关
+		// 补丁两侧都放行（既有非法态由调用方 Validate/Save 兜底）——这是有意收窄到
+		// 「与 D5 缺口同宽」，不是漏判；同一计划改 duration 仍被拒（上一条）。
+		{"patch 既有负工期只改 level（不误伤）", goldenBaseBroken(), []Op{{Type: "patch_task", ID: "A", Patch: &patchTask{Level: gIntPtr(0)}}}, nil, nil},
 		// ── 双工期（v4.151 刀2）：durationUnit ──
 		{"patch 单位→cd+工期", goldenBase(), []Op{{Type: "patch_task", ID: "A", Patch: &patchTask{DurationUnit: (*DurationUnit)(gStrPtr("cd")), Duration: gIntPtr(28)}}}, nil, nil},
 		{"patch 单位→wd 显式", goldenBase(), []Op{{Type: "upsert_task", Task: &Task{ID: "H", Name: "养护", Duration: 28, Level: 1, DurationUnit: UnitCd}}, {Type: "patch_task", ID: "H", Patch: &patchTask{DurationUnit: (*DurationUnit)(gStrPtr("wd"))}}}, nil, nil},

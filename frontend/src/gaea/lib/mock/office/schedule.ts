@@ -10,10 +10,10 @@
 // window.__mockScheduleFile 亦在此（仅 mock 存在，真机无此全局）。
 import { computeCpm } from "../../../../schedule/cpm";
 import { planFinishOf } from "../../../../schedule/deadline";
+import { SCHEDULE_DEFAULT_REL } from "../../../../schedule/paths";
 import { makeEmptyProject } from "../../../../schedule/sample";
 import type { OfficeMethods } from "./types";
 
-const SCHEDULE_DEFAULT_REL = "进度计划/当前计划.gsched.json";
 /** 工程文件内容（rel → 计划 JSON；文件=权威，缺「当前计划」时板块走迁移分支） */
 export const mockScheduleFiles = new Map<string, string>();
 /** 注册表元数据（索引的 mock 形态：归档标记 + 更新时间；可由内容重建，非权威） */

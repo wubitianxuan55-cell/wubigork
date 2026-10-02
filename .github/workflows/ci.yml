@@ -28,7 +28,13 @@ jobs:
       - name: Go flaky classifier selftest
         run: node scripts/classify-go-failures.mjs --selftest
 
-      # internal/tts 的 TestEdgeTTS 依赖外部网络，暂时排除
+      # 覆盖口径 = 全包（批次十三 P2 收口）：此前以「internal/tts 的 TestEdgeTTS 依赖
+      # 外部网络」为由整包排除，而该测试**全仓零命中**（早已不存在）＝过期注释 +
+      # 白丢覆盖。实测本机形态 `go test -count=1 ./internal/tts/...` 该包全绿，唯一
+      # 外网项 TestLiveVoxCPM2 自带 HERDSMAN_LIVE=1 门自动 SKIP（默认不跑真机）。
+      # 平台核对：internal/tts 无 //go:build 约束，但 sapi.go 用
+      # syscall.SysProcAttr{HideWindow}（Windows-only 字段）⇒ 只能在 windows runner
+      # 上编译/运行，本 job 正是 windows-latest（ubuntu 的 race job 不可纳入）。
       # 假红治理（2026-10-02，审计 X1-12 收口）：原先对全量「失败整批重试一次」——
       # 原注释自认「整批重试仍可能洗白真回归」，红灯因此不可信。现在只允许**在册
       # flaky 包**隔离复跑，判据在 scripts/go-known-flaky.txt（当前为空）：
@@ -40,7 +46,7 @@ jobs:
       - name: Go tests (registered flaky only)
         shell: bash
         run: |
-          pkgs=$(go list ./... | grep -v /internal/tts)
+          pkgs=$(go list ./...)
           if [ -z "$pkgs" ]; then
             echo "go list 无输出（模块解析失败？）——按红处理"
             exit 1
@@ -126,12 +132,20 @@ jobs:
 
       - run: pnpm build
 
+      # 分类器夹具自测（批次十三 P3 收口）：本 job 注释此前自称分类器「含 4 组夹具
+      # 自测」，实际**零自测**（grep selftest 零命中）。现状 = 8 组夹具 / 14 条断言，
+      # 与后端 job 同款 `--selftest` 形态（分类器若把真回归错判成 flaky 比不分类更糟）。
+      - name: Vitest flaky classifier selftest
+        run: node scripts/classify-vitest-failures.mjs --selftest
+
       # 假红治理（2026-09-10 收口）：原先对全量套件无条件「失败重试一次」——
       # 真回归会被复跑洗白，红灯因此不可信。现在只允许**在册 flaky 文件**
       # 隔离复跑，判据在 frontend/known-flaky.txt（当前为空）：
       #   失败集合 ⊆ 清单 → 只复跑这些文件（绿则过、红则红）；
       #   出现清单外失败 → 直接红，不重试。
-      # 分类器：frontend/scripts/classify-vitest-failures.mjs（含 4 组夹具自测）。
+      # 分类器：frontend/scripts/classify-vitest-failures.mjs（--selftest 8 组 / 14 条断言）
+      # 首跑非零时带 --expect-failure：归不出失败文件也不许静默放行（exit 1）。
+      # 产物 vitest-report.json / vitest-retry-files.txt 不入库（见 .gitignore）。
       - name: Frontend tests (registered flaky only)
         shell: bash
         run: |
@@ -143,7 +157,7 @@ jobs:
             echo "vitest 全绿"
             exit 0
           fi
-          node scripts/classify-vitest-failures.mjs vitest-report.json known-flaky.txt || exit 1
+          node scripts/classify-vitest-failures.mjs vitest-report.json known-flaky.txt --expect-failure || exit 1
           echo "在册 flaky 隔离复跑："
           cat vitest-retry-files.txt
           # shellcheck disable=SC2046

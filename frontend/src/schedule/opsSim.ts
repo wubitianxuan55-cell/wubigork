@@ -52,6 +52,19 @@ const FS = 'FS'
 
 const badMoney = (v: number) => v < 0 || Number.isNaN(v) || !Number.isFinite(v)
 
+/** 负工期判据的**唯一实现**（Go project.go `validateDuration` 的 TS 镜像，批次十三
+ *  round15）：upsert_task（整任务写入）与 patch_task（部分更新）共用。
+ *  idInMsg 只控制文案是否带「任务 <id> 」前缀，判定规则完全一致：
+ *   - true  = Go Validate/upsert_task 原文（带 id）；
+ *   - false = patch 通道历史原文「工期为负」（被 ops_golden.fixture.json 冻结）。
+ *  返回 null = 合法；否则返回错误文案。闸宽由调用点决定：patch 只在本 op 触及
+ *  duration 时调用（与 Go 生效态块内的 `pt.Duration != nil` 门一致），计划里既有
+ *  的负工期不被无关补丁绊住（该非法态由 Go 侧 Validate/Save 兜底）。 */
+function negativeDurationError(t: { id: string; duration: number }, idInMsg: boolean): string | null {
+  if (t.duration >= 0) return null
+  return idInMsg ? `任务 ${t.id} 工期为负` : '工期为负'
+}
+
 const idxTask = (tasks: SchedTask[], id: string) => tasks.findIndex((t) => t.id === id)
 const idxRes = (rs: SchedResource[], id: string) => rs.findIndex((r) => r.id === id)
 
@@ -91,6 +104,12 @@ function applyOne(p: SchedProject, op: SimOp): string {
       const t = materializeTask(op.task)
       if (!t.id.trim()) throw new Error('upsert_task 缺少任务 id')
       if (t.level !== 0 && t.level !== 1) throw new Error(`任务 ${t.id} 层级非法（仅 0/1）：${t.level}`)
+      // 负工期（批次十三 round15，镜像 Go upsert_task 的 validateDuration）：旧实现
+      // 整任务写入完全缺这道闸 ⇒ 投影放行 -5、Go 落库也不拦（批次十二 D5 实测），
+      // 同一计划走 Save→Validate 才报「任务 N 工期为负」。缺 duration 时
+      // materializeTask 已补零 → 0 合法，不误伤。
+      const negDur = negativeDurationError(t, true)
+      if (negDur) throw new Error(negDur)
       if (t.progress < 0 || t.progress > 100) throw new Error(`任务 ${t.id} 进度超出 0-100`)
       if (t.level === 0 && t.fixedCost !== undefined && t.fixedCost !== 0) {
         throw new Error(`分组行 ${t.id} 禁止固定成本（汇总唯一口径为子孙求和）`)
@@ -145,7 +164,13 @@ function applyOne(p: SchedProject, op: SimOp): string {
           }
         }
         if (pt.duration !== undefined) {
-          if (pt.duration < 0) throw new Error('工期为负')
+          // 负工期：与 Go patch_task 同一判据（negativeDurationError = Go
+          // validateDuration 的镜像，idInMsg=false）。
+          // 闸宽=本 op 是否触及 duration（与 Go 生效态块内的 `pt.Duration != nil`
+          // 门一致）：计划里既有 Duration<0 的任务 + 只改 level/isMilestone 的
+          // patch 两侧都放行（既有非法态由调用方 Validate/Save 兜底）。
+          const negDur = negativeDurationError({ id: t.id, duration: pt.duration }, false)
+          if (negDur) throw new Error(negDur)
           if (t.durationUnit === 'cd' && pt.duration > 3650) throw new Error(`日历天工期超上限（3650）：${pt.duration}`)
           const unit = t.durationUnit === 'cd' ? '日历天' : '工作日'
           changes.push(`工期 ${t.duration}→${pt.duration} ${unit}`)

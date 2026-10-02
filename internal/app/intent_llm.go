@@ -38,6 +38,29 @@ func (a *App) classifyIntentFallback(text string) *intent.Intent {
 	return a.classifyIntentWithLLM(text)
 }
 
+// intentFallbackSystemPrompt 组装 LLM 兜底分类器的系统提示词。boards 是当前
+// manifest 的板块 id 白名单串（boardIDList 单一来源，AP8-08：此前这里手写第二份
+// 清单，含已删的 code、缺 schedule/sin/knowledge）。
+//
+// boards 为空（清单拼装不出）时**不打白名单约束**：提示词只给动作语义，不 panic、
+// 不编造清单——navigate 的 target 仍由 intent.ParseFallback（动作白名单+置信门）
+// 与 boardLabel（manifest 校验）两道闸兜底，宁漏勿误。
+func intentFallbackSystemPrompt(boards string) string {
+	navLine := "- navigate：想打开/切换某个板块。target=板块id"
+	if boards != "" {
+		navLine += "，只能是：" + boards + " 之一"
+	}
+	navLine += "\n"
+	return "你是桌面助手的指令分类器。把用户的一句话分类为以下动作之一，只输出 JSON，" +
+		"格式：{\"action\":\"navigate|status|read_screen|none\",\"target\":\"\",\"confidence\":0.0到1.0}\n" +
+		navLine +
+		"- status：询问当前用的什么模型/引擎。target=\"model\"\n" +
+		"- read_screen：想读取/查看屏幕上显示的内容（可含第几块屏幕）。target=\"screen\"或\"screen:2\"或\"screen:primary\"\n" +
+		"- none：闲聊寒暄、对已完成事物的评价（如\"画得不错\"）、询问知识、与上述无关的一切请求\n" +
+		"示例：{\"action\":\"navigate\",\"target\":\"imagegen\",\"confidence\":0.9}\n" +
+		"拿不准、语义含混或 confidence<0.75 一律 action=none。宁可 none 不可猜。"
+}
+
 // classifyIntentWithLLM 内置 LLM 分类：routine 目标解析（常规办公绑定 → 默认
 // 本地 herdsman）+ 2s 级硬超时 + 受控 JSON 校验。
 func (a *App) classifyIntentWithLLM(text string) *intent.Intent {
@@ -51,15 +74,7 @@ func (a *App) classifyIntentWithLLM(text string) *intent.Intent {
 		return nil
 	}
 
-	const sysPrompt = "你是桌面助手的指令分类器。把用户的一句话分类为以下动作之一，只输出 JSON，" +
-		"格式：{\"action\":\"navigate|status|read_screen|none\",\"target\":\"\",\"confidence\":0.0到1.0}\n" +
-		"- navigate：想打开/切换某个板块。target=板块id，只能是：home chat novel imagegen gaea cost code " +
-		"memoryhub modelcenter characterlib settings weixin 之一\n" +
-		"- status：询问当前用的什么模型/引擎。target=\"model\"\n" +
-		"- read_screen：想读取/查看屏幕上显示的内容（可含第几块屏幕）。target=\"screen\"或\"screen:2\"或\"screen:primary\"\n" +
-		"- none：闲聊寒暄、对已完成事物的评价（如\"画得不错\"）、询问知识、与上述无关的一切请求\n" +
-		"示例：{\"action\":\"navigate\",\"target\":\"imagegen\",\"confidence\":0.9}\n" +
-		"拿不准、语义含混或 confidence<0.75 一律 action=none。宁可 none 不可猜。"
+	sysPrompt := intentFallbackSystemPrompt(a.boardIDList())
 
 	ms := a.cfg.GetIntentsLLMTimeoutMS()
 	if ms <= 0 {

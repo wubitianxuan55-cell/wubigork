@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Loader2, Rollback } from "../icons";
+import { SCHEDULE_DEFAULT_REL } from "../../schedule/paths";
 import { app } from "../lib/bridge";
 import type { JournalChangeRecord } from "../lib/types";
 import { useToast } from "./Toast";
@@ -21,10 +22,10 @@ import { useToast } from "./Toast";
 // 常驻可见（对齐 TaskLiveRow 位置，不进折叠区）：回滚是后置闭环的主入口，
 // 藏进展开体等于没有。无匹配记录（Journal 未就绪/旧会话无快照）整行不渲染。
 
-/** 与 schedule/gschedSummary 的 SCHEDULE_FILE_PATH、Go DefaultRelPath 同源镜像
- *  （changes.ts DEFAULT 同款先例）：避免本组件拉起整个进度计划 store 图谱。 */
-const SCHEDULE_DEFAULT_REL = "进度计划/当前计划.gsched.json";
-
+// 缺省计划 rel 单源在 schedule/paths.ts（零依赖常量模块，FE7-09）——此前此处
+// 自写一份字面量镜像，与 gschedSummary/store/changes/mock 各一份共五处副本；
+// paths 不 import 任何模块，转引它不会把进度计划 store 图谱拉进本组件
+// （本组件渲染在每张工具卡上，图谱体积与 TDZ 风险都不该带进来）。
 function resolveTarget(args: string): string {
   try {
     const parsed = JSON.parse(args || "{}") as { path?: unknown };

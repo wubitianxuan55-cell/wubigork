@@ -27,15 +27,20 @@ type FileSemanticHit struct {
 // GaeaFileIndexRebuild 扫描工作区并增量建立文件语义索引（异步任务，T5-1）：
 // 提交索引任务入队并立即返回任务视图，进度经 gaea-task 事件推送；结果
 // （total/skipped）在任务 result 里，失败原因在任务 error 里。
+//
+// AP4-07：入队去重判据与落库空间都走 submitFileIndexTaskIn 单一入口，空间取
+// fileIndexSpace()（调用方当前生效空间；space.mode=off 回退 work）——与后台
+// cron/watch 兜底同口径，不再出现「去重看全局、落库看缺省」的两套判据。
 func (a *App) GaeaFileIndexRebuild() (*tasks.Task, error) {
-	m := a.taskMgr()
-	if m == nil || !m.Available() {
-		return nil, fmt.Errorf("任务调度器未启动")
+	tk, err := a.submitFileIndexTaskIn(fileIndexSpace(), "", "工作区语义索引", "manual")
+	if err != nil {
+		return nil, err
 	}
-	if m.HasActive(tasks.KindFileIndex) {
+	if tk == nil {
+		// 去重命中：同一空间已有 queued/running 的索引任务（原错误文案不变）。
 		return nil, fmt.Errorf("索引任务已在队列中，请稍候")
 	}
-	return m.Submit(tasks.KindFileIndex, "工作区语义索引", map[string]any{"reason": "manual"})
+	return tk, nil
 }
 
 // startFileIndexCron 文件语义索引自动维护：启动即查 + 每 10 分钟增量重建
@@ -77,12 +82,7 @@ func (a *App) tickFileIndex() {
 	if m == nil || !m.Available() {
 		return
 	}
-	if m.HasActive(tasks.KindFileIndex) {
-		return
-	}
-	if _, err := m.Submit(tasks.KindFileIndex, "工作区语义索引（轮询兜底）", map[string]any{"reason": "cron"}); err != nil {
-		slog.Warn("tasks: 索引任务提交失败", "error", err)
-	}
+	a.submitFileIndexTask("工作区语义索引（轮询兜底）", "cron")
 }
 
 // GaeaFileSemanticSearch 对已索引的工作区文件做语义检索（本地 bge-m3）。

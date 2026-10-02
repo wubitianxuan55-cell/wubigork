@@ -53,7 +53,13 @@ type shadowPair struct {
 	Line     int    // 被遮蔽方声明行号
 }
 
-// shadowBaselineMax 在册基线：脚本解析口径下允许存在的「被遮蔽内嵌实现」条数上限。
+// shadowBaseline 在册遮蔽清单（**显式列名字**，不是「条数上限」）。
+//
+// 为什么不用条数上限（批次十三 round 15，审计 X1-13 精化）：条数口径下「超基线时
+// 到底新增了哪些」只能靠 `shadow[max:]` 切片猜，而 shadow 是按方法名字典序排的——
+// 新增的名字若排序靠前，切片会把**在册条目**当成新增报出来（总量仍红、不静默，
+// 但报点指错条目，接手的人照抄登记反而把基线写坏）。集合差没这个问题：按名字对照
+// 在册清单，多出来的才叫新增。
 //
 // 口径（与 collectMethods 的去重逻辑同源，别处统计的数字不可直接对比）：
 //
@@ -63,17 +69,29 @@ type shadowPair struct {
 //	   shadow-diag 里也会被算成一组，那会把数字抬高到 4 倍以上（实测 455）；
 //	③ 只数「App 声明了同名方法、内嵌类型的实现因此被去重丢弃」的那些实现。
 //
-// 计数口径超基线即 exit 1（新增遮蔽必须显式抬基线并写明理由，不得静默通过）。
+// 判据（集合逐名字对照，与顺序无关）：
 //
-// 基线来源 / 日期：2026-10-02 批次十二 round 14 实测（线 4）。
+//	实测有、在册无 → 新增遮蔽 → exit 1，逐条列出**新增的名字**（内嵌实现会绕过
+//	                  App 版本里的修复，必须显式处置）；
+//	在册有、实测无 → 在册项消失（改名/删除实现）→ exit 1，如实报「消失」并提示
+//	                  同步本清单，**不会**被误报成新增（集合差里两者分开算）；
+//	实测 == 在册 → exit 0（存量遮蔽打一条 stderr 告警但不拦门）。
 //
-//	当次实测 = 2：SetFeatureModel / SetFeatureModelEnabled
-//	（core，internal/app/feature_model_handler.go:79 / :147）。
+// 本清单就是「当前允许存在的遮蔽全集」，任何不一致都要显式同步这里并写明理由，
+// 不许静默漂移——「消失也红」正是为了让清单不悄悄过期（守卫自身也得守住）。
+//
+// 基线来源 / 日期：2026-10-02 批次十二 round 14 实测（线 4）= 2 处
+// （core 的 SetFeatureModel / SetFeatureModelEnabled 被 App 同名声明遮蔽，
+// internal/app/feature_model_handler.go:79 / :147）；批次十三 round 15 把
+// 「条数上限 shadowBaselineMax = 2」改成这份显式清单。
 //
 // 与审计描述的关系：审计 X1-13 提到的「约 281 份被遮蔽实现」不是本口径——它对
 // 应的是全仓同名对（含门面重复），本口径只数真正被丢掉的实现；归零仍是余量
 // （需逐条改名/加说明，见 docs/code-audit-2026-10-02/ 分册）。
-const shadowBaselineMax = 2
+var shadowBaseline = []shadowPair{
+	{Name: "SetFeatureModel", Receiver: "core", File: "internal/app/feature_model_handler.go", Line: 79},
+	{Name: "SetFeatureModelEnabled", Receiver: "core", File: "internal/app/feature_model_handler.go", Line: 147},
+}
 
 // mapMethod 方法 → 板块。规则按优先级：显式覆盖表 → 前缀规则 → 接收者默认。
 func mapMethod(m method) string {
@@ -323,9 +341,16 @@ func run(args []string) int {
 	return 0
 }
 
-// printShadowReport 打印遮蔽基线与实测数（-shadow-check / -shadow-diag 用）。
+// printShadowReport 打印在册清单与本次实测（-shadow-check / -shadow-diag 用）。
 func printShadowReport(shadow []shadowPair, full bool) {
-	fmt.Printf("遮蔽基线（在册上限）= %d；本次实测 = %d\n", shadowBaselineMax, len(shadow))
+	fmt.Printf("遮蔽基线（在册清单 %d 项）：", len(shadowBaseline))
+	for i, s := range shadowBaseline {
+		if i > 0 {
+			fmt.Print("、")
+		}
+		fmt.Printf("%s（%s %s:%d）", s.Name, s.Receiver, s.File, s.Line)
+	}
+	fmt.Printf("\n本次实测 = %d 项\n", len(shadow))
 	if !full {
 		return
 	}
@@ -334,30 +359,104 @@ func printShadowReport(shadow []shadowPair, full bool) {
 	}
 }
 
-// checkShadowBaseline 遮蔽基线闸：实测数 ≤ 在册基线 → 0（并把存量遮蔽告警）；
-// 超基线 → 1，逐条列出**新增**遮蔽（方法名 + 文件:行），信息可直接照抄登记。
-func checkShadowBaseline(shadow []shadowPair) int {
-	if len(shadow) <= shadowBaselineMax {
-		if len(shadow) > 0 {
-			fmt.Fprintf(os.Stderr,
-				"gen_bindings: %d 个方法被 App 同名声明遮蔽（在册基线 %d，未超——设计内委托；清单脚本 scripts/gen_bindings -shadow-diag）\n",
-				len(shadow), shadowBaselineMax)
+// shadowMove 同名遮蔽的声明位置与在册记录不一致（仅提示，不参与判闸——行号会随
+// 上方代码变动，不该因此拦门）。
+type shadowMove struct{ registered, measured shadowPair }
+
+// shadowDriftReport 归因结果：退出码 + 逐行文案。文案与判闸共用同一份事实，
+// 自测可直接断言它，不必重解析 stderr。
+type shadowDriftReport struct {
+	code  int
+	lines []string
+}
+
+// shadowDiff 集合差：**按名字对照**，与顺序无关——这正是取代「按字典序切片猜
+// 新增」的关键。added = 实测有而在册无（新增遮蔽）；gone = 在册有而实测无
+// （改名/删除实现）；moved = 同名但声明位置漂移。
+func shadowDiff(shadow, baseline []shadowPair) (added, gone []shadowPair, moved []shadowMove) {
+	measured := make(map[string]shadowPair, len(shadow))
+	for _, s := range shadow {
+		measured[s.Name] = s
+	}
+	registered := make(map[string]shadowPair, len(baseline))
+	for _, s := range baseline {
+		registered[s.Name] = s
+	}
+	for _, s := range shadow {
+		r, ok := registered[s.Name]
+		if !ok {
+			added = append(added, s)
+			continue
 		}
-		return 0
+		if r.File != s.File || r.Line != s.Line {
+			moved = append(moved, shadowMove{registered: r, measured: s})
+		}
 	}
-	extra := shadow[shadowBaselineMax:]
-	fmt.Fprintf(os.Stderr, "gen_bindings: 遮蔽数 %d 超过在册基线 %d（新增 %d 处）——新增遮蔽会让内嵌实现绕过 App 版本的修复，必须显式处置：\n",
-		len(shadow), shadowBaselineMax, len(extra))
-	for _, s := range extra {
-		fmt.Fprintf(os.Stderr, "  - %s（被遮蔽实现：%s，%s:%d）\n", s.Name, s.Receiver, s.File, s.Line)
+	for _, r := range baseline {
+		if _, ok := measured[r.Name]; !ok {
+			gone = append(gone, r)
+		}
 	}
-	fmt.Fprintf(os.Stderr, "gen_bindings: 处置二选一：①消除遮蔽（改名/删内嵌重复实现）②确有设计理由则在 scripts/gen_bindings/main.go 抬 shadowBaselineMax 到 %d 并写明来源与理由。\n", len(shadow))
-	return 1
+	return added, gone, moved
+}
+
+// reportShadowDrift 遮蔽基线闸（X1-13）的归因：实测集合与在册清单逐名字对照，
+// 「新增」与「在册消失」分开报，两边都能直接照抄登记。
+//
+//	新增或消失任一不一致 → exit 1；位置漂移只提示；完全一致 → exit 0。
+func reportShadowDrift(shadow, baseline []shadowPair) shadowDriftReport {
+	added, gone, moved := shadowDiff(shadow, baseline)
+	if len(added) == 0 && len(gone) == 0 {
+		var lines []string
+		if len(shadow) > 0 {
+			lines = append(lines, fmt.Sprintf(
+				"gen_bindings: %d 个方法被 App 同名声明遮蔽（在册清单 %d 项逐名字对齐——设计内委托；清单脚本 scripts/gen_bindings -shadow-diag）",
+				len(shadow), len(baseline)))
+		}
+		for _, m := range moved {
+			lines = append(lines, fmt.Sprintf(
+				"gen_bindings: 在册位置漂移（仅提示，不改判据）：%s 在册 %s:%d / 实测 %s:%d——需要精确报点时同步清单",
+				m.registered.Name, m.registered.File, m.registered.Line, m.measured.File, m.measured.Line))
+		}
+		return shadowDriftReport{code: 0, lines: lines}
+	}
+	var lines []string
+	if len(added) > 0 {
+		lines = append(lines, fmt.Sprintf(
+			"gen_bindings: 新增遮蔽 %d 处（实测 %d 项 / 在册清单 %d 项）——新增遮蔽会让内嵌实现绕过 App 版本的修复，必须显式处置：",
+			len(added), len(shadow), len(baseline)))
+		for _, s := range added {
+			lines = append(lines, fmt.Sprintf("  - %s（被遮蔽实现：%s，%s:%d）", s.Name, s.Receiver, s.File, s.Line))
+		}
+	}
+	if len(gone) > 0 {
+		lines = append(lines, fmt.Sprintf(
+			"gen_bindings: 在册遮蔽消失 %d 处（在册有、本次实测无——多半是改名或删除实现），这不是新增：", len(gone)))
+		for _, s := range gone {
+			lines = append(lines, fmt.Sprintf("  - %s（在册记录：%s，%s:%d）", s.Name, s.Receiver, s.File, s.Line))
+		}
+		lines = append(lines, "  请同步在册清单（scripts/gen_bindings/main.go 的 shadowBaseline），别让在册项过期。")
+	}
+	lines = append(lines, fmt.Sprintf(
+		"gen_bindings: 处置二选一：①消除遮蔽（改名/删内嵌重复实现）②确有设计理由（或确为永久改名/删除）则把 shadowBaseline 同步为本次实测的 %d 项并写明理由。",
+		len(shadow)))
+	return shadowDriftReport{code: 1, lines: lines}
+}
+
+// checkShadowBaseline 遮蔽基线闸：打印归因、返回退出码（0 = 与在册清单一致）。
+// run() 在读盘解析之后、**写任何生成物之前**调用它——判闸失败不落盘，不留半截产物。
+func checkShadowBaseline(shadow []shadowPair) int {
+	r := reportShadowDrift(shadow, shadowBaseline)
+	for _, line := range r.lines {
+		fmt.Fprintln(os.Stderr, line)
+	}
+	return r.code
 }
 
 // collectMethods 解析 internal/app 下所有非测试 .go 文件，收集绑定面方法的签名。
 // 同时收集 import 名→路径映射（生成门面文件需要），并返回被 App 遮蔽的内嵌
-// 实现清单（按方法名排序，供遮蔽基线闸使用——见 shadowBaselineMax）。
+// 实现清单（按方法名排序——排序只影响打印可读性，判闸是名字集合差，见
+// shadowBaseline 与 shadowDiff）。
 func collectMethods(dir string) ([]method, []shadowPair, error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {

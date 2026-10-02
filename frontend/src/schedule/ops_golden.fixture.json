@@ -486,6 +486,50 @@
       "error": "第 1 条操作失败：任务 C 固定成本非法（须为非负有限数）：-5"
     },
     {
+      "name": "upsert 负工期",
+      "base": {
+        "name": "对拍工程",
+        "startDate": "2026-09-07",
+        "tasks": [
+          {
+            "id": "A",
+            "name": "挖土",
+            "duration": 2,
+            "level": 1,
+            "progress": 0
+          },
+          {
+            "id": "B",
+            "name": "垫层",
+            "duration": 3,
+            "level": 1,
+            "progress": 40
+          }
+        ],
+        "links": [
+          {
+            "from": "A",
+            "to": "B",
+            "type": "FS",
+            "lag": 0
+          }
+        ]
+      },
+      "ops": [
+        {
+          "type": "upsert_task",
+          "task": {
+            "id": "C",
+            "name": "x",
+            "duration": -5,
+            "level": 1,
+            "progress": 0
+          }
+        }
+      ],
+      "error": "第 1 条操作失败：任务 C 工期为负"
+    },
+    {
       "name": "patch 多字段",
       "base": {
         "name": "对拍工程",
@@ -933,6 +977,74 @@
         }
       ],
       "error": "第 1 条操作失败：工期为负"
+    },
+    {
+      "name": "patch 既有负工期只改 level（不误伤）",
+      "base": {
+        "name": "对拍工程",
+        "startDate": "2026-09-07",
+        "tasks": [
+          {
+            "id": "A",
+            "name": "挖土",
+            "duration": -5,
+            "level": 1,
+            "progress": 0
+          },
+          {
+            "id": "B",
+            "name": "垫层",
+            "duration": 3,
+            "level": 1,
+            "progress": 40
+          }
+        ],
+        "links": [
+          {
+            "from": "A",
+            "to": "B",
+            "type": "FS",
+            "lag": 0
+          }
+        ]
+      },
+      "ops": [
+        {
+          "type": "patch_task",
+          "patch": {
+            "level": 0
+          },
+          "id": "A"
+        }
+      ],
+      "after": {
+        "name": "对拍工程",
+        "startDate": "2026-09-07",
+        "tasks": [
+          {
+            "id": "A",
+            "name": "挖土",
+            "duration": -5,
+            "level": 0,
+            "progress": 0
+          },
+          {
+            "id": "B",
+            "name": "垫层",
+            "duration": 3,
+            "level": 1,
+            "progress": 40
+          }
+        ],
+        "links": [
+          {
+            "from": "A",
+            "to": "B",
+            "type": "FS",
+            "lag": 0
+          }
+        ]
+      }
     },
     {
       "name": "patch 单位→cd+工期",
