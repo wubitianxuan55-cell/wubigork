@@ -262,6 +262,12 @@ func evaluatePathPolicy(action DesktopAgentAction, path, pathTo, cwd string) Pol
 
 // ─── 路径处理 ────────────────────────────────────────────────────
 
+// normalizePath 把用户口述路径转成可检查的绝对路径：~ 展开、$var/${var} 展开
+// （os.ExpandEnv 不认 %var% Windows 写法——保持原样，见 desktop_test.go 已知
+// 限制）、相对路径拼 cwd、Clean 词法消解 ..。注意：这里**不做** cwd 圈定——
+// 绝对路径是桌面操作的合法输入；越界防护由 evaluatePathPolicy 对解析后路径
+// 施加的敏感目录警告与写硬阻断承担（.. 逃逸到 System32 的写入同样被拦，
+// TestNormalizePathEscapeStillGuarded 钉死此属性）。
 func normalizePath(p, cwd string) string {
 	if p == "" {
 		return ""
@@ -271,13 +277,13 @@ func normalizePath(p, cwd string) string {
 		home, _ := os.UserHomeDir()
 		p = filepath.Join(home, p[1:])
 	}
-	// 展开 %ENV%
+	// 展开 $var/${var}（%var% 非 os.ExpandEnv 语法，保持原样）
 	p = os.ExpandEnv(p)
 	// 转绝对路径
 	if !filepath.IsAbs(p) {
 		p = filepath.Join(cwd, p)
 	}
-	// 规范化 + 禁止 .. 逃逸
+	// 词法规范化：Clean 后路径不再含 ..；此后各检查都看到真实目标
 	clean := filepath.Clean(p)
 	if !strings.HasPrefix(clean, filepath.VolumeName(clean)+string(os.PathSeparator)) &&
 		!strings.HasPrefix(clean, string(os.PathSeparator)) {

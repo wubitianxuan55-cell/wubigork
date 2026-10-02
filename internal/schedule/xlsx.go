@@ -412,8 +412,11 @@ func parseXlsxDate(s string) (time.Time, bool) {
 }
 
 func tryParse(s string) (time.Time, bool) {
+	// 全模块日期语义 = UTC 午夜（calendar.go 同款）：Local 午夜在 UTC+8 下
+	// 折成前一日 16:00Z，与日历函数比较/取整时整体偏移一天（IN3-05）。
+	// 解析与 Format 同位往返，改 UTC 不改变输出的日期文本。
 	for _, layout := range xlsxDateLayouts {
-		if t, err := time.ParseInLocation(layout, s, time.Local); err == nil {
+		if t, err := time.ParseInLocation(layout, s, time.UTC); err == nil {
 			return t, true
 		}
 	}

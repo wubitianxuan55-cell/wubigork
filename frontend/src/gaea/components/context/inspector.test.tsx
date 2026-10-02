@@ -203,6 +203,31 @@ describe("FileActivityTree 文件活动（按文件聚合树）", () => {
     expect(usePreviewStore.getState().previewFile).toBe("src/a.ts");
   });
 
+  it("节点详情走注入的自定义源（FE1-04）：下传 fetchNodeDetail 时操作行详情按注入源回读", async () => {
+    // 排序初值读 localStorage 偏好（同文件「排序三胶囊」用例会写入「按路径」，
+    // 令首行变 assets）——本用例钉默认「按次数」序，先清偏好。
+    localStorage.removeItem("gaea.context.prefs");
+    const fetchDetail = vi.fn(async (seq: number) => ({
+      seq,
+      kind: "tool_result" as const,
+      tool: "read_file",
+      output: `自定义源详情 ${seq}`,
+    }));
+    const { container } = renderT(
+      <FileActivityTree files={FILES} sessionPath="/sess/x" fetchNodeDetail={fetchDetail} />,
+    );
+    // 展开首条文件的操作日志（默认按次数排序，首行=src/a.ts，聚合 2 次 read）
+    fireEvent.click(screen.getAllByTestId("file-ops-toggle")[0]);
+    // 点开第一条操作行的「详情」→ 必须调注入的自定义源（缺省源会让原罪等
+    // 自定义源页面串数据源——同一页面两套回读通道）
+    fireEvent.click(screen.getAllByTestId("file-op-detail-btn")[0]);
+    await vi.waitFor(() => expect(fetchDetail).toHaveBeenCalledTimes(1));
+    expect(fetchDetail).toHaveBeenCalledWith(5);
+    // 详情内容来自注入源
+    await vi.waitFor(() => expect(screen.getByText("自定义源详情 5")).toBeTruthy());
+    expect(container.textContent).not.toContain("回读失败");
+  });
+
   it("空态：无文件活动时复用现有文案键", () => {
     renderT(<FileActivityTree files={[]} />);
     expect(screen.getByText(/暂无文件活动/)).toBeTruthy();

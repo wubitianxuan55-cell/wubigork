@@ -609,7 +609,7 @@ const SORT_CMP: Record<FileSort, (a: FileAgg, b: FileAgg) => number> = {
   path: (a, b) => a.path.localeCompare(b.path),
 };
 
-export function FileActivityTree({ files, onOpenFile, sessionPath }: { files: FileActivity[]; onOpenFile?: (path: string) => void; sessionPath?: string }) {
+export function FileActivityTree({ files, onOpenFile, sessionPath, fetchNodeDetail }: { files: FileActivity[]; onOpenFile?: (path: string) => void; sessionPath?: string; fetchNodeDetail?: (seq: number) => Promise<ContextNodeDetailView> }) {
   const t = useT();
   // 预览打开二选一：默认内部走 usePreviewStore（与现有 FileActivityCard 同款链路），
   // onOpenFile 作为可选注入覆盖（契约签名保持兼容：传或不传均可）。
@@ -619,7 +619,9 @@ export function FileActivityTree({ files, onOpenFile, sessionPath }: { files: Fi
   const [query, setQuery] = useState("");
   // 2.5d：排序初值读设置中心偏好、变更写回（与浏览器分类内排序同模式）。
   const [sort, setSort] = useState<CtxFileSort>(() => loadContextPrefs().fileSort);
-  const { details, open: openDetails, toggle: toggleDetail } = useNodeDetails(sessionPath);
+  // 节点详情读取源与浏览器同源下传（FE1-04）：原罪等自定义源页面若不下传，
+  // 这里会按缺省会话日志回读，同一页面两套数据源串台。
+  const { details, open: openDetails, toggle: toggleDetail } = useNodeDetails(sessionPath, fetchNodeDetail);
   // v4.81 操作日志展开（dsh「展开完整操作日志」同款）：按路径展开逐次操作行。
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(() => new Set());
 

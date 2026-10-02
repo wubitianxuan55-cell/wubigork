@@ -730,7 +730,7 @@ export function ContextView({
           </div>
           {/* 行5：文件活动 + Agent 网络径向图（后者条件渲染；两者皆在时并排） */}
           <div className={`grid grid-cols-1 gap-3 ${net ? "min-[1100px]:grid-cols-2" : ""}`}>
-            <FileActivityTree files={timeline.files} sessionPath={sessionPath} />
+            <FileActivityTree files={timeline.files} sessionPath={sessionPath} fetchNodeDetail={fetchNodeDetail} />
             {net && (
               <AgentRadial
                 network={net}

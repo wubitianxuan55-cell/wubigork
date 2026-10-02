@@ -187,6 +187,33 @@ func TestStorySpineSection(t *testing.T) {
 	}
 }
 
+// TestStorySpineArcWatermarkChapterOrder AP1-04 回归锁：水位点乱序存储时
+// 「最近水位」必须按章号取（拿章号比下标的旧实现会把 ch9 水位错降成 ch2）。
+func TestStorySpineArcWatermarkChapterOrder(t *testing.T) {
+	a := newGateEmptyApp()
+	pm := newGateProject(t)
+	a.setPM(pm)
+	sp := mkSpineFixture()
+	// 故意乱序：9 → 2 → 6（AI 提案/手编合法形态）
+	sp.Arcs[0].Beats = []types.ArcBeat{
+		{Chapter: 9, Stage: "proof", Note: "行动推翻旧信念"},
+		{Chapter: 2, Stage: "setup", Note: "确立逃离意图"},
+		{Chapter: 6, Stage: "escalate", Note: "代价递增"},
+	}
+	if err := pm.WriteStorySpine(sp); err != nil {
+		t.Fatalf("写 spine: %v", err)
+	}
+	got := a.storySpineSection(pm, 10)
+	if !strings.Contains(got, "第9章·行动推翻") {
+		t.Fatalf("第10章的最近水位应是第9章（proof），得到：\n%s", got)
+	}
+	// 未来章不算水位：第5章时最近水位是 ch2（确立）
+	got5 := a.storySpineSection(pm, 5)
+	if !strings.Contains(got5, "第2章·确立") || strings.Contains(got5, "第6章") || strings.Contains(got5, "第9章") {
+		t.Fatalf("第5章的最近水位应是第2章，得到：\n%s", got5)
+	}
+}
+
 // TestCreateChapterSpineInjection 整章生成 prompt 含故事层切片（HTTP body 断言）。
 func TestCreateChapterSpineInjection(t *testing.T) {
 	a, pm, requests := newChapterGateLLMAppReply(t, "正文。")

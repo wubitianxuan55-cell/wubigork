@@ -281,7 +281,10 @@ func (a *writingState) storySpineSection(pm interface {
 		arc := &sp.Arcs[i]
 		last := -1
 		for j := range arc.Beats {
-			if arc.Beats[j].Chapter < chapterNum && arc.Beats[j].Chapter > last {
+			// 比对对象是已有水位点的章号（arc.Beats[last].Chapter），不是下标
+			// last——水位点不保证按章序存储（AI 提案/手编均可乱序），拿章号比
+			// 下标会把高章水位错降成低章（AP1-04）。
+			if arc.Beats[j].Chapter < chapterNum && (last < 0 || arc.Beats[j].Chapter > arc.Beats[last].Chapter) {
 				last = j
 			}
 		}

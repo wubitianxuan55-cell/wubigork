@@ -114,4 +114,22 @@ func TestSpaceTaggedToolOverridesTable(t *testing.T) {
 	}
 }
 
+// TestSpaceTagsCoversAllBuiltins GA2-04 守卫：每个 builtin 包注册的工具必须
+// 显式入 spaceTags 分类表——漏表=靠 fail-open 缺省混过分类面（静默漂移，
+// 曾漏 17 个：browser_*×11/schedule_*×3/genui_validate/read_spill/sidebar_open）。
+// 反向（表 ⊆ 注册面）不在此查：表还覆盖 app/agent 层构造的工具名（image_gen/
+// ask 等，非 RegisterBuiltin 注册），全量注册面在 boot 装配层，越出本包边界。
+// 本用例红 = 新工具注册时漏了归类，去 spacetags.go 补一行。
+func TestSpaceTagsCoversAllBuiltins(t *testing.T) {
+	var missing []string
+	for _, tl := range tool.Builtins() {
+		if _, ok := spaceTags[tl.Name()]; !ok {
+			missing = append(missing, tl.Name())
+		}
+	}
+	if len(missing) > 0 {
+		t.Errorf("已注册但未入分类表（缺省 shared 混过分类面）: %v", missing)
+	}
+}
+
 var _ tool.Tool = stubTool{}

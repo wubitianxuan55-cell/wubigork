@@ -187,10 +187,13 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 		return filepath.Join(filepath.Dir(filepath.Clean(sp)), "subagents")
 	})
 
-	execProv, err := NewProvider(entry)
+	// effort 覆盖必须先于 NewProvider：NewProvider 构造即把 entry.Effort 逐值
+	// 拷进 provider.Config.Extra，构造后再赋值是静默失效（GA4-01）。与下方子
+	// 代理路径（先赋 SubagentEffort 再 NewProvider）同序。
 	if cfg.Agent.Effort != "" {
 		entry.Effort = cfg.Agent.Effort
 	}
+	execProv, err := NewProvider(entry)
 	if err != nil {
 		return nil, err
 	}

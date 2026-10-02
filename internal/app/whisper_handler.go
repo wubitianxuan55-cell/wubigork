@@ -541,7 +541,8 @@ func (a *whisperState) whisperChatWithSearch(userMsg, personalityID, assistantNa
 	// 检测搜索意图（身份类问题除外——「你是谁/你会什么」问的是助手自己，
 	// 联网搜索只会注入无关网页摘要，模型把英文片段混进回复反而出乱码）
 	if !isIdentityQuestion(userMsg) && (forceSearch || shouldSearchWeb(userMsg)) {
-		slog.Info("[whisper] auto-search triggered", "msg", userMsg[:min(60, len(userMsg))])
+		// 预览按 rune 截断——字节切片会把多字节中文切成 mojibake 进日志（AP6-07）
+		slog.Info("[whisper] auto-search triggered", "msg", truncateRunes(userMsg, 60))
 		searchResult, err := whisper.WebSearch(userMsg)
 		if err == nil && searchResult != "" {
 			// 将搜索结果注入为增强的 userMsg

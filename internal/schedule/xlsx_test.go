@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/xuri/excelize/v2"
 )
@@ -402,5 +403,38 @@ func TestImportXlsxCustomBadNumber(t *testing.T) {
 	}
 	if v, ok := p.Tasks[2].Custom["num1"].(float64); !ok || v != 3.5 {
 		t.Errorf("「3.5」应解析为数值：%v", p.Tasks[2].Custom["num1"])
+	}
+}
+
+// TestTryParseUTCConvention IN3-05 回归锁：日期解析落 UTC 午夜（calendar.go
+// 同款模块语义），非 Local——Local 午夜在 UTC+8 折成前一日 16:00Z，与日历
+// 函数比较时整体偏移一天；解析/Format 同位往返，日期文本不受影响。
+func TestTryParseUTCConvention(t *testing.T) {
+	got, ok := tryParse("2026-01-05")
+	if !ok {
+		t.Fatal("「2026-01-05」应可解析")
+	}
+	if got.Location() != time.UTC {
+		t.Fatalf("解析应落 UTC，得到 %v", got.Location())
+	}
+	if y, m, d := got.Date(); y != 2026 || m != time.January || d != 5 {
+		t.Fatalf("日期字段漂移: %v", got)
+	}
+	// 带时间尾巴截断走 parseXlsxDate；全布局矩阵仍通
+	if t2, ok := parseXlsxDate("2026/1/5 08:00"); !ok || t2.Day() != 5 {
+		t.Errorf("带时间尾巴应截断解析为 1 月 5 日，得到 %v ok=%v", t2, ok)
+	}
+	for _, s := range []string{"2026年1月5日", "2026-1-5"} {
+		if t2, ok := tryParse(s); !ok || t2.Day() != 5 {
+			t.Errorf("%q 应解析为 1 月 5 日，得到 %v ok=%v", s, t2, ok)
+		}
+	}
+	// 本地午夜语义已废：任何时区设置下结果一致（确定性口径）
+	tl := time.Local
+	defer func() { time.Local = tl }()
+	time.Local = time.FixedZone("UTC+8", 8*3600)
+	got2, _ := tryParse("2026-01-05")
+	if got2.Compare(got) != 0 {
+		t.Fatalf("改 Local 不应影响解析结果: %v vs %v", got2, got)
 	}
 }

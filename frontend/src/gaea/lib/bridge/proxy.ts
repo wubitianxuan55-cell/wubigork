@@ -136,11 +136,21 @@ function invoke(method: string, fn: (...args: unknown[]) => unknown, args: unkno
 }
 
 // logFrontendError 上报错误到 gaea.log；日志通道不可用（dev mock 外未注入
-// 绑定）或自身失败时静默降级，绝不掩盖原始错误。
+// 绑定）或自身失败时静默降级，绝不掩盖原始错误。同步抛错也必须吞在本函数内
+// ——本函数运行在 invoke 的 catch 回调里，一旦抛出就会顶掉原始绑定错误
+//（调用方将拿到日志通道的异常而非真实失败原因，FE3-02）。
 function logFrontendError(message: string): void {
-  const lfe = app.LogFrontendError;
-  if (typeof lfe !== "function") return;
-  void Promise.resolve(lfe(message)).catch(() => {});
+  try {
+    const lfe = app.LogFrontendError;
+    if (typeof lfe !== "function") return;
+    // .then 包裹使 lfe 的同步抛错也落入 .catch，而非在 Promise.resolve 的
+    // 参数求值处直接炸穿本函数。
+    void Promise.resolve()
+      .then(() => lfe(message))
+      .catch(() => {});
+  } catch {
+    // 日志通道自身故障：静默降级。
+  }
 }
 
 /** 解析单个绑定：按方法名路由到 live binding 或 dev mock（无空间门控的通用解析）。 */

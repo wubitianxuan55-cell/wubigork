@@ -82,6 +82,29 @@ func TestEvaluatePathPolicy(t *testing.T) {
 	}
 }
 
+// TestNormalizePathEscapeStillGuarded IN4-08 防护属性钉死：normalizePath 只做
+// 词法消解不做 cwd 圈定（绝对路径是桌面操作合法输入），越界防护由
+// evaluatePathPolicy 对**解析后**路径施加——经 .. 从工作目录逃逸进 System32
+// 的写入必须仍被硬阻断（策略层看到的是 Clean 后的真实目标）。
+func TestNormalizePathEscapeStillGuarded(t *testing.T) {
+	escaped := normalizePath("..\\..\\..\\Windows\\System32\\evil.dll", "C:\\Users\\u\\docs")
+	if escaped != "C:\\Windows\\System32\\evil.dll" {
+		t.Fatalf(".. 逃逸应被 Clean 解析成绝对目标，得到 %q", escaped)
+	}
+	if strings.Contains(escaped, "..") {
+		t.Fatalf("解析后路径不得残留 ..：%q", escaped)
+	}
+	got := evaluatePathPolicy(ActionWriteText, escaped, "", "")
+	if got.OK || !strings.Contains(got.HardBlockReason, "系统目录") {
+		t.Errorf("经 .. 逃逸的 System32 写入应硬阻断: %+v", got)
+	}
+	// 相对形式直达策略层同样先解析后拦截（策略层入口即 normalizePath）
+	got = evaluatePathPolicy(ActionWriteText, "..\\..\\..\\Windows\\System32\\evil.dll", "", "C:\\Users\\u\\docs")
+	if got.OK || !strings.Contains(got.HardBlockReason, "系统目录") {
+		t.Errorf("相对 .. 逃逸写入应硬阻断: %+v", got)
+	}
+}
+
 func TestNormalizePath(t *testing.T) {
 	if got := normalizePath("C:\\a\\..\\b", ""); got != "C:\\b" {
 		t.Errorf("路径规范化错误: %q", got)
