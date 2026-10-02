@@ -100,7 +100,7 @@ func scenePrevMeta(sm *scene.Manager, sceneID string) *types.SceneMeta {
 // ctx 取消即停（整章流的取消语义）；extraPlan 为章计划区段（手动单场景路径
 // 传空=现状零变化）。
 func (a *writingState) generateSceneCore(ctx context.Context, pm *project.Manager, chapterNum int, sceneID, plotReq string, minWords int, prev *types.SceneMeta, extraPlan string) (*types.Scene, *novelstyle.RewriteReport, error) {
-	if a.client == nil {
+	if a.clientRef() == nil {
 		return nil, nil, fmt.Errorf("AI client not ready")
 	}
 	sm := pm.SceneManager(chapterNum)
@@ -139,7 +139,7 @@ func (a *writingState) generateSceneCore(ctx context.Context, pm *project.Manage
 	if reqCtx == nil {
 		reqCtx = context.Background()
 	}
-	reply, err := a.client.ChatSimpleStreamWithOptions(reqCtx, model, system, user, ai.ChatSimpleOptions{
+	reply, err := a.clientRef().ChatSimpleStreamWithOptions(reqCtx, model, system, user, ai.ChatSimpleOptions{
 		EngineID: eng, Feature: "novel", Temperature: 0.8, MaxTokens: 4096,
 	})
 	if err != nil {
@@ -178,7 +178,7 @@ func (a *writingState) NovelChapterScenesGenerate(chapterNum int, allowMissingCa
 	if pm == nil {
 		return nil, fmt.Errorf("请先打开项目")
 	}
-	if a.client == nil {
+	if a.clientRef() == nil {
 		return nil, fmt.Errorf("AI client not ready")
 	}
 	if chapterNum <= 0 {
@@ -373,7 +373,7 @@ func (a *writingState) NovelSceneRewrite(chapterNum int, sceneID string, instruc
 	if pm == nil {
 		return nil, fmt.Errorf("请先打开项目")
 	}
-	if a.client == nil {
+	if a.clientRef() == nil {
 		return nil, fmt.Errorf("AI client not ready")
 	}
 	if strings.TrimSpace(instruction) == "" {
@@ -429,7 +429,7 @@ func (a *writingState) NovelSceneRewrite(chapterNum int, sceneID string, instruc
 	}
 	ctx, cancel := context.WithTimeout(reqCtx, 10*time.Minute)
 	defer cancel()
-	reply, err := a.client.ChatSimpleStreamWithOptions(ctx, model, system, user, ai.ChatSimpleOptions{
+	reply, err := a.clientRef().ChatSimpleStreamWithOptions(ctx, model, system, user, ai.ChatSimpleOptions{
 		EngineID: eng, Feature: "novel", Temperature: 0.7, MaxTokens: 8192, TimeoutMinutes: 10,
 	})
 	if err != nil {
@@ -490,7 +490,7 @@ func (a *writingState) NovelSceneCardsPropose(chapterNum int) ([]map[string]inte
 	if pm == nil {
 		return nil, fmt.Errorf("请先打开项目")
 	}
-	if a.client == nil {
+	if a.clientRef() == nil {
 		return nil, fmt.Errorf("AI client not ready")
 	}
 
@@ -545,7 +545,7 @@ func (a *writingState) NovelSceneCardsPropose(chapterNum int) ([]map[string]inte
 	}
 	ctx, cancel := context.WithTimeout(propCtx, 5*time.Minute)
 	defer cancel()
-	reply, err := a.client.ChatSimpleStreamWithOptions(ctx, model, system, b.String(), ai.ChatSimpleOptions{
+	reply, err := a.clientRef().ChatSimpleStreamWithOptions(ctx, model, system, b.String(), ai.ChatSimpleOptions{
 		EngineID: eng, Feature: "novel", Temperature: 0.4, MaxTokens: 3000, TimeoutMinutes: 5,
 	})
 	if err != nil {

@@ -151,10 +151,10 @@ func (a *mediaState) CancelImageGeneration() bool {
 // 失败仅记录日志，不掩盖（context 取消已令轮询退出，中断失败意味着
 // ComfyUI 端任务会继续跑完，日志便于排查）。
 func (a *mediaState) interruptComfyUI() {
-	if a.cfg == nil || a.cfg.ImageBackend != "comfyui" || a.client == nil {
+	if a.cfg == nil || a.cfg.ImageBackend != "comfyui" || a.clientRef() == nil {
 		return
 	}
-	ib, ok := a.client.GetImageBackend().(interface{ Interrupt(context.Context) error })
+	ib, ok := a.clientRef().GetImageBackend().(interface{ Interrupt(context.Context) error })
 	if !ok {
 		slog.Warn("取消生成：当前图片后端不支持中断", "backend", a.cfg.ImageBackend)
 		return
@@ -169,10 +169,10 @@ func (a *mediaState) interruptComfyUI() {
 // resetComfyCancel 新一轮生成开始时清除 ComfyUI 本地取消标记（T6-4.1），
 // 保证取消后用户可正常发起新任务。
 func (a *mediaState) resetComfyCancel() {
-	if a.cfg == nil || a.cfg.ImageBackend != "comfyui" || a.client == nil {
+	if a.cfg == nil || a.cfg.ImageBackend != "comfyui" || a.clientRef() == nil {
 		return
 	}
-	if ib, ok := a.client.GetImageBackend().(interface{ ResetCancel() }); ok {
+	if ib, ok := a.clientRef().GetImageBackend().(interface{ ResetCancel() }); ok {
 		ib.ResetCancel()
 	}
 }
@@ -267,14 +267,14 @@ func (a *mediaState) generateFreeImageProvenanced(prompt string, negative string
 
 // generateImageInternal 统一图片生成实现（含 T2 参考槽透传）。
 func (a *mediaState) generateImageInternal(o imageGenInternal) (map[string]interface{}, error) {
-	if a.client == nil {
+	if a.clientRef() == nil {
 		return map[string]interface{}{"error": "AI 客户端未初始化，请先登录"}, nil
 	}
 	prompt, negative, size, style, model, seed, n, lora := o.prompt, o.negative, o.size, o.style, o.model, o.seed, o.n, o.lora
 	sourceBoard, saveDir := o.sourceBoard, o.saveDir
 	// 独立生图绑定（v4.388）：override 客户端非空走绑定后端，否则全局客户端；
 	// backendType 是本链生效后端（进度回调/尺寸参数/自动拉起分支的判定依据）。
-	client := a.client
+	client := a.clientRef()
 	backendType := a.cfg.ImageBackend
 	if o.clientOverride != nil {
 		client = o.clientOverride
@@ -451,7 +451,7 @@ type mediaGenParams struct {
 
 // GenerateMedia 多模式媒体生成：文生图 / 图生图 / 文生视频（供绘梦页使用）
 func (a *mediaState) GenerateMedia(paramsJSON string) (map[string]interface{}, error) {
-	if a.client == nil {
+	if a.clientRef() == nil {
 		return map[string]interface{}{"error": "AI 客户端未初始化，请先登录"}, nil
 	}
 	genCtx, cancel, genID := a.beginImageGen(a.ctx)
@@ -603,7 +603,7 @@ func (a *mediaState) GenerateMedia(paramsJSON string) (map[string]interface{}, e
 			imgReq.Size = ""
 		}
 		start := time.Now()
-		resp, err := a.client.GenerateImage(genCtx, imgReq)
+		resp, err := a.clientRef().GenerateImage(genCtx, imgReq)
 		elapsed := time.Since(start).Seconds()
 		if err != nil {
 			slog.Warn("媒体生成失败", "mode", mode, "attempt", i+1, "error", err)
@@ -746,8 +746,8 @@ func (a *mediaState) saveToNovelImages(imageData string, prompt string) string {
 
 // GetImageBackend 获取当前图片后端类型（供前端显示）
 func (a *mediaState) GetImageBackend() string {
-	if a.client != nil {
-		return a.client.GetImageBackendType()
+	if a.clientRef() != nil {
+		return a.clientRef().GetImageBackendType()
 	}
 	return "xai"
 }
@@ -841,7 +841,7 @@ func (a *App) SetSinImageConfig(backend, model string) error {
 
 // SetImageBackend 切换图片生成后端（供设置页调用）。
 func (a *mediaState) SetImageBackend(backend string, comfyUIURL string, imageModel string, imageSaveDir string) error {
-	if a.client == nil {
+	if a.clientRef() == nil {
 		return fmt.Errorf("AI 客户端未初始化")
 	}
 	// 设置图片保存目录
@@ -860,11 +860,11 @@ func (a *mediaState) SetImageBackend(backend string, comfyUIURL string, imageMod
 		if imageModel != "" {
 			a.cfg.ImageModel = imageModel
 		}
-		a.client.SetImageBackend(ai.NewComfyUIBackend(a.cfg.ComfyUIURL), "comfyui")
+		a.clientRef().SetImageBackend(ai.NewComfyUIBackend(a.cfg.ComfyUIURL), "comfyui")
 	case "xai":
 		a.cfg.ImageBackend = "xai"
 		a.cfg.ImageModel = "grok-imagine-image-quality" // 角色剧照默认高质量模型
-		a.client.SetImageBackend(nil, "xai")
+		a.clientRef().SetImageBackend(nil, "xai")
 	case "herdsman":
 		eng, ok := a.engineMgr.GetEngine("herdsman")
 		if !ok || !eng.Enabled {
@@ -874,7 +874,7 @@ func (a *mediaState) SetImageBackend(backend string, comfyUIURL string, imageMod
 		if imageModel != "" {
 			a.cfg.ImageModel = imageModel
 		}
-		a.client.SetImageBackend(ai.NewOpenAIImageBackend(eng.BaseURL, eng.APIKey), "herdsman")
+		a.clientRef().SetImageBackend(ai.NewOpenAIImageBackend(eng.BaseURL, eng.APIKey), "herdsman")
 	case "ollama":
 		eng, ok := a.engineMgr.GetEngine("ollama")
 		if !ok || !eng.Enabled {
@@ -884,7 +884,7 @@ func (a *mediaState) SetImageBackend(backend string, comfyUIURL string, imageMod
 		if imageModel != "" {
 			a.cfg.ImageModel = imageModel
 		}
-		a.client.SetImageBackend(ai.NewOpenAIImageBackend(eng.BaseURL, eng.APIKey), "ollama")
+		a.clientRef().SetImageBackend(ai.NewOpenAIImageBackend(eng.BaseURL, eng.APIKey), "ollama")
 	case "glm":
 		eng, ok := a.engineMgr.GetEngine("glm")
 		if !ok || !eng.Enabled {
@@ -898,7 +898,7 @@ func (a *mediaState) SetImageBackend(backend string, comfyUIURL string, imageMod
 		if imageModel != "" {
 			a.cfg.ImageModel = imageModel
 		}
-		a.client.SetImageBackend(ai.NewGLMImageBackend(eng.BaseURL, key), "glm")
+		a.clientRef().SetImageBackend(ai.NewGLMImageBackend(eng.BaseURL, key), "glm")
 	default:
 		return fmt.Errorf("不支持的后端: %s（支持 xai / comfyui / herdsman / ollama / glm）", backend)
 	}

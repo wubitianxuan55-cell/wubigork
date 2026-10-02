@@ -22,7 +22,7 @@ import (
 // Chat 实现 whisper.LlmClient 接口（接入 gaea 模型中心）
 func (a *whisperState) Chat(systemPrompt, userPrompt string) (string, error) {
 	eng, model, _ := a.routeModel("chat") // 2.x 聊天/轻语合并：统一走 chat 路由
-	return a.client.ChatSimpleStreamWithOptions(a.ctx, model, systemPrompt, userPrompt, ai.ChatSimpleOptions{EngineID: eng, Feature: "chat"})
+	return a.clientRef().ChatSimpleStreamWithOptions(a.ctx, model, systemPrompt, userPrompt, ai.ChatSimpleOptions{EngineID: eng, Feature: "chat"})
 }
 
 // GetEngineList 返回模型中心全部引擎 ID（轻语设置面板引擎选择器用）
@@ -206,7 +206,7 @@ func (a *whisperState) whisperChat(userMsg, personalityID, assistantName string,
 	// 「模型不可用」路径处理（与 v4.15 plain 聊天一致）。
 	engine, model, _ := a.routeModel("chat")
 	// per-call 引擎覆盖：不影响全局激活引擎，多会话并发安全
-	if a.client == nil {
+	if a.clientRef() == nil {
 		slog.Error("[whisper] client is nil")
 		return nil, fmt.Errorf("model client not initialized")
 	}
@@ -216,7 +216,7 @@ func (a *whisperState) whisperChat(userMsg, personalityID, assistantName string,
 	opts := ai.ChatSimpleOptions{EngineID: engine, Feature: "chat", EnableThinking: thinking}
 	systemPrompt = applyWhisperGuardrails(&opts, systemPrompt, orch.Preset, playGuardrails())
 	slog.Info("[whisper] calling LLM", "engine", engine, "model", model)
-	reply, reasoning, callErr := a.client.ChatSimpleStreamDetailed(a.ctx, model, systemPrompt, userMsg, opts)
+	reply, reasoning, callErr := a.clientRef().ChatSimpleStreamDetailed(a.ctx, model, systemPrompt, userMsg, opts)
 	if callErr != nil {
 		slog.Error("[whisper] LLM call failed", "error", callErr)
 		return nil, callErr
@@ -443,7 +443,7 @@ func (a *whisperState) WhisperGetEngine() string {
 			return orch.EngineID
 		}
 	}
-	return a.client.ActiveEngineID()
+	return a.clientRef().ActiveEngineID()
 }
 
 func (a *whisperState) WhisperSetModel(engineID, modelName string) error {

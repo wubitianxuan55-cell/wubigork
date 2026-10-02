@@ -158,7 +158,7 @@ func (a *writingState) NovelChapterConverge(chapterNum int, maxRounds int, targe
 	if pm == nil {
 		return nil, fmt.Errorf("请先打开项目")
 	}
-	if a.client == nil {
+	if a.clientRef() == nil {
 		return nil, fmt.Errorf("AI client not ready")
 	}
 	if maxRounds <= 0 {
@@ -347,7 +347,7 @@ func (a *writingState) convergeRewriteUnit(ctx context.Context, text, instructio
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	reply, err := a.client.ChatSimpleStreamWithOptions(ctx, model,
+	reply, err := a.clientRef().ChatSimpleStreamWithOptions(ctx, model,
 		tmpl.BuildSystemPrompt(""), tmpl.BuildUserPrompt(map[string]string{
 			"chapter_content":          text,
 			"modification_instruction": instruction + "\n（保持情节、人物与篇幅不变，只修文字层问题）",

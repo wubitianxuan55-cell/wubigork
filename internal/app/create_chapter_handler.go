@@ -42,7 +42,7 @@ func (a *writingState) CreateChapterWithOverride(setting, prevSummary, plotReq s
 // createChapter 章节生成实现：章号定号 → 写前硬闸（planPrecheck）→ 意图注入
 // （章节计划 + 大纲要点）→ 上下文增强 → 流式生成。
 func (a *writingState) createChapter(setting, prevSummary, plotReq string, chapterNum int, branchFromNodeID string, skillName string, minWords int, temperature float64, allowOverride bool) (map[string]interface{}, error) {
-	if a.client == nil {
+	if a.clientRef() == nil {
 		return nil, fmt.Errorf("AI client not ready")
 	}
 	_ = prevSummary // 参数弃用占位：摘要改由下方 buildPrevSummaryWindow 滑窗推导，保留签名稳定绑定面
@@ -558,7 +558,7 @@ func (a *writingState) streamCreateChapter(ctx context.Context, pm *project.Mana
 			Messages: []ai.ChatMessage{{Role: "system", Content: systemPrompt}, {Role: "user", Content: currentPrompt}},
 		}
 		applyChapterGuardrails(req, temperature, g)
-		chunks, err := a.client.ChatStream(ctx, req)
+		chunks, err := a.clientRef().ChatStream(ctx, req)
 		if err != nil {
 			// 连接建立阶段被取消（用户在流开始前点停止）：ChatStream 返回 ctx.Err()，
 			// 不能当「生成失败」报——与流读取循环里的取消分支等价，落盘已生成

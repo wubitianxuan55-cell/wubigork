@@ -9,8 +9,8 @@ package app
 //
 // 接收者说明：App 直接嵌入 *writingState（getPM/chapterAgent 提升）与 *core
 // （client/ctx 提升）；writingState.initAgents() 把 w.client 注入 chapter.New，
-// 因此 a.client 与 a.chapterAgent 内部 client 是同一 *ai.Client 实例，这里
-// 直接经 a.client.GenerateImage 构建书封专用 prompt（不新增 chapter 包方法）。
+// 因此 a.clientRef() 与 a.chapterAgent 内部 client 是同一 *ai.Client 实例，这里
+// 直接经 a.clientRef().GenerateImage 构建书封专用 prompt（不新增 chapter 包方法）。
 
 import (
 	"context"
@@ -116,7 +116,7 @@ func (a *App) GaeaGenerateBookCover(projectID, promptHint string) (string, error
 		N:      1,
 		Size:   "768x1024",
 	}
-	resp, err := a.client.GenerateImage(ctx, req)
+	resp, err := a.clientRef().GenerateImage(ctx, req)
 	if err != nil {
 		return "", fmt.Errorf("生成书封失败: %w", err)
 	}

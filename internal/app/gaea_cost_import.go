@@ -101,7 +101,7 @@ func (a *App) GaeaCostImportAIParse(path string) (CostImportPreview, error) {
 	if abs == "" {
 		return CostImportPreview{}, fmt.Errorf("文件不存在: %s", path)
 	}
-	if a.client == nil {
+	if a.clientRef() == nil {
 		return CostImportPreview{}, fmt.Errorf("模型服务不可用，请先配置办公功能模型")
 	}
 	columns, rows, err := costimport.RawTable(abs)

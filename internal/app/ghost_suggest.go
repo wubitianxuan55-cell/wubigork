@@ -23,7 +23,7 @@ const ghostContextRunes = 800
 // NovelGhostSuggest 场景编辑器内联续写建议：给光标前文本，返回 1~2 句接续。
 // 单发非流式；空建议返回错误（前端不弹框）。
 func (a *writingState) NovelGhostSuggest(textBefore string) (string, error) {
-	if a.client == nil {
+	if a.clientRef() == nil {
 		return "", fmt.Errorf("AI client not ready")
 	}
 	pm := a.getPM()
@@ -53,7 +53,7 @@ func (a *writingState) NovelGhostSuggest(textBefore string) (string, error) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-	reply, err := a.client.ChatSimpleStreamWithOptions(ctx, model, system, user, ai.ChatSimpleOptions{
+	reply, err := a.clientRef().ChatSimpleStreamWithOptions(ctx, model, system, user, ai.ChatSimpleOptions{
 		EngineID: eng, Feature: "novel", Temperature: 0.7, MaxTokens: 160, TimeoutMinutes: 1,
 	})
 	if err != nil {

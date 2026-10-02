@@ -16,15 +16,15 @@ import (
 
 // configureClient 配置 AI client 的事件回调和引擎管理器（每次重建 client 后调用）
 func (a *App) configureClient() {
-	a.client.OnEvent = func(eventType string, data map[string]interface{}) {
+	a.clientRef().OnEvent = func(eventType string, data map[string]interface{}) {
 		data["type"] = eventType
 		a.emit("xai-output", data)
 	}
 	// C 刀故障转移 v0：开关读取函数注入（照 engineMgr 注入先例，避免逐请求读
 	// config）+ 转移事件回调接线（emit model-failover）。放在 configureClient
 	// 使 Login 重建 client 后接线自动恢复。
-	a.client.SetEngineFailoverFunc(a.cfg.GetEngineFailover)
-	a.client.OnFailover = func(fromEngine, toEngine, model string) {
+	a.clientRef().SetEngineFailoverFunc(a.cfg.GetEngineFailover)
+	a.clientRef().OnFailover = func(fromEngine, toEngine, model string) {
 		a.emit("model-failover", map[string]interface{}{
 			"from_engine": fromEngine, "to_engine": toEngine, "model": model,
 		})
@@ -33,12 +33,12 @@ func (a *App) configureClient() {
 	// 依赖 bridge 注入的 ai.LLMClient。此前只在 GaeaInit（办公引擎懒初始化）
 	// 注入，用户未进过办公板块直接导入 PDF 点 AI 解析会报
 	// "bridge: ai.LLMClient 未注入"。这里在每次 client 创建/重建后统一注入。
-	bridge.SetClient(a.client)
+	bridge.SetClient(a.clientRef())
 	if a.engineMgr != nil {
-		a.client.SetEngineManager(a.engineMgr)
+		a.clientRef().SetEngineManager(a.engineMgr)
 		// 恢复活跃引擎设置
 		if a.cfg.ActiveEngineID != "" {
-			a.client.SetActiveEngine(a.cfg.ActiveEngineID)
+			a.clientRef().SetActiveEngine(a.cfg.ActiveEngineID)
 		}
 	}
 }
@@ -73,7 +73,7 @@ func (a *App) Login() error {
 			return
 		}
 		// 重新初始化 client
-		a.client = ai.NewClient(a.cfg)
+		a.setClient(ai.NewClient(a.cfg))
 		a.configureClient()
 		// 恢复图片生成后端配置
 		a.initImageBackend()
@@ -100,7 +100,7 @@ func (a *App) Login() error {
 
 // GetLoginStatus 返回是否已登录
 func (a *App) GetLoginStatus() bool {
-	return a.client.EnsureToken() == nil
+	return a.clientRef().EnsureToken() == nil
 }
 
 // SaveToken 手动保存 token（移动端使用 — 接受完整的 token JSON 字符串）
@@ -118,7 +118,7 @@ func (a *App) SaveToken(rawJSON string) error {
 		return fmt.Errorf("保存 token 失败: %w", err)
 	}
 	// 重新初始化 client
-	a.client = ai.NewClient(a.cfg)
+	a.setClient(ai.NewClient(a.cfg))
 	a.configureClient()
 	a.initImageBackend()
 	// 更新 xAI key
@@ -134,7 +134,7 @@ func (a *App) Logout() error {
 	if err := store.Delete(); err != nil {
 		return fmt.Errorf("清除 token 失败: %w", err)
 	}
-	a.client = ai.NewClient(a.cfg)
+	a.setClient(ai.NewClient(a.cfg))
 	a.configureClient()
 	a.initImageBackend()
 	return nil

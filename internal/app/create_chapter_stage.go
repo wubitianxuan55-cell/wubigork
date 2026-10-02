@@ -168,7 +168,7 @@ func (a *writingState) stageRecapSection(pm *project.Manager, chapterNum int) st
 // synthesizeStageRecap 用 LLM 把逐章摘要合成三段式阶段复盘；任何失败返回空串
 // （调用方回落逐章摘要清单），绝不阻断章节生成。
 func (a *writingState) synthesizeStageRecap(start, end int, digest string) string {
-	if a.client == nil || a.eng == nil || a.ctx == nil {
+	if a.clientRef() == nil || a.eng == nil || a.ctx == nil {
 		return ""
 	}
 	tmpl := a.eng.Get("stage-recap")
@@ -181,7 +181,7 @@ func (a *writingState) synthesizeStageRecap(start, end int, digest string) strin
 		"stage_range":     fmt.Sprintf("第%d~%d章", start, end),
 		"chapter_digests": digest,
 	})
-	reply, err := a.client.ChatSimpleStreamWithOptions(a.ctx, model, sys, user, ai.ChatSimpleOptions{
+	reply, err := a.clientRef().ChatSimpleStreamWithOptions(a.ctx, model, sys, user, ai.ChatSimpleOptions{
 		EngineID: eng, Feature: "novel", Temperature: 0.3, MaxTokens: 700,
 	})
 	if err != nil {

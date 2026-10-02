@@ -74,7 +74,7 @@ func (a *writingState) RewriteChapterAiTaste(chapterNum int) (map[string]interfa
 	if pm == nil {
 		return nil, fmt.Errorf("请先打开项目")
 	}
-	if a.client == nil {
+	if a.clientRef() == nil {
 		return nil, fmt.Errorf("AI client not ready")
 	}
 
@@ -210,7 +210,7 @@ func (a *writingState) llmRewriteSentences(ctx context.Context, chapterNum int, 
 	if model == "" {
 		return nil, fmt.Errorf("未找到可用模型（可能离线）")
 	}
-	reply, err := a.client.ChatSimpleStreamWithOptions(ctx, model, system, user, ai.ChatSimpleOptions{
+	reply, err := a.clientRef().ChatSimpleStreamWithOptions(ctx, model, system, user, ai.ChatSimpleOptions{
 		EngineID: eng, Feature: "novel", Temperature: 0.7, MaxTokens: 2048,
 	})
 	if err != nil {

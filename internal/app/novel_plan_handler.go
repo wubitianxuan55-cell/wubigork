@@ -167,7 +167,7 @@ func (a *writingState) NovelChapterPlanPropose(chapterNum int, direction string)
 	if pm == nil {
 		return nil, fmt.Errorf("请先打开项目")
 	}
-	if a.client == nil {
+	if a.clientRef() == nil {
 		return nil, fmt.Errorf("AI 客户端未就绪：请先在「模型中心」配置可用引擎，再生成计划草案")
 	}
 
@@ -224,7 +224,7 @@ func (a *writingState) NovelChapterPlanPropose(chapterNum int, direction string)
 	// 计划草案是短 JSON（数百 token），不套 play 域 max_output_tokens 护栏：
 	// 护栏语义是「play 内容钳制」，与结构性产物无关。
 	opts := ai.ChatSimpleOptions{EngineID: eng, Feature: "novel"}
-	reply, err := a.client.ChatSimpleStreamWithOptions(a.ctx, model, systemPrompt, userPrompt, opts)
+	reply, err := a.clientRef().ChatSimpleStreamWithOptions(a.ctx, model, systemPrompt, userPrompt, opts)
 	if err != nil {
 		return nil, fmt.Errorf("计划草案生成失败（模型不可用或超时）：%w", err)
 	}

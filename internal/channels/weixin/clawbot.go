@@ -1123,9 +1123,19 @@ func genClientID() string {
 	return fmt.Sprintf("gaea-weixin:%d-%s", ts, hex)
 }
 
+// clientIDFallbackSeq 随机源不可用时的进程内唯一序号（client_id/fileKey 的
+// 第一要求是唯一而非保密）。
+var clientIDFallbackSeq atomic.Uint64
+
 func randomHex(n int) string {
 	b := make([]byte, n)
-	rand.Read(b)
+	if _, err := rand.Read(b); err != nil {
+		// 审计 P1 AP6-08：crypto/rand 失败被吞会产出全零 hex——clientID 冲突
+		// 会话互踢、fileKey 撞车覆盖。时间+进程内序号兜底保证唯一，并留痕。
+		slog.Error("crypto/rand 读取失败，降级时间+序号（唯一性不受影响）", "error", err)
+		seq := clientIDFallbackSeq.Add(1)
+		return fmt.Sprintf("%0*x", n*2, seq|uint64(time.Now().UnixNano()<<20))
+	}
 	return fmt.Sprintf("%x", b)
 }
 

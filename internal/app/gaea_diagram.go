@@ -105,7 +105,7 @@ func (t diagramTool) Execute(ctx context.Context, args json.RawMessage) (string,
 	}
 	b.WriteString("\n只输出 Mermaid 代码：以 ```mermaid 开头、``` 结尾，不要输出任何解释文字。")
 
-	reply, err := t.a.client.ChatSimpleStreamWithOptions(ctx, "", systemPrompt, b.String(), ai.ChatSimpleOptions{Temperature: 0.4})
+	reply, err := t.a.clientRef().ChatSimpleStreamWithOptions(ctx, "", systemPrompt, b.String(), ai.ChatSimpleOptions{Temperature: 0.4})
 	if err != nil {
 		return "", fmt.Errorf("生成图表失败: %w", err)
 	}
@@ -127,7 +127,7 @@ func (t diagramTool) Execute(ctx context.Context, args json.RawMessage) (string,
 // GenerateDiagram 绘梦「流程图/框架图」模式：LLM 直接生成 Mermaid 代码，
 // 由前端渲染为 PNG 图片。走代码渲染而非 Z-Image-Turbo 生图，中文标签天然清晰。
 func (a *mediaState) GenerateDiagram(prompt string) (map[string]interface{}, error) {
-	if a.core == nil || a.client == nil {
+	if a.core == nil || a.clientRef() == nil {
 		return map[string]interface{}{"error": "AI 客户端未初始化，请先登录"}, nil
 	}
 	userPrompt := strings.TrimSpace(prompt)
@@ -143,7 +143,7 @@ func (a *mediaState) GenerateDiagram(prompt string) (map[string]interface{}, err
 		"确保 Mermaid 语法正确，不生成 Mermaid 不支持的内容。"
 	userMsg := fmt.Sprintf("请根据以下描述生成 Mermaid 图表代码：\n%s\n\n只输出 Mermaid 代码：以 ```mermaid 开头、``` 结尾，不要输出任何解释文字。", userPrompt)
 
-	reply, err := a.client.ChatSimpleStreamWithOptions(a.ctx, "", systemPrompt, userMsg, ai.ChatSimpleOptions{Temperature: 0.4})
+	reply, err := a.clientRef().ChatSimpleStreamWithOptions(a.ctx, "", systemPrompt, userMsg, ai.ChatSimpleOptions{Temperature: 0.4})
 	if err != nil {
 		return map[string]interface{}{"error": fmt.Sprintf("生成图表代码失败: %v", err)}, nil
 	}

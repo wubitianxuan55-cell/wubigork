@@ -26,7 +26,7 @@ import (
 
 // classifyIntentFallback 规则未命中时的兜底入口；返回 nil = 走原聊天管道。
 func (a *App) classifyIntentFallback(text string) *intent.Intent {
-	if a == nil || a.core == nil || a.cfg == nil || a.client == nil {
+	if a == nil || a.core == nil || a.cfg == nil || a.clientRef() == nil {
 		return nil
 	}
 	if !a.cfg.GetIntentsLLMFallback() {
@@ -72,7 +72,7 @@ func (a *App) classifyIntentWithLLM(text string) *intent.Intent {
 	ctx, cancel := context.WithTimeout(ctx, time.Duration(ms)*time.Millisecond)
 	defer cancel()
 
-	reply, err := a.client.ChatSimpleStreamWithOptions(ctx, model,
+	reply, err := a.clientRef().ChatSimpleStreamWithOptions(ctx, model,
 		sysPrompt, "用户输入："+text, ai.ChatSimpleOptions{
 			EngineID:       engine,
 			Feature:        "routine",

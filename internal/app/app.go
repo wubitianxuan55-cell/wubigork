@@ -59,6 +59,12 @@ type core struct {
 	cfg    *config.Config
 	client *ai.Client
 
+	// clientMu 守护 client 指针的换入换出（审计 P1 AP8-01）：Login/重建链在
+	// goroutine 里整体替换 client，而 30+ 生成链在各自 goroutine 读它——裸
+	// 字段读写是数据竞争（两枚 client 并存时流式回复可能用旧凭证）。生产码
+	// 一律经 clientRef()/setClient()；测试构造可直接填字段（同包、无并发）。
+	clientMu sync.RWMutex
+
 	// 模型引擎管理器
 	engineMgr *modelengine.Manager
 
@@ -288,6 +294,21 @@ type App struct {
 	intentClassifierFn func(text string) *intent.Intent
 }
 
+// clientRef 读当前 AI client（审计 P1 AP8-01：读侧统一走读锁快照；并发换入
+// 时拿到的是完整的新或旧实例，绝不撕裂）。
+func (c *core) clientRef() *ai.Client {
+	c.clientMu.RLock()
+	defer c.clientMu.RUnlock()
+	return c.client
+}
+
+// setClient 整体换入 AI client（Login/引擎重建链唯一写入口）。
+func (c *core) setClient(c2 *ai.Client) {
+	c.clientMu.Lock()
+	c.client = c2
+	c.clientMu.Unlock()
+}
+
 // emit 统一事件发射 — 发送到 Wails 前端。定义在 core 上，
 // 子服务内嵌 core 后直接可用（App 经嵌入也获得该方法）。
 func (c *core) emit(eventName string, data map[string]interface{}) {
@@ -390,8 +411,8 @@ func (a *App) Startup(ctx context.Context) {
 	// 新——HTTP 桥接在 OnStartup 前已开始服务，窗口内请求拿到的是未挂
 	// engineMgr/OnEvent 的旧实例；复用后同一实例贯穿进程生命周期，下方
 	// configureClient 统一接线。Login 重建路径不变）。token 由 GetToken 懒加载。
-	if a.client == nil {
-		a.client = ai.NewClient(a.cfg)
+	if a.clientRef() == nil {
+		a.setClient(ai.NewClient(a.cfg))
 	}
 
 	// 密钥保护：旧版明文一次性迁移为 DPAPI 密文，再解密供内存使用
@@ -611,21 +632,21 @@ func (a *App) initImageBackend() {
 	case "comfyui":
 		if a.cfg.ComfyUIURL != "" {
 			backend := ai.NewComfyUIBackend(a.cfg.ComfyUIURL)
-			a.client.SetImageBackend(backend, "comfyui")
+			a.clientRef().SetImageBackend(backend, "comfyui")
 			slog.Info("图片后端: ComfyUI", "url", a.cfg.ComfyUIURL)
 		}
 	case "herdsman":
 		eng, ok := a.engineMgr.GetEngine("herdsman")
 		if ok && eng.Enabled {
 			backend := ai.NewOpenAIImageBackend(eng.BaseURL, eng.APIKey)
-			a.client.SetImageBackend(backend, "herdsman")
+			a.clientRef().SetImageBackend(backend, "herdsman")
 			slog.Info("图片后端: Herdsman", "url", eng.BaseURL)
 		}
 	case "ollama":
 		eng, ok := a.engineMgr.GetEngine("ollama")
 		if ok && eng.Enabled {
 			backend := ai.NewOpenAIImageBackend(eng.BaseURL, eng.APIKey)
-			a.client.SetImageBackend(backend, "ollama")
+			a.clientRef().SetImageBackend(backend, "ollama")
 			slog.Info("图片后端: Ollama", "url", eng.BaseURL)
 		}
 	case "glm":
@@ -633,14 +654,14 @@ func (a *App) initImageBackend() {
 		key := a.engineMgr.GLMKey()
 		if ok && eng.Enabled && key != "" {
 			backend := ai.NewGLMImageBackend(eng.BaseURL, key)
-			a.client.SetImageBackend(backend, "glm")
+			a.clientRef().SetImageBackend(backend, "glm")
 			slog.Info("图片后端: GLM", "url", eng.BaseURL)
 		} else {
-			a.client.SetImageBackend(nil, "xai")
+			a.clientRef().SetImageBackend(nil, "xai")
 			slog.Warn("图片后端: GLM 不可用（引擎未启用或 Key 未配置），回退 xAI")
 		}
 	default: // "xai" 或空
-		a.client.SetImageBackend(nil, "xai")
+		a.clientRef().SetImageBackend(nil, "xai")
 		slog.Info("图片后端: xAI")
 	}
 }

@@ -165,7 +165,7 @@ func (a *App) GaeaSkillDraftFromSession() (SkillRecordResult, error) {
 	if tmpl == nil {
 		return SkillRecordResult{}, fmt.Errorf("缺少 skill-from-session 模板文件")
 	}
-	if a.client == nil {
+	if a.clientRef() == nil {
 		return SkillRecordResult{}, fmt.Errorf("ai client unavailable")
 	}
 	engID, model, _ := a.routeOfficeLocal("office")
@@ -174,7 +174,7 @@ func (a *App) GaeaSkillDraftFromSession() (SkillRecordResult, error) {
 		ctx = context.Background()
 	}
 	caller := func(ctx context.Context, sys, usr string) (string, error) {
-		return a.client.ChatSimpleStreamWithOptions(ctx, model, sys, usr,
+		return a.clientRef().ChatSimpleStreamWithOptions(ctx, model, sys, usr,
 			ai.ChatSimpleOptions{EngineID: engID, Feature: "office", Temperature: 0.2, MaxTokens: 1500, TimeoutMinutes: 3})
 	}
 	system := tmpl.BuildSystemPrompt("")

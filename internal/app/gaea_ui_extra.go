@@ -257,7 +257,7 @@ func (a *App) GaeaLogoutProvider(name string) error {
 	if a.engineMgr != nil {
 		a.engineMgr.UpdateXAIKey("")
 	}
-	a.client = ai.NewClient(a.cfg)
+	a.setClient(ai.NewClient(a.cfg))
 	a.configureClient()
 	return nil
 }

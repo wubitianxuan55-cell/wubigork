@@ -34,7 +34,7 @@ func (a *writingState) NovelChapterRewrite(chapterNum int, reqJSON string) (map[
 	if pm == nil {
 		return nil, fmt.Errorf("请先打开项目")
 	}
-	if a.client == nil {
+	if a.clientRef() == nil {
 		return nil, fmt.Errorf("AI client not ready")
 	}
 	if chapterNum <= 0 {
@@ -99,7 +99,7 @@ func (a *writingState) NovelChapterRewrite(chapterNum int, reqJSON string) (map[
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
-	raw, err := a.client.ChatSimpleStreamWithOptions(ctx, model, systemPrompt, userPrompt, ai.ChatSimpleOptions{
+	raw, err := a.clientRef().ChatSimpleStreamWithOptions(ctx, model, systemPrompt, userPrompt, ai.ChatSimpleOptions{
 		EngineID: eng, Feature: "novel", Temperature: 0.7, MaxTokens: 8192, TimeoutMinutes: 10,
 	})
 	if err != nil {
@@ -217,7 +217,7 @@ func (a *writingState) novelChapterRewritePartial(pm *project.Manager, chapterNu
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
 	// MaxTokens 按 spec 计算（whole 固定 8192 不动，仅本分支）
-	raw, err := a.client.ChatSimpleStreamWithOptions(ctx, model, systemPrompt, userPrompt, ai.ChatSimpleOptions{
+	raw, err := a.clientRef().ChatSimpleStreamWithOptions(ctx, model, systemPrompt, userPrompt, ai.ChatSimpleOptions{
 		EngineID: eng, Feature: "novel", Temperature: 0.7, MaxTokens: rewrite.PartialMaxTokens(spec), TimeoutMinutes: 10,
 	})
 	if err != nil {

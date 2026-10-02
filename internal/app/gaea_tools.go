@@ -99,7 +99,7 @@ func (t imageGenTool) Execute(ctx context.Context, args json.RawMessage) (string
 	if t.a.cfg.ImageBackend != ai.ImageBackendKindComfyUI {
 		req.Size = ""
 	}
-	resp, err := t.a.client.GenerateImage(ctx, req)
+	resp, err := t.a.clientRef().GenerateImage(ctx, req)
 	if err != nil {
 		return "", fmt.Errorf("生图失败: %w", err)
 	}

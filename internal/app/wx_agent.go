@@ -147,7 +147,7 @@ const wxAgentFallbackSystemPrompt = "你是用户的桌面 AI 助手 gaea，正�
 // 模型在目录中 Caps 含 "tools"。任一不满足返回 false（调用方降级 routeIntent
 // 老路——快路径语义保留，零回归）。
 func wxAgentAvailable(a *App) bool {
-	if a == nil || a.core == nil || a.cfg == nil || a.client == nil || a.engineMgr == nil {
+	if a == nil || a.core == nil || a.cfg == nil || a.clientRef() == nil || a.engineMgr == nil {
 		return false
 	}
 	if a.GetOfflineMode() {
@@ -189,7 +189,7 @@ func wxModelCaps(e *modelengine.EngineConfig, model string) []string {
 // 返回 cards：工具产物绝对路径（生成图片/改图产物/最新产物文件），调用侧逐张
 // SendFileCard 回推；模型侧只拿到路径文本。
 func runWxAgent(a *App, assistantID, systemPrompt, userMsg string) (reply string, cards []string, err error) {
-	if a == nil || a.client == nil {
+	if a == nil || a.clientRef() == nil {
 		return "", nil, errors.New("模型客户端未初始化")
 	}
 	engine, model, _ := a.routeModel("chat")
@@ -220,7 +220,7 @@ func runWxAgent(a *App, assistantID, systemPrompt, userMsg string) (reply string
 			MaxTokens:   4096,
 			Temperature: 0.7, // 与 ChatSimple 客户端缺省一致
 		}
-		chunks, cerr := a.client.ChatStream(ctx, req)
+		chunks, cerr := a.clientRef().ChatStream(ctx, req)
 		if cerr != nil {
 			return "", cards, cerr
 		}

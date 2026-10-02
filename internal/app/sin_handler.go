@@ -244,7 +244,7 @@ func (a *App) SinStream(topicID, message string) (string, error) {
 	if strings.TrimSpace(message) == "" {
 		return "", fmt.Errorf("故事指令不能为空")
 	}
-	if a.client == nil {
+	if a.clientRef() == nil {
 		return "", fmt.Errorf("AI 客户端未初始化")
 	}
 	eng, model, source := a.routeModel("sin")

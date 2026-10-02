@@ -444,7 +444,7 @@ func deepTruncateChapter(s string) string {
 // 单章失败跳过不中断整体；全部失败时返回空卡片 + 失败原因。
 func (a *writingState) deepExtractCards(pm *project.Manager, maxChapters int) ([]*deepStateCard, int, []string) {
 	var notes []string
-	if a.client == nil {
+	if a.clientRef() == nil {
 		return nil, 0, []string{"AI 客户端未初始化，仅显示规则检查结果"}
 	}
 
@@ -467,7 +467,7 @@ func (a *writingState) deepExtractCards(pm *project.Manager, maxChapters int) ([
 		ctx = context.Background()
 	}
 	caller := func(ctx context.Context, sys, usr string) (string, error) {
-		return a.client.ChatSimpleStreamWithOptions(ctx, model, sys, usr, ai.ChatSimpleOptions{
+		return a.clientRef().ChatSimpleStreamWithOptions(ctx, model, sys, usr, ai.ChatSimpleOptions{
 			EngineID:    eng,
 			Feature:     "novel",
 			Temperature: 0.2, // 提取任务：低温度保稳定

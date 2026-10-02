@@ -269,14 +269,14 @@ func (a *mediaState) ttsStreamingProviders() []tts.TTSProvider {
 	}
 
 	// 0.5 xAI Grok TTS（若全局语音模型选择了 xAI，流式朗读优先走云端）
-	if a.activeTTSEngine == "xai" && a.activeTTSModel == "grok-tts" && a.client != nil && a.engineMgr != nil {
+	if a.activeTTSEngine == "xai" && a.activeTTSModel == "grok-tts" && a.clientRef() != nil && a.engineMgr != nil {
 		if xaiEng, ok := a.engineMgr.GetEngine("xai"); ok && xaiEng.Enabled {
 			voice := strings.TrimSpace(a.activeTTSVoice)
 			if !tts.IsXaiVoice(voice) {
 				voice = "eve"
 			}
 			if p, err := tts.NewTTSProvider("xai", tts.TTSConfig{
-				BaseURL: xaiEng.BaseURL, Voice: voice, GetToken: a.client.GetToken,
+				BaseURL: xaiEng.BaseURL, Voice: voice, GetToken: a.clientRef().GetToken,
 			}); err == nil {
 				providers = append(providers, p)
 			}

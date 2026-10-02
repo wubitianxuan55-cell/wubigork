@@ -313,13 +313,13 @@ func (a *App) runModelHubPreload() {
 	if !modelHubPreloadArmed.Load() {
 		return
 	}
-	if a == nil || a.cfg == nil || a.engineMgr == nil || a.client == nil {
+	if a == nil || a.cfg == nil || a.engineMgr == nil || a.clientRef() == nil {
 		return
 	}
 	if !a.cfg.GetAutoPreload() {
 		return // 与 herdsman 预载同一总闸：用户关掉启动预载时不该被 modelhub 绕过
 	}
-	if a.client.ActiveEngineID() != "modelhub" {
+	if a.clientRef().ActiveEngineID() != "modelhub" {
 		return
 	}
 	engine, ok := a.engineMgr.GetEngine("modelhub")

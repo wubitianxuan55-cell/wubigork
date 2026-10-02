@@ -193,10 +193,10 @@ func (a *App) translateOne(ctx context.Context, engine, model string, found bool
 	if found {
 		return callHerdsmanTranslate(ctx, a.herdsmanBaseURL(), model, translateSystemPrompt, prompt)
 	}
-	if a.client == nil {
+	if a.clientRef() == nil {
 		return "", errors.New("未安装翻译模型（Hunyuan-MT / Hy-MT），且办公模型不可用；请先在模型库下载翻译模型")
 	}
-	return a.client.ChatSimpleStreamWithOptions(ctx, model, translateSystemPrompt, prompt, ai.ChatSimpleOptions{
+	return a.clientRef().ChatSimpleStreamWithOptions(ctx, model, translateSystemPrompt, prompt, ai.ChatSimpleOptions{
 		EngineID:       engine,
 		Feature:        "routine", // 回退链走 resolveRoutineTarget（常规办公绑定）
 		Temperature:    0.3,
@@ -226,7 +226,7 @@ func (a *App) localTranslate(ctx context.Context, req LocalTranslateRequest) (Lo
 	usedFallback := !found
 	if !found {
 		// 未装翻译模型：回退常规办公模型（解析一次，供全部段落复用）。
-		if a.client == nil {
+		if a.clientRef() == nil {
 			return LocalTranslateResult{}, errors.New("未安装翻译模型（Hunyuan-MT / Hy-MT），且办公模型不可用；请先在模型库下载翻译模型")
 		}
 		engine, model, err = a.resolveRoutineTarget("", "")

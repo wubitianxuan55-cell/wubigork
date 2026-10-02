@@ -52,7 +52,7 @@ func (t routineLLMTool) CompactSchema() json.RawMessage {
 }
 
 func (t routineLLMTool) Execute(ctx context.Context, args json.RawMessage) (string, error) {
-	if t.a == nil || t.a.client == nil {
+	if t.a == nil || t.a.clientRef() == nil {
 		return "", fmt.Errorf("routine_llm: 模型服务不可用")
 	}
 	var p struct {
@@ -78,7 +78,7 @@ func (t routineLLMTool) Execute(ctx context.Context, args json.RawMessage) (stri
 	if temperature <= 0 {
 		temperature = 0.3
 	}
-	reply, err := t.a.client.ChatSimpleStreamWithOptions(ctx, model, p.System, p.Prompt, ai.ChatSimpleOptions{
+	reply, err := t.a.clientRef().ChatSimpleStreamWithOptions(ctx, model, p.System, p.Prompt, ai.ChatSimpleOptions{
 		EngineID:       engine,
 		Feature:        "routine",
 		Temperature:    temperature,

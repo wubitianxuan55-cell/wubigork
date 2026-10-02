@@ -32,7 +32,7 @@ func (a *writingState) GenerateProjectProtagonistRelations(mode, name string) (m
 	if pm == nil {
 		return nil, fmt.Errorf("请先打开项目")
 	}
-	if a.client == nil {
+	if a.clientRef() == nil {
 		return nil, fmt.Errorf("AI 客户端未初始化")
 	}
 	if a.eng == nil {
@@ -129,7 +129,7 @@ func (a *writingState) GenerateProjectProtagonistRelations(mode, name string) (m
 			"used_relations": strings.Join(used, "、"),
 			"worldview":      util.Truncate(worldview, 1200),
 		})
-		reply, err := a.client.ChatSimpleStreamWithOptions(a.ctx, model, systemPrompt, userPrompt, ai.ChatSimpleOptions{
+		reply, err := a.clientRef().ChatSimpleStreamWithOptions(a.ctx, model, systemPrompt, userPrompt, ai.ChatSimpleOptions{
 			EngineID:    eng,
 			Feature:     "novel",
 			Temperature: clampPlayTemperature(0.85, g.TemperatureMax),

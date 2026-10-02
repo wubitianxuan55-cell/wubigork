@@ -64,13 +64,13 @@ func searchFallbackMessage(message string) string {
 }
 
 func (a *App) chatSendPlain(topicID, message string, searchEnabled, thinking, forceSearch bool) (map[string]interface{}, error) {
-	if a.client == nil {
+	if a.clientRef() == nil {
 		return nil, fmt.Errorf("AI 客户端未初始化")
 	}
 	userMessage := message
 	promptMessage := a.preparePlainChatMessage(message, searchEnabled, forceSearch)
 	eng, model, source := a.routeModel("chat")
-	reply, reasoning, err := a.client.ChatSimpleStreamDetailed(a.ctx, model,
+	reply, reasoning, err := a.clientRef().ChatSimpleStreamDetailed(a.ctx, model,
 		chatPlainSystemPrompt, promptMessage, ai.ChatSimpleOptions{EngineID: eng, Feature: "chat", EnableThinking: thinking})
 	if err != nil {
 		return nil, err
@@ -113,7 +113,7 @@ func (a *App) ChatStreamPlain(topicID, message string, searchEnabled, thinking, 
 	if topicID == "" {
 		return "", fmt.Errorf("话题 ID 不能为空")
 	}
-	if a.client == nil {
+	if a.clientRef() == nil {
 		return "", fmt.Errorf("AI 客户端未初始化")
 	}
 	eng, model, source := a.routeModel("chat")
@@ -171,7 +171,7 @@ func (a *App) runChatStreamPlain(ctx context.Context, runID, topicID, userMessag
 	}()
 
 	promptMessage := a.preparePlainChatMessage(userMessage, searchEnabled, forceSearch)
-	chunks, cancel, err := a.client.ChatStreamChunks(ctx, model, chatPlainSystemPrompt, promptMessage,
+	chunks, cancel, err := a.clientRef().ChatStreamChunks(ctx, model, chatPlainSystemPrompt, promptMessage,
 		ai.ChatSimpleOptions{EngineID: eng, Feature: "chat", EnableThinking: thinking})
 	if err != nil {
 		a.emit("chat-stream:"+runID, map[string]interface{}{"type": "error", "error": err.Error()})

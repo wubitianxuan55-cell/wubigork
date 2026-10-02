@@ -351,7 +351,7 @@ func (a *writingState) NovelStorySpinePropose() (map[string]interface{}, error) 
 	if pm == nil {
 		return nil, fmt.Errorf("请先打开项目")
 	}
-	if a.client == nil {
+	if a.clientRef() == nil {
 		return nil, fmt.Errorf("AI client not ready")
 	}
 	thread := ""
@@ -394,7 +394,7 @@ func (a *writingState) NovelStorySpinePropose() (map[string]interface{}, error) 
 	}
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 	defer cancel()
-	reply, err := a.client.ChatSimpleStreamWithOptions(ctx, model, system, sb.String(), ai.ChatSimpleOptions{
+	reply, err := a.clientRef().ChatSimpleStreamWithOptions(ctx, model, system, sb.String(), ai.ChatSimpleOptions{
 		EngineID: eng, Feature: "novel", Temperature: 0.4, MaxTokens: 3500, TimeoutMinutes: 5,
 	})
 	if err != nil {

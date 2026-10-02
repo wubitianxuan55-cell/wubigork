@@ -183,7 +183,7 @@ func (a *App) CharacterFillAll() (map[string]interface{}, error) {
 	if a.charLib == nil {
 		return nil, fmt.Errorf("角色库未初始化")
 	}
-	if a.client == nil || a.eng == nil {
+	if a.clientRef() == nil || a.eng == nil {
 		return nil, fmt.Errorf("AI 客户端未初始化")
 	}
 	all, _, err := a.charLib.List("", "", false, 100000, 0)
@@ -295,7 +295,7 @@ func (a *App) characterGenerate(chJSON, mode string, targets []string) (string, 
 	if strings.TrimSpace(name) == "" {
 		return "", fmt.Errorf("角色名称不能为空")
 	}
-	if a.client == nil {
+	if a.clientRef() == nil {
 		return "", fmt.Errorf("AI 客户端未初始化")
 	}
 	if a.eng == nil {
@@ -367,7 +367,7 @@ func (a *App) characterGenerate(chJSON, mode string, targets []string) (string, 
 	// max_output_tokens 只降不升（cap 未配置或 >= 基线时不钳，零值 = 现状
 	// 逐字节）。
 	g := playGuardrails()
-	reply, err := a.client.ChatSimpleStreamWithOptions(ctx, model, systemPrompt, userPrompt, ai.ChatSimpleOptions{
+	reply, err := a.clientRef().ChatSimpleStreamWithOptions(ctx, model, systemPrompt, userPrompt, ai.ChatSimpleOptions{
 		EngineID:    eng,
 		Feature:     "characterlib",
 		Temperature: clampPlayTemperature(0.85, g.TemperatureMax),

@@ -75,7 +75,7 @@ func (a *App) GaeaKnowledgeImportAIParse(path string) (KnowledgeImportPreview, e
 	if abs == "" {
 		return KnowledgeImportPreview{}, fmt.Errorf("文件不存在: %s", path)
 	}
-	if a.client == nil {
+	if a.clientRef() == nil {
 		return KnowledgeImportPreview{}, fmt.Errorf("模型服务不可用，请先配置办公功能模型")
 	}
 	text, err := knowledgeimport.ExtractText(abs)

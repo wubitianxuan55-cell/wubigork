@@ -386,14 +386,14 @@ func (a *writingState) reconstructBatch(ctx context.Context, s bookimport.Projec
 
 // reconstructChat 小说域模型调用（与重写/续写同路由：routeModel("novel")）。
 func (a *writingState) reconstructChat(ctx context.Context, system, user string) (string, error) {
-	if a.client == nil {
+	if a.clientRef() == nil {
 		return "", fmt.Errorf("模型服务不可用，请先配置小说功能模型")
 	}
 	eng, model, _ := a.routeModel("novel")
 	if model == "" {
 		return "", fmt.Errorf("未找到可用模型（可能离线）")
 	}
-	return a.client.ChatSimpleStreamWithOptions(ctx, model, system, user, ai.ChatSimpleOptions{
+	return a.clientRef().ChatSimpleStreamWithOptions(ctx, model, system, user, ai.ChatSimpleOptions{
 		EngineID: eng, Feature: "novel", Temperature: 0.3, MaxTokens: 8192,
 	})
 }

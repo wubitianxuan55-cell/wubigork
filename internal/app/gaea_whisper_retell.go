@@ -16,7 +16,7 @@ func (a *whisperState) GaeaWhisperMemoryRetell(kind, id, personalityID string) (
 	if orch == nil {
 		return "", fmt.Errorf("轻语会话未就绪")
 	}
-	if a.client == nil {
+	if a.clientRef() == nil {
 		return "", fmt.Errorf("model client not initialized")
 	}
 	contextText, err := a.resolveRetellMemory(kind, id)
@@ -30,7 +30,7 @@ func (a *whisperState) GaeaWhisperMemoryRetell(kind, id, personalityID string) (
 		return "", fmt.Errorf("未绑定模型")
 	}
 
-	reply, _, err := a.client.ChatSimpleStreamDetailed(
+	reply, _, err := a.clientRef().ChatSimpleStreamDetailed(
 		a.ctx, model, buildMemoryRetellSystemPrompt(orch.Preset), contextText,
 		ai.ChatSimpleOptions{EngineID: engine, Feature: "chat"})
 	if err != nil {

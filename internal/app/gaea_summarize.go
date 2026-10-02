@@ -30,7 +30,7 @@ func (a *App) GaeaSummarizeFile(rel string, focus string) (GaeaSummaryResult, er
 	if info, err := os.Stat(path); err != nil || info.IsDir() {
 		return GaeaSummaryResult{}, fmt.Errorf("文件不存在: %s", rel)
 	}
-	if a.client == nil {
+	if a.clientRef() == nil {
 		return GaeaSummaryResult{}, fmt.Errorf("模型服务不可用")
 	}
 	// 2026-08-28 本地优先强化：资料摘要属办公功能级调用，优先本地 Herdsman。

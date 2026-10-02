@@ -330,7 +330,7 @@ func (a *mediaState) ttsProviderForEngine(engineID, model, voiceDescription stri
 		return nil, false
 	}
 	if engineID == "xai" {
-		if a.client == nil {
+		if a.clientRef() == nil {
 			return nil, false
 		}
 		voice := strings.TrimSpace(a.activeTTSVoice)
@@ -338,7 +338,7 @@ func (a *mediaState) ttsProviderForEngine(engineID, model, voiceDescription stri
 			voice = "eve"
 		}
 		p, err := tts.NewTTSProvider("xai", tts.TTSConfig{
-			BaseURL: eng.BaseURL, Voice: voice, GetToken: a.client.GetToken,
+			BaseURL: eng.BaseURL, Voice: voice, GetToken: a.clientRef().GetToken,
 		})
 		if err != nil {
 			return nil, false

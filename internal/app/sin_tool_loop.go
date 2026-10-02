@@ -82,7 +82,7 @@ type sinRoundResult struct {
 // sinStreamRound 跑一轮流式请求，把 delta/reasoning 实时下发给前端。
 // ctx 是整轮上下文：SinCancel 取消它即断开本轮底层请求。
 func (a *App) sinStreamRound(ctx context.Context, runID, model string, opts ai.ChatSimpleOptions, messages []ai.ChatMessage, tools []ai.ChatToolSchema, run *sinRun) (sinRoundResult, error) {
-	chunks, cancel, err := a.client.ChatStreamMessages(ctx, model, messages, opts, tools)
+	chunks, cancel, err := a.clientRef().ChatStreamMessages(ctx, model, messages, opts, tools)
 	if err != nil {
 		return sinRoundResult{}, err
 	}

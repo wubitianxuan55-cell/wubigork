@@ -202,7 +202,7 @@ func readingAskUserPrompt(title, context, question string, history []readingTurn
 // historyJSON 为问书历史 [{"q":"...","a":"..."}] 数组 JSON（仅 ask 生效），
 // 空串/解析失败按单轮处理，与旧签名行为完全兼容。
 func (a *writingState) NovelReadingAsk(kind, title, chapterText, selection, question, historyJSON string) (string, error) {
-	if a.client == nil {
+	if a.clientRef() == nil {
 		return "", fmt.Errorf("AI 客户端未初始化")
 	}
 	kind = strings.TrimSpace(kind)
@@ -252,7 +252,7 @@ func (a *writingState) NovelReadingAsk(kind, title, chapterText, selection, ques
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	reply, err := a.client.ChatSimpleStreamWithOptions(ctx, model, system, user, ai.ChatSimpleOptions{
+	reply, err := a.clientRef().ChatSimpleStreamWithOptions(ctx, model, system, user, ai.ChatSimpleOptions{
 		EngineID:    eng,
 		Feature:     "novel",
 		Temperature: 0.6,

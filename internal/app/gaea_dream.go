@@ -171,7 +171,7 @@ func (a *App) runDream(space string) error {
 		// 直接跳过（省一次 LLM 调用；codex phase2「无变化即成功」同型）。
 		return fmt.Errorf("dream no-op: 本轮内容已整理过")
 	}
-	if a.client == nil {
+	if a.clientRef() == nil {
 		return fmt.Errorf("ai client unavailable")
 	}
 
@@ -184,7 +184,7 @@ func (a *App) runDream(space string) error {
 	ctx, cancel := context.WithTimeout(ctx, 90*time.Second)
 	defer cancel()
 
-	out, err := a.client.ChatSimpleStreamWithOptions(ctx, featModel, dreamSystemPrompt, input,
+	out, err := a.clientRef().ChatSimpleStreamWithOptions(ctx, featModel, dreamSystemPrompt, input,
 		ai.ChatSimpleOptions{EngineID: featEng, Feature: "office", Temperature: 0.2, MaxTokens: 1200})
 	if err != nil {
 		return fmt.Errorf("dream summarize: %w", err)

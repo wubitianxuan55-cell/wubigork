@@ -126,7 +126,7 @@ func (a *writingState) brainstormBranchesForNode(pm *project.Manager, target *ty
 	// ——该点未显式传温度，钳制不注入新参数）。未配置 = 零值 = 现状逐字节。
 	opts := ai.ChatSimpleOptions{EngineID: eng, Feature: "novel"}
 	applyChatSimpleMaxTokens(&opts, playGuardrails().MaxOutputTokens)
-	reply, err := a.client.ChatSimpleStreamWithOptions(a.ctx, model, systemPrompt, userPrompt, opts)
+	reply, err := a.clientRef().ChatSimpleStreamWithOptions(a.ctx, model, systemPrompt, userPrompt, opts)
 	if err != nil {
 		return nil, fmt.Errorf("剧情分支推理失败: %w", err)
 	}
@@ -290,7 +290,7 @@ func (a *writingState) QuickBrainstormBranches(setting, prevSummary, charactersJ
 	// 未配置 = 零值 = 现状逐字节）。
 	opts := ai.ChatSimpleOptions{EngineID: eng, Feature: "novel"}
 	applyChatSimpleMaxTokens(&opts, playGuardrails().MaxOutputTokens)
-	reply, err := a.client.ChatSimpleStreamWithOptions(a.ctx, model, systemPrompt, userPrompt, opts)
+	reply, err := a.clientRef().ChatSimpleStreamWithOptions(a.ctx, model, systemPrompt, userPrompt, opts)
 	if err != nil {
 		return nil, fmt.Errorf("剧情分支推理失败: %w", err)
 	}

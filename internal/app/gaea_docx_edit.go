@@ -14,7 +14,7 @@ import (
 // GaeaOfficeEditText 框选即改：按自然语言指令生成选中文本的替换内容
 // （办公向提示词：信息不变、措辞严谨、纯文本输出）。
 func (a *App) GaeaOfficeEditText(selectedText, instruction string) (map[string]interface{}, error) {
-	if a.client == nil {
+	if a.clientRef() == nil {
 		return nil, fmt.Errorf("AI 客户端未初始化")
 	}
 	if selectedText == "" {
@@ -31,7 +31,7 @@ func (a *App) GaeaOfficeEditText(selectedText, instruction string) (map[string]i
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	edited, err := a.client.OfficeEditText(ctx, featEng, featModel, "office", selectedText, instruction)
+	edited, err := a.clientRef().OfficeEditText(ctx, featEng, featModel, "office", selectedText, instruction)
 	if err != nil {
 		return nil, err
 	}

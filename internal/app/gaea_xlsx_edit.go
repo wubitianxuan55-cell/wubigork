@@ -54,7 +54,7 @@ func (a *App) GaeaXlsxPlanEdit(rel, sheet, instruction, selection string) (XlsxP
 	if instruction == "" {
 		return XlsxPlanResult{}, fmt.Errorf("编辑指令为空")
 	}
-	if a.client == nil {
+	if a.clientRef() == nil {
 		return XlsxPlanResult{}, fmt.Errorf("AI 客户端未初始化")
 	}
 
@@ -69,7 +69,7 @@ func (a *App) GaeaXlsxPlanEdit(rel, sheet, instruction, selection string) (XlsxP
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	reply, err := a.client.XlsxEditOps(ctx, featEng, featModel, "office", ctxJSON, selection, instruction)
+	reply, err := a.clientRef().XlsxEditOps(ctx, featEng, featModel, "office", ctxJSON, selection, instruction)
 	if err != nil {
 		return XlsxPlanResult{}, err
 	}

@@ -282,7 +282,7 @@ func (a *App) GaeaInit() error {
 	}
 
 	// 1. 注入模型中心客户端（bridge provider 的底层）
-	bridge.SetClient(a.client)
+	bridge.SetClient(a.clientRef())
 	// 注入办公功能级模型绑定（func_gaea_engine/model）：办公 agent 走指定
 	// 引擎，而非全局活跃引擎——避免活跃引擎为 xai 时把其他模型名发到 xAI
 	// 导致 404。未绑定则跟随全局活跃引擎。

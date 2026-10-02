@@ -39,7 +39,7 @@ func (a *whisperState) GaeaWhisperCausalExplain(entity, personalityID string) (s
 	if evidence == "" {
 		return fmt.Sprintf("关于「%s」，我还没有足够的记忆来推断因果。多和我聊聊相关的事，我会慢慢记住，之后就能陪你一起想明白了。", entity), nil
 	}
-	if a.client == nil {
+	if a.clientRef() == nil {
 		return "", fmt.Errorf("model client not initialized")
 	}
 
@@ -50,7 +50,7 @@ func (a *whisperState) GaeaWhisperCausalExplain(entity, personalityID string) (s
 		return "", fmt.Errorf("未绑定模型")
 	}
 
-	reply, _, err := a.client.ChatSimpleStreamDetailed(
+	reply, _, err := a.clientRef().ChatSimpleStreamDetailed(
 		a.ctx, model, buildCausalExplainSystemPrompt(orch.Preset, entity), evidence,
 		ai.ChatSimpleOptions{EngineID: engine, Feature: "chat"})
 	if err != nil {
