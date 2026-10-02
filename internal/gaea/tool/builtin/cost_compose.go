@@ -71,16 +71,19 @@ func (costCompose) Execute(ctx context.Context, args json.RawMessage) (string, e
 		// 审计 GA6-09：读失败不得回「没有相似条目」——会诱导模型自行估价。
 		return "", fmt.Errorf("成本库检索失败，无法组价，请重试: %w", serr)
 	}
-	if len(similar) < 3 {
-		if sem := semanticCostRecall(ctx, desc, similar, store, 10); len(sem) > 0 {
-			similar = sem
-		}
-	}
+	// 补召回(<3→10 条)与精排的编排/阈值统一走 cost.Enhance（GA6-04 收尾）：
+	// 与检索面/绑定面共用同一出处，不再各持一份 <3/10 内联阈值。空态判断
+	// 后移到 Enhance 之后可观测等价（精排实现 ≤8 条短路，空列表零副作用）。
+	similar, _ = cost.Enhance(desc, similar, cost.SearchHooks{
+		Recall: func(q string, have []cost.Summary, topN int) []cost.Summary {
+			return semanticCostRecall(ctx, q, have, store, topN)
+		},
+		Rerank: func(q string, list []cost.Summary, limit int) []cost.Summary {
+			return rerankCostResults(ctx, q, list, limit)
+		},
+	}, 12)
 	if len(similar) == 0 {
 		return fmt.Sprintf("成本库中没有「%s」的相似条目，无法组价。可先按合理估价测算；经用户确认沉淀（cost_save）后，下次即可组价引用。", desc), nil
-	}
-	if reranked := rerankCostResults(ctx, desc, similar, 12); len(reranked) > 0 {
-		similar = reranked
 	}
 
 	band := cost.ComputePriceBand(similar, p.Unit)

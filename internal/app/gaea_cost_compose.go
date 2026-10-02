@@ -86,14 +86,12 @@ func (a *App) GaeaCostCompose(desc, unit string) (CostComposeView, error) {
 		// 价格带推荐依赖完整语料，读不全就如实报错让用户重试。
 		return CostComposeView{}, fmt.Errorf("成本库检索失败，无法测算: %w", serr)
 	}
-	if len(similar) < 3 {
-		if sem := a.semanticCostRecall(desc, similar, 10); len(sem) > 0 {
-			similar = sem
-		}
-	}
-	if reranked := a.rerankCostSearch(desc, similar, 12); len(reranked) > 0 {
-		similar = reranked
-	}
+	// 补召回(<3→10 条)与精排的编排/阈值统一走 cost.Enhance（GA6-04 收尾）：
+	// 与检索面/工具面共用同一出处，不再各持一份 <3/10 内联阈值。
+	similar, _ = cost.Enhance(desc, similar, cost.SearchHooks{
+		Recall: a.semanticCostRecall,
+		Rerank: a.rerankCostSearch,
+	}, 12)
 	if len(similar) == 0 {
 		return CostComposeView{Description: desc, Unit: unit}, nil
 	}
