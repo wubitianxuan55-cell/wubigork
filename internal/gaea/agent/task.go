@@ -344,12 +344,13 @@ func (t *TaskTool) ExecuteWithContext(ctx context.Context, tc tool.ToolContext, 
 		if label == "" {
 			label = "task"
 		}
-		// StartIn：嵌套派生自动挂父 job（终止级联；主回合派生无父=原行为）。
-		job := jm.StartIn(ctx, "task", label, func(jobCtx context.Context, _ io.Writer) (string, error) {
-			// S3 双空间：jobCtx 由 jobs.Manager 的 root（context.Background 派生）
-			// 新建，不继承父调用 ctx 的 value——空间会在此丢失。显式补注父空间，
-			// 后台子代理与前台一样继承（缺省 work）。
-			result, runErr := t.runSubSession(WithSpace(jobCtx, SpaceFromContext(ctx)), p.Prompt, subReg, nested, run, maxSteps, p.OutputSchema, nil)
+		// StartInheriting：嵌套派生自动挂父 job（终止级联），且 job ctx 继承
+		// 调用方 value 链（审计 P1 GA1-08：StartIn 从 root 新建 ctx，空间/
+		// trace/evidence/memory 队列等 value 全丢——此前只逐字段补注了 space，
+		// 其余全靠「后台子代理用不到」的未经断言假设；取消链仍在 root，
+		// 调用方被取消不连带后台任务）。
+		job := jm.StartInheriting(ctx, "task", label, func(jobCtx context.Context, _ io.Writer) (string, error) {
+			result, runErr := t.runSubSession(jobCtx, p.Prompt, subReg, nested, run, maxSteps, p.OutputSchema, nil)
 			// 后台任务必须在此收尾 transcript（父 Execute 已返回，等不到回合末
 			// finalizeRun 代跑；此前 store 模式下后台子代理从不落盘）。
 			return t.finalizeRun(result, runErr, run)

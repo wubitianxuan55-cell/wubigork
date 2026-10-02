@@ -72,6 +72,7 @@ type Job struct {
 	startedAt  int64
 	cancel     context.CancelFunc
 	done       chan struct{}
+	ctx        context.Context // job 运行 ctx（测试与诊断读；值继承见 StartInheriting）
 }
 
 // Manager is the session's background-job table. It is safe for concurrent use.
@@ -132,13 +133,39 @@ func (m *Manager) Start(kind, label string, run func(ctx context.Context, out io
 // run ctx，已嵌父 job ID）里派生新 job 时自动成链；主回合派生的 job 无父，
 // 行为与 Start 完全一致。
 func (m *Manager) StartIn(caller context.Context, kind, label string, run func(ctx context.Context, out io.Writer) (string, error)) *Job {
+	return m.start(caller, kind, label, run, false)
+}
+
+// StartInheriting 同 StartIn，但 job ctx 继承 caller 的 **value 链**（取消仍
+// 以 m.root 为根，caller 被取消不连带 job）。审计 P1 GA1-08：StartIn 的 job
+// ctx 从 root（Background 派生）新建，caller 的空间/trace/evidence/memory
+// 队列等 value 全部丢失，调用方只能逐字段手工补注且永远补不全。
+func (m *Manager) StartInheriting(caller context.Context, kind, label string, run func(ctx context.Context, out io.Writer) (string, error)) *Job {
+	return m.start(caller, kind, label, run, true)
+}
+
+// detachedValues 是「只继承 value、不继承取消」的 context：Value 委托 parent，
+// Done/Err/Deadline 走内嵌的 base（通常是 root 派生的 job ctx）。
+type detachedValues struct {
+	context.Context
+	parent context.Context
+}
+
+func (d detachedValues) Value(key any) any { return d.parent.Value(key) }
+
+func (m *Manager) start(caller context.Context, kind, label string, run func(ctx context.Context, out io.Writer) (string, error), inheritValues bool) *Job {
 	parentID, _ := JobIDFromContext(caller)
 	m.mu.Lock()
 	m.seq++
 	id := fmt.Sprintf("%s-%d", kind, m.seq)
 	ctx, cancel := context.WithCancel(m.root)
+	if inheritValues && caller != nil {
+		// 值链取自 caller、取消链留在 root：jobIDKey 随后的 WithValue 盖在
+		// 最上层，不会被 caller 链里的父 job ID 遮蔽。
+		ctx = detachedValues{Context: ctx, parent: caller}
+	}
 	ctx = context.WithValue(ctx, jobIDKey{}, id)
-	j := &Job{ID: id, ParentID: parentID, Kind: kind, Label: label, status: Running, startedAt: nowMs(), cancel: cancel, done: make(chan struct{})}
+	j := &Job{ID: id, ParentID: parentID, Kind: kind, Label: label, status: Running, startedAt: nowMs(), cancel: cancel, done: make(chan struct{}), ctx: ctx}
 	m.jobs[id] = j
 	m.order = append(m.order, id)
 	if parentID != "" {

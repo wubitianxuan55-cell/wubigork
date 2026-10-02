@@ -238,3 +238,43 @@ func TestNowMs(t *testing.T) {
 		t.Errorf("nowMs() = %d, not in [%d, %d]", got, before, after)
 	}
 }
+
+// TestStartInheritingValuesNotCancellation 审计 P1 GA1-08：StartInheriting 的
+// job ctx 继承调用方 value 链（空间等随代传递），但取消链留在 root——caller
+// 被取消不连带后台 job。
+func TestStartInheritingValuesNotCancellation(t *testing.T) {
+	m := NewManager(event.Discard)
+	defer m.Close()
+
+	type probeKey struct{}
+	caller, cancelCaller := context.WithCancel(context.Background())
+	caller = context.WithValue(caller, probeKey{}, "inherited")
+
+	got := make(chan string, 1)
+	job := m.StartInheriting(caller, "task", "probe", func(ctx context.Context, _ io.Writer) (string, error) {
+		got <- ctx.Value(probeKey{}).(string)
+		<-ctx.Done() // 等 manager.Cancel：正常收尾路径
+		return "done-after-cancel", nil
+	})
+
+	if v := <-got; v != "inherited" {
+		t.Fatalf("job ctx 未继承调用方 value: %q", v)
+	}
+	// job ctx 的 jobIDKey 必须是自己的 ID（不被 caller 链里的父 job ID 遮蔽）。
+	m.mu.Lock()
+	jctx := m.jobs[job.ID].ctx
+	m.mu.Unlock()
+	if id, _ := JobIDFromContext(jctx); id != job.ID {
+		t.Fatalf("job ctx 的 jobID = %q, want %q（caller 链不应遮蔽）", id, job.ID)
+	}
+	// caller 取消不得连带 job：取消后 job 仍在跑。
+	cancelCaller()
+	select {
+	case <-job.done:
+		t.Fatal("caller 取消连带终止了后台 job（取消链被继承）")
+	case <-time.After(200 * time.Millisecond):
+	}
+	// 收尾：用 manager 自己的 cancel 终止 job。
+	m.Kill(job.ID)
+	<-job.done
+}

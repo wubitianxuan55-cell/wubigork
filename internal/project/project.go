@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gaea/gaea/internal/gaea/fileutil"
@@ -20,6 +21,13 @@ import (
 type Manager struct {
 	Dir  string // 项目根目录
 	Meta *types.ProjectMeta
+
+	// fileMu 串行化 Manager 内部的「整表读-改-写」复合操作（审计 P1 IN1-07）：
+	// UpsertAnalysisV2 / syncRewriteIndex 都是 读 JSON→改→writeJSON 整表覆盖，
+	// 并发时后写者用旧快照覆盖先写者丢更新（plans.json 同构问题在 app 层有
+	// chapterPlanMu 专锁先例）。读路径不持锁：写走原子替换，读到的要么旧要么
+	// 新，无半截文件。
+	fileMu sync.Mutex
 }
 
 // Create 新建小说项目目录
@@ -897,8 +905,10 @@ func (m *Manager) ReadAnalysisV2File() (*types.AnalysisV2File, error) {
 }
 
 // UpsertAnalysisV2 按章号 upsert 一条 V2 分析结果（同章重分析覆盖不追加），
-// 保持章号升序，写回走原子替换。
+// 保持章号升序，写回走原子替换。整表读-改-写全程持 fileMu（审计 P1 IN1-07）。
 func (m *Manager) UpsertAnalysisV2(res types.ChapterAnalysisResult) error {
+	m.fileMu.Lock()
+	defer m.fileMu.Unlock()
 	f, err := m.ReadAnalysisV2File()
 	if err != nil {
 		return err
@@ -1011,7 +1021,10 @@ func (m *Manager) SaveRewriteVersion(v *types.RewriteVersion) error {
 }
 
 // syncRewriteIndex 把版本摘要合并进 index.json（存在则更新，不存在追加）。
+// 整表读-改-写全程持 fileMu（审计 P1 IN1-07，与 UpsertAnalysisV2 同口径）。
 func (m *Manager) syncRewriteIndex(v types.RewriteVersion) error {
+	m.fileMu.Lock()
+	defer m.fileMu.Unlock()
 	dir := m.RewriteChapterDir(v.ChapterNum)
 	idxPath := filepath.Join(dir, "index.json")
 	idx := types.RewriteVersionIndex{
