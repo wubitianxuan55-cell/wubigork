@@ -18,6 +18,7 @@ import (
 	"github.com/gaea/gaea/internal/project"
 	"github.com/gaea/gaea/internal/prompt"
 	"github.com/gaea/gaea/internal/types"
+	"strings"
 )
 
 // ── 打桩：本地 OpenAI 兼容 mock（httptest），按调用次序回放 replies 并计数 ──
@@ -274,5 +275,58 @@ func TestApplyBranchSyncCharactersIdempotent(t *testing.T) {
 	}
 	if got := atomic.LoadInt32(env.calls); got != 0 {
 		t.Fatalf("角色同步不得调用 AI，实际 %d 次", got)
+	}
+}
+
+// ── v4.451.0 分支剧情 50 字压缩：分支只是方向，细节由章节计划承担 ──
+
+// TestClampBranchPitch 超预算分支剧情的确定性收口：句界优先，无句读硬截。
+func TestClampBranchPitch(t *testing.T) {
+	short := "雨夜断桥，林晚截杀叛徒，代价是暴露身份。"
+	if got := clampBranchPitch(short); got != short {
+		t.Fatalf("预算内应原样保留: %q", got)
+	}
+
+	exact := strings.Repeat("雪", 50)
+	if got := clampBranchPitch(exact); got != exact {
+		t.Fatalf("恰满预算应原样: %q", got)
+	}
+
+	// 超长：预算内最后一个句读符后截断（完整句子，不切断语意）
+	long := "雨夜断桥，林晚截杀叛徒。" + strings.Repeat("混战中玄铁剑坠河。", 4) + "她必须捞回。"
+	got := clampBranchPitch(long)
+	want := "雨夜断桥，林晚截杀叛徒。" + strings.Repeat("混战中玄铁剑坠河。", 4)
+	if got != want {
+		t.Fatalf("应句界截断: got=%q want=%q", got, want)
+	}
+	if strings.HasSuffix(got, "她必须捞回。") {
+		t.Fatalf("预算外的尾句应被丢弃: %q", got)
+	}
+
+	// 无句读：硬截 49 字 + 省略号，总长仍守 50 字预算
+	noPunct := strings.Repeat("雨", 60)
+	if got := clampBranchPitch(noPunct); got != strings.Repeat("雨", 49)+"…" {
+		t.Fatalf("应硬截+省略号且总长不超预算: %q", got)
+	}
+}
+
+// TestParsePlotBranchReplyClampsPitch 解析收口：回复里超长的 summary 统一压到 50 字内。
+func TestParsePlotBranchReplyClampsPitch(t *testing.T) {
+	reply, err := json.Marshal(map[string]interface{}{"branches": []map[string]interface{}{{
+		"id": "1", "title": "钩子", "summary": "雨夜断桥，林晚截杀叛徒。" + strings.Repeat("长", 80),
+	}}})
+	if err != nil {
+		t.Fatalf("构造回复: %v", err)
+	}
+	branches, err := parsePlotBranchReply(string(reply))
+	if err != nil {
+		t.Fatalf("解析: %v", err)
+	}
+	got := branches[0].Summary
+	if n := len([]rune(got)); n > 50 {
+		t.Fatalf("summary 应压到 50 字内，实际 %d 字: %q", n, got)
+	}
+	if want := "雨夜断桥，林晚截杀叛徒。"; got != want {
+		t.Fatalf("预算内有句读应句界截断: got=%q want=%q", got, want)
 	}
 }

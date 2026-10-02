@@ -148,7 +148,39 @@ func parsePlotBranchReply(reply string) ([]PlotBranch, error) {
 		return nil, fmt.Errorf("AI 未生成任何分支")
 	}
 
+	// v4.451.0 分支剧情 50 字压缩：分支只是方向，详细规划由章节计划承担
+	// （chapter-plan 的 direction→七字段展开）。模型超出预算时按句界截断兜底，
+	// 不让长 pitch 灌进 plotReq/计划方向。
+	for i := range result.Branches {
+		result.Branches[i].Summary = clampBranchPitch(result.Branches[i].Summary)
+	}
+
 	return result.Branches, nil
+}
+
+// plotBranchPitchMaxRunes 分支剧情（Summary/pitch）的字数预算（rune 口径）。
+// 与 plot-branch-browser.json 模板的「不超过 50 字」同一口径；超限由
+// clampBranchPitch 确定性收口（模板约束对模型是软的，这里是硬的）。
+const plotBranchPitchMaxRunes = 50
+
+// clampBranchPitch 把分支剧情压到 plotBranchPitchMaxRunes 字内：优先在预算内
+// 的最后一个句读符（。！？；…）后截断，保留完整句子；无句读才硬截并加省略号。
+// rune 口径（中文一字一符），与模板/前端展示一致。
+func clampBranchPitch(s string) string {
+	s = strings.TrimSpace(s)
+	runes := []rune(s)
+	if len(runes) <= plotBranchPitchMaxRunes {
+		return s
+	}
+	budget := runes[:plotBranchPitchMaxRunes]
+	for i := len(budget) - 1; i >= 0; i-- {
+		switch budget[i] {
+		case '。', '！', '？', '；', '…':
+			return strings.TrimSpace(string(budget[:i+1]))
+		}
+	}
+	// 无句读：硬截留 49 字 + 省略号，总长仍守 50 字预算
+	return string(budget[:plotBranchPitchMaxRunes-1]) + "…"
 }
 
 // ApplyBranch 将选中分支写入大纲节点 + 同步角色和世界观
