@@ -124,10 +124,16 @@ type Store struct {
 
 // BM25 排序缓存（刀D v4.247，T7-3 原设计接通；包级——Store 即建即弃，
 // openCostStore/hubCostStore 每次调用都 cost.Open 新实例）。key=db 池|数据
-// 版本|category|status 过滤形态，语料=该形态下 SQL 全捞的条目集（name 序），
-// 查询只对关键词命中子集取分。改前每查询对命中子集从零重建倒排（2000 条
-// 库 20.6ms/22MB 分配）。写路径推进版本（bumpRankVersion/InvalidateRankers）
-// 旧 Ranker 自然失效；map 超 16 项整体清空防任意过滤值撑大。
+// 版本|语料指纹|category|status 过滤形态，语料=该形态下 SQL 全捞的条目集
+// （name 序），查询只对关键词命中子集取分。改前每查询对命中子集从零重建
+// 倒排（2000 条库 20.6ms/22MB 分配）。失效双保险（审计 GA6-06，删隐式
+// 「写路径记得失效」契约）：
+//   - 包内写路径提交后推进版本（bumpRankVersion）——精确、即时；
+//   - 语料指纹（行数|max(updated_at)，Search 读语料前同点快照）——任何
+//     **不经本包**的直写（app 批量导入、未来新路径）漏掉失效义务也会因
+//     指纹变化自动换 key，BM25 不再静默陈旧。
+//
+// map 超 16 项整体清空防任意过滤值撑大。
 var (
 	rankMu      sync.Mutex
 	rankVersion atomic.Uint64
@@ -138,21 +144,32 @@ type rankerEntry struct {
 	ranker *bm25.Ranker
 }
 
-// bumpRankVersion 推进数据版本（写路径成功后调用，同包内直接访问）。
+// bumpRankVersion 推进数据版本（包内写路径提交成功后调用，同包内直接访问）。
 func bumpRankVersion() { rankVersion.Add(1) }
 
-// InvalidateRankers 使全部 BM25 排序缓存失效（包外写路径用：app 层批量
-// 导入直写 cost_entries 不经 Store.Save，提交后必须调用）。
-func InvalidateRankers() { bumpRankVersion() }
+// corpusFingerprint 返回成本语料指纹（行数|最大 updated_at）。作为 BM25
+// 排序缓存 key 的组成（GA6-06）：写路径无论走本包方法还是外部直写，只要
+// 改动语料（增删行、推进 updated_at），指纹即变，旧 Ranker 自然失联——
+// 不再要求写路径「记得」调用失效函数。与捞语料同一读路径、紧邻执行；
+// 与版本快照同等的窄窗口（写路径落在指纹读取与语料查询之间）语义同旧版
+// 本快照：至多一次查询按旧语料排序，下次写后自愈。
+func corpusFingerprint(db *sql.DB) (string, error) {
+	var n int
+	var maxUpd string
+	if err := db.QueryRow("SELECT COUNT(*), COALESCE(MAX(updated_at),'') FROM cost_entries").Scan(&n, &maxUpd); err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%d|%s", n, maxUpd), nil
+}
 
-// rankerFor 返回当前过滤形态与数据版本下的 BM25 打分器：语料=all（该
-// category/status 过滤下 SQL 全捞的条目，name 序）。命中直接复用；版本
-// 推进或 key 首见时构建。version 由调用方在捞语料**之前**快照传入——
-// 语料与版本戳取自同一时点（2026-09-19 审计）：此前 rankerFor 内部再
-// Load 一次版本，若写路径在捞语料与构 key 之间推进版本，旧语料会挂到
-// 新版本 key 上一直用到下次写。
-func rankerFor(db *sql.DB, version uint64, category, status string, all []Summary) *bm25.Ranker {
-	key := fmt.Sprintf("%p|%d|%s|%s", db, version, category, status)
+// rankerFor 返回当前过滤形态、数据版本与语料指纹下的 BM25 打分器：语料=
+// all（该 category/status 过滤下 SQL 全捞的条目，name 序）。命中直接复用；
+// 版本推进、指纹变化或 key 首见时构建。version 与指纹均由调用方在捞语料
+// **之前**取得——语料与 key 成分取自同一时点（2026-09-19 审计）：此前
+// rankerFor 内部再 Load 一次版本，若写路径在捞语料与构 key 之间推进版本，
+// 旧语料会挂到新版本 key 上一直用到下次写。
+func rankerFor(db *sql.DB, version uint64, fingerprint, category, status string, all []Summary) *bm25.Ranker {
+	key := fmt.Sprintf("%p|%d|%s|%s|%s", db, version, fingerprint, category, status)
 	rankMu.Lock()
 	defer rankMu.Unlock()
 	if e, ok := rankers[key]; ok {
@@ -174,6 +191,85 @@ func rankerFor(db *sql.DB, version uint64, category, status string, all []Summar
 // 来源/地区/价格形态/期数/标签）。
 func summaryDocText(e Summary) string {
 	return e.Name + " " + e.Title + " " + e.Code + " " + e.Unit + " " + e.Spec + " " + e.Source + " " + e.Region + " " + e.PriceType + " " + e.PriceDate + " " + strings.Join(e.Tags, " ")
+}
+
+// ── 统一检索管线（审计 GA6-04 收敛）──────────────────────────────
+//
+// 检索 = SQL 过滤+关键词过滤+BM25（Search 内，全消费面共用）→ 语义补召回
+// → 本地精排。改前后两段在 app 绑定面（memory_hub.costSearchAll）与 tool
+// 面（builtin cost_search）各抄一份「<3 补召回 10 条」，漂移即两面对同一
+// 查询给出不同候选集。现编排与阈值收编到 Enhance（唯一出处）；语义/精排
+// 的**实现**仍由各面注入——客户端配置源不同（app=Herdsman 引擎配置，
+// builtin=SetRetrievalRuntime），且 builtin 不能 import app、本包不能
+// import semantic/retrieval（retrieval→cost 反向依赖，环）。
+
+// 语义补召回触发线与召回条数：两消费面共用的唯一出处（GA6-04）。
+const (
+	RecallBelow = 3  // 关键词命中不足该条数时触发语义补召回
+	RecallTopN  = 10 // 语义补召回条数
+)
+
+// SearchHooks 注入各面的语义召回与本地精排实现；编排顺序与阈值归本包，
+// 客户端构造、超时与降级策略归各面。两项均可为 nil（跳过该段）。
+type SearchHooks struct {
+	// Recall 语义补召回：topN 由管线传入（RecallTopN）；返回空=降级保留原列表。
+	Recall func(query string, have []Summary, topN int) []Summary
+	// Rerank 本地精排：limit 由调用方传入（app=20 / tool=用户 limit）；
+	// 返回空=模型不可用或失败，调用方回退原列表。
+	Rerank func(query string, list []Summary, limit int) []Summary
+}
+
+// Enhance 统一检索管线后段：关键词召回不足（< RecallBelow）且查询非空时
+// 语义补召回（RecallTopN 条），随后本地精排（rerankLimit）。返回精排后的
+// 列表与「精排是否生效」——tool 面仅在未精排时按 limit 截断（limit 语义
+// 归调用面，app 面不截断）。
+//
+// 空列表传入 Rerank 钩子是安全的（两面实现均以「≤8 条不做精排」短路，零
+// 副作用），因此 tool 面的「未找到」空态判断统一后移——与改前「先判空再
+// 精排」可观测行为一致。
+func Enhance(query string, list []Summary, hooks SearchHooks, rerankLimit int) ([]Summary, bool) {
+	if len(list) < RecallBelow && strings.TrimSpace(query) != "" && hooks.Recall != nil {
+		if sem := hooks.Recall(query, list, RecallTopN); len(sem) > 0 {
+			list = sem
+		}
+	}
+	reranked := false
+	if hooks.Rerank != nil {
+		if rr := hooks.Rerank(query, list, rerankLimit); len(rr) > 0 {
+			list = rr
+			reranked = true
+		}
+	}
+	return list, reranked
+}
+
+// RerankDocText 把成本条目摘要拼成本地精排（cross-encoder）文档串。
+// GA6-04 单源：改前 app（costDocString）与 builtin（costDocText）各持一份
+// 逐字节等价的同构实现、却各自演化，本函数收编为唯一实现，两面转调。
+// 与 BM25 语料串（summaryDocText）刻意不同型：BM25 串喂倒排索引（无标签、
+// 含 name/code 等检索字段），本串喂 cross-encoder（自然语句+标签、含单价）——
+// 各自改动会移动对应排序，不许「顺手对齐」；向量化的文档串在 retrieval
+// 包（DocText，与知识库共用构建路径），三串现状经审计确认后各自单源。
+func RerankDocText(e Summary) string {
+	var b strings.Builder
+	b.WriteString(e.Title)
+	if e.Spec != "" {
+		b.WriteString("（" + e.Spec + "）")
+	}
+	if e.Unit != "" {
+		b.WriteString(" 单位" + e.Unit)
+	}
+	fmt.Fprintf(&b, " 单价%.2f元", e.Price)
+	if e.Category != "" {
+		b.WriteString(" 分类" + e.Category)
+	}
+	if e.Source != "" {
+		b.WriteString(" 来源" + e.Source)
+	}
+	if len(e.Tags) > 0 {
+		b.WriteString(" 标签" + strings.Join(e.Tags, ","))
+	}
+	return b.String()
 }
 
 // Open 打开成本库；gdb 为 nil 时返回不可用 store。
@@ -237,8 +333,9 @@ func (s *Store) Save(e Entry) error {
 
 // SaveTx 在调用方事务内写入/更新一条成本条目（整批导入等「多条目同一事务」
 // 的调用方复用，审计 P0#11/源 AP4-03：UPSERT 与组成替换的唯一实现收编到此，
-// app 层不再持有第二份同构 SQL）。归一化口径与 Save 一致；调用方负责事务
-// 边界与批次级的排序缓存失效（bumpRankVersion/InvalidateRankers）。
+// app 层不再持有第二份同构 SQL）。归一化口径与 Save 一致；调用方只负责
+// 事务边界——BM25 排序缓存失效无需调用方操心（GA6-06：语料指纹在 key
+// 内，提交后指纹自变，旧 Ranker 自动失联）。
 func (s *Store) SaveTx(tx *sql.Tx, e Entry) error {
 	if tx == nil {
 		return fmt.Errorf("cost store unavailable: nil tx")
@@ -425,9 +522,24 @@ func (s *Store) Search(query, category, status string) ([]Summary, error) {
 	}
 	sqlText += " ORDER BY name"
 
-	// 语料版本快照（先于 SQL 捞取）：写路径在捞语料期间推进版本时，本查询
-	// 语料按旧版本挂 key，下次写路径推进后自然失效——语料与版本戳原子。
+	// 语料版本快照与语料指纹（均先于 SQL 捞取，GA6-06）：写路径在捞语料
+	// 期间推进版本/改动语料时，本查询语料按旧 key 成分挂 key，下次写路径
+	// 推进后自然失效——语料与 key 成分原子。指纹使**不经本包**的直写
+	//（app 批量导入、未来新写路径）无需记得失效也自动换 key；指纹读取
+	// 失败（库异常）时本查询跳过 BM25 排序，按 name 序返回命中并留痕。
+	// 空查询不建/不用排序器，指纹一并跳过。
 	corpusVer := rankVersion.Load()
+	q := strings.ToLower(strings.TrimSpace(query))
+	corpusFP := ""
+	fpReady := false
+	if q != "" {
+		if fp, ferr := corpusFingerprint(s.db); ferr == nil {
+			corpusFP = fp
+			fpReady = true
+		} else {
+			slog.Warn("cost: 语料指纹读取失败，本查询跳过 BM25 排序", "error", ferr)
+		}
+	}
 	rows, err := s.db.Query(sqlText, args...)
 	if err != nil {
 		// 完全取不到：连数据一起空，错误交给调用方上报。
@@ -470,7 +582,6 @@ func (s *Store) Search(query, category, status string) ([]Summary, error) {
 	// 精确子串匹配。刻意不在 SQL 里拼 6 列 OR LIKE 链——modernc/sqlite
 	// 对特定形状的长 OR 链存在返回空集的怪癖（单列 LIKE 正常）。
 	var out []Summary
-	q := strings.ToLower(strings.TrimSpace(query))
 	if q == "" {
 		out = all
 		// 空查询保持 name 排序（SQL 已 ORDER BY name，此处仅为兜底保证确定性）。
@@ -494,11 +605,11 @@ func (s *Store) Search(query, category, status string) ([]Summary, error) {
 		}
 	}
 	// BM25 本地排序（零 token）：命中词越多/密度越高排越前，未命中 BM25
-	// 的纯子串命中条目保持原顺序排在后面。打分器按「db 池+数据版本+过滤
-	// 形态」缓存（语料=all 全量，改前=命中子集从零重建）；命中子集按其
-	// 语料下标取分，同分按语料序（=name 序，与改前 tie-break 一致）。
-	if len(out) > 1 {
-		if r := rankerFor(s.db, corpusVer, category, status, all); r != nil {
+	// 的纯子串命中条目保持原顺序排在后面。打分器按「db 池+数据版本+语料
+	// 指纹+过滤形态」缓存（语料=all 全量，改前=命中子集从零重建）；命中
+	// 子集按其语料下标取分，同分按语料序（=name 序，与改前 tie-break 一致）。
+	if len(out) > 1 && fpReady {
+		if r := rankerFor(s.db, corpusVer, corpusFP, category, status, all); r != nil {
 			scored := r.Rank(query)
 			if len(scored) > 0 {
 				scoreOf := make(map[int]float64, len(scored))

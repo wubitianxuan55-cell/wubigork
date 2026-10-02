@@ -1,5 +1,6 @@
 // drift.ts — 编译期绑定面漂移检查（T6-10.3）。
 import { bindingNames } from "../bindingNames";
+import { legacyBindings } from "../legacyBindings";
 import type { AppBindings } from "./appBindings";
 import { gaeaToGaea } from "./mappings";
 
@@ -18,8 +19,14 @@ import { gaeaToGaea } from "./mappings";
 //
 // S2-3「App 绑定面拆分」后 Go 侧方法分为两半：经 AppBindings 消费的 gaea UI
 // 绑定面，以及 wailsjsCompat / window.go.app.App.* 直接调用的 legacy 绑定面
-// （小说/聊天/语音/绘图/角色库/旧 store 等），后者全部列入 LegacySurfaceNames。
-// 修复提示：Go 方法新增/改名/删除 → 先重新生成 bindingNames.ts，再按报错调整。
+// （小说/聊天/语音/绘图/角色库/旧 store 等）。后者不再手写（FE4-04）：由
+// scripts/gen_bindings -legacy-ts 生成到 legacyBindings.ts（= Go 全集减 AppBindings
+// 认领集），与本文件旧手写联合逐名对齐后退役——手写时代它比真补集多挂 10 个
+// 已被认领的名字（GaeaSemanticIndexStatus/NovelOutlineReconstructStart/
+// NovelOutlineReconstructTaskGet/NovelBookSource* 7 名），重叠会把方向一的
+// 「Go 删除 → 红」架空，这正是改生成的原因之一。
+// 修复提示：Go 方法新增/改名/删除 → 先重新生成 bindingNames.ts，再按报错调整；
+// 涉及 legacy 面时加跑 go run ./scripts/gen_bindings -legacy-ts。
 /** 泛型工具：T 必须是 never（空联合），否则编译错误。 */
 type AssertNever<T extends never> = T;
 
@@ -33,211 +40,22 @@ type AppBindingTarget = {
     : K;
 }[keyof AppBindings];
 
-/** AppBindings mock-only：Go 侧无对应绑定方法（仅 dev mock 提供）。 */
-type MockOnlyNames =
-  | "Compact" // 无 Go 绑定；上下文压缩由后端会话事件驱动，无独立绑定
-  | "SetSubagentTemperature" // 声明但 Go 侧从未实现（仅 GaeaSetSubagentEffort 存在）
-  | "SetEffort" // 同上：Go 侧无 SetEffort，推理强度实际走 GaeaSetSubagentEffort
-  | "SetSubagentModel"; // 同上：Go 侧无 SetSubagentModel，实际走 GaeaSetSubagentModelForSkill
+/** AppBindings mock-only：Go 侧无对应绑定方法（仅 dev mock 提供）。
+ *  导出运行时清单供 spaceBindings.test.ts 的推导断言复用（单源）。 */
+export const MOCK_ONLY_NAMES = [
+  "Compact", // 无 Go 绑定；上下文压缩由后端会话事件驱动，无独立绑定
+  "SetSubagentTemperature", // 声明但 Go 侧从未实现（仅 GaeaSetSubagentEffort 存在）
+  "SetEffort", // 同上：Go 侧无 SetEffort，推理强度实际走 GaeaSetSubagentEffort
+  "SetSubagentModel", // 同上：Go 侧无 SetSubagentModel，实际走 GaeaSetSubagentModelForSkill
+] as const;
 
-/** legacy 绑定面：Go 侧存在但不经 AppBindings 消费（wailsjsCompat 直接调用）。 */
-type LegacySurfaceNames =
-  | "AddCustomEngine"
-  | "AddOutlineNode"
-  | "AnalyzeStyle"
-  | "ApplyBranch"
-  | "BrainCrossRefs"
-  | "BrainSearch"
-  | "BrainWrite"
-  | "BrainstormBranches"
-  | "BuildBacklinkIndex"
-  | "BuildContextBudget"
-  | "BuildRichContext"
-  | "Chat"
-  | "ChatCharacter"
-  | "ChatCharacterDetail"
-  | "ChatGeneral"
-  | "ChatOutline"
-  | "ChatOutlineNode"
-  | "CloseProject"
-  | "CmdKEdit"
-  | "ContinueOutline"
-  | "CreateProject"
-  | "CreateSnapshot"
-  | "DeleteCharacter"
-  | "DeleteLorebookEntry"
-  | "DeleteProject"
-  | "ExpandOutlineNode"
-  | "ExportHTML"
-  | "ExtractCharacterHeatmap"
-  | "ExtractEmotionCurve"
-  | "ExtractTimeline"
-  | "FindLorebookTriggers"
-  | "FindUnlinkedMentions"
-  | "GaeaBenchmarkDetail"
-  | "GaeaBenchmarkExport"
-  | "GaeaBenchmarkList"
-  | "GaeaBenchmarkStart"
-  | "GaeaBenchmarkStreamProbe"
-  | "GaeaCallTool"
-  | "GaeaDataBackupPending"
-  | "GaeaEngines"
-  | "GaeaGetUsdCnyRate"
-  | "GaeaInit"
-  | "GaeaModel"
-  | "GaeaPermLevel"
-  | "GaeaSemanticIndexStatus"
-  | "GaeaSetEngine"
-  | "GaeaSetUsdCnyRate"
-  | "GaeaSkills"
-  | "GaeaTools"
-  | "GaeaUsageOverview"
-  | "GenerateCharacters"
-  | "GenerateDefaultCanvas"
-  | "GenerateOutlineWithDialogue"
-  | "GenerateSingleCharacter"
-  | "GetActiveASRModel"
-  | "GetActiveEngine"
-  | "GetActiveOCRModel"
-  | "GetActiveTTSModel"
-  | "GetAllEntityNames"
-  | "GetBacklinks"
-  | "GetBookData"
-  | "CheckModuleIntegrity" // 3.0 Step 2：板块装配启动自检（Startup 内部调用，前端不经 AppBindings 消费）
-  | "GetChatVoiceModel"
-  | "GetCompileTemplates"
-  | "GetDashboard"
-  | "GetDeepseekKeyStatus"
-  | "GetGlmKeyStatus"
-  | "GetEngineList"
-  | "GetEngines"
-  | "GetEngineFailover"
-  | "GetImageBackend"
-  | "GetImageBackendConfig"
-  | "GetLoginStatus"
-  | "GetLorebookEntries"
-  | "GetModelCallStats"
-  | "GetModelHubKeyStatus" // Model Hub（Unsloth 本地引擎）Key 状态（引擎管理经 App() 直调）
-  | "GetModelMonitor"
-  | "GetModelRoute"
-  | "GetNovelsDir"
-  | "GetOfflineMode"
-  | "GetOfficeLocal"
-  | "GetOpencodeGoKeyStatus"
-  | "GetOpencodeZenKeyStatus"
-  | "GetOutlines"
-  | "GetProjectInfo"
-  | "GetSensitiveLocal"
-  | "GetStyleProfile"
-  | "GetTTSConfig"
-  | "GetTTSStatus"
-  | "GetWorldMapImage"
-  | "HerdsmanHealth"
-  | "HerdsmanLaunchPresets"
-  | "HerdsmanModelCatalog"
-  | "HerdsmanModelDownload"
-  | "HerdsmanModelStart"
-  | "HerdsmanModelStats"
-  | "HerdsmanModelStop"
-  | "HerdsmanModelUninstall"
-  | "HerdsmanProbe"
-  | "HerdsmanSecurityCheck"
-  | "ImportNovelBook"
-  | "NovelGhostSuggest" // v4.444 场景编辑器内联续写（GhostText；wailsApp 直调 legacy 面）
-  | "NovelOutlineReconstructStart"
-  | "NovelOutlineReconstructTaskGet"
-  | "ImportStyleProfile"
-  | "InjectMemories"
-  | "IsProjectV4"
-  | "ListSnapshots"
-  | "LocalTranslate"
-  | "Login"
-  | "Logout"
-  | "MainBrainChat"
-  | "MigrateProjectToV4"
-  | "NovelBookSourceImport"
-  | "NovelBookSourceEnginesGet"
-  | "NovelBookSourceEnginesSave"
-  | "NovelBookSourceImportCancel"
-  | "NovelBookSourceImportChapters"
-  | "NovelBookSourceSearch"
-  | "NovelBookSourceToc"
-  | "OfficeCancelJob"
-  | "OfficeExecute"
-  | "OfficeGetJobState"
-  | "OfficeGetMode"
-  | "OfficeIsTask"
-  | "OfficeListFolder"
-  | "OfficeReadFile"
-  | "OfficeSetMode"
-  | "OpenProject"
-  | "ParseLinks"
-  | "QueryEntities"
-  | "RefreshEngineModels"
-  | "RemoveCustomEngine"
-  | "ReorderScenes"
-  | "ResetModelCallStats"
-  | "RestoreSnapshot"
-  | "ReviewBook"
-  | "RunModule"
-  | "SaveCharacter"
-  | "SaveCharacters"
-  | "SaveEngine"
-  | "SaveLorebookEntry"
-  | "SaveOutlineNode"
-  | "SaveScene"
-  | "SaveTTSConfig"
-  | "SaveToken"
-  | "SaveWorldMapImage"
-  | "SaveWorldviewSection"
-  | "Search"
-  | "SearchMemories"
-  | "SetActiveEngine"
-  | "SetActiveOCRModel"
-  | "SetDeepseekKey"
-  | "SetGlmEndpoint"
-  | "SetGlmKey"
-  | "SetModelHubKey" // Model Hub（Unsloth 本地引擎）Key（Unsloth 设置 → API 创建）
-  | "StartModelHubModel" // Model Hub：让 Unsloth Studio 加载/切换模型（ollama-manifest 引用）
-  | "SetDistFS"
-  | "SetEngineDefaultModel"
-  | "SetEngineFailover"
-  | "SetOfflineMode"
-  | "SetOfficeLocal"
-  | "SetOpencodeGoKey"
-  | "SetOpencodeZenKey"
-  | "SetPromptFS"
-  | "SetSensitiveLocal"
-  | "Shutdown"
-  | "StartTTSServer"
-  | "Startup"
-  | "StopTTSServer"
-  | "SyncEntityDB"
-  | "TTSSpeak"
-  | "TTSSpeakStreaming"
-  | "TestEngineConnection"
-  | "VoiceGetState"
-  | "VoiceRestartService"
-  | "VoiceSetInputChannel"
-  | "VoiceSetMode"
-  | "WhisperChat"
-  | "WhisperChatWithSearch"
-  | "WhisperGetConfig"
-  | "WhisperGetEngine"
-  | "WhisperGetEngines"
-  | "WhisperGetImageModel"
-  | "UpdateCustomEngine"
-  | "UpdateProjectMeta" // v4.439 项目元信息更新（小说创作间本书定位；wailsApp 直调 legacy 面）
-  | "WhisperGetModel"
-  | "WhisperSetEngine"
-  | "WhisperSetImageModel"
-  | "WhisperSetModel"
-  | "WhisperTaskPlanResume"
-  | "WhisperTaskPlanStatus"
-  | "WhisperWebSearch"
-  // RunChapterGate 章节闸门（v4.7x 小说革命遗留：场景级生成/叙事状态结算族
-  // 已随批次三b 迁 AppBindings，仅章节闸门仍 wailsjsCompat 直调、未经 AppBindings）。
-  | "RunChapterGate";
+/** AppBindings mock-only：Go 侧无对应绑定方法（仅 dev mock 提供）。 */
+type MockOnlyNames = (typeof MOCK_ONLY_NAMES)[number];
+
+/** legacy 绑定面：Go 侧存在但不经 AppBindings 消费（wailsjsCompat 直接调用）。
+ *  FE4-04 起由 scripts/gen_bindings -legacy-ts 生成（勿手改），此处只做类型派生；
+ *  下方锁三/锁四保证生成物不过期、不与认领集重叠。 */
+type LegacySurfaceNames = (typeof legacyBindings)[number];
 
 /** 显式排除 = mock-only + legacy 绑定面。 */
 type ExcludeNames = MockOnlyNames | LegacySurfaceNames;
@@ -250,9 +68,25 @@ export type _CheckAppBindingsHasNoStray = AssertNever<
 >;
 
 // 方向二：Go 绑定清单的每个方法名必须被 AppBindings 消费或显式排除。
-// 报错 → Go 侧新增绑定无人认领（补 AppBindings/gaeaToGaea 或 ExcludeNames）。
+// 报错 → Go 侧新增绑定无人认领（补 AppBindings/gaeaToGaea 或再生 legacy 清单：
+// go run ./scripts/gen_bindings -legacy-ts）。
 /** @public 编译期绑定漂移锁。 */
 export type _CheckAppBindingsCoversAll = AssertNever<
   Exclude<BindingName, AppBindingTarget | ExcludeNames>
+>;
+
+// 锁三（FE4-04）：legacy 生成清单不过期——清单里每个名字必须仍是真实 Go 绑定。
+// 报错 → Go 侧删除绑定后未再生 legacyBindings.ts（或该文件被手改）。
+/** @public 编译期 legacy 清单过期锁。 */
+export type _CheckLegacyNoStale = AssertNever<
+  Exclude<LegacySurfaceNames, BindingName>
+>;
+
+// 锁四（FE4-04）：legacy 生成清单不与 AppBindings 认领集重叠——名字被认领后
+// 必须移出 legacy 清单。重叠会架空方向一：被认领名经 ExcludeNames 逃过
+// 「Go 删除 → 方向一红」的检查（手写时代实测 10 名在册重叠，见文件头）。
+/** @public 编译期 legacy 清单重叠锁。 */
+export type _CheckLegacyNoOverlap = AssertNever<
+  Extract<LegacySurfaceNames, AppBindingTarget>
 >;
 

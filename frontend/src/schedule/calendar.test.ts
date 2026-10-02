@@ -144,3 +144,60 @@ describe('镜像锚点表（v4.155 全搭接放开：2026-01-05 周一锚、周�
     expect(cdEarliestStart(MON1, -3, 7)).toBe(0)
   })
 })
+
+// ── Go/TS parity golden（IN3-02，批 16 线 3）────────────────────────────
+// 与 Go 侧 internal/schedule/calendar_parity_test.go 读同一份冻结共识
+// （internal/schedule/testdata/calendar-parity.json），对 TS 实现逐条断言。
+// 任一侧单独漂移（改 Go 漏改 TS、或反之）即本块红——范式同 ops_golden 对拍。
+// 定位按仓库约定以 frontend 为 cwd（vitest 里 import.meta.url 非 file: 协议）。
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
+import { isoOf } from './calendar'
+
+interface ParityFile {
+  calendars: Record<string, SchedCalendar>
+  isWorkingDate: Array<{ cal: string; date: string; working: boolean; why: string }>
+  wdToDate: Array<{ cal: string; start: string; idx: number; want: string; why: string }>
+  dateToWd: Array<{ cal: string; start: string; date: string; want: number | null; why: string }>
+  deadlineWorkdays: Array<{ cal: string; start: string; deadline: string; want: number; why: string }>
+}
+
+describe('Go/TS parity golden（共享 testdata/calendar-parity.json，与 Go calendar_parity_test.go 对拍）', () => {
+  const parity: ParityFile = JSON.parse(
+    readFileSync(resolve(process.cwd(), '../internal/schedule/testdata/calendar-parity.json'), 'utf8'),
+  )
+
+  it('样本非空（防空转：golden 被清空时对拍形同虚设）', () => {
+    expect(Object.keys(parity.calendars).length).toBeGreaterThanOrEqual(5)
+    expect(parity.isWorkingDate.length).toBeGreaterThanOrEqual(17)
+    expect(parity.wdToDate.length).toBeGreaterThanOrEqual(8)
+    expect(parity.dateToWd.length).toBeGreaterThanOrEqual(8)
+    expect(parity.deadlineWorkdays.length).toBeGreaterThanOrEqual(6)
+  })
+
+  it('isWorkingDate：周日=0 边界/节假日命中与不命中/空工作集 fail-closed/跨年', () => {
+    for (const c of parity.isWorkingDate) {
+      const cal = parity.calendars[c.cal]
+      expect(cal, `未知日历 ${c.cal}`).toBeTruthy()
+      expect(isWorkingDate(new Date(`${c.date}T00:00:00Z`), cal), `${c.cal} ${c.date}：${c.why}`).toBe(c.working)
+    }
+  })
+
+  it('wdToDate：开工日非工作日顺延/节假日跳过/idx<0 原样/跨年顺延', () => {
+    for (const c of parity.wdToDate) {
+      expect(isoOf(wdToDate(c.start, c.idx, parity.calendars[c.cal])), `${c.cal} ${c.start} idx=${c.idx}：${c.why}`).toBe(c.want)
+    }
+  })
+
+  it('dateToWd：序号往返/非工作日 null/早于开工 null/周日=0 首工作日/跨年', () => {
+    for (const c of parity.dateToWd) {
+      expect(dateToWd(c.start, c.date, parity.calendars[c.cal]), `${c.cal} ${c.start}→${c.date}：${c.why}`).toBe(c.want)
+    }
+  })
+
+  it('deadlineWorkdays：回落计数/节假日不计/竣工早于开工 0/跨年', () => {
+    for (const c of parity.deadlineWorkdays) {
+      expect(deadlineWorkdays(c.start, c.deadline, parity.calendars[c.cal]), `${c.cal} ${c.start}→${c.deadline}：${c.why}`).toBe(c.want)
+    }
+  })
+})

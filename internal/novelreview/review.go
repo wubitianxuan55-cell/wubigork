@@ -31,6 +31,7 @@ type EvidenceSpan struct {
 }
 
 // Dimension 单维度评审结果（verdict: pass / warn / fail / skip）。
+// 注（IN1-09）：novelstyle 的 AI 味严重度已单源对齐 S1~S4，本包逻辑零改动。
 type Dimension struct {
 	ID       string         `json:"id"`
 	Label    string         `json:"label"`

@@ -7,8 +7,15 @@
 //   - internal/app/bindings_manifest.go：NewBindings(a *App) []any（main.go 用）
 //   - internal/app/bindings_completeness_test.go：反射完备性测试（测试兜底）
 //
-// 用法：go run ./scripts/gen_bindings
+// 用法：go run ./scripts/gen_bindings [-names] [-shadow-check] [-shadow-diag] [-legacy-ts]
 // 方法 → 板块映射规则见 mapMethod 函数；未覆盖的方法会报错退出（防遗漏）。
+//
+// FE4-04「绑定方法名三份手工清单互锁」：-legacy-ts 额外生成前端 legacy 绑定面
+// 清单 frontend/src/gaea/lib/legacyBindings.ts（= -names 的 Go 全集减去 AppBindings
+// 认领集，认领集 = spaceBindings.ts 的 facets 键经 bridge/mappings.ts gaeaToGaea
+// 映射）。该清单原先在 frontend/src/gaea/lib/bridge/drift.ts 手写（~200 行类型
+// 联合），Go 侧增删绑定时要与 bindingNames.ts 两处手工同步且过期无人抓——改由
+// 生成器产出，drift.ts 只留类型派生与「不过期/不重叠」两把编译期锁。
 package main
 
 import (
@@ -258,6 +265,7 @@ func run(args []string) int {
 	namesOnly := fs.Bool("names", false, "只输出全部导出方法名（一行一个，稳定排序），不写任何生成文件")
 	shadowCheck := fs.Bool("shadow-check", false, "只校验遮蔽基线与新增遮蔽（不写任何生成文件）")
 	shadowDiag := fs.Bool("shadow-diag", false, "只打印遮蔽基线/实测数/全量遮蔽对（不写任何生成文件）")
+	legacyTS := fs.Bool("legacy-ts", false, "生成 frontend/src/gaea/lib/legacyBindings.ts（legacy 绑定面清单），不写其它生成文件")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
@@ -297,6 +305,16 @@ func run(args []string) int {
 		sort.Strings(names)
 		for _, n := range names {
 			fmt.Println(n)
+		}
+		return 0
+	}
+
+	// -legacy-ts：生成前端 legacy 绑定面清单（FE4-04，见文件头说明）。同样只在
+	// 遮蔽闸通过后执行，且只写这一个文件。
+	if *legacyTS {
+		if err := writeLegacyTS(methods); err != nil {
+			fmt.Fprintln(os.Stderr, "write legacy-ts:", err)
+			return 1
 		}
 		return 0
 	}
@@ -817,4 +835,130 @@ func writeCompletenessTest(groups map[string][]method) error {
 	b.WriteString("}\n")
 	path := filepath.Join("internal/app", "bindings_completeness_test.go")
 	return os.WriteFile(path, []byte(b.String()), 0644)
+}
+
+// legacyTSAnnotations legacy 面逐条注释（FE4-04 自 drift.ts 手写联合原样迁来）：
+// 生成时按名字挂到对应条目的行尾注释。名字日后被 AppBindings 认领（离开 legacy
+// 面）时条目消失、注释随之消失，无需手工清理；未命中的注释自动丢弃。
+var legacyTSAnnotations = map[string]string{
+	"CheckModuleIntegrity": "3.0 Step 2：板块装配启动自检（Startup 内部调用，前端不经 AppBindings 消费）",
+	"GetModelHubKeyStatus": "Model Hub（Unsloth 本地引擎）Key 状态（引擎管理经 App() 直调）",
+	"NovelGhostSuggest":    "v4.444 场景编辑器内联续写（GhostText；wailsApp 直调 legacy 面）",
+	"SetModelHubKey":       "Model Hub（Unsloth 本地引擎）Key（Unsloth 设置 → API 创建）",
+	"StartModelHubModel":   "Model Hub：让 Unsloth Studio 加载/切换模型（ollama-manifest 引用）",
+	"UpdateProjectMeta":    "v4.439 项目元信息更新（小说创作间本书定位；wailsApp 直调 legacy 面）",
+	"RunChapterGate":       "章节闸门（v4.7x 小说革命遗留：场景级生成/叙事状态结算族已随批次三b 迁 AppBindings，仅此仍 wailsjsCompat 直调）",
+}
+
+// facetKeyLineRe spaceBindings.ts 分面键的行格式（FE4-04 机器可读约定，该文件头
+// 有同款文字）：两空格缩进、裸标识符键、work/play/shared/independent 四值字面量、
+// 逗号可有可无、行尾可带 // 注释。锚定行首防误吞其它构造。
+var facetKeyLineRe = regexp.MustCompile(`(?m)^[ \t]{2}([A-Za-z_][A-Za-z0-9_]*):[ \t]*"(?:work|play|shared|independent)",?(?:[ \t]+//.*)?$`)
+
+// gaeaToGaeaLineRe bridge/mappings.ts 的 gaeaToGaea 条目行（`短名: "Go名",`）。
+var gaeaToGaeaLineRe = regexp.MustCompile(`(?m)^[ \t]{2}([A-Za-z_][A-Za-z0-9_]*):[ \t]*"([A-Za-z_][A-Za-z0-9_]*)",`)
+
+// minFacetKeys / minMappingEntries 解析下限闸：两文件都是扁平键值行，正则失配
+// （格式被改/编码变化）会**静默少解析**——认领集变小、legacy 清单被吹胀。tsc 的
+// 重叠锁虽能抓红，但生成器在这里先红更早更直白：键数跌破下限即退出 1 不落盘。
+// 下限远低于当前实测（facets 565 / gaeaToGaea 302），只挡「解析整体失灵」。
+const (
+	minFacetKeys      = 400
+	minMappingEntries = 200
+)
+
+// parseFacetKeys 解析 spaceBindings.ts 的分面键。这些键与 AppBindings 键双向相等
+// （同文件 satisfies Record<keyof AppBindings, BindingSpace> + 两把 AssertNever
+// 编译期钉死），因此可作为 AppBindings 认领集的键数据源。
+func parseFacetKeys(path string) (map[string]bool, error) {
+	src, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	keys := map[string]bool{}
+	for _, m := range facetKeyLineRe.FindAllStringSubmatch(string(src), -1) {
+		keys[m[1]] = true
+	}
+	if len(keys) < minFacetKeys {
+		return nil, fmt.Errorf("%s: 分面键只解析到 %d 个（下限 %d）——行格式失配，拒生成以免 legacy 清单失真", path, len(keys), minFacetKeys)
+	}
+	return keys, nil
+}
+
+// parseGaeaToGaea 解析 gaeaToGaea 短名→Go 名映射（键空间 = AppBindings 短名）。
+func parseGaeaToGaea(path string) (map[string]string, error) {
+	src, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	m := map[string]string{}
+	for _, mm := range gaeaToGaeaLineRe.FindAllStringSubmatch(string(src), -1) {
+		m[mm[1]] = mm[2]
+	}
+	if len(m) < minMappingEntries {
+		return nil, fmt.Errorf("%s: 映射只解析到 %d 条（下限 %d）——行格式失配，拒生成以免 legacy 清单失真", path, len(m), minMappingEntries)
+	}
+	return m, nil
+}
+
+// writeLegacyTS 生成 frontend/src/gaea/lib/legacyBindings.ts（FE4-04）：
+// legacy 面 = Go 导出绑定全集 − AppBindings 认领集。认领集 = facets 键经
+// gaeaToGaea 映射后的目标名（无映射键按同名直调计）。输出字节级确定（排序 +
+// 固定模板），重复生成零噪音；消费方 drift.ts 从它派生 LegacySurfaceNames 类型。
+func writeLegacyTS(methods []method) error {
+	facets, err := parseFacetKeys(filepath.Join("frontend", "src", "gaea", "lib", "spaceBindings.ts"))
+	if err != nil {
+		return err
+	}
+	mappings, err := parseGaeaToGaea(filepath.Join("frontend", "src", "gaea", "lib", "bridge", "mappings.ts"))
+	if err != nil {
+		return err
+	}
+	claimed := make(map[string]bool, len(facets))
+	for k := range facets {
+		if t, ok := mappings[k]; ok {
+			claimed[t] = true
+		} else {
+			claimed[k] = true // 无映射 = 同名直调（ChatTopicsList 等）
+		}
+	}
+	legacy := make([]string, 0, len(methods))
+	for _, m := range methods {
+		if !claimed[m.Name] {
+			legacy = append(legacy, m.Name)
+		}
+	}
+	sort.Strings(legacy)
+
+	var b strings.Builder
+	b.WriteString("// Code generated by scripts/gen_bindings -legacy-ts; DO NOT EDIT.\n")
+	b.WriteString("//\n")
+	b.WriteString("// legacy 绑定面清单：Go 导出绑定中不经 AppBindings 门面消费的名字（前端经\n")
+	b.WriteString("// wailsjsCompat / window.go 直调）。算法：-names 的 Go 全集减去\n")
+	b.WriteString("// spaceBindings.ts 的 facets 键（=AppBindings 键，satisfies 编译期钉死）经\n")
+	b.WriteString("// bridge/mappings.ts gaeaToGaea 映射后的认领集。与 bindingNames.ts（-names\n")
+	b.WriteString("// 模式）配套再生，两处计数随每次实测重写：\n")
+	b.WriteString("//\n")
+	b.WriteString("//\tgo run ./scripts/gen_bindings -legacy-ts\n")
+	b.WriteString("//\n")
+	b.WriteString("// 消费方：frontend/src/gaea/lib/bridge/drift.ts——LegacySurfaceNames 类型派生 +\n")
+	b.WriteString("// 「不过期/不重叠」两把编译期锁（手改、漏再生、与 AppBindings 认领重叠都会红）。\n")
+	fmt.Fprintf(&b, "//\n// 共 %d 名 = Go 导出 %d − 认领且 Go 存在 %d（facets 键 %d，其中 mock-only 名无 Go 绑定不计）。\n\n",
+		len(legacy), len(methods), len(methods)-len(legacy), len(facets))
+	b.WriteString("export const legacyBindings = [\n")
+	for _, n := range legacy {
+		if note, ok := legacyTSAnnotations[n]; ok {
+			fmt.Fprintf(&b, "  %q, // %s\n", n, note)
+		} else {
+			fmt.Fprintf(&b, "  %q,\n", n)
+		}
+	}
+	b.WriteString("] as const;\n")
+	path := filepath.Join("frontend", "src", "gaea", "lib", "legacyBindings.ts")
+	if err := os.WriteFile(path, []byte(b.String()), 0644); err != nil {
+		return err
+	}
+	fmt.Printf("legacy 绑定面 %d 名（Go 导出 %d − 认领 %d）→ %s\n",
+		len(legacy), len(methods), len(methods)-len(legacy), filepath.ToSlash(path))
+	return nil
 }

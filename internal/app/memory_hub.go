@@ -615,24 +615,19 @@ func (a *App) reportCostReadError(scope string, err error) {
 }
 
 // costSearchAll 完整检索管线（全量）：SQL 过滤 → 关键词包含过滤 →
-// 语义召回补召回 → 本地语义精排。分页绑定（GaeaCostSearchPage）复用
-// 本管线后再排序切片，保证分页结果与非分页口径一致。
+// 语义召回补召回 → 本地语义精排（后两段的编排与阈值唯一出处 cost.Enhance，
+// GA6-04：与 tool 面共用，本面不再各抄一份「<3 补召回 10 条」）。分页绑定
+// （GaeaCostSearchPage）复用本管线后再排序切片，保证分页结果与非分页口径
+// 一致。rerank limit=20、不截断——limit 语义归本面（与改前一致）。
 //
 // 第二个返回值是成本库读取错误（GA6-09）：部分数据照常返回，错误只作
 // 「结果可能不完整」的上报依据（语义补召回/精排自身的降级不在此列）。
 func (a *App) costSearchAll(query, category, status string) ([]CostSummary, error) {
 	list, err := a.hubCostStore().Search(query, category, status)
-	// 语义召回：关键词召回不足（<3）时用本地 bge-m3 补召回（别名/口语表达）。
-	if len(list) < 3 && strings.TrimSpace(query) != "" {
-		if sem := a.semanticCostRecall(query, list, 10); len(sem) > 0 {
-			list = sem
-		}
-	}
-	// 本地语义精排（Herdsman bge-reranker-v2-m3）：候选多时提升排序精度，
-	// 模型不可用/失败自动回退 SQL 结果；纯本地推理，不消耗云端 token。
-	if reranked := a.rerankCostSearch(query, list, 20); len(reranked) > 0 {
-		list = reranked
-	}
+	list, _ = cost.Enhance(query, list, cost.SearchHooks{
+		Recall: a.semanticCostRecall,
+		Rerank: a.rerankCostSearch,
+	}, 20)
 	out := make([]CostSummary, 0, len(list))
 	for _, s := range list {
 		out = append(out, toCostSummary(s))

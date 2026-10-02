@@ -4,7 +4,6 @@ import (
 	"context"
 	"log/slog"
 	"os"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -182,7 +181,9 @@ func (a *App) rerankCostSearch(query string, list []cost.Summary, limit int) []c
 	}
 	docs := make([]string, len(list))
 	for i, e := range list {
-		docs[i] = costDocString(e)
+		// GA6-04 单源：精排文档串唯一实现在 cost.RerankDocText（与 builtin
+		// 面同一份），本文件不再持有第二份同构拼接。
+		docs[i] = cost.RerankDocText(e)
 	}
 	scored, err := r.Rerank(ctx, query, docs, limit)
 	if err != nil || len(scored) == 0 {
@@ -195,30 +196,4 @@ func (a *App) rerankCostSearch(query string, list []cost.Summary, limit int) []c
 		}
 	}
 	return out
-}
-
-func costDocString(e cost.Summary) string {
-	var b strings.Builder
-	b.WriteString(e.Title)
-	if e.Spec != "" {
-		b.WriteString("（" + e.Spec + "）")
-	}
-	if e.Unit != "" {
-		b.WriteString(" 单位" + e.Unit)
-	}
-	b.WriteString(" 单价" + formatPrice(e.Price) + "元")
-	if e.Category != "" {
-		b.WriteString(" 分类" + e.Category)
-	}
-	if e.Source != "" {
-		b.WriteString(" 来源" + e.Source)
-	}
-	if len(e.Tags) > 0 {
-		b.WriteString(" 标签" + strings.Join(e.Tags, ","))
-	}
-	return b.String()
-}
-
-func formatPrice(v float64) string {
-	return strconv.FormatFloat(v, 'f', 2, 64)
 }

@@ -25,8 +25,8 @@ func TestRuleNegationFlip_SameSentenceHighConfidence(t *testing.T) {
 	found := false
 	for _, iss := range score.Issues {
 		if strings.Contains(iss.Reason, "否定铺垫后肯定翻转") {
-			if iss.Severity != "high" {
-				t.Fatalf("门禁 B 同句应为 high: %+v", iss)
+			if iss.Severity != "S2" {
+				t.Fatalf("门禁 B 同句应为 S2（旧 high）: %+v", iss)
 			}
 			hit := string([]rune(text)[iss.Start:iss.End])
 			if !strings.Contains(hit, "而是") {
@@ -62,8 +62,8 @@ func TestRuleExplanatoryMarkers_AdvisoryCapped(t *testing.T) {
 	for _, iss := range score.Issues {
 		if strings.Contains(iss.Reason, "解释腔标记") {
 			n++
-			if iss.Severity != "low" {
-				t.Fatalf("解释腔为 advisory/low: %+v", iss)
+			if iss.Severity != "S4" {
+				t.Fatalf("解释腔为 advisory/S4（旧 low）: %+v", iss)
 			}
 		}
 	}
@@ -79,18 +79,18 @@ func TestRuleExplanatoryMarkers_AdvisoryCapped(t *testing.T) {
 func TestApplyWhitelist_WholeTextSpanNotExempted(t *testing.T) {
 	text := "天亮了。他起身。风吹过。树影摇晃。"
 	score := &TasteScore{Score: 40, Issues: []TasteIssue{
-		{Start: 0, End: len([]rune(text)), Reason: "句长方差过小：全篇句长过于均匀，缺少节奏变化", Severity: "medium"},
+		{Start: 0, End: len([]rune(text)), Reason: "句长方差过小：全篇句长过于均匀，缺少节奏变化", Severity: "S3"},
 	}}
 	// 定位 span（否定翻转等价物）：仍应被白名单摘除。
 	score.Issues = append(score.Issues, TasteIssue{
-		Start: 0, End: 5, Reason: "定位型问题", Severity: "high",
+		Start: 0, End: 5, Reason: "定位型问题", Severity: "S2",
 	})
-	wholeWeight := severityToWeight("medium")
-	locWeight := severityToWeight("high")
+	wholeWeight := severityToWeight("S3")
+	locWeight := severityToWeight("S2")
 
 	// 白名单条目恰好是整篇 span 文本的一部分：整篇项不得被摘除。
 	n := ApplyWhitelist(score, text, []string{"天亮了。他起身。"})
-	if len(score.Issues) != 1 || score.Issues[0].Severity != "medium" {
+	if len(score.Issues) != 1 || score.Issues[0].Severity != "S3" {
 		t.Fatalf("整篇 span 不应被白名单摘除（定位 span 应被摘除）: %+v", score.Issues)
 	}
 	if n != wholeWeight {
@@ -99,7 +99,7 @@ func TestApplyWhitelist_WholeTextSpanNotExempted(t *testing.T) {
 
 	// 反向守卫：不带整篇项的定位 span 照旧豁免（避免「一刀切永不豁免」过头）。
 	loc := &TasteScore{Score: 99, Issues: []TasteIssue{
-		{Start: 0, End: 5, Reason: "定位型问题", Severity: "high"},
+		{Start: 0, End: 5, Reason: "定位型问题", Severity: "S2"},
 	}}
 	if got := ApplyWhitelist(loc, text, []string{"天亮了。"}); got != 0 || len(loc.Issues) != 0 {
 		t.Fatalf("定位 span 应照旧被白名单摘除: score=%d issues=%+v", got, loc.Issues)

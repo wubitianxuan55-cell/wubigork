@@ -53,14 +53,14 @@ const builtStatus: FingerprintStatusPayload = {
   },
 }
 
-/** 体检结果 fixture：有参考档（带 delta）+ 1 条 medium 命中。 */
+/** 体检结果 fixture：有参考档（带 delta）+ 1 条 S3 命中。 */
 const scoreWithRef: FingerprintScorePayload = {
   chapterNum: 3,
   refExists: true,
   score: 42,
   delta: 0.31,
   issues: [
-    { start: 12, end: 40, reason: '解释腔排比', severity: 'medium', suggestion: '拆成两句直述', excerpt: '这不是巧合，而是伏线。' },
+    { start: 12, end: 40, reason: '解释腔排比', severity: 'S3', suggestion: '拆成两句直述', excerpt: '这不是巧合，而是伏线。' },
   ],
 }
 
@@ -118,7 +118,7 @@ describe('StyleFingerprintPanel 文风指纹面板', () => {
     expect(screen.getByText('42')).toBeTruthy()
     expect(screen.getByText(/有 AI 痕迹/)).toBeTruthy()
     expect(screen.getByText(/与你的基线距离 Δ 0.31（越小越像你）/)).toBeTruthy()
-    // 命中条目：medium → Tag「中」+ reason + excerpt 引用 + suggestion 小字
+    // 命中条目：S3（旧 medium）→ Tag「中」+ reason + excerpt 引用 + suggestion 小字
     expect(screen.getByText('中')).toBeTruthy()
     expect(screen.getByText('解释腔排比')).toBeTruthy()
     expect(screen.getByText(/这不是巧合，而是伏线。/)).toBeTruthy()

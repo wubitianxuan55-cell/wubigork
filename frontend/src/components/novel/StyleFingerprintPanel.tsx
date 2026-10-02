@@ -30,20 +30,20 @@ const SUMMARY_METRICS: Array<{ key: FingerprintNumberKey; label: string }> = [
   { key: 'adjAdvDensity', label: '形副密度' },
 ]
 
-/** severity → antd Tag 色（low=default / medium=blue / high=orange / blocker=red）。 */
+/** severity → antd Tag 色（S4=default / S3=blue / S2=orange / S1=red；与旧 low/medium/high/blocker 档位一一对应，IN1-09 单源）。 */
 const SEVERITY_COLORS: Record<string, string> = {
-  low: 'default',
-  medium: 'blue',
-  high: 'orange',
-  blocker: 'red',
+  S4: 'default',
+  S3: 'blue',
+  S2: 'orange',
+  S1: 'red',
 }
 
-/** severity → 中文档位标签（未知档透传原文）。 */
+/** severity → 中文档位标签（未知档/历史旧枚举透传原文）。 */
 const SEVERITY_LABELS: Record<string, string> = {
-  low: '轻',
-  medium: '中',
-  high: '重',
-  blocker: '严重',
+  S4: '轻',
+  S3: '中',
+  S2: '重',
+  S1: '严重',
 }
 
 /** score 语义分档（阈值与 CreatePage aiTaste 一致：<35 顺眼 / 35~59 有 AI 痕迹 / ≥60 AI 味偏重）。 */

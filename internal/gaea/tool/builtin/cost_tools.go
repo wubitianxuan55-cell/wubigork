@@ -108,21 +108,22 @@ func (costSearch) Execute(ctx context.Context, args json.RawMessage) (string, er
 		// 据此判定库中无此科目而自行估价，用户看不到真实原因。
 		return "", fmt.Errorf("成本库检索失败（结果可能不完整），请重试: %w", serr)
 	}
-	// 语义召回：关键词召回不足（<3）时用本地 bge-m3 补召回，覆盖别名/口语
-	// 表达（如「液压振动锤」→ hp300），避免漏检。纯本地，不消耗云端 token。
-	if len(list) < 3 && strings.TrimSpace(p.Query) != "" {
-		if sem := semanticCostRecall(ctx, p.Query, list, store, 10); len(sem) > 0 {
-			list = sem
-		}
-	}
+	// 统一检索管线（GA6-04，与 app 绑定面共用）：语义补召回（<3 时补 10 条，
+	// 覆盖别名/口语表达）+ 本地精排。阈值与编排唯一出处 cost.Enhance；实现
+	// 在本包注入。纯本地推理，不消耗云端 token。
+	list, reranked := cost.Enhance(p.Query, list, cost.SearchHooks{
+		Recall: func(q string, have []cost.Summary, topN int) []cost.Summary {
+			return semanticCostRecall(ctx, q, have, store, topN)
+		},
+		Rerank: func(q string, l []cost.Summary, limit int) []cost.Summary {
+			return rerankCostResults(ctx, q, l, limit)
+		},
+	}, limit)
 	if len(list) == 0 {
 		return "未找到匹配的成本条目。可先按合理估价测算；如需沉淀进成本库，先征得用户确认再用 cost_save。", nil
 	}
-	// 本地语义精排（Herdsman bge-reranker-v2-m3）：候选多时提升排序精度；
-	// 模型不可用或失败时自动回退 SQL 结果。纯本地推理，不消耗云端 token。
-	if reranked := rerankCostResults(ctx, p.Query, list, limit); len(reranked) > 0 {
-		list = reranked
-	} else if len(list) > limit {
+	// 未精排（模型不可用/候选不足）时按 limit 截断；精排生效则结果已 ≤ limit。
+	if !reranked && len(list) > limit {
 		list = list[:limit]
 	}
 
@@ -273,7 +274,9 @@ func rerankCostResults(ctx context.Context, query string, list []cost.Summary, l
 	}
 	docs := make([]string, len(list))
 	for i, e := range list {
-		docs[i] = costDocText(e)
+		// GA6-04 单源：精排文档串唯一实现在 cost.RerankDocText（与 app 面
+		// 同一份），本文件不再持有第二份同构拼接。
+		docs[i] = cost.RerankDocText(e)
 	}
 	scored, err := r.Rerank(ctx, query, docs, limit)
 	if err != nil || len(scored) == 0 {
@@ -345,29 +348,6 @@ var retrievalRuntime RetrievalRuntime
 // SetRetrievalRuntime 注入本地检索后端配置（boot 装配调用）。
 // 切换 embedding/rerank 后端只改配置（kind/base/model），消费方代码零改动。
 func SetRetrievalRuntime(cfg RetrievalRuntime) { retrievalRuntime = cfg }
-
-// costDocText 把成本条目摘要拼成精排文档串。
-func costDocText(e cost.Summary) string {
-	var b strings.Builder
-	b.WriteString(e.Title)
-	if e.Spec != "" {
-		b.WriteString("（" + e.Spec + "）")
-	}
-	if e.Unit != "" {
-		b.WriteString(" 单位" + e.Unit)
-	}
-	b.WriteString(fmt.Sprintf(" 单价%.2f元", e.Price))
-	if e.Category != "" {
-		b.WriteString(" 分类" + e.Category)
-	}
-	if e.Source != "" {
-		b.WriteString(" 来源" + e.Source)
-	}
-	if len(e.Tags) > 0 {
-		b.WriteString(" 标签" + strings.Join(e.Tags, ","))
-	}
-	return b.String()
-}
 
 // costOverview 成本库概览：按分类计数，引导模型测算前先引用。
 // 读取失败如实返回 error（GA6-09）——否则「库为空」的空态文案会掩盖故障。

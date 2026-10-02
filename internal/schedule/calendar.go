@@ -70,6 +70,10 @@ func ISOOf(d time.Time) string {
 }
 
 // IsWorkingDate 命中工作制且未落在节假日例外。
+//
+// 日历规则求值唯一入口（IN3-02）：包内一切「某日是否工作日」判定一律经本
+// 函数，禁止各站点手写 Workweek/Holidays 判据。格式解析器（mpp.mppWeekFromHours）
+// 只产 Workweek 集合、不做规则求值，产出仅用于构造 Calendar.Workweek。
 func IsWorkingDate(d time.Time, cal Calendar) bool {
 	wd := int(d.Weekday()) // time.Weekday 与 JS getDay 同口径：周日=0
 	ok := false

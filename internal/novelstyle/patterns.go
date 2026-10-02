@@ -133,7 +133,7 @@ func ruleNegationFlip(text string, runes []rune) []TasteIssue {
 			issues = append(issues, TasteIssue{
 				Start: start, End: end,
 				Reason:     "句式套路：否定铺垫后肯定翻转（不是A，而是B）",
-				Severity:   "high",
+				Severity:   "S2",
 				Suggestion: "直接写肯定项，或把对比改成动作承担。",
 			})
 		}
@@ -142,7 +142,7 @@ func ruleNegationFlip(text string, runes []rune) []TasteIssue {
 }
 
 // ruleExplanatoryMarkers 规则 11（门禁 G，advisory）：解释腔/上帝感标记。
-// 内核分不清「无功能解释」与「承担锚点的伏笔」，一律 low 级提示并封顶，
+// 内核分不清「无功能解释」与「承担锚点的伏笔」，一律 S4 级提示并封顶，
 // 删不删由作者/技能按语义裁决。
 func ruleExplanatoryMarkers(text string, runes []rune) []TasteIssue {
 	var issues []TasteIssue
@@ -158,7 +158,7 @@ func ruleExplanatoryMarkers(text string, runes []rune) []TasteIssue {
 			issues = append(issues, TasteIssue{
 				Start: start, End: end,
 				Reason:     "解释腔标记（advisory：无功能解释可删，承担锚点/情绪则保留）",
-				Severity:   "low",
+				Severity:   "S4",
 				Suggestion: "删无功能的解释；确需保留信息时压成角色白话或场内载体（手机/公告/屏幕）。",
 			})
 		}

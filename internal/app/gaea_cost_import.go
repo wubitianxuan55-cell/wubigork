@@ -321,9 +321,9 @@ func (a *App) GaeaCostImportApply(rows []CostEntry, inquirySource ...string) (in
 	}); err != nil {
 		return 0, err
 	}
-	// 批量导入不经 cost.Store.Save（与 Save 同构的直写 UPSERT），BM25 排序
-	// 缓存（刀D v4.247）必须显式失效。
-	cost.InvalidateRankers()
+	// BM25 排序缓存无需（也不再允许）此处手工失效（GA6-06：隐式「记得
+	// 调 InvalidateRankers」契约已删）——排序缓存 key 含语料指纹
+	//（行数|max(updated_at)），本批提交后指纹自变，旧 Ranker 自动失联。
 	n := len(entries)
 	if len(inquirySource) > 0 && strings.TrimSpace(inquirySource[0]) != "" {
 		a.upsertInquiryFromImport(entries, strings.TrimSpace(inquirySource[0]))

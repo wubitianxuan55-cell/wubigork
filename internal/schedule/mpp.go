@@ -507,6 +507,11 @@ func intInSlice(v int, s []int) bool {
 // mppWeekFromHours 每周工时块(7×60 字节,Day1..7=周日..周六)→ 工作日集合
 // (JS getDay 口径:周日=0..周六=6)。每日:int16 flag@0(flag==1=缺省周,即
 // 周一~五工作);否则 int16 段数@2,段数 0=休息。
+//
+// 分工（IN3-02）：本函数是 MPP 二进制的**格式解析器**——只从文件字节推
+// Workweek 集合，产出经 mppBuildProject 唯一消费（构造 Calendar.Workweek，
+// 节假日例外 MPP 侧不解析恒 nil）；「某日是否工作日」的规则求值一律走
+// calendar.go IsWorkingDate，本函数不做、也不得做。
 func mppWeekFromHours(b []byte) []int {
 	def := mppDefaultWeek()
 	out := []int{}

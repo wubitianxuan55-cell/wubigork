@@ -14,6 +14,7 @@ import (
 )
 
 // Issue 一条确定性发现（severity 对齐评审 rubric 的 S1-S4）。
+// 注（IN1-09）：novelstyle 的 AI 味严重度已单源对齐本枚举（旧 low/medium/high/blocker → S4/S3/S2/S1），本包逻辑零改动。
 type Issue struct {
 	Code     string `json:"code"`
 	Severity string `json:"severity"` // S1 | S2 | S3 | S4

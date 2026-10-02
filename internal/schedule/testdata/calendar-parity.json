@@ -1,0 +1,57 @@
+{
+  "_comment": "IN3-02 Go/TS 日历语义对拍 golden（批 16 线 3）。本文件是 internal/schedule/calendar.go 与 frontend/src/schedule/calendar.ts 的共享期望：Go 侧 calendar_parity_test.go 与 TS 侧 calendar.test.ts 的 parity 块读同一份数据，各自对自家实现断言。任一侧语义漂移（改 Go 漏改 TS、或反之）即对应侧红。期望值冻结的是当前双端共识（周日=0 口径：2026-09-06/13/20 为周日，2026-09-12 为周六；2026-12-28 周一起跨年，2027-01-01 周五）。既有用例一字不改；追加样本只增不改。",
+  "calendars": {
+    "monToFri": { "workweek": [1, 2, 3, 4, 5], "holidays": [] },
+    "sunWorkSatRest": { "workweek": [0, 1, 2, 3, 4, 5], "holidays": ["2026-09-13"] },
+    "satWorkSunRest": { "workweek": [1, 2, 3, 4, 6], "holidays": ["2026-10-01", "2026-10-02"] },
+    "emptyWorkweek": { "workweek": [], "holidays": [] },
+    "newYear": { "workweek": [1, 2, 3, 4, 5], "holidays": ["2027-01-01"] }
+  },
+  "isWorkingDate": [
+    { "cal": "monToFri", "date": "2026-09-06", "working": false, "why": "周日=0 不在工作集" },
+    { "cal": "monToFri", "date": "2026-09-07", "working": true, "why": "周一" },
+    { "cal": "monToFri", "date": "2026-09-12", "working": false, "why": "周六=6" },
+    { "cal": "monToFri", "date": "2026-09-13", "working": false, "why": "周日" },
+    { "cal": "sunWorkSatRest", "date": "2026-09-06", "working": true, "why": "周日=0 命中工作集（边界）" },
+    { "cal": "sunWorkSatRest", "date": "2026-09-12", "working": false, "why": "周六=6 不在工作集" },
+    { "cal": "sunWorkSatRest", "date": "2026-09-13", "working": false, "why": "周日是工作日但命中节假日例外" },
+    { "cal": "sunWorkSatRest", "date": "2026-09-20", "working": true, "why": "周日工作日且不在节假日表" },
+    { "cal": "satWorkSunRest", "date": "2026-09-12", "working": true, "why": "周六上班" },
+    { "cal": "satWorkSunRest", "date": "2026-09-13", "working": false, "why": "周日休" },
+    { "cal": "satWorkSunRest", "date": "2026-10-01", "working": false, "why": "周四但命中国庆" },
+    { "cal": "satWorkSunRest", "date": "2026-10-02", "working": false, "why": "命中国庆第二日" },
+    { "cal": "satWorkSunRest", "date": "2026-09-30", "working": true, "why": "周三且不在节假日表" },
+    { "cal": "emptyWorkweek", "date": "2026-09-06", "working": false, "why": "空工作集 fail-closed（原始判据，双端一致不经 normalize）" },
+    { "cal": "emptyWorkweek", "date": "2026-09-07", "working": false, "why": "空工作集 fail-closed" },
+    { "cal": "newYear", "date": "2026-12-31", "working": true, "why": "周四且未跨节假日" },
+    { "cal": "newYear", "date": "2027-01-01", "working": false, "why": "周五但命中元旦（跨年）" }
+  ],
+  "wdToDate": [
+    { "cal": "monToFri", "start": "2026-09-07", "idx": 0, "want": "2026-09-07", "why": "第 0 个工作日=开工日当日" },
+    { "cal": "monToFri", "start": "2026-09-07", "idx": 5, "want": "2026-09-14", "why": "跨周末顺延" },
+    { "cal": "monToFri", "start": "2026-09-12", "idx": 0, "want": "2026-09-14", "why": "开工日为周六，顺延首个工作日（周一）" },
+    { "cal": "monToFri", "start": "2026-09-12", "idx": 1, "want": "2026-09-15", "why": "顺延后继续计数" },
+    { "cal": "monToFri", "start": "2026-09-12", "idx": -1, "want": "2026-09-12", "why": "idx<0 原样返回开工日（顺延前）" },
+    { "cal": "satWorkSunRest", "start": "2026-09-28", "idx": 3, "want": "2026-10-03", "why": "跳过 10-01/02 节假日、周六上班" },
+    { "cal": "sunWorkSatRest", "start": "2026-09-08", "idx": 5, "want": "2026-09-15", "why": "周六休+周日节假日双跳" },
+    { "cal": "newYear", "start": "2026-12-30", "idx": 2, "want": "2027-01-04", "why": "跨年+元旦顺延" }
+  ],
+  "dateToWd": [
+    { "cal": "monToFri", "start": "2026-09-07", "date": "2026-09-07", "want": 0, "why": "当日=第 0 个工作日" },
+    { "cal": "monToFri", "start": "2026-09-07", "date": "2026-09-11", "want": 4, "why": "周五" },
+    { "cal": "monToFri", "start": "2026-09-07", "date": "2026-09-12", "want": null, "why": "周六非工作日" },
+    { "cal": "monToFri", "start": "2026-09-07", "date": "2026-09-05", "want": null, "why": "早于开工日" },
+    { "cal": "sunWorkSatRest", "start": "2026-09-06", "date": "2026-09-06", "want": 0, "why": "周日=0 为首个工作日（边界）" },
+    { "cal": "sunWorkSatRest", "start": "2026-09-06", "date": "2026-09-13", "want": null, "why": "节假日例外" },
+    { "cal": "sunWorkSatRest", "start": "2026-09-06", "date": "2026-09-14", "want": 6, "why": "周六休+周日节假日后顺计" },
+    { "cal": "newYear", "start": "2026-12-28", "date": "2027-01-04", "want": 4, "why": "跨年跳过元旦" }
+  ],
+  "deadlineWorkdays": [
+    { "cal": "monToFri", "start": "2026-09-07", "deadline": "2026-09-11", "want": 5, "why": "整工作周" },
+    { "cal": "monToFri", "start": "2026-09-07", "deadline": "2026-09-12", "want": 5, "why": "周六竣工回落周五计数" },
+    { "cal": "monToFri", "start": "2026-09-10", "deadline": "2026-09-09", "want": 0, "why": "竣工早于开工" },
+    { "cal": "sunWorkSatRest", "start": "2026-09-06", "deadline": "2026-09-13", "want": 6, "why": "周六休不计、周日节假日不计" },
+    { "cal": "satWorkSunRest", "start": "2026-09-28", "deadline": "2026-10-03", "want": 4, "why": "国庆两日不计、周六上班计" },
+    { "cal": "newYear", "start": "2026-12-28", "deadline": "2027-01-04", "want": 5, "why": "跨年含元旦例外" }
+  ]
+}

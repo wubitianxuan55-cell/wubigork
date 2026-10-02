@@ -12,6 +12,11 @@
 //     独立入口两空间均可达）。v4.439 编程板块删除后该分面暂为空集。
 // 全部方法必须显式分类（satisfies Record<keyof AppBindings, BindingSpace>），
 // 新方法未分类 tsc 直接报错，防止静默落入错误空间。
+// FE4-04 机器可读约定：本表键被 scripts/gen_bindings -legacy-ts 逐行解析（行格式
+// `键: "空间",` ——两空格缩进、裸标识符、四空间字面量之一、行尾可带 // 注释）以
+// 推导 AppBindings 认领集、生成 legacyBindings.ts。增删键请保持该行格式：解析
+// 整体失灵时生成器有键数下限闸（红而不落盘），个别漏解析则由 drift.ts 的
+// _CheckLegacyNoOverlap 锁与 spaceBindings.test.ts 的推导断言抓红。
 import type { AppBindings } from "./bridge";
 import type { ShellSpace } from "../../boards/space";
 

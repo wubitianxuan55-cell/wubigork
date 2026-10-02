@@ -13,7 +13,7 @@ type TasteIssue struct {
 	Start      int    `json:"start"`      // 在原文的 [Start,End) rune 偏移
 	End        int    `json:"end"`        // 在原文的 [Start,End) rune 偏移
 	Reason     string `json:"reason"`     // 命中规则
-	Severity   string `json:"severity"`   // low/medium/high/blocker
+	Severity   string `json:"severity"`   // S1/S2/S3/S4（S1 最重；与 novelgate/novelreview 同一枚举，见 IN1-09 单源）
 	Suggestion string `json:"suggestion"` // 修复建议
 }
 
@@ -38,23 +38,30 @@ const (
 )
 
 // ── 严重度权重（合成 0-100 分） ──
+// 严重度枚举单源（IN1-09）：本包产出与 novelgate/novelreview 同用 S1-S4。
+// 换名映射 blocker→S1 / high→S2 / medium→S3 / low→S4 为线性换名（S1 最重），
+// 权重数值零漂移：旧 blocker/high/medium/low 的 30/16/9/4 原值平移到 S1-S4，
+// AI 味分数不变（severity_test.go 有换名前后同值的 golden 锁）。
 const (
-	weightLow     = 4
-	weightMedium  = 9
-	weightHigh    = 16
-	weightBlocker = 30
+	weightS1 = 30 // 旧 blocker（最重；当前无规则产出，保留供 LLM 评审桥接/未来规则）
+	weightS2 = 16 // 旧 high（AI 高频词黑名单、否定翻转）
+	weightS3 = 9  // 旧 medium（比喻堆砌/语域/情绪直述/连接词/四字格/句长均匀/形副密度）
+	weightS4 = 4  // 旧 low（标点滥用、解释腔 advisory）
 )
 
 func severityToWeight(sev string) int {
 	switch sev {
-	case "blocker":
-		return weightBlocker
-	case "high":
-		return weightHigh
-	case "medium":
-		return weightMedium
+	case "S1":
+		return weightS1
+	case "S2":
+		return weightS2
+	case "S3":
+		return weightS3
+	case "S4":
+		return weightS4
 	default:
-		return weightLow
+		// 未知值（含历史旧枚举）按 S4 最轻档兜底，与旧 default→weightLow 口径一致。
+		return weightS4
 	}
 }
 
@@ -135,7 +142,7 @@ func ruleUnmotivatedMetaphor(text string, runes []rune) []TasteIssue {
 			issues = append(issues, TasteIssue{
 				Start: pr[0], End: pr[1],
 				Reason:     "无缘无故的修辞：一段超过 1 个比喻（删「为好看」的排比叠喻）",
-				Severity:   "medium",
+				Severity:   "S3",
 				Suggestion: "同一段只保留一个最贴切的比喻，删去为华丽而堆砌的排比叠喻。",
 			})
 		}
@@ -158,7 +165,7 @@ func ruleRegisterBreak(text string, runes []rune) []TasteIssue {
 				issues = append(issues, TasteIssue{
 					Start: pr[0] + rng[0], End: pr[0] + rng[1],
 					Reason:     "语域不一致：通俗文里出现古诗典/学术/西方哲学/网络梗词",
-					Severity:   "medium",
+					Severity:   "S3",
 					Suggestion: "改用与正文一致的通俗口吻。",
 				})
 			}
@@ -175,7 +182,7 @@ func ruleEmotionDirect(text string, runes []rune) []TasteIssue {
 			issues = append(issues, TasteIssue{
 				Start: rng[0], End: rng[1],
 				Reason:     "show-don't-tell：抽象情绪直述",
-				Severity:   "medium",
+				Severity:   "S3",
 				Suggestion: "换成身体反应来外化情绪（握拳、指节发白、眼泪唰地掉），避免「内心充满了/感到很」式直接陈述。",
 			})
 		}
@@ -196,7 +203,7 @@ func ruleConnectiveDense(text string, runes []rune) []TasteIssue {
 				issues = append(issues, TasteIssue{
 					Start: sents[i-1][0], End: se[1],
 					Reason:     "连接词密集：句首连接词连续 >=2 句",
-					Severity:   "medium",
+					Severity:   "S3",
 					Suggestion: "拆开或删去部分句首连接词，让句间衔接更自然、隐含。",
 				})
 			}
@@ -218,7 +225,7 @@ func ruleFourCharConsecutive(text string, runes []rune) []TasteIssue {
 				issues = append(issues, TasteIssue{
 					Start: cr[0], End: cr[1],
 					Reason:     "四字成语/四字格连用：一个分句内 >=2 个四字格",
-					Severity:   "medium",
+					Severity:   "S3",
 					Suggestion: "削减四字格用量（anti-ai-polish：四字成语 <=3/500字），改为口语短句。",
 				})
 			}
@@ -246,7 +253,7 @@ func ruleSentenceUniform(text string, runes []rune, fp *Fingerprint) []TasteIssu
 		return []TasteIssue{{
 			Start: 0, End: len(runes),
 			Reason:     "句长方差过小：全篇句长过于均匀，缺少节奏变化",
-			Severity:   "medium",
+			Severity:   "S3",
 			Suggestion: "长短句交错，加入少量短句与长句制造节奏。",
 		}}
 	}
@@ -264,7 +271,7 @@ func ruleAdjAdvDensity(text string, runes []rune) []TasteIssue {
 		return []TasteIssue{{
 			Start: 0, End: len(runes),
 			Reason:     "形容词/副词密度过高：修饰语堆砌",
-			Severity:   "medium",
+			Severity:   "S3",
 			Suggestion: "删减冗余的形容词/副词，让名词与动词自己说话。",
 		}}
 	}
@@ -279,7 +286,7 @@ func rulePunctuation(text string, runes []rune) []TasteIssue {
 		issues = append(issues, TasteIssue{
 			Start: 0, End: len(runes),
 			Reason:     "标点滥用：省略号超阈值（<=5/章）",
-			Severity:   "low",
+			Severity:   "S4",
 			Suggestion: "减少省略号，用句子收束替代无谓的留白。",
 		})
 	}
@@ -287,7 +294,7 @@ func rulePunctuation(text string, runes []rune) []TasteIssue {
 		issues = append(issues, TasteIssue{
 			Start: 0, End: len(runes),
 			Reason:     "标点滥用：感叹号超阈值（<=8/章）",
-			Severity:   "low",
+			Severity:   "S4",
 			Suggestion: "减少感叹号，用叙述本身传达情绪。",
 		})
 	}
@@ -298,7 +305,7 @@ func rulePunctuation(text string, runes []rune) []TasteIssue {
 			issues = append(issues, TasteIssue{
 				Start: pr[0], End: pr[1],
 				Reason:     "标点滥用：省略号超阈值（<=1/段）",
-				Severity:   "low",
+				Severity:   "S4",
 				Suggestion: "删除冗余省略号。",
 			})
 		}
@@ -306,7 +313,7 @@ func rulePunctuation(text string, runes []rune) []TasteIssue {
 			issues = append(issues, TasteIssue{
 				Start: pr[0], End: pr[1],
 				Reason:     "标点滥用：感叹号超阈值（<=1/段）",
-				Severity:   "low",
+				Severity:   "S4",
 				Suggestion: "删除冗余感叹号。",
 			})
 		}
@@ -322,7 +329,7 @@ func ruleAIBlacklist(text string, runes []rune) []TasteIssue {
 			issues = append(issues, TasteIssue{
 				Start: rng[0], End: rng[1],
 				Reason:     "AI 高频词黑名单命中",
-				Severity:   "high",
+				Severity:   "S2",
 				Suggestion: "替换为更自然、具体的表达，避免公式化词汇。",
 			})
 		}

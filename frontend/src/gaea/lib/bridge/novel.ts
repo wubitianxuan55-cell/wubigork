@@ -17,10 +17,10 @@ export interface FingerprintSummary {
 export interface FingerprintStatusPayload {
   exists: boolean; builtAt?: string; chapters?: number; chars?: number; summary?: FingerprintSummary;
 }
-/** 单条体检命中：severity 分档 low/medium/high/blocker（未知档允许透传 string）。 */
+/** 单条体检命中：severity 分档 S1/S2/S3/S4（S1 最重；与 novelgate/novelreview 同一枚举，IN1-09 单源；未知档/历史 low/medium/high/blocker 允许透传 string）。 */
 export interface FingerprintIssue {
   start: number; end: number; reason: string;
-  severity: 'low' | 'medium' | 'high' | 'blocker' | string;
+  severity: 'S1' | 'S2' | 'S3' | 'S4' | string;
   suggestion: string; excerpt: string;
 }
 /** 章节体检结果：score 0-100 越高越像 AI；delta=与参考档的函数词距离（越小越像

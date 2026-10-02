@@ -1,3 +1,14 @@
+## 非版本刀：全仓审计第 16 批·簇 C 口径单源（4 条并行线）· 2026-10-02
+
+- **刀型**：接续同日审计第 15 批（`be53c2a9`）。**4 条互斥并行子代理线**（线1 成本族 cost+builtin+app 三文件 / 线2 novelstyle+前端 / 线3 schedule+前端 calendar / 线4 前端绑定三清单+scripts）+ 主代理预核（八条审计原文全对现场）、逐线复核 diff、**四组反向变异亲手各重做一组**、收线缝合与全量门禁。**不抬版本、不动 CHANGELOG**。
+- **交付**：`docs/code-audit-2026-10-02/round-18-p1-batch16.md`。
+- **四线内容**：①**成本族**——GA6-01 销账（前批已修）；GA6-06 隐式失效契约消灭（ranker key 加语料指纹 `COUNT|MAX(updated_at)`，任何路径写自动失效，**导出 `InvalidateRankers` 删除**；纯指纹被否：同秒保数编辑+分类改名指纹全盲 ⇒ 混合方案）；GA6-04 三路检索编排收编 `cost.Enhance`（阈值唯一出处，实现由各面注入 SearchHooks——builtin 不能 import app、cost 不能 import retrieval 反向依赖）；精排文档串两份同构实现收编 `cost.RerankDocText`（**实测 4 份非审计的 3 份**；BM25 串/语义串不同型刻意不并，注释互锁「不许顺手对齐」）；②**IN1-09**——novelstyle 严重度 `low/medium/high/blocker` → `S1-S4`（与 gate/review 同枚举；app 的 severityBlocking 走 novelgate 预核证非消费 ⇒ 不动 app/gate/review）；权重 30/16/9/4 原值平移=**分数零漂移**（6 样本 golden 锁）；S1 当前无规则产出（占位，相容 gate 空章级）；③**IN3-02**——预核「Go 四处手写判定」**证伪**（(b) 类 0 处，cost.go/Analyze 已走唯一入口）⇒ 交付转为唯一入口注释钉死 + **TS↔Go 双端对拍 golden**（`testdata/calendar-parity.json` 39 条冻结共识，双端各读同份，改 Go 漏改 TS 必红）；④**FE4-04**——审计半 overstated（satisfies 实测已双向抓红）；真缺口=手写 legacy 清单 **10 条与认领集重叠的死条目**（架空「Go 删绑定」报警）⇒ `gen_bindings` 新增 `-legacy-ts`（解析 spaceBindings+mappings 推导认领集，产出 `legacyBindings.ts` 184 名字节稳定）+ drift 两把新锁（NoStale/NoOverlap）+ 计数魔法数 565 删（类型级保证替代）。
+- **预核三处被现场/子代理纠正（主代理不豁免）**：IN3-02 重复不存在（真缺口=无对拍）；FE4-04 satisfies 已能抓（别为不存在的问题造机制）；「gen_bindings 已知 AppBindings 归属」不实（生成器只知 Go 门面归属）。
+- **反向证据（主代理亲手各重做一组）**：线1 指纹置盲→直写失效测试红（顺带暴露陈旧倒排按语料位置错位记分的机理）/线2 S2 权重 16→15→golden+权重表双红/线3 Go weekday 错位一天→parity 四节全红+既有 5 测红/线4 认领名塞生成清单→NoOverlap 锁红（还原 sha1 回 `896b863e`）。
+- **纪律事故（进在册）**：线 1 子代理误用一次 `git checkout -- cost.go`（违反「代理禁 git 写」）——无提交/历史影响，如实申报+手工重做全部改动+全量复验后收线；**登记不豁免**。另：并发窗口期间其余线见到 `go build ./...`/tsc 短暂红（线 1 删 InvalidateRankers 在飞、线 4 重构 spaceBindings 在飞）——按「并发期不跑全量、收线统一验证」纪律消化，未误判为自身回归。
+- **门禁（前台单次 CI OK / exit 0）**：golangci v2.14.0 0 issues · `go test ./...` exit 0 · 前端 lint 0 error / build ok · **vitest 427 文件 3716 例**（批 15 为 3712）· E 系列 + 卫生四查 OK；守卫四份全绿（primitives 无新增 / test-ctors 见台账 / contract-drift 无新增 / **bindings-drift OK@744**——Go 绑定面零变更）。
+- **留池/下一批**：组价两面接入 `cost.Enhance`（一行事，footprint 外残留）；`retrieval.DocText` 与精排串价格格式微差（改动触发重嵌入漂移，不动）；GA6-06 的 16 项缓存清空策略（观测池）。**下一批候选**：IN1-05（Profile vs Fingerprint 双真相源，须 internal/project+app 单独一波）· GA3-07（知识库检索双口径，本批与线 1 撞 builtin 包顺延）· 簇 D 死代码（GA4-09 Learner 桩/GA2-03/X1-11/FE3-03 死绑定检测——**线 4 的 `legacyBindings.ts` 生成物为其提供了现成全集数据源**）。待拍板池不变（桌面 agent 接线三件套等）。
+
 ## 非版本刀：全仓审计第 15 批·簇 B 真 bug（3 条并行线）· 2026-10-02
 
 - **刀型**：接续同日审计第 14 批（`295b6d2a`）。**线 1 主代理直做**（`internal/types`+`graph`，删死定义不值得一个子代理波次）+ **线 2/线 3 互斥并行子代理**（线2 `internal/gaea/agent` / 线3 `internal/app` 两文件；Go 包互斥）+ 主代理开工前预核（四处现场亲读）、逐线复核 diff、**亲手重做两条线的反向变异**、收线缝合与全量门禁。**不抬版本、不动 CHANGELOG**。
