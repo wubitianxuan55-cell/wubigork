@@ -58,7 +58,8 @@ func loadPromptOverrides(dataRoot string) []promptstore.Override {
 	return f.Templates
 }
 
-// savePromptOverrides 整写覆盖表（temp+rename 原子落盘，task_inbox 同款）。
+// savePromptOverrides 整写覆盖表（fileutil.AtomicWrite 原子落盘，AP5-02 收敛：
+// task_inbox 同款 temp+rename 手法的单一实现）。
 func savePromptOverrides(dataRoot string, entries []promptstore.Override) error {
 	if entries == nil {
 		entries = []promptstore.Override{}
@@ -67,30 +68,7 @@ func savePromptOverrides(dataRoot string, entries []promptstore.Override) error 
 	if err != nil {
 		return err
 	}
-	p := promptOverridesPath(dataRoot)
-	dir := filepath.Dir(p)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return err
-	}
-	tmp, err := os.CreateTemp(dir, "prompt-overrides-*.tmp")
-	if err != nil {
-		return err
-	}
-	tmpName := tmp.Name()
-	if _, err := tmp.Write(b); err != nil {
-		_ = tmp.Close()
-		_ = os.Remove(tmpName)
-		return err
-	}
-	if err := tmp.Close(); err != nil {
-		_ = os.Remove(tmpName)
-		return err
-	}
-	if err := fileutil.RenameWithRetry(tmpName, p); err != nil {
-		_ = os.Remove(tmpName)
-		return err
-	}
-	return nil
+	return fileutil.AtomicWrite(promptOverridesPath(dataRoot), b, 0o644)
 }
 
 // ── 覆盖缓存与互斥（规格 §4.3：App 侧持缓存，选侵入最小的 writingState）──

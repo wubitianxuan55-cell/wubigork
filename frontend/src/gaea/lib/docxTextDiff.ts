@@ -17,6 +17,8 @@
 //     （与文本行级 diff 的「改一行 = −1 +1」同一语义），不做字词级对齐。
 //   - 空段落保留参与 diff（空行是版面结构的一部分，删除分隔行的改动不该被吞）。
 
+import { lcsDiff } from "./diff";
+
 /** 段级 diff 一行：type 语义与 DiffRow 一致（ctx/add/del），index 为段落序号（1 起）。 */
 export interface DocxRow {
   type: "ctx" | "add" | "del";
@@ -27,44 +29,17 @@ export interface DocxRow {
 
 /**
  * 纯函数：两份 docx 的正文段落序列 → 段级 LCS diff（带序号）。
- * 算法与 lib/diff.diffLines 同一套经典 LCS DP，只是把「行」换成「段落」——
- * 不走 join("\n") 复用 diffLines，因为该技巧要求元素不含换行符，对通用
- * 序列是隐式脆弱约束，这里显式写在小函数里（行为可单测）。
+ * 算法即 lib/diff.lcsDiff 的经典 LCS DP（FE4-01 收敛：行级/段级/页签名/字符级
+ * 同一份泛型，文档段落数量级（千级）矩阵内存可接受），本函数只做「段落」元素
+ * 类型与取值适配：ctx/add 序号取当前文档、del 取基线文档（1 起）。不走
+ * join("\n") 复用行级入口，该技巧要求元素不含换行符，对通用序列是隐式脆弱约束。
  */
 export function diffDocxParagraphs(baseParas: string[], curParas: string[]): DocxRow[] {
-  const n = baseParas.length;
-  const m = curParas.length;
-  // dp[i][j] = baseParas[i..] 与 curParas[j..] 的 LCS 长度（全量矩阵，回溯每一步
-  // 都要用 dp[i+1][j]/dp[i][j+1]——与 diffLines 同一套；文档段落数量级（千级）
-  // 与文本行 diff 相当，矩阵内存可接受）。
-  const dp: number[][] = Array.from({ length: n + 1 }, () => new Array<number>(m + 1).fill(0));
-  for (let i = n - 1; i >= 0; i--) {
-    for (let j = m - 1; j >= 0; j--) {
-      dp[i][j] =
-        baseParas[i] === curParas[j]
-          ? dp[i + 1][j + 1] + 1
-          : Math.max(dp[i + 1][j], dp[i][j + 1]);
-    }
-  }
-  const rows: DocxRow[] = [];
-  let i = 0;
-  let j = 0;
-  while (i < n && j < m) {
-    if (baseParas[i] === curParas[j]) {
-      rows.push({ type: "ctx", index: j + 1, text: curParas[j] });
-      i++;
-      j++;
-    } else if (dp[i + 1][j] >= dp[i][j + 1]) {
-      rows.push({ type: "del", index: i + 1, text: baseParas[i] });
-      i++;
-    } else {
-      rows.push({ type: "add", index: j + 1, text: curParas[j] });
-      j++;
-    }
-  }
-  while (i < n) rows.push({ type: "del", index: i + 1, text: baseParas[i++] });
-  while (j < m) rows.push({ type: "add", index: j + 1, text: curParas[j++] });
-  return rows;
+  return lcsDiff(baseParas, curParas, (p, q) => p === q).map((op): DocxRow => {
+    if (op.type === "ctx") return { type: "ctx", index: op.bi + 1, text: curParas[op.bi]! };
+    if (op.type === "del") return { type: "del", index: op.ai + 1, text: baseParas[op.ai]! };
+    return { type: "add", index: op.bi + 1, text: curParas[op.bi]! };
+  });
 }
 
 /** 段级 diff 的增删计数（对齐 versionCompare.diffStatOf 的口径）。 */

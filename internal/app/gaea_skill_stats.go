@@ -39,37 +39,15 @@ func loadSkillStats(dataRoot string) skillstats.File {
 	return f
 }
 
-// saveSkillStats 原子写（temp+rename，route_suggestions 同款手法）。
+// saveSkillStats 原子写（fileutil.AtomicWrite，AP5-02 收敛：route_suggestions
+// 同款 temp+rename 手法的单一实现）。
 func saveSkillStats(dataRoot string, f skillstats.File) error {
 	f.Version = 1
 	b, err := json.MarshalIndent(f, "", "  ")
 	if err != nil {
 		return err
 	}
-	p := skillStatsPath(dataRoot)
-	dir := filepath.Dir(p)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return err
-	}
-	tmp, err := os.CreateTemp(dir, "skill-stats-*.tmp")
-	if err != nil {
-		return err
-	}
-	tmpName := tmp.Name()
-	if _, err := tmp.Write(b); err != nil {
-		_ = tmp.Close()
-		_ = os.Remove(tmpName)
-		return err
-	}
-	if err := tmp.Close(); err != nil {
-		_ = os.Remove(tmpName)
-		return err
-	}
-	if err := fileutil.RenameWithRetry(tmpName, p); err != nil {
-		_ = os.Remove(tmpName)
-		return err
-	}
-	return nil
+	return fileutil.AtomicWrite(skillStatsPath(dataRoot), b, 0o644)
 }
 
 // recordSkillUse boot OnSkillUse 回调（引擎 goroutine 调用，无 App 状态依赖）：

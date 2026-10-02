@@ -8,12 +8,14 @@ import type { SinCastCharacter } from './useSinCast'
 
 const apiMock = vi.hoisted(() => ({
   getComfyUITaskProgress: vi.fn(),
+  getImageBackendInfo: vi.fn(),
   cancelImageGeneration: vi.fn(),
 }))
 
 vi.mock('../../api/image', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../api/image')>()),
   getComfyUITaskProgress: apiMock.getComfyUITaskProgress,
+  getImageBackendInfo: apiMock.getImageBackendInfo,
   cancelImageGeneration: apiMock.cancelImageGeneration,
 }))
 
@@ -38,6 +40,8 @@ beforeEach(() => {
   apiMock.getComfyUITaskProgress.mockReset()
   // 默认空快照：busy 期瞬时轮询不至于拿到 undefined（未在生成的用例也安全）
   apiMock.getComfyUITaskProgress.mockResolvedValue({ status: '', elapsed: 0, node: '' })
+  // useComfyTaskProgress（FE6-06 起共用）挂载时解析图像后端类型
+  apiMock.getImageBackendInfo.mockReset().mockResolvedValue({ backend: 'comfyui' })
   apiMock.cancelImageGeneration.mockReset()
 })
 

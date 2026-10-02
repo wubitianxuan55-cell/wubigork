@@ -22,6 +22,8 @@ vi.mock('../../api/characterlib', () => ({
 vi.mock('../../api/image', () => ({
   readFileAsDataURL: readFileAsDataURLMock,
   getComfyUITaskProgress: vi.fn().mockResolvedValue({ status: '', elapsed: 0, percent: -1, node: '' }),
+  // useComfyTaskProgress（FE6-06 起共用）挂载时解析图像后端类型
+  getImageBackendInfo: vi.fn().mockResolvedValue({ backend: 'comfyui' }),
   cancelImageGeneration: vi.fn().mockResolvedValue(true),
 }))
 
@@ -35,6 +37,7 @@ const mockedCharacterSheet = vi.mocked(generateCharacterSheet)
 const mockedRandom = vi.mocked(generateRandom)
 const mockedScore = vi.mocked(scoreCharacterConsistency)
 const mockedCancelGen = vi.mocked(cancelImageGeneration)
+const mockedProgress = vi.mocked(getComfyUITaskProgress)
 
 function makeCharacter(overrides: Partial<LibraryCharacter> = {}): LibraryCharacter {
   return {
@@ -562,5 +565,37 @@ describe('CharacterLibEditor 一致性评分（v4.404）', () => {
     expect(document.querySelectorAll('.cd-ref').length).toBe(1)
     cleanup()
     Modal.destroyAll()
+  })
+})
+
+describe('CharacterLibEditor ComfyUI 进度行（FE6-06：共用 useComfyTaskProgress）', () => {
+  // Dropdown.Button：data-testid 挂在按钮组 wrapper 上，主按钮=组内第一个 button
+  const sheetMainBtn = () => screen.getByTestId('gen-character-sheet').querySelector('button')!
+
+  it('生成期间显示节点中文与用时，取消钮走全局取消，结束后行消失', async () => {
+    mockedProgress.mockResolvedValue({ status: 'running', elapsed: 12, percent: -1, node: 'UNETLoader' })
+    let resolveGen!: (v: string) => void
+    mockedPortrait.mockImplementation(() => new Promise<string>((r) => { resolveGen = r }))
+    renderEditor({ character: makeCharacter({ name: '苏念' }) })
+    fireEvent.click(screen.getByText('生成剧照'))
+    const row = await screen.findByTestId('cd-comfy-progress')
+    expect(row.textContent).toContain('加载模型')
+    expect(row.textContent).toContain('已用时 12s')
+    fireEvent.click(screen.getByTestId('cd-cancel-gen'))
+    await vi.waitFor(() => expect(mockedCancelGen).toHaveBeenCalledTimes(1))
+    resolveGen('data:image/png;base64,ZZZ')
+    await vi.waitFor(() => expect(screen.queryByTestId('cd-comfy-progress')).toBeNull())
+  })
+
+  it('排队中（前有任务）文案；busy 结束后清理', async () => {
+    mockedProgress.mockResolvedValue({ status: 'queued', elapsed: 3, percent: -1, node: 'queue' })
+    let resolveGen!: (v: string) => void
+    mockedCharacterSheet.mockImplementation(() => new Promise<string>((r) => { resolveGen = r }))
+    renderEditor({ character: makeCharacter({ name: '苏念', referenceImages: ['data:image/png;base64,R1'] }) })
+    fireEvent.click(sheetMainBtn())
+    const row = await screen.findByTestId('cd-comfy-progress')
+    expect(row.textContent).toContain('排队中（前有任务）')
+    resolveGen('data:image/png;base64,ZZZ')
+    await vi.waitFor(() => expect(screen.queryByTestId('cd-comfy-progress')).toBeNull())
   })
 })

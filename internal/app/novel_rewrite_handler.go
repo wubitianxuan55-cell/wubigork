@@ -446,8 +446,10 @@ func (a *writingState) NovelRestoreRewriteVersion(chapterNum int, versionID stri
 	return map[string]interface{}{"restored": true}, nil
 }
 
-// prevSummaryResolver 返回章节摘要回退链解析器（大纲 Summary → 章节摘要文件，
-// 与 t3 首刀前文窗口同源口径）。
+// prevSummaryResolver 返回章节摘要回退链解析器（大纲 Summary → 章节摘要文件 →
+// 空串）。AP1-12 收敛后的单一来源：局部重写前文窗口、CreateChapter 前文滑窗
+// （buildPrevSummaryWindow）与阶段逐章摘要（buildStageDigest）三处共用，回退
+// 链只此一份。
 func prevSummaryResolver(pm *project.Manager) func(types.OutlineNode) string {
 	return func(n types.OutlineNode) string {
 		if s := strings.TrimSpace(n.Summary); s != "" {

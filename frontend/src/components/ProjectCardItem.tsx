@@ -5,7 +5,9 @@ import {
   DeleteOutlined, RightOutlined,
 } from '@ant-design/icons'
 import type { ProjectCard } from '../stores/appStore'
-import { formatRelativeTime } from '../utils/time'
+// FE4-03：相对时间唯一源（原 utils/time.formatRelativeTime 天/周档已收编，
+// 分档口径见 gaea/lib/time.relativeTime）。
+import { relativeTime } from '../gaea/lib/time'
 
 interface ProjectCardItemProps {
   card: ProjectCard
@@ -84,7 +86,7 @@ const ProjectCardItem: React.FC<ProjectCardItemProps> = ({
             ? <><b>{card.word_count.toLocaleString()}</b> 字 · <b>{card.chapter_count}</b> 章</>
             : '尚未开始写作'}</span>
           <span className="novel-shelf-meta-sep" aria-hidden>·</span>
-          <span><ClockCircleOutlined aria-hidden /> {formatRelativeTime(card.last_opened_at)}</span>
+          <span><ClockCircleOutlined aria-hidden /> {card.last_opened_at ? relativeTime(Date.parse(card.last_opened_at)) : '未知'}</span>
         </div>
 
         {readingChapter && (

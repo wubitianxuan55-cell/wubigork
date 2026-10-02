@@ -408,6 +408,75 @@ func extractRawText(data []byte) string {
 	return out
 }
 
+// streamSpan 定位一个「真」stream..endstream 块：stream 关键字前面最近的
+// 非空白字符是对象字典结尾 '>'。decodeFlateStreams 与 stripNonTextStreams
+// 共用这套定位（IN3-10），语义差异（解压替换/剔除非文本流）留在各自消费侧。
+type streamSpan struct {
+	dictEnd   int // 流声明字典结尾 '>' 的位置（紧邻关键字，中间只隔空白）
+	kwStart   int // "stream" 关键字起点
+	bodyStart int // 流体首字节（关键字后的 \r\n 换行已跳过）
+	end       int // "endstream" 关键字起点
+}
+
+// streamScanner 增量定位 PDF 字节序列中的 stream..endstream 块。isWS 是关键字
+// 边界判定的空白类：decode 路径用 isPDFSpace（含 \f），strip 路径只认
+// 空格/\t/\r/\n 四种 —— 两条历史路径的判定差异原样保留，不做统一。
+type streamScanner struct {
+	s    string
+	pos  int
+	trim int // 伪命中丢弃线：最近一次伪命中关键字之后的偏移（仅 strip 消费侧使用）
+	isWS func(byte) bool
+}
+
+func newStreamScanner(s string, isWS func(byte) bool) *streamScanner {
+	return &streamScanner{s: s, isWS: isWS}
+}
+
+// seek 重定扫描起点：消费侧拒绝/处理完一个块后从任意偏移继续（decode 路径
+// 字典无 FlateDecode 时只消费关键字、流体原地留在扫描线上；成功或解压失败
+// 时从 endstream 关键字继续，让其以误命中方式原样保留）。
+func (sc *streamScanner) seek(p int) {
+	sc.pos = p
+	sc.trim = p
+}
+
+// next 定位下一个块。伪命中 "stream"（前面不是 '>'，如 endstream 内的子串、
+// 二进制按字节出现的 stream）只推进内部位置：decode 消费侧把伪命中原样写回，
+// strip 消费侧从 trim 线起才保留（伪命中及其前导文本一并丢弃的历史行为）。
+// 真流找不到 endstream 时终止整个扫描 —— 与两条历史路径的 break 行为一致。
+func (sc *streamScanner) next() (streamSpan, bool) {
+	trim := sc.pos
+	for sc.pos < len(sc.s) {
+		i := strings.Index(sc.s[sc.pos:], "stream")
+		if i < 0 {
+			return streamSpan{}, false
+		}
+		i += sc.pos
+		// 真正的 stream 关键字：前面最近的非空白字符是对象字典结尾 '>'。
+		pre := i
+		for pre > 0 && sc.isWS(sc.s[pre-1]) {
+			pre--
+		}
+		if pre == 0 || sc.s[pre-1] != '>' {
+			sc.pos = i + len("stream")
+			trim = sc.pos
+			continue
+		}
+		bodyStart := i + len("stream")
+		for bodyStart < len(sc.s) && (sc.s[bodyStart] == '\r' || sc.s[bodyStart] == '\n') {
+			bodyStart++
+		}
+		end := findEndstream(sc.s, bodyStart, sc.isWS)
+		if end < 0 {
+			return streamSpan{}, false
+		}
+		sc.pos = end + len("endstream")
+		sc.trim = trim
+		return streamSpan{dictEnd: pre - 1, kwStart: i, bodyStart: bodyStart, end: end}, true
+	}
+	return streamSpan{}, false
+}
+
 // decodeFlateStreams 还原 PDF 中带 /Filter /FlateDecode 的压缩流：把流内二进制
 // 原位替换为 zlib 解压后的内容（保持 stream/endstream 结构），后续 BT/ET 提取器
 // 与 stripNonTextStreams 都能读到解压后的正文。数字型 PDF 文本多压缩在文本流里，
@@ -415,51 +484,38 @@ func extractRawText(data []byte) string {
 // 解压失败（非 zlib 封装/损坏）或非 FlateDecode 流保持原样不动。
 func decodeFlateStreams(s string) string {
 	var b strings.Builder
+	sc := newStreamScanner(s, isPDFSpace)
 	pos := 0
-	for pos < len(s) {
-		i := strings.Index(s[pos:], "stream")
-		if i < 0 {
+	for {
+		span, ok := sc.next()
+		if !ok {
 			break
 		}
-		i += pos
-		// 真正的 stream 关键字：前面最近的非空白字符是对象字典结尾 '>'。
-		// 不满足该模式（如 endstream 里的 "stream" 子串）→ 原样跳过继续扫描。
-		pre := i
-		for pre > 0 && isPDFSpace(s[pre-1]) {
-			pre--
-		}
-		if pre == 0 || s[pre-1] != '>' {
-			b.WriteString(s[pos : i+len("stream")])
-			pos = i + len("stream")
-			continue
-		}
+		// span 之前的正文与伪命中关键字原样复制。
+		b.WriteString(s[pos:span.kwStart])
 		// 流声明字典是否含 FlateDecode 过滤器（向前定位字典起点 '<<'）。
-		dictEnd := pre - 1
-		if dictStart := findDictStart(s, dictEnd); dictStart < 0 ||
-			!strings.Contains(s[dictStart:dictEnd], "FlateDecode") {
-			b.WriteString(s[pos : i+len("stream")])
-			pos = i + len("stream")
-			continue
-		}
-		bodyStart := i + len("stream")
-		for bodyStart < len(s) && (s[bodyStart] == '\r' || s[bodyStart] == '\n') {
-			bodyStart++
-		}
-		end := findEndstream(s, bodyStart)
-		if end < 0 {
-			break
-		}
-		dec, err := flateDecompress([]byte(s[bodyStart:end]))
-		if err != nil || len(dec) == 0 {
+		if dictStart := findDictStart(s, span.dictEnd); dictStart >= 0 &&
+			strings.Contains(s[dictStart:span.dictEnd], "FlateDecode") {
+			dec, err := flateDecompress([]byte(s[span.bodyStart:span.end]))
+			if err == nil && len(dec) > 0 {
+				// 原位替换：字典+关键字原样复制，流体换成解压内容；
+				// endstream 从 span.end 起被当误命中扫描，原样保留在输出里。
+				b.WriteString(s[span.kwStart:span.bodyStart])
+				b.Write(dec)
+				pos = span.end
+				sc.seek(pos)
+				continue
+			}
 			// 解压失败：保留原流体，由 stripNonTextStreams 决定去留。
-			b.WriteString(s[pos:end])
-			pos = end
+			b.WriteString(s[span.kwStart:span.end])
+			pos = span.end
+			sc.seek(pos)
 			continue
 		}
-		// 原位替换：pos..bodyStart 原样复制，流体换成解压内容。
-		b.WriteString(s[pos:bodyStart])
-		b.Write(dec)
-		pos = end
+		// 非 Flate 流：原样复制并只消费关键字，流体原地留给扫描器继续。
+		b.WriteString(s[span.kwStart : span.kwStart+len("stream")])
+		pos = span.kwStart + len("stream")
+		sc.seek(pos)
 	}
 	b.WriteString(s[pos:])
 	return b.String()
@@ -488,7 +544,9 @@ func findDictStart(s string, dictEnd int) int {
 }
 
 // findEndstream 从 from 起定位独立的 endstream 关键字位置（-1 表示没有）。
-func findEndstream(s string, from int) int {
+// isWS 决定关键字后跟什么字节才算独立（decode/strip 两条路径的空白类不同，
+// 见 streamScanner）。
+func findEndstream(s string, from int, isWS func(byte) bool) int {
 	search := from
 	for search < len(s) {
 		j := strings.Index(s[search:], "endstream")
@@ -497,7 +555,7 @@ func findEndstream(s string, from int) int {
 		}
 		j += search
 		after := j + len("endstream")
-		if after >= len(s) || isPDFSpace(s[after]) {
+		if after >= len(s) || isWS(s[after]) {
 			return j
 		}
 		search = j + len("endstream")
@@ -515,59 +573,34 @@ func flateDecompress(data []byte) ([]byte, error) {
 	return io.ReadAll(io.LimitReader(zr, 64<<20))
 }
 
+// isStreamSepWS stripNonTextStreams 定位 stream/endstream 关键字用的空白类：
+// 历史行为不把 \f 当空白，与 isPDFSpace（decode 路径用）不同，原样保留。
+func isStreamSepWS(c byte) bool {
+	return c == ' ' || c == '\t' || c == '\r' || c == '\n'
+}
+
 // stripNonTextStreams 移除 PDF 中所有 stream...endstream 块，仅保留包含 "BT"
 // 的文本内容流（未压缩文本流由 BT/ET 提取器读取）。压缩流、图像流、ICC 配置文件等
 // 二进制块一旦被剔除，就不会再污染原始文本提取，也不会产生假 BT/ET 命中。
 func stripNonTextStreams(s string) string {
 	var b strings.Builder
+	sc := newStreamScanner(s, isStreamSepWS)
 	pos := 0
-	for pos < len(s) {
-		i := strings.Index(s[pos:], "stream")
-		if i < 0 {
+	for {
+		span, ok := sc.next()
+		if !ok {
+			// 伪命中推进同样作用于丢弃边界（与历史 pos 前进方式一致）。
+			pos = sc.pos
 			break
 		}
-		i += pos
-		// 真正的 stream 关键字：前面最近的非空白字符是对象字典结尾 '>'，
-		// 后面跟换行。图像/ICC 二进制里按字节出现的 "stream" 不满足该模式。
-		pre := i
-		for pre > 0 && (s[pre-1] == ' ' || s[pre-1] == '\t' || s[pre-1] == '\r' || s[pre-1] == '\n') {
-			pre--
-		}
-		if pre == 0 || s[pre-1] != '>' {
-			pos = i + len("stream")
-			continue
-		}
-		bodyStart := i + len("stream")
-		for bodyStart < len(s) && (s[bodyStart] == '\r' || s[bodyStart] == '\n') {
-			bodyStart++
-		}
-		// 找独立的 endstream 关键字（后面是换行/空白/文件尾）。
-		end := -1
-		search := bodyStart
-		for search < len(s) {
-			j := strings.Index(s[search:], "endstream")
-			if j < 0 {
-				break
-			}
-			j += search
-			after := j + len("endstream")
-			if after >= len(s) || s[after] == '\r' || s[after] == '\n' || s[after] == ' ' || s[after] == '\t' {
-				end = j
-				break
-			}
-			search = j + len("endstream")
-		}
-		if end < 0 {
-			break
-		}
-		if isTextStreamBody(s[bodyStart:end]) {
+		if isTextStreamBody(s[span.bodyStart:span.end]) {
 			// 文本内容流：整段保留给 BT/ET 提取
-			b.WriteString(s[pos : end+len("endstream")])
-			pos = end + len("endstream")
-			continue
+			b.WriteString(s[sc.trim : span.end+len("endstream")])
+		} else {
+			// 非文本流：字典保留，stream 关键字到 endstream 整块剔除。
+			b.WriteString(s[sc.trim:span.kwStart])
 		}
-		b.WriteString(s[pos:i])
-		pos = end + len("endstream")
+		pos = span.end + len("endstream")
 	}
 	b.WriteString(s[pos:])
 	return b.String()

@@ -626,42 +626,29 @@ func startDebugServer() {
 	}()
 }
 
-// initImageBackend 根据配置初始化图片生成后端
+// initImageBackend 根据配置初始化图片生成后端。构造统一走 resolveImageBackend
+// （IN2-03 收敛）；本函数只保留启动口径的策略——glm 不可用回退 xAI（照记日志），
+// 其余不可用静默跳过（恢复交由用户在设置页重选），与收敛前各分支行为一致。
 func (a *App) initImageBackend() {
-	switch a.cfg.ImageBackend {
-	case "comfyui":
-		if a.cfg.ComfyUIURL != "" {
-			backend := ai.NewComfyUIBackend(a.cfg.ComfyUIURL)
-			a.clientRef().SetImageBackend(backend, "comfyui")
-			slog.Info("图片后端: ComfyUI", "url", a.cfg.ComfyUIURL)
-		}
-	case "herdsman":
-		eng, ok := a.engineMgr.GetEngine("herdsman")
-		if ok && eng.Enabled {
-			backend := ai.NewOpenAIImageBackend(eng.BaseURL, eng.APIKey)
-			a.clientRef().SetImageBackend(backend, "herdsman")
-			slog.Info("图片后端: Herdsman", "url", eng.BaseURL)
-		}
-	case "ollama":
-		eng, ok := a.engineMgr.GetEngine("ollama")
-		if ok && eng.Enabled {
-			backend := ai.NewOpenAIImageBackend(eng.BaseURL, eng.APIKey)
-			a.clientRef().SetImageBackend(backend, "ollama")
-			slog.Info("图片后端: Ollama", "url", eng.BaseURL)
-		}
-	case "glm":
-		eng, ok := a.engineMgr.GetEngine("glm")
-		key := a.engineMgr.GLMKey()
-		if ok && eng.Enabled && key != "" {
-			backend := ai.NewGLMImageBackend(eng.BaseURL, key)
-			a.clientRef().SetImageBackend(backend, "glm")
-			slog.Info("图片后端: GLM", "url", eng.BaseURL)
-		} else {
+	r, err := resolveImageBackend(a.cfg.ImageBackend, a.cfg, a.engineMgr)
+	if err != nil {
+		if r.Kind == "glm" {
 			a.clientRef().SetImageBackend(nil, "xai")
 			slog.Warn("图片后端: GLM 不可用（引擎未启用或 Key 未配置），回退 xAI")
 		}
-	default: // "xai" 或空
-		a.clientRef().SetImageBackend(nil, "xai")
+		return
+	}
+	a.clientRef().SetImageBackend(r.Backend, r.Kind)
+	switch r.Kind {
+	case "comfyui":
+		slog.Info("图片后端: ComfyUI", "url", a.cfg.ComfyUIURL)
+	case "herdsman":
+		slog.Info("图片后端: Herdsman", "url", r.BaseURL)
+	case "ollama":
+		slog.Info("图片后端: Ollama", "url", r.BaseURL)
+	case "glm":
+		slog.Info("图片后端: GLM", "url", r.BaseURL)
+	default:
 		slog.Info("图片后端: xAI")
 	}
 }

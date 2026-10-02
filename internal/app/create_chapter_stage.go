@@ -90,9 +90,10 @@ func stageRange(chapterNum int) (int, int) {
 	return start, end
 }
 
-// buildStageDigest 收集上一阶段逐章摘要（大纲节点 Summary → 章节摘要文件回退，
-// 解析链与 buildPrevSummaryWindow 同源）；单条截断、合计受 stageRecapBudgetRunes
-// 预算约束。无任何素材返回空串。
+// buildStageDigest 收集上一阶段逐章摘要（大纲节点 Summary → 章节摘要文件回退）；
+// 单条截断、合计受 stageRecapBudgetRunes 预算约束。无任何素材返回空串。
+// 取文单一来源 prevSummaryResolver（AP1-12 收敛：回退链与 buildPrevSummaryWindow
+// 字面同一实现，不再各写一份）。
 func buildStageDigest(pm *project.Manager, start, end int) string {
 	if pm == nil {
 		return ""
@@ -114,18 +115,15 @@ func buildStageDigest(pm *project.Manager, start, end int) string {
 	}
 	walk(of.Nodes)
 
+	resolve := prevSummaryResolver(pm)
 	var b strings.Builder
 	used := 0
 	for num := start; num <= end; num++ {
-		summary := ""
+		node := types.OutlineNode{OrderIndex: num}
 		if n, ok := byNum[num]; ok && n != nil {
-			summary = strings.TrimSpace(n.Summary)
+			node = *n
 		}
-		if summary == "" {
-			if cs, err := pm.ReadChapterSummary(num); err == nil && cs != nil {
-				summary = strings.TrimSpace(cs.Summary)
-			}
-		}
+		summary := resolve(node)
 		if summary == "" {
 			continue
 		}

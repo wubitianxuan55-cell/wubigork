@@ -101,7 +101,8 @@ func loadSkillDistillState(dataRoot string) skillDistillStateFile {
 	return f
 }
 
-// saveSkillDistillState 整写状态（temp+rename 原子落盘，route_suggestions 手法）。
+// saveSkillDistillState 整写状态（fileutil.AtomicWrite 原子落盘，AP5-02 收敛：
+// route_suggestions 同款 temp+rename 手法的单一实现）。
 func saveSkillDistillState(dataRoot string, f skillDistillStateFile) error {
 	if f.Ignored == nil {
 		f.Ignored = map[string]skillDistillDecision{}
@@ -114,30 +115,7 @@ func saveSkillDistillState(dataRoot string, f skillDistillStateFile) error {
 	if err != nil {
 		return err
 	}
-	p := skillDistillStatePath(dataRoot)
-	dir := filepath.Dir(p)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return err
-	}
-	tmp, err := os.CreateTemp(dir, "skill-distill-*.tmp")
-	if err != nil {
-		return err
-	}
-	tmpName := tmp.Name()
-	if _, err := tmp.Write(b); err != nil {
-		tmp.Close()
-		os.Remove(tmpName)
-		return err
-	}
-	if err := tmp.Close(); err != nil {
-		os.Remove(tmpName)
-		return err
-	}
-	if err := fileutil.RenameWithRetry(tmpName, p); err != nil {
-		os.Remove(tmpName)
-		return err
-	}
-	return nil
+	return fileutil.AtomicWrite(skillDistillStatePath(dataRoot), b, 0o644)
 }
 
 // validSkillDistillID 候选 ID 形状防御（jd-+8 小写十六进制）：直接复用

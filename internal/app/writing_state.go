@@ -4,7 +4,6 @@ import (
 	"log/slog"
 	"path/filepath"
 
-	"github.com/gaea/gaea/internal/ai"
 	"github.com/gaea/gaea/internal/analysis"
 	"github.com/gaea/gaea/internal/chapter"
 	"github.com/gaea/gaea/internal/character"
@@ -55,30 +54,32 @@ func (w *writingState) initAgents() {
 	w.restoreImageBackend()
 }
 
-// restoreImageBackend 从配置恢复图像后端（应用重启后自动恢复）
+// restoreImageBackend 从配置恢复图像后端（应用重启后自动恢复）。构造统一走
+// resolveImageBackend（IN2-03 收敛：原手写副本缺 glm/herdsman 分支、comfyui 分支
+// 里还嵌了一段 herdsman 覆盖——漂移已并回与 initImageBackend 同一口径）；恢复
+// 失败静默（保持 xAI 默认），与收敛前各分支的静默口径一致。
 func (w *writingState) restoreImageBackend() {
 	if w.client == nil {
 		return
 	}
-	switch w.cfg.ImageBackend {
+	r, err := resolveImageBackend(w.cfg.ImageBackend, w.cfg, w.engineMgr)
+	if err != nil {
+		return
+	}
+	switch r.Kind {
 	case "comfyui":
-		if w.cfg.ComfyUIURL != "" {
-			w.client.SetImageBackend(ai.NewComfyUIBackend(w.cfg.ComfyUIURL), "comfyui")
-			slog.Info("已恢复 ComfyUI 图像后端", "url", w.cfg.ComfyUIURL, "model", w.cfg.ImageModel)
-		}
-		if w.engineMgr != nil {
-			if eng, ok := w.engineMgr.GetEngine("herdsman"); ok && eng.Enabled {
-				w.client.SetImageBackend(ai.NewOpenAIImageBackend(eng.BaseURL, eng.APIKey), "herdsman")
-				slog.Info("已恢复 Herdsman 图像后端", "url", eng.BaseURL)
-			}
-		}
+		w.client.SetImageBackend(r.Backend, r.Kind)
+		slog.Info("已恢复 ComfyUI 图像后端", "url", w.cfg.ComfyUIURL, "model", w.cfg.ImageModel)
+	case "herdsman":
+		w.client.SetImageBackend(r.Backend, r.Kind)
+		slog.Info("已恢复 Herdsman 图像后端", "url", r.BaseURL)
 	case "ollama":
-		if w.engineMgr != nil {
-			if eng, ok := w.engineMgr.GetEngine("ollama"); ok && eng.Enabled {
-				w.client.SetImageBackend(ai.NewOpenAIImageBackend(eng.BaseURL, eng.APIKey), "ollama")
-				slog.Info("已恢复 Ollama 图像后端")
-			}
-		}
+		w.client.SetImageBackend(r.Backend, r.Kind)
+		slog.Info("已恢复 Ollama 图像后端")
+	case "glm":
+		w.client.SetImageBackend(r.Backend, r.Kind)
+		slog.Info("已恢复 GLM 图像后端", "url", r.BaseURL)
+	default:
 		// xai 不需要恢复（默认就是 xai fallback）
 	}
 }

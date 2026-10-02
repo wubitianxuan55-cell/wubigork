@@ -82,18 +82,9 @@ func (a *writingState) createChapter(setting, prevSummary, plotReq string, chapt
 		limitChapter = len(of.Nodes) + 1
 	}
 	// 摘要回退链（spec §12.4-5）：大纲节点 Summary → 章节摘要文件 → 跳过该章。
-	resolvePrevSummary := func(n types.OutlineNode) string {
-		if s := strings.TrimSpace(n.Summary); s != "" {
-			return s
-		}
-		if cs, err := pm.ReadChapterSummary(n.OrderIndex); err == nil && cs != nil {
-			if s := strings.TrimSpace(cs.Summary); s != "" {
-				return s
-			}
-		}
-		return ""
-	}
-	prevSummary = buildPrevSummaryWindow(of.Nodes, limitChapter, resolvePrevSummary)
+	// 解析器单一来源 prevSummaryResolver（AP1-12 收敛：与 novel_rewrite_handler
+	// / buildStageDigest 同一段回退链，零副本）。
+	prevSummary = buildPrevSummaryWindow(of.Nodes, limitChapter, prevSummaryResolver(pm))
 
 	if minWords <= 0 {
 		minWords = 5000
@@ -409,8 +400,7 @@ func chapterPartialPath(pm *project.Manager, targetNum int, branch string) strin
 }
 
 // writeCancelledPartialSidecar 把取消残稿另存为侧车文件（不覆盖正稿），返回落点。
-// 原子写复用 kernel 共享实现 fileutil.AtomicWrite——project.Manager 的
-// writeFileAtomic 走的是同一套临时文件 + RenameWithRetry 语义。
+// 原子写复用 kernel 共享实现 fileutil.AtomicWrite（临时文件 + RenameWithRetry）。
 func writeCancelledPartialSidecar(pm *project.Manager, targetNum int, branch, partial string) (string, error) {
 	if pm == nil {
 		return "", fmt.Errorf("project not open")

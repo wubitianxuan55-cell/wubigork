@@ -368,6 +368,11 @@ export const zhTW: Record<DictKey, string> = {
   "work.done": "已完成",
   "work.elapsed": "用時 {t}",
   "work.steps": "{n} 步",
+  // 相對時間分檔文案（lib/time.ts relativeTime；FE4-03 唯一源）
+  "time.justNow": "剛剛",
+  "time.minutesAgo": "{n} 分鐘前",
+  "time.hoursAgo": "{n} 小時前",
+  "time.yesterday": "昨天",
   "scroll.bottom": "回到底部",
   "stream.connecting": "連線中…",
   "stream.waiting": "仍在等待事件…",

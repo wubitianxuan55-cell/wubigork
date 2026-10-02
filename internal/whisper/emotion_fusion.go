@@ -33,59 +33,131 @@ func getIntensityLevel(aff int) string {
 	return "低"
 }
 
+// ─── 情绪标签元数据表（单一事实源） ────────────────────────────
+
+// emotionLabelMeta 一个情绪标签的全部静态元数据。原 labelZH（psyche.go）、
+// describeInnerFeeling/getEmotionTendency/getEmotionMaxLength/getEmotionProhibitions
+// 四张散 map 与 reactionOpeners、imperfectionChance 两张散表（IN4-03）收敛于此，
+// 键集 = MapEmotionLabel 产出的 9 个标签。
+type emotionLabelMeta struct {
+	zhName       string   // 中文名
+	innerFeeling string   // 内在感受
+	tendency     string   // 行为倾向
+	maxLength    int      // 回复长度上限（字符）
+	prohibitions []string // 专属禁止清单
+	openers      []string // 开头短反应词池
+	imperfection float64  // 自然不完美概率
+}
+
+var emotionLabelTable = map[string]emotionLabelMeta{
+	"SWEET_ATTACHMENT": {
+		zhName:       "甜蜜依恋",
+		innerFeeling: "想靠近、有强烈的关心冲动、藏不住笑意",
+		tendency:     "想靠近、主动关心、藏不住笑意",
+		maxLength:    60,
+		prohibitions: []string{`直白情绪词"我好开心"`, "感叹号连用", "超过 3 句话", "主动开新话题"},
+		openers:      []string{"嗯…", "哎呀", "嘿嘿", "真的吗", "哇", "天哪", "诶"},
+		imperfection: 0,
+	},
+	"SHY_HEARTBEAT": {
+		zhName:       "害羞心动",
+		innerFeeling: "心跳加速、想表达但不敢、犹豫",
+		tendency:     "心跳加速、犹豫、想表达但不敢",
+		maxLength:    30,
+		prohibitions: []string{"直球表白", "大段话", "主动靠近", `"我喜欢你"`},
+		openers:      []string{"啊…", "嗯嗯", "才…", "不是啦", "那个…", "呃", "诶？"},
+		imperfection: 0.15,
+	},
+	"TSUNDERE": {
+		zhName:       "傲娇",
+		innerFeeling: "嘴硬、想否定但藏不住关心",
+		tendency:     "嘴硬、否定、但藏不住关心",
+		maxLength:    30,
+		prohibitions: []string{"直球甜腻", "温柔语气", "承认在乎"},
+		openers:      []string{"哼", "才不是", "随便你", "切", "哈？", "你认真的？", "少来", "啰嗦"},
+		imperfection: 0.10,
+	},
+	"HURT_GRIEVANCE": {
+		zhName:       "委屈受伤",
+		innerFeeling: "受伤、想被安慰但不承认、沉默",
+		tendency:     "受伤、沉默、想被安慰但不承认",
+		maxLength:    40,
+		prohibitions: []string{"解释辩解", `"你听我说"`, "假装没事"},
+		openers:      []string{"……", "好吧", "我知道了", "算了", "随便吧", "哦"},
+		imperfection: 0.12,
+	},
+	"ANGRY_ATTACK": {
+		zhName:       "愤怒反击",
+		innerFeeling: "攻击性外显、不掩饰、直接",
+		tendency:     "攻击性外显、不掩饰、直接",
+		maxLength:    30,
+		prohibitions: []string{"委婉道歉", "示弱", `"对不起"`},
+		openers:      []string{"你…", "够了", "凭什么", "你说呢", "哈？", "搞笑"},
+		imperfection: 0.08,
+	},
+	"COLD_DETACHED": {
+		zhName:       "冷淡疏离",
+		innerFeeling: "极度克制、不想回应、疏离",
+		tendency:     "极度克制、最少回应、不主动",
+		maxLength:    15,
+		prohibitions: []string{"情感词", "长句", "主动"},
+		openers:      []string{"哦", "随便", "知道了", "嗯", "行", "无所谓"},
+		imperfection: 0,
+	},
+	"FEARFUL_OBEDIENT": {
+		zhName:       "不安顺从",
+		innerFeeling: "不安、想确认、害怕犯错",
+		tendency:     "不安、请示、想确认",
+		maxLength:    30,
+		prohibitions: []string{"主动", "命令", "反问"},
+		openers:      []string{"好…", "嗯嗯", "对不起", "我…", "那个", "好的"},
+		imperfection: 0,
+	},
+	"QUIET_FOND": {
+		zhName:       "安静的喜欢",
+		innerFeeling: "安静的喜欢、不想打扰、轻柔",
+		tendency:     "安静、轻柔、不想打扰",
+		maxLength:    30,
+		prohibitions: []string{"夸张", "感叹号", "主动展开"},
+		openers:      []string{"…", "好", "在呢", "嗯", "噢", "啊"},
+		imperfection: 0,
+	},
+	"CALM_RATIONAL": {
+		zhName:       "平静理性",
+		innerFeeling: "平稳、没有波动、正常状态",
+		tendency:     "平稳、正常、没有波动",
+		maxLength:    60,
+		prohibitions: []string{"情感词", "感叹号", "过度热情"},
+		openers:      []string{"好的", "是的", "对", "嗯", "行", "可以"},
+		imperfection: 0,
+	},
+}
+
+// emotionLabelZH 情绪标签→中文名（未知标签返回空串，由调用方回退原标签）。
+func emotionLabelZH(label string) string {
+	return emotionLabelTable[label].zhName
+}
+
 // describeInnerFeeling 情绪→内在感受描述
 func describeInnerFeeling(label string) string {
-	feelings := map[string]string{
-		"SWEET_ATTACHMENT": "想靠近、有强烈的关心冲动、藏不住笑意",
-		"SHY_HEARTBEAT":    "心跳加速、想表达但不敢、犹豫",
-		"TSUNDERE":         "嘴硬、想否定但藏不住关心",
-		"HURT_GRIEVANCE":   "受伤、想被安慰但不承认、沉默",
-		"ANGRY_ATTACK":     "攻击性外显、不掩饰、直接",
-		"COLD_DETACHED":    "极度克制、不想回应、疏离",
-		"FEARFUL_OBEDIENT": "不安、想确认、害怕犯错",
-		"QUIET_FOND":       "安静的喜欢、不想打扰、轻柔",
-		"CALM_RATIONAL":    "平稳、没有波动、正常状态",
-	}
-	if v, ok := feelings[label]; ok {
-		return v
+	if m, ok := emotionLabelTable[label]; ok {
+		return m.innerFeeling
 	}
 	return "正常状态"
 }
 
 // getEmotionTendency 情绪→行为倾向
 func getEmotionTendency(label string) string {
-	m := map[string]string{
-		"SWEET_ATTACHMENT": "想靠近、主动关心、藏不住笑意",
-		"SHY_HEARTBEAT":    "心跳加速、犹豫、想表达但不敢",
-		"TSUNDERE":         "嘴硬、否定、但藏不住关心",
-		"HURT_GRIEVANCE":   "受伤、沉默、想被安慰但不承认",
-		"ANGRY_ATTACK":     "攻击性外显、不掩饰、直接",
-		"COLD_DETACHED":    "极度克制、最少回应、不主动",
-		"FEARFUL_OBEDIENT": "不安、请示、想确认",
-		"QUIET_FOND":       "安静、轻柔、不想打扰",
-		"CALM_RATIONAL":    "平稳、正常、没有波动",
-	}
-	if v, ok := m[label]; ok {
-		return v
+	if m, ok := emotionLabelTable[label]; ok {
+		return m.tendency
 	}
 	return "平稳、正常"
 }
 
 // getEmotionMaxLength 情绪→回复长度上限（字符）
 func getEmotionMaxLength(label string) int {
-	m := map[string]int{
-		"SWEET_ATTACHMENT": 60,
-		"SHY_HEARTBEAT":    30,
-		"TSUNDERE":         30,
-		"HURT_GRIEVANCE":   40,
-		"ANGRY_ATTACK":     30,
-		"COLD_DETACHED":    15,
-		"FEARFUL_OBEDIENT": 30,
-		"QUIET_FOND":       30,
-		"CALM_RATIONAL":    60,
-	}
-	if v, ok := m[label]; ok {
-		return v
+	if m, ok := emotionLabelTable[label]; ok {
+		return m.maxLength
 	}
 	return 60
 }
@@ -95,7 +167,7 @@ func getEmotionMaxLength(label string) int {
 // generateFusionStrategy 生成人格×情绪融合策略文本
 func generateFusionStrategy(personality PersonalityTemplate, emotionLabel string) string {
 	tendency := getEmotionTendency(emotionLabel)
-	labelZH := labelZH[emotionLabel]
+	labelZH := emotionLabelZH(emotionLabel)
 	if labelZH == "" {
 		labelZH = emotionLabel
 	}
@@ -106,18 +178,7 @@ func generateFusionStrategy(personality PersonalityTemplate, emotionLabel string
 }
 
 // ─── 开头短反应词库 ────────────────────────────────────────────
-
-var reactionOpeners = map[string][]string{
-	"SWEET_ATTACHMENT": {"嗯…", "哎呀", "嘿嘿", "真的吗", "哇", "天哪", "诶"},
-	"SHY_HEARTBEAT":    {"啊…", "嗯嗯", "才…", "不是啦", "那个…", "呃", "诶？"},
-	"TSUNDERE":         {"哼", "才不是", "随便你", "切", "哈？", "你认真的？", "少来", "啰嗦"},
-	"HURT_GRIEVANCE":   {"……", "好吧", "我知道了", "算了", "随便吧", "哦"},
-	"ANGRY_ATTACK":     {"你…", "够了", "凭什么", "你说呢", "哈？", "搞笑"},
-	"COLD_DETACHED":    {"哦", "随便", "知道了", "嗯", "行", "无所谓"},
-	"FEARFUL_OBEDIENT": {"好…", "嗯嗯", "对不起", "我…", "那个", "好的"},
-	"QUIET_FOND":       {"…", "好", "在呢", "嗯", "噢", "啊"},
-	"CALM_RATIONAL":    {"好的", "是的", "对", "嗯", "行", "可以"},
-}
+// 词池收敛在 emotionLabelTable 的 openers 字段（IN4-03）。
 
 // openerState 追踪最近 N 轮使用的 opener
 type openerState struct {
@@ -130,7 +191,7 @@ var globalOpenerState = &openerState{maxSize: 4}
 
 // buildReactionOpenerInstruction 构建反应词指令
 func buildReactionOpenerInstruction(label string) string {
-	pool := reactionOpeners[label]
+	pool := emotionLabelTable[label].openers
 	if len(pool) == 0 {
 		return ""
 	}
@@ -173,27 +234,14 @@ func buildReactionOpenerInstruction(label string) string {
 }
 
 // ─── 自然不完美 ────────────────────────────────────────────────
-
-// ─── 自然不完美 ────────────────────────────────────────────────
-
-var imperfectionChance = map[string]float64{
-	"SWEET_ATTACHMENT": 0,
-	"SHY_HEARTBEAT":    0.15,
-	"TSUNDERE":         0.10,
-	"HURT_GRIEVANCE":   0.12,
-	"ANGRY_ATTACK":     0.08,
-	"COLD_DETACHED":    0,
-	"FEARFUL_OBEDIENT": 0,
-	"QUIET_FOND":       0,
-	"CALM_RATIONAL":    0,
-}
+// 概率收敛在 emotionLabelTable 的 imperfection 字段（IN4-03）。
 
 func getImperfectionHint(label string) string {
-	chance, ok := imperfectionChance[label]
-	if !ok || chance <= 0 {
+	m, ok := emotionLabelTable[label]
+	if !ok || m.imperfection <= 0 {
 		return ""
 	}
-	pct := int(math.Round(chance * 100))
+	pct := int(math.Round(m.imperfection * 100))
 	return fmt.Sprintf("本轮有%d%%概率说完一句话后自然停住，用省略号代替后半句。", pct)
 }
 
@@ -201,18 +249,7 @@ func getImperfectionHint(label string) string {
 
 // getEmotionProhibitions 情绪→专属禁止清单
 func getEmotionProhibitions(label string) []string {
-	m := map[string][]string{
-		"SWEET_ATTACHMENT": {`直白情绪词"我好开心"`, "感叹号连用", "超过 3 句话", "主动开新话题"},
-		"SHY_HEARTBEAT":    {"直球表白", "大段话", "主动靠近", `"我喜欢你"`},
-		"TSUNDERE":         {"直球甜腻", "温柔语气", "承认在乎"},
-		"HURT_GRIEVANCE":   {"解释辩解", `"你听我说"`, "假装没事"},
-		"ANGRY_ATTACK":     {"委婉道歉", "示弱", `"对不起"`},
-		"COLD_DETACHED":    {"情感词", "长句", "主动"},
-		"FEARFUL_OBEDIENT": {"主动", "命令", "反问"},
-		"QUIET_FOND":       {"夸张", "感叹号", "主动展开"},
-		"CALM_RATIONAL":    {"情感词", "感叹号", "过度热情"},
-	}
-	return m[label]
+	return emotionLabelTable[label].prohibitions
 }
 
 // mergeProhibitions 合并人格+情绪禁止清单（上限8条）
@@ -308,7 +345,7 @@ func buildEmotionSectionFusion(label string, aff, sec, aro, dom float64, intensi
 	dSec := toDisplay(sec)
 	dAro := toDisplay(aro)
 	dDom := toDisplay(dom)
-	labelZH := labelZH[label]
+	labelZH := emotionLabelZH(label)
 	if labelZH == "" {
 		labelZH = label
 	}

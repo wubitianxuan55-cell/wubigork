@@ -8,7 +8,7 @@
 //     加删除/新增强调；
 //  3. 上下文折叠：连续超过阈值（keep*2）的上下文行收起中段，可展开。
 // 语法着色不在本刀（依赖高亮器，属阶段三 CodeMirror/3a 范围）。
-import type { DiffRow } from "./diff";
+import { lcsDiff, type DiffRow } from "./diff";
 
 // ── 改蓝配对 ────────────────────────────────────────────────────
 
@@ -86,17 +86,10 @@ export function charSegments(a: string, b: string): { oldSegs: CharSeg[]; newSeg
       newSegs: [{ text: b, changed: true }],
     };
   }
-  // 字符级 LCS（行短，O(n*m) 可接受）
   const x = Array.from(a);
   const y = Array.from(b);
-  const n = x.length;
-  const m = y.length;
-  const dp: number[][] = Array.from({ length: n + 1 }, () => new Array<number>(m + 1).fill(0));
-  for (let i = n - 1; i >= 0; i -= 1) {
-    for (let j = m - 1; j >= 0; j -= 1) {
-      dp[i][j] = x[i] === y[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
-    }
-  }
+  // 字符级 LCS（行短，O(n*m) 可接受）：lib/diff.lcsDiff 泛型（FE4-01 收敛，
+  // 回溯取向「先耗 old 侧」与原内联实现逐位一致），按操作流分流到两侧片段。
   type Seg = { text: string; changed: boolean };
   const oldSegs: Seg[] = [];
   const newSegs: Seg[] = [];
@@ -105,29 +98,15 @@ export function charSegments(a: string, b: string): { oldSegs: CharSeg[]; newSeg
     if (last && last.changed === changed) last.text += ch;
     else segs.push({ text: ch, changed });
   };
-  let i = 0;
-  let j = 0;
-  while (i < n && j < m) {
-    if (x[i] === y[j]) {
-      push(oldSegs, false, x[i]!);
-      push(newSegs, false, y[j]!);
-      i += 1;
-      j += 1;
-    } else if (dp[i + 1][j] >= dp[i][j + 1]) {
-      push(oldSegs, true, x[i]!);
-      i += 1;
+  for (const op of lcsDiff(x, y, (p, q) => p === q)) {
+    if (op.type === "ctx") {
+      push(oldSegs, false, x[op.ai]!);
+      push(newSegs, false, y[op.bi]!);
+    } else if (op.type === "del") {
+      push(oldSegs, true, x[op.ai]!);
     } else {
-      push(newSegs, true, y[j]!);
-      j += 1;
+      push(newSegs, true, y[op.bi]!);
     }
-  }
-  while (i < n) {
-    push(oldSegs, true, x[i]!);
-    i += 1;
-  }
-  while (j < m) {
-    push(newSegs, true, y[j]!);
-    j += 1;
   }
   return { oldSegs, newSegs };
 }

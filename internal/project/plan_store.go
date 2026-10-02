@@ -16,8 +16,8 @@ import (
 //   - 缺失 = 空正常态（返回空结构 + nil error / bool=false），新项目不是错误；
 //   - 损坏 = 返回 error 且**绝不覆盖**原文件（损坏档可能是作者手改或半写，
 //     顺手覆盖即永久丢数据；修复入口留给作者）；
-//   - 写入 = 原子替换（复用本包既有 writeJSON → writeFileAtomic，与
-//     characters.json/outline.json/章节同款语义：同目录临时文件 + fsync +
+//   - 写入 = 原子替换（复用本包既有 writeJSON → fileutil.AtomicWrite，与
+//     characters.json/outline.json/章节同款语义：同目录临时文件 +
 //     fileutil.RenameWithRetry，失败保留旧文件）。
 //
 // 路径口径沿用 Manager 既有目录字段，不自行拼绝对路径：

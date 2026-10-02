@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gaea/gaea/internal/gaea/fileutil"
 	"github.com/gaea/gaea/internal/types"
 )
 
@@ -34,7 +35,9 @@ func TestChapterBranchSummaryRoundTrip(t *testing.T) {
 
 // ── T6-7.3 落盘原子化 ──────────────────────────────────────
 
-// assertNoTempLeftovers 断言目录内没有 writeFileAtomic 遗留的临时文件
+// assertNoTempLeftovers 断言目录内没有原子写遗留的临时文件。
+// 兼容两代命名：fileutil.AtomicWrite 的 <base>.<rand>.tmp（收敛建制）
+// 与旧私有实现的 <base>.tmp-<rand>。
 func assertNoTempLeftovers(t *testing.T, dir string) {
 	t.Helper()
 	entries, err := os.ReadDir(dir)
@@ -42,7 +45,7 @@ func assertNoTempLeftovers(t *testing.T, dir string) {
 		t.Fatalf("读取目录 %s 失败: %v", dir, err)
 	}
 	for _, e := range entries {
-		if strings.Contains(e.Name(), ".tmp-") {
+		if strings.HasSuffix(e.Name(), ".tmp") || strings.Contains(e.Name(), ".tmp-") {
 			t.Fatalf("发现残留临时文件: %s", e.Name())
 		}
 	}
@@ -112,7 +115,7 @@ func TestWriteFileAtomicFailureKeepsOriginal(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := writeFileAtomic(blocked, []byte("new")); err == nil {
+	if err := fileutil.AtomicWrite(blocked, []byte("new"), 0o600); err == nil {
 		t.Fatal("期望写入失败，实际成功")
 	}
 	// 原目标（目录及其内容）必须原封不动
@@ -123,17 +126,19 @@ func TestWriteFileAtomicFailureKeepsOriginal(t *testing.T) {
 	assertNoTempLeftovers(t, dir)
 }
 
-// TestWriteFileAtomicBadPathFails 路径非法（父目录不存在）：报错且不产生任何文件
-func TestWriteFileAtomicBadPathFails(t *testing.T) {
+// TestWriteFileAtomicCreatesMissingParent 收敛后的语义：fileutil.AtomicWrite
+// 自带 MkdirAll，父目录缺失时自动创建并写入成功（旧私有实现此前报错）。
+func TestWriteFileAtomicCreatesMissingParent(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "no-such-dir", "x.json")
-	if err := writeFileAtomic(path, []byte("data")); err == nil {
-		t.Fatal("期望写入失败，实际成功")
+	if err := fileutil.AtomicWrite(path, []byte("data"), 0o600); err != nil {
+		t.Fatalf("父目录缺失应自动创建并写入: %v", err)
 	}
-	if _, err := os.Stat(path); !os.IsNotExist(err) {
-		t.Fatalf("不应创建目标文件: %v", err)
+	got, err := os.ReadFile(path)
+	if err != nil || string(got) != "data" {
+		t.Fatalf("写入结果不符: err=%v data=%q", err, got)
 	}
-	assertNoTempLeftovers(t, dir)
+	assertNoTempLeftovers(t, filepath.Join(dir, "no-such-dir"))
 }
 
 // TestWriteChapterAtomicReplaces 章节写入走原子路径：覆盖写生效、可回读、无残留

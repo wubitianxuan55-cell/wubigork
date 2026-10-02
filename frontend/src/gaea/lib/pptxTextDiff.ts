@@ -36,6 +36,7 @@
 
 import JSZip from "jszip";
 import { diffDocxParagraphs } from "./docxTextDiff";
+import { lcsDiff } from "./diff";
 import { b64ToBytes } from "./bytes";
 
 /** 单页文本快照：page 为 1 起页码（提取序 = 展示序）；texts 为页内段落文本序列。 */
@@ -162,31 +163,11 @@ export function diffPptxSlideTexts(base: PptxSlideTexts[], cur: PptxSlideTexts[]
   // 出现在段落文本里，拼接无歧义）。
   const baseSig = base.map((s) => s.texts.join("\u0000"));
   const curSig = cur.map((s) => s.texts.join("\u0000"));
-  // dp[i][j] = baseSig[i..] 与 curSig[j..] 的 LCS 长度（与 docxTextDiff 同一套全量矩阵）。
-  const dp: number[][] = Array.from({ length: n + 1 }, () => new Array<number>(m + 1).fill(0));
-  for (let i = n - 1; i >= 0; i--) {
-    for (let j = m - 1; j >= 0; j--) {
-      dp[i][j] =
-        baseSig[i] === curSig[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
-    }
-  }
-  // 回溯出相等页锚点（与 docxTextDiff 同一回溯取向：先耗基线侧）。
-  const anchors: Array<[number, number]> = [];
-  {
-    let i = 0;
-    let j = 0;
-    while (i < n && j < m) {
-      if (baseSig[i] === curSig[j]) {
-        anchors.push([i, j]);
-        i++;
-        j++;
-      } else if (dp[i + 1][j] >= dp[i][j + 1]) {
-        i++;
-      } else {
-        j++;
-      }
-    }
-  }
+  // 页对齐锚点：整页签名过 lib/diff.lcsDiff 的经典 LCS（FE4-01 收敛，与
+  // docxTextDiff 同一份全量矩阵、同一「先耗基线侧」回溯取向），取相等页为锚。
+  const anchors: Array<[number, number]> = lcsDiff(baseSig, curSig, (p, q) => p === q)
+    .filter((op) => op.type === "ctx")
+    .map((op): [number, number] => [op.ai, op.bi]);
   const pages: PptxPageDiff[] = [];
   const rows: PptxRow[] = [];
   const summary: PptxPageSummary = { pagesBase: n, pagesCur: m, added: 0, removed: 0, changed: 0 };

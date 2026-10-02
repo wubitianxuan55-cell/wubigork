@@ -142,3 +142,31 @@ describe('双工期（v4.152 刀3）：检查器工期行口径', () => {
     wd.unmount()
   })
 })
+
+describe('工作日历换算（FE7-04：口径统一走 calendar.ts 的 wdToDate）', () => {
+  it('节假日例外参与换算：wd1 落到节假日后首个工作日', () => {
+    render(
+      <TaskInspector
+        {...baseProps({
+          row: mkRow({ es: 1, ef: 2, ls: 1, lf: 2 }),
+          calendar: { workweek: [1, 2, 3, 4, 5], holidays: ['2026-09-08'] },
+        })}
+      />,
+    )
+    // wd0=09-07（周一），09-08 为节假日 → wd1=09-09、wd2=09-10
+    expect(ui().getByTestId('sched-inspector-es').textContent).toBe('09-09 (+1)')
+    expect(ui().getByTestId('sched-inspector-ef').textContent).toBe('09-10 (+2)')
+  })
+
+  it('非默认工作周参与换算：仅周一开工时 wd1 顺延到下周一', () => {
+    render(
+      <TaskInspector
+        {...baseProps({
+          row: mkRow({ es: 1, ef: 1 }),
+          calendar: { workweek: [1], holidays: [] },
+        })}
+      />,
+    )
+    expect(ui().getByTestId('sched-inspector-es').textContent).toBe('09-14 (+1)')
+  })
+})

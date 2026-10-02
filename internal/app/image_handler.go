@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"math"
@@ -851,6 +852,10 @@ func (a *mediaState) SetImageBackend(backend string, comfyUIURL string, imageMod
 	if a.cfg.ImageSaveDir == "" {
 		a.cfg.ImageSaveDir = filepath.Join(os.Getenv("USERPROFILE"), "Pictures", "gaea")
 	}
+	// 构造统一走 resolveImageBackend（IN2-03 收敛）。cfg 落盘顺序保留收敛前
+	// 口径：comfyui 先并 URL 再构造；herdsman/ollama/glm 先校验（引擎/Key 原文案
+	// 原顺序）再落配置——校验失败不动任何配置。xai 无实例（client 内置管线）。
+	var r resolvedImageBackend
 	switch backend {
 	case "comfyui":
 		a.cfg.ImageBackend = "comfyui"
@@ -860,48 +865,40 @@ func (a *mediaState) SetImageBackend(backend string, comfyUIURL string, imageMod
 		if imageModel != "" {
 			a.cfg.ImageModel = imageModel
 		}
-		a.clientRef().SetImageBackend(ai.NewComfyUIBackend(a.cfg.ComfyUIURL), "comfyui")
+		rr, rerr := resolveImageBackend("comfyui", a.cfg, a.engineMgr)
+		if rerr != nil {
+			// 收敛前此处无前置校验（URL 空也照常构造，生成时才暴露）；现按
+			// 其余四份副本的并集口径 fail-fast（行为差异见 IN2-03 报告）。
+			return fmt.Errorf("未配置 ComfyUI 地址")
+		}
+		r = rr
 	case "xai":
 		a.cfg.ImageBackend = "xai"
 		a.cfg.ImageModel = "grok-imagine-image-quality" // 角色剧照默认高质量模型
-		a.clientRef().SetImageBackend(nil, "xai")
-	case "herdsman":
-		eng, ok := a.engineMgr.GetEngine("herdsman")
-		if !ok || !eng.Enabled {
-			return fmt.Errorf("Herdsman 引擎未启用，请先在模型中心启用")
+		r = resolvedImageBackend{Kind: "xai"}
+	case "herdsman", "ollama", "glm":
+		rr, rerr := resolveImageBackend(backend, a.cfg, a.engineMgr)
+		if rerr != nil {
+			var re *imageBackendResolveError
+			if errors.As(rerr, &re) {
+				switch re.Reason {
+				case reasonEngineDisabled:
+					return fmt.Errorf("%s 引擎未启用，请先在模型中心启用", imageEngineDisplayName(re.Backend))
+				case reasonGLMKeyMissing:
+					return fmt.Errorf("GLM API Key 未配置，请先在模型中心 GLM 卡片保存 Key（open.bigmodel.cn 获取）")
+				}
+			}
+			return rerr
 		}
-		a.cfg.ImageBackend = "herdsman"
+		r = rr
+		a.cfg.ImageBackend = backend
 		if imageModel != "" {
 			a.cfg.ImageModel = imageModel
 		}
-		a.clientRef().SetImageBackend(ai.NewOpenAIImageBackend(eng.BaseURL, eng.APIKey), "herdsman")
-	case "ollama":
-		eng, ok := a.engineMgr.GetEngine("ollama")
-		if !ok || !eng.Enabled {
-			return fmt.Errorf("Ollama 引擎未启用，请先在模型中心启用")
-		}
-		a.cfg.ImageBackend = "ollama"
-		if imageModel != "" {
-			a.cfg.ImageModel = imageModel
-		}
-		a.clientRef().SetImageBackend(ai.NewOpenAIImageBackend(eng.BaseURL, eng.APIKey), "ollama")
-	case "glm":
-		eng, ok := a.engineMgr.GetEngine("glm")
-		if !ok || !eng.Enabled {
-			return fmt.Errorf("GLM 引擎未启用，请先在模型中心启用")
-		}
-		key := a.engineMgr.GLMKey()
-		if key == "" {
-			return fmt.Errorf("GLM API Key 未配置，请先在模型中心 GLM 卡片保存 Key（open.bigmodel.cn 获取）")
-		}
-		a.cfg.ImageBackend = "glm"
-		if imageModel != "" {
-			a.cfg.ImageModel = imageModel
-		}
-		a.clientRef().SetImageBackend(ai.NewGLMImageBackend(eng.BaseURL, key), "glm")
 	default:
 		return fmt.Errorf("不支持的后端: %s（支持 xai / comfyui / herdsman / ollama / glm）", backend)
 	}
+	a.clientRef().SetImageBackend(r.Backend, r.Kind)
 
 	// 持久化绘梦配置，避免应用重启后回退到默认后端/模型/保存目录
 	if err := config.Save(config.KeyImageBackend, backend); err != nil {
@@ -1029,17 +1026,23 @@ func (a *mediaState) GetComfyUIStatus() map[string]interface{} {
 	}
 }
 
-// GetComfyUILoras 返回 ComfyUI 当前可用的 LoRA 列表（绘梦 LoRA 多选动态加载）
+// GetComfyUILoras 返回 ComfyUI 当前可用的 LoRA 列表（绘梦 LoRA 多选动态加载）。
+// 构造统一走 resolveImageBackend（IN2-03 收敛：app 层最后一个手写 ComfyUI 构造点）；
+// comfyui 只会因地址缺失失败，文案保留收敛前口径。
 func (a *mediaState) GetComfyUILoras() ([]string, error) {
-	if a.cfg.ComfyUIURL == "" {
-		return nil, fmt.Errorf("ComfyUI 地址未配置")
-	}
 	ctx := a.ctx
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	backend := ai.NewComfyUIBackend(a.cfg.ComfyUIURL)
-	return backend.ListLoras(ctx)
+	r, err := resolveImageBackend("comfyui", a.cfg, a.engineMgr)
+	if err != nil {
+		return nil, fmt.Errorf("ComfyUI 地址未配置")
+	}
+	cb, ok := r.Backend.(*ai.ComfyUIBackend)
+	if !ok {
+		return nil, fmt.Errorf("ComfyUI 后端类型异常: %T", r.Backend)
+	}
+	return cb.ListLoras(ctx)
 }
 
 // isComfyUIRunning 检查 ComfyUI 是否可连通

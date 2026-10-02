@@ -88,3 +88,27 @@ func TestAtomicWrite_UsesRetryPath(t *testing.T) {
 		t.Fatalf("覆盖结果不符: %q", got)
 	}
 }
+
+// AtomicWrite 自带 MkdirAll：父目录缺失时自动创建（幂等、多层），写入成功。
+// project/narrative 收敛到本实现后全仓都依赖该性质。
+func TestAtomicWrite_CreatesMissingParentDirs(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "a", "b", "c.json")
+	if err := AtomicWrite(path, []byte("data"), 0o644); err != nil {
+		t.Fatalf("缺失父目录应自动创建: %v", err)
+	}
+	got, err := os.ReadFile(path)
+	if err != nil || string(got) != "data" {
+		t.Fatalf("写入结果不符: err=%v data=%q", err, got)
+	}
+	// 失败不留临时文件（<base>.<rand>.tmp）
+	entries, rerr := os.ReadDir(filepath.Join(dir, "a", "b"))
+	if rerr != nil {
+		t.Fatal(rerr)
+	}
+	if len(entries) != 1 || entries[0].Name() != "c.json" {
+		for _, e := range entries {
+			t.Fatalf("目录含意外条目: %s", e.Name())
+		}
+	}
+}

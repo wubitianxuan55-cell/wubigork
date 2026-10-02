@@ -37,9 +37,16 @@ func TestWriteBackRewritten_WriteFailureReturnsError(t *testing.T) {
 	if err := pm.WriteChapter(1, "旧文。"); err != nil {
 		t.Fatalf("预置章节: %v", err)
 	}
-	// 移除 chapters/：project 写盘工具的临时文件创建失败 → 真写错误。
-	if err := os.RemoveAll(filepath.Join(pm.Dir, "chapters")); err != nil {
+	// 把 chapters/ 换成同名普通文件：目录位被文件占据时写盘必失败 → 真写错误。
+	// （原注入是移除目录靠临时文件创建失败；写盘路径统一走 fileutil.AtomicWrite
+	// 后其 MkdirAll 会把缺失目录原样重建，注入失效——占文件对有无 MkdirAll
+	// 的实现都成立。）
+	v3ChapDir := filepath.Join(pm.Dir, "chapters")
+	if err := os.RemoveAll(v3ChapDir); err != nil {
 		t.Fatalf("移除 chapters 目录: %v", err)
+	}
+	if err := os.WriteFile(v3ChapDir, []byte("not a dir"), 0o644); err != nil {
+		t.Fatalf("占位 chapters: %v", err)
 	}
 	err := writeBackRewritten(pm, 1, "", false, "改写后的新文。")
 	if err == nil {

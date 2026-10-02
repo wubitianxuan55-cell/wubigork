@@ -155,7 +155,7 @@ func (m *Manager) ReadWorldview() (string, error) {
 
 // WriteWorldview 写世界观为 markdown（向后兼容，原子写）
 func (m *Manager) WriteWorldview(content string) error {
-	return writeFileAtomic(filepath.Join(m.Dir, "worldview.md"), []byte(content))
+	return fileutil.AtomicWrite(filepath.Join(m.Dir, "worldview.md"), []byte(content), 0o600)
 }
 
 // ReadWorldviewFile 读 worldview.json（不存在时从 worldview.md 自动迁移）
@@ -286,7 +286,7 @@ func (m *Manager) WriteStyleFingerprint(sf *types.StyleFingerprintFile) error {
 
 // WriteChapter 写章节文件 chapters/NNN.md（自动补零，原子写）
 func (m *Manager) WriteChapter(num int, content string) error {
-	return writeFileAtomic(m.ChapterPath(num), []byte(content))
+	return fileutil.AtomicWrite(m.ChapterPath(num), []byte(content), 0o600)
 }
 
 // ReadChapter 读章节文件
@@ -310,7 +310,7 @@ func (m *Manager) ChapterBranchPath(num int, branch string) string {
 
 // WriteChapterBranch 写分支章节（原子写）
 func (m *Manager) WriteChapterBranch(num int, branch string, content string) error {
-	return writeFileAtomic(m.ChapterBranchPath(num, branch), []byte(content))
+	return fileutil.AtomicWrite(m.ChapterBranchPath(num, branch), []byte(content), 0o600)
 }
 
 // ReadChapterBranch 读分支章节
@@ -675,43 +675,15 @@ func findParentVolume(node types.OutlineNode, targetID string) *types.OutlineNod
 
 // ── 内部辅助 ─────────────────────────────────────────────────
 
-// writeFileAtomic 原子写文件：先在目标同目录写临时文件 <name>.tmp-<随机>，
-// 写入并 fsync 后经 fileutil.RenameWithRetry 覆盖目标（Windows 上 AV/索引器
-// 瞬时持有目标文件时按退避重试）。任何一步失败都清理临时文件、保留旧文件，
-// 避免崩溃或并发写把 characters.json/outline.json/章节等用户数据写坏。
-func writeFileAtomic(path string, data []byte) error {
-	dir := filepath.Dir(path)
-	tmp, err := os.CreateTemp(dir, filepath.Base(path)+".tmp-*")
-	if err != nil {
-		return fmt.Errorf("创建临时文件失败 (%s): %w", path, err)
-	}
-	tmpPath := tmp.Name()
-	// 无论成败都清理临时文件（rename 成功后该路径已不存在，Remove 报错可忽略）
-	defer func() { _ = os.Remove(tmpPath) }()
-
-	if _, err := tmp.Write(data); err != nil {
-		_ = tmp.Close()
-		return fmt.Errorf("写入临时文件失败 (%s): %w", path, err)
-	}
-	if err := tmp.Sync(); err != nil {
-		_ = tmp.Close()
-		return fmt.Errorf("同步临时文件失败 (%s): %w", path, err)
-	}
-	if err := tmp.Close(); err != nil {
-		return fmt.Errorf("关闭临时文件失败 (%s): %w", path, err)
-	}
-	if err := fileutil.RenameWithRetry(tmpPath, path); err != nil {
-		return fmt.Errorf("替换文件失败 (%s): %w", path, err)
-	}
-	return nil
-}
-
+// writeJSON 序列化后经 fileutil.AtomicWrite 原子落盘（同目录临时文件 +
+// RenameWithRetry 覆盖，失败保留旧文件）。perm 传 0o600 与旧私有实现的
+// os.CreateTemp 默认权限位一致，收敛后行为不变。
 func writeJSON(path string, v interface{}) error {
 	data, err := json.MarshalIndent(v, "", "  ")
 	if err != nil {
 		return fmt.Errorf("序列化失败 (%s): %w", path, err)
 	}
-	if err := writeFileAtomic(path, data); err != nil {
+	if err := fileutil.AtomicWrite(path, data, 0o600); err != nil {
 		return fmt.Errorf("写入文件失败 (%s): %w", path, err)
 	}
 	return nil

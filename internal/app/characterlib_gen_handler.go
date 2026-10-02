@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -626,36 +627,28 @@ func (a *App) buildPortraitClient() (*ai.Client, error) {
 // v4.388 从 buildPortraitClient 通用化，角色剧照与原罪插图共用）。
 // backend: comfyui / herdsman / ollama / glm 走对应后端，xai 或空走 xAI
 // 原生管线；featureLabel 仅用于未启用/缺 Key 的报错文案点名。
+// 构造统一走 resolveImageBackend（IN2-03 收敛），此处只保留本站点的报错文案。
 func (a *App) buildImageClientFor(backend, featureLabel string) (*ai.Client, error) {
-	if backend == "" {
-		backend = "xai"
+	r, err := resolveImageBackend(backend, a.cfg, a.engineMgr)
+	if err != nil {
+		var re *imageBackendResolveError
+		if errors.As(err, &re) {
+			switch re.Reason {
+			case reasonEngineDisabled:
+				if re.Backend == "glm" {
+					return nil, fmt.Errorf("GLM 引擎未启用，请先在模型中心启用")
+				}
+				return nil, fmt.Errorf("%s引擎 %s 未启用，请先在模型中心启用", featureLabel, re.Backend)
+			case reasonGLMKeyMissing:
+				return nil, fmt.Errorf("GLM API Key 未配置，请先在模型中心 GLM 卡片保存 Key")
+			case reasonComfyURLMissing:
+				return nil, fmt.Errorf("未配置 ComfyUI 地址")
+			}
+		}
+		return nil, err
 	}
 	client := ai.NewClient(a.cfg)
-	switch backend {
-	case "comfyui":
-		if a.cfg.ComfyUIURL == "" {
-			return nil, fmt.Errorf("未配置 ComfyUI 地址")
-		}
-		client.SetImageBackend(ai.NewComfyUIBackend(a.cfg.ComfyUIURL), "comfyui")
-	case "herdsman", "ollama":
-		eng, ok := a.engineMgr.GetEngine(backend)
-		if !ok || !eng.Enabled {
-			return nil, fmt.Errorf("%s引擎 %s 未启用，请先在模型中心启用", featureLabel, backend)
-		}
-		client.SetImageBackend(ai.NewOpenAIImageBackend(eng.BaseURL, eng.APIKey), backend)
-	case "glm":
-		eng, ok := a.engineMgr.GetEngine("glm")
-		if !ok || !eng.Enabled {
-			return nil, fmt.Errorf("GLM 引擎未启用，请先在模型中心启用")
-		}
-		key := a.engineMgr.GLMKey()
-		if key == "" {
-			return nil, fmt.Errorf("GLM API Key 未配置，请先在模型中心 GLM 卡片保存 Key")
-		}
-		client.SetImageBackend(ai.NewGLMImageBackend(eng.BaseURL, key), "glm")
-	default: // xai
-		client.SetImageBackend(nil, "xai")
-	}
+	client.SetImageBackend(r.Backend, r.Kind)
 	return client, nil
 }
 

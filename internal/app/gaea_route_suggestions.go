@@ -57,7 +57,8 @@ func loadRouteSuggestionRecords(dataRoot string) map[string]routeSuggestionRecor
 	return f.Records
 }
 
-// saveRouteSuggestionRecord 原子写一条状态（temp+rename，chapter_art_manifest 先例）。
+// saveRouteSuggestionRecord 原子写一条状态（fileutil.AtomicWrite，AP5-02 收敛：
+// chapter_art_manifest 先例 temp+rename 手法的单一实现）。
 // ID 在此二次校验（单一落盘咽喉）：非法 ID 不落盘。
 func saveRouteSuggestionRecord(dataRoot, id, status string) error {
 	if _, _, _, _, _, ok := routesuggest.ParseSuggestionID(id); !ok {
@@ -69,30 +70,7 @@ func saveRouteSuggestionRecord(dataRoot, id, status string) error {
 	if err != nil {
 		return err
 	}
-	p := routeSuggestionsPath(dataRoot)
-	dir := filepath.Dir(p)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return err
-	}
-	tmp, err := os.CreateTemp(dir, "route-suggest-*.tmp")
-	if err != nil {
-		return err
-	}
-	tmpName := tmp.Name()
-	if _, err := tmp.Write(b); err != nil {
-		_ = tmp.Close()
-		_ = os.Remove(tmpName)
-		return err
-	}
-	if err := tmp.Close(); err != nil {
-		_ = os.Remove(tmpName)
-		return err
-	}
-	if err := fileutil.RenameWithRetry(tmpName, p); err != nil {
-		_ = os.Remove(tmpName)
-		return err
-	}
-	return nil
+	return fileutil.AtomicWrite(routeSuggestionsPath(dataRoot), b, 0o644)
 }
 
 // GaeaRouteSuggestions 现算建议（合并忽略/已采纳状态后返回）。

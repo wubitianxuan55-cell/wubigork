@@ -7,18 +7,8 @@ import (
 )
 
 // ─── 情绪标签中文映射 ─────────────────────────────────────────
-
-var labelZH = map[string]string{
-	"SWEET_ATTACHMENT": "甜蜜依恋",
-	"SHY_HEARTBEAT":    "害羞心动",
-	"TSUNDERE":         "傲娇",
-	"HURT_GRIEVANCE":   "委屈受伤",
-	"ANGRY_ATTACK":     "愤怒反击",
-	"COLD_DETACHED":    "冷淡疏离",
-	"FEARFUL_OBEDIENT": "不安顺从",
-	"QUIET_FOND":       "安静的喜欢",
-	"CALM_RATIONAL":    "平静理性",
-}
+// 中文映射收敛在 emotion_fusion.go 的 emotionLabelTable（zhName 字段，IN4-03），
+// 此处仅保留查询入口。
 
 // ─── 情绪→表达参数映射 ───────────────────────────────────────
 
@@ -153,7 +143,7 @@ func ComputeBarrierAwareness(aff, trust float64, stage RelationshipStage, shared
 
 // BuildPsycheBlock 构建注入 LLM 的心理状态块
 func BuildPsycheBlock(e EmotionState, m Modulation, expr ExpressionParams, silent bool, barrierHint string, emergence *EmergenceState) string {
-	zh := labelZH[e.PrimaryLabel]
+	zh := emotionLabelZH(e.PrimaryLabel)
 	if zh == "" {
 		zh = e.PrimaryLabel
 	}

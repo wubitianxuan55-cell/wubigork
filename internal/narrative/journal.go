@@ -46,8 +46,8 @@ func (j *Journal) journalPath() string {
 }
 
 // Append adds one validated patch to the ledger. It writes the whole ledger
-// atomically (temp file + rename) so a reader never sees a partial line, and
-// best-effort syncs the file and directory.
+// atomically (temp file + rename via the shared fileutil.AtomicWrite) so a
+// reader never sees a partial line.
 func (j *Journal) Append(patch StatePatch) error {
 	if j == nil {
 		return errors.New("narrative: append: nil journal")
@@ -83,7 +83,7 @@ func (j *Journal) appendLine(line []byte) error {
 	if len(line) > 0 && line[len(line)-1] != '\n' {
 		data = append(data, '\n')
 	}
-	return writeFileAtomic(path, data, 0o644)
+	return fileutil.AtomicWrite(path, data, 0o644)
 }
 
 // Replay reads all patches from the ledger in order, skipping corrupt lines with
@@ -180,7 +180,7 @@ func AuthorizeAndSettle(j *Journal, patch StatePatch, approved bool) (*StateSnap
 	if merr != nil {
 		return nil, merr
 	}
-	if werr := writeFileAtomic(filepath.Join(j.dir, stateName), payload, 0o644); werr != nil {
+	if werr := fileutil.AtomicWrite(filepath.Join(j.dir, stateName), payload, 0o644); werr != nil {
 		return nil, werr
 	}
 	return snap, nil
@@ -193,40 +193,4 @@ func marshalSnapshot(s *StateSnapshot) ([]byte, error) {
 		return nil, fmt.Errorf("narrative: marshal snapshot: %w", err)
 	}
 	return b, nil
-}
-
-// writeFileAtomic writes data to path atomically: it writes to a temporary
-// sibling file and renames it over the target. Readers never see a partial
-// write. The rename goes through the shared fileutil.RenameWithRetry (v4.293:
-// Windows AV/indexer transiently locking the target); the rest mirrors the
-// fileutil.AtomicWrite pattern with file and directory sync best-effort.
-func writeFileAtomic(path string, data []byte, perm os.FileMode) error {
-	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return fmt.Errorf("narrative: mkdir %s: %w", dir, err)
-	}
-	tmp, err := os.CreateTemp(dir, filepath.Base(path)+".*.tmp")
-	if err != nil {
-		return fmt.Errorf("narrative: create temp: %w", err)
-	}
-	tmpPath := tmp.Name()
-	if _, err := tmp.Write(data); err != nil {
-		_ = tmp.Close()
-		_ = os.Remove(tmpPath)
-		return fmt.Errorf("narrative: write temp: %w", err)
-	}
-	flushErr := tmp.Sync() // best-effort fsync
-	if err := tmp.Close(); err != nil {
-		_ = os.Remove(tmpPath)
-		return fmt.Errorf("narrative: close temp: %w", err)
-	}
-	if err := fileutil.RenameWithRetry(tmpPath, path); err != nil {
-		_ = os.Remove(tmpPath)
-		return fmt.Errorf("narrative: rename %s: %w", path, err)
-	}
-	if d, derr := os.Open(dir); derr == nil && flushErr == nil {
-		_ = d.Sync() // best-effort directory sync
-		_ = d.Close()
-	}
-	return nil
 }

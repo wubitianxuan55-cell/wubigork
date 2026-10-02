@@ -5,7 +5,8 @@ import { Button, Tooltip } from 'antd'
 import { AimOutlined, CloseOutlined, IdcardOutlined, PlusOutlined, TeamOutlined } from '@ant-design/icons'
 import { PortraitImg } from '../../components/characterlib/PortraitImg'
 import { COMFY_NODE_LABELS } from '../../components/imagegen/GenerationProgress'
-import { cancelImageGeneration, getComfyUITaskProgress } from '../../api/image'
+import { cancelImageGeneration } from '../../api/image'
+import { useComfyTaskProgress } from '../../components/imagegen/useComfyTaskProgress'
 import {
   cancelIllustration, enqueueIllustration, illustrationQueueSnapshot, subscribeIllustrationQueue,
 } from './illustrationQueue'
@@ -27,8 +28,6 @@ export function SinCastPanel({ cast, saving, onOpenPicker, onRemove, onGenerateS
   const [genId, setGenId] = useState<string | null>(null)
   // 进行中的评分（单飞；与生成互斥——本地视觉模型与 ComfyUI 同 GPU）
   const [scoreId, setScoreId] = useState<string | null>(null)
-  // ComfyUI 生成进度（v4.408）：生成期间 1s 轮询同源快照，载入/排队可见（与角色库编辑器同款）
-  const [comfyProgress, setComfyProgress] = useState<{ status: string; elapsed: number; node: string } | null>(null)
   // v4.427：设定卡与流内插图/画廊重生成走同一条串行队列（illustrationQueue）——
   // 此前三条链各自直发 ComfyUI，进度互相串台（两条进度条跳同一个百分比）、
   // 任一侧取消误杀另一侧的任务。入队后一次只跑一个，进度与取消都有归属。
@@ -60,23 +59,9 @@ export function SinCastPanel({ cast, saving, onOpenPicker, onRemove, onGenerateS
     return subscribeIllustrationQueue(sync)
   }, [genId])
   const sheetQueued = genId !== null && illustrationQueueSnapshot().positionOf(sheetTokenRef.current) > 0
-  useEffect(() => {
-    if (!genId || sheetQueued) {
-      setComfyProgress(null)
-      return
-    }
-    let live = true
-    const tick = () => {
-      getComfyUITaskProgress()
-        .then(p => {
-          if (live) setComfyProgress({ status: p.status || '', elapsed: p.elapsed || 0, node: p.node || '' })
-        })
-        .catch(() => { /* 读不到按无进度处理，不阻断生成 */ })
-    }
-    tick()
-    const t = setInterval(tick, 1000)
-    return () => { live = false; clearInterval(t) }
-  }, [genId, sheetQueued])
+  // ComfyUI 生成进度（v4.408，FE6-06 收敛）：轮到自己在跑才轮询同源快照（排队中
+  // 不轮询、不拿别人的进度）；取消链路（摘队位/中断 ComfyUI）不经过轮询，语义不变。
+  const comfyProgress = useComfyTaskProgress(genId !== null && !sheetQueued)
   // 取消生成（v4.408）：排队中只摘自己的队位（不碰别人在跑的任务）；轮到自己
   // 在跑才中断 ComfyUI 当前任务（ctx+/interrupt 双达，与流内插图取消同款制导）。
   const handleCancel = async () => {
@@ -174,7 +159,7 @@ export function SinCastPanel({ cast, saving, onOpenPicker, onRemove, onGenerateS
           </Button>
         </div>
       )}
-      {genId && !sheetQueued && comfyProgress && (comfyProgress.status === 'running' || comfyProgress.status === 'queued') && (
+      {genId && !sheetQueued && (comfyProgress.status === 'running' || comfyProgress.status === 'queued') && (
         <div className="sin-cast-progress" data-testid="sin-cast-progress" aria-live="polite">
           {comfyProgress.status === 'queued'
             ? '排队中（前有任务）'

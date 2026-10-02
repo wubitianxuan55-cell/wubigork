@@ -363,6 +363,11 @@ export const en = {
   "work.done": "Done",
   "work.elapsed": "elapsed {t}",
   "work.steps": "{n} steps",
+  // relative-time tiers (lib/time.ts relativeTime; FE4-03 single source)
+  "time.justNow": "just now",
+  "time.minutesAgo": "{n} min ago",
+  "time.hoursAgo": "{n} h ago",
+  "time.yesterday": "yesterday",
   "scroll.bottom": "Back to bottom",
   "stream.connecting": "Connecting…",
   "stream.waiting": "Still waiting for events…",

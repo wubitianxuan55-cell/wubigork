@@ -5,13 +5,15 @@
  * +前驱/后继可点击跳转）。数据契约：任务/CPM 行/前驱后继依赖行全部由父级算好传入，
  * 本组件零排程计算，只做「驱动结论」的推导与展示；前驱/后继任务名可点击
  * （onNavigate）跳转。日期口径与项目主口径一致：工作日序号 + startDate +
- * 工作日历 → 日历日期（换算为本文件内的独立小函数，不反向依赖排程引擎）。
+ * 工作日历 → 日历日期（FE7-04 收敛：换算统一走 calendar.ts 的 wdToDate/isoOf，
+ * 即与 Go calendar.go 镜像的唯一口径）。
  */
 import React, { useMemo } from 'react'
 import { Button, Drawer, Table, Tag, Typography } from 'antd'
 import type { TableProps } from 'antd'
 import { FlagOutlined, InfoCircleOutlined, LockOutlined, ThunderboltOutlined } from '@ant-design/icons'
-import type { SchedLink, SchedTask, TaskCpm } from './types'
+import { isoOf, wdToDate } from './calendar'
+import type { SchedCalendar, SchedLink, SchedTask, TaskCpm } from './types'
 
 /** 依赖行（前驱/后继通用）：搭接关系与对侧任务信息由父级按视角算好 */
 export interface InspectorDepRow {
@@ -34,51 +36,14 @@ export interface TaskInspectorProps {
   /** 项目开工日 YYYY-MM-DD（工作日序号换算日历日期的锚点） */
   startDate: string
   /** 工作日历（缺省周一~五；workweek 为 JS getDay 口径 0=周日..6=周六） */
-  calendar?: { workweek: number[]; holidays: string[] }
+  calendar?: SchedCalendar
   onClose: () => void
   onNavigate: (taskId: string) => void
 }
 
-/** 默认工作周：周一~五（与 calendar.ts 的 DEFAULT_CALENDAR 同口径） */
-const DEFAULT_WORKWEEK = [1, 2, 3, 4, 5]
-/** 日期扫描上限（天）：防呆，与 calendar.ts 的 SCAN_LIMIT 同口径 */
-const SCAN_LIMIT = 3650
-
-function parseISO(iso: string): Date {
-  const [y, m, d] = iso.split('-').map(Number)
-  return new Date(Date.UTC(y || 1970, (m || 1) - 1, d || 1))
-}
-
-function isoOf(d: Date): string {
-  const p = (n: number) => String(n).padStart(2, '0')
-  return `${d.getUTCFullYear()}-${p(d.getUTCMonth() + 1)}-${p(d.getUTCDate())}`
-}
-
-/**
- * 工作日序号 → 日历日期：从开工日起顺延数第 idx 个工作日（idx=0 即开工日当日；
- * 开工日恰为非工作日自动顺延；周末按 workweek、节假日例外命中即跳过）。
- */
-function wdToISO(startISO: string, idx: number, cal?: { workweek: number[]; holidays: string[] }): string {
-  const start = parseISO(startISO)
-  if (!Number.isFinite(idx) || idx < 0) return isoOf(start)
-  const workweek = cal?.workweek && cal.workweek.length > 0 ? cal.workweek : DEFAULT_WORKWEEK
-  const holidays = cal?.holidays ?? []
-  let cur = new Date(start)
-  let found = -1
-  for (let guard = 0; guard < SCAN_LIMIT; guard++) {
-    const iso = isoOf(cur)
-    if (workweek.includes(cur.getUTCDay()) && !holidays.includes(iso)) {
-      found++
-      if (found === idx) return iso
-    }
-    cur = new Date(cur.getTime() + 86400000)
-  }
-  return isoOf(cur)
-}
-
 /** 六时参日期单元格：MM-DD (+N)，括号内为工作日序号偏移（如 09-03 (+8)） */
-function fmtWd(startISO: string, idx: number, cal?: { workweek: number[]; holidays: string[] }): string {
-  return `${wdToISO(startISO, idx, cal).slice(5)} (+${idx})`
+function fmtWd(startISO: string, idx: number, cal?: SchedCalendar): string {
+  return `${isoOf(wdToDate(startISO, idx, cal)).slice(5)} (+${idx})`
 }
 
 /** 搭接类型+时距：FS+2 / SS-1（负 lag 自带 - 号；lag=0 只显类型） */

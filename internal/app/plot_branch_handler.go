@@ -314,8 +314,8 @@ func (a *writingState) QuickBrainstormBranches(setting, prevSummary, charactersJ
 // 落盘到项目根 branches.json；ApplyBranch 按 nodeID（节点无存储时兜底读轻量
 // 构思 quick 会话）读持久化结果应用，完全去掉二次 AI 重调。旧项目无该文件 =
 // 无持久化 → ApplyBranch 回退现场重生成（原行为），并在返回的 branch_note 里
-// 注明。写盘走 fileutil.AtomicWrite（临时文件 + rename 原子替换，与 project
-// 包 writeFileAtomic 同一约定，崩溃/并发写不会写坏用户数据）。
+// 注明。写盘走 fileutil.AtomicWrite（临时文件 + rename 原子替换，
+// 崩溃/并发写不会写坏用户数据）。
 
 const (
 	// plotBranchStoreFile 分支结果 sidecar 文件名（项目根目录）
