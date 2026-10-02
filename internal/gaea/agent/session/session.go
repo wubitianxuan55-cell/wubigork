@@ -82,6 +82,29 @@ func (s *Session) Replace(msgs []provider.Message) {
 	s.Messages = msgs
 }
 
+// DropLast removes the final message, if any（grace-round nudge 清理用）。
+// 审计 P1 GA1-06 复核修正：run loop 此前裸写 Messages 切片头绕过 mu，与
+// 每秒落盘 ticker 的 Save（RLock Snapshot）构成写读竞争——会话的一切变更
+// 必须经本类型方法。
+func (s *Session) DropLast() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if n := len(s.Messages); n > 0 {
+		s.Messages = s.Messages[:n-1]
+	}
+}
+
+// MergeIntoSystem 把 content 追加到首条 system 消息（无 system 首消息或
+// content 为空时不动）。MergeRuntimePrompt 的落点，锁纪律同上。
+func (s *Session) MergeIntoSystem(content string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if content == "" || len(s.Messages) == 0 || s.Messages[0].Role != provider.RoleSystem {
+		return
+	}
+	s.Messages[0].Content += "\n\n" + content
+}
+
 // Snapshot returns a copy of the messages, safe to read from another goroutine
 // while a turn appends. Frontends (History, Save) use it instead of touching the
 // live slice.

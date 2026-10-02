@@ -284,9 +284,7 @@ func (a *AgentRunner) runDirect(ctx context.Context, input string) (*TurnResult,
 			// Grace Round — model produced summary, done.
 			if graceRound {
 				// clean up grace-round nudge from session before exit
-				if len(a.session.Messages) > 0 {
-					a.session.Messages = a.session.Messages[:len(a.session.Messages)-1]
-				}
+				a.session.DropLast() // GA1-06：经锁内方法，勿裸写 Messages
 				return buildTurnResult(turnFilesCreated, turnFilesModified, turnToolErrors, turnLastSummary), nil
 			}
 
@@ -347,9 +345,7 @@ func (a *AgentRunner) runDirect(ctx context.Context, input string) (*TurnResult,
 		if graceRound {
 			a.preWG.Wait() // drain pre-exec goroutines started during grace streaming
 			// clean up grace-round nudge to prevent leaking to next user turn
-			if len(a.session.Messages) > 0 {
-				a.session.Messages = a.session.Messages[:len(a.session.Messages)-1]
-			}
+			a.session.DropLast() // GA1-06：经锁内方法，勿裸写 Messages
 			return buildTurnResult(turnFilesCreated, turnFilesModified, turnToolErrors, turnLastSummary), fmt.Errorf("paused after %d tool-call rounds (agent.max_steps) — the model continued calling tools during the grace round; the work so far is saved. Send another message to continue, or increase max_steps", a.maxSteps)
 		}
 		a.preWG.Wait()

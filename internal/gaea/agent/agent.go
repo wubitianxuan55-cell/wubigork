@@ -529,11 +529,7 @@ func (a *AgentRunner) SetPermissionRequester(pr PermissionRequester) { a.permReq
 // 取代原 L2 注入方案。合并后消息前缀永不改变，DeepSeek 可自然缓存。
 // 必须在首轮 stream() 调用前调用一次。
 func (a *AgentRunner) MergeRuntimePrompt(content string) {
-	content = strings.TrimSpace(content)
-	if content == "" || len(a.session.Messages) == 0 || a.session.Messages[0].Role != provider.RoleSystem {
-		return
-	}
-	a.session.Messages[0].Content += "\n\n" + content
+	a.session.MergeIntoSystem(strings.TrimSpace(content)) // GA1-06：锁内改写
 }
 func (a *AgentRunner) SetGoal(g string) { a.goal = g }
 

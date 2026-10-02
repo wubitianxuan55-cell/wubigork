@@ -1,11 +1,15 @@
 package visual
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
+	"log/slog"
 	"sort"
 	"strings"
 
 	"github.com/gaea/gaea/internal/project"
+	"github.com/gaea/gaea/internal/types"
 )
 
 // ── 时间线数据 ───────────────────────────────────────────────
@@ -31,6 +35,26 @@ type Timeline struct {
 	POVChars     []string        `json:"pov_chars"` // 所有 POV 角色
 }
 
+// readSummaryForScan 逐章扫描循环共用（审计 P1 AP7-07）：区分「没有下一章」
+// （文件不存在 → 返回 false，调用方收循环）与「损坏/读取失败」（slog.Warn
+// 留痕 → 返回 true 跳过该章继续）——此前一律 break，中间某章 summary.json
+// 损坏会静默截断全库统计（时间线/关系网只算到损坏章为止，与 project 包
+// readChapterSummariesWithFiles 的「单个失败跳过不中断」口径对齐）。
+func readSummaryForScan(pm *project.Manager, chapterNum int) (*types.ChapterSummary, bool) {
+	summary, err := pm.ReadChapterSummary(chapterNum)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil, false
+		}
+		slog.Warn("visual: 章节摘要读取失败，跳过该章继续扫描", "chapter", chapterNum, "error", err)
+		return nil, true
+	}
+	if summary == nil {
+		return nil, true
+	}
+	return summary, true
+}
+
 // ExtractTimeline 从项目提取时间线数据
 func ExtractTimeline(pm *project.Manager) (*Timeline, error) {
 	var events []TimelineEvent
@@ -38,8 +62,8 @@ func ExtractTimeline(pm *project.Manager) (*Timeline, error) {
 	totalWords := 0
 
 	for chapterNum := 1; ; chapterNum++ {
-		summary, err := pm.ReadChapterSummary(chapterNum)
-		if err != nil {
+		summary, cont := readSummaryForScan(pm, chapterNum)
+		if !cont {
 			break
 		}
 		if summary == nil {
@@ -144,8 +168,8 @@ func ExtractEmotionCurve(pm *project.Manager) ([]EmotionPoint, error) {
 	var points []EmotionPoint
 
 	for chapterNum := 1; ; chapterNum++ {
-		summary, err := pm.ReadChapterSummary(chapterNum)
-		if err != nil {
+		summary, cont := readSummaryForScan(pm, chapterNum)
+		if !cont {
 			break
 		}
 		if summary == nil {
@@ -201,8 +225,8 @@ func ExtractCharacterHeatmap(pm *project.Manager) ([]CharacterHeatmapCell, []str
 	maxChapter := 0
 
 	for chapterNum := 1; ; chapterNum++ {
-		summary, err := pm.ReadChapterSummary(chapterNum)
-		if err != nil {
+		summary, cont := readSummaryForScan(pm, chapterNum)
+		if !cont {
 			break
 		}
 		content, _ := pm.ReadChapter(chapterNum)
@@ -290,8 +314,8 @@ func GenerateDefaultCanvas(pm *project.Manager) (*CanvasData, error) {
 	cols := 0
 
 	for chapterNum := 1; ; chapterNum++ {
-		summary, err := pm.ReadChapterSummary(chapterNum)
-		if err != nil {
+		summary, cont := readSummaryForScan(pm, chapterNum)
+		if !cont {
 			break
 		}
 		if summary == nil {

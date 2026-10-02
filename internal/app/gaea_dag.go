@@ -207,6 +207,22 @@ func (a *App) GaeaDagRun(id string) (string, error) {
 	if d := dag.Derived(r); d == dag.DerivedRunning {
 		return "", fmt.Errorf("流水线已在运行中")
 	}
+	// 审计 P1 AP4-05：续跑受理先把 skipped 归一为 pending——失败级联把后续波
+	// 置 skipped，续跑语义是「用户重试，上游修好后这些节点该跑」，显式复位让
+	// 状态机与派生一致（此前 skipped 只是恰好落进待跑集，无复位动作）。
+	normalized := false
+	for i := range r.Nodes {
+		if r.Nodes[i].Status == dag.StatusSkipped {
+			r.Nodes[i].Status = dag.StatusPending
+			r.Nodes[i].Error = ""
+			normalized = true
+		}
+	}
+	if normalized {
+		if err := a.dagStore().Save(r); err != nil {
+			return "", fmt.Errorf("复位 skipped 节点失败: %w", err)
+		}
+	}
 	selected := map[string]bool{}
 	for _, n := range r.Nodes {
 		if n.Status == dag.StatusDone || n.Status == dag.StatusAccepted {

@@ -1,6 +1,7 @@
 package app
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -25,18 +26,32 @@ func (a *App) GaeaOCRText(imagePath string) (string, error) {
 		return "", fmt.Errorf("图片不存在：%s", imagePath)
 	}
 
+	// 审计 P1 IN3-08：四层降级链逐层收集真实错误——此前只判 err==nil 且从不
+	// 保留 err，全部不可用时只回最后一层的错误，排障看不到前三层为何失败。
+	var errs []error
 	if a.activeOCREngine != "" || a.activeOCRModel != "" {
 		if text, err := a.herdsmanOCRWith(a.activeOCREngine, a.activeOCRModel, imagePath); err == nil && strings.TrimSpace(text) != "" {
 			return strings.TrimSpace(text), nil
+		} else if err != nil {
+			errs = append(errs, fmt.Errorf("指定引擎(%s/%s): %w", a.activeOCREngine, a.activeOCRModel, err))
 		}
 	}
 	if text, err := a.herdsmanOCR(imagePath); err == nil && strings.TrimSpace(text) != "" {
 		return strings.TrimSpace(text), nil
+	} else if err != nil {
+		errs = append(errs, fmt.Errorf("herdsman /v1/ocr: %w", err))
 	}
 	if text, err := a.herdsmanParseImage(imagePath); err == nil && strings.TrimSpace(text) != "" {
 		return strings.TrimSpace(text), nil
+	} else if err != nil {
+		errs = append(errs, fmt.Errorf("herdsman parse: %w", err))
 	}
-	return docmd.OCRImageText(imagePath)
+	text, err := docmd.OCRImageText(imagePath)
+	if err != nil {
+		errs = append(errs, fmt.Errorf("本地 OCR: %w", err))
+		return "", errors.Join(errs...)
+	}
+	return text, nil
 }
 
 // herdsmanOCRWith 使用指定引擎和模型识别图片。

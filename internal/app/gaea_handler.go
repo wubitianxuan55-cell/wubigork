@@ -230,6 +230,11 @@ func (a *App) GaeaSetMemoryBrief(enabled bool) error {
 	if a.cfg != nil {
 		a.cfg.SetProjectBrief(enabled)
 	}
+	// 审计 P1 AP3-04：gaeaRebuildLocked 调用方必须持 ga.mu（注释明写），本绑定
+	// 此前裸调；持久化仍在 appconfig（与 gaeaApplyCfg 的 gaea.toml 是两个存储，
+	// 不改落点）。
+	ga.mu.Lock()
+	defer ga.mu.Unlock()
 	return a.gaeaRebuildLocked()
 }
 
@@ -255,6 +260,9 @@ func (a *App) GaeaSetMorningPreload(enabled bool) error {
 	if a.cfg != nil {
 		a.cfg.SetMorningPreload(enabled)
 	}
+	// 审计 P1 AP3-04：同 GaeaSetMemoryBrief，补 ga.mu。
+	ga.mu.Lock()
+	defer ga.mu.Unlock()
 	return a.gaeaRebuildLocked()
 }
 
