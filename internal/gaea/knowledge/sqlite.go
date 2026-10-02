@@ -76,7 +76,7 @@ func (b *sqliteBackend) Delete(name string) error {
 
 func (b *sqliteBackend) List() ([]EntrySummary, error) {
 	rows, err := b.db.Query(
-		`SELECT name, title, category, tags, status, updated_at FROM knowledge ORDER BY updated_at DESC`)
+		`SELECT name, title, category, phase, tags, status, updated_at FROM knowledge ORDER BY updated_at DESC`)
 	if err != nil {
 		// 审计 P0#6 GA3-01：读失败不得吞成空切片（否则与「库空」不可区分）。
 		return nil, fmt.Errorf("query knowledge list: %w", err)
@@ -86,7 +86,7 @@ func (b *sqliteBackend) List() ([]EntrySummary, error) {
 	for rows.Next() {
 		var s EntrySummary
 		var tags, updated string
-		if err := rows.Scan(&s.Name, &s.Title, &s.Category, &tags, &s.Status, &updated); err != nil {
+		if err := rows.Scan(&s.Name, &s.Title, &s.Category, &s.Phase, &tags, &s.Status, &updated); err != nil {
 			return nil, fmt.Errorf("scan knowledge list: %w", err)
 		}
 		s.Tags = parseTagsJSON(tags)

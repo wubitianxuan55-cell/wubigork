@@ -465,6 +465,7 @@ type KnowledgeSummary struct {
 	Name      string    `json:"name"`
 	Title     string    `json:"title"`
 	Category  string    `json:"category"`
+	Phase     string    `json:"phase"` // FE1-03：列表投影补齐（此前前端阶段过滤恒空）
 	Tags      []string  `json:"tags"`
 	Status    string    `json:"status"`
 	UpdatedAt time.Time `json:"updatedAt"`
@@ -502,7 +503,7 @@ func (a *App) GaeaKnowledgeList() []KnowledgeSummary {
 	}
 	out := make([]KnowledgeSummary, 0, len(list))
 	for _, s := range list {
-		out = append(out, KnowledgeSummary{Name: s.Name, Title: s.Title, Category: s.Category, Tags: s.Tags, Status: s.Status, UpdatedAt: s.UpdatedAt})
+		out = append(out, KnowledgeSummary{Name: s.Name, Title: s.Title, Category: s.Category, Phase: s.Phase, Tags: s.Tags, Status: s.Status, UpdatedAt: s.UpdatedAt})
 	}
 	return out
 }

@@ -108,7 +108,9 @@ func (a *App) runRetrievalEval(items []RetrievalEvalItem) (RetrievalEvalReport, 
 			expected = append(expected, h.Kind+":"+h.Name)
 		}
 		row := RetrievalEvalQuery{Query: q, Expected: expected}
-		hits, err := a.GaeaSemanticSearch(q)
+		// 审计 P1 AP5-05：按声明的 Recall@topK 口径取条数（此前内部固定截
+		// 20，口径形同虚设）。
+		hits, err := a.semanticSearchHitsOnDemand(q, retrievalEvalTopK)
 		if err != nil {
 			// 单条查询失败不中断整轮测评：记为空命中，便于整体跑完看趋势。
 			report.PerQuery = append(report.PerQuery, row)

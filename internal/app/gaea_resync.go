@@ -84,8 +84,26 @@ func (a *App) GaeaResyncEvents(afterSeq int) GaeaResyncResult {
 		//（非 nil），前端置空后继续依赖实时事件流，不阻塞对话。
 		return res
 	}
-	res.Items = foldResyncItems(entries)
+	res.Items = foldResyncItems(entriesAfter(entries, int64(afterSeq)))
 	return res
+}
+
+// entriesAfter 按 seq 过滤出 afterSeq 之后的条目（审计 P1 AP5-10：签名收下
+// afterSeq 却整表返回，前端拿到的 items 从头重放、与已见内容重复——补拉
+// 防线的契约是「补缺口」，按序号裁剪是它的本意）。afterSeq<=0 = 全量；折叠器
+// 的合并状态按调用重建，跨缺口的 tool_result 不再并回已下发的 tool_call，
+// 独立成条由前端按 ID 归位（既有 resync 落库行为兼容）。
+func entriesAfter(entries []session.LogEntry, afterSeq int64) []session.LogEntry {
+	if afterSeq <= 0 {
+		return entries
+	}
+	out := make([]session.LogEntry, 0, len(entries))
+	for _, e := range entries {
+		if e.Seq > afterSeq {
+			out = append(out, e)
+		}
+	}
+	return out
 }
 
 // ── 最小折叠器 ──────────────────────────────────────────────────

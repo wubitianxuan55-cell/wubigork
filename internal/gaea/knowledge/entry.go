@@ -220,6 +220,7 @@ type EntrySummary struct {
 	Name      string
 	Title     string
 	Category  string
+	Phase     string // 阶段（FE1-03 补：列表投影此前缺该字段，前端阶段过滤恒空）
 	Tags      []string
 	Status    string
 	UpdatedAt time.Time
@@ -231,6 +232,7 @@ func (e Entry) ToSummary() EntrySummary {
 		Name:      e.Name,
 		Title:     e.Title,
 		Category:  e.Category,
+		Phase:     e.Phase,
 		Tags:      e.Tags,
 		Status:    e.Status,
 		UpdatedAt: e.UpdatedAt,

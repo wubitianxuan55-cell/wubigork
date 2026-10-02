@@ -232,3 +232,34 @@ func TestGetBoardManifestsCanonical(t *testing.T) {
 		t.Errorf("CoreB 委托数量不一致: %d vs %d", len(got2), len(manifests))
 	}
 }
+
+// TestMainBrainDefaultBranchDispatchable 审计 AP9-03 复核回归锁：canonical
+// 清单 + 生产 resolver 装配后，classifyMainBrainIntent 的 default 分支
+// （"gaea","chat"）必须能派发到 ChatGeneral 闭包（审计声称「主脑默认分支
+// 永远派发失败」——实为 moduleOfIntent 误读：gaea.chat→gaea、gaea.create→
+// office 是不同模块，无静默覆盖；此测试钉死该事实防回归）。
+func TestMainBrainDefaultBranchDispatchable(t *testing.T) {
+	a := &App{}
+	a.modules = NewModuleRegistry()
+	if err := a.modules.FillFromManifests(board.Builtins(), a.resolveIntent); err != nil {
+		t.Fatalf("canonical 清单装配失败: %v", err)
+	}
+	moduleID, intent := classifyMainBrainIntent("帮我看看今天的安排")
+	if moduleID != "gaea" || intent != "chat" {
+		t.Fatalf("default 分支应落 (gaea,chat)，实得 (%s,%s)", moduleID, intent)
+	}
+	if !a.modules.Has(moduleID) {
+		t.Fatalf("模块 %q 未注册（默认分支将派发失败）", moduleID)
+	}
+	// resolver 必须给出非 nil 闭包（裸 App 执行闭包会因 core 未装配 panic，
+	// 这里只断言「有 handler」，闭包连通性由 ChatGeneral 自身用例覆盖）。
+	_, h, ok := a.resolveIntent("gaea", "chat")
+	if !ok || h == nil {
+		t.Fatalf("default 分支 (gaea,chat) 解析失败：ok=%v handler=nil=%v", ok, h == nil)
+	}
+	// gaea 板块的双意图各自成模块（gaea.chat→gaea、gaea.create→office），
+	// 装配不得报多意图完整性错误。
+	if a.modules.Err() != nil {
+		t.Fatalf("装配记录了完整性错误: %v", a.modules.Err())
+	}
+}

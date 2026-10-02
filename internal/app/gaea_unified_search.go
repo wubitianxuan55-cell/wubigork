@@ -50,8 +50,8 @@ func (a *App) workspaceSearchHits(query string, topN int) []WorkspaceSearchHit {
 // semanticSearchHits 跨库统一语义检索的共用私有实现（统一入口复用，T5-6）：
 // 实现收敛到 gaea_semantic_search.go 的按需/缓存版 semanticSearchHitsOnDemand
 // （T7-3：避免每查询先 Ensure 全量扫描；逻辑与 GaeaSemanticSearch 完全一致）。
-func (a *App) semanticSearchHits(query string) ([]SemanticHitView, error) {
-	return a.semanticSearchHitsOnDemand(query)
+func (a *App) semanticSearchHits(query string, topN int) ([]SemanticHitView, error) {
+	return a.semanticSearchHitsOnDemand(query, topN)
 }
 
 // brainSearchHits 三脑统一检索的共用私有实现：三脑未装配（a.brain==nil）
@@ -155,7 +155,8 @@ func (a *App) GaeaUnifiedSearch(query string, topN int, scope ...string) (Unifie
 	if files != nil {
 		view.Files = files
 	}
-	sem, err := a.semanticSearchHits(query)
+	// 审计 P1 AP5-05：semantic 组与 file 组同用调用方 topN（此前固定 6/20）。
+	sem, err := a.semanticSearchHits(query, topN)
 	if err != nil {
 		return view, err
 	}

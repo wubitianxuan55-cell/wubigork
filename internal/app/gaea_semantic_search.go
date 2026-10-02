@@ -61,7 +61,8 @@ func (a *App) GaeaSemanticIndexStatus() SemanticIndexStatus {
 // 资料（file）依赖文件索引定时维护（每 10 分钟增量重建），检索时不再扫描。
 // embedding 不可用/未配置时返回空（不阻断关键词检索）。
 func (a *App) GaeaSemanticSearch(query string) ([]SemanticHitView, error) {
-	return a.semanticSearchHitsOnDemand(query)
+	// 绑定面缺省 topN=20（与既有硬截上限一致，wire 契约零变更）。
+	return a.semanticSearchHitsOnDemand(query, 20)
 }
 
 // semanticSearchHitsOnDemand 跨库语义检索的按需/缓存实现（T7-3「名实相符」）：
@@ -72,7 +73,7 @@ func (a *App) GaeaSemanticSearch(query string) ([]SemanticHitView, error) {
 //
 // 内容快照比对（Ensure 的正文变化检测）仍保留——在数据增删时自动重嵌；查询
 // 热路径不再承担该扫描成本。file 向量由后台定时任务/文件监听维护，直接查库。
-func (a *App) semanticSearchHitsOnDemand(query string) ([]SemanticHitView, error) {
+func (a *App) semanticSearchHitsOnDemand(query string, topN int) ([]SemanticHitView, error) {
 	if strings.TrimSpace(query) == "" {
 		return nil, nil
 	}
@@ -157,9 +158,18 @@ func (a *App) semanticSearchHitsOnDemand(query string) ([]SemanticHitView, error
 	}
 
 	// 工作区资料：文件索引由定时任务维护，docs=nil → 直接 SearchReady 查库。
-	const perKind = 6
+	// 审计 P1 AP5-05：perKind 与总截由调用方 topN 推导（此前固定 6/20，
+	// 调用方声明的召回口径形同虚设——评测 Recall@10 传 10 即得 10 条口径）。
+	if topN <= 0 {
+		topN = 20
+	}
+	kinds := []string{"cost", "knowledge", "office", "file"}
+	perKind := topN / len(kinds)
+	if perKind < 1 {
+		perKind = 1
+	}
 	var all []SemanticHitView
-	for _, kind := range []string{"cost", "knowledge", "office", "file"} {
+	for _, kind := range kinds {
 		hits, err := st.SearchReady(ctx, e, kind, query, perKind)
 		if err != nil {
 			return nil, err
@@ -169,8 +179,8 @@ func (a *App) semanticSearchHitsOnDemand(query string) ([]SemanticHitView, error
 		}
 	}
 	sort.Slice(all, func(i, j int) bool { return all[i].Score > all[j].Score })
-	if len(all) > 20 {
-		all = all[:20]
+	if len(all) > topN {
+		all = all[:topN]
 	}
 	return all, nil
 }

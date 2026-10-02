@@ -223,7 +223,7 @@ export function KnowledgePanel(p: { onClose: () => void; variant?: "modal" | "pa
   const filtered = useMemo(
     () => entries.filter((e) => {
       if (category !== "all" && e.category !== category) return false;
-      if (phase !== "all" && (e as unknown as Record<string, unknown>).phase !== phase) return false;
+      if (phase !== "all" && e.phase !== phase) return false;
       if (status !== "all" && e.status !== status) return false;
       return true;
     }),

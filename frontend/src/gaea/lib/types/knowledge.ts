@@ -6,6 +6,7 @@ export interface KnowledgeSummary {
   name: string;
   title: string;
   category: string;
+  phase: string;
   tags: string[];
   status: string;
   // 新建/导入时前端不发送时间戳（Go 端 time.Time 不接受空串），留空由后端置零。

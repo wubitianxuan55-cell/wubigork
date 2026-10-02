@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"strconv"
 	"strings"
 
 	"log/slog"
@@ -43,20 +42,6 @@ type ForeshadowLintReport struct {
 	Findings      []ForeshadowLintFinding `json:"findings"`
 }
 
-// chapterNumOf 章节文件名 → 章号（取前导数字："001.md"→1，"001a.md"→1；空/无数字→0）。
-func chapterNumOf(filename string) int {
-	n := strings.IndexFunc(filename, func(r rune) bool { return r < '0' || r > '9' })
-	digits := filename
-	if n >= 0 {
-		digits = filename[:n]
-	}
-	v, err := strconv.Atoi(digits)
-	if err != nil {
-		return 0
-	}
-	return v
-}
-
 // normalizeForeshadowDesc 描述归一（重复判定用）：去首尾空白。
 func normalizeForeshadowDesc(s string) string {
 	return strings.TrimSpace(s)
@@ -71,8 +56,8 @@ func lintForeshadowItems(items []types.Foreshadow, totalChapters int) []Foreshad
 	firstByDesc := map[string]string{} // 归一描述 → 首个条目 ID
 	for _, it := range items {
 		desc := it.Description
-		plantedNum := chapterNumOf(it.PlantedIn)
-		revealedNum := chapterNumOf(it.RevealedIn)
+		plantedNum := types.ChapterNumOf(it.PlantedIn)
+		revealedNum := types.ChapterNumOf(it.RevealedIn)
 
 		// ① 回收先于埋设（序颠倒，登记错误类）
 		if plantedNum > 0 && revealedNum > 0 && revealedNum < plantedNum {
@@ -123,7 +108,7 @@ func lintForeshadowItems(items []types.Foreshadow, totalChapters int) []Foreshad
 		// ⑥ 超期（t1-P3）：计划回收章早于当前进度——v4.293 起有调度注入，
 		// 超期条目会以「硬约束」进生成上下文，作者应尽早处置
 		if foreshadowAlive(it.Status) {
-			if targetNum := chapterNumOf(it.TargetResolveIn); targetNum > 0 && totalChapters > 0 && targetNum < totalChapters {
+			if targetNum := types.ChapterNumOf(it.TargetResolveIn); targetNum > 0 && totalChapters > 0 && targetNum < totalChapters {
 				add(ForeshadowLintFinding{Code: "overdue", Severity: "medium", ForeshadowID: it.ID, ItemDesc: desc,
 					Message: fmt.Sprintf("已超期 %d 章未回收（原计划第 %d 章回收，当前写至第 %d 章）",
 						totalChapters-targetNum, targetNum, totalChapters),

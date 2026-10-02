@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	gaeaAgent "github.com/gaea/gaea/internal/gaea/agent"
 	"github.com/gaea/gaea/internal/gaea/provider"
 )
 
@@ -220,7 +221,7 @@ type SubagentTranscriptView struct {
 // 字符（防路径穿越）；读取失败返回错误——查看器需要区分「没有」与「读不了」
 // （与摘要接口的静默降级不同）。
 func (a *App) GaeaSubagentTranscript(sessionPath, ref string) (SubagentTranscriptView, error) {
-	if sessionPath == "" || !validSubagentRef(ref) || sessionDirForPath(sessionPath) == "" {
+	if sessionPath == "" || !gaeaAgent.ValidRunRef(ref) || sessionDirForPath(sessionPath) == "" {
 		return SubagentTranscriptView{}, errors.New("invalid subagent transcript reference")
 	}
 	dir := filepath.Join(filepath.Dir(filepath.Clean(sessionPath)), "subagents")
@@ -265,24 +266,6 @@ func (a *App) GaeaSubagentTranscript(sessionPath, ref string) (SubagentTranscrip
 		})
 	}
 	return view, nil
-}
-
-// validSubagentRef 校验运行引用：sa_（子代理）或 mt_（本地模型工具）前缀 +
-// 仅字母数字/下划线/连字符/点，
-// 且长度受限（防路径穿越与超长注入）。
-func validSubagentRef(ref string) bool {
-	if len(ref) == 0 || len(ref) > 80 ||
-		(!strings.HasPrefix(ref, "sa_") && !strings.HasPrefix(ref, "mt_")) {
-		return false
-	}
-	for _, r := range ref {
-		ok := r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' ||
-			r == '_' || r == '-' || r == '.'
-		if !ok {
-			return false
-		}
-	}
-	return true
 }
 
 // oneLineHead 取多行文本的首行且截断（工具结果摘要用，避免把整段结果塞进活动行）。

@@ -18,20 +18,6 @@ func findLintCode(findings []ForeshadowLintFinding, id, code string) *Foreshadow
 	return nil
 }
 
-func TestChapterNumOf(t *testing.T) {
-	cases := []struct {
-		in   string
-		want int
-	}{
-		{"001.md", 1}, {"012.md", 12}, {"001a.md", 1}, {"", 0}, {"abc.md", 0},
-	}
-	for _, c := range cases {
-		if got := chapterNumOf(c.in); got != c.want {
-			t.Fatalf("chapterNumOf(%q)=%d want %d", c.in, got, c.want)
-		}
-	}
-}
-
 func TestLintForeshadowItems_AllChecks(t *testing.T) {
 	items := []types.Foreshadow{
 		// 正常长线条目：不触发悬置/序/状态问题。

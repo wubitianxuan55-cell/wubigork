@@ -348,7 +348,8 @@ func TestGaeaResyncEventsBinding(t *testing.T) {
 	ga.ctrl = ctrl
 	ga.mu.Unlock()
 
-	res2 := a.GaeaResyncEvents(3)
+	// 全量口径（afterSeq=0）：4 条折叠为 3 items（dispatch+result 合并为一）。
+	res2 := a.GaeaResyncEvents(0)
 	if len(res2.Items) != 3 {
 		t.Fatalf("items = %d, want 3（dispatch+result 合并为一）: %+v", len(res2.Items), res2.Items)
 	}
@@ -360,6 +361,12 @@ func TestGaeaResyncEventsBinding(t *testing.T) {
 	}
 	if res2.Items[2].Kind != "notice" {
 		t.Fatalf("items[2] 错误: %+v", res2.Items[2])
+	}
+	// 增量口径（AP5-10）：afterSeq=3 → 只补 seq>3 的缺口（notice 一条），
+	// 不再整表重放与前端已见内容重复。
+	res3 := a.GaeaResyncEvents(3)
+	if len(res3.Items) != 1 || res3.Items[0].Kind != "notice" {
+		t.Fatalf("增量补拉应只含 notice 一条: %+v", res3.Items)
 	}
 	if res2.Seq != ga.wire.last() {
 		t.Fatalf("res2.Seq = %d, want %d", res2.Seq, ga.wire.last())

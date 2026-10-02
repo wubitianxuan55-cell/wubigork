@@ -19,7 +19,7 @@ const wrap = (node: React.ReactNode) => <LocaleProvider>{node}</LocaleProvider>;
 type G = { go?: { app?: Record<string, unknown> } };
 
 const entry: KnowledgeSummary = {
-  name: "demo-001", title: "测试条目 A", category: "工程案例", tags: [], status: "现行", updatedAt: "2025-01-01T00:00:00.000Z",
+  name: "demo-001", title: "测试条目 A", category: "工程案例", phase: "实施", tags: [], status: "现行", updatedAt: "2025-01-01T00:00:00.000Z",
 };
 
 describe("KnowledgePanel 加载三态（T7-4）", () => {

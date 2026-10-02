@@ -296,10 +296,10 @@ export function buildMemory(_s: MakeMockState): MemoryMethods {
     },
     async KnowledgeList(): Promise<KnowledgeSummary[]> {
       return [
-        { name: "gb50300-2024", title: "建筑工程施工质量验收统一标准 GB 50300-2024", category: "规范标准", tags: ["施工", "质量", "验收"], status: "现行", updatedAt: "2025-01-15T00:00:00.000Z" },
-        { name: "case-bio-remediation", title: "某焦化厂生物修复工程案例", category: "工程案例", tags: ["焦化厂", "生物修复", "PAHs"], status: "已归档", updatedAt: "2024-11-20T00:00:00.000Z" },
-        { name: "soil-sampling-guide", title: "污染场地土壤采样技术要点", category: "经验总结", tags: ["采样", "布点", "质量控制"], status: "常用", updatedAt: "2025-02-10T00:00:00.000Z" },
-        { name: "hdp-liner-spec", title: "HDPE 土工膜施工技术规范", category: "材料工艺", tags: ["HDPE", "土工膜", "防渗"], status: "现行", updatedAt: "2024-09-05T00:00:00.000Z" },
+        { name: "gb50300-2024", title: "建筑工程施工质量验收统一标准 GB 50300-2024", phase: "实施", category: "规范标准", tags: ["施工", "质量", "验收"], status: "现行", updatedAt: "2025-01-15T00:00:00.000Z" },
+        { name: "case-bio-remediation", title: "某焦化厂生物修复工程案例", phase: "实施", category: "工程案例", tags: ["焦化厂", "生物修复", "PAHs"], status: "已归档", updatedAt: "2024-11-20T00:00:00.000Z" },
+        { name: "soil-sampling-guide", title: "污染场地土壤采样技术要点", phase: "策划", category: "经验总结", tags: ["采样", "布点", "质量控制"], status: "常用", updatedAt: "2025-02-10T00:00:00.000Z" },
+        { name: "hdp-liner-spec", title: "HDPE 土工膜施工技术规范", phase: "实施", category: "材料工艺", tags: ["HDPE", "土工膜", "防渗"], status: "现行", updatedAt: "2024-09-05T00:00:00.000Z" },
       ];
     },
     async KnowledgeSearch(query: string, category: string, phase: string, status: string): Promise<KnowledgeSummary[]> {
