@@ -7,7 +7,8 @@
 // 绑定面（线C 实现、主代理收口时生成 wailsjs + bridge 类型）：
 //   NovelChapterPlanGet(chapterNum) → ChapterPlan | null
 //   NovelChapterPlanSave(chapterNum, planJSON) → void（校验失败 reject，错误中文可读）
-//   NovelChapterPlanPropose(chapterNum) → ChapterPlan（**草案不落盘**）
+//   NovelChapterPlanPropose(chapterNum, direction) → ChapterPlan（**草案不落盘**；
+//     direction=创作方向（分支意向/剧情要求），空串=既有口径，v4.450.0 三点打通）
 //   NovelChapterPlanDeviation(chapterNum) → PlanDeviation
 //   NovelChapterGatePrecheck(chapterNum) → PlanGateReport（硬闸唯一判据来源）
 // 生成物在收口阶段才产出 → 本组件自建本地 interface 并 `app as unknown as ...` 收窄，
@@ -97,7 +98,7 @@ export const ENDING_TYPES = ['悬念', '冲突升级', '情节转折', '情感�
 interface PlanBridge {
   NovelChapterPlanGet(chapterNum: number): Promise<unknown>
   NovelChapterPlanSave(chapterNum: number, planJSON: string): Promise<unknown>
-  NovelChapterPlanPropose(chapterNum: number): Promise<unknown>
+  NovelChapterPlanPropose(chapterNum: number, direction: string): Promise<unknown>
   NovelChapterPlanDeviation(chapterNum: number): Promise<unknown>
   NovelChapterGatePrecheck(chapterNum: number): Promise<unknown>
 }
@@ -280,6 +281,16 @@ export interface ChapterPlanCardProps {
   onPlanSaved?: () => void
   /** 生成中禁用计划动作。 */
   disabled?: boolean
+  /**
+   * 作者创作方向（v4.450.0 三点打通）：来自剧情分支意向或剧情要求，随 Propose
+   * 下发；非空时卡片顶部展示来源横幅，作者知道草案将服从这条方向。空/未传=无方向。
+   */
+  direction?: string
+  /**
+   * 「生成本章」出口（v4.450.0 三点打通）：计划落盘后一键回到生成——父级以计划
+   * 情节摘要为剧情要求发起生成（后端生成时会按章号注入本计划）。不传=不出口。
+   */
+  onGenerate?: (chapterNum: number, plan: ChapterPlan) => void
 }
 
 /**
@@ -288,7 +299,7 @@ export interface ChapterPlanCardProps {
  * 不评判计划质量。
  */
 const ChapterPlanCard: React.FC<ChapterPlanCardProps> = ({
-  chapterNum, onNeedPlan, onPlanSaved, disabled = false,
+  chapterNum, onNeedPlan, onPlanSaved, disabled = false, direction = '', onGenerate,
 }) => {
   // 切章/刷新共用的序号守卫：seq 不等的迟到响应一律丢弃（见文件头纪律 1）。
   const seqRef = useRef(0)
@@ -367,13 +378,13 @@ const ChapterPlanCard: React.FC<ChapterPlanCardProps> = ({
     }
   }, [])
 
-  /** 生成 AI 草案：成功进入**编辑态**（不落盘——作者是上帝）。 */
+  /** 生成 AI 草案：成功进入**编辑态**（不落盘——作者是上帝）。创作方向随请求下发。 */
   const proposePlan = async () => {
     const target = num
     if (target === null) return
     setProposing(true); setProposeError(''); setSaveError(''); setNotice('')
     try {
-      const raw = await planBridge().NovelChapterPlanPropose(target)
+      const raw = await planBridge().NovelChapterPlanPropose(target, direction.trim())
       const next = toChapterPlan(raw)
       if (next === null) throw new Error('模型未返回可用的计划草案，可改用手写计划')
       if (numRef.current !== target) return
@@ -478,6 +489,15 @@ const ChapterPlanCard: React.FC<ChapterPlanCardProps> = ({
           ? <Tag color="green">已制定</Tag>
           : <Tag color={blocking ? 'red' : 'orange'}>未制定</Tag>)}
         <div style={{ flex: 1 }} />
+        {!loading && !editing && hasPlan && plan !== null && onGenerate && (
+          <Button
+            size="small" type="primary" disabled={disabled}
+            data-testid="plan-generate-chapter"
+            onClick={() => onGenerate(num, plan)}
+          >
+            生成本章
+          </Button>
+        )}
         {!loading && !editing && hasPlan && (
           <>
             <Button size="small" disabled={disabled} onClick={startEdit}>编辑计划</Button>
@@ -487,6 +507,15 @@ const ChapterPlanCard: React.FC<ChapterPlanCardProps> = ({
           </>
         )}
       </div>
+
+      {direction.trim() !== '' && (
+        <Alert
+          data-testid="plan-direction"
+          type="info" showIcon style={{ marginBottom: 8 }}
+          message="本章创作方向（来自分支/剧情要求）"
+          description={<div style={{ fontSize: 12 }}>{direction.trim()}</div>}
+        />
+      )}
 
       {loading ? (
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', color: 'var(--color-text-secondary)' }}>
@@ -523,7 +552,11 @@ const ChapterPlanCard: React.FC<ChapterPlanCardProps> = ({
                       ))}
                     </ul>
                   )}
-                  <div style={{ marginTop: 4 }}>先补章节计划，再回生成入口（也可在弹窗里显式跳过硬闸）。</div>
+                  <div style={{ marginTop: 4 }}>
+                    {onGenerate
+                      ? '补完并保存计划后，点右上角「生成本章」开始写正文（也可在弹窗里显式跳过硬闸）。'
+                      : '先补章节计划，再回生成入口（也可在弹窗里显式跳过硬闸）。'}
+                  </div>
                 </div>
               )}
               action={onNeedPlan

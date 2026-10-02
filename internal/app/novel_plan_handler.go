@@ -147,13 +147,19 @@ func (a *writingState) NovelChapterPlanSave(chapterNum int, planJSON string) err
 
 // NovelChapterPlanPropose AI 计划草案（**不落盘**）。
 //
-// 输入 = 本章大纲节点（Title/Summary/KeyPoints/Emotion/Characters）+ OutlineFile.StoryThread
+// 输入 = direction（作者创作方向，来自剧情分支意向或剧情要求；空串=既有口径）+
+// 本章大纲节点（Title/Summary/KeyPoints/Emotion/Characters）+ OutlineFile.StoryThread
 // + 前文摘要窗口（复用 buildPrevSummaryWindow 口径）+ 其它章已有关键事件 + 该章
 // analysis-v2 载荷摘要（若存在）。输出七字段 JSON。
 //
+// v4.450.0 三点打通：下一章（尚未生成）没有大纲节点——节点自动建于首次生成，
+// 先有鸡还是先有蛋。direction 非空时无节点也允许提案（以创作方向 + 主线/前文
+// 摘要/名册兜底编译），分支意向由此真正流入章节计划；direction 为空且无节点
+// 仍如实报错指路（手写计划 / 跳闸生成）。
+//
 // 生成后先本地跑一遍 PlanContractIssues：不通过即如实报错（**不返回半成品**，
 // 也绝不规则兜底伪造计划）；模型不可用/超时同样如实上抛。
-func (a *writingState) NovelChapterPlanPropose(chapterNum int) (*types.ChapterPlan, error) {
+func (a *writingState) NovelChapterPlanPropose(chapterNum int, direction string) (*types.ChapterPlan, error) {
 	if chapterNum <= 0 {
 		return nil, fmt.Errorf("章节号无效（%d）：计划按章号索引，需为正整数", chapterNum)
 	}
@@ -169,8 +175,9 @@ func (a *writingState) NovelChapterPlanPropose(chapterNum int) (*types.ChapterPl
 	if err != nil {
 		return nil, fmt.Errorf("读取大纲失败: %w", err)
 	}
+	direction = strings.TrimSpace(direction)
 	node := findOutlineNodeByChapter(of.Nodes, chapterNum)
-	if node == nil {
+	if node == nil && direction == "" {
 		// 指路必须是真实存在的入口：大纲节点目前没有独立创建 UI（自动建于
 		// 首次生成），草案又依赖节点编译——无节点时的两条真路径是手写计划
 		// （NovelChapterPlanSave 不依赖节点）与跳过硬闸先生成（ensureChapterNode
@@ -192,14 +199,18 @@ func (a *writingState) NovelChapterPlanPropose(chapterNum int) (*types.ChapterPl
 	}
 	others := planOthers(pf, chapterNum)
 
-	nodeJSON, err := json.Marshal(node)
-	if err != nil {
-		return nil, fmt.Errorf("序列化本章大纲节点失败: %w", err)
+	var nodeJSON []byte
+	if node != nil {
+		nodeJSON, err = json.Marshal(node)
+		if err != nil {
+			return nil, fmt.Errorf("序列化本章大纲节点失败: %w", err)
+		}
 	}
 
 	userPrompt := tmpl.BuildUserPrompt(map[string]string{
 		"story_thread":        strings.TrimSpace(of.StoryThread),
-		"chapter_outline":     string(nodeJSON),
+		"chapter_outline":     string(nodeJSON), // 无节点 + 有方向：空槽位不渲染，由 direction 兜底
+		"direction":           direction,        // 作者创作方向（分支意向/剧情要求），计划走向必须服从
 		"prev_summary":        buildPrevSummaryWindow(of.Nodes, chapterNum, prevSummaryResolver(pm)),
 		"existing_key_events": planExistingKeyEventsText(others),
 		"chapter_analysis":    planAnalysisDigest(pm, chapterNum),
@@ -225,7 +236,11 @@ func (a *writingState) NovelChapterPlanPropose(chapterNum int) (*types.ChapterPl
 		plan.SubIndex = chapterNum
 	}
 	if strings.TrimSpace(plan.Title) == "" {
-		plan.Title = node.Title // 标题非七字段之一：模型缺省时用大纲节点标题补齐
+		if node != nil {
+			plan.Title = node.Title // 标题非七字段之一：模型缺省时用大纲节点标题补齐
+		} else {
+			plan.Title = fmt.Sprintf("第 %d 章", chapterNum) // 无节点（direction 兜底链路）
+		}
 	}
 
 	plan.Title = strings.TrimSpace(plan.Title)

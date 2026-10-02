@@ -105,8 +105,45 @@ describe('ChapterPlanCard 计划卡与硬闸（刀1 线D）', () => {
     expect((screen.getByTestId('plan-conflict-input') as HTMLInputElement).value).toBe('人vs人')
     expect(screen.getByText(/未落盘/)).toBeTruthy()
     expect(screen.getByRole('button', { name: /保存计划/ })).toBeTruthy()
-    expect(mocks.NovelChapterPlanPropose).toHaveBeenCalledWith(5)
+    expect(mocks.NovelChapterPlanPropose).toHaveBeenCalledWith(5, '')
     expect(mocks.NovelChapterPlanSave).not.toHaveBeenCalled() // 草案不落盘
+  })
+
+  // v4.450.0 三点打通：direction（分支意向/剧情要求）随 Propose 下发并展示来源
+  it('创作方向：横幅展示来源，Propose 收到方向原文', async () => {
+    mocks.NovelChapterPlanGet.mockResolvedValue(null)
+    mocks.NovelChapterPlanPropose.mockResolvedValue(FULL_PLAN)
+    render(<ChapterPlanCard chapterNum={5} direction="分支意向：雨夜夺符线" />)
+
+    const dir = await screen.findByTestId('plan-direction')
+    expect(within(dir).getByText(/本章创作方向/)).toBeTruthy()
+    expect(within(dir).getByText('分支意向：雨夜夺符线')).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: /生成计划草案/ }))
+    await screen.findByTestId('plan-goal-input')
+    expect(mocks.NovelChapterPlanPropose).toHaveBeenCalledWith(5, '分支意向：雨夜夺符线')
+  })
+
+  // v4.450.0 三点打通的最后一公里：计划落盘后卡片提供「生成本章」出口
+  it('生成本章：有计划且已保存时提供出口，点击回传章号与计划', async () => {
+    mocks.NovelChapterPlanGet.mockResolvedValue(FULL_PLAN)
+    mocks.NovelChapterGatePrecheck.mockResolvedValue(OK_GATE)
+    const onGenerate = vi.fn()
+    render(<ChapterPlanCard chapterNum={5} onGenerate={onGenerate} />)
+
+    const btn = await screen.findByTestId('plan-generate-chapter')
+    fireEvent.click(btn)
+    expect(onGenerate).toHaveBeenCalledTimes(1)
+    expect(onGenerate).toHaveBeenCalledWith(5, expect.objectContaining({ plot_summary: '雨夜夺符，主角暴露身份' }))
+  })
+
+  it('生成本章：未制定计划时不出现（先补计划，避免点了又被硬闸拦回）', async () => {
+    mocks.NovelChapterPlanGet.mockResolvedValue(null)
+    mocks.NovelChapterGatePrecheck.mockResolvedValue(NO_PLAN_GATE)
+    render(<ChapterPlanCard chapterNum={5} onGenerate={vi.fn()} />)
+
+    await screen.findByTestId('plan-gate-banner')
+    expect(screen.queryByTestId('plan-generate-chapter')).toBeNull()
   })
 
   it('保存失败：如实显示后端错误（含被点名的重复事件）且表单不丢', async () => {

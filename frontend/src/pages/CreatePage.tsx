@@ -27,7 +27,7 @@ import type { EditorPanelHandle } from '../components/novel/create/EditorPanel'
 import CreateInspector from '../components/novel/create/CreateInspector'
 import NewCharactersModal from '../components/novel/create/NewCharactersModal'
 import BranchWizardModal, { type Branch, type BranchCastEntry } from '../components/novel/create/BranchWizardModal'
-import ChapterPlanCard, { type PlanGateReport, type PlanProblem } from '../components/novel/ChapterPlanCard'
+import ChapterPlanCard, { type ChapterPlan, type PlanGateReport, type PlanProblem } from '../components/novel/ChapterPlanCard'
 import { chooseAction, chooseUnsavedAction } from '../components/novel/unsavedGuard'
 import { registerNovelDirtyProvider, takeDiscardConfirmed } from '../components/novel/novelSwitchGuard'
 
@@ -254,6 +254,14 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
   const [promptWsOpen, setPromptWsOpen] = useState(false)
   // 章节计划卡（刀1 线D）：工具轨「章节计划」与硬闸弹窗共用同一展开位
   const [planOpen, setPlanOpen] = useState(false)
+  /**
+   * 计划种子（v4.450.0 三点打通）：硬闸拦下生成时把本次 plotReq（分支意向/剧情
+   * 要求）存为创作方向，随计划卡下发 Propose——分支→计划才真正连通。工具轨手动
+   * 展开时清空（不带旧方向）。
+   */
+  const [planSeed, setPlanSeed] = useState('')
+  /** 硬闸解析出的目标章号：弹窗里「立即生成计划草案」按它开计划卡（对齐预检章号） */
+  const [planChapterOverride, setPlanChapterOverride] = useState(0)
   /** 硬闸弹窗（生成前预检 blocking 时）：缺失清单 + 「立即生成计划草案」/「仍然生成」 */
   const [planGate, setPlanGate] = useState<{ chapterNum: number; missing: string[]; problems: string[]; proceed: () => void } | null>(null)
   /** 本次生成是否经作者显式覆盖硬闸（随 CreateChapterWithOverride 的 allowOverride 下发） */
@@ -724,10 +732,13 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
    * 后端 resolveTargetChapterNum 同源（internal/app/create_chapter_handler.go:654）：
    * 显式章号 > 分支父节点章号 > 顺延新章。
    *
+   * v4.450.0 三点打通：blocking 时把本次 plotReq 存为计划创作方向种子、记录预检
+   * 目标章号——「立即生成计划草案」打开的计划卡因此带着分支意向、且章号与预检一致。
+   *
    * 预检自身不可用（绑定未就绪 / 读取失败）**不拦生成**——硬闸只拦「没有抓手」，
    * 不因预检故障把作者锁死；但如实告知本次未做检查（诚实降级，不假装已预检）。
    */
-  const guardPlanGate = async (overwriteChapter: number, branchFromID: string, proceed: () => void) => {
+  const guardPlanGate = async (plotReq: string, overwriteChapter: number, branchFromID: string, proceed: () => void) => {
     // 新章传 0：后端预检按磁盘大纲解析真实目标章（前端 store 可能空/过期）
     const target = overwriteChapter > 0
       ? overwriteChapter
@@ -747,6 +758,8 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
       return
     }
     if (report === null || !report.blocking) { proceed(); return }
+    setPlanSeed(plotReq.trim())
+    setPlanChapterOverride(report.chapterNum || target)
     setPlanGate({
       chapterNum: report.chapterNum || target,
       missing: report.missing,
@@ -765,7 +778,7 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
     if (generatingRef.current) { message.warning('正在生成，请先停止生成再开始新的生成'); return }
     if (!plotReq.trim()) { message.warning('请选择分支或输入剧情要求'); return }
     const run = () => { void runGeneration(plotReq, overwriteChapter, branchFromID) }
-    const gated = () => { void guardPlanGate(overwriteChapter, branchFromID, run) }
+    const gated = () => { void guardPlanGate(plotReq, overwriteChapter, branchFromID, run) }
     if (contentRef.current !== loadedSnapshotRef.current) {
       chooseUnsavedAction({
         title: '正文有未保存的修改',
@@ -819,6 +832,17 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
         ],
       })
     } else { startGeneration(directPlot, 0, '') } // 0=后端按磁盘大纲顺延下一章
+  }
+
+  /**
+   * 计划卡「生成本章」（v4.450.0 三点打通的最后一公里）：计划落盘后一键回到生成。
+   * 剧情要求取计划自身的情节摘要（生成时后端还会按章号注入本计划），不再让作者
+   * 自己走回生成入口；此时硬闸复检应放行（计划已在盘上）。
+   */
+  const handleGenerateFromPlan = (chapterNum: number, plan: ChapterPlan) => {
+    const req = plan.plot_summary.trim() || plan.narrative_goal.trim() || planSeed.trim()
+    if (!req) { message.warning('计划缺少情节摘要：先补全计划再生成'); return }
+    startGeneration(req, chapterNum, '')
   }
 
   const handleDelete = (node: OutlineNode) => {
@@ -960,7 +984,11 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
   const activeChapterNum = activeNode?.order_index || lastMainChapter
   // 计划卡章号（刀1 线D）：未选章时取「下一章」——与硬闸预检同源
   // （guardPlanGate 的目标章号），否则卡里显示「先选章节」而生成却被拦，作者无处补计划。
-  const planChapterNum = activeChapterNum > 0 ? activeChapterNum : nextMainChapterNum
+  // v4.450.0：硬闸弹窗「立即生成计划草案」以预检解析出的目标章号覆盖（active 停在
+  // 上一章时，card 不能停在已写章上而生成目标是下一章）。
+  const planChapterNum = planChapterOverride || (activeChapterNum > 0 ? activeChapterNum : nextMainChapterNum)
+  // 切章即让位：覆盖章号只在硬闸弹窗打开计划卡的那一次有效
+  useEffect(() => { setPlanChapterOverride(0) }, [activeChapterNum])
   // 持久标注高亮（t7 overlay）：本章标注清单随激活章加载传给编辑器镜像；
   // 正文编辑的失效由 EditorPanel 内部 dirty 纪律处理（编辑即整体退场）。
   const [editorAnns, setEditorAnns] = useState<ChapterAnnotation[]>([])
@@ -1256,7 +1284,8 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
           <Button size="small" disabled={generating} onClick={openRewriteHistory}>重写历史</Button>
         </RailGroup>
         <RailGroup label="结构">
-          <Button size="small" onClick={() => setPlanOpen(v => !v)}>章节计划</Button>
+          {/* 手动展开不带方向种子/覆盖章号——那两类状态只属于硬闸弹窗那一次 */}
+          <Button size="small" onClick={() => { setPlanSeed(''); setPlanChapterOverride(0); setPlanOpen(v => !v) }}>章节计划</Button>
           <Button size="small" loading={reconstructBusy} onClick={() => void reconstructOutlines()}>
             {reconstructBusy && reconstructElapsed > 0 ? `AI 反推大纲（已等待 ${reconstructElapsed}s）` : 'AI 反推大纲'}
           </Button>
@@ -1270,7 +1299,8 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
         </RailGroup>
         {stateMsg ? <span className="novel-create-rail-msg">{stateMsg}</span> : null}
       </div>
-      {/* 章节计划卡（刀1 线D）：工具轨展开位；章号 = 当前激活章，未选章时取「下一章」 */}
+      {/* 章节计划卡（刀1 线D）：工具轨展开位；章号 = 硬闸覆盖章号 > 当前激活章 > 下一章。
+          v4.450.0：direction=硬闸存下的剧情要求种子；onGenerate=「生成本章」出口。 */}
       {planOpen && (
         <div style={{ flexShrink: 0, padding: '0 12px 8px', maxHeight: 340, overflow: 'auto' }}>
           <ChapterPlanCard
@@ -1278,6 +1308,8 @@ const CreatePage: React.FC<{ active?: boolean }> = ({ active = true }) => {
             disabled={generating}
             onNeedPlan={() => setPlanOpen(true)}
             onPlanSaved={() => { void loadOutlines() }}
+            direction={planSeed}
+            onGenerate={handleGenerateFromPlan}
           />
         </div>
       )}

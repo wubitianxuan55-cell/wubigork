@@ -408,7 +408,7 @@ func TestNovelChapterPlanPropose_ParsesSevenFieldsAndSlots(t *testing.T) {
 	env := newPlanStubEnv(t, planProposeReply(3))
 	planSeedProposeInputs(t, env)
 
-	plan, err := env.a.NovelChapterPlanPropose(3)
+	plan, err := env.a.NovelChapterPlanPropose(3, "")
 	if err != nil {
 		t.Fatalf("Propose 失败: %v", err)
 	}
@@ -462,7 +462,7 @@ func TestNovelChapterPlanPropose_RejectsBadReply(t *testing.T) {
 	t.Run("解析失败附原始返回前缀", func(t *testing.T) {
 		env := newPlanStubEnv(t, "不是 JSON，模型跑偏了")
 		planSeedProposeInputs(t, env)
-		_, err := env.a.NovelChapterPlanPropose(3)
+		_, err := env.a.NovelChapterPlanPropose(3, "")
 		planWantErrContains(t, err, "解析失败", "原始返回前", "不是 JSON")
 	})
 
@@ -472,7 +472,7 @@ func TestNovelChapterPlanPropose_RejectsBadReply(t *testing.T) {
 		b, _ := json.Marshal(p)
 		env := newPlanStubEnv(t, string(b))
 		planSeedProposeInputs(t, env)
-		_, err := env.a.NovelChapterPlanPropose(3)
+		_, err := env.a.NovelChapterPlanPropose(3, "")
 		planWantErrContains(t, err, types.PlanProblemMissingKeyEvents, "不返回半成品")
 	})
 
@@ -480,14 +480,57 @@ func TestNovelChapterPlanPropose_RejectsBadReply(t *testing.T) {
 		a := &App{core: &core{}}
 		a.writingState = &writingState{core: a.core, app: a, eng: prompt.NewEngine("../../prompts")}
 		a.setPM(newPlanTestProject(t))
-		_, err := a.NovelChapterPlanPropose(3)
+		_, err := a.NovelChapterPlanPropose(3, "")
 		planWantErrContains(t, err, "AI 客户端未就绪")
 	})
 
 	t.Run("缺大纲节点如实报错", func(t *testing.T) {
 		env := newPlanStubEnv(t, planProposeReply(9))
-		_, err := env.a.NovelChapterPlanPropose(9)
+		_, err := env.a.NovelChapterPlanPropose(9, "")
 		planWantErrContains(t, err, "未找到第 9 章的大纲节点")
+	})
+}
+
+// TestNovelChapterPlanPropose_Direction v4.450.0 三点打通：direction（分支意向/
+// 剧情要求）进编译输入；无节点时以 direction 兜底——分支→计划不再被「先有节点
+// 还是先有计划」卡死。
+func TestNovelChapterPlanPropose_Direction(t *testing.T) {
+	const wantDirection = "分支意向：沈砚黑化线——旧案真凶是师尊"
+
+	t.Run("有节点：direction 进编译输入", func(t *testing.T) {
+		env := newPlanStubEnv(t, planProposeReply(3))
+		planSeedProposeInputs(t, env)
+		plan, err := env.a.NovelChapterPlanPropose(3, wantDirection)
+		if err != nil {
+			t.Fatalf("Propose 失败: %v", err)
+		}
+		if !strings.Contains(env.userPrompt(), wantDirection) {
+			t.Fatalf("user prompt 应包含创作方向，实际:\n%s", env.userPrompt())
+		}
+		if plan == nil || plan.SubIndex != 3 {
+			t.Fatalf("返回计划异常: %+v", plan)
+		}
+	})
+
+	t.Run("无节点+有 direction：兜底编译成功且不落盘", func(t *testing.T) {
+		env := newPlanStubEnv(t, planProposeReply(9))
+		plan, err := env.a.NovelChapterPlanPropose(9, wantDirection)
+		if err != nil {
+			t.Fatalf("direction 应兜底无节点提案: %v", err)
+		}
+		if !strings.Contains(env.userPrompt(), wantDirection) {
+			t.Fatalf("user prompt 应包含创作方向，实际:\n%s", env.userPrompt())
+		}
+		// 无节点：chapter_outline 空槽位不渲染（大纲节点文本不得出现）
+		if strings.Contains(env.userPrompt(), "本章大纲节点") {
+			t.Fatalf("无节点时不应渲染大纲节点区段，实际:\n%s", env.userPrompt())
+		}
+		if plan.SubIndex != 9 {
+			t.Fatalf("SubIndex 应为章号: %d", plan.SubIndex)
+		}
+		if got, err := env.a.NovelChapterPlanGet(9); err != nil || got != nil {
+			t.Fatalf("Propose 不得落盘: plan=%+v err=%v", got, err)
+		}
 	})
 }
 

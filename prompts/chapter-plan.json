@@ -13,25 +13,30 @@
       "label": "本章大纲节点（标题·摘要·要点·情感基调·出场角色）",
       "order": 2
     },
+    "direction": {
+      "priority": "P0",
+      "label": "本章创作方向（作者指定的分支意向或剧情要求；计划的情节走向必须服从它，与大纲节点冲突时以它为准）",
+      "order": 3
+    },
     "prev_summary": {
       "priority": "P0",
       "label": "前文摘要（最近章节已完成的剧情，不得重复）",
-      "order": 3
+      "order": 4
     },
     "existing_key_events": {
       "priority": "P0",
       "label": "本项目已有章节的关键事件（本章计划一条都不得与之重复）",
-      "order": 4
+      "order": 5
     },
     "chapter_analysis": {
       "priority": "P1",
       "label": "本章既有分析载荷摘要（若本章已写过并有分析结果：情节推进点与修改建议，用于修订计划）",
-      "order": 5
+      "order": 6
     },
     "roster": {
       "priority": "P1",
       "label": "项目角色名册（character_focus 从中选，写名字全称；每章登场角色宜少不宜多）",
-      "order": 6
+      "order": 7
     },
     "mature_craft": {
       "priority": "P1",
@@ -46,6 +51,7 @@
   "constraints": {
     "must": [
       "只输出 JSON 对象本身：第一个字符是 {，最后一个字符是 }，不要 Markdown 围栏、不要任何解释文字",
+      "出现「本章创作方向」时，key_events 与 plot_summary 必须落实该方向；未出现时按大纲节点推进",
       "key_events 恰好 2-4 条，每条一句可验证的事件（谁做了什么、结果如何）",
       "key_events 不得与本项目已有章节的关键事件重复；与「前文摘要」里已完成的剧情同样不得重复",
       "ending_type 只能取：悬念 / 冲突升级 / 情节转折 / 情感收尾 / 自然过渡",

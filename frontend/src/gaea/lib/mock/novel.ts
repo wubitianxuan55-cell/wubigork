@@ -121,7 +121,7 @@ export function buildNovel(): NovelMethods {
     async NovelChapterPlanSave(_chapterNum: number, _planJSON: string) {
       throw new Error("dev mock：浏览器演示不写 plans.json");
     },
-    async NovelChapterPlanPropose(_chapterNum: number) {
+    async NovelChapterPlanPropose(_chapterNum: number, _direction: string) {
       throw new Error("dev mock：计划草案需本地模型调用");
     },
     async NovelChapterPlanDeviation(_chapterNum: number) {

@@ -622,6 +622,47 @@ describe('CreatePage 章节计划硬闸（刀1 线D）', () => {
     expect(mocks.CreateChapter).not.toHaveBeenCalled()
   })
 
+  // v4.450.0 三点打通全链：分支/剧情要求 →（硬闸）→ 带方向补计划 → 审批落盘 →
+  // 「生成本章」一键回生成（剧情要求=计划情节摘要，章号=计划章号）。
+  it('三点打通：硬闸 → 带创作方向补计划 → 保存 → 「生成本章」回生成', async () => {
+    mocks.NovelChapterPlanPropose.mockResolvedValue({
+      sub_index: 1, title: '第1章', plot_summary: '主角觉醒并夺回令牌',
+      key_events: ['主角觉醒', '夺回令牌'], character_focus: ['主角'],
+      emotional_tone: '紧张', narrative_goal: '开启复仇线', conflict_type: '人vs人', ending_type: '悬念',
+    })
+    mocks.NovelChapterPlanSave.mockResolvedValue(undefined)
+    // 预检：开卡时 blocking（硬闸弹窗）→ 保存后复拉放行（「生成本章」出现的前提）
+    // → 「生成本章」再次预检放行（计划已在盘上）
+    vi.mocked(mocks.NovelChapterGatePrecheck)
+      .mockResolvedValueOnce(blockedGate)
+      .mockResolvedValue({ chapterNum: 1, allowed: true, hasPlan: true, missing: [], planProblems: [], outlineIssues: [], blocking: false })
+
+    await clickDirectGenerate()
+    const gate = await latestGateModal()
+    fireEvent.click(gate.getByRole('button', { name: '立即生成计划草案' }))
+
+    // 创作方向种子随卡展示（plotReq=「主角觉醒」），草案请求携带方向
+    const card = await screen.findByTestId('chapter-plan-card')
+    await act(async () => { await new Promise((r) => setTimeout(r, 30)) })
+    expect(within(card).getByTestId('plan-direction')).toBeTruthy()
+    expect(within(card).getByText('主角觉醒')).toBeTruthy()
+
+    fireEvent.click(within(card).getByRole('button', { name: /生成计划草案/ }))
+    await within(card).findByTestId('plan-goal-input')
+    expect(mocks.NovelChapterPlanPropose).toHaveBeenCalledWith(1, '主角觉醒')
+
+    fireEvent.click(within(card).getByRole('button', { name: /保存计划/ }))
+    const genBtn = await within(card).findByTestId('plan-generate-chapter')
+    fireEvent.click(genBtn)
+
+    // 回到生成：剧情要求=计划情节摘要，章号=计划章号，普通入口（非覆盖）
+    await waitFor(() => expect(mocks.CreateChapter).toHaveBeenCalledTimes(1))
+    expect(mocks.CreateChapter).toHaveBeenCalledWith(
+      expect.any(String), '', '主角觉醒并夺回令牌', 1, '', 'story-deslop', 5000, 0,
+    )
+    expect(mocks.CreateChapterWithOverride).not.toHaveBeenCalled()
+  })
+
   it('硬闸弹窗点「取消」：不生成、不落盘', async () => {
     await clickDirectGenerate()
     const gate = await latestGateModal()

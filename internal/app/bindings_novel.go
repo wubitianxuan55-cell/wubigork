@@ -317,8 +317,11 @@ func (b *NovelB) NovelChapterPlanDeviation(chapterNum int) (*types.PlanDeviation
 func (b *NovelB) NovelChapterPlanGet(chapterNum int) (*types.ChapterPlan, error) {
 	return b.a.NovelChapterPlanGet(chapterNum)
 }
-func (b *NovelB) NovelChapterPlanPropose(chapterNum int) (*types.ChapterPlan, error) {
-	return b.a.NovelChapterPlanPropose(chapterNum)
+
+// NovelChapterPlanPropose AI 计划草案（不落盘）；direction=作者创作方向
+// （分支意向/剧情要求），空串=既有口径，无节点时以 direction 兜底编译（v4.450.0）。
+func (b *NovelB) NovelChapterPlanPropose(chapterNum int, direction string) (*types.ChapterPlan, error) {
+	return b.a.NovelChapterPlanPropose(chapterNum, direction)
 }
 func (b *NovelB) NovelChapterPlanSave(chapterNum int, planJSON string) error {
 	return b.a.NovelChapterPlanSave(chapterNum, planJSON)

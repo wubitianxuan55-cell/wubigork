@@ -318,7 +318,9 @@ export interface NovelBindings {
   // 预检，是硬闸唯一判据来源（blocking=true 时前端不得发起生成，除非作者显式覆盖）。
   NovelChapterPlanGet(chapterNum: number): Promise<ChapterPlanView | null>;
   NovelChapterPlanSave(chapterNum: number, planJSON: string): Promise<void>;
-  NovelChapterPlanPropose(chapterNum: number): Promise<ChapterPlanView>;
+  // Propose 的 direction=作者创作方向（分支意向/剧情要求；v4.450.0 三点打通），
+  // 空串=既有口径；无大纲节点时后端以 direction 兜底编译（分支→计划不再死锁）。
+  NovelChapterPlanPropose(chapterNum: number, direction: string): Promise<ChapterPlanView>;
   NovelChapterPlanDeviation(chapterNum: number): Promise<PlanDeviationView>;
   NovelChapterGatePrecheck(chapterNum: number): Promise<PlanGateReportView>;
   // AnalyzeChapter 触发该章 LLM 分析（原 Legacy 面绑定转正；V1 wire 返回

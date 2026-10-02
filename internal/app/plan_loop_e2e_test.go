@@ -256,7 +256,7 @@ func TestPlanLoopE2E_PlanMissingToDeviation(t *testing.T) {
 	t.Logf("② CreateChapterWithOverride(allowOverride=false) 被拒 → %v；模型调用 0 次", err)
 
 	// ③ AI 草案（不落盘）
-	proposal, err := a.NovelChapterPlanPropose(2)
+	proposal, err := a.NovelChapterPlanPropose(2, "")
 	if err != nil {
 		t.Fatalf("草案生成失败: %v", err)
 	}
