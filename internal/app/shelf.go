@@ -119,229 +119,180 @@ func (a *App) DeleteProject(dir string) error {
 // T7-2 可见性收口：内存同步补齐到全部支持项（写盘后同步 a.cfg），
 // 避免「盘上已改、内存未动」的设置不同步；无内存对应项的配置写盘后
 // 明确记 Warn 日志标注需重启生效。
+//
+// AP2-05（god-func 大拆试水第一刀）：原 63 case 巨型 switch（int/float/bool
+// 三种「strconv 解析+slog.Warn」样板各重复 5/4/10 遍）表驱动化——键→内存
+// setter 见 cfgMemSetters；书架键（novels_dir）按审计要求留在本文件特判。
 func (a *App) SaveConfig(key, value string) error {
 	if err := config.Save(key, value); err != nil {
 		return err
 	}
 
-	// 更新内存中的对应字段（config.Save 已校验值格式，这里解析失败仅记录
-	// 并跳过——磁盘已是权威来源，不阻断）。
-	switch key {
-	case config.KeyNovelsDir:
-		// 如果当前打开了旧目录下的项目，先关闭
-		oldDir := a.cfg.NovelsDir
-		if oldDir != value {
+	// 书架特判键（本文件保留的唯一配置键）：如果当前打开了旧目录下的项目，
+	// 先关闭再换目录。
+	if key == config.KeyNovelsDir {
+		if a.cfg.NovelsDir != value {
 			if pm := a.getPM(); pm != nil {
 				_ = a.closePM()
 			}
 		}
 		a.cfg.NovelsDir = value
-	case config.KeyXaiClientID:
-		a.cfg.XaiClientID = value
-	case config.KeyModel:
-		config.SetModelMem(a.cfg, value)
-	case config.KeyHTTPTimeoutSeconds:
-		if n, err := strconv.Atoi(value); err == nil {
-			a.cfg.HTTPTimeoutSeconds = n
-		} else {
-			slog.Warn("SaveConfig: 内存同步跳过（整数解析失败）", "key", key, "value", value)
-		}
-	case config.KeyDefaultTemperature:
-		if f, err := strconv.ParseFloat(value, 64); err == nil {
-			a.cfg.DefaultTemperature = f
-		} else {
-			slog.Warn("SaveConfig: 内存同步跳过（浮点解析失败）", "key", key, "value", value)
-		}
-	case config.KeyAnalysisTemperature:
-		if f, err := strconv.ParseFloat(value, 64); err == nil {
-			a.cfg.AnalysisTemperature = f
-		} else {
-			slog.Warn("SaveConfig: 内存同步跳过（浮点解析失败）", "key", key, "value", value)
-		}
-	case config.KeyReasoningEffort:
-		a.cfg.ReasoningEffort = value
-	case config.KeyQualityThreshold:
-		if n, err := strconv.Atoi(value); err == nil {
-			a.cfg.QualityThreshold = n
-		} else {
-			slog.Warn("SaveConfig: 内存同步跳过（整数解析失败）", "key", key, "value", value)
-		}
-	case config.KeyQualityMaxRetries:
-		if n, err := strconv.Atoi(value); err == nil {
-			a.cfg.QualityMaxRetries = n
-		} else {
-			slog.Warn("SaveConfig: 内存同步跳过（整数解析失败）", "key", key, "value", value)
-		}
-	case config.KeyTTSBinaryPath:
-		a.cfg.TTSBinaryPath = value
-	case config.KeyTTSModelPath:
-		a.cfg.TTSModelPath = value
-	case config.KeyTTSPort:
-		if n, err := strconv.Atoi(value); err == nil {
-			a.cfg.TTSPort = n
-		} else {
-			slog.Warn("SaveConfig: 内存同步跳过（整数解析失败）", "key", key, "value", value)
-		}
-	case config.KeyTTSBackend:
-		a.cfg.TTSBackend = value
-	case config.KeyTTSSpeed:
-		if f, err := strconv.ParseFloat(value, 64); err == nil {
-			a.cfg.TTSSpeed = f
-		} else {
-			slog.Warn("SaveConfig: 内存同步跳过（浮点解析失败）", "key", key, "value", value)
-		}
-	case config.KeyImageBackend:
-		a.cfg.ImageBackend = value
-	case config.KeyComfyUIURL:
-		a.cfg.ComfyUIURL = value
-	case config.KeyImageSaveDir:
-		a.cfg.ImageSaveDir = value
-	case config.KeyImageModel:
-		a.cfg.ImageModel = value
-	case config.KeyPortraitBackend:
-		a.cfg.PortraitBackend = value
-	case config.KeyPortraitModel:
-		a.cfg.PortraitModel = value
-	case config.KeySinImageBackend:
-		a.cfg.SinImageBackend = value
-	case config.KeySinImageModel:
-		a.cfg.SinImageModel = value
-	case config.KeyComfyUIPath:
-		a.cfg.ComfyUIPath = value
-	case config.KeyComfyUIPythonPath:
-		a.cfg.ComfyUIPythonPath = value
-	case config.KeyActiveEngineID:
-		a.cfg.ActiveEngineID = value
-	case config.KeyDeepseekAPIKey:
-		a.cfg.DeepseekAPIKey = value
-	case config.KeyOpencodeGoAPIKey:
-		a.cfg.OpenCodeGoAPIKey = value
-	case config.KeyOpencodeZenAPIKey:
-		a.cfg.OpenCodeZenAPIKey = value
-	case config.KeyActiveASREngine:
-		a.cfg.ActiveASREngine = value
-	case config.KeyActiveASRModel:
-		a.cfg.ActiveASRModel = value
-	case config.KeyActiveTTSEngine:
-		a.cfg.ActiveTTSEngine = value
-	case config.KeyActiveTTSModel:
-		a.cfg.ActiveTTSModel = value
-	case config.KeyTTSVoice:
-		a.cfg.TTSVoice = value
-	case config.KeyActiveOCREngine:
-		a.cfg.ActiveOCREngine = value
-	case config.KeyActiveOCRModel:
-		a.cfg.ActiveOCRModel = value
-	case config.KeyVoicePersonality:
-		a.cfg.VoicePersonality = value
-	case config.KeyFuncChatVoiceEngine:
-		a.cfg.FuncChatVoiceEngine = value
-	case config.KeyFuncChatVoiceModel:
-		a.cfg.FuncChatVoiceModel = value
-	case config.KeyFuncChatEngine:
-		a.cfg.FuncChatEngine = value
-	case config.KeyFuncChatModel:
-		a.cfg.FuncChatModel = value
-	case config.KeyFuncNovelEngine:
-		a.cfg.FuncNovelEngine = value
-	case config.KeyFuncNovelModel:
-		a.cfg.FuncNovelModel = value
-	case config.KeyFuncOfficeEngine:
-		a.cfg.FuncOfficeEngine = value
-	case config.KeyFuncOfficeModel:
-		a.cfg.FuncOfficeModel = value
-	case config.KeyFuncGaeaEngine:
-		a.cfg.FuncGaeaEngine = value
-	case config.KeyFuncGaeaModel:
-		a.cfg.FuncGaeaModel = value
-	case config.KeyFuncCharLibEngine:
-		a.cfg.FuncCharLibEngine = value
-	case config.KeyFuncCharLibModel:
-		a.cfg.FuncCharLibModel = value
-	case config.KeyFuncRoutineEngine:
-		a.cfg.FuncRoutineEngine = value
-	case config.KeyFuncRoutineModel:
-		a.cfg.FuncRoutineModel = value
-	case config.KeyUsdCnyRate:
-		if f, err := strconv.ParseFloat(value, 64); err == nil {
-			a.cfg.UsdCnyRate = f
-		} else {
-			slog.Warn("SaveConfig: 内存同步跳过（浮点解析失败）", "key", key, "value", value)
-		}
-	case config.KeyCosyVoiceDir:
-		a.cfg.CosyVoiceDir = value
-	case config.KeyCosyVoicePort:
-		if n, err := strconv.Atoi(value); err == nil {
-			a.cfg.CosyVoicePort = n
-		} else {
-			slog.Warn("SaveConfig: 内存同步跳过（整数解析失败）", "key", key, "value", value)
-		}
-	// 布尔开关（*bool 在盘上，内存为 bool）
-	case config.KeyFuncChatEnabled:
-		if b, err := strconv.ParseBool(value); err == nil {
-			a.cfg.FuncChatEnabled = b
-		} else {
-			slog.Warn("SaveConfig: 内存同步跳过（布尔解析失败）", "key", key, "value", value)
-		}
-	case config.KeyFuncNovelEnabled:
-		if b, err := strconv.ParseBool(value); err == nil {
-			a.cfg.FuncNovelEnabled = b
-		} else {
-			slog.Warn("SaveConfig: 内存同步跳过（布尔解析失败）", "key", key, "value", value)
-		}
-	case config.KeyFuncOfficeEnabled:
-		if b, err := strconv.ParseBool(value); err == nil {
-			a.cfg.FuncOfficeEnabled = b
-		} else {
-			slog.Warn("SaveConfig: 内存同步跳过（布尔解析失败）", "key", key, "value", value)
-		}
-	case config.KeyFuncGaeaEnabled:
-		if b, err := strconv.ParseBool(value); err == nil {
-			a.cfg.FuncGaeaEnabled = b
-		} else {
-			slog.Warn("SaveConfig: 内存同步跳过（布尔解析失败）", "key", key, "value", value)
-		}
-	case config.KeyFuncCharLibEnabled:
-		if b, err := strconv.ParseBool(value); err == nil {
-			a.cfg.FuncCharLibEnabled = b
-		} else {
-			slog.Warn("SaveConfig: 内存同步跳过（布尔解析失败）", "key", key, "value", value)
-		}
-	case config.KeyFuncRoutineEnabled:
-		if b, err := strconv.ParseBool(value); err == nil {
-			a.cfg.FuncRoutineEnabled = b
-		} else {
-			slog.Warn("SaveConfig: 内存同步跳过（布尔解析失败）", "key", key, "value", value)
-		}
-	case config.KeySensitiveLocal:
-		if b, err := strconv.ParseBool(value); err == nil {
-			a.cfg.SensitiveLocal = b
-		} else {
-			slog.Warn("SaveConfig: 内存同步跳过（布尔解析失败）", "key", key, "value", value)
-		}
-	case config.KeyOfflineMode:
-		if b, err := strconv.ParseBool(value); err == nil {
-			a.cfg.OfflineMode = b
-		} else {
-			slog.Warn("SaveConfig: 内存同步跳过（布尔解析失败）", "key", key, "value", value)
-		}
-	case config.KeyKeepWarm:
-		if b, err := strconv.ParseBool(value); err == nil {
-			a.cfg.KeepWarmEnabled = b
-		} else {
-			slog.Warn("SaveConfig: 内存同步跳过（布尔解析失败）", "key", key, "value", value)
-		}
-	case config.KeyAutoPreload:
-		if b, err := strconv.ParseBool(value); err == nil {
-			a.cfg.AutoPreload = b
-		} else {
-			slog.Warn("SaveConfig: 内存同步跳过（布尔解析失败）", "key", key, "value", value)
-		}
-	default:
+		return nil
+	}
+
+	set, ok := cfgMemSetters[key]
+	if !ok {
 		// 无内存对应项（或未来新增键）：已成功写盘，标注需重启生效。
 		slog.Warn("SaveConfig: 配置项已持久化，无内存同步项（重启后生效）", "key", key, "value", value)
+		return nil
+	}
+
+	// 更新内存中的对应字段（config.Save 已校验值格式，这里解析失败仅记录
+	// 并跳过——磁盘已是权威来源，不阻断）。
+	if err := set(a.cfg, value); err != nil {
+		skip, ok := err.(*memParseSkipError)
+		if !ok {
+			return err
+		}
+		slog.Warn(skip.msg, "key", key, "value", value)
 	}
 	return nil
+}
+
+// ── SaveConfig 内存同步表驱动域（AP2-05）────────────────────────────
+//
+// 「key → 内存 setter」注册表，与 internal/config 的 saveSetters（盘上
+// configFile 写入域）成对：那边管落盘与盘上校验，这边管内存态 config.Config
+// 同步；两表键集刻意不必一致——盘有内存无的键（glm_api_key、func_sin_*、
+// realtime_* 等）走 SaveConfig 的「无内存同步项」Warn 分支，现状如此
+// （saveconfig_keys_test.go TestSaveConfig_DiskOnlyKeysWarnNoSync 钉死）。
+//
+// 迁移落点备忘：本域为自包含块（1 表 + 4 构造器 + 3 哨兵），后续如整体迁出
+// shelf.go（独立 settings 内存同步文件或 config 包）可整块剪贴零改动搬家；
+// 书架键 novels_dir 不入表，永久留在 SaveConfig 特判（关旧项目副作用）。
+
+// memParseSkipError 内存同步解析失败信号：只用于触发「跳过」Warn，不外抛给
+// 调用方（msg 与原 switch 文案逐字一致）。
+type memParseSkipError struct{ msg string }
+
+func (e *memParseSkipError) Error() string { return e.msg }
+
+// 三类解析失败哨兵（文案逐字保留原 switch）。
+var (
+	errMemIntSkip   = &memParseSkipError{msg: "SaveConfig: 内存同步跳过（整数解析失败）"}
+	errMemFloatSkip = &memParseSkipError{msg: "SaveConfig: 内存同步跳过（浮点解析失败）"}
+	errMemBoolSkip  = &memParseSkipError{msg: "SaveConfig: 内存同步跳过（布尔解析失败）"}
+)
+
+// setStr/setInt/setFloat/setBool setter 构造器：键→字段的绑定收在表注册处，
+// int/float/bool 的「解析失败→哨兵」与告警文案由 SaveConfig 单点处理
+// （原先三种样板各手写 5/4/10 遍）。
+func setStr(assign func(*config.Config, string)) func(*config.Config, string) error {
+	return func(cfg *config.Config, v string) error {
+		assign(cfg, v)
+		return nil
+	}
+}
+
+func setInt(assign func(*config.Config, int)) func(*config.Config, string) error {
+	return func(cfg *config.Config, v string) error {
+		n, err := strconv.Atoi(v)
+		if err != nil {
+			return errMemIntSkip
+		}
+		assign(cfg, n)
+		return nil
+	}
+}
+
+func setFloat(assign func(*config.Config, float64)) func(*config.Config, string) error {
+	return func(cfg *config.Config, v string) error {
+		f, err := strconv.ParseFloat(v, 64)
+		if err != nil {
+			return errMemFloatSkip
+		}
+		assign(cfg, f)
+		return nil
+	}
+}
+
+func setBool(assign func(*config.Config, bool)) func(*config.Config, string) error {
+	return func(cfg *config.Config, v string) error {
+		b, err := strconv.ParseBool(v)
+		if err != nil {
+			return errMemBoolSkip
+		}
+		assign(cfg, b)
+		return nil
+	}
+}
+
+// cfgMemSetters SaveConfig 配置键 → 内存 setter 注册表（62 键；novels_dir
+// 见 SaveConfig 特判）。model 经 SetModelMem（并发安全写，modelMu）。
+var cfgMemSetters = map[string]func(*config.Config, string) error{
+	config.KeyXaiClientID:         setStr(func(cfg *config.Config, v string) { cfg.XaiClientID = v }),
+	config.KeyModel:               setStr(func(cfg *config.Config, v string) { config.SetModelMem(cfg, v) }),
+	config.KeyHTTPTimeoutSeconds:  setInt(func(cfg *config.Config, n int) { cfg.HTTPTimeoutSeconds = n }),
+	config.KeyDefaultTemperature:  setFloat(func(cfg *config.Config, f float64) { cfg.DefaultTemperature = f }),
+	config.KeyAnalysisTemperature: setFloat(func(cfg *config.Config, f float64) { cfg.AnalysisTemperature = f }),
+	config.KeyReasoningEffort:     setStr(func(cfg *config.Config, v string) { cfg.ReasoningEffort = v }),
+	config.KeyQualityThreshold:    setInt(func(cfg *config.Config, n int) { cfg.QualityThreshold = n }),
+	config.KeyQualityMaxRetries:   setInt(func(cfg *config.Config, n int) { cfg.QualityMaxRetries = n }),
+	config.KeyTTSBinaryPath:       setStr(func(cfg *config.Config, v string) { cfg.TTSBinaryPath = v }),
+	config.KeyTTSModelPath:        setStr(func(cfg *config.Config, v string) { cfg.TTSModelPath = v }),
+	config.KeyTTSPort:             setInt(func(cfg *config.Config, n int) { cfg.TTSPort = n }),
+	config.KeyTTSBackend:          setStr(func(cfg *config.Config, v string) { cfg.TTSBackend = v }),
+	config.KeyTTSSpeed:            setFloat(func(cfg *config.Config, f float64) { cfg.TTSSpeed = f }),
+	config.KeyImageBackend:        setStr(func(cfg *config.Config, v string) { cfg.ImageBackend = v }),
+	config.KeyComfyUIURL:          setStr(func(cfg *config.Config, v string) { cfg.ComfyUIURL = v }),
+	config.KeyImageSaveDir:        setStr(func(cfg *config.Config, v string) { cfg.ImageSaveDir = v }),
+	config.KeyImageModel:          setStr(func(cfg *config.Config, v string) { cfg.ImageModel = v }),
+	config.KeyPortraitBackend:     setStr(func(cfg *config.Config, v string) { cfg.PortraitBackend = v }),
+	config.KeyPortraitModel:       setStr(func(cfg *config.Config, v string) { cfg.PortraitModel = v }),
+	config.KeySinImageBackend:     setStr(func(cfg *config.Config, v string) { cfg.SinImageBackend = v }),
+	config.KeySinImageModel:       setStr(func(cfg *config.Config, v string) { cfg.SinImageModel = v }),
+	config.KeyComfyUIPath:         setStr(func(cfg *config.Config, v string) { cfg.ComfyUIPath = v }),
+	config.KeyComfyUIPythonPath:   setStr(func(cfg *config.Config, v string) { cfg.ComfyUIPythonPath = v }),
+	config.KeyActiveEngineID:      setStr(func(cfg *config.Config, v string) { cfg.ActiveEngineID = v }),
+	config.KeyDeepseekAPIKey:      setStr(func(cfg *config.Config, v string) { cfg.DeepseekAPIKey = v }),
+	config.KeyOpencodeGoAPIKey:    setStr(func(cfg *config.Config, v string) { cfg.OpenCodeGoAPIKey = v }),
+	config.KeyOpencodeZenAPIKey:   setStr(func(cfg *config.Config, v string) { cfg.OpenCodeZenAPIKey = v }),
+	config.KeyActiveASREngine:     setStr(func(cfg *config.Config, v string) { cfg.ActiveASREngine = v }),
+	config.KeyActiveASRModel:      setStr(func(cfg *config.Config, v string) { cfg.ActiveASRModel = v }),
+	config.KeyActiveTTSEngine:     setStr(func(cfg *config.Config, v string) { cfg.ActiveTTSEngine = v }),
+	config.KeyActiveTTSModel:      setStr(func(cfg *config.Config, v string) { cfg.ActiveTTSModel = v }),
+	config.KeyTTSVoice:            setStr(func(cfg *config.Config, v string) { cfg.TTSVoice = v }),
+	config.KeyActiveOCREngine:     setStr(func(cfg *config.Config, v string) { cfg.ActiveOCREngine = v }),
+	config.KeyActiveOCRModel:      setStr(func(cfg *config.Config, v string) { cfg.ActiveOCRModel = v }),
+	config.KeyVoicePersonality:    setStr(func(cfg *config.Config, v string) { cfg.VoicePersonality = v }),
+	config.KeyFuncChatVoiceEngine: setStr(func(cfg *config.Config, v string) { cfg.FuncChatVoiceEngine = v }),
+	config.KeyFuncChatVoiceModel:  setStr(func(cfg *config.Config, v string) { cfg.FuncChatVoiceModel = v }),
+	config.KeyFuncChatEngine:      setStr(func(cfg *config.Config, v string) { cfg.FuncChatEngine = v }),
+	config.KeyFuncChatModel:       setStr(func(cfg *config.Config, v string) { cfg.FuncChatModel = v }),
+	config.KeyFuncNovelEngine:     setStr(func(cfg *config.Config, v string) { cfg.FuncNovelEngine = v }),
+	config.KeyFuncNovelModel:      setStr(func(cfg *config.Config, v string) { cfg.FuncNovelModel = v }),
+	config.KeyFuncOfficeEngine:    setStr(func(cfg *config.Config, v string) { cfg.FuncOfficeEngine = v }),
+	config.KeyFuncOfficeModel:     setStr(func(cfg *config.Config, v string) { cfg.FuncOfficeModel = v }),
+	config.KeyFuncGaeaEngine:      setStr(func(cfg *config.Config, v string) { cfg.FuncGaeaEngine = v }),
+	config.KeyFuncGaeaModel:       setStr(func(cfg *config.Config, v string) { cfg.FuncGaeaModel = v }),
+	config.KeyFuncCharLibEngine:   setStr(func(cfg *config.Config, v string) { cfg.FuncCharLibEngine = v }),
+	config.KeyFuncCharLibModel:    setStr(func(cfg *config.Config, v string) { cfg.FuncCharLibModel = v }),
+	config.KeyFuncRoutineEngine:   setStr(func(cfg *config.Config, v string) { cfg.FuncRoutineEngine = v }),
+	config.KeyFuncRoutineModel:    setStr(func(cfg *config.Config, v string) { cfg.FuncRoutineModel = v }),
+	config.KeyUsdCnyRate:          setFloat(func(cfg *config.Config, f float64) { cfg.UsdCnyRate = f }),
+	config.KeyCosyVoiceDir:        setStr(func(cfg *config.Config, v string) { cfg.CosyVoiceDir = v }),
+	config.KeyCosyVoicePort:       setInt(func(cfg *config.Config, n int) { cfg.CosyVoicePort = n }),
+	// 布尔开关（*bool 在盘上，内存为 bool）
+	config.KeyFuncChatEnabled:    setBool(func(cfg *config.Config, b bool) { cfg.FuncChatEnabled = b }),
+	config.KeyFuncNovelEnabled:   setBool(func(cfg *config.Config, b bool) { cfg.FuncNovelEnabled = b }),
+	config.KeyFuncOfficeEnabled:  setBool(func(cfg *config.Config, b bool) { cfg.FuncOfficeEnabled = b }),
+	config.KeyFuncGaeaEnabled:    setBool(func(cfg *config.Config, b bool) { cfg.FuncGaeaEnabled = b }),
+	config.KeyFuncCharLibEnabled: setBool(func(cfg *config.Config, b bool) { cfg.FuncCharLibEnabled = b }),
+	config.KeyFuncRoutineEnabled: setBool(func(cfg *config.Config, b bool) { cfg.FuncRoutineEnabled = b }),
+	config.KeySensitiveLocal:     setBool(func(cfg *config.Config, b bool) { cfg.SensitiveLocal = b }),
+	config.KeyOfflineMode:        setBool(func(cfg *config.Config, b bool) { cfg.OfflineMode = b }),
+	config.KeyKeepWarm:           setBool(func(cfg *config.Config, b bool) { cfg.KeepWarmEnabled = b }),
+	config.KeyAutoPreload:        setBool(func(cfg *config.Config, b bool) { cfg.AutoPreload = b }),
 }
 
 // ── 内部辅助 ─────────────────────────────────────────────────

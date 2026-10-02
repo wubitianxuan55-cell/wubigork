@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
-	"strconv"
 	"strings"
 	"unicode"
 
@@ -375,8 +374,6 @@ func deepPlace(num int, branch string) string {
 	return fmt.Sprintf("第%d章分支%s", num, branch)
 }
 
-var deepChapterRe = regexp.MustCompile(`^([0-9]{3})([a-z]?)\.md$`)
-
 // deepListChapters 枚举 chapters/ 下实际存在的章节文件（主线 + 分支，按章节号、分支排序）
 func deepListChapters(pm *project.Manager) []deepChapterRef {
 	entries, err := os.ReadDir(filepath.Join(pm.Dir, "chapters"))
@@ -388,15 +385,13 @@ func deepListChapters(pm *project.Manager) []deepChapterRef {
 		if e.IsDir() {
 			continue
 		}
-		m := deepChapterRe.FindStringSubmatch(e.Name())
-		if m == nil {
+		// 章节文件解析单源 project.ParseChapterFileName（IN1-03：旧本地
+		// deepChapterRe 与之等价）。
+		num, branch, ok := project.ParseChapterFileName(e.Name())
+		if !ok {
 			continue
 		}
-		num, err := strconv.Atoi(m[1])
-		if err != nil {
-			continue
-		}
-		out = append(out, deepChapterRef{num: num, branch: m[2]})
+		out = append(out, deepChapterRef{num: num, branch: branch})
 	}
 	sort.Slice(out, func(i, j int) bool {
 		if out[i].num != out[j].num {

@@ -12,6 +12,15 @@ import (
 // whisper 是 chat 板块的模块化身（§3.1：chat 板块意图域 = whisper），office
 // 是 gaea 办公域的模块化身（D8 决策保留 office 模块，office.create→GaeaSend）。
 // manifest 声明的意图必须出现在此表，否则装配报错（完整性断言）。
+//
+// AP9-06 口径互引：default 聊天意图的原意 = ("gaea","chat") → gaea 模块
+// （ChatGeneral），与本表 "gaea.chat"→"gaea" 一致（批 6 AP9-03 复核结论：
+// 审计把 "chat.chat"→whisper 看串行，误报为 gaea.chat→whisper 冲突）。
+// 注意 §3.1「chat 板块意图域 = whisper」说的是 chat 板块（"chat.chat" 键），
+// 与 gaea 板块的 chat 意图（"gaea.chat" 键）是两个键、两个落点。完整性断言
+// 只覆盖 manifest→本表方向；分类器（classifyMainBrainIntent，main_brain.go）
+// 的硬编码输出不在断言覆盖内，对齐由 TestMainBrainClassifierBranchesDispatchable
+// （board_manifest_test.go）机器守卫。
 var moduleOfIntent = map[string]string{
 	"novel.create_chapter": "novel",
 	"chat.chat":            "whisper",

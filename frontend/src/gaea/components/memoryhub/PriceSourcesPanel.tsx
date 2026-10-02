@@ -1,23 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Modal, message } from "antd";
-import { CloudUpload, Coins, Copy, ExternalLink, Pencil, Plus, RefreshCw, Trash2 } from "../../icons";
-import { app, onTaskEvent, openExternal } from "../../lib/bridge";
-import { classifyExternalLink } from "../../lib/browserPolicy";
+import { CloudUpload, Plus, RefreshCw } from "../../icons";
+import { app, onTaskEvent } from "../../lib/bridge";
 import type { PriceCandidate, PriceFetchRecord, PriceSource, TaskStatus, TaskView } from "../../lib/types";
 import { useToast } from "../Toast";
+import { PriceSourceCard } from "./PriceSourceCard";
 import { PriceSourceFormModal } from "./PriceSourceFormModal";
+import { timeText, usePriceSources } from "./usePriceSources";
 
-const FREQ_OPTIONS = [
-  { value: 0, label: "仅手动" },
-  { value: 6, label: "每 6 小时" },
-  { value: 24, label: "每天" },
-  { value: 168, label: "每周" },
-];
 const DISPLAY_LIMIT = 60;
-
-function freqLabel(h: number): string {
-  return FREQ_OPTIONS.find((o) => o.value === h)?.label ?? `每 ${h} 小时`;
-}
 
 // 任务终态：succeeded / failed / cancelled（queued / running 仍进行中）。
 function isTerminal(status: TaskStatus): boolean {
@@ -38,59 +29,19 @@ function parseTaskResult(result: string): Record<string, unknown> {
 // 变更高亮（旧价→新价 + 差额/环比）→ 用户勾选确认发布（写回成本库 + 价格历史）
 // 或忽略。遵循「无确认不写库」。
 export function PriceSourcesPanel({ onChanged }: { onChanged?: () => void }) {
-  const [sources, setSources] = useState<PriceSource[]>([]);
-  const [fetches, setFetches] = useState<PriceFetchRecord[]>([]);
-  const [loading, setLoading] = useState(true);
+  // 数据装载与阅览仓库共用 usePriceSources（含 8 秒超时兜底 + loadFailed 三态）；
+  // 本面板额外装载抓取记录（withFetches）。
+  const { sources, fetches, loading, loadFailed, load } = usePriceSources({ withFetches: true });
   const [fetchingId, setFetchingId] = useState<string | null>(null);
   const [fetchingAll, setFetchingAll] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [editing, setEditing] = useState<PriceSource | null>(null);
   const [deleting, setDeleting] = useState<PriceSource | null>(null);
-  // v4.362：加载失败可见化——原失败伪装成空面板。
-  const [loadFailed, setLoadFailed] = useState(false);
   const [checked, setChecked] = useState<Record<string, Set<string>>>({});
   // 进行中的抓取任务（taskId → 元信息：单源抓取记 sourceId，一键抓取记 all）。
   // 用 ref 保存，避免 onTaskEvent 闭包拿不到最新的任务集合。
   const pendingTasksRef = useRef<Map<string, { all?: boolean; sourceId?: string }>>(new Map());
   const toast = useToast();
-
-  // 后端调用偶发卡住时兜底：最多等 8 秒，避免「加载中…」永久转圈。
-  const withTimeout = useCallback(<T,>(p: Promise<T>, fallback: T): Promise<T> => {
-    return Promise.race([p, new Promise<T>((res) => setTimeout(() => res(fallback), 8000))]);
-  }, []);
-
-  const load = useCallback(() => {
-    setLoading(true);
-    Promise.all([
-      withTimeout(app.PriceSources(), []),
-      withTimeout(app.PriceFetches(), []),
-    ])
-      .then(([s, f]) => {
-        setSources(s ?? []);
-        setFetches(f ?? []);
-        setLoadFailed(false);
-      })
-      .catch(() => {
-        // v4.362：加载失败可见化——原伪装成空面板。
-        setSources([]);
-        setFetches([]);
-        setLoadFailed(true);
-      })
-      .finally(() => setLoading(false));
-  }, [withTimeout]);
-
-  useEffect(() => {
-    load();
-  }, [load]);
-
-  const timeText = useMemo(() => {
-    return (s: string) => {
-      if (!s) return "从未抓取";
-      const d = new Date(s);
-      if (Number.isNaN(d.getTime())) return s;
-      return d.toLocaleString("zh-CN", { hour12: false });
-    };
-  }, []);
 
   const defaultChecked = useCallback((cands: PriceCandidate[]): Set<string> => {
     return new Set(cands.filter((c) => c.status !== "无变化").map((c) => c.title));
@@ -224,18 +175,6 @@ export function PriceSourcesPanel({ onChanged }: { onChanged?: () => void }) {
     }
   }, [handleTaskTerminal, toast]);
 
-  const copyUrl = useCallback(
-    async (url: string) => {
-      try {
-        await navigator.clipboard.writeText(url);
-        toast.show("已复制抓取地址", "info");
-      } catch {
-        toast.show("复制失败：剪贴板不可用", "warn");
-      }
-    },
-    [toast],
-  );
-
   const applyFetch = useCallback(
     async (f: PriceFetchRecord) => {
       const titles = [...(checked[f.id] ?? defaultChecked(f.candidates))];
@@ -325,65 +264,15 @@ export function PriceSourcesPanel({ onChanged }: { onChanged?: () => void }) {
           <>
             {/* 订阅源 */}
             {sources.map((src) => (
-              <div key={src.id} className="p-2 rounded-lg border border-border-soft/70 bg-bg-soft/30">
-                <div className="flex items-center gap-1.5">
-                  <Coins size={12} className="text-sky-400 shrink-0" />
-                  <span className="truncate text-fg text-[12px] font-medium">{src.name}</span>
-                  <span className="px-1.5 py-px rounded bg-bg-elev text-fg-faint text-[9.5px] shrink-0">{freqLabel(src.frequencyHours)}</span>
-                  {!src.enabled && (
-                    <span className="px-1.5 py-px rounded bg-bg-elev text-fg-faint text-[9.5px] shrink-0">停用</span>
-                  )}
-                  <span className="ml-auto shrink-0 text-fg-faint text-[10px]">{timeText(src.lastFetchAt)}</span>
-                  <button
-                    className="shrink-0 px-2 h-6 rounded-md bg-sky-400/15 text-sky-300 text-[11px] cursor-pointer hover:bg-sky-400/25 transition-colors disabled:opacity-50"
-                    disabled={fetchingId === src.id || fetchingAll}
-                    onClick={() => void fetchNow(src)}
-                    title="立即抓取该价格源"
-                  >
-                    {fetchingId === src.id || fetchingAll ? "抓取中…" : "抓取"}
-                  </button>
-                  <button
-                    className="shrink-0 w-6 h-6 inline-flex items-center justify-center rounded text-fg-faint hover:text-fg hover:bg-bg-elev"
-                    onClick={() => openEdit(src)}
-                    title="编辑价格源"
-                  >
-                    <Pencil size={11} />
-                  </button>
-                  <button
-                    className="shrink-0 w-6 h-6 inline-flex items-center justify-center rounded text-fg-faint hover:text-red-400 hover:bg-bg-elev"
-                    onClick={() => setDeleting(src)}
-                    title="删除价格源"
-                  >
-                    <Trash2 size={11} />
-                  </button>
-                </div>
-                <div className="mt-1 flex items-start gap-1">
-                  <span
-                    className="min-w-0 flex-1 break-all text-fg-faint text-[9.5px] font-mono leading-snug"
-                    title={src.url}
-                  >
-                    抓取地址：{src.url}
-                  </span>
-                  <span className="shrink-0 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button
-                      type="button"
-                      className="flex items-center justify-center w-5 h-5 rounded border-0 bg-transparent text-fg-faint cursor-pointer hover:text-fg hover:bg-bg-soft"
-                      onClick={() => void copyUrl(src.url)}
-                      title="复制抓取地址"
-                    >
-                      <Copy size={10} />
-                    </button>
-                    <button
-                      type="button"
-                      className="flex items-center justify-center w-5 h-5 rounded border-0 bg-transparent text-fg-faint cursor-pointer hover:text-fg hover:bg-bg-soft"
-                      onClick={() => { const d = classifyExternalLink(src.url); if (d.kind === "open") openExternal(d.url); }}
-                      title="在浏览器打开抓取地址"
-                    >
-                      <ExternalLink size={10} />
-                    </button>
-                  </span>
-                </div>
-              </div>
+              <PriceSourceCard
+                key={src.id}
+                src={src}
+                variant="panel"
+                fetching={fetchingId === src.id || fetchingAll}
+                onFetch={fetchNow}
+                onEdit={openEdit}
+                onDelete={setDeleting}
+              />
             ))}
 
             {/* 抓取结果 */}

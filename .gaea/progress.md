@@ -1,3 +1,13 @@
+## 非版本刀：全仓审计第 22 批·零散收尾 + 大拆试水（3 线 + 主代理直做 1）· 2026-10-03
+
+- **刀型**：接续批 21（`8dc9f021`）。duplication 零散收尾 + **god-func 大拆试水首刀** + 死码删除：**3 条互斥并行子代理线**（internal/app 双条 / frontend memoryhub / gaea/cache）+ 主代理直做（章节号正则改调收尾+AP3-03 式押后惯例）。**不抬版本**。
+- **交付**：`docs/code-audit-2026-10-02/round-24-p1-batch22.md` + testctors-baseline.json（364→372 已评审）。
+- **四条内容**：①**AP2-05**（大拆试水首刀）SaveConfig 224 行巨型 switch（63 case/20 Warn/三遍样板实证）→ 表驱动 `cfgMemSetters` 62 键 + 4 构造器 + 哨兵，SaveConfig 收窄 ~35 行；**等价证明**=63 键覆盖对照测试（217 行：互异值逐键断言精确内存字段+18 盘有内存无键 Warn 逐字+盘校验先于内存同步顺序钉）先对旧 switch 跑绿→表驱动化→零编辑再跑全绿；与 config 包 saveSetters 成对（键集刻意不一致，盘有内存无 18 键现状钉死）；②**AP9-06 冲突指控证伪**——`module_bindings.go:28` 实为 `"gaea.chat": "gaea"`（审计把 :26 chat.chat 行看串行；批 6 同源误读先例）⇒ 映射无需改动；三处互引注释 + `IntentsOf` 访问器 + **分类器全 5 分支派发守卫**（把批 6 只锁 default 的覆盖补满）；MainBrainChat 等拍板；③**FE2-06** 价格源两份 → `PriceSourceCard`（variant 参数化 10 项漂移清单）+ `usePriceSources`（超时/三态单源）；净 −200 行；**申报行为变化**：Repository 失败从静默空列表变可见+重试；④**GA4-08** SpawnPolicy 死族 10 符号删除（spawn.go 226→101）——**配额裁决=删光**（maxForks 只写不读从无执行力、SpawnReport 无生产者、生产 fork 走 skillRunner/RunParallel 与 cache 无关）；绑定面零变更实测；boot 侧反向变异不可行（零 boot 测试触达=覆盖缺口登记）；⑤**章节号正则改调收尾**（主代理）：stats×2/graph×1/app deepChapterRe×1 改调 ParseChapterFileName——六处清点全部闭环。
+- **反向证据（主代理亲手各重做一组，全红→绿）**：线1 KeyQualityThreshold setter 接错字段→63 键对照红/线2 withTimeout 吞拒绝→loadFailed 钉红（超时用例仍绿证突变精确）/线3 LookupSpawnTemplate 恒空→注册查找钉红/AP3-03 拍守卫→play 红线钉红。
+- **门禁**：前台 CI OK / exit 0（golangci 0 issues · vitest **435 文件 3762 例** · E 系列 · 卫生四查）；守卫：**test-ctors 364→372（+8 已评审刷新：本批测试桩，同文件既有先例同款）**、bindings@744+死绑定 109 在册、primitives/contract 无新增。提交后复验「树干净+HEAD 可编译」（批 21 教训执行——本批新文件全部进显式清单零遗漏）。
+- **大拆试水结论（进在册）**：**对照测试先行的表驱动化是低风险形态**（63 键等价测试一次过、零行为差异）——后续 god-func 大拆（IN3-04 applyOne 430 行 switch 同款）沿用此配方。
+- **留池/下一批**：SaveConfig 内存同步表整块迁移（域头注有方案）；boot 模板路径零端到端用例（线 3 覆盖缺口）；`:54` 暖启判据补测试。**对账地图剩余=god-file 大拆 ~26+coupling ~20（拍板）+零散死码（等 109 拍板）**。下一批候选：大拆第二刀（IN3-04 applyOne 430 行 switch 同配方）或 AP2-01 runSinStream 265 行串六职责。
+
 ## 非版本刀：全仓审计第 21 批·duplication 余量四线（14 条收敛）· 2026-10-03
 
 - **刀型**：接续批 20（`a3cd2ba7`）。对账地图「duplication 余量 ~15」中取 **14 条，四条互斥并行子代理线**（export+project / BM25 分词族 / Go 杂项 / 前端 schedule 族）。**不抬版本**。

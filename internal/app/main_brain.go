@@ -8,6 +8,17 @@ import (
 
 // classifyMainBrainIntent 规则识别主脑意图：关键词命中模块与意图；默认 gaea.chat。
 // 主脑是可选编排入口，不经由任何模块的直接路径。
+//
+// AP9-06 口径互引：本函数输出的 (module, intent) 与 moduleOfIntent
+// （module_bindings.go）+ 板块 manifest 是两套独立维护的口径——本函数是
+// 模块意图空间唯一的硬编码生产者，装配完整性断言（CheckModuleIntegrity /
+// FillFromManifests）只覆盖「manifest 声明意图」方向，不覆盖本函数输出；
+// 两边漂移时 MainBrainChat 只会在运行期走「模块未注册」告警跳过（D8 路径），
+// 装配期不报错。对齐由机器守卫钉死：
+// TestMainBrainClassifierBranchesDispatchable（board_manifest_test.go）。
+// default 分支原意即 ("gaea","chat")→gaea 模块（ChatGeneral），与
+// moduleOfIntent 的 "gaea.chat"→"gaea" 一致（批 6 AP9-03 复核结论：审计把
+// "chat.chat"→whisper 看串行，误报为 gaea.chat→whisper 冲突）。
 func classifyMainBrainIntent(msg string) (moduleID, intent string) {
 	lower := strings.ToLower(msg)
 	switch {

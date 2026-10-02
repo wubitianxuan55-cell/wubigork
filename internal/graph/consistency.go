@@ -4,9 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"sort"
-	"strconv"
 	"strings"
 
 	"github.com/gaea/gaea/internal/project"
@@ -86,9 +84,6 @@ func CheckConsistency(pm *project.Manager) (*ConsistencyReport, error) {
 
 // ── 章节枚举（主线 + 分支）──────────────────────────────────
 
-// chapterFileRe 匹配主线/分支章节文件名 NNN.md / NNNa.md（与 stats.Collect 一致）
-var chapterFileRe = regexp.MustCompile(`^([0-9]{3})([a-z]?)\.md$`)
-
 // chapterFile 是目录扫描枚举到的章节文件信息
 type chapterFile struct {
 	num    int    // 章节号
@@ -116,15 +111,13 @@ func listChapterFiles(pm *project.Manager) []chapterFile {
 		if e.IsDir() {
 			continue
 		}
-		m := chapterFileRe.FindStringSubmatch(e.Name())
-		if m == nil {
+		// 章节文件解析单源 project.ParseChapterFileName（IN1-03：旧本地
+		// chapterFileRe 与之等价）。
+		num, branch, ok := project.ParseChapterFileName(e.Name())
+		if !ok {
 			continue
 		}
-		num, err := strconv.Atoi(m[1])
-		if err != nil {
-			continue
-		}
-		out = append(out, chapterFile{num: num, branch: m[2]})
+		out = append(out, chapterFile{num: num, branch: branch})
 	}
 	sort.Slice(out, func(i, j int) bool {
 		if out[i].num != out[j].num {

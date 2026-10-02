@@ -4,7 +4,6 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
-	"regexp"
 	"unicode/utf8"
 
 	"github.com/gaea/gaea/internal/project"
@@ -30,9 +29,13 @@ func Collect(pm *project.Manager) *Summary {
 	var totalWords int
 	entries, err := os.ReadDir(filepath.Join(pm.Dir, "chapters"))
 	if err == nil {
-		re := regexp.MustCompile(`^(\d{3})([a-z]?)\.md$`)
+		// 章节文件判定单源 project.ParseChapterFileName（IN1-03：旧本地正则
+		// ^(\d{3})([a-z]?)\.md$ 与之等价，等价钉见 project/chapter_filename_test）。
 		for _, e := range entries {
-			if e.IsDir() || !re.MatchString(e.Name()) {
+			if e.IsDir() {
+				continue
+			}
+			if _, _, ok := project.ParseChapterFileName(e.Name()); !ok {
 				continue
 			}
 			content, readErr := os.ReadFile(filepath.Join(pm.Dir, "chapters", e.Name()))

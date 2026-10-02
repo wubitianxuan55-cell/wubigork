@@ -1,20 +1,7 @@
 package cache
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
-
-	"strings"
 	"sync"
-	"time"
-)
-
-type ForkMode int
-
-const (
-	ForkDefault ForkMode = iota
-	ForkLight
-	ForkWarm
 )
 
 // SpawnTemplate 定义子代理的 L4 固定模板——同类子代理共享相同的前缀字节，
@@ -110,117 +97,5 @@ func BuiltinSpawnTemplates() []SpawnTemplate {
 		{Kind: TaskKind("subagent_review"), Prefix: subagentReviewPrefix, Description: "代码审查"},
 		{Kind: TaskKind("subagent_security"), Prefix: subagentSecurityPrefix, Description: "安全审计"},
 		{Kind: TaskKind("subagent_writing"), Prefix: subagentWritingPrefix, Description: "网文创作角色卡"},
-	}
-}
-
-type SpawnPolicy struct {
-	mu          sync.Mutex
-	forkCount   int
-	maxForks    int
-	minTaskLen  int
-	domainCache map[string]SpawnDomainEntry
-}
-
-type SpawnDomainEntry struct {
-	Hash      string
-	Kind      TaskKind
-	FirstUsed time.Time
-	HitCount  int
-}
-
-type ForkConfig struct {
-	Task       string
-	TaskKind   TaskKind
-	SkillNames []string
-	Mode       ForkMode
-}
-
-type SpawnReport struct {
-	ActiveForks int
-	MaxForks    int
-	SavedTokens int64
-	SavedUSD    float64
-	DomainCount int
-	TotalSpawns int
-}
-
-func NewSpawnPolicy() *SpawnPolicy {
-	return &SpawnPolicy{maxForks: 8, minTaskLen: 10, domainCache: make(map[string]SpawnDomainEntry, 64)}
-}
-
-// BuildSpawnPrompt 构造子代理的完整 prompt。
-//
-// 新版：返回 (systemMessages, userMessage) 二元组。
-// 当该 task kind 有注册模板时，模板作为独立的 system message 放在 L1 之后，
-// 实际任务描述作为 user message——DeepSeek 可缓存 [L1+template] 这段前缀，
-// 同类子代理（如所有 explore 调用）共享相同缓存。
-//
-// 无模板时（向后兼容）：整个合并到 user message 字符串返回。
-func (p *SpawnPolicy) BuildSpawnPrompt(sysPrompt string, config ForkConfig) (systemMessages []string, userMessage string) {
-	p.mu.Lock()
-	p.forkCount++
-	p.recordHit(p.hashDomain(p.buildSpawnDomain(config)), config.TaskKind)
-	p.mu.Unlock()
-
-	tmpl, hasTemplate := LookupSpawnTemplate(config.TaskKind)
-
-	if hasTemplate && config.Mode == ForkDefault {
-		msgs := make([]string, 0, 2)
-		msgs = append(msgs, sysPrompt)   // msgs[0] = L1 (compiler.Fork() 继承)
-		msgs = append(msgs, tmpl.Prefix) // msgs[1] = 模板（可缓存）
-		return msgs, config.Task
-	}
-
-	// 向后兼容：无模板或非 default mode 时合并到 user message
-	var b strings.Builder
-	b.WriteString(sysPrompt)
-	b.WriteString("\n\n--- spawn domain ---\n")
-	b.WriteString(p.buildSpawnDomain(config))
-	b.WriteString("\n---\n\n")
-	b.WriteString(config.Task)
-	return []string{sysPrompt}, b.String()
-}
-
-func (p *SpawnPolicy) buildSpawnDomain(config ForkConfig) string {
-	var parts []string
-	parts = append(parts, "## Spawn Domain")
-	parts = append(parts, "- kind: "+string(config.TaskKind))
-	switch config.Mode {
-	case ForkLight:
-		parts = append(parts, "- mode: light")
-	case ForkWarm:
-		parts = append(parts, "- mode: warm")
-	default:
-		parts = append(parts, "- mode: default")
-	}
-	if len(config.SkillNames) > 0 {
-		parts = append(parts, "- skills: "+strings.Join(config.SkillNames, ", "))
-	}
-	return strings.Join(parts, "\n")
-}
-
-func (p *SpawnPolicy) hashDomain(domain string) string {
-	h := sha256.Sum256([]byte(domain))
-	return hex.EncodeToString(h[:])
-}
-
-func (p *SpawnPolicy) recordHit(hash string, kind TaskKind) {
-	entry, exists := p.domainCache[hash]
-	if exists {
-		entry.HitCount++
-		p.domainCache[hash] = entry
-	} else {
-		p.domainCache[hash] = SpawnDomainEntry{Hash: hash, Kind: kind, FirstUsed: time.Now(), HitCount: 1}
-	}
-	if len(p.domainCache) > 64 {
-		var oldestKey string
-		var oldestTime time.Time
-		for k, e := range p.domainCache {
-			if oldestKey == "" || e.FirstUsed.Before(oldestTime) {
-				oldestKey = k
-				oldestTime = e.FirstUsed
-			}
-		}
-		delete(p.domainCache, oldestKey)
 	}
 }

@@ -57,6 +57,21 @@ func (r *ModuleRegistry) Has(moduleID string) bool {
 	return ok
 }
 
+// IntentsOf 返回已注册模块声明的意图（对齐守卫/诊断用；ok=false = 模块未注册）。
+// AP9-06：分类器（classifyMainBrainIntent）与注册表两套口径的机器对齐面——
+// FillFromManifests 的完整性断言只覆盖「manifest 声明意图 → moduleOfIntent →
+// handler」方向，不覆盖分类器的硬编码输出；两边若漂移，MainBrainChat 只会在
+// 运行期走「模块未注册/未知意图」告警跳过（D8 路径）。守卫用例
+// TestMainBrainClassifierBranchesDispatchable（board_manifest_test.go）经此
+// 访问器断言分类器每个分支输出都能落在装配后的注册表内。
+func (r *ModuleRegistry) IntentsOf(moduleID string) ([]string, bool) {
+	m, ok := r.modules[moduleID]
+	if !ok {
+		return nil, false
+	}
+	return m.Intents, true
+}
+
 // Err 返回最近一次 FillFromManifests 的完整性错误（启动自检用；nil = 装配成功）。
 // 缺陷 2 的机器保证：intent 无 handler 时装配失败，错误可被启动路径读取，
 // 不静默跳过。

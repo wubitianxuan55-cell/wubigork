@@ -1,15 +1,15 @@
 {
   "schema": "gaea-test-ctors-baseline/1",
-  "generatedAt": "2026-10-02T14:43:04.044Z",
+  "generatedAt": "2026-10-02T22:57:25.521Z",
   "generatedBy": "node scripts/check-test-ctors.mjs --write-baseline",
-  "head": "a08e91299047",
+  "head": "8dc9f021f06c",
   "audit": {
     "doc": "docs/code-audit-2026-10-02/round-1-p0-status.md",
     "finding": "P0#25 / 源 X1-03（三重以上 *core 嵌入 → nil 嵌入 panic 三犯）"
   },
   "inputs": {
     "root": "internal/app",
-    "testFiles": 281,
+    "testFiles": 289,
     "appPath": "internal/app/app.go",
     "embedded": [
       "core",
@@ -19,18 +19,18 @@
       "officeState"
     ],
     "embeddedSource": "internal/app/app.go 解析",
-    "totalHits": 364,
+    "totalHits": 372,
     "prodRefHits": 1
   },
   "classCounts": {
-    "bare": 228,
-    "core-only": 92,
+    "bare": 232,
+    "core-only": 96,
     "partial": 44,
     "full": 0
   },
   "classCountsLiteralOnly": {
-    "bare": 228,
-    "core-only": 119,
+    "bare": 232,
+    "core-only": 123,
     "partial": 17,
     "full": 0
   },
@@ -135,7 +135,7 @@
     {
       "key": "internal/app/board_manifest_test.go::TestInitModulesManifestDriven#1",
       "file": "internal/app/board_manifest_test.go",
-      "line": 31,
+      "line": 32,
       "func": "TestInitModulesManifestDriven",
       "class": "bare",
       "classLiteralOnly": "bare",
@@ -155,7 +155,7 @@
     {
       "key": "internal/app/board_manifest_test.go::TestCheckModuleIntegrityClean#1",
       "file": "internal/app/board_manifest_test.go",
-      "line": 57,
+      "line": 58,
       "func": "TestCheckModuleIntegrityClean",
       "class": "bare",
       "classLiteralOnly": "bare",
@@ -175,7 +175,7 @@
     {
       "key": "internal/app/board_manifest_test.go::TestInitModulesLogsIntegrityFailure#1",
       "file": "internal/app/board_manifest_test.go",
-      "line": 99,
+      "line": 100,
       "func": "TestInitModulesLogsIntegrityFailure",
       "class": "bare",
       "classLiteralOnly": "bare",
@@ -195,7 +195,7 @@
     {
       "key": "internal/app/board_manifest_test.go::TestGetBoardManifestsCanonical#1",
       "file": "internal/app/board_manifest_test.go",
-      "line": 150,
+      "line": 151,
       "func": "TestGetBoardManifestsCanonical",
       "class": "bare",
       "classLiteralOnly": "bare",
@@ -215,8 +215,28 @@
     {
       "key": "internal/app/board_manifest_test.go::TestMainBrainDefaultBranchDispatchable#1",
       "file": "internal/app/board_manifest_test.go",
-      "line": 242,
+      "line": 243,
       "func": "TestMainBrainDefaultBranchDispatchable",
+      "class": "bare",
+      "classLiteralOnly": "bare",
+      "postAssigned": [],
+      "inHelper": false,
+      "helperAmplifier": false,
+      "embeddedSet": [],
+      "embeddedMissing": [
+        "core",
+        "writingState",
+        "mediaState",
+        "whisperState",
+        "officeState"
+      ],
+      "text": "a := &App{}"
+    },
+    {
+      "key": "internal/app/board_manifest_test.go::TestMainBrainClassifierBranchesDispatchable#1",
+      "file": "internal/app/board_manifest_test.go",
+      "line": 275,
+      "func": "TestMainBrainClassifierBranchesDispatchable",
       "class": "bare",
       "classLiteralOnly": "bare",
       "postAssigned": [],
@@ -2317,6 +2337,46 @@
       "text": "a := &App{}"
     },
     {
+      "key": "internal/app/gaea_docx_edit_test.go::TestGaeaDocxApplyEdit_SpaceSingleSourced#1",
+      "file": "internal/app/gaea_docx_edit_test.go",
+      "line": 439,
+      "func": "TestGaeaDocxApplyEdit_SpaceSingleSourced",
+      "class": "bare",
+      "classLiteralOnly": "bare",
+      "postAssigned": [],
+      "inHelper": false,
+      "helperAmplifier": false,
+      "embeddedSet": [],
+      "embeddedMissing": [
+        "core",
+        "writingState",
+        "mediaState",
+        "whisperState",
+        "officeState"
+      ],
+      "text": "a := &App{}"
+    },
+    {
+      "key": "internal/app/gaea_docx_edit_test.go::TestGaeaDocxApplyEdit_SpaceSingleSourced#2",
+      "file": "internal/app/gaea_docx_edit_test.go",
+      "line": 458,
+      "func": "TestGaeaDocxApplyEdit_SpaceSingleSourced",
+      "class": "bare",
+      "classLiteralOnly": "bare",
+      "postAssigned": [],
+      "inHelper": false,
+      "helperAmplifier": false,
+      "embeddedSet": [],
+      "embeddedMissing": [
+        "core",
+        "writingState",
+        "mediaState",
+        "whisperState",
+        "officeState"
+      ],
+      "text": "a := &App{}"
+    },
+    {
       "key": "internal/app/gaea_dream_pending_test.go::TestAcceptAndDismissPendingSuggestion#1",
       "file": "internal/app/gaea_dream_pending_test.go",
       "line": 163,
@@ -3265,6 +3325,26 @@
       "text": "a := &App{core: &core{"
     },
     {
+      "key": "internal/app/gaea_memory_meta_compare_test.go::TestDuplicatesVsDistillDivergence#1",
+      "file": "internal/app/gaea_memory_meta_compare_test.go",
+      "line": 18,
+      "func": "TestDuplicatesVsDistillDivergence",
+      "class": "bare",
+      "classLiteralOnly": "bare",
+      "postAssigned": [],
+      "inHelper": false,
+      "helperAmplifier": false,
+      "embeddedSet": [],
+      "embeddedMissing": [
+        "core",
+        "writingState",
+        "mediaState",
+        "whisperState",
+        "officeState"
+      ],
+      "text": "a := &App{}"
+    },
+    {
       "key": "internal/app/gaea_memory_meta_test.go::TestGaeaMemoryDuplicatesAndMerge#1",
       "file": "internal/app/gaea_memory_meta_test.go",
       "line": 29,
@@ -3344,6 +3424,90 @@
         "officeState"
       ],
       "text": "return &App{core: &core{cfg: cfg, engineMgr: modelengine.NewManager(\"\", \"\"), client: ai.NewClient(cfg)}}"
+    },
+    {
+      "key": "internal/app/gaea_ocr_chain_test.go::TestGaeaOCRText_ActiveOCRBindingLeg1ParseRouting#1",
+      "file": "internal/app/gaea_ocr_chain_test.go",
+      "line": 69,
+      "func": "TestGaeaOCRText_ActiveOCRBindingLeg1ParseRouting",
+      "class": "core-only",
+      "classLiteralOnly": "core-only",
+      "postAssigned": [],
+      "inHelper": false,
+      "helperAmplifier": false,
+      "embeddedSet": [
+        "core"
+      ],
+      "embeddedMissing": [
+        "writingState",
+        "mediaState",
+        "whisperState",
+        "officeState"
+      ],
+      "text": "a := &App{core: &core{engineMgr: mgr, activeOCREngine: \"herdsman\", activeOCRModel: \"minerU\"}}"
+    },
+    {
+      "key": "internal/app/gaea_ocr_chain_test.go::TestGaeaOCRText_GAEA_OCR_ENGINEDoesNotHijackHerdsmanLegs#1",
+      "file": "internal/app/gaea_ocr_chain_test.go",
+      "line": 115,
+      "func": "TestGaeaOCRText_GAEA_OCR_ENGINEDoesNotHijackHerdsmanLegs",
+      "class": "core-only",
+      "classLiteralOnly": "core-only",
+      "postAssigned": [],
+      "inHelper": false,
+      "helperAmplifier": false,
+      "embeddedSet": [
+        "core"
+      ],
+      "embeddedMissing": [
+        "writingState",
+        "mediaState",
+        "whisperState",
+        "officeState"
+      ],
+      "text": "a := &App{core: &core{engineMgr: mgr}} // 无 activeOCR 绑定"
+    },
+    {
+      "key": "internal/app/gaea_ocr_chain_test.go::TestGaeaOCRText_ParseLegAfterOCRModelMissing#1",
+      "file": "internal/app/gaea_ocr_chain_test.go",
+      "line": 153,
+      "func": "TestGaeaOCRText_ParseLegAfterOCRModelMissing",
+      "class": "core-only",
+      "classLiteralOnly": "core-only",
+      "postAssigned": [],
+      "inHelper": false,
+      "helperAmplifier": false,
+      "embeddedSet": [
+        "core"
+      ],
+      "embeddedMissing": [
+        "writingState",
+        "mediaState",
+        "whisperState",
+        "officeState"
+      ],
+      "text": "a := &App{core: &core{engineMgr: mgr}}"
+    },
+    {
+      "key": "internal/app/gaea_ocr_chain_test.go::TestGaeaOCRText_LocalLegHonorsGAEA_OCR_ENGINE#1",
+      "file": "internal/app/gaea_ocr_chain_test.go",
+      "line": 171,
+      "func": "TestGaeaOCRText_LocalLegHonorsGAEA_OCR_ENGINE",
+      "class": "core-only",
+      "classLiteralOnly": "core-only",
+      "postAssigned": [],
+      "inHelper": false,
+      "helperAmplifier": false,
+      "embeddedSet": [
+        "core"
+      ],
+      "embeddedMissing": [
+        "writingState",
+        "mediaState",
+        "whisperState",
+        "officeState"
+      ],
+      "text": "a := &App{core: &core{engineMgr: mgr}}"
     },
     {
       "key": "internal/app/gaea_ocr_test.go::TestGaeaOCRText_UsesHerdsmanPaddleOCR#1",

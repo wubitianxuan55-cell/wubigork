@@ -5,9 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"sort"
-	"strconv"
 	"time"
 	"unicode/utf8"
 
@@ -66,9 +64,6 @@ type Achievement struct {
 	Target      int    `json:"target"`
 }
 
-// chapterFileRe 匹配主线/分支章节文件名 NNN.md / NNNx.md（与 stats.Collect 一致）。
-var chapterFileRe = regexp.MustCompile(`^([0-9]{3})([a-z]?)\.md$`)
-
 // chapterFile 是目录扫描枚举到的章节文件信息。
 type chapterFile struct {
 	num     int
@@ -90,12 +85,10 @@ func listChapterFiles(pm *project.Manager) []chapterFile {
 		if e.IsDir() {
 			continue
 		}
-		m := chapterFileRe.FindStringSubmatch(e.Name())
-		if m == nil {
-			continue
-		}
-		num, err := strconv.Atoi(m[1])
-		if err != nil {
+		// 章节文件解析单源 project.ParseChapterFileName（IN1-03：旧本地
+		// chapterFileRe 与之等价）。
+		num, branch, ok := project.ParseChapterFileName(e.Name())
+		if !ok {
 			continue
 		}
 		info, err := e.Info()
@@ -106,7 +99,7 @@ func listChapterFiles(pm *project.Manager) []chapterFile {
 		if err != nil {
 			continue
 		}
-		out = append(out, chapterFile{num: num, branch: m[2], content: string(data), modTime: info.ModTime()})
+		out = append(out, chapterFile{num: num, branch: branch, content: string(data), modTime: info.ModTime()})
 	}
 	sort.Slice(out, func(i, j int) bool {
 		if out[i].num != out[j].num {

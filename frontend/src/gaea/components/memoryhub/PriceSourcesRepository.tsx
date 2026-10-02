@@ -1,67 +1,23 @@
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { Modal } from "antd";
-import { CloudUpload, Copy, ExternalLink, Pencil, RefreshCw, Trash2 } from "../../icons";
-import { app, openExternal } from "../../lib/bridge";
-import { classifyExternalLink } from "../../lib/browserPolicy";
+import { CloudUpload, RefreshCw } from "../../icons";
+import { app } from "../../lib/bridge";
 import type { PriceSource } from "../../lib/types";
 import { useToast } from "../Toast";
+import { PriceSourceCard } from "./PriceSourceCard";
 import { PriceSourceFormModal } from "./PriceSourceFormModal";
-
-const FREQ_LABEL: Record<number, string> = {
-  0: "仅手动",
-  6: "每 6 小时",
-  24: "每天",
-  168: "每周",
-};
-
-function freqLabel(h: number): string {
-  return FREQ_LABEL[h] ?? `每 ${h} 小时`;
-}
-
-function timeText(s: string): string {
-  if (!s) return "从未抓取";
-  const d = new Date(s);
-  if (Number.isNaN(d.getTime())) return s;
-  return d.toLocaleString("zh-CN", { hour12: false });
-}
+import { usePriceSources } from "./usePriceSources";
 
 // PriceSourcesRepository 价格源阅览仓库：只读陈列系统里所有已添加的价格源
 // 及其抓取地址，支持复制地址 / 浏览器打开；管理（增删改/抓取）仍在价格源页。
+// 数据装载与价格源页共用 usePriceSources（FE2-06）；v4.362：加载失败不再静默
+// 伪装成空仓库（原 Promise.race 失败吞成空列表），改出「读取失败 + 重试」三态。
 export function PriceSourcesRepository() {
-  const [sources, setSources] = useState<PriceSource[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { sources, loading, loadFailed, load } = usePriceSources();
   const [editOpen, setEditOpen] = useState(false);
   const [editing, setEditing] = useState<PriceSource | null>(null);
   const [deleting, setDeleting] = useState<PriceSource | null>(null);
   const toast = useToast();
-
-  const load = useCallback(() => {
-    setLoading(true);
-    // 后端调用偶发卡住时 8 秒兜底，避免“加载中”永久转圈。
-    Promise.race([
-      app.PriceSources(),
-      new Promise<PriceSource[]>((res) => setTimeout(() => res([]), 8000)),
-    ])
-      .then((s) => setSources(s ?? []))
-      .catch(() => setSources([]))
-      .finally(() => setLoading(false));
-  }, []);
-
-  useEffect(() => {
-    load();
-  }, [load]);
-
-  const copyUrl = useCallback(
-    async (url: string) => {
-      try {
-        await navigator.clipboard.writeText(url);
-        toast.show("已复制抓取地址", "info");
-      } catch {
-        toast.show("复制失败：剪贴板不可用", "warn");
-      }
-    },
-    [toast],
-  );
 
   const enabledCount = sources.filter((s) => s.enabled).length;
 
@@ -109,6 +65,13 @@ export function PriceSourcesRepository() {
       <div className="flex-1 min-h-0 overflow-y-auto p-2">
         {loading ? (
           <div className="py-8 text-center text-fg-faint text-[11px]">加载中…</div>
+        ) : loadFailed ? (
+          <div className="py-8 text-center text-[11px]" role="status" data-testid="price-sources-load-failed">
+            <span className="text-fg-dim">价格源列表读取失败</span>
+            <button type="button" className="ml-2 px-2 h-6 rounded-full bg-accent text-accent-fg text-[10.5px] cursor-pointer" onClick={() => load()}>
+              重试
+            </button>
+          </div>
         ) : sources.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full gap-2 px-6 text-center text-fg-faint/50">
             <CloudUpload size={24} className="opacity-40" />
@@ -121,68 +84,16 @@ export function PriceSourcesRepository() {
         ) : (
           <div className="flex flex-col gap-1.5">
             {sources.map((src) => (
-              <div key={src.id} className="p-2 rounded-lg border border-border-soft/70 bg-bg-soft/30">
-                <div className="flex items-center gap-1.5">
-                  <span className="truncate text-fg text-[12px] font-medium">{src.name}</span>
-                  <span className="px-1.5 py-px rounded bg-bg-elev text-fg-faint text-[9.5px] shrink-0">
-                    {freqLabel(src.frequencyHours)}
-                  </span>
-                  {src.area && (
-                    <span className="px-1.5 py-px rounded bg-bg-elev text-fg-faint text-[9.5px] shrink-0">
-                      {src.area}
-                    </span>
-                  )}
-                  <span className={`px-1.5 py-px rounded text-[9.5px] shrink-0 ${src.enabled ? "bg-ok/15 text-ok" : "bg-bg-elev text-fg-faint"}`}>
-                    {src.enabled ? "启用" : "停用"}
-                  </span>
-                  <span className="ml-auto shrink-0 text-fg-faint text-[10px]">最近抓取：{timeText(src.lastFetchAt)}</span>
-                </div>
-                <div className="mt-1 flex items-start gap-1">
-                  <span
-                    className="min-w-0 flex-1 break-all text-fg-faint text-[9.5px] font-mono leading-snug"
-                    title={src.url}
-                  >
-                    抓取地址：{src.url}
-                  </span>
-                  <span className="shrink-0 flex items-center gap-0.5">
-                    <button
-                      type="button"
-                      className="flex items-center justify-center w-5 h-5 rounded border-0 bg-transparent text-fg-faint cursor-pointer hover:text-fg hover:bg-bg-soft"
-                      onClick={() => {
-                        setEditing(src);
-                        setEditOpen(true);
-                      }}
-                      title="编辑价格源"
-                    >
-                      <Pencil size={10} />
-                    </button>
-                    <button
-                      type="button"
-                      className="flex items-center justify-center w-5 h-5 rounded border-0 bg-transparent text-fg-faint cursor-pointer hover:text-red-400 hover:bg-bg-soft"
-                      onClick={() => setDeleting(src)}
-                      title="删除价格源"
-                    >
-                      <Trash2 size={10} />
-                    </button>
-                    <button
-                      type="button"
-                      className="flex items-center justify-center w-5 h-5 rounded border-0 bg-transparent text-fg-faint cursor-pointer hover:text-fg hover:bg-bg-soft"
-                      onClick={() => void copyUrl(src.url)}
-                      title="复制抓取地址"
-                    >
-                      <Copy size={10} />
-                    </button>
-                    <button
-                      type="button"
-                      className="flex items-center justify-center w-5 h-5 rounded border-0 bg-transparent text-fg-faint cursor-pointer hover:text-fg hover:bg-bg-soft"
-                      onClick={() => { const d = classifyExternalLink(src.url); if (d.kind === "open") openExternal(d.url); }}
-                      title="在浏览器打开抓取地址"
-                    >
-                      <ExternalLink size={10} />
-                    </button>
-                  </span>
-                </div>
-              </div>
+              <PriceSourceCard
+                key={src.id}
+                src={src}
+                variant="repository"
+                onEdit={(s) => {
+                  setEditing(s);
+                  setEditOpen(true);
+                }}
+                onDelete={setDeleting}
+              />
             ))}
           </div>
         )}

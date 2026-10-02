@@ -2,6 +2,7 @@ package app
 
 import (
 	"encoding/json"
+	"slices"
 	"strings"
 	"testing"
 
@@ -261,5 +262,33 @@ func TestMainBrainDefaultBranchDispatchable(t *testing.T) {
 	// 装配不得报多意图完整性错误。
 	if a.modules.Err() != nil {
 		t.Fatalf("装配记录了完整性错误: %v", a.modules.Err())
+	}
+}
+
+// TestMainBrainClassifierBranchesDispatchable 审计 AP9-06 可执行部分：分类器
+// （classifyMainBrainIntent）与注册表两套口径的机器对齐守卫——分类器每个
+// 分支的 (module, intent) 硬编码输出，必须在 manifest 驱动装配的注册表中
+// 可派发（模块已注册且声明该意图）。CheckModuleIntegrity 的完整性断言只
+// 覆盖「manifest 声明意图」方向、不覆盖分类器输出，两边漂移时 MainBrainChat
+// 只会在运行期告警跳过（D8 路径）——本守卫把漂移提前到测试期拦红。
+func TestMainBrainClassifierBranchesDispatchable(t *testing.T) {
+	a := &App{}
+	a.initModules()
+	for _, msg := range []string{
+		"写一份标书",     // → office.create
+		"生成第三章",     // → novel.create_chapter
+		"和轻语聊聊天",    // → whisper.chat
+		"画一张星空图",    // → imagegen.generate
+		"帮我看看今天的安排", // → gaea.chat（default 分支）
+	} {
+		moduleID, intent := classifyMainBrainIntent(msg)
+		intents, ok := a.modules.IntentsOf(moduleID)
+		if !ok {
+			t.Errorf("分类器分支 %q → 模块 %q 未注册（MainBrainChat 运行期只会告警跳过）", msg, moduleID)
+			continue
+		}
+		if !slices.Contains(intents, intent) {
+			t.Errorf("分类器分支 %q → (%q,%q)：模块已注册但未声明该意图（Intents=%v）", msg, moduleID, intent, intents)
+		}
 	}
 }
