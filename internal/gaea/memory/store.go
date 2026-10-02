@@ -393,3 +393,19 @@ func parseTags(raw string) []string {
 	}
 	return out
 }
+
+// NewDeliverable 构造一条「流水线交付」类记忆（审计 P1 AP4-06）：Type/Kind
+// 的取值规则单点定义在本构造函数，调用方（app 层 dag 验收回写等）只填内容
+// 字段，不再各自内联常量组合。Name 规则由调用方传入（现口径=dag 节点 ID，
+// 与节点表 1:1，重复验收走同名 UPSERT 覆盖而非累积）。
+func NewDeliverable(name, title, description, body string, tags []string) Memory {
+	return Memory{
+		Name:        name,
+		Title:       title,
+		Description: description,
+		Type:        TypeProject,
+		Kind:        KindSemantic,
+		Tags:        tags,
+		Body:        body,
+	}
+}

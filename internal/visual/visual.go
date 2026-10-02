@@ -123,42 +123,46 @@ type EmotionPoint struct {
 	WordCount  int     `json:"word_count"`
 }
 
+// kwRule 是有序关键词评分规则（审计 P1 AP7-06）：命中取**表序首个**——改前
+// 是 map 迭代（Go 随机序），多关键词标签（「紧张而温馨」同命中 8 与 2）每次
+// 评分不同，情绪曲线不可复现。表序=语义主从序（强词在前），固定即确定。
+type kwRule struct {
+	kw  string
+	val float64
+}
+
+// scoreByKeywords 按固定表序取首个命中；无命中返回 def。
+func scoreByKeywords(s string, rules []kwRule, def float64) float64 {
+	for _, r := range rules {
+		if strings.Contains(s, r.kw) {
+			return r.val
+		}
+	}
+	return def
+}
+
 // extractEmotionValue 将情感标签转为数值
 func extractEmotionValue(emotion string) (tension, valence float64) {
 	lower := strings.ToLower(emotion)
 
 	// 紧张度评分
-	tensionKeywords := map[string]float64{
-		"紧张": 8, "悬疑": 7, "恐惧": 9, "战斗": 8, "冲突": 7,
-		"危机": 9, "高潮": 10, "追逐": 7, "对决": 8, "审判": 6,
-		"悲伤": 5, "愤怒": 7, "绝望": 9, "焦虑": 6,
-		"平静": 2, "温馨": 2, "日常": 1, "轻松": 1, "幽默": 1,
-		"浪漫": 3, "感人": 4, "希望": 3,
+	tensionRules := []kwRule{
+		{"紧张", 8}, {"悬疑", 7}, {"恐惧", 9}, {"战斗", 8}, {"冲突", 7},
+		{"危机", 9}, {"高潮", 10}, {"追逐", 7}, {"对决", 8}, {"审判", 6},
+		{"悲伤", 5}, {"愤怒", 7}, {"绝望", 9}, {"焦虑", 6},
+		{"平静", 2}, {"温馨", 2}, {"日常", 1}, {"轻松", 1}, {"幽默", 1},
+		{"浪漫", 3}, {"感人", 4}, {"希望", 3},
 	}
-
-	tension = 5 // 默认中性
-	for kw, val := range tensionKeywords {
-		if strings.Contains(lower, kw) {
-			tension = val
-			break
-		}
-	}
+	tension = scoreByKeywords(lower, tensionRules, 5) // 默认中性
 
 	// 情感正负值 (-5=极度负面, 0=中性, +5=极度正面)
-	valenceKeywords := map[string]float64{
-		"恐惧": -4, "绝望": -5, "悲伤": -3, "愤怒": -2, "焦虑": -2,
-		"紧张": -1, "悬疑": -1, "冲突": -1, "危机": -3, "战斗": -1,
-		"温馨": 4, "浪漫": 4, "希望": 3, "感人": 3, "幽默": 3,
-		"轻松": 2, "日常": 1, "平静": 1, "高兴": 5,
+	valenceRules := []kwRule{
+		{"恐惧", -4}, {"绝望", -5}, {"悲伤", -3}, {"愤怒", -2}, {"焦虑", -2},
+		{"紧张", -1}, {"悬疑", -1}, {"冲突", -1}, {"危机", -3}, {"战斗", -1},
+		{"温馨", 4}, {"浪漫", 4}, {"希望", 3}, {"感人", 3}, {"幽默", 3},
+		{"轻松", 2}, {"日常", 1}, {"平静", 1}, {"高兴", 5},
 	}
-
-	valence = 0
-	for kw, val := range valenceKeywords {
-		if strings.Contains(lower, kw) {
-			valence = val
-			break
-		}
-	}
+	valence = scoreByKeywords(lower, valenceRules, 0)
 
 	return
 }

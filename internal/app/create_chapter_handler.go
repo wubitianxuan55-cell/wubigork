@@ -873,7 +873,11 @@ func (a *writingState) ensureChapterNode(pm *project.Manager, of *types.OutlineF
 		}
 		return targetNum, nodeID, branch, nil
 	}
-	targetNum = len(of.Nodes) + 1
+	// 审计 P1 AP1-05：兜底分支章号统一走 resolveTargetChapterNum（全树
+	// maxOrder+1）——len(顶层节点)+1 在卷结构/缺节点跳章下会算出已存在的
+	// 章号反复覆盖（同文件 resolveTargetChapterNum 注释里的实弹事故口径），
+	// 同文件不得并存两套「下一章」算法。
+	targetNum = resolveTargetChapterNum(of, 0, "")
 	nodeID = fmt.Sprintf("n_%d", time.Now().UnixMilli())
 	of.Nodes = append(of.Nodes, types.OutlineNode{
 		ID: nodeID, Title: fmt.Sprintf("第%d章", targetNum),
