@@ -18,20 +18,13 @@ import { FileTypeIcon } from "../../lib/fileIcon";
 import { fmtTokens } from "../../lib/stats";
 import { loadContextPrefs, saveContextPref, type CtxBrowserSort, type CtxFileSort } from "../../lib/contextPrefs";
 import { usePreviewStore } from "../../lib/store";
+import { CONTEXT_CATS, CONTEXT_CAT_BROWSE } from "./cats";
 import type { DictKey } from "../../locales/en";
 import type { ContextNodeDetailView, ContextNodeImage, ContextSurfaceNode, FileActivity } from "../../lib/types";
 import { getCachedAttachmentDataURL } from '../../../components/characterlib/usePortraitUrl';
 
-// 分类折叠组定义（来源：ContextView.tsx 的 CATS / CAT_BROWSE_LABELS，未导出故本地
-// 重声明；i18n 键复用 contextview.cat*（组行全名）与 contextview.browse*（节点行短名））。
-const GROUPS: { key: ContextSurfaceNode["cat"]; labelKey: DictKey; rowKey: DictKey }[] = [
-  { key: "system", labelKey: "contextview.catSystem", rowKey: "contextview.browseSystem" },
-  { key: "tools", labelKey: "contextview.catTools", rowKey: "contextview.browseTools" },
-  { key: "user", labelKey: "contextview.catUser", rowKey: "contextview.browseUser" },
-  { key: "inject", labelKey: "contextview.catInject", rowKey: "contextview.browseInject" },
-  { key: "assistant", labelKey: "contextview.catAssistant", rowKey: "contextview.browseAssistant" },
-  { key: "tool", labelKey: "contextview.catTool", rowKey: "contextview.browseTool" },
-];
+// 分类折叠组定义：单一事实源 context/cats.ts（FE1-02，此前本地重声明漂移风险）。
+const GROUPS = CONTEXT_CATS.map((c) => ({ key: c.key, labelKey: c.labelKey, rowKey: c.browseKey }));
 
 // 分类内节点分页（dsh 同款防卡顿思路）：>200 项展开时先渲染前 100 行 + 「显示全部」。
 const PAGE_THRESHOLD = 200;
@@ -41,14 +34,7 @@ const ARCHIVE_KEY = "archive"; // 折叠态 key（与分类 key 不冲突的哨�
 // 节点详情懒加载状态机：undefined=未加载、loading、ok（缓存）、error。
 type NodeDetailState = { s: "loading" } | { s: "ok"; d: ContextNodeDetailView } | { s: "error" };
 
-const ROW_LABELS: Record<ContextSurfaceNode["cat"], DictKey> = {
-  system: "contextview.browseSystem",
-  tools: "contextview.browseTools",
-  user: "contextview.browseUser",
-  inject: "contextview.browseInject",
-  assistant: "contextview.browseAssistant",
-  tool: "contextview.browseTool",
-};
+const ROW_LABELS: Record<ContextSurfaceNode["cat"], DictKey> = CONTEXT_CAT_BROWSE;
 
 // v4.81 节点详情懒加载 hook（浏览器与文件活动共用）：按 seq 懒加载 +
 // 缓存（Map 状态机 loading/ok/error）+ 开合集合。

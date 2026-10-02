@@ -10,6 +10,7 @@ import { fmtTokens } from "../lib/stats";
 import { loadContextPrefs, saveContextPref, type CtxTrendGranularity, type CtxTrendMode } from "../lib/contextPrefs";
 import { useLiveReload } from "../hooks/useLiveReload";
 import { subscribeAgentNetwork, reloadAgentNetwork } from "../lib/agentNetworkStore";
+import { CONTEXT_CATS, CONTEXT_CAT_BROWSE } from "./context/cats";
 import { StatsCard, TokenCard, TimingCard, SessionInfoCard, SummaryBar } from "./context/cards";
 import { ContextBrowserTree, FileActivityTree } from "./context/inspector";
 import { AgentRadial } from "./context/AgentRadial";
@@ -27,25 +28,12 @@ export const CAT_COLORS: Record<keyof ContextCategory, string> = {
   tool: "#06b6d4", // hex-exempt 上下文六分类语义色
 };
 
-const CATS: { key: keyof ContextCategory; labelKey: DictKey }[] = [
-  { key: "system", labelKey: "contextview.catSystem" },
-  { key: "tools", labelKey: "contextview.catTools" },
-  { key: "user", labelKey: "contextview.catUser" },
-  { key: "inject", labelKey: "contextview.catInject" },
-  { key: "assistant", labelKey: "contextview.catAssistant" },
-  { key: "tool", labelKey: "contextview.catTool" },
-];
+// 六分类单一事实源在 context/cats.ts（FE1-02）：此处派生面板所需的 key+全名。
+const CATS: { key: keyof ContextCategory; labelKey: DictKey }[] = CONTEXT_CATS.map(({ key, labelKey }) => ({ key, labelKey }));
 
 // v4.79 delta 徽标的分类短名（与浏览器组行短名同款键；surface 节点 cat 与
 // 六分类 key 同字面量）。
-const CAT_BROWSE_SHORT: Record<string, DictKey> = {
-  system: "contextview.browseSystem",
-  tools: "contextview.browseTools",
-  user: "contextview.browseUser",
-  inject: "contextview.browseInject",
-  assistant: "contextview.browseAssistant",
-  tool: "contextview.browseTool",
-};
+const CAT_BROWSE_SHORT: Record<string, DictKey> = CONTEXT_CAT_BROWSE;
 
 function catTotal(c: ContextCategory): number {
   return c.system + c.tools + c.user + c.inject + c.assistant + c.tool;

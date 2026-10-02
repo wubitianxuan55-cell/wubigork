@@ -1,18 +1,13 @@
-import { useCallback, useEffect, useRef, useState, type SyntheticEvent } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AlertCircle, ExternalLink, FilePdf, FileText, FolderTree, Loader2, X } from "../icons";
 import { app } from "../lib/bridge";
 import {
-  LAZY_ROOT_MARGIN_PX,
-  addForcedPage,
-  computeInitialLazyPages,
-  expandMountedPages,
-  lazySupported,
-  nextPageAspect,
   placeholderAspect,
   shouldRenderLazyPage,
 } from "../lib/pageLazy";
 import { usePreviewStore } from "../lib/store";
 import type { PreviewResult } from "../lib/types";
+import { useLazyPdfPages } from "./useLazyPdfPages";
 import { DocxPreview } from "./DocxPreview";
 import { SandboxedHtml } from "./SandboxedHtml";
 import { Markdown } from "./Markdown";
@@ -123,99 +118,12 @@ export function FilePreviewModal() {
   // 首个有效测量固定），未挂载页占位盒按它撑高，无测量时回落 A4 估计值。
   // 无 IntersectionObserver（jsdom/旧环境）→ lazySupported() 为 false →
   // pdf 分支全量渲染 = v4.31 行为。
-  const pageElsRef = useRef(new Map<number, HTMLElement>());
-  const pdfObserverRef = useRef<IntersectionObserver | null>(null);
-  const [lazyPdf, setLazyPdf] = useState<{
-    src: PreviewResult | null;
-    mounted: ReadonlySet<number>;
-    forced: ReadonlySet<number>;
-    aspect: number | null;
-  }>(() => ({ src: null, mounted: new Set<number>(), forced: new Set<number>(), aspect: null }));
+  // PDF 逐页懒加载四件套（FE1-01）：收敛在 useLazyPdfPages，消费方各留一行。
   const pdfPages = preview?.kind === "pdf" ? preview.pages : undefined;
   const pdfPageCount = pdfPages?.length ?? 0;
-  const lazyPdfPages = pdfPageCount > 0 && lazySupported();
-  if (lazyPdf.src !== preview) {
-    setLazyPdf({
-      src: preview,
-      mounted: pdfPageCount > 0 ? computeInitialLazyPages(pdfPageCount) : new Set<number>(),
-      forced: new Set<number>(),
-      aspect: null,
-    });
-  }
-  // 页图容器注册表：figure 挂载即登记（data-pptx-page 既是大纲滚动锚点也是
-  // IO 目标键），卸载时清掉已断连的条目。figure 可能晚于 IO effect 挂载
-  // （preview 与 loading 在 .then/.finally 分两次提交，!loading 门控后到），
-  // 登记时若观察器已存在则立即补 observe，保证任意挂载顺序都进观察集。
-  const pdfPageAnchorRef = useCallback((el: HTMLElement | null) => {
-    const els = pageElsRef.current;
-    if (el) {
-      const page = Number(el.getAttribute("data-pptx-page"));
-      if (page > 0) {
-        els.set(page, el);
-        pdfObserverRef.current?.observe(el);
-      }
-      return;
-    }
-    for (const [page, node] of els) {
-      if (!node.isConnected) {
-        pdfObserverRef.current?.unobserve(node);
-        els.delete(page);
-      }
-    }
-  }, []);
+  const { lazyPdf, lazyPdfPages, pdfPageAnchorRef, handlePdfPageLoad, scrollToPptxPage } = useLazyPdfPages(pptxPagesRef, preview, pdfPageCount);
 
-  // v4.33 B：页图 onLoad 记录本档文档真实宽高比——naturalWidth/naturalHeight
-  // 是图片真实像素比，与容器宽无关、jsdom 可 stub（不用 getBoundingClientRect，
-  // jsdom 无布局）。比例收敛于 nextPageAspect（首个有效测量固定）；测量无变化
-  // 时返回同一引用，setState 凭引用跳过重渲染。
-  const handlePdfPageLoad = useCallback((e: SyntheticEvent<HTMLImageElement>) => {
-    const { naturalWidth, naturalHeight } = e.currentTarget;
-    setLazyPdf((prev) => {
-      const aspect = nextPageAspect(prev.aspect, naturalWidth, naturalHeight);
-      return aspect === prev.aspect ? prev : { ...prev, aspect };
-    });
-  }, []);
 
-  // IntersectionObserver 接线：页容器进入视口（rootMargin 800px，root 为弹窗
-  // 内滚动容器）→ 并入挂载集合挂真身 <img>。IO 缺失时本 effect 直接跳过。
-  useEffect(() => {
-    if (!lazyPdfPages || typeof IntersectionObserver === "undefined") return;
-    const io = new IntersectionObserver(
-      (entries) => {
-        const visible: number[] = [];
-        for (const entry of entries) {
-          if (!entry.isIntersecting) continue;
-          const page = Number((entry.target as HTMLElement).getAttribute("data-pptx-page"));
-          if (Number.isFinite(page) && page > 0) visible.push(page);
-        }
-        if (visible.length === 0) return;
-        setLazyPdf((prev) => ({
-          ...prev,
-          mounted: expandMountedPages(prev.mounted, visible, pdfPageCount),
-        }));
-      },
-      { root: pptxPagesRef.current, rootMargin: `${LAZY_ROOT_MARGIN_PX}px` },
-    );
-    pdfObserverRef.current = io;
-    for (const el of pageElsRef.current.values()) io.observe(el);
-    return () => {
-      io.disconnect();
-      pdfObserverRef.current = null;
-    };
-  }, [lazyPdfPages, pdfPageCount]);
-
-  // v4.31 B：点大纲页条目 → 滚动到逐页渲染区的对应页锚点
-  //（jsdom 无 scrollIntoView，可选调用守卫；测试里注入 spy 验证。）
-  const scrollToPptxPage = useCallback((page: number) => {
-    // v4.32 C：懒加载下编程式跳转的目标页强制渲染真身——占位高度是估计值，
-    // 目标页若还停留在占位盒，scrollIntoView 会跳偏；先并入强制渲染集合再滚
-    //（滚动容器 scrollTop 变化后 IO 也会自然补挂邻页）。
-    setLazyPdf((prev) => ({ ...prev, forced: addForcedPage(prev.forced, page) }));
-    const el = pptxPagesRef.current?.querySelector<HTMLElement>(`[data-pptx-page="${page}"]`);
-    el?.scrollIntoView?.({ block: "start", behavior: "smooth" });
-  }, []);
-
-  // 导出 PDF：LibreOffice 无头转换，产物入 .gaea/exports/ 并直接打开预览
   const exportPdf = useCallback(async () => {
     if (!previewFile || exportingPdf) return;
     setExportingPdf(true);
