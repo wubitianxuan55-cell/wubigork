@@ -228,19 +228,24 @@ func (a *mediaState) StopComfyUI() error {
 }
 
 // recoverComfyUI 重启 ComfyUI 并等待就绪（用于孤儿实例 stderr 失效的自动恢复）。
-// 最多等待约 90 秒；失败仅记录日志，由上层按原错误返回。
-func (a *mediaState) recoverComfyUI() {
+// 最多等待约 90 秒；失败仅记录日志，由上层按原错误返回。ctx 为生成链请求级
+// context（审计 P1 AP7-09）：等待期被取消即刻退出，不再替已取消的请求白等。
+func (a *mediaState) recoverComfyUI(ctx context.Context) {
 	if err := a.StopComfyUI(); err != nil {
 		slog.Warn("自动恢复：停止 ComfyUI 失败", "error", err)
 	}
 	// 等待端口释放，避免立刻重启时端口仍被占用
-	time.Sleep(2 * time.Second)
+	if !sleepCtx(ctx, 2*time.Second) {
+		return
+	}
 	if err := a.StartComfyUI(); err != nil {
 		slog.Warn("自动恢复：启动 ComfyUI 失败", "error", err)
 		return
 	}
 	for i := 0; i < 30; i++ {
-		time.Sleep(3 * time.Second)
+		if !sleepCtx(ctx, 3*time.Second) {
+			return
+		}
 		if a.isComfyUIRunning() {
 			slog.Info("ComfyUI 自动恢复完成")
 			return
@@ -249,13 +254,33 @@ func (a *mediaState) recoverComfyUI() {
 	slog.Warn("ComfyUI 自动恢复超时")
 }
 
+// sleepCtx 可取消的 sleep：false = ctx 已取消。
+func sleepCtx(ctx context.Context, d time.Duration) bool {
+	if ctx == nil {
+		time.Sleep(d)
+		return true
+	}
+	t := time.NewTimer(d)
+	defer t.Stop()
+	select {
+	case <-ctx.Done():
+		return false
+	case <-t.C:
+		return true
+	}
+}
+
 // ensureComfyUIRunning ComfyUI 未运行时拉起并等待就绪（v4.387）。有界等待
 // 120s（冷启动 Python+节点注册可能 30~90s）；未配置安装路径/启动失败/等待
 // 超时一律返回 false，调用方保留原错误口径失败——不吞错不换错。就绪判定
 // 与 WarmComfyUI/isComfyUIRunning 同口径（/system_stats 200）。并发拉起竞
 // 态由 StartComfyUI 的端口占用守卫兜底：第二个调用方拿到「端口已被占用」
-// 后转入就绪等待（第一个实例正在起来）而非直接放弃。
-func (a *mediaState) ensureComfyUIRunning() bool {
+// 后转入就绪等待（第一个实例正在起来）而非直接放弃。ctx 为生成链请求级
+// context（审计 P1 AP7-09）：取消即刻放弃等待，不再替已取消的请求白等 120s。
+func (a *mediaState) ensureComfyUIRunning(ctx context.Context) bool {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	if a.isComfyUIRunning() {
 		return true
 	}
@@ -271,7 +296,10 @@ func (a *mediaState) ensureComfyUIRunning() bool {
 		// 端口已被占用（并发拉起/实例正在启动）或刚好已在运行：转入就绪等待。
 	}
 	for i := 0; i < 40; i++ {
-		time.Sleep(3 * time.Second)
+		if !sleepCtx(ctx, 3*time.Second) {
+			slog.Info("ComfyUI 自动拉起等待被取消")
+			return false
+		}
 		if a.isComfyUIRunning() {
 			return true
 		}

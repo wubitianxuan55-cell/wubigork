@@ -421,6 +421,11 @@ func (a *whisperState) startReminderTicker() {
 
 // tickReminders 一轮扫描：到期 pending → 回推 → 标 done；失败计数，超限标
 // failed。返回本轮成功推送条数（测试断言用）。
+//
+// 审计 P1 AP6-04：锁内只取到期快照，网络推送在锁外（push 底层 apiPost 最长
+// 20s——持锁推送会卡死列表/新增/删除绑定）；结果按 id 回写，成功与失败都
+// 落盘一次（原实现只有 pushed>0 才落盘，失败计数在本次运行内永远不落）。
+// 快照与回写窗口内被用户删除/改动的条目：按 id 找不到即丢弃该次回写（不复活）。
 func (a *whisperState) tickReminders(now time.Time, push wxPushFn) int {
 	if !a.getWeixinTaskCfg().RemindersEnabled {
 		return 0
@@ -428,34 +433,66 @@ func (a *whisperState) tickReminders(now time.Time, push wxPushFn) int {
 	if push == nil {
 		push = a.defaultWxPush
 	}
+
+	type dueItem struct {
+		id, assistantID, text string
+	}
 	a.remindersMu.Lock()
-	defer a.remindersMu.Unlock()
-	pushed := 0
+	due := make([]dueItem, 0, len(a.reminders))
 	for i := range a.reminders {
 		r := &a.reminders[i]
 		if r.Status != wxReminderStatusPending || r.FireAt.After(now) {
 			continue
 		}
-		msg := "⏰ 提醒：" + r.Text
-		if err := push(r.AssistantID, msg); err != nil {
+		due = append(due, dueItem{id: r.ID, assistantID: r.AssistantID, text: r.Text})
+	}
+	a.remindersMu.Unlock()
+
+	pushed := 0
+	dirty := false
+	for _, d := range due {
+		msg := "⏰ 提醒：" + d.text
+		err := push(d.assistantID, msg)
+		a.remindersMu.Lock()
+		r := a.reminderByIDLocked(d.id)
+		if r == nil || r.Status != wxReminderStatusPending {
+			// 窗口内被删除或已按别的路径出账：丢弃本次回写。
+			a.remindersMu.Unlock()
+			continue
+		}
+		dirty = true
+		if err != nil {
 			r.FailCount++
 			slog.Warn("[wx-reminder] 回推失败", "id", r.ID, "fail", r.FailCount, "err", err)
 			if r.FailCount >= wxReminderMaxFails {
 				r.Status = wxReminderStatusFailed
 				slog.Warn("[wx-reminder] 重试超限，标记失败", "id", r.ID)
 			}
-			continue
+		} else {
+			ts := now
+			r.Status = wxReminderStatusDone
+			r.SentAt = &ts
+			pushed++
+			slog.Info("[wx-reminder] 已回推", "id", r.ID, "assistant", r.AssistantID, "text", r.Text)
 		}
-		ts := now
-		r.Status = wxReminderStatusDone
-		r.SentAt = &ts
-		pushed++
-		slog.Info("[wx-reminder] 已回推", "id", r.ID, "assistant", r.AssistantID, "text", r.Text)
+		a.remindersMu.Unlock()
 	}
-	if pushed > 0 {
+	if dirty {
+		a.remindersMu.Lock()
 		a.saveRemindersLocked()
+		a.remindersMu.Unlock()
 	}
 	return pushed
+}
+
+// reminderByIDLocked 按 id 取提醒指针（调用方必须已持 remindersMu）。
+func (a *whisperState) reminderByIDLocked(id string) *wxReminder {
+	for i := range a.reminders {
+		if a.reminders[i].ID == id {
+			return &a.reminders[i]
+		}
+	}
+	return nil
 }
 
 // ─── 绑定面（经 VoiceB 透出，与 WhisperWeixin* 同族）───────────

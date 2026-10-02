@@ -30,6 +30,11 @@ type stdioTransport struct {
 
 	callMu sync.Mutex // one in-flight request/response at a time over the shared pipe
 
+	// writeMu 串行化对 stdin 的全部写入（call 与 notify 共用）：notify 的
+	// 超时弃单可能留下仍在写的 goroutine，没有这把锁它会与后续写入交错，
+	// 撕裂 JSON-RPC 帧（审计 P1 GA4-10）。
+	writeMu sync.Mutex
+
 	mu      sync.Mutex
 	nextID  int
 	pending map[int]chan rpcResponse
@@ -177,8 +182,25 @@ func (t *stdioTransport) call(ctx context.Context, method string, params any) (j
 	}
 }
 
-func (t *stdioTransport) notify(_ context.Context, method string, params any) error {
-	return t.write(rpcRequest{JSONRPC: "2.0", Method: method, Params: params})
+// notify 发通知帧。审计 P1 GA4-10：write 直写 stdin 不受 ctx 约束——对端
+// 不读时管道写满会永久阻塞（initialize 收尾的 notifications/initialized 走
+// 的正是 notify）。写放入独立 goroutine，本调用 select 受 ctx 约束；被弃单
+// 的 write 最多存活到子进程退出/管道关闭（writeMu 保证期间后续写入排队，
+// 帧不撕裂）。
+func (t *stdioTransport) notify(ctx context.Context, method string, params any) error {
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- t.write(rpcRequest{JSONRPC: "2.0", Method: method, Params: params})
+	}()
+	if ctx == nil {
+		return <-errCh
+	}
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case err := <-errCh:
+		return err
+	}
 }
 
 func (t *stdioTransport) write(v any) error {
@@ -186,6 +208,8 @@ func (t *stdioTransport) write(v any) error {
 	if err != nil {
 		return err
 	}
+	t.writeMu.Lock()
+	defer t.writeMu.Unlock()
 	if _, err = t.stdin.Write(append(b, '\n')); err != nil {
 		return t.withStderr(err)
 	}

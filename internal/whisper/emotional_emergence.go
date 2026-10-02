@@ -6,56 +6,19 @@ import (
 	"time"
 )
 
-// ─── 模块级事件追踪状态 ───────────────────────────────────────
-
-var (
-	recentEventTypes           []string
-	consecutiveMeaningfulCount int
-	consecutiveVulnerableCount int
-)
+// ─── 事件类型表 ───────────────────────────────────────────────
+//
+// 审计 P1 IN4-02：包级可变追踪状态（recentEventTypes / consecutive*Count 与
+// 6 个 Push*/Get* 函数、ResetEmergenceTracking）已删除——同一语义在
+// Orchestrator 实例字段各有一份（PreLLMTurn 只写实例字段，包级全局从无生产
+// 写入方），双状态源里全局那支是死状态且与实例态漂移。会话级状态一律走
+// Orchestrator 字段。
 
 var meaningfulEventTypes = map[string]bool{
 	"vulnerable": true, "praise": true, "apology": true,
 }
 
-// ─── 事件追踪 API ─────────────────────────────────────────────
-
-func PushEventToHistory(eventType string) {
-	recentEventTypes = append(recentEventTypes, eventType)
-	if len(recentEventTypes) > 10 {
-		recentEventTypes = recentEventTypes[len(recentEventTypes)-10:]
-	}
-}
-
-func GetRecentEventTypes() []string {
-	result := make([]string, len(recentEventTypes))
-	copy(result, recentEventTypes)
-	return result
-}
-
-func PushMeaningfulTurn(isMeaningful bool) {
-	if isMeaningful {
-		consecutiveMeaningfulCount++
-	} else {
-		consecutiveMeaningfulCount = 0
-	}
-}
-
-func GetConsecutiveMeaningfulTurns() int {
-	return consecutiveMeaningfulCount
-}
-
-func PushVulnerableTurn(eventType string) {
-	if eventType == "vulnerable" {
-		consecutiveVulnerableCount++
-	} else if eventType == "hurtful" || eventType == "cold" || eventType == "extreme_redline" {
-		consecutiveVulnerableCount = 0
-	}
-}
-
-func GetConsecutiveVulnerableTurns() int {
-	return consecutiveVulnerableCount
-}
+// ─── 事件追踪（纯函数）───────────────────────────────────────
 
 func CountMeaningfulInRecent(events []string, window int) int {
 	count := 0
@@ -69,12 +32,6 @@ func CountMeaningfulInRecent(events []string, window int) int {
 		}
 	}
 	return count
-}
-
-func ResetEmergenceTracking() {
-	recentEventTypes = nil
-	consecutiveMeaningfulCount = 0
-	consecutiveVulnerableCount = 0
 }
 
 // ─── 时间体感映射 ─────────────────────────────────────────────

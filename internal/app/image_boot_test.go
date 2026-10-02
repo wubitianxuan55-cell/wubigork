@@ -98,13 +98,13 @@ func TestEnsureComfyUIRunning(t *testing.T) {
 	}))
 	defer srv.Close()
 	ms := &mediaState{core: &core{cfg: &config.Config{ComfyUIURL: srv.URL}}}
-	if !ms.ensureComfyUIRunning() {
+	if !ms.ensureComfyUIRunning(context.Background()) {
 		t.Fatal("服务已运行应返回 true")
 	}
 
 	// 未配置安装路径：不尝试启动。
 	ms = &mediaState{core: &core{cfg: &config.Config{ComfyUIURL: "http://127.0.0.1:1"}}}
-	if ms.ensureComfyUIRunning() {
+	if ms.ensureComfyUIRunning(context.Background()) {
 		t.Fatal("未配置路径应返回 false")
 	}
 
@@ -114,7 +114,7 @@ func TestEnsureComfyUIRunning(t *testing.T) {
 		ComfyUIURL:  "http://127.0.0.1:1",
 		ComfyUIPath: t.TempDir(),
 	}}}
-	if ms.ensureComfyUIRunning() {
+	if ms.ensureComfyUIRunning(context.Background()) {
 		t.Fatal("启动失败应返回 false")
 	}
 }

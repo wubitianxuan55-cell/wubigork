@@ -354,7 +354,7 @@ func (a *mediaState) generateImageInternal(o imageGenInternal) (map[string]inter
 		// 自动重启一次后重试，避免用户手动处理
 		if err != nil && !comfyRecovered && backendType == "comfyui" && strings.Contains(err.Error(), "[Errno 22]") {
 			slog.Warn("ComfyUI stderr 失效（疑似孤儿实例），自动重启后重试", "error", err)
-			a.recoverComfyUI()
+			a.recoverComfyUI(genCtx)
 			comfyRecovered = true
 			resp, err = client.GenerateImage(genCtx, imgReq)
 		}
@@ -364,7 +364,7 @@ func (a *mediaState) generateImageInternal(o imageGenInternal) (map[string]inter
 		// 恢复入口（绘梦页才有启动按钮）。
 		if err != nil && !comfyBooted && backendType == "comfyui" && strings.Contains(err.Error(), "连接 ComfyUI 失败") {
 			comfyBooted = true
-			if a.ensureComfyUIRunning() {
+			if a.ensureComfyUIRunning(genCtx) {
 				slog.Info("ComfyUI 未运行，已自动拉起，重试生成")
 				resp, err = client.GenerateImage(genCtx, imgReq)
 			}

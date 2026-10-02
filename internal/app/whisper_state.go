@@ -204,13 +204,19 @@ func (w *whisperState) startAssistantWx(ast assistant.Assistant) {
 			"text":  fmt.Sprintf("微信助手 %s 会话过期，请重新扫码绑定", name),
 		})
 	}
-	if err := srv.Start(); err != nil {
-		slog.Error("[assistant] 微信启动失败", "assistant", ast.ID, "err", err)
-		return
-	}
+	// 审计 P1 AP6-09：先登记再 Start——Start 内部已起 pollLoop/notifyStart
+	// goroutine，后登记的窗口内 stopAssistantWx/Shutdown 遍历不到它（孤儿
+	// 轮询继续收消息）。失败路径从 map 摘除并 Stop（Stop 幂等，未启动安全）。
 	w.weixinMu.Lock()
 	w.weixinServers[ast.ID] = srv
 	w.weixinMu.Unlock()
+	if err := srv.Start(); err != nil {
+		slog.Error("[assistant] 微信启动失败", "assistant", ast.ID, "err", err)
+		w.weixinMu.Lock()
+		delete(w.weixinServers, ast.ID)
+		w.weixinMu.Unlock()
+		srv.Stop()
+	}
 }
 
 func (w *whisperState) stopAssistantWx(id string) {

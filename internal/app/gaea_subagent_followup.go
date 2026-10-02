@@ -38,7 +38,9 @@ func (a *App) GaeaSubagentFollowUp(sessionPath, ref, prompt string) (string, err
 	if _, loaded := followUpClaims.LoadOrStore(claimKey, true); loaded {
 		return "", fmt.Errorf("该子代理已有追问正在运行")
 	}
-	defer followUpClaims.Delete(claimKey)
+	// 审计 P1 AP5-03：令牌的 Delete 不在受理路径（原 defer 在方法返回时就
+	// 释放，单飞窗口=受理过程 < 工作过程），移入下方工作 goroutine 的 defer
+	//——单飞单元与工作单元对齐，同 ref 第二枪在工作期间仍被拒。
 
 	// 受理即同步清掉上一次追问的失败摘要（v4.66）：清盘发生在返回「已受理」
 	// 之前——前端派发后的首轮轮询不会把上一枪的 followUpError 误记到这一次
@@ -54,6 +56,7 @@ func (a *App) GaeaSubagentFollowUp(sessionPath, ref, prompt string) (string, err
 	ctx := gaeaAgent.WithSpace(context.Background(), gaeaSessionSpace())
 	go func() {
 		defer func() {
+			followUpClaims.Delete(claimKey)
 			if r := recover(); r != nil {
 				slog.Error("子代理追问 panic", "ref", ref, "panic", r)
 			}

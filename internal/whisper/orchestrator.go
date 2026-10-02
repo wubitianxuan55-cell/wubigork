@@ -138,7 +138,8 @@ func (o *Orchestrator) PreLLMTurn(userMsg string) PreLLMResult {
 	// ═══ 会话复位 ═══
 	if turnIndex == 1 {
 		o.rhythm.Reset()
-		ResetEmergenceTracking()
+		// 包级 ResetEmergenceTracking 已随 IN4-02 删除：涌现追踪状态只在
+		// Orchestrator 实例字段（o.recentEventTypes 等），随实例存亡。
 	}
 
 	// ═══ 涌现恢复：处理关机/休眠后的涌现状态 ═══
