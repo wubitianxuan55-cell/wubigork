@@ -300,6 +300,66 @@ func (a *writingState) NovelGetRewriteVersion(chapterNum int, versionID string) 
 	return pm.GetRewriteVersion(chapterNum, versionID)
 }
 
+// ── AP1-08 写回收敛：Apply/Restore 四段重复的场景/整章写回体 ──────────────
+//
+// Apply 与 Restore 各带「场景拼接 / 整章」两路，「读场景→校验→写回→blob 同步」
+// 与「写章→rebuild」的传输层原本四处各抄一份；收敛为下面两个 helper。落账
+// （applied/restored 字段、UpdateRewriteVersion、slog、返回 map）留在各自调用
+// 点——那是 Apply/Restore 两条语义的真差异，保持可见。错误/警告文案与校验
+// 顺序逐字保留（现状钉子测试 novel_rewrite_writeback_pin_test.go 前后同绿）。
+
+// writeBackRewriteVersionScene 场景拼接路共用写回体（Apply/Restore 各一段场景
+// 体的收敛点），applying 分流两套前置语义：
+//   - applying=true（Apply）：读归属场景 → SceneOriginal 逐字完整性校验（提案后
+//     场景被改过即拒绝，偏移已失效）→ SceneNew 非空校验 → 应用前场景快照
+//     （失败仅 warn 继续，同 NovelSceneRewrite 口径）→ 写回 SceneNew；
+//   - applying=false（Restore）：SceneOriginal 非空校验（在**读场景之前**，序同
+//     拆分前）→ 读归属场景 → 写回 SceneOriginal。无完整性校验、无快照——恢复
+//     语义即「无条件还原原文」，与 Apply 的差异是刻意保留，不是遗漏。
+//
+// 共用尾：Content+WordCount → sm.Write → syncBlobFromScenes。
+func writeBackRewriteVersionScene(pm *project.Manager, chapterNum int, v *types.RewriteVersion, applying bool) error {
+	if !applying && strings.TrimSpace(v.SceneOriginal) == "" {
+		return fmt.Errorf("版本缺场景原文快照，无法恢复")
+	}
+	sm := pm.SceneManager(chapterNum)
+	scene, err := sm.Read(v.SceneID)
+	if err != nil {
+		return fmt.Errorf("读取归属场景失败: %w", err)
+	}
+	text := v.SceneOriginal
+	if applying {
+		if scene.Content != v.SceneOriginal {
+			return fmt.Errorf("归属场景「%s」在提案后被修改过，本版本不可应用（请重新选段重写）", scene.Meta.Title)
+		}
+		if strings.TrimSpace(v.SceneNew) == "" {
+			return fmt.Errorf("版本缺场景新内容，不可应用")
+		}
+		if _, cerr := pm.SnapshotStore(chapterNum).Capture(v.SceneID, scene.Content, "局部重写应用前", "partial-apply"); cerr != nil {
+			slog.Warn("局部重写应用前快照失败（继续应用）", "scene", v.SceneID, "error", cerr)
+		}
+		text = v.SceneNew
+	}
+	scene.Content = text
+	scene.Meta.WordCount = len([]rune(text))
+	if err := sm.Write(scene); err != nil {
+		return fmt.Errorf("写回归属场景失败: %w", err)
+	}
+	syncBlobFromScenes(pm, chapterNum)
+	return nil
+}
+
+// writeBackRewriteVersionWhole 整章路共用写回体（Apply/Restore 各一段整章体的
+// 收敛点）：整章文本写回正文（两路错误前缀不同，调用方逐字传入）→
+// rebuildScenesFromBlob。
+func writeBackRewriteVersionWhole(pm *project.Manager, chapterNum int, text, writeErrPrefix string) error {
+	if err := pm.WriteChapter(chapterNum, text); err != nil {
+		return fmt.Errorf("%s: %w", writeErrPrefix, err)
+	}
+	rebuildScenesFromBlob(pm, chapterNum)
+	return nil
+}
+
 // NovelApplyRewriteVersion 应用重写版本：新内容写回正文 + 状态 applied。
 // 已 applied 再应用幂等成功。
 func (a *writingState) NovelApplyRewriteVersion(chapterNum int, versionID string) (map[string]interface{}, error) {
@@ -324,28 +384,12 @@ func (a *writingState) NovelApplyRewriteVersion(chapterNum int, versionID string
 	}
 	// v4.442 场景拼接语义：SceneID 非空 = 只动归属场景（结构保持），完整性
 	// 校验 SceneOriginal 逐字比对——提案后场景被改过就拒绝（偏移已失效），
-	// 应用前先落场景快照（同 NovelSceneRewrite 口径）。
+	// 应用前先落场景快照（同 NovelSceneRewrite 口径）。写回体与 Restore 场景路
+	// 共用（AP1-08），applying=true 带完整校验与快照。
 	if v.SceneID != "" {
-		sm := pm.SceneManager(chapterNum)
-		scene, err := sm.Read(v.SceneID)
-		if err != nil {
-			return nil, fmt.Errorf("读取归属场景失败: %w", err)
+		if err := writeBackRewriteVersionScene(pm, chapterNum, v, true); err != nil {
+			return nil, err
 		}
-		if scene.Content != v.SceneOriginal {
-			return nil, fmt.Errorf("归属场景「%s」在提案后被修改过，本版本不可应用（请重新选段重写）", scene.Meta.Title)
-		}
-		if strings.TrimSpace(v.SceneNew) == "" {
-			return nil, fmt.Errorf("版本缺场景新内容，不可应用")
-		}
-		if _, cerr := pm.SnapshotStore(chapterNum).Capture(v.SceneID, scene.Content, "局部重写应用前", "partial-apply"); cerr != nil {
-			slog.Warn("局部重写应用前快照失败（继续应用）", "scene", v.SceneID, "error", cerr)
-		}
-		scene.Content = v.SceneNew
-		scene.Meta.WordCount = len([]rune(v.SceneNew))
-		if err := sm.Write(scene); err != nil {
-			return nil, fmt.Errorf("写回归属场景失败: %w", err)
-		}
-		syncBlobFromScenes(pm, chapterNum)
 		now := time.Now()
 		v.Status = types.RewriteApplied
 		v.AppliedAt = &now
@@ -355,12 +399,11 @@ func (a *writingState) NovelApplyRewriteVersion(chapterNum int, versionID string
 		slog.Info("局部重写版本已应用（场景拼接）", "chapter", chapterNum, "version", v.ID, "scene", v.SceneID)
 		return map[string]interface{}{"applied": true}, nil
 	}
-	if err := pm.WriteChapter(chapterNum, v.NewContent); err != nil {
-		return nil, fmt.Errorf("写回正文失败: %w", err)
-	}
 	// v4 场景章：整章新全文与旧场景边界无法对齐——重置为单场景（CreateChapter
 	// 整章重写完成点同款 rebuildScenesFromBlob；v3/无场景章 no-op）。
-	rebuildScenesFromBlob(pm, chapterNum)
+	if err := writeBackRewriteVersionWhole(pm, chapterNum, v.NewContent, "写回正文失败"); err != nil {
+		return nil, err
+	}
 	now := time.Now()
 	v.Status = types.RewriteApplied
 	v.AppliedAt = &now
@@ -407,21 +450,12 @@ func (a *writingState) NovelRestoreRewriteVersion(chapterNum int, versionID stri
 		return nil, fmt.Errorf("版本缺原文快照，无法恢复")
 	}
 	// v4.442 场景拼接语义：SceneOriginal 写回归属场景（结构保持），与 Apply 对称。
+	// 写回体与 Apply 场景路共用（AP1-08），applying=false：无完整性校验、无快照
+	// （恢复语义即无条件还原原文）。
 	if v.SceneID != "" {
-		if strings.TrimSpace(v.SceneOriginal) == "" {
-			return nil, fmt.Errorf("版本缺场景原文快照，无法恢复")
+		if err := writeBackRewriteVersionScene(pm, chapterNum, v, false); err != nil {
+			return nil, err
 		}
-		sm := pm.SceneManager(chapterNum)
-		scene, err := sm.Read(v.SceneID)
-		if err != nil {
-			return nil, fmt.Errorf("读取归属场景失败: %w", err)
-		}
-		scene.Content = v.SceneOriginal
-		scene.Meta.WordCount = len([]rune(v.SceneOriginal))
-		if err := sm.Write(scene); err != nil {
-			return nil, fmt.Errorf("写回归属场景失败: %w", err)
-		}
-		syncBlobFromScenes(pm, chapterNum)
 		now := time.Now()
 		v.RestoredAt = &now
 		v.RestoredFrom = v.ID
@@ -431,11 +465,10 @@ func (a *writingState) NovelRestoreRewriteVersion(chapterNum int, versionID stri
 		slog.Info("局部重写版本已恢复原文（场景拼接）", "chapter", chapterNum, "version", v.ID, "scene", v.SceneID)
 		return map[string]interface{}{"restored": true}, nil
 	}
-	if err := pm.WriteChapter(chapterNum, v.OriginalContent); err != nil {
-		return nil, fmt.Errorf("恢复正文失败: %w", err)
-	}
 	// v4 场景章恢复同语义：原文写回后重置单场景（与 Apply 对称）。
-	rebuildScenesFromBlob(pm, chapterNum)
+	if err := writeBackRewriteVersionWhole(pm, chapterNum, v.OriginalContent, "恢复正文失败"); err != nil {
+		return nil, err
+	}
 	now := time.Now()
 	v.RestoredAt = &now
 	v.RestoredFrom = v.ID

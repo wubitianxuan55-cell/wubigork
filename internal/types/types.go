@@ -46,20 +46,6 @@ func (wf *WorldviewFile) ToMarkdown() string {
 	return s
 }
 
-// ConsistencyIssue 一致性检查发现的问题
-type ConsistencyIssue struct {
-	Severity    string `json:"severity"` // error / warning / info
-	Section     string `json:"section"`  // 涉及的世界观维度
-	Description string `json:"description"`
-	Suggestion  string `json:"suggestion"`
-}
-
-// ConsistencyReport 一致性检查报告
-type ConsistencyReport struct {
-	Issues      []ConsistencyIssue `json:"issues"`
-	OverallNote string             `json:"overall_note"`
-}
-
 // ── 角色与组织 ──────────────────────────────────────────────
 
 // Character 角色定义，对应 characters.json 中一条

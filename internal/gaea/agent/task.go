@@ -335,7 +335,7 @@ func (t *TaskTool) ExecuteWithContext(ctx context.Context, tc tool.ToolContext, 
 			// No jobs manager in this context (e.g. headless sub-agent).
 			// Fall back to foreground execution — sub-agents are short-lived
 			// and don't persist across turns.
-			result, err := t.runSubSession(ctx, p.Prompt, subReg, subSink(ctx, run), run, maxSteps, p.OutputSchema, nil)
+			result, _, err := t.runSubSession(ctx, p.Prompt, subReg, subSink(ctx, run), run, maxSteps, p.OutputSchema, nil)
 			return t.finalizeRun(result, err, run)
 		}
 		parentID, parent, _, _ := CallContext(ctx)
@@ -350,7 +350,7 @@ func (t *TaskTool) ExecuteWithContext(ctx context.Context, tc tool.ToolContext, 
 		// 其余全靠「后台子代理用不到」的未经断言假设；取消链仍在 root，
 		// 调用方被取消不连带后台任务）。
 		job := jm.StartInheriting(ctx, "task", label, func(jobCtx context.Context, _ io.Writer) (string, error) {
-			result, runErr := t.runSubSession(jobCtx, p.Prompt, subReg, nested, run, maxSteps, p.OutputSchema, nil)
+			result, _, runErr := t.runSubSession(jobCtx, p.Prompt, subReg, nested, run, maxSteps, p.OutputSchema, nil)
 			// 后台任务必须在此收尾 transcript（父 Execute 已返回，等不到回合末
 			// finalizeRun 代跑；此前 store 模式下后台子代理从不落盘）。
 			return t.finalizeRun(result, runErr, run)
@@ -358,7 +358,7 @@ func (t *TaskTool) ExecuteWithContext(ctx context.Context, tc tool.ToolContext, 
 		return fmt.Sprintf("Started background task %q (%s). It runs across turns; collect its final answer with wait (or wait will return it once done), and you'll be notified when it finishes.", job.ID, label), nil
 	}
 
-	result, err := t.runSubSession(ctx, p.Prompt, subReg, subSink(ctx, run), run, maxSteps, p.OutputSchema, seed)
+	result, _, err := t.runSubSession(ctx, p.Prompt, subReg, subSink(ctx, run), run, maxSteps, p.OutputSchema, seed)
 	return t.finalizeRun(result, err, run)
 }
 
@@ -470,7 +470,7 @@ func (t *TaskTool) RunNew(ctx context.Context, prompt string, emit func(ref, tex
 		if maxSteps < 5 {
 			maxSteps = 5
 		}
-		result, err := t.runSubSession(ctx, prompt, t.buildSubReg(nil), sink, nil, maxSteps, nil, nil)
+		result, _, err := t.runSubSession(ctx, prompt, t.buildSubReg(nil), sink, nil, maxSteps, nil, nil)
 		return result, "", err
 	}
 	defer run.Release()
@@ -486,7 +486,7 @@ func (t *TaskTool) RunNew(ctx context.Context, prompt string, emit func(ref, tex
 	if maxSteps < 5 {
 		maxSteps = 5
 	}
-	result, err := t.runSubSession(ctx, prompt, subReg, sink, run, maxSteps, nil, nil)
+	result, _, err := t.runSubSession(ctx, prompt, subReg, sink, run, maxSteps, nil, nil)
 	final, ferr := t.finalizeRun(result, err, run)
 	return final, ref, ferr
 }
@@ -541,7 +541,7 @@ func (t *TaskTool) runFollowUp(ctx context.Context, ref, prompt string, sink eve
 	if maxSteps < 5 {
 		maxSteps = 5
 	}
-	_, err = t.runSubSession(ctx, prompt, subReg, sink, run, maxSteps, nil, nil)
+	_, _, err = t.runSubSession(ctx, prompt, subReg, sink, run, maxSteps, nil, nil)
 	if err != nil {
 		_ = t.transcripts.SaveFailed(run)
 		return err
@@ -575,8 +575,10 @@ func (t *TaskTool) WithHooks(h ToolHooks) *TaskTool {
 
 // runSubSession executes the sub-agent with the given session (from a SubagentRun if
 // non-nil, otherwise creates an ephemeral session). When run is non-nil the session
-// from the store is used directly (supporting continue_from).
-func (t *TaskTool) runSubSession(ctx context.Context, prompt string, subReg *tool.Registry, sink event.Sink, run *SubagentRun, maxSteps int, outputSchema json.RawMessage, seed []provider.Message) (string, error) {
+// from the store is used directly (supporting continue_from). The session actually
+// executed against is returned so callers that loop over attempts (retry_until) can
+// reuse it instead of silently starting a fresh conversation per attempt (GA1-09).
+func (t *TaskTool) runSubSession(ctx context.Context, prompt string, subReg *tool.Registry, sink event.Sink, run *SubagentRun, maxSteps int, outputSchema json.RawMessage, seed []provider.Message) (string, *Session, error) {
 	// V6.0: sub-agent does NOT inherit parent L1+L2 — uses DefaultTaskSystemPrompt independently.
 	// This saves ~50K tokens per sub-agent call (97% reduction) and keeps cache stats separate.
 	sysPrompt := t.sysPrompt
@@ -674,7 +676,7 @@ func (t *TaskTool) runSubSession(ctx context.Context, prompt string, subReg *too
 			result = "[output_schema: sub-agent returned non-JSON; parent should retry]" + "\n" + result
 		}
 		t.mergeSubUsage(&subUsage)
-		return result, nil
+		return result, sess, nil
 	}
 	if err == nil && strings.TrimSpace(result) != "" {
 		// v4.26 对话流式重造（对标 Codex 2026-08 "Report completed sub-agent
@@ -698,21 +700,23 @@ func (t *TaskTool) runSubSession(ctx context.Context, prompt string, subReg *too
 			result = "[output_schema: sub-agent returned non-JSON; parent should retry]" + "\n" + result
 		}
 		t.mergeSubUsage(&subUsage)
-		return result, nil
+		return result, sess, nil
 	}
 	if err == nil {
 		t.mergeSubUsage(&subUsage)
 		// V10.12: wrap successful sub-agent results in structured XML tags
 		// so the parent can reliably identify the result. Borrowed from opencode.
-		return wrapTaskResult(result), nil
+		return wrapTaskResult(result), sess, nil
 	}
-	return result, err
+	return result, sess, err
 }
 
 // runSubWithRetrySession executes the sub-agent in a retry loop with a check command.
-// The run parameter provides the session for continue_from; if nil a fresh session
-// is created per RunSubAgent default. After each retry the same session accumulates
-// messages so the sub-agent sees the full failure history.
+// The run parameter provides the session for continue_from; when nil (ephemeral
+// mode, no transcript store) the first attempt creates a fresh session which is
+// then handed back to this loop so every retry continues the SAME conversation.
+// After each retry the same session accumulates messages so the sub-agent sees
+// the full failure history.
 func (t *TaskTool) runSubWithRetrySession(ctx context.Context, prompt string, cfg *RetryUntilConfig, subReg *tool.Registry, run *SubagentRun, maxSteps int, outputSchema json.RawMessage, seed []provider.Message) (string, error) {
 	maxRetries := cfg.MaxRetries
 	if maxRetries <= 0 {
@@ -724,19 +728,28 @@ func (t *TaskTool) runSubWithRetrySession(ctx context.Context, prompt string, cf
 
 	currentPrompt := prompt
 	var finalResult string
-	var subSession *session.Session
-	if run != nil {
-		subSession = run.Session
-	}
 	for attempt := 0; attempt <= maxRetries; attempt++ {
-		result, err := t.runSubSession(ctx, currentPrompt, subReg, subSink(ctx, run), run, maxSteps, outputSchema, seed)
+		result, subSession, err := t.runSubSession(ctx, currentPrompt, subReg, subSink(ctx, run), run, maxSteps, outputSchema, seed)
 		if err != nil {
 			return result, err
 		}
 		finalResult = result
-		// After first attempt with a persisted session, keep using it.
+		// GA1-09: after the first attempt, hand the session actually executed
+		// against back to the loop. run == nil (ephemeral mode) previously left
+		// run nil on every retry, so each attempt started a brand-new session
+		// and the failure history never accumulated — the opposite of this
+		// function's documented semantics (the dead `run == nil && subSession
+		// != nil` branch could never fire because subSession was only assigned
+		// when run != nil). The wrapper carries no Ref, so every store-side
+		// hook inside runSubSession (MarkRunning/TrackProgress, subJournal,
+		// SessionID registration) stays a no-op, and finalizeRun still treats
+		// the run as ephemeral (Ref == "").
+		// seed belongs to the first attempt only: Session.Seed REPLACES the
+		// whole message log rather than appending, so re-injecting it on a
+		// retry would wipe the just-accumulated failure history.
 		if run == nil && subSession != nil {
 			run = &SubagentRun{Session: subSession} // ephemeral wrapper for retries
+			seed = nil
 		}
 
 		checkOutput, checkErr := t.runCheckCommand(ctx, cfg.Check)

@@ -1,3 +1,16 @@
+## 非版本刀：全仓审计第 15 批·簇 B 真 bug（3 条并行线）· 2026-10-02
+
+- **刀型**：接续同日审计第 14 批（`295b6d2a`）。**线 1 主代理直做**（`internal/types`+`graph`，删死定义不值得一个子代理波次）+ **线 2/线 3 互斥并行子代理**（线2 `internal/gaea/agent` / 线3 `internal/app` 两文件；Go 包互斥）+ 主代理开工前预核（四处现场亲读）、逐线复核 diff、**亲手重做两条线的反向变异**、收线缝合与全量门禁。**不抬版本、不动 CHANGELOG**。
+- **交付**：`docs/code-audit-2026-10-02/round-17-p1-batch15.md`（预核 4 条 / 逐线落地 / 跨线裁决 6 条 / 留池与拍板 / 审计纠错 3 条）。
+- **三条内容**：①**IN2-13** 删 `types.ConsistencyReport/ConsistencyIssue` 死定义（**全仓零消费实证**：`types.Consistency` 限定引用 0 命中、`overall_note` 除定义 0 命中；graph 版是唯一活形态＝handler+前端全走 `issues/total_issues/summary`；消费方历史已在 `3d84c7a7`/`b6f092f7` 清掉）——处置=删除而非改名/兼容层，graph 版注释标注唯一形态防复活；②**GA1-09** retry_until ephemeral 模式**同会话续跑接活**（原意判明=补真语义非盲删，三证据：函数 doc 宣称累积 + 重试提示词预设子代理记得上次 + 死分支是「会话藏在 `runSubSession` 不外传」的接线未遂；修法=`runSubSession` 回传会话 + 首试后包 ephemeral wrapper（`Ref==""`，MarkRunning/subJournal/SessionID 四项次生影响全 no-op 读码核实）+ `seed=nil`）；③**AP1-08** Apply/Restore × 场景/整章四段写回体收敛为 2 helper（`writeBackRewriteVersionScene` applying 分流 / `writeBackRewriteVersionWhole` 错误前缀逐字传入；落账/slog/返回 map 留调用点；Apply 的完整性校验+快照与 Restore 的**无条件还原**语义差异钉死）+ **AP1-07** 三处 9 参取消出口收敛为 `savePartial` 闭包（三态本体与签名不动）。
+- **Seed 替换语义（子代理对预核的修正）**：`Session.Seed` 是**整体替换**（`session/session.go:52-56`）非追加——`seed=nil` 不是防御性微调而是必须项，重试重注种子会把刚累积的失败历史整段抹掉。已进 doc 注释与测试（4 消息形状断言钉死重注）。
+- **测试**：+2 文件零既有改动——`task_retry_session_test.go`（第二次请求必须包含首试 assistant 回复 + 恰 4 条消息 `[sys,user,assistant,retry-user]` + check 恰 2 次）；`novel_rewrite_writeback_pin_test.go`（7 Test 522 行：四路径 Happy〔含快照恰好 +1/Label/Trigger/WordCount/v4 rebuild 对称〕+ 错误分支文案逐字〔完整性拒绝零副作用/幂等篡改磁盘不重写/校验顺序钉死〕+ slog 捕获逐字）。**行为不变时序证明**：钉子先对原始代码跑绿 → 重构 → 一字不改复绿。
+- **反向证据（主代理亲手各重做一组，「子代理跑过 ≠ 只信自述」）**：线 2 短路 wrapper → 同会话测试红（第二请求只剩 `[sys,user 重试提示]`）→ 还原绿；线 3 拍丢 Apply 应用前快照 → 钉子红（`应用应恰好落 1 个快照，得到 0`）→ 还原绿。`TEMP-MUTATE|REVERSE-TEST|if false` 足迹内 0 命中。
+- **门禁**：`scripts/ci.ps1` 前台 CI OK / exit 0（golangci v2.14.0 0 issues · Go 全量 · 前端 lint+build · vitest 427 文件 3712 例 · E 系列 · 卫生四查）；守卫四份全绿（`check-primitives --strict` 无新增 · `test-ctors` **364 零新增** · `bindings-drift` OK@744 · `contract-drift` 无新增）。
+- **审计原文纠错 3 条**：①IN2-13「消费端按哪套解析都可能拿到空字段」危害偏重——types 版零消费，无任何消费端拿错，真实形态是同名撞车地雷；②GA1-09 审计留了「盲删」选项——原意三证据链判明为补真语义，盲删会把「文档与实现相反」的静默矛盾永久化；③AP1-07「三态落盘三份重复」的「三份」指三处调用出口（`:558/:571/:581`），三态判定本体始终单一。
+- **坑/教训（进在册）**：①`Session.Seed` 替换语义——「防重复注入」的弱直觉会漏掉「抹掉累积历史」的真后果，读标准库语义要读实现不要读名字；②死分支处置先判原意（doc 宣称+调用方提示词+半成品形态三证据链），再定删或接活；③并行波次纪律延续：主代理线直做小足迹 + 子代理线包互斥，三线并行期间 `go build ./...` 恒绿。
+- **留池**：`writeBackRewritten` 与新 helper 远期合并（需统一错误文案，跨消费方）；`saveCancelledPartial` 与 converge/scene_cards 的 cancelled 事件词汇两套（语义不同不硬并）。**待拍板池不变**（桌面 agent 接线三件套 / `download_and_install` 独立确认 UI / `GaeaDocumentLint` 读根门 / FE6-09 conversationKey / AP4-01 / X1-03 / `estimateTokens` 四口径）。**下一批建议**：簇 C 口径单源（IN1-09 AI 味判据三套严重度 / IN1-05 `Profile` vs `Fingerprint` / GA3-07 知识库检索双口径 / IN3-02 日历语义 / FE4-04 绑定名三清单 / GA6 成本条目族）或簇 D 死代码（FE3-03 死绑定检测须按「前端驼峰名 + `mappings.ts` 反查」实现）。
+
 ## 非版本刀：全仓审计第 14 批·簇 A 安全（4 条并行线）· 2026-10-02
 
 - **刀型**：接续同日审计第 13 批（`a08e9129`）。**4 条互斥并行子代理线**（线1 路径归一/书封护栏（app+域包）/ 线2 hook 沙箱（gaea/hook+boot）/ 线3 whisper 桌面操作 / 线4 前端两条真 bug）+ 主代理开工前预核、**独立实证**（自己写 Go 探针 + 自己跑子代理探针）、**反向变异由主代理执行**、收线缝合与全量门禁。**不抬版本、不动 CHANGELOG**。

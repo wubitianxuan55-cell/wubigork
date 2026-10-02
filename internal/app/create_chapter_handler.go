@@ -498,6 +498,13 @@ func (a *writingState) streamCreateChapter(ctx context.Context, pm *project.Mana
 	g := playGuardrails()
 
 	for attempt := 0; attempt <= maxContinues; attempt++ {
+		// AP1-07 收敛：三处取消出口（连接前取消 / ctx.Done / error 帧夹带取消）
+		// 的「落盘+return」调用形态原是三份同构的 9 参调用；7 个稳定实参在此
+		// 收敛一份，唯逐处取值的是 summaryStarted（连接前恒 false——本轮必然
+		// 未进入摘要段）。saveCancelledPartial 本体（三态判定）保持单一实现。
+		savePartial := func(summaryStarted bool) {
+			a.saveCancelledPartial(pm, fullText, bodyText, attempt, summaryStarted, targetNum, nodeID, branch, existedBefore)
+		}
 		if attempt > 0 {
 			a.emit("create-chapter-stream", map[string]interface{}{
 				"type":    "phase",
@@ -555,7 +562,7 @@ func (a *writingState) streamCreateChapter(ctx context.Context, pm *project.Mana
 			// 部分并走 cancelled 事件（此时通常为空稿，后端只发事件不写空文件；
 			// 连接尚未建立，本轮必然没进入摘要段，summaryStarted 恒 false）。
 			if ctx.Err() != nil {
-				a.saveCancelledPartial(pm, fullText, bodyText, attempt, false, targetNum, nodeID, branch, existedBefore)
+				savePartial(false) // 连接尚未建立，summaryStarted 恒 false
 				return
 			}
 			a.emit("create-chapter-stream", map[string]interface{}{"type": "error", "error": err.Error()})
@@ -568,7 +575,7 @@ func (a *writingState) streamCreateChapter(ctx context.Context, pm *project.Mana
 			select {
 			case <-ctx.Done():
 				// T6-7.2 用户取消：把已生成部分落盘后退出（不再续写）
-				a.saveCancelledPartial(pm, fullText, bodyText, attempt, summaryStarted, targetNum, nodeID, branch, existedBefore)
+				savePartial(summaryStarted)
 				return
 			case chunk, ok := <-chunks:
 				if !ok {
@@ -578,7 +585,7 @@ func (a *writingState) streamCreateChapter(ctx context.Context, pm *project.Mana
 					if ctx.Err() != nil {
 						// 取消导致的流中断（parseStreamEvents 在 ctx 取消时发 error 帧）：
 						// 与上方 ctx.Done 分支等价，同样落盘已生成部分。
-						a.saveCancelledPartial(pm, fullText, bodyText, attempt, summaryStarted, targetNum, nodeID, branch, existedBefore)
+						savePartial(summaryStarted)
 						return
 					}
 					a.emit("create-chapter-stream", map[string]interface{}{"type": "error", "error": chunk.Error})

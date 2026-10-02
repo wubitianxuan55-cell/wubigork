@@ -27,7 +27,10 @@ type ConsistencyIssue struct {
 	Branch      string `json:"branch"`     // 分支标记：""=主线章节，"a"/"b"/"c"=分支章节
 }
 
-// ConsistencyReport 一致性检查报告
+// ConsistencyReport 一致性检查报告。
+// 全仓唯一一致性报告形态（JSON 消费面 issues/total_issues/summary，前端
+// ConsistencyPanel 同口径）；internal/types 的同名异构死定义已删除，
+// 勿在别处再造第二份（审计 IN2-13）。
 type ConsistencyReport struct {
 	Issues      []ConsistencyIssue `json:"issues"`
 	TotalIssues int                `json:"total_issues"`
